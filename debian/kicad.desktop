@@ -1,0 +1,9 @@
+[Desktop Entry]
+MimeType=text/pro
+Name=KiCad
+Exec=kicad
+Icon=kicad_icon.png
+Categories=Electronics;Development
+Type=Application
+Terminal=false
+Comment=PCB-Suite

@@ -1,0 +1,19 @@
+upstream does not provide a full package of source material
+instead there are two downloads, a source and binary package, where the
+source package is only the source for the c++ application and the binary
+package contains two builds of this for linux, and two for windows, plus
+the help files, component libraries, etc. and a copy of wings3d
+
+the source package is 1.5mb and the binary package is 70mb, to avoid
+including the full 70mb binary package in the debian source orig package
+i have combined the full source package with the following components
+from the binary package:
+ * "modules" dir (except a couple of pdf datasheets) (10mb)
+ * "library" dir (1.6mb)
+ * "help" dir (32mb)
+ * "demos" dir (3.2mb)
+ * "internat" dir (2.4mb)
+ * "template" dir (8k)
+ * kicad_icon.png
+
+in the future i hope the upstream author will improve this situation

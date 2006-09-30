@@ -1,0 +1,110 @@
+#!/usr/bin/make -f
+
+# Uncomment this to turn on verbose mode.
+#export DH_VERBOSE=1
+
+# This has to be exported to make some magic below work.
+export DH_OPTIONS
+
+# .NOTPARALLEL:
+
+configure: configure-stamp
+configure-stamp: patch
+	dh_testdir
+	touch $@
+
+patch: patch-stamp
+patch-stamp:
+	dpatch apply-all
+	touch $@
+
+unpatch:
+	dpatch deapply-all
+	rm -rf patch-stamp debian/patched
+
+build: build-arch build-indep
+
+build-arch: build-arch-stamp
+build-arch-stamp: configure-stamp 
+
+	$(MAKE) -f makefile.gtk
+	touch $@
+
+build-indep: build-indep-stamp
+build-indep-stamp: configure-stamp 
+
+	touch $@
+
+clean: clean-patched unpatch
+clean-patched:
+	dh_testdir
+	dh_testroot
+	rm -f build-arch-stamp build-indep-stamp configure-stamp
+
+	-$(MAKE) -f makefile.gtk clean
+
+	dh_clean 
+
+install: install-indep install-arch
+install-indep:
+	dh_testdir
+	dh_testroot
+	dh_clean -k -i 
+	dh_installdirs -i
+	dh_installdocs
+
+# copy component stuff
+#	cp -R demos $(CURDIR)/debian/kicad-common/usr/share/kicad/
+	dh_installexamples
+	dh_installmenu -a
+
+# fix up the line endings (doesn't really matter, but saves a few bytes)
+	find $(CURDIR)/debian/kicad-common/usr/share/kicad/ -type f ! -name '*.wings' ! -path '*.svn*' -print0 | xargs -0n1 dos2unix
+	dh_install -i
+
+install-arch:
+	dh_testdir
+	dh_testroot
+	dh_clean -k -s 
+	dh_installdirs -s
+	dh_installdocs
+
+	dh_install -s
+
+# Build architecture independant packages.
+binary-indep: build-indep install-indep
+	dh_testdir
+	dh_testroot
+	dh_installchangelogs -i
+	dh_desktop
+	dh_link -i
+	dh_strip -i
+	dh_compress -i
+	dh_fixperms -i
+	dh_makeshlibs -i
+	dh_installdeb -i
+	dh_shlibdeps -i
+	dh_gencontrol -i
+	dh_md5sums -i
+	dh_builddeb -i
+
+# Build architecture dependant packages.
+binary-arch: build-arch install-arch
+	dh_testdir
+	dh_testroot
+	dh_installchangelogs -s
+	dh_installexamples -s
+	dh_installman -s
+	dh_link -s
+	dh_strip -s
+	dh_compress -s
+	dh_fixperms -s
+	dh_makeshlibs -s
+	dh_installdeb -s
+	dh_shlibdeps -s
+	dh_gencontrol -s
+	dh_md5sums -s
+	dh_builddeb -s
+
+binary: binary-arch binary-indep
+.PHONY: build clean binary-indep binary-arch binary install install-indep install-arch configure

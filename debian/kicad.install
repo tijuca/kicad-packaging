@@ -1,0 +1,7 @@
+kicad/kicad 		/usr/bin/
+cvpcb/cvpcb 		/usr/bin/
+pcbnew/pcbnew 		/usr/bin/
+eeschema/eeschema 	/usr/bin/
+gerbview/gerbview 	/usr/bin/
+
+eeschema/plugins/netlist_form_pads-pcb /usr/lib/kicad/plugins/

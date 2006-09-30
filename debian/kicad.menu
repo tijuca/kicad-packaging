@@ -1,0 +1,2 @@
+?package(kicad):needs="X11" section="Apps/Technical"\
+ title="KICAD" icon="/usr/share/pixmaps/kicad_icon.png" command="/usr/bin/kicad"
