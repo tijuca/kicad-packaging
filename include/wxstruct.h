@@ -291,6 +291,9 @@ public:
 	virtual void HandleBlockPlace(wxDC * DC);
 	virtual int HandleBlockEnd(wxDC * DC);
 
+	void CopyToClipboard(wxCommandEvent& event);
+
+	/* interprocess communication */
 	void OnSockRequest(wxSocketEvent &evt);
 	void OnSockRequestServer (wxSocketEvent &evt);
 };
@@ -994,8 +997,10 @@ private:
 	EDA_SchComponentStruct * Load_Component(wxDC * DC,
 			const wxString & libname, wxArrayString & List, bool UseLibBrowser );
 	void StartMovePart(EDA_SchComponentStruct * DrawLibItem, wxDC * DC);
+public:
 	void CmpRotationMiroir(
 			EDA_SchComponentStruct * DrawComponent, wxDC * DC, int type_rotate );
+private:
 	void SelPartUnit(EDA_SchComponentStruct *DrawComponent, int unit, wxDC * DC);
 	void ConvertPart(EDA_SchComponentStruct *DrawComponent, wxDC * DC);
 	void SetInitCmp(EDA_SchComponentStruct * DrawComponent, wxDC * DC);
@@ -1145,13 +1150,12 @@ public:
 	wxListBox * m_CmpList;
 	wxSize m_CmpListSize;
 
-	bool m_IsModal;
-    // this pointer is non-NULL only while the modal event loop is running
-    wxMyDialogModalData * m_modalData;
+	wxSemaphore * m_Semaphore;	// != NULL if the frame must emulate a modal dialog
 
 public:
 	WinEDA_ViewlibFrame( wxWindow * father, WinEDA_App *parent,
-					LibraryStruct * Library = NULL, bool IsModal = FALSE);
+					LibraryStruct * Library = NULL,
+					wxSemaphore * semaphore= NULL);
 
 	~WinEDA_ViewlibFrame(void);
 
@@ -1169,8 +1173,6 @@ public:
 	void ClickOnLibList(wxCommandEvent& event);
 	void ClickOnCmpList(wxCommandEvent & event);
 	SCH_SCREEN * GetScreen(void) { return (SCH_SCREEN *) m_CurrentScreen;}
-
-	void ShowInModalMode(void);
 
 private:
 	void SelectCurrentLibrary(void);
@@ -1307,7 +1309,7 @@ public:
 
 	~WinEDA_PositionCtrl(void);
 
-	void Enable(bool on);
+	void Enable(bool x_win_on, bool y_win_on);
 	void SetValue(int x_value, int y_value);
 	wxPoint GetValue(void);
 };

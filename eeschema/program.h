@@ -272,7 +272,7 @@ public:
 	DrawSheetLabelStruct *m_Label; 		/* Points de connection */
 	int m_NbLabel;						/* Nombre de points de connexion */
 	int m_Layer;
-	wxPoint m_End;						/* Coord extremité sheet */
+	wxSize m_Size;						/* Size of sheet symbol */
 
 public:
 	DrawSheetStruct(const wxPoint & pos = wxPoint(0,0) );

@@ -1,6 +1,6 @@
-	/******************************************************************/
-	/* schframe.cpp  - fonctions des classes du type WinEDA_DrawFrame */
-	/******************************************************************/
+	/*************************************************************/
+	/* menubar.cpp  - create the menubar for the schematic frame */
+	/*************************************************************/
 
 #ifdef __GNUG__
 #pragma implementation
@@ -21,14 +21,14 @@
 /************************************************/
 void WinEDA_SchematicFrame::ReCreateMenuBar(void)
 /************************************************/
-/* Cree ou reinitialise le menu du haut d'ecran
+/* create or update the menubar for the schematic frame
 */
 {
 int ii;
 wxMenuBar * menuBar = GetMenuBar();
 
 	if( menuBar == NULL )
-		{
+	{
 		menuBar = new wxMenuBar();
 			
 		m_FilesMenu = new wxMenu;
@@ -81,6 +81,14 @@ wxMenuBar * menuBar = GetMenuBar();
 	    item->SetBitmap(plot_xpm);
 		choice_plot_fmt->Append(item);
 
+#ifdef __WINDOWS__
+		/* Under windows, one can draw to the clipboard */
+		item = new wxMenuItem(choice_plot_fmt, ID_GEN_COPY_SHEET_TO_CLIPBOARD,
+			_("Plot to Clipboard"), _("Export drawings to clipboard") );
+	    item->SetBitmap(copy_button);
+		choice_plot_fmt->Append(item);
+#endif
+
 		m_FilesMenu->AppendSeparator();
 		ADD_MENUITEM_WITH_HELP_AND_SUBMENU(m_FilesMenu, choice_plot_fmt,
 			ID_GEN_PLOT, _("&Plot"),  _("Plot Hplg, Postscript, SVG"), plot_xpm);
@@ -90,7 +98,7 @@ wxMenuBar * menuBar = GetMenuBar();
 	    item->SetBitmap(exit_xpm);
 		m_FilesMenu->Append(item);
 
-// Creation des selections des anciens fichiers
+		// Create the list of last edited schematic files
 		m_FilesMenu->AppendSeparator();
 		int max_file = m_Parent->m_LastProjectMaxCount;
 		for ( ii = 0; ii < max_file; ii++ )
@@ -151,9 +159,9 @@ wxMenuBar * menuBar = GetMenuBar();
 
 		// Associate the menu bar with the frame
 		SetMenuBar(menuBar);
-		}
+	}
 
-	else		// simple mise a jour de la liste des fichiers anciens
+	else		// Update the list of last edited schematic files
 		{
 		wxMenuItem * item;
 		int max_file = m_Parent->m_LastProjectMaxCount;

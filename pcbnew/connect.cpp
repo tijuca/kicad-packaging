@@ -516,14 +516,33 @@ int ii;
 }
 
 
-static int tri_par_X( void * pt_ref, void * pt_comp)
+static int SortPadsByXCoord( void * pt_ref, void * pt_comp)
+/* used to Sort a pad list by x coordinate value
+*/
 {
 D_PAD * ref = *(LISTE_PAD*) pt_ref;
 D_PAD * comp = *(LISTE_PAD*) pt_comp;
 	return( ref->m_Pos.x - comp->m_Pos.x );
 }
 
+/****************************************************/
+LISTE_PAD* CreateSortedPadListByXCoord(BOARD * pcb )
+/****************************************************/
+/* Create a sorted list of pointers to pads.
+	This list is sorted by X ccordinate value.
+	The list must be freed bu user
+*/
+{
+LISTE_PAD* pad_list = (LISTE_PAD*) MyMalloc( pcb->m_NbPads * sizeof( D_PAD *) );
+	memcpy(pad_list, pcb->m_Pads, pcb->m_NbPads* sizeof( D_PAD *) );
+	qsort(pad_list, pcb->m_NbPads, sizeof( D_PAD *),
+			(int(*)(const void *, const void *)) SortPadsByXCoord);
+	return pad_list;
+}
+
+/******************************************************************/
 void WinEDA_BasePcbFrame::reattribution_reference_piste(int affiche)
+/******************************************************************/
 {
 TRACK  * pt_piste,
 		* pt_next;
@@ -546,11 +565,7 @@ int masque_layer;
 	//////////////////////////////////////////////////////
 	// Connexion des pistes accrochees a 1 pad au moins //
 	//////////////////////////////////////////////////////
-
-	pt_mem = (LISTE_PAD*) MyMalloc( m_Pcb->m_NbPads * sizeof( D_PAD *) );
-	memcpy(pt_mem, m_Pcb->m_Pads, m_Pcb->m_NbPads* sizeof( D_PAD *) );
-	qsort(pt_mem, m_Pcb->m_NbPads, sizeof( D_PAD *),
-			(int(*)(const void *, const void *)) tri_par_X);
+	pt_mem = CreateSortedPadListByXCoord(m_Pcb);
 
 	if(affiche)
 		Affiche_1_Parametre(this, -1,wxEmptyString, wxT("Conn Pads"),a_color);

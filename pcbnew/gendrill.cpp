@@ -114,6 +114,7 @@ private:
 	void GenDrillFiles(wxCommandEvent& event);
 	void GenDrillMap(int format);
 	void UpdatePrecisionOptions(wxCommandEvent& event);
+	void UpdateConfig(void);
 	int Plot_Drill_PcbMap( FORET * buffer, int format);
 	int Gen_Liste_Forets( FORET * buffer,bool print_header);
 	int Gen_Drill_File_EXCELLON( FORET * buffer);
@@ -294,14 +295,14 @@ WinEDA_DrillFrame * frame = new WinEDA_DrillFrame(this);
 }
 
 
-/****************************************************************/
-void  WinEDA_DrillFrame::OnQuit(wxCommandEvent& WXUNUSED(event))
-/****************************************************************/
-{
+/******************************************/
+void  WinEDA_DrillFrame::UpdateConfig(void)
+/******************************************/
 	/* Save drill options: */
-wxConfig * Config = m_Parent->m_Parent->m_EDA_Config;
-
+{
 	SetParams();
+
+wxConfig * Config = m_Parent->m_Parent->m_EDA_Config;
 	if( Config )
 	{
 		Config->Write(ZerosFormatKey, Zeros_Format);
@@ -310,7 +311,14 @@ wxConfig * Config = m_Parent->m_Parent->m_EDA_Config;
 		Config->Write(UnitDrillInchKey, Unit_Drill_is_Inch);
 		Config->Write(DrillOriginIsAuxAxisKey, DrillOriginIsAuxAxis);
 	}
+}
 
+
+/****************************************************************/
+void  WinEDA_DrillFrame::OnQuit(wxCommandEvent& WXUNUSED(event))
+/****************************************************************/
+{
+	UpdateConfig();	/* Save drill options: */
     Close(true);    // true is to force the frame to close
 }
 
@@ -323,9 +331,7 @@ int ii;
 wxString FullFileName;
 wxString msg;
 
-//<ryan's edit>
-    SetParams();
-//</ryan's edit>
+	UpdateConfig();	/* set params and Save drill options */
 
 	m_Parent->MsgPanel->EraseMsgBox();
 
@@ -420,7 +426,7 @@ TRACK * pt_piste;
 D_PAD * pt_pad;
 MODULE * Module;
 int ii, diam, nb_trous;
-int x0, y0;
+int x0, y0, xf, yf, xc, yc;
 float xt,yt;
 char line[1024];
 
@@ -465,7 +471,8 @@ char line[1024];
 				nb_trous++;
 			}
 		}
-		/* Examen de la liste des pads : */
+
+		/* Read pad list and create Drill infos for round holes only: */
 		Module = m_Parent->m_Pcb->m_Modules;
 		for( ; Module != NULL; Module = (MODULE*)Module->Pnext )
 		{
@@ -473,10 +480,12 @@ char line[1024];
 			pt_pad = (D_PAD*) Module->m_Pads;
 			for ( ; pt_pad != NULL; pt_pad = (D_PAD*)pt_pad->Pnext )
 			{
-				diam = pt_pad->m_Drill;
+				if ( pt_pad->m_DrillShape != CIRCLE ) continue;
+				diam = pt_pad->m_Drill.x;
+				if ( diam == 0 ) continue;
 				if(diam != foret->diametre) continue;
 
-				/* calcul de la position des trous: */
+				/* Compute the hole coordinates: */
 				x0 = pt_pad->m_Pos.x - File_Drill_Offset.x;
                 y0 = pt_pad->m_Pos.y - File_Drill_Offset.y;
 //<ryan's edit>
@@ -487,18 +496,74 @@ char line[1024];
                     Gen_Line_EXCELLON(line, xt, yt);
 				else
                     Gen_Line_EXCELLON(line, xt*10, yt*10);
-					//	sprintf(line,"X%dY%d\n",
-					//		(int)(float(x0) * conv_unit * 10000.0),
-					//		(int)(float(y0) * conv_unit * 10000.0) );
 
-				// Si les flottants sont ecrits avec , au lieu de .
-				// conversion , -> . necessaire !
-				to_point( line );
+				to_point( line );	// Internationalization compensation (, to . for floats)	
 				fputs(line,dest);
 				nb_trous++;
 			} /* Fin examen 1 module */
 		} /* Fin 1 passe de foret */
-	} /* fin analyse des trous de modules */
+
+		/* Read pad list and create Drill infos for oblong holes only: */ 
+		Module = m_Parent->m_Pcb->m_Modules;
+		for( ; Module != NULL; Module = (MODULE*)Module->Pnext )
+		{
+			/* Examen  des pastilles */
+			pt_pad = (D_PAD*) Module->m_Pads;
+			for ( ; pt_pad != NULL; pt_pad = (D_PAD*)pt_pad->Pnext )
+			{
+				if ( pt_pad->m_DrillShape != OVALE ) continue;
+
+				diam = MIN( pt_pad->m_Drill.x, pt_pad->m_Drill.y ) ;
+				if ( diam == 0 ) continue;
+				if(diam != foret->diametre) continue;
+
+				/* Compute the hole coordinates: */
+				xc = x0 = xf = pt_pad->m_Pos.x - File_Drill_Offset.x;
+                yc = y0 = yf = pt_pad->m_Pos.y - File_Drill_Offset.y;
+				
+				/* Compute the start and end coordinates for the shape */
+				if ( pt_pad->m_Drill.x < pt_pad->m_Drill.y )
+				{
+					int delta = (pt_pad->m_Drill.y - pt_pad->m_Drill.x) / 2;
+					y0 -= delta; yf += delta;
+				}
+				else
+				{
+					int delta = (pt_pad->m_Drill.x - pt_pad->m_Drill.y) / 2;
+					x0 -= delta; xf += delta;
+				}
+				RotatePoint(&x0, &y0, xc, yc, pt_pad->m_Orient);
+				RotatePoint(&xf, &yf, xc, yc, pt_pad->m_Orient);
+//<ryan's edit>
+				if (!Mirror) { y0 *= -1;  yf *= -1; }
+
+// 				sprintf(line,"T%d\n",ii+1); fputs(line,dest);
+
+				xt = float(x0) * conv_unit; yt = float(y0) * conv_unit;
+				if(Unit_Drill_is_Inch)
+                    Gen_Line_EXCELLON(line, xt, yt);
+				else
+                    Gen_Line_EXCELLON(line, xt*10, yt*10);
+				to_point( line );
+				/* remove the '\n' from end of line: */
+				for ( int kk = 0; line[kk] != 0; kk++ )
+					if ( line[kk] == '\n' || line[kk] =='\r' )
+						line[kk] = 0;
+				fputs(line,dest);
+				
+				fputs("G85",dest);
+
+                xt = float(xf) * conv_unit; yt = float(yf) * conv_unit;
+				if(Unit_Drill_is_Inch)
+                    Gen_Line_EXCELLON(line, xt, yt);
+				else
+                    Gen_Line_EXCELLON(line, xt*10, yt*10);
+				to_point( line ); fputs(line,dest);
+				fputs("G05\n",dest);
+				nb_trous++;
+			} /* Fin examen 1 module */
+		} /* fin analyse des trous de modules pour le foret en cours*/
+	} /* fin analyse des forets */
 
 	return(nb_trous);
 }
@@ -617,7 +682,10 @@ char line[1024];
 		pt_pad = (D_PAD*) Module->m_Pads;
 		for ( ; pt_pad != NULL; pt_pad = (D_PAD*)pt_pad->Pnext )
 		{
-			diam = pt_pad->m_Drill;
+			if ( pt_pad->m_DrillShape == CIRCLE )
+				diam = pt_pad->m_Drill.x;
+			else diam = MIN (pt_pad->m_Drill.x, pt_pad->m_Drill.y);
+
 			if(diam == 0) continue;
 
 			foret = GetOrAddForet( buffer, diam);
@@ -664,6 +732,9 @@ void WinEDA_DrillFrame::Init_Drill(void)
 /* Print the DRILL file header */
 {
 char Line[256];
+
+    fputs("M48\n",dest);
+
 	if (!Minimal)
 	{
 		DateAndTime(Line);
@@ -674,13 +745,8 @@ char Line[256];
 			CONV_TO_UTF8(m_Choice_Precision->GetStringSelection()));
 		fprintf(dest,"%s / ",CONV_TO_UTF8(m_Choice_Unit->GetStringSelection()));
 		fprintf(dest,"%s}\n",CONV_TO_UTF8(m_Choice_Zeros_Format->GetStringSelection()));
-    }
 
-    fputs("M48\n",dest);
-
-	if (!Minimal)
-	{
-	    fputs("R,T\nVER,1\nFMAT,2\n",dest);
+ 	    fputs("R,T\nVER,1\nFMAT,2\n",dest);
 	}
 
 	if(Unit_Drill_is_Inch) fputs("INCH,",dest);	// Si unites en INCHES
@@ -1068,7 +1134,7 @@ wxSize size;
 			pt_pad = (D_PAD*) Module->m_Pads;
 			for ( ; pt_pad != NULL; pt_pad = (D_PAD*)pt_pad->Pnext )
 			{
-				diam = pt_pad->m_Drill;
+				diam = pt_pad->m_Drill.x;
 				if(diam != foret->diametre) continue;
 
 				/* calcul de la position des trous: */

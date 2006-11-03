@@ -196,16 +196,16 @@ DrawSheetStruct * Sheet = (DrawSheetStruct *) m_Parent;
 	m_Flags = 0;
 	m_Pos.x = Sheet->m_Pos.x;
 	m_Edge = 0;
-	if( frame->GetScreen()->m_Curseur.x > (Sheet->m_Pos.x + (Sheet->m_End.x/2)) )
+	if( frame->GetScreen()->m_Curseur.x > (Sheet->m_Pos.x + (Sheet->m_Size.x/2)) )
 		{
 		m_Edge = 1;
-		m_Pos.x = Sheet->m_Pos.x + Sheet->m_End.x;
+		m_Pos.x = Sheet->m_Pos.x + Sheet->m_Size.x;
 		}
 
 	m_Pos.y = frame->GetScreen()->m_Curseur.y;
 	if( m_Pos.y < Sheet->m_Pos.y ) m_Pos.y = Sheet->m_Pos.y;
-	if( m_Pos.y > (Sheet->m_Pos.y+Sheet->m_End.y) )
-			m_Pos.y = Sheet->m_Pos.y + Sheet->m_End.y;
+	if( m_Pos.y > (Sheet->m_Pos.y+Sheet->m_Size.y) )
+			m_Pos.y = Sheet->m_Pos.y + Sheet->m_Size.y;
 
 	RedrawOneStruct(frame->DrawPanel, DC, Sheet, GR_DEFAULT_DRAWMODE);
 
@@ -248,17 +248,17 @@ DrawSheetStruct * Sheet = (DrawSheetStruct *) SheetLabel->m_Parent;
 
 	SheetLabel->m_Edge = 0;
 	SheetLabel->m_Pos.x = Sheet->m_Pos.x;
-	if( panel->m_Parent->GetScreen()->m_Curseur.x > (Sheet->m_Pos.x + (Sheet->m_End.x/2)) )
+	if( panel->m_Parent->GetScreen()->m_Curseur.x > (Sheet->m_Pos.x + (Sheet->m_Size.x/2)) )
 		{
 		SheetLabel->m_Edge = 1;
-		SheetLabel->m_Pos.x = Sheet->m_Pos.x + Sheet->m_End.x;
+		SheetLabel->m_Pos.x = Sheet->m_Pos.x + Sheet->m_Size.x;
 		}
 
 	SheetLabel->m_Pos.y = panel->m_Parent->GetScreen()->m_Curseur.y;
 	if( SheetLabel->m_Pos.y < Sheet->m_Pos.y )
 			SheetLabel->m_Pos.y = Sheet->m_Pos.y;
-	if( SheetLabel->m_Pos.y > (Sheet->m_Pos.y+Sheet->m_End.y) )
-			SheetLabel->m_Pos.y = Sheet->m_Pos.y + Sheet->m_End.y;
+	if( SheetLabel->m_Pos.y > (Sheet->m_Pos.y+Sheet->m_Size.y) )
+			SheetLabel->m_Pos.y = Sheet->m_Pos.y + Sheet->m_Size.y;
 
 	RedrawOneStruct(panel, DC, SheetLabel, g_XorMode);
 }

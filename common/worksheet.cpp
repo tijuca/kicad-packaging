@@ -11,7 +11,7 @@
 #include "worksheet.h"
 
 /* Must be defined in main applications: */
-extern const wxString g_Main_Title;
+extern wxString g_Main_Title;
 
 /*********************************************************************/
 void WinEDA_DrawFrame::TraceWorkSheet(wxDC * DC, BASE_SCREEN * screen)

@@ -433,13 +433,15 @@ double fcoord[8][2], f_hole_coord[8][2];
 float scale;
 double zpos;
 wxPoint shape_pos;
-double x, y, r, w, hole;
+double x, y, r, w, hole, holeX, holeY;
 double drillx, drilly;
 bool Oncu, Oncmp, Both;
 int color;
 
 	scale = g_Parm_3D_Visu.m_BoardScale;
-	hole = (double)m_Drill * scale / 2;
+	holeX = (double)m_Drill.x * scale / 2;
+	holeY = (double)m_Drill.y * scale / 2;
+	hole = MIN (holeX,holeY);
 
 	/* calcul du centre des formes des pads : */
     shape_pos = ReturnShapePos();
@@ -455,8 +457,8 @@ int color;
 	angle = m_Orient;
 	drillx = m_Pos.x  * scale;
 	drilly = m_Pos.y * scale;
-	/* trace du trou de percage */
-	if ( m_Drill )
+	/* Draw the pad hole (TODO: draw OBLONG hole)*/
+	if ( holeX && holeY )
 	{
 		SetGLColor(DARKGRAY);
 		Draw3D_FilledCylinder(drillx, -drilly, hole, g_Parm_3D_Visu.m_LayerZcoord[CMP_N], 0.0);

@@ -881,19 +881,19 @@ char * ptcar;
 			}
 		}
 
-	/* Ligne suivante: Doit etre "S xx yy nn mm" avec xx, yy = position
-		de la feuille ( coin haut gauche ) et nn,mm taille de la feuille */
+	/* Next line: must be "S xx yy nn mm" with xx, yy = sheet position
+		( upper left corner  ) et nn,mm = sheet size */
 	if( (sscanf(&Line[1], "%d %d %d %d",
 				&SheetStruct->m_Pos.x, &SheetStruct->m_Pos.y,
-				&SheetStruct->m_End.x, &SheetStruct->m_End.y) != 4) ||
+				&SheetStruct->m_Size.x, &SheetStruct->m_Size.y) != 4) ||
 				(Line[0] != 'S' ) )
-		{
+	{
 		MsgDiag.Printf(
 				wxT(" ** EESchema file sheet struct error at line %d, aborted"),
 					LineCount);
 		Failed = TRUE;
 		return(Failed);
-		}
+	}
 
 	/* Lecture des champs */
 	for(;;)	/* Analyse des lignes "Fn "texte" .." */

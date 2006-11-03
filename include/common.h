@@ -313,6 +313,11 @@ COMMON_GLOBL int g_CursorShape;
 /* Draw color for moving objects: */
 COMMON_GLOBL int g_GhostColor;
 
+/* Current used screen: */
+COMMON_GLOBL BASE_SCREEN * ActiveScreen;
+
+
+
 /**************************************/
 /* Prototypage des Fonctions Usuelles */
 /**************************************/

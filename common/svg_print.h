@@ -47,6 +47,7 @@ class wxSpinCtrl;
 #define SYMBOL_WINEDA_PRINTSVGFRAME_SIZE wxSize(400, 300)
 #define SYMBOL_WINEDA_PRINTSVGFRAME_POSITION wxDefaultPosition
 #define ID_SPINCTRL 10003
+#define ID_RADIOBOX_SETPRINTMODE 10007
 #define ID_CHECKBOX 10004
 #define ID_RADIOBOX 10005
 #define ID_PRINT_EXECUTE 10002
@@ -89,8 +90,14 @@ public:
 
 ////@begin WinEDA_PrintSVGFrame event handler declarations
 
+    /// wxEVT_CLOSE_WINDOW event handler for ID_DIALOG
+    void OnCloseWindow( wxCloseEvent& event );
+
     /// wxEVT_COMMAND_SPINCTRL_UPDATED event handler for ID_SPINCTRL
     void OnSpinctrlUpdated( wxSpinEvent& event );
+
+    /// wxEVT_COMMAND_RADIOBOX_SELECTED event handler for ID_RADIOBOX_SETPRINTMODE
+    void OnRadioboxSetprintmodeSelected( wxCommandEvent& event );
 
     /// wxEVT_COMMAND_BUTTON_CLICKED event handler for ID_PRINT_EXECUTE
     void OnPrintExecuteClick( wxCommandEvent& event );
@@ -119,6 +126,7 @@ public:
 
 ////@begin WinEDA_PrintSVGFrame member variables
     wxSpinCtrl* m_ButtPenWidth;
+    wxRadioBox* m_ModeColorOption;
     wxCheckBox* m_Print_Sheet_Ref;
     wxRadioBox* m_PagesOption;
     wxTextCtrl* m_FileNameCtrl;

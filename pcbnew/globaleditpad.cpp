@@ -288,6 +288,7 @@ WinEDA_PadGlobalEditFrame * frame = new WinEDA_PadGlobalEditFrame(this, Pad,DC,
 			if( Pad_Drill_Change )
 			{
 				pt_pad->m_Drill = g_Pad_Master.m_Drill;
+				pt_pad->m_DrillShape = g_Pad_Master.m_DrillShape;
 			}
 
 			if( Pad_Orient_Change )
@@ -307,7 +308,7 @@ WinEDA_PadGlobalEditFrame * frame = new WinEDA_PadGlobalEditFrame(this, Pad,DC,
 			{
 				case SMD:
 				case CONN :
-				pt_pad->m_Drill = 0;
+				pt_pad->m_Drill = wxSize(0,0);
 				pt_pad->m_Offset.x = 0;
 				pt_pad->m_Offset.y = 0;
 			}

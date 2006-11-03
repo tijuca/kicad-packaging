@@ -71,7 +71,7 @@ void WinEDA_PcbFrame::DrawHightLight(wxDC * DC, int NetCode)
 {
 TRACK * pts ;
 MODULE * Module;
-PCB_SCREEN * OldScreen = ActiveScreen;
+PCB_SCREEN * OldScreen = (PCB_SCREEN *) ActiveScreen;
 
 	if(g_HightLigt_Status ) draw_mode = GR_SURBRILL | GR_OR;
 	else draw_mode = GR_AND | GR_SURBRILL;

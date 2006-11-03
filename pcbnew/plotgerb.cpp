@@ -9,76 +9,20 @@
 #include "pcbnew.h"
 #include "pcbplot.h"
 #include "trigo.h"
+#include "plotgerb.h"
 
 #include "protos.h"
 
 
-/* Format Gerber : NOTES :
-Fonctions preparatoires:
-	Gn =
-	G01			interpolation lineaire ( trace de droites )
-	G02,G20,G21	Interpolation circulaire , sens trigo < 0
-	G03,G30,G31	Interpolation circulaire , sens trigo > 0
-	G04			commentaire
-	G06			Interpolation parabolique
-	G07			Interpolation cubique
-	G10			interpolation lineaire ( echelle 10x )
-	G11			interpolation lineaire ( echelle 0.1x )
-	G12			interpolation lineaire ( echelle 0.01x )
-	G36			Start polygon description
-	G37			End polygon description
-	G52			plot symbole reference par Dnn code
-	G53			plot symbole reference par Dnn ; symbole tourne de -90 degres
-	G54			Selection d'outil
-	G55			Mode exposition photo
-	G56			plot symbole reference par Dnn A code
-	G57			affiche le symbole reference sur la console
-	G58			plot et affiche le symbole reference sur la console
-	G60			interpolation lineaire ( echelle 100x )
-	G70			Unites = Inches
-	G71			Unites = Millimetres
-	G74			supprime interpolation circulaire sur 360 degre, revient a G01
-	G75			Active interpolation circulaire sur 360 degre
-	G90			Mode Coordonnees absolues
-	G91			Mode Coordonnees Relatives
-
-Coordonnees X,Y
-	X,Y sont suivies de + ou - et de m+n chiffres (non separes)
-			m = partie entiere
-			n = partie apres la virgule
-			 formats classiques : 	m = 2, n = 3 (format 2.3)
-			 						m = 3, n = 4 (format 3.4)
- 	ex:
-	G__ X00345Y-06123 D__*
-
-Outils et D_CODES
-	numero d'outil ( identification des formes )
-	1 a 99 	(classique)
-	1 a 999
-	D_CODES:
-
-	D01 ... D9 = codes d'action:
-	D01			= activation de lumiere ( baisser de plume)
-	D02			= extinction de lumiere ( lever de plume)
-	D03			= Flash
-	D09			= VAPE Flash
-	D51			= precede par G54 -> Select VAPE
-
-	D10 ... D255 = Indentification d'outils ( d'ouvertures )
-				Ne sont pas tj dans l'ordre ( voir tableau ci dessous)
-*/
-
-#define DIM_TRAIT 120 	/* largeur des traits (serigraphie,contours) en 0.1 mils */
-
 /* Variables locales : */
 static int s_Last_D_code ;
 static float Gerb_scale_plot;		/*Coeff de conversion d'unites des traces */
-static int scale_spot_mini;		/* Ouverture mini (pour remplissages) */
-static D_CODE * ListeDCode;		/* Pointeur sur la zone de stockage des D_CODES
-							(typiquement adr_himem - MAX_D_CODE - 10 ) */
+static int scale_spot_mini;			/* Ouverture mini (pour remplissages) */
+static D_CODE * s_DCodeList;			/* Pointeur sur la zone de stockage des D_CODES */
 wxString GerberFullFileName;
 static double scale_x , scale_y ; /* echelles de convertion en X et Y (compte tenu
 									des unites relatives du PCB et des traceurs*/
+static bool ShowDcodeError = TRUE;
 
 /* Routines Locales */
 
@@ -89,7 +33,7 @@ static void Plot_1_CIRCLE_pad_GERBER(wxPoint pos,int diametre) ;
 static void trace_1_pastille_OVALE_GERBER(wxPoint pos, wxSize size,int orient);
 static void PlotRectangularPad_GERBER(wxPoint pos, wxSize size, int orient);
 
-static int get_D_code(int dx,int dy, int type, int drill ) ;
+static D_CODE * get_D_code(int dx,int dy, int type, int drill ) ;
 static void trace_1_pad_TRAPEZE_GERBER(wxPoint pos, wxSize size,wxSize delta,
 							int orient,int modetrace);
 
@@ -379,38 +323,38 @@ void trace_1_pastille_OVALE_GERBER(wxPoint pos, wxSize size, int orient)
 	Pour une orientation quelconque la forme est tracee comme un segment
 */
 {
-int ii ;
+D_CODE * dcode_ptr;
 int x0, y0, x1, y1, delta;
 
 	if( (orient == 900) || (orient == 2700)) /* orient tournee de 90 deg */
-		{
+	{
 		EXCHG(size.x,size.y);
-		}
+	}
 
 	/* Trace de la forme flashee */
 	if( (orient == 0) || (orient == 900) ||
 		(orient == 1800) || (orient == 2700) )
-		{
+	{
 		UserToDeviceCoordinate(pos) ;
 		UserToDeviceSize(size);
 
-		ii = get_D_code(size.x,size.y,GERB_OVALE,0) ;
-		if (ii != s_Last_D_code )
-			{
-			sprintf(cbuf,"G54D%d*\n",ref_D_CODE[ii]) ;
+		dcode_ptr = get_D_code(size.x,size.y,GERB_OVALE,0) ;
+		if (dcode_ptr->m_NumDcode != s_Last_D_code )
+		{
+			sprintf(cbuf,"G54D%d*\n",dcode_ptr->m_NumDcode) ;
 			fputs(cbuf,dest) ;
-			s_Last_D_code = ii ;
-			}
+			s_Last_D_code = dcode_ptr->m_NumDcode;
+		}
 		sprintf(cbuf,"X%5.5dY%5.5dD03*\n", pos.x, pos.y);
 		fputs(cbuf,dest) ;
-		}
+	}
 
 	else	/* Forme tracee comme un segment */
-		{
+	{
 		if(size.x > size.y )
-			{
+		{
 			EXCHG(size.x,size.y); orient += 900;
-			}
+		}
 		/* la pastille est ramenee a une pastille ovale avec dy > dx */
 		delta = size.y - size.x;
 		x0 = 0; y0 = -delta / 2;
@@ -419,7 +363,7 @@ int x0, y0, x1, y1, delta;
 		RotatePoint(&x1,&y1, orient);
 		PlotGERBERLine( wxPoint(pos.x + x0, pos.y + y0),
 						wxPoint(pos.x + x1, pos.y + y1), size.x);
-		}
+	}
 }
 
 
@@ -429,19 +373,19 @@ void Plot_1_CIRCLE_pad_GERBER(wxPoint pos,int diametre)
 /* Plot a circulat pad or via at the user position pos
 */
 {
-int ii ;
+D_CODE * dcode_ptr;
 wxSize size(diametre, diametre);
 
 	UserToDeviceCoordinate(pos);
 	UserToDeviceSize(size);
 
-	ii = get_D_code(size.x,size.x,GERB_CIRCLE,0) ;
-	if (ii != s_Last_D_code )
-		{
-		sprintf(cbuf,"G54D%d*\n",ref_D_CODE[ii]) ;
+	dcode_ptr = get_D_code(size.x,size.x,GERB_CIRCLE,0) ;
+	if (dcode_ptr->m_NumDcode != s_Last_D_code )
+	{
+		sprintf(cbuf,"G54D%d*\n", dcode_ptr->m_NumDcode) ;
 		fputs(cbuf,dest) ;
-		s_Last_D_code = ii ;
-		}
+		s_Last_D_code = dcode_ptr->m_NumDcode;
+	}
 
 	sprintf(cbuf,"X%5.5dY%5.5dD03*\n", pos.x, pos.y);
 	fputs(cbuf,dest) ;
@@ -458,7 +402,7 @@ void PlotRectangularPad_GERBER(wxPoint pos, wxSize size, int orient)
 	de largeur 1/2 largeur pad
 */
 {
-int ii ;
+D_CODE * dcode_ptr;
 
 	/* Trace de la forme flashee */
 	switch (orient)
@@ -471,12 +415,12 @@ int ii ;
 			UserToDeviceCoordinate(pos) ;
 			UserToDeviceSize(size);
 
-			ii = get_D_code(size.x,size.y,GERB_RECT,0) ;
-			if (ii != s_Last_D_code )
+			dcode_ptr = get_D_code(size.x,size.y,GERB_RECT,0) ;
+			if (dcode_ptr->m_NumDcode != s_Last_D_code )
 			{
-				sprintf(cbuf,"G54D%d*\n",ref_D_CODE[ii]) ;
+				sprintf(cbuf,"G54D%d*\n", dcode_ptr->m_NumDcode) ;
 				fputs(cbuf,dest) ;
-				s_Last_D_code = ii ;
+				s_Last_D_code = dcode_ptr->m_NumDcode;
 			}
 			sprintf(cbuf,"X%5.5dY%5.5dD03*\n", pos.x, pos.y);
 			fputs(cbuf,dest) ;
@@ -628,17 +572,17 @@ void PlotGERBERLine(wxPoint start, wxPoint end, int large)
 /* Trace 1 segment de piste :
 */
 {
-int ii ;
+D_CODE * dcode_ptr;
 
 	UserToDeviceCoordinate(start);
 	UserToDeviceCoordinate(end);
 
-	ii = get_D_code(large,large,GERB_LINE,0) ;
-	if (ii != s_Last_D_code )
+	dcode_ptr = get_D_code(large,large,GERB_LINE,0) ;
+	if (dcode_ptr->m_NumDcode != s_Last_D_code )
 	{
-		sprintf(cbuf,"G54D%d*\n",ref_D_CODE[ii]) ;
+		sprintf(cbuf,"G54D%d*\n", dcode_ptr->m_NumDcode) ;
 		fputs(cbuf,dest) ;
-		s_Last_D_code = ii ;
+		s_Last_D_code = dcode_ptr->m_NumDcode;
 	}
 	sprintf(cbuf,"X%5.5dY%5.5dD02*\n",start.x,start.y) ; fputs(cbuf,dest) ;
 	sprintf(cbuf,"X%5.5dY%5.5dD01*\n",end.x,end.y) ; fputs(cbuf,dest) ;
@@ -698,43 +642,47 @@ wxPoint pos;
 }
 
 
-/*****************************************************/
-int get_D_code(int dx,int dy, int type, int drill )
-/*****************************************************/
+/*******************************************************/
+D_CODE * get_D_code(int dx,int dy, int type, int drill )
+/*******************************************************/
 /*
  Fonction Recherchant et Creant eventuellement la description
 	du D_CODE du type et dimensions demandees
 */
 {
-D_CODE * ptr_tool;
-int num_new_D_code = 1 ;
+D_CODE * ptr_tool, * last_dcode_ptr;
+int num_new_D_code = FIRST_DCODE_VALUE;
 
 
-	ptr_tool = ListeDCode;
+	ptr_tool = last_dcode_ptr = s_DCodeList;
 
-	while(ptr_tool->m_Type >= 0 )
+	while(ptr_tool && ptr_tool->m_Type >= 0 )
 	{
-		if( ( ptr_tool->m_Dx == dx ) &&
-			( ptr_tool->m_Dy == dy ) &&
-			( ptr_tool->m_Type == type ) )	/* D_code deja existant */
-					return(ptr_tool->m_NumDcode) ;
-
-			ptr_tool++ ; num_new_D_code++ ;
+		if( ( ptr_tool->m_Size.x == dx ) &&
+			( ptr_tool->m_Size.y == dy ) &&
+			( ptr_tool->m_Type == type ) )
+					return(ptr_tool);	/* D_code deja existant */
+			last_dcode_ptr = ptr_tool;
+			ptr_tool = ptr_tool->m_Pnext ;
+			num_new_D_code++ ;
 	}
 
 	/* At this point, the requested D_CODE does not exist: It will be created */
-	if( ref_D_CODE[num_new_D_code] < 0 )
-	{	/* Tous les DCODES prevus sont epuises */
-		nb_plot_erreur++ ;Affiche_erreur(nb_plot_erreur) ;
-		return (-1) ;
+	if ( ptr_tool == NULL )	/* We must create a new data */
+	{
+		ptr_tool = new D_CODE();
+		ptr_tool->m_NumDcode = num_new_D_code;
+		if ( last_dcode_ptr )
+		{
+			ptr_tool->m_Pback = last_dcode_ptr;
+			last_dcode_ptr->m_Pnext = ptr_tool;
+		}
+		else s_DCodeList = ptr_tool;
 	}
-	ptr_tool->m_Dx = dx ;
-	ptr_tool->m_Dy = dy ;
+	ptr_tool->m_Size.x = dx ;
+	ptr_tool->m_Size.y = dy ;
 	ptr_tool->m_Type = type ;
-	ptr_tool->m_Drill = drill ;
-	ptr_tool->m_NumDcode = num_new_D_code ;
-	(ptr_tool+1)->m_Type = -1;
-	return(ptr_tool->m_NumDcode) ;
+	return(ptr_tool);
 }
 
 
@@ -748,7 +696,7 @@ char Line[1024];
 
 	DateAndTime(Line);
 	wxString Title = g_Main_Title + wxT(" ") + GetBuildVersion();
-	fprintf(gerbfile,"G04 (Genere par %s) le %s*\n",Title.GetData(), Line);
+	fprintf(gerbfile,"G04 (Genere par %s) le %s*\n",CONV_TO_UTF8(Title), Line);
 
 	// Specify linear interpol (G01), unit = INCH (G70), abs format (G90):
 	fputs("G01*\nG70*\nG90*\n", gerbfile);
@@ -766,14 +714,19 @@ char Line[1024];
 /***********************************/
 static void Init_ApertureList(void)
 /***********************************/
-/* Init the memory to handle the aperture list: Create the first aperture descr
+/* Init the memory to handle the aperture list:
 	the member .m_Type is used by get_D_code() to handle the end of list:
 	.m_Type < 0 is the first free aperture descr */
 {
-	ListeDCode = (D_CODE *) adr_himem - (MAX_D_CODE + 10 );
-	memset(ListeDCode, 0, sizeof(D_CODE)); /* code indiquant a la routine get_D_code la fin de
-					la zone de description des D_CODES */
-	ListeDCode->m_Type = -1;	// The first aperture is free (.dx = 0)
+D_CODE * ptr_tool;
+
+	ptr_tool = s_DCodeList;
+	while ( ptr_tool )
+	{
+		s_DCodeList->m_Type = -1;
+		ptr_tool = ptr_tool->m_Pnext ;
+	}
+	ShowDcodeError = TRUE;
 }
 
 /*****************************************************************/
@@ -834,37 +787,36 @@ int WinEDA_BasePcbFrame::Gen_D_CODE_File(FILE * penfile)
 	Genere une sequence RS274X
  */
 {
-D_CODE * ptr_tool, * pt_lim ;
+D_CODE * ptr_tool;
 int nb_dcodes = 0 ;
 
 	/* Init : */
-	ptr_tool = ListeDCode;
-	pt_lim = ptr_tool + MAX_D_CODE;
+	ptr_tool = s_DCodeList;
 
-	while((ptr_tool->m_Type >= 0 ) && (ptr_tool <= pt_lim) )
+	while(ptr_tool && (ptr_tool->m_Type >= 0 ) )
 	{
 		float fscale = 0.0001;	// For 3.4 format
 		char * text;
-		sprintf(cbuf,"%%ADD%d", ref_D_CODE[ptr_tool->m_NumDcode]);
+		sprintf(cbuf,"%%ADD%d", ptr_tool->m_NumDcode);
 		text = cbuf + strlen(cbuf);
 		switch ( ptr_tool->m_Type )
 		{
 			case 1:	// Circle (flash )
-				sprintf(text,"C,%f*%%\n", ptr_tool->m_Dx * fscale);
+				sprintf(text,"C,%f*%%\n", ptr_tool->m_Size.x * fscale);
 				break;
 
 			case 2:	// RECT
-				sprintf(text,"R,%fX%f*%%\n", ptr_tool->m_Dx * fscale,
-								ptr_tool->m_Dy * fscale);
+				sprintf(text,"R,%fX%f*%%\n", ptr_tool->m_Size.x * fscale,
+								ptr_tool->m_Size.y * fscale);
 				break;
 
 			case 3:	// Circle ( lines )
-				sprintf(text,"C,%f*%%\n", ptr_tool->m_Dx * fscale);
+				sprintf(text,"C,%f*%%\n", ptr_tool->m_Size.x * fscale);
 				break;
 
 			case 4:	// OVALE
-				sprintf(text,"O,%fX%f*%%\n", ptr_tool->m_Dx * fscale,
-								ptr_tool->m_Dy * fscale);
+				sprintf(text,"O,%fX%f*%%\n", ptr_tool->m_Size.x * fscale,
+								ptr_tool->m_Size.y * fscale);
 				break;
 
 			default:
@@ -875,7 +827,7 @@ int nb_dcodes = 0 ;
 		to_point ( text + 2 );
 
 		fputs(cbuf,penfile) ;
-		ptr_tool++ ; nb_dcodes++ ;
+		ptr_tool = ptr_tool->m_Pnext; nb_dcodes++ ;
 	}
 
 	return(nb_dcodes);

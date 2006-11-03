@@ -42,7 +42,7 @@ wxString Title = g_Main_Title + wxT(" ") + GetBuildVersion();
 
 	CurrentCmp = BaseListeCmp;
 	for( ; CurrentCmp != NULL; CurrentCmp = CurrentCmp->Pnext)
-		{
+	{
 		fprintf(dest," ( %s ", CONV_TO_UTF8(CurrentCmp->m_TimeStamp));
 
 		if( ! CurrentCmp->m_Module.IsEmpty() )
@@ -61,7 +61,7 @@ wxString Title = g_Main_Title + wxT(" ") + GetBuildVersion();
 		/* Placement de la liste des pins */
 		Pin = CurrentCmp->m_Pins;
 		for( ; Pin != NULL; Pin = Pin->Pnext )
-			{
+		{
 			if( Pin->m_PinNet.Len() > MAX_LEN_NETNAME)
 				ChangePinNet( Pin->m_PinNet );
 				
@@ -71,9 +71,9 @@ wxString Title = g_Main_Title + wxT(" ") + GetBuildVersion();
 					CONV_TO_UTF8(Pin->m_PinNet));
 			else
 				fprintf(dest,"  ( %s ? )\n", CONV_TO_UTF8(Pin->m_PinNum));
-			}
-		fprintf(dest," )\n");
 		}
+		fprintf(dest," )\n");
+	}
 	fprintf(dest,")\n*\n");
 	fclose(dest);
 	return(0);

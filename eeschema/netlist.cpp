@@ -71,7 +71,7 @@ int i;
 		}
 	}
 
-	MyFree(TabNetItems); 
+	MyFree(TabNetItems);
 }
 
 /*************************************************************/
@@ -88,7 +88,7 @@ int i, istart, NetCode;
 SCH_SCREEN * CurrWindow;
 ObjetNetListStruct * BaseTabObjNet;
 wxString msg;
-	
+
 wxBusyCursor Busy;
 
 	NetNumber = 1;
@@ -138,7 +138,7 @@ wxBusyCursor Busy;
 
 	Affiche_1_Parametre(frame, 18,_("Conn"), wxEmptyString,CYAN);
 
-	g_TabObjNet = BaseTabObjNet; 
+	g_TabObjNet = BaseTabObjNet;
 	SheetNumber = g_TabObjNet[0].m_SheetNumber;
 	LastNetCode = LastBusNetCode = 1;
 	for (i = istart = 0; i < g_NbrObjNet; i++)
@@ -196,7 +196,7 @@ wxBusyCursor Busy;
 
 			case NET_SHEETBUSLABELMEMBER:
 				if ( g_TabObjNet[i].m_BusNetCode != 0 ) break; /* Deja connecte */
-			case NET_BUS: 
+			case NET_BUS:
 				/* Controle des connexions type point a point mode BUS */
 				if( g_TabObjNet[i].m_BusNetCode == 0 )
 					{
@@ -276,7 +276,7 @@ wxBusyCursor Busy;
 	for (i = 0; i < g_NbrObjNet; i++)
 		{
 		if(g_TabObjNet[i].m_NetCode != LastNetCode)
-			{	
+			{
 			NetCode++; LastNetCode = g_TabObjNet[i].m_NetCode;
 			}
 		g_TabObjNet[i].m_NetCode = NetCode;
@@ -351,7 +351,7 @@ int NumInclude;
 			case DRAW_SEGMENT_STRUCT_TYPE :
 				#undef STRUCT
 				#define STRUCT ((EDA_DrawLineStruct *) DrawList)
-				if( ObjNet) 
+				if( ObjNet)
 					{
 					if ( (STRUCT->m_Layer != LAYER_BUS) &&
 						 (STRUCT->m_Layer != LAYER_WIRE) )
@@ -377,7 +377,7 @@ int NumInclude;
 			case DRAW_JUNCTION_STRUCT_TYPE :
 				#undef STRUCT
 				#define STRUCT ((DrawJunctionStruct *) DrawList)
-				if( ObjNet) 
+				if( ObjNet)
 					{
 					ObjNet[NbrItem].m_Comp = STRUCT;
 					ObjNet[NbrItem].m_Window = Window;
@@ -392,7 +392,7 @@ int NumInclude;
 			case DRAW_NOCONNECT_STRUCT_TYPE :
 				#undef STRUCT
 				#define STRUCT ((DrawNoConnectStruct *) DrawList)
-				if( ObjNet) 
+				if( ObjNet)
 					{
 					ObjNet[NbrItem].m_Comp = STRUCT;
 					ObjNet[NbrItem].m_Window = Window;
@@ -469,7 +469,7 @@ int NumInclude;
 					y2 = PartY + TransMat[1][0] * Pin->m_Pos.x
 								+ TransMat[1][1] * Pin->m_Pos.y;
 
-					if( ObjNet) 
+					if( ObjNet)
 						{
 						ObjNet[NbrItem].m_Comp = DEntry;
 						ObjNet[NbrItem].m_Type = NET_PIN;
@@ -523,7 +523,7 @@ int NumInclude;
 						SheetLabel = (DrawSheetLabelStruct*) SheetLabel->Pnext)
 					{
 					ii = IsBusLabel(SheetLabel->m_Text);
-					if( ObjNet) 
+					if( ObjNet)
 						{
 						ObjNet[NbrItem].m_Comp = SheetLabel;
 						ObjNet[NbrItem].m_Link = DrawList;
@@ -549,7 +549,7 @@ int NumInclude;
 			default:
 			{
 			wxString msg;
-				msg.Printf( wxT("Netlist: Type struct %d inattendu"),
+				msg.Printf( wxT("Netlist: unexpected type struct %d"),
 									DrawList->m_StructType);
 				DisplayError(frame, msg);
 				break;
@@ -569,7 +569,7 @@ return(NbrItem);
 
 /* Routine qui analyse les labels type xxBUSLABELMEMBER
 	Propage les Netcodes entre labels correspondants ( c'est a dire lorsque
-	leur numero de membre est identique) lorsqu'ils sont connectes 
+	leur numero de membre est identique) lorsqu'ils sont connectes
 	globalement par leur BusNetCode
 	Utilise et met a jour la variable LastNetCode
 */
@@ -619,15 +619,17 @@ int IsBusLabel( const wxString & LabelDrawList )
 */
 
 {
-int Num;
+unsigned Num;
+int ii;
 wxString BufLine;
 long tmp;
 bool error = FALSE;
-	
-	/* Search for  '[' because a bus label is like "busname[nn..mm]" */
-	Num = LabelDrawList.Find('[');
-	if ( Num < 0 ) return(0);
 
+	/* Search for  '[' because a bus label is like "busname[nn..mm]" */
+	ii = LabelDrawList.Find('[');
+	if ( ii < 0 ) return(0);
+	Num = (unsigned) ii;
+	
 	FirstNumWireBus = LastNumWireBus = 9;
 	RootBusNameLength = Num;
 	Num++;
@@ -636,7 +638,7 @@ bool error = FALSE;
 		BufLine.Append(LabelDrawList[Num]);
 		Num++;
 	}
-	
+
 	if ( ! BufLine.ToLong(&tmp) ) error = TRUE;;
 	FirstNumWireBus = tmp;
 	while ( LabelDrawList[Num] == '.' && Num < LabelDrawList.Len() )
@@ -656,7 +658,7 @@ bool error = FALSE;
 	{
 		EXCHG( FirstNumWireBus, LastNumWireBus);
 	}
-	
+
 	if ( error && (s_PassNumber == 0) )
 	{
 		wxString msg = _("Bad Bus Label: ") + LabelDrawList;
@@ -984,12 +986,12 @@ IsConnectType StateFlag;
 		if( NetItemRef->m_Type == NET_NOCONNECT )
 			if( StateFlag != CONNECT ) StateFlag = NOCONNECT;
 
-		/* Analyse du net en cours */		
+		/* Analyse du net en cours */
 		NetItemTst = NetItemRef + 1;
 
 		if( (NetItemTst >= Lim) ||
 			(NetItemRef->m_NetCode != NetItemTst->m_NetCode) )
-			{	/* Net analyse: mise a jour de m_FlagOfConnection */  
+			{	/* Net analyse: mise a jour de m_FlagOfConnection */
 			NetEnd = NetItemTst;
 
 			for( ItemPtr = NetStart; ItemPtr < NetEnd; ItemPtr++ )
@@ -1023,7 +1025,7 @@ IsConnectType StateFlag;
 				case NET_GLOBBUSLABELMEMBER:
 				case NET_JONCTION:
 				break;
-				
+
 				case NET_PIN:
 					if( NetItemRef->m_Type == NET_PIN )
 						StateFlag = CONNECT;

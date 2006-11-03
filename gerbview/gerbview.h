@@ -85,25 +85,8 @@ enum Gerb_GCommand
 };
 
 
-#define MAX_TOOLS 256
+#define MAX_TOOLS 512
 #define FIRST_DCODE 10
-
-/* liste des D_CODES en fonction de leur numero d'outil */
-
-eda_global int D_CODE_Translate[MAX_TOOLS+1]
-#if defined MAIN
-	 = {
-		10,11,12,13,14,15,16,17,18,19,70,71,
-		20,21,22,23,24,25,26,27,28,29,72,73,
-		30,31,32,33,34,35,36,37,38,39,
-		40,41,42,43,44,45,46,47,48,49,
-		50,51,52,53,54,55,56,57,58,59,
-		60,61,62,63,64,65,66,67,68,69,
-		74,75,76,77,78,79,
-		80,81,82,83,84,85,86,87,88,89,
-		90,91,92,93,94,95,96,97,98,99,-1}
-#endif
-	;
 
 enum Gerb_Analyse_Cmd
 {
@@ -145,7 +128,7 @@ public:
 	wxPoint m_CurrentPos;	// current specified coord for plot
 	wxPoint m_PreviousPos;	// old current specified coord for plot
 	wxPoint m_IJPos;		// IJ coord (for arcs & circles )
-	D_CODE * m_Aperture_List[MAX_TOOLS+1];	// Dcode (Aperture) List for this layer
+	D_CODE * m_Aperture_List[MAX_TOOLS+FIRST_DCODE+1];	// Dcode (Aperture) List for this layer
 
 	FILE * m_Current_File;	// Current file to read
 	FILE * m_FilesList[12];		// Files list

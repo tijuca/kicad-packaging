@@ -34,5 +34,34 @@ Description: Electronic schematic and PCB design software
 Package: kicad-common
 Architecture: all
 Description: Common files used by kicad
- This package contains the component libraries and documentation for Kicad.
- Help files in de, en, es, fr & pt
+ This package contains the component libraries and language files for Kicad.
+
+Package: kicad-doc-en
+Architecture: all
+Description: Kicad help files (English)
+ This package provides documentation for Kicad in English.
+
+Package: kicad-doc-es
+Architecture: all
+Description: Kicad help files (Spanish)
+ This package provides documentation for Kicad in Spanish.
+
+Package: kicad-doc-fr
+Architecture: all
+Description: Kicad help files (French)
+ This package provides documentation for Kicad in French.
+
+Package: kicad-doc-de
+Architecture: all
+Description: Kicad help files (German)
+ This package provides documentation for Kicad in German.
+
+Package: kicad-doc-pt
+Architecture: all
+Description: Kicad help files (Portuguese)
+ This package provides documentation for Kicad in Portuguese.
+
+Package: kicad-doc-ru
+Architecture: all
+Description: Kicad help files (Russian)
+ This package provides documentation for Kicad in Russian.

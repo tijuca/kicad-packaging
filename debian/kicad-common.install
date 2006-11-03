@@ -4,6 +4,3 @@ template/	/usr/share/kicad/
 internat/	/usr/share/kicad/
 debian/kicad.desktop	/usr/share/applications/
 kicad_icon.png /usr/share/pixmaps/
-
-help/		/usr/share/doc/kicad/
-demos/		/usr/share/doc/kicad/

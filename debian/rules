@@ -2,6 +2,8 @@
 
 # Uncomment this to turn on verbose mode.
 #export DH_VERBOSE=1
+# Make sure no svn parts inside the deb
+DH_ALWAYS_EXCLUDE=CVS:.svn
 
 # This has to be exported to make some magic below work.
 export DH_OPTIONS
@@ -55,7 +57,7 @@ install-indep:
 
 # copy component stuff
 #	cp -R demos $(CURDIR)/debian/kicad-common/usr/share/kicad/
-	dh_installexamples
+#	dh_installexamples
 	dh_installmenu -a
 
 # fix up the line endings (doesn't really matter, but saves a few bytes)
@@ -79,7 +81,10 @@ binary-indep: build-indep install-indep
 	dh_desktop
 	dh_link -i
 	dh_strip -i
-	dh_compress -i
+# i dont want the helpfiles to be compressed
+	dh_compress -i --exclude=kicad/help
+# i dont want the examples to be compressed so moved behind dh_compress
+	dh_installexamples -i
 	dh_fixperms -i
 	dh_makeshlibs -i
 	dh_installdeb -i
@@ -93,11 +98,11 @@ binary-arch: build-arch install-arch
 	dh_testdir
 	dh_testroot
 	dh_installchangelogs -s
-	dh_installexamples -s
 	dh_installman -s
 	dh_link -s
 	dh_strip -s
 	dh_compress -s
+#	dh_installexamples -s
 	dh_fixperms -s
 	dh_makeshlibs -s
 	dh_installdeb -s

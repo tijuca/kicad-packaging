@@ -294,7 +294,6 @@ eda_global int g_PadCMPColor;
 
 eda_global PCB_SCREEN* ScreenPcb;		/* Ecran principal */
 eda_global PCB_SCREEN* ScreenModule;	/* Ecran de l'editeur de modules */
-eda_global PCB_SCREEN* ActiveScreen;/* pointeur sur l'ecran actif */
 
 
 	/****************************************************/

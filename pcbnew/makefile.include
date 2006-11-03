@@ -237,7 +237,7 @@ pcbplot.o: pcbplot.cpp pcbplot.h $(COMMON)
 
 plothpgl.o: plothpgl.cpp $(COMMON)
 
-plotgerb.o: plotgerb.cpp pcbplot.h $(COMMON)
+plotgerb.o: plotgerb.cpp pcbplot.h plotgerb.h $(COMMON)
 
 plotps.o: plotps.cpp pcbplot.h $(COMMON)
 

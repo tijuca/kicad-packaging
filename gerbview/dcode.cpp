@@ -59,10 +59,8 @@ Outils et D_CODES
 	D02			= extinction de lumiere (lever de plume) lors du déplacement
 	D03			= Flash
 	D09			= VAPE Flash
-	D51			= precede par G54 -> Select VAPE
 
-	D10 ... D255 = Indentification d'outils ( d'ouvertures )
-				Ne sont pas tj dans l'ordre ( voir tableau dans PCBPLOT.H)
+	D10 ... = Indentification d'outils ( d'ouvertures )
 */
 
 	/*********************************/
@@ -244,9 +242,9 @@ D_CODE ** ListeDCode;
 
 
 	if ( g_GERBER_Descr_List[layer] == NULL )
-		{
+	{
 		g_GERBER_Descr_List[layer] = new GERBER_Descr(layer);
-		}
+	}
 
 	/* Mise a jour de l'echelle gerber : */
 	dcode_scale = 10;	/* ici unit dcode = mil, unit interne = 0.1 mil
@@ -287,8 +285,8 @@ D_CODE ** ListeDCode;
 			dimH  = (int)( (dimH * dcode_scale) + 0.5) ;
 			dimV  = (int)( (dimV * dcode_scale) + 0.5) ;
 			drill = (int)( (drill * dcode_scale) + 0.5);
-			if ( ii > 99 ) ii = 99; if ( ii < 1 ) ii = 1;
-			current_Dcode = D_CODE_Translate[ii-1];
+			if ( ii < 1 ) ii = 1;
+			current_Dcode = ii-1 + FIRST_DCODE;
 			}
 		else 		/* valeurs en inches a convertir en mils */
 			{

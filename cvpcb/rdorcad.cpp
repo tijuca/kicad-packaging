@@ -54,10 +54,13 @@ STORECMP * Cmp;
 		DisplayError(this, msg); return(-1);
 	}
 
-	/* Lecture entete qui doit etre "( { OrCAD PCB"*/
-	/* ou "# EESchema Netliste"*/
+	/* Read the file header (must be  "( { OrCAD PCB" or "({ OrCAD PCB" ) */
+	/* or "# EESchema Netliste"*/
 	fgets(Line,255,source) ;
-	i =  strnicmp(Line,"( { ",4) ;	/* net type PCB2 */
+	/* test for netlist type PCB2 */
+	i =  strnicmp(Line,"( {",3) ;
+	if( i != 0 )
+		i =  strnicmp(Line,"({",2) ;
 	if( i != 0 )
 	{
 		i =  strnicmp(Line,"# EESchema",7) ;	/* net type EESchema */

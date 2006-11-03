@@ -348,8 +348,8 @@ int color;
 	GRSetDrawMode(DC, DrawMode);
 
 	GRRect(&panel->m_ClipBox, DC, Struct->m_Pos.x, Struct->m_Pos.y,
-				 Struct->m_Pos.x + Struct->m_End.x,
-				 Struct->m_Pos.y + Struct->m_End.y, color);
+				 Struct->m_Pos.x + Struct->m_Size.x,
+				 Struct->m_Pos.y + Struct->m_Size.y, color);
 
 	/* Trace des textes : SheetName */
 	if( Color > 0 ) txtcolor = Color;
@@ -366,7 +366,7 @@ int color;
 	else txtcolor = ReturnLayerColor(LAYER_SHEETFILENAME);
 	Text = wxT("File: ") + Struct->m_Field[SHEET_FILENAME].m_Text;
 	DrawGraphicText(panel, DC,
-				wxPoint(Struct->m_Pos.x, Struct->m_Pos.y + Struct->m_End.y + 4),
+				wxPoint(Struct->m_Pos.x, Struct->m_Pos.y + Struct->m_Size.y + 4),
 				txtcolor,
 				Text, TEXT_ORIENT_HORIZ, Struct->m_Field[SHEET_FILENAME].m_Size,
 				GR_TEXT_HJUSTIFY_LEFT, GR_TEXT_VJUSTIFY_TOP);
@@ -779,8 +779,8 @@ int DrawMode = g_XorMode;
 			{
 			DrawSheetStruct *Struct = (DrawSheetStruct * ) DrawStruct;
 			GRRect(&panel->m_ClipBox, DC, Struct->m_Pos.x + dx, Struct->m_Pos.y + dy,
-						Struct->m_Pos.x + Struct->m_End.x + dx,
-						Struct->m_Pos.y + Struct->m_End.y + dy, g_GhostColor);
+						Struct->m_Pos.x + Struct->m_Size.x + dx,
+						Struct->m_Pos.y + Struct->m_Size.y + dy, g_GhostColor);
 			break;
 			}
 

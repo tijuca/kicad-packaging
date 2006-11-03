@@ -358,8 +358,8 @@ DrawSheetLabelStruct* sheetlabel;
 	Sheet->m_Flags |= IS_RESIZED;
 
 	/* sauvegarde des anciennes valeurs */
-	s_OldPos.x = Sheet->m_End.x;
-	s_OldPos.y = Sheet->m_End.y;
+	s_OldPos.x = Sheet->m_Size.x;
+	s_OldPos.y = Sheet->m_Size.y;
 
 	/* Recalcul des dims min de la sheet */
 	s_SheetMindx =  SHEET_MIN_WIDTH;
@@ -417,15 +417,15 @@ DrawSheetStruct * Sheet = (DrawSheetStruct *)
 
 	if( Sheet->m_Flags & IS_RESIZED)
 		{
-		Sheet->m_End.x = MAX(s_SheetMindx,
+		Sheet->m_Size.x = MAX(s_SheetMindx,
 							screen->m_Curseur.x	- Sheet->m_Pos.x);
-		Sheet->m_End.y = MAX(s_SheetMindy,
+		Sheet->m_Size.y = MAX(s_SheetMindy,
 							screen->m_Curseur.y	- Sheet->m_Pos.y);
 		SheetLabel = Sheet->m_Label;
 		while(SheetLabel)
 			{
 			if( SheetLabel->m_Edge)
-				SheetLabel->m_Pos.x = Sheet->m_Pos.x + Sheet->m_End.x;
+				SheetLabel->m_Pos.x = Sheet->m_Pos.x + Sheet->m_Size.x;
 			SheetLabel = (DrawSheetLabelStruct *) SheetLabel->Pnext;
 			}
 		}
@@ -499,7 +499,8 @@ DrawSheetStruct * Sheet = (DrawSheetStruct *)
 	else if ( Sheet->m_Flags & IS_RESIZED )/* resize en cours: on l'annule */
 		{
 		RedrawOneStruct(frame->DrawPanel, DC, Sheet, g_XorMode);
-		Sheet->m_End = s_OldPos;
+		Sheet->m_Size.x = s_OldPos.x;
+		Sheet->m_Size.y = s_OldPos.y;
 		RedrawOneStruct(frame->DrawPanel, DC, Sheet, GR_DEFAULT_DRAWMODE);
 		Sheet->m_Flags = 0;
 		}

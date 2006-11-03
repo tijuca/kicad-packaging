@@ -33,8 +33,8 @@ static  PARAM_CFG_LIBNAME_LIST LibNameBufCfg
 
 static  PARAM_CFG_INT PadDrillCfg
 (
-	wxT("PadDril"),		/* identification */
-	&g_Pad_Master.m_Drill,		/* Adresse du parametre */
+	wxT("PadDrlX"),		/* identification */
+	&g_Pad_Master.m_Drill.x,		/* Adresse du parametre */
 	320,			/* Valeur par defaut */
 	0, 0x7FFF		/* Valeurs extremes */
 );

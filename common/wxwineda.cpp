@@ -214,12 +214,12 @@ double value = 0;
 }
 
 
-/*******************************************/
-void WinEDA_PositionCtrl::Enable(bool onoff)
-/*******************************************/
+/************************************************************/
+void WinEDA_PositionCtrl::Enable(bool x_win_on, bool y_win_on)
+/************************************************************/
 {
-	m_FramePosX->Enable(onoff);
-	m_FramePosY->Enable(onoff);
+	m_FramePosX->Enable(x_win_on);
+	m_FramePosY->Enable(y_win_on);
 }
 
 /***********************************************************/

@@ -38,12 +38,3 @@ diff -ur kicad-0.0.20060626.orig/common/gestfich.cpp kicad-0.0.20060626/common/g
  	wxT("/usr/bin/"),
  #endif
  	wxT("end_list")	// End of list symbol, do not change
-@@ -402,7 +402,7 @@
- 	int ii = 0;
- 	while ( 1 )
- 	{
--		if ( s_KicadDataPathList[ii] == wxT("end_list") ) break;
-+		if ( s_KicadBinaryPathList[ii] == wxT("end_list") ) break;
- 		FullFileName = s_KicadBinaryPathList[ii++] + shortname;
- 		if ( wxFileExists(FullFileName) ) return FullFileName;
- 	}

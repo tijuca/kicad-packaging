@@ -219,10 +219,10 @@ wxString fmtmsg[4] = { wxT("HPGL"), wxT("GERBER"), wxT("Postscript"), wxT("Posts
 			OneColonLayerBoxSizer = new wxBoxSizer(wxVERTICAL);
 			LayersBoxSizer->Add(OneColonLayerBoxSizer, 0, wxGROW|wxALL, 5);
 		}
-			
+
 		m_BoxSelecLayer[ii] = new wxCheckBox(this, -1,
 					ReturnPcbLayerName(ii));
-		if ( mask & s_SelectedLayers) m_BoxSelecLayer[ii]->SetValue(TRUE);
+		if ( mask & s_SelectedLayers) m_BoxSelecLayer[ii]->SetValue(true);
 		OneColonLayerBoxSizer->Add(m_BoxSelecLayer[ii], 0, wxGROW|wxALL, 1);
 	}
 
@@ -233,7 +233,7 @@ wxString fmtmsg[4] = { wxT("HPGL"), wxT("GERBER"), wxT("Postscript"), wxT("Posts
 		m_Plot_Sheet_Ref->SetValue(Plot_Sheet_Ref);
 		LeftBoxSizer->Add(m_Plot_Sheet_Ref, 0, wxGROW|wxALL, 1);
 	}
-	else Plot_Sheet_Ref = FALSE;
+	else Plot_Sheet_Ref = false;
 
 	// Option d'impression des pads sur toutes les couches
 	m_Plot_Pads_on_Silkscreen = new wxCheckBox(this,
@@ -369,59 +369,59 @@ int format_list[] =
 		{
 		case PLOT_FORMAT_POST_A4:
 		case PLOT_FORMAT_POST:
-			m_Drill_Shape_Opt->Enable(TRUE);
-			m_PlotModeOpt->Enable(TRUE);
-			m_PlotMirorOpt->Enable(TRUE);
-			m_GerbSpotSizeMinOpt->Enable(FALSE);
-			m_LinesWidth->Enable(TRUE);
-			m_HPGLPenSizeOpt->Enable(FALSE);
-			m_HPGLPenSpeedOpt->Enable(FALSE);
-			m_HPGLPenOverlayOpt->Enable(FALSE);
-			m_HPGL_PlotCenter_Opt->Enable(FALSE);
-			m_Plot_Sheet_Ref->Enable(TRUE);
-			m_Scale_Opt->Enable(TRUE);
-			m_FineAdjustXscaleOpt->Enable(TRUE);
-			m_FineAdjustYscaleOpt->Enable(TRUE);
+			m_Drill_Shape_Opt->Enable(true);
+			m_PlotModeOpt->Enable(true);
+			m_PlotMirorOpt->Enable(true);
+			m_GerbSpotSizeMinOpt->Enable(false);
+			m_LinesWidth->Enable(true);
+			m_HPGLPenSizeOpt->Enable(false);
+			m_HPGLPenSpeedOpt->Enable(false);
+			m_HPGLPenOverlayOpt->Enable(false);
+			m_HPGL_PlotCenter_Opt->Enable(false);
+			m_Plot_Sheet_Ref->Enable(true);
+			m_Scale_Opt->Enable(true);
+			m_FineAdjustXscaleOpt->Enable(true);
+			m_FineAdjustYscaleOpt->Enable(true);
 			m_PlotFormat = PLOT_FORMAT_POST;
-			if ( format == PLOT_FORMAT_POST_A4 ) g_ForcePlotPS_On_A4 = TRUE;
-			else g_ForcePlotPS_On_A4 = FALSE;
-			m_Plot_PS_Negative->Enable(TRUE);
+			if ( format == PLOT_FORMAT_POST_A4 ) g_ForcePlotPS_On_A4 = true;
+			else g_ForcePlotPS_On_A4 = false;
+			m_Plot_PS_Negative->Enable(true);
 			break;
 
 		case PLOT_FORMAT_GERBER:
-			m_Drill_Shape_Opt->Enable(FALSE);
-			m_PlotModeOpt->Enable(FALSE);
-			m_PlotMirorOpt->Enable(FALSE);
-			m_GerbSpotSizeMinOpt->Enable(TRUE);
-			m_LinesWidth->Enable(TRUE);
-			m_HPGLPenSizeOpt->Enable(FALSE);
-			m_HPGLPenSpeedOpt->Enable(FALSE);
-			m_HPGLPenOverlayOpt->Enable(FALSE);
-			m_HPGL_PlotCenter_Opt->Enable(FALSE);
-			m_Plot_Sheet_Ref->Enable(FALSE);
-			m_Scale_Opt->Enable(FALSE);
-			m_FineAdjustXscaleOpt->Enable(FALSE);
-			m_FineAdjustYscaleOpt->Enable(FALSE);
+			m_Drill_Shape_Opt->Enable(false);
+			m_PlotModeOpt->Enable(false);
+			m_PlotMirorOpt->Enable(false);
+			m_GerbSpotSizeMinOpt->Enable(true);
+			m_LinesWidth->Enable(true);
+			m_HPGLPenSizeOpt->Enable(false);
+			m_HPGLPenSpeedOpt->Enable(false);
+			m_HPGLPenOverlayOpt->Enable(false);
+			m_HPGL_PlotCenter_Opt->Enable(false);
+			m_Plot_Sheet_Ref->Enable(false);
+			m_Scale_Opt->Enable(false);
+			m_FineAdjustXscaleOpt->Enable(false);
+			m_FineAdjustYscaleOpt->Enable(false);
 			m_PlotFormat = PLOT_FORMAT_GERBER;
-			m_Plot_PS_Negative->Enable(FALSE);
+			m_Plot_PS_Negative->Enable(false);
 			break;
 
 		case PLOT_FORMAT_HPGL:
-			m_PlotMirorOpt->Enable(TRUE);
-			m_Drill_Shape_Opt->Enable(FALSE);
-			m_PlotModeOpt->Enable(TRUE);
-			m_GerbSpotSizeMinOpt->Enable(FALSE);
-			m_LinesWidth->Enable(FALSE);
-			m_HPGLPenSizeOpt->Enable(TRUE);
-			m_HPGLPenSpeedOpt->Enable(TRUE);
-			m_HPGLPenOverlayOpt->Enable(TRUE);
-			m_HPGL_PlotCenter_Opt->Enable(TRUE);
-			m_Plot_Sheet_Ref->Enable(TRUE);
-			m_Scale_Opt->Enable(TRUE);
-			m_FineAdjustXscaleOpt->Enable(FALSE);
-			m_FineAdjustYscaleOpt->Enable(FALSE);
+			m_PlotMirorOpt->Enable(true);
+			m_Drill_Shape_Opt->Enable(false);
+			m_PlotModeOpt->Enable(true);
+			m_GerbSpotSizeMinOpt->Enable(false);
+			m_LinesWidth->Enable(false);
+			m_HPGLPenSizeOpt->Enable(true);
+			m_HPGLPenSpeedOpt->Enable(true);
+			m_HPGLPenOverlayOpt->Enable(true);
+			m_HPGL_PlotCenter_Opt->Enable(true);
+			m_Plot_Sheet_Ref->Enable(true);
+			m_Scale_Opt->Enable(true);
+			m_FineAdjustXscaleOpt->Enable(false);
+			m_FineAdjustYscaleOpt->Enable(false);
 			m_PlotFormat = PLOT_FORMAT_HPGL;
-			m_Plot_PS_Negative->Enable(FALSE);
+			m_Plot_PS_Negative->Enable(false);
 			break;
 		}
 	format_plot = m_PlotFormat;
@@ -463,7 +463,7 @@ void WinEDA_PlotFrame::SaveOptPlot(wxCommandEvent & event)
 		m_Parent->m_Parent->m_EDA_Config->Write(wxT("PlotXFineScaleAdj"), m_XScaleAdjust);
 		m_Parent->m_Parent->m_EDA_Config->Write(wxT("PlotYFineScaleAdj"), m_YScaleAdjust);
 	}
-	
+
 	g_Plot_PS_Negative = m_Plot_PS_Negative->GetValue();
 }
 
@@ -527,7 +527,7 @@ wxString ext;
 		{
 			s_SelectedLayers |= mask;
 			/* Calcul du nom du fichier */
-			FullFileName =  BaseFileName +ReturnPcbLayerName(layer_to_plot, TRUE) + ext;
+			FullFileName =  BaseFileName +ReturnPcbLayerName(layer_to_plot, true) + ext;
 			switch ( m_PlotFormat)
 			{
 				case PLOT_FORMAT_POST:
@@ -546,7 +546,7 @@ wxString ext;
 		}
 	}
 
-	Close(TRUE);
+	Close(true);
 }
 
 

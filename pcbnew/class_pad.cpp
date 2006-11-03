@@ -27,12 +27,11 @@
 
 D_PAD::D_PAD(MODULE * parent): EDA_BaseStruct( parent, TYPEPAD)
 {
-	memset(m_Padname, 0, sizeof(m_Padname));
+	m_NumPadName = 0;
 	m_Masque_Layer = CUIVRE_LAYER;
 	m_NetCode = 0;				/* Numero de net pour comparaisons rapides */
-	m_Drill = 0;					// Diametre de percage
-	m_Size.x = m_Size.y = 500;		// Dimensions X et Y ( si orient 0 x = axe Y
-								// y = axe Y
+	m_DrillShape = CIRCLE;		// Drill shape = circle
+	m_Size.x = m_Size.y = 500;
 	if (m_Parent && (m_Parent->m_StructType  == TYPEMODULE) )
 		{
 		m_Pos = ((MODULE*)m_Parent)->m_Pos;
@@ -148,6 +147,7 @@ void D_PAD::Copy(D_PAD * source)
 	memcpy(m_Padname,source->m_Padname, sizeof(m_Padname));/* nom de la pastille */
 	m_NetCode = source->m_NetCode;	/* Numero de net pour comparaisons rapides */
 	m_Drill = source->m_Drill;			// Diametre de percage
+	m_DrillShape = source->m_DrillShape;
 	m_Offset = source->m_Offset;        // Offset de la forme
 	m_Size = source->m_Size;			// Dimension ( pour orient 0 )
 	m_DeltaSize = source->m_DeltaSize;  // delta sur formes rectangle -> trapezes
@@ -209,7 +209,7 @@ int	ux0,uy0,
 	rotdx,
 	delta_cx, delta_cy,
 	xc, yc;
-int angle, delta_angle, trou;
+int angle;
 wxPoint coord[4];
 int zoom;
 int fillpad = 0;
@@ -217,7 +217,7 @@ PCB_SCREEN * screen;
 WinEDA_BasePcbFrame * frame;
 wxPoint shape_pos;
 
-	screen = panel ? (PCB_SCREEN *) panel->m_Parent->m_CurrentScreen : ActiveScreen;
+	screen = panel ? (PCB_SCREEN *) panel->m_Parent->m_CurrentScreen : (PCB_SCREEN *) ActiveScreen;
 	frame = screen->GetParentPcbFrame();
 
 	/* Calcul de l'aspect du pad */
@@ -245,8 +245,6 @@ wxPoint shape_pos;
 		color = ColorRefs[color & MASKCOLOR].m_LightColor;
 
 	GRSetDrawMode(DC, draw_mode);  /* mode de trace */
-
-	trou = m_Drill >> 1 ;
 
 	/* calcul du centre des pads en coordonnees Ecran : */
     shape_pos = ReturnShapePos();
@@ -281,13 +279,11 @@ wxPoint shape_pos;
 				{
 				delta_cx = dx - dy; delta_cy = 0;
 				rotdx = m_Size.y;
-				delta_angle = angle+900;
 				}
 			else			/* ellipse verticale */
 				{
 				delta_cx = 0; delta_cy = dy - dx;
 				rotdx = m_Size.x;
-				delta_angle = angle;
 				}
 			RotatePoint(&delta_cx, &delta_cy, angle);
 
@@ -375,20 +371,48 @@ wxPoint shape_pos;
 			}
 		}
 
-	/* trace du trou de percage */
-
+	/* Draw the pad hole */
     int cx0 = m_Pos.x - offset.x;
     int cy0 = m_Pos.y - offset.y;
-	if( fillpad && trou )
+	int hole = m_Drill.x >> 1 ;
+
+	if( fillpad && hole )
+	{
+		color = g_IsPrinting ? WHITE : BLACK; // ou DARKGRAY;
+		if(draw_mode != GR_XOR) GRSetDrawMode(DC, GR_COPY);
+		else GRSetDrawMode(DC, GR_XOR);
+		switch ( m_DrillShape )
 		{
-		if( (trou/zoom) > 1 )	/* C.a.d si le diametre est suffisant */
-			{
-			color = g_IsPrinting ? WHITE : BLACK; // ou DARKGRAY;
-			if(draw_mode != GR_XOR) GRSetDrawMode(DC, GR_COPY);
-			else GRSetDrawMode(DC, GR_XOR);
-			GRFilledCircle(&panel->m_ClipBox, DC, cx0, cy0, trou, color, color);
-			}
+			case CIRCLE:
+				if( (hole/zoom) > 1 )	/* C.a.d si le diametre est suffisant */
+					GRFilledCircle(&panel->m_ClipBox, DC, cx0, cy0, hole, color, color);
+				break;
+				
+			case OVALE:
+				dx = m_Drill.x >> 1 ;
+				dy = m_Drill.y >> 1 ; /* demi dim  dx et dy */
+				/* calcul de l'entraxe de l'ellipse */
+				if( m_Drill.x > m_Drill.y )	/* ellipse horizontale */
+				{
+					delta_cx = dx - dy; delta_cy = 0;
+					rotdx = m_Drill.y;
+				}
+				else			/* ellipse verticale */
+				{
+					delta_cx = 0; delta_cy = dy - dx;
+					rotdx = m_Drill.x;
+				}
+				RotatePoint(&delta_cx, &delta_cy, angle);
+	
+				GRFillCSegm(&panel->m_ClipBox, DC, ux0 + delta_cx, uy0 + delta_cy,
+							ux0 - delta_cx, uy0 - delta_cy,
+							rotdx, color);
+				break;
+			
+			default:
+				break;
 		}
+	}
 
 	GRSetDrawMode(DC, draw_mode);
 	/* Trace du symbole "No connect" ( / ou \ ou croix en X) si necessaire : */
@@ -438,7 +462,7 @@ $EndPAD
 {
 char Line[1024], BufLine[1024], BufCar[256];
 char * PtLine;
-int nn, ll;
+int nn, ll, dx, dy, drill_shape;
 
 	while( GetLine(File, Line, LineNum ) != NULL )
 		{
@@ -487,8 +511,19 @@ int nn, ll;
 				break;
 
 			case 'D':
-				nn = sscanf(PtLine,"%d %d %d", &m_Drill,
-					&m_Offset.x, &m_Offset.y);
+				drill_shape = 0;
+				nn = sscanf(PtLine,"%d %d %d %c %d %d", &m_Drill.x,
+					&m_Offset.x, &m_Offset.y, &drill_shape, &dx, &dy );
+				m_Drill.y = m_Drill.x;
+				m_DrillShape = CIRCLE;
+				if (nn >= 6 )	// Drill shape = OVAL ?
+				{
+					if (drill_shape == 'O' )
+					{
+						m_Drill.x = dx; m_Drill.y = dy;
+						m_DrillShape = OVALE;
+					}
+				}
 				break;
 
 			case 'A':
@@ -538,21 +573,26 @@ char * texttype;
 	/* Generation du fichier pad: */
 	fprintf( File,"$PAD\n"); NbLigne++;
 	switch(m_PadShape)
-		{
+	{
 		case CIRCLE: cshape = 'C'; break;
 		case RECT: cshape = 'R'; break;
 		case OVALE: cshape = 'O'; break;
 		case TRAPEZE: cshape = 'T'; break;
 		default: cshape = 'C';
-			DisplayError(NULL, wxT("Forme Pad inconnue"));
+			DisplayError(NULL, _("Unknown Pad shape"));
 			break;
-		}
+	}
 	fprintf(File,"Sh \"%.4s\" %c %d %d %d %d %d\n",
 						m_Padname, cshape, m_Size.x, m_Size.y,
 						m_DeltaSize.x, m_DeltaSize.y,m_Orient);
 	NbLigne++;
-	fprintf(File,"Dr %d %d %d\n", m_Drill, m_Offset.x, m_Offset.y );
-
+	fprintf(File,"Dr %d %d %d", m_Drill.x, m_Offset.x, m_Offset.y );
+	if ( m_DrillShape == OVALE )
+	{
+		fprintf(File," %c %d %d", 'O', m_Drill.x, m_Drill.y );
+	}
+	fprintf(File,"\n");
+	
 	NbLigne++;
 	switch(m_Attribut)
 		{
@@ -645,9 +685,21 @@ wxString Msg_Pad_Attribut[5] =
 	pos += 7;
 	Affiche_1_Parametre(frame, pos,_("V Size"),Line,RED) ;
 
-	valeur_param((unsigned)m_Drill,Line) ;
 	pos += 7;
-	Affiche_1_Parametre(frame, pos,_("Drill"),Line,RED) ;
+		valeur_param((unsigned)m_Drill.x,Line) ;
+	if ( m_DrillShape == CIRCLE )
+	{
+		Affiche_1_Parametre(frame, pos,_("Drill"),Line,RED);
+	}
+	else
+	{
+		valeur_param((unsigned)m_Drill.x,Line);
+		wxString msg;
+		valeur_param((unsigned)m_Drill.x,msg);
+		Line += wxT(" ") + msg;
+		Affiche_1_Parametre(frame, pos,_("Drill X / Y"),Line,RED);
+	}
+	
 	
 	int module_orient = Module ? Module->m_Orient : 0;
 	if( module_orient )

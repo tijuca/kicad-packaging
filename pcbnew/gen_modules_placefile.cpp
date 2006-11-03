@@ -320,7 +320,7 @@ wxPoint module_pos;
 			(float) pad->m_Size.y * conv_unit);
 		to_point(Line);
 		fputs(Line, rptfile);
-		sprintf( Line, "drill %9.6f\n", (float) pad->m_Drill * conv_unit);
+		sprintf( Line, "drill %9.6f\n", (float) pad->m_Drill.x * conv_unit);
 		to_point(Line);
 		fputs(Line, rptfile);
 		sprintf( Line, "shape_offset %9.6f %9.6f\n",

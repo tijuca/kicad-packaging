@@ -261,7 +261,6 @@ DrawSheetStruct::DrawSheetStruct(const wxPoint & pos) :
 	m_Label = NULL;
 	m_NbLabel = 0;
 	m_Layer = LAYER_SHEET;
-	m_End = pos;						/* Coord extremité sheet */
 }
 
 /**************************************/
@@ -287,7 +286,7 @@ DrawSheetStruct * newitem = new DrawSheetStruct(m_Pos);
 DrawSheetLabelStruct * Slabel = NULL, * label = m_Label;
 int ii;
 
-	newitem->m_End = m_End;
+	newitem->m_Size = m_Size;
 	newitem->m_Parent = m_Parent;
 	newitem->m_TimeStamp = GetTimeStamp();
 

@@ -30,18 +30,23 @@ wxString SelectFromLibBrowser(WinEDA_DrawFrame *parent)
 {
 wxString name;
 WinEDA_ViewlibFrame * Viewer;
+wxSemaphore semaphore(0,1);
 	
 	Viewer = parent->m_Parent->ViewlibFrame;
-	/* Close the current Lib browser, if open, and open a new one, in modal mode */
+	/* Close the current Lib browser, if open, and open a new one, in "modal" mode */
 	if ( Viewer ) Viewer->Destroy();
 	
 	Viewer = parent->m_Parent->ViewlibFrame = new
 				WinEDA_ViewlibFrame(parent->m_Parent->SchematicFrame,
-					parent->m_Parent, NULL, TRUE);
+					parent->m_Parent, NULL, & semaphore );
 	Viewer->AdjustScrollBars();
 
-	Viewer->ShowInModalMode();
-	
+	// Show the library viewer frame until it is closed
+	while ( semaphore.TryWait() == wxSEMA_BUSY )	// Wait for viewer closing event
+	{
+		wxYield();
+		wxMilliSleep(50);
+	}
 	name = g_CurrentViewComponentName;
 	return name;
 }

@@ -104,7 +104,7 @@ wxString msg;
 				if( (ptmp->pad_start == Pad) || (ptmp->pad_end == Pad))
 					ptmp->status |= CH_ROUTE_REQ;
 				break;
-	}
+		}
 	}
 	ptmp = (CHEVELU*)m_Pcb->m_Ratsnest;
 

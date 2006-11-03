@@ -7,6 +7,7 @@ COMMON = ../include/colors.h
 OBJECTS= \
 		confirm.o \
 		base_struct.o\
+		copy_to_clipboard.o\
 		basicframe.o\
 		common_plot_functions.o\
 		common_plotPS_functions.o\

@@ -183,7 +183,7 @@ int WinEDA_PcbFrame::ReturnBlockCommand(int key)
 */
 {
 int cmd = 0;
-	
+
 	switch ( key )
 	{
 		default:
@@ -259,12 +259,7 @@ bool err = FALSE;
 			break;
 
 		case BLOCK_ZOOM:	// Handled by HandleBlockEnd()
-		case BLOCK_ROTATE:
-		case BLOCK_INVERT:
-		case BLOCK_DELETE: 
-		case BLOCK_SAVE:
-		case BLOCK_ABORT:
-		case BLOCK_SELECT_ITEMS_ONLY:
+		default:
 			break;
 		}
 
@@ -356,8 +351,7 @@ int endcommande = TRUE;
 			Window_Zoom( GetScreen()->BlockLocate );
 			break;
 
-		case BLOCK_SELECT_ITEMS_ONLY:
-		case BLOCK_ABORT:
+		default:
 			break;
 	}
 

@@ -5,6 +5,13 @@
 #ifndef PROTO_H
 #define PROTO_H
 
+/***************/
+/* CONNECT.CPP */
+/***************/
+LISTE_PAD* CreateSortedPadListByXCoord(BOARD * pcb);
+/* Create a sorted list of pointers to pads.
+	This list is sorted by X ccordinate value.
+	The list must be freed bu user */
 
 /**************/
 /* PCBCFG.CPP */

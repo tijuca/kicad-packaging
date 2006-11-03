@@ -296,16 +296,17 @@ bool Found;
 
 	strcpy(Line,Text);
 
+	TextValeur = wxT("~");
 	if( (text = strtok(Line, " ()\t\n")) == NULL ) Error = 1;
 	else TextTimeStamp = CONV_FROM_UTF8(text);
 	if( ( text = strtok(NULL, " ()\t\n")) == NULL ) Error = 1;
 	else TextNameLibMod = CONV_FROM_UTF8(text);
 	if( (text = strtok(NULL, " ()\t\n")) == NULL ) Error = 1;
 	else TextCmpName = CONV_FROM_UTF8(text);
-	if( (text = strtok(NULL, " ()\t\n")) == NULL ) Error = 1;
+	if( (text = strtok(NULL, " ()\t\n")) == NULL ) Error = -1;
 	else TextValeur = CONV_FROM_UTF8(text);
 
-	if( Error ) return( NULL );
+	if( Error > 0 ) return( NULL );
 
 	TextTimeStamp.ToLong( &TimeStamp, 16);
 

@@ -437,7 +437,7 @@ DrawSheetLabelStruct * SheetLabel;
 
 	if (fprintf(f, "S %-4d %-4d %-4d %-4d\n",
 					SheetStruct->m_Pos.x,SheetStruct->m_Pos.y,
-					SheetStruct->m_End.x,SheetStruct->m_End.y) == EOF)
+					SheetStruct->m_Size.x,SheetStruct->m_Size.y) == EOF)
 		{
 		Failed = TRUE; return(Failed);
 		}

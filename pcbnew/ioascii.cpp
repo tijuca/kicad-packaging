@@ -473,7 +473,8 @@ char Line[1024], *data;
 
 		if(stricmp(Line, "PadDrill") == 0)
 		{
-			g_Pad_Master.m_Drill = atoi(data);
+			g_Pad_Master.m_Drill.x = atoi(data);
+			g_Pad_Master.m_Drill.y = g_Pad_Master.m_Drill.x;
 			continue;
 		}
 
@@ -554,7 +555,7 @@ int ii, jj;
 	fprintf(File, "TextModSize %d %d\n", ModuleTextSize.x , ModuleTextSize.y);
 	fprintf(File, "TextModWidth %d\n", ModuleTextWidth);
 	fprintf(File, "PadSize %d %d\n", g_Pad_Master.m_Size.x, g_Pad_Master.m_Size.y);
-	fprintf(File, "PadDrill %d\n", g_Pad_Master.m_Drill);
+	fprintf(File, "PadDrill %d\n", g_Pad_Master.m_Drill.x);
 //	fprintf(File, "PadDeltaSize %d %d\n", Pad_DeltaSize.x, Pad_DeltaSize.y);
 //	fprintf(File, "PadDrillOffset %d %d\n", Pad_OffsetSize.x, Pad_OffsetSize.y);
 

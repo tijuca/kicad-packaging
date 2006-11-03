@@ -121,6 +121,7 @@ MODULE * Module;
 
 	g_Pad_Master.m_Offset = pt_pad->m_Offset;
 	g_Pad_Master.m_Drill = pt_pad->m_Drill;
+	g_Pad_Master.m_DrillShape = pt_pad->m_DrillShape;
 }
 
 
@@ -144,6 +145,7 @@ void WinEDA_BasePcbFrame::Import_Pad_Settings(D_PAD * pt_pad, wxDC * DC)
 	pt_pad->m_DeltaSize = wxSize(0,0);
 	pt_pad->m_Offset = g_Pad_Master.m_Offset;
 	pt_pad->m_Drill = g_Pad_Master.m_Drill ;
+	pt_pad->m_DrillShape = g_Pad_Master.m_DrillShape ;
 
 	/* Traitement des cas particuliers : */
 	switch ( g_Pad_Master.m_PadShape)
@@ -162,7 +164,7 @@ void WinEDA_BasePcbFrame::Import_Pad_Settings(D_PAD * pt_pad, wxDC * DC)
 		{
 		case SMD:
 		case CONN :
-			pt_pad->m_Drill = 0;
+			pt_pad->m_Drill = wxSize(0,0);
 			pt_pad->m_Offset.x = 0;
 			pt_pad->m_Offset.y = 0;
 		}
@@ -361,6 +363,7 @@ MODULE * Module;
 	Module->Draw(DrawPanel, DC, wxPoint(0,0),GR_XOR);
 
 	EXCHG(Pad->m_Size.x, Pad->m_Size.y);
+	EXCHG(Pad->m_Drill.x, Pad->m_Drill.y);
 	EXCHG(Pad->m_Offset.x, Pad->m_Offset.y);
 	Pad->m_Offset.y = -Pad->m_Offset.y;
 

@@ -1,2 +1,2 @@
-icon_gerbview ICON "gerbview.ico"
+a_icon_gerbview ICON "gerbview.ico"
 #include "wx/msw/wx.rc"

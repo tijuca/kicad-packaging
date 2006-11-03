@@ -3,7 +3,7 @@
 extern char *new_xpm[];
 
 #else
-const char * new_xpm[] = {
+char * new_xpm[] = {
 "16 16 23 1",
 " 	c None",
 "!	c black",

@@ -196,15 +196,19 @@ int ii;
 }
 
 
-/***********************************************************/
+/*****************************************************************/
 void EDA_SchComponentStruct::SetRotationMiroir( int type_rotate )
-/***********************************************************/
+/******************************************************************/
+/* Compute the new matrix transform for a schematic component
+	in order to have the requested transform (type_rotate = rot, mirror..)
+	which is applied to the initial transform.
+*/
 {
-int TempMat[2][2], TempR;
+int TempMat[2][2];
 bool Transform = FALSE;
 
 	switch (type_rotate)
-		{
+	{
 		case CMP_ORIENT_0:
 		case CMP_NORMAL:		/* Position Initiale */
 			m_Transform[0][0] = 1;
@@ -300,21 +304,37 @@ bool Transform = FALSE;
 			Transform = FALSE;
 			DisplayError(NULL, wxT("SetRotateMiroir() error: ill value") );
 			break;
-		}
-
+	}
+		
 	if ( Transform )
-		{
-		TempR = m_Transform[0][0] * TempMat[0][0] +
-							m_Transform[0][1] * TempMat[1][0];
-		m_Transform[0][1] = m_Transform[0][0] * TempMat[0][1] +
-								m_Transform[0][1] * TempMat[1][1];
-		m_Transform[0][0] = TempR;
-		TempR = m_Transform[1][0] * TempMat[0][0] +
-						m_Transform[1][1] * TempMat[1][0];
-		m_Transform[1][1] = m_Transform[1][0] * TempMat[0][1] +
+	{/* The new matrix transform is the old matrix transform modified by the
+		requested transformation, which is the TempMat transform (rot, mirror ..)
+		in order to have (in term of matrix transform):
+			transform coord = new_m_Transform * coord
+		where transform coord is the coord modified by new_m_Transform from the initial
+		value coord.
+		new_m_Transform is computed (from old_m_Transform and TempMat) to have:
+			transform coord = old_m_Transform * coord * TempMat
+		*/
+	int NewMatrix[2][2];
+
+		NewMatrix[0][0] = m_Transform[0][0] * TempMat[0][0] +
+							m_Transform[1][0] * TempMat[0][1];
+
+		NewMatrix[0][1] = m_Transform[0][1] * TempMat[0][0] +
+								m_Transform[1][1] * TempMat[0][1];
+
+		NewMatrix[1][0] = m_Transform[0][0] * TempMat[1][0] +
+						m_Transform[1][0] * TempMat[1][1];
+
+		NewMatrix[1][1] = m_Transform[0][1] * TempMat[1][0] +
 								m_Transform[1][1] * TempMat[1][1];
-		m_Transform[1][0] = TempR;
-		}
+
+		m_Transform[0][0] = NewMatrix[0][0];
+		m_Transform[0][1] = NewMatrix[0][1];
+		m_Transform[1][0] = NewMatrix[1][0];
+		m_Transform[1][1] = NewMatrix[1][1];
+	}
 }
 
 

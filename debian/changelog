@@ -1,3 +1,10 @@
+kicad (0.0.20060828-1) unstable; urgency=low
+
+  * New upstream.
+  * Split help files out into separate language-specific packages.
+
+ -- Debian Kicad Team <kicad-devel@lists.mose.flexserv.de>  Fri,  3 Nov 2006 19:33:07 +0100
+
 kicad (0.0.20060626-1) unstable; urgency=low
 
   * Initial release (Closes: #278581)

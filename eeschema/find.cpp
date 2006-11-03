@@ -122,10 +122,9 @@ wxString msg, WildText;
 
 		Screen->m_Curseur = pos;
 		curpos = DrawPanel->CursorScreenPosition();
+		// calcul des coord curseur avec origine = screen
 		DrawPanel->GetViewStart(&m_CurrentScreen->m_StartVisu.x,
 								&m_CurrentScreen->m_StartVisu.y);
-
-		// calcul des coord curseur avec origine = screen
 		curpos.x -= m_CurrentScreen->m_StartVisu.x;
 		curpos.y -= m_CurrentScreen->m_StartVisu.y;
 

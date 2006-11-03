@@ -23,14 +23,19 @@ class Pcb3D_GLCanvas;
 class D_PAD: public EDA_BaseStruct
 {
 public:
+	union	 {
+	unsigned long m_NumPadName;
 	char m_Padname[4] ;			/* nom (numero) de la pastille (assimilatble a un long)*/
+	};
 	wxString m_Netname;			/* Net Name */
 	int m_Masque_Layer;			// (Bit a Bit :1= cuivre, 15= cmp,
 								// 2..14 = interne
 								// 16 .. 31 = couches non cuivre
-	int m_PadShape;				// forme CERCLE, RECT, OVALE TRAPEZE ou libre
+	int m_PadShape;				// forme CERCLE, RECT, OVALE, TRAPEZE ou libre
+	int m_DrillShape;			// forme CERCLE, OVAL
 	wxPoint m_Pos;				// Position de reference du pad
-	int m_Drill ;				// Diametre de percage
+	wxSize m_Drill;				// Drill diam (drill shape = CIRCLE) or drill size(shape = OVAL)
+								// for drill shape = CIRCLE, drill diam = m_Drill.x
 	wxSize m_Offset;			// Offset de la forme (pastilles excentrees)
 	wxSize m_Size;				// Dimensions X et Y ( si orient 0 x = axe X
 								// y = axe Y

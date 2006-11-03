@@ -434,12 +434,12 @@ TRACK * pts ;
 		PtPad = (D_PAD*) Module->m_Pads;
 		for ( ; PtPad != NULL ; PtPad = (D_PAD*)PtPad->Pnext )
 		{
-			if( PtPad->m_Drill == 0 ) continue;
+			if( PtPad->m_Drill.x == 0 ) continue;
 
 			/* calcul de la position des trous, selon echelle */
 			pos = PtPad->m_Pos;
 			diam.x = diam.y = (g_DrillShapeOpt == DRILL_MARK) ? SMALL_DRILL :
-					PtPad->m_Drill;
+					PtPad->m_Drill.x;
 			trace_1_pastille_RONDE_POST(pos, diam.x, FILLED);
 		}
 	}

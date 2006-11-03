@@ -85,7 +85,7 @@ de la souris.
 */
 {
 EDA_BaseStruct *DrawStruct = m_CurrentScreen->m_CurrentItem;
-bool BlockActive = (m_CurrentScreen->BlockLocate.m_Command !=  BLOCK_IDLE);
+bool BlockActive = (m_CurrentScreen->BlockLocate.m_Command != BLOCK_IDLE);
 
 
 	DrawPanel->m_CanStartBlock = -1;	// Ne pas engager un debut de bloc sur validation menu
@@ -103,7 +103,7 @@ bool BlockActive = (m_CurrentScreen->BlockLocate.m_Command !=  BLOCK_IDLE);
 		}
 	}
 
-	// If Command in progresss: put the menu "cancel" and "end tool"
+	// If Command in progress: put the menu "cancel" and "end tool"
 	if (  m_ID_current_state )
 	{
 		if ( DrawStruct && DrawStruct->m_Flags )
@@ -273,8 +273,8 @@ EDA_LibComponentStruct * LibEntry;
 	ADD_MENUITEM(orientmenu, ID_POPUP_SCH_ROTATE_CMP_COUNTERCLOCKWISE,
 		_("Rotate +  (R)"), rotate_pos_xpm);
 	ADD_MENUITEM(orientmenu, ID_POPUP_SCH_ROTATE_CMP_CLOCKWISE, _("Rotate -"), rotate_neg_xpm);
-	ADD_MENUITEM(orientmenu, ID_POPUP_SCH_MIROR_X_CMP, _("Mirror --  (Y)"), mirror_V_xpm);
-	ADD_MENUITEM(orientmenu, ID_POPUP_SCH_MIROR_Y_CMP, _("Mirror ||  (X)"), mirror_H_xpm);
+	ADD_MENUITEM(orientmenu, ID_POPUP_SCH_MIROR_X_CMP, _("Mirror --  (X)"), mirror_V_xpm);
+	ADD_MENUITEM(orientmenu, ID_POPUP_SCH_MIROR_Y_CMP, _("Mirror ||  (Y)"), mirror_H_xpm);
 	ADD_MENUITEM(orientmenu, ID_POPUP_SCH_ORIENT_NORMAL_CMP, _("Normal  (N)"), normal_xpm);
 	ADD_MENUITEM_WITH_SUBMENU(PopMenu, orientmenu,
 		ID_POPUP_SCH_GENERIC_ORIENT_CMP, _("Orient Component"), orient_xpm);
@@ -527,21 +527,31 @@ void AddMenusForBlock(wxMenu * PopMenu, WinEDA_SchematicFrame * frame)
 {
 	ADD_MENUITEM(PopMenu, ID_POPUP_CANCEL_CURRENT_COMMAND, _("Cancel Block"), cancel_xpm);
 
+	PopMenu->AppendSeparator();
+
 	if ( frame->GetScreen()->BlockLocate.m_Command == BLOCK_MOVE )
 		ADD_MENUITEM(PopMenu, ID_POPUP_ZOOM_BLOCK,
 			_("Win. Zoom (Midd butt drag mouse)"), zoom_selected_xpm);
-
-	PopMenu->AppendSeparator();
 
 	ADD_MENUITEM(PopMenu, ID_POPUP_PLACE_BLOCK, _("Place Block"), apply_xpm );
 
 	if ( frame->GetScreen()->BlockLocate.m_Command == BLOCK_MOVE )
 	{
-		ADD_MENUITEM(PopMenu, wxID_COPY, _("Save Block"), copy_button);
-		ADD_MENUITEM(PopMenu, ID_POPUP_COPY_BLOCK,
+	wxMenu * menu_other_block_commands = new wxMenu;
+		ADD_MENUITEM_WITH_SUBMENU(PopMenu, menu_other_block_commands,
+			-1, _("Other block commands"), right_xpm);
+		ADD_MENUITEM(menu_other_block_commands, wxID_COPY, _("Save Block"), copy_button);
+		ADD_MENUITEM(menu_other_block_commands, ID_POPUP_COPY_BLOCK,
 			_("Copy Block (shift + drag mouse)"), copyblock_xpm);
-		ADD_MENUITEM(PopMenu, ID_POPUP_DRAG_BLOCK, _("Drag Block (ctrl + drag mouse)"), move_xpm );
-		ADD_MENUITEM(PopMenu, ID_POPUP_DELETE_BLOCK,
+		ADD_MENUITEM(menu_other_block_commands, ID_POPUP_DRAG_BLOCK, _("Drag Block (ctrl + drag mouse)"), move_xpm );
+		ADD_MENUITEM(menu_other_block_commands, ID_POPUP_DELETE_BLOCK,
 			_("Del. Block (shift+ctrl + drag mouse)"), delete_xpm );
+		ADD_MENUITEM(menu_other_block_commands, ID_POPUP_MIRROR_Y_BLOCK, _("Mirror Block ||"), mirror_H_xpm);
+#if 0
+  #ifdef __WINDOWS__
+		ADD_MENUITEM(menu_other_block_commands, ID_GEN_COPY_BLOCK_TO_CLIPBOARD,
+				_("Copy to Clipboard"), copy_button);
+  #endif
+#endif
 	}
 }

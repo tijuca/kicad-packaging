@@ -660,11 +660,11 @@ wxPoint pos;
 	if ( (g_PlotFormat == PLOT_FORMAT_POST) && g_PlotPSColorOpt )
 		SetColorMapPS ( ReturnLayerColor(Struct->m_Layer) );
 	Move_Plume(Struct->m_Pos, 'U');
-	pos = Struct->m_Pos; pos.x += Struct->m_End.x;
+	pos = Struct->m_Pos; pos.x += Struct->m_Size.x;
 	Move_Plume(pos,'D');
-	pos.y += Struct->m_End.y;
+	pos.y += Struct->m_Size.y;
 	Move_Plume(pos, 'D');
-	pos = Struct->m_Pos; pos.y += Struct->m_End.y;
+	pos = Struct->m_Pos; pos.y += Struct->m_Size.y;
 	Move_Plume(pos,'D');
 	Move_Plume(Struct->m_Pos, 'D');
 	Plume('U');
@@ -684,7 +684,7 @@ wxPoint pos;
 	size = Struct->m_Field[SHEET_FILENAME].m_Size;
 	if ( (g_PlotFormat == PLOT_FORMAT_POST) && g_PlotPSColorOpt )
 		SetColorMapPS ( ReturnLayerColor(LAYER_SHEETFILENAME) );
-	PlotGraphicText(g_PlotFormat, wxPoint(Struct->m_Pos.x, Struct->m_Pos.y + Struct->m_End.y + 4),
+	PlotGraphicText(g_PlotFormat, wxPoint(Struct->m_Pos.x, Struct->m_Pos.y + Struct->m_Size.y + 4),
 			txtcolor,
 			Text, TEXT_ORIENT_HORIZ, size,
 			GR_TEXT_HJUSTIFY_LEFT, GR_TEXT_VJUSTIFY_TOP);
