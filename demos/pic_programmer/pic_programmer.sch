@@ -5,7 +5,7 @@ EELAYER END
 $Descr A4 11700 8267
 Sheet 1 2
 Title "JDM PIC Programmer with DC/DC converter for 13V VPP"
-Date "26 jun 2006"
+Date "16 jul 2006"
 Rev "1"
 Comp "KiCad"
 Comment1 ""
@@ -69,24 +69,24 @@ F 1 "PWR_FLAG" H 1600 7130 30  0000 C C
 	-1   0    0    1   
 $EndComp
 Wire Wire Line
-	7600 2950 8500 2950
+	7650 3300 8550 3300
 Wire Wire Line
-	8500 3600 7550 3600
-Text Label 7700 3600 0    60   ~
+	8550 3950 7600 3950
+Text Label 7750 3950 0    60   ~
 CLOCK-RB6
 Wire Wire Line
-	8500 3300 7550 3300
-Text Label 7650 3300 0    60   ~
+	8550 3650 7600 3650
+Text Label 7700 3650 0    60   ~
 DATA-RB7
-Text Label 7700 2950 0    60   ~
+Text Label 7750 3300 0    60   ~
 VPP/MCLR
 $Sheet
-S 8500 2300 1600 1750
+S 8550 2650 1600 1750
 F0 "pic_sockets.sch" 60
 F1 "pic_sockets.sch" 60
-F2 "VPP-MCLR" I L 8500 2950 60 
-F3 "CLOCK-RB6" I L 8500 3600 60 
-F4 "DATA-RB7" I L 8500 3300 60 
+F2 "VPP-MCLR" I L 8550 3300 60 
+F3 "CLOCK-RB6" I L 8550 3950 60 
+F4 "DATA-RB7" I L 8550 3650 60 
 $EndSheet
 Text Label 1850 3800 0    60   ~
 DTR

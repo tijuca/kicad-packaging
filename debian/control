@@ -8,7 +8,7 @@ Standards-Version: 3.7.2
 
 Package: kicad
 Architecture: any
-Depends: kicad-common (>= ${Source-Version}), ${shlibs:Depends}
+Depends: kicad-common (>= ${source:Version}), ${shlibs:Depends}
 Description: Electronic schematic and PCB design software
  Kicad is an open source suite of programs for the creation of printed
  circuit boards. It includes a schematic editor, a PCB layout tool, support
@@ -33,6 +33,7 @@ Description: Electronic schematic and PCB design software
 
 Package: kicad-common
 Architecture: all
+Recommends: kicad
 Description: Common files used by kicad
  This package contains the component libraries and language files for Kicad.
 
@@ -65,3 +66,8 @@ Package: kicad-doc-ru
 Architecture: all
 Description: Kicad help files (Russian)
  This package provides documentation for Kicad in Russian.
+
+Package: kicad-doc-it
+Architecture: all
+Description: Kicad help files (Italian)
+ This package provides documentation for Kicad in Italian.

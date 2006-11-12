@@ -1,3 +1,13 @@
+kicad (0.0.20060829-1) unstable; urgency=low
+
+  * now binNMU safe (rab)
+  * This version is 20060828 but since i forgot something inside the orig.tar.gz i must increase the version number (djp)
+  * Added newer documentation (djp)
+  * Added some updated po files (djp)
+  * Added italian help files (djp)
+
+ -- Daniel J. Priem <danielpriem@flexserv.de>  Sun, 12 Nov 2006 21:40:23 +0100
+
 kicad (0.0.20060828-1) unstable; urgency=low
 
   * New upstream.
