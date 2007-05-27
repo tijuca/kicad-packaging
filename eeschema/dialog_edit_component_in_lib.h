@@ -58,6 +58,9 @@ class wxSpinCtrl;
 #define ID_BROWSE_DOC_FILES 10005
 #define ID_PANEL_ALIAS 10003
 ////@end control identifiers
+#define ID_DELETE_ONE_FOOTPRINT_FILTER 10020
+#define ID_DELETE_ALL_FOOTPRINT_FILTER 10021
+#define ID_ADD_FOOTPRINT_FILTER 10022
 
 /*!
  * Compatibility
@@ -135,6 +138,11 @@ public:
 	void CopyDataToPanelField(void);
 	void CopyPanelFieldToData(void);
 
+	void BuildPanelFootprintFilter(void);
+	void DeleteAllFootprintFilter(wxCommandEvent& event);
+	void DeleteOneFootprintFilter(wxCommandEvent& event);
+	void AddFootprintFilter(wxCommandEvent& event);
+
 ////@begin WinEDA_PartPropertiesFrame member variables
     wxBoxSizer* m_GeneralBoxSizer;
     wxNotebook* m_NoteBook;
@@ -161,6 +169,9 @@ public:
 	wxString m_Title;
 
 	wxPanel * m_PanelField;
+	wxPanel * m_PanelFootprintFilter;
+	wxButton * m_ButtonDeleteAllFootprintFilter;
+	wxButton * m_ButtonDeleteOneFootprintFilter;
 
 	wxCheckBox * AsConvertButt;
 	wxCheckBox * ShowPinNumButt;
@@ -168,7 +179,8 @@ public:
 	wxCheckBox * m_PinsNameInsideButt;
 
 	wxListBox * m_PartAliasList;
-
+	wxListBox * m_FootprintFilterListBox;
+	
 	wxRadioBox * m_FieldSelection;
 	wxCheckBox * m_ShowFieldTextCtrl;
 	wxCheckBox * m_VorientFieldTextCtrl;

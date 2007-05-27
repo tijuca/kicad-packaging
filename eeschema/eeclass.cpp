@@ -57,12 +57,12 @@ void EDA_BaseStruct::Place(WinEDA_DrawFrame * frame, wxDC * DC)
 	m_Flags = 0;
 	SetFlagModify(frame->GetScreen());
 	frame->GetScreen()->m_CurrentItem = NULL;
-	frame->GetScreen()->ManageCurseur = NULL;
-	frame->GetScreen()->ForceCloseManageCurseur = NULL;
+	frame->DrawPanel->ManageCurseur = NULL;
+	frame->DrawPanel->ForceCloseManageCurseur = NULL;
 
-	frame->GetScreen()->CursorOff(frame->DrawPanel, DC);	// Erase schematic cursor
+	frame->DrawPanel->CursorOff(DC);	// Erase schematic cursor
 	RedrawOneStruct(frame->DrawPanel, DC, this, GR_DEFAULT_DRAWMODE);
-	frame->GetScreen()->CursorOn(frame->DrawPanel, DC);	// Display schematic cursor
+	frame->DrawPanel->CursorOn(DC);	// Display schematic cursor
 }
 
 
@@ -75,18 +75,21 @@ static int table_zoom[] = {1,2,4,8,16,32,64,128, 0}; /* Valeurs standards du zoo
 SCH_SCREEN::SCH_SCREEN(EDA_BaseStruct * parent, WinEDA_DrawFrame * frame_source, int idtype):
 		BASE_SCREEN(parent, frame_source, idtype)
 {
-	m_RootSheet = NULL;
+	EEDrawList = NULL;	 /* Schematic items list */
 	m_Zoom = 32;
 	m_Grid = wxSize(50,50);			/* pas de la grille */
 	SetZoomList(table_zoom);
 	SetGridList(g_GridList);
+	m_UndoRedoCountMax = 10;
+
 }
 
 /****************************/
 SCH_SCREEN::~SCH_SCREEN(void)
 /****************************/
 {
-	ClearDrawList();
+	ClearUndoRedoList();
+	FreeDrawList();
 }
 
 /*************************************/
@@ -98,7 +101,7 @@ SCH_SCREEN * SCH_SCREEN::GenCopy(void)
 }
 
 /***********************************/
-void SCH_SCREEN::ClearDrawList(void)
+void SCH_SCREEN::FreeDrawList(void)
 /***********************************/
 /* Routine to clear EESchema drawing list of a screen.
 */

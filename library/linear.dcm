@@ -1,4 +1,4 @@
-EESchema-DOCLIB  Version 2.0  Date: 26/1/2006-11:31:01
+EESchema-DOCLIB  Version 2.0  Date: 6/4/2007-15:17:48
 #
 $CMP 1408
 D CDA 8 bits
@@ -37,6 +37,12 @@ D Ampli Op
 K AmpliOp
 $ENDCMP
 #
+$CMP LM193
+D Dual Voltage Comparator
+K Comp
+F ns/lm193.pdf
+$ENDCMP
+#
 $CMP LM2902N
 D Quad Op amp.
 K AmpliOp
@@ -46,11 +52,13 @@ $ENDCMP
 $CMP LM2903
 D Dual Voltage Comparator
 K Comp
+F ns/lm193.pdf
 $ENDCMP
 #
 $CMP LM293
-D Dual voltage Comparator
+D Dual Voltage Comparator
 K Comp
+F ns/lm193.pdf
 $ENDCMP
 #
 $CMP LM311N
@@ -100,12 +108,13 @@ $ENDCMP
 $CMP LM358
 D Dual Op amp (low power)
 K ampliop
-F AmpliOp.sch
+F ns/lm158.pdf
 $ENDCMP
 #
 $CMP LM358N
 D Dual Op amp (low power)
 K ampliop
+F ns/lm158.pdf
 $ENDCMP
 #
 $CMP LM386
@@ -114,8 +123,9 @@ K Audio Power
 $ENDCMP
 #
 $CMP LM393
-D Dual voltage comparator
+D Dual Voltage Comparator
 K Comp
+F ns/lm193.pdf
 $ENDCMP
 #
 $CMP LM555N

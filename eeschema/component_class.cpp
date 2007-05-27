@@ -14,6 +14,7 @@
 
 #include "protos.h"
 
+#include "macros.h"
 
 
 	/***************************/
@@ -81,6 +82,7 @@ EDA_SchComponentStruct::EDA_SchComponentStruct(const wxPoint & pos):
 {
 int ii;
 	m_Multi = 0;	/* In multi unit chip - which unit to draw. */
+	m_RefIdNumber = 0;
 	m_FlagControlMulti = 0;
 	m_Convert = 0;	/* Gestion des mutiples representations (conversion De Morgan) */
 	/* The rotation/mirror transformation matrix. pos normal*/
@@ -150,12 +152,82 @@ int x0, xm, y0, ym;
 	return BoundaryBox;
 }
 
-/************************************************/
+
+/**************************************************************************/
+void PartTextStruct::SwapData(PartTextStruct * copyitem)
+/**************************************************************************/
+/* Used if undo / redo command:
+	swap data between this and copyitem
+*/
+{
+	EXCHG(m_Text, copyitem->m_Text);
+	EXCHG(m_Layer, copyitem->m_Layer);
+	EXCHG(m_Pos, copyitem->m_Pos);
+	EXCHG(m_Size, copyitem->m_Size);
+	EXCHG(m_Width, copyitem->m_Width);
+	EXCHG(m_Orient, copyitem->m_Orient);
+	EXCHG(m_Miroir, copyitem->m_Miroir);
+	EXCHG(m_Attributs, copyitem->m_Attributs);
+	EXCHG(m_CharType, copyitem->m_CharType);
+	EXCHG(m_HJustify, copyitem->m_HJustify);
+	EXCHG(m_VJustify, copyitem->m_VJustify);
+	EXCHG(m_ZoomLevelDrawable, copyitem->m_ZoomLevelDrawable);
+	EXCHG(m_TextDrawings, copyitem->m_TextDrawings);
+	EXCHG(m_TextDrawingsSize, copyitem->m_TextDrawingsSize);
+}
+
+/**************************************************************************/
+void EDA_SchComponentStruct::SwapData(EDA_SchComponentStruct * copyitem)
+/**************************************************************************/
+/* Used if undo / redo command:
+	swap data between this and copyitem
+*/
+{
+		EXCHG(m_Pos, copyitem->m_Pos);
+		EXCHG(m_Multi, copyitem->m_Multi);
+		EXCHG(m_Convert, copyitem->m_Convert);
+		EXCHG(m_Transform[0][0], copyitem->m_Transform[0][0]);
+		EXCHG(m_Transform[0][1], copyitem->m_Transform[0][1]);
+		EXCHG(m_Transform[1][0], copyitem->m_Transform[1][0]);
+		EXCHG(m_Transform[1][1], copyitem->m_Transform[1][1]);
+		for ( int ii = 0; ii < NUMBER_OF_FIELDS; ii++ )
+		{
+			m_Field[ii].SwapData(&copyitem->m_Field[ii]);
+		}
+}
+
+
+/***********************************************************************/
+void EDA_SchComponentStruct::Place(WinEDA_DrawFrame * frame, wxDC * DC)
+/***********************************************************************/
+{
+	/* save old text in undo list */
+	if ( g_ItemToUndoCopy &&
+		 (g_ItemToUndoCopy->m_StructType == m_StructType) &&
+		((m_Flags & IS_NEW) == 0) )
+	{
+		/* restore old values and save new ones */
+		SwapData( (EDA_SchComponentStruct*) g_ItemToUndoCopy);
+		/* save in undo list */
+		((WinEDA_SchematicFrame*)frame)->SaveCopyInUndoList(this, IS_CHANGED);
+		/* restore new values */
+		SwapData( (EDA_SchComponentStruct*) g_ItemToUndoCopy);
+		delete g_ItemToUndoCopy;
+		g_ItemToUndoCopy = NULL;
+	}
+
+	EDA_BaseStruct::Place(frame, DC);
+}
+
+
+/***************************************************/
 void EDA_SchComponentStruct::ClearAnnotation(void)
-/************************************************/
+/***************************************************/
 /* Suppress annotation ( i.i IC23 changed to IC? and part reset to 1)
 */
 {
+	m_RefIdNumber = 0;
+
 	while ( isdigit(m_Field[REFERENCE].m_Text.Last() ) )
 		m_Field[REFERENCE].m_Text.RemoveLast();
 	if ( m_Field[REFERENCE].m_Text.Last() != '?' )
@@ -338,9 +410,9 @@ bool Transform = FALSE;
 }
 
 
-/*********************************************/
+/****************************************************/
 int EDA_SchComponentStruct::GetRotationMiroir(void)
-/*********************************************/
+/****************************************************/
 {
 int type_rotate = CMP_ORIENT_0;
 int TempMat[2][2], MatNormal[2][2];
@@ -402,9 +474,9 @@ bool found = FALSE;
 		}
 }
 
-/***************************************************************/
+/***********************************************************************/
 wxPoint EDA_SchComponentStruct::GetScreenCoord(const wxPoint & coord)
-/***************************************************************/
+/***********************************************************************/
 /* Renvoie la coordonnée du point coord, en fonction de l'orientation
 du composant (rotation, miroir).
 	Les coord sont toujours relatives à l'ancre (coord 0,0) du composant
@@ -438,6 +510,7 @@ void PartTextStruct::PartTextCopy(PartTextStruct * target)
 /***********************************************************/
 {
 	target->m_Text = m_Text;
+	if ( m_FieldId >= FIELD1 )target->m_Name = m_Name;
 	target->m_Layer = m_Layer;
 	target->m_Pos = m_Pos;
 	target->m_Size = m_Size;

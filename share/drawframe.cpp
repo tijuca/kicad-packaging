@@ -59,12 +59,11 @@ wxSize minsize;
 	m_MenuBar = NULL;		// menu du haut d'ecran
 	m_ID_current_state = 0;
 	m_HTOOL_current_state = 0;
-	m_FrameIsActive = FALSE;
-	m_Draw_Axes = FALSE;			// TRUE pour avoir les axes dessines
+	m_Draw_Axis = FALSE;			// TRUE pour avoir les axes dessines
 	m_Draw_Grid = FALSE;			// TRUE pour avoir la axes dessinee
 	m_Draw_Sheet_Ref = FALSE;		// TRUE pour avoir le cartouche dessiné
 	m_Print_Sheet_Ref = TRUE;		// TRUE pour avoir le cartouche imprimé
-	m_Draw_Auxiliary_Axe = FALSE;	// TRUE pour avoir les axes auxiliares dessines
+	m_Draw_Auxiliary_Axis = FALSE;	// TRUE pour avoir les axes auxiliares dessines
 	m_UnitType = INTERNAL_UNIT_TYPE;		// Internal unit = inch
 	// nombre d'unites internes pour 1 pouce
 	// = 1000 pour schema, = 10000 pour PCB
@@ -110,7 +109,7 @@ int dims[6] = { -1, 60, 130, 130, 40, 100};
 WinEDA_DrawFrame::~WinEDA_DrawFrame(void)
 /****************************************/
 {
-	if ( DrawPanel )	// DrawPanel est NULL en WinEDA3D_DrawFrame
+	if ( DrawPanel )	// for WinEDA3D_DrawFrame DrawPanel == NULL !
 		m_Parent->m_EDA_Config->Write( wxT("AutoPAN"), DrawPanel->m_AutoPAN_Enable);
 }
 
@@ -435,6 +434,8 @@ wxSize Auxtoolbar_size;
 		DrawPanel->SetSize( size.x - Vtoolbar_size.x - opt_size.x, size.y - opt_size.y - 1);
 		DrawPanel->Move(opt_size.x, opt_size.y + Auxtoolbar_size.y + 1);
 	}
+	
+	SizeEv.Skip();
 }
 
 /*************************************************************************/
@@ -503,6 +504,11 @@ void WinEDA_DrawFrame::OnZoom(int zoom_type)
 	if ( DrawPanel == NULL ) return;
 
 bool move_mouse_cursor = FALSE;
+int x,y;
+wxPoint old_pos;
+
+	DrawPanel->GetViewStart( &x, &y );
+	old_pos = m_CurrentScreen->m_Curseur;
 
 	switch (zoom_type)
 		{
@@ -543,10 +549,76 @@ bool move_mouse_cursor = FALSE;
 			Zoom_Automatique(FALSE);
 			break;
 
+		case ID_ZOOM_PANNING_UP:
+			OnPanning(ID_ZOOM_PANNING_UP);
+			break;
+
+		case ID_ZOOM_PANNING_DOWN:
+			OnPanning(ID_ZOOM_PANNING_DOWN);
+			break;
+
+		case ID_ZOOM_PANNING_LEFT:
+			OnPanning(ID_ZOOM_PANNING_LEFT);
+			DrawPanel->CursorOn(NULL);
+			break;
+
+		case ID_ZOOM_PANNING_RIGHT:
+			OnPanning(ID_ZOOM_PANNING_RIGHT);
+			break;
+
+
 		default: wxMessageBox( wxT("WinEDA_DrawFrame::OnZoom switch Error") );
 			break;
 		}
 	Affiche_Status_Box();
+}
+
+/**********************************************/
+void WinEDA_DrawFrame::OnPanning(int direction)
+/**********************************************/
+
+/* Fonction de traitement du zoom
+	Modifie le facteur de zoom et reaffiche l'ecran
+	Pour les commandes par menu Popup ou par le clavier, le curseur est
+	replacé au centre de l'ecran
+*/
+{
+	if ( DrawPanel == NULL ) return;
+
+int delta;
+wxClientDC dc(DrawPanel);
+int x,y;
+
+
+	DrawPanel->PrepareGraphicContext(&dc);
+	DrawPanel->GetViewStart( &x, &y );	// x and y are in scroll unit, not in pixels
+	delta = DrawPanel->m_ScrollButt_unit;
+	switch (direction)
+	{
+		case ID_ZOOM_PANNING_UP:
+			y -= delta;
+		break;
+
+		case ID_ZOOM_PANNING_DOWN:
+			y += delta;
+			break;
+
+		case ID_ZOOM_PANNING_LEFT:
+			x -= delta;
+			break;
+
+		case ID_ZOOM_PANNING_RIGHT:
+			x += delta;
+			break;
+
+		default: wxMessageBox( wxT("WinEDA_DrawFrame::OnPanning Error") );
+			break;
+	}
+
+	DrawPanel->Scroll(x, y);
+
+	/* Place le curseur souris sur le curseur SCHEMA*/
+	DrawPanel->MouseToCursorSchema();
 }
 
 
@@ -566,7 +638,7 @@ int WinEDA_DrawFrame::ReturnBlockCommand(int key)
 void WinEDA_DrawFrame::InitBlockPasteInfos()
 {
 	GetScreen()->BlockLocate.m_BlockDrawStruct = NULL;
-	GetScreen()->ManageCurseur = NULL;
+	DrawPanel->ManageCurseur = NULL;
 }
 
 void WinEDA_DrawFrame::HandleBlockPlace(wxDC * DC)
@@ -608,15 +680,15 @@ int xUnit, yUnit;
 
 
 	if ( m_CurrentScreen->m_Center )
-		{
+	{
 		m_CurrentScreen->m_DrawOrg.x = - draw_size.x/2;
 		m_CurrentScreen->m_DrawOrg.y = - draw_size.y/2;
-		}
+	}
 	else
-		{
+	{
 		m_CurrentScreen->m_DrawOrg.x = - panel_size.x/2;
 		m_CurrentScreen->m_DrawOrg.y = - panel_size.y/2;
-		}
+	}
 
 	// DrawOrg est rendu multiple du zoom min :
 	m_CurrentScreen->m_DrawOrg.x -= m_CurrentScreen->m_DrawOrg.x % 256;

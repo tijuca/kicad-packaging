@@ -1,0 +1,24 @@
+#! /bin/sh /usr/share/dpatch/dpatch-run
+## 03_dynamiclink.dpatch by Richard Antony Burton <richardaburton@gmail.com>
+##
+## All lines beginning with `## DP:' are a description of the patch.
+## DP: Change makefile include to use dynamic linking instead of static.
+
+
+@DPATCH@
+
+--- kicad-0.0.20070525/libs.linux.orig  2007-05-27 17:39:39.000000000 +0100
++++ kicad-0.0.20070525/libs.linux       2007-05-27 16:47:48.000000000 +0100
+@@ -14,9 +14,9 @@
+ # You must comment or uncomment this line for dynamic or static link
+ # dynamic link is less difficult than static link
+ # choose it if you have problems (libs not found, or unresolved references) ), or if kicad is running only on YOUR system.
+-ifndef KICAD_PYTHON
+-KICAD_STATIC_LINK = 1
+-endif
++#ifndef KICAD_PYTHON
++#KICAD_STATIC_LINK = 1
++#endif
+ 
+ ifdef KICAD_PYTHON
+ PYTHON_VERSION=2.3

@@ -58,7 +58,7 @@ wxPoint pos;
 					g_Prj_Config_Filename_ext,	/* extension par defaut */
 					mask,					/* Masque d'affichage */
 					this,
-					wxOPEN,
+					wxFD_OPEN,
 					TRUE					/* ne change pas de repertoire courant */
 					);
 			if ( FullFileName.IsEmpty() ) break;
@@ -145,7 +145,7 @@ wxString mask( wxT("*") );
 					g_Prj_Config_Filename_ext,				/* extension par defaut */
 					mask,			/* Masque d'affichage */
 					displayframe,
-					wxSAVE,
+					wxFD_SAVE,
 					TRUE
 					);
 	if ( FullFileName.IsEmpty() ) return;

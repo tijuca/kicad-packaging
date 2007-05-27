@@ -365,16 +365,13 @@ void AfficheDoc(WinEDA_DrawFrame * frame, const wxString & Doc, const wxString &
 wxString Line1( wxT("Doc:  ")), Line2( wxT("KeyW: "));
 int color = BLUE;
 
-#if ( (wxMAJOR_VERSION < 2) || ((wxMAJOR_VERSION == 2) && (wxMINOR_VERSION <= 4)) )
-	frame->MsgPanel->Clear();
-#else
-	frame->MsgPanel->ClearBackground();
-#endif
-	
-	if ( Doc ) Line1 +=Doc;
-	if ( KeyW ) Line2 += KeyW;
-
-	frame->MsgPanel->Affiche_1_Parametre(10, Line1, Line2, color);
+	if ( frame && frame->MsgPanel)
+	{
+		frame->MsgPanel->EraseMsgBox();
+		Line1 += Doc;
+		Line2 += KeyW;
+		frame->MsgPanel->Affiche_1_Parametre(10, Line1, Line2, color);
+	}
 }
 
 

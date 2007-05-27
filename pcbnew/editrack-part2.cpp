@@ -183,7 +183,7 @@ int itmp;
 	itmp = g_TrackSegmentCount;
 	Begin_Route(g_CurrentTrackSegment, DC);
 
-	GetScreen()->ManageCurseur(DrawPanel, DC, FALSE);
+	DrawPanel->ManageCurseur(DrawPanel, DC, FALSE);
 
 	Via = new SEGVIA(m_Pcb);
 	Via->m_Flags = IS_NEW;
@@ -212,7 +212,7 @@ int itmp;
 	{ /* Via impossible a placer ici */
 		delete Via;
 		GetScreen()->m_Active_Layer = g_CurrentTrackSegment->m_Layer ;
-		GetScreen()->ManageCurseur(DrawPanel, DC, FALSE);
+		DrawPanel->ManageCurseur(DrawPanel, DC, FALSE);
 		return;
 	}
 
@@ -235,7 +235,7 @@ int itmp;
 		track->Pnext = g_CurrentTrackSegment;
 	}
 
-	GetScreen()->ManageCurseur(DrawPanel, DC, FALSE);
+	DrawPanel->ManageCurseur(DrawPanel, DC, FALSE);
 	Affiche_Infos_Piste(this, Via);
 
 	Affiche_Status_Box();
@@ -304,6 +304,7 @@ MODULE * Module = NULL;
 									pt_chevelu->pad_start->m_Pos.y,
 									pt_chevelu->pad_end->m_Pos.x,
 									pt_chevelu->pad_end->m_Pos.y,
+									0,
 									g_DesignSettings.m_RatsnestColor);
 				}
 			}
@@ -336,6 +337,7 @@ MODULE * Module = NULL;
 									pt_chevelu->pad_start->m_Pos.y,
 									pt_chevelu->pad_end->m_Pos.x,
 									pt_chevelu->pad_end->m_Pos.y,
+									0,
 									g_DesignSettings.m_RatsnestColor);
 						}
 					}

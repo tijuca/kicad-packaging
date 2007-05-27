@@ -31,7 +31,7 @@ wxString Line, FullFileName, Mask;
 					ExtRetroBuffer,		/* extension par defaut */
 					Mask,				/* Masque d'affichage */
 					this,
-					wxSAVE,
+					wxFD_SAVE,
 					TRUE
 					);
 	if ( FullFileName.IsEmpty() ) return;
@@ -45,7 +45,7 @@ wxString Line, FullFileName, Mask;
 	}
 
 	/* Generation de la liste */
-	for (Cmp = BaseListeCmp ; Cmp != NULL ; Cmp = Cmp->Pnext )
+	for (Cmp = g_BaseListeCmp ; Cmp != NULL ; Cmp = Cmp->Pnext )
 	{
 		/* génération du composant si son empreinte est définie */
 		if ( Cmp->m_Module.IsEmpty() ) continue;

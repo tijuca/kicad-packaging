@@ -100,11 +100,11 @@ MODULE * Currentmodule = m_Pcb->m_Modules;
 	{
 		BlockState state = GetScreen()->BlockLocate.m_State;
 		CmdBlockType command = GetScreen()->BlockLocate.m_Command;
-		GetScreen()->ForceCloseManageCurseur(this, DC);
+		DrawPanel->ForceCloseManageCurseur(DrawPanel, DC);
 		GetScreen()->BlockLocate.m_State =  state;
 		GetScreen()->BlockLocate.m_Command = command;
-		GetScreen()->ManageCurseur = DrawAndSizingBlockOutlines;
-		GetScreen()->ForceCloseManageCurseur = AbortBlockCurrentCommand;
+		DrawPanel->ManageCurseur = DrawAndSizingBlockOutlines;
+		DrawPanel->ForceCloseManageCurseur = AbortBlockCurrentCommand;
 		GetScreen()->m_Curseur.x = GetScreen()->BlockLocate.GetRight();
 		GetScreen()->m_Curseur.y = GetScreen()->BlockLocate.GetBottom();
 		DrawPanel->MouseToCursorSchema();
@@ -123,11 +123,11 @@ MODULE * Currentmodule = m_Pcb->m_Modules;
 			if ( ItemsCount )
 			{
 				MustDoPlace = 1;
-				if(GetScreen()->ManageCurseur != NULL)
+				if(DrawPanel->ManageCurseur != NULL)
 				{
-					GetScreen()->ManageCurseur(DrawPanel, DC, FALSE);
-					GetScreen()->ManageCurseur = DrawMovingBlockOutlines;
-					GetScreen()->ManageCurseur(DrawPanel, DC, FALSE);
+					DrawPanel->ManageCurseur(DrawPanel, DC, FALSE);
+					DrawPanel->ManageCurseur = DrawMovingBlockOutlines;
+					DrawPanel->ManageCurseur(DrawPanel, DC, FALSE);
 				}
 				GetScreen()->BlockLocate.m_State = STATE_BLOCK_MOVE;
 			DrawPanel->Refresh(TRUE);
@@ -136,13 +136,13 @@ MODULE * Currentmodule = m_Pcb->m_Modules;
 
 		case BLOCK_PRESELECT_MOVE: /* Move with preselection list*/
 			MustDoPlace = 1;
-			GetScreen()->ManageCurseur = DrawMovingBlockOutlines;
+			DrawPanel->ManageCurseur = DrawMovingBlockOutlines;
 			GetScreen()->BlockLocate.m_State = STATE_BLOCK_MOVE;
 			break;
 
 		case BLOCK_DELETE: /* Delete */
 			ItemsCount = MarkItemsInBloc(Currentmodule, GetScreen()->BlockLocate);
-			if ( ItemsCount ) SaveCopyInUndoList();
+			if ( ItemsCount ) SaveCopyInUndoList(Currentmodule);
 			DeleteMarkedItems(Currentmodule);
 			break;
 			
@@ -152,7 +152,7 @@ MODULE * Currentmodule = m_Pcb->m_Modules;
 
 		case BLOCK_ROTATE:
 			ItemsCount = MarkItemsInBloc(Currentmodule, GetScreen()->BlockLocate);
-			if ( ItemsCount ) SaveCopyInUndoList();
+			if ( ItemsCount ) SaveCopyInUndoList(Currentmodule);
 			RotateMarkedItems(Currentmodule, GetScreen()->BlockLocate.Centre());
 			break;
 
@@ -161,7 +161,7 @@ MODULE * Currentmodule = m_Pcb->m_Modules;
 		case BLOCK_MIRROR_Y:
 		case BLOCK_INVERT: /* mirror */
 			ItemsCount = MarkItemsInBloc(Currentmodule, GetScreen()->BlockLocate);
-			if ( ItemsCount ) SaveCopyInUndoList();
+			if ( ItemsCount ) SaveCopyInUndoList(Currentmodule);
 			MirrorMarkedItems(Currentmodule, GetScreen()->BlockLocate.Centre());
 			break;
 
@@ -185,8 +185,8 @@ MODULE * Currentmodule = m_Pcb->m_Modules;
 		GetScreen()->BlockLocate.m_Flags = 0;
 		GetScreen()->BlockLocate.m_State = STATE_NO_BLOCK;
 		GetScreen()->BlockLocate.m_Command = BLOCK_IDLE;
-		GetScreen()->ManageCurseur = NULL;
-		GetScreen()->ForceCloseManageCurseur = NULL;
+		DrawPanel->ManageCurseur = NULL;
+		DrawPanel->ForceCloseManageCurseur = NULL;
 		GetScreen()->m_CurrentItem = NULL;
 		SetToolID(m_ID_current_state, DrawPanel->m_PanelDefaultCursor, wxEmptyString );
 		DrawPanel->Refresh(TRUE);
@@ -209,7 +209,7 @@ void WinEDA_ModuleEditFrame::HandleBlockPlace(wxDC * DC)
 bool err = FALSE;
 MODULE * Currentmodule = m_Pcb->m_Modules;
 
-	if(GetScreen()->ManageCurseur == NULL)
+	if(DrawPanel->ManageCurseur == NULL)
 	{
 		err = TRUE;
 		DisplayError(this, wxT("HandleBlockPLace : ManageCurseur = NULL") );
@@ -227,14 +227,14 @@ MODULE * Currentmodule = m_Pcb->m_Modules;
 		case BLOCK_MOVE: /* Move */
 		case BLOCK_PRESELECT_MOVE: /* Move with preselection list*/
 			GetScreen()->BlockLocate.m_BlockDrawStruct = NULL;
-			SaveCopyInUndoList();
+			SaveCopyInUndoList(Currentmodule);
 			MoveMarkedItems(Currentmodule, GetScreen()->BlockLocate.m_MoveVector);
 			DrawPanel->Refresh(TRUE);
 			break;
 
 		case BLOCK_COPY: /* Copy */
 			GetScreen()->BlockLocate.m_BlockDrawStruct = NULL;
-			SaveCopyInUndoList();
+			SaveCopyInUndoList(Currentmodule);
 			CopyMarkedItems(Currentmodule, GetScreen()->BlockLocate.m_MoveVector);
 			break;
 
@@ -245,12 +245,12 @@ MODULE * Currentmodule = m_Pcb->m_Modules;
 		case BLOCK_MIRROR_X:
 		case BLOCK_MIRROR_Y:
 		case BLOCK_INVERT:	/* Mirror by popup menu, from block move */
-			SaveCopyInUndoList();
+			SaveCopyInUndoList(Currentmodule);
 			MirrorMarkedItems(Currentmodule, GetScreen()->BlockLocate.Centre());
 			break;
 
 		case BLOCK_ROTATE:
-			SaveCopyInUndoList();
+			SaveCopyInUndoList(Currentmodule);
 			RotateMarkedItems(Currentmodule, GetScreen()->BlockLocate.Centre());
 			break;
 
@@ -264,8 +264,8 @@ MODULE * Currentmodule = m_Pcb->m_Modules;
 
 	GetScreen()->SetModify();
 
-	GetScreen()->ManageCurseur = NULL;
-	GetScreen()->ForceCloseManageCurseur = NULL;
+	DrawPanel->ManageCurseur = NULL;
+	DrawPanel->ForceCloseManageCurseur = NULL;
 	GetScreen()->BlockLocate.m_Flags = 0;
 	GetScreen()->BlockLocate.m_State = STATE_NO_BLOCK;
 	GetScreen()->BlockLocate.m_Command =  BLOCK_IDLE;

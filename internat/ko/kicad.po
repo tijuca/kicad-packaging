@@ -2,7 +2,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: kicad\n"
 "POT-Creation-Date: \n"
-"PO-Revision-Date: 2006-06-12 13:49+0900\n"
+"PO-Revision-Date: 2006-08-31 14:06+0900\n"
 "Last-Translator: \n"
 "Language-Team: kicad team <jean-pierre.charras@ujf-grenoble.fr>\n"
 "MIME-Version: 1.0\n"
@@ -2299,7 +2299,7 @@ msgstr "데이터 파일을 찾을 수 없습니다."
 
 #: pcbnew/router.cpp:534
 msgid "Lecture fichier de routage "
-msgstr "Lecture fichier de routage "
+msgstr "자동 배선 파일을 읽는 중 "
 
 #: pcbnew/zones.cpp:136
 #: pcbnew/zones.cpp:137

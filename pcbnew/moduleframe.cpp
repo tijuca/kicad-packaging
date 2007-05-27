@@ -109,7 +109,7 @@ WinEDA_ModuleEditFrame::WinEDA_ModuleEditFrame(wxWindow * father, WinEDA_App *pa
 					WinEDA_BasePcbFrame(father, parent, MODULE_EDITOR_FRAME, wxEmptyString, pos, size)
 {
 	m_FrameName = wxT("ModEditFrame");
-	m_Draw_Axes = TRUE;			// TRUE pour avoir les axes dessines
+	m_Draw_Axis = TRUE;			// TRUE pour avoir les axes dessines
 	m_Draw_Grid = TRUE;			// TRUE pour avoir la axes dessinee
 	m_Draw_Sheet_Ref = FALSE;	// TRUE pour avoir le cartouche dessiné
 	m_ZoomMaxValue = 1024;
@@ -120,10 +120,9 @@ WinEDA_ModuleEditFrame::WinEDA_ModuleEditFrame(wxWindow * father, WinEDA_App *pa
 
 	if ( ScreenModule == NULL )
 		{
-		ScreenModule = new PCB_SCREEN(NULL, this, PCB_FRAME);
+		ScreenModule = new PCB_SCREEN(PCB_FRAME);
 		ActiveScreen = ScreenModule;
 		}
-	ScreenModule->SetParentFrame(this);
 	ScreenModule->m_UndoRedoCountMax = 10;
 
 	if( g_ModuleEditor_Pcb == NULL ) g_ModuleEditor_Pcb = new BOARD(NULL, this);
@@ -163,7 +162,6 @@ WinEDA_ModuleEditFrame::WinEDA_ModuleEditFrame(wxWindow * father, WinEDA_App *pa
 WinEDA_ModuleEditFrame::~WinEDA_ModuleEditFrame(void)
 /****************************************************/
 {
-	ScreenModule->SetParentFrame(NULL);
 	m_Parent->m_ModuleEditFrame = NULL;
 	m_CurrentScreen = ScreenPcb;
 }

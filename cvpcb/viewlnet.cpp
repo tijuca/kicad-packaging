@@ -52,13 +52,13 @@ wxString msg;
 	Rjustify = 1;
 
 	/* Raz buffer et variable de gestion */
-	if( BaseListeCmp ) FreeMemoryComponants();
+	if( g_BaseListeCmp ) FreeMemoryComponants();
 
 	Cmp = NULL; LineNum = 0;
 	memset(Line, 0, sizeof(Line) );
 
 	/* Tst de la presence du fichier principal Netliste, et son format:
-		Si format = PCBNEW, appel de rdorcad
+		Si format = PCBNEW, appel de ReadSchematicNetlist
 	*/
 	source = wxFopen(FFileName, wxT("rt") );
 	if (source == 0)
@@ -79,7 +79,7 @@ wxString msg;
 	if( ii != 0 ) ii =  strnicmp(Line,"# EESchema",4) ;	  /* net type EESchema */
 	if( ii == 0 )
 		{
-		ii = rdorcad(); return(ii);
+		ii = ReadSchematicNetlist(); return(ii);
 		}
 
 
@@ -103,7 +103,7 @@ wxString msg;
 	fclose(source);
 
 	/* reclassement alpab‚tique : */
-	BaseListeCmp = TriListeComposantss( BaseListeCmp, nbcomp);
+	g_BaseListeCmp = TriListeComposantss( g_BaseListeCmp, nbcomp);
 
 	/* Ouverture du fichier netliste */
 	source = wxFopen(FFileName, wxT("rt"));
@@ -157,7 +157,7 @@ wxString msg;
 				msg.Printf( wxT("Err. Pin Name ligne %s"),Line);
 				DisplayError(this, msg, 20); break;
 				}
-			GenPin( BaseListeCmp, RefName, PinName, NetName);
+			GenPin( g_BaseListeCmp, RefName, PinName, NetName);
 			if ( *Text == ',' ) /* Autre element a traiter, ou nouvelle */
 								/* ligne a lire ( continuation de ligne ) */
 				{
@@ -267,8 +267,8 @@ STORECMP * Cmp;
 			}
 			Name[ii] = 0;
 			Cmp = new STORECMP();
-			Cmp->Pnext = BaseListeCmp;
-			BaseListeCmp = Cmp;
+			Cmp->Pnext = g_BaseListeCmp;
+			g_BaseListeCmp = Cmp;
 			NbComp++ ;
 			Cmp->m_Reference = CONV_FROM_UTF8( StrPurge(Name) );
 			Cmp->m_Valeur = CONV_FROM_UTF8( StrPurge(Valeur) );

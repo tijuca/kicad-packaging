@@ -18,7 +18,7 @@
 /* Routines externes */
 
 static void Show_MoveTrack(WinEDA_DrawPanel * panel, wxDC * DC, bool erase);
-static void Exit_MoveTrack(WinEDA_DrawFrame * frame, wxDC *DC);
+static void Exit_MoveTrack(WinEDA_DrawPanel * Panel, wxDC *DC);
 
 #if 0
 /* Routines Locales */
@@ -35,7 +35,7 @@ static bool Old_HightLigt_Status;
 
 
 /**************************************************************/
-static void Exit_MoveTrack(WinEDA_DrawFrame * frame, wxDC *DC)
+static void Exit_MoveTrack(WinEDA_DrawPanel * Panel, wxDC *DC)
 /***************************************************************/
 /* routine d'annulation de la commande drag, copy ou move track  si une piste est en cours
 	de tracage, ou de sortie de l'application EDITRACK.
@@ -47,12 +47,12 @@ int ii;
 
 
 	/* Effacement du trace en cours */
-	wxPoint oldpos = frame->GetScreen()->m_Curseur;
-	frame->GetScreen()->m_Curseur = PosInit;
-	frame->GetScreen()->ManageCurseur(frame->DrawPanel, DC, TRUE);
-	frame->GetScreen()->m_Curseur = oldpos;
+	wxPoint oldpos = Panel->GetScreen()->m_Curseur;
+	Panel->GetScreen()->m_Curseur = PosInit;
+	Panel->ManageCurseur(Panel, DC, TRUE);
+	Panel->GetScreen()->m_Curseur = oldpos;
 	g_HightLigt_Status = FALSE;
-	( (WinEDA_PcbFrame *)frame)->DrawHightLight( DC, g_HightLigth_NetCode) ;
+	( (WinEDA_PcbFrame *)Panel->m_Parent)->DrawHightLight( DC, g_HightLigth_NetCode) ;
 
 	if( NewTrack )
 	{
@@ -80,16 +80,16 @@ int ii;
 				Track->m_Flags = 0;
 
 			}
-			Trace_Une_Piste(frame->DrawPanel, DC, NewTrack,NbPtNewTrack,GR_OR);
+			Trace_Une_Piste(Panel, DC, NewTrack,NbPtNewTrack,GR_OR);
 		}
 
 		NewTrack = NULL;
 	}
 
-	frame->GetScreen()->ManageCurseur = NULL;
-	frame->GetScreen()->ForceCloseManageCurseur = NULL;
-	frame->GetScreen()->m_CurrentItem = NULL;
-	frame->EraseMsgBox();
+	Panel->ManageCurseur = NULL;
+	Panel->ForceCloseManageCurseur = NULL;
+	Panel->GetScreen()->m_CurrentItem = NULL;
+	Panel->m_Parent->EraseMsgBox();
 
 	/* Annulation deplacement et Redessin des segments dragges */
 	DRAG_SEGM * pt_drag = g_DragSegmentList;
@@ -99,13 +99,13 @@ int ii;
 		pt_drag->SetInitialValues();
 		Track->SetState(EDIT,OFF);
 		Track->m_Flags = 0;
-		Track->Draw(frame->DrawPanel, DC, GR_OR);
+		Track->Draw(Panel, DC, GR_OR);
 	}
 
 	g_HightLigth_NetCode = Old_HightLigth_NetCode;
 	g_HightLigt_Status = Old_HightLigt_Status;
 	if(g_HightLigt_Status)
-		( (WinEDA_PcbFrame *)frame)->DrawHightLight( DC, g_HightLigth_NetCode) ;
+		( (WinEDA_PcbFrame *)Panel->m_Parent)->DrawHightLight( DC, g_HightLigth_NetCode) ;
 
 	EraseDragListe();
 }
@@ -205,13 +205,13 @@ void WinEDA_PcbFrame::Start_MoveOneTrackSegment(TRACK * track, wxDC * DC, bool D
 		PosInit = pos;
 	}
 	LastPos = PosInit;
-	GetScreen()->ManageCurseur = Show_MoveTrack;
-	GetScreen()->ForceCloseManageCurseur = Exit_MoveTrack;
+	DrawPanel->ManageCurseur = Show_MoveTrack;
+	DrawPanel->ForceCloseManageCurseur = Exit_MoveTrack;
 
 	g_HightLigth_NetCode = track->m_NetCode;
 	g_HightLigt_Status = TRUE;
 	DrawHightLight( DC, g_HightLigth_NetCode) ;
-	GetScreen()->ManageCurseur(DrawPanel, DC, TRUE);
+	DrawPanel->ManageCurseur(DrawPanel, DC, TRUE);
 }
 
 
@@ -256,8 +256,8 @@ DRAG_SEGM * pt_drag;
 	EraseDragListe();
 
 	GetScreen()->SetModify();
-	GetScreen()->ManageCurseur = NULL;
-	GetScreen()->ForceCloseManageCurseur = NULL;
+	DrawPanel->ManageCurseur = NULL;
+	DrawPanel->ForceCloseManageCurseur = NULL;
 
 	return TRUE;
 }
@@ -279,7 +279,7 @@ EDA_BaseStruct * LockPoint;
 int ii, old_net_code, new_net_code, DRC_error = 0;
 wxDC * DC = Cmd->DC;
 
-	ActiveScreen->ManageCurseur = NULL;
+	ActiveDrawPanel->ManageCurseur = NULL;
 
 	if( NewTrack == NULL ) return ;
 
@@ -517,7 +517,7 @@ wxDC * DC = Cmd->DC;
 			startX = ActiveScreen->Curseur_X;
 			startY = ActiveScreen->Curseur_Y;
 			Place_Dupl_Route_Item.State = WAIT;
-			ActiveScreen->ManageCurseur = Show_Move_Piste;
+			ActiveDrawPanel->ManageCurseur = Show_Move_Piste;
 			DisplayOpt.DisplayPcbTrackFill = SKETCH ;
 			Trace_Une_Piste(DC, NewTrack,NbPtNewTrack,GR_XOR) ;
 			DisplayOpt.DisplayPcbTrackFill = Track_fill_copy ;

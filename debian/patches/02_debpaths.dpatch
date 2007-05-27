@@ -1,14 +1,15 @@
 #! /bin/sh /usr/share/dpatch/dpatch-run
-## 02_debpaths.dpatch by  <richardaburton@hotmail.com>
+## 02_debpaths.dpatch by Richard Antony Burton <richardaburton@gmail.com>
 ##
 ## All lines beginning with `## DP:' are a description of the patch.
+## DP: Remove paths not used by debian packages for performance
 
 
 @DPATCH@
 
-diff -ur kicad-0.0.20060626.orig/common/gestfich.cpp kicad-0.0.20060626/common/gestfich.cpp
---- kicad-0.0.20060626.orig/common/gestfich.cpp	2006-01-31 16:25:48.000000000 +0000
-+++ kicad-0.0.20060626/common/gestfich.cpp	2006-06-28 13:12:26.000000000 +0100
+diff -ur kicad-0.0.20070525.orig/common/gestfich.cpp kicad-0.0.20070525/common/gestfich.cpp
+--- kicad-0.0.20070525.orig/common/gestfich.cpp	2006-01-31 16:25:48.000000000 +0000
++++ kicad-0.0.20070525/common/gestfich.cpp	2006-06-28 13:12:26.000000000 +0100
 @@ -35,7 +35,7 @@
  	wxT("c:/kicad/help/"),
  	wxT("d:/kicad/help/"),

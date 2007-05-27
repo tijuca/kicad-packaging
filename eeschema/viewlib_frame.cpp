@@ -59,7 +59,7 @@ WinEDA_ViewlibFrame::WinEDA_ViewlibFrame(wxWindow * father, WinEDA_App *parent,
 {
 	m_FrameName = wxT("ViewlibFrame");
 
-	m_Draw_Axes = TRUE;				// TRUE pour avoir les axes dessines
+	m_Draw_Axis = TRUE;				// TRUE pour avoir les axes dessines
 	m_Draw_Grid = TRUE;				// TRUE pour avoir la axes dessinee
 
 	// Give an icon
@@ -70,7 +70,7 @@ WinEDA_ViewlibFrame::WinEDA_ViewlibFrame(wxWindow * father, WinEDA_App *parent,
 	m_Semaphore = semaphore;
 	if ( m_Semaphore ) SetWindowStyle( GetWindowStyle() | wxSTAY_ON_TOP);
 		
-	m_CurrentScreen = new SCH_SCREEN(NULL, this, VIEWER_FRAME);
+	m_CurrentScreen = new SCH_SCREEN(VIEWER_FRAME);
 	m_CurrentScreen->SetZoom(16);
 
 	if ( Library == NULL )

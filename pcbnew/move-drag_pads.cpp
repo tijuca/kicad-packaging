@@ -22,7 +22,7 @@ static wxPoint Pad_OldPos;
 
 
 /************************************************************/
-static void Exit_Move_Pad(WinEDA_DrawFrame * _frame, wxDC * DC)
+static void Exit_Move_Pad(WinEDA_DrawPanel * Panel, wxDC * DC)
 /************************************************************/
 /* Routine de sortie du menu EDIT PADS.
 	Sortie simple si pad de pad en mouvement
@@ -30,16 +30,15 @@ static void Exit_Move_Pad(WinEDA_DrawFrame * _frame, wxDC * DC)
 */
 {
 D_PAD * pad = pt_pad_selecte;
-WinEDA_PcbFrame * frame = (WinEDA_PcbFrame * )_frame;
 
-	frame->GetScreen()->ManageCurseur = NULL;
-	frame->GetScreen()->ForceCloseManageCurseur = NULL;
+	Panel->ManageCurseur = NULL;
+	Panel->ForceCloseManageCurseur = NULL;
 	if (pad == NULL) return;
 
-	pad->Draw(frame->DrawPanel,DC, wxPoint(0,0), GR_XOR);
+	pad->Draw(Panel,DC, wxPoint(0,0), GR_XOR);
 	pad->m_Flags = 0;
 	pad->m_Pos = Pad_OldPos;
-	pad->Draw(frame->DrawPanel, DC, wxPoint(0,0), GR_XOR);
+	pad->Draw(Panel, DC, wxPoint(0,0), GR_XOR);
 	/* Pad Move en cours : remise a l'etat d'origine */
 	if( g_Drag_Pistes_On )
 	{
@@ -48,10 +47,10 @@ WinEDA_PcbFrame * frame = (WinEDA_PcbFrame * )_frame;
 		for( ; pt_drag != NULL; pt_drag = pt_drag->Pnext)
 		{
 			TRACK * Track = pt_drag->m_Segm;
-			Track->Draw(frame->DrawPanel, DC, GR_XOR);
+			Track->Draw(Panel, DC, GR_XOR);
 			Track->SetState(EDIT,OFF);
 			pt_drag->SetInitialValues();
-			Track->Draw(frame->DrawPanel, DC, GR_OR);
+			Track->Draw(Panel, DC, GR_OR);
 		}
 	}
 
@@ -272,7 +271,6 @@ void WinEDA_BasePcbFrame::StartMovePad(D_PAD * Pad, wxDC * DC)
 /* Routine de deplacement d'une pastille */
 {
 MODULE * Module;
-PCB_SCREEN * screen = GetScreen();
 
 	/* localisation d'une pastille ? */
 	if(Pad == NULL ) return;
@@ -282,8 +280,8 @@ PCB_SCREEN * screen = GetScreen();
 	pt_pad_selecte = Pad ;
 	Pad_OldPos = Pad->m_Pos;
 	Pad->Display_Infos(this);
-	screen->ManageCurseur = Show_Pad_Move;
-	screen->ForceCloseManageCurseur = Exit_Move_Pad;
+	DrawPanel->ManageCurseur = Show_Pad_Move;
+	DrawPanel->ForceCloseManageCurseur = Exit_Move_Pad;
 
 	/* Affichage du pad en SKETCH */
 	Pad->Draw(DrawPanel, DC, wxPoint(0,0),GR_XOR);
@@ -313,7 +311,7 @@ MODULE * Module;
 	Pad->Draw(DrawPanel, DC, wxPoint(0,0),GR_XOR);
 
 	/* Save old module */
-	Pad->m_Pos = Pad_OldPos; SaveCopyInUndoList();
+	Pad->m_Pos = Pad_OldPos; SaveCopyInUndoList(m_Pcb->m_Modules);
 	Pad->m_Pos = GetScreen()->m_Curseur;
 
 	/* Compute local coordinates (i.e refer to Module position and for Module orient = 0)*/
@@ -340,8 +338,8 @@ MODULE * Module;
 	EraseDragListe();
 
 	GetScreen()->SetModify();
-	GetScreen()->ManageCurseur = NULL;
-	GetScreen()->ForceCloseManageCurseur = NULL;
+	DrawPanel->ManageCurseur = NULL;
+	DrawPanel->ForceCloseManageCurseur = NULL;
 	m_Pcb->m_Status_Pcb &= ~( LISTE_CHEVELU_OK | CONNEXION_OK);
 }
 

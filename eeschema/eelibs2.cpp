@@ -178,46 +178,44 @@ wxPoint text_pos;
 * Routine to draw the given part at given position, transformed/mirror as	 *
 * specified, and in the given drawing mode. Only this one is visible...		 *
 *****************************************************************************/
-bool DrawLibPart(WinEDA_DrawPanel * panel,wxDC * DC,
-			EDA_SchComponentStruct *DrawLibItem, int DrawMode, int Color)
+void EDA_SchComponentStruct::Draw(WinEDA_DrawPanel * panel,wxDC * DC,
+			const wxPoint & offset, int DrawMode, int Color)
 {
 EDA_LibComponentStruct *Entry;
 int ii;
 bool dummy = FALSE;
 
-	if( (Entry = FindLibPart(DrawLibItem->m_ChipName.GetData(),wxEmptyString,FIND_ROOT)) == NULL)
+	if( (Entry = FindLibPart(m_ChipName.GetData(),wxEmptyString,FIND_ROOT)) == NULL)
 	{	/* composant non trouvé, on affiche un composant "dummy" */
 		dummy = TRUE;
 		if( DummyCmp == NULL ) CreateDummyCmp();
 		Entry = DummyCmp;
 	}
 
-	DrawLibPartAux(panel, DC, DrawLibItem, Entry, DrawLibItem->m_Pos,
-					DrawLibItem->m_Transform,
-					dummy ? 0 : DrawLibItem->m_Multi,
-					dummy ? 0 : DrawLibItem->m_Convert,
+	DrawLibPartAux(panel, DC, this, Entry, m_Pos + offset,
+					m_Transform,
+					dummy ? 0 : m_Multi,
+					dummy ? 0 : m_Convert,
 					DrawMode);
 
 	/* Trace des champs, avec placement et orientation selon orient. du
 		composant
 	*/
 
-	if( ((DrawLibItem->m_Field[REFERENCE].m_Attributs & TEXT_NO_VISIBLE) == 0)
-		&& ! (DrawLibItem->m_Field[REFERENCE].m_Flags & IS_MOVED) )
+	if( ((m_Field[REFERENCE].m_Attributs & TEXT_NO_VISIBLE) == 0)
+		&& ! (m_Field[REFERENCE].m_Flags & IS_MOVED) )
 		{
 		if ( Entry->m_UnitCount > 1 )
-			DrawTextField(panel, DC, &DrawLibItem->m_Field[REFERENCE],1,DrawMode);
+			DrawTextField(panel, DC, &m_Field[REFERENCE],1,DrawMode);
 		else
-			DrawTextField(panel, DC, &DrawLibItem->m_Field[REFERENCE],0,DrawMode);
+			DrawTextField(panel, DC, &m_Field[REFERENCE],0,DrawMode);
 		}
 
 	for( ii = VALUE; ii < NUMBER_OF_FIELDS; ii++ )
 		{
-		if (DrawLibItem->m_Field[ii].m_Flags & IS_MOVED) continue;
-		DrawTextField(panel, DC, &DrawLibItem->m_Field[ii],0,DrawMode);
+		if (m_Field[ii].m_Flags & IS_MOVED) continue;
+		DrawTextField(panel, DC, &m_Field[ii],0,DrawMode);
 		}
-
-	return TRUE;
 }
 
 /***********************************************************/

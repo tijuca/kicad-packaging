@@ -132,7 +132,7 @@ EDA_NoteBookPage::EDA_NoteBookPage(wxNotebook* parent, const wxString & title,
 class WinEDA_NetlistFrame: public wxDialog
 {
 public:
-	WinEDA_DrawFrame * m_Parent;
+	WinEDA_SchematicFrame * m_Parent;
 	wxNotebook* m_NoteBook;
 	EDA_NoteBookPage * m_PanelNetType[4+CUSTOMPANEL_COUNTMAX];
 
@@ -140,7 +140,7 @@ public:
 
 public:
 	// Constructor and destructor
-	WinEDA_NetlistFrame(WinEDA_DrawFrame *parent, wxPoint& pos);
+	WinEDA_NetlistFrame(WinEDA_SchematicFrame *parent, wxPoint& pos);
 	~WinEDA_NetlistFrame(void) {};
 
 private:
@@ -164,7 +164,7 @@ END_EVENT_TABLE()
 
 
 /****************************************************************/
-void InstallNetlistFrame(WinEDA_DrawFrame *parent, wxPoint & pos)
+void InstallNetlistFrame(WinEDA_SchematicFrame *parent, wxPoint & pos)
 /****************************************************************/
 /* Installator for the netlist generation dialog box
 	*/
@@ -177,7 +177,7 @@ void InstallNetlistFrame(WinEDA_DrawFrame *parent, wxPoint & pos)
 #define V_SIZE 260
 
 /*************************************************************************************/
-WinEDA_NetlistFrame::WinEDA_NetlistFrame(WinEDA_DrawFrame *parent, wxPoint& framepos):
+WinEDA_NetlistFrame::WinEDA_NetlistFrame(WinEDA_SchematicFrame *parent, wxPoint& framepos):
 		wxDialog(parent, -1, _("Netlist"), framepos, wxSize(H_SIZE, V_SIZE),
 				DIALOG_STYLE|wxRESIZE_BORDER)
 /*************************************************************************************/
@@ -225,6 +225,12 @@ int ii;
 	
 	// Add custom panels:
 	InstallCustomPages();
+	
+	// Problem in wxMSV >= 2.7.1 : we must call GetSizer for  one notebook page
+	// to have a proper sizer commutation of all pages 
+	m_PanelNetType[PANELPCBNEW]->GetSizer()->Fit(this);
+    m_PanelNetType[PANELPCBNEW]->GetSizer()->SetSizeHints(this);
+
 
 	GetSizer()->Fit(this);
     GetSizer()->SetSizeHints(this);
@@ -331,7 +337,7 @@ wxString FullFileName, Mask, Path;
 					wxEmptyString,		  /* extension par defaut */
 					Mask,				/* Masque d'affichage */
 					this,
-					wxOPEN,
+					wxFD_OPEN,
 					TRUE
 					);
 	if ( FullFileName.IsEmpty() ) return;
@@ -430,22 +436,33 @@ EDA_NoteBookPage * CurrPage;
 					FileExt,		  	/* extension par defaut */
 					Mask,				/* Masque d'affichage */
 					this,
-					wxSAVE,
+					wxFD_SAVE,
 					TRUE
 					);
 	if ( FullFileName.IsEmpty() ) return;
 
 	m_Parent->MsgPanel->EraseMsgBox();
 
+	ReAnnotatePowerSymbolsOnly();
 	if( CheckAnnotate(m_Parent, 0) )
 	{
 		if( !IsOK( this, _("Must be Annotated, Continue ?"))  )
 			return;
 	}
 
+	/* Cleanup the entire hierarchy */
+	EDA_ScreenList ScreenList(NULL);
+	for ( SCH_SCREEN * screen = ScreenList.GetFirst(); screen != NULL; screen = ScreenList.GetNext() )
+	{
+		bool ModifyWires;
+		ModifyWires = screen->SchematicCleanUp(NULL);
+		/* if wire list has changed, delete the Undo Redo list to avoid
+		pointer problems with deleted data */
+		if ( ModifyWires )
+			screen->ClearUndoRedoList();
+	}
 
-	SchematicCleanUp(NULL);
-	BuildNetList(m_Parent, ScreenSch);
+	m_Parent->BuildNetListBase();
 	if ( CurrPage->m_CommandStringCtrl)
 		g_NetListerCommandLine = CurrPage->m_CommandStringCtrl->GetValue();
 	else g_NetListerCommandLine.Empty();

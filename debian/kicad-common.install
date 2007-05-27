@@ -3,4 +3,4 @@ modules/	/usr/share/kicad/
 template/	/usr/share/kicad/
 internat/	/usr/share/kicad/
 debian/kicad.desktop	/usr/share/applications/
-kicad_icon.png /usr/share/pixmaps/
+debian/kicad.xpm	/usr/share/pixmaps/

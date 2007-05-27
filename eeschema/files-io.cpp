@@ -44,37 +44,40 @@ int id = event.GetId();
 }
 
 
-/**********************************************************************************/
-bool WinEDA_SchematicFrame::LoadOneSheet(SCH_SCREEN * screen, const wxString & FullFileName)
-/**********************************************************************************/
+/******************************************************************************************/
+bool WinEDA_SchematicFrame::LoadOneSheet(SCH_SCREEN * screen, const wxString & filename)
+/******************************************************************************************/
 {
+wxString FullFileName = filename;
+	
 	if( screen->EEDrawList != NULL )
 	{
 		if( !IsOK(this, _("Clear SubHierarchy ?") ) ) return FALSE;
-		ClearProjectDrawList(screen);
 	}
 
-	if( FullFileName.IsEmpty())
+	if( FullFileName.IsEmpty() )
 	{
-		wxString filename, mask;
+		wxString mask;
 		mask = wxT("*") + g_SchExtBuffer;
-		filename = EDA_FileSelector( _("Schematic files:"),
-					wxEmptyString,		  				/* Chemin par defaut */
-					screen->m_FileName,		/* nom fichier par defaut */
+		FullFileName = EDA_FileSelector( _("Schematic files:"),
+					wxEmptyString,		  	/* default path */
+					screen->m_FileName,		/* default filename */
 					g_SchExtBuffer,		  	/* extension par defaut */
 					mask,					/* Masque d'affichage */
 					this,
-					wxOPEN,
+					wxFD_OPEN,
 					FALSE
 					);
-		if ( filename.IsEmpty() ) return FALSE;
-		else screen->m_FileName = filename;
+		if ( FullFileName.IsEmpty() ) return FALSE;
 	}
 
-	else screen->m_FileName = FullFileName;
+	ClearProjectDrawList(screen, TRUE);
 
-	LoadOneEEFile(screen, screen->m_FileName);
-	screen->SetRefreshReq();
+	screen->m_FileName = FullFileName;
+	LoadOneEEFile(screen, FullFileName);
+	screen->SetModify();
+
+	if ( GetScreen() == screen ) Refresh(TRUE);
 	return TRUE;
 }
 
@@ -87,17 +90,18 @@ void SaveProject(WinEDA_SchematicFrame * frame)
 {
 SCH_SCREEN * screen_tmp;
 wxString LibArchiveFileName;
-
+	
 	if ( frame == NULL) return;
 
 	screen_tmp = frame->GetScreen();
-	frame->m_CurrentScreen = ActiveScreen = ScreenSch;
-	while( ActiveScreen )
+
+	EDA_ScreenList ScreenList(NULL);
+	for ( ActiveScreen = ScreenList.GetFirst(); ActiveScreen != NULL; ActiveScreen = ScreenList.GetNext() )
 	{
+		frame->m_CurrentScreen = ActiveScreen;
 		frame->SaveEEFile( NULL, FILE_SAVE_AS);
-		frame->m_CurrentScreen = frame->m_CurrentScreen->Next();
-		ActiveScreen = frame->GetScreen();
 	}
+
 	frame->m_CurrentScreen = ActiveScreen = screen_tmp;
 
 	/* Creation du fichier d'archivage composants en repertoire courant */

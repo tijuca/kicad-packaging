@@ -252,7 +252,7 @@ wxString FullLibName,ShortLibName, Mask;
 				g_LibExtBuffer,		/* extension par defaut */
 				Mask,				/* Masque d'affichage */
 				this,
-				wxOPEN,
+				wxFD_OPEN,
 				TRUE
 				);
 

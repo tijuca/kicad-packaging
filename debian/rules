@@ -10,19 +10,13 @@ export DH_OPTIONS
 
 # .NOTPARALLEL:
 
+# get patch & unpatch targets for dpatch
+include /usr/share/dpatch/dpatch.make
+
 configure: configure-stamp
 configure-stamp: patch
 	dh_testdir
 	touch $@
-
-patch: patch-stamp
-patch-stamp:
-	dpatch apply-all
-	touch $@
-
-unpatch:
-	dpatch deapply-all
-	rm -rf patch-stamp debian/patched
 
 build: build-arch build-indep
 
@@ -44,6 +38,12 @@ clean-patched:
 	rm -f build-arch-stamp build-indep-stamp configure-stamp
 
 	-$(MAKE) -f makefile.gtk clean
+	
+# clean a couple of bits missed by the upstream
+# makefile - simpler than patching it
+	rm -f common/common.a
+	rm -f eeschema/eeschema
+	rm -f kicad/kicad
 
 	dh_clean 
 
@@ -61,7 +61,7 @@ install-indep:
 	dh_installmenu -a
 
 # fix up the line endings (doesn't really matter, but saves a few bytes)
-	find $(CURDIR)/debian/kicad-common/usr/share/kicad/ -type f ! -name '*.wings' ! -path '*.svn*' -print0 | xargs -0n1 dos2unix
+	find $(CURDIR)/debian/kicad-common/usr/share/kicad/ -type f ! -name '*.wings' -print0 | xargs -0n1 dos2unix
 	dh_install -i
 
 install-arch:
@@ -70,20 +70,19 @@ install-arch:
 	dh_clean -k -s 
 	dh_installdirs -s
 	dh_installdocs
-
 	dh_install -s
 
 # Build architecture independant packages.
 binary-indep: build-indep install-indep
 	dh_testdir
 	dh_testroot
-	dh_installchangelogs -i
+	dh_installchangelogs -i news.txt
 	dh_desktop
 	dh_link -i
 	dh_strip -i
-# i dont want the helpfiles to be compressed
+# i don't want the helpfiles to be compressed
 	dh_compress -i --exclude=kicad/help
-# i dont want the examples to be compressed so moved behind dh_compress
+# i don't want the examples to be compressed so moved after dh_compress
 	dh_installexamples -i
 	dh_fixperms -i
 	dh_makeshlibs -i
@@ -97,7 +96,7 @@ binary-indep: build-indep install-indep
 binary-arch: build-arch install-arch
 	dh_testdir
 	dh_testroot
-	dh_installchangelogs -s
+	dh_installchangelogs -s news.txt
 	dh_installman -s
 	dh_link -s
 	dh_strip -s

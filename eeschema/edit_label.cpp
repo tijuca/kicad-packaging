@@ -15,15 +15,14 @@
 
 /* Fonctions locales */
 static void ShowWhileMoving(WinEDA_DrawPanel * panel, wxDC * DC, bool erase);
-static void ExitMoveTexte(WinEDA_DrawFrame * frame, wxDC *DC);
+static void ExitMoveTexte(WinEDA_DrawPanel * panel, wxDC *DC);
 
 /* Variables locales */
 static wxPoint ItemInitialPosition;
 static int OldOrient;
 static wxSize OldSize;
-static int ShapeGLabel = (int) NET_INPUT;
-static int TextLabelSize = DEFAULT_SIZE_TEXT;
-
+static int s_DefaultShapeGLabel = (int) NET_INPUT;
+static int s_DefaultOrientGLabel = 0;
 
 	/************************************/
 	/* class WinEDA_LabelPropertiesFrame */
@@ -32,17 +31,21 @@ static int TextLabelSize = DEFAULT_SIZE_TEXT;
 #include "dialog_edit_label.cpp"
 
 
-
+/****************************************************************************/
 void WinEDA_LabelPropertiesFrame::TextPropertiesAccept(wxCommandEvent& event)
+/****************************************************************************/
 {
 wxString text;
 int value;
 	
-	text = m_TextLabel->GetValue();
+	/* save old text in undo list if not already in edit */
+	if ( m_CurrentText->m_Flags == 0 )
+		m_Parent->SaveCopyInUndoList(m_CurrentText, IS_CHANGED);
 
+	text = m_TextLabel->GetValue();
 	if ( ! text.IsEmpty() ) m_CurrentText->m_Text = text;
 	else if ( (m_CurrentText->m_Flags & IS_NEW) == 0 )
-		DisplayError(this, wxT("Empty Text!") );
+		DisplayError(this, _("Empty Text!") );
 
 	m_CurrentText->m_Orient = m_TextOrient->GetSelection();
 	text = m_TextSize->GetValue();
@@ -50,7 +53,11 @@ int value;
 	m_CurrentText->m_Size.x = m_CurrentText->m_Size.y = value;
 	if ( m_TextShape ) m_CurrentText->m_Shape = m_TextShape->GetSelection();
 
-	SetFlagModify(m_Parent->GetScreen());
+	m_Parent->GetScreen()->SetModify();
+
+	/* Make the text size as new default size if it is a new text */
+	if ( (m_CurrentText->m_Flags & IS_NEW) != 0 )
+		g_DefaultTextLabelSize = m_CurrentText->m_Size.x;
 
 	Close(TRUE);
 }
@@ -64,6 +71,13 @@ void WinEDA_SchematicFrame::StartMoveTexte(DrawTextStruct * TextStruct, wxDC *DC
 	if(TextStruct == NULL) return;
 
 	g_ItemToRepeat = NULL;
+	
+	if ( (TextStruct->m_Flags & IS_NEW) == 0 )
+	{
+		delete g_ItemToUndoCopy;
+		g_ItemToUndoCopy = TextStruct->GenCopy();
+	}
+
 	TextStruct->m_Flags |= IS_MOVED;
 
 	switch( TextStruct->m_StructType )
@@ -72,36 +86,37 @@ void WinEDA_SchematicFrame::StartMoveTexte(DrawTextStruct * TextStruct, wxDC *DC
 		case DRAW_GLOBAL_LABEL_STRUCT_TYPE:
 		case DRAW_TEXT_STRUCT_TYPE:
 			ItemInitialPosition = TextStruct->m_Pos;
-			OldSize = TextStruct->m_Size; OldOrient = TextStruct->m_Orient;
+			OldSize = TextStruct->m_Size;
+			OldOrient = TextStruct->m_Orient;
 			break;
 
 		default: break;
 		}
 
- 	m_CurrentScreen->CursorOff(DrawPanel, DC);
+ 	DrawPanel->CursorOff(DC);
  	m_CurrentScreen->m_Curseur = ItemInitialPosition;
  	DrawPanel->MouseToCursorSchema();
  
-	SetFlagModify(GetScreen());
-	m_CurrentScreen->ManageCurseur = ShowWhileMoving;
-	m_CurrentScreen->ForceCloseManageCurseur = ExitMoveTexte;
-	m_CurrentScreen->ManageCurseur(DrawPanel, DC, TRUE);
+	GetScreen()->SetModify();
+	DrawPanel->ManageCurseur = ShowWhileMoving;
+	DrawPanel->ForceCloseManageCurseur = ExitMoveTexte;
+	DrawPanel->ManageCurseur(DrawPanel, DC, TRUE);
  
- 	m_CurrentScreen->CursorOn(DrawPanel, DC);
+ 	DrawPanel->CursorOn(DC);
 }
-
 
 
 /*************************************************************************/
 void WinEDA_SchematicFrame::EditSchematicText(DrawTextStruct * TextStruct,
 			wxDC * DC)
 /*************************************************************************/
-/* Changement du texte (Label.. ) pointe par la souris
+/* Edit the properties of the text (Label, Gloab label, graphic text).. )
+	pointed by "TextStruct"
 */
 {
 	if(TextStruct == NULL)  return;
 
-	GetScreen()->CursorOff(DrawPanel, DC);
+	DrawPanel->CursorOff(DC);
 	RedrawOneStruct(DrawPanel, DC, TextStruct, g_XorMode);
 
 WinEDA_LabelPropertiesFrame * frame = new WinEDA_LabelPropertiesFrame(this,
@@ -109,7 +124,7 @@ WinEDA_LabelPropertiesFrame * frame = new WinEDA_LabelPropertiesFrame(this,
 	frame->ShowModal(); frame->Destroy();
 
 	RedrawOneStruct(DrawPanel, DC, TextStruct, GR_DEFAULT_DRAWMODE);
-	GetScreen()->CursorOn(DrawPanel, DC);
+	DrawPanel->CursorOn(DC);
 }
 
 
@@ -122,7 +137,12 @@ void WinEDA_SchematicFrame::ChangeTextOrient(DrawTextStruct * TextStruct, wxDC *
 				GetScreen()->EEDrawList, TEXTITEM|LABELITEM);
 	if( TextStruct == NULL ) return;
 
+	/* save old text in undo list if is not already in edit */
+	if ( TextStruct->m_Flags == 0 )
+		SaveCopyInUndoList(TextStruct, IS_CHANGED);
+
 	/* Effacement du texte en cours */
+	DrawPanel->CursorOff(DC);
 	RedrawOneStruct(DrawPanel, DC, TextStruct, g_XorMode);
 
 	/* Rotation du texte */
@@ -138,10 +158,11 @@ void WinEDA_SchematicFrame::ChangeTextOrient(DrawTextStruct * TextStruct, wxDC *
 		default: break;
 		}
 
-	SetFlagModify(GetScreen());
+	GetScreen()->SetModify();
 
 	/* Reaffichage */
 	RedrawOneStruct(DrawPanel, DC, TextStruct, g_XorMode);
+	DrawPanel->CursorOn(DC);
 }
 
 /*************************************************************************/
@@ -158,20 +179,21 @@ DrawTextStruct * NewText =  NULL;
 		{
 		case LAYER_NOTES:
 			NewText = new DrawTextStruct(m_CurrentScreen->m_Curseur);
-			NewText->m_Size.x = NewText->m_Size.y = TextLabelSize;
+			NewText->m_Size.x = NewText->m_Size.y = g_DefaultTextLabelSize;
 			break;
 
 		case LAYER_LOCLABEL:
 			{
 			NewText = new DrawLabelStruct(m_CurrentScreen->m_Curseur);
-			NewText->m_Size.x = NewText->m_Size.y = TextLabelSize;
+			NewText->m_Size.x = NewText->m_Size.y = g_DefaultTextLabelSize;
 			}
 			break;
 
 		case LAYER_GLOBLABEL:
 			NewText = new DrawGlobalLabelStruct(m_CurrentScreen->m_Curseur);
-			NewText->m_Size.x = NewText->m_Size.y = TextLabelSize;
-			((DrawGlobalLabelStruct*)NewText)->m_Shape = ShapeGLabel;
+			NewText->m_Size.x = NewText->m_Size.y = g_DefaultTextLabelSize;
+			((DrawGlobalLabelStruct*)NewText)->m_Shape = s_DefaultShapeGLabel;
+			((DrawGlobalLabelStruct*)NewText)->m_Orient = s_DefaultOrientGLabel;
 			break;
 
 		default:
@@ -181,6 +203,7 @@ DrawTextStruct * NewText =  NULL;
 
 	NewText->m_Flags = IS_NEW | IS_MOVED;
 
+	RedrawOneStruct(DrawPanel, DC, NewText, g_XorMode);
 	EditSchematicText(NewText, DC);
 
 	if ( NewText->m_Text.IsEmpty() )
@@ -189,9 +212,15 @@ DrawTextStruct * NewText =  NULL;
 		return NULL;
 	}
 
+	if ( type == LAYER_GLOBLABEL )
+	{
+		s_DefaultShapeGLabel = ((DrawGlobalLabelStruct*)NewText)->m_Shape;
+		s_DefaultOrientGLabel = ((DrawGlobalLabelStruct*)NewText)->m_Orient;
+	}
+
 	RedrawOneStruct(DrawPanel, DC, NewText, GR_DEFAULT_DRAWMODE);
-	m_CurrentScreen->ManageCurseur = ShowWhileMoving;
-	m_CurrentScreen->ForceCloseManageCurseur = ExitMoveTexte;
+	DrawPanel->ManageCurseur = ShowWhileMoving;
+	DrawPanel->ForceCloseManageCurseur = ExitMoveTexte;
 
 	m_CurrentScreen->m_CurrentItem = NewText;
 
@@ -228,34 +257,35 @@ EDA_BaseStruct * TextStruct = panel->GetScreen()->m_CurrentItem;
 
 
 /*************************************************************/
-static void ExitMoveTexte(WinEDA_DrawFrame * frame, wxDC *DC)
+static void ExitMoveTexte(WinEDA_DrawPanel * Panel, wxDC *DC)
 /*************************************************************/
 /* Routine de sortie des menus de Texte */
 {
-EDA_BaseStruct * Struct = frame->m_CurrentScreen->m_CurrentItem;
+SCH_SCREEN * screen = (SCH_SCREEN *) Panel->m_Parent->m_CurrentScreen;
+EDA_BaseStruct * Struct = screen->m_CurrentItem;
 
 	g_ItemToRepeat = NULL;
-	frame->m_CurrentScreen->ManageCurseur = NULL;
-	frame->m_CurrentScreen->ForceCloseManageCurseur = NULL;
+	Panel->ManageCurseur = NULL;
+	Panel->ForceCloseManageCurseur = NULL;
 
 	if( Struct == NULL)  /* Pas de trace en cours  */
-		{
+	{
 		return;
-		}
+	}
 
 	/* ici : trace en cours */
 
 	/* Effacement du trace en cours et suppression eventuelle de la structure */
-	RedrawOneStruct(frame->DrawPanel, DC, Struct, g_XorMode);
+	RedrawOneStruct(Panel, DC, Struct, g_XorMode);
 
 	if( Struct->m_Flags & IS_NEW )	/* Suppression du nouveau texte en cours de placement */
-		{
+	{
 		delete Struct;
-		frame->m_CurrentScreen->m_CurrentItem = NULL;
-		}
+		screen->m_CurrentItem = NULL;
+	}
 
 	else	/* Remise a jour des anciens parametres du texte */
-		{
+	{
 		switch( Struct->m_StructType )
 			{
 			case DRAW_LABEL_STRUCT_TYPE:
@@ -272,23 +302,26 @@ EDA_BaseStruct * Struct = frame->m_CurrentScreen->m_CurrentItem;
 			default: break;
 			}
 
-		RedrawOneStruct(frame->DrawPanel, DC, Struct, GR_DEFAULT_DRAWMODE);
+		RedrawOneStruct(Panel, DC, Struct, GR_DEFAULT_DRAWMODE);
 		Struct->m_Flags = 0;
-		}
-
+	}
 }
 
 /*****************************************************************************/
-void WinEDA_SchematicFrame::ChangeTypeText(DrawTextStruct * Text,
+void WinEDA_SchematicFrame::ConvertTextType(DrawTextStruct * Text,
 				wxDC * DC, int newtype)
 /*****************************************************************************/
 
-/* Routine to create new text struct (GraphicText, label or Glabel).
+/* Routine to change a text type to an other one (GraphicText, label or Glabel).
 */
 {
 	if ( Text == NULL ) return;
 
-	m_CurrentScreen->CursorOff(DrawPanel, DC);	// Erase schematic cursor
+	/* save Text in undo list if not already in edit, or moving ... */
+	if ( Text->m_Flags == 0 )
+		SaveCopyInUndoList(Text, IS_CHANGED);
+
+	DrawPanel->CursorOff(DC);	// Erase schematic cursor
 	RedrawOneStruct(DrawPanel, DC, Text, g_XorMode);	// erase drawing
 	switch( newtype )
 		{
@@ -308,12 +341,12 @@ void WinEDA_SchematicFrame::ChangeTypeText(DrawTextStruct * Text,
 			break;
 
 		default:
-			DisplayError(this, wxT("ChangeTypeText: Internal error") );
+			DisplayError(this, wxT("ConvertTextType: Internal error") );
 			break;
 		}
 
 	RedrawOneStruct(DrawPanel, DC, Text, GR_DEFAULT_DRAWMODE);
-	m_CurrentScreen->CursorOn(DrawPanel, DC);	// redraw schematic cursor
+	DrawPanel->CursorOn(DC);	// redraw schematic cursor
 }
 
 

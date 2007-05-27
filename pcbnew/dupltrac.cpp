@@ -49,12 +49,12 @@ TRACK * NextS;
 int ii;
 wxDC * DC = Cmd->DC;
 
-	frame->GetScreen()->ManageCurseur = NULL;
+	frame->DrawPanel->ManageCurseur = NULL;
 
 	if( NewTrack )
 		{
 		/* Effacement du trace en cours */
-		DisplayOpt.DisplayPcbTrackFill = SKETCH ;
+		DisplayOpt.DisplayPcbTrackFill = FALSE ;
 		Trace_Une_Piste(DC, NewTrack,NbPtNewTrack,GR_XOR);
 		DisplayOpt.DisplayPcbTrackFill = Track_fill_copy ;
 
@@ -108,7 +108,7 @@ EDA_BaseStruct * LockPoint;
 int ii, old_net_code, new_net_code, DRC_error = 0;
 wxDC * DC = Cmd->DC;
 
-	ActiveScreen->ManageCurseur = NULL;
+	ActiveDrawPanel->ManageCurseur = NULL;
 
 	if( NewTrack == NULL ) return ;
 
@@ -266,7 +266,7 @@ wxDC * DC = Cmd->DC;
 
 	else	/* Erreur DRC: Annulation commande */
 		{
-		DisplayOpt.DisplayPcbTrackFill = SKETCH ;
+		DisplayOpt.DisplayPcbTrackFill = FALSE ;
 		Trace_Une_Piste(DC, NewTrack,NbPtNewTrack,GR_XOR);
 		DisplayOpt.DisplayPcbTrackFill = Track_fill_copy ;
 
@@ -300,12 +300,10 @@ wxDC * DC = Cmd->DC;
 }
 
 
-	/*********************************/
-	/* void Show_Move_Piste(int flag) */
-	/*********************************/
-
-/* redessin du contour de la piste  lors des deplacements de la souris */
+/***********************************************/
 static void Show_Move_Piste(wxDC * DC, int flag)
+/***********************************************/
+/* redessin du contour de la piste  lors des deplacements de la souris */
 {
 int ii, dx, dy;
 TRACK * ptsegm;
@@ -315,13 +313,13 @@ TRACK * ptsegm;
 	/* efface ancienne position si elle a ete deja dessinee */
 	if( (flag == CURSEUR_MOVED ) && (FlagState == COPY_ROUTE ) )
 		{
-		DisplayOpt.DisplayPcbTrackFill = SKETCH ;
+		DisplayOpt.DisplayPcbTrackFill = FALSE ;
 		Trace_Une_Piste(DC, NewTrack,NbPtNewTrack,GR_XOR) ;
 		}
 
 	if( FlagState == MOVE_ROUTE )
 		{
-		if( flag == CURSEUR_MOVED) DisplayOpt.DisplayPcbTrackFill = SKETCH ;
+		if( flag == CURSEUR_MOVED) DisplayOpt.DisplayPcbTrackFill = FALSE ;
 		Trace_Une_Piste(DC, NewTrack,NbPtNewTrack,GR_XOR) ;
 		}
 
@@ -338,7 +336,7 @@ TRACK * ptsegm;
 		}
 
 	/* dessin de la nouvelle piste */
-	DisplayOpt.DisplayPcbTrackFill = SKETCH ;
+	DisplayOpt.DisplayPcbTrackFill = FALSE ;
 	Trace_Une_Piste(DC, NewTrack,NbPtNewTrack,GR_XOR) ;
 	DisplayOpt.DisplayPcbTrackFill = Track_fill_copy ;
 }
@@ -393,8 +391,8 @@ wxDC * DC = Cmd->DC;
 			startX = ActiveScreen->Curseur_X;
 			startY = ActiveScreen->Curseur_Y;
 			Place_Dupl_Route_Item.State = WAIT;
-			ActiveScreen->ManageCurseur = Show_Move_Piste;
-			DisplayOpt.DisplayPcbTrackFill = SKETCH ;
+			ActiveDrawPanel->ManageCurseur = Show_Move_Piste;
+			DisplayOpt.DisplayPcbTrackFill = FALSE ;
 			Trace_Une_Piste(DC, NewTrack,NbPtNewTrack,GR_XOR) ;
 			DisplayOpt.DisplayPcbTrackFill = Track_fill_copy ;
 			PosInitX = NewTrack->m_Start.x; PosInitY = NewTrack->m_Start.y;
@@ -405,10 +403,9 @@ wxDC * DC = Cmd->DC;
 
 #endif
 
-	/****************************************************************/
-	/* EDA_BaseStruct * LocateLockPoint(BOARD * Pcb, int pX, int pY, int LayerMask) */
-	/****************************************************************/
-
+/************************************************************************/
+EDA_BaseStruct * LocateLockPoint(BOARD * Pcb, wxPoint pos, int LayerMask)
+/************************************************************************/
 /* Routine trouvant le point " d'accrochage " d'une extremite de piste.
 	Ce point peut etre un PAD ou un autre segment de piste
 	Retourne:
@@ -419,7 +416,6 @@ wxDC * DC = Cmd->DC;
 	 coord pX, pY du point tst
 	 masque des couches a tester
 */
-EDA_BaseStruct * LocateLockPoint(BOARD * Pcb, wxPoint pos, int LayerMask)
 {
 D_PAD * pt_pad;
 TRACK * ptsegm;

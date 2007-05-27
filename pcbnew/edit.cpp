@@ -30,7 +30,7 @@ void WinEDA_PcbFrame::OnLeftClick(wxDC * DC, const wxPoint& MousePos)
 EDA_BaseStruct * DrawStruct = CURRENT_ITEM;
 
 	DrawPanel->m_IgnoreMouseEvents = TRUE;
-	GetScreen()->CursorOff(DrawPanel, DC);
+	DrawPanel->CursorOff(DC);
 
 	if ( (m_ID_current_state == 0) || ( DrawStruct && DrawStruct->m_Flags ))
 		{
@@ -280,9 +280,10 @@ EDA_BaseStruct * DrawStruct = CURRENT_ITEM;
 			break;
 
 		case ID_PCB_PLACE_OFFSET_COORD_BUTT:
-			DrawPanel->m_Draw_Auxiliary_Axe(DC, GR_XOR);
-			m_Auxiliary_Axe_Position = GetScreen()->m_Curseur;
-			DrawPanel->m_Draw_Auxiliary_Axe( DC, GR_COPY);
+			DrawPanel->m_Draw_Auxiliary_Axis(DC, GR_XOR);
+			m_Auxiliary_Axis_Position = GetScreen()->m_Curseur;
+			DrawPanel->m_Draw_Auxiliary_Axis( DC, GR_COPY);
+			GetScreen()->SetModify();
 			break;
 
 		default :
@@ -293,7 +294,7 @@ EDA_BaseStruct * DrawStruct = CURRENT_ITEM;
 		}
   out:
 	DrawPanel->m_IgnoreMouseEvents = FALSE;
-	GetScreen()->CursorOn(DrawPanel, DC);
+	DrawPanel->CursorOn(DC);
 }
 
 
@@ -308,7 +309,7 @@ wxPoint pos;
 wxClientDC dc(DrawPanel);
 int itmp;
 
-	GetScreen()->CursorOff(DrawPanel, &dc);
+	DrawPanel->CursorOff(&dc);
 	DrawPanel->PrepareGraphicContext(&dc);
 
 	wxGetMousePosition(&pos.x, &pos.y);
@@ -373,6 +374,9 @@ int itmp;
 		case ID_POPUP_PCB_SELECT_VIASIZE7:
 		case ID_POPUP_PCB_SELECT_VIASIZE8:
 		case ID_POPUP_PCB_MOVE_TRACK_NODE:
+		case ID_POPUP_PCB_DRAG_TRACK_SEGMENT_KEEP_SLOPE:
+		case ID_POPUP_PCB_DRAG_TRACK_SEGMENT:
+		case ID_POPUP_PCB_MOVE_TRACK_SEGMENT:
 		case ID_POPUP_PCB_PLACE_MOVED_TRACK_NODE:
 		case ID_POPUP_PCB_BREAK_TRACK:
 		case ID_POPUP_PCB_EDIT_NET:
@@ -400,10 +404,10 @@ int itmp;
 			break;
 
 		case ID_POPUP_CANCEL_CURRENT_COMMAND:
-			if( GetScreen()->ManageCurseur &&
-				GetScreen()->ForceCloseManageCurseur )
+			if( DrawPanel->ManageCurseur &&
+				DrawPanel->ForceCloseManageCurseur )
 			{
-				GetScreen()->ForceCloseManageCurseur(this, &dc);
+				DrawPanel->ForceCloseManageCurseur(DrawPanel, &dc);
 			}
 			/* ne devrait pas etre execute, sauf bug */
 			if (m_CurrentScreen->BlockLocate.m_Command != BLOCK_IDLE)
@@ -418,10 +422,10 @@ int itmp;
 			break;
 
 		default:	// Arret de la commande de déplacement en cours
-			if( GetScreen()->ManageCurseur &&
-				GetScreen()->ForceCloseManageCurseur )
+			if( DrawPanel->ManageCurseur &&
+				DrawPanel->ForceCloseManageCurseur )
 				{
-				GetScreen()->ForceCloseManageCurseur(this, &dc);
+				DrawPanel->ForceCloseManageCurseur(DrawPanel, &dc);
 				}
 			SetToolID(0, wxCURSOR_ARROW,wxEmptyString);
 			break;
@@ -734,6 +738,15 @@ int itmp;
 			StartMove_Module( (MODULE*)CURRENT_ITEM, &dc);
 			break;
 
+		case ID_POPUP_PCB_GET_AND_MOVE_MODULE_REQUEST:	/* get module by name and move it */
+			CURRENT_ITEM = GetModuleByName();
+			if ( CURRENT_ITEM )
+			{
+				DrawPanel->MouseToCursorSchema();
+				StartMove_Module( (MODULE*)CURRENT_ITEM, &dc);
+			}
+			break;
+
 		case ID_POPUP_PCB_DELETE_MODULE:
 			DrawPanel->MouseToCursorSchema();
 			// If the current Item is a pad, text module ...: Get the parent
@@ -1036,10 +1049,23 @@ int itmp;
 			Via_Edit_Control(&dc, id, (SEGVIA *) GetScreen()->m_CurrentItem);
 			break;
 		
+		case ID_POPUP_PCB_MOVE_TRACK_SEGMENT:
+			DrawPanel->MouseToCursorSchema();
+			Start_MoveOneNodeOrSegment((TRACK *) GetScreen()->m_CurrentItem,
+					&dc, id);
+			break;
+
+		case ID_POPUP_PCB_DRAG_TRACK_SEGMENT:
 		case ID_POPUP_PCB_MOVE_TRACK_NODE:
 			DrawPanel->MouseToCursorSchema();
-			Start_MoveOneTrackSegment((TRACK *) GetScreen()->m_CurrentItem,
-					&dc, TRUE);
+			Start_MoveOneNodeOrSegment((TRACK *) GetScreen()->m_CurrentItem,
+					&dc, id);
+			break;
+
+        case ID_POPUP_PCB_DRAG_TRACK_SEGMENT_KEEP_SLOPE:
+			DrawPanel->MouseToCursorSchema();
+            Start_DragTrackSegmentAndKeepSlope((TRACK *) GetScreen()->m_CurrentItem,
+					&dc);
 			break;
 
 		case ID_POPUP_PCB_BREAK_TRACK:
@@ -1099,7 +1125,7 @@ int itmp;
 	}
 
 	SetToolbars();
-	GetScreen()->CursorOn(DrawPanel, &dc);
+	DrawPanel->CursorOn(&dc);
 	DrawPanel->m_IgnoreMouseEvents = FALSE;
 }
 

@@ -1,0 +1,41 @@
+#! /bin/sh /usr/share/dpatch/dpatch-run
+## 04_wx26compat.dpatch by Richard Antony Burton <richardaburton@gmail.com>
+##
+## All lines beginning with `## DP:' are a description of the patch.
+## DP: Allow building against wx2.6 (2.8 not yet in Debian).
+
+
+@DPATCH@
+
+diff -Nur kicad-0.0.20070525.orig/include/fctsys.h kicad-0.0.20070525/include/fctsys.h
+--- kicad-0.0.20070525.orig/include/fctsys.h	2007-05-27 18:04:58.000000000 +0100
++++ kicad-0.0.20070525/include/fctsys.h	2007-05-27 18:08:03.000000000 +0100
+@@ -48,6 +48,7 @@
+ #if ( (wxMAJOR_VERSION < 2) || ((wxMAJOR_VERSION == 2)&& (wxMINOR_VERSION < 7)) )
+ #define wxFD_OPEN wxOPEN
+ #define wxFD_SAVE wxSAVE
++#define wxFD_OVERWRITE_PROMPT wxOVERWRITE_PROMPT
+ #define WXK_PAGEUP WXK_PRIOR
+ #define WXK_PAGEDOWN WXK_NEXT
+ #endif
+diff -Nur kicad-0.0.20070525.orig/kicad/treeprj_datas.cpp kicad-0.0.20070525/kicad/treeprj_datas.cpp
+--- kicad-0.0.20070525.orig/kicad/treeprj_datas.cpp	2007-05-27 18:04:58.000000000 +0100
++++ kicad-0.0.20070525/kicad/treeprj_datas.cpp	2007-05-27 18:05:28.000000000 +0100
+@@ -177,7 +177,7 @@
+ 	if ( destName == GetFileName() ) return; // Same place ??
+ 
+ 	// Move the file on the disk:
+-	if ( !wxRenameFile( GetFileName(), destName, false ) )
++	if ( !wxRenameFile( GetFileName(), destName ) )
+ 	{
+ 		wxMessageDialog( m_Parent, _( "Unable to move file ... "), _( "Permission error ?" ), wxICON_ERROR | wxOK );
+ 		return;
+@@ -244,7 +244,7 @@
+ 		if ( wxID_YES != dialog.ShowModal() ) return false;
+ 	}
+ 
+-	if (! wxRenameFile( m_FileName, newFile, false ) )
++	if (! wxRenameFile( m_FileName, newFile ) )
+ 	{
+ 		wxMessageDialog( m_Parent, _( "Unable to rename file ... "), _( "Permission error ?" ), wxICON_ERROR | wxOK );
+ 		return false;

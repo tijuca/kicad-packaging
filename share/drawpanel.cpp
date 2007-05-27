@@ -12,6 +12,9 @@
 #include "macros.h"
 #include "id.h"
 
+/* defines locaux */
+#define CURSOR_SIZE 12	/* taille de la croix du curseur PCB */
+
 /* Variables locales */
 
 /* table des evenements captes par un WinEDA_DrawPanel */
@@ -59,12 +62,76 @@ WinEDA_DrawPanel::WinEDA_DrawPanel(WinEDA_DrawFrame *parent, int id,
 	m_AutoPAN_Enable = TRUE;
 	m_IgnoreMouseEvents = FALSE;
 
+	ManageCurseur = NULL;
+	ForceCloseManageCurseur = NULL;
+
 	if ( m_Parent->m_Parent->m_EDA_Config )
 		m_AutoPAN_Enable = m_Parent->m_Parent->m_EDA_Config->Read(wxT("AutoPAN"), TRUE);
 	m_AutoPAN_Request = FALSE;
 	m_Block_Enable = FALSE;
 	m_PanelDefaultCursor = m_PanelCursor = wxCURSOR_ARROW;
 	m_CursorLevel = 0;
+}
+
+/*********************************************************************************/
+void WinEDA_DrawPanel::Trace_Curseur(wxDC * DC, int color)
+/*********************************************************************************/
+/*
+ Trace Le curseur sur la zone PCB , se deplacant sur la grille
+*/
+{
+	if (m_CursorLevel != 0) {
+		return;
+	}
+
+wxPoint Cursor = GetScreen()->m_Curseur;
+	
+	if ( DC == NULL ) return;
+	
+	GRSetDrawMode(DC, GR_XOR);
+	if( g_CursorShape == 1 )	/* Trace d'un reticule */
+		{
+		int dx = m_ClipBox.GetWidth() * GetZoom();
+		int dy = m_ClipBox.GetHeight() * GetZoom();
+		GRLine(&m_ClipBox, DC, Cursor.x - dx, Cursor.y,
+							Cursor.x + dx, Cursor.y, 0, color); // axe Y
+		GRLine(&m_ClipBox, DC, Cursor.x, Cursor.y - dx,
+				Cursor.x, Cursor.y + dy, 0, color);  // axe X
+		}
+
+	else
+		{
+		int len = CURSOR_SIZE * GetZoom();
+		GRLine(&m_ClipBox, DC, Cursor.x - len, Cursor.y,
+				Cursor.x + len, Cursor.y, 0, color);
+		GRLine(&m_ClipBox, DC, Cursor.x, Cursor.y - len,
+				Cursor.x, Cursor.y + len, 0, color);
+		}
+}
+
+/*******************************************************************/
+void WinEDA_DrawPanel::CursorOff(wxDC * DC)
+/*******************************************************************/
+/*
+ Remove the grid cursor from the display in preparation for other drawing operations
+*/
+{
+	Trace_Curseur(DC);
+	--m_CursorLevel;
+}
+
+/*******************************************************************/
+void WinEDA_DrawPanel::CursorOn(wxDC * DC)
+/*******************************************************************/
+/*
+ Display the grid cursor
+*/
+{
+	++m_CursorLevel;
+	Trace_Curseur(DC);
+
+	if (m_CursorLevel > 0)     // Shouldn't happen, but just in case ..
+		m_CursorLevel = 0;
 }
 
 
@@ -94,8 +161,6 @@ wxSize WinEDA_DrawPanel::GetGrid(void)
 void WinEDA_DrawPanel::PrepareGraphicContext(wxDC * DC)
 /******************************************************/
 {
-	DC->SetPen(*DrawPen);
-	DC->SetBrush(*DrawBrush);
 	GRResetPenAndBrush(DC);
 	DC->SetBackgroundMode(wxTRANSPARENT);
 #ifdef WX_ZOOM
@@ -141,11 +206,7 @@ wxPoint WinEDA_DrawPanel::CursorRealPosition(const wxPoint & ScreenPos)
 {
 wxPoint curpos;
 
-	curpos.x = ScreenPos.x * GetZoom();
-	curpos.y = ScreenPos.y * GetZoom();
-
-	curpos.x += GetScreen()->m_DrawOrg.x;
-	curpos.y += GetScreen()->m_DrawOrg.y;
+	curpos = GetScreen()->CursorRealPosition(ScreenPos);
 
 	return curpos;
 }
@@ -252,7 +313,8 @@ wxPoint mouse;
 void WinEDA_DrawPanel::OnActivate(wxActivateEvent& event)
 /********************************************************/
 {
-		m_CanStartBlock = -1;	// Commande block can't start
+	m_CanStartBlock = -1;	// Commande block can't start
+	event.Skip();
 }
 
 
@@ -279,27 +341,28 @@ int x,y;
 	else if ( id == wxEVT_SCROLLWIN_LINEDOWN) value = m_ScrollButt_unit;
 
 	else if ( id == wxEVT_SCROLLWIN_THUMBTRACK )
-		{
+	{
 		value = event.GetPosition();
 		if ( dir == wxHORIZONTAL ) Scroll( value, -1 );
 		else Scroll( -1, value );
 		return;
-		}
+	}
 
 	else
-		{
+	{
 		event.Skip();
 		return;
-		}
+	}
 
 	if ( dir == wxHORIZONTAL )
-		{
+	{
 		Scroll( x + value, -1 );
-		}
+	}
 	else
-		{
+	{
 		Scroll( -1, y + value );
-		}
+	}
+	event.Skip();
 }
 
 
@@ -308,6 +371,7 @@ void WinEDA_DrawPanel::OnSize(wxSizeEvent & event)
 /*************************************************/
 {
 	SetBoundaryBox();
+	event.Skip();
 }
 
 /******************************************/
@@ -399,7 +463,7 @@ wxPoint org;
 	}
 
 	m_ClipBox = tmp;
-		
+	event.Skip();		
 }
 
 /****************************************************/
@@ -432,7 +496,6 @@ double f_scale = 1.0/(double)zoom;
 	if(erasebg) PrepareGraphicContext(DC);
 	DC->SetFont(* g_StdFont);
 		
-	DC->BeginDrawing();
 	SetBackgroundColour(wxColour(ColorRefs[g_DrawBgColor].m_Red,
 						ColorRefs[g_DrawBgColor].m_Green,
 						ColorRefs[g_DrawBgColor].m_Blue ));
@@ -442,8 +505,6 @@ double f_scale = 1.0/(double)zoom;
 	DC->SetBackground(*wxBLACK_BRUSH );
 	DC->SetBackgroundMode(wxTRANSPARENT);
 	m_Parent->RedrawActiveWindow(DC, erasebg);
-
-	DC->EndDrawing();
 }
 
 /***********************************************/
@@ -464,7 +525,7 @@ wxSize size;
 wxPoint org;
 double pasx, pasy;
 
-	color = screen->m_GridColor;
+	color = g_GridColor;
 	GRSetDrawMode(DC, GR_COPY);
 
 	/* le pas d'affichage doit etre assez grand pour avoir une grille visible */
@@ -517,30 +578,30 @@ double pasx, pasy;
 	}
 
 	/* trace des axes principaux */
-	if (  m_Parent->m_Draw_Axes )
+	if (  m_Parent->m_Draw_Axis )
 	{
 		/* Trace de l'axe vertical */
 		GRDashedLine(&m_ClipBox, DC, 0, -screen->ReturnPageSize().y,
-				0, screen->ReturnPageSize().y, Color );
+				0, screen->ReturnPageSize().y, 0, Color );
 
 		/* Trace de l'axe horizontal */
 		GRDashedLine(&m_ClipBox, DC, -screen->ReturnPageSize().x, 0,
-				screen->ReturnPageSize().x, 0, Color );
+				screen->ReturnPageSize().x, 0, 0, Color );
 	}
 
 	/* trace des axes auxiliaires */
-	if ( m_Parent->m_Draw_Auxiliary_Axe)
+	if ( m_Parent->m_Draw_Auxiliary_Axis)
 	{
-		m_Draw_Auxiliary_Axe(DC, FALSE);
+		m_Draw_Auxiliary_Axis(DC, FALSE);
 	}
 }
 
 /********************************************************************/
-void WinEDA_DrawPanel::m_Draw_Auxiliary_Axe(wxDC * DC, int drawmode)
+void WinEDA_DrawPanel::m_Draw_Auxiliary_Axis(wxDC * DC, int drawmode)
 /********************************************************************/
 {
-	if ( m_Parent->m_Auxiliary_Axe_Position.x == 0 &&
-		 m_Parent->m_Auxiliary_Axe_Position.y == 0 )
+	if ( m_Parent->m_Auxiliary_Axis_Position.x == 0 &&
+		 m_Parent->m_Auxiliary_Axis_Position.y == 0 )
 		return;
 
 int Color = DARKRED;
@@ -550,15 +611,15 @@ BASE_SCREEN * screen = GetScreen();
 
 	/* Trace de l'axe vertical */
 	GRDashedLine(&m_ClipBox, DC,
-			m_Parent->m_Auxiliary_Axe_Position.x, -screen->ReturnPageSize().y,
-			m_Parent->m_Auxiliary_Axe_Position.x, screen->ReturnPageSize().y,
-			Color );
+			m_Parent->m_Auxiliary_Axis_Position.x, -screen->ReturnPageSize().y,
+			m_Parent->m_Auxiliary_Axis_Position.x, screen->ReturnPageSize().y,
+			0, Color );
 
 	/* Trace de l'axe horizontal */
 	GRDashedLine(&m_ClipBox, DC,
-			-screen->ReturnPageSize().x, m_Parent->m_Auxiliary_Axe_Position.y,
-			screen->ReturnPageSize().x, m_Parent->m_Auxiliary_Axe_Position.y,
-			Color );
+			-screen->ReturnPageSize().x, m_Parent->m_Auxiliary_Axis_Position.y,
+			screen->ReturnPageSize().x, m_Parent->m_Auxiliary_Axis_Position.y,
+			0, Color );
 }
 
 /*******************************************************/
@@ -586,7 +647,7 @@ void WinEDA_DrawPanel::OnMouseLeaving(wxMouseEvent& event)
 /*******************************************************/
 // Called when the canvas receives a mouse event leaving frame. //
 {
-	if (GetScreen()->ManageCurseur == NULL ) // Pas de commande encours
+	if (ManageCurseur == NULL ) // Pas de commande encours
 		m_AutoPAN_Request = FALSE;
 
 	if ( ! m_AutoPAN_Enable || ! m_AutoPAN_Request || m_IgnoreMouseEvents)
@@ -614,7 +675,7 @@ static WinEDA_DrawPanel * LastPanel;
 		m_CanStartBlock = -1;
 	}
 
-	if (GetScreen()->ManageCurseur == NULL ) // Pas de commande en cours
+	if (ManageCurseur == NULL ) // Pas de commande en cours
 		m_AutoPAN_Request = FALSE;
 
 	if ( m_Parent->m_FrameIsActive ) SetFocus();
@@ -624,8 +685,18 @@ static WinEDA_DrawPanel * LastPanel;
 	if ( event.m_wheelRotation )
 	{
 		// This is a zoom in ou out command
-		if ( event.GetWheelRotation() > 0 ) localkey = WXK_F1;
-		else  localkey = WXK_F2;
+		if ( event.GetWheelRotation() > 0 )
+		{
+			if( event.ShiftDown() ) localkey = EDA_PANNING_UP_KEY;
+			else if( event.ControlDown() ) localkey = EDA_PANNING_LEFT_KEY;
+			else localkey = WXK_F1;
+		}
+		else 
+		{
+			if( event.ShiftDown() ) localkey = EDA_PANNING_DOWN_KEY;
+			else if( event.ControlDown() ) localkey = EDA_PANNING_RIGHT_KEY;
+			else localkey = WXK_F2;
+		}
 	}
 
 	if( !event.IsButton() && !event.Moving() &&
@@ -653,7 +724,10 @@ static WinEDA_DrawPanel * LastPanel;
 
 	localrealbutt |= localbutt;		/* compensation defaut wxGTK */
 
-	screen->m_MousePosition = CalcAbsolutePosition(wxPoint(event.GetX(), event.GetY()));
+	/* Compute absolute m_MousePosition in pixel units: */
+	screen->m_MousePositionInPixels = CalcAbsolutePosition(wxPoint(event.GetX(), event.GetY()));
+	/* Compute absolute m_MousePosition in user units: */
+	screen->m_MousePosition = CursorRealPosition(screen->m_MousePositionInPixels);
 
 wxClientDC DC(this);
 int kbstat = 0;
@@ -671,10 +745,10 @@ int kbstat = 0;
 
 	// Appel des fonctions liées au Double Click ou au Click
 	if( localbutt == (int)(GR_M_LEFT_DOWN|GR_M_DCLICK) )
-		m_Parent->OnLeftDClick(&DC, screen->m_MousePosition);
+		m_Parent->OnLeftDClick(&DC, screen->m_MousePositionInPixels);
 
 	else if ( event.LeftDown() )
-		m_Parent->OnLeftClick(&DC, screen->m_MousePosition);
+		m_Parent->OnLeftClick(&DC, screen->m_MousePositionInPixels);
 
 	if( event.ButtonUp(2) && (screen->BlockLocate.m_State == STATE_NO_BLOCK) )
 	{	// The middle button has been relached, with no block command:
@@ -685,7 +759,7 @@ int kbstat = 0;
 
 	/* Appel de la fonction generale de gestion des mouvements souris
 	et commandes clavier */
-	m_Parent->GeneralControle(&DC, screen->m_MousePosition);
+	m_Parent->GeneralControle(&DC, screen->m_MousePositionInPixels);
 
 
 	/*******************************/
@@ -722,8 +796,8 @@ int kbstat = 0;
 		}
 		else if( (m_CanStartBlock >= 0 ) &&
 				( event.LeftIsDown() || event.MiddleIsDown() )
-				&& screen->ManageCurseur == NULL
-				&& screen->ForceCloseManageCurseur == NULL )
+				&& ManageCurseur == NULL
+				&& ForceCloseManageCurseur == NULL )
 		{
 			if ( screen->BlockLocate.m_State == STATE_NO_BLOCK )
 			{
@@ -753,9 +827,9 @@ int kbstat = 0;
 			
 			if ( (screen->BlockLocate.m_State != STATE_NO_BLOCK) && BlockIsSmall )
 			{
-				if( GetScreen()->ForceCloseManageCurseur )
+				if( ForceCloseManageCurseur )
 				{
-					GetScreen()->ForceCloseManageCurseur(m_Parent, &DC);
+					ForceCloseManageCurseur(this, &DC);
 					m_AutoPAN_Request = FALSE;
 				}
 				SetCursor(m_PanelCursor = m_PanelDefaultCursor);
@@ -781,9 +855,9 @@ int kbstat = 0;
 	{
 		if ( screen->BlockLocate.m_Command != BLOCK_IDLE )
 		{
-			if( GetScreen()->ForceCloseManageCurseur )
+			if( ForceCloseManageCurseur )
 			{
-				GetScreen()->ForceCloseManageCurseur(m_Parent, &DC);
+				ForceCloseManageCurseur(this, &DC);
 				m_AutoPAN_Request = FALSE;
 			}
 		}
@@ -841,16 +915,16 @@ BASE_SCREEN * Screen = GetScreen();
 
 	if ( escape )
 	{
-		if( Screen->ManageCurseur && Screen->ForceCloseManageCurseur )
+		if( ManageCurseur && ForceCloseManageCurseur )
 		{
 			SetCursor(m_PanelCursor = m_PanelDefaultCursor);
-			Screen->ForceCloseManageCurseur(m_Parent, &DC);
+			ForceCloseManageCurseur(this, &DC);
 			SetCursor(m_PanelCursor = m_PanelDefaultCursor);
 		}
 		else m_Parent->SetToolID(0, m_PanelCursor = m_PanelDefaultCursor = wxCURSOR_ARROW, wxEmptyString);
 	}
 
-	m_Parent->GeneralControle(&DC, Screen->m_MousePosition);
+	m_Parent->GeneralControle(&DC, Screen->m_MousePositionInPixels);
 }
 
 

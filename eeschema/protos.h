@@ -40,23 +40,6 @@ void IncrementLabelMember(wxString & name);
 void InstallCmpeditFrame(WinEDA_SchematicFrame * parent, wxPoint & pos,
 			EDA_SchComponentStruct * m_Cmp);
 
-/*************/
-/* DIVERS.CPP */
-/*************/
-void SetFlagModify(BASE_SCREEN * Window);
-	/* Mise a 1 du flag modified de l'ecran Window, et de la date */
-
-int StartDraw(int argc, char **argv);
-
-SCH_SCREEN * CreateNewScreen(WinEDA_DrawFrame * frame_source, SCH_SCREEN * OldScreen, int TimeStamp);
-			/* Routine de creation ( par allocation memoire ) d'un nouvel ecran
-					cet ecran est en chainage arriere avec OldScreen */
-
-SCH_SCREEN * LookForScreenSheet(DrawSheetStruct * Sheet);
-			/* Routine retournant un pointeur sur l'ecran correspondant a la
-				feuille de hierarchie pointee par Sheet;
-				   Retourne NULL si l'ecran n'est pas trouve */
-
 
 	/**************/
 	/* EELIBS2.CPP */
@@ -75,10 +58,6 @@ void DrawingLibInGhost(WinEDA_DrawPanel * panel, wxDC * DC, EDA_LibComponentStru
 void DrawLibEntry(WinEDA_DrawPanel * panel, wxDC * DC,
 							EDA_LibComponentStruct *LibEntry, int posX, int posY,
 							int Multi, int convert,
-							int DrawMode, int Color = -1);
-
-void DrawPinSymbol(WinEDA_DrawPanel * panel, wxDC * DC,
-							int posX, int posY, int len, int orient, int SymbolType,
 							int DrawMode, int Color = -1);
 
 void DrawLibraryDrawStruct(WinEDA_DrawPanel * panel, wxDC * DC,
@@ -105,8 +84,6 @@ LibraryStruct * LoadLibraryName(WinEDA_DrawFrame * frame,
 void LoadLibraries(WinEDA_DrawFrame * frame);
 void FreeCmpLibrary(wxWindow * frame, const wxString & LibName);
 const wxChar **GetLibNames(void);
-bool DrawLibPart(WinEDA_DrawPanel * panel, wxDC * DC,
-			EDA_SchComponentStruct *DrawLibItem, int DrawMode, int color = -1);
 
 void SnapLibItemPoint(int OrigX, int OrigY, int *ClosestX, int *ClosestY,
 						 EDA_SchComponentStruct *DrawLibItem);
@@ -128,8 +105,9 @@ char * StrPurge(char * text);
 	/************/
 	/* BLOCK.CPP */
 	/************/
-void MoveOneStruct(EDA_BaseStruct *DrawStructs, int Dx, int Dy);
-								/* Given a structure move it by Dx, Dy. */
+EDA_BaseStruct * DuplicateStruct(EDA_BaseStruct *DrawStruct);
+void MoveOneStruct(EDA_BaseStruct *DrawStructs, const wxPoint & move_vector);
+						/* Given a structure move it by move_vector.x, move_vector.y. */
 
 bool PlaceStruct(BASE_SCREEN * screen, EDA_BaseStruct *DrawStruct);
 bool MoveStruct(WinEDA_DrawPanel * panel, wxDC * DC, EDA_BaseStruct *DrawStruct);
@@ -185,8 +163,8 @@ EDA_BaseStruct * PickStruct(const wxPoint & refpos,
 
 
 
-LibEDA_BaseStruct * LocateDrawItem(SCH_SCREEN * Screen,
-		EDA_LibComponentStruct* LibEntry, int Unit, int Convert, int masque);
+LibEDA_BaseStruct * LocateDrawItem(SCH_SCREEN * Screen, const wxPoint & refpoint,
+		EDA_LibComponentStruct * LibEntry, int Unit, int Convert, int masque);
 
 DrawSheetLabelStruct * LocateSheetLabel(DrawSheetStruct *Sheet, const wxPoint & pos);
 LibDrawPin * LocateAnyPin(EDA_BaseStruct *DrawList, const wxPoint & RefPos,
@@ -212,6 +190,8 @@ int distance(int dx, int dy, int spot_cX, int spot_cY, int seuil);
 /***************/
 /* EEREDRAW.CPP */
 /***************/
+void  DrawDanglingSymbol(WinEDA_DrawPanel * panel,wxDC * DC,
+			const wxPoint & pos, int Color);
 
 void Draw_Marqueur(WinEDA_DrawPanel * panel, wxDC * DC,
 			wxPoint pos, char* pt_bitmap, int DrawMode, int Color);
@@ -224,26 +204,6 @@ void RedrawStructList(WinEDA_DrawPanel * panel, wxDC * DC, EDA_BaseStruct *Struc
 									int Color = -1);
 void RedrawOneStruct(WinEDA_DrawPanel * panel, wxDC * DC, EDA_BaseStruct *Struct, int DrawMode,
 									int Color = -1);
-void Redraw_DrawLineStruct(WinEDA_DrawPanel * panel, wxDC * DC, EDA_DrawLineStruct *Struct, int DrawMode,
-									int Color = -1);
-void ReDrawBusEntryStruct(WinEDA_DrawPanel * panel, wxDC * DC, DrawBusEntryStruct *Struct, int DrawMode,
-									int Color = -1);
-void RedrawPolylineStruct(WinEDA_DrawPanel * panel, wxDC * DC, DrawPolylineStruct *Struct, int DrawMode,
-									int Color = -1);
-void RedrawConnectionStruct(WinEDA_DrawPanel * panel, wxDC * DC, DrawJunctionStruct *Struct, int DrawMode,
-									int Color = -1);
-void RedrawSheetStruct(WinEDA_DrawPanel * panel, wxDC * DC, DrawSheetStruct *Struct, int DrawMode,
-									int Color = -1);
-void RedrawSheetLabelStruct(WinEDA_DrawPanel * panel, wxDC * DC, DrawSheetLabelStruct *Struct, int DrawMode,
-									int Color = -1);
-void RedrawTextStruct(WinEDA_DrawPanel * panel, wxDC * DC, DrawTextStruct *Struct,
-							int DrawMode,	int Color = -1);
-void RedrawGlobalLabelStruct(WinEDA_DrawPanel * panel, wxDC * DC, DrawGlobalLabelStruct *Struct,
-						int DrawMode, int Color = -1);
-void RedrawMarkerStruct(WinEDA_DrawPanel * panel, wxDC * DC, DrawMarkerStruct *Struct,
-			int DrawMode, int Color =-1);
-void RedrawNoConnectStruct(WinEDA_DrawPanel * panel, wxDC * DC,
-			DrawNoConnectStruct *Struct, int DrawMode, int Color = -1);
 
 /**************/
 /* EELAYER.CPP */
@@ -262,9 +222,6 @@ int CountCmpNumber(void);
 /* EESTRING.CPP */
 /***************/
 
-void PutTextInfo(WinEDA_DrawPanel * panel, wxDC * DC, int Orient, const wxPoint & PosX,
-							const wxSize& size,
-							const wxString & Str, int DrawMode, int color);
 
 /***************/
 /* EECONFIG.CPP */
@@ -334,15 +291,15 @@ void SuppressDuplicateDrawItem(EDA_LibComponentStruct * LibEntry);
 /* NETLIST.CPP */
 /**************/
 int IsBusLabel(const wxString & LabelDrawList);
-void * BuildNetList(WinEDA_DrawFrame * frame, SCH_SCREEN * Window);
-void InstallNetlistFrame(WinEDA_DrawFrame *parent, wxPoint &pos);
+void InstallNetlistFrame(WinEDA_SchematicFrame *parent, wxPoint &pos);
 
 /***************/
 /* ANNOTATE.CPP */
 /***************/
+void ReAnnotatePowerSymbolsOnly( void );
 
-void InstallAnnotateFrame(WinEDA_DrawFrame * parent, wxPoint &pos);
-int CheckAnnotate(WinEDA_DrawFrame * frame, bool OneSheetOnly);
+void InstallAnnotateFrame(WinEDA_SchematicFrame * parent, wxPoint &pos);
+int CheckAnnotate(WinEDA_SchematicFrame * frame, bool OneSheetOnly);
 				/* Retourne le nombre de composants non annotes ou erronés
 					Si OneSheetOnly : recherche sur le schema courant
 					else: recherche sur toute la hierarchie */
@@ -351,8 +308,11 @@ int CheckAnnotate(WinEDA_DrawFrame * frame, bool OneSheetOnly);
 /************/
 /* PLOT.CPP */
 /************/
-void PlotArc(wxPoint centre, int StAngle, int EndAngle, int rayon);
-void PlotCercle(wxPoint centre, int diametre );
+void SetCurrentLineWidth( int width);
+
+void PlotArc(wxPoint centre, int StAngle, int EndAngle, int rayon, int width = -1);
+void PlotCercle(wxPoint centre, int diametre, int width = -1);
+void PlotPoly( int nb, int * coord, int fill, int width = -1);
 
 void PlotNoConnectStruct(DrawNoConnectStruct * Struct);
 void PlotLibPart( EDA_SchComponentStruct *DrawLibItem );
@@ -364,14 +324,18 @@ void PlotTextStruct(EDA_BaseStruct *Struct);
 /***************/
 /* DELSHEET.CPP */
 /***************/
-void DeleteSubHierarchy(DrawSheetStruct * Sheet);
-bool ClearProjectDrawList(SCH_SCREEN * FirstWindow);
+void DeleteSubHierarchy(DrawSheetStruct * Sheet, bool confirm_deletion);
+void ClearDrawList(EDA_BaseStruct *DrawList, bool confirm_deletion); /* free the draw list DrawList and the subhierarchies */
+bool ClearProjectDrawList(SCH_SCREEN * FirstWindow, bool confirm_deletion);
+/* free the draw list screen->EEDrawList and the subhierarchies
+	clear the screen datas (filenames ..)
+*/
 
 /*************/
 /* DELETE.CPP */
 /*************/
 
-void LocateAndDeleteItem(WinEDA_SchematicFrame * frame, wxDC * DC);
+bool LocateAndDeleteItem(WinEDA_SchematicFrame * frame, wxDC * DC);
 void EraseStruct(EDA_BaseStruct *DrawStruct, SCH_SCREEN * Window);
 void DeleteAllMarkers(int type);
 						/* Effacement des marqueurs du type "type" */
@@ -392,7 +356,7 @@ void DeleteOneLibraryDrawStruct(WinEDA_DrawPanel * panel,
 /**********/
 /* ERC.CPP */
 /**********/
-void InstallErcFrame(WinEDA_DrawFrame *parent, wxPoint & pos);
+void InstallErcFrame(WinEDA_SchematicFrame *parent, wxPoint & pos);
 
 
 /**************/
@@ -450,16 +414,17 @@ int GenListeCmp( EDA_BaseStruct ** List );
 	/* CLEANUP.CPP */
 	/**************/
 
-void SchematicCleanUp(wxDC * DC);
+void SchematicCleanUp(SCH_SCREEN * screen, wxDC * DC);
 	/* Routine de nettoyage:
 		 - regroupe les segments de fils (ou de bus) alignes en 1 seul segment
 		 - Detecte les objets identiques superposes
 	*/
 
-void BreakSegmentOnJunction( BASE_SCREEN * Screen );
+void BreakSegmentOnJunction( SCH_SCREEN * Screen );
 	/* Routine creant des debuts / fin de segment (BUS ou WIRES) sur les jonctions
 		et les raccords */
-void BreakSegment(BASE_SCREEN * screen, wxPoint breakpoint);
+DrawPickedStruct * BreakSegment(SCH_SCREEN * screen, wxPoint breakpoint,
+			bool PutInUndoList = FALSE);
 	/* Coupe un segment ( BUS, WIRE ) en 2 au point breakpoint,
 		- si ce point est sur le segment
 		- extremites non comprises */

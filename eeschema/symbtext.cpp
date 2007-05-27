@@ -319,10 +319,10 @@ LibDrawText * DrawItem = (LibDrawText *) CurrentDrawItem;
 	if(DrawItem == NULL) return;
 
 	/* Erase drawing (can be within a move command) */
-	if ( m_CurrentScreen->ManageCurseur == NULL)
+	if ( DrawPanel->ManageCurseur == NULL)
 		DrawLibraryDrawStruct(DrawPanel, DC, CurrentLibEntry, 0 , 0,
 				DrawItem, CurrentUnit, g_XorMode);
-	else m_CurrentScreen->ManageCurseur(DrawPanel, DC, FALSE);
+	else DrawPanel->ManageCurseur(DrawPanel, DC, FALSE);
 
 	if( DrawItem->m_Horiz == TEXT_ORIENT_HORIZ)
 			DrawItem->m_Horiz = TEXT_ORIENT_VERT;
@@ -331,10 +331,10 @@ LibDrawText * DrawItem = (LibDrawText *) CurrentDrawItem;
 	m_CurrentScreen->SetModify();
 
 	/* Redraw item with new orient */
-	if ( m_CurrentScreen->ManageCurseur == NULL)
+	if ( DrawPanel->ManageCurseur == NULL)
 		DrawLibraryDrawStruct(DrawPanel, DC, CurrentLibEntry, 0 , 0,
 				DrawItem, CurrentUnit, GR_DEFAULT_DRAWMODE);
-	else m_CurrentScreen->ManageCurseur(DrawPanel, DC, FALSE);
+	else DrawPanel->ManageCurseur(DrawPanel, DC, FALSE);
 
 }
 

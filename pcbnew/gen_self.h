@@ -8,7 +8,7 @@
 
 /* Fonctions locales */
 
-static void Exit_Self(WinEDA_DrawFrame * frame, wxDC *DC);
+static void Exit_Self(WinEDA_DrawPanel * Panel, wxDC *DC);
 static EDGE_MODULE * gen_arc(EDGE_MODULE * PtSegm, int cX, int cY, int angle);
 static void ShowCadreSelf(WinEDA_DrawPanel * panel, wxDC * DC, bool erase);
 
@@ -81,17 +81,17 @@ int deltaX, deltaY;
 
 
 /*************************************************/
-void Exit_Self(WinEDA_DrawFrame * frame, wxDC *DC)
+void Exit_Self(WinEDA_DrawPanel * Panel, wxDC *DC)
 /*************************************************/
 /* Routine de fermeture de l'application : ferme les commandes en cours */
 {
 	if(Self_On)
-		{
+	{
 		Self_On = 0;
-		frame->m_CurrentScreen->ManageCurseur(frame->DrawPanel, DC, 0); /* efface cadre */
-		frame->m_CurrentScreen->ManageCurseur = NULL;
-		frame->m_CurrentScreen->ForceCloseManageCurseur = NULL;
-		}
+		Panel->ManageCurseur(Panel, DC, 0); /* efface cadre */
+		Panel->ManageCurseur = NULL;
+		Panel->ForceCloseManageCurseur = NULL;
+	}
 }
 
 
@@ -120,9 +120,9 @@ Routine d'initialisation d'un trace de self
 	Bl_X0 = Mself.m_Start.x; Bl_Y0 = Mself.m_Start.y;
 	Bl_Xf = Bl_X0; Bl_Yf = Bl_Y0;
 
-	m_CurrentScreen->ManageCurseur = ShowCadreSelf;
-	m_CurrentScreen->ForceCloseManageCurseur = Exit_Self;
-	m_CurrentScreen->ManageCurseur(DrawPanel, DC, 0); /* Affiche cadre */
+	DrawPanel->ManageCurseur = ShowCadreSelf;
+	DrawPanel->ForceCloseManageCurseur = Exit_Self;
+	DrawPanel->ManageCurseur(DrawPanel, DC, 0); /* Affiche cadre */
 }
 
 /**********************************************/
@@ -173,9 +173,9 @@ float fcoeff;
 bool abort = FALSE;
 wxString msg;
 	
-	m_CurrentScreen->ManageCurseur(DrawPanel, DC, FALSE);	/* efface cadre */
-	m_CurrentScreen->ManageCurseur = NULL;
-	m_CurrentScreen->ForceCloseManageCurseur = NULL;
+	DrawPanel->ManageCurseur(DrawPanel, DC, FALSE);	/* efface cadre */
+	DrawPanel->ManageCurseur = NULL;
+	DrawPanel->ForceCloseManageCurseur = NULL;
 
 	if(Self_On == 0)
 	{

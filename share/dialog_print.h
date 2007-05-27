@@ -20,7 +20,6 @@
 
 ////@begin includes
 #include "wx/valgen.h"
-#include "wx/spinctrl.h"
 ////@end includes
 
 /*!
@@ -29,7 +28,6 @@
 
 ////@begin forward declarations
 class wxBoxSizer;
-class wxSpinCtrl;
 ////@end forward declarations
 
 /*!
@@ -38,22 +36,22 @@ class wxSpinCtrl;
 
 ////@begin control identifiers
 #define ID_DIALOG 10000
-#define SYMBOL_WINEDA_PRINTFRAME_STYLE wxCAPTION|wxRESIZE_BORDER|wxSYSTEM_MENU|wxCLOSE_BOX
-#define SYMBOL_WINEDA_PRINTFRAME_TITLE _("Print")
-#define SYMBOL_WINEDA_PRINTFRAME_IDNAME ID_DIALOG
-#define SYMBOL_WINEDA_PRINTFRAME_SIZE wxSize(400, 300)
-#define SYMBOL_WINEDA_PRINTFRAME_POSITION wxDefaultPosition
 #define ID_SET_PRINT_SCALE 10004
 #define ID_TEXTCTRL 10009
 #define ID_TEXTCTRL1 10010
-#define ID_PEN_WIDTH 10005
 #define ID_PRINT_REF 10006
+#define ID_CHECK_PRINT_MIROR 10011
 #define ID_SET_BW 10007
 #define ID_PRINT_ALL_IN_ONE 10008
 #define ID_PRINT_ALL 10008
 #define ID_PRINT_SETUP 10001
 #define ID_PRINT_PREVIEW 10002
 #define ID_PRINT_EXECUTE 10003
+#define SYMBOL_WINEDA_PRINTFRAME_STYLE wxCAPTION|wxRESIZE_BORDER|wxSYSTEM_MENU|wxCLOSE_BOX
+#define SYMBOL_WINEDA_PRINTFRAME_TITLE _("Print")
+#define SYMBOL_WINEDA_PRINTFRAME_IDNAME ID_DIALOG
+#define SYMBOL_WINEDA_PRINTFRAME_SIZE wxSize(400, 300)
+#define SYMBOL_WINEDA_PRINTFRAME_POSITION wxDefaultPosition
 ////@end control identifiers
 
 /*!
@@ -89,9 +87,6 @@ public:
     /// wxEVT_COMMAND_RADIOBOX_SELECTED event handler for ID_SET_PRINT_SCALE
     void OnSetPrintScaleSelected( wxCommandEvent& event );
 
-    /// wxEVT_COMMAND_SPINCTRL_UPDATED event handler for ID_PEN_WIDTH
-    void OnPenWidthUpdated( wxSpinEvent& event );
-
     /// wxEVT_COMMAND_RADIOBOX_SELECTED event handler for ID_SET_BW
     void OnSetBwSelected( wxCommandEvent& event );
 
@@ -125,12 +120,12 @@ public:
 	void OnPrintSetup(wxCommandEvent& event);
 	void OnPrintPreview(wxCommandEvent& event);
 	void EDA_PrintPage(wxCommandEvent& event);
-	void SetPenWidth(wxSpinEvent& event);
 	void SetColorOrBlack(wxCommandEvent& event);
 	void SetScale(wxCommandEvent& event);
 	int SetLayerMaskFromListSelection(void);
 	wxString BuildPrintTitle(void);
 	void SetOthersDatas(void);
+	void SetPenWidth(void);
 
 
 ////@begin WinEDA_PrintFrame member variables
@@ -141,8 +136,9 @@ public:
     wxTextCtrl* m_FineAdjustXscaleOpt;
     wxStaticText* m_FineAdjustYscaleTitle;
     wxTextCtrl* m_FineAdjustYscaleOpt;
-    wxSpinCtrl* m_ButtPenWidth;
+    wxBoxSizer* m_DialogPenWidthSizer;
     wxCheckBox* m_Print_Sheet_Ref;
+    wxCheckBox* m_Print_Mirror;
     wxRadioBox* m_ColorOption;
     wxRadioBox* m_PagesOptionPcb;
     wxRadioBox* m_PagesOptionEeschema;
@@ -150,6 +146,7 @@ public:
 
 	WinEDA_DrawFrame * m_Parent;
     wxRadioBox* m_PagesOption;
+	WinEDA_ValueCtrl * m_DialogPenWidth;
 	wxCheckBox * m_BoxSelecLayer[32];
 	double m_XScaleAdjust, m_YScaleAdjust;
 };

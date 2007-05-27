@@ -1,14 +1,14 @@
 EESchema Schematic File Version 1
-LIBS:power,device,brooktre,linear,regul,74xx,cmos4000,adc-dac,memory,xilinx,special,analog_switches,.\video.cache
+LIBS:power,device,conn,brooktre,linear,regul,74xx,cmos4000,adc-dac,memory,xilinx,special,analog_switches,philips,.\video.cache
 EELAYER 20  0
 EELAYER END
 $Descr A3 16535 11700
 Sheet 6 8
-Title ""
-Date "19 oct 2004"
-Rev ""
-Comp ""
-Comment1 ""
+Title "Kicad EDA"
+Date "31 dec 2006"
+Rev "2.0B"
+Comp "Kicad EDA"
+Comment1 "Rams Video"
 Comment2 ""
 Comment3 ""
 Comment4 ""
@@ -1100,9 +1100,9 @@ Wire Wire Line
 Wire Wire Line
 	9700 7700 9300 7700
 Wire Wire Line
-	9700 7200 9300 7200
+	9300 7200 9700 7200
 Wire Wire Line
-	9700 7400 9700 7200
+	9700 7200 9700 7400
 NoConn ~ 9700 8700
 NoConn ~ 9700 8600
 NoConn ~ 9700 8500
@@ -1183,9 +1183,9 @@ Wire Wire Line
 Wire Wire Line
 	6900 7700 6500 7700
 Wire Wire Line
-	6900 7200 6500 7200
+	6500 7200 6900 7200
 Wire Wire Line
-	6900 7400 6900 7200
+	6900 7200 6900 7400
 NoConn ~ 6900 8700
 NoConn ~ 6900 8600
 NoConn ~ 6900 8500
@@ -1266,9 +1266,9 @@ Wire Wire Line
 Wire Wire Line
 	4050 7700 3650 7700
 Wire Wire Line
-	4050 7200 3650 7200
+	3650 7200 4050 7200
 Wire Wire Line
-	4050 7400 4050 7200
+	4050 7200 4050 7400
 NoConn ~ 4050 8700
 NoConn ~ 4050 8600
 NoConn ~ 4050 8500
@@ -1349,9 +1349,9 @@ Wire Wire Line
 Wire Wire Line
 	1200 7700 800  7700
 Wire Wire Line
-	1200 7200 800  7200
+	800  7200 1200 7200
 Wire Wire Line
-	1200 7400 1200 7200
+	1200 7200 1200 7400
 NoConn ~ 1200 8700
 NoConn ~ 1200 8600
 NoConn ~ 1200 8500
@@ -1432,9 +1432,9 @@ Wire Wire Line
 Wire Wire Line
 	9700 3250 9300 3250
 Wire Wire Line
-	9700 2750 9300 2750
+	9300 2750 9700 2750
 Wire Wire Line
-	9700 2950 9700 2750
+	9700 2750 9700 2950
 NoConn ~ 9700 4250
 NoConn ~ 9700 4150
 NoConn ~ 9700 4050
@@ -1515,9 +1515,9 @@ Wire Wire Line
 Wire Wire Line
 	6900 3250 6500 3250
 Wire Wire Line
-	6900 2750 6500 2750
+	6500 2750 6900 2750
 Wire Wire Line
-	6900 2950 6900 2750
+	6900 2750 6900 2950
 NoConn ~ 6900 4250
 NoConn ~ 6900 4150
 NoConn ~ 6900 4050
@@ -1598,9 +1598,9 @@ Wire Wire Line
 Wire Wire Line
 	4050 3250 3650 3250
 Wire Wire Line
-	4050 2750 3650 2750
+	3650 2750 4050 2750
 Wire Wire Line
-	4050 2950 4050 2750
+	4050 2750 4050 2950
 NoConn ~ 4050 4250
 NoConn ~ 4050 4150
 NoConn ~ 4050 4050
@@ -1681,9 +1681,9 @@ Wire Wire Line
 Wire Wire Line
 	1200 3250 800  3250
 Wire Wire Line
-	1200 2750 800  2750
+	800  2750 1200 2750
 Wire Wire Line
-	1200 2950 1200 2750
+	1200 2750 1200 2950
 NoConn ~ 1200 4250
 NoConn ~ 1200 4150
 NoConn ~ 1200 4050

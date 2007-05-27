@@ -66,13 +66,12 @@ WinEDA_LibeditFrame::WinEDA_LibeditFrame(wxWindow * father, WinEDA_App *parent,
 			WinEDA_DrawFrame(father, LIBEDITOR_FRAME, parent, title, pos,  size)
 {
 	m_FrameName = wxT("LibeditFrame");
-	m_Draw_Axes = TRUE;				// TRUE pour avoir les axes dessines
+	m_Draw_Axis = TRUE;				// TRUE pour avoir les axes dessines
 	m_Draw_Grid = TRUE;				// TRUE pour avoir la axes dessinee
 
 	// Give an icon
 	SetIcon(wxIcon(libedit_xpm));
 	m_CurrentScreen = ScreenLib;
-	m_CurrentScreen->SetParentFrame(this);
 	GetSettings();
 	SetSize(m_FramePos.x, m_FramePos.y, m_FrameSize.x, m_FrameSize.y);
 	if ( DrawPanel ) DrawPanel-> m_Block_Enable = TRUE;
@@ -86,7 +85,6 @@ WinEDA_LibeditFrame::WinEDA_LibeditFrame(wxWindow * father, WinEDA_App *parent,
 WinEDA_LibeditFrame::~WinEDA_LibeditFrame(void)
 /**********************************************/
 {
-	ScreenLib->SetParentFrame(NULL);
 	m_Parent->LibeditFrame = NULL;
 	m_CurrentScreen = ScreenSch;
 
@@ -316,13 +314,13 @@ wxClientDC dc(DrawPanel);
 			break;
 
 		case ID_POPUP_LIBEDIT_DELETE_ITEM:
-			if ( m_CurrentScreen->ManageCurseur && m_CurrentScreen->ForceCloseManageCurseur )
-					m_CurrentScreen->ForceCloseManageCurseur(this, &dc);
+			if ( DrawPanel->ManageCurseur && DrawPanel->ForceCloseManageCurseur )
+					DrawPanel->ForceCloseManageCurseur(DrawPanel, &dc);
 			break;
 
 		default:
-			if ( m_CurrentScreen->ManageCurseur && m_CurrentScreen->ForceCloseManageCurseur )
-				m_CurrentScreen->ForceCloseManageCurseur(this, &dc);
+			if ( DrawPanel->ManageCurseur && DrawPanel->ForceCloseManageCurseur )
+				DrawPanel->ForceCloseManageCurseur(DrawPanel, &dc);
 			SetToolID( 0, wxCURSOR_ARROW, wxEmptyString );
 			break;
 	}
@@ -475,8 +473,8 @@ wxClientDC dc(DrawPanel);
 			break;
 
 		case ID_POPUP_LIBEDIT_CANCEL_EDITING :
-			if ( m_CurrentScreen->ManageCurseur && m_CurrentScreen->ForceCloseManageCurseur )
-					m_CurrentScreen->ForceCloseManageCurseur(this, &dc);
+			if ( DrawPanel->ManageCurseur && DrawPanel->ForceCloseManageCurseur )
+					DrawPanel->ForceCloseManageCurseur(DrawPanel, &dc);
 			else
 			SetToolID( 0, wxCURSOR_ARROW, wxEmptyString);
 			break;
@@ -532,7 +530,7 @@ wxClientDC dc(DrawPanel);
 		case ID_POPUP_LIBEDIT_BODY_EDIT_ITEM:
 			if ( CurrentDrawItem )
 				{
-				m_CurrentScreen->CursorOff(DrawPanel, &dc);
+				DrawPanel->CursorOff(&dc);
 				switch ( CurrentDrawItem->m_StructType )
 					{
 					case COMPONENT_ARC_DRAW_TYPE:
@@ -546,7 +544,7 @@ wxClientDC dc(DrawPanel);
 						EditSymbolText(&dc, CurrentDrawItem);
 						break;
 					}
-				m_CurrentScreen->CursorOn(DrawPanel, &dc);
+				DrawPanel->CursorOn(&dc);
 				}
 			break;
 
@@ -567,8 +565,8 @@ wxClientDC dc(DrawPanel);
 		case ID_POPUP_LIBEDIT_DELETE_ITEM:
 			if ( CurrentDrawItem == NULL) break;
 			DrawPanel->MouseToCursorSchema();
-			m_CurrentScreen->CursorOff(DrawPanel, &dc);
-			SaveCopyInUndoList();
+			DrawPanel->CursorOff(&dc);
+			SaveCopyInUndoList(CurrentLibEntry);
 			if ( CurrentDrawItem->m_StructType == COMPONENT_PIN_DRAW_TYPE )
 			{
 				DeletePin(&dc, CurrentLibEntry, (LibDrawPin*)CurrentDrawItem);
@@ -576,14 +574,14 @@ wxClientDC dc(DrawPanel);
 
 			else
 			{
-				if ( m_CurrentScreen->ManageCurseur && m_CurrentScreen->ForceCloseManageCurseur)
-					m_CurrentScreen->ForceCloseManageCurseur(this, &dc);
+				if ( DrawPanel->ManageCurseur && DrawPanel->ForceCloseManageCurseur)
+					DrawPanel->ForceCloseManageCurseur(DrawPanel, &dc);
 				else DeleteOneLibraryDrawStruct(DrawPanel, &dc, CurrentLibEntry,CurrentDrawItem, TRUE);
 			}
 
 			CurrentDrawItem = NULL;
 			m_CurrentScreen->SetModify();
-			m_CurrentScreen->CursorOn(DrawPanel, &dc);
+			DrawPanel->CursorOn(&dc);
 			break;
 
 		case ID_POPUP_LIBEDIT_MOVE_ITEM_REQUEST:
@@ -598,34 +596,34 @@ wxClientDC dc(DrawPanel);
 
 		case ID_POPUP_LIBEDIT_ROTATE_GRAPHIC_TEXT:
 			if ( CurrentDrawItem == NULL) break;
-			m_CurrentScreen->CursorOff(DrawPanel, &dc);
+			DrawPanel->CursorOff(&dc);
 			DrawPanel->MouseToCursorSchema();
 			if ( (CurrentDrawItem->m_Flags & IS_NEW) == 0 )
-				SaveCopyInUndoList();
+				SaveCopyInUndoList(CurrentLibEntry);
 			RotateSymbolText(&dc);
-			m_CurrentScreen->CursorOn(DrawPanel, &dc);
+			DrawPanel->CursorOn(&dc);
 			break;
 
 		case ID_POPUP_LIBEDIT_FIELD_ROTATE_ITEM:
 			if ( CurrentDrawItem == NULL) break;
-			m_CurrentScreen->CursorOff(DrawPanel, &dc);
+			DrawPanel->CursorOff(&dc);
 			DrawPanel->MouseToCursorSchema();
 			if ( CurrentDrawItem->m_StructType == COMPONENT_FIELD_DRAW_TYPE )
 			{
-				SaveCopyInUndoList();
+				SaveCopyInUndoList(CurrentLibEntry);
 				RotateField(&dc, (LibDrawField *) CurrentDrawItem);
 			}
-			m_CurrentScreen->CursorOn(DrawPanel, &dc);
+			DrawPanel->CursorOn(&dc);
 			break;
 
 		case ID_POPUP_LIBEDIT_FIELD_EDIT_ITEM:
 			if ( CurrentDrawItem == NULL) break;
-			m_CurrentScreen->CursorOff(DrawPanel, &dc);
+			DrawPanel->CursorOff(&dc);
 			if ( CurrentDrawItem->m_StructType == COMPONENT_FIELD_DRAW_TYPE )
 			{
 				EditField(&dc, (LibDrawField *) CurrentDrawItem);
 			}
-			m_CurrentScreen->CursorOn(DrawPanel, &dc);
+			DrawPanel->CursorOn(&dc);
 			break;
 
 		case ID_POPUP_LIBEDIT_PIN_GLOBAL_CHANGE_PINSIZE_ITEM:
@@ -634,7 +632,7 @@ wxClientDC dc(DrawPanel);
 			if ( (CurrentDrawItem == NULL) ||
 				 (CurrentDrawItem->m_StructType != COMPONENT_PIN_DRAW_TYPE) )
 				break;
-			SaveCopyInUndoList();
+			SaveCopyInUndoList(CurrentLibEntry);
 			GlobalSetPins(&dc, (LibDrawPin *) CurrentDrawItem, id);
 			DrawPanel->MouseToCursorSchema();
 			break;

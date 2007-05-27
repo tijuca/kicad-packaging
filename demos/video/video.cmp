@@ -1,4 +1,4 @@
-Cmp-Mod V01 Genere par PcbNew le 16/11/2004-13:54:32
+Cmp-Mod V01 Genere par PcbNew le 31/12/2006-08:17:33
 
 BeginCmp
 TimeStamp = 349FB562
@@ -1033,14 +1033,14 @@ BeginCmp
 TimeStamp = 33A7DFAB
 Reference = P5;
 ValeurCmp = CONN_5;
-IdModule  = SIL-5;
+IdModule  = PIN_ARRAY_5X1;
 EndCmp
 
 BeginCmp
 TimeStamp = 34E1751D
 Reference = P12;
 ValeurCmp = CONN_1;
-IdModule  = SIL-2;
+IdModule  = TESTPOINT;
 EndCmp
 
 BeginCmp

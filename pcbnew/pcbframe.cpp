@@ -176,10 +176,10 @@ WinEDA_PcbFrame::WinEDA_PcbFrame(wxWindow * father, WinEDA_App *parent,
 					WinEDA_BasePcbFrame(father, parent, PCB_FRAME, title, pos, size)
 {
 	m_FrameName = wxT("PcbFrame");
-	m_Draw_Axes = TRUE;			// TRUE pour avoir les axes dessines
+	m_Draw_Axis = TRUE;			// TRUE pour avoir les axes dessines
 	m_Draw_Grid = g_ShowGrid;		// TRUE pour avoir la grille dessinee
 	m_Draw_Sheet_Ref = TRUE;	// TRUE pour avoir le cartouche dessiné
-	m_Draw_Auxiliary_Axe = TRUE;
+	m_Draw_Auxiliary_Axis = TRUE;
 	m_SelTrackWidthBox = NULL;
 	m_SelViaSizeBox = NULL;
     m_SelLayerBox = NULL;
@@ -199,7 +199,6 @@ WinEDA_PcbFrame::WinEDA_PcbFrame(wxWindow * father, WinEDA_App *parent,
 
 	m_InternalUnits = PCB_INTERNAL_UNIT;	// Unites internes = 1/10000 inch
 	m_CurrentScreen = ScreenPcb;
-	if ( GetScreen() ) GetScreen()->SetParentFrame(this);
 	GetSettings();
 	SetSize(m_FramePos.x, m_FramePos.y, m_FrameSize.x, m_FrameSize.y);
 

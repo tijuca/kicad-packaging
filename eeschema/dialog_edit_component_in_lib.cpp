@@ -46,6 +46,9 @@ BEGIN_EVENT_TABLE( WinEDA_PartPropertiesFrame, wxDialog )
 	EVT_BUTTON(ID_ADD_ALIAS, WinEDA_PartPropertiesFrame::AddAliasOfPart)
 	EVT_BUTTON(ID_DELETE_ONE_ALIAS, WinEDA_PartPropertiesFrame::DeleteAliasOfPart)
 	EVT_BUTTON(ID_DELETE_ALL_ALIAS, WinEDA_PartPropertiesFrame::DeleteAllAliasOfPart)
+	EVT_BUTTON(ID_ADD_FOOTPRINT_FILTER, WinEDA_PartPropertiesFrame::AddFootprintFilter)
+	EVT_BUTTON(ID_DELETE_ONE_FOOTPRINT_FILTER, WinEDA_PartPropertiesFrame::DeleteOneFootprintFilter)
+	EVT_BUTTON(ID_DELETE_ALL_FOOTPRINT_FILTER, WinEDA_PartPropertiesFrame::DeleteAllFootprintFilter)
 END_EVENT_TABLE()
 
 /*!
@@ -221,7 +224,8 @@ void WinEDA_PartPropertiesFrame::CreateControls()
 	BuildPanelBasic();
 	BuildPanelDoc();
 	BuildPanelAlias();
-	BuildPanelEditField();	// Add panel Fields
+	BuildPanelEditField();	// Add panel Field edition
+	BuildPanelFootprintFilter();
 }
 
 /*!

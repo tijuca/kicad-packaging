@@ -31,7 +31,7 @@ wxString FFileName;
 
 	if(argc > 1) FFileName = MakeFileName(wxEmptyString, argv[1], g_PhotoFilenameExt);
 
-	ScreenPcb = new PCB_SCREEN(NULL, m_GerberFrame, PCB_FRAME);
+	ScreenPcb = new PCB_SCREEN(PCB_FRAME);
 	ActiveScreen = ScreenPcb;
 	GetSettings();
     if ( m_Checker && m_Checker->IsAnotherRunning() )
@@ -47,7 +47,6 @@ wxString FFileName;
 				 wxPoint(0,0), wxSize(600,400) );
 	wxString Title = g_Main_Title + wxT(" ") + GetBuildVersion();
 	m_GerberFrame->SetTitle(Title);
-	ScreenPcb->SetParentFrame(m_GerberFrame);
 	m_GerberFrame->m_Pcb = new BOARD(NULL, m_GerberFrame);
 
 	SetTopWindow(m_GerberFrame);

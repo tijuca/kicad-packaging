@@ -13,7 +13,7 @@
 #include "protos.h"
 
 /* Routines Locales */
-static void Exit_EditEdge(WinEDA_DrawFrame * frame, wxDC * DC);
+static void Exit_EditEdge(WinEDA_DrawPanel * Panel, wxDC * DC);
 static void Montre_Position_NewSegment(WinEDA_DrawPanel * panel, wxDC * DC, bool erase);
 static void Move_Segment(WinEDA_DrawPanel * panel, wxDC * DC, bool erase);
 
@@ -32,10 +32,10 @@ void WinEDA_PcbFrame::Start_Move_DrawItem(DRAWSEGMENT * drawitem, wxDC * DC)
 	drawitem->m_Flags |= IS_MOVED;
 	cursor_pos = cursor_pos0 = GetScreen()->m_Curseur;
 	Affiche_Infos_DrawSegment(this, drawitem);
-	GetScreen()->ManageCurseur = Move_Segment;
-	GetScreen()->ForceCloseManageCurseur = Exit_EditEdge;
+	DrawPanel->ManageCurseur = Move_Segment;
+	DrawPanel->ForceCloseManageCurseur = Exit_EditEdge;
 	GetScreen()->m_CurrentItem = drawitem;
-	GetScreen()->ManageCurseur( DrawPanel, DC, FALSE);
+	DrawPanel->ManageCurseur( DrawPanel, DC, FALSE);
 }
 
 /*********************************************************************/
@@ -48,8 +48,8 @@ void WinEDA_PcbFrame::Place_DrawItem(DRAWSEGMENT * drawitem, wxDC * DC)
 	if( drawitem == NULL ) return;
 
 	Trace_DrawSegmentPcb(DrawPanel, DC, drawitem,GR_OR) ;
-	GetScreen()->ManageCurseur = NULL;
-	GetScreen()->ForceCloseManageCurseur = NULL;
+	DrawPanel->ManageCurseur = NULL;
+	DrawPanel->ForceCloseManageCurseur = NULL;
 	GetScreen()->m_CurrentItem = NULL;
 	GetScreen()->SetModify();
 	drawitem->m_Flags = 0;
@@ -211,32 +211,32 @@ int layer = Segment->m_Layer;
 
 
 /*************************************************************/
-static void Exit_EditEdge(WinEDA_DrawFrame * frame, wxDC * DC)
+static void Exit_EditEdge(WinEDA_DrawPanel * Panel, wxDC * DC)
 /*************************************************************/
 {
-DRAWSEGMENT *Segment = (DRAWSEGMENT *) frame->GetScreen()->m_CurrentItem ;
+DRAWSEGMENT *Segment = (DRAWSEGMENT *) Panel->GetScreen()->m_CurrentItem ;
 
 	if (Segment == NULL) return;
 
 	if( Segment->m_Flags & IS_NEW )
-		{
-		frame->GetScreen()->ManageCurseur(frame->DrawPanel, DC, FALSE);
+	{
+		Panel->ManageCurseur(Panel, DC, FALSE);
 		DeleteStructure(Segment);
 		Segment = NULL;
-		}
+	}
 
 	else
-		{
-		wxPoint pos = frame->GetScreen()->m_Curseur;
-		frame->GetScreen()->m_Curseur = cursor_pos0;
-		frame->GetScreen()->ManageCurseur(frame->DrawPanel, DC, TRUE);
-		frame->GetScreen()->m_Curseur = pos;
+	{
+		wxPoint pos = Panel->GetScreen()->m_Curseur;
+		Panel->GetScreen()->m_Curseur = cursor_pos0;
+		Panel->ManageCurseur(Panel, DC, TRUE);
+		Panel->GetScreen()->m_Curseur = pos;
 		Segment->m_Flags = 0;
-		Trace_DrawSegmentPcb(frame->DrawPanel, DC, Segment,GR_OR) ;
-		}
-	frame->GetScreen()->ManageCurseur = NULL;
-	frame->GetScreen()->ForceCloseManageCurseur = NULL;
-	frame->GetScreen()->m_CurrentItem = NULL;
+		Trace_DrawSegmentPcb(Panel, DC, Segment,GR_OR) ;
+	}
+	Panel->ManageCurseur = NULL;
+	Panel->ForceCloseManageCurseur = NULL;
+	Panel->GetScreen()->m_CurrentItem = NULL;
 }
 
 /**********************************************************************/
@@ -267,8 +267,8 @@ DRAWSEGMENT * DrawItem;
 		Segment->m_Shape = shape;
 		Segment->m_Angle = 900;
 		Segment->m_Start = Segment->m_End = GetScreen()->m_Curseur ;
-		GetScreen()->ManageCurseur = Montre_Position_NewSegment;
-		GetScreen()->ForceCloseManageCurseur = Exit_EditEdge;
+		DrawPanel->ManageCurseur = Montre_Position_NewSegment;
+		DrawPanel->ForceCloseManageCurseur = Exit_EditEdge;
 		}
 
 	else	/* trace en cours : les coord du point d'arrivee ont ete mises
@@ -336,8 +336,8 @@ void WinEDA_PcbFrame::End_Edge(DRAWSEGMENT * Segment, wxDC * DC)
 		GetScreen()->SetModify();
 		}
 
-	GetScreen()->ManageCurseur = NULL;
-	GetScreen()->ForceCloseManageCurseur = NULL;
+	DrawPanel->ManageCurseur = NULL;
+	DrawPanel->ForceCloseManageCurseur = NULL;
 	GetScreen()->m_CurrentItem = NULL;
 }
 

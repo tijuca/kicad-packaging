@@ -98,6 +98,26 @@ int hotkey = 0;
 			else 	g_UnitMetric = INCHES ;
 			break ;
 
+		case EDA_PANNING_UP_KEY :
+			OnZoom(ID_ZOOM_PANNING_UP);
+			curpos = m_CurrentScreen->m_Curseur;
+			break;
+
+		case EDA_PANNING_DOWN_KEY :
+			OnZoom(ID_ZOOM_PANNING_DOWN);
+			curpos = m_CurrentScreen->m_Curseur;
+			break;
+
+		case EDA_PANNING_LEFT_KEY :
+			OnZoom(ID_ZOOM_PANNING_LEFT);
+			curpos = m_CurrentScreen->m_Curseur;
+			break;
+
+		case EDA_PANNING_RIGHT_KEY :
+			OnZoom(ID_ZOOM_PANNING_RIGHT);
+			curpos = m_CurrentScreen->m_Curseur;
+			break;
+
 		case WXK_F1 :
 			OnZoom(ID_ZOOM_PLUS_KEY);
 			curpos = GetScreen()->m_Curseur;
@@ -152,19 +172,19 @@ int hotkey = 0;
 
 	if ( (oldpos.x != GetScreen()->m_Curseur.x) ||
 		 (oldpos.y != GetScreen()->m_Curseur.y) )
-		{
+	{
 		curpos = GetScreen()->m_Curseur;
 		GetScreen()->m_Curseur = oldpos;
-		GetScreen()->CursorOff(DrawPanel, DC);
+		DrawPanel->CursorOff(DC);
 
 		GetScreen()->m_Curseur = curpos;
-		GetScreen()->CursorOn(DrawPanel, DC);
+		DrawPanel->CursorOn(DC);
 
-		if(GetScreen()->ManageCurseur)
-			{
-			GetScreen()->ManageCurseur(DrawPanel, DC, TRUE);
-			}
+		if(DrawPanel->ManageCurseur)
+		{
+			DrawPanel->ManageCurseur(DrawPanel, DC, TRUE);
 		}
+	}
 
 	SetToolbars();
 	Affiche_Status_Box();	 /* Affichage des coord curseur */

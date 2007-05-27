@@ -85,8 +85,8 @@ int current_net_code;
 			}
 			if(g_TrackSegmentCount == 0 )
 			{
-				GetScreen()->ManageCurseur = NULL;
-				GetScreen()->ForceCloseManageCurseur = NULL;
+				DrawPanel->ManageCurseur = NULL;
+				DrawPanel->ForceCloseManageCurseur = NULL;
 				if(g_HightLigt_Status) Hight_Light(DC);
 				g_CurrentTrackSegment = NULL;
 				g_FirstTrackSegment = NULL;
@@ -95,8 +95,8 @@ int current_net_code;
 			}
 			else
 			{
-				if(GetScreen()->ManageCurseur)
-					GetScreen()->ManageCurseur(DrawPanel, DC, FALSE);
+				if(DrawPanel->ManageCurseur)
+					DrawPanel->ManageCurseur(DrawPanel, DC, FALSE);
 				return g_CurrentTrackSegment;
 			}
 		}

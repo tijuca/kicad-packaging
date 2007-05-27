@@ -15,8 +15,8 @@ See mybuild_wxWidgets_linux.txt and mybuild_wxWidgets_windows.txt
 Linux compilation:
 You must have:
 wxWidgets ( I suggest you install wxWidgets in /usr/local).
-(you can copy wxWidgets_linux.txt in wxWidgets directory an run
-sh wxWidgets_linux.txt
+(you can copy mybuild_wxWidgets_linux.txt in wxWidgets directory an run
+sh mybuild_wxWidgets_linux.txt
 and make and make install)
 
 Mesa: pcbnew and cvpcv need openGL or mesa.
@@ -35,13 +35,13 @@ make install ( libGL.a et libGLU.a are copied in /usr/local/lib, and header in /
 kicad compilation:
 in kicad-dev:
  Have a look to libs.linux (you can edit this file if you have problems)
- Currently libs.linux uses wxWidgets 2.7.0 build with script "mybuild_wxWidgets_linux.txt"
+ Currently libs.linux uses wxWidgets 2.7.1 build with script "mybuild_wxWidgets_linux.txt"
  run make -f makefile.gtk
 
 Windows compilation:
 
 kicad is build with mingw and msys.
-Currently libs.linux uses wxWidgets 2.7.0 build with script "mybuild_wxWidgets_windows.txt"
+Currently libs.linux uses wxWidgets 2.8.1 build with script "mybuild_wxWidgets_windows.txt"
 
 install mingw  and msys ( see mingw.org )
 (opengl libs are included in mingw or windows)
@@ -50,11 +50,11 @@ Under msys:
 	(Warning: make.exe utility is sometime renamed mingw32-make.exe in install process
 	of msys.)
 
-Build wxWidgets (currently version 2.7.0)
-	you can copy wxWidgets_windows.txt in wxWidgets directory an run
-	sh wxWidgets_linux.txt and make
+Build wxWidgets (currently version 2.8.1)
+	you can copy mybuild_wxWidgets_windows.txt in wxWidgets directory an run
+	./mybuild_wxWidgets_windows.txt and make
 
-	In include/wx/setup.h, check (and edit if needed) the defines :
+	In include/wx/msw/setup.h, check (and edit if needed) the defines :
 	#define wxUSE_GLCANVAS       1
 	#define WXWIN_COMPATIBILITY_2_4 0
 	#define wxUSE_MOUSEWHEEL  1 // Include mouse wheel support
@@ -62,20 +62,35 @@ Build wxWidgets (currently version 2.7.0)
 
 
 Exit msys.
-Set environment variable WXWIN ( something as wxwin=/d/wxWidgets-2.7.0
-for a wxWidget installed in d:\wxWidgets-2.7.0)
+Set environment variable WXWIN ( something as wxwin=/d/wxWidgets-2.8.1
+for a wxWidget installed in d:\wxWidgets-2.8.1)
 
-Have a look to libs.win (Currently this file handle wxWidgets 2.7.0)
+Have a look to libs.win (Currently this file handle wxWidgets 2.8.1)
 
 Under msys:
 	in kicad-dev:
 	run make -f makefile.g95
 
 *************************************************************************************
-Patch wxWidgets (wxGTK version)
+Patch wxWidgets
 *************************************************************************************
-patch for Arcs drawings
-wxGTK-2.7.0/src/gtk/dcclient.cpp
+*************************************************************************************
+wxGTK version:
+*************************************************************************************
+Patch for printing wide traces that were showing missing rounded end caps:
+wxGTK-2.8.1/src/generic/dcpsg.cpp
+line 1634
+	PsPrint( "%%EndProlog\n" );
+
+must be
+	PsPrint( "%%EndProlog\n" );
+    PsPrint("%%BeginSetup\n");
+    PsPrint( "1 setlinecap\n" );
+    PsPrint("%%EndSetup\n");
+
+
+patch for Arcs drawings (NOT NEEDED for wxWidgets 2.7.1, needed for versions prior to 2.7.1)
+wxGTK-2.x.y/src/gtk/dcclient.cpp
 in function WindowDC::DoDrawArc
 line 572 for wxWidgets 2.7.0-1:
         if (m_pen.GetStyle() != wxTRANSPARENT)
@@ -98,13 +113,13 @@ must be
         }
 
 
-Patch for printing wide traces that were showing missing rounded end caps:
-wxGTK-2.7.0/src/generic/dcpsg.cpp
-line 1634
-	PsPrint( "%%EndProlog\n" );
+*************************************************************************************
+wxMSW version: for wxWMSW 2.8.1 only
+*************************************************************************************
 
+wxMSW.2.8.1/src/msw/menu.cpp
+line 410
+    if ( !pItem->IsOwnerDrawn()  )
 must be
-	PsPrint( "%%EndProlog\n" );
-    PsPrint("%%BeginSetup\n");
-    PsPrint( "1 setlinecap\n" );
-    PsPrint("%%EndSetup\n");
+    if ( !pItem->IsOwnerDrawn() && !pItem->IsSeparator() )
+

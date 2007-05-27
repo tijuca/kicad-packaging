@@ -14,9 +14,10 @@
 #include "wx/listctrl.h"
 
 /*  Forward declarations of all top-level window classes. */
-class ListBoxMod;
+class FootprintListBox;
 class ListBoxCmp;
 class WinEDA_DisplayFrame;
+class STORECMP;
 
 #define LIST_BOX_TYPE wxListView
 
@@ -28,7 +29,7 @@ class WinEDA_CvpcbFrame: public WinEDA_BasicFrame
 {
 public:
 
-	ListBoxMod * m_ListMod;
+	FootprintListBox * m_FootprintList;
 	ListBoxCmp * m_ListCmp;
 	WinEDA_DisplayFrame * DrawFrame;
 	WinEDA_Toolbar * m_HToolBar;	// Toolbar horizontal haut d'ecran
@@ -39,9 +40,11 @@ private:
 	// Constructor and destructor
 public:
 	WinEDA_CvpcbFrame(WinEDA_App * parent, const wxString & title);
-	~WinEDA_CvpcbFrame(void)
-	{
-	}
+	~WinEDA_CvpcbFrame(void);
+
+	void OnLeftClick(wxListEvent & event);
+	void OnLeftDClick(wxListEvent & event);
+	void OnSelectComponent(wxListEvent & event);
 
 	void Update_Config(wxCommandEvent& event);/* enregistrement de la config */
 	void OnQuit(wxCommandEvent& event);
@@ -64,9 +67,10 @@ public:
 	void AssocieModule(wxCommandEvent& event);
 	void WriteStuffList(wxCommandEvent & event);
 	void DisplayDocFile(wxCommandEvent & event);
-	void SetNewPkg(void);
+	void OnSelectFilteringFootprint(wxCommandEvent & event);
+	void SetNewPkg(const wxString & package);
 	void BuildCmpListBox(void);
-	void BuildModListBox(void);
+	void BuildFootprintListBox(void);
 	void CreateScreenCmp(void);
 	void CreateConfigWindow(void);
 	int SaveNetList(const wxString & FullFileName);
@@ -74,7 +78,8 @@ public:
 	bool ReadInputNetList(const wxString & FullFileName);
 	void ReadNetListe(void);
 	int rdpcad(void);
-	int rdorcad(void);
+	int ReadSchematicNetlist(void);
+	int ReadFootprintFilterList( FILE * f);
 	int ReadViewlogicWirList(void);
 	int ReadViewlogicNetList(void);
 
@@ -89,7 +94,6 @@ class ListBoxBase: public LIST_BOX_TYPE
 {
 public:
 	WinEDA_CvpcbFrame * m_Parent;
-	wxArrayString m_StringList;
 
 public:
 
@@ -98,29 +102,39 @@ public:
 
 	~ListBoxBase(void);
 
-	wxString OnGetItemText(long item, long column) const;
-	void OnSize(wxSizeEvent& event);
-
-	void Clear(void);
-	int GetCount(void);
 	int GetSelection(void);
-	void SetSelection(unsigned index, bool State = TRUE);
-	void SetString(unsigned linecount, const wxString & text);
-	void AppendLine(const wxString & text);
+	void OnSize(wxSizeEvent& event);
 };
 
 /************************************************************/
 /* ListBox derivee pour l'affichage de la liste des Modules */
 /************************************************************/
 
-class ListBoxMod: public ListBoxBase
+class FootprintListBox: public ListBoxBase
 {
+private:
+	wxArrayString m_FullFootprintList;
+	wxArrayString m_FilteredFootprintList;
 public:
-	ListBoxMod(WinEDA_CvpcbFrame * parent,
+	wxArrayString * m_ActiveFootprintList;
+	bool m_UseFootprintFullList;
+
+public:
+	FootprintListBox(WinEDA_CvpcbFrame * parent,
 				wxWindowID id, const wxPoint& loc, const wxSize& size,
 				int nbitems, wxString choice[]);
-	~ListBoxMod(void);
+	~FootprintListBox(void);
 
+	int GetCount(void);
+	void SetSelection(unsigned index, bool State = TRUE);
+	void SetString(unsigned linecount, const wxString & text);
+	void AppendLine(const wxString & text);
+	void SetFootprintFullList(void);
+	void SetFootprintFilteredList(STORECMP * Component);
+	void SetActiveFootprintList(bool FullList, bool Redraw = FALSE);
+
+	wxString GetSelectedFootprint(void);
+	wxString OnGetItemText(long item, long column) const;
 	void OnLeftClick(wxListEvent & event);
 	void OnLeftDClick(wxListEvent & event);
 	DECLARE_EVENT_TABLE()
@@ -133,6 +147,7 @@ public:
 class ListBoxCmp: public ListBoxBase
 {
 public:
+	wxArrayString m_ComponentList;
 	WinEDA_CvpcbFrame * m_Parent;
 
 public:
@@ -142,6 +157,13 @@ public:
 				int nbitems, wxString choice[]);
 
 	~ListBoxCmp(void);
+
+	void Clear(void);
+	int GetCount(void);
+	wxString OnGetItemText(long item, long column) const;
+	void SetSelection(unsigned index, bool State = TRUE);
+	void SetString(unsigned linecount, const wxString & text);
+	void AppendLine(const wxString & text);
 
 	DECLARE_EVENT_TABLE()
 };

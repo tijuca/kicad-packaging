@@ -120,11 +120,11 @@ int StartCount;
 		}
 		else
 		{	// Positionnement du curseur sur l'item
-			screen->CursorOff(m_Parent->DrawPanel, m_DC);
+			m_Parent->DrawPanel->CursorOff(m_DC);
 			screen->m_Curseur = locate_pos;
 			GRMouseWarp(m_Parent->DrawPanel, screen->m_Curseur );
 			m_Parent->DrawPanel->MouseToCursorSchema();
-			screen->CursorOn(m_Parent->DrawPanel, m_DC);
+			m_Parent->DrawPanel->CursorOn(m_DC);
 		}
 
 		if( FindMarker ) msg = _("Marker found");

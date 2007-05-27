@@ -31,7 +31,7 @@ NONE, INVERT, CLOCK, CLOCK|INVERT, LOWLEVEL_IN, LOWLEVEL_IN|CLOCK, LOWLEVEL_OUT
 
 /* Routines locales */
 static void CreateImagePins(LibDrawPin * Pin);
-static void AbortPinMove(WinEDA_DrawFrame * frame, wxDC * DC);
+static void AbortPinMove(WinEDA_DrawPanel * Panel, wxDC * DC);
 static void DrawMovePin(WinEDA_DrawPanel * panel, wxDC * DC, bool erase);
 
 /* Variables importees */
@@ -74,12 +74,12 @@ wxString msg;
 	if ( CurrentDrawItem )   // Set Pin Name & Num
 	{
 		if ( ! (CurrentDrawItem->m_Flags & IS_NEW) )	// if IS_NEW, copy for undo is done before place
-			m_Parent->SaveCopyInUndoList();
+			m_Parent->SaveCopyInUndoList(CurrentLibEntry);
 		LibDrawPin * CurrentPin = (LibDrawPin *) CurrentDrawItem;
 		wxClientDC dc(m_Parent->DrawPanel);
 		m_Parent->DrawPanel->PrepareGraphicContext(&dc);
-		if ( m_Parent->GetScreen()->ManageCurseur ) // Pin is moving
-			m_Parent->GetScreen()->ManageCurseur(m_Parent->DrawPanel, &dc, FALSE);
+		if ( m_Parent->DrawPanel->ManageCurseur ) // Pin is moving
+			m_Parent->DrawPanel->ManageCurseur(m_Parent->DrawPanel, &dc, FALSE);
 		else DrawLibraryDrawStruct(m_Parent->DrawPanel, &dc, CurrentLibEntry,
 				0,0, CurrentPin,CurrentUnit, g_XorMode);
 
@@ -91,8 +91,8 @@ wxString msg;
 		SetPinType(LastPinType);
 		SetPinOrient(LastPinOrient);
 		SetAttributsPin(TRUE, TRUE, TRUE);
-		if ( m_Parent->GetScreen()->ManageCurseur )
-			m_Parent->GetScreen()->ManageCurseur(m_Parent->DrawPanel, &dc, FALSE);
+		if ( m_Parent->DrawPanel->ManageCurseur )
+			m_Parent->DrawPanel->ManageCurseur(m_Parent->DrawPanel, &dc, FALSE);
 		else DrawLibraryDrawStruct(m_Parent->DrawPanel, &dc, CurrentLibEntry,
 			0,0, CurrentPin,CurrentUnit, g_XorMode);
 	}
@@ -137,7 +137,7 @@ LibDrawPin  * CurrentPin = (LibDrawPin *) CurrentDrawItem;
 
 
 /*************************************************************/
-static void AbortPinMove(WinEDA_DrawFrame * frame, wxDC * DC)
+static void AbortPinMove(WinEDA_DrawPanel * Panel, wxDC * DC)
 /*************************************************************/
 /* Used to abort the move pin command.
 */
@@ -145,18 +145,17 @@ static void AbortPinMove(WinEDA_DrawFrame * frame, wxDC * DC)
 LibDrawPin * CurrentPin = (LibDrawPin *) CurrentDrawItem;
 
 	if( CurrentPin  && ( CurrentPin->m_Flags & IS_NEW ) )
-		DeleteOneLibraryDrawStruct(frame->DrawPanel, DC,
-					CurrentLibEntry, CurrentPin, TRUE);
+		DeleteOneLibraryDrawStruct(Panel, DC, CurrentLibEntry, CurrentPin, TRUE);
 
 	/* clear edit flags */
 	LibEDA_BaseStruct * item = CurrentLibEntry->m_Drawings;
 	for ( ; item != NULL; item = item->Next() ) item->m_Flags = 0;
 
-	frame->GetScreen()->ManageCurseur = NULL;
-	frame->GetScreen()->ForceCloseManageCurseur = NULL;
+	Panel->ManageCurseur = NULL;
+	Panel->ForceCloseManageCurseur = NULL;
 	CurrentDrawItem = NULL;
 	LibItemToRepeat = NULL;
-	frame->DrawPanel->Refresh(true);
+	Panel->Refresh(true);
 }
 
 
@@ -196,8 +195,8 @@ bool status;
 		}
 	}
 
-	GetScreen()->ManageCurseur = NULL;
-	GetScreen()->ForceCloseManageCurseur = NULL;
+	DrawPanel->ManageCurseur = NULL;
+	DrawPanel->ForceCloseManageCurseur = NULL;
 	GetScreen()->SetModify();
 
 	CurrentPin->m_Pos = newpos;
@@ -220,10 +219,10 @@ bool status;
 		Pin->m_Flags = 0;
 	}
 
-	GetScreen()->CursorOff(DrawPanel, DC);
+	DrawPanel->CursorOff(DC);
 	DrawLibraryDrawStruct(DrawPanel, DC, CurrentLibEntry,0,0, CurrentPin,CurrentUnit,
 					GR_DEFAULT_DRAWMODE);
-	GetScreen()->CursorOn(DrawPanel, DC);
+	DrawPanel->CursorOn(DC);
 
 	CurrentDrawItem = NULL;
 };
@@ -282,15 +281,15 @@ wxPoint startPos;
 
  	startPos.x = OldPos.x;
  	startPos.y = -OldPos.y;
- 	m_CurrentScreen->CursorOff(DrawPanel, DC);
+ 	DrawPanel->CursorOff(DC);
  	m_CurrentScreen->m_Curseur = startPos;
  	DrawPanel->MouseToCursorSchema();
 
 	CurrentPin->Display_Infos_DrawEntry(this);
-	GetScreen()->ManageCurseur = DrawMovePin;
-	GetScreen()->ForceCloseManageCurseur = AbortPinMove;
+	DrawPanel->ManageCurseur = DrawMovePin;
+	DrawPanel->ForceCloseManageCurseur = AbortPinMove;
 
- 	m_CurrentScreen->CursorOn(DrawPanel, DC);
+ 	DrawPanel->CursorOn(DC);
 }
 
 
@@ -395,7 +394,7 @@ wxString buf;
 	buf = newname;
 	buf.Replace( wxT(" "), wxT("_"));
 
-	if ( newsize >= 0 ) CurrentPin->m_SizeName = newsize;
+	if ( newsize >= 0 ) CurrentPin->m_PinNameSize = newsize;
 
 	CurrentPin->m_PinName = buf;
 
@@ -407,7 +406,7 @@ wxString buf;
 	{
 		if (Pin->m_StructType != COMPONENT_PIN_DRAW_TYPE ) continue;
 		if( (Pin->m_Flags & IS_LINKED) == 0 ) continue;
-		if (newsize >= 0 ) Pin->m_SizeName = newsize;
+		if (newsize >= 0 ) Pin->m_PinNameSize = newsize;
 		Pin->m_PinName = buf;
 	}
 }
@@ -433,7 +432,7 @@ wxString buf;
 
 	CurrentPin->m_PinNum = 0;
 
-	if ( newsize >= 0) CurrentPin->m_SizeNum = newsize;
+	if ( newsize >= 0) CurrentPin->m_PinNumSize = newsize;
 	CurrentPin->SetPinNumFromString(buf);
 	m_Parent->GetScreen()->SetModify();
 
@@ -443,7 +442,7 @@ wxString buf;
 		if (Pin->m_StructType != COMPONENT_PIN_DRAW_TYPE ) continue;
 		if( (Pin->m_Flags & IS_LINKED) == 0 ) continue;
 		if( Pin->m_Unit != CurrentPin->m_Unit ) continue;
-		if ( newsize >= 0) Pin->m_SizeNum = newsize;
+		if ( newsize >= 0) Pin->m_PinNumSize = newsize;
 		if ( newnum ) Pin->m_PinNum = CurrentPin->m_PinNum;
 	}
 }
@@ -521,8 +520,8 @@ LibDrawPin * CurrentPin = (LibDrawPin *) CurrentDrawItem;
 	CurrentPin->m_Orient = LastPinOrient;
 	CurrentPin->m_PinType = LastPinType;
 	CurrentPin->m_PinShape = LastPinShape;
-	CurrentPin->m_SizeName = LastPinNameSize;
-	CurrentPin->m_SizeNum = LastPinNumSize;
+	CurrentPin->m_PinNameSize = LastPinNameSize;
+	CurrentPin->m_PinNumSize = LastPinNumSize;
 	if ( LastPinCommonConvert ) CurrentPin->m_Convert = 0;
 	else CurrentPin->m_Convert = CurrentConvert;
 	if ( LastPinCommonUnit ) CurrentPin->m_Unit = 0;
@@ -544,8 +543,8 @@ LibDrawPin * CurrentPin = (LibDrawPin *) CurrentDrawItem;
 
 	PinPreviousPos = CurrentPin->m_Pos;
 
-	GetScreen()->ManageCurseur = DrawMovePin;
-	GetScreen()->ForceCloseManageCurseur = AbortPinMove;
+	DrawPanel->ManageCurseur = DrawMovePin;
+	DrawPanel->ForceCloseManageCurseur = AbortPinMove;
 
 	CurrentPin->Display_Infos_DrawEntry(this);
 	GetScreen()->SetModify();
@@ -763,11 +762,11 @@ bool selected = (MasterPin->m_Selected & IS_SELECTED) != 0;
 		switch ( id )
 			{
 			case ID_POPUP_LIBEDIT_PIN_GLOBAL_CHANGE_PINNUMSIZE_ITEM:
-				Pin->m_SizeNum = MasterPin->m_SizeNum;
+				Pin->m_PinNumSize = MasterPin->m_PinNumSize;
 				break;
 
 			case ID_POPUP_LIBEDIT_PIN_GLOBAL_CHANGE_PINNAMESIZE_ITEM:
-				Pin->m_SizeName = MasterPin->m_SizeName;
+				Pin->m_PinNameSize = MasterPin->m_PinNameSize;
 				break;
 
 			case ID_POPUP_LIBEDIT_PIN_GLOBAL_CHANGE_PINSIZE_ITEM:
@@ -816,13 +815,13 @@ int ox = 0, oy = 0;
 	if( g_EditPinByPinIsOn == FALSE ) Pin->m_Flags |= IS_LINKED;
 
 wxPoint savepos = GetScreen()->m_Curseur;
-	GetScreen()->CursorOff(DrawPanel, DC);
+	DrawPanel->CursorOff(DC);
 	GetScreen()->m_Curseur.x = Pin->m_Pos.x;
 	GetScreen()->m_Curseur.y = -Pin->m_Pos.y;
 	PlacePin(DC);
 	GetScreen()->m_Curseur = savepos;
 //	DrawPanel->MouseToCursorSchema();
-	GetScreen()->CursorOn(DrawPanel, DC);
+	DrawPanel->CursorOn(DC);
 
 	Pin->Display_Infos_DrawEntry(this);
 	GetScreen()->SetModify();

@@ -337,7 +337,7 @@ wxString Msg;
 
 	SetStatusText(Msg,0);
 
-	GetScreen()->Trace_Curseur(DrawPanel, DC);
+	DrawPanel->Trace_Curseur(DC);
 }
 
 

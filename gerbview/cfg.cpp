@@ -102,7 +102,7 @@ wxString mask( wxT("*") ),
 					g_Prj_Config_Filename_ext,	/* extension par defaut */
 					mask,				/* Masque d'affichage */
 					this,
-					wxSAVE,
+					wxFD_SAVE,
 					TRUE
 					);
 	if ( FullFileName.IsEmpty() ) return;

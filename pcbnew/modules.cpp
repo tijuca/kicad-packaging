@@ -20,11 +20,12 @@
 
 /* Fonctions locales */
 static int ChangeSideMaskLayer(int masque);
-static void Exit_Module(WinEDA_DrawFrame * frame, wxDC *DC) ;
+static void Exit_Module(WinEDA_DrawPanel * Panel, wxDC *DC) ;
 
 /* Variables locales : */
 static int ModuleInitOrient;	// Lors des moves, val init de l'orient (pour annulation)
 static int ModuleInitLayer;		// Lors des moves, val init de la couche (pour annulation)
+
 
 /*************************************************************************/
 void Show_Pads_On_Off(WinEDA_DrawPanel * panel, wxDC * DC, MODULE * module)
@@ -61,6 +62,28 @@ WinEDA_BasePcbFrame * frame = (WinEDA_BasePcbFrame *)panel->m_Parent;
 	frame->trace_ratsnest_module(DC);
 }
 
+/***************************************************/
+MODULE * WinEDA_BasePcbFrame::GetModuleByName(void)
+/***************************************************/
+/* Get a module name from user and return a pointer to the corresponding module
+*/
+{
+wxString modulename;
+MODULE * module = NULL;
+	
+	Get_Message(_("Footprint name:"), modulename, this);
+	if ( ! modulename.IsEmpty() )
+	{
+		module = m_Pcb->m_Modules;
+		while (module )
+		{
+			if ( module->m_Reference->m_Text.CmpNoCase(modulename) == 0 ) break;
+			module = module->Next();
+		}
+	}
+	return module;
+
+}
 
 /**********************************************************************/
 void WinEDA_PcbFrame::StartMove_Module(MODULE * module, wxDC * DC)
@@ -89,33 +112,33 @@ void WinEDA_PcbFrame::StartMove_Module(MODULE * module, wxDC * DC)
 	}
 
 	m_Pcb->m_Status_Pcb |= DO_NOT_SHOW_GENERAL_RASTNEST;
-	m_CurrentScreen->ManageCurseur = Montre_Position_Empreinte;
-	m_CurrentScreen->ForceCloseManageCurseur = Exit_Module;
+	DrawPanel->ManageCurseur = Montre_Position_Empreinte;
+	DrawPanel->ForceCloseManageCurseur = Exit_Module;
 	DrawPanel->m_AutoPAN_Request = TRUE;
 
 	// effacement module a l'ecran:
 	module->Draw(DrawPanel, DC, wxPoint(0,0), GR_XOR);
 	// Reaffichage
-	m_CurrentScreen->ManageCurseur(DrawPanel, DC, FALSE);
+	DrawPanel->ManageCurseur(DrawPanel, DC, FALSE);
 }
 
 /**************************************************/
-void Exit_Module(WinEDA_DrawFrame * frame, wxDC *DC)
+void Exit_Module(WinEDA_DrawPanel * Panel, wxDC *DC)
 /***************************************************/
 /* fonction de sortie de l'application */
 {
 DRAG_SEGM * pt_drag;
 TRACK * pt_segm;
 MODULE * module;
-WinEDA_BasePcbFrame * pcbframe = (WinEDA_BasePcbFrame*)frame; 
+WinEDA_BasePcbFrame * pcbframe = (WinEDA_BasePcbFrame*)Panel->m_Parent; 
 	
-	module = (MODULE *) frame->m_CurrentScreen->m_CurrentItem;
+	module = (MODULE *) pcbframe->m_CurrentScreen->m_CurrentItem;
 	pcbframe->m_Pcb->m_Status_Pcb  &= ~CHEVELU_LOCAL_OK;
 
 	if (module)
 	{
 		// effacement module a l'ecran:
-		DrawModuleOutlines(frame->DrawPanel, DC, module);
+		DrawModuleOutlines(Panel, DC, module);
 		/* restitution de l'empreinte si move ou effacement copie*/
 		if (module->m_Flags & IS_MOVED )
 		{
@@ -127,7 +150,7 @@ WinEDA_BasePcbFrame * pcbframe = (WinEDA_BasePcbFrame*)frame;
 				for( ; pt_drag != NULL; pt_drag = pt_drag->Pnext)
 				{
 					pt_segm = pt_drag->m_Segm;
-					pt_segm->Draw(frame->DrawPanel, DC, GR_XOR);
+					pt_segm->Draw(Panel, DC, GR_XOR);
 				}
 			}
 
@@ -137,7 +160,7 @@ WinEDA_BasePcbFrame * pcbframe = (WinEDA_BasePcbFrame*)frame;
 			{
 				pt_segm = pt_drag->m_Segm; pt_segm->SetState(EDIT,OFF);
 				pt_drag->SetInitialValues();
-				pt_segm->Draw(frame->DrawPanel, DC, GR_OR);
+				pt_segm->Draw(Panel, DC, GR_OR);
 			}
 			EraseDragListe();
 			module->m_Flags = 0;
@@ -159,12 +182,12 @@ WinEDA_BasePcbFrame * pcbframe = (WinEDA_BasePcbFrame*)frame;
 			pcbframe->Rotate_Module(NULL,module, ModuleInitOrient, FALSE);
 		if( ModuleInitLayer != module->m_Layer )
 			pcbframe->Change_Side_Module(module, NULL);
-		module->Draw(frame->DrawPanel, DC, wxPoint(0,0), GR_OR);
+		module->Draw(Panel, DC, wxPoint(0,0), GR_OR);
 	}
 	g_Drag_Pistes_On = FALSE;
-	frame->m_CurrentScreen->ManageCurseur = NULL;
-	frame->m_CurrentScreen->ForceCloseManageCurseur = NULL;
-	frame->m_CurrentScreen->m_CurrentItem = NULL;
+	Panel->ManageCurseur = NULL;
+	Panel->ForceCloseManageCurseur = NULL;
+	pcbframe->m_CurrentScreen->m_CurrentItem = NULL;
 }
 
 
@@ -566,8 +589,8 @@ wxPoint newpos;
 	
 	module->Display_Infos(this);
 
-	m_CurrentScreen->ManageCurseur = NULL;
-	m_CurrentScreen->ForceCloseManageCurseur = NULL;
+	DrawPanel->ManageCurseur = NULL;
+	DrawPanel->ForceCloseManageCurseur = NULL;
 	module->m_Flags = 0;
 	g_Drag_Pistes_On = FALSE;
 }

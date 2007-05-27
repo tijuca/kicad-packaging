@@ -52,8 +52,8 @@ wxPoint fpos = pos;
 
 	WinEDA_PartPropertiesFrame * frame =
 			new WinEDA_PartPropertiesFrame(this);
-	int Changed = frame->ShowModal(); frame->Destroy();
-	if ( Changed ) Refresh();
+	int IsModified = frame->ShowModal(); frame->Destroy();
+	if ( IsModified ) Refresh();
 
 }
 
@@ -201,7 +201,7 @@ wxButton * Button;
 
 	m_PartAliasList = new wxListBox(m_PanelAlias,
 							-1,
-							wxDefaultPosition, wxSize(160,170),
+							wxDefaultPosition, wxSize(200,250),
 							0,NULL,
 							wxLB_ALWAYS_SB|wxLB_SINGLE);
 	LeftBoxSizer->Add(m_PartAliasList, 0 , wxGROW|wxLEFT|wxRIGHT|wxBOTTOM, 5);
@@ -238,6 +238,68 @@ wxButton * Button;
 		m_ButtonDeleteOneAlias->Enable(FALSE);
 	}
 }
+
+
+/*****************************************************************/
+void WinEDA_PartPropertiesFrame::BuildPanelFootprintFilter(void)
+/*****************************************************************/
+/* create the panel for footprint filtering in cvpcb list
+*/
+{
+
+    m_PanelFootprintFilter = new wxPanel( m_NoteBook, -1, wxDefaultPosition, wxDefaultSize, wxSUNKEN_BORDER|wxTAB_TRAVERSAL );
+    m_NoteBook->AddPage(m_PanelFootprintFilter, _("Footprint Filter"));
+
+	m_PanelFootprintFilter->SetFont(*g_DialogFont);
+	
+wxBoxSizer * PanelFpFilterBoxSizer = new wxBoxSizer(wxHORIZONTAL);
+    m_PanelFootprintFilter->SetSizer(PanelFpFilterBoxSizer);
+    wxBoxSizer * LeftBoxSizer = new wxBoxSizer(wxVERTICAL);
+	PanelFpFilterBoxSizer->Add(LeftBoxSizer, 0 , wxGROW|wxALL, 5);
+
+	wxStaticText * Msg = new wxStaticText(m_PanelFootprintFilter, -1, _("Footprints"));
+	Msg->SetForegroundColour(wxColour(200,0,0) );
+	LeftBoxSizer->Add(Msg, 0 , wxGROW|wxLEFT|wxRIGHT|wxTOP, 5);
+
+	m_FootprintFilterListBox = new wxListBox(m_PanelFootprintFilter,
+							-1,
+							wxDefaultPosition, wxSize(200,250),
+							0,NULL,
+							wxLB_ALWAYS_SB|wxLB_SINGLE);
+	LeftBoxSizer->Add(m_FootprintFilterListBox, 0 , wxGROW|wxLEFT|wxRIGHT|wxBOTTOM, 5);
+
+    wxBoxSizer * RightBoxSizer = new wxBoxSizer(wxVERTICAL);
+	PanelFpFilterBoxSizer->Add(RightBoxSizer, 0, wxALIGN_CENTER_VERTICAL|wxALL, 5);
+
+	wxButton * Button = new wxButton(m_PanelFootprintFilter, ID_ADD_FOOTPRINT_FILTER, _("Add"));
+	Button->SetForegroundColour(*wxBLUE);
+	RightBoxSizer->Add(Button, 0 , wxGROW|wxALL, 5);
+
+	m_ButtonDeleteOneFootprintFilter = new wxButton(m_PanelFootprintFilter, ID_DELETE_ONE_FOOTPRINT_FILTER,
+						_("Delete"));
+	m_ButtonDeleteOneFootprintFilter->SetForegroundColour(*wxRED);
+	RightBoxSizer->Add(m_ButtonDeleteOneFootprintFilter, 0 , wxGROW|wxALL, 5);
+
+	m_ButtonDeleteAllFootprintFilter = new wxButton(m_PanelFootprintFilter, ID_DELETE_ALL_FOOTPRINT_FILTER,
+						_("Delete All"));
+	m_ButtonDeleteAllFootprintFilter->SetForegroundColour(*wxRED);
+	RightBoxSizer->Add(m_ButtonDeleteAllFootprintFilter, 0 , wxGROW|wxALL, 5);
+
+
+	/* Read the Footprint Filter list */
+	if ( CurrentLibEntry )
+	{
+		for ( unsigned ii = 0; ii < CurrentLibEntry->m_FootprintList.GetCount(); ii ++)
+			m_FootprintFilterListBox->Append(CurrentLibEntry->m_FootprintList[ii]);
+	}
+
+	if ( (CurrentLibEntry == NULL) || (CurrentLibEntry->m_FootprintList.GetCount() == 0) )
+	{
+		m_ButtonDeleteAllFootprintFilter->Enable(FALSE);
+		m_ButtonDeleteOneFootprintFilter->Enable(FALSE);
+	}
+}
+
 
 
 /*****************************************************/
@@ -492,7 +554,7 @@ void WinEDA_PartPropertiesFrame::SelectNewField(wxCommandEvent& event)
 /**************************************************************************/
 void WinEDA_PartPropertiesFrame::PartPropertiesAccept(wxCommandEvent& event)
 /**************************************************************************/
-/* Met a jour les differents parametres pour le composant en cours d'édition
+/* Updaye the current component parameters
 */
 {
 int ii, jj;
@@ -503,7 +565,7 @@ int ii, jj;
 	}
 
 	m_Parent->m_CurrentScreen->SetModify();
-	m_Parent->SaveCopyInUndoList();
+	m_Parent->SaveCopyInUndoList(CurrentLibEntry);
 
 	CopyPanelFieldToData();
 
@@ -694,6 +756,12 @@ int ii, jj;
 	if ( m_RecreateToolbar ) m_Parent->ReCreateHToolbar();
 
 	m_Parent->DisplayLibInfos();
+	
+	/* Update the footprint filter list */
+	CurrentLibEntry->m_FootprintList.Clear();
+	jj =  m_FootprintFilterListBox->GetCount();
+	for ( ii = 0; ii < jj; ii ++)
+		CurrentLibEntry->m_FootprintList.Add(m_FootprintFilterListBox->GetString(ii));
 
 	EndModal(1);
 }
@@ -961,7 +1029,7 @@ wxString docpath(g_RealLibDirBuffer), filename;
 					wxEmptyString,					/* extension par defaut */
 					mask,					/* Masque d'affichage */
 					this,
-					wxOPEN,
+					wxFD_OPEN,
 					TRUE
 					);
 	if ( FullFileName.IsEmpty() ) return;
@@ -970,3 +1038,66 @@ wxString docpath(g_RealLibDirBuffer), filename;
 	filename = MakeReducedFileName(FullFileName,docpath, wxEmptyString);
 	m_Docfile->SetValue(filename);
 }
+
+
+/**********************************************************/
+void WinEDA_PartPropertiesFrame::DeleteAllFootprintFilter(
+		wxCommandEvent& WXUNUSED(event))
+/**********************************************************/
+{
+
+	if( IsOK(this, _("Ok to Delete FootprintFilter LIST") ) )
+	{
+		m_FootprintFilterListBox->Clear();
+		m_ButtonDeleteAllFootprintFilter->Enable(FALSE);
+		m_ButtonDeleteOneFootprintFilter->Enable(FALSE);
+	}
+}
+
+/*******************************************************************************/
+void WinEDA_PartPropertiesFrame::AddFootprintFilter( wxCommandEvent& WXUNUSED(event))
+/*******************************************************************************/
+/* Add a new name to the alias list box
+	New name cannot be the root name, and must not exists
+*/
+{
+wxString Line;
+
+	if(CurrentLibEntry == NULL) return;
+
+	if( Get_Message(_("New FootprintFilter:"),Line, this) != 0 ) return;
+
+	Line.Replace( wxT(" "), wxT("_") );
+
+	/* test for an existing name: */
+	int ii, jj = m_FootprintFilterListBox->GetCount();
+	for ( ii = 0; ii < jj; ii++ )
+	{
+		if( Line.CmpNoCase(m_FootprintFilterListBox->GetString(ii)) == 0 )
+		{
+			DisplayError(this, _("Already in use"), 10);
+			return;
+		}
+	}
+
+	m_FootprintFilterListBox->Append(Line);
+	m_ButtonDeleteAllFootprintFilter->Enable(TRUE);
+	m_ButtonDeleteOneFootprintFilter->Enable(TRUE);
+}
+
+/********************************************************/
+void WinEDA_PartPropertiesFrame::DeleteOneFootprintFilter(
+	wxCommandEvent& WXUNUSED(event))
+/********************************************************/
+{
+int ii = m_FootprintFilterListBox->GetSelection();
+	m_FootprintFilterListBox->Delete(ii);
+
+	if ( ! CurrentLibEntry || (m_FootprintFilterListBox->GetCount() == 0) )
+	{
+		m_ButtonDeleteAllFootprintFilter->Enable(FALSE);
+		m_ButtonDeleteOneFootprintFilter->Enable(FALSE);
+	}
+}
+
+

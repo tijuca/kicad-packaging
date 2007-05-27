@@ -39,7 +39,8 @@ static void trace_1_pad_TRAPEZE_GERBER(wxPoint pos, wxSize size,wxSize delta,
 
 
 /********************************************************************************/
-void WinEDA_BasePcbFrame::Genere_GERBER(const wxString & FullFileName, int Layer)
+void WinEDA_BasePcbFrame::Genere_GERBER(const wxString & FullFileName, int Layer,
+		bool PlotOriginIsAuxAxis)
 /********************************************************************************/
 /* Genere les divers fichiers de trace:
 	Pour chaque couche  1 fichier xxxc.PHO au format RS274X
@@ -60,7 +61,11 @@ int tracevia = 1;
 	scale_y = Scale_Y * Gerb_scale_plot;
 	g_PlotOffset.x = 0;
 	g_PlotOffset.y = 0;
-
+	if ( PlotOriginIsAuxAxis )
+	{
+		g_PlotOffset = m_Auxiliary_Axis_Position;
+	}
+	
 	InitPlotParametresGERBER(g_PlotOffset, scale_x, scale_y);
 
 	/*	Clear the memory used for handle the D_CODE (aperture) list	 */

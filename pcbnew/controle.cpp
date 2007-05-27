@@ -33,7 +33,7 @@ char *idcmd, * text;
 WinEDA_PcbFrame * frame = EDA_Appl->m_PcbFrame;
 
 	strncpy(Line, cmdline, sizeof(Line) -1 );
-	frame->Affiche_Message( CONV_FROM_UTF8(Line));
+	msg = CONV_FROM_UTF8(Line);
 
 	idcmd = strtok(Line," \n\r");
 	text = strtok(NULL," \n\r");
@@ -45,14 +45,14 @@ WinEDA_PcbFrame * frame = EDA_Appl->m_PcbFrame;
 		msg = CONV_FROM_UTF8(text);
 		Module = ReturnModule(frame->m_Pcb, msg);
 		msg.Printf(_("Locate module %s %s"),msg.GetData(), Module ? wxT("Ok") : wxT("not found"));
-		frame->SetStatusText(msg);
+		frame->Affiche_Message(msg);
 		if ( Module )
 		{
 	wxClientDC dc(frame->DrawPanel);
 			frame->DrawPanel->PrepareGraphicContext(&dc);
-			frame->GetScreen()->CursorOff(frame->DrawPanel, &dc);
+			frame->DrawPanel->CursorOff(&dc);
 			frame->GetScreen()->m_Curseur = Module->m_Pos;
-			frame->GetScreen()->CursorOn(frame->DrawPanel, &dc);
+			frame->DrawPanel->CursorOn(&dc);
 		}
 	}
 
@@ -79,9 +79,9 @@ wxClientDC dc(frame->DrawPanel);
 			if(g_HightLigt_Status) frame->Hight_Light(&dc);
 			g_HightLigth_NetCode = netcode;
 			frame->Hight_Light(&dc);
-			frame->GetScreen()->CursorOff(frame->DrawPanel, &dc);
+			frame->DrawPanel->CursorOff(&dc);
 			frame->GetScreen()->m_Curseur = Pad->m_Pos;
-			frame->GetScreen()->CursorOn(frame->DrawPanel, &dc);
+			frame->DrawPanel->CursorOn( &dc);
 			}
 
 		if ( Module == NULL )
@@ -98,8 +98,16 @@ wxClientDC dc(frame->DrawPanel);
 /***********************************************************************/
 EDA_BaseStruct * WinEDA_BasePcbFrame::PcbGeneralLocateAndDisplay(void)
 /***********************************************************************/
+/* Search an item under the mouse cursor.
+	items are searched first on the current working layer.
+	if nothing found, an item will be searched without layer restriction
+*/
 {
-	return Locate(CURSEUR_OFF_GRILLE);
+EDA_BaseStruct * item;
+	item = Locate(CURSEUR_OFF_GRILLE, GetScreen()->m_Active_Layer);
+	if ( item == NULL )
+		item = Locate(CURSEUR_OFF_GRILLE, -1);
+	return item;
 }
 
 
@@ -170,7 +178,7 @@ int CurrentTime = time(NULL);
 			if ( DisplayOpt.ContrastModeDisplay ) DrawPanel->Refresh(TRUE);
 			break ;
 		case WXK_NUMPAD0 :
-		case WXK_PRIOR :
+		case WXK_PAGEUP :
 			if ( GetScreen()->m_Active_Layer != CMP_N )
 			{
 				GetScreen()->m_Active_Layer = CMP_N;
@@ -180,7 +188,7 @@ int CurrentTime = time(NULL);
 			break ;
 
 		case WXK_NUMPAD9 :
-		case WXK_NEXT :
+		case WXK_PAGEDOWN :
 			if ( GetScreen()->m_Active_Layer != CUIVRE_N )
 			{
 				GetScreen()->m_Active_Layer = CUIVRE_N;
@@ -204,6 +212,26 @@ int CurrentTime = time(NULL);
 		case 'u' | GR_KB_CTRL :
 			g_UnitMetric = (g_UnitMetric == INCHES ) ? MILLIMETRE : INCHES;
 			break ;
+
+		case EDA_PANNING_UP_KEY :
+			OnZoom(ID_ZOOM_PANNING_UP);
+			curpos = m_CurrentScreen->m_Curseur;
+			break;
+
+		case EDA_PANNING_DOWN_KEY :
+			OnZoom(ID_ZOOM_PANNING_DOWN);
+			curpos = m_CurrentScreen->m_Curseur;
+			break;
+
+		case EDA_PANNING_LEFT_KEY :
+			OnZoom(ID_ZOOM_PANNING_LEFT);
+			curpos = m_CurrentScreen->m_Curseur;
+			break;
+
+		case EDA_PANNING_RIGHT_KEY :
+			OnZoom(ID_ZOOM_PANNING_RIGHT);
+			curpos = m_CurrentScreen->m_Curseur;
+			break;
 
 		case WXK_F1 :
 			OnZoom(ID_ZOOM_PLUS_KEY);
@@ -300,14 +328,14 @@ int CurrentTime = time(NULL);
 	{
 		curpos = GetScreen()->m_Curseur;
 		GetScreen()->m_Curseur = oldpos;
-		GetScreen()->CursorOff(DrawPanel, DC);
+		DrawPanel->CursorOff(DC);
 
 		GetScreen()->m_Curseur = curpos;
-		GetScreen()->CursorOn(DrawPanel, DC);
+		DrawPanel->CursorOn(DC);
 
-		if(GetScreen()->ManageCurseur)
+		if(DrawPanel->ManageCurseur)
 		{
-			GetScreen()->ManageCurseur(DrawPanel, DC, TRUE);
+			DrawPanel->ManageCurseur(DrawPanel, DC, TRUE);
 		}
 	}
 

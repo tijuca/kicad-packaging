@@ -15,22 +15,22 @@ void FreeMemoryModules(void)
 /********************************/
 
 /* Routine de liberation memoire de la liste des modules
-	- remet a NULL BaseListePkg
+	- remet a NULL g_BaseListePkg
 	- remet a 0 nblib;
 */
 {
 STOREMOD * Module, * NextMod;
 
-	if( BaseListePkg == NULL) return;
+	if( g_BaseListePkg == NULL) return;
 
-	for ( Module = BaseListePkg; Module != NULL; Module = NextMod)
+	for ( Module = g_BaseListePkg; Module != NULL; Module = NextMod)
 	{
 		NextMod = Module->Pnext;
 		delete Module;
 	}
 
 	nblib = 0;
-	BaseListePkg = NULL;
+	g_BaseListePkg = NULL;
 }
 
 /***********************************/
@@ -44,15 +44,15 @@ void FreeMemoryComponants(void)
 {
 STORECMP * Cmp, * NextCmp;
 
-	if( BaseListeCmp == NULL ) return;
+	if( g_BaseListeCmp == NULL ) return;
 
-	for( Cmp = BaseListeCmp; Cmp != NULL; Cmp = NextCmp )
+	for( Cmp = g_BaseListeCmp; Cmp != NULL; Cmp = NextCmp )
 	{
 		NextCmp = Cmp->Pnext;
 		delete Cmp;
 	}
 
 	nbcomp = 0;
-	BaseListeCmp = NULL;
+	g_BaseListeCmp = NULL;
 }
 

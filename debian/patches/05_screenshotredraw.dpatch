@@ -1,0 +1,53 @@
+#! /bin/sh /usr/share/dpatch/dpatch-run
+## 05_screenshotredraw.dpatch by Richard Antony Burton <richardaburton@gmail.com>
+##
+## All lines beginning with `## DP:' are a description of the patch.
+## DP: A proper fix for the blank box in image export problem.
+
+
+@DPATCH@
+
+diff -Nur kicad-0.0.20070525.orig/3d-viewer/3d_canvas.cpp kicad-0.0.20070525/3d-viewer/3d_canvas.cpp
+--- kicad-0.0.20070525.orig/3d-viewer/3d_canvas.cpp	2007-05-28 19:47:34.000000000 +0100
++++ kicad-0.0.20070525/3d-viewer/3d_canvas.cpp	2007-05-28 19:59:04.000000000 +0100
+@@ -601,7 +601,7 @@
+ 		if ( FullFileName.IsEmpty() ) return;
+ 	}
+ 	
+-	wxYield();	// Requested to allow tne window redraw after closing the dialog box
++	Redraw(true);
+ 	wxSize image_size = GetClientSize();
+ 	wxClientDC dc(this);
+ 	wxBitmap bitmap(image_size.x, image_size.y );
+diff -Nur kicad-0.0.20070525.orig/3d-viewer/3d_draw.cpp kicad-0.0.20070525/3d-viewer/3d_draw.cpp
+--- kicad-0.0.20070525.orig/3d-viewer/3d_draw.cpp	2007-05-28 19:47:30.000000000 +0100
++++ kicad-0.0.20070525/3d-viewer/3d_draw.cpp	2007-05-28 20:02:55.000000000 +0100
+@@ -39,7 +39,7 @@
+ 
+ 
+ /**********************************/
+-void Pcb3D_GLCanvas::Redraw( void )
++void Pcb3D_GLCanvas::Redraw( bool finish )
+ /**********************************/
+ {
+     SetCurrent();
+@@ -67,6 +67,7 @@
+ 	}
+ 
+ 	glFlush();
++	if (finish) glFinish();
+ 	SwapBuffers();
+  }
+ 
+diff -Nur kicad-0.0.20070525.orig/3d-viewer/3d_viewer.h kicad-0.0.20070525/3d-viewer/3d_viewer.h
+--- kicad-0.0.20070525.orig/3d-viewer/3d_viewer.h	2007-05-28 19:47:02.000000000 +0100
++++ kicad-0.0.20070525/3d-viewer/3d_viewer.h	2007-05-28 19:58:57.000000000 +0100
+@@ -92,7 +92,7 @@
+ 	void TakeScreenshot(wxCommandEvent & event);
+ 	void SetView3D(int keycode);
+ 	void DisplayStatus(void);
+-	void Redraw(void);
++	void Redraw(bool finish = false);
+ 	GLuint DisplayCubeforTest(void);
+ 
+ 	void OnEnterWindow( wxMouseEvent& event );

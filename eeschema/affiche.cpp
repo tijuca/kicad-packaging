@@ -19,10 +19,8 @@ void DrawSheetStruct::Display_Infos(WinEDA_DrawFrame * frame)
 /************************************************************/
 {
 	frame->MsgPanel->EraseMsgBox();
-	Affiche_1_Parametre(frame, 1,
-		_("Name"), m_Field[VALUE].m_Text, CYAN);
-	Affiche_1_Parametre(frame, 30, _("FileName"),
-		m_Field[SHEET_FILENAME].m_Text, BROWN);
+	Affiche_1_Parametre(frame, 1, _("Name"), m_SheetName, CYAN);
+	Affiche_1_Parametre(frame, 30, _("FileName"), m_FileName, BROWN);
 }
 
 /***************************************************************/
@@ -143,6 +141,10 @@ wxString msg;
 	else if( m_Convert == 2 ) msg = _("yes");
 	else msg = wxT("?");
 	Affiche_1_Parametre(frame, 16, _("Convert"), msg, BROWN);
+
+	if ( m_Width ) valeur_param(m_Width, msg);
+	else msg = _("default");
+	Affiche_1_Parametre(frame, 24, _("Width"), msg, BLUE);
 }
 
 

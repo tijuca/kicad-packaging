@@ -1,14 +1,14 @@
 #! /bin/sh /usr/share/dpatch/dpatch-run
-## 01_extraqualifiers.dpatch by  <richardaburton@hotmail.com>
+## 01_extraqualifiers.dpatch by Richard Antony Burton <richardaburton@gmail.com>
 ##
 ## All lines beginning with `## DP:' are a description of the patch.
 ## DP: Remove extra qualifiers (for gcc 4.1)
 
 @DPATCH@
 
-diff -ur kicad-0.0.20060626.orig/pcbnew/track.cpp kicad-0.0.20060626/pcbnew/track.cpp
---- kicad-0.0.20060626.orig/pcbnew/track.cpp	2006-04-19 16:31:18.000000000 +0100
-+++ kicad-0.0.20060626/pcbnew/track.cpp	2006-06-26 16:36:14.000000000 +0100
+diff -ur kicad-0.0.20070525.orig/pcbnew/track.cpp kicad-0.0.20070525/pcbnew/track.cpp
+--- kicad-0.0.20070525.orig/pcbnew/track.cpp	2006-04-19 16:31:18.000000000 +0100
++++ kicad-0.0.20070525/pcbnew/track.cpp	2006-06-26 16:36:14.000000000 +0100
 @@ -17,7 +17,7 @@
  	TRACK * RefTrack;
  

@@ -82,8 +82,11 @@ void WinEDA_SchematicFrame::ReCreateHToolbar(void)
 	m_HToolBar->AddTool(wxID_PASTE, wxEmptyString, BITMAP(paste_xpm),
 					_("Paste") );
 
-	m_HToolBar->AddTool(ID_UNDO_BUTT, wxEmptyString, BITMAP(undelete_xpm),
-					_("Undelete") );
+	m_HToolBar->AddSeparator();
+	m_HToolBar->AddTool(ID_SCHEMATIC_UNDO, wxEmptyString, BITMAP(undo_xpm),
+				_("Undo last edition"));
+	m_HToolBar->AddTool(ID_SCHEMATIC_REDO, wxEmptyString, BITMAP(redo_xpm),
+				_("Redo the last undo command"));
 
 	m_HToolBar->AddSeparator();
 	m_HToolBar->AddTool(ID_GEN_PRINT, wxEmptyString, BITMAP(print_button),
@@ -298,9 +301,9 @@ wxClientDC dc(DrawPanel);
 			break;
 
 		case ID_TB_OPTIONS_SELECT_CURSOR:
-			m_CurrentScreen->CursorOff(DrawPanel, &dc);
+			DrawPanel->CursorOff(&dc);
 			g_CursorShape = m_OptionsToolBar->GetToolState(id);
-			m_CurrentScreen->CursorOn(DrawPanel, &dc);
+			DrawPanel->CursorOn(&dc);
 			break;
 
 		case ID_TB_OPTIONS_HIDDEN_PINS:

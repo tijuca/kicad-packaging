@@ -102,13 +102,13 @@ static int DefaultDiagErc[PIN_NMAX][PIN_NMAX] =
 { /*       I,   O,   Bi,  3S, Pas, UnS,PwrI,PwrO,  OC,  OE,  NC */
 /* I */ { OK,   OK,  OK,  OK,  OK, WAR,  OK,  OK,  OK,  OK, WAR },
 /* O */ { OK,  ERR,  OK, WAR,  OK, WAR,  OK, ERR, ERR, ERR, WAR },
-/* Bi*/ { OK,   OK,  OK,  OK,  OK, WAR,  OK, WAR, WAR, WAR, WAR },
+/* Bi*/ { OK,   OK,  OK,  OK,  OK, WAR,  OK, WAR,  OK, WAR, WAR },
 /* 3S*/ { OK,  WAR,  OK,  OK,  OK, WAR, WAR, ERR, WAR, WAR, WAR },
 /*Pas*/ { OK,   OK,  OK,  OK,  OK, WAR,  OK,  OK,  OK,  OK, WAR },
 /*UnS */{ WAR, WAR, WAR, WAR, WAR, WAR, WAR, WAR, WAR, WAR, WAR },
 /*PwrI*/{ OK,   OK,  OK, WAR,  OK, WAR,  OK,  OK,  OK,  OK, ERR },
 /*PwrO*/{ OK,  ERR, WAR, ERR,  OK, WAR,  OK, ERR, ERR, ERR, WAR },
-/* OC */{ OK,  ERR, WAR, WAR,  OK, WAR,  OK, ERR,  OK,  OK, WAR },
+/* OC */{ OK,  ERR,  OK, WAR,  OK, WAR,  OK, ERR,  OK,  OK, WAR },
 /* OE */{ OK,  ERR, WAR, WAR,  OK, WAR,  OK, ERR,  OK,  OK, WAR },
 /* NC */{ WAR, WAR, WAR, WAR, WAR, WAR, WAR, WAR, WAR, WAR, WAR }
 } ;
@@ -148,7 +148,7 @@ static int MinimalReq[PIN_NMAX][PIN_NMAX] =
 
 
 /*************************************************************/
-void InstallErcFrame(WinEDA_DrawFrame *parent, wxPoint & pos)
+void InstallErcFrame(WinEDA_SchematicFrame *parent, wxPoint & pos)
 /*************************************************************/
 /* Install function  for the ERC dialog frame
 */
@@ -166,12 +166,12 @@ controle ERC
 */
 {
 int ii, jj, event_id, text_height;
-wxPoint pos;
+wxPoint pos, BoxMatrixPosition;
 #define BITMAP_SIZE 19
 int bitmap_size = BITMAP_SIZE;
 wxStaticText * text;
 int x, y;
-wxSize boxminsize;
+wxSize BoxMatrixMinSize;
 
 	if ( ! DiagErcTableInit )
 	{
@@ -180,28 +180,30 @@ wxSize boxminsize;
 	}
 
 	// Get the current text size :
-	text = new wxStaticText( PanelMatrice,-1,wxT("W"), pos);	// this is a dummy text
+	text = new wxStaticText( m_PanelERCOptions,-1,wxT("W"), pos);	// this is a dummy text
 	text_height = text->GetRect().GetHeight();
 	bitmap_size = MAX(bitmap_size, text_height);
 	delete text;
 	// compute the Y pos interval:
-	boxminsize.y = (bitmap_size*(PIN_NMAX+1)) + 5;
+	BoxMatrixMinSize.y = (bitmap_size*(PIN_NMAX+1)) + 5;
     GetSizer()->Fit(this);
     GetSizer()->SetSizeHints(this);
-#ifdef __WXGTK__	// Size computation is not made in constructor, under GTK,
-					// and m_BoxSizerForERC_Opt position is always 0,0. and we can't use it
-	pos.x = 5; pos.y = m_ResetOptButton->GetRect().GetHeight() + 30;
-#else
-	pos = m_BoxSizerForERC_Opt->GetPosition();
-#endif
-	pos.y += text_height;
+	pos = m_MatrixSizer->GetPosition();
+	// Size computation is not made in constructor, in some wxWidgets version,
+	// and m_BoxSizerForERC_Opt position is always 0,0. and we can't use it
+	pos.x = MAX( pos.x, 5);
+	pos.y = MAX( pos.y, m_ResetOptButton->GetRect().GetHeight() + 30);
 
+	BoxMatrixPosition = pos;
+	
+	pos.y += text_height;
+	
 	if ( m_Initialized == FALSE )
 	{
 		for ( ii = 0; ii < PIN_NMAX; ii++ )
 		{
 			y = pos.y + (ii * bitmap_size);
-			text = new wxStaticText( PanelMatrice,-1,CommentERC_H[ii], wxPoint(5,y));
+			text = new wxStaticText( m_PanelERCOptions,-1,CommentERC_H[ii], wxPoint(5,y));
 			x = text->GetRect().GetRight();
 			pos.x = MAX(pos.x, x);
 		}
@@ -220,29 +222,29 @@ wxSize boxminsize;
 			{
 				wxPoint txtpos;
 				txtpos.x = x + 4; txtpos.y = y - bitmap_size;
-				text = new wxStaticText( PanelMatrice,-1,CommentERC_V[ii], txtpos);
-				boxminsize.x = MAX( boxminsize.x, text->GetRect().GetRight());
+				text = new wxStaticText( m_PanelERCOptions,-1,CommentERC_V[ii], txtpos);
+				BoxMatrixMinSize.x = MAX( BoxMatrixMinSize.x, text->GetRect().GetRight());
 			}
 			event_id = ID_MATRIX_0 + ii + (jj * PIN_NMAX);
 			delete m_ButtonList[ii][jj];
 			switch ( diag )
 			{
 				case OK:
-					m_ButtonList[ii][jj] = new wxBitmapButton(PanelMatrice,
+					m_ButtonList[ii][jj] = new wxBitmapButton(m_PanelERCOptions,
 						event_id,
 						wxBitmap(green_xpm),
 						wxPoint(x,y) );
 					break;
 
 				case WAR:
-					m_ButtonList[ii][jj] = new wxBitmapButton(PanelMatrice,
+					m_ButtonList[ii][jj] = new wxBitmapButton(m_PanelERCOptions,
 						event_id,
 						wxBitmap(warning_xpm),
 						wxPoint(x,y) );
 					break;
 
 				case ERR:
-					m_ButtonList[ii][jj] = new wxBitmapButton(PanelMatrice,
+					m_ButtonList[ii][jj] = new wxBitmapButton(m_PanelERCOptions,
 						event_id,
 						wxBitmap(error_xpm),
 						wxPoint(x,y) );
@@ -253,9 +255,10 @@ wxSize boxminsize;
 
 	if ( !m_Initialized )
 	{
-		pos = m_BoxSizerForERC_Opt->GetPosition();
-		boxminsize.x += 5;
-		m_BoxSizerForERC_Opt->SetMinSize(boxminsize);
+		BoxMatrixMinSize.x += 5;
+		m_MatrixSizer->SetMinSize(BoxMatrixMinSize);
+		BoxMatrixMinSize.y += BoxMatrixPosition.y;
+		m_PanelMatrixSizer->SetMinSize(BoxMatrixMinSize);
 	}
 	m_Initialized = TRUE;
 }
@@ -276,6 +279,7 @@ int NetNbItems, MinConn;
 
 	WriteFichierERC = m_WriteResultOpt->GetValue();
 
+	ReAnnotatePowerSymbolsOnly();
 	if( CheckAnnotate(m_Parent, 0) )
 	{
 		DisplayError(this, _("Annotation Required!") );
@@ -292,9 +296,19 @@ wxClientDC dc(m_Parent->DrawPanel);
 	g_EESchemaVar.NbErrorErc = 0;
 	g_EESchemaVar.NbWarningErc = 0;
 
-	SchematicCleanUp(&dc);
+	/* Cleanup the entire hierarchy */
+	EDA_ScreenList ScreenList(NULL);
+	for ( SCH_SCREEN * Screen = ScreenList.GetFirst(); Screen != NULL; Screen = ScreenList.GetNext() )
+	{
+		bool ModifyWires;
+		ModifyWires = Screen->SchematicCleanUp(NULL);
+		/* if wire list has changed, delete Udo Redo list to avoid
+		pointers on deleted data problems */
+		if ( ModifyWires )
+			Screen->ClearUndoRedoList();
+	}
 
-	BuildNetList(m_Parent, ScreenSch);
+	m_Parent->BuildNetListBase();
 
 	/* Analyse de la table des connexions : */
 	Lim = g_TabObjNet + g_NbrObjNet;
@@ -368,7 +382,7 @@ wxClientDC dc(m_Parent->DrawPanel);
 					wxT(".erc"),				/* extension par defaut */
 					wxT("*.erc"),			/* Masque d'affichage */
 					this,
-					wxSAVE,
+					wxFD_SAVE,
 					TRUE
 					);
 		if ( ErcFullFileName.IsEmpty()) return;
@@ -396,16 +410,16 @@ wxClientDC dc(m_Parent->DrawPanel);
 
 	m_Parent->DrawPanel->PrepareGraphicContext(&dc);
 
-	// Delete markers for the currens screen
+	// Delete markers for the current screen
 	DrawStruct = m_Parent->GetScreen()->EEDrawList;
 	for ( ; DrawStruct != NULL; DrawStruct = DrawStruct->Pnext )
-		{
+	{
 		if(DrawStruct->m_StructType != DRAW_MARKER_STRUCT_TYPE ) continue;
 		/* Marqueur trouve */
 		Marker = (DrawMarkerStruct * ) DrawStruct;
 		if( Marker->m_Type == MARQ_ERC )
 			RedrawOneStruct(m_Parent->DrawPanel, &dc, Marker, g_XorMode);
-		}
+	}
 	/* Suppression en memoire des marqueurs ERC */
 	DeleteAllMarkers(MARQ_ERC);
 }
@@ -462,7 +476,7 @@ wxPoint pos;
 	if ( new_bitmap_xpm )
 	{
 		delete Butt;
-		Butt = new wxBitmapButton(PanelMatrice, id,
+		Butt = new wxBitmapButton(m_PanelERCOptions, id,
 							wxBitmap(new_bitmap_xpm), pos);
 		m_ButtonList[y][x] = Butt;
 		DiagErc[y][x] = DiagErc[x][y] = level;
@@ -492,7 +506,7 @@ int ii, jj;
 	Marker = new DrawMarkerStruct(NetItemRef->m_Start, wxEmptyString);
 	Marker->m_Type = MARQ_ERC;
 	Marker->m_MarkFlags = WAR;
-	screen = NetItemRef->m_Window;
+	screen = NetItemRef->m_Screen;
 	Marker->Pnext = screen->EEDrawList;
 	screen->EEDrawList = Marker;
 	g_EESchemaVar.NbErrorErc++;
@@ -675,7 +689,7 @@ wxString msg;
 
 		msg.Printf( _("\n***** Sheet %d (%s)\n"),
 							Window->m_SheetNumber,
-							Sheet ? Sheet->m_Field[VALUE].m_Text.GetData() : _("Root"));
+							Sheet ? Sheet->m_SheetName.GetData() : _("Root"));
 		fprintf( OutErc, "%s", CONV_TO_UTF8(msg));
 
 		DrawStruct = Window->EEDrawList;

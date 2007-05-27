@@ -35,7 +35,7 @@ void WinEDA_ModuleEditFrame::OnLeftClick(wxDC * DC, const wxPoint& MousePos)
 {
 EDA_BaseStruct * DrawStruct = m_CurrentScreen->m_CurrentItem;
 
-	GetScreen()->CursorOff(DrawPanel, DC);
+	DrawPanel->CursorOff(DC);
 	if ( m_ID_current_state == 0 )
 		{
 		if ( DrawStruct && DrawStruct->m_Flags ) // Commande "POPUP" en cours
@@ -43,12 +43,12 @@ EDA_BaseStruct * DrawStruct = m_CurrentScreen->m_CurrentItem;
 			switch (DrawStruct->m_StructType )
 				{
 				case TYPETEXTEMODULE:
-					SaveCopyInUndoList();
+					SaveCopyInUndoList(m_Pcb->m_Modules);
 					PlaceTexteModule( (TEXTE_MODULE *) DrawStruct, DC);
 					break;
 
 				case TYPEEDGEMODULE:
-					SaveCopyInUndoList();
+					SaveCopyInUndoList(m_Pcb->m_Modules);
 					Place_EdgeMod( (EDGE_MODULE *) DrawStruct, DC);
 					break;
 
@@ -124,7 +124,7 @@ wxT("WinEDA_ModEditFrame::ProcessCommand err: m_Flags != 0\nStruct @%p, type %d 
 				DrawStruct = ModeditLocateAndDisplay();
 				if ( DrawStruct && (DrawStruct->m_Flags == 0) )
 					{
-					SaveCopyInUndoList();
+					SaveCopyInUndoList(m_Pcb->m_Modules);
 					RemoveStruct(DrawStruct, DC);
 					m_CurrentScreen->m_CurrentItem = DrawStruct = NULL;
 					}
@@ -132,7 +132,7 @@ wxT("WinEDA_ModEditFrame::ProcessCommand err: m_Flags != 0\nStruct @%p, type %d 
 			break;
 
 		case ID_MODEDIT_PLACE_ANCHOR:
-			SaveCopyInUndoList();
+			SaveCopyInUndoList(m_Pcb->m_Modules);
 			Place_Ancre(m_Pcb->m_Modules, DC);
 			m_Pcb->m_Modules->m_Flags = 0;
 			m_CurrentScreen->m_Curseur = wxPoint(0,0);
@@ -144,14 +144,14 @@ wxT("WinEDA_ModEditFrame::ProcessCommand err: m_Flags != 0\nStruct @%p, type %d 
 			break;
 
 		case ID_TEXT_COMMENT_BUTT:
-			SaveCopyInUndoList();
+			SaveCopyInUndoList(m_Pcb->m_Modules);
 			CreateTextModule(m_Pcb->m_Modules, DC);
 			break;
 
 		case ID_MODEDIT_ADD_PAD:
 			if ( m_Pcb->m_Modules )
 			{
-				SaveCopyInUndoList();
+				SaveCopyInUndoList(m_Pcb->m_Modules);
 				AddPad(m_Pcb->m_Modules, DC);
 			}
 			break;
@@ -162,7 +162,7 @@ wxT("WinEDA_ModEditFrame::ProcessCommand err: m_Flags != 0\nStruct @%p, type %d 
 				m_ID_current_state = 0;
 				break;
 		}
-	GetScreen()->CursorOn(DrawPanel, DC);
+	DrawPanel->CursorOn(DC);
 }
 
 

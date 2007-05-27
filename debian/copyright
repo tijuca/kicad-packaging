@@ -1,4 +1,4 @@
-This package was debianized by Richard A Burton <richardaburton@hotmail.com> on
+This package was debianized by Richard A Burton <richardaburton@gmail.com> on
 Tue, 27 Jun 2006 10:48:13 +0100.
 
 It was downloaded from http://iut-tice.ujf-grenoble.fr/cao/
@@ -151,6 +151,6 @@ License:
 
 
 
-The Debian packaging is (C) 2006, Richard A Burton <richardaburton@hotmail.com> and
+The Debian packaging is (C) 2006, Richard A Burton <richardaburton@gmail.com> and
 is licensed under the GPL, see `/usr/share/common-licenses/GPL'.
 

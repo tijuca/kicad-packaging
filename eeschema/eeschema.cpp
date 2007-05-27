@@ -68,7 +68,6 @@ wxString FFileName;
 	// Create main frame (schematic frame) :
 	SchematicFrame = new WinEDA_SchematicFrame(NULL, this,
 					 wxT("EESchema"), wxPoint(0,0), wxSize(600,400) );
-	ScreenSch->SetParentFrame(SchematicFrame);
 
 	SetTopWindow(SchematicFrame);
 	SchematicFrame->Show(TRUE);
@@ -103,16 +102,16 @@ static void CreateScreens(void)
  Fonction d'init des écrans utilisés dans EESchema:
 */
 {
-	/* creation des ecrans Sch , Lib et ViewPart */
+	/* creation des ecrans Sch , Lib  */
 
 	if(ScreenSch == NULL )
-		ScreenSch = new SCH_SCREEN(NULL, NULL, SCHEMATIC_FRAME);
+		ScreenSch = new SCH_SCREEN(SCHEMATIC_FRAME);
 	ScreenSch->m_FileName = g_DefaultSchematicFileName;
 	ScreenSch->m_Date = GenDate();
 	ActiveScreen = ScreenSch;
 
 	if(ScreenLib == NULL )
-		ScreenLib = new SCH_SCREEN(NULL, NULL, LIBEDITOR_FRAME);
+		ScreenLib = new SCH_SCREEN(LIBEDITOR_FRAME);
 	ScreenLib->SetZoom(4);
 	ScreenLib->m_UndoRedoCountMax = 10;
 }

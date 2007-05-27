@@ -14,59 +14,59 @@
 #include "base_struct.h"
 #include "grfonte.h"
 
+#include "macros.h"
+
 
 // DrawStructureType names for error messages only:
-static wxChar DrawStructureTypeName[MAX_STRUCT_TYPE_ID+1]
-#ifdef MAIN
+static wxString DrawStructureTypeName[MAX_STRUCT_TYPE_ID+1]
  = {
-"Not init",
+wxT("Not init"),
 
-"Pcb",
-"Equipot",
-"Module",
-"Pad",
-"DrawSegment",
-"Text (pcb)",
-"Text module",
-"edge module",
-"track",
-"zone",
-"via",
-"marker",
-"cotation",
-"mire",
-"screen",
-"block",
-"edge zone",
+wxT("Pcb"),
+wxT("Equipot"),
+wxT("Module"),
+wxT("Pad"),
+wxT("DrawSegment"),
+wxT("Text (pcb)"),
+wxT("Text module"),
+wxT("edge module"),
+wxT("track"),
+wxT("zone"),
+wxT("via"),
+wxT("marker"),
+wxT("cotation"),
+wxT("mire"),
+wxT("screen"),
+wxT("block"),
+wxT("edge zone"),
 
-"Polyline",
-"Junction",
-"Text",
-"Label",
-"Glob label",
-"Lib item",
-"Pick struct",
-"Segment",
-"Raccord",
-"Sheet",
-"Sheet label",
-"Marker",
-"No connect",
-"Text (lib item)",
-"Screen",
-"Block locate",
-"Library component",
-"lib cmp draw circle",
-"lib cmp draw graphic text",
-"lib cmp draw rect",
-"lib cmp draw poly line",
-"lib cmp draw line",
-"lib cmp pin",
-"lib cmp field",
-"unknown"
-}
-#endif
-;
+wxT("Polyline"),
+wxT("Junction"),
+wxT("Text"),
+wxT("Label"),
+wxT("Glob label"),
+wxT("Lib item"),
+wxT("Pick struct"),
+wxT("Segment"),
+wxT("Raccord"),
+wxT("Sheet"),
+wxT("Sheet label"),
+wxT("Marker"),
+wxT("No connect"),
+wxT("Text (lib item)"),
+wxT("Screen"),
+wxT("Block locate"),
+wxT("Library component"),
+wxT("lib cmp draw circle"),
+wxT("lib cmp draw graphic text"),
+wxT("lib cmp draw rect"),
+wxT("lib cmp draw poly line"),
+wxT("lib cmp draw line"),
+wxT("lib cmp pin"),
+wxT("lib cmp field"),
+wxT("unknown"),
+wxT("unknown")
+};
 
 
 
@@ -99,12 +99,13 @@ void EDA_BaseStruct::InitVars(void)
 /********************************************/
 {
 	m_StructType = TYPE_NOT_INIT;
-	Pnext = NULL;		/* Chainage avant */
-	Pback = NULL;		/* Chainage arriere */
-	m_Parent = NULL;	/* Chainage hierarchique sur struct racine */
-	m_Son = NULL;		/* Chainage hierarchique sur struct fille */
-	m_Flags = 0;		/* Indicateur utilise temporairement dans certaines routines */
-	m_TimeStamp = 0;	// signature temporelle (lien avec une entite..)
+	Pnext = NULL;		/* Linked list: Link (next struct)  */
+	Pback = NULL;		/* Linked list: Link (previous struct) */
+	m_Parent = NULL;	/* Linked list: Link (parent struct) */
+	m_Son = NULL;		/* Linked list: Link (son struct) */
+	m_Image = NULL;		/* Link to an image copy for undelete or abort command */
+	m_Flags = 0;		/* flags for editions and other */
+	m_TimeStamp = 0;	// Time stamp used for logical links
 	m_Status = 0;
 	m_Selected = 0;		/* Used by block commands, and selective editing */
 }
@@ -136,6 +137,20 @@ addition d'une nouvelle struct a la liste chainée, apres la structure laststruct
 }
 
 
+/**************************************************************************************/
+void EDA_BaseStruct::Draw(WinEDA_DrawPanel * panel, wxDC * DC, const wxPoint & offset,
+	int draw_mode, int Color)
+/**************************************************************************************/
+/* Virtual
+*/
+{
+	wxString msg, name;
+	msg.Printf( wxT("EDA_BaseStruct::Draw() error. Method for struct type %d used but not implemented ("),
+		m_StructType);
+	msg += ReturnClassName() + wxT(")\n");
+	printf ( CONV_TO_UTF8(msg));
+}
+
 #if 0
 /**************************************************************/
 void EDA_BaseStruct::Place(WinEDA_DrawFrame * frame, wxDC * DC)
@@ -157,8 +172,7 @@ wxString EDA_BaseStruct::ReturnClassName(void)
 int ii = m_StructType;
 wxString classname;
 
-	if ( (ii < 0) || (ii > MAX_STRUCT_TYPE_ID) )
-		ii = MAX_STRUCT_TYPE_ID;
+	if ( (ii < 0) || (ii > MAX_STRUCT_TYPE_ID) ) ii = MAX_STRUCT_TYPE_ID;
 	classname = DrawStructureTypeName[ii];
 
 	return classname;
@@ -266,7 +280,7 @@ void EDA_TextStruct::Draw(WinEDA_DrawPanel * panel, wxDC * DC,
 */
 {
 int zoom;
-int coord[100];
+int coord[104];
 int ii, jj, kk, ll, nbpoints;
 int width;
 
@@ -288,7 +302,7 @@ int width;
 			m_TextDrawings[2] + offset.y + m_Pos.y,
 			m_TextDrawings[3] + offset.x + m_Pos.x,
 			m_TextDrawings[4] + offset.y + m_Pos.y,
-			color);
+			width, color);
 		}
 
 	else
@@ -303,9 +317,9 @@ int width;
 			int cY = m_Pos.y - offset.y;
 			/* trace ancre du texte */
 			GRLine(&panel->m_ClipBox, DC, cX - anchor_size, cY,
-				cX + anchor_size, cY, anchor_color);
+				cX + anchor_size, cY, 0, anchor_color);
 			GRLine(&panel->m_ClipBox, DC, cX, cY - anchor_size ,
-				cX, cY + anchor_size , anchor_color);
+				cX, cY + anchor_size , 0, anchor_color);
 			}
 		jj = 5; ii = jj+1;
 		while (ii < m_TextDrawingsSize)
@@ -338,7 +352,7 @@ int width;
 					}
 				}
 			else
-				GRPoly(&panel->m_ClipBox, DC, nbpoints, coord, 0, color, color);
+				GRPoly(&panel->m_ClipBox, DC, nbpoints, coord, 0, 0, color, color);
 
 			}
 		 }
@@ -368,7 +382,8 @@ const SH_CODE * ptcar;
 int ux0, uy0, dx, dy;	// Coord de trace des segments de texte & variables de calcul */
 int cX, cY;				// Centre du texte
 int ox, oy;				// coord de trace du caractere courant
-int coord[1000];			// liste des coord des segments a tracer
+int * coord;			// liste des coord des segments a tracer
+int coord_count_max = 1000;
 
 	if( m_TextDrawings )	/* pointeur sur la liste des segments de dessin */
 	{
@@ -471,6 +486,8 @@ int coord[1000];			// liste des coord des segments a tracer
 	dx += cX; dy = cY;
 	RotatePoint(&ux0, &uy0, cX, cY, m_Orient);
 	RotatePoint(&dx, &dy, cX, cY, m_Orient);
+		
+	coord = (int*) MyMalloc( (coord_count_max+2) * sizeof(int));
 	coord[0] = 2;
 	coord[1] = ux0; coord[2] = uy0;
 	coord[3] = dx; coord[4] = dy;
@@ -495,6 +512,11 @@ int coord[1000];			// liste des coord des segments a tracer
 				 case 'U' :
 						if(nbpoints && (plume == 'D' ) )
 							{
+							if ( jj >= coord_count_max )
+							{
+								coord_count_max *= 2;
+								coord = (int*)realloc( coord, coord_count_max * sizeof(int) );
+							}
 							coord[jj] = nbpoints;
 							jj = ii; ii++;
 							}
@@ -516,6 +538,11 @@ int coord[1000];			// liste des coord des segments a tracer
 					k2 = (k2 * size_h) / 9 ;
 					dx = k2 + ox; dy = k1 + oy;
 					RotatePoint(&dx, &dy, cX, cY, m_Orient);
+					if ( ii >= coord_count_max )
+					{
+						coord_count_max *= 2;
+						coord = (int*)realloc( coord, coord_count_max * sizeof(int) );
+					}
 					coord[ii] = dx;  ii++; coord[ii] = dy; ii++;
 					nbpoints++;
 					break ;
@@ -526,8 +553,7 @@ int coord[1000];			// liste des coord des segments a tracer
 		ptr++; ox += espacement;
 		} /* end trace du texte */
 
-	m_TextDrawings = (int*) malloc( ii * sizeof(int) );
-	memcpy ( m_TextDrawings, coord,  ii * sizeof(int));
+	m_TextDrawings = (int*) realloc( coord, ii * sizeof(int) );
 	m_TextDrawingsSize = ii;	//taille (en int) du tableau
 }
 
@@ -642,7 +668,7 @@ DrawPickedStruct::~DrawPickedStruct(void)
 void DrawPickedStruct::DeleteWrapperList(void)
 /*********************************************/
 /* Delete this item all the items of the linked list
-	DO NOT delete the picked items linked by .m_PickedStruct
+	Free the wrapper, but DOES NOT delete the picked items linked by .m_PickedStruct
 */
 {
 DrawPickedStruct * wrapp_struct, * next_struct;

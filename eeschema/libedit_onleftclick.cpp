@@ -28,53 +28,62 @@ LibEDA_BaseStruct* DrawEntry = CurrentDrawItem;
 	if( CurrentLibEntry == NULL) return;
 
 	if ( m_ID_current_state == 0 )
-		{
+	{
 		if ( DrawEntry && DrawEntry->m_Flags )
-			{
+		{
+			SaveCopyInUndoList(CurrentLibEntry);
 			switch (DrawEntry->m_StructType )
-				{
+			{
 				case COMPONENT_PIN_DRAW_TYPE:
-					SaveCopyInUndoList();
 					PlacePin(DC);
 					break;
 
 				case COMPONENT_FIELD_DRAW_TYPE:
-					SaveCopyInUndoList();
 					PlaceField(DC,  (LibDrawField *) DrawEntry);
 					DrawEntry = NULL;
 					break;
 
 				default:
-					SaveCopyInUndoList();
 					EndDrawGraphicItem(DC);
 					break;
-				}
 			}
+		}
 		else
-			{
-			DrawEntry =	LocatePin(m_CurrentScreen->m_Curseur, CurrentLibEntry,
+		{
+			DrawEntry =	LocatePin(m_CurrentScreen->m_MousePosition, CurrentLibEntry,
 							CurrentUnit, CurrentConvert);
 			if (DrawEntry == NULL )
-				{
-				DrawEntry = LocateDrawItem(GetScreen(), CurrentLibEntry,CurrentUnit,
+			{
+				DrawEntry = LocateDrawItem(GetScreen(), GetScreen()->m_MousePosition,
+							CurrentLibEntry,CurrentUnit,
    							CurrentConvert,LOCATE_ALL_DRAW_ITEM);
-				}
+			}
+
+			if (DrawEntry == NULL )
+				DrawEntry =	LocatePin(m_CurrentScreen->m_Curseur, CurrentLibEntry,
+							CurrentUnit, CurrentConvert);
+			if (DrawEntry == NULL )
+			{
+				DrawEntry = LocateDrawItem(GetScreen(), GetScreen()->m_Curseur,
+							CurrentLibEntry,CurrentUnit,
+   							CurrentConvert,LOCATE_ALL_DRAW_ITEM);
+			}
 
 			if ( DrawEntry ) DrawEntry->Display_Infos_DrawEntry(this);
 
 			else
-				{
+			{
 				EraseMsgBox();
 				AfficheDoc(this, CurrentLibEntry->m_Doc.GetData(),
             			CurrentLibEntry->m_KeyWord.GetData());
-				}
 			}
 		}
+	}
 
 	if ( m_ID_current_state )
-		{
+	{
 		switch ( m_ID_current_state )
-			{
+		{
 			case ID_NO_SELECT_BUTT:
 				break;
 
@@ -85,7 +94,7 @@ LibEDA_BaseStruct* DrawEntry = CurrentDrawItem;
 				}
 				else
 				{
-					SaveCopyInUndoList();
+					SaveCopyInUndoList(CurrentLibEntry);
 					PlacePin(DC);
 				}
 				break;
@@ -105,28 +114,38 @@ LibEDA_BaseStruct* DrawEntry = CurrentDrawItem;
 						GraphicItemBeginDraw(DC);
 					else
 					{
-						SaveCopyInUndoList();
+						SaveCopyInUndoList(CurrentLibEntry);
 						EndDrawGraphicItem(DC);
 					}
 				}
 				break;
 
 			case ID_LIBEDIT_DELETE_ITEM_BUTT :
-				DrawEntry =	LocatePin(m_CurrentScreen->m_Curseur, CurrentLibEntry,
+				DrawEntry =	LocatePin(m_CurrentScreen->m_MousePosition, CurrentLibEntry,
 							CurrentUnit, CurrentConvert);
 				if (DrawEntry == NULL )
 				{
-					DrawEntry = LocateDrawItem(GetScreen(), CurrentLibEntry,CurrentUnit,
+					DrawEntry = LocateDrawItem(GetScreen(), m_CurrentScreen->m_MousePosition,
+								CurrentLibEntry,CurrentUnit,
 								CurrentConvert,LOCATE_ALL_DRAW_ITEM);
 				}
 
+				if (DrawEntry == NULL )
+					DrawEntry =	LocatePin(m_CurrentScreen->m_Curseur, CurrentLibEntry,
+							CurrentUnit, CurrentConvert);
+				if (DrawEntry == NULL )
+				{
+					DrawEntry = LocateDrawItem(GetScreen(), m_CurrentScreen->m_Curseur,
+							CurrentLibEntry,CurrentUnit,
+							CurrentConvert,LOCATE_ALL_DRAW_ITEM);
+				}
 				if ( DrawEntry == NULL )
 				{
 					AfficheDoc(this, CurrentLibEntry->m_Doc.GetData(),
                			CurrentLibEntry->m_KeyWord.GetData());
 					break;
 				}
-				SaveCopyInUndoList();
+				SaveCopyInUndoList(CurrentLibEntry);
 				if ( DrawEntry->m_StructType == COMPONENT_PIN_DRAW_TYPE )
 					DeletePin(DC, CurrentLibEntry, (LibDrawPin*)DrawEntry);
 				else
@@ -136,7 +155,7 @@ LibEDA_BaseStruct* DrawEntry = CurrentDrawItem;
 				break;
 
 			case ID_LIBEDIT_ANCHOR_ITEM_BUTT :
-				SaveCopyInUndoList();
+				SaveCopyInUndoList(CurrentLibEntry);
 				PlaceAncre();
 				SetToolID( 0, wxCURSOR_ARROW, wxEmptyString);
 				break;
@@ -146,8 +165,8 @@ LibEDA_BaseStruct* DrawEntry = CurrentDrawItem;
 				DisplayError(this,  wxT("WinEDA_LibeditFrame::OnLeftClick error") );
 				SetToolID( 0, wxCURSOR_ARROW, wxEmptyString);
 				break;
-			}
 		}
+	}
 }
 
 
@@ -169,11 +188,21 @@ LibEDA_BaseStruct* DrawEntry = CurrentDrawItem;
 	if ( !m_ID_current_state ||	// Simple localisation des elements
 		(DrawEntry == NULL) || (DrawEntry->m_Flags == 0) )
 	{
-		DrawEntry = LocatePin(m_CurrentScreen->m_Curseur, CurrentLibEntry,
+		DrawEntry = LocatePin(m_CurrentScreen->m_MousePosition, CurrentLibEntry,
 					CurrentUnit, CurrentConvert);
 		if ( DrawEntry == NULL )
+			DrawEntry = LocatePin(m_CurrentScreen->m_Curseur, CurrentLibEntry,
+						CurrentUnit, CurrentConvert);
+		if ( DrawEntry == NULL )
 		{
-			DrawEntry = CurrentDrawItem = LocateDrawItem(GetScreen(), CurrentLibEntry,CurrentUnit,
+			DrawEntry = CurrentDrawItem = LocateDrawItem((SCH_SCREEN*)m_CurrentScreen, 
+					m_CurrentScreen->m_MousePosition,CurrentLibEntry,CurrentUnit,
+					CurrentConvert,LOCATE_ALL_DRAW_ITEM);
+		}
+		if ( DrawEntry == NULL )
+		{
+			DrawEntry = CurrentDrawItem = LocateDrawItem((SCH_SCREEN*)m_CurrentScreen,
+					m_CurrentScreen->m_Curseur, CurrentLibEntry,CurrentUnit,
 					CurrentConvert,LOCATE_ALL_DRAW_ITEM);
 		}
 		if ( DrawEntry == NULL )
@@ -244,6 +273,7 @@ LibEDA_BaseStruct* DrawEntry = CurrentDrawItem;
 		case COMPONENT_FIELD_DRAW_TYPE:
 			if( DrawEntry->m_Flags == 0 )
 			{
+				EditField(DC, (LibDrawField *)DrawEntry);
 			}
 			break;
 

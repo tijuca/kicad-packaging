@@ -36,12 +36,12 @@ EDA_BaseStruct * DrawStruct = m_CurrentScreen->m_CurrentItem;
 		{
 			switch (DrawStruct->m_StructType )
 			{
-				case DRAW_SHEETLABEL_STRUCT_TYPE:
-				case DRAW_SHEET_STRUCT_TYPE:
-				case DRAW_BUSENTRY_STRUCT_TYPE:
 				case DRAW_LABEL_STRUCT_TYPE:
 				case DRAW_GLOBAL_LABEL_STRUCT_TYPE:
 				case DRAW_TEXT_STRUCT_TYPE:
+				case DRAW_SHEETLABEL_STRUCT_TYPE:
+				case DRAW_SHEET_STRUCT_TYPE:
+				case DRAW_BUSENTRY_STRUCT_TYPE:
 				case DRAW_JUNCTION_STRUCT_TYPE:
 				case DRAW_LIB_ITEM_STRUCT_TYPE:
 				case DRAW_PART_TEXT_STRUCT_TYPE:
@@ -110,7 +110,7 @@ EDA_BaseStruct * DrawStruct = m_CurrentScreen->m_CurrentItem;
 			if ( (DrawStruct == NULL) || (DrawStruct->m_Flags == 0) )
 			{
 				m_CurrentScreen->m_CurrentItem = g_ItemToRepeat 
-					= CreateNewJunctionStruct(DC, m_CurrentScreen->m_Curseur);
+					= CreateNewJunctionStruct(DC, m_CurrentScreen->m_Curseur, TRUE);
 				DrawPanel->m_AutoPAN_Request = TRUE;
 			}
 			else
@@ -125,8 +125,7 @@ EDA_BaseStruct * DrawStruct = m_CurrentScreen->m_CurrentItem;
 		case ID_BUSTOBUS_ENTRY_BUTT:
 			if ( (DrawStruct == NULL) || (DrawStruct->m_Flags == 0) )
 			{
-				m_CurrentScreen->m_CurrentItem =
-					DrawStruct =
+				m_CurrentScreen->m_CurrentItem = DrawStruct =
 					CreateBusEntry(DC,
 						(m_ID_current_state == ID_WIRETOBUS_ENTRY_BUTT) ?
 						WIRE_TO_BUS : BUS_TO_BUS);

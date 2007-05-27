@@ -12,15 +12,16 @@
 #include "protos.h"
 
 
-/****************************************************/
-void WinEDA_ModuleEditFrame::SaveCopyInUndoList(void)
-/****************************************************/
+/**************************************************************************/
+void WinEDA_ModuleEditFrame::SaveCopyInUndoList(EDA_BaseStruct * ItemToCopy,
+		int unused_flag)
+/************************************************************************/
 {
 EDA_BaseStruct * item;
 MODULE * CopyItem;
 
 	CopyItem = new MODULE(m_Pcb);
-	CopyItem->Copy(m_Pcb->m_Modules);
+	CopyItem->Copy((MODULE*)ItemToCopy);
 	CopyItem->m_Parent = m_Pcb;
 
 	GetScreen()->AddItemToUndoList((EDA_BaseStruct *)CopyItem);

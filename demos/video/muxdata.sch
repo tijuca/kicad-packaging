@@ -1,13 +1,13 @@
 EESchema Schematic File Version 1
-LIBS:power,device,brooktre,linear,regul,74xx,cmos4000,adc-dac,memory,xilinx,special,analog_switches,.\video.cache
+LIBS:power,device,conn,brooktre,linear,regul,74xx,cmos4000,adc-dac,memory,xilinx,special,analog_switches,philips,.\video.cache
 EELAYER 20  0
 EELAYER END
 $Descr A4 11700 8267
 Sheet 2 8
-Title ""
-Date "3 jan 2006"
-Rev ""
-Comp ""
+Title "Video"
+Date "31 dec 2006"
+Rev "2.0B"
+Comp "Kicad EDA"
 Comment1 ""
 Comment2 ""
 Comment3 ""
@@ -179,9 +179,9 @@ Wire Wire Line
 Wire Wire Line
 	1550 5400 1350 5400
 Wire Wire Line
-	1500 1800 1500 5400
+	1500 5400 1500 1800
 Wire Wire Line
-	1550 1800 1500 1800
+	1500 1800 1550 1800
 Wire Wire Line
 	1550 2900 1450 2900
 Wire Wire Line
@@ -189,9 +189,9 @@ Wire Wire Line
 Wire Wire Line
 	1350 5300 1550 5300
 Wire Wire Line
-	1450 1700 1450 5300
+	1450 5300 1450 1700
 Wire Wire Line
-	1550 1700 1450 1700
+	1450 1700 1550 1700
 Wire Wire Line
 	2950 5100 3500 5100
 Wire Wire Line
@@ -613,10 +613,10 @@ TVR[0..7]
 Text GLabel 9500 1000 2    60   BiDi
 VRAM[0..31]
 $Comp
-L VCC #PWR11
+L VCC #PWR06
 U 1 1 33A567E7
 P 5050 1250
-F 0 "#PWR11" H 5050 1450 40  0001 C C
+F 0 "#PWR06" H 5050 1450 40  0001 C C
 F 1 "VCC" H 5050 1400 40  0000 C C
 	1    5050 1250
 	1    0    0    -1  

@@ -36,7 +36,7 @@
 
 /* Routines Locales */
 static void Display_Zone_Netname(WinEDA_PcbFrame *frame);
-static void Exit_Zones(WinEDA_DrawFrame * frame, wxDC *DC);
+static void Exit_Zones(WinEDA_DrawPanel * Panel, wxDC *DC);
 static void Show_Zone_Edge_While_MoveMouse(WinEDA_DrawPanel * panel, wxDC * DC, bool erase);
 static void Genere_Segments_Zone(WinEDA_PcbFrame *frame, wxDC * DC, int net_code);
 static bool Genere_Pad_Connexion(WinEDA_PcbFrame *frame, wxDC * DC, int layer);
@@ -47,7 +47,7 @@ static bool Zone_45_Only = FALSE;
 static bool Zone_Exclude_Pads = TRUE;
 static bool Zone_Genere_Freins_Thermiques = TRUE;
 
-static int TimeStamp;			/* signature temporelle pour la zone generee */
+static unsigned long s_TimeStamp;			/* signature temporelle pour la zone generee */
 
 /*!
  * WinEDA_ZoneFrame type definition
@@ -328,7 +328,7 @@ void WinEDA_PcbFrame::Edit_Zone_Width(wxDC * DC, SEGZONE * Zone)
 */
 {
 SEGZONE * pt_segm, * NextS ;
-int TimeStamp;
+unsigned long TimeStamp;
 bool modify = FALSE;
 double f_new_width;
 int w_tmp;
@@ -376,7 +376,7 @@ void WinEDA_PcbFrame::Delete_Zone(wxDC * DC, SEGZONE * Zone)
 */
 {
 SEGZONE * pt_segm, * NextS ;
-int TimeStamp;
+unsigned long TimeStamp;
 int nb_segm = 0;
 bool modify = FALSE;
 
@@ -426,13 +426,13 @@ EDGE_ZONE * Segm, * previous_segm;
 	if( Segm )
 		{
 		Segm->Pnext = NULL;
-		if( GetScreen()->ManageCurseur)
-			GetScreen()->ManageCurseur(DrawPanel, DC, TRUE);
+		if( DrawPanel->ManageCurseur)
+			DrawPanel->ManageCurseur(DrawPanel, DC, TRUE);
 		}
 	else
 		{
-		GetScreen()->ManageCurseur = NULL;
-		GetScreen()->ForceCloseManageCurseur = NULL;
+		DrawPanel->ManageCurseur = NULL;
+		DrawPanel->ForceCloseManageCurseur = NULL;
 		GetScreen()->m_CurrentItem = NULL;
 		}
 	return Segm;
@@ -523,26 +523,26 @@ wxString line;
 }
 
 /********************************************************/
-static void Exit_Zones(WinEDA_DrawFrame * frame, wxDC *DC)
+static void Exit_Zones(WinEDA_DrawPanel * Panel, wxDC *DC)
 /********************************************************/
 /* routine d'annulation de la Commande Begin_Zone si une piste est en cours
 	de tracage, ou de sortie de l'application SEGZONES.
 	Appel par la touche ESC
  */
 {
-WinEDA_PcbFrame* pcbframe = (WinEDA_PcbFrame*)frame;
+WinEDA_PcbFrame* pcbframe = (WinEDA_PcbFrame*)Panel->m_Parent;
 
 	if( pcbframe->m_Pcb->m_CurrentLimitZone )
 		{
-		if( pcbframe->GetScreen()->ManageCurseur ) /* trace en cours */
+		if( Panel->ManageCurseur ) /* trace en cours */
 			{
-			pcbframe->GetScreen()->ManageCurseur(pcbframe->DrawPanel, DC, 0);
+			Panel->ManageCurseur(Panel, DC, 0);
 			}
 		pcbframe->DelLimitesZone(DC, FALSE);
 		}
 
-	pcbframe->GetScreen()->ManageCurseur = NULL;
-	pcbframe->GetScreen()->ForceCloseManageCurseur = NULL;
+	Panel->ManageCurseur = NULL;
+	Panel->ForceCloseManageCurseur = NULL;
 	pcbframe->GetScreen()->m_CurrentItem = NULL;
 
 }
@@ -586,7 +586,7 @@ EDGE_ZONE * oldedge, * newedge = NULL;
 	oldedge = m_Pcb->m_CurrentLimitZone;
 
 	if( (m_Pcb->m_CurrentLimitZone == NULL ) || /* debut reel du trace */
-		(GetScreen()->ManageCurseur == NULL) ) /* reprise d'un trace complementaire */
+		(DrawPanel->ManageCurseur == NULL) ) /* reprise d'un trace complementaire */
 		{
 		m_Pcb->m_CurrentLimitZone = newedge = new EDGE_ZONE( m_Pcb );
 
@@ -598,8 +598,8 @@ EDGE_ZONE * oldedge, * newedge = NULL;
 		newedge->m_Start = newedge->m_End = GetScreen()->m_Curseur;
 
 		m_Pcb->m_CurrentLimitZone = newedge;
-		GetScreen()->ManageCurseur = Show_Zone_Edge_While_MoveMouse;
-		GetScreen()->ForceCloseManageCurseur = Exit_Zones;
+		DrawPanel->ManageCurseur = Show_Zone_Edge_While_MoveMouse;
+		DrawPanel->ForceCloseManageCurseur = Exit_Zones;
 		}
 
 	else	/* piste en cours : les coord du point d'arrivee ont ete mises
@@ -653,8 +653,8 @@ EDGE_ZONE * PtLim;
 		Trace_DrawSegmentPcb(DrawPanel, DC, m_Pcb->m_CurrentLimitZone,GR_XOR);
 		}
 
-	GetScreen()->ManageCurseur = NULL;
-	GetScreen()->ForceCloseManageCurseur = NULL;
+	DrawPanel->ManageCurseur = NULL;
+	DrawPanel->ForceCloseManageCurseur = NULL;
 }
 
 
@@ -757,7 +757,7 @@ wxString msg;
 		Trace_DrawSegmentPcb(DrawPanel, DC, PtLim, GR_XOR);
 	}
 
-	TimeStamp = time( NULL );
+	s_TimeStamp = time( NULL );
 
 	/* Calcul du pas de routage fixe a 5 mils et plus */
 	E_scale = g_GridRoutingSize / 50 ; if (g_GridRoutingSize < 1 ) g_GridRoutingSize = 1 ;
@@ -975,7 +975,7 @@ wxString msg;
 					pt_track->m_Width = g_GridRoutingSize;
 					pt_track->m_Start.x = ux0; pt_track->m_Start.y = uy0;
 					pt_track->m_End.x = ux1; pt_track->m_End.y = uy1;
-					pt_track->m_TimeStamp = TimeStamp;
+					pt_track->m_TimeStamp = s_TimeStamp;
 					pt_track->Insert(frame->m_Pcb, NULL);
 					pt_track->Draw(frame->DrawPanel, DC, GR_OR);
 					nbsegm++;
@@ -1010,7 +1010,7 @@ wxString msg;
 					pt_track->m_NetCode = net_code;
 					pt_track->m_Start.x = ux0; pt_track->m_Start.y = uy0;
 					pt_track->m_End.x = ux1; pt_track->m_End.y = uy1;
-					pt_track->m_TimeStamp = TimeStamp;
+					pt_track->m_TimeStamp = s_TimeStamp;
 					pt_track->Insert(frame->m_Pcb, NULL);
 					pt_track->Draw(frame->DrawPanel, DC, GR_OR);
 					nbsegm++;
@@ -1175,7 +1175,7 @@ int sommet[4][2];
 wxString msg;
 
 	if( frame->m_Pcb->m_Zone == NULL ) return FALSE;	/* pas de zone */
-	if( frame->m_Pcb->m_Zone->m_TimeStamp != TimeStamp ) /* c'est une autre zone */
+	if( frame->m_Pcb->m_Zone->m_TimeStamp != s_TimeStamp ) /* c'est une autre zone */
 		return FALSE;
 
 	/* Calcul du nombre de pads a traiter et affichage */
@@ -1239,7 +1239,7 @@ wxString msg;
 			pt_track->m_Start.x = cX; pt_track->m_Start.y = cY;
 			pt_track->m_End.x = cX + sommet[jj][0];
 			pt_track->m_End.y = cY + sommet[jj][1];
-			pt_track->m_TimeStamp = TimeStamp;
+			pt_track->m_TimeStamp = s_TimeStamp;
 
 			/* tst si trace possible */
 			if( Drc(frame, DC, pt_track,frame->m_Pcb->m_Track,0) == BAD_DRC )
@@ -1249,7 +1249,7 @@ wxString msg;
 
 			/* on doit pouvoir se connecter sur la zone */
 			loctrack = Locate_Zone(frame->m_Pcb->m_Zone,pt_track->m_End, layer);
-			if( (loctrack == NULL) || (loctrack->m_TimeStamp != TimeStamp) )
+			if( (loctrack == NULL) || (loctrack->m_TimeStamp != s_TimeStamp) )
 				{
 				delete pt_track; continue;
 				}

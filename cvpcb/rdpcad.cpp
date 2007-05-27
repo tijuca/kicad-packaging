@@ -35,7 +35,7 @@ STORECMP * Cmp;
 	Rjustify = 0;
 
 	/* Raz buffer et variable de gestion */
-	if( BaseListeCmp ) FreeMemoryComponants();
+	if( g_BaseListeCmp ) FreeMemoryComponants();
 
 	/* Ouverture du fichier source  */
 	source = wxFopen(FFileName, wxT("rt"));
@@ -126,8 +126,8 @@ for ( ;; )
 		}
 		/* classement du composant ,suivi de sa valeur */
 		Cmp = new STORECMP();
-		Cmp->Pnext = BaseListeCmp;
-		BaseListeCmp = Cmp;
+		Cmp->Pnext = g_BaseListeCmp;
+		g_BaseListeCmp = Cmp;
 		Cmp->m_Reference = CONV_FROM_UTF8(label);
 		Cmp->m_Valeur = CONV_FROM_UTF8(val);
 		pin() ;
@@ -137,7 +137,7 @@ for ( ;; )
 	fclose(source);
 
 	/* reclassement alpab‚tique : */
-	BaseListeCmp = TriListeComposantss( BaseListeCmp, nbcomp);
+	g_BaseListeCmp = TriListeComposantss( g_BaseListeCmp, nbcomp);
 
 	return(0);
 }

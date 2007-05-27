@@ -1,4 +1,4 @@
-PCBNEW-LibDoc----V1  12/6/2006-18:07:16
+PCBNEW-LibDoc----V1  3/5/2007-14:26:17
 #
 $MODULE BUS_PC
 Li BUS_PC
@@ -93,12 +93,6 @@ $EndMODULE
 $MODULE HE10_40D
 Li HE10_40D
 Cd Connecteur HE10 40 contacts droit
-Kw CONN HE10
-$EndMODULE
-#
-$MODULE HE10_20D
-Li HE10_20D
-Cd Connecteur HE10 20 contacts droit
 Kw CONN HE10
 $EndMODULE
 #
@@ -470,6 +464,18 @@ $MODULE DB9MD
 Li DB9MD
 Cd Connecteur DB9 male droit
 Kw CONN DB9
+$EndMODULE
+#
+$MODULE TESTPOINT
+Li TESTPOINT
+Cd Connecteurs 2 pins
+Kw CONN DEV
+$EndMODULE
+#
+$MODULE HE10_20D
+Li HE10_20D
+Cd Connecteur HE10 20 contacts droit
+Kw CONN HE10
 $EndMODULE
 #
 $EndLIBDOC

@@ -16,6 +16,8 @@
 
 #include "bitmaps.h"
 #include "delete_association.xpm"
+#include "module_filtered_list.xpm"
+#include "module_full_list.xpm"
 
 #include "id.h"
 
@@ -65,6 +67,24 @@ void WinEDA_CvpcbFrame::ReCreateHToolbar(void)
  	m_HToolBar->AddTool(ID_PCB_DISPLAY_FOOTPRINT_DOC, BITMAP(file_footprint_xpm),
 					_("Display/print component documentation (footprint.pdf)"));
 
+	m_HToolBar->AddSeparator();
+	m_HToolBar->AddSeparator();
+	m_HToolBar->AddRadioTool(ID_CVPCB_FOOTPRINT_DISPLAY_FILTERED_LIST,
+		wxEmptyString, BITMAP(module_filtered_list_xpm),
+		wxNullBitmap,
+		_("Display the filtered footprint list for the current component"));
+	m_HToolBar->AddRadioTool(ID_CVPCB_FOOTPRINT_DISPLAY_FULL_LIST,
+		wxEmptyString, BITMAP(module_full_list_xpm),
+		wxNullBitmap,
+		_("Display the full footprint list (without filtering)"));
+
+	if( m_Parent->m_EDA_Config )
+	{
+		wxString key = wxT(FILTERFOOTPRINTKEY);
+		int opt = m_Parent->m_EDA_Config->Read(key, (long)1);
+		m_HToolBar->ToggleTool(ID_CVPCB_FOOTPRINT_DISPLAY_FILTERED_LIST, opt);
+		m_HToolBar->ToggleTool(ID_CVPCB_FOOTPRINT_DISPLAY_FULL_LIST, ! opt);
+	}
 
 	// after adding the buttons to the toolbar, must call Realize() to reflect
 	// the changes

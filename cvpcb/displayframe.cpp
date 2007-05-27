@@ -43,7 +43,7 @@ WinEDA_DisplayFrame::WinEDA_DisplayFrame( wxWindow * father, WinEDA_App *parent,
 			WinEDA_BasePcbFrame(father, parent, CVPCB_DISPLAY_FRAME, title, pos, size)
 {
 	m_FrameName = wxT("CmpFrame");
-	m_Draw_Axes = TRUE;			// TRUE pour avoir les axes dessines
+	m_Draw_Axis = TRUE;			// TRUE pour avoir les axes dessines
 	m_Draw_Grid = TRUE;				// TRUE pour avoir la axes dessinee
 	m_Draw_Sheet_Ref = FALSE;		// TRUE pour avoir le cartouche dessiné
 
@@ -51,7 +51,7 @@ WinEDA_DisplayFrame::WinEDA_DisplayFrame( wxWindow * father, WinEDA_App *parent,
 	SetTitle(title);
 
 	m_Pcb = new BOARD(NULL, this);
-	m_CurrentScreen = new PCB_SCREEN(NULL, this, CVPCB_DISPLAY_FRAME);
+	m_CurrentScreen = new PCB_SCREEN(CVPCB_DISPLAY_FRAME);
 	GetSettings();
 	SetSize(m_FramePos.x, m_FramePos.y, m_FrameSize.x, m_FrameSize.y);
 	ReCreateHToolbar();
@@ -244,22 +244,22 @@ wxPoint curpos, oldpos;
 
 	if ( (oldpos.x != m_CurrentScreen->m_Curseur.x) ||
 		 (oldpos.y != m_CurrentScreen->m_Curseur.y) )
-		{
+	{
 		if ( flagcurseur != 2 )
-			{
+		{
 			curpos = m_CurrentScreen->m_Curseur;
 			m_CurrentScreen->m_Curseur = oldpos;
-			m_CurrentScreen->CursorOff(DrawPanel, DC);
+			DrawPanel->CursorOff(DC);
 
 			m_CurrentScreen->m_Curseur = curpos;
-			m_CurrentScreen->CursorOn(DrawPanel, DC);
-			}
-
-		if(m_CurrentScreen->ManageCurseur)
-			{
-			m_CurrentScreen->ManageCurseur(DrawPanel, DC, 0);
-			}
+			DrawPanel->CursorOn(DC);
 		}
+
+		if(DrawPanel->ManageCurseur)
+		{
+			DrawPanel->ManageCurseur(DrawPanel, DC, 0);
+		}
+	}
 
 	Affiche_Status_Box();	 /* Affichage des coord curseur */
 }
@@ -271,13 +271,11 @@ void WinEDA_DisplayFrame::Process_Special_Functions(wxCommandEvent& event)
 */
 {
 int id = event.GetId();
-wxPoint pos;
 wxClientDC dc(DrawPanel);
 
 	DrawPanel->PrepareGraphicContext(&dc);
-	wxGetMousePosition(&pos.x, &pos.y);
 
-	switch ( id )	// Arret eventuel de la commande de déplacement en cours
+	switch ( id )
 		{
 		default:
 			wxMessageBox( wxT("WinEDA_DisplayFrame::Process_Special_Functions error"));

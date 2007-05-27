@@ -8,9 +8,10 @@
 class DESCR_EDGE;
 
 int reaffect( char *ib, char *net) ;
-int genorcad(void) ;
+int GenNetlistPcbnew(void) ;
 int loadcmp(void) ;
 int listlib(void) ;
+STOREMOD * GetModuleDescrByName(const wxString & FootprintName);
 
 	/***********/
 	/* CVPCB.CPP */
@@ -47,7 +48,7 @@ void FreeMemoryComponants(void);
 
 void FreeMemoryModules(void);
 	/* Routine de liberation memoire de la liste des modules
-		 - remet a NULL BaseListePkg
+		 - remet a NULL g_BaseListePkg
 		 - rement a 0 NbLib; */
 
 

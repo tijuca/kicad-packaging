@@ -10,7 +10,7 @@
 #include "protos.h"
 
 /* Routines Locales */
-static void Exit_EditCotation(WinEDA_DrawFrame * frame, wxDC *DC);
+static void Exit_EditCotation(WinEDA_DrawPanel * Panel, wxDC *DC);
 static void Montre_Position_New_Cotation(WinEDA_DrawPanel * panel, wxDC * DC, bool erase);
 static void Ajuste_Details_Cotation(COTATION * pts);
 
@@ -194,28 +194,28 @@ void WinEDA_CotationPropertiesFrame::CotationPropertiesAccept(wxCommandEvent& ev
 
 
 /**************************************************************/
-static void Exit_EditCotation(WinEDA_DrawFrame * frame, wxDC *DC)
+static void Exit_EditCotation(WinEDA_DrawPanel * Panel, wxDC *DC)
 /**************************************************************/
 {
-COTATION * Cotation = (COTATION*) frame->m_CurrentScreen->m_CurrentItem;
+COTATION * Cotation = (COTATION*) Panel->GetScreen()->m_CurrentItem;
 
 	if( Cotation )
 		{
 		if ( Cotation->m_Flags & IS_NEW)
 			{
-			Cotation->Draw(frame->DrawPanel, DC,wxPoint(0,0),GR_XOR) ;
+			Cotation->Draw(Panel, DC,wxPoint(0,0),GR_XOR) ;
 			DeleteStructure( Cotation);
 			}
 		else
 			{
-			Cotation->Draw(frame->DrawPanel, DC,wxPoint(0,0),GR_OR) ;
+			Cotation->Draw(Panel, DC,wxPoint(0,0),GR_OR) ;
 			}
 		}
 
 	status_cotation = 0;
-	frame->m_CurrentScreen->ManageCurseur = NULL;
-	frame->m_CurrentScreen->ForceCloseManageCurseur = NULL;
-	frame->m_CurrentScreen->m_CurrentItem = NULL;
+	Panel->ManageCurseur = NULL;
+	Panel->ForceCloseManageCurseur = NULL;
+	Panel->GetScreen()->m_CurrentItem = NULL;
 
 }
 
@@ -266,8 +266,8 @@ wxPoint pos ;
 
 		Cotation->Draw(DrawPanel, DC, wxPoint(0,0), GR_XOR);
 
-		m_CurrentScreen->ManageCurseur = Montre_Position_New_Cotation;
-		m_CurrentScreen->ForceCloseManageCurseur = Exit_EditCotation;
+		DrawPanel->ManageCurseur = Montre_Position_New_Cotation;
+		DrawPanel->ForceCloseManageCurseur = Exit_EditCotation;
 		return Cotation;
 		}
 
@@ -288,8 +288,8 @@ wxPoint pos ;
 	m_Pcb->m_Drawings = Cotation;
 
 	m_CurrentScreen->SetModify();
-	m_CurrentScreen->ManageCurseur = NULL;
-	m_CurrentScreen->ForceCloseManageCurseur = NULL;
+	DrawPanel->ManageCurseur = NULL;
+	DrawPanel->ForceCloseManageCurseur = NULL;
 
 	return NULL;
 }

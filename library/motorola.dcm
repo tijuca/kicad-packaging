@@ -1,4 +1,4 @@
-EESchema-DOCLIB  Version 2.0  Date: 16/2/2006-14:41:03
+EESchema-DOCLIB  Version 2.0  Date: 23/5/2007-08:10:39
 #
 $CMP 68000D
 D Microprocesseur bus 16 bits
@@ -63,6 +63,11 @@ $ENDCMP
 $CMP DSP56301
 D DSP with PCI bus interface
 K DSP PCI
+$ENDCMP
+#
+$CMP MC13192
+D Zigbee controler
+K ZIGBEE
 $ENDCMP
 #
 $CMP MC68HC812A4

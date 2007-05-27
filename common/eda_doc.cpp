@@ -126,7 +126,7 @@ bool success = FALSE;
 					wxEmptyString,				/* extension par defaut */
 					wxEmptyString,				/* Masque d'affichage */
 					frame,					/* parent frame */
-					wxOPEN,					/* wxSAVE, wxOPEN ..*/
+					wxFD_OPEN,					/* wxSAVE, wxFD_OPEN ..*/
 					TRUE,	/* true = ne change pas le repertoire courant */
 					wxPoint(-1,-1)
 					);

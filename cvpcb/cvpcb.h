@@ -17,6 +17,8 @@
 // Define print format d to display a schematic component line
 #define CMP_FORMAT wxT("%3d %8.8s - %16.16s : %-.32s")
 
+#define FILTERFOOTPRINTKEY "FilterFootprint"
+
 enum TypeOfStruct
 	{
 	STRUCT_NOT_INIT,
@@ -55,6 +57,8 @@ public:
 	wxString m_TimeStamp;		/* Signature temporelle ("00000000" si absente) */
 	wxString m_Module;		/* Nom du module (Package) corresp */
 	wxString m_Repere;		/* utilise selon formats de netliste */
+	wxArrayString m_FootprintFilter;	/* List of allowed footprints (wildcart allowed
+							if void: no filtering */
 
 	STORECMP(void);
 	~STORECMP(void);
@@ -76,8 +80,8 @@ public:
 };
 
 
-eda_global STOREMOD * BaseListePkg;
-eda_global STORECMP * BaseListeCmp;
+eda_global STOREMOD * g_BaseListePkg;
+eda_global STORECMP * g_BaseListeCmp;
 
 eda_global FILE *source ;
 eda_global FILE *dest	;
@@ -110,7 +114,7 @@ eda_global wxString g_UserNetDirBuffer;	// Netlist path (void = current working 
 
 eda_global wxArrayString g_ListName_Equ;	// list of .equ files to load
 
-eda_global int output_type;		/* Voir ci dessus */
+eda_global int g_FlagEESchema;
 eda_global int Rjustify;		/* flag pout troncature des noms de Net:
 							= 0: debut de chaine conservee (->ORCADPCB2)
 							= 1: fin de chaine conservee (->VIEWLOGIC) */
@@ -121,10 +125,8 @@ eda_global int ListModIsModified;		/* Flag != 0 si modif liste des lib modules *
 
 eda_global char alim[1024];
 
-eda_global wxString g_CurrentPkg;	/* nom du module selectionne */
-
 eda_global int nbcomp ;					/* nombre de composants trouves */
-eda_global int nblib  ;					/* nombre d'empreintes trouv‚es */
+eda_global int nblib  ;					/* nombre d'empreintes trouvees */
 eda_global int composants_non_affectes ;/* nbre de composants non affectes */
 
 eda_global wxString NameBuffer;
@@ -141,7 +143,7 @@ eda_global wxString ExtRetroBuffer
 
 
 // Variables generales */
-
+// Unused, for pcbnew compatibility:
 eda_global Ki_PageDescr * SheetList[]
 #ifdef MAIN
 = {NULL}

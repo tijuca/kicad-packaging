@@ -38,7 +38,7 @@ wxString Title = g_Main_Title + wxT(" ") + GetBuildVersion();
 	fprintf(dest," Created by %s", CONV_TO_UTF8(Title));
 	fprintf(dest," date = %s\n", DateAndTime(Line));
 
-	for ( Cmp = BaseListeCmp ; Cmp != NULL ; Cmp = Cmp->Pnext )
+	for ( Cmp = g_BaseListeCmp ; Cmp != NULL ; Cmp = Cmp->Pnext )
 		{
 		fprintf(dest,"\nBeginCmp\n");
 		fprintf(dest,"TimeStamp = %s;\n", CONV_TO_UTF8(Cmp->m_TimeStamp));
@@ -146,7 +146,7 @@ wxString FullFileName;
 
 		/* Recherche du composant correspondant en netliste et
 			 mise a jour de ses parametres */
-		for ( Cmp = BaseListeCmp ; Cmp != NULL ; Cmp = Cmp->Pnext )
+		for ( Cmp = g_BaseListeCmp ; Cmp != NULL ; Cmp = Cmp->Pnext )
 		{
 			if (selection_type == 1 )
 			{

@@ -17,8 +17,9 @@
 #define PLOT_DEFAULT_MARGE 300	// mils
 
 /* variables locale : */
-long s_SelectedLayers = CUIVRE_LAYER | CMP_LAYER |
+static long s_SelectedLayers = CUIVRE_LAYER | CMP_LAYER |
 					SILKSCREEN_LAYER_CMP | SILKSCREEN_LAYER_CU;
+static bool s_PlotOriginIsAuxAxis = FALSE;
 
 /* Routines Locales */
 
@@ -42,7 +43,8 @@ enum id_plotps
 	ID_FORCE_PRINT_INVISIBLE_TEXT,
 	ID_PRINT_PAD_ON_SILKSCREEN,
 	ID_FORCE_PRINT_PAD,
-	ID_CREATE_DRILL_FILE
+	ID_CREATE_DRILL_FILE,
+	ID_SEL_PLOT_OFFSET_OPTION
 };
 
 
@@ -57,6 +59,7 @@ public:
 	wxButton * m_MergePlotButton;
 	wxCheckBox * m_BoxSelecLayer[32];
 	wxRadioBox * m_PlotFormatOpt;
+	wxRadioBox * m_Choice_Plot_Offset;
 	wxRadioBox * m_Drill_Shape_Opt;
 	wxRadioBox * m_Scale_Opt;
 	wxRadioBox * m_PlotModeOpt;
@@ -131,7 +134,7 @@ int ii;
 	MainBoxSizer->Add(LeftBoxSizer, 0, wxGROW|wxALL, 5);
 	MainBoxSizer->Add(MidLeftBoxSizer, 0, wxGROW|wxALL, 5);
 	MainBoxSizer->Add(MidRightBoxSizer, 0, wxGROW|wxALL, 5);
-	MainBoxSizer->Add(RightBoxSizer, 0, wxALIGN_CENTER_VERTICAL|wxALL, 5);
+	MainBoxSizer->Add(RightBoxSizer, 0, wxGROW|wxALL, 5);
 
 	wxBoxSizer * LayersBoxSizer = new wxBoxSizer(wxHORIZONTAL);
 	LeftBoxSizer->Add(LayersBoxSizer, 0, wxGROW|wxALL, 5);
@@ -174,7 +177,19 @@ wxString fmtmsg[4] = { wxT("HPGL"), wxT("GERBER"), wxT("Postscript"), wxT("Posts
 			g_PlotLine_Width, g_UnitMetric, MidRightBoxSizer, PCB_INTERNAL_UNIT);
 	m_LinesWidth->SetToolTip(_("Set width for lines in Line plot mode"));
 
-	/* Creation des boutons de commande */
+	/* Create the right column commands */
+wxString choice_plot_offset_msg[] =
+	{_("absolute"), _("auxiliary axis")};
+	m_Choice_Plot_Offset = new wxRadioBox(this, ID_SEL_PLOT_OFFSET_OPTION,
+						_("plot Origine:"),
+						wxDefaultPosition,wxSize(-1,-1),
+						2,choice_plot_offset_msg,1,wxRA_SPECIFY_COLS);
+	if ( s_PlotOriginIsAuxAxis ) m_Choice_Plot_Offset->SetSelection(1);
+	RightBoxSizer->Add(m_Choice_Plot_Offset, 0, wxGROW|wxALL, 5);
+	/* Add a spacer for a better look */
+    RightBoxSizer->Add(5, 5, 0, wxALIGN_CENTER_HORIZONTAL|wxALL, 20);
+
+	/* Create the command buttons */
 	Button = new wxButton(this, ID_EXEC_PLOT, _("Plot"));
 	Button->SetForegroundColour(*wxRED);
 	RightBoxSizer->Add(Button, 0, wxGROW|wxALL, 5);
@@ -373,6 +388,7 @@ int format_list[] =
 			m_PlotModeOpt->Enable(true);
 			m_PlotMirorOpt->Enable(true);
 			m_GerbSpotSizeMinOpt->Enable(false);
+			m_Choice_Plot_Offset->Enable(false);
 			m_LinesWidth->Enable(true);
 			m_HPGLPenSizeOpt->Enable(false);
 			m_HPGLPenSpeedOpt->Enable(false);
@@ -393,6 +409,7 @@ int format_list[] =
 			m_PlotModeOpt->Enable(false);
 			m_PlotMirorOpt->Enable(false);
 			m_GerbSpotSizeMinOpt->Enable(true);
+			m_Choice_Plot_Offset->Enable(true);
 			m_LinesWidth->Enable(true);
 			m_HPGLPenSizeOpt->Enable(false);
 			m_HPGLPenSpeedOpt->Enable(false);
@@ -411,6 +428,7 @@ int format_list[] =
 			m_Drill_Shape_Opt->Enable(false);
 			m_PlotModeOpt->Enable(true);
 			m_GerbSpotSizeMinOpt->Enable(false);
+			m_Choice_Plot_Offset->Enable(false);
 			m_LinesWidth->Enable(false);
 			m_HPGLPenSizeOpt->Enable(true);
 			m_HPGLPenSpeedOpt->Enable(true);
@@ -436,6 +454,8 @@ void WinEDA_PlotFrame::SaveOptPlot(wxCommandEvent & event)
 
 	PlotPadsOnSilkLayer = m_Plot_Pads_on_Silkscreen->GetValue();
 	Plot_Pads_All_Layers = m_Force_Plot_Pads->GetValue();
+
+	s_PlotOriginIsAuxAxis = (m_Choice_Plot_Offset->GetSelection() == 0) ? FALSE : TRUE;
 
 	Sel_Texte_Valeur = m_Plot_Text_Value->GetValue();
 	Sel_Texte_Reference = m_Plot_Text_Ref->GetValue();
@@ -535,7 +555,7 @@ wxString ext;
 					break;
 
 				case PLOT_FORMAT_GERBER:
-					m_Parent->Genere_GERBER(FullFileName, layer_to_plot);
+					m_Parent->Genere_GERBER(FullFileName, layer_to_plot, s_PlotOriginIsAuxAxis);
 					break;
 
 				case PLOT_FORMAT_HPGL:
@@ -546,7 +566,7 @@ wxString ext;
 		}
 	}
 
-	Close(true);
+//	Close(true);
 }
 
 

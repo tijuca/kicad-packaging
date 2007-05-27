@@ -14,14 +14,15 @@
 #include "protos.h"
 
 
-/*************************************************/
-void WinEDA_LibeditFrame::SaveCopyInUndoList(void)
-/*************************************************/
+/*************************************************************************/
+void WinEDA_LibeditFrame::SaveCopyInUndoList(EDA_BaseStruct * ItemToCopy,
+	int unused_flag)
+/*************************************************************************/
 {
 EDA_BaseStruct * item;
 EDA_LibComponentStruct * CopyItem;
 
-	CopyItem = CopyLibEntryStruct ( this, CurrentLibEntry);
+	CopyItem = CopyLibEntryStruct ( this, (EDA_LibComponentStruct *) ItemToCopy);
 	GetScreen()->AddItemToUndoList((EDA_BaseStruct *)CopyItem);
 	/* Clear current flags (which can be temporary set by a current edit command) */
 	for ( item = CopyItem->m_Drawings; item != NULL; item = item->Pnext )

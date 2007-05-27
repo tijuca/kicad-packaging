@@ -67,13 +67,14 @@ enum DrawStructureType {
 class EDA_BaseStruct		/* Basic class, not directly used */
 {
 public:
-	int m_StructType;			/* Type Structure */
+	int m_StructType;			/* Struct ident for run time identification */
 	EDA_BaseStruct * Pnext;		/* Linked list: Link (next struct) */
 	EDA_BaseStruct * Pback;		/* Linked list: Link (previous struct) */
 	EDA_BaseStruct * m_Parent;	/* Linked list: Link (parent struct) */
 	EDA_BaseStruct *m_Son;		/* Linked list: Link (son struct) */
+	EDA_BaseStruct *m_Image;	/* Link to an image copy for undelete or abort command */
 	int m_Flags;				// flags for editions and other
-	long m_TimeStamp;			// Time stamp (used for logical links)
+	unsigned long m_TimeStamp;			// Time stamp used for logical links
 	int m_Selected;				/* Used by block commands, and selective editing */
 
 private:
@@ -104,10 +105,12 @@ public:
 	void AddToChain(EDA_BaseStruct * laststruct);
 	/* fonction de placement */
 	virtual void Place(WinEDA_DrawFrame * frame, wxDC * DC);
+	virtual void Draw(WinEDA_DrawPanel * panel, wxDC * DC, const wxPoint & offset, int draw_mode, int Color = -1);
+
 };
 
-// Gestion de la justification des textes
-// Les valeurs -1,0,1 interviennent dans les calculs, elles ne sont pas arbitraires
+// Text justify:
+// Values -1,0,1 are used in computations, do not change them
 typedef enum {
 	GR_TEXT_HJUSTIFY_LEFT = -1,
 	GR_TEXT_HJUSTIFY_CENTER = 0,

@@ -162,6 +162,10 @@ public:
 	WinEDA_BasicFrame( wxWindow * father, int idtype, WinEDA_App *parent,
 						const wxString & title,
 						const wxPoint& pos, const wxSize& size);
+#ifdef KICAD_PYTHON
+	WinEDA_BasicFrame( const WinEDA_BasicFrame & ) {} // Should throw!!
+	WinEDA_BasicFrame() {} // Should throw!!
+#endif
 
 	~WinEDA_BasicFrame(void);
 	void GetKicadHelp(wxCommandEvent& event);
@@ -206,13 +210,13 @@ public:
 	int m_InternalUnits;			// nombre d'unites internes pour 1 pouce
 									// = 1000 pour schema, = 10000 pour PCB
 	int m_UnitType;					// Internal Unit type (0 = inch)
-	bool m_Draw_Axes;			// TRUE pour avoir les axes dessines
+	bool m_Draw_Axis;			// TRUE pour avoir les axes dessines
 	bool m_Draw_Grid;			// TRUE pour avoir la grille dessinee
 	bool m_Draw_Sheet_Ref;		// TRUE pour avoir le cartouche dessiné
 
 	bool m_Print_Sheet_Ref;		// TRUE pour avoir le cartouche imprimé
-	bool m_Draw_Auxiliary_Axe;	// TRUE pour avoir les axes auxiliaires dessines
-	wxPoint m_Auxiliary_Axe_Position;	/* origine de l'axe auxiliaire (app:
+	bool m_Draw_Auxiliary_Axis;	// TRUE pour avoir les axes auxiliaires dessines
+	wxPoint m_Auxiliary_Axis_Position;	/* origine de l'axe auxiliaire (app:
 								dans la generation les fichiers de positionnement
 								des composants) */
 	
@@ -252,6 +256,7 @@ public:
 //	void OnChar(wxKeyEvent& event);
 	void SetToolbarBgColor(int color_num);
 	void OnZoom(int zoom_type);
+	void OnPanning(int direction);
 	void OnGrid(int grid_type);
 	void Recadre_Trace(bool ToMouse);
 	void PutOnGrid(wxPoint * coord);		/* corrige la valeur de la coordonnee coord
@@ -270,7 +275,7 @@ public:
 
 	void OnActivate(wxActivateEvent& event);
 	void ReDrawPanel(void);
-	void TraceWorkSheet(wxDC * DC, BASE_SCREEN * screen);
+	void TraceWorkSheet(wxDC * DC, BASE_SCREEN * screen, int line_width);
 	void DisplayToolMsg(const wxString msg);
 	void Process_Zoom(wxCommandEvent& event);
 	void Process_Grid(wxCommandEvent& event);
@@ -350,7 +355,8 @@ public:
 
 	// Undo and redo functions
 public:
-	virtual void SaveCopyInUndoList(void);
+	virtual void SaveCopyInUndoList(EDA_BaseStruct * ItemToCopy,
+				int flag_type_command = 0);
 private:
 	virtual void GetComponentFromUndoList(void);
 	virtual void GetComponentFromRedoList(void);
@@ -367,7 +373,7 @@ public:
 	// Gestion du PCB
 	bool Clear_Pcb(wxDC * DC, bool query);
 	EDA_BaseStruct * PcbGeneralLocateAndDisplay(void);
-	EDA_BaseStruct * Locate(int typeloc );
+	EDA_BaseStruct * Locate(int typeloc, int LayerSearch );
 
 	// Gestion du curseur
 	void place_marqueur( wxDC * DC, const wxPoint & pos, char* pt_bitmap,
@@ -384,6 +390,7 @@ public:
 		bool Overwrite, bool DisplayDialog);
 	void Archive_Modules(const wxString & LibName, bool NewModulesOnly);
 	MODULE * Select_1_Module_From_BOARD(BOARD * Pcb);
+	MODULE * GetModuleByName(void);
 
 	// Modules
 	MODULE * Create_1_Module(wxDC * DC, const wxString & module_name);
@@ -420,7 +427,7 @@ public:
 	MODULE * Get_Librairie_Module(wxWindow * winaff, const wxString & library,
 					const wxString & ModuleName, bool show_msg_err);
 	wxString Select_1_Module_From_List(
-				wxWindow * active_window, const wxString & Library,
+				WinEDA_DrawFrame * active_window, const wxString & Library,
 				const wxString & Mask, const wxString &  KeyWord);
 	MODULE * Load_Module_From_Library(const wxString & library, wxDC * DC);
 
@@ -447,7 +454,8 @@ public:
 	// Plotting
 	void ToPlotter(wxCommandEvent& event);
 	void Plot_Serigraphie(int format_plot, FILE * File, int masque_layer);
-	void Genere_GERBER(const wxString & FullFileName, int Layer);
+	void Genere_GERBER(const wxString & FullFileName, int Layer,
+		bool PlotOriginIsAuxAxis);
 	void Genere_HPGL(const wxString & FullFileName, int Layer);
 	void Genere_PS(const wxString & FullFileName, int Layer);
 	void Plot_Layer_HPGL(FILE * File,int masque_layer,
@@ -595,7 +603,7 @@ public:
 	void Hight_Light(wxDC * DC);
 	void DrawHightLight(wxDC * DC, int NetCode);
 
-	// Edition des pistes:
+	// Track and via edition:
 	void DisplayTrackSettings(void);
 	void Other_Layer_Route(TRACK * track, wxDC * DC);
 	void Affiche_PadsNoConnect(wxDC * DC);
@@ -616,8 +624,9 @@ public:
 	void Attribut_Segment(TRACK * track, wxDC * DC, bool Flag_On);
 	void Attribut_Track(TRACK * track, wxDC * DC, bool Flag_On);
 	void Attribut_net(wxDC * DC, int net_code, bool Flag_On);
-	void Start_MoveOneTrackSegment(TRACK * track, wxDC * DC, bool Drag);
+	void Start_MoveOneNodeOrSegment(TRACK * track, wxDC * DC, int command);
 	bool PlaceDraggedTrackSegment(TRACK * Track, wxDC * DC);
+	void Start_DragTrackSegmentAndKeepSlope(TRACK * track, wxDC * DC);
 
 	// Edition des zones
 	EDGE_ZONE * Del_SegmEdgeZone(wxDC * DC, EDGE_ZONE * edge_zone);
@@ -780,11 +789,16 @@ public:
 	void Erase_Pistes(wxDC * DC, int masque_type, bool query);
 	void Erase_Textes_Pcb(wxDC * DC, bool query);
 	void UnDeleteItem(wxDC * DC);
+	void Delete_DCode_Items(wxDC * DC, int dcode_value, int layer_number);
 
 	TRACK * Begin_Route(TRACK * track, wxDC * DC);
 	void End_Route(TRACK * track, wxDC * DC);
 	TRACK * Delete_Segment(wxDC * DC, TRACK *Track);
 	int Edit_TrackSegm_Width(wxDC * DC, TRACK * segm);
+	
+	// Conversion function
+	void ExportDataInPcbnewFormat(wxCommandEvent& event);
+
 
 	DECLARE_EVENT_TABLE()
 };
@@ -834,7 +848,7 @@ public:
 	EDA_BaseStruct * ModeditLocateAndDisplay(void);
 
 public:
-	void SaveCopyInUndoList(void);
+	void SaveCopyInUndoList(EDA_BaseStruct * ItemToCopy, int flag_type_command = 0);
 private:
 	void GetComponentFromUndoList(void);
 	void GetComponentFromRedoList(void);
@@ -925,6 +939,12 @@ public:
 	int BestZoom(void);	// Retourne le meilleur zoom
 
 	EDA_BaseStruct * SchematicGeneralLocateAndDisplay(bool IncludePin = TRUE);
+	EDA_BaseStruct * SchematicGeneralLocateAndDisplay(const wxPoint & refpoint, bool IncludePin);
+	
+	/* netlist generation */
+	void * BuildNetListBase(void);
+
+	// FUnctions used for hierarchy handling
 	void InstallPreviousScreen(void);
 	void InstallNextScreen(DrawSheetStruct * Sheet);
 
@@ -934,8 +954,8 @@ public:
 
 	void Save_File(wxCommandEvent& event);
 	int  LoadOneEEProject(const wxString & FileName, bool IsNew);
-	bool LoadOneEEFile(BASE_SCREEN * Window, const wxString & FullFileName);
-	bool SaveEEFile(BASE_SCREEN *Window, int FileSave);
+	bool LoadOneEEFile(SCH_SCREEN * screen, const wxString & FullFileName);
+	bool SaveEEFile(SCH_SCREEN *screen, int FileSave);
 	bool LoadOneSheet(SCH_SCREEN * screen, const wxString & FullFileName);
 
 	// General search:
@@ -955,14 +975,15 @@ private:
 	EDA_BaseStruct *CreateNewNoConnectStruct(wxDC * DC);
 
 	// Junction
-	DrawJunctionStruct * CreateNewJunctionStruct(wxDC * DC, const wxPoint & pos);
+	DrawJunctionStruct * CreateNewJunctionStruct(wxDC * DC,
+			const wxPoint & pos, bool PutInUndoList = FALSE);
 
 	// Text ,label, glabel
 	EDA_BaseStruct * CreateNewText(wxDC * DC, int type);
 	void EditSchematicText(DrawTextStruct * TextStruct, wxDC * DC);
 	void ChangeTextOrient(DrawTextStruct * TextStruct, wxDC * DC);
 	void StartMoveTexte(DrawTextStruct * TextStruct, wxDC *DC);
-	void ChangeTypeText(DrawTextStruct * Text, wxDC * DC, int newtype);
+	void ConvertTextType(DrawTextStruct * Text, wxDC * DC, int newtype);
 
 	// Wire, Bus
 	void BeginSegment(wxDC * DC, int type);
@@ -1011,8 +1032,15 @@ private:
 	void RotateCmpField(PartTextStruct * Field, wxDC * DC);
 
 	/* Operations sur bloc */
-	bool UnDeleteStruct(wxDC * DC);
 	void PasteStruct(wxDC * DC);
+	/* Undo - redo */
+public:
+	void SaveCopyInUndoList(EDA_BaseStruct * ItemToCopy, int flag_type_command = 0);
+private:
+	void PutDataInPreviousState(DrawPickedStruct * List);
+	void GetSchematicFromRedoList(void);
+	void GetSchematicFromUndoList(void);
+
 
 public:
 	void OnHotKey(wxDC * DC, int hotkey, EDA_BaseStruct * DrawStruct);
@@ -1085,7 +1113,7 @@ private:
 
 	// General editing
 public:
-	void SaveCopyInUndoList(void);
+	void SaveCopyInUndoList(EDA_BaseStruct * ItemToCopy, int flag_type_command = 0);
 private:
 	void GetComponentFromUndoList(void);
 	void GetComponentFromRedoList(void);
@@ -1420,7 +1448,7 @@ public:
 class WinEDAListBox : public wxDialog
 {
 public:
-	wxWindow * m_Parent;
+	WinEDA_DrawFrame * m_Parent;
 	wxListBox * m_List;
 	wxTextCtrl * m_WinMsg;
 	const wxChar ** m_ItemList;
@@ -1429,7 +1457,7 @@ private:
 	void(* m_MoveFct)(wxString & Text);
 
 public:
-	WinEDAListBox( wxWindow * parent, const wxString & title,
+	WinEDAListBox( WinEDA_DrawFrame * parent, const wxString & title,
 						const wxChar ** ItemList,
 						const wxString & RefText,
 						void(* movefct)(wxString & Text) = NULL,
@@ -1449,6 +1477,7 @@ private:
 	void Ok(wxCommandEvent& event);
 	void ClickOnList(wxCommandEvent& event);
 	void D_ClickOnList(wxCommandEvent& event);
+	void OnKeyEvent(wxKeyEvent& event);
 	DECLARE_EVENT_TABLE()
 };
 

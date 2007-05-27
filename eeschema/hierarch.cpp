@@ -29,9 +29,6 @@ enum {
 };
 
 
-/* nombre maxi de menus (donc de sheets directement accessibles) */
-#define NB_MAX_SHEET 200
-
 class WinEDA_HierFrame;
 
 /* Cette classe permet de memoriser la feuille (sheet) associée a l'item
@@ -94,7 +91,7 @@ private:
 
 public:
 	WinEDA_HierFrame(WinEDA_SchematicFrame *parent, wxDC * DC, const wxPoint& pos);
-	void BuildListeSheets(EDA_BaseStruct * DrawStruct,
+	void BuildSheetList(EDA_BaseStruct * DrawStruct,
 						wxTreeItemId * previousmenu);
 	~WinEDA_HierFrame(void);
 
@@ -112,7 +109,9 @@ BEGIN_EVENT_TABLE(WinEDA_HierFrame, wxDialog)
 END_EVENT_TABLE()
 
 
+/*************************************************************************/
 void WinEDA_SchematicFrame::InstallHierarchyFrame(wxDC * DC, wxPoint &pos)
+/*************************************************************************/
 {
 	WinEDA_HierFrame * treeframe = new WinEDA_HierFrame(this, DC, pos);
 	treeframe->ShowModal(); treeframe->Destroy();
@@ -152,7 +151,7 @@ wxRect itemrect;
 	}
 
 	maxposx = 15;
-	BuildListeSheets(ScreenSch->EEDrawList, &cellule);
+	BuildSheetList(ScreenSch->EEDrawList, &cellule);
 
 	if ( nbsheets > 1)
 	{
@@ -180,10 +179,10 @@ void  WinEDA_HierFrame::OnQuit(wxCommandEvent& WXUNUSED(event))
 }
 
 /********************************************************************/
-void WinEDA_HierFrame::BuildListeSheets(EDA_BaseStruct * DrawStruct,
+void WinEDA_HierFrame::BuildSheetList(EDA_BaseStruct * DrawStruct,
 						wxTreeItemId * previousmenu)
 /********************************************************************/
-/* Routine de creation de l'aebre de navigation dans la hierarchy
+/* Routine de creation de l'arbre de navigation dans la hierarchy
 schematique
 	Cette routine est Reentrante !
 */
@@ -195,7 +194,9 @@ SCH_SCREEN * Screen;
 	{
 		if( nbsheets == (NB_MAX_SHEET + 1) )
 		{
-			DisplayError(this, wxT("BuildListeSheets: Error: nbsheets > 200"));
+			wxString msg;
+			msg << wxT("BuildSheetList: Error: nbsheets > ") << NB_MAX_SHEET;
+			DisplayError(this, msg);
 			nbsheets++;
 		}
 		return;
@@ -210,7 +211,7 @@ SCH_SCREEN * Screen;
 			#define STRUCT ((DrawSheetStruct*)DrawStruct)
 			nbsheets++;
 			menu = m_Tree->AppendItem(*previousmenu,
-					STRUCT->m_Field[VALUE].m_Text, 0 , 1 );
+					STRUCT->m_SheetName, 0 , 1 );
 			m_Tree->SetItemData( menu, new TreeItemData(STRUCT) );
 //			m_Tree->SetItemFont( menu, *StdFont);
 
@@ -224,7 +225,7 @@ SCH_SCREEN * Screen;
 			m_TreeSize.x = MAX(m_TreeSize.x, ll);
 			m_TreeSize.y += 1;
 
-			Screen = (SCH_SCREEN*) DrawStruct->m_Son;
+			Screen = (SCH_SCREEN*) DrawStruct;
 			if (Screen == m_Parent->m_CurrentScreen )
 			{
 				m_Tree->EnsureVisible(menu);
@@ -235,7 +236,7 @@ SCH_SCREEN * Screen;
 			if(Screen)
 			{
 				int oldnbsheets = nbsheets;
-				BuildListeSheets(Screen->EEDrawList,&menu);
+				BuildSheetList(Screen->EEDrawList,&menu);
 				if( oldnbsheets != nbsheets )
 				{
 					m_Tree->SetItemBold(menu, TRUE);
@@ -268,22 +269,38 @@ DrawSheetStruct * Sheet;
 /******************************************************/
 void WinEDA_SchematicFrame::InstallPreviousScreen(void)
 /******************************************************/
-/* Routine d'installation de l'ecran Parent de l'ecran courant
+/* Set the current screen to display the parent sheet of the current displayed sheet
 */
 {
-SCH_SCREEN * Window;
-
+SCH_SCREEN * Screen;
+EDA_BaseStruct * DrawStruct;
+	
 	if( m_CurrentScreen == ScreenSch ) return;
 
 	g_ItemToRepeat = NULL;
 	MsgPanel->EraseMsgBox();
+	
+	/* Build the screen list */
+	EDA_ScreenList ScreenList(NULL);
 
-	Window = ScreenSch;
-	if( ((SCH_SCREEN*)m_CurrentScreen)->m_RootSheet )
-		if( ((SCH_SCREEN*)m_CurrentScreen)->m_RootSheet->m_Parent )
-			Window = (SCH_SCREEN*) ((SCH_SCREEN*)m_CurrentScreen)->m_RootSheet->m_Parent;
-
-	m_CurrentScreen = ActiveScreen = Window;
+	/* search the list which have the current scheet in EEDrawList */
+	for ( Screen = ScreenList.GetFirst(); Screen != NULL; Screen = ScreenList.GetNext() )
+	{
+		DrawStruct = Screen->EEDrawList;
+		while (DrawStruct != NULL )
+		{
+			if ( DrawStruct == m_CurrentScreen ) break;	// Found !
+			DrawStruct = DrawStruct->Pnext;
+		}
+		if ( DrawStruct ) break;
+	}
+	
+	if ( Screen == NULL )
+	{
+		DisplayError( this, wxT("InstallPreviousScreen() Error: Screen not found"));
+		return;
+	}
+	m_CurrentScreen = ActiveScreen = Screen;
 	DrawPanel->m_CanStartBlock = -1;
 	DrawPanel->SetScrollbars( DrawPanel->m_Scroll_unit,
 							DrawPanel->m_Scroll_unit,
@@ -304,9 +321,9 @@ void WinEDA_SchematicFrame::InstallNextScreen(DrawSheetStruct * Sheet)
 */
 {
 	if( Sheet == NULL)
-		{
-		wxBell(); return;
-		}
+	{
+		DisplayError(this,wxT("InstallNextScreen() error")); return;
+	}
 	g_ItemToRepeat = NULL;
 	MsgPanel->EraseMsgBox();
 	InstallScreenFromSheet(this, Sheet );
@@ -321,66 +338,39 @@ static void InstallScreenFromSheet(WinEDA_SchematicFrame * frame,
 
 /* Recherche et installe de l'ecran relatif au sheet symbole Sheet.
 	Si Sheet == NULL installation de l'ecran de base ( Root ).
-	Retourne un pointeur sur l' ecran installe.
-	Si l'ecran n'existe pas il sera cree ( cas d'un Sheet Symbol
-	venant d'etre cree ).
 */
 
 {
-SCH_SCREEN * NewScreen = NULL;
+SCH_SCREEN * NewScreen;
 SCH_SCREEN * oldscreen = (SCH_SCREEN*) frame->m_CurrentScreen;
 
-	if( Sheet == NULL )
+	if( Sheet == NULL ) NewScreen = ScreenSch;
+	else NewScreen = Sheet;
+
+	frame->m_CurrentScreen = ActiveScreen = NewScreen;
+	if ( oldscreen != frame->m_CurrentScreen )
+	{  // Reinit des parametres d'affichage du nouvel ecran
+		frame->MsgPanel->EraseMsgBox();
+		frame->DrawPanel->SetScrollbars( frame->DrawPanel->m_Scroll_unit,
+						frame->DrawPanel->m_Scroll_unit,
+						NewScreen->m_ScrollbarNumber.x,
+						NewScreen->m_ScrollbarNumber.y,
+						NewScreen->m_ScrollbarPos.x,
+						NewScreen->m_ScrollbarPos.y,TRUE);
+
+		frame->DrawPanel->m_CanStartBlock = -1;
+		if ( NewScreen->m_FirstRedraw )
 		{
-		NewScreen = ScreenSch;
+			NewScreen->m_FirstRedraw = FALSE;
+			frame->Zoom_Automatique(TRUE);
 		}
-
-	else
+		else
 		{
-		NewScreen = (SCH_SCREEN*) Sheet->m_Son;
-		if(NewScreen)
-			{
-			if( NewScreen->m_Type != SCHEMATIC_FRAME)
-				{
-				DisplayError(frame, wxT("Bad new screen type"));
-				return;
-				}
-			NewScreen->m_RootSheet = Sheet;
-			}
-		}
-
-	if ( NewScreen )
-		{
-        frame->m_CurrentScreen = ActiveScreen = NewScreen;
-		if ( oldscreen != frame->m_CurrentScreen )
-        	{  // Reinit des parametres d'affichage du nouvel ecran
-			frame->MsgPanel->EraseMsgBox();
-			frame->DrawPanel->SetScrollbars( frame->DrawPanel->m_Scroll_unit,
-							frame->DrawPanel->m_Scroll_unit,
-							frame->m_CurrentScreen->m_ScrollbarNumber.x,
-							frame->m_CurrentScreen->m_ScrollbarNumber.y,
-							frame->m_CurrentScreen->m_ScrollbarPos.x,
-							frame->m_CurrentScreen->m_ScrollbarPos.y,TRUE);
-
-			frame->DrawPanel->m_CanStartBlock = -1;
 			frame->ReDrawPanel();
 			frame->DrawPanel->MouseToCursorSchema();
-			}
-		return;
 		}
+	}
 
-	/* Ici l'ecran n'a pas ete trouve: il faudra le creer */
-	NewScreen = ScreenSch ;
-	while(NewScreen->Pnext) NewScreen = (SCH_SCREEN*) NewScreen->Pnext;
-	NewScreen->Pnext = CreateNewScreen(frame, NewScreen, Sheet->m_TimeStamp);
-
-	NewScreen = (SCH_SCREEN*)NewScreen->Pnext;
-	Sheet->m_Son = NewScreen;
-	NewScreen->m_Parent = Sheet;
-	NewScreen->m_FileName = Sheet->m_Field[SHEET_FILENAME].m_Text;
-	NewScreen->m_RootSheet = Sheet;
-	frame->m_CurrentScreen = ActiveScreen = NewScreen;
-	frame->Zoom_Automatique(FALSE);
 	return;
 }
 

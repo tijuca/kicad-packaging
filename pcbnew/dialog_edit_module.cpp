@@ -45,15 +45,12 @@ WinEDA_ModulePropertiesFrame::WinEDA_ModulePropertiesFrame(WinEDA_BasePcbFrame *
 /**************************************************************************************/
 {
 wxString number;
-bool FullOptions = FALSE;
 
 	SetIcon( wxICON(icon_modedit) );		// Give an icon
 
 	m_Parent = parent;
 	SetFont(*g_DialogFont);
 	m_DC = DC;
-
-	if ( m_Parent->m_Ident == PCB_FRAME ) FullOptions = TRUE;
 
 	m_LayerCtrl = NULL;
 	m_OrientCtrl = NULL;
@@ -68,7 +65,6 @@ bool FullOptions = FALSE;
 		}
 
 	CreateControls();
-	CreatePanelProperties(FullOptions);
 
 	GetSizer()->Fit(this);
     GetSizer()->SetSizeHints(this);
@@ -82,6 +78,10 @@ void WinEDA_ModulePropertiesFrame::CreateControls(void)
 wxPoint pos;
 wxButton * Button;
 wxSize usize;
+bool FullOptions = FALSE;
+
+	if ( m_Parent->m_Ident == PCB_FRAME ) FullOptions = TRUE;
+
 	usize = GetClientSize();
 
     m_GeneralBoxSizer = new wxBoxSizer(wxVERTICAL);
@@ -98,6 +98,7 @@ wxSize usize;
 	m_PanelProperties->SetFont(*g_DialogFont);
     m_PanelPropertiesBoxSizer = new wxBoxSizer(wxHORIZONTAL);
     m_PanelProperties->SetSizer(m_PanelPropertiesBoxSizer);
+	BuildPanelModuleProperties(FullOptions);
 	m_NoteBook->AddPage(m_PanelProperties, _("Properties"), TRUE);
 
 	m_Panel3D = new Panel3D_Ctrl(this, m_NoteBook, -1,
@@ -162,7 +163,7 @@ void Panel3D_Ctrl::AddOrRemove3DShape(wxCommandEvent& event)
 }
 
 /***************************************************************************/
-void WinEDA_ModulePropertiesFrame::CreatePanelProperties(bool FullOptions)
+void WinEDA_ModulePropertiesFrame::BuildPanelModuleProperties(bool FullOptions)
 /***************************************************************************/
 /* creation du panel d'edition des proprietes du module
 */
@@ -440,7 +441,7 @@ wxString mask = wxT("*");
 					g_Shapes3DExtBuffer,	/* extension par defaut */
 					mask,				/* Masque d'affichage */
 					this,
-					wxOPEN,
+					wxFD_OPEN,
 					TRUE
 					);
 
@@ -466,7 +467,7 @@ void WinEDA_ModulePropertiesFrame::ModulePropertiesAccept(wxCommandEvent& event)
 {
 bool change_layer = FALSE;
 
-	if ( m_DC ) m_Parent->GetScreen()->CursorOff(m_Parent->DrawPanel, m_DC);
+	if ( m_DC ) m_Parent->DrawPanel->CursorOff(m_DC);
 
 	if ( m_DC )
 		m_CurrentModule->Draw(m_Parent->DrawPanel, m_DC, wxPoint(0,0), GR_XOR);
@@ -556,7 +557,7 @@ bool change_layer = FALSE;
 
 	if ( m_DC )
 		m_CurrentModule->Draw(m_Parent->DrawPanel, m_DC, wxPoint(0,0), GR_OR);
-	if ( m_DC ) m_Parent->GetScreen()->CursorOn(m_Parent->DrawPanel, m_DC);
+	if ( m_DC ) m_Parent->DrawPanel->CursorOn(m_DC);
 }
 
 
@@ -693,7 +694,7 @@ TEXTE_MODULE * Text = NULL;
 	if ( TextType < 0 ) return;	//No selection
 
 	
-	if ( m_DC ) m_Parent->GetScreen()->CursorOff(m_Parent->DrawPanel, m_DC);
+	if ( m_DC ) m_Parent->DrawPanel->CursorOff(m_DC);
 
 
 	// Get a pointer on the field
@@ -745,6 +746,6 @@ TEXTE_MODULE * Text = NULL;
 		wxT("WinEDA_ModulePropertiesFrame::EditOrDelTextModule() error: Field not found"));
 
   out:
-	if ( m_DC ) m_Parent->GetScreen()->CursorOn(m_Parent->DrawPanel, m_DC);
+	if ( m_DC ) m_Parent->DrawPanel->CursorOn(m_DC);
 	SetTextListButtons();
 }

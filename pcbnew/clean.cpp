@@ -22,10 +22,12 @@
 #define POS_AFF_NUMSEGM 70
 
 /* Routines locales : */
+#if 0
 static void raccord_track_a_centre(WinEDA_PcbFrame * frame);
+static void Gen_Raccord_Track(WinEDA_PcbFrame * frame, wxDC * DC);
+#endif
 static int clean_segments(WinEDA_PcbFrame * frame, wxDC * DC);
 static void suppression_piste_non_connectee(WinEDA_PcbFrame * frame, wxDC * DC);
-static void Gen_Raccord_Track(WinEDA_PcbFrame * frame, wxDC * DC);
 static TRACK * AlignSegment(BOARD * Pcb, TRACK * pt_ref, TRACK * pt_segm, int extremite);
 
 /* Variables locales : */
@@ -93,7 +95,7 @@ int masklayer, oldnetcode;
 int type_end,flag_erase;
 int ii, percent, oldpercent;
 wxString msg;
-	
+
 	frame->Affiche_Message( _("Delete unconnected tracks:") );
 	frame->DrawPanel->m_AbortRequest = FALSE;
 
@@ -542,7 +544,7 @@ int nbpoints_modifies = 0;
 int flag = 0;
 int ii, percent, oldpercent;
 wxString msg;
-	
+
 	a_color = RED;
 	percent = 0; oldpercent = -1;
 
@@ -632,6 +634,8 @@ wxString msg;
 }
 
 
+#if 0
+
 /***************************************************************/
 static void Gen_Raccord_Track(WinEDA_PcbFrame * frame, wxDC * DC)
 /***************************************************************/
@@ -649,7 +653,7 @@ int nn = 0;
 int masquelayer;
 int ii, percent, oldpercent;
 wxString msg;
-	
+
 	frame->Affiche_Message( wxT("Gen Raccords sur Pistes:") );
 	if( frame->m_Pcb->GetNumSegmTrack() == 0 ) return;
 
@@ -734,17 +738,15 @@ wxString msg;
 		}
 }
 
-	/*********************************************/
-	/* void raccord_track_a_centre(COMMAND * frame) */
-	/*********************************************/
-
+/*****************************************************/
+void raccord_track_a_centre(WinEDA_PcbFrame * frame)
+/****************************************************/
 /*
  rajoute eventuellement un segment a une extremite de piste connectee
  a un pad si cette extremite n'est pas exactement connectee au centre
  du pad.
 	Ceci permet un controle plus rapide des connexions
 */
-static void raccord_track_a_centre(WinEDA_PcbFrame * frame)
 {
 TRACK  * PtSegm;
 EDA_BaseStruct * NextS;
@@ -752,7 +754,7 @@ D_PAD * ptr_pad;
 int nb_new_piste = 0 , ii;
 int percent, oldpercent;
 wxString msg;
-	
+
 	a_color = GREEN;
 	percent = 0; oldpercent = -1;
 
@@ -826,3 +828,4 @@ wxString msg;
 		}
 }
 
+#endif

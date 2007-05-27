@@ -17,7 +17,7 @@
 
 /* Routines Locales */
 static void Show_MoveTexte_Module(WinEDA_DrawPanel * panel, wxDC * DC, bool erase);
-static void ExitTextModule(WinEDA_DrawFrame * frame, wxDC *DC);
+static void ExitTextModule(WinEDA_DrawPanel * Panel, wxDC *DC);
 
 /* local variables */
 wxPoint MoveVector;	// Move vector for move edge, exported to dialog_edit mod_text.cpp
@@ -114,27 +114,27 @@ MODULE * Module;
 
 
 /*************************************************************/
-static void ExitTextModule(WinEDA_DrawFrame * frame, wxDC *DC)
+static void ExitTextModule(WinEDA_DrawPanel * Panel, wxDC *DC)
 /*************************************************************/
 /*
  Routine de sortie du menu edit texte module
 Si un texte est selectionne, ses coord initiales sont regenerees
 */
 {
-BASE_SCREEN * screen = frame->GetScreen();
+BASE_SCREEN * screen = Panel->GetScreen();
 TEXTE_MODULE * Text = (TEXTE_MODULE *) screen->m_CurrentItem;
 MODULE * Module;
 
-	screen->ManageCurseur = NULL;
-	screen->ForceCloseManageCurseur = NULL;
+	Panel->ManageCurseur = NULL;
+	Panel->ForceCloseManageCurseur = NULL;
 
 	if ( Text == NULL ) return;
 
 	Module = ( MODULE *) Text->m_Parent;
-	Text->Draw(frame->DrawPanel, DC, MoveVector, GR_XOR );
+	Text->Draw(Panel, DC, MoveVector, GR_XOR );
 
 	/* Redessin du Texte */
-	Text->Draw(frame->DrawPanel, DC, wxPoint(0,0), GR_OR );
+	Text->Draw(Panel, DC, wxPoint(0,0), GR_OR );
 
 	Text->m_Flags = 0;
 	Module->m_Flags = 0;
@@ -163,10 +163,10 @@ MODULE * Module;
 	Affiche_Infos_E_Texte(this, Module, Text);
 
 	GetScreen()->m_CurrentItem = Text;
-	GetScreen()->ManageCurseur = Show_MoveTexte_Module;
-	GetScreen()->ForceCloseManageCurseur = ExitTextModule;
+	DrawPanel->ManageCurseur = Show_MoveTexte_Module;
+	DrawPanel->ForceCloseManageCurseur = ExitTextModule;
 	
-	GetScreen()->ManageCurseur(DrawPanel, DC, TRUE);
+	DrawPanel->ManageCurseur(DrawPanel, DC, TRUE);
 }
 
 
@@ -200,8 +200,8 @@ void WinEDA_BasePcbFrame::PlaceTexteModule(TEXTE_MODULE * Text, wxDC * DC)
 		}
 	}
 
-	GetScreen()->ManageCurseur = NULL;
-	GetScreen()->ForceCloseManageCurseur = NULL;
+	DrawPanel->ManageCurseur = NULL;
+	DrawPanel->ForceCloseManageCurseur = NULL;
 }
 
 

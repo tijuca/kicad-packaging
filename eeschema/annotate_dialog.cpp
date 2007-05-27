@@ -65,7 +65,7 @@ WinEDA_AnnotateFrame::WinEDA_AnnotateFrame( )
 {
 }
 
-WinEDA_AnnotateFrame::WinEDA_AnnotateFrame( WinEDA_DrawFrame* parent, wxWindowID id, const wxString& caption, const wxPoint& pos, const wxSize& size, long style )
+WinEDA_AnnotateFrame::WinEDA_AnnotateFrame( WinEDA_SchematicFrame* parent, wxWindowID id, const wxString& caption, const wxPoint& pos, const wxSize& size, long style )
 {
 	m_Parent = parent;
 	m_Abort = FALSE;

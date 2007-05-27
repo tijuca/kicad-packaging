@@ -1,3 +1,14 @@
+kicad (0.0.20070525-1) unstable; urgency=low
+
+  * New upstream release (Closes: #423873)
+  * Install help files to correct location (Closes: #404783)
+  * For languages without native help files the English doc package is pulled in
+    with the non-English doc package, so there is at least some help.
+  * Not removing all binaries removed during 'clean' (Closes: #424455)
+  * Patch for the 3D Display image export problem (Closes: #423882)
+
+ -- Richard Antony Burton <richardaburton@gmail.com>  Sun, 27 May 2007 13:43:01 +0100
+
 kicad (0.0.20060829-2) unstable; urgency=low
 
   * Fixing wrong location of helpfiles (Closes: #404783) (djp)

@@ -1,4 +1,4 @@
-EESchema-DOCLIB  Version 2.0  Date: 31/5/2006-12:29:21
+EESchema-DOCLIB  Version 2.0  Date: 22/5/2007-08:08:06
 #
 $CMP BUSAT
 D Connecteur BUS ISA 16 bits
@@ -42,6 +42,11 @@ $ENDCMP
 #
 $CMP CONN_10
 D Symbole general de connecteur
+K CONN
+$ENDCMP
+#
+$CMP CONN_10X2
+D symbole general de connecteur
 K CONN
 $ENDCMP
 #
@@ -253,6 +258,11 @@ $ENDCMP
 $CMP SCART-F
 D Prise Peritel
 K CONN
+$ENDCMP
+#
+$CMP USB_CONN
+D USB CONNECTOR
+K USB
 $ENDCMP
 #
 $CMP XLR3

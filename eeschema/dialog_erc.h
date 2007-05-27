@@ -36,8 +36,8 @@ extern int WriteFichierERC;
 
 ////@begin forward declarations
 class wxNotebook;
-class wxStaticLine;
 class wxBoxSizer;
+class wxStaticLine;
 ////@end forward declarations
 
 /*!
@@ -46,11 +46,6 @@ class wxBoxSizer;
 
 ////@begin control identifiers
 #define ID_DIALOG 10000
-#define SYMBOL_WINEDA_ERCFRAME_STYLE wxCAPTION|wxRESIZE_BORDER|wxSYSTEM_MENU|wxCLOSE_BOX
-#define SYMBOL_WINEDA_ERCFRAME_TITLE _("EESchema Erc")
-#define SYMBOL_WINEDA_ERCFRAME_IDNAME ID_DIALOG
-#define SYMBOL_WINEDA_ERCFRAME_SIZE wxSize(400, 300)
-#define SYMBOL_WINEDA_ERCFRAME_POSITION wxDefaultPosition
 #define ID_ERC_NOTEBOOK 10001
 #define ID_PANEL 10004
 #define ID_CHECKBOX 10006
@@ -58,6 +53,11 @@ class wxBoxSizer;
 #define ID_ERASE_DRC_MARKERS 10003
 #define ID_PANEL1 10005
 #define ID_RESET_MATRIX 10007
+#define SYMBOL_WINEDA_ERCFRAME_STYLE wxCAPTION|wxRESIZE_BORDER|wxSYSTEM_MENU|wxCLOSE_BOX
+#define SYMBOL_WINEDA_ERCFRAME_TITLE _("EESchema Erc")
+#define SYMBOL_WINEDA_ERCFRAME_IDNAME ID_DIALOG
+#define SYMBOL_WINEDA_ERCFRAME_SIZE wxDefaultSize
+#define SYMBOL_WINEDA_ERCFRAME_POSITION wxDefaultPosition
 ////@end control identifiers
 #define ID_MATRIX_0 1800
 
@@ -81,7 +81,7 @@ class WinEDA_ErcFrame: public wxDialog
 public:
     /// Constructors
     WinEDA_ErcFrame( );
-    WinEDA_ErcFrame( WinEDA_DrawFrame* parent, wxWindowID id = SYMBOL_WINEDA_ERCFRAME_IDNAME, const wxString& caption = SYMBOL_WINEDA_ERCFRAME_TITLE, const wxPoint& pos = SYMBOL_WINEDA_ERCFRAME_POSITION, const wxSize& size = SYMBOL_WINEDA_ERCFRAME_SIZE, long style = SYMBOL_WINEDA_ERCFRAME_STYLE );
+    WinEDA_ErcFrame( WinEDA_SchematicFrame* parent, wxWindowID id = SYMBOL_WINEDA_ERCFRAME_IDNAME, const wxString& caption = SYMBOL_WINEDA_ERCFRAME_TITLE, const wxPoint& pos = SYMBOL_WINEDA_ERCFRAME_POSITION, const wxSize& size = SYMBOL_WINEDA_ERCFRAME_SIZE, long style = SYMBOL_WINEDA_ERCFRAME_STYLE );
 
     /// Creation
     bool Create( wxWindow* parent, wxWindowID id = SYMBOL_WINEDA_ERCFRAME_IDNAME, const wxString& caption = SYMBOL_WINEDA_ERCFRAME_TITLE, const wxPoint& pos = SYMBOL_WINEDA_ERCFRAME_POSITION, const wxSize& size = SYMBOL_WINEDA_ERCFRAME_SIZE, long style = SYMBOL_WINEDA_ERCFRAME_STYLE );
@@ -127,7 +127,8 @@ public:
 
 ////@begin WinEDA_ErcFrame member variables
     wxNotebook* m_NoteBook;
-    wxPanel* PanelERC;
+    wxPanel* m_PanelERC;
+    wxBoxSizer* m_PanelERCSizer;
     wxStaticText* ErcTotalErrors;
     wxStaticText* WarnErcErrors;
     wxStaticText* ErcErrors;
@@ -135,13 +136,14 @@ public:
     wxStaticText* m_LastWarningCount;
     wxStaticText* m_LastErrCount;
     wxCheckBox* m_WriteResultOpt;
-    wxPanel* PanelMatrice;
+    wxPanel* m_PanelERCOptions;
+    wxBoxSizer* m_PanelMatrixSizer;
     wxButton* m_ResetOptButton;
     wxStaticLine* m_SeparatorLine;
-    wxBoxSizer* m_BoxSizerForERC_Opt;
+    wxBoxSizer* m_MatrixSizer;
 ////@end WinEDA_ErcFrame member variables
 
-	WinEDA_DrawFrame * m_Parent;
+	WinEDA_SchematicFrame * m_Parent;
 	wxBitmapButton * m_ButtonList[PIN_NMAX][PIN_NMAX];
 	bool m_Initialized;
 };

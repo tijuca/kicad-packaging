@@ -14,7 +14,7 @@
 
 /* Routines Locales */
 static void Move_Texte_Pcb(WinEDA_DrawPanel * panel, wxDC * DC, bool erase) ;
-static void Exit_Texte_Pcb(WinEDA_DrawFrame * frame, wxDC *DC) ;
+static void Exit_Texte_Pcb(WinEDA_DrawPanel * Panel, wxDC *DC) ;
 
 /* Variables locales : */
 static wxPoint old_pos;	// position originelle du texte selecte
@@ -225,7 +225,7 @@ void WinEDA_TextPCBPropertiesFrame::TextPCBPropertiesAccept(wxCommandEvent& even
 
 
 /******************************************************/
-void Exit_Texte_Pcb(WinEDA_DrawFrame * frame, wxDC * DC)
+void Exit_Texte_Pcb(WinEDA_DrawPanel * Panel, wxDC * DC)
 /*******************************************************/
 /*
  Routine de sortie du menu edit texte Pcb
@@ -234,19 +234,19 @@ Si un texte est selectionne, ses coord initiales sont regenerees
 {
 TEXTE_PCB * TextePcb;
 
-	TextePcb = (TEXTE_PCB *) frame->m_CurrentScreen->m_CurrentItem;
+	TextePcb = (TEXTE_PCB *) Panel->GetScreen()->m_CurrentItem;
 
 	if ( TextePcb )
 		{
-		TextePcb->Draw(frame->DrawPanel, DC, wxPoint(0, 0), GR_XOR) ;
+		TextePcb->Draw(Panel, DC, wxPoint(0, 0), GR_XOR) ;
 		TextePcb->m_Pos = old_pos;
-		TextePcb->Draw(frame->DrawPanel, DC, wxPoint(0, 0), GR_OR) ;
+		TextePcb->Draw(Panel, DC, wxPoint(0, 0), GR_OR) ;
 		TextePcb->m_Flags = 0;
 		}
 
-	frame->m_CurrentScreen->ManageCurseur = NULL;
-	frame->m_CurrentScreen->ForceCloseManageCurseur = NULL;
-	frame->m_CurrentScreen->m_CurrentItem = NULL;
+	Panel->ManageCurseur = NULL;
+	Panel->ForceCloseManageCurseur = NULL;
+	Panel->GetScreen()->m_CurrentItem = NULL;
 }
 
 /*********************************************************************/
@@ -260,8 +260,8 @@ void WinEDA_PcbFrame::Place_Texte_Pcb(TEXTE_PCB * TextePcb, wxDC * DC)
 
 	TextePcb->CreateDrawData();
 	TextePcb->Draw(DrawPanel, DC, wxPoint(0, 0), GR_OR) ;
-	m_CurrentScreen->ManageCurseur = NULL;
-	m_CurrentScreen->ForceCloseManageCurseur = NULL;
+	DrawPanel->ManageCurseur = NULL;
+	DrawPanel->ForceCloseManageCurseur = NULL;
 	m_CurrentScreen->m_CurrentItem = NULL;
 	m_CurrentScreen->SetModify();
 	TextePcb->m_Flags = 0;
@@ -278,10 +278,10 @@ void WinEDA_PcbFrame::StartMoveTextePcb(TEXTE_PCB * TextePcb, wxDC * DC)
 	TextePcb->Draw(DrawPanel, DC, wxPoint(0, 0), GR_XOR) ;
 	TextePcb->m_Flags |= IS_MOVED;
 	Affiche_Infos_PCB_Texte(this, TextePcb);
-	m_CurrentScreen->ManageCurseur = Move_Texte_Pcb;
-	m_CurrentScreen->ForceCloseManageCurseur = Exit_Texte_Pcb;
+	DrawPanel->ManageCurseur = Move_Texte_Pcb;
+	DrawPanel->ForceCloseManageCurseur = Exit_Texte_Pcb;
 	m_CurrentScreen->m_CurrentItem = TextePcb;
-	m_CurrentScreen->ManageCurseur( DrawPanel, DC, FALSE);
+	DrawPanel->ManageCurseur( DrawPanel, DC, FALSE);
 }
 
 /*************************************************************************/
@@ -317,8 +317,8 @@ void WinEDA_PcbFrame::Delete_Texte_Pcb(TEXTE_PCB * TextePcb, wxDC * DC)
 
 	/* Suppression du texte en Memoire*/
 	DeleteStructure(TextePcb);
-	m_CurrentScreen->ManageCurseur = NULL;
-	m_CurrentScreen->ForceCloseManageCurseur = NULL;
+	DrawPanel->ManageCurseur = NULL;
+	DrawPanel->ForceCloseManageCurseur = NULL;
 	m_CurrentScreen->m_CurrentItem = NULL;
 }
 

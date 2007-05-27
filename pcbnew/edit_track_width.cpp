@@ -24,7 +24,7 @@ int WinEDA_PcbFrame::Edit_TrackSegm_Width(wxDC * DC, TRACK * pt_segm)
 int errdrc = OK_DRC;
 int old_w, consigne ;
 
-	GetScreen()->CursorOff(DrawPanel, DC);	// Erase cursor shape
+	DrawPanel->CursorOff(DC);	// Erase cursor shape
 	pt_segm->Draw(DrawPanel, DC, GR_XOR) ;		// Erase old track shape
 
 	/* Test DRC and width change */
@@ -45,7 +45,7 @@ int old_w, consigne ;
 	else  GetScreen()->SetModify();	/* Correction systematiquement faite si reduction */
 
 	pt_segm->Draw(DrawPanel, DC, GR_OR) ;		// Display new track shape
-	GetScreen()->CursorOn(DrawPanel, DC);	// Display cursor shape
+	DrawPanel->CursorOn(DC);	// Display cursor shape
 	return(errdrc);
 }
 
