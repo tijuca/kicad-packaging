@@ -27,23 +27,23 @@ int ii;
 wxMenuBar * menuBar = GetMenuBar();
 
 	if( menuBar == NULL )
-		{
+	{
 		menuBar = new wxMenuBar();
 
 		m_FilesMenu = new wxMenu;
 		m_FilesMenu->Append(ID_MENU_LOAD_FILE,
-					 _("Clear and Load gerber file"),
-					 _("Clear all layers and Load new gerber file"),
+					 _("Clear and Load Gerber file"),
+					 _("Clear all layers and Load new Gerber file"),
 					 FALSE);
 
 		m_FilesMenu->Append(ID_MENU_APPEND_FILE,
-					 _("Load gerber file"),
-					 _("Load new gerber file on currrent layer"),
+					 _("Load Gerber file"),
+					 _("Load new Gerber file on currrent layer"),
 					 FALSE);
 
 		m_FilesMenu->Append(ID_MENU_INC_LAYER_AND_APPEND_FILE,
-					 _("Inc Layer and load gerber file"),
-					 _("Increment layer number, and Load gerber file"),
+					 _("Inc Layer and load Gerber file"),
+					 _("Increment layer number, and Load Gerber file"),
 					 FALSE);
 
 		m_FilesMenu->Append(ID_GERBVIEW_LOAD_DCODE_FILE,
@@ -100,15 +100,15 @@ wxMenuBar * menuBar = GetMenuBar();
 
 		// Configuration:
 		wxMenu * configmenu = new wxMenu;
-		configmenu->Append(ID_CONFIG_REQ, _("&Files and Dir"),
-			_("Setting Files extension, Directories and others..."));
-		configmenu->Append(ID_COLORS_SETUP, _("&Colors"),
-			_("Select Colors and Display for layers"));
-		configmenu->Append(ID_OPTIONS_SETUP, _("&Options"),
-			_(" Select general options"));
+		ADD_MENUITEM_WITH_HELP(configmenu, ID_CONFIG_REQ, _("&File ext"),
+			_("Setting Files extension"), config_xpm );
+		ADD_MENUITEM_WITH_HELP(configmenu, ID_COLORS_SETUP, _("&Colors"),
+			_("Select Colors and Display for layers"), palette_xpm);
+		ADD_MENUITEM_WITH_HELP(configmenu, ID_OPTIONS_SETUP, _("&Options"),
+			_(" Select general options"), preference_xpm);
 
-		configmenu->Append(ID_PCB_LOOK_SETUP, _("Display"),
-			_(" Select how items are displayed"));
+		ADD_MENUITEM_WITH_HELP(configmenu, ID_PCB_LOOK_SETUP, _("Display"),
+			_(" Select how items are displayed"), display_options_xpm);
 
 		// Font selection and setup
 		AddFontSelectionMenu(configmenu);
@@ -116,8 +116,8 @@ wxMenuBar * menuBar = GetMenuBar();
 		m_Parent->SetLanguageList(configmenu);
 
 		configmenu->AppendSeparator();
-		configmenu->Append(ID_CONFIG_SAVE, _("&Save Gerbview Setup"),
-				_("Save options in current directory"));
+		ADD_MENUITEM_WITH_HELP(configmenu, ID_CONFIG_SAVE, _("&Save Setup"),
+				_("Save application preferences"), save_setup_xpm);
 
 		// Menu drill ( generation fichiers percage)
 /*	wxMenu *drill_menu = new wxMenu;
@@ -126,20 +126,22 @@ wxMenuBar * menuBar = GetMenuBar();
 */
 	// Menu d'outils divers
 		wxMenu *miscellaneous_menu = new wxMenu;
-		miscellaneous_menu->Append(ID_GERBVIEW_SHOW_LIST_DCODES, _("&List DCodes"),
-				_("List and Edit DCodes") );
-		miscellaneous_menu->Append(ID_GERBVIEW_SHOW_SOURCE,_("&Show source"),
-				_("Show source file for the current layer") );
+		ADD_MENUITEM_WITH_HELP(miscellaneous_menu, ID_GERBVIEW_SHOW_LIST_DCODES, _("&List DCodes"),
+				_("List and Edit DCodes"), show_dcodenumber_xpm );
+		ADD_MENUITEM_WITH_HELP(miscellaneous_menu, ID_GERBVIEW_SHOW_SOURCE,_("&Show source"),
+				_("Show source file for the current layer"), tools_xpm );
 		miscellaneous_menu->AppendSeparator();
-		miscellaneous_menu->Append(ID_PCB_GLOBAL_DELETE, _("&Delete Layer"),
-				_("Delete current layer") );
+		ADD_MENUITEM_WITH_HELP(miscellaneous_menu, ID_PCB_GLOBAL_DELETE, _("&Delete Layer"),
+				_("Delete current layer"), general_deletions_xpm );
 
 		// Menu Help:
 		wxMenu *helpMenu = new wxMenu;
-		helpMenu->Append(ID_GENERAL_HELP, _("&Help"), _("On line doc") );
-		helpMenu->Append(ID_KICAD_ABOUT, _("&About"), _("Gerbview Infos") );
+		ADD_MENUITEM_WITH_HELP(helpMenu, ID_GENERAL_HELP, _("&Contents"),
+			_("Open the gerbview manual"), help_xpm );
+		ADD_MENUITEM_WITH_HELP(helpMenu, ID_KICAD_ABOUT, _("&About"),
+			_("About this application"), info_xpm );
 
-		menuBar->Append(m_FilesMenu, _("&Files"));
+		menuBar->Append(m_FilesMenu, _("&File"));
 		menuBar->Append(configmenu, _("&Preferences"));
 		menuBar->Append(miscellaneous_menu, _("&Miscellaneous"));
 //		menuBar->Append(drill_menu, _("&Drill"));
@@ -147,7 +149,7 @@ wxMenuBar * menuBar = GetMenuBar();
 
 		// Associate the menu bar with the frame
 		SetMenuBar(menuBar);
-		}
+	}
 
 	else		// simple mise a jour de la liste des fichiers anciens
 		{

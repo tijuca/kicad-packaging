@@ -1,6 +1,2 @@
-library/	/usr/share/kicad/
-modules/	/usr/share/kicad/
-template/	/usr/share/kicad/
-internat/	/usr/share/kicad/
 debian/kicad.desktop	/usr/share/applications/
-debian/kicad.xpm	/usr/share/pixmaps/
+bitmaps/icon_kicad.xpm	/usr/share/pixmaps/

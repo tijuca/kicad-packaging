@@ -1,0 +1,14 @@
+.project
+*.debhelper
+*.substvars
+files
+kicad
+kicad-common
+kicad-doc-es
+kicad-doc-de
+kicad-doc-it
+kicad-doc-fr
+kicad-doc-pt
+kicad-doc-en
+kicad-doc-ru
+patched

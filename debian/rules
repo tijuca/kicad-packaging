@@ -13,21 +13,16 @@ export DH_OPTIONS
 # get patch & unpatch targets for dpatch
 include /usr/share/dpatch/dpatch.make
 
-configure: configure-stamp
-configure-stamp: patch
-	dh_testdir
-	touch $@
-
 build: build-arch build-indep
 
 build-arch: build-arch-stamp
-build-arch-stamp: configure-stamp 
+build-arch-stamp: patch
 
-	$(MAKE) -f makefile.gtk
+	$(MAKE) -f makefile.gtk DEBUG=0
 	touch $@
 
 build-indep: build-indep-stamp
-build-indep-stamp: configure-stamp 
+build-indep-stamp: patch
 
 	touch $@
 
@@ -35,16 +30,8 @@ clean: clean-patched unpatch
 clean-patched:
 	dh_testdir
 	dh_testroot
-	rm -f build-arch-stamp build-indep-stamp configure-stamp
-
-	-$(MAKE) -f makefile.gtk clean
-	
-# clean a couple of bits missed by the upstream
-# makefile - simpler than patching it
-	rm -f common/common.a
-	rm -f eeschema/eeschema
-	rm -f kicad/kicad
-
+	rm -f build-arch-stamp build-indep-stamp
+	$(MAKE) -f makefile.gtk clean
 	dh_clean 
 
 install: install-indep install-arch
@@ -54,14 +41,15 @@ install-indep:
 	dh_clean -k -i 
 	dh_installdirs -i
 	dh_installdocs
-
-# copy component stuff
-#	cp -R demos $(CURDIR)/debian/kicad-common/usr/share/kicad/
-#	dh_installexamples
 	dh_installmenu -a
-
-# fix up the line endings (doesn't really matter, but saves a few bytes)
-	find $(CURDIR)/debian/kicad-common/usr/share/kicad/ -type f ! -name '*.wings' -print0 | xargs -0n1 dos2unix
+	$(MAKE) -f makefile.gtk install-res PREFIX=$(CURDIR)/debian/kicad-common/usr
+	$(MAKE) -C help -f makefile de PREFIX=$(CURDIR)/debian/kicad-doc-de/usr
+	$(MAKE) -C help -f makefile en PREFIX=$(CURDIR)/debian/kicad-doc-en/usr
+	$(MAKE) -C help -f makefile es PREFIX=$(CURDIR)/debian/kicad-doc-es/usr
+	$(MAKE) -C help -f makefile fr PREFIX=$(CURDIR)/debian/kicad-doc-fr/usr
+	$(MAKE) -C help -f makefile it PREFIX=$(CURDIR)/debian/kicad-doc-it/usr
+	$(MAKE) -C help -f makefile pt PREFIX=$(CURDIR)/debian/kicad-doc-pt/usr
+	$(MAKE) -C help -f makefile ru PREFIX=$(CURDIR)/debian/kicad-doc-ru/usr
 	dh_install -i
 
 install-arch:
@@ -69,6 +57,7 @@ install-arch:
 	dh_testroot
 	dh_clean -k -s 
 	dh_installdirs -s
+	$(MAKE) -f makefile.gtk install-bin PREFIX=$(CURDIR)/debian/kicad/usr
 	dh_installdocs
 	dh_install -s
 
@@ -76,7 +65,7 @@ install-arch:
 binary-indep: build-indep install-indep
 	dh_testdir
 	dh_testroot
-	dh_installchangelogs -i news.txt
+	dh_installchangelogs -i
 	dh_desktop
 	dh_link -i
 	dh_strip -i
@@ -96,8 +85,8 @@ binary-indep: build-indep install-indep
 binary-arch: build-arch install-arch
 	dh_testdir
 	dh_testroot
-	dh_installchangelogs -s news.txt
-	dh_installman -s
+	dh_installchangelogs -s change_log.txt
+	dh_installman -s $(CURDIR)/debian/man/*.1
 	dh_link -s
 	dh_strip -s
 	dh_compress -s
@@ -111,4 +100,4 @@ binary-arch: build-arch install-arch
 	dh_builddeb -s
 
 binary: binary-arch binary-indep
-.PHONY: build clean binary-indep binary-arch binary install install-indep install-arch configure
+.PHONY: build clean binary-indep binary-arch binary install install-indep install-arch

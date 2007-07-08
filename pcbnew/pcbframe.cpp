@@ -109,6 +109,7 @@ BEGIN_EVENT_TABLE(WinEDA_PcbFrame, wxFrame)
 	EVT_TOOL(ID_FIND_ITEMS, WinEDA_PcbFrame::Process_Special_Functions)
 	EVT_TOOL(ID_GET_NETLIST, WinEDA_PcbFrame::Process_Special_Functions)
 	EVT_TOOL(ID_DRC_CONTROL, WinEDA_PcbFrame::Process_Special_Functions)
+	EVT_TOOL(ID_AUX_TOOLBAR_PCB_SELECT_LAYER_PAIR, WinEDA_PcbFrame::Process_Special_Functions)
 	EVT_KICAD_CHOICEBOX(ID_TOOLBARH_PCB_SELECT_LAYER,
 					WinEDA_PcbFrame::Process_Special_Functions)
 	EVT_KICAD_CHOICEBOX(ID_AUX_TOOLBAR_PCB_TRACK_WIDTH,
@@ -159,7 +160,7 @@ BEGIN_EVENT_TABLE(WinEDA_PcbFrame, wxFrame)
 	EVT_MENU_RANGE(ID_POPUP_GENERAL_START_RANGE, ID_POPUP_GENERAL_END_RANGE,
 			WinEDA_PcbFrame::Process_Special_Functions )
 
-	// PopUp Menus pour Zooms traités dans drawpanel.cpp
+	// PopUp Menus pour Zooms traites dans drawpanel.cpp
 
 END_EVENT_TABLE()
 
@@ -178,7 +179,7 @@ WinEDA_PcbFrame::WinEDA_PcbFrame(wxWindow * father, WinEDA_App *parent,
 	m_FrameName = wxT("PcbFrame");
 	m_Draw_Axis = TRUE;			// TRUE pour avoir les axes dessines
 	m_Draw_Grid = g_ShowGrid;		// TRUE pour avoir la grille dessinee
-	m_Draw_Sheet_Ref = TRUE;	// TRUE pour avoir le cartouche dessiné
+	m_Draw_Sheet_Ref = TRUE;	// TRUE pour avoir le cartouche dessine
 	m_Draw_Auxiliary_Axis = TRUE;
 	m_SelTrackWidthBox = NULL;
 	m_SelViaSizeBox = NULL;
@@ -275,7 +276,7 @@ PCB_SCREEN * screen;
 	}
 
 	/* Reselection de l'ecran de base,
-		pour les evenements de refresh générés par wxWindows */
+		pour les evenements de refresh generes par wxWindows */
 	m_CurrentScreen = ActiveScreen = ScreenPcb;
 
 	SaveSettings();
@@ -342,7 +343,7 @@ int ii, jj;
 		m_OptionsToolBar->ToggleTool(ID_TB_OPTIONS_DRC_OFF,
 			! Drc_On);
 		m_OptionsToolBar->SetToolShortHelp(ID_TB_OPTIONS_DRC_OFF,
-			Drc_On ? _("DCR Off (Disable !!!), Currently: DRC is active") : _("DRC On (Currently: DRC is DISABLE !!!)"));
+			Drc_On ? _("DRC Off (Disable !!!), Currently: DRC is active") : _("DRC On (Currently: DRC is inactive !!!)"));
 
 		m_OptionsToolBar->ToggleTool(ID_TB_OPTIONS_SELECT_UNIT_MM,
 			g_UnitMetric == MILLIMETRE ? TRUE : FALSE);
@@ -483,6 +484,7 @@ int ii, jj;
 		}
 
 	ReCreateLayerBox(NULL);
+	PrepareLayerIndicator();
 
 	DisplayUnitsMsg();
 }

@@ -3,7 +3,7 @@ Section: electronics
 Priority: optional
 Maintainer:  Debian Kicad Team <kicad-devel@lists.mose.flexserv.de>
 Uploaders: Richard Antony Burton <richardaburton@gmail.com>, Daniel J. Priem <danielpriem@flexserv.de>
-Build-Depends: debhelper (>= 5), dpatch, libx11-dev, libglu1-mesa-dev, libgl1-mesa-dev, mesa-common-dev, libwxbase2.6-dev, libwxgtk2.6-dev, tofrodos
+Build-Depends: debhelper (>= 5), dpatch, libx11-dev, libglu1-mesa-dev, libgl1-mesa-dev, mesa-common-dev, libwxbase2.6-dev, libwxgtk2.6-dev
 Standards-Version: 3.7.2
 
 Package: kicad

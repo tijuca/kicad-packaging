@@ -196,12 +196,12 @@ wxMenuBar * menuBar = GetMenuBar() ;
 		// Menu Help:
 		wxMenu *helpMenu = new wxMenu;
 		item = new wxMenuItem(helpMenu , ID_GENERAL_HELP,
-				_("Kicad &Help"), _("On line doc"));
+				_("&Contents"), _("Open the kicad manual"));
 	    item->SetBitmap(help_xpm);
 		helpMenu->Append(item);
 
 		item = new wxMenuItem(helpMenu , ID_KICAD_ABOUT,
-				_("Kicad &About"), _("Kicad Infos"));
+				_("&About"), _("About this application"));
 	    item->SetBitmap(info_xpm);
 		helpMenu->Append(item);
 
@@ -288,19 +288,19 @@ wxBitmapButton * btn;
 	// delete and recreate the toolbar
 	if( m_VToolBar ) return;
 	btn = new wxBitmapButton( this, ID_TO_EESCHEMA, BITMAP(icon_eeschema_xpm) );
-	btn->SetToolTip(_("EeSchema (Schematic editor)"));
+	btn->SetToolTip(_("eeschema (Schematic editor)"));
 	AddFastLaunch( btn );
 
 	btn = new wxBitmapButton( this,ID_TO_CVPCB, BITMAP(icon_cvpcb_xpm) );
-	btn->SetToolTip(_("Cvpcb (Componants to modules)"));
+	btn->SetToolTip(_("cvpcb (Components to modules)"));
 	AddFastLaunch( btn );
 
 	btn = new wxBitmapButton( this, ID_TO_PCB, BITMAP(a_icon_pcbnew_xpm) );
-	btn->SetToolTip(_("Pcbnew ( board editor )"));
+	btn->SetToolTip(_("pcbnew (PCB editor)"));
 	AddFastLaunch( btn );
 
 	btn = new wxBitmapButton( this, ID_TO_GERBVIEW, BITMAP(icon_gerbview_xpm) );
-	btn->SetToolTip(_("GerbView ( Gerber viewer )"));
+	btn->SetToolTip(_("gerbview (Gerber viewer)"));
 	AddFastLaunch( btn );
 
 

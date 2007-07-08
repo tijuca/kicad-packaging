@@ -38,7 +38,7 @@ wxMenuBar * menuBar = GetMenuBar();
 		//////////////////
 		m_FilesMenu = new wxMenu;
 		wxMenuItem *item = new wxMenuItem(m_FilesMenu, ID_MENU_LOAD_FILE,
-					 _("Load Board"),
+					 _("Load Board    Ctrl-O"),
 					_("Delete old Board and Load new Board"));
 	    item->SetBitmap(open_xpm);
 		m_FilesMenu->Append(item);
@@ -70,7 +70,7 @@ wxMenuBar * menuBar = GetMenuBar();
 		// Add save menu
 		m_FilesMenu->AppendSeparator();
 		item = new wxMenuItem(m_FilesMenu, ID_MENU_SAVE_BOARD,
-					 _("&Save board"),
+					 _("&Save board    Ctrl-S"),
 					 _("Save current board") );
 	    item->SetBitmap(save_xpm);
 		m_FilesMenu->Append(item);
@@ -90,7 +90,7 @@ wxMenuBar * menuBar = GetMenuBar();
 
 		// Add plot menu
 		item = new wxMenuItem(m_FilesMenu, ID_GEN_PLOT, _("&Plot"),
-					_("Plot (Hplg, Postscript, or Gerber format)"));
+					_("Plot (HPGL, PostScript, or GERBER format)"));
 	    item->SetBitmap(plot_xpm);
 		m_FilesMenu->Append(item);
 
@@ -261,11 +261,11 @@ wxMenuBar * menuBar = GetMenuBar();
 		// Menu Help: //
 		////////////////
 		wxMenu *helpMenu = new wxMenu;
-		item = new wxMenuItem(helpMenu , ID_GENERAL_HELP, _("Pcbnew &Help"), _("On line doc"));
+		item = new wxMenuItem(helpMenu , ID_GENERAL_HELP, _("&Contents"), _("Open the pcbnew manual"));
 	    item->SetBitmap(help_xpm);
 		helpMenu->Append(item);
 
-		item = new wxMenuItem(helpMenu , ID_KICAD_ABOUT, _("Pcbnew &About"), _("Pcbnew Infos"));
+		item = new wxMenuItem(helpMenu , ID_KICAD_ABOUT, _("&About"), _("About this application"));
 	    item->SetBitmap(info_xpm);
 		helpMenu->Append(item);
 
@@ -277,7 +277,7 @@ wxMenuBar * menuBar = GetMenuBar();
 	    item->SetBitmap(show_3d_xpm);
 		Display3DMenu->Append(item);
 
-		menuBar->Append(m_FilesMenu, _("&Files"));
+		menuBar->Append(m_FilesMenu, _("&File"));
 		menuBar->Append(configmenu, _("&Preferences"));
 		menuBar->Append(sizes_menu, _("&Dimensions"));
 		menuBar->Append(miscellaneous_menu, _("&Miscellaneous"));

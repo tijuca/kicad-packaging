@@ -1,3 +1,11 @@
+kicad (0.0.20070702-1) unstable; urgency=low
+
+  * New upstream release.
+  * Added man pages for binaries. (Closes: #429223)
+  * All patches from previous version now included upstream.
+
+ -- Richard Antony Burton <richardaburton@gmail.com>  Sun, 08 Jul 2007 09:15:42 +0100
+
 kicad (0.0.20070525-1) unstable; urgency=low
 
   * New upstream release (Closes: #423873)
