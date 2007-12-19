@@ -13,6 +13,7 @@
 
 #include "bitmaps.h"
 #include "protos.h"
+#include "hotkeys.h"
 #include "id.h"
 
 #include "Swap_Layer.xpm"
@@ -20,7 +21,7 @@
 #include "Post_Compo.xpm"
 
 /***********************************************/
-void WinEDA_PcbFrame::ReCreateMenuBar(void)
+void WinEDA_PcbFrame::ReCreateMenuBar()
 /***********************************************/
 
 /* Cree ou reinitialise le menu du haut d'ecran
@@ -90,7 +91,7 @@ wxMenuBar * menuBar = GetMenuBar();
 
 		// Add plot menu
 		item = new wxMenuItem(m_FilesMenu, ID_GEN_PLOT, _("&Plot"),
-					_("Plot (HPGL, PostScript, or GERBER format)"));
+					_("Plot (HPGL, PostScript, or Gerber format)"));
 	    item->SetBitmap(plot_xpm);
 		m_FilesMenu->Append(item);
 
@@ -172,15 +173,18 @@ wxMenuBar * menuBar = GetMenuBar();
 		m_Parent->SetLanguageList(configmenu);
 
 		configmenu->AppendSeparator();
-		item = new wxMenuItem(configmenu, ID_CONFIG_SAVE, _("&Save Setup"),
-				_("Save options in current directory"));
+		item = new wxMenuItem(configmenu, ID_CONFIG_SAVE, _("&Save preferences"),
+				_("Save application preferences"));
 	    item->SetBitmap(save_setup_xpm);
 		configmenu->Append(item);
 
-		item = new wxMenuItem(configmenu, ID_CONFIG_READ, _("&Read Setup"),
-				_("Read options from a selected config file"));
+		item = new wxMenuItem(configmenu, ID_CONFIG_READ, _("&Read preferences"),
+				_("Read application preferences"));
 	    item->SetBitmap(read_setup_xpm);
 		configmenu->Append(item);
+
+		configmenu->AppendSeparator();
+		AddHotkeyConfigMenu( configmenu );
 
 		/////////////////////////////
 		// Ajustage de dimensions: //
@@ -247,8 +251,8 @@ wxMenuBar * menuBar = GetMenuBar();
 	    item->SetBitmap(tools_xpm);
 		miscellaneous_menu->Append(item);
 
-		item = new wxMenuItem(miscellaneous_menu, ID_MENU_PCB_CLEAN, _("&Clean tracks"),
-				_("Clean stubs, vias, delete break points"));
+		item = new wxMenuItem(miscellaneous_menu, ID_MENU_PCB_CLEAN, _("&Track operations"),
+				_("Clean stubs, vias, delete break points, or connect dangling tracks to pads and vias"));
 	    item->SetBitmap(delete_body_xpm);
 		miscellaneous_menu->Append(item);
 

@@ -33,7 +33,6 @@ OBJECTS = $(TARGET).o \
 			setvisu.o\
 			dialog_display_options.o\
 			zoom.o \
-			visumod.o\
 			tracemod.o \
  			classpcb.o \
 			class_board.o \
@@ -43,7 +42,8 @@ OBJECTS = $(TARGET).o \
 			class_edge_mod.o \
 			class_equipot.o \
 			class_track.o\
-			basepcbframe.o
+			basepcbframe.o\
+            collectors.o
 
 cvpcb.o: cvpcb.cpp cvpcb.h $(DEPEND)
 
@@ -99,6 +99,9 @@ class_equipot.o: ../pcbnew/class_equipot.cpp $(DEPEND)
 basepcbframe.o: ../pcbnew/basepcbframe.cpp $(DEPEND)
 	$(CC) -c $(EDACPPFLAGS) -o $@ ../pcbnew/$*.cpp
 
+collectors.o: ../pcbnew/collectors.cpp $(COMMON)
+	$(CC) -c $(EDACPPFLAGS) -o $@ ../pcbnew/$*.cpp
+    
 readschematicnetlist.o: readschematicnetlist.cpp $(DEPEND)
 
 viewlogi.o: viewlogi.cpp $(DEPEND)
@@ -131,8 +134,6 @@ setvisu.o: setvisu.cpp $(DEPEND)
 
 zoom.o: ../share/zoom.cpp $(DEPEND)
 	$(CC) -c $(EDACPPFLAGS) -o $@ ../share/$*.cpp
-
-visumod.o: visumod.cpp $(DEPEND)
 
 tracemod.o: ../pcbnew/tracemod.cpp ../include/gr_basic.h $(DEPEND)
 	$(CC) -c $(EDACPPFLAGS) -o $@ ../pcbnew/$*.cpp

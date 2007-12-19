@@ -12,6 +12,8 @@
 #include "pcbcfg.h"
 #include "worksheet.h"
 #include "id.h"
+#include "hotkeys_basic.h"
+#include "hotkeys.h"
 
 #include "protos.h"
 
@@ -19,6 +21,7 @@
 
 /* Variables locales */
 
+#define HOTKEY_FILENAME wxT("pcbnew")
 
 /***********************************************************/
 void WinEDA_PcbFrame::Process_Config(wxCommandEvent& event)
@@ -27,6 +30,7 @@ void WinEDA_PcbFrame::Process_Config(wxCommandEvent& event)
 int id = event.GetId();
 wxPoint pos;
 wxClientDC dc(DrawPanel);
+wxString FullFileName;
 
 	DrawPanel->PrepareGraphicContext(&dc);
 
@@ -40,10 +44,8 @@ wxClientDC dc(DrawPanel);
 			break;
 
 		case ID_CONFIG_REQ :		// Creation de la fenetre de configuration
-			{
 			InstallConfigFrame(pos);
 			break;
-			}
 
 		case ID_PCB_TRACK_SIZE_SETUP:
 		case ID_PCB_LOOK_SETUP:
@@ -61,8 +63,7 @@ wxClientDC dc(DrawPanel);
 			break;
 
 		case ID_CONFIG_READ:
-			{
-			wxString FullFileName = GetScreen()->m_FileName.AfterLast('/');
+			FullFileName = GetScreen()->m_FileName.AfterLast('/');
 			ChangeFileNameExt(FullFileName, g_Prj_Config_Filename_ext);
 			FullFileName = EDA_FileSelector(_("Read config file"),
 					wxPathOnly(GetScreen()->m_FileName),/* Chemin par defaut */
@@ -81,12 +82,56 @@ wxClientDC dc(DrawPanel);
 				DisplayError(this, msg); break;
 				}
 			Read_Config(FullFileName );
+			break;
+
+		case ID_PREFERENCES_CREATE_CONFIG_HOTKEYS:
+			FullFileName = ReturnHotkeyConfigFilePath( g_ConfigFileLocationChoice );
+			FullFileName += HOTKEY_FILENAME;
+			FullFileName += DEFAULT_HOTKEY_FILENAME_EXT;
+			WriteHotkeyConfigFile(FullFileName, s_Pcbnew_Editor_Hokeys_Descr, true);
+			break;
+
+		case ID_PREFERENCES_READ_CONFIG_HOTKEYS:
+			Read_Hotkey_Config( this, true);
+			break;
+
+		case ID_PREFERENCES_EDIT_CONFIG_HOTKEYS:
+			{
+			FullFileName = ReturnHotkeyConfigFilePath( g_ConfigFileLocationChoice );
+			FullFileName += HOTKEY_FILENAME;
+			FullFileName += DEFAULT_HOTKEY_FILENAME_EXT;
+			wxString editorname = GetEditorName();
+			if ( !editorname.IsEmpty() )
+				ExecuteFile(this, editorname, FullFileName);
+			break;
 			}
+
+		case ID_PREFERENCES_HOTKEY_PATH_IS_HOME:
+		case ID_PREFERENCES_HOTKEY_PATH_IS_KICAD:
+			HandleHotkeyConfigMenuSelection( this, id );
+			break;
+
+		case ID_PREFERENCES_HOTKEY_SHOW_CURRENT_LIST:       // Display Current hotkey list for eeschema
+			DisplayHotkeyList( this, s_Board_Editor_Hokeys_Descr );
 			break;
 
 		default:
 			DisplayError(this, wxT("WinEDA_PcbFrame::Process_Config internal error"));
 		}
+}
+
+
+/***************************************************************/
+bool Read_Hotkey_Config( WinEDA_DrawFrame * frame, bool verbose )
+/***************************************************************/
+/*
+ * Read the hotkey files config for pcbnew and module_edit
+*/
+{
+	wxString FullFileName = ReturnHotkeyConfigFilePath( g_ConfigFileLocationChoice );
+	FullFileName += HOTKEY_FILENAME;
+	FullFileName += DEFAULT_HOTKEY_FILENAME_EXT;
+	return frame->ReadHotkeyConfigFile(FullFileName, s_Pcbnew_Editor_Hokeys_Descr, verbose);
 }
 
 
@@ -111,7 +156,7 @@ int ii;
 	/* Init des valeurs par defaut */
 	 g_LibName_List.Clear();
 
-	EDA_Appl->ReadProjectConfig( FullFileName,
+	g_EDA_Appl->ReadProjectConfig( FullFileName,
 		GROUP, ParamCfgList, FALSE);
 
 	/* Traitement des variables particulieres: */
@@ -148,7 +193,7 @@ wxString mask;
 	FullFileName = GetScreen()->m_FileName.AfterLast('/');
 	ChangeFileNameExt(FullFileName, g_Prj_Config_Filename_ext);
 
-	FullFileName = EDA_FileSelector(_("Save config file"),
+	FullFileName = EDA_FileSelector(_("Save preferences"),
 					wxPathOnly(GetScreen()->m_FileName),	/* Chemin par defaut */
 					FullFileName,		/* nom fichier par defaut */
 					g_Prj_Config_Filename_ext,	/* extension par defaut */
@@ -162,7 +207,7 @@ wxString mask;
 	Pcbdiv_grille = GetScreen()->m_Diviseur_Grille;
 
 	/* ecriture de la configuration */
-	EDA_Appl->WriteProjectConfig(FullFileName, wxT("/pcbnew"), ParamCfgList);
+	g_EDA_Appl->WriteProjectConfig(FullFileName, wxT("/pcbnew"), ParamCfgList);
 }
 
 

@@ -41,7 +41,8 @@ class wxSpinCtrl;
 
 ////@begin control identifiers
 #define ID_DIALOG 10000
-#define SYMBOL_WINEDA_PLOTHPGLFRAME_STYLE wxDEFAULT_DIALOG_STYLE|wxCAPTION|wxSYSTEM_MENU|wxSTAY_ON_TOP|wxCLOSE_BOX
+// #define SYMBOL_WINEDA_PLOTHPGLFRAME_STYLE wxDEFAULT_DIALOG_STYLE|wxCAPTION|wxSYSTEM_MENU|wxSTAY_ON_TOP|wxCLOSE_BOX
+#define SYMBOL_WINEDA_PLOTHPGLFRAME_STYLE wxCAPTION|wxSYSTEM_MENU|wxCLOSE_BOX
 #define SYMBOL_WINEDA_PLOTHPGLFRAME_TITLE _("EESchema Plot HPGL")
 #define SYMBOL_WINEDA_PLOTHPGLFRAME_IDNAME ID_DIALOG
 #define SYMBOL_WINEDA_PLOTHPGLFRAME_SIZE wxSize(400, 300)
@@ -133,7 +134,7 @@ public:
 	void Plot_1_Page_HPGL(const wxString &  FullFileName,BASE_SCREEN * screen);
 	void Plot_Schematic_HPGL(int Select_PlotAll, int HPGL_SheetSize);
 	void ReturnSheetDims( BASE_SCREEN * screen, wxSize & SheetSize, wxPoint & SheetOffset);
-	void SetPageOffsetValue(void);
+	void SetPageOffsetValue();
 
 ////@begin WinEDA_PlotHPGLFrame member variables
     wxRadioBox* m_SizeOption;

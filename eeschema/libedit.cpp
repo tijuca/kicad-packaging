@@ -26,7 +26,7 @@
 
 
 /**********************************************/
-void WinEDA_LibeditFrame::DisplayLibInfos(void)
+void WinEDA_LibeditFrame::DisplayLibInfos()
 /**********************************************/
 /* Affiche dans la zone messages la librairie , et le composant edite */
 {
@@ -60,7 +60,7 @@ wxChar UnitLetter[] = wxT("?ABCDEFGHIJKLMNOPQRSTUVWXYZ");
 
 
 /**************************************************/
-void WinEDA_LibeditFrame::SelectActiveLibrary(void)
+void WinEDA_LibeditFrame::SelectActiveLibrary()
 /**************************************************/
 /* Routine to Select Current library
 */
@@ -78,7 +78,7 @@ LibraryStruct *Lib;
 /*************************************************/
 /* Routine to Load one selected library content. */
 /*************************************************/
-bool WinEDA_LibeditFrame::LoadOneLibraryPart(void)
+bool WinEDA_LibeditFrame::LoadOneLibraryPart()
 {
 int i;
 wxString msg;
@@ -87,7 +87,7 @@ EDA_LibComponentStruct *LibEntry = NULL;
 
 	if( ScreenLib->IsModify() )
 	{
-		if( ! IsOK(this, _("Current Part not saved, continue ?") ) ) return FALSE;
+		if( ! IsOK(this, _("Current Part not saved.\nContinue?") ) ) return FALSE;
 	}
 
 	if(CurrentLib == NULL) SelectActiveLibrary();
@@ -110,7 +110,7 @@ EDA_LibComponentStruct *LibEntry = NULL;
 
 	if( LibEntry == NULL)
 	{
-		msg = _("Component "); msg << CmpName << _(" not found");
+		msg = _("Component \""); msg << CmpName << _("\" not found.");
 		DisplayError(this, msg, 20);
 		return FALSE;
 	}
@@ -145,14 +145,14 @@ const wxChar * CmpName, *RootName = NULL;
 		RootName = ((EDA_LibCmpAliasStruct*)LibEntry)->m_RootName.GetData() ;
 		if( !noMsg )
 			{
-			msg.Printf( wxT("<%s> is Alias of <%s>"), CmpName, RootName);
+			msg.Printf( wxT("\"<%s>\" is Alias of \"<%s>\""), CmpName, RootName);
 			}
 
 		LibEntry = FindLibPart(RootName,Library->m_Name,FIND_ROOT);
 
 		if( LibEntry == NULL)
 			{
-			msg.Printf( wxT("Root Part <%s> not found"), RootName);
+			msg.Printf( wxT("Root Part \"<%s>\" not found."), RootName);
 			DisplayError(this, msg, 20);
 			return(1);
 			}
@@ -216,7 +216,7 @@ void WinEDA_LibeditFrame::RedrawActiveWindow(wxDC * DC, bool EraseBg)
 
 
 /*************************************************/
-void WinEDA_LibeditFrame::SaveActiveLibrary(void)
+void WinEDA_LibeditFrame::SaveActiveLibrary()
 /*************************************************/
 /* Sauvegarde en fichier la librairie pointee par CurrentLib
 	une sauvegarde en .bak de l'ancien fichier est egalement cree
@@ -232,7 +232,7 @@ int err;
 
 	Name = MakeFileName(g_RealLibDirBuffer, CurrentLib->m_Name, g_LibExtBuffer);
 
-	msg = _("Ok to modify Library File ") + Name;
+	msg = _("Modify Library File \"") + Name + _("\"?");
 	if( ! IsOK(this, msg) ) return;
 
 	err = SaveOneLibrary(this, Name, CurrentLib);
@@ -241,15 +241,15 @@ int err;
 
 	if ( err )
 	{
-		msg = _("Error while saving Library File ") + Name;
+		msg = _("Error while saving Library File \"") + Name + _("\".");
 		Affiche_1_Parametre(this, 1, wxT(" *** ERROR : **"), msg,BLUE);
 		DisplayError(this, msg);
 	}
 	else
 	{
-		msg = _("Library File ") + Name + wxT(" Ok");
+		msg = _("Library File \"") + Name + wxT("\" Ok");
 		ChangeFileNameExt(Name,DOC_EXT);
-		wxString msg1 = _("Document File ") + Name + wxT(" Ok");
+		wxString msg1 = _("Document File \"") + Name + wxT("\" Ok");
 		Affiche_1_Parametre(this, 1,msg, msg1,BLUE);
 	}
 }
@@ -274,7 +274,7 @@ LibCmpEntry * CmpEntry;
 }
 
 /*********************************************/
-void WinEDA_LibeditFrame::DeleteOnePart(void)
+void WinEDA_LibeditFrame::DeleteOnePart()
 /*********************************************/
 /* Routine de suppression d'un composant dans la librairie courante
 	(effacement en memoire uniquement, le fichier n'est pas modifie)
@@ -345,8 +345,8 @@ wxString msg;
 
 		else
 		{
-			msg = _("Delete component ") + LibEntry->m_Name.m_Text +
-				_(" in library ") + CurrentLib->m_Name + wxT("?");
+			msg = _("Delete component \"") + LibEntry->m_Name.m_Text +
+				_("\" from library \"") + CurrentLib->m_Name + wxT("\"?");
 			if( IsOK(this, msg) )
 			{
 				DeletePartInLib( CurrentLib, LibEntry );
@@ -359,7 +359,7 @@ wxString msg;
 
 
 /****************************************************/
-void WinEDA_LibeditFrame::CreateNewLibraryPart(void)
+void WinEDA_LibeditFrame::CreateNewLibraryPart()
 /****************************************************/
 /* Routine to create a new library component
 	If an old component is currently in edit, it is deleted.
@@ -370,7 +370,7 @@ EDA_LibComponentStruct * NewStruct;
 int diag;
 
 	if( CurrentLibEntry )
-		if( ! IsOK(this, _("Delete old component ?")) ) return;
+		if( ! IsOK(this, _("Delete old component?")) ) return;
 
 	CurrentDrawItem = NULL;
 
@@ -387,8 +387,8 @@ int diag;
 		 if( FindLibPart(msg.GetData(), CurrentLib->m_Name, FIND_ALIAS) )
 		{
 			wxString msg;
-			msg << _("Component ") << msg <<
-					_(" exists in library ") << CurrentLib->m_Name;
+			msg << _("Component \"") << Dialogbox.ReturnCmpName() <<
+					_("\" exists in library \"") << CurrentLib->m_Name << _("\".");
 			DisplayError(this, msg);
 			return;
 		}
@@ -540,7 +540,7 @@ EDA_LibCmpAliasStruct * AliasEntry;
 
 
 /***************************************************/
-void WinEDA_LibeditFrame::SaveOnePartInMemory(void)
+void WinEDA_LibeditFrame::SaveOnePartInMemory()
 /***************************************************/
 /* Routine de sauvegarde de la "partlib" courante dans la librairie courante
 	Sauvegarde en memoire uniquement, et PAS sur fichier
@@ -555,14 +555,14 @@ bool NewCmp = TRUE;
 
 	if(CurrentLibEntry == NULL)
 	{
-		DisplayError(this, _("Warning: No component to Save") ); return;
+		DisplayError(this, _("No component to Save.") ); return;
 	}
 
 	if(CurrentLib == NULL) SelectActiveLibrary();
 
 	if(CurrentLib == NULL)
 	{
-		DisplayError(this, _("No Library specified"), 20); return;
+		DisplayError(this, _("No Library specified."), 20); return;
 	}
 
 	CurrentLib->m_Modified = 1;
@@ -573,7 +573,7 @@ bool NewCmp = TRUE;
 	if( (Entry = FindLibPart(CurrentLibEntry->m_Name.m_Text.GetData(),
 				CurrentLib->m_Name, FIND_ROOT)) != NULL)
 	{
-		msg.Printf( _("Component %s exists, Change it ?"),
+		msg.Printf( _("Component \"%s\" exists. Change it?"),
 					Entry->m_Name.m_Text.GetData());
 		if( !IsOK(this, msg) ) return;
 		NewCmp = FALSE;

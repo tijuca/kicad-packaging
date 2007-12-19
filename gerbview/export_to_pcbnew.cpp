@@ -1,7 +1,8 @@
 /* export_to_pcbnew.cpp */
+
 /*
-Export des couches vers pcbnew
-*/
+ *  Export the layers to pcbnew
+ */
 
 #include "fctsys.h"
 
@@ -11,224 +12,233 @@ Export des couches vers pcbnew
 #include "protos.h"
 
 /* Routines Locales : */
-static int SavePcbFormatAscii(WinEDA_GerberFrame * frame,
-		FILE * File, int * LayerLookUpTable);
+static int SavePcbFormatAscii( WinEDA_GerberFrame* frame,
+                               FILE* File, int* LayerLookUpTable );
 
 /* Variables Locales */
 
 
 /************************************************************************/
-void WinEDA_GerberFrame::ExportDataInPcbnewFormat(wxCommandEvent& event)
+void WinEDA_GerberFrame::ExportDataInPcbnewFormat( wxCommandEvent& event )
 /************************************************************************/
+
 /* Export data in pcbnew format
-*/
+ */
 {
-wxString FullFileName, msg;
-wxString PcbExt(wxT(".brd"));
-FILE * dest;
+    int ii = 0;
+    bool no_used_layers = true; // Changed to false if any used layer found
 
-	msg = wxT("*") + PcbExt;
-	FullFileName = EDA_FileSelector(_("Board file name:"),
-				wxEmptyString,						/* Chemin par defaut */
-				wxEmptyString,	 	/* nom fichier par defaut */
-				PcbExt,			/* extension par defaut */
-				msg,					/* Masque d'affichage */
-				this,
-				wxFD_SAVE,
-				FALSE
-				);
-	if ( FullFileName == wxEmptyString ) return;
+    // Check whether any of the Gerber layers are actually currently used
+    while( no_used_layers && ii < 32 )
+    {
+        if( g_GERBER_Descr_List[ii] != NULL )
+            no_used_layers = false;
+        ii++;
+    }
 
-	int * LayerLookUpTable;
-	if ( ( LayerLookUpTable = InstallDialogLayerPairChoice(this) ) != NULL )
-	{
-		if ( wxFileExists(FullFileName) )
-		{
-			if ( ! IsOK(this, _("Ok to change the existing file ?")) )
-				return;
-		}
-		dest = wxFopen(FullFileName, wxT("wt"));
-		if (dest == 0)
-		{
-			msg = _("Unable to create ") + FullFileName;
-			DisplayError(this, msg) ;
-			return;
-		}
-		GetScreen()->m_FileName = FullFileName;
-		SavePcbFormatAscii(this, dest, LayerLookUpTable);
-		fclose(dest) ;
-	}
+    if( no_used_layers )
+    {
+        DisplayInfo( this, _( "None of the Gerber layers contain any data" ) );
+        return;
+    }
+
+    wxString FullFileName, msg;
+
+    wxString PcbExt( wxT( ".brd" ) );
+
+    FILE* dest;
+
+    msg = wxT( "*" ) + PcbExt;
+    FullFileName = EDA_FileSelector( _( "Board file name:" ),
+                                     wxEmptyString, /* Chemin par defaut */
+                                     wxEmptyString, /* nom fichier par defaut */
+                                     PcbExt,        /* extension par defaut */
+                                     msg,           /* Masque d'affichage */
+                                     this,
+                                     wxFD_SAVE,
+                                     FALSE
+                                     );
+    if( FullFileName == wxEmptyString )
+        return;
+
+    int* LayerLookUpTable;
+    if( ( LayerLookUpTable = InstallDialogLayerPairChoice( this ) ) != NULL )
+    {
+        if( wxFileExists( FullFileName ) )
+        {
+            if( !IsOK( this, _( "Ok to change the existing file ?" ) ) )
+                return;
+        }
+        dest = wxFopen( FullFileName, wxT( "wt" ) );
+        if( dest == 0 )
+        {
+            msg = _( "Unable to create " ) + FullFileName;
+            DisplayError( this, msg );
+            return;
+        }
+        GetScreen()->m_FileName = FullFileName;
+        SavePcbFormatAscii( this, dest, LayerLookUpTable );
+        fclose( dest );
+    }
 }
 
 
 /***************************************************************/
-static int WriteSetup(FILE * File, BOARD * Pcb)
+static int WriteSetup( FILE* File, BOARD* Pcb )
 /***************************************************************/
 {
-char text[1024];
+    char text[1024];
 
-	fprintf(File,"$SETUP\n");
-	sprintf(text, "InternalUnit %f INCH\n", 1.0/PCB_INTERNAL_UNIT);
-	fprintf(File, text);
-	
-	Pcb->m_BoardSettings->m_CopperLayerCount = g_DesignSettings.m_CopperLayerCount;
-	fprintf(File, "Layers %d\n", g_DesignSettings.m_CopperLayerCount);
+    fprintf( File, "$SETUP\n" );
+    sprintf( text, "InternalUnit %f INCH\n", 1.0 / PCB_INTERNAL_UNIT );
+    fprintf( File, text );
 
-	fprintf(File,"$EndSETUP\n\n");
-	return(1);
+    Pcb->m_BoardSettings->m_CopperLayerCount = g_DesignSettings.m_CopperLayerCount;
+    fprintf( File, "Layers %d\n", g_DesignSettings.m_CopperLayerCount );
+
+    fprintf( File, "$EndSETUP\n\n" );
+    return 1;
 }
 
+
 /******************************************************/
-static bool WriteGeneralDescrPcb(BOARD * Pcb, FILE * File)
+static bool WriteGeneralDescrPcb( BOARD* Pcb, FILE* File )
 /******************************************************/
 {
-int NbLayers;
+    int NbLayers;
 
-	/* generation du masque des couches autorisees */
-	NbLayers = Pcb->m_BoardSettings->m_CopperLayerCount;
-	fprintf(File,"$GENERAL\n");
-	fprintf(File,"LayerCount %d\n",NbLayers);
+    /* Print the copper layer count */
+    NbLayers = Pcb->m_BoardSettings->m_CopperLayerCount;
+    fprintf( File, "$GENERAL\n" );
+    fprintf( File, "LayerCount %d\n", NbLayers );
 
-	/* Generation des coord du rectangle d'encadrement */
-	Pcb->ComputeBoundaryBox();
-	fprintf(File,"Di %d %d %d %d\n",
-					Pcb->m_BoundaryBox.GetX(), Pcb->m_BoundaryBox.GetY(),
-					Pcb->m_BoundaryBox.GetRight(),
-					Pcb->m_BoundaryBox.GetBottom());
+    /* Compute and print the board bounding box */
+    Pcb->ComputeBoundaryBox();
+    fprintf( File, "Di %d %d %d %d\n",
+            Pcb->m_BoundaryBox.GetX(), Pcb->m_BoundaryBox.GetY(),
+            Pcb->m_BoundaryBox.GetRight(),
+            Pcb->m_BoundaryBox.GetBottom() );
 
-	fprintf(File,"$EndGENERAL\n\n");
-	return TRUE;
+    fprintf( File, "$EndGENERAL\n\n" );
+    return TRUE;
 }
 
 
 /*******************************************************************/
-static int SavePcbFormatAscii(WinEDA_GerberFrame * frame,FILE * File,
-			int * LayerLookUpTable)
+static int SavePcbFormatAscii( WinEDA_GerberFrame* frame, FILE* aFile,
+                               int* LayerLookUpTable )
 /*******************************************************************/
-/* Routine de sauvegarde du PCB courant sous format ASCII
-	retourne
-		1 si OK
-		0 si sauvegarde non faite
-*/
+
+/* Routine to save the board
+ * @param frame = pointer to the main frame
+ * @param File = FILE * pointer to an already opened file
+ * @param LayerLookUpTable = look up table: pcbnew layer for each gerber layer
+ * @return 1 if OK, 0 if fail
+ */
 {
-char Line[256];
-TRACK * track, *next_track;
-EDA_BaseStruct * PtStruct, *NextStruct;
-BOARD * GerberPcb = frame->m_Pcb;
-BOARD * Pcb;
-	
-	wxBeginBusyCursor();
-	
-	/* Create an image of gerber data */
-	Pcb = new BOARD(NULL, frame);
-	for(track = GerberPcb->m_Track; track != NULL; track = (TRACK*) track->Pnext)
-	{
-		int layer = track->m_Layer;
-		int pcb_layer_number = LayerLookUpTable[layer];
-		if ( pcb_layer_number < 0 ) continue;
-		if ( pcb_layer_number > CMP_N )
-		{
-			DRAWSEGMENT * drawitem = new DRAWSEGMENT(NULL, TYPEDRAWSEGMENT);
-			drawitem->m_Layer = pcb_layer_number;
-			drawitem->m_Start = track->m_Start;
-			drawitem->m_End = track->m_End;
-			drawitem->m_Width = track->m_Width;
-			drawitem->Pnext = Pcb->m_Drawings;
-			Pcb->m_Drawings = drawitem;
-		}
-		else
-		{
-			TRACK * newtrack = new TRACK(*track);
-			newtrack->m_Layer = pcb_layer_number;
-			newtrack->Insert(Pcb, NULL);
-		}
-	}
+    char            line[256];
+    TRACK*          track;
+    BOARD*          gerberPcb = frame->m_Pcb;
+    BOARD*          pcb;
 
-	/* replace spots by vias when possible */
-	for(track = Pcb->m_Track; track != NULL; track = (TRACK*) track->Pnext)
-	{
-		if( (track->m_Shape != S_SPOT_CIRCLE) && (track->m_Shape != S_SPOT_RECT)  && (track->m_Shape != S_SPOT_OVALE) )
-			continue;
-		/* A spot is found, and can be a via: change it for via, and delete others
-		spots at same location */
-		track->m_Shape = VIA_NORMALE;
-		track->m_StructType = TYPEVIA;
-		track->m_Layer = 0x0F;	// Layers are 0 to 15 (Cu/Cmp)
-		track->m_Drill = -1;
-		/* Compute the via position from track position ( Via position is the position of the middle of the track segment */
-		track->m_Start.x = (track->m_Start.x +track->m_End.x)/2;
-		track->m_Start.y = (track->m_Start.y +track->m_End.y)/2;
-		track->m_End = track->m_Start;
-	}
-	/* delete redundant vias */
-	for(track = Pcb->m_Track; track != NULL; track = track->Next())
-	{
-		if( track->m_Shape != VIA_NORMALE ) continue;
-		/* Search and delete others vias*/
-		TRACK * alt_track = track->Next();
-		for( ; alt_track != NULL; alt_track = next_track)
-		{
-			next_track = (TRACK*) alt_track->Pnext;
-			if( alt_track->m_Shape != VIA_NORMALE ) continue;
-			if ( alt_track->m_Start != track->m_Start ) continue;
-			/* delete track */
-			alt_track->UnLink();
-			delete alt_track;
-		}
-	}
+    wxBeginBusyCursor();
 
-	
-	// Switch the locale to standard C (needed to print floating point numbers like 1.3)
-	setlocale(LC_NUMERIC, "C");
-	/* Ecriture de l'entete PCB : */
-	fprintf(File,"PCBNEW-BOARD Version %d date %s\n\n",g_CurrentVersionPCB,
-									DateAndTime(Line) );
-	WriteGeneralDescrPcb(Pcb, File);
-	WriteSetup(File, Pcb);
+    // create an image of gerber data
+    pcb = new BOARD( NULL, frame );
 
-	/* Ecriture des donnes utiles du pcb */
-	PtStruct = Pcb->m_Drawings;
-	for( ; PtStruct != NULL; PtStruct = PtStruct->Pnext )
-	{
-		switch ( PtStruct->m_StructType )
-		{
-			case TYPETEXTE:
-				((TEXTE_PCB*)PtStruct)->WriteTextePcbDescr(File) ;
-				break;
+    for( track = gerberPcb->m_Track;  track;  track = track->Next() )
+    {
+        int layer = track->GetLayer();
+        int pcb_layer_number = LayerLookUpTable[layer];
+        if( pcb_layer_number < 0 || pcb_layer_number > LAST_NO_COPPER_LAYER )
+            continue;
+        
+        if( pcb_layer_number > LAST_COPPER_LAYER )
+        {
+            DRAWSEGMENT* drawitem = new DRAWSEGMENT( pcb, TYPEDRAWSEGMENT );
 
-			case TYPEDRAWSEGMENT:
-				((DRAWSEGMENT *)PtStruct)->WriteDrawSegmentDescr(File);
-				break;
+            drawitem->SetLayer( pcb_layer_number );
+            drawitem->m_Start = track->m_Start;
+            drawitem->m_End   = track->m_End;
+            drawitem->m_Width = track->m_Width;
+            drawitem->Pnext   = pcb->m_Drawings;
+            pcb->m_Drawings   = drawitem;
+        }
+        else
+        {
+            TRACK*  newtrack;
+            
+            // replace spots with vias when possible
+            if( track->m_Shape == S_SPOT_CIRCLE
+             || track->m_Shape == S_SPOT_RECT
+             || track->m_Shape == S_SPOT_OVALE )
+            {
+                newtrack = new SEGVIA( (const SEGVIA&) *track );
 
-			default:
-				break;
-		}
-	}
+                // A spot is found, and can be a via: change it to via, and delete other
+                // spots at same location
+                newtrack->m_Shape = VIA_THROUGH;
+                
+                newtrack->SetLayer( 0x0F );  // Layers are 0 to 15 (Cu/Cmp)
+                
+                newtrack->m_Drill = -1;
 
-	fprintf(File,"$TRACK\n");
-	for(track = Pcb->m_Track; track != NULL; track = (TRACK*) track->Pnext)
-	{
-		track->WriteTrackDescr(File);
-	}
+                // Compute the via position from track position ( Via position is the 
+                // position of the middle of the track segment ) 
+                newtrack->m_Start.x = (newtrack->m_Start.x + newtrack->m_End.x) / 2;
+                newtrack->m_Start.y = (newtrack->m_Start.y + newtrack->m_End.y) / 2;
+                newtrack->m_End = newtrack->m_Start;
+            }
+            else    // a true TRACK
+            {
+                newtrack = track->Copy();
+                newtrack->SetLayer( pcb_layer_number );
+            }
+            
+            newtrack->Insert( pcb, NULL );
+        }
+    }
 
-	fprintf(File,"$EndTRACK\n");
+    // delete redundant vias
+    for( track = pcb->m_Track;  track;  track = track->Next() )
+    {
+        if( track->m_Shape != VIA_THROUGH )
+            continue;
+        
+        // Search and delete others vias
+        TRACK* next_track;
+        TRACK* alt_track = track->Next();
+        for( ;  alt_track;   alt_track = next_track )
+        {
+            next_track = alt_track->Next();
+            if( alt_track->m_Shape != VIA_THROUGH )
+                continue;
 
-	fprintf(File,"$EndBOARD\n");
+            if( alt_track->m_Start != track->m_Start )
+                continue;
 
-	/* Delete the copy */
-	for( PtStruct = Pcb->m_Drawings; PtStruct != NULL; PtStruct = NextStruct )
-	{
-		NextStruct = PtStruct->Pnext;
-		delete PtStruct;
-	}
-	for(track = Pcb->m_Track; track != NULL; track = next_track)
-	{
-		next_track = (TRACK*) track->Pnext;
-		delete track;
-	}
-	delete Pcb;
+            // delete track
+            alt_track->UnLink();
+            delete alt_track;
+        }
+    }
 
-	setlocale(LC_NUMERIC, "");      // revert to the current  locale
-	wxEndBusyCursor();
-	return 1;
+    // Switch the locale to standard C (needed to print floating point numbers like 1.3)
+    setlocale( LC_NUMERIC, "C" );
+    
+    // write the PCB heading
+    fprintf( aFile, "PCBNEW-BOARD Version %d date %s\n\n", g_CurrentVersionPCB,
+            DateAndTime( line ) );
+    WriteGeneralDescrPcb( pcb, aFile );
+    WriteSetup( aFile, pcb );
+
+    // write the useful part of the pcb
+    pcb->Save( aFile );
+
+    // the destructor should destroy all owned sub-objects
+    delete pcb;
+
+    setlocale( LC_NUMERIC, "" );      // revert to the current locale
+    wxEndBusyCursor();
+    return 1;
 }

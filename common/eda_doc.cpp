@@ -22,7 +22,7 @@
 #include "common.h"
 
 /*****************************************/
-void WinEDA_App::ReadPdfBrowserInfos(void)
+void WinEDA_App::ReadPdfBrowserInfos()
 /*****************************************/
 /* Read from Common config the Pdf browser choice
 */
@@ -36,7 +36,7 @@ void WinEDA_App::ReadPdfBrowserInfos(void)
 }
 
 /*****************************************/
-void WinEDA_App::WritePdfBrowserInfos(void)
+void WinEDA_App::WritePdfBrowserInfos()
 /*****************************************/
 /* Write into Common config the Pdf browser choice
 */
@@ -147,8 +147,8 @@ bool success = FALSE;
 	}
 		
 	/* Try to launch some browser (usefull under linux) */
-	EDA_Appl->ReadPdfBrowserInfos();
-	if ( EDA_Appl->m_PdfBrowserIsDefault )
+	g_EDA_Appl->ReadPdfBrowserInfos();
+	if ( g_EDA_Appl->m_PdfBrowserIsDefault )
 	{
 	wxFileType * filetype;
 	wxFileName CurrentFileName(fullfilename);
@@ -205,7 +205,7 @@ bool success = FALSE;
 	
 	else
 	{
-		command = EDA_Appl->m_PdfBrowser;
+		command = g_EDA_Appl->m_PdfBrowser;
 		if ( wxFileExists(command) )
 		{
 			success = TRUE;

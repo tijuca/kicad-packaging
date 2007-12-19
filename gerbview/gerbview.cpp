@@ -22,11 +22,11 @@ wxString g_Main_Title = wxT("GerbView");
 
 IMPLEMENT_APP(WinEDA_App)
 
-bool WinEDA_App::OnInit(void)
+bool WinEDA_App::OnInit()
 {
 wxString FFileName;
 
-	EDA_Appl = this;
+	g_EDA_Appl = this;
 	InitEDA_Appl( wxT("gerbview") );
 
 	if(argc > 1) FFileName = MakeFileName(wxEmptyString, argv[1], g_PhotoFilenameExt);
@@ -42,6 +42,10 @@ wxString FFileName;
 
 
 	g_DrawBgColor = BLACK;
+
+    Read_Hotkey_Config( m_PcbFrame, false );  /* Must be called before creating the main frame
+                                               *  in order to display the real hotkeys
+                                               *  in menus or tool tips */
 
 	m_GerberFrame = new WinEDA_GerberFrame(NULL, this, wxT("GerbView"),
 				 wxPoint(0,0), wxSize(600,400) );

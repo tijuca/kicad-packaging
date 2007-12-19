@@ -46,7 +46,7 @@ class wxBoxSizer;
 #define ID_PLOT_PS_CURRENT_EXECUTE 10003
 #define ID_PLOT_PS_ALL_EXECUTE 10004
 #define ID_TEXTCTRL 10006
-#define SYMBOL_WINEDA_PLOTPSFRAME_STYLE wxCAPTION|wxRESIZE_BORDER|wxSYSTEM_MENU|wxSTAY_ON_TOP|wxCLOSE_BOX
+#define SYMBOL_WINEDA_PLOTPSFRAME_STYLE wxCAPTION|wxSYSTEM_MENU|wxCLOSE_BOX|MAYBE_RESIZE_BORDER
 #define SYMBOL_WINEDA_PLOTPSFRAME_TITLE _("EESchema Plot PS")
 #define SYMBOL_WINEDA_PLOTPSFRAME_IDNAME ID_DIALOG
 #define SYMBOL_WINEDA_PLOTPSFRAME_SIZE wxSize(400, 300)
@@ -103,7 +103,7 @@ public:
     wxIcon GetIconResource( const wxString& name );
 ////@end WinEDA_PlotPSFrame member function declarations
 
-	void InitOptVars(void);
+	void InitOptVars();
     void CreatePSFile(int AllPages, int pagesize);
     void PlotOneSheetPS(const wxString & FileName,
 			BASE_SCREEN * screen, Ki_PageDescr * sheet, int BBox[4], wxPoint plot_offset);

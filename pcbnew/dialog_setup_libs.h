@@ -39,7 +39,7 @@
 
 ////@begin control identifiers
 #define ID_DIALOG 10000
-#define SYMBOL_KICONFIGPCBNEWFRAME_STYLE wxCAPTION|wxRESIZE_BORDER|wxSYSTEM_MENU|wxCLOSE_BOX
+#define SYMBOL_KICONFIGPCBNEWFRAME_STYLE wxCAPTION|wxSYSTEM_MENU|wxCLOSE_BOX|MAYBE_RESIZE_BORDER
 #define SYMBOL_KICONFIGPCBNEWFRAME_TITLE _("Dialog")
 #define SYMBOL_KICONFIGPCBNEWFRAME_IDNAME ID_DIALOG
 #define SYMBOL_KICONFIGPCBNEWFRAME_SIZE wxSize(400, 300)
@@ -115,7 +115,7 @@ public:
 	void SaveCfg(wxCommandEvent& event);
 	void LibDelFct(wxCommandEvent& event);
 	void LibInsertFct(wxCommandEvent& event);
-	void SetNewOptions(void);
+	void SetNewOptions();
 
 ////@begin KiConfigPcbnewFrame member variables
     wxStaticBoxSizer* m_FileExtList;

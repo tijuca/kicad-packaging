@@ -57,11 +57,13 @@ BEGIN_EVENT_TABLE(WinEDA_GerberFrame, wxFrame)
 	EVT_MENU(ID_EXIT, WinEDA_GerberFrame::Process_Special_Functions)
 
 	// menu Config
-	EVT_MENU(ID_CONFIG_REQ, WinEDA_GerberFrame::Process_Config)
+	EVT_MENU_RANGE(ID_CONFIG_AND_PREFERENCES_START, ID_CONFIG_AND_PREFERENCES_END,
+		WinEDA_GerberFrame::Process_Config)
+
 	EVT_MENU(ID_COLORS_SETUP, WinEDA_GerberFrame::Process_Config)
 	EVT_MENU(ID_OPTIONS_SETUP, WinEDA_GerberFrame::Process_Config)
 	EVT_MENU(ID_PCB_LOOK_SETUP, WinEDA_GerberFrame::Process_Config)
-	EVT_MENU(ID_CONFIG_SAVE, WinEDA_GerberFrame::Process_Config)
+
 	EVT_MENU_RANGE(ID_LANGUAGE_CHOICE, ID_LANGUAGE_CHOICE_END,
 		WinEDA_DrawFrame::SetLanguage)
 
@@ -122,8 +124,8 @@ END_EVENT_TABLE()
 	/****************/
 
 WinEDA_GerberFrame::WinEDA_GerberFrame(wxWindow * father, WinEDA_App *parent,
-					const wxString & title, const wxPoint& pos, const wxSize& size) :
-					WinEDA_BasePcbFrame(father, parent, GERBER_FRAME, title, pos, size)
+					const wxString & title, const wxPoint& pos, const wxSize& size, long style) :
+					WinEDA_BasePcbFrame(father, parent, GERBER_FRAME, title, pos, size, style)
 {
 	m_FrameName = wxT("GerberFrame");
 	m_Draw_Axis = TRUE;			// TRUE pour avoir les axes dessines
@@ -150,7 +152,7 @@ WinEDA_GerberFrame::WinEDA_GerberFrame(wxWindow * father, WinEDA_App *parent,
 }
 
 
-WinEDA_GerberFrame::~WinEDA_GerberFrame(void)
+WinEDA_GerberFrame::~WinEDA_GerberFrame()
 {
 	m_Parent->m_GerberFrame = NULL;
 	m_CurrentScreen = ScreenPcb;
@@ -194,11 +196,11 @@ PCB_SCREEN * screen;
 }
 
 /*******************************************/
-void WinEDA_GerberFrame::SetToolbars(void)
+void WinEDA_GerberFrame::SetToolbars()
 /*******************************************/
-/* Active ou desactive les tools du toolbar horizontal, en fonction des commandes
-en cours
-*/
+/** Function SetToolbars()
+ * Set the tools state for the toolbars, accordint to display options
+ */
 {
 int layer = GetScreen()->m_Active_Layer;
 GERBER_Descr * Gerber_layer_descr	= g_GERBER_Descr_List[layer];
@@ -275,6 +277,9 @@ GERBER_Descr * Gerber_layer_descr	= g_GERBER_Descr_List[layer];
 		m_OptionsToolBar->ToggleTool(ID_TB_OPTIONS_SHOW_TRACKS_SKETCH,
 			 ! m_DisplayPcbTrackFill);
 
+		m_OptionsToolBar->ToggleTool(ID_TB_OPTIONS_SHOW_POLYGONS_SKETCH,
+			 g_DisplayPolygonsModeSketch == 0 ? 0 : 1);
+
 		m_OptionsToolBar->ToggleTool(ID_TB_OPTIONS_SHOW_DCODES,
 			 DisplayOpt.DisplayPadNum);
 	}
@@ -283,7 +288,7 @@ GERBER_Descr * Gerber_layer_descr	= g_GERBER_Descr_List[layer];
 }
 
 /*************************************/
-int WinEDA_GerberFrame::BestZoom(void)
+int WinEDA_GerberFrame::BestZoom()
 /*************************************/
 {
 int ii,jj ;

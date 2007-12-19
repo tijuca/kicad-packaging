@@ -1,4 +1,4 @@
-# File:		winmake.env
+# File:		libs.win
 #binaries path:
 KICAD_BIN = /f/kicad/winexe
 
@@ -12,17 +12,15 @@ KICAD_BIN = /f/kicad/winexe
 # DLL use wxWin STATIC	 0					0			   1
 #
 
+#comment this for static wxWidgets link
 #WXUSINGDLL = 1
 
 #Define the wxWidget path (if not found in environment variables):
 ifndef WXWIN
-WXWIN=/f/wxMSW-2.8.4
+WXWIN=f:/wxMSW-2.8.7
 endif
 LIBVERSION = 2.8
 
-
-#comment this for static wxWidgets link
-#WXUSINGDLL = 1
 
 # You must comment or uncomment this line to disable/enable python support
 #KICAD_PYTHON = 1
@@ -45,9 +43,10 @@ endif
 SYSWXLIB = `$(WXWIN)/wx-config --libs gl`\
 	-lwxpng-$(LIBVERSION) -lwxjpeg-$(LIBVERSION) -lwxzlib-$(LIBVERSION) $(PYLIBS)
 
+CC = gcc
+
 .cpp.o:
 	gcc -c -Wall $(ALL_CPPFLAGS) $(ALL_CXXFLAGS) $(EXTRACPPFLAGS) -o $@ $*.cpp
-
 
 # Settings for Cyginw/Mingw32
 # Some versions of windres cannot cope with the --preprocessor

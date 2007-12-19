@@ -17,7 +17,7 @@
 
 
 /*******************************************/
-void WinEDA_MainFrame::Load_Prj_Config(void)
+void WinEDA_MainFrame::Load_Prj_Config()
 /*******************************************/
 {
 
@@ -43,7 +43,7 @@ void WinEDA_MainFrame::Load_Prj_Config(void)
 
 
 /*********************************************/
-void WinEDA_MainFrame::Save_Prj_Config(void)
+void WinEDA_MainFrame::Save_Prj_Config()
 /*********************************************/
 {
 wxString FullFileName;
@@ -66,7 +66,7 @@ wxString mask( wxT("*"));
 	if ( FullFileName.IsEmpty() ) return;
 
 	/* ecriture de la configuration */
-	EDA_Appl->WriteProjectConfig(FullFileName, wxT("/general"), CfgParamList);
+	g_EDA_Appl->WriteProjectConfig(FullFileName, wxT("/general"), CfgParamList);
 }
 
 // vim: set tabstop=4 : noexpandtab :

@@ -26,6 +26,9 @@
 BEGIN_EVENT_TABLE(WinEDA_SchematicFrame, wxFrame)
 	COMMON_EVENTS_DRAWFRAME
 
+	EVT_SOCKET(ID_EDA_SOCKET_EVENT_SERV, WinEDA_DrawFrame::OnSockRequestServer)
+	EVT_SOCKET(ID_EDA_SOCKET_EVENT, WinEDA_DrawFrame::OnSockRequest)
+
 	EVT_CLOSE(WinEDA_SchematicFrame::OnCloseWindow)
 	EVT_SIZE(WinEDA_SchematicFrame::OnSize)
 
@@ -53,11 +56,9 @@ BEGIN_EVENT_TABLE(WinEDA_SchematicFrame, wxFrame)
 	EVT_MENU(ID_GEN_COPY_BLOCK_TO_CLIPBOARD, WinEDA_DrawFrame::CopyToClipboard)
 	EVT_MENU(ID_EXIT, WinEDA_SchematicFrame::Process_Special_Functions)
 
-	EVT_MENU(ID_CONFIG_REQ, WinEDA_SchematicFrame::Process_Config)
-	EVT_MENU(ID_CONFIG_READ, WinEDA_SchematicFrame::Process_Config)
-	EVT_MENU(ID_CONFIG_SAVE, WinEDA_SchematicFrame::Process_Config)
-	EVT_MENU(ID_COLORS_SETUP, WinEDA_SchematicFrame::Process_Config)
-	EVT_MENU(ID_OPTIONS_SETUP, WinEDA_SchematicFrame::Process_Config)
+	EVT_MENU_RANGE(ID_CONFIG_AND_PREFERENCES_START, ID_CONFIG_AND_PREFERENCES_END, WinEDA_SchematicFrame::Process_Config)
+	EVT_TOOL(ID_COLORS_SETUP, WinEDA_SchematicFrame::Process_Config)
+	EVT_TOOL(ID_OPTIONS_SETUP, WinEDA_SchematicFrame::Process_Config)
 
 	EVT_MENU_RANGE(ID_LANGUAGE_CHOICE, ID_LANGUAGE_CHOICE_END,
 		WinEDA_DrawFrame::SetLanguage)
@@ -111,17 +112,17 @@ END_EVENT_TABLE()
 
 
 	/****************/
-	/* Constructeur */
+	/* Constructor */
 	/****************/
 
 WinEDA_SchematicFrame::	WinEDA_SchematicFrame(wxWindow * father, WinEDA_App *parent,
-					const wxString & title, const wxPoint& pos, const wxSize& size) :
-					WinEDA_DrawFrame(father, SCHEMATIC_FRAME, parent, title, pos, size)
+					const wxString & title, const wxPoint& pos, const wxSize& size, long style) :
+					WinEDA_DrawFrame(father, SCHEMATIC_FRAME, parent, title, pos, size, style)
 {
 	m_FrameName = wxT("SchematicFrame");
-	m_Draw_Axis = FALSE;			// TRUE pour avoir les axes dessines
-	m_Draw_Grid = g_ShowGrid;			// TRUE pour avoir la grille dessinee
-	m_Draw_Sheet_Ref = TRUE;		// TRUE pour avoir le cartouche dessiné
+	m_Draw_Axis = FALSE;			// TRUE to show axis
+	m_Draw_Grid = g_ShowGrid;			// TRUE to show a grid
+	m_Draw_Sheet_Ref = TRUE;		// TRUE to show sheet references
 
 	// Give an icon
 	#ifdef __WINDOWS__
@@ -148,12 +149,12 @@ WinEDA_SchematicFrame::	WinEDA_SchematicFrame(wxWindow * father, WinEDA_App *par
 
 
 	/***************/
-	/* Destructeur */
+	/* Destructor */
 	/***************/
 
-WinEDA_SchematicFrame::~WinEDA_SchematicFrame(void)
+WinEDA_SchematicFrame::~WinEDA_SchematicFrame()
 {
-	m_Parent->SchematicFrame = NULL;
+	m_Parent->m_SchematicFrame = NULL;
 	m_CurrentScreen = ScreenSch;
 }
 
@@ -163,9 +164,9 @@ void WinEDA_SchematicFrame::OnCloseWindow(wxCloseEvent & Event)
 {
 SCH_SCREEN * screen;
 
-	if ( m_Parent->LibeditFrame )	// Can close component editor ?
+	if ( m_Parent->m_LibeditFrame )	// Can close component editor ?
 	{
-		if ( ! m_Parent->LibeditFrame->Close() ) return;
+		if ( ! m_Parent->m_LibeditFrame->Close() ) return;
 	}
 
 	screen = ScreenSch ;
@@ -198,7 +199,7 @@ SCH_SCREEN * screen;
 	}
 
 	screen = ScreenSch ;
-	while( screen )	// suppression flag modify pour eviter d'autres message
+	while( screen )	// Clear "flag modify" to avoid alert messages when closing sub sheets
 	{
 		screen->ClrModify();
 		screen = (SCH_SCREEN*)screen->Pnext;
@@ -209,8 +210,7 @@ SCH_SCREEN * screen;
 
 	ClearProjectDrawList(ScreenSch, TRUE);
 
-	/* Tous les autres SCREEN sont effaces, aussi reselection de
-	 l'ecran de base, pour les evenements de refresh générés par wxWindows */
+	/* allof sub sheets are deleted, only the main sheet is useable */
 	m_CurrentScreen = ActiveScreen = ScreenSch;
 
 	SaveSettings();
@@ -223,10 +223,9 @@ SCH_SCREEN * screen;
 
 
 /********************************************/
-void WinEDA_SchematicFrame::SetToolbars(void)
+void WinEDA_SchematicFrame::SetToolbars()
 /********************************************/
-/* Active ou desactive les tools du toolbar horizontal, en fonction des commandes
-en cours
+/* Enable or disable some tools according to current conditions
 */
 {
 	if( m_HToolBar )
@@ -245,12 +244,27 @@ en cours
 		if ( g_BlockSaveDataList ) m_HToolBar->EnableTool(wxID_PASTE,TRUE);
 		else m_HToolBar->EnableTool(wxID_PASTE,FALSE);
 
+		wxMenuBar * menuBar = GetMenuBar();
 		if ( GetScreen()->m_RedoList )
+		{
 			m_HToolBar->EnableTool(ID_SCHEMATIC_REDO,TRUE);
-		else m_HToolBar->EnableTool(ID_SCHEMATIC_REDO,FALSE);
+			menuBar->Enable(ID_SCHEMATIC_REDO,TRUE);
+		}
+		else
+		{
+			m_HToolBar->EnableTool(ID_SCHEMATIC_REDO,FALSE);
+			menuBar->Enable(ID_SCHEMATIC_REDO,FALSE);
+		}
 		if ( GetScreen()->m_UndoList )
+		{
 			m_HToolBar->EnableTool(ID_SCHEMATIC_UNDO,TRUE);
-		else m_HToolBar->EnableTool(ID_SCHEMATIC_UNDO,FALSE);
+			menuBar->Enable(ID_SCHEMATIC_UNDO,TRUE);
+		}
+		else
+		{
+			m_HToolBar->EnableTool(ID_SCHEMATIC_UNDO,FALSE);
+			menuBar->Enable(ID_SCHEMATIC_UNDO,FALSE);
+		}
 	}
 
 	if ( m_OptionsToolBar )
@@ -278,7 +292,7 @@ en cours
 }
 
 /******************************************/
-int WinEDA_SchematicFrame::BestZoom(void)
+int WinEDA_SchematicFrame::BestZoom()
 /******************************************/
 {
 int dx, dy, ii,jj ;

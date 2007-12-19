@@ -8,13 +8,14 @@ int * InstallDialogLayerPairChoice(WinEDA_GerberFrame * parent);
 /****************/
 /* undelete.cpp */
 /****************/
-EDA_BaseStruct * SaveItemEfface(EDA_BaseStruct * PtItem, int nbitems);
+BOARD_ITEM* SaveItemEfface( BOARD_ITEM* PtItem, int nbitems );
 
 
-/***********/
-/* cfg.cpp */
-/***********/
-bool Read_Config(void);
+/***********************/
+/* gerbview_config.cpp */
+/***********************/
+bool Read_Config();
+bool Read_Hotkey_Config( WinEDA_DrawFrame * frame, bool verbose );
 
 
 /* pcbplot.cpp */
@@ -23,7 +24,6 @@ void Plume(int state);
 /****************/
 /* lay2plot.cpp */
 
-int GetLayerNumber(void);
 void Print_PcbItems(BOARD * Pcb, wxDC *DC, int drawmode, int printmasklayer);
 
 /*****************/
@@ -69,8 +69,8 @@ void trace_1_contour_GERBER(int cX,int cY, int dimX,int dimY,
 		 ses variations deltaX et deltaY  et son orientation orient */
 
 /* PLOTHPGL.CC */
-void Init_Trace_HPGL(void);
-void Fin_Trace_HPGL(void);
+void Init_Trace_HPGL();
+void Fin_Trace_HPGL();
 void trace_1_segment_HPGL(int pos_X0,int pos_Y0,int pos_X1,int pos_Y1,
 							int hauteur);
 
@@ -116,7 +116,7 @@ void PlotArcPS(int x, int y, int StAngle, int EndAngle, int rayon, int width);
 /***************/
 /* trpiste.cpp */
 /***************/
-void Trace_Pistes(WinEDA_DrawPanel * panel, wxDC * DC, BOARD * Pcb, int drawmode);
+void Draw_Track_Buffer(WinEDA_DrawPanel * panel, wxDC * DC, BOARD * Pcb, int drawmode, int printmasklayer);
 void Trace_Segment(WinEDA_DrawPanel * panel, wxDC * DC, TRACK* pt_piste, int draw_mode);
 void Trace_DrawSegmentPcb(WinEDA_DrawPanel * panel, wxDC * DC,
 		DRAWSEGMENT * PtDrawSegment, int draw_mode);
@@ -125,12 +125,6 @@ void Trace_1_texte_pcb(WinEDA_DrawPanel * panel, wxDC * DC,
 
 void Affiche_DCodes_Pistes(WinEDA_DrawPanel * panel, wxDC * DC,
 			BOARD * Pcb, int drawmode);
-
-/**************/
-/* struct.cpp */
-/**************/
-void DeleteStructure(EDA_BaseStruct * Struct);
-void DeleteStructList( EDA_BaseStruct * Struct);
 
 /*************/
 /* dcode.cpp */

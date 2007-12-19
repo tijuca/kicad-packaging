@@ -99,14 +99,15 @@ void WinEDA_ViewlibFrame::OnLeftClick(wxDC * DC, const wxPoint& MousePos)
 }
 
 /********************************************************************************/
-void WinEDA_ViewlibFrame::OnRightClick(const wxPoint& MousePos, wxMenu * PopMenu)
+bool WinEDA_ViewlibFrame::OnRightClick(const wxPoint& MousePos, wxMenu * PopMenu)
 /********************************************************************************/
 {
+	return true;
 }
 
 
 /**********************************************/
-void WinEDA_ViewlibFrame::DisplayLibInfos(void)
+void WinEDA_ViewlibFrame::DisplayLibInfos()
 /**********************************************/
 /* Affiche en Ligne d'info la librairie en cours de visualisation */
 {
@@ -124,7 +125,7 @@ LibraryStruct * Lib;
 	/*****************************************/
 	/* Routine to Select Current library	  */
 	/*****************************************/
-void WinEDA_ViewlibFrame::SelectCurrentLibrary(void)
+void WinEDA_ViewlibFrame::SelectCurrentLibrary()
 {
 LibraryStruct * Lib;
 

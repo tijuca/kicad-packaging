@@ -38,7 +38,7 @@
 
 ////@begin control identifiers
 #define ID_DIALOG 10000
-#define SYMBOL_WINEDA_PCBTRACKSDIALOG_STYLE wxCAPTION|wxRESIZE_BORDER|wxSYSTEM_MENU|wxCLOSE_BOX
+#define SYMBOL_WINEDA_PCBTRACKSDIALOG_STYLE wxCAPTION|wxSYSTEM_MENU|wxCLOSE_BOX|MAYBE_RESIZE_BORDER
 #define SYMBOL_WINEDA_PCBTRACKSDIALOG_TITLE _("Tracks and Vias Sizes")
 #define SYMBOL_WINEDA_PCBTRACKSDIALOG_IDNAME ID_DIALOG
 #define SYMBOL_WINEDA_PCBTRACKSDIALOG_SIZE wxSize(400, 300)
@@ -102,7 +102,7 @@ public:
     /// Should we show tooltips?
     static bool ShowToolTips();
 	void AcceptPcbOptions(wxCommandEvent& event);
-	void SetDisplayValue(void);
+	void SetDisplayValue();
 
 ////@begin WinEDA_PcbTracksDialog member variables
     wxStaticText* m_ViaSizeTitle;

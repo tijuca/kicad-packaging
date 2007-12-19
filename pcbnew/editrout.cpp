@@ -29,7 +29,7 @@ int old_w, consigne ;
 	/* Test DRC et mise a la largeur */
 	old_w = pt_segm->m_Width;
 	consigne = pt_segm->m_Width = g_DesignSettings.m_CurrentTrackWidth;
-	if( pt_segm->m_StructType == TYPEVIA )
+	if( pt_segm->Type() == TYPEVIA )
 		{
 		consigne = pt_segm->m_Width = g_DesignSettings.m_CurrentViaSize;
 		}
@@ -85,7 +85,7 @@ int nb_segm_non_modifies = 0;
 	/* balayage des segments */
 	for( pt_segm = m_Pcb->m_Track; pt_segm != NULL; pt_segm = (TRACK*) pt_segm->Pnext )
 		{
-		if ( Netcode != pt_segm->m_NetCode ) /* mauvaise piste */
+		if ( Netcode != pt_segm->GetNet() ) /* mauvaise piste */
 			continue ;
 		/* piste d'un net trouvee */
 		errdrc = Edit_TrackSegm_Width(DC, pt_segm);
@@ -129,7 +129,7 @@ int nb_segm_non_modifies = 0;
 	pt_segm = m_Pcb->m_Track ;
 	for ( ; pt_segm != NULL; pt_segm = (TRACK*) pt_segm->Pnext )
 		{
-		if( pt_segm->m_StructType == TYPEVIA ) /* mise a jour du diametre de la via */
+		if( pt_segm->Type() == TYPEVIA ) /* mise a jour du diametre de la via */
 			{
 			if ( Via )
 				{

@@ -6,8 +6,8 @@
 
 #include "wxstruct.h"
 #include "gr_basic.h"
-#include "macros.h"
 #include "common.h"
+#include "macros.h"
 
 
 
@@ -16,14 +16,12 @@
 	/***********************/
 
 enum listbox {
-	ID_LISTBOX_CANCEL = 8000,
-	ID_LISTBOX_LIST,
-	ID_LISTBOX_OK
+    ID_LISTBOX_LIST = 8000
 };
 
 BEGIN_EVENT_TABLE(WinEDAListBox, wxDialog)
-	EVT_BUTTON(ID_LISTBOX_OK, WinEDAListBox::Ok)
-	EVT_BUTTON(ID_LISTBOX_CANCEL, WinEDAListBox::Cancel)
+    EVT_BUTTON(wxID_OK, WinEDAListBox::OnOkClick)
+    EVT_BUTTON(wxID_CANCEL, WinEDAListBox::OnCancelClick)
 	EVT_LISTBOX(ID_LISTBOX_LIST, WinEDAListBox::ClickOnList)
 	EVT_LISTBOX_DCLICK(ID_LISTBOX_LIST, WinEDAListBox::D_ClickOnList)
 	EVT_CHAR(WinEDAListBox::OnKeyEvent)
@@ -47,8 +45,7 @@ WinEDAListBox::WinEDAListBox( WinEDA_DrawFrame * parent, const wxString & title,
 						void(* movefct)(wxString & Text),
 						const wxColour & colour, wxPoint dialog_position):
 					wxDialog(parent, -1, title, dialog_position, wxDefaultSize,
-					wxDEFAULT_DIALOG_STYLE
-//					|wxRESIZE_BORDER
+					wxDEFAULT_DIALOG_STYLE | MAYBE_RESIZE_BORDER
 					)
 {
 wxSize size;
@@ -99,11 +96,11 @@ int ii;
 		m_List->Append(*names);
 		}
 
-	wxButton * butt = new wxButton(this, ID_LISTBOX_OK, _("Ok"));
+    wxButton * butt = new wxButton(this, wxID_OK, _("OK"));
     RightBoxSizer->Add(butt, 0, wxGROW|wxALL, 5);
 	butt->SetDefault();
 
-	butt = new wxButton(this, ID_LISTBOX_CANCEL, _("Cancel"));
+    butt = new wxButton(this, wxID_CANCEL, _("Cancel"));
     RightBoxSizer->Add(butt, 0, wxGROW|wxALL, 5);
 
 	if (m_MoveFct )
@@ -111,7 +108,7 @@ int ii;
 		size.x = -1; size.y = 60;
 		m_WinMsg = new wxTextCtrl(this, -1, wxEmptyString, wxDefaultPosition, size,
 					wxTE_READONLY|wxTE_MULTILINE);
-    GeneralBoxSizer->Add(m_WinMsg, 0, wxGROW|wxALL, 5);
+        GeneralBoxSizer->Add(m_WinMsg, 0, wxGROW|wxALL, 5);
 	}
 
     GetSizer()->Fit(this);
@@ -133,13 +130,13 @@ int ii;
 }
 
 
-WinEDAListBox:: ~WinEDAListBox(void)
+WinEDAListBox:: ~WinEDAListBox()
 {
 }
 
 
 /******************************************/
-void WinEDAListBox::MoveMouseToOrigin(void)
+void WinEDAListBox::MoveMouseToOrigin()
 /******************************************/
 {
 int x, y, w, h;
@@ -153,16 +150,16 @@ int orgy = m_List->GetRect().GetTop();
 }
 
 /*********************************************/
-wxString WinEDAListBox::GetTextSelection(void)
+wxString WinEDAListBox::GetTextSelection()
 /*********************************************/
 {
 wxString text = m_List->GetStringSelection();
 	return text;
 }
 
-/***************************************************************/
-void WinEDAListBox::WinEDAListBox::Append(const wxString & item)
-/***************************************************************/
+/************************************************/
+void WinEDAListBox::Append(const wxString & item)
+/************************************************/
 {
 	m_List->Append(item);
 }
@@ -175,7 +172,7 @@ void WinEDAListBox::InsertItems(const wxArrayString & itemlist, int position)
 }
 
 /************************************************/
-void WinEDAListBox::Cancel(wxCommandEvent& event)
+void WinEDAListBox::OnCancelClick(wxCommandEvent& event)
 /************************************************/
 {
 	EndModal(-1);
@@ -206,7 +203,7 @@ int ii = m_List->GetSelection();
 
 
 /***********************************************/
-void WinEDAListBox::Ok(wxCommandEvent& event)
+void WinEDAListBox::OnOkClick(wxCommandEvent& event)
 /***********************************************/
 {
 int ii = m_List->GetSelection();
@@ -225,15 +222,15 @@ void WinEDAListBox::OnClose(wxCloseEvent& event)
 static int SortItems( const wxString ** ptr1, const wxString ** ptr2 )
 /********************************************************************/
 /* Routines de comparaison pour le tri tri alphabetique,
-	avec traitement des nombres en tant que valeur numerique
-*/
+ * avec traitement des nombres en tant que valeur numerique
+ */
 {
 	return StrNumICmp( (*ptr1)->GetData(), (*ptr2)->GetData() );
 }
 
 
 /************************************/
-void WinEDAListBox:: SortList( void )
+void WinEDAListBox:: SortList()
 /************************************/
 {
 int ii, NbItems = m_List->GetCount();

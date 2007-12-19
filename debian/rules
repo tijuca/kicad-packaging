@@ -18,7 +18,7 @@ build: build-arch build-indep
 build-arch: build-arch-stamp
 build-arch-stamp: patch
 
-	$(MAKE) -f makefile.gtk DEBUG=0
+	$(MAKE) -f makefile.gtk
 	touch $@
 
 build-indep: build-indep-stamp
@@ -41,7 +41,6 @@ install-indep:
 	dh_clean -k -i 
 	dh_installdirs -i
 	dh_installdocs
-	dh_installmenu -a
 	$(MAKE) -f makefile.gtk install-res PREFIX=$(CURDIR)/debian/kicad-common/usr
 	$(MAKE) -C help -f makefile de PREFIX=$(CURDIR)/debian/kicad-doc-de/usr
 	$(MAKE) -C help -f makefile en PREFIX=$(CURDIR)/debian/kicad-doc-en/usr
@@ -50,13 +49,13 @@ install-indep:
 	$(MAKE) -C help -f makefile it PREFIX=$(CURDIR)/debian/kicad-doc-it/usr
 	$(MAKE) -C help -f makefile pt PREFIX=$(CURDIR)/debian/kicad-doc-pt/usr
 	$(MAKE) -C help -f makefile ru PREFIX=$(CURDIR)/debian/kicad-doc-ru/usr
-	dh_install -i
 
 install-arch:
 	dh_testdir
 	dh_testroot
 	dh_clean -k -s 
 	dh_installdirs -s
+	dh_installmenu -s
 	$(MAKE) -f makefile.gtk install-bin PREFIX=$(CURDIR)/debian/kicad/usr
 	dh_installdocs
 	dh_install -s
@@ -66,7 +65,6 @@ binary-indep: build-indep install-indep
 	dh_testdir
 	dh_testroot
 	dh_installchangelogs -i
-	dh_desktop
 	dh_link -i
 	dh_strip -i
 # i don't want the helpfiles to be compressed
@@ -90,6 +88,7 @@ binary-arch: build-arch install-arch
 	dh_link -s
 	dh_strip -s
 	dh_compress -s
+	dh_desktop
 #	dh_installexamples -s
 	dh_fixperms -s
 	dh_makeshlibs -s

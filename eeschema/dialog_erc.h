@@ -53,7 +53,7 @@ class wxStaticLine;
 #define ID_ERASE_DRC_MARKERS 10003
 #define ID_PANEL1 10005
 #define ID_RESET_MATRIX 10007
-#define SYMBOL_WINEDA_ERCFRAME_STYLE wxCAPTION|wxRESIZE_BORDER|wxSYSTEM_MENU|wxCLOSE_BOX
+#define SYMBOL_WINEDA_ERCFRAME_STYLE wxDEFAULT_DIALOG_STYLE|MAYBE_RESIZE_BORDER
 #define SYMBOL_WINEDA_ERCFRAME_TITLE _("EESchema Erc")
 #define SYMBOL_WINEDA_ERCFRAME_IDNAME ID_DIALOG
 #define SYMBOL_WINEDA_ERCFRAME_SIZE wxDefaultSize
@@ -97,8 +97,8 @@ public:
     /// wxEVT_COMMAND_BUTTON_CLICKED event handler for ID_ERASE_DRC_MARKERS
     void OnEraseDrcMarkersClick( wxCommandEvent& event );
 
-    /// wxEVT_COMMAND_BUTTON_CLICKED event handler for wxID_EXIT
-    void OnExitClick( wxCommandEvent& event );
+    /// wxEVT_COMMAND_BUTTON_CLICKED event handler for wxID_CANCEL
+    void OnCancelClick( wxCommandEvent& event );
 
     /// wxEVT_COMMAND_BUTTON_CLICKED event handler for ID_RESET_MATRIX
     void OnResetMatrixClick( wxCommandEvent& event );
@@ -123,7 +123,7 @@ public:
 	void SelNewCmp(wxCommandEvent& event);
 	void ResetDefaultERCDiag(wxCommandEvent& event);
 	void ChangeErrorLevel(wxCommandEvent& event);
-	void ReBuildMatrixPanel(void);
+	void ReBuildMatrixPanel();
 
 ////@begin WinEDA_ErcFrame member variables
     wxNotebook* m_NoteBook;

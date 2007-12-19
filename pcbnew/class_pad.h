@@ -1,85 +1,162 @@
-	/**********************************/
-	/* class_pad.h : Pads description */
-	/**********************************/
+/**********************************/
+/* class_pad.h : Pads description */
+/**********************************/
 
 class Pcb3D_GLCanvas;
 
-/* forme des pastilles : (parametre .forme) */
-#define CIRCLE 1
-#define RECT   2
-#define OVALE  3
-#define TRAPEZE 4		// trapeze: traversante ou surfacique
-#define SPECIAL_PAD 5	// description libre
+/* Pad shape id : ( .m_PadShape member) */
+#define CIRCLE      1
+#define RECT        2
+#define OVALE       3
+#define TRAPEZE     4       // trapezoid
 
-/* Attributs des PADS */
-#define STANDARD	0	// pad classique
-#define SMD	   1		// surfacique, generation d'un masque d'empatement
-#define CONN   2		// surfacique, peut etre dore
-#define P_HOLE 3		// trou simple, utile sur pad stack
-#define MECA   4		// PAD "mecanique" (fixation, zone cuivre...)
-#define PAD_STACK 0x80	// bit 7 de .attrib  (flag)
+/* PADS attributes */
+#define STANDARD    0       // Usual pad
+#define SMD         1       // Smd pad, appears on the layer paste (default)
+#define CONN        2       // Like smd, does not appear on the layer paste (default)
+// reserved, but not yet really used:
+#define P_HOLE      3       // trou simple, utile sur pad stack
+#define MECA        4       // PAD "mecanique" (fixation, zone cuivre...)
 
 /* Definition type Structure d'un pad */
-class D_PAD: public EDA_BaseStruct
+class D_PAD : public BOARD_ITEM
 {
+private:
+    int     m_NetCode;              // Net number for fast comparisons
+    
 public:
-	union	 {
-	unsigned long m_NumPadName;
-	char m_Padname[4] ;			/* nom (numero) de la pastille (assimilatble a un long)*/
-	};
-	wxString m_Netname;			/* Net Name */
-	int m_Masque_Layer;			// (Bit a Bit :1= cuivre, 15= cmp,
-								// 2..14 = interne
-								// 16 .. 31 = couches non cuivre
-	int m_PadShape;				// forme CERCLE, RECT, OVALE, TRAPEZE ou libre
-	int m_DrillShape;			// forme CERCLE, OVAL
-	wxPoint m_Pos;				// Position de reference du pad
-	wxSize m_Drill;				// Drill diam (drill shape = CIRCLE) or drill size(shape = OVAL)
-								// for drill shape = CIRCLE, drill diam = m_Drill.x
-	wxSize m_Offset;			// Offset de la forme (pastilles excentrees)
-	wxSize m_Size;				// Dimensions X et Y ( si orient 0 x = axe X
-								// y = axe Y
-	wxSize m_DeltaSize;			// delta sur formes rectangle -> trapezes
-	wxPoint m_Pos0;				// Coord relatives a l'ancre du pad en orientation 0
-	int m_Rayon;				// rayon du cercle exinscrit du pad
-	int m_Attribut;				// NORMAL, SMD, CONN, Bit 7 = STACK
-	int m_Orient ;				// en 1/10 degres
+    union
+    {
+        unsigned long m_NumPadName;
+        char          m_Padname[4]; /* Pad name (4 char) or a long identifier
+                                     *  (used in pad name comparisons because  this is faster than string comparison)
+                                     */
+    };
 
-	int m_NetCode;				/* Numero de net pour comparaisons rapides */
-	int m_logical_connexion;		// variable utilisee lors du calcul du chevelu:
-   								// contient de numero de block pour une connexion type ratsnet
-	int m_physical_connexion;		// variable utilisee lors du calcul de la connexité:
-   								// contient de numero de block pour une connexion type piste
+    wxString m_Netname;             /* Net Name */
+
+    int      m_Masque_Layer;        // Bitwise layer :1= copper layer, 15= cmp,
+                                    // 2..14 = internal layers
+                                    // 16 .. 31 = technical layers
+
+    int     m_PadShape;             // Shape: CIRCLE, RECT, OVAL, TRAPEZOID
+    int     m_DrillShape;           // Shape CIRCLE, OVAL
+
+    wxPoint m_Pos;                  // pad Position on board
+    wxSize  m_Drill;                // Drill diam (drill shape = CIRCLE) or drill size(shape = OVAL)
+                                    // for drill shape = CIRCLE, drill diam = m_Drill.x
+
+    wxSize  m_Offset;               // Offset de la forme (pastilles excentrees)
+    wxSize  m_Size;                 // X and Y size ( relative to orient 0)
+
+    wxSize  m_DeltaSize;            // delta sur formes rectangle -> trapezes
+
+    wxPoint m_Pos0;                 // Initial Pad position (i.e. pas position relative to the module anchor, orientation 0
+
+    int     m_Rayon;                // rayon du cercle exinscrit du pad
+    int     m_Attribut;             // NORMAL, SMD, CONN
+    int     m_Orient;               // in 1/10 degrees
+
+    int     m_logical_connexion;    // variable used in rastnest computations
+                                    // handle block number in ratsnet connection
+
+    int     m_physical_connexion;   // variable used in rastnest computations
+                                    // handle block number in track connection
 
 public:
-	D_PAD(MODULE * parent);
-	D_PAD(D_PAD * pad);
-	~D_PAD(void);
+    D_PAD( MODULE* parent );
+    D_PAD( D_PAD* pad );
+    ~D_PAD();
 
-	void Copy(D_PAD * source);
-	D_PAD * Next(void)
-		{ return (D_PAD *) Pnext; }
+    void            Copy( D_PAD* source );
 
-	/* supprime du chainage la structure Struct */
-	void UnLink( void );
+    D_PAD* Next() { return (D_PAD*) Pnext; }
 
-	/* Readind and writing data on files */
-	int ReadDescr( FILE * File, int * LineNum = NULL);
-	int WriteDescr( FILE * File );
+    /* remove from linked list */
+    void            UnLink();
 
-	/* drawing functions */
-	void Draw(WinEDA_DrawPanel * panel, wxDC * DC, const wxPoint & offset, int draw_mode);
-	void Draw3D(Pcb3D_GLCanvas * glcanvas);
+    /* Reading and writing data on files */
+    int             ReadDescr( FILE* File, int* LineNum = NULL );
+    
+    /**
+     * Function Save
+     * writes the data structures for this object out to a FILE in "*.brd" format.
+     * @param aFile The FILE to write to.
+     * @return bool - true if success writing else false.
+     */ 
+    bool Save( FILE* aFile ) const;
+    
+    
+    /* drawing functions */
+    void            Draw( WinEDA_DrawPanel* panel, wxDC* DC, const wxPoint& offset, int draw_mode );
+    void            Draw3D( Pcb3D_GLCanvas* glcanvas );
 
-	// autres
-	void SetPadName(const wxString & name);	// Change pade name
-	wxString ReturnStringPadName(void);		// Return pad name as string in a wxString
-	void ReturnStringPadName(wxString & text);	// Return pad name as string in a buffer
-	void ComputeRayon(void);			// met a jour m_Rayon, rayon du cercle exinscrit
-	const wxPoint ReturnShapePos(void) const;	// retourne la position
-								// de la forme (pastilles excentrees)
-	void Display_Infos(WinEDA_BasePcbFrame * frame);
+    // others
+    void            SetPadName( const wxString& name );     // Change pad name
+    wxString        ReturnStringPadName();            // Return pad name as string in a wxString
+    void            ReturnStringPadName( wxString& text );  // Return pad name as string in a buffer
+    void            ComputeRayon();                   // compute m_Rayon, rayon du cercle exinscrit
+    const wxPoint   ReturnShapePos();                 // retourne la position
+
+    
+    /**
+     * Function GetNet
+     * @return int - the netcode
+     */
+    int GetNet() const { return m_NetCode; }
+    void SetNet( int aNetCode ) { m_NetCode = aNetCode; }
+     
+    
+    /**
+     * Function Display_Infos
+     * has knowledge about the frame and how and where to put status information
+     * about this object into the frame's message panel.
+     * Is virtual from EDA_BaseStruct.
+     * @param frame A WinEDA_DrawFrame in which to print status information.
+     */ 
+    void            Display_Infos( WinEDA_DrawFrame* frame );
+
+    
+    /**
+     * Function IsOnLayer
+     * tests to see if this object is on the given layer.  Is virtual so
+     * objects like D_PAD, which reside on multiple layers can do their own
+     * form of testing.
+     * @param aLayer The layer to test for.
+     * @return bool - true if on given layer, else false.
+     */
+    bool IsOnLayer( int aLayer ) const;
+
+    
+    /**
+     * Function HitTest
+     * tests if the given wxPoint is within the bounds of this object.
+     * @param refPos A wxPoint to test
+     * @return bool - true if a hit, else false
+     */
+    bool            HitTest( const wxPoint& refPos );
+
+    /**
+     * Function GetClass
+     * returns the class name.
+     * @return wxString
+     */
+    virtual wxString GetClass() const
+    {
+        return wxT( "PAD" );
+    }
+
+#if defined (DEBUG)
+    /**
+     * Function Show
+     * is used to output the object tree, currently for debugging only.
+     * @param nestLevel An aid to prettier tree indenting, and is the level
+     *          of nesting of this object within the overall tree.
+     * @param os The ostream& to output to.
+     */
+    virtual void Show( int nestLevel, std::ostream& os );
+
+#endif
 };
 
 typedef class D_PAD * LISTE_PAD;
-
