@@ -1,5 +1,9 @@
 /* XPM */
-static const char * save_project_xpm[] = {
+#ifndef XPMMAIN
+extern const char *save_project_xpm[];
+
+#else
+const char * save_project_xpm[] = {
 "16 16 63 1",
 " 	c None",
 ".	c #000000",
@@ -80,3 +84,4 @@ static const char * save_project_xpm[] = {
 "bbbbmnbbc.      ",
 "=o$9pqrbc.      ",
 "st0=uvwxc.      "};
+#endif

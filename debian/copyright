@@ -5,7 +5,27 @@ It was downloaded from http://iut-tice.ujf-grenoble.fr/cao/
 
 Upstream Author: Jean-Pierre Charras <jean-pierre.charras@inpg.fr>
 
-files in kicad/minizip are
+--------------------------------------------------------------------------------
+
+Copyright: 2000-2008, Jean-Pierre Charras
+License:
+ Software: GPL v2
+
+This program is free software; you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation; version 2 dated June, 1991.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with the Debian system in the file /usr/share/common-licenses/GPL.
+
+--------------------------------------------------------------------------------
+
+files in kicad/minizip/:
 Copyright (C) 1998-2003 Gilles Vollant
 under zlib-license
    Condition of use and distribution are the same than zlib :
@@ -26,8 +46,9 @@ under zlib-license
      misrepresented as being the original software.
   3. This notice may not be removed or altered from any source distribution.
 
+--------------------------------------------------------------------------------
 
-files 3d-viewer/trackball.{h,cpp}
+files 3d-viewer/trackball.{h,cpp}:
 Copyright 1993, 1994, Silicon Graphics, Inc.
  *
  * (c) Copyright 1993, 1994, Silicon Graphics, Inc.
@@ -66,27 +87,15 @@ Copyright 1993, 1994, Silicon Graphics, Inc.
  * OpenGL(TM) is a trademark of Silicon Graphics, Inc.
  */
 
+--------------------------------------------------------------------------------
 
+files in kicad/polygon/kbool/:
+Copyright: 2001-2004 (C) Probably Klaas Holwerda
+Licence: wxWidgets Licence
 
-Copyright: 2000-2006, Jean-Pierre Charras
-License:
- Software: GPL v2
+--------------------------------------------------------------------------------
 
-This program is free software; you can redistribute it and/or modify
-it under the terms of the GNU General Public License as published by
-the Free Software Foundation; version 2 dated June, 1991.
-
-This program is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-GNU General Public License for more details.
-
-You should have received a copy of the GNU General Public License
-along with the Debian system in the file /usr/share/common-licenses/GPL.
-
-
-
-Copyright: 2000-2006, Jean-Pierre Charras
+Copyright: 2000-2008, Jean-Pierre Charras
 License:
  Documentation: 
                 KiCad Free Documentation Licence
@@ -149,8 +158,7 @@ License:
   DOCUMENTATION TO OPERATE WITH ANY OTHER PROGRAMS), EVEN IF SUCH HOLDER OR
   OTHER PARTY HAS BEEN ADVISED OF THE POSSIBILITY OF SUCH DAMAGES.
 
+--------------------------------------------------------------------------------
 
-
-The Debian packaging is (C) 2006, 2007 Richard A Burton <richardaburton@gmail.com> and
-is licensed under the GPL, see `/usr/share/common-licenses/GPL'.
-
+The Debian packaging is (C)2006-2008 Richard A Burton <richardaburton@gmail.com>
+and is licensed under the GPL, see `/usr/share/common-licenses/GPL'.

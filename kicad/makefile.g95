@@ -1,33 +1,15 @@
-WXDIR = $(WXWIN)
-EXTRALIBS = ../common/common.a
-EXTRACPPFLAGS= -DKICAD -I./ -I../include -I../kicad -I../common
-TARGET=kicad
+KICAD_SUBDIRS =  common bitmaps 3d-viewer polygon polygon/kbool/src  eeschema eeschema/plugins pcbnew kicad cvpcb gerbview
+KICAD_SUBDIRS_BIN =  eeschema eeschema/plugins pcbnew cvpcb kicad gerbview
+# How to invoke make:
+MAKE = make -k -f makefile.g95
+MAKE_INSTALL = make -f makefile.g95 install
+MAKE_CLEAN = make -f makefile.g95 clean
 
-include ../libs.win
+all:
+	@for d in $(KICAD_SUBDIRS); do (cd $$d && $(MAKE)); done
 
-all: $(TARGET).exe
+install:
+	@for d in $(KICAD_SUBDIRS_BIN); do (cd $$d && $(MAKE_INSTALL)); done
 
-include makefile.include
-
-
-$(TARGET).exe: $(OBJECTS) $(TARGET)_resources.o $(EDALIBS)
-	$(CXX) $(ALL_LDFLAGS) -o $(TARGET).exe $(OBJECTS)\
-		$(TARGET)_resources.o $(EDALIBS) $(SYSWXLIB)
-
-install:$(TARGET).exe 
-	cp -f  $(TARGET).exe $(KICAD_BIN)
-
-
-$(TARGET)_resources.o:  $(TARGET).rc
-	$(RESCOMP) $(RCINPUTSWITCH) $(TARGET).rc $(RCOUTPUTSWITCH) $(TARGET)_resources.o $(RESFLAGS)
-
-
-$(TARGET).o: $(TARGET).cpp $(DEPEND) $(TARGET).h
-
-clean :
-	-$(RM) *.o
-	-$(RM) *.exe
-	-$(RM) *.rsc
-	-$(RM) *.res
-	-$(RM) *.bak
-
+clean:
+	@for d in $(KICAD_SUBDIRS); do (cd $$d && $(MAKE_CLEAN)); done

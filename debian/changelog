@@ -1,3 +1,18 @@
+kicad (0.0.20080825c-1) unstable; urgency=low
+
+  * New upstream release. (Closes: #496897)
+  * Use new cmake build system.
+  * Use new svn repository layout.
+  * Build using wxWidgets 2.8. (Closes: #398615)
+  * Require debhelper 6 to get fix for 459426.
+  * Upstream performance improvement for redraw. (Closes: #469516)
+  * Moved examples to /usr/share/doc/kicad/demos
+  * Update Standards-Version to 3.8.0 (no changes needed).
+  * Add more language packages, for tutorials.
+  * Only en & fr manuals included, rest not currently maintained upstream.
+
+ -- Richard Antony Burton <richardaburton@gmail.com>  Sun, 21 Sep 2008 19:58:47 +0100
+
 kicad (0.0.20071129a-1) unstable; urgency=low
 
   * New upstream release.
@@ -53,4 +68,3 @@ kicad (0.0.20060626-1) unstable; urgency=low
   * Initial release (Closes: #278581)
 
  -- Richard Antony Burton <richardaburton@hotmail.com>  Sat, 30 Sep 2006 22:24:06 +0200
-

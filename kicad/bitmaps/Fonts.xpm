@@ -1,5 +1,9 @@
 /* XPM */
-static const char * fonts_xpm[] = {
+#ifndef XPMMAIN
+extern const char *fonts_xpm[];
+
+#else
+const char * fonts_xpm[] = {
 "16 16 46 1",
 " 	c None",
 ".	c #70653B",
@@ -63,3 +67,4 @@ static const char * fonts_xpm[] = {
 "        b!!cd~e ",
 "        f*g a5  ",
 "                "};
+#endif

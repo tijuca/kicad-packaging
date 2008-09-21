@@ -3,13 +3,13 @@ Section: electronics
 Priority: optional
 Maintainer:  Debian Kicad Team <kicad-devel@lists.mose.flexserv.de>
 Uploaders: Richard Antony Burton <richardaburton@gmail.com>, Daniel J. Priem <danielpriem@flexserv.de>
-Build-Depends: debhelper (>= 5), dpatch, libx11-dev, libglu1-mesa-dev, libgl1-mesa-dev, mesa-common-dev, libwxbase2.6-dev, libwxgtk2.6-dev
-Standards-Version: 3.7.3.0
-Homepage: http://www.lis.inpg.fr/realise_au_lis/kicad/
+Build-Depends: debhelper (>= 6), dpatch, libx11-dev, libglu1-mesa-dev, libgl1-mesa-dev, mesa-common-dev, libwxbase2.8-dev, libwxgtk2.8-dev, libboost-dev, cmake
+Standards-Version: 3.8.0
+Homepage: http://iut-tice.ujf-grenoble.fr/kicad/
 
 Package: kicad
 Architecture: any
-Depends: kicad-common (>= ${source:Version}), ${shlibs:Depends}
+Depends: kicad-common (>= ${source:Version}), ${shlibs:Depends}, zlib-bin
 Replaces: kicad-common (<< 0.0.20071129a-1)
 Description: Electronic schematic and PCB design software
  Kicad is a suite of programs for the creation of printed circuit boards.
@@ -39,6 +39,14 @@ Recommends: kicad
 Description: Common files used by kicad
  This package contains the component libraries and language files for Kicad.
 
+Package: kicad-doc-de
+Architecture: all
+Description: Kicad help files (German)
+ This package provides documentation for Kicad in German.
+ .
+ This package does not provide a German translation of the manual, only the
+ tutorial. Manual available in the French & English packages only.
+
 Package: kicad-doc-en
 Architecture: all
 Description: Kicad help files (English)
@@ -48,34 +56,36 @@ Package: kicad-doc-es
 Architecture: all
 Description: Kicad help files (Spanish)
  This package provides documentation for Kicad in Spanish.
+ .
+ This package does not provide a Spanish translation of the manual, only the
+ tutorial. Manual available in the French & English packages only.
 
 Package: kicad-doc-fr
 Architecture: all
 Description: Kicad help files (French)
  This package provides documentation for Kicad in French.
 
-Package: kicad-doc-de
+Package: kicad-doc-hu
 Architecture: all
-Depends: kicad-doc-en (= ${source:Version})
-Description: Kicad help files (German)
- This package provides documentation for Kicad in German.
- This package does not provide a German translation of the manual so English
- will be used instead.
-
-Package: kicad-doc-pt
-Architecture: all
-Description: Kicad help files (Portuguese)
- This package provides documentation for Kicad in Portuguese.
+Description: Kicad help files (Hungarian)
+ This package provides documentation for Kicad in Hungarian.
+ .
+ This package does not provide a Hungarian translation of the manual, only the
+ tutorial. Manual available in the French & English packages only.
 
 Package: kicad-doc-ru
 Architecture: all
 Description: Kicad help files (Russian)
  This package provides documentation for Kicad in Russian.
+ .
+ This package does not provide a Russian translation of the manual, only the
+ tutorial. Manual available in the French & English packages only.
 
-Package: kicad-doc-it
+Package: kicad-doc-zh-cn
 Architecture: all
-Depends: kicad-doc-en (= ${source:Version})
-Description: Kicad help files (Italian)
- This package provides documentation for Kicad in Italian.
- This package does not provide an Italian translation of the manual so English
- will be used instead.
+Description: Kicad help files (Simplified Chinese)
+ This package provides documentation for Kicad in Simplified Chinese.
+ .
+ This package does not provide a Simplified Chinese translation of the manual,
+ only the tutorial. Manual available in the French & English packages only.
+

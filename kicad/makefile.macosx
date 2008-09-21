@@ -1,42 +1,19 @@
-## Makefile for kicad
+KICAD_SUBDIRS =  common 3d-viewer polygon eeschema pcbnew cvpcb kicad gerbview
+KICAD_SUBDIRS_BIN =  eeschema pcbnew cvpcb kicad gerbview
+# How to invoke make:
+MAKE = make -f makefile.macosx
+MAKE_INSTALL = make -f makefile.macosx install
+MAKE_CLEAN = make -f makefile.macosx clean
 
-include ../libs.macosx
 
-TARGET = kicad
-
-all: $(TARGET).app
+all:
+	@for d in $(KICAD_SUBDIRS); do (cd $$d && $(MAKE)); done
 
 deps:
-	$(CXX) $(CPPFLAGS) -E -MMD -MG *.cpp >/dev/null
+	@for d in $(KICAD_SUBDIRS); do (cd $$d && $(MAKE) -k deps); done
 
-include makefile.include
--include *.d
-
-CPPFLAGS += $(EXTRACPPFLAGS)
-EDACPPFLAGS = $(CPPFLAGS)
-
-$(TARGET): $(OBJECTS) $(TARGET).r makefile.macosx makefile.include $(EXTRALIBS) ../libs.macosx
-	$(LD) $(OBJECTS) $(LDFLAGS) $(LIBS) -o $(TARGET)
-	$(RESCOMP) -o $(TARGET) Carbon.r $(TARGET).r
-	$(SETFILE) -a C $(TARGET)
-
-
-$(TARGET).app: $(TARGET)
-	rm -rf $(TARGET).app
-	mkdir -p $(TARGET).app
-	mkdir -p $(TARGET).app/Contents
-	mkdir -p $(TARGET).app/Contents/MacOS
-	mkdir -p $(TARGET).app/Contents/Resources
-	cp $(TARGET).icns $(TARGET).app/Contents/Resources
-	cp file_pro.icns $(TARGET).app/Contents/Resources
-	cp Info.plist $(TARGET).app/Contents
-	echo -n "APPL????" > $(TARGET).app/Contents/PkgInfo
-	cp $(TARGET) $(TARGET).app/Contents/MacOS/$(TARGET)
-
-install: $(TARGET).app
-	cp -Rf $(TARGET).app $(KICAD_BIN)
-
+install:
+	@for d in $(KICAD_SUBDIRS_BIN); do (cd $$d && $(MAKE_INSTALL)); done
+	
 clean:
-	rm -f *.o; rm -f *~
-	rm -rf $(TARGET).app
-	rm -f $(TARGET)
+	@for d in $(KICAD_SUBDIRS); do (cd $$d && $(MAKE_CLEAN)); done

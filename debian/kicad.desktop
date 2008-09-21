@@ -7,4 +7,10 @@ Categories=Electronics;Development
 Type=Application
 Terminal=false
 Comment=PCB-Suite
-
+Encoding=UTF-8
+GenericName[en]=KiCad - project manager
+GenericName[ru]=KiCad - менеджер проектов
+GenericName[nl_NL]=KiCad - Project Beheerder
+Comment[en]=Electrical schematic and PCB design suite
+Comment[ru]=Комплекс для разработки электрических схем и печатных плат
+Comment[nl_NL]=Elektrische schema's en PCB ontwerp Suite

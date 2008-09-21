@@ -1,35 +1,38 @@
-# File:		makefile for kicad, wxGTK
 
+MAKEGTK = $(MAKE) -f makefile.gtk
+KICAD_SUBDIRS = common bitmaps 3d-viewer polygon polygon/kbool/src pcbnew eeschema eeschema/plugins cvpcb kicad gerbview
+KICAD_SUBDIRS_BIN = eeschema eeschema/plugins pcbnew cvpcb kicad gerbview
+KICAD_SUBDIRS_RES = internat modules template library
+KICAD_SUBDIRS_HELP = help
 
-include ../libs.linux
-
-# Additional compiler flags
-CPPFLAGS +=
-
-FINAL = 1
-
-TARGET = kicad
-
-all: $(TARGET)
+all:
+	@for dir in $(KICAD_SUBDIRS); do \
+		$(MAKEGTK) -C $$dir; \
+	done
 
 deps:
-	$(CXX) $(CPPFLAGS) -E -MMD -MG *.cpp >/dev/null
+	@for dir in $(KICAD_SUBDIRS); do \
+		$(MAKEGTK) -k -C $$dir deps; \
+	done
 
-include makefile.include
--include *.d
+install-bin:
+	@for dir in $(KICAD_SUBDIRS_BIN); do \
+		$(MAKEGTK) -C $$dir install; \
+	done
 
-CPPFLAGS += $(EXTRACPPFLAGS)
-EDACPPFLAGS = $(CPPFLAGS)
+install-res:
+	@for dir in $(KICAD_SUBDIRS_RES); do \
+		$(MAKE) -C $$dir install; \
+	done
 
+install-help:
+	@for dir in $(KICAD_SUBDIRS_HELP); do \
+		$(MAKE) -C $$dir install; \
+	done
 
-$(TARGET): $(OBJECTS) makefile.gtk $(EXTRALIBS) ../libs.linux
-	$(LD) $(OBJECTS) $(LDFLAGS)  $(LIBS) -o $(TARGET)
-
-install: $(TARGET)
-	mkdir -p $(KICAD_BIN)
-	cp -f $(TARGET) $(KICAD_BIN)
+install: install-bin install-res install-help
 
 clean:
-	rm -f *.o *.d *~ *.bak core
-	rm -f $(TARGET)
-
+	@for dir in $(KICAD_SUBDIRS); do \
+		$(MAKEGTK) -C $$dir clean; \
+	done
