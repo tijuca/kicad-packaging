@@ -6,6 +6,8 @@
 
 #include "fctsys.h"
 #include "common.h"
+#include "class_drawpanel.h"
+#include "confirm.h"
 #include "pcbnew.h"
 #include "protos.h"
 
@@ -71,7 +73,7 @@ WinEDA_SwapLayerFrame::WinEDA_SwapLayerFrame( WinEDA_BasePcbFrame* parent ) :
               wxDefaultSize, wxDEFAULT_DIALOG_STYLE|MAYBE_RESIZE_BORDER )
 /*************************************************************************/
 {
-    BOARD*  board = parent->m_Pcb;
+    BOARD*  board = parent->GetBoard();
 
     OuterBoxSizer = NULL;
     MainBoxSizer = NULL;
@@ -283,7 +285,7 @@ void WinEDA_SwapLayerFrame::Sel_Layer( wxCommandEvent& event )
         }
         else
         {
-            layer_list[ii]->SetLabel( m_Parent->m_Pcb->GetLayerName( jj ) );
+            layer_list[ii]->SetLabel( m_Parent->GetBoard()->GetLayerName( jj ) );
             // Change the text color to fushia (to highlight
             // that this layer *is* being swapped)
             layer_list[ii]->SetForegroundColour( wxColour(255, 0, 128) );
@@ -332,11 +334,11 @@ void WinEDA_PcbFrame::Swap_Layers( wxCommandEvent& event )
         return; // (Cancelled dialog box returns -1 instead)
 
     /* Modifications des pistes */
-    pt_segm = (TRACK*) m_Pcb->m_Track;
-    for( ; pt_segm != NULL; pt_segm = (TRACK*) pt_segm->Pnext )
+    pt_segm = GetBoard()->m_Track;
+    for( ; pt_segm != NULL; pt_segm = pt_segm->Next() )
     {
         GetScreen()->SetModify();
-        if( pt_segm->Type() == TYPEVIA )
+        if( pt_segm->Type() == TYPE_VIA )
         {
             SEGVIA* Via = (SEGVIA*) pt_segm;
             if( Via->Shape() == VIA_THROUGH )
@@ -358,8 +360,7 @@ void WinEDA_PcbFrame::Swap_Layers( wxCommandEvent& event )
     }
 
     /* Modifications des zones */
-    pt_segm = (TRACK*) m_Pcb->m_Zone;
-    for( ; pt_segm != NULL; pt_segm = (TRACK*) pt_segm->Pnext )
+    for( pt_segm = GetBoard()->m_Zone;  pt_segm;  pt_segm = pt_segm->Next() )
     {
         GetScreen()->SetModify();
         jj = pt_segm->GetLayer();
@@ -368,10 +369,10 @@ void WinEDA_PcbFrame::Swap_Layers( wxCommandEvent& event )
     }
 
     /* Modifications des autres segments */
-    PtStruct = m_Pcb->m_Drawings;
-    for( ; PtStruct != NULL; PtStruct = PtStruct->Pnext )
+    PtStruct = GetBoard()->m_Drawings;
+    for( ; PtStruct != NULL; PtStruct = PtStruct->Next() )
     {
-        if( PtStruct->Type() == TYPEDRAWSEGMENT )
+        if( PtStruct->Type() == TYPE_DRAWSEGMENT )
         {
             GetScreen()->SetModify();
             pt_drawsegm = (DRAWSEGMENT*) PtStruct;

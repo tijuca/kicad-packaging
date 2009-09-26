@@ -9,21 +9,11 @@
 #pragma implementation "set_color.h"
 #endif
 
-// For compilers that support precompilation, includes "wx/wx.h".
-#include "wx/wxprec.h"
-
-#ifdef __BORLANDC__
-#pragma hdrstop
-#endif
-
-#ifndef WX_PRECOMP
-#include "wx/wx.h"
-#endif
-
 #include "fctsys.h"
 #include "gr_basic.h"
-
 #include "common.h"
+#include "class_drawpanel.h"
+
 #include "gerbview.h"
 #include "pcbnew.h"
 
@@ -370,7 +360,7 @@ void  WinEDA_SetColorsFrame::OnOkClick(wxCommandEvent& WXUNUSED(event))
 /*******************************************************************/
 {
     UpdateLayerSettings();
-    m_Parent->ReDrawPanel();
+    m_Parent->DrawPanel->Refresh();
     EndModal( 1 );
 }
 
@@ -388,7 +378,7 @@ void  WinEDA_SetColorsFrame::OnApplyClick(wxCommandEvent& WXUNUSED(event))
 /*******************************************************************/
 {
     UpdateLayerSettings();
-    m_Parent->ReDrawPanel();
+    m_Parent->DrawPanel->Refresh();
 }
 
 

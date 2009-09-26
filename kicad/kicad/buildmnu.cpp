@@ -1,272 +1,350 @@
-    /***********************************************/
-    /*  buildmnu.h: construction du menu principal */
-    /***********************************************/
+/*****************************************************************************/
+
+/**
+ * @file buildmnu.cpp
+ * @brief TODO
+ */
+/*****************************************************************************/
 
 #include "fctsys.h"
-#include "gr_basic.h"
+#include "appl_wxstruct.h"
 #include "common.h"
-
-#include "wx/spinctrl.h"
-
 #include "kicad.h"
 #include "macros.h"
-
-#define BITMAP wxBitmap
-
-// ----------------------------------------------------------------------------
-// resources
-// ----------------------------------------------------------------------------
-
-// USE_XPM_BITMAPS
 #include "bitmaps.h"        // Common bitmaps
-
 #include "id.h"
 
-/* Fonctions locales */
 
-/* Variables locales */
+/*****************************************************************************/
+BEGIN_EVENT_TABLE( WinEDA_MainFrame, WinEDA_BasicFrame )
+/*****************************************************************************/
+/* Window events */
+    EVT_SIZE( WinEDA_MainFrame::OnSize )
+    EVT_CLOSE( WinEDA_MainFrame::OnCloseWindow )
 
+/* Sash drag events */
+    EVT_SASH_DRAGGED( ID_LEFT_FRAME,
+                      WinEDA_MainFrame::OnSashDrag )
+    EVT_SASH_DRAGGED( ID_BOTTOM_FRAME,
+                      WinEDA_MainFrame::OnSashDrag )
+    EVT_SASH_DRAGGED( ID_MAIN_COMMAND,
+                      WinEDA_MainFrame::OnSashDrag )
 
-BEGIN_EVENT_TABLE(WinEDA_MainFrame, WinEDA_BasicFrame)
-    EVT_SIZE(WinEDA_MainFrame::OnSize)
-    EVT_CLOSE(WinEDA_MainFrame::OnCloseWindow)
-    EVT_SASH_DRAGGED(ID_LEFT_FRAME, WinEDA_MainFrame::OnSashDrag)
-    EVT_SASH_DRAGGED(ID_BOTTOM_FRAME, WinEDA_MainFrame::OnSashDrag)
-    EVT_SASH_DRAGGED(ID_MAIN_COMMAND, WinEDA_MainFrame::OnSashDrag)
+/* Toolbar events */
+    EVT_TOOL( ID_NEW_PROJECT,
+              WinEDA_MainFrame::Process_Files )
+    EVT_TOOL( ID_LOAD_PROJECT,
+              WinEDA_MainFrame::Process_Files )
+    EVT_TOOL( ID_SAVE_PROJECT,
+              WinEDA_MainFrame::Process_Files )
+    EVT_TOOL( ID_SAVE_AND_ZIP_FILES,
+              WinEDA_MainFrame::Process_Files )
 
-    EVT_MENU_RANGE(ID_LOAD_PROJECT,ID_LOAD_FILE_10,
-        WinEDA_MainFrame::Process_Files)
-    EVT_MENU(ID_SAVE_PROJECT, WinEDA_MainFrame::Process_Files)
+/* Menu events */
+    EVT_MENU( ID_SAVE_PROJECT,
+              WinEDA_MainFrame::Process_Files )
+    EVT_MENU( ID_EXIT,
+              WinEDA_MainFrame::Process_Special_Functions )
+    EVT_MENU( ID_TO_EDITOR,
+              WinEDA_MainFrame::Process_Fct )
+    EVT_MENU( ID_BROWSE_AN_SELECT_FILE,
+              WinEDA_MainFrame::Process_Fct )
+    EVT_MENU( ID_SELECT_PREFERED_EDITOR,
+              WinEDA_MainFrame::Process_Preferences )
+    EVT_MENU( ID_SELECT_DEFAULT_PDF_BROWSER,
+              WinEDA_MainFrame::Process_Preferences )
+    EVT_MENU( ID_SELECT_PREFERED_PDF_BROWSER,
+              WinEDA_MainFrame::Process_Preferences )
+    EVT_MENU( ID_SELECT_PREFERED_PDF_BROWSER_NAME,
+              WinEDA_MainFrame::Process_Preferences )
+    EVT_MENU( ID_SAVE_AND_ZIP_FILES,
+              WinEDA_MainFrame::Process_Files )
+    EVT_MENU( ID_READ_ZIP_ARCHIVE,
+              WinEDA_MainFrame::Process_Files )
+    EVT_MENU( ID_PROJECT_TREE_REFRESH,
+              WinEDA_MainFrame::OnRefresh )
+    EVT_MENU( ID_PREFERENCES_FONT_INFOSCREEN,
+              WinEDA_MainFrame::Process_Preferences )
+    EVT_MENU( ID_GENERAL_HELP,
+              WinEDA_MainFrame::GetKicadHelp )
+    EVT_MENU( ID_KICAD_ABOUT,
+              WinEDA_MainFrame::GetKicadAbout )
 
-    EVT_TOOL(ID_NEW_PROJECT, WinEDA_MainFrame::Process_Files)
-    EVT_TOOL(ID_LOAD_PROJECT, WinEDA_MainFrame::Process_Files)
-    EVT_TOOL(ID_SAVE_PROJECT, WinEDA_MainFrame::Process_Files)
-    EVT_TOOL(ID_SAVE_AND_ZIP_FILES, WinEDA_MainFrame::Process_Files)
+/* Range menu events */
+    EVT_MENU_RANGE( ID_LANGUAGE_CHOICE,
+                    ID_LANGUAGE_CHOICE_END,
+                    WinEDA_MainFrame::SetLanguage )
 
-    EVT_MENU(ID_EXIT, WinEDA_MainFrame::Process_Special_Functions)
+    EVT_MENU_RANGE( wxID_FILE1, wxID_FILE9,
+                    WinEDA_MainFrame::OnFileHistory )
 
-    EVT_MENU(ID_TO_EDITOR, WinEDA_MainFrame::Process_Fct)
-    EVT_MENU(ID_BROWSE_AN_SELECT_FILE, WinEDA_MainFrame::Process_Fct)
-    EVT_MENU(ID_SELECT_PREFERED_EDITOR, WinEDA_MainFrame::Process_Preferences)
-    EVT_MENU(ID_SELECT_DEFAULT_PDF_BROWSER, WinEDA_MainFrame::Process_Preferences)
-    EVT_MENU(ID_SELECT_PREFERED_PDF_BROWSER, WinEDA_MainFrame::Process_Preferences)
-    EVT_MENU(ID_SELECT_PREFERED_PDF_BROWSER_NAME, WinEDA_MainFrame::Process_Preferences)
-    EVT_MENU(ID_SAVE_AND_ZIP_FILES, WinEDA_MainFrame::Process_Files)
-    EVT_MENU(ID_READ_ZIP_ARCHIVE, WinEDA_MainFrame::Process_Files)
-    EVT_MENU(ID_PROJECT_TREE_REFRESH, WinEDA_MainFrame::OnRefresh)
+/* Button events */
+    EVT_BUTTON( ID_TO_PCB,
+                WinEDA_MainFrame::Process_Fct )
+    EVT_BUTTON( ID_TO_CVPCB,
+                WinEDA_MainFrame::Process_Fct )
+    EVT_BUTTON( ID_TO_EESCHEMA,
+                WinEDA_MainFrame::Process_Fct )
+    EVT_BUTTON( ID_TO_GERBVIEW,
+                WinEDA_MainFrame::Process_Fct )
 
-    EVT_MENU(ID_PREFERENCES_FONT_INFOSCREEN, WinEDA_MainFrame::Process_Preferences)
-
-    EVT_MENU_RANGE(ID_LANGUAGE_CHOICE, ID_LANGUAGE_CHOICE_END,
-        WinEDA_MainFrame::SetLanguage)
-
-
-    EVT_MENU(ID_GENERAL_HELP, WinEDA_MainFrame::GetKicadHelp)
-    EVT_MENU(ID_KICAD_ABOUT, WinEDA_MainFrame::GetKicadAbout)
-
-    EVT_BUTTON(ID_TO_PCB, WinEDA_MainFrame::Process_Fct)
-    EVT_BUTTON(ID_TO_CVPCB, WinEDA_MainFrame::Process_Fct)
-    EVT_BUTTON(ID_TO_EESCHEMA, WinEDA_MainFrame::Process_Fct)
-    EVT_BUTTON(ID_TO_GERBVIEW, WinEDA_MainFrame::Process_Fct)
 
 #ifdef KICAD_PYTHON
-    EVT_BUTTON(ID_RUN_PYTHON, WinEDA_MainFrame::Process_Fct)
+    EVT_BUTTON( ID_RUN_PYTHON, WinEDA_MainFrame::Process_Fct )
 #endif
 
+/*****************************************************************************/
 END_EVENT_TABLE()
+/*****************************************************************************/
 
 
-/*******************************************/
+/**
+ * @brief TODO
+ */
+/*****************************************************************************/
 void WinEDA_MainFrame::ReCreateMenuBar()
-/*******************************************/
+/*****************************************************************************/
 {
-    int ii, jj;
-    wxMenuBar * menuBar = GetMenuBar() ;
+    wxMenuItem *item;
+    wxMenuBar  *menuBar = GetMenuBar();
 
-    if( menuBar == NULL )
-    {
-        m_MenuBar = menuBar = new wxMenuBar();
+    /* Destroy the existing menu bar so it can be rebuilt.  This allows
+     * language changes of the menu text on the fly. */
+    if( menuBar )
+        SetMenuBar( NULL );
 
-        m_FilesMenu = new wxMenu;
-        wxMenuItem *item = new wxMenuItem(m_FilesMenu, ID_LOAD_PROJECT,
-                     _("&Open Project Descr"),
-                     _("Select an existing project descriptor") );
-        item->SetBitmap(open_project_xpm);
-        m_FilesMenu->Append(item);
+    menuBar = new wxMenuBar();
 
-        item = new wxMenuItem(m_FilesMenu, ID_NEW_PROJECT,
-                     _("&New Project Descr"),
-                     _("Create new project descriptor") );
-        item->SetBitmap(new_project_xpm);
-        m_FilesMenu->Append(item);
+    // Check if menubar is empty
+    wxMenu* filesMenu = new wxMenu;
 
-        item = new wxMenuItem(m_FilesMenu, ID_SAVE_PROJECT,
-                     _("&Save Project Descr"),
-                     _("Save current project descriptor") );
-        item->SetBitmap(save_project_xpm);
-        m_FilesMenu->Append(item);
+    // Open project
+    item = new wxMenuItem( filesMenu, ID_LOAD_PROJECT, _( "&Open" ),
+                           _( "Open an existing project" ) );
+    item->SetBitmap( open_project_xpm );
+    filesMenu->Append( item );
 
-        m_FilesMenu->AppendSeparator();
-        item = new wxMenuItem(m_FilesMenu, ID_SAVE_AND_ZIP_FILES,
-                     _("Save &Project Files"),
-                     _("Save and Zip all project files") );
-        item->SetBitmap(zip_xpm);
-        m_FilesMenu->Append(item);
-        item = new wxMenuItem(m_FilesMenu, ID_READ_ZIP_ARCHIVE,
-                     _("&Unzip Archive"),
-                     _("UnZip archive file") );
-        item->SetBitmap(unzip_xpm);
-        m_FilesMenu->Append(item);
-
-        m_FilesMenu->AppendSeparator();
-        item = new wxMenuItem(m_FilesMenu, ID_EXIT, _("E&xit"), _("Quit Kicad") );
-        item->SetBitmap(exit_xpm);
-        m_FilesMenu->Append(item);
-
-        // Creation des selections des anciens fichiers
-        m_FilesMenu->AppendSeparator();
-        for ( ii = 0; ii < 10; ii++ )
-        {
-            if ( GetLastProject(ii).IsEmpty() ) break;
-            m_FilesMenu->Append(ID_LOAD_FILE_1 + ii, GetLastProject(ii) );
-        }
-
-        // Menu Browse
-        wxMenu *browseMenu = new wxMenu();
-        item = new wxMenuItem(browseMenu, ID_TO_EDITOR,
-                _("&Editor"), _("Text editor") );
-        item->SetBitmap(editor_xpm);
-        browseMenu->Append(item);
-        item = new wxMenuItem(browseMenu, ID_BROWSE_AN_SELECT_FILE,
-                _("&Browse Files"), _("Read or edit files") );
-        item->SetBitmap(browse_files_xpm);
-        browseMenu->Append(item);
-        browseMenu->AppendSeparator();
-        item = new wxMenuItem(browseMenu, ID_SELECT_PREFERED_EDITOR,
-                _("&Select Editor"), _("Select your prefered editor for file browsing") );
-        item->SetBitmap(editor_xpm);
-        browseMenu->Append(item);
-
-        // Preferences menu:
-        wxMenu *PreferencesMenu = new wxMenu;
-        item = new wxMenuItem(PreferencesMenu , ID_PREFERENCES_FONT_INFOSCREEN,
-                _("Select Fonts"), _("Select Fonts and  Font sizes"));
-        item->SetBitmap(fonts_xpm);
-        PreferencesMenu->Append(item);
-
-        // Submenu Pdf Browser selection: system browser or user selected browser (and its name)
-        wxMenu *SubMenuPdfBrowserChoice = new wxMenu;
-        item = new wxMenuItem(SubMenuPdfBrowserChoice , ID_SELECT_DEFAULT_PDF_BROWSER,
-                _("Default Pdf Viewer"), _("Use the default (system) PDF viewer used to browse datasheets"),
-                wxITEM_CHECK);
-        SETBITMAPS(datasheet_xpm);
-        SubMenuPdfBrowserChoice->Append(item);
-        SubMenuPdfBrowserChoice->Check(ID_SELECT_DEFAULT_PDF_BROWSER,
-            g_EDA_Appl->m_PdfBrowserIsDefault);
-        item = new wxMenuItem(SubMenuPdfBrowserChoice , ID_SELECT_PREFERED_PDF_BROWSER,
-                _("Favourite Pdf Viewer"), _("Use your favourite PDF viewer used to browse datasheets"),
-                wxITEM_CHECK);
-        SETBITMAPS(preference_xpm);
-        SubMenuPdfBrowserChoice->Append(item);
-        SubMenuPdfBrowserChoice->AppendSeparator();
-        SubMenuPdfBrowserChoice->Check(ID_SELECT_PREFERED_PDF_BROWSER,
-            !g_EDA_Appl->m_PdfBrowserIsDefault);
-        item = new wxMenuItem(SubMenuPdfBrowserChoice , ID_SELECT_PREFERED_PDF_BROWSER_NAME,
-                _("Select Pdf Viewer"), _("Select your favourite PDF viewer used to browse datasheets"));
-        item->SetBitmap(datasheet_xpm);
-        SubMenuPdfBrowserChoice->Append(item);
-        ADD_MENUITEM_WITH_HELP_AND_SUBMENU(PreferencesMenu, SubMenuPdfBrowserChoice,
-            -1,  _("Pdf Browser"),
-            wxT("Pdf Browser choice: default or user selection"),
-            datasheet_xpm);
-
-        PreferencesMenu->AppendSeparator();
-        m_Parent->SetLanguageList(PreferencesMenu);
+    // New project
+    item = new wxMenuItem( filesMenu, ID_NEW_PROJECT, _( "&New" ),
+                           _( "Start a new project" ) );
+    item->SetBitmap( new_project_xpm );
+    filesMenu->Append( item );
 
 
-        // Menu Help:
-        wxMenu *helpMenu = new wxMenu;
-        item = new wxMenuItem(helpMenu , ID_GENERAL_HELP,
-                _("&Contents"), _("Open the kicad manual"));
-        item->SetBitmap(help_xpm);
-        helpMenu->Append(item);
+    // Save project
+    item = new wxMenuItem( filesMenu, ID_SAVE_PROJECT, _( "&Save" ),
+                           _( "Save current project" ) );
+    item->SetBitmap( save_project_xpm );
+    filesMenu->Append( item );
 
-        item = new wxMenuItem(helpMenu , ID_KICAD_ABOUT,
-                _("&About"), _("About this application"));
-        item->SetBitmap(info_xpm);
-        helpMenu->Append(item);
+    // Separator
+    filesMenu->AppendSeparator();
 
 
-        menuBar->Append(m_FilesMenu, _("&Projects"));
-        menuBar->Append(browseMenu, _("&Browse"));
-        menuBar->Append(PreferencesMenu, _("&Preferences"));
-        menuBar->Append(helpMenu, _("&Help"));
+    // Archive project
+    item = new wxMenuItem( filesMenu, ID_SAVE_AND_ZIP_FILES,
+                           _( "&Archive" ),
+                           _( "Archive project files in zip archive" ) );
+    item->SetBitmap( zip_xpm );
+    filesMenu->Append( item );
 
-        // Associate the menu bar with the frame
-        SetMenuBar(menuBar);
-    }
-    else        // simple mise a jour de la liste des fichiers anciens
-    {
-        wxMenuItem * item;
-        int max_file = m_Parent->m_LastProjectMaxCount;
-        for ( ii = max_file-1; ii >=0 ; ii-- )
-        {
-            if( m_FilesMenu->FindItem(ID_LOAD_FILE_1 + ii) )
-            {
-                item = m_FilesMenu->Remove(ID_LOAD_FILE_1 + ii);
-                if ( item ) delete item;
-            }
-        }
-        for ( jj = 0, ii = 0; ii < max_file; ii++ )
-        {
-            if (GetLastProject(ii).IsEmpty() ) break;
-            m_FilesMenu->Append(ID_LOAD_FILE_1 + jj, GetLastProject(ii) );
-            jj++;
-        }
-    }
+    // Unarchive project
+    item = new wxMenuItem( filesMenu, ID_READ_ZIP_ARCHIVE,
+                           _( "&Unarchive" ),
+                           _( "Unarchive project files from zip file" ) );
+    item->SetBitmap( unzip_xpm );
+    filesMenu->Append( item );
+
+    // Separator
+    filesMenu->AppendSeparator();
+
+    // Exit
+    item = new wxMenuItem( filesMenu, ID_EXIT, _( "E&xit" ),
+                           _( "Quit kicad" ) );
+    item->SetBitmap( exit_xpm );
+    filesMenu->Append( item );
+
+    /* Add the file history */
+    wxGetApp().m_fileHistory.AddFilesToMenu( filesMenu );
+
+    /**********************************************************************/
+    wxMenu* browseMenu = new wxMenu();
+    /**********************************************************************/
+
+    // Editor
+    item = new wxMenuItem( browseMenu, ID_TO_EDITOR, _( "Text E&ditor" ),
+                           _( "Open prefered text editor" ) );
+    item->SetBitmap( editor_xpm );
+    browseMenu->Append( item );
+
+    // Browse files
+    item = new wxMenuItem( browseMenu, ID_BROWSE_AN_SELECT_FILE,
+                           _( "&Browse Files" ),
+                           _( "Read or edit files with text editor" ) );
+    item->SetBitmap( browse_files_xpm );
+    browseMenu->Append( item );
+
+    /**********************************************************************/
+    wxMenu* PreferencesMenu = new wxMenu;
+    /**********************************************************************/
+
+    // Fonts
+    item = new wxMenuItem( PreferencesMenu, ID_PREFERENCES_FONT_INFOSCREEN,
+                           _( "Fonts" ), _( "Font preferences" ) );
+    item->SetBitmap( fonts_xpm );
+    PreferencesMenu->Append( item );
+
+    // Prefered text editor
+    item = new wxMenuItem( PreferencesMenu, ID_SELECT_PREFERED_EDITOR,
+                           _( "&Text Editor" ),
+                           _( "Select your prefered text editor" ) );
+    item->SetBitmap( editor_xpm );
+    PreferencesMenu->Append( item );
+
+    // Submenu Pdf Browser selection: system browser or user
+    // selected browser (and its name)
+    /**********************************************************************/
+    wxMenu* SubMenuPdfBrowserChoice = new wxMenu;
+    /**********************************************************************/
+
+    // Default PDF viewer
+    item = new wxMenuItem( SubMenuPdfBrowserChoice,
+                           ID_SELECT_DEFAULT_PDF_BROWSER,
+                           _( "Default PDF Viewer" ),
+                           _( "Use the default (system) PDF viewer used to browse datasheets" ),
+                           wxITEM_CHECK );
+    SETBITMAPS( datasheet_xpm );
+    SubMenuPdfBrowserChoice->Append( item );
+    SubMenuPdfBrowserChoice->Check( ID_SELECT_DEFAULT_PDF_BROWSER,
+                                    wxGetApp().m_PdfBrowserIsDefault );
+
+
+    // Favourite PDF viewer
+    item = new wxMenuItem( SubMenuPdfBrowserChoice,
+                           ID_SELECT_PREFERED_PDF_BROWSER,
+                           _( "Favourite PDF Viewer" ),
+                           _( "Use your favourite PDF viewer used to browse datasheets" ),
+                           wxITEM_CHECK );
+    SETBITMAPS( preference_xpm );
+    SubMenuPdfBrowserChoice->Append( item );
+    SubMenuPdfBrowserChoice->AppendSeparator();
+    SubMenuPdfBrowserChoice->Check( ID_SELECT_PREFERED_PDF_BROWSER,
+                                    !wxGetApp().m_PdfBrowserIsDefault );
+
+
+    item = new wxMenuItem( SubMenuPdfBrowserChoice,
+                           ID_SELECT_PREFERED_PDF_BROWSER_NAME,
+                           _( "Select Pdf Viewer" ),
+                           _( "Select your favourite PDF viewer used to browse datasheets" ) );
+    item->SetBitmap( datasheet_xpm );
+    SubMenuPdfBrowserChoice->Append( item );
+
+    ADD_MENUITEM_WITH_HELP_AND_SUBMENU( PreferencesMenu,
+                                        SubMenuPdfBrowserChoice,
+                                        -1, _( "Pdf Viewer" ),
+                                        _( "Pdf viewer preferences" ),
+                                        datasheet_xpm );
+
+    PreferencesMenu->AppendSeparator();
+    wxGetApp().AddMenuLanguageList( PreferencesMenu );
+
+
+    /**********************************************************************/
+    wxMenu* helpMenu = new wxMenu;
+    /**********************************************************************/
+
+    // Contents
+    item = new wxMenuItem( helpMenu, ID_GENERAL_HELP, _( "&Contents" ),
+                           _( "Open the kicad manual" ) );
+    item->SetBitmap( help_xpm );
+    helpMenu->Append( item );
+
+    // About Kicad
+    item = new wxMenuItem( helpMenu, ID_KICAD_ABOUT, _( "&About" ),
+                           _( "About kicad project manager" ) );
+    item->SetBitmap( info_xpm );
+    helpMenu->Append( item );
+
+    // Append menus to menuBar
+    menuBar->Append( filesMenu, _( "&File" ) );
+    menuBar->Append( browseMenu, _( "&Browse" ) );
+    menuBar->Append( PreferencesMenu, _( "&Preferences" ) );
+    menuBar->Append( helpMenu, _( "&Help" ) );
+
+    SetMenuBar( menuBar );
 }
 
 
-/***************************************************/
+/**
+ * @brief TODO
+ */
+/*****************************************************************************/
 void WinEDA_MainFrame::RecreateBaseHToolbar()
-/***************************************************/
+/*****************************************************************************/
 {
-    if ( m_HToolBar != NULL ) return;
+    // Check if toolbar is not already set
+    if( m_HToolBar != NULL )
+        return;
 
-    m_HToolBar = new WinEDA_Toolbar(TOOLBAR_MAIN, this, ID_H_TOOLBAR, TRUE);
-    SetToolBar(m_HToolBar);
+    // Allocate memory for m_HToolBar
+    m_HToolBar = new WinEDA_Toolbar( TOOLBAR_MAIN, this, ID_H_TOOLBAR, TRUE );
+    SetToolBar( m_HToolBar );
+
 
     // Set up toolbar
-    m_HToolBar->AddTool(ID_NEW_PROJECT, BITMAP(new_project_xpm),
-                wxNullBitmap, FALSE,
-                -1, -1, (wxObject *) NULL,
-                _("Create new project descriptor"));
+    m_HToolBar->AddTool( ID_NEW_PROJECT,                    // Entry ID
+                         wxBitmap( new_project_xpm ),          // XPM Bitmap
+                         wxNullBitmap,
+                         FALSE,
+                         -1, -1,
+                         (wxObject*) NULL,
+                         _( "Start a new project" ) );     // Tooltip
 
-    m_HToolBar->AddTool(ID_LOAD_PROJECT, BITMAP(open_project_xpm),
-                    wxNullBitmap, FALSE,
-                    -1, -1, (wxObject *) NULL,
-                    _("Select an existing project descriptor"));
 
-    m_HToolBar->AddTool(ID_SAVE_PROJECT, BITMAP(save_project_xpm),
-                    wxNullBitmap, FALSE,
-                    -1, -1, (wxObject *) NULL,
-                    _("Save current project descriptor"));
+    // Load project
+    m_HToolBar->AddTool( ID_LOAD_PROJECT,                   // Entry ID
+                         wxBitmap( open_project_xpm ),         // XPM Bitmap
+                         wxNullBitmap,
+                         FALSE,
+                         -1, -1, (wxObject*) NULL,
+                         _( "Load existing project" ) );  // Tooltip
 
+
+    // Save project
+    m_HToolBar->AddTool( ID_SAVE_PROJECT,                   // Entry ID
+                         wxBitmap( save_project_xpm ),         // XPM Bitmap
+                         wxNullBitmap,
+                         FALSE,
+                         -1, -1,
+                         (wxObject*) NULL,
+                         _( "Save current project" ) );   // Tooltip
+
+
+    // Separator
     m_HToolBar->AddSeparator();
-    m_HToolBar->AddTool(ID_SAVE_AND_ZIP_FILES, BITMAP(zip_xpm),
-                    wxNullBitmap, FALSE,
-                    -1, -1, (wxObject *) NULL,
-                    _("Archive all project files"));
 
+
+    // Save and archive files
+    m_HToolBar->AddTool( ID_SAVE_AND_ZIP_FILES,             // Entry ID
+                         wxBitmap( zip_xpm ),                  // XPM Bitmap
+                         wxNullBitmap,
+                         FALSE,
+                         -1, -1, (wxObject*) NULL,
+                         _( "Archive all project files" ) ); // Tooltip
+
+
+    // Separator
     m_HToolBar->AddSeparator();
-    m_HToolBar->AddTool(ID_PROJECT_TREE_REFRESH, BITMAP(reload_xpm),
-                    wxNullBitmap, FALSE,
-                    -1, -1, (wxObject *) NULL,
-                    _("Refresh project tree"));
 
 
-    // after adding the buttons to the toolbar, must call Realize() to reflect
-    // the changes
-    m_HToolBar->Realize();
+    // Refresh project tree
+    m_HToolBar->AddTool( ID_PROJECT_TREE_REFRESH,           // Entry ID
+                         wxBitmap( reload_xpm ),               // XPM Bitmap
+                         wxNullBitmap,
+                         FALSE,
+                         -1, -1, (wxObject*) NULL,
+                         _( "Refresh project tree" ) );   // Tooltip
+
+
+    m_HToolBar->Realize(); // Create m_HToolBar
 }
-

@@ -8,7 +8,7 @@ LibEDA_BaseStruct * LocatePin(const wxPoint & RefPos,
             int Unit, int Convert, SCH_COMPONENT * DrawItem = NULL);
         /* Routine de localisation d'une PIN de la PartLib pointee par Entry */
 
-const wxString& ReturnDefaultFieldName( int aFieldNdx );
+wxString ReturnDefaultFieldName( int aFieldNdx );
 
 
 /****************/
@@ -35,14 +35,12 @@ void InstallCmpeditFrame(WinEDA_SchematicFrame * parent, wxPoint & pos,
             SCH_COMPONENT * m_Cmp);
 
 
-    /**************/
-    /* EELIBS2.CPP */
-    /**************/
-
-/* Functions common to all EELibs?.c modules: */
+    /******************************/
+    /* EELIBS_DRAW_COMPONENTS.CPP */
+    /******************************/
 int LibraryEntryCompare(EDA_LibComponentStruct *LE1, EDA_LibComponentStruct *LE2);
 int NumOfLibraries();
-EDA_LibComponentStruct *FindLibPart(const wxChar *Name, const wxString & LibName, int Alias);
+EDA_LibComponentStruct *FindLibPart(const wxChar *Name, const wxString & LibName, int Alias = FIND_ROOT);
 
 void DrawingLibInGhost(WinEDA_DrawPanel * panel, wxDC * DC, EDA_LibComponentStruct *LibEntry,
                         SCH_COMPONENT * DrawLibItem, int PartX, int PartY,
@@ -50,24 +48,28 @@ void DrawingLibInGhost(WinEDA_DrawPanel * panel, wxDC * DC, EDA_LibComponentStru
                         int Color, bool DrawPinText);
 
 void DrawLibEntry(WinEDA_DrawPanel * panel, wxDC * DC,
-                            EDA_LibComponentStruct *LibEntry, int posX, int posY,
+                            EDA_LibComponentStruct *LibEntry, const wxPoint & aOffset,
                             int Multi, int convert,
                             int DrawMode, int Color = -1);
 
-void DrawLibraryDrawStruct(WinEDA_DrawPanel * panel, wxDC * DC,
-                            EDA_LibComponentStruct *LibEntry, int PartX, int PartY,
-                          LibEDA_BaseStruct *DrawItem, int Multi,
-                          int DrawMode, int Color = -1);
+void DrawLibraryDrawStruct(WinEDA_DrawPanel * aPanel, wxDC * aDC,
+                            EDA_LibComponentStruct *aLibEntry, wxPoint aPosition,
+                          LibEDA_BaseStruct *aDrawItem,
+                          int aDrawMode, int aColor = -1);
 
-bool MapAngles(int *Angle1, int *Angle2, int TransMat[2][2]);
+bool MapAngles(int *Angle1, int *Angle2, const int TransMat[2][2]);
 
-
-    /**************/
-    /* EELIBS_DRAW_COMPONENTS.CPP */
-    /**************/
 EDA_LibComponentStruct * Read_Component_Definition(WinEDA_DrawFrame * frame, char * Line,
         FILE *f, int *LineNum);
 /* Routine to Read a DEF/ENDDEF part entry from given open file. */
+
+/** Function TransformCoordinate
+ * Calculate the wew coordinate from the old one, according to the transform matrix.
+ * @param aTransformMatrix = rotation, mirror .. matrix
+ * @param aPosition = the position to transform
+ * @return the new coordinate
+ */
+wxPoint     TransformCoordinate( const int aTransformMatrix[2][2], const wxPoint & aPosition );
 
 LibraryStruct *FindLibrary(const wxString & Name);
 int LoadDocLib(WinEDA_DrawFrame * frame, const wxString & FullDocLibName, const wxString & Libname);
@@ -195,7 +197,7 @@ void RedrawOneStruct(WinEDA_DrawPanel * panel, wxDC * DC, SCH_ITEM *Struct, int 
 /* EELAYER.CPP */
 /**************/
 void SeedLayers();
-int ReturnLayerColor(int Layer);
+EDA_Colors ReturnLayerColor(int Layer);
 void DisplayColorSetupFrame(WinEDA_DrawFrame * parent, const wxPoint & pos);
 
 /*************/
@@ -223,36 +225,11 @@ LibEDA_BaseStruct * CopyDrawEntryStruct( wxWindow * frame, LibEDA_BaseStruct * D
          Retourne:
              Pointeur sur la structure creee (ou NULL si impossible) */
 
-int WriteOneLibEntry(wxWindow * frame, FILE * ExportFile, EDA_LibComponentStruct * LibEntry);
-            /* Routine d'ecriture du composant pointe par LibEntry
-                dans le fichier ExportFile( qui doit etre deja ouvert)
-                return: FALSE si Ok, TRUE si err write */
 
 EDA_LibComponentStruct * CopyLibEntryStruct (wxWindow * frame, EDA_LibComponentStruct * OldEntry);
             /* Routine de copie d'une partlib
                    Parametres d'entree: pointeur sur la structure de depart
                    Parametres de sortie: pointeur sur la structure creee */
-
-int WriteOneDocLibEntry(FILE * ExportFile, EDA_LibComponentStruct * LibEntry);
-        /* Routine d'ecriture de la doc du composant pointe par LibEntry
-         dans le fichier ExportFile( qui doit etre deja ouvert)
-         return: 0 si Ok
-            1 si err write */
-
-
-int SaveOneLibrary(wxWindow * frame, const wxString & FullFileName, LibraryStruct * Library);
-    /* Sauvegarde en fichier la librairie pointee par Library, sous le nom
-    FullFileName.
-    2 fichiers sont crees
-     - La librarie
-     - le fichier de documentation
-
-    une sauvegarde .bak de l'ancien fichier librairie est cree
-    une sauvegarde .bck de l'ancien fichier documentation est cree
-
-    return:
-        0 si OK
-        1 si erreur */
 
 
 /***************/
@@ -262,11 +239,6 @@ void SuppressDuplicateDrawItem(EDA_LibComponentStruct * LibEntry);
         /* Routine de suppression des elements de trace dupliques, situation
         frequente lorsque l'on charge des symboles predessines plusieurs fois
         pour definir un composant */
-
-/***************/
-/* SYMBTEXT.CPP */
-/***************/
-
 
 /**************/
 /* NETLIST.CPP */
@@ -399,7 +371,7 @@ DrawPickedStruct * BreakSegment(SCH_SCREEN * screen, wxPoint breakpoint,
     /* EECLASS.CPP */
     /**************/
 
-void SetStructFather(EDA_BaseStruct * Struct, BASE_SCREEN * Screen);
+void SetaParent(EDA_BaseStruct * Struct, BASE_SCREEN * Screen);
 
     /***************/
     /* LIBALIAS.CPP */

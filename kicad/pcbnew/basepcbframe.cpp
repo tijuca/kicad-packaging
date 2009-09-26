@@ -7,15 +7,17 @@
 #endif
 
 #include "fctsys.h"
+#include "wxstruct.h"
 #include "common.h"
+#include "confirm.h"
 
 #include "pcbnew.h"
-
 #include "bitmaps.h"
 #include "protos.h"
 #include "id.h"
 
 #include "collectors.h"
+#include "class_drawpanel.h"
 
 
 /*******************************/
@@ -23,11 +25,9 @@
 /*******************************/
 
 BEGIN_EVENT_TABLE( WinEDA_BasePcbFrame, WinEDA_DrawFrame )
-
-COMMON_EVENTS_DRAWFRAME EVT_MENU_RANGE( ID_POPUP_PCB_ITEM_SELECTION_START,
-                                        ID_POPUP_PCB_ITEM_SELECTION_END,
-                                        WinEDA_BasePcbFrame::ProcessItemSelection )
-
+    EVT_MENU_RANGE( ID_POPUP_PCB_ITEM_SELECTION_START,
+                    ID_POPUP_PCB_ITEM_SELECTION_END,
+                    WinEDA_BasePcbFrame::ProcessItemSelection )
 END_EVENT_TABLE()
 
 
@@ -36,15 +36,14 @@ END_EVENT_TABLE()
 /****************/
 
 WinEDA_BasePcbFrame::WinEDA_BasePcbFrame( wxWindow*       father,
-                                          WinEDA_App*     parent,
                                           int             idtype,
                                           const wxString& title,
                                           const wxPoint&  pos,
                                           const wxSize&   size,
                                           long style) :
-    WinEDA_DrawFrame( father, idtype, parent, title, pos, size, style )
+    WinEDA_DrawFrame( father, idtype, title, pos, size, style )
 {
-    m_InternalUnits = 10000;        // Internal unit = 1/10000 inch
+    m_InternalUnits = PCB_INTERNAL_UNIT;  // Internal unit = 1/10000 inch
     m_Pcb = NULL;
 
     m_DisplayPadFill = TRUE;        // How to draw pads
@@ -53,13 +52,14 @@ WinEDA_BasePcbFrame::WinEDA_BasePcbFrame( wxWindow*       father,
     m_DisplayModEdge      = FILLED; // How to show module drawings
     m_DisplayModText      = FILLED; // How to show module texts
     m_DisplayPcbTrackFill = TRUE;   /* FALSE = sketch , TRUE = filled */
-    m_Draw3DFrame = NULL;           // Display Window in 3D mode (OpenGL)
+    m_Draw3DFrame         = NULL;   // Display Window in 3D mode (OpenGL)
+    m_ModuleEditFrame     = NULL;   // Frame for footprint edition
 
     m_Collector = new GENERAL_COLLECTOR();
 }
 
 
-WinEDA_BasePcbFrame::~WinEDA_BasePcbFrame( void )
+WinEDA_BasePcbFrame::~WinEDA_BasePcbFrame()
 {
     delete m_Collector;
 }
@@ -71,9 +71,9 @@ BASE_SCREEN* WinEDA_BasePcbFrame::GetBaseScreen() const
 }
 
 
-void WinEDA_BasePcbFrame::SetBOARD( BOARD* aBoard )
+void WinEDA_BasePcbFrame::SetBoard( BOARD* aBoard )
 {
-    if(m_Pcb != g_ModuleEditor_Pcb)
+    if( m_Pcb != g_ModuleEditor_Pcb )
         delete m_Pcb;
     m_Pcb = aBoard;
 }
@@ -91,7 +91,7 @@ int WinEDA_BasePcbFrame::BestZoom( void )
     wxSize size;
 
     if( m_Pcb == NULL )
-        return 32;
+        return 32 * GetScreen()->m_ZoomScalar;
 
     m_Pcb->ComputeBoundaryBox();
 
@@ -102,10 +102,9 @@ int WinEDA_BasePcbFrame::BestZoom( void )
     ii       = ( dx + (size.x / 2) ) / size.x;
     jj       = ( dy + (size.y / 2) ) / size.y;
     bestzoom = MAX( ii, jj ) + 1;
-
     GetScreen()->m_Curseur = m_Pcb->m_BoundaryBox.Centre();
 
-    return bestzoom;
+    return bestzoom * GetScreen()->m_ZoomScalar;
 }
 
 
@@ -130,7 +129,6 @@ void WinEDA_BasePcbFrame::CursorGoto(  const wxPoint& aPos )
         // Put cursor on item position
         DrawPanel->CursorOff( &dc );
         screen->m_Curseur = aPos;
-        GRMouseWarp( DrawPanel, screen->m_Curseur );
         DrawPanel->MouseToCursorSchema();
         DrawPanel->CursorOn( &dc );
     }
@@ -145,65 +143,25 @@ void WinEDA_BasePcbFrame::ReCreateMenuBar( void )
 {
 }
 
-#ifdef CVPCB
-/********************************************************************/
-void WinEDA_BasePcbFrame::GeneralControle( wxDC* DC, wxPoint Mouse )
-/********************************************************************/
-
-// Virtual function
-{
-}
-#endif
-
-#include "3d_viewer.h"
-
-/***********************************************************/
-void WinEDA_BasePcbFrame::Show3D_Frame( wxCommandEvent& event )
-/***********************************************************/
-
-/* Creates and shows the 3D frame display
- */
-{
-#ifndef GERBVIEW
-
-    // Create the main frame window
-    if( m_Draw3DFrame )
-    {
-        DisplayInfo( this, _( "3D Frame already opened" ) );
-        return;
-    }
-
-#ifdef CVPCB
-    m_Draw3DFrame = new WinEDA3D_DrawFrame( this, m_Parent, _( "3D Viewer" ),
-    KICAD_DEFAULT_3D_DRAWFRAME_STYLE | wxFRAME_FLOAT_ON_PARENT );
-#else
-    m_Draw3DFrame = new WinEDA3D_DrawFrame( this, m_Parent, _( "3D Viewer" ) );
-#endif
-    // Show the frame
-    m_Draw3DFrame->Show( TRUE );
-#endif
-}
-
-
 /* Virtual functions: Do nothing for WinEDA_BasePcbFrame window */
 
-/***********************************************************************************/
-void WinEDA_BasePcbFrame::SaveCopyInUndoList( EDA_BaseStruct* ItemToCopy, int flag )
-/***********************************************************************************/
+void WinEDA_BasePcbFrame::Show3D_Frame( wxCommandEvent& event )
 {
 }
 
 
-/********************************************************/
+void WinEDA_BasePcbFrame::SaveCopyInUndoList( EDA_BaseStruct* ItemToCopy,
+                                              int flag )
+{
+}
+
+
 void WinEDA_BasePcbFrame::GetComponentFromUndoList( void )
-/********************************************************/
 {
 }
 
 
-/********************************************************/
 void WinEDA_BasePcbFrame::GetComponentFromRedoList( void )
-/********************************************************/
 {
 }
 
@@ -295,7 +253,7 @@ void WinEDA_BasePcbFrame::SetCurItem( BOARD_ITEM* aItem )
     {
         aItem->Display_Infos( this );
 
-#if 1 && defined(DEBUG)
+#if 0 && defined(DEBUG)
     aItem->Show( 0, std::cout );
 #endif
 
@@ -338,4 +296,64 @@ GENERAL_COLLECTORS_GUIDE WinEDA_BasePcbFrame::GetCollectorsGuide()
     guide.SetIgnoreModulesOnCmp( !DisplayOpt.Show_Modules_Cmp );
 
     return guide;
+}
+
+void WinEDA_BasePcbFrame::SetToolID( int id, int new_cursor_id,
+                                     const wxString& title )
+{
+    bool redraw = false;
+
+    WinEDA_DrawFrame::SetToolID( id, new_cursor_id, title );
+
+    if( id < 0 )
+        return;
+
+    // handle color changes for transitions in and out of ID_TRACK_BUTT
+    if( ( m_ID_current_state == ID_TRACK_BUTT && id != ID_TRACK_BUTT )
+        || ( m_ID_current_state != ID_TRACK_BUTT && id == ID_TRACK_BUTT ) )
+    {
+        if( DisplayOpt.ContrastModeDisplay )
+            redraw = true;
+    }
+
+    // must do this after the tool has been set, otherwise pad::Draw() does
+    // not show proper color when DisplayOpt.ContrastModeDisplay is true.
+    if( redraw && DrawPanel)
+        DrawPanel->Refresh();
+}
+
+void WinEDA_BasePcbFrame::Affiche_Status_Box()
+/*
+ * Update the status bar information.
+ */
+{
+    wxString        Line;
+    int             dx, dy;
+    double          theta, ro;
+    BASE_SCREEN*    screen = GetBaseScreen();
+
+    if( !screen )
+        return;
+
+    WinEDA_DrawFrame::Affiche_Status_Box();
+
+    dx = screen->m_Curseur.x - screen->m_O_Curseur.x;
+    dy = screen->m_Curseur.y - screen->m_O_Curseur.y;
+
+    if( DisplayOpt.DisplayPolarCood )  /* Display coordonnee polaire */
+    {
+        if( (dx == 0) && (dy == 0) )
+            theta = 0.0;
+        else
+            theta = atan2( (double) -dy, (double) dx );
+
+        theta = theta * 180.0 / M_PI;
+
+        ro = sqrt( ( (double) dx * dx ) + ( (double) dy * dy ) );
+        Line.Printf( g_UnitMetric ? wxT( "Ro %.3f Th %.1f" ) : wxT( "Ro %.4f Th %.1f" ),
+                     To_User_Unit( g_UnitMetric, ro, m_InternalUnits ),
+                     theta );
+    }
+
+    SetStatusText( Line, 0 );
 }

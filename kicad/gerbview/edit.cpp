@@ -3,13 +3,13 @@
 /******************************************************/
 
 #include "fctsys.h"
+#include "id.h"
+#include "class_drawpanel.h"
+#include "confirm.h"
+#include "gestfich.h"
 
-#include "common.h"
 #include "gerbview.h"
 #include "pcbplot.h"
-
-#include "id.h"
-
 #include "protos.h"
 
 static void Process_Move_Item( WinEDA_GerberFrame* frame,
@@ -60,7 +60,7 @@ void WinEDA_GerberFrame::OnLeftClick( wxDC* DC, const wxPoint& MousePos )
         DrawStruct = GerberGeneralLocateAndDisplay();
         if( DrawStruct == NULL )
             break;
-        if( DrawStruct->Type() == TYPETRACK )
+        if( DrawStruct->Type() == TYPE_TRACK )
         {
             Delete_Segment( DC, (TRACK*) DrawStruct );
             GetScreen()->SetCurItem( NULL );
@@ -85,7 +85,7 @@ void WinEDA_GerberFrame::Process_Special_Functions( wxCommandEvent& event )
 {
     int           id    = event.GetId();
     int           layer = GetScreen()->m_Active_Layer;
-    GERBER_Descr* gerber_layer = g_GERBER_Descr_List[layer];
+    GERBER*       gerber_layer = g_GERBER_List[layer];
     wxPoint       pos;
     wxClientDC    dc( DrawPanel );
 
@@ -225,11 +225,9 @@ void WinEDA_GerberFrame::Process_Special_Functions( wxCommandEvent& event )
         break;
 
     case ID_TOOLBARH_PCB_SELECT_LAYER:
-    {
         ((PCB_SCREEN*)GetScreen())->m_Active_Layer = m_SelLayerBox->GetChoice();
         DrawPanel->Refresh( TRUE );
         break;
-    }
 
     case ID_TOOLBARH_GERBER_SELECT_TOOL:
         if( gerber_layer )

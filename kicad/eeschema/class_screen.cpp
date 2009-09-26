@@ -1,17 +1,17 @@
 
 #include "fctsys.h"
 #include "gr_basic.h"
-
 #include "common.h"
+#include "id.h"
+#include "class_drawpanel.h"
 #include "program.h"
 #include "libcmp.h"
 #include "general.h"
-
 #include "protos.h"
 
 
 /******************************************************************/
-void SetStructFather( EDA_BaseStruct* Struct, BASE_SCREEN* Screen )
+void SetaParent( EDA_BaseStruct* Struct, BASE_SCREEN* Screen )
 /******************************************************************/
 {
     switch( Struct->Type() )
@@ -28,7 +28,7 @@ void SetStructFather( EDA_BaseStruct* Struct, BASE_SCREEN* Screen )
     case DRAW_SHEET_STRUCT_TYPE:
     case DRAW_MARKER_STRUCT_TYPE:
     case DRAW_NOCONNECT_STRUCT_TYPE:
-        Struct->m_Parent = Screen;
+        Struct->SetParent( Screen );
         break;
 
     case DRAW_HIERARCHICAL_PIN_SHEET_STRUCT_TYPE:
@@ -47,7 +47,8 @@ void SCH_ITEM::Place( WinEDA_SchematicFrame* frame, wxDC* DC )
 
 /* place the struct in EEDrawList.
  *  if it is a new item, it it also put in undo list
- *  for an "old" item, saving it in undo list must be done before editiing, and not here!
+ *  for an "old" item, saving it in undo list must be done before editiing,
+ *  and not here!
  */
 {
     if( m_Flags & IS_NEW )
@@ -56,8 +57,7 @@ void SCH_ITEM::Place( WinEDA_SchematicFrame* frame, wxDC* DC )
         if( !screen->CheckIfOnDrawList( this ) )  //don't want a loop!
             screen->AddToDrawList( this );
         g_ItemToRepeat = this;
-        if( frame->m_Ident == SCHEMATIC_FRAME )
-            frame->SaveCopyInUndoList( this, IS_NEW );
+        frame->SaveCopyInUndoList( this, IS_NEW );
     }
 
     m_Flags = 0;
@@ -78,19 +78,51 @@ void SCH_ITEM::Place( WinEDA_SchematicFrame* frame, wxDC* DC )
 /***********************************************************************/
 /* Class SCH_SCREEN: classe de gestion d'un affichage pour schematique */
 /***********************************************************************/
-static int table_zoom[] = { 1, 2, 4, 8, 16, 32, 64, 128, 0 }; /* Valeurs standards du zoom */
+
+/* Default EESchema zoom values. Limited to 17 values to keep a decent size to menus
+*/
+static int SchematicZoomList[] =
+{
+    5, 7, 10, 15, 20, 30, 40, 60, 80, 120, 160, 230, 320, 480, 640, 800, 1280
+};
+
+#define SCHEMATIC_ZOOM_LIST_CNT  ( sizeof( SchematicZoomList ) / \
+                                   sizeof( int ) )
+
+
+/* Default grid sizes for the schematic editor. */
+static GRID_TYPE SchematicGridList[] = {
+    { ID_POPUP_GRID_LEVEL_50, wxRealPoint( 50, 50 ) },
+    { ID_POPUP_GRID_LEVEL_25, wxRealPoint( 25, 25 ) },
+    { ID_POPUP_GRID_LEVEL_10, wxRealPoint( 10, 10 ) },
+    { ID_POPUP_GRID_LEVEL_5, wxRealPoint( 5, 5 ) },
+    { ID_POPUP_GRID_LEVEL_2, wxRealPoint( 2, 2 ) },
+    { ID_POPUP_GRID_LEVEL_1, wxRealPoint( 1, 1 ) }
+};
+
+#define SCHEMATIC_GRID_LIST_CNT ( sizeof( SchematicGridList ) / \
+                                  sizeof( GRID_TYPE ) )
+
 
 /* Constructeur de SCREEN */
-SCH_SCREEN::SCH_SCREEN( int screentype, KICAD_T aType ) :
-    BASE_SCREEN( screentype, aType )
+SCH_SCREEN::SCH_SCREEN( KICAD_T type ) : BASE_SCREEN( type )
 {
+    size_t i;
+
     EEDrawList = NULL;                  /* Schematic items list */
     m_Zoom = 32;
-    m_Grid = wxSize( 50, 50 );          /* pas de la grille */
-    SetZoomList( table_zoom );
-    SetGridList( g_GridList );
-    m_UndoRedoCountMax = 10;
-    m_RefCount       = 0;
+
+    for( i = 0; i < SCHEMATIC_ZOOM_LIST_CNT; i++ )
+        m_ZoomList.Add( SchematicZoomList[i] );
+
+    for( i = 0; i < SCHEMATIC_GRID_LIST_CNT; i++ )
+        AddGrid( SchematicGridList[i] );
+
+    SetGrid( wxRealPoint( 50, 50 ) );        /* usual grid size */
+    m_UndoRedoCountMax = 10;            // Undo/redo levels count. 10 is a reasonnable value
+    m_RefCount = 0;
+    m_Center = false;                   // Suitable for schematic only. for libedit and viewlib, must be set to true
+    InitDatas();
 }
 
 
@@ -101,7 +133,6 @@ SCH_SCREEN::~SCH_SCREEN()
     ClearUndoRedoList();
     FreeDrawList();
 }
-
 
 /***********************************/
 void SCH_SCREEN::FreeDrawList()
@@ -138,9 +169,9 @@ void SCH_SCREEN::RemoveFromDrawList( SCH_ITEM * DrawStruct )
         EDA_BaseStruct* DrawList = EEDrawList;
         while( DrawList && DrawList->Next() )
         {
-            if( DrawList->Pnext == DrawStruct )
+            if( DrawList->Next() == DrawStruct )
             {
-                DrawList->Pnext = DrawList->Pnext->Pnext;
+                DrawList->SetNext( DrawList->Next()->Next() );
                 break;
             }
             DrawList = DrawList->Next();
@@ -170,7 +201,7 @@ bool SCH_SCREEN::CheckIfOnDrawList( SCH_ITEM* st )
 void SCH_SCREEN::AddToDrawList( SCH_ITEM* st )
 /**************************************************************/
 { //simple function to add to the head of the drawlist.
-    st->Pnext  = EEDrawList;
+    st->SetNext( EEDrawList );
     EEDrawList = st;
 }
 
@@ -236,8 +267,7 @@ void EDA_ScreenList::AddScreenToList( SCH_SCREEN* testscreen )
     m_List.Add( testscreen );
 #ifdef DEBUG
     printf( "EDA_ScreenList::AddScreenToList adding %s\n",
-        (const char*) testscreen->m_FileName.mb_str(
-            ) );
+            (const char*) testscreen->m_FileName.mb_str() );
 #endif
 }
 
@@ -262,82 +292,8 @@ void EDA_ScreenList::BuildScreenList( EDA_BaseStruct* s )
             {
                 BuildScreenList( strct );
             }
-            strct = strct->Pnext;
+            strct = strct->Next();
         }
     }
-}
-
-
-/*********************************************************************/
-/* Class EDA_SheetList to handle the list of Sheets in a hierarchy */
-/*********************************************************************/
-
-/*****************************************/
-DrawSheetPath* EDA_SheetList::GetFirst()
-/*****************************************/
-{
-    m_index = 0;
-    if( m_count > 0 )
-        return &( m_List[0] );
-    return NULL;
-}
-
-
-/*****************************************/
-DrawSheetPath* EDA_SheetList::GetNext()
-/*****************************************/
-{
-    if( m_index < m_count )
-        m_index++;
-    return GetSheet( m_index );
-}
-
-
-/************************************************/
-DrawSheetPath* EDA_SheetList::GetSheet( int index )
-/************************************************/
-
-/* return the m_List[index] item
- */
-{
-    if( index < m_count )
-        return &(m_List[index]);
-    return NULL;
-}
-
-
-/************************************************************************/
-void EDA_SheetList::BuildSheetList( DrawSheetStruct* sheet )
-/************************************************************************/
-{
-    if( m_List == NULL )
-    {
-        int count = sheet->CountSheets();
-        m_count = count;
-        m_index = 0;
-        if( m_List )
-            free( m_List );m_List = NULL;
-        count *= sizeof(DrawSheetPath);
-        m_List = (DrawSheetPath*) MyZMalloc( count );
-        memset( (void*) m_List, 0, count );
-        m_currList.Clear();
-    }
-    m_currList.Push( sheet );
-    m_List[m_index] = m_currList;
-    m_index++;
-    if( sheet->m_AssociatedScreen != NULL )
-    {
-        EDA_BaseStruct* strct = m_currList.LastDrawList();
-        while( strct )
-        {
-            if( strct->Type() == DRAW_SHEET_STRUCT_TYPE )
-            {
-                DrawSheetStruct* sht = (DrawSheetStruct*) strct;
-                BuildSheetList( sht );
-            }
-            strct = strct->Pnext;
-        }
-    }
-    m_currList.Pop();
 }
 

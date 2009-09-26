@@ -5,15 +5,16 @@
 /* Functions to handle Gerbview configuration */
 
 #include "fctsys.h"
-
+#include "appl_wxstruct.h"
 #include "common.h"
+#include "class_drawpanel.h"
+#include "confirm.h"
+#include "gestfich.h"
 #include "gerbview.h"
 #include "pcbplot.h"
 #include "id.h"
-#include "hotkeys_basic.h"
 #include "hotkeys.h"
 #include "gerbview_config.h"
-
 #include "protos.h"
 
 
@@ -76,12 +77,12 @@ void WinEDA_GerberFrame::Process_Config( wxCommandEvent& event )
         FullFileName  = ReturnHotkeyConfigFilePath( g_ConfigFileLocationChoice );
         FullFileName += HOTKEY_FILENAME;
         FullFileName += DEFAULT_HOTKEY_FILENAME_EXT;
-        AddDelimiterString(FullFileName);
+        AddDelimiterString( FullFileName );
         wxString editorname = GetEditorName();
         if( !editorname.IsEmpty() )
             ExecuteFile( this, editorname, FullFileName );
     }
-        break;
+    break;
 
     case ID_PREFERENCES_HOTKEY_PATH_IS_HOME:
     case ID_PREFERENCES_HOTKEY_PATH_IS_KICAD:
@@ -93,7 +94,8 @@ void WinEDA_GerberFrame::Process_Config( wxCommandEvent& event )
         break;
 
     default:
-        DisplayError( this, wxT( "WinEDA_GerberFrame::Process_Config internal error" ) );
+        DisplayError( this,
+                      wxT( "WinEDA_GerberFrame::Process_Config internal error" ) );
     }
 }
 
@@ -103,19 +105,18 @@ bool Read_Config()
 /*****************************************************/
 
 /* lit la configuration, si elle n'a pas deja etee lue
-  * 1 - lit gerbview.cnf
-  * 2 - si non trouve lit <chemin de gerbview.exe>/gerbview.cnf
-  * 3 - si non trouve: init des variables aux valeurs par defaut
+ * 1 - lit gerbview.cnf
+ * 2 - si non trouve lit <chemin de gerbview.exe>/gerbview.cnf
+ * 3 - si non trouve: init des variables aux valeurs par defaut
  *
-  * Retourne un pointeur su le message d'erreur a afficher
+ * Retourne un pointeur su le message d'erreur a afficher
  */
 {
     g_Prj_Config_Filename_ext = wxT( ".cnf" );
-    g_EDA_Appl->ReadProjectConfig( wxT( "gerbview" ), GROUP, ParamCfgList, FALSE );
+    wxGetApp().ReadProjectConfig( wxT( "gerbview" ), GROUP, ParamCfgList,
+                                  FALSE );
 
     /* Inits autres variables */
-    if( ScreenPcb )
-        ScreenPcb->SetGrid( TmpGrid );
     if( g_PhotoFilenameExt.IsEmpty() )
         g_PhotoFilenameExt = wxT( ".pho" );
     if( g_DrillFilenameExt.IsEmpty() )
@@ -132,14 +133,14 @@ void WinEDA_GerberFrame::Update_config()
 /******************************************/
 
 /*
-  * creation du fichier de config
+ * creation du fichier de config
  */
 {
     wxString FullFileName;
-    wxString mask( wxT( "*" ) ),
+    wxString mask( wxT( "*" ) );
 
-    g_Prj_Config_Filename_ext = wxT( ".cnf"; )
-                                mask += g_Prj_Config_Filename_ext;
+    g_Prj_Config_Filename_ext = wxT( ".cnf" );
+    mask += g_Prj_Config_Filename_ext;
 
     FullFileName = wxT( "gerbview" );
     ChangeFileNameExt( FullFileName, g_Prj_Config_Filename_ext );
@@ -157,7 +158,7 @@ void WinEDA_GerberFrame::Update_config()
         return;
 
     /* ecriture de la configuration */
-    g_EDA_Appl->WriteProjectConfig( FullFileName, GROUP, ParamCfgList );
+    wxGetApp().WriteProjectConfig( FullFileName, GROUP, ParamCfgList );
 }
 
 
@@ -169,9 +170,12 @@ bool Read_Hotkey_Config( WinEDA_DrawFrame* frame, bool verbose )
  * Read the hotkey files config for pcbnew and module_edit
  */
 {
-    wxString FullFileName = ReturnHotkeyConfigFilePath( g_ConfigFileLocationChoice );
+    wxString FullFileName = ReturnHotkeyConfigFilePath(
+        g_ConfigFileLocationChoice );
 
     FullFileName += HOTKEY_FILENAME;
     FullFileName += DEFAULT_HOTKEY_FILENAME_EXT;
-    return frame->ReadHotkeyConfigFile( FullFileName, s_Gerbview_Hokeys_Descr, verbose );
+    return frame->ReadHotkeyConfigFile( FullFileName,
+                                        s_Gerbview_Hokeys_Descr,
+                                        verbose );
 }

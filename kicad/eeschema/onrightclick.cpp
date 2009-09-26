@@ -9,13 +9,15 @@
 
 #include "fctsys.h"
 #include "common.h"
+#include "id.h"
+#include "class_drawpanel.h"
+#include "confirm.h"
 
 #include "program.h"
 #include "libcmp.h"
 #include "general.h"
 
 #include "protos.h"
-#include "id.h"
 #include "hotkeys.h"
 
 #include "bitmaps.h"
@@ -33,7 +35,7 @@ static void AddMenusForLabel( wxMenu* PopMenu, SCH_LABEL* Label );
 static void AddMenusForGLabel( wxMenu* PopMenu, SCH_GLOBALLABEL* GLabel );
 static void AddMenusForHLabel( wxMenu* PopMenu, SCH_HIERLABEL* GLabel );
 static void AddMenusForComponent( wxMenu* PopMenu, SCH_COMPONENT* Component );
-static void AddMenusForComponentField( wxMenu* PopMenu, PartTextStruct* Field );
+static void AddMenusForComponentField( wxMenu* PopMenu, SCH_CMP_FIELD* Field );
 static void AddMenusForJunction( wxMenu* PopMenu, DrawJunctionStruct* Junction,
                                  WinEDA_SchematicFrame* frame );
 
@@ -131,7 +133,7 @@ bool WinEDA_SchematicFrame::OnRightClick( const wxPoint& MousePos,
     {
     case DRAW_NOCONNECT_STRUCT_TYPE:
 
-//			if( !flags ) PopMenu->Append(ID_POPUP_SCH_MOVE_ITEM_REQUEST, "Move noconnect");
+//			if( !flags ) PopMenu->Append(ID_POPUP_SCH_MOVE_ITEM_REQUEST, "Move Noconnect");
         ADD_MENUITEM( PopMenu, ID_POPUP_SCH_DELETE, _( "Delete Noconn" ), delete_xpm );
         break;
 
@@ -173,7 +175,7 @@ bool WinEDA_SchematicFrame::OnRightClick( const wxPoint& MousePos,
 
     case DRAW_PART_TEXT_STRUCT_TYPE:
     {
-        AddMenusForComponentField( PopMenu, (PartTextStruct*) DrawStruct );
+        AddMenusForComponentField( PopMenu, (SCH_CMP_FIELD*) DrawStruct );
         if( flags )
             break;
 
@@ -236,7 +238,7 @@ bool WinEDA_SchematicFrame::OnRightClick( const wxPoint& MousePos,
 
 
 /*************************************************************************/
-void AddMenusForComponentField( wxMenu* PopMenu, PartTextStruct* Field )
+void AddMenusForComponentField( wxMenu* PopMenu, SCH_CMP_FIELD* Field )
 /*************************************************************************/
 
 /* Add menu commands for a component field (like value, reference)
@@ -271,7 +273,7 @@ void AddMenusForComponent( wxMenu* PopMenu, SCH_COMPONENT* Component )
     if( !Component->m_Flags )
     {
         msg = _( "Move Component" );
-        msg << wxT(" ") << Component->GetFieldValue( REFERENCE );
+        msg << wxT(" ") << Component->GetField( REFERENCE )->m_Text;
         msg = AddHotkeyName( msg, s_Schematic_Hokeys_Descr, HK_MOVE_COMPONENT );
         ADD_MENUITEM( PopMenu, ID_POPUP_SCH_MOVE_CMP_REQUEST,
                       msg, move_xpm );
@@ -312,7 +314,8 @@ void AddMenusForComponent( wxMenu* PopMenu, SCH_COMPONENT* Component )
         ADD_MENUITEM( editmenu, ID_POPUP_SCH_EDIT_FOOTPRINT_CMP, msg, edit_comp_footprint_xpm );
     }
     if( LibEntry && (LookForConvertPart( LibEntry ) >= 2) )
-        editmenu->Append( ID_POPUP_SCH_EDIT_CONVERT_CMP, _( "Convert" ) );
+        ADD_MENUITEM( editmenu, ID_POPUP_SCH_EDIT_CONVERT_CMP,_( "Convert" ), component_select_alternate_shape_xpm );
+
     if( LibEntry && (LibEntry->m_UnitCount >= 2) )
     {
         wxMenu* sel_unit_menu = new wxMenu; int ii;
@@ -324,8 +327,7 @@ void AddMenusForComponent( wxMenu* PopMenu, SCH_COMPONENT* Component )
             sel_unit_menu->Append( ID_POPUP_SCH_SELECT_UNIT1 + ii,
                                    num_unit );
         }
-
-        editmenu->Append( ID_POPUP_SCH_SELECT_UNIT_CMP, _( "Unit" ), sel_unit_menu );
+        ADD_MENUITEM_WITH_SUBMENU( editmenu, sel_unit_menu, ID_POPUP_SCH_SELECT_UNIT_CMP, _( "Unit" ), component_select_unit_xpm );
     }
 
     ADD_MENUITEM_WITH_SUBMENU( PopMenu, editmenu,
@@ -354,10 +356,10 @@ void AddMenusForGLabel( wxMenu* PopMenu, SCH_GLOBALLABEL* GLabel )
     wxMenu* menu_change_type = new wxMenu;
 
     if( !GLabel->m_Flags )
-        ADD_MENUITEM( PopMenu, ID_POPUP_SCH_MOVE_ITEM_REQUEST, _( "Move Glabel" ), move_text_xpm );
-    ADD_MENUITEM( PopMenu, ID_POPUP_SCH_ROTATE_TEXT, _( "Rotate GLabel  (R)" ), rotate_glabel_xpm );
-    ADD_MENUITEM( PopMenu, ID_POPUP_SCH_EDIT_TEXT, _( "Edit GLabel" ), edit_text_xpm );
-    ADD_MENUITEM( PopMenu, ID_POPUP_SCH_DELETE, _( "Delete Glabel" ), delete_text_xpm );
+        ADD_MENUITEM( PopMenu, ID_POPUP_SCH_MOVE_ITEM_REQUEST, _( "Move Global Label" ), move_text_xpm );
+    ADD_MENUITEM( PopMenu, ID_POPUP_SCH_ROTATE_TEXT, _( "Rotate Global Label" ), rotate_glabel_xpm );
+    ADD_MENUITEM( PopMenu, ID_POPUP_SCH_EDIT_TEXT, _( "Edit Global Label" ), edit_text_xpm );
+    ADD_MENUITEM( PopMenu, ID_POPUP_SCH_DELETE, _( "Delete Global Label" ), delete_text_xpm );
 
     // add menu change type text (to label, glabel, text):
     ADD_MENUITEM( menu_change_type, ID_POPUP_SCH_CHANGE_TYPE_TEXT_TO_HLABEL,
@@ -375,16 +377,16 @@ void AddMenusForGLabel( wxMenu* PopMenu, SCH_GLOBALLABEL* GLabel )
 void AddMenusForHLabel( wxMenu* PopMenu, SCH_HIERLABEL* HLabel )
 /*******************************************************************/
 
-/* Add menu commands for a hierarchal Label
+/* Add menu commands for a hierarchical Label
  */
 {
     wxMenu* menu_change_type = new wxMenu;
 
     if( !HLabel->m_Flags )
-        ADD_MENUITEM( PopMenu, ID_POPUP_SCH_MOVE_ITEM_REQUEST, _( "Move Hlabel" ), move_text_xpm );
-    ADD_MENUITEM( PopMenu, ID_POPUP_SCH_ROTATE_TEXT, _( "Rotate HLabel  (R)" ), rotate_glabel_xpm );
-    ADD_MENUITEM( PopMenu, ID_POPUP_SCH_EDIT_TEXT, _( "Edit HLabel" ), edit_text_xpm );
-    ADD_MENUITEM( PopMenu, ID_POPUP_SCH_DELETE, _( "Delete Hlabel" ), delete_text_xpm );
+        ADD_MENUITEM( PopMenu, ID_POPUP_SCH_MOVE_ITEM_REQUEST, _( "Move Hierarchical Label" ), move_text_xpm );
+    ADD_MENUITEM( PopMenu, ID_POPUP_SCH_ROTATE_TEXT, _( "Rotate Hierarchical Label" ), rotate_glabel_xpm );
+    ADD_MENUITEM( PopMenu, ID_POPUP_SCH_EDIT_TEXT, _( "Edit Hierarchical Label" ), edit_text_xpm );
+    ADD_MENUITEM( PopMenu, ID_POPUP_SCH_DELETE, _( "Delete Hierarchical label" ), delete_text_xpm );
 
     // add menu change type text (to label, glabel, text):
     ADD_MENUITEM( menu_change_type, ID_POPUP_SCH_CHANGE_TYPE_TEXT_TO_LABEL,
@@ -409,7 +411,7 @@ void AddMenusForLabel( wxMenu* PopMenu, SCH_LABEL* Label )
 
     if( !Label->m_Flags )
         ADD_MENUITEM( PopMenu, ID_POPUP_SCH_MOVE_ITEM_REQUEST, _( "Move Label" ), move_text_xpm );
-    ADD_MENUITEM( PopMenu, ID_POPUP_SCH_ROTATE_TEXT, _( "Rotate Label  (R)" ), rotate_pos_xpm );
+    ADD_MENUITEM( PopMenu, ID_POPUP_SCH_ROTATE_TEXT, _( "Rotate Label" ), rotate_pos_xpm );
     ADD_MENUITEM( PopMenu, ID_POPUP_SCH_EDIT_TEXT, _( "Edit Label" ), edit_text_xpm );
     ADD_MENUITEM( PopMenu, ID_POPUP_SCH_DELETE, _( "Delete Label" ), delete_text_xpm );
 
@@ -436,7 +438,7 @@ void AddMenusForText( wxMenu* PopMenu, SCH_TEXT* Text )
 
     if( !Text->m_Flags )
         ADD_MENUITEM( PopMenu, ID_POPUP_SCH_MOVE_ITEM_REQUEST, _( "Move Text" ), move_text_xpm );
-    ADD_MENUITEM( PopMenu, ID_POPUP_SCH_ROTATE_TEXT, _( "Rotate Text (R)" ), rotate_pos_xpm );
+    ADD_MENUITEM( PopMenu, ID_POPUP_SCH_ROTATE_TEXT, _( "Rotate Text" ), rotate_pos_xpm );
     ADD_MENUITEM( PopMenu, ID_POPUP_SCH_EDIT_TEXT, _( "Edit Text" ), edit_text_xpm );
     ADD_MENUITEM( PopMenu, ID_POPUP_SCH_DELETE, _( "Delete Text" ), delete_text_xpm );
 
@@ -493,7 +495,7 @@ void AddMenusForWire( wxMenu* PopMenu, EDA_DrawLineStruct* Wire,
     wxPoint pos    = frame->GetScreen()->m_Curseur;
 
     if( is_new )
-        ADD_MENUITEM( PopMenu, ID_POPUP_END_LINE, _( "End Wire" ), apply_xpm );
+        ADD_MENUITEM( PopMenu, ID_POPUP_END_LINE, _( "Wire End" ), apply_xpm );
 
     ADD_MENUITEM( PopMenu, ID_POPUP_SCH_DELETE, _( "Delete Wire" ), delete_xpm );
 
@@ -532,7 +534,7 @@ void AddMenusForBus( wxMenu* PopMenu, EDA_DrawLineStruct* Bus,
     wxPoint pos    = frame->GetScreen()->m_Curseur;
 
     if( is_new )
-        ADD_MENUITEM( PopMenu, ID_POPUP_END_LINE, _( "End Bus" ), apply_xpm );
+        ADD_MENUITEM( PopMenu, ID_POPUP_END_LINE, _( "Bus End" ), apply_xpm );
 
     ADD_MENUITEM( PopMenu, ID_POPUP_SCH_DELETE,
                   _( "Delete Bus" ), delete_bus_xpm );
@@ -612,7 +614,7 @@ void AddMenusForBlock( wxMenu* PopMenu, WinEDA_SchematicFrame* frame )
 
     if( frame->GetScreen()->BlockLocate.m_Command == BLOCK_MOVE )
         ADD_MENUITEM( PopMenu, ID_POPUP_ZOOM_BLOCK,
-                      _( "Zoom Block (Drag Middle Mouse)" ), zoom_selected_xpm );
+                      _( "Zoom Block" ), zoom_selected_xpm );
 
     ADD_MENUITEM( PopMenu, ID_POPUP_PLACE_BLOCK, _( "Place Block" ), apply_xpm );
 
@@ -623,11 +625,11 @@ void AddMenusForBlock( wxMenu* PopMenu, WinEDA_SchematicFrame* frame )
                                    -1, _( "Other Block Commands" ), right_xpm );
         ADD_MENUITEM( menu_other_block_commands, wxID_COPY, _( "Save Block" ), copy_button );
         ADD_MENUITEM( menu_other_block_commands, ID_POPUP_COPY_BLOCK,
-                      _( "Copy Block (shift + drag mouse)" ), copyblock_xpm );
+                      _( "Copy Block" ), copyblock_xpm );
         ADD_MENUITEM( menu_other_block_commands, ID_POPUP_DRAG_BLOCK,
-                      _( "Drag Block (ctrl + drag mouse)" ), move_xpm );
+                      _( "Drag Block" ), move_xpm );
         ADD_MENUITEM( menu_other_block_commands, ID_POPUP_DELETE_BLOCK,
-                      _( "Delete Block (shift+ctrl + drag mouse)" ), delete_xpm );
+                      _( "Delete Block" ), delete_xpm );
         ADD_MENUITEM( menu_other_block_commands, ID_POPUP_MIRROR_Y_BLOCK, _(
                           "Mirror Block ||" ), mirror_H_xpm );
 #if 0

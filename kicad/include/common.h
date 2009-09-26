@@ -1,22 +1,23 @@
-/****************************/
-/*          common.h        */
-/****************************/
+/**
+ * The common library
+ * @file common.h
+ */
 
-#ifndef COMMON_H
-#define COMMON_H
-
-/* wxWidgets about dialog */
-#include <wx/aboutdlg.h>
-#include "wx/statline.h"
-#include "wx/generic/aboutdlgg.h"
-/**************************/
+#ifndef __INCLUDE__COMMON_H__
+#define __INCLUDE__COMMON_H__ 1
 
 #include "wx/confbase.h"
 #include "wx/fileconf.h"
 
 #ifndef COMMON_GLOBL
-#define COMMON_GLOBL extern
+#  define COMMON_GLOBL extern
 #endif
+
+class wxAboutDialogInfo;
+class BASE_SCREEN;
+class WinEDA_DrawFrame;
+class WinEDAListBox;
+class WinEDA_DrawPanel;
 
 
 /* Flag for special keys */
@@ -41,24 +42,24 @@ enum pseudokeys {
 
 #define ESC 27
 
+/* TODO Executable names TODO*/
 #ifdef __WINDOWS__
-#define CVPCB_EXE    wxT( "cvpcb.exe" )
-#define PCBNEW_EXE   wxT( "pcbnew.exe" )
-#define EESCHEMA_EXE wxT( "eeschema.exe" )
-#define GERBVIEW_EXE wxT( "gerbview.exe" )
-
+#    define CVPCB_EXE    wxT( "cvpcb.exe" )
+#    define PCBNEW_EXE   wxT( "pcbnew.exe" )
+#    define EESCHEMA_EXE wxT( "eeschema.exe" )
+#    define GERBVIEW_EXE wxT( "gerbview.exe" )
 #else
-#ifndef __WXMAC__
-#define CVPCB_EXE    wxT( "cvpcb" )
-#define PCBNEW_EXE   wxT( "pcbnew" )
-#define EESCHEMA_EXE wxT( "eeschema" )
-#define GERBVIEW_EXE wxT( "gerbview" )
+# ifndef __WXMAC__
+#  define CVPCB_EXE    wxT( "cvpcb" )
+#  define PCBNEW_EXE   wxT( "pcbnew" )
+#  define EESCHEMA_EXE wxT( "eeschema" )
+#  define GERBVIEW_EXE wxT( "gerbview" )
 #else
-#define CVPCB_EXE    wxT( "cvpcb.app/Contents/MacOS/cvpcb" )
-#define PCBNEW_EXE   wxT( "pcbnew.app/Contents/MacOS/pcbnew" )
-#define EESCHEMA_EXE wxT( "eeschema.app/Contents/MacOS/eeschema" )
-#define GERBVIEW_EXE wxT( "gerbview.app/Contents/MacOS/gerbview" )
-#endif
+#  define CVPCB_EXE    wxT( "cvpcb.app/Contents/MacOS/cvpcb" )
+#  define PCBNEW_EXE   wxT( "pcbnew.app/Contents/MacOS/pcbnew" )
+#  define EESCHEMA_EXE wxT( "eeschema.app/Contents/MacOS/eeschema" )
+#  define GERBVIEW_EXE wxT( "gerbview.app/Contents/MacOS/gerbview" )
+# endif
 #endif
 
 
@@ -75,6 +76,13 @@ enum pseudokeys {
 #define MILLIMETRE 1
 #define CENTIMETRE 2
 
+#if defined(KICAD_GOST)
+#define LEFTMARGIN 800 /* 20mm */
+#define RIGHTMARGIN 200 /* 5mm */
+#define TOPMARGIN 200 /* 5mm */
+#define BOTTOMMARGIN 200 /* 5mm */
+
+#endif
 /* forward declarations: */
 class LibNameList;
 
@@ -269,9 +277,6 @@ COMMON_GLOBL wxString g_ProductName
 #endif
 ;
 
-COMMON_GLOBL WinEDA_App* g_EDA_Appl;  /* this is the main application */
-
-
 /* Gestion des librairies */
 COMMON_GLOBL wxString g_RealLibDirBuffer;   // Chemin reel des librairies de module
 // = UserLibDirBuffer si non vide
@@ -350,15 +355,6 @@ COMMON_GLOBL int g_GridColor
 COMMON_GLOBL BASE_SCREEN* ActiveScreen;
 
 
-/**************************************/
-/* Prototypage des Fonctions Usuelles */
-/**************************************/
-
-class WinEDA_DrawFrame;
-class WinEDAListBox;
-class WinEDA_DrawPanel;
-
-
 /* COMMON.CPP */
 
 /** function SetLocaleTo_C_standard
@@ -384,6 +380,21 @@ but could make more easier an optional use of locale in kicad
 */
 void SetLocaleTo_Default(void);
 
+
+/**
+ * Function EnsureTextCtrlWidth
+ * sets the minimum pixel width on a text control in order to make a text string
+ * be fully visible within it. The current font within the text control is considered.
+ * The text can come either from the control or be given as an argument.
+ * If the text control is larger than needed, then nothing is done.
+ * @param aCtrl the text control to potentially make wider.
+ * @param aString the text that is used in sizing the control's pixel width.  If NULL, then
+ *   the text already within the control is used.
+ * @return bool - true if the \a aCtrl had its size changed, else false.
+ */
+bool EnsureTextCtrlWidth( wxTextCtrl* aCtrl, const wxString* aString = NULL );
+
+
 /**
  * Operator << overload
  * outputs a point to the argument string in a format resembling
@@ -405,204 +416,20 @@ wxString& operator  <<( wxString& aString, const wxPoint& aPoint );
 bool                ProcessExecute( const wxString& aCommandLine, int aFlags = wxEXEC_ASYNC );
 
 
+
+/**
+ * Function ReturnPcbLayerName
+ * @return a wxString containing the name of the layer number "layer_number".
+ * @param layer_number the layer number of the layer
+ * @param is_filename if TRUE,  the name can be used for a file name (not internatinalized, no space)
+ */
 wxString            ReturnPcbLayerName( int layer_number, bool is_filename = FALSE );
 
-/* Return the name of the layer number "layer_number".
- *  if "is_filename" == TRUE,  the name can be used for a file name
- *  (not internatinalized, no space)*/
-
-
-/**************/
-/* DRAWTXT.CPP */
-/**************/
-void    DrawGraphicText( WinEDA_DrawPanel* panel, wxDC* DC, const wxPoint& pos,
-                         int mode_color, const wxString& Text,
-                         int orient, const wxSize& char_size,
-                         int h_justify, int v_justify, int width = 0 );
-
-void    PlotGraphicText( int format_plot, const wxPoint& Pos, int gcolor,
-                         const wxString& Text,
-                         int orient, const wxSize& Size, int h_justify, int v_justify );
-
-/***************/
-/* CONFIRM.CPP */
-/***************/
-void    DisplayError( wxWindow* parent, const wxString& msg, int displaytime = 0 );
-void    DisplayInfo( wxWindow* parent, const wxString& msg, int displaytime = 0 );
-
-/* Routines d'affichage messages ( disparait au bout de displaytime 0.1 secondes) */
-
-bool    IsOK( wxWindow* parent, const wxString& msg );
-
-/* Routine affichant la fenetre "CONFIRMATION"
- *  Retourne 1 ou 0 selon reponse Yes / No */
-
-int     Get_Message( const wxString& titre, wxString& buffer, wxWindow* frame );
-
-/* Fonction d'installation du menu de Dialogue
- *  entree: titre = titre a afficher
- *  entree/sortie :buffer : contient la reponse
- *           si a l'appel buffer n'est pas vide, son contenu est aussi
- *           affiche, mais disparait a la 1ere correction */
-
-/************************/
-/* file GESTFICH.CPP */
-/************************/
-
-wxString    GetEditorName(); // Return the prefered editor name
-
-/** Function OpenPDF
- * run the PDF viewer and display a PDF file
- * @param file = PDF file to open
- * @return true is success, false if no PDF viewer found
- */
-bool        OpenPDF( const wxString& file );
-
-void        OpenFile( const wxString& file );
-
-bool        EDA_DirectorySelector( const wxString& Title,           /* Titre de la fenetre */
-                                   wxString&       Path,            /* Chemin par defaut */
-                                   int             flag,            /* reserve */
-                                   wxWindow*       Frame,           /* parent frame */
-                                   const wxPoint&  Pos );
-
-wxString EDA_FileSelector( const wxString &Title,                   /* Window title */
-                           const wxString &Path,                    /* default path */
-                           const wxString &FileName,                /*  default filename */
-                           const wxString &Ext,                     /* default extension */
-                           const wxString &Mask,                    /* Display filename mask */
-                           wxWindow * Frame,                        /* parent frame */
-                           int flag,                                /* wxSAVE, wxOPEN ..*/
-                           const bool keep_working_directory,       /* true = do not change the C.W.D. */
-                           const wxPoint& Pos = wxPoint( -1, -1 )
-                           );
-
-wxString    MakeFileName( const wxString& dir,
-                          const wxString& shortname, const wxString& ext );
-
-/* Calcule le nom complet d'un file d'apres les chaines
- *  dir = prefixe (chemin)
- *  shortname = nom avec ou sans chemin ou extension
- *  ext = extension
- *
- *  si la chaine name possede deja un chemin ou une extension, elles
- *  ne seront pas modifiees
- *
- *  retourne la chaine calculee */
-
-wxString    MakeReducedFileName( const wxString& fullfilename,
-                                 const wxString& default_path,
-                                 const wxString& default_ext );
-
-/* Calcule le nom "reduit" d'un file d'apres les chaines
- *  fullfilename = nom complet
- *  default_path = prefixe (chemin) par defaut
- *  default_ext = extension par defaut
- *
- *  retourne le nom reduit, c'est a dire:
- *  sans le chemin si le chemin est default_path
- *  avec ./ si si le chemin est le chemin courant
- *  sans l'extension si l'extension est default_ext
- *
- *  Renvoie un chemin en notation unix ('/' en separateur de repertoire)
- */
-
-WinEDAListBox*  GetFileNames( char* Directory, char* Mask );
-
-void            ChangeFileNameExt( wxString& FullFileName, const wxString& NewExt );
-
-/* Change l'extension du "filename FullFileName" en NewExt.
- *     Retourne FullFileName */
-
-int             ExecuteFile( wxWindow* frame, const wxString& ExecFile,
-                             const wxString& param = wxEmptyString );
-void            AddDelimiterString( wxString& string );
-
-void            SetRealLibraryPath( const wxString& shortlibname ); /* met a jour
-                                                                    *  le chemin des librairies RealLibDirBuffer (global)
-                                                                    *  a partir de UserLibDirBuffer (global):
-                                                                    *  Si UserLibDirBuffer non vide RealLibDirBuffer = UserLibDirBuffer.
-                                                                    *  Sinon si variable d'environnement KICAD definie (KICAD = chemin pour kicad),
-                                                                    *  UserLibDirBuffer = <KICAD>/shortlibname;
-                                                                    *  Sinon UserLibDirBuffer = <Chemin des binaires>../shortlibname/
-                                                                    */
-wxString        FindKicadHelpPath();
-
-/* Find absolute path for kicad/help (or kicad/help/<language>) */
-
-wxString        ReturnKicadDatasPath();
-
-/* Retourne le chemin des donnees communes de kicad. */
-
-wxString        FindKicadFile( const wxString& shortname );
-
-/* Search the executable file shortname in kicad binary path and return
- *  full file name if found or shortname */
-
-
-/*************/
-/* STRING.CPP */
-/*************/
-char*       strupper( char* Text );
-char*       strlower( char* Text );
-
-int         ReadDelimitedText( char* dest, char* source, int NbMaxChar );
-
-/* lit et place dans dest la chaine de caractere trouvee dans source,
- *   delimitee par " .
- *  transfere NbMaxChar max
- *   retourne le nombre de codes lus dans source
- *  dest est termine par NULL */
-
-char*       GetLine( FILE* File, char* Line, int* LineNum = NULL, int SizeLine = 255 );
-
-/* Routine de lecture de 1 ligne utile
- *  retourne la 1ere ligne utile lue.
- *  elimine lignes vides et commentaires */
-char*       StrPurge( char* text );
-
-/* Supprime les caracteres Space en debut de la ligne text
- *  retourne un pointeur sur le 1er caractere non Space de text */
-
-char*       DateAndTime( char* line );
-wxString    DateAndTime();
-
-/* Retourne la chaine de caractere donnant date+heure */
-
-int         StrLenNumCmp( const wxChar* str1, const wxChar* str2, int NbMax );
-
-/*
- *  routine (compatible qsort() ) de comparaision pour classement alphab�tique
- *  Analogue a strncmp() mais les nombres sont compar�s selon leur valeur num�rique
- *  et non pas par leur code ascii */
-
-int         StrNumICmp( const wxChar* str1, const wxChar* str2 );
-
-/* routine (compatible qsort() ) de comparaison pour classement alphab�tique,
- *  avec lower case == upper case.
- *  Analogue a stricmp() mais les nombres sont compar�s selon leur valeur num�rique
- *  et non pas par leur code ascii */
-
-int         StrLenNumICmp( const wxChar* str1, const wxChar* str2, int NbMax );
-
-/* routine (compatible qsort() ) de comparaison pour classement alphab�tique,
- *  avec lower case == upper case.
- *  Analogue a stricmp() mais les nombres sont compar�s selon leur valeur num�rique
- *  et non pas par leur code ascii */
-
-bool        WildCompareString( const wxString& pattern, const wxString& string_to_tst,
-                               bool case_sensitive = TRUE );
-
-/* compare 2 noms de composants, selon regles usuelles
- *  ( Jokers * , ? , autorises).
- *  la chaine de reference est "pattern"
- *  si case_sensitive == TRUE (default), comparaison exacte
- *  retourne TRUE si match FALSE si differences */
-
-char*       to_point( char* Text );
-
-/* convertit les , en . dans une chaine. utilise pour compenser la fct printf
- *  qui genere les flottants avec une virgule au lieu du point en mode international */
+/* Microsoft Visual C++ compiler does not have round function (posix) */
+#ifdef __MSVC__
+  /* return the near rounded (like the equivalent integer value) from aNumber */
+  double round( double aNumber );
+#endif
 
 
 /*******************/
@@ -668,71 +495,42 @@ int             ReturnValueFromString( int Units, const wxString& TextValue, int
  */
 wxString        ReturnStringFromValue( int aUnits, int aValue, int aInternal_Unit, bool aAdd_unit_symbol = false );
 
-void            AddUnitSymbol( wxStaticText& Stext, int Units = g_UnitMetric );
-
 /* Add string "  (mm):" or " ("):" to the static text Stext.
  *  Used in dialog boxes for entering values depending on selected units */
-void            PutValueInLocalUnits( wxTextCtrl& TextCtr, int Value, int Internal_Unit );
+void            AddUnitSymbol( wxStaticText& Stext, int Units = g_UnitMetric );
 
 /* Convert the number Value in a string according to the internal units
  *  and the selected unit (g_UnitMetric) and put it in the wxTextCtrl TextCtrl */
-int             ReturnValueFromTextCtrl( const wxTextCtrl& TextCtr, int Internal_Unit );
+void            PutValueInLocalUnits( wxTextCtrl& TextCtr, int Value, int Internal_Unit );
 
 /* Convert the Value in the wxTextCtrl TextCtrl in an integer,
  *  according to the internal units and the selected unit (g_UnitMetric) */
+int             ReturnValueFromTextCtrl( const wxTextCtrl& TextCtr, int Internal_Unit );
 
+/**
+ * Function To_User_Unit
+ * Convert in inch or mm the variable "val" (double)given in internal units
+ * @return the converted value, in double
+ * @param is_metric : true if the result must be returned in mm , false if inches
+ * @param val : double : the given value
+ * @param internal_unit_value = internal units per inch
+ */
+double To_User_Unit( bool is_metric, double val, int internal_unit_value );
+
+/**
+ * Function To_User_Unit
+ * Convert in inch or mm the variable "val" (double)given in internal units
+ * @return the converted value, in double
+ * @param is_metric : true if the result must be returned in mm , false if inches
+ * @param val : integer : the given value
+ * @param internal_unit_value = internal units per inch
+ */
 double          To_User_Unit( bool is_metric, int val, int internal_unit_value );
+
 int             From_User_Unit( bool is_metric, double val, int internal_unit_value );
 wxString        GenDate();
 void            MyFree( void* pt_mem );
 void*           MyZMalloc( size_t nb_octets );
 void*           MyMalloc( size_t nb_octets );
 
-
-/****************/
-/* eda_doc.cpp */
-/****************/
-int     KeyWordOk( const wxString& KeyList, const wxString& Database );
-
-/* Recherche si dans le texte Database on retrouve tous les mots
- *  cles donnes dans KeyList ( KeyList = suite de mots cles
- *  separes par des espaces
- *  Retourne:
- *      0 si aucun mot cle trouv�
- *      1 si mot cle trouv�
- */
-bool    GetAssociatedDocument( wxFrame* frame, const wxString& LibPath,
-                               const wxString& DocName );
-
-
-/****************************/
-/* get_component_dialog.cpp */
-/****************************/
-wxString GetComponentName( WinEDA_DrawFrame * frame,
-                          wxArrayString & HistoryList, const wxString &Title,
-                          wxString (*AuxTool)( WinEDA_DrawFrame * parent ) );
-
-/* Dialog frame to choose a component name */
-void        AddHistoryComponentName( wxArrayString& HistoryList, const wxString& Name );
-
-/* Add the string "Name" to the history list */
-
-
-/**********************/
-/* block_commande.cpp */
-/**********************/
-void    AbortBlockCurrentCommand( WinEDA_DrawPanel* Panel, wxDC* DC );
-
-/* Cancel Current block operation. */
-void    InitBlockLocateDatas( WinEDA_DrawPanel* Panel, const wxPoint& startpos );
-
-/* Init the initial values of a BlockLocate, before starting a block command */
-void    DrawAndSizingBlockOutlines( WinEDA_DrawPanel* panel, wxDC* DC, bool erase );
-
-/* Redraw the outlines of the block which shows the search area for block commands
- *  The first point of the rectangle showing the area is initialised
- *  by InitBlockLocateDatas().
- *  The other point of the rectangle is the mouse cursor */
-
-
-#endif  // COMMON_H
+#endif  /* __INCLUDE__COMMON_H__ */

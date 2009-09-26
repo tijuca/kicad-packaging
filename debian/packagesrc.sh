@@ -32,5 +32,5 @@ cd ..
 dpkg-source -b kicad-${ver}
 debsign -m${signer} kicad_${ver}-${debver}.dsc
 
-rm -rf kicad-${ver}
+#rm -rf kicad-${ver}
 

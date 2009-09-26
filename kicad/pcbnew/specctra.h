@@ -1005,6 +1005,12 @@ public:
         }
     }
 
+    void AddWindow( WINDOW* aWindow )
+    {
+        aWindow->SetParent( this );
+        windows.push_back( aWindow );
+    }
+
     void Format( OUTPUTFORMATTER* out, int nestLevel ) throw( IOError )
     {
         const char* newline = "\n";
@@ -1016,6 +1022,8 @@ public:
             const char* quote = out->GetQuoteChar( name.c_str() );
             out->Print( 0, " %s%s%s", quote, name.c_str(), quote );
         }
+        else
+            out->Print( 0, " \"\"" );   // the zone with no name or net_code == 0
 
         if( sequence_number != -1 )
             out->Print( 0, " (sequence_number %d)", sequence_number );
@@ -1047,9 +1055,11 @@ public:
 
             for( WINDOWS::iterator i=windows.begin();  i!=windows.end();  ++i )
                 i->Format( out, nestLevel+1 );
-        }
 
-        out->Print( 0, ")\n" );
+            out->Print( nestLevel, ")\n" );
+        }
+        else
+            out->Print( 0, ")\n" );
     }
 };
 typedef boost::ptr_vector<KEEPOUT>  KEEPOUTS;
@@ -2455,10 +2465,6 @@ struct PIN_REF : public ELEM
         // the quotes unconditional on this one.
         const char* newline = nestLevel ? "\n" : "";
 
-#if 0
-        return out->Print( nestLevel, "\"%s\"-\"%s\"%s",
-                component_id.c_str(), pin_id.c_str(), newline );
-#else
         const char* cquote = out->GetQuoteChar( component_id.c_str() );
         const char* pquote = out->GetQuoteChar( pin_id.c_str() );
 
@@ -2466,7 +2472,6 @@ struct PIN_REF : public ELEM
                 cquote, component_id.c_str(), cquote,
                 pquote, pin_id.c_str(), pquote,
                 newline );
-#endif
     }
 };
 typedef std::vector<PIN_REF>   PIN_REFS;
@@ -2573,7 +2578,11 @@ public:
 };
 typedef boost::ptr_vector<COMP_ORDER>   COMP_ORDERS;
 
-
+/**
+ * Class NET
+ * corresponds to a &lt;net_descriptor&gt;
+ * in the DSN spec.
+ */
 class NET : public ELEM
 {
     friend class SPECCTRA_DB;
@@ -2625,7 +2634,6 @@ public:
         delete comp_order;
     }
 
-
     int FindPIN_REF( const std::string& aComponent )
     {
         for( unsigned i=0;  i<pins.size();  ++i )
@@ -2635,7 +2643,6 @@ public:
         }
         return -1;
     }
-
 
     void Format( OUTPUTFORMATTER* out, int nestLevel ) throw( IOError )
     {
@@ -2659,22 +2666,25 @@ public:
 
         out->Print( 0, "\n" );
 
-        const int RIGHTMARGIN = 80;
-        int perLine = out->Print( nestLevel+1, "(%s", LEXER::GetTokenText( pins_type ) );
-
-        for( PIN_REFS::iterator i=pins.begin();  i!=pins.end();  ++i )
+        if( pins.size() )
         {
-            if( perLine > RIGHTMARGIN )
-            {
-                out->Print( 0, "\n");
-                perLine = out->Print( nestLevel+2, "%s", "" );
-            }
-            else
-                perLine += out->Print( 0, " " );
+            const int RIGHTMARGIN = 80;
+            int perLine = out->Print( nestLevel+1, "(%s", LEXER::GetTokenText( pins_type ) );
 
-            perLine += i->FormatIt( out, 0 );
+            for( PIN_REFS::iterator i=pins.begin();  i!=pins.end();  ++i )
+            {
+                if( perLine > RIGHTMARGIN )
+                {
+                    out->Print( 0, "\n");
+                    perLine = out->Print( nestLevel+2, "%s", "" );
+                }
+                else
+                    perLine += out->Print( 0, " " );
+
+                perLine += i->FormatIt( out, 0 );
+            }
+            out->Print( 0, ")\n" );
         }
-        out->Print( 0, ")\n" );
 
         if( comp_order )
             comp_order->Format( out, nestLevel+1 );

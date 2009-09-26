@@ -9,8 +9,11 @@
  */
 #include "fctsys.h"
 #include "gr_basic.h"
-
 #include "common.h"
+#include "class_drawpanel.h"
+#include "confirm.h"
+#include "kicad_string.h"
+#include "gestfich.h"
 #include "program.h"
 #include "libcmp.h"
 #include "general.h"
@@ -78,7 +81,7 @@ SCH_ITEM * WinEDA_SchematicFrame::FindComponentAndItem(
     wxString                msg;
     LibDrawPin*             pin;
 
-    EDA_SheetList          SheetList( NULL );
+    EDA_SheetList          SheetList;
 
     sheet = SheetList.GetFirst();
     if( !Find_in_hierarchy )
@@ -117,15 +120,15 @@ SCH_ITEM * WinEDA_SchematicFrame::FindComponentAndItem(
 
                     case 2:     // find reference
                         NotFound = FALSE;
-                        pos = pSch->m_Field[REFERENCE].m_Pos;
+                        pos = pSch->GetField( REFERENCE )->m_Pos;
                         break;
 
                     case 3:     // find value
                         pos = pSch->m_Pos;
-                        if( text_to_find.CmpNoCase( pSch->m_Field[VALUE].m_Text ) != 0 )
+                        if( text_to_find.CmpNoCase( pSch->GetField( VALUE )->m_Text ) != 0 )
                             break;
                         NotFound = FALSE;
-                        pos = pSch->m_Field[VALUE].m_Pos;
+                        pos = pSch->GetField( VALUE )->m_Pos;
                         break;
                     }
                 }
@@ -149,10 +152,7 @@ SCH_ITEM * WinEDA_SchematicFrame::FindComponentAndItem(
         }
         wxPoint delta;
         pos -= Component->m_Pos;
-
-        delta.x = Component->m_Transform[0][0] * pos.x + Component->m_Transform[0][1] * pos.y;
-        delta.y = Component->m_Transform[1][0] * pos.x + Component->m_Transform[1][1] * pos.y;
-
+        delta = TransformCoordinate( Component->m_Transform, pos);
         pos = delta + Component->m_Pos;
 
         wxPoint old_cursor_position = sheet->LastScreen()->m_Curseur;
@@ -165,8 +165,7 @@ SCH_ITEM * WinEDA_SchematicFrame::FindComponentAndItem(
             &( GetScreen()->m_StartVisu.y ));
 
         // calcul des coord curseur avec origine = screen
-        curpos.x -= GetScreen()->m_StartVisu.x;
-        curpos.y -= GetScreen()->m_StartVisu.y;
+        curpos -= GetScreen()->m_StartVisu;
 
         /* Il y a peut-etre necessite de recadrer le dessin: */
         #define MARGIN 30
@@ -189,7 +188,7 @@ SCH_ITEM * WinEDA_SchematicFrame::FindComponentAndItem(
             DrawPanel->CursorOff( &dc );
 
             if( mouseWarp )
-                GRMouseWarp( DrawPanel, curpos );
+                DrawPanel->MouseTo( curpos );
 
             EXCHG( old_cursor_position, sheet->LastScreen()->m_Curseur );
 
@@ -280,7 +279,7 @@ SCH_ITEM * WinEDA_SchematicFrame::FindMarker( int SearchType )
     if( SearchType == 0 )
         s_MarkerCount = 0;
 
-    EDA_SheetList SheetList( NULL );
+    EDA_SheetList SheetList;
 
     NotFound = TRUE; StartCount = 0;
     /* Search for s_MarkerCount markers */
@@ -363,7 +362,7 @@ SCH_ITEM * WinEDA_SchematicFrame::FindMarker( int SearchType )
             DrawPanel->PrepareGraphicContext( &dc );
             EXCHG( old_cursor_position, sheet->LastScreen()->m_Curseur );
             DrawPanel->CursorOff( &dc );
-            GRMouseWarp( DrawPanel, curpos );
+            DrawPanel->MouseTo( curpos );
             EXCHG( old_cursor_position, sheet->LastScreen()->m_Curseur );
             DrawPanel->CursorOn( &dc );
         }
@@ -420,7 +419,7 @@ SCH_ITEM* WinEDA_SchematicFrame::FindSchematicItem(
 {
     DrawSheetPath*     Sheet, * FirstSheet = NULL;
     SCH_ITEM* DrawList = NULL, * FirstStruct = NULL, * Struct = NULL;
-    int             StartCount, ii, jj;
+    int             StartCount;
     bool            NotFound;
     wxPoint         firstpos, pos, old_cursor_position;
     static int      Find_in_hierarchy;
@@ -450,7 +449,7 @@ SCH_ITEM* WinEDA_SchematicFrame::FindSchematicItem(
     NotFound   = TRUE;
     StartCount = 0;
 
-    EDA_SheetList SheetList( NULL );
+    EDA_SheetList SheetList;
 
     Sheet = SheetList.GetFirst();
     if( !Find_in_hierarchy )
@@ -469,13 +468,13 @@ SCH_ITEM* WinEDA_SchematicFrame::FindSchematicItem(
                 if( WildCompareString( WildText, pSch->GetRef(Sheet), FALSE ) )
                 {
                     NotFound = FALSE;
-                    pos = pSch->m_Field[REFERENCE].m_Pos;
+                    pos = pSch->GetField( REFERENCE )->m_Pos;
                     break;
                 }
-                if( WildCompareString( WildText, pSch->m_Field[VALUE].m_Text, FALSE ) )
+                if( WildCompareString( WildText, pSch->GetField( VALUE )->m_Text, FALSE ) )
                 {
                     NotFound = FALSE;
-                    pos = pSch->m_Field[VALUE].m_Pos;
+                    pos = pSch->GetField( VALUE )->m_Pos;
                 }
                 break;
 
@@ -556,14 +555,9 @@ SCH_ITEM* WinEDA_SchematicFrame::FindSchematicItem(
         {
             SCH_COMPONENT* pSch = (SCH_COMPONENT*) Struct;
 
-            pos.x -= pSch->m_Pos.x;
-            pos.y -= pSch->m_Pos.y;
-
-            ii = pSch->m_Transform[0][0] * pos.x + pSch->m_Transform[0][1] * pos.y;
-            jj = pSch->m_Transform[1][0] * pos.x + pSch->m_Transform[1][1] * pos.y;
-
-            pos.x = ii + pSch->m_Pos.x;
-            pos.y = jj + pSch->m_Pos.y;
+            pos -= pSch->m_Pos;
+            pos = TransformCoordinate( pSch->m_Transform, pos );
+            pos += pSch->m_Pos;
         }
 
         old_cursor_position = Sheet->LastScreen()->m_Curseur;
@@ -576,8 +570,7 @@ SCH_ITEM* WinEDA_SchematicFrame::FindSchematicItem(
                 &( GetScreen()->m_StartVisu.y ));
 
         // calcul des coord curseur avec origine = screen
-        curpos.x -= m_CurrentSheet->LastScreen()->m_StartVisu.x;
-        curpos.y -= m_CurrentSheet->LastScreen()->m_StartVisu.y;
+        curpos -= m_CurrentSheet->LastScreen()->m_StartVisu;
 
         /* Il y a peut-etre necessite de recadrer le dessin: */
         #define MARGIN 30
@@ -599,7 +592,7 @@ SCH_ITEM* WinEDA_SchematicFrame::FindSchematicItem(
             DrawPanel->CursorOff( &dc );
 
             if( mouseWarp )
-                GRMouseWarp( DrawPanel, curpos );
+                DrawPanel->MouseTo( curpos );
 
             EXCHG( old_cursor_position, Sheet->LastScreen()->m_Curseur );
 

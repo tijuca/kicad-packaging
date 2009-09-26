@@ -30,19 +30,19 @@ void Affiche_Infos_Equipot( int netcode, WinEDA_BasePcbFrame* frame )
 
     frame->MsgPanel->EraseMsgBox();
 
-    equipot = frame->m_Pcb->FindNet( netcode );
+    equipot = frame->GetBoard()->FindNet( netcode );
     if( equipot )
-        Affiche_1_Parametre( frame, 1, _( "Net Name" ), equipot->m_Netname, RED );
+        Affiche_1_Parametre( frame, 1, _( "Net Name" ), equipot->GetNetname(), RED );
     else
         Affiche_1_Parametre( frame, 1, _( "No Net (not connected)" ), wxEmptyString, RED );
 
     txt.Printf( wxT( "%d" ), netcode );
     Affiche_1_Parametre( frame, 30, _( "Net Code" ), txt, RED );
 
-    for( ii = 0, module = frame->m_Pcb->m_Modules; module != 0;
-         module = (MODULE*) module->Pnext )
+    for( ii = 0, module = frame->GetBoard()->m_Modules; module != 0;
+         module = module->Next() )
     {
-        for( pad = module->m_Pads; pad != 0; pad = (D_PAD*) pad->Pnext )
+        for( pad = module->m_Pads; pad != 0; pad = pad->Next() )
         {
             if( pad->GetNet() == netcode )
                 ii++;
@@ -52,15 +52,15 @@ void Affiche_Infos_Equipot( int netcode, WinEDA_BasePcbFrame* frame )
     txt.Printf( wxT( "%d" ), ii );
     Affiche_1_Parametre( frame, 40, _( "Pads" ), txt, DARKGREEN );
 
-    for( ii = 0, Struct = frame->m_Pcb->m_Track; Struct != NULL; Struct = Struct->Pnext )
+    for( ii = 0, Struct = frame->GetBoard()->m_Track; Struct != NULL; Struct = Struct->Next() )
     {
         ii++;
-        if( Struct->Type() == TYPEVIA )
+        if( Struct->Type() == TYPE_VIA )
             if( ( (SEGVIA*) Struct )->GetNet() == netcode )
                 nb_vias++;
-	if( Struct->Type() == TYPETRACK )
+    if( Struct->Type() == TYPE_TRACK )
             if( ( (TRACK*) Struct )->GetNet() == netcode )
-    		lengthnet += ( (TRACK*) Struct )->GetLength();
+            lengthnet += ( (TRACK*) Struct )->GetLength();
     }
 
     txt.Printf( wxT( "%d" ), nb_vias );

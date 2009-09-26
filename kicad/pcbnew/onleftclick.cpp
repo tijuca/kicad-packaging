@@ -5,10 +5,10 @@
 /**************************************************************/
 
 #include "fctsys.h"
-
 #include "gr_basic.h"
-
 #include "common.h"
+#include "class_drawpanel.h"
+#include "confirm.h"
 #include "pcbnew.h"
 #include "autorout.h"
 
@@ -30,7 +30,7 @@ void WinEDA_PcbFrame::OnLeftClick( wxDC* DC, const wxPoint& MousePos )
 
     if( (m_ID_current_state == 0) || ( DrawStruct && DrawStruct->m_Flags ) )
     {
-        DrawPanel->m_AutoPAN_Request = FALSE;
+        DrawPanel->m_AutoPAN_Request = false;
         if( DrawStruct && DrawStruct->m_Flags ) // "POPUP" in progress
         {
             DrawPanel->m_IgnoreMouseEvents = TRUE;
@@ -38,16 +38,19 @@ void WinEDA_PcbFrame::OnLeftClick( wxDC* DC, const wxPoint& MousePos )
 
             switch( DrawStruct->Type() )
             {
-            case TYPEZONE_CONTAINER:
+            case TYPE_ZONE_CONTAINER:
                 if ( (DrawStruct->m_Flags & IS_NEW) )
+                {
+                    DrawPanel->m_AutoPAN_Request = true;
                     Begin_Zone( DC );
+                }
                 else
                     End_Move_Zone_Corner_Or_Outlines( DC, (ZONE_CONTAINER *) DrawStruct );
                 exit = true;
                 break;
 
-            case TYPETRACK:
-            case TYPEVIA:
+            case TYPE_TRACK:
+            case TYPE_VIA:
                 if( DrawStruct->m_Flags & IS_DRAGGED )
                 {
                     PlaceDraggedTrackSegment( (TRACK*) DrawStruct, DC );
@@ -55,32 +58,32 @@ void WinEDA_PcbFrame::OnLeftClick( wxDC* DC, const wxPoint& MousePos )
                 }
                 break;
 
-            case TYPETEXTE:
+            case TYPE_TEXTE:
                 Place_Texte_Pcb( (TEXTE_PCB*) DrawStruct, DC );
                 exit = true;
                 break;
 
-            case TYPETEXTEMODULE:
+            case TYPE_TEXTE_MODULE:
                 PlaceTexteModule( (TEXTE_MODULE*) DrawStruct, DC );
                 exit = true;
                 break;
 
-            case TYPEPAD:
+            case TYPE_PAD:
                 PlacePad( (D_PAD*) DrawStruct, DC );
                 exit = true;
                 break;
 
-            case TYPEMODULE:
+            case TYPE_MODULE:
                 Place_Module( (MODULE*) DrawStruct, DC );
                 exit = true;
                 break;
 
-            case TYPEMIRE:
+            case TYPE_MIRE:
                 Place_Mire( (MIREPCB*) DrawStruct, DC );
                 exit = true;
                 break;
 
-            case TYPEDRAWSEGMENT:
+            case TYPE_DRAWSEGMENT:
                 if( m_ID_current_state == 0 )
                 {
                     Place_DrawItem( (DRAWSEGMENT*) DrawStruct, DC );
@@ -98,7 +101,7 @@ void WinEDA_PcbFrame::OnLeftClick( wxDC* DC, const wxPoint& MousePos )
                 break;
             }
 
-            DrawPanel->m_IgnoreMouseEvents = FALSE;
+            DrawPanel->m_IgnoreMouseEvents = false;
             DrawPanel->CursorOn( DC );
             if ( exit ) return;
         }
@@ -133,7 +136,7 @@ void WinEDA_PcbFrame::OnLeftClick( wxDC* DC, const wxPoint& MousePos )
         {
             int netcode = Select_High_Light( DC );
             if( netcode < 0 )
-                m_Pcb->Display_Infos( this );
+                GetBoard()->Display_Infos( this );
             else
                 Affiche_Infos_Equipot( netcode, this );
         }
@@ -153,12 +156,12 @@ void WinEDA_PcbFrame::OnLeftClick( wxDC* DC, const wxPoint& MousePos )
             SetCurItem( Create_Mire( DC ) );
             DrawPanel->MouseToCursorSchema();
         }
-        else if( DrawStruct->Type() == TYPEMIRE )
+        else if( DrawStruct->Type() == TYPE_MIRE )
         {
             Place_Mire( (MIREPCB*) DrawStruct, DC );
         }
         else
-            DisplayError( this, wxT( "Internal err: Struct not TYPEMIRE" ) );
+            DisplayError( this, wxT( "Internal err: Struct not TYPE_MIRE" ) );
         break;
 
     case ID_PCB_CIRCLE_BUTT:
@@ -183,7 +186,7 @@ void WinEDA_PcbFrame::OnLeftClick( wxDC* DC, const wxPoint& MousePos )
             DrawPanel->m_AutoPAN_Request = TRUE;
         }
         else if( DrawStruct
-                && (DrawStruct->Type() == TYPEDRAWSEGMENT)
+                && (DrawStruct->Type() == TYPE_DRAWSEGMENT)
                 && (DrawStruct->m_Flags & IS_NEW) )
         {
             DrawStruct = Begin_DrawSegment( (DRAWSEGMENT*) DrawStruct, shape, DC );
@@ -209,7 +212,7 @@ void WinEDA_PcbFrame::OnLeftClick( wxDC* DC, const wxPoint& MousePos )
         }
         else if( DrawStruct &&
 
-//					(DrawStruct->Type() == TYPETRACK) &&
+//					(DrawStruct->Type() == TYPE_TRACK) &&
                 (DrawStruct->m_Flags & IS_NEW) )
         {
             TRACK* track = Begin_Route( (TRACK*) DrawStruct, DC );
@@ -225,16 +228,18 @@ void WinEDA_PcbFrame::OnLeftClick( wxDC* DC, const wxPoint& MousePos )
         {
             if ( Begin_Zone( DC ) )
             {
-                DrawStruct = m_Pcb->m_CurrentZoneContour;
+                DrawPanel->m_AutoPAN_Request = true;
+                DrawStruct = GetBoard()->m_CurrentZoneContour;
                 GetScreen()->SetCurItem( DrawStruct );
             }
         }
         else if( DrawStruct
-                && (DrawStruct->Type() == TYPEZONE_CONTAINER)
+                && (DrawStruct->Type() == TYPE_ZONE_CONTAINER)
                 && (DrawStruct->m_Flags & IS_NEW) )
         {
+            DrawPanel->m_AutoPAN_Request = true;
             Begin_Zone( DC );
-            DrawStruct = m_Pcb->m_CurrentZoneContour;
+            DrawStruct = GetBoard()->m_CurrentZoneContour;
             GetScreen()->SetCurItem( DrawStruct );
         }
         else
@@ -248,13 +253,13 @@ void WinEDA_PcbFrame::OnLeftClick( wxDC* DC, const wxPoint& MousePos )
             DrawPanel->MouseToCursorSchema();
             DrawPanel->m_AutoPAN_Request = TRUE;
         }
-        else if( DrawStruct->Type() == TYPETEXTE )
+        else if( DrawStruct->Type() == TYPE_TEXTE )
         {
             Place_Texte_Pcb( (TEXTE_PCB*) DrawStruct, DC );
-            DrawPanel->m_AutoPAN_Request = FALSE;
+            DrawPanel->m_AutoPAN_Request = false;
         }
         else
-            DisplayError( this, wxT( "Internal err: Struct not TYPETEXTE" ) );
+            DisplayError( this, wxT( "Internal err: Struct not TYPE_TEXTE" ) );
         break;
 
     case ID_COMPONENT_BUTT:
@@ -266,13 +271,13 @@ void WinEDA_PcbFrame::OnLeftClick( wxDC* DC, const wxPoint& MousePos )
             if( DrawStruct )
                 StartMove_Module( (MODULE*) DrawStruct, DC );
         }
-        else if( DrawStruct->Type() == TYPEMODULE )
+        else if( DrawStruct->Type() == TYPE_MODULE )
         {
             Place_Module( (MODULE*) DrawStruct, DC );
-            DrawPanel->m_AutoPAN_Request = FALSE;
+            DrawPanel->m_AutoPAN_Request = false;
         }
         else
-            DisplayError( this, wxT( "Internal err: Struct not TYPEMODULE" ) );
+            DisplayError( this, wxT( "Internal err: Struct not TYPE_MODULE" ) );
         break;
 
     case ID_PCB_COTATION_BUTT:
@@ -288,7 +293,7 @@ void WinEDA_PcbFrame::OnLeftClick( wxDC* DC, const wxPoint& MousePos )
             DrawPanel->m_AutoPAN_Request = TRUE;
         }
         else if( DrawStruct
-                && (DrawStruct->Type() == TYPECOTATION)
+                && (DrawStruct->Type() == TYPE_COTATION)
                 && (DrawStruct->m_Flags & IS_NEW) )
         {
             DrawStruct = Begin_Cotation( (COTATION*) DrawStruct, DC );
@@ -358,12 +363,12 @@ void WinEDA_PcbFrame::OnLeftDClick( wxDC* DC, const wxPoint& MousePos )
 
         switch( DrawStruct->Type() )
         {
-        case TYPETRACK:
-        case TYPEVIA:
+        case TYPE_TRACK:
+        case TYPE_VIA:
             if( DrawStruct->m_Flags & IS_NEW )
             {
                 End_Route( (TRACK*) DrawStruct, DC );
-                DrawPanel->m_AutoPAN_Request = FALSE;
+                DrawPanel->m_AutoPAN_Request = false;
             }
             else if( DrawStruct->m_Flags == 0 )
             {
@@ -371,33 +376,44 @@ void WinEDA_PcbFrame::OnLeftDClick( wxDC* DC, const wxPoint& MousePos )
             }
             break;
 
-        case TYPETEXTE:
-            InstallTextPCBOptionsFrame( (TEXTE_PCB*) DrawStruct,
-                                       DC, ( (TEXTE_PCB*) DrawStruct )->m_Pos );
+        case TYPE_TEXTE:
+            InstallTextPCBOptionsFrame( (TEXTE_PCB*) DrawStruct, DC );
             DrawPanel->MouseToCursorSchema();
             break;
 
-        case TYPEPAD:
+        case TYPE_PAD:
             InstallPadOptionsFrame( (D_PAD*) DrawStruct, &dc, pos );
             DrawPanel->MouseToCursorSchema();
             break;
 
-        case TYPEMODULE:
+        case TYPE_MODULE:
             InstallModuleOptionsFrame( (MODULE*) DrawStruct, &dc, pos );
             DrawPanel->MouseToCursorSchema();
             break;
 
-        case TYPEMIRE:
+        case TYPE_MIRE:
             InstallMireOptionsFrame( (MIREPCB*) DrawStruct, &dc, pos );
             DrawPanel->MouseToCursorSchema();
             break;
 
-        case TYPETEXTEMODULE:
+        case TYPE_COTATION:
+            Install_Edit_Cotation( (COTATION*) DrawStruct, &dc, pos );
+            DrawPanel->MouseToCursorSchema();
+            break;
+
+        case TYPE_TEXTE_MODULE:
             InstallTextModOptionsFrame( (TEXTE_MODULE*) DrawStruct, &dc, pos );
             DrawPanel->MouseToCursorSchema();
             break;
 
-        case TYPEDRAWSEGMENT:
+        case TYPE_DRAWSEGMENT:
+            InstallGraphicItemPropertiesDialog((DRAWSEGMENT*)DrawStruct, &dc);
+            break;
+
+        case TYPE_ZONE_CONTAINER:
+            if( DrawStruct->m_Flags )
+                break;
+            Edit_Zone_Params( &dc, (ZONE_CONTAINER*) DrawStruct );
             break;
 
         default:
@@ -410,14 +426,14 @@ void WinEDA_PcbFrame::OnLeftDClick( wxDC* DC, const wxPoint& MousePos )
         if( DrawStruct && (DrawStruct->m_Flags & IS_NEW) )
         {
             End_Route( (TRACK*) DrawStruct, DC );
-            DrawPanel->m_AutoPAN_Request = FALSE;
+            DrawPanel->m_AutoPAN_Request = false;
         }
         break;
 
     case ID_PCB_ZONES_BUTT:
         if ( End_Zone( DC ) )
         {
-            DrawPanel->m_AutoPAN_Request = FALSE;
+            DrawPanel->m_AutoPAN_Request = false;
             SetCurItem( NULL );
         }
         break;
@@ -427,16 +443,16 @@ void WinEDA_PcbFrame::OnLeftDClick( wxDC* DC, const wxPoint& MousePos )
     case ID_PCB_CIRCLE_BUTT:
         if( DrawStruct == NULL )
             break;
-        if( DrawStruct->Type() != TYPEDRAWSEGMENT )
+        if( DrawStruct->Type() != TYPE_DRAWSEGMENT )
         {
             DisplayError( this, wxT( "DrawStruct Type error" ) );
-            DrawPanel->m_AutoPAN_Request = FALSE;
+            DrawPanel->m_AutoPAN_Request = false;
             break;
         }
         if( (DrawStruct->m_Flags & IS_NEW) )
         {
             End_Edge( (DRAWSEGMENT*) DrawStruct, &dc );
-            DrawPanel->m_AutoPAN_Request = FALSE;
+            DrawPanel->m_AutoPAN_Request = false;
             SetCurItem( NULL );
         }
         break;

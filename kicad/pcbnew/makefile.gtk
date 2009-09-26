@@ -3,11 +3,6 @@
 
 include ../libs.linux
 
-BOOST_LIB = ../
-
-# Additional compiler flags
-CPPFLAGS += -I $(BOOST_LIB)
-
 TARGET = pcbnew
 
 all: $(TARGET)
@@ -18,15 +13,16 @@ deps:
 include makefile.include
 -include *.d
 
+# Additional compiler flags
 CPPFLAGS += $(EXTRACPPFLAGS)
-EDACPPFLAGS = $(CPPFLAGS)  $(BOOST_LIB)
+EDACPPFLAGS = $(CPPFLAGS)
 
 
 $(TARGET): $(OBJECTS) makefile.gtk  makefile.include $(LIBVIEWER3D) $(EXTRALIBS) ../libs.linux
 		$(LD) $(LDFLAGS) $(OBJECTS) $(LIBVIEWER3D) $(LIBS_WITH_GL)\
 		-o $(TARGET)
-		
-		
+
+
 install: $(TARGET)
 	mkdir -p $(KICAD_BIN)
 	cp $(TARGET) $(KICAD_BIN)

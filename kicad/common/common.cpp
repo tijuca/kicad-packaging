@@ -1,9 +1,6 @@
 /**********************************************************/
 /* Routines d'affichage de parametres et caracteristiques */
 /**********************************************************/
-
-/* Fichier common.cpp */
-
 #include "fctsys.h"
 #include "gr_basic.h"
 #include "trigo.h"
@@ -12,51 +9,51 @@
 #include "common.h"
 #include "macros.h"
 #include "build_version.h"
+#include "confirm.h"
 #include <wx/process.h>
 
-/*****************************/
-wxString GetBuildVersion()
-/*****************************/
 
-/* Return the build date
+/*
+ * Return the build date
  */
+/****************/
+wxString
+GetBuildVersion()
+/****************/
 {
     return g_BuildVersion;
 }
 
 
-/*********************************************/
-/* Return custom build date for about dialog */
-/*********************************************/
-wxString GetAboutBuildVersion()
+/*
+ * Return custom build date for about dialog
+ */
+wxString
+GetAboutBuildVersion()
 /*********************************************/
 {
     return g_BuildAboutVersion;
 }
 
 
-/********************************/
-void SetLocaleTo_C_standard( void )
-/********************************/
-
 /** function SetLocaleTo_C_standard
-  * because kicad is internationalized, switch internatization to "C" standard
-  * i.e. uses the . (dot) as separator in print/read float numbers
-  * (some contries (France, Germany ..) use , (comma) as separator)
-  * This function must be called before read or write ascii files using float numbers in data
-  * the SetLocaleTo_C_standard function must be called after reading or writing the file
- *
-  * This is wrapper to the C setlocale( LC_NUMERIC, "C" ) function,
-  * but could make more easier an optional use of locale in kicad
- */
+* because kicad is internationalized, switch internatization to "C" standard
+* i.e. uses the . (dot) as separator in print/read float numbers
+* (some contries (France, Germany ..) use , (comma) as separator)
+* This function must be called before read or write ascii files using float numbers in data
+* the SetLocaleTo_C_standard function must be called after reading or writing the file
+*
+* This is wrapper to the C setlocale( LC_NUMERIC, "C" ) function,
+* but could make more easier an optional use of locale in kicad
+*/
+/********************************/
+void
+SetLocaleTo_C_standard( void )
+/********************************/
 {
     setlocale( LC_NUMERIC, "C" );    // Switch the locale to standard C
 }
 
-
-/********************************/
-void SetLocaleTo_Default( void )
-/********************************/
 
 /** function SetLocaleTo_Default
   * because kicad is internationalized, switch internatization to default
@@ -67,13 +64,56 @@ void SetLocaleTo_Default( void )
   * This is wrapper to the C setlocale( LC_NUMERIC, "" ) function,
   * but could make more easier an optional use of locale in kicad
  */
+/********************************/
+void SetLocaleTo_Default( void )
+/********************************/
 {
     setlocale( LC_NUMERIC, "" );      // revert to the current locale
 }
 
 
+/********************************************************************/
+bool
+EnsureTextCtrlWidth(wxTextCtrl*     aCtrl,
+                    const wxString* aString )
+/********************************************************************/
+{
+    wxWindow*   window = aCtrl->GetParent();
+    if( !window )
+        window = aCtrl;
+
+    wxString    ctrlText;
+
+    if( !aString )
+    {
+        ctrlText = aCtrl->GetValue();
+        aString = &ctrlText;
+    }
+
+    wxCoord     width;
+    wxCoord     height;
+
+    {
+        wxClientDC dc( window );
+        dc.SetFont( aCtrl->GetFont() );
+        dc.GetTextExtent( *aString, &width, &height );
+    }
+
+    wxSize size = aCtrl->GetSize();
+    if( size.GetWidth() < width + 10 )
+    {
+        size.SetWidth( width + 10 );
+        aCtrl->SetSizeHints( size );
+        return true;
+    }
+    return false;
+}
+
+
 /*********************************************************************************************/
-Ki_PageDescr::Ki_PageDescr( const wxSize& size, const wxPoint& offset, const wxString& name )
+Ki_PageDescr::Ki_PageDescr(const wxSize&   size,
+                           const wxPoint&  offset,
+                           const wxString& name )
 /*********************************************************************************************/
 {
     // All sizes are in 1/1000 inch
@@ -82,12 +122,20 @@ Ki_PageDescr::Ki_PageDescr( const wxSize& size, const wxPoint& offset, const wxS
     m_Name   = name;
 
     // Adjust the default value for margins to 400 mils (0,4 inch or 10 mm)
-    m_LeftMargin = m_RightMargin = m_TopMargin = m_BottomMargin = 400;
+#if defined(KICAD_GOST)
+    m_LeftMargin = LEFTMARGIN;
+    m_RightMargin = RIGHTMARGIN;
+    m_TopMargin = TOPMARGIN;
+    m_BottomMargin = BOTTOMMARGIN;
+#else
+     m_LeftMargin = m_RightMargin = m_TopMargin = m_BottomMargin = 400;
+#endif
 }
 
 
 /************************************/
-wxString ReturnUnitSymbol( int Units )
+wxString
+ReturnUnitSymbol( int Units )
 /************************************/
 {
     wxString label;
@@ -110,13 +158,15 @@ wxString ReturnUnitSymbol( int Units )
 }
 
 
-/**************************************************/
-void AddUnitSymbol( wxStaticText& Stext, int Units )
-/**************************************************/
-
-/* Add string "  (mm):" or " ("):" to the static text Stext.
+/* 
+ * Add string "  (mm):" or " ("):" to the static text Stext.
  *  Used in dialog boxes for entering values depending on selected units
  */
+/**************************************************/
+void
+AddUnitSymbol(wxStaticText& Stext,
+              int Units )
+/**************************************************/
 {
     wxString msg = Stext.GetLabel() + ReturnUnitSymbol( Units );
 
@@ -124,13 +174,16 @@ void AddUnitSymbol( wxStaticText& Stext, int Units )
 }
 
 
-/****************************************************************************/
-void PutValueInLocalUnits( wxTextCtrl& TextCtr, int Value, int Internal_Unit )
-/****************************************************************************/
-
-/* Convert the number Value in a string according to the internal units
+/* 
+ * Convert the number Value in a string according to the internal units
  *  and the selected unit (g_UnitMetric) and put it in the wxTextCtrl TextCtrl
  */
+/******************************************/
+void
+PutValueInLocalUnits( wxTextCtrl& TextCtr,
+                      int Value,
+                      int Internal_Unit )
+/*****************************************/
 {
     wxString msg = ReturnStringFromValue( g_UnitMetric, Value, Internal_Unit );
 
@@ -138,13 +191,15 @@ void PutValueInLocalUnits( wxTextCtrl& TextCtr, int Value, int Internal_Unit )
 }
 
 
-/*******************************************************************/
-int ReturnValueFromTextCtrl( const wxTextCtrl& TextCtr, int Internal_Unit )
-/********************************************************************/
-
-/* Convert the Value in the wxTextCtrl TextCtrl in an integer,
+/*
+ * Convert the Value in the wxTextCtrl TextCtrl in an integer,
  *  according to the internal units and the selected unit (g_UnitMetric)
  */
+/***************************************************/
+int
+ReturnValueFromTextCtrl( const wxTextCtrl& TextCtr,
+                         int Internal_Unit )
+/***************************************************/
 {
     int      value;
     wxString msg = TextCtr.GetValue();
@@ -155,10 +210,6 @@ int ReturnValueFromTextCtrl( const wxTextCtrl& TextCtr, int Internal_Unit )
 }
 
 
-/**************************************************************************************************/
-wxString ReturnStringFromValue(  int aUnits, int aValue, int aInternal_Unit, bool aAdd_unit_symbol )
-/**************************************************************************************************/
-
 /** Function ReturnStringFromValue
  * Return the string from Value, according to units (inch, mm ...) for display,
  * and the initial unit for value
@@ -168,6 +219,13 @@ wxString ReturnStringFromValue(  int aUnits, int aValue, int aInternal_Unit, boo
  * @param aAdd_unit_symbol = true to add symbol unit to the string value
  * @return a wxString what contains value and optionnaly the sumbol unit (like 2.000 mm)
  */
+/*******************************************/
+wxString
+ReturnStringFromValue(int aUnits,
+                      int aValue,
+                      int aInternal_Unit,
+                      bool aAdd_unit_symbol)
+/*******************************************/
 {
     wxString StringValue;
     double   value_to_print;
@@ -200,16 +258,19 @@ wxString ReturnStringFromValue(  int aUnits, int aValue, int aInternal_Unit, boo
 }
 
 
-/****************************************************************************/
-int ReturnValueFromString( int Units, const wxString& TextValue, int Internal_Unit )
-/****************************************************************************/
-
-/* Return the string from Value, according to units (inch, mm ...) for display,
+/* 
+ * Return the string from Value, according to units (inch, mm ...) for display,
  *  and the initial unit for value
  *  Unit = display units (INCH, MM ..)
  *  Value = text
  *  Internal_Unit = units per inch for computed value
  */
+/****************************************************************************/
+int
+ReturnValueFromString( int Units,
+                       const wxString& TextValue,
+                       int Internal_Unit )
+/****************************************************************************/
 {
     int    Value;
     double dtmp = 0;
@@ -225,10 +286,17 @@ int ReturnValueFromString( int Units, const wxString& TextValue, int Internal_Un
 
 
 /******************************************************************/
-double To_User_Unit( bool is_metric, int val, int internal_unit_value )
+double To_User_Unit( bool is_metric,
+              int val,
+              int internal_unit_value )
 /******************************************************************/
-
-/* Convert in inch or mm the variable "val" given in internal units
+/**
+ * Function To_User_Unit
+ * Convert in inch or mm the variable "val" (double)given in internal units
+ * @return the converted value, in double
+ * @param is_metric : true if the result must be returned in mm , false if inches
+ * @param val : integer : the given value
+ * @param internal_unit_value = internal units per inch
  */
 {
     double value;
@@ -241,13 +309,41 @@ double To_User_Unit( bool is_metric, int val, int internal_unit_value )
     return value;
 }
 
-
-/**********************************************************************/
-int From_User_Unit( bool is_metric, double val, int internal_unit_value )
-/**********************************************************************/
-
-/* Return in internal units the value "val" given in inch or mm
+/******************************************************************/
+double To_User_Unit( bool is_metric,
+              double val,
+              int internal_unit_value )
+/******************************************************************/
+/**
+ * Function To_User_Unit
+ * Convert in inch or mm the variable "val" (double)given in internal units
+ * @return the converted value, in double
+ * @param is_metric : true if the result must be returned in mm , false if inches
+ * @param val : double : the given value
+ * @param internal_unit_value = internal units per inch
  */
+{
+    double value;
+
+    if( is_metric )
+        value = val * 25.4 / internal_unit_value;
+    else
+        value = val / internal_unit_value;
+
+    return value;
+}
+
+
+
+/*
+ * Return in internal units the value "val" given in inch or mm
+ */
+/*****************************************/
+int
+From_User_Unit( bool is_metric,
+                double val,
+                int internal_unit_value )
+/*****************************************/
 {
     double value;
 
@@ -260,12 +356,13 @@ int From_User_Unit( bool is_metric, double val, int internal_unit_value )
 }
 
 
-/**********************/
-wxString GenDate()
-/**********************/
-
-/* Return the string date "day month year" like "23 jun 2005"
+/*
+ * Return the string date "day month year" like "23 jun 2005"
  */
+/********/
+wxString
+GenDate()
+/********/
 {
     static const wxString mois[12] =
     {
@@ -286,10 +383,13 @@ wxString GenDate()
 }
 
 
+/*
+ * My memory allocation
+ */
 /***********************************/
-void* MyMalloc( size_t nb_octets )
+void* 
+MyMalloc( size_t nb_octets )
 /***********************************/
-/* My memory allocation */
 {
     void* pt_mem;
 
@@ -309,10 +409,6 @@ void* MyMalloc( size_t nb_octets )
 }
 
 
-/**************************************************************/
-bool ProcessExecute( const wxString& aCommandLine, int aFlags )
-/**************************************************************/
-
 /**
  * Function ProcessExecute
  * runs a child process.
@@ -320,6 +416,11 @@ bool ProcessExecute( const wxString& aCommandLine, int aFlags )
  * @param aFlags The same args as allowed for wxExecute()
  * @return bool - true if success, else false
  */
+/********************************************/
+bool
+ProcessExecute( const wxString& aCommandLine,
+                int aFlags )
+/********************************************/
 {
 #ifdef __WINDOWS__
     int        pid = wxExecute( aCommandLine );
@@ -331,12 +432,13 @@ bool ProcessExecute( const wxString& aCommandLine, int aFlags )
 }
 
 
-/************************************/
-void* MyZMalloc( size_t nb_octets )
-/************************************/
-
-/* My memory allocation, memory space is cleared
+/*
+ * My memory allocation, memory space is cleared
  */
+/*****************************/
+void*
+MyZMalloc( size_t nb_octets )
+/*****************************/
 {
     void* pt_mem = MyMalloc( nb_octets );
 
@@ -347,7 +449,8 @@ void* MyZMalloc( size_t nb_octets )
 
 
 /*******************************/
-void MyFree( void* pt_mem )
+void
+MyFree( void* pt_mem )
 /*******************************/
 {
     if( pt_mem )
@@ -355,14 +458,16 @@ void MyFree( void* pt_mem )
 }
 
 
-/**************************************************************/
-wxString ReturnPcbLayerName( int layer_number, bool omitSpacePadding )
-/**************************************************************/
-
-/* Return the name of the layer number "layer_number".
+/*
+ * Return the name of the layer number "layer_number".
  *  if omitSpacePadding == TRUE, the name can be used for a file name
  *  (no spaces, replaced by _)
  */
+/**************************************************************/
+wxString
+ReturnPcbLayerName( int layer_number,
+                    bool omitSpacePadding )
+/**************************************************************/
 {
     const unsigned LAYER_LIMIT = 29;
 
@@ -411,11 +516,23 @@ EVT_CLOSE( WinEDA_TextFrame::OnClose )
 END_EVENT_TABLE()
 
 /***************************************************************************/
-WinEDA_TextFrame::WinEDA_TextFrame( wxWindow* parent, const wxString& title ) :
-    wxDialog( parent, -1, title, wxPoint( -1, -1 ), wxSize( 250, 350 ),
-              wxDEFAULT_DIALOG_STYLE | wxFRAME_FLOAT_ON_PARENT | MAYBE_RESIZE_BORDER  )
+WinEDA_TextFrame::WinEDA_TextFrame( wxWindow* parent,
+                                    const wxString& title ) :
+                          wxDialog( parent,
+                                    -1, title,
+                                    wxPoint( -1, -1 ),
+                                    wxSize( 250, 350 ),
+                                    wxDEFAULT_DIALOG_STYLE |
+                                    wxFRAME_FLOAT_ON_PARENT |
+                                    MAYBE_RESIZE_BORDER )
 /***************************************************************************/
 {
+	/*
+	* TODO background and foreground colors of WinEDA_TextFrame should be
+	* controllable / settable with project settings or config file and not
+	* hardcoded in binairy !
+	*/
+
     wxSize size;
 
     m_Parent = parent;
@@ -423,18 +540,26 @@ WinEDA_TextFrame::WinEDA_TextFrame( wxWindow* parent, const wxString& title ) :
     CentreOnParent();
 
     size   = GetClientSize();
-    m_List = new wxListBox( this, ID_TEXTBOX_LIST,
-        wxPoint( 0, 0 ), size,
-        0, NULL,
-        wxLB_ALWAYS_SB | wxLB_SINGLE );
+    m_List = new wxListBox( this,
+                            ID_TEXTBOX_LIST,
+                            wxPoint( 0, 0 ),
+                            size,
+                            0, NULL,
+                            wxLB_ALWAYS_SB | wxLB_SINGLE );
 
-    m_List->SetBackgroundColour( wxColour( 200, 255, 255 ) );
+	/* The color of the text in the wxListBox (black) */
+    m_List->SetBackgroundColour( wxColour( 255, 255, 255 ) );
+
+	/* The foreground color of the wxListBox (white) */
+    m_List->SetForegroundColour( wxColour( 0, 0, 0 ) );
+
     SetReturnCode( -1 );
 }
 
 
 /***************************************************/
-void WinEDA_TextFrame::Append( const wxString& text )
+void
+WinEDA_TextFrame::Append( const wxString& text )
 /***************************************************/
 {
     m_List->Append( text );
@@ -442,7 +567,8 @@ void WinEDA_TextFrame::Append( const wxString& text )
 
 
 /**********************************************************/
-void WinEDA_TextFrame::D_ClickOnList( wxCommandEvent& event )
+void
+WinEDA_TextFrame::D_ClickOnList( wxCommandEvent& event )
 /**********************************************************/
 {
     int ii = m_List->GetSelection();
@@ -452,19 +578,15 @@ void WinEDA_TextFrame::D_ClickOnList( wxCommandEvent& event )
 
 
 /*************************************************/
-void WinEDA_TextFrame::OnClose( wxCloseEvent& event )
+void
+WinEDA_TextFrame::OnClose( wxCloseEvent& event )
 /*************************************************/
 {
     EndModal( -1 );
 }
 
 
-/*****************************************************************************/
-void Affiche_1_Parametre( WinEDA_DrawFrame* frame, int pos_X,
-                          const wxString& texte_H, const wxString& texte_L, int color )
-/*****************************************************************************/
-
-/*
+/**
  *  Routine d'affichage d'un parametre.
  *  pos_X = cadrage horizontal
  *      si pos_X < 0 : la position horizontale est la derniere
@@ -475,18 +597,28 @@ void Affiche_1_Parametre( WinEDA_DrawFrame* frame, int pos_X,
  *      si "", par d'affichage sur cette ligne
  *  color = couleur d'affichage
  */
+/*****************************************************************************/
+void Affiche_1_Parametre( WinEDA_DrawFrame* frame,
+                          int pos_X,
+                          const wxString& texte_H,
+                          const wxString& texte_L,
+                          int color )
+/*****************************************************************************/
 {
-    frame->MsgPanel->Affiche_1_Parametre( pos_X, texte_H, texte_L, color );
+    frame->MsgPanel->Affiche_1_Parametre( pos_X,
+                                          texte_H,
+                                          texte_L,
+                                          color );
 }
 
-
-/****************************************************************************/
-void AfficheDoc( WinEDA_DrawFrame* frame, const wxString& Doc, const wxString& KeyW )
-/****************************************************************************/
 
 /*
  *  Routine d'affichage de la documentation associee a un composant
  */
+/****************************************************************************/
+void
+AfficheDoc( WinEDA_DrawFrame* frame, const wxString& Doc, const wxString& KeyW )
+/****************************************************************************/
 {
     wxString Line1( wxT( "Doc:  " ) ), Line2( wxT( "KeyW: " ) );
 
@@ -520,17 +652,18 @@ int GetTimeStamp()
 }
 
 
-/**************************************************************/
-const wxString& valeur_param( int valeur, wxString& buf_texte )
-/**************************************************************/
-
 /**
- *  @todo replace this obsolete funtion by ReturnStringFromValue
+ *  TODO replace this obsolete funtion by ReturnStringFromValue
  * Retourne pour affichage la valeur d'un parametre, selon type d'unites choisies
  *  entree : valeur en mils , buffer de texte
  *  retourne en buffer : texte : valeur exprimee en pouces ou millimetres
  *                      suivie de " ou mm
  */
+/*********************************************/
+const
+wxString& valeur_param( int valeur,
+                        wxString& buf_texte )
+/*********************************************/
 {
     if( g_UnitMetric )
     {
@@ -545,7 +678,14 @@ const wxString& valeur_param( int valeur, wxString& buf_texte )
 }
 
 
-wxString& operator <<( wxString& aString, const wxPoint& aPos )
+/*
+ *
+ */
+/**********************************/
+wxString&
+operator <<( wxString& aString,
+             const wxPoint& aPos )
+/*********************************/
 {
     wxString temp;
 
@@ -555,3 +695,20 @@ wxString& operator <<( wxString& aString, const wxPoint& aPos )
 
     return aString;
 }
+
+
+/* compilers that does not have the round function (posix) */
+#ifdef __MSVC__
+/* 
+ * return the nearest rounded ( equivalent to the nearest integer value)
+ * from aNumber
+ */
+/**********************/
+double
+round( double aNumber )
+/**********************/
+{
+    return floor( aNumber + 0.5 );
+}
+#endif
+

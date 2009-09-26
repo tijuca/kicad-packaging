@@ -4,8 +4,10 @@
 
 #include "fctsys.h"
 #include "gr_basic.h"
-
 #include "common.h"
+#include "confirm.h"
+#include "kicad_string.h"
+#include "gestfich.h"
 #include "program.h"
 #include "libcmp.h"
 #include "general.h"
@@ -119,6 +121,8 @@ bool SCH_SCREEN::Save( FILE* aFile ) const
     wxString       Name, msg;
     Ki_PageDescr*  PlotSheet;
 
+    wxString datetime = DateAndTime(  );
+
     LibNames = GetLibNames();
     for( int ii = 0; LibNames[ii] != NULL; ii++ )
     {
@@ -130,12 +134,15 @@ bool SCH_SCREEN::Save( FILE* aFile ) const
     MyFree( LibNames );
 
     // Creates header
-    if( fprintf( aFile, "%s %s %d\n", EESCHEMA_FILE_STAMP,
-            SCHEMATIC_HEAD_STRING, EESCHEMA_VERSION ) == EOF
-        || fprintf( aFile, "LIBS:%s\n", CONV_TO_UTF8( Name ) ) == EOF )
-    {
+    if( fprintf( aFile, "%s %s %d", EESCHEMA_FILE_STAMP,
+            SCHEMATIC_HEAD_STRING, EESCHEMA_VERSION ) == EOF )
         return FALSE;
-    }
+
+    if( fprintf( aFile, "  date %s\n", CONV_TO_UTF8(datetime) ) == EOF )
+        return FALSE;
+
+    if( fprintf( aFile, "LIBS:%s\n", CONV_TO_UTF8( Name ) ) == EOF )
+        return FALSE;
 
     SaveLayers( aFile );
 

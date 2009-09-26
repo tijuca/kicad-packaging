@@ -30,27 +30,17 @@ void SCH_ITEM::Place( WinEDA_SchematicFrame* frame, wxDC* DC )
 
 /* Constructor */
 BOARD::BOARD( EDA_BaseStruct* parent, WinEDA_BasePcbFrame* frame ) :
-    BOARD_ITEM( (BOARD_ITEM*) parent, TYPEPCB )
+    BOARD_ITEM( (BOARD_ITEM*) parent, TYPE_PCB )
 {
     m_PcbFrame   = frame;
     m_Status_Pcb = 0;                   // Mot d'etat: Bit 1 = Chevelu calcule
-    m_NbNets = 0;                       // Nombre de nets (equipotentielles)
     m_BoardSettings = &g_DesignSettings;
-    m_NbPads  = 0;                      // nombre total de pads
     m_NbNodes = 0;                      // nombre de pads connectes
     m_NbLinks = 0;                      // nombre de chevelus (donc aussi nombre
                                         // minimal de pistes a tracer
-    m_NbSegmTrack = 0;                  // nombre d'elements de type segments de piste
-    m_NbSegmZone  = 0;                  // nombre d'elements de type segments de zone
     m_NbNoconnect = 0;                  // nombre de chevelus actifs
     m_NbLoclinks  = 0;                  // nb ratsnest local
 
-    m_Drawings = NULL;                  // pointeur sur liste drawings
-    m_Modules  = NULL;                  // pointeur sur liste zone modules
-    m_Equipots = NULL;                  // pointeur liste zone equipot
-    m_Track    = NULL;                  // pointeur relatif zone piste
-    m_Zone             = NULL;          // pointeur tableau zone zones de cuivre
-    m_Pads             = NULL;          // pointeur liste d'acces aux pads
     m_Ratsnest         = NULL;          // pointeur liste rats
     m_LocalRatsnest    = NULL;          // pointeur liste rats local
     m_CurrentZoneContour = NULL;        // This ZONE_CONTAINER handle the zone contour cuurently in progress
@@ -69,23 +59,11 @@ BOARD::BOARD( EDA_BaseStruct* parent, WinEDA_BasePcbFrame* frame ) :
 /***************/
 BOARD::~BOARD()
 {
-    m_Drawings->DeleteStructList();
-    m_Drawings = 0;
-
-    m_Modules->DeleteStructList();
-    m_Modules = 0;
-
-    m_Equipots->DeleteStructList();
-    m_Equipots = 0;
-
-    m_Track->DeleteStructList();
-    m_Track = 0;
-
-    m_Zone->DeleteStructList();
-    m_Zone = 0;
-
-    MyFree( m_Pads );
-    m_Pads = 0;
+    while ( m_ZoneDescriptorList.size() )
+    {
+        ZONE_CONTAINER* area_to_remove = m_ZoneDescriptorList[0];
+        Delete( area_to_remove );
+    }
 
     MyFree( m_Ratsnest );
     m_Ratsnest = 0;
@@ -214,29 +192,6 @@ wxPoint& BOARD::GetPosition()
 }
 
 
-void BOARD::UnLink()
-{
-    /* Modification du chainage arriere */
-    if( Pback )
-    {
-        if( Pback->Type() == TYPEPCB )
-        {
-            Pback->Pnext = Pnext;
-        }
-        else /* Le chainage arriere pointe sur la structure "Pere" */
-        {
-//			Pback-> = Pnext;
-        }
-    }
-
-    /* Modification du chainage avant */
-    if( Pnext )
-        Pnext->Pback = Pback;
-
-    Pnext = Pback = NULL;
-}
-
-
 void BOARD::Add( BOARD_ITEM* aBoardItem, int aControl )
 {
     if ( aBoardItem == NULL )
@@ -248,89 +203,130 @@ void BOARD::Add( BOARD_ITEM* aBoardItem, int aControl )
     switch( aBoardItem->Type() )
     {
     // this one uses a vector
-    case TYPEMARKER:
-        aBoardItem->m_Parent = this;
+    case TYPE_MARKER:
+        aBoardItem->SetParent( this );
         m_markers.push_back( (MARKER*) aBoardItem );
         break;
 
     // this one uses a vector
-    case TYPEZONE_CONTAINER:
-        aBoardItem->m_Parent = this;
+    case TYPE_ZONE_CONTAINER:
+        aBoardItem->SetParent( this );
         m_ZoneDescriptorList.push_back( (ZONE_CONTAINER*) aBoardItem );
         break;
 
-    case TYPETRACK:
-    case TYPEVIA:
+    case TYPE_TRACK:
+    case TYPE_VIA:
         {
             TRACK* insertAid = ((TRACK*)aBoardItem)->GetBestInsertPoint( this );
-            ((TRACK*)aBoardItem)->Insert( this, insertAid );
+            m_Track.Insert( (TRACK*)aBoardItem, insertAid );
         }
         break;
 
-    case TYPEMODULE:
-        // this is an insert, not an append which may also be needed.
-        {
-            aBoardItem->Pback = this;
-            BOARD_ITEM* next = m_Modules;
-            aBoardItem->Pnext = next;
-            if( next )
-                next->Pback = aBoardItem;
-            m_Modules = (MODULE*) aBoardItem;
-        }
+    case TYPE_ZONE:
+        if( aControl & ADD_APPEND )
+            m_Zone.PushBack( (SEGZONE*) aBoardItem );
+        else
+            m_Zone.PushFront( (SEGZONE*) aBoardItem );
+        aBoardItem->SetParent( this );
+        break;
+
+    case TYPE_MODULE:
+        if( aControl & ADD_APPEND )
+            m_Modules.PushBack( (MODULE*) aBoardItem );
+        else
+            m_Modules.PushFront( (MODULE*) aBoardItem );
+        aBoardItem->SetParent( this );
+        break;
+
+    case TYPE_COTATION:
+    case TYPE_DRAWSEGMENT:
+    case TYPE_TEXTE:
+    case TYPE_EDGE_MODULE:
+    case TYPE_MIRE:
+        if( aControl & ADD_APPEND )
+            m_Drawings.PushBack( aBoardItem );
+        else
+            m_Drawings.PushFront( aBoardItem );
+        aBoardItem->SetParent( this );
+        break;
+
+    case TYPE_EQUIPOT:
+        if( aControl & ADD_APPEND )
+            m_Equipots.PushBack( (EQUIPOT*) aBoardItem );
+        else
+            m_Equipots.PushFront( (EQUIPOT*) aBoardItem );
+        aBoardItem->SetParent( this );
         break;
 
     // other types may use linked list
     default:
-        wxFAIL_MSG( wxT("BOARD::Add() needs work") );
+        wxFAIL_MSG( wxT("BOARD::Add() needs work: BOARD_ITEM type not handled") );
     }
 }
 
 
-void BOARD::Delete( BOARD_ITEM* aBoardItem )
+BOARD_ITEM* BOARD::Remove( BOARD_ITEM* aBoardItem )
 {
-    if ( aBoardItem == NULL ) return;
+    // find these calls and fix them!  Don't send me no stinkin' NULL.
+    wxASSERT( aBoardItem );
 
     switch( aBoardItem->Type() )
     {
-    case TYPEMARKER:    // this one uses a vector
-        // find the item in the vector, then delete then erase it.
+    case TYPE_MARKER:
+        // find the item in the vector, then remove it
         for( unsigned i=0;  i<m_markers.size();  ++i )
         {
             if( m_markers[i] == (MARKER*) aBoardItem )
             {
-                DeleteMARKER( i );
+                m_markers.erase( m_markers.begin() + i );
                 break;
             }
         }
         break;
 
-    case TYPEZONE_CONTAINER:    // this one uses a vector
+    case TYPE_ZONE_CONTAINER:    // this one uses a vector
         // find the item in the vector, then delete then erase it.
         for( unsigned i=0;  i<m_ZoneDescriptorList.size();  ++i )
         {
             if( m_ZoneDescriptorList[i] == (ZONE_CONTAINER*) aBoardItem )
             {
-                delete m_ZoneDescriptorList[i];
-                m_ZoneDescriptorList.erase(m_ZoneDescriptorList.begin() + i);
+                m_ZoneDescriptorList.erase( m_ZoneDescriptorList.begin() + i );
                 break;
             }
         }
         break;
 
+    case TYPE_MODULE:
+        m_Modules.Remove( (MODULE*) aBoardItem );
+        break;
+
+    case TYPE_TRACK:
+    case TYPE_VIA:
+        m_Track.Remove( (TRACK*) aBoardItem );
+        break;
+
+    case TYPE_ZONE:
+        m_Zone.Remove( (SEGZONE*) aBoardItem );
+        break;
+
+    case TYPE_COTATION:
+    case TYPE_DRAWSEGMENT:
+    case TYPE_TEXTE:
+    case TYPE_EDGE_MODULE:
+    case TYPE_MIRE:
+        m_Drawings.Remove( aBoardItem );
+        break;
+
+    case TYPE_EQUIPOT:
+        m_Equipots.Remove( (EQUIPOT*) aBoardItem );
+        break;
+
     // other types may use linked list
     default:
-        wxFAIL_MSG( wxT("BOARD::Delete() needs work") );
+        wxFAIL_MSG( wxT("BOARD::Remove() needs more ::Type() support") );
     }
-}
 
-
-void BOARD::DeleteMARKER( int aIndex )
-{
-    if( (unsigned) aIndex < m_markers.size() )
-    {
-        delete m_markers[aIndex];
-        m_markers.erase( m_markers.begin() + aIndex );
-    }
+    return aBoardItem;
 }
 
 
@@ -356,28 +352,14 @@ void BOARD::DeleteZONEOutlines()
 /* Calculate the track segment count */
 int BOARD::GetNumSegmTrack()
 {
-    TRACK* CurTrack = m_Track;
-    int    ii = 0;
-
-    for( ; CurTrack != NULL; CurTrack = CurTrack->Next() )
-        ii++;
-
-    m_NbSegmTrack = ii;
-    return ii;
+    return m_Track.GetCount();
 }
 
 
 /* Calculate the zone segment count */
 int BOARD::GetNumSegmZone()
 {
-    TRACK* CurTrack = m_Zone;
-    int    ii = 0;
-
-    for( ; CurTrack != NULL; CurTrack = CurTrack->Next() )
-        ii++;
-
-    m_NbSegmZone = ii;
-    return ii;
+    return m_Zone.GetCount();
 }
 
 
@@ -408,19 +390,18 @@ bool BOARD::ComputeBoundaryBox()
  */
 {
     int             rayon, cx, cy, d, xmin, ymin, xmax, ymax;
-    bool            Has_Items = FALSE;
+    bool            hasItems = FALSE;
     EDA_BaseStruct* PtStruct;
     DRAWSEGMENT*    ptr;
-    TRACK*          Track;
 
     xmin = ymin = 0x7FFFFFFFl;
     xmax = ymax = -0x7FFFFFFFl;
 
     /* Analyse PCB edges*/
     PtStruct = m_Drawings;
-    for( ; PtStruct != NULL; PtStruct = PtStruct->Pnext )
+    for( ; PtStruct != NULL; PtStruct = PtStruct->Next() )
     {
-        if( PtStruct->Type() != TYPEDRAWSEGMENT )
+        if( PtStruct->Type() != TYPE_DRAWSEGMENT )
             continue;
 
         ptr = (DRAWSEGMENT*) PtStruct;
@@ -435,7 +416,7 @@ bool BOARD::ComputeBoundaryBox()
             ymin      = MIN( ymin, cy - rayon );
             xmax      = MAX( xmax, cx + rayon );
             ymax      = MAX( ymax, cy + rayon );
-            Has_Items = TRUE;
+            hasItems = TRUE;
         }
         else
         {
@@ -447,22 +428,22 @@ bool BOARD::ComputeBoundaryBox()
             cy        = MAX( ptr->m_Start.y, ptr->m_End.y );
             xmax      = MAX( xmax, cx + d );
             ymax      = MAX( ymax, cy + d );
-            Has_Items = TRUE;
+            hasItems = TRUE;
         }
     }
 
     /* Analyse footprints  */
-    MODULE* module = m_Modules;
-    for( ; module != NULL; module = (MODULE*) module->Pnext )
+
+    for( MODULE* module = m_Modules;  module;  module = module->Next() )
     {
-        Has_Items = TRUE;
+        hasItems = TRUE;
         xmin = MIN( xmin, ( module->m_Pos.x + module->m_BoundaryBox.GetX() ) );
         ymin = MIN( ymin, ( module->m_Pos.y + module->m_BoundaryBox.GetY() ) );
         xmax = MAX( xmax, module->m_Pos.x + module->m_BoundaryBox.GetRight() );
         ymax = MAX( ymax, module->m_Pos.y + module->m_BoundaryBox.GetBottom() );
 
-        D_PAD* pt_pad = module->m_Pads;
-        for( ; pt_pad != NULL; pt_pad = (D_PAD*) pt_pad->Pnext )
+
+        for( D_PAD* pt_pad = module->m_Pads;  pt_pad;  pt_pad = pt_pad->Next() )
         {
             const wxPoint& pos = pt_pad->GetPosition();
 
@@ -475,35 +456,35 @@ bool BOARD::ComputeBoundaryBox()
     }
 
     /* Analyse track and zones */
-    for( Track = m_Track; Track != NULL; Track = (TRACK*) Track->Pnext )
+    for( TRACK* track = m_Track;  track;  track = track->Next() )
     {
-        d         = (Track->m_Width / 2) + 1;
-        cx        = MIN( Track->m_Start.x, Track->m_End.x );
-        cy        = MIN( Track->m_Start.y, Track->m_End.y );
+        d         = (track->m_Width / 2) + 1;
+        cx        = MIN( track->m_Start.x, track->m_End.x );
+        cy        = MIN( track->m_Start.y, track->m_End.y );
         xmin      = MIN( xmin, cx - d );
         ymin      = MIN( ymin, cy - d );
-        cx        = MAX( Track->m_Start.x, Track->m_End.x );
-        cy        = MAX( Track->m_Start.y, Track->m_End.y );
+        cx        = MAX( track->m_Start.x, track->m_End.x );
+        cy        = MAX( track->m_Start.y, track->m_End.y );
         xmax      = MAX( xmax, cx + d );
         ymax      = MAX( ymax, cy + d );
-        Has_Items = TRUE;
+        hasItems = TRUE;
     }
 
-    for( Track = m_Zone; Track != NULL; Track = (TRACK*) Track->Pnext )
+    for( TRACK* track = m_Zone;  track;  track = track->Next() )
     {
-        d         = (Track->m_Width / 2) + 1;
-        cx        = MIN( Track->m_Start.x, Track->m_End.x );
-        cy        = MIN( Track->m_Start.y, Track->m_End.y );
+        d         = (track->m_Width / 2) + 1;
+        cx        = MIN( track->m_Start.x, track->m_End.x );
+        cy        = MIN( track->m_Start.y, track->m_End.y );
         xmin      = MIN( xmin, cx - d );
         ymin      = MIN( ymin, cy - d );
-        cx        = MAX( Track->m_Start.x, Track->m_End.x );
-        cy        = MAX( Track->m_Start.y, Track->m_End.y );
+        cx        = MAX( track->m_Start.x, track->m_End.x );
+        cy        = MAX( track->m_Start.y, track->m_End.y );
         xmax      = MAX( xmax, cx + d );
         ymax      = MAX( ymax, cy + d );
-        Has_Items = TRUE;
+        hasItems = TRUE;
     }
 
-    if( !Has_Items && m_PcbFrame )
+    if( !hasItems && m_PcbFrame )
     {
         if( m_PcbFrame->m_Draw_Sheet_Ref )
         {
@@ -525,7 +506,7 @@ bool BOARD::ComputeBoundaryBox()
     m_BoundaryBox.SetWidth( xmax - xmin );
     m_BoundaryBox.SetHeight( ymax - ymin );
 
-    return Has_Items;
+    return hasItems;
 }
 
 
@@ -541,19 +522,17 @@ void BOARD::Display_Infos( WinEDA_DrawFrame* frame )
 #define POS_AFF_NBCONNECT   40
 #define POS_AFF_NBNOCONNECT 48
 
-    int             nb_vias = 0, ii;
-    EDA_BaseStruct* Struct;
     wxString        txt;
 
     frame->MsgPanel->EraseMsgBox();
 
-    txt.Printf( wxT( "%d" ), m_NbPads );
+    txt.Printf( wxT( "%d" ), m_Pads.size() );
     Affiche_1_Parametre( frame, POS_AFF_NBPADS, _( "Pads" ), txt, DARKGREEN );
 
-    for( ii = 0, Struct = m_Track; Struct != NULL; Struct = Struct->Pnext )
+    int  nb_vias = 0;
+    for( BOARD_ITEM* item = m_Track;  item;  item = item->Next() )
     {
-        ii++;
-        if( Struct->Type() == TYPEVIA )
+        if( item->Type() == TYPE_VIA )
             nb_vias++;
     }
 
@@ -566,7 +545,7 @@ void BOARD::Display_Infos( WinEDA_DrawFrame* frame )
     txt.Printf( wxT( "%d" ), m_NbLinks );
     Affiche_1_Parametre( frame, POS_AFF_NBLINKS, _( "Links" ), txt, DARKGREEN );
 
-    txt.Printf( wxT( "%d" ), m_NbNets );
+    txt.Printf( wxT( "%d" ), m_Equipots.GetCount() );
     Affiche_1_Parametre( frame, POS_AFF_NBNETS, _( "Nets" ), txt, RED );
 
     txt.Printf( wxT( "%d" ), m_NbLinks - GetNumNoconnect() );
@@ -595,7 +574,7 @@ SEARCH_RESULT BOARD::Visit( INSPECTOR* inspector, const void* testData,
         stype = *p;
         switch( stype )
         {
-        case TYPEPCB:
+        case TYPE_PCB:
             result = inspector->Inspect( this, testData );  // inspect me
             // skip over any types handled in the above call.
             ++p;
@@ -608,10 +587,10 @@ SEARCH_RESULT BOARD::Visit( INSPECTOR* inspector, const void* testData,
             IterateForward( m_Modules, ... ) call.
         */
 
-        case TYPEMODULE:
-        case TYPEPAD:
-        case TYPETEXTEMODULE:
-        case TYPEEDGEMODULE:
+        case TYPE_MODULE:
+        case TYPE_PAD:
+        case TYPE_TEXTE_MODULE:
+        case TYPE_EDGE_MODULE:
             // this calls MODULE::Visit() on each module.
             result = IterateForward( m_Modules, inspector, testData, p );
             // skip over any types handled in the above call.
@@ -619,10 +598,10 @@ SEARCH_RESULT BOARD::Visit( INSPECTOR* inspector, const void* testData,
             {
                 switch( stype = *++p )
                 {
-                case TYPEMODULE:
-                case TYPEPAD:
-                case TYPETEXTEMODULE:
-                case TYPEEDGEMODULE:
+                case TYPE_MODULE:
+                case TYPE_PAD:
+                case TYPE_TEXTE_MODULE:
+                case TYPE_EDGE_MODULE:
                     continue;
                 default:;
                 }
@@ -630,20 +609,20 @@ SEARCH_RESULT BOARD::Visit( INSPECTOR* inspector, const void* testData,
             }
             break;
 
-        case TYPEDRAWSEGMENT:
-        case TYPETEXTE:
-        case TYPECOTATION:
-        case TYPEMIRE:
+        case TYPE_DRAWSEGMENT:
+        case TYPE_TEXTE:
+        case TYPE_COTATION:
+        case TYPE_MIRE:
             result = IterateForward( m_Drawings, inspector, testData, p );
             // skip over any types handled in the above call.
             for(;;)
             {
                 switch( stype = *++p )
                 {
-                case TYPEDRAWSEGMENT:
-                case TYPETEXTE:
-                case TYPECOTATION:
-                case TYPEMIRE:
+                case TYPE_DRAWSEGMENT:
+                case TYPE_TEXTE:
+                case TYPE_COTATION:
+                case TYPE_MIRE:
                     continue;
                 default:;
                 }
@@ -665,16 +644,16 @@ SEARCH_RESULT BOARD::Visit( INSPECTOR* inspector, const void* testData,
         // Usually, because of this sort, a connected item (if exists) is found.
         // If not found (and only in this case) an exhaustive (and time consumming) search is made,
         // but this case is statistically rare.
-        case TYPEVIA:
-        case TYPETRACK:
+        case TYPE_VIA:
+        case TYPE_TRACK:
             result = IterateForward( m_Track, inspector, testData, p );
             // skip over any types handled in the above call.
             for(;;)
             {
                 switch( stype = *++p )
                 {
-                case TYPEVIA:
-                case TYPETRACK:
+                case TYPE_VIA:
+                case TYPE_TRACK:
                     continue;
                 default:;
                 }
@@ -682,18 +661,18 @@ SEARCH_RESULT BOARD::Visit( INSPECTOR* inspector, const void* testData,
             }
             break;
 #else
-        case TYPEVIA:
+        case TYPE_VIA:
             result = IterateForward( m_Track, inspector, testData, p );
             ++p;
             break;
 
-        case TYPETRACK:
+        case TYPE_TRACK:
             result = IterateForward( m_Track, inspector, testData, p );
             ++p;
             break;
 #endif
 
-        case TYPEMARKER:
+        case TYPE_MARKER:
             // MARKERS are in the m_markers std::vector
             for( unsigned i=0;  i<m_markers.size();  ++i )
             {
@@ -704,8 +683,8 @@ SEARCH_RESULT BOARD::Visit( INSPECTOR* inspector, const void* testData,
             ++p;
             break;
 
-        case TYPEZONE_CONTAINER:
-            // TYPEZONE_CONTAINER are in the m_ZoneDescriptorList std::vector
+        case TYPE_ZONE_CONTAINER:
+            // TYPE_ZONE_CONTAINER are in the m_ZoneDescriptorList std::vector
             for( unsigned i=0;  i< m_ZoneDescriptorList.size();  ++i )
             {
                 result = m_ZoneDescriptorList[i]->Visit( inspector, testData, p );
@@ -715,17 +694,17 @@ SEARCH_RESULT BOARD::Visit( INSPECTOR* inspector, const void* testData,
             ++p;
             break;
 
-        case PCB_EQUIPOT_STRUCT_TYPE:
+        case TYPE_EQUIPOT:
             result = IterateForward( m_Equipots, inspector, testData, p );
             ++p;
             break;
 
-        case TYPEZONE:
+        case TYPE_ZONE:
             result = IterateForward( m_Zone, inspector, testData, p );
             ++p;
             break;
 
-        case TYPEZONE_UNUSED:	// Unused type
+        case TYPE_ZONE_UNUSED:	// Unused type
             break;
 
         default:        // catch EOT or ANY OTHER type here and return.
@@ -762,7 +741,7 @@ BOARD_ITEM* BOARD::FindPadOrModule( const wxPoint& refPos, int layer )
             BOARD_ITEM*     item   = (BOARD_ITEM*) testItem;
             const wxPoint&  refPos = *(const wxPoint*) testData;
 
-            if( item->Type() == TYPEPAD )
+            if( item->Type() == TYPE_PAD )
             {
                 D_PAD*  pad = (D_PAD*) item;
                 if( pad->HitTest( refPos ) )
@@ -781,7 +760,7 @@ BOARD_ITEM* BOARD::FindPadOrModule( const wxPoint& refPos, int layer )
                 }
             }
 
-            else if( item->Type() == TYPEMODULE )
+            else if( item->Type() == TYPE_MODULE )
             {
                 MODULE* module = (MODULE*) item;
 
@@ -810,7 +789,7 @@ BOARD_ITEM* BOARD::FindPadOrModule( const wxPoint& refPos, int layer )
     PadOrModule inspector( layer );
 
     // search only for PADs first, then MODULES, and preferably a layer match
-    static const KICAD_T scanTypes[] = { TYPEPAD, TYPEMODULE, EOT };
+    static const KICAD_T scanTypes[] = { TYPE_PAD, TYPE_MODULE, EOT };
 
     // visit this BOARD with the above inspector
     Visit( &inspector, &refPos, scanTypes );
@@ -856,7 +835,7 @@ EQUIPOT* BOARD::FindNet( const wxString & aNetname ) const
     {
         for( EQUIPOT* net = m_Equipots;  net;  net=net->Next() )
         {
-            if( net->m_Netname == aNetname )
+            if( net->GetNetname() == aNetname )
                 return net;
         }
     }
@@ -887,7 +866,7 @@ MODULE* BOARD::FindModuleByReference( const wxString& aReference ) const
     } inspector;
 
     // search only for MODULES
-    static const KICAD_T scanTypes[] = { TYPEMODULE, EOT };
+    static const KICAD_T scanTypes[] = { TYPE_MODULE, EOT };
 
     // visit this BOARD with the above inspector
     BOARD* nonconstMe = (BOARD*) this;
@@ -903,7 +882,7 @@ int s_SortByNames(const void * ptr1, const void * ptr2)
 {
     EQUIPOT* item1 = * (EQUIPOT**) ptr1;
     EQUIPOT* item2 = * (EQUIPOT**) ptr2;
-    return  item1->m_Netname.CmpNoCase(item2->m_Netname);
+    return  item1->GetNetname().CmpNoCase(item2->GetNetname());
 }
 
 // Sort nets by decreasing pad count
@@ -913,7 +892,7 @@ int s_SortByNodes(const void * ptr1, const void * ptr2)
     EQUIPOT* item2 = * (EQUIPOT**) ptr2;
     if ( (item1->m_NbNodes - item2->m_NbNodes) != 0 )
         return  - (item1->m_NbNodes - item2->m_NbNodes);
-    return  item1->m_Netname.CmpNoCase(item2->m_Netname);
+    return  item1->GetNetname().CmpNoCase(item2->GetNetname());
 }
 
 
@@ -933,7 +912,7 @@ int BOARD::ReturnSortedNetnamesList( wxArrayString & aNames, const int aSort_Typ
     /* count items to list and sort */
     for( net = m_Equipots; net;  net=net->Next() )
     {
-        if ( net->m_Netname.IsEmpty() ) continue;
+        if ( net->GetNetname().IsEmpty() ) continue;
         NetCount++;
     }
 
@@ -943,7 +922,7 @@ int BOARD::ReturnSortedNetnamesList( wxArrayString & aNames, const int aSort_Typ
     EQUIPOT* * net_ptr_list = (EQUIPOT* *) MyMalloc( NetCount * sizeof(* net_ptr_list) );
     for( ii = 0, net = m_Equipots; net; net=net->Next() )
     {
-        if ( net->m_Netname.IsEmpty() ) continue;
+        if ( net->GetNetname().IsEmpty() ) continue;
         net_ptr_list[ii] = net;
         ii++;
     }
@@ -966,7 +945,7 @@ int BOARD::ReturnSortedNetnamesList( wxArrayString & aNames, const int aSort_Typ
     for( ii = 0; ii < NetCount; ii++ )
     {
         net = net_ptr_list[ii];
-        aNames.Add(net->m_Netname);
+        aNames.Add(net->GetNetname());
     }
 
     MyFree(net_ptr_list);
@@ -995,10 +974,10 @@ bool BOARD::Save( FILE* aFile ) const
     {
         switch( item->Type() )
         {
-        case TYPETEXTE:
-        case TYPEDRAWSEGMENT:
-        case TYPEMIRE:
-        case TYPECOTATION:
+        case TYPE_TEXTE:
+        case TYPE_DRAWSEGMENT:
+        case TYPE_MIRE:
+        case TYPE_COTATION:
             if( !item->Save( aFile ) )
                 goto out;
             break;
@@ -1045,6 +1024,8 @@ out:
     return rc;
 }
 
+
+
 /***********************************************************************************************/
 void BOARD::RedrawAreasOutlines(WinEDA_DrawPanel* panel, wxDC * aDC, int aDrawMode, int aLayer)
 /***********************************************************************************************/
@@ -1061,6 +1042,57 @@ void BOARD::RedrawAreasOutlines(WinEDA_DrawPanel* panel, wxDC * aDC, int aDrawMo
         if( (aLayer < 0) || (aLayer == edge_zone->GetLayer()) )
             edge_zone->Draw( panel, aDC, aDrawMode );
     }
+}
+
+/***********************************************************************************************/
+void BOARD::RedrawFilledAreas(WinEDA_DrawPanel* panel, wxDC * aDC, int aDrawMode, int aLayer)
+/***********************************************************************************************/
+/**
+ * Function RedrawFilledAreas
+ * Redraw all areas outlines on layer aLayer ( redraw all if aLayer < 0 )
+ */
+{
+    if ( ! aDC ) return;
+
+    for( int ii = 0; ii < GetAreaCount(); ii++ )
+    {
+        ZONE_CONTAINER* edge_zone = GetArea(ii);
+        if( (aLayer < 0) || (aLayer == edge_zone->GetLayer()) )
+            edge_zone->DrawFilledArea( panel, aDC, aDrawMode );
+    }
+}
+
+
+/**
+ * Function HitTestForAnyFilledArea
+ * tests if the given wxPoint is within the bounds of a filled area of this zone.
+ * the test is made on zones on layer from aStartLayer to aEndLayer
+ * Note: if a zone has its flag BUSY (in .m_State) is set, it is ignored.
+ * @param refPos A wxPoint to test
+ * @param aStartLayer the first layer to test
+ * @param aEndLayer the last layer (-1 to ignore it) to test
+ * @return ZONE_CONTAINER* return a pointer to the ZONE_CONTAINER found, else NULL
+ */
+ZONE_CONTAINER*  BOARD::HitTestForAnyFilledArea( const wxPoint& aRefPos, int aStartLayer, int aEndLayer )
+{
+    if( aEndLayer < 0 )
+        aEndLayer = aStartLayer;
+    if( aEndLayer <  aStartLayer)
+        EXCHG (aEndLayer, aStartLayer);
+
+    for( unsigned ia = 0; ia < m_ZoneDescriptorList.size(); ia++ )
+    {
+        ZONE_CONTAINER* area = m_ZoneDescriptorList[ia];
+        int layer = area->GetLayer();
+        if ( (layer < aStartLayer) || (layer > aEndLayer) )
+                continue;
+        if ( area->GetState( BUSY ) )     // In locate functions we must skip tagged items with BUSY flag set.
+            continue;
+        if( area->HitTestFilledArea( aRefPos ) )
+            return area;
+    }
+
+    return NULL;
 }
 
 

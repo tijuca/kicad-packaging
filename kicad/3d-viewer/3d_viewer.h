@@ -30,7 +30,7 @@
 #include "3d_struct.h"
 
 #define KICAD_DEFAULT_3D_DRAWFRAME_STYLE wxDEFAULT_FRAME_STYLE|wxWANTS_CHARS
-	
+
 
 #define LIB3D_PATH wxT("packages3d/")
 
@@ -49,14 +49,13 @@ class SEGVIA;
 class Info_3D_Visu
 {
 public:
-    float m_Beginx, m_Beginy;	/* position of mouse */
-    float m_Quat[4];			/* orientation of object */
-    float m_Rot[4];				/* man rotation of object */
-    float m_Zoom;				/* field of view in degrees */
+    double m_Beginx, m_Beginy;	/* position of mouse */
+    double m_Quat[4];			/* orientation of object */
+    double m_Rot[4];				/* man rotation of object */
+    double m_Zoom;				/* field of view in degrees */
 	S3D_Color m_BgColor;
 	bool m_Draw3DAxis;
 	bool m_Draw3DModule;
-	bool m_Draw3DPlace;
 	bool m_Draw3DZone;
 	bool m_Draw3DComments;
 	bool m_Draw3DDrawings;
@@ -66,11 +65,11 @@ public:
 	wxSize m_BoardSize;
 	int m_Layers;
 	EDA_BoardDesignSettings * m_BoardSettings;	// Link to current board design settings
-	float m_Epoxy_Width;		/* Epoxy tickness (normalized) */
+	double m_Epoxy_Width;		/* Epoxy tickness (normalized) */
 
-	float m_BoardScale;			/* Normalisation scale for coordinates:
+	double m_BoardScale;			/* Normalisation scale for coordinates:
 								when scaled tey are between -1.0 and +1.0 */
-	float m_LayerZcoord[32];
+	double m_LayerZcoord[32];
 public:
 	Info_3D_Visu();
 	~Info_3D_Visu();
@@ -88,7 +87,7 @@ private:
 
 public:
 	Pcb3D_GLCanvas(WinEDA3D_DrawFrame *parent, const wxWindowID id = -1,
-			int* gl_attrib = NULL);
+                   int* gl_attrib = NULL);
 	~Pcb3D_GLCanvas();
 
 	void ClearLists();
@@ -126,7 +125,6 @@ class WinEDA3D_DrawFrame: public wxFrame
 {
 public:
 	WinEDA_BasePcbFrame * m_Parent;
-	WinEDA_App * m_ParentAppl;
     Pcb3D_GLCanvas * m_Canvas;
 	wxToolBar * m_HToolBar;
 	wxToolBar * m_VToolBar;
@@ -139,8 +137,9 @@ private:
 								// It is "Frame3D"
 
 public:
-	WinEDA3D_DrawFrame(WinEDA_BasePcbFrame * parent, WinEDA_App *app_parent,
-		const wxString& title, long style = KICAD_DEFAULT_3D_DRAWFRAME_STYLE );
+	WinEDA3D_DrawFrame(WinEDA_BasePcbFrame * parent,
+                       const wxString& title,
+                       long style = KICAD_DEFAULT_3D_DRAWFRAME_STYLE );
 
     void Exit3DFrame(wxCommandEvent& event);
 	void OnCloseWindow(wxCloseEvent & Event);
@@ -170,7 +169,7 @@ public:
 	void Set3DEco1OnOff();
 	void Set3DEco2OnOff();
 
-DECLARE_EVENT_TABLE()
+    DECLARE_EVENT_TABLE()
 };
 
 void SetGLColor(int color);

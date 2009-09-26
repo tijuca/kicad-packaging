@@ -1,4 +1,4 @@
-EESchema-DOCLIB  Version 2.0  Date: 23/5/2007-07:37:51
+EESchema-DOCLIB  Version 2.0  Date: 17/03/2009 14:33:45
 #
 $CMP 7SEGM
 D Afficheur Leds 7 segments
@@ -34,6 +34,10 @@ K SWITCH
 $ENDCMP
 #
 $CMP CP
+D Condensateur polarise
+$ENDCMP
+#
+$CMP CP1
 D Condensateur polarise
 $ENDCMP
 #
@@ -91,9 +95,18 @@ D Filtre EMI
 K EMI
 $ENDCMP
 #
+$CMP EMI_FILTER2
+D Filtre EMI
+K EMI
+$ENDCMP
+#
 $CMP FILTER
 D Filtre EMI
 K EMI
+$ENDCMP
+#
+$CMP LED
+K LED
 $ENDCMP
 #
 $CMP MOS_N
@@ -176,6 +189,11 @@ $ENDCMP
 $CMP SWITCH_INV_MSM
 D Switch inverseur M S M
 K switch
+$ENDCMP
+#
+$CMP THERMISTOR
+D Resistance
+K R DEV
 $ENDCMP
 #
 $CMP THYRISTOR

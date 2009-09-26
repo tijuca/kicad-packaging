@@ -6,12 +6,16 @@
  */
 
 #include "fctsys.h"
+#include "appl_wxstruct.h"
 #include "common.h"
-#include "wxstruct.h"
 #include "hotkeys_basic.h"
 #include "macros.h"
 #include "bitmaps.h"
 #include "id.h"
+#include "confirm.h"
+#include "kicad_string.h"
+#include "gestfich.h"
+#include "wxstruct.h"
 
 
 /* Class to handle hotkey commnands. hotkeys have a default value
@@ -363,7 +367,7 @@ int WinEDA_BasicFrame::WriteHotkeyConfigFile( const wxString&                   
         Ext  = DEFAULT_HOTKEY_FILENAME_EXT;
         Mask = wxT( "*" ) + Ext;
         Path = ReturnHotkeyConfigFilePath( g_ConfigFileLocationChoice );
-        FullFilename = EDA_FileSelector( _( "Hotkey configuration file:" ),
+        FullFilename = EDA_FileSelector( _( "Save Hotkey Configuration File:" ),
                                          Path,          /* Chemin par defaut */
                                          FullFilename,  /* nom fichier par defaut */
                                          Ext,           /* extension par defaut */
@@ -481,7 +485,7 @@ int WinEDA_BasicFrame::ReadHotkeyConfigFile( const wxString&                    
         Ext  = DEFAULT_HOTKEY_FILENAME_EXT;
         Mask = wxT( "*" ) + Ext;
         Path = ReturnHotkeyConfigFilePath( g_ConfigFileLocationChoice );
-        FullFilename = EDA_FileSelector( _( "Hotkey configuration file:" ),
+        FullFilename = EDA_FileSelector( _( "Open Hotkey Configuration File:" ),
                                          Path,          /* Chemin par defaut */
                                          FullFilename,  /* nom fichier par defaut */
                                          Ext,           /* extension par defaut */
@@ -674,6 +678,8 @@ void  HandleHotkeyConfigMenuSelection( WinEDA_DrawFrame* frame, int id )
  */
 {
     wxMenuBar* menu = frame->GetMenuBar();
+    wxConfig * config = wxGetApp().m_EDA_CommonConfig;
+    wxASSERT( config != NULL );
 
     switch( id )
     {
@@ -683,8 +689,7 @@ void  HandleHotkeyConfigMenuSelection( WinEDA_DrawFrame* frame, int id )
             g_ConfigFileLocationChoice = 0;
             menu->Check( ID_PREFERENCES_HOTKEY_PATH_IS_HOME, true );
             menu->Check( ID_PREFERENCES_HOTKEY_PATH_IS_KICAD, false );
-            frame->m_Parent->m_EDA_CommonConfig->Write( HOTKEY_CFG_PATH_OPT,
-                                                        g_ConfigFileLocationChoice );
+            config->Write( HOTKEY_CFG_PATH_OPT, g_ConfigFileLocationChoice );
         }
         break;
 
@@ -694,8 +699,7 @@ void  HandleHotkeyConfigMenuSelection( WinEDA_DrawFrame* frame, int id )
             g_ConfigFileLocationChoice = 1;
             menu->Check( ID_PREFERENCES_HOTKEY_PATH_IS_HOME, false );
             menu->Check( ID_PREFERENCES_HOTKEY_PATH_IS_KICAD, true );
-            frame->m_Parent->m_EDA_CommonConfig->Write( HOTKEY_CFG_PATH_OPT,
-                                                        g_ConfigFileLocationChoice );
+            config->Write( HOTKEY_CFG_PATH_OPT, g_ConfigFileLocationChoice );
         }
         break;
 

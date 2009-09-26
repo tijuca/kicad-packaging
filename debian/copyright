@@ -21,7 +21,7 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License
-along with the Debian system in the file /usr/share/common-licenses/GPL.
+along with the Debian system in the file /usr/share/common-licenses/GPL-2.
 
 --------------------------------------------------------------------------------
 
@@ -161,4 +161,4 @@ License:
 --------------------------------------------------------------------------------
 
 The Debian packaging is (C)2006-2008 Richard A Burton <richardaburton@gmail.com>
-and is licensed under the GPL, see `/usr/share/common-licenses/GPL'.
+and is licensed under the GPL, see `/usr/share/common-licenses/GPL-2'.

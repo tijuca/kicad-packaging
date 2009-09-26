@@ -3,15 +3,15 @@
 /***********************/
 
 #include "fctsys.h"
-#include "gr_basic.h"
-
+#include "appl_wxstruct.h"
 #include "common.h"
 #include "plot_common.h"
+#include "confirm.h"
+#include "gestfich.h"
 #include "pcbnew.h"
 #include "pcbplot.h"
 #include "worksheet.h"
 #include "id.h"
-
 #include "protos.h"
 
 #define PLOT_DEFAULT_MARGE 300      // mils
@@ -20,11 +20,13 @@
 #define OPTKEY_EDGELAYER_GERBER   wxT( "EdgeLayerGerberOpt" )
 #define OPTKEY_XFINESCALE_ADJ     wxT( "PlotXFineScaleAdj" )
 #define OPTKEY_YFINESCALE_ADJ     wxT( "PlotYFineScaleAdj" )
-#define OPTKEY_LAYERBASE          wxT( "PlotLayer_%d" )
 #define OPTKEY_PADS_ON_SILKSCREEN wxT( "PlotPadsOnSilkscreen" )
 #define OPTKEY_ALWAYS_PRINT_PADS  wxT( "PlotAlwaysPads" )
 #define OPTKEY_OUTPUT_FORMAT      wxT( "PlotOutputFormat" )
-#define OPTKEY_LINEWIDTH_VALUE    wxT( "PlotLineWidth" )
+
+// Define min et max reasonnable values for print scale
+#define MIN_SCALE 0.01
+#define MAX_SCALE 100.0
 
 
 static long s_SelectedLayers = CUIVRE_LAYER | CMP_LAYER |
@@ -119,6 +121,7 @@ public:
 public:
     WinEDA_PlotFrame( WinEDA_BasePcbFrame* parent );
 private:
+    void OnInitDialog( wxInitDialogEvent& event );
     void Plot( wxCommandEvent& event );
     void OnQuit( wxCommandEvent& event );
     void OnClose( wxCloseEvent& event );
@@ -130,6 +133,7 @@ private:
 };
 
 BEGIN_EVENT_TABLE( WinEDA_PlotFrame, wxDialog )
+EVT_INIT_DIALOG( WinEDA_PlotFrame::OnInitDialog )
 EVT_CLOSE( WinEDA_PlotFrame::OnClose )
 EVT_BUTTON( wxID_CANCEL, WinEDA_PlotFrame::OnQuit )
 EVT_BUTTON( ID_EXEC_PLOT, WinEDA_PlotFrame::Plot )
@@ -149,18 +153,25 @@ WinEDA_PlotFrame::WinEDA_PlotFrame( WinEDA_BasePcbFrame* parent ) :
               wxDEFAULT_DIALOG_STYLE )
 /********************************************************************/
 {
+    m_Parent = parent;
+    Centre();
+
+}
+
+
+/**************************************************************/
+void WinEDA_PlotFrame::OnInitDialog( wxInitDialogEvent& event )
+/**************************************************************/
+{
+
     wxButton* button;
 
-    m_Parent = parent;
+    BOARD*    board = m_Parent->GetBoard();
 
-    BOARD*    board = parent->m_Pcb;
-
-    wxConfig* config = m_Parent->m_Parent->m_EDA_Config;  //  Current config used by application
+    wxConfig* config = wxGetApp().m_EDA_Config;  //  Current config used by application
 
 
     SetFont( *g_DialogFont );
-    Centre();
-
     m_Plot_Sheet_Ref = NULL;
 
     wxBoxSizer* MainBoxSizer = new      wxBoxSizer( wxHORIZONTAL );
@@ -195,7 +206,7 @@ WinEDA_PlotFrame::WinEDA_PlotFrame( WinEDA_BasePcbFrame* parent ) :
     if( config )
     {
         config->Read( OPTKEY_OUTPUT_FORMAT, &g_PlotFormat );
-        config->Read( OPTKEY_LINEWIDTH_VALUE, &g_PlotLine_Width);
+        config->Read( OPTKEY_PLOT_LINEWIDTH_VALUE, &g_PlotLine_Width);
     }
 
     m_PlotFormatOpt->SetSelection( g_PlotFormat );
@@ -250,8 +261,12 @@ WinEDA_PlotFrame::WinEDA_PlotFrame( WinEDA_BasePcbFrame* parent ) :
     {
         config->Read( OPTKEY_EDGELAYER_GERBER, &g_Exclude_Edges_Pcb );
         config->Read( OPTKEY_XFINESCALE_ADJ, &m_XScaleAdjust );
-        config->Read( OPTKEY_XFINESCALE_ADJ, &m_YScaleAdjust );
+        config->Read( OPTKEY_YFINESCALE_ADJ, &m_YScaleAdjust );
     }
+
+    // Test for a reasonnable scale value. Set to 1 if problem
+    if ( m_XScaleAdjust < MIN_SCALE || m_YScaleAdjust < MIN_SCALE || m_XScaleAdjust > MAX_SCALE || m_YScaleAdjust > MAX_SCALE )
+        m_XScaleAdjust = m_YScaleAdjust = 1.0;
 
     m_FineAdjustXscaleOpt = new WinEDA_DFloatValueCtrl( this,
         _( "X scale adjust" ), m_XScaleAdjust,
@@ -277,7 +292,7 @@ WinEDA_PlotFrame::WinEDA_PlotFrame( WinEDA_BasePcbFrame* parent ) :
     button->SetForegroundColour( wxColour( 0, 80, 0 ) );
     RightBoxSizer->Add( button, 0, wxGROW | wxALL, 5 );
 
-    button = new    wxButton( this, ID_CREATE_DRILL_FILE, _( "Create Drill File" ) );
+    button = new    wxButton( this, ID_CREATE_DRILL_FILE, _( "Generate drill file" ) );
     button->SetForegroundColour( wxColour( 0, 80, 80 ) );
     RightBoxSizer->Add( button, 0, wxGROW | wxALL, 5 );
 
@@ -337,13 +352,13 @@ WinEDA_PlotFrame::WinEDA_PlotFrame( WinEDA_BasePcbFrame* parent ) :
     {
         m_Plot_Sheet_Ref = new wxCheckBox( this, ID_PRINT_REF, _( "Print sheet ref" ) );
 
-        m_Plot_Sheet_Ref->SetValue( Plot_Sheet_Ref );
+        m_Plot_Sheet_Ref->SetValue( g_Plot_Frame_Ref );
         LeftBoxSizer->Add( m_Plot_Sheet_Ref, 0, wxGROW | wxALL, 1 );
     }
     else
-        Plot_Sheet_Ref = false;
+        g_Plot_Frame_Ref = false;
 
-    // Option d'impression des pads sur toutes les couches
+    // Option to plot pads on silkscreen layers or all layers
     m_Plot_Pads_on_Silkscreen = new wxCheckBox( this, ID_PRINT_PAD_ON_SILKSCREEN,
         _( "Print pads on silkscreen" ) );
     if( config )
@@ -361,7 +376,7 @@ WinEDA_PlotFrame::WinEDA_PlotFrame( WinEDA_BasePcbFrame* parent ) :
     m_Force_Plot_Pads->SetToolTip( _( "Force print/plot pads on ALL layers" ) );
     LeftBoxSizer->Add( m_Force_Plot_Pads, 0, wxGROW | wxALL, 1 );
 
-    // Options d'impression des textes modules
+    // Options to plot texts on footprints
     m_Plot_Text_Value = new wxCheckBox( this, ID_PRINT_VALUE, _( "Print module value" ) );
 
     m_Plot_Text_Value->SetValue( Sel_Texte_Valeur );
@@ -418,7 +433,7 @@ WinEDA_PlotFrame::WinEDA_PlotFrame( WinEDA_BasePcbFrame* parent ) :
         wxDefaultPosition, wxDefaultSize,
         3, list_opt3, 1 );
 
-    m_PlotModeOpt->SetSelection( Plot_Mode );
+    m_PlotModeOpt->SetSelection( g_Plot_Mode );
     MidLeftBoxSizer->Add( m_PlotModeOpt, 0, wxGROW | wxALL, 5 );
 
     m_PlotMirorOpt = new wxCheckBox( this, ID_MIROR_OPT,
@@ -442,17 +457,16 @@ WinEDA_PlotFrame::WinEDA_PlotFrame( WinEDA_BasePcbFrame* parent ) :
     m_HPGL_PlotCenter_Opt->SetToolTip( _( "Draw origin ( 0,0 ) in sheet center" ) );
     MidLeftBoxSizer->Add( m_HPGL_PlotCenter_Opt, 0, wxGROW | wxALL, 5 );
 
-    // Mise a jour des activations des menus:
-    wxCommandEvent event;
-    SetCommands( event );
+    // Update options values:
+    wxCommandEvent cmd_event;
+    SetCommands( cmd_event );
 
     GetSizer()->Fit( this );
     GetSizer()->SetSizeHints( this );
 
     // without this line, the ESC key does not work
-    m_PlotButton->SetFocus();
+    SetFocus();
 }
-
 
 /***************************************************************/
 void WinEDA_PlotFrame::OnQuit( wxCommandEvent& WXUNUSED (event) )
@@ -568,7 +582,7 @@ void WinEDA_PlotFrame::SaveOptPlot( wxCommandEvent& event )
     g_Exclude_Edges_Pcb = m_Exclude_Edges_Pcb->GetValue();
 
     if( m_Plot_Sheet_Ref )
-        Plot_Sheet_Ref = m_Plot_Sheet_Ref->GetValue();
+        g_Plot_Frame_Ref = m_Plot_Sheet_Ref->GetValue();
 
     PlotPadsOnSilkLayer  = m_Plot_Pads_on_Silkscreen->GetValue();
     Plot_Pads_All_Layers = m_Force_Plot_Pads->GetValue();
@@ -587,7 +601,7 @@ void WinEDA_PlotFrame::SaveOptPlot( wxCommandEvent& event )
         g_PlotOrient = PLOT_MIROIR;
     else
         g_PlotOrient = 0;
-    Plot_Mode = m_PlotModeOpt->GetSelection();
+    g_Plot_Mode = m_PlotModeOpt->GetSelection();
     g_DrawViaOnMaskLayer = m_PlotNoViaOnMaskOpt->GetValue();
 
     g_HPGL_Pen_Diam  = m_HPGLPenSizeOpt->GetValue();
@@ -599,7 +613,8 @@ void WinEDA_PlotFrame::SaveOptPlot( wxCommandEvent& event )
     m_XScaleAdjust = m_FineAdjustXscaleOpt->GetValue();
     m_YScaleAdjust = m_FineAdjustYscaleOpt->GetValue();
 
-    wxConfig* config = m_Parent->m_Parent->m_EDA_Config;
+    wxConfig* config = wxGetApp().m_EDA_Config;
+
     if( config )
     {
         config->Write( OPTKEY_EDGELAYER_GERBER, g_Exclude_Edges_Pcb );
@@ -611,7 +626,7 @@ void WinEDA_PlotFrame::SaveOptPlot( wxCommandEvent& event )
         int      formatNdx = m_PlotFormatOpt->GetSelection();
         config->Write( OPTKEY_OUTPUT_FORMAT, formatNdx );
 
-        config->Write( OPTKEY_LINEWIDTH_VALUE, g_PlotLine_Width );
+        config->Write( OPTKEY_PLOT_LINEWIDTH_VALUE, g_PlotLine_Width );
 
         wxString layerKey;
         for( int layer = 0;  layer<NB_LAYERS;  ++layer )
@@ -633,7 +648,7 @@ void WinEDA_PlotFrame::Plot( wxCommandEvent& event )
     wxString FullFileName, BaseFileName;
     wxString ext;
 
-    BOARD*   board = m_Parent->m_Pcb;
+    BOARD*   board = m_Parent->GetBoard();
 
     SaveOptPlot( event );
 
@@ -659,10 +674,10 @@ void WinEDA_PlotFrame::Plot( wxCommandEvent& event )
     Scale_X *= m_XScaleAdjust;
     Scale_Y *= m_YScaleAdjust;
 
+    int format = getFormat();
+
     BaseFileName = m_Parent->GetScreen()->m_FileName;
     ChangeFileNameExt( BaseFileName, wxT( "-" ) );
-
-    int format = getFormat();
 
     switch( format )
     {
@@ -672,6 +687,7 @@ void WinEDA_PlotFrame::Plot( wxCommandEvent& event )
 
     default:
     case PLOT_FORMAT_GERBER:
+        Scale_X = Scale_Y = 1.0; // No scale option allowed in gerber format
         ext = wxT( ".pho" );
         break;
 
@@ -679,6 +695,12 @@ void WinEDA_PlotFrame::Plot( wxCommandEvent& event )
         ext = wxT( ".plt" );
         break;
     }
+
+    // Test for a reasonnable scale value
+    if ( Scale_X < MIN_SCALE || Scale_Y < MIN_SCALE )
+        DisplayInfo(this, _("Warning: Scale option set to a very small value") );
+    if ( Scale_X > MAX_SCALE || Scale_Y > MAX_SCALE )
+        DisplayInfo(this, _("Warning: Scale option set to a very large value") );
 
     int mask = 1;
     s_SelectedLayers = 0;
@@ -709,6 +731,11 @@ void WinEDA_PlotFrame::Plot( wxCommandEvent& event )
             }
         }
     }
+
+    // If no layer selected, we have no plot. prompt user if it happens
+    // because he could think there is a bug in pcbnew:
+    if ( s_SelectedLayers == 0 )
+        DisplayError( this, _("No layer selected") );
 
 //  Close(true);
 }

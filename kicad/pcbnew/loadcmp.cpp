@@ -4,10 +4,15 @@
 
 #include "fctsys.h"
 #include "gr_basic.h"
-
 #include "common.h"
-#include "pcbnew.h"
+#include "class_drawpanel.h"
+#include "confirm.h"
+#include "eda_doc.h"
+#include "kicad_string.h"
+#include "gestfich.h"
+#include "get_component_dialog.h"
 
+#include "pcbnew.h"
 #include "protos.h"
 
 class ModList
@@ -43,17 +48,14 @@ void WinEDA_ModuleEditFrame::Load_Module_Module_From_BOARD( MODULE* Module )
 /***************************************************************************/
 {
     MODULE* NewModule;
+    WinEDA_BasePcbFrame* parent = (WinEDA_BasePcbFrame*) GetParent();
 
     if( Module == NULL )
     {
-        if( m_Parent->m_PcbFrame == NULL )
-            return;
-        if( m_Parent->m_PcbFrame->m_Pcb == NULL )
-            return;
-        if( m_Parent->m_PcbFrame->m_Pcb->m_Modules == NULL )
+        if( parent->GetBoard() == NULL || parent->GetBoard()->m_Modules == NULL )
             return;
 
-        Module = Select_1_Module_From_BOARD( m_Parent->m_PcbFrame->m_Pcb );
+        Module = Select_1_Module_From_BOARD( parent->GetBoard() );
     }
 
     if( Module == NULL )
@@ -63,15 +65,14 @@ void WinEDA_ModuleEditFrame::Load_Module_Module_From_BOARD( MODULE* Module )
 
     Clear_Pcb( TRUE );
 
-    m_Pcb->m_Status_Pcb = 0;
-    NewModule = new MODULE( m_Pcb );
+    GetBoard()->m_Status_Pcb = 0;
+    NewModule = new MODULE( GetBoard() );
     NewModule->Copy( Module );
     NewModule->m_Link = Module->m_TimeStamp;
 
     Module = NewModule;
-    Module->m_Parent = m_Pcb;
-    Module->Pback    = m_Pcb->m_Modules; Module->Pnext = NULL;
-    m_Pcb->m_Modules = Module;
+
+    GetBoard()->Add( Module );
 
     Module->m_Flags = 0;
 
@@ -80,7 +81,7 @@ void WinEDA_ModuleEditFrame::Load_Module_Module_From_BOARD( MODULE* Module )
     GetScreen()->m_Curseur.x = GetScreen()->m_Curseur.y = 0;
     Place_Module( Module, NULL );
     if( Module->GetLayer() != CMP_N )
-        m_Pcb->Change_Side_Module( Module, NULL );
+        GetBoard()->Change_Side_Module( Module, NULL );
     Rotate_Module( NULL, Module, 0, FALSE );
     GetScreen()->ClrModify();
     Zoom_Automatique( TRUE );
@@ -100,7 +101,7 @@ MODULE* WinEDA_BasePcbFrame::Load_Module_From_Library( const wxString& library,
     bool AllowWildSeach = TRUE;
 
     /* Ask for a component name or key words */
-    ModuleName = GetComponentName( this, HistoryList, _( "Module name:" ), NULL );
+    ModuleName = GetComponentName( this, HistoryList, _( "Place module" ), NULL );
     ModuleName.MakeUpper();
     if( ModuleName.IsEmpty() )  /* Cancel command */
     {
@@ -158,7 +159,7 @@ MODULE* WinEDA_BasePcbFrame::Load_Module_From_Library( const wxString& library,
         module->m_Flags     = IS_NEW;
         module->m_Link      = 0;
         module->m_TimeStamp = GetTimeStamp();
-        m_Pcb->m_Status_Pcb = 0;
+        GetBoard()->m_Status_Pcb = 0;
         module->SetPosition( curspos );
         build_liste_pads();
 
@@ -190,18 +191,11 @@ MODULE* WinEDA_BasePcbFrame::Get_Librairie_Module( wxWindow* winaff,
     char     Line[512];
     wxString Name;
     wxString ComponentName, msg;
-    MODULE*  Module;
     MODULE*  NewModule;
     FILE*    lib_module = NULL;
     unsigned ii;
 
     ComponentName = ModuleName;
-
-    /* Calcul de l'adresse du dernier module: */
-    Module = m_Pcb->m_Modules;
-    if( Module )
-        while( Module->Pnext )
-            Module = (MODULE*) Module->Pnext;
 
     for( ii = 0; ii < g_LibName_List.GetCount(); ii++ )
     {
@@ -226,7 +220,7 @@ MODULE* WinEDA_BasePcbFrame::Get_Librairie_Module( wxWindow* winaff,
         StrPurge( Line );
         if( strnicmp( Line, ENTETE_LIBRAIRIE, L_ENTETE_LIB ) != 0 )
         {
-            DisplayError( winaff, _( "File is Not a library" ) );
+            DisplayError( winaff, _( "File is not a library" ) );
             return NULL;
         }
 
@@ -265,22 +259,14 @@ MODULE* WinEDA_BasePcbFrame::Get_Librairie_Module( wxWindow* winaff,
             Name = CONV_FROM_UTF8( Line + 8 );
             if( Name.CmpNoCase( ComponentName ) == 0 )  /* composant localise */
             {
-                NewModule = new MODULE( m_Pcb );
+                NewModule = new MODULE( GetBoard() );
 
                 // Switch the locale to standard C (needed to print floating point numbers like 1.3)
                 SetLocaleTo_C_standard( );
                 NewModule->ReadDescr( lib_module, &LineNum );
                 SetLocaleTo_Default( );        // revert to the current  locale
-                if( Module == NULL )                /* 1er Module */
-                {
-                    m_Pcb->m_Modules = NewModule;
-                    NewModule->Pback = m_Pcb;
-                }
-                else
-                {
-                    Module->Pnext    = NewModule;
-                    NewModule->Pback = Module;
-                }
+
+                GetBoard()->Add( NewModule, ADD_APPEND );
                 fclose( lib_module );
                 Affiche_Message( wxEmptyString );
                 return NewModule;
@@ -365,7 +351,8 @@ wxString WinEDA_BasePcbFrame::Select_1_Module_From_List(
             continue;
         }
 
-        msg = _( "Library: " ); msg << FullLibName;
+        // Statusbar library loaded message
+        msg = _( "Library " ); msg << FullLibName; msg << _(" loaded");
         Affiche_Message( msg );
 
         /* lecture entete */
@@ -430,7 +417,7 @@ wxString WinEDA_BasePcbFrame::Select_1_Module_From_List(
 
     wxEndBusyCursor();
 
-    msg.Printf( _( "Modules (%d items)" ), NbModules );
+    msg.Printf( _( "Modules [%d items]" ), NbModules );
     ListBox->SetTitle( msg );
     ListBox->SortList();
 
@@ -575,13 +562,13 @@ MODULE* WinEDA_BasePcbFrame::Select_1_Module_From_BOARD( BOARD* Pcb )
     /* Recherche des composants en BOARD */
     ii     = 0;
     Module = Pcb->m_Modules;
-    for( ; Module != NULL; Module = (MODULE*) Module->Pnext )
+    for( ; Module != NULL; Module = (MODULE*) Module->Next() )
     {
         ii++;
         ListBox->Append( Module->m_Reference->m_Text );
     }
 
-    msg.Printf( _( "Modules (%d items)" ), ii );
+    msg.Printf( _( "Modules [%d items]" ), ii );
     ListBox->SetTitle( msg );
 
     ListBox->SortList();
@@ -601,7 +588,7 @@ MODULE* WinEDA_BasePcbFrame::Select_1_Module_From_BOARD( BOARD* Pcb )
 
     // Recherche du pointeur sur le module
     Module = Pcb->m_Modules;
-    for( ; Module != NULL; Module = (MODULE*) Module->Pnext )
+    for( ; Module != NULL; Module = (MODULE*) Module->Next() )
     {
         if( CmpName.CmpNoCase( Module->m_Reference->m_Text ) == 0 )
             break;

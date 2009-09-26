@@ -4,8 +4,10 @@
 
 #include "fctsys.h"
 #include "gr_basic.h"
-
 #include "common.h"
+#include "class_drawpanel.h"
+#include "confirm.h"
+
 #include "program.h"
 #include "libcmp.h"
 #include "general.h"
@@ -29,15 +31,16 @@ enum {
 
 class WinEDA_HierFrame;
 
-/* Cette classe permet de memoriser la feuille (sheet) associ�e a l'item
-  * pour l'arbre de hierarchie */
+/* This class derived from wxTreeItemData stores the DrawSheetPath of each sheet in hierarcy
+ * in each TreeItem, in its associated data buffer
+*/
 class TreeItemData : public wxTreeItemData
 {
 public:
-    DrawSheetPath m_SheetList;
+    DrawSheetPath m_SheetPath;
     TreeItemData( DrawSheetPath sheet ) : wxTreeItemData()
     {
-        m_SheetList = sheet;
+        m_SheetPath = sheet;
     }
 };
 
@@ -89,7 +92,7 @@ private:
 
 public:
     WinEDA_HierFrame( WinEDA_SchematicFrame* parent, wxDC* DC, const wxPoint& pos );
-    void BuildSheetList( DrawSheetPath* list, wxTreeItemId* previousmenu );
+    void BuildSheetsTree( DrawSheetPath* list, wxTreeItemId* previousmenu );
 
     ~WinEDA_HierFrame();
 
@@ -150,7 +153,7 @@ WinEDA_HierFrame::WinEDA_HierFrame( WinEDA_SchematicFrame* parent, wxDC* DC,
         m_Tree->SelectItem( cellule ); //root.
 
     maxposx = 15;
-    BuildSheetList( &list, &cellule );
+    BuildSheetsTree( &list, &cellule );
 
     if( m_nbsheets > 1 )
     {
@@ -180,7 +183,7 @@ void WinEDA_HierFrame::OnQuit( wxCommandEvent& WXUNUSED (event) )
 
 
 /********************************************************************/
-void WinEDA_HierFrame::BuildSheetList( DrawSheetPath* list,
+void WinEDA_HierFrame::BuildSheetsTree( DrawSheetPath* list,
                                        wxTreeItemId*  previousmenu )
 /********************************************************************/
 
@@ -196,7 +199,7 @@ void WinEDA_HierFrame::BuildSheetList( DrawSheetPath* list,
         if( m_nbsheets == (NB_MAX_SHEET + 1) )
         {
             wxString msg;
-            msg << wxT( "BuildSheetList: Error: nbsheets > " ) << NB_MAX_SHEET;
+            msg << wxT( "BuildSheetsTree: Error: nbsheets > " ) << NB_MAX_SHEET;
             DisplayError( this, msg );
             m_nbsheets++;
         }
@@ -204,16 +207,15 @@ void WinEDA_HierFrame::BuildSheetList( DrawSheetPath* list,
     }
 
     maxposx += m_Tree->GetIndent();
-    EDA_BaseStruct* bs = list->LastDrawList();
-    while( bs && m_nbsheets < NB_MAX_SHEET )
+    SCH_ITEM* schitem = list->LastDrawList();
+    while( schitem && m_nbsheets < NB_MAX_SHEET )
     {
-        if( bs->Type() == DRAW_SHEET_STRUCT_TYPE )
+        if( schitem->Type() == DRAW_SHEET_STRUCT_TYPE )
         {
-            DrawSheetStruct* ss = (DrawSheetStruct*) bs;
+            DrawSheetStruct* sheet = (DrawSheetStruct*) schitem;
             m_nbsheets++;
-            menu = m_Tree->AppendItem( *previousmenu,
-                ss->m_SheetName, 0, 1 );
-            list->Push( ss );
+            menu = m_Tree->AppendItem( *previousmenu, sheet->m_SheetName, 0, 1 );
+            list->Push( sheet );
             m_Tree->SetItemData( menu, new TreeItemData( *list ) );
             int ll = m_Tree->GetItemText( menu ).Len();
 #ifdef __WINDOWS__
@@ -229,11 +231,11 @@ void WinEDA_HierFrame::BuildSheetList( DrawSheetPath* list,
                 m_Tree->EnsureVisible( menu );
                 m_Tree->SelectItem( menu );
             }
-            BuildSheetList( list, &menu );
+            BuildSheetsTree( list, &menu );
             m_Tree->Expand( menu );
             list->Pop();
         }
-        bs = bs->Pnext;
+        schitem = schitem->Next();
     }
 
     maxposx -= m_Tree->GetIndent();
@@ -251,7 +253,7 @@ void WinEDA_HierFrame::OnSelect( wxTreeEvent& event )
     wxTreeItemId ItemSel = m_Tree->GetSelection();
 
     *(m_Parent->m_CurrentSheet) =
-        ( (TreeItemData*) ( m_Tree->GetItemData( ItemSel ) ) )->m_SheetList;
+        ( (TreeItemData*) m_Tree->GetItemData( ItemSel ) )->m_SheetPath;
     UpdateScreenFromSheet( m_Parent );
     Close( TRUE );
 }
@@ -326,12 +328,12 @@ static bool UpdateScreenFromSheet( WinEDA_SchematicFrame* frame )
     // Reinit des parametres d'affichage du nouvel ecran
     // assumes m_CurrentSheet has already been updated.
     frame->MsgPanel->EraseMsgBox();
-    frame->DrawPanel->SetScrollbars( frame->DrawPanel->m_Scroll_unit,
-        frame->DrawPanel->m_Scroll_unit,
-        NewScreen->m_ScrollbarNumber.x,
-        NewScreen->m_ScrollbarNumber.y,
-        NewScreen->m_ScrollbarPos.x,
-        NewScreen->m_ScrollbarPos.y, TRUE );
+    frame->DrawPanel->SetScrollbars( NewScreen->m_ZoomScalar,
+                                     NewScreen->m_ZoomScalar,
+                                     NewScreen->m_ScrollbarNumber.x,
+                                     NewScreen->m_ScrollbarNumber.y,
+                                     NewScreen->m_ScrollbarPos.x,
+                                     NewScreen->m_ScrollbarPos.y, TRUE );
 
     //update the References
     frame->m_CurrentSheet->UpdateAllScreenReferences();
@@ -345,8 +347,9 @@ static bool UpdateScreenFromSheet( WinEDA_SchematicFrame* frame )
     }
     else
     {
-        frame->DrawPanel->Refresh();
         frame->DrawPanel->MouseToCursorSchema();
     }
+
+    frame->DrawPanel->Refresh();
     return true;
 }

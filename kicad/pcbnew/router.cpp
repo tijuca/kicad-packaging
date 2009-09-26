@@ -7,8 +7,12 @@
 #include "fctsys.h"
 #include "gr_basic.h"
 #include "common.h"
+#include "confirm.h"
+#include "kicad_string.h"
+#include "gestfich.h"
 #include "pcbnew.h"
 #include "autorout.h"
+#include "zones.h"
 #include "cell.h"
 #include "trigo.h"
 
@@ -66,27 +70,27 @@ void WinEDA_PcbFrame::GlobalRoute( wxDC* DC )
     SetStatusText( msg );
 
     /* calcul ratsnest */
-    m_Pcb->m_Status_Pcb = 0;
+    GetBoard()->m_Status_Pcb = 0;
     Compile_Ratsnest( DC, TRUE );
 
-    m_Pcb->ComputeBoundaryBox();
+    GetBoard()->ComputeBoundaryBox();
     g_GridRoutingSize = GetScreen()->GetGrid().x;
 
     // Sortie de la dimension hors tout du pcb (dimensions + marge + g_GridRoutingSize)
 #define B_MARGE 1000       // en 1/10000 inch
     fprintf( outfile, "j %d %d %d %d",
-             ( -B_MARGE - g_GridRoutingSize + m_Pcb->m_BoundaryBox.GetX() ) / PSCALE,
-             ( -B_MARGE - g_GridRoutingSize + m_Pcb->m_BoundaryBox.GetY() ) / PSCALE,
-             ( B_MARGE + g_GridRoutingSize + m_Pcb->m_BoundaryBox.GetRight() ) / PSCALE,
-             ( B_MARGE + g_GridRoutingSize + m_Pcb->m_BoundaryBox.GetBottom() ) / PSCALE );
+             ( -B_MARGE - g_GridRoutingSize + GetBoard()->m_BoundaryBox.GetX() ) / PSCALE,
+             ( -B_MARGE - g_GridRoutingSize + GetBoard()->m_BoundaryBox.GetY() ) / PSCALE,
+             ( B_MARGE + g_GridRoutingSize + GetBoard()->m_BoundaryBox.GetRight() ) / PSCALE,
+             ( B_MARGE + g_GridRoutingSize + GetBoard()->m_BoundaryBox.GetBottom() ) / PSCALE );
 
     /* calcul du nombre de couches cuivre */
     min_layer = 1;  /* -> couche soudure = min layer */
-    max_layer = m_Pcb->m_BoardSettings->m_CopperLayerCount;
+    max_layer = GetBoard()->m_BoardSettings->m_CopperLayerCount;
 
     fprintf( outfile, " %d %d", min_layer, max_layer );
 
-    net_number = m_Pcb->m_NbNets;
+    net_number = GetBoard()->m_Equipots.GetCount();
 
     fprintf( outfile, " %d", net_number );
 
@@ -125,8 +129,8 @@ void WinEDA_PcbFrame::GlobalRoute( wxDC* DC )
         fprintf( outfile, "l %d %d\n", ii, dir );       /* layer direction record */
     }
 
-    Out_Pads( m_Pcb, outfile );
-    GenEdges( m_Pcb, outfile );
+    Out_Pads( GetBoard(), outfile );
+    GenEdges( GetBoard(), outfile );
 
     fclose( outfile );
 
@@ -153,17 +157,19 @@ void Out_Pads( BOARD* Pcb, FILE* outfile )
     LISTE_PAD* pt_liste_pad, * pt_start_liste,
     * pt_end_liste, * pt_liste_pad_limite;
     int        pin_min_layer, pin_max_layer;
-    int        no_conn = Pcb->m_NbPads + 1;/* valeur incrementee pour indiquer
+    int        no_conn = Pcb->m_Pads.size() + 1;/* valeur incrementee pour indiquer
                                  *  que le pad n'est pas deja connecte a une piste*/
 
-    pt_liste_pad = pt_start_liste = Pcb->m_Pads;
-    pt_liste_pad_limite = pt_start_liste + Pcb->m_NbPads;
+    pt_liste_pad = pt_start_liste = &Pcb->m_Pads[0];
+    pt_liste_pad_limite = pt_start_liste + Pcb->m_Pads.size();
 
     if( pt_liste_pad == NULL )
         return;
 
     netcode = (*pt_liste_pad)->GetNet();
-    nb_pads = 1; plink = 0;
+    nb_pads = 1;
+    plink = 0;
+
     for( ; pt_liste_pad < pt_liste_pad_limite; )
     {
         /* Recherche de la fin de la liste des pads du net courant */
@@ -186,7 +192,7 @@ void Out_Pads( BOARD* Pcb, FILE* outfile )
                 wxString Line;
                 EQUIPOT* equipot = Pcb->FindNet( netcode );
                 Line.Printf( wxT( "Warning: %d pad, net %s" ),
-                            nb_pads, equipot->m_Netname.GetData() );
+                            nb_pads, equipot->GetNetname().GetData() );
                 DisplayError( NULL, Line, 20 );
             }
             fprintf( outfile, "r %d %d %d %d %d %d 1 1\n",
@@ -198,7 +204,7 @@ void Out_Pads( BOARD* Pcb, FILE* outfile )
         {
             pt_pad  = *pt_liste_pad;
             netcode = pt_pad->GetNet();
-            plink   = pt_pad->m_physical_connexion;
+            plink   = pt_pad->GetSubNet();
             /* plink = numero unique si pad non deja connecte a une piste */
             if( plink <= 0 )
                 plink = no_conn++;
@@ -300,8 +306,8 @@ void Out_Pads( BOARD* Pcb, FILE* outfile )
 
         if( netcode )
         {
-            GenExistantTracks( Pcb, outfile, netcode, TYPEVIA );
-            GenExistantTracks( Pcb, outfile, netcode, TYPETRACK );
+            GenExistantTracks( Pcb, outfile, netcode, TYPE_VIA );
+            GenExistantTracks( Pcb, outfile, netcode, TYPE_TRACK );
         }
 
         nb_pads      = 1;
@@ -329,15 +335,15 @@ void ReturnNbViasAndTracks( BOARD* Pcb, int netcode, int* nb_vias,
     if( track == NULL )
         return;
 
-    for( ; track != NULL; track = (TRACK*) track->Pnext )
+    for( ; track != NULL; track = track->Next() )
     {
         if( track->GetNet() > netcode )
             return;
         if( track->GetNet() != netcode )
             continue;
-        if( track->Type() == TYPEVIA )
+        if( track->Type() == TYPE_VIA )
             (*nb_vias)++;
-        if( track->Type() == TYPETRACK )
+        if( track->Type() == TYPE_TRACK )
             (*nb_tracks)++;
     }
 }
@@ -359,7 +365,7 @@ void GenExistantTracks( BOARD* Pcb, FILE* outfile,
         return;
 
 
-    for( ; track != NULL; track = (TRACK*) track->Pnext )
+    for( ; track != NULL; track = track->Next() )
     {
         netcode = track->GetNet();
         if( netcode > current_net_code )
@@ -372,7 +378,7 @@ void GenExistantTracks( BOARD* Pcb, FILE* outfile,
         if( track->Type() != type )
             continue;
 
-        if( track->Type() == TYPEVIA )
+        if( track->Type() == TYPE_VIA )
         {
             via_min_layer &= 15;
             via_max_layer  = (track->GetLayer() >> 4) & 15;
@@ -405,7 +411,7 @@ void GenExistantTracks( BOARD* Pcb, FILE* outfile,
             fprintf( outfile, "q c 0 %d 0 0 0\n", track->m_Width / PSCALE );
         }
 
-        if( track->Type() == TYPETRACK )
+        if( track->Type() == TYPE_TRACK )
         {
             fprintf( outfile, "t 0 %d", track->m_Width / PSCALE );
             fprintf( outfile, " %d %d", track->m_Start.x / PSCALE, track->m_Start.y / PSCALE );
@@ -446,9 +452,9 @@ int GenEdges( BOARD* Pcb, FILE* outfile )
     int             NbItems = 0;
 
     /* impression des contours  */
-    for( PtStruct = Pcb->m_Drawings; PtStruct != NULL; PtStruct = PtStruct->Pnext )
+    for( PtStruct = Pcb->m_Drawings; PtStruct != NULL; PtStruct = PtStruct->Next() )
     {
-        if( PtStruct->Type() != TYPEDRAWSEGMENT )
+        if( PtStruct->Type() != TYPE_DRAWSEGMENT )
             continue;
 
         PtDrawSegment = (DRAWSEGMENT*) PtStruct;
@@ -549,12 +555,12 @@ void WinEDA_PcbFrame::ReadAutoroutedTracks( wxDC* DC )
     wxString FullFileName, msg;
     int      LineNum = 0, NbTrack = 0, NetCode = 0;
     FILE*    File;
-    TRACK*   NewTrack;
-    SEGVIA*  NewVia;
+    TRACK*   newTrack;
+    SEGVIA*  newVia;
     int      track_count, track_layer, image, track_width;
     int      via_layer1, via_layer2, via_size;
     wxPoint  track_start, track_end;
-    int      max_layer = m_Pcb->m_BoardSettings->m_CopperLayerCount;
+    int      max_layer = GetBoard()->m_BoardSettings->m_CopperLayerCount;
 
     /* Calcule du nom du fichier intermediaire de communication */
     FullFileName = GetScreen()->m_FileName;
@@ -597,17 +603,17 @@ void WinEDA_PcbFrame::ReadAutoroutedTracks( wxDC* DC )
                 via_layer1 = CMP_N;
             if( via_layer2 == max_layer - 1 )
                 via_layer2 = CMP_N;
-            NewVia = new SEGVIA( m_Pcb );
+            newVia = new SEGVIA( GetBoard() );
 
-            NewVia->m_Start = NewVia->m_End = track_start;
-            NewVia->m_Width = via_size;
-            NewVia->SetLayer( via_layer1 + (via_layer2 << 4) );
-            if( NewVia->GetLayer() == 0x0F || NewVia->GetLayer() == 0xF0 )
-                NewVia->m_Shape = VIA_THROUGH;
+            newVia->m_Start = newVia->m_End = track_start;
+            newVia->m_Width = via_size;
+            newVia->SetLayer( via_layer1 + (via_layer2 << 4) );
+            if( newVia->GetLayer() == 0x0F || newVia->GetLayer() == 0xF0 )
+                newVia->m_Shape = VIA_THROUGH;
             else
-                NewVia->m_Shape = VIA_BLIND_BURIED;
+                newVia->m_Shape = VIA_BLIND_BURIED;
 
-            NewVia->Insert( m_Pcb, NULL );
+            GetBoard()->m_Track.PushFront( newVia );
             NbTrack++;
             break;
 
@@ -629,14 +635,15 @@ void WinEDA_PcbFrame::ReadAutoroutedTracks( wxDC* DC )
                     else
                     {
                         sscanf( Line + 2, "%d %d", &track_end.x, &track_end.y );
-                        NewTrack = new TRACK( m_Pcb );
+                        newTrack = new TRACK( GetBoard() );
 
-                        NewTrack->m_Width = track_width;
-                        NewTrack->SetLayer( track_layer );
-                        NewTrack->m_Start = track_start;
-                        NewTrack->m_End   = track_end;
+                        newTrack->m_Width = track_width;
+                        newTrack->SetLayer( track_layer );
+                        newTrack->m_Start = track_start;
+                        newTrack->m_End   = track_end;
                         track_start = track_end;
-                        NewTrack->Insert( m_Pcb, NULL );
+
+                        GetBoard()->m_Track.PushFront( newTrack );
                         NbTrack++;
                     }
                 }
@@ -659,7 +666,7 @@ void WinEDA_PcbFrame::ReadAutoroutedTracks( wxDC* DC )
         DisplayError( this, wxT( "Warning: No tracks" ), 10 );
     else
     {
-        m_Pcb->m_Status_Pcb = 0;
+        GetBoard()->m_Status_Pcb = 0;
         GetScreen()->SetModify();
     }
 

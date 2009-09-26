@@ -4,12 +4,13 @@
 
 #include "fctsys.h"
 #include "gr_basic.h"
-
 #include "common.h"
+#include "class_drawpanel.h"
+#include "confirm.h"
+
 #include "program.h"
 #include "libcmp.h"
 #include "general.h"
-
 #include "protos.h"
 
 
@@ -171,7 +172,7 @@ static void ExitPinSheet( WinEDA_DrawPanel* Panel, wxDC* DC )
  */
 void Hierarchical_PIN_Sheet_Struct::Place( WinEDA_SchematicFrame* frame, wxDC* DC )
 {
-    DrawSheetStruct* Sheet = (DrawSheetStruct*) m_Parent;
+    DrawSheetStruct* Sheet = (DrawSheetStruct*) GetParent();
 
     if( m_Flags & IS_NEW )  /* ajout a la liste des structures */
     {
@@ -182,12 +183,12 @@ void Hierarchical_PIN_Sheet_Struct::Place( WinEDA_SchematicFrame* frame, wxDC* D
             Hierarchical_PIN_Sheet_Struct* pinsheet = Sheet->m_Label;
             while( pinsheet )
             {
-                if( pinsheet->Pnext == NULL )
+                if( pinsheet->Next() == NULL )
                 {
-                    pinsheet->Pnext = this;
+                    pinsheet->SetNext( this );
                     break;
                 }
-                pinsheet = (Hierarchical_PIN_Sheet_Struct*) pinsheet->Pnext;
+                pinsheet = pinsheet->Next();
             }
         }
     }
@@ -242,7 +243,7 @@ static void Move_PinSheet( WinEDA_DrawPanel* panel, wxDC* DC, bool erase )
     if( SheetLabel == NULL )
         return;
 
-    DrawSheetStruct* Sheet = (DrawSheetStruct*) SheetLabel->m_Parent;
+    DrawSheetStruct* Sheet = (DrawSheetStruct*) SheetLabel->GetParent();
 
     if( Sheet == NULL )
         return;
@@ -325,7 +326,7 @@ Hierarchical_PIN_Sheet_Struct* WinEDA_SchematicFrame::Create_PinSheet(
         break;
     }
 
-    Get_Message( Text, Line, this );
+    Get_Message( Text, _("PinSheet"), Line, this );
     if( Line.IsEmpty() )
         return NULL;
 
@@ -362,7 +363,7 @@ Hierarchical_PIN_Sheet_Struct* WinEDA_SchematicFrame::Import_PinSheet( DrawSheet
     if(!Sheet->m_AssociatedScreen) return NULL;
     DrawStruct = Sheet->m_AssociatedScreen->EEDrawList;
     HLabel = NULL;
-    for( ; DrawStruct != NULL; DrawStruct = DrawStruct->Pnext )
+    for( ; DrawStruct != NULL; DrawStruct = DrawStruct->Next() )
     {
         if( DrawStruct->Type() != TYPE_SCH_HIERLABEL )
             continue;
@@ -370,7 +371,7 @@ Hierarchical_PIN_Sheet_Struct* WinEDA_SchematicFrame::Import_PinSheet( DrawSheet
 
         /* Ici un G-Label a ete trouve: y a t-il un SheetLabel correspondant */
         SheetLabel = Sheet->m_Label;
-        for( ; SheetLabel != NULL; SheetLabel = (Hierarchical_PIN_Sheet_Struct*) SheetLabel->Pnext )
+        for( ; SheetLabel != NULL; SheetLabel = SheetLabel->Next() )
         {
             if( SheetLabel->m_Text.CmpNoCase( HLabel->m_Text ) == 0 )
             {
@@ -419,7 +420,7 @@ void WinEDA_SchematicFrame::DeleteSheetLabel( bool aRedraw,
  *  si aRedraw == true, effacement a l'ecran du dessin
  */
 {
-    DrawSheetStruct* parent = (DrawSheetStruct*) aSheetLabelToDel->m_Parent;
+    DrawSheetStruct* parent = (DrawSheetStruct*) aSheetLabelToDel->GetParent();
 
     wxASSERT( parent );
     wxASSERT( parent->Type() == DRAW_SHEET_STRUCT_TYPE );
@@ -438,7 +439,7 @@ void WinEDA_SchematicFrame::DeleteSheetLabel( bool aRedraw,
         if( label == aSheetLabelToDel )
         {
             if( prev )
-                prev->Pnext = label->Next();
+                prev->SetNext( label->Next() );
             else
                 parent->m_Label = label->Next();
 

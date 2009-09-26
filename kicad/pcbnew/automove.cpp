@@ -8,11 +8,13 @@
 #include "fctsys.h"
 #include "gr_basic.h"
 #include "common.h"
+#include "class_drawpanel.h"
+#include "confirm.h"
+#include "kicad_string.h"
 #include "pcbnew.h"
 #include "autorout.h"
 #include "cell.h"
 #include "id.h"
-
 #include "protos.h"
 
 
@@ -77,7 +79,7 @@ void WinEDA_PcbFrame::AutoPlace( wxCommandEvent& event )
     /* Erase rastnest if needed */
     if( g_Show_Ratsnest )
         DrawGeneralRatsnest( &dc );
-    m_Pcb->m_Status_Pcb |= DO_NOT_SHOW_GENERAL_RASTNEST;
+    GetBoard()->m_Status_Pcb |= DO_NOT_SHOW_GENERAL_RASTNEST;
 
     switch( id )   // Traitement des commandes
     {
@@ -176,7 +178,7 @@ void WinEDA_PcbFrame::AutoPlace( wxCommandEvent& event )
         break;
     }
 
-    m_Pcb->m_Status_Pcb &= ~DO_NOT_SHOW_GENERAL_RASTNEST;
+    GetBoard()->m_Status_Pcb &= ~DO_NOT_SHOW_GENERAL_RASTNEST;
     ReCompile_Ratsnest_After_Changes( &dc );
     SetToolbars();
 }
@@ -202,7 +204,7 @@ void WinEDA_PcbFrame::AutoMoveModulesOnPcb( wxDC* DC, bool PlaceModulesHorsPcb )
     bool     EdgeExists;
     float    surface;
 
-    if( m_Pcb->m_Modules == NULL )
+    if( GetBoard()->m_Modules == NULL )
     {
         DisplayError( this, _( "No Modules!" ), 10 ); return;
     }
@@ -217,27 +219,27 @@ void WinEDA_PcbFrame::AutoMoveModulesOnPcb( wxDC* DC, bool PlaceModulesHorsPcb )
     {
         DisplayError( this,
                       _(
-                          "Autoplace modules: No boad edges detected, unable to place modules" ),
+                          "Autoplace modules: No board edges detected. Unable to place modules" ),
                       20 );
         return;
     }
 
-    Module = m_Pcb->m_Modules;
-    for( ; Module != NULL; Module = (MODULE*) Module->Pnext ) // remise a jour du rect d'encadrement
+    Module = GetBoard()->m_Modules;
+    for( ; Module != NULL; Module = Module->Next() ) // remise a jour du rect d'encadrement
     {
         Module->Set_Rectangle_Encadrement();
         Module->SetRectangleExinscrit();
     }
 
-    BaseListeModules = GenListeModules( m_Pcb, NULL );
+    BaseListeModules = GenListeModules( GetBoard(), NULL );
 
     /* Si repartition de modules Hors PCB, le curseur est mis au dessous
      *  du PCB, pour eviter de placer des composants dans la zone PCB
      */
     if( PlaceModulesHorsPcb && EdgeExists )
     {
-        if( GetScreen()->m_Curseur.y < (m_Pcb->m_BoundaryBox.GetBottom() + 2000) )
-            GetScreen()->m_Curseur.y = m_Pcb->m_BoundaryBox.GetBottom() + 2000;
+        if( GetScreen()->m_Curseur.y < (GetBoard()->m_BoundaryBox.GetBottom() + 2000) )
+            GetScreen()->m_Curseur.y = GetBoard()->m_BoundaryBox.GetBottom() + 2000;
     }
 
     /* calcul de la surface occupee par les circuits */
@@ -247,7 +249,7 @@ void WinEDA_PcbFrame::AutoMoveModulesOnPcb( wxDC* DC, bool PlaceModulesHorsPcb )
         Module = *pt_Dmod;
         if( PlaceModulesHorsPcb && EdgeExists )
         {
-            if( m_Pcb->m_BoundaryBox.Inside( Module->m_Pos ) )
+            if( GetBoard()->m_BoundaryBox.Inside( Module->m_Pos ) )
                 continue;
         }
         surface += Module->m_Surface;
@@ -267,7 +269,7 @@ void WinEDA_PcbFrame::AutoMoveModulesOnPcb( wxDC* DC, bool PlaceModulesHorsPcb )
 
         if( PlaceModulesHorsPcb && EdgeExists )
         {
-            if( m_Pcb->m_BoundaryBox.Inside( Module->m_Pos ) )
+            if( GetBoard()->m_BoundaryBox.Inside( Module->m_Pos ) )
                 continue;
         }
 
@@ -314,8 +316,8 @@ void WinEDA_PcbFrame::FixeModule( MODULE* Module, bool Fixe )
     }
     else
     {
-        Module = m_Pcb->m_Modules;
-        for( ; Module != NULL; Module = (MODULE*) Module->Pnext )
+        Module = GetBoard()->m_Modules;
+        for( ; Module != NULL; Module = Module->Next() )
         {
             if( WildCompareString( ModulesMaskSelection, Module->m_Reference->m_Text ) )
             {
@@ -346,7 +348,7 @@ MODULE** GenListeModules( BOARD* Pcb, int* NbModules )
      *  peut deplacer */
     Module = Pcb->m_Modules;
     NbMod  = 0;
-    for( ; Module != NULL; Module = (MODULE*) Module->Pnext )
+    for( ; Module != NULL; Module = Module->Next() )
         NbMod++;
 
     ListeMod = (MODULE**) MyZMalloc( (NbMod + 1) * sizeof(MODULE *) );
@@ -359,7 +361,7 @@ MODULE** GenListeModules( BOARD* Pcb, int* NbModules )
 
     PtList = ListeMod;
     Module = Pcb->m_Modules;
-    for( ; Module != NULL; Module = (MODULE*) Module->Pnext )
+    for( ; Module != NULL; Module = Module->Next() )
     {
         *PtList = Module; PtList++;
         Module->SetRectangleExinscrit();

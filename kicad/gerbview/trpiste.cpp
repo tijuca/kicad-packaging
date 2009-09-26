@@ -3,12 +3,14 @@
 /*****************************************************************/
 
 #include "fctsys.h"
-
+#include "gr_basic.h"
 #include "common.h"
+#include "class_drawpanel.h"
+#include "drawtxt.h"
+#include "confirm.h"
+
 #include "gerbview.h"
 #include "pcbplot.h"
-#include "trigo.h"
-
 #include "protos.h"
 
 /* Definition des cas ou l'on force l'affichage en SKETCH (membre .flags) */
@@ -21,7 +23,7 @@ void Draw_Track_Buffer( WinEDA_DrawPanel* panel, wxDC* DC, BOARD* Pcb, int draw_
                         int printmasklayer )
 /***************************************************************************************************/
 
-/* Function to draw the tracks (i.e Sports or lines) in gerbview
+/* Function to draw the tracks (i.e Spots or lines) in gerbview
  *  Polygons are not handled here (there are in Pcb->m_Zone)
  * @param DC = device context to draw
  * @param Pcb = Board to draw (only Pcb->m_Track is used)
@@ -29,29 +31,29 @@ void Draw_Track_Buffer( WinEDA_DrawPanel* panel, wxDC* DC, BOARD* Pcb, int draw_
  * @param printmasklayer = mask for allowed layer (=-1 to draw all layers)
  */
 {
-    TRACK*        Track;
     int           layer = ( (PCB_SCREEN*) panel->GetScreen() )->m_Active_Layer;
-    GERBER_Descr* gerber_layer     = g_GERBER_Descr_List[layer];
+    GERBER*       gerber = g_GERBER_List[layer];
     int           dcode_hightlight = 0;
 
-    if( gerber_layer )
-        dcode_hightlight = gerber_layer->m_Selected_Tool;
+    if( gerber )
+        dcode_hightlight = gerber->m_Selected_Tool;
 
-    Track = Pcb->m_Track;
-    for( ; Track != NULL; Track = (TRACK*) Track->Pnext )
+    for( TRACK* track = Pcb->m_Track;  track;  track = track->Next() )
     {
-        if( printmasklayer != -1 )
-            if( (Track->ReturnMaskLayer() & printmasklayer) == 0 )
-                continue;
+        if( !(track->ReturnMaskLayer() & printmasklayer) )
+            continue;
 
-        if( (dcode_hightlight == Track->GetNet())
-           && (Track->GetLayer() == layer) )
-            Trace_Segment( panel, DC, Track, draw_mode | GR_SURBRILL );
+        D(printf("D:%p\n", track );)
+
+        if( dcode_hightlight == track->GetNet() && track->GetLayer()==layer )
+            Trace_Segment( panel, DC, track, draw_mode | GR_SURBRILL );
         else
-            Trace_Segment( panel, DC, Track, draw_mode );
+            Trace_Segment( panel, DC, track, draw_mode );
     }
 }
 
+
+#if 1
 
 /***********************************************************************************/
 void Trace_Segment( WinEDA_DrawPanel* panel, wxDC* DC, TRACK* track, int draw_mode )
@@ -65,54 +67,62 @@ void Trace_Segment( WinEDA_DrawPanel* panel, wxDC* DC, TRACK* track, int draw_mo
 {
     int         l_piste;
     int         color;
-    int         zoom;
-    int         rayon;
     int         fillopt;
+    int         radius;
+    int         halfPenWidth;
     static bool show_err;
 
-    color = g_DesignSettings.m_LayerColor[track->GetLayer()];
-    if( color & ITEM_NOT_SHOW )
-        return;
+    if( track->m_Flags & DRAW_ERASED )   // draw in background color, used by classs TRACK in gerbview
+    {
+        color = g_DrawBgColor;
+    }
+    else
+    {
+        color = g_DesignSettings.m_LayerColor[track->GetLayer()];
+        if( color & ITEM_NOT_SHOW )
+            return;
 
-    zoom = panel->GetZoom();
+        if( draw_mode & GR_SURBRILL )
+        {
+            if( draw_mode & GR_AND )
+                color &= ~HIGHT_LIGHT_FLAG;
+            else
+                color |= HIGHT_LIGHT_FLAG;
+        }
+        if( color & HIGHT_LIGHT_FLAG )
+            color = ColorRefs[color & MASKCOLOR].m_LightColor;
+    }
 
     GRSetDrawMode( DC, draw_mode );
-    if( draw_mode & GR_SURBRILL )
-    {
-        if( draw_mode & GR_AND )
-            color &= ~HIGHT_LIGHT_FLAG;
-        else
-            color |= HIGHT_LIGHT_FLAG;
-    }
-    if( color & HIGHT_LIGHT_FLAG )
-        color = ColorRefs[color & MASKCOLOR].m_LightColor;
 
-    rayon = l_piste = track->m_Width >> 1;
 
     fillopt = DisplayOpt.DisplayPcbTrackFill ? FILLED : SKETCH;
 
     switch( track->m_Shape )
     {
     case S_CIRCLE:
-        rayon = (int) hypot( (double) (track->m_End.x - track->m_Start.x),
-                            (double) (track->m_End.y - track->m_Start.y) );
-        if( (l_piste / zoom) < L_MIN_DESSIN )
+        radius = (int) hypot( (double) (track->m_End.x - track->m_Start.x),
+                              (double) (track->m_End.y - track->m_Start.y) );
+
+        halfPenWidth = track->m_Width >> 1;
+        if( panel->GetScreen()->Scale( halfPenWidth ) < L_MIN_DESSIN )
         {
-            GRCircle( &panel->m_ClipBox, DC, track->m_Start.x, track->m_Start.y,
-                      rayon, 0, color );
+            GRCircle( &panel->m_ClipBox, DC, track->m_Start.x,
+                      track->m_Start.y, radius, 0, color );
         }
 
         if( fillopt == SKETCH )
         {
+            // draw the border of the pen's path using two circles, each as narrow as possible
             GRCircle( &panel->m_ClipBox, DC, track->m_Start.x, track->m_Start.y,
-                      rayon - l_piste, 0, color );
+                      radius - halfPenWidth, 0, color );
             GRCircle( &panel->m_ClipBox, DC, track->m_Start.x, track->m_Start.y,
-                      rayon + l_piste, 0, color );
+                      radius + halfPenWidth, 0, color );
         }
         else
         {
             GRCircle( &panel->m_ClipBox, DC, track->m_Start.x, track->m_Start.y,
-                      rayon, track->m_Width, color );
+                      radius, track->m_Width, color );
         }
         break;
 
@@ -133,28 +143,33 @@ void Trace_Segment( WinEDA_DrawPanel* panel, wxDC* DC, TRACK* track, int draw_mo
         break;
 
     case S_SPOT_CIRCLE:
+        radius = track->m_Width >> 1;
+
         fillopt = DisplayOpt.DisplayPadFill ? FILLED : SKETCH;
-        if( (rayon / zoom) < L_MIN_DESSIN )
+        if( panel->GetScreen()->Scale( radius ) < L_MIN_DESSIN )
         {
-            GRCircle( &panel->m_ClipBox, DC, track->m_Start.x, track->m_Start.y,
-                      rayon, 0, color );
+            GRCircle( &panel->m_ClipBox, DC, track->m_Start.x,
+                      track->m_Start.y, radius, 0, color );
         }
         else if( fillopt == SKETCH )
         {
-            GRCircle( &panel->m_ClipBox, DC, track->m_Start.x, track->m_Start.y,
-                      rayon, 0, color );
+            GRCircle( &panel->m_ClipBox, DC, track->m_Start.x,
+                      track->m_Start.y, radius, 0, color );
         }
         else
         {
-            GRFilledCircle( &panel->m_ClipBox, DC, track->m_Start.x, track->m_Start.y,
-                            rayon, 0, color, color );
+            GRFilledCircle( &panel->m_ClipBox, DC, track->m_Start.x,
+                            track->m_Start.y, radius, 0, color, color );
         }
         break;
 
-    case  S_SPOT_RECT:
-    case  S_RECT:
+    case S_SPOT_RECT:
+    case S_RECT:
+
+        l_piste = track->m_Width >> 1;
+
         fillopt = DisplayOpt.DisplayPadFill ? FILLED : SKETCH;
-        if( (l_piste / zoom) < L_MIN_DESSIN )
+        if( panel->GetScreen()->Scale( l_piste ) < L_MIN_DESSIN )
         {
             GRLine( &panel->m_ClipBox, DC, track->m_Start.x, track->m_Start.y,
                     track->m_End.x, track->m_End.y, 0, color );
@@ -179,11 +194,13 @@ void Trace_Segment( WinEDA_DrawPanel* panel, wxDC* DC, TRACK* track, int draw_mo
         }
         break;
 
-    case  S_SPOT_OVALE:
+    case S_SPOT_OVALE:
         fillopt = DisplayOpt.DisplayPadFill ? FILLED : SKETCH;
 
-    case  S_SEGMENT:
-        if( (l_piste / zoom) < L_MIN_DESSIN )
+    case S_SEGMENT:
+        l_piste = track->m_Width >> 1;
+
+        if( panel->GetScreen()->Scale( l_piste ) < L_MIN_DESSIN )
         {
             GRLine( &panel->m_ClipBox, DC, track->m_Start.x, track->m_Start.y,
                     track->m_End.x, track->m_End.y, 0, color );
@@ -193,13 +210,12 @@ void Trace_Segment( WinEDA_DrawPanel* panel, wxDC* DC, TRACK* track, int draw_mo
         if( fillopt == SKETCH )
         {
             GRCSegm( &panel->m_ClipBox, DC, track->m_Start.x, track->m_Start.y,
-                     track->m_End.x, track->m_End.y,
-                     track->m_Width, color );
+                     track->m_End.x, track->m_End.y, track->m_Width, color );
         }
         else
         {
-            GRFillCSegm( &panel->m_ClipBox, DC, track->m_Start.x, track->m_Start.y,
-                         track->m_End.x, track->m_End.y,
+            GRFillCSegm( &panel->m_ClipBox, DC, track->m_Start.x,
+                         track->m_Start.y, track->m_End.x, track->m_End.y,
                          track->m_Width, color );
         }
         break;
@@ -214,6 +230,8 @@ void Trace_Segment( WinEDA_DrawPanel* panel, wxDC* DC, TRACK* track, int draw_mo
     }
 }
 
+#endif
+
 
 /*****************************************************************************************/
 void Affiche_DCodes_Pistes( WinEDA_DrawPanel* panel, wxDC* DC, BOARD* Pcb, int drawmode )
@@ -226,11 +244,11 @@ void Affiche_DCodes_Pistes( WinEDA_DrawPanel* panel, wxDC* DC, BOARD* Pcb, int d
 
     GRSetDrawMode( DC, drawmode );
     track = Pcb->m_Track;
-    for( ; track != NULL; track = (TRACK*) track->Pnext )
+    for( ; track != NULL; track = track->Next() )
     {
         if( (track->m_Shape == S_ARC)
-           || (track->m_Shape == S_CIRCLE)
-           || (track->m_Shape == S_ARC_RECT) )
+         || (track->m_Shape == S_CIRCLE)
+         || (track->m_Shape == S_ARC_RECT) )
         {
             pos.x = track->m_Start.x;
             pos.y = track->m_Start.y;
@@ -240,7 +258,9 @@ void Affiche_DCodes_Pistes( WinEDA_DrawPanel* panel, wxDC* DC, BOARD* Pcb, int d
             pos.x = (track->m_Start.x + track->m_End.x) / 2;
             pos.y = (track->m_Start.y + track->m_End.y) / 2;
         }
+
         Line.Printf( wxT( "D%d" ), track->GetNet() );
+
         width  = track->m_Width;
         orient = TEXT_ORIENT_HORIZ;
         if( track->m_Shape >= S_SPOT_CIRCLE )   // forme flash
@@ -258,7 +278,7 @@ void Affiche_DCodes_Pistes( WinEDA_DrawPanel* panel, wxDC* DC, BOARD* Pcb, int d
         }
 
         DrawGraphicText( panel, DC,
-                         pos, g_DCodesColor, Line,
+                         pos, (EDA_Colors) g_DCodesColor, Line,
                          orient, wxSize( width, width ),
                          GR_TEXT_HJUSTIFY_CENTER, GR_TEXT_VJUSTIFY_CENTER );
     }

@@ -7,12 +7,12 @@
 
 #include "fctsys.h"
 #include "gr_basic.h"
-
 #include "common.h"
+#include "confirm.h"
+
 #include "program.h"
 #include "libcmp.h"
 #include "general.h"
-
 #include "protos.h"
 
 
@@ -41,9 +41,9 @@ const wxChar ** ListNames;
 	}
 
 	ListNames = GetLibNames();
-	ListBox = new WinEDAListBox(frame,
-						_("Select Lib"), ListNames,  OldLibName, NULL,
-						wxColour(150,255,255));
+	ListBox = new WinEDAListBox(frame, _("Select Lib"),
+                                    ListNames,  OldLibName, NULL,
+	                            wxColour(255,255,255)); // Library browser background color
 	ListBox->MoveMouseToOrigin();
 
 	ii = ListBox->ShowModal(); ListBox->Destroy();
@@ -105,7 +105,7 @@ const wxChar ** ListNames;
 
 	ListBox = new WinEDAListBox(frame, msg,
 							ListNames,  OldName, DisplayCmpDoc,
-							wxColour(255,255,200));
+							wxColour(255,255,255)); // Component background listbox color
 	ListBox->MoveMouseToOrigin();
 	
 	ii = ListBox->ShowModal(); ListBox->Destroy();

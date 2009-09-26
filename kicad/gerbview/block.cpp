@@ -5,11 +5,12 @@
 
 #include "fctsys.h"
 #include "gr_basic.h"
-
 #include "common.h"
-#include "gerbview.h"
+#include "class_drawpanel.h"
 #include "trigo.h"
+#include "confirm.h"
 
+#include "gerbview.h"
 #include "protos.h"
 
 
@@ -398,7 +399,8 @@ void WinEDA_BasePcbFrame::Block_Duplicate( wxDC* DC )
             /* this track segment must be duplicated */
             m_Pcb->m_Status_Pcb = 0;
             TRACK* new_track = track->Copy();
-            new_track->Insert( m_Pcb, NULL );
+
+            m_Pcb->Add( new_track );
 
             new_track->m_Start += delta;
             new_track->m_End   += delta;
@@ -417,7 +419,8 @@ void WinEDA_BasePcbFrame::Block_Duplicate( wxDC* DC )
         {
             /* this zone segment must be duplicated */
             SEGZONE * new_zsegment = (SEGZONE*) zsegment->Copy();
-            new_zsegment->Insert( m_Pcb, NULL );
+
+            m_Pcb->Add( new_zsegment );
 
             new_zsegment->m_Start += delta;
             new_zsegment->m_End   += delta;

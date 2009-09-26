@@ -8,11 +8,34 @@
 #include "common.h"
 #include "trigo.h"
 #include "macros.h"
+#include "base_struct.h"
+#include "class_base_screen.h"
 
 #ifndef FILLED
 #define FILLED 1
 #endif
 
+/* Important Note:
+ * These drawing functions  clip draw item before send these items to wxDC draw functions.
+ * For guy who aks why i did it, see a sample of problems encounted when pixels
+ * coordinates overflow 16 bits values:
+ * http://trac.wxwidgets.org/ticket/10446
+ * Problems can be found under Windows **and** Linux (mainly when drawing arcs)
+ * (mainly at low zoom values (2, 1 or 0.5), in pcbnew)
+ * some of these problems could be now fixed in recent distributions.
+ *
+ * Currently (feb 2009) there are overflow problems when drawing solid (filled) polygons under linux without clipping
+ *
+ * So before removing cliping functions, be aware these bug (they are not in kicad or wxWidgets)
+ * are fixed by testing how are drawn complex lines arcs and solid polygons under Windows and Linux
+ * and remember users can have old versions with bugs
+ */
+
+#define USE_CLIP_FILLED_POLYGONS
+
+#ifdef USE_CLIP_FILLED_POLYGONS
+void ClipAndDrawFilledPoly( EDA_Rect * ClipBox, wxDC * DC, wxPoint Points[], int n );
+#endif
 
 /* global variables */
 extern BASE_SCREEN* ActiveScreen;
@@ -21,16 +44,16 @@ extern BASE_SCREEN* ActiveScreen;
 static int          GRLastMoveToX, GRLastMoveToY;
 static int          Text_Color = LIGHTGRAY;
 
-static int          PenMinWidth = 1;/* largeur minimum de la plume (DOIT etre > 0)
-                                     *  (utile pour trace sur imprimante) */
-static int          ForceBlackPen;/* si != 0 : traces en noir (utilise pour trace
-                                   *  sur imprimante */
+static int          PenMinWidth = 1; /* largeur minimum de la plume (DOIT etre > 0)
+                                      *  (utile pour trace sur imprimante) */
+static int          ForceBlackPen; /* si != 0 : traces en noir (utilise pour trace
+                                    *  sur imprimante */
 static int          xcliplo = 0,
-                    ycliplo     = 0,
-                    xcliphi     = 2000,
-                    ycliphi     = 2000;/* coord de la surface de trace */
-static int   lastcolor = -1;
-static int   lastwidth = -1;
+                    ycliplo = 0,
+                    xcliphi = 2000,
+                    ycliphi = 2000;     /* coord de la surface de trace */
+static int   lastcolor      = -1;
+static int   lastwidth      = -1;
 static int   s_Last_Pen_Style = -1;
 static wxDC* lastDC = NULL;
 
@@ -47,55 +70,48 @@ static wxDC* lastDC = NULL;
 
 static inline int USCALE( us arg, us num, us den )
 {
+#ifndef WX_ZOOM
     int ii;
-
     ii = (int) ( ( (float) arg * num ) / den );
     return ii;
-}
-
-
-#ifdef WX_ZOOM
-#define GET_ZOOM 1
 #else
-#define GET_ZOOM ActiveScreen->GetZoom()
+    return arg;
 #endif
-
-static int inline ZoomValue( int value_to_zoom ) {
-    int zoom = GET_ZOOM;
-    if( !zoom ) return 0;
-
-    if( value_to_zoom >= 0 )
-        return ( value_to_zoom + (zoom >> 1 ) ) / zoom;
-    else
-        return ( value_to_zoom - (zoom >> 1 ) ) / zoom;
 }
+
+
+static int inline ZoomValue( int val )
+{
+    return ActiveScreen->Scale( val );
+}
+
 
 /****************************************/
 /* External reference for the mappings. */
 /****************************************/
 int GRMapX( int x )
 {
-    int coord = x - ActiveScreen->m_DrawOrg.x;
-
 #ifndef WX_ZOOM
+    int coord = x - ActiveScreen->m_DrawOrg.x;
     coord  = ZoomValue( coord );
     coord -= ActiveScreen->m_StartVisu.x;
-#endif
-
     return coord;
+#else
+    return x;
+#endif
 }
 
 
 int GRMapY( int y )
 {
-    int coord = y - ActiveScreen->m_DrawOrg.y;
-
 #ifndef WX_ZOOM
+    int coord = y - ActiveScreen->m_DrawOrg.y;
     coord  = ZoomValue( coord );
     coord -= ActiveScreen->m_StartVisu.y;
-#endif
-
     return coord;
+#else
+    return y;
+#endif
 }
 
 
@@ -149,15 +165,15 @@ static inline bool clip_line( int& x1, int& y1, int& x2, int& y2 )
         if( x1 < xcliplo )
         {
             temp = USCALE( (y2 - y1), (xcliplo - x1), (x2 - x1) );
-            y1 += temp;
-            x1 = xcliplo;
+            y1  += temp;
+            x1   = xcliplo;
             WHEN_INSIDE;
         }
         if( x2 > xcliphi )
         {
             temp = USCALE( (y2 - y1), (x2 - xcliphi), (x2 - x1) );
-            y2 -= temp;
-            x2 = xcliphi;
+            y2  -= temp;
+            x2   = xcliphi;
             WHEN_INSIDE;
         }
     }
@@ -190,15 +206,15 @@ static inline bool clip_line( int& x1, int& y1, int& x2, int& y2 )
         if( x1 < xcliplo )
         {
             temp = USCALE( (y1 - y2), (xcliplo - x1), (x2 - x1) );
-            y1 -= temp;
-            x1 = xcliplo;
+            y1  -= temp;
+            x1   = xcliplo;
             WHEN_INSIDE;
         }
         if( x2 > xcliphi )
         {
             temp = USCALE( (y1 - y2), (x2 - xcliphi), (x2 - x1) );
-            y2 += temp;
-            x2 = xcliphi;
+            y2  += temp;
+            x2   = xcliphi;
             WHEN_INSIDE;
         }
     }
@@ -260,7 +276,7 @@ void SetPenMinWidth( int minwidth )
 /**
  * Function GRSetColorPen
  * sets a pen style, width, color, and alpha into the given device context.
-*/
+ */
 void GRSetColorPen( wxDC* DC, int Color, int width, int style )
 {
     if( width < PenMinWidth )
@@ -272,13 +288,13 @@ void GRSetColorPen( wxDC* DC, int Color, int width, int style )
     }
 
     if(   lastcolor != Color
-       || lastwidth != width
-       || s_Last_Pen_Style != style
-       || lastDC != DC  )
+          || lastwidth != width
+          || s_Last_Pen_Style != style
+          || lastDC != DC  )
     {
-        wxPen       pen;
+        wxPen    pen;
 
-        wxColour    wx_color = MakeColour( Color );
+        wxColour wx_color = MakeColour( Color );
 
         pen.SetColour( wx_color );
         pen.SetWidth( width );
@@ -288,7 +304,7 @@ void GRSetColorPen( wxDC* DC, int Color, int width, int style )
 
         lastcolor = Color;
         lastwidth = width;
-        lastDC = DC;
+        lastDC    = DC;
 
         s_Last_Pen_Style = style;
     }
@@ -320,6 +336,7 @@ void GRSetBrush( wxDC* DC, int Color, int fill )
 /*************************************/
 void GRForceBlackPen( bool flagforce )
 /*************************************/
+
 /** function GRForceBlackPen
  * @param flagforce True to force a black pen whenever the asked color
  */
@@ -327,25 +344,16 @@ void GRForceBlackPen( bool flagforce )
     ForceBlackPen = flagforce;
 }
 
+
 /***********************************/
 bool GetGRForceBlackPenState( void )
 /***********************************/
+
 /** function GetGRForceBlackPenState
  * @return ForceBlackPen (True if  a black pen was forced)
  */
 {
     return ForceBlackPen;
-}
-
-/************************************************************/
-/* routines de controle et positionnement du curseur souris */
-/************************************************************/
-/* positionne la souris au point de coord pos */
-void GRMouseWarp( WinEDA_DrawPanel* panel, const wxPoint& pos )
-{
-    if( panel == NULL )
-        return;
-    panel->WarpPointer( pos.x, pos.y );
 }
 
 
@@ -356,8 +364,12 @@ void GRSetDrawMode( wxDC* DC, int draw_mode )
 {
     if( draw_mode & GR_OR )
 #if defined(__WXMAC__) && wxMAC_USE_CORE_GRAPHICS
+
+
         DC->SetLogicalFunction( wxCOPY );
 #else
+
+
         DC->SetLogicalFunction( wxOR );
 #endif
     else if( draw_mode & GR_XOR )
@@ -447,7 +459,7 @@ void GRSDashedLine( EDA_Rect* ClipBox,
 {
     GRLastMoveToX = x2;
     GRLastMoveToY = y2;
-    lastcolor = -1;
+    lastcolor     = -1;
     GRSetColorPen( DC, Color, width, wxSHORT_DASH );
     GRSLine( ClipBox, DC, x1, y1, x2, y2, width, Color );
     lastcolor = -1;
@@ -828,21 +840,19 @@ void GRSCSegm( EDA_Rect* ClipBox, wxDC* DC, int x1, int y1, int x2, int y2, int 
 }
 
 
-static bool IsGRSPolyDrawable( EDA_Rect* ClipBox, int n, int* Points )
+static bool IsGRSPolyDrawable( EDA_Rect* ClipBox, int n, wxPoint Points[] )
 {
-    int ii;
     int Xmin, Xmax, Ymin, Ymax;
 
-    Xmin = Xmax = Points[0];
-    Ymin = Ymax = Points[1];
+    Xmin = Xmax = Points[0].x;
+    Ymin = Ymax = Points[0].y;
 
-    for( ii = 1; ii < n; ii++ )     // calcul du rectangle d'encadrement
+    for( int ii = 1; ii < n; ii++ )     // calcul du rectangle d'encadrement
     {
-        int jj = ii * 2;
-        Xmin = MIN( Xmin, Points[jj] );
-        Xmax = MAX( Xmax, Points[jj] );
-        Ymin = MIN( Ymin, Points[jj + 1] );
-        Ymax = MAX( Ymax, Points[jj + 1] );
+        Xmin = MIN( Xmin, Points[ii].x );
+        Xmax = MAX( Xmax, Points[ii].x );
+        Ymin = MIN( Ymin, Points[ii].y );
+        Ymax = MAX( Ymax, Points[ii].y );
     }
 
     xcliplo = ClipBox->GetX();
@@ -866,11 +876,9 @@ static bool IsGRSPolyDrawable( EDA_Rect* ClipBox, int n, int* Points )
 /************************************************************************/
 /* Routine to draw a new polyline and fill it if Fill, in screen space. */
 /************************************************************************/
-void GRSPoly( EDA_Rect* ClipBox, wxDC* DC, int n, int* Points, int Fill,
-              int width, int Color, int BgColor )
+static void GRSPoly( EDA_Rect* ClipBox, wxDC* DC, int n, wxPoint Points[], bool Fill,
+                     int width, int Color, int BgColor )
 {
-    int startx, starty;
-
     if( !IsGRSPolyDrawable( ClipBox, n, Points ) )
         return;
 
@@ -879,15 +887,28 @@ void GRSPoly( EDA_Rect* ClipBox, wxDC* DC, int n, int* Points, int Fill,
     if( Fill && ( n > 2 ) )
     {
         GRSetBrush( DC, BgColor, FILLED );
-        DC->DrawPolygon( n, (wxPoint*) Points );
+
+
+        /* clip before send the filled polygon to wxDC, because under linux (GTK?)
+         *  polygonsl having large coordinates are incorrectly drawn
+         */
+#ifdef USE_CLIP_FILLED_POLYGONS
+        ClipAndDrawFilledPoly( ClipBox, DC, Points, n );
+#else
+         DC->DrawPolygon( n, Points ); //does not work very well under linux
+#endif
     }
     else
     {
-        startx = Points[n * 2 - 2];
-        starty = Points[n * 2 - 1];
+        wxPoint endPt = Points[n - 1];
 
         GRSetBrush( DC, Color );
-        DC->DrawLines( n, (wxPoint*) Points );
+        DC->DrawLines( n, Points );
+
+        // The last point is not drawn by DrawLine and DrawLines
+        // Add it if the polygon is not closed
+        if( endPt != Points[0] )
+            DC->DrawPoint( endPt.x, endPt.y );
     }
 }
 
@@ -895,61 +916,57 @@ void GRSPoly( EDA_Rect* ClipBox, wxDC* DC, int n, int* Points, int Fill,
 /******************************************************************************/
 /* Routine to draw a new closed polyline and fill it if Fill, in screen space */
 /******************************************************************************/
-void GRSClosedPoly( EDA_Rect* ClipBox, wxDC* DC, int n, int* Points,
-                    int Fill, int Color, int BgColor )
+static void GRSClosedPoly( EDA_Rect* ClipBox, wxDC* DC, int aPointCount, wxPoint aPoints[],
+                           bool Fill, int width, int Color, int BgColor )
 {
-    GRSClosedPoly( ClipBox, DC, n, Points, Fill, 0, Color, BgColor );
-}
-
-
-void GRSClosedPoly( EDA_Rect* ClipBox, wxDC* DC, int n, int* Points,
-                    int Fill, int width, int Color, int BgColor )
-{
-    int startx, starty;
-
-    if( !IsGRSPolyDrawable( ClipBox, n, Points ) )
+    if( !IsGRSPolyDrawable( ClipBox, aPointCount, aPoints ) )
         return;
 
     GRSetColorPen( DC, Color, width );
 
-    if( Fill && ( n > 2 ) )
+    if( Fill && ( aPointCount > 2 ) )
     {
-        GRSMoveTo( Points[n * 2 - 2], Points[n * 2 - 1] );
+        GRSMoveTo( aPoints[aPointCount - 1].x, aPoints[aPointCount - 1].y );
         GRSetBrush( DC, BgColor, FILLED );
-        DC->DrawPolygon( n, (wxPoint*) Points, 0, 0, wxODDEVEN_RULE );
+        DC->DrawPolygon( aPointCount, aPoints, 0, 0, wxODDEVEN_RULE );
     }
     else
     {
-        startx = Points[n * 2 - 2]; starty = Points[n * 2 - 1];
         GRSetBrush( DC, BgColor );
-        DC->DrawLines( n, (wxPoint*) Points );
+        DC->DrawLines( aPointCount, aPoints );
 
         /* Fermeture du polygone */
-        if( (startx != Points[0]) || (starty != Points[1]) )
+        if( aPoints[aPointCount - 1] != aPoints[0] )
         {
-            GRSLine( ClipBox, DC, Points[0], Points[1], startx, starty, width, Color );
+            GRSLine( ClipBox, DC, aPoints[0].x, aPoints[0].y,
+                     aPoints[aPointCount - 1].x, aPoints[aPointCount - 1].y, width, Color );
         }
     }
 }
 
 
+/* not used
+ * static void GRSClosedPoly( EDA_Rect* ClipBox, wxDC* DC, int n, wxPoint Points[],
+ *                 bool Fill, int Color, int BgColor )
+ * {
+ * GRSClosedPoly( ClipBox, DC, n, Points, Fill, 0, Color, BgColor );
+ * }
+ */
+
+
 /************************************************************************/
 /* Routine to draw a new polyline and fill it if Fill, in drawing space. */
 /************************************************************************/
-void GRPoly( EDA_Rect* ClipBox, wxDC* DC, int n, int* Points,
-             int Fill, int width, int Color, int BgColor )
+void GRPoly( EDA_Rect* ClipBox, wxDC* DC, int n, wxPoint Points[],
+             bool Fill, int width, int Color, int BgColor )
 {
-    int ii, jj;
-
-    width = ZoomValue( width );
-    for( ii = 0; ii < n; ii++ )
+    for( int i = 0; i<n; ++i )
     {
-        jj = ii << 1;
-        Points[jj] = GRMapX( Points[jj] );
-        jj++;
-        Points[jj] = GRMapY( Points[jj] );
+        Points[i].x = GRMapX( Points[i].x );
+        Points[i].y = GRMapY( Points[i].y );
     }
 
+    width = ZoomValue( width );
     GRSPoly( ClipBox, DC, n, Points, Fill, width, Color, BgColor );
 }
 
@@ -957,27 +974,23 @@ void GRPoly( EDA_Rect* ClipBox, wxDC* DC, int n, int* Points,
 /**************************************************************************/
 /* Routine to draw a closed polyline and fill it if Fill, in object space */
 /**************************************************************************/
-void GRClosedPoly( EDA_Rect* ClipBox, wxDC* DC, int n, int* Points,
-                   int Fill, int Color, int BgColor )
+void GRClosedPoly( EDA_Rect* ClipBox, wxDC* DC, int n, wxPoint Points[],
+                   bool Fill, int Color, int BgColor )
 {
     GRClosedPoly( ClipBox, DC, n, Points, Fill, 0, Color, BgColor );
 }
 
 
-void GRClosedPoly( EDA_Rect* ClipBox, wxDC* DC, int n, int* Points,
-                   int Fill, int width, int Color, int BgColor )
+void GRClosedPoly( EDA_Rect* ClipBox, wxDC* DC, int n, wxPoint Points[],
+                   bool Fill, int width, int Color, int BgColor )
 {
-    int ii, jj;
-
-    width = ZoomValue( width );
-    for( ii = 0; ii < n; ii++ )
+    for( int i = 0; i<n; ++i )
     {
-        jj = ii << 1;
-        Points[jj] = GRMapX( Points[jj] );
-        jj++;
-        Points[jj] = GRMapY( Points[jj] );
+        Points[i].x = GRMapX( Points[i].x );
+        Points[i].y = GRMapY( Points[i].y );
     }
 
+    width = ZoomValue( width );
     GRSClosedPoly( ClipBox, DC, n, Points, Fill, width, Color, BgColor );
 }
 
@@ -1537,3 +1550,41 @@ void GRSetTextBgColor( wxDC* DC, wxFont*, int Color )
                                ColorRefs[Color].m_Blue )
                            );
 }
+
+#ifdef USE_CLIP_FILLED_POLYGONS
+
+/** Function ClipAndDrawFilledPoly
+ *  Used to clip a polygon and draw it as Filled Polygon
+ *  uses the Sutherland and Hodgman algo to clip the given poly against a rectangle.
+ *  This rectangle is the drawing area
+ *  this is useful under Linux (2009) because filled polygons are incorrectly drawn
+ *  if they have too large coordinates (seems due to integer overflows in calculations)
+ *  Could be removed in some years, if become unnecesary.
+ */
+#include "SutherlandHodgmanClipPoly.h"
+void ClipAndDrawFilledPoly( EDA_Rect* aClipBox, wxDC* aDC, wxPoint aPoints[], int n )
+{
+    static vector<wxPoint> clippedPolygon;
+    static pointVector     inputPolygon, outputPolygon;
+
+    inputPolygon.clear();
+    outputPolygon.clear();
+    clippedPolygon.clear();
+    for( int ii = 0; ii < n; ii++ )
+        inputPolygon.push_back( PointF( (REAL)aPoints[ii].x, (REAL)aPoints[ii].y ) );
+
+    RectF             window( (REAL) aClipBox->GetX(), (REAL) aClipBox->GetY(),
+                             (REAL) aClipBox->GetWidth(), (REAL) aClipBox->GetHeight() );
+
+    SutherlandHodgman sh( window );
+    sh.Clip( inputPolygon, outputPolygon );
+
+    for( cpointIterator cit = outputPolygon.begin(); cit != outputPolygon.end(); ++cit )
+    {
+        clippedPolygon.push_back( wxPoint( (int)round( cit->X ), (int)round( cit->Y ) ) );
+    }
+
+    if ( clippedPolygon.size() )
+        aDC->DrawPolygon( clippedPolygon.size(), &clippedPolygon[0] );
+}
+#endif

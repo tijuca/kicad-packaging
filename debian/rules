@@ -131,12 +131,11 @@ binary-indep: build-indep install-indep
 binary-arch: build-arch install-arch
 	dh_testdir
 	dh_testroot
-	dh_installchangelogs -s kicad/change_log.txt
+	dh_installchangelogs -s kicad/CHANGELOG.txt
 	dh_installman -s $(CURDIR)/debian/man/*.1
 	dh_link -s
 	dh_strip -s
 	dh_compress -s
-	dh_desktop
 	dh_fixperms -s
 	dh_makeshlibs -s
 	dh_installdeb -s

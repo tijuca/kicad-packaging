@@ -13,12 +13,11 @@
 #include <vector>
 #include <wx/dragimag.h>
 
+#include "wxstruct.h"
+
+
 /* Message de presentation */
-eda_global wxString g_Main_Title
-#ifdef MAIN
-= wxT( "KiCad" )
-#endif
-;
+extern wxString g_Main_Title;
 
 class WinEDA_CommandFrame;
 class WinEDA_TreePrj;
@@ -46,13 +45,10 @@ public:
     int     m_LeftWin_Width;
     int     m_CommandWin_Height;
 
-private:
-    wxMenu* m_FilesMenu;
-
 public:
 
     // Constructor and destructor
-    WinEDA_MainFrame( WinEDA_App* eda_app, wxWindow* parent, const wxString& title,
+    WinEDA_MainFrame( wxWindow* parent, const wxString& title,
                       const wxPoint& pos, const wxSize& size );
 
     ~WinEDA_MainFrame();
@@ -65,6 +61,7 @@ public:
     void                    Load_Prj_Config();
     void                    Save_Prj_Config();
     void                    Process_Fct( wxCommandEvent& event );
+    void                    OnFileHistory( wxCommandEvent& event );
     void                    Process_Files( wxCommandEvent& event );
     void                    Process_Config( wxCommandEvent& event );
     void                    Process_Special_Functions( wxCommandEvent& event );
@@ -352,8 +349,8 @@ private:
 };
 
 
-eda_global wxString g_SchematicRootFileName;
-eda_global wxString g_BoardFileName;
+extern wxString g_SchematicRootFileName;
+extern wxString g_BoardFileName;
 
 #ifdef MAIN
 wxString            g_SchExtBuffer( wxT( ".sch" ) );
@@ -362,10 +359,10 @@ wxString            g_NetlistExtBuffer( wxT( ".net" ) );
 wxString            g_GerberExtBuffer( wxT( ".pho" ) );
 
 #else
-eda_global wxString g_SchExtBuffer;
-eda_global wxString g_BoardExtBuffer;
-eda_global wxString g_NetlistExtBuffer;
-eda_global wxString g_GerberExtBuffer;
+extern wxString g_SchExtBuffer;
+extern wxString g_BoardExtBuffer;
+extern wxString g_NetlistExtBuffer;
+extern wxString g_GerberExtBuffer;
 #endif
 
 #endif

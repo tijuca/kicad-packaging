@@ -6,10 +6,32 @@
 #ifndef  WX_EESCHEMA_STRUCT_H
 #define  WX_EESCHEMA_STRUCT_H
 
+#include "wxstruct.h"
 
+
+class WinEDA_LibeditFrame;
+class WinEDA_ViewlibFrame;
+class SCH_SCREEN;
+class DRAWSEGMENT;
 class DrawPickedStruct;
 class SCH_ITEM;
 class DrawNoConnectStruct;
+class LibraryStruct;
+class EDA_LibComponentStruct;
+class LibEDA_BaseStruct;
+class EDA_BaseStruct;
+class DrawBusEntryStruct;
+class SCH_GLOBALLABEL;
+class SCH_TEXT;
+class EDA_DrawLineStruct;
+class DrawSheetStruct;
+class DrawSheetPath;
+class Hierarchical_PIN_Sheet_Struct;
+class SCH_COMPONENT;
+class LibDrawField;
+class SCH_CMP_FIELD;
+class LibDrawPin;
+class DrawJunctionStruct;
 
 /*******************************/
 /* class WinEDA_SchematicFrame */
@@ -32,13 +54,21 @@ enum fl_rot_cmp {
 class WinEDA_SchematicFrame : public WinEDA_DrawFrame
 {
 public:
-    WinEDAChoiceBox* m_SelPartBox;
-    DrawSheetPath*   m_CurrentSheet; //which sheet we are presently working on.
+    WinEDAChoiceBox*     m_SelPartBox;
+    DrawSheetPath*       m_CurrentSheet;    ///< which sheet we are presently working on.
+    int                  m_Multiflag;
+    wxPoint              m_OldPos;
+    WinEDA_LibeditFrame* m_LibeditFrame;
+    WinEDA_ViewlibFrame* m_ViewlibFrame;
+
+
 private:
-    wxMenu*          m_FilesMenu;
+    SCH_CMP_FIELD*       m_CurrentField;
+    int                  m_TextFieldSize;
+
 
 public:
-    WinEDA_SchematicFrame( wxWindow* father, WinEDA_App* parent,
+    WinEDA_SchematicFrame( wxWindow* father,
                            const wxString& title,
                            const wxPoint& pos, const wxSize& size,
                            long style = KICAD_DEFAULT_DRAWFRAME_STYLE );
@@ -65,13 +95,19 @@ public:
                                       int                      hotkey,
                                       EDA_BaseStruct*          DrawStruct );
 
+    SCH_CMP_FIELD*          GetCurrentField() { return m_CurrentField; }
+
+    void                    SetCurrentField( SCH_CMP_FIELD* aCurrentField )
+    {
+        m_CurrentField = aCurrentField;
+    }
+
     DrawSheetPath*          GetSheet();
 
     SCH_SCREEN*             GetScreen() const;
 
     BASE_SCREEN*            GetBaseScreen() const;
 
-    virtual void            SetScreen( SCH_SCREEN* screen );
     virtual wxString        GetScreenDesc();
 
     void                    InstallConfigFrame( const wxPoint& pos );
@@ -89,8 +125,9 @@ public:
         bool
         IncludePin );
 
-    /** function FillFootprintFieldForAllInstancesofComponent
-     * Search for component "aReference", and place a Footprint in Footprint field
+    /**
+     * Function FillFootprintFieldForAllInstancesofComponent
+     * searches for component "aReference", and places a Footprint in Footprint field
      * @param aReference = reference of the component to initialise
      * @param aFootPrint = new value for the filed Fottprint component
      * @param aSetVisible = true to have the field visible, false to set the invisible flag
@@ -103,6 +140,7 @@ public:
     bool FillFootprintFieldForAllInstancesofComponent( const wxString& aReference,
                                                        const wxString& aFootPrint,
                                                     bool            aSetVisible );
+
     SCH_ITEM*               FindComponentAndItem( const wxString& component_reference,
                                                   bool                          Find_in_hierarchy,
                                                   int                           SearchType,
@@ -115,18 +153,32 @@ public:
 
     /* netlist generation */
     void*                   BuildNetListBase();
-    /** Function DeleteAnnotation
+
+    /**
+     * Function DeleteAnnotation
      * Remove current component annotations
      * @param aCurrentSheetOnly : if false: remove all annotations, else remove annotation relative to the current sheet only
      * @param aRedraw : true to refresh display
     */
     void                    DeleteAnnotation( bool aCurrentSheetOnly, bool aRedraw );
 
-    // FUnctions used for hierarchy handling
+    // Functions used for hierarchy handling
     void                    InstallPreviousSheet();
     void                    InstallNextScreen( DrawSheetStruct* Sheet );
+    /** Function GetUniqueFilenameForCurrentSheet
+     * @return a filename that can be used in plot and print functions
+     * for the current screen anad sheet path.
+     * This filename is unique and must be used insteed of the sreen filename
+     * (or scheen filename) when one must creates file for each sheet in the heierarchy.
+     * because in complex hierarchies a sheet and a SCH_SCREEN is used more than once
+     * Name is <root sheet filename>-<sheet path>
+     * and has no extension.
+     * However if filename is too long name is <sheet filename>-<sheet number>
+     */
+    wxString                GetUniqueFilenameForCurrentSheet( );
 
-    /** Function SetSheetNumberAndCount
+    /**
+     * Function SetSheetNumberAndCount
      * Set the m_ScreenNumber and m_NumberOfScreen members for screens
      * must be called after a delete or add sheet command, and when entering a sheet
      */
@@ -276,9 +328,9 @@ private:
     void                    EditComponentValue( SCH_COMPONENT* DrawLibItem, wxDC* DC );
     void                    EditComponentFootprint( SCH_COMPONENT* DrawLibItem,
                                                     wxDC*                             DC );
-    void                    StartMoveCmpField( PartTextStruct* Field, wxDC* DC );
-    void                    EditCmpFieldText( PartTextStruct* Field, wxDC* DC );
-    void                    RotateCmpField( PartTextStruct* Field, wxDC* DC );
+    void                    StartMoveCmpField( SCH_CMP_FIELD* Field, wxDC* DC );
+    void                    EditCmpFieldText( SCH_CMP_FIELD* Field, wxDC* DC );
+    void                    RotateCmpField( SCH_CMP_FIELD* Field, wxDC* DC );
 
     /* Operations sur bloc */
     void                    PasteStruct( wxDC* DC );
@@ -326,7 +378,7 @@ public:
     WinEDAChoiceBox* m_SelAliasBox;
 
 public:
-    WinEDA_LibeditFrame( wxWindow* father, WinEDA_App* parent,
+    WinEDA_LibeditFrame( wxWindow* father,
                          const wxString& title,
                          const wxPoint& pos, const wxSize& size,
                          long style = KICAD_DEFAULT_DRAWFRAME_STYLE );
@@ -365,11 +417,12 @@ private:
                                                LibraryStruct* Library, int noMsg = 0 );
 
     void                DisplayCmpDoc( const wxString& Name );
-    void                InstallLibeditFrame( const wxPoint& pos );
+    void                InstallLibeditFrame( );
 
     // General editing
 public:
     void                SaveCopyInUndoList( EDA_BaseStruct* ItemToCopy, int flag_type_command = 0 );
+    void                InstallFieldsEditorDialog( void );
 
 private:
     bool                GetComponentFromUndoList();
@@ -393,7 +446,7 @@ private:
     void                GraphicItemBeginDraw( wxDC* DC );
     void                StartMoveDrawSymbol( wxDC* DC );
     void                EndDrawGraphicItem( wxDC* DC );
-    void                LoadOneSymbol( wxDC* DC );
+    void                LoadOneSymbol( );
     void                SaveOneSymbol();
     void                EditGraphicSymbol( wxDC* DC, LibEDA_BaseStruct* DrawItem );
     void                EditSymbolText( wxDC* DC, LibEDA_BaseStruct* DrawItem );
@@ -437,7 +490,7 @@ public:
     wxSemaphore*     m_Semaphore; // != NULL if the frame must emulate a modal dialog
 
 public:
-    WinEDA_ViewlibFrame( wxWindow* father, WinEDA_App* parent,
+    WinEDA_ViewlibFrame( wxWindow* father,
                          LibraryStruct* Library = NULL,
                          wxSemaphore* semaphore = NULL );
 

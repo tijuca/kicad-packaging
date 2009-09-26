@@ -14,6 +14,11 @@ set(CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/CMakeModules)
 # building minizip.
 option(KICAD_MINIZIP "enable/disable building minizip (default ON)" ON)
 
+# Russian GOST and CYRILLIC patch
+option(KICAD_CYRILLIC "enable/disable building unicode (default OFF)")
+option(wxUSE_UNICODE "enable/disable building unicode (default OFF)")
+option(KICAD_GOST "enable/disable building unicode (default OFF)")
+
 # Comment this out if you don't want to build with Python support.
 # OPTION(KICAD_PYTHON "enable/disable building with Python support (default OFF)")
 
@@ -32,6 +37,18 @@ if(CMAKE_COMPILER_IS_GNUCXX)
     set(CMAKE_C_FLAGS_DEBUG "-Wall -g3 -ggdb3 -DDEBUG")
     set(CMAKE_CXX_FLAGS_DEBUG "-Wall -g3 -ggdb3 -DDEBUG")
 endif(CMAKE_COMPILER_IS_GNUCXX)
+
+if(KICAD_CYRILLIC)
+    add_definitions(-DKICAD_CYRILLIC)
+endif(KICAD_CYRILLIC)
+
+if(wxUSE_UNICODE)
+    add_definitions(-DwxUSE_UNICODE)
+endif(wxUSE_UNICODE)
+
+if(KICAD_GOST)
+    add_definitions(-DKICAD_GOST)
+endif(KICAD_GOST)
 
 # Locations for install targets.
 set(KICAD_BIN bin
@@ -100,7 +117,7 @@ check_find_package_result(Boost_FOUND "Boost")
 # Here you can define what libraries of wxWidgets you need for your
 # application. You can figure out what libraries you need here;
 # http://www.wxwidgets.org/manuals/2.8/wx_librarieslist.html
-find_package(wxWidgets COMPONENTS base core adv gl html net QUIET)
+find_package(wxWidgets COMPONENTS gl html adv core net base QUIET)
 check_find_package_result(wxWidgets_FOUND "wxWidgets")
 
 
@@ -112,11 +129,8 @@ include(${wxWidgets_USE_FILE})
 include(MinGWResourceCompiler)
 
 # Automagically create version header file.
-# does not work with mingw for me (jpc)
-if(UNIX)
-    include(CreateSVNVersionHeader)
-    create_svn_version_header()
-endif(UNIX)
+include(CreateSVNVersionHeader)
+create_svn_version_header()
 
 if(EXISTS ${CMAKE_SOURCE_DIR}/include/config.h)
     # This file may exist (created by an alternate process to the svn test above),
@@ -165,7 +179,7 @@ add_subdirectory(template)
 #================================================
 # Installation parameters
 #================================================
-install(FILES install.txt
+install(FILES INSTALL.txt
         DESTINATION ${KICAD_DOCS}
         COMPONENT resources)
 install(FILES freeroute.jnlp

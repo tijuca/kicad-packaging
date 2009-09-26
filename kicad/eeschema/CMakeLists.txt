@@ -1,6 +1,8 @@
 add_definitions(-DEESCHEMA)
 
-include_directories(${CMAKE_CURRENT_SOURCE_DIR})
+include_directories(${CMAKE_CURRENT_SOURCE_DIR}
+                    ${Boost_INCLUDE_DIR}
+                   )
 
 set(EESCHEMA_SRCS
     affiche.cpp
@@ -13,10 +15,17 @@ set(EESCHEMA_SRCS
     busentry.cpp
     bus-wire-junction.cpp
     class_drawsheet.cpp
+    class_drawsheetpath.cpp
     class_hierarchical_PIN_sheet.cpp
+    class_libentry.cpp
+    class_libentry_fields.cpp
+    class_library.cpp
+    class_pin.cpp
+    class_sch_cmp_field.cpp
     class_schematic_items.cpp
     class_screen.cpp
     class_text-label.cpp
+    classes_body_items.cpp
     cleanup.cpp
     component_class.cpp
     controle.cpp
@@ -26,16 +35,26 @@ set(EESCHEMA_SRCS
     delete.cpp
     delsheet.cpp
 #   dialog_backanno.cpp
+	dialog_bodygraphictext_properties_base.cpp
     dialog_build_BOM.cpp
+	dialog_build_BOM_base.cpp
 #   dialog_cmp_graphic_properties.cpp
     dialog_create_component.cpp
 #   dialog_edit_component_in_lib.cpp
-#   dialog_edit_component_in_schematic.cpp
-#   dialog_edit_label.cpp
+    dialog_edit_component_in_schematic_fbp.cpp
+    dialog_edit_component_in_schematic.cpp
+    dialog_edit_label.cpp
+    dialog_edit_label_base.cpp
+    dialog_edit_libentry_fields_in_lib.cpp
+    dialog_edit_libentry_fields_in_lib_base.cpp
     dialog_eeschema_config.cpp
     dialog_erc.cpp
 #   dialog_find.cpp
     dialog_options.cpp
+	dialog_print_using_printer_base.cpp
+    dialog_print_using_printer.cpp
+    dialog_SVG_print.cpp
+    dialog_SVG_print_base.cpp
     edit_component_in_lib.cpp
     edit_component_in_schematic.cpp
     edit_label.cpp
@@ -46,7 +65,6 @@ set(EESCHEMA_SRCS
     eelibs_read_libraryfiles.cpp
     eeredraw.cpp
     eeschema.cpp
-    eestring.cpp
     erc.cpp
     files-io.cpp
     find.cpp
@@ -55,7 +73,6 @@ set(EESCHEMA_SRCS
     hotkeys.cpp
     libalias.cpp
     libarch.cpp
-    libclass.cpp
     libedit.cpp
     libedit_onleftclick.cpp
     libedit_onrightclick.cpp
@@ -77,6 +94,7 @@ set(EESCHEMA_SRCS
     plothpgl.cpp
     plotps.cpp
     priorque.cpp
+    read_from_file_schematic_items_descriptions.cpp
     savelib.cpp
     save_schemas.cpp
     schedit.cpp
@@ -87,7 +105,7 @@ set(EESCHEMA_SRCS
     sheetlab.cpp
     symbdraw.cpp
     symbedit.cpp
-    symbtext.cpp
+    edit_graphic_bodyitem_text.cpp
     tool_lib.cpp
     tool_sch.cpp
     tool_viewlib.cpp
@@ -95,12 +113,7 @@ set(EESCHEMA_SRCS
     viewlibs.cpp)
 
 set(EESCHEMA_EXTRA_SRCS
-    ../share/drawframe.cpp
-    ../share/drawpanel.cpp
-    ../share/setpage.cpp
-    ../share/svg_print.cpp
-    ../share/wxprint.cpp
-    ../share/zoom.cpp)
+    ../share/setpage.cpp)
 
 if(WIN32)
     if(MINGW)

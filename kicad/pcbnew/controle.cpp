@@ -5,9 +5,8 @@
 /* controle.cpp */
 
 #include "fctsys.h"
-#include "gr_basic.h"
-
 #include "common.h"
+#include "class_drawpanel.h"
 #include "pcbnew.h"
 #include "protos.h"
 
@@ -30,7 +29,7 @@ static BOARD_ITEM* AllAreModulesAndReturnSmallestIfSo( GENERAL_COLLECTOR* aColle
 
     for( int i = 0; i<count;  ++i )
     {
-        if( (*aCollector)[i]->Type() != TYPEMODULE )
+        if( (*aCollector)[i]->Type() != TYPE_MODULE )
             return NULL;
     }
 
@@ -86,7 +85,7 @@ BOARD_ITEM* WinEDA_BasePcbFrame::PcbGeneralLocateAndDisplay( int aHotKeyCode )
             break;
 
         default:
-            scanList = DisplayOpt.DisplayZones ?
+            scanList = DisplayOpt.DisplayZonesMode == 0 ?
                        GENERAL_COLLECTOR::AllBoardItems :
                        GENERAL_COLLECTOR::AllButZones;
             break;
@@ -109,7 +108,7 @@ BOARD_ITEM* WinEDA_BasePcbFrame::PcbGeneralLocateAndDisplay( int aHotKeyCode )
             break;
 
         default:
-            scanList = DisplayOpt.DisplayZones ?
+            scanList = DisplayOpt.DisplayZonesMode == 0 ?
                        GENERAL_COLLECTOR::AllBoardItems :
                        GENERAL_COLLECTOR::AllButZones;
         }
@@ -123,15 +122,15 @@ BOARD_ITEM* WinEDA_BasePcbFrame::PcbGeneralLocateAndDisplay( int aHotKeyCode )
         (*m_Collector)[i]->Show( 0, std::cout );
 #endif
 
-    /* Remove redundancies: most of time, zones are found twice,
-     * because zones are filled twice ( once by by horizontal and once by vertical segments )
+    /* Remove redundancies: sometime, zones are found twice,
+     * because zones can be are filled by overlapping segments (this is a fill option)
      */
     unsigned long timestampzone = 0;
 
     for( int ii = 0;  ii < m_Collector->GetCount(); ii++ )
     {
         item = (*m_Collector)[ii];
-        if( item->Type() != TYPEZONE )
+        if( item->Type() != TYPE_ZONE )
             continue;
 
         /* Found a TYPE ZONE */
@@ -151,9 +150,9 @@ BOARD_ITEM* WinEDA_BasePcbFrame::PcbGeneralLocateAndDisplay( int aHotKeyCode )
     }
     // If the count is 2, and first item is a pad or moduletext, and the 2nd item is its parent module:
     else if( m_Collector->GetCount() == 2
-             && ( (*m_Collector)[0]->Type() == TYPEPAD || (*m_Collector)[0]->Type() ==
-                 TYPETEXTEMODULE )
-             && (*m_Collector)[1]->Type() == TYPEMODULE && (*m_Collector)[0]->GetParent()==
+             && ( (*m_Collector)[0]->Type() == TYPE_PAD || (*m_Collector)[0]->Type() ==
+                 TYPE_TEXTE_MODULE )
+             && (*m_Collector)[1]->Type() == TYPE_MODULE && (*m_Collector)[0]->GetParent()==
              (*m_Collector)[1] )
     {
         item = (*m_Collector)[0];
@@ -164,6 +163,7 @@ BOARD_ITEM* WinEDA_BasePcbFrame::PcbGeneralLocateAndDisplay( int aHotKeyCode )
     {
         SetCurItem( item );
     }
+
     else    // we can't figure out which item user wants, do popup menu so user can choose
     {
         wxMenu itemMenu;
@@ -271,15 +271,12 @@ static bool Join( wxPoint* res, wxPoint a0, wxPoint a1, wxPoint b0, wxPoint b1 )
  */
 bool Project( wxPoint* res, wxPoint on_grid, const TRACK* track )
 {
-    wxPoint vec;
-    double  t;
-
     if( track->m_Start == track->m_End )
         return false;
 
-    vec = track->m_End-track->m_Start;
+    wxPoint vec = track->m_End - track->m_Start;
 
-    t = double( on_grid.x - track->m_Start.x ) * vec.x +
+    double t = double( on_grid.x - track->m_Start.x ) * vec.x +
         double( on_grid.y - track->m_Start.y ) * vec.y;
 
     t /= (double) vec.x * vec.x + (double) vec.y * vec.y;
@@ -313,7 +310,7 @@ static bool Magnetize( BOARD* m_Pcb, WinEDA_PcbFrame* frame,
 
     // D( printf( "currTrack=%p currItem=%p currTrack->Type()=%d currItem->Type()=%d\n",  currTrack, currItem, currTrack ? currTrack->Type() : 0, currItem ? currItem->Type() : 0 ); )
 
-    if( !currTrack && currItem && currItem->Type()==TYPEVIA && currItem->m_Flags )
+    if( !currTrack && currItem && currItem->Type()==TYPE_VIA && currItem->m_Flags )
     {
         // moving a VIA
         currTrack = (TRACK*) currItem;
@@ -381,7 +378,7 @@ static bool Magnetize( BOARD* m_Pcb, WinEDA_PcbFrame* frame,
             }
             else
             {
-                // D( printf( "skipping self\n" ); )
+                //D( printf( "skipping self\n" ); )
             }
         }
 
@@ -390,8 +387,11 @@ static bool Magnetize( BOARD* m_Pcb, WinEDA_PcbFrame* frame,
             int layer_mask = g_TabOneLayerMask[layer];
 
             TRACK* track = Locate_Pistes( m_Pcb->m_Track, layer_mask, CURSEUR_OFF_GRILLE );
-            if( !track || track->Type() != TYPETRACK )
+            if( !track || track->Type() != TYPE_TRACK )
+            {
+                // D(printf("!currTrack and track=%p not found, layer_mask=0x%X\n", track, layer_mask );)
                 return false;
+            }
 
             // D( printf( "Project\n" ); )
             return Project( curpos, on_grid, track );
@@ -413,13 +413,13 @@ static bool Magnetize( BOARD* m_Pcb, WinEDA_PcbFrame* frame,
 
         for( TRACK* track = m_Pcb->m_Track;  track;  track = track->Next() )
         {
-            if( track->Type() != TYPETRACK )
+            if( track->Type() != TYPE_TRACK )
                 continue;
 
             if( doCheckNet && currTrack && currTrack->GetNet() != track->GetNet() )
                 continue;
 
-            if( (g_DesignSettings.m_LayerColor[track->GetLayer()] & ITEM_NOT_SHOW) )
+            if( g_DesignSettings.m_LayerColor[track->GetLayer()] & ITEM_NOT_SHOW )
                 continue;
 
             // omit the layer check if moving a via
@@ -428,6 +428,8 @@ static bool Magnetize( BOARD* m_Pcb, WinEDA_PcbFrame* frame,
 
             if( !track->HitTest( *curpos ) )
                 continue;
+
+            D(printf( "have track prospect\n");)
 
             if( Join( curpos, track->m_Start, track->m_End, currTrack->m_Start, currTrack->m_End ) )
             {
@@ -448,8 +450,8 @@ static bool Magnetize( BOARD* m_Pcb, WinEDA_PcbFrame* frame,
                                           double( curpos->y - track->m_End.y ));
 
                 // if track not via, or if its a via dragging but not with its adjacent track
-                if( currTrack->Type() != TYPEVIA
-                    || ( currTrack->m_Start!=track->m_Start && currTrack->m_Start!=track->m_End ))
+                if( currTrack->Type() != TYPE_VIA
+                    || ( currTrack->m_Start != track->m_Start && currTrack->m_Start != track->m_End ))
                 {
                     if( distStart <= currTrack->m_Width/2 )
                     {
@@ -477,11 +479,10 @@ static bool Magnetize( BOARD* m_Pcb, WinEDA_PcbFrame* frame,
 
 
 /****************************************************************/
-void WinEDA_BasePcbFrame::GeneralControle( wxDC* DC, wxPoint Mouse )
+void WinEDA_PcbFrame::GeneralControle( wxDC* DC, wxPoint Mouse )
 /*****************************************************************/
 {
-    wxSize  delta;
-    int     zoom = GetScreen()->GetZoom();
+    wxRealPoint delta;
     wxPoint curpos, oldpos;
     int     hotkey = 0;
 
@@ -514,11 +515,10 @@ void WinEDA_BasePcbFrame::GeneralControle( wxDC* DC, wxPoint Mouse )
     }
 
     curpos = DrawPanel->CursorRealPosition( Mouse );
-
     oldpos = GetScreen()->m_Curseur;
 
-    delta.x = (int) round( (double) GetScreen()->GetGrid().x / zoom );
-    delta.y = (int) round( (double) GetScreen()->GetGrid().y / zoom );
+    delta = GetScreen()->GetGrid();
+    GetScreen()->Scale( delta );
 
     if( delta.x <= 0 )
         delta.x = 1;
@@ -528,62 +528,27 @@ void WinEDA_BasePcbFrame::GeneralControle( wxDC* DC, wxPoint Mouse )
 
     switch( g_KeyPressed )
     {
-    case EDA_PANNING_UP_KEY:
-        OnZoom( ID_ZOOM_PANNING_UP );
-        curpos = GetScreen()->m_Curseur;
-        break;
-
-    case EDA_PANNING_DOWN_KEY:
-        OnZoom( ID_ZOOM_PANNING_DOWN );
-        curpos = GetScreen()->m_Curseur;
-        break;
-
-    case EDA_PANNING_LEFT_KEY:
-        OnZoom( ID_ZOOM_PANNING_LEFT );
-        curpos = GetScreen()->m_Curseur;
-        break;
-
-    case EDA_PANNING_RIGHT_KEY:
-        OnZoom( ID_ZOOM_PANNING_RIGHT );
-        curpos = GetScreen()->m_Curseur;
-        break;
-
-    case EDA_ZOOM_IN_FROM_MOUSE:
-        OnZoom( ID_ZOOM_IN_KEY );
-        oldpos = curpos = GetScreen()->m_Curseur;
-        break;
-
-    case EDA_ZOOM_OUT_FROM_MOUSE:
-        OnZoom( ID_ZOOM_OUT_KEY );
-        oldpos = curpos = GetScreen()->m_Curseur;
-        break;
-
-    case EDA_ZOOM_CENTER_FROM_MOUSE:
-        OnZoom( ID_ZOOM_CENTER_KEY );
-        oldpos = curpos = GetScreen()->m_Curseur;
-        break;
-
     case WXK_NUMPAD8:       /* Deplacement curseur vers le haut */
     case WXK_UP:
-        Mouse.y -= delta.y;
+        Mouse.y -= (int) round(delta.y);
         DrawPanel->MouseTo( Mouse );
         break;
 
     case WXK_NUMPAD2:       /* Deplacement curseur vers le bas */
     case WXK_DOWN:
-        Mouse.y += delta.y;
+        Mouse.y += (int) round(delta.y);
         DrawPanel->MouseTo( Mouse );
         break;
 
     case WXK_NUMPAD4:       /* Deplacement curseur vers la gauche */
     case WXK_LEFT:
-        Mouse.x -= delta.x;
+        Mouse.x -= (int) round(delta.x);
         DrawPanel->MouseTo( Mouse );
         break;
 
     case WXK_NUMPAD6:      /* Deplacement curseur vers la droite */
     case WXK_RIGHT:
-        Mouse.x += delta.x;
+        Mouse.x += (int) round(delta.x);
         DrawPanel->MouseTo( Mouse );
         break;
 
@@ -616,8 +581,11 @@ void WinEDA_BasePcbFrame::GeneralControle( wxDC* DC, wxPoint Mouse )
         wxPoint on_grid = curpos;
 
         PutOnGrid( &on_grid );
+        wxSize grid;
+        grid.x = (int) GetScreen()->GetGrid().x;
+        grid.y = (int) GetScreen()->GetGrid().y;
         if( Magnetize(m_Pcb, (WinEDA_PcbFrame *) this, m_ID_current_state,
-                        GetScreen()->GetGrid(), on_grid, &curpos) )
+                        grid, on_grid, &curpos) )
         {
             GetScreen()->m_Curseur = curpos;
         }
@@ -625,10 +593,11 @@ void WinEDA_BasePcbFrame::GeneralControle( wxDC* DC, wxPoint Mouse )
         {
             // If there's no intrusion and DRC is active, we pass the cursor
             // "as is", and let ShowNewTrackWhenMovingCursor figure out what to do.
-            if(  !Drc_On || !g_CurrentTrackSegment
-              || g_CurrentTrackSegment != this->GetCurItem()
-              || !LocateIntrusion( m_Pcb->m_Track, g_CurrentTrackSegment->GetNet(),
-                        g_CurrentTrackSegment->m_Width ) )
+            if( !Drc_On || !g_CurrentTrackSegment
+                || g_CurrentTrackSegment != this->GetCurItem()
+                || !LocateIntrusion( m_Pcb->m_Track,
+                                     g_CurrentTrackSegment->GetNet(),
+                                     g_CurrentTrackSegment->m_Width ) )
             {
                 GetScreen()->m_Curseur = on_grid;
             }

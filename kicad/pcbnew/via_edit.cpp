@@ -4,10 +4,10 @@
 
 #include "fctsys.h"
 #include "gr_basic.h"
-
 #include "common.h"
+#include "class_drawpanel.h"
+#include "confirm.h"
 #include "pcbnew.h"
-
 #include "id.h"
 
 
@@ -63,10 +63,10 @@ void WinEDA_PcbFrame::Via_Edit_Control( wxDC* DC, int command_type, SEGVIA* via 
     case ID_POPUP_PCB_VIA_HOLE_EXPORT_TO_OTHERS:    // Export the current drill value to via which héave the same size
         if( via->GetDrillValue() > 0 )
             g_DesignSettings.m_ViaDrillCustomValue = via->GetDrillValue();
-        via_struct = m_Pcb->m_Track;
-        for( ; via_struct != NULL; via_struct = (TRACK*) via_struct->Pnext )
+        via_struct = GetBoard()->m_Track;
+        for( ; via_struct != NULL; via_struct = via_struct->Next() )
         {
-            if( via_struct->Type() == TYPEVIA )     /* mise a jour du diametre de la via */
+            if( via_struct->Type() == TYPE_VIA )     /* mise a jour du diametre de la via */
             {
                 if( via_struct->m_Width != via->m_Width )
                     continue;
@@ -87,10 +87,10 @@ void WinEDA_PcbFrame::Via_Edit_Control( wxDC* DC, int command_type, SEGVIA* via 
         break;
 
     case ID_POPUP_PCB_VIA_HOLE_RESET_TO_DEFAULT:        // Reset all via hole to default value
-        via_struct = m_Pcb->m_Track;
+        via_struct = GetBoard()->m_Track;
         for( ; via_struct != NULL; via_struct = via_struct->Next() )
         {
-            if( via_struct->Type() == TYPEVIA )     /* mise a jour du diametre de la via */
+            if( via_struct->Type() == TYPE_VIA )     /* mise a jour du diametre de la via */
             {
                 if( ! via_struct->IsDrillDefault() )
                 {

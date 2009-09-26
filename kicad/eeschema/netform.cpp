@@ -4,8 +4,10 @@
 
 #include "fctsys.h"
 #include "gr_basic.h"
-
 #include "common.h"
+#include "confirm.h"
+#include "kicad_string.h"
+#include "gestfich.h"
 #include "program.h"
 #include "libcmp.h"
 #include "general.h"
@@ -285,11 +287,11 @@ void Write_GENERIC_NetList( WinEDA_SchematicFrame* frame,
 
     /* Create netlist module section */
     fprintf( tmpfile, "$BeginComponentList\n" );
-    EDA_SheetList SheetList( NULL );
+    EDA_SheetList SheetList;
 
     for( sheet = SheetList.GetFirst(); sheet != NULL; sheet = SheetList.GetNext() )
     {
-        for( SchItem = sheet->LastDrawList(); SchItem != NULL; SchItem = SchItem->Pnext )
+        for( SchItem = sheet->LastDrawList(); SchItem != NULL; SchItem = SchItem->Next() )
         {
             SchItem = Component = FindNextComponentAndCreatPinList( SchItem, sheet );
 
@@ -297,9 +299,9 @@ void Write_GENERIC_NetList( WinEDA_SchematicFrame* frame,
                 break; // No component left
 
             FootprintName.Empty();
-            if( !Component->m_Field[FOOTPRINT].IsVoid() )
+            if( !Component->GetField( FOOTPRINT )->IsVoid() )
             {
-                FootprintName = Component->m_Field[FOOTPRINT].m_Text;
+                FootprintName = Component->GetField( FOOTPRINT )->m_Text;
                 FootprintName.Replace( wxT( " " ), wxT( "_" ) );
             }
 
@@ -310,7 +312,7 @@ void Write_GENERIC_NetList( WinEDA_SchematicFrame* frame,
             Line.Replace( wxT( " " ), wxT( "_" ) );
             fprintf( tmpfile, CONV_TO_UTF8( Line ) );
 
-            Line = Component->m_Field[VALUE].m_Text;
+            Line = Component->GetField( VALUE )->m_Text;
             Line.Replace( wxT( " " ), wxT( "_" ) );
             fprintf( tmpfile, "Value=%s\n", CONV_TO_UTF8( Line ) );
 
@@ -409,11 +411,11 @@ static void WriteNetListPspice( WinEDA_SchematicFrame* frame, FILE* f,
     /* Create text list starting by [.-]pspice , or [.-]gnucap (simulator commands) */
     /* and create text list starting by [+]pspice , or [+]gnucap (simulator commands) */
     bufnum[BUFYPOS_LEN] = 0;
-    EDA_SheetList SheetList( NULL );
+    EDA_SheetList SheetList;
 
     for( sheet = SheetList.GetFirst(); sheet != NULL; sheet = SheetList.GetNext() )
     {
-        for( DrawList = sheet->LastDrawList(); DrawList != NULL; DrawList = DrawList->Pnext )
+        for( DrawList = sheet->LastDrawList(); DrawList != NULL; DrawList = DrawList->Next() )
         {
             wxChar ident;
             if( DrawList->Type() != TYPE_SCH_TEXT )
@@ -467,7 +469,7 @@ static void WriteNetListPspice( WinEDA_SchematicFrame* frame, FILE* f,
     ClearUsedFlags();  /* Reset the flags FlagControlMulti in all schematic files*/
     for( sheet = SheetList.GetFirst(); sheet != NULL; sheet = SheetList.GetNext() )
     {
-        for( DrawList = sheet->LastDrawList(); DrawList != NULL; DrawList = DrawList->Pnext )
+        for( DrawList = sheet->LastDrawList(); DrawList != NULL; DrawList = DrawList->Next() )
         {
             DrawList = Component = FindNextComponentAndCreatPinList( DrawList, sheet );
             if( Component == NULL )
@@ -496,7 +498,7 @@ static void WriteNetListPspice( WinEDA_SchematicFrame* frame, FILE* f,
                 }
             }
 
-            fprintf( f, " %s\n", CONV_TO_UTF8( Component->m_Field[VALUE].m_Text ) );
+            fprintf( f, " %s\n", CONV_TO_UTF8( Component->GetField( VALUE )->m_Text ) );
         }
     }
 
@@ -539,7 +541,7 @@ static void WriteNetListPCBNEW( WinEDA_SchematicFrame* frame, FILE* f, bool with
     EDA_BaseStruct* DrawList;
     SCH_COMPONENT* Component;
     int ii;
-    ListComponent* CmpList = NULL;
+    OBJ_CMP_TO_LIST* CmpList = NULL;
     int CmpListCount = 0, CmpListSize = 1000;
 
     DateAndTime( Buf );
@@ -552,11 +554,11 @@ static void WriteNetListPCBNEW( WinEDA_SchematicFrame* frame, FILE* f, bool with
     /* Create netlist module section */
     ClearUsedFlags( );  /* Reset the flags FlagControlMulti in all schematic files*/
 
-    EDA_SheetList SheetList( NULL );
+    EDA_SheetList SheetList;
 
     for( sheet = SheetList.GetFirst(); sheet != NULL; sheet = SheetList.GetNext() )
     {
-        for( DrawList = sheet->LastDrawList(); DrawList != NULL; DrawList = DrawList->Pnext )
+        for( DrawList = sheet->LastDrawList(); DrawList != NULL; DrawList = DrawList->Next() )
         {
             DrawList = Component = FindNextComponentAndCreatPinList( DrawList, sheet );
             if( Component == NULL )
@@ -571,25 +573,25 @@ static void WriteNetListPCBNEW( WinEDA_SchematicFrame* frame, FILE* f, bool with
                 {
                     if( CmpList == NULL )
                     {
-                        CmpList = (ListComponent*)
-                                  MyZMalloc( sizeof(ListComponent) * CmpListSize );
+                        CmpList = (OBJ_CMP_TO_LIST*)
+                                  MyZMalloc( sizeof(OBJ_CMP_TO_LIST) * CmpListSize );
                     }
                     if( CmpListCount >= CmpListSize )
                     {
                         CmpListSize += 1000;
-                        CmpList = (ListComponent*) realloc(
+                        CmpList = (OBJ_CMP_TO_LIST*) realloc(
                             CmpList,
-                            sizeof(ListComponent) * CmpListSize );
+                            sizeof(OBJ_CMP_TO_LIST) * CmpListSize );
                     }
-                    CmpList[CmpListCount].m_Comp = Component;
-                    strcpy( CmpList[CmpListCount].m_Ref, Component->GetRef( sheet ).mb_str() );
+                    CmpList[CmpListCount].m_RootCmp = Component;
+                    strcpy( CmpList[CmpListCount].m_Reference, Component->GetRef( sheet ).mb_str() );
                     CmpListCount++;
                 }
             }
 
-            if( !Component->m_Field[FOOTPRINT].IsVoid() )
+            if( !Component->GetField( FOOTPRINT )->IsVoid() )
             {
-                FootprintName = Component->m_Field[FOOTPRINT].m_Text;
+                FootprintName = Component->GetField( FOOTPRINT )->m_Text;
                 FootprintName.Replace( wxT( " " ), wxT( "_" ) );
             }
             else
@@ -601,7 +603,7 @@ static void WriteNetListPCBNEW( WinEDA_SchematicFrame* frame, FILE* f, bool with
                     CONV_TO_UTF8( FootprintName ) );
             fprintf( f, "  %s", CONV_TO_UTF8( Line ) );
 
-            Line = Component->m_Field[VALUE].m_Text;
+            Line = Component->GetField( VALUE )->m_Text;
             Line.Replace( wxT( " " ), wxT( "_" ) );
             fprintf( f, " %s", CONV_TO_UTF8( Line ) );
 
@@ -643,19 +645,19 @@ static void WriteNetListPCBNEW( WinEDA_SchematicFrame* frame, FILE* f, bool with
         EDA_LibComponentStruct* Entry;
         for( ii = 0; ii < CmpListCount; ii++ )
         {
-            Component = CmpList[ii].m_Comp;
+            Component = CmpList[ii].m_RootCmp;
             Entry = FindLibPart( Component->m_ChipName.GetData(), wxEmptyString, FIND_ROOT );
 
             //Line.Printf(_("%s"), CmpList[ii].m_Ref);
             //Line.Replace( wxT( " " ), wxT( "_" ) );
             unsigned int i;
-            for( i = 0; i<sizeof(CmpList[ii].m_Ref) && CmpList[ii].m_Ref[i]; i++ )
+            for( i = 0; i<sizeof(CmpList[ii].m_Reference) && CmpList[ii].m_Reference[i]; i++ )
             {
-                if( CmpList[ii].m_Ref[i] == ' ' )
-                    CmpList[ii].m_Ref[i] = '_';
+                if( CmpList[ii].m_Reference[i] == ' ' )
+                    CmpList[ii].m_Reference[i] = '_';
             }
 
-            fprintf( f, "$component %s\n", CmpList[ii].m_Ref );
+            fprintf( f, "$component %s\n", CmpList[ii].m_Reference );
             /* Write the footprint list */
             for( unsigned int jj = 0; jj < Entry->m_FootprintList.GetCount(); jj++ )
             {
@@ -767,11 +769,11 @@ static void FindAllsInstancesOfComponent( SCH_COMPONENT*          Component_in,
     DrawSheetPath* sheet;
     wxString str, Reference = Component_in->GetRef( Sheet_in );
 
-    EDA_SheetList SheetList( NULL );
+    EDA_SheetList SheetList;
 
     for( sheet = SheetList.GetFirst(); sheet != NULL; sheet = SheetList.GetNext() )
     {
-        for( SchItem = sheet->LastDrawList(); SchItem; SchItem = SchItem->Pnext )
+        for( SchItem = sheet->LastDrawList(); SchItem; SchItem = SchItem->Next() )
         {
             if( SchItem->Type() != TYPE_SCH_COMPONENT )
                 continue;
@@ -862,18 +864,16 @@ static void WriteGENERICListOfNets( FILE* f, ObjetNetListStruct* ObjNet )
             NetcodeName += wxT( "\"" );
             if( !NetName.IsEmpty() )
             {
-                NetcodeName += NetName;
                 if( g_TabObjNet[jj].m_Type != NET_PINLABEL )
                 {
-                    // usual net name, add in the sheet path
-                    NetcodeName = g_TabObjNet[jj].m_SheetList.PathHumanReadable()
-                                  + NetcodeName;
-
-                    //NetcodeName << wxT("_") <<
-                    //		g_TabObjNet[jj].m_SheetList.PathHumanReadable();
+                    // usual net name, prefix it by the sheet path
+                    NetcodeName += g_TabObjNet[jj].m_SheetList.PathHumanReadable();
                 }
+                NetcodeName += NetName;
             }
             NetcodeName += wxT( "\"" );
+            // Add the netname without prefix, in cases we need only the "short" netname
+            NetcodeName += wxT( " \"" ) + NetName + wxT( "\"" );
             LastNetCode  = NetCode;
         }
 
@@ -958,19 +958,19 @@ static void WriteNetListCADSTAR( WinEDA_SchematicFrame* frame, FILE* f )
 
     /* Create netlist module section */
     ClearUsedFlags( );  /* Reset the flags FlagControlMulti in all schematic files*/
-    EDA_SheetList SheetList( NULL );
+    EDA_SheetList SheetList;
 
     for( sheet = SheetList.GetFirst(); sheet != NULL; sheet = SheetList.GetNext() )
     {
-        for( DrawList = sheet->LastDrawList(); DrawList != NULL; DrawList = DrawList->Pnext )
+        for( DrawList = sheet->LastDrawList(); DrawList != NULL; DrawList = DrawList->Next() )
         {
             DrawList = Component = FindNextComponentAndCreatPinList( DrawList, sheet );
             if( Component == NULL )
                 break;
 
-            if( !Component->m_Field[FOOTPRINT].IsVoid() )
+            if( !Component->GetField( FOOTPRINT )->IsVoid() )
             {
-                FootprintName = Component->m_Field[FOOTPRINT].m_Text;
+                FootprintName = Component->GetField( FOOTPRINT )->m_Text;
                 FootprintName.Replace( wxT( " " ), wxT( "_" ) );
             }
             else
@@ -980,7 +980,7 @@ static void WriteNetListCADSTAR( WinEDA_SchematicFrame* frame, FILE* f )
             fprintf( f, "%s     ", CONV_TO_UTF8( StartCmpDesc ) );
             fprintf( f, "%s", CONV_TO_UTF8( msg ) );
 
-            msg = Component->m_Field[VALUE].m_Text;
+            msg = Component->GetField( VALUE )->m_Text;
             msg.Replace( wxT( " " ), wxT( "_" ) );
             fprintf( f, "     \"%s\"", CONV_TO_UTF8( msg ) );
             fprintf( f, "\n" );

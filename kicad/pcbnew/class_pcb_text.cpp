@@ -1,13 +1,13 @@
-/************************************/
-/* fonctions de la classe TEXTE_PCB */
-/************************************/
+/*********************************************************/
+/* class TEXTE_PCB : texts on copper or technical layers */
+/*********************************************************/
 
 #include "fctsys.h"
 #include "wxstruct.h"
-
 #include "gr_basic.h"
-
 #include "common.h"
+#include "kicad_string.h"
+
 #include "pcbnew.h"
 
 
@@ -16,7 +16,7 @@
 /*******************/
 
 TEXTE_PCB::TEXTE_PCB( BOARD_ITEM* parent ) :
-    BOARD_ITEM( parent, TYPETEXTE ),
+    BOARD_ITEM( parent, TYPE_TEXTE ),
     EDA_TextStruct()
 {
 }
@@ -33,41 +33,18 @@ void TEXTE_PCB::Copy( TEXTE_PCB* source )
 {
     m_Parent    = source->m_Parent;
     Pback       = Pnext = NULL;
-    m_Miroir    = source->m_Miroir;
+    m_Mirror    = source->m_Mirror;
     m_Size      = source->m_Size;
     m_Orient    = source->m_Orient;
     m_Pos       = source->m_Pos;
     m_Layer     = source->m_Layer;
     m_Width     = source->m_Width;
     m_Attributs = source->m_Attributs;
-    m_CharType  = source->m_CharType;
+    m_Italic    = source->m_Italic;
     m_HJustify  = source->m_HJustify;
     m_VJustify  = source->m_VJustify;
 
     m_Text = source->m_Text;
-}
-
-
-void TEXTE_PCB::UnLink()
-{
-    /* Modification du chainage arriere */
-    if( Pback )
-    {
-        if( Pback->Type() != TYPEPCB )
-        {
-            Pback->Pnext = Pnext;
-        }
-        else /* Le chainage arriere pointe sur la structure "Pere" */
-        {
-            ( (BOARD*) Pback )->m_Drawings = (BOARD_ITEM*) Pnext;
-        }
-    }
-
-    /* Modification du chainage avant */
-    if( Pnext )
-        Pnext->Pback = Pback;
-
-    Pnext = Pback = NULL;
 }
 
 
@@ -76,7 +53,7 @@ int TEXTE_PCB::ReadTextePcbDescr( FILE* File, int* LineNum )
 /****************************************************************/
 {
     char text[1024], Line[1024];
-    int  dummy;
+    char  style[256];
 
     while( GetLine( File, Line, LineNum ) != NULL )
     {
@@ -100,13 +77,22 @@ int TEXTE_PCB::ReadTextePcbDescr( FILE* File, int* LineNum )
         }
         if( strncmp( Line, "De", 2 ) == 0 )
         {
-            sscanf( Line + 2, " %d %d %lX %d\n", &m_Layer, &m_Miroir,
-                    &m_TimeStamp, &dummy );
+			style[0] = 0;
+			int normal_display = 1;
+            sscanf( Line + 2, " %d %d %lX %s\n", &m_Layer, &normal_display,
+                    &m_TimeStamp, style );
+
+			m_Mirror = normal_display ? false : true;
+
             if( m_Layer < FIRST_COPPER_LAYER )
                 m_Layer = FIRST_COPPER_LAYER;
             if( m_Layer > LAST_NO_COPPER_LAYER )
                 m_Layer = LAST_NO_COPPER_LAYER;
 
+			if ( strnicmp( style, "Italic", 6) == 0 )
+				m_Italic = 1;
+			else
+				m_Italic = 0;
             continue;
         }
     }
@@ -115,7 +101,9 @@ int TEXTE_PCB::ReadTextePcbDescr( FILE* File, int* LineNum )
 }
 
 
+/*****************************************/
 bool TEXTE_PCB::Save( FILE* aFile ) const
+/*****************************************/
 {
     if( GetState( DELETED ) )
         return true;
@@ -124,6 +112,7 @@ bool TEXTE_PCB::Save( FILE* aFile ) const
         return true;
 
     bool rc = false;
+	const char * style = m_Italic ? "Italic" : "Normal";
 
     if( fprintf( aFile, "$TEXTPCB\n" ) != sizeof("$TEXTPCB\n")-1 )
         goto out;
@@ -131,7 +120,9 @@ bool TEXTE_PCB::Save( FILE* aFile ) const
     fprintf( aFile, "Te \"%s\"\n", CONV_TO_UTF8( m_Text ) );
     fprintf( aFile, "Po %d %d %d %d %d %d\n",
              m_Pos.x, m_Pos.y, m_Size.x, m_Size.y, m_Width, m_Orient );
-    fprintf( aFile, "De %d %d %lX %d\n", m_Layer, m_Miroir, m_TimeStamp, 0 );
+    fprintf( aFile, "De %d %d %lX %s\n", m_Layer,
+		m_Mirror ? 0 : 1,
+		m_TimeStamp, style );
 
     if( fprintf( aFile, "$EndTEXTPCB\n" ) != sizeof("$EndTEXTPCB\n")-1 )
         goto out;
@@ -158,9 +149,9 @@ void TEXTE_PCB::Draw( WinEDA_DrawPanel* panel, wxDC* DC,
     if( color & ITEM_NOT_SHOW )
         return;
 
-    EDA_TextStruct::Draw( panel, DC, offset, color,
-                         DrawMode, DisplayOpt.DisplayDrawItems,
-                         (g_AnchorColor & ITEM_NOT_SHOW) ? -1 : (g_AnchorColor & MASKCOLOR) );
+    EDA_TextStruct::Draw( panel, DC, offset, (EDA_Colors) color,
+                         DrawMode, (GRFillMode)DisplayOpt.DisplayDrawItems,
+                         (g_AnchorColor & ITEM_NOT_SHOW) ? UNSPECIFIED_COLOR : (EDA_Colors)g_AnchorColor );
 }
 
 
@@ -174,15 +165,15 @@ void TEXTE_PCB::Display_Infos( WinEDA_DrawFrame* frame )
     BOARD_ITEM* parent = (BOARD_ITEM*) m_Parent;
     wxASSERT( parent );
 
-    if( parent->Type() == TYPECOTATION )
-        board = (BOARD*) parent->m_Parent;
+    if( parent->Type() == TYPE_COTATION )
+        board = (BOARD*) parent->GetParent();
     else
         board = (BOARD*) parent;
     wxASSERT( board );
 
     frame->MsgPanel->EraseMsgBox();
 
-    if( m_Parent && m_Parent->Type() == TYPECOTATION )
+    if( m_Parent && m_Parent->Type() == TYPE_COTATION )
         Affiche_1_Parametre( frame, 1, _( "COTATION" ), m_Text, DARKGREEN );
     else
         Affiche_1_Parametre( frame, 1, _( "PCB Text" ), m_Text, DARKGREEN );
@@ -192,7 +183,7 @@ void TEXTE_PCB::Display_Infos( WinEDA_DrawFrame* frame )
                          g_DesignSettings.m_LayerColor[m_Layer] & MASKCOLOR );
 
     Affiche_1_Parametre( frame, 36, _( "Mirror" ), wxEmptyString, GREEN );
-    if( m_Miroir & 1 )
+    if( ! m_Mirror )
         Affiche_1_Parametre( frame, -1, wxEmptyString, _( "No" ), DARKGREEN );
     else
         Affiche_1_Parametre( frame, -1, wxEmptyString, _( "Yes" ), DARKGREEN );

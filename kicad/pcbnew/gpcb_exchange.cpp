@@ -1,11 +1,10 @@
-/****************************************************/
-/* class_module.cpp : fonctions de la classe MODULE */
-/****************************************************/
+/**********************************************************************/
+/* Import functions to import footprints from a gpcb (Newlib) library */
+/**********************************************************************/
 
 #include "fctsys.h"
-
 #include "wxstruct.h"
-#include "common.h"
+#include "kicad_string.h"
 #include "pcbnew.h"
 #include "trigo.h"
 
@@ -159,8 +158,8 @@ bool MODULE::Read_GPCB_Descr( const wxString& CmpFullFileName )
     char          Line[1024];
     int           NbLine = 0;
     long          ibuf[100];
-    EDGE_MODULE*  DrawSegm, * LastModStruct = NULL;
-    D_PAD*        LastPad = NULL, * Pad;
+    EDGE_MODULE*  DrawSegm;
+    D_PAD*        Pad;
     wxArrayString params;
     int           iprmcnt, icnt_max, iflgidx;
 
@@ -227,7 +226,7 @@ bool MODULE::Read_GPCB_Descr( const wxString& CmpFullFileName )
     // Calculate size: default is 40 mils (400 pcb units)
     // real size is:  default * ibuf[5] / 100 (size in gpcb is given in percent of defalut size
     ibuf[5] *= TEXT_DEFAULT_SIZE; ibuf[5] /= 100;
-    m_Reference->m_Size.x = m_Reference->m_Size.y = max( 20, ibuf[5] );
+    m_Reference->m_Size.x = m_Reference->m_Size.y = MAX( 20, ibuf[5] );
     m_Reference->m_Width  = m_Reference->m_Size.x / 10;
     m_Value->m_Orient = m_Reference->m_Orient;
     m_Value->m_Size   = m_Reference->m_Size;
@@ -251,21 +250,14 @@ bool MODULE::Read_GPCB_Descr( const wxString& CmpFullFileName )
             DrawSegm->SetLayer( SILKSCREEN_N_CMP );
             DrawSegm->m_Shape = S_SEGMENT;
 
-            if( LastModStruct == NULL )
-            {
-                DrawSegm->Pback = this;
-                m_Drawings = DrawSegm;
-            }
-            else
-            {
-                DrawSegm->Pback      = LastModStruct;
-                LastModStruct->Pnext = DrawSegm;
-            }
+            m_Drawings.PushBack( DrawSegm );
+
             int* list[5] = {
                 &DrawSegm->m_Start0.x, &DrawSegm->m_Start0.y,
                 &DrawSegm->m_End0.x,   &DrawSegm->m_End0.y,
                 &DrawSegm->m_Width
             };
+
             for( unsigned ii = 0; ii < 5; ii++ )
             {
                 long dim;
@@ -277,7 +269,6 @@ bool MODULE::Read_GPCB_Descr( const wxString& CmpFullFileName )
             }
 
             DrawSegm->SetDrawCoord();
-            LastModStruct = DrawSegm;
             continue;
         }
 
@@ -288,16 +279,8 @@ bool MODULE::Read_GPCB_Descr( const wxString& CmpFullFileName )
             DrawSegm->SetLayer( SILKSCREEN_N_CMP );
             DrawSegm->m_Shape = S_ARC;
 
-            if( LastModStruct == NULL )
-            {
-                DrawSegm->Pback = this;
-                m_Drawings = DrawSegm;
-            }
-            else
-            {
-                DrawSegm->Pback      = LastModStruct;
-                LastModStruct->Pnext = DrawSegm;
-            }
+            m_Drawings.PushBack( DrawSegm );
+
             for( unsigned ii = 0; ii < 7; ii++ )
             {
                 long dim;
@@ -327,7 +310,6 @@ bool MODULE::Read_GPCB_Descr( const wxString& CmpFullFileName )
 
             DrawSegm->m_Width = (int) round( ibuf[6] * conv_unit );
             DrawSegm->SetDrawCoord();
-            LastModStruct = DrawSegm;
             continue;
         }
 
@@ -376,18 +358,7 @@ bool MODULE::Read_GPCB_Descr( const wxString& CmpFullFileName )
                     Pad->m_PadShape = PAD_OVAL;
             }
 
-
-            if( LastPad == NULL )
-            {
-                Pad->Pback = (EDA_BaseStruct*) this;
-                m_Pads = Pad;
-            }
-            else
-            {
-                Pad->Pback     = (EDA_BaseStruct*) LastPad;
-                LastPad->Pnext = (EDA_BaseStruct*) Pad;
-            }
-            LastPad = Pad;
+            m_Pads.PushBack( Pad );
             continue;
         }
 
@@ -400,8 +371,10 @@ bool MODULE::Read_GPCB_Descr( const wxString& CmpFullFileName )
                                   SOLDERMASK_LAYER_CMP |
                                   SOLDERMASK_LAYER_CU;
             iflgidx = params.GetCount() - 2;
+
             if( TestFlags( params[iflgidx], 0x0100, wxT( "square" ) ) )
                 Pad->m_PadShape = PAD_RECT;
+
             for( unsigned ii = 0; ii < 6; ii++ )
             {
                 if( ii < params.GetCount() - 2 )
@@ -431,17 +404,7 @@ bool MODULE::Read_GPCB_Descr( const wxString& CmpFullFileName )
             if( (Pad->m_PadShape == PAD_ROUND) && (Pad->m_Size.x != Pad->m_Size.y) )
                 Pad->m_PadShape = PAD_OVAL;
 
-            if( LastPad == NULL )
-            {
-                Pad->Pback = (EDA_BaseStruct*) this;
-                m_Pads = Pad;
-            }
-            else
-            {
-                Pad->Pback     = (EDA_BaseStruct*) LastPad;
-                LastPad->Pnext = (EDA_BaseStruct*) Pad;
-            }
-            LastPad = Pad;
+            m_Pads.PushBack( Pad );
             continue;
         }
     }

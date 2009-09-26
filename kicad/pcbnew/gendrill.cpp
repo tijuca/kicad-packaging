@@ -3,6 +3,7 @@
 /***************************************************************/
 
 #include "fctsys.h"
+#include "appl_wxstruct.h"
 
 using namespace std;
 
@@ -11,6 +12,9 @@ using namespace std;
 #include "common.h"
 #include "plot_common.h"
 #include "trigo.h"
+#include "confirm.h"
+#include "kicad_string.h"
+#include "gestfich.h"
 #include "pcbnew.h"
 #include "pcbplot.h"
 #include "macros.h"
@@ -106,9 +110,9 @@ void WinEDA_DrillFrame::InitDisplayParams( void )
     m_ThroughViasCount = 0;
     m_MicroViasCount   = 0;
     m_BlindOrBuriedViasCount = 0;
-    for( TRACK* track = m_Parent->m_Pcb->m_Track; track != NULL; track = track->Next() )
+    for( TRACK* track = m_Parent->GetBoard()->m_Track; track != NULL; track = track->Next() )
     {
-        if( track->Type() != TYPEVIA )
+        if( track->Type() != TYPE_VIA )
             continue;
         if( track->Shape() == VIA_THROUGH )
             m_ThroughViasCount++;
@@ -123,7 +127,7 @@ void WinEDA_DrillFrame::InitDisplayParams( void )
 
     // Pads holes cound:
     m_PadsHoleCount = 0;
-    for( MODULE* module = m_Parent->m_Pcb->m_Modules; module != NULL; module = module->Next() )
+    for( MODULE* module = m_Parent->GetBoard()->m_Modules; module != NULL; module = module->Next() )
     {
         for( D_PAD* pad = module->m_Pads; pad != NULL; pad = pad->Next() )
         {
@@ -207,7 +211,7 @@ void WinEDA_PcbFrame::InstallDrillFrame( wxCommandEvent& event )
 /* This function displays and deletes the dialog frame for drill tools
  */
 {
-    wxConfig*          Config = m_Parent->m_EDA_Config;
+    wxConfig*          Config = wxGetApp().m_EDA_Config;
 
     if( Config )
     {
@@ -233,7 +237,7 @@ void WinEDA_DrillFrame::UpdateConfig()
 {
     SetParams();
 
-    wxConfig* Config = m_Parent->m_Parent->m_EDA_Config;
+    wxConfig* Config = wxGetApp().m_EDA_Config;
     if( Config )
     {
         Config->Write( ZerosFormatKey, s_Zeros_Format );
@@ -284,7 +288,7 @@ void WinEDA_DrillFrame::GenDrillFiles( wxCommandEvent& event )
     Mask += Ext;
     for( ; ; )
     {
-        Build_Holes_List( m_Parent->m_Pcb, s_HoleListBuffer, s_ToolListBuffer,
+        Build_Holes_List( m_Parent->GetBoard(), s_HoleListBuffer, s_ToolListBuffer,
             layer1, layer2, gen_through_holes ? false : true );
         if( s_ToolListBuffer.size() > 0 ) //holes?
         {
@@ -766,7 +770,7 @@ void WinEDA_DrillFrame::GenDrillMap( const wxString aFileName,
         DisplayError( this, msg ); return;
     }
 
-    GenDrillMapFile( m_Parent->m_Pcb,
+    GenDrillMapFile( m_Parent->GetBoard(),
         dest,
         FullFileName,
         m_Parent->GetScreen()->m_CurrentSheetDesc->m_Size,
@@ -811,7 +815,7 @@ void WinEDA_DrillFrame::GenDrillReport( const wxString aFileName )
         DisplayError( this, msg );
         return;
     }
-    GenDrillReportFile( dest, m_Parent->m_Pcb,
+    GenDrillReportFile( dest, m_Parent->GetBoard(),
         m_Parent->GetScreen()->m_FileName,
         s_Unit_Drill_is_Inch,
         s_HoleListBuffer,

@@ -3,10 +3,12 @@
 /******************************************************/
 
 #include "fctsys.h"
-
 #include "gr_basic.h"
-
 #include "common.h"
+#include "class_drawpanel.h"
+#include "confirm.h"
+#include "eda_doc.h"
+
 #include "program.h"
 #include "libcmp.h"
 #include "general.h"
@@ -171,6 +173,7 @@ void WinEDA_SchematicFrame::Process_Special_Functions( wxCommandEvent& event )
             break;
         HandleBlockEndByPopUp( BLOCK_DELETE, &dc );
         g_ItemToRepeat = NULL;
+        SetSheetNumberAndCount();
         break;
 
     case wxID_PASTE:
@@ -218,7 +221,7 @@ void WinEDA_SchematicFrame::Process_Special_Functions( wxCommandEvent& event )
         break;
 
     case ID_WIRETOBUS_ENTRY_BUTT:
-        SetToolID( id, wxCURSOR_PENCIL, _( "Add Wire to Bus Entry" ) );
+        SetToolID( id, wxCURSOR_PENCIL, _( "Add Wire to Bus entry" ) );
         break;
 
     case ID_BUSTOBUS_ENTRY_BUTT:
@@ -311,11 +314,11 @@ void WinEDA_SchematicFrame::Process_Special_Functions( wxCommandEvent& event )
 
     case ID_POPUP_SCH_ROTATE_FIELD:
         DrawPanel->MouseToCursorSchema();
-        RotateCmpField( (PartTextStruct*) screen->GetCurItem(), &dc );
+        RotateCmpField( (SCH_CMP_FIELD*) screen->GetCurItem(), &dc );
         break;
 
     case ID_POPUP_SCH_EDIT_FIELD:
-        EditCmpFieldText( (PartTextStruct*) screen->GetCurItem(), &dc );
+        EditCmpFieldText( (SCH_CMP_FIELD*) screen->GetCurItem(), &dc );
         break;
 
     case ID_POPUP_SCH_DELETE_NODE:
@@ -358,6 +361,7 @@ void WinEDA_SchematicFrame::Process_Special_Functions( wxCommandEvent& event )
             screen->SetCurItem( NULL );
             g_ItemToRepeat = NULL;
             TestDanglingEnds( screen->EEDrawList, &dc );
+            SetSheetNumberAndCount();
             screen->SetModify();
         }
         break;
@@ -655,6 +659,7 @@ void WinEDA_SchematicFrame::Process_Special_Functions( wxCommandEvent& event )
     case ID_POPUP_DELETE_BLOCK:
         DrawPanel->MouseToCursorSchema();
         HandleBlockEndByPopUp( BLOCK_DELETE, &dc );
+        SetSheetNumberAndCount();
         break;
 
     case ID_POPUP_ROTATE_BLOCK:
@@ -770,7 +775,7 @@ void WinEDA_SchematicFrame::Process_Move_Item( SCH_ITEM* DrawStruct, wxDC*  DC )
         break;
 
     case DRAW_PART_TEXT_STRUCT_TYPE:
-        StartMoveCmpField( (PartTextStruct*) DrawStruct, DC );
+        StartMoveCmpField( (SCH_CMP_FIELD*) DrawStruct, DC );
         break;
 
     case DRAW_MARKER_STRUCT_TYPE:

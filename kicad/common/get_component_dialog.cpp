@@ -4,9 +4,10 @@
 
 #include "fctsys.h"
 #include "gr_basic.h"
-
 #include "common.h"
 #include "macros.h"
+#include "wxstruct.h"
+
 
 /****************************************************************************/
 /* Show a dialog frame to choose a name from an history list, or a new name */
@@ -131,7 +132,7 @@ wxStaticText * Text;
 	{
 		
 		Button = new wxButton(this, ID_EXTRA_TOOL, _("By Lib Browser"));
-		Button->SetForegroundColour(wxColor(80, 0, 80));
+		Button->SetForegroundColour(wxColor(0, 0, 0)); // Listbox Color
 		RightBoxSizer->Add(Button, 0, wxGROW|wxLEFT|wxRIGHT|wxBOTTOM, 5);
 	}
 #endif	

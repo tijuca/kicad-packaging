@@ -9,7 +9,7 @@
 // separated by setting the end_contour flag of the last corner of
 // each contour.
 //
-// When used for copper areas, the first contour is the outer edge
+// When used for copper (or technical layers) areas, the first contour is the outer edge
 // of the area, subsequent ones are "holes" in the copper.
 
 #ifndef POLYLINE_H
@@ -17,9 +17,18 @@
 
 #include <vector>
 
-#include "kbool/include/booleng.h"
-#include "freepcbDisplayList.h"
+#include "kbool/include/kbool/booleng.h"
 #include "pad_shapes.h"
+
+// inflection modes for DS_LINE and DS_LINE_VERTEX, used in math_for_graphics.cpp
+enum
+{
+	IM_NONE = 0,
+	IM_90_45,
+	IM_45_90,
+	IM_90
+};
+
 
 
 /** Function ArmBoolEng
@@ -28,7 +37,7 @@
  * @param aConvertHoles = mode for holes when a boolean operation is made
  *   true: holes are linked into outer contours by double overlapping segments
  *   false: holes are not linked: in this mode contours are added clockwise
- *          and polygons added counter clockwise are holes
+ *          and polygons added counter clockwise are holes (default)
  */
 void ArmBoolEng( Bool_Engine* aBooleng, bool aConvertHoles = false );
 
@@ -37,11 +46,11 @@ void ArmBoolEng( Bool_Engine* aBooleng, bool aConvertHoles = false );
 #define NM_PER_MIL   10 // 25400
 
 #define to_int( x ) (int) round( (x) )
-#ifndef min
-#define min( x1, x2 ) ( (x1) > (x2) ) ? (x2) : (x1)
+#ifndef MIN
+#define MIN( x1, x2 ) ( (x1) > (x2) ? (x2) : (x1) )
 #endif
-#ifndef max
-#define max( x1, x2 ) ( (x1) > (x2) ) ? (x1) : (x2)
+#ifndef MAX
+#define MAX( x1, x2 ) ( (x1) > (x2) ? (x1) : (x2) )
 #endif
 
 class CRect
@@ -87,13 +96,15 @@ public:
 class CPolyPt
 {
 public:
-    CPolyPt( int qx = 0, int qy = 0, bool qf = FALSE )
+    CPolyPt( int qx = 0, int qy = 0, bool qf = false )
     { x = qx; y = qy; end_contour = qf; utility = 0; };
     int  x;
     int  y;
     bool end_contour;
     int  utility;
 };
+
+#include "polygon_test_point_inside.h"
 
 class CPolyLine
 {
@@ -107,11 +118,11 @@ public:
 
     // functions for modifying polyline
     void       Start( int layer, int x, int y, int hatch );
-    void       AppendCorner( int x, int y, int style = STRAIGHT, bool bDraw = TRUE );
+    void       AppendCorner( int x, int y, int style = STRAIGHT, bool bDraw = false );
     void       InsertCorner( int ic, int x, int y );
-    void       DeleteCorner( int ic, bool bDraw = TRUE );
+    void       DeleteCorner( int ic, bool bDraw = false );
     void       MoveCorner( int ic, int x, int y );
-    void       Close( int style = STRAIGHT, bool bDraw = TRUE );
+    void       Close( int style = STRAIGHT, bool bDraw = false );
     void       RemoveContour( int icont );
 
     void       RemoveAllContours( void );
@@ -159,22 +170,9 @@ public:
     void       SetSideStyle( int is, int style );
 
     int        RestoreArcs( std::vector<CArc> * arc_array, std::vector<CPolyLine*> * pa = NULL );
-    CPolyLine* MakePolylineForPad( int type, int x, int y, int w, int l, int r, int angle );
-    void       AddContourForPadClearance( int  type,
-                                          int  x,
-                                          int  y,
-                                          int  w,
-                                          int  l,
-                                          int  r,
-                                          int  angle,
-                                          int  fill_clearance,
-                                          int  hole_w,
-                                          int  hole_clearance,
-                                          bool bThermal = FALSE,
-                                          int  spoke_w = 0 );
 
     int NormalizeAreaOutlines( std::vector<CPolyLine*> * pa = NULL,
-                               bool                      bRetainArcs = FALSE );
+                               bool                      bRetainArcs = false );
 
     // KBOOL functions
 
@@ -199,11 +197,16 @@ public:
      * @param aEnd_contour: ending contour number (-1 = all after  aStart_contour)
      *  combining intersecting contours if possible
      * @param arc_array : return data on arcs in arc_array
+     * @param aConvertHoles = mode for holes when a boolean operation is made
+     *   true: holes are linked into outer contours by double overlapping segments
+     *   false: holes are not linked: in this mode contours are added clockwise
+     *          and polygons added counter clockwise are holes (default)
      * @return error: 0 if Ok, 1 if error
      */
     int MakeKboolPoly( int                 aStart_contour = -1,
                        int                 aEnd_contour = -1,
-                       std::vector<CArc> * arc_array = NULL );
+                       std::vector<CArc> * arc_array = NULL,
+                       bool aConvertHoles = false);
 
     /** Function NormalizeWithKbool
      * Use the Kbool Library to clip contours: if outlines are crossing, the self-crossing polygon
@@ -213,10 +216,20 @@ public:
      * because copper areas have only one outside contour
      * Therefore, if this results in new CPolyLines, return them as std::vector pa
      * @param aExtraPolys: pointer on a std::vector<CPolyLine*> to store extra CPolyLines
-     * @param bRetainArcs == TRUE, try to retain arcs in polys
+     * @param bRetainArcs == false, try to retain arcs in polys
      * @return number of external contours, or -1 if error
      */
     int NormalizeWithKbool( std::vector<CPolyLine*> * aExtraPolyList, bool bRetainArcs );
+
+    /** function GetKboolEngine
+     * @return the current used Kbool Engine (after normalization using kbool)
+     */
+    Bool_Engine* GetKboolEngine( ) { return  m_Kbool_Poly_Engine; }
+    /** function FreeKboolEngine
+     * delete the current used Kbool Engine (free memory after normalization using kbool)
+     */
+    void FreeKboolEngine( ) { delete m_Kbool_Poly_Engine; m_Kbool_Poly_Engine = NULL; }
+
 
 private:
     int m_layer;    // layer to draw on

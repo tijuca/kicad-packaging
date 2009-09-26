@@ -3,10 +3,9 @@
 /*****************************************/
 
 #include "fctsys.h"
-
 #include "common.h"
+#include "class_drawpanel.h"
 #include "pcbnew.h"
-
 #include "protos.h"
 
 /* Routines Locales */
@@ -114,7 +113,7 @@ WinEDA_CotationPropertiesFrame::WinEDA_CotationPropertiesFrame( WinEDA_PcbFrame*
     m_Mirror = new wxRadioBox( this, -1, _( "Display" ),
                                wxDefaultPosition, wxSize( -1, -1 ), 2, display_msg,
                                1, wxRA_SPECIFY_COLS );
-    if( !Cotation->m_Text->m_Miroir )
+    if( Cotation->m_Text->m_Mirror )
         m_Mirror->SetSelection( 1 );;
     RightBoxSizer->Add( m_Mirror, 0, wxGROW | wxALL, 5 );
 
@@ -138,7 +137,7 @@ WinEDA_CotationPropertiesFrame::WinEDA_CotationPropertiesFrame( WinEDA_PcbFrame*
 
     for( int layer = FIRST_NO_COPPER_LAYER;  layer<NB_LAYERS;  layer++ )
     {
-        m_SelLayerBox->Append( parent->m_Pcb->GetLayerName( layer ) );
+        m_SelLayerBox->Append( parent->GetBoard()->GetLayerName( layer ) );
     }
 
     m_SelLayerBox->SetSelection( Cotation->GetLayer() - FIRST_NO_COPPER_LAYER );
@@ -173,12 +172,10 @@ void WinEDA_CotationPropertiesFrame::OnOkClick( wxCommandEvent& event )
     CurrentCotation->m_Text->m_Size  = m_TxtSizeCtrl->GetValue();
     CurrentCotation->m_Text->m_Width = CurrentCotation->m_Width =
                                            m_TxtWidthCtrl->GetValue();
-    CurrentCotation->m_Text->m_Miroir = (m_Mirror->GetSelection() == 0) ? 1 : 0;
+    CurrentCotation->m_Text->m_Mirror = (m_Mirror->GetSelection() == 1) ? true : false;
 
     CurrentCotation->SetLayer( m_SelLayerBox->GetChoice() + FIRST_NO_COPPER_LAYER );
     CurrentCotation->m_Text->SetLayer( m_SelLayerBox->GetChoice() + FIRST_NO_COPPER_LAYER );
-
-    CurrentCotation->m_Text->CreateDrawData();
 
     if( m_DC )     // Affichage nouveau texte
     {
@@ -228,7 +225,7 @@ COTATION* WinEDA_PcbFrame::Begin_Cotation( COTATION* Cotation, wxDC* DC )
         status_cotation = 1;
         pos = GetScreen()->m_Curseur;
 
-        Cotation = new COTATION( m_Pcb );
+        Cotation = new COTATION( GetBoard() );
         Cotation->m_Flags = IS_NEW;
 
         Cotation->SetLayer( ((PCB_SCREEN*)GetScreen())->m_Active_Layer );
@@ -256,7 +253,6 @@ COTATION* WinEDA_PcbFrame::Begin_Cotation( COTATION* Cotation, wxDC* DC )
         Cotation->FlecheD2_ox = Cotation->FlecheD2_fx = pos.x;
         Cotation->FlecheD2_oy = Cotation->FlecheD2_fy = pos.y;
 
-        Cotation->m_Text->m_Miroir = 1;
         Cotation->m_Text->m_Size   = g_DesignSettings.m_PcbTextSize;
         Cotation->m_Text->m_Width  = g_DesignSettings.m_PcbTextWidth;
 
@@ -280,11 +276,7 @@ COTATION* WinEDA_PcbFrame::Begin_Cotation( COTATION* Cotation, wxDC* DC )
     Cotation->m_Flags = 0;
 
     /* Insertion de la structure dans le Chainage .Drawings du PCB */
-    Cotation->Pback = m_Pcb;
-    Cotation->Pnext = m_Pcb->m_Drawings;
-    if( m_Pcb->m_Drawings )
-        m_Pcb->m_Drawings->Pback = Cotation;
-    m_Pcb->m_Drawings = Cotation;
+    GetBoard()->Add( Cotation );
 
     GetScreen()->SetModify();
     DrawPanel->ManageCurseur = NULL;
@@ -330,7 +322,7 @@ static void Montre_Position_New_Cotation( WinEDA_DrawPanel* panel, wxDC* DC, boo
 
         /* Calcul de la direction de deplacement
          *  ( perpendiculaire a l'axe de la cote ) */
-        angle = atan2( deltay, deltax ) + (M_PI / 2);
+        angle = atan2( (double)deltay, (double)deltax ) + (M_PI / 2);
 
         deltax = pos.x - Cotation->TraitD_ox;
         deltay = pos.y - Cotation->TraitD_oy;
@@ -405,10 +397,10 @@ static void Ajuste_Details_Cotation( COTATION* Cotation )
     deltay = Cotation->TraitD_oy - Cotation->TraitG_oy;
 
     /* Calcul de la cote */
-    mesure = (int) (hypot( (float) deltax, (float) deltay ) + 0.5 );
+    mesure = (int) (hypot( (double) deltax, (double) deltay ) + 0.5 );
 
     if( deltax || deltay )
-        angle = atan2( (float) deltay, (float) deltax );
+        angle = atan2( (double) deltay, (double) deltax );
     else
         angle = 0.0;
 
@@ -486,5 +478,4 @@ static void Ajuste_Details_Cotation( COTATION* Cotation )
     Cotation->m_Value = mesure;
     valeur_param( Cotation->m_Value, msg );
     Cotation->SetText( msg );
-    Cotation->m_Text->CreateDrawData();
 }

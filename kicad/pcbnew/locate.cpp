@@ -46,7 +46,7 @@ TRACK* Locate_Via( BOARD* Pcb, const wxPoint& pos, int layer )
 
     for( track = Pcb->m_Track;  track; track = track->Next() )
     {
-        if( track->Type() != TYPEVIA )
+        if( track->Type() != TYPE_VIA )
             continue;
         if( track->m_Start != pos )
             continue;
@@ -70,7 +70,7 @@ TRACK* Locate_Via_Area( TRACK* aStart, const wxPoint& pos, int layer )
 
     for( track = aStart;   track;  track = track->Next() )
     {
-        if( track->Type() != TYPEVIA )
+        if( track->Type() != TYPE_VIA )
             continue;
         if( !track->HitTest(pos) )
             continue;
@@ -239,7 +239,7 @@ MODULE* Locate_Prefered_Module( BOARD* Pcb, int typeloc )
     ref_pos = RefPos( typeloc );
 
     pt_module = Pcb->m_Modules;
-    for(  ;  pt_module;  pt_module = (MODULE*) pt_module->Pnext )
+    for(  ;  pt_module;  pt_module = (MODULE*) pt_module->Next() )
     {
         // is the ref point within the module's bounds?
         if( !pt_module->HitTest( ref_pos ) )
@@ -353,7 +353,8 @@ TRACK* Locate_Piste_Connectee( TRACK* PtRefSegm, TRACK* pt_base,
  *  @param extr = START or END = end of ref track segment to use in tests
  */
 {
-    #define NEIGHTBOUR_COUNT_MAX 50
+    const int NEIGHTBOUR_COUNT_MAX = 50;
+
     TRACK*  PtSegmB, * PtSegmN;
     int     Reflayer;
     wxPoint pos_ref;
@@ -400,7 +401,7 @@ suite:
             if( PtSegmN == pt_lim )
                 PtSegmN = NULL;
             else
-                PtSegmN = (TRACK*) PtSegmN->Pnext;
+                PtSegmN =  PtSegmN->Next();
         }
 
         if( PtSegmB )
@@ -426,15 +427,15 @@ suite:
 suite1:
             if( PtSegmB == pt_base )
                 PtSegmB = NULL;
-            else if( PtSegmB->Type() != TYPEPCB )
-                PtSegmB = (TRACK*) PtSegmB->Pback;
+            else if( PtSegmB->Type() != TYPE_PCB )
+                PtSegmB =  PtSegmB->Back();
             else
                 PtSegmB = NULL;
         }
     }
 
     /* Recherche generale */
-    for( PtSegmN = pt_base; PtSegmN != NULL; PtSegmN = (TRACK*) PtSegmN->Pnext )
+    for( PtSegmN = pt_base; PtSegmN != NULL; PtSegmN =  PtSegmN->Next() )
     {
         if( PtSegmN->GetState( DELETED | BUSY ) )
         {
@@ -495,27 +496,31 @@ TRACK* Locate_Pistes( TRACK* start_adresse, int MasqueLayer, int typeloc )
 
 TRACK* Locate_Pistes( TRACK* start_adresse, const wxPoint& ref_pos, int MasqueLayer )
 {
-    for( TRACK* Track = start_adresse;   Track;  Track = (TRACK*) Track->Pnext )
+    for( TRACK* track = start_adresse;   track;  track =  track->Next() )
     {
-        if( Track->GetState( BUSY | DELETED ) )
-            continue;
+        int layer = track->GetLayer();
 
-        if( (g_DesignSettings.m_LayerColor[Track->GetLayer()] & ITEM_NOT_SHOW) )
-            continue;
-
-        if( Track->Type() == TYPEVIA ) /* VIA rencontree */
+        if( track->GetState( BUSY | DELETED ) )
         {
-            if( Track->HitTest( ref_pos ) )
-                return Track;
+            // D(printf("track %p is BUSY | DELETED.  BUSY=%d  DELETED=%d\n", track, track->GetState(BUSY), track->GetState(DELETED) );)
+            continue;
+        }
+
+        if( g_DesignSettings.m_LayerColor[layer] & ITEM_NOT_SHOW )
+            continue;
+
+        if( track->Type() == TYPE_VIA ) /* VIA rencontree */
+        {
+            if( track->HitTest( ref_pos ) )
+                return track;
         }
         else
         {
-            if( MasqueLayer != -1 )
-                if( (g_TabOneLayerMask[Track->GetLayer()] & MasqueLayer) == 0 )
-                    continue;   /* Segments sur couches differentes */
+            if( (g_TabOneLayerMask[layer] & MasqueLayer) == 0 )
+                continue;   /* Segments sur couches differentes */
 
-            if( Track->HitTest( ref_pos ) )
-                return Track;
+            if( track->HitTest( ref_pos ) )
+                return track;
         }
     }
 
@@ -549,7 +554,7 @@ TRACK* Locate_Zone( TRACK* start_adresse, int layer, int typeloc )
 
 TRACK* Locate_Zone( TRACK* start_adresse, const wxPoint& ref_pos, int layer )
 {
-    for( TRACK* Zone = start_adresse;  Zone;   Zone = (TRACK*) Zone->Pnext )
+    for( TRACK* Zone = start_adresse;  Zone;   Zone =  Zone->Next() )
     {
         if( (layer != -1) && (Zone->GetLayer() != layer) )
             continue;
@@ -578,13 +583,10 @@ D_PAD* Fast_Locate_Pad_Connecte( BOARD* Pcb, const wxPoint& ref_pos, int masque_
  *      (bonne position ET bonne couche).
  */
 {
-    D_PAD*     pad;
-    LISTE_PAD* ptr_pad, * lim;
-
-    lim = (LISTE_PAD*) Pcb->m_Pads + Pcb->m_NbPads;
-    for( ptr_pad = (LISTE_PAD*) Pcb->m_Pads; ptr_pad < lim; ptr_pad++ )
+    for( unsigned i=0; i<Pcb->m_Pads.size();  ++i )
     {
-        pad = *ptr_pad;
+        D_PAD* pad = Pcb->m_Pads[i];
+
         if( pad->m_Pos != ref_pos )
             continue;
 
@@ -615,7 +617,7 @@ TRACK* Fast_Locate_Piste( TRACK* start_adr, TRACK* end_adr,
     if( start_adr == NULL )
         return NULL;
 
-    for( PtSegm = start_adr; PtSegm != NULL; PtSegm = (TRACK*) PtSegm->Pnext )
+    for( PtSegm = start_adr; PtSegm != NULL; PtSegm =  PtSegm->Next() )
     {
         if( PtSegm->GetState( DELETED | BUSY ) == 0 )
         {
@@ -655,9 +657,9 @@ TRACK* Fast_Locate_Via( TRACK* start_adr, TRACK* end_adr,
 {
     TRACK* PtSegm;
 
-    for( PtSegm = start_adr; PtSegm != NULL; PtSegm = (TRACK*) PtSegm->Pnext )
+    for( PtSegm = start_adr; PtSegm != NULL; PtSegm = PtSegm->Next() )
     {
-        if( PtSegm->Type() == TYPEVIA )
+        if( PtSegm->Type() == TYPE_VIA )
         {
             if( pos == PtSegm->m_Start )
             {

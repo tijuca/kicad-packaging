@@ -8,10 +8,12 @@ class Pcb3D_GLCanvas;
 
 
 /* Definition type Structure d'un pad */
-class D_PAD : public BOARD_ITEM
+class D_PAD : public BOARD_CONNECTED_ITEM
 {
 private:
     int m_NetCode;              // Net number for fast comparisons
+    wxString   m_Netname;       // Full net name like /mysheet/mysubsheet/vout used by eeschema
+    wxString   m_ShortNetname;  // short net name, like vout from /mysheet/mysubsheet/vout
 
 
 public:
@@ -25,8 +27,6 @@ public:
                                      */
     };
 
-    wxString m_Netname;             /* Net Name */
-
     int      m_Masque_Layer;        // Bitwise layer :1= copper layer, 15= cmp,
                                     // 2..14 = internal layers
                                     // 16 .. 31 = technical layers
@@ -37,7 +37,7 @@ public:
     wxSize  m_Drill;                // Drill diam (drill shape = PAD_CIRCLE) or drill size(shape = OVAL)
                                     // for drill shape = PAD_CIRCLE, drill diam = m_Drill.x
 
-    wxSize  m_Offset;  /*This parameter is usefull only for oblong pads (it can be used for other
+    wxSize  m_Offset;   /* This parameter is usefull only for oblong pads (it can be used for other
                          * shapes, but without any interest).
                          * this is the offset between the pad hole and the pad shape (you must
                          * understand here pad shape = copper area around the hole)
@@ -60,14 +60,9 @@ public:
     int     m_Attribut;             // NORMAL, PAD_SMD, PAD_CONN
     int     m_Orient;               // in 1/10 degrees
 
-    int     m_logical_connexion;    // variable used in rastnest computations
-                                    // handle block number in ratsnet connection
-
-    int     m_physical_connexion;   // variable used in rastnest computations
-                                    // handle block number in track connection
-
-    int     m_zone_connexion;   	// variable used in rastnest computations
-                                    // handle block number in zone connection
+private:
+    int     m_SubRatsnest;           // variable used in rats nest computations
+                                    // handle subnet (block) number in ratsnet connection
 
 public:
     D_PAD( MODULE* parent );
@@ -77,6 +72,30 @@ public:
     void            Copy( D_PAD* source );
 
     D_PAD* Next() { return (D_PAD*) Pnext; }
+
+
+    /**
+     * Function GetNetname
+     * @return const wxString * , a pointer to the full netname
+     */
+    wxString GetNetname() const { return m_Netname; }
+    /**
+     * Function GetShortNetname
+     * @return const wxString * , a pointer to the short netname
+     */
+    wxString GetShortNetname() const { return m_ShortNetname; }
+
+    /**
+     * Function SetNetname
+     * @param const wxString : the new netname
+     */
+    void SetNetname( const wxString & aNetname );
+
+    /**
+     * Function GetShape
+     * @return the shape of this pad.
+     */
+    int GetShape( ) { return (m_PadShape & 0xFF); }
 
     /**
      * Function GetPosition
@@ -93,10 +112,6 @@ public:
     {
         m_Pos = aPos;
     }
-
-
-    /* remove from linked list */
-    void            UnLink();
 
     /* Reading and writing data on files */
     int             ReadDescr( FILE* File, int* LineNum = NULL );
@@ -128,8 +143,8 @@ public:
      * Function GetNet
      * @return int - the netcode
      */
-    int GetNet() const { return m_NetCode; }
-    void SetNet( int aNetCode ) { m_NetCode = aNetCode; }
+    int GetSubRatsnest() const { return m_SubRatsnest; }
+    void SetSubRatsnest( int aSubRatsnest ) { m_SubRatsnest = aSubRatsnest; }
 
 
     /**
@@ -174,8 +189,8 @@ public:
 
     /**
      * Function GetBoundingBox
-     * returns the bounding box of this Footprint
-     * Mainly used to redraw the screen area occuped by the footprint
+     * returns the bounding box of this pad
+     * Mainly used to redraw the screen area occuped by the pad
      */
     EDA_Rect GetBoundingBox();
 

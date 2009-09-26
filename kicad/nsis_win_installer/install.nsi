@@ -17,12 +17,12 @@
 
 ; General Product Description Definitions
 !define PRODUCT_NAME "KiCad"
-!define PRODUCT_VERSION "2008.08.25"
+!define PRODUCT_VERSION "2009.02.16"
 !define PRODUCT_WEB_SITE "http://iut-tice.ujf-grenoble.fr/kicad/"
 !define SOURCEFORGE_WEB_SITE "http://kicad.sourceforge.net/"
 !define COMPANY_NAME ""
 !define TRADE_MARKS ""
-!define COPYRIGHT "Jean-Pierre Charras"
+!define COPYRIGHT "Kicad Team (Jean-Pierre Charras et all)"
 !define COMMENTS ""
 !define HELP_WEB_SITE "http://groups.yahoo.com/group/kicad-users/"
 !define DEVEL_WEB_SITE "http://groups.yahoo.com/group/kicad-devel/"
@@ -77,10 +77,12 @@ ShowUnInstDetails hide
 !insertmacro MUI_LANGUAGE "English" ;first language is the default language
 !insertmacro MUI_LANGUAGE "French"
 !insertmacro MUI_LANGUAGE "Polish"
+!insertmacro MUI_LANGUAGE "Dutch"
 
 !include "English.nsh"
 !include "French.nsh"
 !include "Polish.nsh"
+!include "Dutch.nsh"
 
 ; MUI end ------
 
@@ -109,7 +111,7 @@ Section $(TITLE_SEC01) SEC01
   SectionIn RO
   SetOverwrite try
   SetOutPath "$INSTDIR"
-  File /nonfatal "..\author.txt"
+  File /nonfatal "..\AUTHORS.txt"
   File /nonfatal "..\copyright.txt"
   File /nonfatal "..\gpl.txt"
   File /nonfatal "..\licendoc.txt"

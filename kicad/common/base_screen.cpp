@@ -8,6 +8,14 @@
 
 #include "fctsys.h"
 #include "common.h"
+#include "base_struct.h"
+#include "sch_item_struct.h"
+#include "class_base_screen.h"
+#include "id.h"
+
+/* Implement wxSize array for grid list implementation. */
+#include <wx/arrimpl.cpp>
+WX_DEFINE_OBJARRAY( GridArray );
 
 
 /* defines locaux */
@@ -16,17 +24,22 @@
 /*******************************************************/
 /* Class BASE_SCREEN: classe de gestion d'un affichage */
 /*******************************************************/
-BASE_SCREEN::BASE_SCREEN( int idscreen, KICAD_T aType ) :
-    EDA_BaseStruct( aType )
+BASE_SCREEN::BASE_SCREEN( KICAD_T aType ) : EDA_BaseStruct( aType )
 {
-    EEDrawList = NULL;   /* Schematic items list */
-    m_Type     = idscreen;
-    m_ZoomList = NULL;
-    m_GridList = NULL;
-    m_UndoList = NULL;
-    m_RedoList = NULL;
+    EEDrawList         = NULL;   /* Schematic items list */
+    m_UndoList         = NULL;
+    m_RedoList         = NULL;
     m_UndoRedoCountMax = 1;
-    m_FirstRedraw = TRUE;
+    m_FirstRedraw      = TRUE;
+    m_ScreenNumber     = 1;
+    m_NumberOfScreen   = 1;  /* Hierarchy: Root: ScreenNumber = 1 */
+    m_ZoomScalar       = 10;
+    m_Zoom             = 32 * m_ZoomScalar;
+    m_Grid             = wxRealPoint( 50, 50 );   /* Default grid size */
+    m_UserGridIsON     = FALSE;
+    m_Center           = true;
+    m_CurrentSheetDesc = &g_Sheet_A4;
+
     InitDatas();
 }
 
@@ -35,49 +48,15 @@ BASE_SCREEN::BASE_SCREEN( int idscreen, KICAD_T aType ) :
 BASE_SCREEN::~BASE_SCREEN()
 /******************************/
 {
-    if( m_ZoomList )
-        free( m_ZoomList );
-
-    if( m_GridList )
-        free( m_GridList );
-
     ClearUndoRedoList();
 }
 
 
 /*******************************/
-void BASE_SCREEN::InitDatas()
+void
+BASE_SCREEN::InitDatas()
 /*******************************/
 {
-    m_ScreenNumber = m_NumberOfScreen = 1;    /* Hierarchy: Root: ScreenNumber = 1 */
-    m_Zoom            = 32;
-    m_Grid            = wxSize( 50, 50 );   /* Default grid size */
-    m_UserGrid        = g_UserGrid;         /* User Default grid size */
-    m_UserGridIsON    = FALSE;
-    m_UserGridUnit    = g_UserGrid_Unit;
-    m_Diviseur_Grille = 1;
-    m_Center          = TRUE;
-
-    /* Init draw offset and default page size */
-    switch( m_Type )
-    {
-    case SCHEMATIC_FRAME:
-        m_Center = FALSE;
-        m_CurrentSheetDesc = &g_Sheet_A4;
-        break;
-
-    default:
-    case CVPCB_DISPLAY_FRAME:
-    case MODULE_EDITOR_FRAME:
-    case PCB_FRAME:
-        m_CurrentSheetDesc = &g_Sheet_A4;
-        break;
-
-    case GERBER_FRAME:
-        m_CurrentSheetDesc = &g_Sheet_GERBER;
-        break;
-    }
-
     if( m_Center )
     {
         m_Curseur.x = m_Curseur.y = 0;
@@ -91,347 +70,398 @@ void BASE_SCREEN::InitDatas()
         m_Curseur.y = ReturnPageSize().y / 2;
     }
 
-    // DrawOrg est rendu multiple du zoom min :
-    m_DrawOrg.x -= m_DrawOrg.x % 256;
-    m_DrawOrg.y -= m_DrawOrg.y % 256;
-
     m_O_Curseur = m_Curseur;
 
     SetCurItem( NULL );
 
     /* indicateurs divers */
-    m_FlagRefreshReq = 0;               /* Redraw screen requste flag */
-    m_FlagModified   = 0;               // Set when any change is made on borad
-    m_FlagSave = 1;                     // Used in auto save: set when an auto save is made
+    m_FlagRefreshReq = 0;   /* Redraw screen requste flag */
+    m_FlagModified   = 0;   // Set when any change is made on borad
+    m_FlagSave = 1;         // Used in auto save: set when an auto save is made
+}
+
+/**
+ * Get screen units scalar.
+ *
+ * Default implimentation returns scalar used for schematic screen.  The
+ * internal units used by the schematic screen is 1 mil (0.001").  Override
+ * this in derived classes that require internal units other than 1 mil.
+ */
+int
+BASE_SCREEN::GetInternalUnits( void )
+{
+    return EESCHEMA_INTERNAL_UNIT;
+}
+
+/************************************/
+wxSize
+BASE_SCREEN::ReturnPageSize( void )
+/************************************/
+{
+    int internal_units = GetInternalUnits();
+
+    return wxSize( ( m_CurrentSheetDesc->m_Size.x * internal_units ) / 1000,
+                   ( m_CurrentSheetDesc->m_Size.y * internal_units ) / 1000 );
 }
 
 
+/**
+ * Function CursorRealPosition
+ * @return the position in user units of location ScreenPos
+ * @param ScreenPos = the screen (in pixel) position co convert
+*/
 /******************************************************************/
-wxPoint BASE_SCREEN::CursorRealPosition( const wxPoint& ScreenPos )
+wxPoint
+BASE_SCREEN::CursorRealPosition( const wxPoint& ScreenPos )
 /******************************************************************/
 {
-    wxPoint curpos;
+    wxPoint curpos = ScreenPos;
+    Unscale( curpos );
 
-//    D(printf("curpos=%d,%d GetZoom=%d, mDrawOrg=%d,%d\n", curpos.x, curpos.y, GetZoom(), m_DrawOrg.x, m_DrawOrg.y );)
-
-    curpos.x = ScreenPos.x * GetZoom();
-    curpos.y = ScreenPos.y * GetZoom();
-
-    curpos.x += m_DrawOrg.x;
-    curpos.y += m_DrawOrg.y;
+    curpos += m_DrawOrg;
 
     return curpos;
 }
 
-
-/***************************************/
-int BASE_SCREEN::GetInternalUnits()
-/***************************************/
+/** Function SetScalingFactor
+ * calculates the .m_Zoom member to have a given scaling facort
+ * @param the the current scale used to draw items on screen
+ * draw coordinates are user coordinates * GetScalingFactor( )
+*/
+void  BASE_SCREEN::SetScalingFactor(double aScale )
 {
-    switch( m_Type )
-    {
-    default:
-    case SCHEMATIC_FRAME:
-        return EESCHEMA_INTERNAL_UNIT;
-        break;
+    int zoom = static_cast<int>( ceil(aScale * m_ZoomScalar) );
 
-    case GERBER_FRAME:
-    case CVPCB_DISPLAY_FRAME:
-    case MODULE_EDITOR_FRAME:
-    case PCB_FRAME:
-        return PCB_INTERNAL_UNIT;
-    }
+    // Limit zoom to max and min allowed values:
+    if (zoom < m_ZoomList[0])
+        zoom = m_ZoomList[0];
+    int idxmax = m_ZoomList.GetCount() - 1;
+    if (zoom > m_ZoomList[idxmax])
+        zoom = m_ZoomList[idxmax];
+
+    SetZoom( zoom );
 }
 
-
-/*****************************************/
-wxSize BASE_SCREEN::ReturnPageSize()
-/*****************************************/
-
-/* Return in internal units the page size
- *  Note: the page size is handled in 1/1000 ", not in internal units
+/**
+ * Calculate coordinate value for zooming.
+ *
+ * Call this method when drawing on the device context.  It scales the
+ * coordinate using the current zoom settings.  Zooming in Kicad occurs
+ * by actually scaling the entire drawing using the zoom setting.
+ *
+ * FIXME: We should probably use wxCoord instead of int here but that would
+ *        require using wxCoord in all of the other code that makes device
+ *        context calls as well.
  */
+int BASE_SCREEN::Scale( int coord )
 {
-    wxSize PageSize;
+#ifdef WX_ZOOM
+    return coord;
+#else
+    if( !m_ZoomScalar || !m_Zoom )
+        return coord;
 
-    switch( m_Type )
-    {
-    default:
-    case SCHEMATIC_FRAME:
-        PageSize = m_CurrentSheetDesc->m_Size;
-        break;
-
-    case GERBER_FRAME:
-    case CVPCB_DISPLAY_FRAME:
-    case MODULE_EDITOR_FRAME:
-    case PCB_FRAME:
-        PageSize.x = m_CurrentSheetDesc->m_Size.x * (PCB_INTERNAL_UNIT / 1000);
-        PageSize.y = m_CurrentSheetDesc->m_Size.y * (PCB_INTERNAL_UNIT / 1000);
-        break;
-    }
-
-    return PageSize;
+    return wxRound( (double) ( coord * m_ZoomScalar ) / (double) m_Zoom );
+#endif
 }
 
 
-/**************************************************/
-void BASE_SCREEN::SetZoomList( const int* zoomlist )
-/**************************************************/
+void BASE_SCREEN::Scale( wxPoint& pt )
+{
+    pt.x = Scale( pt.x );
+    pt.y = Scale( pt.y );
+}
 
-/* init liste des zoom (NULL terminated)
+void BASE_SCREEN::Scale( wxRealPoint& pt )
+{
+#ifdef WX_ZOOM
+    // No change
+#else
+    if( !m_ZoomScalar || !m_Zoom )
+        return;
+
+    pt.x = pt.x * m_ZoomScalar / (double) m_Zoom;
+    pt.y = pt.y  * m_ZoomScalar / (double) m_Zoom;
+#endif
+}
+
+
+void BASE_SCREEN::Scale( wxSize& sz )
+{
+    sz.SetHeight( Scale( sz.GetHeight() ) );
+    sz.SetWidth( Scale( sz.GetWidth() ) );
+}
+
+
+/**
+ * Calculate the physical (unzoomed) location of a coordinate.
+ *
+ * Call this method when you want to find the unzoomed (physical) location
+ * of a coordinate on the drawing.
  */
+int BASE_SCREEN::Unscale( int coord )
 {
-    int         nbitems;
-    const int*  zoom;
+#ifdef WX_ZOOM
+    return coord;
+#else
+    if( !m_Zoom || !m_ZoomScalar )
+        return 0;
 
-    // get list length
-    for( nbitems = 1, zoom = zoomlist;  ; zoom++, nbitems++ )
-    {
-        if( *zoom == 0 )
-            break;
-    }
+    return wxRound( (double) ( coord * m_Zoom ) / (double) m_ZoomScalar );
+#endif
+}
 
-    // resize our list
-    if( m_ZoomList )
-        free( m_ZoomList );
-
-    m_ZoomList = (int*) MyZMalloc( nbitems * sizeof(int) );
-
-    int ii;
-    for( ii = 0, zoom = zoomlist; ii < nbitems; zoom++, ii++ )
-    {
-        m_ZoomList[ii] = *zoom;
-    }
+void BASE_SCREEN::Unscale( wxPoint& pt )
+{
+    pt.x = Unscale( pt.x );
+    pt.y = Unscale( pt.y );
 }
 
 
-/***********************************/
-void BASE_SCREEN::SetFirstZoom()
-/***********************************/
+void BASE_SCREEN::Unscale( wxSize& sz )
 {
-    m_Zoom = 1;
+    sz.SetHeight( Unscale( sz.GetHeight() ) );
+    sz.SetWidth( Unscale( sz.GetWidth() ) );
 }
 
 
-/******************************/
+void BASE_SCREEN::SetZoomList( const wxArrayInt& zoomlist )
+{
+    if( !m_ZoomList.IsEmpty() )
+        m_ZoomList.Empty();
+
+    m_ZoomList = zoomlist;
+}
+
+
+bool BASE_SCREEN::SetFirstZoom()
+{
+    if( m_ZoomList.IsEmpty() )
+    {
+        if( m_Zoom != m_ZoomScalar )
+        {
+            m_Zoom = m_ZoomScalar;
+            return true;
+        }
+    }
+    else if( m_Zoom != m_ZoomList[0] )
+    {
+        m_Zoom = m_ZoomList[0];
+        return true;
+    }
+
+    return false;
+}
+
+
 int BASE_SCREEN::GetZoom() const
-/******************************/
 {
     return m_Zoom;
 }
 
 
-/***********************************/
-void BASE_SCREEN::SetZoom( int coeff )
-/***********************************/
+bool BASE_SCREEN::SetZoom( int coeff )
 {
+    if( coeff == m_Zoom )
+        return false;
+
     m_Zoom = coeff;
+
     if( m_Zoom < 1 )
         m_Zoom = 1;
+
+    return true;
 }
 
 
-/********************************/
-void BASE_SCREEN::SetNextZoom()
-/********************************/
-
-/* Selectionne le prochain coeff de zoom
- */
+bool BASE_SCREEN::SetNextZoom()
 {
-    m_Zoom *= 2;
+    size_t i;
 
-    if( m_ZoomList == NULL )
-        return;
+    if( m_ZoomList.IsEmpty() || m_Zoom >= m_ZoomList.Last() )
+        return false;
 
-    int ii, zoom_max = 512;
-    for( ii = 0; m_ZoomList[ii] != 0; ii++ )
-        zoom_max = m_ZoomList[ii];
+    for( i = 0; i < m_ZoomList.GetCount(); i++ )
+    {
+        if( m_Zoom < m_ZoomList[i] )
+        {
+            m_Zoom = m_ZoomList[i];
+            return true;
+        }
+    }
 
-    if( m_Zoom > zoom_max )
-        m_Zoom = zoom_max;
+    return false;
 }
 
 
-/*************************************/
-void BASE_SCREEN::SetPreviousZoom()
-/*************************************/
-
-/* Selectionne le precedent coeff de zoom
- */
+bool BASE_SCREEN::SetPreviousZoom()
 {
-    m_Zoom /= 2;
-    if( m_Zoom < 1 )
-        m_Zoom = 1;
+    size_t i;
+
+    if( m_ZoomList.IsEmpty() || m_Zoom <= m_ZoomList[0] )
+        return false;
+
+    for( i = m_ZoomList.GetCount(); i != 0; i-- )
+    {
+        if( m_Zoom > m_ZoomList[i - 1] )
+        {
+            m_Zoom = m_ZoomList[i - 1];
+            return true;
+        }
+    }
+
+    return false;
 }
 
 
-/**********************************/
-void BASE_SCREEN::SetLastZoom()
-/**********************************/
-
-/* ajuste le coeff de zoom au max
- */
+bool BASE_SCREEN::SetLastZoom()
 {
-    if( m_ZoomList == NULL )
-        return;
-    int ii;
-    for( ii = 0; m_ZoomList[ii] != 0; ii++ )
-        m_Zoom = m_ZoomList[ii];
+    if( m_ZoomList.IsEmpty() || m_Zoom == m_ZoomList.Last() )
+        return false;
+
+    m_Zoom = m_ZoomList.Last();
+    return true;
 }
 
 
 /********************************************/
-void BASE_SCREEN::SetGridList( wxSize* gridlist )
+void BASE_SCREEN::SetGridList( GridArray& gridlist )
 /********************************************/
 
 /* init liste des zoom (NULL terminated)
  */
 {
-    int     ii, nbitems;
-    wxSize* grid;
+    if( !m_GridList.IsEmpty() )
+        m_GridList.Clear();
 
-    // Decompte des items
-    for( nbitems = 0, grid = gridlist;  ; grid++, nbitems++ )
-    {
-        if( (grid->x <= 0) || (grid->y <= 0) )
-            break;
-    }
-
-    // Init liste
-    if( m_GridList )
-        free( m_GridList );
-    m_GridList = (wxSize*) MyZMalloc( nbitems * sizeof(wxSize) );
-
-    for( ii = 0, grid = gridlist; ii < nbitems; grid++, ii++ )
-    {
-        m_GridList[ii] = *grid;
-    }
+    m_GridList = gridlist;
 }
 
 
 /**********************************************/
-void BASE_SCREEN::SetGrid( const wxSize& size )
+void BASE_SCREEN::SetGrid( const wxRealPoint& size )
 /**********************************************/
 {
-    if( m_GridList == NULL )
-        return;
+    wxASSERT( !m_GridList.IsEmpty() );
 
-    if( (size.x <= 0) || (size.y <= 0) )
+    size_t i;
+
+    wxRealPoint nearest_grid = m_GridList[0].m_Size;
+    for( i = 0; i < m_GridList.GetCount(); i++ )
     {
-        m_UserGrid     = g_UserGrid;
-        m_UserGridIsON = TRUE;
+        if( m_GridList[i].m_Size == size )
+        {
+            m_Grid = m_GridList[i].m_Size;
+            return;
+        }
+
+        // keep trace of the nearest grill size, if the exact size is not found
+        if ( size.x < m_GridList[i].m_Size.x )
+            nearest_grid = m_GridList[i].m_Size;
+    }
+
+    m_Grid = nearest_grid;
+
+    wxLogWarning( _( "Grid size( %f, %f ) not in grid list, falling back to " \
+                     "grid size( %f, %f )." ),
+                  size.x, size.y, m_Grid.x, m_Grid.y );
+}
+
+/* Set grid size from command ID. */
+void BASE_SCREEN::SetGrid( int id  )
+{
+    wxASSERT( !m_GridList.IsEmpty() );
+
+    size_t i;
+
+    for( i = 0; i < m_GridList.GetCount(); i++ )
+    {
+        if( m_GridList[i].m_Id == id )
+        {
+            m_Grid = m_GridList[i].m_Size;
+            return;
+        }
+    }
+
+    m_Grid = m_GridList[0].m_Size;
+
+    wxLogWarning( _( "Grid ID %d not in grid list, falling back to " \
+                     "grid size( %g, %g )." ), id, m_Grid.x, m_Grid.y );
+}
+
+void BASE_SCREEN::AddGrid( const GRID_TYPE& grid )
+{
+    size_t i;
+
+    for( i = 0; i < m_GridList.GetCount(); i++ )
+    {
+        if( m_GridList[i].m_Size == grid.m_Size &&
+               grid.m_Id != ID_POPUP_GRID_USER)
+        {
+            wxLogDebug( wxT( "Discarding duplicate grid size( %g, %g )." ),
+                        grid.m_Size.x, grid.m_Size.y );
+            return;
+        }
+        if( m_GridList[i].m_Id == grid.m_Id )
+        {
+            wxLogDebug( wxT( "Changing grid ID %d from size( %g, %g ) to " \
+                             "size( %g, %g )." ),
+                        grid.m_Id, m_GridList[i].m_Size.x,
+                        m_GridList[i].m_Size.y, grid.m_Size.x, grid.m_Size.y );
+            m_GridList[i].m_Size = grid.m_Size;
+            return;
+        }
+    }
+
+    // wxLogDebug( wxT( "Adding grid ID %d size( %d, %d ) to grid list." ), grid.m_Id, grid.m_Size.x, grid.m_Size.y );
+
+    m_GridList.Add( grid );
+}
+
+void BASE_SCREEN::AddGrid( const wxRealPoint& size, int id )
+{
+    GRID_TYPE grid;
+
+    grid.m_Size = size;
+    grid.m_Id = id;
+    AddGrid( grid );
+}
+
+void BASE_SCREEN::AddGrid( const wxRealPoint& size, int units, int id )
+{
+    double x, y;
+    wxRealPoint new_size;
+    GRID_TYPE new_grid;
+
+    if( units == MILLIMETRE )
+    {
+        x = size.x / 25.4;
+        y = size.y / 25.4;
+    }
+    else if( units == CENTIMETRE )
+    {
+        x = size.x / 2.54;
+        y = size.y / 2.54;
     }
     else
     {
-        m_Grid = size;
-        m_UserGridIsON = FALSE;
-    }
-}
-
-
-/*********************************/
-wxSize BASE_SCREEN::GetGrid()
-/*********************************/
-{
-    wxSize grid = m_Grid;
-    double xx, scale;
-
-    if( m_GridList == NULL )
-        return wxSize( 1, 1 );
-
-    if( m_UserGridIsON || m_Grid.x < 0 || m_Grid.y < 0 )
-    {
-        if( m_UserGridUnit == INCHES )
-            scale = 10000;
-        else
-            scale = 10000 / 25.4;
-        xx     = m_UserGrid.x * scale;
-        grid.x = (int) (xx + 0.5);
-        xx     = m_UserGrid.y * scale;
-        grid.y = (int) (xx + 0.5);
-    }
-    return grid;
-}
-
-
-/*********************************/
-void BASE_SCREEN::SetNextGrid()
-/*********************************/
-
-/* Selectionne la prochaine grille
- */
-{
-    int ii;
-
-    if( m_GridList == NULL )
-        return;
-
-    for( ii = 0; ; ii++ )
-    {
-        if( m_GridList[ii].x <= 0 )
-            break;
-        if( (m_Grid.x == m_GridList[ii].x) && (m_Grid.y == m_GridList[ii].y) )
-            break;
+        x = size.x;
+        y = size.y;
     }
 
-    if( (m_GridList[ii].x > 0) && (ii > 0) )
-        m_Grid = m_GridList[ii - 1];
+    new_size.x = x * GetInternalUnits();
+    new_size.y = y * GetInternalUnits();
+
+    new_grid.m_Id = id;
+    new_grid.m_Size = new_size;
+    AddGrid( new_grid );
 }
 
-
-/*************************************/
-void BASE_SCREEN::SetPreviousGrid()
-/*************************************/
-
-/* Selectionne le precedent coeff de grille
- */
+/*********************************/
+wxRealPoint BASE_SCREEN::GetGrid()
+/*********************************/
 {
-    int ii;
-
-    if( m_GridList == NULL )
-        return;
-
-    for( ii = 0; ; ii++ )
-    {
-        if( m_GridList[ii].x <= 0 )
-            break;
-        if( (m_Grid.x == m_GridList[ii].x) && (m_Grid.y == m_GridList[ii].y) )
-            break;
-    }
-
-    if( (m_GridList[ii].x > 0) && (m_GridList[ii + 1].x > 0) )
-        m_Grid = m_GridList[ii + 1];
-}
-
-
-/**********************************/
-void BASE_SCREEN::SetFirstGrid()
-/**********************************/
-
-/* ajuste le coeff de grille a 1
- */
-{
-    if( m_GridList == NULL )
-        return;
-
-    int ii = 0;
-    while( m_GridList[ii].x > 0 )
-        ii++;
-
-    m_Grid = m_GridList[ii - 1];
-}
-
-
-/**********************************/
-void BASE_SCREEN::SetLastGrid()
-/**********************************/
-
-/* ajuste le coeff de grille au max
- */
-{
-    if( m_GridList == NULL )
-        return;
-    m_Grid = m_GridList[0];
+    return m_Grid;
 }
 
 
@@ -446,14 +476,14 @@ void BASE_SCREEN::ClearUndoRedoList()
 
     while( m_UndoList )
     {
-        nextitem = m_UndoList->Pnext;
+        nextitem = m_UndoList->Next();
         delete m_UndoList;
         m_UndoList = nextitem;
     }
 
     while( m_RedoList )
     {
-        nextitem = m_RedoList->Pnext;
+        nextitem = m_RedoList->Next();
         delete m_RedoList;
         m_RedoList = nextitem;
     }
@@ -469,32 +499,33 @@ void BASE_SCREEN::AddItemToUndoList( EDA_BaseStruct* newitem )
  */
 {
     int             ii;
-    EDA_BaseStruct* item, * nextitem;
+    EDA_BaseStruct* item;
+    EDA_BaseStruct* nextitem;
 
     if( newitem == NULL )
         return;
 
-    newitem->Pnext = m_UndoList;
+    newitem->SetNext( m_UndoList );
     m_UndoList = newitem;
 
     /* Free first items, if count max reached */
     for( ii = 0, item = m_UndoList; ii < m_UndoRedoCountMax; ii++ )
     {
-        if( item->Pnext == NULL )
+        if( item->Next() == NULL )
             return;
-        item = item->Pnext;
+        item = item->Next();
     }
 
     if( item == NULL )
         return;
 
-    nextitem    = item->Pnext;
-    item->Pnext = NULL; // Set end of chain
+    nextitem    = item->Next();
+    item->SetNext( NULL ); // Set end of chain
 
     // Delete the extra  items
     for( item = nextitem; item != NULL; item = nextitem )
     {
-        nextitem = item->Pnext;
+        nextitem = item->Next();
         delete item;
     }
 }
@@ -510,26 +541,26 @@ void BASE_SCREEN::AddItemToRedoList( EDA_BaseStruct* newitem )
     if( newitem == NULL )
         return;
 
-    newitem->Pnext = m_RedoList;
+    newitem->SetNext( m_RedoList );
     m_RedoList = newitem;
     /* Free first items, if count max reached */
     for( ii = 0, item = m_RedoList; ii < m_UndoRedoCountMax; ii++ )
     {
-        if( item->Pnext == NULL )
+        if( item->Next() == NULL )
             break;
-        item = item->Pnext;
+        item = item->Next();
     }
 
     if( item == NULL )
         return;
 
-    nextitem    = item->Pnext;
-    item->Pnext = NULL; // Set end of chain
+    nextitem    = item->Next();
+    item->SetNext( NULL );      // Set end of chain
 
     // Delete the extra items
     for( item = nextitem; item != NULL; item = nextitem )
     {
-        nextitem = item->Pnext;
+        nextitem = item->Next();
         delete item;
     }
 }
@@ -542,7 +573,7 @@ EDA_BaseStruct* BASE_SCREEN::GetItemFromUndoList()
     EDA_BaseStruct* item = m_UndoList;
 
     if( item )
-        m_UndoList = item->Pnext;
+        m_UndoList = item->Next();
     return item;
 }
 
@@ -554,7 +585,7 @@ EDA_BaseStruct* BASE_SCREEN::GetItemFromRedoList()
     EDA_BaseStruct* item = m_RedoList;
 
     if( item )
-        m_RedoList = item->Pnext;
+        m_RedoList = item->Next();
     return item;
 }
 
@@ -569,7 +600,7 @@ EDA_BaseStruct* BASE_SCREEN::GetItemFromRedoList()
  */
 void BASE_SCREEN::Show( int nestLevel, std::ostream& os )
 {
-    EDA_BaseStruct* item = (EDA_BaseStruct*) EEDrawList;    // @todo : use SCH_ITEM as type for item
+    SCH_ITEM* item = EEDrawList;
 
     // for now, make it look like XML, expand on this later.
     NestedSpace( nestLevel, os ) << '<' << GetClass().Lower().mb_str() <<

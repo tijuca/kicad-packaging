@@ -15,22 +15,14 @@
 #pragma implementation "dialog_eeschema_config.h"
 #endif
 
-// For compilers that support precompilation, includes "wx/wx.h".
-#include "wx/wxprec.h"
-
-#ifdef __BORLANDC__
-#pragma hdrstop
-#endif
-
-#ifndef WX_PRECOMP
-#include "wx/wx.h"
-#endif
-
 ////@begin includes
 ////@end includes
 #include "fctsys.h"
-
+#include "appl_wxstruct.h"
 #include "common.h"
+#include "confirm.h"
+#include "gestfich.h"
+
 #include "program.h"
 #include "libcmp.h"
 #include "general.h"
@@ -102,7 +94,7 @@ wxString msg;
 
     Create(parent, id, caption, pos, size, style);
 
-	msg = _("from ") + g_EDA_Appl->m_CurrentOptionFile;
+	msg = _("from ") + wxGetApp().m_CurrentOptionFile;
 	SetTitle(msg);
 	SetFormatsNetListes();
 	m_ListLibr->InsertItems(g_LibName_List, 0);
@@ -196,12 +188,12 @@ void KiConfigEeschemaFrame::CreateControls()
 
     wxButton* itemButton15 = new wxButton( itemDialog1, ADD_LIB, _("Add"), wxDefaultPosition, wxDefaultSize, 0 );
     if (KiConfigEeschemaFrame::ShowToolTips())
-        itemButton15->SetToolTip(_("Add a new library after the selected library, add load it"));
+        itemButton15->SetToolTip(_("Add a new library after the selected library, and load it"));
     itemButton15->SetForegroundColour(wxColour(0, 128, 0));
     itemBoxSizer13->Add(itemButton15, 0, wxALIGN_CENTER_VERTICAL|wxALL, 5);
 
     wxButton* itemButton16 = new wxButton( itemDialog1, INSERT_LIB, _("Ins"), wxDefaultPosition, wxDefaultSize, 0 );
-    itemButton16->SetHelpText(_("Add a new library beforer the selected library, add load it"));
+    itemButton16->SetHelpText(_("Add a new library before the selected library, and load it"));
     if (KiConfigEeschemaFrame::ShowToolTips())
         itemButton16->SetToolTip(_("Add a new library beforer the selected library, add load it"));
     itemButton16->SetForegroundColour(wxColour(0, 0, 255));
@@ -312,8 +304,8 @@ void KiConfigEeschemaFrame::OnCloseWindow(wxCloseEvent & event)
 	if ( m_LibListChanged )
 	{
 		LoadLibraries(m_Parent);
-		if ( m_Parent->m_Parent->m_ViewlibFrame )
-			m_Parent->m_Parent->m_ViewlibFrame->ReCreateListLib();
+		if ( m_Parent->m_ViewlibFrame )
+			m_Parent->m_ViewlibFrame->ReCreateListLib();
 	}
 	EndModal(0);
 }
@@ -369,7 +361,10 @@ wxString FullLibName,ShortLibName, Mask;
 		wxEmptyString, Mask,
 		wxFD_DEFAULT_STYLE | wxFD_MULTIPLE);
 
-	FilesDialog.ShowModal();
+	int diag = FilesDialog.ShowModal();
+    if ( diag != wxID_OK )
+        return;
+
 	wxArrayString Filenames;
 	FilesDialog.GetPaths(Filenames);
 
@@ -380,7 +375,7 @@ wxString FullLibName,ShortLibName, Mask;
 		if ( ShortLibName.IsEmpty() )	//Just in case...
 			continue;
 		//Add or insert new library name
-		if (FindLibrary(ShortLibName) == NULL)
+		if ( g_LibName_List.Index(ShortLibName) == wxNOT_FOUND)
 		{
 			m_LibListChanged = TRUE;
 			g_LibName_List.Insert(ShortLibName, ii);

@@ -3,17 +3,12 @@
 /*************************************/
 
 #include "fctsys.h"
-#include "gr_basic.h"
-
 #include "common.h"
 #include "plot_common.h"
+#include "confirm.h"
 #include "pcbnew.h"
 #include "pcbplot.h"
 #include "trigo.h"
-
-#include "protos.h"
-
-#include "wx/defs.h"
 
 // Routines Locales
 static void PrintDrillMark( BOARD* Pcb );
@@ -60,7 +55,7 @@ void WinEDA_BasePcbFrame::Genere_PS( const wxString& FullFileName, int Layer, bo
     if( g_PlotScaleOpt != 1 )
         Center = TRUE; // Echelle != 1 donc trace centree du PCB
 
-    modetrace    = Plot_Mode;
+    modetrace    = g_Plot_Mode;
     scale_format = 1.0;
 
     // Set default line width
@@ -100,7 +95,7 @@ void WinEDA_BasePcbFrame::Genere_PS( const wxString& FullFileName, int Layer, bo
     SetDefaultLineWidthPS( g_PlotLine_Width );
     PrintHeaderPS( dest, wxT( "PCBNEW-PS" ), FullFileName, 1, BBox, wxLANDSCAPE );
 
-    if( Plot_Sheet_Ref )
+    if( g_Plot_Frame_Ref )
     {
         int tmp = g_PlotOrient;
         g_PlotOrient = 0;
@@ -120,7 +115,7 @@ void WinEDA_BasePcbFrame::Genere_PS( const wxString& FullFileName, int Layer, bo
     {
         float Xscale, Yscale;
         int   noprint_size = 2 * PlotMarge_in_mils * U_PCB;
-        if( Plot_Sheet_Ref )
+        if( g_Plot_Frame_Ref )
             noprint_size += 500 * U_PCB;
         Xscale  = (float) ( PaperSize.x - noprint_size ) / BoardSize.x;
         Yscale  = (float) ( PaperSize.y - noprint_size ) / BoardSize.y;
@@ -255,27 +250,27 @@ void WinEDA_BasePcbFrame::Plot_Layer_PS( FILE* File, int masque_layer,
     {
         switch( PtStruct->Type() )
         {
-        case TYPEDRAWSEGMENT:
+        case TYPE_DRAWSEGMENT:
             PlotDrawSegment( (DRAWSEGMENT*) PtStruct, PLOT_FORMAT_POST,
                 masque_layer );
             break;
 
-        case TYPETEXTE:
+        case TYPE_TEXTE:
             PlotTextePcb( (TEXTE_PCB*) PtStruct, PLOT_FORMAT_POST,
                 masque_layer );
             break;
 
-        case TYPECOTATION:
+        case TYPE_COTATION:
             PlotCotation( (COTATION*) PtStruct, PLOT_FORMAT_POST,
                 masque_layer );
             break;
 
-        case TYPEMIRE:
+        case TYPE_MIRE:
             PlotMirePcb( (MIREPCB*) PtStruct, PLOT_FORMAT_POST,
                 masque_layer );
             break;
 
-        case TYPEMARKER:
+        case TYPE_MARKER:
             break;
 
         default:
@@ -286,17 +281,15 @@ void WinEDA_BasePcbFrame::Plot_Layer_PS( FILE* File, int masque_layer,
     }
 
     // Trace des Elements des modules autres que pads
-    nb_items = 0;
-    Affiche_1_Parametre( this, 48, wxT( "DrawMod" ), wxEmptyString, GREEN );
     Module = m_Pcb->m_Modules;
-    for( ; Module != NULL; Module = (MODULE*) Module->Pnext )
+    for( ; Module != NULL; Module = Module->Next() )
     {
         PtStruct = Module->m_Drawings;
         for( ; PtStruct != NULL; PtStruct = PtStruct->Next() )
         {
             switch( PtStruct->Type() )
             {
-            case TYPEEDGEMODULE:
+            case TYPE_EDGE_MODULE:
                 if( masque_layer & g_TabOneLayerMask[ PtStruct->GetLayer() ] )
                     Plot_1_EdgeModule( PLOT_FORMAT_POST, (EDGE_MODULE*) PtStruct );
                 break;
@@ -308,13 +301,11 @@ void WinEDA_BasePcbFrame::Plot_Layer_PS( FILE* File, int masque_layer,
     }
 
     // Trace des Elements des modules : Pastilles
-    nb_items = 0;
-    Affiche_1_Parametre( this, 48, wxT( "Pads   " ), wxEmptyString, GREEN );
     Module = m_Pcb->m_Modules;
-    for( ; Module != NULL; Module = (MODULE*) Module->Pnext )
+    for( ; Module != NULL; Module = Module->Next() )
     {
         PtPad = (D_PAD*) Module->m_Pads;
-        for( ; PtPad != NULL; PtPad = (D_PAD*) PtPad->Pnext )
+        for( ; PtPad != NULL; PtPad = (D_PAD*) PtPad->Next() )
         {
             if( (PtPad->m_Masque_Layer & masque_layer) == 0 )
                 continue;
@@ -323,8 +314,6 @@ void WinEDA_BasePcbFrame::Plot_Layer_PS( FILE* File, int masque_layer,
 
             size.x = PtPad->m_Size.x + garde * 2;
             size.y = PtPad->m_Size.y + garde * 2;
-
-            nb_items++;
 
             switch( PtPad->m_PadShape )
             {
@@ -350,20 +339,15 @@ void WinEDA_BasePcbFrame::Plot_Layer_PS( FILE* File, int masque_layer,
                 trace_1_pad_rectangulaire_POST( pos, size, PtPad->m_Orient, modetrace );
                 break;
             }
-
-            msg.Printf( wxT( "%d" ), nb_items );
-            Affiche_1_Parametre( this, 48, wxT( "Pads" ), msg, GREEN );
         }
     }
 
     // trace des VIAS :
     if( tracevia )
     {
-        nb_items = 0;
-        Affiche_1_Parametre( this, 56, _( "Vias" ), wxEmptyString, RED );
         for( pts = m_Pcb->m_Track; pts != NULL; pts = pts->Next() )
         {
-            if( pts->Type() != TYPEVIA )
+            if( pts->Type() != TYPE_VIA )
                 continue;
             SEGVIA* Via = (SEGVIA*) pts;
 
@@ -381,19 +365,13 @@ void WinEDA_BasePcbFrame::Plot_Layer_PS( FILE* File, int masque_layer,
             pos    = Via->m_Start;
             size.x = size.y = Via->m_Width + garde * 2;
             trace_1_pastille_RONDE_POST( pos, size.x, modetrace );
-            nb_items++;
-            msg.Printf( wxT( "%d" ), nb_items );
-            Affiche_1_Parametre( this, 56, wxEmptyString, msg, RED );
         }
     }
 
     // trace des pistes et zones:
-    nb_items = 0;
-    Affiche_1_Parametre( this, 64, _( "Tracks" ), wxEmptyString, YELLOW );
-
-    for( pts = m_Pcb->m_Track; pts != NULL; pts = (TRACK*) pts->Pnext )
+    for( pts = m_Pcb->m_Track; pts != NULL; pts = pts->Next() )
     {
-        if( pts->Type() == TYPEVIA )
+        if( pts->Type() == TYPE_VIA )
             continue;
 
         if( (g_TabOneLayerMask[pts->GetLayer()] & masque_layer) == 0 )
@@ -403,16 +381,9 @@ void WinEDA_BasePcbFrame::Plot_Layer_PS( FILE* File, int masque_layer,
         end    = pts->m_End;
 
         PlotFilledSegmentPS( pos, end, size.x );
-
-        nb_items++;
-        msg.Printf( wxT( "%d" ), nb_items );
-        Affiche_1_Parametre( this, 64, wxEmptyString, msg, YELLOW );
     }
 
-    nb_items = 0;
-    Affiche_1_Parametre( this, 64, wxT( "Zones  " ), wxEmptyString, YELLOW );
-
-    for( pts = m_Pcb->m_Zone; pts != NULL; pts = (TRACK*) pts->Pnext )
+    for( pts = m_Pcb->m_Zone; pts != NULL; pts = pts->Next() )
     {
         if( (g_TabOneLayerMask[pts->GetLayer()] & masque_layer) == 0 )
             continue;
@@ -420,9 +391,15 @@ void WinEDA_BasePcbFrame::Plot_Layer_PS( FILE* File, int masque_layer,
         pos    = pts->m_Start;
         end    = pts->m_End;
         PlotFilledSegmentPS( pos, end, size.x );
-        nb_items++;
-        msg.Printf( wxT( "%d" ), nb_items );
-        Affiche_1_Parametre( this, 64, wxEmptyString, msg, YELLOW );
+    }
+
+    /* Plot filled ares */
+    for( int ii = 0; ii < m_Pcb->GetAreaCount(); ii++ )
+    {
+        ZONE_CONTAINER* edge_zone =  m_Pcb->GetArea(ii);
+        if( ( (1 << edge_zone->GetLayer()) & masque_layer ) == 0 )
+            continue;
+        PlotFilledAreas(edge_zone, PLOT_FORMAT_POST);
     }
 
     // Trace des trous de percage
@@ -460,7 +437,7 @@ static void PrintDrillMark( BOARD* Pcb )
 
     for( pts = Pcb->m_Track; pts != NULL; pts = pts->Next() )
     {
-        if( pts->Type() != TYPEVIA )
+        if( pts->Type() != TYPE_VIA )
             continue;
         pos = pts->m_Start;
         if( g_DrillShapeOpt == DRILL_MARK )
@@ -472,7 +449,7 @@ static void PrintDrillMark( BOARD* Pcb )
     }
 
     Module = Pcb->m_Modules;
-    for( ; Module != NULL; Module = (MODULE*) Module->Pnext )
+    for( ; Module != NULL; Module = Module->Next() )
     {
         PtPad = Module->m_Pads;
         for( ; PtPad != NULL; PtPad = PtPad->Next() )
@@ -753,7 +730,7 @@ void trace_1_pad_TRAPEZE_POST( wxPoint centre, wxSize size, wxSize delta,
     int     l_pen;          // diam spot (plume)
 
     l_pen = 1;
-    if( modetrace == FILAIRE || Plot_Mode == FILAIRE )
+    if( modetrace == FILAIRE || g_Plot_Mode == FILAIRE )
     {
         wxSize lsize( g_PlotLine_Width, g_PlotLine_Width );
 

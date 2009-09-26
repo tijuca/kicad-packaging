@@ -4,9 +4,13 @@
 /****************************************************/
 
 #include "fctsys.h"
+#include "appl_wxstruct.h"
 #include "gr_basic.h"
-
 #include "common.h"
+#include "class_drawpanel.h"
+#include "confirm.h"
+#include "block_commande.h"
+
 #include "pcbnew.h"
 #include "autorout.h"
 #include "pcbplot.h"
@@ -23,8 +27,10 @@
 /* Fonctions exportees */
 
 /* Fonctions Locales */
-static void DrawMovingBlockOutlines( WinEDA_DrawPanel* panel, wxDC* DC, bool erase );
-static int  MarkItemsInBloc( MODULE*  module,
+static void DrawMovingBlockOutlines( WinEDA_DrawPanel* panel,
+                                     wxDC*             DC,
+                                     bool              erase );
+static int  MarkItemsInBloc( MODULE*   module,
                              EDA_Rect& Rect );
 
 static void ClearMarkItems( MODULE* module );
@@ -96,7 +102,7 @@ int WinEDA_ModuleEditFrame::HandleBlockEnd( wxDC* DC )
  */
 {
     int     ItemsCount    = 0, MustDoPlace = 0;
-    MODULE* Currentmodule = m_Pcb->m_Modules;
+    MODULE* Currentmodule = GetBoard()->m_Modules;
 
     if( GetScreen()->BlockLocate.m_BlockDrawStruct )
     {
@@ -193,7 +199,9 @@ int WinEDA_ModuleEditFrame::HandleBlockEnd( wxDC* DC )
         DrawPanel->ManageCurseur = NULL;
         DrawPanel->ForceCloseManageCurseur = NULL;
         SetCurItem( NULL );
-        SetToolID( m_ID_current_state, DrawPanel->m_PanelDefaultCursor, wxEmptyString );
+        SetToolID( m_ID_current_state,
+                   DrawPanel->m_PanelDefaultCursor,
+                   wxEmptyString );
         DrawPanel->Refresh( TRUE );
     }
 
@@ -213,7 +221,7 @@ void WinEDA_ModuleEditFrame::HandleBlockPlace( wxDC* DC )
  */
 {
     bool    err = FALSE;
-    MODULE* Currentmodule = m_Pcb->m_Modules;
+    MODULE* Currentmodule = GetBoard()->m_Modules;
 
     if( DrawPanel->ManageCurseur == NULL )
     {
@@ -278,7 +286,9 @@ void WinEDA_ModuleEditFrame::HandleBlockPlace( wxDC* DC )
     SetCurItem( NULL );
     DrawPanel->Refresh( TRUE );
 
-    SetToolID( m_ID_current_state, DrawPanel->m_PanelDefaultCursor, wxEmptyString );
+    SetToolID( m_ID_current_state,
+               DrawPanel->m_PanelDefaultCursor,
+               wxEmptyString );
 }
 
 
@@ -295,7 +305,8 @@ static void DrawMovingBlockOutlines( WinEDA_DrawPanel* panel, wxDC* DC,
     BASE_SCREEN*     screen = panel->GetScreen();
     BOARD_ITEM*      item;
     wxPoint          move_offset;
-    MODULE*          Currentmodule = g_EDA_Appl->m_ModuleEditFrame->m_Pcb->m_Modules;
+    MODULE*          Currentmodule =
+        ( (WinEDA_BasePcbFrame*) wxGetApp().GetTopWindow() )->m_ModuleEditFrame->GetBoard()->m_Modules;
 
     PtBlock = &screen->BlockLocate;
     GRSetDrawMode( DC, g_XorMode );
@@ -319,8 +330,8 @@ static void DrawMovingBlockOutlines( WinEDA_DrawPanel* panel, wxDC* DC,
 
                 switch( item->Type() )
                 {
-                case TYPETEXTEMODULE:
-                case TYPEEDGEMODULE:
+                case TYPE_TEXTE_MODULE:
+                case TYPE_EDGE_MODULE:
                     item->Draw( panel, DC, g_XorMode, move_offset );
                     break;
 
@@ -340,8 +351,10 @@ static void DrawMovingBlockOutlines( WinEDA_DrawPanel* panel, wxDC* DC,
     }
 
     /* Redessin nouvel affichage */
-    PtBlock->m_MoveVector.x = screen->m_Curseur.x - PtBlock->m_BlockLastCursorPosition.x;
-    PtBlock->m_MoveVector.y = screen->m_Curseur.y - PtBlock->m_BlockLastCursorPosition.y;
+    PtBlock->m_MoveVector.x = screen->m_Curseur.x -
+                              PtBlock->m_BlockLastCursorPosition.x;
+    PtBlock->m_MoveVector.y = screen->m_Curseur.y -
+                              PtBlock->m_BlockLastCursorPosition.y;
 
     GRSetDrawMode( DC, g_XorMode );
     PtBlock->Offset( PtBlock->m_MoveVector );
@@ -361,8 +374,8 @@ static void DrawMovingBlockOutlines( WinEDA_DrawPanel* panel, wxDC* DC,
 
             switch( item->Type() )
             {
-            case TYPETEXTEMODULE:
-            case TYPEEDGEMODULE:
+            case TYPE_TEXTE_MODULE:
+            case TYPE_EDGE_MODULE:
                 item->Draw( panel, DC, g_XorMode, move_offset );
                 break;
 
@@ -389,14 +402,10 @@ void CopyMarkedItems( MODULE* module, wxPoint offset )
 /* Copy marked items, at new position = old position + offset
  */
 {
-    BOARD_ITEM* item;
-    BOARD_ITEM* NewStruct;
-
     if( module == NULL )
         return;
 
-    D_PAD* pad = module->m_Pads;
-    for( ; pad != NULL; pad = pad->Next() )
+    for( D_PAD* pad = module->m_Pads;  pad;  pad = pad->Next() )
     {
         if( pad->m_Selected == 0 )
             continue;
@@ -404,44 +413,39 @@ void CopyMarkedItems( MODULE* module, wxPoint offset )
         D_PAD* NewPad = new D_PAD( module );
         NewPad->Copy( pad );
         NewPad->m_Selected = IS_SELECTED;
-        NewPad->Pnext = module->m_Pads;
-        NewPad->Pback = module;
-        module->m_Pads->Pback = NewPad;
-        module->m_Pads = NewPad;
+        module->m_Pads.PushFront( NewPad );
     }
 
-    item = module->m_Drawings;
-    for( ; item != NULL; item = item->Next() )
+    for( BOARD_ITEM* item = module->m_Drawings;  item; item = item->Next() )
     {
         if( item->m_Selected == 0 )
             continue;
+
         item->m_Selected = 0;
-        NewStruct = NULL;
 
         switch( item->Type() )
         {
-        case TYPETEXTEMODULE:
-            NewStruct = new TEXTE_MODULE( module );
-            ( (TEXTE_MODULE*) NewStruct )->Copy( (TEXTE_MODULE*) item );
+        case TYPE_TEXTE_MODULE:
+            TEXTE_MODULE * textm;
+            textm = new TEXTE_MODULE( module );
+            textm->Copy( (TEXTE_MODULE*) item );
+            textm->m_Selected = IS_SELECTED;
+            module->m_Drawings.PushFront( textm );
             break;
 
-        case TYPEEDGEMODULE:
-            NewStruct = new EDGE_MODULE( module );
-            ( (EDGE_MODULE*) NewStruct )->Copy( (EDGE_MODULE*) item );
+        case TYPE_EDGE_MODULE:
+            EDGE_MODULE * edge;
+            edge = new EDGE_MODULE( module );
+            edge->Copy( (EDGE_MODULE*) item );
+            edge->m_Selected = IS_SELECTED;
+            module->m_Drawings.PushFront( edge );
             break;
 
         default:
-            DisplayError( NULL, wxT( "Internal Err: CopyMarkedItems: type indefini" ) );
+            DisplayError( NULL,
+                          wxT( "Internal Err: CopyMarkedItems: type indefini" ) );
             break;
         }
-
-        if( NewStruct == NULL )
-            break;
-        NewStruct->m_Selected = IS_SELECTED;
-        NewStruct->Pnext = module->m_Drawings;
-        NewStruct->Pback = module;
-        module->m_Drawings->Pback = module;
-        module->m_Drawings = NewStruct;
     }
 
     MoveMarkedItems( module, offset );
@@ -465,10 +469,8 @@ void MoveMarkedItems( MODULE* module, wxPoint offset )
     {
         if( pad->m_Selected == 0 )
             continue;
-        pad->GetPosition().x  += offset.x;
-        pad->GetPosition().y  += offset.y;
-        pad->m_Pos0.x += offset.x;
-        pad->m_Pos0.y += offset.y;
+        pad->SetPosition( pad->GetPosition() + offset );
+        pad->m_Pos0 += offset;
     }
 
     item = module->m_Drawings;
@@ -479,25 +481,17 @@ void MoveMarkedItems( MODULE* module, wxPoint offset )
 
         switch( item->Type() )
         {
-        case TYPETEXTEMODULE:
-            ( (TEXTE_MODULE*) item )->GetPosition().x  += offset.x;
-            ( (TEXTE_MODULE*) item )->GetPosition().y  += offset.y;
-            ( (TEXTE_MODULE*) item )->m_Pos0.x += offset.x;
-            ( (TEXTE_MODULE*) item )->m_Pos0.y += offset.y;
+        case TYPE_TEXTE_MODULE:
+            ( (TEXTE_MODULE*) item )->m_Pos += offset;
+            ( (TEXTE_MODULE*) item )->m_Pos0 += offset;
             break;
 
-        case TYPEEDGEMODULE:
-            ( (EDGE_MODULE*) item )->m_Start.x  += offset.x;
-            ( (EDGE_MODULE*) item )->m_Start.y  += offset.y;
+        case TYPE_EDGE_MODULE:
+            ( (EDGE_MODULE*) item )->m_Start += offset;
+            ( (EDGE_MODULE*) item )->m_End += offset;
 
-            ( (EDGE_MODULE*) item )->m_End.x    += offset.x;
-            ( (EDGE_MODULE*) item )->m_End.y    += offset.y;
-
-            ( (EDGE_MODULE*) item )->m_Start0.x += offset.x;
-            ( (EDGE_MODULE*) item )->m_Start0.y += offset.y;
-
-            ( (EDGE_MODULE*) item )->m_End0.x   += offset.x;
-            ( (EDGE_MODULE*) item )->m_End0.y   += offset.y;
+            ( (EDGE_MODULE*) item )->m_Start0 += offset;
+            ( (EDGE_MODULE*) item )->m_End0 += offset;
             break;
 
         default:
@@ -516,10 +510,10 @@ void DeleteMarkedItems( MODULE* module )
 /* Delete marked items
  */
 {
-    BOARD_ITEM*     item;
-    BOARD_ITEM*     next_item;
-    D_PAD*          pad;
-    D_PAD*          next_pad;
+    BOARD_ITEM* item;
+    BOARD_ITEM* next_item;
+    D_PAD*      pad;
+    D_PAD*      next_pad;
 
     if( module == NULL )
         return;
@@ -563,10 +557,10 @@ void MirrorMarkedItems( MODULE* module, wxPoint offset )
         if( pad->m_Selected == 0 )
             continue;
         SETMIRROR( pad->GetPosition().x );
-        pad->m_Pos0.x      = pad->GetPosition().x;
+        pad->m_Pos0.x = pad->GetPosition().x;
         pad->m_Offset.x    = -pad->m_Offset.x;
         pad->m_DeltaSize.x = -pad->m_DeltaSize.x;
-        pad->m_Orient = 1800 - pad->m_Orient;
+        pad->m_Orient      = 1800 - pad->m_Orient;
         NORMALIZE_ANGLE( pad->m_Orient );
     }
 
@@ -578,17 +572,21 @@ void MirrorMarkedItems( MODULE* module, wxPoint offset )
 
         switch( item->Type() )
         {
-        case TYPEEDGEMODULE:
+        case TYPE_EDGE_MODULE:
             SETMIRROR( ( (EDGE_MODULE*) item )->m_Start.x );
-            ( (EDGE_MODULE*) item )->m_Start0.x = ( (EDGE_MODULE*) item )->m_Start.x;
+            ( (EDGE_MODULE*) item )->m_Start0.x =
+                ( (EDGE_MODULE*) item )->m_Start.x;
             SETMIRROR( ( (EDGE_MODULE*) item )->m_End.x );
-            ( (EDGE_MODULE*) item )->m_End0.x = ( (EDGE_MODULE*) item )->m_End.x;
-            ( (EDGE_MODULE*) item )->m_Angle  = -( (EDGE_MODULE*) item )->m_Angle;
+            ( (EDGE_MODULE*) item )->m_End0.x =
+                ( (EDGE_MODULE*) item )->m_End.x;
+            ( (EDGE_MODULE*) item )->m_Angle =
+                -( (EDGE_MODULE*) item )->m_Angle;
             break;
 
-        case TYPETEXTEMODULE:
+        case TYPE_TEXTE_MODULE:
             SETMIRROR( ( (TEXTE_MODULE*) item )->GetPosition().x );
-            ( (TEXTE_MODULE*) item )->m_Pos0.x = ( (TEXTE_MODULE*) item )->GetPosition().x;
+            ( (TEXTE_MODULE*) item )->m_Pos0.x =
+                ( (TEXTE_MODULE*) item )->GetPosition().x;
             break;
 
         default:
@@ -632,16 +630,18 @@ void RotateMarkedItems( MODULE* module, wxPoint offset )
 
         switch( item->Type() )
         {
-        case TYPEEDGEMODULE:
+        case TYPE_EDGE_MODULE:
             ROTATE( ( (EDGE_MODULE*) item )->m_Start );
-            ( (EDGE_MODULE*) item )->m_Start0 = ( (EDGE_MODULE*) item )->m_Start;
+            ( (EDGE_MODULE*) item )->m_Start0 =
+                ( (EDGE_MODULE*) item )->m_Start;
             ROTATE( ( (EDGE_MODULE*) item )->m_End );
             ( (EDGE_MODULE*) item )->m_End0 = ( (EDGE_MODULE*) item )->m_End;
             break;
 
-        case TYPETEXTEMODULE:
+        case TYPE_TEXTE_MODULE:
             ROTATE( ( (TEXTE_MODULE*) item )->GetPosition() );
-            ( (TEXTE_MODULE*) item )->m_Pos0    = ( (TEXTE_MODULE*) item )->GetPosition();
+            ( (TEXTE_MODULE*) item )->m_Pos0 =
+                ( (TEXTE_MODULE*) item )->GetPosition();
             ( (TEXTE_MODULE*) item )->m_Orient += 900;
             break;
 
@@ -708,7 +708,7 @@ int MarkItemsInBloc( MODULE* module, EDA_Rect& Rect )
 
         switch( item->Type() )
         {
-        case TYPEEDGEMODULE:
+        case TYPE_EDGE_MODULE:
             pos = ( (EDGE_MODULE*) item )->m_Start;
             if( Rect.Inside( pos ) )
             {
@@ -723,7 +723,7 @@ int MarkItemsInBloc( MODULE* module, EDA_Rect& Rect )
             }
             break;
 
-        case TYPETEXTEMODULE:
+        case TYPE_TEXTE_MODULE:
             pos = ( (TEXTE_MODULE*) item )->GetPosition();
             if( Rect.Inside( pos ) )
             {

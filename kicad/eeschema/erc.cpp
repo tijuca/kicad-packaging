@@ -3,13 +3,17 @@
 /**************************************************/
 
 #include "fctsys.h"
-
+#include "gr_basic.h"
 #include "common.h"
+#include "class_drawpanel.h"
+#include "confirm.h"
+#include "kicad_string.h"
+#include "gestfich.h"
+
 #include "program.h"
 #include "libcmp.h"
 #include "general.h"
 #include "netlist.h"
-
 #include "protos.h"
 
 #include "bitmaps.h"
@@ -319,7 +323,7 @@ void WinEDA_ErcFrame::TestErc( wxCommandEvent& event )
 
     /* Reset du flag m_FlagOfConnection, utilise par la suite */
     for( NetItemRef = g_TabObjNet;  NetItemRef < Lim;   NetItemRef++ )
-        NetItemRef->m_FlagOfConnection = (IsConnectType) 0;
+        NetItemRef->m_FlagOfConnection = UNCONNECTED;
 
     NetNbItems = 0;
     MinConn    = NOC;
@@ -428,7 +432,7 @@ void WinEDA_ErcFrame::DelERCMarkers( wxCommandEvent& event )
 
     // Delete markers for the current screen
     DrawStruct = m_Parent->GetScreen()->EEDrawList;
-    for( ; DrawStruct != NULL; DrawStruct = DrawStruct->Pnext )
+    for( ; DrawStruct != NULL; DrawStruct = DrawStruct->Next() )
     {
         if( DrawStruct->Type() != DRAW_MARKER_STRUCT_TYPE )
             continue;
@@ -533,7 +537,7 @@ static void Diagnose( WinEDA_DrawPanel* panel, wxDC* DC,
     Marker->m_Type      = MARQ_ERC;
     Marker->m_MarkFlags = WAR;
     screen = NetItemRef->m_SheetList.LastScreen();
-    Marker->Pnext      = screen->EEDrawList;
+    Marker->SetNext( screen->EEDrawList );
     screen->EEDrawList = Marker;
     g_EESchemaVar.NbErrorErc++;
     g_EESchemaVar.NbWarningErc++;
@@ -692,7 +696,7 @@ static void TestOthersItems( WinEDA_DrawPanel* panel, wxDC* DC,
                     if( NetItemTst->m_FlagOfConnection == 0 )
                     {
                         Diagnose( panel, DC, NetItemRef, NetItemTst, 0, erc );
-                        NetItemTst->m_FlagOfConnection = (IsConnectType) 1;
+                        NetItemTst->m_FlagOfConnection = NOCONNECT;
                     }
                 }
             }
@@ -724,7 +728,7 @@ static bool WriteDiagnosticERC( const wxString& FullFileName )
 
     fprintf( OutErc, "%s (%s)\n", CONV_TO_UTF8( msg ), Line );
 
-    EDA_SheetList SheetList( NULL );
+    EDA_SheetList SheetList;
 
     for( Sheet = SheetList.GetFirst(); Sheet != NULL; Sheet = SheetList.GetNext() )
     {
@@ -741,7 +745,7 @@ static bool WriteDiagnosticERC( const wxString& FullFileName )
         fprintf( OutErc, "%s", CONV_TO_UTF8( msg ) );
 
         DrawStruct = Sheet->LastDrawList();
-        for( ; DrawStruct != NULL; DrawStruct = DrawStruct->Pnext )
+        for( ; DrawStruct != NULL; DrawStruct = DrawStruct->Next() )
         {
             if( DrawStruct->Type() != DRAW_MARKER_STRUCT_TYPE )
                 continue;

@@ -9,8 +9,13 @@
 #include "gr_basic.h"
 #include "wxstruct.h"
 #include "common.h"
-#include "sch_item_struct.h"
 #include "macros.h"
+#include "base_struct.h"
+#include "sch_item_struct.h"
+#include "class_base_screen.h"
+#include "class_drawpanel.h"
+#include "confirm.h"
+#include "block_commande.h"
 
 
 /*******************/
@@ -110,8 +115,8 @@ void DrawBlockStruct::SetMessageBlock( WinEDA_DrawFrame* frame )
 void DrawBlockStruct::Draw( WinEDA_DrawPanel* panel, wxDC* DC )
 /**************************************************************/
 {
-    int w = GetWidth() / panel->GetZoom();
-    int h = GetHeight() / panel->GetZoom();
+    int w = panel->GetScreen()->Scale( GetWidth() );
+    int h = panel->GetScreen()->Scale( GetHeight() );
 
     if(  w == 0 || h == 0 )
         GRLine( &panel->m_ClipBox, DC, GetX(), GetY(),
@@ -133,8 +138,8 @@ bool WinEDA_DrawFrame::HandleBlockBegin( wxDC* DC, int key,
 {
     DrawBlockStruct* Block = & GetBaseScreen()->BlockLocate;
 
-    if( (Block->m_Command != BLOCK_IDLE)
-       || ( Block->m_State != STATE_NO_BLOCK) )
+    if( ( Block->m_Command != BLOCK_IDLE )
+        || ( Block->m_State != STATE_NO_BLOCK ) )
         return FALSE;
 
     Block->m_Flags   = 0;
@@ -177,7 +182,7 @@ bool WinEDA_DrawFrame::HandleBlockBegin( wxDC* DC, int key,
         {
             Block->m_BlockDrawStruct = NULL;
             DisplayError( this,
-                         wxT( "WinEDA_DrawFrame::HandleBlockBegin() Err: ManageCurseur NULL" ) );
+                          wxT( "WinEDA_DrawFrame::HandleBlockBegin() Err: ManageCurseur NULL" ) );
             return TRUE;
         }
         Block->m_State = STATE_BLOCK_MOVE;
@@ -254,7 +259,7 @@ void InitBlockLocateDatas( WinEDA_DrawPanel* Panel, const wxPoint& startpos )
     screen->BlockLocate.m_State = STATE_BLOCK_INIT;
     screen->BlockLocate.SetOrigin( startpos );
     screen->BlockLocate.SetSize( wxSize( 0, 0 ) );
-    screen->BlockLocate.Pnext = NULL;
+    screen->BlockLocate.SetNext( NULL );
     screen->BlockLocate.m_BlockDrawStruct = NULL;
     Panel->ManageCurseur = DrawAndSizingBlockOutlines;
     Panel->ForceCloseManageCurseur = AbortBlockCurrentCommand;

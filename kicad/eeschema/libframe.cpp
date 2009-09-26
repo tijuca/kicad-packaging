@@ -6,80 +6,78 @@
  */
 
 #include "fctsys.h"
-#include "gr_basic.h"
-
+#include "appl_wxstruct.h"
 #include "common.h"
+#include "class_drawpanel.h"
+#include "confirm.h"
+#include "eda_doc.h"
 #include "program.h"
 #include "libcmp.h"
 #include "general.h"
-
 #include "bitmaps.h"
 #include "protos.h"
-
 #include "id.h"
 
 /*****************************/
 /* class WinEDA_LibeditFrame */
 /*****************************/
-BEGIN_EVENT_TABLE( WinEDA_LibeditFrame, wxFrame )
-COMMON_EVENTS_DRAWFRAME EVT_CLOSE( WinEDA_LibeditFrame::OnCloseWindow )
-EVT_SIZE( WinEDA_LibeditFrame::OnSize )
+BEGIN_EVENT_TABLE( WinEDA_LibeditFrame, WinEDA_DrawFrame )
+    EVT_CLOSE( WinEDA_LibeditFrame::OnCloseWindow )
+    EVT_SIZE( WinEDA_LibeditFrame::OnSize )
 
-EVT_TOOL_RANGE( ID_ZOOM_IN_BUTT, ID_ZOOM_PAGE_BUTT,
-                WinEDA_LibeditFrame::Process_Zoom )
+    EVT_TOOL_RANGE( ID_ZOOM_IN, ID_ZOOM_PAGE, WinEDA_LibeditFrame::OnZoom )
 
 // Tools et boutons de Libedit:
 
 /* Main horizontal toolbar */
-EVT_TOOL_RANGE( ID_LIBEDIT_START_H_TOOL, ID_LIBEDIT_END_H_TOOL,
-                WinEDA_LibeditFrame::Process_Special_Functions )
-EVT_KICAD_CHOICEBOX( ID_LIBEDIT_SELECT_PART_NUMBER,
-                     WinEDA_LibeditFrame::Process_Special_Functions )
-EVT_KICAD_CHOICEBOX( ID_LIBEDIT_SELECT_ALIAS,
-                     WinEDA_LibeditFrame::Process_Special_Functions )
+    EVT_TOOL_RANGE( ID_LIBEDIT_START_H_TOOL, ID_LIBEDIT_END_H_TOOL,
+                    WinEDA_LibeditFrame::Process_Special_Functions )
+    EVT_KICAD_CHOICEBOX( ID_LIBEDIT_SELECT_PART_NUMBER,
+                         WinEDA_LibeditFrame::Process_Special_Functions )
+    EVT_KICAD_CHOICEBOX( ID_LIBEDIT_SELECT_ALIAS,
+                         WinEDA_LibeditFrame::Process_Special_Functions )
 
 /* Right Vertical toolbar */
-EVT_TOOL( ID_NO_SELECT_BUTT, WinEDA_LibeditFrame::Process_Special_Functions )
-EVT_TOOL_RANGE( ID_LIBEDIT_START_V_TOOL, ID_LIBEDIT_END_V_TOOL,
-                WinEDA_LibeditFrame::Process_Special_Functions )
+    EVT_TOOL( ID_NO_SELECT_BUTT, WinEDA_LibeditFrame::Process_Special_Functions )
+    EVT_TOOL_RANGE( ID_LIBEDIT_START_V_TOOL, ID_LIBEDIT_END_V_TOOL,
+                    WinEDA_LibeditFrame::Process_Special_Functions )
 
 /* PopUp events and commands: */
-EVT_MENU_RANGE( ID_POPUP_START_RANGE, ID_POPUP_END_RANGE,
-                WinEDA_LibeditFrame::Process_Special_Functions )
+    EVT_MENU_RANGE( ID_POPUP_START_RANGE, ID_POPUP_END_RANGE,
+                    WinEDA_LibeditFrame::Process_Special_Functions )
 
 // Annulation de commande en cours
-EVT_MENU_RANGE( ID_POPUP_GENERAL_START_RANGE, ID_POPUP_GENERAL_END_RANGE,
-                WinEDA_LibeditFrame::Process_Special_Functions )
+    EVT_MENU_RANGE( ID_POPUP_GENERAL_START_RANGE, ID_POPUP_GENERAL_END_RANGE,
+                    WinEDA_LibeditFrame::Process_Special_Functions )
 
 // PopUp Menus pour Zooms trait�s dans drawpanel.cpp
-
-
 END_EVENT_TABLE()
 
 
 WinEDA_LibeditFrame::WinEDA_LibeditFrame( wxWindow*       father,
-                                          WinEDA_App*     parent,
                                           const wxString& title,
                                           const wxPoint&  pos,
                                           const wxSize&   size,
                                           long style ) :
-    WinEDA_DrawFrame( father, LIBEDITOR_FRAME, parent, title, pos, size, style )
+    WinEDA_DrawFrame( father, LIBEDITOR_FRAME, title, pos, size, style )
 {
     m_FrameName = wxT( "LibeditFrame" );
-    m_Draw_Axis = TRUE;             // TRUE pour avoir les axes dessines
-    m_Draw_Grid = TRUE;             // TRUE pour avoir la axes dessinee
+    m_Draw_Axis = true;             // true pour avoir les axes dessines
+    m_Draw_Grid = true;             // true pour avoir la axes dessinee
 
     // Give an icon
     SetIcon( wxIcon( libedit_xpm ) );
-    SetBaseScreen( ScreenLib );
+    SetBaseScreen( g_ScreenLib );
+    GetScreen()->m_Center = true;       // set to true to have the coordinates origine -0,0) centered on screen
     GetSettings();
     SetSize( m_FramePos.x, m_FramePos.y, m_FrameSize.x, m_FrameSize.y );
     if( DrawPanel )
-        DrawPanel->m_Block_Enable = TRUE;
+        DrawPanel->m_Block_Enable = true;
     ReCreateHToolbar();
     ReCreateVToolbar();
     DisplayLibInfos();
-    Show( TRUE );
+    BestZoom();
+    Show( true );
 }
 
 
@@ -87,7 +85,9 @@ WinEDA_LibeditFrame::WinEDA_LibeditFrame( wxWindow*       father,
 WinEDA_LibeditFrame::~WinEDA_LibeditFrame()
 /**********************************************/
 {
-    m_Parent->m_LibeditFrame = NULL;
+    WinEDA_SchematicFrame* frame =
+        (WinEDA_SchematicFrame*) wxGetApp().GetTopWindow();
+    frame->m_LibeditFrame = NULL;
 }
 
 
@@ -140,82 +140,84 @@ void WinEDA_LibeditFrame::SetToolbars()
     if( CurrentLib == NULL )
     {
         if( m_HToolBar )
-            m_HToolBar->EnableTool( ID_LIBEDIT_SAVE_CURRENT_LIB, FALSE );
+            m_HToolBar->EnableTool( ID_LIBEDIT_SAVE_CURRENT_LIB, false );
     }
     else
     {
         if( m_HToolBar )
-            m_HToolBar->EnableTool( ID_LIBEDIT_SAVE_CURRENT_LIB, TRUE );
+            m_HToolBar->EnableTool( ID_LIBEDIT_SAVE_CURRENT_LIB, true );
     }
 
     if( CurrentLibEntry == NULL )
     {
         if( m_HToolBar )
         {
-            m_HToolBar->EnableTool( ID_LIBEDIT_IMPORT_PART, TRUE );
-            m_HToolBar->EnableTool( ID_LIBEDIT_EXPORT_PART, FALSE );
-            m_HToolBar->EnableTool( ID_LIBEDIT_CREATE_NEW_LIB_AND_SAVE_CURRENT_PART, FALSE );
-            m_HToolBar->EnableTool( ID_LIBEDIT_SAVE_CURRENT_PART, FALSE );
-            m_HToolBar->EnableTool( ID_DE_MORGAN_CONVERT_BUTT, FALSE );
-            m_HToolBar->EnableTool( ID_DE_MORGAN_NORMAL_BUTT, FALSE );
-            m_HToolBar->EnableTool( ID_LIBEDIT_EDIT_PIN_BY_PIN, FALSE );
-            m_HToolBar->EnableTool( ID_LIBEDIT_VIEW_DOC, FALSE );
-            m_HToolBar->EnableTool( ID_LIBEDIT_CHECK_PART, FALSE );
-            m_SelpartBox->Enable( FALSE );
-            m_HToolBar->EnableTool( ID_LIBEDIT_UNDO, FALSE );
-            m_HToolBar->EnableTool( ID_LIBEDIT_REDO, FALSE );
+            m_HToolBar->EnableTool( ID_LIBEDIT_IMPORT_PART, true );
+            m_HToolBar->EnableTool( ID_LIBEDIT_EXPORT_PART, false );
+            m_HToolBar->EnableTool( ID_LIBEDIT_CREATE_NEW_LIB_AND_SAVE_CURRENT_PART, false );
+            m_HToolBar->EnableTool( ID_LIBEDIT_SAVE_CURRENT_PART, false );
+            m_HToolBar->EnableTool( ID_DE_MORGAN_CONVERT_BUTT, false );
+            m_HToolBar->EnableTool( ID_DE_MORGAN_NORMAL_BUTT, false );
+            m_HToolBar->EnableTool( ID_LIBEDIT_EDIT_PIN_BY_PIN, false );
+            m_HToolBar->EnableTool( ID_LIBEDIT_VIEW_DOC, false );
+            m_HToolBar->EnableTool( ID_LIBEDIT_CHECK_PART, false );
+            m_HToolBar->EnableTool( ID_LIBEDIT_GET_FRAME_EDIT_FIELDS, false );
+            m_SelpartBox->Enable( false );
+            m_HToolBar->EnableTool( ID_LIBEDIT_UNDO, false );
+            m_HToolBar->EnableTool( ID_LIBEDIT_REDO, false );
         }
-        g_EditPinByPinIsOn = FALSE;
+        g_EditPinByPinIsOn = false;
         m_HToolBar->ToggleTool( ID_LIBEDIT_EDIT_PIN_BY_PIN, g_EditPinByPinIsOn );
 
         if( m_VToolBar )
         {
-            m_VToolBar->EnableTool( ID_LIBEDIT_BODY_TEXT_BUTT, FALSE );
-            m_VToolBar->EnableTool( ID_LIBEDIT_BODY_LINE_BUTT, FALSE );
-            m_VToolBar->EnableTool( ID_LIBEDIT_BODY_RECT_BUTT, FALSE );
-            m_VToolBar->EnableTool( ID_LIBEDIT_BODY_CIRCLE_BUTT, FALSE );
-            m_VToolBar->EnableTool( ID_LIBEDIT_BODY_ARC_BUTT, FALSE );
-            m_VToolBar->EnableTool( ID_LIBEDIT_DELETE_ITEM_BUTT, FALSE );
-            m_VToolBar->EnableTool( ID_LIBEDIT_ANCHOR_ITEM_BUTT, FALSE );
-            m_VToolBar->EnableTool( ID_LIBEDIT_IMPORT_BODY_BUTT, FALSE );
-            m_VToolBar->EnableTool( ID_LIBEDIT_EXPORT_BODY_BUTT, FALSE );
+            m_VToolBar->EnableTool( ID_LIBEDIT_BODY_TEXT_BUTT, false );
+            m_VToolBar->EnableTool( ID_LIBEDIT_BODY_LINE_BUTT, false );
+            m_VToolBar->EnableTool( ID_LIBEDIT_BODY_RECT_BUTT, false );
+            m_VToolBar->EnableTool( ID_LIBEDIT_BODY_CIRCLE_BUTT, false );
+            m_VToolBar->EnableTool( ID_LIBEDIT_BODY_ARC_BUTT, false );
+            m_VToolBar->EnableTool( ID_LIBEDIT_DELETE_ITEM_BUTT, false );
+            m_VToolBar->EnableTool( ID_LIBEDIT_ANCHOR_ITEM_BUTT, false );
+            m_VToolBar->EnableTool( ID_LIBEDIT_IMPORT_BODY_BUTT, false );
+            m_VToolBar->EnableTool( ID_LIBEDIT_EXPORT_BODY_BUTT, false );
         }
     }
-    else
+    else    // if we have a current entry to edit:
     {
         if( m_HToolBar )
         {
-            m_HToolBar->EnableTool( ID_LIBEDIT_IMPORT_PART, TRUE );
-            m_HToolBar->EnableTool( ID_LIBEDIT_EXPORT_PART, TRUE );
-            m_HToolBar->EnableTool( ID_LIBEDIT_CREATE_NEW_LIB_AND_SAVE_CURRENT_PART, TRUE );
-            m_HToolBar->EnableTool( ID_LIBEDIT_SAVE_CURRENT_PART, TRUE );
+            m_HToolBar->EnableTool( ID_LIBEDIT_IMPORT_PART, true );
+            m_HToolBar->EnableTool( ID_LIBEDIT_EXPORT_PART, true );
+            m_HToolBar->EnableTool( ID_LIBEDIT_CREATE_NEW_LIB_AND_SAVE_CURRENT_PART, true );
+            m_HToolBar->EnableTool( ID_LIBEDIT_SAVE_CURRENT_PART, true );
+            m_HToolBar->EnableTool( ID_LIBEDIT_GET_FRAME_EDIT_FIELDS, true );
             if( (CurrentLibEntry->m_UnitCount > 1) || g_AsDeMorgan )
-                m_HToolBar->EnableTool( ID_LIBEDIT_EDIT_PIN_BY_PIN, TRUE );
+                m_HToolBar->EnableTool( ID_LIBEDIT_EDIT_PIN_BY_PIN, true );
             else
-                m_HToolBar->EnableTool( ID_LIBEDIT_EDIT_PIN_BY_PIN, FALSE );
+                m_HToolBar->EnableTool( ID_LIBEDIT_EDIT_PIN_BY_PIN, false );
 
             m_HToolBar->ToggleTool( ID_LIBEDIT_EDIT_PIN_BY_PIN, g_EditPinByPinIsOn );
 
             m_HToolBar->EnableTool( ID_DE_MORGAN_CONVERT_BUTT, g_AsDeMorgan );
             m_HToolBar->EnableTool( ID_DE_MORGAN_NORMAL_BUTT, g_AsDeMorgan );
             /* Enable the "get doc" tool */
-            bool enable_dtool = FALSE;
+            bool enable_dtool = false;
             if( !CurrentAliasName.IsEmpty() )
             {
                 int AliasLocation = LocateAlias( CurrentLibEntry->m_AliasList, CurrentAliasName );
                 if( AliasLocation >= 0 )
                     if( !CurrentLibEntry->m_AliasList[AliasLocation +
                                                       ALIAS_DOC_FILENAME].IsEmpty() )
-                        enable_dtool = TRUE;
+                        enable_dtool = true;
             }
             else if( !CurrentLibEntry->m_DocFile.IsEmpty() )
-                enable_dtool = TRUE;
+                enable_dtool = true;
             if( enable_dtool )
-                m_HToolBar->EnableTool( ID_LIBEDIT_VIEW_DOC, TRUE );
+                m_HToolBar->EnableTool( ID_LIBEDIT_VIEW_DOC, true );
             else
-                m_HToolBar->EnableTool( ID_LIBEDIT_VIEW_DOC, FALSE );
-            m_HToolBar->EnableTool( ID_LIBEDIT_CHECK_PART, TRUE );
-            m_SelpartBox->Enable( (CurrentLibEntry->m_UnitCount > 1 ) ? TRUE : FALSE );
+                m_HToolBar->EnableTool( ID_LIBEDIT_VIEW_DOC, false );
+            m_HToolBar->EnableTool( ID_LIBEDIT_CHECK_PART, true );
+            m_SelpartBox->Enable( (CurrentLibEntry->m_UnitCount > 1 ) ? true : false );
 
             if( GetScreen() )
             {
@@ -226,15 +228,15 @@ void WinEDA_LibeditFrame::SetToolbars()
 
         if( m_VToolBar )
         {
-            m_VToolBar->EnableTool( ID_LIBEDIT_BODY_TEXT_BUTT, TRUE );
-            m_VToolBar->EnableTool( ID_LIBEDIT_BODY_LINE_BUTT, TRUE );
-            m_VToolBar->EnableTool( ID_LIBEDIT_BODY_RECT_BUTT, TRUE );
-            m_VToolBar->EnableTool( ID_LIBEDIT_BODY_CIRCLE_BUTT, TRUE );
-            m_VToolBar->EnableTool( ID_LIBEDIT_BODY_ARC_BUTT, TRUE );
-            m_VToolBar->EnableTool( ID_LIBEDIT_DELETE_ITEM_BUTT, TRUE );
-            m_VToolBar->EnableTool( ID_LIBEDIT_ANCHOR_ITEM_BUTT, TRUE );
-            m_VToolBar->EnableTool( ID_LIBEDIT_IMPORT_BODY_BUTT, TRUE );
-            m_VToolBar->EnableTool( ID_LIBEDIT_EXPORT_BODY_BUTT, TRUE );
+            m_VToolBar->EnableTool( ID_LIBEDIT_BODY_TEXT_BUTT, true );
+            m_VToolBar->EnableTool( ID_LIBEDIT_BODY_LINE_BUTT, true );
+            m_VToolBar->EnableTool( ID_LIBEDIT_BODY_RECT_BUTT, true );
+            m_VToolBar->EnableTool( ID_LIBEDIT_BODY_CIRCLE_BUTT, true );
+            m_VToolBar->EnableTool( ID_LIBEDIT_BODY_ARC_BUTT, true );
+            m_VToolBar->EnableTool( ID_LIBEDIT_DELETE_ITEM_BUTT, true );
+            m_VToolBar->EnableTool( ID_LIBEDIT_ANCHOR_ITEM_BUTT, true );
+            m_VToolBar->EnableTool( ID_LIBEDIT_IMPORT_BODY_BUTT, true );
+            m_VToolBar->EnableTool( ID_LIBEDIT_EXPORT_BODY_BUTT, true );
         }
     }
 
@@ -264,11 +266,10 @@ int WinEDA_LibeditFrame::BestZoom()
     }
 
     size    = DrawPanel->GetClientSize();
-    size.x -= 60;   // Pour marges haut et bas
+    size -= wxSize(100,100);   // reserve 100 mils margin
     ii = abs( dx / size.x );
     jj = abs( dy / size.y );
 
-    /* determination du zoom existant le plus proche */
     bestzoom = MAX( ii, jj ) + 1;
 
     if( CurrentLibEntry )
@@ -281,7 +282,7 @@ int WinEDA_LibeditFrame::BestZoom()
         GetScreen()->m_Curseur.y = 0;
     }
 
-    return bestzoom;
+    return bestzoom * GetScreen()->m_ZoomScalar;
 }
 
 
@@ -294,7 +295,7 @@ void WinEDA_LibeditFrame::Process_Special_Functions( wxCommandEvent& event )
 
     wxClientDC dc( DrawPanel );
 
-    DrawPanel->m_IgnoreMouseEvents = TRUE;
+    DrawPanel->m_IgnoreMouseEvents = true;
 
     DrawPanel->PrepareGraphicContext( &dc );
 
@@ -347,11 +348,11 @@ void WinEDA_LibeditFrame::Process_Special_Functions( wxCommandEvent& event )
 
     case ID_LIBEDIT_NEW_PART:
     {
-        g_EditPinByPinIsOn = FALSE;
+        g_EditPinByPinIsOn = false;
         LibItemToRepeat    = NULL;
         CreateNewLibraryPart();
         GetScreen()->ClearUndoRedoList();
-        ReDrawPanel();
+        DrawPanel->Refresh();
         SetToolbars();
         break;
     }
@@ -364,11 +365,11 @@ void WinEDA_LibeditFrame::Process_Special_Functions( wxCommandEvent& event )
         LibItemToRepeat = NULL;
         if( LoadOneLibraryPart() )
         {
-            g_EditPinByPinIsOn = FALSE;
+            g_EditPinByPinIsOn = false;
             GetScreen()->ClearUndoRedoList();
             SetToolbars();
         }
-        ReDrawPanel();
+        DrawPanel->Refresh();
         break;
 
     case ID_LIBEDIT_SAVE_CURRENT_PART:
@@ -376,7 +377,11 @@ void WinEDA_LibeditFrame::Process_Special_Functions( wxCommandEvent& event )
         break;
 
     case ID_LIBEDIT_GET_FRAME_EDIT_PART:
-        InstallLibeditFrame( pos );
+        InstallLibeditFrame( );
+        break;
+
+    case ID_LIBEDIT_GET_FRAME_EDIT_FIELDS:
+        InstallFieldsEditorDialog( );
         break;
 
     case ID_LIBEDIT_DELETE_PART:
@@ -388,37 +393,37 @@ void WinEDA_LibeditFrame::Process_Special_Functions( wxCommandEvent& event )
         LibItemToRepeat = NULL;
         ImportOnePart();
         GetScreen()->ClearUndoRedoList();
-        ReDrawPanel();
+        DrawPanel->Refresh();
         break;
 
     case ID_LIBEDIT_EXPORT_PART:
-        ExportOnePart( FALSE );
+        ExportOnePart( false );
         break;
 
     case ID_LIBEDIT_CREATE_NEW_LIB_AND_SAVE_CURRENT_PART:
-        ExportOnePart( TRUE );
+        ExportOnePart( true );
         break;
 
     case ID_LIBEDIT_CHECK_PART:
         if( CurrentLibEntry )
-            if( TestPins( CurrentLibEntry ) == FALSE )
+            if( TestPins( CurrentLibEntry ) == false )
                 DisplayInfo( this, _( " Pins Test OK!" ) );
         break;
 
     case ID_DE_MORGAN_NORMAL_BUTT:
-        m_HToolBar->ToggleTool( ID_DE_MORGAN_NORMAL_BUTT, TRUE );
-        m_HToolBar->ToggleTool( ID_DE_MORGAN_CONVERT_BUTT, FALSE );
+        m_HToolBar->ToggleTool( ID_DE_MORGAN_NORMAL_BUTT, true );
+        m_HToolBar->ToggleTool( ID_DE_MORGAN_CONVERT_BUTT, false );
         LibItemToRepeat = NULL;
         CurrentConvert  = 1;
-        ReDrawPanel();
+        DrawPanel->Refresh();
         break;
 
     case ID_DE_MORGAN_CONVERT_BUTT:
-        m_HToolBar->ToggleTool( ID_DE_MORGAN_NORMAL_BUTT, FALSE );
-        m_HToolBar->ToggleTool( ID_DE_MORGAN_CONVERT_BUTT, TRUE );
+        m_HToolBar->ToggleTool( ID_DE_MORGAN_NORMAL_BUTT, false );
+        m_HToolBar->ToggleTool( ID_DE_MORGAN_CONVERT_BUTT, true );
         LibItemToRepeat = NULL;
         CurrentConvert  = 2;
-        ReDrawPanel();
+        DrawPanel->Refresh();
         break;
 
     case ID_LIBEDIT_VIEW_DOC:
@@ -440,7 +445,7 @@ void WinEDA_LibeditFrame::Process_Special_Functions( wxCommandEvent& event )
         break;
 
     case ID_LIBEDIT_EDIT_PIN_BY_PIN:
-        g_EditPinByPinIsOn = g_EditPinByPinIsOn ? FALSE : TRUE;
+        g_EditPinByPinIsOn = g_EditPinByPinIsOn ? false : true;
         m_HToolBar->ToggleTool( ID_LIBEDIT_EDIT_PIN_BY_PIN, g_EditPinByPinIsOn );
         break;
 
@@ -451,7 +456,7 @@ void WinEDA_LibeditFrame::Process_Special_Functions( wxCommandEvent& event )
             return;
         LibItemToRepeat = NULL;
         CurrentUnit = ii + 1;
-        ReDrawPanel();
+        DrawPanel->Refresh();
     }
         break;
 
@@ -465,7 +470,7 @@ void WinEDA_LibeditFrame::Process_Special_Functions( wxCommandEvent& event )
             CurrentAliasName = m_SelAliasBox->GetValue();
         else
             CurrentAliasName.Empty();
-        ReDrawPanel();
+        DrawPanel->Refresh();
     }
         break;
 
@@ -523,7 +528,7 @@ void WinEDA_LibeditFrame::Process_Special_Functions( wxCommandEvent& event )
 
     case ID_LIBEDIT_IMPORT_BODY_BUTT:
         SetToolID( id, wxCURSOR_ARROW, _( "Import" ) );
-        LoadOneSymbol( &dc );
+        LoadOneSymbol( );
         SetToolID( 0, wxCURSOR_ARROW, wxEmptyString );
         break;
 
@@ -602,7 +607,7 @@ void WinEDA_LibeditFrame::Process_Special_Functions( wxCommandEvent& event )
             if( DrawPanel->ManageCurseur && DrawPanel->ForceCloseManageCurseur )
                 DrawPanel->ForceCloseManageCurseur( DrawPanel, &dc );
             else
-                DeleteOneLibraryDrawStruct( DrawPanel, &dc, CurrentLibEntry, CurrentDrawItem, TRUE );
+                DeleteOneLibraryDrawStruct( DrawPanel, &dc, CurrentLibEntry, CurrentDrawItem, true );
         }
 
         CurrentDrawItem = NULL;
@@ -670,53 +675,53 @@ void WinEDA_LibeditFrame::Process_Special_Functions( wxCommandEvent& event )
         break;
 
     case ID_POPUP_ZOOM_BLOCK:
-        DrawPanel->m_AutoPAN_Request = FALSE;
+        DrawPanel->m_AutoPAN_Request = false;
         GetScreen()->BlockLocate.m_Command = BLOCK_ZOOM;
         HandleBlockEnd( &dc );
         break;
 
     case ID_POPUP_DELETE_BLOCK:
-        DrawPanel->m_AutoPAN_Request = FALSE;
+        DrawPanel->m_AutoPAN_Request = false;
         GetScreen()->BlockLocate.m_Command = BLOCK_DELETE;
         DrawPanel->MouseToCursorSchema();
         HandleBlockEnd( &dc );
         break;
 
     case ID_POPUP_COPY_BLOCK:
-        DrawPanel->m_AutoPAN_Request = FALSE;
+        DrawPanel->m_AutoPAN_Request = false;
         GetScreen()->BlockLocate.m_Command = BLOCK_COPY;
         DrawPanel->MouseToCursorSchema();
         HandleBlockPlace( &dc );
         break;
 
     case ID_POPUP_SELECT_ITEMS_BLOCK:
-        DrawPanel->m_AutoPAN_Request = FALSE;
+        DrawPanel->m_AutoPAN_Request = false;
         GetScreen()->BlockLocate.m_Command = BLOCK_SELECT_ITEMS_ONLY;
         DrawPanel->MouseToCursorSchema();
         HandleBlockEnd( &dc );
         break;
 
     case ID_POPUP_INVERT_BLOCK:
-        DrawPanel->m_AutoPAN_Request = FALSE;
+        DrawPanel->m_AutoPAN_Request = false;
         GetScreen()->BlockLocate.m_Command = BLOCK_INVERT;
         DrawPanel->MouseToCursorSchema();
         HandleBlockPlace( &dc );
         break;
 
     case ID_POPUP_PLACE_BLOCK:
-        DrawPanel->m_AutoPAN_Request = FALSE;
+        DrawPanel->m_AutoPAN_Request = false;
         DrawPanel->MouseToCursorSchema();
         HandleBlockPlace( &dc );
         break;
 
     case ID_LIBEDIT_UNDO:
         if( GetComponentFromUndoList() )
-            DrawPanel->Refresh( TRUE );
+            DrawPanel->Refresh( true );
         break;
 
     case ID_LIBEDIT_REDO:
         if( GetComponentFromRedoList() )
-            DrawPanel->Refresh( TRUE );
+            DrawPanel->Refresh( true );
         break;
 
     default:
@@ -724,7 +729,7 @@ void WinEDA_LibeditFrame::Process_Special_Functions( wxCommandEvent& event )
         break;
     }
 
-    DrawPanel->m_IgnoreMouseEvents = FALSE;
+    DrawPanel->m_IgnoreMouseEvents = false;
 
     if( m_ID_current_state == 0 )
         LibItemToRepeat = NULL;

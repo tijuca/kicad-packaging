@@ -5,6 +5,8 @@
 #include "fctsys.h"
 #include "gr_basic.h"
 #include "common.h"
+#include "class_drawpanel.h"
+#include "confirm.h"
 #include "pcbnew.h"
 #include "autorout.h"
 #include "trigo.h"
@@ -112,7 +114,7 @@ void WinEDA_BasePcbFrame::Export_Pad_Settings( D_PAD* pt_pad )
     if( pt_pad == NULL )
         return;
 
-    Module = (MODULE*) pt_pad->m_Parent;
+    Module = (MODULE*) pt_pad->GetParent();
 
     pt_pad->Display_Infos( this );
 
@@ -120,7 +122,7 @@ void WinEDA_BasePcbFrame::Export_Pad_Settings( D_PAD* pt_pad )
     g_Pad_Master.m_Attribut     = pt_pad->m_Attribut;
     g_Pad_Master.m_Masque_Layer = pt_pad->m_Masque_Layer;
     g_Pad_Master.m_Orient = pt_pad->m_Orient -
-                            ( (MODULE*) pt_pad->m_Parent )->m_Orient;
+                            ( (MODULE*) pt_pad->GetParent() )->m_Orient;
     g_Pad_Master.m_Size      = pt_pad->m_Size;
     g_Pad_Master.m_DeltaSize = pt_pad->m_DeltaSize;
     pt_pad->ComputeRayon();
@@ -142,17 +144,17 @@ void WinEDA_BasePcbFrame::Import_Pad_Settings( D_PAD* aPad, bool aDraw )
  */
 {
     if( aDraw )
-	{
-		aPad->m_Flags |= DO_NOT_DRAW;
-		DrawPanel->PostDirtyRect( aPad->GetBoundingBox() );
-		aPad->m_Flags &= ~DO_NOT_DRAW;
-	}
+    {
+        aPad->m_Flags |= DO_NOT_DRAW;
+        DrawPanel->PostDirtyRect( aPad->GetBoundingBox() );
+        aPad->m_Flags &= ~DO_NOT_DRAW;
+    }
 
     aPad->m_PadShape     = g_Pad_Master.m_PadShape;
     aPad->m_Masque_Layer = g_Pad_Master.m_Masque_Layer;
     aPad->m_Attribut = g_Pad_Master.m_Attribut;
     aPad->m_Orient   = g_Pad_Master.m_Orient +
-                         ( (MODULE*) aPad->m_Parent )->m_Orient;
+                         ( (MODULE*) aPad->GetParent() )->m_Orient;
     aPad->m_Size       = g_Pad_Master.m_Size;
     aPad->m_DeltaSize  = wxSize( 0, 0 );
     aPad->m_Offset     = g_Pad_Master.m_Offset;
@@ -183,8 +185,8 @@ void WinEDA_BasePcbFrame::Import_Pad_Settings( D_PAD* aPad, bool aDraw )
     aPad->ComputeRayon();
 
     if( aDraw )
-		DrawPanel->PostDirtyRect( aPad->GetBoundingBox() );
-    ( (MODULE*) aPad->m_Parent )->m_LastEdit_Time = time( NULL );
+        DrawPanel->PostDirtyRect( aPad->GetBoundingBox() );
+    ( (MODULE*) aPad->GetParent() )->m_LastEdit_Time = time( NULL );
 }
 
 
@@ -193,7 +195,7 @@ void WinEDA_BasePcbFrame::AddPad( MODULE* Module, bool draw )
 /***********************************************************/
 /* Routine d'ajout d'un pad sur l'module selectionnee */
 {
-    D_PAD* Pad, * ptliste;
+    D_PAD* Pad;
     int    rX, rY;
 
     m_Pcb->m_Status_Pcb     = 0;
@@ -202,28 +204,11 @@ void WinEDA_BasePcbFrame::AddPad( MODULE* Module, bool draw )
     Pad = new D_PAD( Module );
 
     /* Chainage de la structure en fin de liste des pads : */
-    ptliste = Module->m_Pads;
-    if( ptliste == NULL ) /* 1er pad */
-    {
-        Module->m_Pads = Pad;
-        Pad->Pback = (EDA_BaseStruct*) Module;
-    }
-    else
-    {
-        while( ptliste )
-        {
-            if( ptliste->Pnext == NULL )
-                break;
-            ptliste = (D_PAD*) ptliste->Pnext;
-        }
-
-        Pad->Pback     = (EDA_BaseStruct*) ptliste;
-        ptliste->Pnext = (EDA_BaseStruct*) Pad;
-    }
+    Module->m_Pads.PushBack( Pad );
 
     /* Mise a jour des caract de la pastille : */
     Import_Pad_Settings( Pad, false );
-    Pad->m_Netname.Empty();
+    Pad->SetNetname(wxEmptyString);
 
     Pad->m_Pos = GetScreen()->m_Curseur;
 
@@ -253,7 +238,7 @@ void WinEDA_BasePcbFrame::AddPad( MODULE* Module, bool draw )
     Module->Set_Rectangle_Encadrement();
     Pad->Display_Infos( this );
     if ( draw )
-		DrawPanel->PostDirtyRect( Module->GetBoundingBox() );
+        DrawPanel->PostDirtyRect( Module->GetBoundingBox() );
 }
 
 
@@ -268,7 +253,7 @@ void WinEDA_BasePcbFrame::DeletePad( D_PAD* Pad, wxDC* DC )
     if( Pad == NULL )
         return;
 
-    Module = (MODULE*) Pad->m_Parent;
+    Module = (MODULE*) Pad->GetParent();
     Module->m_LastEdit_Time = time( NULL );
 
     line.Printf( _( "Delete Pad (module %s %s) " ),
@@ -298,7 +283,7 @@ void WinEDA_BasePcbFrame::StartMovePad( D_PAD* Pad, wxDC* DC )
     if( Pad == NULL )
         return;
 
-    Module = (MODULE*) Pad->m_Parent;
+    Module = (MODULE*) Pad->GetParent();
 
     s_CurrentSelectedPad = Pad;
     Pad_OldPos = Pad->m_Pos;
@@ -332,7 +317,7 @@ void WinEDA_BasePcbFrame::PlacePad( D_PAD* Pad, wxDC* DC )
     if( Pad == NULL )
         return;
 
-    Module = (MODULE*) Pad->m_Parent;
+    Module = (MODULE*) Pad->GetParent();
 
     /* Placement du pad */
     Pad->Draw( DrawPanel, DC, GR_XOR );
@@ -387,7 +372,7 @@ void WinEDA_BasePcbFrame::RotatePad( D_PAD* Pad, wxDC* DC )
     if( Pad == NULL )
         return;
 
-    Module = (MODULE*) Pad->m_Parent;
+    Module = (MODULE*) Pad->GetParent();
     Module->m_LastEdit_Time = time( NULL );
 
     GetScreen()->SetModify();

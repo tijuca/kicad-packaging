@@ -6,18 +6,21 @@
 #define eda_global
 
 #include "fctsys.h"
+#include "appl_wxstruct.h"
+#include "confirm.h"
 
-#include <wx/image.h>
 #include <wx/file.h>
+#include <wx/snglinst.h>
 
 #include "common.h"
 #include "pcbnew.h"
 #include "plot_common.h"
+#include "gestfich.h"
 #include "pcbplot.h"
 #include "autorout.h"
-#include "trigo.h"
 #include "cell.h"
 #include "worksheet.h"
+#include "zones.h"
 
 #include "protos.h"
 
@@ -33,9 +36,9 @@ IMPLEMENT_APP( WinEDA_App )
 bool WinEDA_App::OnInit()
 /****************************/
 {
-    wxString FFileName;
+    wxString         FFileName;
+    WinEDA_PcbFrame* frame = NULL;
 
-    g_EDA_Appl = this;
     InitEDA_Appl( wxT( "pcbnew" ) );
 
     if( m_Checker && m_Checker->IsAnotherRunning() )
@@ -44,7 +47,7 @@ bool WinEDA_App::OnInit()
             return false;
     }
 
-    ScreenPcb = new PCB_SCREEN( PCB_FRAME );
+    ScreenPcb = new PCB_SCREEN();
     GetSettings();
 
     if( argc > 1 )
@@ -55,9 +58,9 @@ bool WinEDA_App::OnInit()
 
     Read_Config( FFileName );
     g_DrawBgColor = BLACK;
-    Read_Hotkey_Config( m_PcbFrame, false );  /* Must be called before creating the main frame
-                                               *  in order to display the real hotkeys
-                                               *  in menus or tool tips */
+    Read_Hotkey_Config( frame, false );  /* Must be called before creating the
+                                          * main frame in order to display the
+                                          * real hotkeys in menus or tool tips */
 
 
     /* allocation de la memoire pour le fichier et autres buffers: */
@@ -71,29 +74,29 @@ bool WinEDA_App::OnInit()
         printf( "No Memory, Fatal err Memory alloc\n" );
         return FALSE;
     }
-    m_PcbFrame = new WinEDA_PcbFrame( NULL, this, wxT( "PcbNew" ),
-                                     wxPoint( 0, 0 ), wxSize( 600, 400 ) );
+    frame = new WinEDA_PcbFrame( NULL, wxT( "PcbNew" ),
+                                 wxPoint( 0, 0 ), wxSize( 600, 400 ) );
     wxString Title = g_Main_Title + wxT( " " ) + GetBuildVersion();
-    m_PcbFrame->SetTitle( Title );
-    ActiveScreen      = ScreenPcb;
+    frame->SetTitle( Title );
+    ActiveScreen = ScreenPcb;
 
-    SetTopWindow( m_PcbFrame );
-    m_PcbFrame->Show( TRUE );
+    SetTopWindow( frame );
+    frame->Show( TRUE );
 
-    if( CreateServer( m_PcbFrame, KICAD_PCB_PORT_SERVICE_NUMBER ) )
+    if( CreateServer( frame, KICAD_PCB_PORT_SERVICE_NUMBER ) )
     {
         SetupServerFunction( RemoteCommand );
     }
 
-    m_PcbFrame->Zoom_Automatique( TRUE );
+    frame->Zoom_Automatique( TRUE );
 
     /* Load file specified in the command line. */
     if( !FFileName.IsEmpty() )
     {
-        m_PcbFrame->LoadOnePcbFile( FFileName, FALSE );
+        frame->LoadOnePcbFile( FFileName, FALSE );
 
         // update the layer names in the listbox
-        m_PcbFrame->ReCreateLayerBox( NULL );
+        frame->ReCreateLayerBox( NULL );
     }
 
     return TRUE;

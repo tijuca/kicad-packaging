@@ -36,6 +36,8 @@
 #include "collectors.h"
 #include "wxPcbStruct.h"        // Change_Side_Module()
 #include "pcbstruct.h"          // HISTORY_NUMBER
+#include "confirm.h"            // DisplayError()
+#include "gestfich.h"           // EDA_FileSelector()
 #include "autorout.h"           // NET_CODES_OK
 
 #include "trigo.h"              // RotatePoint()
@@ -87,11 +89,11 @@ void WinEDA_PcbFrame::ExportToSpecctra( wxCommandEvent& event )
     //  DSN Images (=Kicad MODULES and pads) must be presented from the
     //  top view.  So we temporarily flip any modules which are on the back
     //  side of the board to the front, and record this in the MODULE's flag field.
-    db.FlipMODULEs( m_Pcb );
+    db.FlipMODULEs( GetBoard() );
 
     try
     {
-        db.FromBOARD( m_Pcb );
+        db.FromBOARD( GetBoard() );
         db.ExportPCB(  fullFileName, true );
 
         // if an exception is thrown by FromBOARD or ExportPCB(), then
@@ -108,7 +110,7 @@ void WinEDA_PcbFrame::ExportToSpecctra( wxCommandEvent& event )
     SetLocaleTo_Default( );      // revert to the current locale
 
     // done assuredly, even if an exception was thrown and caught.
-    db.RevertMODULEs( m_Pcb );
+    db.RevertMODULEs( GetBoard() );
 
 
     // The two calls below to BOARD::Change_Side_Module(), both set the
@@ -133,7 +135,7 @@ void WinEDA_PcbFrame::ExportToSpecctra( wxCommandEvent& event )
 namespace DSN {
 
 
-const KICAD_T SPECCTRA_DB::scanPADs[] = { TYPEPAD, EOT };
+const KICAD_T SPECCTRA_DB::scanPADs[] = { TYPE_PAD, EOT };
 
 
 /**
@@ -187,7 +189,7 @@ static DRAWSEGMENT* findPoint( const wxPoint& aPoint, TYPE_COLLECTOR* items )
     {
         DRAWSEGMENT* graphic = (DRAWSEGMENT*) (*items)[i];
 
-        wxASSERT( graphic->Type() == TYPEDRAWSEGMENT );
+        wxASSERT( graphic->Type() == TYPE_DRAWSEGMENT );
 
         if( aPoint == graphic->GetStart() || aPoint == graphic->GetEnd() )
         {
@@ -255,8 +257,7 @@ static PATH* makePath( const POINT& aStart, const POINT& aEnd, const std::string
 
 /**
  * Struct wxString_less_than
- * is used by the std:set<> and std::map<> instantiations below.
- * See STRINGSET typedef and PINMAP typedef below.
+ * is used by std:set<> and std::map<> instantiations which use wxString as their key.
  */
 struct wxString_less_than
 {
@@ -288,61 +289,35 @@ PADSTACK* SPECCTRA_DB::makePADSTACK( BOARD* aBoard, D_PAD* aPad )
     int         reportedLayers = 0;              // how many in reported padstack
     const char* layerName[NB_COPPER_LAYERS];
 
-    if( aPad->m_Attribut==PAD_SMD || aPad->m_Attribut==PAD_CONN )
+    uniqifier = '[';
+
+    bool onAllCopperLayers = ( (aPad->m_Masque_Layer & ALL_CU_LAYERS) == ALL_CU_LAYERS );
+
+    if( onAllCopperLayers )
+        uniqifier += 'A';               // A for all layers
+
+    const int copperCount = aBoard->GetCopperLayerCount();
+    for( int layer=0;  layer<copperCount;  ++layer )
     {
-        // PAD_SMD and PAD_CONN are reported on each layer for which
-        // they are present.
-        uniqifier = '[';
+        int kilayer = pcbLayer2kicad[layer];
 
-        if( aPad->IsOnLayer( LAYER_CMP_N ) )
+        if( onAllCopperLayers || aPad->IsOnLayer( kilayer ) )
         {
-            layerName[reportedLayers++] = layerIds[0].c_str();
-            uniqifier += 'T';   // T for top, could have used a layer index here alternatively
-        }
-        if( aPad->IsOnLayer( COPPER_LAYER_N ) )
-        {
-            int pcbLayerNdx = kicadLayer2pcb[COPPER_LAYER_N];
-            layerName[reportedLayers++] = layerIds[ pcbLayerNdx ].c_str();
-            uniqifier += 'B';   // B for bottom
-        }
+            layerName[reportedLayers++] = layerIds[layer].c_str();
 
-        uniqifier += ']';
-    }
-
-    else        // through hole pad
-    {
-        uniqifier = '[';
-
-        bool onAllCopperLayers = false;
-        if( (aPad->m_Masque_Layer & ALL_CU_LAYERS) == ALL_CU_LAYERS )
-        {
-            onAllCopperLayers = true;
-            uniqifier += 'A';               // A for all layers
-        }
-
-        const int copperCount = aBoard->GetCopperLayerCount();
-        for( int layer=0;  layer<copperCount;  ++layer )
-        {
-            int kilayer = pcbLayer2kicad[layer];
-
-            if( onAllCopperLayers || aPad->IsOnLayer( kilayer ) )
+            if( !onAllCopperLayers )
             {
-                layerName[reportedLayers++] = layerIds[layer].c_str();
-
-                if( !onAllCopperLayers )
-                {
-                    if( layer == 0 )
-                        uniqifier += 'T';
-                    else if( layer == copperCount-1 )
-                        uniqifier += 'B';
-                    else
-                        uniqifier += char('0' + layer);  // layer index char
-                }
+                if( layer == 0 )
+                    uniqifier += 'T';
+                else if( layer == copperCount-1 )
+                    uniqifier += 'B';
+                else
+                    uniqifier += char('0' + layer);  // layer index char
             }
         }
-
-        uniqifier += ']';
     }
+
+    uniqifier += ']';
 
     POINT   dsnOffset;
 
@@ -580,7 +555,7 @@ IMAGE* SPECCTRA_DB::makeIMAGE( BOARD* aBoard, MODULE* aModule )
     }
 
 #if 1   // enable image (outline) scopes.
-    static const KICAD_T scanEDGEs[] = { TYPEEDGEMODULE, EOT };
+    static const KICAD_T scanEDGEs[] = { TYPE_EDGE_MODULE, EOT };
 
     // get all the MODULE's EDGE_MODULEs and convert those to DSN outlines.
     moduleItems.Collect( aModule, scanEDGEs );
@@ -660,7 +635,7 @@ PADSTACK* SPECCTRA_DB::makeVia( int aCopperDiameter, int aDrillDiameter,
     char        name[48];
     PADSTACK*   padstack = new PADSTACK();
 
-    double      dsnDiameter = scale(aCopperDiameter);
+    double      dsnDiameter = scale( aCopperDiameter );
 
     for( int layer=aTopLayer;  layer<=aBotLayer;  ++layer )
     {
@@ -710,7 +685,7 @@ void SPECCTRA_DB::fillBOUNDARY( BOARD* aBoard, BOUNDARY* boundary ) throw( IOErr
     // get all the DRAWSEGMENTS into 'items', then look for layer == EDGE_N,
     // and those segments comprise the board's perimeter.
 
-    static const KICAD_T  scanDRAWSEGMENTS[] = { TYPEDRAWSEGMENT, EOT };
+    static const KICAD_T  scanDRAWSEGMENTS[] = { TYPE_DRAWSEGMENT, EOT };
 
     items.Collect( aBoard, scanDRAWSEGMENTS );
 
@@ -720,7 +695,7 @@ void SPECCTRA_DB::fillBOUNDARY( BOARD* aBoard, BOUNDARY* boundary ) throw( IOErr
     {
         DRAWSEGMENT* item = (DRAWSEGMENT*) items[i];
 
-        wxASSERT( item->Type() == TYPEDRAWSEGMENT );
+        wxASSERT( item->Type() == TYPE_DRAWSEGMENT );
 
         if( item->GetLayer() != EDGE_N )
         {
@@ -874,7 +849,7 @@ void SPECCTRA_DB::FromBOARD( BOARD* aBoard ) throw( IOError )
 {
     TYPE_COLLECTOR          items;
 
-    static const KICAD_T    scanMODULEs[] = { TYPEMODULE, EOT };
+    static const KICAD_T    scanMODULEs[] = { TYPE_MODULE, EOT };
 
     // Not all boards are exportable.  Check that all reference Ids are unique.
     // Unless they are unique, we cannot import the session file which comes
@@ -983,45 +958,65 @@ void SPECCTRA_DB::FromBOARD( BOARD* aBoard ) throw( IOError )
         int     curTrackWidth = aBoard->m_BoardSettings->m_CurrentTrackWidth;
         int     curTrackClear = aBoard->m_BoardSettings->m_TrackClearence;
 
-        // The +5 is to give freerouter a little extra room, this is 0.5 mils.
-        // If we export without this, then on import freerouter violates our
-        // DRC checks with track to via spacing, although this could be a
-        // result of > testing vs. >= testing in PCBNEW's DRC.
-        double  clearance = scale(curTrackClear+5);
+        // Add .1 mil to the requested clearances as a safety margin.
+        // There has been disagreement about interpretation of clearance in the past
+        // between Kicad and Freerouter, so keep this safetyMargin until the
+        // disagreement is resolved and stable.  Freerouter seems to be moving
+        // (protected) traces upon loading the DSN file, and even though it seems to sometimes
+        // add its own 0.1 to the clearances, I believe this is happening after
+        // the load process (and moving traces) so I am of the opinion this is
+        // still needed.
+        const double  safetyMargin = 0.1;
+
+        double  clearance = scale(curTrackClear);
 
         STRINGS& rules = pcb->structure->rules->rules;
 
         sprintf( rule, "(width %.6g)", scale( curTrackWidth ) );
         rules.push_back( rule );
 
-        sprintf( rule, "(clearance %.6g)", clearance );
+        sprintf( rule, "(clearance %.6g)", clearance+safetyMargin );
+        rules.push_back( rule );
+
+        // On a high density board, a typical solder mask clearance will be 2-3 mils.
+        // This exposes 2 to 3 mils of bare board around each pad, and would
+        // leave only 1 to 2 mils of solder mask between the solder mask's boundary
+        // to the edge of any trace within "clearance" of the pad.  So we need at least
+        // 2 mils *extra* clearance for traces which would come near a pad on
+        // a different net.  So if the baseline trace to trace clearance was say 4 mils, then
+        // the SMD to trace clearance should be at least 6 mils.  Also add our safetyMargin.
+        sprintf( rule, "(clearance %.6g (type default_smd))", clearance + 2.0 + safetyMargin );
         rules.push_back( rule );
 
         /* see: http://www.freerouting.net/usren/viewtopic.php?f=5&t=339#p474
-        sprintf( rule, "(clearance %.6g (type pad_to_turn_gap))", clearance );
+        sprintf( rule, "(clearance %.6g (type pad_to_turn_gap))", clearance + safetyMargin );
         rules.push_back( rule );
 
-        sprintf( rule, "(clearance %.6g (type smd_to_turn_gap))", clearance );
+        sprintf( rule, "(clearance %.6g (type smd_to_turn_gap))", clearance + safetyMargin );
         rules.push_back( rule );
 
-        sprintf( rule, "(clearance %.6g (type via_via))", clearance );
+        sprintf( rule, "(clearance %.6g (type via_via))", clearance + safetyMargin );
         rules.push_back( rule );
 
-        sprintf( rule, "(clearance %.6g (type via_smd))", clearance );
+        sprintf( rule, "(clearance %.6g (type via_smd))", clearance + safetyMargin );
         rules.push_back( rule );
 
-        sprintf( rule, "(clearance %.6g (type via_pin))", clearance );
+        sprintf( rule, "(clearance %.6g (type via_pin))", clearance + safetyMargin );
         rules.push_back( rule );
 
-        sprintf( rule, "(clearance %.6g (type pin_pin))", clearance );
+        sprintf( rule, "(clearance %.6g (type pin_pin))", clearance + safetyMargin );
         rules.push_back( rule );
 
-        sprintf( rule, "(clearance %.6g (type smd_pin))", clearance );
+        sprintf( rule, "(clearance %.6g (type smd_pin))", clearance + safetyMargin );
         rules.push_back( rule );
         */
 
         // well, the user is going to text edit these in the DSN file anyway,
         // at least until we have an export dialog.
+
+        // Pad to pad spacing on a single SMT part can be closer than our
+        // clearance, we don't want freerouter complaining about that, so
+        // output a significantly smaller pad to pad clearance to freerouter.
         clearance = scale(curTrackClear)/4;
 
         sprintf( rule, "(clearance %.6g (type smd_smd))", clearance );
@@ -1031,7 +1026,9 @@ void SPECCTRA_DB::FromBOARD( BOARD* aBoard ) throw( IOError )
 
     //-----<zone containers become planes>--------------------------------
     {
-        static const KICAD_T  scanZONEs[] = { TYPEZONE_CONTAINER, EOT };
+        int netlessZones = 0;
+
+        static const KICAD_T  scanZONEs[] = { TYPE_ZONE_CONTAINER, EOT };
         items.Collect( aBoard, scanZONEs );
 
         for( int i=0;  i<items.GetCount();  ++i )
@@ -1041,19 +1038,67 @@ void SPECCTRA_DB::FromBOARD( BOARD* aBoard ) throw( IOError )
             COPPER_PLANE*   plane = new COPPER_PLANE( pcb->structure );
             pcb->structure->planes.push_back( plane );
 
-            PATH*           polygon = new PATH( plane, T_polygon );
-            plane->SetShape( polygon );
+            PATH*           mainPolygon = new PATH( plane, T_polygon );
+            plane->SetShape( mainPolygon );
 
             plane->name = CONV_TO_UTF8( item->m_Netname );
 
-            polygon->layer_id = layerIds[ kicadLayer2pcb[ item->GetLayer() ] ];
+            if( plane->name.size() == 0 )
+            {
+                char name[32];
+
+                // This is one of those no connection zones, netcode=0, and it has no name.
+                // Create a unique, bogus netname.
+                NET* no_net = new NET( pcb->network );
+
+                sprintf( name, "@:no_net_%d", netlessZones++ );
+                no_net->net_id = name;
+
+                // add the bogus net name to network->nets.
+                pcb->network->nets.push_back( no_net );
+
+                // use the bogus net name in the netless zone.
+                plane->name = no_net->net_id;
+            }
+
+            mainPolygon->layer_id = layerIds[ kicadLayer2pcb[ item->GetLayer() ] ];
 
             int count = item->m_Poly->corner.size();
-            for( int j=0; j<count; ++j )
+            int ndx = 0;  // used in 2 for() loops below
+            for( ; ndx<count; ++ndx )
             {
-                wxPoint   point( item->m_Poly->corner[j].x,
-                                 item->m_Poly->corner[j].y );
-                polygon->AppendPoint( mapPt(point) );
+                wxPoint   point( item->m_Poly->corner[ndx].x,
+                                 item->m_Poly->corner[ndx].y );
+                mainPolygon->AppendPoint( mapPt(point) );
+
+                // this was the end of the main polygon
+                if( item->m_Poly->corner[ndx].end_contour )
+                    break;
+            }
+
+            WINDOW* window = 0;
+            PATH*   cutout = 0;
+
+            // handle the cutouts
+            for( ++ndx; ndx<count; ++ndx )
+            {
+                if( item->m_Poly->corner[ndx-1].end_contour )
+                {
+                    window = new WINDOW( plane );
+                    plane->AddWindow( window );
+
+                    cutout = new PATH( window, T_polygon );
+                    window->SetShape( cutout );
+
+                    cutout->layer_id = layerIds[ kicadLayer2pcb[ item->GetLayer() ] ];
+                }
+
+                wxASSERT( window );
+                wxASSERT( cutout );
+
+                wxPoint point(item->m_Poly->corner[ndx].x,
+                              item->m_Poly->corner[ndx].y );
+                cutout->AppendPoint( mapPt(point) );
             }
         }
     }
@@ -1083,7 +1128,7 @@ void SPECCTRA_DB::FromBOARD( BOARD* aBoard ) throw( IOError )
         {
             int netcode = equipot->GetNet();
             if( netcode > 0 )
-                nets[ netcode ]->net_id = CONV_TO_UTF8( equipot->m_Netname );
+                nets[ netcode ]->net_id = CONV_TO_UTF8( equipot->GetNetname() );
         }
 
         items.Collect( aBoard, scanMODULEs );
@@ -1225,7 +1270,7 @@ void SPECCTRA_DB::FromBOARD( BOARD* aBoard ) throw( IOError )
     {
         // export all of them for now, later we'll decide what controls we need
         // on this.
-        static const KICAD_T scanTRACKs[] = { TYPETRACK, EOT };
+        static const KICAD_T scanTRACKs[] = { TYPE_TRACK, EOT };
 
         items.Collect( aBoard, scanTRACKs );
 
@@ -1260,7 +1305,7 @@ void SPECCTRA_DB::FromBOARD( BOARD* aBoard ) throw( IOError )
                     old_netcode = netcode;
                     EQUIPOT* equipot = aBoard->FindNet( netcode );
                     wxASSERT( equipot );
-                    netname = CONV_TO_UTF8( equipot->m_Netname );
+                    netname = CONV_TO_UTF8( equipot->GetNetname() );
                 }
 
                 WIRE* wire = new WIRE( wiring );
@@ -1290,14 +1335,14 @@ void SPECCTRA_DB::FromBOARD( BOARD* aBoard ) throw( IOError )
     {
         // export all of them for now, later we'll decide what controls we need
         // on this.
-        static const KICAD_T scanVIAs[] = { TYPEVIA, EOT };
+        static const KICAD_T scanVIAs[] = { TYPE_VIA, EOT };
 
         items.Collect( aBoard, scanVIAs );
 
         for( int i=0;  i<items.GetCount();  ++i )
         {
             SEGVIA* via = (SEGVIA*) items[i];
-            wxASSERT( via->Type() == TYPEVIA );
+            wxASSERT( via->Type() == TYPE_VIA );
 
             int netcode = via->GetNet();
             if( netcode == 0 )
@@ -1305,6 +1350,9 @@ void SPECCTRA_DB::FromBOARD( BOARD* aBoard ) throw( IOError )
 
             PADSTACK* padstack = makeVia( via );
             PADSTACK* registered = pcb->library->LookupVia( padstack );
+
+            // if the one looked up is not our padstack, then delete our padstack
+            // since it was a duplicate of one already registered.
             if( padstack != registered )
             {
                 delete padstack;
@@ -1319,7 +1367,7 @@ void SPECCTRA_DB::FromBOARD( BOARD* aBoard ) throw( IOError )
             EQUIPOT* equipot = aBoard->FindNet( netcode );
             wxASSERT( equipot );
 
-            dsnVia->net_id = CONV_TO_UTF8( equipot->m_Netname );
+            dsnVia->net_id = CONV_TO_UTF8( equipot->GetNetname() );
 
             dsnVia->via_type = T_protect;     // @todo, this should be configurable
         }

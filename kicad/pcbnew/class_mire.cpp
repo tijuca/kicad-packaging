@@ -4,13 +4,15 @@
 
 #include "fctsys.h"
 #include "gr_basic.h"
-
 #include "common.h"
+#include "class_drawpanel.h"
+#include "kicad_string.h"
+
 #include "pcbnew.h"
 
 
-MIREPCB::MIREPCB( BOARD_ITEM* StructFather ) :
-    BOARD_ITEM( StructFather, TYPEMIRE )
+MIREPCB::MIREPCB( BOARD_ITEM* aParent ) :
+    BOARD_ITEM( aParent, TYPE_MIRE )
 {
     m_Shape = 0;
     m_Size  = 5000;
@@ -19,35 +21,6 @@ MIREPCB::MIREPCB( BOARD_ITEM* StructFather ) :
 
 MIREPCB::~MIREPCB()
 {
-}
-
-
-/***************************/
-void MIREPCB::UnLink()
-/***************************/
-
-/* supprime du chainage la structure Struct
- *  les structures arrieres et avant sont chainees directement
- */
-{
-    /* Modification du chainage arriere */
-    if( Pback )
-    {
-        if( Pback->Type() != TYPEPCB )
-        {
-            Pback->Pnext = Pnext;
-        }
-        else /* Le chainage arriere pointe sur la structure "Pere" */
-        {
-            ( (BOARD*) Pback )->m_Drawings = (BOARD_ITEM*) Pnext;
-        }
-    }
-
-    /* Modification du chainage avant */
-    if( Pnext )
-        Pnext->Pback = Pback;
-
-    Pnext = Pback = NULL;
 }
 
 
@@ -135,7 +108,6 @@ void MIREPCB::Draw( WinEDA_DrawPanel* panel, wxDC* DC,
     int rayon, ox, oy, gcolor, width;
     int dx1, dx2, dy1, dy2;
     int typeaff;
-    int zoom;
 
     ox = m_Pos.x + offset.x;
     oy = m_Pos.y + offset.y;
@@ -144,12 +116,10 @@ void MIREPCB::Draw( WinEDA_DrawPanel* panel, wxDC* DC,
     if( (gcolor & ITEM_NOT_SHOW) != 0 )
         return;
 
-    zoom = panel->GetZoom();
-
     GRSetDrawMode( DC, mode_color );
     typeaff = DisplayOpt.DisplayDrawItems;
     width   = m_Width;
-    if( width / zoom < 2 )
+    if( panel->GetScreen()->Scale( width ) < 2 )
         typeaff = FILAIRE;
 
     /* Trace du cercle: */

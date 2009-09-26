@@ -4,10 +4,10 @@
 /*********************************************/
 
 #include "fctsys.h"
-
 #include "common.h"
-#include "gerbview.h"
+#include "class_drawpanel.h"
 
+#include "gerbview.h"
 #include "protos.h"
 
 /* Routines externes : */
@@ -23,15 +23,18 @@ void WinEDA_GerberFrame::Delete_DCode_Items( wxDC* DC, int dcode_value, int laye
 {
     if( dcode_value < FIRST_DCODE )  // No tool selected
         return;
-    BOARD* Pcb   = m_Pcb;
-    TRACK* track = Pcb->m_Track, * next_track;
-    for( ; track != NULL; track = next_track )
+
+    TRACK* next;
+    for( TRACK* track = GetBoard()->m_Track;  track;  track = next  )
     {
-        next_track = track->Next();
+        next = track->Next();
+
         if( dcode_value != track->GetNet() )
             continue;
+
         if( layer_number >= 0 && layer_number != track->GetLayer() )
             continue;
+
         Delete_Segment( DC, track );
     }
 
@@ -55,29 +58,19 @@ TRACK* WinEDA_GerberFrame::Delete_Segment( wxDC* DC, TRACK* Track )
 
     if( Track->m_Flags & IS_NEW )  // Trace en cours, on peut effacer le dernier segment
     {
-        if( g_TrackSegmentCount > 0 )
+        if( g_CurrentTrackList.GetCount() > 0 )
         {
             // modification du trace
-            Track = g_CurrentTrackSegment;
-            g_CurrentTrackSegment = (TRACK*) g_CurrentTrackSegment->Pback;
-            
-            delete Track; 
-            
-            g_TrackSegmentCount--;
+            delete g_CurrentTrackList.PopBack();
 
-            if( g_TrackSegmentCount && (g_CurrentTrackSegment->Type() == TYPEVIA) )
+            if( g_CurrentTrackList.GetCount() && g_CurrentTrackSegment->Type() == TYPE_VIA )
             {
-                Track = g_CurrentTrackSegment;
-                g_CurrentTrackSegment = (TRACK*) g_CurrentTrackSegment->Pback;
-                delete Track;
-                g_TrackSegmentCount--;
+                delete g_CurrentTrackList.PopBack();
             }
-            if( g_CurrentTrackSegment )
-                g_CurrentTrackSegment->Pnext = NULL;
 
             Affiche_Status_Box();
 
-            if( g_TrackSegmentCount == 0 )
+            if( g_CurrentTrackList.GetCount() == 0 )
             {
                 DrawPanel->ManageCurseur = NULL;
                 DrawPanel->ForceCloseManageCurseur = NULL;
@@ -90,7 +83,7 @@ TRACK* WinEDA_GerberFrame::Delete_Segment( wxDC* DC, TRACK* Track )
                 return g_CurrentTrackSegment;
             }
         }
-        
+
         return NULL;
     } // Fin traitement si trace en cours
 

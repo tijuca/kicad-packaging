@@ -11,8 +11,7 @@
 
 
 #include "fctsys.h"
-
-#include <wx/colordlg.h>
+#include "appl_wxstruct.h"
 
 #if !wxUSE_GLCANVAS
 #error Please set wxUSE_GLCANVAS to 1 in setup.h.
@@ -25,21 +24,24 @@
 #include "3d_viewer.h"
 #include "trackball.h"
 
+#include <wx/colordlg.h>
+
 
 BEGIN_EVENT_TABLE( WinEDA3D_DrawFrame, wxFrame )
-EVT_TOOL_RANGE( ID_ZOOM_IN_BUTT, ID_ZOOM_PAGE_BUTT,
-    WinEDA3D_DrawFrame::Process_Zoom )
-EVT_TOOL_RANGE( ID_START_COMMAND_3D, ID_END_COMMAND_3D,
-    WinEDA3D_DrawFrame::Process_Special_Functions )
-EVT_MENU( wxID_EXIT, WinEDA3D_DrawFrame::Exit3DFrame )
-EVT_MENU( ID_MENU_SCREENCOPY_PNG, WinEDA3D_DrawFrame::Process_Special_Functions )
-EVT_MENU( ID_MENU_SCREENCOPY_JPEG, WinEDA3D_DrawFrame::Process_Special_Functions )
-EVT_CLOSE( WinEDA3D_DrawFrame::OnCloseWindow )
+    EVT_TOOL_RANGE( ID_ZOOM_IN, ID_ZOOM_PAGE, WinEDA3D_DrawFrame::Process_Zoom )
+    EVT_TOOL_RANGE( ID_START_COMMAND_3D, ID_END_COMMAND_3D,
+                    WinEDA3D_DrawFrame::Process_Special_Functions )
+    EVT_MENU( wxID_EXIT, WinEDA3D_DrawFrame::Exit3DFrame )
+    EVT_MENU( ID_MENU_SCREENCOPY_PNG,
+              WinEDA3D_DrawFrame::Process_Special_Functions )
+    EVT_MENU( ID_MENU_SCREENCOPY_JPEG,
+              WinEDA3D_DrawFrame::Process_Special_Functions )
+    EVT_CLOSE( WinEDA3D_DrawFrame::OnCloseWindow )
 END_EVENT_TABLE()
 
 /*******************************************************************/
 WinEDA3D_DrawFrame::WinEDA3D_DrawFrame( WinEDA_BasePcbFrame* parent,
-                                        WinEDA_App* app_parent, const wxString& title,
+                                        const wxString& title,
                                         long style ) :
     wxFrame( parent, DISPLAY3D_FRAME, title,
              wxPoint( -1, -1 ), wxSize( -1, -1 ), style )
@@ -48,7 +50,6 @@ WinEDA3D_DrawFrame::WinEDA3D_DrawFrame( WinEDA_BasePcbFrame* parent,
     m_FrameName     = wxT( "Frame3D" );
     m_Canvas        = NULL;
     m_Parent        = parent;
-    m_ParentAppl    = app_parent;
     m_HToolBar      = NULL;
     m_VToolBar      = NULL;
     m_InternalUnits = 10000;    // Unites internes = 1/10000 inch
@@ -104,21 +105,24 @@ void WinEDA3D_DrawFrame::GetSettings()
 /******************************************/
 {
     wxString  text;
-    wxConfig* Config = m_ParentAppl->m_EDA_Config;  //  Current config used by application
+    wxConfig* config = wxGetApp().m_EDA_Config;  //  Current config used by application
 
-    if( m_ParentAppl->m_EDA_Config )
+    if( config )
     {
         text = m_FrameName + wxT( "Pos_x" );
-        Config->Read( text, &m_FramePos.x );
+        config->Read( text, &m_FramePos.x );
         text = m_FrameName + wxT( "Pos_y" );
-        Config->Read( text, &m_FramePos.y );
+        config->Read( text, &m_FramePos.y );
         text = m_FrameName + wxT( "Size_x" );
-        Config->Read( text, &m_FrameSize.x, 600 );
+        config->Read( text, &m_FrameSize.x, 600 );
         text = m_FrameName + wxT( "Size_y" );
-        Config->Read( text, &m_FrameSize.y, 400 );
-        Config->Read( wxT( "BgColor_Red" ), &g_Parm_3D_Visu.m_BgColor.m_Red, 0.0 );
-        Config->Read( wxT( "BgColor_Green" ), &g_Parm_3D_Visu.m_BgColor.m_Green, 0.0 );
-        Config->Read( wxT( "BgColor_Blue" ), &g_Parm_3D_Visu.m_BgColor.m_Blue, 0.0 );
+        config->Read( text, &m_FrameSize.y, 400 );
+        config->Read( wxT( "BgColor_Red" ),
+                      &g_Parm_3D_Visu.m_BgColor.m_Red, 0.0 );
+        config->Read( wxT( "BgColor_Green" ),
+                      &g_Parm_3D_Visu.m_BgColor.m_Green, 0.0 );
+        config->Read( wxT( "BgColor_Blue" ),
+                      &g_Parm_3D_Visu.m_BgColor.m_Blue, 0.0 );
     }
 #ifdef __WXMAC__
 
@@ -134,7 +138,7 @@ void WinEDA3D_DrawFrame::SaveSettings()
 /*******************************************/
 {
     wxString  text;
-    wxConfig* Config = m_ParentAppl->m_EDA_Config;  //  Current config used by application
+    wxConfig* Config = wxGetApp().m_EDA_Config;  //  Current config used by application
 
     if( !Config )
         return;
@@ -168,7 +172,7 @@ void WinEDA3D_DrawFrame::Process_Zoom( wxCommandEvent& event )
 
     switch( event.GetId() )
     {
-    case ID_ZOOM_PAGE_BUTT:
+    case ID_ZOOM_PAGE:
         for( ii = 0; ii < 4; ii++ )
             g_Parm_3D_Visu.m_Rot[ii] = 0.0;
 
@@ -177,17 +181,17 @@ void WinEDA3D_DrawFrame::Process_Zoom( wxCommandEvent& event )
         trackball( g_Parm_3D_Visu.m_Quat, 0.0, 0.0, 0.0, 0.0 );
         break;
 
-    case ID_ZOOM_IN_BUTT:
+    case ID_ZOOM_IN:
         g_Parm_3D_Visu.m_Zoom /= 1.2;
         if( g_Parm_3D_Visu.m_Zoom <= 0.01 )
             g_Parm_3D_Visu.m_Zoom = 0.01;
         break;
 
-    case ID_ZOOM_OUT_BUTT:
+    case ID_ZOOM_OUT:
         g_Parm_3D_Visu.m_Zoom *= 1.2;
         break;
 
-    case ID_ZOOM_REDRAW_BUTT:
+    case ID_ZOOM_REDRAW:
         break;
 
     default:
@@ -301,10 +305,6 @@ void WinEDA3D_DrawFrame::Process_Special_Functions( wxCommandEvent& event )
         Set3DModuleOnOff();
         return;
 
-    case ID_MENU3D_PLACE_ONOFF:
-        Set3DPlaceOnOff();
-        return;
-
     case ID_MENU3D_ZONE_ONOFF:
         Set3DZoneOnOff();
         return;
@@ -347,6 +347,7 @@ void WinEDA3D_DrawFrame::NewDisplay()
     m_Canvas->Refresh( true );
 }
 
+
 /******************************************/
 void WinEDA3D_DrawFrame::Set3DBgColor()
 /******************************************/
@@ -371,74 +372,86 @@ void WinEDA3D_DrawFrame::Set3DBgColor()
     }
 }
 
+
 /******************************************/
 void WinEDA3D_DrawFrame::Set3DAxisOnOff()
 /******************************************/
 {
-	if (g_Parm_3D_Visu.m_Draw3DAxis) g_Parm_3D_Visu.m_Draw3DAxis = FALSE;
-	else							 g_Parm_3D_Visu.m_Draw3DAxis = TRUE;
-	NewDisplay();
+    if( g_Parm_3D_Visu.m_Draw3DAxis )
+        g_Parm_3D_Visu.m_Draw3DAxis = FALSE;
+    else
+        g_Parm_3D_Visu.m_Draw3DAxis = TRUE;
+    NewDisplay();
 }
+
 
 /******************************************/
 void WinEDA3D_DrawFrame::Set3DModuleOnOff()
 /******************************************/
 {
-	if (g_Parm_3D_Visu.m_Draw3DModule) g_Parm_3D_Visu.m_Draw3DModule = FALSE;
-	else 							   g_Parm_3D_Visu.m_Draw3DModule = TRUE;	
-	NewDisplay();
+    if( g_Parm_3D_Visu.m_Draw3DModule )
+        g_Parm_3D_Visu.m_Draw3DModule = FALSE;
+    else
+        g_Parm_3D_Visu.m_Draw3DModule = TRUE;
+    NewDisplay();
 }
 
-/******************************************/
-void WinEDA3D_DrawFrame::Set3DPlaceOnOff()
-/******************************************/
-{
-	if (g_Parm_3D_Visu.m_Draw3DPlace) g_Parm_3D_Visu.m_Draw3DPlace = FALSE;
-	else 							  g_Parm_3D_Visu.m_Draw3DPlace = TRUE;	
-	NewDisplay();
-}
 
 /******************************************/
 void WinEDA3D_DrawFrame::Set3DZoneOnOff()
 /******************************************/
 {
-	if (g_Parm_3D_Visu.m_Draw3DZone) g_Parm_3D_Visu.m_Draw3DZone = FALSE;
-	else 					         g_Parm_3D_Visu.m_Draw3DZone = TRUE;
-	NewDisplay();
+    if( g_Parm_3D_Visu.m_Draw3DZone )
+        g_Parm_3D_Visu.m_Draw3DZone = FALSE;
+    else
+        g_Parm_3D_Visu.m_Draw3DZone = TRUE;
+    NewDisplay();
 }
+
 
 /******************************************/
 void WinEDA3D_DrawFrame::Set3DCommentsOnOff()
 /******************************************/
 {
-	if (g_Parm_3D_Visu.m_Draw3DComments) g_Parm_3D_Visu.m_Draw3DComments = FALSE;
-	else 							     g_Parm_3D_Visu.m_Draw3DComments = TRUE;	
-	NewDisplay();
+    if( g_Parm_3D_Visu.m_Draw3DComments )
+        g_Parm_3D_Visu.m_Draw3DComments = FALSE;
+    else
+        g_Parm_3D_Visu.m_Draw3DComments = TRUE;
+    NewDisplay();
 }
+
 
 /******************************************/
 void WinEDA3D_DrawFrame::Set3DDrawingsOnOff()
 /******************************************/
 {
-	if (g_Parm_3D_Visu.m_Draw3DDrawings) g_Parm_3D_Visu.m_Draw3DDrawings = FALSE;
-	else 							     g_Parm_3D_Visu.m_Draw3DDrawings = TRUE;	
-	NewDisplay();
+    if( g_Parm_3D_Visu.m_Draw3DDrawings )
+        g_Parm_3D_Visu.m_Draw3DDrawings = FALSE;
+    else
+        g_Parm_3D_Visu.m_Draw3DDrawings = TRUE;
+    NewDisplay();
 }
+
 
 /******************************************/
 void WinEDA3D_DrawFrame::Set3DEco1OnOff()
 /******************************************/
 {
-	if (g_Parm_3D_Visu.m_Draw3DEco1) g_Parm_3D_Visu.m_Draw3DEco1 = FALSE;
-	else 							 g_Parm_3D_Visu.m_Draw3DEco1 = TRUE;	
-	NewDisplay();
+    if( g_Parm_3D_Visu.m_Draw3DEco1 )
+        g_Parm_3D_Visu.m_Draw3DEco1 = FALSE;
+    else
+        g_Parm_3D_Visu.m_Draw3DEco1 = TRUE;
+    NewDisplay();
 }
+
 
 /******************************************/
 void WinEDA3D_DrawFrame::Set3DEco2OnOff()
 /******************************************/
 {
-	if (g_Parm_3D_Visu.m_Draw3DEco2) g_Parm_3D_Visu.m_Draw3DEco2 = FALSE;
-	else 							 g_Parm_3D_Visu.m_Draw3DEco2 = TRUE;	
-	NewDisplay();
+    if( g_Parm_3D_Visu.m_Draw3DEco2 )
+        g_Parm_3D_Visu.m_Draw3DEco2 = FALSE;
+    else
+        g_Parm_3D_Visu.m_Draw3DEco2 = TRUE;
+    NewDisplay();
 }

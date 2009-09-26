@@ -8,6 +8,13 @@
 
 #include <vector>
 
+
+class COMMAND;
+
+
+/* install function for DialogNonCopperZonesEditor dialog frame :*/
+bool InstallDialogNonCopperZonesEditor(WinEDA_PcbFrame* aParent, ZONE_CONTAINER* aZone);
+
 /***************/
 /* PAD_CONNECT.CPP */
 /***************/
@@ -37,16 +44,11 @@ void CreateSortedPadListByXCoord( BOARD* aBoard, std::vector<D_PAD*>* aVector );
 bool    Read_Config( const wxString& project_name );
 bool    Read_Hotkey_Config( WinEDA_DrawFrame* frame, bool verbose );
 
-/***************/
-/* TRACEPCB.CPP */
-/***************/
-void    Trace_MirePcb( WinEDA_DrawPanel* panel, wxDC* DC, MIREPCB* MirePcb, int mode_color );
 
 /***************/
 /* TRPISTE.CPP */
 /***************/
 
-void    Trace_Pistes( WinEDA_DrawPanel* panel, BOARD* Pcb, wxDC* DC, int drawmode );
 void    Trace_Une_Piste( WinEDA_DrawPanel* panel,
                          wxDC* DC,
                          TRACK* pt_start_piste,
@@ -278,14 +280,6 @@ void    ListSetState( EDA_BaseStruct* Start, int Nbitem, int State, int onoff );
 
 /* Met a jour le membre .state d'une chaine de structures */
 
-/*****************/
-/* EDITEDGE.CPP : */
-/*****************/
-void    Trace_1_Edge( WinEDA_DrawPanel* panel,
-                      wxDC* DC,
-                      TRACK* start_edge,
-                      int nbpoint,
-                      int mode_color );
 
 /************/
 /* DRC.CPP : */
@@ -334,12 +328,6 @@ void    Trace_Block( WinEDA_DrawPanel* panel, wxDC* DC, int ox, int oy, int fx, 
 
 /* Routine de trace d'un rectangle symbolisant un block
   *   (toujours en mode XOR) */
-
-/***************/
-/* PLOT_RTN.CPP */
-/***************/
-
-void Affiche_erreur( int nb_err );
 
 
 /*****************************************************************/
@@ -406,11 +394,6 @@ bool Project( wxPoint* res, wxPoint on_grid, const TRACK* track );
 
 
 /***************/
-/* AUTOPLACE.CPP */
-/***************/
-int     Calcule_Encadrement_EdgeBoard();
-
-/***************/
 /* AUTOROUT.CPP */
 /***************/
 void    DisplayBoard( WinEDA_DrawPanel* panel, wxDC* DC ); /* routine de Debug */
@@ -424,10 +407,6 @@ MODULE* ListAndSelectModuleName( COMMAND* Cmd );
 /* liste les noms des modules du PCB
   *   Retourne un pointeur sur le module selectionne
   *   ( ou NULL si pas de selection ) */
-
-/***************/
-/* LAY2PLOT.CPP */
-/***************/
 
 /*****************/
 /* SET_COLOR.CPP */

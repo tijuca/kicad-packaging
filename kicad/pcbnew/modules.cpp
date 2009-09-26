@@ -6,8 +6,10 @@
 
 #include "fctsys.h"
 #include "gr_basic.h"
-
 #include "common.h"
+#include "class_drawpanel.h"
+#include "confirm.h"
+
 #include "pcbnew.h"
 #include "autorout.h"
 #include "trigo.h"
@@ -45,7 +47,7 @@ void Show_Pads_On_Off( WinEDA_DrawPanel* panel, wxDC* DC, MODULE* module )
     pad_fill_tmp = DisplayOpt.DisplayPadFill;
     DisplayOpt.DisplayPadFill = FALSE; /* Trace en SKETCH */
     pt_pad = module->m_Pads;
-    for( ; pt_pad != NULL; pt_pad = (D_PAD*) pt_pad->Pnext )
+    for( ; pt_pad != NULL; pt_pad = pt_pad->Next() )
     {
         pt_pad->Draw( panel, DC, GR_XOR, g_Offset_Module );
     }
@@ -78,10 +80,10 @@ MODULE* WinEDA_BasePcbFrame::GetModuleByName()
     wxString modulename;
     MODULE*  module = NULL;
 
-    Get_Message( _( "Footprint name:" ), modulename, this );
+    Get_Message( _( "Name:" ), _("Search footprint"), modulename, this );
     if( !modulename.IsEmpty() )
     {
-        module = m_Pcb->m_Modules;
+        module = GetBoard()->m_Modules;
         while( module )
         {
             if( module->m_Reference->m_Text.CmpNoCase( modulename ) == 0 )
@@ -101,7 +103,7 @@ void WinEDA_PcbFrame::StartMove_Module( MODULE* module, wxDC* DC )
         return;
 
     SetCurItem( module );
-    m_Pcb->m_Status_Pcb &= ~CHEVELU_LOCAL_OK;
+    GetBoard()->m_Status_Pcb &= ~CHEVELU_LOCAL_OK;
     module->m_Flags |= IS_MOVED;
     ModuleInitOrient = module->m_Orient;
     ModuleInitLayer  = module->GetLayer();
@@ -120,7 +122,7 @@ void WinEDA_PcbFrame::StartMove_Module( MODULE* module, wxDC* DC )
         Build_Drag_Liste( DrawPanel, DC, module );
     }
 
-    m_Pcb->m_Status_Pcb     |= DO_NOT_SHOW_GENERAL_RASTNEST;
+    GetBoard()->m_Status_Pcb     |= DO_NOT_SHOW_GENERAL_RASTNEST;
     DrawPanel->ManageCurseur = Montre_Position_Empreinte;
     DrawPanel->ForceCloseManageCurseur = Abort_MoveOrCopyModule;
     DrawPanel->m_AutoPAN_Request = TRUE;
@@ -152,7 +154,7 @@ void Abort_MoveOrCopyModule( WinEDA_DrawPanel* Panel, wxDC* DC )
     WinEDA_BasePcbFrame* pcbframe = (WinEDA_BasePcbFrame*) Panel->m_Parent;
 
     module = (MODULE*) pcbframe->GetScreen()->GetCurItem();
-    pcbframe->m_Pcb->m_Status_Pcb &= ~CHEVELU_LOCAL_OK;
+    pcbframe->GetBoard()->m_Status_Pcb &= ~CHEVELU_LOCAL_OK;
 
     if( module )
     {
@@ -192,7 +194,7 @@ void Abort_MoveOrCopyModule( WinEDA_DrawPanel* Panel, wxDC* DC )
         {
             module->DeleteStructure();
             module = NULL;
-            pcbframe->m_Pcb->m_Status_Pcb = 0;
+            pcbframe->GetBoard()->m_Status_Pcb = 0;
             pcbframe->build_liste_pads();
         }
     }
@@ -203,7 +205,7 @@ void Abort_MoveOrCopyModule( WinEDA_DrawPanel* Panel, wxDC* DC )
         if( ModuleInitOrient != module->m_Orient )
             pcbframe->Rotate_Module( NULL, module, ModuleInitOrient, FALSE );
         if( ModuleInitLayer != module->GetLayer() )
-            pcbframe->m_Pcb->Change_Side_Module( module, NULL );
+            pcbframe->GetBoard()->Change_Side_Module( module, NULL );
         module->Draw( Panel, DC, GR_OR );
     }
     g_Drag_Pistes_On     = FALSE;
@@ -211,7 +213,7 @@ void Abort_MoveOrCopyModule( WinEDA_DrawPanel* Panel, wxDC* DC )
     Panel->ForceCloseManageCurseur = NULL;
     pcbframe->SetCurItem( NULL );
 
-    pcbframe->m_Pcb->m_Status_Pcb &= ~DO_NOT_SHOW_GENERAL_RASTNEST;   // Display ratsnest is allowed
+    pcbframe->GetBoard()->m_Status_Pcb &= ~DO_NOT_SHOW_GENERAL_RASTNEST;   // Display ratsnest is allowed
     if( g_Show_Ratsnest )
         pcbframe->DrawGeneralRatsnest( DC );
 }
@@ -236,17 +238,22 @@ MODULE* WinEDA_BasePcbFrame::Copie_Module( MODULE* module )
     GetScreen()->SetModify();
 
     /* Duplication du module */
-    m_Pcb->m_Status_Pcb = 0;
-    newmodule = new MODULE( m_Pcb );
+    GetBoard()->m_Status_Pcb = 0;
+    newmodule = new MODULE( GetBoard() );
     newmodule->Copy( module );
-    newmodule->m_Parent = m_Pcb;
-    newmodule->AddToChain( module );
+
+    /* no, Add() below does this
+    newmodule->SetParent( GetBoard() );
+    */
+
+    GetBoard()->Add( newmodule, ADD_APPEND );
+
     newmodule->m_Flags = IS_NEW;
 
     build_liste_pads();
 
     newmodule->Display_Infos( this );
-    m_Pcb->m_Status_Pcb &= ~CHEVELU_LOCAL_OK;
+    GetBoard()->m_Status_Pcb &= ~CHEVELU_LOCAL_OK;
     return newmodule;
 }
 
@@ -290,7 +297,6 @@ bool WinEDA_PcbFrame::Delete_Module( MODULE* module, wxDC* DC, bool aAskBeforeDe
  * @param aPromptBeforeDeleting : if true: ask for confirmation before deleting
  */
 {
-    EDA_BaseStruct* PtBack, * PtNext;
     wxString        msg;
 
     /* Si l'empreinte est selectee , on ne peut pas l'effacer ! */
@@ -319,24 +325,10 @@ bool WinEDA_PcbFrame::Delete_Module( MODULE* module, wxDC* DC, bool aAskBeforeDe
     if( g_Show_Ratsnest )
         DrawGeneralRatsnest( DC );
 
-    /* Suppression du chainage */
-    PtBack = module->Pback;
-    PtNext = module->Pnext;
-    if( PtBack == (EDA_BaseStruct*) m_Pcb )
-    {
-        m_Pcb->m_Modules = (MODULE*) PtNext;
-    }
-    else
-    {
-        PtBack->Pnext = PtNext;
-    }
-    if( PtNext )
-        PtNext->Pback = PtBack;
-
     /* Sauvegarde en buffer des undelete */
     SaveItemEfface( module, 1 );
 
-    m_Pcb->m_Status_Pcb = 0;
+    GetBoard()->m_Status_Pcb = 0;
     build_liste_pads();
     ReCompile_Ratsnest_After_Changes( DC );
 
@@ -411,7 +403,7 @@ void BOARD::Change_Side_Module( MODULE* Module, wxDC* DC )
 
     /* Inversion miroir + layers des pastilles */
     pt_pad = Module->m_Pads;
-    for( ; pt_pad != NULL; pt_pad = (D_PAD*) pt_pad->Pnext )
+    for( ; pt_pad != NULL; pt_pad = pt_pad->Next() )
     {
         pt_pad->m_Pos.y      -= Module->m_Pos.y;
         pt_pad->m_Pos.y       = -pt_pad->m_Pos.y;
@@ -430,8 +422,8 @@ void BOARD::Change_Side_Module( MODULE* Module, wxDC* DC )
     pt_texte->m_Pos.y -= Module->m_Pos.y;
     pt_texte->m_Pos.y  = -pt_texte->m_Pos.y;
     pt_texte->m_Pos.y += Module->m_Pos.y;
-    pt_texte->m_Pos0.y = pt_texte->m_Pos0.y;
-    pt_texte->m_Miroir = 1;
+    pt_texte->m_Pos0.y = -pt_texte->m_Pos0.y;
+    pt_texte->m_Mirror = false;
     NEGATE_AND_NORMALIZE_ANGLE_POS( pt_texte->m_Orient );
     pt_texte->SetLayer( Module->GetLayer() );
     pt_texte->SetLayer( ChangeSideNumLayer( pt_texte->GetLayer() ) );
@@ -444,15 +436,15 @@ void BOARD::Change_Side_Module( MODULE* Module, wxDC* DC )
 
     if( (Module->GetLayer() == SILKSCREEN_N_CU)
        || (Module->GetLayer() == ADHESIVE_N_CU) || (Module->GetLayer() == COPPER_LAYER_N) )
-        pt_texte->m_Miroir = 0;
+        pt_texte->m_Mirror = true;
 
     /* Inversion miroir de la Valeur et mise en miroir : */
     pt_texte = Module->m_Value;
     pt_texte->m_Pos.y -= Module->m_Pos.y;
     pt_texte->m_Pos.y  = -pt_texte->m_Pos.y;
     pt_texte->m_Pos.y += Module->m_Pos.y;
-    pt_texte->m_Pos0.y = pt_texte->m_Pos0.y;
-    pt_texte->m_Miroir = 1;
+    pt_texte->m_Pos0.y = -pt_texte->m_Pos0.y;
+    pt_texte->m_Mirror = false;
     NEGATE_AND_NORMALIZE_ANGLE_POS( pt_texte->m_Orient );
     pt_texte->SetLayer( Module->GetLayer() );
     pt_texte->SetLayer( ChangeSideNumLayer( pt_texte->GetLayer() ) );
@@ -465,15 +457,15 @@ void BOARD::Change_Side_Module( MODULE* Module, wxDC* DC )
 
     if( (Module->GetLayer() == SILKSCREEN_N_CU)
        || (Module->GetLayer() == ADHESIVE_N_CU) || (Module->GetLayer() == COPPER_LAYER_N) )
-        pt_texte->m_Miroir = 0;
+        pt_texte->m_Mirror = true;
 
     /* Inversion miroir des dessins de l'empreinte : */
     PtStruct = Module->m_Drawings;
-    for( ; PtStruct != NULL; PtStruct = PtStruct->Pnext )
+    for( ; PtStruct != NULL; PtStruct = PtStruct->Next() )
     {
         switch( PtStruct->Type() )
         {
-        case TYPEEDGEMODULE:
+        case TYPE_EDGE_MODULE:
             pt_edgmod = (EDGE_MODULE*) PtStruct;
             pt_edgmod->m_Start.y -= Module->m_Pos.y;
             pt_edgmod->m_Start.y  = -pt_edgmod->m_Start.y;
@@ -492,14 +484,14 @@ void BOARD::Change_Side_Module( MODULE* Module, wxDC* DC )
             pt_edgmod->SetLayer( ChangeSideNumLayer( pt_edgmod->GetLayer() ) );
             break;
 
-        case TYPETEXTEMODULE:
+        case TYPE_TEXTE_MODULE:
             /* Inversion miroir de la position et mise en miroir : */
             pt_texte = (TEXTE_MODULE*) PtStruct;
             pt_texte->m_Pos.y -= Module->m_Pos.y;
             pt_texte->m_Pos.y  = -pt_texte->m_Pos.y;
             pt_texte->m_Pos.y += Module->m_Pos.y;
-            pt_texte->m_Pos0.y = pt_texte->m_Pos0.y;
-            pt_texte->m_Miroir = 1;
+            pt_texte->m_Pos0.y = - pt_texte->m_Pos0.y;
+            pt_texte->m_Mirror = false;
             NEGATE_AND_NORMALIZE_ANGLE_POS( pt_texte->m_Orient );
 
             pt_texte->SetLayer( Module->GetLayer() );
@@ -515,7 +507,7 @@ void BOARD::Change_Side_Module( MODULE* Module, wxDC* DC )
                  || Module->GetLayer() == ADHESIVE_N_CU
                  || Module->GetLayer() == COPPER_LAYER_N )
             {
-                pt_texte->m_Miroir = 0;
+                pt_texte->m_Mirror = true;
             }
 
             break;
@@ -677,9 +669,9 @@ void WinEDA_BasePcbFrame::Place_Module( MODULE* module, wxDC* DC )
         return;
 
     GetScreen()->SetModify();
-    m_Pcb->m_Status_Pcb &= ~( LISTE_CHEVELU_OK | CONNEXION_OK);
+    GetBoard()->m_Status_Pcb &= ~( LISTE_CHEVELU_OK | CONNEXION_OK);
 
-    if( g_Show_Module_Ratsnest && (m_Pcb->m_Status_Pcb & LISTE_PAD_OK) && DC )
+    if( g_Show_Module_Ratsnest && (GetBoard()->m_Status_Pcb & LISTE_PAD_OK) && DC )
         trace_ratsnest_module( DC );
 
     newpos = GetScreen()->m_Curseur;
@@ -758,7 +750,7 @@ void WinEDA_BasePcbFrame::Rotate_Module( wxDC* DC, MODULE* module,
         }
     }
 
-    m_Pcb->m_Status_Pcb &= ~(LISTE_CHEVELU_OK | CONNEXION_OK);
+    GetBoard()->m_Status_Pcb &= ~(LISTE_CHEVELU_OK | CONNEXION_OK);
 
     if( incremental )
         module->SetOrientation( module->m_Orient + angle );
@@ -805,7 +797,7 @@ void DrawModuleOutlines( WinEDA_DrawPanel* panel, wxDC* DC, MODULE* module )
         DisplayOpt.DisplayPadFill = SKETCH;  /* Trace en SKETCH en deplacement */
 
         pt_pad = module->m_Pads;
-        for( ; pt_pad != NULL; pt_pad = (D_PAD*) pt_pad->Pnext )
+        for( ; pt_pad != NULL; pt_pad = pt_pad->Next() )
         {
             pt_pad->Draw( panel, DC, GR_XOR, g_Offset_Module );
         }
