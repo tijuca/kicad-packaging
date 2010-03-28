@@ -1,18 +1,12 @@
-/************************************************/
-/*	 MODULE: gestfich.cpp						*/
-/*	 ROLE: fonctions de gestion de fichiers	*/
-/************************************************/
+/******************************************/
+/* File:    gestfich.cpp                  */
+/* Purpose: Functions for file management */
+/******************************************/
 
 // For compilers that support precompilation, includes "wx.h".
 #include "fctsys.h"
 #include "appl_wxstruct.h"
 #include "confirm.h"
-
-#ifdef  __WINDOWS__
-#ifndef _MSC_VER
-#include <dir.h>
-#endif
-#endif
 
 #include "common.h"
 #include "macros.h"
@@ -24,30 +18,35 @@
 
 /* List of default paths used to locate help files and kicad library files.
  *
- * Under windows, kicad search its files from the binary path file (first argument when running "main")
- * So for a standard install, default paths are not mandatory, but they exist, just in case.
- * kicad is often installed in c:/Program Files/kicad or c:/kicad (or d: or e: ... )
- * and the directory "share" has no meaning under windows.
+ * Under windows, kicad search its files from the binary path file (first
+ * argument when running "main")   So for a standard install, default paths
+ * are not mandatory, but they exist, just in case.
+ * kicad is often installed in c:/Program Files/kicad or c:/kicad (or d: or
+ * e: ... ) and the directory "share" has no meaning under windows.
  *
  * Under linux, the problem is more complex.
  * In fact there are 3 cases:
  * 1 - When released in a distribution:
- * binaries are in /usr/bin, kicad libs in /usr/share/kicad/ and doc in /usr/share/doc/kicad/
+ * binaries are in /usr/bin, kicad libs in /usr/share/kicad/ and doc in
+ * /usr/share/doc/kicad/
  * 2 - When compiled by an user:
- * binaries also can be  in /usr/local/bin, kicad libs in /usr/local/share/kicad/ and doc in /usr/local/share/doc/kicad/
+ * binaries also can be  in /usr/local/bin, kicad libs in
+ * /usr/local/share/kicad/ and doc in /usr/local/share/doc/kicad/
  * 3 - When in an "universal tarball" or build for a server:
  * all files are in /usr/local/kicad
- * This is mandatory when kicad is installed on a server (in a school for instance) because one can export /usr/local/kicad
- * and obviously the others paths cannot be used
- * (cannot be mounted by the client, because they are already used).
+ * This is mandatory when kicad is installed on a server (in a school for
+ * instance) because one can export /usr/local/kicad and obviously the others
+ * paths cannot be used (cannot be mounted by the client, because they are
+ * already used).
  *
  * in cases 1 and 2 kicad files cannot be found from the binary path.
- * in case 3 kicad files can be found from the binary path only if this is a kicad binary file which is launched.
- *     But if an user creates a symbolic link to the actual binary file to run kicad, the binary path is not good
- *     and the defaults paths must be used
+ * in case 3 kicad files can be found from the binary path only if this is
+ * a kicad binary file which is launched.
+ * But if an user creates a symbolic link to the actual binary file to run
+ * kicad, the binary path is not good and the defaults paths must be used
  *
  * Note:
- * kicad uses first the bin path lo locace kicad tree.
+ * kicad uses first the bin path lo locate kicad tree.
  * if not found kicad uses the environment variable KICAD to find its files
  * and at last kicad uses the default paths.
  * So we can export (linux and windows) the variable KICAD:
@@ -64,11 +63,16 @@ static wxString    s_HelpPathList[] = {
 #else
     wxT( "/usr/share/doc/kicad/help/" ),
     wxT( "/usr/local/share/doc/kicad/help/" ),
-    wxT( "/usr/local/kicad/doc/help/" ),        // default install for "universal tarballs" and build for a server (new)
-    wxT( "/usr/local/kicad/help/" ),            // default install for "universal tarballs" and build for a server (old)
+    wxT( "/usr/local/kicad/doc/help/" ),    // default install for "universal
+                                            // tarballs" and build for a server
+                                            // (new)
+    wxT( "/usr/local/kicad/help/" ),        // default install for "universal
+                                            // tarballs" and build for a server
+                                            // (old)
 #endif
-    wxT( "end_list" )                           // End of list symbol, do not change
+    wxT( "end_list" )                       // End of list symbol, do not change
 };
+
 
 // Path list for kicad data files
 static wxString    s_KicadDataPathList[] = {
@@ -84,10 +88,14 @@ static wxString    s_KicadDataPathList[] = {
 #else
     wxT( "/usr/share/kicad/" ),
     wxT( "/usr/local/share/kicad/" ),
-    wxT( "/usr/local/kicad/share/" ),       // default data path for "universal tarballs" and build for a server (new)
-    wxT( "/usr/local/kicad/" ),             // default data path for "universal tarballs" and build for a server (old)
+    wxT( "/usr/local/kicad/share/" ),   // default data path for "universal
+                                        // tarballs" and build for a server
+                                        // (new)
+    wxT( "/usr/local/kicad/" ),         // default data path for "universal
+                                        // tarballs" and build for a server
+                                        // (old)
 #endif
-    wxT( "end_list" )                       // End of list symbol, do not change
+    wxT( "end_list" )                   // End of list symbol, do not change
 };
 
 // Path list for kicad binary files
@@ -102,15 +110,9 @@ static wxString    s_KicadBinaryPathList[] = {
     wxT( "/usr/local/bin/" ),
     wxT( "/usr/local/kicad/bin/" ),
 #endif
-    wxT( "end_list" )                               // End of list symbol, do not change
+    wxT( "end_list" )                   // End of list symbol, do not change
 };
 
-
-/***************************************************************************/
-wxString MakeReducedFileName( const wxString& fullfilename,
-                              const wxString& default_path,
-                              const wxString& default_ext )
-/***************************************************************************/
 
 /** Function MakeReducedFileName
  * Calculate the "reduced" filename from
@@ -120,11 +122,14 @@ wxString MakeReducedFileName( const wxString& fullfilename,
  *
  * @return  the "reduced" filename, i.e.:
  *  without path if it is default_path
- *  wiht ./ if the path is the current path
+ *  with ./ if the path is the current path
  *  without extension if extension is default_ext
  *
  *  the new flename is in unix like notation ('/' as path separator)
  */
+wxString MakeReducedFileName( const wxString& fullfilename,
+                              const wxString& default_path,
+                              const wxString& default_ext )
 {
     wxString reduced_filename = fullfilename;
     wxString Cwd, ext, path;
@@ -175,94 +180,11 @@ wxString MakeReducedFileName( const wxString& fullfilename,
 }
 
 
-/***************************************************************************/
-wxString MakeFileName( const wxString& dir,
-                       const wxString& shortname, const wxString& ext )
-/***************************************************************************/
-
-/** Function MakeFileName
- * Calculate the full file name from dir, shortname and ext
- * @param  dir = path	  (can be empty)
- * @param  shortname = filename with or without path and/or extension
- * @param  ext = extension	(can be empty)
- *  If shortname has an absolute path, or a path starts by ./ or ../,
- *  the path will not be modified
- *  If shortname has an extension, it will not be modified
- *  @return full filename
- */
-{
-    wxString fullfilename;
-    int      ii;
-
-    if( !dir.IsEmpty() )
-    {
-        if( !wxIsAbsolutePath( shortname ) )
-        {
-            if( !shortname.StartsWith( wxT( "./" ) ) && !shortname.StartsWith( wxT( "../" ) ) )
-            {   /* no absolute path in shortname, add dir to shortname */
-                fullfilename = dir;
-            }
-        }
-    }
-
-    fullfilename += shortname;  // Add shortname to dir or use shortname only
-
-    fullfilename.Replace( WIN_STRING_DIR_SEP, UNIX_STRING_DIR_SEP );
-
-    /* Add an extension if shortname has no extension */
-    if( ext.IsEmpty() )
-        return fullfilename;
-
-    /* search for an extension */
-    ii = fullfilename.Length(); /* Get the end of name */
-    for( ; ii >= 0; ii-- )
-    {
-        if( fullfilename.GetChar( ii ) == '/' )
-        {
-            /* not extension: add ext */
-            fullfilename += ext;
-            break;
-        }
-        if( fullfilename.GetChar( ii ) == '.' )  /* extension exists, do nothing */
-            break;
-    }
-
-    return fullfilename;
-}
-
-
-/*************************************************************************/
-void ChangeFileNameExt( wxString& FullFileName, const wxString& NewExt )
-/**************************************************************************/
-
-/** Function ChangeFileNameExt
- * change the extension of FullFileName to NewExt.
- * @param FullFileName = filename to modify
- * @param NewExt = new extension for FullFileName
- */
-{
-    wxString FileName;
-
-    FileName = FullFileName.BeforeLast( '.' );
-    if( !FileName.IsEmpty() )
-        FileName += NewExt;
-    else
-        FileName = FullFileName + NewExt;
-
-    if( FileName.StartsWith( wxT( "\"" ) ) && ( FileName.Last() != '"' ) )
-        FileName += wxT( "\"" );
-    FullFileName = FileName;
-}
-
-
-/*******************************************/
-void AddDelimiterString( wxString& string )
-/*******************************************/
-
 /** Function AddDelimiterString
  * Add un " to the start and the end of string (if not already done).
  * @param string = string to modify
  */
+void AddDelimiterString( wxString& string )
 {
     wxString text;
 
@@ -279,21 +201,20 @@ void AddDelimiterString( wxString& string )
 /* Selection Directory dialog box: */
 /***********************************/
 
-bool EDA_DirectorySelector( const wxString& Title,      /* Titre de la fenetre */
-                            wxString&       Path,       /* Chemin par defaut */
-                            int             flag,       /* reserve */
-                            wxWindow*       Frame,      /* parent frame */
+bool EDA_DirectorySelector( const wxString& Title,
+                            wxString&       Path,
+                            int             flag,
+                            wxWindow*       Frame,
                             const wxPoint&  Pos )
 {
     int          ii;
     bool         selected = FALSE;
 
-    wxDirDialog* DirFrame = new wxDirDialog(
-        Frame,
-        wxString( Title ),
-        Path,                   /* Chemin par defaut */
-        flag,
-        Pos );
+    wxDirDialog* DirFrame = new wxDirDialog( Frame,
+                                             wxString( Title ),
+                                             Path,
+                                             flag,
+                                             Pos );
 
     ii = DirFrame->ShowModal();
     if( ii == wxID_OK )
@@ -307,24 +228,31 @@ bool EDA_DirectorySelector( const wxString& Title,      /* Titre de la fenetre *
 }
 
 
-/******************************/
-/* Selection file dialog box: */
-/******************************/
-
-wxString EDA_FileSelector( const wxString& Title,                   /* Dialog title */
-                           const wxString& Path,                    /* Default path */
-                           const wxString& FileName,                /* default filename */
-                           const wxString& Ext,                     /* default filename extension */
-                           const wxString& Mask,                    /* filter for filename list */
-                           wxWindow*       Frame,                   /* parent frame */
-                           int             flag,                    /* wxFD_SAVE, wxFD_OPEN ..*/
-                           const bool      keep_working_directory,  /* true = keep the current path */
+/* Selection file dialog box:
+ * Dialog title
+ * Default path
+ * default filename
+ * default filename extension
+ * filter for filename list
+ * parent frame
+ * wxFD_SAVE, wxFD_OPEN ..
+ * true = keep the current path
+ */
+wxString EDA_FileSelector( const wxString& Title,
+                           const wxString& Path,
+                           const wxString& FileName,
+                           const wxString& Ext,
+                           const wxString& Mask,
+                           wxWindow*       Frame,
+                           int             flag,
+                           const bool      keep_working_directory,
                            const wxPoint&  Pos )
 {
     wxString fullfilename;
     wxString curr_cwd    = wxGetCwd();
     wxString defaultname = FileName;
     wxString defaultpath = Path;
+    wxString dotted_Ext = wxT(".") + Ext;
 
     defaultname.Replace( wxT( "/" ), STRING_DIR_SEP );
     defaultpath.Replace( wxT( "/" ), STRING_DIR_SEP );
@@ -334,21 +262,19 @@ wxString EDA_FileSelector( const wxString& Title,                   /* Dialog ti
     wxSetWorkingDirectory( defaultpath );
 
 #if 0 && defined (DEBUG)
-    printf(
-        "defaultpath=\"%s\" defaultname=\"%s\" Ext=\"%s\" Mask=\"%s\" flag=%d keep_working_directory=%d\n",
-        CONV_TO_UTF8( defaultpath ),
-        CONV_TO_UTF8( defaultname ),
-        CONV_TO_UTF8( Ext ),
-        CONV_TO_UTF8( Mask ),
-        flag,
-        keep_working_directory
-        );
+    printf( "defaultpath=\"%s\" defaultname=\"%s\" Ext=\"%s\" Mask=\"%s\" flag=%d keep_working_directory=%d\n",
+            CONV_TO_UTF8( defaultpath ),
+            CONV_TO_UTF8( defaultname ),
+            CONV_TO_UTF8( Ext ),
+            CONV_TO_UTF8( Mask ),
+            flag,
+            keep_working_directory );
 #endif
 
     fullfilename = wxFileSelector( wxString( Title ),
                                    defaultpath,
                                    defaultname,
-                                   Ext,
+                                   dotted_Ext,
                                    Mask,
                                    flag, /* open mode wxFD_OPEN, wxFD_SAVE .. */
                                    Frame,
@@ -360,10 +286,6 @@ wxString EDA_FileSelector( const wxString& Title,                   /* Dialog ti
     return fullfilename;
 }
 
-
-/********************************************************/
-wxString FindKicadHelpPath()
-/********************************************************/
 
 /** Function FindKicadHelpPath
  * Find an absolute path for KiCad "help" (or "help/<language>")
@@ -385,6 +307,7 @@ wxString FindKicadHelpPath()
  *  default = en (if not found = fr)
  *
  */
+wxString FindKicadHelpPath()
 {
     wxString FullPath, LangFullPath, tmp;
     wxString LocaleString;
@@ -452,10 +375,6 @@ wxString FindKicadHelpPath()
 }
 
 
-/********************************************************/
-wxString FindKicadFile( const wxString& shortname )
-/********************************************************/
-
 /* Search the executable file shortname in kicad binary path
  *  and return full file name if found or shortname
  *  kicad binary path is
@@ -464,20 +383,23 @@ wxString FindKicadFile( const wxString& shortname )
  *  kicad binary path is found from:
  *  BinDir
  *  or environment variable KICAD
- *  or (default) c:\kicad ou /usr/local/kicad
+ *  or (default) c:\kicad or /usr/local/kicad
  *  or default binary path
  */
+wxString FindKicadFile( const wxString& shortname )
 {
     wxString FullFileName;
 
-    /* test de la presence du fichier shortname dans le repertoire de
-     *  des binaires de kicad */
+    /* Test the presence of the file in the directory shortname of
+     * the kicad binary path.
+     */
     FullFileName = wxGetApp().m_BinDir + shortname;
     if( wxFileExists( FullFileName ) )
         return FullFileName;
 
-    /* test de la presence du fichier shortname dans le repertoire
-     *  defini par la variable d'environnement KICAD */
+    /* Test the presence of the file in the directory shortname
+     * defined by the environment variable KiCAD.
+     */
     if( wxGetApp().m_Env_Defined )
     {
         FullFileName = wxGetApp().m_KicadEnv + shortname;
@@ -502,12 +424,10 @@ wxString FindKicadFile( const wxString& shortname )
 }
 
 
-/***********************************************************************************/
-int ExecuteFile( wxWindow* frame, const wxString& ExecFile, const wxString& param )
-/***********************************************************************************/
-
 /* Call the executable file "ExecFile", with params "param"
  */
+int ExecuteFile( wxWindow* frame, const wxString& ExecFile,
+                 const wxString& param )
 {
     wxString FullFileName;
 
@@ -523,79 +443,35 @@ int ExecuteFile( wxWindow* frame, const wxString& ExecFile, const wxString& para
     }
 
     wxString msg;
-    msg.Printf( wxT( "Command file <%s> not found" ), FullFileName.GetData() );
+    msg.Printf( _( "Command <%s> could not found" ), GetChars( ExecFile ) );
     DisplayError( frame, msg, 20 );
     return -1;
 }
 
 
-/****************************************************/
-void SetRealLibraryPath( const wxString& shortlibname )
-/****************************************************/
-
-/* met a jour le chemin des librairies g_RealLibDirBuffer (global)
- *  a partir de UserLibDirBuffer (global):
- *  Si UserLibDirBuffer non vide g_RealLibDirBuffer = g_UserLibDirBuffer.
- *  Sinon si variable d'environnement KICAD definie (KICAD = chemin pour kicad),
- *      g_UserLibDirBuffer = <KICAD>/shortlibname;
- *  Sinon g_UserLibDirBuffer = <Chemin des binaires>../shortlibname/
- *  Sinon g_UserLibDirBuffer = /usr/share/kicad/shortlibname/
+/* Return data path common kicad.
+ * If environment variable defined KiCAD (KiCAD = path to kicad)
+ * Returns <KICAD> /;
+ * Otherwise returns <path of binaries> / (if "kicad" is in the path name)
+ * Otherwise returns / usr / share / kicad /
  *
- *  Remarque:
- *  Les \ sont remplaces par / (a la mode Unix)
+ * Note:
+ * The \ are replaced by / (a la Unix)
  */
-{
-    bool PathFound = FALSE;
-
-    if( !g_UserLibDirBuffer.IsEmpty() )   // Chemin impose par la configuration
-    {
-        g_RealLibDirBuffer = g_UserLibDirBuffer;
-        PathFound = TRUE;
-    }
-    else
-    {
-        g_RealLibDirBuffer = ReturnKicadDatasPath();
-        if( wxGetApp().m_Env_Defined )  // Chemin impose par la variable d'environnement
-        {
-            PathFound = TRUE;
-        }
-        g_RealLibDirBuffer += shortlibname;
-        if( wxDirExists( g_RealLibDirBuffer ) )
-            PathFound = TRUE;
-    }
-
-
-    g_RealLibDirBuffer.Replace( WIN_STRING_DIR_SEP, UNIX_STRING_DIR_SEP );
-    if( g_RealLibDirBuffer.Last() != '/' )
-        g_RealLibDirBuffer += UNIX_STRING_DIR_SEP;
-}
-
-
-/***********************************/
 wxString ReturnKicadDatasPath()
-/***********************************/
-
-/* Retourne le chemin des donnees communes de kicad.
- *  Si variable d'environnement KICAD definie (KICAD = chemin pour kicad),
- *      retourne <KICAD>/;
- *  Sinon retourne <Chemin des binaires>/ (si "kicad" est dans le nom du chemin)
- *  Sinon retourne /usr/share/kicad/
- *
- *  Remarque:
- *  Les \ sont remplac�s par / (a la mode Unix)
- */
 {
     bool     PathFound = FALSE;
     wxString data_path;
 
-    if( wxGetApp().m_Env_Defined )  // Chemin impose par la variable d'environnement
+    if( wxGetApp().m_Env_Defined )  // Path defined by the KICAD environment
+                                    // variable.
+
     {
         data_path = wxGetApp().m_KicadEnv;
         PathFound = TRUE;
     }
-    else    // Chemin cherche par le chemin des executables
+    else    // Path of executables.
     {
-        // le chemin est bindir../
         wxString tmp = wxGetApp().m_BinDir;
 #ifdef __WINDOWS__
         tmp.MakeLower();
@@ -651,56 +527,48 @@ wxString ReturnKicadDatasPath()
 }
 
 
-/***************************/
-wxString GetEditorName()
-/***************************/
-
-/* Return the prefered editor name
+/*
+ * Return the preferred editor name
  */
+wxString& WinEDA_App::GetEditorName()
 {
-    wxString editorname = g_EditorName;
+    wxString editorname = m_EditorName;
 
-    if( editorname.IsEmpty() ) // We get the prefered editor name from environment variable
+    // We get the preferred editor name from environment variable first.
+    if( editorname.IsEmpty() )
     {
         wxGetEnv( wxT( "EDITOR" ), &editorname );
     }
-    if( editorname.IsEmpty() ) // We must get a prefered editor name
+    if( editorname.IsEmpty() ) // We must get a preferred editor name
     {
-        DisplayInfo( NULL, _( "No default editor found, you must choose it" ) );
+        DisplayInfoMessage( NULL,
+                            _( "No default editor found, you must choose it" ) );
         wxString mask( wxT( "*" ) );
 
 #ifdef __WINDOWS__
         mask += wxT( ".exe" );
 #endif
-        editorname = EDA_FileSelector( _( "Prefered Editor:" ),
-                                       wxEmptyString,   /* Default path */
-                                       wxEmptyString,   /* default filename */
-                                       wxEmptyString,   /* default filename extension */
-                                       mask,            /* filter for filename list */
-                                       NULL,            /* parent frame */
-                                       wxFD_OPEN,       /* wxFD_SAVE, wxFD_OPEN ..*/
-                                       TRUE             /* true = keep the current path */
-                                       );
+        editorname = EDA_FileSelector( _( "Preferred Editor:" ), wxEmptyString,
+                                       wxEmptyString, wxEmptyString, mask,
+                                       NULL, wxFD_OPEN, true );
     }
 
-    if( ( !editorname.IsEmpty() ) && wxGetApp().m_EDA_CommonConfig )
+    if( !editorname.IsEmpty() )
     {
-        g_EditorName = editorname;
-        wxGetApp().m_EDA_CommonConfig->Write( wxT( "Editor" ), g_EditorName );
+        m_EditorName = editorname;
+        m_EDA_CommonConfig->Write( wxT( "Editor" ), m_EditorName );
     }
-    return g_EditorName;
+
+    return m_EditorName;
 }
 
-
-/***********************************/
-bool OpenPDF( const wxString& file )
-/***********************************/
 
 /** Function OpenPDF
  * run the PDF viewer and display a PDF file
  * @param file = PDF file to open
  * @return true is success, false if no PDF viewer found
  */
+bool OpenPDF( const wxString& file )
 {
     wxString command;
     wxString filename = file;
@@ -708,7 +576,7 @@ bool OpenPDF( const wxString& file )
     bool     success = false;
 
     wxGetApp().ReadPdfBrowserInfos();
-    if( !wxGetApp().m_PdfBrowserIsDefault )    //  Run the prefered PDF Browser
+    if( !wxGetApp().m_PdfBrowserIsDefault )    //  Run the preferred PDF Browser
     {
         AddDelimiterString( filename );
         command = wxGetApp().m_PdfBrowser + wxT( " " ) + filename;
@@ -723,7 +591,8 @@ bool OpenPDF( const wxString& file )
         delete filetype;
 #ifndef __WINDOWS__
 
-        // Bug ? under linux wxWidgets returns acroread as PDF viewer,even it not exists
+        // Bug ? under linux wxWidgets returns acroread as PDF viewer, even
+        // it does not exist.
         if( command.StartsWith( wxT( "acroread" ) ) ) // Workaround
             success = false;
 #endif
@@ -790,9 +659,7 @@ bool OpenPDF( const wxString& file )
 }
 
 
-/*************************************/
 void OpenFile( const wxString& file )
-/*************************************/
 {
     wxString    command;
     wxString    filename = file;
@@ -801,7 +668,8 @@ void OpenFile( const wxString& file )
     wxString    ext, type;
 
     ext = CurrentFileName.GetExt();
-    wxFileType* filetype = wxTheMimeTypesManager->GetFileTypeFromExtension( ext );
+    wxFileType* filetype =
+        wxTheMimeTypesManager->GetFileTypeFromExtension( ext );
 
     bool        success = false;
 
@@ -812,4 +680,10 @@ void OpenFile( const wxString& file )
 
     if( success && !command.IsEmpty() )
         ProcessExecute( command );
+}
+
+
+wxString QuoteFullPath( wxFileName& fn, wxPathFormat format )
+{
+    return wxT( "\"" ) + fn.GetFullPath() + wxT( "\"" );
 }

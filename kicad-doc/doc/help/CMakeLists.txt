@@ -28,25 +28,20 @@ install(DIRECTORY fr
 #         PATTERN ".svn" EXCLUDE
 #         PATTERN "docs_src" EXCLUDE)
 
-# install(DIRECTORY pt
-#         DESTINATION ${KICAD_HELP}
-#         COMPONENT help-pt
-#         PATTERN ".svn" EXCLUDE
-#         PATTERN "docs_src" EXCLUDE)
+install(DIRECTORY pt
+        DESTINATION ${KICAD_HELP}
+        COMPONENT help-pt
+        PATTERN ".svn" EXCLUDE
+        PATTERN "docs_src" EXCLUDE)
 
-# install(DIRECTORY ru
-#         DESTINATION ${KICAD_HELP}
-#         COMPONENT help-ru
-#         PATTERN ".svn" EXCLUDE
-#         PATTERN "docs_src" EXCLUDE)
+install(DIRECTORY ru
+        DESTINATION ${KICAD_HELP}
+        COMPONENT help-ru
+        PATTERN ".svn" EXCLUDE
+        PATTERN "docs_src" EXCLUDE)
 
 install(DIRECTORY file_formats
         DESTINATION ${KICAD_HELP}
         COMPONENT file_formats
         PATTERN ".svn" EXCLUDE
         PATTERN "docs_src" EXCLUDE)
-
-install(DIRECTORY footprints_doc
-        DESTINATION ${KICAD_HELP}
-        COMPONENT footprints_doc
-        PATTERN ".svn" EXCLUDE)

@@ -5,10 +5,6 @@
 #ifndef CLASS_SCREEN_H
 #define CLASS_SCREEN_H
 
-#ifndef eda_global
- #define eda_global extern
-#endif
-
 #include "macros.h"
 #include "base_struct.h"
 #include "class_base_screen.h"
@@ -37,7 +33,10 @@ public:
      * sets the currently selected object, m_CurrentItem.
      * @param current Any object derived from SCH_ITEM
      */
-    void SetCurItem( SCH_ITEM* aItem ) { BASE_SCREEN::SetCurItem( aItem ); }
+    void SetCurItem( SCH_ITEM* aItem )
+    {
+        BASE_SCREEN::SetCurItem( (BASE_SCREEN*) aItem );
+    }
 
 
     virtual wxString GetClass() const
@@ -52,15 +51,25 @@ public:
     void         RemoveFromDrawList( SCH_ITEM* DrawStruct );    /* remove DrawStruct from EEDrawList. */
     bool         CheckIfOnDrawList( SCH_ITEM* st );
     void         AddToDrawList( SCH_ITEM* DrawStruct );
-    void         ClearUndoORRedoList( EDA_BaseStruct* List );
 
     bool         SchematicCleanUp( wxDC* DC = NULL );
     SCH_ITEM*    ExtractWires( bool CreateCopy );
 
     /* full undo redo management : */
-    virtual void ClearUndoRedoList();
-    virtual void AddItemToUndoList( EDA_BaseStruct* item );
-    virtual void AddItemToRedoList( EDA_BaseStruct* item );
+    // use BASE_SCREEN::PushCommandToUndoList( PICKED_ITEMS_LIST* aItem )
+    // use BASE_SCREEN::PushCommandToRedoList( PICKED_ITEMS_LIST* aItem )
+
+    /** Function ClearUndoORRedoList
+     * free the undo or redo list from List element
+     *  Wrappers are deleted.
+     *  datas pointed by wrappers are deleted if not in use in schematic
+     *  i.e. when they are copy of a schematic item or they are no more in use (DELETED)
+     * @param aList = the UNDO_REDO_CONTAINER to clear
+     * @param aItemCount = the count of items to remove. < 0 for all items
+     * items are removed from the beginning of the list.
+     * So this function can be called to remove old commands
+     */
+    virtual void         ClearUndoORRedoList( UNDO_REDO_CONTAINER& aList, int aItemCount = -1 );
 
     /**
      * Function Save
@@ -78,6 +87,7 @@ public:
 
 // screens are unique, and correspond to .sch files.
 WX_DEFINE_ARRAY( SCH_SCREEN *, ScreenGrowArray );
+
 class EDA_ScreenList
 {
 private:

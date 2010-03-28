@@ -19,8 +19,8 @@ set(BITMAP_SRCS
     Add_Circle.xpm
     Add_Component.xpm
     Add_Corner.xpm
-    add_cotation.xpm
     Add_Dashed_Line.xpm
+    add_dimension.xpm
     Add_Entry.xpm
     Add_GLabel.xpm
     add_hierarchical_label.xpm
@@ -59,11 +59,13 @@ set(BITMAP_SRCS
     Browse_Files.xpm
     cancel_tool.xpm
     Cancel.xpm
+    checked_ok.xpm
     component_select_unit.xpm
     component_select_alternate_shape.xpm
     config.xpm
     CopyBlock.xpm
     copy.xpm
+    copper_layers_setup.cpp
     Cursor_Shape.xpm
     cursor.xpm
     cut.xpm
@@ -125,6 +127,7 @@ set(BITMAP_SRCS
     Export_Module.xpm
     Export_Options_Pad.xpm
     export.xpm
+    fabrication.xpm
     File_FootPrint.xpm
     fill_zone.xpm
     find_xpm.xpm
@@ -145,6 +148,7 @@ set(BITMAP_SRCS
     Hidden_Pin.xpm
     Hierarchy_cursor.xpm
     Hierarchy_Nav.xpm
+    hotkeys.xpm
     icon_3d.xpm
     icon_cvpcb_small.xpm
     icon_cvpcb.xpm
@@ -154,8 +158,6 @@ set(BITMAP_SRCS
     icon_kicad.xpm
     icon_modedit.xpm
     icon_pcbnew.xpm
-    icon_python_small.xpm
-    icon_python.xpm
     icon_txt.xpm
     import3d.xpm
     import_hierarchical_label.xpm
@@ -164,6 +166,7 @@ set(BITMAP_SRCS
     Info.xpm
     Insert_Module_Board.xpm
     Invert_Module.xpm
+    invisible_text.xpm
     jigsaw.xpm
     kicad_icon_small.xpm
     Label2GLabel.xpm
@@ -177,6 +180,7 @@ set(BITMAP_SRCS
     Lang_En.xpm
     Lang_Es.xpm
     Lang_Fr.xpm
+    Lang_Fi.xpm
     Lang_Hu.xpm
     Lang_It.xpm
     Lang_Ko.xpm
@@ -186,6 +190,7 @@ set(BITMAP_SRCS
     Lang_Ru.xpm
     Lang_Sl.xpm
     Language.xpm
+    layers_manager.xpm
     Leave_Sheet.xpm
     left.xpm
     libedit_icon.xpm
@@ -242,7 +247,6 @@ set(BITMAP_SRCS
     mw_Add_Stub.xpm
     mw_toolbar.xpm
     Net_HighLight.xpm
-    net_hightlight.xpm
     netlist.xpm
     Net_Locked.xpm
     Net_UnLocked.xpm
@@ -253,7 +257,6 @@ set(BITMAP_SRCS
     New_Module.xpm
     new_pcb.xpm
     New_Project.xpm
-    new_python.xpm
     new_sch.xpm
     new_txt.xpm
     new.xpm
@@ -282,6 +285,7 @@ set(BITMAP_SRCS
     Orient.xpm
     Pad_Sketch.xpm
     pad.xpm
+    pads_mask_layers.xpm
     palette.xpm
     part_properties.xpm
     paste.xpm
@@ -291,6 +295,28 @@ set(BITMAP_SRCS
     Pin_Name_to.xpm
     Pin_Number_to.xpm
     Pin_Size_to.xpm
+    pinorient_right.xpm
+    pinorient_left.xpm
+    pinorient_up.xpm
+    pinorient_down.xpm
+    pinshape_normal.xpm
+    pinshape_invert.xpm
+    pinshape_clock_normal.xpm
+    pinshape_clock_invert.xpm
+    pinshape_active_low_input.xpm
+    pinshape_clock_active_low.xpm
+    pinshape_active_low_output.xpm
+    pintype_input.xpm
+    pintype_output.xpm
+    pintype_bidi.xpm
+    pintype_3states.xpm
+    pintype_passive.xpm
+    pintype_notspecif.xpm
+    pintype_powerinput.xpm
+    pintype_poweroutput.xpm
+    pintype_opencoll.xpm
+    pintype_openemit.xpm
+    pintype_noconnect.xpm
     Pin_to.xpm
     pin.xpm
     plot_HPG.xpm
@@ -361,6 +387,7 @@ set(BITMAP_SRCS
     unzip.xpm
     Update_Module_Board.xpm
     up.xpm
+    Via_Sketch.xpm
     viewlibs_icon.xpm
     Web_support.xpm
     Width_Net.xpm
@@ -393,7 +420,7 @@ set(PATH ${CMAKE_CURRENT_SOURCE_DIR})
 
 # The name of the directory to put the copied and renamed *.xpm files into.
 # As files are copied they are renamed to *.cpp.
-set(XPM_CPP_PATH "${PATH}/auto_renamed_to_cpp"
+set(XPM_CPP_PATH "${CMAKE_BINARY_DIR}/bitmaps/auto_renamed_to_cpp"
     CACHE PATH "path to store renamed .xpm files for compilation")
 
 foreach(LOOP_VAR ${BITMAP_SRCS})
@@ -401,7 +428,7 @@ foreach(LOOP_VAR ${BITMAP_SRCS})
     set(CPP_BITMAP "${XPM_CPP_PATH}/${BASENAME}.cpp")
     add_custom_command(
         OUTPUT ${CPP_BITMAP}
-        COMMAND cmake -E copy "${PATH}/${BASENAME}.xpm" "${CPP_BITMAP}"
+        COMMAND "$(CMAKE_COMMAND)" -E copy "${PATH}/${BASENAME}.xpm" "${CPP_BITMAP}"
         DEPENDS ${BASENAME}.xpm)
     list(APPEND CPP_BITMAPS ${CPP_BITMAP})
     set_source_files_properties(${CPP_BITMAP} PROPERTIES COMPILE_FLAGS -DXPMMAIN)

@@ -1,6 +1,6 @@
-/************************************************/
-/* class_pad.cpp : fonctions de la classe D_PAD */
-/************************************************/
+/***********************************************/
+/* class_pad.cpp : D_PAD class implementation. */
+/***********************************************/
 
 #include "fctsys.h"
 #include "common.h"
@@ -9,31 +9,40 @@
 
 #include "pcbnew.h"
 #include "trigo.h"
-#include "id.h"             // ID_TRACK_BUTT
+#include "pcbnew_id.h"             // ID_TRACK_BUTT
+#include "class_board_design_settings.h"
 
+int D_PAD::m_PadSketchModePenSize = 0;   // Pen size used to draw pads in sketch mode
 
-/*******************************/
-/* classe D_PAD : constructeur */
-/*******************************/
 
 D_PAD::D_PAD( MODULE* parent ) : BOARD_CONNECTED_ITEM( parent, TYPE_PAD )
 {
-    m_NumPadName   = 0;
-    m_Masque_Layer = CUIVRE_LAYER;
-    m_DrillShape   = PAD_CIRCLE;        // Drill shape = circle
+    m_NumPadName = 0;
 
-    m_Size.x = m_Size.y = 500;
+    m_Size.x = m_Size.y = 500;          // give it a reasonable size
+    m_Orient = 0;                       // Pad rotation in 1/10 degrees
 
     if( m_Parent && (m_Parent->Type()  == TYPE_MODULE) )
     {
         m_Pos = ( (MODULE*) m_Parent )->GetPosition();
     }
 
-    m_PadShape = PAD_CIRCLE;            // forme CERCLE, PAD_RECT PAD_OVAL PAD_TRAPEZOID ou libre
-    m_Attribut = PAD_STANDARD;          // NORMAL, PAD_SMD, PAD_CONN, Bit 7 = STACK
-    m_Orient   = 0;                     // en 1/10 degres
+    m_PadShape = PAD_CIRCLE;                        // Shape: PAD_CIRCLE,
+                                                    // PAD_RECT PAD_OVAL
+                                                    // PAD_TRAPEZOID
+    m_Attribut = PAD_STANDARD;                      // Type: NORMAL, PAD_SMD,
+                                                    // PAD_CONN
+    m_DrillShape     = PAD_CIRCLE;                  // Drill shape = circle
+    m_LocalClearance = 0;
+    m_LocalSolderMaskMargin  = 0;
+    m_LocalSolderPasteMargin = 0;
+    m_LocalSolderPasteMarginRatio = 0.0;
+    m_Masque_Layer = PAD_STANDARD_DEFAULT_LAYERS;   // set layers mask to
+                                                    // default for a standard
+                                                    // pad
 
-    SetSubRatsnest( 0 );
+    SetSubRatsnest( 0 );                            // used in ratsnest
+                                                    // calculations
     ComputeRayon();
 }
 
@@ -43,12 +52,9 @@ D_PAD::~D_PAD()
 }
 
 
-/****************************/
-void D_PAD::ComputeRayon()
-/****************************/
-
-/* met a jour m_Rayon, rayon du cercle exinscrit
+/* Calculate the radius of the pad.
  */
+void D_PAD::ComputeRayon()
 {
     switch( m_PadShape & 0x7F )
     {
@@ -63,7 +69,7 @@ void D_PAD::ComputeRayon()
     case PAD_RECT:
     case PAD_TRAPEZOID:
         m_Rayon = (int) ( sqrt( (double) m_Size.y * m_Size.y
-                + (double) m_Size.x * m_Size.x ) / 2 );
+                               + (double) m_Size.x * m_Size.x ) / 2 );
         break;
     }
 }
@@ -72,12 +78,13 @@ void D_PAD::ComputeRayon()
 /**
  * Function GetBoundingBox
  * returns the bounding box of this pad
- * Mainly used to redraw the screen area occuped by the pad
+ * Mainly used to redraw the screen area occupied by the pad
  */
 EDA_Rect D_PAD::GetBoundingBox()
 {
     // Calculate area:
-    ComputeRayon();     // calculate the radius of the area, considered as a circle
+    ComputeRayon();     // calculate the radius of the area, considered as a
+                        // circle
     EDA_Rect area;
     area.SetOrigin( m_Pos );
     area.Inflate( m_Rayon, m_Rayon );
@@ -86,11 +93,8 @@ EDA_Rect D_PAD::GetBoundingBox()
 }
 
 
-/*********************************************/
+// Returns the position of the pad.
 const wxPoint D_PAD::ReturnShapePos()
-/*********************************************/
-
-// retourne la position de la forme (pastilles excentrees)
 {
     if( m_Offset.x == 0 && m_Offset.y == 0 )
         return m_Pos;
@@ -110,12 +114,9 @@ const wxPoint D_PAD::ReturnShapePos()
 }
 
 
-/****************************************/
-wxString D_PAD::ReturnStringPadName()
-/****************************************/
-
 /* Return pad name as string in a wxString
  */
+wxString D_PAD::ReturnStringPadName()
 {
     wxString name;
 
@@ -124,12 +125,9 @@ wxString D_PAD::ReturnStringPadName()
 }
 
 
-/********************************************/
-void D_PAD::ReturnStringPadName( wxString& text )
-/********************************************/
-
 /* Return pad name as string in a buffer
  */
+void D_PAD::ReturnStringPadName( wxString& text )
 {
     int ii;
 
@@ -143,11 +141,8 @@ void D_PAD::ReturnStringPadName( wxString& text )
 }
 
 
-/********************************************/
-void D_PAD::SetPadName( const wxString& name )
-/********************************************/
-
 // Change pad name
+void D_PAD::SetPadName( const wxString& name )
 {
     int ii, len;
 
@@ -161,22 +156,19 @@ void D_PAD::SetPadName( const wxString& name )
         m_Padname[ii] = 0;
 }
 
-/**************************************************/
-void D_PAD::SetNetname( const wxString & aNetname )
-/**************************************************/
+
 /**
  * Function SetNetname
  * @param const wxString : the new netname
  */
+void D_PAD::SetNetname( const wxString& aNetname )
 {
     m_Netname = aNetname;
     m_ShortNetname = m_Netname.AfterLast( '/' );
 }
 
 
-/********************************/
 void D_PAD::Copy( D_PAD* source )
-/********************************/
 {
     if( source == NULL )
         return;
@@ -184,19 +176,22 @@ void D_PAD::Copy( D_PAD* source )
     m_Pos = source->m_Pos;
     m_Masque_Layer = source->m_Masque_Layer;
 
-    memcpy( m_Padname, source->m_Padname, sizeof(m_Padname) );  /* nom de la pastille */
-    SetNet( source->GetNet() );                                 /* Numero de net pour comparaisons rapides */
-    m_Drill = source->m_Drill;                                  // Diametre de percage
+    memcpy( m_Padname, source->m_Padname, sizeof(m_Padname) );
+    SetNet( source->GetNet() );
+    m_Drill = source->m_Drill;
     m_DrillShape = source->m_DrillShape;
-    m_Offset     = source->m_Offset;                            // Offset de la forme
-    m_Size = source->m_Size;                                    // Dimension ( pour orient 0 )
-    m_DeltaSize = source->m_DeltaSize;                          // delta sur formes rectangle -> trapezes
-    m_Pos0 = source->m_Pos0;                                    // Coord relatives a l'ancre du pad en
-    //  orientation 0
-    m_Rayon    = source->m_Rayon;                               // rayon du cercle exinscrit du pad
-    m_PadShape = source->m_PadShape;                            // forme CERCLE, PAD_RECT PAD_OVAL PAD_TRAPEZOID ou libre
-    m_Attribut = source->m_Attribut;                            // NORMAL, PAD_SMD, PAD_CONN, Bit 7 = STACK
-    m_Orient   = source->m_Orient;                              // en 1/10 degres
+    m_Offset     = source->m_Offset;
+    m_Size = source->m_Size;
+    m_DeltaSize = source->m_DeltaSize;
+    m_Pos0     = source->m_Pos0;
+    m_Rayon    = source->m_Rayon;
+    m_PadShape = source->m_PadShape;
+    m_Attribut = source->m_Attribut;
+    m_Orient   = source->m_Orient;
+    m_LocalClearance = source->m_LocalClearance;
+    m_LocalSolderMaskMargin  = source->m_LocalSolderMaskMargin;
+    m_LocalSolderPasteMargin = source->m_LocalSolderPasteMargin;
+    m_LocalSolderPasteMarginRatio = source->m_LocalSolderPasteMarginRatio;
 
     SetSubRatsnest( 0 );
     SetSubNet( 0 );
@@ -205,21 +200,139 @@ void D_PAD::Copy( D_PAD* source )
 }
 
 
-/*************************************************/
-int D_PAD::ReadDescr( FILE* File, int* LineNum )
-/*************************************************/
-
-/* Routine de lecture de descr de pads
- *  la 1ere ligne de descr ($PAD) est supposee etre deja lue
- *  syntaxe:
- *  $PAD
- *  Sh "N1" C 550 550 0 0 1800
- *  Dr 310 0 0
- *  At STD N 00C0FFFF
- *  Ne 3 "netname"
- *  Po 6000 -6000
- *  $EndPAD
+/** Virtual function GetClearance
+ * returns the clearance in 1/10000 inches.  If \a aItem is not NULL then the
+ * returned clearance is the greater of this object's NETCLASS clearance and
+ * aItem's NETCLASS clearance.  If \a aItem is NULL, then this objects
+ * clearance
+ * is returned.
+ * @param aItem is another BOARD_CONNECTED_ITEM or NULL
+ * @return int - the clearance in 1/10000 inches.
  */
+int D_PAD::GetClearance( BOARD_CONNECTED_ITEM* aItem ) const
+{
+    int clearance = m_LocalClearance;
+
+    if( clearance == 0 )
+    {
+        if( GetParent() && ( (MODULE*) GetParent() )->m_LocalClearance )
+            clearance = ( (MODULE*) GetParent() )->m_LocalClearance;
+    }
+
+    if( clearance == 0 )
+        return BOARD_CONNECTED_ITEM::GetClearance( aItem );
+
+    if( aItem )
+    {
+        NETCLASS* hisclass = aItem->GetNetClass();
+        if( hisclass )
+        {
+            int hisClearance = hisclass->GetClearance();
+            return max( hisClearance, clearance );
+        }
+    }
+
+    return clearance;
+}
+
+
+// Mask margins handling:
+
+/** Function GetSolderMaskMargin
+ * @return the margin for the solder mask layer
+ * usually > 0 (mask shape bigger than pad
+ * value is
+ * 1 - the local value
+ * 2 - if null, the parent footprint value
+ * 1 - if null, the global value
+ */
+int D_PAD::GetSolderMaskMargin()
+{
+    int margin = m_LocalSolderMaskMargin;
+    MODULE * module = (MODULE*) GetParent();
+    if( module )
+    {
+        if( margin == 0 )
+        {
+            if( module->m_LocalSolderMaskMargin )
+                margin = module->m_LocalSolderMaskMargin;
+        }
+        if( margin == 0 )
+        {
+            BOARD * brd = GetBoard();
+            margin = brd->GetBoardDesignSettings()->m_SolderMaskMargin;
+        }
+    }
+
+    // ensure mask have a size always >= 0
+    if( margin < 0 )
+    {
+        int minsize = -MIN( m_Size.x, m_Size.y ) / 2;
+        if( margin < minsize )
+            minsize = minsize;
+    }
+    return margin;
+}
+
+
+/** Function GetSolderPasteMargin
+ * @return the margin for the solder mask layer
+ * usually < 0 (mask shape smaller than pad
+ * value is
+ * 1 - the local value
+ * 2 - if null, the parent footprint value
+ * 1 - if null, the global value
+ */
+wxSize D_PAD::GetSolderPasteMargin()
+{
+    int margin = m_LocalSolderPasteMargin;
+    double mratio = m_LocalSolderPasteMarginRatio;
+    MODULE * module = (MODULE*) GetParent();
+
+    if( module )
+    {
+        if( margin == 0  )
+            margin = module->m_LocalSolderPasteMargin;
+
+        BOARD * brd = GetBoard();
+        if( margin == 0  )
+            margin = brd->GetBoardDesignSettings()->m_SolderPasteMargin;
+
+        if( mratio == 0.0 )
+            mratio = module->m_LocalSolderPasteMarginRatio;
+        if( mratio == 0.0 )
+        {
+           mratio = brd->GetBoardDesignSettings()->m_SolderPasteMarginRatio;
+        }
+    }
+
+    wxSize pad_margin;
+    pad_margin.x = margin + wxRound( m_Size.x * mratio );
+    pad_margin.y = margin + wxRound( m_Size.y * mratio );
+
+    // ensure mask have a size always >= 0
+    if( pad_margin.x < -m_Size.x / 2 )
+        pad_margin.x = -m_Size.x / 2;
+
+    if( pad_margin.y < -m_Size.y / 2 )
+        pad_margin.y = -m_Size.y / 2;
+
+    return pad_margin;
+}
+
+
+/* Read pad from file.
+ * The 1st line of descr ($PAD) is assumed to be already read
+ * Syntax:
+ * $PAD
+ * Sh "N1" C 550 550 0 0 1800
+ * Dr 310 0 0
+ * At STD N 00C0FFFF
+ * Do 3 "netname"
+ * Po 6000 -6000
+ * $EndPAD
+ */
+int D_PAD::ReadDescr( FILE* File, int* LineNum )
 {
     char  Line[1024], BufLine[1024], BufCar[256];
     char* PtLine;
@@ -232,11 +345,12 @@ int D_PAD::ReadDescr( FILE* File, int* LineNum )
 
         PtLine = Line + 3;
 
-        /* Pointe 1er code utile de la ligne */
+        /* Decode the first code and read the corresponding data
+         */
         switch( Line[0] )
         {
-        case 'S':           /* Ligne de description de forme et dims*/
-            /* Lecture du nom pad */
+        case 'S': // = Sh
+            /* Read pad name */
             nn = 0;
             while( (*PtLine != '"') && *PtLine )
                 PtLine++;
@@ -261,13 +375,13 @@ int D_PAD::ReadDescr( FILE* File, int* LineNum )
                 PtLine++;
 
             nn = sscanf( PtLine, " %s %d %d %d %d %d",
-                BufCar, &m_Size.x, &m_Size.y,
-                &m_DeltaSize.x, &m_DeltaSize.y,
-                &m_Orient );
+                         BufCar, &m_Size.x, &m_Size.y,
+                         &m_DeltaSize.x, &m_DeltaSize.y,
+                         &m_Orient );
 
             ll = 0xFF & BufCar[0];
 
-            /* Mise a jour de la forme */
+            /* Read pad shape */
             m_PadShape = PAD_CIRCLE;
 
             switch( ll )
@@ -291,7 +405,7 @@ int D_PAD::ReadDescr( FILE* File, int* LineNum )
         case 'D':
             BufCar[0] = 0;
             nn = sscanf( PtLine, "%d %d %d %s %d %d", &m_Drill.x,
-                &m_Offset.x, &m_Offset.y, BufCar, &dx, &dy );
+                         &m_Offset.x, &m_Offset.y, BufCar, &dx, &dy );
             m_Drill.y    = m_Drill.x;
             m_DrillShape = PAD_CIRCLE;
 
@@ -307,11 +421,10 @@ int D_PAD::ReadDescr( FILE* File, int* LineNum )
 
         case 'A':
             nn = sscanf( PtLine, "%s %s %X", BufLine, BufCar,
-                &m_Masque_Layer );
+                         &m_Masque_Layer );
 
-            /* Contenu de BufCar non encore utilise ( reserve pour evolutions
-             *  ulterieures */
-            /* Mise a jour de l'attribut */
+            /* BufCar is not used now */
+            /* update attributes */
             m_Attribut = PAD_STANDARD;
             if( strncmp( BufLine, "SMD", 3 ) == 0 )
                 m_Attribut = PAD_SMD;
@@ -321,19 +434,30 @@ int D_PAD::ReadDescr( FILE* File, int* LineNum )
                 m_Attribut = PAD_HOLE_NOT_PLATED;
             break;
 
-        case 'N':       /* Lecture du netname */
+        case 'N':       /* Read Netname */
             int netcode;
             nn = sscanf( PtLine, "%d", &netcode );
             SetNet( netcode );
 
-            /* Lecture du netname */
+            /* read Netname */
             ReadDelimitedText( BufLine, PtLine, sizeof(BufLine) );
-            SetNetname(CONV_FROM_UTF8( StrPurge( BufLine ) ));
+            SetNetname( CONV_FROM_UTF8( StrPurge( BufLine ) ) );
             break;
 
         case 'P':
             nn    = sscanf( PtLine, "%d %d", &m_Pos0.x, &m_Pos0.y );
             m_Pos = m_Pos0;
+            break;
+
+        case '.':    /* Read specific data */
+            if( strnicmp( Line, ".SolderMask ", 12 ) == 0 )
+                m_LocalSolderMaskMargin = atoi( Line + 12 );
+            else if( strnicmp( Line, ".SolderPaste ", 13 )  == 0 )
+                m_LocalSolderPasteMargin = atoi( Line + 13 );
+            else if( strnicmp( Line, ".SolderPasteRatio ", 18 ) == 0 )
+                m_LocalSolderPasteMarginRatio = atoi( Line + 18 );
+            else if( strnicmp( Line, ".LocalClearance ", 16 ) == 0 )
+                m_LocalClearance = atoi( Line + 16 );
             break;
 
         default:
@@ -346,21 +470,14 @@ int D_PAD::ReadDescr( FILE* File, int* LineNum )
 }
 
 
-/*************************************/
 bool D_PAD::Save( FILE* aFile ) const
-/*************************************/
 {
     int         cshape;
     const char* texttype;
 
-    if( GetState( DELETED ) )
-        return true;
-
-    bool rc = false;
-
     // check the return values for first and last fprints() in this function
     if( fprintf( aFile, "$PAD\n" ) != sizeof("$PAD\n") - 1 )
-        goto out;
+        return false;
 
     switch( m_PadShape )
     {
@@ -378,13 +495,13 @@ bool D_PAD::Save( FILE* aFile ) const
 
     default:
         cshape = 'C';
-        DisplayError( NULL, _( "Unknown Pad shape" ) );
+        DisplayError( NULL, _( "Unknown pad shape" ) );
         break;
     }
 
     fprintf( aFile, "Sh \"%.4s\" %c %d %d %d %d %d\n",
-        m_Padname, cshape, m_Size.x, m_Size.y,
-        m_DeltaSize.x, m_DeltaSize.y, m_Orient );
+             m_Padname, cshape, m_Size.x, m_Size.y,
+             m_DeltaSize.x, m_DeltaSize.y, m_Orient );
 
     fprintf( aFile, "Dr %d %d %d", m_Drill.x, m_Offset.x, m_Offset.y );
     if( m_DrillShape == PAD_OVAL )
@@ -419,163 +536,181 @@ bool D_PAD::Save( FILE* aFile ) const
 
     fprintf( aFile, "Po %d %d\n", m_Pos0.x, m_Pos0.y );
 
+    if( m_LocalSolderMaskMargin != 0 )
+        fprintf( aFile, ".SolderMask %d\n", m_LocalSolderMaskMargin );
+    if( m_LocalSolderPasteMargin != 0 )
+        fprintf( aFile, ".SolderPaste %d\n", m_LocalSolderPasteMargin );
+    if( m_LocalSolderPasteMarginRatio != 0 )
+        fprintf( aFile,
+                 ".SolderPasteRatio %g\n",
+                 m_LocalSolderPasteMarginRatio );
+    if( m_LocalClearance != 0 )
+        fprintf( aFile, ".LocalClearance %d\n", m_LocalClearance );
+
     if( fprintf( aFile, "$EndPAD\n" ) != sizeof("$EndPAD\n") - 1 )
-        goto out;
+        return false;
 
-    rc = true;
-
-out:
-    return rc;
+    return true;
 }
 
 
-/******************************************************/
-void D_PAD::Display_Infos( WinEDA_DrawFrame* frame )
-/******************************************************/
-/* Affiche en bas d'ecran les caract de la pastille demandee */
+void D_PAD::DisplayInfo( WinEDA_DrawFrame* frame )
 {
-    int      ii;
-    MODULE*  module;
-    wxString Line;
-    int      pos = 1;
+    MODULE*     module;
+    wxString    Line;
+    BOARD*      board;
 
     /* Pad messages */
     static const wxString Msg_Pad_Shape[6] =
-    { wxT( "??? " ), wxT( "Circ" ), wxT( "Rect" ), wxT( "Oval" ), wxT( "trap" ), wxT( "spec" ) };
-
-    static const wxString Msg_Pad_Layer[9] =
     {
-        wxT( "??? " ),     wxT( "cmp   " ),  wxT( "cu    " ),  wxT( "cmp+cu " ), wxT(
-            "int    " ),
-        wxT( "cmp+int " ), wxT( "cu+int " ), wxT( "all    " ), wxT( "No copp" )
+        wxT( "??? " ), wxT( "Circ" ), wxT( "Rect" ), wxT( "Oval" ), wxT( "trap" ),
+        wxT( "spec" )
     };
 
     static const wxString Msg_Pad_Attribut[5] =
     { wxT( "norm" ), wxT( "smd " ), wxT( "conn" ), wxT( "????" ) };
 
 
-    frame->MsgPanel->EraseMsgBox();
+    frame->EraseMsgBox();
 
-    /* Recherche du module correspondant */
     module = (MODULE*) m_Parent;
     if( module )
     {
         wxString msg = module->GetReference();
-        Affiche_1_Parametre( frame, pos, _( "Module" ), msg, DARKCYAN );
+        frame->AppendMsgPanel( _( "Module" ), msg, DARKCYAN );
         ReturnStringPadName( Line );
-        pos += 8;
-        Affiche_1_Parametre( frame, pos, _( "RefP" ), Line, BROWN );
+        frame->AppendMsgPanel( _( "RefP" ), Line, BROWN );
     }
-    pos += 4;
-    Affiche_1_Parametre( frame, pos, _( "Net" ), m_Netname, DARKCYAN );
 
-    /* For test and debug only: display m_physical_connexion and m_logical_connexion */
-    pos += 10;
+    frame->AppendMsgPanel( _( "Net" ), m_Netname, DARKCYAN );
+
+    /* For test and debug only: display m_physical_connexion and
+     * m_logical_connexion */
 #if 1   // Used only to debug connectivity calculations
-    Line.Printf( wxT( "%d-%d-%d " ), GetSubRatsnest(), GetSubNet(), m_ZoneSubnet );
-    Affiche_1_Parametre( frame, pos, wxT( "L-P-Z" ), Line, DARKGREEN );
+    Line.Printf( wxT( "%d-%d-%d " ), GetSubRatsnest(),
+                 GetSubNet(), m_ZoneSubnet );
+    frame->AppendMsgPanel( wxT( "L-P-Z" ), Line, DARKGREEN );
 #endif
 
-    wxString LayerInfo;
+    board = GetBoard();
 
-    ii = 0;
-    if( m_Masque_Layer & CUIVRE_LAYER )
-        ii = 2;
-    if( m_Masque_Layer & CMP_LAYER )
-        ii += 1;
-    if( (m_Masque_Layer & ALL_CU_LAYERS) == ALL_CU_LAYERS )
-        ii = 7;
+    wxString layerInfo;
 
-    LayerInfo = Msg_Pad_Layer[ii];
-    if( (m_Masque_Layer & ALL_CU_LAYERS) == 0 )
+    if( (m_Masque_Layer & ALL_CU_LAYERS) == 0 )     // pad is not on any copper layers
     {
-        if( m_Masque_Layer )
-            LayerInfo = Msg_Pad_Layer[8];
-
         switch( m_Masque_Layer & ~ALL_CU_LAYERS )
         {
-        case ADHESIVE_LAYER_CU:
-            LayerInfo = ReturnPcbLayerName( ADHESIVE_N_CU );
+        case ADHESIVE_LAYER_BACK:
+            layerInfo = board->GetLayerName( ADHESIVE_N_BACK );
             break;
 
-        case ADHESIVE_LAYER_CMP:
-            LayerInfo = ReturnPcbLayerName( ADHESIVE_N_CMP );
+        case ADHESIVE_LAYER_FRONT:
+            layerInfo = board->GetLayerName( ADHESIVE_N_FRONT );
             break;
 
-        case SOLDERPASTE_LAYER_CU:
-            LayerInfo = ReturnPcbLayerName( SOLDERPASTE_N_CU );
+        case SOLDERPASTE_LAYER_BACK:
+            layerInfo = board->GetLayerName( SOLDERPASTE_N_BACK );
             break;
 
-        case SOLDERPASTE_LAYER_CMP:
-            LayerInfo = ReturnPcbLayerName( SOLDERPASTE_N_CMP );
+        case SOLDERPASTE_LAYER_FRONT:
+            layerInfo = board->GetLayerName( SOLDERPASTE_N_FRONT );
             break;
 
-        case SILKSCREEN_LAYER_CU:
-            LayerInfo = ReturnPcbLayerName( SILKSCREEN_N_CU );
+        case SILKSCREEN_LAYER_BACK:
+            layerInfo = board->GetLayerName( SILKSCREEN_N_BACK );
             break;
 
-        case SILKSCREEN_LAYER_CMP:
-            LayerInfo = ReturnPcbLayerName( SILKSCREEN_N_CMP );
+        case SILKSCREEN_LAYER_FRONT:
+            layerInfo = board->GetLayerName( SILKSCREEN_N_FRONT );
             break;
 
-        case SOLDERMASK_LAYER_CU:
-            LayerInfo = ReturnPcbLayerName( SOLDERMASK_N_CU );
+        case SOLDERMASK_LAYER_BACK:
+            layerInfo = board->GetLayerName( SOLDERMASK_N_BACK );
             break;
 
-        case SOLDERMASK_LAYER_CMP:
-            LayerInfo = ReturnPcbLayerName( SOLDERMASK_N_CMP );
+        case SOLDERMASK_LAYER_FRONT:
+            layerInfo = board->GetLayerName( SOLDERMASK_N_FRONT );
             break;
 
         case DRAW_LAYER:
-            LayerInfo = ReturnPcbLayerName( DRAW_N );
+            layerInfo = board->GetLayerName( DRAW_N );
             break;
 
         case COMMENT_LAYER:
-            LayerInfo = ReturnPcbLayerName( COMMENT_N );
+            layerInfo = board->GetLayerName( COMMENT_N );
             break;
 
         case ECO1_LAYER:
-            LayerInfo = ReturnPcbLayerName( ECO1_N );
+            layerInfo = board->GetLayerName( ECO1_N );
             break;
 
         case ECO2_LAYER:
-            LayerInfo = ReturnPcbLayerName( ECO2_N );
+            layerInfo = board->GetLayerName( ECO2_N );
             break;
 
         case EDGE_LAYER:
-            LayerInfo = ReturnPcbLayerName( EDGE_N );
+            layerInfo = board->GetLayerName( EDGE_N );
             break;
 
         default:
+            layerInfo = _( "Non-copper" );
             break;
         }
     }
-    pos += 3;
-    Affiche_1_Parametre( frame, pos, _( "Layer" ), LayerInfo, DARKGREEN );
+    else
+    {
+#define INTERIOR_COPPER     (ALL_CU_LAYERS & ~(LAYER_BACK | LAYER_FRONT))
 
-    pos += 6;
+        static const wxChar* andInternal = _( " & int" );
+
+        if( (m_Masque_Layer & (LAYER_BACK | LAYER_FRONT)) == LAYER_BACK )
+        {
+            layerInfo = board->GetLayerName( LAYER_N_BACK );
+
+            if( m_Masque_Layer & INTERIOR_COPPER )
+                layerInfo += andInternal;
+        }
+
+        else if( (m_Masque_Layer & (LAYER_BACK | LAYER_FRONT)) == (LAYER_BACK | LAYER_FRONT) )
+        {
+            layerInfo = board->GetLayerName( LAYER_N_BACK ) + wxT(", ") +
+                        board->GetLayerName( LAYER_N_FRONT );
+
+            if( m_Masque_Layer & INTERIOR_COPPER )
+                layerInfo += andInternal;
+        }
+
+        else if( (m_Masque_Layer & (LAYER_BACK | LAYER_FRONT)) == LAYER_FRONT )
+        {
+            layerInfo = board->GetLayerName( LAYER_N_FRONT );
+
+            if( m_Masque_Layer & INTERIOR_COPPER )
+                layerInfo += andInternal;
+        }
+
+        else // necessarily true: if( m_Masque_Layer & INTERIOR_COPPER )
+            layerInfo = _( "internal" );
+    }
+
+    frame->AppendMsgPanel( _( "Layer" ), layerInfo, DARKGREEN );
+
     int attribut = m_Attribut & 15;
     if( attribut > 3 )
         attribut = 3;
-    Affiche_1_Parametre( frame,
-        pos,
-        Msg_Pad_Shape[m_PadShape],
-        Msg_Pad_Attribut[attribut],
-        DARKGREEN );
+
+    frame->AppendMsgPanel( Msg_Pad_Shape[m_PadShape],
+                           Msg_Pad_Attribut[attribut], DARKGREEN );
 
     valeur_param( m_Size.x, Line );
-    pos += 6;
-    Affiche_1_Parametre( frame, pos, _( "H Size" ), Line, RED );
+    frame->AppendMsgPanel( _( "H Size" ), Line, RED );
 
     valeur_param( m_Size.y, Line );
-    pos += 7;
-    Affiche_1_Parametre( frame, pos, _( "V Size" ), Line, RED );
+    frame->AppendMsgPanel( _( "V Size" ), Line, RED );
 
-    pos += 7;
     valeur_param( (unsigned) m_Drill.x, Line );
     if( m_DrillShape == PAD_CIRCLE )
     {
-        Affiche_1_Parametre( frame, pos, _( "Drill" ), Line, RED );
+        frame->AppendMsgPanel( _( "Drill" ), Line, RED );
     }
     else
     {
@@ -583,26 +718,24 @@ void D_PAD::Display_Infos( WinEDA_DrawFrame* frame )
         wxString msg;
         valeur_param( (unsigned) m_Drill.y, msg );
         Line += wxT( " / " ) + msg;
-        Affiche_1_Parametre( frame, pos, _( "Drill X / Y" ), Line, RED );
+        frame->AppendMsgPanel( _( "Drill X / Y" ), Line, RED );
     }
-
 
     int module_orient = module ? module->m_Orient : 0;
     if( module_orient )
         Line.Printf( wxT( "%3.1f(+%3.1f)" ),
-            (float) ( m_Orient - module_orient ) / 10, (float) module_orient / 10 );
+                     (float) ( m_Orient - module_orient ) / 10,
+                     (float) module_orient / 10 );
     else
         Line.Printf( wxT( "%3.1f" ), (float) m_Orient / 10 );
-    pos += 8;
-    Affiche_1_Parametre( frame, pos, _( "Orient" ), Line, BLUE );
+
+    frame->AppendMsgPanel( _( "Orient" ), Line, BLUE );
 
     valeur_param( m_Pos.x, Line );
-    pos += 8;
-    Affiche_1_Parametre( frame, pos, _( "X Pos" ), Line, BLUE );
+    frame->AppendMsgPanel( _( "X Pos" ), Line, BLUE );
 
     valeur_param( m_Pos.y, Line );
-    pos += 6;
-    Affiche_1_Parametre( frame, pos, _( "Y pos" ), Line, BLUE );
+    frame->AppendMsgPanel( _( "Y pos" ), Line, BLUE );
 }
 
 
@@ -630,26 +763,22 @@ bool D_PAD::HitTest( const wxPoint& ref_pos )
     deltaX = ref_pos.x - shape_pos.x;
     deltaY = ref_pos.y - shape_pos.y;
 
-    /* Test rapide: le point a tester doit etre a l'interieur du cercle exinscrit ... */
-    if( (abs( deltaX ) > m_Rayon )
-       || (abs( deltaY ) > m_Rayon) )
+    /* Quick test: a test point must be inside the circle. */
+    if( ( abs( deltaX ) > m_Rayon ) || ( abs( deltaY ) > m_Rayon ) )
         return false;
 
-    /* calcul des demi dim  dx et dy */
     dx = m_Size.x >> 1; // dx also is the radius for rounded pads
     dy = m_Size.y >> 1;
 
-    /* localisation ? */
     switch( m_PadShape & 0x7F )
     {
     case PAD_CIRCLE:
         dist = hypot( deltaX, deltaY );
-        if( (int) ( round( dist ) ) <= dx )
+        if( wxRound( dist ) <= dx )
             return true;
         break;
 
     default:
-        /* calcul des coord du point test  dans le repere du Pad */
         RotatePoint( &deltaX, &deltaY, -m_Orient );
         if( (abs( deltaX ) <= dx ) && (abs( deltaY ) <= dy) )
             return true;
@@ -660,9 +789,7 @@ bool D_PAD::HitTest( const wxPoint& ref_pos )
 }
 
 
-/************************************************************/
 int D_PAD::Compare( const D_PAD* padref, const D_PAD* padcmp )
-/************************************************************/
 {
     int diff;
 
@@ -682,15 +809,16 @@ int D_PAD::Compare( const D_PAD* padref, const D_PAD* padcmp )
         return diff;
 
     // @todo check if export_gencad still works:
-    // specctra_export needs this, but maybe export_gencad does not.  added on Jan 24 2008 by Dick.
-    if( (diff = padref->m_Masque_Layer - padcmp->m_Masque_Layer) )
+    // specctra_export needs this, but maybe export_gencad does not.  added on
+    // Jan 24 2008 by Dick.
+    if( ( diff = padref->m_Masque_Layer - padcmp->m_Masque_Layer ) )
         return diff;
 
     return 0;
 }
 
 
-#if defined (DEBUG)
+#if defined(DEBUG)
 
 // @todo: could this be useable elsewhere also?
 static const char* ShowPadType( int aPadType )
@@ -746,7 +874,8 @@ static const char* ShowPadAttr( int aPadAttr )
  */
 void D_PAD::Show( int nestLevel, std::ostream& os )
 {
-    char padname[5] = { m_Padname[0], m_Padname[1], m_Padname[2], m_Padname[3], 0 };
+    char padname[5] =
+    { m_Padname[0], m_Padname[1], m_Padname[2], m_Padname[3], 0 };
 
     char layerMask[16];
 
@@ -763,7 +892,8 @@ void D_PAD::Show( int nestLevel, std::ostream& os )
 
 //    NestedSpace( nestLevel+1, os ) << m_Text.mb_str() << '\n';
 
-//    NestedSpace( nestLevel, os ) << "</" << GetClass().Lower().mb_str() << ">\n";
+//    NestedSpace( nestLevel, os ) << "</" << GetClass().Lower().mb_str()
+//    << ">\n";
 }
 
 

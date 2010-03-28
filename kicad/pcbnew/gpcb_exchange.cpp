@@ -219,8 +219,8 @@ bool MODULE::Read_GPCB_Descr( const wxString& CmpFullFileName )
         iprmcnt++;
     }
 
-    m_Reference->m_Pos.x  = (int) round( ibuf[2] * conv_unit );
-    m_Reference->m_Pos.y  = (int) round( ibuf[3] * conv_unit );;
+    m_Reference->m_Pos.x  = wxRound( ibuf[2] * conv_unit );
+    m_Reference->m_Pos.y  = wxRound( ibuf[3] * conv_unit );;
     m_Reference->m_Orient = ibuf[4] * 900;
 
     // Calculate size: default is 40 mils (400 pcb units)
@@ -247,7 +247,7 @@ bool MODULE::Read_GPCB_Descr( const wxString& CmpFullFileName )
         if( params[0].CmpNoCase( wxT( "ElementLine" ) ) == 0 )      // line descr
         {                                                           // Format: ElementLine [X1 Y1 X2 Y2 Thickness]
             DrawSegm = new EDGE_MODULE( this );
-            DrawSegm->SetLayer( SILKSCREEN_N_CMP );
+            DrawSegm->SetLayer( SILKSCREEN_N_FRONT );
             DrawSegm->m_Shape = S_SEGMENT;
 
             m_Drawings.PushBack( DrawSegm );
@@ -264,7 +264,7 @@ bool MODULE::Read_GPCB_Descr( const wxString& CmpFullFileName )
                 if( ii < (params.GetCount() - 2) )
                 {
                     if( params[ii + 2].ToLong( &dim ) )
-                        *list[ii] = (int) round( dim * conv_unit );
+                        *list[ii] = wxRound( dim * conv_unit );
                 }
             }
 
@@ -276,7 +276,7 @@ bool MODULE::Read_GPCB_Descr( const wxString& CmpFullFileName )
         {                                                           // format: ElementArc [X Y Width Height StartAngle DeltaAngle Thickness]
             // pcbnew does know ellipse so we must have Width = Height
             DrawSegm = new EDGE_MODULE( this );
-            DrawSegm->SetLayer( SILKSCREEN_N_CMP );
+            DrawSegm->SetLayer( SILKSCREEN_N_FRONT );
             DrawSegm->m_Shape = S_ARC;
 
             m_Drawings.PushBack( DrawSegm );
@@ -297,18 +297,18 @@ bool MODULE::Read_GPCB_Descr( const wxString& CmpFullFileName )
 
             int     rayon = (ibuf[2] + ibuf[3]) / 4; // for and arc: ibuf[3] = ibuf[4]. pcbnew does not know ellipses
             wxPoint centre;
-            centre.x = (int) round( ibuf[0] * conv_unit );
-            centre.y = (int) round( ibuf[1] * conv_unit );
+            centre.x = wxRound( ibuf[0] * conv_unit );
+            centre.y = wxRound( ibuf[1] * conv_unit );
             DrawSegm->m_Start0 = centre;
             int start_angle = ibuf[4] * 10;     // Pcbnew uses 0.1 degrees as units
             start_angle       -= 1800;          // Use normal X axis  as reference
             DrawSegm->m_Angle  = ibuf[5] * 10;  // Angle value is clockwise in gpcb and pcbnew
-            DrawSegm->m_End0.x = (int) round( rayon * conv_unit );
+            DrawSegm->m_End0.x = wxRound( rayon * conv_unit );
             DrawSegm->m_End0.y = 0;
             RotatePoint( &DrawSegm->m_End0, -start_angle );	// Calculate start point coordinate of arc
             DrawSegm->m_End0 += centre;
 
-            DrawSegm->m_Width = (int) round( ibuf[6] * conv_unit );
+            DrawSegm->m_Width = wxRound( ibuf[6] * conv_unit );
             DrawSegm->SetDrawCoord();
             continue;
         }
@@ -317,12 +317,12 @@ bool MODULE::Read_GPCB_Descr( const wxString& CmpFullFileName )
         {                                                   //	format: Pad [x1 y1 x2 y2 thickness clearance mask "name" "pad_number" flags]
             Pad = new D_PAD( this );
             Pad->m_PadShape     = PAD_RECT;
-            Pad->m_Masque_Layer = CMP_LAYER | SOLDERMASK_LAYER_CMP | SOLDERPASTE_LAYER_CMP;
+            Pad->m_Masque_Layer = LAYER_FRONT | SOLDERMASK_LAYER_FRONT | SOLDERPASTE_LAYER_FRONT;
 
             // Set shape from flags
             iflgidx = params.GetCount() - 2;
             if( TestFlags( params[iflgidx], 0x0080, wxT( "onsolder" ) ) )
-                Pad->m_Masque_Layer = CUIVRE_LAYER | SOLDERMASK_LAYER_CU | SOLDERPASTE_LAYER_CU;
+                Pad->m_Masque_Layer = LAYER_BACK | SOLDERMASK_LAYER_BACK | SOLDERPASTE_LAYER_BACK;
 
             for( unsigned ii = 0; ii < 5; ii++ )
             {
@@ -330,7 +330,7 @@ bool MODULE::Read_GPCB_Descr( const wxString& CmpFullFileName )
                 {
                     long dim;
                     if( params[ii + 2].ToLong( &dim ) )
-                        ibuf[ii] = (int) round( dim * conv_unit );
+                        ibuf[ii] = wxRound( dim * conv_unit );
                 }
                 else
                     ibuf[ii] = 0;
@@ -367,9 +367,9 @@ bool MODULE::Read_GPCB_Descr( const wxString& CmpFullFileName )
             Pad = new D_PAD( this );
             Pad->m_PadShape     = PAD_ROUND;
             Pad->m_Masque_Layer = ALL_CU_LAYERS |
-                                  SILKSCREEN_LAYER_CMP |
-                                  SOLDERMASK_LAYER_CMP |
-                                  SOLDERMASK_LAYER_CU;
+                                  SILKSCREEN_LAYER_FRONT |
+                                  SOLDERMASK_LAYER_FRONT |
+                                  SOLDERMASK_LAYER_BACK;
             iflgidx = params.GetCount() - 2;
 
             if( TestFlags( params[iflgidx], 0x0100, wxT( "square" ) ) )
@@ -381,7 +381,7 @@ bool MODULE::Read_GPCB_Descr( const wxString& CmpFullFileName )
                 {
                     long dim;
                     if( params[ii + 2].ToLong( &dim ) )
-                        ibuf[ii] = (int) round( dim * conv_unit );
+                        ibuf[ii] = wxRound( dim * conv_unit );
                 }
                 else
                     ibuf[ii] = 0;
@@ -440,7 +440,7 @@ static void Extract_Parameters( wxArrayString& param_list, char* text )
  * last parameter is ) or ]
  */
 {
-    int      key;
+    char      key;
     wxString tmp;
 
     while( *text != 0 )

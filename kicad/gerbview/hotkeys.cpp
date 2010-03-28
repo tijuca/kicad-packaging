@@ -3,15 +3,11 @@
 /***************/
 
 #include "fctsys.h"
-
-#include "gr_basic.h"
-
 #include "common.h"
-#include "pcbnew.h"
-#include "id.h"
 #include "hotkeys.h"
 
-#include "protos.h"
+#include "gerbview.h"
+#include "class_drawpanel.h"
 
 /* How to add a new hotkey:
  *  add a new id in the enum hotkey_id_commnand like MY_NEW_ID_FUNCTION.
@@ -34,6 +30,7 @@
 /* local variables */
 /* Hotkey list: */
 static Ki_HotkeyInfo    HkResetLocalCoord( wxT( "Reset local coord." ), HK_RESET_LOCAL_COORD, ' ' );
+static Ki_HotkeyInfo    HkZoomAuto( wxT( "Zoom Auto" ), HK_ZOOM_AUTO, WXK_HOME );
 static Ki_HotkeyInfo    HkZoomCenter( wxT( "Zoom Center" ), HK_ZOOM_CENTER, WXK_F4 );
 static Ki_HotkeyInfo    HkZoomRedraw( wxT( "Zoom Redraw" ), HK_ZOOM_REDRAW, WXK_F3 );
 static Ki_HotkeyInfo    HkZoomOut( wxT( "Zoom Out" ), HK_ZOOM_OUT, WXK_F2 );
@@ -55,7 +52,7 @@ static Ki_HotkeyInfo    HkSwitch2PreviousCopperLayer( wxT(
 Ki_HotkeyInfo* s_Gerbview_Hotkey_List[] = {
     &HkHelp,
     &HkZoomIn,                     &HkZoomOut,         &HkZoomRedraw, &HkZoomCenter,
-    &HkSwitchUnits,                &HkResetLocalCoord,
+    &HkZoomAuto,  &HkSwitchUnits,  &HkResetLocalCoord,
     &HkTrackDisplayMode,
     &HkSwitch2NextCopperLayer,
     &HkSwitch2PreviousCopperLayer,
@@ -87,9 +84,6 @@ void WinEDA_GerberFrame::OnHotKey( wxDC* DC, int hotkey,
     wxCommandEvent cmd( wxEVT_COMMAND_MENU_SELECTED );
     cmd.SetEventObject( this );
 
-    // Remap the control key Ctrl A (0x01) to GR_KB_CTRL + 'A' (easier to handle...)
-    if( (hotkey & GR_KB_CTRL) != 0 )
-        hotkey += 'A' - 1;
     /* Convert lower to upper case (the usual toupper function has problem with non ascii codes like function keys */
     if( (hotkey >= 'a') && (hotkey <= 'z') )
         hotkey += 'A' - 'a';
@@ -127,6 +121,11 @@ void WinEDA_GerberFrame::OnHotKey( wxDC* DC, int hotkey,
         GetEventHandler()->ProcessEvent( cmd );
         break;
 
+    case HK_ZOOM_AUTO:
+        cmd.SetId( ID_ZOOM_PAGE );
+        GetEventHandler()->ProcessEvent( cmd );
+        break;
+
     case HK_RESET_LOCAL_COORD:         /*Reset the relative coord  */
         GetScreen()->m_O_Curseur = GetScreen()->m_Curseur;
         break;
@@ -137,7 +136,7 @@ void WinEDA_GerberFrame::OnHotKey( wxDC* DC, int hotkey,
 
     case HK_SWITCH_TRACK_DISPLAY_MODE:
         DisplayOpt.DisplayPcbTrackFill ^= 1; DisplayOpt.DisplayPcbTrackFill &= 1;
-        GetScreen()->SetRefreshReq();
+        DrawPanel->Refresh();
         break;
 
     case HK_SWITCH_LAYER_TO_PREVIOUS:

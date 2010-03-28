@@ -3,10 +3,6 @@
  * @file basicframe.cpp
  */
 
-#ifdef __GNUG__
-#	pragma implementation
-#endif
-
 #include <wx/aboutdlg.h>
 #include <wx/fontdlg.h>
 
@@ -21,12 +17,11 @@
 #include "confirm.h"
 #include "eda_doc.h"
 #include "wxstruct.h"
-
+#include "macros.h"
 
 /*
  * Class constructor for WinEDA_BasicFrame general options
  */
-/**********************************************************/
 WinEDA_BasicFrame::WinEDA_BasicFrame( wxWindow* father,
                                       int idtype,
                                       const wxString& title,
@@ -34,61 +29,80 @@ WinEDA_BasicFrame::WinEDA_BasicFrame( wxWindow* father,
                                       const wxSize& size,
                                       long style ) :
     wxFrame( father, -1, title, pos, size, style )
-/**********************************************************/
 {
     wxSize minsize;
 
     m_Ident  = idtype;
-    SetFont( *g_StdFont );
     m_HToolBar       = NULL;
     m_FrameIsActive  = TRUE;
-    m_MsgFrameHeight = MSG_PANEL_DEFAULT_HEIGHT;
+
+    m_MsgFrameHeight = WinEDA_MsgPanel::GetRequiredHeight();
 
     minsize.x = 470;
     minsize.y = 350 + m_MsgFrameHeight;
+
     SetSizeHints( minsize.x, minsize.y, -1, -1, -1, -1 );
 
-    /* Verification des parametres de creation */
-    if( (size.x < minsize.x) || (size.y < minsize.y) )
+    if( ( size.x < minsize.x ) || ( size.y < minsize.y ) )
         SetSize( 0, 0, minsize.x, minsize.y );
 
     // Create child subwindows.
-    GetClientSize( &m_FrameSize.x, &m_FrameSize.y );  /* dimx, dimy = dimensions utiles de la
-                                                      * zone utilisateur de la fenetre principale */
+    GetClientSize( &m_FrameSize.x, &m_FrameSize.y ); /* dimensions of the user
+                                                      * area of the main
+                                                      * window */
     m_FramePos.x   = m_FramePos.y = 0;
     m_FrameSize.y -= m_MsgFrameHeight;
+
 }
 
 
-/*
- *
- */
-/******************************************/
 WinEDA_BasicFrame::~WinEDA_BasicFrame()
-/******************************************/
 {
     if( wxGetApp().m_HtmlCtrl )
         delete wxGetApp().m_HtmlCtrl;
     wxGetApp().m_HtmlCtrl = NULL;
+
+    /* This needed for OSX: avoids furter OnDraw processing after this
+     * destructor and before the native window is destroyed
+     */
+    this->Freeze( );
 }
 
 
 /*
  * Virtual function
  */
-/***********************************/
-void
-WinEDA_BasicFrame::ReCreateMenuBar()
-/***********************************/
+void WinEDA_BasicFrame::ReCreateMenuBar()
 {
 
 }
 
+/** Vitual function SetLanguage
+ * called on a language menu selection
+ * when using a derived function, do not forget to call this one
+ */
+void WinEDA_BasicFrame::SetLanguage( wxCommandEvent& event )
+{
+    int id = event.GetId();
 
-/*******************************/
-void
-WinEDA_BasicFrame::GetSettings()
-/*******************************/
+    wxGetApp().SetLanguageIdentifier( id );
+    if ( wxGetApp().SetLanguage() )
+    {
+        wxLogDebug( wxT( "Recreating menu bar due to language change." ) );
+        ReCreateMenuBar();
+        Refresh();
+    }
+}
+
+
+/**
+ * Load common frame parameters from configuration.
+ *
+ * The method is virtual so you can override it to load frame specific
+ * parameters.  Don't forget to call the base method or your frames won't
+ * remember their positions and sizes.
+ */
+void WinEDA_BasicFrame::LoadSettings()
 {
     wxString  text;
     int       Ypos_min;
@@ -109,10 +123,10 @@ WinEDA_BasicFrame::GetSettings()
     }
 
     // Ensure Window title bar is visible
-#ifdef __WXMAC__
-
+#if defined( __WXMAC__ )
     // for macOSX, the window must be below system (macOSX) toolbar
-    Ypos_min = GetMBarHeight();
+//    Ypos_min = GetMBarHeight(); seems no more exist in ne API (subject to change)
+    Ypos_min = 20;
 #else
     Ypos_min = 0;
 #endif
@@ -121,10 +135,14 @@ WinEDA_BasicFrame::GetSettings()
 }
 
 
-/********************************/
-void
-WinEDA_BasicFrame::SaveSettings()
-/********************************/
+/**
+ * Save common frame parameters from configuration.
+ *
+ * The method is virtual so you can override it to save frame specific
+ * parameters.  Don't forget to call the base method or your frames won't
+ * remember their positions and sizes.
+ */
+void WinEDA_BasicFrame::SaveSettings()
 {
     wxString text;
     wxConfig* config;
@@ -148,10 +166,7 @@ WinEDA_BasicFrame::SaveSettings()
 }
 
 
-/******************************************************/
-void
-WinEDA_BasicFrame::PrintMsg( const wxString& text )
-/******************************************************/
+void WinEDA_BasicFrame::PrintMsg( const wxString& text )
 {
     SetStatusText( text );
 }
@@ -160,11 +175,7 @@ WinEDA_BasicFrame::PrintMsg( const wxString& text )
 /*
  * Display a bargraph (0 to 50 point length) for a PerCent value from 0 to 100
  */
-/*************************************************************************/
-void
-WinEDA_BasicFrame::DisplayActivity( int PerCent,
-                                    const wxString& Text )
-/*************************************************************************/
+void WinEDA_BasicFrame::DisplayActivity( int PerCent, const wxString& Text )
 {
     wxString Line;
 
@@ -181,12 +192,9 @@ WinEDA_BasicFrame::DisplayActivity( int PerCent,
 
 
 /*
- * Met a jour la liste des anciens projets
+ * Update the list of past projects.
  */
-/*******************************************************************/
-void
-WinEDA_BasicFrame::SetLastProject( const wxString& FullFileName )
-/*******************************************************************/
+void WinEDA_BasicFrame::SetLastProject( const wxString& FullFileName )
 {
     wxGetApp().m_fileHistory.AddFileToHistory( FullFileName );
     ReCreateMenuBar();
@@ -196,10 +204,8 @@ WinEDA_BasicFrame::SetLastProject( const wxString& FullFileName )
 /*
  * Fetch the file name from the file history list.
  */
-/*********************************************************************/
 wxString WinEDA_BasicFrame::GetFileFromHistory( int cmdId,
                                                 const wxString& type )
-/*********************************************************************/
 {
     wxString fn, msg;
     size_t   i;
@@ -230,10 +236,7 @@ wxString WinEDA_BasicFrame::GetFileFromHistory( int cmdId,
 /*
  *
  */
-/**************************************************************/
-void
-WinEDA_BasicFrame::GetKicadHelp( wxCommandEvent& event )
-/**************************************************************/
+void WinEDA_BasicFrame::GetKicadHelp( wxCommandEvent& event )
 {
     wxString msg;
 
@@ -252,32 +255,24 @@ WinEDA_BasicFrame::GetKicadHelp( wxCommandEvent& event )
     }
     else
     {
-        msg.Printf( _( "Help file %s not found" ), wxGetApp().m_HelpFileName.GetData() );
+        msg.Printf( _( "Help file %s not found" ),
+                    GetChars( wxGetApp().m_HelpFileName ) );
         DisplayError( this, msg );
     }
 
 #elif defined ONLINE_HELP_FILES_FORMAT_IS_PDF
-    // wxString fullfilename = FindKicadHelpPath() + wxGetApp().m_HelpFileName;
-    // if ( wxFileExists(fullfilename) )
-    //     GetAssociatedDocument( this, wxEmptyString, fullfilename );
-    // else    // Try to find file in English format:
-    // {
-    //     fullfilename = FindKicadHelpPath() + wxT("../en/") + wxGetApp().m_HelpFileName;;
-    //     GetAssociatedDocument( this, wxEmptyString, fullfilename );
-    // }
-
     wxString helpFile = wxGetApp().GetHelpFile();
     if( !helpFile )
     {
         msg.Printf( _( "Help file %s could not be found." ),
-                    wxGetApp().m_HelpFileName.c_str() );
+                    GetChars( wxGetApp().m_HelpFileName ) );
         DisplayError( this, msg );
     }
     else
-        GetAssociatedDocument( this, wxEmptyString, helpFile );
+        GetAssociatedDocument( this, helpFile );
 
 #else
-#	error Help files format not defined
+#   error Help files format not defined
 #endif
 }
 
@@ -285,61 +280,9 @@ WinEDA_BasicFrame::GetKicadHelp( wxCommandEvent& event )
 /*
  *
  */
-/***********************************************************************/
-void
-WinEDA_BasicFrame::GetKicadAbout( wxCommandEvent& WXUNUSED(event) )
-/***********************************************************************/
+void WinEDA_BasicFrame::GetKicadAbout( wxCommandEvent& WXUNUSED(event) )
 {
     wxAboutDialogInfo info;
     InitKiCadAbout(info);
     wxAboutBox(info);
 }
-
-
-/*
- *
- */
-/********************************************************************/
-void
-WinEDA_BasicFrame::ProcessFontPreferences( int id )
-/********************************************************************/
-{
-    wxFont font;
-
-    switch( id )
-    {
-    case ID_PREFERENCES_FONT:
-        break;
-
-    case ID_PREFERENCES_FONT_STATUS:
-        font = wxGetFontFromUser( this, *g_StdFont );
-        if( font.Ok() )
-        {
-            int pointsize = font.GetPointSize();
-            *g_StdFont = font;
-            SetFont( *g_StdFont );
-            if( GetStatusBar() )
-                GetStatusBar()->SetFont( *g_StdFont );
-            g_StdFontPointSize = pointsize;
-        }
-        break;
-
-    case ID_PREFERENCES_FONT_DIALOG:
-        font = wxGetFontFromUser( this, *g_DialogFont );
-        if( font.Ok() )
-        {
-            int pointsize = font.GetPointSize();
-            *g_DialogFont = font;
-            SetFont( *g_DialogFont );
-            g_DialogFontPointSize = pointsize;
-            g_FixedFontPointSize  = pointsize;
-            g_FixedFont->SetPointSize( g_FixedFontPointSize );
-        }
-        break;
-
-    default:
-        DisplayError( this, wxT( "WinEDA_BasicFrame::ProcessFontPreferences Internal Error" ) );
-        break;
-    }
-}
-

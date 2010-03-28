@@ -1,6 +1,5 @@
 /****************************************************/
-/*	BLOCK.CPP										*/
-/* Gestion des Operations sur Blocks et Effacements */
+/*  BLOCK.CPP                                       */
 /****************************************************/
 
 #include "fctsys.h"
@@ -12,40 +11,39 @@
 #include "block_commande.h"
 
 #include "program.h"
-#include "libcmp.h"
 #include "general.h"
+#include "class_marker_sch.h"
+#include "class_library.h"
+#include "class_pin.h"
 #include "protos.h"
 
 
-/* Variables Locales */
+// Imported functions:
+void            MoveItemsInList( PICKED_ITEMS_LIST& aItemsList,
+                                 const wxPoint      aMoveVector );
+void            MirrorListOfItems( PICKED_ITEMS_LIST& aItemsList,
+                                   wxPoint&           Center );
+void            DeleteItemsInList( WinEDA_DrawPanel*  panel,
+                                   PICKED_ITEMS_LIST& aItemsList );
+void            DuplicateItemsInList( SCH_SCREEN*        screen,
+                                      PICKED_ITEMS_LIST& aItemsList,
+                                      const wxPoint      aMoveVector  );
 
-/* Fonctions exportees */
+static void     CollectStructsToDrag( SCH_SCREEN* screen );
+static void     AddPickedItem( SCH_SCREEN* screen, wxPoint aPosition );
+static LIB_PIN* GetNextPinPosition( SCH_COMPONENT* aDrawLibItem,
+                                    wxPoint&       aPosition,
+                                    bool           aSearchFirst );
+static void     DrawMovingBlockOutlines( WinEDA_DrawPanel* panel,
+                                         wxDC*             DC,
+                                         bool              erase );
+static void     SaveStructListForPaste( PICKED_ITEMS_LIST& aItemsList );
 
-/* Fonctions Locales */
-static SCH_ITEM*            CopyStruct( WinEDA_DrawPanel* panel,
-                                        wxDC*                        DC,
-                                        BASE_SCREEN*                 screen,
-                                        SCH_ITEM*                    DrawStruct );
-static void                 CollectStructsToDrag( SCH_SCREEN* screen );
-static void                 AddPickedItem( SCH_SCREEN* screen, wxPoint aPosition );
-static LibEDA_BaseStruct*   GetNextPinPosition( SCH_COMPONENT* aDrawLibItem,
-                                                wxPoint&         aPosition );
-static void                 DrawMovingBlockOutlines( WinEDA_DrawPanel* panel,
-                                                     wxDC*             DC,
-                                                     bool              erase );
-static SCH_ITEM*            SaveStructListForPaste( SCH_ITEM* DrawStruct );
-static bool                 MirrorStruct( WinEDA_DrawPanel* panel, wxDC* DC,
-                                          SCH_ITEM* DrawStruct, wxPoint& Center );
-static void                 MirrorOneStruct( SCH_ITEM* DrawStruct,
-                                             wxPoint&  Center );
-
-/*************************************************************************/
-int WinEDA_SchematicFrame::ReturnBlockCommand( int key )
-/*************************************************************************/
 
 /* Return the block command (BLOCK_MOVE, BLOCK_COPY...) corresponding to
  *  the key (ALT, SHIFT ALT ..)
  */
+int WinEDA_SchematicFrame::ReturnBlockCommand( int key )
 {
     int cmd;
 
@@ -81,34 +79,26 @@ int WinEDA_SchematicFrame::ReturnBlockCommand( int key )
 }
 
 
-/*************************************************/
-void WinEDA_SchematicFrame::InitBlockPasteInfos()
-/*************************************************/
-
 /* Init the parameters used by the block paste command
  */
+void WinEDA_SchematicFrame::InitBlockPasteInfos()
 {
-    DrawBlockStruct* block = &GetScreen()->BlockLocate;
+    BLOCK_SELECTOR* block = &GetScreen()->m_BlockLocate;
 
-    block->m_BlockDrawStruct = g_BlockSaveDataList;
+    block->m_ItemsSelection.CopyList( g_BlockSaveDataList.m_ItemsSelection );
     DrawPanel->ManageCurseur = DrawMovingBlockOutlines;
 }
 
 
-/******************************************************/
-void WinEDA_SchematicFrame::HandleBlockPlace( wxDC* DC )
-/******************************************************/
-
-/* Routine to handle the BLOCK PLACE commande
+/* Routine to handle the BLOCK PLACE command
  *  Last routine for block operation for:
  *  - block move & drag
- *  - block copie & paste
+ *  - block copy & paste
  */
+void WinEDA_SchematicFrame::HandleBlockPlace( wxDC* DC )
 {
-    bool             err   = FALSE;
-    DrawBlockStruct* block = &GetScreen()->BlockLocate;
-
-    SCH_ITEM*        NewStruct = NULL;
+    bool            err   = FALSE;
+    BLOCK_SELECTOR* block = &GetScreen()->m_BlockLocate;
 
     if( DrawPanel->ManageCurseur == NULL )
     {
@@ -116,12 +106,12 @@ void WinEDA_SchematicFrame::HandleBlockPlace( wxDC* DC )
         DisplayError( this, wxT( "HandleBlockPLace() : ManageCurseur = NULL" ) );
     }
 
-    if( block->m_BlockDrawStruct == NULL )
+    if( block->GetCount() == 0 )
     {
         wxString msg;
         err = TRUE;
-        msg.Printf( wxT( "HandleBlockPLace() : m_BlockDrawStruct = " \
-                         "NULL (cmd %d, state %d)" ),
+        msg.Printf( wxT( "HandleBlockPLace() error : no items to place (cmd \
+%d, state %d)" ),
                     block->m_Command, block->m_State );
         DisplayError( this, msg );
     }
@@ -130,7 +120,7 @@ void WinEDA_SchematicFrame::HandleBlockPlace( wxDC* DC )
 
     switch( block->m_Command )
     {
-    case  BLOCK_IDLE:
+    case BLOCK_IDLE:
         err = TRUE;
         break;
 
@@ -139,11 +129,12 @@ void WinEDA_SchematicFrame::HandleBlockPlace( wxDC* DC )
         if( DrawPanel->ManageCurseur )
             DrawPanel->ManageCurseur( DrawPanel, DC, FALSE );
 
-        SaveCopyInUndoList( (SCH_ITEM*) block->m_BlockDrawStruct, IS_CHANGED );
+        SaveCopyInUndoList( block->m_ItemsSelection,
+                            UR_MOVED,
+                            block->m_MoveVector );
 
-        MoveStruct( DrawPanel, DC, (SCH_ITEM*) block->m_BlockDrawStruct );
-        block->m_BlockDrawStruct = NULL;
-        DrawPanel->Refresh( TRUE );
+        MoveItemsInList( block->m_ItemsSelection, block->m_MoveVector );
+        block->ClearItemsList();
         break;
 
     case BLOCK_COPY:                /* Copy */
@@ -151,23 +142,22 @@ void WinEDA_SchematicFrame::HandleBlockPlace( wxDC* DC )
         if( DrawPanel->ManageCurseur )
             DrawPanel->ManageCurseur( DrawPanel, DC, FALSE );
 
-        NewStruct = CopyStruct( DrawPanel, DC,
-                                GetScreen(),
-                                (SCH_ITEM*) block->m_BlockDrawStruct );
+        DuplicateItemsInList(
+            GetScreen(), block->m_ItemsSelection, block->m_MoveVector );
 
         SaveCopyInUndoList(
-            NewStruct,
+            block->m_ItemsSelection,
             (block->m_Command ==
-             BLOCK_PRESELECT_MOVE) ? IS_CHANGED : IS_NEW );
+             BLOCK_PRESELECT_MOVE) ? UR_CHANGED : UR_NEW );
 
-        block->m_BlockDrawStruct = NULL;
+        block->ClearItemsList();
         break;
 
-    case BLOCK_PASTE:     /* Paste (recopie du dernier bloc sauve */
+    case BLOCK_PASTE:
         if( DrawPanel->ManageCurseur )
             DrawPanel->ManageCurseur( DrawPanel, DC, FALSE );
-        PasteStruct( DC );
-        block->m_BlockDrawStruct = NULL;
+        PasteListOfItems( DC );
+        block->ClearItemsList();
         break;
 
     case BLOCK_ZOOM:        // Handled by HandleBlockEnd()
@@ -176,17 +166,19 @@ void WinEDA_SchematicFrame::HandleBlockPlace( wxDC* DC )
     case BLOCK_ROTATE:
     case BLOCK_MIRROR_X:
     case BLOCK_MIRROR_Y:
-    case BLOCK_INVERT:
+    case BLOCK_FLIP:
     case BLOCK_ABORT:
     case BLOCK_SELECT_ITEMS_ONLY:
         break;
     }
 
-    GetScreen()->SetModify();
+    OnModify( );
 
     /* clear struct.m_Flags  */
     SCH_ITEM* Struct;
-    for( Struct = GetScreen()->EEDrawList; Struct != NULL; Struct = Struct->Next() )
+    for( Struct = GetScreen()->EEDrawList;
+        Struct != NULL;
+        Struct = Struct->Next() )
         Struct->m_Flags = 0;
 
     DrawPanel->ManageCurseur = NULL;
@@ -198,33 +190,32 @@ void WinEDA_SchematicFrame::HandleBlockPlace( wxDC* DC )
 
     TestDanglingEnds( GetScreen()->EEDrawList, DC );
 
-    if( block->m_BlockDrawStruct )
+    if( block->GetCount() )
     {
         DisplayError( this,
-                     wxT( "HandleBlockPLace() error: DrawStruct != Null" ) );
-        block->m_BlockDrawStruct = NULL;
+                      wxT( "HandleBlockPLace() error: some items left in buffer" ) );
+        block->ClearItemsList();
     }
 
-    SetToolID( m_ID_current_state, DrawPanel->m_PanelDefaultCursor, wxEmptyString );
+    SetToolID( m_ID_current_state, DrawPanel->m_PanelDefaultCursor,
+               wxEmptyString );
+    DrawPanel->Refresh();
 }
 
 
-/****************************************************/
-int WinEDA_SchematicFrame::HandleBlockEnd( wxDC* DC )
-/****************************************************/
-
-/* Routine de gestion de la commande BLOCK END
- *  retourne :
- *  0 si aucun composant selectionne
- *  1 sinon
- *  -1 si commande terminee et composants trouves (block delete, block save)
+/* Manage end block command
+ * Returns:
+ * 0 if no features selected
+ * 1 otherwise
+ * -1 If control ended and components selection (block delete, block save)
  */
+int WinEDA_SchematicFrame::HandleBlockEnd( wxDC* DC )
 {
-    int              ii = 0;
-    bool             zoom_command = FALSE;
-    DrawBlockStruct* block = &GetScreen()->BlockLocate;
+    int             ii = 0;
+    bool            zoom_command = FALSE;
+    BLOCK_SELECTOR* block = &GetScreen()->m_BlockLocate;
 
-    if( block->m_BlockDrawStruct )
+    if( block->GetCount() )
     {
         BlockState   state   = block->m_State;
         CmdBlockType command = block->m_Command;
@@ -234,8 +225,7 @@ int WinEDA_SchematicFrame::HandleBlockEnd( wxDC* DC )
         block->m_Command = command;
         DrawPanel->ManageCurseur = DrawAndSizingBlockOutlines;
         DrawPanel->ForceCloseManageCurseur = AbortBlockCurrentCommand;
-        GetScreen()->m_Curseur.x = block->GetRight();
-        GetScreen()->m_Curseur.y = block->GetBottom();
+        GetScreen()->m_Curseur = block->GetEnd();
         if( block->m_Command != BLOCK_ABORT )
             DrawPanel->MouseToCursorSchema();
     }
@@ -243,23 +233,22 @@ int WinEDA_SchematicFrame::HandleBlockEnd( wxDC* DC )
     if( DrawPanel->ManageCurseur != NULL )
         switch( block->m_Command )
         {
-        case  BLOCK_IDLE:
+        case BLOCK_IDLE:
             DisplayError( this, wxT( "Error in HandleBlockPLace()" ) );
             break;
 
-        case BLOCK_DRAG: /* Drag */
+        case BLOCK_DRAG:    /* Drag */
             BreakSegmentOnJunction( (SCH_SCREEN*) GetScreen() );
 
         case BLOCK_MOVE:    /* Move */
         case BLOCK_COPY:    /* Copy */
-            block->m_BlockDrawStruct =
-                PickStruct( GetScreen()->BlockLocate, GetScreen(), SEARCHALL );
+            PickItemsInBlock( GetScreen()->m_BlockLocate, GetScreen() );
 
         case BLOCK_PRESELECT_MOVE: /* Move with preselection list*/
-            if( block->m_BlockDrawStruct != NULL )
+            if( block->GetCount() )
             {
                 ii = 1;
-                CollectStructsToDrag( (SCH_SCREEN*) GetScreen() );
+                CollectStructsToDrag( GetScreen() );
                 DrawPanel->ManageCurseur( DrawPanel, DC, FALSE );
                 DrawPanel->ManageCurseur = DrawMovingBlockOutlines;
                 DrawPanel->ManageCurseur( DrawPanel, DC, FALSE );
@@ -274,46 +263,39 @@ int WinEDA_SchematicFrame::HandleBlockEnd( wxDC* DC )
             break;
 
         case BLOCK_DELETE: /* Delete */
-            block->m_BlockDrawStruct =
-                PickStruct( GetScreen()->BlockLocate,
-                            GetScreen(), SEARCHALL );
+            PickItemsInBlock( GetScreen()->m_BlockLocate, GetScreen() );
             DrawAndSizingBlockOutlines( DrawPanel, DC, FALSE );
-            if( block->m_BlockDrawStruct != NULL )
+            if( block->GetCount() )
             {
                 ii = -1;
-                DeleteStruct( DrawPanel,
-                              DC,
-                              (SCH_ITEM*) block->m_BlockDrawStruct );
-                GetScreen()->SetModify();
+                DeleteItemsInList( DrawPanel, block->m_ItemsSelection );
+                OnModify( );
             }
-            block->m_BlockDrawStruct = NULL;
+            block->ClearItemsList();
             TestDanglingEnds( GetScreen()->EEDrawList, DC );
+            DrawPanel->Refresh();
             break;
 
-        case BLOCK_SAVE: /* Save */
-            block->m_BlockDrawStruct =
-                PickStruct( GetScreen()->BlockLocate,
-                            GetScreen(), SEARCHALL );
+        case BLOCK_SAVE:  /* Save */
+            PickItemsInBlock( GetScreen()->m_BlockLocate, GetScreen() );
             DrawAndSizingBlockOutlines( DrawPanel, DC, FALSE );
-            if( block->m_BlockDrawStruct != NULL )
+            if( block->GetCount() )
             {
-                wxPoint   oldpos = GetScreen()->m_Curseur;
-                GetScreen()->m_Curseur = wxPoint( 0, 0 );
-                SCH_ITEM* DrawStructCopy =
-                    SaveStructListForPaste(
-                    (SCH_ITEM*) block->m_BlockDrawStruct );
-                PlaceStruct( GetScreen(), DrawStructCopy );
-                GetScreen()->m_Curseur = oldpos;
+                wxPoint move_vector =
+                    -GetScreen()->m_BlockLocate.m_BlockLastCursorPosition;
+                SaveStructListForPaste( block->m_ItemsSelection );
+                MoveItemsInList( g_BlockSaveDataList.m_ItemsSelection,
+                                 move_vector );
                 ii = -1;
             }
-            block->m_BlockDrawStruct = NULL;
+            block->ClearItemsList();
             break;
 
         case BLOCK_PASTE:
             block->m_State = STATE_BLOCK_MOVE;
             break;
 
-        case BLOCK_INVERT: /* pcbnew only! */
+        case BLOCK_FLIP: /* pcbnew only! */
             break;
 
         case BLOCK_ROTATE:
@@ -331,7 +313,8 @@ int WinEDA_SchematicFrame::HandleBlockEnd( wxDC* DC )
         }
 
     if( block->m_Command  == BLOCK_ABORT )
-    {   /* clear struct.m_Flags  */
+    {
+        /* clear struct.m_Flags  */
         EDA_BaseStruct* Struct;
         for( Struct = GetScreen()->EEDrawList;
             Struct != NULL;
@@ -353,23 +336,20 @@ int WinEDA_SchematicFrame::HandleBlockEnd( wxDC* DC )
     }
 
     if( zoom_command )
-        Window_Zoom( GetScreen()->BlockLocate );
+        Window_Zoom( GetScreen()->m_BlockLocate );
 
     return ii;
 }
 
 
-/***********************************************************************/
-void WinEDA_SchematicFrame::HandleBlockEndByPopUp( int Command, wxDC* DC )
-/***********************************************************************/
-
-/* Routine de gestion de la commande BLOCK END by PopUp
- *  Appelee apres HandleBlockEnd.
- *  A partir de la commande bloc move, peut executer une commande autre que bloc move.
+/* Manage end block command from context menu.
+ * Called after HandleBlockEnd.
+ * From the command block move can execute a command other than block move.
  */
+void WinEDA_SchematicFrame::HandleBlockEndByPopUp( int Command, wxDC* DC )
 {
-    int ii = 0;
-    DrawBlockStruct* block = &GetScreen()->BlockLocate;
+    int             ii    = 0;
+    BLOCK_SELECTOR* block = &GetScreen()->m_BlockLocate;
 
     if( block->m_Command != BLOCK_MOVE )
         return;
@@ -388,25 +368,18 @@ void WinEDA_SchematicFrame::HandleBlockEndByPopUp( int Command, wxDC* DC )
 
     case BLOCK_DRAG:     /* move to Drag */
 
-        /* Effacement de la liste des structures de pointage,
-         *  qui est devenue erronnee */
+        /* ???
+         * Effacement de la liste des structures de pointage,
+         * qui est devenue erronnee
+         */
         if( DrawPanel->ManageCurseur )
             DrawPanel->ManageCurseur( DrawPanel, DC, FALSE );
-        if( block->m_BlockDrawStruct )
-        {
-            if( block->m_BlockDrawStruct->Type() == DRAW_PICK_ITEM_STRUCT_TYPE )
-            {       /* Delete the picked wrapper if this is a picked list. */
-                DrawPickedStruct* PickedList;
-                PickedList = (DrawPickedStruct*) block->m_BlockDrawStruct;
-                PickedList->DeleteWrapperList();
-            }
-            block->m_BlockDrawStruct = NULL;
-        }
-        BreakSegmentOnJunction( (SCH_SCREEN*) GetScreen() );
-        block->m_BlockDrawStruct =
-            PickStruct( GetScreen()->BlockLocate,
-                        GetScreen(), SEARCHALL );
-        if( block->m_BlockDrawStruct != NULL )
+        block->ClearItemsList();
+
+        BreakSegmentOnJunction( GetScreen() );
+
+        PickItemsInBlock( GetScreen()->m_BlockLocate, GetScreen() );
+        if( block->GetCount() )
         {
             ii = 1;
             CollectStructsToDrag( (SCH_SCREEN*) GetScreen() );
@@ -419,26 +392,26 @@ void WinEDA_SchematicFrame::HandleBlockEndByPopUp( int Command, wxDC* DC )
     case BLOCK_DELETE:     /* move to Delete */
         if( DrawPanel->ManageCurseur )
             DrawPanel->ManageCurseur( DrawPanel, DC, FALSE );
-        if( block->m_BlockDrawStruct != NULL )
+        if( block->GetCount() )
         {
             ii = -1;
-            DeleteStruct( DrawPanel, DC, (SCH_ITEM*) block->m_BlockDrawStruct );
-            GetScreen()->SetModify();
+            DeleteItemsInList( DrawPanel, block->m_ItemsSelection );
+            OnModify( );
         }
         TestDanglingEnds( GetScreen()->EEDrawList, DC );
+        DrawPanel->Refresh();
+        DrawPanel->Refresh();
         break;
 
     case BLOCK_SAVE:     /* Save */
         if( DrawPanel->ManageCurseur )
             DrawPanel->ManageCurseur( DrawPanel, DC, FALSE );
-        if( block->m_BlockDrawStruct != NULL )
+        if( block->GetCount() )
         {
-            wxPoint   oldpos = GetScreen()->m_Curseur;
-            GetScreen()->m_Curseur = wxPoint( 0, 0 );
-            SCH_ITEM* DrawStructCopy =
-                SaveStructListForPaste( (SCH_ITEM*) block->m_BlockDrawStruct );
-            PlaceStruct( GetScreen(), DrawStructCopy );
-            GetScreen()->m_Curseur = oldpos;
+            wxPoint move_vector =
+                -GetScreen()->m_BlockLocate.m_BlockLastCursorPosition;
+            SaveStructListForPaste( block->m_ItemsSelection );
+            MoveItemsInList( g_BlockSaveDataList.m_ItemsSelection, move_vector );
             ii = -1;
         }
         break;
@@ -447,7 +420,7 @@ void WinEDA_SchematicFrame::HandleBlockEndByPopUp( int Command, wxDC* DC )
         DrawPanel->ForceCloseManageCurseur( DrawPanel, DC );
         DrawPanel->SetCursor(
             DrawPanel->m_PanelCursor = DrawPanel->m_PanelDefaultCursor );
-        Window_Zoom( GetScreen()->BlockLocate );
+        Window_Zoom( GetScreen()->m_BlockLocate );
         break;
 
 
@@ -458,22 +431,20 @@ void WinEDA_SchematicFrame::HandleBlockEndByPopUp( int Command, wxDC* DC )
     case BLOCK_MIRROR_Y:
         if( DrawPanel->ManageCurseur )
             DrawPanel->ManageCurseur( DrawPanel, DC, FALSE );
-        if( block->m_BlockDrawStruct != NULL )
+        if( block->GetCount() )
         {
-            SaveCopyInUndoList( (SCH_ITEM*) block->m_BlockDrawStruct,
-                               IS_CHANGED );
-
             ii = -1;
-            /* Compute the mirror centre and put it on grid */
-            wxPoint Center = block->Centre();
-            PutOnGrid( &Center );
-            MirrorStruct( DrawPanel,
-                          DC,
-                          (SCH_ITEM*) block->m_BlockDrawStruct,
-                          Center );
-            GetScreen()->SetModify();
+            /* Compute the mirror center and put it on grid */
+            wxPoint mirrorPoint = block->Centre();
+            PutOnGrid( &mirrorPoint );
+            SaveCopyInUndoList( block->m_ItemsSelection,
+                                UR_MIRRORED_Y,
+                                mirrorPoint );
+            MirrorListOfItems( block->m_ItemsSelection, mirrorPoint );
+            OnModify( );
         }
         TestDanglingEnds( GetScreen()->EEDrawList, DC );
+        DrawPanel->Refresh();
         break;
 
     default:
@@ -482,7 +453,7 @@ void WinEDA_SchematicFrame::HandleBlockEndByPopUp( int Command, wxDC* DC )
 
     if( ii <= 0 )
     {
-        block->m_BlockDrawStruct = NULL;
+        block->ClearItemsList();
         block->m_Flags   = 0;
         block->m_State   = STATE_NO_BLOCK;
         block->m_Command = BLOCK_IDLE;
@@ -496,1049 +467,227 @@ void WinEDA_SchematicFrame::HandleBlockEndByPopUp( int Command, wxDC* DC )
 }
 
 
-/************************************************************************/
+/* Traces the outline of the search block structures
+ * The entire block follows the cursor
+ */
 static void DrawMovingBlockOutlines( WinEDA_DrawPanel* panel, wxDC* DC,
                                      bool erase )
-/************************************************************************/
-
-/* Retrace le contour du block de recherche de structures
- *  L'ensemble du block suit le curseur
- */
 {
-    DrawBlockStruct*  PtBlock;
-    DrawPickedStruct* PickedList;
-    BASE_SCREEN*      screen = panel->GetScreen();
+    BLOCK_SELECTOR* block = &panel->GetScreen()->m_BlockLocate;;
 
-    PtBlock = &panel->GetScreen()->BlockLocate;
-    GRSetDrawMode( DC, g_XorMode );
+    BASE_SCREEN*    screen = panel->GetScreen();
+    SCH_ITEM*       schitem;
 
-    /* Effacement ancien cadre */
-    if( erase && PtBlock->m_BlockDrawStruct )
+    /* Erase old block contents. */
+    if( erase )
     {
-        PtBlock->Offset( PtBlock->m_MoveVector );
-        PtBlock->Draw( panel, DC );
-        PtBlock->Offset( -PtBlock->m_MoveVector.x, -PtBlock->m_MoveVector.y );
-
-        /* Effacement ancien affichage */
-        if( PtBlock->m_BlockDrawStruct->Type() == DRAW_PICK_ITEM_STRUCT_TYPE )
+        block->Draw( panel, DC, block->m_MoveVector, g_XorMode, block->m_Color );
+        for( unsigned ii = 0; ii < block->GetCount(); ii++ )
         {
-            PickedList = (DrawPickedStruct*) PtBlock->m_BlockDrawStruct;
-            while( PickedList )
-            {
-                DrawStructsInGhost( panel,
-                                    DC,
-                                    (SCH_ITEM*) PickedList->m_PickedStruct,
-                                    PtBlock->m_MoveVector.x,
-                                    PtBlock->m_MoveVector.y );
-                PickedList = (DrawPickedStruct*) PickedList->Next();
-            }
+            schitem = (SCH_ITEM*) block->m_ItemsSelection.GetPickedItem( ii );
+            DrawStructsInGhost( panel, DC, schitem, block->m_MoveVector );
         }
-        else
-            DrawStructsInGhost( panel,
-                                DC,
-                                (SCH_ITEM*) PtBlock->m_BlockDrawStruct,
-                                PtBlock->m_MoveVector.x,
-                                PtBlock->m_MoveVector.y );
     }
 
-    /* Redessin nouvel affichage */
+    /* Repaint new view. */
+    block->m_MoveVector = screen->m_Curseur - block->m_BlockLastCursorPosition;
 
-    PtBlock->m_MoveVector.x = screen->m_Curseur.x -
-                              PtBlock->m_BlockLastCursorPosition.x;
-    PtBlock->m_MoveVector.y = screen->m_Curseur.y -
-                              PtBlock->m_BlockLastCursorPosition.y;
+    block->Draw( panel, DC, block->m_MoveVector, g_XorMode, block->m_Color );
 
-    GRSetDrawMode( DC, g_XorMode );
-    PtBlock->Offset( PtBlock->m_MoveVector );
-    PtBlock->Draw( panel, DC );
-    PtBlock->Offset( -PtBlock->m_MoveVector.x, -PtBlock->m_MoveVector.y );
-
-    if( PtBlock->m_BlockDrawStruct )
+    for( unsigned ii = 0; ii < block->GetCount(); ii++ )
     {
-        if( PtBlock->m_BlockDrawStruct->Type() == DRAW_PICK_ITEM_STRUCT_TYPE )
-        {
-            PickedList = (DrawPickedStruct*) PtBlock->m_BlockDrawStruct;
-            while( PickedList )
-            {
-                DrawStructsInGhost( panel,
-                                    DC,
-                                    (SCH_ITEM*) PickedList->m_PickedStruct,
-                                    PtBlock->m_MoveVector.x,
-                                    PtBlock->m_MoveVector.y );
-                PickedList = (DrawPickedStruct*) PickedList->Next();
-            }
-        }
-        else
-            DrawStructsInGhost( panel,
-                                DC,
-                                (SCH_ITEM*) PtBlock->m_BlockDrawStruct,
-                                PtBlock->m_MoveVector.x,
-                                PtBlock->m_MoveVector.y );
+        schitem = (SCH_ITEM*) block->m_ItemsSelection.GetPickedItem( ii );
+        DrawStructsInGhost( panel, DC, schitem, block->m_MoveVector );
     }
 }
 
-
-/*****************************************************************************
-* Routine to move an object(s) to a new position.							 *
-* If DrawStruct is of type DrawPickedStruct, a list of objects picked is	 *
-* assumed, otherwise exactly one structure is assumed been picked.			 *
-*****************************************************************************/
-bool MoveStruct( WinEDA_DrawPanel* panel, wxDC* DC, SCH_ITEM* DrawStruct )
-{
-    if( !DrawStruct )
-        return FALSE;
-
-    if( DrawStruct->Type() == DRAW_PICK_ITEM_STRUCT_TYPE )
-    {
-        DrawPickedStruct* pickedList = (DrawPickedStruct*) DrawStruct;
-
-        if( DC )
-            panel->PostDirtyRect( pickedList->GetBoundingBoxUnion() );
-
-        PlaceStruct( panel->GetScreen(), pickedList );    // Place it in its new position.
-
-        if( DC )
-            RedrawStructList( panel, DC, pickedList, GR_DEFAULT_DRAWMODE );
-
-        // Free the wrapper DrawPickedStruct chain
-        pickedList->DeleteWrapperList();
-    }
-    else
-    {
-        if( DC )
-            panel->PostDirtyRect( DrawStruct->GetBoundingBox() );
-        PlaceStruct( panel->GetScreen(), DrawStruct );        /* Place it in its new position. */
-        if( DC )
-            RedrawOneStruct( panel, DC, DrawStruct, GR_DEFAULT_DRAWMODE );
-    }
-    return TRUE;
-}
-
-
-static void MirrorYPoint( wxPoint& point, wxPoint& Center )
-{
-    point.x -= Center.x;
-    point.x  = -point.x;
-    point.x += Center.x;
-}
-
-
-/**************************************************************/
-void MirrorOneStruct( SCH_ITEM* DrawStruct, wxPoint& Center )
-/**************************************************************/
-
-/* Given a structure rotate it to 90 degrees refer to the Center point.
- */
-{
-    int dx;
-    DrawPolylineStruct*            DrawPoly;
-    DrawJunctionStruct*            DrawConnect;
-    EDA_DrawLineStruct*            DrawSegment;
-    DrawBusEntryStruct*            DrawRaccord;
-    SCH_COMPONENT*                 DrawLibItem;
-    DrawSheetStruct*               DrawSheet;
-    Hierarchical_PIN_Sheet_Struct* DrawSheetLabel;
-    DrawMarkerStruct*              DrawMarker;
-    DrawNoConnectStruct*           DrawNoConnect;
-    SCH_TEXT* DrawText;
-    wxPoint px;
-    WinEDA_SchematicFrame*         frame;
-
-    if( !DrawStruct )
-        return;
-
-    frame = (WinEDA_SchematicFrame*) wxGetApp().GetTopWindow();
-
-    switch( DrawStruct->Type() )
-    {
-    case TYPE_NOT_INIT:
-        break;
-
-    case DRAW_POLYLINE_STRUCT_TYPE:
-        DrawPoly = (DrawPolylineStruct*) DrawStruct;
-        for( unsigned ii = 0; ii < DrawPoly->GetCornerCount(); ii++ )
-        {
-            wxPoint point;
-            point = DrawPoly->m_PolyPoints[ii];
-            MirrorYPoint( point, Center );
-            DrawPoly->m_PolyPoints[ii] = point;
-        }
-
-        break;
-
-    case DRAW_SEGMENT_STRUCT_TYPE:
-        DrawSegment = (EDA_DrawLineStruct*) DrawStruct;
-        if( (DrawSegment->m_Flags & STARTPOINT) == 0 )
-        {
-            MirrorYPoint( DrawSegment->m_Start, Center );
-        }
-        if( (DrawSegment->m_Flags & ENDPOINT) == 0 )
-        {
-            MirrorYPoint( DrawSegment->m_End, Center );
-        }
-        break;
-
-    case DRAW_BUSENTRY_STRUCT_TYPE:
-        DrawRaccord = (DrawBusEntryStruct*) DrawStruct;
-        MirrorYPoint( DrawRaccord->m_Pos, Center );
-        break;
-
-    case DRAW_JUNCTION_STRUCT_TYPE:
-        DrawConnect = (DrawJunctionStruct*) DrawStruct;
-        MirrorYPoint( DrawConnect->m_Pos, Center );
-        break;
-
-    case DRAW_MARKER_STRUCT_TYPE:
-        DrawMarker = (DrawMarkerStruct*) DrawStruct;
-        MirrorYPoint( DrawMarker->m_Pos, Center );
-        break;
-
-    case DRAW_NOCONNECT_STRUCT_TYPE:
-        DrawNoConnect = (DrawNoConnectStruct*) DrawStruct;
-        MirrorYPoint( DrawNoConnect->m_Pos, Center );
-        break;
-
-    case TYPE_SCH_TEXT:
-    case TYPE_SCH_LABEL:
-
-        // Text is not really mirrored; it is moved to a suitable position
-        // which is the closest position for a true mirrored text
-        // The center position is mirrored and the text is moved for half horizontal len
-        DrawText = (SCH_TEXT*) DrawStruct;
-        px = DrawText->m_Pos;
-        if( DrawText->m_Orient == 0 )       /* horizontal text */
-            dx = DrawText->Len_Size() / 2;
-        else if( DrawText->m_Orient == 2 )  /* invert horizontal text*/
-            dx = -DrawText->Len_Size() / 2;
-        else
-            dx = 0;
-        px.x += dx;
-        MirrorYPoint( px, Center );
-        px.x -= dx;
-
-        frame->PutOnGrid( &px );
-        DrawText->m_Pos.x = px.x;
-        break;
-
-    case TYPE_SCH_HIERLABEL:
-    case TYPE_SCH_GLOBALLABEL:
-
-        // Text is not really mirrored: Orientation is changed
-        DrawText = (SCH_LABEL*) DrawStruct;
-        if( DrawText->m_Orient == 0 )       /* horizontal text */
-            DrawText->m_Orient = 2;
-        else if( DrawText->m_Orient == 2 )  /* invert horizontal text*/
-            DrawText->m_Orient = 0;
-
-        px = DrawText->m_Pos;
-        MirrorYPoint( px, Center );
-        frame->PutOnGrid( &px );
-        DrawText->m_Pos.x = px.x;
-        break;
-
-    case TYPE_SCH_COMPONENT:
-        DrawLibItem = (SCH_COMPONENT*) DrawStruct;
-        dx = DrawLibItem->m_Pos.x;
-        frame->CmpRotationMiroir( DrawLibItem, NULL, CMP_MIROIR_Y );
-        MirrorYPoint( DrawLibItem->m_Pos, Center );
-        dx -= DrawLibItem->m_Pos.x;
-
-        for( int ii = 0; ii < DrawLibItem->GetFieldCount(); ii++ )
-        {
-            /* move the fields to the new position because the component itself has moved */
-            DrawLibItem->GetField( ii )->m_Pos.x -= dx;
-        }
-
-        break;
-
-    case DRAW_SHEET_STRUCT_TYPE:
-        DrawSheet = (DrawSheetStruct*) DrawStruct;
-        MirrorYPoint( DrawSheet->m_Pos, Center );
-        DrawSheet->m_Pos.x -= DrawSheet->m_Size.x;
-
-        DrawSheetLabel = DrawSheet->m_Label;
-        while( DrawSheetLabel != NULL )
-        {
-            MirrorYPoint( DrawSheetLabel->m_Pos, Center );
-            DrawSheetLabel->m_Edge = DrawSheetLabel->m_Edge ? 0 : 1;
-            DrawSheetLabel =
-                (Hierarchical_PIN_Sheet_Struct*) DrawSheetLabel->Next();
-        }
-
-        break;
-
-    case DRAW_HIERARCHICAL_PIN_SHEET_STRUCT_TYPE:
-        DrawSheetLabel = (Hierarchical_PIN_Sheet_Struct*) DrawStruct;
-        MirrorYPoint( DrawSheetLabel->m_Pos, Center );
-        break;
-
-    case DRAW_PICK_ITEM_STRUCT_TYPE:
-        break;
-
-    default:
-        break;
-    }
-}
-
-
-/*****************************************************************************
-* Routine to Mirror an object(s).							 *
-* If DrawStruct is of type DrawPickedStruct, a list of objects picked is	 *
-* assumed, otherwise exactly one structure is assumed been picked.			 *
-*****************************************************************************/
-bool MirrorStruct( WinEDA_DrawPanel* panel,
-                   wxDC*             DC,
-                   SCH_ITEM*         DrawStruct,
-                   wxPoint&          Center )
-{
-    if( !DrawStruct )
-        return FALSE;
-
-    if( DrawStruct->Type() == DRAW_PICK_ITEM_STRUCT_TYPE )
-    {
-        DrawPickedStruct* pickedList = (DrawPickedStruct*) DrawStruct;
-
-        if( DC )
-            panel->PostDirtyRect( pickedList->GetBoundingBoxUnion() );
-
-        for( DrawPickedStruct* cur = pickedList;  cur;  cur = cur->Next() )
-        {
-            MirrorOneStruct( (SCH_ITEM*) cur->m_PickedStruct, Center );
-            cur->m_PickedStruct->m_Flags = 0;
-        }
-
-        if( DC )
-            RedrawStructList( panel, DC, pickedList, GR_DEFAULT_DRAWMODE );
-
-        // Free the wrapper DrawPickedStruct chain
-        pickedList->DeleteWrapperList();
-    }
-    else
-    {
-        if( DC )
-            panel->PostDirtyRect( DrawStruct->GetBoundingBox() );
-
-        MirrorOneStruct( DrawStruct, Center );      // Place it in its new position.
-
-        if( DC )
-            RedrawOneStruct( panel, DC, DrawStruct, GR_DEFAULT_DRAWMODE );
-
-        DrawStruct->m_Flags = 0;
-    }
-
-    return true;
-}
-
-
-/*****************************************************************************/
-static SCH_ITEM* CopyStruct( WinEDA_DrawPanel* panel,
-                             wxDC*             DC,
-                             BASE_SCREEN*      screen,
-                             SCH_ITEM*         DrawStruct )
-/*****************************************************************************/
-
-/* Routine to copy a new entity of an object and reposition it.
- *  If DrawStruct is of type DrawPickedStruct, a list of objects picked is
- *  assumed, otherwise exactly one structure is assumed been picked.
- *  Return the new created struct
- */
-{
-    SCH_ITEM*         NewDrawStruct;
-    DrawPickedStruct* PickedList = NULL;
-
-    if( !DrawStruct )
-        return FALSE;
-
-    NewDrawStruct = DuplicateStruct( DrawStruct );
-    if( NewDrawStruct == NULL )
-        return NULL;
-
-    PlaceStruct( screen, NewDrawStruct );
-    /* Draw the new structure and chain it in: */
-    if( NewDrawStruct->Type() == DRAW_PICK_ITEM_STRUCT_TYPE )
-    {
-        PickedList = (DrawPickedStruct*) NewDrawStruct;
-        while( PickedList )  // Clear annotation for new components
-        {
-            EDA_BaseStruct* Struct = PickedList->m_PickedStruct;
-
-            switch( Struct->Type() )
-            {
-            case TYPE_SCH_COMPONENT:
-            {
-                ( (SCH_COMPONENT*) Struct )->m_TimeStamp = GetTimeStamp();
-                ( (SCH_COMPONENT*) Struct )->ClearAnnotation( NULL );
-            }
-                break;
-
-            case DRAW_SHEET_STRUCT_TYPE:
-            {
-                //DuplicateStruct calls GenCopy, which should handle
-                //m_AssociatedScreen and m_sRefCount properly.
-                DrawSheetStruct* sheet = (DrawSheetStruct*) Struct;
-                sheet->m_TimeStamp = GetTimeStamp();
-
-                //sheet->m_AssociatedScreen->m_UndoList  = NULL;
-                //sheet->m_AssociatedScreen->m_RedoList  = NULL;
-                //keep m_AssociatedScreen pointer & associated.
-                //sheet->m_Son = NULL; m_son is involved in undo and redo.
-                break;
-            }
-
-            default:
-                ;
-            }
-
-            SetaParent( Struct, screen );
-            PickedList = (DrawPickedStruct*) PickedList->Next();
-        }
-
-        RedrawStructList( panel, DC, NewDrawStruct, GR_DEFAULT_DRAWMODE );
-        /* Chain the new items */
-        PickedList = (DrawPickedStruct*) NewDrawStruct;
-        while( PickedList )
-        {
-            PickedList->m_PickedStruct->SetNext( screen->EEDrawList );
-            screen->EEDrawList = PickedList->m_PickedStruct;
-            PickedList = PickedList->Next();
-        }
-    }
-    else
-    {
-        switch( NewDrawStruct->Type() )
-        {
-        case DRAW_POLYLINE_STRUCT_TYPE:
-        case DRAW_JUNCTION_STRUCT_TYPE:
-        case DRAW_SEGMENT_STRUCT_TYPE:
-        case DRAW_BUSENTRY_STRUCT_TYPE:
-        case TYPE_SCH_TEXT:
-        case TYPE_SCH_LABEL:
-        case TYPE_SCH_GLOBALLABEL:
-        case TYPE_SCH_HIERLABEL:
-        case DRAW_HIERARCHICAL_PIN_SHEET_STRUCT_TYPE:
-        case DRAW_PICK_ITEM_STRUCT_TYPE:
-        case DRAW_MARKER_STRUCT_TYPE:
-        case DRAW_NOCONNECT_STRUCT_TYPE:
-        default:
-            break;
-
-        case DRAW_SHEET_STRUCT_TYPE:
-        {
-            DrawSheetStruct* sheet = (DrawSheetStruct*) NewDrawStruct;
-            sheet->m_TimeStamp = GetTimeStamp();
-            sheet->SetSon( NULL );
-            break;
-        }
-
-        case TYPE_SCH_COMPONENT:
-            ( (SCH_COMPONENT*) NewDrawStruct )->m_TimeStamp = GetTimeStamp();
-            ( (SCH_COMPONENT*) NewDrawStruct )->ClearAnnotation( NULL );
-            break;
-        }
-
-        RedrawOneStruct( panel, DC, NewDrawStruct, GR_DEFAULT_DRAWMODE );
-
-        SetaParent( NewDrawStruct, screen );
-        NewDrawStruct->SetNext( screen->EEDrawList );
-        screen->EEDrawList = NewDrawStruct;
-    }
-
-    /* Free the original DrawPickedStruct chain: */
-    if( DrawStruct->Type() == DRAW_PICK_ITEM_STRUCT_TYPE )
-    {
-        PickedList = (DrawPickedStruct*) DrawStruct;
-        PickedList->DeleteWrapperList();
-    }
-
-    return NewDrawStruct;
-}
-
-
-/*********************************************************************************/
-void DeleteStruct( WinEDA_DrawPanel* panel, wxDC* DC, SCH_ITEM* DrawStruct )
-/*********************************************************************************/
-
-/* Routine to delete an object from global drawing object list.
- *  Object is put in Undo list
- */
-{
-    SCH_SCREEN*            screen = (SCH_SCREEN*) panel->GetScreen();
-    WinEDA_SchematicFrame* frame  = (WinEDA_SchematicFrame*) panel->m_Parent;
-
-    if( !DrawStruct )
-        return;
-
-    if( DrawStruct->Type() == DRAW_HIERARCHICAL_PIN_SHEET_STRUCT_TYPE )
-    {
-        /* Cette stucture est rattachee a une feuille, et n'est pas
-         *  accessible par la liste globale directement */
-        frame->SaveCopyInUndoList( (SCH_ITEM*) ( (Hierarchical_PIN_Sheet_Struct
-                                                  *) DrawStruct )->GetParent(),
-                                  IS_CHANGED );
-        frame->DeleteSheetLabel( DC ? true : false,
-                                 (Hierarchical_PIN_Sheet_Struct*) DrawStruct );
-        return;
-    }
-
-    if( DrawStruct->Type() == DRAW_PICK_ITEM_STRUCT_TYPE )
-    {
-        // Unlink all picked structs from current EEDrawList
-
-        for( DrawPickedStruct* cur = (DrawPickedStruct*) DrawStruct;
-            cur;
-            cur = cur->Next() )
-        {
-            SCH_ITEM* item = cur->m_PickedStruct;
-            screen->RemoveFromDrawList( item );
-            panel->PostDirtyRect( item->GetBoundingBox() );
-            item->SetNext( 0 );
-            item->SetBack( 0 );
-            item->m_Flags = IS_DELETED;
-        }
-
-        // Removed items are put onto the Undo list
-        frame->SaveCopyInUndoList( DrawStruct, IS_DELETED );
-    }
-    else    /* structure classique */
-    {
-        screen->RemoveFromDrawList( DrawStruct );
-
-        panel->PostDirtyRect( DrawStruct->GetBoundingBox() );
-
-        /* Unlink the structure */
-        DrawStruct->SetNext( 0 );
-        DrawStruct->SetBack( 0 );  // Only one struct -> no link
-
-        if( DrawStruct->Type() == DRAW_SHEET_STRUCT_TYPE )
-        {
-            frame->SaveCopyInUndoList( DrawStruct, IS_DELETED );    // Currently In TEST
-        }
-        else
-            frame->SaveCopyInUndoList( DrawStruct, IS_DELETED );
-    }
-}
-
-
-/*****************************************************************/
-SCH_ITEM* SaveStructListForPaste( SCH_ITEM* DrawStruct )
-/*****************************************************************/
 
 /* Routine to Save an object from global drawing object list.
  *  This routine is the same as delete but:
  *  - the original list is NOT removed.
  *  - List is saved in g_BlockSaveDataList
  */
+void SaveStructListForPaste( PICKED_ITEMS_LIST& aItemsList )
 {
-    DrawPickedStruct* PickedList;
-    SCH_ITEM*         DrawStructCopy;
+    g_BlockSaveDataList.ClearListAndDeleteItems();      // delete previous
+                                                        // saved list, if
+                                                        // exists
 
-    if( !DrawStruct )
-        return NULL;
-
-    /* Make a copy of the original picked item. */
-    DrawStructCopy = DuplicateStruct( DrawStruct );
-
-    if( DrawStruct->Type() == DRAW_PICK_ITEM_STRUCT_TYPE )
+    /* save the new list: */
+    ITEM_PICKER item;
+    // In list the wrapper is owner of the shematic item, we can use the UR_DELETED
+    // status for the picker because pickers with this status are owner of the picked item
+    // (or TODO ?: create a new status like UR_DUPLICATE)
+    item.m_UndoRedoStatus = UR_DELETED;
+    for( unsigned ii = 0; ii < aItemsList.GetCount(); ii++ )
     {
-        /* Delete the picked wrapper if this is a picked list. */
-        PickedList = (DrawPickedStruct*) DrawStruct;
-        PickedList->DeleteWrapperList();
+        /* Make a copy of the original picked item. */
+        SCH_ITEM* DrawStructCopy = DuplicateStruct(
+             (SCH_ITEM*) aItemsList.GetPickedItem( ii ) );
+        DrawStructCopy->SetParent( NULL );
+        item.m_PickedItem = DrawStructCopy;
+        g_BlockSaveDataList.PushItem( item );
     }
-
-    /* And delete old list and save the new list: */
-    if( g_BlockSaveDataList ) /* Delete last deleted item or item list */
-    {
-        EDA_BaseStruct* item = g_BlockSaveDataList, * next_item;
-        while( item )
-        {
-            next_item = item->Next();
-            delete item;
-            item = next_item;
-        }
-    }
-
-    g_BlockSaveDataList = DrawStructCopy;
-    DrawStructCopy->SetParent( NULL );
-
-    return DrawStructCopy;
 }
 
 
 /*****************************************************************************
-* Routine to paste a structure from the g_BlockSaveDataList stack.						 *
-*	This routine is the same as undelete but original list is NOT removed.	 *
+* Routine to paste a structure from the g_BlockSaveDataList stack.
+*   This routine is the same as undelete but original list is NOT removed.
 *****************************************************************************/
-void WinEDA_SchematicFrame::PasteStruct( wxDC* DC )
+void WinEDA_SchematicFrame::PasteListOfItems( wxDC* DC )
 {
-    SCH_ITEM*         DrawStruct;
-    DrawPickedStruct* PickedList = NULL;
+    SCH_ITEM* Struct;
 
-    if( g_BlockSaveDataList == NULL )
+    if( g_BlockSaveDataList.GetCount() == 0 )
     {
         DisplayError( this, wxT( "No struct to paste" ) );
         return;
     }
 
-    DrawStruct = DuplicateStruct( g_BlockSaveDataList );
+    PICKED_ITEMS_LIST picklist;
 
-    PlaceStruct( GetScreen(), DrawStruct );
-
-    RedrawStructList( DrawPanel, DC, DrawStruct, GR_DEFAULT_DRAWMODE );
-
-    // Clear annotation and init new time stamp for the new components:
-    if( DrawStruct->Type() == DRAW_PICK_ITEM_STRUCT_TYPE )
+    // Creates data, and push it as new data in undo item list buffer
+    ITEM_PICKER       picker( NULL, UR_NEW );
+    for( unsigned ii = 0; ii < g_BlockSaveDataList.GetCount(); ii++ )
     {
-        for( PickedList = (DrawPickedStruct*) DrawStruct; PickedList != NULL; ) // Clear annotation for new components
-        {
-            EDA_BaseStruct* Struct = PickedList->m_PickedStruct;
-            if( Struct->Type() == TYPE_SCH_COMPONENT )
-            {
-                ( (SCH_COMPONENT*) Struct )->m_TimeStamp = GetTimeStamp();
-                ( (SCH_COMPONENT*) Struct )->ClearAnnotation( NULL );
-                SetaParent( Struct, GetScreen() );
-            }
-            PickedList = (DrawPickedStruct*) PickedList->Next();
-        }
+        Struct = DuplicateStruct(
+             (SCH_ITEM*) g_BlockSaveDataList.m_ItemsSelection.GetPickedItem(
+                ii ) );
+        picker.m_PickedItem = Struct;
+        picklist.PushItem( picker );
 
-        RedrawStructList( DrawPanel, DC, DrawStruct, GR_DEFAULT_DRAWMODE );
-        for( PickedList = (DrawPickedStruct*) DrawStruct; PickedList != NULL; )
+        // Clear annotation and init new time stamp for the new components:
+        if( Struct->Type() == TYPE_SCH_COMPONENT )
         {
-            SCH_ITEM* Struct = PickedList->m_PickedStruct;
-            Struct->SetNext( GetScreen()->EEDrawList );
-            SetaParent( Struct, GetScreen() );
-            GetScreen()->EEDrawList = Struct;
-            PickedList = PickedList->Next();
+            ( (SCH_COMPONENT*) Struct )->m_TimeStamp = GetTimeStamp();
+            ( (SCH_COMPONENT*) Struct )->ClearAnnotation( NULL );
         }
+        SetaParent( Struct, GetScreen() );
+        RedrawOneStruct( DrawPanel, DC, Struct, GR_DEFAULT_DRAWMODE );
+        Struct->SetNext( GetScreen()->EEDrawList );
+        GetScreen()->EEDrawList = Struct;
+    }
 
-        /* Save wrapper list in undo stack */
-        SaveCopyInUndoList( DrawStruct, IS_NEW );
-    }
-    else
-    {
-        if( DrawStruct->Type() == TYPE_SCH_COMPONENT )
-        {
-            ( (SCH_COMPONENT*) DrawStruct )->m_TimeStamp = GetTimeStamp();
-            ( (SCH_COMPONENT*) DrawStruct )->ClearAnnotation( NULL );
-        }
-        SetaParent( DrawStruct, GetScreen() );
-        RedrawOneStruct( DrawPanel, DC, DrawStruct, GR_DEFAULT_DRAWMODE );
-        DrawStruct->SetNext( GetScreen()->EEDrawList );
-        GetScreen()->EEDrawList = DrawStruct;
-        SaveCopyInUndoList( DrawStruct, IS_NEW );
-    }
+    SaveCopyInUndoList( picklist, UR_NEW );
+
+    MoveItemsInList( picklist, GetScreen()->m_BlockLocate.m_MoveVector );
 
     /* clear .m_Flags member for all items */
-    SCH_ITEM* Struct;
     for( Struct = GetScreen()->EEDrawList;
         Struct != NULL;
         Struct = Struct->Next() )
         Struct->m_Flags = 0;
 
-    GetScreen()->SetModify();
+    OnModify( );
 
     return;
 }
 
 
-/*****************************************************************************
-* Routine to place a given object.											 *
-*****************************************************************************/
-bool PlaceStruct( BASE_SCREEN* screen, SCH_ITEM* DrawStruct )
-{
-    DrawPickedStruct* DrawStructs;
-    wxPoint           move_vector;
-
-    if( !DrawStruct )
-        return FALSE;
-
-    move_vector = screen->m_Curseur - screen->BlockLocate.m_BlockLastCursorPosition;
-
-    switch( DrawStruct->Type() )
-    {
-    default:
-    case TYPE_NOT_INIT:
-        return FALSE;
-
-    case DRAW_POLYLINE_STRUCT_TYPE:
-    case DRAW_JUNCTION_STRUCT_TYPE:
-    case DRAW_SEGMENT_STRUCT_TYPE:
-    case DRAW_BUSENTRY_STRUCT_TYPE:
-    case TYPE_SCH_TEXT:
-    case TYPE_SCH_LABEL:
-    case TYPE_SCH_GLOBALLABEL:
-    case TYPE_SCH_HIERLABEL:
-    case TYPE_SCH_COMPONENT:
-    case DRAW_SHEET_STRUCT_TYPE:
-    case DRAW_HIERARCHICAL_PIN_SHEET_STRUCT_TYPE:
-    case DRAW_MARKER_STRUCT_TYPE:
-    case DRAW_NOCONNECT_STRUCT_TYPE:
-        MoveOneStruct( DrawStruct, move_vector );
-        break;
-
-    case DRAW_PICK_ITEM_STRUCT_TYPE:
-        DrawStructs = (DrawPickedStruct*) DrawStruct;
-        while( DrawStructs )
-        {
-            MoveOneStruct( DrawStructs->m_PickedStruct, move_vector );
-            DrawStructs = DrawStructs->Next();
-        }
-
-        break;
-    }
-
-    return TRUE;
-}
-
-
-/**************************************************************************/
-void MoveOneStruct( SCH_ITEM* DrawStruct, const wxPoint& move_vector )
-/*************************************************************************/
-
-/* Given a structure move it by Dx, Dy.
+/* creates the list of items found when a drag block is initiated.
+ * items are those selected in window block an some items outside this area but
+ * connected to a selected item (connected wires to a component or an entry )
  */
+static void CollectStructsToDrag( SCH_SCREEN* screen )
 {
-    DrawPolylineStruct*            DrawPoly;
-    DrawJunctionStruct*            DrawConnect;
-    EDA_DrawLineStruct*            DrawSegment;
-    DrawBusEntryStruct*            DrawRaccord;
-    SCH_COMPONENT*                 DrawLibItem;
-    DrawSheetStruct*               DrawSheet;
-    Hierarchical_PIN_Sheet_Struct* DrawSheetLabel;
-    DrawMarkerStruct*              DrawMarker;
-    DrawNoConnectStruct*           DrawNoConnect;
+    SCH_ITEM* Struct;
+    SCH_LINE* SegmStruct;
 
-    if( !DrawStruct )
+    PICKED_ITEMS_LIST*  pickedlist = &screen->m_BlockLocate.m_ItemsSelection;
+
+    if( pickedlist->GetCount() == 0 )
         return;
 
-    switch( DrawStruct->Type() )
-    {
-    case TYPE_NOT_INIT:
-        break;
-
-    case DRAW_POLYLINE_STRUCT_TYPE:
-        DrawPoly = (DrawPolylineStruct*) DrawStruct;
-        for( unsigned ii = 0; ii < DrawPoly->GetCornerCount(); ii++ )
-        {
-            DrawPoly->m_PolyPoints[ii] += move_vector;
-        }
-
-        break;
-
-    case DRAW_SEGMENT_STRUCT_TYPE:
-        DrawSegment = (EDA_DrawLineStruct*) DrawStruct;
-        if( (DrawSegment->m_Flags & STARTPOINT) == 0 )
-        {
-            DrawSegment->m_Start += move_vector;
-        }
-        if( (DrawSegment->m_Flags & ENDPOINT) == 0 )
-        {
-            DrawSegment->m_End += move_vector;
-        }
-        break;
-
-    case DRAW_BUSENTRY_STRUCT_TYPE:
-        DrawRaccord = (DrawBusEntryStruct*) DrawStruct;
-        DrawRaccord->m_Pos += move_vector;
-        break;
-
-    case DRAW_JUNCTION_STRUCT_TYPE:
-        DrawConnect = (DrawJunctionStruct*) DrawStruct;
-        DrawConnect->m_Pos += move_vector;
-        break;
-
-    case DRAW_MARKER_STRUCT_TYPE:
-        DrawMarker = (DrawMarkerStruct*) DrawStruct;
-        DrawMarker->m_Pos += move_vector;
-        break;
-
-    case DRAW_NOCONNECT_STRUCT_TYPE:
-        DrawNoConnect = (DrawNoConnectStruct*) DrawStruct;
-        DrawNoConnect->m_Pos += move_vector;
-        break;
-
-    case TYPE_SCH_TEXT:
-             #define DrawText ( (SCH_TEXT*) DrawStruct )
-        DrawText->m_Pos += move_vector;
-        break;
-
-    case TYPE_SCH_LABEL:
-             #define DrawLabel ( (SCH_LABEL*) DrawStruct )
-        DrawLabel->m_Pos += move_vector;
-        break;
-
-    case TYPE_SCH_HIERLABEL:
-    case TYPE_SCH_GLOBALLABEL:
-             #define DrawGHLabel ( (SCH_LABEL*) DrawStruct )
-        DrawGHLabel->m_Pos += move_vector;
-        break;
-
-    case TYPE_SCH_COMPONENT:
-        DrawLibItem = (SCH_COMPONENT*) DrawStruct;
-        DrawLibItem->m_Pos += move_vector;
-        for( int ii = 0; ii < DrawLibItem->GetFieldCount(); ii++ )
-        {
-            DrawLibItem->GetField( ii )->m_Pos += move_vector;
-        }
-
-        break;
-
-    case DRAW_SHEET_STRUCT_TYPE:
-        DrawSheet = (DrawSheetStruct*) DrawStruct;
-        DrawSheet->m_Pos += move_vector;
-        DrawSheetLabel    = DrawSheet->m_Label;
-        while( DrawSheetLabel != NULL )
-        {
-            DrawSheetLabel->m_Pos += move_vector;
-            DrawSheetLabel = DrawSheetLabel->Next();
-        }
-
-        break;
-
-    case DRAW_HIERARCHICAL_PIN_SHEET_STRUCT_TYPE:
-        DrawSheetLabel = (Hierarchical_PIN_Sheet_Struct*) DrawStruct;
-        DrawSheetLabel->m_Pos += move_vector;
-        break;
-
-    case DRAW_PICK_ITEM_STRUCT_TYPE:
-        break;
-
-    default:
-        break;
-    }
-}
-
-
-/************************************************************/
-SCH_ITEM* DuplicateStruct( SCH_ITEM* DrawStruct )
-/************************************************************/
-
-/* Routine to create a new copy of given struct.
- *  The new object is not put in draw list (not linked)
- */
-{
-    SCH_ITEM* NewDrawStruct = NULL;
-
-    if( DrawStruct == NULL )
-    {
-        DisplayError( NULL, wxT( "DuplicateStruct error: NULL struct" ) );
-        return NULL;
-    }
-
-    switch( DrawStruct->Type() )
-    {
-    case DRAW_POLYLINE_STRUCT_TYPE:
-        NewDrawStruct = ( (DrawPolylineStruct*) DrawStruct )->GenCopy();
-        break;
-
-    case DRAW_SEGMENT_STRUCT_TYPE:
-        NewDrawStruct = ( (EDA_DrawLineStruct*) DrawStruct )->GenCopy();
-        break;
-
-    case DRAW_BUSENTRY_STRUCT_TYPE:
-        NewDrawStruct = ( (DrawBusEntryStruct*) DrawStruct )->GenCopy();
-        break;
-
-    case DRAW_JUNCTION_STRUCT_TYPE:
-        NewDrawStruct = ( (DrawJunctionStruct*) DrawStruct )->GenCopy();
-        break;
-
-    case DRAW_MARKER_STRUCT_TYPE:
-        NewDrawStruct = ( (DrawMarkerStruct*) DrawStruct )->GenCopy();
-        break;
-
-    case DRAW_NOCONNECT_STRUCT_TYPE:
-        NewDrawStruct = ( (DrawNoConnectStruct*) DrawStruct )->GenCopy();
-        break;
-
-    case TYPE_SCH_TEXT:
-        NewDrawStruct = ( (SCH_TEXT*) DrawStruct )->GenCopy();
-        break;
-
-    case TYPE_SCH_LABEL:
-        NewDrawStruct = ( (SCH_LABEL*) DrawStruct )->GenCopy();
-        break;
-
-    case TYPE_SCH_HIERLABEL:
-        NewDrawStruct = ( (SCH_HIERLABEL*) DrawStruct )->GenCopy();
-        break;
-
-    case TYPE_SCH_GLOBALLABEL:
-        NewDrawStruct = ( (SCH_GLOBALLABEL*) DrawStruct )->GenCopy();
-        break;
-
-    case TYPE_SCH_COMPONENT:
-        NewDrawStruct = ( (SCH_COMPONENT*) DrawStruct )->GenCopy();
-        break;
-
-    case DRAW_SHEET_STRUCT_TYPE:
-        NewDrawStruct = ( (DrawSheetStruct*) DrawStruct )->GenCopy();
-        break;
-
-    case DRAW_PICK_ITEM_STRUCT_TYPE:
-    {
-        DrawPickedStruct* NewPickedItem, * PickedList = NULL,
-        * LastPickedItem = NULL;
-        PickedList = (DrawPickedStruct*) DrawStruct;
-        while( PickedList )
-        {
-            NewPickedItem = new DrawPickedStruct();
-            if( NewDrawStruct == NULL )
-                NewDrawStruct = NewPickedItem;
-            if( LastPickedItem )
-                LastPickedItem->SetNext( NewPickedItem );
-            LastPickedItem = NewPickedItem;
-            NewPickedItem->m_PickedStruct =
-                DuplicateStruct( PickedList->m_PickedStruct );
-            PickedList = PickedList->Next();
-        }
-
-        break;
-    }
-
-    case DRAW_HIERARCHICAL_PIN_SHEET_STRUCT_TYPE:
-    case DRAW_PART_TEXT_STRUCT_TYPE:
-    case SCREEN_STRUCT_TYPE:
-    default:
-    {
-        wxString msg;
-        msg << wxT( "DuplicateStruct error: unexpected StructType " ) <<
-        DrawStruct->Type() << wxT( " " ) << DrawStruct->GetClass();
-        DisplayError( NULL, msg );
-    }
-        break;
-    }
-
-    NewDrawStruct->m_Image = DrawStruct;
-    return NewDrawStruct;
-}
-
-
-/****************************************************/
-static void CollectStructsToDrag( SCH_SCREEN* screen )
-/****************************************************/
-
-/* creates the list of items found when a drag block is initiated.
- * items are those slected in window block an some items outside this area but connected
- * to a selected item (connected wires to a component or an entry )
- */
-{
-    DrawPickedStruct*   DrawStructs, * FirstPicked;
-    SCH_ITEM*           Struct;
-    EDA_DrawLineStruct* SegmStruct;
-    int ox, oy, fx, fy;
-
-    /* .m_Flags member is used to handle how a wire is exactly slected
+    /* .m_Flags member is used to handle how a wire is exactly selected
      * (fully selected, or partially selected by an end point )
      */
     for( Struct = screen->EEDrawList; Struct != NULL; Struct = Struct->Next() )
         Struct->m_Flags = 0;
 
-    // Sel .m_Flags to selected for a wire or buss in selected area if there is only one item:
-    if( screen->BlockLocate.m_BlockDrawStruct->Type() == DRAW_SEGMENT_STRUCT_TYPE )
-        screen->BlockLocate.m_BlockDrawStruct->m_Flags = SELECTED;
-
-    // Sel .m_Flags to selected for a wire or buss in selected area for a list of items:
-    else if( screen->BlockLocate.m_BlockDrawStruct->Type() ==
-             DRAW_PICK_ITEM_STRUCT_TYPE )
+    // Sel .m_Flags to selected for a wire or bus in selected area if there is
+    // only one item:
+    if( pickedlist->GetCount() == 1 )
     {
-        DrawStructs =
-            (DrawPickedStruct*) screen->BlockLocate.m_BlockDrawStruct;
-        while( DrawStructs )
+        Struct = (SCH_ITEM*) pickedlist->GetPickedItem( 0 );
+        if( Struct->Type() == DRAW_SEGMENT_STRUCT_TYPE )
+            Struct->m_Flags = SELECTED;
+    }
+    // Sel .m_Flags to selected for a wire or bus in selected area for a list
+    // of items:
+    else
+    {
+        for( unsigned ii = 0; ii < pickedlist->GetCount(); ii++ )
         {
-            Struct          = DrawStructs->m_PickedStruct;
-            DrawStructs     = DrawStructs->Next();
+            Struct = (SCH_ITEM*) pickedlist->GetPickedItem( ii );
             Struct->m_Flags = SELECTED;
         }
     }
 
-    if( screen->BlockLocate.m_Command != BLOCK_DRAG )
+    if( screen->m_BlockLocate.m_Command != BLOCK_DRAG )
         return;
 
-    ox = screen->BlockLocate.GetX();
-    oy = screen->BlockLocate.GetY();
-    fx = screen->BlockLocate.GetRight();
-    fy = screen->BlockLocate.GetBottom();
 
-    if( fx < ox )
-        EXCHG( fx, ox );
-    if( fy < oy )
-        EXCHG( fy, oy );
-
-    /* For drag block only:
-     * If only one item, change for a list of one item
-     * in order to have always a list to handle.
-     */
-    if( screen->BlockLocate.m_BlockDrawStruct->Type() !=
-        DRAW_PICK_ITEM_STRUCT_TYPE )
+    /* Remove the displacement of segment and undo the selection. */
+    for( unsigned ii = 0; ii < pickedlist->GetCount(); ii++ )
     {
-        DrawStructs = new DrawPickedStruct(
-            (SCH_ITEM*) screen->BlockLocate.m_BlockDrawStruct );
-        screen->BlockLocate.m_BlockDrawStruct = DrawStructs;
-    }
-
-    /* Suppression du deplacement des extremites de segments hors cadre
-     *  de selection */
-    DrawStructs = (DrawPickedStruct*) screen->BlockLocate.m_BlockDrawStruct;
-    while( DrawStructs )
-    {
-        Struct      = DrawStructs->m_PickedStruct;
-        DrawStructs = DrawStructs->Next();
+        Struct = (SCH_ITEM*) (SCH_ITEM*) pickedlist->GetPickedItem( ii );
         if( Struct->Type() == DRAW_SEGMENT_STRUCT_TYPE )
         {
-            SegmStruct = (EDA_DrawLineStruct*) Struct;
-            if( (SegmStruct->m_Start.x < ox) || (SegmStruct->m_Start.x > fx)
-               || (SegmStruct->m_Start.y < oy) || (SegmStruct->m_Start.y > fy) )
+            SegmStruct = (SCH_LINE*) Struct;
+            if( !screen->m_BlockLocate.Inside( SegmStruct->m_Start ) )
                 SegmStruct->m_Flags |= STARTPOINT;
 
-            if( (SegmStruct->m_End.x < ox) || (SegmStruct->m_End.x > fx)
-               || (SegmStruct->m_End.y < oy) || (SegmStruct->m_End.y > fy) )
+            if( !screen->m_BlockLocate.Inside( SegmStruct->m_End ) )
                 SegmStruct->m_Flags |= ENDPOINT;
+
+            // Save m_Flags for Undo/redo drag operations:
+            pickedlist->SetPickerFlags( SegmStruct->m_Flags, ii );
         }
     }
 
-    /* Search for other items to drag. They are end wires connected to selected items
+    /* Search for other items to drag. They are end wires connected to selected
+     * items
      */
 
-    FirstPicked = DrawStructs =
-                      (DrawPickedStruct*) screen->BlockLocate.
-                      m_BlockDrawStruct;
-    while( DrawStructs )
+    for( unsigned ii = 0; ii < pickedlist->GetCount(); ii++ )
     {
-        Struct      = DrawStructs->m_PickedStruct;
-        DrawStructs = DrawStructs->Next();
+        Struct = (SCH_ITEM*) (SCH_ITEM*) pickedlist->GetPickedItem( ii );
         if( Struct->Type() == TYPE_SCH_COMPONENT )
-        {   // Add all pins of the selected component to list
-            LibEDA_BaseStruct* DrawItem;
-            wxPoint            pos;
-            DrawItem = GetNextPinPosition( (SCH_COMPONENT*) Struct, pos );
-            while( DrawItem )
+        {
+            // Add all pins of the selected component to list
+            LIB_PIN* pin;
+            wxPoint  pos;
+            pin = GetNextPinPosition( (SCH_COMPONENT*) Struct, pos, true );
+            while( pin )
             {
-                if( (pos.x < ox) || (pos.x > fx) || (pos.y < oy) || (pos.y > fy) )
-                {   // This pin is outside area,
+                if( !screen->m_BlockLocate.Inside( pos ) )
+                {
+                    // This pin is outside area,
                     // but because it it the pin of a selected component
                     // we must also select connected items to this pin
                     AddPickedItem( screen, pos );
                 }
 
-                DrawItem = GetNextPinPosition( NULL, pos );
+                pin = GetNextPinPosition( (SCH_COMPONENT*) Struct, pos, false );
             }
         }
 
         if( Struct->Type() == DRAW_SHEET_STRUCT_TYPE )
-        {   // Add all pins sheets of a selected hierarchical sheet to the list
-            Hierarchical_PIN_Sheet_Struct* SLabel =
-                ( (DrawSheetStruct*) Struct )->m_Label;
+        {
+            // Add all pins sheets of a selected hierarchical sheet to the list
+            SCH_SHEET_PIN* SLabel = ( (SCH_SHEET*) Struct )->m_Label;
             while( SLabel )
             {
                 if( SLabel->Type() == DRAW_HIERARCHICAL_PIN_SHEET_STRUCT_TYPE )
                     AddPickedItem( screen, SLabel->m_Pos );
-                SLabel = (Hierarchical_PIN_Sheet_Struct*) SLabel->Next();
+                SLabel = (SCH_SHEET_PIN*) SLabel->Next();
             }
         }
 
         if( Struct->Type() == DRAW_BUSENTRY_STRUCT_TYPE )
         {
-            DrawBusEntryStruct* item = (DrawBusEntryStruct*) Struct;
+            SCH_BUS_ENTRY* item = (SCH_BUS_ENTRY*) Struct;
             AddPickedItem( screen, item->m_Pos );
             AddPickedItem( screen, item->m_End() );
         }
@@ -1546,30 +695,36 @@ static void CollectStructsToDrag( SCH_SCREEN* screen )
 }
 
 
-/******************************************************************/
+/** AddPickedItem
+ * add to the picked list in screen->m_BlockLocate items found at location
+ * position
+ * @param screen = the screen to consider
+ * @param position = the wxPoint where items must be located to be select
+ */
 static void AddPickedItem( SCH_SCREEN* screen, wxPoint position )
-/******************************************************************/
 {
-    DrawPickedStruct* DrawStructs;
-    SCH_ITEM*         Struct;
+    SCH_ITEM*          Struct;
 
-    /* Examen de la liste des elements deja selectionnes */
-    DrawStructs = (DrawPickedStruct*) screen->BlockLocate.m_BlockDrawStruct;
-    while( DrawStructs )
+    /* Review the list of already selected elements. */
+    PICKED_ITEMS_LIST* pickedlist = &screen->m_BlockLocate.m_ItemsSelection;
+
+    for( unsigned ii = 0; ii < pickedlist->GetCount(); ii++ )
     {
-        Struct      = DrawStructs->m_PickedStruct;
-        DrawStructs = (DrawPickedStruct*) DrawStructs->Next();
+        Struct = (SCH_ITEM*) pickedlist->GetPickedItem( ii );
 
         switch( Struct->Type() )
         {
         case DRAW_SEGMENT_STRUCT_TYPE:
                 #undef STRUCT
-                #define STRUCT ( (EDA_DrawLineStruct*) Struct )
+                #define STRUCT ( (SCH_LINE*) Struct )
             if( STRUCT->m_Start == position )
                 STRUCT->m_Flags &= ~STARTPOINT;
 
             if( STRUCT->m_End == position )
                 STRUCT->m_Flags &= ~ENDPOINT;
+
+            // Save m_Flags for Undo/redo drag operations:
+            pickedlist->SetPickerFlags( STRUCT->m_Flags, ii );
             break;
 
         default:
@@ -1577,11 +732,14 @@ static void AddPickedItem( SCH_SCREEN* screen, wxPoint position )
         }
     }
 
-    /* Examen de la liste des elements non selectionnes */
+    /* Review the list of elements not selected. */
 
+    ITEM_PICKER picker;
     Struct = screen->EEDrawList;
     while( Struct )
     {
+        picker.m_PickedItem     = Struct;
+        picker.m_PickedItemType = Struct->Type();
         switch( Struct->Type() )
         {
         case TYPE_NOT_INIT:
@@ -1589,44 +747,41 @@ static void AddPickedItem( SCH_SCREEN* screen, wxPoint position )
 
         case DRAW_POLYLINE_STRUCT_TYPE:
             if( Struct->m_Flags & SELECTED )
-                break; /* Deja en liste */
+                break;
             break;
 
         case DRAW_JUNCTION_STRUCT_TYPE:
                 #undef STRUCT
-                #define STRUCT ( (DrawJunctionStruct*) Struct )
+                #define STRUCT ( (SCH_JUNCTION*) Struct )
             if( Struct->m_Flags & SELECTED )
-                break; /* Deja en liste */
+                break;
             if( STRUCT->m_Pos != position )
                 break;
-            DrawStructs = new DrawPickedStruct( Struct );
-            DrawStructs->SetNext( screen->BlockLocate.m_BlockDrawStruct );
-            screen->BlockLocate.m_BlockDrawStruct =
-                (EDA_BaseStruct*) DrawStructs;
+            pickedlist->PushItem( picker );
             break;
 
         case DRAW_SEGMENT_STRUCT_TYPE:
                 #undef STRUCT
-                #define STRUCT ( (EDA_DrawLineStruct*) Struct )
+                #define STRUCT ( (SCH_LINE*) Struct )
             if( Struct->m_Flags & SELECTED )
-                break; /* Deja en liste */
+                break;
             if( STRUCT->m_Start == position )
             {
-                DrawStructs = new DrawPickedStruct( Struct );
-                DrawStructs->SetNext( screen->BlockLocate.m_BlockDrawStruct );
-                screen->BlockLocate.m_BlockDrawStruct =
-                    (EDA_BaseStruct*) DrawStructs;
                 Struct->m_Flags  = SELECTED | ENDPOINT | STARTPOINT;
                 Struct->m_Flags &= ~STARTPOINT;
+
+                // Save m_Flags for Undo/redo drag operations:
+                picker.m_PickerFlags = Struct->m_Flags;
+                pickedlist->PushItem( picker );
             }
             else if( STRUCT->m_End == position )
             {
-                DrawStructs = new DrawPickedStruct( Struct );
-                DrawStructs->SetNext( screen->BlockLocate.m_BlockDrawStruct );
-                screen->BlockLocate.m_BlockDrawStruct =
-                    (EDA_BaseStruct*) DrawStructs;
                 Struct->m_Flags  = SELECTED | ENDPOINT | STARTPOINT;
                 Struct->m_Flags &= ~ENDPOINT;
+
+                // Save m_Flags for Undo/redo drag operations:
+                picker.m_PickerFlags = Struct->m_Flags;
+                pickedlist->PushItem( picker );
             }
             break;
 
@@ -1640,14 +795,11 @@ static void AddPickedItem( SCH_SCREEN* screen, wxPoint position )
                 #undef STRUCT
                 #define STRUCT ( (SCH_LABEL*) Struct )
             if( Struct->m_Flags & SELECTED )
-                break; /* Already in list */
+                break;  /* Already in list */
             if( STRUCT->m_Pos != position )
                 break;
-            DrawStructs = new DrawPickedStruct( Struct );
-            DrawStructs->SetNext( screen->BlockLocate.m_BlockDrawStruct );
-            screen->BlockLocate.m_BlockDrawStruct =
-                (EDA_BaseStruct*) DrawStructs;
             Struct->m_Flags |= SELECTED;
+            pickedlist->PushItem( picker );
             break;
 
         case TYPE_SCH_HIERLABEL:
@@ -1655,54 +807,38 @@ static void AddPickedItem( SCH_SCREEN* screen, wxPoint position )
                 #undef STRUCT
                 #define STRUCT ( (SCH_LABEL*) Struct )
             if( Struct->m_Flags & SELECTED )
-                break; /* Already in list */
+                break;  /* Already in list */
             if( STRUCT->m_Pos != position )
                 break;
-            DrawStructs = new DrawPickedStruct( Struct );
-            DrawStructs->SetNext( screen->BlockLocate.m_BlockDrawStruct );
-            screen->BlockLocate.m_BlockDrawStruct =
-                (EDA_BaseStruct*) DrawStructs;
             Struct->m_Flags |= SELECTED;
+            pickedlist->PushItem( picker );
             break;
 
         case TYPE_SCH_COMPONENT:
-            break;
-
         case DRAW_SHEET_STRUCT_TYPE:
-            break;
-
         case DRAW_HIERARCHICAL_PIN_SHEET_STRUCT_TYPE:
             break;
 
-        case DRAW_PICK_ITEM_STRUCT_TYPE:
-            break;
-
-        case DRAW_MARKER_STRUCT_TYPE:
+        case TYPE_SCH_MARKER:
                 #undef STRUCT
-                #define STRUCT ( (DrawMarkerStruct*) Struct )
+                #define STRUCT ( (SCH_MARKER*) Struct )
             if( Struct->m_Flags & SELECTED )
-                break; /* Already in list */
+                break;  /* Already in list */
             if( STRUCT->m_Pos != position )
                 break;
-            DrawStructs = new DrawPickedStruct( Struct );
-            DrawStructs->SetNext( screen->BlockLocate.m_BlockDrawStruct );
-            screen->BlockLocate.m_BlockDrawStruct =
-                (EDA_BaseStruct*) DrawStructs;
             Struct->m_Flags |= SELECTED;
+            pickedlist->PushItem( picker );
             break;
 
         case DRAW_NOCONNECT_STRUCT_TYPE:
                 #undef STRUCT
-                #define STRUCT ( (DrawNoConnectStruct*) Struct )
+                #define STRUCT ( (SCH_NO_CONNECT*) Struct )
             if( Struct->m_Flags & SELECTED )
-                break; /* Already in list */
+                break;  /* Already in list */
             if( STRUCT->m_Pos != position )
                 break;
-            DrawStructs = new DrawPickedStruct( Struct );
-            DrawStructs->SetNext( screen->BlockLocate.m_BlockDrawStruct );
-            screen->BlockLocate.m_BlockDrawStruct =
-                (EDA_BaseStruct*) DrawStructs;
             Struct->m_Flags |= SELECTED;
+            pickedlist->PushItem( picker );
             break;
 
         default:
@@ -1713,67 +849,54 @@ static void AddPickedItem( SCH_SCREEN* screen, wxPoint position )
 }
 
 
-/*********************************************************************************/
-static LibEDA_BaseStruct* GetNextPinPosition( SCH_COMPONENT* aDrawLibItem,
-                                              wxPoint&       aPosition )
-/*********************************************************************************/
-
 /** GetNextPinPosition()
  * calculate position of the "next" pin of the aDrawLibItem component
- * if aDrawLibItem is non null : search for the first pin
- * if aDrawLibItem == NULL, search the next pin
- * returns its position
- * @param aDrawLibItem = component test. search for the first pin
- *      if NULL, serach for the next pin for each call
- * @param aPosition = the calculated pin position, according to the component orientation and position
+ * @param aDrawLibItem = component to test.
+ * @param aPosition = the calculated pin position, according to the component
+ * orientation and position
+ * @param aSearchFirst = if true, search for the first pin
  * @return a pointer to the pin
  */
+static LIB_PIN* GetNextPinPosition( SCH_COMPONENT* aDrawLibItem,
+                                    wxPoint&       aPosition,
+                                    bool           aSearchFirst )
 {
-    EDA_LibComponentStruct* Entry;
-    static LibEDA_BaseStruct* NextItem;
+    static LIB_COMPONENT* Entry;
     static int Multi, convert, TransMat[2][2];
-    LibEDA_BaseStruct* DEntry;
-    int orient;
-    LibDrawPin* Pin;
     static wxPoint CmpPosition;
+    static LIB_PIN* Pin;
 
-    if( aDrawLibItem )
+    if( aSearchFirst )
     {
-        NextItem = NULL;
-        if( ( Entry =
-                 FindLibPart( aDrawLibItem->m_ChipName.GetData(), wxEmptyString,
-                              FIND_ROOT ) ) == NULL )
+        Entry = CMP_LIBRARY::FindLibraryComponent( aDrawLibItem->m_ChipName );
+
+        if( Entry == NULL )
             return NULL;
-        DEntry      = Entry->m_Drawings;
-        Multi       = aDrawLibItem->m_Multi;
+
+        Pin   = Entry->GetNextPin();
+        Multi = aDrawLibItem->m_Multi;
         convert     = aDrawLibItem->m_Convert;
         CmpPosition = aDrawLibItem->m_Pos;
         memcpy( TransMat, aDrawLibItem->m_Transform, sizeof(TransMat) );
     }
     else
-        DEntry = NextItem;
+        Pin = Entry->GetNextPin( Pin );
 
-    for( ; DEntry != NULL; DEntry = DEntry->Next() )
+    for( ; Pin != NULL; Pin = Entry->GetNextPin( Pin ) )
     {
-        /* Elimination des elements non relatifs a l'unite */
-        if( Multi && DEntry->m_Unit && (DEntry->m_Unit != Multi) )
+        wxASSERT( Pin->Type() == COMPONENT_PIN_DRAW_TYPE );
+
+        /* Skip items not used for this part */
+        if( Multi && Pin->m_Unit && ( Pin->m_Unit != Multi ) )
             continue;
-        if( convert && DEntry->m_Convert && (DEntry->m_Convert != convert) )
-            continue;
-        if( DEntry->Type() != COMPONENT_PIN_DRAW_TYPE )
+        if( convert && Pin->m_Convert && ( Pin->m_Convert != convert ) )
             continue;
 
-        Pin = (LibDrawPin*) DEntry;
-
-        /* Calcul de l'orientation reelle de la Pin */
-        orient = Pin->ReturnPinDrawOrient( TransMat );
-
-        /* Calcul de la position du point de reference */
+        /* Calculate the pin position (according to the component orientation)
+         */
         aPosition = TransformCoordinate( TransMat, Pin->m_Pos ) + CmpPosition;
-        NextItem  = DEntry->Next();
-        return DEntry;
+        return Pin;
     }
 
-    NextItem = NULL;
     return NULL;
 }

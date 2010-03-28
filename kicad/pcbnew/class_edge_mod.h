@@ -1,11 +1,9 @@
-/**************************************************************/
-/* class_edge_module.h : description des contours d'un module */
-/**************************************************************/
+/*******************************************************/
+/* class_edge_module.h : EDGE_MODULE class definition. */
+/*******************************************************/
 
 class Pcb3D_GLCanvas;
 
-
-/* description des contours (empreintes ) et TYPES des CONTOURS : */
 
 class EDGE_MODULE : public BOARD_ITEM
 {
@@ -14,13 +12,13 @@ public:
     wxPoint m_Start;        // Line start point
     wxPoint m_End;          // Line end point
 
-    int     m_Shape;        // voir "enum Track_Shapes"
-    wxPoint m_Start0;       // coord relatives a l'ancre du point de depart(Orient 0)
-    wxPoint m_End0;         // coord relatives a l'ancre du point de fin (Orient 0)
+    int     m_Shape;        // enum Track_Shapes
+    wxPoint m_Start0;       // Start point.
+    wxPoint m_End0;         // End point.
 
-    int     m_Angle;        // pour les arcs de cercle: longueur de l'arc en 0,1 degres
+    int     m_Angle;        // Arcs: angle in 0.1 degrees
 
-    std::vector<wxPoint>		m_PolyPoints;   // For polygons: number of points (> 2)
+    std::vector<wxPoint> m_PolyPoints;   // For polygons: number of points (> 2)
                             // Coord are relative to Origin, orient 0
 
 public:
@@ -54,24 +52,32 @@ public:
 
     int     ReadDescr( char* Line, FILE* File, int* LineNum = NULL );
 
-    // Mise a jour des coordon�s pour l'affichage
     void    SetDrawCoord();
 
     /* drawing functions */
     void    Draw( WinEDA_DrawPanel* panel, wxDC* DC,
-                 int aDrawMode, const wxPoint& offset = ZeroOffset );
+                  int aDrawMode, const wxPoint& offset = ZeroOffset );
 
     void    Draw3D( Pcb3D_GLCanvas* glcanvas );
 
     /**
-     * Function Display_Infos
+     * Function DisplayInfo
      * has knowledge about the frame and how and where to put status information
      * about this object into the frame's message panel.
      * Is virtual from EDA_BaseStruct.
      * @param frame A WinEDA_DrawFrame in which to print status information.
      */
-    void    Display_Infos( WinEDA_DrawFrame* frame );
+    void    DisplayInfo( WinEDA_DrawFrame* frame );
 
+
+    /**
+     * Function GetBoundingBox
+     * returns the orthogonal, bounding box of this object for display purposes.
+     * This box should be an enclosing perimeter for visible components of this
+     * object, and the units should be in the pcb or schematic coordinate system.
+     * It is OK to overestimate the size by a few counts.
+     */
+    virtual EDA_Rect GetBoundingBox();
 
     /**
      * Function HitTest
@@ -92,6 +98,23 @@ public:
         // return wxT( "EDGE" );  ?
     }
 
+    /** Function TransformShapeWithClearanceToPolygon
+     * Convert the track shape to a closed polygon
+     * Used in filling zones calculations
+     * Circles and arcs are approximated by segments
+     * @param aCornerBuffer = a buffer to store the polygon
+     * @param aClearanceValue = the clearance around the pad
+     * @param aCircleToSegmentsCount = the number of segments to approximate a circle
+     * @param aCorrectionFactor = the correction to apply to circles radius to keep
+     * clearance when the circle is approxiamted by segment bigger or equal
+     * to the real clearance value (usually near from 1.0)
+     */
+    void         TransformShapeWithClearanceToPolygon(
+        std::vector <CPolyPt>& aCornerBuffer,
+        int                    aClearanceValue,
+        int
+                               aCircleToSegmentsCount,
+        double                 aCorrectionFactor );
 
 #if defined(DEBUG)
     /**

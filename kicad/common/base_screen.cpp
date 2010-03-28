@@ -1,6 +1,6 @@
-/***************************************************************/
-/* base_screen.cpp - fonctions des classes du type BASE_SCREEN */
-/***************************************************************/
+/********************************************************/
+/* base_screen.cpp - BASE_SCREEN object implementation. */
+/********************************************************/
 
 #ifdef __GNUG__
 #pragma implementation
@@ -17,45 +17,40 @@
 #include <wx/arrimpl.cpp>
 WX_DEFINE_OBJARRAY( GridArray );
 
+BASE_SCREEN* ActiveScreen = NULL;
 
-/* defines locaux */
-#define CURSOR_SIZE 12  /* taille de la croix du curseur PCB */
+#define CURSOR_SIZE 12  /* size of the cross cursor. */
 
-/*******************************************************/
-/* Class BASE_SCREEN: classe de gestion d'un affichage */
-/*******************************************************/
+
 BASE_SCREEN::BASE_SCREEN( KICAD_T aType ) : EDA_BaseStruct( aType )
 {
     EEDrawList         = NULL;   /* Schematic items list */
-    m_UndoList         = NULL;
-    m_RedoList         = NULL;
-    m_UndoRedoCountMax = 1;
+    m_UndoRedoCountMax = 10;     /* undo/Redo command Max depth, 10 is a
+                                  * reasonable value */
     m_FirstRedraw      = TRUE;
     m_ScreenNumber     = 1;
     m_NumberOfScreen   = 1;  /* Hierarchy: Root: ScreenNumber = 1 */
     m_ZoomScalar       = 10;
     m_Zoom             = 32 * m_ZoomScalar;
-    m_Grid             = wxRealPoint( 50, 50 );   /* Default grid size */
+    m_Grid.m_Size      = wxRealPoint( 50, 50 );   /* Default grid size */
+    m_Grid.m_Id        = ID_POPUP_GRID_LEVEL_50;
     m_UserGridIsON     = FALSE;
     m_Center           = true;
     m_CurrentSheetDesc = &g_Sheet_A4;
+    m_IsPrinting       = false;
+    m_ScrollPixelsPerUnitX = 1;
+    m_ScrollPixelsPerUnitY = 1;
 
     InitDatas();
 }
 
 
-/******************************/
 BASE_SCREEN::~BASE_SCREEN()
-/******************************/
 {
-    ClearUndoRedoList();
 }
 
 
-/*******************************/
-void
-BASE_SCREEN::InitDatas()
-/*******************************/
+void BASE_SCREEN::InitDatas()
 {
     if( m_Center )
     {
@@ -74,29 +69,25 @@ BASE_SCREEN::InitDatas()
 
     SetCurItem( NULL );
 
-    /* indicateurs divers */
-    m_FlagRefreshReq = 0;   /* Redraw screen requste flag */
-    m_FlagModified   = 0;   // Set when any change is made on borad
+    m_FlagRefreshReq = 0;   /* Redraw screen request flag */
+    m_FlagModified   = 0;   // Set when any change is made on broad
     m_FlagSave = 1;         // Used in auto save: set when an auto save is made
 }
 
 /**
  * Get screen units scalar.
  *
- * Default implimentation returns scalar used for schematic screen.  The
+ * Default implementation returns scalar used for schematic screen.  The
  * internal units used by the schematic screen is 1 mil (0.001").  Override
  * this in derived classes that require internal units other than 1 mil.
  */
-int
-BASE_SCREEN::GetInternalUnits( void )
+int BASE_SCREEN::GetInternalUnits( void )
 {
     return EESCHEMA_INTERNAL_UNIT;
 }
 
-/************************************/
-wxSize
-BASE_SCREEN::ReturnPageSize( void )
-/************************************/
+
+wxSize BASE_SCREEN::ReturnPageSize( void )
 {
     int internal_units = GetInternalUnits();
 
@@ -110,25 +101,24 @@ BASE_SCREEN::ReturnPageSize( void )
  * @return the position in user units of location ScreenPos
  * @param ScreenPos = the screen (in pixel) position co convert
 */
-/******************************************************************/
-wxPoint
-BASE_SCREEN::CursorRealPosition( const wxPoint& ScreenPos )
-/******************************************************************/
+wxPoint BASE_SCREEN::CursorRealPosition( const wxPoint& ScreenPos )
 {
     wxPoint curpos = ScreenPos;
     Unscale( curpos );
 
+#ifndef USE_WX_ZOOM
     curpos += m_DrawOrg;
+#endif
 
     return curpos;
 }
 
 /** Function SetScalingFactor
- * calculates the .m_Zoom member to have a given scaling facort
+ * calculates the .m_Zoom member to have a given scaling factor
  * @param the the current scale used to draw items on screen
  * draw coordinates are user coordinates * GetScalingFactor( )
 */
-void  BASE_SCREEN::SetScalingFactor(double aScale )
+void BASE_SCREEN::SetScalingFactor(double aScale )
 {
     int zoom = static_cast<int>( ceil(aScale * m_ZoomScalar) );
 
@@ -155,7 +145,7 @@ void  BASE_SCREEN::SetScalingFactor(double aScale )
  */
 int BASE_SCREEN::Scale( int coord )
 {
-#ifdef WX_ZOOM
+#ifdef USE_WX_ZOOM
     return coord;
 #else
     if( !m_ZoomScalar || !m_Zoom )
@@ -166,15 +156,32 @@ int BASE_SCREEN::Scale( int coord )
 }
 
 
+double BASE_SCREEN::Scale( double coord )
+{
+#ifdef USE_WX_ZOOM
+    return coord;
+#else
+    if( !m_Zoom )
+        return 0;
+
+    if( !m_ZoomScalar || !m_Zoom )
+        return 0;
+
+    return ( coord * (double) m_ZoomScalar ) / (double) m_Zoom;
+#endif
+}
+
+
 void BASE_SCREEN::Scale( wxPoint& pt )
 {
     pt.x = Scale( pt.x );
     pt.y = Scale( pt.y );
 }
 
+
 void BASE_SCREEN::Scale( wxRealPoint& pt )
 {
-#ifdef WX_ZOOM
+#ifdef USE_WX_ZOOM
     // No change
 #else
     if( !m_ZoomScalar || !m_Zoom )
@@ -201,7 +208,7 @@ void BASE_SCREEN::Scale( wxSize& sz )
  */
 int BASE_SCREEN::Unscale( int coord )
 {
-#ifdef WX_ZOOM
+#ifdef USE_WX_ZOOM
     return coord;
 #else
     if( !m_Zoom || !m_ZoomScalar )
@@ -324,12 +331,7 @@ bool BASE_SCREEN::SetLastZoom()
 }
 
 
-/********************************************/
 void BASE_SCREEN::SetGridList( GridArray& gridlist )
-/********************************************/
-
-/* init liste des zoom (NULL terminated)
- */
 {
     if( !m_GridList.IsEmpty() )
         m_GridList.Clear();
@@ -338,34 +340,34 @@ void BASE_SCREEN::SetGridList( GridArray& gridlist )
 }
 
 
-/**********************************************/
 void BASE_SCREEN::SetGrid( const wxRealPoint& size )
-/**********************************************/
 {
     wxASSERT( !m_GridList.IsEmpty() );
 
     size_t i;
 
-    wxRealPoint nearest_grid = m_GridList[0].m_Size;
+    GRID_TYPE nearest_grid = m_GridList[0];
+
     for( i = 0; i < m_GridList.GetCount(); i++ )
     {
         if( m_GridList[i].m_Size == size )
         {
-            m_Grid = m_GridList[i].m_Size;
+            m_Grid = m_GridList[i];
             return;
         }
 
         // keep trace of the nearest grill size, if the exact size is not found
         if ( size.x < m_GridList[i].m_Size.x )
-            nearest_grid = m_GridList[i].m_Size;
+            nearest_grid = m_GridList[i];
     }
 
     m_Grid = nearest_grid;
 
-    wxLogWarning( _( "Grid size( %f, %f ) not in grid list, falling back to " \
-                     "grid size( %f, %f )." ),
-                  size.x, size.y, m_Grid.x, m_Grid.y );
+    wxLogWarning( wxT( "Grid size( %f, %f ) not in grid list, falling back " ) \
+                  wxT( "to grid size( %f, %f )." ),
+                  size.x, size.y, m_Grid.m_Size.x, m_Grid.m_Size.y );
 }
+
 
 /* Set grid size from command ID. */
 void BASE_SCREEN::SetGrid( int id  )
@@ -378,16 +380,18 @@ void BASE_SCREEN::SetGrid( int id  )
     {
         if( m_GridList[i].m_Id == id )
         {
-            m_Grid = m_GridList[i].m_Size;
+            m_Grid = m_GridList[i];
             return;
         }
     }
 
-    m_Grid = m_GridList[0].m_Size;
+    m_Grid = m_GridList[0];
 
-    wxLogWarning( _( "Grid ID %d not in grid list, falling back to " \
-                     "grid size( %g, %g )." ), id, m_Grid.x, m_Grid.y );
+    wxLogWarning( wxT( "Grid ID %d not in grid list, falling back to " ) \
+                  wxT( "grid size( %g, %g )." ), id, m_Grid.m_Size.x,
+                  m_Grid.m_Size.y );
 }
+
 
 void BASE_SCREEN::AddGrid( const GRID_TYPE& grid )
 {
@@ -395,8 +399,8 @@ void BASE_SCREEN::AddGrid( const GRID_TYPE& grid )
 
     for( i = 0; i < m_GridList.GetCount(); i++ )
     {
-        if( m_GridList[i].m_Size == grid.m_Size &&
-               grid.m_Id != ID_POPUP_GRID_USER)
+        if( m_GridList[i].m_Size == grid.m_Size
+            && grid.m_Id != ID_POPUP_GRID_USER )
         {
             wxLogDebug( wxT( "Discarding duplicate grid size( %g, %g )." ),
                         grid.m_Size.x, grid.m_Size.y );
@@ -404,8 +408,8 @@ void BASE_SCREEN::AddGrid( const GRID_TYPE& grid )
         }
         if( m_GridList[i].m_Id == grid.m_Id )
         {
-            wxLogDebug( wxT( "Changing grid ID %d from size( %g, %g ) to " \
-                             "size( %g, %g )." ),
+            wxLogDebug( wxT( "Changing grid ID %d from size( %g, %g ) to " ) \
+                        wxT( "size( %g, %g )." ),
                         grid.m_Id, m_GridList[i].m_Size.x,
                         m_GridList[i].m_Size.y, grid.m_Size.x, grid.m_Size.y );
             m_GridList[i].m_Size = grid.m_Size;
@@ -418,6 +422,7 @@ void BASE_SCREEN::AddGrid( const GRID_TYPE& grid )
     m_GridList.Add( grid );
 }
 
+
 void BASE_SCREEN::AddGrid( const wxRealPoint& size, int id )
 {
     GRID_TYPE grid;
@@ -427,6 +432,7 @@ void BASE_SCREEN::AddGrid( const wxRealPoint& size, int id )
     AddGrid( grid );
 }
 
+
 void BASE_SCREEN::AddGrid( const wxRealPoint& size, int units, int id )
 {
     double x, y;
@@ -435,13 +441,13 @@ void BASE_SCREEN::AddGrid( const wxRealPoint& size, int units, int id )
 
     if( units == MILLIMETRE )
     {
-        x = size.x / 25.4;
-        y = size.y / 25.4;
+        x = size.x / 25.4000508001016;
+        y = size.y / 25.4000508001016;
     }
     else if( units == CENTIMETRE )
     {
-        x = size.x / 2.54;
-        y = size.y / 2.54;
+        x = size.x / 2.54000508001016;
+        y = size.y / 2.54000508001016;
     }
     else
     {
@@ -457,136 +463,68 @@ void BASE_SCREEN::AddGrid( const wxRealPoint& size, int units, int id )
     AddGrid( new_grid );
 }
 
-/*********************************/
-wxRealPoint BASE_SCREEN::GetGrid()
-/*********************************/
+
+GRID_TYPE BASE_SCREEN::GetGrid()
 {
     return m_Grid;
 }
 
 
-/*****************************************/
-void BASE_SCREEN::ClearUndoRedoList()
-/*****************************************/
+wxRealPoint BASE_SCREEN::GetGridSize()
+{
+    return m_Grid.m_Size;
+}
+
+
+int BASE_SCREEN::GetGridId()
+{
+    return m_Grid.m_Id;
+}
+
 
 /* free the undo and the redo lists
  */
+void BASE_SCREEN::ClearUndoRedoList()
 {
-    EDA_BaseStruct* nextitem;
-
-    while( m_UndoList )
-    {
-        nextitem = m_UndoList->Next();
-        delete m_UndoList;
-        m_UndoList = nextitem;
-    }
-
-    while( m_RedoList )
-    {
-        nextitem = m_RedoList->Next();
-        delete m_RedoList;
-        m_RedoList = nextitem;
-    }
+    ClearUndoORRedoList( m_UndoList );
+    ClearUndoORRedoList( m_RedoList );
 }
 
 
-/***********************************************************/
-void BASE_SCREEN::AddItemToUndoList( EDA_BaseStruct* newitem )
-/************************************************************/
-
-/* Put newitem in head of undo list
- *  Deletes olds items if > count max.
+/* Put aNewitem in top of undo list
+ *  Deletes old items if > count max.
  */
+void BASE_SCREEN::PushCommandToUndoList( PICKED_ITEMS_LIST* aNewitem )
 {
-    int             ii;
-    EDA_BaseStruct* item;
-    EDA_BaseStruct* nextitem;
+    m_UndoList.PushCommand( aNewitem );
 
-    if( newitem == NULL )
-        return;
-
-    newitem->SetNext( m_UndoList );
-    m_UndoList = newitem;
-
-    /* Free first items, if count max reached */
-    for( ii = 0, item = m_UndoList; ii < m_UndoRedoCountMax; ii++ )
-    {
-        if( item->Next() == NULL )
-            return;
-        item = item->Next();
-    }
-
-    if( item == NULL )
-        return;
-
-    nextitem    = item->Next();
-    item->SetNext( NULL ); // Set end of chain
-
-    // Delete the extra  items
-    for( item = nextitem; item != NULL; item = nextitem )
-    {
-        nextitem = item->Next();
-        delete item;
-    }
+    /* Delete the extra items, if count max reached */
+    int extraitems = GetUndoCommandCount() - m_UndoRedoCountMax;
+    if( extraitems > 0 ) // Delete the extra items
+        ClearUndoORRedoList( m_UndoList, extraitems );
 }
 
 
-/***********************************************************/
-void BASE_SCREEN::AddItemToRedoList( EDA_BaseStruct* newitem )
-/***********************************************************/
+void BASE_SCREEN::PushCommandToRedoList( PICKED_ITEMS_LIST* aNewitem )
 {
-    int             ii;
-    EDA_BaseStruct* item, * nextitem;
+    m_RedoList.PushCommand( aNewitem );
 
-    if( newitem == NULL )
-        return;
-
-    newitem->SetNext( m_RedoList );
-    m_RedoList = newitem;
-    /* Free first items, if count max reached */
-    for( ii = 0, item = m_RedoList; ii < m_UndoRedoCountMax; ii++ )
-    {
-        if( item->Next() == NULL )
-            break;
-        item = item->Next();
-    }
-
-    if( item == NULL )
-        return;
-
-    nextitem    = item->Next();
-    item->SetNext( NULL );      // Set end of chain
-
-    // Delete the extra items
-    for( item = nextitem; item != NULL; item = nextitem )
-    {
-        nextitem = item->Next();
-        delete item;
-    }
+    /* Delete the extra items, if count max reached */
+    int extraitems = GetRedoCommandCount() - m_UndoRedoCountMax;
+    if( extraitems > 0 ) // Delete the extra items
+        ClearUndoORRedoList( m_RedoList, extraitems );
 }
 
 
-/*****************************************************/
-EDA_BaseStruct* BASE_SCREEN::GetItemFromUndoList()
-/*****************************************************/
+PICKED_ITEMS_LIST* BASE_SCREEN::PopCommandFromUndoList( )
 {
-    EDA_BaseStruct* item = m_UndoList;
-
-    if( item )
-        m_UndoList = item->Next();
-    return item;
+    return m_UndoList.PopCommand( );
 }
 
 
-/******************************************************/
-EDA_BaseStruct* BASE_SCREEN::GetItemFromRedoList()
-/******************************************************/
+PICKED_ITEMS_LIST* BASE_SCREEN::PopCommandFromRedoList( )
 {
-    EDA_BaseStruct* item = m_RedoList;
-
-    if( item )
-        m_RedoList = item->Next();
-    return item;
+    return m_RedoList.PopCommand( );
 }
 
 
@@ -614,4 +552,3 @@ void BASE_SCREEN::Show( int nestLevel, std::ostream& os )
     NestedSpace( nestLevel, os ) << "</" << GetClass().Lower().mb_str() << ">\n";
 }
 #endif
-

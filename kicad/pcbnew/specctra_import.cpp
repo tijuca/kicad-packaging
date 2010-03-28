@@ -1,7 +1,7 @@
 /*
  * This program source code file is part of KICAD, a free EDA CAD application.
  *
- * Copyright (C) 2007-2008 SoftPLC Corporation, Dick Hollenbeck <dick@softplc.com>
+ * Copyright (C) 2007-2010 SoftPLC Corporation, Dick Hollenbeck <dick@softplc.com>
  * Copyright (C) 2007 Kicad Developers, see change_log.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
@@ -37,6 +37,7 @@
 #include "class_drawpanel.h"    // DrawPanel
 #include "confirm.h"            // DisplayError()
 #include "gestfich.h"           // EDA_FileSelector()
+#include "wxPcbStruct.h"
 
 
 
@@ -110,12 +111,11 @@ void WinEDA_PcbFrame::ImportSpecctraSession( wxCommandEvent& event )
 
     SetLocaleTo_Default( );    // revert to the current locale
 
-    m_SelTrackWidthBox_Changed = TRUE;
-    m_SelViaSizeBox_Changed    = TRUE;
+    m_TrackAndViasSizesList_Changed = true;
 
-    GetScreen()->SetModify();
+    OnModify();
     GetBoard()->m_Status_Pcb = 0;
-    
+
     /* At this point we should call Compile_Ratsnest()
      * but this could be time consumming.
      * So if incorrect number of Connecred and No connected pads is accepted
@@ -127,7 +127,7 @@ void WinEDA_PcbFrame::ImportSpecctraSession( wxCommandEvent& event )
 
     Affiche_Message( wxString( _("Session file imported and merged OK.")) );
 
-    DrawPanel->Refresh( TRUE );
+    DrawPanel->Refresh( true );
 }
 
 
@@ -172,7 +172,7 @@ static int scale( double distance, UNIT_RES* aResolution )
     // used within Kicad.
     factor *= 10.0;
 
-    int ret = (int)  round( factor * distance / resValue );
+    int ret = wxRound( factor * distance / resValue );
     return ret;
 }
 
@@ -201,7 +201,7 @@ TRACK* SPECCTRA_DB::makeTRACK( PATH* aPath, int aPointIndex, int aNetcode ) thro
     {
         wxString layerName = CONV_FROM_UTF8( aPath->layer_id.c_str() );
         ThrowIOError( _("Session file uses invalid layer id \"%s\""),
-                        layerName.GetData() );
+                        GetChars(layerName) );
     }
 
     TRACK* track = new TRACK( sessionBoard );
@@ -242,9 +242,9 @@ SEGVIA* SPECCTRA_DB::makeVIA( PADSTACK* aPadstack, const POINT& aPoint, int aNet
 
             // drillMils is not in the session units, but actual mils so we don't use scale()
             drillDiam = (int) (drillMils * 10);
-
-            if( drillDiam == g_DesignSettings.m_ViaDrill )      // default
-                drillDiam = -1;         // import as default
+/** @todo: see if we use default netclass or specific value
+*/
+            drillDiam = -1;         // import as default: real drill is the netclass value
         }
     }
 
@@ -257,8 +257,8 @@ SEGVIA* SPECCTRA_DB::makeVIA( PADSTACK* aPadstack, const POINT& aPoint, int aNet
         shape = (SHAPE*) (*aPadstack)[0];
         DSN_T type = shape->shape->Type();
         if( type != T_circle )
-            ThrowIOError( _( "Unsupported via shape: \"%s\""),
-                     LEXER::GetTokenString( type ).GetData() );
+            ThrowIOError( _( "Unsupported via shape: %s"),
+                     GetChars( GetTokenString( type ) ) );
 
         CIRCLE* circle = (CIRCLE*) shape->shape;
         int viaDiam = scale( circle->diameter, routeResolution );
@@ -268,15 +268,15 @@ SEGVIA* SPECCTRA_DB::makeVIA( PADSTACK* aPadstack, const POINT& aPoint, int aNet
         via->SetDrillValue( drillDiam );
         via->m_Shape = VIA_THROUGH;
         via->m_Width = viaDiam;
-        via->SetLayerPair( CMP_N, COPPER_LAYER_N );
+        via->SetLayerPair( LAYER_N_FRONT, LAYER_N_BACK );
     }
     else if( shapeCount == copperLayerCount )
     {
         shape = (SHAPE*) (*aPadstack)[0];
         DSN_T type = shape->shape->Type();
         if( type != T_circle )
-            ThrowIOError( _( "Unsupported via shape: \"%s\""),
-                     LEXER::GetTokenString( type ).GetData() );
+            ThrowIOError( _( "Unsupported via shape: %s"),
+                     GetChars( GetTokenString( type ) ) );
 
         CIRCLE* circle = (CIRCLE*) shape->shape;
         int viaDiam = scale( circle->diameter, routeResolution );
@@ -286,7 +286,7 @@ SEGVIA* SPECCTRA_DB::makeVIA( PADSTACK* aPadstack, const POINT& aPoint, int aNet
         via->SetDrillValue( drillDiam );
         via->m_Shape = VIA_THROUGH;
         via->m_Width = viaDiam;
-        via->SetLayerPair( CMP_N, COPPER_LAYER_N );
+        via->SetLayerPair( LAYER_N_FRONT, LAYER_N_BACK );
     }
     else    // VIA_MICROVIA or VIA_BLIND_BURIED
     {
@@ -299,8 +299,8 @@ SEGVIA* SPECCTRA_DB::makeVIA( PADSTACK* aPadstack, const POINT& aPoint, int aNet
             shape = (SHAPE*) (*aPadstack)[i];
             DSN_T type = shape->shape->Type();
             if( type != T_circle )
-                ThrowIOError( _( "Unsupported via shape: \"%s\""),
-                         LEXER::GetTokenString( type ).GetData() );
+                ThrowIOError( _( "Unsupported via shape: %s"),
+                         GetChars( GetTokenString( type ) ) );
 
             CIRCLE* circle = (CIRCLE*) shape->shape;
 
@@ -309,7 +309,7 @@ SEGVIA* SPECCTRA_DB::makeVIA( PADSTACK* aPadstack, const POINT& aPoint, int aNet
             {
                 wxString layerName = CONV_FROM_UTF8( circle->layer_id.c_str() );
                 ThrowIOError( _("Session file uses invalid layer id \"%s\""),
-                                layerName.GetData() );
+                                GetChars( layerName ) );
             }
 
             if( layerNdx > topLayerNdx )
@@ -392,7 +392,7 @@ void SPECCTRA_DB::FromSESSION( BOARD* aBoard ) throw( IOError )
             {
                 ThrowIOError(
                    _("Session file has 'reference' to non-existent component \"%s\""),
-                   reference.GetData() );
+                   GetChars( reference ) );
             }
 
             if( !place->hasVertex )
@@ -408,20 +408,20 @@ void SPECCTRA_DB::FromSESSION( BOARD* aBoard ) throw( IOError )
             {
                 // convert from degrees to tenths of degrees used in Kicad.
                 int orientation = (int) (place->rotation * 10.0);
-                if( module->GetLayer() != CMP_N )
+                if( module->GetLayer() != LAYER_N_FRONT )
                 {
                     // module is on copper layer (back)
-                    aBoard->Change_Side_Module( module, 0 );
+                    module->Flip( module->m_Pos );
                 }
                 module->SetOrientation( orientation );
             }
             else if( place->side == T_back )
             {
                 int orientation = (int) ((place->rotation + 180.0) * 10.0);
-                if( module->GetLayer() != COPPER_LAYER_N )
+                if( module->GetLayer() != LAYER_N_BACK )
                 {
                     // module is on component layer (front)
-                    aBoard->Change_Side_Module( module, 0 );
+                    module->Flip( module->m_Pos );
                 }
                 module->SetOrientation( orientation );
             }
@@ -447,9 +447,9 @@ void SPECCTRA_DB::FromSESSION( BOARD* aBoard ) throw( IOError )
         {
             wxString netName = CONV_FROM_UTF8( net->net_id.c_str() );
 
-            EQUIPOT* equipot = aBoard->FindNet( netName );
-            if( equipot )
-                netCode = equipot->GetNet();
+            NETINFO_ITEM* net = aBoard->FindNet( netName );
+            if( net )
+                netCode = net->GetNet();
             else  // else netCode remains 0
             {
                 // int breakhere = 1;
@@ -473,7 +473,7 @@ void SPECCTRA_DB::FromSESSION( BOARD* aBoard ) throw( IOError )
                 wxString netId = CONV_FROM_UTF8( wire->net_id.c_str() );
                 ThrowIOError(
                     _("Unsupported wire shape: \"%s\" for net: \"%s\""),
-                    LEXER::GetTokenString(shape).GetData(),
+                    DLEX::GetTokenString(shape).GetData(),
                     netId.GetData()
                     );
                 */
@@ -508,9 +508,9 @@ void SPECCTRA_DB::FromSESSION( BOARD* aBoard ) throw( IOError )
             {
                 wxString netName = CONV_FROM_UTF8( net->net_id.c_str() );
 
-                EQUIPOT* equipot = aBoard->FindNet( netName );
-                if( equipot )
-                    netCode = equipot->GetNet();
+                NETINFO_ITEM* net = aBoard->FindNet( netName );
+                if( net )
+                    netCode = net->GetNet();
 
                 // else netCode remains 0
             }
@@ -536,7 +536,7 @@ void SPECCTRA_DB::FromSESSION( BOARD* aBoard ) throw( IOError )
                 wxString psid( CONV_FROM_UTF8( wire_via->GetPadstackId().c_str() ) );
 
                 ThrowIOError( _("A wire_via references a missing padstack \"%s\""),
-                             psid.GetData() );
+                             GetChars( psid ) );
             }
 
             for( unsigned v=0;  v<wire_via->vertexes.size();  ++v )

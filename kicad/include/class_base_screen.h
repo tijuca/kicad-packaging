@@ -1,9 +1,8 @@
 /**********************
-*   class_base_screen.h
+* class_base_screen.h
 **********************/
 
 /* define :
- *  class DrawBlockStruct used to handle block commands
  *  class BASE_SCREEN to handle how to draw a screen (a board, a schematic ...)
  */
 
@@ -11,6 +10,8 @@
 #define  __CLASS_BASE_SCREEN_H__
 
 #include "base_struct.h"
+#include "class_undoredo_container.h"
+#include "block_commande.h"
 
 
 // Forward declarations:
@@ -18,66 +19,29 @@ class SCH_ITEM;
 class Ki_PageDescr;
 
 
-/**************************/
-/*  class DrawBlockStruct */
-/**************************/
-/* Definition d'un block pour les fonctions sur block (block move, ..) */
-typedef enum {
-    /* definition de l'etat du block */
-    STATE_NO_BLOCK,             /* Block non initialise */
-    STATE_BLOCK_INIT,           /* Block initialise: 1er point defini */
-    STATE_BLOCK_END,            /* Block initialise: 2eme point defini */
-    STATE_BLOCK_MOVE,           /* Block en deplacement */
-    STATE_BLOCK_STOP            /* Block fixe (fin de deplacement) */
-} BlockState;
-
-/* codes des differentes commandes sur block: */
-typedef enum {
-    BLOCK_IDLE,
-    BLOCK_MOVE,
-    BLOCK_COPY,
-    BLOCK_SAVE,
-    BLOCK_DELETE,
-    BLOCK_PASTE,
-    BLOCK_DRAG,
-    BLOCK_ROTATE,
-    BLOCK_INVERT,
-    BLOCK_ZOOM,
-    BLOCK_ABORT,
-    BLOCK_PRESELECT_MOVE,
-    BLOCK_SELECT_ITEMS_ONLY,
-    BLOCK_MIRROR_X,
-    BLOCK_MIRROR_Y
-} CmdBlockType;
-
-
-class DrawBlockStruct : public EDA_BaseStruct, public EDA_Rect
-{
-public:
-    BlockState      m_State;        /* Etat (enum BlockState) du block */
-    CmdBlockType    m_Command;      /* Type (enum CmdBlockType) d'operation */
-    EDA_BaseStruct* m_BlockDrawStruct;  /* pointeur sur la structure
-                                         *   selectionnee dans le bloc */
-    int             m_Color;        /* Block Color */
-    wxPoint         m_MoveVector;   /* Move distance in move, drag, copy ... command */
-    wxPoint         m_BlockLastCursorPosition; /* Last Mouse position in block command
-                                                *  = last cursor position in move commands
-                                                *  = 0,0 in block paste */
-
-public:
-    DrawBlockStruct();
-    ~DrawBlockStruct();
-    void SetMessageBlock( WinEDA_DrawFrame* frame );
-    void Draw( WinEDA_DrawPanel* panel, wxDC* DC );
-};
-
-
 /* Simple class for handling grid arrays. */
 class GRID_TYPE
 {
 public:
-    int    m_Id;
+    int         m_Id;
     wxRealPoint m_Size;
+
+    GRID_TYPE& operator=( const GRID_TYPE& item )
+    {
+        if( this != &item )
+        {
+            m_Id   = item.m_Id;
+            m_Size = item.m_Size;
+        }
+
+        return *this;
+    }
+
+
+    const bool operator==( const GRID_TYPE& item ) const
+    {
+        return m_Size == item.m_Size && m_Id == item.m_Id;
+    }
 };
 
 
@@ -92,66 +56,87 @@ WX_DECLARE_OBJARRAY( GRID_TYPE, GridArray );
 class BASE_SCREEN : public EDA_BaseStruct
 {
 public:
-    wxPoint m_DrawOrg;                          /* offsets pour tracer le circuit sur l'ecran */
-    wxPoint m_Curseur;                          /* Screen cursor coordinate (on grid) in user units. */
-    wxPoint m_MousePosition;                    /* Mouse cursor coordinate (off grid) in user units. */
-    wxPoint m_MousePositionInPixels;            /* Mouse cursor coordinate (off grid) in pixels. */
-    wxPoint m_O_Curseur;                        /* Relative Screen cursor coordinate (on grid) in user units.
-                                                 * (coordinates from last reset position)*/
-    wxPoint m_ScrollbarPos;                     // Position effective des Curseurs de scroll
-    wxSize  m_ScrollbarNumber;                  /* Valeur effective des Nombres de Scrool
-                                                 * c.a.d taille en unites de scroll de la surface totale affichable */
-    wxPoint m_StartVisu;                        // Coord absolues du 1er pixel visualis�a l'ecran (en nombre de pixels)
+    wxPoint m_DrawOrg;          /* offsets for drawing the circuit on the
+                                 * screen */
+    wxPoint m_Curseur;          /* Screen cursor coordinate (on grid) in user
+                                 * units. */
+    wxPoint m_MousePosition;    /* Mouse cursor coordinate (off grid) in user
+                                 * units. */
+    wxPoint m_MousePositionInPixels;
+    wxPoint m_O_Curseur;       /* Relative Screen cursor coordinate (on grid)
+                                * in user units.
+                                * (coordinates from last reset position)*/
+    // Scrollbars management:
+    int     m_ScrollPixelsPerUnitX; /* Pixels per scroll unit in the horizontal direction. */
+    int     m_ScrollPixelsPerUnitY; /* Pixels per scroll unit in the vertical direction. */
+    wxSize  m_ScrollbarNumber;      /* Current virtual draw area size in scroll
+                                     * units.
+                                     * m_ScrollbarNumber * m_ScrollPixelsPerUnit = virtual draw area size in pixels
+                                     */
+    wxPoint m_ScrollbarPos;         /* Current scroll bar position in scroll
+                                     * units. */
 
-    wxSize  m_SizeVisu;                 /* taille en pixels de l'ecran (fenetre de visu
-                                         * Utile pour recadrer les affichages lors de la
-                                         * navigation dans la hierarchie */
-    bool    m_Center;                   /* fix the coordinate (0,0) position on screen : if TRUE (0,0) in centered on screen
-                                         *  TRUE: when coordiantaes can be < 0 and > 0   all but schematic
-                                         *  FALSE: when coordinates can be only >= 0    Schematic
-                                         */
-    bool            m_FirstRedraw;
+    wxPoint m_StartVisu;       /* Coordinates in drawing units of the current
+                                * view position (upper left corner of device)
+                                */
 
-    /* Gestion des editions */
-    SCH_ITEM*       EEDrawList;             /* Object list (main data) for schematic */
-    EDA_BaseStruct* m_UndoList;             /* Object list for the undo command (old data) */
-    EDA_BaseStruct* m_RedoList;             /* Object list for the redo command (old data) */
-    int             m_UndoRedoCountMax;     /* undo/Redo command Max depth */
+    wxSize m_SizeVisu;         /* taille en pixels de l'ecran (fenetre de visu
+                                * Utile pour recadrer les affichages lors de la
+                                * navigation dans la hierarchie */
+    bool   m_Center;           /* Center on screen.  If TRUE (0.0) is centered
+                                * on screen coordinates can be < 0 and
+                                * > 0 except for schematics.
+                                * FALSE: when coordinates can only be >= 0
+                                * Schematic */
+    bool m_FirstRedraw;
+
+    SCH_ITEM*           EEDrawList; /* Object list (main data) for schematic */
+
+    // Undo/redo list of commands
+    UNDO_REDO_CONTAINER m_UndoList;             /* Objects list for the undo
+                                                 * command (old data) */
+    UNDO_REDO_CONTAINER m_RedoList;             /* Objects list for the redo
+                                                 * command (old data) */
+    unsigned            m_UndoRedoCountMax;     // undo/Redo command Max depth
 
     /* block control */
-    DrawBlockStruct BlockLocate;    /* Bock description for block commands */
+    BLOCK_SELECTOR      m_BlockLocate;       /* Block description for block
+                                              * commands */
 
     /* Page description */
-    Ki_PageDescr*   m_CurrentSheetDesc;
+    Ki_PageDescr*       m_CurrentSheetDesc;
     int             m_ScreenNumber;
     int             m_NumberOfScreen;
 
     wxString        m_FileName;
-    wxString        m_Title;            /* titre de la feuille */
-    wxString        m_Date;             /* date de mise a jour */
-    wxString        m_Revision;         /* code de revision */
-    wxString        m_Company;          /* nom du proprietaire */
+    wxString        m_Title;
+    wxString        m_Date;
+    wxString        m_Revision;
+    wxString        m_Company;
     wxString        m_Commentaire1;
     wxString        m_Commentaire2;
     wxString        m_Commentaire3;
     wxString        m_Commentaire4;
 
 private:
-    /* indicateurs divers */
-    char            m_FlagRefreshReq;       /* indique que l'ecran doit redessine */
-    char            m_FlagModified;         // indique modif du PCB,utilise pour eviter une sortie sans sauvegarde
-    char            m_FlagSave;             // indique sauvegarde auto faite
+    char            m_FlagRefreshReq;       /* indicates that the screen should
+                                             * be redrawn */
+    char            m_FlagModified;         // indicates current drawing has
+                                            // been modified
+    char            m_FlagSave;             // Perform automatica file save.
     EDA_BaseStruct* m_CurrentItem;          ///< Currently selected object
+    GRID_TYPE       m_Grid;                 ///< Current grid selection.
 
-    /* Valeurs du pas de grille et du zoom */
+    /* Grid and zoom values. */
 public:
-    wxRealPoint     m_Grid;             /* Current grid. */
     GridArray  m_GridList;
     bool       m_UserGridIsON;
 
     wxArrayInt m_ZoomList;          /* Array of standard zoom coefficients. */
     int        m_Zoom;              /* Current zoom coefficient. */
-    int        m_ZoomScalar;        /* Allow zooming to non-integer increments. */
+    int        m_ZoomScalar;        /* Allow zooming to non-integer increments.
+                                     */
+    bool       m_IsPrinting;
 
 public:
     BASE_SCREEN( KICAD_T aType = SCREEN_STRUCT_TYPE );
@@ -169,25 +154,82 @@ public:
     void SetCurItem( EDA_BaseStruct* current ) {  m_CurrentItem = current; }
     EDA_BaseStruct* GetCurItem() const { return m_CurrentItem; }
 
-    void                    InitDatas();    /* Inits completes des variables */
+    void         InitDatas();
 
-    wxSize                  ReturnPageSize( void );
-    virtual int             GetInternalUnits( void );
+    wxSize       ReturnPageSize( void );
+    virtual int  GetInternalUnits( void );
 
     /** Function CursorRealPosition
      * @return the position in user units of location ScreenPos
      * @param ScreenPos = the screen (in pixel) position co convert
      */
-    wxPoint                 CursorRealPosition( const wxPoint& ScreenPos );
+    wxPoint      CursorRealPosition( const wxPoint& ScreenPos );
 
     /* general Undo/Redo command control */
-    virtual void            ClearUndoRedoList();
-    virtual void            AddItemToUndoList( EDA_BaseStruct* item );
-    virtual void            AddItemToRedoList( EDA_BaseStruct* item );
-    virtual EDA_BaseStruct* GetItemFromUndoList();
-    virtual EDA_BaseStruct* GetItemFromRedoList();
 
-    /* Manipulation des flags */
+    /** function ClearUndoORRedoList (virtual).
+     * this function must remove the aItemCount old commands from aList
+     * and delete commands, pickers and picked items if needed
+     * Because picked items must be deleted only if they are not in use, this
+     * is a virtual pure function that must be created for SCH_SCREEN and
+     * PCB_SCREEN
+     * @param aList = the UNDO_REDO_CONTAINER of commands
+     * @param aItemCount = number of old commands to delete. -1 to remove all
+     *                     old commands this will empty the list of commands.
+     *  Commands are deleted from the older to the last.
+     */
+    virtual void ClearUndoORRedoList(
+        UNDO_REDO_CONTAINER& aList,
+        int
+                             aItemCount = -1 ) = 0;
+
+    /** Function ClearUndoRedoList
+     * clear undo and redo list, using ClearUndoORRedoList()
+     * picked items are deleted by ClearUndoORRedoList() according to their
+     * status
+     */
+    virtual void               ClearUndoRedoList();
+
+    /** function PushCommandToUndoList
+     * add a command to undo in undo list
+     * delete the very old commands when the max count of undo commands is
+     * reached
+     * ( using ClearUndoORRedoList)
+     */
+    virtual void               PushCommandToUndoList( PICKED_ITEMS_LIST* aItem );
+
+    /** function PushCommandToRedoList
+     * add a command to redo in redo list
+     * delete the very old commands when the max count of redo commands is
+     * reached
+     * ( using ClearUndoORRedoList)
+     */
+    virtual void               PushCommandToRedoList( PICKED_ITEMS_LIST* aItem );
+
+    /** PopCommandFromUndoList
+     * return the last command to undo and remove it from list
+     * nothing is deleted.
+     */
+    virtual PICKED_ITEMS_LIST* PopCommandFromUndoList();
+
+    /** PopCommandFromRedoList
+     * return the last command to undo and remove it from list
+     * nothing is deleted.
+     */
+    virtual PICKED_ITEMS_LIST* PopCommandFromRedoList();
+
+    int GetUndoCommandCount()
+    {
+        return m_UndoList.m_CommandsList.size();
+    }
+
+
+    int GetRedoCommandCount()
+    {
+        return m_RedoList.m_CommandsList.size();
+    }
+
+
     void    SetRefreshReq() { m_FlagRefreshReq = 1; }
     void    ClrRefreshReq() { m_FlagRefreshReq = 0; }
     void    SetModify() { m_FlagModified = 1; m_FlagSave = 0; }
@@ -199,7 +241,7 @@ public:
     int     IsSave() { return m_FlagSave & 1;  }
 
 
-    //----<zoom stuff>----------------------------------------------------------
+    //----<zoom stuff>---------------------------------------------------------
 
     /** Function GetScalingFactor
      * @return the the current scale used to draw items on screen
@@ -207,7 +249,7 @@ public:
      */
     double  GetScalingFactor()
     {
-        return (double) m_ZoomScalar / GetZoom();
+        return (double) m_ZoomScalar / (double) GetZoom();
     }
 
 
@@ -215,59 +257,85 @@ public:
      * @param the the current scale used to draw items on screen
      * draw coordinates are user coordinates * GetScalingFactor( )
      */
-    void   SetScalingFactor( double aScale );
+    void        SetScalingFactor( double aScale );
 
     /** Function GetZoom
      * @return the current zoom factor
      * Note: the zoom factor is NOT the scaling factor
      *       the scaling factor is m_ZoomScalar * GetZoom()
      */
-    int    GetZoom() const;
+    int         GetZoom() const;
 
     /**
      * Function SetZoom
      * adjusts the current zoom factor
      */
-    bool   SetZoom( int coeff );
+    bool        SetZoom( int coeff );
 
     /**
      * Function SetZoomList
      * sets the list of zoom factors.
-     * @param aZoomList An array of zoom factors in ascending order, zero terminated
+     * @param aZoomList An array of zoom factors in ascending order, zero
+     *                  terminated
      */
-    void   SetZoomList( const wxArrayInt& zoomlist );
+    void        SetZoomList( const wxArrayInt& zoomlist );
 
-    int    Scale( int coord );
-    void   Scale( wxPoint& pt );
-    void   Scale( wxSize& sz );
-    void   Scale( wxRealPoint& sz );
+    int         Scale( int coord );
+    double      Scale( double coord );
+    void        Scale( wxPoint& pt );
+    void        Scale( wxSize& sz );
+    void        Scale( wxRealPoint& sz );
 
-    int    Unscale( int coord );
-    void   Unscale( wxPoint& pt );
-    void   Unscale( wxSize& sz );
+    int         Unscale( int coord );
+    void        Unscale( wxPoint& pt );
+    void        Unscale( wxSize& sz );
 
-    bool   SetNextZoom();               /* ajuste le prochain coeff de zoom */
-    bool   SetPreviousZoom();           /* ajuste le precedent coeff de zoom */
-    bool   SetFirstZoom();              /* ajuste le coeff de zoom a 1*/
-    bool   SetLastZoom();               /* ajuste le coeff de zoom au max */
+    bool        SetNextZoom();
+    bool        SetPreviousZoom();
+    bool        SetFirstZoom();
+    bool        SetLastZoom();
 
-    //----<grid stuff>----------------------------------------------------------
-    wxRealPoint GetGrid();                      /* retourne la grille */
-    void   SetGrid( const wxRealPoint& size );
-    void   SetGrid( int );
-    void   SetGridList( GridArray& sizelist );
-    void   AddGrid( const GRID_TYPE& grid );
-    void   AddGrid( const wxRealPoint& size, int id );
-    void   AddGrid( const wxRealPoint& size, int units, int id );
+    //----<grid
+    // stuff>----------------------------------------------------------
+
+    /**
+     * Return the command ID of the currently selected grid.
+     *
+     * @return int - Currently selected grid command ID.
+     */
+    int         GetGridId();
+
+    /**
+     * Return the grid size of the currently selected grid.
+     *
+     * @return wxRealPoint - The currently selected grid size.
+     */
+    wxRealPoint GetGridSize();
+
+    /**
+     * Return the grid object of the currently selected grid.
+     *
+     * @return GRID_TYPE - The currently selected grid.
+     */
+    GRID_TYPE   GetGrid();
+
+    void        SetGrid( const wxRealPoint& size );
+    void        SetGrid( int id );
+    void        SetGridList( GridArray& sizelist );
+    void        AddGrid( const GRID_TYPE& grid );
+    void        AddGrid( const wxRealPoint& size, int id );
+    void        AddGrid( const wxRealPoint& size, int units, int id );
 
 
     /**
      * Function RefPos
-     * returns the reference position, coming from either the mouse position or the
-     * the cursor position.
+     * Return the reference position, coming from either the mouse position
+     * or the cursor position.
+     *
      * @param useMouse If true, return mouse position, else cursor's.
+     *
      * @return wxPoint - The reference point, either the mouse position or
-     *   the cursor position.
+     *                   the cursor position.
      */
     wxPoint RefPos( bool useMouse )
     {

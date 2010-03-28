@@ -15,7 +15,8 @@ if [ "${debver}" = "1" ]; then
     svn export ${svnpath}/kicad-library
     # remove any unwanted stuff
     rm -rf kicad/kicad/minizip
-    rm -rf kicad-doc/doc/help/{de,es,it,pt,ru}
+    rm -rf kicad-doc/doc/help/{de,es,it}
+    rm -rf kicad-doc/presentations
     cd ..
 
     cp -a kicad-${ver}.orig kicad-${ver}

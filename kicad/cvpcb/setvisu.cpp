@@ -1,27 +1,31 @@
-/*********************************************************************/
-/** setvisu.cpp: initialisations de l'ecran d'affichage du composant **/
-/*********************************************************************/
+/*****************/
+/** setvisu.cpp **/
+/*****************/
 
 #include "fctsys.h"
 #include "common.h"
 #include "class_drawpanel.h"
-#include "id.h"
-
-#include "3d_viewer.h"
 
 #include "bitmaps.h"
 #include "cvpcb.h"
 #include "protos.h"
 #include "cvstruct.h"
+#include "class_DisplayFootprintsFrame.h"
 
-
-/*******************************************/
-void WinEDA_CvpcbFrame::CreateScreenCmp()
-/*******************************************/
-
-/* Create or Update the frame showing the current highlighted footprint
- *  and (if showed) the 3D display frame
+/*
+ * NOTE: There is something in 3d_viewer.h that causes a compiler error in
+ *       <boost/foreach.hpp> in Linux so move it after cvpcb.h where it is
+ *       included to prevent the error from occurring.
  */
+#include "3d_viewer.h"
+
+
+
+/*
+ * Create or Update the frame showing the current highlighted footprint
+ * and (if showed) the 3D display frame
+ */
+void WinEDA_CvpcbFrame::CreateScreenCmp()
 {
     wxString msg, FootprintName;
     bool     IsNew = FALSE;
@@ -30,7 +34,7 @@ void WinEDA_CvpcbFrame::CreateScreenCmp()
 
     if( DrawFrame == NULL )
     {
-        DrawFrame = new WinEDA_DisplayFrame( this, _( "Module" ),
+        DrawFrame = new DISPLAY_FOOTPRINTS_FRAME( this, _( "Module" ),
                                              wxPoint( 0, 0 ),
                                              wxSize( 600, 400 ),
                                              KICAD_DEFAULT_DRAWFRAME_STYLE |
@@ -43,7 +47,7 @@ void WinEDA_CvpcbFrame::CreateScreenCmp()
     {
         msg = _( "Footprint: " ) + FootprintName;
         DrawFrame->SetTitle( msg );
-        STOREMOD* Module = GetModuleDescrByName( FootprintName );
+        FOOTPRINT* Module = GetModuleDescrByName( FootprintName, m_footprints );
         msg = _( "Lib: " );
 
         if( Module )
@@ -59,9 +63,13 @@ void WinEDA_CvpcbFrame::CreateScreenCmp()
             DrawFrame->GetBoard()->m_Modules.DeleteAll();
         }
 
-        DrawFrame->GetBoard()->m_Modules.PushBack( DrawFrame->Get_Module( FootprintName ) );
+        MODULE* mod = DrawFrame->Get_Module( FootprintName );
+        if( mod )
+            DrawFrame->GetBoard()->m_Modules.PushBack( mod );
 
         DrawFrame->Zoom_Automatique( FALSE );
+        DrawFrame->DrawPanel->Refresh();
+        DrawFrame->UpdateStatusBar();    /* Display new cursor coordinates and zoom value */
         if( DrawFrame->m_Draw3DFrame )
             DrawFrame->m_Draw3DFrame->NewDisplay();
     }
@@ -75,38 +83,36 @@ void WinEDA_CvpcbFrame::CreateScreenCmp()
 
 
 
-/*******************************************************************/
-void WinEDA_DisplayFrame::RedrawActiveWindow( wxDC* DC, bool EraseBg )
-/*******************************************************************/
-/* Draws the current highlighted footprint */
+/*
+ * Draws the current highlighted footprint.
+ */
+void DISPLAY_FOOTPRINTS_FRAME::RedrawActiveWindow( wxDC* DC, bool EraseBg )
 {
     if( !GetBoard() )
         return;
 
     ActiveScreen = (PCB_SCREEN*) GetScreen();
 
-    if( EraseBg )
-        DrawPanel->EraseScreen( DC );
-
     DrawPanel->DrawBackGround( DC );
     GetBoard()->Draw( DrawPanel, DC, GR_COPY );
 
     MODULE* Module = GetBoard()->m_Modules;
     if ( Module )
-        Module->Display_Infos( this );
-    Affiche_Status_Box();
-    DrawPanel->Trace_Curseur( DC );
+        Module->DisplayInfo( this );
+
+    DrawPanel->DrawCursor( DC );
 }
 
 
-/********************************************************************/
+
+/*
+ * Redraw the BOARD items but not cursors, axis or grid.
+ */
 void BOARD::Draw( WinEDA_DrawPanel* aPanel, wxDC* DC,
                   int aDrawMode, const wxPoint& offset )
-/********************************************************************/
-/* Redraw the BOARD items but not cursors, axis or grid */
 {
     if( m_Modules )
     {
         m_Modules->Draw( aPanel, DC, GR_COPY );
-   }
+    }
 }

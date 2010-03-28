@@ -6,28 +6,29 @@
 #include "common.h"
 #include "confirm.h"
 #include "kicad_string.h"
-#include "program.h"
-#include "libcmp.h"
-#include "general.h"
+#include "drawtxt.h"
 
+#include "program.h"
+#include "general.h"
 #include "protos.h"
 
 
-SCH_ITEM* ReadTextDescr( FILE * aFile,
-                         wxString & aMsgDiag,
-                         char* aLine,
-                         int aBufsize,
-                         int* aLineNum,
-                         int aSchematicFileVersion ) {
+SCH_ITEM* ReadTextDescr( FILE*     aFile,
+                         wxString& aMsgDiag,
+                         char*     aLine,
+                         int       aBufsize,
+                         int*      aLineNum,
+                         int       aSchematicFileVersion )
+{
 /**
  * Function ReadTextDescr
  * Reads the data structures for a Text (Comment, label, Hlabel and Hlabel
- * from a FILE in "*.brd" format.
+ * from a FILE in "*.sch" format.
  * @param aFile The FILE to read.
  * @param aLine The buffer used to read the first line of description.
  * @param aBufsize The size of aLine.
  * @param aLineNum a pointer to the line count.
- * @return a poiner to the new created obect if success reading else NULL.
+ * @return a poiner to the new created object if success reading else NULL.
  */
     SCH_ITEM* Struct = NULL;
     char      Name1[256];
@@ -44,8 +45,8 @@ SCH_ITEM* ReadTextDescr( FILE * aFile,
     // SLine points the start of parameters
 
     Name1[0] = 0; Name2[0] = 0; Name3[0] = 0;
-    int ii = sscanf( SLine, "%s %d %d %d %d %s %s %d",
-                     Name1, &pos.x, &pos.y, &orient, &size, Name2, Name3, &thickness );
+    int ii = sscanf( SLine, "%s %d %d %d %d %s %s %d", Name1, &pos.x, &pos.y,
+                     &orient, &size, Name2, Name3, &thickness );
 
     if( ii < 4 )
     {
@@ -68,17 +69,18 @@ SCH_ITEM* ReadTextDescr( FILE * aFile,
     if( text == NULL )
         return NULL;
 
-    if( Name1[0] == 'L' )
+    if( Name1[0] == 'L' )  // Reading a simple label (SCH_LABEL item)
     {
-        SCH_LABEL* TextStruct =
-            new SCH_LABEL( pos, CONV_FROM_UTF8( text ) );
+        SCH_LABEL* TextStruct = new SCH_LABEL( pos, CONV_FROM_UTF8( text ) );
 
         TextStruct->m_Size.x = TextStruct->m_Size.y = size;
-        TextStruct->m_Orient = orient;
+        TextStruct->SetSchematicTextOrientation( orient );
         if( isdigit( Name3[0] ) )
         {
             thickness = atol( Name3 );
-            TextStruct->m_Width = thickness;
+            TextStruct->m_Bold = (thickness != 0);
+            TextStruct->m_Width =
+                TextStruct->m_Bold ? GetPenSizeForBold( size ) : 0;
         }
         Struct = TextStruct;
         if( stricmp( Name2, "Italic" ) == 0 )
@@ -86,13 +88,17 @@ SCH_ITEM* ReadTextDescr( FILE * aFile,
     }
     else if( Name1[0] == 'G' && aSchematicFileVersion > '1' )
     {
-        SCH_GLOBALLABEL* TextStruct = new SCH_GLOBALLABEL( pos, CONV_FROM_UTF8( text ) );
+        // Reading a global label (SCH_GLOBALLABEL item).
+        SCH_GLOBALLABEL* TextStruct =
+            new SCH_GLOBALLABEL( pos, CONV_FROM_UTF8( text ) );
 
         Struct = TextStruct;
         TextStruct->m_Size.x = TextStruct->m_Size.y = size;
-        TextStruct->m_Orient = orient;
+        TextStruct->SetSchematicTextOrientation(  orient );
         TextStruct->m_Shape  = NET_INPUT;
-        TextStruct->m_Width  = thickness;
+        TextStruct->m_Bold = (thickness != 0);
+        TextStruct->m_Width =
+            TextStruct->m_Bold ? GetPenSizeForBold( size ) : 0;
 
         if( stricmp( Name2, SheetLabelType[NET_OUTPUT] ) == 0 )
             TextStruct->m_Shape = NET_OUTPUT;
@@ -105,38 +111,59 @@ SCH_ITEM* ReadTextDescr( FILE * aFile,
         if( stricmp( Name3, "Italic" ) == 0 )
             TextStruct->m_Italic = 1;
     }
-    else if( (Name1[0] == 'H') || (Name1[0] == 'G' && aSchematicFileVersion == '1') )
-    {             //in schematic file version 1, glabels were actually hierarchal labels.
-        SCH_HIERLABEL* TextStruct = new SCH_HIERLABEL( pos, CONV_FROM_UTF8( text ) );
-
-        Struct = TextStruct;
-        TextStruct->m_Size.x = TextStruct->m_Size.y = size;
-        TextStruct->m_Orient = orient;
-        TextStruct->m_Shape  = NET_INPUT;
-        TextStruct->m_Width  = thickness;
-
-        if( stricmp( Name2, SheetLabelType[NET_OUTPUT] ) == 0 )
-            TextStruct->m_Shape = NET_OUTPUT;
-        if( stricmp( Name2, SheetLabelType[NET_BIDI] ) == 0 )
-            TextStruct->m_Shape = NET_BIDI;
-        if( stricmp( Name2, SheetLabelType[NET_TRISTATE] ) == 0 )
-            TextStruct->m_Shape = NET_TRISTATE;
-        if( stricmp( Name2, SheetLabelType[NET_UNSPECIFIED] ) == 0 )
-            TextStruct->m_Shape = NET_UNSPECIFIED;
-        if( stricmp( Name3, "Italic" ) == 0 )
-            TextStruct->m_Italic = 1;
-    }
-    else
+    else if( (Name1[0] == 'H')
+            || (Name1[0] == 'G' && aSchematicFileVersion == '1') )
     {
-        SCH_TEXT* TextStruct =
-            new SCH_TEXT( pos, CONV_FROM_UTF8( text ) );
+        // Reading a hierarchical label (SCH_HIERLABEL item).
+        // In schematic file version 1, glabels were actually hierarchical
+        // labels.
+        SCH_HIERLABEL* TextStruct = new SCH_HIERLABEL( pos,
+                                                       CONV_FROM_UTF8( text ) );
+
+        Struct = TextStruct;
+        TextStruct->m_Size.x = TextStruct->m_Size.y = size;
+        TextStruct->SetSchematicTextOrientation( orient );
+        TextStruct->m_Shape = NET_INPUT;
+        TextStruct->m_Bold = (thickness != 0);
+        TextStruct->m_Width =
+            TextStruct->m_Bold ? GetPenSizeForBold( size ) : 0;
+
+        if( stricmp( Name2, SheetLabelType[NET_OUTPUT] ) == 0 )
+            TextStruct->m_Shape = NET_OUTPUT;
+        if( stricmp( Name2, SheetLabelType[NET_BIDI] ) == 0 )
+            TextStruct->m_Shape = NET_BIDI;
+        if( stricmp( Name2, SheetLabelType[NET_TRISTATE] ) == 0 )
+            TextStruct->m_Shape = NET_TRISTATE;
+        if( stricmp( Name2, SheetLabelType[NET_UNSPECIFIED] ) == 0 )
+            TextStruct->m_Shape = NET_UNSPECIFIED;
+        if( stricmp( Name3, "Italic" ) == 0 )
+            TextStruct->m_Italic = 1;
+    }
+    else        // reading a graphic text (comment)
+    {
+        wxString val = CONV_FROM_UTF8( text );
+
+        for( ;; )
+        {
+            int i=val.find( wxT( "\\n" ) );
+
+            if( i == wxNOT_FOUND )
+                break;
+            val.erase( i, 2 );
+            val.insert( i, wxT( "\n" ) );
+        }
+
+        SCH_TEXT* TextStruct = new SCH_TEXT( pos, val );
 
         TextStruct->m_Size.x = TextStruct->m_Size.y = size;
-        TextStruct->m_Orient = orient;
+        TextStruct->SetSchematicTextOrientation( orient );
+
         if( isdigit( Name3[0] ) )
         {
             thickness = atol( Name3 );
-            TextStruct->m_Width = thickness;
+            TextStruct->m_Bold = (thickness != 0);
+            TextStruct->m_Width =
+                TextStruct->m_Bold ? GetPenSizeForBold( size ) : 0;
         }
 
         if( strnicmp( Name2, "Italic", 6 ) == 0 )
@@ -148,36 +175,30 @@ SCH_ITEM* ReadTextDescr( FILE * aFile,
 }
 
 
-/*************************************************************************************/
-int ReadSheetDescr( wxWindow* frame,
-                    char* Line,
-                    FILE* f,
-                    wxString& aMsgDiag, int* aLineNum,
-                    BASE_SCREEN* Window )
-/*************************************************************************************/
-
-/* Fonction utilisee par LoadEEFile().
- *  Lit les lignes relatives a la description d'une feuille de hierarchie
+/* Function used by LoadEEFile().
+ * Get the lines for a description of a piece of hierarchy.
  */
+int ReadSheetDescr( wxWindow* frame, char* Line, FILE* f, wxString& aMsgDiag,
+                    int* aLineNum, BASE_SCREEN* Window )
 {
     int              ii, fieldNdx, size;
     char             Name1[256], Char1[256], Char2[256];
-    DrawSheetStruct* SheetStruct;
-    Hierarchical_PIN_Sheet_Struct* SheetLabelStruct, * OldSheetLabel = NULL;
+    SCH_SHEET*       SheetStruct;
+    SCH_SHEET_PIN*   SheetLabelStruct, * OldSheetLabel = NULL;
     int              Failed = FALSE;
     char*            ptcar;
 
-    SheetStruct = new DrawSheetStruct();
+    SheetStruct = new SCH_SHEET();
 
     SheetStruct->m_TimeStamp = GetTimeStamp();
 
-    //sheets are added to the EEDrawList like other schematic components.
-    //however, in order to preserve the hierarchy (through m_Parent pointers),
-    //a duplicate of the sheet is added to m_SubSheet array.
-    //must be a duplicate, references just work for a two-layer structure.
-    //this is accomplished through the Sync() function.
+    // sheets are added to the EEDrawList like other schematic components.
+    // however, in order to preserve the hierarchy (through m_Parent pointers),
+    // a duplicate of the sheet is added to m_SubSheet array.
+    // must be a duplicate, references just work for a two-layer structure.
+    // this is accomplished through the Sync() function.
 
-    if( Line[0] == '$' )   /* Ligne doit etre "$Sheet" */
+    if( Line[0] == '$' )   /* Line should be "$Sheet" */
     {
         *aLineNum++;
         if( fgets( Line, 256 - 1, f ) == 0 )
@@ -203,7 +224,7 @@ int ReadSheetDescr( wxWindow* frame,
     }
 
     /* Read fields */
-    for( ; ; ) /* Analyse des lignes "Fn "texte" .." */
+    for( ; ; ) /* Analysis of lines "Fn" text. */
     {
         *aLineNum++;
         if( fgets( Line, 256 - 1, f ) == NULL )
@@ -219,12 +240,13 @@ int ReadSheetDescr( wxWindow* frame,
             break;
         sscanf( Line + 1, "%d", &fieldNdx );
 
-        /* Lecture du champ :
-         *  si fieldNdx >= 2 :  Fn "texte" t s posx posy
-         *  sinon F0 "texte" pour sheetname
-         *  et F1 "texte" pour filename */
 
-        ptcar = Line; while( *ptcar && (*ptcar != '"') )
+        /* Read the field:
+         * If fieldNdx> = 2: Fn "text" t s posx posy
+         * If F0 "text" for SheetName
+         * F1 and "text" for filename
+         */
+        ptcar = Line; while( *ptcar && ( *ptcar != '"' ) )
             ptcar++;
 
         if( *ptcar != '"' )
@@ -242,7 +264,8 @@ int ReadSheetDescr( wxWindow* frame,
             if( *ptcar == 0 )
             {
                 aMsgDiag.Printf(
-                    wxT( "EESchema file sheet field F at line %d, aborted\n" ), *aLineNum );
+                    wxT( "EESchema file sheet field F at line %d, aborted\n" ),
+                    *aLineNum );
                 aMsgDiag << CONV_FROM_UTF8( Line );
                 return TRUE;
             }
@@ -257,9 +280,9 @@ int ReadSheetDescr( wxWindow* frame,
         {
             if( sscanf( ptcar, "%d", &size ) != 1 )
             {
-                aMsgDiag.Printf(
-                    wxT(
-                        "EESchema file sheet Label Caract error line %d, aborted\n" ), *aLineNum );
+                aMsgDiag.Printf( wxT( "EESchema file sheet Label Caract \
+error line %d, aborted\n" ),
+                    *aLineNum );
                 aMsgDiag << CONV_FROM_UTF8( Line );
                 DisplayError( frame, aMsgDiag );
             }
@@ -274,17 +297,16 @@ int ReadSheetDescr( wxWindow* frame,
             {
                 SheetStruct->SetFileName( CONV_FROM_UTF8( Name1 ) );
 
-                //printf("in ReadSheetDescr : SheetStruct->m_FileName = %s \n", Name1);
+                //printf( "in ReadSheetDescr : SheetStruct->m_FileName = %s \n",
+                //        Name1 );
                 SheetStruct->m_FileNameSize = size;
             }
         }
 
         if( fieldNdx > 1 )
         {
-            SheetLabelStruct = new Hierarchical_PIN_Sheet_Struct( SheetStruct,
-                                                                 wxPoint( 0,
-                                                                          0 ),
-                                                                 CONV_FROM_UTF8( Name1 ) );
+            SheetLabelStruct = new SCH_SHEET_PIN( SheetStruct, wxPoint( 0, 0 ),
+                                                  CONV_FROM_UTF8( Name1 ) );
 
             if( SheetStruct->m_Label == NULL )
                 OldSheetLabel = SheetStruct->m_Label = SheetLabelStruct;
@@ -292,14 +314,14 @@ int ReadSheetDescr( wxWindow* frame,
                 OldSheetLabel->SetNext( (EDA_BaseStruct*) SheetLabelStruct );
             OldSheetLabel = SheetLabelStruct;
 
-            /* Lecture des coordonnees */
+            /* Read coordinates. */
             if( sscanf( ptcar, "%s %s %d %d %d", Char1, Char2,
                         &SheetLabelStruct->m_Pos.x, &SheetLabelStruct->m_Pos.y,
                         &size ) != 5 )
             {
-                aMsgDiag.Printf(
-                    wxT(
-                        "EESchema file Sheet Label Caract error line %d, aborted\n" ), *aLineNum );
+                aMsgDiag.Printf( wxT( "EESchema file Sheet Label Caract \
+error line %d, aborted\n" ),
+                                 *aLineNum );
                 aMsgDiag << CONV_FROM_UTF8( Line );
                 DisplayError( frame, aMsgDiag );
                 continue;
@@ -309,23 +331,27 @@ int ReadSheetDescr( wxWindow* frame,
                 size = DEFAULT_SIZE_TEXT;
             SheetLabelStruct->m_Size.x = SheetLabelStruct->m_Size.y = size;
 
-            /* Mise a jour des cadrage et type */
             switch( Char1[0] )
             {
             case 'I':
-                SheetLabelStruct->m_Shape = NET_INPUT; break;
+                SheetLabelStruct->m_Shape = NET_INPUT;
+                break;
 
             case 'O':
-                SheetLabelStruct->m_Shape = NET_OUTPUT; break;
+                SheetLabelStruct->m_Shape = NET_OUTPUT;
+                break;
 
             case 'B':
-                SheetLabelStruct->m_Shape = NET_BIDI; break;
+                SheetLabelStruct->m_Shape = NET_BIDI;
+                break;
 
             case 'T':
-                SheetLabelStruct->m_Shape = NET_TRISTATE; break;
+                SheetLabelStruct->m_Shape = NET_TRISTATE;
+                break;
 
             case 'U':
-                SheetLabelStruct->m_Shape = NET_UNSPECIFIED; break;
+                SheetLabelStruct->m_Shape = NET_UNSPECIFIED;
+                break;
             }
 
             if( Char2[0] == 'R' )
@@ -335,9 +361,8 @@ int ReadSheetDescr( wxWindow* frame,
 
     if( strnicmp( "$End", Line, 4 ) != 0 )
     {
-        aMsgDiag.Printf(
-            wxT( " **EESchema file end_sheet struct error at line %d, aborted\n" ),
-            *aLineNum );
+        aMsgDiag.Printf( wxT( "**EESchema file end_sheet struct error at line %d, aborted\n" ),
+                         *aLineNum );
         aMsgDiag << CONV_FROM_UTF8( Line );
         Failed = TRUE;
     }
@@ -347,40 +372,36 @@ int ReadSheetDescr( wxWindow* frame,
         Window->EEDrawList = SheetStruct;
         SheetStruct->SetParent( Window );
     }
-    return Failed;   /* Fin lecture 1 composant */
+
+    return Failed;
 }
 
 
-/******************************************************************/
-bool ReadSchemaDescr( wxWindow* frame,
-                      char* Line,
-                      FILE* f,
-                      wxString& aMsgDiag, int* aLineNum,
-                      BASE_SCREEN* Window )
-/******************************************************************/
-
-/* Analyse de l'entete du schema ( dims feuille, cartouche..)
- */
+/* Read the schematic header. */
+bool ReadSchemaDescr( wxWindow* frame, char* Line, FILE* f, wxString& aMsgDiag,
+                      int* aLineNum, BASE_SCREEN* Window )
 {
-    char                 Text[256], buf[1024];
-    int                  ii;
+    char Text[256], buf[1024];
+    int  ii;
     Ki_PageDescr*        wsheet = &g_Sheet_A4;
-    static Ki_PageDescr* SheetFormatList[] = {
-        &g_Sheet_A4,   &g_Sheet_A3, &g_Sheet_A2, &g_Sheet_A1, &g_Sheet_A0,
-        &g_Sheet_A,    &g_Sheet_B,  &g_Sheet_C,  &g_Sheet_D,  &g_Sheet_E,
+    static Ki_PageDescr* SheetFormatList[] =
+    {
+        &g_Sheet_A4,   &g_Sheet_A3,   &g_Sheet_A2,   &g_Sheet_A1, &g_Sheet_A0,
+        &g_Sheet_A,    &g_Sheet_B,    &g_Sheet_C,    &g_Sheet_D,  &g_Sheet_E,
         &g_Sheet_user, NULL
     };
     wxSize               PageSize;
 
     sscanf( Line, "%s %s %d %d", Text, Text, &PageSize.x, &PageSize.y );
-    /* Recherche de la descr correspondante: */
+
     wxString pagename = CONV_FROM_UTF8( Text );
     for( ii = 0; SheetFormatList[ii] != NULL; ii++ )
     {
         wsheet = SheetFormatList[ii];
-        if( wsheet->m_Name.CmpNoCase( pagename ) == 0 )
-        {                                   /* Descr found ! */
-            if( wsheet == &g_Sheet_user )   // Get the user page size and make it the default
+        if( wsheet->m_Name.CmpNoCase( pagename ) == 0 ) /* Descr found ! */
+        {
+            // Get the user page size and make it the default
+            if( wsheet == &g_Sheet_user )
             {
                 g_Sheet_user.m_Size = PageSize;
             }
@@ -390,17 +411,15 @@ bool ReadSchemaDescr( wxWindow* frame,
 
     if( SheetFormatList[ii] == NULL )
     {
-        /* Erreur ici: descr non trouvee */
-        aMsgDiag.Printf(
-            wxT( "EESchema file Dims Caract error line %d, aborted\n" ), *aLineNum );
+        aMsgDiag.Printf( wxT( "EESchema file dimension definition error \
+line %d, \aAbort reading file.\n" ),
+                         *aLineNum );
         aMsgDiag << CONV_FROM_UTF8( Line );
         DisplayError( frame, aMsgDiag );
     }
 
-    /* Ajuste ecran */
     Window->m_CurrentSheetDesc = wsheet;
 
-    /* Recheche suite et fin de descr */
     for( ; ; )
     {
         if( GetLine( f, Line, aLineNum, 1024 ) == NULL )
@@ -473,15 +492,11 @@ bool ReadSchemaDescr( wxWindow* frame,
 }
 
 
-/*************************************************************/
-int ReadPartDescr( wxWindow* frame, char* Line, FILE* f,
-                   wxString& aMsgDiag, int* aLineNum,
-                   BASE_SCREEN* Window )
-/*************************************************************/
-
-/* Fonction utilisee par LoadEEFile().
- *  Lit les lignes relatives a la description d'un composant en schema
+/* Function used by LoadEEFile ().
+ * Get the lines for a description of a schematic component.
  */
+int ReadPartDescr( wxWindow* frame, char* Line, FILE* f, wxString& aMsgDiag,
+                   int* aLineNum, BASE_SCREEN* Window )
 {
     int            ii;
     char           Name1[256], Name2[256],
@@ -504,7 +519,6 @@ int ReadPartDescr( wxWindow* frame, char* Line, FILE* f,
             return TRUE;
     }
 
-    /* Traitement de la 1ere ligne de description */
     if( sscanf( &Line[1], "%s %s", Name1, Name2 ) != 2 )
     {
         aMsgDiag.Printf(
@@ -577,24 +591,21 @@ int ReadPartDescr( wxWindow* frame, char* Line, FILE* f,
         component->GetField( REFERENCE )->m_Attributs = TEXT_NO_VISIBLE;
     }
 
-    /* Traitement des autres lignes de description */
-
-    /* Ces lignes commencent par:
-     *  "P " = position
-     *  "U " = Num Unit, et Conversion
-     *  "Fn" = Champs ( n = 0.. = numero de champ )
-     *	"Ar" = AlternateReference, in the case of multiple sheets
-     *			referring to one schematic file.
+    /* Parse component description
+     * These lines begin with:
+     * "P" = Position
+     * U = Num Unit and Conversion
+     * "Fn" = Fields (0 .. n = = number of field)
+     * "Ar" = Alternate reference in the case of multiple sheets referring to
+     *        one schematic file.
      */
-
-    /* Lecture des champs */
     for( ; ; )
     {
         *aLineNum++;
         if( fgets( Line, 256 - 1, f ) == NULL )
             return TRUE;
 
-        if( Line[0] == 'U' ) /* Lecture num multi, conversion et time stamp */
+        if( Line[0] == 'U' )
         {
             sscanf( Line + 1, "%d %d %lX",
                     &component->m_Multi, &component->m_Convert,
@@ -605,8 +616,9 @@ int ReadPartDescr( wxWindow* frame, char* Line, FILE* f,
             sscanf( Line + 1, "%d %d",
                     &component->m_Pos.x, &component->m_Pos.y );
 
-            // Set fields position to a default position (that is the component position
-            // For existing fields, the real position will be set later
+            // Set fields position to a default position (that is the
+            // component position.  For existing fields, the real position
+            // will be set later
             for( int i = 0; i<component->GetFieldCount();  ++i )
             {
                 if( component->GetField( i )->m_Text.IsEmpty() )
@@ -654,7 +666,6 @@ int ReadPartDescr( wxWindow* frame, char* Line, FILE* f,
 
             FieldUserName[0] = 0;
 
-            /* Lecture du champ */
             ptcar = Line;
 
             while( *ptcar && (*ptcar != '"') )
@@ -698,12 +709,14 @@ int ReadPartDescr( wxWindow* frame, char* Line, FILE* f,
 
             if( fieldNdx >= component->GetFieldCount() )
             {
-                // add as many fields as needed so the m_FieldId's are contiguous, no gaps.
+                // add as many fields as needed so the m_FieldId's are
+                // contiguous, no gaps.
                 while( fieldNdx >= component->GetFieldCount() )
                 {
-                    int           newNdx = component->GetFieldCount();
+                    int       newNdx = component->GetFieldCount();
 
-                    SCH_CMP_FIELD field( wxPoint( 0, 0 ), newNdx, component, fieldName );
+                    SCH_FIELD field( wxPoint( 0, 0 ), newNdx, component,
+                                     fieldName );
                     component->AddField( field );
                 }
             }
@@ -732,7 +745,8 @@ int ReadPartDescr( wxWindow* frame, char* Line, FILE* f,
                 component->GetField( fieldNdx )->m_Size.x = DEFAULT_SIZE_TEXT;
 
             component->GetField( fieldNdx )->m_Orient = TEXT_ORIENT_HORIZ;
-            component->GetField( fieldNdx )->m_Size.y = component->GetField( fieldNdx )->m_Size.x;
+            component->GetField( fieldNdx )->m_Size.y =
+                component->GetField( fieldNdx )->m_Size.x;
 
             if( Char1[0] == 'V' )
                 component->GetField( fieldNdx )->m_Orient = TEXT_ORIENT_VERT;
@@ -752,10 +766,9 @@ int ReadPartDescr( wxWindow* frame, char* Line, FILE* f,
                 else
                     component->GetField( fieldNdx )->m_Italic = false;
                 if( Char3[2] == 'B' )
-                    component->GetField( fieldNdx )->m_Width = component->GetField( fieldNdx )->
-                                                               m_Size.x / 4;
+                    component->GetField( fieldNdx )->m_Bold = true;
                 else
-                    component->GetField( fieldNdx )->m_Width = 0;
+                    component->GetField( fieldNdx )->m_Bold = false;
 
                 component->GetField( fieldNdx )->m_HJustify = hjustify;
                 component->GetField( fieldNdx )->m_VJustify = vjustify;
@@ -763,15 +776,14 @@ int ReadPartDescr( wxWindow* frame, char* Line, FILE* f,
 
             if( fieldNdx == REFERENCE )
                 if( component->GetField( fieldNdx )->m_Text[0] == '#' )
-                    component->GetField( fieldNdx )->m_Attributs |= TEXT_NO_VISIBLE;
+                    component->GetField( fieldNdx )->m_Attributs |=
+                        TEXT_NO_VISIBLE;
         }
         else
             break;
     }
 
-    /* Lecture multi et position du composant */
-    if( sscanf( Line, "%d %d %d",
-                &component->m_Multi,
+    if( sscanf( Line, "%d %d %d", &component->m_Multi,
                 &component->m_Pos.x, &component->m_Pos.y ) != 3 )
     {
         aMsgDiag.Printf(
@@ -781,14 +793,13 @@ int ReadPartDescr( wxWindow* frame, char* Line, FILE* f,
         return Failed;
     }
 
-    /* Lecture de la matrice de miroir / rotation */
     *aLineNum++;
-    if( (fgets( Line, 256 - 1, f ) == NULL)
-       || (sscanf( Line, "%d %d %d %d",
-                   &component->m_Transform[0][0],
-                   &component->m_Transform[0][1],
-                   &component->m_Transform[1][0],
-                   &component->m_Transform[1][1] ) != 4) )
+    if( ( fgets( Line, 256 - 1, f ) == NULL )
+       || ( sscanf( Line, "%d %d %d %d",
+                    &component->m_Transform[0][0],
+                    &component->m_Transform[0][1],
+                    &component->m_Transform[1][0],
+                    &component->m_Transform[1][1] ) != 4 ) )
     {
         aMsgDiag.Printf(
             wxT( "Component orient error at line %d, aborted" ),
@@ -818,5 +829,5 @@ int ReadPartDescr( wxWindow* frame, char* Line, FILE* f,
         component->SetParent( Window );
     }
 
-    return Failed;   /* Fin lecture 1 composant */
+    return Failed;
 }

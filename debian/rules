@@ -88,8 +88,8 @@ install-indep:
 #	cd $(CURDIR)/build/kicad-doc && cmake -DCOMPONENT=doc-it -DCMAKE_INSTALL_PREFIX=$(CURDIR)/debian/kicad-doc-it/usr -P cmake_install.cmake
 #	cd $(CURDIR)/build/kicad-doc && cmake -DCOMPONENT=help-it -DCMAKE_INSTALL_PREFIX=$(CURDIR)/debian/kicad-doc-it/usr -P cmake_install.cmake
 
-#	cd $(CURDIR)/build/kicad-doc && cmake -DCOMPONENT=doc-pt -DCMAKE_INSTALL_PREFIX=$(CURDIR)/debian/kicad-doc-pt/usr -P cmake_install.cmake
-#	cd $(CURDIR)/build/kicad-doc && cmake -DCOMPONENT=help-pt -DCMAKE_INSTALL_PREFIX=$(CURDIR)/debian/kicad-doc-pt/usr -P cmake_install.cmake
+	cd $(CURDIR)/build/kicad-doc && cmake -DCOMPONENT=doc-pt -DCMAKE_INSTALL_PREFIX=$(CURDIR)/debian/kicad-doc-pt/usr -P cmake_install.cmake
+	cd $(CURDIR)/build/kicad-doc && cmake -DCOMPONENT=help-pt -DCMAKE_INSTALL_PREFIX=$(CURDIR)/debian/kicad-doc-pt/usr -P cmake_install.cmake
 
 	cd $(CURDIR)/build/kicad-doc && cmake -DCOMPONENT=doc-ru -DCMAKE_INSTALL_PREFIX=$(CURDIR)/debian/kicad-doc-ru/usr -P cmake_install.cmake
 	cd $(CURDIR)/build/kicad-doc && cmake -DCOMPONENT=help-ru -DCMAKE_INSTALL_PREFIX=$(CURDIR)/debian/kicad-doc-ru/usr -P cmake_install.cmake

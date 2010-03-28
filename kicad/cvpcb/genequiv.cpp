@@ -1,13 +1,12 @@
-/***************/
-/* genstf()  */
-/***************/
-
-/* genere le fichier STF type 'ref' 'nom_empreinte' pour DRAFT */
+/*****************/
+/* genequiv.cpp  */
+/*****************/
 
 #include "fctsys.h"
 #include "wxstruct.h"
 #include "confirm.h"
 #include "gestfich.h"
+#include "macros.h"
 
 #include "cvpcb.h"
 #include "protos.h"
@@ -16,46 +15,38 @@
 
 void WinEDA_CvpcbFrame::WriteStuffList( wxCommandEvent& event )
 {
-    FILE*     FileEquiv;
-    STORECMP* Cmp;
-    wxString  Line, FullFileName, Mask;
+    FILE*      FileEquiv;
+    wxString   Line;
+    wxFileName fn = m_NetlistFileName;
 
-    if( nbcomp <= 0 )
+    if( m_components.empty() )
         return;
 
-    /* calcul du nom du fichier */
-    Mask = wxT( "*" ) + ExtRetroBuffer;
-    FullFileName = FFileName;
-    ChangeFileNameExt( FullFileName, ExtRetroBuffer );
+    fn.SetExt( RetroFileExtension );
 
-    FullFileName = EDA_FileSelector( wxT( "Create Stuff File" ),
-                                     wxGetCwd(),    /* Chemin par defaut */
-                                     FullFileName,  /* nom fichier par defaut */
-                                     ExtRetroBuffer, /* extension par defaut */
-                                     Mask,          /* Masque d'affichage */
-                                     this,
-                                     wxFD_SAVE,
-                                     TRUE  );
-    if( FullFileName.IsEmpty() )
+    wxFileDialog dlg( this, wxT( "Save Stuff File" ), fn.GetPath(),
+                      fn.GetFullName(), RetroFileWildcard,
+                      wxFD_SAVE | wxFD_OVERWRITE_PROMPT );
+
+    if( dlg.ShowModal() == wxID_CANCEL )
         return;
 
-    FileEquiv = wxFopen( FullFileName, wxT( "wt" ) );
+    FileEquiv = wxFopen( dlg.GetPath(), wxT( "wt" ) );
+
     if( FileEquiv == 0 )
     {
-        Line = _( "Unable to create " ) + FullFileName;
+        Line = _( "Unable to create " ) + dlg.GetPath();
         DisplayError( this, Line, 30 );
         return;
     }
 
-    /* Generation de la liste */
-    for( Cmp = g_BaseListeCmp; Cmp != NULL; Cmp = Cmp->Pnext )
+    BOOST_FOREACH( COMPONENT& component, m_components )
     {
-        /* génération du composant si son empreinte est définie */
-        if( Cmp->m_Module.IsEmpty() )
+        if( component.m_Module.empty() )
             continue;
         fprintf( FileEquiv, "comp = \"%s\" module = \"%s\"\n",
-                 CONV_TO_UTF8( Cmp->m_Reference ),
-                 CONV_TO_UTF8( Cmp->m_Module ) );
+                 CONV_TO_UTF8( component.m_Reference ),
+                 CONV_TO_UTF8( component.m_Module ) );
     }
 
     fclose( FileEquiv );

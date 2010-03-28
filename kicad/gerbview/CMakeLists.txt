@@ -6,17 +6,32 @@ include_directories(${CMAKE_CURRENT_SOURCE_DIR}
                     ../cvpcb
                     ../pcbnew
                     ../polygon)
+##
+# Name of target on OSX is also the title of the application
+# on other targets this should be as normal
+##
+if(APPLE)
+	set(GERBVIEW_NAME GerbView)
+else(APPLE)
+	set(GERBVIEW_NAME gerbview)
+endif(APPLE)
 
 set(GERBVIEW_SRCS
     block.cpp
+    class_gerbview_layer_widget.cpp
     controle.cpp
     dcode.cpp
     deltrack.cpp
+    dialog_print_using_printer.cpp
+	dialog_print_using_printer_base.cpp
+    dummy_functions.cpp
     edit.cpp
     export_to_pcbnew.cpp
     files.cpp
     gerberframe.cpp
     gerbview_config.cpp
+    gerbview_dialog_display_options_frame_base.cpp
+    gerbview_dialog_display_options_frame.cpp
     gerbview.cpp
     hotkeys.cpp
     initpcb.cpp
@@ -30,19 +45,12 @@ set(GERBVIEW_SRCS
     rs274d.cpp
     rs274x.cpp
     select_layers_to_pcb.cpp
-    set_color.cpp
     tool_gerber.cpp
-    tracepcb.cpp
-    trpiste.cpp )
+    tracepcb.cpp )
 
 set(GERBVIEW_EXTRA_SRCS
-    ../pcbnew/class_board_item.cpp
-    ../pcbnew/class_drawsegment.cpp
-    ../pcbnew/class_track.cpp
-    ../pcbnew/undelete.cpp
-
-    ../share/setpage.cpp
-    ../pcbnew/dialog_print_using_printer.cpp
+    ../pcbnew/layer_widget.cpp
+    ../pcbnew/printout_controler.cpp
 )
 
 if(WIN32)
@@ -55,18 +63,24 @@ if(WIN32)
 endif(WIN32)
 
 if(APPLE)
-    set(GERBVIEW_RESOURCES gerbview.icns)
+    set(GERBVIEW_RESOURCES gerbview.icns gerbview_doc.icns)
     set_source_files_properties("${CMAKE_CURRENT_SOURCE_DIR}/gerbview.icns"
+                                PROPERTIES MACOSX_PACKAGE_LOCATION Resources)
+    set_source_files_properties("${CMAKE_CURRENT_SOURCE_DIR}/gerbview_doc.icns"
                                 PROPERTIES MACOSX_PACKAGE_LOCATION Resources)
     set(MACOSX_BUNDLE_ICON_FILE gerbview.icns)
     set(MACOSX_BUNDLE_GUI_IDENTIFIER org.kicad-eda.gerbview)
-    set(MACOSX_BUNDLE_NAME gerbview)
 endif(APPLE)
 
-add_executable(gerbview WIN32 MACOSX_BUNDLE ${GERBVIEW_SRCS} ${GERBVIEW_EXTRA_SRCS} ${GERBVIEW_RESOURCES})
+add_executable(${GERBVIEW_NAME} WIN32 MACOSX_BUNDLE ${GERBVIEW_SRCS} ${GERBVIEW_EXTRA_SRCS} ${GERBVIEW_RESOURCES})
 
-target_link_libraries(gerbview 3d-viewer common polygon bitmaps kbool ${wxWidgets_LIBRARIES})
+if(APPLE)
+    set_target_properties(${GERBVIEW_NAME} PROPERTIES MACOSX_BUNDLE_INFO_PLIST ${CMAKE_CURRENT_SOURCE_DIR}/Info.plist)
+endif(APPLE)
 
-install(TARGETS gerbview
+target_link_libraries(${GERBVIEW_NAME} common pcbcommon 3d-viewer polygon bitmaps kbool
+                      ${OPENGL_LIBRARIES} ${wxWidgets_LIBRARIES} ${GDI_PLUS_LIBRARIES})
+
+install(TARGETS ${GERBVIEW_NAME}
         DESTINATION ${KICAD_BIN}
         COMPONENT binary)

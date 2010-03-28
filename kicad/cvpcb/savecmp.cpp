@@ -1,8 +1,6 @@
-/**************/
-/* savecmp()  */
-/**************/
-
-/* sauvegarde la liste des associations composants/empreintes */
+/****************/
+/* savecmp.cpp  */
+/****************/
 
 #include "fctsys.h"
 #include "wxstruct.h"
@@ -10,99 +8,111 @@
 #include "confirm.h"
 #include "kicad_string.h"
 #include "gestfich.h"
+#include "macros.h"
+#include "appl_wxstruct.h"
 
 #include "cvpcb.h"
 #include "protos.h"
 #include "cvstruct.h"
 
+#include "build_version.h"
 
-/* Chaines de caractere d'identification */
+
+/* File header. */
 char EnteteCmpMod[] = { "Cmp-Mod V01" };
 
-/****************************************************************************/
-int WinEDA_CvpcbFrame::SaveComponentList( const wxString& NetlistFullFileName )
-/*****************************************************************************/
+const wxString titleComponentLibErr( _( "Component Library Error" ) );
 
-/* Routine de sauvegarde du fichier des modules
- *   Retourne 1 si OK
- *           0 si ecriture non faite
+
+/*
+ * Backup modules file.
+ *
+ * @param NetlistFullFileName - Name of net list file to save.
+ * @returns - 1 if OK, 0 if error.
  */
+int WinEDA_CvpcbFrame::SaveComponentList( const wxString& NetlistFullFileName )
 {
-    STORECMP* Cmp;
-    wxString  FullFileName;
-    char      Line[1024];
-    wxString  Title = g_Main_Title + wxT( " " ) + GetBuildVersion();
+    FILE*       dest;
+    wxFileName  fn( NetlistFullFileName );
+    char        Line[1024];
+    wxString    Title = wxGetApp().GetTitle() + wxT( " " ) + GetBuildVersion();
 
-    /* calcul du nom du fichier */
-    FullFileName = NetlistFullFileName;
-    ChangeFileNameExt( FullFileName, g_ExtCmpBuffer );
+    fn.SetExt( ComponentFileExtension );
 
-    dest = wxFopen( FullFileName, wxT( "wt" ) );
+    dest = wxFopen( fn.GetFullPath(), wxT( "wt" ) );
     if( dest == NULL )
-        return 0;                   /* Erreur ecriture */
+        return 0;
 
     fprintf( dest, "%s", EnteteCmpMod );
     fprintf( dest, " Created by %s", CONV_TO_UTF8( Title ) );
     fprintf( dest, " date = %s\n", DateAndTime( Line ) );
 
-    for( Cmp = g_BaseListeCmp; Cmp != NULL; Cmp = Cmp->Pnext )
+    BOOST_FOREACH( COMPONENT& component, m_components )
     {
         fprintf( dest, "\nBeginCmp\n" );
-        fprintf( dest, "TimeStamp = %s;\n", CONV_TO_UTF8( Cmp->m_TimeStamp ) );
-        fprintf( dest, "Reference = %s;\n", CONV_TO_UTF8( Cmp->m_Reference ) );
-        fprintf( dest, "ValeurCmp = %s;\n", CONV_TO_UTF8( Cmp->m_Valeur ) );
-        fprintf( dest, "IdModule  = %s;\n", CONV_TO_UTF8( Cmp->m_Module ) );
+        fprintf( dest, "TimeStamp = %s;\n",
+                 CONV_TO_UTF8( component.m_TimeStamp ) );
+        fprintf( dest, "Reference = %s;\n",
+                 CONV_TO_UTF8( component.m_Reference ) );
+        fprintf( dest, "ValeurCmp = %s;\n",
+                 CONV_TO_UTF8( component.m_Value ) );
+        fprintf( dest, "IdModule  = %s;\n",
+                 CONV_TO_UTF8( component.m_Module ) );
         fprintf( dest, "EndCmp\n" );
     }
 
     fprintf( dest, "\nEndListe\n" );
     fclose( dest );
-
     return 1;
 }
 
 
-/****************/
-int loadcmp()
-/***************/
-
-/* recupere la liste des associations composants/empreintes
+/*
+ * Load list of associated components and footprints.
  */
+bool LoadComponentFile( const wxString& fileName, COMPONENT_LIST& list )
 {
-    wxString  timestamp, valeur, ilib, namecmp;
-    bool      read_cmp_data = FALSE, eof = FALSE;
-    STORECMP* Cmp;
-    char      Line[1024], * ident, * data;
-    wxString  FullFileName;
+    wxString    timestamp, valeur, ilib, namecmp, msg;
+    bool        read_cmp_data = FALSE, eof = FALSE;
+    char        Line[1024], * ident, * data;
+    FILE*       source;
+    wxFileName  fn = fileName;
 
-    /* calcul du nom du fichier */
-    FullFileName = FFileName;
-    ChangeFileNameExt( FullFileName, g_ExtCmpBuffer );
+    fn.SetExt( ComponentFileExtension );
 
-    source = wxFopen( FullFileName, wxT( "rt" ) );
+    source = wxFopen( fn.GetFullPath(), wxT( "rt" ) );
     if( source == NULL )
     {
-        return 0;
+        msg.Printf( _( "Cannot open component library <%s>." ),
+                    GetChars( fn.GetFullPath() ) );
+        wxMessageBox( msg, titleComponentLibErr, wxOK | wxICON_ERROR );
+        return false;
     }
 
-    /* Identification du Type de fichier CmpMod */
+    /* Identification of the type of file CmpMod */
     if( fgets( Line, 79, source ) == 0 )
-        return 0;
+    {
+        msg.Printf( _( " <%s> does not appear to be a valid Kicad component library." ),
+                    GetChars( fn.GetFullPath() ) );
+        wxMessageBox( msg, titleComponentLibErr, wxOK | wxICON_ERROR );
+        fclose( source );
+        return false;
+    }
+
     if( strnicmp( Line, EnteteCmpMod, 11 ) != 0 ) /* old file version*/
     {
+        msg.Printf( _( "<%s> is an old version component file." ) );
+        wxMessageBox( msg, titleComponentLibErr, wxOK | wxICON_ERROR );
         fclose( source );
-        DisplayError( NULL,
-                      wxT( "Old version of Componaent file, recreate it!" ) );
-        return 0;
+        return false;
     }
 
-    /* lecture de la liste */
     while( !eof && fgets( Line, 79, source ) != 0 )
     {
         if( strnicmp( Line, "EndListe", 8 ) == 0 )
             break;
 
-        /* Recherche du debut de description du composant */
+        /* Search the beginning of the component description. */
         if( strnicmp( Line, "BeginCmp", 8 ) != 0 )
             continue;
         timestamp.Empty();
@@ -115,16 +125,19 @@ int loadcmp()
         {
             if( fgets( Line, 1024, source ) == 0 )
             {
-                eof = TRUE; break;
+                eof = TRUE;
+                break;
             }
 
             if( strnicmp( Line, "EndCmp", 6 ) == 0 )
             {
-                read_cmp_data = TRUE; break;
+                read_cmp_data = TRUE;
+                break;
             }
 
             ident = strtok( Line, "=;\n\r" );
             data  = strtok( NULL, ";\n\r" );
+
             if( strnicmp( ident, "TimeStamp", 9 ) == 0 )
             {
                 timestamp = CONV_FROM_UTF8( data );
@@ -156,26 +169,20 @@ int loadcmp()
                 ilib.Trim( FALSE );
                 continue;
             }
-        } /* Fin lecture description de 1 composant */
+        } /* End reading component description. */
 
-        /* Recherche du composant correspondant en netliste et
-         *    mise a jour de ses parametres */
-        for( Cmp = g_BaseListeCmp; Cmp != NULL; Cmp = Cmp->Pnext )
+        /* Search corresponding component and NetList
+         * Update its parameters. */
+        BOOST_FOREACH( COMPONENT& component, list )
         {
-            if( selection_type == 1 )
-            {
-                if( timestamp != Cmp->m_TimeStamp )
-                    continue;
-            }
-            else
-                if( namecmp != Cmp->m_Reference )
-                    continue;
+            if( namecmp != component.m_Reference )
+                continue;
 
-            /* composant identifie , copie du nom du module correspondant */
-            Cmp->m_Module = ilib;
+            /* Copy the name of the corresponding module. */
+            component.m_Module = ilib;
         }
     }
 
     fclose( source );
-    return 1;
+    return true;
 }

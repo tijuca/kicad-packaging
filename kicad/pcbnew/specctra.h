@@ -33,7 +33,9 @@
 #include <boost/ptr_container/ptr_set.hpp>
 
 #include "fctsys.h"
-#include "dsn.h"
+
+#include "dsnlexer.h"
+
 
 class TYPE_COLLECTOR;           // outside the DSN namespace
 
@@ -63,131 +65,430 @@ class TYPE_COLLECTOR;           // outside the DSN namespace
 */
 namespace DSN {
 
+
+enum DSN_T {
+
+    // these first few are negative special ones for syntax, and are
+    // inherited from DSNLEXER.
+    T_NONE = DSN_NONE,
+    T_COMMENT = DSN_COMMENT,
+    T_STRING_QUOTE = DSN_STRING_QUOTE,
+    T_QUOTE_DEF = DSN_QUOTE_DEF,
+    T_DASH = DSN_DASH,
+    T_SYMBOL = DSN_SYMBOL,
+    T_NUMBER = DSN_NUMBER,
+    T_RIGHT = DSN_RIGHT,    // right bracket, ')'
+    T_LEFT = DSN_LEFT,      // left bracket, '('
+    T_STRING = DSN_STRING,  // a quoted string, stripped of the quotes
+    T_EOF = DSN_EOF,        // special case for end of file
+
+
+    // This should be coordinated with the
+    // const static KEYWORD tokens[] array, and both must be sorted
+    // identically and alphabetically.  Remember that '_' is less than any
+    // alpha character according to ASCII.
+
+    T_absolute = 0,        // this one should be == zero
+    T_added,
+    T_add_group,
+    T_add_pins,
+    T_allow_antenna,
+    T_allow_redundant_wiring,
+    T_amp,
+    T_ancestor,
+    T_antipad,
+    T_aperture_type,
+    T_array,
+    T_attach,
+    T_attr,
+    T_average_pair_length,
+    T_back,
+    T_base_design,
+    T_bbv_ctr2ctr,
+    T_bend_keepout,
+    T_bond,
+    T_both,
+    T_bottom,
+    T_bottom_layer_sel,
+    T_boundary,
+    T_brickpat,
+    T_bundle,
+    T_bus,
+    T_bypass,
+    T_capacitance_resolution,
+    T_capacitor,
+    T_case_sensitive,
+    T_cct1,
+    T_cct1a,
+    T_center_center,
+    T_checking_trim_by_pin,
+    T_circ,
+    T_circle,
+    T_circuit,
+    T_class,
+    T_class_class,
+    T_classes,
+    T_clear,
+    T_clearance,
+    T_cluster,
+    T_cm,
+    T_color,
+    T_colors,
+    T_comment,
+    T_comp,
+    T_comp_edge_center,
+    T_comp_order,
+    T_component,
+    T_composite,
+    T_conductance_resolution,
+    T_conductor,
+    T_conflict,
+    T_connect,
+    T_constant,
+    T_contact,
+    T_control,
+    T_corner,
+    T_corners,
+    T_cost,
+    T_created_time,
+    T_cross,
+    T_crosstalk_model,
+    T_current_resolution,
+    T_delete_pins,
+    T_deleted,
+    T_deleted_keepout,
+    T_delta,
+    T_diagonal,
+    T_direction,
+    T_directory,
+    T_discrete,
+    T_effective_via_length,
+    T_elongate_keepout,
+    T_exclude,
+    T_expose,
+    T_extra_image_directory,
+    T_family,
+    T_family_family,
+    T_family_family_spacing,
+    T_fanout,
+    T_farad,
+    T_file,
+    T_fit,
+    T_fix,
+    T_flip_style,
+    T_floor_plan,
+    T_footprint,
+    T_forbidden,
+    T_force_to_terminal_point,
+    T_free,
+    T_forgotten,
+    T_fromto,
+    T_front,
+    T_front_only,
+    T_gap,
+    T_gate,
+    T_gates,
+    T_generated_by_freeroute,
+    T_global,
+    T_grid,
+    T_group,
+    T_group_set,
+    T_guide,
+    T_hard,
+    T_height,
+    T_high,
+    T_history,
+    T_horizontal,
+    T_host_cad,
+    T_host_version,
+    T_image,
+    T_image_conductor,
+    T_image_image,
+    T_image_image_spacing,
+    T_image_outline_clearance,
+    T_image_set,
+    T_image_type,
+    T_inch,
+    T_include,
+    T_include_pins_in_crosstalk,
+    T_inductance_resolution,
+    T_insert,
+    T_instcnfg,
+    T_inter_layer_clearance,
+    T_jumper,
+    T_junction_type,
+    T_keepout,
+    T_kg,
+    T_kohm,
+    T_large,
+    T_large_large,
+    T_layer,
+    T_layer_depth,
+    T_layer_noise_weight,
+    T_layer_pair,
+    T_layer_rule,
+    T_length,
+    T_length_amplitude,
+    T_length_factor,
+    T_length_gap,
+    T_library,
+    T_library_out,
+    T_limit,
+    T_limit_bends,
+    T_limit_crossing,
+    T_limit_vias,
+    T_limit_way,
+    T_linear,
+    T_linear_interpolation,
+    T_load,
+    T_lock_type,
+    T_logical_part,
+    T_logical_part_mapping,
+    T_low,
+    T_match_fromto_delay,
+    T_match_fromto_length,
+    T_match_group_delay,
+    T_match_group_length,
+    T_match_net_delay,
+    T_match_net_length,
+    T_max_delay,
+    T_max_len,
+    T_max_length,
+    T_max_noise,
+    T_max_restricted_layer_length,
+    T_max_stagger,
+    T_max_stub,
+    T_max_total_delay,
+    T_max_total_length,
+    T_max_total_vias,
+    T_medium,
+    T_mhenry,
+    T_mho,
+    T_microvia,
+    T_mid_driven,
+    T_mil,
+    T_min_gap,
+    T_mirror,
+    T_mirror_first,
+    T_mixed,
+    T_mm,
+    T_negative_diagonal,
+    T_net,
+    T_net_number,
+    T_net_out,
+    T_net_pin_changes,
+    T_nets,
+    T_network,
+    T_network_out,
+    T_no,
+    T_noexpose,
+    T_noise_accumulation,
+    T_noise_calculation,
+    T_normal,
+    T_object_type,
+    T_off,
+    T_off_grid,
+    T_offset,
+    T_on,
+    T_open,
+    T_opposite_side,
+    T_order,
+    T_orthogonal,
+    T_outline,
+    T_overlap,
+    T_pad,
+    T_pad_pad,
+    T_padstack,
+    T_pair,
+    T_parallel,
+    T_parallel_noise,
+    T_parallel_segment,
+    T_parser,
+    T_part_library,
+    T_path,
+    T_pcb,
+    T_permit_orient,
+    T_permit_side,
+    T_physical,
+    T_physical_part_mapping,
+    T_piggyback,
+    T_pin,
+    T_pin_allow,
+    T_pin_cap_via,
+    T_pin_via_cap,
+    T_pin_width_taper,
+    T_pins,
+    T_pintype,
+    T_place,
+    T_place_boundary,
+    T_place_control,
+    T_place_keepout,
+    T_place_rule,
+    T_placement,
+    T_plan,
+    T_plane,
+    T_pn,
+    T_point,
+    T_polyline_path,
+    T_polygon,
+    T_position,
+    T_positive_diagonal,
+    T_power,
+    T_power_dissipation,
+    T_power_fanout,
+    T_prefix,
+    T_primary,
+    T_priority,
+    T_property,
+    T_protect,
+    T_qarc,
+    T_quarter,
+    T_radius,
+    T_ratio,
+    T_ratio_tolerance,
+    T_rect,
+    T_reduced,
+    T_region,
+    T_region_class,
+    T_region_class_class,
+    T_region_net,
+    T_relative_delay,
+    T_relative_group_delay,
+    T_relative_group_length,
+    T_relative_length,
+    T_reorder,
+    T_reroute_order_viols,
+    T_resistance_resolution,
+    T_resistor,
+    T_resolution,
+    T_restricted_layer_length_factor,
+    T_room,
+    T_rotate,
+    T_rotate_first,
+    T_round,
+    T_roundoff_rotation,
+    T_route,
+    T_route_to_fanout_only,
+    T_routes,
+    T_routes_include,
+    T_rule,
+    T_same_net_checking,
+    T_sample_window,
+    T_saturation_length,
+    T_sec,
+    T_secondary,
+    T_self,
+    T_sequence_number,
+    T_session,
+    T_set_color,
+    T_set_pattern,
+    T_shape,
+    T_shield,
+    T_shield_gap,
+    T_shield_loop,
+    T_shield_tie_down_interval,
+    T_shield_width,
+    T_side,
+    T_signal,
+    T_site,
+    T_small,
+    T_smd,
+    T_snap,
+    T_snap_angle,
+    T_soft,
+    T_source,
+    T_space_in_quoted_tokens,
+    T_spacing,
+    T_spare,
+    T_spiral_via,
+    T_square,
+    T_stack_via,
+    T_stack_via_depth,
+    T_standard,
+    T_starburst,
+    T_status,
+    T_structure,
+    T_structure_out,
+    T_subgate,
+    T_subgates,
+    T_substituted,
+    T_such,
+    T_suffix,
+    T_super_placement,
+    T_supply,
+    T_supply_pin,
+    T_swapping,
+    T_switch_window,
+    T_system,
+    T_tandem_noise,
+    T_tandem_segment,
+    T_tandem_shield_overhang,
+    T_terminal,
+    T_terminator,
+    T_term_only,
+    T_test,
+    T_test_points,
+    T_testpoint,
+    T_threshold,
+    T_time_length_factor,
+    T_time_resolution,
+    T_tjunction,
+    T_tolerance,
+    T_top,
+    T_topology,
+    T_total,
+    T_track_id,
+    T_turret,
+    T_type,
+    T_um,
+    T_unassigned,
+    T_unconnects,
+    T_unit,
+    T_up,
+    T_use_array,
+    T_use_layer,
+    T_use_net,
+    T_use_via,
+    T_value,
+    T_vertical,
+    T_via,
+    T_via_array_template,
+    T_via_at_smd,
+    T_via_keepout,
+    T_via_number,
+    T_via_rotate_first,
+    T_via_site,
+    T_via_size,
+    T_virtual_pin,
+    T_volt,
+    T_voltage_resolution,
+    T_was_is,
+    T_way,
+    T_weight,
+    T_width,
+    T_window,
+    T_wire,
+    T_wire_keepout,
+    T_wires,
+    T_wires_include,
+    T_wiring,
+    T_write_resolution,
+    T_x,
+    T_xy,
+    T_y,
+};
+
+
 class SPECCTRA_DB;
 
 
 /**
- * Class OUTPUTFORMATTER
- * is an interface (abstract class) used to output ASCII text.  The destination
- * of the ASCII text is up to the implementer.
+ * Function GetTokenText
+ * is in the DSN namespace and returns the C string representing a
+ * SPECCTRA_DB::keyword.  We needed a non-instanance function to get at
+ * the SPECCTRA_DB::keyword[] and class SPECCTRA_DB is not defined yet.
  */
-class OUTPUTFORMATTER
-{
-
-#if defined(__GNUG__)   // The GNU C++ compiler defines this
-
-// When used on a C++ function, we must account for the "this" pointer,
-// so increase the STRING-INDEX and FIRST-TO_CHECK by one.
-// See http://docs.freebsd.org/info/gcc/gcc.info.Function_Attributes.html
-// Then to get format checking during the compile, compile with -Wall or -Wformat
-#define PRINTF_FUNC       __attribute__ ((format (printf, 3, 4)))
-
-#else
-#define PRINTF_FUNC       // nothing
-#endif
-
-public:
-
-    /**
-     * Function Print
-     * formats and writes text to the output stream.
-     *
-     * @param nestLevel The multiple of spaces to preceed the output with.
-     * @param fmt A printf() style format string.
-     * @param ... a variable list of parameters that will get blended into
-     *  the output under control of the format string.
-     * @return int - the number of characters output.
-     * @throw IOError, if there is a problem outputting, such as a full disk.
-     */
-    virtual int PRINTF_FUNC Print( int nestLevel, const char* fmt, ... ) throw( IOError ) = 0;
-
-    /**
-     * Function GetQuoteChar
-     * performs quote character need determination.
-     * It returns the quote character as a single character string for a given
-     * input wrapee string.  If the wrappee does not need to be quoted,
-     * the return value is "" (the null string), such as when there are no
-     * delimiters in the input wrapee string.  If you want the quote_char
-     * to be assuredly not "", then pass in "(" as the wrappee.
-     * @param wrapee A string that might need wrapping on each end.
-     * @return const char* - the quote_char as a single character string, or ""
-     *   if the wrapee does not need to be wrapped.
-     */
-    virtual const char* GetQuoteChar( const char* wrapee ) = 0;
-
-    virtual ~OUTPUTFORMATTER() {}
-
-    /**
-     * Function GetQuoteChar
-     * performs quote character need determination.
-     * @param wrapee A string that might need wrapping on each end.
-     * @param quote_char A single character C string which provides the current
-     *          quote character, should it be needed by the wrapee.
-     * @return const char* - the quote_char as a single character string, or ""
-     *   if the wrapee does not need to be wrapped.
-     */
-    static const char* GetQuoteChar( const char* wrapee, const char* quote_char );
-};
-
-
-/**
- * Class STRINGFORMATTER
- * implements OUTPUTFORMATTER to a memory buffer.  After Print()ing the
- * string is available through GetString()
-*/
-class STRINGFORMATTER : public OUTPUTFORMATTER
-{
-    std::vector<char>       buffer;
-    std::string             mystring;
-
-    int sprint( const char* fmt, ... );
-    int vprint( const char* fmt,  va_list ap );
-
-public:
-
-    /**
-     * Constructor STRINGFORMATTER
-     * reserves space in the buffer
-     */
-    STRINGFORMATTER( int aReserve = 300 ) :
-        buffer( aReserve, '\0' )
-    {
-    }
-
-
-    /**
-     * Function Clear
-     * clears the buffer and empties the internal string.
-     */
-    void Clear()
-    {
-        mystring.clear();
-    }
-
-    /**
-     * Function StripUseless
-     * removes whitespace, '(', and ')' from the mystring.
-     */
-    void StripUseless();
-
-    /*
-    const char* c_str()
-    {
-        return mystring.c_str();
-    }
-    */
-
-    std::string GetString()
-    {
-        return mystring;
-    }
-
-
-    //-----<OUTPUTFORMATTER>------------------------------------------------
-    int PRINTF_FUNC Print( int nestLevel, const char* fmt, ... ) throw( IOError );
-    const char* GetQuoteChar( const char* wrapee );
-    //-----</OUTPUTFORMATTER>-----------------------------------------------
-};
+const char* GetTokenText( int aTok );
 
 
 /**
@@ -333,6 +634,8 @@ public:
     virtual ~ELEM();
 
     DSN_T   Type() const { return type; }
+
+    const char* Name() const;
 
 
     /**
@@ -529,12 +832,12 @@ public:
     void Format( OUTPUTFORMATTER* out, int nestLevel ) throw( IOError )
     {
         if( type == T_unit )
-            out->Print( nestLevel, "(%s %s)\n", LEXER::GetTokenText( Type() ),
-                       LEXER::GetTokenText(units) );
+            out->Print( nestLevel, "(%s %s)\n", Name(),
+                       GetTokenText(units) );
 
         else    // T_resolution
-            out->Print( nestLevel, "(%s %s %d)\n", LEXER::GetTokenText( Type() ),
-                       LEXER::GetTokenText(units), value );
+            out->Print( nestLevel, "(%s %s %d)\n", Name(),
+                       GetTokenText(units), value );
     }
 };
 
@@ -576,7 +879,7 @@ public:
         const char* quote = out->GetQuoteChar( layer_id.c_str() );
 
         out->Print( nestLevel, "(%s %s%s%s %.6g %.6g %.6g %.6g)%s",
-                   LEXER::GetTokenText( Type() ),
+                   Name(),
                    quote, layer_id.c_str(), quote,
                    point0.x, point0.y,
                    point1.x, point1.y,
@@ -604,7 +907,7 @@ public:
 
     void Format( OUTPUTFORMATTER* out, int nestLevel ) throw( IOError )
     {
-        out->Print( nestLevel, "(%s", LEXER::GetTokenText( Type() ) );
+        out->Print( nestLevel, "(%s", Name() );
 
         bool singleLine;
 
@@ -650,7 +953,7 @@ public:
 
     void Format( OUTPUTFORMATTER* out, int nestLevel ) throw( IOError )
     {
-        out->Print( nestLevel, "(%s", LEXER::GetTokenText( Type() ) );
+        out->Print( nestLevel, "(%s", Name() );
 
         for( STRINGS::const_iterator i=layer_ids.begin();  i!=layer_ids.end();  ++i )
         {
@@ -715,7 +1018,7 @@ public:
 
         const int RIGHTMARGIN = 70;
         int perLine = out->Print( nestLevel, "(%s %s%s%s %.6g",
-                               LEXER::GetTokenText( Type() ),
+                               Name(),
                                quote, layer_id.c_str(), quote,
                                aperture_width );
 
@@ -768,7 +1071,7 @@ public:
 
     void Format( OUTPUTFORMATTER* out, int nestLevel ) throw( IOError )
     {
-        out->Print( nestLevel, "(%s\n", LEXER::GetTokenText( Type() ) );
+        out->Print( nestLevel, "(%s\n", Name() );
 
         if( rectangle )
             rectangle->Format( out, nestLevel+1 );
@@ -804,7 +1107,7 @@ public:
         const char* newline = nestLevel ? "\n" : "";
 
         const char* quote = out->GetQuoteChar( layer_id.c_str() );
-        out->Print( nestLevel, "(%s %s%s%s %.6g", LEXER::GetTokenText( Type() ),
+        out->Print( nestLevel, "(%s %s%s%s %.6g", Name(),
                                 quote, layer_id.c_str(), quote,
                                 diameter );
 
@@ -851,7 +1154,7 @@ public:
         const char* newline = nestLevel ? "\n" : "";
 
         const char* quote = out->GetQuoteChar( layer_id.c_str() );
-        out->Print( nestLevel, "(%s %s%s%s %.6g", LEXER::GetTokenText( Type() ) ,
+        out->Print( nestLevel, "(%s %s%s%s %.6g", Name() ,
                                  quote, layer_id.c_str(), quote,
                                  aperture_width);
 
@@ -930,7 +1233,7 @@ public:
 
     void Format( OUTPUTFORMATTER* out, int nestLevel ) throw( IOError )
     {
-        out->Print( nestLevel, "(%s ", LEXER::GetTokenText( Type() ) );
+        out->Print( nestLevel, "(%s ", Name() );
 
         if( shape )
             shape->Format( out, 0 );
@@ -1015,7 +1318,7 @@ public:
     {
         const char* newline = "\n";
 
-        out->Print( nestLevel, "(%s", LEXER::GetTokenText( Type() ) );
+        out->Print( nestLevel, "(%s", Name() );
 
         if( name.size() )
         {
@@ -1091,7 +1394,7 @@ public:
     void Format( OUTPUTFORMATTER* out, int nestLevel ) throw( IOError )
     {
         const int RIGHTMARGIN = 80;
-        int perLine = out->Print( nestLevel, "(%s", LEXER::GetTokenText( Type() ) );
+        int perLine = out->Print( nestLevel, "(%s", Name() );
 
         for( STRINGS::iterator i=padstacks.begin();  i!=padstacks.end();  ++i )
         {
@@ -1212,7 +1515,7 @@ public:
 
     void Format( OUTPUTFORMATTER* out, int nestLevel ) throw( IOError )
     {
-        out->Print( nestLevel, "(%s\n", LEXER::GetTokenText( Type() ) );
+        out->Print( nestLevel, "(%s\n", Name() );
 
         //if( via_at_smd )
         {
@@ -1269,14 +1572,14 @@ public:
     {
         const char* quote = out->GetQuoteChar( name.c_str() );
 
-        out->Print( nestLevel, "(%s %s%s%s\n", LEXER::GetTokenText( Type() ),
+        out->Print( nestLevel, "(%s %s%s%s\n", Name(),
                        quote, name.c_str(), quote );
 
-        out->Print( nestLevel+1, "(type %s)\n", LEXER::GetTokenText( layer_type ) );
+        out->Print( nestLevel+1, "(type %s)\n", GetTokenText( layer_type ) );
 
         if( properties.size() )
         {
-            out->Print( nestLevel+1, "(property \n" );
+            out->Print( nestLevel+1, "(property\n" );
 
             for( PROPERTIES::iterator i = properties.begin();  i != properties.end();  ++i )
             {
@@ -1287,7 +1590,7 @@ public:
 
         if( direction != -1 )
             out->Print( nestLevel+1, "(direction %s)\n",
-                       LEXER::GetTokenText( (DSN_T)direction ) );
+                       GetTokenText( (DSN_T)direction ) );
 
         if( rules )
             rules->Format( out, nestLevel+1 );
@@ -1297,10 +1600,10 @@ public:
             if( cost < 0 )
                 out->Print( nestLevel+1, "(cost %d", -cost );   // positive integer, stored as negative
             else
-                out->Print( nestLevel+1, "(cost %s", LEXER::GetTokenText( (DSN_T)cost ) );
+                out->Print( nestLevel+1, "(cost %s", GetTokenText( (DSN_T)cost ) );
 
             if( cost_type != -1 )
-                out->Print( 0, " (type %s)", LEXER::GetTokenText( (DSN_T)cost_type ) );
+                out->Print( 0, " (type %s)", GetTokenText( (DSN_T)cost_type ) );
 
             out->Print( 0, ")\n" );
         }
@@ -1319,6 +1622,8 @@ public:
         out->Print( nestLevel, ")\n" );
     }
 };
+
+typedef boost::ptr_vector<LAYER>    LAYERS;
 
 
 class LAYER_PAIR : public ELEM
@@ -1342,7 +1647,7 @@ public:
         const char* quote0 = out->GetQuoteChar( layer_id0.c_str() );
         const char* quote1 = out->GetQuoteChar( layer_id1.c_str() );
 
-        out->Print( nestLevel, "(%s %s%s%s %s%s%s %.6g)\n", LEXER::GetTokenText( Type() ),
+        out->Print( nestLevel, "(%s %s%s%s %s%s%s %.6g)\n", Name(),
                quote0, layer_id0.c_str(), quote0,
                quote1, layer_id1.c_str(), quote1,
                layer_weight );
@@ -1366,7 +1671,7 @@ public:
 
     void Format( OUTPUTFORMATTER* out, int nestLevel ) throw( IOError )
     {
-        out->Print( nestLevel, "(%s\n", LEXER::GetTokenText( Type() ) );
+        out->Print( nestLevel, "(%s\n", Name() );
 
         for( LAYER_PAIRS::iterator i=layer_pairs.begin(); i!=layer_pairs.end();  ++i )
             i->Format( out, nestLevel+1 );
@@ -1412,8 +1717,8 @@ public:
 
     void Format( OUTPUTFORMATTER* out, int nestLevel ) throw( IOError )
     {
-        out->Print( nestLevel, "(%s %s)\n", LEXER::GetTokenText( Type() ),
-                   LEXER::GetTokenText( value ) );
+        out->Print( nestLevel, "(%s %s)\n", Name(),
+                   GetTokenText( value ) );
     }
 };
 
@@ -1440,7 +1745,7 @@ public:
     {
         const char* quote = out->GetQuoteChar( value.c_str() );
 
-        out->Print( nestLevel, "(%s %s%s%s)\n", LEXER::GetTokenText( Type() ),
+        out->Print( nestLevel, "(%s %s%s%s)\n", Name(),
                                 quote, value.c_str(), quote );
     }
 };
@@ -1509,11 +1814,11 @@ class GRID : public ELEM
 
     double      dimension;
 
-    DSN_T       direction;      ///< T_x | T_y | -1 for both
+    int         direction;      ///< T_x | T_y | -1 for both
 
     double      offset;
 
-    DSN_T       image_type;
+    int         image_type;     // DSN_T
 
 public:
 
@@ -1530,18 +1835,18 @@ public:
     void Format( OUTPUTFORMATTER* out, int nestLevel ) throw( IOError )
     {
         out->Print( nestLevel, "(%s %s %.6g",
-                   LEXER::GetTokenText( Type() ),
-                   LEXER::GetTokenText( grid_type ), dimension );
+                   Name(),
+                   GetTokenText( grid_type ), dimension );
 
         if( grid_type == T_place )
         {
             if( image_type==T_smd || image_type==T_pin )
-                out->Print( 0, " (image_type %s)", LEXER::GetTokenText( image_type ) );
+                out->Print( 0, " (image_type %s)", GetTokenText( image_type ) );
         }
         else
         {
             if( direction==T_x || direction==T_y )
-                out->Print( 0, " (direction %s)", LEXER::GetTokenText( direction ) );
+                out->Print( 0, " (direction %s)", GetTokenText( direction ) );
         }
 
         if( offset != 0.0 )
@@ -1552,13 +1857,42 @@ public:
 };
 
 
+class STRUCTURE_OUT : public ELEM
+{
+    friend class SPECCTRA_DB;
+
+    LAYERS      layers;
+    RULE*       rules;
+
+public:
+    STRUCTURE_OUT( ELEM* aParent ) :
+        ELEM( T_structure_out, aParent )
+    {
+        rules = 0;
+    }
+
+    ~STRUCTURE_OUT()
+    {
+        delete rules;
+    }
+
+    void FormatContents( OUTPUTFORMATTER* out, int nestLevel ) throw( IOError )
+    {
+        for( LAYERS::iterator i=layers.begin();  i!=layers.end();  ++i )
+            i->Format( out, nestLevel );
+
+        if( rules )
+            rules->Format( out, nestLevel );
+    }
+};
+
+
 class STRUCTURE : public ELEM_HOLDER
 {
     friend class SPECCTRA_DB;
 
     UNIT_RES*   unit;
 
-    typedef boost::ptr_vector<LAYER>    LAYERS;
     LAYERS      layers;
 
     LAYER_NOISE_WEIGHT*  layer_noise_weight;
@@ -1723,17 +2057,18 @@ public:
     PLACE( ELEM* aParent ) :
         ELEM( T_place, aParent )
     {
-        side = T_front;
+        side = DSN_T( T_front );
 
         rotation = 0.0;
 
         hasVertex = false;
 
-        mirror = T_NONE;
-        status = T_NONE;
+        mirror = DSN_T( T_NONE );
+        status = DSN_T( T_NONE );
+
         place_rules = 0;
 
-        lock_type = T_NONE;
+        lock_type = DSN_T( T_NONE );
         rules = 0;
         region = 0;
     }
@@ -1797,7 +2132,7 @@ public:
     void Format( OUTPUTFORMATTER* out, int nestLevel ) throw( IOError )
     {
         const char* quote = out->GetQuoteChar( image_id.c_str() );
-        out->Print( nestLevel, "(%s %s%s%s\n", LEXER::GetTokenText( Type() ),
+        out->Print( nestLevel, "(%s %s%s%s\n", Name(),
                                 quote, image_id.c_str(), quote );
 
         FormatContents( out, nestLevel+1 );
@@ -1829,7 +2164,7 @@ public:
         ELEM( T_placement, aParent )
     {
         unit = 0;
-        flip_style = T_NONE;
+        flip_style = DSN_T( T_NONE );
     }
 
     ~PLACEMENT()
@@ -1863,10 +2198,10 @@ public:
         if( unit )
             unit->Format( out, nestLevel );
 
-        if( flip_style != T_NONE )
+        if( flip_style != DSN_T( T_NONE ) )
         {
             out->Print( nestLevel, "(place_control (flip_style %s))\n",
-                       LEXER::GetTokenText( flip_style ) );
+                       GetTokenText( flip_style ) );
         }
 
         for( COMPONENTS::iterator i=components.begin();  i!=components.end();  ++i )
@@ -1926,13 +2261,13 @@ public:
 
     void Format( OUTPUTFORMATTER* out, int nestLevel ) throw( IOError )
     {
-        out->Print( nestLevel, "(%s ", LEXER::GetTokenText( Type() ) );
+        out->Print( nestLevel, "(%s ", Name() );
 
         if( shape )
             shape->Format( out, 0 );
 
         if( connect == T_off )
-            out->Print( 0, "(connect %s)", LEXER::GetTokenText( connect ) );
+            out->Print( 0, "(connect %s)", GetTokenText( connect ) );
 
         if( windows.size() )
         {
@@ -2074,7 +2409,7 @@ public:
 
         const char* quote = out->GetQuoteChar( imageId.c_str() );
 
-        out->Print( nestLevel, "(%s %s%s%s", LEXER::GetTokenText( Type() ),
+        out->Print( nestLevel, "(%s %s%s%s", Name(),
                                 quote, imageId.c_str(), quote );
 
         FormatContents( out, nestLevel+1 );
@@ -2086,7 +2421,7 @@ public:
     void FormatContents( OUTPUTFORMATTER* out, int nestLevel ) throw( IOError )
     {
         if( side != T_both )
-            out->Print( 0, " (side %s)", LEXER::GetTokenText( side ) );
+            out->Print( 0, " (side %s)", GetTokenText( side ) );
 
         out->Print( 0, "\n");
 
@@ -2187,7 +2522,7 @@ public:
     {
         const char* quote = out->GetQuoteChar( padstack_id.c_str() );
 
-        out->Print( nestLevel, "(%s %s%s%s\n", LEXER::GetTokenText( Type() ),
+        out->Print( nestLevel, "(%s %s%s%s\n", Name(),
                                 quote, padstack_id.c_str(), quote );
 
         FormatContents( out, nestLevel+1 );
@@ -2219,10 +2554,10 @@ public:
         }
 
         if( rotate == T_off )   // print the non-default
-            out->Print( 0, "(rotate %s)", LEXER::GetTokenText( rotate ) );
+            out->Print( 0, "(rotate %s)", GetTokenText( rotate ) );
 
         if( absolute == T_on )  // print the non-default
-            out->Print( 0, "(absolute %s)", LEXER::GetTokenText( absolute ) );
+            out->Print( 0, "(absolute %s)", GetTokenText( absolute ) );
 
         out->Print( 0, "\n" );
 
@@ -2240,6 +2575,7 @@ public:
     }
 };
 typedef boost::ptr_vector<PADSTACK> PADSTACKS;
+
 
 /**
  * Function operator<()
@@ -2263,11 +2599,9 @@ class LIBRARY : public ELEM
 
     UNIT_RES*       unit;
     IMAGES          images;
-    PADSTACKS       padstacks;
 
-    /// The start of the vias within the padstacks, which trail the pads.
-    /// This field is not Format()ed.
-    int             via_start_index;
+    PADSTACKS       padstacks;      ///< all except vias, which are in 'vias'
+    PADSTACKS       vias;
 
 public:
 
@@ -2275,7 +2609,7 @@ public:
         ELEM( aType, aParent )
     {
         unit = 0;
-        via_start_index = -1;       // 0 or greater means there is at least one via
+//        via_start_index = -1;       // 0 or greater means there is at least one via
     }
     ~LIBRARY()
     {
@@ -2288,6 +2622,7 @@ public:
         padstacks.push_back( aPadstack );
     }
 
+/*
     void SetViaStartIndex( int aIndex )
     {
         via_start_index = aIndex;
@@ -2296,6 +2631,7 @@ public:
     {
         return via_start_index;
     }
+*/
 
 
     /**
@@ -2361,16 +2697,24 @@ public:
      */
     int FindVia( PADSTACK* aVia )
     {
-        if( via_start_index > -1 )
+        for( unsigned i=0;  i<vias.size();  ++i )
         {
-            for( unsigned i=via_start_index;  i<padstacks.size();  ++i )
-            {
-                if( 0 == PADSTACK::Compare( aVia, &padstacks[i] ) )
-                    return (int) i;
-            }
+            if( 0 == PADSTACK::Compare( aVia, &vias[i] ) )
+                return int( i );
         }
         return -1;
     }
+
+    /**
+     * Function AppendVia
+     * adds \a aVia to the internal via container.
+     */
+    void AppendVia( PADSTACK* aVia )
+    {
+        aVia->SetParent( this );
+        vias.push_back( aVia );
+    }
+
 
     /**
      * Function AppendPADSTACK
@@ -2395,10 +2739,10 @@ public:
         int ndx = FindVia( aVia );
         if( ndx == -1 )
         {
-            AppendPADSTACK( aVia );
+            AppendVia( aVia );
             return aVia;
         }
-        return &padstacks[ndx];
+        return &vias[ndx];
     }
 
     /**
@@ -2426,6 +2770,9 @@ public:
             i->Format( out, nestLevel );
 
         for( PADSTACKS::iterator i=padstacks.begin();  i!=padstacks.end();  ++i )
+            i->Format( out, nestLevel );
+
+        for( PADSTACKS::iterator i=vias.begin();  i!=vias.end();  ++i )
             i->Format( out, nestLevel );
     }
 
@@ -2496,7 +2843,7 @@ public:
         ELEM( T_fromto, aParent )
     {
         rules = 0;
-        fromto_type  = T_NONE;
+        fromto_type  = DSN_T( T_NONE );
     }
     ~FROMTO()
     {
@@ -2507,10 +2854,10 @@ public:
     {
         // no quoting on these two, the lexer preserved the quotes on input
         out->Print( nestLevel, "(%s %s %s ",
-                 LEXER::GetTokenText( Type() ), fromText.c_str(), toText.c_str() );
+                 Name(), fromText.c_str(), toText.c_str() );
 
-        if( fromto_type != T_NONE )
-            out->Print( 0, "(type %s)", LEXER::GetTokenText( fromto_type ) );
+        if( fromto_type != DSN_T( T_NONE ) )
+            out->Print( 0, "(type %s)", GetTokenText( fromto_type ) );
 
         if( net_id.size() )
         {
@@ -2563,7 +2910,7 @@ public:
 
     void Format( OUTPUTFORMATTER* out, int nestLevel ) throw( IOError )
     {
-        out->Print( nestLevel, "(%s", LEXER::GetTokenText( Type() ) );
+        out->Print( nestLevel, "(%s", Name() );
 
         for( STRINGS::iterator i=placement_ids.begin();  i!=placement_ids.end();  ++i )
         {
@@ -2649,7 +2996,7 @@ public:
         const char* quote = out->GetQuoteChar( net_id.c_str() );
         const char* space = " ";
 
-        out->Print( nestLevel, "(%s %s%s%s", LEXER::GetTokenText( Type() ),
+        out->Print( nestLevel, "(%s %s%s%s", Name(),
                    quote, net_id.c_str(), quote );
 
         if( unassigned )
@@ -2669,7 +3016,7 @@ public:
         if( pins.size() )
         {
             const int RIGHTMARGIN = 80;
-            int perLine = out->Print( nestLevel+1, "(%s", LEXER::GetTokenText( pins_type ) );
+            int perLine = out->Print( nestLevel+1, "(%s", GetTokenText( pins_type ) );
 
             for( PIN_REFS::iterator i=pins.begin();  i!=pins.end();  ++i )
             {
@@ -2690,7 +3037,7 @@ public:
             comp_order->Format( out, nestLevel+1 );
 
         if( type != T_NONE )
-            out->Print( nestLevel+1, "(type %s)\n", LEXER::GetTokenText( type ) );
+            out->Print( nestLevel+1, "(type %s)\n", GetTokenText( type ) );
 
         if( rules )
             rules->Format( out, nestLevel+1 );
@@ -2773,7 +3120,7 @@ public:
         const char* quote = out->GetQuoteChar( class_id.c_str() );
 
         int perLine = out->Print( nestLevel, "(%s %s%s%s",
-                              LEXER::GetTokenText( Type() ),
+                              Name(),
                               quote, class_id.c_str(), quote );
 
         const int RIGHTMARGIN = 72;
@@ -2920,7 +3267,7 @@ public:
 
     void Format( OUTPUTFORMATTER* out, int nestLevel ) throw( IOError )
     {
-        out->Print( nestLevel, "(%s ", LEXER::GetTokenText( Type() ) );
+        out->Print( nestLevel, "(%s ", Name() );
 
         if( shape )
             shape->Format( out, 0 );
@@ -2936,10 +3283,10 @@ public:
             out->Print( 0, "(turrent %d)", turret );
 
         if( wire_type != T_NONE )
-            out->Print( 0, "(type %s)", LEXER::GetTokenText( wire_type ) );
+            out->Print( 0, "(type %s)", GetTokenText( wire_type ) );
 
         if( attr != T_NONE )
-            out->Print( 0, "(attr %s)", LEXER::GetTokenText( attr ) );
+            out->Print( 0, "(attr %s)", GetTokenText( attr ) );
 
         if( shield.size() )
         {
@@ -3008,7 +3355,7 @@ public:
 
         const int RIGHTMARGIN = 80;
         int perLine = out->Print( nestLevel, "(%s %s%s%s",
-                       LEXER::GetTokenText( Type() ),
+                       Name(),
                        quote, padstack_id.c_str(), quote );
 
         for( POINTS::iterator i=vertexes.begin();  i!=vertexes.end();  ++i )
@@ -3055,7 +3402,7 @@ public:
                 out->Print( 0, "\n" );
                 perLine = out->Print( nestLevel+1, "%s", "" );
             }
-            perLine += out->Print( 0, "(type %s)", LEXER::GetTokenText( via_type ) );
+            perLine += out->Print( 0, "(type %s)", GetTokenText( via_type ) );
         }
 
         if( attr != T_NONE )
@@ -3072,7 +3419,7 @@ public:
                            quote, virtual_pin_name.c_str(), quote );
             }
             else
-                perLine += out->Print( 0, "(attr %s)", LEXER::GetTokenText( attr ) );
+                perLine += out->Print( 0, "(attr %s)", GetTokenText( attr ) );
         }
 
         if( supply )
@@ -3195,7 +3542,7 @@ public:
     {
         const char* quote = out->GetQuoteChar( pcbname.c_str() );
 
-        out->Print( nestLevel, "(%s %s%s%s\n", LEXER::GetTokenText( Type() ),
+        out->Print( nestLevel, "(%s %s%s%s\n", Name(),
                                 quote, pcbname.c_str(), quote );
 
         if( parser )
@@ -3265,7 +3612,7 @@ public:
         // format the time first to temp
         // filename may be empty, so quote it just in case.
         out->Print( nestLevel, "(%s \"%s\" (created_time %s)\n",
-                     LEXER::GetTokenText( Type() ),
+                     Name(),
                      filename.c_str(),
                      temp );
 
@@ -3344,7 +3691,7 @@ public:
     void Format( OUTPUTFORMATTER* out, int nestLevel ) throw( IOError )
     {
         bool singleLine = pin_refs.size() <= 1;
-        out->Print( nestLevel, "(%s", LEXER::GetTokenText( Type() ) );
+        out->Print( nestLevel, "(%s", Name() );
 
         if( singleLine )
         {
@@ -3435,7 +3782,7 @@ class ROUTE : public ELEM
 
     UNIT_RES*       resolution;
     PARSER*         parser;
-    STRUCTURE*      structure;
+    STRUCTURE_OUT*  structure_out;
     LIBRARY*        library;
     NET_OUTS        net_outs;
 //    TEST_POINTS*    test_points;
@@ -3447,14 +3794,14 @@ public:
     {
         resolution = 0;
         parser = 0;
-        structure = 0;
+        structure_out = 0;
         library = 0;
     }
     ~ROUTE()
     {
         delete resolution;
         delete parser;
-        delete structure;
+        delete structure_out;
         delete library;
 //        delete test_points;
     }
@@ -3475,8 +3822,8 @@ public:
         if( parser )
             parser->Format( out, nestLevel );
 
-        if( structure )
-            structure->Format( out, nestLevel );
+        if( structure_out )
+            structure_out->Format( out, nestLevel );
 
         if( library )
             library->Format( out, nestLevel );
@@ -3570,7 +3917,7 @@ class SESSION : public ELEM
 public:
 
     SESSION( ELEM* aParent = 0 ) :
-        ELEM( T_pcb, aParent )
+        ELEM( T_session, aParent )
     {
         history = 0;
         structure = 0;
@@ -3590,7 +3937,7 @@ public:
     void Format( OUTPUTFORMATTER* out, int nestLevel ) throw( IOError )
     {
         const char* quote = out->GetQuoteChar( session_id.c_str() );
-        out->Print( nestLevel, "(%s %s%s%s\n", LEXER::GetTokenText( Type() ),
+        out->Print( nestLevel, "(%s %s%s%s\n", Name(),
                                 quote, session_id.c_str(), quote );
 
         out->Print( nestLevel+1, "(base_design \"%s\")\n", base_design.c_str() );
@@ -3614,7 +3961,6 @@ public:
     }
 };
 
-
 typedef boost::ptr_set<PADSTACK>    PADSTACKSET;
 
 
@@ -3624,7 +3970,11 @@ typedef boost::ptr_set<PADSTACK>    PADSTACKSET;
  */
 class SPECCTRA_DB : public OUTPUTFORMATTER
 {
-    LEXER*          lexer;
+    /// specctra DSN keywords
+    static const KEYWORD keywords[];
+    static const unsigned keywordCount;
+
+    DSNLEXER*       lexer;
 
     PCB*            pcb;
 
@@ -3679,7 +4029,11 @@ class SPECCTRA_DB : public OUTPUTFORMATTER
 
     /**
      * Function nextTok
-     * returns the next token from the lexer.
+     * returns the next token from the lexer as a DSN_T.  Note to anybody
+     * who wants to use SPECCTRA_DB as a model for usage of DSNLEXER, you
+     * want to have this function return an enum, not an int, and to use
+     * that enum type whereever you can, because this allows the debugger
+     * to show you symbolic values for your tokens.
      */
     DSN_T   nextTok();
 
@@ -3768,10 +4122,10 @@ class SPECCTRA_DB : public OUTPUTFORMATTER
     /**
      * Function expecting
      * throws an IOError exception with an input file specific error message.
-     * @param DSN_T The token type which was expected at the current input location.
+     * @param int is the token type which was expected at the current input location.
      * @throw IOError with the location within the input file of the problem.
      */
-    void expecting( DSN_T ) throw( IOError );
+    void expecting( DSN_T aTok ) throw( IOError );
     void expecting( const char* text ) throw( IOError );
     void unexpected( DSN_T aTok ) throw( IOError );
     void unexpected( const char* text ) throw( IOError );
@@ -3781,6 +4135,7 @@ class SPECCTRA_DB : public OUTPUTFORMATTER
     void doRESOLUTION( UNIT_RES* growth ) throw(IOError);
     void doUNIT( UNIT_RES* growth ) throw( IOError );
     void doSTRUCTURE( STRUCTURE* growth ) throw( IOError );
+    void doSTRUCTURE_OUT( STRUCTURE_OUT* growth ) throw( IOError );
     void doLAYER_NOISE_WEIGHT( LAYER_NOISE_WEIGHT* growth ) throw( IOError );
     void doLAYER_PAIR( LAYER_PAIR* growth ) throw( IOError );
     void doBOUNDARY( BOUNDARY* growth ) throw( IOError );
@@ -3892,6 +4247,15 @@ class SPECCTRA_DB : public OUTPUTFORMATTER
 
         nets.clear();
     }
+
+
+    /**
+     * Function exportNETCLASS
+     * exports \a aNetClass to the DSN file.
+     */
+    void exportNETCLASS( NETCLASS* aNetClass, BOARD* aBoard );
+
+
     //-----</FromBOARD>------------------------------------------------------
 
     //-----<FromSESSION>-----------------------------------------------------
@@ -3943,6 +4307,15 @@ public:
     const char* GetQuoteChar( const char* wrapee );
     //-----</OUTPUTFORMATTER>------------------------------------------------
 
+    static const char* TokenName( int aToken );
+
+
+    /**
+     * Function GetTokenString
+     * returns the wxString representation of aToken.
+     */
+    static wxString GetTokenString( int aToken );
+
     /**
      * Function MakePCB
      * makes a PCB with all the default ELEMs and parts on the heap.
@@ -3974,6 +4347,7 @@ public:
         delete session;
         session = aSession;
     }
+    SESSION* GetSESSION() { return session; }
 
 
     /**
@@ -3991,7 +4365,7 @@ public:
     /**
      * Function LoadSESSION
      * is a recursive descent parser for a SPECCTRA DSN "session" file.
-     * A session file is file that is fed back from the router to the layout
+     * A session file is a file that is fed back from the router to the layout
      * tool (PCBNEW) and should be used to update a BOARD object with the new
      * tracks, vias, and component locations.
      *

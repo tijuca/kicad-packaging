@@ -15,8 +15,9 @@
 #include "appl_wxstruct.h"
 #include "common.h"
 #include "pcbnew.h"
+#include "wxPcbStruct.h"
 #include "eda_dde.h"
-#include "id.h"
+#include "pcbnew_id.h"
 #include "collectors.h"
 #include "protos.h"
 
@@ -56,9 +57,9 @@ void RemoteCommand(  const char* cmdline )
         module = frame->GetBoard()->FindModuleByReference( modName );
 
         if( module )
-            msg.Printf( _( "%s found" ), modName.GetData() );
+            msg.Printf( _( "%s found" ), GetChars( modName ) );
         else
-            msg.Printf( _( "%s not found" ), modName.GetData() );
+            msg.Printf( _( "%s not found" ), GetChars( modName ) );
 
         frame->Affiche_Message( msg );
         if( module )
@@ -92,27 +93,27 @@ void RemoteCommand(  const char* cmdline )
 
         if( netcode > 0 )               /* highlight the pad net*/
         {
-            g_HightLigt_Status   = 1;
-            g_HightLigth_NetCode = netcode;
+            g_HighLight_Status   = 1;
+            g_HighLight_NetCode = netcode;
         }
         else
         {
-            g_HightLigt_Status   = 0;
-            g_HightLigth_NetCode = 0;
+            g_HighLight_Status   = 0;
+            g_HighLight_NetCode = 0;
         }
 
         if( module == NULL )
-            msg.Printf( _( "%s not found" ), modName.GetData() );
+            msg.Printf( _( "%s not found" ), GetChars( modName ) );
         else if( pad == NULL )
         {
             msg.Printf( _( "%s pin %s not found" ),
-                        modName.GetData(), pinName.GetData() );
+                        GetChars( modName ), GetChars( pinName ) );
             frame->SetCurItem( module );
         }
         else
         {
             msg.Printf( _( "%s pin %s found" ),
-                        modName.GetData(), pinName.GetData() );
+                        GetChars( modName ), GetChars( pinName ) );
             frame->SetCurItem( pad );
         }
 

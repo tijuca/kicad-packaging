@@ -1,31 +1,21 @@
 /**************************************************************/
-/*	librairy editor: edition of component general properties  */
+/*  librairy editor: edition of component general properties  */
 /**************************************************************/
 
 #include "fctsys.h"
-#include "gr_basic.h"
+#include "appl_wxstruct.h"
 #include "common.h"
+#include "class_drawpanel.h"
 #include "confirm.h"
 #include "gestfich.h"
 
 #include "program.h"
-#include "libcmp.h"
 #include "general.h"
-
 #include "protos.h"
+#include "libeditframe.h"
+#include "class_library.h"
+#include "eeschema_id.h"
 
-enum id_libedit {
-    ID_PANEL_ALIAS,
-    ID_COPY_DOC_TO_ALIAS,
-    ID_BROWSE_DOC_FILES,
-    ID_ADD_ALIAS,
-    ID_DELETE_ONE_ALIAS,
-    ID_DELETE_ALL_ALIAS,
-    ID_ON_SELECT_FIELD
-};
-
-
-extern int CurrentUnit;
 
 /* Dialog box to edit a libentry (a component in library) properties */
 
@@ -34,488 +24,204 @@ extern int CurrentUnit;
  *  Doc and keys words
  *  Parts per package
  *  General properties
- * Fileds are NOT edited here. There is a specific dialog box to do that
+ * Fields are NOT edited here. There is a specific dialog box to do that
  */
 
-#include "dialog_edit_component_in_lib.cpp"
+#include "dialog_edit_component_in_lib.h"
 
 
-/*****************************************************************/
-void WinEDA_LibeditFrame::InstallLibeditFrame( void )
-/*****************************************************************/
+void WinEDA_LibeditFrame::OnEditComponentProperties( wxCommandEvent& event )
 {
-    WinEDA_PartPropertiesFrame* frame =
-        new WinEDA_PartPropertiesFrame( this );
-
-    int IsModified = frame->ShowModal(); frame->Destroy();
-
-    if( IsModified )
-        Refresh();
+    bool partLocked = GetComponent()->m_UnitSelectionLocked;
+    EditComponentProperties();
+    if( partLocked != GetComponent()->m_UnitSelectionLocked )
+    {   // g_EditPinByPinIsOn is set to the better value,
+        // if m_UnitSelectionLocked has changed
+        g_EditPinByPinIsOn = GetComponent()->m_UnitSelectionLocked ? true : false;
+        m_HToolBar->ToggleTool( ID_LIBEDIT_EDIT_PIN_BY_PIN, g_EditPinByPinIsOn );
+    }
+        
+    m_HToolBar->Refresh();
+    DrawPanel->Refresh();
 }
 
 
-/*****************************************************/
-void WinEDA_PartPropertiesFrame::InitBuffers()
-/*****************************************************/
-
-/* Init the buffers to a default value,
- *  or to values from CurrentLibEntry if CurrentLibEntry != NULL
- */
+void WinEDA_LibeditFrame::EditComponentProperties()
 {
-    m_AliasLocation = -1;
-    if( CurrentLibEntry == NULL )
+    DIALOG_EDIT_COMPONENT_IN_LIBRARY dlg( this );
+
+    if( dlg.ShowModal() == wxID_CANCEL )
+        return;
+
+    UpdateAliasSelectList();
+    UpdatePartSelectList();
+    DisplayLibInfos();
+    DisplayCmpDoc();
+    OnModify( );
+}
+
+
+
+void DIALOG_EDIT_COMPONENT_IN_LIBRARY::OnOkClick( wxCommandEvent& event )
+{
+
+    /* Update the doc, keyword and doc filename strings */
+    size_t i;
+    int index;
+    LIB_COMPONENT* component = m_Parent->GetComponent();
+    if( component == NULL )
     {
-        m_Title = _( "Lib Component Properties" );
+        EndModal( wxID_CANCEL );
         return;
     }
 
-    wxString msg_text = _( "Properties for " );
-    if( !CurrentAliasName.IsEmpty() )
+    m_Parent->SaveCopyInUndoList( component );
+
+    wxString aliasname = m_Parent->GetAliasName();
+
+    if( aliasname.IsEmpty() )   // The root component is selected
     {
-        m_AliasLocation = LocateAlias( CurrentLibEntry->m_AliasList, CurrentAliasName );
-        m_Title = msg_text + CurrentAliasName +
-                  _( "(alias of " ) +
-                  wxString( CurrentLibEntry->m_Name.m_Text )
-                  + wxT( ")" );
-    }
-    else
-    {
-        m_Title = msg_text + CurrentLibEntry->m_Name.m_Text;
-        CurrentAliasName.Empty();
-    }
-}
-
-
-/*****************************************************/
-void WinEDA_PartPropertiesFrame::BuildPanelAlias()
-/*****************************************************/
-
-/* create the panel for component alias list editing
- */
-{
-    wxButton*   Button;
-
-    m_PanelAlias->SetFont( *g_DialogFont );
-    wxBoxSizer* PanelAliasBoxSizer = new    wxBoxSizer( wxHORIZONTAL );
-
-    m_PanelAlias->SetSizer( PanelAliasBoxSizer );
-    wxBoxSizer* LeftBoxSizer = new          wxBoxSizer( wxVERTICAL );
-
-    PanelAliasBoxSizer->Add( LeftBoxSizer, 0, wxGROW | wxALL, 5 );
-
-    wxStaticText* Msg = new                 wxStaticText( m_PanelAlias, -1, _( "Alias" ) );
-
-    Msg->SetForegroundColour( wxColour( 200, 0, 0 ) );
-    LeftBoxSizer->Add( Msg, 0, wxGROW | wxLEFT | wxRIGHT | wxTOP, 5 );
-
-    m_PartAliasList = new                   wxListBox( m_PanelAlias,
-                                                       -1,
-                                                       wxDefaultPosition, wxSize( 200, 250 ),
-                                                       0, NULL,
-                                                       wxLB_ALWAYS_SB | wxLB_SINGLE );
-
-    LeftBoxSizer->Add( m_PartAliasList, 0, wxGROW | wxLEFT | wxRIGHT | wxBOTTOM, 5 );
-
-    wxBoxSizer* RightBoxSizer = new wxBoxSizer( wxVERTICAL );
-
-    PanelAliasBoxSizer->Add( RightBoxSizer, 0, wxALIGN_CENTER_VERTICAL | wxALL, 5 );
-
-    Button = new                    wxButton( m_PanelAlias, ID_ADD_ALIAS, _( "Add" ) );
-
-    Button->SetForegroundColour( *wxBLUE );
-    RightBoxSizer->Add( Button, 0, wxGROW | wxALL, 5 );
-
-    m_ButtonDeleteOneAlias = new    wxButton( m_PanelAlias, ID_DELETE_ONE_ALIAS,
-                                             _( "Delete" ) );
-
-    m_ButtonDeleteOneAlias->SetForegroundColour( *wxRED );
-    RightBoxSizer->Add( m_ButtonDeleteOneAlias, 0, wxGROW | wxALL, 5 );
-
-    m_ButtonDeleteAllAlias = new wxButton( m_PanelAlias, ID_DELETE_ALL_ALIAS,
-                                          _( "Delete All" ) );
-
-    m_ButtonDeleteAllAlias->SetForegroundColour( *wxRED );
-    if( !CurrentAliasName.IsEmpty() )
-        m_ButtonDeleteAllAlias->Enable( FALSE );
-    RightBoxSizer->Add( m_ButtonDeleteAllAlias, 0, wxGROW | wxALL, 5 );
-
-
-    /* lecture des noms des alias */
-    if( CurrentLibEntry )
-    {
-        for( unsigned ii = 0; ii < CurrentLibEntry->m_AliasList.GetCount(); ii += ALIAS_NEXT )
-            m_PartAliasList->Append( CurrentLibEntry->m_AliasList[ii + ALIAS_NAME] );
+        component->SetDescription( m_DocCtrl->GetValue() );
+        component->SetKeyWords( m_KeywordsCtrl->GetValue() );
+        component->SetDocFileName( m_DocfileCtrl->GetValue() );
     }
 
-    if( (CurrentLibEntry == NULL) || (CurrentLibEntry->m_AliasList.GetCount() == 0) )
+    else    // An alias is selected: update keyworks (if thias alias is new, it will be added in aliacd data list)
     {
-        m_ButtonDeleteAllAlias->Enable( FALSE );
-        m_ButtonDeleteOneAlias->Enable( FALSE );
-    }
-}
-
-
-/*****************************************************************/
-void WinEDA_PartPropertiesFrame::BuildPanelFootprintFilter()
-/*****************************************************************/
-
-/* create the panel for footprint filtering in cvpcb list
- */
-{
-    m_PanelFootprintFilter = new wxPanel( m_NoteBook,
-                                          -1,
-                                          wxDefaultPosition,
-                                          wxDefaultSize,
-                                          wxSUNKEN_BORDER | wxTAB_TRAVERSAL );
-
-    m_NoteBook->AddPage( m_PanelFootprintFilter, _( "Footprint Filter" ) );
-
-    m_PanelFootprintFilter->SetFont( *g_DialogFont );
-
-    wxBoxSizer* PanelFpFilterBoxSizer = new wxBoxSizer( wxHORIZONTAL );
-
-    m_PanelFootprintFilter->SetSizer( PanelFpFilterBoxSizer );
-    wxBoxSizer* LeftBoxSizer = new          wxBoxSizer( wxVERTICAL );
-
-    PanelFpFilterBoxSizer->Add( LeftBoxSizer, 0, wxGROW | wxALL, 5 );
-
-    wxStaticText* Msg = new                 wxStaticText( m_PanelFootprintFilter, -1, _(
-                                                             "Footprints" ) );
-
-    Msg->SetForegroundColour( wxColour( 200, 0, 0 ) );
-    LeftBoxSizer->Add( Msg, 0, wxGROW | wxLEFT | wxRIGHT | wxTOP, 5 );
-
-    m_FootprintFilterListBox = new          wxListBox( m_PanelFootprintFilter,
-                                                       -1,
-                                                       wxDefaultPosition, wxSize( 200, 250 ),
-                                                       0, NULL,
-                                                       wxLB_ALWAYS_SB | wxLB_SINGLE );
-
-    LeftBoxSizer->Add( m_FootprintFilterListBox, 0, wxGROW | wxLEFT | wxRIGHT | wxBOTTOM, 5 );
-
-    wxBoxSizer* RightBoxSizer = new         wxBoxSizer( wxVERTICAL );
-
-    PanelFpFilterBoxSizer->Add( RightBoxSizer, 0, wxALIGN_CENTER_VERTICAL | wxALL, 5 );
-
-    wxButton* Button = new                  wxButton( m_PanelFootprintFilter,
-              ID_ADD_FOOTPRINT_FILTER, _(
-                                                         "Add" ) );
-
-    Button->SetForegroundColour( *wxBLUE );
-    RightBoxSizer->Add( Button, 0, wxGROW | wxALL, 5 );
-
-    m_ButtonDeleteOneFootprintFilter = new  wxButton( m_PanelFootprintFilter,
-                                                     ID_DELETE_ONE_FOOTPRINT_FILTER,
-                                                     _(
-                                                         "Delete" ) );
-
-    m_ButtonDeleteOneFootprintFilter->SetForegroundColour( *wxRED );
-    RightBoxSizer->Add( m_ButtonDeleteOneFootprintFilter, 0, wxGROW | wxALL, 5 );
-
-    m_ButtonDeleteAllFootprintFilter = new wxButton( m_PanelFootprintFilter,
-                                                    ID_DELETE_ALL_FOOTPRINT_FILTER,
-                                                    _(
-                                                        "Delete All" ) );
-
-    m_ButtonDeleteAllFootprintFilter->SetForegroundColour( *wxRED );
-    RightBoxSizer->Add( m_ButtonDeleteAllFootprintFilter, 0, wxGROW | wxALL, 5 );
-
-
-    /* Read the Footprint Filter list */
-    if( CurrentLibEntry )
-    {
-        for( unsigned ii = 0; ii < CurrentLibEntry->m_FootprintList.GetCount(); ii++ )
-            m_FootprintFilterListBox->Append( CurrentLibEntry->m_FootprintList[ii] );
+        component->SetAliasDataDoc(aliasname, m_DocCtrl->GetValue() );
+        component->SetAliasDataKeywords(aliasname, m_KeywordsCtrl->GetValue() );
+        component->SetAliasDataDocFileName(aliasname, m_DocfileCtrl->GetValue() );
     }
 
-    if( (CurrentLibEntry == NULL) || (CurrentLibEntry->m_FootprintList.GetCount() == 0) )
+    if( m_PartAliasListCtrl->GetStrings() != component->m_AliasList )
     {
-        m_ButtonDeleteAllFootprintFilter->Enable( FALSE );
-        m_ButtonDeleteOneFootprintFilter->Enable( FALSE );
-    }
-}
+        wxArrayString aliases = m_PartAliasListCtrl->GetStrings();
 
-
-/*****************************************************/
-void WinEDA_PartPropertiesFrame::BuildPanelDoc()
-/*****************************************************/
-
-/* create the panel for component doc editing
- */
-{
-    wxString msg_text;
-
-    if( m_AliasLocation >= 0 )
-        msg_text = CurrentLibEntry->m_AliasList[m_AliasLocation + ALIAS_DOC];
-    else
-    {
-        if( CurrentLibEntry && CurrentLibEntry->m_Doc )
-            msg_text = CurrentLibEntry->m_Doc;
-    }
-    m_Doc->SetValue( msg_text );
-
-    msg_text.Empty();
-    if( m_AliasLocation >= 0 )
-        msg_text = CurrentLibEntry->m_AliasList[m_AliasLocation + ALIAS_KEYWORD];
-    else
-    {
-        if( CurrentLibEntry )
-            msg_text = CurrentLibEntry->m_KeyWord;
-    }
-    m_Keywords->SetValue( msg_text );
-
-    msg_text.Empty();
-    if( m_AliasLocation >= 0 )
-        msg_text = CurrentLibEntry->m_AliasList[m_AliasLocation + ALIAS_DOC_FILENAME];
-    else
-    {
-        if( CurrentLibEntry )
-            msg_text = CurrentLibEntry->m_DocFile;
-    }
-    m_Docfile->SetValue( msg_text );
-
-    if( m_AliasLocation < 0 )
-        m_ButtonCopyDoc->Enable( FALSE );
-}
-
-
-/*****************************************************/
-void WinEDA_PartPropertiesFrame::BuildPanelBasic()
-/*****************************************************/
-
-/* create the basic panel for component properties editing
- */
-{
-    m_PanelBasic->SetFont( *g_DialogFont );
-
-    AsConvertButt = new wxCheckBox( m_PanelBasic, -1, _( "As Convert" ) );
-
-    if( g_AsDeMorgan )
-        AsConvertButt->SetValue( TRUE );
-    m_OptionsBoxSizer->Add( AsConvertButt, 0, wxGROW | wxLEFT | wxRIGHT | wxBOTTOM, 5 );
-
-    ShowPinNumButt = new  wxCheckBox( m_PanelBasic, -1, _( "Show Pin Num" ) );
-
-    if( CurrentLibEntry )
-    {
-        if( CurrentLibEntry->m_DrawPinNum )
-            ShowPinNumButt->SetValue( TRUE );
-    }
-    else
-        ShowPinNumButt->SetValue( TRUE );
-    m_OptionsBoxSizer->Add( ShowPinNumButt, 0, wxGROW | wxLEFT | wxRIGHT | wxBOTTOM, 5 );
-
-    ShowPinNameButt = new wxCheckBox( m_PanelBasic, -1, _( "Show Pin Name" ) );
-
-    if( CurrentLibEntry )
-    {
-        if( CurrentLibEntry->m_DrawPinName )
-            ShowPinNameButt->SetValue( TRUE );
-    }
-    else
-        ShowPinNameButt->SetValue( TRUE );
-    m_OptionsBoxSizer->Add( ShowPinNameButt, 0, wxGROW | wxLEFT | wxRIGHT | wxBOTTOM, 5 );
-
-    m_PinsNameInsideButt = new wxCheckBox( m_PanelBasic, -1, _( "Pin Name Inside" ) );
-
-    if( CurrentLibEntry )
-    {
-        if( CurrentLibEntry->m_TextInside )
-            m_PinsNameInsideButt->SetValue( TRUE );
-    }
-    else
-        m_PinsNameInsideButt->SetValue( TRUE );
-    m_OptionsBoxSizer->Add( m_PinsNameInsideButt, 0, wxGROW | wxLEFT | wxRIGHT | wxBOTTOM, 5 );
-
-    int number, number_of_units;
-    if( CurrentLibEntry )
-        number_of_units = CurrentLibEntry->m_UnitCount;
-    else
-        number_of_units = 1;
-    SelNumberOfUnits->SetValue( number_of_units );
-
-    if( CurrentLibEntry && CurrentLibEntry->m_TextInside )
-        number = CurrentLibEntry->m_TextInside;
-    else
-        number = 40;
-    m_SetSkew->SetValue( number );
-
-    if( CurrentLibEntry )
-    {
-        if( CurrentLibEntry->m_Options == ENTRY_POWER )
-            m_OptionPower->SetValue( TRUE );
-    }
-
-    if( CurrentLibEntry )
-    {
-        if( CurrentLibEntry->m_UnitSelectionLocked )
-            m_OptionPartsLocked->SetValue( TRUE );
-    }
-}
-
-
-/**************************************************************************/
-void WinEDA_PartPropertiesFrame::PartPropertiesAccept( wxCommandEvent& event )
-/**************************************************************************/
-
-/* Updaye the current component parameters
- */
-{
-    int ii, jj;
-
-    if( CurrentLibEntry == NULL )
-    {
-        Close(); return;
-    }
-
-    m_Parent->GetScreen()->SetModify();
-    m_Parent->SaveCopyInUndoList( CurrentLibEntry );
-
-    /* Update the doc, keyword and doc filename strings */
-    if( m_AliasLocation < 0 )
-    {
-        CurrentLibEntry->m_Doc     = m_Doc->GetValue();
-        CurrentLibEntry->m_KeyWord = m_Keywords->GetValue();
-        CurrentLibEntry->m_DocFile = m_Docfile->GetValue();
-    }
-    else
-    {
-        CurrentLibEntry->m_AliasList[m_AliasLocation + ALIAS_DOC]          = m_Doc->GetValue();
-        CurrentLibEntry->m_AliasList[m_AliasLocation + ALIAS_KEYWORD]      = m_Keywords->GetValue();
-        CurrentLibEntry->m_AliasList[m_AliasLocation + ALIAS_DOC_FILENAME] = m_Docfile->GetValue();
-    }
-
-    /* Update the alias list */
-    /* 1 - Add names: test for a not existing name in old alias list: */
-    jj = m_PartAliasList->GetCount();
-    for( ii = 0; ii < jj; ii++ )
-    {
-        if( LocateAlias( CurrentLibEntry->m_AliasList, m_PartAliasList->GetString( ii ) ) < 0 )
-        {                                                           // new alias must be created
-            CurrentLibEntry->m_AliasList.Add( m_PartAliasList->GetString( ii ) );
-            CurrentLibEntry->m_AliasList.Add( wxEmptyString );      // Add a void doc string
-            CurrentLibEntry->m_AliasList.Add( wxEmptyString );      // Add a void keyword list string
-            CurrentLibEntry->m_AliasList.Add( wxEmptyString );      // Add a void doc filename string
-        }
-    }
-
-    /* 2 - Remove delete names: test for an non existing name in new alias list: */
-    int kk, kkmax = CurrentLibEntry->m_AliasList.GetCount();
-    for( kk = 0; kk < kkmax; )
-    {
-        jj = m_PartAliasList->GetCount();
-        wxString aliasname = CurrentLibEntry->m_AliasList[kk];
-        for( ii = 0; ii < jj; ii++ )
+        /* Add names not existing in the current component alias list. */
+        for( i = 0; i < aliases.GetCount(); i++ )
         {
-            if( aliasname.CmpNoCase( m_PartAliasList->GetString( ii ).GetData() ) == 0 )
-            {
-                kk += ALIAS_NEXT; // Alias exist in new list. keep it and test next old name
-                break;
-            }
+            index = component->m_AliasList.Index( aliases[ i ], false );
+
+            if( index != wxNOT_FOUND )
+                continue;
+
+            component->m_AliasList.Add( aliases[ i ] );
         }
 
-        if( ii == jj ) // Alias not found in new list, remove it (4 strings in kk position)
+        /* Remove names in the current component that are not in the new alias list. */
+        for( i = 0; i < component->m_AliasList.GetCount(); i++ )
         {
-            for( ii = 0; ii < ALIAS_NEXT; ii++ )
-                CurrentLibEntry->m_AliasList.RemoveAt( kk );
+            index = aliases.Index( component->m_AliasList[ i ], false );
 
-            kkmax = CurrentLibEntry->m_AliasList.GetCount();
+            if( index == wxNOT_FOUND )
+                continue;
+
+            component->m_AliasList.RemoveAt( i );
+            i--;
         }
+
+        component->m_AliasList = aliases;
     }
 
-    ii = SelNumberOfUnits->GetValue();
-    if( ChangeNbUnitsPerPackage( ii ) )
-        m_RecreateToolbar = TRUE;
+    index = m_SelNumberOfUnits->GetValue();
+    ChangeNbUnitsPerPackage( index );
 
-    if( AsConvertButt->GetValue() )
+    if( m_AsConvertButt->GetValue() )
     {
-        if( !g_AsDeMorgan )
+        if( !m_Parent->GetShowDeMorgan() )
         {
-            g_AsDeMorgan = 1;
-            if( SetUnsetConvert() )
-                m_RecreateToolbar = TRUE;
+            m_Parent->SetShowDeMorgan( true );
+            SetUnsetConvert();
         }
     }
     else
     {
-        if( g_AsDeMorgan )
+        if( m_Parent->GetShowDeMorgan() )
         {
-            g_AsDeMorgan = 0;
-            if( SetUnsetConvert() )
-                m_RecreateToolbar = TRUE;
+            m_Parent->SetShowDeMorgan( false );
+            SetUnsetConvert();
         }
     }
 
-    CurrentLibEntry->m_DrawPinNum  = ShowPinNumButt->GetValue() ? 1 : 0;
-    CurrentLibEntry->m_DrawPinName = ShowPinNameButt->GetValue() ? 1 : 0;
+    component->m_DrawPinNum  = m_ShowPinNumButt->GetValue() ? 1 : 0;
+    component->m_DrawPinName = m_ShowPinNameButt->GetValue() ? 1 : 0;
 
-    if( m_PinsNameInsideButt->GetValue() == FALSE )
-        CurrentLibEntry->m_TextInside = 0;
+    if( m_PinsNameInsideButt->GetValue() == false )
+        component->m_TextInside = 0;        // pin text outside the body (name is on the pin)
     else
-        CurrentLibEntry->m_TextInside = m_SetSkew->GetValue();
+    {
+        component->m_TextInside = m_SetSkew->GetValue();
+        // Ensure component->m_TextInside != 0, because the meaning is "text outside".
+        if( component->m_TextInside == 0 )
+            component->m_TextInside = 20;       // give a reasonnable value
+    }
 
-    if( m_OptionPower->GetValue() == TRUE )
-        CurrentLibEntry->m_Options = ENTRY_POWER;
+    if( m_OptionPower->GetValue() == true )
+        component->SetPower();
     else
-        CurrentLibEntry->m_Options = ENTRY_NORMAL;
+        component->SetNormal();
 
     /* Set the option "Units locked".
-     *  Obviously, cannot be TRUE if there is only one part */
-    CurrentLibEntry->m_UnitSelectionLocked = m_OptionPartsLocked->GetValue();
-    if( CurrentLibEntry->m_UnitCount <= 1 )
-        CurrentLibEntry->m_UnitSelectionLocked = FALSE;
-
-    if( m_RecreateToolbar )
-        m_Parent->ReCreateHToolbar();
-
-    m_Parent->DisplayLibInfos();
+     *  Obviously, cannot be true if there is only one part */
+    component->m_UnitSelectionLocked = m_OptionPartsLocked->GetValue();
+    if( component->GetPartCount() <= 1 )
+        component->m_UnitSelectionLocked = false;
 
     /* Update the footprint filter list */
-    CurrentLibEntry->m_FootprintList.Clear();
-    jj = m_FootprintFilterListBox->GetCount();
-    for( ii = 0; ii < jj; ii++ )
-        CurrentLibEntry->m_FootprintList.Add( m_FootprintFilterListBox->GetString( ii ) );
+    component->m_FootprintList.Clear();
+    component->m_FootprintList = m_FootprintFilterListBox->GetStrings();
 
-    EndModal( 1 );
+    EndModal( wxID_OK );
 }
 
 
 /*******************************************************************************/
-void WinEDA_PartPropertiesFrame::CopyDocToAlias( wxCommandEvent& WXUNUSED (event) )
+void DIALOG_EDIT_COMPONENT_IN_LIBRARY::CopyDocToAlias( wxCommandEvent& WXUNUSED (event) )
 /******************************************************************************/
 {
-    if( CurrentLibEntry == NULL )
-        return;
-    if( CurrentAliasName.IsEmpty() )
+    LIB_COMPONENT* component = m_Parent->GetComponent();
+
+    if( component == NULL || m_Parent->GetAliasName().IsEmpty() )
         return;
 
-    m_Doc->SetValue( CurrentLibEntry->m_Doc );
-    m_Docfile->SetValue( CurrentLibEntry->m_DocFile );
-    m_Keywords->SetValue( CurrentLibEntry->m_KeyWord );
+    m_DocCtrl->SetValue( component->GetDescription() );
+    m_DocfileCtrl->SetValue( component->GetDocFileName() );
+    m_KeywordsCtrl->SetValue( component->GetKeyWords() );
 }
 
 
 /**********************************************************/
-void WinEDA_PartPropertiesFrame::DeleteAllAliasOfPart(
+void DIALOG_EDIT_COMPONENT_IN_LIBRARY::DeleteAllAliasOfPart(
     wxCommandEvent& WXUNUSED (event) )
 /**********************************************************/
 {
-    CurrentAliasName.Empty();
-    if( CurrentLibEntry )
+    if( m_PartAliasListCtrl->FindString( m_Parent->GetAliasName() )
+        != wxNOT_FOUND )
     {
-        if( IsOK( this, _( "Ok to Delete Alias LIST" ) ) )
-        {
-            m_PartAliasList->Clear();
-            m_RecreateToolbar = TRUE;
-            m_ButtonDeleteAllAlias->Enable( FALSE );
-            m_ButtonDeleteOneAlias->Enable( FALSE );
-        }
+        wxString msg;
+        msg.Printf( _( "Alias <%s> cannot be removed while it is being \
+edited!" ),
+                    GetChars( m_Parent->GetAliasName() ) );
+        DisplayError( this, msg );
+        return;
+    }
+
+    LIB_COMPONENT* component = m_Parent->GetComponent();
+    m_Parent->GetAliasName().Empty();
+
+    if( IsOK( this, _( "Remove all aliases from list?" ) ) )
+    {
+        m_PartAliasListCtrl->Clear();
+        m_ButtonDeleteAllAlias->Enable( false );
+        m_ButtonDeleteOneAlias->Enable( false );
+        if( component )
+            component->ClearAliasDataDoc();
     }
 }
 
 
 /*******************************************************************************/
-void WinEDA_PartPropertiesFrame::AddAliasOfPart( wxCommandEvent& WXUNUSED (event) )
+void DIALOG_EDIT_COMPONENT_IN_LIBRARY::AddAliasOfPart( wxCommandEvent& WXUNUSED (event) )
 /*******************************************************************************/
 
 /* Add a new name to the alias list box
@@ -524,238 +230,131 @@ void WinEDA_PartPropertiesFrame::AddAliasOfPart( wxCommandEvent& WXUNUSED (event
 {
     wxString Line;
     wxString aliasname;
+    LIB_COMPONENT* component = m_Parent->GetComponent();
+    CMP_LIBRARY* library = m_Parent->GetLibrary();
 
-    if( CurrentLibEntry == NULL )
+    if( component == NULL )
         return;
 
-    if( Get_Message( _( "New alias:" ), _("Component Alias"), Line, this ) != 0 )
+    if( Get_Message( _( "New alias:" ),
+                     _( "Component Alias" ), Line, this ) != 0 )
         return;
 
     Line.Replace( wxT( " " ), wxT( "_" ) );
     aliasname = Line;
 
-    if( CurrentLibEntry->m_Name.m_Text.CmpNoCase( Line ) == 0 )
+    if( m_PartAliasListCtrl->FindString( aliasname ) != wxNOT_FOUND
+        || library->FindEntry( aliasname ) != NULL )
     {
-        DisplayError( this, _( "This is the Root Part" ), 10 ); return;
+        wxString msg;
+        msg.Printf( _( "Alias or component name <%s> already exists in \
+library <%s>." ),
+                    GetChars( aliasname ),
+                    GetChars( library->GetName() ) );
+        DisplayError( this,  msg );
+        return;
     }
 
-    /* test for an existing name: */
-    int ii, jj = m_PartAliasList->GetCount();
-    for( ii = 0; ii < jj; ii++ )
-    {
-        if( aliasname.CmpNoCase( m_PartAliasList->GetString( ii ) ) == 0 )
-        {
-            DisplayError( this, _( "Already in use" ), 10 );
-            return;
-        }
-    }
-
-    m_PartAliasList->Append( aliasname );
-    if( CurrentAliasName.IsEmpty() )
-        m_ButtonDeleteAllAlias->Enable( TRUE );
-    m_ButtonDeleteOneAlias->Enable( TRUE );
-
-    m_RecreateToolbar = TRUE;
+    m_PartAliasListCtrl->Append( aliasname );
+    if( m_Parent->GetAliasName().IsEmpty() )
+        m_ButtonDeleteAllAlias->Enable( true );
+    m_ButtonDeleteOneAlias->Enable( true );
 }
 
 
-/********************************************************/
-void WinEDA_PartPropertiesFrame::DeleteAliasOfPart(
+void DIALOG_EDIT_COMPONENT_IN_LIBRARY::DeleteAliasOfPart(
     wxCommandEvent& WXUNUSED (event) )
-/********************************************************/
 {
-    wxString aliasname = m_PartAliasList->GetStringSelection();
+    wxString aliasname = m_PartAliasListCtrl->GetStringSelection();
 
     if( aliasname.IsEmpty() )
         return;
-    if( aliasname == CurrentAliasName )
+    if( aliasname.CmpNoCase( m_Parent->GetAliasName() ) == 0 )
     {
-        wxString msg = CurrentAliasName + _( " is Current Selected Alias!" );
+        wxString msg;
+        msg.Printf( _( "Alias <%s> cannot be removed while it is being \
+edited!" ),
+                    GetChars( aliasname ) );
         DisplayError( this, msg );
         return;
     }
 
-    int ii = m_PartAliasList->GetSelection();
-    m_PartAliasList->Delete( ii );
+    m_PartAliasListCtrl->Delete( m_PartAliasListCtrl->GetSelection() );
+    LIB_COMPONENT* component = m_Parent->GetComponent();
+    if( component )
+        component->RemoveAliasData(aliasname);
 
-    if( !CurrentLibEntry || (CurrentLibEntry->m_AliasList.GetCount() == 0) )
+    if( m_PartAliasListCtrl->IsEmpty() )
     {
-        m_ButtonDeleteAllAlias->Enable( FALSE );
-        m_ButtonDeleteOneAlias->Enable( FALSE );
+        m_ButtonDeleteAllAlias->Enable( false );
+        m_ButtonDeleteOneAlias->Enable( false );
     }
-    m_RecreateToolbar = TRUE;
 }
 
 
-/********************************************************************/
-bool WinEDA_PartPropertiesFrame::ChangeNbUnitsPerPackage( int MaxUnit )
-/********************************************************************/
-
-/* Routine de modification du nombre d'unites par package pour le
- *  composant courant;
+/*
+ * Change the number of parts per package.
  */
+bool DIALOG_EDIT_COMPONENT_IN_LIBRARY::ChangeNbUnitsPerPackage( int MaxUnit )
 {
-    int OldNumUnits, ii, FlagDel = -1;
-    LibEDA_BaseStruct* DrawItem, * NextDrawItem;
+    LIB_COMPONENT* component = m_Parent->GetComponent();
 
-    if( CurrentLibEntry == NULL )
-        return FALSE;
+    if( component == NULL || component->GetPartCount() == MaxUnit
+        || MaxUnit < 1 )
+        return false;
 
-    /* Si pas de changement: termine */
-    if( CurrentLibEntry->m_UnitCount == MaxUnit )
-        return FALSE;
+    if( MaxUnit < component->GetPartCount()
+        && !IsOK( this, _( "Delete extra parts from component?" ) ) )
+        return false;
 
-    OldNumUnits = CurrentLibEntry->m_UnitCount;
-    if( OldNumUnits < 1 )
-        OldNumUnits = 1;
-
-    CurrentLibEntry->m_UnitCount = MaxUnit;
-
-
-    /* Traitement des unites enlevees ou rajoutees */
-    if( OldNumUnits > CurrentLibEntry->m_UnitCount )
-    {
-        DrawItem = CurrentLibEntry->m_Drawings;
-        for( ; DrawItem != NULL; DrawItem = NextDrawItem )
-        {
-            NextDrawItem = DrawItem->Next();
-            if( DrawItem->m_Unit > MaxUnit )  /* Item a effacer */
-            {
-                if( FlagDel < 0 )
-                {
-                    if( IsOK( this, _( "Delete units" ) ) )
-                    {
-                        /* Si part selectee n'existe plus: selection 1ere unit */
-                        if( CurrentUnit > MaxUnit )
-                            CurrentUnit = 1;
-                        FlagDel = 1;
-                    }
-                    else
-                    {
-                        FlagDel = 0;
-                        MaxUnit = OldNumUnits;
-                        CurrentLibEntry->m_UnitCount = MaxUnit;
-                        return FALSE;
-                    }
-                }
-                DeleteOneLibraryDrawStruct( m_Parent->DrawPanel, NULL, CurrentLibEntry,
-                                            DrawItem, 0 );
-            }
-        }
-
-        return TRUE;
-    }
-
-    if( OldNumUnits < CurrentLibEntry->m_UnitCount )
-    {
-        DrawItem = CurrentLibEntry->m_Drawings;
-        for( ; DrawItem != NULL; DrawItem = DrawItem->Next() )
-        {
-            /* Duplication des items pour autres elements */
-            if( DrawItem->m_Unit == 1 )
-            {
-                for( ii = OldNumUnits + 1; ii <= MaxUnit; ii++ )
-                {
-                    NextDrawItem = CopyDrawEntryStruct( this, DrawItem );
-                    NextDrawItem->SetNext( CurrentLibEntry->m_Drawings );
-                    CurrentLibEntry->m_Drawings = NextDrawItem;
-                    NextDrawItem->m_Unit = ii;
-                }
-            }
-        }
-    }
-    return TRUE;
+    component->SetPartCount( MaxUnit );
+    return true;
 }
 
 
-/*****************************************************/
-bool WinEDA_PartPropertiesFrame::SetUnsetConvert()
-/*****************************************************/
-
-/* cr�e ou efface (selon option AsConvert) les �l�ments
- *  de la repr�sentation convertie d'un composant
+/*
+ * Set or clear the component alternate body style ( DeMorgan ).
  */
+bool DIALOG_EDIT_COMPONENT_IN_LIBRARY::SetUnsetConvert()
 {
-    int FlagDel = 0;
-    LibEDA_BaseStruct* DrawItem = NULL, * NextDrawItem;
+    LIB_COMPONENT* component = m_Parent->GetComponent();
 
-    if( g_AsDeMorgan )  /* Representation convertie a creer */
+    if( component == NULL
+        || ( m_Parent->GetShowDeMorgan() == component->HasConversion() ) )
+        return false;
+
+    if( m_Parent->GetShowDeMorgan() )
     {
-        /* Traitement des elements a ajouter ( pins seulement ) */
-        if( CurrentLibEntry )
-            DrawItem = CurrentLibEntry->m_Drawings;
-        for( ; DrawItem != NULL; DrawItem = DrawItem->Next() )
-        {
-            /* Duplication des items pour autres elements */
-            if( DrawItem->Type() != COMPONENT_PIN_DRAW_TYPE )
-                continue;
-            if( DrawItem->m_Convert == 1 )
-            {
-                if( FlagDel == 0 )
-                {
-                    if( IsOK( this, _( "Create pins for Convert items" ) ) )
-                        FlagDel = 1;
-                    else
-                    {
-                        if( IsOK( this, _( "Part as \"De Morgan\" anymore" ) ) )
-                            return TRUE;
+       if( !IsOK( this, _( "Add new pins for alternate body style \
+( DeMorgan ) to component?" ) ) )
+        return false;
+    }
 
-                        g_AsDeMorgan = 0; return FALSE;
-                    }
-                }
-                NextDrawItem = CopyDrawEntryStruct( this, DrawItem );
-                NextDrawItem->SetNext( CurrentLibEntry->m_Drawings );
-                CurrentLibEntry->m_Drawings = NextDrawItem;
-                NextDrawItem->m_Convert = 2;
-            }
+    else if(  component->HasConversion() )
+    {
+        if( !IsOK( this, _( "Delete alternate body style (DeMorgan) draw items from component?" ) ) )
+        {
+            m_Parent->SetShowDeMorgan( true );
+            return false;
         }
     }
-    else               /* Representation convertie a supprimer */
-    {
-        /* Traitement des elements � supprimer */
-        if( CurrentLibEntry )
-            DrawItem = CurrentLibEntry->m_Drawings;
-        for( ; DrawItem != NULL; DrawItem = NextDrawItem )
-        {
-            NextDrawItem = DrawItem->Next();
-            if( DrawItem->m_Convert > 1 )  /* Item a effacer */
-            {
-                if( FlagDel == 0 )
-                {
-                    if( IsOK( this, _( "Delete Convert items" ) ) )
-                    {
-                        CurrentConvert = 1;
-                        FlagDel = 1;
-                    }
-                    else
-                    {
-                        g_AsDeMorgan = 1;
-                        return FALSE;
-                    }
-                }
-                m_Parent->GetScreen()->SetModify();
-                DeleteOneLibraryDrawStruct( m_Parent->DrawPanel,
-                                            NULL,
-                                            CurrentLibEntry,
-                                            DrawItem,
-                                            0 );
-            }
-        }
-    }
-    return TRUE;
+
+    component->SetConversion( m_Parent->GetShowDeMorgan() );
+    m_Parent->OnModify( );
+
+    return true;
 }
 
 
 /****************************************************************************/
-void WinEDA_PartPropertiesFrame::BrowseAndSelectDocFile( wxCommandEvent& event )
+void DIALOG_EDIT_COMPONENT_IN_LIBRARY::BrowseAndSelectDocFile( wxCommandEvent& event )
 /****************************************************************************/
 {
     wxString FullFileName, mask;
+    wxString docpath, filename;
 
-    wxString docpath( g_RealLibDirBuffer ), filename;
+    docpath = wxGetApp().ReturnLastVisitedLibraryPath(wxT( "doc" ));
 
-    docpath += wxT( "doc" );
-    docpath += STRING_DIR_SEP;
     mask = wxT( "*" );
     FullFileName = EDA_FileSelector( _( "Doc Files" ),
                                      docpath,       /* Chemin par defaut */
@@ -764,33 +363,46 @@ void WinEDA_PartPropertiesFrame::BrowseAndSelectDocFile( wxCommandEvent& event )
                                      mask,          /* Masque d'affichage */
                                      this,
                                      wxFD_OPEN,
-                                     TRUE
+                                     true
                                      );
     if( FullFileName.IsEmpty() )
         return;
 
-    // Suppression du chemin par defaut pour le fichier de doc:
-    filename = MakeReducedFileName( FullFileName, docpath, wxEmptyString );
-    m_Docfile->SetValue( filename );
+    /* If the path is already in the library search paths
+     * list, just add the library name to the list.  Otherwise, add
+     * the library name with the full or relative path.
+     * the relative path, when possible is preferable,
+     * because it preserve use of default libraries paths, when the path is a sub path of these default paths
+     */
+    wxFileName fn = FullFileName;
+    wxGetApp().SaveLastVisitedLibraryPath( fn.GetPath() );
+
+    filename = wxGetApp().ReturnFilenameWithRelativePathInLibPath(FullFileName);
+    // Filenames are always stored in unix like mode, ie separator "\" is stored as "/"
+    // to ensure files are identical under unices and windows
+#ifdef __WINDOWS__
+    filename.Replace(wxT("\\"), wxT("/") );
+#endif
+    m_DocfileCtrl->SetValue( filename );
 }
 
 
 /**********************************************************/
-void WinEDA_PartPropertiesFrame::DeleteAllFootprintFilter(
+void DIALOG_EDIT_COMPONENT_IN_LIBRARY::DeleteAllFootprintFilter(
     wxCommandEvent& WXUNUSED (event) )
 /**********************************************************/
 {
     if( IsOK( this, _( "Ok to Delete FootprintFilter LIST" ) ) )
     {
         m_FootprintFilterListBox->Clear();
-        m_ButtonDeleteAllFootprintFilter->Enable( FALSE );
-        m_ButtonDeleteOneFootprintFilter->Enable( FALSE );
+        m_ButtonDeleteAllFootprintFilter->Enable( false );
+        m_ButtonDeleteOneFootprintFilter->Enable( false );
     }
 }
 
 
 /*******************************************************************************/
-void WinEDA_PartPropertiesFrame::AddFootprintFilter( wxCommandEvent& WXUNUSED (event) )
+void DIALOG_EDIT_COMPONENT_IN_LIBRARY::AddFootprintFilter( wxCommandEvent& WXUNUSED (event) )
 /*******************************************************************************/
 
 /* Add a new name to the alias list box
@@ -798,44 +410,49 @@ void WinEDA_PartPropertiesFrame::AddFootprintFilter( wxCommandEvent& WXUNUSED (e
  */
 {
     wxString Line;
+    LIB_COMPONENT* component = m_Parent->GetComponent();
 
-    if( CurrentLibEntry == NULL )
+    if( component == NULL )
         return;
 
-    if( Get_Message( _( "New FootprintFilter:" ), _("Footprint Filter"), Line, this ) != 0 )
+    if( Get_Message( _( "Add Footprint Filter" ), _( "Footprint Filter" ),
+                     Line, this ) != 0 )
         return;
 
     Line.Replace( wxT( " " ), wxT( "_" ) );
 
     /* test for an existing name: */
-    int ii, jj = m_FootprintFilterListBox->GetCount();
-    for( ii = 0; ii < jj; ii++ )
+    int index = m_FootprintFilterListBox->FindString( Line );
+
+    if( index != wxNOT_FOUND )
     {
-        if( Line.CmpNoCase( m_FootprintFilterListBox->GetString( ii ) ) == 0 )
-        {
-            DisplayError( this, _( "Already in use" ), 10 );
-            return;
-        }
+        wxString msg;
+
+        msg.Printf( _( "Foot print filter <%s> is already defined." ),
+                    GetChars( Line ) );
+        DisplayError( this, msg );
+        return;
     }
 
     m_FootprintFilterListBox->Append( Line );
-    m_ButtonDeleteAllFootprintFilter->Enable( TRUE );
-    m_ButtonDeleteOneFootprintFilter->Enable( TRUE );
+    m_ButtonDeleteAllFootprintFilter->Enable( true );
+    m_ButtonDeleteOneFootprintFilter->Enable( true );
 }
 
 
 /********************************************************/
-void WinEDA_PartPropertiesFrame::DeleteOneFootprintFilter(
+void DIALOG_EDIT_COMPONENT_IN_LIBRARY::DeleteOneFootprintFilter(
     wxCommandEvent& WXUNUSED (event) )
 /********************************************************/
 {
+    LIB_COMPONENT* component = m_Parent->GetComponent();
     int ii = m_FootprintFilterListBox->GetSelection();
 
     m_FootprintFilterListBox->Delete( ii );
 
-    if( !CurrentLibEntry || (m_FootprintFilterListBox->GetCount() == 0) )
+    if( !component || (m_FootprintFilterListBox->GetCount() == 0) )
     {
-        m_ButtonDeleteAllFootprintFilter->Enable( FALSE );
-        m_ButtonDeleteOneFootprintFilter->Enable( FALSE );
+        m_ButtonDeleteAllFootprintFilter->Enable( false );
+        m_ButtonDeleteOneFootprintFilter->Enable( false );
     }
 }

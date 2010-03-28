@@ -1,12 +1,9 @@
-kicad (0.0.20090216-1.1) unstable; urgency=low
+kicad (0.0.20100314-1) unstable; urgency=low
 
-  * Non-maintainer upload.
-  * Change recommend on extra-xdg-menus to suggests, to avoid
-    installing it by default.  Add sections Education and Science to
-    desktop file, to make sure the menu entry show up where it make
-    sense (Closes: #567773).
+  * New upstream (Closes: #575018).
+  * Update Standards-Version to 3.8.4 (no changes needed).
 
- -- Petter Reinholdtsen <pere@debian.org>  Thu, 11 Mar 2010 16:00:37 +0100
+ -- Richard Antony Burton <richardaburton@gmail.com>  Sun, 28 Mar 2010 12:58:23 +0000
 
 kicad (0.0.20090216-1) unstable; urgency=low
 

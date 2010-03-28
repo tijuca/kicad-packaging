@@ -19,6 +19,7 @@
 #include "confirm.h"
 #include "kicad_string.h"
 #include "pcbnew.h"
+#include "wxPcbStruct.h"
 
 #include "dialog_orient_footprints.h"
 
@@ -252,7 +253,7 @@ void WinEDA_PcbFrame::ReOrientModules( const wxString& ModuleMask,
 
         if( WildCompareString( ModuleMask, module->m_Reference->m_Text, FALSE ) )
         {
-            GetScreen()->SetModify();
+            OnModify();
             redraw = true;
             Rotate_Module( NULL, module, Orient, FALSE );
         }
@@ -278,7 +279,7 @@ void dialog_orient_footprints::OnOkClick( wxCommandEvent& event )
         return;
     }
 
-    s_NewOrientation = (int) round(d_orient * 10);
+    s_NewOrientation = wxRound(d_orient * 10);
     if ( s_NewOrientation > 3600 )
         s_NewOrientation = 3600;
     if ( s_NewOrientation < -3600 )

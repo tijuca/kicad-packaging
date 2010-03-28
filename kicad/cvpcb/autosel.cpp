@@ -1,172 +1,175 @@
-	/**********************/
-	/* CVPCB: autosel.cpp  */
-	/**********************/
+/**********************/
+/* CVPCB: autosel.cpp  */
+/**********************/
 
-/* Routines de selection automatique des modules */
+/* Routines for automatic selection of modules. */
 
 #include "fctsys.h"
 #include "common.h"
 #include "confirm.h"
 #include "gestfich.h"
+#include "appl_wxstruct.h"
+#include "kicad_string.h"
 
 #include "cvpcb.h"
 #include "protos.h"
 #include "cvstruct.h"
 
+
 #define QUOTE '\''
 
-class AUTOMODULE
+class FOOTPRINT_ALIAS
 {
 public:
-	int m_Type;
-	AUTOMODULE * Pnext;
-	wxString m_Name;
-	wxString m_LibName;
-	wxString m_Library;
+    int         m_Type;
+    wxString    m_Name;
+    wxString    m_FootprintName;
 
-	AUTOMODULE() { m_Type = 0; Pnext = NULL; }
-} ;
+    FOOTPRINT_ALIAS() { m_Type = 0; }
+};
 
-
-/* routines locales : */
-static int auto_select(WinEDA_CvpcbFrame * frame, STORECMP * Cmp, AUTOMODULE * BaseListeMod);
-static void auto_associe(WinEDA_CvpcbFrame * frame);
+typedef boost::ptr_vector< FOOTPRINT_ALIAS > FOOTPRINT_ALIAS_LIST;
 
 
-	/*************************************************************/
-void WinEDA_CvpcbFrame::AssocieModule(wxCommandEvent& event)
-/*************************************************************/
-/* Fonction liee au boutton "Auto"
-	Lance l'association automatique modules/composants
-*/
+/*
+ * read the string between quotes and put it in aTarget
+ * put text in aTarget
+ * return a pointer to the last read char (the second quote if Ok)
+ */
+char * ReadQuotedText(wxString & aTarget, char * aText)
 {
-	auto_associe(this);
-}
+    // search the first quote:
+    for( ; *aText != 0; aText++ )
+    {
+        if( *aText == QUOTE )
+            break;
+    }
 
-/**************************************************/
-static void auto_associe(WinEDA_CvpcbFrame * frame)
-/**************************************************/
-{
-unsigned ii, j, k;
-wxString EquivFileName, msg;
-char Line[1024];
-FILE *fichierstf ;	/* sert en lecture des differents fichiers *.STF */
-AUTOMODULE * ItemModule,* NextMod;
-AUTOMODULE * BaseListeMod = NULL;
-STORECMP * Component;
+    if ( *aText == 0 )
+        return NULL;
 
-int nb_correspondances = 0;
+    aText++;
+    for(; *aText != 0; aText++ )
+    {
+        if( *aText == QUOTE )
+            break;
+        aTarget.Append(*aText);
+    }
 
-	if( nbcomp <= 0 ) return;
-
-	/* recherche des equivalences a travers les fichiers possibles */
-	for( ii= 0 ; ii < g_ListName_Equ.GetCount(); ii++)
-		{
-		/* Calcul du nom complet avec son chemin */
-		EquivFileName = MakeFileName(g_RealLibDirBuffer,g_ListName_Equ[ii],g_EquivExtBuffer);
-
-		if ( (fichierstf = wxFopen(EquivFileName, wxT("rt")))  == 0)
-			{
-			msg.Printf( _("Library: <%s> not found"),EquivFileName.GetData());
-			DisplayError(frame, msg,10);
-			continue ;
-			}
-
-		/* lecture fichier n */
-		while ( fgets(Line,79,fichierstf) != 0 )
-		{
-			/* elimination des lignes vides */
-			for (j = 0 ; j < 40 ; j++ )
-			{
-				if (Line[j] == 0 ) goto fin_de_while ;
-				if (Line[j] == QUOTE ) break ;
-			}
-
-			ItemModule = new AUTOMODULE();
-			ItemModule->Pnext = BaseListeMod;
-			BaseListeMod = ItemModule;
-
-			/* stockage du composant ( 'namecmp'  'namelib')
-			name et namelib */
-			for ( j++ ; j < 40 ; j++, k++)
-			{
-				if ( Line[j] == QUOTE) break ;
-				ItemModule->m_Name.Append(Line[j]);
-			}
-			j++ ;
-			for ( ; j < 80 ; ) if (Line[j++] == QUOTE) break ;
-			for (; ; j++)
-				{
-				if (Line[j] == QUOTE) break ;
-				ItemModule->m_LibName.Append(Line[j]);
-				}
-			nb_correspondances++ ;
-			fin_de_while:;
-			}
-		fclose(fichierstf) ;
-
-		/* Affichage Statistiques */
-		msg.Printf(_("%d equivalences"),nb_correspondances);
-		frame->SetStatusText(msg, 0);
-		}
-
-	Component = g_BaseListeCmp;
-	for ( ii = 0; Component != NULL; Component = Component->Pnext, ii++ )
-		{
-		frame->m_ListCmp->SetSelection(ii,TRUE);
-		if( Component->m_Module.IsEmpty() )
-			auto_select(frame, Component, BaseListeMod);
-		}
-
-	/* Liberation memoire */
-	for( ItemModule = BaseListeMod; ItemModule != NULL; ItemModule = NextMod)
-		{
-		NextMod = ItemModule->Pnext; delete ItemModule;
-		}
-	BaseListeMod = NULL;
+    return aText;
 }
 
 
-/****************************************************************/
-static int auto_select(WinEDA_CvpcbFrame * frame, STORECMP * Cmp,
-			AUTOMODULE * BaseListeMod)
-/****************************************************************/
-
-/* associe automatiquement composant et Module
-	Retourne;
-		0 si OK
-		1 si module specifie non trouve en liste librairie
-		2 si pas de module specifie dans la liste des equivalences
-*/
+/*
+ * Called by the automatic association button
+ * Read *.equ files to try to find corresponding footprint
+ * for each component that is not already linked to a footprint ( a "free"
+ * component )
+ * format of a line:
+ * 'cmp_ref' 'footprint_name'
+ */
+void WinEDA_CvpcbFrame::AssocieModule( wxCommandEvent& event )
 {
-AUTOMODULE * ItemModule;
-STOREMOD * Module;
-wxString msg;
+    FOOTPRINT_ALIAS_LIST aliases;
+    FOOTPRINT_ALIAS*     alias;
+    wxFileName           fn;
+    wxString             msg, tmp;
+    char                 Line[1024];
+    FILE*                file;
+    size_t               ii;
 
-	/* examen de la liste des correspondances */
-	ItemModule = BaseListeMod;
-	for ( ; ItemModule != NULL; ItemModule = ItemModule->Pnext )
-		{
-		if ( ItemModule->m_Name.CmpNoCase(Cmp->m_Valeur) != 0) continue;
+    if( m_components.empty() )
+        return;
 
-		/* Correspondance trouvee, recherche nom module dans la liste des
-		modules disponibles en librairie */
-		Module= g_BaseListePkg;
-		for ( ;Module != NULL; Module = Module->Pnext )
-		{
+    /* Find equivalents in all available files. */
+    for( ii = 0; ii < m_AliasLibNames.GetCount(); ii++ )
+    {
+        fn = m_AliasLibNames[ii];
+        fn.SetExt( FootprintAliasFileExtension );
+        tmp = wxGetApp().FindLibraryPath( fn );
 
-			if( ItemModule->m_LibName.CmpNoCase(Module->m_Module) == 0 )
-			{ /* empreinte trouv‚e */
-				frame->SetNewPkg(Module->m_Module);
-				return(0);
-			}
-		}
-		msg.Printf(
-				  _("Component %s: Footprint %s not found in libraries"),
-						Cmp->m_Valeur.GetData(), ItemModule->m_LibName.GetData());
-		DisplayError(frame, msg, 10);
-		return( 2 );
-		}
-	return(1);
+        if( !tmp )
+        {
+            msg.Printf( _( "Footprint alias library file <%s> could not be \
+found in the default search paths." ),
+                        GetChars( fn.GetFullName() ) );
+            wxMessageBox( msg, titleLibLoadError, wxOK | wxICON_ERROR );
+            continue;
+        }
+
+        file = wxFopen( tmp, wxT( "rt" ) );
+
+        if( file == NULL )
+        {
+            msg.Printf( _( "Error opening alias library <%s>." ), GetChars( tmp ) );
+            wxMessageBox( msg, titleLibLoadError, wxOK | wxICON_ERROR );
+            continue;
+        }
+
+        while( GetLine( file, Line, NULL, sizeof(Line) ) != NULL )
+        {
+            char* text = Line;
+            wxString value, footprint;
+
+            text = ReadQuotedText( value, text );
+
+            if( text == NULL || ( *text == 0 ) || value.IsEmpty() )
+                continue;
+
+            text++;
+            text = ReadQuotedText( footprint, text );
+
+            if( footprint.IsEmpty() )
+                continue;
+
+            alias = new FOOTPRINT_ALIAS();
+            alias->m_Name = value;
+            alias->m_FootprintName = footprint;
+            aliases.push_back( alias );
+            text++;
+        }
+
+        fclose( file );
+    }
+
+    /* Display the number of footprint aliases.  */
+    msg.Printf( _( "%d footprint aliases found." ), aliases.size() );
+    SetStatusText( msg, 0 );
+
+    ii = 0;
+
+    BOOST_FOREACH( COMPONENT& component, m_components )
+    {
+        m_ListCmp->SetSelection( ii, true );
+
+        if( !component.m_Module.IsEmpty() )
+            continue;
+
+        BOOST_FOREACH( FOOTPRINT_ALIAS& alias, aliases )
+        {
+            if( alias.m_Name.CmpNoCase( component.m_Value ) != 0 )
+                continue;
+
+            BOOST_FOREACH( FOOTPRINT& footprint, m_footprints )
+            {
+                if( alias.m_FootprintName.CmpNoCase( footprint.m_Module ) == 0 )
+                {
+                    SetNewPkg( footprint.m_Module );
+                    break;
+                }
+            }
+
+            if( component.m_Module.IsEmpty() )
+            {
+                msg.Printf( _( "Component %s: footprint %s not found in \
+any of the project footprint libraries." ),
+                            GetChars( component.m_Reference ),
+                            GetChars( alias.m_FootprintName ) );
+                wxMessageBox( msg, _( "CVPcb Error" ), wxOK | wxICON_ERROR,
+                              this );
+            }
+        }
+
+        ii += 1;
+    }
 }
-

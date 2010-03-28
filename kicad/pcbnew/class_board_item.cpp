@@ -8,7 +8,7 @@
 #include "common.h"
 #include "pcbnew.h"
 
-#include "id.h"
+#include "pcbnew_id.h"
 #include "collectors.h"
 
 #include "bitmaps.h"
@@ -24,6 +24,7 @@ wxString BOARD_ITEM::ShowShape( Track_Shapes aShape )
     case S_RECT:            return _( "Rect" );
     case S_ARC:             return _( "Arc" );
     case S_CIRCLE:          return _( "Circle" );
+    case S_CURVE:           return _( "Bezier Curve" );
 
     // used in Gerbview:
     case S_ARC_RECT:        return wxT( "arc_rect" );
@@ -36,8 +37,6 @@ wxString BOARD_ITEM::ShowShape( Track_Shapes aShape )
 }
 
 
-#if !defined(GERBVIEW)
-
 /********************************************************/
 wxString BOARD_ITEM::MenuText( const BOARD* aPcb ) const
 /********************************************************/
@@ -49,17 +48,12 @@ wxString BOARD_ITEM::MenuText( const BOARD* aPcb ) const
     wxString            text;
     wxString            msg;
     wxString            temp;
+    NETINFO_ITEM* net;
     const BOARD_ITEM*   item = this;
-    EQUIPOT*            net;
     D_PAD *             pad;
 
     switch( item->Type() )
     {
-    case TYPE_EQUIPOT:
-        text << _( "Net" ) << ( (EQUIPOT*) item )->GetNetname() << wxT( " " ) <<
-        ( (EQUIPOT*) item )->GetNet();
-        break;
-
     case TYPE_MODULE:
         text << _( "Footprint" ) << wxT( " " ) << ( (MODULE*) item )->GetReference();
         text << wxT( " (" ) << aPcb->GetLayerName( item->m_Layer ).Trim() << wxT( ")" );
@@ -71,10 +65,10 @@ wxString BOARD_ITEM::MenuText( const BOARD* aPcb ) const
                 << wxT( "\" (" );
         if ( (pad->m_Masque_Layer & ALL_CU_LAYERS) == ALL_CU_LAYERS )
             text << _("all copper layers");
-        else if( (pad->m_Masque_Layer & CUIVRE_LAYER) == CUIVRE_LAYER )
-            text << aPcb->GetLayerName( COPPER_LAYER_N ).Trim();
-        else if( (pad->m_Masque_Layer & CMP_LAYER) == CMP_LAYER )
-            text << aPcb->GetLayerName( LAYER_CMP_N );
+        else if( (pad->m_Masque_Layer & LAYER_BACK) == LAYER_BACK )
+            text << aPcb->GetLayerName( LAYER_N_BACK ).Trim();
+        else if( (pad->m_Masque_Layer & LAYER_FRONT) == LAYER_FRONT )
+            text << aPcb->GetLayerName( LAYER_N_FRONT );
         else text << _("???");
         text << _( ") of " ) << ( (MODULE*) GetParent() )->GetReference();
         break;
@@ -218,9 +212,9 @@ wxString BOARD_ITEM::MenuText( const BOARD* aPcb ) const
         }
         break;
 
-    case TYPE_MARKER:
-        text << _( "Marker" ) << wxT( " @(" ) << ((MARKER*)item)->GetPos().x
-             << wxT(",") << ((MARKER*)item)->GetPos().y << wxT(")");
+    case TYPE_MARKER_PCB:
+        text << _( "Marker" ) << wxT( " @(" ) << ((MARKER_PCB*)item)->GetPos().x
+             << wxT(",") << ((MARKER_PCB*)item)->GetPos().y << wxT(")");
         break;
 
     case TYPE_COTATION:
@@ -232,10 +226,6 @@ wxString BOARD_ITEM::MenuText( const BOARD* aPcb ) const
         text << _( "Target" ) << _( " on " ) << aPcb->GetLayerName( item->GetLayer() ).Trim()
             << wxT( " " ) << _( "size" ) << wxT( " " ) << msg
             ;
-        break;
-
-    case TYPE_ZONE_UNUSED:
-        text << wxT( "Unused" );
         break;
 
     default:
@@ -260,10 +250,6 @@ const char** BOARD_ITEM::MenuIcon() const
 
     switch( item->Type() )
     {
-    case TYPE_EQUIPOT:
-        xpm = general_ratsnet_xpm;
-        break;
-
     case TYPE_MODULE:
         xpm = module_xpm;
         break;
@@ -298,23 +284,19 @@ const char** BOARD_ITEM::MenuIcon() const
         break;
 
     case TYPE_VIA:
-        xpm = pad_sketch_xpm;
+        xpm = via_sketch_xpm;
         break;
 
-    case TYPE_MARKER:
+    case TYPE_MARKER_PCB:
         xpm = pad_xpm;              // @todo: create and use marker xpm
         break;
 
     case TYPE_COTATION:
-        xpm = add_cotation_xpm;
+        xpm = add_dimension_xpm;
         break;
 
     case TYPE_MIRE:
         xpm = add_mires_xpm;
-        break;
-
-    case TYPE_ZONE_UNUSED:
-        xpm = 0;    // unused
         break;
 
     default:
@@ -325,13 +307,25 @@ const char** BOARD_ITEM::MenuIcon() const
     return (const char**) xpm;
 }
 
-#endif  // !defined(GERBVIEW)
-
 void BOARD_ITEM::UnLink()
 {
     DLIST<BOARD_ITEM>* list = (DLIST<BOARD_ITEM>*) GetList();
     wxASSERT( list );
     if( list )
         list->Remove( this );
+}
+
+
+BOARD* BOARD_ITEM::GetBoard() const
+{
+    if( Type() == TYPE_PCB )
+        return (BOARD*) this;
+
+    BOARD_ITEM* parent = GetParent();
+
+    if( parent )
+        return parent->GetBoard();
+
+    return NULL;
 }
 

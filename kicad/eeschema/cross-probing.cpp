@@ -5,15 +5,14 @@
 #include "fctsys.h"
 #include "appl_wxstruct.h"
 #include "common.h"
-#include "program.h"
-#include "libcmp.h"
-#include "general.h"
-
 #include "eda_dde.h"
 
-#include "id.h"
-
+#include "program.h"
+#include "general.h"
+#include "eeschema_id.h"
 #include "protos.h"
+#include "classes_body_items.h"
+#include "class_pin.h"
 
 
 /***************************************************************/
@@ -100,8 +99,8 @@ void WinEDA_SchematicFrame::SendMessageToPCBNEW( EDA_BaseStruct* objectToSync,
     if( objectToSync == NULL )
         return;
 
-    LibDrawPin* Pin = NULL;
-    char        Line[1024];
+    LIB_PIN* Pin = NULL;
+    char     Line[1024];
 
     /* Cross probing to pcbnew if a pin or a component is found */
     switch( objectToSync->Type() )
@@ -128,7 +127,7 @@ void WinEDA_SchematicFrame::SendMessageToPCBNEW( EDA_BaseStruct* objectToSync,
         if( LibItem == NULL )
             break;
 
-        Pin = (LibDrawPin*) objectToSync;
+        Pin = (LIB_PIN*) objectToSync;
         if( Pin->m_PinNum )
         {
             wxString pinnum;

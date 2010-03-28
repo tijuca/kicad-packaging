@@ -8,6 +8,7 @@
 /////////////////////////////////////////////////////////////////////////////
 
 
+
 // For compilers that support precompilation, includes "wx/wx.h".
 #include "wx/wxprec.h"
 
@@ -19,9 +20,16 @@
 #include "wx/wx.h"
 #endif
 
+#if wxCHECK_VERSION( 2, 9, 0 )
+// Do nothing, because wxWidgets 3 supports the SVG format
+// previously, was a contribution library, not included in wxWidgets base
+
+#else
+
 #include "dcsvg.h"
 
 #include "wx/image.h"
+#include "macros.h"
 
 #define wxSVG_DEBUG FALSE
 
@@ -29,7 +37,6 @@
 #define newline    wxString( wxT( "\n" ) )
 #define space      wxString( wxT( " " ) )
 #define semicolon  wxString( wxT( ";" ) )
-#define     wx_round( a )    (int) ( (a) + .5 )
 
 #ifdef __BORLANDC__
 #pragma warn -rch
@@ -901,7 +908,7 @@ void wxSVGFileDC::DoDrawBitmap( const class wxBitmap& bmp,
     int      h = myBitmap.GetHeight();
     sTmp.Printf( wxT( " <image x=\"%d\" y=\"%d\" width=\"%dpx\" height=\"%dpx\" " ), x, y, w, h );
     s = s + sTmp;
-    sTmp.Printf( wxT( " xlink:href=\"%s\"> \n" ), sPNG.c_str() );
+    sTmp.Printf( wxT( " xlink:href=\"%s\"> \n" ), GetChars( sPNG ) );
     s = s + sTmp + wxT( "<title>Image from wxSVG</title>  </image>" ) + newline;
 
     if( m_OK && bPNG_OK )
@@ -980,3 +987,5 @@ void wxSVGFileDC::write( const wxString& s )
 #pragma warn .rch
 #pragma warn .ccc
 #endif
+
+#endif // wxCHECK_VERSION

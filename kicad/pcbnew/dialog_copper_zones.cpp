@@ -6,16 +6,13 @@
 /// Licence:     GNU License
 /////////////////////////////////////////////////////////////////////////////
 
-#if defined (__GNUG__) && !defined (NO_GCC_PRAGMA)
-#pragma implementation "zones.h"
-#endif
-
 #include "fctsys.h"
 #include "appl_wxstruct.h"
 #include "common.h"
 #include "confirm.h"
 #include "PolyLine.h"
 #include "pcbnew.h"
+#include "wxPcbStruct.h"
 #include "trigo.h"
 #include "autorout.h"
 #include "zones.h"
@@ -32,24 +29,29 @@ dialog_copper_zone::dialog_copper_zone( WinEDA_PcbFrame* parent, ZONE_SETTING* z
     m_Config = wxGetApp().m_EDA_Config;
     m_Zone_Setting = zone_setting;
     m_NetSorting   = 1;     // 0 = alphabetic sort, 1 = pad count sort, and filtering net names
+    m_OnExitCode   = ZONE_ABORT;
+
     if( m_Config )
     {
         m_NetSorting = m_Config->Read( ZONE_NET_SORT_OPTION_KEY, 1l );
     }
 
     SetReturnCode( ZONE_ABORT ); // Will be changed on buttons click
+
+    initDialog();
+
+    GetSizer()->SetSizeHints( this );
+    Center();
 }
 
 
 /*****************************************************************/
-void dialog_copper_zone::OnInitDialog( wxInitDialogEvent& event )
+void dialog_copper_zone::initDialog( )
 /*****************************************************************/
 
 // Initialise all dialog options and values in wxTextCtrl
 {
     BOARD* board = m_Parent->GetBoard();
-
-    SetFont( *g_DialogFont );
 
     SetFocus();     // Required under wxGTK if we want to demiss the dialog with the ESC key
 
@@ -123,18 +125,19 @@ void dialog_copper_zone::OnInitDialog( wxInitDialogEvent& event )
         break;
     }
 
-    m_ArcApproximationOpt->SetSelection( m_Zone_Setting->m_ArcToSegmentsCount == 32 ? 1 : 0 );
+    m_ArcApproximationOpt->SetSelection(
+        m_Zone_Setting->m_ArcToSegmentsCount == ARC_APPROX_SEGMENTS_COUNT_HIGHT_DEF ? 1 : 0 );
 
     /* build copper layers list */
     int layer_cnt = board->GetCopperLayerCount();
     for( int ii = 0; ii < board->GetCopperLayerCount(); ii++ )
     {
-        int layer_number = COPPER_LAYER_N;
+        int layer_number = LAYER_N_BACK;
 
         if( layer_cnt <= 1 || ii < layer_cnt - 1 )
             layer_number = ii;
         else if( ii == layer_cnt - 1 )
-            layer_number = LAYER_CMP_N;
+            layer_number = LAYER_N_FRONT;
 
         m_LayerId[ii] = layer_number;
 
@@ -159,8 +162,7 @@ void dialog_copper_zone::OnInitDialog( wxInitDialogEvent& event )
     wxArrayString ListNetName;
     m_Parent->GetBoard()->ReturnSortedNetnamesList(
         ListNetName,
-        m_NetSorting ==
-        0 ? BOARD::ALPHA_SORT : BOARD::PAD_CNT_SORT );
+        m_NetSorting == 0 ? false : true );
 
     if( m_NetSorting != 0 )
     {
@@ -183,7 +185,7 @@ void dialog_copper_zone::OnInitDialog( wxInitDialogEvent& event )
 
     if( net_select > 0 )
     {
-        EQUIPOT* equipot = m_Parent->GetBoard()->FindNet( net_select );
+        NETINFO_ITEM* equipot = m_Parent->GetBoard()->FindNet( net_select );
         if( equipot )  // Search net in list and select it
         {
             for( unsigned ii = 0; ii < ListNetName.GetCount(); ii++ )
@@ -197,11 +199,6 @@ void dialog_copper_zone::OnInitDialog( wxInitDialogEvent& event )
             }
         }
     }
-    if( GetSizer() )
-    {
-        GetSizer()->SetSizeHints( this );
-    }
-    Center();
 }
 
 
@@ -209,7 +206,7 @@ void dialog_copper_zone::OnInitDialog( wxInitDialogEvent& event )
 void dialog_copper_zone::OnButtonCancelClick( wxCommandEvent& event )
 /********************************************************************/
 {
-    EndModal( ZONE_ABORT );
+    EndModal( m_OnExitCode );
 }
 
 
@@ -253,7 +250,9 @@ bool dialog_copper_zone::AcceptOptions( bool aPromptForErrors, bool aUseExportab
         break;
     }
 
-    m_Zone_Setting->m_ArcToSegmentsCount = m_ArcApproximationOpt->GetSelection() == 1 ? 32 : 16;
+    m_Zone_Setting->m_ArcToSegmentsCount = m_ArcApproximationOpt->GetSelection() == 1 ?
+                                           ARC_APPROX_SEGMENTS_COUNT_HIGHT_DEF :
+                                           ARC_APPROX_SEGMENTS_COUNT_LOW_DEF;
 
     if( m_Config )
     {
@@ -272,7 +271,7 @@ bool dialog_copper_zone::AcceptOptions( bool aPromptForErrors, bool aUseExportab
     // Test if this is a reasonnable value for this parameter
     // A too large value can hang pcbnew
     #define CLEARANCE_MAX_VALUE 5000    // in 1/10000 inch
-    if ( m_Zone_Setting->m_ZoneClearance > CLEARANCE_MAX_VALUE )
+    if( m_Zone_Setting->m_ZoneClearance > CLEARANCE_MAX_VALUE )
     {
         DisplayError( this, _( "Error : Zone clearance is set to an unreasonnable value" ) );
         return false;
@@ -338,13 +337,13 @@ bool dialog_copper_zone::AcceptOptions( bool aPromptForErrors, bool aUseExportab
         return false;
     }
 
-    if ( ii == 0 )  // the not connected option was selected: this is not a good practice: warn:
+    if( ii == 0 )   // the not connected option was selected: this is not a good practice: warn:
     {
-       if( ! IsOK( this, _(
-           "You have chosen the \"not connected\" option. This will create insulated copper islands. Are you sure ?") )
+        if( !IsOK( this, _(
+                      "You have chosen the \"not connected\" option. This will create insulated copper islands. Are you sure ?" ) )
             )
-        return false;
-     }
+            return false;
+    }
 
     wxString net_name = m_ListNetNameSelection->GetString( ii );
 
@@ -353,15 +352,9 @@ bool dialog_copper_zone::AcceptOptions( bool aPromptForErrors, bool aUseExportab
     /* Search net_code for this net, if a net was selected */
     if( m_ListNetNameSelection->GetSelection() > 0 )
     {
-        EQUIPOT* net;
-        for( net = m_Parent->GetBoard()->m_Equipots;   net;  net = net->Next() )
-        {
-            if( net->GetNetname() == net_name )
-            {
-                g_Zone_Default_Setting.m_NetcodeSelection = net->GetNet();
-                break;
-            }
-        }
+        NETINFO_ITEM* net = m_Parent->GetBoard()->FindNet( net_name );
+        if( net )
+            g_Zone_Default_Setting.m_NetcodeSelection = net->GetNet();
     }
 
     return true;
@@ -376,9 +369,7 @@ void dialog_copper_zone::OnNetSortingOptionSelected( wxCommandEvent& event )
 
     m_NetSorting = m_NetSortingOption->GetSelection();
     m_Parent->GetBoard()->ReturnSortedNetnamesList(
-        ListNetName,
-        m_NetSorting ==
-        0 ? BOARD::ALPHA_SORT : BOARD::PAD_CNT_SORT );
+        ListNetName, m_NetSorting == 0 ? false : true );
     if( m_NetSorting != 0 )
     {
         wxString Filter = m_NetNameFilter->GetValue();
@@ -400,11 +391,11 @@ void dialog_copper_zone::OnNetSortingOptionSelected( wxCommandEvent& event )
         m_Config->Write( ZONE_NET_FILTER_STRING_KEY, Filter );
     }
 
-    // Select and isplay current zone net name in listbox:
+    // Select and display current zone net name in listbox:
     int net_select = m_Zone_Setting->m_NetcodeSelection;
     if( net_select > 0 )
     {
-        EQUIPOT* equipot = m_Parent->GetBoard()->FindNet( net_select );
+        NETINFO_ITEM* equipot = m_Parent->GetBoard()->FindNet( net_select );
         if( equipot )  // Search net in list and select it
         {
             for( unsigned ii = 0; ii < ListNetName.GetCount(); ii++ )
@@ -443,8 +434,10 @@ void dialog_copper_zone::ExportSetupToOtherCopperZones( wxCommandEvent& event )
     {
         ZONE_CONTAINER* zone = pcb->GetArea( ii );
         m_Zone_Setting->ExportSetting( *zone, false );  // false = partiel export
-        m_Parent->GetScreen()->SetModify();
+        m_Parent->OnModify();
     }
+
+    m_OnExitCode = ZONE_EXPORT_VALUES;     // values are exported to others zones
 }
 
 

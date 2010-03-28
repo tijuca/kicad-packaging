@@ -1,17 +1,18 @@
-/*****************************************************************/
-/* tool_modeit.cpp: construction du menu de l'editeur de modules */
-/*****************************************************************/
+/***********************************************/
+/* tool_modeit.cpp: footprint editor toolbars. */
+/***********************************************/
 
 #include "fctsys.h"
 
 #include "common.h"
 #include "pcbnew.h"
+#include "wxPcbStruct.h"
 
 #include "protos.h"
 
 #include "bitmaps.h"
 
-#include "id.h"
+#include "pcbnew_id.h"
 
 #include "hotkeys.h"
 
@@ -21,10 +22,9 @@
 #define LISTBOX_WIDTH 120
 #endif
 
-/***************************************************/
-void WinEDA_ModuleEditFrame::ReCreateHToolbar()
-/***************************************************/
+
 /* Create the main horizontal toolbar for the footprint editor */
+void WinEDA_ModuleEditFrame::ReCreateHToolbar()
 {
     if( m_HToolBar  != NULL )
         return;
@@ -33,10 +33,8 @@ void WinEDA_ModuleEditFrame::ReCreateHToolbar()
 
     m_HToolBar = new WinEDA_Toolbar( TOOLBAR_MAIN, this, ID_H_TOOLBAR, TRUE );
 
-    SetToolBar( m_HToolBar );
-
     // Set up toolbar
-    m_HToolBar->AddTool( ID_LIBEDIT_SELECT_CURRENT_LIB, wxEmptyString,
+    m_HToolBar->AddTool( ID_MODEDIT_SELECT_CURRENT_LIB, wxEmptyString,
                          wxBitmap( open_library_xpm ),
                          _( "Select working library" ) );
 
@@ -44,13 +42,13 @@ void WinEDA_ModuleEditFrame::ReCreateHToolbar()
                          wxBitmap( save_library_xpm ),
                          _( "Save Module in working library" ) );
 
-    m_HToolBar->AddTool( ID_LIBEDIT_CREATE_NEW_LIB_AND_SAVE_CURRENT_PART,
+    m_HToolBar->AddTool( ID_MODEDIT_CREATE_NEW_LIB_AND_SAVE_CURRENT_PART,
                          wxEmptyString,
                          wxBitmap( new_library_xpm ),
                          _( "Create new library and save current module" ) );
 
     m_HToolBar->AddSeparator();
-    m_HToolBar->AddTool( ID_LIBEDIT_DELETE_PART, wxEmptyString,
+    m_HToolBar->AddTool( ID_MODEDIT_DELETE_PART, wxEmptyString,
                          wxBitmap( delete_xpm ),
                          _( "Delete part in current library" ) );
 
@@ -77,19 +75,19 @@ void WinEDA_ModuleEditFrame::ReCreateHToolbar()
                          _( "Insert module into current board" ) );
 
     m_HToolBar->AddSeparator();
-    m_HToolBar->AddTool( ID_LIBEDIT_IMPORT_PART, wxEmptyString,
+    m_HToolBar->AddTool( ID_MODEDIT_IMPORT_PART, wxEmptyString,
                          wxBitmap( import_module_xpm ),
                          _( "import module" ) );
 
-    m_HToolBar->AddTool( ID_LIBEDIT_EXPORT_PART, wxEmptyString,
+    m_HToolBar->AddTool( ID_MODEDIT_EXPORT_PART, wxEmptyString,
                          wxBitmap( export_module_xpm ),
                          _( "export module" ) );
 
 
     m_HToolBar->AddSeparator();
-    m_HToolBar->AddTool( ID_MODEDIT_UNDO, wxEmptyString, wxBitmap( undo_xpm ),
+    m_HToolBar->AddTool( wxID_UNDO, wxEmptyString, wxBitmap( undo_xpm ),
                          _( "Undo last edition" ) );
-    m_HToolBar->AddTool( ID_MODEDIT_REDO, wxEmptyString, wxBitmap( redo_xpm ),
+    m_HToolBar->AddTool( wxID_REDO, wxEmptyString, wxBitmap( redo_xpm ),
                          _( "Redo the last undo command" ) );
 
     m_HToolBar->AddSeparator();
@@ -103,23 +101,24 @@ void WinEDA_ModuleEditFrame::ReCreateHToolbar()
 
     m_HToolBar->AddSeparator();
     msg = AddHotkeyName( _( "Zoom in" ), s_Module_Editor_Hokeys_Descr,
-                         HK_ZOOM_IN );
+                         HK_ZOOM_IN, false );
     m_HToolBar->AddTool( ID_ZOOM_IN, wxEmptyString,
                          wxBitmap( zoom_in_xpm ), msg );
 
     msg = AddHotkeyName( _( "Zoom out" ), s_Module_Editor_Hokeys_Descr,
-                         HK_ZOOM_OUT );
+                         HK_ZOOM_OUT, false );
     m_HToolBar->AddTool( ID_ZOOM_OUT, wxEmptyString,
                          wxBitmap( zoom_out_xpm ), msg );
 
     msg = AddHotkeyName( _( "Redraw view" ), s_Module_Editor_Hokeys_Descr,
-                         HK_ZOOM_REDRAW );
+                         HK_ZOOM_REDRAW, false );
     m_HToolBar->AddTool( ID_ZOOM_REDRAW, wxEmptyString,
                          wxBitmap( zoom_redraw_xpm ), msg );
 
+    msg = AddHotkeyName( _( "Zoom auto" ), s_Module_Editor_Hokeys_Descr,
+                         HK_ZOOM_AUTO, false );
     m_HToolBar->AddTool( ID_ZOOM_PAGE, wxEmptyString,
-                         wxBitmap( zoom_auto_xpm ),
-                         _( "Zoom auto" ) );
+                         wxBitmap( zoom_auto_xpm ), msg );
 
     m_HToolBar->AddSeparator();
     m_HToolBar->AddTool( ID_MODEDIT_PAD_SETTINGS, wxEmptyString,
@@ -138,9 +137,7 @@ void WinEDA_ModuleEditFrame::ReCreateHToolbar()
 }
 
 
-/********************************************************/
 void WinEDA_ModuleEditFrame::ReCreateVToolbar()
-/********************************************************/
 {
     if( m_VToolBar )
         return;
@@ -158,7 +155,7 @@ void WinEDA_ModuleEditFrame::ReCreateVToolbar()
                          _( "Add Pads" ), wxITEM_CHECK );
 
     m_VToolBar->AddSeparator();
-    m_VToolBar->AddTool( ID_LINE_COMMENT_BUTT, wxEmptyString,
+    m_VToolBar->AddTool( ID_PCB_ADD_LINE_BUTT, wxEmptyString,
                          wxBitmap( add_polygon_xpm ),
                          _( "Add graphic line or polygon" ), wxITEM_CHECK );
 
@@ -170,7 +167,7 @@ void WinEDA_ModuleEditFrame::ReCreateVToolbar()
                          wxBitmap( add_arc_xpm ),
                          _( "Add graphic arc" ), wxITEM_CHECK );
 
-    m_VToolBar->AddTool( ID_TEXT_COMMENT_BUTT, wxEmptyString,
+    m_VToolBar->AddTool( ID_PCB_ADD_TEXT_BUTT, wxEmptyString,
                          wxBitmap( add_text_xpm ),
                          _( "Add Text" ), wxITEM_CHECK );
 
@@ -190,22 +187,19 @@ void WinEDA_ModuleEditFrame::ReCreateVToolbar()
 }
 
 
-/*********************************************************/
 void WinEDA_ModuleEditFrame::ReCreateOptToolbar()
-/*********************************************************/
 {
     if( m_OptionsToolBar )
         return;
 
-    // creation du tool bar options
+    // Create options tool bar.
     m_OptionsToolBar = new WinEDA_Toolbar( TOOLBAR_OPTION, this,
                                            ID_OPT_TOOLBAR, FALSE );
 
-    m_OptionsToolBar->AddTool( ID_TB_OPTIONS_SHOW_GRID, wxBitmap( grid_xpm ),
-                               wxNullBitmap,
-                               TRUE,
-                               -1, -1, (wxObject*) NULL,
-                               _( "Display Grid OFF" ) );
+    m_OptionsToolBar->AddTool( ID_TB_OPTIONS_SHOW_GRID, wxEmptyString,
+                                wxBitmap( grid_xpm ),
+                               _( "Hide grid" ), wxITEM_CHECK );
+    m_OptionsToolBar->ToggleTool( ID_TB_OPTIONS_SHOW_GRID,IsGridVisible() );
 
     m_OptionsToolBar->AddTool( ID_TB_OPTIONS_SHOW_POLAR_COORD, wxEmptyString,
                                wxBitmap( polar_coord_xpm ),
@@ -219,34 +213,24 @@ void WinEDA_ModuleEditFrame::ReCreateOptToolbar()
                                wxBitmap( unit_mm_xpm ),
                                _( "Units in millimeters" ), wxITEM_CHECK );
 
-    m_OptionsToolBar->AddTool( ID_TB_OPTIONS_SELECT_CURSOR,
+    m_OptionsToolBar->AddTool( ID_TB_OPTIONS_SELECT_CURSOR, wxEmptyString,
                                wxBitmap( cursor_shape_xpm ),
-                               wxNullBitmap,
-                               TRUE,
-                               -1, -1, (wxObject*) NULL,
-                               _( "Change Cursor Shape" ) );
+                               _( "Change Cursor Shape" ), wxITEM_CHECK  );
 
     m_OptionsToolBar->AddSeparator();
-    m_OptionsToolBar->AddTool( ID_TB_OPTIONS_SHOW_PADS_SKETCH,
+    m_OptionsToolBar->AddTool( ID_TB_OPTIONS_SHOW_PADS_SKETCH, wxEmptyString,
                                wxBitmap( pad_sketch_xpm ),
-                               wxNullBitmap,
-                               TRUE,
-                               -1, -1, (wxObject*) NULL,
-                               _( "Show Pads Sketch" ) );
+                               _( "Show Pads Sketch" ), wxITEM_CHECK  );
 
     m_OptionsToolBar->AddTool( ID_TB_OPTIONS_SHOW_MODULE_TEXT_SKETCH,
+                               wxEmptyString,
                                wxBitmap( text_sketch_xpm ),
-                               wxNullBitmap,
-                               TRUE,
-                               -1, -1, (wxObject*) NULL,
-                               _( "Show Texts Sketch" ) );
+                               _( "Show Texts Sketch" ), wxITEM_CHECK  );
 
     m_OptionsToolBar->AddTool( ID_TB_OPTIONS_SHOW_MODULE_EDGE_SKETCH,
+                               wxEmptyString,
                                wxBitmap( show_mod_edge_xpm ),
-                               wxNullBitmap,
-                               TRUE,
-                               -1, -1, (wxObject*) NULL,
-                               _( "Show Edges Sketch" ) );
+                               _( "Show Edges Sketch" ), wxITEM_CHECK  );
 
     m_OptionsToolBar->Realize();
 
@@ -254,9 +238,7 @@ void WinEDA_ModuleEditFrame::ReCreateOptToolbar()
 }
 
 
-/*********************************************************/
 void WinEDA_ModuleEditFrame::ReCreateAuxiliaryToolbar()
-/*********************************************************/
 {
     size_t   i;
     wxString msg;
@@ -269,14 +251,14 @@ void WinEDA_ModuleEditFrame::ReCreateAuxiliaryToolbar()
         // Set up toolbar
         m_AuxiliaryToolBar->AddSeparator();
 
-        // Boite de selection du pas de grille
+        // Grid selection choice box.
         m_SelGridBox = new WinEDAChoiceBox( m_AuxiliaryToolBar,
                                             ID_ON_GRID_SELECT,
                                             wxPoint( -1, -1 ),
                                             wxSize( LISTBOX_WIDTH, -1 ) );
         m_AuxiliaryToolBar->AddControl( m_SelGridBox );
 
-        // Boite de selection du Zoom
+        // Zoom selection choice box.
         m_AuxiliaryToolBar->AddSeparator();
         m_SelZoomBox = new WinEDAChoiceBox( m_AuxiliaryToolBar,
                                             ID_ON_ZOOM_SELECT,
@@ -287,12 +269,14 @@ void WinEDA_ModuleEditFrame::ReCreateAuxiliaryToolbar()
         for( int i = 0; i < (int)GetScreen()->m_ZoomList.GetCount(); i++ )
         {
             msg = _( "Zoom " );
-            if ( (GetScreen()->m_ZoomList[i] % GetScreen()->m_ZoomScalar) == 0 )
+            if ( GetScreen()->m_ZoomList[i] % GetScreen()->m_ZoomScalar == 0 )
                 msg << GetScreen()->m_ZoomList[i] / GetScreen()->m_ZoomScalar;
             else
             {
                 wxString value;
-                value.Printf(wxT("%.1f"),(float)GetScreen()->m_ZoomList[i] / GetScreen()->m_ZoomScalar );
+                value.Printf( wxT( "%.1f" ),
+                              (float)GetScreen()->m_ZoomList[i] /
+                              GetScreen()->m_ZoomScalar );
                 msg += value;
             }
             m_SelZoomBox->Append( msg );
@@ -300,17 +284,17 @@ void WinEDA_ModuleEditFrame::ReCreateAuxiliaryToolbar()
 
         m_AuxiliaryToolBar->AddControl( m_SelZoomBox );
 
-        // after adding the buttons to the toolbar, must call Realize() to reflect
-        // the changes
+        // after adding the buttons to the toolbar, must call Realize() to
+        // reflect the changes
         m_AuxiliaryToolBar->Realize();
     }
 
-    // mise a jour des affichages
+    // Update tool bar to reflect setting.
     m_SelGridBox->Clear();
     for( i = 0; i < GetScreen()->m_GridList.GetCount(); i++ )
     {
         double value = To_User_Unit( g_UnitMetric,
-                                     (int)GetScreen()->m_GridList[i].m_Size.x,
+                                     GetScreen()->m_GridList[i].m_Size.x,
                                      PCB_INTERNAL_UNIT );
         if( GetScreen()->m_GridList[i].m_Id != ID_POPUP_GRID_USER )
         {
@@ -324,7 +308,10 @@ void WinEDA_ModuleEditFrame::ReCreateAuxiliaryToolbar()
             msg = _( "User Grid" );
         }
 
-        m_SelGridBox->Append( msg );
+        m_SelGridBox->Append( msg, (void*) &GetScreen()->m_GridList[i].m_Id );
+
+        if( m_LastGridSizeId == GetScreen()->m_GridList[i].m_Id )
+            m_SelGridBox->SetSelection( i );
     }
 
     SetToolbars();

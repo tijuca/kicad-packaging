@@ -27,6 +27,7 @@
 
 
 #include "fctsys.h"
+#include "class_marker_base.h"
 
 
 #define OK_DRC      0
@@ -58,204 +59,22 @@
 #define COPPERAREA_INSIDE_COPPERAREA        22  ///< copper area outlines intersect
 #define COPPERAREA_CLOSE_TO_COPPERAREA      23  ///< copper area outlines are too close
 #define DRCE_NON_EXISTANT_NET_FOR_ZONE_OUTLINE  24  ///< copper area outline has an incorrect netcode due to a netname not found
-
-/**
- * Class DRC_ITEM
- * is a holder for a DRC error item.  It is generated when two objects are
- * too close.  There are holders for information on two items.  The
- * information held is the board coordinate and the MenuText for each item.
- * Also held is the type of error by number and the location of the MARKER.
- * A function is provided to translate that number into text.
- * Some errors involve only one item (item with an incorrect param) so
- * m_hasSecondItem is set to false in this case.
- */
-class DRC_ITEM
-{
-protected:
-    int      m_ErrorCode;       ///< the error code's numeric value
-    wxPoint  m_Pos;             ///< position of the issue
-    wxString m_AText;           ///< text for the first BOARD_ITEM
-    wxString m_BText;           ///< text for the second BOARD_ITEM
-    wxPoint  m_APos;            ///< the location of the first (or main ) BOARD_ITEM
-    wxPoint  m_BPos;            ///< the location of the second BOARD_ITEM
-    bool     m_hasSecondItem;   ///< true when 2 items create a DRC error, false if only one item
-
-
-public:
-
-    DRC_ITEM() :
-        m_ErrorCode( 0 )
-    {
-    }
-
-
-    DRC_ITEM( int aErrorCode, const wxPoint& aIssuePos,
-              const wxString& aText, const wxString& bText,
-              const wxPoint& aPos, const wxPoint& bPos )
-    {
-        SetData( aErrorCode, aIssuePos,
-                 aText, bText,
-                 aPos, bPos );
-    }
-
-    DRC_ITEM( int aErrorCode, const wxPoint& aIssuePos,
-              const wxString& aText, const wxPoint& aPos )
-    {
-        SetData( aErrorCode, aIssuePos, aText, aPos );
-    }
-
-
-    void SetData( int aErrorCode, const wxPoint& aIssuePos,
-                  const wxString& aText, const wxPoint& aPos )
-    {
-        SetData( aErrorCode, aIssuePos,
-                 aText, aText,
-                 aPos, aPos );
-        m_hasSecondItem = false;
-    }
-
-    void SetData( int aErrorCode, const wxPoint& aIssuePos,
-                  const wxString& aText, const wxString& bText,
-                  const wxPoint& aPos, const wxPoint& bPos )
-    {
-        m_ErrorCode = aErrorCode;
-        m_Pos   = aIssuePos;
-        m_AText = aText;
-        m_BText = bText;
-        m_APos  = aPos;
-        m_BPos  = bPos;
-        m_hasSecondItem = true;
-    }
-
-    bool HasSecondItem() const { return m_hasSecondItem; }
-
-
-    /**
-     * Function ShowHtml
-     * translates this object into a fragment of HTML suitable for the
-     * wxWidget's wxHtmlListBox class.
-     * @return wxString - the html text.
-     */
-    wxString ShowHtml() const
-    {
-        wxString ret;
-
-        if( m_hasSecondItem )
-        {
-            // an html fragment for the entire message in the listbox.  feel free
-            // to add color if you want:
-            ret.Printf( _( "ErrType(%d): <b>%s</b><ul><li> %s: %s </li><li> %s: %s </li></ul>" ),
-                       m_ErrorCode,
-                       GetErrorText().GetData(),
-                       ShowCoord( m_APos ).GetData(), m_AText.GetData(),
-                       ShowCoord( m_BPos ).GetData(), m_BText.GetData() );
-        }
-        else
-        {
-            ret.Printf( _( "ErrType(%d): <b>%s</b><ul><li> %s: %s </li></ul>" ),
-                       m_ErrorCode,
-                       GetErrorText().GetData(),
-                       ShowCoord( m_APos ).GetData(), m_AText.GetData() );
-        }
-
-        return ret;
-    }
-
-
-    /**
-     * Function ShowReport
-     * translates this object into a text string suitable for saving
-     * to disk in a report.
-     * @return wxString - the simple multi-line report text.
-     */
-    wxString ShowReport() const
-    {
-        wxString ret;
-
-        if( m_hasSecondItem )
-        {
-            ret.Printf( wxT( "ErrType(%d): %s\n    %s: %s\n    %s: %s\n" ),
-                       m_ErrorCode,
-                       GetErrorText().GetData(),
-                       ShowCoord( m_APos ).GetData(), m_AText.GetData(),
-                       ShowCoord( m_BPos ).GetData(), m_BText.GetData() );
-        }
-        else
-        {
-            ret.Printf( wxT( "ErrType(%d): %s\n    %s: %s\n" ),
-                       m_ErrorCode,
-                       GetErrorText().GetData(),
-                       ShowCoord( m_APos ).GetData(), m_AText.GetData() );
-        }
-
-        return ret;
-    }
-
-
-    /**
-     * Function GetErrorCode
-     * returns the error code.
-     */
-    int GetErrorCode() const
-    {
-        return m_ErrorCode;
-    }
-
-
-    /**
-     * Function GetErrorText
-     * returns the string form of a drc error code.
-     */
-    wxString GetErrorText() const;
-
-    const wxString& GetTextA() const
-    {
-        return m_AText;
-    }
-
-
-    const wxString& GetTextB() const
-    {
-        return m_BText;
-    }
-
-
-    const wxPoint&  GetPointA() const
-    {
-        return m_APos;
-    }
-
-
-    const wxPoint&  GetPointB() const
-    {
-        return m_BPos;
-    }
-
-
-    /**
-     * Function GetPosition
-     * @return wxPoint& - the position of this report item within
-     *  the drawing.
-     */
-    const wxPoint&  GetPosition() const
-    {
-        return m_Pos;
-    }
-
-
-    /**
-     * Function ShowCoord
-     * formats a coordinate or position to text.
-     * @param aPos The position to format
-     * @return wxString - The formated string
-     */
-    static wxString ShowCoord( const wxPoint& aPos );
-};
+#define DRCE_HOLE_NEAR_PAD                  25  ///< hole too close to pad
+#define DRCE_HOLE_NEAR_TRACK                26  ///< hole too close to track
+#define DRCE_TOO_SMALL_TRACK_WIDTH          27  ///< Too small track width
+#define DRCE_TOO_SMALL_VIA                  28  ///< Too small via size
+#define DRCE_TOO_SMALL_MICROVIA             29  ///< Too small micro via size
+#define DRCE_NETCLASS_TRACKWIDTH            30  ///< netclass has TrackWidth < board.m_designSettings->m_TrackMinWidth
+#define DRCE_NETCLASS_CLEARANCE             31  ///< netclass has Clearance < board.m_designSettings->m_TrackClearance
+#define DRCE_NETCLASS_VIASIZE               32  ///< netclass has ViaSize < board.m_designSettings->m_ViasMinSize
+#define DRCE_NETCLASS_VIADRILLSIZE          33  ///< netclass has ViaDrillSize < board.m_designSettings->m_ViaDrill
+#define DRCE_NETCLASS_uVIASIZE              34
+#define DRCE_NETCLASS_uVIADRILLSIZE         35
 
 
 class WinEDA_DrawPanel;
-class MARKER;
-class DrcDialog;
+class MARKER_PCB;
+class DIALOG_DRC_CONTROL;
 
 
 /**
@@ -316,7 +135,7 @@ typedef std::vector<DRC_ITEM*>  DRC_LIST;
  */
 class DRC
 {
-    friend class DrcDialog;
+    friend class DIALOG_DRC_CONTROL;
 
 private:
 
@@ -331,7 +150,7 @@ private:
 
     // int              m_errorCount;
 
-    MARKER*           m_currentMarker;
+    MARKER_PCB*       m_currentMarker;
 
     bool              m_aboartDRC;
     bool              m_drcInProgress;
@@ -351,7 +170,7 @@ private:
     WinEDA_PcbFrame*  m_mainWindow;
     WinEDA_DrawPanel* m_drawPanel;
     BOARD*            m_pcb;
-    DrcDialog*        m_ui;
+    DIALOG_DRC_CONTROL*        m_ui;
 
     DRC_LIST          m_unconnected;    ///< list of unconnected pads, as DRC_ITEMs
 
@@ -375,14 +194,14 @@ private:
      *         or TRACK.
      * @param aErrorCode A categorizing identifier for the particular type
      *         of error that is being reported.
-     * @param fillMe A MARKER* which is to be filled in, or NULL if one is to
+     * @param fillMe A MARKER_PCB* which is to be filled in, or NULL if one is to
      *         first be allocated, then filled.
      */
-    MARKER* fillMarker( TRACK* aTrack, BOARD_ITEM* aItem, int aErrorCode, MARKER* fillMe );
+    MARKER_PCB* fillMarker( TRACK* aTrack, BOARD_ITEM* aItem, int aErrorCode, MARKER_PCB* fillMe );
 
-    MARKER* fillMarker( D_PAD* aPad, D_PAD* bPad, int aErrorCode, MARKER* fillMe );
+    MARKER_PCB* fillMarker( D_PAD* aPad, D_PAD* bPad, int aErrorCode, MARKER_PCB* fillMe );
 
-    MARKER* fillMarker( ZONE_CONTAINER * aArea, int aErrorCode, MARKER* fillMe );
+    MARKER_PCB* fillMarker( ZONE_CONTAINER * aArea, int aErrorCode, MARKER_PCB* fillMe );
 
     /**
      * Function fillMarker
@@ -393,12 +212,31 @@ private:
      * @param aEdge edge zone to test
      * @param aPos position of error
      * @param aErrorCode  Type of error
-     * @param fillMe A MARKER* which is to be filled in, or NULL if one is to
+     * @param fillMe A MARKER_PCB* which is to be filled in, or NULL if one is to
      *         first be allocated, then filled.
      */
-    MARKER* fillMarker( const ZONE_CONTAINER * aArea, const wxPoint & aPos, int aErrorCode, MARKER* fillMe );
+    MARKER_PCB* fillMarker( const ZONE_CONTAINER * aArea, const wxPoint & aPos, int aErrorCode, MARKER_PCB* fillMe );
+
+    /**
+     * Function fillMarker
+     * fills a MARKER which will report on a generic problem with the board which is
+     * not geographically locatable.
+     */
+    MARKER_PCB* fillMarker( int aErrorCode, const wxString& aMessage, MARKER_PCB* fillMe );
 
     //-----<categorical group tests>-----------------------------------------
+
+    /**
+     * Function testNetClasses
+     * goes through each NETCLASS and verifies that its clearance, via size,
+     * track width, and track clearance are larger than those in board.m_designSettings.
+     * This is necessary because the actual DRC checks are run against the NETCLASS
+     * limits, so in order enforce global limits, we first check the NETCLASSes against
+     * the global limits.
+     * @return bool - true if succes, else false but only after
+     *  reporting _all_ NETCLASS violations.
+     */
+    bool    testNetClasses();
 
     void    testTracks();
 
@@ -411,6 +249,8 @@ private:
 
     //-----<single "item" tests>-----------------------------------------
 
+    bool    doNetClass( NETCLASS* aNetClass, wxString& msg );
+
     /**
      * Function doPadToPadsDrc
      * tests the clearance between aRefPad and other pads.
@@ -418,10 +258,10 @@ private:
      * @param aRefPad The pad to test
      * @param aStart The start of the pad list to test against
      * @param aEnd Marks the end of the list and is not included
-     * @param max_size The size of the biggest pad (used to stop the test when the X distance is > max_size)
+     * @param x_limit is used to stop the test (when the any pad's X coord exceeds this)
      */
     bool    doPadToPadsDrc( D_PAD* aRefPad, LISTE_PAD* aStart,
-                            LISTE_PAD* aEnd, int max_size );
+                            LISTE_PAD* aEnd, int x_limit );
 
     /**
      * Function DoTrackDrc
@@ -454,7 +294,7 @@ private:
      * @param aPad Another pad to check against
      * @return bool - true if clearance between aRefPad and pad is >= dist_min, else false
      */
-    bool        checkClearancePadToPad( D_PAD* aRefPad, D_PAD* aPad, const int dist_min );
+    bool        checkClearancePadToPad( D_PAD* aRefPad, D_PAD* aPad );
 
 
     /**
@@ -545,7 +385,6 @@ public:
         return doTrackDrc( aRefSeg, aList ) ? OK_DRC : BAD_DRC;
     }
 
-
     /**
      * Function ShowDialog
      * opens a dialog and prompts the user, then if a test run button is
@@ -553,7 +392,6 @@ public:
      * created if it is not already in existence.
      */
     void    ShowDialog();
-
 
     /**
      * Function DestroyDialog
@@ -583,14 +421,13 @@ public:
         m_doCreateRptFile = aSaveReport;
     }
 
-
     /**
      * Function RunTests
      * will actually run all the tests specified with a previous call to
      * SetSettings()
+     * @param aMessages = a wxTextControl where to display some activity messages. Can be NULL
      */
-    void    RunTests();
-
+    void    RunTests(wxTextCtrl * aMessages = NULL);
 
     /**
      * Function ListUnconnectedPad

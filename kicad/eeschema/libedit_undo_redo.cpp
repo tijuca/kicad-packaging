@@ -3,15 +3,14 @@
 /********************************************/
 
 #include "fctsys.h"
-#include "gr_basic.h"
+#include "class_drawpanel.h"
 
 #include "common.h"
 #include "program.h"
-#include "libcmp.h"
 #include "general.h"
-#include "id.h"
-
 #include "protos.h"
+#include "libeditframe.h"
+#include "class_libentry.h"
 
 
 /*************************************************************************/
@@ -19,75 +18,93 @@ void WinEDA_LibeditFrame::SaveCopyInUndoList( EDA_BaseStruct* ItemToCopy,
                                               int             unused_flag )
 /*************************************************************************/
 {
-    EDA_BaseStruct*         item;
-    EDA_LibComponentStruct* CopyItem;
+    LIB_COMPONENT*     CopyItem;
+    PICKED_ITEMS_LIST* lastcmd;
 
-    CopyItem = CopyLibEntryStruct( this, (EDA_LibComponentStruct*) ItemToCopy );
-    GetScreen()->AddItemToUndoList( (EDA_BaseStruct*) CopyItem );
-    /* Clear current flags (which can be temporary set by a current edit command) */
-    for( item = CopyItem->m_Drawings; item != NULL; item = item->Next() )
-        item->m_Flags = 0;
+    CopyItem = new LIB_COMPONENT( *( (LIB_COMPONENT*) ItemToCopy ) );
+
+    if( CopyItem == NULL )
+        return;
+
+    lastcmd = new PICKED_ITEMS_LIST();
+    ITEM_PICKER wrapper(CopyItem, UR_LIBEDIT);
+    lastcmd->PushItem(wrapper);
+    GetScreen()->PushCommandToUndoList( lastcmd );
+    /* Clear current flags (which can be temporary set by a current edit
+     * command) */
+    CopyItem->ClearStatus();
 
     /* Clear redo list, because after new save there is no redo to do */
-    while( GetScreen()->m_RedoList )
-    {
-        item = GetScreen()->m_RedoList->Next();
-        delete( GetScreen()->m_RedoList );
-        GetScreen()->m_RedoList = item;
-    }
+    GetScreen()->ClearUndoORRedoList( GetScreen()->m_RedoList );
 }
 
 
-/******************************************************/
-bool WinEDA_LibeditFrame::GetComponentFromRedoList()
-/******************************************************/
+/*************************************************************************/
+void WinEDA_LibeditFrame::GetComponentFromRedoList(wxCommandEvent& event)
+/*************************************************************************/
 
 /* Redo the last edition:
   * - Place the current edited library component in undo list
   * - Get old version of the current edited library component
- *  @return FALSE if nothing done, else TRUE
  */
 {
-    if( GetScreen()->m_RedoList == NULL )
-        return FALSE;
+    if ( GetScreen()->GetRedoCommandCount() <= 0 )
+        return;
 
-    GetScreen()->AddItemToUndoList( (EDA_BaseStruct*) CurrentLibEntry );
-    CurrentLibEntry =
-        (EDA_LibComponentStruct*) GetScreen()->GetItemFromRedoList();
-    if( CurrentLibEntry )
-        CurrentLibEntry->SetNext( NULL );
-    CurrentDrawItem = NULL;
-    GetScreen()->SetModify();
-    ReCreateHToolbar();
-    SetToolbars();
+    PICKED_ITEMS_LIST* lastcmd = new PICKED_ITEMS_LIST();
+    ITEM_PICKER wrapper(m_component, UR_LIBEDIT);
+    lastcmd->PushItem(wrapper);
+    GetScreen()->PushCommandToUndoList( lastcmd );
 
-    return TRUE;
+    lastcmd = GetScreen()->PopCommandFromRedoList( );
+
+    wrapper = lastcmd->PopItem();
+    m_component = (LIB_COMPONENT*) wrapper.m_PickedItem;
+    if( m_component )
+        m_component->SetNext( NULL );
+    m_drawItem = NULL;
+    UpdateAliasSelectList();
+    UpdatePartSelectList();
+    if( m_component )
+        SetShowDeMorgan( m_component->HasConversion() );
+    DisplayLibInfos();
+    DisplayCmpDoc();
+    OnModify( );
+    DrawPanel->Refresh();
 }
 
 
-/******************************************************/
-bool WinEDA_LibeditFrame::GetComponentFromUndoList()
-/******************************************************/
+/************************************************************************/
+void WinEDA_LibeditFrame::GetComponentFromUndoList(wxCommandEvent& event)
+/************************************************************************/
 
-/* Undo the last edition:
+/** Undo the last edition:
   * - Place the current edited library component in Redo list
   * - Get old version of the current edited library component
- *  @return FALSE if nothing done, else TRUE
  */
 {
-    if( GetScreen()->m_UndoList == NULL )
-        return FALSE;
+    if ( GetScreen()->GetUndoCommandCount() <= 0 )
+        return;
 
-    GetScreen()->AddItemToRedoList( (EDA_BaseStruct*) CurrentLibEntry );
-    CurrentLibEntry =
-        (EDA_LibComponentStruct*) GetScreen()->GetItemFromUndoList();
+    PICKED_ITEMS_LIST* lastcmd = new PICKED_ITEMS_LIST();
+    ITEM_PICKER wrapper(m_component, UR_LIBEDIT);
+    lastcmd->PushItem(wrapper);
+    GetScreen()->PushCommandToRedoList( lastcmd );
 
-    if( CurrentLibEntry )
-        CurrentLibEntry->SetNext( NULL );
-    CurrentDrawItem = NULL;
-    GetScreen()->SetModify();
-    ReCreateHToolbar();
-    SetToolbars();
+    lastcmd = GetScreen()->PopCommandFromUndoList( );
 
-    return TRUE;
+    wrapper = lastcmd->PopItem();
+    m_component = (LIB_COMPONENT*) wrapper.m_PickedItem;
+
+    if( m_component )
+        m_component->SetNext( NULL );
+    m_drawItem = NULL;
+    UpdateAliasSelectList();
+    UpdatePartSelectList();
+    if( m_component )
+        SetShowDeMorgan( m_component->HasConversion() );
+    DisplayLibInfos();
+    DisplayCmpDoc();
+    OnModify( );
+    DrawPanel->Refresh();
 }

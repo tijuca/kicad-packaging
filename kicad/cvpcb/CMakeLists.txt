@@ -4,40 +4,42 @@ include_directories(${CMAKE_CURRENT_SOURCE_DIR}
                     ${Boost_INCLUDE_DIR}
                     ../3d-viewer
                     ../pcbnew
-                    ../polygon)
+                    ../polygon
+                    ${CMAKE_SOURCE_DIR}/common)
+##
+# Name of target on OSX is also the title of the application
+# on other targets this should be as normal
+##
+if(APPLE)
+	set(CVPCB_NAME CvPCB)
+else(APPLE)
+	set(CVPCB_NAME cvpcb)
+endif(APPLE)
 
 set(CVPCB_SRCS
     autosel.cpp
     cfg.cpp
     class_cvpcb.cpp
+	class_components_listbox.cpp
+    class_DisplayFootprintsFrame.cpp
+	class_footprints_listbox.cpp
     cvframe.cpp
     cvpcb.cpp
-#   dialog_cvpcb_config.cpp
+    dialog_cvpcb_config.cpp
+    dialog_cvpcb_config_fbp.cpp
     dialog_display_options.cpp
-    displayframe.cpp
+    dummy_functions.cpp
     genequiv.cpp
     init.cpp
     listboxes.cpp
     listlib.cpp
     loadcmp.cpp
-    memoire.cpp
     menucfg.cpp
     readschematicnetlist.cpp
     savecmp.cpp
     setvisu.cpp
     tool_cvpcb.cpp
     writenetlistpcbnew.cpp)
-
-set(CVPCB_EXTRA_SRCS
-    ../pcbnew/class_board_item.cpp
-    ../pcbnew/class_drawsegment.cpp
-    ../pcbnew/class_edge_mod.cpp
-    ../pcbnew/class_equipot.cpp
-    ../pcbnew/class_module.cpp
-    ../pcbnew/class_text_mod.cpp
-    ../pcbnew/class_track.cpp
-    ../pcbnew/ioascii.cpp
-    ../pcbnew/tracemod.cpp)
 
 if(WIN32)
     if(MINGW)
@@ -48,19 +50,31 @@ if(WIN32)
     endif(MINGW)
 endif(WIN32)
 
+###
+# CvPCB.app resources
+###
 if(APPLE)
-    set(CVPCB_RESOURCES cvpcb.icns)
+    set(CVPCB_RESOURCES cvpcb.icns cvpcb_doc.icns)
     set_source_files_properties("${CMAKE_CURRENT_SOURCE_DIR}/cvpcb.icns"
+                                PROPERTIES MACOSX_PACKAGE_LOCATION Resources)
+    set_source_files_properties("${CMAKE_CURRENT_SOURCE_DIR}/cvpcb_doc.icns"
                                 PROPERTIES MACOSX_PACKAGE_LOCATION Resources)
     set(MACOSX_BUNDLE_ICON_FILE cvpcb.icns)
     set(MACOSX_BUNDLE_GUI_IDENTIFIER org.kicad-eda.cvpcb)
-    set(MACOSX_BUNDLE_NAME cvpcb)
 endif(APPLE)
 
-add_executable(cvpcb WIN32 MACOSX_BUNDLE ${CVPCB_SRCS} ${CVPCB_EXTRA_SRCS} ${CVPCB_RESOURCES})
+add_executable(${CVPCB_NAME} WIN32 MACOSX_BUNDLE ${CVPCB_SRCS} ${CVPCB_RESOURCES})
 
-target_link_libraries(cvpcb 3d-viewer common polygon bitmaps kbool ${OPENGL_LIBRARIES} ${wxWidgets_LIBRARIES})
+###
+# CvPCB.app creation
+###
+if(APPLE)
+    set_target_properties(${CVPCB_NAME} PROPERTIES MACOSX_BUNDLE_INFO_PLIST ${CMAKE_CURRENT_SOURCE_DIR}/Info.plist)
+endif(APPLE)
 
-install(TARGETS cvpcb
+target_link_libraries(${CVPCB_NAME} 3d-viewer common pcbcommon polygon bitmaps kbool
+                      ${OPENGL_LIBRARIES} ${wxWidgets_LIBRARIES} ${GDI_PLUS_LIBRARIES})
+
+install(TARGETS ${CVPCB_NAME}
         DESTINATION ${KICAD_BIN}
         COMPONENT binary)

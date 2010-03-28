@@ -14,13 +14,14 @@ set(CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/CMakeModules)
 # building minizip.
 option(KICAD_MINIZIP "enable/disable building minizip (default ON)" ON)
 
-# Russian GOST and CYRILLIC patch
-option(KICAD_CYRILLIC "enable/disable building unicode (default OFF)")
+# Russian GOST patch
 option(wxUSE_UNICODE "enable/disable building unicode (default OFF)")
-option(KICAD_GOST "enable/disable building unicode (default OFF)")
+option(KICAD_GOST "enable/disable building using GOST notation for multiple gates per package (default OFF)")
 
-# Comment this out if you don't want to build with Python support.
-# OPTION(KICAD_PYTHON "enable/disable building with Python support (default OFF)")
+option(USE_WX_ZOOM "Use wxDC to perform zooming (default OFF).  Warning, this is experimental" )
+
+option(USE_WX_GRAPHICS_CONTEXT
+       "Use wxGraphicsContext for rendering (default OFF).  Warning, this is experimental")
 
 
 #================================================
@@ -38,10 +39,6 @@ if(CMAKE_COMPILER_IS_GNUCXX)
     set(CMAKE_CXX_FLAGS_DEBUG "-Wall -g3 -ggdb3 -DDEBUG")
 endif(CMAKE_COMPILER_IS_GNUCXX)
 
-if(KICAD_CYRILLIC)
-    add_definitions(-DKICAD_CYRILLIC)
-endif(KICAD_CYRILLIC)
-
 if(wxUSE_UNICODE)
     add_definitions(-DwxUSE_UNICODE)
 endif(wxUSE_UNICODE)
@@ -49,6 +46,16 @@ endif(wxUSE_UNICODE)
 if(KICAD_GOST)
     add_definitions(-DKICAD_GOST)
 endif(KICAD_GOST)
+
+if(USE_WX_ZOOM)
+    add_definitions(-DUSE_WX_ZOOM)
+endif(USE_WX_ZOOM)
+
+if(USE_WX_GRAPHICS_CONTEXT)
+    set( USE_WX_ZOOM ON )
+    add_definitions(-DUSE_WX_ZOOM)
+    add_definitions(-DUSE_WX_GRAPHICS_CONTEXT)
+endif(USE_WX_GRAPHICS_CONTEXT)
 
 # Locations for install targets.
 set(KICAD_BIN bin
@@ -93,7 +100,6 @@ mark_as_advanced(KICAD_BIN
                  KICAD_TEMPLATE)
 
 
-
 #================================================
 # Find libraries that are needed to build KiCad.
 #================================================
@@ -108,8 +114,11 @@ check_find_package_result(OPENGL_FOUND "OpenGL")
 ######################
 # Find Boost library #
 ######################
-find_package(Boost QUIET)
-check_find_package_result(Boost_FOUND "Boost")
+# kicad now includes needed boost files.
+# the two next lines can be uncommented to use the native boost lib.
+# but this is not a good idea
+#find_package(Boost 1.36 QUIET)
+#check_find_package_result(Boost_FOUND "Boost")
 
 ##########################
 # Find wxWidgets library #
@@ -117,9 +126,14 @@ check_find_package_result(Boost_FOUND "Boost")
 # Here you can define what libraries of wxWidgets you need for your
 # application. You can figure out what libraries you need here;
 # http://www.wxwidgets.org/manuals/2.8/wx_librarieslist.html
-find_package(wxWidgets COMPONENTS gl html adv core net base QUIET)
-check_find_package_result(wxWidgets_FOUND "wxWidgets")
 
+# On Apple only wxwidgets 2.9 or higher doesn't need to find aui part of base
+if(APPLE)
+    find_package(wxWidgets COMPONENTS gl adv html core net base QUIET)
+else(APPLE)
+    find_package(wxWidgets COMPONENTS gl aui adv html core net base QUIET)
+endif(APPLE)
+check_find_package_result(wxWidgets_FOUND "wxWidgets")
 
 
 # Include wxWidgets macros.
@@ -127,6 +141,16 @@ include(${wxWidgets_USE_FILE})
 
 # Include MinGW resource compiler.
 include(MinGWResourceCompiler)
+
+# Generate build system specific header file.
+include(PerformFeatureChecks)
+perform_feature_checks()
+
+# Find GDI+ on windows if wxGraphicsContext is available.
+if(WIN32 AND USE_WX_GRAPHICS_CONTEXT)
+    find_package(GdiPlus)
+    check_find_package_result(GDI_PLUS_FOUND "GDI+")
+endif(WIN32 AND USE_WX_GRAPHICS_CONTEXT)
 
 # Automagically create version header file.
 include(CreateSVNVersionHeader)
@@ -145,7 +169,6 @@ endif(EXISTS ${CMAKE_SOURCE_DIR}/include/config.h)
 include_directories(${CMAKE_SOURCE_DIR}/include
                     ${CMAKE_SOURCE_DIR}/share
                     ${CMAKE_BINARY_DIR})
-
 
 
 #================================================
@@ -175,79 +198,58 @@ add_subdirectory(internat)
 add_subdirectory(template)
 
 
-
 #================================================
 # Installation parameters
 #================================================
 install(FILES INSTALL.txt
         DESTINATION ${KICAD_DOCS}
         COMPONENT resources)
-install(FILES freeroute.jnlp
+install(FILES resources/freeroute.jnlp
         DESTINATION ${KICAD_BIN}
         COMPONENT resources)
-
-
+###
+# Install scripts
+###
 if(UNIX)
-    # set resource dir variables
-    #set(KICAD_PROGRAM_ICONS ${CMAKE_INSTALL_PREFIX}/share/kicad/icons)
-    set(LINUX_RESOURCES_DIR resources/linux)
-    set(LINUX_DESKTOP_FILES ${LINUX_RESOURCES_DIR}/opendesktop)
-    set(LINUX_DESKTOP_ICONS ${LINUX_RESOURCES_DIR}/icons)
-
-
-    # Install program icons
-    #add_subdirectory(resources/icons)
-
-    # KiCad desktop file
-    install(FILES ${LINUX_DESKTOP_FILES}/kicad.desktop
-            DESTINATION ${CMAKE_INSTALL_PREFIX}/share/applications
-            COMPONENT resources)
-    # KiCad icon file
-    install(FILES ${LINUX_DESKTOP_ICONS}/kicad.png
-            DESTINATION ${CMAKE_INSTALL_PREFIX}/share/pixmaps
-            COMPONENT resources)
-
-
-
-   # CVpcb desktop file
-   install(FILES ${LINUX_DESKTOP_FILES}/cvpcb.desktop
-           DESTINATION ${CMAKE_INSTALL_PREFIX}/share/applications
-           COMPONENT resources)
-   # CVpcb icon file
-   install(FILES ${LINUX_DESKTOP_ICONS}/kicad_cvpcb.png
-           DESTINATION ${CMAKE_INSTALL_PREFIX}/share/pixmaps
-           COMPONENT resources)
-
-
-
-   # EEschema desktop file
-   install(FILES ${LINUX_DESKTOP_FILES}/eeschema.desktop
-           DESTINATION ${CMAKE_INSTALL_PREFIX}/share/applications
-           COMPONENT resources)
-   # EEschema icon file
-   install(FILES ${LINUX_DESKTOP_ICONS}/kicad_eeschema.png
-           DESTINATION ${CMAKE_INSTALL_PREFIX}/share/pixmaps
-           COMPONENT resources)
-
-
-
-   # GerbView desktop file
-   install(FILES ${LINUX_DESKTOP_FILES}/gerbview.desktop
-           DESTINATION ${CMAKE_INSTALL_PREFIX}/share/applications
-           COMPONENT resources)
-   # GerbView icon file
-   install(FILES ${LINUX_DESKTOP_ICONS}/kicad_gerbview.png
-           DESTINATION ${CMAKE_INSTALL_PREFIX}/share/pixmaps
-           COMPONENT resources)
-
-
-
-   # PCBnew desktop file
-   install(FILES ${LINUX_DESKTOP_FILES}/pcbnew.desktop
-           DESTINATION ${CMAKE_INSTALL_PREFIX}/share/applications
-           COMPONENT resources)
-   # PCBnew icon file
-   install(FILES ${LINUX_DESKTOP_ICONS}/kicad_pcbnew.png
-           DESTINATION ${CMAKE_INSTALL_PREFIX}/share/pixmaps
-           COMPONENT resources)
+    install(DIRECTORY scripts
+            DESTINATION ${KICAD_DOCS}
+            COMPONENT resources
+            PATTERN ".svn" EXCLUDE)
 endif(UNIX)
+###
+# FreeDesktop .desktop and MIME resources
+###
+if(UNIX)
+    # Set paths
+    set(UNIX_MIME_DIR resources/linux/mime)
+    set(UNIX_MIMELNK_FILES ${UNIX_MIME_DIR}/mimelnk)
+    set(UNIX_MIME_FILES ${UNIX_MIME_DIR}/mime)
+    set(UNIX_ICONS_FILES ${UNIX_MIME_DIR}/icons)
+    set(UNIX_APPLICATIONS_FILES ${UNIX_MIME_DIR}/applications)
+
+    # Install Mimelnk directory
+    install(DIRECTORY ${UNIX_MIMELNK_FILES}
+            DESTINATION ${CMAKE_INSTALL_PREFIX}/share
+            COMPONENT resources
+            PATTERN ".svn" EXCLUDE)
+
+    # Install Mime directory
+    install(DIRECTORY ${UNIX_ICONS_FILES}
+            DESTINATION ${CMAKE_INSTALL_PREFIX}/share
+            COMPONENT resources
+            PATTERN ".svn" EXCLUDE)
+
+    # Install Icons
+    install(DIRECTORY ${UNIX_MIME_FILES}
+            DESTINATION ${CMAKE_INSTALL_PREFIX}/share
+            COMPONENT resources
+            PATTERN ".svn" EXCLUDE)
+
+    # Install Applications directory (.desktop files)
+    install(DIRECTORY ${UNIX_APPLICATIONS_FILES}
+            DESTINATION ${CMAKE_INSTALL_PREFIX}/share
+            COMPONENT resources
+            PATTERN ".svn" EXCLUDE)
+endif(UNIX)
+
+include(CTest)

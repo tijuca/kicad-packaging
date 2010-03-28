@@ -3,18 +3,19 @@
 //
 // implementation for kicad and kbool polygon clipping library
 //
-using namespace std;
-
 #include <math.h>
 #include <vector>
 
 #include "fctsys.h"
 
-
 #include "PolyLine.h"
+#include "gr_basic.h"
+#include "bezier_curves.h"
+
+using namespace std;
 
 
-#define pi 3.14159265359
+#define pi M_PI
 
 CPolyLine::CPolyLine()
 {
@@ -480,7 +481,9 @@ int CPolyLine::MakeKboolPoly( int aStart_contour, int aEnd_contour, std::vector<
         }
 
         if( n_vertices != ivtx )
+        {
             wxASSERT( 0 );
+        }
 
         //  close list added to the bool engine
         booleng->EndPolygonAdd();
@@ -537,13 +540,20 @@ void ArmBoolEng( Bool_Engine* aBooleng, bool aConvertHoles )
       Within the algorithm all input data is multiplied with DGRID, and the result
       is rounded to an integer.
    */
-    double DGRID = 1.0;     // round coordinate X or Y value in calculations to this (initial value = 1000.0 in kbool example)
-                            // Note: in kicad, coordinates are already integer so DGRID can be set to 1
+    double DGRID = 1000.0;     // round coordinate X or Y value in calculations to this (initial value = 1000.0 in kbool example)
+                            // kbool uses DGRID to convert float user units to integer
+                            // kbool unit = (int)(user unit * DGRID)
+                            // Note: in kicad, coordinates are already integer so DGRID could be set to 1
+                            // we can choose 1.0,
+                            // but choose DGRID = 1000.0 solves some filling problems
+//                             (perhaps because this allows a better precision in kbool internal calculations
 
-    double MARGE = 0.001;     // snap with in this range points to lines in the intersection routines
-                            // should always be > DGRID  a  MARGE >= 10*DGRID is ok
-                            // this is also used to remove small segments and to decide when
-                            // two segments are in line. ( initial value = 0.001 )
+    double MARGE = 1.0/DGRID;      // snap with in this range points to lines in the intersection routines
+                                    // should always be >= 1/DGRID  a  MARGE >= 10/DGRID is ok
+                                    // this is also used to remove small segments and to decide when
+                                    // two segments are in line. ( initial value = 0.001 )
+                                    // For kicad we choose MARGE = 1/DGRID
+
     double CORRECTIONFACTOR = 0.0;      // correct the polygons by this number: used in BOOL_CORRECTION operation
                                         // this operation shrinks a polygon if CORRECTIONFACTOR < 0
                                         // or stretch it if CORRECTIONFACTOR > 0
@@ -561,7 +571,13 @@ void ArmBoolEng( Bool_Engine* aBooleng, bool aConvertHoles )
         Another scaling with Grid is applied on top of it to create space in the integer number for
 		even smaller numbers.
    */
-    int GRID = 10000;       // initial value = 10000 in kbool example
+    int GRID = (int) 10000/DGRID;       // initial value = 10000 in kbool example
+                                        // But we use 10000/DGRID because the scalling is made
+                                        // by DGRID on integer pcbnew units and
+                                        // the global scalling ( GRID*DGRID) must be < 30000 to avoid
+                                        // overflow in calculations (made in long long in kbool)
+    if ( GRID <= 1 )    // Cannot be null!
+        GRID = 1;
 
     aBooleng->SetMarge( MARGE );
     aBooleng->SetGrid( GRID );
@@ -571,9 +587,14 @@ void ArmBoolEng( Bool_Engine* aBooleng, bool aConvertHoles )
     aBooleng->SetSmoothAber( SMOOTHABER );
     aBooleng->SetMaxlinemerge( MAXLINEMERGE );
     aBooleng->SetRoundfactor( ROUNDFACTOR );
+    aBooleng->SetWindingRule( TRUE );           // This is the default kbool value
 
     if( aConvertHoles )
     {
+#if 1   // Can be set to 1 for kbool version >= 2.1, must be set to 0 for previous versions
+        // SetAllowNonTopHoleLinking() exists only in kbool >= 2.1
+        aBooleng->SetAllowNonTopHoleLinking( false );    // Default = true, but i have problems (filling errors) when true
+#endif
         aBooleng->SetLinkHoles( true );                 // holes will be connected by double overlapping segments
         aBooleng->SetOrientationEntryMode( false );     // all polygons are contours, not holes
     }
@@ -785,7 +806,9 @@ void CPolyLine::AppendCorner( int x, int y, int style, bool bDraw )
 void CPolyLine::Close( int style, bool bDraw )
 {
     if( GetClosed() )
+    {
         wxASSERT( 0 );
+    }
     Undraw();
     side_style[corner.size() - 1] = style;
     corner[corner.size() - 1].end_contour = TRUE;
@@ -1339,7 +1362,9 @@ void CPolyLine::Hatch()
 bool CPolyLine::TestPointInside( int px, int py )
 {
     if( !GetClosed() )
+    {
         wxASSERT( 0 );
+    }
 
     // define line passing through (x,y), with slope = 2/3;
     // get intersection points
@@ -1416,7 +1441,9 @@ bool CPolyLine::TestPointInsideContour( int icont, int px, int py )
     if( icont >= GetNumContours() )
         return FALSE;
     if( !GetClosed() )
+    {
         wxASSERT( 0 );
+    }
 
 // define line passing through (x,y), with slope = 2/3;
 // get intersection points
@@ -1488,14 +1515,11 @@ bool CPolyLine::TestPointInsideContour( int icont, int px, int py )
 void CPolyLine::Copy( CPolyLine* src )
 {
     Undraw();
-
-    // copy corners
-    for( unsigned ii = 0; ii < src->corner.size(); ii++ )
-        corner.push_back( src->corner[ii] );
-
-    // copy side styles
-    for( unsigned ii = 0; ii < src->side_style.size(); ii++ )
-        side_style.push_back( src->side_style[ii] );
+    m_HatchStyle = src->m_HatchStyle;
+    // copy corners, using vector copy
+    corner = src->corner;
+    // copy side styles, using vector copy
+    side_style = src->side_style;
 }
 
 
@@ -1572,3 +1596,21 @@ void CPolyLine::AppendArc( int xi, int yi, int xf, int yf, int xc, int yc, int n
 
     Close( STRAIGHT );
 }
+
+// Bezier Support
+void CPolyLine::AppendBezier(int x1, int y1, int x2, int y2, int x3, int y3) {
+    std::vector<wxPoint> bezier_points;
+
+    bezier_points = Bezier2Poly(x1,y1,x2,y2,x3,y3);
+    for( unsigned int i = 0; i < bezier_points.size() ; i++)
+        AppendCorner( bezier_points[i].x, bezier_points[i].y);
+}
+
+void CPolyLine::AppendBezier(int x1, int y1, int x2, int y2, int x3, int y3, int x4, int y4){
+    std::vector<wxPoint> bezier_points;
+
+    bezier_points = Bezier2Poly(x1,y1,x2,y2,x3,y3,x4,y4);
+    for( unsigned int i = 0; i < bezier_points.size() ; i++)
+        AppendCorner( bezier_points[i].x, bezier_points[i].y);
+}
+

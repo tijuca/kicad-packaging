@@ -3,8 +3,7 @@
 /************/
 
 /*
- *  Fonctions de gestion du zoom, du pas de grille et du
- *  recadrage automatique
+ * Manage zoom, grid step, and auto crop.
  */
 
 #include "fctsys.h"
@@ -15,10 +14,8 @@
 #include "class_drawpanel.h"
 #include "class_base_screen.h"
 #include "wxstruct.h"
-
-/**************************************************/
-void WinEDA_DrawFrame::Recadre_Trace( bool ToMouse )
-/**************************************************/
+#include "kicad_device_context.h"
+#include "hotkeys_basic.h"
 
 /** Compute draw offset (scroll bars and draw parameters)
  *  in order to have the current graphic cursor position at the screen center
@@ -27,69 +24,71 @@ void WinEDA_DrawFrame::Recadre_Trace( bool ToMouse )
  *
  *  Note: Mac OS ** does not ** allow moving mouse cursor by program.
  */
+void WinEDA_DrawFrame::Recadre_Trace( bool ToMouse )
 {
     PutOnGrid( &(GetBaseScreen()->m_Curseur) );
     AdjustScrollBars();
-    ReDrawPanel();
+
+
+    /* We do not use here DrawPanel->Refresh() because
+     * the redraw is delayed and the mouse events (from MouseToCursorSchema ot others)
+     * during this delay create problems: the mouse cursor position is false in calculations.
+     * TODO: see exactly how the mouse creates problems when moving during refresh
+     * use Refresh() and update() do not change problems
+     */
+    INSTALL_DC( dc, DrawPanel );
+    DrawPanel->ReDraw( &dc );
 
     /* Move the mouse cursor to the on grid graphic cursor position */
     if( ToMouse == TRUE )
-    {
         DrawPanel->MouseToCursorSchema();
-    }
-}
+ }
 
 
-/************************************************/
-void WinEDA_DrawFrame::PutOnGrid( wxPoint* coord )
-/************************************************/
 /** Adjust the coordinate to the nearest grid value
-* @param coord = coordinate to adjust
-*/
+ * @param coord = coordinate to adjust
+ */
+void WinEDA_DrawFrame::PutOnGrid( wxPoint* coord )
 {
-    wxRealPoint grid_size = GetBaseScreen()->GetGrid();
+    wxRealPoint grid_size = GetBaseScreen()->GetGridSize();
 
     if( !GetBaseScreen()->m_UserGridIsON )
     {
-        int tmp = (int) round( coord->x / grid_size.x );
-        coord->x = (int) round(  tmp * grid_size.x );
+        int tmp = wxRound( (double) coord->x / grid_size.x );
+        coord->x = wxRound( (double) tmp * grid_size.x );
 
-        tmp = (int) round( coord->y / grid_size.y );
-        coord->y = (int) round ( tmp * grid_size.y );
+        tmp = wxRound( (double) coord->y / grid_size.y );
+        coord->y = wxRound( (double) tmp * grid_size.y );
     }
 }
 
 
-/**************************************************************/
-void WinEDA_DrawFrame::Zoom_Automatique( bool move_mouse_cursor )
-/**************************************************************/
-
-/** Redraw the screen with the zoom level which shows all the page or the board
+/** Redraw the screen with best zoom level and the best centering
+ * that shows all the page or the board
  */
+void WinEDA_DrawFrame::Zoom_Automatique( bool move_mouse_cursor )
 {
-    if( GetBaseScreen()->SetZoom( BestZoom() ) )
-        Recadre_Trace( move_mouse_cursor );
+    GetBaseScreen()->SetZoom( BestZoom() ); // Set the best zoom
+    Recadre_Trace( move_mouse_cursor );     // Set the best centering and refresh the screen
 }
 
-
-/*************************************************/
-void WinEDA_DrawFrame::Window_Zoom( EDA_Rect& Rect )
-/*************************************************/
 
 /** Compute the zoom factor and the new draw offset to draw the
  *  selected area (Rect) in full window screen
  *  @param Rect = selected area to show after zooming
  */
+void WinEDA_DrawFrame::Window_Zoom( EDA_Rect& Rect )
 {
-    double   scalex, bestscale;
+    double scalex, bestscale;
     wxSize size;
 
     /* Compute the best zoom */
     Rect.Normalize();
-    size     = DrawPanel->GetClientSize();
+    size = DrawPanel->GetClientSize();
+
     // Use ceil to at least show the full rect
-    scalex       = (double) Rect.GetSize().x / size.x;
-    bestscale       = (double)Rect.GetSize().y / size.y;
+    scalex    = (double) Rect.GetSize().x / size.x;
+    bestscale = (double) Rect.GetSize().y / size.y;
     bestscale = MAX( bestscale, scalex );
 
     GetBaseScreen()->SetScalingFactor( bestscale );
@@ -98,19 +97,13 @@ void WinEDA_DrawFrame::Window_Zoom( EDA_Rect& Rect )
 }
 
 
-/******************************************************/
-void WinEDA_DrawFrame::OnZoom( wxCommandEvent& event )
-/******************************************************/
-/** Function OnZoom(
+/** Function OnZoom
  * Called from any zoom event (toolbar , hotkey or popup )
  */
+void WinEDA_DrawFrame::OnZoom( wxCommandEvent& event )
 {
     if( DrawPanel == NULL )
-    {
-        wxLogDebug( wxT( "No DrawPanel object defined in " \
-                         "WinEDA_DrawFrame::OnZoom()." ) );
         return;
-    }
 
     int          i;
     int          id = event.GetId();
@@ -121,7 +114,8 @@ void WinEDA_DrawFrame::OnZoom( wxCommandEvent& event )
     {
     case ID_POPUP_ZOOM_IN:
         zoom_at_cursor = true;
-        // fall thru
+
+    // fall thru
 
     case ID_ZOOM_IN:
         if( id == ID_ZOOM_IN )
@@ -132,7 +126,8 @@ void WinEDA_DrawFrame::OnZoom( wxCommandEvent& event )
 
     case ID_POPUP_ZOOM_OUT:
         zoom_at_cursor = true;
-        // fall thru
+
+    // fall thru
 
     case ID_ZOOM_OUT:
         if( id == ID_ZOOM_OUT )
@@ -142,9 +137,7 @@ void WinEDA_DrawFrame::OnZoom( wxCommandEvent& event )
         break;
 
     case ID_ZOOM_REDRAW:
-        // DrawPanel->Refresh(); usually good,
-        // but does not work under linux, when called from here (wxGTK bug ?)
-        ReDrawPanel();
+        DrawPanel->Refresh();
         break;
 
     case ID_POPUP_ZOOM_CENTER:
@@ -165,107 +158,100 @@ void WinEDA_DrawFrame::OnZoom( wxCommandEvent& event )
     default:
         i = id - ID_POPUP_ZOOM_LEVEL_START;
 
-        if( i < 0 )
+        if( ( i < 0 ) || ( (size_t) i >= screen->m_ZoomList.GetCount() ) )
         {
-            wxLogDebug( wxT( "WinEDA_DrawFram::OnZoom() invalid ID %d" ), id );
-            return;
-        }
-        if( !( (size_t) i < screen->m_ZoomList.GetCount()) )
-        {
-            wxLogDebug( _T( "Requested index %d is outside the bounds of " \
-                            "the zoom list." ), i );
+            wxLogDebug( wxT( "%s %d: index %d is outside the bounds of the zoom list." ),
+                        __TFILE__, __LINE__, i );
             return;
         }
         if( screen->SetZoom( screen->m_ZoomList[i] ) )
             Recadre_Trace( true );
     }
 
-    Affiche_Status_Box();
+    UpdateStatusBar();
 }
 
-void WinEDA_DrawPanel::OnPopupGridSelect( wxCommandEvent& event )
-{
-    GetScreen()->SetGrid( event.GetId() );
-    Refresh();
-}
-
-/*************************************************************/
-void WinEDA_DrawPanel::AddMenuZoom( wxMenu* MasterMenu )
-/*************************************************************/
 
 /* add the zoom list menu the the MasterMenu.
  *  used in OnRightClick(wxMouseEvent& event)
  */
+void WinEDA_DrawFrame::AddMenuZoomAndGrid( wxMenu* MasterMenu )
 {
-    size_t      i;
     int         maxZoomIds;
     int         zoom;
-    wxRealPoint      grid;
     wxString    msg;
-    GRID_TYPE   tmp;
-    wxMenu*     gridMenu;
-    double      gridValue;
+    BASE_SCREEN * screen = DrawPanel->GetScreen();
 
-    ADD_MENUITEM( MasterMenu, ID_POPUP_ZOOM_CENTER, _( "Center" ),
-                  zoom_center_xpm );
-    ADD_MENUITEM( MasterMenu, ID_POPUP_ZOOM_IN, _( "Zoom in" ), zoom_in_xpm );
-    ADD_MENUITEM( MasterMenu, ID_POPUP_ZOOM_OUT, _( "Zoom out" ), zoom_out_xpm );
-    ADD_MENUITEM( MasterMenu, ID_ZOOM_PAGE, _( "Zoom auto" ), zoom_auto_xpm );
+    msg = AddHotkeyName( _( "Center" ), m_HotkeysZoomAndGridList, HK_ZOOM_CENTER );
+    ADD_MENUITEM( MasterMenu, ID_POPUP_ZOOM_CENTER, msg, zoom_center_xpm );
+    msg = AddHotkeyName( _( "Zoom in" ), m_HotkeysZoomAndGridList, HK_ZOOM_IN );
+    ADD_MENUITEM( MasterMenu, ID_POPUP_ZOOM_IN, msg, zoom_in_xpm );
+    msg = AddHotkeyName( _( "Zoom out" ), m_HotkeysZoomAndGridList, HK_ZOOM_OUT );
+    ADD_MENUITEM( MasterMenu, ID_POPUP_ZOOM_OUT, msg, zoom_out_xpm );
+    msg = AddHotkeyName( _( "Redraw view" ), m_HotkeysZoomAndGridList, HK_ZOOM_REDRAW );
+    ADD_MENUITEM( MasterMenu, ID_ZOOM_REDRAW, msg, zoom_redraw_xpm );
+    msg = AddHotkeyName( _( "Zoom auto" ), m_HotkeysZoomAndGridList, HK_ZOOM_AUTO );
+    ADD_MENUITEM( MasterMenu, ID_ZOOM_PAGE, msg, zoom_auto_xpm );
+
 
     wxMenu* zoom_choice = new wxMenu;
     ADD_MENUITEM_WITH_SUBMENU( MasterMenu, zoom_choice,
                                ID_POPUP_ZOOM_SELECT, _( "Zoom select" ),
                                zoom_select_xpm );
 
-    ADD_MENUITEM( MasterMenu, ID_ZOOM_REDRAW, _( "Redraw view" ),
-                  zoom_redraw_xpm );
-
-    zoom = GetScreen()->GetZoom();
+    zoom = screen->GetZoom();
     maxZoomIds = ID_POPUP_ZOOM_LEVEL_END - ID_POPUP_ZOOM_LEVEL_START;
-    maxZoomIds = ( (size_t) maxZoomIds < GetScreen()->m_ZoomList.GetCount() ) ?
-        maxZoomIds : GetScreen()->m_ZoomList.GetCount();
-    wxLogDebug( _T( "%d zoom IDs used." ), maxZoomIds );
+    maxZoomIds = ( (size_t) maxZoomIds < screen->m_ZoomList.GetCount() ) ?
+                 maxZoomIds : screen->m_ZoomList.GetCount();
 
     /* Populate zoom submenu. */
-    for( i = 0; i < (size_t) maxZoomIds; i++ )
+    for( int i = 0; i < maxZoomIds; i++ )
     {
-        if ( (GetScreen()->m_ZoomList[i] % GetScreen()->m_ZoomScalar) == 0 )
-            msg.Printf( wxT( "%u" ), GetScreen()->m_ZoomList[i] / GetScreen()->m_ZoomScalar);
+        if( ( screen->m_ZoomList[i] % screen->m_ZoomScalar ) == 0 )
+            msg.Printf( wxT( "%u" ),
+                        screen->m_ZoomList[i] / screen->m_ZoomScalar );
         else
-            msg.Printf(wxT("%.1f"),(float)GetScreen()->m_ZoomList[i] / GetScreen()->m_ZoomScalar );
+            msg.Printf( wxT( "%.1f" ),
+                        (float) screen->m_ZoomList[i] /
+                        screen->m_ZoomScalar );
 
         zoom_choice->Append( ID_POPUP_ZOOM_LEVEL_START + i, _( "Zoom: " ) + msg,
                              wxEmptyString, wxITEM_CHECK );
-        if( zoom == GetScreen()->m_ZoomList[i] )
+        if( zoom == screen->m_ZoomList[i] )
             zoom_choice->Check( ID_POPUP_ZOOM_LEVEL_START + i, true );
     }
 
     /* Create grid submenu as required. */
-    if( !GetScreen()->m_GridList.IsEmpty() )
+    if( !screen->m_GridList.IsEmpty() )
     {
-        gridMenu = new wxMenu;
+        wxMenu* gridMenu = new wxMenu;
         ADD_MENUITEM_WITH_SUBMENU( MasterMenu, gridMenu,
                                    ID_POPUP_GRID_SELECT, _( "Grid Select" ),
                                    grid_select_xpm );
 
-        grid = GetScreen()->GetGrid();
+        GRID_TYPE   tmp;
+        wxRealPoint grid = screen->GetGridSize();
 
-        for( i = 0; i < GetScreen()->m_GridList.GetCount(); i++ )
+        for( unsigned i = 0; i < screen->m_GridList.GetCount(); i++ )
         {
-            tmp = GetScreen()->m_GridList[i];
-            gridValue = To_User_Unit( g_UnitMetric, tmp.m_Size.x,
-                                      ( (WinEDA_DrawFrame*)m_Parent )->m_InternalUnits );
+            tmp = screen->m_GridList[i];
+            double gridValueInch = To_User_Unit( 0, tmp.m_Size.x,
+                                      m_InternalUnits );
+            double gridValue_mm = To_User_Unit( 1, tmp.m_Size.x,
+                                      m_InternalUnits );
+
             if( tmp.m_Id == ID_POPUP_GRID_USER )
             {
                 msg = _( "User Grid" );
             }
             else
             {
-                if ( g_UnitMetric == 0 )	// inches
-                    msg.Printf( wxT( "%.1f mils" ), gridValue * 1000 );
+                if( g_UnitMetric == 0 )     // inches
+                    msg.Printf( wxT( "%.1f mils\t(%.3f mm)" ),
+                                gridValueInch * 1000, gridValue_mm );
                 else
-                    msg.Printf( wxT( "%.3f mm" ), gridValue );
-                msg = _( "Grid: " ) + msg;
+                    msg.Printf( wxT( "%.3f mm\t(%.1f mils)" ),
+                                gridValue_mm, gridValueInch * 1000 );
             }
             gridMenu->Append( tmp.m_Id, msg, wxEmptyString, true );
             if( grid == tmp.m_Size )

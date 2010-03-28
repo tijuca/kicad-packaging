@@ -1,11 +1,11 @@
-	/***************/
-	/* genorcad()  */
-	/***************/
+/*****************/
+/* genorcad.cpp  */
+/*****************/
 
 /*
-ComplŠte la netliste (*.NET) en y placant les ref *.lib FORMAT ORCADPCB
-La valeur (Part Value) est tronquee a 16 lettres
-*/
+ * Create the netlist (* NET) by placing the *.lib ref FORMAT ORCADPCB
+ * The value (share value) is truncated to 16 letters.
+ */
 
 #include "fctsys.h"
 
@@ -16,186 +16,160 @@ La valeur (Part Value) est tronquee a 16 lettres
 
 #define MAX_LEN_NETNAME 16
 
-/* Routines locales */
-static void TriPinsModule( STORECMP * CurrentCmp );
-static int PinCompare(const void *cmp1, const void *cmp2);
-static void ChangePinNet(  wxString &  PinNet );
 
-/* Variables Locales */
-int NetNumCode;			/* Nombre utilise pour cree des NetNames lors de
-						reaffectation de NetNames */
+static void TriPinsModule( COMPONENT* CurrentCmp );
+static void ChangePinNet(  wxString& PinNet, bool rightJustify );
 
-int genorcad()
+
+int NetNumCode;         /* Number of used for NetNames created during
+                         * reallocation of NetNames. */
+
+int genorcad( bool rightJustify )
 {
-char Line[1024];
-STOREPIN * Pin;
-STORECMP * CurrentCmp;
-wxString Title = g_Main_Title + wxT(" ") + GetBuildVersion();
+    char       Line[1024];
+    PIN*       Pin;
+    COMPONENT* CurrentCmp;
+    wxString   Title = wxGetApp().GetAppName() + wxT( " " ) + GetBuildVersion();
 
-	NetNumCode = 1; DateAndTime(Line);
-	fprintf(dest,"( { Netlist by %s, date = %s }\n",
-		CONV_TO_UTF8(Title), Line ) ;
+    NetNumCode = 1; DateAndTime( Line );
+    fprintf( dest, "( { Netlist by %s, date = %s }\n",
+             CONV_TO_UTF8( Title ), Line );
 
-	  /***********************/
-	  /* Lecture de la liste */
-	  /***********************/
+    CurrentCmp = BaseListeCmp;
+    for( ; CurrentCmp != NULL; CurrentCmp = CurrentCmp->Pnext )
+    {
+        fprintf( dest, " ( %s ", CONV_TO_UTF8( CurrentCmp->m_TimeStamp ) );
 
-	CurrentCmp = BaseListeCmp;
-	for( ; CurrentCmp != NULL; CurrentCmp = CurrentCmp->Pnext)
-	{
-		fprintf(dest," ( %s ", CONV_TO_UTF8(CurrentCmp->m_TimeStamp));
+        if( !CurrentCmp->m_Module.IsEmpty() )
+            fprintf( dest, CONV_TO_UTF8( CurrentCmp->m_Module ) );
 
-		if( ! CurrentCmp->m_Module.IsEmpty() )
-			fprintf(dest, CONV_TO_UTF8(CurrentCmp->m_Module));
+        else
+            fprintf( dest, "$noname$" );
 
-		else fprintf(dest,"$noname$") ;
+        fprintf( dest, " %s ", CONV_TO_UTF8( CurrentCmp->m_Reference ) );
 
-		fprintf(dest," %s ",CONV_TO_UTF8(CurrentCmp->m_Reference)) ;
+        fprintf( dest, "%s\n", CONV_TO_UTF8( CurrentCmp->m_Value ) );
 
-		/* placement de la valeur */
-		fprintf(dest,"%s\n",CONV_TO_UTF8(CurrentCmp->m_Valeur)) ;
+        /* Sort pins. */
+        TriPinsModule( CurrentCmp );
 
-		/* Tri des pins */
-		TriPinsModule( CurrentCmp );
+        Pin = CurrentCmp->m_Pins;
+        for( ; Pin != NULL; Pin = Pin->Pnext )
+        {
+            if( Pin->m_PinNet.Len() > MAX_LEN_NETNAME )
+                ChangePinNet( Pin->m_PinNet, rightJustify );
 
-		/* Placement de la liste des pins */
-		Pin = CurrentCmp->m_Pins;
-		for( ; Pin != NULL; Pin = Pin->Pnext )
-		{
-			if( Pin->m_PinNet.Len() > MAX_LEN_NETNAME)
-				ChangePinNet( Pin->m_PinNet );
-				
-			if( ! Pin->m_PinNet.IsEmpty() )
-				fprintf(dest,"  ( %s %s )\n",
-					CONV_TO_UTF8(Pin->m_PinNum),
-					CONV_TO_UTF8(Pin->m_PinNet));
-			else
-				fprintf(dest,"  ( %s ? )\n", CONV_TO_UTF8(Pin->m_PinNum));
-		}
-		fprintf(dest," )\n");
-	}
-	fprintf(dest,")\n*\n");
-	fclose(dest);
-	return(0);
+            if( !Pin->m_PinNet.IsEmpty() )
+                fprintf( dest, "  ( %s %s )\n",
+                         CONV_TO_UTF8( Pin->m_PinNum ),
+                         CONV_TO_UTF8( Pin->m_PinNet ) );
+            else
+                fprintf( dest, "  ( %s ? )\n", CONV_TO_UTF8( Pin->m_PinNum ) );
+        }
+
+        fprintf( dest, " )\n" );
+    }
+
+    fprintf( dest, ")\n*\n" );
+    fclose( dest );
+    return 0;
 }
 
 
-
-/***********************************************/
-static void TriPinsModule( STORECMP * CurrentCmp )
-/***********************************************/
-/* Tri et controle des pins du module CurrentCmp
-*/
+/* Sort pins */
+static void TriPinsModule( COMPONENT* CurrentCmp )
 {
-STOREPIN * Pin, * NextPin, ** BasePin;
-int nbpins = 0, ii;
+    PIN* Pin, * NextPin, ** BasePin;
+    int  nbpins = 0, ii;
 
-	Pin = CurrentCmp->m_Pins;
-	if( Pin == NULL ) return;
+    Pin = CurrentCmp->m_Pins;
+    if( Pin == NULL )
+        return;
 
-	/* comptage des pins */
-	for( ; Pin != NULL ; Pin = Pin->Pnext ) nbpins++;
+    for( ; Pin != NULL; Pin = Pin->Pnext )
+        nbpins++;
 
-	/* Tri des pins: etablissement de la liste des pointeurs */
-	BasePin = (STOREPIN ** )MyZMalloc( nbpins * sizeof(STOREPIN*) );
+    BasePin = (PIN**) MyZMalloc( nbpins * sizeof(PIN*) );
 
-	Pin = CurrentCmp->m_Pins;
-	for( ii = 0 ; ii < nbpins ; ii++, Pin = Pin->Pnext )
-	{
-		BasePin[ii] = Pin;
-	}
-	/* Tri des Pins */
-	qsort( BasePin, nbpins, sizeof( STORECMP*), PinCompare) ;
+    Pin = CurrentCmp->m_Pins;
+    for( ii = 0; ii < nbpins; ii++, Pin = Pin->Pnext )
+    {
+        BasePin[ii] = Pin;
+    }
 
-	/* Remise a jour des pointeurs chaines */
-	for( ii = 0 ; ii < nbpins-1 ; ii++ )
-	{
-		BasePin[ii]->Pnext = BasePin[ii+1];
-	}
-	BasePin[ii]->Pnext = NULL;
-	CurrentCmp->m_Pins = BasePin[0];
+    qsort( BasePin, nbpins, sizeof( COMPONENT*), PinCompare );
 
-	MyFree(BasePin);
+    for( ii = 0; ii < nbpins - 1; ii++ )
+    {
+        BasePin[ii]->Pnext = BasePin[ii + 1];
+    }
 
-	/* Elimination des redondances */
-	Pin = CurrentCmp->m_Pins;
-	while( Pin != NULL)
-	{
-		NextPin = Pin->Pnext;
-		if ( NextPin == NULL ) break;
-		if( Pin->m_PinNum != NextPin->m_PinNum )
-		{
-			Pin = Pin->Pnext;  continue;
-		}
-		/* 2 pins successives ont le meme numero */
-		if( Pin->m_PinNet != NextPin->m_PinNet )
-		{
-			wxString msg;
-			msg.Printf( _("%s %s pin %s : Different Nets"),
-					CurrentCmp->m_Reference.GetData(),CurrentCmp->m_Valeur.GetData(),
-					Pin->m_PinNum.GetData());
-			DisplayError(NULL, msg, 60 );
-		}
-		Pin->Pnext = NextPin->Pnext;
-		delete NextPin;
-	}
+    BasePin[ii]->Pnext = NULL;
+    CurrentCmp->m_Pins = BasePin[0];
+
+    MyFree( BasePin );
+
+    /* Remove duplicate pins. */
+    Pin = CurrentCmp->m_Pins;
+    while( Pin != NULL )
+    {
+        NextPin = Pin->Pnext;
+        if( NextPin == NULL )
+            break;
+        if( Pin->m_PinNum != NextPin->m_PinNum )
+        {
+            Pin = Pin->Pnext;  continue;
+        }
+        /* Successive 2 pins have the same number. */
+        if( Pin->m_PinNet != NextPin->m_PinNet )
+        {
+            wxString msg;
+            msg.Printf( _( "%s %s pin %s : Different Nets" ),
+                        CurrentCmp->m_Reference.GetData(),
+                        CurrentCmp->m_Value.GetData(),
+                        Pin->m_PinNum.GetData() );
+            DisplayError( NULL, msg, 60 );
+        }
+        Pin->Pnext = NextPin->Pnext;
+        delete NextPin;
+    }
 }
 
 
-/*******************************************************/
-static int PinCompare(const void *cmp1,const void *cmp2)
-/*******************************************************/
-/*
-routine PinCompare() pour qsort() pour classement alphabetique
-	pour tri de la liste des Pins
-*/
+/* ???
+ *
+ * Change le NetName PinNet par un nom compose des 8 derniers codes de PinNet
+ * suivi de _Xnnnnn ou nnnnn est un nom de 0 a 99999
+ */
+static void ChangePinNet( wxString& PinNet, bool rightJustify )
 {
-STOREPIN **pt1 , **pt2 ;
-int ii;
+    PIN*       Pin;
+    COMPONENT* CurrentCmp;
+    int        ii;
+    wxString   OldName;
+    wxString   NewName;
 
-	pt1 = (STOREPIN**)cmp1;
-	pt2 = (STOREPIN**)cmp2;
+    OldName = PinNet;
+    ii = PinNet.Len();
+    if( rightJustify )  /* Retain the last 8 letters of the name. */
+    {
+        NewName = OldName.Right( 8 ); NewName << NetNumCode;
+    }
+    else                /* Retains the 8 first letters of the name. */
+    {
+        NewName = OldName.Left( 8 ); NewName << NetNumCode;
+    }
+    NetNumCode++;
 
-	ii = StrLenNumICmp( (*pt1)->m_PinNum.GetData(), (*pt2)->m_PinNum.GetData(), 4);
-	return(ii);
+    CurrentCmp = BaseListeCmp;
+    for( ; CurrentCmp != NULL; CurrentCmp = CurrentCmp->Pnext )
+    {
+        Pin = CurrentCmp->m_Pins;
+        for( ; Pin != NULL; Pin = Pin->Pnext )
+        {
+            if( Pin->m_PinNet != OldName )
+                continue;
+            Pin->m_PinNet = NewName;
+        }
+    }
 }
-
-
-/*******************************************/
-static void ChangePinNet( wxString & PinNet )
-/*******************************************/
-/* Change le NetName PinNet par un nom compose des 8 derniers codes de PinNet
-	suivi de _Xnnnnn ou nnnnn est un nom de 0 a 99999
-*/
-{
-STOREPIN * Pin;
-STORECMP * CurrentCmp;
-int ii;
-wxString OldName;
-wxString NewName;
-
-	OldName = PinNet;
-	ii = PinNet.Len();
-	if( Rjustify )  /* On conserve les 8 dernieres lettres du nom */
-	{
-		NewName= OldName.Right(8); NewName << NetNumCode;
-	}
-
-	else			 /* On conserve les 8 premieres lettres du nom */
-	{
-		NewName = OldName.Left(8); NewName << NetNumCode;
-	}
-	NetNumCode ++;
-
-	CurrentCmp = BaseListeCmp;
-	for( ; CurrentCmp != NULL; CurrentCmp = CurrentCmp->Pnext)
-	{
-		Pin = CurrentCmp->m_Pins;
-		for( ; Pin != NULL; Pin = Pin->Pnext )
-		{
-			if( Pin->m_PinNet != OldName ) continue;
-			Pin->m_PinNet = NewName;
-		}
-	}
-}
-

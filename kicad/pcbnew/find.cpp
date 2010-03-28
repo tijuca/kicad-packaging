@@ -1,13 +1,6 @@
-/***************************************************/
-/* PCBNEW - Gestion des Recherches (fonction Find) */
-/***************************************************/
-
-/*   Fichier find.cpp   */
-
-/*
- *  Affichage et modifications des parametres de travail de PcbNew
- *  Parametres = dimensions des via, pistes, isolements, options...
- */
+/********************************************/
+/* PCBNEW - Find dialog box implementation. */
+/********************************************/
 
 
 #include "fctsys.h"
@@ -17,21 +10,20 @@
 #include "confirm.h"
 #include "kicad_string.h"
 #include "pcbnew.h"
+#include "wxPcbStruct.h"
 
-#include "id.h"
+#include "pcbnew_id.h"
 
 #include "protos.h"
 
 #include "find.h"
 
-/*Local Variables */
+
 static wxString s_OldStringFound;
 static int      s_ItemCount, s_MarkerCount;
 
 
-/*********************************************************************/
 void WinEDA_PcbFrame::InstallFindFrame( const wxPoint& pos, wxDC* DC )
-/*********************************************************************/
 {
     WinEDA_PcbFindFrame* frame = new WinEDA_PcbFindFrame( this, DC, pos );
 
@@ -40,15 +32,13 @@ void WinEDA_PcbFrame::InstallFindFrame( const wxPoint& pos, wxDC* DC )
 }
 
 
-/*******************************************************/
 void WinEDA_PcbFindFrame::FindItem( wxCommandEvent& event )
-/********************************************************/
 {
-    PCB_SCREEN* screen = (PCB_SCREEN*)(m_Parent->GetScreen());
+    PCB_SCREEN* screen = (PCB_SCREEN*) ( m_Parent->GetScreen() );
     wxPoint     locate_pos;
     wxString    msg;
     bool        FindMarker = FALSE;
-    BOARD_ITEM* foundItem = 0;
+    BOARD_ITEM* foundItem  = 0;
 
     switch( event.GetId() )
     {
@@ -58,7 +48,8 @@ void WinEDA_PcbFindFrame::FindItem( wxCommandEvent& event )
 
     case ID_FIND_MARKER:
         s_MarkerCount = 0;
-        // fall thru
+
+    // fall thru
 
     case ID_FIND_NEXT_MARKER:
         FindMarker = TRUE;
@@ -67,11 +58,12 @@ void WinEDA_PcbFindFrame::FindItem( wxCommandEvent& event )
 
     s_OldStringFound = m_NewText->GetValue();
 
-    m_Parent->DrawPanel->GetViewStart( &screen->m_StartVisu.x, &screen->m_StartVisu.y );
+    m_Parent->DrawPanel->GetViewStart( &screen->m_StartVisu.x,
+                                       &screen->m_StartVisu.y );
 
     if( FindMarker )
     {
-        MARKER* marker = m_Parent->GetBoard()->GetMARKER( s_MarkerCount++ );
+        MARKER_PCB* marker = m_Parent->GetBoard()->GetMARKER( s_MarkerCount++ );
         if( marker )
         {
             foundItem  = marker;
@@ -81,9 +73,12 @@ void WinEDA_PcbFindFrame::FindItem( wxCommandEvent& event )
     else
     {
         int StartCount = 0;
-        for( MODULE* module = m_Parent->GetBoard()->m_Modules;   module;   module = module->Next() )
+        for( MODULE* module = m_Parent->GetBoard()->m_Modules;
+            module;
+            module = module->Next() )
         {
-            if( WildCompareString( s_OldStringFound, module->GetReference().GetData(), FALSE ) )
+            if( WildCompareString( s_OldStringFound,
+                                   module->GetReference().GetData(), FALSE ) )
             {
                 StartCount++;
                 if( StartCount > s_ItemCount )
@@ -94,7 +89,8 @@ void WinEDA_PcbFindFrame::FindItem( wxCommandEvent& event )
                     break;
                 }
             }
-            if( WildCompareString( s_OldStringFound, module->m_Value->m_Text.GetData(), FALSE ) )
+            if( WildCompareString( s_OldStringFound,
+                                   module->m_Value->m_Text.GetData(), FALSE ) )
             {
                 StartCount++;
                 if( StartCount > s_ItemCount )
@@ -115,7 +111,7 @@ void WinEDA_PcbFindFrame::FindItem( wxCommandEvent& event )
         if( FindMarker )
             msg = _( "Marker found" );
         else
-            msg.Printf( _( "<%s> Found" ), s_OldStringFound.GetData() );
+            msg.Printf( _( "<%s> Found" ), GetChars( s_OldStringFound ) );
 
         m_Parent->Affiche_Message( msg );
 
@@ -130,7 +126,7 @@ void WinEDA_PcbFindFrame::FindItem( wxCommandEvent& event )
         if( FindMarker )
             msg = _( "Marker not found" );
         else
-            msg.Printf( _( "<%s> Not Found" ), s_OldStringFound.GetData() );
+            msg.Printf( _( "<%s> Not Found" ), GetChars( s_OldStringFound ) );
 
         DisplayError( this, msg, 10 );
         EndModal( 0 );
@@ -151,18 +147,14 @@ IMPLEMENT_DYNAMIC_CLASS( WinEDA_PcbFindFrame, wxDialog )
 BEGIN_EVENT_TABLE( WinEDA_PcbFindFrame, wxDialog )
 
 ////@begin WinEDA_PcbFindFrame event table entries
-EVT_BUTTON( ID_FIND_ITEM, WinEDA_PcbFindFrame::OnFindItemClick )
-
-EVT_BUTTON( ID_FIND_NEXT_ITEM, WinEDA_PcbFindFrame::OnFindNextItemClick )
-
-EVT_BUTTON( ID_FIND_MARKER, WinEDA_PcbFindFrame::OnFindMarkerClick )
-
-EVT_BUTTON( ID_FIND_NEXT_MARKER, WinEDA_PcbFindFrame::OnFindNextMarkerClick )
+    EVT_BUTTON( ID_FIND_ITEM, WinEDA_PcbFindFrame::OnFindItemClick )
+    EVT_BUTTON( ID_FIND_NEXT_ITEM, WinEDA_PcbFindFrame::OnFindNextItemClick )
+    EVT_BUTTON( ID_FIND_MARKER, WinEDA_PcbFindFrame::OnFindMarkerClick )
+    EVT_BUTTON( ID_FIND_NEXT_MARKER, WinEDA_PcbFindFrame::OnFindNextMarkerClick )
 
 ////@end WinEDA_PcbFindFrame event table entries
 
 END_EVENT_TABLE()
-
 /*!
  * WinEDA_PcbFindFrame constructors
  */
@@ -173,15 +165,15 @@ WinEDA_PcbFindFrame::WinEDA_PcbFindFrame()
 
 
 WinEDA_PcbFindFrame::WinEDA_PcbFindFrame( WinEDA_BasePcbFrame* parent,
-                                          wxDC* DC,
-                                          const wxPoint& pos,
-                                          wxWindowID id,
-                                          const wxString& caption,
-                                          const wxSize& size,
-                                          long style )
+                                          wxDC*                DC,
+                                          const wxPoint&       pos,
+                                          wxWindowID           id,
+                                          const wxString&      caption,
+                                          const wxSize&        size,
+                                          long                 style )
 {
     m_Parent = parent;
-    m_DC = DC;
+    m_DC     = DC;
 
     Create( parent, id, caption, pos, size, style );
 
@@ -193,12 +185,12 @@ WinEDA_PcbFindFrame::WinEDA_PcbFindFrame( WinEDA_BasePcbFrame* parent,
  * WinEDA_PcbFindFrame creator
  */
 
-bool WinEDA_PcbFindFrame::Create( wxWindow* parent,
-                                  wxWindowID id,
+bool WinEDA_PcbFindFrame::Create( wxWindow*       parent,
+                                  wxWindowID      id,
                                   const wxString& caption,
-                                  const wxPoint& pos,
-                                  const wxSize& size,
-                                  long style )
+                                  const wxPoint&  pos,
+                                  const wxSize&   size,
+                                  long            style )
 {
 ////@begin WinEDA_PcbFindFrame member initialisation
     m_NewText = NULL;
@@ -206,12 +198,14 @@ bool WinEDA_PcbFindFrame::Create( wxWindow* parent,
 ////@end WinEDA_PcbFindFrame member initialisation
 
 ////@begin WinEDA_PcbFindFrame creation
-    SetExtraStyle( GetExtraStyle() | wxWS_EX_BLOCK_EVENTS );
+    SetExtraStyle( wxWS_EX_BLOCK_EVENTS );
     wxDialog::Create( parent, id, caption, pos, size, style );
 
     CreateControls();
-    GetSizer()->Fit( this );
-    GetSizer()->SetSizeHints( this );
+    if( GetSizer() )
+    {
+        GetSizer()->SetSizeHints( this );
+    }
     Centre();
 
 ////@end WinEDA_PcbFindFrame creation
@@ -225,64 +219,79 @@ bool WinEDA_PcbFindFrame::Create( wxWindow* parent,
 
 void WinEDA_PcbFindFrame::CreateControls()
 {
-    SetFont( *g_DialogFont );
-
 ////@begin WinEDA_PcbFindFrame content construction
-    // Generated by DialogBlocks, 04/03/2006 14:04:20 (unregistered)
+    // Generated by DialogBlocks, 29/04/2009 15:15:49 (unregistered)
 
     WinEDA_PcbFindFrame* itemDialog1 = this;
 
     wxBoxSizer*          itemBoxSizer2 = new wxBoxSizer( wxVERTICAL );
+
     itemDialog1->SetSizer( itemBoxSizer2 );
 
-    wxStaticText*        itemStaticText3 = new wxStaticText( itemDialog1, wxID_STATIC,
-                                                             _(
-                                                                 "Item to find:" ),
-                                                             wxDefaultPosition, wxDefaultSize, 0 );
+    wxStaticText* itemStaticText3 = new wxStaticText( itemDialog1,
+                                                      wxID_STATIC,
+                                                      _( "Item to find:" ),
+                                                      wxDefaultPosition,
+                                                      wxDefaultSize,
+                                                      0 );
     itemBoxSizer2->Add( itemStaticText3,
                         0,
                         wxGROW | wxLEFT | wxRIGHT | wxTOP | wxADJUST_MINSIZE,
                         5 );
 
-    m_NewText = new wxTextCtrl( itemDialog1, ID_TEXTCTRL, _T(
-                                    "" ), wxDefaultPosition, wxDefaultSize, 0 );
+    m_NewText = new wxTextCtrl( itemDialog1, ID_TEXTCTRL, _T( "" ),
+                                wxDefaultPosition, wxDefaultSize, 0 );
     itemBoxSizer2->Add( m_NewText, 0, wxGROW | wxLEFT | wxRIGHT | wxBOTTOM, 5 );
 
     wxBoxSizer* itemBoxSizer5 = new wxBoxSizer( wxHORIZONTAL );
     itemBoxSizer2->Add( itemBoxSizer5,
                         0,
-                        wxALIGN_CENTER_HORIZONTAL | wxLEFT | wxRIGHT | wxBOTTOM,
+                        wxALIGN_CENTER_HORIZONTAL | wxLEFT | wxRIGHT |
+                        wxBOTTOM,
                         5 );
 
     wxBoxSizer* itemBoxSizer6 = new wxBoxSizer( wxVERTICAL );
-    itemBoxSizer5->Add( itemBoxSizer6, 0, wxALIGN_CENTER_VERTICAL | wxLEFT | wxRIGHT, 5 );
+    itemBoxSizer5->Add( itemBoxSizer6,
+                        0,
+                        wxALIGN_CENTER_VERTICAL | wxLEFT | wxRIGHT,
+                        5 );
 
-    wxButton*   itemButton7 = new wxButton( itemDialog1, ID_FIND_ITEM, _(
-                                                "Find Item" ), wxDefaultPosition, wxDefaultSize, 0 );
+    wxButton* itemButton7 =
+        new wxButton( itemDialog1, ID_FIND_ITEM, _( "Find Item" ),
+                      wxDefaultPosition, wxDefaultSize, 0 );
     itemButton7->SetDefault();
-    itemButton7->SetForegroundColour( wxColour( 102, 0, 0 ) );
     itemBoxSizer6->Add( itemButton7, 0, wxGROW | wxLEFT | wxRIGHT | wxTOP, 5 );
 
-    wxButton* itemButton8 = new wxButton( itemDialog1, ID_FIND_NEXT_ITEM, _(
-                                              "Find Next Item" ), wxDefaultPosition, wxDefaultSize,
-                                          0 );
-    itemButton8->SetForegroundColour( wxColour( 111, 0, 0 ) );
-    itemBoxSizer6->Add( itemButton8, 0, wxGROW | wxLEFT | wxRIGHT | wxBOTTOM, 5 );
+    wxButton* itemButton8 =
+        new wxButton( itemDialog1, ID_FIND_NEXT_ITEM, _( "Find Next Item" ),
+                      wxDefaultPosition, wxDefaultSize,
+                      0 );
+    itemBoxSizer6->Add( itemButton8,
+                        0,
+                        wxGROW | wxLEFT | wxRIGHT | wxBOTTOM,
+                        5 );
 
     wxBoxSizer* itemBoxSizer9 = new wxBoxSizer( wxVERTICAL );
-    itemBoxSizer5->Add( itemBoxSizer9, 0, wxALIGN_CENTER_VERTICAL | wxLEFT | wxRIGHT, 5 );
+    itemBoxSizer5->Add( itemBoxSizer9,
+                        0,
+                        wxALIGN_CENTER_VERTICAL | wxLEFT | wxRIGHT,
+                        5 );
 
-    wxButton*   itemButton10 = new wxButton( itemDialog1, ID_FIND_MARKER, _(
-                                                 "Find Marker" ), wxDefaultPosition, wxDefaultSize,
-                                             0 );
-    itemButton10->SetForegroundColour( wxColour( 0, 0, 255 ) );
+    wxButton* itemButton10 =
+        new wxButton( itemDialog1, ID_FIND_MARKER, _( "Find Marker" ),
+                      wxDefaultPosition, wxDefaultSize, 0 );
     itemBoxSizer9->Add( itemButton10, 0, wxGROW | wxLEFT | wxRIGHT | wxTOP, 5 );
 
-    wxButton* itemButton11 = new wxButton( itemDialog1, ID_FIND_NEXT_MARKER, _(
-                                               "Find Next Marker" ), wxDefaultPosition,
-                                           wxDefaultSize, 0 );
-    itemButton11->SetForegroundColour( wxColour( 0, 0, 255 ) );
-    itemBoxSizer9->Add( itemButton11, 0, wxGROW | wxLEFT | wxRIGHT | wxBOTTOM, 5 );
+    wxButton* itemButton11 = new wxButton( itemDialog1,
+                                           ID_FIND_NEXT_MARKER,
+                                           _( "Find Next Marker" ),
+                                           wxDefaultPosition,
+                                           wxDefaultSize,
+                                           0 );
+    itemBoxSizer9->Add( itemButton11,
+                        0,
+                        wxGROW | wxLEFT | wxRIGHT | wxBOTTOM,
+                        5 );
 
 ////@end WinEDA_PcbFindFrame content construction
 }

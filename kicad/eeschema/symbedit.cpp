@@ -1,14 +1,12 @@
 /*************************************************/
-/* Functions to Load  from file and save to file */
-/* the graphic shapes  used to draw a component  */
-/* When using the import/export symbol options	 */
-/* files are the *.sym files 					 */
+/* Functions to Load from file and save to file  */
+/* the graphic shapes used to draw a component   */
+/* When using the import/export symbol options   */
+/* files are the *.sym files                     */
 /*************************************************/
 
-/* fichier symbedit.cpp */
-
 #include "fctsys.h"
-#include "gr_basic.h"
+#include "appl_wxstruct.h"
 #include "common.h"
 #include "class_drawpanel.h"
 #include "confirm.h"
@@ -16,446 +14,224 @@
 #include "gestfich.h"
 
 #include "program.h"
-#include "libcmp.h"
 #include "general.h"
 #include "protos.h"
+#include "libeditframe.h"
+#include "class_library.h"
+
+#include <boost/foreach.hpp>
+#include <wx/ffile.h>
 
 
-/* Routines locales */
-static bool CompareSymbols( LibEDA_BaseStruct* DEntryRef,
-                            LibEDA_BaseStruct* DEntryCompare );
-
-/* Variables locales */
-
-
-/***********************************************/
-void WinEDA_LibeditFrame::LoadOneSymbol( void )
-/***********************************************/
-
-/* Read a component shape file (a symbol file *.sym )and add data (graphic items) to the current
- *  component.
- * a symbol file *.sym has the same format as a library, and contains only one symbol
+/*
+ * Read a component shape file (symbol file *.sym ) and add data (graphic
+ * items) to the current component.
+ *
+ * A symbol file *.sym has the same format as a library, and contains only
+ * one symbol
  */
+void WinEDA_LibeditFrame::LoadOneSymbol( void )
 {
-    int                     NumOfParts;
-    PriorQue*               Entries;
-    EDA_LibComponentStruct* LibEntry = NULL;
-    LibEDA_BaseStruct*      DrawEntry;
-    wxString                FullFileName, mask;
-    FILE*                   ImportFile;
-    wxString                msg;
+    LIB_COMPONENT* Component;
+    wxString       msg, err;
+    CMP_LIBRARY*   Lib;
 
-    if( CurrentLibEntry == NULL )
-        return;
-
-    if( CurrentDrawItem && CurrentDrawItem->m_Flags )   // a command is in progress
+    /* Exit if no library entry is selected or a command is in progress. */
+    if( m_component == NULL || ( m_drawItem && m_drawItem->m_Flags ) )
         return;
 
     DrawPanel->m_IgnoreMouseEvents = TRUE;
 
-    mask = wxT( "*" ) + g_SymbolExtBuffer;
-    FullFileName = EDA_FileSelector( _( "Import symbol drawings:" ),
-                                     g_RealLibDirBuffer,    /* Chemin par defaut */
-                                     wxEmptyString,         /* nom fichier par defaut */
-                                     g_SymbolExtBuffer,     /* extension par defaut */
-                                     mask,                  /* Masque d'affichage */
-                                     this,
-                                     0,
-                                     TRUE
-                                     );
+    wxString default_path = wxGetApp().ReturnLastVisitedLibraryPath();
+
+    wxFileDialog dlg( this, _( "Import Symbol Drawings" ), default_path,
+                      wxEmptyString, SymbolFileWildcard,
+                      wxFD_OPEN | wxFD_FILE_MUST_EXIST );
+
+    if( dlg.ShowModal() == wxID_CANCEL )
+        return;
 
     GetScreen()->m_Curseur = wxPoint( 0, 0 );
     DrawPanel->MouseToCursorSchema();
     DrawPanel->m_IgnoreMouseEvents = FALSE;
 
-    if( FullFileName.IsEmpty() )
-        return;
+    wxFileName fn = dlg.GetPath();
+    wxGetApp().SaveLastVisitedLibraryPath( fn.GetPath() );
 
+    Lib = new CMP_LIBRARY( LIBRARY_TYPE_SYMBOL, fn );
 
-    /* Load data */
-    ImportFile = wxFopen( FullFileName, wxT( "rt" ) );
-    if( ImportFile == NULL )
+    if( !Lib->Load( err ) )
     {
-        msg.Printf( _( "Failed to open Symbol File <%s>" ), FullFileName.GetData() );
-        DisplayError( this, msg, 20 );
+        msg.Printf( _( "Error <%s> occurred loading symbol library <%s>." ),
+                    GetChars( err ), GetChars( fn.GetName() ) );
+        DisplayError( this, msg );
+        delete Lib;
         return;
     }
 
-
-    Entries = LoadLibraryAux( this, NULL, ImportFile, &NumOfParts );
-    fclose( ImportFile );
-
-    if( Entries == NULL )
-        return;
-
-    if( NumOfParts > 1 )
-        DisplayError( this, _( "Warning: more than 1 part in Symbol File" ), 20 );
-
-    LibEntry = (EDA_LibComponentStruct*) PQFirst( &Entries, FALSE );
-
-    if( LibEntry == NULL )
-        DisplayError( this, _( "Symbol File is void" ), 20 );
-
-    else /* add data to the current symbol */
+    if( Lib->IsEmpty() )
     {
-        DrawEntry = LibEntry->m_Drawings;
-        while( DrawEntry )
-        {
-            if( DrawEntry->m_Unit )
-                DrawEntry->m_Unit = CurrentUnit;
-            if( DrawEntry->m_Convert )
-                DrawEntry->m_Convert = CurrentConvert;
-            DrawEntry->m_Flags    = IS_NEW;
-            DrawEntry->m_Selected = IS_SELECTED;
-
-            if( DrawEntry->Next() == NULL )
-            {   /* Fin de liste trouvee */
-                DrawEntry->SetNext( CurrentLibEntry->m_Drawings );
-                CurrentLibEntry->m_Drawings = LibEntry->m_Drawings;
-                LibEntry->m_Drawings = NULL;
-                break;
-            }
-            DrawEntry = DrawEntry->Next();
-        }
-
-        // Remove duplicated drawings:
-        SuppressDuplicateDrawItem( CurrentLibEntry );
-
-        // crear flags
-        DrawEntry = CurrentLibEntry->m_Drawings;
-        while( DrawEntry )
-        {
-            DrawEntry->m_Flags    = 0;
-            DrawEntry->m_Selected = 0;
-            DrawEntry = DrawEntry->Next();
-        }
-
-        GetScreen()->SetModify();
-
-        DrawPanel->Refresh();
+        msg.Printf( _( "No components found in symbol library <%s>." ),
+                    GetChars( fn.GetName() ) );
+        delete Lib;
+        return;
     }
 
-    PQFreeFunc( Entries, ( void( * ) ( void* ) )FreeLibraryEntry );
+    if( Lib->GetCount() > 1 )
+    {
+        msg.Printf( _( "More than one part in symbol file <%s>." ),
+                    GetChars( fn.GetName() ) );
+        wxMessageBox( msg, _( "Warning" ), wxOK | wxICON_EXCLAMATION, this );
+    }
+
+    Component = (LIB_COMPONENT*) Lib->GetFirstEntry();
+    LIB_DRAW_ITEM_LIST& drawList = Component->GetDrawItemList();
+
+    BOOST_FOREACH( LIB_DRAW_ITEM& item, drawList )
+    {
+        if( item.Type() == COMPONENT_FIELD_DRAW_TYPE )
+            continue;
+        if( item.m_Unit )
+            item.m_Unit = m_unit;
+        if( item.m_Convert )
+            item.m_Convert = m_convert;
+        item.m_Flags    = IS_NEW;
+        item.m_Selected = IS_SELECTED;
+
+        LIB_DRAW_ITEM* newItem = item.GenCopy();
+        newItem->SetParent( m_component );
+        m_component->AddDrawItem( newItem );
+    }
+
+    m_component->RemoveDuplicateDrawItems();
+    m_component->ClearSelectedItems();
+
+    OnModify( );
+    DrawPanel->Refresh();
+
+    delete Lib;
 }
 
 
-/********************************************/
-void WinEDA_LibeditFrame::SaveOneSymbol()
-/********************************************/
-
-/* Save in file the current symbol
- *  file format is like the standard libraries, but there is only one symbol
- *  Invisible pins are not saved
+/*
+ * Save the current symbol to a file.
+ *
+ * The symbol file format is like the standard libraries, but there is only
+ * one symbol.
+ *
+ * Invisible pins are not saved
  */
+void WinEDA_LibeditFrame::SaveOneSymbol()
 {
-    EDA_LibComponentStruct* LibEntry = CurrentLibEntry;
-    int Unit = CurrentUnit, convert = CurrentConvert;
-    LibEDA_BaseStruct*      DrawEntry;
-    wxString FullFileName, mask;
     wxString msg;
-    FILE*    ExportFile;
 
-    if( LibEntry->m_Drawings == NULL )
+    if( m_component->GetDrawItemList().empty() )
         return;
 
-    /* Creation du fichier symbole */
-    mask = wxT( "*" ) + g_SymbolExtBuffer;
-    FullFileName = EDA_FileSelector( _( "Export symbol drawings:" ),
-                                     g_RealLibDirBuffer,    /* Chemin par defaut */
-                                     wxEmptyString,         /* nom fichier par defaut */
-                                     g_SymbolExtBuffer,     /* extension par defaut */
-                                     mask,                  /* Masque d'affichage */
-                                     this,
-                                     wxFD_SAVE,
-                                     TRUE
-                                     );
-    if( FullFileName.IsEmpty() )
+    wxString default_path = wxGetApp().ReturnLastVisitedLibraryPath();
+
+    wxFileDialog dlg( this, _( "Export Symbol Drawings" ), default_path,
+                      m_component->GetName(), SymbolFileWildcard,
+                      wxFD_SAVE | wxFD_OVERWRITE_PROMPT );
+
+    if( dlg.ShowModal() == wxID_CANCEL )
         return;
 
-    ExportFile = wxFopen( FullFileName, wxT( "wt" ) );
-    if( ExportFile == NULL )
+    wxFileName fn = dlg.GetPath();
+
+    /* The GTK file chooser doesn't return the file extension added to
+     * file name so add it here. */
+    if( fn.GetExt().IsEmpty() )
+        fn.SetExt( SymbolFileExtension );
+
+    wxGetApp().SaveLastVisitedLibraryPath( fn.GetPath() );
+
+    wxFFile file( fn.GetFullPath(), wxT( "wt" ) );
+
+    if( !file.IsOpened() )
     {
-        msg.Printf( _( "Unable to create <%s>" ), FullFileName.GetData() );
+        msg.Printf( _( "Unable to create file <%s>" ),
+                    GetChars( fn.GetFullPath() ) );
         DisplayError( this, msg );
         return;
     }
 
-    msg.Printf( _( "Save Symbol in [%s]" ), FullFileName.GetData() );
+    msg.Printf( _( "Saving symbol in [%s]" ), GetChars( fn.GetPath() ) );
     Affiche_Message( msg );
 
-    /* Creation de l'entete de la librairie */
-    char Line[256];
-    fprintf( ExportFile, "%s %d.%d  %s  Date: %s\n", LIBFILE_IDENT,
-            LIB_VERSION_MAJOR, LIB_VERSION_MINOR,
-            "SYMBOL", DateAndTime( Line ) );
+    wxString line;
 
-    /* Creation du commentaire donnant le nom du composant */
-    fprintf( ExportFile, "# SYMBOL %s\n#\n",
-            (const char*) LibEntry->m_Name.m_Text.GetData() );
+    /* File header */
+    line << wxT( LIBFILE_IDENT ) << wxT( " " ) << LIB_VERSION_MAJOR
+         << wxT( "." ) << LIB_VERSION_MINOR << wxT( "  SYMBOL  " )
+         << wxT( "Date: " ) << DateAndTime() << wxT( "\n" );
 
-    /* Generation des lignes utiles */
-    fprintf( ExportFile, "DEF %s", (const char*) LibEntry->m_Name.m_Text.GetData() );
-    if( !LibEntry->m_Prefix.m_Text.IsEmpty() )
-        fprintf( ExportFile, " %s", (const char*) LibEntry->m_Prefix.m_Text.GetData() );
+    /* Component name comment and definition. */
+    line << wxT( "# SYMBOL " ) << m_component->GetName() << wxT( "\n#\nDEF " )
+         << m_component->GetName() << wxT( " " );
+
+    if( !m_component->GetReferenceField().m_Text.IsEmpty() )
+        line << m_component->GetReferenceField().m_Text << wxT( " " );
     else
-        fprintf( ExportFile, " ~" );
+        line << wxT( "~ " );
 
-    fprintf( ExportFile, " %d %d %c %c %d %d %c\n",
-             0, /* unused */
-             LibEntry->m_TextInside,
-             LibEntry->m_DrawPinNum ? 'Y' : 'N',
-             LibEntry->m_DrawPinName ? 'Y' : 'N',
-             1, 0 /* unused */, 'N' );
+    line << 0 << wxT( " " ) << m_component->m_TextInside << wxT( " " );
 
-    /* Position / orientation / visibilite des champs */
-    LibEntry->m_Prefix.Save( ExportFile );
-    LibEntry->m_Name.Save( ExportFile );
+    if( m_component->m_DrawPinNum )
+        line << wxT( "Y " );
+    else
+        line << wxT( "N " );
 
-    DrawEntry = LibEntry->m_Drawings;
-    if( DrawEntry )
-    {
-        fprintf( ExportFile, "DRAW\n" );
-        for( ; DrawEntry != NULL; DrawEntry = DrawEntry->Next() )
-        {
-            /* Elimination des elements non relatifs a l'unite */
-            if( Unit && DrawEntry->m_Unit && (DrawEntry->m_Unit != Unit) )
-                continue;
-            if( convert && DrawEntry->m_Convert && (DrawEntry->m_Convert != convert) )
-                continue;
+    if( m_component->m_DrawPinName )
+        line << wxT( "Y " );
+    else
+        line << wxT( "N " );
 
-            DrawEntry->Save( ExportFile );
-        }
-        fprintf( ExportFile, "ENDDRAW\n" );
-    }
-    fprintf( ExportFile, "ENDDEF\n" );
-    fclose( ExportFile );
-}
+    line << wxT( "1 0 N\n" );
 
-
-/*****************************************************************/
-void SuppressDuplicateDrawItem( EDA_LibComponentStruct* LibEntry )
-/*****************************************************************/
-
-/* Delete redundant graphic items.
- *  Useful after loading asymbole from a file symbol, because some graphic items
- *  can be duplicated.
- */
-{
-    LibEDA_BaseStruct* DEntryRef, * DEntryCompare;
-    bool deleted;
-    wxDC* DC = NULL;
-
-    DEntryRef = LibEntry->m_Drawings;
-    while( DEntryRef )
-    {
-        if( DEntryRef->Next() == NULL )
-            return;
-        DEntryCompare = DEntryRef->Next();
-        if( DEntryCompare == NULL )
-            return;
-        deleted = 0;
-        while( DEntryCompare )
-        {
-            if( CompareSymbols( DEntryRef, DEntryCompare ) == TRUE )
-            {
-                DeleteOneLibraryDrawStruct( NULL, DC, LibEntry, DEntryRef, 1 );
-                deleted = TRUE;
-                break;
-            }
-            DEntryCompare = DEntryCompare->Next();
-        }
-
-        if( !deleted )
-            DEntryRef = DEntryRef->Next();
-        else
-            DEntryRef = LibEntry->m_Drawings;
-    }
-}
-
-
-/********************************************************************/
-static bool CompareSymbols( LibEDA_BaseStruct* DEntryRef,
-                            LibEDA_BaseStruct* DEntryCompare )
-/********************************************************************/
-
-/* Compare 2 graphic items (arc, lines ...).
- *  return FALSE si different
- *          TRUE si they are identical, and therefore redundant
- */
-{
-    /* Comparaison des proprietes generales */
-    if( DEntryRef->Type() != DEntryCompare->Type() )
-        return FALSE;
-    if( DEntryRef->m_Unit != DEntryCompare->m_Unit )
-        return FALSE;
-    if( DEntryRef->m_Convert != DEntryCompare->m_Convert )
-        return FALSE;
-
-    switch( DEntryRef->Type() )
-    {
-    case COMPONENT_ARC_DRAW_TYPE:
-        #undef REFSTRUCT
-        #undef CMPSTRUCT
-        #define REFSTRUCT ( (LibDrawArc*) DEntryRef )
-        #define CMPSTRUCT ( (LibDrawArc*) DEntryCompare )
-        if( REFSTRUCT->m_Pos.x != CMPSTRUCT->m_Pos.x )
-            return FALSE;
-        if( REFSTRUCT->m_Pos.y != CMPSTRUCT->m_Pos.y )
-            return FALSE;
-        if( REFSTRUCT->t1 != CMPSTRUCT->t1 )
-            return FALSE;
-        if( REFSTRUCT->t2 != CMPSTRUCT->t2 )
-            return FALSE;
-        break;
-
-    case COMPONENT_CIRCLE_DRAW_TYPE:
-        #undef REFSTRUCT
-        #undef CMPSTRUCT
-        #define REFSTRUCT ( (LibDrawCircle*) DEntryRef )
-        #define CMPSTRUCT ( (LibDrawCircle*) DEntryCompare )
-        if( REFSTRUCT->m_Pos.x != CMPSTRUCT->m_Pos.x )
-            return FALSE;
-        if( REFSTRUCT->m_Pos.y != CMPSTRUCT->m_Pos.y )
-            return FALSE;
-        if( REFSTRUCT->m_Rayon != CMPSTRUCT->m_Rayon )
-            return FALSE;
-        break;
-
-    case COMPONENT_GRAPHIC_TEXT_DRAW_TYPE:
-        #undef REFSTRUCT
-        #undef CMPSTRUCT
-        #define REFSTRUCT ( (LibDrawText*) DEntryRef )
-        #define CMPSTRUCT ( (LibDrawText*) DEntryCompare )
-        if( REFSTRUCT->m_Pos != CMPSTRUCT->m_Pos )
-            return FALSE;
-        if( REFSTRUCT->m_Size != CMPSTRUCT->m_Size )
-            return FALSE;
-        if( REFSTRUCT->m_Text != CMPSTRUCT->m_Text )
-            return FALSE;
-        break;
-
-    case COMPONENT_RECT_DRAW_TYPE:
-        #undef REFSTRUCT
-        #undef CMPSTRUCT
-        #define REFSTRUCT ( (LibDrawSquare*) DEntryRef )
-        #define CMPSTRUCT ( (LibDrawSquare*) DEntryCompare )
-        if( REFSTRUCT->m_Pos != CMPSTRUCT->m_Pos )
-            return FALSE;
-        if( REFSTRUCT->m_End != CMPSTRUCT->m_End )
-            return FALSE;
-        break;
-
-    case COMPONENT_PIN_DRAW_TYPE:
-        #undef REFSTRUCT
-        #undef CMPSTRUCT
-        #define REFSTRUCT ( (LibDrawPin*) DEntryRef )
-        #define CMPSTRUCT ( (LibDrawPin*) DEntryCompare )
-        if( REFSTRUCT->m_Pos != CMPSTRUCT->m_Pos )
-            return FALSE;
-        break;
-
-    case COMPONENT_POLYLINE_DRAW_TYPE:
-        #undef REFSTRUCT
-        #undef CMPSTRUCT
-        #define REFSTRUCT ( (LibDrawPolyline*) DEntryRef )
-        #define CMPSTRUCT ( (LibDrawPolyline*) DEntryCompare )
-        if( REFSTRUCT->GetCornerCount() != CMPSTRUCT->GetCornerCount() )
-            return FALSE;
-        for( unsigned ii = 0; ii < REFSTRUCT->GetCornerCount(); ii++ )
-        {
-            if( REFSTRUCT->m_PolyPoints[ii] != CMPSTRUCT->m_PolyPoints[ii] )
-                return false;
-        }
-
-        break;
-
-    default:
-        ;
-    }
-
-    return TRUE;
-}
-
-
-/***************************************************************************/
-/* Routine de placement du point d'ancrage ( reference des coordonnes pour */
-/* le trace) du composant courant											  */
-/*	Toutes les coord apparaissant dans les structures sont modifiees		  */
-/*	pour repositionner le point repere par le curseur souris au point	  */
-/*	d'ancrage ( coord 0,0 ).                                               */
-/***************************************************************************/
-
-void WinEDA_LibeditFrame::PlaceAncre()
-{
-    EDA_LibComponentStruct* LibEntry;
-    LibEDA_BaseStruct*      DrawEntry;
-
-    LibEntry = CurrentLibEntry;
-    if( LibEntry == NULL )
+    if( !file.Write( line )
+        || !m_component->GetReferenceField().Save( file.fp() )
+        || !m_component->GetValueField().Save( file.fp() )
+        || !file.Write( wxT( "DRAW\n" ) ) )
         return;
 
-    wxSize  offset( -GetScreen()->m_Curseur.x, GetScreen()->m_Curseur.y );
+    LIB_DRAW_ITEM_LIST& drawList = m_component->GetDrawItemList();
 
-    GetScreen()->SetModify();
-
-    LibEntry->m_Name.m_Pos   += offset;
-    LibEntry->m_Prefix.m_Pos += offset;
-
-    for( LibDrawField* field = LibEntry->m_Fields;  field;  field = field->Next() )
+    BOOST_FOREACH( LIB_DRAW_ITEM& item, drawList )
     {
-        field->m_Pos += offset;
+        if( item.Type() == COMPONENT_FIELD_DRAW_TYPE )
+            continue;
+        /* Don't save unused parts or alternate body styles. */
+        if( m_unit && item.m_Unit && ( item.m_Unit != m_unit ) )
+            continue;
+        if( m_convert && item.m_Convert && ( item.m_Convert != m_convert ) )
+            continue;
+
+        if( !item.Save( file.fp() ) )
+            return;
     }
 
-    DrawEntry = LibEntry->m_Drawings;
-    while( DrawEntry )
-    {
-        switch( DrawEntry->Type() )
-        {
-        case COMPONENT_ARC_DRAW_TYPE:
-            #undef STRUCT
-            #define STRUCT ( (LibDrawArc*) DrawEntry )
-            STRUCT->m_Pos       += offset;
-            STRUCT->m_ArcStart  += offset;
-            STRUCT->m_ArcEnd    += offset;
-            break;
+    if( !file.Write( wxT( "ENDDRAW\n" ) )
+        || !file.Write( wxT( "ENDDEF\n" ) ) )
+        return;
+}
 
-        case COMPONENT_CIRCLE_DRAW_TYPE:
-            #undef STRUCT
-            #define STRUCT ( (LibDrawCircle*) DrawEntry )
-            STRUCT->m_Pos += offset;
-            break;
 
-        case COMPONENT_GRAPHIC_TEXT_DRAW_TYPE:
-            #undef STRUCT
-            #define STRUCT ( (LibDrawText*) DrawEntry )
-            STRUCT->m_Pos += offset;
-            break;
+/*
+ * Place anchor reference coordinators for current component
+ *
+ * All coordinates of the object are offset to the cursor position.
+ */
+void WinEDA_LibeditFrame::PlaceAncre()
+{
+    if( m_component == NULL )
+        return;
 
-        case COMPONENT_RECT_DRAW_TYPE:
-            #undef STRUCT
-            #define STRUCT ( (LibDrawSquare*) DrawEntry )
-            STRUCT->m_Pos += offset;
-            STRUCT->m_End += offset;
-            break;
+    wxPoint offset( -GetScreen()->m_Curseur.x, GetScreen()->m_Curseur.y );
 
-        case COMPONENT_PIN_DRAW_TYPE:
-            #undef STRUCT
-            #define STRUCT ( (LibDrawPin*) DrawEntry )
-            STRUCT->m_Pos += offset;
-            break;
+    OnModify( );
 
-        case COMPONENT_POLYLINE_DRAW_TYPE:
-            #undef STRUCT
-            #define STRUCT ( (LibDrawPolyline*) DrawEntry )
-            for( unsigned ii = 0; ii < STRUCT->GetCornerCount();  ii ++ )
-                STRUCT->m_PolyPoints[ii] += offset;
-            break;
-
-        default:
-            ;
-        }
-        DrawEntry = DrawEntry->Next();
-    }
+    m_component->SetOffset( offset );
 
     /* Redraw the symbol */
     GetScreen()->m_Curseur.x = GetScreen()->m_Curseur.y = 0;
