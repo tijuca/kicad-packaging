@@ -140,14 +140,7 @@ void SCH_FIELD::Draw( WinEDA_DrawPanel* panel, wxDC* DC,
         /* For more than one part per package, we must add the part selection
          * A, B, ... or 1, 2, .. to the reference. */
         wxString fulltext = m_Text;
-        char     part_id;
-#if defined(KICAD_GOST)
-        fulltext.Append( '.' );
-        part_id = '1' - 1 + parentComponent->m_Multi;
-#else
-        part_id = 'A' - 1 + parentComponent->m_Multi;
-#endif
-        fulltext.Append( part_id );
+        fulltext << LIB_COMPONENT::ReturnSubReference( parentComponent->m_Multi );
 
         DrawGraphicText( panel, DC, textpos, color, fulltext,
                          orient,
@@ -155,10 +148,10 @@ void SCH_FIELD::Draw( WinEDA_DrawPanel* panel, wxDC* DC,
                          LineWidth, m_Italic,
                          m_Bold, false );
     }
+
     /* Enable this to draw the bounding box around the text field to validate
      * the bounding box calculations.
     */
-
 #if 0
     // Draw boundary box:
     int x1 = BoundaryBox.GetX();
@@ -243,27 +236,24 @@ bool SCH_FIELD::IsVoid()
  */
 EDA_Rect SCH_FIELD::GetBoundaryBox() const
 {
-    EDA_Rect       BoundaryBox;
-    int            hjustify, vjustify;
-    int            orient;
-    int            dx, dy, x1, y1, x2, y2;
+    EDA_Rect BoundaryBox;
+    int      hjustify, vjustify;
+    int      orient;
+    wxSize   size;
+    wxPoint  pos1, pos2;
 
     SCH_COMPONENT* parentComponent = (SCH_COMPONENT*) m_Parent;
 
     orient = m_Orient;
-    wxPoint        pos = parentComponent->m_Pos;
-    x1 = m_Pos.x - pos.x;
-    y1 = m_Pos.y - pos.y;
+    wxPoint pos = parentComponent->m_Pos;
+    pos1 = m_Pos - pos;
 
-    dx = LenSize( m_Text );
-    dy = m_Size.y;
+    size.x = LenSize( m_Text );
+    size.y = m_Size.y;
     hjustify = m_HJustify;
     vjustify = m_VJustify;
 
-    x2 = pos.x + ( parentComponent->m_Transform[0][0] * x1 )
-         + ( parentComponent->m_Transform[0][1] * y1 );
-    y2 = pos.y + ( parentComponent->m_Transform[1][0] * x1 )
-         + ( parentComponent->m_Transform[1][1] * y1 );
+    pos2 = pos + TransformCoordinate( parentComponent->m_Transform, pos1 );
 
     /* Calculate the text orientation, according to the component
      * orientation/mirror */
@@ -295,42 +285,40 @@ EDA_Rect SCH_FIELD::GetBoundaryBox() const
     }
 
     if( orient == TEXT_ORIENT_VERT )
-        EXCHG( dx, dy );
+        EXCHG( size.x, size.y );
 
     switch( hjustify )
     {
     case GR_TEXT_HJUSTIFY_CENTER:
-        x1 = x2 - (dx / 2);
+        pos1.x = pos2.x - (size.x / 2);
         break;
 
     case GR_TEXT_HJUSTIFY_RIGHT:
-        x1 = x2 - dx;
+        pos1.x = pos2.x - size.x;
         break;
 
     default:
-        x1 = x2;
+        pos1.x = pos2.x;
         break;
     }
 
     switch( vjustify )
     {
     case GR_TEXT_VJUSTIFY_CENTER:
-        y1 = y2 - (dy / 2);
+        pos1.y = pos2.y - (size.y / 2);
         break;
 
     case GR_TEXT_VJUSTIFY_BOTTOM:
-        y1 = y2 - dy;
+        pos1.y = pos2.y - size.y;
         break;
 
     default:
-        y1 = y2;
+        pos1.y = pos2.y;
         break;
     }
 
-    BoundaryBox.SetX( x1 );
-    BoundaryBox.SetY( y1 );
-    BoundaryBox.SetWidth( dx );
-    BoundaryBox.SetHeight( dy );
+    BoundaryBox.SetOrigin( pos1 );
+    BoundaryBox.SetSize( size );
 
     // Take thickness in account:
     int linewidth = ( m_Width == 0 ) ? g_DrawDefaultLineThickness : m_Width;
@@ -422,4 +410,25 @@ void SCH_FIELD::Place( WinEDA_SchematicFrame* frame, wxDC* DC )
     frame->GetScreen()->SetCurItem( NULL );
     frame->OnModify( );
     frame->SetCurrentField( NULL );
+}
+
+
+bool SCH_FIELD::Matches( wxFindReplaceData& aSearchData, void * aAuxData )
+{
+    if( aAuxData && m_FieldId == REFERENCE )
+    {
+        SCH_COMPONENT* pSch = (SCH_COMPONENT*) m_Parent;
+        SCH_SHEET_PATH* sheet = (SCH_SHEET_PATH*) aAuxData;
+        wxString fulltext = pSch->GetRef( sheet );
+        if( m_AddExtraText )
+        {
+            /* For more than one part per package, we must add the part selection
+             * A, B, ... or 1, 2, .. to the reference. */
+            int part_id = pSch->GetUnitSelection( sheet );
+            fulltext << LIB_COMPONENT::ReturnSubReference( part_id );
+        }
+        return SCH_ITEM::Matches( fulltext, aSearchData );
+    }
+
+    return SCH_ITEM::Matches( m_Text, aSearchData );
 }

@@ -8,6 +8,7 @@
 
 #include "wxstruct.h"
 #include "base_struct.h"
+#include "param_config.h"
 
 #ifndef PCB_INTERNAL_UNIT
 #define PCB_INTERNAL_UNIT 10000
@@ -27,7 +28,7 @@ class SEGVIA;
 class D_PAD;
 class TEXTE_MODULE;
 class MIREPCB;
-class COTATION;
+class DIMENSION;
 class EDGE_MODULE;
 class WinEDA3D_DrawFrame;
 class DRC;
@@ -39,8 +40,7 @@ class PCB_LAYER_WIDGET;
 
 
 /**
- * @info see also class WinEDA_BasePcbFrame: Basic class for pcbnew and
- *gerbview
+ * @info see also class WinEDA_BasePcbFrame: Basic class for pcbnew and gerbview.
  */
 
 
@@ -56,6 +56,11 @@ protected:
     PCB_LAYER_WIDGET* m_Layers;
 
     DRC* m_drc;                     ///< the DRC controller, see drc.cpp
+
+    PARAM_CFG_ARRAY   m_projectFileParams;   ///< List of PCBNew project file settings.
+    PARAM_CFG_ARRAY   m_configSettings;      ///< List of PCBNew configuration settings.
+
+    wxString          m_lastNetListRead;     ///< Last net list read with relative path.
 
     // we'll use lower case function names for private member functions.
     void createPopUpMenuForZones( ZONE_CONTAINER* edge_zone, wxMenu* aPopMenu );
@@ -146,6 +151,19 @@ public:
      */
     void             ToPrinter( wxCommandEvent& event );
 
+    /** Virtual function PrintPage
+     * used to print a page
+     * Print the page pointed by ActiveScreen, set by the calling print function
+     * @param aDC = wxDC given by the calling print function
+     * @param aPrint_Sheet_Ref = true to print page references
+     * @param aPrintMask = not used here
+     * @param aPrintMirrorMode = not used here (Set when printing in mirror mode)
+     * @param aData = a pointer on an auxiliary data (NULL if not used)
+     */
+    virtual void PrintPage( wxDC* aDC, bool aPrint_Sheet_Ref,
+                            int aPrintMask, bool aPrintMirrorMode,
+                            void * aData = NULL );
+
     void             GetKicadAbout( wxCommandEvent& event );
 
     /** Function IsGridVisible() , virtual
@@ -155,7 +173,7 @@ public:
 
     /** Function SetGridVisibility() , virtual
      * It may be overloaded by derived classes
-     * if you want to store/retrieve the grid visiblity in configuration.
+     * if you want to store/retrieve the grid visibility in configuration.
      * @param aVisible = true if the grid must be shown
      */
     virtual void     SetGridVisibility(bool aVisible);
@@ -173,16 +191,67 @@ public:
     // Configurations:
     void             InstallConfigFrame( const wxPoint& pos );
     void             Process_Config( wxCommandEvent& event );
-    void             Update_config( wxWindow* displayframe );
 
-    /** Function Read_Config
-     * Read the project configuration file
-     * @param projectFileName = the config filename
-     *  if not found use kicad.pro
-     *  if not found : initialize default values
-     * @return true if the current config is modified, false if no change
+    PARAM_CFG_ARRAY& GetProjectFileParameters();
+    void             SaveProjectSettings();
+
+    /**
+     * Load the project file configuration settings.
+     *
+     * @param aProjectFileName = The project filename.
+     *  if not found use kicad.pro and initialize default values
+     * @return always returns true.
      */
-    bool             Read_Config( const wxString& projectFileName );
+    bool             LoadProjectSettings( const wxString& aProjectFileName );
+
+    /**
+     * Get the list of application specific settings.
+     *
+     * @return - Reference to the list of applications settings.
+     */
+    PARAM_CFG_ARRAY& GetConfigurationSettings();
+
+    /**
+     * Load applications settings specific to PCBNew.
+     *
+     * This overrides the base class WinEDA_BasePcbFrame::LoadSettings() to
+     * handle settings specific common to the PCB layout application.  It
+     * calls down to the base class to load settings common to all PCB type
+     * drawing frames.  Please put your application settings for PCBNew here
+     * to avoid having application settings loaded all over the place.
+     */
+    virtual void LoadSettings();
+
+    /**
+     * Save applications settings common to PCBNew.
+     *
+     * This overrides the base class WinEDA_BasePcbFrame::SaveSettings() to
+     * save settings specific to the PCB layout application main window.  It
+     * calls down to the base class to save settings common to all PCB type
+     * drawing frames.  Please put your application settings for PCBNew here
+     * to avoid having application settings saved all over the place.
+     */
+    virtual void SaveSettings();
+
+    /**
+     * Get the last net list read with the net list dialog box.
+     *
+     * @return - Absolute path and file name of the last net list file successfully read.
+     */
+    wxString         GetLastNetListRead();
+
+    /**
+     * Set the last net list successfully read by the net list dialog box.
+     *
+     * Note: the file path is converted to a path relative to the project file path.  If
+     *       the path cannot be made relative, than m_lastNetListRead is set to and empty
+     *       string.  This could happen when the net list file is on a different drive than
+     *       the project file.  The advantage of relative paths is that is more likely to
+     *       work when opening the same project from both Windows and Linux.
+     *
+     * @param aNetListFile - The last net list file with full path successfully read.
+     */
+    void             SetLastNetListRead( const wxString& aNetListFile );
 
     void             OnHotKey( wxDC*           DC,
                                int             hotkey,
@@ -204,6 +273,14 @@ public:
     void             ReCreateOptToolbar();
     void             ReCreateMenuBar();
     WinEDAChoiceBox* ReCreateLayerBox( WinEDA_Toolbar* parent );
+
+    /** Virtual Function OnModify()
+     * Must be called after a board change
+     * in order to set the "modify" flag of the current screen
+     * and prepare, if needed the refresh of the 3D frame showing the footprint
+     * do not forget to call the basic OnModify function to update auxiliary info
+     */
+    virtual void OnModify( );
 
     /**
      * Function IsElementVisible
@@ -274,7 +351,7 @@ public:
      * Function OnRightClick
      * populates a popup menu with the choices appropriate for the current
      *context.
-     * The caller will add the ZOOM menu choices afterwards.
+     * The caller will add the ZOOM menu choices afterward.
      * @param aMousePos The current mouse position
      * @param aPopMenu The menu to add to.
      */
@@ -318,7 +395,7 @@ public:
      * @param aRedoCommand = a bool: true for redo, false for undo
      * @param aRebuildRatsnet = a bool: true to rebuild ratsnet (normal use),
      *                          false
-     * to just retrieve las state (used in abort commands that do not need to
+     * to just retrieve last state (used in abort commands that do not need to
      * rebuild ratsnest)
      */
     void PutDataInPreviousState( PICKED_ITEMS_LIST* aList,
@@ -407,7 +484,7 @@ public:
 
     void SetToolbars();
     void Process_Settings( wxCommandEvent& event );
-    void InstallPcbOptionsFrame( int id );
+    void OnConfigurePcbOptions( wxCommandEvent& aEvent );
     void InstallDisplayOptionsDialog( wxCommandEvent& aEvent );
     void InstallPcbGlobalDeleteFrame( const wxPoint& pos );
 
@@ -418,7 +495,21 @@ public:
 
     void OnFileHistory( wxCommandEvent& event );
     void Files_io( wxCommandEvent& event );
-    bool LoadOnePcbFile( const wxString& FileName, bool Append );
+
+    /** Function LoadOnePcbFile
+     *  Load a Kicad board (.brd) file.
+     *
+     *  @param aFileName - File name including path. If empty, a file dialog will
+     *                     be displayed.
+     *  @param aAppend - Append board file aFileName to the currently loaded file if true.
+     *                   Default = false.
+     *  @param aForceFileDialog - Display the file open dialog even if aFullFileName is
+     *                            valid if true; Default = false.
+     *
+     *  @return False if file load fails or is cancelled by the user, otherwise true.
+     */
+    bool LoadOnePcbFile( const wxString& aFileName, bool aAppend = false,
+                         bool aForceFileDialog = false );
 
 
     /**
@@ -465,6 +556,25 @@ public:
     void       RecreateBOMFileFromBoard( wxCommandEvent& aEvent );
 
     void       ExportToGenCAD( wxCommandEvent& event );
+
+    /**
+     * Function OnExportVRML
+     * will export the current BOARD to a VRML file.
+     */
+    void OnExportVRML( wxCommandEvent& event );
+
+    /**
+     * Function ExportVRML_File
+     * Creates the file(s) exporting current BOARD to a VRML file.
+     * @param aFullFileName = the full filename of the file to create
+     * @param aScale = the general scaling factor. 1.0 to export in inches
+     * @param aExport3DFiles = true to copy 3D shapes in the subir a3D_Subdir
+     * @param a3D_Subdir = sub directory where 3D sahpes files are copied
+     * used only when aExport3DFiles == true
+     * @return true if Ok.
+     */
+    bool ExportVRML_File( const wxString & aFullFileName, double aScale,
+                    bool aExport3DFiles, const wxString & a3D_Subdir );
 
     /**
      * Function ExporttoSPECCTRA
@@ -822,15 +932,59 @@ public:
     void         Delete_Drawings_All_Layer( int aLayer );
 
     // Dimension handling:
-    void         Install_Edit_Cotation( COTATION*      Cotation,
+    void         Install_Edit_Dimension( DIMENSION*      Dimension,
                                         wxDC*          DC,
                                         const wxPoint& pos );
-    COTATION*    Begin_Cotation( COTATION* Cotation, wxDC* DC );
-    void         Delete_Cotation( COTATION* Cotation, wxDC* DC );
+    DIMENSION*    Begin_Dimension( DIMENSION* Dimension, wxDC* DC );
+    void         Delete_Dimension( DIMENSION* Dimension, wxDC* DC );
 
 
     // netlist  handling:
     void         InstallNetlistFrame( wxDC* DC, const wxPoint& pos );
+
+    /** Function ReadPcbNetlist
+     * Update footprints (load missing footprints and delete on request extra
+     * footprints)
+     * Update connectivity info ( Net Name list )
+     * Update Reference, value and "TIME STAMP"
+     * @param aNetlistFullFilename = netlist file name (*.net)
+     * @param aCmpFullFileName = cmp/footprint list file name (*.cmp) if not found,
+     * only the netlist will be used
+     * @return true if Ok
+     *
+     *  the format of the netlist is something like:
+     # EESchema Netlist Version 1.0 generee le  18/5/2005-12:30:22
+     *  (
+     *  ( 40C08647 $noname R20 4,7K {Lib=R}
+     *  (    1 VCC )
+     *  (    2 MODB_1 )
+     *  )
+     *  ( 40C0863F $noname R18 4,7_k {Lib=R}
+     *  (    1 VCC )
+     *  (    2 MODA_1 )
+     *  )
+     *  }
+     * #End
+     */
+    bool ReadPcbNetlist(
+                         const wxString&  aNetlistFullFilename,
+                         const wxString&  aCmpFullFileName,
+                         wxTextCtrl*      aMessageWindow,
+                         bool             aChangeFootprint,
+                         bool             aDeleteBadTracks,
+                         bool             aDeleteExtraFootprints,
+                         bool             aSelect_By_Timestamp );
+
+    /** Function RemoveMisConnectedTracks
+     * finds all track segments which are mis-connected (to more than one net).
+     * When such a bad segment is found, mark it as needing to be removed.
+     * and remove all tracks having at least one flagged segment.
+     * @param aDC = the current device context (can be NULL)
+     * @param aDisplayActivity = true to display activity on the frame status bar and message panel
+     * @return true if any change is made
+     */
+    bool RemoveMisConnectedTracks( wxDC* aDC, bool aDisplayActivity );
+
 
     // Autoplacement:
     void         AutoPlace( wxCommandEvent& event );
@@ -887,33 +1041,11 @@ public:
     void         Begin_Self( wxDC* DC );
     MODULE*      Genere_Self( wxDC* DC );
 
-    /**
-     * Load applications settings specific to the PCBNew.
-     *
-     * This overrides the base class WinEDA_BasePcbFrame::LoadSettings() to
-     * handle settings specific common to the PCB layout application.  It
-     * calls down to the base class to load settings common to all PCB type
-     * drawing frames.  Please put your application settings for PCBNew here
-     * to avoid having application settings loaded all over the place.
-     */
-    virtual void LoadSettings();
-
-    /**
-     * Save applications settings common to PCB draw frame objects.
-     *
-     * This overrides the base class WinEDA_BasePcbFrame::SaveSettings() to
-     * save settings specific to the PCB layout application main window.  It
-     * calls down to the base class to save settings common to all PCB type
-     * drawing frames.  Please put your application settings for PCBNew here
-     * to avoid having application settings saved all over the place.
-     */
-    virtual void SaveSettings();
-
     /** function SetLanguage
      * called on a language menu selection
      */
     virtual void SetLanguage( wxCommandEvent& event );
-    
+
 
     DECLARE_EVENT_TABLE()
 };
@@ -959,10 +1091,31 @@ public:
     void         GeneralControle( wxDC* DC, wxPoint Mouse );
     void         LoadModuleFromBoard( wxCommandEvent& event );
 
+    /** Virtual Function OnModify()
+     * Must be called after a footprint change
+     * in order to set the "modify" flag of the current screen
+     * and prepare, if needed the refresh of the 3D frame showing the footprint
+     * do not forget to call the basic OnModify function to update auxiliary info
+     */
+    virtual void OnModify( );
+
     /** function ToPrinter
      * Install the print dialog
      */
     void         ToPrinter( wxCommandEvent& event );
+
+    /** Virtual function PrintPage
+     * used to print a page
+     * Print the page pointed by ActiveScreen, set by the calling print function
+     * @param aDC = wxDC given by the calling print function
+     * @param aPrint_Sheet_Ref = true to print page references
+     * @param aPrintMask = not used here
+     * @param aPrintMirrorMode = not used here (Set when printing in mirror mode)
+     * @param aData = a pointer on an auxiliary data (NULL if not used)
+     */
+    virtual void PrintPage( wxDC* aDC, bool aPrint_Sheet_Ref,
+                    int aPrintMask, bool aPrintMirrorMode,
+                    void * aData = NULL);
 
     // BOARD handling
 

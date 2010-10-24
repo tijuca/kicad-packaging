@@ -137,10 +137,9 @@ bool LIB_FIELD::Load( char* line, wxString& errorMsg )
     char  fieldUserName[1024];
     char* text;
 
-    if( sscanf( line + 1, "%d", &m_FieldId ) != 1
-        || m_FieldId < REFERENCE || m_FieldId >= NUMBER_OF_FIELDS )
+    if( sscanf( line + 1, "%d", &m_FieldId ) != 1 || m_FieldId < 0 )
     {
-        errorMsg = _( "invalid field number defined" );
+        errorMsg = wxT( "invalid field header" );
         return false;
     }
 
@@ -502,20 +501,10 @@ wxString LIB_FIELD::GetFullText( int unit )
         return m_Text;
 
     wxString text = m_Text;
+    text << wxT( "?" );
 
-    if( GetParent()->GetPartCount() > 1 )
-    {
-#if defined(KICAD_GOST)
-        text.Printf( wxT( "%s?.%c" ),
-                     m_Text.GetData(), unit + '1' - 1 );
-#else
-
-        text.Printf( wxT( "%s?%c" ),
-                     m_Text.GetData(), unit + 'A' - 1 );
-#endif
-    }
-    else
-        text << wxT( "?" );
+    if( GetParent()->IsMulti() )
+        text << LIB_COMPONENT::ReturnSubReference( unit );
 
     return text;
 }

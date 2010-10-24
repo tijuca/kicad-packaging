@@ -180,6 +180,7 @@ void SwapData( EDA_BaseStruct* aItem, EDA_BaseStruct* aImage )
 }
 
 
+
 /** function SaveCopyInUndoList
  * Create a copy of the current schematic item, and put it in the undo list.
  *
@@ -230,7 +231,7 @@ void WinEDA_SchematicFrame::SaveCopyInUndoList( SCH_ITEM*      aItem,
     switch( aCommandType )
     {
     case UR_CHANGED:            /* Create a copy of item */
-        CopyOfItem = DuplicateStruct( aItem );
+        CopyOfItem = DuplicateStruct( aItem, true );
         itemWrapper.m_Link = CopyOfItem;
         if ( CopyOfItem )
             commandToUndo->PushItem( itemWrapper );
@@ -300,7 +301,7 @@ void WinEDA_SchematicFrame::SaveCopyInUndoList( PICKED_ITEMS_LIST& aItemsList,
              * If this link is not null, the copy is already done
              */
             if( commandToUndo->GetPickedItemLink(ii) == NULL )
-                commandToUndo->SetPickedItemLink( DuplicateStruct( item ), ii );
+                commandToUndo->SetPickedItemLink( DuplicateStruct( item, true ), ii );
             wxASSERT( commandToUndo->GetPickedItemLink(ii) );
             break;
 

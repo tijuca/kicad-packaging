@@ -183,7 +183,7 @@ public:
      * called on a language menu selection
      */
     virtual void SetLanguage( wxCommandEvent& event );
-    
+
     void         Process_Special_Functions( wxCommandEvent& event );
     void         RedrawActiveWindow( wxDC* DC, bool EraseBg );
     void         ReCreateHToolbar();
@@ -286,7 +286,18 @@ public:
 
     void         Files_io( wxCommandEvent& event );
     void         OnFileHistory( wxCommandEvent& event );
-    bool         LoadOneGerberFile( const wxString& FileName, int mode );
+
+    /**
+     * Load a photoplot (Gerber) file.
+     *
+     * @param aFileName - File name with full path to open or empty string to open a new
+     *                    file.
+     * @param aOpenFileDialog - Set to true to display the open file dialog even if
+     *                          aFileName is valid.
+     *
+     * @return - True if file was opened successfully.
+     */
+    bool         LoadOneGerberFile( const wxString& aFileName, bool aOpenFileDialog = false );
     int          ReadGerberFile( FILE* File, bool Append );
     bool         Read_GERBER_File( const wxString& GERBER_FullFileName,
                                    const wxString& D_Code_FullFileName );
@@ -358,6 +369,17 @@ public:
         // currently: do nothing in gerbview.
     }
 
+    /** Virtual function PrintPage
+     * used to print a page
+     * @param aDC = wxDC given by the calling print function
+     * @param aPrint_Sheet_Ref = true to print page references
+     * @param aPrintMask = not used here
+     * @param aPrintMirrorMode = not used here (Set when printing in mirror mode)
+     * @param aData = a pointer on an auxiliary data (not always used, NULL if not used)
+     */
+    virtual void PrintPage( wxDC* aDC, bool aPrint_Sheet_Ref,
+                    int aPrintMask, bool aPrintMirrorMode,
+                    void * aData = NULL);
 
     DECLARE_EVENT_TABLE()
 };

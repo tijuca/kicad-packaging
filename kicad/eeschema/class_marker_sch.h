@@ -99,6 +99,21 @@ public:
         m_Pos.x += aYaxis_position;
     }
 
+    /**
+     * Compare DRC marker main and auxiliary text against search string.
+     *
+     * @param aSearchData - Criteria to search against.
+     * @return True if the DRC main or auxiliary text matches the search criteria.
+     */
+    virtual bool Matches( wxFindReplaceData& aSearchData );
+
+    /**
+     * Show the marker electronics rule check error on the message panel.
+     *
+     * @param aFrame - Top window that owns the message panel.
+     */
+    void DisplayInfo( WinEDA_DrawFrame* aFrame );
+
 #if defined(DEBUG)
     void              Show( int nestLevel, std::ostream& os );
 #endif

@@ -1,17 +1,18 @@
 Source: kicad
 Section: electronics
 Priority: optional
-Maintainer:  Debian Kicad Team <kicad-devel@lists.mose.flexserv.de>
+Maintainer:  Georges Khaznadar <georgesk@ofset.org>
 Uploaders: Richard Antony Burton <richardaburton@gmail.com>, Daniel J. Priem <danielpriem@flexserv.de>
 Build-Depends: debhelper (>= 6), dpatch, libx11-dev, libglu1-mesa-dev, libgl1-mesa-dev, mesa-common-dev, libwxbase2.8-dev, libwxgtk2.8-dev, libboost-dev, cmake (>= 2.6.0)
-Standards-Version: 3.8.4
+Standards-Version: 3.9.1
 Homepage: http://iut-tice.ujf-grenoble.fr/kicad/
 
 Package: kicad
 Architecture: any
-Depends: kicad-common (>= ${source:Version}), ${shlibs:Depends}, ${misc:Depends}, zlib-bin, extra-xdg-menus
+Depends: kicad-common (>= ${source:Version}), ${shlibs:Depends}, ${misc:Depends}, zlib-bin
 Replaces: kicad-common (<< 0.0.20071129a-1)
-Suggests: kicad-doc-en | kicad-doc-fr | kicad-doc-de | kicad-doc-es | kicad-doc-hu | kicad-doc-ru | kicad-doc-zh-cn
+Suggests: extra-xdg-menus,
+	kicad-doc-en | kicad-doc-fr | kicad-doc-de | kicad-doc-es | kicad-doc-hu | kicad-doc-ru | kicad-doc-zh-cn
 Description: Electronic schematic and PCB design software
  Kicad is a suite of programs for the creation of printed circuit boards.
  It includes a schematic editor, a PCB layout tool, support tools and a

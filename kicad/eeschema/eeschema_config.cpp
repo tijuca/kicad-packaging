@@ -13,13 +13,94 @@
 #include "program.h"
 #include "general.h"
 #include "protos.h"
+#include "libeditframe.h"
 #include "eeschema_config.h"
 #include "worksheet.h"
 #include "hotkeys.h"
 #include "dialog_eeschema_options.h"
 
+#include <wx/fdrepdlg.h>
+
 
 #define HOTKEY_FILENAME wxT( "eeschema" )
+
+#define FR_HISTORY_LIST_CNT 10   ///< Maximum number of find and replace strings.
+
+void WinEDA_LibeditFrame::Process_Config( wxCommandEvent& event )
+{
+    int        id = event.GetId();
+    wxPoint    pos;
+    wxFileName fn;
+    WinEDA_SchematicFrame * schFrame = (WinEDA_SchematicFrame *) GetParent();
+
+    wxGetMousePosition( &pos.x, &pos.y );
+
+    pos.y += 5;
+
+    switch( id )
+    {
+    case ID_COLORS_SETUP:
+        DisplayColorSetupFrame( this, pos );
+        break;
+
+    case ID_CONFIG_SAVE:
+        schFrame->SaveProjectFile( this, false );
+        break;
+
+    case ID_CONFIG_READ:
+    {
+        fn = g_RootSheet->m_AssociatedScreen->m_FileName;
+        fn.SetExt( ProjectFileExtension );
+
+        wxFileDialog dlg( this, _( "Read Project File" ), fn.GetPath(),
+                          fn.GetFullName(), ProjectFileWildcard,
+                          wxFD_OPEN | wxFD_FILE_MUST_EXIST );
+
+        if( dlg.ShowModal() == wxID_CANCEL )
+            break;
+
+        schFrame->LoadProjectFile( dlg.GetPath(), TRUE );
+    }
+    break;
+
+
+    /* Hotkey IDs */
+    case ID_PREFERENCES_HOTKEY_CREATE_CONFIG:
+        fn = wxFileName( ReturnHotkeyConfigFilePath( g_ConfigFileLocationChoice ),
+                         HOTKEY_FILENAME,
+                         DEFAULT_HOTKEY_FILENAME_EXT );
+        WriteHotkeyConfigFile( fn.GetFullPath(), s_Eeschema_Hokeys_Descr, true );
+        break;
+
+    case ID_PREFERENCES_HOTKEY_READ_CONFIG:
+        Read_Hotkey_Config( this, true );
+        break;
+
+    case ID_PREFERENCES_HOTKEY_EDIT_CONFIG:
+    {
+        fn = wxFileName( ReturnHotkeyConfigFilePath( g_ConfigFileLocationChoice ),
+                         HOTKEY_FILENAME, DEFAULT_HOTKEY_FILENAME_EXT );
+        wxString editorname = wxGetApp().GetEditorName();
+        if( !editorname.IsEmpty() )
+            ExecuteFile( this, editorname, QuoteFullPath( fn ) );
+    }
+    break;
+
+    case ID_PREFERENCES_HOTKEY_PATH_IS_HOME:
+    case ID_PREFERENCES_HOTKEY_PATH_IS_KICAD:
+        HandleHotkeyConfigMenuSelection( this, id );
+        break;
+
+    case ID_PREFERENCES_HOTKEY_SHOW_CURRENT_LIST:
+        // Display current hotkey list for LibEdit.
+        DisplayHotkeyList( this, s_Libedit_Hokeys_Descr );
+        break;
+
+    default:
+        DisplayError( this, wxT( "WinEDA_LibeditFrame::Process_Config error" ) );
+    }
+}
+
 
 
 void WinEDA_SchematicFrame::Process_Config( wxCommandEvent& event )
@@ -38,10 +119,6 @@ void WinEDA_SchematicFrame::Process_Config( wxCommandEvent& event )
         DisplayColorSetupFrame( this, pos );
         break;
 
-    case ID_CONFIG_REQ:             // Display the configuration window.
-        InstallConfigFrame( pos );
-        break;
-
     case ID_CONFIG_SAVE:
         SaveProjectFile( this, false );
         break;
@@ -58,7 +135,7 @@ void WinEDA_SchematicFrame::Process_Config( wxCommandEvent& event )
         if( dlg.ShowModal() == wxID_CANCEL )
             break;
 
-        LoadProjectFile( fn.GetFullPath(), TRUE );
+        LoadProjectFile( dlg.GetPath(), TRUE );
     }
     break;
 
@@ -96,7 +173,7 @@ void WinEDA_SchematicFrame::Process_Config( wxCommandEvent& event )
         break;
 
     default:
-        DisplayError( this, wxT( "WinEDA_SchematicFrame::Process_Config internal error" ) );
+        DisplayError( this, wxT( "WinEDA_SchematicFrame::Process_Config error" ) );
     }
 }
 
@@ -330,7 +407,7 @@ void WinEDA_SchematicFrame::SaveProjectFile( wxWindow* displayframe, bool askove
     int options = wxFD_SAVE;
     if( askoverwrite )
         options |= wxFD_OVERWRITE_PROMPT;
-    wxFileDialog dlg( this, _( "Save Project Settings" ), wxGetCwd(),
+    wxFileDialog dlg( displayframe, _( "Save Project Settings" ), wxGetCwd(),
                       fn.GetFullName(), ProjectFileWildcard, options );
 
     if( dlg.ShowModal() == wxID_CANCEL )
@@ -352,6 +429,15 @@ static const wxString PrintDialogPositionXEntry( wxT( "PrintDialogPositionX" ) )
 static const wxString PrintDialogPositionYEntry( wxT( "PrintDialogPositionY" ) );
 static const wxString PrintDialogWidthEntry( wxT( "PrintDialogWidth" ) );
 static const wxString PrintDialogHeightEntry( wxT( "PrintDialogHeight" ) );
+static const wxString FindDialogPositionXEntry( wxT( "FindDialogPositionX" ) );
+static const wxString FindDialogPositionYEntry( wxT( "FindDialogPositionY" ) );
+static const wxString FindDialogWidthEntry( wxT( "FindDialogWidth" ) );
+static const wxString FindDialogHeightEntry( wxT( "FindDialogHeight" ) );
+static const wxString FindReplaceFlagsEntry( wxT( "LastFindReplaceFlags" ) );
+static const wxString FindStringEntry( wxT( "LastFindString" ) );
+static const wxString ReplaceStringEntry( wxT( "LastReplaceString" ) );
+static const wxString FindStringHistoryEntry( wxT( "FindStringHistoryList%d" ) );
+static const wxString ReplaceStringHistoryEntry( wxT( "ReplaceStringHistoryList%d" ) );
 
 
 /*
@@ -474,6 +560,8 @@ void WinEDA_SchematicFrame::LoadSettings()
                                             (long) 6 );
     cfg->Read( ShowHiddenPinsEntry, &m_ShowAllPins, false );
     cfg->Read( HorzVertLinesOnlyEntry, &g_HVLines, true );
+
+    /* Load print preview window session settings. */
     cfg->Read( PreviewFramePositionXEntry, &tmp, -1 );
     m_previewPosition.x = (int) tmp;
     cfg->Read( PreviewFramePositionYEntry, &tmp, -1 );
@@ -483,6 +571,7 @@ void WinEDA_SchematicFrame::LoadSettings()
     cfg->Read( PreviewFrameHeightEntry, &tmp, -1 );
     m_previewSize.SetHeight( (int) tmp );
 
+    /* Load print dialog session settings. */
     cfg->Read( PrintDialogPositionXEntry, &tmp, -1 );
     m_printDialogPosition.x = (int) tmp;
     cfg->Read( PrintDialogPositionYEntry, &tmp, -1 );
@@ -491,6 +580,40 @@ void WinEDA_SchematicFrame::LoadSettings()
     m_printDialogSize.SetWidth( (int) tmp );
     cfg->Read( PrintDialogHeightEntry, &tmp, -1 );
     m_printDialogSize.SetHeight( (int) tmp );
+
+    /* Load find dialog session setting. */
+    cfg->Read( FindDialogPositionXEntry, &tmp, -1 );
+    m_findDialogPosition.x = (int) tmp;
+    cfg->Read( FindDialogPositionYEntry, &tmp, -1 );
+    m_findDialogPosition.y = (int) tmp;
+    cfg->Read( FindDialogWidthEntry, &tmp, -1 );
+    m_findDialogSize.SetWidth( (int) tmp );
+    cfg->Read( FindDialogHeightEntry, &tmp, -1 );
+    m_findDialogSize.SetHeight( (int) tmp );
+    wxASSERT_MSG( m_findReplaceData,
+                  wxT( "Find dialog data settings object not created. Bad programmer!" ) );
+    cfg->Read( FindReplaceFlagsEntry, &tmp, (long) wxFR_DOWN );
+    m_findReplaceData->SetFlags( (wxUint32) tmp );
+    m_findReplaceData->SetFindString( cfg->Read( FindStringEntry, wxEmptyString ) );
+    m_findReplaceData->SetReplaceString( cfg->Read( ReplaceStringEntry, wxEmptyString ) );
+
+    /* Load the find and replace string history list. */
+    for ( size_t i = 0; i < FR_HISTORY_LIST_CNT; i++ )
+    {
+        wxString tmpHistory;
+        wxString entry;
+        entry.Printf( FindStringHistoryEntry, i );
+        tmpHistory = cfg->Read( entry, wxEmptyString );
+
+        if( !tmpHistory.IsEmpty() )
+            m_findStringHistoryList.Add( tmpHistory );
+
+        entry.Printf( ReplaceStringHistoryEntry, i );
+        tmpHistory = cfg->Read( entry, wxEmptyString );
+
+        if( !tmpHistory.IsEmpty() )
+            m_replaceStringHistoryList.Add( tmpHistory );
+    }
 }
 
 
@@ -511,13 +634,43 @@ void WinEDA_SchematicFrame::SaveSettings()
     cfg->Write( ShowHiddenPinsEntry, m_ShowAllPins );
     cfg->Write( HorzVertLinesOnlyEntry, g_HVLines );
 
+    /* Save print preview window session settings. */
     cfg->Write( PreviewFramePositionXEntry, m_previewPosition.x );
     cfg->Write( PreviewFramePositionYEntry, m_previewPosition.y );
     cfg->Write( PreviewFrameWidthEntry, m_previewSize.GetWidth() );
     cfg->Write( PreviewFrameHeightEntry, m_previewSize.GetHeight() );
 
+    /* Save print dialog session settings. */
     cfg->Write( PrintDialogPositionXEntry, m_printDialogPosition.x );
     cfg->Write( PrintDialogPositionYEntry, m_printDialogPosition.y );
     cfg->Write( PrintDialogWidthEntry, m_printDialogSize.GetWidth() );
     cfg->Write( PrintDialogHeightEntry, m_printDialogSize.GetHeight() );
+
+    /* Save find dialog session setting. */
+    cfg->Write( FindDialogPositionXEntry, m_findDialogPosition.x );
+    cfg->Write( FindDialogPositionYEntry, m_findDialogPosition.y );
+    cfg->Write( FindDialogWidthEntry, m_findDialogSize.GetWidth() );
+    cfg->Write( FindDialogHeightEntry, m_findDialogSize.GetHeight() );
+    wxASSERT_MSG( m_findReplaceData,
+                  wxT( "Find dialog data settings object not created. Bad programmer!" ) );
+    cfg->Write( FindReplaceFlagsEntry, (long) m_findReplaceData->GetFlags() );
+    cfg->Write( FindStringEntry, m_findReplaceData->GetFindString() );
+    cfg->Write( ReplaceStringEntry, m_findReplaceData->GetReplaceString() );
+
+    /* Save the find and replace string history list. */
+    size_t i;
+    wxString tmpHistory;
+    wxString entry;
+
+    for ( i = 0; i < m_findStringHistoryList.GetCount() && i < FR_HISTORY_LIST_CNT; i++ )
+    {
+        entry.Printf( FindStringHistoryEntry, i );
+        cfg->Write( entry, m_findStringHistoryList[ i ] );
+    }
+
+    for ( i = 0; i < m_replaceStringHistoryList.GetCount() && i < FR_HISTORY_LIST_CNT; i++ )
+    {
+        entry.Printf( ReplaceStringHistoryEntry, i );
+        cfg->Write( entry, m_replaceStringHistoryList[ i ] );
+    }
 }

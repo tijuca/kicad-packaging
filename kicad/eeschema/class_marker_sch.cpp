@@ -114,6 +114,15 @@ void SCH_MARKER::Draw( WinEDA_DrawPanel* aPanel, wxDC* aDC,
 }
 
 
+bool SCH_MARKER::Matches( wxFindReplaceData& aSearchData )
+{
+    if( !SCH_ITEM::Matches( m_drc.GetMainText(), aSearchData ) )
+        return SCH_ITEM::Matches( m_drc.GetAuxiliaryText(), aSearchData );
+
+    return true;
+}
+
+
 /**
  * Function GetBoundingBox
  * returns the orthogonal, bounding box of this object for display purposes.
@@ -126,3 +135,15 @@ EDA_Rect SCH_MARKER::GetBoundingBox()
     return GetBoundingBoxMarker();
 }
 
+
+void SCH_MARKER::DisplayInfo( WinEDA_DrawFrame* aFrame )
+{
+    if( aFrame == NULL )
+        return;
+
+    wxString msg;
+
+    aFrame->ClearMsgPanel();
+    aFrame->AppendMsgPanel( _( "Electronics rule check error" ),
+                            GetReporter().GetErrorText(), DARKRED );
+}

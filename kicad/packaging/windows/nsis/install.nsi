@@ -17,7 +17,7 @@
 
 ; General Product Description Definitions
 !define PRODUCT_NAME "KiCad"
-!define PRODUCT_VERSION "2010.03.14"
+!define PRODUCT_VERSION "2010.05.05"
 !define PRODUCT_WEB_SITE "http://iut-tice.ujf-grenoble.fr/kicad/"
 !define SOURCEFORGE_WEB_SITE "http://kicad.sourceforge.net/"
 !define COMPANY_NAME ""
@@ -25,7 +25,7 @@
 !define COPYRIGHT "Kicad Team (Jean-Pierre Charras et all)"
 !define COMMENTS ""
 !define HELP_WEB_SITE "http://groups.yahoo.com/group/kicad-users/"
-!define DEVEL_WEB_SITE "http://groups.yahoo.com/group/kicad-devel/"
+!define DEVEL_WEB_SITE "https://launchpad.net/~kicad-developers/"
 !define WINGS3D_WEB_SITE "http://www.wings3d.com"
 
 !define PRODUCT_UNINST_KEY "Software\Microsoft\Windows\CurrentVersion\Uninstall\${PRODUCT_NAME}"

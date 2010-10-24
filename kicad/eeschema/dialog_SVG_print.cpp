@@ -14,11 +14,11 @@
 #include "gestfich.h"
 
 #include "dialog_SVG_print_base.h"
-
 #include "dcsvg.h"
 
 #include "program.h"
 #include "general.h"
+#include "libeditframe.h"
 
 // Keys for configuration
 #define PLOTSVGMODECOLOR_KEY  wxT( "PlotSVGModeColor" )
@@ -35,7 +35,6 @@ class DIALOG_SVG_PRINT : public DIALOG_SVG_PRINT_base
 {
 private:
     WinEDA_DrawFrame * m_Parent;
-    int m_ImageXSize_mm;
     wxConfig* m_Config;
 
 public:
@@ -51,8 +50,11 @@ private:
     void OnSetColorModeSelected( wxCommandEvent& event );
     void SetPenWidth();
     void PrintSVGDoc( bool aPrintAll, bool aPrint_Sheet_Ref );
-    bool DrawPage( const wxString& FullFileName, BASE_SCREEN* screen,
-                   bool aPrint_Sheet_Ref );
+public:
+    static bool DrawSVGPage( WinEDA_DrawFrame * frame,
+                   const wxString& FullFileName, BASE_SCREEN* screen,
+                   bool aPrintBlackAndWhite = false,
+                   bool aPrint_Sheet_Ref = false);
 };
 
 
@@ -65,6 +67,15 @@ void WinEDA_DrawFrame::SVG_Print( wxCommandEvent& event )
 
     frame.ShowModal();
 }
+
+/* Creates the SVG print file for the current edited component.
+ */
+void WinEDA_LibeditFrame::SVG_Print_Component( const wxString& FullFileName )
+{
+    DIALOG_SVG_PRINT::DrawSVGPage( this, FullFileName, GetScreen() );
+}
+
+
 
 
 /*!
@@ -82,11 +93,12 @@ void DIALOG_SVG_PRINT::OnInitDialog( wxInitDialogEvent& event )
 {
     SetFocus();     // Make ESC key working
 
-    m_ImageXSize_mm = 270;
     if( m_Config )
     {
         m_Config->Read( PLOTSVGMODECOLOR_KEY, &s_PlotBlackAndWhite );
     }
+
+    m_ModeColorOption->SetSelection(s_PlotBlackAndWhite);
 
     AddUnitSymbol(* m_TextPenWidth, g_UnitMetric );
     m_DialogPenWidth->SetValue(
@@ -128,6 +140,9 @@ void DIALOG_SVG_PRINT::PrintSVGDoc( bool aPrintAll, bool aPrint_Sheet_Ref )
 
     SetPenWidth();
 
+    g_DrawDefaultLineThickness =
+        ReturnValueFromTextCtrl( *m_DialogPenWidth, m_Parent->m_InternalUnits );
+
     BASE_SCREEN* screen    = m_Parent->GetBaseScreen();
     BASE_SCREEN* oldscreen = screen;
 
@@ -160,7 +175,8 @@ void DIALOG_SVG_PRINT::PrintSVGDoc( bool aPrintAll, bool aPrint_Sheet_Ref )
 
             fn = schframe->GetUniqueFilenameForCurrentSheet( ) + wxT( ".svg" );
 
-            bool success = DrawPage( fn.GetFullPath(), schscreen,
+            bool success = DrawSVGPage( m_Parent, fn.GetFullPath(), schscreen,
+                                     m_ModeColorOption->GetSelection() == 0 ? false : true,
                                      aPrint_Sheet_Ref );
             msg = _( "Create file " ) + fn.GetFullPath();
             if( !success )
@@ -180,8 +196,11 @@ void DIALOG_SVG_PRINT::PrintSVGDoc( bool aPrintAll, bool aPrint_Sheet_Ref )
             fn = screen->m_FileName;
 
         fn.SetExt( wxT( "svg" ) );
+        fn.MakeAbsolute( );
 
-        bool success = DrawPage( fn.GetFullPath(), screen, aPrint_Sheet_Ref );
+        bool success = DrawSVGPage( m_Parent, fn.GetFullPath(), screen,
+                                 m_ModeColorOption->GetSelection() == 0 ? false : true,
+                                 aPrint_Sheet_Ref );
         msg = _( "Create file " ) + fn.GetFullPath();
 
         if( !success )
@@ -194,16 +213,16 @@ void DIALOG_SVG_PRINT::PrintSVGDoc( bool aPrintAll, bool aPrint_Sheet_Ref )
     ActiveScreen = oldscreen;
 }
 
-
-bool DIALOG_SVG_PRINT::DrawPage( const wxString& FullFileName,
+bool DIALOG_SVG_PRINT::DrawSVGPage( WinEDA_DrawFrame * frame,
+                                 const wxString& FullFileName,
                                  BASE_SCREEN* screen,
+                                 bool aPrintBlackAndWhite,
                                  bool aPrint_Sheet_Ref)
 {
     int     tmpzoom;
     wxPoint tmp_startvisu;
     wxSize  SheetSize;  // Sheet size in internal units
     wxPoint old_org;
-    float   dpi;
     bool    success = true;
 
     tmp_startvisu = screen->m_StartVisu;
@@ -211,39 +230,35 @@ bool DIALOG_SVG_PRINT::DrawPage( const wxString& FullFileName,
     old_org = screen->m_DrawOrg;
     screen->m_DrawOrg.x   = screen->m_DrawOrg.y = 0;
     screen->m_StartVisu.x = screen->m_StartVisu.y = 0;
-    SheetSize    = screen->m_CurrentSheetDesc->m_Size;  // size in 1/1000 inch
-    SheetSize.x *= m_Parent->m_InternalUnits / 1000;
-    SheetSize.y *= m_Parent->m_InternalUnits / 1000;    // size in pixels
+    SheetSize    = screen->ReturnPageSize( );           // page size in 1/1000 inch, ie in internal units
 
     screen->SetScalingFactor( 1.0 );
-    dpi = (float) SheetSize.x * 25.4 / m_ImageXSize_mm;
+    WinEDA_DrawPanel* panel = frame->DrawPanel;
 
-    WinEDA_DrawPanel* panel = m_Parent->DrawPanel;
+    SetLocaleTo_C_standard( );   // Switch the locale to standard C (needed
+                                 // to print floating point numbers like 1.3)
 
+    float dpi = (float)frame->m_InternalUnits;
     wxSVGFileDC dc( FullFileName, SheetSize.x, SheetSize.y, dpi );
 
     EDA_Rect tmp = panel->m_ClipBox;
     GRResetPenAndBrush( &dc );
-    g_DrawDefaultLineThickness =
-        ReturnValueFromTextCtrl( *m_DialogPenWidth, m_Parent->m_InternalUnits );
-    GRForceBlackPen( m_ModeColorOption->GetSelection() == 0 ? FALSE : true );
+    GRForceBlackPen( aPrintBlackAndWhite );
 
 
-    panel->m_ClipBox.SetX( 0 );
-    panel->m_ClipBox.SetY( 0 );
+    panel->m_ClipBox.SetX( -0x3FFFFF0 );
+    panel->m_ClipBox.SetY( -0x3FFFFF0 );
     panel->m_ClipBox.SetWidth( 0x7FFFFF0 );
     panel->m_ClipBox.SetHeight( 0x7FFFFF0 );
 
     screen->m_IsPrinting = true;
-    SetLocaleTo_C_standard( );   // Switch the locale to standard C (needed
-                                 // to print floating point numbers like 1.3)
-    panel->PrintPage( &dc, aPrint_Sheet_Ref, 1, false, NULL );
+    frame->PrintPage( &dc, aPrint_Sheet_Ref, 1, false );
     SetLocaleTo_Default( );      // revert to the current  locale
     screen->m_IsPrinting = false;
     panel->m_ClipBox = tmp;
 
 
-    GRForceBlackPen( FALSE );
+    GRForceBlackPen( false );
 
     screen->m_StartVisu = tmp_startvisu;
     screen->m_DrawOrg   = old_org;

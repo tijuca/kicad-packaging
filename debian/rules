@@ -47,7 +47,11 @@ clean: clean-patched clean-build unpatch
 clean-patched:
 	dh_testdir
 	dh_testroot
-	rm -f build-arch-stamp build-indep-stamp configure-stamp	
+	rm -f build-arch-stamp build-indep-stamp configure-stamp
+	# REMOVE AUTOMATICALLY GENERATED FILES	
+	rm -f kicad/pcbnew/dialog_freeroute_exchange_help_html.h \
+	      kicad/eeschema/cmp_library_base.h \
+	      kicad/eeschema/cmp_library_base.cpp
 	dh_clean
 
 clean-build:
@@ -64,7 +68,7 @@ install-indep:
 	dh_installdocs
 
 	cd $(CURDIR)/build/kicad/demos && cmake -P cmake_install.cmake
-	cd $(CURDIR)/build/kicad/internat && cmake -DCMAKE_INSTALL_PREFIX=$(CURDIR)/debian/kicad-common/usr -P cmake_install.cmake
+	cd $(CURDIR)/build/kicad-doc/internat && cmake -DCMAKE_INSTALL_PREFIX=$(CURDIR)/debian/kicad-common/usr -P cmake_install.cmake
 	cd $(CURDIR)/build/kicad/template && cmake -DCMAKE_INSTALL_PREFIX=$(CURDIR)/debian/kicad-common/usr -P cmake_install.cmake
 	cd $(CURDIR)/build/kicad-library && cmake -DCOMPONENT=resources -DCMAKE_INSTALL_PREFIX=$(CURDIR)/debian/kicad-common/usr -P cmake_install.cmake
 	cd $(CURDIR)/build/kicad-doc && cmake -DCOMPONENT=file_formats -DCMAKE_INSTALL_PREFIX=$(CURDIR)/debian/kicad-common/usr -P cmake_install.cmake

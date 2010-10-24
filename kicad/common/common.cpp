@@ -55,17 +55,17 @@ Ki_PageDescr* g_SheetSizeList[NB_ITEMS + 1] =
  * that they cannot be changed. */
 const wxString ProjectFileExtension( wxT( "pro" ) );
 const wxString SchematicFileExtension( wxT( "sch" ) );
-const wxString BoardFileExtension( wxT( "brd" ) );
 const wxString NetlistFileExtension( wxT( "net" ) );
 const wxString GerberFileExtension( wxT( "pho" ) );
+const wxString PcbFileExtension( wxT( "brd" ) );
 const wxString PdfFileExtension( wxT( "pdf" ) );
 
 /* Proper wxFileDialog wild card definitions. */
 const wxString ProjectFileWildcard( _( "Kicad project files (*.pro)|*.pro" ) );
-const wxString BoardFileWildcard( _( "Kicad PCB files (*.brd)|*.brd" ) );
 const wxString SchematicFileWildcard( _( "Kicad schematic files (*.sch)|*.sch" ) );
 const wxString NetlistFileWildcard( _( "Kicad netlist files (*.net)|*.net" ) );
 const wxString GerberFileWildcard( _( "Gerber files (*.pho)|*.pho" ) );
+const wxString PcbFileWildcard( _( "Kicad printed circuit board files (*.brd)|*.brd" ) );
 const wxString PdfFileWildcard( _( "Portable document format files (*.pdf)|*.pdf" ) );
 const wxString AllFilesWildcard( _( "All files (*)|*" ) );
 
@@ -221,33 +221,40 @@ Ki_PageDescr::Ki_PageDescr( const wxSize&   size,
 }
 
 
-wxString ReturnUnitSymbol( int Units )
+wxString ReturnUnitSymbol( int aUnits, const wxString& formatString )
 {
+    wxString tmp;
     wxString label;
 
-    switch( Units )
+    switch( aUnits )
     {
     case INCHES:
-        label = _( " (\"):" );
+        tmp = _( "\"" );
         break;
 
     case MILLIMETRE:
-        label = _( " (mm):" );
+        tmp = _( "mm" );
         break;
 
     default:
+        tmp = _( "??" );
         break;
     }
+
+    if( formatString.IsEmpty() )
+        return tmp;
+
+    label.Printf( formatString, GetChars( tmp ) );
 
     return label;
 }
 
 
-wxString GetUnitsLabel( int units )
+wxString GetUnitsLabel( int aUnits )
 {
     wxString label;
 
-    switch( units )
+    switch( aUnits )
     {
     case INCHES:
         label = _( "inches" );
@@ -260,6 +267,7 @@ wxString GetUnitsLabel( int units )
     case CENTIMETRE:
         label = _( "centimeters" );
         break;
+
     default:
         label = _( "Unknown" );
         break;
@@ -267,6 +275,34 @@ wxString GetUnitsLabel( int units )
 
     return label;
 }
+
+
+wxString GetAbbreviatedUnitsLabel( int aUnits )
+{
+    wxString label;
+
+    switch( aUnits )
+    {
+    case INCHES:
+        label = _( "in" );
+        break;
+
+    case MILLIMETRE:
+        label = _( "mm" );
+        break;
+
+    case CENTIMETRE:
+        label = _( "cm" );
+        break;
+
+    default:
+        label = _( "??" );
+        break;
+    }
+
+    return label;
+}
+
 
 /*
  * Add string "  (mm):" or " ("):" to the static text Stext.
@@ -422,7 +458,7 @@ double To_User_Unit( bool is_metric, double val, int internal_unit_value )
     double value;
 
     if( is_metric )
-        value = val * 25.4000508001016 / internal_unit_value;
+        value = val * 25.4 / internal_unit_value;
     else
         value = val / internal_unit_value;
 
@@ -438,7 +474,7 @@ int From_User_Unit( bool is_metric, double val, int internal_unit_value )
     double value;
 
     if( is_metric )
-        value = val * internal_unit_value / 25.4000508001016;
+        value = val * internal_unit_value / 25.4;
     else
         value = val * internal_unit_value;
 

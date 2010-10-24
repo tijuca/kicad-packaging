@@ -32,7 +32,7 @@ class SEGVIA;
 class D_PAD;
 class TEXTE_MODULE;
 class MIREPCB;
-class COTATION;
+class DIMENSION;
 class EDGE_MODULE;
 class WinEDA3D_DrawFrame;
 class DRC;
@@ -218,9 +218,11 @@ public:
 
     /** Function OnModify()
      * Virtual
-     * Must be called after a schematic change
+     * Must be called after a change
      * in order to set the "modify" flag of the current screen
      * and update the date in frame reference
+     * do not forget to call this basic OnModify function to update info
+     * in derived OnModify functions
      */
     virtual void OnModify( );
 

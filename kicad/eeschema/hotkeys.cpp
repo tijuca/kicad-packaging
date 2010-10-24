@@ -13,6 +13,8 @@
 #include "libeditframe.h"
 #include "class_libentry.h"
 
+#include "dialog_schematic_find.h"
+
 
 /* How to add a new hotkey:
  * add a new id in the enum hotkey_id_command like MY_NEW_ID_FUNCTION (see
@@ -137,8 +139,10 @@ static Ki_HotkeyInfo HkDelete( wxT( "Delete Item" ), HK_DELETE, WXK_DELETE );
 
 static Ki_HotkeyInfo HkFindItem( wxT( "Find Item" ), HK_FIND_ITEM, 'F'
                                  + GR_KB_CTRL );
-static Ki_HotkeyInfo HkNextSearch( wxT( "Next Search" ), HK_NEXT_SEARCH,
-                                   WXK_F5 );
+static Ki_HotkeyInfo HkFindNextItem( wxT( "Find Next Item" ), HK_FIND_NEXT_ITEM,
+                                     WXK_F5 );
+static Ki_HotkeyInfo HkFindNextDrcMarker( wxT( "Find next DRC marker" ), HK_FIND_NEXT_DRC_MARKER,
+                                          WXK_F5 + GR_KB_SHIFT );
 
 // Special keys for library editor:
 static Ki_HotkeyInfo HkInsertPin( wxT( "Repeat Pin" ), HK_REPEAT_LAST,
@@ -167,7 +171,8 @@ Ki_HotkeyInfo* s_Common_Hotkey_List[] =
 Ki_HotkeyInfo* s_Schematic_Hotkey_List[] =
 {
     &HkFindItem,
-    &HkNextSearch,
+    &HkFindNextItem,
+    &HkFindNextDrcMarker,
     &HkDelete,
     &HkInsert,
     &HkMove2Drag,
@@ -345,13 +350,25 @@ void WinEDA_SchematicFrame::OnHotKey( wxDC* DC, int hotkey,
         }
         break;
 
-    case HK_NEXT_SEARCH:
+    case HK_FIND_NEXT_ITEM:
         if( !ItemInEdit )
         {
-            if( g_LastSearchIsMarker )
-                WinEDA_SchematicFrame::FindMarker( 1 );
-            else
-                FindSchematicItem( wxEmptyString, 2 );
+            wxFindDialogEvent event( wxEVT_COMMAND_FIND, GetId() );
+            event.SetEventObject( this );
+            event.SetFlags( m_findReplaceData->GetFlags() );
+            event.SetFindString( m_findReplaceData->GetFindString() );
+            GetEventHandler()->ProcessEvent( event );
+        }
+        break;
+
+    case HK_FIND_NEXT_DRC_MARKER:
+        if( !ItemInEdit )
+        {
+            wxFindDialogEvent event( EVT_COMMAND_FIND_DRC_MARKER, GetId() );
+            event.SetEventObject( this );
+            event.SetFlags( m_findReplaceData->GetFlags() );
+            event.SetFindString( m_findReplaceData->GetFindString() );
+            GetEventHandler()->ProcessEvent( event );
         }
         break;
 
@@ -534,7 +551,7 @@ void WinEDA_SchematicFrame::OnHotKey( wxDC* DC, int hotkey,
             GetScreen()->SetCurItem( (SCH_ITEM*) DrawStruct );
 
             // Create the events for moving a component or other schematic item
-            wxCommandEvent eventMoveComponent( wxEVT_COMMAND_TOOL_CLICKED,
+            wxCommandEvent eventMoveOrDragComponent( wxEVT_COMMAND_TOOL_CLICKED,
                                                HK_Descr->m_IdMenuEvent );
             wxCommandEvent eventMoveItem( wxEVT_COMMAND_TOOL_CLICKED,
                                           ID_POPUP_SCH_MOVE_ITEM_REQUEST );
@@ -547,22 +564,24 @@ void WinEDA_SchematicFrame::OnHotKey( wxDC* DC, int hotkey,
             {
             // select the correct event for moving an schematic object
             // and add it to the event queue
+            case DRAW_SHEET_STRUCT_TYPE:
             case TYPE_SCH_COMPONENT:
-                wxPostEvent( this, eventMoveComponent );
+                wxPostEvent( this, eventMoveOrDragComponent );
                 break;
 
             case TYPE_SCH_TEXT:
             case TYPE_SCH_LABEL:
             case TYPE_SCH_GLOBALLABEL:
             case TYPE_SCH_HIERLABEL:
-            case DRAW_SHEET_STRUCT_TYPE:
             case DRAW_PART_TEXT_STRUCT_TYPE:
             case DRAW_BUSENTRY_STRUCT_TYPE:
-                wxPostEvent( this, eventMoveItem );
+                if( HK_Descr->m_Idcommand != HK_DRAG )
+                    wxPostEvent( this, eventMoveItem );
                 break;
 
             case DRAW_HIERARCHICAL_PIN_SHEET_STRUCT_TYPE:
-                wxPostEvent( this, eventMovePinsheet );
+                if( HK_Descr->m_Idcommand != HK_DRAG )
+                    wxPostEvent( this, eventMovePinsheet );
                 break;
 
             case DRAW_SEGMENT_STRUCT_TYPE:

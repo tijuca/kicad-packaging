@@ -4,6 +4,109 @@ KiCad ChangeLog 2010
 Please add newer entries at the top, list the date and your name with
 email address.
 
+2010-may-18, UPDATE Jean-Pierre Charras <jean-pierre.charras@gipsa-lab.inpg.fr>
+================================================================================
+++All:
+    Set minimum cmake version requirement to 2.6.4
+    (does not works with 2.6.1)
+++Pcbnew, Module Editor:
+    Added footprint name edition in the module properties dialog.
+    Until now, the footprint name used to retrieve a footprint in lib was
+    set only when saving the footprint in lib, and could not be edited without saving
+    the footprint in lib.
+
+2010-may-01, UPDATE Jean-Pierre Charras <jean-pierre.charras@gipsa-lab.inpg.fr>
+================================================================================
+++Pcbnew:
+    Board and footprint editors:
+    Auto update 3D display after footprint or board edition.
+    (board or footprint is reloaded only when the 3D frame is reactivated, so
+    no extra time is needed during edition)
+
+2010-apr-29, UPDATE Jean-Pierre Charras <jean-pierre.charras@gipsa-lab.inpg.fr>
+================================================================================
+++Pcbnew:
+    Fixed a crash that happens sometimes when opening the design rule dialog.
+    (due to the sorting function by netclass then by netname)
+    The sorting by netclass then by netname is now working well.
+
+
+2010-apr-23, UPDATE Jean-Pierre Charras <jean-pierre.charras@gipsa-lab.inpg.fr>
+================================================================================
+++Pcbnew:
+    Fixed minor problems.
+    Changed French word COTATION to DIMENSION in class COTATION (now class DIMENSION)
+
+2010-apr-22, UPDATE Jean-Pierre Charras <jean-pierre.charras@gipsa-lab.inpg.fr>
+================================================================================
+++Pcbnew+Gerbview:
+    Fixed minor problems in printing.
+
+2010-apr-19, UPDATE Jean-Pierre Charras <jean-pierre.charras@gipsa-lab.inpg.fr>
+================================================================================
+++Pcbnew:
+    * Added VRML export, from the patch sent by Lorenzo Marcantonio ( october 2009, 11)
+    * Fixed :
+      options to control vrml export.
+      flipped footprints
+    * Tested using Cortona and Blender.
+
+    Needs more testing and refinements
+
+2010-apr-16, UPDATE Jean-Pierre Charras <jean-pierre.charras@gipsa-lab.inpg.fr>
+================================================================================
+++Cvpcb:
+    Fixed a bug in footprint display frame (coordinates not displayed). Windows only.
+    Added right toolbar to select display options
+    Can now read netlists using UTF8 encoding.
+    Convert dialog_display_option from DialogBlocks to wxFormBuilder
+++Pcbnew:
+    Fixed a very minor bug.
+Cvpcb+Pcbnew:
+    Code cleanup in read netlist functions: use now FILE_LINE_READER.
+
+2010-Apr-12 UPDATE Dick Hollenbeck <dick@softplc.com>
+================================================================================
+++all:
+    Switched the source code repository from subversion at sourceforge.net to
+    launchpad using bazaar.
+
+
+2010-apr-08, UPDATE Jean-Pierre Charras <jean-pierre.charras@gipsa-lab.inpg.fr>
+================================================================================
+++Pcbnew:
+    Drc: take in account the clearance "local parameters" for pads that have local parameters.
+         Until now, only NETCLASS clearance values were used.
+         (local parameters are used in zone filling)
+         But because a pad (or a footprint) can have a specific clearance value
+         Drc used now this value, and NETCLASS value only if no local value specified.
+
+2010-mar-31, UPDATE Jean-Pierre Charras <jean-pierre.charras@gipsa-lab.inpg.fr>
+================================================================================
+++Pcbnew
+    Fixed an issue in GERBER file creation, under Vista and W7 only for non administrator users
+    Plot files were 0 byte length.
+    This was due to use of function tmpfile() in a GERBER function
+    to create a temporary file that seems not working using mingw.
+    Replaced by more usual files functions.
+
+2010-mar-29, UPDATE Jean-Pierre Charras <jean-pierre.charras@gipsa-lab.inpg.fr>
+================================================================================
+++Pcbnew
+    enhancements in printing or plot in SVG format:
+    When printing technical layers, pads on solder mask or solder paste layers
+    where printed in sketch mode.
+    Now they are printed as solid shapes, with dimensions according to
+    solder paste or solder mask clearances.
+
+
+2010-mar-18 UPDATE Jean-Pierre Charras <jean-pierre.charras@gipsa-lab.inpg.fr>
+================================================================================
+++Eeschema
+    Some bugs fixed
+    Starting enhancements in Libedit: menubar and commands to "plot"
+    current component in PNG or SVF file (SVG file not fully working, must be refined)
+
 2010-mar-13 UPDATE Jean-Pierre Charras <jean-pierre.charras@gipsa-lab.inpg.fr>
 ================================================================================
 ++ All:

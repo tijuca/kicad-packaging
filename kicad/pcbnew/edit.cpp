@@ -264,7 +264,7 @@ void WinEDA_PcbFrame::Process_Special_Functions( wxCommandEvent& event )
         SetToolID( id, wxCURSOR_HAND, _( "Add Modules" ) );
         break;
 
-    case ID_PCB_COTATION_BUTT:
+    case ID_PCB_DIMENSION_BUTT:
         SetToolID( id, wxCURSOR_PENCIL, _( "Add Dimension" ) );
         break;
 
@@ -582,7 +582,6 @@ void WinEDA_PcbFrame::Process_Special_Functions( wxCommandEvent& event )
         g_Drag_Pistes_On = true;
 
     case ID_POPUP_PCB_MOVE_MODULE_REQUEST:
-
         // If the current Item is a pad, text module ...: Get its parent
         if( GetCurItem()->Type() != TYPE_MODULE )
             SetCurItem( GetCurItem()->GetParent() );
@@ -591,6 +590,7 @@ void WinEDA_PcbFrame::Process_Special_Functions( wxCommandEvent& event )
             g_Drag_Pistes_On = false;
             break;
         }
+        GetScreen()->m_Curseur = ((MODULE*) GetCurItem())->m_Pos;
         DrawPanel->MouseToCursorSchema();
         StartMove_Module( (MODULE*) GetCurItem(), &dc );
         break;
@@ -803,14 +803,14 @@ void WinEDA_PcbFrame::Process_Special_Functions( wxCommandEvent& event )
         SetCurItem( NULL );
         break;
 
-    case ID_POPUP_PCB_DELETE_COTATION:
+    case ID_POPUP_PCB_DELETE_DIMENSION:
         DrawPanel->MouseToCursorSchema();
-        Delete_Cotation( (COTATION*) GetCurItem(), &dc );
+        Delete_Dimension( (DIMENSION*) GetCurItem(), &dc );
         SetCurItem( NULL );
         break;
 
-    case ID_POPUP_PCB_EDIT_COTATION:
-        Install_Edit_Cotation( (COTATION*) GetCurItem(), &dc, pos );
+    case ID_POPUP_PCB_EDIT_DIMENSION:
+        Install_Edit_Dimension( (DIMENSION*) GetCurItem(), &dc, pos );
         DrawPanel->MouseToCursorSchema();
         break;
 
@@ -904,10 +904,12 @@ void WinEDA_PcbFrame::Process_Special_Functions( wxCommandEvent& event )
             wxPoint pos   = GetScreen()->m_Curseur;
             track->Draw( DrawPanel, &dc, GR_XOR );
             PICKED_ITEMS_LIST itemsListPicker;
-            TRACK*  newtrack = CreateLockPoint( pos, track, NULL, &itemsListPicker);
+            TRACK*  newtrack = CreateLockPoint( GetBoard(), pos, track, &itemsListPicker);
             SaveCopyInUndoList(itemsListPicker,UR_UNSPECIFIED);
             track->Draw( DrawPanel, &dc, GR_XOR );
             newtrack->Draw( DrawPanel, &dc, GR_XOR );
+            /* compute the new rastnest, because connectivity could change */
+            test_1_net_connexion( &dc, track->GetNet() );
         }
         break;
 
@@ -991,8 +993,8 @@ void WinEDA_PcbFrame::RemoveStruct( BOARD_ITEM* Item, wxDC* DC )
         Delete_Module( (MODULE*) Item, DC, true );
         break;
 
-    case TYPE_COTATION:
-        Delete_Cotation( (COTATION*) Item, DC );
+    case TYPE_DIMENSION:
+        Delete_Dimension( (DIMENSION*) Item, DC );
         break;
 
     case TYPE_MIRE:

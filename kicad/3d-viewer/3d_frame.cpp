@@ -33,6 +33,7 @@ double       DataScale3D; // 3D conversion units.
 
 
 BEGIN_EVENT_TABLE( WinEDA3D_DrawFrame, wxFrame )
+    EVT_ACTIVATE( WinEDA3D_DrawFrame::OnActivate )
     EVT_TOOL_RANGE( ID_ZOOM_IN, ID_ZOOM_PAGE, WinEDA3D_DrawFrame::Process_Zoom )
     EVT_TOOL_RANGE( ID_START_COMMAND_3D, ID_END_COMMAND_3D,
                     WinEDA3D_DrawFrame::Process_Special_Functions )
@@ -56,6 +57,7 @@ WinEDA3D_DrawFrame::WinEDA3D_DrawFrame( WinEDA_BasePcbFrame* parent,
     m_HToolBar      = NULL;
     m_VToolBar      = NULL;
     m_InternalUnits = 10000;    // Internal units = 1/10000 inch
+    m_reloadRequest = false;
 
     // Give it an icon
     SetIcon( wxICON( icon_w3d ) );
@@ -342,12 +344,25 @@ error: unknown command" ) );
 
 void WinEDA3D_DrawFrame::NewDisplay()
 {
+    m_reloadRequest = false;
+
     m_Canvas->ClearLists();
     m_Canvas->CreateDrawGL_List();
 
 //    m_Canvas->InitGL();
     m_Canvas->Refresh( true );
     m_Canvas->DisplayStatus();
+}
+
+
+void WinEDA3D_DrawFrame::OnActivate( wxActivateEvent& event )
+{
+    // Reload data if 3D frame shows a footprint,
+    // because it can be changed since last frame activation
+    if( m_reloadRequest )
+        NewDisplay();
+
+    event.Skip();   // required under wxMAC
 }
 
 
