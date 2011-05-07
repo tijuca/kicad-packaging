@@ -6,8 +6,9 @@
 
 #include "base_struct.h"
 #include "PolyLine.h"
+#include "richio.h"
 
-class TEXTE_PCB : public BOARD_ITEM, public EDA_TextStruct
+class TEXTE_PCB : public BOARD_ITEM, public EDA_TEXT
 {
 public:
     TEXTE_PCB( BOARD_ITEM* parent );
@@ -22,13 +23,13 @@ public:
      */
     wxPoint& GetPosition()
     {
-        return m_Pos;   // within EDA_TextStruct
+        return m_Pos;   // within EDA_TEXT
     }
 
     /**
      * Function Move
      * move this object.
-     * @param const wxPoint& aMoveVector - the move vector for this object.
+     * @param aMoveVector - the move vector for this object.
      */
     virtual void Move(const wxPoint& aMoveVector)
     {
@@ -38,7 +39,7 @@ public:
     /**
      * Function Rotate
      * Rotate this object.
-     * @param const wxPoint& aRotCentre - the rotation point.
+     * @param aRotCentre - the rotation point.
      * @param aAngle - the rotation angle in 0.1 degree.
      */
     virtual void Rotate(const wxPoint& aRotCentre, int aAngle);
@@ -46,18 +47,18 @@ public:
     /**
      * Function Flip
      * Flip this object, i.e. change the board side for this object
-     * @param const wxPoint& aCentre - the rotation point.
+     * @param aCentre - the rotation point.
      */
     virtual void Flip(const wxPoint& aCentre );
 
     /* duplicate structure */
     void Copy( TEXTE_PCB* source );
 
-    void Draw( WinEDA_DrawPanel * panel, wxDC* DC, int aDrawMode,
+    void Draw( EDA_DRAW_PANEL * panel, wxDC* DC, int aDrawMode,
                const wxPoint& offset = ZeroOffset );
 
     // File Operations:
-    int ReadTextePcbDescr( FILE* File, int* LineNum );
+    int ReadTextePcbDescr( LINE_READER* aReader );
 
     /**
      * Function Save
@@ -72,10 +73,10 @@ public:
      * Function DisplayInfo
      * has knowledge about the frame and how and where to put status information
      * about this object into the frame's message panel.
-     * Is virtual from EDA_BaseStruct.
-     * @param frame A WinEDA_DrawFrame in which to print status information.
+     * Is virtual from EDA_ITEM.
+     * @param frame A EDA_DRAW_FRAME in which to print status information.
      */
-    void    DisplayInfo( WinEDA_DrawFrame* frame );
+    void    DisplayInfo( EDA_DRAW_FRAME* frame );
 
 
     /**
@@ -92,11 +93,11 @@ public:
 
     /**
      * Function HitTest (overlaid)
-     * tests if the given EDA_Rect intersect this object.
-     * @param refArea the given EDA_Rect to test
+     * tests if the given EDA_RECT intersect this object.
+     * @param refArea the given EDA_RECT to test
      * @return bool - true if a hit, else false
      */
-    bool    HitTest( EDA_Rect& refArea )
+    bool    HitTest( EDA_RECT& refArea )
     {
         return TextHitTest( refArea );
     }
@@ -111,7 +112,8 @@ public:
         return wxT("PTEXT");
     }
 
-    /** Function TransformShapeWithClearanceToPolygon
+    /**
+     * Function TransformShapeWithClearanceToPolygon
      * Convert the track shape to a closed polygon
      * Used in filling zones calculations
      * Circles and arcs are approximated by segments

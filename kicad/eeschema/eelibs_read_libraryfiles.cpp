@@ -4,9 +4,10 @@
 
 #include "fctsys.h"
 #include "confirm.h"
+#include "macros.h"
 #include "appl_wxstruct.h"
+#include "wxEeschemaStruct.h"
 
-#include "program.h"
 #include "general.h"
 #include "class_library.h"
 
@@ -18,7 +19,7 @@
  *
  * Clear all already loaded libraries and load all of the project libraries.
  */
-void WinEDA_SchematicFrame::LoadLibraries( void )
+void SCH_EDIT_FRAME::LoadLibraries( void )
 {
     size_t         ii;
     wxFileName     fn;
@@ -80,7 +81,7 @@ void WinEDA_SchematicFrame::LoadLibraries( void )
         {
             wxString prompt;
 
-            prompt.Printf( _( "Component library <%s> failed to load.\n\n\Error: %s" ),
+            prompt.Printf( _( "Component library <%s> failed to load.\nError: %s" ),
                            GetChars( fn.GetFullPath() ),
                            GetChars( errMsg ) );
             DisplayError( this, prompt );
@@ -104,8 +105,8 @@ void WinEDA_SchematicFrame::LoadLibraries( void )
     CMP_LIBRARY::SetSortOrder( sortOrder );
     CMP_LIBRARY::GetLibraryList().sort();
 
-#ifdef __WXDEBUG__
-    wxLogDebug( wxT( "LoadLibraries () requested component library sort order:" ) );
+#if 0   // #ifdef __WXDEBUG__
+    wxLogDebug( wxT( "LoadLibraries() requested component library sort order:" ) );
 
     for( size_t i = 0; i < sortOrder.GetCount(); i++ )
         wxLogDebug( wxT( "    " ) + sortOrder[i] );

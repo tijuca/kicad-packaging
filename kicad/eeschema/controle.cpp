@@ -7,496 +7,373 @@
 #include "common.h"
 #include "class_drawpanel.h"
 #include "eda_dde.h"
-#include "eeschema_id.h"
+#include "wxEeschemaStruct.h"
 
-#include "program.h"
+#include "eeschema_id.h"
 #include "general.h"
+#include "hotkeys.h"
 #include "protos.h"
 #include "libeditframe.h"
 #include "viewlib_frame.h"
-#include "classes_body_items.h"
-#include "class_pin.h"
-#include "class_marker_sch.h"
+#include "lib_draw_item.h"
+#include "lib_pin.h"
+#include "sch_sheet.h"
+#include "sch_sheet_path.h"
+#include "sch_marker.h"
+#include "sch_component.h"
 
 
-/** Function SchematicGeneralLocateAndDisplay
- * Overlaid function
- *  Find the schematic item at cursor position
- *  the priority order is:
- *  - marker
- *  - noconnect
- *  - junction
- *  - wire/bus/entry
- *  - label
- *  - pin
- *  - component
- * @return  an EDA_BaseStruct pointer on the item or NULL if no item found
- * @param IncludePin = true to search for pins, false to ignore them
- *
- *  For some items, characteristics are displayed on the screen.
- */
-SCH_ITEM* WinEDA_SchematicFrame:: SchematicGeneralLocateAndDisplay( bool IncludePin )
+SCH_ITEM* SCH_EDIT_FRAME::LocateAndShowItem( const wxPoint& aPosition, const KICAD_T aFilterList[],
+                                             int aHotKeyCommandId )
 {
-    SCH_ITEM*      DrawStruct;
+    SCH_ITEM*      item;
     wxString       msg;
-    wxPoint        mouse_position = GetScreen()->m_MousePosition;
     LIB_PIN*       Pin     = NULL;
     SCH_COMPONENT* LibItem = NULL;
+    wxPoint        gridPosition = GetScreen()->GetNearestGridPosition( aPosition );
 
-    DrawStruct = SchematicGeneralLocateAndDisplay( mouse_position, IncludePin );
-    if( !DrawStruct && ( mouse_position != GetScreen()->m_Curseur) )
+    // Check the on grid position first.  There is more likely to be multple items on
+    // grid than off grid.
+    item = LocateItem( gridPosition, aFilterList, aHotKeyCommandId );
+
+    // If the user aborted the clarification context menu, don't show it again at the
+    // off grid position.
+    if( !item && DrawPanel->m_AbortRequest )
     {
-        DrawStruct = SchematicGeneralLocateAndDisplay( GetScreen()->m_Curseur,
-                                                       IncludePin );
-    }
-    if( !DrawStruct )
+        DrawPanel->m_AbortRequest = false;
         return NULL;
+    }
+
+    if( !item && (aPosition != gridPosition) )
+        item = LocateItem( aPosition, aFilterList, aHotKeyCommandId );
+
+    if( !item )
+    {
+        DrawPanel->m_AbortRequest = false;  // Just in case the user aborted the context menu.
+        return NULL;
+    }
 
     /* Cross probing to pcbnew if a pin or a component is found */
-    switch( DrawStruct->Type() )
+    switch( item->Type() )
     {
-    case DRAW_PART_TEXT_STRUCT_TYPE:
-    case COMPONENT_FIELD_DRAW_TYPE:
-        LibItem = (SCH_COMPONENT*) DrawStruct->GetParent();
-        SendMessageToPCBNEW( DrawStruct, LibItem );
+    case SCH_FIELD_T:
+    case LIB_FIELD_T:
+        LibItem = (SCH_COMPONENT*) item->GetParent();
+        SendMessageToPCBNEW( item, LibItem );
         break;
 
-    case TYPE_SCH_COMPONENT:
-        Pin = LocateAnyPin( GetScreen()->EEDrawList, GetScreen()->m_Curseur,
-                            &LibItem );
-        if( Pin )
-            break;  // Priority is probing a pin first
-        LibItem = (SCH_COMPONENT*) DrawStruct;
-        SendMessageToPCBNEW( DrawStruct, LibItem );
+    case SCH_COMPONENT_T:
+        LibItem = (SCH_COMPONENT*) item;
+        SendMessageToPCBNEW( item, LibItem );
+        break;
+
+    case LIB_PIN_T:
+        Pin = (LIB_PIN*) item;
         break;
 
     default:
-        Pin = LocateAnyPin( GetScreen()->EEDrawList, GetScreen()->m_Curseur,
-                            &LibItem );
-        break;
-
-    case COMPONENT_PIN_DRAW_TYPE:
-        Pin = (LIB_PIN*) DrawStruct;
-        break;
+        ;
     }
 
     if( Pin )
     {
-        /* Force display pin information (the previous display could be a
-         * component info) */
+        // Force display pin information (the previous display could be a component info)
         Pin->DisplayInfo( this );
+
         if( LibItem )
             AppendMsgPanel( LibItem->GetRef( GetSheet() ),
                             LibItem->GetField( VALUE )->m_Text, DARKCYAN );
 
-        // Cross probing:2 - pin found, and send a locate pin command to
-        // pcbnew (highlight net)
+        // Cross probing:2 - pin found, and send a locate pin command to pcbnew (highlight net)
         SendMessageToPCBNEW( Pin, LibItem );
     }
-    return DrawStruct;
+
+    return item;
 }
 
 
-/** Function SchematicGeneralLocateAndDisplay
- * Overlaid function
- *  Find the schematic item at a given position
- *  the priority order is:
- *  - marker
- *  - noconnect
- *  - junction
- *  - wire/bus/entry
- *  - label
- *  - pin
- *  - component
- * @return  an EDA_BaseStruct pointer on the item or NULL if no item found
- * @param refpoint = the wxPoint location where to search
- * @param IncludePin = true to search for pins, false to ignore them
- *
- *  For some items, characteristics are displayed on the screen.
- */
-SCH_ITEM* WinEDA_SchematicFrame::SchematicGeneralLocateAndDisplay( const wxPoint& refpoint,
-                                                                   bool           IncludePin )
+SCH_ITEM* SCH_EDIT_FRAME::LocateItem( const wxPoint& aPosition, const KICAD_T aFilterList[],
+                                      int aHotKeyCommandId )
 {
-    SCH_ITEM*      DrawStruct;
-    LIB_PIN*       Pin;
-    SCH_COMPONENT* LibItem;
-    wxString       Text;
-    wxString       msg;
+    SCH_ITEM* item = NULL;
 
-    DrawStruct = (SCH_ITEM*) PickStruct( refpoint, GetScreen(), MARKERITEM );
-    if( DrawStruct )
-    {
-        DrawStruct->DisplayInfo( this );
-        return DrawStruct;
-    }
+    m_collectedItems.Collect( GetScreen()->GetDrawItems(), aFilterList, aPosition );
 
-    DrawStruct = (SCH_ITEM*) PickStruct( refpoint, GetScreen(), NOCONNECTITEM );
-    if( DrawStruct )
+    if( m_collectedItems.GetCount() == 0 )
     {
         ClearMsgPanel();
-        return DrawStruct;
     }
-
-    DrawStruct = (SCH_ITEM*) PickStruct( refpoint, GetScreen(), JUNCTIONITEM );
-    if( DrawStruct )
+    else if( m_collectedItems.GetCount() == 1 )
     {
-        ClearMsgPanel();
-        return DrawStruct;
+        item = m_collectedItems[0];
+        GetScreen()->SetCurItem( item );
     }
-
-    DrawStruct = (SCH_ITEM*) PickStruct( refpoint,
-                                         GetScreen(), WIREITEM | BUSITEM |
-                                         RACCORDITEM );
-    if( DrawStruct )    // We have found a wire: Search for a connected pin at
-                        // the same location
+    else
     {
-        Pin = LocateAnyPin( (SCH_ITEM*) m_CurrentSheet->LastDrawList(),
-                            refpoint, &LibItem );
-        if( Pin )
+        // There are certain combinations of items that do not need clarification such as
+        // a corner were two lines meet or all the items form a junction.
+        if( aHotKeyCommandId )
         {
-            Pin->DisplayInfo( this );
-            if( LibItem )
-                AppendMsgPanel( LibItem->GetRef( GetSheet() ),
-                                LibItem->GetField( VALUE )->m_Text, DARKCYAN );
+            switch( aHotKeyCommandId )
+            {
+            case HK_DRAG:
+                if( m_collectedItems.IsCorner() || m_collectedItems.IsNode( false ) )
+                {
+                    item = m_collectedItems[0];
+                    GetScreen()->SetCurItem( item );
+                }
+            default:
+                ;
+            }
         }
-        else
-            ClearMsgPanel();
 
-        return DrawStruct;
+        if( item == NULL )
+        {
+            wxASSERT_MSG( m_collectedItems.GetCount() <= MAX_SELECT_ITEM_IDS,
+                          wxT( "Select item clarification context menu size limit exceeded." ) );
+
+            wxMenu selectMenu;
+            wxMenuItem* title = new wxMenuItem( &selectMenu, wxID_NONE, _( "Clarify Selection" ) );
+
+            selectMenu.Append( title );
+            selectMenu.AppendSeparator();
+
+            for( int i = 0;  i < m_collectedItems.GetCount() && i < MAX_SELECT_ITEM_IDS;  i++ )
+            {
+                wxString text = m_collectedItems[i]->GetSelectMenuText();
+                const char** xpm = m_collectedItems[i]->GetMenuImage();
+                ADD_MENUITEM( &selectMenu, ID_SELECT_ITEM_START + i, text, xpm );
+            }
+
+            // Set to NULL in case user aborts the clarification context menu.
+            GetScreen()->SetCurItem( NULL );
+            DrawPanel->m_AbortRequest = true;   // Changed to false if an item is selected
+            PopupMenu( &selectMenu );
+            DrawPanel->MoveCursorToCrossHair();
+            item = GetScreen()->GetCurItem();
+        }
     }
 
-    DrawStruct = (SCH_ITEM*) PickStruct( refpoint, GetScreen(), FIELDCMPITEM );
-    if( DrawStruct )
-    {
-        SCH_FIELD* Field = (SCH_FIELD*) DrawStruct;
-        LibItem = (SCH_COMPONENT*) Field->GetParent();
-        LibItem->DisplayInfo( this );
+    if( item )
+        item->DisplayInfo( this );
+    else
+        ClearMsgPanel();
 
-        return DrawStruct;
-    }
-
-    /* search for a pin */
-    Pin = LocateAnyPin( (SCH_ITEM*) m_CurrentSheet->LastDrawList(), refpoint,
-                        &LibItem );
-    if( Pin )
-    {
-        Pin->DisplayInfo( this );
-        if( LibItem )
-            AppendMsgPanel( LibItem->GetRef( GetSheet() ),
-                            LibItem->GetField( VALUE )->m_Text, DARKCYAN );
-        if( IncludePin )
-            return LibItem;
-    }
-
-    DrawStruct = (SCH_ITEM*) PickStruct( refpoint, GetScreen(), LIBITEM );
-    if( DrawStruct )
-    {
-        DrawStruct = LocateSmallestComponent( (SCH_SCREEN*) GetScreen() );
-        LibItem    = (SCH_COMPONENT*) DrawStruct;
-        LibItem->DisplayInfo( this );
-        return DrawStruct;
-    }
-
-    DrawStruct = (SCH_ITEM*) PickStruct( refpoint, GetScreen(), SHEETITEM );
-    if( DrawStruct )
-    {
-        ( (SCH_SHEET*) DrawStruct )->DisplayInfo( this );
-        return DrawStruct;
-    }
-
-    DrawStruct = (SCH_ITEM*) PickStruct( refpoint, GetScreen(), SEARCHALL );
-    if( DrawStruct )
-    {
-        return DrawStruct;
-    }
-
-    ClearMsgPanel();
-    return NULL;
+    return item;
 }
 
 
-void WinEDA_SchematicFrame::GeneralControle( wxDC* DC, wxPoint MousePositionInPixels )
+void SCH_EDIT_FRAME::GeneralControl( wxDC* aDC, const wxPoint& aPosition, int aHotKey )
 {
-    wxRealPoint delta;
+    wxRealPoint gridSize;
     SCH_SCREEN* screen = GetScreen();
-    wxPoint     curpos, oldpos;
-    int         hotkey = 0;
-    double      scalar = screen->GetScalingFactor();
+    wxPoint     oldpos;
+    wxPoint     pos = aPosition;
 
-    ActiveScreen = screen;
+    pos = screen->GetNearestGridPosition( pos );
+    oldpos = screen->GetCrossHairPosition();
+    gridSize = screen->GetGridSize();
 
-    curpos = screen->m_MousePosition;
-    oldpos = screen->m_Curseur;
-
-    delta = screen->GetGridSize();
-
-    delta.x *= scalar;
-    delta.y *= scalar;
-
-    if( delta.x <= 0 )
-        delta.x = 1;
-    if( delta.y <= 0 )
-        delta.y = 1;
-
-    switch( g_KeyPressed )
+    switch( aHotKey )
     {
     case 0:
         break;
 
     case WXK_NUMPAD8:
     case WXK_UP:
-        MousePositionInPixels.y -= wxRound( delta.y );
-        DrawPanel->MouseTo( MousePositionInPixels );
+        pos.y -= wxRound( gridSize.y );
+        DrawPanel->MoveCursor( pos );
         break;
 
     case WXK_NUMPAD2:
     case WXK_DOWN:
-        MousePositionInPixels.y += wxRound( delta.y );
-        DrawPanel->MouseTo( MousePositionInPixels );
+        pos.y += wxRound( gridSize.y );
+        DrawPanel->MoveCursor( pos );
         break;
 
     case WXK_NUMPAD4:
     case WXK_LEFT:
-        MousePositionInPixels.x -= wxRound( delta.x );
-        DrawPanel->MouseTo( MousePositionInPixels );
+        pos.x -= wxRound( gridSize.x );
+        DrawPanel->MoveCursor( pos );
         break;
 
     case WXK_NUMPAD6:
     case WXK_RIGHT:
-        MousePositionInPixels.x += wxRound( delta.x );
-        DrawPanel->MouseTo( MousePositionInPixels );
+        pos.x += wxRound( gridSize.x );
+        DrawPanel->MoveCursor( pos );
         break;
 
     default:
-        hotkey = g_KeyPressed;
         break;
     }
 
-    /* Update cursor position. */
-    screen->m_Curseur = curpos;
+    // Update cursor position.
+    screen->SetCrossHairPosition( pos );
 
-    /* Snap cursor to grid. */
-    PutOnGrid( &(screen->m_Curseur) );
-
-    if( screen->IsRefreshReq() )
+    if( oldpos != screen->GetCrossHairPosition() )
     {
-        DrawPanel->Refresh( );
-        wxSafeYield();
-    }
+        pos = screen->GetCrossHairPosition();
+        screen->SetCrossHairPosition( oldpos );
+        DrawPanel->CrossHairOff( aDC );
+        screen->SetCrossHairPosition( pos );
+        DrawPanel->CrossHairOn( aDC );
 
-    if( oldpos != screen->m_Curseur )
-    {
-        curpos = screen->m_Curseur;
-        screen->m_Curseur = oldpos;
-        DrawPanel->CursorOff( DC );
-        screen->m_Curseur = curpos;
-        DrawPanel->CursorOn( DC );
-
-        if( DrawPanel->ManageCurseur )
+        if( DrawPanel->IsMouseCaptured() )
         {
-            DrawPanel->ManageCurseur( DrawPanel, DC, TRUE );
+            DrawPanel->m_mouseCaptureCallback( DrawPanel, aDC, aPosition, true );
         }
     }
 
-    if( hotkey )
+    if( aHotKey )
     {
-        if( screen->GetCurItem() && screen->GetCurItem()->m_Flags )
-            OnHotKey( DC, hotkey, screen->GetCurItem() );
+        if( screen->GetCurItem() && screen->GetCurItem()->GetFlags() )
+            OnHotKey( aDC, aHotKey, aPosition, screen->GetCurItem() );
         else
-            OnHotKey( DC, hotkey, NULL );
+            OnHotKey( aDC, aHotKey, aPosition, NULL );
     }
 
     UpdateStatusBar();    /* Display cursor coordinates info */
-    SetToolbars();
 }
 
 
-void WinEDA_LibeditFrame::GeneralControle( wxDC* DC, wxPoint MousePositionInPixels )
+void LIB_EDIT_FRAME::GeneralControl( wxDC* aDC, const wxPoint& aPosition, int aHotKey )
 {
-    wxRealPoint delta;
+    wxRealPoint gridSize;
     SCH_SCREEN* screen = GetScreen();
-    wxPoint     curpos, oldpos;
-    int         hotkey = 0;
-    double      scalar = screen->GetScalingFactor();
+    wxPoint     oldpos;
+    wxPoint     pos = aPosition;
 
-    ActiveScreen = screen;
+    pos = screen->GetNearestGridPosition( pos );
+    oldpos = screen->GetCrossHairPosition();
+    gridSize = screen->GetGridSize();
 
-    curpos = screen->m_MousePosition;
-    oldpos = screen->m_Curseur;
-
-    delta = screen->GetGridSize();
-
-    delta.x *= scalar;
-    delta.y *= scalar;
-
-    if( delta.x <= 0 )
-        delta.x = 1;
-    if( delta.y <= 0 )
-        delta.y = 1;
-
-    switch( g_KeyPressed )
+    switch( aHotKey )
     {
     case 0:
         break;
 
     case WXK_NUMPAD8:
     case WXK_UP:
-        MousePositionInPixels.y -= wxRound( delta.y );
-        DrawPanel->MouseTo( MousePositionInPixels );
+        pos.y -= wxRound( gridSize.y );
+        DrawPanel->MoveCursor( pos );
         break;
 
     case WXK_NUMPAD2:
     case WXK_DOWN:
-        MousePositionInPixels.y += wxRound( delta.y );
-        DrawPanel->MouseTo( MousePositionInPixels );
+        pos.y += wxRound( gridSize.y );
+        DrawPanel->MoveCursor( pos );
         break;
 
     case WXK_NUMPAD4:
     case WXK_LEFT:
-        MousePositionInPixels.x -= wxRound( delta.x );
-        DrawPanel->MouseTo( MousePositionInPixels );
+        pos.x -= wxRound( gridSize.x );
+        DrawPanel->MoveCursor( pos );
         break;
 
     case WXK_NUMPAD6:
     case WXK_RIGHT:
-        MousePositionInPixels.x += wxRound( delta.x );
-        DrawPanel->MouseTo( MousePositionInPixels );
+        pos.x += wxRound( gridSize.x );
+        DrawPanel->MoveCursor( pos );
         break;
 
     default:
-        hotkey = g_KeyPressed;
         break;
     }
 
-    /* Update the cursor position. */
-    screen->m_Curseur = curpos;
+    // Update the cursor position.
+    screen->SetCrossHairPosition( pos );
 
-    /* Snap cursor to grid. */
-    PutOnGrid( &(screen->m_Curseur) );
-
-    if( screen->IsRefreshReq() )
+    if( oldpos != screen->GetCrossHairPosition() )
     {
-        DrawPanel->Refresh( );
-        wxSafeYield();
-    }
+        pos = screen->GetCrossHairPosition();
+        screen->SetCrossHairPosition( oldpos );
+        DrawPanel->CrossHairOff( aDC );
+        screen->SetCrossHairPosition( pos );
+        DrawPanel->CrossHairOn( aDC );
 
-    if( oldpos != screen->m_Curseur )
-    {
-        curpos = screen->m_Curseur;
-        screen->m_Curseur = oldpos;
-        DrawPanel->CursorOff( DC );
-        screen->m_Curseur = curpos;
-        DrawPanel->CursorOn( DC );
-
-        if( DrawPanel->ManageCurseur )
+        if( DrawPanel->IsMouseCaptured() )
         {
-            DrawPanel->ManageCurseur( DrawPanel, DC, TRUE );
+            DrawPanel->m_mouseCaptureCallback( DrawPanel, aDC, aPosition, true );
         }
     }
 
-    if( hotkey )
+    if( aHotKey )
     {
-        if( screen->GetCurItem() && screen->GetCurItem()->m_Flags )
-            OnHotKey( DC, hotkey, screen->GetCurItem() );
-        else
-            OnHotKey( DC, hotkey, NULL );
+        OnHotKey( aDC, aHotKey, aPosition, NULL );
     }
 
     UpdateStatusBar();
 }
 
 
-void WinEDA_ViewlibFrame::GeneralControle( wxDC* DC, wxPoint MousePositionInPixels )
+void LIB_VIEW_FRAME::GeneralControl( wxDC* aDC, const wxPoint& aPosition, int aHotKey )
 {
-    wxRealPoint delta;
+    wxRealPoint gridSize;
     SCH_SCREEN* screen = GetScreen();
-    wxPoint     curpos, oldpos;
-    int         hotkey = 0;
-    double      scalar = screen->GetScalingFactor();
+    wxPoint     oldpos;
+    wxPoint     pos = aPosition;
 
-    ActiveScreen = screen;
+    pos = screen->GetNearestGridPosition( pos );
+    oldpos = screen->GetCrossHairPosition();
+    gridSize = screen->GetGridSize();
 
-    curpos = screen->m_MousePosition;
-    oldpos = screen->m_Curseur;
-
-    delta = screen->GetGridSize();
-
-    delta.x *= scalar;
-    delta.y *= scalar;
-
-    if( delta.x <= 0 )
-        delta.x = 1;
-    if( delta.y <= 0 )
-        delta.y = 1;
-
-    switch( g_KeyPressed )
+    switch( aHotKey )
     {
     case 0:
         break;
 
     case WXK_NUMPAD8:
     case WXK_UP:
-        MousePositionInPixels.y -= wxRound( delta.y );
-        DrawPanel->MouseTo( MousePositionInPixels );
+        pos.y -= wxRound( gridSize.y );
+        DrawPanel->MoveCursor( pos );
         break;
 
     case WXK_NUMPAD2:
     case WXK_DOWN:
-        MousePositionInPixels.y += wxRound( delta.y );
-        DrawPanel->MouseTo( MousePositionInPixels );
+        pos.y += wxRound( gridSize.y );
+        DrawPanel->MoveCursor( pos );
         break;
 
     case WXK_NUMPAD4:
     case WXK_LEFT:
-        MousePositionInPixels.x -= wxRound( delta.x );
-        DrawPanel->MouseTo( MousePositionInPixels );
+        pos.x -= wxRound( gridSize.x );
+        DrawPanel->MoveCursor( pos );
         break;
 
     case WXK_NUMPAD6:
     case WXK_RIGHT:
-        MousePositionInPixels.x += wxRound( delta.x );
-        DrawPanel->MouseTo( MousePositionInPixels );
+        pos.x += wxRound( gridSize.x );
+        DrawPanel->MoveCursor( pos );
         break;
 
     default:
-        hotkey = g_KeyPressed;
         break;
     }
 
-    /* Update cursor position. */
-    screen->m_Curseur = curpos;
+    // Update cursor position.
+    screen->SetCrossHairPosition( pos );
 
-    /* Snap cursor to grid. */
-    PutOnGrid( &screen->m_Curseur );
-
-    if( screen->IsRefreshReq() )
+    if( oldpos != screen->GetCrossHairPosition() )
     {
-        DrawPanel->Refresh( );
-        wxSafeYield();
-    }
+        pos = screen->GetCrossHairPosition();
+        screen->SetCrossHairPosition( oldpos );
+        DrawPanel->CrossHairOff( aDC );
+        screen->SetCrossHairPosition( pos );
+        DrawPanel->CrossHairOn( aDC );
 
-    if( oldpos != screen->m_Curseur )
-    {
-        curpos = screen->m_Curseur;
-        screen->m_Curseur = oldpos;
-        DrawPanel->CursorOff( DC );
-        screen->m_Curseur = curpos;
-        DrawPanel->CursorOn( DC );
-
-        if( DrawPanel->ManageCurseur )
+        if( DrawPanel->IsMouseCaptured() )
         {
-            DrawPanel->ManageCurseur( DrawPanel, DC, TRUE );
+            DrawPanel->m_mouseCaptureCallback( DrawPanel, aDC, aPosition, true );
         }
     }
 
-    if( hotkey )
+    if( aHotKey )
     {
-        if( screen->GetCurItem() && screen->GetCurItem()->m_Flags )
-            OnHotKey( DC, hotkey, screen->GetCurItem() );
+        if( screen->GetCurItem() && screen->GetCurItem()->GetFlags() )
+            OnHotKey( aDC, aHotKey, aPosition, screen->GetCurItem() );
         else
-            OnHotKey( DC, hotkey, NULL );
+            OnHotKey( aDC, aHotKey, aPosition, NULL );
     }
 
     UpdateStatusBar();
-    SetToolbars();
 }

@@ -14,6 +14,7 @@
 
 #include "pcbnew.h"
 #include "class_board_design_settings.h"
+#include "richio.h"
 
 #define MAX_WIDTH 10000     /* Thickness (in 1 / 10000 ") of maximum reasonable
                              * features, text... */
@@ -25,7 +26,6 @@
 EDGE_MODULE::EDGE_MODULE( MODULE* parent ) :
     BOARD_ITEM( parent, TYPE_EDGE_MODULE )
 {
-    m_Width = 0;
     m_Shape = S_SEGMENT;
     m_Angle = 0;
     m_Width = 120;
@@ -62,9 +62,9 @@ void EDGE_MODULE::Copy( EDGE_MODULE* source )
  * object, and the units should be in the pcb or schematic coordinate system.
  * It is OK to overestimate the size by a few counts.
  */
-EDA_Rect EDGE_MODULE::GetBoundingBox()
+EDA_RECT EDGE_MODULE::GetBoundingBox() const
 {
-    EDA_Rect bbox;
+    EDA_RECT bbox;
 
     bbox.SetOrigin( m_Start );
 
@@ -76,16 +76,12 @@ EDA_Rect EDGE_MODULE::GetBoundingBox()
         break;
 
     case S_CIRCLE:
-    {
-        int rayon = (int) hypot( (double) (m_End.x - m_Start.x), (double) (m_End.y - m_Start.y) );
-        bbox.Inflate( rayon + 1 );
-    }
-    break;
+        bbox.Inflate( GetRadius() + 1 );
+        break;
 
     case S_ARC:
     {
-        int rayon = (int) hypot( (double) (m_End.x - m_Start.x), (double) (m_End.y - m_Start.y) );
-        bbox.Inflate( rayon + 1 );
+        bbox.Inflate( GetRadius() + 1 );
     }
     break;
 
@@ -94,23 +90,20 @@ EDA_Rect EDGE_MODULE::GetBoundingBox()
         // We must compute true coordinates from m_PolyPoints
         // which are relative to module position, orientation 0
 
-        std::vector<wxPoint> points = m_PolyPoints;
-        wxPoint p_end = m_Start;
-
+        wxPoint p_end;
         MODULE* Module = (MODULE*) m_Parent;
-        for( unsigned ii = 0; ii < points.size(); ii++ )
+        for( unsigned ii = 0; ii < m_PolyPoints.size(); ii++ )
         {
-            wxPoint& pt = points[ii];
+            wxPoint pt = m_PolyPoints[ii];
 
             if( Module )
             {
-                RotatePoint( &pt.x, &pt.y, Module->m_Orient );
-                pt.x += Module->m_Pos.x;
-                pt.y += Module->m_Pos.y;
+                RotatePoint( &pt, Module->m_Orient );
+                pt += Module->m_Pos;
             }
 
-            pt.x += m_Start0.x;
-            pt.y += m_Start0.y;
+            if( ii == 0 )
+                p_end = pt;
             bbox.m_Pos.x = MIN( bbox.m_Pos.x, pt.x );
             bbox.m_Pos.y = MIN( bbox.m_Pos.y, pt.y );
             p_end.x   = MAX( p_end.x, pt.x );
@@ -123,6 +116,7 @@ EDA_Rect EDGE_MODULE::GetBoundingBox()
     }
     }
 
+    bbox.Inflate( (m_Width+1) / 2 );
     return bbox;
 }
 
@@ -152,14 +146,13 @@ void EDGE_MODULE::SetDrawCoord()
  * - Circles
  * - Arcs
  */
-void EDGE_MODULE::Draw( WinEDA_DrawPanel* panel, wxDC* DC,
-                        int draw_mode, const wxPoint& offset )
+void EDGE_MODULE::Draw( EDA_DRAW_PANEL* panel, wxDC* DC, int draw_mode, const wxPoint& offset )
 {
-    int                  ux0, uy0, dx, dy, rayon, StAngle, EndAngle;
-    int                  color, type_trace;
-    int                  typeaff;
-    PCB_SCREEN*          screen;
-    WinEDA_BasePcbFrame* frame;
+    int             ux0, uy0, dx, dy, rayon, StAngle, EndAngle;
+    int             color, type_trace;
+    int             typeaff;
+    PCB_SCREEN*     screen;
+    PCB_BASE_FRAME* frame;
     MODULE* module = (MODULE*) m_Parent;
 
     if( module == NULL )
@@ -171,7 +164,7 @@ void EDGE_MODULE::Draw( WinEDA_DrawPanel* panel, wxDC* DC,
 
     color = brd->GetLayerColor(m_Layer);
 
-    frame = (WinEDA_BasePcbFrame*) panel->GetParent();
+    frame = (PCB_BASE_FRAME*) panel->GetParent();
 
     screen = frame->GetScreen();
 
@@ -192,11 +185,7 @@ void EDGE_MODULE::Draw( WinEDA_DrawPanel* panel, wxDC* DC,
             typeaff = SKETCH;
     }
 
-#ifdef USE_WX_ZOOM
     if( DC->LogicalToDeviceXRel( m_Width ) < L_MIN_DESSIN )
-#else
-    if( screen->Scale( m_Width ) < L_MIN_DESSIN )
-#endif
         typeaff = FILAIRE;
 
     switch( type_trace )
@@ -271,8 +260,7 @@ void EDGE_MODULE::Draw( WinEDA_DrawPanel* panel, wxDC* DC,
             wxPoint& pt = points[ii];
 
             RotatePoint( &pt.x, &pt.y, module->m_Orient );
-            pt += module->m_Pos;
-            pt += m_Start0 - offset;
+            pt += module->m_Pos - offset;
         }
 
         GRPoly( &panel->m_ClipBox, DC, points.size(), &points[0],
@@ -283,7 +271,7 @@ void EDGE_MODULE::Draw( WinEDA_DrawPanel* panel, wxDC* DC,
 
 
 // see class_edge_mod.h
-void EDGE_MODULE::DisplayInfo( WinEDA_DrawFrame* frame )
+void EDGE_MODULE::DisplayInfo( EDA_DRAW_FRAME* frame )
 {
     wxString msg;
 
@@ -384,12 +372,14 @@ bool EDGE_MODULE::Save( FILE* aFile ) const
  *  - Polygon
  *
  */
-int EDGE_MODULE::ReadDescr( char* Line, FILE* File,
-                            int* LineNum )
+int EDGE_MODULE::ReadDescr( LINE_READER* aReader )
 {
     int  ii;
     int  error = 0;
-    char Buf[1024];
+    char* Buf;
+    char* Line;
+
+    Line = aReader->Line();
 
     switch( Line[1] )
     {
@@ -424,6 +414,7 @@ int EDGE_MODULE::ReadDescr( char* Line, FILE* File,
                 &m_Start0.x, &m_Start0.y,
                 &m_End0.x, &m_End0.y,
                 &m_Angle, &m_Width, &m_Layer );
+        NORMALIZE_ANGLE_360( m_Angle );
         break;
 
     case S_SEGMENT:
@@ -441,13 +432,13 @@ int EDGE_MODULE::ReadDescr( char* Line, FILE* File,
                 &m_End0.x, &m_End0.y,
                 &pointCount, &m_Width, &m_Layer );
 
-        (*LineNum)++;
         m_PolyPoints.clear();
         m_PolyPoints.reserve( pointCount );
         for( ii = 0;  ii<pointCount;  ii++ )
         {
-            if( GetLine( File, Buf, LineNum, sizeof(Buf) - 1 ) != NULL )
+            if( aReader->ReadLine() )
             {
+                Buf = aReader->Line();
                 if( strncmp( Buf, "Dl", 2 ) != 0 )
                 {
                     error = 1;
@@ -459,8 +450,6 @@ int EDGE_MODULE::ReadDescr( char* Line, FILE* File,
                 sscanf( Buf + 3, "%d %d\n", &x, &y );
 
                 m_PolyPoints.push_back( wxPoint( x, y ) );
-
-                (*LineNum)++;
             }
             else
             {
@@ -495,55 +484,75 @@ int EDGE_MODULE::ReadDescr( char* Line, FILE* File,
 }
 
 
+wxPoint EDGE_MODULE::GetStart() const
+{
+    switch( m_Shape )
+    {
+    case S_ARC:
+        return m_End;  // the start of the arc is held in field m_End, center point is in m_Start.
+
+    case S_SEGMENT:
+    default:
+        return m_Start;
+    }
+}
+
+
+wxPoint EDGE_MODULE::GetEnd() const
+{
+    wxPoint endPoint;         // start of arc
+
+    switch( m_Shape )
+    {
+    case S_ARC:
+        // rotate the starting point of the arc, given by m_End, through the
+        // angle m_Angle to get the ending point of the arc.
+        // m_Start is the arc centre
+        endPoint  = m_End;         // m_End = start point of arc
+        RotatePoint( &endPoint, m_Start, -m_Angle );
+        return endPoint;   // after rotation, the end of the arc.
+        break;
+
+    case S_SEGMENT:
+    default:
+        return m_End;
+    }
+}
+
+
 /**
  * Function HitTest
  * tests if the given wxPoint is within the bounds of this object.
  * @param refPos A wxPoint to test
  * @return bool - true if a hit, else false
  */
-bool EDGE_MODULE::HitTest( const wxPoint& ref_pos )
+bool EDGE_MODULE::HitTest( const wxPoint& refPos )
 {
-    int uxf, uyf;
     int rayon, dist;
-    int dx, dy, spot_cX, spot_cY;
-    int ux0, uy0;
-
-    ux0 = m_Start.x;
-    uy0 = m_Start.y;
-
-    uxf = m_End.x;
-    uyf = m_End.y;
 
     switch( m_Shape )
     {
     case S_SEGMENT:
-        spot_cX = ref_pos.x - ux0;
-        spot_cY = ref_pos.y - uy0;
-
-        dx = uxf - ux0;
-        dy = uyf - uy0;
-        if( DistanceTest( m_Width / 2, dx, dy, spot_cX, spot_cY ) )
+        if( TestSegmentHit( refPos, m_Start, m_End, m_Width / 2 ) )
             return true;
         break;
 
     case S_CIRCLE:
-        rayon = (int) hypot( (double) (uxf - ux0), (double) (uyf - uy0) );
-        dist  = (int) hypot( (double) (ref_pos.x - ux0),
-                            (double) (ref_pos.y - uy0) );
-        if( abs( rayon - dist ) <= m_Width )
+        rayon = GetRadius();
+        dist  = (int) hypot( (double) (refPos.x - m_Start.x), (double) (refPos.y - m_Start.y) );
+        if( abs( rayon - dist ) <= (m_Width/2) )
             return true;
         break;
 
     case S_ARC:
-        rayon = (int) hypot( (double) (uxf - ux0), (double) (uyf - uy0) );
-        dist  = (int) hypot( (double) (ref_pos.x - ux0),
-                            (double) (ref_pos.y - uy0) );
+        rayon = GetRadius();
+        dist  = (int) hypot( (double) (refPos.x - m_Start.x), (double) (refPos.y - m_Start.y) );
 
-        if( abs( rayon - dist ) > m_Width )
+        if( abs( rayon - dist ) > (m_Width/2) )
             break;
 
-        int mouseAngle = (int) ArcTangente( ref_pos.y - uy0, ref_pos.x - ux0 );
-        int stAngle    = (int) ArcTangente( uyf - uy0, uxf - ux0 );
+        int mouseAngle = ArcTangente( refPos.y - m_Start.y, refPos.x - m_Start.x );
+        int stAngle    = ArcTangente( m_End.y - m_Start.y, m_End.x - m_Start.x );
         int endAngle   = stAngle + m_Angle;
 
         if( endAngle > 3600 )
@@ -562,6 +571,39 @@ bool EDGE_MODULE::HitTest( const wxPoint& ref_pos )
 }
 
 
+/**
+ * Function HitTest (overlayed)
+ * tests if the given EDA_RECT intersect this object.
+ * For now, for arcs and segments, an ending point must be inside this rect.
+ * @param refArea : the given EDA_RECT
+ * @return bool - true if a hit, else false
+ */
+bool EDGE_MODULE::HitTest( EDA_RECT& refArea )
+{
+    switch(m_Shape)
+    {
+        case S_CIRCLE:
+        {
+            int radius = GetRadius();
+            // Test if area intersects the circle:
+            EDA_RECT area = refArea;
+            area.Inflate(radius);
+            if( area.Contains(m_Start) )
+                return true;
+        }
+            break;
+
+        case S_ARC:
+        case S_SEGMENT:
+            if( refArea.Contains( GetStart() ) )
+                return true;
+            if( refArea.Contains( GetEnd() ) )
+                return true;
+            break;
+    }
+    return false;
+}
+
 #if defined(DEBUG)
 
 
@@ -578,7 +620,7 @@ void EDGE_MODULE::Show( int nestLevel, std::ostream& os )
 
     // for now, make it look like XML:
     NestedSpace( nestLevel, os ) << '<' << GetClass().Lower().mb_str() <<
-    " type=\"" << CONV_TO_UTF8( shape ) << "\">";
+    " type=\"" << TO_UTF8( shape ) << "\">";
 
     os << " <start" << m_Start0 << "/>";
     os << " <end" << m_End0 << "/>";

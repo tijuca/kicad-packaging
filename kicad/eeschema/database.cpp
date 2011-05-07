@@ -5,14 +5,16 @@
 #include "fctsys.h"
 #include "gr_basic.h"
 #include "common.h"
+#include "macros.h"
 #include "confirm.h"
 #include "eda_doc.h"
 #include "kicad_string.h"
+#include "wxstruct.h"
 
-#include "program.h"
 #include "general.h"
 #include "protos.h"
 #include "class_library.h"
+#include "dialog_helpers.h"
 
 #include <boost/foreach.hpp>
 
@@ -29,13 +31,14 @@
  * Place the name of the component has loaded, select from a list in
  * BufName
  */
-wxString DataBaseGetName( WinEDA_DrawFrame* frame, wxString& Keys,
-                          wxString& BufName )
+wxString DataBaseGetName( EDA_DRAW_FRAME* frame, wxString& Keys, wxString& BufName )
 {
     wxArrayString  nameList;
     wxString       msg;
 
+#ifndef KICAD_KEEPCASE
     BufName.MakeUpper();
+#endif
     Keys.MakeUpper();
 
     /* Review the list of libraries for counting. */
@@ -62,19 +65,21 @@ wxString DataBaseGetName( WinEDA_DrawFrame* frame, wxString& Keys,
         return wxEmptyString;
     }
 
-    wxSingleChoiceDialog dlg( frame, wxEmptyString, _( "Select Component" ),
-                              nameList );
-
-    if( dlg.ShowModal() == wxID_CANCEL || dlg.GetStringSelection().IsEmpty() )
+    // Show candidate list:
+    wxString cmpname;
+    WinEDAListBox dlg( frame, _( "Select Component" ),
+                               nameList, cmpname, DisplayCmpDoc );
+    if( dlg.ShowModal() != wxID_OK )
         return wxEmptyString;
 
-    return dlg.GetStringSelection();
+    cmpname = dlg.GetTextSelection();
+    return cmpname;
 }
 
 
 void DisplayCmpDoc( wxString& Name )
 {
-    CMP_LIB_ENTRY* CmpEntry = NULL;
+    LIB_ALIAS* CmpEntry = NULL;
 
     CmpEntry = CMP_LIBRARY::FindLibraryEntry( Name );
 

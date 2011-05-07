@@ -17,11 +17,11 @@
 
 /* Handle microwave commands.
  */
-void WinEDA_PcbFrame::ProcessMuWaveFunctions( wxCommandEvent& event )
+void PCB_EDIT_FRAME::ProcessMuWaveFunctions( wxCommandEvent& event )
 {
     int        id = event.GetId();
     wxPoint    pos;
-    INSTALL_DC( dc, DrawPanel );
+    INSTALL_UNBUFFERED_DC( dc, DrawPanel );
 
     wxGetMousePosition( &pos.x, &pos.y );
 
@@ -33,7 +33,7 @@ void WinEDA_PcbFrame::ProcessMuWaveFunctions( wxCommandEvent& event )
         break;
 
     default:        // End block command in progress.
-        DrawPanel->UnManageCursor( );
+        DrawPanel->EndMouseCapture( );
         break;
     }
 
@@ -61,19 +61,17 @@ void WinEDA_PcbFrame::ProcessMuWaveFunctions( wxCommandEvent& event )
 
     default:
         DisplayError( this,
-                      wxT( "WinEDA_PcbFrame::ProcessMuWaveFunctions() id error" ) );
+                      wxT( "PCB_EDIT_FRAME::ProcessMuWaveFunctions() id error" ) );
         break;
     }
-
-    SetToolbars();
 }
 
 
-void WinEDA_PcbFrame::MuWaveCommand( wxDC* DC, const wxPoint& MousePos )
+void PCB_EDIT_FRAME::MuWaveCommand( wxDC* DC, const wxPoint& MousePos )
 {
     MODULE* module = NULL;
 
-    switch( m_ID_current_state )
+    switch( GetToolId() )
     {
     case ID_PCB_MUWAVE_TOOL_SELF_CMD:
         Begin_Self( DC );
@@ -97,8 +95,8 @@ void WinEDA_PcbFrame::MuWaveCommand( wxDC* DC, const wxPoint& MousePos )
 
     default:
         DrawPanel->SetCursor( wxCURSOR_ARROW );
-        DisplayError( this, wxT( "WinEDA_PcbFrame::MuWaveCommand() id error" ) );
-        SetToolID( 0, wxCURSOR_ARROW, wxEmptyString );
+        DisplayError( this, wxT( "PCB_EDIT_FRAME::MuWaveCommand() id error" ) );
+        SetToolID( ID_NO_TOOL_SELECTED, DrawPanel->GetDefaultCursor(), wxEmptyString );
         break;
     }
 
@@ -106,5 +104,6 @@ void WinEDA_PcbFrame::MuWaveCommand( wxDC* DC, const wxPoint& MousePos )
     {
         StartMove_Module( module, DC );
     }
-    DrawPanel->MouseToCursorSchema();
+
+    DrawPanel->MoveCursorToCrossHair();
 }

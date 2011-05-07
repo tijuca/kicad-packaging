@@ -9,141 +9,18 @@
 #include "confirm.h"
 #include "pcbnew.h"
 #include "wxPcbStruct.h"
+#include "module_editor_frame.h"
 #include "class_board_design_settings.h"
 
-#include "protos.h"
-
-/**************************************/
-/* dialog WinEDA_PcbGlobalDeleteFrame */
-/**************************************/
-#include "dialog_initpcb.cpp"
+//#include "protos.h"
 
 
-/********************************************************************/
-void WinEDA_PcbFrame::InstallPcbGlobalDeleteFrame( const wxPoint& pos )
-/********************************************************************/
-{
-    WinEDA_PcbGlobalDeleteFrame* frame =
-        new WinEDA_PcbGlobalDeleteFrame( this );
-
-    frame->ShowModal(); frame->Destroy();
-}
-
-
-/***********************************************************************/
-void WinEDA_PcbGlobalDeleteFrame::AcceptPcbDelete( wxCommandEvent& event )
-/***********************************************************************/
-{
-    bool gen_rastnest = false;
-
-    m_Parent->SetCurItem( NULL );
-
-    if( m_DelAlls->GetValue() )
-    {
-        m_Parent->Clear_Pcb( true );
-    }
-    else
-    {
-        if( !IsOK( this, _( "Ok to delete selected items ?" ) ) )
-            return;
-
-        BOARD * pcb = m_Parent->GetBoard();
-        PICKED_ITEMS_LIST pickersList;
-        ITEM_PICKER       itemPicker( NULL, UR_DELETED );
-        BOARD_ITEM*       item, * nextitem;
-
-        if( m_DelZones->GetValue() )
-        {
-            gen_rastnest = true;
-
-            /* ZEG_ZONE items used in Zone filling selection are now deprecated :
-            * and are deleted but not put in undo buffer if exist
-            */
-            pcb->m_Zone.DeleteAll();
-
-            while( pcb->GetAreaCount() )
-            {
-                item = pcb->GetArea( 0 );
-                itemPicker.m_PickedItem = item;
-                pickersList.PushItem( itemPicker );
-                pcb->Remove( item );
-            }
-        }
-
-        int masque_layer = 0;
-        if( m_DelDrawings->GetValue() )
-            masque_layer = (~EDGE_LAYER) & 0x1FFF0000;
-
-        if( m_DelEdges->GetValue() )
-            masque_layer |= EDGE_LAYER;
-
-        for( item = pcb->m_Drawings; item != NULL; item = nextitem )
-        {
-            nextitem = item->Next();
-            bool removeme = (g_TabOneLayerMask[ item->GetLayer()] & masque_layer) != 0;
-            if( ( item->Type() == TYPE_TEXTE ) && m_DelTexts->GetValue() )
-                removeme = true;
-            if( removeme )
-            {
-                itemPicker.m_PickedItem = item;
-                pickersList.PushItem( itemPicker );
-                item->UnLink();
-            }
-        }
-
-        if( m_DelModules->GetValue() )
-        {
-            gen_rastnest = true;
-            for( item = pcb->m_Modules; item; item = nextitem )
-            {
-                nextitem = item->Next();
-                itemPicker.m_PickedItem = item;
-                pickersList.PushItem( itemPicker );
-                item->UnLink();
-            }
-        }
-
-        if( m_DelTracks->GetValue() )
-        {
-            int track_mask_filter = 0;
-            if( !m_TrackFilterLocked->GetValue() )
-                track_mask_filter |= SEGM_FIXE;
-            if( !m_TrackFilterAR->GetValue() )
-                track_mask_filter |= SEGM_AR;
-            for( item = pcb->m_Track; item != NULL; item = nextitem )
-            {
-                nextitem = item->Next();
-                if( (item->GetState( SEGM_FIXE | SEGM_AR ) & track_mask_filter) != 0 )
-                    continue;
-                itemPicker.m_PickedItem = item;
-                pickersList.PushItem( itemPicker );
-                item->UnLink();
-                gen_rastnest = true;
-            }
-        }
-
-        if( pickersList.GetCount() )
-            m_Parent->SaveCopyInUndoList( pickersList, UR_DELETED );
-
-        if( m_DelMarkers->GetValue() )
-            pcb->DeleteMARKERs();
-
-        if( gen_rastnest )
-            m_Parent->Compile_Ratsnest( NULL, true );
-    }
-
-    m_Parent->DrawPanel->Refresh();
-    m_Parent->OnModify();
-
-    EndModal( 1 );
-}
-
-
-/** function WinEDA_PcbFrame::Clear_Pcb()
+/**
+ * Function Clear_Pcb
  * delete all and reinitialize the current board
  * @param aQuery = true to prompt user for confirmation, false to initialize silently
  */
-bool WinEDA_PcbFrame::Clear_Pcb( bool aQuery )
+bool PCB_EDIT_FRAME::Clear_Pcb( bool aQuery )
 {
     if( GetBoard() == NULL )
         return FALSE;
@@ -165,18 +42,17 @@ bool WinEDA_PcbFrame::Clear_Pcb( bool aQuery )
     // delete the old BOARD and create a new BOARD so that the default
     // layer names are put into the BOARD.
     SetBoard( new BOARD( NULL, this ) );
-    m_TrackAndViasSizesList_Changed = true;
     SetCurItem( NULL );
 
     /* clear filename, to avoid overwriting an old file */
-    GetScreen()->m_FileName.Empty();
+    GetScreen()->GetFileName().Empty();
 
     /* Init new grid size */
     wxRealPoint gridsize = GetScreen()->GetGridSize();
     GetScreen()->Init();
     GetScreen()->SetGrid( gridsize );
 
-    g_HighLight_Status = 0;
+    GetBoard()->ResetHightLight();
 
     // Enable all layers (SetCopperLayerCount() will adjust the copper layers enabled)
     GetBoard()->SetEnabledLayers(ALL_LAYERS);
@@ -189,15 +65,15 @@ bool WinEDA_PcbFrame::Clear_Pcb( bool aQuery )
 
     ReFillLayerWidget();
 
-    SetToolbars();
-    Zoom_Automatique( true );
+    Zoom_Automatique( false );
 
     return true;
 }
 
 
 
-/** function WinEDA_ModuleEditFrame::Clear_Pcb()
+/**
+ * Function Clear_Pcb
  * delete all and reinitialize the current board
  * @param aQuery = true to prompt user for confirmation, false to initialize silently
  */
@@ -223,7 +99,7 @@ bool WinEDA_ModuleEditFrame::Clear_Pcb( bool aQuery )
     GetBoard()->m_Modules.DeleteAll();
 
     /* init pointeurs  et variables */
-    GetScreen()->m_FileName.Empty();
+    GetScreen()->GetFileName().Empty();
 
     SetCurItem( NULL );
 
@@ -232,7 +108,7 @@ bool WinEDA_ModuleEditFrame::Clear_Pcb( bool aQuery )
     GetScreen()->Init();
     GetScreen()->SetGrid( gridsize );
 
-    Zoom_Automatique( true );
+    Zoom_Automatique( false );
 
     return true;
 }

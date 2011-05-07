@@ -9,11 +9,10 @@
 #include "macros.h"
 
 #include "cvpcb.h"
-#include "protos.h"
-#include "cvstruct.h"
+#include "cvpcb_mainframe.h"
 
 
-void WinEDA_CvpcbFrame::WriteStuffList( wxCommandEvent& event )
+void CVPCB_MAINFRAME::WriteStuffList( wxCommandEvent& event )
 {
     FILE*      FileEquiv;
     wxString   Line;
@@ -44,9 +43,10 @@ void WinEDA_CvpcbFrame::WriteStuffList( wxCommandEvent& event )
     {
         if( component.m_Module.empty() )
             continue;
-        fprintf( FileEquiv, "comp = \"%s\" module = \"%s\"\n",
-                 CONV_TO_UTF8( component.m_Reference ),
-                 CONV_TO_UTF8( component.m_Module ) );
+
+        fprintf( FileEquiv, "comp = %s module = %s\n",
+                 EscapedUTF8( component.m_Reference ).c_str(),
+                 EscapedUTF8( component.m_Module ).c_str() );
     }
 
     fclose( FileEquiv );

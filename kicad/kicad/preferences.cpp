@@ -18,26 +18,26 @@
 #include <wx/fontdlg.h>
 
 
-void WinEDA_MainFrame::OnUpdateDefaultPdfBrowser( wxUpdateUIEvent& event )
+void KICAD_MANAGER_FRAME::OnUpdateDefaultPdfBrowser( wxUpdateUIEvent& event )
 {
     event.Check( wxGetApp().m_PdfBrowserIsDefault );
 }
 
 
-void WinEDA_MainFrame::OnSelectDefaultPdfBrowser( wxCommandEvent& event )
+void KICAD_MANAGER_FRAME::OnSelectDefaultPdfBrowser( wxCommandEvent& event )
 {
     wxGetApp().m_PdfBrowserIsDefault = true;
     wxGetApp().WritePdfBrowserInfos();
 }
 
 
-void WinEDA_MainFrame::OnUpdatePreferredPdfBrowser( wxUpdateUIEvent& event )
+void KICAD_MANAGER_FRAME::OnUpdatePreferredPdfBrowser( wxUpdateUIEvent& event )
 {
     event.Check( !wxGetApp().m_PdfBrowserIsDefault );
 }
 
 
-void WinEDA_MainFrame::OnSelectPreferredPdfBrowser( wxCommandEvent& event )
+void KICAD_MANAGER_FRAME::OnSelectPreferredPdfBrowser( wxCommandEvent& event )
 {
     bool select = event.GetId() == ID_SELECT_PREFERED_PDF_BROWSER_NAME;
 
@@ -69,40 +69,7 @@ void WinEDA_MainFrame::OnSelectPreferredPdfBrowser( wxCommandEvent& event )
     wxGetApp().WritePdfBrowserInfos();
 }
 
-
-void WinEDA_MainFrame::OnSelectPreferredEditor( wxCommandEvent& event )
+void KICAD_MANAGER_FRAME::SetLanguage( wxCommandEvent& event )
 {
-    wxFileName fn = wxGetApp().m_EditorName;
-    wxString wildcard( wxT( "*" ) );
-
-#ifdef __WINDOWS__
-    wildcard += wxT( ".exe" );
-#endif
-
-    wildcard = _( "Executable file (" ) + wildcard + wxT( ")|" ) + wildcard;
-
-    wxFileDialog dlg( this, _( "Select Prefered Editor" ), fn.GetPath(),
-                      fn.GetFullName(), wildcard,
-                      wxFD_OPEN | wxFD_FILE_MUST_EXIST );
-
-    if( dlg.ShowModal() == wxID_CANCEL )
-        return;
-
-    wxASSERT( wxGetApp().m_EDA_CommonConfig );
-
-    wxConfig* cfg = wxGetApp().m_EDA_CommonConfig;
-    wxGetApp().m_EditorName = dlg.GetPath();
-    cfg->Write( wxT( "Editor" ), wxGetApp().m_EditorName );
-}
-
-
-void WinEDA_MainFrame::SetLanguage( wxCommandEvent& event )
-{
-    wxGetApp().SetLanguageIdentifier( event.GetId() );
-    if ( wxGetApp().SetLanguage() )
-    {
-        wxLogDebug( wxT( "Recreating menu bar due to language change." ) );
-        ReCreateMenuBar();
-        Refresh();
-    }
+    EDA_BASE_FRAME::SetLanguage( event );
 }

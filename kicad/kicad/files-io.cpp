@@ -18,6 +18,7 @@
 #include "bitmaps.h"
 #include "confirm.h"
 #include "gestfich.h"
+#include "macros.h"
 
 #include "kicad.h"
 #include "prjconfig.h"
@@ -26,11 +27,11 @@ static const wxString ZipFileExtension( wxT( "zip" ) );
 static const wxString ZipFileWildcard( wxT( "Zip file (*.zip) | *.zip" ) );
 
 
-void WinEDA_MainFrame::OnFileHistory( wxCommandEvent& event )
+void KICAD_MANAGER_FRAME::OnFileHistory( wxCommandEvent& event )
 {
     wxString fn;
 
-    fn = GetFileFromHistory( event.GetId(), _( "Printed circuit board" ) );
+    fn = GetFileFromHistory( event.GetId(), _( "Kicad project file" ) );
 
     if( fn != wxEmptyString )
     {
@@ -38,11 +39,9 @@ void WinEDA_MainFrame::OnFileHistory( wxCommandEvent& event )
         m_ProjectFileName = fn;
         OnLoadProject( cmd );
     }
-
-    ReCreateMenuBar();
 }
 
-void WinEDA_MainFrame::OnUnarchiveFiles( wxCommandEvent& event )
+void KICAD_MANAGER_FRAME::OnUnarchiveFiles( wxCommandEvent& event )
 {
     wxFileName fn = m_ProjectFileName;
     fn.SetExt( ZipFileExtension );
@@ -108,7 +107,7 @@ void WinEDA_MainFrame::OnUnarchiveFiles( wxCommandEvent& event )
 }
 
 
-void WinEDA_MainFrame::OnArchiveFiles( wxCommandEvent& event )
+void KICAD_MANAGER_FRAME::OnArchiveFiles( wxCommandEvent& event )
 {
     size_t i;
     wxFileName fileName = m_ProjectFileName;
@@ -135,7 +134,7 @@ void WinEDA_MainFrame::OnArchiveFiles( wxCommandEvent& event )
     };
 
     wxString cmd = wxT( "-o " );    // run minizip with option -o (overwrite)
-    cmd += zip.GetFullPath();
+    cmd += QuoteFullPath(zip);
 
     wxString currdirname = wxT( "." );
     currdirname += zip.GetPathSeparator();
@@ -153,9 +152,9 @@ void WinEDA_MainFrame::OnArchiveFiles( wxCommandEvent& event )
         while( cont )
         {
             wxFileName fn( f );
-            cmd += wxT( " " );
-            cmd +=  fn.GetFullName();
-            PrintMsg( _( "Compress file " ) + fn.GetFullName() + wxT( "\n" ) );
+            wxString filename = QuoteFullPath(fn);
+            cmd += wxT( " " ) + filename;
+            PrintMsg( _( "Archive file " ) + filename + wxT( "\n" ) );
             cont = dir.GetNext( &f );
         }
     }
@@ -168,7 +167,8 @@ void WinEDA_MainFrame::OnArchiveFiles( wxCommandEvent& event )
     if( ExecuteFile( this, ZIPPER, cmd ) >= 0 )
     {
         wxString msg;
-        msg.Printf( _("\nCreate Zip Archive <%s>" ), zip.GetFullName().GetData() );
+        wxString filename = QuoteFullPath(zip);
+        msg.Printf( _("\nZip archive <%s> created" ), GetChars( filename ) );
         PrintMsg( msg );
         PrintMsg( wxT( "\n** end **\n" ) );
     }

@@ -7,7 +7,7 @@
 #include "common.h"
 
 #include "cvpcb.h"
-#include "protos.h"
+#include "cvpcb_mainframe.h"
 #include "cvstruct.h"
 
 
@@ -15,7 +15,7 @@
 /* ListBox handling the schematic components list */
 /**************************************************/
 
-COMPONENTS_LISTBOX::COMPONENTS_LISTBOX( WinEDA_CvpcbFrame* parent, wxWindowID id,
+COMPONENTS_LISTBOX::COMPONENTS_LISTBOX( CVPCB_MAINFRAME* parent, wxWindowID id,
                                         const wxPoint& loc, const wxSize& size,
                                         int nbitems, wxString choice[] ) :
     ITEMS_LISTBOX_BASE( parent, id, loc, size )
@@ -97,7 +97,8 @@ void COMPONENTS_LISTBOX::SetSelection( unsigned index, bool State )
 }
 
 
-/** function OnChar
+/**
+ * Function OnChar
  * called on a key pressed
  * Call default handler for some special keys,
  * and for "ascii" keys, select the first component

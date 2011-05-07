@@ -27,7 +27,7 @@
 
 
 /*  This module contains a number of COLLECTOR implementations which are used
-    to augment the functionality of class WinEDA_PcbFrame.
+    to augment the functionality of class PCB_EDIT_FRAME.
 */
 
 
@@ -182,7 +182,7 @@ public:
  * Class GENERAL_COLLECTOR
  * is intended for use when the right click button is pressed, or when the
  * plain "arrow" tool is in effect.  This class can be used by window classes
- * such as WinEDA_PcbFrame.
+ * such as PCB_EDIT_FRAME.
  *
  * Philosophy: this class knows nothing of the context in which a BOARD is used
  * and that means it knows nothing about which layers are visible or current,
@@ -294,7 +294,7 @@ public:
     /**
      * Function operator[int]
      * overloads COLLECTOR::operator[](int) to return a BOARD_ITEM* instead of
-     * an EDA_BaseStruct* type.
+     * an EDA_ITEM* type.
      * @param ndx The index into the list.
      * @return BOARD_ITEM* - or something derived from it, or NULL.
      */
@@ -318,12 +318,12 @@ public:
      * is the examining function within the INSPECTOR which is passed to the
      * Iterate function.
      *
-     * @param testItem An EDA_BaseStruct to examine.
+     * @param testItem An EDA_ITEM to examine.
      * @param testData is not used in this class.
      * @return SEARCH_RESULT - SEARCH_QUIT if the Iterator is to stop the scan,
      *   else SCAN_CONTINUE;
      */
-    SEARCH_RESULT Inspect( EDA_BaseStruct* testItem, const void* testData );
+    SEARCH_RESULT Inspect( EDA_ITEM* testItem, const void* testData );
 
 
     /**
@@ -378,7 +378,8 @@ public:
      * Constructor GENERAL_COLLECTORS_GUIDE
      * grabs stuff from global preferences and uses reasonable defaults.
      * Add more constructors as needed.
-     * @param settings The BOARD_DESIGN_SETTINGS to reference.
+     * @param aVisibleLayerMask = current visible layers (bit mask)
+     * @param aPreferredLayer = the layer to search first
      */
     GENERAL_COLLECTORS_GUIDE( int aVisibleLayerMask, int aPreferredLayer )
     {
@@ -403,7 +404,7 @@ public:
         m_IgnoreMTextsOnCmp         = false;
         m_IgnoreModulesOnCu         = true; // !Show_Modules_Cmp;
         m_IgnoreModulesOnCmp        = false;
-        
+
         m_IgnorePadsOnFront         = false;
         m_IgnorePadsOnBack          = false;
     }
@@ -553,7 +554,7 @@ public:
     /**
      * Function operator[int]
      * overloads COLLECTOR::operator[](int) to return a BOARD_ITEM* instead of
-     * an EDA_BaseStruct* type.
+     * an EDA_ITEM* type.
      * @param ndx The index into the list.
      * @return BOARD_ITEM* - or something derived from it, or NULL.
      */
@@ -570,12 +571,12 @@ public:
      * is the examining function within the INSPECTOR which is passed to the
      * Iterate function.
      *
-     * @param testItem An EDA_BaseStruct to examine.
+     * @param testItem An EDA_ITEM to examine.
      * @param testData is not used in this class.
      * @return SEARCH_RESULT - SEARCH_QUIT if the Iterator is to stop the scan,
      *   else SCAN_CONTINUE;
      */
-    SEARCH_RESULT Inspect( EDA_BaseStruct* testItem, const void* testData );
+    SEARCH_RESULT Inspect( EDA_ITEM* testItem, const void* testData );
 
 
     /**

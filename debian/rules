@@ -1,65 +1,39 @@
 #!/usr/bin/make -f
-
-# Uncomment this to turn on verbose mode.
+# -*- makefile -*-
 #export DH_VERBOSE=1
-# Make sure no svn parts inside the deb
-DH_ALWAYS_EXCLUDE=CVS:.svn
-export DH_ALWAYS_EXCLUDE
 
-# This has to be exported to make some magic below work.
-export DH_OPTIONS
+%:
+	dh $@ --parallel
 
-# .NOTPARALLEL:
-
-# get patch & unpatch targets for dpatch
-include /usr/share/dpatch/dpatch.make
-
-configure: configure-stamp
-configure-stamp:
-
-	mkdir -p $(CURDIR)/build/kicad
-	mkdir -p $(CURDIR)/build/bitmaps
-	cd $(CURDIR)/build/kicad && cmake -DKICAD_MINIZIP=0 \
-		-DKICAD_DEMOS=$(CURDIR)/debian/kicad-common/usr/share/doc/kicad/demos ../../kicad \
-		-DXPM_CPP_PATH=$(CURDIR)/build/bitmaps
-	mkdir -p $(CURDIR)/build/kicad-doc
-	cd $(CURDIR)/build/kicad-doc && cmake ../../kicad-doc
-	mkdir -p $(CURDIR)/build/kicad-library
-	cd $(CURDIR)/build/kicad-library && cmake ../../kicad-library
-	touch $@
-
-build: build-arch build-indep
-
-build-arch: build-arch-stamp
-build-arch-stamp: patch-stamp configure-stamp
-
-	$(MAKE) -C $(CURDIR)/build/kicad
-	touch $@
-
-build-indep: build-indep-stamp
-build-indep-stamp: patch-stamp configure-stamp
-
-	$(MAKE) -C $(CURDIR)/build/kicad-doc
-	$(MAKE) -C $(CURDIR)/build/kicad-library
-	touch $@
-
-clean: clean-patched clean-build unpatch
-clean-patched:
-	dh_testdir
-	dh_testroot
-	rm -f build-arch-stamp build-indep-stamp configure-stamp
+override_dh_clean:
+	rm -rf $(CURDIR)/build
 	# REMOVE AUTOMATICALLY GENERATED FILES	
 	rm -f kicad/pcbnew/dialog_freeroute_exchange_help_html.h \
 	      kicad/eeschema/cmp_library_base.h \
 	      kicad/eeschema/cmp_library_base.cpp
 	dh_clean
 
-clean-build:
-	rm -rf $(CURDIR)/build
+configure:
+	mkdir -p $(CURDIR)/build/kicad
+	mkdir -p $(CURDIR)/build/bitmaps
+	cd $(CURDIR)/build/kicad && cmake -DKICAD_MINIZIP=0 \
+		-DKICAD_DEMOS=$(CURDIR)/debian/kicad-common/usr/share/doc/kicad/demos ../../kicad \
+		-DXPM_CPP_PATH=$(CURDIR)/build/bitmaps \
+		-DKICAD_STABLE_VERSION=ON
+	mkdir -p $(CURDIR)/build/kicad-doc
+	cd $(CURDIR)/build/kicad-doc && cmake ../../kicad-doc
+	mkdir -p $(CURDIR)/build/kicad-library
+	cd $(CURDIR)/build/kicad-library && cmake ../../kicad-library
 
-partclean: clean-patched unpatch
+build: configure build-arch build-indep
 
-install: install-indep install-arch
+build-indep:
+	$(MAKE) -C $(CURDIR)/build/kicad-doc
+	$(MAKE) -C $(CURDIR)/build/kicad-library
+
+build-arch:
+	$(MAKE) -C $(CURDIR)/build/kicad
+
 install-indep:
 	dh_testdir
 	dh_testroot
@@ -149,4 +123,3 @@ binary-arch: build-arch install-arch
 	dh_builddeb -s
 
 binary: binary-arch binary-indep
-.PHONY: build clean binary-indep binary-arch binary install install-indep install-arch partclean

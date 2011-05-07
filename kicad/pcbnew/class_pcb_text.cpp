@@ -15,6 +15,7 @@
 #include "colors_selection.h"
 #include "trigo.h"
 #include "protos.h"
+#include "richio.h"
 
 
 /*******************/
@@ -23,7 +24,7 @@
 
 TEXTE_PCB::TEXTE_PCB( BOARD_ITEM* parent ) :
     BOARD_ITEM( parent, TYPE_TEXTE ),
-    EDA_TextStruct()
+    EDA_TEXT()
 {
     m_MultilineAllowed = true;
 }
@@ -43,7 +44,7 @@ void TEXTE_PCB::Copy( TEXTE_PCB* source )
     m_Orient    = source->m_Orient;
     m_Pos       = source->m_Pos;
     m_Layer     = source->m_Layer;
-    m_Width     = source->m_Width;
+    m_Thickness     = source->m_Thickness;
     m_Attributs = source->m_Attributs;
     m_Italic    = source->m_Italic;
     m_Bold      = source->m_Bold;
@@ -55,7 +56,8 @@ void TEXTE_PCB::Copy( TEXTE_PCB* source )
 }
 
 
-/** Function ReadTextePcbDescr
+/**
+ * Function ReadTextePcbDescr
  * Read a text description from pcb file.
  *
  * For a single line text:
@@ -76,33 +78,35 @@ void TEXTE_PCB::Copy( TEXTE_PCB* source )
  * $EndTEXTPCB
  * Nl "line nn" is a line added to the current text
  */
-int TEXTE_PCB::ReadTextePcbDescr( FILE* File, int* LineNum )
+int TEXTE_PCB::ReadTextePcbDescr( LINE_READER* aReader )
 {
-    char text[1024], Line[1024];
-    char style[256];
+    char* line;
+    char  text[1024];
+    char  style[256];
 
-    while( GetLine( File, Line, LineNum ) != NULL )
+    while( aReader->ReadLine() )
     {
-        if( strnicmp( Line, "$EndTEXTPCB", 11 ) == 0 )
+        line = aReader->Line();
+        if( strnicmp( line, "$EndTEXTPCB", 11 ) == 0 )
             return 0;
-        if( strncmp( Line, "Te", 2 ) == 0 ) /* Text line (first line for multi line texts */
+        if( strncmp( line, "Te", 2 ) == 0 ) /* Text line (first line for multi line texts */
         {
-            ReadDelimitedText( text, Line + 2, sizeof(text) );
-            m_Text = CONV_FROM_UTF8( text );
+            ReadDelimitedText( text, line + 2, sizeof(text) );
+            m_Text = FROM_UTF8( text );
             continue;
         }
-        if( strncmp( Line, "nl", 2 ) == 0 ) /* next line of the current text */
+        if( strncmp( line, "nl", 2 ) == 0 ) /* next line of the current text */
         {
-            ReadDelimitedText( text, Line + 2, sizeof(text) );
+            ReadDelimitedText( text, line + 2, sizeof(text) );
             m_Text.Append( '\n' );
-            m_Text += CONV_FROM_UTF8( text );
+            m_Text += FROM_UTF8( text );
             continue;
         }
-        if( strncmp( Line, "Po", 2 ) == 0 )
+        if( strncmp( line, "Po", 2 ) == 0 )
         {
-            sscanf( Line + 2, " %d %d %d %d %d %d",
+            sscanf( line + 2, " %d %d %d %d %d %d",
                     &m_Pos.x, &m_Pos.y, &m_Size.x, &m_Size.y,
-                    &m_Width, &m_Orient );
+                    &m_Thickness, &m_Orient );
 
             // Ensure the text has minimal size to see this text on screen:
             if( m_Size.x < 5 )
@@ -111,11 +115,11 @@ int TEXTE_PCB::ReadTextePcbDescr( FILE* File, int* LineNum )
                 m_Size.y = 5;
             continue;
         }
-        if( strncmp( Line, "De", 2 ) == 0 )
+        if( strncmp( line, "De", 2 ) == 0 )
         {
             style[0] = 0;
             int normal_display = 1;
-            sscanf( Line + 2, " %d %d %lX %s\n", &m_Layer, &normal_display,
+            sscanf( line + 2, " %d %d %lX %s\n", &m_Layer, &normal_display,
                     &m_TimeStamp, style );
 
             m_Mirror = normal_display ? false : true;
@@ -134,9 +138,9 @@ int TEXTE_PCB::ReadTextePcbDescr( FILE* File, int* LineNum )
     }
 
      // Set a reasonable width:
-    if( m_Width < 1 )
-        m_Width = 1;
-    m_Width = Clamp_Text_PenSize( m_Width, m_Size );
+    if( m_Thickness < 1 )
+        m_Thickness = 1;
+    m_Thickness = Clamp_Text_PenSize( m_Thickness, m_Size );
 
     return 1;
 }
@@ -144,9 +148,6 @@ int TEXTE_PCB::ReadTextePcbDescr( FILE* File, int* LineNum )
 
 bool TEXTE_PCB::Save( FILE* aFile ) const
 {
-    if( GetState( DELETED ) )
-        return true;
-
     if( m_Text.IsEmpty() )
         return true;
 
@@ -156,18 +157,22 @@ bool TEXTE_PCB::Save( FILE* aFile ) const
     const char* style = m_Italic ? "Italic" : "Normal";
 
     wxArrayString* list = wxStringSplit( m_Text, '\n' );
+
     for( unsigned ii = 0; ii < list->Count(); ii++ )
     {
         wxString txt  = list->Item( ii );
+
         if ( ii == 0 )
-            fprintf( aFile, "Te \"%s\"\n", CONV_TO_UTF8( txt ) );
+            fprintf( aFile, "Te %s\n", EscapedUTF8( txt ).c_str() );
         else
-            fprintf( aFile, "nl \"%s\"\n", CONV_TO_UTF8( txt ) );
+            fprintf( aFile, "nl %s\n", EscapedUTF8( txt ).c_str() );
     }
-    delete (list);
+
+    delete list;
 
     fprintf( aFile, "Po %d %d %d %d %d %d\n",
-             m_Pos.x, m_Pos.y, m_Size.x, m_Size.y, m_Width, m_Orient );
+             m_Pos.x, m_Pos.y, m_Size.x, m_Size.y, m_Thickness, m_Orient );
+
     fprintf( aFile, "De %d %d %lX %s\n", m_Layer,
              m_Mirror ? 0 : 1,
              m_TimeStamp, style );
@@ -179,13 +184,13 @@ bool TEXTE_PCB::Save( FILE* aFile ) const
 }
 
 
-/** Function Draw
- *  DrawMode = GR_OR, GR_XOR ..
+/*
+ * Function Draw
  * Like tracks, texts are drawn in filled or sketch mode, never in line mode
  * because the line mode does not keep the actual size of the text
  * and the actual size is very important, especially for copper texts
  */
-void TEXTE_PCB::Draw( WinEDA_DrawPanel* panel, wxDC* DC,
+void TEXTE_PCB::Draw( EDA_DRAW_PANEL* panel, wxDC* DC,
                       int DrawMode, const wxPoint& offset )
 {
     BOARD * brd =  GetBoard( );
@@ -203,13 +208,13 @@ void TEXTE_PCB::Draw( WinEDA_DrawPanel* panel, wxDC* DC,
     if( brd->IsElementVisible( ANCHOR_VISIBLE ) )
         anchor_color = brd->GetVisibleElementColor(ANCHOR_VISIBLE);
 
-    EDA_TextStruct::Draw( panel, DC, offset, (EDA_Colors) color,
+    EDA_TEXT::Draw( panel, DC, offset, (EDA_Colors) color,
                           DrawMode, fillmode, (EDA_Colors) anchor_color );
 }
 
 
 // see class_pcb_text.h
-void TEXTE_PCB::DisplayInfo( WinEDA_DrawFrame* frame )
+void TEXTE_PCB::DisplayInfo( EDA_DRAW_FRAME* frame )
 {
     wxString    msg;
 
@@ -242,8 +247,8 @@ void TEXTE_PCB::DisplayInfo( WinEDA_DrawFrame* frame )
     msg.Printf( wxT( "%.1f" ), (float) m_Orient / 10 );
     frame->AppendMsgPanel( _( "Orient" ), msg, DARKGREEN );
 
-    valeur_param( m_Width, msg );
-    frame->AppendMsgPanel( _( "Width" ), msg, MAGENTA );
+    valeur_param( m_Thickness, msg );
+    frame->AppendMsgPanel( _( "Thickness" ), msg, MAGENTA );
 
     valeur_param( m_Size.x, msg );
     frame->AppendMsgPanel( _( "H Size" ), msg, RED );
@@ -256,7 +261,7 @@ void TEXTE_PCB::DisplayInfo( WinEDA_DrawFrame* frame )
 /**
  * Function Rotate
  * Rotate this object.
- * @param const wxPoint& aRotCentre - the rotation point.
+ * @param aRotCentre - the rotation point.
  * @param aAngle - the rotation angle in 0.1 degree.
  */
 void TEXTE_PCB::Rotate(const wxPoint& aRotCentre, int aAngle)
@@ -273,7 +278,7 @@ void TEXTE_PCB::Rotate(const wxPoint& aRotCentre, int aAngle)
 /**
  * Function Flip
  * Flip this object, i.e. change the board side for this object
- * @param const wxPoint& aCentre - the rotation point.
+ * @param aCentre - the rotation point.
  */
 void TEXTE_PCB::Flip(const wxPoint& aCentre )
 {

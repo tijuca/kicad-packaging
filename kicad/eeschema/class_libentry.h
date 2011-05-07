@@ -5,23 +5,34 @@
 #ifndef CLASS_LIBENTRY_H
 #define CLASS_LIBENTRY_H
 
-#include "classes_body_items.h"
-#include "class_libentry_fields.h"
+#include "general.h"
+#include "lib_draw_item.h"
+#include "lib_field.h"
 
-#include <boost/ptr_container/ptr_vector.hpp>
+#include <map>
 
 
 class CMP_LIBRARY;
+class LIB_ALIAS;
+class LIB_COMPONENT;
+class LIB_FIELD;
 
 
-/* Types for components in libraries
- * components can be a true component or an alias of a true component.
+/**
+ * LIB_ALIAS map sorting.
  */
-enum LibrEntryType
+struct AliasMapSort
 {
-    ROOT,       /* This is a true component standard LIB_COMPONENT */
-    ALIAS       /* This is an alias of a true component */
+    bool operator() ( const wxString& aItem1, const wxString& aItem2 ) const
+        { return aItem1.CmpNoCase( aItem2 ) < 0; }
 };
+
+/**
+ * Alias map used by component library object.
+ */
+typedef std::map< wxString, LIB_ALIAS*, AliasMapSort > LIB_ALIAS_MAP;
+
+typedef std::vector< LIB_ALIAS* > LIB_ALIASES;
 
 /* values for member .m_options */
 enum  LibrEntryOptions
@@ -32,73 +43,80 @@ enum  LibrEntryOptions
 
 
 /**
- * Base class to describe library components and aliases.
+ * Component library alias object definition.
  *
- * This class is not to be used directly.
+ * Component aliases are not really components.  They are references
+ * to an actual component object.
  */
-class CMP_LIB_ENTRY : public EDA_BaseStruct
+class LIB_ALIAS : public EDA_ITEM
 {
+    /**
+     * The actual component of the alias.
+     *
+     * @note - Do not delete the root component.  The root component is actually shared by
+     *         all of the aliases associated with it.  The component pointer will be delete
+     *         in the destructor of the last alias that shares this component is deleted.
+     *         Deleting the root component will likely cause EESchema to crash.
+     */
+    LIB_COMPONENT*   root;
+
+    friend class LIB_COMPONENT;
 
 protected:
     wxString         name;
-
-    /** Library object that entry is attached to. */
-    CMP_LIBRARY*     library;
-
-    /** Entry type, either ROOT or ALIAS. */
-    LibrEntryType    type;
-
-    wxString         description;  /* documentation for info */
-    wxString         keyWords;     /* keyword list (used for search for
-                                    * components by keyword) */
-    wxString         docFileName;  /* Associate doc file name */
+    wxString         description;  ///< documentation for info
+    wxString         keyWords;     ///< keyword list (used for search for components by keyword)
+    wxString         docFileName;  ///< Associate doc file name
 
 public:
-    CMP_LIB_ENTRY( LibrEntryType aType, const wxString& aName,
-                   CMP_LIBRARY* aLibrary = NULL );
-    CMP_LIB_ENTRY( CMP_LIB_ENTRY& aEntry, CMP_LIBRARY* aLibrary = NULL );
+    LIB_ALIAS( const wxString& aName, LIB_COMPONENT* aRootComponent );
+    LIB_ALIAS( const LIB_ALIAS& aAlias, LIB_COMPONENT* aRootComponent = NULL );
 
-    virtual ~CMP_LIB_ENTRY();
+    virtual ~LIB_ALIAS();
 
     virtual wxString GetClass() const
     {
-        return wxT( "CMP_LIB_ENTRY" );
+        return wxT( "LIB_ALIAS" );
     }
 
-    wxString GetLibraryName();
+    /**
+     * Get the alias root component.
+     */
+    LIB_COMPONENT* GetComponent() const
+    {
+        return root;
+    }
 
-    CMP_LIBRARY* GetLibrary() {return library;}
+    virtual wxString GetLibraryName();
+
+    bool IsRoot() const;
+
+    CMP_LIBRARY* GetLibrary();
 
     virtual const wxString& GetName() const { return name; }
 
     virtual void SetName( const wxString& aName ) { name = aName; }
-
-    bool isComponent() { return type == ROOT; }
-
-    bool isAlias() { return type == ALIAS; }
-
-    int GetType() { return type; }
 
     void SetDescription( const wxString& aDescription )
     {
         description = aDescription;
     }
 
-    wxString GetDescription() { return description; }
+    wxString GetDescription() const { return description; }
 
     void SetKeyWords( const wxString& aKeyWords )
     {
         keyWords = aKeyWords;
     }
 
-    wxString GetKeyWords() { return keyWords; }
+    wxString GetKeyWords() const { return keyWords; }
 
     void SetDocFileName( const wxString& aDocFileName )
     {
         docFileName = aDocFileName;
     }
 
-    wxString GetDocFileName() { return docFileName; }
+    wxString GetDocFileName() const { return docFileName; }
 
     /**
      * Write the entry document information to a FILE in "*.dcm" format.
@@ -116,78 +134,50 @@ public:
     {
         return !( *this == aName );
     }
+
+    bool operator==( const LIB_ALIAS* aAlias ) const { return this == aAlias; }
 };
 
+extern bool operator<( const LIB_ALIAS& aItem1, const LIB_ALIAS& aItem2 );
 
-typedef boost::ptr_vector< CMP_LIB_ENTRY > LIB_ENTRY_LIST;
-
-extern bool operator<( const CMP_LIB_ENTRY& aItem1, const CMP_LIB_ENTRY& aItem2 );
-
-extern int LibraryEntryCompare( const CMP_LIB_ENTRY* aItem1, const CMP_LIB_ENTRY* aItem2 );
+extern int LibraryEntryCompare( const LIB_ALIAS* aItem1, const LIB_ALIAS* aItem2 );
 
 
 /**
  * Library component object definition.
  *
- * Library component object definition.
- *
- * A library component object is typically saved and loaded
- * in a component library file (.lib).
+ * A library component object is typically saved and loaded in a component library file (.lib).
  * Library components are different from schematic components.
  */
-class LIB_COMPONENT : public CMP_LIB_ENTRY
+class LIB_COMPONENT : public EDA_ITEM
 {
-public:
-    wxArrayString      m_AliasList;      /* ALIAS list for the component */
-    wxArrayString      m_FootprintList;  /* list of suitable footprint names
-                                          * for the component (wildcard names
-                                          * accepted) */
-    bool               m_UnitSelectionLocked;  /* True if units are different
-                                                * and their selection is
-                                                * locked (i.e. if part A cannot
-                                                * be automatically changed in
-                                                * part B */
-    int                m_TextInside;     /* if 0: pin name drawn on the pin
-                                          * itself if > 0 pin name drawn inside
-                                          * the component, with a distance of
-                                          * m_TextInside in mils */
-    bool               m_DrawPinNum;
-    bool               m_DrawPinName;
-    long               m_LastDate;       // Last change Date
+    wxString           m_name;
+    int                m_pinNameOffset;  ///< The offset in mils to draw the pin name.  Set to 0
+                                         ///< to draw the pin name above the pin.
+    bool               m_unitsLocked;    ///< True if component has multiple parts and changing
+                                         ///< one part does not automatically change another part.
+    bool               m_showPinNames;   ///< Determines if component pin names are visible.
+    bool               m_showPinNumbers; ///< Determines if component pin numbers are visible.
+    long               m_dateModified;   ///< Date the component was last modified.
+    LibrEntryOptions   m_options;        ///< Special component features such as POWER or NORMAL.)
+    int                m_unitCount;      ///< Number of units (parts) per package.
+    LIB_ITEMS          drawings;         ///< How to draw this part.
+    wxArrayString      m_FootprintList;  /**< List of suitable footprint names for the
+                                              component (wild card names accepted). */
+    LIB_ALIASES        m_aliases;        ///< List of alias object pointers associated with the
+                                         ///< component.
+    CMP_LIBRARY*       m_library;        ///< Library the component belongs to if any.
 
-protected:
-    LibrEntryOptions   m_options;      // special features (i.e. Entry is a POWER)
-    int                unitCount;      /* Units (parts) per package */
-    LIB_DRAW_ITEM_LIST drawings;       /* How to draw this part */
+    void deleteAllFields();
 
-public:
-    /* Offsets used in editing library component,
-     * for handle aliases data in m_AliasListData array string
-     * when editing a library component, aliases data is stored
-     * in m_AliasListData.
-     * 4 strings by alias are stored:
-     * name, doc, keywords and doc filename
-     * these constants are indexes in m_AliasListData
-     * to read/write strings for a given alias
-     */
-    enum alias_idx
-    {
-        ALIAS_NAME_IDX         = 0,
-        ALIAS_DOC_IDX          = 1,
-        ALIAS_KEYWORD_IDX      = 2,
-        ALIAS_DOC_FILENAME_IDX = 3,
-        ALIAS_NEXT_IDX         = 4
-    };
-private:
-    wxArrayString      m_aliasListData;  /* ALIAS data (name, doc, keywords and doc filename).
-                                          * Used only by the component editor LibEdit
-                                          * to store aliases info during edition
-                                          * usually void outside the component editor */
+    friend class CMP_LIBRARY;
+    friend class LIB_ALIAS;
+
 public:
     LIB_COMPONENT( const wxString& aName, CMP_LIBRARY* aLibrary = NULL );
     LIB_COMPONENT( LIB_COMPONENT& aComponent, CMP_LIBRARY* aLibrary = NULL );
 
-    ~LIB_COMPONENT();
+    virtual ~LIB_COMPONENT();
 
     virtual wxString GetClass() const
     {
@@ -195,76 +185,75 @@ public:
     }
 
 
-    virtual void SetName( const wxString& aName )
-    {
-        CMP_LIB_ENTRY::SetName( aName );
-        GetValueField().m_Text = aName;
-    }
+    virtual void SetName( const wxString& aName );
 
-    /* accessors to aliases data, used by the component editor, during edition
-    */
-    /** Function CollectAliasesData
-     * store in m_aliasListData alias data (doc, keywords, docfile)
-     * for each alias found in m_AliasList
-    */
-    void CollectAliasesData( CMP_LIBRARY* aLibrary );
+    wxString GetName() { return m_name; }
 
-    /** Function LocateAliasData
-     * @return an index in array string to the alias data (doc, keywords, docfile)
-     *         or -1 if not found
-     * @param aAliasName = the alias name
-     * @param aCreateIfNotExist = true if the alias data must be created, when not exists
+    wxString GetLibraryName();
+
+    CMP_LIBRARY* GetLibrary() { return m_library; }
+
+    wxArrayString GetAliasNames( bool aIncludeRoot = true ) const;
+
+    size_t GetAliasCount() const { return m_aliases.size(); }
+
+    LIB_ALIAS* GetAlias( size_t aIndex );
+
+    LIB_ALIAS* GetAlias( const wxString& aName );
+
+    /**
+     * Function AddAlias
+     *
+     * Add an alias \a aName to the component.
+     *
+     * Duplicate alias names are not added to the alias list.  Debug builds will raise an
+     * assertion.  Release builds will fail silenetly.
+     *
+     * @param aName - Name of alias to add.
      */
-    int LocateAliasData( const wxString & aAliasName, bool aCreateIfNotExist = false);
+    void AddAlias( const wxString& aName );
 
-    /** Function GetAliasDataDoc
-     * @param aAliasName = the alias name
-     * @return the Doc string
+    /**
+     * Test if alias \a aName is in component alias list.
+     *
+     * Alias name comparisons are case insensitive.
+     *
+     * @param aName - Name of alias.
+     * @return True if alias name in alias list.
      */
-    wxString GetAliasDataDoc( const wxString & aAliasName );
+    bool HasAlias( const wxString& aName ) const;
 
-    /** Function GetAliasDataKeyWords
-     * @param aAliasName = the alias name
-     * @return aAliasData = the keywords string
-     */
-    wxString GetAliasDataKeyWords( const wxString & aAliasName );
+    void SetAliases( const wxArrayString& aAliasList );
 
-    /** Function GetAliasDataDocFileName
-     * @param aAliasName = the alias name
-     * @return the Doc filename string
-     */
-    wxString GetAliasDataDocFileName( const wxString & aAliasName );
+    void RemoveAlias( const wxString& aName );
 
-    /** Function SetAliasDataDoc
-     * @param aAliasName = the alias name
-     * @return aAliasData = the Doc string
-     */
-    void SetAliasDataDoc( const wxString & aAliasName, const wxString & aAliasData );
+    LIB_ALIAS* RemoveAlias( LIB_ALIAS* aAlias );
 
-    /** Function SetAliasDataKeywords
-     * @param aAliasName = the alias name
-     * @param aAliasData = the keywords string
-     */
-    void SetAliasDataKeywords( const wxString & aAliasName, const wxString & aAliasData );
+    void RemoveAllAliases();
 
-    /** Function SetAliasDataDocFileName
-     * @param aAliasName = the alias name
-     * @param aAliasData = the Doc filename string
-     */
-    void SetAliasDataDocFileName( const wxString & aAliasName, const wxString & aAliasData );
+    wxArrayString& GetFootPrints() { return m_FootprintList; }
 
-    /** Function ClearAliasDataDoc
-     * clear aliases data list
-     */
-    void ClearAliasDataDoc( ) { m_aliasListData.Clear(); }
+    /**
+     * Function GetBoundingBox
+     * @return the component boundary box ( in user coordinates )
+     * @param aUnit = unit selection = 0, or 1..n
+     * @param aConvert = 0, 1 or 2
+     *  If aUnit == 0, unit is not used
+     *  if aConvert == 0 Convert is non used
+     *  Invisible fields are not taken in account
+     **/
+    EDA_RECT GetBoundingBox( int aUnit, int aConvert ) const;
 
-    /** Function RemoveAliasData
-     * remove an alias data from list
-     * @param aAliasName = the alias name
-     */
-    void RemoveAliasData(const wxString & aAliasName );
-
-    EDA_Rect GetBoundaryBox( int aUnit, int aConvert );
+    /**
+     * Function GetBodyBoundingBox
+     * @return the component boundary box ( in user coordinates ) without fields
+     * @param aUnit = unit selection = 0, or 1..n
+     * @param aConvert = 0, 1 or 2
+     *  If aUnit == 0, unit is not used
+     *  if aConvert == 0 Convert is non used
+     *  Fields are not taken in account
+     **/
+    EDA_RECT GetBodyBoundingBox( int aUnit, int aConvert ) const;
 
     bool SaveDateAndTime( FILE* aFile );
     bool LoadDateAndTime( char* aLine );
@@ -278,7 +267,7 @@ public:
     bool Save( FILE* aFile );
 
     /**
-     * Load component definition from /a aFile.
+     * Load component definition from \a aFile.
      *
      * @param aFile - File descriptor of file to load form.
      * @param aLine - The first line of the component definition.
@@ -288,31 +277,45 @@ public:
      */
     bool Load( FILE* aFile, char* aLine, int* aLineNum, wxString& aErrorMsg );
     bool LoadField( char* aLine, wxString& aErrorMsg );
-    bool LoadDrawEntries( FILE* aFile, char* aLine,
-                          int* aLineNum, wxString& aErrorMsg );
+    bool LoadDrawEntries( FILE* aFile, char* aLine, int* aLineNum, wxString& aErrorMsg );
     bool LoadAliases( char* aLine, wxString& aErrorMsg );
-    bool LoadFootprints( FILE* aFile, char* aLine,
-                         int* aLineNum, wxString& aErrorMsg );
+    bool LoadFootprints( FILE* aFile, char* aLine, int* aLineNum, wxString& aErrorMsg );
 
-    bool isPower() { return m_options == ENTRY_POWER; }
-    bool isNormal() { return m_options == ENTRY_NORMAL; }
+    bool IsPower() { return m_options == ENTRY_POWER; }
+    bool IsNormal() { return m_options == ENTRY_NORMAL; }
 
     void SetPower() { m_options = ENTRY_POWER; }
     void SetNormal() { m_options = ENTRY_NORMAL; }
 
-    /**
-     * Initialize fields from a vector of fields.
-     *
-     * @param aFields - a std::vector <LIB_FIELD> to import.
-     */
-    void SetFields( const std::vector <LIB_FIELD> aFields );
+    void LockUnits( bool aLockUnits ) { m_unitsLocked = aLockUnits; }
+    bool UnitsLocked() { return m_unitsLocked; }
 
     /**
-     * Return list of field references of component.
+     * Function SetFields
+     * overwrites all the existing in this component with fields supplied
+     * in \a aFieldsList.  The only known caller of this function is the
+     * library component field editor, and it establishes needed behavior.
      *
-     * @param aList - List to add field references to.
+`     * @param aFieldsList is a set of fields to import, removing all previous fields.
      */
-    void GetFields( LIB_FIELD_LIST& aList );
+    void SetFields( const std::vector <LIB_FIELD>& aFieldsList );
+
+    /**
+     * Function GetFields
+     * returns a list of fields withing this component. The only known caller of
+     * this function is the library component field editor, and it establishes
+     * needed behavior.
+     *
+     * @param aList - List to add fields to
+     */
+    void GetFields( LIB_FIELDS& aList );
+
+    /**
+     * Function FindField
+     * finds a field within this component matching \a aFieldName and returns
+     * it or NULL if not found.
+     */
+    LIB_FIELD* FindField( const wxString& aFieldName );
 
     /**
      * Return pointer to the requested field.
@@ -338,7 +341,7 @@ public:
      * @param aConvert - Component conversion (DeMorgan) if available.
      * @param aDrawMode - Device context drawing mode, see wxDC.
      * @param aColor - Color to draw component.
-     * @param aTransformMatrix - Coordinate adjustment settings.
+     * @param aTransform - Coordinate adjustment settings.
      * @param aShowPinText - Show pin text if true.
      * @param aDrawFields - Draw field text if true otherwise just draw
      *                      body items (useful to draw a body in schematic,
@@ -347,9 +350,9 @@ public:
      * @param aOnlySelected - Draws only the body items that are selected.
      *                        Used for block move redraws.
      */
-    void Draw( WinEDA_DrawPanel* aPanel, wxDC* aDc, const wxPoint& aOffset,
+    void Draw( EDA_DRAW_PANEL* aPanel, wxDC* aDc, const wxPoint& aOffset,
                int aMulti, int aConvert, int aDrawMode, int aColor = -1,
-               const int aTransform[2][2] = DefaultTransformMatrix,
+               const TRANSFORM& aTransform = DefaultTransform,
                bool aShowPinText = true, bool aDrawFields = true,
                bool aOnlySelected = false );
 
@@ -359,28 +362,27 @@ public:
      * @param aPlotter - Plotter object to plot to.
      * @param aUnit - Component part to plot.
      * @param aConvert - Component alternate body style to plot.
+     * @param aOffset - Distance to shift the plot coordinates.
      * @param aTransform - Component plot transform matrix.
      */
     void Plot( PLOTTER* aPlotter, int aUnit, int aConvert, const wxPoint& aOffset,
-               const int aTransform[2][2] );
+               const TRANSFORM& aTransform );
 
     /**
-     * Add a new draw /a aItem to the draw object list.
+     * Add a new draw \a aItem to the draw object list.
      *
-     * @param item - New draw object to add to component.
+     * @param aItem - New draw object to add to component.
      */
-    void AddDrawItem( LIB_DRAW_ITEM* aItem );
+    void AddDrawItem( LIB_ITEM* aItem );
 
     /**
-     * Remove draw /a aItem from list.
+     * Remove draw \a aItem from list.
      *
      * @param aItem - Draw item to remove from list.
      * @param aPanel - Panel to remove part from.
      * @param aDc - Device context to remove part from.
      */
-    void RemoveDrawItem( LIB_DRAW_ITEM* aItem,
-                         WinEDA_DrawPanel* aPanel = NULL,
-                         wxDC* aDc = NULL );
+    void RemoveDrawItem( LIB_ITEM* aItem, EDA_DRAW_PANEL* aPanel = NULL, wxDC* aDc = NULL );
 
     /**
      * Return the next draw object pointer.
@@ -391,23 +393,20 @@ public:
      *                if TYPE_NOT_INIT search for all items types
      * @return - The next drawing object in the list if found, otherwise NULL.
      */
-
-    LIB_DRAW_ITEM* GetNextDrawItem( LIB_DRAW_ITEM* aItem = NULL,
-                                    KICAD_T aType = TYPE_NOT_INIT );
+    LIB_ITEM* GetNextDrawItem( LIB_ITEM* aItem = NULL, KICAD_T aType = TYPE_NOT_INIT );
 
     /**
      * Return the next pin object from the draw list.
      *
      * This is just a pin object specific version of GetNextDrawItem().
      *
-     * @param item - Pointer to the previous pin item, or NULL to get the
-     *               first pin in the draw object list.
+     * @param aItem - Pointer to the previous pin item, or NULL to get the
+     *                first pin in the draw object list.
      * @return - The next pin object in the list if found, otherwise NULL.
      */
     LIB_PIN* GetNextPin( LIB_PIN* aItem = NULL )
     {
-        return (LIB_PIN*) GetNextDrawItem( (LIB_DRAW_ITEM*) aItem,
-                                           COMPONENT_PIN_DRAW_TYPE );
+        return (LIB_PIN*) GetNextDrawItem( (LIB_ITEM*) aItem, LIB_PIN_T );
     }
 
 
@@ -424,10 +423,10 @@ public:
      * @param aConvert - Convert number of pin to add to list.  Set to 0 to
      *                   get pins from any convert of component.
      */
-    void GetPins( LIB_PIN_LIST& aList, int aUnit = 0, int aConvert = 0 );
+    void GetPins( LIB_PINS& aList, int aUnit = 0, int aConvert = 0 );
 
     /**
-     * Return pin object with the requested pin /a aNumber.
+     * Return pin object with the requested pin \a aNumber.
      *
      * @param aNumber - Number of the pin to find.
      * @param aUnit - Unit of the component to find.  Set to 0 if a specific
@@ -439,7 +438,7 @@ public:
     LIB_PIN* GetPin( const wxString& aNumber, int aUnit = 0, int aConvert = 0 );
 
     /**
-     * Move the component /a aOffset.
+     * Move the component \a aOffset.
      *
      * @param aOffset - Offset displacement.
      */
@@ -456,20 +455,6 @@ public:
      * @return True if component has more than one conversion.
      */
     bool HasConversion() const;
-
-    /**
-     * Test if alias /a aName is in component alias list.
-     *
-     * Alias name comparisons are case insensitive.
-     *
-     * @param aName - Name of alias.
-     * @return True if alias name in alias list.
-     */
-    bool HasAlias( const wxChar* aName )
-    {
-        wxASSERT( aName != NULL );
-        return m_AliasList.Index( aName ) != wxNOT_FOUND;
-    }
 
     /**
      * Clears the status flag all draw objects in this component.
@@ -490,8 +475,7 @@ public:
      * @return The number of draw objects found inside the block select
      *         rectangle.
      */
-    int SelectItems( EDA_Rect& aRect, int aUnit, int aConvert,
-                     bool aEditPinByPin );
+    int SelectItems( EDA_RECT& aRect, int aUnit, int aConvert, bool aEditPinByPin );
 
     /**
      * Clears all the draw items marked by a block select.
@@ -537,8 +521,7 @@ public:
      * @param aPoint - Coordinate for hit testing.
      * @return The draw object if found.  Otherwise NULL.
      */
-    LIB_DRAW_ITEM* LocateDrawItem( int aUnit, int aConvert, KICAD_T aType,
-                                   const wxPoint& aPoint );
+    LIB_ITEM* LocateDrawItem( int aUnit, int aConvert, KICAD_T aType, const wxPoint& aPoint );
 
     /**
      * Locate a draw object (overlaid)
@@ -550,16 +533,15 @@ public:
      * @param aTransform = the transform matrix
      * @return The draw object if found.  Otherwise NULL.
      */
-    LIB_DRAW_ITEM* LocateDrawItem( int aUnit, int aConvert, KICAD_T aType,
-                                   const wxPoint& aPoint,
-                                   const int aTransfrom[2][2] );
+    LIB_ITEM* LocateDrawItem( int aUnit, int aConvert, KICAD_T aType,
+                              const wxPoint& aPoint, const TRANSFORM& aTransform );
 
     /**
      * Return a reference to the draw item list.
      *
-     * @return LIB_DRAW_ITEM_LIST& - Reference to the draw item object list.
+     * @return LIB_ITEMS& - Reference to the draw item object list.
      */
-    LIB_DRAW_ITEM_LIST& GetDrawItemList() { return drawings; }
+    LIB_ITEMS& GetDrawItemList() { return drawings; }
 
     /**
      * Set the part per package count.
@@ -573,15 +555,17 @@ public:
      */
     void SetPartCount( int count );
 
-    int GetPartCount() { return unitCount; }
+    int GetPartCount() { return m_unitCount; }
 
-    /** function IsMulti
+    /**
+     * Function IsMulti
      * @return true if the component has multiple parts per package.
      * When happens, the reference has a sub reference ti identify part
      */
-    bool IsMulti() { return unitCount > 1; }
+    bool IsMulti() { return m_unitCount > 1; }
 
-    /** function IsMulti
+    /**
+     * Function ReturnSubReference
      * @return the sub reference for component having multiple parts per package.
      * The sub reference identify the part (or unit)
      * @param aUnit = the part identifier ( 1 to max count)
@@ -601,52 +585,37 @@ public:
      * @param aSetConvert - Set or clear the component alternate body style.
      */
     void SetConversion( bool aSetConvert );
-};
 
-
-/**
- * Component library alias object definition.
- *
- * Component aliases are not really components.  They are references
- * to an actual component object.
- */
-class LIB_ALIAS : public CMP_LIB_ENTRY
-{
-protected:
     /**
-     * The actual component of the alias.
+     * Set the offset in mils of the pin name text from the pin symbol.
      *
-     * @note - Do not delete the root component.  The root component is owned
-     *         by library the component is part of.  Deleting the root component
-     *         will likely cause EESchema to crash.
-     *         Or, if the root component is deleted, aliases must be deleted or their .root member
-     *         must be changed to point a new root component
+     * Set the offset to 0 to draw the pin name above the pin symbol.
+     *
+     * @param aOffset - The offset in mils.
      */
-    LIB_COMPONENT* root;
+    void SetPinNameOffset( int aOffset ) { m_pinNameOffset = aOffset; }
 
-public:
-    LIB_ALIAS( const wxString& aName, LIB_COMPONENT* aRootComponent,
-               CMP_LIBRARY* aLibrary = NULL );
-    LIB_ALIAS( LIB_ALIAS& aAlias, CMP_LIBRARY* aLibrary = NULL );
-    ~LIB_ALIAS();
-
-    virtual wxString GetClass() const
-    {
-        return wxT( "LIB_ALIAS" );
-    }
+    int GetPinNameOffset() { return m_pinNameOffset; }
 
     /**
-     * Get the alias root component.
+     * Set or clear the pin name visibility flag.
+     *
+     * @param aShow - True to make the component pin names visible.
      */
-    LIB_COMPONENT* GetComponent() const
-    {
-        return root;
-    }
+    void SetShowPinNames( bool aShow ) { m_showPinNames = aShow; }
+
+    bool ShowPinNames() { return m_showPinNames; }
 
     /**
-     * Set the alias root component.
+     * Set or clear the pin number visibility flag.
+     *
+     * @param aShow - True to make the component pin numbers visible.
      */
-    void SetComponent( LIB_COMPONENT* aComponent );
+    void SetShowPinNumbers( bool aShow ) { m_showPinNumbers = aShow; }
+
+    bool ShowPinNumbers() { return m_showPinNumbers; }
+
+    bool operator==( const LIB_COMPONENT* aComponent ) const { return this == aComponent; }
 };
 
 

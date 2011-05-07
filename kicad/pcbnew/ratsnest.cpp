@@ -9,7 +9,6 @@
 #include "class_drawpanel.h"
 #include "confirm.h"
 #include "pcbnew.h"
-#include "autorout.h"
 #include "class_board_design_settings.h"
 #include "colors_selection.h"
 
@@ -105,37 +104,33 @@ static bool DisplayRastnestInProgress;          // Enable the display of the
  * ( see tst_rats_block_to_block() )
  */
 
-/** Function Compile_Ratsnest
+/**
+ * Function Compile_Ratsnest
  *  Create the entire board ratsnest.
  *  Must be called after a board change (changes for
  *  pads, footprints or a read netlist ).
- *
- *  @param display_status_pcb : if true, display the computation results
+ * @param aDC = the current device context (can be NULL)
+ * @param aDisplayStatus : if true, display the computation results
  */
-void WinEDA_BasePcbFrame::Compile_Ratsnest( wxDC* DC, bool display_status_pcb )
+void PCB_BASE_FRAME::Compile_Ratsnest( wxDC* aDC, bool aDisplayStatus )
 {
     wxString msg;
 
     DisplayRastnestInProgress = TRUE;
 
-
     GetBoard()->m_Status_Pcb = 0;     /* we want a full ratsnest computation,
                                        * from the scratch */
-    MsgPanel->EraseMsgBox();
+    ClearMsgPanel();
 
     // Rebuild the full pads and net info list
     RecalculateAllTracksNetcode();
 
-    if( display_status_pcb )
+    if( aDisplayStatus )
     {
         msg.Printf( wxT( " %d" ), m_Pcb->GetPadsCount() );
-        Affiche_1_Parametre( this, 1, wxT( "pads" ), msg, RED );
-    }
-
-    if( display_status_pcb )
-    {
+        AppendMsgPanel( wxT( "Pads" ), msg, RED );
         msg.Printf( wxT( " %d" ), m_Pcb->m_NetInfo->GetCount() );
-        Affiche_1_Parametre( this, 8, wxT( "Nets" ), msg, CYAN );
+        AppendMsgPanel( wxT( "Nets" ), msg, CYAN );
     }
 
     /* Compute the full ratsnest
@@ -145,23 +140,23 @@ void WinEDA_BasePcbFrame::Compile_Ratsnest( wxDC* DC, bool display_status_pcb )
      *  This full ratsnest is not modified by track editing.
      *  It changes only when a netlist is read, or footprints are modified
      */
-    Build_Board_Ratsnest( DC );
+    Build_Board_Ratsnest( aDC );
 
     /* Compute the pad connections due to the existing tracks (physical
      * connections) */
-    test_connexions( DC );
+    test_connexions( aDC );
 
     /* Compute the active ratsnest, i.e. the unconnected links
      *  it is faster than Build_Board_Ratsnest()
      *  because many optimizations and computations are already made
      */
-    Tst_Ratsnest( DC, 0 );
+    Tst_Ratsnest( aDC, 0 );
 
     // Redraw the active ratsnest ( if enabled )
-    if( GetBoard()->IsElementVisible(RATSNEST_VISIBLE) && DC )
-        DrawGeneralRatsnest( DC, 0 );
+    if( GetBoard()->IsElementVisible(RATSNEST_VISIBLE) && aDC )
+        DrawGeneralRatsnest( aDC, 0 );
 
-    if( display_status_pcb )
+    if( aDisplayStatus )
         m_Pcb->DisplayInfo( this );
 }
 
@@ -191,7 +186,7 @@ static int sort_by_length( const void* o1, const void* o2 )
 
 
 /**
- *  Function used by Build_Board_Ratsnest()
+ * Function used by Build_Board_Ratsnest
  *  This function creates a ratsnest between two blocks ( which fit the same
  * net )
  *  A block is a group of pads already linked (by a previous ratsnest
@@ -203,8 +198,7 @@ static int sort_by_length( const void* o1, const void* o2 )
  *  the D_PAD member m_SubRatsnest handles the block number
  *  @param aRatsnestBuffer = a std::vector<RATSNEST_ITEM> buffer to fill with
  * new ratsnest items
- *  @param aPadBuffer = a std::vector<D_PAD*> that is the list of pads to
- * consider
+ *  @param aPadBuffer = a std::vector<D_PAD*> that is the list of pads to consider
  *  @param  aPadIdxStart = starting index (within the pad list) for search
  *  @param  aPadIdxMax	  = ending index (within the pad list) for search
  *  @return blocks not connected count
@@ -296,7 +290,7 @@ static int gen_rats_block_to_block(
 
 
 /**
- * Function used by Build_Board_Ratsnest()
+ * Function used by Build_Board_Ratsnest
  * this is the first pass of the lee algorithm
  * This function creates the link (ratsnest) between 2 pads ( fitting the same
  * net )
@@ -391,7 +385,8 @@ static int gen_rats_pad_to_pad( vector<RATSNEST_ITEM>& aRatsnestBuffer,
 }
 
 
-/**  Function to compute the full ratsnest (using the LEE algorithm )
+/**
+ * Function to compute the full ratsnest (using the LEE algorithm )
  *  In the functions tracks are not considered
  *  This is only the "basic" ratsnest depending only on pads.
  *
@@ -416,7 +411,7 @@ static int gen_rats_pad_to_pad( vector<RATSNEST_ITEM>& aRatsnestBuffer,
  *           (there are n-1 links for an equipotent which have n active pads) .
  *
  */
-void WinEDA_BasePcbFrame::Build_Board_Ratsnest( wxDC* DC )
+void PCB_BASE_FRAME::Build_Board_Ratsnest( wxDC* DC )
 {
     D_PAD* pad;
     int    noconn;
@@ -517,18 +512,19 @@ void WinEDA_BasePcbFrame::Build_Board_Ratsnest( wxDC* DC )
 
 
 /**
- *  Displays the general ratsnest
+ *  function Displays the general ratsnest
  *  Only ratsnest with the status bit CH_VISIBLE is set are displayed
- *  @param netcode if > 0, Display only the ratsnest relative to the
+ * @param aDC = the current device context (can be NULL)
+ * @param aNetcode if > 0, Display only the ratsnest relative to the
  * corresponding net_code
  */
-void WinEDA_BasePcbFrame::DrawGeneralRatsnest( wxDC* DC, int net_code )
+void PCB_BASE_FRAME::DrawGeneralRatsnest( wxDC* aDC, int aNetcode )
 {
     if( ( m_Pcb->m_Status_Pcb & LISTE_RATSNEST_ITEM_OK ) == 0 )
         return;
     if( ( m_Pcb->m_Status_Pcb & DO_NOT_SHOW_GENERAL_RASTNEST ) )
         return;
-    if( DC == NULL )
+    if( aDC == NULL )
         return;
     int state = CH_VISIBLE | CH_ACTIF;
     for( unsigned ii = 0; ii < m_Pcb->GetRatsnestsCount(); ii++ )
@@ -537,16 +533,16 @@ void WinEDA_BasePcbFrame::DrawGeneralRatsnest( wxDC* DC, int net_code )
         if( ( item.m_Status & state ) != state )
             continue;
 
-        if( ( net_code <= 0 ) || ( net_code == item.GetNet() ) )
+        if( ( aNetcode <= 0 ) || ( aNetcode == item.GetNet() ) )
         {
-            item.Draw( DrawPanel, DC, GR_XOR, wxPoint( 0, 0 ) );
+            item.Draw( DrawPanel, aDC, GR_XOR, wxPoint( 0, 0 ) );
         }
     }
 }
 
 
 /**
- *  Function used by Tst_Ratsnest()
+ * Function used by Tst_Ratsnest
  *  Function like gen_rats_block_to_block(..)
  *  Function testing the ratsnest between 2 blocks ( same net )
  *  The search is made between pads in block 1 and the others blocks
@@ -555,7 +551,7 @@ void WinEDA_BasePcbFrame::DrawGeneralRatsnest( wxDC* DC, int net_code )
  *  The analysis is not made pads to pads but uses the general ratsnest list.
  *  The function activate the smallest ratsnest between block 1 and the block n
  *  (activate a logical connexion)
- *
+ *  @param  aRatsnestBuffer = the buffer to store NETINFO_ITEM* items
  *  @param  net = the current NETINFO_ITEM for the current net
  *      output:
  *          .state member of the ratsnest
@@ -611,7 +607,7 @@ static int tst_rats_block_to_block( NETINFO_ITEM*          net,
 
 
 /**
- *  Function used by Tst_Ratsnest_general()
+ * Function used by Tst_Ratsnest_general
  *  The general ratsnest list must exists
  *  Activates the ratsnest between 2 pads ( supposes du meme net )
  *  The function links 1 pad not already connected an other pad and activate
@@ -676,7 +672,7 @@ static int tst_rats_pad_to_pad( int            current_num_block,
  *  Compute the ACTIVE ratsnest in the general ratsnest list
  * if ref_netcode == 0, test all nets, else test only ref_netcode
  */
-void WinEDA_BasePcbFrame::Tst_Ratsnest( wxDC* DC, int ref_netcode )
+void PCB_BASE_FRAME::Tst_Ratsnest( wxDC* DC, int ref_netcode )
 {
     RATSNEST_ITEM* rats;
     D_PAD*         pad;
@@ -739,29 +735,29 @@ void WinEDA_BasePcbFrame::Tst_Ratsnest( wxDC* DC, int ref_netcode )
 }
 
 
-/** function Test_1_Net_Ratsnest
- *  Compute the ratsnest relative to the net "net_code"
- *  @param ref_netcode = netcode used to compute the ratsnest.
+/**
+ * Function Test_1_Net_Ratsnest
+ * Compute the ratsnest relative to the net "net_code"
+ * @param aDC - Device context to draw on.
+ * @param aNetcode = netcode used to compute the ratsnest.
  */
-int WinEDA_BasePcbFrame::Test_1_Net_Ratsnest( wxDC* DC, int ref_netcode )
+int PCB_BASE_FRAME::Test_1_Net_Ratsnest( wxDC* aDC, int aNetcode )
 {
     DisplayRastnestInProgress = FALSE;
-    DrawGeneralRatsnest( DC, ref_netcode );
-    Tst_Ratsnest( DC, ref_netcode );
-    DrawGeneralRatsnest( DC, ref_netcode );
+    DrawGeneralRatsnest( aDC, aNetcode );
+    Tst_Ratsnest( aDC, aNetcode );
+    DrawGeneralRatsnest( aDC, aNetcode );
 
     return m_Pcb->GetRatsnestsCount();
 }
 
 
-/**
- *  Build a ratsnest relative to one footprint. This is a simplified
- * computation
- *  used only in move footprint. It is not optimal, but it is fast and
- * sufficient
- *  to guide a footprint placement
+/*
+ * Function build_ratsnest_module
+ * Build a ratsnest relative to one footprint. This is a simplified computation
+ * used only in move footprint. It is not optimal, but it is fast and sufficient
+ * to help a footprint placement
  * It shows the connections from a pad to the nearest connected pad
- *  @param Module = module to consider.
  *
  *  The ratsnest has 2 sections:
  *      - An "internal" ratsnest relative to pads of this footprint which are
@@ -771,7 +767,7 @@ int WinEDA_BasePcbFrame::Test_1_Net_Ratsnest( wxDC* DC, int ref_netcode )
  * pad (in an other footprint)
  *          The ratsnest section must be computed for each new position
  */
-void WinEDA_BasePcbFrame::build_ratsnest_module( wxDC* DC, MODULE* Module )
+void PCB_BASE_FRAME::build_ratsnest_module( MODULE* aModule )
 {
     static unsigned pads_module_count;  // node count (node = pad with a net
                                         // code) for the footprint being moved
@@ -804,7 +800,7 @@ void WinEDA_BasePcbFrame::build_ratsnest_module( wxDC* DC, MODULE* Module )
     s_localPadBuffer.clear();
     m_Pcb->m_LocalRatsnest.clear();
 
-    for( pad_ref = Module->m_Pads; pad_ref != NULL; pad_ref = pad_ref->Next() )
+    for( pad_ref = aModule->m_Pads; pad_ref != NULL; pad_ref = pad_ref->Next() )
     {
         if( pad_ref->GetNet() == 0 )
             continue;
@@ -846,7 +842,7 @@ void WinEDA_BasePcbFrame::build_ratsnest_module( wxDC* DC, MODULE* Module )
         for( unsigned jj = 0; jj < net->m_ListPad.size(); jj++ )
         {
             pad_externe = net->m_ListPad[jj];
-            if( pad_externe->GetParent() == Module )
+            if( pad_externe->GetParent() == aModule )
                 continue;
 
             pad_externe->SetSubRatsnest( 0 );
@@ -886,9 +882,7 @@ void WinEDA_BasePcbFrame::build_ratsnest_module( wxDC* DC, MODULE* Module )
         /* a - first step of lee algorithm : build the pad to pad link list */
         int icnt = gen_rats_pad_to_pad( m_Pcb->m_LocalRatsnest,
                                         s_localPadBuffer,
-                                        ii,
-                                        jj,
-                                        0 );
+                                        ii, jj, 0 );
 
         /* b - second step of lee algorithm : build the block to block link
          *list (Iteration) */
@@ -896,8 +890,7 @@ void WinEDA_BasePcbFrame::build_ratsnest_module( wxDC* DC, MODULE* Module )
         {
             icnt = gen_rats_block_to_block( m_Pcb->m_LocalRatsnest,
                                             s_localPadBuffer,
-                                            ii,
-                                            jj );
+                                            ii, jj );
         }
 
         ii = jj;
@@ -996,7 +989,7 @@ CalculateExternalRatsnest:
  *  Display the ratsnest of a moving footprint, computed by
  * build_ratsnest_module()
  */
-void WinEDA_BasePcbFrame::trace_ratsnest_module( wxDC* DC )
+void PCB_BASE_FRAME::trace_ratsnest_module( wxDC* DC )
 {
     if( DC == NULL )
         return;
@@ -1066,8 +1059,7 @@ static bool sort_by_localnetlength( const wxPoint& ref, const wxPoint& compare )
 }
 
 
-void WinEDA_BasePcbFrame::build_ratsnest_pad( BOARD_ITEM* ref,
-                                              const wxPoint& refpos, bool init )
+void PCB_BASE_FRAME::build_ratsnest_pad( BOARD_ITEM* ref, const wxPoint& refpos, bool init )
 {
     int    current_net_code = 0, conn_number = 0;
     D_PAD* pad_ref = NULL;
@@ -1142,7 +1134,7 @@ void WinEDA_BasePcbFrame::build_ratsnest_pad( BOARD_ITEM* ref,
 /*
  *  Displays a "ratsnest" during track creation
  */
-void WinEDA_BasePcbFrame::trace_ratsnest_pad( wxDC* DC )
+void PCB_BASE_FRAME::trace_ratsnest_pad( wxDC* DC )
 {
     if( DC == NULL )
         return;

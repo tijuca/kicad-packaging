@@ -50,13 +50,15 @@ protected:
     void             NewFile( TreeFileType type );
     void             NewFile( const wxString& name, TreeFileType type,
                               wxTreeItemId& root );
-    /** function GetSelectedData
+    /**
+     * Function GetSelectedData
      * return the item data from item currently selected (highlighted)
      * Note this is not necessary the "clicked" item,
      * because when expanding, collapsing an item this item is not selected
      */
     TREEPROJECT_ITEM* GetSelectedData();
-    /** function GetItemIdData
+    /**
+     * Function GetItemIdData
      * return the item data corresponding to a wxTreeItemId identifier
      * @param  aId = the wxTreeItemId identifier.
      * @return a TREEPROJECT_ITEM pointer correspondinfg to item id aId
@@ -64,7 +66,7 @@ protected:
     TREEPROJECT_ITEM* GetItemIdData(wxTreeItemId aId);
 
 public:
-    WinEDA_MainFrame* m_Parent;
+    KICAD_MANAGER_FRAME* m_Parent;
     TREEPROJECTFILES*   m_TreeProject;
 
     wxTreeItemId      m_root;
@@ -73,7 +75,7 @@ public:
     static wxString              GetFileExt( TreeFileType type );
     static wxString              GetFileWildcard( TreeFileType type );
 
-    TREE_PROJECT_FRAME( WinEDA_MainFrame* parent );
+    TREE_PROJECT_FRAME( KICAD_MANAGER_FRAME* parent );
     ~TREE_PROJECT_FRAME();
     void                         OnSelect( wxTreeEvent& Event );
     void                         OnExpand( wxTreeEvent& Event );
@@ -135,7 +137,8 @@ public:
 
 #endif
 
-   /** function AddFile
+   /**
+     * Function AddFile
      * @brief  Add filename "name" to the tree \n
      *         if name is a directory, add the sub directory file names
      * @param aName = the filename or the dirctory name to add

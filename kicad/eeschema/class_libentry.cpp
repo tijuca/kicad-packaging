@@ -1,124 +1,40 @@
-/**********************************************************/
-/*  lib_entry.cpp                                         */
-/**********************************************************/
+/*************************/
+/*  class_libentry.cpp   */
+/*************************/
 
 #include "fctsys.h"
 #include "common.h"
+#include "macros.h"
 #include "kicad_string.h"
-#include "confirm.h"
 #include "class_drawpanel.h"
 #include "plot_common.h"
 #include "gr_basic.h"
+#include "class_sch_screen.h"
 
-#include "program.h"
 #include "general.h"
 #include "protos.h"
+#include "template_fieldnames.h"
+#include "transform.h"
 #include "class_library.h"
 #include "class_libentry.h"
-#include "class_pin.h"
+#include "lib_pin.h"
+#include "lib_arc.h"
+#include "lib_bezier.h"
+#include "lib_circle.h"
+#include "lib_polyline.h"
+#include "lib_rectangle.h"
+#include "lib_text.h"
 
 #include <boost/foreach.hpp>
 
 
-/** class CMP_LIB_ENTRY
- * Base class to describe library components and aliases.
- * This class is not to be used directly.
- * There are 2 derived classes
- * class LIB_COMPONENT that describes a component in library
- * class LIB_ALIAS that describes an alias of an existing component
- * a LIB_COMPONENT object handle all info to draw a component
- *  (pins, graphic body items, fields, name, keywords and documentation)
- * a LIB_ALIAS object use info of its LIB_COMPONENT parent
- *   and has just a name, keywords and documentation
- */
+// Set this to 1 to print debugging ouput in alias and component destructors to verify
+// objects get cleaned up properly.
+#if defined( TRACE_DESTRUCTOR )
+#undef TRACE_DESTRUCTOR
+#endif
 
-CMP_LIB_ENTRY::CMP_LIB_ENTRY( LibrEntryType aType, const wxString& aName,
-                              CMP_LIBRARY* aLibrary ) :
-    EDA_BaseStruct( LIBCOMPONENT_STRUCT_TYPE )
-{
-    type = aType;
-    name = aName;
-    library = aLibrary;
-}
-
-
-CMP_LIB_ENTRY::CMP_LIB_ENTRY( CMP_LIB_ENTRY& aEntry, CMP_LIBRARY* aLibrary ) :
-    EDA_BaseStruct( aEntry )
-{
-    type = aEntry.type;
-    name = aEntry.name;
-    description = aEntry.description;
-    keyWords = aEntry.keyWords;
-    docFileName = aEntry.docFileName;
-    library = aLibrary;
-}
-
-
-CMP_LIB_ENTRY::~CMP_LIB_ENTRY()
-{
-}
-
-
-wxString CMP_LIB_ENTRY::GetLibraryName()
-{
-    if( library != NULL )
-        return library->GetName();
-
-    return wxString( _( "none" ) );
-}
-
-
-/**
- * Function SaveDoc
- * writes the doc info out to a FILE in "*.dcm" format.
- * Only non empty fields are written.
- * If all fields are empty, does not write anything
- * @param aFile The FILE to write to.
- * @return bool - true if success writing else false.
- */
-bool CMP_LIB_ENTRY::SaveDoc( FILE* aFile )
-{
-    if( description.IsEmpty() && keyWords.IsEmpty() && docFileName.IsEmpty() )
-        return true;
-
-    if( fprintf( aFile, "#\n$CMP %s\n", CONV_TO_UTF8( name ) ) < 0 )
-        return false;
-
-    if( ! description.IsEmpty()
-        && fprintf( aFile, "D %s\n", CONV_TO_UTF8( description ) ) < 0 )
-        return false;
-
-    if( ! keyWords.IsEmpty()
-        && fprintf( aFile, "K %s\n", CONV_TO_UTF8( keyWords ) ) < 0 )
-        return false;
-
-    if( ! docFileName.IsEmpty()
-        && fprintf( aFile, "F %s\n", CONV_TO_UTF8( docFileName ) ) < 0 )
-        return false;
-
-    if( fprintf( aFile, "$ENDCMP\n" ) < 0 )
-        return false;
-
-    return true;
-}
-
-
-bool CMP_LIB_ENTRY::operator==( const wxChar* aName ) const
-{
-    return name.CmpNoCase( aName ) == 0;
-}
-
-
-bool operator<( const CMP_LIB_ENTRY& aItem1, const CMP_LIB_ENTRY& aItem2 )
-{
-    return aItem1.GetName().CmpNoCase( aItem2.GetName() ) < 0;
-}
-
-
-int LibraryEntryCompare( const CMP_LIB_ENTRY* aItem1, const CMP_LIB_ENTRY* aItem2 )
-{
-    return aItem1->GetName().CmpNoCase( aItem2->GetName() );
-}
+#define TRACE_DESTRUCTOR 0
 
 
 /*******************************/
@@ -134,41 +50,105 @@ int LibraryEntryCompare( const CMP_LIB_ENTRY* aItem1, const CMP_LIB_ENTRY* aItem
  *  (like 74LS00, 74HC00 ... and many op amps )
  */
 
-LIB_ALIAS::LIB_ALIAS( const wxString& aName, LIB_COMPONENT* aRootComponent,
-                      CMP_LIBRARY* aLibrary ) :
-    CMP_LIB_ENTRY( ALIAS, aName, aLibrary )
+LIB_ALIAS::LIB_ALIAS( const wxString& aName, LIB_COMPONENT* aRootComponent ):
+    EDA_ITEM( LIB_ALIAS_T )
 {
-    wxASSERT( aRootComponent != NULL && aRootComponent->isComponent() );
-
     root = aRootComponent;
-    if( aLibrary == NULL )
-        library = aRootComponent->GetLibrary();
+    name = aName;
 }
 
 
-LIB_ALIAS::LIB_ALIAS( LIB_ALIAS& aAlias, CMP_LIBRARY* aLibrary ) :
-    CMP_LIB_ENTRY( aAlias )
+LIB_ALIAS::LIB_ALIAS( const LIB_ALIAS& aAlias, LIB_COMPONENT* aRootComponent ) :
+    EDA_ITEM( aAlias )
 {
-    root = aAlias.root;
+    name = aAlias.name;
+    root = aRootComponent;
+    description = aAlias.description;
+    keyWords = aAlias.keyWords;
+    docFileName = aAlias.docFileName;
 }
 
 
 LIB_ALIAS::~LIB_ALIAS()
 {
+#if TRACE_DESTRUCTOR
+    wxLogDebug( wxT( "Destroying alias \"%s\" of component \"%s\" with alais list count %d." ),
+                GetChars( name ), GetChars( root->GetName() ), root->m_aliases.size() );
+#endif
 }
 
 
-void LIB_ALIAS::SetComponent( LIB_COMPONENT* aComponent )
+wxString LIB_ALIAS::GetLibraryName()
 {
-    wxASSERT( aComponent != NULL && aComponent->isComponent() );
+    if( GetComponent() )
+        return GetComponent()->GetLibraryName();
 
-    root = aComponent;
+    return wxString( _( "none" ) );
 }
 
 
-/********************************/
+bool LIB_ALIAS::IsRoot() const
+{
+    return name.CmpNoCase( root->GetName() ) == 0;
+}
+
+
+/**
+ * Function SaveDoc
+ * writes the doc info out to a FILE in "*.dcm" format.
+ * Only non empty fields are written.
+ * If all fields are empty, does not write anything
+ * @param aFile The FILE to write to.
+ * @return bool - true if success writing else false.
+ */
+bool LIB_ALIAS::SaveDoc( FILE* aFile )
+{
+    if( description.IsEmpty() && keyWords.IsEmpty() && docFileName.IsEmpty() )
+        return true;
+
+    if( fprintf( aFile, "#\n$CMP %s\n", TO_UTF8( name ) ) < 0 )
+        return false;
+
+    if( ! description.IsEmpty()
+        && fprintf( aFile, "D %s\n", TO_UTF8( description ) ) < 0 )
+        return false;
+
+    if( ! keyWords.IsEmpty()
+        && fprintf( aFile, "K %s\n", TO_UTF8( keyWords ) ) < 0 )
+        return false;
+
+    if( ! docFileName.IsEmpty()
+        && fprintf( aFile, "F %s\n", TO_UTF8( docFileName ) ) < 0 )
+        return false;
+
+    if( fprintf( aFile, "$ENDCMP\n" ) < 0 )
+        return false;
+
+    return true;
+}
+
+
+bool LIB_ALIAS::operator==( const wxChar* aName ) const
+{
+    return name.CmpNoCase( aName ) == 0;
+}
+
+
+bool operator<( const LIB_ALIAS& aItem1, const LIB_ALIAS& aItem2 )
+{
+    return aItem1.GetName().CmpNoCase( aItem2.GetName() ) < 0;
+}
+
+
+int LibraryEntryCompare( const LIB_ALIAS* aItem1, const LIB_ALIAS* aItem2 )
+{
+    return aItem1->GetName().CmpNoCase( aItem2->GetName() );
+}
+
+
+/***********************/
 /* class LIB_COMPONENT */
-/********************************/
+/***********************/
 
 /**
  * Library component object definition.
@@ -178,59 +158,102 @@ void LIB_ALIAS::SetComponent( LIB_COMPONENT* aComponent )
  * Library components are different from schematic components.
  */
 LIB_COMPONENT::LIB_COMPONENT( const wxString& aName, CMP_LIBRARY* aLibrary ) :
-    CMP_LIB_ENTRY( ROOT, aName, aLibrary )
+    EDA_ITEM( LIB_COMPONENT_T )
 {
-    m_LastDate            = 0;
-    unitCount             = 1;
-    m_TextInside          = 40;
+    m_name                = aName;
+    m_library             = aLibrary;
+    m_dateModified        = 0;
+    m_unitCount           = 1;
+    m_pinNameOffset       = 40;
     m_options             = ENTRY_NORMAL;
-    m_UnitSelectionLocked = FALSE;
-    m_DrawPinNum          = 1;
-    m_DrawPinName         = 1;
+    m_unitsLocked         = FALSE;
+    m_showPinNumbers      = true;
+    m_showPinNames        = true;
 
-    /* The minimum requirements for a component are a value and a reference
-     * designator field.
-     */
+    // Create the default alias if the name paremeter is not empty.
+    if( !aName.IsEmpty() )
+        m_aliases.push_back( new LIB_ALIAS( aName, this ) );
+
+    // Add the MANDATORY_FIELDS in RAM only.  These are assumed to be present
+    // when the field editors are invoked.
     LIB_FIELD* value = new LIB_FIELD( this, VALUE );
     value->m_Text = aName;
     drawings.push_back( value );
+
     drawings.push_back( new LIB_FIELD( this, REFERENCE ) );
+    drawings.push_back( new LIB_FIELD( this, FOOTPRINT ) );
+    drawings.push_back( new LIB_FIELD( this, DATASHEET ) );
 }
 
 
 LIB_COMPONENT::LIB_COMPONENT( LIB_COMPONENT& aComponent, CMP_LIBRARY* aLibrary ) :
-    CMP_LIB_ENTRY( aComponent, aLibrary )
+    EDA_ITEM( aComponent )
 {
-    LIB_DRAW_ITEM* newItem;
+    LIB_ITEM* newItem;
 
-    m_AliasList           = aComponent.m_AliasList;
-    m_aliasListData       = aComponent.m_aliasListData;
+    m_library             = aLibrary;
+    m_name                = aComponent.m_name;
     m_FootprintList       = aComponent.m_FootprintList;
-    unitCount             = aComponent.unitCount;
-    m_UnitSelectionLocked = aComponent.m_UnitSelectionLocked;
-    m_TextInside          = aComponent.m_TextInside;
-    m_DrawPinNum          = aComponent.m_DrawPinNum;
-    m_DrawPinName         = aComponent.m_DrawPinName;
-    m_LastDate            = aComponent.m_LastDate;
+    m_unitCount           = aComponent.m_unitCount;
+    m_unitsLocked         = aComponent.m_unitsLocked;
+    m_pinNameOffset       = aComponent.m_pinNameOffset;
+    m_showPinNumbers      = aComponent.m_showPinNumbers;
+    m_showPinNames        = aComponent.m_showPinNames;
+    m_dateModified        = aComponent.m_dateModified;
     m_options             = aComponent.m_options;
 
-    BOOST_FOREACH( LIB_DRAW_ITEM& oldItem, aComponent.GetDrawItemList() )
+    BOOST_FOREACH( LIB_ITEM& oldItem, aComponent.GetDrawItemList() )
     {
-        if( ( oldItem.m_Flags & IS_NEW ) != 0 )
+        if( oldItem.IsNew() )
             continue;
 
-        newItem = oldItem.GenCopy();
+        newItem = (LIB_ITEM*) oldItem.Clone();
         newItem->SetParent( this );
         drawings.push_back( newItem );
+    }
+
+    for( size_t i = 0; i < aComponent.m_aliases.size(); i++ )
+    {
+        LIB_ALIAS* alias = new LIB_ALIAS( *aComponent.m_aliases[i], this );
+        m_aliases.push_back( alias );
     }
 }
 
 
 LIB_COMPONENT::~LIB_COMPONENT()
 {
+#if TRACE_DESTRUCTOR
+    wxLogDebug( wxT( "Destroying component <%s> with alias list count of %d" ),
+                GetChars( GetName() ), m_aliases.size() );
+#endif
+
+    // If the component is being delete directly rather than trough the library, free all
+    // of the memory allocated by the aliases.
+    if( !m_aliases.empty() )
+    {
+        LIB_ALIAS* alias;
+
+        while( !m_aliases.empty() )
+        {
+            alias = m_aliases.back();
+            m_aliases.pop_back();
+            delete alias;
+        }
+    }
 }
 
-/** function IsMulti
+
+wxString LIB_COMPONENT::GetLibraryName()
+{
+    if( m_library != NULL )
+        return m_library->GetName();
+
+    return wxString( _( "none" ) );
+}
+
+
+/**
+ * Function ReturnSubReference
  * @return the sub reference for component having multiple parts per package.
  * The sub reference identify the part (or unit)
  * @param aUnit = the part identifier ( 1 to 26)
@@ -238,7 +261,7 @@ LIB_COMPONENT::~LIB_COMPONENT()
 wxString LIB_COMPONENT::ReturnSubReference( int aUnit )
 {
     wxString subRef;
- #if defined(KICAD_GOST)
+#if defined(KICAD_GOST)
     subRef.Printf( wxT(".%d" ), aUnit);
 #else
     subRef.Append( wxChar(aUnit + 'A' - 1) );
@@ -247,12 +270,17 @@ wxString LIB_COMPONENT::ReturnSubReference( int aUnit )
 }
 
 
-void LIB_COMPONENT::Draw( WinEDA_DrawPanel* aPanel, wxDC* aDc,
-                          const wxPoint& aOffset, int aMulti,
-                          int aConvert, int aDrawMode, int aColor,
-                          const int aTransformMatrix[2][2],
-                          bool aShowPinText, bool aDrawFields,
-                          bool aOnlySelected )
+void LIB_COMPONENT::SetName( const wxString& aName )
+{
+    m_name = aName;
+    GetValueField().m_Text = aName;
+    m_aliases[0]->SetName( aName );
+}
+
+
+void LIB_COMPONENT::Draw( EDA_DRAW_PANEL* aPanel, wxDC* aDc, const wxPoint& aOffset, int aMulti,
+                          int aConvert, int aDrawMode, int aColor, const TRANSFORM& aTransform,
+                          bool aShowPinText, bool aDrawFields, bool aOnlySelected )
 {
     BASE_SCREEN*   screen = aPanel->GetScreen();
 
@@ -266,7 +294,7 @@ void LIB_COMPONENT::Draw( WinEDA_DrawPanel* aPanel, wxDC* aDc,
      */
     if( ! (screen->m_IsPrinting && GetGRForceBlackPenState()) && (aColor == -1) )
     {
-        BOOST_FOREACH( LIB_DRAW_ITEM& drawItem, drawings )
+        BOOST_FOREACH( LIB_ITEM& drawItem, drawings )
         {
             if( drawItem.m_Fill != FILLED_WITH_BG_BODYCOLOR )
                 continue;
@@ -285,23 +313,21 @@ void LIB_COMPONENT::Draw( WinEDA_DrawPanel* aPanel, wxDC* aDc,
             if( aConvert && drawItem.m_Convert && ( drawItem.m_Convert != aConvert ) )
                 continue;
 
-            if( drawItem.Type() == COMPONENT_FIELD_DRAW_TYPE )
+            if( drawItem.Type() == LIB_FIELD_T )
                 continue;
 
-            if( drawItem.Type() == COMPONENT_FIELD_DRAW_TYPE )
+            if( drawItem.Type() == LIB_FIELD_T )
             {
-                drawItem.Draw( aPanel, aDc, aOffset, aColor, aDrawMode,
-                               (void*) NULL, aTransformMatrix );
+                drawItem.Draw( aPanel, aDc, aOffset, aColor, aDrawMode, (void*) NULL, aTransform );
             }
 
             // Now, draw only the background for items with
             // m_Fill == FILLED_WITH_BG_BODYCOLOR:
-            drawItem.Draw( aPanel, aDc, aOffset, aColor, aDrawMode,
-                           (void*) false, aTransformMatrix );
+            drawItem.Draw( aPanel, aDc, aOffset, aColor, aDrawMode, (void*) false, aTransform );
         }
     }
 
-    BOOST_FOREACH( LIB_DRAW_ITEM& drawItem, drawings )
+    BOOST_FOREACH( LIB_ITEM& drawItem, drawings )
     {
         if( aOnlySelected && drawItem.m_Selected == 0 )
             continue;
@@ -317,35 +343,31 @@ void LIB_COMPONENT::Draw( WinEDA_DrawPanel* aPanel, wxDC* aDc,
         if( aConvert && drawItem.m_Convert && ( drawItem.m_Convert != aConvert ) )
             continue;
 
-        if( !aDrawFields && drawItem.Type() == COMPONENT_FIELD_DRAW_TYPE )
+        if( !aDrawFields && drawItem.Type() == LIB_FIELD_T )
             continue;
 
-        if( drawItem.Type() == COMPONENT_PIN_DRAW_TYPE )
+        if( drawItem.Type() == LIB_PIN_T )
         {
-            drawItem.Draw( aPanel, aDc, aOffset, aColor, aDrawMode,
-                           (void*) aShowPinText, aTransformMatrix );
+            drawItem.Draw( aPanel, aDc, aOffset, aColor, aDrawMode, (void*) aShowPinText,
+                           aTransform );
         }
-        else if( drawItem.Type() == COMPONENT_FIELD_DRAW_TYPE )
+        else if( drawItem.Type() == LIB_FIELD_T )
         {
-            drawItem.Draw( aPanel, aDc, aOffset, aColor, aDrawMode,
-                           (void*) NULL, aTransformMatrix );
+            drawItem.Draw( aPanel, aDc, aOffset, aColor, aDrawMode, (void*) NULL, aTransform );
         }
         else
         {
             bool forceNoFill = drawItem.m_Fill == FILLED_WITH_BG_BODYCOLOR;
-            drawItem.Draw( aPanel, aDc, aOffset, aColor, aDrawMode,
-                           (void*) forceNoFill, aTransformMatrix );
+            drawItem.Draw( aPanel, aDc, aOffset, aColor, aDrawMode, (void*) forceNoFill,
+                           aTransform );
         }
 
     }
 
     /* Enable this to draw the anchor of the component. */
 #if 0
-#ifdef USE_WX_ZOOM
     int len = aDc->DeviceToLogicalXRel( 3 );
-#else
-    int len = aPanel->GetScreen()->Unscale( 3 );
-#endif
+
     GRLine( &aPanel->m_ClipBox, aDc, aOffset.x, aOffset.y - len, aOffset.x,
             aOffset.y + len, 0, aColor );
     GRLine( &aPanel->m_ClipBox, aDc, aOffset.x - len, aOffset.y, aOffset.x + len,
@@ -355,7 +377,7 @@ void LIB_COMPONENT::Draw( WinEDA_DrawPanel* aPanel, wxDC* aDc,
     /* Enable this to draw the bounding box around the component to validate
      * the bounding box calculations. */
 #if 0
-    EDA_Rect bBox = GetBoundaryBox( aMulti, aConvert );
+    EDA_RECT bBox = GetBoundingBox( aMulti, aConvert );
     GRRect( &aPanel->m_ClipBox, aDc, bBox.GetOrigin().x, bBox.GetOrigin().y,
             bBox.GetEnd().x, bBox.GetEnd().y, 0, LIGHTMAGENTA );
 #endif
@@ -363,11 +385,11 @@ void LIB_COMPONENT::Draw( WinEDA_DrawPanel* aPanel, wxDC* aDc,
 
 
 void LIB_COMPONENT::Plot( PLOTTER* aPlotter, int aUnit, int aConvert,
-                          const wxPoint& aOffset, const int aTransform[2][2] )
+                          const wxPoint& aOffset, const TRANSFORM& aTransform )
 {
     wxASSERT( aPlotter != NULL );
 
-    BOOST_FOREACH( LIB_DRAW_ITEM& item, drawings )
+    BOOST_FOREACH( LIB_ITEM& item, drawings )
     {
         if( aUnit && item.m_Unit && ( item.m_Unit != aUnit ) )
             continue;
@@ -382,48 +404,44 @@ void LIB_COMPONENT::Plot( PLOTTER* aPlotter, int aUnit, int aConvert,
 }
 
 
-void LIB_COMPONENT::RemoveDrawItem( LIB_DRAW_ITEM* aItem,
-                                    WinEDA_DrawPanel* aPanel,
-                                    wxDC* aDc )
+void LIB_COMPONENT::RemoveDrawItem( LIB_ITEM* aItem, EDA_DRAW_PANEL* aPanel, wxDC* aDc )
 {
     wxASSERT( aItem != NULL );
 
-    /* Value and reference fields cannot be removed. */
-    if( aItem->Type() == COMPONENT_FIELD_DRAW_TYPE )
+    // none of the MANDATOR_FIELDS may be removed in RAM, but they may be
+    // omitted when saving to disk.
+    if( aItem->Type() == LIB_FIELD_T )
     {
-        LIB_FIELD* field = (LIB_FIELD*)aItem;
+        LIB_FIELD* field = (LIB_FIELD*) aItem;
 
-        if( field->m_FieldId == VALUE || field->m_FieldId == REFERENCE )
+        if( field->GetId() < MANDATORY_FIELDS )
         {
-            wxString fieldType = ( field->m_FieldId == VALUE ) ?
-                _( "value" ) : _( "reference" );
-
             wxLogWarning( _( "An attempt was made to remove the %s field \
 from component %s in library %s." ),
-                          GetChars( fieldType ), GetChars( GetName() ),
+                          GetChars( field->GetName() ), GetChars( GetName() ),
                           GetChars( GetLibraryName() ) );
             return;
         }
     }
 
-    LIB_DRAW_ITEM_LIST::iterator i;
-
-    if( aDc != NULL )
-        aItem->Draw( aPanel, aDc, wxPoint( 0, 0 ), -1, g_XorMode, NULL,
-                    DefaultTransformMatrix );
+    LIB_ITEMS::iterator i;
 
     for( i = drawings.begin(); i < drawings.end(); i++ )
     {
         if( *i == aItem )
         {
+            if( aDc != NULL )
+                aItem->Draw( aPanel, aDc, wxPoint( 0, 0 ), -1, g_XorMode, NULL, DefaultTransform );
+
             drawings.erase( i );
+            SetModified();
             break;
         }
     }
 }
 
 
-void LIB_COMPONENT::AddDrawItem( LIB_DRAW_ITEM* aItem )
+void LIB_COMPONENT::AddDrawItem( LIB_ITEM* aItem )
 {
     wxASSERT( aItem != NULL );
 
@@ -432,8 +450,7 @@ void LIB_COMPONENT::AddDrawItem( LIB_DRAW_ITEM* aItem )
 }
 
 
-LIB_DRAW_ITEM* LIB_COMPONENT::GetNextDrawItem( LIB_DRAW_ITEM* aItem,
-                                               KICAD_T aType )
+LIB_ITEM* LIB_COMPONENT::GetNextDrawItem( LIB_ITEM* aItem, KICAD_T aType )
 {
     /* Return the next draw object pointer.
      * If item is NULL return the first item of type in the list.
@@ -469,7 +486,7 @@ LIB_DRAW_ITEM* LIB_COMPONENT::GetNextDrawItem( LIB_DRAW_ITEM* aItem,
 }
 
 
-void LIB_COMPONENT::GetPins( LIB_PIN_LIST& aList, int aUnit, int aConvert )
+void LIB_COMPONENT::GetPins( LIB_PINS& aList, int aUnit, int aConvert )
 {
     /* Notes:
      * when aUnit == 0: no unit filtering
@@ -477,9 +494,9 @@ void LIB_COMPONENT::GetPins( LIB_PIN_LIST& aList, int aUnit, int aConvert )
      * when .m_Unit == 0, the body item is common to units
      * when .m_Convert == 0, the body item is common to shapes
      */
-    BOOST_FOREACH( LIB_DRAW_ITEM& item, drawings )
+    BOOST_FOREACH( LIB_ITEM& item, drawings )
     {
-        if( item.Type() != COMPONENT_PIN_DRAW_TYPE )    // we search pins only
+        if( item.Type() != LIB_PIN_T )    // we search pins only
             continue;
 
         // Unit filtering:
@@ -497,14 +514,14 @@ void LIB_COMPONENT::GetPins( LIB_PIN_LIST& aList, int aUnit, int aConvert )
 
 LIB_PIN* LIB_COMPONENT::GetPin( const wxString& aNumber, int aUnit, int aConvert )
 {
-    wxString     pNumber;
-    LIB_PIN_LIST pinList;
+    wxString pNumber;
+    LIB_PINS pinList;
 
     GetPins( pinList, aUnit, aConvert );
 
     for( size_t i = 0; i < pinList.size(); i++ )
     {
-        wxASSERT( pinList[i]->Type() == COMPONENT_PIN_DRAW_TYPE );
+        wxASSERT( pinList[i]->Type() == LIB_PIN_T );
 
         pinList[i]->ReturnPinStringNum( pNumber );
 
@@ -518,11 +535,11 @@ LIB_PIN* LIB_COMPONENT::GetPin( const wxString& aNumber, int aUnit, int aConvert
 
 bool LIB_COMPONENT::Save( FILE* aFile )
 {
-    size_t     i;
-    LIB_FIELD& value = GetValueField();
+    size_t      i;
+    LIB_FIELD&  value = GetValueField();
 
     /* First line: it s a comment (component name for readers) */
-    if( fprintf( aFile, "#\n# %s\n#\n", CONV_TO_UTF8( value.m_Text ) ) < 0 )
+    if( fprintf( aFile, "#\n# %s\n#\n", TO_UTF8( value.m_Text ) ) < 0 )
         return false;
 
     /* Save data */
@@ -531,12 +548,12 @@ bool LIB_COMPONENT::Save( FILE* aFile )
 
     if( value.IsVisible() )
     {
-        if( fprintf( aFile, " %s", CONV_TO_UTF8( value.m_Text ) ) < 0 )
+        if( fprintf( aFile, " %s", TO_UTF8( value.m_Text ) ) < 0 )
             return false;
     }
     else
     {
-        if( fprintf( aFile, " ~%s", CONV_TO_UTF8( value.m_Text ) ) < 0 )
+        if( fprintf( aFile, " ~%s", TO_UTF8( value.m_Text ) ) < 0 )
             return false;
     }
 
@@ -544,7 +561,7 @@ bool LIB_COMPONENT::Save( FILE* aFile )
 
     if( !reference.m_Text.IsEmpty() )
     {
-        if( fprintf( aFile, " %s", CONV_TO_UTF8( reference.m_Text ) ) < 0 )
+        if( fprintf( aFile, " %s", TO_UTF8( reference.m_Text ) ) < 0 )
             return false;
     }
     else
@@ -554,37 +571,59 @@ bool LIB_COMPONENT::Save( FILE* aFile )
     }
 
     if( fprintf( aFile, " %d %d %c %c %d %c %c\n",
-                 0, m_TextInside,
-                 m_DrawPinNum ? 'Y' : 'N',
-                 m_DrawPinName ? 'Y' : 'N',
-                 unitCount, m_UnitSelectionLocked ? 'L' : 'F',
+                 0, m_pinNameOffset,
+                 m_showPinNumbers ? 'Y' : 'N',
+                 m_showPinNames ? 'Y' : 'N',
+                 m_unitCount, m_unitsLocked ? 'L' : 'F',
                  m_options == ENTRY_POWER ? 'P' : 'N' ) < 0 )
         return false;
 
     if( !SaveDateAndTime( aFile ) )
         return false;
 
-    LIB_FIELD_LIST fields;
+    LIB_FIELDS fields;
     GetFields( fields );
 
-    for( i = 0; i < fields.size(); i++ )
+    // Fixed fields:
+    // may have their own save policy so there is a separate loop for them.
+    for( i = 0;  i < MANDATORY_FIELDS;  ++i )
     {
-        if( fields[i].m_Text.IsEmpty() && fields[i].m_Name.IsEmpty() )
-            continue;
-
-        if( !fields[i].Save( aFile ) )
-            return false;
+        if( !fields[i].m_Text.IsEmpty() )
+        {
+            if( !fields[i].Save( aFile ) )
+                return false;
+        }
     }
 
-    /* Save the alias list: a line starting by "ALIAS" */
-    if( m_AliasList.GetCount() != 0 )
+    // User defined fields:
+    // may have their own save policy so there is a separate loop for them.
+
+    int fieldId = MANDATORY_FIELDS;     // really wish this would go away.
+
+    for( i = MANDATORY_FIELDS; i < fields.size(); ++i )
+    {
+        // There is no need to save empty fields, i.e. no reason to preserve field
+        // names now that fields names come in dynamically through the template
+        // fieldnames.
+        if( !fields[i].m_Text.IsEmpty() )
+        {
+            fields[i].SetId( fieldId++ );
+            if( !fields[i].Save( aFile ) )
+                return false;
+        }
+    }
+
+    // Save the alias list: a line starting by "ALIAS".  The first alias is the root
+    // and has the same name as the component.  In the old library file format this
+    // alias does not get added to the alias list.
+    if( m_aliases.size() > 1 )
     {
         if( fprintf( aFile, "ALIAS" ) < 0 )
             return false;
 
-        for( i = 0; i < m_AliasList.GetCount(); i++ )
+        for( i = 1; i < m_aliases.size(); i++ )
         {
-            if( fprintf( aFile, " %s", CONV_TO_UTF8( m_AliasList[i] ) ) < 0 )
+            if( fprintf( aFile, " %s", TO_UTF8( m_aliases[i]->GetName() ) ) < 0 )
                 return false;
         }
 
@@ -600,8 +639,7 @@ bool LIB_COMPONENT::Save( FILE* aFile )
 
         for( i = 0; i < m_FootprintList.GetCount(); i++ )
         {
-            if( fprintf( aFile, " %s\n",
-                         CONV_TO_UTF8( m_FootprintList[i] ) ) < 0 )
+            if( fprintf( aFile, " %s\n", TO_UTF8( m_FootprintList[i] ) ) < 0 )
                 return false;
         }
 
@@ -619,10 +657,11 @@ bool LIB_COMPONENT::Save( FILE* aFile )
         if( fprintf( aFile, "DRAW\n" ) < 0 )
             return false;
 
-        BOOST_FOREACH( LIB_DRAW_ITEM& item, drawings )
+        BOOST_FOREACH( LIB_ITEM& item, drawings )
         {
-            if( item.Type() == COMPONENT_FIELD_DRAW_TYPE )
+            if( item.Type() == LIB_FIELD_T )
                 continue;
+
             if( !item.Save( aFile ) )
                 return false;
         }
@@ -637,8 +676,8 @@ bool LIB_COMPONENT::Save( FILE* aFile )
     return true;
 }
 
-bool LIB_COMPONENT::Load( FILE* aFile, char* aLine, int* aLineNum,
-                          wxString& aErrorMsg )
+
+bool LIB_COMPONENT::Load( FILE* aFile, char* aLine, int* aLineNum, wxString& aErrorMsg )
 {
     int      unused;
     char*    p;
@@ -652,8 +691,7 @@ bool LIB_COMPONENT::Load( FILE* aFile, char* aLine, int* aLineNum,
 
     if( strcmp( p, "DEF" ) != 0 )
     {
-        aErrorMsg.Printf( wxT( "DEF command expected in line %d, aborted." ),
-                          *aLineNum );
+        aErrorMsg.Printf( wxT( "DEF command expected in line %d, aborted." ), *aLineNum );
         return false;
     }
 
@@ -666,17 +704,16 @@ bool LIB_COMPONENT::Load( FILE* aFile, char* aLine, int* aLineNum,
         || ( p = strtok( NULL, " \t\n" ) ) == NULL           /* NumOfPins: */
         || sscanf( p, "%d", &unused ) != 1
         || ( p = strtok( NULL, " \t\n" ) ) == NULL           /* TextInside: */
-        || sscanf( p, "%d", &m_TextInside ) != 1
+        || sscanf( p, "%d", &m_pinNameOffset ) != 1
         || ( p = strtok( NULL, " \t\n" ) ) == NULL           /* DrawNums: */
         || sscanf( p, "%c", &drawnum ) != 1
         || ( p = strtok( NULL, " \t\n" ) ) == NULL           /* DrawNums: */
         || sscanf( p, "%c", &drawname ) != 1
-        || ( p = strtok( NULL, " \t\n" ) ) == NULL           /* unitCount: */
-        || sscanf( p, "%d", &unitCount ) != 1 )
+        || ( p = strtok( NULL, " \t\n" ) ) == NULL           /* m_unitCount: */
+        || sscanf( p, "%d", &m_unitCount ) != 1 )
     {
-        aErrorMsg.Printf( wxT( "Wrong DEF format in line %d, skipped." ),
-                          *aLineNum );
-        while( GetLine( aFile, aLine, aLineNum, 1024 ) )
+        aErrorMsg.Printf( wxT( "Wrong DEF format in line %d, skipped." ), *aLineNum );
+        while( GetLine( aFile, aLine, aLineNum, LINE_BUFFER_LEN_LARGE ) )
         {
             p = strtok( aLine, " \t\n" );
             if( stricmp( p, "ENDDEF" ) == 0 )
@@ -686,12 +723,12 @@ bool LIB_COMPONENT::Load( FILE* aFile, char* aLine, int* aLineNum,
         return false;
     }
 
-    // Ensure unitCount is >= 1 (could be read as 0 in old libraries)
-    if( unitCount < 1 )
-        unitCount = 1;
+    // Ensure m_unitCount is >= 1 (could be read as 0 in old libraries)
+    if( m_unitCount < 1 )
+        m_unitCount = 1;
 
-    m_DrawPinNum  = ( drawnum == 'N' ) ? FALSE : true;
-    m_DrawPinName = ( drawname == 'N' ) ? FALSE : true;
+    m_showPinNumbers = ( drawnum == 'N' ) ? false : true;
+    m_showPinNames = ( drawname == 'N' ) ? false : true;
 
     /* Copy part name and prefix. */
     LIB_FIELD& value = GetValueField();
@@ -699,13 +736,16 @@ bool LIB_COMPONENT::Load( FILE* aFile, char* aLine, int* aLineNum,
     strupper( componentName );
     if( componentName[0] != '~' )
     {
-        name = value.m_Text = CONV_FROM_UTF8( componentName );
+        m_name = value.m_Text = FROM_UTF8( componentName );
     }
     else
     {
-        name = value.m_Text = CONV_FROM_UTF8( &componentName[1] );
+        m_name = value.m_Text = FROM_UTF8( &componentName[1] );
         value.m_Attributs |= TEXT_NO_VISIBLE;
     }
+
+    // Add the root alias to the alias list.
+    m_aliases.push_back( new LIB_ALIAS( m_name, this ) );
 
     LIB_FIELD& reference = GetReferenceField();
 
@@ -716,17 +756,17 @@ bool LIB_COMPONENT::Load( FILE* aFile, char* aLine, int* aLineNum,
     }
     else
     {
-        reference.m_Text = CONV_FROM_UTF8( prefix );
+        reference.m_Text = FROM_UTF8( prefix );
     }
 
     // Copy optional infos
     if( ( p = strtok( NULL, " \t\n" ) ) != NULL && *p == 'L' )
-        m_UnitSelectionLocked = true;
+        m_unitsLocked = true;
     if( ( p = strtok( NULL, " \t\n" ) ) != NULL  && *p == 'P' )
         m_options = ENTRY_POWER;
 
     /* Read next lines */
-    while( GetLine( aFile, aLine, aLineNum, 1024 ) )
+    while( GetLine( aFile, aLine, aLineNum, LINE_BUFFER_LEN_LARGE ) )
     {
         p = strtok( aLine, " \t\n" );
 
@@ -771,11 +811,11 @@ bool LIB_COMPONENT::Load( FILE* aFile, char* aLine, int* aLineNum,
 bool LIB_COMPONENT::LoadDrawEntries( FILE* aFile, char* aLine,
                                      int* aLineNum, wxString& aErrorMsg )
 {
-    LIB_DRAW_ITEM* newEntry = NULL;
+    LIB_ITEM* newEntry = NULL;
 
     while( true )
     {
-        if( GetLine( aFile, aLine, aLineNum, 1024 ) == NULL )
+        if( GetLine( aFile, aLine, aLineNum, LINE_BUFFER_LEN_LARGE ) == NULL )
         {
             aErrorMsg = wxT( "file ended prematurely loading component draw element" );
             return false;
@@ -789,31 +829,31 @@ bool LIB_COMPONENT::LoadDrawEntries( FILE* aFile, char* aLine,
         switch( aLine[0] )
         {
         case 'A':    /* Arc */
-            newEntry = ( LIB_DRAW_ITEM* ) new LIB_ARC(this);
+            newEntry = ( LIB_ITEM* ) new LIB_ARC( this );
             break;
 
         case 'C':    /* Circle */
-            newEntry = ( LIB_DRAW_ITEM* ) new LIB_CIRCLE(this);
+            newEntry = ( LIB_ITEM* ) new LIB_CIRCLE( this );
             break;
 
         case 'T':    /* Text */
-            newEntry = ( LIB_DRAW_ITEM* ) new LIB_TEXT(this);
+            newEntry = ( LIB_ITEM* ) new LIB_TEXT( this );
             break;
 
         case 'S':    /* Square */
-            newEntry = ( LIB_DRAW_ITEM* ) new LIB_RECTANGLE(this);
+            newEntry = ( LIB_ITEM* ) new LIB_RECTANGLE( this );
             break;
 
         case 'X':    /* Pin Description */
-            newEntry = ( LIB_DRAW_ITEM* ) new LIB_PIN(this);
+            newEntry = ( LIB_ITEM* ) new LIB_PIN( this );
             break;
 
         case 'P':    /* Polyline */
-            newEntry = ( LIB_DRAW_ITEM* ) new LIB_POLYLINE(this);
+            newEntry = ( LIB_ITEM* ) new LIB_POLYLINE( this );
             break;
 
         case 'B':    /* Bezier Curves */
-            newEntry = ( LIB_DRAW_ITEM* ) new LIB_BEZIER(this);
+            newEntry = ( LIB_ITEM* ) new LIB_BEZIER( this );
             break;
 
         default:
@@ -830,7 +870,7 @@ bool LIB_COMPONENT::LoadDrawEntries( FILE* aFile, char* aLine,
             /* Flush till end of draw section */
             do
             {
-                if( GetLine( aFile, aLine, aLineNum, 1024 ) == NULL )
+                if( GetLine( aFile, aLine, aLineNum, LINE_BUFFER_LEN_LARGE ) == NULL )
                 {
                     aErrorMsg = wxT( "file ended prematurely while attempting \
 to flush to end of drawing section." );
@@ -856,7 +896,7 @@ bool LIB_COMPONENT::LoadAliases( char* aLine, wxString& aErrorMsg )
 
     while( text )
     {
-        m_AliasList.Add( CONV_FROM_UTF8( text ) );
+        m_aliases.push_back( new LIB_ALIAS( FROM_UTF8( text ), this ) );
         text = strtok( NULL, " \t\r\n" );
     }
 
@@ -868,21 +908,26 @@ bool LIB_COMPONENT::LoadField( char* aLine, wxString& aErrorMsg )
 {
     LIB_FIELD* field = new LIB_FIELD( this );
 
-    if ( !field->Load( aLine, aErrorMsg ) )
+    if( !field->Load( aLine, aErrorMsg ) )
     {
         SAFE_DELETE( field );
         return false;
     }
 
-    if( field->m_FieldId == REFERENCE )
+    if( field->GetId() < MANDATORY_FIELDS )
     {
-        GetReferenceField() = *field;
-        SAFE_DELETE( field );
-    }
-    else if ( field->m_FieldId == VALUE )
-    {
-        GetValueField() = *field;
-        name = field->m_Text;
+        LIB_FIELD* fixedField = GetField( field->GetId() );
+
+        // this will fire only if somebody broke a constructor or editor.
+        // MANDATORY_FIELDS are always present in ram resident components, no
+        // exceptions, and they always have their names set, even fixed fields.
+        wxASSERT( fixedField );
+
+        *fixedField = *field;
+
+        if( field->GetId() == VALUE )
+            m_name = field->m_Text;
+
         SAFE_DELETE( field );
     }
     else
@@ -899,7 +944,7 @@ bool LIB_COMPONENT::LoadFootprints( FILE* aFile, char* aLine,
 {
     while( true )
     {
-        if( GetLine( aFile, aLine, aLineNum, 1024 ) == NULL )
+        if( GetLine( aFile, aLine, aLineNum, LINE_BUFFER_LEN_LARGE ) == NULL )
         {
             aErrorMsg = wxT( "file ended prematurely while loading footprints" );
             return false;
@@ -908,36 +953,33 @@ bool LIB_COMPONENT::LoadFootprints( FILE* aFile, char* aLine,
         if( stricmp( aLine, "$ENDFPLIST" ) == 0 )
             break;
 
-        m_FootprintList.Add( CONV_FROM_UTF8( aLine + 1 ) );
+        m_FootprintList.Add( FROM_UTF8( aLine + 1 ) );
     }
 
     return true;
 }
 
-
-/**********************************************************************/
 /* Return the component boundary box ( in user coordinates )
- *  The unit aUnit, and the shape aConvert are considered.
+ * aUnit = unit selection = 0, or 1..n
+ * aConvert = 0, 1 or 2
  *  If aUnit == 0, unit is not used
  *  if aConvert == 0 Convert is non used
- *  Invisible fields are not take in account
+ *  Invisible fields are not taken in account
  **/
-/**********************************************************************/
-EDA_Rect LIB_COMPONENT::GetBoundaryBox( int aUnit, int aConvert )
+EDA_RECT LIB_COMPONENT::GetBoundingBox( int aUnit, int aConvert ) const
 {
-    EDA_Rect bBox( wxPoint( 0, 0 ), wxSize( 0, 0 ) );
+    EDA_RECT bBox( wxPoint( 0, 0 ), wxSize( 0, 0 ) );
 
-    BOOST_FOREACH( LIB_DRAW_ITEM& item, drawings )
+    BOOST_FOREACH( const LIB_ITEM& item, drawings )
     {
-        if( ( item.m_Unit > 0 ) && ( ( unitCount > 1 ) && ( aUnit > 0 )
+        if( ( item.m_Unit > 0 ) && ( ( m_unitCount > 1 ) && ( aUnit > 0 )
                                      && ( aUnit != item.m_Unit ) ) )
             continue;
-        if( item.m_Convert > 0
-            && ( ( aConvert > 0 ) && ( aConvert != item.m_Convert ) ) )
+
+        if( item.m_Convert > 0 && ( ( aConvert > 0 ) && ( aConvert != item.m_Convert ) ) )
             continue;
 
-        if ( ( item.Type() == COMPONENT_FIELD_DRAW_TYPE )
-            && !( ( LIB_FIELD& ) item ).IsVisible() )
+        if ( ( item.Type() == LIB_FIELD_T ) && !( ( LIB_FIELD& ) item ).IsVisible() )
             continue;
 
         bBox.Merge( item.GetBoundingBox() );
@@ -947,48 +989,101 @@ EDA_Rect LIB_COMPONENT::GetBoundaryBox( int aUnit, int aConvert )
 }
 
 
-/** Function SetFields
- * initialize fields from a vector of fields
- * @param aFields a std::vector <LIB_FIELD> to import.
- */
-void LIB_COMPONENT::SetFields( const std::vector <LIB_FIELD> aFields )
+/* Return the component boundary box ( in user coordinates )
+ * aUnit = unit selection = 0, or 1..n
+ * aConvert = 0, 1 or 2
+ *  If aUnit == 0, unit is not used
+ *  if aConvert == 0 Convert is non used
+ *  Fields are not take in account
+ **/
+EDA_RECT LIB_COMPONENT::GetBodyBoundingBox( int aUnit, int aConvert ) const
 {
-    LIB_FIELD* field;
+    EDA_RECT bBox( wxPoint( 0, 0 ), wxSize( 0, 0 ) );
 
-    for( size_t i = 0; i < aFields.size(); i++ )
+    BOOST_FOREACH( const LIB_ITEM& item, drawings )
     {
-        field = GetField( aFields[i].m_FieldId );
+        if( ( item.m_Unit > 0 ) && ( ( m_unitCount > 1 ) && ( aUnit > 0 )
+                                     && ( aUnit != item.m_Unit ) ) )
+            continue;
 
-        if( field )
+        if( item.m_Convert > 0 && ( ( aConvert > 0 ) && ( aConvert != item.m_Convert ) ) )
+            continue;
+
+        if ( item.Type() == LIB_FIELD_T )
+            continue;
+
+        bBox.Merge( item.GetBoundingBox() );
+    }
+
+    return bBox;
+}
+
+
+void LIB_COMPONENT::deleteAllFields()
+{
+    LIB_ITEMS::iterator it;
+
+    for( it = drawings.begin();  it!=drawings.end();  /* deleting */  )
+    {
+        if( it->Type() != LIB_FIELD_T  )
         {
-            *field = aFields[i];
-
-            if( (int) i == VALUE )
-                name = field->m_Text;
-
+            ++it;
             continue;
         }
 
-        /* If the field isn't set, don't add it to the component. */
-        if( aFields[i].m_Text.IsEmpty() )
-            continue;
+        // 'it' is not advanced, but should point to next in list after erase()
+        it = drawings.erase( it );
+    }
+}
 
-        field = new LIB_FIELD( aFields[i] );
+
+void LIB_COMPONENT::SetFields( const std::vector <LIB_FIELD>& aFields )
+{
+    deleteAllFields();
+
+    for( unsigned i=0;  i<aFields.size();  ++i )
+    {
+        // drawings is a ptr_vector, new and copy an object on the heap.
+        LIB_FIELD* field = new LIB_FIELD( aFields[i] );
+
         drawings.push_back( field );
     }
 
+    // Reorder drawings: transparent polygons first, pins and text last.
+    // so texts have priority on screen.
     drawings.sort();
 }
 
 
-void LIB_COMPONENT::GetFields( LIB_FIELD_LIST& aList )
+void LIB_COMPONENT::GetFields( LIB_FIELDS& aList )
 {
-    BOOST_FOREACH( LIB_DRAW_ITEM& item, drawings )
+    LIB_FIELD*  field;
+
+    // The only caller of this function is the library field editor, so it
+    // establishes policy here.
+
+    // Grab the MANDATORY_FIELDS first, in expected order given by
+    // enum NumFieldType
+    for( int id=0;  id<MANDATORY_FIELDS;  ++id )
     {
-        if( item.Type() != COMPONENT_FIELD_DRAW_TYPE )
+        field = GetField( id );
+
+        // the MANDATORY_FIELDS are exactly that in RAM.
+        wxASSERT( field );
+
+        aList.push_back( *field );
+    }
+
+    // Now grab all the rest of fields.
+    BOOST_FOREACH( LIB_ITEM& item, drawings )
+    {
+        if( item.Type() != LIB_FIELD_T )
             continue;
 
-        LIB_FIELD* field = ( LIB_FIELD* ) &item;
+        field = ( LIB_FIELD* ) &item;
+        if( (unsigned) field->GetId() < MANDATORY_FIELDS )
+            continue;  // was added above
+
         aList.push_back( *field );
     }
 }
@@ -996,14 +1091,31 @@ void LIB_COMPONENT::GetFields( LIB_FIELD_LIST& aList )
 
 LIB_FIELD* LIB_COMPONENT::GetField( int aId )
 {
-    BOOST_FOREACH( LIB_DRAW_ITEM& item, drawings )
+    BOOST_FOREACH( LIB_ITEM& item, drawings )
     {
-        if( item.Type() != COMPONENT_FIELD_DRAW_TYPE )
+        if( item.Type() != LIB_FIELD_T )
             continue;
 
         LIB_FIELD* field = ( LIB_FIELD* ) &item;
 
-        if( field->m_FieldId == aId )
+        if( field->GetId() == aId )
+            return field;
+    }
+
+    return NULL;
+}
+
+
+LIB_FIELD* LIB_COMPONENT::FindField( const wxString& aFieldName )
+{
+    BOOST_FOREACH( LIB_ITEM& item, drawings )
+    {
+        if( item.Type() != LIB_FIELD_T )
+            continue;
+
+        LIB_FIELD* field = ( LIB_FIELD* ) &item;
+
+        if( field->GetName() == aFieldName )
             return field;
     }
 
@@ -1035,18 +1147,17 @@ bool LIB_COMPONENT::SaveDateAndTime( FILE* aFile )
 {
     int year, mon, day, hour, min, sec;
 
-    if( m_LastDate == 0 )
+    if( m_dateModified == 0 )
         return true;
 
-    sec  = m_LastDate & 63;
-    min  = ( m_LastDate >> 6 ) & 63;
-    hour = ( m_LastDate >> 12 ) & 31;
-    day  = ( m_LastDate >> 17 ) & 31;
-    mon  = ( m_LastDate >> 22 ) & 15;
-    year = ( m_LastDate >> 26 ) + 1990;
+    sec  = m_dateModified & 63;
+    min  = ( m_dateModified >> 6 ) & 63;
+    hour = ( m_dateModified >> 12 ) & 31;
+    day  = ( m_dateModified >> 17 ) & 31;
+    mon  = ( m_dateModified >> 22 ) & 15;
+    year = ( m_dateModified >> 26 ) + 1990;
 
-    if ( fprintf( aFile, "Ti %d/%d/%d %d:%d:%d\n",
-                  year, mon, day, hour, min, sec ) < 0 )
+    if ( fprintf( aFile, "Ti %d/%d/%d %d:%d:%d\n", year, mon, day, hour, min, sec ) < 0 )
         return false;
 
     return true;
@@ -1064,11 +1175,10 @@ bool LIB_COMPONENT::LoadDateAndTime( char* aLine )
     text = strtok( aLine, " \r\t\n" );
     text = strtok( NULL, " \r\t\n" );
 
-    if (sscanf( aLine, "%d/%d/%d %d:%d:%d",
-                &year, &mon, &day, &hour, &min, &sec ) != 6 )
+    if (sscanf( aLine, "%d/%d/%d %d:%d:%d", &year, &mon, &day, &hour, &min, &sec ) != 6 )
         return false;
 
-    m_LastDate = ( sec & 63 ) + ( ( min & 63 ) << 6 ) +
+    m_dateModified = ( sec & 63 ) + ( ( min & 63 ) << 6 ) +
         ( ( hour & 31 ) << 12 ) + ( ( day & 31 ) << 17 ) +
         ( ( mon & 15 ) << 22 ) + ( ( year - 1990 ) << 26 );
 
@@ -1078,7 +1188,7 @@ bool LIB_COMPONENT::LoadDateAndTime( char* aLine )
 
 void LIB_COMPONENT::SetOffset( const wxPoint& aOffset )
 {
-    BOOST_FOREACH( LIB_DRAW_ITEM& item, drawings )
+    BOOST_FOREACH( LIB_ITEM& item, drawings )
     {
         item.SetOffset( aOffset );
     }
@@ -1093,7 +1203,7 @@ void LIB_COMPONENT::RemoveDuplicateDrawItems()
 
 bool LIB_COMPONENT::HasConversion() const
 {
-    BOOST_FOREACH( const LIB_DRAW_ITEM& item, drawings )
+    BOOST_FOREACH( const LIB_ITEM& item, drawings )
     {
         if( item.m_Convert > 1 )
             return true;
@@ -1105,28 +1215,27 @@ bool LIB_COMPONENT::HasConversion() const
 
 void LIB_COMPONENT::ClearStatus()
 {
-    BOOST_FOREACH( LIB_DRAW_ITEM& item, drawings )
+    BOOST_FOREACH( LIB_ITEM& item, drawings )
         item.m_Flags = 0;
 }
 
 
-int LIB_COMPONENT::SelectItems( EDA_Rect& aRect, int aUnit, int aConvert,
-                                bool aEditPinByPin )
+int LIB_COMPONENT::SelectItems( EDA_RECT& aRect, int aUnit, int aConvert, bool aEditPinByPin )
 {
     int itemCount = 0;
 
-    BOOST_FOREACH( LIB_DRAW_ITEM& item, drawings )
+    BOOST_FOREACH( LIB_ITEM& item, drawings )
     {
         item.m_Selected = 0;
 
         if( ( item.m_Unit && item.m_Unit != aUnit )
             || ( item.m_Convert && item.m_Convert != aConvert ) )
         {
-            if( item.Type() != COMPONENT_PIN_DRAW_TYPE )
+            if( item.Type() != LIB_PIN_T )
                 continue;
 
              // Specific rules for pins.
-            if( aEditPinByPin || m_UnitSelectionLocked
+            if( aEditPinByPin || m_unitsLocked
                 || ( item.m_Convert && item.m_Convert != aConvert ) )
                 continue;
         }
@@ -1144,7 +1253,7 @@ int LIB_COMPONENT::SelectItems( EDA_Rect& aRect, int aUnit, int aConvert,
 
 void LIB_COMPONENT::MoveSelectedItems( const wxPoint& aOffset )
 {
-    BOOST_FOREACH( LIB_DRAW_ITEM& item, drawings )
+    BOOST_FOREACH( LIB_ITEM& item, drawings )
     {
         if( item.m_Selected == 0 )
             continue;
@@ -1159,27 +1268,27 @@ void LIB_COMPONENT::MoveSelectedItems( const wxPoint& aOffset )
 
 void LIB_COMPONENT::ClearSelectedItems()
 {
-    BOOST_FOREACH( LIB_DRAW_ITEM& item, drawings )
+    BOOST_FOREACH( LIB_ITEM& item, drawings )
         item.m_Flags = item.m_Selected = 0;
 }
 
 
 void LIB_COMPONENT::DeleteSelectedItems()
 {
-    LIB_DRAW_ITEM_LIST::iterator item = drawings.begin();
+    LIB_ITEMS::iterator item = drawings.begin();
 
     // We *do not* remove the 2 mandatory fields: reference and value
     // so skip them (do not remove) if they are flagged selected.
     // Skip also not visible items.
-    // But I think fileds must not be deleted by a block delete command or other global command
+    // But I think fields must not be deleted by a block delete command or other global command
     // because they are not really graphic items
     while( item != drawings.end() )
     {
-        if( item->Type() == COMPONENT_FIELD_DRAW_TYPE )
+        if( item->Type() == LIB_FIELD_T )
         {
 #if 0   // Set to 1 to allows fields deletion on block delete or other global command
             LIB_FIELD& field = ( LIB_FIELD& ) *item;
-            if( (field.m_FieldId == REFERENCE) || (field.m_FieldId == VALUE) ||
+            if( (field.GetId() == REFERENCE) || (field.m_FieldId == VALUE) ||
                 (field.m_Attributs & TEXT_NO_VISIBLE) )
 #endif
                 item->m_Selected = 0;
@@ -1203,17 +1312,17 @@ void LIB_COMPONENT::CopySelectedItems( const wxPoint& aOffset )
     unsigned icnt = drawings.size();
     for( unsigned ii = 0; ii < icnt; ii++  )
     {
-        LIB_DRAW_ITEM& item = drawings[ii];
+        LIB_ITEM& item = drawings[ii];
         // We *do not* copy fields because they are unique for the whole component
         // so skip them (do not duplicate) if they are flagged selected.
-        if( item.Type() == COMPONENT_FIELD_DRAW_TYPE )
+        if( item.Type() == LIB_FIELD_T )
             item.m_Selected = 0;
 
         if( item.m_Selected == 0 )
             continue;
 
         item.m_Selected = 0;
-        LIB_DRAW_ITEM* newItem = item.GenCopy();
+        LIB_ITEM* newItem = (LIB_ITEM*) item.Clone();
         newItem->m_Selected = IS_SELECTED;
         drawings.push_back( newItem );
     }
@@ -1226,7 +1335,7 @@ void LIB_COMPONENT::CopySelectedItems( const wxPoint& aOffset )
 
 void LIB_COMPONENT::MirrorSelectedItemsH( const wxPoint& aCenter )
 {
-    BOOST_FOREACH( LIB_DRAW_ITEM& item, drawings )
+    BOOST_FOREACH( LIB_ITEM& item, drawings )
     {
         if( item.m_Selected == 0 )
             continue;
@@ -1239,22 +1348,10 @@ void LIB_COMPONENT::MirrorSelectedItemsH( const wxPoint& aCenter )
 }
 
 
-
-/**
- * Locate a draw object.
- *
- * @param aUnit - Unit number of draw item.
- * @param aConvert - Body style of draw item.
- * @param aType - Draw object type, set to 0 to search for any type.
- * @param aPoint - Coordinate for hit testing.
- *
- * @return LIB_DRAW_ITEM - Pointer the the draw object if found.
- *                         Otherwise NULL.
- */
-LIB_DRAW_ITEM* LIB_COMPONENT::LocateDrawItem( int aUnit, int aConvert,
-                                              KICAD_T aType, const wxPoint& aPoint )
+LIB_ITEM* LIB_COMPONENT::LocateDrawItem( int aUnit, int aConvert,
+                                         KICAD_T aType, const wxPoint& aPoint )
 {
-    BOOST_FOREACH( LIB_DRAW_ITEM& item, drawings )
+    BOOST_FOREACH( LIB_ITEM& item, drawings )
     {
         if( ( aUnit && item.m_Unit && ( aUnit != item.m_Unit) )
             || ( aConvert && item.m_Convert && ( aConvert != item.m_Convert ) )
@@ -1268,43 +1365,23 @@ LIB_DRAW_ITEM* LIB_COMPONENT::LocateDrawItem( int aUnit, int aConvert,
     return NULL;
 }
 
-/** Function HitTest (overlaid)
- * @return true if the point aPosRef is near this object
- * @param aPosRef = a wxPoint to test
- * @param aThreshold = max distance to this object (usually the half
- *                     thickness of a line)
- * @param aTransform = the transform matrix
- *
- * @return LIB_DRAW_ITEM - Pointer the the draw object if found.
- *                         Otherwise NULL.
- */
-LIB_DRAW_ITEM* LIB_COMPONENT::LocateDrawItem( int aUnit, int aConvert, KICAD_T aType,
-                                              const wxPoint& aPoint, const int aTransform[2][2] )
+
+LIB_ITEM* LIB_COMPONENT::LocateDrawItem( int aUnit, int aConvert, KICAD_T aType,
+                                         const wxPoint& aPoint, const TRANSFORM& aTransform )
 {
     /* we use LocateDrawItem( int aUnit, int convert, KICAD_T type, const
      * wxPoint& pt ) to search items.
-     * because this function uses DefaultTransformMatrix as orient/mirror matrix
-     * we temporary copy aTransMat in DefaultTransformMatrix
+     * because this function uses DefaultTransform as orient/mirror matrix
+     * we temporary copy aTransform in DefaultTransform
      */
-    LIB_DRAW_ITEM * item;
-    int matrix[2][2];
-    for ( int ii = 0; ii < 2; ii++ )
-    {
-        for ( int jj = 0; jj < 2; jj++ )
-        {
-            matrix[ii][jj] = aTransform[ii][jj];
-            EXCHG( matrix[ii][jj], DefaultTransformMatrix[ii][jj] );
-        }
-    }
+    LIB_ITEM* item;
+    TRANSFORM transform = DefaultTransform;
+    DefaultTransform = aTransform;
+
     item = LocateDrawItem( aUnit, aConvert, aType, aPoint );
+
     //Restore matrix
-    for ( int ii = 0; ii < 2; ii++ )
-    {
-        for ( int jj = 0; jj < 2; jj++ )
-        {
-            EXCHG( matrix[ii][jj], DefaultTransformMatrix[ii][jj] );
-        }
-    }
+    DefaultTransform = transform;
 
     return item;
 }
@@ -1312,12 +1389,12 @@ LIB_DRAW_ITEM* LIB_COMPONENT::LocateDrawItem( int aUnit, int aConvert, KICAD_T a
 
 void LIB_COMPONENT::SetPartCount( int aCount )
 {
-    if( unitCount == aCount )
+    if( m_unitCount == aCount )
         return;
 
-    if( aCount < unitCount )
+    if( aCount < m_unitCount )
     {
-        LIB_DRAW_ITEM_LIST::iterator i;
+        LIB_ITEMS::iterator i;
         i = drawings.begin();
 
         while( i != drawings.end() )
@@ -1330,7 +1407,7 @@ void LIB_COMPONENT::SetPartCount( int aCount )
     }
     else
     {
-        int prevCount = unitCount;
+        int prevCount = m_unitCount;
 
         // We cannot use an iterator here, because when adding items in vector
         // the buffer can be reallocated, that change the previous value of
@@ -1343,7 +1420,7 @@ void LIB_COMPONENT::SetPartCount( int aCount )
 
             for( int j = prevCount + 1; j <= aCount; j++ )
             {
-                LIB_DRAW_ITEM* newItem = drawings[ii].GenCopy();
+                LIB_ITEM* newItem = (LIB_ITEM*) drawings[ii].Clone();
                 newItem->m_Unit = j;
                 drawings.push_back( newItem );
             }
@@ -1352,7 +1429,7 @@ void LIB_COMPONENT::SetPartCount( int aCount )
         drawings.sort();
     }
 
-    unitCount = aCount;
+    m_unitCount = aCount;
 }
 
 
@@ -1365,14 +1442,14 @@ void LIB_COMPONENT::SetConversion( bool aSetConvert )
     if( aSetConvert )
     {
 
-        BOOST_FOREACH( LIB_DRAW_ITEM& item, drawings )
+        BOOST_FOREACH( LIB_ITEM& item, drawings )
         {
             /* Only pins are duplicated. */
-            if( item.Type() != COMPONENT_PIN_DRAW_TYPE )
+            if( item.Type() != LIB_PIN_T )
                 continue;
             if( item.m_Convert == 1 )
             {
-                LIB_DRAW_ITEM* newItem = item.GenCopy();
+                LIB_ITEM* newItem = (LIB_ITEM*) item.Clone();
                 newItem->m_Convert = 2;
                 drawings.push_back( newItem );
             }
@@ -1382,7 +1459,7 @@ void LIB_COMPONENT::SetConversion( bool aSetConvert )
     {
         // Delete converted shape items because the converted shape does
         // not exist
-        LIB_DRAW_ITEM_LIST::iterator i = drawings.begin();
+        LIB_ITEMS::iterator i = drawings.begin();
 
         while( i != drawings.end() )
         {
@@ -1395,141 +1472,158 @@ void LIB_COMPONENT::SetConversion( bool aSetConvert )
 }
 
 
-/* accessors to aliases data, used by the component editor, during edition
-*/
-/** Function LocateAliasData
- * @return an index in array string to the alias data (doc, keywords, docfile)
- *         or -1 if not found
- * @param aAliasName = the alias name
- * @param aCreateIfNotExist = true if the alias data must be created, when not exists
- */
-int LIB_COMPONENT::LocateAliasData( const wxString & aAliasName, bool aCreateIfNotExist)
+wxArrayString LIB_COMPONENT::GetAliasNames( bool aIncludeRoot ) const
 {
-    int idx = -1;
-    for( unsigned ii = 0; ii < m_aliasListData.size(); ii += ALIAS_NEXT_IDX )
+    wxArrayString names;
+
+    LIB_ALIASES::const_iterator it;
+
+    for( it=m_aliases.begin();  it<m_aliases.end();  ++it )
     {
-        if( aAliasName.CmpNoCase( m_aliasListData[ii] ) != 0 )
+        if( !aIncludeRoot && (*it)->IsRoot() )
             continue;
-        // Found!
-        idx = (int) ii;
-        break;
+
+        names.Add( (*it)->GetName() );
     }
 
-    // Alias not found, create on demand
-    if( aCreateIfNotExist && (idx < 0) )
+    return names;
+}
+
+
+bool LIB_COMPONENT::HasAlias( const wxString& aName ) const
+{
+    wxCHECK2_MSG( !aName.IsEmpty(), return false,
+                  wxT( "Cannot get alias with an empty name, bad programmer." ) );
+
+    for( size_t i = 0; i < m_aliases.size(); i++ )
     {
-        idx = (int) m_aliasListData.size();
-        m_aliasListData.Add(aAliasName);
-        // Add void strinds for data:
-        m_aliasListData.Add(wxEmptyString);     //Doc string
-        m_aliasListData.Add(wxEmptyString);     //keywords string
-        m_aliasListData.Add(wxEmptyString);     //Doc fliname string
+        if( aName.CmpNoCase( m_aliases[i]->GetName() ) == 0 )
+            return true;
     }
 
-    return idx;
+    return false;
 }
 
 
-/** Function GetAliasDataDoc
- * @param aAliasName = the alias name
- * @return the Doc string
- */
-wxString LIB_COMPONENT::GetAliasDataDoc( const wxString & aAliasName )
+void LIB_COMPONENT::SetAliases( const wxArrayString& aAliasList )
 {
-    wxString data;
-    int idx = LocateAliasData( aAliasName);
-    if ( idx >= 0 )
-        data = m_aliasListData[idx + ALIAS_DOC_IDX];
+    wxCHECK_RET( m_library == NULL,
+                 wxT( "Component aliases cannot be changed when they are owned by a library." ) );
 
-    return data;
-}
+    if( aAliasList == GetAliasNames() )
+        return;
 
-
-/** Function GetAliasDataKeyWords
- * @param aAliasName = the alias name
- * @return aAliasData = the keywords string
- */
-wxString LIB_COMPONENT::GetAliasDataKeyWords( const wxString & aAliasName )
-{
-    wxString data;
-    int idx = LocateAliasData( aAliasName);
-    if ( idx >= 0 )
-        data = m_aliasListData[idx + ALIAS_KEYWORD_IDX];
-
-    return data;
-}
-
-
-/** Function GetAliasDataDocFileName
- * @param aAliasName = the alias name
- * @return the Doc filename string
- */
-wxString LIB_COMPONENT::GetAliasDataDocFileName( const wxString & aAliasName )
-{
-    wxString data;
-    int idx = LocateAliasData( aAliasName);
-    if ( idx >= 0 )
-        data = m_aliasListData[idx + ALIAS_DOC_FILENAME_IDX];
-
-    return data;
-}
-
-
-
-/** Function SetAliasDataDoc
- * @param aAliasName = the alias name
- * @param aAliasData = the Doc string
- */
-void LIB_COMPONENT::SetAliasDataDoc( const wxString & aAliasName, const wxString & aAliasData )
-{
-    int idx = LocateAliasData( aAliasName, true);
-    m_aliasListData[idx + ALIAS_DOC_IDX] = aAliasData;
-}
-
-/** Function SetAliasDataKeywords
- * @param aAliasName = the alias name
- * @param aAliasData = the keywords string
- */
-void LIB_COMPONENT::SetAliasDataKeywords( const wxString & aAliasName, const wxString & aAliasData )
-{
-    int idx = LocateAliasData( aAliasName, true);
-    m_aliasListData[idx + ALIAS_KEYWORD_IDX] = aAliasData;
-}
-
-/** Function SetAliasDataDocFileName
- * @param aAliasName = the alias name
- * @param aAliasData = the Doc filename string
- */
-void LIB_COMPONENT::SetAliasDataDocFileName( const wxString & aAliasName, const wxString & aAliasData )
-{
-    int idx = LocateAliasData( aAliasName, true);
-    m_aliasListData[idx + ALIAS_DOC_FILENAME_IDX] = aAliasData;
-}
-
-
-/** Function RemoveAliasData
- * remove an alias data from list
- * @param aAliasName = the alias name
- */
-void LIB_COMPONENT::RemoveAliasData(const wxString & aAliasName )
-{
-    int idx = LocateAliasData( aAliasName);
-    if ( idx >= 0 )
-        m_aliasListData.RemoveAt(idx + ALIAS_NAME_IDX, ALIAS_NEXT_IDX);
-}
-
-/** Function CollectAliasesData
- * store in m_aliasListData alias data (doc, keywords, docfile)
- * for each alias found in m_AliasList
-*/
-void LIB_COMPONENT::CollectAliasesData( CMP_LIBRARY* aLibrary )
-{
-    for( unsigned ii = 0; ii < m_AliasList.GetCount(); ii++ )
+    // Add names not existing in the current component alias list.
+    for( size_t i = 0; i < aAliasList.GetCount(); i++ )
     {
-        CMP_LIB_ENTRY* entry = aLibrary->FindEntry( m_AliasList[ii] );
-        if ( ! entry ) continue;
-        SetAliasDataDoc( m_AliasList[ii], entry->GetDescription() );
-        SetAliasDataKeywords( m_AliasList[ii], entry->GetKeyWords() );
-        SetAliasDataDocFileName( m_AliasList[ii], entry->GetDocFileName() );
+        if( HasAlias( aAliasList[ i ] ) )
+            continue;
+
+        m_aliases.push_back( new LIB_ALIAS( aAliasList[ i ], this ) );
     }
+
+    /* Remove names in the current component that are not in the new alias list. */
+    LIB_ALIASES::iterator it;
+
+    for( it = m_aliases.begin(); it < m_aliases.end(); it++ )
+    {
+        int index = aAliasList.Index( (*it)->GetName(), false );
+
+        if( index != wxNOT_FOUND || (*it)->IsRoot() )
+            continue;
+
+        it = m_aliases.erase( it );
+    }
+}
+
+
+void LIB_COMPONENT::RemoveAlias( const wxString& aName )
+{
+    wxCHECK_RET( m_library == NULL,
+                 wxT( "Component aliases cannot be changed when they are owned by a library." ) );
+    wxCHECK_RET( !aName.IsEmpty(), wxT( "Cannot get alias with an empty name." ) );
+
+    LIB_ALIASES::iterator it;
+
+    for( it = m_aliases.begin(); it < m_aliases.end(); it++ )
+    {
+        if( aName.CmpNoCase( (*it)->GetName() ) == 0 )
+        {
+            m_aliases.erase( it );
+            break;
+        }
+    }
+}
+
+
+LIB_ALIAS* LIB_COMPONENT::RemoveAlias( LIB_ALIAS* aAlias )
+{
+    wxCHECK_MSG( aAlias != NULL, NULL, wxT( "Cannot remove alias by NULL pointer." ) );
+
+    LIB_ALIAS* nextAlias = NULL;
+    LIB_ALIASES::iterator it = find( m_aliases.begin(), m_aliases.end(), aAlias );
+
+    if( it != m_aliases.end() )
+    {
+        bool rename = aAlias->IsRoot();
+
+        it = m_aliases.erase( it );
+        delete aAlias;
+
+        if( !m_aliases.empty() )
+        {
+            if( it == m_aliases.end() )
+                it = m_aliases.begin();
+
+            nextAlias = (*it);
+
+            if( rename )
+                SetName( nextAlias->GetName() );
+        }
+
+    }
+
+    return nextAlias;
+}
+
+
+void LIB_COMPONENT::RemoveAllAliases()
+{
+    // Remove all of the aliases except the root alias.
+    while( m_aliases.size() > 1 )
+        m_aliases.pop_back();
+}
+
+
+LIB_ALIAS* LIB_COMPONENT::GetAlias( const wxString& aName )
+{
+    wxCHECK2_MSG( !aName.IsEmpty(), return NULL,
+                  wxT( "Cannot get alias with an empty name.  Bad programmer!" ) );
+
+    for( size_t i = 0; i < m_aliases.size(); i++ )
+    {
+        if( aName.CmpNoCase( m_aliases[i]->GetName() ) == 0 )
+            return m_aliases[i];
+    }
+
+    return NULL;
+}
+
+
+LIB_ALIAS* LIB_COMPONENT::GetAlias( size_t aIndex )
+{
+    wxCHECK2_MSG( aIndex < m_aliases.size(), return NULL,
+                  wxT( "Illegal alias list index, bad programmer." ) );
+
+    return m_aliases[aIndex];
+}
+
+
+void LIB_COMPONENT::AddAlias( const wxString& aName )
+{
+    wxCHECK_RET( !HasAlias( aName ),
+                 wxT( "Component <" ) + GetName() + wxT( "> already has an alias <" ) +
+                 aName + wxT( ">.  Bad programmer." ) );
+
+    m_aliases.push_back( new LIB_ALIAS( aName, this ) );
 }

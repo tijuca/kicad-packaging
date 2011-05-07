@@ -10,9 +10,6 @@
 
 #define DEFAULT_HOTKEY_FILENAME_EXT wxT( "key" )
 
-/* keyword idetifier in kicad config use ti store/retrieve path option */
-#define HOTKEY_CFG_PATH_OPT wxT( "HotkeyPathOption" )
-
 
 /* Class to handle hotkey commnands. hotkeys have a default value
  *  This class allows the real key code changed by user(from a key code list file)
@@ -27,6 +24,7 @@ public:
 
 public:
     Ki_HotkeyInfo( const wxChar* infomsg, int idcommand, int keycode, int idmenuevent = 0 );
+    Ki_HotkeyInfo( const Ki_HotkeyInfo* base);
 };
 
 /* handle a Section name and the corresponding list of hotkeys (Ki_HotkeyInfo list)
@@ -43,7 +41,7 @@ struct Ki_HotkeyInfoSectionDescriptor
 public:
     wxString*       m_SectionTag;           // The section name
     Ki_HotkeyInfo** m_HK_InfoList;          // List of Ki_HotkeyInfo pointers
-    const char*      m_Comment;             // comment: will be printed in the config file
+    const wchar_t*      m_Comment;             // comment: will be printed in the config file
                                             // Info usage only
 };
 
@@ -56,25 +54,25 @@ extern wxString g_LibEditSectionTag;
 extern wxString g_BoardEditorSectionTag;
 extern wxString g_ModuleEditSectionTag;
 
-extern int g_ConfigFileLocationChoice;
-
 
 /* Functions:
  */
-wxString        ReturnHotkeyConfigFilePath( int choice );
 void            AddHotkeyConfigMenu( wxMenu* menu );
-void            HandleHotkeyConfigMenuSelection( WinEDA_DrawFrame* frame, int id );
+void            HandleHotkeyConfigMenuSelection( EDA_DRAW_FRAME* frame, int id );
 
-/** function ReturnKeyNameFromKeyCode
+/**
+ * Function ReturnKeyNameFromKeyCode
  * return the key name from the key code
  * Only some wxWidgets key values are handled for function key ( see
  * s_Hotkey_Name_List[] )
  * @param aKeycode = key code (ascii value, or wxWidgets value for function keys)
+ * @param aIsFound = a pointer to a bool to return true if found, or false. an be NULL default)
  * @return the key name in a wxString
  */
-wxString        ReturnKeyNameFromKeyCode( int aKeycode );
+wxString        ReturnKeyNameFromKeyCode( int aKeycode, bool * aIsFound = NULL );
 
-/** function ReturnKeyNameFromCommandId
+/**
+ * Function ReturnKeyNameFromCommandId
  * return the key name from the Command id value ( m_Idcommand member value)
  * @param aList = pointer to a Ki_HotkeyInfo list of commands
  * @param aCommandId = Command Id value
@@ -82,26 +80,38 @@ wxString        ReturnKeyNameFromKeyCode( int aKeycode );
  */
 wxString        ReturnKeyNameFromCommandId( Ki_HotkeyInfo** aList, int aCommandId );
 
-/** function AddHotkeyName
+/**
+ * Function ReturnKeyCodeFromKeyName
+ * return the key code from its key name
+ * Only some wxWidgets key values are handled for function key
+ * @param keyname = wxString key name to find in s_Hotkey_Name_List[],
+ *   like F2 or space or an usual (ascii) char.
+ * @return the key code
+ */
+int ReturnKeyCodeFromKeyName( const wxString& keyname );
+
+/**
+ * Function AddHotkeyName
  * Add the key name from the Command id value ( m_Idcommand member value)
  * @param aText = a wxString. returns aText + key name
  * @param aList = pointer to a Ki_HotkeyInfo list of commands
  * @param aCommandId = Command Id value
- * @param aIsShortCut = true to add <tab><keyname> (active shortcuts in menus)
- *                    = false to add <spaces><(keyname)>
+ * @param aIsShortCut = true to add &lttab&gt&ltkeyname&gt (active shortcuts in menus)
+ *                    = false to add &ltspaces&gt&lt(keyname)&gt
  * @return a wxString (aTest + key name) if key found or aText without modification
  */
 wxString        AddHotkeyName( const wxString& aText, Ki_HotkeyInfo** aList,
                                int  aCommandId,
                                bool aIsShortCut = true);
 
-/** function AddHotkeyName
+/**
+ * Function AddHotkeyName
  * Add the key name from the Command id value ( m_Idcommand member value)
  * @param aText = a wxString. returns aText + key name
- * @param aList = pointer to a Ki_HotkeyInfoSectionDescriptor DescrList of commands
+ * @param aDescrList = pointer to a Ki_HotkeyInfoSectionDescriptor DescrList of commands
  * @param aCommandId = Command Id value
- * @param aIsShortCut = true to add <tab><keyname> (active shortcuts in menus)
- *                    = false to add <spaces><(keyname)>
+ * @param aIsShortCut = true to add &lttab&gt&ltkeyname&gt (active shortcuts in menus)
+ *                    = false to add &ltspaces&gt&lt(keyname)&gt
  * @return a wxString (aTest + key name) if key found or aText without modification
  */
 wxString        AddHotkeyName( const wxString&                        aText,
@@ -109,23 +119,36 @@ wxString        AddHotkeyName( const wxString&                        aText,
                                int                                    aCommandId,
                                bool                                   aIsShortCut = true);
 
-/** function DisplayHotkeyList
+/**
+ * Function DisplayHotkeyList
  * Displays the current hotkey list
  * @param aFrame = current active frame
- * @param aList = pointer to a Ki_HotkeyInfoSectionDescriptor list
- *(Null terminated)
- * @return none
+ * @param aList = pointer to a Ki_HotkeyInfoSectionDescriptor list (Null terminated)
  */
-void            DisplayHotkeyList( WinEDA_DrawFrame*                      aFrame,
+void            DisplayHotkeyList( EDA_DRAW_FRAME*                        aFrame,
                                    struct Ki_HotkeyInfoSectionDescriptor* aList );
 
-/** function GetDescriptorFromHotkey
+/**
+ * Function GetDescriptorFromHotkey
  * Return a Ki_HotkeyInfo * pointer fron a key code for OnHotKey() function
  * @param aKey = key code (ascii value, or wxWidgets value for function keys
  * @param aList = pointer to a Ki_HotkeyInfo list of commands
  * @return the corresponding Ki_HotkeyInfo pointer from the Ki_HotkeyInfo List
  */
 Ki_HotkeyInfo*  GetDescriptorFromHotkey( int aKey, Ki_HotkeyInfo** aList );
+
+/**
+ * Function ReadHotkeyConfig
+ * Read hotkey configuration for a given app,
+ * possibly before the frame for that app has been created
+ * @param Appname = the value of the app's m_FrameName
+ * @param aDescList = the hotkey data
+*/
+void            ReadHotkeyConfig( const wxString&                        Appname,
+                                  struct Ki_HotkeyInfoSectionDescriptor* aDescList );
+
+void            ParseHotkeyConfig( const wxString&                        data,
+                                   struct Ki_HotkeyInfoSectionDescriptor* aDescList );
 
 
 // common hotkeys event id
@@ -139,8 +162,8 @@ enum common_hotkey_id_commnand {
     HK_ZOOM_REDRAW,
     HK_ZOOM_CENTER,
     HK_ZOOM_AUTO,
-	HK_UNDO,
-	HK_REDO,
+    HK_UNDO,
+    HK_REDO,
     HK_COMMON_END
 };
 

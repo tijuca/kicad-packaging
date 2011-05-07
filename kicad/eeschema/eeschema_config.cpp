@@ -1,55 +1,70 @@
-/******************/
-/** eeconfig.cpp **/
-/******************/
+/**
+ * @file eeschema_config.cpp
+ */
 
 #include "fctsys.h"
 #include "appl_wxstruct.h"
-#include "gr_basic.h"
 #include "common.h"
-#include "eeschema_id.h"
 #include "class_drawpanel.h"
 #include "confirm.h"
 #include "gestfich.h"
-#include "program.h"
+#include "wxEeschemaStruct.h"
+
+#include "eeschema_id.h"
 #include "general.h"
+#include "netlist_control.h"
 #include "protos.h"
 #include "libeditframe.h"
 #include "eeschema_config.h"
 #include "worksheet.h"
 #include "hotkeys.h"
-#include "dialog_eeschema_options.h"
+#include "sch_sheet.h"
+
+#include "dialog_hotkeys_editor.h"
+
+#include "dialogs/dialog_color_config.h"
+#include "dialogs/dialog_eeschema_config.h"
+#include "dialogs/dialog_eeschema_options.h"
 
 #include <wx/fdrepdlg.h>
 
 
-#define HOTKEY_FILENAME wxT( "eeschema" )
+#define HOTKEY_FILENAME         wxT( "eeschema" )
 
-#define FR_HISTORY_LIST_CNT 10   ///< Maximum number of find and replace strings.
+#define FR_HISTORY_LIST_CNT     10   ///< Maximum number of find and replace strings.
 
-void WinEDA_LibeditFrame::Process_Config( wxCommandEvent& event )
+
+void LIB_EDIT_FRAME::InstallConfigFrame( wxCommandEvent& event )
+{
+    DIALOG_EESCHEMA_CONFIG CfgFrame( (SCH_EDIT_FRAME *)GetParent(), this );
+
+    CfgFrame.ShowModal();
+}
+
+
+void LIB_EDIT_FRAME::OnColorConfig( wxCommandEvent& aEvent )
+{
+    DIALOG_COLOR_CONFIG dlg( this );
+
+    dlg.ShowModal();
+}
+
+
+void LIB_EDIT_FRAME::Process_Config( wxCommandEvent& event )
 {
     int        id = event.GetId();
-    wxPoint    pos;
     wxFileName fn;
-    WinEDA_SchematicFrame * schFrame = (WinEDA_SchematicFrame *) GetParent();
-
-    wxGetMousePosition( &pos.x, &pos.y );
-
-    pos.y += 5;
+    SCH_EDIT_FRAME* schFrame = ( SCH_EDIT_FRAME* ) GetParent();
 
     switch( id )
     {
-    case ID_COLORS_SETUP:
-        DisplayColorSetupFrame( this, pos );
-        break;
-
     case ID_CONFIG_SAVE:
         schFrame->SaveProjectFile( this, false );
         break;
 
     case ID_CONFIG_READ:
     {
-        fn = g_RootSheet->m_AssociatedScreen->m_FileName;
+        fn = g_RootSheet->GetScreen()->GetFileName();
         fn.SetExt( ProjectFileExtension );
 
         wxFileDialog dlg( this, _( "Read Project File" ), fn.GetPath(),
@@ -65,30 +80,16 @@ void WinEDA_LibeditFrame::Process_Config( wxCommandEvent& event )
 
 
     /* Hotkey IDs */
-    case ID_PREFERENCES_HOTKEY_CREATE_CONFIG:
-        fn = wxFileName( ReturnHotkeyConfigFilePath( g_ConfigFileLocationChoice ),
-                         HOTKEY_FILENAME,
-                         DEFAULT_HOTKEY_FILENAME_EXT );
-        WriteHotkeyConfigFile( fn.GetFullPath(), s_Eeschema_Hokeys_Descr, true );
+    case ID_PREFERENCES_HOTKEY_SHOW_EDITOR:
+        InstallHotkeyFrame( this, s_Eeschema_Hokeys_Descr );
         break;
 
-    case ID_PREFERENCES_HOTKEY_READ_CONFIG:
-        Read_Hotkey_Config( this, true );
+    case ID_PREFERENCES_HOTKEY_EXPORT_CONFIG:
+        ExportHotkeyConfigToFile( s_Eeschema_Hokeys_Descr );
         break;
 
-    case ID_PREFERENCES_HOTKEY_EDIT_CONFIG:
-    {
-        fn = wxFileName( ReturnHotkeyConfigFilePath( g_ConfigFileLocationChoice ),
-                         HOTKEY_FILENAME, DEFAULT_HOTKEY_FILENAME_EXT );
-        wxString editorname = wxGetApp().GetEditorName();
-        if( !editorname.IsEmpty() )
-            ExecuteFile( this, editorname, QuoteFullPath( fn ) );
-    }
-    break;
-
-    case ID_PREFERENCES_HOTKEY_PATH_IS_HOME:
-    case ID_PREFERENCES_HOTKEY_PATH_IS_KICAD:
-        HandleHotkeyConfigMenuSelection( this, id );
+    case ID_PREFERENCES_HOTKEY_IMPORT_CONFIG:
+        ImportHotkeyConfigFromFile( s_Eeschema_Hokeys_Descr );
         break;
 
     case ID_PREFERENCES_HOTKEY_SHOW_CURRENT_LIST:
@@ -97,35 +98,41 @@ void WinEDA_LibeditFrame::Process_Config( wxCommandEvent& event )
         break;
 
     default:
-        DisplayError( this, wxT( "WinEDA_LibeditFrame::Process_Config error" ) );
+        DisplayError( this, wxT( "LIB_EDIT_FRAME::Process_Config error" ) );
     }
 }
 
 
+void SCH_EDIT_FRAME::OnColorConfig( wxCommandEvent& aEvent )
+{
+    DIALOG_COLOR_CONFIG dlg( this );
 
-void WinEDA_SchematicFrame::Process_Config( wxCommandEvent& event )
+    dlg.ShowModal();
+}
+
+
+void SCH_EDIT_FRAME::InstallConfigFrame( wxCommandEvent& event )
+{
+    DIALOG_EESCHEMA_CONFIG CfgFrame( this, this );
+
+    CfgFrame.ShowModal();
+}
+
+
+void SCH_EDIT_FRAME::Process_Config( wxCommandEvent& event )
 {
     int        id = event.GetId();
-    wxPoint    pos;
     wxFileName fn;
-
-    wxGetMousePosition( &pos.x, &pos.y );
-
-    pos.y += 5;
 
     switch( id )
     {
-    case ID_COLORS_SETUP:
-        DisplayColorSetupFrame( this, pos );
-        break;
-
     case ID_CONFIG_SAVE:
         SaveProjectFile( this, false );
         break;
 
     case ID_CONFIG_READ:
     {
-        fn = g_RootSheet->m_AssociatedScreen->m_FileName;
+        fn = g_RootSheet->GetScreen()->GetFileName();
         fn.SetExt( ProjectFileExtension );
 
         wxFileDialog dlg( this, _( "Read Project File" ), fn.GetPath(),
@@ -141,30 +148,16 @@ void WinEDA_SchematicFrame::Process_Config( wxCommandEvent& event )
 
 
     /* Hotkey IDs */
-    case ID_PREFERENCES_HOTKEY_CREATE_CONFIG:
-        fn = wxFileName( ReturnHotkeyConfigFilePath( g_ConfigFileLocationChoice ),
-                         HOTKEY_FILENAME,
-                         DEFAULT_HOTKEY_FILENAME_EXT );
-        WriteHotkeyConfigFile( fn.GetFullPath(), s_Eeschema_Hokeys_Descr, true );
+    case ID_PREFERENCES_HOTKEY_EXPORT_CONFIG:
+        ExportHotkeyConfigToFile( s_Eeschema_Hokeys_Descr );
         break;
 
-    case ID_PREFERENCES_HOTKEY_READ_CONFIG:
-        Read_Hotkey_Config( this, true );
+    case ID_PREFERENCES_HOTKEY_IMPORT_CONFIG:
+        ImportHotkeyConfigFromFile( s_Eeschema_Hokeys_Descr );
         break;
 
-    case ID_PREFERENCES_HOTKEY_EDIT_CONFIG:
-    {
-        fn = wxFileName( ReturnHotkeyConfigFilePath( g_ConfigFileLocationChoice ),
-                         HOTKEY_FILENAME, DEFAULT_HOTKEY_FILENAME_EXT );
-        wxString editorname = wxGetApp().GetEditorName();
-        if( !editorname.IsEmpty() )
-            ExecuteFile( this, editorname, QuoteFullPath( fn ) );
-    }
-    break;
-
-    case ID_PREFERENCES_HOTKEY_PATH_IS_HOME:
-    case ID_PREFERENCES_HOTKEY_PATH_IS_KICAD:
-        HandleHotkeyConfigMenuSelection( this, id );
+    case ID_PREFERENCES_HOTKEY_SHOW_EDITOR:
+        InstallHotkeyFrame( this, s_Eeschema_Hokeys_Descr );
         break;
 
     case ID_PREFERENCES_HOTKEY_SHOW_CURRENT_LIST:
@@ -173,25 +166,25 @@ void WinEDA_SchematicFrame::Process_Config( wxCommandEvent& event )
         break;
 
     default:
-        DisplayError( this, wxT( "WinEDA_SchematicFrame::Process_Config error" ) );
+        DisplayError( this, wxT( "SCH_EDIT_FRAME::Process_Config error" ) );
     }
 }
 
 
-void WinEDA_SchematicFrame::OnSetOptions( wxCommandEvent& event )
+void SCH_EDIT_FRAME::OnSetOptions( wxCommandEvent& event )
 {
     wxArrayString units;
-    GridArray& grid_list = GetBaseScreen()->m_GridList;
+    GRIDS grid_list;
+
+    GetScreen()->GetGrids( grid_list );
 
     DIALOG_EESCHEMA_OPTIONS dlg( this );
 
-    wxLogDebug( wxT( "Current grid array index %d." ),
-                grid_list.Index( GetBaseScreen()->GetGrid() ) );
     units.Add( GetUnitsLabel( INCHES ) );
-    units.Add( GetUnitsLabel( MILLIMETRE ) );
+    units.Add( GetUnitsLabel( MILLIMETRES ) );
 
-    dlg.SetUnits( units, g_UnitMetric );
-    dlg.SetGridSizes( grid_list, GetBaseScreen()->GetGridId() );
+    dlg.SetUnits( units, g_UserUnit );
+    dlg.SetGridSizes( grid_list, GetScreen()->GetGridId() );
     dlg.SetLineWidth( g_DrawDefaultLineThickness );
     dlg.SetTextSize( g_DefaultTextLabelSize );
     dlg.SetRepeatHorizontal( g_RepeatStep.x );
@@ -206,12 +199,22 @@ void WinEDA_SchematicFrame::OnSetOptions( wxCommandEvent& event )
     dlg.Fit();
     dlg.SetMinSize( dlg.GetSize() );
 
+    const TEMPLATE_FIELDNAMES&  tfnames = m_TemplateFieldNames.GetTemplateFieldNames();
+
+    for( unsigned i=0; i<tfnames.size(); ++i )
+    {
+        D(printf("dlg.SetFieldName(%d, '%s')\n", i, TO_UTF8( tfnames[i].m_Name) );)
+
+        dlg.SetFieldName( i, tfnames[i].m_Name );
+    }
+
     if( dlg.ShowModal() == wxID_CANCEL )
         return;
 
-    g_UnitMetric = dlg.GetUnitsSelection();
-    GetBaseScreen()->SetGrid(
-        grid_list[ (size_t) dlg.GetGridSelection() ].m_Size );
+    g_UserUnit = (UserUnitType)dlg.GetUnitsSelection();
+
+    GetScreen()->SetGrid( grid_list[ (size_t) dlg.GetGridSelection() ].m_Size );
+
     g_DrawDefaultLineThickness = dlg.GetLineWidth();
     g_DefaultTextLabelSize = dlg.GetTextSize();
     g_RepeatStep.x = dlg.GetRepeatHorizontal();
@@ -222,26 +225,29 @@ void WinEDA_SchematicFrame::OnSetOptions( wxCommandEvent& event )
     DrawPanel->m_AutoPAN_Enable = dlg.GetEnableAutoPan();
     g_HVLines = dlg.GetEnableHVBusOrientation();
     g_ShowPageLimits = dlg.GetShowPageLimits();
+
+    wxString templateFieldName;
+
+    // @todo this will change when the template field editor is redone to
+    // look like the component field property editor, showing visibility and value also
+
+    DeleteAllTemplateFieldNames();
+
+    for( int i=0; i<8; ++i )    // no. fields in this dialog window
+    {
+        templateFieldName = dlg.GetFieldName( i );
+
+        if( !templateFieldName.IsEmpty() )
+        {
+            TEMPLATE_FIELDNAME  fld( dlg.GetFieldName( i ) );
+
+            // @todo set visibility and value also from a better editor
+
+            AddTemplateFieldName( fld );
+        }
+    }
+
     DrawPanel->Refresh( true );
-}
-
-
-/*
- * Read the hotkey files config for eeschema and libedit
- */
-bool Read_Hotkey_Config( WinEDA_DrawFrame* frame, bool verbose )
-{
-    wxString FullFileName = ReturnHotkeyConfigFilePath(
-        g_ConfigFileLocationChoice );
-
-    FullFileName += HOTKEY_FILENAME;
-    FullFileName += wxT( "." );
-    FullFileName += DEFAULT_HOTKEY_FILENAME_EXT;
-    frame->ReadHotkeyConfigFile( FullFileName,
-                                 s_Eeschema_Hokeys_Descr,
-                                 verbose );
-
-    return TRUE;
 }
 
 
@@ -254,12 +260,12 @@ bool Read_Hotkey_Config( WinEDA_DrawFrame* frame, bool verbose )
  * to define local variables.  The old method of statically building the array
  * at compile time requiring global variable definitions.
  */
-PARAM_CFG_ARRAY& WinEDA_SchematicFrame::GetProjectFileParameters( void )
+PARAM_CFG_ARRAY& SCH_EDIT_FRAME::GetProjectFileParameters( void )
 {
     if( !m_projectFileParams.empty() )
         return m_projectFileParams;
 
-    m_projectFileParams.push_back( new PARAM_CFG_WXSTRING( wxT( "LibDir" ),
+    m_projectFileParams.push_back( new PARAM_CFG_FILENAME( wxT( "LibDir" ),
                                                            &m_UserLibraryPath ) );
     m_projectFileParams.push_back( new PARAM_CFG_LIBNAME_LIST( wxT( "LibName" ),
                                                                &m_ComponentLibFiles,
@@ -329,19 +335,10 @@ PARAM_CFG_ARRAY& WinEDA_SchematicFrame::GetProjectFileParameters( void )
     m_projectFileParams.push_back( new PARAM_CFG_INT( wxT( "RptLab" ),
                                                       &g_RepeatDeltaLabel,
                                                       1, -10, +10 ) );
-    m_projectFileParams.push_back( new PARAM_CFG_WXSTRING( wxT( "SimCmd" ),
-                                                           &g_SimulatorCommandLine ) );
-    m_projectFileParams.push_back( new PARAM_CFG_INT( wxT( "UseNetN" ),
-                                                      &g_OptNetListUseNames,
-                                                      0, 0, 1 ) );
     m_projectFileParams.push_back( new PARAM_CFG_INT( wxT( "LabSize" ),
                                                       &g_DefaultTextLabelSize,
                                                       DEFAULT_SIZE_TEXT, 0,
                                                       1000 ) );
-    m_projectFileParams.push_back( new PARAM_CFG_BOOL( wxT( "PrintMonochrome" ),
-                                                       &m_printMonochrome, true ) );
-    m_projectFileParams.push_back( new PARAM_CFG_BOOL( wxT( "ShowSheetReferenceAndTitleBlock" ),
-                                                       &m_showSheetReference, true ) );
 
     return m_projectFileParams;
 }
@@ -350,15 +347,14 @@ PARAM_CFG_ARRAY& WinEDA_SchematicFrame::GetProjectFileParameters( void )
 /*
  * Load the Kicad project file (*.pro) settings specific to EESchema.
  */
-bool WinEDA_SchematicFrame::LoadProjectFile( const wxString& CfgFileName,
-                                             bool ForceRereadConfig )
+bool SCH_EDIT_FRAME::LoadProjectFile( const wxString& CfgFileName, bool ForceRereadConfig )
 {
     wxFileName              fn;
     bool                    IsRead = TRUE;
     wxArrayString           liblist_tmp = m_ComponentLibFiles;
 
     if( CfgFileName.IsEmpty() )
-        fn = g_RootSheet->m_AssociatedScreen->m_FileName;
+        fn = g_RootSheet->GetScreen()->GetFileName();
     else
         fn = CfgFileName;
 
@@ -388,7 +384,7 @@ bool WinEDA_SchematicFrame::LoadProjectFile( const wxString& CfgFileName,
         m_ComponentLibFiles.Add( wxT( "power" ) );
 
     LoadLibraries();
-    GetBaseScreen()->SetGrid( ID_POPUP_GRID_LEVEL_1000 + m_LastGridSizeId  );
+    GetScreen()->SetGrid( ID_POPUP_GRID_LEVEL_1000 + m_LastGridSizeId  );
 
     return IsRead;
 }
@@ -397,11 +393,11 @@ bool WinEDA_SchematicFrame::LoadProjectFile( const wxString& CfgFileName,
 /*
  * Save the Kicad project file (*.pro) settings specific to EESchema.
  */
-void WinEDA_SchematicFrame::SaveProjectFile( wxWindow* displayframe, bool askoverwrite )
+void SCH_EDIT_FRAME::SaveProjectFile( wxWindow* displayframe, bool askoverwrite )
 {
     wxFileName fn;
 
-    fn = g_RootSheet->m_AssociatedScreen->m_FileName  /*ConfigFileName*/;
+    fn = g_RootSheet->GetScreen()->GetFileName();  /*ConfigFileName*/
     fn.SetExt( ProjectFileExtension );
 
     int options = wxFD_SAVE;
@@ -413,8 +409,7 @@ void WinEDA_SchematicFrame::SaveProjectFile( wxWindow* displayframe, bool askove
     if( dlg.ShowModal() == wxID_CANCEL )
         return;
 
-    wxGetApp().WriteProjectConfig( dlg.GetPath(), GROUP,
-                                   GetProjectFileParameters() );
+    wxGetApp().WriteProjectConfig( dlg.GetPath(), GROUP, GetProjectFileParameters() );
 }
 
 
@@ -438,7 +433,9 @@ static const wxString FindStringEntry( wxT( "LastFindString" ) );
 static const wxString ReplaceStringEntry( wxT( "LastReplaceString" ) );
 static const wxString FindStringHistoryEntry( wxT( "FindStringHistoryList%d" ) );
 static const wxString ReplaceStringHistoryEntry( wxT( "ReplaceStringHistoryList%d" ) );
-
+static const wxString FieldNamesEntry( wxT( "FieldNames" ) );
+static const wxString SpiceNetNamesEntry( wxT( "SpiceUseNetNames" ) );
+static const wxString SimulatorCommandEntry( wxT( "SimCmdLine" ) );
 
 /*
  * Return the EESchema applications settings list.
@@ -456,13 +453,13 @@ static const wxString ReplaceStringHistoryEntry( wxT( "ReplaceStringHistoryList%
  *       global variables or move them to the object class where they are
  *       used.
  */
-PARAM_CFG_ARRAY& WinEDA_SchematicFrame::GetConfigurationSettings( void )
+PARAM_CFG_ARRAY& SCH_EDIT_FRAME::GetConfigurationSettings( void )
 {
     if( !m_configSettings.empty() )
         return m_configSettings;
 
-    m_configSettings.push_back( new PARAM_CFG_INT( true, wxT( "Unite" ),
-                                                   &g_UnitMetric, 0, 0, 1 ) );
+    m_configSettings.push_back( new PARAM_CFG_INT( wxT( "Unite" ),
+                                                   (int*)&g_UserUnit, 0 ) );
     m_configSettings.push_back( new PARAM_CFG_SETCOLOR( true, wxT( "ColWire" ),
                                                         &g_LayerDescr.LayerColor[LAYER_WIRE],
                                                         GREEN ) );
@@ -536,6 +533,13 @@ PARAM_CFG_ARRAY& WinEDA_SchematicFrame::GetConfigurationSettings( void )
     m_configSettings.push_back( new PARAM_CFG_SETCOLOR( true, wxT( "ColorErcE" ),
                                                         &g_LayerDescr.LayerColor[LAYER_ERC_ERR],
                                                         RED ) );
+    m_configSettings.push_back( new PARAM_CFG_SETCOLOR( true, wxT( "ColorGrid" ),
+                                                        &g_LayerDescr.LayerColor[LAYER_GRID],
+                                                        DARKGRAY ) );
+    m_configSettings.push_back( new PARAM_CFG_BOOL( true, wxT( "PrintMonochrome" ),
+                                                    &m_printMonochrome, true ) );
+    m_configSettings.push_back( new PARAM_CFG_BOOL( true, wxT( "PrintSheetReferenceAndTitleBlock" ),
+                                                    &m_printSheetReference, true ) );
 
     return m_configSettings;
 }
@@ -544,7 +548,7 @@ PARAM_CFG_ARRAY& WinEDA_SchematicFrame::GetConfigurationSettings( void )
 /*
  * Load the EESchema configuration parameters.
  */
-void WinEDA_SchematicFrame::LoadSettings()
+void SCH_EDIT_FRAME::LoadSettings()
 {
     wxASSERT( wxGetApp().m_EDA_Config != NULL );
 
@@ -552,12 +556,14 @@ void WinEDA_SchematicFrame::LoadSettings()
 
     wxConfig* cfg = wxGetApp().m_EDA_Config;
 
-    WinEDA_DrawFrame::LoadSettings();
+    EDA_DRAW_FRAME::LoadSettings();
 
     wxGetApp().ReadCurrentSetupValues( GetConfigurationSettings() );
 
-    g_DrawDefaultLineThickness = cfg->Read( DefaultDrawLineWidthEntry,
-                                            (long) 6 );
+    // This is eqired until someone gets rid of the global variable g_LayerDescription().
+    m_GridColor = g_LayerDescr.LayerColor[LAYER_GRID];
+
+    g_DrawDefaultLineThickness = cfg->Read( DefaultDrawLineWidthEntry,(long) 6 );
     cfg->Read( ShowHiddenPinsEntry, &m_ShowAllPins, false );
     cfg->Read( HorzVertLinesOnlyEntry, &g_HVLines, true );
 
@@ -580,6 +586,10 @@ void WinEDA_SchematicFrame::LoadSettings()
     m_printDialogSize.SetWidth( (int) tmp );
     cfg->Read( PrintDialogHeightEntry, &tmp, -1 );
     m_printDialogSize.SetHeight( (int) tmp );
+
+    // Load netlists options:
+    cfg->Read( SpiceNetNamesEntry,  &g_OptNetListUseNames, false );
+    cfg->Read( SimulatorCommandEntry, &g_SimulatorCommandLine );
 
     /* Load find dialog session setting. */
     cfg->Read( FindDialogPositionXEntry, &tmp, -1 );
@@ -614,19 +624,36 @@ void WinEDA_SchematicFrame::LoadSettings()
         if( !tmpHistory.IsEmpty() )
             m_replaceStringHistoryList.Add( tmpHistory );
     }
+
+    wxString templateFieldNames = cfg->Read( FieldNamesEntry, wxEmptyString );
+
+    if( !templateFieldNames.IsEmpty() )
+    {
+        TEMPLATE_FIELDNAMES_LEXER  lexer( TO_UTF8( templateFieldNames ) );
+        try
+        {
+            m_TemplateFieldNames.Parse( &lexer );
+        }
+        catch( IO_ERROR& e )
+        {
+            // @todo show error msg
+            D( printf( "templatefieldnames parsing error: '%s'\n",
+                       TO_UTF8( e.errorText ) ); )
+        }
+    }
 }
 
 
 /*
  * Save the EESchema configuration parameters.
  */
-void WinEDA_SchematicFrame::SaveSettings()
+void SCH_EDIT_FRAME::SaveSettings()
 {
     wxASSERT( wxGetApp().m_EDA_Config != NULL );
 
     wxConfig* cfg = wxGetApp().m_EDA_Config;
 
-    WinEDA_DrawFrame::SaveSettings();
+    EDA_DRAW_FRAME::SaveSettings();
 
     wxGetApp().SaveCurrentSetupValues( GetConfigurationSettings() );
 
@@ -646,6 +673,10 @@ void WinEDA_SchematicFrame::SaveSettings()
     cfg->Write( PrintDialogWidthEntry, m_printDialogSize.GetWidth() );
     cfg->Write( PrintDialogHeightEntry, m_printDialogSize.GetHeight() );
 
+    // Save netlists options:
+    cfg->Write( SpiceNetNamesEntry,  g_OptNetListUseNames );
+    cfg->Write( SimulatorCommandEntry, g_SimulatorCommandLine );
+
     /* Save find dialog session setting. */
     cfg->Write( FindDialogPositionXEntry, m_findDialogPosition.x );
     cfg->Write( FindDialogPositionYEntry, m_findDialogPosition.y );
@@ -660,7 +691,7 @@ void WinEDA_SchematicFrame::SaveSettings()
     /* Save the find and replace string history list. */
     size_t i;
     wxString tmpHistory;
-    wxString entry;
+    wxString entry;     // invoke constructor outside of any loops
 
     for ( i = 0; i < m_findStringHistoryList.GetCount() && i < FR_HISTORY_LIST_CNT; i++ )
     {
@@ -673,4 +704,16 @@ void WinEDA_SchematicFrame::SaveSettings()
         entry.Printf( ReplaceStringHistoryEntry, i );
         cfg->Write( entry, m_replaceStringHistoryList[ i ] );
     }
+
+    // Save template fieldnames
+    STRING_FORMATTER sf;
+
+    m_TemplateFieldNames.Format( &sf, 0 );
+
+    wxString record = FROM_UTF8( sf.GetString().c_str() );
+    record.Replace( wxT("\n"), wxT(""), true );   // strip all newlines
+    record.Replace( wxT("  "), wxT(" "), true );  // double space to single
+
+    cfg->Write( FieldNamesEntry, record );
 }
+

@@ -12,10 +12,13 @@
 #include "bitmaps.h"
 
 #include "cvpcb.h"
-#include "protos.h"
+#include "cvpcb_mainframe.h"
 #include "cvstruct.h"
 #include "dialog_cvpcb_config.h"
 #include "class_DisplayFootprintsFrame.h"
+#include "cvpcb_id.h"
+#include "dialog_load_error.h"
+
 
 #include "build_version.h"
 
@@ -28,80 +31,78 @@ static const wxString KeepCvpcbOpenEntry( wxT( "KeepCvpcbOpen" ) );
 static const wxString FootprintDocFileEntry( wxT( "footprints_doc_file" ) );
 
 
-BEGIN_EVENT_TABLE( WinEDA_CvpcbFrame, WinEDA_BasicFrame )
-    EVT_MENU_RANGE( wxID_FILE1, wxID_FILE9, WinEDA_CvpcbFrame::LoadNetList )
+BEGIN_EVENT_TABLE( CVPCB_MAINFRAME, EDA_BASE_FRAME )
+    EVT_MENU_RANGE( wxID_FILE1, wxID_FILE9, CVPCB_MAINFRAME::LoadNetList )
 
     // Menu events
     EVT_MENU( ID_LOAD_PROJECT,
-              WinEDA_CvpcbFrame::LoadNetList )
+              CVPCB_MAINFRAME::LoadNetList )
     EVT_MENU( ID_SAVE_PROJECT,
-              WinEDA_CvpcbFrame::SaveQuitCvpcb )
+              CVPCB_MAINFRAME::SaveQuitCvpcb )
     EVT_MENU( wxID_EXIT,
-              WinEDA_CvpcbFrame::OnQuit )
-    EVT_MENU( ID_GENERAL_HELP,
-              WinEDA_CvpcbFrame::GetKicadHelp )
-    EVT_MENU( ID_KICAD_ABOUT,
-              WinEDA_CvpcbFrame::GetKicadAbout )
-    EVT_MENU( ID_CONFIG_REQ,
-              WinEDA_CvpcbFrame::ConfigCvpcb )
+              CVPCB_MAINFRAME::OnQuit )
+    EVT_MENU( wxID_HELP,
+              CVPCB_MAINFRAME::GetKicadHelp )
+    EVT_MENU( wxID_ABOUT,
+              CVPCB_MAINFRAME::GetKicadAbout )
+    EVT_MENU( wxID_PREFERENCES,
+              CVPCB_MAINFRAME::ConfigCvpcb )
     EVT_MENU( ID_CONFIG_SAVE,
-              WinEDA_CvpcbFrame::Update_Config )
+              CVPCB_MAINFRAME::Update_Config )
     EVT_MENU( ID_CVPCB_CONFIG_KEEP_OPEN_ON_SAVE,
-              WinEDA_CvpcbFrame::OnKeepOpenOnSave )
+              CVPCB_MAINFRAME::OnKeepOpenOnSave )
 
     EVT_MENU_RANGE( ID_LANGUAGE_CHOICE,
                     ID_LANGUAGE_CHOICE_END,
-                    WinEDA_CvpcbFrame::SetLanguage )
+                    CVPCB_MAINFRAME::SetLanguage )
 
     // Toolbar events
     EVT_TOOL( ID_CVPCB_QUIT,
-              WinEDA_CvpcbFrame::OnQuit )
+              CVPCB_MAINFRAME::OnQuit )
     EVT_TOOL( ID_CVPCB_READ_INPUT_NETLIST,
-              WinEDA_CvpcbFrame::LoadNetList )
+              CVPCB_MAINFRAME::LoadNetList )
     EVT_TOOL( ID_CVPCB_SAVEQUITCVPCB,
-              WinEDA_CvpcbFrame::SaveQuitCvpcb )
+              CVPCB_MAINFRAME::SaveQuitCvpcb )
     EVT_TOOL( ID_CVPCB_CREATE_CONFIGWINDOW,
-              WinEDA_CvpcbFrame::ConfigCvpcb )
+              CVPCB_MAINFRAME::ConfigCvpcb )
     EVT_TOOL( ID_CVPCB_CREATE_SCREENCMP,
-              WinEDA_CvpcbFrame::DisplayModule )
+              CVPCB_MAINFRAME::DisplayModule )
     EVT_TOOL( ID_CVPCB_GOTO_FIRSTNA,
-              WinEDA_CvpcbFrame::ToFirstNA )
+              CVPCB_MAINFRAME::ToFirstNA )
     EVT_TOOL( ID_CVPCB_GOTO_PREVIOUSNA,
-              WinEDA_CvpcbFrame::ToPreviousNA )
+              CVPCB_MAINFRAME::ToPreviousNA )
     EVT_TOOL( ID_CVPCB_DEL_ASSOCIATIONS,
-              WinEDA_CvpcbFrame::DelAssociations )
+              CVPCB_MAINFRAME::DelAssociations )
     EVT_TOOL( ID_CVPCB_AUTO_ASSOCIE,
-              WinEDA_CvpcbFrame::AssocieModule )
+              CVPCB_MAINFRAME::AssocieModule )
     EVT_TOOL( ID_CVPCB_CREATE_STUFF_FILE,
-              WinEDA_CvpcbFrame::WriteStuffList )
+              CVPCB_MAINFRAME::WriteStuffList )
     EVT_TOOL( ID_PCB_DISPLAY_FOOTPRINT_DOC,
-              WinEDA_CvpcbFrame::DisplayDocFile )
+              CVPCB_MAINFRAME::DisplayDocFile )
     EVT_TOOL( ID_CVPCB_FOOTPRINT_DISPLAY_FILTERED_LIST,
-              WinEDA_CvpcbFrame::OnSelectFilteringFootprint )
+              CVPCB_MAINFRAME::OnSelectFilteringFootprint )
     EVT_TOOL( ID_CVPCB_FOOTPRINT_DISPLAY_FULL_LIST,
-              WinEDA_CvpcbFrame::OnSelectFilteringFootprint )
+              CVPCB_MAINFRAME::OnSelectFilteringFootprint )
 
     // Frame events
-    EVT_CHAR( WinEDA_CvpcbFrame::OnChar )
-    EVT_CLOSE( WinEDA_CvpcbFrame::OnCloseWindow )
-    EVT_SIZE( WinEDA_CvpcbFrame::OnSize )
+    EVT_CHAR( CVPCB_MAINFRAME::OnChar )
+    EVT_CLOSE( CVPCB_MAINFRAME::OnCloseWindow )
+    EVT_SIZE( CVPCB_MAINFRAME::OnSize )
 
     // List item events
     EVT_LIST_ITEM_SELECTED( ID_CVPCB_FOOTPRINT_LIST,
-                            WinEDA_CvpcbFrame::OnLeftClick )
+                            CVPCB_MAINFRAME::OnLeftClick )
     EVT_LIST_ITEM_ACTIVATED( ID_CVPCB_FOOTPRINT_LIST,
-                             WinEDA_CvpcbFrame::OnLeftDClick )
+                             CVPCB_MAINFRAME::OnLeftDClick )
     EVT_LIST_ITEM_SELECTED( ID_CVPCB_COMPONENT_LIST,
-                            WinEDA_CvpcbFrame::OnSelectComponent )
+                            CVPCB_MAINFRAME::OnSelectComponent )
 
     EVT_UPDATE_UI( ID_CVPCB_CONFIG_KEEP_OPEN_ON_SAVE,
-                   WinEDA_CvpcbFrame::OnUpdateKeepOpenOnSave )
+                   CVPCB_MAINFRAME::OnUpdateKeepOpenOnSave )
 END_EVENT_TABLE()
 
-WinEDA_CvpcbFrame::WinEDA_CvpcbFrame( const wxString& title,
-                                      long            style ) :
-    WinEDA_BasicFrame( NULL, CVPCB_FRAME, title, wxDefaultPosition,
-                       wxDefaultSize, style )
+CVPCB_MAINFRAME::CVPCB_MAINFRAME( const wxString& title, long style ) :
+    EDA_BASE_FRAME( NULL, CVPCB_FRAME, title, wxDefaultPosition, wxDefaultSize, style )
 {
     m_FrameName = wxT( "CvpcbFrame" );
 
@@ -110,11 +111,9 @@ WinEDA_CvpcbFrame::WinEDA_CvpcbFrame( const wxString& title,
     DrawFrame      = NULL;
     m_HToolBar     = NULL;
     m_modified     = false;
-    m_rightJustify = false;
     m_isEESchemaNetlist     = false;
     m_KeepCvpcbOpen         = false;
     m_undefinedComponentCnt = 0;
-
 
     /* Name of the document footprint list
      * usually located in share/modules/footprints_doc
@@ -186,7 +185,7 @@ WinEDA_CvpcbFrame::WinEDA_CvpcbFrame( const wxString& title,
 }
 
 
-WinEDA_CvpcbFrame::~WinEDA_CvpcbFrame()
+CVPCB_MAINFRAME::~CVPCB_MAINFRAME()
 {
     wxConfig* config = wxGetApp().m_EDA_Config;
 
@@ -207,13 +206,13 @@ WinEDA_CvpcbFrame::~WinEDA_CvpcbFrame()
  * Don't forget to call this base method from any derived classes or the
  * settings will not get loaded.
  */
-void WinEDA_CvpcbFrame::LoadSettings()
+void CVPCB_MAINFRAME::LoadSettings()
 {
     wxASSERT( wxGetApp().m_EDA_Config != NULL );
 
     wxConfig* cfg = wxGetApp().m_EDA_Config;
 
-    WinEDA_BasicFrame::LoadSettings();
+    EDA_BASE_FRAME::LoadSettings();
     cfg->Read( KeepCvpcbOpenEntry, &m_KeepCvpcbOpen, false );
     cfg->Read( FootprintDocFileEntry, &m_DocModulesFileName,
                DEFAULT_FOOTPRINTS_LIST_FILENAME );
@@ -226,31 +225,31 @@ void WinEDA_CvpcbFrame::LoadSettings()
  * Don't forget to call this base method from any derived classes or the
  * settings will not get saved.
  */
-void WinEDA_CvpcbFrame::SaveSettings()
+void CVPCB_MAINFRAME::SaveSettings()
 {
     wxASSERT( wxGetApp().m_EDA_Config != NULL );
 
     wxConfig* cfg = wxGetApp().m_EDA_Config;
 
-    WinEDA_BasicFrame::SaveSettings();
+    EDA_BASE_FRAME::SaveSettings();
     cfg->Write( KeepCvpcbOpenEntry, m_KeepCvpcbOpen );
     cfg->Write( FootprintDocFileEntry, m_DocModulesFileName );
 }
 
 
-void WinEDA_CvpcbFrame::OnSize( wxSizeEvent& event )
+void CVPCB_MAINFRAME::OnSize( wxSizeEvent& event )
 {
     event.Skip();
 }
 
 
-void WinEDA_CvpcbFrame::OnQuit( wxCommandEvent& event )
+void CVPCB_MAINFRAME::OnQuit( wxCommandEvent& event )
 {
     Close( TRUE );
 }
 
 
-void WinEDA_CvpcbFrame::OnCloseWindow( wxCloseEvent& Event )
+void CVPCB_MAINFRAME::OnCloseWindow( wxCloseEvent& Event )
 {
     int diag;
 
@@ -301,7 +300,7 @@ void WinEDA_CvpcbFrame::OnCloseWindow( wxCloseEvent& Event )
 
     if( m_NetlistFileName.IsOk() )
     {
-        SetLastProject( m_NetlistFileName.GetFullPath() );
+        UpdateFileHistory( m_NetlistFileName.GetFullPath() );
     }
 
     m_modified = false;
@@ -311,7 +310,7 @@ void WinEDA_CvpcbFrame::OnCloseWindow( wxCloseEvent& Event )
 }
 
 
-void WinEDA_CvpcbFrame::OnChar( wxKeyEvent& event )
+void CVPCB_MAINFRAME::OnChar( wxKeyEvent& event )
 {
     switch( event.GetKeyCode() )
     {
@@ -322,7 +321,7 @@ void WinEDA_CvpcbFrame::OnChar( wxKeyEvent& event )
 
     case WXK_RIGHT:
     case WXK_NUMPAD_RIGHT:
-        m_FootprintList->SetFocus();;
+        m_FootprintList->SetFocus();
         break;
 
     default:
@@ -332,7 +331,7 @@ void WinEDA_CvpcbFrame::OnChar( wxKeyEvent& event )
 }
 
 
-void WinEDA_CvpcbFrame::ToFirstNA( wxCommandEvent& event )
+void CVPCB_MAINFRAME::ToFirstNA( wxCommandEvent& event )
 {
     int ii = 0;
     int selection;
@@ -355,13 +354,11 @@ void WinEDA_CvpcbFrame::ToFirstNA( wxCommandEvent& event )
 
         ii++;
     }
-
-    wxBell();
     m_ListCmp->SetSelection( selection );
 }
 
 
-void WinEDA_CvpcbFrame::ToPreviousNA( wxCommandEvent& event )
+void CVPCB_MAINFRAME::ToPreviousNA( wxCommandEvent& event )
 {
     int ii;
     int selection;
@@ -384,13 +381,11 @@ void WinEDA_CvpcbFrame::ToPreviousNA( wxCommandEvent& event )
         }
         ii--;
     }
-
-    wxBell();
     m_ListCmp->SetSelection( selection );
 }
 
 
-void WinEDA_CvpcbFrame::SaveQuitCvpcb( wxCommandEvent& event )
+void CVPCB_MAINFRAME::SaveQuitCvpcb( wxCommandEvent& event )
 {
     if( SaveNetList( wxEmptyString ) > 0 )
     {
@@ -404,7 +399,7 @@ void WinEDA_CvpcbFrame::SaveQuitCvpcb( wxCommandEvent& event )
 /* Removes all associations already made
  */
 
-void WinEDA_CvpcbFrame::DelAssociations( wxCommandEvent& event )
+void CVPCB_MAINFRAME::DelAssociations( wxCommandEvent& event )
 {
     wxString Line;
 
@@ -422,9 +417,7 @@ void WinEDA_CvpcbFrame::DelAssociations( wxCommandEvent& event )
         m_undefinedComponentCnt = m_components.size();
     }
 
-    Line.Printf( _( "Components: %d (free: %d)" ), m_components.size(),
-                 m_components.size() );
-    SetStatusText( Line, 1 );
+    DisplayStatus();
 }
 
 
@@ -432,7 +425,7 @@ void WinEDA_CvpcbFrame::DelAssociations( wxCommandEvent& event )
  * Called when click on Load Netlist button or by file history menu entries
  * Read a netlist selected by user
  */
-void WinEDA_CvpcbFrame::LoadNetList( wxCommandEvent& event )
+void CVPCB_MAINFRAME::LoadNetList( wxCommandEvent& event )
 {
     wxString   oldPath;
     wxFileName newFileName;
@@ -468,8 +461,6 @@ void WinEDA_CvpcbFrame::LoadNetList( wxCommandEvent& event )
 
     if( ReadNetList() )
     {
-        SetLastProject( m_NetlistFileName.GetFullPath() );
-
         SetTitle( wxGetApp().GetTitle() + wxT( " " ) + GetBuildVersion() +
                   wxT( " " ) + m_NetlistFileName.GetFullPath() );
     }
@@ -477,12 +468,10 @@ void WinEDA_CvpcbFrame::LoadNetList( wxCommandEvent& event )
     {
         SetTitle( wxGetApp().GetTitle() + wxT( " " ) + GetBuildVersion() );
     }
-
-    ReCreateMenuBar();
 }
 
 
-void WinEDA_CvpcbFrame::ConfigCvpcb( wxCommandEvent& event )
+void CVPCB_MAINFRAME::ConfigCvpcb( wxCommandEvent& event )
 {
     DIALOG_CVPCB_CONFIG ConfigFrame( this );
 
@@ -490,49 +479,48 @@ void WinEDA_CvpcbFrame::ConfigCvpcb( wxCommandEvent& event )
 }
 
 
-void WinEDA_CvpcbFrame::OnKeepOpenOnSave( wxCommandEvent& event )
+void CVPCB_MAINFRAME::OnKeepOpenOnSave( wxCommandEvent& event )
 {
     m_KeepCvpcbOpen = event.IsChecked();
 }
 
 
-void WinEDA_CvpcbFrame::DisplayModule( wxCommandEvent& event )
+void CVPCB_MAINFRAME::DisplayModule( wxCommandEvent& event )
 {
     CreateScreenCmp();
-    DrawFrame->AdjustScrollBars();
-    DrawFrame->Recadre_Trace( FALSE );
+    DrawFrame->RedrawScreen( wxPoint( 0, 0 ), false );
 }
 
 
 /** Vitual function SetLanguage
  * called on a language menu selection
  */
-void WinEDA_CvpcbFrame::SetLanguage( wxCommandEvent& event )
+void CVPCB_MAINFRAME::SetLanguage( wxCommandEvent& event )
 {
-    WinEDA_BasicFrame::SetLanguage( event );
+    EDA_BASE_FRAME::SetLanguage( event );
 }
 
 
-void WinEDA_CvpcbFrame::DisplayDocFile( wxCommandEvent& event )
+void CVPCB_MAINFRAME::DisplayDocFile( wxCommandEvent& event )
 {
     GetAssociatedDocument( this, m_DocModulesFileName,
                            &wxGetApp().GetLibraryPathList() );
 }
 
 
-void WinEDA_CvpcbFrame::OnLeftClick( wxListEvent& event )
+void CVPCB_MAINFRAME::OnLeftClick( wxListEvent& event )
 {
     m_FootprintList->OnLeftClick( event );
 }
 
 
-void WinEDA_CvpcbFrame::OnLeftDClick( wxListEvent& event )
+void CVPCB_MAINFRAME::OnLeftDClick( wxListEvent& event )
 {
     m_FootprintList->OnLeftDClick( event );
 }
 
 
-void WinEDA_CvpcbFrame::OnSelectComponent( wxListEvent& event )
+void CVPCB_MAINFRAME::OnSelectComponent( wxListEvent& event )
 {
     int selection;
 
@@ -557,12 +545,13 @@ void WinEDA_CvpcbFrame::OnSelectComponent( wxListEvent& event )
 
     m_FootprintList->SetFootprintFilteredList( &m_components[ selection ],
                                                m_footprints );
+    DisplayStatus();
 }
 
 
 /* Select full/filtered footprint display on tool click
  */
-void WinEDA_CvpcbFrame::OnSelectFilteringFootprint( wxCommandEvent& event )
+void CVPCB_MAINFRAME::OnSelectFilteringFootprint( wxCommandEvent& event )
 {
     switch (event.GetId() )
     {
@@ -581,7 +570,77 @@ void WinEDA_CvpcbFrame::OnSelectFilteringFootprint( wxCommandEvent& event )
 }
 
 
-void WinEDA_CvpcbFrame::OnUpdateKeepOpenOnSave( wxUpdateUIEvent& event )
+void CVPCB_MAINFRAME::OnUpdateKeepOpenOnSave( wxUpdateUIEvent& event )
 {
     event.Check( m_KeepCvpcbOpen );
+}
+
+
+/** DisplayStatus()
+ * Displays info to the status line at bottom of the main frame
+ */
+void CVPCB_MAINFRAME::DisplayStatus()
+{
+    wxString msg;
+    msg.Printf( _( "Components: %d (free: %d)" ),
+                 m_components.size(), m_undefinedComponentCnt );
+    SetStatusText( msg, 0 );
+
+    SetStatusText( wxEmptyString, 1 );
+
+    if( m_FootprintList )
+    {
+        if( m_FootprintList->m_UseFootprintFullList )
+            msg.Printf( _( "Footprints (All): %d" ),
+                       m_FootprintList->m_ActiveFootprintList->GetCount() );
+        else
+            msg.Printf( _( "Footprints (filtered): %d" ),
+                       m_FootprintList->m_ActiveFootprintList->GetCount() );
+    }
+    else
+        msg.Empty();
+    SetStatusText( msg, 2 );
+}
+
+/*
+ * Read the list of libraries (*.mod files) and populates m_footprints
+ * ( list of availaible modules in libs ).
+ * for each module are stored
+ *      the module name
+ *      documentation string
+ *      associated keywords
+ */
+bool CVPCB_MAINFRAME::LoadFootprintFiles( )
+{
+    /* Check if there are footprint libraries in project file */
+    if( m_ModuleLibNames.GetCount() == 0 )
+    {
+        wxMessageBox( _( "No PCB footprint libraries are listed in the current project file." ),
+                      _( "Project File Error" ), wxOK | wxICON_ERROR );
+        return false;
+    }
+
+    m_footprints.ReadFootprintFiles(m_ModuleLibNames);
+
+    /* Display error messages, if any */
+    if( !m_footprints.m_filesNotFound.IsEmpty() || !m_footprints.m_filesInvalid.IsEmpty() )
+    {
+        DIALOG_LOAD_ERROR dialog(NULL);
+        if( !m_footprints.m_filesNotFound.IsEmpty() )
+        {
+            wxString message = _("Some files could not be found!");
+            dialog.MessageSet(message);
+            dialog.ListSet(m_footprints.m_filesNotFound);
+        }
+
+        /* Display if there are invalid files */
+        if( !m_footprints.m_filesInvalid.IsEmpty() )
+        {
+            dialog.MessageSet( _("Some files are invalid!"));
+            dialog.ListSet(m_footprints.m_filesInvalid);
+        }
+        dialog.ShowModal();
+    }
+
+    return true;
 }

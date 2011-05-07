@@ -3,18 +3,14 @@
 /***************************************/
 
 #include "fctsys.h"
-#include "gr_basic.h"
 #include "common.h"
 #include "class_drawpanel.h"
-#include "confirm.h"
 #include "pcbnew.h"
 #include "wxPcbStruct.h"
 #include "autorout.h"
 #include "cell.h"
 #include "zones.h"
 #include "class_board_design_settings.h"
-
-#include "protos.h"
 
 
 int E_scale;         /* Scaling factor of distance tables. */
@@ -27,11 +23,11 @@ int ClosNodes;       /* total number of nodes closed */
 int MoveNodes;       /* total number of nodes moved */
 int MaxNodes;        /* maximum number of nodes opened at one time */
 
-BOARDHEAD Board;     /* 2-sided board */
+MATRIX_ROUTING_HEAD Board;     /* 2-sided board */
 
 
 /* init board, route traces*/
-void WinEDA_PcbFrame::Autoroute( wxDC* DC, int mode )
+void PCB_EDIT_FRAME::Autoroute( wxDC* DC, int mode )
 {
     int      start, stop;
     MODULE*  Module = NULL;
@@ -41,8 +37,8 @@ void WinEDA_PcbFrame::Autoroute( wxDC* DC, int mode )
 
     if( GetBoard()->GetCopperLayerCount() > 1 )
     {
-        Route_Layer_TOP    = ((PCB_SCREEN*)GetScreen())->m_Route_Layer_TOP;
-        Route_Layer_BOTTOM = ((PCB_SCREEN*)GetScreen())->m_Route_Layer_BOTTOM;
+        Route_Layer_TOP    = GetScreen()->m_Route_Layer_TOP;
+        Route_Layer_BOTTOM = GetScreen()->m_Route_Layer_BOTTOM;
     }
     else
     {
@@ -68,7 +64,7 @@ void WinEDA_PcbFrame::Autoroute( wxDC* DC, int mode )
         }
         if( autoroute_net_code <= 0 )
         {
-            DisplayError( this, _( "Net not selected" ) ); return;
+            wxMessageBox( _( "Net not selected" ) ); return;
         }
         break;
 
@@ -76,7 +72,7 @@ void WinEDA_PcbFrame::Autoroute( wxDC* DC, int mode )
         Module = (MODULE*) GetScreen()->GetCurItem();
         if( (Module == NULL) || (Module->Type() != TYPE_MODULE) )
         {
-            DisplayError( this, _( "Module not selected" ) );
+            wxMessageBox( _( "Module not selected" ) );
             return;
         }
         break;
@@ -85,14 +81,14 @@ void WinEDA_PcbFrame::Autoroute( wxDC* DC, int mode )
         Pad = (D_PAD*) GetScreen()->GetCurItem();
         if( (Pad == NULL)  || (Pad->Type() != TYPE_PAD) )
         {
-            DisplayError( this, _( "Pad not selected" ) );
+            wxMessageBox( _( "Pad not selected" ) );
             return;
         }
         break;
     }
 
     if( (GetBoard()->m_Status_Pcb & LISTE_RATSNEST_ITEM_OK ) == 0 )
-        Compile_Ratsnest( DC, TRUE );
+        Compile_Ratsnest( DC, true );
 
     /* Set the flag on the ratsnest to CH_ROUTE_REQ. */
     for( unsigned ii = 0; ii < GetBoard()->GetRatsnestsCount(); ii++ )
@@ -135,14 +131,14 @@ void WinEDA_PcbFrame::Autoroute( wxDC* DC, int mode )
     start = time( NULL );
 
     /* Calculation of no fixed routing to 5 mils and more. */
-    g_GridRoutingSize = (int)GetScreen()->GetGridSize().x;
-    if( g_GridRoutingSize < 50 )
-        g_GridRoutingSize = 50;
-    E_scale = g_GridRoutingSize / 50; if( E_scale < 1 )
+    Board.m_GridRouting = (int)GetScreen()->GetGridSize().x;
+    if( Board.m_GridRouting < 50 )
+        Board.m_GridRouting = 50;
+    E_scale = Board.m_GridRouting / 50; if( E_scale < 1 )
         E_scale = 1;
 
     /* Calculated ncol and nrow, matrix size for routing. */
-    ComputeMatriceSize( this, g_GridRoutingSize );
+    Board.ComputeMatrixSize( GetBoard() );
 
     MsgPanel->EraseMsgBox();
 
@@ -153,12 +149,12 @@ void WinEDA_PcbFrame::Autoroute( wxDC* DC, int mode )
 
     if( Board.InitBoard() < 0 )
     {
-        DisplayError( this, _( "No memory for autorouting" ) );
+        wxMessageBox( _( "No memory for autorouting" ) );
         Board.UnInitBoard();  /* Free memory. */
         return;
     }
 
-    Affiche_Message( _( "Place Cells" ) );
+    SetStatusText( _( "Place Cells" ) );
     PlaceCells( GetBoard(), -1, FORCE_PADS );
 
     /* Construction of the track list for router. */
@@ -176,20 +172,19 @@ void WinEDA_PcbFrame::Autoroute( wxDC* DC, int mode )
     InitWork();             /* Free memory for the list of router connections. */
     Board.UnInitBoard();
     stop = time( NULL ) - start;
-    msg.Printf( wxT( "time = %d second%s" ), stop,
-                ( stop == 1 ) ? wxT( "" ) : wxT( "s" ) );
-    Affiche_Message( msg );
+    msg.Printf( wxT( "time = %d second%s" ), stop, ( stop == 1 ) ? wxT( "" ) : wxT( "s" ) );
+    SetStatusText( msg );
 }
 
 
-/* Clear the flag has CH_NOROUTABLE which is set to 1 by Solve()
- * When a ratsnets has not been routed.
- * If this flag is 1 it is not reroute
+/* Clear the flag CH_NOROUTABLE which is set to 1 by Solve(),
+ * when a track was not routed.
+ * (If this flag is 1 the corresponding track it is not rerouted)
  */
-void WinEDA_PcbFrame::Reset_Noroutable( wxDC* DC )
+void PCB_EDIT_FRAME::Reset_Noroutable( wxDC* DC )
 {
     if( ( GetBoard()->m_Status_Pcb & LISTE_RATSNEST_ITEM_OK )== 0 )
-        Compile_Ratsnest( DC, TRUE );
+        Compile_Ratsnest( DC, true );
 
     for( unsigned ii = 0; ii < GetBoard()->GetRatsnestsCount(); ii++ )
     {
@@ -198,8 +193,8 @@ void WinEDA_PcbFrame::Reset_Noroutable( wxDC* DC )
 }
 
 
-/* Function DEBUG: displays filling cells TOP and BOTTOM */
-void DisplayBoard( WinEDA_DrawPanel* panel, wxDC* DC )
+/* DEBUG Function: displays the routing matrix */
+void DisplayBoard( EDA_DRAW_PANEL* panel, wxDC* DC )
 {
     int row, col, i, j;
     int dcell0, dcell1 = 0, color;
@@ -237,9 +232,9 @@ void DisplayBoard( WinEDA_DrawPanel* panel, wxDC* DC )
             {
                 for( i = 0; i < maxi; i++ )
                     for( j = 0; j < maxi; j++ )
-                        GRSPutPixel( &panel->m_ClipBox, DC,
-                                     ( col * maxi ) + i + DRAW_OFFSET_X,
-                                     ( row * maxi ) + j + DRAW_OFFSET_Y, color );
+                        GRPutPixel( &panel->m_ClipBox, DC,
+                                    ( col * maxi ) + i + DRAW_OFFSET_X,
+                                    ( row * maxi ) + j + DRAW_OFFSET_Y, color );
 
             }
         }

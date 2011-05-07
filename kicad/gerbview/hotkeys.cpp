@@ -4,10 +4,11 @@
 
 #include "fctsys.h"
 #include "common.h"
-#include "hotkeys.h"
+#include "kicad_device_context.h"
 
 #include "gerbview.h"
 #include "class_drawpanel.h"
+#include "hotkeys.h"
 
 /* How to add a new hotkey:
  *  add a new id in the enum hotkey_id_commnand like MY_NEW_ID_FUNCTION.
@@ -39,7 +40,7 @@ static Ki_HotkeyInfo    HkHelp( wxT( "Help: this message" ), HK_HELP, '?' );
 static Ki_HotkeyInfo    HkSwitchUnits( wxT( "Switch Units" ), HK_SWITCH_UNITS, 'U' );
 static Ki_HotkeyInfo    HkTrackDisplayMode( wxT(
                                                 "Track Display Mode" ),
-                                            HK_SWITCH_TRACK_DISPLAY_MODE, 'F' );
+                                            HK_SWITCH_GBR_ITEMS_DISPLAY_MODE, 'F' );
 
 static Ki_HotkeyInfo    HkSwitch2NextCopperLayer( wxT(
                                                       "Switch to Next Layer" ),
@@ -69,15 +70,14 @@ struct Ki_HotkeyInfoSectionDescriptor s_Gerbview_Hokeys_Descr[] =
 
 
 /***********************************************************/
-void WinEDA_GerberFrame::OnHotKey( wxDC* DC, int hotkey,
-                                   EDA_BaseStruct* DrawStruct )
+void GERBVIEW_FRAME::OnHotKey( wxDC* DC, int hotkey, EDA_ITEM* DrawStruct )
 /***********************************************************/
 
 /* Hot keys. Some commands are relatives to the item under the mouse cursor
  *  Commands are case insensitive
  *  @param DC = current device context
  *  @param hotkey = hotkey code (ascii or wxWidget code for special keys)
- *  @param DrawStruct = NULL or pointer on a EDA_BaseStruct under the mouse cursor
+ *  @param DrawStruct = NULL or pointer on a EDA_ITEM under the mouse cursor
  */
 
 {
@@ -127,26 +127,32 @@ void WinEDA_GerberFrame::OnHotKey( wxDC* DC, int hotkey,
         break;
 
     case HK_RESET_LOCAL_COORD:         /*Reset the relative coord  */
-        GetScreen()->m_O_Curseur = GetScreen()->m_Curseur;
+        GetScreen()->m_O_Curseur = GetScreen()->GetCrossHairPosition();
         break;
 
     case HK_SWITCH_UNITS:
-        g_UnitMetric = (g_UnitMetric == INCHES ) ? MILLIMETRE : INCHES;
+        g_UserUnit = (g_UserUnit == INCHES ) ? MILLIMETRES : INCHES;
         break;
 
-    case HK_SWITCH_TRACK_DISPLAY_MODE:
+    case HK_SWITCH_GBR_ITEMS_DISPLAY_MODE:
         DisplayOpt.DisplayPcbTrackFill ^= 1; DisplayOpt.DisplayPcbTrackFill &= 1;
         DrawPanel->Refresh();
         break;
 
     case HK_SWITCH_LAYER_TO_PREVIOUS:
-        if( ((PCB_SCREEN*)GetScreen())->m_Active_Layer > 0 )
-            ((PCB_SCREEN*)GetScreen())->m_Active_Layer--;
+        if( getActiveLayer() > 0 )
+        {
+            setActiveLayer( getActiveLayer() - 1 );
+            DrawPanel->Refresh();
+        }
         break;
 
     case HK_SWITCH_LAYER_TO_NEXT:
-        if( ((PCB_SCREEN*)GetScreen())->m_Active_Layer < 31 )
-            ((PCB_SCREEN*)GetScreen())->m_Active_Layer++;
+        if( getActiveLayer() < 31 )
+        {
+            setActiveLayer( getActiveLayer() + 1 );
+            DrawPanel->Refresh();
+        }
         break;
     }
 }

@@ -5,6 +5,7 @@
 #define MIRE_H
 
 #include "base_struct.h"
+#include "richio.h"
 
 
 class MIREPCB : public BOARD_ITEM
@@ -31,7 +32,7 @@ public:
     /**
      * Function Move
      * move this object.
-     * @param const wxPoint& aMoveVector - the move vector for this object.
+     * @param aMoveVector - the move vector for this object.
      */
     virtual void Move(const wxPoint& aMoveVector)
     {
@@ -41,7 +42,7 @@ public:
     /**
      * Function Rotate
      * Rotate this object.
-     * @param const wxPoint& aRotCentre - the rotation point.
+     * @param aRotCentre - the rotation point.
      * @param aAngle - the rotation angle in 0.1 degree.
      */
     virtual void Rotate(const wxPoint& aRotCentre, int aAngle);
@@ -49,7 +50,7 @@ public:
     /**
      * Function Flip
      * Flip this object, i.e. change the board side for this object
-     * @param const wxPoint& aCentre - the rotation point.
+     * @param aCentre - the rotation point.
      */
     virtual void Flip(const wxPoint& aCentre );
 
@@ -61,11 +62,12 @@ public:
      */
     bool Save( FILE* aFile ) const;
 
-    bool    ReadMirePcbDescr( FILE* File, int* LineNum );
+    bool    ReadMirePcbDescr( LINE_READER* aReader );
 
     void    Copy( MIREPCB* source );
 
-    void    Draw( WinEDA_DrawPanel* panel, wxDC* DC, int aDrawMode, const wxPoint& offset = ZeroOffset );
+    void    Draw( EDA_DRAW_PANEL* panel, wxDC* DC, int aDrawMode,
+                  const wxPoint& offset = ZeroOffset );
 
 
     /**
@@ -78,13 +80,14 @@ public:
 
     /**
      * Function HitTest (overlaid)
-     * tests if the given EDA_Rect intersect this object.
+     * tests if the given EDA_RECT intersect this object.
      * For now, the anchor must be inside this rect.
-     * @param refArea : the given EDA_Rect
+     * @param refArea : the given EDA_RECT
      * @return bool - true if a hit, else false
      */
-    bool    HitTest( EDA_Rect& refArea );
+    bool    HitTest( EDA_RECT& refArea );
 
+    EDA_RECT GetBoundingBox() const;
 };
 
 

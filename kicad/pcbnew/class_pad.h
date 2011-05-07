@@ -6,6 +6,7 @@ class Pcb3D_GLCanvas;
 
 #include "pad_shapes.h"
 #include "PolyLine.h"
+#include "richio.h"
 
 /* Default layers used for pads, according to the pad type.
  * this is default values only, they can be changed for a given pad
@@ -24,6 +25,26 @@ class Pcb3D_GLCanvas;
 //PAD_HOLE_NOT_PLATED:
 #define PAD_HOLE_NOT_PLATED_DEFAULT_LAYERS LAYER_BACK | SILKSCREEN_LAYER_FRONT | \
     SOLDERMASK_LAYER_BACK | SOLDERMASK_LAYER_FRONT
+
+// Helper class to staore parameters used to draw a pad
+class PAD_DRAWINFO
+{
+public:
+    EDA_DRAW_PANEL * m_DrawPanel;    // the EDA_DRAW_PANEL used to draw a PAD ; can be null
+    int m_DrawMode;             // the draw mode
+    int m_Color;                // color used to draw the pad shape , from pad layers and visible layers
+    int m_HoleColor;            // color used to draw the pad hole
+    int m_PadClearance;         // clearance value, used to draw the pad area outlines
+    wxSize m_Mask_margin;       // margin, used to draw solder paste when only one layer is shown
+    bool m_Display_padnum;      // true to show pad number
+    bool m_Display_netname;     // true to show net name
+    bool m_ShowPadFilled;       // true to show pad as solid area, false to show pas in sketch mode
+    bool m_ShowNCMark;          // true to show pad not connected mark
+    bool m_IsPrinting;          // true to print, false to display on screen.
+    wxPoint m_Offset;           // general draw offset
+
+    PAD_DRAWINFO( );
+};
 
 
 class D_PAD : public BOARD_CONNECTED_ITEM
@@ -73,7 +94,7 @@ public:
 
     wxPoint m_Pos0;                 // Initial Pad position (i.e. pas position relative to the module anchor, orientation 0
 
-    int     m_Rayon;                // radius of pad circle
+    int     m_ShapeMaxRadius;       // radius of the circle containing the pad shape
     int     m_Attribut;             // NORMAL, PAD_SMD, PAD_CONN
     int     m_Orient;               // in 1/10 degrees
     static int m_PadSketchModePenSize;      // Pen size used to draw pads in sketch mode
@@ -118,7 +139,7 @@ public:
 
     /**
      * Function SetNetname
-     * @param const wxString : the new netname
+     * @param aNetname: the new netname
      */
     void SetNetname( const wxString& aNetname );
 
@@ -126,7 +147,7 @@ public:
      * Function GetShape
      * @return the shape of this pad.
      */
-    int GetShape() { return m_PadShape & 0xFF;  }
+    int GetShape() const { return m_PadShape & 0xFF;  }
 
     /**
      * Function GetPosition
@@ -144,7 +165,8 @@ public:
         m_Pos = aPos;
     }
 
-    /** function TransformShapeWithClearanceToPolygon
+    /**
+     * Function TransformShapeWithClearanceToPolygon
      * Convert the pad shape to a closed polygon
      * Used in filling zones calculations
      * Circles and arcs are approximated by segments
@@ -171,7 +193,8 @@ public:
 
    // Mask margins handling:
 
-    /** Function GetSolderMaskMargin
+    /**
+     * Function GetSolderMaskMargin
      * @return the margin for the solder mask layer
      * usually > 0 (mask shape bigger than pad
      * value is
@@ -181,7 +204,8 @@ public:
      */
     int           GetSolderMaskMargin();
 
-    /** Function GetSolderPasteMargin
+    /**
+     * Function GetSolderPasteMargin
      * @return the margin for the solder mask layer
      * usually < 0 (mask shape smaller than pad
      * because the margin can be dependent on the pad size, the margin has a x and a y value
@@ -193,7 +217,7 @@ public:
     wxSize        GetSolderPasteMargin();
 
     /* Reading and writing data on files */
-    int           ReadDescr( FILE* File, int* LineNum = NULL );
+    int           ReadDescr( LINE_READER* aReader );
 
     /**
      * Function Save
@@ -205,16 +229,56 @@ public:
 
 
     /* drawing functions */
-    void          Draw( WinEDA_DrawPanel* panel, wxDC* DC,
-                        int aDrawMode, const wxPoint& offset = ZeroOffset );
+    /** Draw a pad:
+     * @param aPanel = the EDA_DRAW_PANEL panel
+     * @param aDC = the current device context
+     * @param aDraw_mode = mode: GR_OR, GR_XOR, GR_AND...
+     * @param aOffset = draw offset
+     */
+    void          Draw( EDA_DRAW_PANEL* aPanel, wxDC* aDC,
+                        int aDrawMode, const wxPoint& aOffset = ZeroOffset );
 
     void          Draw3D( Pcb3D_GLCanvas* glcanvas );
+
+    /**
+     * Function DrawShape
+     * basic function to draw a pad.
+     * used by Draw after calculation of parameters (color, ) final orientation ...
+     */
+    void          DrawShape( EDA_RECT* aClipBox, wxDC* aDC, PAD_DRAWINFO& aDrawInfo );
+
+    /**
+     * Function BuildPadPolygon
+     * Has meaning only for polygonal pads (trapezoid and rectangular)
+     * Build the Corner list of the polygonal shape,
+     * depending on shape, extra size (clearance ...) and orientation
+     * @param aCoord = a buffer to fill (4 corners).
+     * @param aInflateValue = wxSize: the clearance or margin value. value > 0: inflate, < 0 deflate
+     * @param aRotation = full rotation of the polygon
+     */
+    void          BuildPadPolygon( wxPoint aCoord[4], wxSize aInflateValue, int aRotation ) const;
+
+    /**
+     * Function BuildSegmentFromOvalShape
+     * Has meaning only for OVAL (and ROUND) pads
+     * Build an equivalent segment having the same shape as the OVAL shape,
+     * Useful in draw function and in DRC and HitTest functions,
+     *  because segments are already well handled by track tests
+     * @param aSegStart = the starting point of the equivalent segment, relative to the shape position.
+     * @param aSegEnd = the ending point of the equivalent segment, relative to the shape position
+     * @param aRotation = full rotation of the segment
+     * @return the width of the segment
+     */
+    int          BuildSegmentFromOvalShape(wxPoint& aSegStart, wxPoint& aSegEnd, int aRotation) const;
 
     // others
     void          SetPadName( const wxString& name );       // Change pad name
     wxString      ReturnStringPadName();                    // Return pad name as string in a wxString
     void          ReturnStringPadName( wxString& text );    // Return pad name as string in a buffer
-    void          ComputeRayon();                           // compute radius
+    void          ComputeShapeMaxRadius();                           // compute radius
+
+    int           GetMaxRadius() const;
+
     const wxPoint ReturnShapePos();
 
 
@@ -230,10 +294,10 @@ public:
      * Function DisplayInfo
      * has knowledge about the frame and how and where to put status information
      * about this object into the frame's message panel.
-     * Is virtual from EDA_BaseStruct.
-     * @param frame A WinEDA_DrawFrame in which to print status information.
+     * Is virtual from EDA_ITEM.
+     * @param frame A EDA_DRAW_FRAME in which to print status information.
      */
-    void DisplayInfo( WinEDA_DrawFrame* frame );
+    void DisplayInfo( EDA_DRAW_FRAME* frame );
 
 
     /**
@@ -265,13 +329,12 @@ public:
         return wxT( "PAD" );
     }
 
-
     /**
      * Function GetBoundingBox
      * returns the bounding box of this pad
      * Mainly used to redraw the screen area occupied by the pad
      */
-    EDA_Rect   GetBoundingBox();
+    EDA_RECT   GetBoundingBox() const;
 
     /**
      * Function Compare
@@ -283,7 +346,7 @@ public:
     /**
      * Function Move
      * move this object.
-     * @param const wxPoint& aMoveVector - the move vector for this object.
+     * @param aMoveVector - the move vector for this object.
      */
     virtual void Move( const wxPoint& aMoveVector )
     {

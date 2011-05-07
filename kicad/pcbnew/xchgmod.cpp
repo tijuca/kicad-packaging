@@ -21,10 +21,10 @@ class DIALOG_EXCHANGE_MODULE : public DIALOG_EXCHANGE_MODULE_BASE
 {
 private:
 
-    WinEDA_PcbFrame* m_Parent;
-    MODULE*          m_CurrentModule;
+    PCB_EDIT_FRAME* m_Parent;
+    MODULE*         m_CurrentModule;
 
-public: DIALOG_EXCHANGE_MODULE( WinEDA_PcbFrame* aParent, MODULE* aModule );
+public: DIALOG_EXCHANGE_MODULE( PCB_EDIT_FRAME* aParent, MODULE* aModule );
     ~DIALOG_EXCHANGE_MODULE() { };
 
 private:
@@ -34,7 +34,7 @@ private:
     void BrowseAndSelectFootprint( wxCommandEvent& event );
     void Init();
 
-    void Change_Module();
+    void Change_Current_Module();
     void Change_ModuleId( bool aUseValue );
     void Change_ModuleAll();
     int  Maj_ListeCmp( const wxString& reference, const wxString& old_name,
@@ -46,8 +46,7 @@ private:
 };
 
 
-DIALOG_EXCHANGE_MODULE::DIALOG_EXCHANGE_MODULE( WinEDA_PcbFrame* parent,
-                                                MODULE*          Module ) :
+DIALOG_EXCHANGE_MODULE::DIALOG_EXCHANGE_MODULE( PCB_EDIT_FRAME* parent, MODULE* Module ) :
     DIALOG_EXCHANGE_MODULE_BASE( parent )
 {
     m_Parent = parent;
@@ -58,7 +57,7 @@ DIALOG_EXCHANGE_MODULE::DIALOG_EXCHANGE_MODULE( WinEDA_PcbFrame* parent,
 }
 
 
-void WinEDA_PcbFrame::InstallExchangeModuleFrame( MODULE* Module )
+void PCB_EDIT_FRAME::InstallExchangeModuleFrame( MODULE* Module )
 {
     DIALOG_EXCHANGE_MODULE dialog( this, Module );
 
@@ -66,10 +65,10 @@ void WinEDA_PcbFrame::InstallExchangeModuleFrame( MODULE* Module )
 }
 
 
-void DIALOG_EXCHANGE_MODULE::OnQuit( wxCommandEvent& WXUNUSED( event ) )
+void DIALOG_EXCHANGE_MODULE::OnQuit( wxCommandEvent& event )
 {
     s_SelectionMode = m_Selection->GetSelection();
-    Close( true );    // true is to force the frame to close
+    EndModal( 0 );
 }
 
 
@@ -94,7 +93,7 @@ void DIALOG_EXCHANGE_MODULE::OnOkClick( wxCommandEvent& event )
     switch( m_Selection->GetSelection() )
     {
     case 0:
-        Change_Module();
+        Change_Current_Module();
         break;
 
     case 1:
@@ -148,13 +147,13 @@ int DIALOG_EXCHANGE_MODULE::Maj_ListeCmp( const wxString& reference,
     FILE*      FichCmp, * NewFile;
     char       Line[1024];
     wxString   msg;
-    char*      result;                      // quiet compiler
+    char*      result;              // quiet compiler
 
     if( old_name == new_name )
-        return 0;                           /* no change of name */
+        return 0;
 
-    /* Calculation CMP file name by changing the extension name NetList */
-    fn = m_Parent->GetScreen()->m_FileName;
+    /* Build CMP file name by changing the extension of NetList filename */
+    fn = m_Parent->GetScreen()->GetFileName();
     fn.SetExt( NetCmpExtBuffer );
 
     FichCmp = wxFopen( fn.GetFullPath(), wxT( "rt" ) );
@@ -194,7 +193,7 @@ int DIALOG_EXCHANGE_MODULE::Maj_ListeCmp( const wxString& reference,
             char buf[1024];
             strcpy( buf, Line + 12 );
             strtok( buf, ";\n\r" );
-            if( stricmp( buf, CONV_TO_UTF8( reference ) ) == 0 )
+            if( stricmp( buf, TO_UTF8( reference ) ) == 0 )
             {
                 start_descr = true;
             }
@@ -208,7 +207,7 @@ int DIALOG_EXCHANGE_MODULE::Maj_ListeCmp( const wxString& reference,
 
         if( start_descr && strnicmp( Line, "IdModule", 8 ) == 0 )
         {
-            sprintf( Line + 8, "  = %s;\n", CONV_TO_UTF8( new_name ) );
+            sprintf( Line + 8, "  = %s;\n", TO_UTF8( new_name ) );
 
             msg = wxT( " * in <" ) + fn.GetFullPath() + wxT( ">.\n" );
             m_WinMessages->AppendText( msg );
@@ -233,7 +232,7 @@ int DIALOG_EXCHANGE_MODULE::Maj_ListeCmp( const wxString& reference,
  * - Same text value and ref
  * - Same NetNames for pads same name
  */
-void DIALOG_EXCHANGE_MODULE::Change_Module()
+void DIALOG_EXCHANGE_MODULE::Change_Current_Module()
 {
     wxString newmodulename = m_NewModule->GetValue();
 
@@ -244,7 +243,8 @@ void DIALOG_EXCHANGE_MODULE::Change_Module()
 
     if( Change_1_Module( m_CurrentModule, newmodulename, &pickList, true ) )
     {
-        m_Parent->Compile_Ratsnest( NULL, true );
+        if( m_Parent->GetBoard()->IsElementVisible( RATSNEST_VISIBLE ) )
+            m_Parent->Compile_Ratsnest( NULL, true );
         m_Parent->DrawPanel->Refresh();
     }
 
@@ -325,7 +325,8 @@ void DIALOG_EXCHANGE_MODULE::Change_ModuleId( bool aUseValue )
 
     if( change )
     {
-        m_Parent->Compile_Ratsnest( NULL, true );
+        if( m_Parent->GetBoard()->IsElementVisible( RATSNEST_VISIBLE ) )
+            m_Parent->Compile_Ratsnest( NULL, true );
         m_Parent->DrawPanel->Refresh();
     }
 
@@ -374,7 +375,8 @@ void DIALOG_EXCHANGE_MODULE::Change_ModuleAll()
 
     if( change )
     {
-        m_Parent->Compile_Ratsnest( NULL, true );
+        if( m_Parent->GetBoard()->IsElementVisible( RATSNEST_VISIBLE ) )
+            m_Parent->Compile_Ratsnest( NULL, true );
         m_Parent->DrawPanel->Refresh();
     }
     if( pickList.GetCount() )
@@ -443,7 +445,8 @@ bool DIALOG_EXCHANGE_MODULE::Change_1_Module( MODULE*            Module,
 }
 
 
-/** function Exchange_Module
+/**
+ * Function Exchange_Module
  * Replaces OldModule by NewModule, using OldModule settings:
  * position, orientation, pad netnames ...)
  * OldModule is deleted or put in undo list.
@@ -452,9 +455,9 @@ bool DIALOG_EXCHANGE_MODULE::Change_1_Module( MODULE*            Module,
  * @param aUndoPickList = the undo list used to save  OldModule. If null,
  * OldModule is deleted
  */
-void WinEDA_PcbFrame::Exchange_Module( MODULE*            aOldModule,
-                                       MODULE*            aNewModule,
-                                       PICKED_ITEMS_LIST* aUndoPickList )
+void PCB_EDIT_FRAME::Exchange_Module( MODULE*            aOldModule,
+                                      MODULE*            aNewModule,
+                                      PICKED_ITEMS_LIST* aUndoPickList )
 {
     wxPoint oldpos;
     D_PAD*  pad, * old_pad;
@@ -462,21 +465,21 @@ void WinEDA_PcbFrame::Exchange_Module( MODULE*            aOldModule,
     if( ( aOldModule->Type() != TYPE_MODULE )
        || ( aNewModule->Type() != TYPE_MODULE ) )
     {
-        wxMessageBox( wxT( "WinEDA_PcbFrame::Exchange_Module() StuctType error" ) );
+        wxMessageBox( wxT( "PCB_EDIT_FRAME::Exchange_Module() StuctType error" ) );
         return;
     }
 
     aNewModule->SetParent( GetBoard() );
 
     GetBoard()->m_Status_Pcb = 0;
-    oldpos = GetScreen()->m_Curseur;
-    GetScreen()->m_Curseur = aOldModule->m_Pos;
+    oldpos = GetScreen()->GetCrossHairPosition();
+    GetScreen()->SetCrossHairPosition( aOldModule->m_Pos, false );
 
     /* place module without ratsnest refresh: this will be made later
      * when all modules are on board
      */
     Place_Module( aNewModule, NULL, true );
-    GetScreen()->m_Curseur = oldpos;
+    GetScreen()->SetCrossHairPosition( oldpos, false );
 
     /* Flip footprint if needed */
     if( aOldModule->GetLayer() != aNewModule->GetLayer() )
@@ -555,7 +558,7 @@ void DIALOG_EXCHANGE_MODULE::BrowseAndSelectFootprint( wxCommandEvent& event )
  * this is the same as created by cvpcb.
  * can be used if this file is lost
  */
-void WinEDA_PcbFrame::RecreateCmpFileFromBoard( wxCommandEvent& aEvent )
+void PCB_EDIT_FRAME::RecreateCmpFileFromBoard( wxCommandEvent& aEvent )
 {
     wxFileName fn;
     FILE*      FichCmp;
@@ -572,7 +575,7 @@ void WinEDA_PcbFrame::RecreateCmpFileFromBoard( wxCommandEvent& aEvent )
     }
 
     /* Calculation file name by changing the extension name to NetList */
-    fn = GetScreen()->m_FileName;
+    fn = GetScreen()->GetFileName();
     fn.SetExt( NetCmpExtBuffer );
     wildcard = _( "Component files (." ) + NetCmpExtBuffer + wxT( ")|*." ) +
                NetCmpExtBuffer;
@@ -602,15 +605,15 @@ void WinEDA_PcbFrame::RecreateCmpFileFromBoard( wxCommandEvent& aEvent )
     {
         fprintf( FichCmp, "\nBeginCmp\n" );
         fprintf( FichCmp, "TimeStamp = %8.8lX\n", Module->m_TimeStamp );
-        fprintf( FichCmp, "Path = %s\n", CONV_TO_UTF8( Module->m_Path ) );
+        fprintf( FichCmp, "Path = %s\n", TO_UTF8( Module->m_Path ) );
         fprintf( FichCmp, "Reference = %s;\n",
                  !Module->m_Reference->m_Text.IsEmpty() ?
-                 CONV_TO_UTF8( Module->m_Reference->m_Text ) : "[NoRef]" );
+                 TO_UTF8( Module->m_Reference->m_Text ) : "[NoRef]" );
         fprintf( FichCmp, "ValeurCmp = %s;\n",
                  !Module->m_Value->m_Text.IsEmpty() ?
-                 CONV_TO_UTF8( Module->m_Value->m_Text ) : "[NoVal]" );
+                 TO_UTF8( Module->m_Value->m_Text ) : "[NoVal]" );
         fprintf( FichCmp, "IdModule  = %s;\n",
-                 CONV_TO_UTF8( Module->m_LibRef ) );
+                 TO_UTF8( Module->m_LibRef ) );
         fprintf( FichCmp, "EndCmp\n" );
     }
 

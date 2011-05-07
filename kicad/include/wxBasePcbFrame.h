@@ -11,6 +11,8 @@
 
 #include "wxstruct.h"
 #include "base_struct.h"
+#include "richio.h"
+#include "class_pcb_screen.h"
 
 #ifndef PCB_INTERNAL_UNIT
 #define PCB_INTERNAL_UNIT 10000
@@ -18,10 +20,8 @@
 
 
 /*  Forward declarations of classes. */
-class PCB_SCREEN;
-class WinEDA_Toolbar;
 class WinEDA_CvpcbFrame;
-class WinEDA_PcbFrame;
+class PCB_EDIT_FRAME;
 class WinEDA_ModuleEditFrame;
 class BOARD;
 class TEXTE_PCB;
@@ -43,13 +43,12 @@ class GENERAL_COLLECTORS_GUIDE;
 
 
 /******************************************************************/
-/* class WinEDA_BasePcbFrame: Basic class for pcbnew and gerbview */
+/* class PCB_BASE_FRAME: Basic class for pcbnew and gerbview */
 /******************************************************************/
 
-class WinEDA_BasePcbFrame : public WinEDA_DrawFrame
+class PCB_BASE_FRAME : public EDA_DRAW_FRAME
 {
 public:
-
     bool m_DisplayPadFill;          // How show pads
     bool m_DisplayViaFill;          // How show vias
     bool m_DisplayPadNum;           // show pads numbers
@@ -58,7 +57,7 @@ public:
     int  m_DisplayModText;          // How to display module texts (line/ filled / sketch)
     bool m_DisplayPcbTrackFill;     /* FALSE : tracks are show in sketch mode,
                                      * TRUE = filled */
-    int  m_UserGridUnits;
+    UserUnitType            m_UserGridUnit;
     wxRealPoint             m_UserGridSize;
 
     WinEDA3D_DrawFrame*     m_Draw3DFrame;
@@ -68,13 +67,16 @@ protected:
     BOARD*                  m_Pcb;
     GENERAL_COLLECTOR*      m_Collector;
 
-public:
-    WinEDA_BasePcbFrame( wxWindow* father, int idtype,
-                         const wxString& title,
-                         const wxPoint& pos, const wxSize& size,
-                         long style = KICAD_DEFAULT_DRAWFRAME_STYLE );
+    void updateGridSelectBox();
+    void updateZoomSelectBox();
+    virtual void unitsChangeRefresh();
 
-    ~WinEDA_BasePcbFrame();
+public:
+    PCB_BASE_FRAME( wxWindow* father, int idtype, const wxString& title,
+                    const wxPoint& pos, const wxSize& size,
+                    long style = KICAD_DEFAULT_DRAWFRAME_STYLE );
+
+    ~PCB_BASE_FRAME();
 
     /**
      * Function SetBoard
@@ -94,7 +96,7 @@ public:
     // General
     virtual void    OnCloseWindow( wxCloseEvent& Event ) = 0;
 
-    virtual void             RedrawActiveWindow( wxDC* DC, bool EraseBg ) { }
+    virtual void    RedrawActiveWindow( wxDC* DC, bool EraseBg ) { }
     virtual void    ReCreateHToolbar() = 0;
     virtual void    ReCreateVToolbar() = 0;
     virtual void    OnLeftClick( wxDC*          DC,
@@ -104,16 +106,13 @@ public:
     virtual bool    OnRightClick( const wxPoint& MousePos,
                                   wxMenu*        PopMenu )  = 0;
     virtual void    ReCreateMenuBar();
-    virtual void    SetToolID( int id, int new_cursor_id,
-                               const wxString& title );
+    virtual void    SetToolID( int aId, int aCursor, const wxString& aToolMsg );
     virtual void    UpdateStatusBar();
 
-    PCB_SCREEN*     GetScreen() const
+    virtual PCB_SCREEN* GetScreen() const
     {
-        return (PCB_SCREEN*) WinEDA_DrawFrame::GetBaseScreen();
+        return (PCB_SCREEN*) EDA_DRAW_FRAME::GetScreen();
     }
-
-    BASE_SCREEN*    GetBaseScreen() const;
 
     int             BestZoom();
 
@@ -122,15 +121,14 @@ public:
 public:
 
     // Read/write functions:
-    EDA_BaseStruct* ReadDrawSegmentDescr( FILE* File, int* LineNum );
-    int             ReadListeSegmentDescr( FILE*  File,
+    EDA_ITEM* ReadDrawSegmentDescr( LINE_READER* aReader );
+    int             ReadListeSegmentDescr( LINE_READER* aReader,
                                            TRACK* PtSegm,
                                            int    StructType,
-                                           int*   LineNum,
                                            int    NumSegm );
 
-    int             ReadSetup( FILE* File, int* LineNum );
-    int             ReadGeneralDescrPcb( FILE* File, int* LineNum );
+    int             ReadSetup( LINE_READER* aReader );
+    int             ReadGeneralDescrPcb( LINE_READER* aReader );
 
 
     /**
@@ -194,7 +192,8 @@ public:
 
     MODULE* Copie_Module( MODULE* module );
 
-    /** Function Save_Module_In_Library
+    /**
+     * Function Save_Module_In_Library
      *  Save in an existing library a given footprint
      * @param aLibName = name of the library to use
      * @param aModule = the given footprint
@@ -202,21 +201,19 @@ public:
      *                     abort an existing footprint is found
      * @param aDisplayDialog = true to display a dialog to enter or confirm the
      *                         footprint name
-     * @param aCreateDocFile = true to creates the associated doc file
-     * @return : 1 if OK,0 if abort
+     * @return : true if OK, false if abort
      */
-    int     Save_Module_In_Library( const wxString& aLibName,
+    bool    Save_Module_In_Library( const wxString& aLibName,
                                     MODULE*         aModule,
                                     bool            aOverwrite,
-                                    bool            aDisplayDialog,
-                                    bool            aCreateDocFile );
+                                    bool            aDisplayDialog );
 
     void    Archive_Modules( const wxString& LibName,
                              bool            NewModulesOnly );
-    MODULE* Select_1_Module_From_BOARD( BOARD* Pcb );
     MODULE* GetModuleByName();
 
-    /** Function OnModify()
+    /**
+     * Function OnModify
      * Virtual
      * Must be called after a change
      * in order to set the "modify" flag of the current screen
@@ -227,8 +224,18 @@ public:
     virtual void OnModify( );
 
     // Modules (footprints)
-    MODULE* Create_1_Module( wxDC*           DC,
-                             const wxString& module_name );
+    /**
+     * Function Create_1_Module
+     * Creates a new module or footprint : A new module contains 2 texts :
+     *  First = REFERENCE
+     *  Second = VALUE: "VAL**"
+     * the new module is added to the board module list
+     * @param aModuleName = name of the new footprint
+     *                  (will be the component reference in board)
+     * @return a pointer to the new module
+     */
+    MODULE* Create_1_Module( const wxString& aModuleName );
+
     void    Edit_Module( MODULE* module, wxDC* DC );
     void    Rotate_Module( wxDC*   DC,
                            MODULE* module,
@@ -246,12 +253,38 @@ public:
                                         wxDC*         DC );
     TEXTE_MODULE* CreateTextModule( MODULE* Module, wxDC* DC );
 
+    /**
+     * Function ResetTextSize
+     * resets given field text size and width to current settings in
+     * Preferences->Dimensions->Texts and Drawings.
+     * @param aItem is the item to be reset, either TEXTE_PCB or TEXTE_MODULE.
+     * @param aDC is the drawing context.
+     */
+    void          ResetTextSize( BOARD_ITEM* aItem, wxDC* aDC );
+
+    /**
+     * Function ResetModuleTextSizes
+     * resets text size and width of all module text fields of given field
+     * type to current settings in Preferences->Dimensions->Texts and Drawings.
+     * @param aType is the field type (TEXT_is_REFERENCE, TEXT_is_VALUE, or TEXT_is_DIVERS).
+     * @param aDC is the drawing context.
+     */
+    void          ResetModuleTextSizes( int aType, wxDC* aDC );
+
     void          InstallPadOptionsFrame( D_PAD*         pad );
     void          InstallTextModOptionsFrame( TEXTE_MODULE* TextMod,
                                               wxDC*         DC );
 
     void          AddPad( MODULE* Module, bool draw );
-    void          DeletePad( D_PAD* Pad );
+    /**
+     * Function DeletePad
+     * Delete the pad aPad.
+     * Refresh the modified screen area
+     * Refresh modified parameters of the parent module (bounding box, last date)
+     * @param aPad = the pad to delete
+     * @param aQuery = true to promt for confirmation, false to delete silently
+     */
+    void          DeletePad( D_PAD* aPad, bool aQuery = true );
     void          StartMovePad( D_PAD* Pad, wxDC* DC );
     void          RotatePad( D_PAD* Pad, wxDC* DC );
     void          PlacePad( D_PAD* Pad, wxDC* DC );
@@ -263,23 +296,26 @@ public:
 
     // loading footprints
 
-    /** function Get_Librairie_Module
+    /**
+     * Function Get_Librairie_Module
      *
      *  Read active libraries or one library to find and load a given module
      *  If found the module is linked to the tail of linked list of modules
-     *  @param aLibrary: the full filename of the library to read. If empty,
+     *  @param aLibraryFullFilename - the full filename of the library to read. If empty,
      *                   all active libraries are read
      *  @param aModuleName = module name to load
      *  @param aDisplayMessageError = true to display an error message if any.
-     *  @return a MODULE * pointer to the new module, or NULL
+     *  @return a pointer to the new module, or NULL
      *
      */
     MODULE*  Get_Librairie_Module( const wxString& aLibraryFullFilename,
                                    const wxString& aModuleName,
                                    bool            aDisplayMessageError );
 
-    /** Function Select_1_Module_From_List
+    /**
+     * Function Select_1_Module_From_List
      *  Display a list of modules found in active libraries or a given library
+     *  @param aWindow = the current window ( parent window )
      *  @param aLibraryFullFilename = library to list (if aLibraryFullFilename
      *                                == void, list all modules)
      *  @param aMask = Display filter (wildcart)( Mask = wxEmptyString if not
@@ -291,19 +327,54 @@ public:
      *  @return wxEmptyString if abort or fails, or the selected module name if
      *          Ok
      */
-    wxString Select_1_Module_From_List(
-        WinEDA_DrawFrame* active_window, const wxString& aLibraryFullFilename,
-        const wxString& aMask, const wxString& aKeyWord );
+    wxString Select_1_Module_From_List( EDA_DRAW_FRAME* aWindow,
+                                        const wxString& aLibraryFullFilename,
+                                        const wxString& aMask,
+                                        const wxString& aKeyWord );
 
     MODULE*  Load_Module_From_Library( const wxString& library, wxDC* DC );
 
     //  ratsnest functions
-    void     Compile_Ratsnest( wxDC* DC, bool affiche );
-    int      Test_1_Net_Ratsnest( wxDC* DC, int net_code );
-    void     build_ratsnest_module( wxDC* DC, MODULE* Module );
+    /**
+     * Function Compile_Ratsnest
+     *  Create the entire board ratsnest.
+     *  Must be called after a board change (changes for
+     *  pads, footprints or a read netlist ).
+     * @param aDC = the current device context (can be NULL)
+     * @param aDisplayStatus : if true, display the computation results
+     */
+    void     Compile_Ratsnest( wxDC* aDC, bool aDisplayStatus );
+
+    /**
+     * Function Test_1_Net_Ratsnest
+     * Compute the ratsnest relative to the net "net_code"
+     * @param aDC - Device context to draw on.
+     * @param aNetcode = netcode used to compute the ratsnest.
+     */
+    int      Test_1_Net_Ratsnest( wxDC* aDC, int aNetcode );
+
+    /**
+     * Function build_ratsnest_module
+     * Build a ratsnest relative to one footprint. This is a simplified computation
+     * used only in move footprint. It is not optimal, but it is fast and sufficient
+     * to help a footprint placement
+     * It shows the connections from a pad to the nearest connected pad
+     * @param aModule = module to consider.
+     */
+    void     build_ratsnest_module( MODULE* aModule );
+
     void     trace_ratsnest_module( wxDC* DC );
     void     Build_Board_Ratsnest( wxDC* DC );
-    void     DrawGeneralRatsnest( wxDC* DC, int net_code = 0 );
+
+    /**
+     *  function Displays the general ratsnest
+     *  Only ratsnest with the status bit CH_VISIBLE is set are displayed
+     * @param aDC = the current device context (can be NULL)
+     * @param aNetcode if > 0, Display only the ratsnest relative to the
+     * corresponding net_code
+     */
+    void     DrawGeneralRatsnest( wxDC* aDC, int aNetcode = 0 );
+
     void     trace_ratsnest_pad( wxDC* DC );
     void     build_ratsnest_pad( BOARD_ITEM*    ref,
                                  const wxPoint& refpos,
@@ -341,7 +412,8 @@ public:
                                int         masque_layer,
                                GRTraceMode trace_mode );
 
-    /** function PlotDrillMark
+    /**
+     * Function PlotDrillMark
      * Draw a drill mark for pads and vias.
      * Must be called after all drawings, because it
      * redraw the drill mark on a pad or via, as a negative (i.e. white) shape
@@ -358,31 +430,31 @@ public:
     /* Functions relative to Undo/redo commands:
      */
 
-    /** Function SaveCopyInUndoList (virtual pure)
+    /**
+     * Function SaveCopyInUndoList (virtual pure)
      * Creates a new entry in undo list of commands.
      * add a picker to handle aItemToCopy
      * @param aItemToCopy = the board item modified by the command to undo
-     * @param aTypeCommand = command type (see enum UndoRedoOpType)
+     * @param aTypeCommand = command type (see enum UNDO_REDO_T)
      * @param aTransformPoint = the reference point of the transformation, for
      *                          commands like move
      */
     virtual void SaveCopyInUndoList( BOARD_ITEM* aItemToCopy,
-                                     UndoRedoOpType aTypeCommand,
-                                     const wxPoint& aTransformPoint =
-                                     wxPoint( 0, 0 ) ) = 0;
+                                     UNDO_REDO_T aTypeCommand,
+                                     const wxPoint& aTransformPoint = wxPoint( 0, 0 ) ) = 0;
 
-    /** Function SaveCopyInUndoList (virtual pure, overloaded).
+    /**
+     * Function SaveCopyInUndoList (virtual pure, overloaded).
      * Creates a new entry in undo list of commands.
      * add a list of pickers to handle a list of items
      * @param aItemsList = the list of items modified by the command to undo
-     * @param aTypeCommand = command type (see enum UndoRedoOpType)
+     * @param aTypeCommand = command type (see enum UNDO_REDO_T)
      * @param aTransformPoint = the reference point of the transformation,
      *                          for commands like move
      */
     virtual void SaveCopyInUndoList( PICKED_ITEMS_LIST& aItemsList,
-                                     UndoRedoOpType aTypeCommand,
-                                     const wxPoint& aTransformPoint =
-                                     wxPoint( 0, 0 ) ) = 0;
+                                     UNDO_REDO_T aTypeCommand,
+                                     const wxPoint& aTransformPoint = wxPoint( 0, 0 ) ) = 0;
 
 
     // layerhandling:
@@ -398,7 +470,7 @@ public:
     /**
      * Load applications settings common to PCB draw frame objects.
      *
-     * This overrides the base class WinEDA_DrawFrame::LoadSettings() to
+     * This overrides the base class EDA_DRAW_FRAME::LoadSettings() to
      * handle settings common to the PCB layout application and footprint
      * editor main windows.  It calls down to the base class to load
      * settings common to all drawing frames.  Please put your application
@@ -410,7 +482,7 @@ public:
     /**
      * Save applications settings common to PCB draw frame objects.
      *
-     * This overrides the base class WinEDA_DrawFrame::SaveSettings() to
+     * This overrides the base class EDA_DRAW_FRAME::SaveSettings() to
      * save settings common to the PCB layout application and footprint
      * editor main windows.  It calls down to the base class to save
      * settings common to all drawing frames.  Please put your application
@@ -418,6 +490,15 @@ public:
      * application settings saved all over the place.
      */
     virtual void SaveSettings();
+
+    void OnTogglePolarCoords( wxCommandEvent& aEvent );
+    void OnTogglePadDrawMode( wxCommandEvent& aEvent );
+
+    /* User interface update event handlers. */
+    void OnUpdateCoordType( wxUpdateUIEvent& aEvent );
+    void OnUpdatePadDrawMode( wxUpdateUIEvent& aEvent );
+    void OnUpdateSelectGrid( wxUpdateUIEvent& aEvent );
+    void OnUpdateSelectZoom( wxUpdateUIEvent& aEvent );
 
     DECLARE_EVENT_TABLE()
 };

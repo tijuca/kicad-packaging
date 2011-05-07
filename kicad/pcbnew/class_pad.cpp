@@ -3,6 +3,7 @@
 /***********************************************/
 
 #include "fctsys.h"
+#include "PolyLine.h"
 #include "common.h"
 #include "confirm.h"
 #include "kicad_string.h"
@@ -11,6 +12,7 @@
 #include "trigo.h"
 #include "pcbnew_id.h"             // ID_TRACK_BUTT
 #include "class_board_design_settings.h"
+#include "richio.h"
 
 int D_PAD::m_PadSketchModePenSize = 0;   // Pen size used to draw pads in sketch mode
 
@@ -43,7 +45,7 @@ D_PAD::D_PAD( MODULE* parent ) : BOARD_CONNECTED_ITEM( parent, TYPE_PAD )
 
     SetSubRatsnest( 0 );                            // used in ratsnest
                                                     // calculations
-    ComputeRayon();
+    ComputeShapeMaxRadius();
 }
 
 
@@ -52,26 +54,47 @@ D_PAD::~D_PAD()
 }
 
 
-/* Calculate the radius of the pad.
+/* Calculate the radius of the circle containing the pad.
  */
-void D_PAD::ComputeRayon()
+int D_PAD::GetMaxRadius() const
 {
+    int x, y;
+    int radius;
+
     switch( m_PadShape & 0x7F )
     {
     case PAD_CIRCLE:
-        m_Rayon = m_Size.x / 2;
+        radius = m_Size.x / 2;
         break;
 
     case PAD_OVAL:
-        m_Rayon = MAX( m_Size.x, m_Size.y ) / 2;
+        radius = MAX( m_Size.x, m_Size.y ) / 2;
         break;
 
     case PAD_RECT:
-    case PAD_TRAPEZOID:
-        m_Rayon = (int) ( sqrt( (double) m_Size.y * m_Size.y
-                               + (double) m_Size.x * m_Size.x ) / 2 );
+        radius = 1 + (int) ( sqrt( (double) m_Size.y * m_Size.y
+                                   + (double) m_Size.x * m_Size.x ) / 2 );
         break;
+
+    case PAD_TRAPEZOID:
+        x = m_Size.x + ABS( m_DeltaSize.y );   // Remember: m_DeltaSize.y is the m_Size.x change
+        y = m_Size.y + ABS( m_DeltaSize.x );   // Remember: m_DeltaSize.x is the m_Size.y change
+        radius = 1 + (int) ( sqrt( (double) y * y + (double) x * x ) / 2 );
+        break;
+
+    default:
+        radius = 0;     // quiet compiler
     }
+
+    return radius;
+}
+
+
+/* Calculate the radius of the circle containing the pad.
+ */
+void D_PAD::ComputeShapeMaxRadius()
+{
+    m_ShapeMaxRadius = GetMaxRadius();
 }
 
 
@@ -80,14 +103,13 @@ void D_PAD::ComputeRayon()
  * returns the bounding box of this pad
  * Mainly used to redraw the screen area occupied by the pad
  */
-EDA_Rect D_PAD::GetBoundingBox()
+EDA_RECT D_PAD::GetBoundingBox() const
 {
-    // Calculate area:
-    ComputeRayon();     // calculate the radius of the area, considered as a
-                        // circle
-    EDA_Rect area;
+    EDA_RECT area;
+    int radius = GetMaxRadius();     // Calculate the radius of the area, considered as a circle
+
     area.SetOrigin( m_Pos );
-    area.Inflate( m_Rayon, m_Rayon );
+    area.Inflate( radius );
 
     return area;
 }
@@ -159,7 +181,7 @@ void D_PAD::SetPadName( const wxString& name )
 
 /**
  * Function SetNetname
- * @param const wxString : the new netname
+ * @param aNetname: the new netname
  */
 void D_PAD::SetNetname( const wxString& aNetname )
 {
@@ -176,7 +198,7 @@ void D_PAD::Copy( D_PAD* source )
     m_Pos = source->m_Pos;
     m_Masque_Layer = source->m_Masque_Layer;
 
-    memcpy( m_Padname, source->m_Padname, sizeof(m_Padname) );
+    m_NumPadName = source->m_NumPadName;
     SetNet( source->GetNet() );
     m_Drill = source->m_Drill;
     m_DrillShape = source->m_DrillShape;
@@ -184,7 +206,7 @@ void D_PAD::Copy( D_PAD* source )
     m_Size = source->m_Size;
     m_DeltaSize = source->m_DeltaSize;
     m_Pos0     = source->m_Pos0;
-    m_Rayon    = source->m_Rayon;
+    m_ShapeMaxRadius    = source->m_ShapeMaxRadius;
     m_PadShape = source->m_PadShape;
     m_Attribut = source->m_Attribut;
     m_Orient   = source->m_Orient;
@@ -200,12 +222,11 @@ void D_PAD::Copy( D_PAD* source )
 }
 
 
-/** Virtual function GetClearance
+/**
+ * Function GetClearance (virtual)
  * returns the clearance in internal units.  If \a aItem is not NULL then the
  * returned clearance is the greater of this object's clearance and
- * aItem's clearance.  If \a aItem is NULL, then this objects
- * clearance
- * is returned.
+ * aItem's clearance.  If \a aItem is NULL, then this object clearance is returned.
  * @param aItem is another BOARD_CONNECTED_ITEM or NULL
  * @return int - the clearance in internal units.
  */
@@ -239,7 +260,8 @@ int D_PAD::GetClearance( BOARD_CONNECTED_ITEM* aItem ) const
 
 // Mask margins handling:
 
-/** Function GetSolderMaskMargin
+/**
+ * Function GetSolderMaskMargin
  * @return the margin for the solder mask layer
  * usually > 0 (mask shape bigger than pad
  * value is
@@ -276,7 +298,8 @@ int D_PAD::GetSolderMaskMargin()
 }
 
 
-/** Function GetSolderPasteMargin
+/**
+ * Function GetSolderPasteMargin
  * @return the margin for the solder mask layer
  * usually < 0 (mask shape smaller than pad
  * value is
@@ -333,14 +356,16 @@ wxSize D_PAD::GetSolderPasteMargin()
  * Po 6000 -6000
  * $EndPAD
  */
-int D_PAD::ReadDescr( FILE* File, int* LineNum )
+int D_PAD::ReadDescr( LINE_READER* aReader )
 {
-    char  Line[1024], BufLine[1024], BufCar[256];
+    char* Line;
+    char  BufLine[1024], BufCar[256];
     char* PtLine;
     int   nn, ll, dx, dy;
 
-    while( GetLine( File, Line, LineNum ) != NULL )
+    while( aReader->ReadLine() )
     {
+        Line = aReader->Line();
         if( Line[0] == '$' )
             return 0;
 
@@ -400,7 +425,7 @@ int D_PAD::ReadDescr( FILE* File, int* LineNum )
                 m_PadShape = PAD_TRAPEZOID; break;
             }
 
-            ComputeRayon();
+            ComputeShapeMaxRadius();
             break;
 
         case 'D':
@@ -442,8 +467,8 @@ int D_PAD::ReadDescr( FILE* File, int* LineNum )
 
             /* read Netname */
             ReadDelimitedText( BufLine, PtLine, sizeof(BufLine) );
-            SetNetname( CONV_FROM_UTF8( StrPurge( BufLine ) ) );
-            break;
+            SetNetname( FROM_UTF8( StrPurge( BufLine ) ) );
+        break;
 
         case 'P':
             nn    = sscanf( PtLine, "%d %d", &m_Pos0.x, &m_Pos0.y );
@@ -533,18 +558,19 @@ bool D_PAD::Save( FILE* aFile ) const
 
     fprintf( aFile, "At %s N %8.8X\n", texttype, m_Masque_Layer );
 
-    fprintf( aFile, "Ne %d \"%s\"\n", GetNet(), CONV_TO_UTF8( m_Netname ) );
+    fprintf( aFile, "Ne %d %s\n", GetNet(), EscapedUTF8( m_Netname ).c_str() );
 
     fprintf( aFile, "Po %d %d\n", m_Pos0.x, m_Pos0.y );
 
     if( m_LocalSolderMaskMargin != 0 )
         fprintf( aFile, ".SolderMask %d\n", m_LocalSolderMaskMargin );
+
     if( m_LocalSolderPasteMargin != 0 )
         fprintf( aFile, ".SolderPaste %d\n", m_LocalSolderPasteMargin );
+
     if( m_LocalSolderPasteMarginRatio != 0 )
-        fprintf( aFile,
-                 ".SolderPasteRatio %g\n",
-                 m_LocalSolderPasteMarginRatio );
+        fprintf( aFile, ".SolderPasteRatio %g\n", m_LocalSolderPasteMarginRatio );
+
     if( m_LocalClearance != 0 )
         fprintf( aFile, ".LocalClearance %d\n", m_LocalClearance );
 
@@ -555,7 +581,7 @@ bool D_PAD::Save( FILE* aFile ) const
 }
 
 
-void D_PAD::DisplayInfo( WinEDA_DrawFrame* frame )
+void D_PAD::DisplayInfo( EDA_DRAW_FRAME* frame )
 {
     MODULE*     module;
     wxString    Line;
@@ -750,22 +776,20 @@ bool D_PAD::IsOnLayer( int aLayer ) const
 /**
  * Function HitTest
  * tests if the given wxPoint is within the bounds of this object.
- * @param ref_pos A wxPoint to test
+ * @param refPos A wxPoint to test
  * @return bool - true if a hit, else false
  */
-bool D_PAD::HitTest( const wxPoint& ref_pos )
+bool D_PAD::HitTest( const wxPoint& refPos )
 {
-    int     deltaX, deltaY;
     int     dx, dy;
     double  dist;
 
     wxPoint shape_pos = ReturnShapePos();
 
-    deltaX = ref_pos.x - shape_pos.x;
-    deltaY = ref_pos.y - shape_pos.y;
+    wxPoint delta = refPos - shape_pos;
 
     /* Quick test: a test point must be inside the circle. */
-    if( ( abs( deltaX ) > m_Rayon ) || ( abs( deltaY ) > m_Rayon ) )
+    if( ( abs( delta.x ) > m_ShapeMaxRadius ) || ( abs( delta.y ) > m_ShapeMaxRadius ) )
         return false;
 
     dx = m_Size.x >> 1; // dx also is the radius for rounded pads
@@ -774,14 +798,22 @@ bool D_PAD::HitTest( const wxPoint& ref_pos )
     switch( m_PadShape & 0x7F )
     {
     case PAD_CIRCLE:
-        dist = hypot( deltaX, deltaY );
+        dist = hypot( delta.x, delta.y );
         if( wxRound( dist ) <= dx )
             return true;
         break;
 
+    case PAD_TRAPEZOID:
+    {
+        wxPoint poly[4];
+        BuildPadPolygon( poly, wxSize(0,0), 0 );
+        RotatePoint( &delta, -m_Orient );
+        return TestPointInsidePolygon( poly, 4, delta );
+    }
+
     default:
-        RotatePoint( &deltaX, &deltaY, -m_Orient );
-        if( (abs( deltaX ) <= dx ) && (abs( deltaY ) <= dy) )
+        RotatePoint( &delta, -m_Orient );
+        if( (abs( delta.x ) <= dx ) && (abs( delta.y ) <= dy) )
             return true;
         break;
     }

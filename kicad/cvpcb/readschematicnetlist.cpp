@@ -3,8 +3,6 @@
 /****************************/
 
 /* Read a nelist type Eeschema or OrcadPCB2 and build the component list
- * Manages the lines like :
- * ( XXXXXX VALEUR|(pin1,pin2,...=newalim) ID VALEUR
  */
 
 #include "fctsys.h"
@@ -15,9 +13,7 @@
 #include "macros.h"
 
 #include "cvpcb.h"
-#include "protos.h"
-#include "cvstruct.h"
-
+#include "cvpcb_mainframe.h"
 #include "richio.h"
 
 
@@ -86,12 +82,12 @@ static int ReadFootprintFilterList( FILE_LINE_READER& aNetlistReader, COMPONENT_
  * $endfootprintlist
  * }
  */
-int WinEDA_CvpcbFrame::ReadSchematicNetlist()
+int CVPCB_MAINFRAME::ReadSchematicNetlist()
 {
     char       alim[1024];
     int        idx, jj, k, l;
     char       cbuffer[BUFFER_CHAR_SIZE];      /* temporary storage */
-    char* ptchar;
+    char*      ptchar;
     COMPONENT* Cmp;
     FILE*      source;
 
@@ -113,13 +109,14 @@ int WinEDA_CvpcbFrame::ReadSchematicNetlist()
         return -1;
     }
 
-    FILE_LINE_READER netlistReader( source,  BUFFER_CHAR_SIZE );
-    char* Line = netlistReader;
+    // FILE_LINE_READER will close the file.
+    FILE_LINE_READER netlistReader( source, m_NetlistFileName.GetFullPath() );
 
     /* Read the file header (must be  "( { OrCAD PCB" or "({ OrCAD PCB" )
      * or "# EESchema Netlist"
      */
-    netlistReader.ReadLine( );
+    netlistReader.ReadLine();
+    const char* Line = netlistReader.Line();
 
     /* test for netlist type PCB2 */
     idx = strnicmp( Line, "( {", 3 );
@@ -134,10 +131,9 @@ int WinEDA_CvpcbFrame::ReadSchematicNetlist()
 
     if( idx != 0 )
     {
-        wxString msg, Lineconv = CONV_FROM_UTF8( Line );
+        wxString msg, Lineconv = FROM_UTF8( Line );
         msg.Printf( _( "Unknown file format <%s>" ), Lineconv.GetData() );
         DisplayError( this, msg );
-        fclose( source );
         return -3;
     }
 
@@ -151,6 +147,7 @@ int WinEDA_CvpcbFrame::ReadSchematicNetlist()
 
         if( netlistReader.ReadLine( ) == 0 )
             break;
+        Line = netlistReader.Line();
 
         /* Remove blanks */
         idx = 0;
@@ -186,7 +183,7 @@ int WinEDA_CvpcbFrame::ReadSchematicNetlist()
         while( Line[idx] != ' ' && Line[idx] )
             cbuffer[jj++] = Line[idx++];
         cbuffer[jj] = 0;
-        Cmp->m_TimeStamp = CONV_FROM_UTF8(cbuffer);
+        Cmp->m_TimeStamp = FROM_UTF8(cbuffer);
 
         /* search val/ref.lib */
         while( Line[idx] == ' ' )
@@ -194,11 +191,11 @@ int WinEDA_CvpcbFrame::ReadSchematicNetlist()
 
         /* idx points the component value.
          * Read value */
-        ptchar = strstr( &Line[idx], " " );  // Search end of value field (space)
+        ptchar = strstr( (char*) &Line[idx], " " );  // Search end of value field (space)
         if( ptchar == 0 )
         {
-            wxString msg;
-            msg.Printf( _( "Netlist error: %s" ), Line );
+            wxString msg = _( "Netlist error: " );
+            msg << FROM_UTF8( Line );
             DisplayError( this, msg );
             k = 0;
         }
@@ -213,8 +210,8 @@ int WinEDA_CvpcbFrame::ReadSchematicNetlist()
         }
         cbuffer[jj] = 0;
         // Copy footprint name:
-        if( m_isEESchemaNetlist && (strnicmp( cbuffer, "$noname", 7 ) != 0) )
-            Cmp->m_Module = CONV_FROM_UTF8(cbuffer);
+        if( m_isEESchemaNetlist &&  strnicmp( cbuffer, "$noname", 7 ) != 0 )
+            Cmp->m_Module = FROM_UTF8(cbuffer);
 
         if( (Line[++idx] == '(') && (Line[k - 1] == ')' ) )
         {
@@ -241,7 +238,7 @@ int WinEDA_CvpcbFrame::ReadSchematicNetlist()
             cbuffer[jj++] = Line[idx];
         }
         cbuffer[jj] = 0;
-        Cmp->m_Reference = CONV_FROM_UTF8(cbuffer);
+        Cmp->m_Reference = FROM_UTF8(cbuffer);
 
         /* Search component value */
         while( Line[idx] == ' ' && Line[idx] )
@@ -256,14 +253,12 @@ int WinEDA_CvpcbFrame::ReadSchematicNetlist()
             cbuffer[jj++] = Line[idx];
         }
         cbuffer[jj] = 0;
-        Cmp->m_Value = CONV_FROM_UTF8(cbuffer);
+        Cmp->m_Value = FROM_UTF8(cbuffer);
 
         m_components.push_back( Cmp );
 
         ReadPinConnection( netlistReader, Cmp );
     }
-
-    fclose( source );
 
     m_components.sort();
 
@@ -273,9 +268,9 @@ int WinEDA_CvpcbFrame::ReadSchematicNetlist()
 
 int ReadFootprintFilterList(  FILE_LINE_READER& aNetlistReader, COMPONENT_LIST& aComponentsList )
 {
-    char*       Line = aNetlistReader;
-    wxString   CmpRef;
-    COMPONENT* Cmp = NULL;
+    const char* Line = aNetlistReader;
+    wxString    CmpRef;
+    COMPONENT*  Cmp = NULL;
 
     for( ; ; )
     {
@@ -291,7 +286,7 @@ int ReadFootprintFilterList(  FILE_LINE_READER& aNetlistReader, COMPONENT_LIST& 
 
         if( strnicmp( Line, "$component", 10 ) == 0 ) // New component ref found
         {
-            CmpRef = CONV_FROM_UTF8( Line + 11 );
+            CmpRef = FROM_UTF8( Line + 11 );
             CmpRef.Trim( true );
             CmpRef.Trim( false );
 
@@ -305,7 +300,7 @@ int ReadFootprintFilterList(  FILE_LINE_READER& aNetlistReader, COMPONENT_LIST& 
         }
         else if( Cmp )
         {
-            wxString fp = CONV_FROM_UTF8( Line + 1 );
+            wxString fp = FROM_UTF8( Line + 1 );
             fp.Trim( false );
             fp.Trim( true );
             Cmp->m_FootprintFilter.Add( fp );
@@ -318,17 +313,18 @@ int ReadFootprintFilterList(  FILE_LINE_READER& aNetlistReader, COMPONENT_LIST& 
 
 int ReadPinConnection( FILE_LINE_READER& aNetlistReader, COMPONENT* Cmp )
 {
-    int      i, jj;
-    char*     Line = aNetlistReader;
-    char cbuffer[BUFFER_CHAR_SIZE];
+    int         i, jj;
+    char        cbuffer[BUFFER_CHAR_SIZE];
 
     for( ; ; )
     {
         /* Find beginning of description. */
         for( ; ; )
         {
-            if( aNetlistReader.ReadLine( ) == 0 )
+            if( aNetlistReader.ReadLine() == 0 )
                 return -1;
+
+            char*  Line = aNetlistReader.Line();
 
             /* Remove blanks from the beginning of the line. */
             i = 0; while( Line[i] == ' ' )
@@ -358,7 +354,7 @@ int ReadPinConnection( FILE_LINE_READER& aNetlistReader, COMPONENT* Cmp )
                 cbuffer[jj++] = Line[i];
             }
             cbuffer[jj] =  0;
-            Pin->m_Number = CONV_FROM_UTF8(cbuffer);
+            Pin->m_Number = FROM_UTF8(cbuffer);
 
             /* Read netname */
             while( Line[i] == ' ' )
@@ -371,7 +367,7 @@ int ReadPinConnection( FILE_LINE_READER& aNetlistReader, COMPONENT* Cmp )
                 cbuffer[jj++] = Line[i];
             }
             cbuffer[jj] =  0;
-            Pin->m_Net = CONV_FROM_UTF8(cbuffer);
+            Pin->m_Net = FROM_UTF8(cbuffer);
 
             Cmp->m_Pins.push_back( Pin );
         }

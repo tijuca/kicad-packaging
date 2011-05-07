@@ -13,6 +13,7 @@
 #include "colors_selection.h"
 #include "kicad_string.h"
 #include "protos.h"
+#include "richio.h"
 
 DIMENSION::DIMENSION( BOARD_ITEM* aParent ) :
     BOARD_ITEM( aParent, TYPE_DIMENSION )
@@ -100,12 +101,14 @@ void DIMENSION::Copy( DIMENSION* source )
 }
 
 
-bool DIMENSION::ReadDimensionDescr( FILE* File, int* LineNum )
+bool DIMENSION::ReadDimensionDescr( LINE_READER* aReader )
 {
-    char Line[2048], Text[2048];
+    char* Line;
+    char  Text[2048];
 
-    while(  GetLine( File, Line, LineNum ) != NULL )
+    while( aReader->ReadLine() )
     {
+        Line = aReader->Line();
         if( strnicmp( Line, "$EndDIMENSION", 4 ) == 0 )
             return TRUE;
 
@@ -134,7 +137,7 @@ bool DIMENSION::ReadDimensionDescr( FILE* File, int* LineNum )
         if( Line[0] == 'T' )
         {
             ReadDelimitedText( Text, Line + 2, sizeof(Text) );
-            m_Text->m_Text = CONV_FROM_UTF8( Text );
+            m_Text->m_Text = FROM_UTF8( Text );
             continue;
         }
 
@@ -144,7 +147,7 @@ bool DIMENSION::ReadDimensionDescr( FILE* File, int* LineNum )
             sscanf( Line + 2, " %d %d %d %d %d %d %d",
                     &m_Text->m_Pos.x, &m_Text->m_Pos.y,
                     &m_Text->m_Size.x, &m_Text->m_Size.y,
-                    &m_Text->m_Width, &m_Text->m_Orient,
+                    &m_Text->m_Thickness, &m_Text->m_Orient,
                     &normal_display );
 
             m_Text->m_Mirror = normal_display ? false : true;
@@ -264,41 +267,41 @@ void DIMENSION::Move(const wxPoint& offset)
 
 /**
  * Function Rotate
- * @param center : Rotation point
- * @param angle : Rotation angle in 0.1 degrees
+ * @param aRotCentre - the rotation point.
+ * @param aAngle - the rotation angle in 0.1 degree.
  */
-void DIMENSION::Rotate(const wxPoint& centre, int angle)
+void DIMENSION::Rotate(const wxPoint& aRotCentre, int aAngle)
 {
-    RotatePoint( &m_Pos, centre, angle );
+    RotatePoint( &m_Pos, aRotCentre, aAngle );
 
-    RotatePoint( &m_Text->m_Pos, centre, angle );
-    m_Text->m_Orient += angle;
+    RotatePoint( &m_Text->m_Pos, aRotCentre, aAngle );
+    m_Text->m_Orient += aAngle;
     if( m_Text->m_Orient >= 3600 )
         m_Text->m_Orient -= 3600;
     if( ( m_Text->m_Orient > 900 ) && ( m_Text->m_Orient <2700 ) )
         m_Text->m_Orient -= 1800;
 
-    RotatePoint( &Barre_ox, &Barre_oy, centre.x, centre.y, angle );
-    RotatePoint( &Barre_fx, &Barre_fy, centre.x, centre.y, angle );
-    RotatePoint( &TraitG_ox, &TraitG_oy, centre.x, centre.y, angle );
-    RotatePoint( &TraitG_fx, &TraitG_fy, centre.x, centre.y, angle );
-    RotatePoint( &TraitD_ox, &TraitD_oy, centre.x, centre.y, angle );
-    RotatePoint( &TraitD_fx, &TraitD_fy, centre.x, centre.y, angle );
-    RotatePoint( &FlecheG1_ox, &FlecheG1_oy, centre.x, centre.y, angle );
-    RotatePoint( &FlecheG1_fx, &FlecheG1_fy, centre.x, centre.y, angle );
-    RotatePoint( &FlecheG2_ox, &FlecheG2_oy, centre.x, centre.y, angle );
-    RotatePoint( &FlecheG2_fx, &FlecheG2_fy, centre.x, centre.y, angle );
-    RotatePoint( &FlecheD1_ox, &FlecheD1_oy, centre.x, centre.y, angle );
-    RotatePoint( &FlecheD1_fx, &FlecheD1_fy, centre.x, centre.y, angle );
-    RotatePoint( &FlecheD2_ox, &FlecheD2_oy, centre.x, centre.y, angle );
-    RotatePoint( &FlecheD2_fx, &FlecheD2_fy, centre.x, centre.y, angle );
+    RotatePoint( &Barre_ox, &Barre_oy, aRotCentre.x, aRotCentre.y, aAngle );
+    RotatePoint( &Barre_fx, &Barre_fy, aRotCentre.x, aRotCentre.y, aAngle );
+    RotatePoint( &TraitG_ox, &TraitG_oy, aRotCentre.x, aRotCentre.y, aAngle );
+    RotatePoint( &TraitG_fx, &TraitG_fy, aRotCentre.x, aRotCentre.y, aAngle );
+    RotatePoint( &TraitD_ox, &TraitD_oy, aRotCentre.x, aRotCentre.y, aAngle );
+    RotatePoint( &TraitD_fx, &TraitD_fy, aRotCentre.x, aRotCentre.y, aAngle );
+    RotatePoint( &FlecheG1_ox, &FlecheG1_oy, aRotCentre.x, aRotCentre.y, aAngle );
+    RotatePoint( &FlecheG1_fx, &FlecheG1_fy, aRotCentre.x, aRotCentre.y, aAngle );
+    RotatePoint( &FlecheG2_ox, &FlecheG2_oy, aRotCentre.x, aRotCentre.y, aAngle );
+    RotatePoint( &FlecheG2_fx, &FlecheG2_fy, aRotCentre.x, aRotCentre.y, aAngle );
+    RotatePoint( &FlecheD1_ox, &FlecheD1_oy, aRotCentre.x, aRotCentre.y, aAngle );
+    RotatePoint( &FlecheD1_fx, &FlecheD1_fy, aRotCentre.x, aRotCentre.y, aAngle );
+    RotatePoint( &FlecheD2_ox, &FlecheD2_oy, aRotCentre.x, aRotCentre.y, aAngle );
+    RotatePoint( &FlecheD2_fx, &FlecheD2_fy, aRotCentre.x, aRotCentre.y, aAngle );
 }
 
 
 /**
  * Function Flip
  * Flip this object, i.e. change the board side for this object
- * @param const wxPoint& aCentre - the rotation point.
+ * @param aCentre - the rotation point.
  */
 void DIMENSION::Flip(const wxPoint& aCentre )
 {
@@ -345,9 +348,6 @@ void DIMENSION::Mirror(const wxPoint& axis_pos)
 
 bool DIMENSION::Save( FILE* aFile ) const
 {
-    if( GetState( DELETED ) )
-        return true;
-
     bool rc = false;
     // note: COTATION was the previous name of DIMENSION
     // this old keyword is used here for compatibility
@@ -362,14 +362,14 @@ bool DIMENSION::Save( FILE* aFile ) const
     fprintf( aFile, "Va %d\n", m_Value );
 
     if( !m_Text->m_Text.IsEmpty() )
-        fprintf( aFile, "Te \"%s\"\n", CONV_TO_UTF8( m_Text->m_Text ) );
+        fprintf( aFile, "Te %s\n", EscapedUTF8( m_Text->m_Text ).c_str() );
     else
         fprintf( aFile, "Te \"?\"\n" );
 
     fprintf( aFile, "Po %d %d %d %d %d %d %d\n",
              m_Text->m_Pos.x, m_Text->m_Pos.y,
              m_Text->m_Size.x, m_Text->m_Size.y,
-             m_Text->m_Width, m_Text->m_Orient,
+             m_Text->m_Thickness, m_Text->m_Orient,
              m_Text->m_Mirror ? 0 : 1 );
 
     fprintf( aFile, "Sb %d %d %d %d %d %d\n", S_SEGMENT,
@@ -411,7 +411,8 @@ out:
 }
 
 
-/** function AdjustDimensionDetails
+/**
+ * Function AdjustDimensionDetails
  * Calculate coordinates of segments used to draw the dimension.
  * @param aDoNotChangeText (bool) if false, the dimension text is initialized
  */
@@ -432,7 +433,7 @@ void DIMENSION::AdjustDimensionDetails( bool aDoNotChangeText )
     /* calculate the size of the cdimension
      * (text + line above the text) */
     ii = m_Text->m_Size.y +
-         m_Text->m_Width + (m_Width * 3);
+         m_Text->m_Thickness + (m_Width * 3);
 
     deltax = TraitD_ox - TraitG_ox;
     deltay = TraitD_oy - TraitG_oy;
@@ -527,13 +528,12 @@ void DIMENSION::AdjustDimensionDetails( bool aDoNotChangeText )
 
 /* Print 1 dimension: segments and text
  */
-void DIMENSION::Draw( WinEDA_DrawPanel* panel, wxDC* DC,
-                     int mode_color, const wxPoint& offset )
+void DIMENSION::Draw( EDA_DRAW_PANEL* panel, wxDC* DC, int mode_color, const wxPoint& offset )
 {
     int ox, oy, typeaff, width, gcolor;
 
-    ox = offset.x;
-    oy = offset.y;
+    ox = -offset.x;
+    oy = -offset.y;
 
     m_Text->Draw( panel, DC, mode_color, offset );
 
@@ -547,11 +547,7 @@ void DIMENSION::Draw( WinEDA_DrawPanel* panel, wxDC* DC,
     typeaff = DisplayOpt.DisplayDrawItems;
     width   = m_Width;
 
-#ifdef USE_WX_ZOOM
     if( DC->LogicalToDeviceXRel( width ) < 2 )
-#else
-    if( panel->GetScreen()->Scale( width ) < 2 )
-#endif
         typeaff = FILAIRE;
 
     switch( typeaff )
@@ -618,7 +614,7 @@ void DIMENSION::Draw( WinEDA_DrawPanel* panel, wxDC* DC,
 
 
 // see class_cotation.h
-void DIMENSION::DisplayInfo( WinEDA_DrawFrame* frame )
+void DIMENSION::DisplayInfo( EDA_DRAW_FRAME* frame )
 {
     // for now, display only the text within the DIMENSION using class TEXTE_PCB.
     m_Text->DisplayInfo( frame );
@@ -731,13 +727,53 @@ bool DIMENSION::HitTest( const wxPoint& ref_pos )
 
 /**
  * Function HitTest (overlaid)
- * tests if the given EDA_Rect intersect this object.
- * @param EDA_Rect : the given EDA_Rect
+ * tests if the given EDA_RECT intersect this object.
+ * @param refArea : the given EDA_RECT
  * @return bool - true if a hit, else false
  */
-bool DIMENSION::HitTest( EDA_Rect& refArea )
+bool DIMENSION::HitTest( EDA_RECT& refArea )
 {
-    if( refArea.Inside( m_Pos ) )
+    if( refArea.Contains( m_Pos ) )
         return true;
     return false;
+}
+
+
+EDA_RECT DIMENSION::GetBoundingBox() const
+{
+    EDA_RECT bBox;
+    int xmin, xmax, ymin, ymax;
+
+    bBox = m_Text->GetTextBox( -1 );
+    xmin = bBox.GetX();
+    xmax = bBox.GetRight();
+    ymin = bBox.GetY();
+    ymax = bBox.GetBottom();
+
+    xmin = MIN( xmin, Barre_ox );
+    xmin = MIN( xmin, Barre_fx );
+    ymin = MIN( ymin, Barre_oy );
+    ymin = MIN( ymin, Barre_fy );
+    xmax = MAX( xmax, Barre_ox );
+    xmax = MAX( xmax, Barre_fx );
+    ymax = MAX( ymax, Barre_oy );
+    ymax = MAX( ymax, Barre_fy );
+
+    xmin = MIN( xmin, TraitG_ox );
+    xmin = MIN( xmin, TraitG_fx );
+    ymin = MIN( ymin, TraitG_oy );
+    ymin = MIN( ymin, TraitG_fy );
+    xmax = MAX( xmax, TraitG_ox );
+    xmax = MAX( xmax, TraitG_fx );
+    ymax = MAX( ymax, TraitG_oy );
+    ymax = MAX( ymax, TraitG_fy );
+
+    bBox.SetX( xmin );
+    bBox.SetY( ymin );
+    bBox.SetWidth( xmax - xmin + 1 );
+    bBox.SetHeight( ymax - ymin + 1 );
+
+    bBox.Normalize();
+
+    return bBox;
 }

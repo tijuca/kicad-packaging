@@ -18,11 +18,11 @@
 /* Plot sheet references
  * margin is in mils (1/1000 inch)
  */
-void WinEDA_DrawFrame::PlotWorkSheet( PLOTTER* plotter, BASE_SCREEN* screen )
+void EDA_DRAW_FRAME::PlotWorkSheet( PLOTTER* plotter, BASE_SCREEN* screen )
 {
 #define WSTEXTSIZE 50   // Text size in mils
     Ki_PageDescr* Sheet = screen->m_CurrentSheetDesc;
-    int           xg, yg, ipas, gxpas, gypas;
+    int           xg, yg;
     wxSize        PageSize;
     wxPoint       pos, ref;
     EDA_Colors    color;
@@ -36,10 +36,11 @@ void WinEDA_DrawFrame::PlotWorkSheet( PLOTTER* plotter, BASE_SCREEN* screen )
     wxSize   text_size2;
     wxSize   text_size3;
     wxSize   text_size1_5;
-#endif
+#else
     int      UpperLimit = VARIABLE_BLOCK_START_POSITION;
-    bool     italic     = false;
     bool     bold = false;
+#endif
+    bool     italic     = false;
     bool     thickness = 0;      //@todo : use current pen
 
     color = BLACK;
@@ -150,8 +151,8 @@ void WinEDA_DrawFrame::PlotWorkSheet( PLOTTER* plotter, BASE_SCREEN* screen )
 #else
 
     /* Plot legend along the X axis. */
-    ipas  = ( xg - ref.x ) / PAS_REF;
-    gxpas = ( xg - ref.x ) / ipas;
+    int ipas  = ( xg - ref.x ) / PAS_REF;
+    int gxpas = ( xg - ref.x ) / ipas;
     for( int ii = ref.x + gxpas, jj = 1; ipas > 0; ii += gxpas, jj++, ipas-- )
     {
         msg.Empty();
@@ -193,7 +194,7 @@ void WinEDA_DrawFrame::PlotWorkSheet( PLOTTER* plotter, BASE_SCREEN* screen )
 
     /* Plot legend along the Y axis. */
     ipas  = ( yg - ref.y ) / PAS_REF;
-    gypas = (  yg - ref.y ) / ipas;
+    int gypas = (  yg - ref.y ) / ipas;
     for( int ii = ref.y + gypas, jj = 0; ipas > 0; ii += gypas, jj++, ipas-- )
     {
         if( jj < 26 )
@@ -486,7 +487,7 @@ void WinEDA_DrawFrame::PlotWorkSheet( PLOTTER* plotter, BASE_SCREEN* screen )
         case WS_FILENAME:
         {
             wxString fname, fext;
-            wxFileName::SplitPath( screen->m_FileName,
+            wxFileName::SplitPath( screen->GetFileName(),
                                    (wxString*) NULL,
                                    &fname,
                                    &fext );
@@ -546,8 +547,8 @@ void WinEDA_DrawFrame::PlotWorkSheet( PLOTTER* plotter, BASE_SCREEN* screen )
         case WS_SEGMENT:
         {
             wxPoint auxpos;
-            auxpos.x = ( ref.x - WsItem->m_Endx ) * conv_unit;;
-            auxpos.y = ( ref.y - WsItem->m_Endy ) * conv_unit;;
+            auxpos.x = ( ref.x - WsItem->m_Endx ) * conv_unit;
+            auxpos.y = ( ref.y - WsItem->m_Endy ) * conv_unit;
             plotter->move_to( pos );
             plotter->finish_to( auxpos );
         }

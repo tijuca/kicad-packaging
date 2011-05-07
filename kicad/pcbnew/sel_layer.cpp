@@ -1,14 +1,12 @@
 /* Set up the basic primitives for Layer control */
 
 #include "fctsys.h"
-#include "gr_basic.h"
 #include "common.h"
 #include "class_drawpanel.h"
 #include "confirm.h"
 
 #include "pcbnew.h"
 #include "class_board_design_settings.h"
-#include "protos.h"
 
 
 enum layer_sel_id {
@@ -18,19 +16,19 @@ enum layer_sel_id {
 };
 
 
-class WinEDA_SelLayerFrame : public wxDialog
+class SELECT_LAYER_DIALOG : public wxDialog
 {
 private:
-    WinEDA_BasePcbFrame* m_Parent;
-    wxRadioBox*          m_LayerList;
+    PCB_BASE_FRAME* m_Parent;
+    wxRadioBox*     m_LayerList;
     int m_LayerId[NB_LAYERS + 1]; // One extra element for "(Deselect)"
                                   // radiobutton
 
 public:
     // Constructor and destructor
-    WinEDA_SelLayerFrame( WinEDA_BasePcbFrame* parent, int default_layer,
+    SELECT_LAYER_DIALOG( PCB_BASE_FRAME* parent, int default_layer,
                           int min_layer, int max_layer, bool null_layer );
-    ~WinEDA_SelLayerFrame() { };
+    ~SELECT_LAYER_DIALOG() { };
 
 private:
     void Sel_Layer( wxCommandEvent& event );
@@ -40,10 +38,10 @@ private:
 };
 
 
-BEGIN_EVENT_TABLE( WinEDA_SelLayerFrame, wxDialog )
-    EVT_BUTTON( wxID_OK, WinEDA_SelLayerFrame::Sel_Layer )
-    EVT_BUTTON( wxID_CANCEL, WinEDA_SelLayerFrame::OnCancelClick )
-    EVT_RADIOBOX( ID_LAYER_SELECT, WinEDA_SelLayerFrame::Sel_Layer )
+BEGIN_EVENT_TABLE( SELECT_LAYER_DIALOG, wxDialog )
+    EVT_BUTTON( wxID_OK, SELECT_LAYER_DIALOG::Sel_Layer )
+    EVT_BUTTON( wxID_CANCEL, SELECT_LAYER_DIALOG::OnCancelClick )
+    EVT_RADIOBOX( ID_LAYER_SELECT, SELECT_LAYER_DIALOG::Sel_Layer )
 END_EVENT_TABLE()
 
 
@@ -64,13 +62,13 @@ END_EVENT_TABLE()
  * "Deselect"
  * button provided within the "Swap Layers:" or "Layer selection:" dialog box).
  */
-int WinEDA_BasePcbFrame::SelectLayer( int  default_layer,
-                                      int  min_layer,
-                                      int  max_layer,
-                                      bool null_layer )
+int PCB_BASE_FRAME::SelectLayer( int  default_layer,
+                                 int  min_layer,
+                                 int  max_layer,
+                                 bool null_layer )
 {
     int layer;
-    WinEDA_SelLayerFrame* frame = new WinEDA_SelLayerFrame( this,
+    SELECT_LAYER_DIALOG* frame = new SELECT_LAYER_DIALOG( this,
                                                             default_layer,
                                                             min_layer,
                                                             max_layer,
@@ -88,7 +86,7 @@ int WinEDA_BasePcbFrame::SelectLayer( int  default_layer,
  * radiobuttons, in which case they are positioned (in a vertical line)
  * to the right of that radiobox.
  */
-WinEDA_SelLayerFrame::WinEDA_SelLayerFrame( WinEDA_BasePcbFrame* parent,
+SELECT_LAYER_DIALOG::SELECT_LAYER_DIALOG( PCB_BASE_FRAME* parent,
                                             int default_layer, int min_layer,
                                             int max_layer, bool null_layer ) :
     wxDialog( parent, -1, _( "Select Layer:" ), wxPoint( -1, -1 ),
@@ -106,9 +104,9 @@ WinEDA_SelLayerFrame::WinEDA_SelLayerFrame( WinEDA_BasePcbFrame* parent,
 
     /* Build the layer list */
     LayerCount = 0;
-    int Masque_Layer =
-        g_TabAllCopperLayerMask[board->GetCopperLayerCount() - 1];
+    int Masque_Layer = g_TabAllCopperLayerMask[board->GetCopperLayerCount() - 1];
     Masque_Layer += ALL_NO_CU_LAYERS;
+
     for( ii = 0; ii < NB_LAYERS; ii++ )
     {
         m_LayerId[ii] = 0;
@@ -122,6 +120,7 @@ WinEDA_SelLayerFrame::WinEDA_SelLayerFrame( WinEDA_BasePcbFrame* parent,
                 break;
 
             LayerList[LayerCount] = board->GetLayerName( ii );
+
             if( ii == default_layer )
                 LayerSelect = LayerCount;
 
@@ -134,6 +133,7 @@ WinEDA_SelLayerFrame::WinEDA_SelLayerFrame( WinEDA_BasePcbFrame* parent,
     if( null_layer )
     {
         LayerList[LayerCount] = _( "(Deselect)" );
+
         if( NB_LAYERS == default_layer )
             LayerSelect = LayerCount;
 
@@ -157,19 +157,17 @@ WinEDA_SelLayerFrame::WinEDA_SelLayerFrame( WinEDA_BasePcbFrame* parent,
     FrameBoxSizer->Add( ButtonBoxSizer, 0, wxALIGN_BOTTOM | wxALL, 0 );
 
     Button = new wxButton( this, wxID_OK, _( "OK" ) );
+    Button->SetDefault();
     ButtonBoxSizer->Add( Button, 0, wxGROW | wxALL, 5 );
 
     Button = new wxButton( this, wxID_CANCEL, _( "Cancel" ) );
     ButtonBoxSizer->Add( Button, 0, wxGROW | wxALL, 5 );
 
-    if( GetSizer() )
-    {
-        GetSizer()->SetSizeHints( this );
-    }
+    GetSizer()->SetSizeHints( this );
 }
 
 
-void WinEDA_SelLayerFrame::Sel_Layer( wxCommandEvent& event )
+void SELECT_LAYER_DIALOG::Sel_Layer( wxCommandEvent& event )
 {
     int ii = m_LayerId[m_LayerList->GetSelection()];
 
@@ -177,7 +175,7 @@ void WinEDA_SelLayerFrame::Sel_Layer( wxCommandEvent& event )
 }
 
 
-void WinEDA_SelLayerFrame::OnCancelClick( wxCommandEvent& event )
+void SELECT_LAYER_DIALOG::OnCancelClick( wxCommandEvent& event )
 {
     EndModal( -1 );
 }
@@ -187,16 +185,16 @@ void WinEDA_SelLayerFrame::OnCancelClick( wxCommandEvent& event )
 /* Dialog for the selecting pairs of layers. */
 /*********************************************/
 
-class WinEDA_SelLayerPairFrame : public wxDialog
+class SELECT_LAYERS_PAIR_DIALOG : public wxDialog
 {
 private:
-    WinEDA_BasePcbFrame* m_Parent;
-    wxRadioBox*          m_LayerListTOP;
-    wxRadioBox*          m_LayerListBOTTOM;
+    PCB_BASE_FRAME* m_Parent;
+    wxRadioBox*     m_LayerListTOP;
+    wxRadioBox*     m_LayerListBOTTOM;
     int m_LayerId[NB_COPPER_LAYERS];
 
-public: WinEDA_SelLayerPairFrame( WinEDA_BasePcbFrame* parent );
-    ~WinEDA_SelLayerPairFrame() { };
+public: SELECT_LAYERS_PAIR_DIALOG( PCB_BASE_FRAME* parent );
+    ~SELECT_LAYERS_PAIR_DIALOG() { };
 
 private:
     void OnOkClick( wxCommandEvent& event );
@@ -206,16 +204,16 @@ private:
 };
 
 
-BEGIN_EVENT_TABLE( WinEDA_SelLayerPairFrame, wxDialog )
-    EVT_BUTTON( wxID_OK, WinEDA_SelLayerPairFrame::OnOkClick )
-    EVT_BUTTON( wxID_CANCEL, WinEDA_SelLayerPairFrame::OnCancelClick )
+BEGIN_EVENT_TABLE( SELECT_LAYERS_PAIR_DIALOG, wxDialog )
+    EVT_BUTTON( wxID_OK, SELECT_LAYERS_PAIR_DIALOG::OnOkClick )
+    EVT_BUTTON( wxID_CANCEL, SELECT_LAYERS_PAIR_DIALOG::OnCancelClick )
 END_EVENT_TABLE()
 
 
 /* Display a list of two copper layers for selection of a pair of layers
  * for auto-routing, vias ...
  */
-void WinEDA_BasePcbFrame::SelectLayerPair()
+void PCB_BASE_FRAME::SelectLayerPair()
 {
     // Check whether more than one copper layer has been enabled for the
     // current PCB file, as Layer Pairs can only meaningfully be defined
@@ -229,13 +227,12 @@ void WinEDA_BasePcbFrame::SelectLayerPair()
         return;
     }
 
-    WinEDA_SelLayerPairFrame* frame =
-        new WinEDA_SelLayerPairFrame( this );
+    SELECT_LAYERS_PAIR_DIALOG* frame =
+        new SELECT_LAYERS_PAIR_DIALOG( this );
 
     int result = frame->ShowModal();
     frame->Destroy();
-    DrawPanel->MouseToCursorSchema();
-    SetToolbars();
+    DrawPanel->MoveCursorToCrossHair();
 
     // if user changed colors and we are in high contrast mode, then redraw
     // because the PAD_SMD pads may change color.
@@ -246,7 +243,7 @@ void WinEDA_BasePcbFrame::SelectLayerPair()
 }
 
 
-WinEDA_SelLayerPairFrame::WinEDA_SelLayerPairFrame( WinEDA_BasePcbFrame* parent ) :
+SELECT_LAYERS_PAIR_DIALOG::SELECT_LAYERS_PAIR_DIALOG( PCB_BASE_FRAME* parent ) :
     wxDialog( parent, -1, _( "Select Layer Pair:" ), wxPoint( -1, -1 ),
               wxSize( 470, 250 ), DIALOG_STYLE )
 {
@@ -259,20 +256,23 @@ WinEDA_SelLayerPairFrame::WinEDA_SelLayerPairFrame( WinEDA_BasePcbFrame* parent 
     m_Parent = parent;
 
     PCB_SCREEN* screen = (PCB_SCREEN*) m_Parent->GetScreen();
-    int         Masque_Layer =
-        g_TabAllCopperLayerMask[board->GetCopperLayerCount() - 1];
+    int         Masque_Layer = g_TabAllCopperLayerMask[board->GetCopperLayerCount() - 1];
     Masque_Layer += ALL_NO_CU_LAYERS;
 
     for( ii = 0, LayerCount = 0; ii < NB_COPPER_LAYERS; ii++ )
     {
         m_LayerId[ii] = 0;
+
         if( (g_TabOneLayerMask[ii] & Masque_Layer) )
         {
             LayerList[LayerCount] = board->GetLayerName( ii );
+
             if( ii == screen->m_Route_Layer_TOP )
                 LayerTopSelect = LayerCount;
+
             if( ii == screen->m_Route_Layer_BOTTOM )
                 LayerBottomSelect = LayerCount;
+
             m_LayerId[LayerCount] = ii;
             LayerCount++;
         }
@@ -307,6 +307,7 @@ WinEDA_SelLayerPairFrame::WinEDA_SelLayerPairFrame( WinEDA_BasePcbFrame* parent 
     RadioBoxSizer->Add( m_LayerListBOTTOM, 0, wxALIGN_TOP | wxALL, 5 );
 
     Button = new wxButton( this, wxID_OK, _( "OK" ) );
+    Button->SetDefault();
     ButtonBoxSizer->Add( Button, 0, wxGROW | wxALL, 5 );
 
     Button = new wxButton( this, wxID_CANCEL, _( "Cancel" ) );
@@ -319,27 +320,25 @@ WinEDA_SelLayerPairFrame::WinEDA_SelLayerPairFrame( WinEDA_BasePcbFrame* parent 
 }
 
 
-void WinEDA_SelLayerPairFrame::OnOkClick( wxCommandEvent& event )
+void SELECT_LAYERS_PAIR_DIALOG::OnOkClick( wxCommandEvent& event )
 {
     // select the same layer for top and bottom is allowed (normal in some
     // boards)
     // but could be a mistake. So display an info message
-    if( m_LayerId[m_LayerListTOP->GetSelection()]
-        == m_LayerId[m_LayerListBOTTOM->GetSelection()] )
+    if( m_LayerId[m_LayerListTOP->GetSelection()] == m_LayerId[m_LayerListBOTTOM->GetSelection()] )
         DisplayInfoMessage( this,
                             _( "Warning: The Top Layer and Bottom Layer are same." ) );
 
     PCB_SCREEN* screen = (PCB_SCREEN*) m_Parent->GetScreen();
 
     screen->m_Route_Layer_TOP    = m_LayerId[m_LayerListTOP->GetSelection()];
-    screen->m_Route_Layer_BOTTOM =
-        m_LayerId[m_LayerListBOTTOM->GetSelection()];
+    screen->m_Route_Layer_BOTTOM = m_LayerId[m_LayerListBOTTOM->GetSelection()];
 
     EndModal( 0 );
 }
 
 
-void WinEDA_SelLayerPairFrame::OnCancelClick( wxCommandEvent& event )
+void SELECT_LAYERS_PAIR_DIALOG::OnCancelClick( wxCommandEvent& event )
 {
     EndModal( -1 );
 }

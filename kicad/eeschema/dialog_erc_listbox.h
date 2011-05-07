@@ -12,8 +12,7 @@
 
 #include "fctsys.h"
 #include "class_drawpanel.h"
-#include "program.h"
-#include "class_marker_sch.h"
+#include "sch_marker.h"
 
 /**
  * Class ERC_HTML_LISTBOX
@@ -41,10 +40,8 @@ public:
 
 
     /**
-     * Function SetList
-     * sets the DRC_ITEM_LIST for this listbox.  Ownership of the DRC_ITEM_LIST
-     * is transferred to this ERC_HTML_LISTBOX.
-     * @param aList The DRC_ITEM_LIST* containing the DRC_ITEMs which will be
+     * Function AppendToList
+     * @param aItem The SCH_MARKER* to add to the current list which will be
      *  displayed in the wxHtmlListBox
      */
     void AppendToList( SCH_MARKER* aItem )
@@ -88,7 +85,7 @@ public:
 
 
     /**
-     * Function OnGetItem
+     * Function OnGetItemMarkup
      * returns the html text associated with the given index 'n'.
      * @param n An index into the list.
      * @return wxString - the simple html text to show in the listbox.

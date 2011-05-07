@@ -1,24 +1,68 @@
 /***************************************************
  *  operations_on_item_lists.cpp
- * functions used in block commands, on lists of schematic items:
- * move, mirror, delete and copy
- ****************************************************/
+ * functions used in block commands, or undo/redo,
+ * to move, mirror, delete, copy ... lists of schematic items
+ */
 
 #include "fctsys.h"
 #include "appl_wxstruct.h"
 #include "common.h"
 #include "class_drawpanel.h"
+#include "class_sch_screen.h"
+#include "wxEeschemaStruct.h"
 
-#include "program.h"
 #include "general.h"
-#include "class_marker_sch.h"
 #include "protos.h"
+#include "sch_bus_entry.h"
+#include "sch_marker.h"
+#include "sch_line.h"
+#include "sch_no_connect.h"
+#include "sch_polyline.h"
+#include "sch_sheet.h"
+#include "sch_component.h"
+#include "sch_junction.h"
 
 
-void MoveItemsInList( PICKED_ITEMS_LIST& aItemsList, const wxPoint aMoveVector );
-void MirrorListOfItems( PICKED_ITEMS_LIST& aItemsList, wxPoint& aMirrorPoint );
-void DeleteItemsInList( WinEDA_DrawPanel*  panel,
-                        PICKED_ITEMS_LIST& aItemsList );
+void SetSchItemParent( SCH_ITEM* Struct, SCH_SCREEN* Screen )
+{
+    switch( Struct->Type() )
+    {
+    case SCH_POLYLINE_T:
+    case SCH_JUNCTION_T:
+    case SCH_TEXT_T:
+    case SCH_LABEL_T:
+    case SCH_GLOBAL_LABEL_T:
+    case SCH_HIERARCHICAL_LABEL_T:
+    case SCH_COMPONENT_T:
+    case SCH_LINE_T:
+    case SCH_BUS_ENTRY_T:
+    case SCH_SHEET_T:
+    case SCH_MARKER_T:
+    case SCH_NO_CONNECT_T:
+        Struct->SetParent( Screen );
+        break;
+
+    case SCH_SHEET_PIN_T:
+        break;
+
+    default:
+        break;
+    }
+}
+
+
+void RotateListOfItems( PICKED_ITEMS_LIST& aItemsList, wxPoint& rotationPoint )
+{
+    for( unsigned ii = 0; ii < aItemsList.GetCount(); ii++ )
+    {
+        SCH_ITEM* item = (SCH_ITEM*) aItemsList.GetPickedItem( ii );
+        item->Rotate( rotationPoint );      // Place it in its new position.
+        item->ClearFlags();
+    }
+}
+
+
+void DeleteItemsInList( EDA_DRAW_PANEL* panel, PICKED_ITEMS_LIST& aItemsList );
 void DuplicateItemsInList( SCH_SCREEN* screen, PICKED_ITEMS_LIST& aItemsList,
                            const wxPoint aMoveVector  );
 
@@ -29,12 +73,24 @@ void MirrorListOfItems( PICKED_ITEMS_LIST& aItemsList, wxPoint& aMirrorPoint )
     {
         SCH_ITEM* item = (SCH_ITEM*) aItemsList.GetPickedItem( ii );
         item->Mirror_Y( aMirrorPoint.x );      // Place it in its new position.
-        item->m_Flags = 0;
+        item->ClearFlags();
     }
 }
 
 
-/** Function MoveItemsInList
+void Mirror_X_ListOfItems( PICKED_ITEMS_LIST& aItemsList, wxPoint& aMirrorPoint )
+{
+    for( unsigned ii = 0; ii < aItemsList.GetCount(); ii++ )
+    {
+        SCH_ITEM* item = (SCH_ITEM*) aItemsList.GetPickedItem( ii );
+        item->Mirror_X( aMirrorPoint.y );      // Place it in its new position.
+        item->ClearFlags();
+    }
+}
+
+
+/**
+ * Function MoveItemsInList
  *  Move a list of items to a given move vector
  * @param aItemsList = list of picked items
  * @param aMoveVector = the move vector value
@@ -49,27 +105,26 @@ void MoveItemsInList( PICKED_ITEMS_LIST& aItemsList, const wxPoint aMoveVector )
 }
 
 
-/** function DeleteItemsInList
+/**
+ * Function DeleteItemsInList
  * delete schematic items in aItemsList
  * deleted items are put in undo list
  */
-void DeleteItemsInList( WinEDA_DrawPanel* panel, PICKED_ITEMS_LIST& aItemsList )
+void DeleteItemsInList( EDA_DRAW_PANEL* panel, PICKED_ITEMS_LIST& aItemsList )
 {
-    SCH_SCREEN*            screen = (SCH_SCREEN*) panel->GetScreen();
-    WinEDA_SchematicFrame* frame  = (WinEDA_SchematicFrame*) panel->GetParent();
-    PICKED_ITEMS_LIST      itemsList;
-    ITEM_PICKER            itemWrapper;
+    SCH_SCREEN*        screen = (SCH_SCREEN*) panel->GetScreen();
+    SCH_EDIT_FRAME*    frame  = (SCH_EDIT_FRAME*) panel->GetParent();
+    PICKED_ITEMS_LIST  itemsList;
 
     for( unsigned ii = 0; ii < aItemsList.GetCount(); ii++ )
     {
         SCH_ITEM* item = (SCH_ITEM*) aItemsList.GetPickedItem( ii );
-        itemWrapper.m_PickedItem     = item;
-        itemWrapper.m_UndoRedoStatus = UR_DELETED;
-        if( item->Type() == DRAW_HIERARCHICAL_PIN_SHEET_STRUCT_TYPE )
+        ITEM_PICKER itemWrapper( item, UR_DELETED );
+
+        if( item->Type() == SCH_SHEET_PIN_T )
         {
             /* this item is depending on a sheet, and is not in global list */
-            wxMessageBox( wxT( "DeleteItemsInList() err: unexpected \
-DRAW_HIERARCHICAL_PIN_SHEET_STRUCT_TYPE" ) );
+            wxMessageBox( wxT( "DeleteItemsInList() err: unexpected SCH_SHEET_PIN_T" ) );
         }
         else
         {
@@ -86,39 +141,31 @@ DRAW_HIERARCHICAL_PIN_SHEET_STRUCT_TYPE" ) );
 }
 
 
-/* Routine to delete an object from global drawing object list.
- *  Object is put in Undo list
- */
-void DeleteStruct( WinEDA_DrawPanel* panel, wxDC* DC, SCH_ITEM* DrawStruct )
+void SCH_EDIT_FRAME::DeleteItem( SCH_ITEM* aItem )
 {
-    SCH_SCREEN*            screen = (SCH_SCREEN*) panel->GetScreen();
-    WinEDA_SchematicFrame* frame  = (WinEDA_SchematicFrame*) panel->GetParent();
+    wxCHECK_RET( aItem != NULL, wxT( "Cannot delete invalid item." ) );
 
-    if( !DrawStruct )
-        return;
+    SCH_SCREEN* screen = GetScreen();
 
-    if( DrawStruct->Type() == DRAW_HIERARCHICAL_PIN_SHEET_STRUCT_TYPE )
+    if( aItem->Type() == SCH_SHEET_PIN_T )
     {
-        /* This structure is attached to a node, and is not accessible by
-         * the global list directly. */
-        frame->SaveCopyInUndoList(
-            (SCH_ITEM*) ( (SCH_SHEET_PIN*) DrawStruct )-> GetParent(),
-            UR_CHANGED );
-        frame->DeleteSheetLabel( DC ? true : false,
-                                 (SCH_SHEET_PIN*) DrawStruct );
-        return;
+        // This iten is attached to a node, and is not accessible by the global list directly.
+        SCH_SHEET* sheet = (SCH_SHEET*) aItem->GetParent();
+        wxCHECK_RET( (sheet != NULL) && (sheet->Type() == SCH_SHEET_T),
+                     wxT( "Sheet label has invalid parent item." ) );
+        SaveCopyInUndoList( (SCH_ITEM*) sheet, UR_CHANGED );
+        sheet->RemovePin( (SCH_SHEET_PIN*) aItem );
+        DrawPanel->RefreshDrawingRect( sheet->GetBoundingBox() );
     }
     else
     {
-        screen->RemoveFromDrawList( DrawStruct );
+        screen->RemoveFromDrawList( aItem );
 
-        panel->PostDirtyRect( DrawStruct->GetBoundingBox() );
+        aItem->SetNext( NULL );
+        aItem->SetBack( NULL );  // Only one struct -> no link
 
-        /* Unlink the structure */
-        DrawStruct->SetNext( 0 );
-        DrawStruct->SetBack( 0 );  // Only one struct -> no link
-
-        frame->SaveCopyInUndoList( DrawStruct, UR_DELETED );
+        SaveCopyInUndoList( aItem, UR_DELETED );
+        DrawPanel->RefreshDrawingRect( aItem->GetBoundingBox() );
     }
 }
 
@@ -143,21 +190,21 @@ void DuplicateItemsInList( SCH_SCREEN* screen, PICKED_ITEMS_LIST& aItemsList,
         {
             switch( newitem->Type() )
             {
-            case DRAW_POLYLINE_STRUCT_TYPE:
-            case DRAW_JUNCTION_STRUCT_TYPE:
-            case DRAW_SEGMENT_STRUCT_TYPE:
-            case DRAW_BUSENTRY_STRUCT_TYPE:
-            case TYPE_SCH_TEXT:
-            case TYPE_SCH_LABEL:
-            case TYPE_SCH_GLOBALLABEL:
-            case TYPE_SCH_HIERLABEL:
-            case DRAW_HIERARCHICAL_PIN_SHEET_STRUCT_TYPE:
-            case TYPE_SCH_MARKER:
-            case DRAW_NOCONNECT_STRUCT_TYPE:
+            case SCH_POLYLINE_T:
+            case SCH_JUNCTION_T:
+            case SCH_LINE_T:
+            case SCH_BUS_ENTRY_T:
+            case SCH_TEXT_T:
+            case SCH_LABEL_T:
+            case SCH_GLOBAL_LABEL_T:
+            case SCH_HIERARCHICAL_LABEL_T:
+            case SCH_SHEET_PIN_T:
+            case SCH_MARKER_T:
+            case SCH_NO_CONNECT_T:
             default:
                 break;
 
-            case DRAW_SHEET_STRUCT_TYPE:
+            case SCH_SHEET_T:
             {
                 SCH_SHEET* sheet = (SCH_SHEET*) newitem;
                 sheet->m_TimeStamp = GetTimeStamp();
@@ -165,15 +212,15 @@ void DuplicateItemsInList( SCH_SCREEN* screen, PICKED_ITEMS_LIST& aItemsList,
                 break;
             }
 
-            case TYPE_SCH_COMPONENT:
+            case SCH_COMPONENT_T:
                 ( (SCH_COMPONENT*) newitem )->m_TimeStamp = GetTimeStamp();
                 ( (SCH_COMPONENT*) newitem )->ClearAnnotation( NULL );
                 break;
             }
 
-            SetaParent( newitem, screen );
-            newitem->SetNext( screen->EEDrawList );
-            screen->EEDrawList = newitem;
+            SetSchItemParent( newitem, screen );
+            newitem->SetNext( screen->GetDrawItems() );
+            screen->SetDrawItems( newitem );
         }
     }
 
@@ -181,7 +228,8 @@ void DuplicateItemsInList( SCH_SCREEN* screen, PICKED_ITEMS_LIST& aItemsList,
 }
 
 
-/** function DuplicateStruct
+/**
+ * Function DuplicateStruct
  *  Routine to create a new copy of given struct.
  *  The new object is not put in draw list (not linked)
  * @param aDrawStruct = the SCH_ITEM to duplicate
@@ -192,81 +240,15 @@ void DuplicateItemsInList( SCH_SCREEN* screen, PICKED_ITEMS_LIST& aItemsList,
  */
 SCH_ITEM* DuplicateStruct( SCH_ITEM* aDrawStruct, bool aClone )
 {
-    SCH_ITEM* NewDrawStruct = NULL;
+    wxCHECK_MSG( aDrawStruct != NULL, NULL,
+                 wxT( "Cannot duplicate NULL schematic item!  Bad programmer." ) );
 
-    if( aDrawStruct == NULL )
-    {
-        wxMessageBox( wxT( "DuplicateStruct error: NULL struct" ) );
-        return NULL;
-    }
-    
-    switch( aDrawStruct->Type() )
-    {
-    case DRAW_POLYLINE_STRUCT_TYPE:
-        NewDrawStruct = ( (SCH_POLYLINE*) aDrawStruct )->GenCopy();
-        break;
+    SCH_ITEM* NewDrawStruct = aDrawStruct->Clone();
 
-    case DRAW_SEGMENT_STRUCT_TYPE:
-        NewDrawStruct = ( (SCH_LINE*) aDrawStruct )->GenCopy();
-        break;
-
-    case DRAW_BUSENTRY_STRUCT_TYPE:
-        NewDrawStruct = ( (SCH_BUS_ENTRY*) aDrawStruct )->GenCopy();
-        break;
-
-    case DRAW_JUNCTION_STRUCT_TYPE:
-        NewDrawStruct = ( (SCH_JUNCTION*) aDrawStruct )->GenCopy();
-        break;
-
-    case TYPE_SCH_MARKER:
-        NewDrawStruct = ( (SCH_MARKER*) aDrawStruct )->GenCopy();
-        break;
-
-    case DRAW_NOCONNECT_STRUCT_TYPE:
-        NewDrawStruct = ( (SCH_NO_CONNECT*) aDrawStruct )->GenCopy();
-        break;
-
-    case TYPE_SCH_TEXT:
-        NewDrawStruct = ( (SCH_TEXT*) aDrawStruct )->GenCopy();
-        break;
-
-    case TYPE_SCH_LABEL:
-        NewDrawStruct = ( (SCH_LABEL*) aDrawStruct )->GenCopy();
-        break;
-
-    case TYPE_SCH_HIERLABEL:
-        NewDrawStruct = ( (SCH_HIERLABEL*) aDrawStruct )->GenCopy();
-        break;
-
-    case TYPE_SCH_GLOBALLABEL:
-        NewDrawStruct = ( (SCH_GLOBALLABEL*) aDrawStruct )->GenCopy();
-        break;
-
-    case TYPE_SCH_COMPONENT:
-        NewDrawStruct = ( (SCH_COMPONENT*) aDrawStruct )->GenCopy();
-        break;
-
-    case DRAW_SHEET_STRUCT_TYPE:
-        NewDrawStruct = ( (SCH_SHEET*) aDrawStruct )->GenCopy();
-        if ( aClone )
-        {
-            ((SCH_SHEET*)NewDrawStruct)->m_SheetName = ((SCH_SHEET*)aDrawStruct)->m_SheetName;
-        }
-        break;
-
-    default:
-    {
-        wxString msg;
-        msg << wxT( "DuplicateStruct error: unexpected StructType " )
-            << aDrawStruct->Type() << wxT( " " ) << aDrawStruct->GetClass();
-        wxMessageBox( msg );
-    }
-    break;
-    }
-
-    if ( aClone )
+    if( aClone )
         NewDrawStruct->m_TimeStamp = aDrawStruct->m_TimeStamp;
 
     NewDrawStruct->m_Image = aDrawStruct;
+
     return NewDrawStruct;
 }

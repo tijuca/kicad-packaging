@@ -11,10 +11,12 @@
 #include "pcbnew.h"
 #include "wxPcbStruct.h"
 #include "class_board_design_settings.h"
+#include "drc_stuff.h"
 #include "protos.h"
 
 
-/** Function SetTrackSegmentWidth
+/**
+ * Function SetTrackSegmentWidth
  *  Modify one track segment width or one via diameter and drill (using DRC control).
  *  Basic routine used by other routines when editing tracks or vias
  * @param aTrackItem = the track segment or via to modify
@@ -22,11 +24,12 @@
  * @param aUseNetclassValue = true to use NetClass value, false to use g_DesignSettings value
  * @return  true if done, false if no not change (because DRC error)
  */
-bool WinEDA_PcbFrame::SetTrackSegmentWidth( TRACK*             aTrackItem,
-                                            PICKED_ITEMS_LIST* aItemsListPicker,
-                                            bool               aUseNetclassValue )
+bool PCB_EDIT_FRAME::SetTrackSegmentWidth( TRACK*             aTrackItem,
+                                           PICKED_ITEMS_LIST* aItemsListPicker,
+                                           bool               aUseNetclassValue )
 {
-    int           initial_width, new_width, new_drill = -1;
+    int           initial_width, new_width;
+    int           initial_drill = -1,new_drill = -1;
     bool          change_ok = false;
     NETINFO_ITEM* net = NULL;
 
@@ -34,12 +37,15 @@ bool WinEDA_PcbFrame::SetTrackSegmentWidth( TRACK*             aTrackItem,
         net = GetBoard()->FindNet( aTrackItem->GetNet() );
 
     initial_width = aTrackItem->m_Width;
+
     if( net )
         new_width = net->GetTrackWidth();
     else
         new_width = GetBoard()->GetCurrentTrackWidth();
     if( aTrackItem->Type() == TYPE_VIA )
     {
+        if( !aTrackItem->IsDrillDefault() )
+            initial_drill = aTrackItem->GetDrillValue();
         if( net )
             new_width = net->GetViaSize();
         else
@@ -55,11 +61,6 @@ bool WinEDA_PcbFrame::SetTrackSegmentWidth( TRACK*             aTrackItem,
                 new_width = net->GetMicroViaSize();
         }
 
-        // Set drill value. Note: currently microvias have only a default drill value
-        if( new_drill > 0 )
-            aTrackItem->SetDrillValue(new_drill);
-        else
-            aTrackItem->SetDrillDefault( );
     }
 
     aTrackItem->m_Width = new_width;
@@ -74,7 +75,10 @@ bool WinEDA_PcbFrame::SetTrackSegmentWidth( TRACK*             aTrackItem,
     else if( initial_width > new_width )
         change_ok = true;
 
-    // if new width == initial_width: do nothing
+    // if new width == initial_width: do nothing,
+    // unless a via has its drill value changed
+    else if( (aTrackItem->Type() == TYPE_VIA) && (initial_drill != new_drill) )
+        change_ok = true;
 
     if( change_ok )
     {
@@ -86,6 +90,14 @@ bool WinEDA_PcbFrame::SetTrackSegmentWidth( TRACK*             aTrackItem,
             picker.m_Link = aTrackItem->Copy();
             aItemsListPicker->PushItem( picker );
             aTrackItem->m_Width = new_width;
+            if( aTrackItem->Type() == TYPE_VIA )
+            {
+                // Set new drill value. Note: currently microvias have only a default drill value
+                if( new_drill > 0 )
+                    aTrackItem->SetDrillValue(new_drill);
+                else
+                    aTrackItem->SetDrillDefault( );
+            }
         }
     }
     else
@@ -95,12 +107,13 @@ bool WinEDA_PcbFrame::SetTrackSegmentWidth( TRACK*             aTrackItem,
 }
 
 
-/** Function Edit_TrackSegm_Width
+/**
+ * Function Edit_TrackSegm_Width
  * Modify one track segment width or one via diameter (using DRC control).
- * @param  DC = the curred device context (can be NULL)
+ * @param aDC = the curred device context (can be NULL)
  * @param aTrackItem = the track segment or via to modify
  */
-void WinEDA_PcbFrame::Edit_TrackSegm_Width( wxDC* DC, TRACK* aTrackItem )
+void PCB_EDIT_FRAME::Edit_TrackSegm_Width( wxDC* aDC, TRACK* aTrackItem )
 {
     PICKED_ITEMS_LIST itemsListPicker;
     bool change = SetTrackSegmentWidth( aTrackItem, &itemsListPicker, false );
@@ -109,27 +122,27 @@ void WinEDA_PcbFrame::Edit_TrackSegm_Width( wxDC* DC, TRACK* aTrackItem )
         return;     // No change
 
     // The segment has changed: redraw it and save it in undo list
-    if( DC )
+    if( aDC )
     {
         TRACK* oldsegm = (TRACK*) itemsListPicker.GetPickedItemLink( 0 );
         wxASSERT( oldsegm );
-        DrawPanel->CursorOff( DC );                     // Erase cursor shape
-        oldsegm->Draw( DrawPanel, DC, GR_XOR );         // Erase old track shape
-        aTrackItem->Draw( DrawPanel, DC, GR_OR );       // Display new track shape
-        DrawPanel->CursorOn( DC );                      // Display cursor shape
+        DrawPanel->CrossHairOff( aDC );                     // Erase cursor shape
+        oldsegm->Draw( DrawPanel, aDC, GR_XOR );         // Erase old track shape
+        aTrackItem->Draw( DrawPanel, aDC, GR_OR );       // Display new track shape
+        DrawPanel->CrossHairOn( aDC );                      // Display cursor shape
     }
     SaveCopyInUndoList( itemsListPicker, UR_CHANGED );
 }
 
 
-/** Function Edit_Track_Width
+/**
+ * Function Edit_Track_Width
  * Modify a full track width (using DRC control).
  * a full track is the set of track segments between 2 ends: pads or a point that has more than 2 segments ends connected
- * @param  DC = the curred device context (can be NULL)
+ * @param aDC = the curred device context (can be NULL)
  * @param aTrackSegment = a segment or via on the track to change
- * @return  none
  */
-void WinEDA_PcbFrame::Edit_Track_Width( wxDC* DC, TRACK* aTrackSegment )
+void PCB_EDIT_FRAME::Edit_Track_Width( wxDC* aDC, TRACK* aTrackSegment )
 {
     TRACK* pt_track;
     int    nb_segm;
@@ -152,33 +165,34 @@ void WinEDA_PcbFrame::Edit_Track_Width( wxDC* DC, TRACK* aTrackSegment )
         return;
 
     // Some segment have changed: redraw them and save in undo list
-    if( DC )
+    if( aDC )
     {
-        DrawPanel->CursorOff( DC );                     // Erase cursor shape
+        DrawPanel->CrossHairOff( aDC );                     // Erase cursor shape
+
         for( unsigned ii = 0; ii < itemsListPicker.GetCount(); ii++ )
         {
             TRACK* segm = (TRACK*) itemsListPicker.GetPickedItemLink( ii );
-            segm->Draw( DrawPanel, DC, GR_XOR );            // Erase old track shape
+            segm->Draw( DrawPanel, aDC, GR_XOR );            // Erase old track shape
             segm = (TRACK*) itemsListPicker.GetPickedItem( ii );
-            segm->Draw( DrawPanel, DC, GR_OR );             // Display new track shape
+            segm->Draw( DrawPanel, aDC, GR_OR );             // Display new track shape
         }
 
-        DrawPanel->CursorOn( DC );                   // Display cursor shape
+        DrawPanel->CrossHairOn( aDC );                   // Display cursor shape
     }
 
     SaveCopyInUndoList( itemsListPicker, UR_CHANGED );
 }
 
 
-/** function Change_Net_Tracks_And_Vias_Sizes
+/**
+ * Function Change_Net_Tracks_And_Vias_Sizes
  * Reset all tracks width and vias diameters and drill
  * to their default Netclass value ou current values
  * @param aNetcode : the netcode of the net to edit
  * @param aUseNetclassValue : bool. True to use netclass values, false to use current values
  */
 /***********************************************************/
-bool WinEDA_PcbFrame::Change_Net_Tracks_And_Vias_Sizes(
-    int aNetcode, bool aUseNetclassValue )
+bool PCB_EDIT_FRAME::Change_Net_Tracks_And_Vias_Sizes( int aNetcode, bool aUseNetclassValue )
 /***********************************************************/
 {
     TRACK* pt_segm;
@@ -208,8 +222,7 @@ bool WinEDA_PcbFrame::Change_Net_Tracks_And_Vias_Sizes(
 
 
 /*************************************************************************/
-bool WinEDA_PcbFrame::Reset_All_Tracks_And_Vias_To_Netclass_Values(
-    bool aTrack, bool aVia )
+bool PCB_EDIT_FRAME::Reset_All_Tracks_And_Vias_To_Netclass_Values( bool aTrack, bool aVia )
 /*************************************************************************/
 {
     TRACK* pt_segm;
@@ -228,7 +241,7 @@ bool WinEDA_PcbFrame::Reset_All_Tracks_And_Vias_To_Netclass_Values(
         if( (pt_segm->Type() == TYPE_TRACK ) && aTrack )
         {
             if( SetTrackSegmentWidth( pt_segm, &itemsListPicker, true ) )
-                change = true;;
+                change = true;
         }
     }
 

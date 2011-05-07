@@ -7,7 +7,8 @@
 #include "kicad_string.h"
 #include "pcbnew.h"
 #include "trigo.h"
-
+#include "richio.h"
+#include "filter_reader.h"
 
 /* read parameters from a line, and return all params in a wxArrayString
  * each param is in one wxString, and double quotes removed if exists
@@ -58,10 +59,10 @@ bool MODULE::Read_GPCB_Descr( const wxString& CmpFullFileName )
  * displayed on the screen.
  * Name The name of the element, usually the reference designator.
  * Value The value of the element.
- * MX MY The location of the element’s mark. This is the reference point for placing the element and its pins and pads.
+ * MX MY The location of the elementï¿½s mark. This is the reference point for placing the element and its pins and pads.
  * TX TY The upper left corner of the text (one of the three strings).
  * TDir The relative direction of the text. 0 means left to right for an unrotated element, 1 means up, 2 left, 3 down.
- * TScale Size of the text, as a percentage of the “default” size of of the font (the default font is about 40 mils high). Default is 100 (40 mils).
+ * TScale Size of the text, as a percentage of the ï¿½defaultï¿½ size of of the font (the default font is about 40 mils high). Default is 100 (40 mils).
  * TSFlags Symbolic or numeric flags, for the text.
  * TNFlags Numeric flags, for the text.
  *
@@ -155,8 +156,7 @@ bool MODULE::Read_GPCB_Descr( const wxString& CmpFullFileName )
     double        conv_unit = NEW_GPCB_UNIT_CONV; // GPCB unit = 0.01 mils and pcbnew 0.1
     // Old version unit = 1 mil, so conv_unit is 10 or 0.1
     bool          success = true;
-    char          Line[1024];
-    int           NbLine = 0;
+    char*         Line;
     long          ibuf[100];
     EDGE_MODULE*  DrawSegm;
     D_PAD*        Pad;
@@ -166,7 +166,13 @@ bool MODULE::Read_GPCB_Descr( const wxString& CmpFullFileName )
     if( ( cmpfile = wxFopen( CmpFullFileName, wxT( "rt" ) ) ) == NULL )
         return false;
 
-    GetLine( cmpfile, Line, &NbLine );
+    FILE_LINE_READER fileReader( cmpfile, CmpFullFileName );
+
+    FILTER_READER reader( fileReader );
+
+    reader.ReadLine();
+
+    Line = reader.Line();
 
     params.Clear();
     Extract_Parameters( params, Line );
@@ -176,7 +182,6 @@ bool MODULE::Read_GPCB_Descr( const wxString& CmpFullFileName )
 
     if( params[iprmcnt].CmpNoCase( wxT( "Element" ) ) != 0 )
     {
-        fclose( cmpfile );
         return false;
     }
 
@@ -220,20 +225,21 @@ bool MODULE::Read_GPCB_Descr( const wxString& CmpFullFileName )
     }
 
     m_Reference->m_Pos.x  = wxRound( ibuf[2] * conv_unit );
-    m_Reference->m_Pos.y  = wxRound( ibuf[3] * conv_unit );;
+    m_Reference->m_Pos.y  = wxRound( ibuf[3] * conv_unit );
     m_Reference->m_Orient = ibuf[4] * 900;
 
     // Calculate size: default is 40 mils (400 pcb units)
     // real size is:  default * ibuf[5] / 100 (size in gpcb is given in percent of defalut size
     ibuf[5] *= TEXT_DEFAULT_SIZE; ibuf[5] /= 100;
     m_Reference->m_Size.x = m_Reference->m_Size.y = MAX( 20, ibuf[5] );
-    m_Reference->m_Width  = m_Reference->m_Size.x / 10;
+    m_Reference->m_Thickness  = m_Reference->m_Size.x / 10;
     m_Value->m_Orient = m_Reference->m_Orient;
     m_Value->m_Size   = m_Reference->m_Size;
-    m_Value->m_Width  = m_Reference->m_Width;
+    m_Value->m_Thickness  = m_Reference->m_Thickness;
 
-    while( GetLine( cmpfile, Line, &NbLine, sizeof(Line) - 1 ) != NULL )
+    while( reader.ReadLine() )
     {
+        Line = reader.Line();
         params.Clear();
         Extract_Parameters( params, Line );
         if( params.GetCount() > 3 )    // Test units value for a string line param (more than 3 params : ident [ xx ] )
@@ -342,7 +348,7 @@ bool MODULE::Read_GPCB_Descr( const wxString& CmpFullFileName )
             // Read pad number:
             if( params.GetCount() > 10 )
             {
-                strncpy( Pad->m_Padname, CONV_TO_UTF8( params[10] ), 4 );
+                strncpy( Pad->m_Padname, TO_UTF8( params[10] ), 4 );
             }
             Pad->m_Pos.x  = (ibuf[0] + ibuf[2]) / 2;
             Pad->m_Pos.y  = (ibuf[1] + ibuf[3]) / 2;
@@ -393,7 +399,7 @@ bool MODULE::Read_GPCB_Descr( const wxString& CmpFullFileName )
             // Read pad number:
             if( params.GetCount() > 9 )
             {
-                strncpy( Pad->m_Padname, CONV_TO_UTF8( params[9] ), 4 );
+                strncpy( Pad->m_Padname, TO_UTF8( params[9] ), 4 );
             }
             Pad->m_Pos.x   = ibuf[0];
             Pad->m_Pos.y   = ibuf[1];
@@ -408,8 +414,6 @@ bool MODULE::Read_GPCB_Descr( const wxString& CmpFullFileName )
             continue;
         }
     }
-
-    fclose( cmpfile );
 
     if( m_Value->m_Text.IsEmpty() )
         m_Value->m_Text = wxT( "Val**" );
@@ -504,13 +508,14 @@ static void Extract_Parameters( wxArrayString& param_list, char* text )
 bool TestFlags( const wxString& flg_string, long flg_mask, const wxChar* flg_name )
 /***********************************************************************************/
 
-/** Function TestFlags
+/**
+ * Function TestFlags
  * Test flag flg_mask or flg_name.
  * @param flg_string = flsg list to test: can be a bit field flag or a list name flsg
  * a bit field flag is an hexadecimal value: Ox00020000
- * a list name flsg is a string list of flags, comma separated like square,option1
- * @param flg_mask = flsg list to test
- * @param flg_mask = flsg list to test
+ * a list name flag is a string list of flags, comma separated like square,option1
+ * @param flg_mask = flag list to test
+ * @param flg_name = flag name to find in list
  * @return true if found
  */
 {

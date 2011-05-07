@@ -8,31 +8,30 @@
 
 #include "pcbnew.h"
 #include "wxPcbStruct.h"
-#include "autorout.h"
 #include "protos.h"
 
 
 /* Attribute change for 1 track segment.
  *  Attributes are
- *  SEGM_FIXE       protection against global delete
- *  SEGM_AR         AutoRouted segment
+ *  TRACK_LOCKED       protection against global delete
+ *  TRACK_AR           AutoRouted segment
  */
-void WinEDA_PcbFrame::Attribut_Segment( TRACK* track, wxDC* DC, bool Flag_On )
+void PCB_EDIT_FRAME::Attribut_Segment( TRACK* track, wxDC* DC, bool Flag_On )
 {
     if( track == NULL )
         return;
 
     OnModify();
-    DrawPanel->CursorOff( DC );   // Erase cursor shape
-    track->SetState( SEGM_FIXE, Flag_On );
+    DrawPanel->CrossHairOff( DC );   // Erase cursor shape
+    track->SetState( TRACK_LOCKED, Flag_On );
     track->Draw( DrawPanel, DC, GR_OR | GR_SURBRILL );
-    DrawPanel->CursorOn( DC );    // Display cursor shape
+    DrawPanel->CrossHairOn( DC );    // Display cursor shape
     track->DisplayInfo( this );
 }
 
 
 /* Attribute change for an entire track */
-void WinEDA_PcbFrame::Attribut_Track( TRACK* track, wxDC* DC, bool Flag_On )
+void PCB_EDIT_FRAME::Attribut_Track( TRACK* track, wxDC* DC, bool Flag_On )
 {
     TRACK* Track;
     int    nb_segm;
@@ -40,28 +39,28 @@ void WinEDA_PcbFrame::Attribut_Track( TRACK* track, wxDC* DC, bool Flag_On )
     if( (track == NULL ) || (track->Type() == TYPE_ZONE) )
         return;
 
-    DrawPanel->CursorOff( DC );   // Erase cursor shape
+    DrawPanel->CrossHairOff( DC );   // Erase cursor shape
     Track = Marque_Une_Piste( GetBoard(), track, &nb_segm, NULL, true );
     Trace_Une_Piste( DrawPanel, DC, Track, nb_segm, GR_OR | GR_SURBRILL );
 
     for( ; (Track != NULL) && (nb_segm > 0); nb_segm-- )
     {
-        Track->SetState( SEGM_FIXE, Flag_On );
+        Track->SetState( TRACK_LOCKED, Flag_On );
         Track->SetState( BUSY, OFF );
         Track = Track->Next();
     }
 
-    DrawPanel->CursorOn( DC );    // Display cursor shape
+    DrawPanel->CrossHairOn( DC );    // Display cursor shape
 
     OnModify();
 }
 
 
-/* Modify the flag SEGM_FIXE according to Flag_On value,
+/* Modify the flag TRACK_LOCKED according to Flag_On value,
  *  for all the segments related to net_code.
  *  if net_code < 0 all the segments are modified.
  */
-void WinEDA_PcbFrame::Attribut_net( wxDC* DC, int net_code, bool Flag_On )
+void PCB_EDIT_FRAME::Attribut_net( wxDC* DC, int net_code, bool Flag_On )
 {
     TRACK* Track = GetBoard()->m_Track;
 
@@ -75,18 +74,18 @@ void WinEDA_PcbFrame::Attribut_net( wxDC* DC, int net_code, bool Flag_On )
         }
     }
 
-    DrawPanel->CursorOff( DC );     // Erase cursor shape
+    DrawPanel->CrossHairOff( DC );     // Erase cursor shape
     while( Track )                  /* Flag change */
     {
         if( (net_code >= 0 ) && (net_code != Track->GetNet()) )
             break;
 
         OnModify();
-        Track->SetState( SEGM_FIXE, Flag_On );
+        Track->SetState( TRACK_LOCKED, Flag_On );
         Track->Draw( DrawPanel, DC, GR_OR | GR_SURBRILL );
         Track = Track->Next();
     }
 
-    DrawPanel->CursorOn( DC );    // Display cursor shape
+    DrawPanel->CrossHairOn( DC );    // Display cursor shape
     OnModify();
 }

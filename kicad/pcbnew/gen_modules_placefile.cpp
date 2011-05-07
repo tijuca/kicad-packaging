@@ -67,7 +67,7 @@ static bool HasNonSMDPins( MODULE* aModule )
 
 /* Generate the module positions, used component placement.
  */
-void WinEDA_PcbFrame::GenModulesPosition( wxCommandEvent& event )
+void PCB_EDIT_FRAME::GenModulesPosition( wxCommandEvent& event )
 {
     bool        doBoardBack = false;
     MODULE*     module;
@@ -99,7 +99,7 @@ void WinEDA_PcbFrame::GenModulesPosition( wxCommandEvent& event )
         if( module->m_Attributs & MOD_VIRTUAL )
         {
             D( printf( "skipping module %s because it's virtual\n",
-                       CONV_TO_UTF8( module->GetReference() ) );)
+                       TO_UTF8( module->GetReference() ) );)
             continue;
         }
 
@@ -114,7 +114,7 @@ void WinEDA_PcbFrame::GenModulesPosition( wxCommandEvent& event )
             else
             {
                 printf( "skipping %s because its attribute is not CMS and it has non SMD pins\n",
-                        CONV_TO_UTF8(module->GetReference()) );
+                        TO_UTF8(module->GetReference()) );
                 continue;
             }
 #else
@@ -134,12 +134,19 @@ void WinEDA_PcbFrame::GenModulesPosition( wxCommandEvent& event )
         return;
     }
 
-    fnFront = GetScreen()->m_FileName;
-    frontLayerName = GetBoard()->GetLayerName( LAYER_N_FRONT );
-    fnFront.SetName( fnFront.GetName() + frontLayerName );
-    fnFront.SetExt( wxT( "pos") );
+    wxString boardFilePath = ( (wxFileName) GetScreen()->GetFileName()).GetPath();
+    wxDirDialog dirDialog( this, _( "Select Output Directory" ), boardFilePath );
 
+    if( dirDialog.ShowModal() == wxID_CANCEL )
+        return;
+
+    fnFront = GetScreen()->GetFileName();
+    fnFront.SetPath( dirDialog.GetPath() );
+    frontLayerName = GetBoard()->GetLayerName( LAYER_N_FRONT );
+    fnFront.SetName( fnFront.GetName() + wxT( "_" ) + frontLayerName );
+    fnFront.SetExt( wxT( "pos") );
     fpFront = wxFopen( fnFront.GetFullPath(), wxT( "wt" ) );
+
     if( fpFront == 0 )
     {
         msg = _( "Unable to create " ) + fnFront.GetFullPath();
@@ -149,11 +156,11 @@ void WinEDA_PcbFrame::GenModulesPosition( wxCommandEvent& event )
 
     if( doBoardBack )
     {
-        fnBack = GetScreen()->m_FileName;
+        fnBack = GetScreen()->GetFileName();
+        fnBack.SetPath( dirDialog.GetPath() );
         backLayerName = GetBoard()->GetLayerName( LAYER_N_BACK );
-        fnBack.SetName( fnBack.GetName() + backLayerName );
+        fnBack.SetName( fnBack.GetName() + wxT( "_" ) + backLayerName );
         fnBack.SetExt( wxT( "pos" ) );
-
         fpBack = wxFopen( fnBack.GetFullPath(), wxT( "wt" ) );
 
         if( fpBack == 0 )
@@ -169,19 +176,17 @@ void WinEDA_PcbFrame::GenModulesPosition( wxCommandEvent& event )
     SetLocaleTo_C_standard( );
     switchedLocale = true;
 
-    /* Display results */
-    MsgPanel->EraseMsgBox();
-    Affiche_1_Parametre( this, 0, _( "Component side place file:" ),
-                         fnFront.GetFullPath(), BLUE );
+    // Display results
+    ClearMsgPanel();
+    AppendMsgPanel( _( "Component side place file:" ), fnFront.GetFullPath(), BLUE );
 
     if( doBoardBack )
-        Affiche_1_Parametre( this, 32, _( "Copper side place file:" ),
-                             fnBack.GetFullPath(), BLUE );
+        AppendMsgPanel( _( "Copper side place file:" ), fnBack.GetFullPath(), BLUE );
 
     msg.Empty(); msg << moduleCount;
-    Affiche_1_Parametre( this, 65, _( "Module count" ), msg, RED );
+    AppendMsgPanel( _( "Module count" ), msg, RED );
 
-    /* Sort the list of modules by alphabetical order */
+    // Sort the list of modules alphabetically
     Liste = (LIST_MOD*) MyZMalloc( moduleCount * sizeof(LIST_MOD) );
 
     module = GetBoard()->m_Modules;
@@ -201,30 +206,33 @@ void WinEDA_PcbFrame::GenModulesPosition( wxCommandEvent& event )
 
     qsort( Liste, moduleCount, sizeof(LIST_MOD), ListeModCmp );
 
-    /* Generation header file comments. */
+    // Write file header
     sprintf( line, "### Module positions - created on %s ###\n",
              DateAndTime( Buff ) );
     fputs( line, fpFront );
+
     if( doBoardBack )
         fputs( line, fpBack );
 
     Title = wxGetApp().GetAppName() + wxT( " " ) + GetBuildVersion();
-    sprintf( line, "### Printed by PcbNew version %s\n", CONV_TO_UTF8( Title ) );
+    sprintf( line, "### Printed by PcbNew version %s\n", TO_UTF8( Title ) );
     fputs( line, fpFront );
+
     if( doBoardBack )
         fputs( line, fpBack );
 
     sprintf( line, "## Unit = inches, Angle = deg.\n" );
     fputs( line, fpFront );
+
     if( doBoardBack )
         fputs( line, fpBack );
 
-    sprintf( line, "## Side : %s\n", CONV_TO_UTF8( frontLayerName ) );
+    sprintf( line, "## Side : %s\n", TO_UTF8( frontLayerName ) );
     fputs( line, fpFront );
 
     if( doBoardBack )
     {
-        sprintf( line, "## Side : %s\n", CONV_TO_UTF8( backLayerName ) );
+        sprintf( line, "## Side : %s\n", TO_UTF8( backLayerName ) );
         fputs( line, fpBack );
     }
 
@@ -239,8 +247,8 @@ void WinEDA_PcbFrame::GenModulesPosition( wxCommandEvent& event )
         wxPoint  module_pos;
         wxString ref = Liste[ii].m_Reference;
         wxString val = Liste[ii].m_Value;
-        sprintf( line, "%-8.8s %-16.16s ", CONV_TO_UTF8( ref ),
-                 CONV_TO_UTF8( val ) );
+        sprintf( line, "%-8.8s %-16.16s ", TO_UTF8( ref ),
+                 TO_UTF8( val ) );
 
         module_pos    = Liste[ii].m_Module->m_Pos;
         module_pos.x -= File_Place_Offset.x;
@@ -258,32 +266,35 @@ void WinEDA_PcbFrame::GenModulesPosition( wxCommandEvent& event )
 
         if( layer == LAYER_N_FRONT )
         {
-            strcat( line, CONV_TO_UTF8( frontLayerName ) );
+            strcat( line, TO_UTF8( frontLayerName ) );
             strcat( line, "\n" );
             fputs( line, fpFront );
         }
         else if( layer == LAYER_N_BACK )
         {
-            strcat( line, CONV_TO_UTF8( backLayerName ) );
+            strcat( line, TO_UTF8( backLayerName ) );
             strcat( line, "\n" );
             fputs( line, fpBack );
         }
     }
 
-    /* Generate EOF. */
+    // Write EOF
     fputs( "## End\n", fpFront );
 
     if( doBoardBack )
         fputs( "## End\n", fpBack );
 
-    msg = frontLayerName + wxT( " File: " ) + fnFront.GetFullPath();
+    msg = _( "Module position files created:" );
+    msg.Append( wxT( "\n\n" ) + frontLayerName + wxT( ":\n" ) );
+    msg.Append( fnFront.GetFullPath() );
 
     if( doBoardBack )
-        msg += wxT("\n\n") + backLayerName + wxT( " File: " ) +
-            fnBack.GetFullPath();
+    {
+        msg.Append( wxT( "\n\n" ) + backLayerName + wxT( ":\n" ) );
+        msg.Append( fnBack.GetFullPath() );
+    }
 
-    DisplayInfoMessage( this, msg );
-
+    wxMessageBox( msg, _( "Module Position File" ), wxICON_INFORMATION );
 
 exit:   // the only safe way out of here, no returns please.
 
@@ -303,7 +314,7 @@ exit:   // the only safe way out of here, no returns please.
 
 /* Print a module report.
  */
-void WinEDA_PcbFrame::GenModuleReport( wxCommandEvent& event )
+void PCB_EDIT_FRAME::GenModuleReport( wxCommandEvent& event )
 {
     double   conv_unit;
     MODULE*  Module;
@@ -320,10 +331,18 @@ void WinEDA_PcbFrame::GenModuleReport( wxCommandEvent& event )
 
     File_Place_Offset = wxPoint( 0, 0 );
 
-    fn = GetScreen()->m_FileName;
+    wxString boardFilePath = ( (wxFileName) GetScreen()->GetFileName()).GetPath();
+    wxDirDialog dirDialog( this, _( "Select Output Directory" ), boardFilePath );
+
+    if( dirDialog.ShowModal() == wxID_CANCEL )
+        return;
+
+    fn = GetScreen()->GetFileName();
+    fn.SetPath( dirDialog.GetPath() );
     fn.SetExt( wxT( "rpt" ) );
 
     rptfile = wxFopen( fn.GetFullPath(), wxT( "wt" ) );
+
     if( rptfile == NULL )
     {
         msg = _( "Unable to create " ) + fn.GetFullPath();
@@ -340,14 +359,14 @@ void WinEDA_PcbFrame::GenModuleReport( wxCommandEvent& event )
     fputs( line, rptfile );
 
     wxString Title = wxGetApp().GetAppName() + wxT( " " ) + GetBuildVersion();
-    sprintf( line, "## Created by PcbNew version %s\n", CONV_TO_UTF8( Title ) );
+    sprintf( line, "## Created by PcbNew version %s\n", TO_UTF8( Title ) );
     fputs( line, rptfile );
     fputs( "## Unit = inches, Angle = deg.\n", rptfile );
 
     fputs( "##\n", rptfile );
     fputs( "\n$BeginDESCRIPTION\n", rptfile );
 
-    GetBoard()->ComputeBoundaryBox();
+    GetBoard()->ComputeBoundingBox();
     fputs( "\n$BOARD\n", rptfile );
     fputs( "unit INCH\n", rptfile );
     sprintf( line, "upper_left_corner %9.6f %9.6f\n",
@@ -365,17 +384,14 @@ void WinEDA_PcbFrame::GenModuleReport( wxCommandEvent& event )
     Module = (MODULE*) GetBoard()->m_Modules;
     for( ; Module != NULL; Module = Module->Next() )
     {
-        sprintf( line, "$MODULE \"%s\"\n",
-                 CONV_TO_UTF8( Module->m_Reference->m_Text ) );
+        sprintf( line, "$MODULE %s\n", EscapedUTF8( Module->m_Reference->m_Text ).c_str() );
         fputs( line, rptfile );
 
-        sprintf( line, "reference \"%s\"\n",
-                 CONV_TO_UTF8( Module->m_Reference->m_Text ) );
+        sprintf( line, "reference %s\n", EscapedUTF8( Module->m_Reference->m_Text ).c_str() );
         fputs( line, rptfile );
-        sprintf( line, "value \"%s\"\n",
-                 CONV_TO_UTF8( Module->m_Value->m_Text ) );
+        sprintf( line, "value %s\n", EscapedUTF8( Module->m_Value->m_Text ).c_str() );
         fputs( line, rptfile );
-        sprintf( line, "footprint \"%s\"\n", CONV_TO_UTF8( Module->m_LibRef ) );
+        sprintf( line, "footprint %s\n", EscapedUTF8( Module->m_LibRef ).c_str() );
         fputs( line, rptfile );
 
         msg = wxT( "attribut" );
@@ -386,7 +402,7 @@ void WinEDA_PcbFrame::GenModuleReport( wxCommandEvent& event )
         if( ( Module->m_Attributs & (MOD_VIRTUAL | MOD_CMS) ) == 0 )
             msg += wxT( " none" );
         msg += wxT( "\n" );
-        fputs( CONV_TO_UTF8( msg ), rptfile );
+        fputs( TO_UTF8( msg ), rptfile );
 
         module_pos    = Module->m_Pos;
         module_pos.x -= File_Place_Offset.x;
@@ -447,15 +463,17 @@ void WinEDA_PcbFrame::GenModuleReport( wxCommandEvent& event )
         }
 
         fprintf( rptfile, "$EndMODULE  %s\n\n",
-                 CONV_TO_UTF8(Module->m_Reference->m_Text ) );
+                 TO_UTF8(Module->m_Reference->m_Text ) );
     }
 
     /* Write board Edges */
-    EDA_BaseStruct* PtStruct;
+    EDA_ITEM* PtStruct;
+
     for( PtStruct = GetBoard()->m_Drawings; PtStruct != NULL; PtStruct = PtStruct->Next() )
     {
         if( PtStruct->Type() != TYPE_DRAWSEGMENT )
             continue;
+
         if( ( (DRAWSEGMENT*) PtStruct )->GetLayer() != EDGE_N )
             continue;
         WriteDrawSegmentPcb( (DRAWSEGMENT*) PtStruct, rptfile );
@@ -465,6 +483,11 @@ void WinEDA_PcbFrame::GenModuleReport( wxCommandEvent& event )
     fputs( "$EndDESCRIPTION\n", rptfile );
     fclose( rptfile );
     SetLocaleTo_Default( );      // revert to the current locale
+
+    msg = _( "Module report file created:" );
+    msg.Append( wxT( "\n" ) + fn.GetFullPath() );
+
+    wxMessageBox( msg, _( "Module Report" ), wxICON_INFORMATION );
 }
 
 

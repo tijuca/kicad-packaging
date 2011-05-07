@@ -7,8 +7,6 @@
 
 #include "gerbview.h"
 #include "pcbplot.h"
-#include "protos.h"
-
 
 
 /* The group of plot options - sadly global XXX */
@@ -16,11 +14,11 @@ PCB_Plot_Options g_pcb_plot_options;
 
 
 /**************************************************************/
-/* void WinEDA_BasePcbFrame::ToPlotter(wxCommandEvent& event) */
+/* void PCB_BASE_FRAME::ToPlotter(wxCommandEvent& event) */
 /***************************************************************/
 
 /** TODO */
-void WinEDA_GerberFrame::ToPlotter(wxCommandEvent& event)
+void GERBVIEW_FRAME::ToPlotter(wxCommandEvent& event)
 {
 }
 

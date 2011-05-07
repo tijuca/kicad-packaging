@@ -15,18 +15,19 @@
 #include "build_version.h"
 
 
-/** function set_viewport
+/**
+ * Function set_viewport
  * Set the plot offset for the current plotting
  * @param aOffset = plot offset
  * @param aScale = coordinate scale (scale coefficient for coordinates)
+ * @param aMirror - Mirror plot if true.
  */
-void GERBER_PLOTTER::set_viewport( wxPoint offset,
-                                   double aScale, int orient )
+void GERBER_PLOTTER::set_viewport( wxPoint aOffset, double aScale, bool aMirror )
 {
     wxASSERT( !output_file );
-    wxASSERT( orient == 0 );
-    plot_orient_options = 0;
-    plot_offset = offset;
+    wxASSERT( aMirror == false );
+    plotMirror = false;
+    plot_offset = aOffset;
     wxASSERT( aScale == 1 );
     plot_scale   = 1;
     device_scale = 1;
@@ -34,7 +35,8 @@ void GERBER_PLOTTER::set_viewport( wxPoint offset,
 }
 
 
-/** Function start_plot
+/**
+ * Function start_plot
  * Write GERBER header to file
  * initialize global variable g_Plot_PlotOutputFile
  * @param aFile: an opened file to write to
@@ -58,7 +60,7 @@ bool GERBER_PLOTTER::start_plot( FILE* aFile )
     DateAndTime( Line );
     wxString Title = creator + wxT( " " ) + GetBuildVersion();
     fprintf( output_file, "G04 (created by %s) date %s*\n",
-             CONV_TO_UTF8( Title ), Line );
+             TO_UTF8( Title ), Line );
 
     // Specify linear interpol (G01), unit = INCH (G70), abs format (G90):
     fputs( "G01*\nG70*\nG90*\n", output_file );
@@ -246,27 +248,34 @@ void GERBER_PLOTTER::pen_to( wxPoint aPos, char plume )
 
 void GERBER_PLOTTER::rect( wxPoint p1, wxPoint p2, FILL_T fill, int width )
 {
-    wxASSERT( output_file );
-    int coord[10] =
-    {
-        p1.x, p1.y,
-        p1.x, p2.y,
-        p2.x, p2.y,
-        p2.x, p1.y,
-        p1.x, p1.y
-    };
-    poly( 5, coord, fill, width );
+    static std::vector< wxPoint > cornerList;
+    cornerList.clear();
+
+    // Build corners list
+    cornerList.push_back( p1 );
+    wxPoint corner(p1.x, p2.y);
+    cornerList.push_back( corner );
+    cornerList.push_back( p2 );
+    corner.x = p2.x;
+    corner.y = p1.y;
+    cornerList.push_back( corner );
+    cornerList.push_back( p1 );
+
+    PlotPoly( cornerList, fill, width );
 }
 
 
-/** Function circle
+/**
+ * Function circle
  * writes a non filled circle to output file
  * Plot one circle as segments (6 to 16 depending on its radius
  * @param aCentre = center coordinates
  * @param aDiameter = diameter of the circle
+ * @param aFill = plot option (NO_FILL, FILLED_SHAPE, FILLED_WITH_BG_BODYCOLOR)
+ * not used here: circles are always not filled the gerber. Filled circles are flashed
  * @param aWidth = line width
  */
-void GERBER_PLOTTER::circle( wxPoint aCentre, int aDiameter, FILL_T fill,
+void GERBER_PLOTTER::circle( wxPoint aCentre, int aDiameter, FILL_T aFill,
                              int aWidth )
 {
     wxASSERT( output_file );
@@ -290,35 +299,32 @@ void GERBER_PLOTTER::circle( wxPoint aCentre, int aDiameter, FILL_T fill,
 }
 
 
-/** Function PlotFilledPolygon_GERBER
- * writes a filled polyline to output file
- * @param aCornersCount = number of corners
+/**
+ * Function PlotPoly
+ * writes a filled or not filled polyline to output file
  * @param aCoord = buffer of corners coordinates
  * @param aFill = plot option (NO_FILL, FILLED_SHAPE, FILLED_WITH_BG_BODYCOLOR)
- * @param aCoord = buffer of corners coordinates
+ * @param aWidth = Width of the line to plot.
  */
-void GERBER_PLOTTER::poly( int aCornersCount, int* aCoord, FILL_T aFill,
-                           int aWidth )
+void GERBER_PLOTTER::PlotPoly( std::vector< wxPoint >& aCornerList, FILL_T aFill, int aWidth )
 {
-    wxASSERT( output_file );
-    wxPoint pos, startpos;
+    if( aCornerList.size() <= 1 )
+        return;
+
     set_current_line_width( aWidth );
 
     if( aFill )
         fputs( "G36*\n", output_file );
-    startpos.x = *aCoord++;
-    startpos.y = *aCoord++;
-    move_to( startpos );
-    for( int ii = 1; ii < aCornersCount; ii++ )
+
+    move_to( aCornerList[0] );
+    for( unsigned ii = 1; ii < aCornerList.size(); ii++ )
     {
-        pos.x = *aCoord++;
-        pos.y = *aCoord++;
-        line_to( pos );
+        line_to( aCornerList[ii] );
     }
 
     if( aFill )
     {
-        finish_to( startpos );
+        finish_to( aCornerList[0] );
         fputs( "G37*\n", output_file );
     }
     else
@@ -450,94 +456,64 @@ void GERBER_PLOTTER::flash_pad_rect( wxPoint pos, wxSize size,
         break;
 
     default: /* plot pad shape as polygon */
-        flash_pad_trapez( pos, size, wxSize( 0, 0 ), orient, trace_mode );
+    {
+        wxPoint coord[4];
+        // coord[0] is assumed the lower left
+        // coord[1] is assumed the upper left
+        // coord[2] is assumed the upper right
+        // coord[3] is assumed the lower right
+
+        /* Trace the outline. */
+        coord[0].x = -size.x/2;   // lower left
+        coord[0].y = size.y/2;
+        coord[1].x = -size.x/2;   // upper left
+        coord[1].y = -size.y/2;
+        coord[2].x = size.x/2;    // upper right
+        coord[2].y = -size.y/2;
+        coord[3].x = size.x/2;    //lower right
+        coord[3].y = size.y/2;
+
+        flash_pad_trapez( pos, coord, orient, trace_mode );
+    }
         break;
     }
 }
 
 
 /* Plot trapezoidal pad.
- * Pos is pad center
- * Dimensions size.x and size.y
- * Changes delta.x and delta.y (1 of at least two must be zero)
- * Orientation east to 0.1 degrees
- * Plot mode (FILLED, SKETCH, WIRED)
- *
- * The evidence is that a trapezoid, ie that delta.x or delta.y = 0.
- *
- * The rating of the vertexes are (vis a vis the plotter)
- *
- * "       0 ------------- 3   "
- * "        .             .    "
- * "         .     O     .     "
- * "          .         .      "
- * "           1 ---- 2        "
- *
- *
- *   Example delta.y > 0, delta.x = 0
- * "           1 ---- 2        "
- * "          .         .      "
- * "         .     O     .     "
- * "        .             .    "
- * "       0 ------------- 3   "
- *
- *
- *   Example delta.y = 0, delta.x > 0
- * "       0                  "
- * "       . .                "
- * "       .     .            "
- * "       .           3      "
- * "       .           .      "
- * "       .     O     .      "
- * "       .           .      "
- * "       .           2      "
- * "       .     .            "
- * "       . .                "
- * "       1                  "
+ * aPadPos is pad position, aCorners the corners positions of the basic shape
+ * Orientation aPadOrient in 0.1 degrees
+ * Plot mode  = FILLED or SKETCH
  */
- void GERBER_PLOTTER::flash_pad_trapez( wxPoint pos, wxSize size, wxSize delta,
-                                        int orient, GRTraceMode trace_mode )
+ void GERBER_PLOTTER::flash_pad_trapez( wxPoint aPadPos,  wxPoint aCorners[4],
+                                   int aPadOrient, GRTraceMode aTrace_Mode )
 
 {
-    wxASSERT( output_file );
-    int     ii, jj;
-    int     dx, dy;
-    wxPoint polygon[4]; /* polygon corners */
-    int     coord[10];
-    int     ddx, ddy;
+    // polygon corners list
+    static std::vector< wxPoint > cornerList;
+    cornerList.clear();
 
-    /* Calculate the optimum size of the spot chosen by 1 / 4 of the
-     *smallest dimension */
-    dx = size.x - abs( delta.y );
-    dy = size.y - abs( delta.x );
 
-    dx  = size.x / 2;
-    dy  = size.y / 2;
-    ddx = delta.x / 2;
-    ddy = delta.y / 2;
+    for( int ii = 0; ii < 4; ii++ )
+        cornerList.push_back( aCorners[ii] );
 
-    polygon[0].x = -dx - ddy;
-    polygon[0].y = +dy + ddx;
-    polygon[1].x = -dx + ddy;
-    polygon[1].y = -dy - ddx;
-    polygon[2].x = +dx - ddy;
-    polygon[2].y = -dy + ddx;
-    polygon[3].x = +dx + ddy;
-    polygon[3].y = +dy - ddx;
-
-    /* Draw the polygon and fill the interior as required. */
-    for( ii = 0, jj = 0; ii < 4; ii++ )
+   /* Draw the polygon and fill the interior as required. */
+    for( unsigned ii = 0; ii < 4; ii++ )
     {
-        RotatePoint( &polygon[ii].x, &polygon[ii].y, orient );
-        coord[jj] = polygon[ii].x += pos.x;
-        jj++;
-        coord[jj] = polygon[ii].y += pos.y;
-        jj++;
+        RotatePoint( &cornerList[ii], aPadOrient );
+        cornerList[ii] += aPadPos;
     }
-
-    coord[8] = coord[0];
-    coord[9] = coord[1];
+    // Close the polygon
+    cornerList.push_back( cornerList[0] );
 
     set_current_line_width( -1 );
-    poly( 5, coord, trace_mode==FILLED ? FILLED_SHAPE : NO_FILL );
+    PlotPoly( cornerList, aTrace_Mode==FILLED ? FILLED_SHAPE : NO_FILL );
+}
+
+void GERBER_PLOTTER::SetLayerPolarity( bool aPositive )
+{
+    if( aPositive )
+        fprintf( output_file, "%%LPD*%%\n" );
+    else
+        fprintf( output_file, "%%LPC*%%\n" );
 }

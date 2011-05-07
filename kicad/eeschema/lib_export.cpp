@@ -15,7 +15,6 @@
 #include "gestfich.h"
 #include "eeschema_id.h"
 
-#include "program.h"
 #include "general.h"
 #include "protos.h"
 #include "libeditframe.h"
@@ -32,12 +31,12 @@ extern int ExportPartId;
  * Or 1 component if there are several.
  * If the first component is an alias, it will load the corresponding root.
  */
-void WinEDA_LibeditFrame::OnImportPart( wxCommandEvent& event )
+void LIB_EDIT_FRAME::OnImportPart( wxCommandEvent& event )
 {
-    wxString       errMsg;
-    wxFileName     fn;
-    CMP_LIBRARY*   LibTmp;
-    CMP_LIB_ENTRY* LibEntry;
+    wxString     errMsg;
+    wxFileName   fn;
+    CMP_LIBRARY* LibTmp;
+    LIB_ALIAS*   LibEntry;
 
     m_lastDrawItem = NULL;
 
@@ -61,8 +60,7 @@ void WinEDA_LibeditFrame::OnImportPart( wxCommandEvent& event )
     {
         wxString msg;
 
-        msg.Printf( _( "Component library file <%s> is empty." ),
-                    GetChars( fn.GetFullPath() ) );
+        msg.Printf( _( "Component library file <%s> is empty." ), GetChars( fn.GetFullPath() ) );
         DisplayError( this,  msg );
         return;
     }
@@ -92,7 +90,7 @@ void WinEDA_LibeditFrame::OnImportPart( wxCommandEvent& event )
  *
  * The file format is created in all cases the same.
  */
-void WinEDA_LibeditFrame::OnExportPart( wxCommandEvent& event )
+void LIB_EDIT_FRAME::OnExportPart( wxCommandEvent& event )
 {
     wxFileName   fn;
     wxString     msg, title;

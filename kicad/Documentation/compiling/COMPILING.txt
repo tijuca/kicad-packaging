@@ -33,8 +33,12 @@ If windows, then try running g++ and make from within your msys bash shell.
 
 Install or Build wxWidgets
 --------------------------
+
+WARNING:
+ see wxWidgets_patch_notes.txt for patches and issues in wxWidgets.
+
 If on windows, download
-http://sourceforge.net/projects/wxwindows/files/wxAll/2.8.10/wxWidgets-2.8.10.zip/download
+http://sourceforge.net/projects/wxwindows/files/wxAll/2.8.10/wxWidgets-2.8.12.zip/download
 or a newer version.
 Start msys so you have a bash shell.  Decide where your wxWidgets build directory
 will be.  It must be where you can access it from within the msys environment,
@@ -68,17 +72,6 @@ The default install path is /usr/local.  Generally speaking MinGW likes header
 files in /mingw/include and library link files in /mingw/lib.  You can install
 path by setting --prefix=/mingw to configure above to change where "make install"
 puts everything.  We will refer to the --prefix setting as <wxInstallDir> below.
-
-If you are planning to enable the USE_WX_GRAPHICS_CONTEXT option (see options
-section below) on Windows using MinGW/MSYS you must build wxWidgets with the
---enable-graphics_ctx switch added to the build configurations above.
-Unfortunately it is not quite that simple because MinGW does not define the
-Gdi+ header and link library files.  First you must download the required Gdi+
-development files from
-
-<http://www.miscdebris.net/blog/2009/09/17/adding-gdi-headers-to-mingw-to-compile-wxwidgets-with-wxgraphicscontext-support/>
-
-and unzip them where MinGW is installed.
 
 Verify that wx-config is in your path.  Modify your PATH environment variable
 if need be so you can run wx-config from a command prompt.  You may have to
@@ -132,7 +125,11 @@ command prompt.
 
 Obtain Sources
 --------------
-You can use the subversion repository or a tar file for this.  See the wiki.
+You can use the Launchpad repository or a tar file for this.  See the wiki.
+
+Launchpad repository handle 2 branches:
+- a testing branch (used by developers)
+- a stable branch (a copy of the testing branch, when this testing branch is near a stable state))
 
 
 Create Makefiles with CMake
@@ -194,6 +191,16 @@ Fine-tune Build Process
 -----------------------
 These should be set from command line:
 
+One of these 2 option *must* be set to ON:
+  KICAD_STABLE_VERSION or KICAD_TESTING_VERSION
+    ** KICAD_STABLE_VERSION:
+    set this option to ON to build the stable version of KICAD. mainly used to set version ID
+    Usually set for kicad version downloaded from stable branch
+
+    ** KICAD_TESTING_VERSION
+    set this option to ON to build the stable version of KICAD. mainly used to set version ID
+    Usually set for kicad version downloaded from testing branch
+
  CMAKE_BUILD_TYPE Release/Debug (REQUIRED)
    Choose build type: Release/Debug.
 
@@ -210,13 +217,10 @@ These should be set from command line:
 
  KICAD_MINIZIP ON/OFF
 
- USE_WX_ZOOM ON/OFF (OPTIONAL)
-   Experimental coordinate translation code using wxDC instead of custom
-   Kicad version.
-
  USE_WX_GRAPHICS_CONTEXT ON/OFF (OPTIONAL)
-   Experimental advanced drawing library code using wxGraphicsContext.  It
-   requires wxWidgets to be built with the --enable-graphics_ctx switch.
+   *Experimental* advanced drawing library code using wxGraphicsContext (for tests only).
+   Under Windows, a very recent version of mingw is needed.
+   It requires wxWidgets to be built with the --enable-graphics_ctx switch.
    See building wxWidgets above.
 
 Note: that it is easy to build only a specific binary such as pcbnew alone:

@@ -15,26 +15,22 @@
 #include "confirm.h"
 #include "wxstruct.h"
 
-static const bool   s_PlotBlackAndWhite = FALSE;
-static const bool   Print_Sheet_Ref = TRUE;
-
-static bool DrawPage( WinEDA_DrawFrame* aFrame );
+static bool DrawPageOnClipboard( EDA_DRAW_FRAME* aFrame );
 
 
 /* calls the function to copy the current page or the current bock to
  * the clipboard
  */
-void WinEDA_DrawFrame::CopyToClipboard( wxCommandEvent& event )
+void EDA_DRAW_FRAME::CopyToClipboard( wxCommandEvent& event )
 {
-    DrawPage( this );
+    DrawPageOnClipboard( this );
 
-    if(  event.GetId() == ID_GEN_COPY_BLOCK_TO_CLIPBOARD )
+    if( event.GetId() == ID_GEN_COPY_BLOCK_TO_CLIPBOARD )
     {
-        if( GetBaseScreen()->m_BlockLocate.m_Command != BLOCK_IDLE )
-            DrawPanel->SetCursor( wxCursor( DrawPanel->m_PanelCursor =
-                        DrawPanel->m_PanelDefaultCursor ) );
+        if( GetScreen()->IsBlockActive() )
+            DrawPanel->SetCursor( wxCursor( DrawPanel->GetDefaultCursor() ) );
 
-        DrawPanel->UnManageCursor(  );
+        DrawPanel->EndMouseCapture();
     }
 }
 
@@ -43,7 +39,7 @@ void WinEDA_DrawFrame::CopyToClipboard( wxCommandEvent& event )
  * to export drawings to other applications (word processing ...)
  * This is not suitable for copy command within eeschema or pcbnew
  */
-bool DrawPage( WinEDA_DrawFrame* aFrame )
+bool DrawPageOnClipboard( EDA_DRAW_FRAME* aFrame )
 {
     bool    success = TRUE;
 
@@ -53,14 +49,14 @@ bool DrawPage( WinEDA_DrawFrame* aFrame )
     wxPoint old_org;
     wxPoint DrawOffset;
     int     ClipboardSizeX, ClipboardSizeY;
-    bool    DrawBlock = FALSE;
+    bool    DrawBlock = false;
     wxRect  DrawArea;
     BASE_SCREEN* screen = aFrame->DrawPanel->GetScreen();
 
     /* scale is the ratio resolution/internal units */
     float   scale = 82.0 / aFrame->m_InternalUnits;
 
-    if( screen->m_BlockLocate.m_Command != BLOCK_IDLE )
+    if( screen->IsBlockActive() )
     {
         DrawBlock = TRUE;
         DrawArea.SetX( screen->m_BlockLocate.GetX() );
@@ -78,11 +74,12 @@ bool DrawPage( WinEDA_DrawFrame* aFrame )
 
     screen->SetZoom( 1 );
 
-    wxMetafileDC dc /*(wxT(""), DrawArea.GetWidth(), DrawArea.GetHeight())*/;
+    wxMetafileDC dc;
 
-    EDA_Rect tmp = aFrame->DrawPanel->m_ClipBox;
+    EDA_RECT tmp = aFrame->DrawPanel->m_ClipBox;
     GRResetPenAndBrush( &dc );
-    GRForceBlackPen( s_PlotBlackAndWhite );
+    const bool plotBlackAndWhite = false;
+    GRForceBlackPen( plotBlackAndWhite );
     screen->m_IsPrinting = true;
     dc.SetUserScale( scale, scale );
     ClipboardSizeX = dc.MaxX() + 10;
@@ -97,7 +94,8 @@ bool DrawPage( WinEDA_DrawFrame* aFrame )
         dc.SetClippingRegion( DrawArea );
     }
 
-    aFrame->PrintPage( &dc, Print_Sheet_Ref, -1, false );
+    const int maskLayer = 0xFFFFFFFF;
+    aFrame->PrintPage( &dc, maskLayer, false );
     screen->m_IsPrinting = false;
     aFrame->DrawPanel->m_ClipBox = tmp;
     wxMetafile* mf = dc.Close();
@@ -109,7 +107,7 @@ bool DrawPage( WinEDA_DrawFrame* aFrame )
     }
 
 
-    GRForceBlackPen( FALSE );
+    GRForceBlackPen( false );
 
     screen->m_StartVisu = tmp_startvisu;
     screen->m_DrawOrg   = old_org;

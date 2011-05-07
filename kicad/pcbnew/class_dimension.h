@@ -5,6 +5,7 @@
 #define DIMENSION_H
 
 #include "base_struct.h"
+#include "richio.h"
 
 class DIMENSION : public BOARD_ITEM
 {
@@ -40,13 +41,14 @@ public:
      */
     void  SetLayer( int aLayer );
 
-    /** function AdjustDimensionDetails
+    /**
+     * Function AdjustDimensionDetails
      * Calculate coordinates of segments used to draw the dimension.
      * @param aDoNotChangeText (bool) if false, the dimension text is initialized
      */
     void AdjustDimensionDetails( bool aDoNotChangeText = false);
 
-    bool    ReadDimensionDescr( FILE* File, int* LineNum );
+    bool    ReadDimensionDescr( LINE_READER* aReader );
 
     /**
      * Function Save
@@ -61,7 +63,7 @@ public:
 
     void    Copy( DIMENSION* source );
 
-    void    Draw( WinEDA_DrawPanel* panel, wxDC* DC,
+    void    Draw( EDA_DRAW_PANEL* panel, wxDC* DC,
                   int aColorMode, const wxPoint& offset = ZeroOffset );
 
     /**
@@ -73,7 +75,7 @@ public:
     /**
      * Function Rotate
      * Rotate this object.
-     * @param const wxPoint& aRotCentre - the rotation point.
+     * @param aRotCentre - the rotation point.
      * @param aAngle - the rotation angle in 0.1 degree.
      */
     virtual void Rotate(const wxPoint& aRotCentre, int aAngle);
@@ -81,7 +83,7 @@ public:
     /**
      * Function Flip
      * Flip this object, i.e. change the board side for this object
-     * @param const wxPoint& aCentre - the rotation point.
+     * @param aCentre - the rotation point.
      */
     virtual void Flip(const wxPoint& aCentre );
 
@@ -98,10 +100,10 @@ public:
      * Function DisplayInfo
      * has knowledge about the frame and how and where to put status information
      * about this object into the frame's message panel.
-     * Is virtual from EDA_BaseStruct.
-     * @param frame A WinEDA_DrawFrame in which to print status information.
+     * Is virtual from EDA_ITEM.
+     * @param frame A EDA_DRAW_FRAME in which to print status information.
      */
-    void    DisplayInfo( WinEDA_DrawFrame* frame );
+    void    DisplayInfo( EDA_DRAW_FRAME* frame );
 
     /**
      * Function HitTest
@@ -113,12 +115,12 @@ public:
 
     /**
      * Function HitTest (overlaid)
-     * tests if the given EDA_Rect intersect this object.
+     * tests if the given EDA_RECT intersect this object.
      * For now, the anchor must be inside this rect.
-     * @param refArea : the given EDA_Rect
+     * @param refArea : the given EDA_RECT
      * @return bool - true if a hit, else false
      */
-    bool    HitTest( EDA_Rect& refArea );
+    bool    HitTest( EDA_RECT& refArea );
 
 
     /**
@@ -130,6 +132,8 @@ public:
     {
         return wxT( "DIMENSION" );
     }
+
+    EDA_RECT GetBoundingBox() const;
 };
 
 #endif  // #define DIMENSION_H

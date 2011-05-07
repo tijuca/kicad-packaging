@@ -2,34 +2,39 @@
  *  events_called_functions.cpp
  *  some events functions
  */
+
 #include "fctsys.h"
 #include "gr_basic.h"
 #include "common.h"
 #include "class_drawpanel.h"
-#include "program.h"
 #include "general.h"
 #include "kicad_device_context.h"
+#include "class_sch_screen.h"
+#include "wxEeschemaStruct.h"
 
 #include "protos.h"
+#include "sch_component.h"
+#include "sch_text.h"
 
-/** Event function WinEDA_SchematicFrame::OnCopySchematicItemRequest
+
+/** Event function SCH_EDIT_FRAME::OnCopySchematicItemRequest
  * duplicate the current located item
  */
-void WinEDA_SchematicFrame::OnCopySchematicItemRequest( wxCommandEvent& event )
+void SCH_EDIT_FRAME::OnCopySchematicItemRequest( wxCommandEvent& event )
 {
     SCH_ITEM * curr_item = GetScreen()->GetCurItem();
 
     if( !curr_item || curr_item->m_Flags )
         return;
 
-    INSTALL_DC( dc, DrawPanel );
+    INSTALL_UNBUFFERED_DC( dc, DrawPanel );
 
     switch( curr_item->Type() )
     {
-    case TYPE_SCH_COMPONENT:
+    case SCH_COMPONENT_T:
     {
         SCH_COMPONENT* newitem;
-        newitem = ((SCH_COMPONENT*) curr_item)->GenCopy();
+        newitem = new SCH_COMPONENT( *( (SCH_COMPONENT*) curr_item ) );
         newitem->m_TimeStamp = GetTimeStamp();
         newitem->ClearAnnotation( NULL );
         newitem->m_Flags = IS_NEW;
@@ -37,20 +42,20 @@ void WinEDA_SchematicFrame::OnCopySchematicItemRequest( wxCommandEvent& event )
 
         /* Redraw the original part, because StartMovePart() erased
          * it from screen */
-        RedrawOneStruct( DrawPanel, &dc, curr_item, GR_DEFAULT_DRAWMODE );
+        curr_item->Draw( DrawPanel, &dc, wxPoint( 0, 0 ), GR_DEFAULT_DRAWMODE );
     }
     break;
 
-    case TYPE_SCH_TEXT:
-    case TYPE_SCH_LABEL:
-    case TYPE_SCH_GLOBALLABEL:
-    case TYPE_SCH_HIERLABEL:
+    case SCH_TEXT_T:
+    case SCH_LABEL_T:
+    case SCH_GLOBAL_LABEL_T:
+    case SCH_HIERARCHICAL_LABEL_T:
     {
-        SCH_TEXT* newitem = ((SCH_TEXT*) curr_item)->GenCopy();
-        newitem->m_Flags = IS_NEW;
-        StartMoveTexte( newitem, &dc );
+        SCH_TEXT* newitem = (SCH_TEXT*) curr_item->Clone();
+        newitem->SetFlags( IS_NEW );
+        MoveText( newitem, &dc );
         /* Redraw the original part in XOR mode */
-        RedrawOneStruct( DrawPanel, &dc, curr_item, g_XorMode );
+        curr_item->Draw( DrawPanel, &dc, wxPoint( 0, 0 ), g_XorMode );
     }
         break;
 

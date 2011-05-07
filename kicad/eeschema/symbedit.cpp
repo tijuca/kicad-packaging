@@ -8,12 +8,13 @@
 #include "fctsys.h"
 #include "appl_wxstruct.h"
 #include "common.h"
+#include "macros.h"
 #include "class_drawpanel.h"
 #include "confirm.h"
 #include "kicad_string.h"
 #include "gestfich.h"
+#include "class_sch_screen.h"
 
-#include "program.h"
 #include "general.h"
 #include "protos.h"
 #include "libeditframe.h"
@@ -30,7 +31,7 @@
  * A symbol file *.sym has the same format as a library, and contains only
  * one symbol
  */
-void WinEDA_LibeditFrame::LoadOneSymbol( void )
+void LIB_EDIT_FRAME::LoadOneSymbol( void )
 {
     LIB_COMPONENT* Component;
     wxString       msg, err;
@@ -51,8 +52,8 @@ void WinEDA_LibeditFrame::LoadOneSymbol( void )
     if( dlg.ShowModal() == wxID_CANCEL )
         return;
 
-    GetScreen()->m_Curseur = wxPoint( 0, 0 );
-    DrawPanel->MouseToCursorSchema();
+    GetScreen()->SetCrossHairPosition( wxPoint( 0, 0 ) );
+    DrawPanel->MoveCursorToCrossHair();
     DrawPanel->m_IgnoreMouseEvents = FALSE;
 
     wxFileName fn = dlg.GetPath();
@@ -84,21 +85,21 @@ void WinEDA_LibeditFrame::LoadOneSymbol( void )
         wxMessageBox( msg, _( "Warning" ), wxOK | wxICON_EXCLAMATION, this );
     }
 
-    Component = (LIB_COMPONENT*) Lib->GetFirstEntry();
-    LIB_DRAW_ITEM_LIST& drawList = Component->GetDrawItemList();
+    Component = Lib->GetFirstEntry()->GetComponent();
+    LIB_ITEMS& drawList = Component->GetDrawItemList();
 
-    BOOST_FOREACH( LIB_DRAW_ITEM& item, drawList )
+    BOOST_FOREACH( LIB_ITEM& item, drawList )
     {
-        if( item.Type() == COMPONENT_FIELD_DRAW_TYPE )
+        if( item.Type() == LIB_FIELD_T )
             continue;
-        if( item.m_Unit )
-            item.m_Unit = m_unit;
-        if( item.m_Convert )
-            item.m_Convert = m_convert;
+        if( item.GetUnit() )
+            item.SetUnit( m_unit );
+        if( item.GetConvert() )
+            item.SetConvert( m_convert );
         item.m_Flags    = IS_NEW;
         item.m_Selected = IS_SELECTED;
 
-        LIB_DRAW_ITEM* newItem = item.GenCopy();
+        LIB_ITEM* newItem = (LIB_ITEM*) item.Clone();
         newItem->SetParent( m_component );
         m_component->AddDrawItem( newItem );
     }
@@ -121,7 +122,7 @@ void WinEDA_LibeditFrame::LoadOneSymbol( void )
  *
  * Invisible pins are not saved
  */
-void WinEDA_LibeditFrame::SaveOneSymbol()
+void LIB_EDIT_FRAME::SaveOneSymbol()
 {
     wxString msg;
 
@@ -175,14 +176,14 @@ void WinEDA_LibeditFrame::SaveOneSymbol()
     else
         line << wxT( "~ " );
 
-    line << 0 << wxT( " " ) << m_component->m_TextInside << wxT( " " );
+    line << 0 << wxT( " " ) << m_component->GetPinNameOffset() << wxT( " " );
 
-    if( m_component->m_DrawPinNum )
+    if( m_component->ShowPinNumbers() )
         line << wxT( "Y " );
     else
         line << wxT( "N " );
 
-    if( m_component->m_DrawPinName )
+    if( m_component->ShowPinNames() )
         line << wxT( "Y " );
     else
         line << wxT( "N " );
@@ -195,24 +196,25 @@ void WinEDA_LibeditFrame::SaveOneSymbol()
         || !file.Write( wxT( "DRAW\n" ) ) )
         return;
 
-    LIB_DRAW_ITEM_LIST& drawList = m_component->GetDrawItemList();
+    LIB_ITEMS& drawList = m_component->GetDrawItemList();
 
-    BOOST_FOREACH( LIB_DRAW_ITEM& item, drawList )
+    BOOST_FOREACH( LIB_ITEM& item, drawList )
     {
-        if( item.Type() == COMPONENT_FIELD_DRAW_TYPE )
+        if( item.Type() == LIB_FIELD_T )
             continue;
+
         /* Don't save unused parts or alternate body styles. */
-        if( m_unit && item.m_Unit && ( item.m_Unit != m_unit ) )
+        if( m_unit && item.GetUnit() && ( item.GetUnit() != m_unit ) )
             continue;
-        if( m_convert && item.m_Convert && ( item.m_Convert != m_convert ) )
+
+        if( m_convert && item.GetConvert() && ( item.GetConvert() != m_convert ) )
             continue;
 
         if( !item.Save( file.fp() ) )
             return;
     }
 
-    if( !file.Write( wxT( "ENDDRAW\n" ) )
-        || !file.Write( wxT( "ENDDEF\n" ) ) )
+    if( !file.Write( wxT( "ENDDRAW\n" ) ) || !file.Write( wxT( "ENDDEF\n" ) ) )
         return;
 }
 
@@ -222,19 +224,18 @@ void WinEDA_LibeditFrame::SaveOneSymbol()
  *
  * All coordinates of the object are offset to the cursor position.
  */
-void WinEDA_LibeditFrame::PlaceAncre()
+void LIB_EDIT_FRAME::PlaceAncre()
 {
     if( m_component == NULL )
         return;
 
-    wxPoint offset( -GetScreen()->m_Curseur.x, GetScreen()->m_Curseur.y );
+    wxPoint offset( -GetScreen()->GetCrossHairPosition().x, GetScreen()->GetCrossHairPosition().y );
 
     OnModify( );
 
     m_component->SetOffset( offset );
 
     /* Redraw the symbol */
-    GetScreen()->m_Curseur.x = GetScreen()->m_Curseur.y = 0;
-    Recadre_Trace( TRUE );
-    GetScreen()->SetRefreshReq();
+    RedrawScreen( wxPoint( 0 , 0 ), true );
+    DrawPanel->Refresh();
 }

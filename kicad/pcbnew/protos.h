@@ -11,7 +11,8 @@
 
 class COMMAND;
 
-/** Function SwapData
+/**
+ * Function SwapData
  * Used in undo / redo command:
  *  swap data between Item and a copy
  *  swapped data is data modified by edition, so NOT ALL values are swapped
@@ -20,10 +21,6 @@ class COMMAND;
  */
 void SwapData( BOARD_ITEM* aItem, BOARD_ITEM* aImage );
 
-
-/* install function for DialogNonCopperZonesEditor dialog frame :*/
-bool InstallDialogNonCopperZonesEditor( WinEDA_PcbFrame* aParent,
-                                        ZONE_CONTAINER*  aZone );
 
 /*******************/
 /* PAD_CONNECT.CPP */
@@ -43,17 +40,6 @@ class D_PAD;
 void CreateSortedPadListByXCoord( BOARD* aBoard, std::vector<D_PAD*>* aVector );
 
 
-/* Create a sorted list of pointers to pads.
- * This list is sorted by X coordinate value.
- * The list must be freed bu user
- */
-
-/**************/
-/* PCBCFG.CPP */
-/**************/
-bool Read_Hotkey_Config( WinEDA_DrawFrame* frame, bool verbose );
-
-
 /***************/
 /* TRPISTE.CPP */
 /***************/
@@ -69,11 +55,11 @@ bool Read_Hotkey_Config( WinEDA_DrawFrame* frame, bool verbose );
  * The starting point of a track following MUST exist: may be
  * Then put a 0 before calling a routine if the track is the last draw
  */
-void Trace_Une_Piste( WinEDA_DrawPanel* panel,
-                      wxDC*             DC,
-                      TRACK*            pt_start_piste,
-                      int               nbsegment,
-                      int               mode_color );
+void Trace_Une_Piste( EDA_DRAW_PANEL* panel,
+                      wxDC*           DC,
+                      TRACK*          pt_start_piste,
+                      int             nbsegment,
+                      int             mode_color );
 
 
 /****************/
@@ -91,23 +77,20 @@ TRACK*       Locate_Via( BOARD* Pcb, const wxPoint& pos, int layer = -1 );
  * @param aLayer The layer to match, pass -1 for a don't care.
  * @return TRACK* - actually a SEGVIA* if found, else NULL.
  */
-TRACK*       Locate_Via_Area( TRACK*         aStart,
-                              const wxPoint& aPos,
-                              int            aLayer = -1 );
+TRACK* Locate_Via_Area( TRACK* aStart, const wxPoint& aPos, int aLayer = ALL_LAYERS );
 
 /* Locates the center through the point x, y, on layer data
  * by masquelayer.
  * Search is done to address start_adr has end_adr (not included)
  */
-TRACK*       Fast_Locate_Via( TRACK* start_adr, TRACK* end_adr,
-                              const wxPoint& pos, int masquelayer );
+TRACK* Fast_Locate_Via( TRACK* start_adr, TRACK* end_adr, const wxPoint& pos, int masquelayer );
 
 /* Locates the center through the point x, y, on layer data
  * by masquelayer.
  * Search is done to address start_adr has end_adr (not included)
  */
-TRACK*       Fast_Locate_Piste( TRACK* start_adr, TRACK* end_adr,
-                                const wxPoint& ref_pos, int masquelayer );
+TRACK* Fast_Locate_Piste( TRACK* start_adr, TRACK* end_adr,
+                          const wxPoint& ref_pos, int masquelayer );
 
 /* Search for segment connected to the segment edge by
  * Ptr_piste:
@@ -116,8 +99,7 @@ TRACK*       Fast_Locate_Piste( TRACK* start_adr, TRACK* end_adr,
  * The search is done only on the ends of segments
  * The search is limited to the area [... pt_base] pt_lim.
  */
-TRACK*       Locate_Piste_Connectee( TRACK* ptr_piste, TRACK* pt_base,
-                                     TRACK* pt_lim, int extr );
+TRACK* Locate_Piste_Connectee( TRACK* ptr_piste, TRACK* pt_base, TRACK* pt_lim, int extr );
 
 /*
  * 1 - Locate segment of track leading from the mouse.
@@ -128,9 +110,7 @@ TRACK*       Locate_Piste_Connectee( TRACK* ptr_piste, TRACK* pt_base,
  *
  * The search begins to address start_adresse
  */
-TRACK*       Locate_Pistes( BOARD* aPcb, TRACK* start_adresse, int layer, int typeloc );
-TRACK*       Locate_Pistes( BOARD* aPcb, TRACK* start_adresse,
-                            const wxPoint& ref_pos, int layer );
+TRACK* Locate_Pistes( BOARD* aPcb, TRACK* start_adresse, const wxPoint& ref_pos, int layer );
 
 /* Locate pad connected to the beginning or end of a segment
  * Input: pointer to the segment, and flag = START or END
@@ -138,8 +118,7 @@ TRACK*       Locate_Pistes( BOARD* aPcb, TRACK* start_adresse,
  * A pointer to the description of the patch if pad was found.
  * NULL pointer if pad was not found.
  */
-D_PAD*       Locate_Pad_Connecte( BOARD* aPcb, TRACK* ptr_segment, int extr );
-
+D_PAD* Locate_Pad_Connecte( BOARD* aPcb, TRACK* ptr_segment, int extr );
 
 /*
  * Locate pad pointed to by the coordinate ref_pX,, ref_pY or the current
@@ -151,12 +130,7 @@ D_PAD*       Locate_Pad_Connecte( BOARD* aPcb, TRACK* ptr_segment, int extr );
  * Pointer to the pad if found
  * NULL pointer if pad not found
  */
-D_PAD*       Locate_Any_Pad( BOARD* aPcb,
-                             int    typeloc,
-                             bool   OnlyCurrentLayer = FALSE );
-D_PAD*       Locate_Any_Pad( BOARD*         aPcb,
-                             const wxPoint& ref_pos,
-                             bool           OnlyCurrentLayer = FALSE );
+D_PAD* Locate_Any_Pad( BOARD* aPcb, const wxPoint& aPosition, int aLayerMask = ALL_LAYERS );
 
 /* Locate pad pointed to by the coordinate ref_pX,, ref_pY or the cursor
  * position of the current footprint.
@@ -166,11 +140,11 @@ D_PAD*       Locate_Any_Pad( BOARD*         aPcb,
  * Returns:
  * A pointer to the pad if found otherwise NULL.
  */
-D_PAD*       Locate_Pads( MODULE* Module, int layer, int typeloc );
-D_PAD*       Locate_Pads( MODULE* Module, const wxPoint& ref_pos, int layer );
+D_PAD* Locate_Pads( MODULE* Module, const wxPoint& ref_pos, int layer );
 
 /* Locate a footprint by its bounding rectangle. */
-MODULE*      Locate_Prefered_Module( BOARD* Pcb, int typeloc );
+MODULE* Locate_Prefered_Module( BOARD* aPcb, const wxPoint& aPosition, int aActiveLayer,
+                                bool aVisibleOnly, bool aIgnoreLocked = false );
 
 /* Locate a pad pointed to by the cursor on the footprint.
  * Module.
@@ -179,12 +153,12 @@ MODULE*      Locate_Prefered_Module( BOARD* Pcb, int typeloc );
  * Returns:
  * A pointer to the pad if found otherwise NULL.
  */
-D_PAD*       Locate_Pads( MODULE* Module, int typeloc );
+D_PAD* Locate_Pads( MODULE* Module, int typeloc );
 
 /* Locate a trace segment at the current cursor position.
  * The search begins to address start_adresse.
  */
-TRACK*       Locate_Pistes( TRACK* start_adresse, int typeloc );
+TRACK* Locate_Pistes( TRACK* start_adresse, int typeloc );
 
 DRAWSEGMENT* Locate_Segment_Pcb( BOARD* Pcb, int LayerSearch, int typeloc );
 
@@ -195,9 +169,7 @@ DRAWSEGMENT* Locate_Segment_Pcb( BOARD* Pcb, int LayerSearch, int typeloc );
  * Returns:
  * Pointer to the pad if found, otherwise NULL.
  */
-D_PAD*       Fast_Locate_Pad_Connecte( BOARD*         Pcb,
-                                       const wxPoint& ref_pos,
-                                       int            layer );
+D_PAD* Fast_Locate_Pad_Connecte( BOARD* Pcb, const wxPoint& ref_pos, int layer );
 
 /*
  * 1 - Locate trace segment at the current cursor position.
@@ -207,40 +179,31 @@ D_PAD*       Fast_Locate_Pad_Connecte( BOARD*         Pcb,
  *
  * The search begins to address start_adresse
  */
-TRACK*       Locate_Zone( TRACK* start_adresse, int layer, int typeloc );
-TRACK*       Locate_Zone( TRACK*         start_adresse,
-                          const wxPoint& ref_pos,
-                          int            layer );
+TRACK* Locate_Zone( TRACK* start_adresse, const wxPoint& ref_pos, int layer );
 
 
 /*************/
 /* MODULES.C */
 /*************/
-int  ChangeSideNumLayer( int oldlayer );
-void DrawModuleOutlines( WinEDA_DrawPanel* panel, wxDC* DC, MODULE* module );
-void Montre_Position_Empreinte( WinEDA_DrawPanel* panel,
-                                wxDC*             DC,
-                                bool              erase );
-
-
-/* LOADCMP.C : */
-MODULE* Load_Module_From_Library( WinEDA_DrawFrame* frame, wxDC* DC );
+int ChangeSideNumLayer( int oldlayer );
+void DrawModuleOutlines( EDA_DRAW_PANEL* panel, wxDC* DC, MODULE* module );
+void Montre_Position_Empreinte( EDA_DRAW_PANEL* aPanel, wxDC* aDC, const wxPoint& aPosition,
+                                bool aErase );
 
 
 /****************/
 /* EDITRACK.C : */
 /****************/
 
-TRACK* LocateIntrusion( TRACK* listStart, TRACK* aTrack );
+TRACK* LocateIntrusion( TRACK* listStart, TRACK* aTrack, int aLayer, const wxPoint& aRef );
 
-void   ShowNewTrackWhenMovingCursor( WinEDA_DrawPanel* panel,
-                                     wxDC* DC, bool erase );
+void ShowNewTrackWhenMovingCursor( EDA_DRAW_PANEL* aPanel, wxDC* aDC, const wxPoint& aPosition,
+                                   bool aErase );
 
 /* Determine coordinate for a segment direction of 0, 90 or 45 degrees,
- * depending on it's position from the origin (ox, oy) and the current
- * cursor position.
+ * depending on it's position from the origin (ox, oy) and \a aPosiition..
  */
-void   Calcule_Coord_Extremite_45( int ox, int oy, int* fx, int* fy );
+void Calcule_Coord_Extremite_45( const wxPoint& aPosition, int ox, int oy, int* fx, int* fy );
 
 
 /*****************/
@@ -280,42 +243,10 @@ TRACK* Marque_Une_Piste( BOARD* aPcb,
  * And EndTrack-> fx, fy if OK
  * The segments are drawn consecutively.
  */
-int  ReturnEndsTrack( TRACK* RefTrack, int NbSegm,
-                      TRACK** StartTrack, TRACK** EndTrack );
-
-/* Update the state of a list of structures. */
-void ListSetState( EDA_BaseStruct* Start, int Nbitem, int State, int onoff );
-
-
-/**************/
-/* CLEAN.CPP : */
-/**************/
-
-/* Remove segments connected incorrectly.
- */
-int Netliste_Controle_piste( WinEDA_PcbFrame* frame, wxDC* DC, int affiche );
-
-
-/************/
-/* ZONES.CPP */
-/************/
-int Propagation( WinEDA_PcbFrame* frame );
-
-/****************/
-/* ATTRIBUT.CPP */
-/****************/
-
-/* Compute the attributes that are 0 (masque_clr) and put a 1
- * (Masque_set), depending on the options attribute.
- *
- * These attributes are normally the member flags of the structure TRACK
- * Pointers NULLs are accepted.
- */
-void MasqueAttributs( int* masque_set, int* masque_clr );
+int  ReturnEndsTrack( TRACK* RefTrack, int NbSegm, TRACK** StartTrack, TRACK** EndTrack );
 
 
 /***************/
-/* DUPLTRAC.CPP */
 /***************/
 
 /* Routine to find the point "attachment" at the end of a trace.
@@ -356,27 +287,5 @@ TRACK*      CreateLockPoint( BOARD* aPcb,
 void RemoteCommand( const char* cmdline );
 bool Project( wxPoint* res, wxPoint on_grid, const TRACK* track );
 
-
-/***************/
-/* AUTOROUT.CPP */
-/***************/
-void DisplayBoard( WinEDA_DrawPanel* panel, wxDC* DC );    /* for Debugging */
-
-
-/**************/
-/* NETLIST.CPP */
-/**************/
-
-/* List the names of the modules of PCB
- * Returns a pointer to the module selected or NULL if no selection.
- */
-MODULE* ListAndSelectModuleName( COMMAND* Cmd );
-
-
-/***************************/
-/* DIALOG_LAYERS_SETUP.CPP */
-/***************************/
-
-void DisplayDialogLayerSetup( WinEDA_PcbFrame* parent );
 
 #endif  /* #define PROTO_H */

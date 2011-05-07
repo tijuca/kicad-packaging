@@ -6,15 +6,15 @@
 #ifndef __INCLUDE__COMMON_H__
 #define __INCLUDE__COMMON_H__ 1
 
+#include "wx/wx.h"
 #include "wx/confbase.h"
 #include "wx/fileconf.h"
 
 class wxAboutDialogInfo;
 class BASE_SCREEN;
-class WinEDA_DrawFrame;
+class EDA_DRAW_FRAME;
 class WinEDAListBox;
-class WinEDA_DrawPanel;
-
+class EDA_DRAW_PANEL;
 
 /* Flag for special keys */
 #define GR_KB_RIGHTSHIFT 0x10000000                 /* Keybd states: right
@@ -30,7 +30,7 @@ class WinEDA_DrawPanel;
                                                      */
 
 // default name for nameless projects
-#define NAMELESS_PROJECT wxT("noname")
+#define NAMELESS_PROJECT wxT( "noname" )
 
 #define NB_ITEMS 11
 
@@ -49,21 +49,24 @@ enum pseudokeys {
 
 /* TODO Executable names TODO*/
 #ifdef __WINDOWS__
-#    define CVPCB_EXE    wxT( "cvpcb.exe" )
-#    define PCBNEW_EXE   wxT( "pcbnew.exe" )
-#    define EESCHEMA_EXE wxT( "eeschema.exe" )
-#    define GERBVIEW_EXE wxT( "gerbview.exe" )
+#define CVPCB_EXE           wxT( "cvpcb.exe" )
+#define PCBNEW_EXE          wxT( "pcbnew.exe" )
+#define EESCHEMA_EXE        wxT( "eeschema.exe" )
+#define GERBVIEW_EXE        wxT( "gerbview.exe" )
+#define BITMAPCONVERTER_EXE wxT( "bitmap2component.exe" )
 #else
-# ifndef __WXMAC__
-#  define CVPCB_EXE    wxT( "cvpcb" )
-#  define PCBNEW_EXE   wxT( "pcbnew" )
-#  define EESCHEMA_EXE wxT( "eeschema" )
-#  define GERBVIEW_EXE wxT( "gerbview" )
+#ifndef __WXMAC__
+#define CVPCB_EXE           wxT( "cvpcb" )
+#define PCBNEW_EXE          wxT( "pcbnew" )
+#define EESCHEMA_EXE        wxT( "eeschema" )
+#define GERBVIEW_EXE        wxT( "gerbview" )
+#define BITMAPCONVERTER_EXE wxT( "bitmap2component" )
 #else
-#  define CVPCB_EXE    wxT( "cvpcb.app/Contents/MacOS/cvpcb" )
-#  define PCBNEW_EXE   wxT( "pcbnew.app/Contents/MacOS/pcbnew" )
-#  define EESCHEMA_EXE wxT( "eeschema.app/Contents/MacOS/eeschema" )
-#  define GERBVIEW_EXE wxT( "gerbview.app/Contents/MacOS/gerbview" )
+#define CVPCB_EXE           wxT( "cvpcb.app/Contents/MacOS/cvpcb" )
+#define PCBNEW_EXE          wxT( "pcbnew.app/Contents/MacOS/pcbnew" )
+#define EESCHEMA_EXE        wxT( "eeschema.app/Contents/MacOS/eeschema" )
+#define GERBVIEW_EXE        wxT( "gerbview.app/Contents/MacOS/gerbview" )
+#define BITMAPCONVERTER_EXE wxT( "bitmap2component.app/Contents/MacOS/bitmap2component" )
 # endif
 #endif
 
@@ -75,40 +78,21 @@ enum pseudokeys {
 #define ON  1
 #define OFF 0
 
-#define INCHES     0
-#define MILLIMETRE 1
-#define CENTIMETRE 2
+enum UserUnitType {
+    INCHES = 0,
+    MILLIMETRES = 1,
+    UNSCALED_UNITS = 2
+};
 
 #if defined(KICAD_GOST)
-#define LEFTMARGIN   800    /* 20mm */
-#define RIGHTMARGIN  200    /* 5mm */
-#define TOPMARGIN    200    /* 5mm */
-#define BOTTOMMARGIN 200    /* 5mm */
+#define GOST_LEFTMARGIN   800    /* 20mm */
+#define GOST_RIGHTMARGIN  200    /* 5mm */
+#define GOST_TOPMARGIN    200    /* 5mm */
+#define GOST_BOTTOMMARGIN 200    /* 5mm */
 
 #endif
 /* forward declarations: */
 class LibNameList;
-
-
-/***********************************/
-/* Class to display text           */
-/***********************************/
-class WinEDA_TextFrame : public wxDialog
-{
-private:
-    wxWindow*  m_Parent;
-    wxListBox* m_List;
-
-public:
-    WinEDA_TextFrame( wxWindow* parent, const wxString& title );
-    void Append( const wxString& text );
-
-private:
-    void D_ClickOnList( wxCommandEvent& event );
-    void OnClose( wxCloseEvent& event );
-
-    DECLARE_EVENT_TABLE()
-};
 
 
 /* Class to handle pages sizes:
@@ -126,8 +110,7 @@ public:
     int      m_BottomMargin;
 
 public:
-    Ki_PageDescr( const wxSize& size, const wxPoint& offset,
-                  const wxString& name );
+    Ki_PageDescr( const wxSize& size, const wxPoint& offset, const wxString& name );
 };
 
 
@@ -150,10 +133,6 @@ extern wxString       g_ProductName;
 
 /* Default user lib path can be left void, if the standard lib path is used */
 extern wxString       g_UserLibDirBuffer;
-
-extern int            g_DebugLevel;
-extern int            g_MouseOldButtons;
-extern int            g_KeyPressed;
 
 extern bool           g_ShowPageLimits; // TRUE to display the page limits
 
@@ -181,18 +160,16 @@ extern wxString     g_Prj_Default_Config_FullFilename;
 // Name of local configuration file. (<curr projet>.pro)
 extern wxString     g_Prj_Config_LocalFilename;
 
-extern int          g_UnitMetric; // display units mm = 1, inches = 0, cm = 2
+extern UserUnitType g_UserUnit;     ///< display units
 
 /* Draw color for moving objects: */
 extern int          g_GhostColor;
 
-/* Current used screen: (not used in eeshema)*/
-extern BASE_SCREEN* ActiveScreen;
-
 
 /* COMMON.CPP */
 
-/** function SetLocaleTo_C_standard
+/**
+ * Function SetLocaleTo_C_standard
  *  because kicad is internationalized, switch internalization to "C" standard
  *  i.e. uses the . (dot) as separator in print/read float numbers
  *  (some countries (France, Germany ..) use , (comma) as separator)
@@ -205,7 +182,8 @@ extern BASE_SCREEN* ActiveScreen;
  */
 void               SetLocaleTo_C_standard( void );
 
-/** function SetLocaleTo_Default
+/**
+ * Function SetLocaleTo_Default
  *  because kicad is internationalized, switch internalization to default
  *  to use the default separator in print/read float numbers
  *  (. (dot) but some countries (France, Germany ..) use , (comma) as
@@ -254,8 +232,7 @@ wxString& operator <<( wxString& aString, const wxPoint& aPoint );
  * @param aFlags The same args as allowed for wxExecute()
  * @return bool - true if success, else false
  */
-bool               ProcessExecute( const wxString& aCommandLine,
-                                   int             aFlags = wxEXEC_ASYNC );
+bool ProcessExecute( const wxString& aCommandLine, int aFlags = wxEXEC_ASYNC );
 
 
 /*******************/
@@ -267,24 +244,6 @@ void InitKiCadAbout( wxAboutDialogInfo& info );
 /**************/
 /* common.cpp */
 /**************/
-
-/**
- * function Affiche_1_Parametre
- * Routine to display a parameter.
- * = POS_X horizontal framing
- * If POS_X <0: horizontal position is the last
- * Required value> = 0
- * Texte_H = text to be displayed in top line.
- * If "by posting on this line
- * Texte_L = text to be displayed in bottom line.
- * If "by posting on this line
- * Color = color display
- */
-void     Affiche_1_Parametre( WinEDA_DrawFrame* frame,
-                              int               pos_X,
-                              const wxString&   texte_H,
-                              const wxString&   texte_L,
-                              int               color );
 
 int GetTimeStamp();
 
@@ -302,6 +261,20 @@ int GetCommandOptions( const int argc, const char** argv,
 const wxString& valeur_param( int valeur, wxString& buf_texte );
 
 /**
+ * Function CoordinateToString
+ * is a helper to convert the integer coordinate \a aValue to a string in inches,
+ * millimeters, or unscaled units according to the current user units setting.
+ *
+ * @param aValue The coordinate to convert.
+ * @param aInternalUnits The internal units of the application.  #EESCHEMA_INTERNAL_UNIT
+ *                       and #PCB_INTERNAL_UNIT are the only valid value.
+ * @param aConvertToMils Convert inch values to mils if true.  This setting has no effect if
+ *                       the current user unit is millimeters.
+ * @return The converted string for display in user interface elements.
+ */
+wxString CoordinateToString( int aValue, int aInternalUnits, bool aConvertToMils = false );
+
+/**
  * Returns the units symbol.
  *
  * @param aUnits - Units type, default is current units setting.
@@ -309,7 +282,7 @@ const wxString& valeur_param( int valeur, wxString& buf_texte );
  *                        the format string must contain the %s format specifier.
  * @return The formatted units symbol.
  */
-wxString        ReturnUnitSymbol( int aUnits                    = g_UnitMetric,
+wxString        ReturnUnitSymbol( UserUnitType aUnits = g_UserUnit,
                                   const wxString& aFormatString = _( " (%s):" ) );
 
 /**
@@ -321,13 +294,14 @@ wxString        ReturnUnitSymbol( int aUnits                    = g_UnitMetric,
  * @param aUnits - The units text to return.
  * @return The human readable units string.
  */
-wxString        GetUnitsLabel( int aUnits );
-wxString        GetAbbreviatedUnitsLabel( int aUnits = g_UnitMetric );
+wxString        GetUnitsLabel( UserUnitType aUnits );
+wxString        GetAbbreviatedUnitsLabel( UserUnitType aUnit = g_UserUnit );
 
-int             ReturnValueFromString( int Units, const wxString& TextValue,
+int             ReturnValueFromString( UserUnitType aUnit, const wxString& TextValue,
                                        int Internal_Unit );
 
-/** Function ReturnStringFromValue
+/**
+ * Function ReturnStringFromValue
  * Return the string from Value, according to units (inch, mm ...) for display,
  * and the initial unit for value
  * @param aUnit = display units (INCHES, MILLIMETRE ..)
@@ -337,12 +311,12 @@ int             ReturnValueFromString( int Units, const wxString& TextValue,
  * @return a wxString what contains value and optionally the symbol unit (like
  *         2.000 mm)
  */
-wxString        ReturnStringFromValue( int  aUnits,
+wxString        ReturnStringFromValue( UserUnitType aUnit,
                                        int  aValue,
                                        int  aInternal_Unit,
                                        bool aAdd_unit_symbol = false );
 
-void            AddUnitSymbol( wxStaticText& Stext, int Units = g_UnitMetric );
+void            AddUnitSymbol( wxStaticText& Stext, UserUnitType aUnit = g_UserUnit );
 
 /* Add string "  (mm):" or " ("):" to the static text Stext.
  *  Used in dialog boxes for entering values depending on selected units */
@@ -350,7 +324,7 @@ void            PutValueInLocalUnits( wxTextCtrl& TextCtr, int Value,
                                       int Internal_Unit );
 
 /* Convert the number Value in a string according to the internal units
- *  and the selected unit (g_UnitMetric) and put it in the wxTextCtrl TextCtrl
+ *  and the selected unit (g_UserUnit) and put it in the wxTextCtrl TextCtrl
  **/
 int             ReturnValueFromTextCtrl( const wxTextCtrl& TextCtr,
                                          int               Internal_Unit );
@@ -362,16 +336,15 @@ wxArrayString*  wxStringSplit( wxString txt, wxChar splitter );
  * Function To_User_Unit
  * Convert in inch or mm the variable "val" (double)given in internal units
  * @return the converted value, in double
- * @param is_metric : true if the result must be returned in mm , false if
- *                    inches
+ * @param aUnit : user unit to be converted to
  * @param val : double : the given value
  * @param internal_unit_value = internal units per inch
  */
-double          To_User_Unit( bool   is_metric,
+double          To_User_Unit( UserUnitType aUnit,
                               double val,
                               int    internal_unit_value );
 
-int             From_User_Unit( bool   is_metric,
+int             From_User_Unit( UserUnitType aUnit,
                                 double val,
                                 int    internal_unit_value );
 wxString        GenDate();
@@ -379,4 +352,4 @@ void            MyFree( void* pt_mem );
 void*           MyZMalloc( size_t nb_octets );
 void*           MyMalloc( size_t nb_octets );
 
-#endif  /* __INCLUDE__COMMON_H__ */
+#endif  // __INCLUDE__COMMON_H__

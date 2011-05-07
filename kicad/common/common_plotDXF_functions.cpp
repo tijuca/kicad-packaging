@@ -14,15 +14,14 @@
 
 /* Set the plot offset for the current plotting
  */
-void DXF_PLOTTER::set_viewport( wxPoint offset,
-                                double aScale, int orient )
+void DXF_PLOTTER::set_viewport( wxPoint aOffset, double aScale, bool aMirror )
 {
     wxASSERT( !output_file );
-    plot_offset  = offset;
+    plot_offset  = aOffset;
     plot_scale   = aScale;
     device_scale = 1;
     set_default_line_width( 0 );    /* No line width on DXF */
-    plot_orient_options = 0;        /* No mirroring on DXF */
+    plotMirror = false;             /* No mirroring on DXF */
     current_color = BLACK;
 }
 
@@ -40,7 +39,7 @@ bool DXF_PLOTTER::start_plot( FILE* fout )
     {
         wxString cname = ColorRefs[i].m_Name;
         fprintf( output_file, "0\nLAYER\n2\n%s\n70\n0\n62\n%d\n6\nCONTINUOUS\n",
-                 CONV_TO_UTF8( cname ), i + 1 );
+                 TO_UTF8( cname ), i + 1 );
     }
 
     /* End of layer table, begin entities */
@@ -98,45 +97,43 @@ void DXF_PLOTTER::circle( wxPoint centre, int diameter, FILL_T fill, int width )
         wxString cname = ColorRefs[current_color].m_Name;
         if (!fill) {
           fprintf( output_file, "0\nCIRCLE\n8\n%s\n10\n%d.0\n20\n%d.0\n40\n%g\n",
-                  CONV_TO_UTF8( cname ),
+                  TO_UTF8( cname ),
                   centre.x, centre.y, radius );
         }
         if (fill == FILLED_SHAPE) {
             int r = (int)(radius*0.5);
             fprintf( output_file, "0\nPOLYLINE\n");
-            fprintf( output_file, "8\n%s\n66\n1\n70\n1\n", CONV_TO_UTF8( cname ));
+            fprintf( output_file, "8\n%s\n66\n1\n70\n1\n", TO_UTF8( cname ));
             fprintf( output_file, "40\n%g\n41\n%g\n", radius,radius);
-            fprintf( output_file, "0\nVERTEX\n8\n%s\n", CONV_TO_UTF8( cname ));
+            fprintf( output_file, "0\nVERTEX\n8\n%s\n", TO_UTF8( cname ));
             fprintf( output_file, "10\n%d.0\n 20\n%d.0\n42\n1.0\n", centre.x-r,centre.y);
-            fprintf( output_file, "0\nVERTEX\n8\n%s\n", CONV_TO_UTF8( cname ));
+            fprintf( output_file, "0\nVERTEX\n8\n%s\n", TO_UTF8( cname ));
             fprintf( output_file, "10\n%d.0\n 20\n%d.0\n42\n1.0\n", centre.x+r,centre.y);
             fprintf( output_file, "0\nSEQEND\n");
-	}
+    }
      }
 }
 
 
-/* Draw a polygon (closed if completed) in DXF format
- * coord = coord table tops
+/* Draw a polygon (closed if filled) in DXF format
  * nb = number of coord (coord 1 = 2 elements: X and Y table)
- * fill: if != 0 filled polygon
+ * aFill: if != 0 filled polygon
  */
-void DXF_PLOTTER::poly( int nb, int* coord, FILL_T fill, int width )
+void DXF_PLOTTER::PlotPoly( std::vector< wxPoint >& aCornerList, FILL_T aFill, int aWidth)
 {
-    wxASSERT( output_file );
-    if( nb <= 1 )
+    if( aCornerList.size() <= 1 )
         return;
 
-    move_to( wxPoint( coord[0], coord[1] ) );
-    for( int ii = 1; ii < nb; ii++ )
-        line_to( wxPoint( coord[ii * 2], coord[(ii * 2) + 1] ) );
+    move_to( aCornerList[0] );
+    for( unsigned ii = 1; ii < aCornerList.size(); ii++ )
+        line_to( aCornerList[ii] );
 
     /* Close polygon. */
-    if( fill )
+    if( aFill )
     {
-        int ii = (nb - 1) * 2;
-        if( ( coord[ii] != coord[0] ) || ( coord[ii + 1] != coord[1] ) )
-            line_to( wxPoint( coord[0], coord[1] ) );
+        unsigned ii = aCornerList.size() - 1;
+        if( aCornerList[ii] != aCornerList[0] )
+            line_to( aCornerList[0] );
     }
     pen_finish();
 }
@@ -161,7 +158,7 @@ void DXF_PLOTTER::pen_to( wxPoint pos, char plume )
         /* DXF LINE */
         wxString cname = ColorRefs[current_color].m_Name;
         fprintf( output_file, "0\nLINE\n8\n%s\n10\n%d.0\n20\n%d.0\n11\n%d.0\n21\n%d.0\n",
-                 CONV_TO_UTF8( cname ),
+                 TO_UTF8( cname ),
                  pen_lastpos.x, pen_lastpos.y, pos.x, pos.y );
     }
     pen_lastpos = pos;
@@ -171,28 +168,27 @@ void DXF_PLOTTER::pen_to( wxPoint pos, char plume )
 void DXF_PLOTTER::set_dash( bool dashed )
 {
     /* NOP for now */
-    wxASSERT( output_file );
 }
 
 
-/** Function Plot a filled segment (track)
- * @param start = starting point
- * @param end = ending point
+/**
+ * Function thick_segment
+ * Plot a filled segment (track)
+ * @param aStart = starting point
+ * @param aEnd = ending point
  * @param aWidth = segment width (thickness)
  * @param aPlotMode = FILLED, SKETCH ..
  */
-void DXF_PLOTTER::thick_segment( wxPoint start, wxPoint end, int width,
-                                 GRTraceMode tracemode )
+void DXF_PLOTTER::thick_segment( wxPoint aStart, wxPoint aEnd, int aWidth,
+                                 GRTraceMode aPlotMode )
 {
-    wxASSERT( output_file );
-
-    if( tracemode == FILAIRE )  /* just a line is Ok */
+    if( aPlotMode == FILAIRE )  /* just a line is Ok */
     {
-        move_to( start );
-        finish_to( end );
+        move_to( aStart );
+        finish_to( aEnd );
     }
     else
-        segment_as_oval( start, end, width, tracemode );
+        segment_as_oval( aStart, aEnd, aWidth, aPlotMode );
 }
 
 
@@ -216,7 +212,7 @@ void DXF_PLOTTER::arc( wxPoint centre, int StAngle, int EndAngle, int radius,
     wxString cname = ColorRefs[current_color].m_Name;
     fprintf( output_file,
              "0\nARC\n8\n%s\n10\n%d.0\n20\n%d.0\n40\n%d.0\n50\n%d.0\n51\n%d.0\n",
-             CONV_TO_UTF8( cname ),
+             TO_UTF8( cname ),
              centre.x, centre.y, radius,
              StAngle / 10, EndAngle / 10 );
 }
@@ -319,51 +315,21 @@ void DXF_PLOTTER::flash_pad_rect( wxPoint pos, wxSize padsize,
 
 /*
  * Plot trapezoidal pad.
- * pos  its center, pos.y
- * Dimensions dim X and dimy
- * DeltaX and variations deltaY
- * Orientation and 0.1 degrees east
- * Plot mode (FILLED, SKETCH, WIRED)
- * The evidence is that a trapezoid, ie that deltaX or deltaY
- * = 0.
- *
- * The rating of the vertexes are (vis a vis the plotter)
- *      0 ------------- 3
- *        .            .
- *          .         .
- *           .       .
- *            1 --- 2
+ * aPadPos is pad position, aCorners the corners position of the basic shape
+ * Orientation aPadOrient in 0.1 degrees
+ * Plot mode = FILLED, SKETCH (unused)
  */
-
-void DXF_PLOTTER::flash_pad_trapez( wxPoint pos, wxSize size, wxSize delta,
-                                    int orient, GRTraceMode trace_mode )
+void DXF_PLOTTER::flash_pad_trapez( wxPoint aPadPos, wxPoint aCorners[4],
+                                     int aPadOrient, GRTraceMode aTrace_Mode )
 {
     wxASSERT( output_file );
-    wxPoint polygone[4];    /* coord of vertex or center of the pad */
     wxPoint coord[4];       /* coord actual corners of a trapezoidal trace */
-    int     moveX, moveY;   /* change pen position by X and Y axis to
-                             * fill the trapezoid */
-    moveX = moveY = 0;
-
-    size.x /= 2;
-    size.y /= 2;
-    delta.x /= 2;
-    delta.y /= 2;
-
-    polygone[0].x = -size.x - delta.y;
-    polygone[0].y = +size.y + delta.x;
-    polygone[1].x = -size.x + delta.y;
-    polygone[1].y = -size.y - delta.x;
-    polygone[2].x = +size.x - delta.y;
-    polygone[2].y = -size.y + delta.x;
-    polygone[3].x = +size.x + delta.y;
-    polygone[3].y = +size.y - delta.x;
 
     for( int ii = 0; ii < 4; ii++ )
     {
-        coord[ii].x = polygone[ii].x + pos.x;
-        coord[ii].y = polygone[ii].y + pos.y;
-        RotatePoint( &coord[ii], pos, orient );
+        coord[ii] = aCorners[ii];
+        RotatePoint( &coord[ii], aPadOrient );
+        coord[ii] += aPadPos;
     }
 
     // Plot edge:

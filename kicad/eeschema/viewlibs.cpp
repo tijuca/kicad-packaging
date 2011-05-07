@@ -9,13 +9,15 @@
 #include "class_drawpanel.h"
 #include "confirm.h"
 #include "eda_doc.h"
+#include "wxstruct.h"
+#include "class_sch_screen.h"
 
-#include "program.h"
 #include "general.h"
 #include "protos.h"
 #include "viewlib_frame.h"
 #include "eeschema_id.h"
 #include "class_library.h"
+#include "dialog_helpers.h"
 
 
 #define NEXT_PART      1
@@ -23,11 +25,11 @@
 #define PREVIOUS_PART -1
 
 
-void WinEDA_ViewlibFrame::Process_Special_Functions( wxCommandEvent& event )
+void LIB_VIEW_FRAME::Process_Special_Functions( wxCommandEvent& event )
 {
-    wxString msg;
-    CMP_LIB_ENTRY* LibEntry;
-    int     ii, id = event.GetId();
+    wxString   msg;
+    LIB_ALIAS* LibEntry;
+    int        ii, id = event.GetId();
 
     switch( id )
     {
@@ -48,8 +50,7 @@ void WinEDA_ViewlibFrame::Process_Special_Functions( wxCommandEvent& event )
         break;
 
     case ID_LIBVIEW_VIEWDOC:
-        LibEntry = CMP_LIBRARY::FindLibraryEntry( m_entryName,
-                                                  m_libraryName );
+        LibEntry = CMP_LIBRARY::FindLibraryEntry( m_entryName, m_libraryName );
 
         if( LibEntry && ( !LibEntry->GetDocFileName().IsEmpty() ) )
             GetAssociatedDocument( this, LibEntry->GetDocFileName(),
@@ -71,7 +72,7 @@ void WinEDA_ViewlibFrame::Process_Special_Functions( wxCommandEvent& event )
         break;
 
     case ID_LIBVIEW_SELECT_PART_NUMBER:
-        ii = SelpartBox->GetChoice();
+        ii = SelpartBox->GetCurrentSelection();
         if( ii < 0 )
             return;
         m_unit = ii + 1;
@@ -79,27 +80,26 @@ void WinEDA_ViewlibFrame::Process_Special_Functions( wxCommandEvent& event )
         break;
 
     default:
-        msg << wxT( "WinEDA_ViewlibFrame::Process_Special_Functions error: id = " ) << id;
+        msg << wxT( "LIB_VIEW_FRAME::Process_Special_Functions error: id = " ) << id;
         DisplayError( this, msg );
         break;
     }
 }
 
 
-void WinEDA_ViewlibFrame::OnLeftClick( wxDC* DC, const wxPoint& MousePos )
+void LIB_VIEW_FRAME::OnLeftClick( wxDC* DC, const wxPoint& MousePos )
 {
 }
 
 
-bool WinEDA_ViewlibFrame::OnRightClick( const wxPoint& MousePos,
-                                        wxMenu*        PopMenu )
+bool LIB_VIEW_FRAME::OnRightClick( const wxPoint& MousePos, wxMenu* PopMenu )
 {
     return true;
 }
 
 
 /* Displays the name of the current opened library in the caption */
-void WinEDA_ViewlibFrame::DisplayLibInfos()
+void LIB_VIEW_FRAME::DisplayLibInfos()
 {
     wxString     msg;
     CMP_LIBRARY* Lib;
@@ -122,16 +122,18 @@ void WinEDA_ViewlibFrame::DisplayLibInfos()
 /*****************************************/
 /* Function to Select Current library      */
 /*****************************************/
-void WinEDA_ViewlibFrame::SelectCurrentLibrary()
+void LIB_VIEW_FRAME::SelectCurrentLibrary()
 {
     CMP_LIBRARY* Lib;
 
     Lib = SelectLibraryFromList( this );
+
     if( Lib )
     {
         m_entryName.Empty();
         m_libraryName = Lib->GetName();
         DisplayLibInfos();
+
         if( m_LibList )
         {
             ReCreateListCmp();
@@ -139,6 +141,7 @@ void WinEDA_ViewlibFrame::SelectCurrentLibrary()
             DisplayLibInfos();
             ReCreateHToolbar();
             int id = m_LibList->FindString( m_libraryName.GetData() );
+
             if( id >= 0 )
                 m_LibList->SetSelection( id );
         }
@@ -149,7 +152,7 @@ void WinEDA_ViewlibFrame::SelectCurrentLibrary()
 /*
  * Routine to select and view library Part (NEW, NEXT or PREVIOUS)
  */
-void WinEDA_ViewlibFrame::SelectAndViewLibraryPart( int option )
+void LIB_VIEW_FRAME::SelectAndViewLibraryPart( int option )
 {
     CMP_LIBRARY* Lib;
 
@@ -159,6 +162,7 @@ void WinEDA_ViewlibFrame::SelectAndViewLibraryPart( int option )
         return;
 
     Lib = CMP_LIBRARY::FindLibrary( m_libraryName );
+
     if( Lib == NULL )
         return;
 
@@ -168,7 +172,7 @@ void WinEDA_ViewlibFrame::SelectAndViewLibraryPart( int option )
         return;
     }
 
-    CMP_LIB_ENTRY* LibEntry = Lib->FindEntry( m_entryName );
+    LIB_ALIAS* LibEntry = Lib->FindEntry( m_entryName );
 
     if( LibEntry == NULL )
         return;
@@ -184,11 +188,11 @@ void WinEDA_ViewlibFrame::SelectAndViewLibraryPart( int option )
 /*************************************************/
 /* Routine to view one selected library content. */
 /*************************************************/
-void WinEDA_ViewlibFrame::ViewOneLibraryContent( CMP_LIBRARY* Lib, int Flag )
+void LIB_VIEW_FRAME::ViewOneLibraryContent( CMP_LIBRARY* Lib, int Flag )
 {
-    int            NumOfParts = 0;
-    CMP_LIB_ENTRY* LibEntry;
-    wxString       CmpName;
+    int        NumOfParts = 0;
+    LIB_ALIAS* LibEntry;
+    wxString   CmpName;
 
     if( Lib )
         NumOfParts = Lib->GetCount();
@@ -242,19 +246,18 @@ void WinEDA_ViewlibFrame::ViewOneLibraryContent( CMP_LIBRARY* Lib, int Flag )
 }
 
 
-/** function RedrawActiveWindow
+/**
+ * Function RedrawActiveWindow
  * Display the current selected component.
  * If the component is an alias, the ROOT component is displayed
 */
-void WinEDA_ViewlibFrame::RedrawActiveWindow( wxDC* DC, bool EraseBg )
+void LIB_VIEW_FRAME::RedrawActiveWindow( wxDC* DC, bool EraseBg )
 {
     LIB_COMPONENT* component;
-    CMP_LIB_ENTRY* entry;
+    LIB_ALIAS*     entry;
     CMP_LIBRARY*   lib;
     wxString       msg;
     wxString       tmp;
-
-    ActiveScreen = GetScreen();
 
     lib = CMP_LIBRARY::FindLibrary( m_libraryName );
 
@@ -266,46 +269,34 @@ void WinEDA_ViewlibFrame::RedrawActiveWindow( wxDC* DC, bool EraseBg )
     if( entry == NULL )
         return;
 
+    component = entry->GetComponent();
+
     DrawPanel->DrawBackGround( DC );
 
-    if( entry->isAlias() )
+    if( !entry->IsRoot() )
     {
-        LIB_ALIAS* alias = (LIB_ALIAS*) entry;
-        component = alias->GetComponent();
-
         if( component == NULL )     // Should not occur
-        {
-            wxASSERT( component != NULL );
             return;
-        }
-        if( ! component->isComponent() )
-        {
-            wxASSERT( component->isComponent() );
-            return;
-        }
 
-        msg = alias->GetName();
-
-        /* Temporarily change the name field text to reflect the alias name. */
+        // Temporarily change the name field text to reflect the alias name.
+        msg = entry->GetName();
         tmp = component->GetName();
-        component->SetName( alias->GetName() );
+        component->SetName( msg );
+
         if( m_unit < 1 )
             m_unit = 1;
         if( m_convert < 1 )
             m_convert = 1;
-        component->SetName( tmp );
     }
     else
     {
-        component = (LIB_COMPONENT*) entry;
         msg = _( "None" );
     }
 
-    component->Draw( DrawPanel, DC, wxPoint( 0, 0 ), m_unit, m_convert,
-                     GR_DEFAULT_DRAWMODE );
+    component->Draw( DrawPanel, DC, wxPoint( 0, 0 ), m_unit, m_convert, GR_DEFAULT_DRAWMODE );
 
     /* Redraw the cursor */
-    DrawPanel->DrawCursor( DC );
+    DrawPanel->DrawCrossHair( DC );
 
     if( !tmp.IsEmpty() )
         component->SetName( tmp );

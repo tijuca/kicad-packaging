@@ -7,8 +7,9 @@
 #include "common.h"
 
 #include "cvpcb.h"
-#include "protos.h"
+#include "cvpcb_mainframe.h"
 #include "cvstruct.h"
+#include "cvpcb_id.h"
 
 
 /******************************************************************************
@@ -19,7 +20,7 @@
 #define LISTB_STYLE wxSUNKEN_BORDER | wxLC_NO_HEADER | \
     wxLC_SINGLE_SEL | wxLC_REPORT | wxLC_VIRTUAL
 
-ITEMS_LISTBOX_BASE::ITEMS_LISTBOX_BASE( WinEDA_CvpcbFrame* aParent, wxWindowID aId,
+ITEMS_LISTBOX_BASE::ITEMS_LISTBOX_BASE( CVPCB_MAINFRAME* aParent, wxWindowID aId,
                                         const wxPoint& aLocation, const wxSize& aSize ) :
     wxListView( aParent, aId, aLocation, aSize, LISTB_STYLE )
 {
@@ -56,16 +57,16 @@ int ITEMS_LISTBOX_BASE::GetSelection()
 }
 
 
-WinEDA_CvpcbFrame* ITEMS_LISTBOX_BASE::GetParent()
+CVPCB_MAINFRAME* ITEMS_LISTBOX_BASE::GetParent()
 {
-    return (WinEDA_CvpcbFrame*) wxListView::GetParent();
+    return (CVPCB_MAINFRAME*) wxListView::GetParent();
 }
 
 
 /*
  * Create or update the schematic components list.
  */
-void WinEDA_CvpcbFrame::BuildCmpListBox()
+void CVPCB_MAINFRAME::BuildCmpListBox()
 {
     wxString msg;
     wxSize   size( 10, 10 );
@@ -102,7 +103,7 @@ void WinEDA_CvpcbFrame::BuildCmpListBox()
 /*
  * Create or update the footprint list.
  */
-void WinEDA_CvpcbFrame::BuildFOOTPRINTS_LISTBOX()
+void CVPCB_MAINFRAME::BuildFOOTPRINTS_LISTBOX()
 {
     wxString msg;
     wxSize   size( 10, 10 );
@@ -122,7 +123,5 @@ void WinEDA_CvpcbFrame::BuildFOOTPRINTS_LISTBOX()
     }
 
     m_FootprintList->SetFootprintFullList( m_footprints );
-
-    msg.Printf( _( "Footprints: %d" ), m_FootprintList->GetCount() );
-    SetStatusText( msg, 2 );
+    DisplayStatus();
 }

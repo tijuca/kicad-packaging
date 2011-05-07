@@ -35,8 +35,6 @@
 #include <iso646.h>
 #endif
 
-#cmakedefine HAVE_STRINGS_H
-
 #if defined( HAVE_STRCASECMP )
 #define stricmp strcasecmp
 #elif defined( HAVE_ISO_STRICMP )
@@ -48,9 +46,6 @@
 #elif defined( HAVE_ISO_STRNICMP )
 #define strnicmp _strnicmp
 #endif
-
-/* Warning!!!  Using wxDC for zooming is experimental. */
-#cmakedefine USE_WX_ZOOM 1
 
 /* Warning!!!  Using wxGraphicContext for rendering is experimental. */
 #cmakedefine USE_WX_GRAPHICS_CONTEXT 1

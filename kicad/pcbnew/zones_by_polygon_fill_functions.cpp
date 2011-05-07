@@ -25,6 +25,7 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
  */
 
+#include <wx/progdlg.h>
 #include "fctsys.h"
 #include "appl_wxstruct.h"
 #include "common.h"
@@ -34,17 +35,14 @@
 #include "zones.h"
 
 
-/**********************************************************************************/
-void WinEDA_PcbFrame::Delete_Zone_Fill( SEGZONE* aZone, long aTimestamp )
-/**********************************************************************************/
-
-/** Function Delete_Zone_Fill
+/**
+ * Function Delete_Zone_Fill
  * Remove the zone fillig which include the segment aZone, or the zone which have the given time stamp.
- *  A zone is a group of segments which have the same TimeStamp
- * @param DC = current Device Context (can be NULL)
+ * A zone is a group of segments which have the same TimeStamp
  * @param aZone = zone segment within the zone to delete. Can be NULL
  * @param aTimestamp = Timestamp for the zone to delete, used if aZone == NULL
  */
+void PCB_EDIT_FRAME::Delete_Zone_Fill( SEGZONE* aZone, long aTimestamp )
 {
     bool          modify  = false;
     unsigned long TimeStamp;
@@ -82,16 +80,13 @@ void WinEDA_PcbFrame::Delete_Zone_Fill( SEGZONE* aZone, long aTimestamp )
     if( modify )
     {
         OnModify();
-        GetScreen()->SetRefreshReq();
+        DrawPanel->Refresh();
     }
 }
 
 
-/***************************************************************************************/
-int WinEDA_PcbFrame::Fill_Zone( ZONE_CONTAINER* zone_container, bool verbose )
-/***************************************************************************************/
-
-/** Function Fill_Zone()
+/**
+ * Function Fill_Zone
  *  Calculate the zone filling for the outline zone_container
  *  The zone outline is a frontier, and can be complex (with holes)
  *  The filling starts from starting points like pads, tracks.
@@ -100,36 +95,28 @@ int WinEDA_PcbFrame::Fill_Zone( ZONE_CONTAINER* zone_container, bool verbose )
  * @param verbose = true to show error messages
  * @return error level (0 = no error)
  */
+int PCB_EDIT_FRAME::Fill_Zone( ZONE_CONTAINER* zone_container, bool verbose )
 {
     wxString msg;
 
-    MsgPanel->EraseMsgBox();
-    if( GetBoard()->ComputeBoundaryBox() == false )
+    ClearMsgPanel();
+
+    if( GetBoard()->ComputeBoundingBox() == false )
     {
         if( verbose )
             wxMessageBox( wxT( "Board is empty!" ) );
         return -1;
     }
 
-    /* Shows the Net */
+    // Shows the net
     g_Zone_Default_Setting.m_NetcodeSelection = zone_container->GetNet();
+    msg = zone_container->GetNetName();
 
-    if( zone_container->GetNet() > 0 )
-    {
-        NETINFO_ITEM* net = GetBoard()->FindNet( zone_container->GetNet() );
-        if( net == NULL )
-        {
-            if( verbose )
-                wxMessageBox( wxT( "Unable to find Net name" ) );
-            return -2;
-        }
-        else
-            msg = net->GetNetname();
-    }
-    else
-        msg = _( "No Net" );
+    if( msg.IsEmpty() )
+        msg = wxT( "No net" );
 
-    Affiche_1_Parametre( this, 22, _( "NetName" ), msg, RED );
+    AppendMsgPanel( _( "NetName" ), msg, RED );
+
     wxBusyCursor dummy;     // Shows an hourglass cursor (removed by its destructor)
 
     zone_container->m_FilledPolysList.clear();
@@ -142,34 +129,57 @@ int WinEDA_PcbFrame::Fill_Zone( ZONE_CONTAINER* zone_container, bool verbose )
 }
 
 
-/************************************************************/
-int WinEDA_PcbFrame::Fill_All_Zones( bool verbose )
-/************************************************************/
-
-/** Function Fill_All_Zones()
+int PCB_EDIT_FRAME::Fill_All_Zones( bool verbose )
+/**
+ * Function Fill_All_Zones
  *  Fill all zones on the board
  * The old fillings are removed
  * @param verbose = true to show error messages
  * @return error level (0 = no error)
  */
 {
-    ZONE_CONTAINER* zone_container;
-    int             error_level = 0;
+    int errorLevel = 0;
+    int areaCount = GetBoard()->GetAreaCount();
+    wxBusyCursor dummyCursor;
+    wxString msg;
+    #define FORMAT_STRING _( "Filling zone %d out of %d (net %s)..." )
 
-    // Remove all zones :
+    // Create a message with a long net name, and build a wxProgressDialog
+    // with a correct size to show this long net name
+    msg.Printf( FORMAT_STRING,
+                000, 999, wxT("XXXXXXXXXXXXXXXXX" ) );
+    wxProgressDialog progressDialog( _( "Fill All Zones" ), msg,
+                                     areaCount+2, this,
+                                     wxPD_AUTO_HIDE | wxPD_APP_MODAL | wxPD_CAN_ABORT );
+    // Display the actual message
+    progressDialog.Update( 0, _( "Starting zone fill..." ) );
+
+    // Remove segment zones
     GetBoard()->m_Zone.DeleteAll();
 
-    for( int ii = 0; ii < GetBoard()->GetAreaCount(); ii++ )
+    int ii;
+    for( ii = 0; ii < areaCount; ii++ )
     {
-        zone_container = GetBoard()->GetArea( ii );
-        error_level    = Fill_Zone( zone_container, verbose );
-        if( error_level && !verbose )
+        ZONE_CONTAINER* zoneContainer = GetBoard()->GetArea( ii );
+        msg.Printf( FORMAT_STRING,
+                    ii+1, areaCount, GetChars( zoneContainer->GetNetName() ) );
+
+        if( !progressDialog.Update( ii+1, msg ) )
+            break;
+
+        errorLevel = Fill_Zone( zoneContainer, verbose );
+
+        if( errorLevel && !verbose )
             break;
     }
+    progressDialog.Update( ii+2, _( "Updating ratsnest..." ) );
     test_connexions( NULL );
-    Tst_Ratsnest( NULL, 0 );    // Recalculate the active ratsnest, i.e. the unconnected links */
+
+    // Recalculate the active ratsnest, i.e. the unconnected links
+    Tst_Ratsnest( NULL, 0 );
     DrawPanel->Refresh( true );
-    return error_level;
+
+    return errorLevel;
 }
 
 

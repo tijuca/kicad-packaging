@@ -13,11 +13,11 @@
 
 
 /* Set the plot offset for the current plotting */
-void PS_PLOTTER::set_viewport( wxPoint offset, double aScale, int orient )
+void PS_PLOTTER::set_viewport( wxPoint aOffset, double aScale, bool aMirror )
 {
     wxASSERT( !output_file );
-    plot_orient_options = orient;
-    plot_offset  = offset;
+    plotMirror = aMirror;
+    plot_offset  = aOffset;
     plot_scale   = aScale;
     device_scale = 1;               /* PS references in decimals */
     set_default_line_width( 100 );  /* default line width in 1/1000 inch */
@@ -157,7 +157,7 @@ void PS_PLOTTER::arc( wxPoint centre, int StAngle, int EndAngle, int radius,
     // Calculate start point.
     user_to_device_coordinates( centre );
     radius = wxRound( user_to_device_size( radius ) );
-    if( plot_orient_options == PLOT_MIROIR )
+    if( plotMirror )
         fprintf( output_file, "%d %d %d %g %g arc%d\n", centre.x, centre.y,
                  radius, (double) -EndAngle / 10, (double) -StAngle / 10,
                  fill );
@@ -168,39 +168,33 @@ void PS_PLOTTER::arc( wxPoint centre, int StAngle, int EndAngle, int radius,
 }
 
 
-/** Function poly
- * @brief Draw a polygon ( a filled polygon if fill == 1 ) in POSTSCRIPT format
- * @param nb_segm = corner count
- * @param coord = corner list (a corner uses 2 int = X coordinate followed by Y
- *  coordinate
- * @param fill :if true : filled polygon
- * @param  width = line width
+/*
+ * Function PlotPoly
+ * Draw a polygon (filled or not) in POSTSCRIPT format
+ * param aCornerList = corners list
+ * param aFill :if true : filled polygon
+ * param aWidth = line width
  */
-void PS_PLOTTER::poly( int nb_segm, int* coord, FILL_T fill, int width )
+void PS_PLOTTER::PlotPoly( std::vector< wxPoint >& aCornerList, FILL_T aFill, int aWidth )
 {
-    wxASSERT( output_file );
-    wxPoint pos;
-
-    if( nb_segm <= 1 )
+    if( aCornerList.size() <= 1 )
         return;
 
-    set_current_line_width( width );
+    set_current_line_width( aWidth );
 
-    pos.x = coord[0];
-    pos.y = coord[1];
+    wxPoint pos = aCornerList[0];
     user_to_device_coordinates( pos );
     fprintf( output_file, "newpath\n%d %d moveto\n", pos.x, pos.y );
 
-    for( int ii = 1; ii < nb_segm; ii++ )
+    for( unsigned ii = 1; ii < aCornerList.size(); ii++ )
     {
-        pos.x = coord[2 * ii];
-        pos.y = coord[2 * ii + 1];
+        pos = aCornerList[ii];
         user_to_device_coordinates( pos );
         fprintf( output_file, "%d %d lineto\n", pos.x, pos.y );
     }
 
     // Close path
-    fprintf( output_file, "poly%d\n", fill );
+    fprintf( output_file, "poly%d\n", aFill );
 }
 
 
@@ -292,12 +286,12 @@ bool PS_PLOTTER::start_plot( FILE* fout )
 
     fputs( "%!PS-Adobe-3.0\n", output_file );    // Print header
 
-    fprintf( output_file, "%%%%Creator: %s\n", CONV_TO_UTF8( creator ) );
+    fprintf( output_file, "%%%%Creator: %s\n", TO_UTF8( creator ) );
 
     // A "newline" character ("\n") is not included in the following string,
     // because it is provided by the ctime() function.
     fprintf( output_file, "%%%%CreationDate: %s", ctime( &time1970 ) );
-    fprintf( output_file, "%%%%Title: %s\n", CONV_TO_UTF8( filename ) );
+    fprintf( output_file, "%%%%Title: %s\n", TO_UTF8( filename ) );
     fprintf( output_file, "%%%%Pages: 1\n" );
     fprintf( output_file, "%%%%PageOrder: Ascend\n" );
 
@@ -332,7 +326,7 @@ bool PS_PLOTTER::start_plot( FILE* fout )
 
     else  // ( if sheet->m_Name does not equal "User" )
         fprintf( output_file, "%%%%DocumentMedia: %s %d %d 0 () ()\n",
-                 CONV_TO_UTF8( sheet->m_Name ),
+                 TO_UTF8( sheet->m_Name ),
                  wxRound( sheet->m_Size.y * 10 * CONV_SCALE ),
                  wxRound( sheet->m_Size.x * 10 * CONV_SCALE ) );
 
@@ -425,17 +419,17 @@ void PS_PLOTTER::flash_pad_circle( wxPoint pos, int diametre,
                                    GRTraceMode modetrace )
 {
     wxASSERT( output_file );
+
+    set_current_line_width( -1 );
+    if( current_pen_width >= diametre )
+        set_current_line_width( diametre );
+
     if( modetrace == FILLED )
-    {
-        set_current_line_width( 0 );
-        circle( pos, diametre, FILLED_SHAPE );
-    }
+        circle( pos, diametre - current_pen_width, FILLED_SHAPE );
     else
-    {
-        set_current_line_width( -1 );
-        int w = current_pen_width;
-        circle( pos, diametre - 2 * w, NO_FILL );
-    }
+        circle( pos, diametre - current_pen_width, NO_FILL );
+
+    set_current_line_width( -1 );
 }
 
 
@@ -444,7 +438,8 @@ void PS_PLOTTER::flash_pad_circle( wxPoint pos, int diametre,
 void PS_PLOTTER::flash_pad_rect( wxPoint pos, wxSize size,
                                  int orient, GRTraceMode trace_mode )
 {
-    wxASSERT( output_file );
+    static std::vector< wxPoint > cornerList;
+    cornerList.clear();
 
     set_current_line_width( -1 );
     int w = current_pen_width;
@@ -458,96 +453,76 @@ void PS_PLOTTER::flash_pad_rect( wxPoint pos, wxSize size,
     int dx = size.x / 2;
     int dy = size.y / 2;
 
-    int coord[10] =
-    {
-        pos.x - dx, pos.y + dy,
-        pos.x - dx, pos.y - dy,
-        pos.x + dx, pos.y - dy,
-        pos.x + dx, pos.y + dy,
-        0,          0
-    };
+    wxPoint corner;
+    corner.x = pos.x - dx;
+    corner.y = pos.y + dy;
+    cornerList.push_back( corner );
+    corner.x = pos.x - dx;
+    corner.y = pos.y - dy;
+    cornerList.push_back( corner );
+    corner.x = pos.x + dx;
+    corner.y = pos.y - dy;
+    cornerList.push_back( corner );
+    corner.x = pos.x + dx;
+    corner.y = pos.y + dy,
+    cornerList.push_back( corner );
 
-    for( int ii = 0; ii < 4; ii++ )
+    for( unsigned ii = 0; ii < cornerList.size(); ii++ )
     {
-        RotatePoint( &coord[ii * 2], &coord[ii * 2 + 1], pos.x, pos.y, orient );
+        RotatePoint( &cornerList[ii], pos, orient );
     }
 
-    coord[8] = coord[0];
-    coord[9] = coord[1];
-    poly( 5, coord, ( trace_mode == FILLED ) ? FILLED_SHAPE : NO_FILL );
+    cornerList.push_back( cornerList[0] );
+
+    PlotPoly( cornerList, ( trace_mode == FILLED ) ? FILLED_SHAPE : NO_FILL );
 }
 
 
 /* Plot trapezoidal pad.
- * Pos is pad center
- * Dimensions size.x and size.y
- * Changes delta.x and delta.y (1 of at least two must be zero)
- * Orientation east to 0.1 degrees
- * Plot mode (FILLED, SKETCH, WIRED)
- *
- * The evidence is that a trapezoid, ie that delta.x or delta.y = 0.
- *
- * The rating of the vertexes are (vis a vis the plotter)
- *
- * "       0 ------------- 3   "
- * "        .             .    "
- * "         .     O     .     "
- * "          .         .      "
- * "           1 ---- 2        "
- *
- *
- *   Example delta.y > 0, delta.x = 0
- * "           1 ---- 2        "
- * "          .         .      "
- * "         .     O     .     "
- * "        .             .    "
- * "       0 ------------- 3   "
- *
- *
- *   Example delta.y = 0, delta.x > 0
- * "       0                  "
- * "       . .                "
- * "       .     .            "
- * "       .           3      "
- * "       .           .      "
- * "       .     O     .      "
- * "       .           .      "
- * "       .           2      "
- * "       .     .            "
- * "       . .                "
- * "       1                  "
+ * aPadPos is pad position, aCorners the corners position of the basic shape
+ * Orientation aPadOrient in 0.1 degrees
+ * Plot mode FILLED or SKETCH
  */
-void PS_PLOTTER::flash_pad_trapez( wxPoint centre, wxSize size, wxSize delta,
-                                   int orient, GRTraceMode modetrace )
+void PS_PLOTTER::flash_pad_trapez( wxPoint aPadPos, wxPoint aCorners[4],
+                                     int aPadOrient, GRTraceMode aTrace_Mode )
 {
-    wxASSERT( output_file );
-    set_current_line_width( -1 );
-    int w = current_pen_width;
-    int dx, dy;
-    int ddx, ddy;
+    static std::vector< wxPoint > cornerList;
+    cornerList.clear();
 
-    dx  = ( size.x - w ) / 2;
-    dy  = ( size.y - w ) / 2;
-    ddx = delta.x / 2;
-    ddy = delta.y / 2;
+    for( int ii = 0; ii < 4; ii++ )
+        cornerList.push_back( aCorners[ii] );
 
-    int coord[10] =
+    if( aTrace_Mode == FILLED )
     {
-        -dx - ddy, +dy + ddx,
-        -dx + ddy, -dy - ddx,
-        +dx - ddy, -dy + ddx,
-        +dx + ddy, +dy - ddx,
-        0,         0
-    };
+        set_current_line_width( 0 );
+    }
+    else
+    {
+        set_current_line_width( -1 );
+        int w = current_pen_width;
+        // offset polygon by w
+        // coord[0] is assumed the lower left
+        // coord[1] is assumed the upper left
+        // coord[2] is assumed the upper right
+        // coord[3] is assumed the lower right
+
+        /* Trace the outline. */
+        cornerList[0].x += w;
+        cornerList[0].y -= w;
+        cornerList[1].x += w;
+        cornerList[1].y += w;
+        cornerList[2].x -= w;
+        cornerList[2].y += w;
+        cornerList[3].x -= w;
+        cornerList[3].y -= w;
+    }
 
     for( int ii = 0; ii < 4; ii++ )
     {
-        RotatePoint( &coord[ii * 2], &coord[ii * 2 + 1], orient );
-        coord[ii * 2]     += centre.x;
-        coord[ii * 2 + 1] += centre.y;
+        RotatePoint( &cornerList[ii], aPadOrient );
+        cornerList[ii] += aPadPos;
     }
 
-    coord[8] = coord[0];
-    coord[9] = coord[1];
-    poly( 5, coord, ( modetrace == FILLED ) ? FILLED_SHAPE : NO_FILL );
+    cornerList.push_back( cornerList[0] );
+    PlotPoly( cornerList, ( aTrace_Mode == FILLED ) ? FILLED_SHAPE : NO_FILL );
 }

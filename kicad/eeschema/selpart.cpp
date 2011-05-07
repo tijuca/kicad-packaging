@@ -6,14 +6,15 @@
 #include "gr_basic.h"
 #include "common.h"
 #include "confirm.h"
+#include "wxstruct.h"
 
-#include "program.h"
 #include "general.h"
 #include "protos.h"
 #include "class_library.h"
+#include "dialog_helpers.h"
 
 
-CMP_LIBRARY* SelectLibraryFromList( WinEDA_DrawFrame* frame )
+CMP_LIBRARY* SelectLibraryFromList( EDA_DRAW_FRAME* frame )
 {
     static wxString OldLibName;
     wxString        msg;
@@ -50,13 +51,11 @@ CMP_LIBRARY* SelectLibraryFromList( WinEDA_DrawFrame* frame )
 }
 
 
-int DisplayComponentsNamesInLib( WinEDA_DrawFrame* frame,
+int DisplayComponentsNamesInLib( EDA_DRAW_FRAME* frame,
                                  CMP_LIBRARY* Library,
                                  wxString& Buffer, wxString& OldName )
 {
-    size_t         i;
     wxArrayString  nameList;
-    const wxChar** ListNames;
 
     if( Library == NULL )
         Library = SelectLibraryFromList( frame );
@@ -66,39 +65,18 @@ int DisplayComponentsNamesInLib( WinEDA_DrawFrame* frame,
 
     Library->GetEntryNames( nameList );
 
-    ListNames = (const wxChar**) MyZMalloc( ( nameList.GetCount() + 1 ) *
-                                            sizeof( wxChar* ) );
+    WinEDAListBox dlg( frame, _( "Select Component" ), nameList, OldName, DisplayCmpDoc );
 
-    if( ListNames == NULL )
+    if( dlg.ShowModal() != wxID_OK )
         return 0;
 
-    for( i = 0; i < nameList.GetCount(); i++ )
-        ListNames[i] = (const wxChar*) nameList[i];
-
-    WinEDAListBox dlg( frame, _( "Select Component" ), ListNames, OldName,
-                       DisplayCmpDoc, wxColour( 255, 255, 255 ) );
-
-    if( !OldName.IsEmpty() )
-        dlg.m_List->SetStringSelection( OldName );
-
-    dlg.MoveMouseToOrigin();
-
-    int rsp = dlg.ShowModal();
-
-    if( rsp >= 0 )
-        Buffer = ListNames[rsp];
-
-    free( ListNames );
-
-    if( rsp < 0 )
-        return 0;
+    Buffer = dlg.GetTextSelection();
 
     return 1;
 }
 
 
-int GetNameOfPartToLoad( WinEDA_DrawFrame* frame, CMP_LIBRARY* Library,
-                         wxString& BufName )
+int GetNameOfPartToLoad( EDA_DRAW_FRAME* frame, CMP_LIBRARY* Library, wxString& BufName )
 {
     int             ii;
     static wxString OldCmpName;

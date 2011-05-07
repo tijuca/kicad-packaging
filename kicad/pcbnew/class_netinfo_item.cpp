@@ -9,7 +9,7 @@
 #include "pcbnew.h"
 #include "class_board_design_settings.h"
 #include "colors_selection.h"
-
+#include "richio.h"
 
 /*********************************************************/
 /* class NETINFO_ITEM: handle data relative to a given net */
@@ -42,13 +42,15 @@ NETINFO_ITEM::~NETINFO_ITEM()
  * Returns 0 if OK
  * 1 if incomplete reading
  */
-int NETINFO_ITEM::ReadDescr( FILE* File, int* LineNum )
+int NETINFO_ITEM::ReadDescr( LINE_READER* aReader )
 {
-    char Line[1024], Ltmp[1024];
-    int  tmp;
+    char* Line;
+    char  Ltmp[1024];
+    int   tmp;
 
-    while( GetLine( File, Line, LineNum ) )
+    while( aReader->ReadLine() )
     {
+        Line = aReader->Line();
         if( strnicmp( Line, "$End", 4 ) == 0 )
             return 0;
 
@@ -58,7 +60,7 @@ int NETINFO_ITEM::ReadDescr( FILE* File, int* LineNum )
             SetNet( tmp );
 
             ReadDelimitedText( Ltmp, Line + 2, sizeof(Ltmp) );
-            m_Netname = CONV_FROM_UTF8( Ltmp );
+            m_Netname = FROM_UTF8( Ltmp );
             continue;
         }
     }
@@ -76,10 +78,8 @@ bool NETINFO_ITEM::Save( FILE* aFile ) const
     bool success = false;
 
     fprintf( aFile, "$EQUIPOT\n" );
-    fprintf( aFile, "Na %d \"%s\"\n", GetNet(), CONV_TO_UTF8( m_Netname ) );
+    fprintf( aFile, "Na %d %s\n", GetNet(), EscapedUTF8( m_Netname ).c_str() );
     fprintf( aFile, "St %s\n", "~" );
-
-    // fprintf( aFile, "NetClass \"%s\"\n", CONV_TO_UTF8(m_NetClassName) );
 
     if( fprintf( aFile, "$EndEQUIPOT\n" ) != sizeof("$EndEQUIPOT\n") - 1 )
         goto out;
@@ -93,7 +93,7 @@ out:
 
 /**
  * Function SetNetname
- * @param const wxString : the new netname
+ * @param aNetname : the new netname
  */
 void NETINFO_ITEM::SetNetname( const wxString& aNetname )
 {
@@ -102,12 +102,13 @@ void NETINFO_ITEM::SetNetname( const wxString& aNetname )
 }
 
 
-/** function Draw (TODO)
+/**
+ * Function Draw (TODO)
  */
-void NETINFO_ITEM::Draw( WinEDA_DrawPanel* panel,
-                         wxDC*             DC,
-                         int               aDrawMode,
-                         const wxPoint&    aOffset )
+void NETINFO_ITEM::Draw( EDA_DRAW_PANEL* panel,
+                         wxDC*           DC,
+                         int             aDrawMode,
+                         const wxPoint&  aOffset )
 {
 }
 
@@ -116,17 +117,17 @@ void NETINFO_ITEM::Draw( WinEDA_DrawPanel* panel,
  * Function DisplayInfo
  * has knowledge about the frame and how and where to put status information
  * about this object into the frame's message panel.
- * Is virtual from EDA_BaseStruct.
- * @param frame A WinEDA_DrawFrame in which to print status information.
+ * Is virtual from EDA_ITEM.
+ * @param frame A EDA_DRAW_FRAME in which to print status information.
  */
-void NETINFO_ITEM::DisplayInfo( WinEDA_DrawFrame* frame )
+void NETINFO_ITEM::DisplayInfo( EDA_DRAW_FRAME* frame )
 {
-    int             count;
-    EDA_BaseStruct* Struct;
-    wxString        txt;
-    MODULE*         module;
-    D_PAD*          pad;
-    double          lengthnet = 0;
+    int       count;
+    EDA_ITEM* Struct;
+    wxString  txt;
+    MODULE*   module;
+    D_PAD*    pad;
+    double    lengthnet = 0;
 
     frame->ClearMsgPanel();
 
@@ -136,7 +137,7 @@ void NETINFO_ITEM::DisplayInfo( WinEDA_DrawFrame* frame )
     frame->AppendMsgPanel( _( "Net Code" ), txt, RED );
 
     count  = 0;
-    module = ( (WinEDA_BasePcbFrame*) frame )->GetBoard()->m_Modules;
+    module = ( (PCB_BASE_FRAME*) frame )->GetBoard()->m_Modules;
     for( ; module != 0; module = module->Next() )
     {
         for( pad = module->m_Pads; pad != 0; pad = pad->Next() )
@@ -150,7 +151,7 @@ void NETINFO_ITEM::DisplayInfo( WinEDA_DrawFrame* frame )
     frame->AppendMsgPanel( _( "Pads" ), txt, DARKGREEN );
 
     count  = 0;
-    Struct = ( (WinEDA_BasePcbFrame*) frame )->GetBoard()->m_Track;
+    Struct = ( (PCB_BASE_FRAME*) frame )->GetBoard()->m_Track;
     for( ; Struct != NULL; Struct = Struct->Next() )
     {
         if( Struct->Type() == TYPE_VIA )
@@ -185,13 +186,14 @@ RATSNEST_ITEM::RATSNEST_ITEM()
 }
 
 
-/** function Draw
+/**
+ * Function Draw
  * Draws a line (a ratsnest) from the starting pad to the ending pad
  */
-void RATSNEST_ITEM::Draw( WinEDA_DrawPanel* panel,
-                          wxDC*             DC,
-                          int               aDrawMode,
-                          const wxPoint&    aOffset )
+void RATSNEST_ITEM::Draw( EDA_DRAW_PANEL* panel,
+                          wxDC*           DC,
+                          int             aDrawMode,
+                          const wxPoint&  aOffset )
 {
     GRSetDrawMode( DC, aDrawMode );
     int color = g_ColorsSettings.GetItemColor(RATSNEST_VISIBLE);

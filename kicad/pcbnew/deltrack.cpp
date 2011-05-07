@@ -18,21 +18,14 @@
  * If There is evidence of new track: delete new segment.
  * Otherwise, delete segment under the cursor.
  */
-TRACK* WinEDA_PcbFrame::Delete_Segment( wxDC* DC, TRACK* aTrack )
+TRACK* PCB_EDIT_FRAME::Delete_Segment( wxDC* DC, TRACK* aTrack )
 {
     int current_net_code;
 
     if( aTrack == NULL )
         return NULL;
 
-    if( aTrack->GetState( DELETED ) )
-    {
-        D( printf( "WinEDA_PcbFrame::Delete_Segment(): bug deleted already deleted TRACK\n" ); )
-        return NULL;
-    }
-
-    if( aTrack->m_Flags & IS_NEW )  // Trace in progress, erase the last
-                                    // segment
+    if( aTrack->IsNew() )  // Trace in progress, erase the last segment
     {
         if( g_CurrentTrackList.GetCount() > 0 )
         {
@@ -41,7 +34,7 @@ TRACK* WinEDA_PcbFrame::Delete_Segment( wxDC* DC, TRACK* aTrack )
             D( g_CurrentTrackList.VerifyListIntegrity(); )
 
             // Delete the current trace
-            ShowNewTrackWhenMovingCursor( DrawPanel, DC, FALSE );
+            ShowNewTrackWhenMovingCursor( DrawPanel, DC, wxDefaultPosition, FALSE );
 
             // delete the most recently entered
             delete g_CurrentTrackList.PopBack();
@@ -86,10 +79,9 @@ TRACK* WinEDA_PcbFrame::Delete_Segment( wxDC* DC, TRACK* aTrack )
 
             if( g_CurrentTrackList.GetCount() == 0 )
             {
-                DrawPanel->ManageCurseur = NULL;
-                DrawPanel->ForceCloseManageCurseur = NULL;
+                DrawPanel->SetMouseCapture( NULL, NULL );
 
-                if( g_HighLight_Status )
+                if( GetBoard()->IsHightLightNetON() )
                     High_Light( DC );
 
                 SetCurItem( NULL );
@@ -97,8 +89,8 @@ TRACK* WinEDA_PcbFrame::Delete_Segment( wxDC* DC, TRACK* aTrack )
             }
             else
             {
-                if( DrawPanel->ManageCurseur )
-                    DrawPanel->ManageCurseur( DrawPanel, DC, FALSE );
+                if( DrawPanel->IsMouseCaptured() )
+                    DrawPanel->m_mouseCaptureCallback( DrawPanel, DC, wxDefaultPosition, FALSE );
 
                 return g_CurrentTrackSegment;
             }
@@ -113,7 +105,7 @@ TRACK* WinEDA_PcbFrame::Delete_Segment( wxDC* DC, TRACK* aTrack )
     container->Remove( aTrack );
 
     // redraw the area where the track was
-    DrawPanel->PostDirtyRect( aTrack->GetBoundingBox() );
+    DrawPanel->RefreshDrawingRect( aTrack->GetBoundingBox() );
 
     SaveCopyInUndoList( aTrack, UR_DELETED );
     OnModify();
@@ -124,7 +116,7 @@ TRACK* WinEDA_PcbFrame::Delete_Segment( wxDC* DC, TRACK* aTrack )
 }
 
 
-void WinEDA_PcbFrame::Delete_Track( wxDC* DC, TRACK* aTrack )
+void PCB_EDIT_FRAME::Delete_Track( wxDC* DC, TRACK* aTrack )
 {
     if( aTrack != NULL )
     {
@@ -136,7 +128,7 @@ void WinEDA_PcbFrame::Delete_Track( wxDC* DC, TRACK* aTrack )
 }
 
 
-void WinEDA_PcbFrame::Delete_net( wxDC* DC, TRACK* aTrack )
+void PCB_EDIT_FRAME::Delete_net( wxDC* DC, TRACK* aTrack )
 {
     if( aTrack == NULL )
         return;
@@ -163,7 +155,7 @@ void WinEDA_PcbFrame::Delete_net( wxDC* DC, TRACK* aTrack )
         GetBoard()->m_Track.Remove( segm );
 
         // redraw the area where the track was
-        DrawPanel->PostDirtyRect( segm->GetBoundingBox() );
+        DrawPanel->RefreshDrawingRect( segm->GetBoundingBox() );
         picker.m_PickedItem     = segm;
         picker.m_PickedItemType = segm->Type();
         itemsList.PushItem( picker );
@@ -180,7 +172,7 @@ void WinEDA_PcbFrame::Delete_net( wxDC* DC, TRACK* aTrack )
  * The leading segment is removed and all adjacent segments
  * until a pad or a junction point of more than 2 segments is found
  */
-void WinEDA_PcbFrame::Remove_One_Track( wxDC* DC, TRACK* pt_segm )
+void PCB_EDIT_FRAME::Remove_One_Track( wxDC* DC, TRACK* pt_segm )
 {
     int segments_to_delete_count;
 
@@ -204,14 +196,17 @@ void WinEDA_PcbFrame::Remove_One_Track( wxDC* DC, TRACK* pt_segm )
         next_track = tracksegment->Next();
         tracksegment->SetState( BUSY, OFF );
 
-        D( printf( "%s: track %p status=\"%s\"\n", __func__, tracksegment,
-                   CONV_TO_UTF8( TRACK::ShowState( tracksegment->GetState( -1 ) ) )
-                   ); )
+        //D( printf( "%s: track %p status=\"%s\"\n", __func__, tracksegment,
+        //           TO_UTF8( TRACK::ShowState( tracksegment->GetState( -1 ) ) )
+        //          ); )
+        D( std::cout<<__func__<<": track "<<tracksegment<<" status=" \
+                   <<TO_UTF8( TRACK::ShowState( tracksegment->GetState( -1 ) ) ) \
+                   <<std::endl;)
 
         GetBoard()->m_Track.Remove( tracksegment );
 
         // redraw the area where the track was
-        DrawPanel->PostDirtyRect( tracksegment->GetBoundingBox() );
+        DrawPanel->RefreshDrawingRect( tracksegment->GetBoundingBox() );
         picker.m_PickedItem     = tracksegment;
         picker.m_PickedItemType = tracksegment->Type();
         itemsList.PushItem( picker );

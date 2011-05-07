@@ -23,15 +23,16 @@
 // inflection modes for DS_LINE and DS_LINE_VERTEX, used in math_for_graphics.cpp
 enum
 {
-	IM_NONE = 0,
-	IM_90_45,
-	IM_45_90,
-	IM_90
+    IM_NONE = 0,
+    IM_90_45,
+    IM_45_90,
+    IM_90
 };
 
 
 
-/** Function ArmBoolEng
+/**
+ * Function ArmBoolEng
  * Initialise parameters used in kbool
  * @param aBooleng = pointer to the Bool_Engine to initialise
  * @param aConvertHoles = mode for holes when a boolean operation is made
@@ -131,6 +132,23 @@ public:
     void       Close( int style = STRAIGHT, bool bDraw = false );
     void       RemoveContour( int icont );
 
+    /**
+     * Function Chamfer
+     * returns a chamfered version of a polygon.
+     * @param aDistance is the chamfering distance.
+     * @return CPolyLine* - Pointer to new polygon.
+     */
+    CPolyLine* Chamfer( unsigned int aDistance );
+
+    /**
+     * Function Fillet
+     * returns a filleted version of a polygon.
+     * @param aDistance is the fillet radius.
+     * @param aSegments is the number of segments / fillet.
+     * @return CPolyLine* - Pointer to new polygon.
+     */
+    CPolyLine* Fillet( unsigned int aRadius, unsigned int aSegments );
+
     void       RemoveAllContours( void );
 
     // drawing functions
@@ -145,13 +163,11 @@ public:
     CRect      GetCornerBounds( int icont );
     void       Copy( CPolyLine* src );
     bool       TestPointInside( int x, int y );
-    bool       TestPointInsideContour( int icont, int x, int y );
     bool       IsCutoutContour( int icont );
     void       AppendArc( int xi, int yi, int xf, int yf, int xc, int yc, int num );
 
-
     // access functions
-    int GetLayer() { return m_layer; }
+    int        GetLayer() { return m_layer; }
     int        GetNumCorners();
     int        GetNumSides();
     int        GetClosed();
@@ -164,12 +180,12 @@ public:
     int        GetY( int ic );
     int        GetEndContour( int ic );
 
-    int GetUtility( int ic ) { return corner[ic].utility; };
-    void SetUtility( int ic, int utility ) { corner[ic].utility = utility; };
+    int        GetUtility( int ic ) { return corner[ic].utility; };
+    void       SetUtility( int ic, int utility ) { corner[ic].utility = utility; };
     int        GetSideStyle( int is );
 
-    int GetHatchStyle() { return m_HatchStyle; }
-    void SetHatch( int hatch ) { Undraw(); m_HatchStyle = hatch; Draw(); };
+    int        GetHatchStyle() { return m_HatchStyle; }
+    void       SetHatch( int hatch ) { Undraw(); m_HatchStyle = hatch; Draw(); };
     void       SetX( int ic, int x );
     void       SetY( int ic, int y );
     void       SetEndContour( int ic, bool end_contour );
@@ -182,7 +198,8 @@ public:
 
     // KBOOL functions
 
-    /** Function AddPolygonsToBoolEng
+    /**
+     * Function AddPolygonsToBoolEng
      * and edges contours to a kbool engine, preparing a boolean op between polygons
      * @param aStart_contour: starting contour number (-1 = all, 0 is the outlines of zone, > 1 = holes in zone
      * @param aEnd_contour: ending contour number (-1 = all after  aStart_contour)
@@ -196,7 +213,8 @@ public:
                               int                 aEnd_contour = -1,
                               std::vector<CArc> * arc_array = NULL );
 
-    /** Function MakeKboolPoly
+    /**
+     * Function MakeKboolPoly
      * fill a kbool engine with a closed polyline contour
      * approximates arcs with multiple straight-line segments
      * @param aStart_contour: starting contour number (-1 = all, 0 is the outlines of zone, > 1 = holes in zone
@@ -214,24 +232,27 @@ public:
                        std::vector<CArc> * arc_array = NULL,
                        bool aConvertHoles = false);
 
-    /** Function NormalizeWithKbool
+    /**
+     * Function NormalizeWithKbool
      * Use the Kbool Library to clip contours: if outlines are crossing, the self-crossing polygon
      * is converted to non self-crossing polygon by adding extra points at the crossing locations
      * and reordering corners
      * if more than one outside contour are found, extra CPolyLines will be created
      * because copper areas have only one outside contour
      * Therefore, if this results in new CPolyLines, return them as std::vector pa
-     * @param aExtraPolys: pointer on a std::vector<CPolyLine*> to store extra CPolyLines
+     * @param aExtraPolyList: pointer on a std::vector<CPolyLine*> to store extra CPolyLines
      * @param bRetainArcs == false, try to retain arcs in polys
      * @return number of external contours, or -1 if error
      */
     int NormalizeWithKbool( std::vector<CPolyLine*> * aExtraPolyList, bool bRetainArcs );
 
-    /** function GetKboolEngine
+    /**
+     * Function GetKboolEngine
      * @return the current used Kbool Engine (after normalization using kbool)
      */
     Bool_Engine* GetKboolEngine( ) { return  m_Kbool_Poly_Engine; }
-    /** function FreeKboolEngine
+    /**
+     * Function FreeKboolEngine
      * delete the current used Kbool Engine (free memory after normalization using kbool)
      */
     void FreeKboolEngine( ) { delete m_Kbool_Poly_Engine; m_Kbool_Poly_Engine = NULL; }

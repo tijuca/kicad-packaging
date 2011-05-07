@@ -5,12 +5,15 @@
 #include "fctsys.h"
 #include "common.h"
 #include "confirm.h"
+#include "class_sch_screen.h"
+#include "wxstruct.h"
+#include "sch_item_struct.h"
 
-#include "program.h"
 #include "general.h"
 #include "netlist.h"
 #include "protos.h"
 #include "class_library.h"
+#include "sch_component.h"
 
 
 /*
@@ -23,8 +26,7 @@ bool LibArchive( wxWindow* frame, const wxString& ArchFullFileName )
     wxString   msg;
     LIB_COMPONENT* Entry;
     CMP_LIBRARY* libCache;
-
-    EDA_ScreenList ScreenList;
+    SCH_SCREENS ScreenList;
 
     libCache = new CMP_LIBRARY( LIBRARY_TYPE_EESCHEMA, ArchFullFileName );
     libCache->SetCache();
@@ -36,17 +38,16 @@ bool LibArchive( wxWindow* frame, const wxString& ArchFullFileName )
     for( SCH_SCREEN* screen = ScreenList.GetFirst(); screen != NULL;
          screen = ScreenList.GetNext() )
     {
-        for( SCH_ITEM* SchItem = screen->EEDrawList; SchItem;
-             SchItem = SchItem->Next() )
+        for( SCH_ITEM* SchItem = screen->GetDrawItems(); SchItem; SchItem = SchItem->Next() )
         {
-            if( SchItem->Type() != TYPE_SCH_COMPONENT )
+            if( SchItem->Type() != SCH_COMPONENT_T )
                 continue;
 
             SCH_COMPONENT* component = (SCH_COMPONENT*) SchItem;
             // If not already saved in the new cache, put it:
-            if( libCache->FindEntry( component->m_ChipName) == NULL )
+            if( libCache->FindEntry( component->GetLibName()) == NULL )
             {
-                Entry = CMP_LIBRARY::FindLibraryComponent( component->m_ChipName );
+                Entry = CMP_LIBRARY::FindLibraryComponent( component->GetLibName() );
 
                 if( Entry )    // if NULL : component not found, cannot be stored
                     libCache->AddComponent( Entry );

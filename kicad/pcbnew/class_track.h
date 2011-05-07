@@ -22,8 +22,8 @@ class TRACK : public BOARD_CONNECTED_ITEM
     // make SetNext() and SetBack() private so that they may not be called from anywhere.
     // list management is done on TRACKs using DLIST<TRACK> only.
 private:
-    void SetNext( EDA_BaseStruct* aNext )       { Pnext = aNext; }
-    void SetBack( EDA_BaseStruct* aBack )       { Pback = aBack; }
+    void SetNext( EDA_ITEM* aNext )       { Pnext = aNext; }
+    void SetBack( EDA_ITEM* aBack )       { Pback = aBack; }
 
 
 public:
@@ -39,7 +39,6 @@ public:
     BOARD_ITEM* start;              // pointers to a connected item (pad or track)
     BOARD_ITEM* end;
 
-    // chain = 0 indique une connexion non encore traitee
     int         m_Param;            // Auxiliary variable ( used in some computations )
 
 protected:
@@ -64,7 +63,7 @@ public:
     /**
      * Function Move
      * move this object.
-     * @param const wxPoint& aMoveVector - the move vector for this object.
+     * @param aMoveVector - the move vector for this object.
      */
     virtual void Move(const wxPoint& aMoveVector)
     {
@@ -75,7 +74,7 @@ public:
     /**
      * Function Rotate
      * Rotate this object.
-     * @param const wxPoint& aRotCentre - the rotation point.
+     * @param aRotCentre - the rotation point.
      * @param aAngle - the rotation angle in 0.1 degree.
      */
     virtual void Rotate(const wxPoint& aRotCentre, int aAngle);
@@ -83,7 +82,7 @@ public:
     /**
      * Function Flip
      * Flip this object, i.e. change the board side for this object
-     * @param const wxPoint& aCentre - the rotation point.
+     * @param aCentre - the rotation point.
      */
     virtual void Flip(const wxPoint& aCentre );
 
@@ -97,9 +96,7 @@ public:
         return m_Start;  // it had to be start or end.
     }
 
-
-    EDA_Rect GetBoundingBox();
-
+    EDA_RECT GetBoundingBox() const;
 
     /**
      * Function Save
@@ -144,12 +141,14 @@ public:
 
 
     /* Display on screen: */
-    void    Draw( WinEDA_DrawPanel* panel, wxDC* DC, int aDrawMode, const wxPoint& offset = ZeroOffset );
+    void    Draw( EDA_DRAW_PANEL* panel, wxDC* DC, int aDrawMode,
+                  const wxPoint& aOffset = ZeroOffset );
 
     /* divers */
     int Shape() const { return m_Shape & 0xFF; }
 
-    /** Function TransformShapeWithClearanceToPolygon
+    /**
+     * Function TransformShapeWithClearanceToPolygon
      * Convert the track shape to a closed polygon
      * Used in filling zones calculations
      * Circles (vias) and arcs (ends of tracks) are approximated by segments
@@ -210,20 +209,20 @@ public:
      * Function DisplayInfo
      * has knowledge about the frame and how and where to put status information
      * about this object into the frame's message panel.
-     * Is virtual from EDA_BaseStruct.
+     * Is virtual from EDA_ITEM.
      * Display info about the track segment and the full track length
-     * @param frame A WinEDA_DrawFrame in which to print status information.
+     * @param frame A EDA_DRAW_FRAME in which to print status information.
      */
-    void            DisplayInfo( WinEDA_DrawFrame* frame );
+    void            DisplayInfo( EDA_DRAW_FRAME* frame );
 
     /**
      * Function DisplayInfoBase
      * has knowledge about the frame and how and where to put status information
      * about this object into the frame's message panel.
      * Display info about the track segment only, and does not calculate the full track length
-     * @param frame A WinEDA_DrawFrame in which to print status information.
+     * @param frame A EDA_DRAW_FRAME in which to print status information.
      */
-    void            DisplayInfoBase( WinEDA_DrawFrame* frame );
+    void            DisplayInfoBase( EDA_DRAW_FRAME* frame );
 
     /**
      * Function ShowWidth
@@ -235,7 +234,7 @@ public:
      * Function Visit
      * is re-implemented here because TRACKs and SEGVIAs are in the same list
      * within BOARD.  If that were not true, then we could inherit the
-     * version from EDA_BaseStruct.  This one does not iterate through scanTypes
+     * version from EDA_ITEM.  This one does not iterate through scanTypes
      * but only looks at the first item in the list.
      * @param inspector An INSPECTOR instance to use in the inspection.
      * @param testData Arbitrary data used by the inspector.
@@ -257,13 +256,13 @@ public:
     bool            HitTest( const wxPoint& refPos );
 
     /**
-     * Function HitTest (overlayed)
+     * Function HitTest (overlaid)
      * tests if the given wxRect intersect this object.
      * For now, an ending point must be inside this rect.
-     * @param refPos A wxPoint to test
+     * @param refArea an EDA_RECT to test
      * @return bool - true if a hit, else false
      */
-    bool            HitTest( EDA_Rect& refArea );
+    bool            HitTest( EDA_RECT& refArea );
 
     /**
      * Function GetClass
@@ -341,15 +340,15 @@ public:
     }
 
 
-    void    Draw( WinEDA_DrawPanel* panel, wxDC* DC, int aDrawMode, const wxPoint& offset = ZeroOffset );
+    void    Draw( EDA_DRAW_PANEL* panel, wxDC* DC, int aDrawMode,
+                  const wxPoint& aOffset = ZeroOffset );
 
 
     /**
      * Function IsOnLayer
      * tests to see if this object is on the given layer.  Is virtual
-     * from BOARD_ITEM.  Tests the starting and ending range of layers for the
-     * via.
-     * @param aLayer The layer to test for.
+     * from BOARD_ITEM.  Tests the starting and ending range of layers for the via.
+     * @param aLayer the layer to test for.
      * @return bool - true if on given layer, else false.
      */
     bool    IsOnLayer( int aLayer ) const;

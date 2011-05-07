@@ -107,7 +107,7 @@ void BOARD::Test_Connections_To_Copper_Areas( int aNetcode )
             if( curr_zone->m_FilledPolysList[indexend].end_contour ) // end of a filled sub-area found
             {
                 subnet++;
-                EDA_Rect bbox = curr_zone->CalculateSubAreaBoundaryBox( indexstart, indexend );
+                EDA_RECT bbox = curr_zone->CalculateSubAreaBoundaryBox( indexstart, indexend );
                 for( unsigned ic = 0; ic < Candidates.size(); ic++ )
                 { // test if this area is connected to a board item:
                     item = Candidates[ic];
@@ -130,7 +130,7 @@ void BOARD::Test_Connections_To_Copper_Areas( int aNetcode )
                     else
                         continue;
                     bool connected = false;
-                    if( bbox.Inside( pos1 ) )
+                    if( bbox.Contains( pos1 ) )
                     {
                         if( TestPointInsidePolygon( curr_zone->m_FilledPolysList, indexstart,
                                                     indexend, pos1.x, pos1.y ) )
@@ -138,7 +138,7 @@ void BOARD::Test_Connections_To_Copper_Areas( int aNetcode )
                     }
                     if( !connected && (pos1 != pos2 ) )
                     {
-                        if( bbox.Inside( pos2 ) )
+                        if( bbox.Contains( pos2 ) )
                             if( TestPointInsidePolygon( curr_zone->m_FilledPolysList, indexstart,
                                                         indexend, pos2.x, pos2.y ) )
                                 connected = true;
@@ -180,7 +180,8 @@ void BOARD::Test_Connections_To_Copper_Areas( int aNetcode )
 void Merge_SubNets_Connected_By_CopperAreas( BOARD* aPcb )
 /**************************************************************************************************/
 
-/** Function Merge_SubNets_Connected_By_CopperAreas(BOARD* aPcb)
+/**
+ * Function Merge_SubNets_Connected_By_CopperAreas(BOARD* aPcb)
  * Calls Merge_SubNets_Connected_By_CopperAreas( BOARD* aPcb, int aNetcode ) for each netcode found in zone list
  * @param aPcb = the current board
  */
@@ -201,7 +202,8 @@ void Merge_SubNets_Connected_By_CopperAreas( BOARD* aPcb )
 void Merge_SubNets_Connected_By_CopperAreas( BOARD* aPcb, int aNetcode )
 /**************************************************************************************************/
 
-/** Function Merge_SubNets_Connected_By_CopperAreas(BOARD* aPcb, int aNetcode)
+/**
+ * Function Merge_SubNets_Connected_By_CopperAreas(BOARD* aPcb, int aNetcode)
  * Used after connections by tracks calculations
  * Merge subnets, in tracks ans pads when they are connected by a filled copper area
  * for pads, this is the .m_physical_connexion member which is tested and modified

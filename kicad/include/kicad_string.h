@@ -6,21 +6,52 @@
  */
 
 
-#ifndef __INCLUDE__KICAD_STRING_H__
-#define __INCLUDE__KICAD_STRING_H__ 1
+#ifndef KICAD_STRING_H_
+#define KICAD_STRING_H_
 
+#include <wx/string.h>
 
 char*    strupper( char* Text );
 char*    strlower( char* Text );
 
-/* Read string delimited with (") character.
- * Upload NbMaxChar max
- * Returns the number of codes read in source
- * dest is terminated by NULL
+
+/**
+ * Function ReadDelimitedText
+ * copies bytes from @a aSource delimited string segment to @a aDest buffer.
+ * The extracted string will be null terminated even if truncation is necessary
+ * because aDestSize was not large enough.
+ *
+ * @param aDest is the destination byte buffer.
+ * @param aSource is the source bytes as a C string.
+ * @param aDestSize is the size of the destination byte buffer.
+ * @return int - the number of bytes read from source, which may be more than
+ *   the number copied, due to escaping of double quotes and the escape byte itself.
+ * @deprecated should use the one which fetches a wxString, below.
  */
-int      ReadDelimitedText( char* dest,
-                            char* source,
-                            int   NbMaxChar );
+int  ReadDelimitedText( char* aDest, const char* aSource, int aDestSize );
+
+/**
+ * Function ReadDelimitedText
+ * copies bytes from @a aSource delimited string segment to @a aDest wxString.
+ *
+ * @param aDest is the destination wxString
+ * @param aSource is the source C string holding utf8 encoded bytes.
+ * @return int - the number of bytes read from source, which may be more than
+ *   the number copied, due to escaping of double quotes and the escape byte itself.
+ */
+int ReadDelimitedText( wxString* aDest, const char* aSource );
+
+/**
+ * Function EscapedUTF8
+ * returns an 8 bit UTF8 string given aString in unicode form.
+ * Any double quoted or back slashes are prefixed with a '\\' byte and the form
+ * of this UTF8 byte string is compatible with function ReadDelimitedText().
+ *
+ * @param aString is the input string to convert.
+ * @return std::string - the escaped input text, without the wrapping double quotes.
+ */
+std::string EscapedUTF8( const wxString& aString );
+
 
 /* Read one line line from a file.
  * Returns the first useful line read by eliminating blank lines and comments.
@@ -79,5 +110,27 @@ bool     WildCompareString( const wxString& pattern,
  */
 char*    to_point( char* Text );
 
+/**
+ * Function RefDesStringCompare
+ * acts just like the strcmp function but treats numbers within the string text
+ * correctly for sorting.  eg. A10 > A2
+ * return -1 if first string is less than the second
+ * return 0 if the strings are equal
+ * return 1 if the first string is greater than the second
+ */
+int  RefDesStringCompare( const wxString& lhs, const wxString& rhs );
 
-#endif /* __INCLUDE__KICAD_STRING_H__ */
+/**
+ * Function SplitString
+ * breaks a string into three parts.
+ * The alphabetic preamble
+ * The numeric part
+ * Any alphabetic ending
+ * For example C10A is split to C 10 A
+ */
+int SplitString( wxString  strToSplit,
+                 wxString* strBeginning,
+                 wxString* strDigits,
+                 wxString* strEnd );
+
+#endif  // KICAD_STRING_H_

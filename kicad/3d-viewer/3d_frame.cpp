@@ -45,11 +45,10 @@ BEGIN_EVENT_TABLE( WinEDA3D_DrawFrame, wxFrame )
     EVT_CLOSE( WinEDA3D_DrawFrame::OnCloseWindow )
 END_EVENT_TABLE()
 
-WinEDA3D_DrawFrame::WinEDA3D_DrawFrame( WinEDA_BasePcbFrame* parent,
-                                        const wxString&      title,
-                                        long                 style ) :
-    wxFrame( parent, DISPLAY3D_FRAME, title, wxPoint( -1, -1 ),
-             wxSize( -1, -1 ), style )
+WinEDA3D_DrawFrame::WinEDA3D_DrawFrame( PCB_BASE_FRAME* parent,
+                                        const wxString& title,
+                                        long            style ) :
+    wxFrame( parent, DISPLAY3D_FRAME, title, wxPoint( -1, -1 ), wxSize( -1, -1 ), style )
 {
     m_FrameName     = wxT( "Frame3D" );
     m_Canvas        = NULL;
@@ -78,7 +77,8 @@ WinEDA3D_DrawFrame::WinEDA3D_DrawFrame( WinEDA_BasePcbFrame* parent,
     ReCreateVToolbar();
 
     // Make a Pcb3D_GLCanvas
-    m_Canvas = new Pcb3D_GLCanvas( this );
+    int attrs[] = {WX_GL_RGBA, WX_GL_DOUBLEBUFFER, WX_GL_DEPTH_SIZE, 16, 0};
+    m_Canvas = new Pcb3D_GLCanvas( this, attrs );
 
     m_auimgr.SetManagedWindow( this );
 
@@ -291,6 +291,10 @@ void WinEDA3D_DrawFrame::Process_Special_Functions( wxCommandEvent& event )
 
     case ID_MOVE3D_DOWN:
         m_Canvas->SetView3D( WXK_DOWN );
+        return;
+        
+    case ID_ORTHO:
+        m_Canvas->ToggleOrtho();
         return;
 
     case ID_TOOL_SCREENCOPY_TOCLIBBOARD:

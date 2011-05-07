@@ -14,13 +14,14 @@
 #include "pcbcommon.h"
 #include "class_board_design_settings.h"
 #include "colors_selection.h"
+#include "richio.h"
 
 /*******************************************************************/
 /* Class TEXTE_MODULE base class type of text elements in a module */
 /*******************************************************************/
 
 TEXTE_MODULE::TEXTE_MODULE( MODULE* parent, int text_type ) :
-    BOARD_ITEM( parent, TYPE_TEXTE_MODULE ), EDA_TextStruct()
+    BOARD_ITEM( parent, TYPE_TEXTE_MODULE ), EDA_TEXT()
 {
     MODULE* Module = (MODULE*) m_Parent;
 
@@ -30,7 +31,7 @@ TEXTE_MODULE::TEXTE_MODULE( MODULE* parent, int text_type ) :
 
     m_NoShow = false;
     m_Size.x = m_Size.y = 400;
-    m_Width  = 120;   /* Set default dimension to a reasonable value. */
+    m_Thickness  = 120;   /* Set default dimension to a reasonable value. */
 
     SetLayer( SILKSCREEN_N_FRONT );
     if( Module && ( Module->Type() == TYPE_MODULE ) )
@@ -77,59 +78,65 @@ bool TEXTE_MODULE::Save( FILE* aFile ) const
     if( parent )
         orient += parent->m_Orient;
 
-    int ret = fprintf( aFile, "T%d %d %d %d %d %d %d %c %c %d %c\"%s\"\n",
+    int ret = fprintf( aFile, "T%d %d %d %d %d %d %d %c %c %d %c %s\n",
                       m_Type,
                       m_Pos0.x, m_Pos0.y,
                       m_Size.y, m_Size.x,
                       orient,
-                      m_Width,
+                      m_Thickness,
                       m_Mirror ? 'M' : 'N', m_NoShow ? 'I' : 'V',
                       GetLayer(),
                       m_Italic ? 'I' : 'N',
-                      CONV_TO_UTF8( m_Text ) );
+                      EscapedUTF8( m_Text ).c_str()
+                      );
 
     return ret > 20;
 }
 
 
 /**
- * Function ReadLineDescr
+ * Function ReadDescr
  * Read description from a given line in "*.brd" format.
- * @param aLine The current line which contains the first line of description.
- * @param aLine The FILE to read next lines (currently not used).
- * @param LineNum a point to the line count (currently not used).
+ * @param aReader The line reader object which contains the first line of description.
  * @return int - > 0 if success reading else 0.
  */
-int TEXTE_MODULE::ReadDescr( char* aLine, FILE* aFile, int* aLineNum )
+int TEXTE_MODULE::ReadDescr( LINE_READER* aReader )
 {
-    int  success = true;
-    int  type;
-    int  layer;
-    char BufCar1[128], BufCar2[128], BufCar3[128], BufLine[256];
+    int     success = true;
+    int     type;
+    char    BufCar1[128], BufCar2[128], BufCar3[128];
+    char*   line = aReader->Line();
 
-    layer = SILKSCREEN_N_FRONT;
+    int     layer = SILKSCREEN_N_FRONT;
+
     BufCar1[0] = 0;
     BufCar2[0] = 0;
     BufCar3[0] = 0;
-    if( sscanf( aLine + 1, "%d %d %d %d %d %d %d %s %s %d %s",
+
+    if( sscanf( line + 1, "%d %d %d %d %d %d %d %s %s %d %s",
                 &type,
                 &m_Pos0.x, &m_Pos0.y,
                 &m_Size.y, &m_Size.x,
-                &m_Orient, &m_Width,
+                &m_Orient, &m_Thickness,
                 BufCar1, BufCar2, &layer, BufCar3 ) >= 10 )
+    {
         success = true;
+    }
 
     if( (type != TEXT_is_REFERENCE) && (type != TEXT_is_VALUE) )
         type = TEXT_is_DIVERS;
+
     m_Type = type;
 
     // Due to the pcbnew history, .m_Orient is saved in screen value
     // but it is handled as relative to its parent footprint
     m_Orient -= ( (MODULE*) m_Parent )->m_Orient;
+
     if( BufCar1[0] == 'M' )
         m_Mirror = true;
     else
         m_Mirror = false;
+
     if( BufCar2[0]  == 'I' )
         m_NoShow = true;
     else
@@ -152,11 +159,12 @@ int TEXTE_MODULE::ReadDescr( char* aLine, FILE* aFile, int* aLineNum )
 
     SetLayer( layer );
 
-    /* Calculate the true position. */
+    // Calculate the actual position.
     SetDrawCoord();
-    /* Read the "text" string. */
-    ReadDelimitedText( BufLine, aLine, sizeof(BufLine) );
-    m_Text = CONV_FROM_UTF8( BufLine );
+
+
+    // Search and read the "text" string (a quoted text).
+    ReadDelimitedText( &m_Text, line );
 
     // Test for a reasonable size:
     if( m_Size.x < TEXTS_MIN_SIZE )
@@ -165,9 +173,9 @@ int TEXTE_MODULE::ReadDescr( char* aLine, FILE* aFile, int* aLineNum )
         m_Size.y = TEXTS_MIN_SIZE;
 
     // Set a reasonable width:
-    if( m_Width < 1 )
-        m_Width = 1;
-    m_Width = Clamp_Text_PenSize( m_Width, m_Size );
+    if( m_Thickness < 1 )
+        m_Thickness = 1;
+    m_Thickness = Clamp_Text_PenSize( m_Thickness, m_Size );
 
     return success;
 }
@@ -187,24 +195,17 @@ void TEXTE_MODULE::Copy( TEXTE_MODULE* source )
     m_Orient = source->m_Orient;
     m_Pos0   = source->m_Pos0;
     m_Size   = source->m_Size;
-    m_Width  = source->m_Width;
+    m_Thickness  = source->m_Thickness;
     m_Italic = source->m_Italic;
     m_Bold   = source->m_Bold;
     m_Text   = source->m_Text;
 }
 
 
-int TEXTE_MODULE:: GetLength()
+int TEXTE_MODULE:: GetLength() const
 {
     return m_Text.Len();
 }
-
-
-void TEXTE_MODULE:: SetWidth( int new_width )
-{
-    m_Width = new_width;
-}
-
 
 // Update draw coordinates
 void TEXTE_MODULE:: SetDrawCoord()
@@ -245,20 +246,21 @@ void TEXTE_MODULE:: SetLocalCoord()
 }
 
 
-/** Function GetTextRect
- * @return an EDA_Rect which gives the position and size of the text area
+/**
+ * Function GetTextRect
+ * @return an EDA_RECT which gives the position and size of the text area
  *         (for the footprint orientation)
  */
-EDA_Rect TEXTE_MODULE::GetTextRect( void )
+EDA_RECT TEXTE_MODULE::GetTextRect( void ) const
 {
-    EDA_Rect area;
+    EDA_RECT area;
 
     int      dx, dy;
 
     dx  = ( m_Size.x * GetLength() ) / 2;
     dx  = (dx * 10) / 9; /* letter size = 10/9 */
-    dx += m_Width / 2;
-    dy  = ( m_Size.y + m_Width ) / 2;
+    dx += m_Thickness / 2;
+    dy  = ( m_Size.y + m_Thickness ) / 2;
 
     wxPoint Org = m_Pos;    // This is the position of the center of the area
     Org.x -= dx;
@@ -275,22 +277,22 @@ EDA_Rect TEXTE_MODULE::GetTextRect( void )
 /**
  * Function HitTest
  * tests if the given wxPoint is within the bounds of this object.
- * @param refPos A wxPoint to test
- * @return bool - true if a hit, else false
+ * @param aRefPos A wxPoint to test
+ * @return true if a hit, else false
  */
-bool TEXTE_MODULE::HitTest( const wxPoint& refPos )
+bool TEXTE_MODULE::HitTest( const wxPoint& aRefPos )
 {
     wxPoint  rel_pos;
-    EDA_Rect area = GetTextRect();
+    EDA_RECT area = GetTextRect();
 
     /* Rotate refPos to - angle
      * to test if refPos is within area (which is relative to an horizontal
      * text)
      */
-    rel_pos = refPos;
+    rel_pos = aRefPos;
     RotatePoint( &rel_pos, m_Pos, -GetDrawRotation() );
 
-    if( area.Inside( rel_pos ) )
+    if( area.Contains( rel_pos ) )
         return true;
 
     return false;
@@ -302,10 +304,10 @@ bool TEXTE_MODULE::HitTest( const wxPoint& refPos )
  * returns the bounding box of this Text (according to text and footprint
  * orientation)
  */
-EDA_Rect TEXTE_MODULE::GetBoundingBox()
+EDA_RECT TEXTE_MODULE::GetBoundingBox() const
 {
     // Calculate area without text fields:
-    EDA_Rect text_area;
+    EDA_RECT text_area;
     int      angle = GetDrawRotation();
     wxPoint  textstart, textend;
 
@@ -322,46 +324,41 @@ EDA_Rect TEXTE_MODULE::GetBoundingBox()
 }
 
 
-/** Function Draw
+/**
+ * Function Draw
  * Draw the text according to the footprint pos and orient
  * @param panel = draw panel, Used to know the clip box
  * @param DC = Current Device Context
  * @param offset = draw offset (usually wxPoint(0,0)
  * @param draw_mode = GR_OR, GR_XOR..
  */
-void TEXTE_MODULE::Draw( WinEDA_DrawPanel* panel, wxDC* DC, int draw_mode,
-                         const wxPoint& offset )
+void TEXTE_MODULE::Draw( EDA_DRAW_PANEL* panel, wxDC* DC, int draw_mode, const wxPoint& offset )
 {
-    int                  width, color, orient;
-    wxSize               size;
-    wxPoint              pos;      // Center of text
-    PCB_SCREEN*          screen;
-    WinEDA_BasePcbFrame* frame;
-    MODULE*              Module = (MODULE*) m_Parent;   /* parent must *not* be null
-                                                         *  (a module text without a footprint parent has no sense)
-                                                         */
+    int             width, color, orient;
+    wxSize          size;
+    wxPoint         pos;      // Center of text
+    PCB_SCREEN*     screen;
+    PCB_BASE_FRAME* frame;
+    MODULE*         Module = (MODULE*) m_Parent;   /* parent must *not* be null
+                                                    *  (a module text without a footprint
+                                                    * parent has no sense) */
 
 
     if( panel == NULL )
         return;
 
     screen = (PCB_SCREEN*) panel->GetScreen();
-    frame  = (WinEDA_BasePcbFrame*) panel->GetParent();
+    frame  = (PCB_BASE_FRAME*) panel->GetParent();
 
     pos.x = m_Pos.x - offset.x;
     pos.y = m_Pos.y - offset.y;
 
     size   = m_Size;
     orient = GetDrawRotation();
-    width  = m_Width;
+    width  = m_Thickness;
 
     if( ( frame->m_DisplayModText == FILAIRE )
-
-#ifdef USE_WX_ZOOM
-       || ( DC->LogicalToDeviceXRel( width ) < L_MIN_DESSIN ) )
-#else
-       || ( screen->Scale( width ) < L_MIN_DESSIN ) )
-#endif
+        || ( DC->LogicalToDeviceXRel( width ) < L_MIN_DESSIN ) )
         width = 0;
     else if( frame->m_DisplayModText == SKETCH )
         width = -width;
@@ -373,11 +370,8 @@ void TEXTE_MODULE::Draw( WinEDA_DrawPanel* panel, wxDC* DC, int draw_mode,
     {
         color = brd->GetVisibleElementColor(ANCHOR_VISIBLE);
 
-#ifdef USE_WX_ZOOM
         int anchor_size = DC->DeviceToLogicalXRel( 2 );
-#else
-        int anchor_size = screen->Unscale( 2 );
-#endif
+
         GRLine( &panel->m_ClipBox, DC,
                 pos.x - anchor_size, pos.y,
                 pos.x + anchor_size, pos.y, 0, color );
@@ -417,21 +411,38 @@ void TEXTE_MODULE::Draw( WinEDA_DrawPanel* panel, wxDC* DC, int draw_mode,
                      size, m_HJustify, m_VJustify, width, m_Italic, m_Bold );
 }
 
+/* Rraws a line from the TEXTE_MODULE origin to parent MODULE origin.
+*/
+void TEXTE_MODULE::DrawUmbilical( EDA_DRAW_PANEL* aPanel,
+                                  wxDC*           aDC,
+                                  int             aDrawMode,
+                                  const wxPoint&  aOffset )
+{
+    MODULE* parent = (MODULE*) GetParent();
+    if( !parent )
+        return;
+
+    GRSetDrawMode( aDC, GR_XOR );
+    GRLine( &aPanel->m_ClipBox, aDC,
+            parent->GetPosition(), GetPosition() + aOffset,
+            0, UMBILICAL_COLOR);
+}
 
 /* Return text rotation for drawings and plotting
  */
-int TEXTE_MODULE::GetDrawRotation()
+int TEXTE_MODULE::GetDrawRotation() const
 {
     int     rotation;
     MODULE* Module = (MODULE*) m_Parent;
 
     rotation = m_Orient;
+
     if( Module )
         rotation += Module->m_Orient;
 
     NORMALIZE_ANGLE_POS( rotation );
 
-//  For angle = 0 .. 180 deg
+    // For angle = 0 .. 180 deg
     while( rotation > 900 )
         rotation -= 1800;
 
@@ -440,7 +451,7 @@ int TEXTE_MODULE::GetDrawRotation()
 
 
 // see class_text_mod.h
-void TEXTE_MODULE::DisplayInfo( WinEDA_DrawFrame* frame )
+void TEXTE_MODULE::DisplayInfo( EDA_DRAW_FRAME* frame )
 {
     MODULE* module = (MODULE*) m_Parent;
 
@@ -491,8 +502,8 @@ void TEXTE_MODULE::DisplayInfo( WinEDA_DrawFrame* frame )
     msg.Printf( wxT( "%.1f" ), (float) m_Orient / 10 );
     frame->AppendMsgPanel( _( "Orient" ), msg, DARKGREEN );
 
-    valeur_param( m_Width, msg );
-    frame->AppendMsgPanel( _( "Width" ), msg, DARKGREEN );
+    valeur_param( m_Thickness, msg );
+    frame->AppendMsgPanel( _( "Thickness" ), msg, DARKGREEN );
 
     valeur_param( m_Size.x, msg );
     frame->AppendMsgPanel( _( "H Size" ), msg, RED );

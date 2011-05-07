@@ -25,25 +25,17 @@ wxString BOARD_ITEM::ShowShape( Track_Shapes aShape )
     case S_ARC:             return _( "Arc" );
     case S_CIRCLE:          return _( "Circle" );
     case S_CURVE:           return _( "Bezier Curve" );
-
-    // used in Gerbview:
-    case S_ARC_RECT:        return wxT( "arc_rect" );
-    case S_SPOT_OVALE:      return wxT( "spot_oval" );
-    case S_SPOT_CIRCLE:     return wxT( "spot_circle" );
-    case S_SPOT_RECT:       return wxT( "spot_rect" );
     case S_POLYGON:         return wxT( "polygon" );
     default:                return wxT( "??" );
     }
 }
 
 
-/********************************************************/
-wxString BOARD_ITEM::MenuText( const BOARD* aPcb ) const
-/********************************************************/
-
-/** return a specific comment for "this". Used in pop up menus
+/**
+ * return a specific comment for "this". Used in pop up menus
  * @param aPcb = the parent board
  */
+wxString BOARD_ITEM::MenuText( const BOARD* aPcb ) const
 {
     wxString            text;
     wxString            msg;
@@ -61,15 +53,17 @@ wxString BOARD_ITEM::MenuText( const BOARD* aPcb ) const
 
     case TYPE_PAD:
         pad = (D_PAD *) this;
-        text << _( "Pad" ) << wxT( " \"" ) << pad->ReturnStringPadName()
-                << wxT( "\" (" );
+        text << _( "Pad" ) << wxT( " \"" ) << pad->ReturnStringPadName() << wxT( "\" (" );
+
         if ( (pad->m_Masque_Layer & ALL_CU_LAYERS) == ALL_CU_LAYERS )
             text << _("all copper layers");
         else if( (pad->m_Masque_Layer & LAYER_BACK) == LAYER_BACK )
             text << aPcb->GetLayerName( LAYER_N_BACK ).Trim();
         else if( (pad->m_Masque_Layer & LAYER_FRONT) == LAYER_FRONT )
             text << aPcb->GetLayerName( LAYER_N_FRONT );
-        else text << _("???");
+        else
+            text << _("???");
+
         text << _( ") of " ) << ( (MODULE*) GetParent() )->GetReference();
         break;
 
@@ -81,7 +75,7 @@ wxString BOARD_ITEM::MenuText( const BOARD* aPcb ) const
         break;
 
     case TYPE_TEXTE:
-        text << _( "Pcb Text" ) << wxT( " " );;
+        text << _( "Pcb Text" ) << wxT( " " );
         if( ( (TEXTE_PCB*) item )->m_Text.Len() < 12 )
             text << ( (TEXTE_PCB*) item )->m_Text;
         else

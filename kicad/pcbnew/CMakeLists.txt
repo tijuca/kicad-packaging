@@ -4,8 +4,10 @@ add_definitions(-DPCBNEW)
 # Includes
 ###
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}
+                    ${CMAKE_CURRENT_SOURCE_DIR}/dialogs
                     ${Boost_INCLUDE_DIR}
                     ../3d-viewer
+                    ../common
                     ../polygon)
 
 ###
@@ -13,6 +15,72 @@ include_directories(${CMAKE_CURRENT_SOURCE_DIR}
 #
 # NOTE: Many of the commented out ones are nested in *.cpp files for dialogs
 ###
+if( USE_BOOST_POLYGON_LIBRARY )
+    set(PCBNEW_SRC_FILL_ZONE zones_convert_brd_items_to_polygons_with_Boost.cpp)
+else( USE_BOOST_POLYGON_LIBRARY )
+    set(PCBNEW_SRC_FILL_ZONE zones_convert_brd_items_to_polygons_with_Kbool.cpp)
+endif( USE_BOOST_POLYGON_LIBRARY )
+
+set(PCBNEW_DIALOGS
+    dialogs/dialog_block_options_base.cpp
+    dialogs/dialog_cleaning_options_base.cpp
+    dialogs/dialog_cleaning_options.cpp
+    dialogs/dialog_copper_zones.cpp
+    dialogs/dialog_copper_zones_base.cpp
+    dialogs/dialog_design_rules.cpp
+    dialogs/dialog_design_rules_base.cpp
+    dialogs/dialog_display_options.cpp
+    dialogs/dialog_display_options_base.cpp
+    dialogs/dialog_drc_base.cpp
+    dialogs/dialog_drc.cpp
+    dialogs/dialog_edit_module_for_BoardEditor.cpp
+    dialogs/dialog_edit_module_for_BoardEditor_base.cpp
+    dialogs/dialog_edit_module_for_Modedit_base.cpp
+    dialogs/dialog_edit_module_for_Modedit.cpp
+    dialogs/dialog_edit_module_text.cpp
+    dialogs/dialog_edit_module_text_base.cpp
+    dialogs/dialog_exchange_modules_base.cpp
+    dialogs/dialog_export_3Dfiles_base.cpp
+    dialogs/dialog_freeroute_exchange.cpp
+    dialogs/dialog_freeroute_exchange_base.cpp
+    dialogs/dialog_gendrill.cpp
+    dialogs/dialog_gendrill_base.cpp
+    dialogs/dialog_general_options.cpp
+    dialogs/dialog_general_options_BoardEditor_base.cpp
+    dialogs/dialog_global_edit_tracks_and_vias.cpp
+    dialogs/dialog_global_edit_tracks_and_vias_base.cpp
+    dialogs/dialog_global_pads_edition_base.cpp
+    dialogs/dialog_graphic_items_options.cpp
+    dialogs/dialog_graphic_items_options_base.cpp
+    dialogs/dialog_graphic_item_properties.cpp
+    dialogs/dialog_graphic_item_properties_base.cpp
+    dialogs/dialog_global_deletion.cpp
+    dialogs/dialog_global_deletion_base.cpp
+    dialogs/dialog_layers_setup.cpp
+    dialogs/dialog_layers_setup_base.cpp
+    dialogs/dialog_netlist.cpp
+    dialogs/dialog_netlist_fbp.cpp
+    dialogs/dialog_pcb_text_properties.cpp
+    dialogs/dialog_pcb_text_properties_base.cpp
+    dialogs/dialog_non_copper_zones_properties_base.cpp
+    dialogs/dialog_pad_properties.cpp
+    dialogs/dialog_pad_properties_base.cpp
+    dialogs/dialog_pcbnew_config_libs_and_paths.cpp
+    dialogs/dialog_pcbnew_config_libs_and_paths_fbp.cpp
+    dialogs/dialog_plot_base.cpp
+    dialogs/dialog_print_for_modedit.cpp
+    dialogs/dialog_print_for_modedit_base.cpp
+    dialogs/dialog_print_using_printer.cpp
+    dialogs/dialog_print_using_printer_base.cpp
+    dialogs/dialog_orient_footprints.cpp
+    dialogs/dialog_orient_footprints_base.cpp
+    dialogs/dialog_mask_clearance.cpp
+    dialogs/dialog_mask_clearance_base.cpp
+    dialogs/dialog_SVG_print.cpp
+    dialogs/dialog_SVG_print_base.cpp
+    dialogs/dialog_set_grid_base.cpp
+    )
+
 set(PCBNEW_SRCS
     pcbframe.cpp
     attribut.cpp
@@ -27,67 +95,18 @@ set(PCBNEW_SRCS
     build_BOM_from_board.cpp
     class_pcb_layer_widget.cpp
     clean.cpp
-#   cleaningoptions_dialog.cpp
     connect.cpp
     controle.cpp
     dimension.cpp
     cross-probing.cpp
     debug_kbool_key_file_fct.cpp
     deltrack.cpp
-    dialog_copper_zones.cpp
-    dialog_copper_zones_base.cpp
-    dialog_design_rules.cpp
-    dialog_design_rules_base.cpp
-    dialog_display_options.cpp
-    dialog_display_options_base.cpp
-    dialog_drc_base.cpp
-    dialog_drc.cpp
-    dialog_edit_module_for_BoardEditor.cpp
-    dialog_edit_module_for_BoardEditor_base.cpp
-    dialog_edit_module_for_Modedit_base.cpp
-    dialog_edit_module_for_Modedit.cpp
-    dialog_edit_module_text.cpp
-    dialog_edit_module_text_base.cpp
-    dialog_exchange_modules_base.cpp
-    dialog_export_3Dfiles_base.cpp
-    dialog_freeroute_exchange.cpp
-    dialog_freeroute_exchange_base.cpp
-    dialog_gendrill.cpp
-    dialog_gendrill_base.cpp
-    dialog_general_options.cpp
-    dialog_general_options_BoardEditor_base.cpp
-    dialog_global_edit_tracks_and_vias.cpp
-    dialog_global_edit_tracks_and_vias_base.cpp
-    dialog_global_pads_edition_base.cpp
-    dialog_graphic_items_options.cpp
-    dialog_graphic_items_options_base.cpp
-    dialog_graphic_item_properties.cpp
-    dialog_graphic_item_properties_base.cpp
-#   dialog_initpcb.cpp
-
-    dialog_layers_setup.cpp
-    dialog_layers_setup_base.cpp
-    dialog_netlist.cpp
-    dialog_netlist_fbp.cpp
-    dialog_pcb_text_properties.cpp
-    dialog_non_copper_zones_properties_base.cpp
-    dialog_pad_properties.cpp
-    dialog_pad_properties_base.cpp
-    dialog_pcbnew_config_libs_and_paths.cpp
-    dialog_pcbnew_config_libs_and_paths_fbp.cpp
-    dialog_print_for_modedit.cpp
-    dialog_plot_base.cpp
-    dialog_print_for_modedit_base.cpp
-    dialog_print_using_printer.cpp
-    dialog_print_using_printer_base.cpp
-    dialog_orient_footprints.cpp
-    dialog_mask_clearance.cpp
-    dialog_mask_clearance_base.cpp
-    dialog_SVG_print.cpp
-    dialog_SVG_print_base.cpp
+    ${PCBNEW_DIALOGS}
     dist.cpp
     dragsegm.cpp
     drc.cpp
+    drc_clearance_test_functions.cpp
+    drc_marker_functions.cpp
     edgemod.cpp
     edit.cpp
     editedge.cpp
@@ -110,6 +129,8 @@ set(PCBNEW_SRCS
     gpcb_exchange.cpp
     graphpcb.cpp
     hotkeys.cpp
+    hotkeys_board_editor.cpp
+    hotkeys_module_editor.cpp
     initpcb.cpp
     ioascii.cpp
     layer_widget.cpp
@@ -133,6 +154,8 @@ set(PCBNEW_SRCS
     netlist.cpp
     onleftclick.cpp
     onrightclick.cpp
+    pcb_plot_params.cpp
+    pcb_plot_params_keywords.cpp
     pcbnew.cpp
     pcbnew_config.cpp
     pcbplot.cpp
@@ -145,12 +168,12 @@ set(PCBNEW_SRCS
     printout_controler.cpp
     queue.cpp
     ratsnest.cpp
-#    set_color.cpp
     set_grid.cpp
     solve.cpp
     specctra.cpp
     specctra_export.cpp
     specctra_import.cpp
+    specctra_keywords.cpp
     surbrill.cpp
     swap_layers.cpp
     tool_modedit.cpp
@@ -163,9 +186,10 @@ set(PCBNEW_SRCS
     trpiste.cpp
     work.cpp
     xchgmod.cpp
+    ${PCBNEW_SRC_FILL_ZONE}
+    zones_convert_to_polygons_aux_functions.cpp
     zones_by_polygon.cpp
     zones_by_polygon_fill_functions.cpp
-    zones_convert_brd_items_to_polygons.cpp
     zone_filling_algorithm.cpp
     zones_functions_for_undo_redo.cpp
     zones_non_copper_type_functions.cpp
@@ -178,7 +202,7 @@ set(PCBNEW_SRCS
 # We need some extra sources from common
 ###
 set(PCBNEW_EXTRA_SRCS
-    ../common/dialog_page_settings.cpp
+    ../common/dialogs/dialog_page_settings.cpp
 )
 
 ###
@@ -209,20 +233,39 @@ endif(APPLE)
 
 # Create a C++ compilable string initializer containing html text into a *.h file:
 add_custom_command(
-    OUTPUT ${CMAKE_CURRENT_SOURCE_DIR}/dialog_freeroute_exchange_help_html.h
-    COMMAND $(CMAKE_COMMAND)
-        -DinputFile=${CMAKE_CURRENT_SOURCE_DIR}/dialog_freeroute_exchange_help.html
-        -DoutputFile=${CMAKE_CURRENT_SOURCE_DIR}/dialog_freeroute_exchange_help_html.h
+    OUTPUT ${CMAKE_CURRENT_SOURCE_DIR}/dialogs/dialog_freeroute_exchange_help_html.h
+    COMMAND ${CMAKE_COMMAND}
+        -DinputFile=${CMAKE_CURRENT_SOURCE_DIR}/dialogs/dialog_freeroute_exchange_help.html
+        -DoutputFile=${CMAKE_CURRENT_SOURCE_DIR}/dialogs/dialog_freeroute_exchange_help_html.h
         -P ${CMAKE_MODULE_PATH}/Html2C.cmake
-    DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/dialog_freeroute_exchange_help.html
-    COMMENT "creating ${CMAKE_CURRENT_SOURCE_DIR}/dialog_freeroute_exchange_help_html.h
-       from ${CMAKE_CURRENT_SOURCE_DIR}/dialog_freeroute_exchange_help.html"
+    DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/dialogs/dialog_freeroute_exchange_help.html
+    COMMENT "creating ${CMAKE_CURRENT_SOURCE_DIR}/dialogs/dialog_freeroute_exchange_help_html.h
+       from ${CMAKE_CURRENT_SOURCE_DIR}/dialogs/dialog_freeroute_exchange_help.html"
     )
 
-set_source_files_properties( dialog_freeroute_exchange.cpp
+set_source_files_properties( dialogs/dialog_freeroute_exchange.cpp
     PROPERTIES
-        OBJECT_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/dialog_freeroute_exchange_help_html.h
+        OBJECT_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/dialogs/dialog_freeroute_exchange_help_html.h
     )
+
+
+# auto-generate specctra_lexer.h and specctra_keywords.cpp
+make_lexer(
+   ${CMAKE_CURRENT_SOURCE_DIR}/specctra.keywords
+   ${CMAKE_CURRENT_SOURCE_DIR}/specctra_lexer.h
+   ${CMAKE_CURRENT_SOURCE_DIR}/specctra_keywords.cpp
+   DSN
+   )
+
+
+# auto-generate pcb_plot_params_lexer.h and pcb_plot_params_keywords.cpp
+make_lexer(
+   ${CMAKE_CURRENT_SOURCE_DIR}/pcb_plot_params.keywords
+   ${CMAKE_CURRENT_SOURCE_DIR}/pcb_plot_params_lexer.h
+   ${CMAKE_CURRENT_SOURCE_DIR}/pcb_plot_params_keywords.cpp
+   PCBPLOTPARAMS_T
+   )
+
 
 ###
 # Create the pcbnew executable

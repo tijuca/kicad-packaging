@@ -91,6 +91,26 @@ public:
     }
 };
 
+// Helper class to handle hight light nets
+class HIGHT_LIGHT_INFO
+{
+    friend class BOARD;
+protected:
+    int m_netCode;   // net selected for hightlight (-1 when no net selected )
+    bool m_hightLightOn;       // hightlight active
+
+protected:
+    void Clear()
+    {
+        m_netCode = -1;
+        m_hightLightOn = false;
+    }
+
+    HIGHT_LIGHT_INFO()
+    {
+        Clear();
+    }
+};
 
 /**
  * Class BOARD
@@ -99,7 +119,7 @@ public:
 #define HISTORY_MAX_COUNT 8
 class BOARD : public BOARD_ITEM
 {
-    friend class WinEDA_PcbFrame;
+    friend class PCB_EDIT_FRAME;
 
 private:
     typedef std::vector<MARKER_PCB*> MARKERS;               // @todo: switch to boost:ptr_vector, and change ~BOARD()
@@ -109,10 +129,13 @@ private:
     ZONE_CONTAINERS      m_ZoneDescriptorList;              ///< edge zone descriptors, owned by pointer
 
     LAYER                m_Layer[NB_COPPER_LAYERS];
+                                                            // if true m_hightLight_NetCode is used
+    HIGHT_LIGHT_INFO m_hightLight;                          // current hight light data
+    HIGHT_LIGHT_INFO m_hightLightPrevious;                  // a previously stored hight light data
 
 public:
-    WinEDA_BasePcbFrame* m_PcbFrame;                        // Window of visualization
-    EDA_Rect             m_BoundaryBox;                     // Board size and position
+    PCB_BASE_FRAME*      m_PcbFrame;                        // Window of visualization
+    EDA_RECT             m_BoundaryBox;                     // Board size and position
     int m_Status_Pcb;                                       // Flags used in ratsnet calculation and update
     int m_NbNodes;                                          // Active pads (pads attached to a net ) count
     int m_NbNoconnect;                                      // Active ratsnet count (rastnests not already connected by tracks)
@@ -153,7 +176,7 @@ private:
 
     /**********************************/
 public:
-    BOARD( EDA_BaseStruct* aParent, WinEDA_BasePcbFrame* frame );
+    BOARD( EDA_ITEM* aParent, PCB_BASE_FRAME* frame );
     ~BOARD();
 
     /**
@@ -250,6 +273,63 @@ public:
 
 
     /**
+     * Function ResetHightLight
+     * Reset all hight light data to the init state
+     */
+    void ResetHightLight()
+    {
+        m_hightLight.Clear();
+        m_hightLightPrevious.Clear();
+    }
+
+    /**
+     * Function GetHightLightNetCode
+     * @return netcode of net to hightlight (-1 when no net selected)
+     */
+    int GetHightLightNetCode() { return m_hightLight.m_netCode; }
+
+    /**
+     * Function SetHightLightNet
+     * @param aNetCode = netcode of net to hightlight
+     */
+    void SetHightLightNet( int aNetCode)
+    {
+        m_hightLight.m_netCode = aNetCode;
+    }
+
+
+    /**
+     * Function IsHightLightNetON
+     * @return true if a net is currently hightlighted
+     */
+    bool IsHightLightNetON() { return m_hightLight.m_hightLightOn; }
+
+    /**
+     * Function HightLightOFF
+     * Disable hightlight.
+     */
+    void HightLightOFF() { m_hightLight.m_hightLightOn = false; }
+
+    /**
+     * Function HightLightON
+     * Enable hightlight.
+     * if m_hightLight_NetCode >= 0, this net will be hightlighted
+     */
+    void HightLightON() { m_hightLight.m_hightLightOn = true; }
+
+    /**
+     * Function PushHightLight
+     * save current hight light info for later use
+     */
+    void PushHightLight();
+
+    /**
+     * Function PopHightLight
+     * retrieve a previously saved hight light info
+     */
+    void PopHightLight();
+
+    /**
      * Function GetCopperLayerCount
      * @return int - The number of copper layers in the BOARD.
      */
@@ -270,7 +350,7 @@ public:
      * Function SetEnabledLayers
      * is a proxy function that calls the correspondent function in m_BoardSettings
      * Changes the bit-mask of enabled layers
-     * @param aMask = The new bit-mask of enabled layers
+     * @param aLayerMask = The new bit-mask of enabled layers
      */
     void SetEnabledLayers( int aLayerMask );
 
@@ -278,7 +358,7 @@ public:
      * Function IsLayerEnabled
      * is a proxy function that calls the correspondent function in m_BoardSettings
      * tests whether a given layer is enabled
-     * @param aLayerIndex = The index of the layer to be tested
+     * @param aLayer = The layer to be tested
      * @return bool - true if the layer is visible.
      */
     bool IsLayerEnabled( int aLayer ) const
@@ -310,7 +390,7 @@ public:
      * Function SetVisibleLayers
      * is a proxy function that calls the correspondent function in m_BoardSettings
      * changes the bit-mask of visible layers
-     * @param aMask = The new bit-mask of visible layers
+     * @param aLayerMask = The new bit-mask of visible layers
      */
     void SetVisibleLayers( int aLayerMask );
 
@@ -379,7 +459,8 @@ public:
     void SetVisibleElementColor( int aPCB_VISIBLE, int aColor );
 
 
-    /** Function GetBoardDesignSettings
+    /**
+     * Function GetBoardDesignSettings
      * @return the current BOARD_DESIGN_SETTINGS in use
      */
     BOARD_DESIGN_SETTINGS* GetBoardDesignSettings() const
@@ -388,7 +469,8 @@ public:
     }
 
 
-    /** Function SetBoardDesignSettings
+    /**
+     * Function SetBoardDesignSettings
      * @param aDesignSettings = the new BOARD_DESIGN_SETTINGS to use
      */
     void SetBoardDesignSettings( BOARD_DESIGN_SETTINGS* aDesignSettings)
@@ -396,7 +478,8 @@ public:
         m_boardDesignSettings = aDesignSettings;
     }
 
-    /** Function SetBoardSettings
+    /**
+     * Function SetBoardSettings
      * @return the current COLORS_DESIGN_SETTINGS in use
      */
     COLORS_DESIGN_SETTINGS* GetColorsSettings() const
@@ -404,7 +487,8 @@ public:
         return m_colorsSettings;
     }
 
-    /** Function SetColorsSettings
+    /**
+     * Function SetColorsSettings
      * @param aColorsSettings = the new COLORS_DESIGN_SETTINGS to use
      */
     void SetColorsSettings(COLORS_DESIGN_SETTINGS* aColorsSettings)
@@ -480,12 +564,14 @@ public:
     }
 
 
-    /** Function GetNodesCount
+    /**
+     * Function GetNodesCount
      * @return the number of pads members of nets (i.e. with netcode > 0)
      */
     unsigned GetNodesCount();
 
-    /** Function GetPadsCount
+    /**
+     * Function GetPadsCount
      * @return the number of pads in board
      */
     unsigned     GetPadsCount()
@@ -493,21 +579,33 @@ public:
         return m_NetInfo->GetPadsCount();
     }
 
-
-    bool          ComputeBoundaryBox();
-
+    /**
+     * Function ComputeBoundingBox
+     * calculates the bounding box containing all board items (or board edge segments).
+     * @param aBoardEdgesOnly is true if we are interested in board edge segments only.
+     * @return bool - True if items (or board edge segments) were found.
+     */
+    bool          ComputeBoundingBox( bool aBoardEdgesOnly = false );
 
     /**
      * Function DisplayInfo
      * has knowledge about the frame and how and where to put status information
      * about this object into the frame's message panel.
-     * Is virtual from EDA_BaseStruct.
-     * @param frame A WinEDA_DrawFrame in which to print status information.
+     * Is virtual from EDA_ITEM.
+     * @param frame A EDA_DRAW_FRAME in which to print status information.
      */
-    void          DisplayInfo( WinEDA_DrawFrame* frame );
+    void          DisplayInfo( EDA_DRAW_FRAME* frame );
 
-    void          Draw( WinEDA_DrawPanel* panel, wxDC* DC,
-                        int aDrawMode, const wxPoint& offset = ZeroOffset );
+    /**
+     * Function Draw.
+     * Redraw the BOARD items but not cursors, axis or grid.
+     * @param aPanel = the panel relative to the board
+     * @param aDC = the curent device context
+     * @param aDrawMode = GR_COPY, GR_OR ... (not always used)
+     * @param aOffset = an draw offset value (default = 0,0)
+     */
+    void          Draw( EDA_DRAW_PANEL* aPanel, wxDC* aDC,
+                        int aDrawMode, const wxPoint& aOffset = ZeroOffset );
 
     /**
      * Function DrawHighLight
@@ -515,9 +613,10 @@ public:
      * and turns on or off the brilliance associated with that net according to the
      * current value of global g_HighLight_Status
      * @param aDrawPanel is needed for the clipping support.
+     * @param aDC = the curent device context
      * @param aNetCode is the net number to highlight or to dim.
      */
-    void          DrawHighLight( WinEDA_DrawPanel* aDrawPanel, wxDC* DC, int aNetCode );
+    void          DrawHighLight( EDA_DRAW_PANEL* aDrawPanel, wxDC* aDC, int aNetCode );
 
     /**
      * Function Visit
@@ -572,7 +671,8 @@ public:
     int           ReturnSortedNetnamesList( wxArrayString& aNames, bool aSortbyPadsCount );
 
     /**************************************/
-    /** function relative to NetClasses: **/
+    /**
+    * Function relative to NetClasses: **/
     /**************************************/
 
     /**
@@ -581,8 +681,6 @@ public:
      * Must be called after a Design Rules edition, or after reading a netlist (or editing the list of nets)
      * Also this function removes the non existing nets in netclasses and add net nets in default netclass
      * (this happens after reading a netlist)
-     * @param none
-     * @return none
      */
     void SynchronizeNetsAndNetClasses();
 
@@ -596,12 +694,14 @@ public:
      */
     bool SetCurrentNetClass( const wxString& aNetClassName );
 
-    /** function GetBiggestClearanceValue
+    /**
+     * Function GetBiggestClearanceValue
      * @return the biggest clearance value found in NetClasses list
      */
     int  GetBiggestClearanceValue();
 
-    /** function GetCurrentTrackWidth
+    /**
+     * Function GetCurrentTrackWidth
      * @return the current track width, according to the selected options
      * ( using the default netclass value or a preset value )
      * the default netclass is always in m_TrackWidthList[0]
@@ -612,7 +712,8 @@ public:
     }
 
 
-    /** function GetCurrentViaSize
+    /**
+     * Function GetCurrentViaSize
      * @return the current via size, according to the selected options
      * ( using the default netclass value or a preset value )
      * the default netclass is always in m_TrackWidthList[0]
@@ -623,7 +724,8 @@ public:
     }
 
 
-    /** function GetCurrentViaDrill
+    /**
+     * Function GetCurrentViaDrill
      * @return the current via size, according to the selected options
      * ( using the default netclass value or a preset value )
      * the default netclass is always in m_TrackWidthList[0]
@@ -635,13 +737,15 @@ public:
     }
 
 
-    /** function GetCurrentMicroViaSize
+    /**
+     * Function GetCurrentMicroViaSize
      * @return the current micro via size,
      * that is the current netclass value
      */
     int  GetCurrentMicroViaSize();
 
-    /** function GetCurrentMicroViaDrill
+    /**
+     * Function GetCurrentMicroViaDrill
      * @return the current micro via drill,
      * that is the current netclass value
      */
@@ -692,7 +796,7 @@ public:
      * tests if the given wxPoint is within the bounds of a filled area of this zone.
      * the test is made on zones on layer from aStartLayer to aEndLayer
      * Note: if a zone has its flag BUSY (in .m_State) is set, it is ignored.
-     * @param refPos A wxPoint to test
+     * @param aRefPos A wxPoint to test
      * @param aStartLayer the first layer to test
      * @param aEndLayer the last layer (-1 to ignore it) to test
      * @return ZONE_CONTAINER* return a pointer to the ZONE_CONTAINER found, else NULL
@@ -705,19 +809,16 @@ public:
      * Function RedrawAreasOutlines
      * Redraw all areas outlines on layer aLayer ( redraw all if aLayer < 0 )
      */
-    void            RedrawAreasOutlines( WinEDA_DrawPanel* panel,
-                                         wxDC*             aDC,
-                                         int               aDrawMode,
-                                         int               aLayer );
+    void            RedrawAreasOutlines( EDA_DRAW_PANEL* aPanel,
+                                         wxDC*           aDC,
+                                         int             aDrawMode,
+                                         int             aLayer );
 
     /**
      * Function RedrawFilledAreas
      * Redraw all filled areas on layer aLayer ( redraw all if aLayer < 0 )
      */
-    void RedrawFilledAreas( WinEDA_DrawPanel* panel,
-                            wxDC*             aDC,
-                            int               aDrawMode,
-                            int               aLayer );
+    void RedrawFilledAreas( EDA_DRAW_PANEL* aPanel, wxDC* aDC, int aDrawMode, int aLayer );
 
     /**
      * Function SetAreasNetCodesFromNetNames
@@ -775,7 +876,8 @@ public:
 
     /* Functions used in test, merge and cut outlines */
 
-    /** Function AddArea
+    /**
+     * Function AddArea
      * Add an empty copper area to board areas list
      * @param aNewZonesList = a PICKED_ITEMS_LIST * where to store new areas  pickers (useful in undo commands)
      *                      can be NULL
@@ -847,7 +949,8 @@ public:
      * @param aModifiedZonesList = a PICKED_ITEMS_LIST * where to store deleted or added areas
      *                      (useful in undo commands. Can be NULL
      * @param modified_area = area to test
-     * @param bMessageBox : if TRUE, shows message boxes when clipping occurs.
+     * @param bMessageBoxInt : if TRUE, shows message boxes when clipping occurs.
+     * @param bMessageBoxArc if true, shows message when clipping can't be done due to arcs.
      * @return :
      * -1 if arcs intersect other sides, so polygon can't be clipped
      *  0 if no intersecting sides
@@ -874,7 +977,8 @@ public:
                               bool               bMessageBox,
                               bool               bUseUtility );
 
-    /** Function RemoveArea
+    /**
+     * Function RemoveArea
      * remove copper area from net, and put it in a deleted list (if exists)
      * @param aDeletedList = a PICKED_ITEMS_LIST * where to store deleted areas (useful in undo commands
      *                      can be NULL

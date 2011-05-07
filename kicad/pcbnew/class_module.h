@@ -6,6 +6,8 @@
 class Pcb3D_GLCanvas;
 class S3D_MASTER;
 
+#include "richio.h"
+
 /************************************/
 /* Modules (footprints) description */
 /* pad are in class_pad.xx          */
@@ -51,9 +53,9 @@ public:
                                          * routing. */
     int           m_ModuleStatus;       /* For autoplace: flags (LOCKED,
                                          * AUTOPLACED) */
-    EDA_Rect      m_BoundaryBox;        /* Bounding box coordinates relatives
+    EDA_RECT      m_BoundaryBox;        /* Bounding box coordinates relatives
                                          * to the anchor, orient 0*/
-    EDA_Rect      m_RealBoundaryBox;    /* Bounding box : coordinates on board,
+    EDA_RECT      m_RealBoundaryBox;    /* Bounding box : coordinates on board,
                                          * real orientation */
     int           m_PadNum;             // Pad count
     int           m_AltPadNum;          /* Pad with netcode > 0 (active pads)
@@ -67,7 +69,7 @@ public:
                                          * (UP <->Down) */
     wxSize        m_Ext;                /* Automatic placement margin around
                                          * the module */
-    float         m_Surface;            // Bounding box area
+    double         m_Surface;            // Bounding box area
 
     unsigned long m_Link;               /* Temporary variable ( used in
                                          * editions, ...) */
@@ -100,7 +102,7 @@ public:
     void Copy( MODULE* Module );        // Copy structure
 
 
-    /**
+    /*
      * Function Add
      * adds the given item to this MODULE and takes ownership of its memory.
      * @param aBoardItem The item to add to this board.
@@ -110,12 +112,13 @@ public:
 
 
     /**
-     * Function Set_Rectangle_Encadrement()
+     * Function Set_Rectangle_Encadrement
      * calculates the bounding box for orient 0 at origin = module anchor)
      */
     void     Set_Rectangle_Encadrement();
 
-    /** function SetRectangleExinscrit()
+    /**
+     * Function SetRectangleExinscrit
      * Calculates the real bounding box according to the board position,
      * and real orientation and also calculates the area value (used in
      * automatic placement)
@@ -123,11 +126,17 @@ public:
     void     SetRectangleExinscrit();
 
     /**
+     * Function GetFootPrintRect()
+     * Returns the area of the module footprint excluding any text.
+     */
+    EDA_RECT GetFootPrintRect() const;
+
+    /**
      * Function GetBoundingBox
      * returns the bounding box of this Footprint
      * Mainly used to redraw the screen area occupied by the footprint
      */
-    EDA_Rect GetBoundingBox();
+    EDA_RECT GetBoundingBox() const;
 
     /**
      * Function GetPosition
@@ -147,14 +156,14 @@ public:
     /**
      * Function Move
      * move this object.
-     * @param const wxPoint& aMoveVector - the move vector for this object.
+     * @param aMoveVector - the move vector for this object.
      */
     virtual void Move( const wxPoint& aMoveVector );
 
     /**
      * Function Rotate
      * Rotate this object.
-     * @param const wxPoint& aRotCentre - the rotation point.
+     * @param aRotCentre - the rotation point.
      * @param aAngle - the rotation angle in 0.1 degree.
      */
     virtual void Rotate( const wxPoint& aRotCentre, int aAngle );
@@ -162,14 +171,14 @@ public:
     /**
      * Function Flip
      * Flip this object, i.e. change the board side for this object
-     * @param const wxPoint& aCentre - the rotation point.
+     * @param aCentre - the rotation point.
      */
     virtual void Flip( const wxPoint& aCentre );
 
     /**
      * Function IsLocked
      * (virtual from BOARD_ITEM )
-     * @returns bool - true if the MODULE is locked, else false
+     * @return bool - true if the MODULE is locked, else false
      */
     bool IsLocked() const
     {
@@ -197,13 +206,13 @@ public:
      * Function Save
      * writes the data structures for this object out to a FILE in "*.brd"
      * format.
-     * a@param aFile The FILE to write to.
+     * @param aFile The FILE to write to.
      * @return bool - true if success writing else false.
      */
     bool Save( FILE* aFile ) const;
 
     int  Write_3D_Descr( FILE* File ) const;
-    int  ReadDescr( FILE* File, int* LineNum = NULL );
+    int  ReadDescr( LINE_READER* aReader );
 
     /**
      * Function Read_GPCB_Descr
@@ -213,35 +222,35 @@ public:
      * @return bool - true if success reading else false.
      */
     bool Read_GPCB_Descr( const wxString& CmpFullFileName );
-    int  Read_3D_Descr( FILE* File, int* LineNum = NULL );
+    int  Read_3D_Descr( LINE_READER* aReader );
 
     /* drawing functions */
 
-    /** Function Draw
+    /**
+     * Function Draw
      * Draw the text according to the footprint pos and orient
-     * @param panel = draw panel, Used to know the clip box
-     * @param DC = Current Device Context
-     * @param offset = draw offset (usually wxPoint(0,0)
+     * @param aPanel = draw panel, Used to know the clip box
+     * @param aDC = Current Device Context
      * @param aDrawMode = GR_OR, GR_XOR..
+     * @param aOffset = draw offset (usually wxPoint(0,0)
      */
-    void Draw( WinEDA_DrawPanel* panel,
-               wxDC*             DC,
-               int               aDrawMode,
-               const wxPoint&    offset = ZeroOffset );
+    void Draw( EDA_DRAW_PANEL* aPanel,
+               wxDC*           aDC,
+               int             aDrawMode,
+               const wxPoint&  aOffset = ZeroOffset );
 
     void Draw3D( Pcb3D_GLCanvas* glcanvas );
-    void DrawEdgesOnly( WinEDA_DrawPanel* panel, wxDC* DC,
-                        const wxPoint& offset, int draw_mode );
-    void DrawAncre( WinEDA_DrawPanel* panel, wxDC* DC,
+    void DrawEdgesOnly( EDA_DRAW_PANEL* panel, wxDC* DC, const wxPoint& offset, int draw_mode );
+    void DrawAncre( EDA_DRAW_PANEL* panel, wxDC* DC,
                     const wxPoint& offset, int dim_ancre, int draw_mode );
 
     /**
      * Function DisplayInfo
      * has knowledge about the frame and how and where to put status information
      * about this object into the frame's message panel.
-     * @param frame A WinEDA_DrawFrame in which to print status information.
+     * @param frame A EDA_DRAW_FRAME in which to print status information.
      */
-    void DisplayInfo( WinEDA_DrawFrame* frame );
+    void DisplayInfo( EDA_DRAW_FRAME* frame );
 
 
     /**
@@ -255,11 +264,11 @@ public:
 
     /**
      * Function HitTest (overlaid)
-     * tests if the given EDA_Rect intersect the bounds of this object.
-     * @param refArea : the given EDA_Rect
+     * tests if the given EDA_RECT intersect the bounds of this object.
+     * @param refArea : the given EDA_RECT
      * @return bool - true if a hit, else false
      */
-    bool HitTest( EDA_Rect& refArea );
+    bool HitTest( EDA_RECT& refArea );
 
     /**
      * Function GetReference
@@ -285,7 +294,7 @@ public:
      * Function FindPadByName
      * returns a D_PAD* with a matching name.  Note that names may not be
      * unique, depending on how the foot print was created.
-     * @param
+     * @param aPadName the pad name to find
      * @return D_PAD* - The first matching name is returned, or NULL if not
      *                  found.
      */

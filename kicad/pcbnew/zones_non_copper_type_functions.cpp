@@ -22,8 +22,8 @@
 class DialogNonCopperZonesEditor : public DialogNonCopperZonesPropertiesBase
 {
 private:
-    WinEDA_PcbFrame* m_Parent;
-    ZONE_CONTAINER*  m_Zone_Container;
+    PCB_EDIT_FRAME* m_Parent;
+    ZONE_CONTAINER* m_Zone_Container;
     ZONE_SETTING* m_Zone_Setting;
 
 private:
@@ -32,17 +32,17 @@ private:
     void Init();
 
 public:
-    DialogNonCopperZonesEditor( WinEDA_PcbFrame* parent,
-                                ZONE_CONTAINER*  zone_container,
-                                ZONE_SETTING*    zone_setting );
+    DialogNonCopperZonesEditor( PCB_EDIT_FRAME* parent,
+                                ZONE_CONTAINER* zone_container,
+                                ZONE_SETTING*   zone_setting );
     ~DialogNonCopperZonesEditor();
 };
 
 
 /*******************************************************************************************/
-DialogNonCopperZonesEditor::DialogNonCopperZonesEditor( WinEDA_PcbFrame* parent,
-                                                        ZONE_CONTAINER*  zone_container,
-                                                        ZONE_SETTING*    zone_setting ) :
+DialogNonCopperZonesEditor::DialogNonCopperZonesEditor( PCB_EDIT_FRAME* parent,
+                                                        ZONE_CONTAINER* zone_container,
+                                                        ZONE_SETTING*   zone_setting ) :
     DialogNonCopperZonesPropertiesBase( parent )
 /*******************************************************************************************/
 {
@@ -62,10 +62,9 @@ DialogNonCopperZonesEditor::~DialogNonCopperZonesEditor()
 }
 
 
-/* install function for DialogNonCopperZonesEditor dialog frame :*/
-bool InstallDialogNonCopperZonesEditor( WinEDA_PcbFrame* aParent, ZONE_CONTAINER* aZone )
+bool PCB_EDIT_FRAME::InstallDialogNonCopperZonesEditor( ZONE_CONTAINER* aZone )
 {
-    DialogNonCopperZonesEditor frame( aParent, aZone, &g_Zone_Default_Setting );
+    DialogNonCopperZonesEditor frame( this, aZone, &g_Zone_Default_Setting );
     bool diag = frame.ShowModal();
 
     return diag;
@@ -81,8 +80,8 @@ void DialogNonCopperZonesEditor::Init()
 
     m_FillModeCtrl->SetSelection( m_Zone_Setting->m_FillMode ? 1 : 0 );
 
-    AddUnitSymbol( *m_MinThicknessValueTitle, g_UnitMetric );
-    wxString msg = ReturnStringFromValue( g_UnitMetric,
+    AddUnitSymbol( *m_MinThicknessValueTitle, g_UserUnit );
+    wxString msg = ReturnStringFromValue( g_UserUnit,
                                  m_Zone_Setting->m_ZoneMinThickness,
                                  m_Parent->m_InternalUnits );
     m_ZoneMinThicknessCtrl->SetValue( msg );
@@ -134,7 +133,7 @@ void DialogNonCopperZonesEditor::OnOkClick( wxCommandEvent& event )
 {
     wxString txtvalue = m_ZoneMinThicknessCtrl->GetValue();
     m_Zone_Setting->m_ZoneMinThickness =
-        ReturnValueFromString( g_UnitMetric, txtvalue, m_Parent->m_InternalUnits );
+        ReturnValueFromString( g_UserUnit, txtvalue, m_Parent->m_InternalUnits );
     if( m_Zone_Setting->m_ZoneMinThickness < 10 )
     {
         DisplayError( this,

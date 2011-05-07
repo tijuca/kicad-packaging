@@ -5,7 +5,6 @@
 #define PCBNEW_H
 
 #include "pcbstruct.h"
-#include "macros.h"
 #include "pcbcommon.h"
 #include "class_board_design_settings.h"
 
@@ -32,22 +31,11 @@
 #define DIM_ANCRE_TEXTE  2      /* Anchor size (Text centre) */
 
 #define TEXTS_MIN_SIZE  50      // Min size in pcbnew units value (50 * 0.0001 mils)
-#define TEXTS_MAX_SIZE  100000  // Min size in pcbnew units value (1 inch) )
+#define TEXTS_MAX_SIZE  10000  // Min size in pcbnew units value (1 inch) )
 #define TEXTS_MAX_WIDTH 5000    // Max width in pcbnew units value (0.5 inches)
 
-/* Used in Zoom menu */
-#define ZOOM_PLUS   -1
-#define ZOOM_MOINS  -2
-#define ZOOM_AUTO   -3
-#define ZOOM_CENTER -4
-#define ZOOM_REDRAW -5
-
-/* Flag to force the SKETCH mode to display items (.flags member) */
-#define FORCE_SKETCH (DRAG | EDIT )
-
-/* Flags used in read board file */
-#define APPEND_PCB 1    /* used to append the new board to the existing board */
-#define NEWPCB     0    /* used for normal load file */
+/* Flag to force the SKETCH mode to display items (.m_Flags member) */
+#define FORCE_SKETCH ( IS_DRAGGED | IN_EDIT )
 
 /* variables */
 extern bool Drc_On;
@@ -61,14 +49,15 @@ extern const wxString g_FootprintLibFileWildcard;   // Wildcard for footprint li
 
 
 extern bool        g_Track_45_Only_Allowed;
+extern bool        g_Alternate_Track_Posture;
 extern bool        Segments_45_Only;
 extern wxString    g_Shapes3DExtBuffer;
 extern wxString    g_DocModulesFileName;
 
 /* Variables used in footprint handling */
-extern wxSize      ModuleTextSize; /* Default footprint texts size */
-extern int         ModuleTextWidth;
-extern int         ModuleSegmentWidth;
+extern wxSize      g_ModuleTextSize; /* Default footprint texts size */
+extern int         g_ModuleTextWidth;
+extern int         g_ModuleSegmentWidth;
 
 /* Layer pair for auto routing and switch layers by hotkey */
 extern int         Route_Layer_TOP;
@@ -80,13 +69,7 @@ extern bool        g_TwoSegmentTrackBuild;
 extern int         g_MagneticPadOption;
 extern int         g_MagneticTrackOption;
 
-/* Variables to handle highlight nets */
-extern bool        g_HighLight_Status;
-extern int         g_HighLight_NetCode;
-
 extern wxPoint     g_Offset_Module;     /* Offset de trace du modul en depl */
-
-extern wxString    g_Current_PadName;   // Last used pad name (pad num)
 
 
 enum MagneticPadOptionValues {

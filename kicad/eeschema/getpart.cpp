@@ -8,40 +8,78 @@
 #include "common.h"
 #include "class_drawpanel.h"
 #include "confirm.h"
+#include "class_sch_screen.h"
+#include "wxEeschemaStruct.h"
+#include "kicad_device_context.h"
 
-#include "program.h"
 #include "general.h"
 #include "protos.h"
 #include "class_library.h"
+#include "sch_component.h"
 #include "viewlib_frame.h"
+#include "eeschema_id.h"
 
-#include "get_component_dialog.h"
+#include "dialog_get_component.h"
 
 #include <boost/foreach.hpp>
 
 
-static void ShowWhileMoving( WinEDA_DrawPanel* panel, wxDC* DC, bool erase );
-static void ExitPlaceCmp( WinEDA_DrawPanel* Panel, wxDC* DC );
+/**
+ * Move a component.
+ */
+static void moveComponent( EDA_DRAW_PANEL* aPanel, wxDC* aDC, const wxPoint& aPosition,
+                           bool aErase )
+{
+    SCH_SCREEN*    screen = (SCH_SCREEN*) aPanel->GetScreen();
+    SCH_COMPONENT* component = (SCH_COMPONENT*) screen->GetCurItem();
 
-static int     OldTransMat[2][2];
-static wxPoint OldPos;
+    if( aErase )
+    {
+        component->Draw( aPanel, aDC, wxPoint( 0, 0 ), g_XorMode, g_GhostColor );
+    }
+
+    component->Move( screen->GetCrossHairPosition() - component->m_Pos );
+    component->Draw( aPanel, aDC, wxPoint( 0, 0 ), g_XorMode, g_GhostColor );
+}
 
 
-wxString WinEDA_SchematicFrame::SelectFromLibBrowser( void )
+/*
+ * Abort a place component command in progress.
+ */
+static void abortMoveComponent( EDA_DRAW_PANEL* aPanel, wxDC* aDC )
+{
+    SCH_EDIT_FRAME* frame = (SCH_EDIT_FRAME*) aPanel->GetParent();
+    SCH_SCREEN* screen = (SCH_SCREEN*) aPanel->GetScreen();
+    SCH_COMPONENT* component = (SCH_COMPONENT*) screen->GetCurItem();
+
+    if( component->IsNew() )
+    {
+        SAFE_DELETE( component );
+    }
+    else
+    {
+        component->SwapData( (SCH_COMPONENT*) frame->GetUndoItem() );
+        component->ClearFlags();
+    }
+
+    aPanel->Refresh( true );
+    screen->SetCurItem( NULL );
+}
+
+
+wxString SCH_EDIT_FRAME::SelectFromLibBrowser( void )
 {
     wxSemaphore semaphore( 0, 1 );
+    wxString cmpname;
 
-    /* Close the current Lib browser, if open, and open a new one, in
-     * "modal" mode */
+    /* Close the current Lib browser, if open, and open a new one, in "modal" mode */
     if( m_ViewlibFrame )
     {
         m_ViewlibFrame->Destroy();
         m_ViewlibFrame = NULL;
     }
 
-    m_ViewlibFrame = new WinEDA_ViewlibFrame( this, NULL, &semaphore );
-    m_ViewlibFrame->AdjustScrollBars();
-
+    m_ViewlibFrame = new LIB_VIEW_FRAME( this, NULL, &semaphore );
     // Show the library viewer frame until it is closed
     while( semaphore.TryWait() == wxSEMA_BUSY ) // Wait for viewer closing event
     {
@@ -49,7 +87,10 @@ wxString WinEDA_SchematicFrame::SelectFromLibBrowser( void )
         wxMilliSleep( 50 );
     }
 
-    return m_ViewlibFrame->GetEntryName();
+    cmpname = m_ViewlibFrame->GetSelectedComponent();
+    m_ViewlibFrame->Destroy();
+
+    return cmpname;
 }
 
 
@@ -59,10 +100,10 @@ wxString WinEDA_SchematicFrame::SelectFromLibBrowser( void )
  *  if libname != "", search in lib "libname"
  *  else search in all loaded libs
  */
-SCH_COMPONENT* WinEDA_SchematicFrame::Load_Component( wxDC*           DC,
-                                                      const wxString& libname,
-                                                      wxArrayString&  HistoryList,
-                                                      bool            UseLibBrowser )
+SCH_COMPONENT* SCH_EDIT_FRAME::Load_Component( wxDC*           DC,
+                                               const wxString& libname,
+                                               wxArrayString&  HistoryList,
+                                               bool            UseLibBrowser )
 {
     int             CmpCount  = 0;
     int             unit      = 1;
@@ -71,11 +112,11 @@ SCH_COMPONENT* WinEDA_SchematicFrame::Load_Component( wxDC*           DC,
     SCH_COMPONENT*  Component = NULL;
     CMP_LIBRARY*    Library   = NULL;
     wxString        Name, keys, msg;
-    bool            AllowWildSeach = TRUE;
+    bool            AllowWildSeach = true;
     static wxString lastCommponentName;
 
-    g_ItemToRepeat = NULL;
-    DrawPanel->m_IgnoreMouseEvents = TRUE;
+    m_itemToRepeat = NULL;
+    DrawPanel->m_IgnoreMouseEvents = true;
 
     if( !libname.IsEmpty() )
     {
@@ -95,14 +136,14 @@ SCH_COMPONENT* WinEDA_SchematicFrame::Load_Component( wxDC*           DC,
     /* Ask for a component name or key words */
     msg.Printf( _( "component selection (%d items loaded):" ), CmpCount );
 
-    WinEDA_SelectCmp dlg( this, GetComponentDialogPosition(), HistoryList,
-                          msg, UseLibBrowser );
+    DIALOG_GET_COMPONENT dlg( this, GetComponentDialogPosition(), HistoryList,
+                              msg, UseLibBrowser );
     dlg.SetComponentName( lastCommponentName );
 
     if ( dlg.ShowModal() == wxID_CANCEL )
     {
-        DrawPanel->m_IgnoreMouseEvents = FALSE;
-        DrawPanel->MouseToCursorSchema();
+        DrawPanel->m_IgnoreMouseEvents = false;
+        DrawPanel->MoveCursorToCrossHair();
         return NULL;
     }
 
@@ -119,43 +160,47 @@ SCH_COMPONENT* WinEDA_SchematicFrame::Load_Component( wxDC*           DC,
 
     if( Name.IsEmpty() )
     {
-        DrawPanel->m_IgnoreMouseEvents = FALSE;
-        DrawPanel->MouseToCursorSchema();
+        DrawPanel->m_IgnoreMouseEvents = false;
+        DrawPanel->MoveCursorToCrossHair();
         return NULL;
     }
 
+#ifndef KICAD_KEEPCASE
     Name.MakeUpper();
+#endif
 
     if( Name.GetChar( 0 ) == '=' )
     {
-        AllowWildSeach = FALSE;
+        AllowWildSeach = false;
         keys = Name.AfterFirst( '=' );
         Name = DataBaseGetName( this, keys, Name );
+
         if( Name.IsEmpty() )
         {
-            DrawPanel->m_IgnoreMouseEvents = FALSE;
-            DrawPanel->MouseToCursorSchema();
+            DrawPanel->m_IgnoreMouseEvents = false;
+            DrawPanel->MoveCursorToCrossHair();
             return NULL;
         }
     }
     else if( Name == wxT( "*" ) )
     {
-        AllowWildSeach = FALSE;
+        AllowWildSeach = false;
+
         if( GetNameOfPartToLoad( this, Library, Name ) == 0 )
         {
-            DrawPanel->m_IgnoreMouseEvents = FALSE;
-            DrawPanel->MouseToCursorSchema();
+            DrawPanel->m_IgnoreMouseEvents = false;
+            DrawPanel->MoveCursorToCrossHair();
             return NULL;
         }
     }
     else if( Name.Contains( wxT( "?" ) ) || Name.Contains( wxT( "*" ) ) )
     {
-        AllowWildSeach = FALSE;
+        AllowWildSeach = false;
         Name = DataBaseGetName( this, keys, Name );
         if( Name.IsEmpty() )
         {
-            DrawPanel->m_IgnoreMouseEvents = FALSE;
-            DrawPanel->MouseToCursorSchema();
+            DrawPanel->m_IgnoreMouseEvents = false;
+            DrawPanel->MoveCursorToCrossHair();
             return NULL;
         }
     }
@@ -164,7 +209,7 @@ SCH_COMPONENT* WinEDA_SchematicFrame::Load_Component( wxDC*           DC,
 
     if( ( Entry == NULL ) && AllowWildSeach ) /* Search with wildcard */
     {
-        AllowWildSeach = FALSE;
+        AllowWildSeach = false;
         wxString wildname = wxChar( '*' ) + Name + wxChar( '*' );
         Name = wildname;
         Name = DataBaseGetName( this, keys, Name );
@@ -174,14 +219,15 @@ SCH_COMPONENT* WinEDA_SchematicFrame::Load_Component( wxDC*           DC,
 
         if( Entry == NULL )
         {
-            DrawPanel->m_IgnoreMouseEvents = FALSE;
-            DrawPanel->MouseToCursorSchema();
+            DrawPanel->m_IgnoreMouseEvents = false;
+            DrawPanel->MoveCursorToCrossHair();
             return NULL;
         }
     }
 
-    DrawPanel->m_IgnoreMouseEvents = FALSE;
-    DrawPanel->MouseToCursorSchema();
+    DrawPanel->m_IgnoreMouseEvents = false;
+    DrawPanel->MoveCursorToCrossHair();
+
     if( Entry == NULL )
     {
         msg = _( "Failed to find part " ) + Name + _( " in library" );
@@ -191,179 +237,166 @@ SCH_COMPONENT* WinEDA_SchematicFrame::Load_Component( wxDC*           DC,
 
     lastCommponentName = Name;
     AddHistoryComponentName( HistoryList, Name );
-
-    DrawPanel->ManageCurseur = ShowWhileMoving;
-    DrawPanel->ForceCloseManageCurseur = ExitPlaceCmp;
+    DrawPanel->SetMouseCapture( moveComponent, abortMoveComponent );
 
     Component = new SCH_COMPONENT( *Entry, GetSheet(), unit, convert,
-                                   GetScreen()->m_Curseur, true );
+                                   GetScreen()->GetCrossHairPosition(), true );
     // Set the m_ChipName value, from component name in lib, for aliases
     // Note if Entry is found, and if Name is an alias of a component,
     // alias exists because its root component was found
-    Component->m_ChipName = Name;
+    Component->SetLibName( Name );
 
     // Set the component value that can differ from component name in lib, for aliases
     Component->GetField( VALUE )->m_Text = Name;
     Component->DisplayInfo( this );
-
-    DrawStructsInGhost( DrawPanel, DC, Component, wxPoint( 0, 0 ) );
+    Component->Draw( DrawPanel, DC, wxPoint( 0, 0 ), g_XorMode, g_GhostColor );
 
     return Component;
 }
 
 
-/**
- * Move a component.
- */
-static void ShowWhileMoving( WinEDA_DrawPanel* panel, wxDC* DC, bool erase )
-{
-    wxPoint        move_vector;
-
-    SCH_SCREEN*    screen = (SCH_SCREEN*) panel->GetScreen();
-
-    SCH_COMPONENT* Component = (SCH_COMPONENT*) screen->GetCurItem();
-
-    if( erase )
-    {
-        DrawStructsInGhost( panel, DC, Component, wxPoint(0,0) );
-    }
-
-    move_vector = screen->m_Curseur - Component->m_Pos;
-    Component->Move( move_vector );
-
-    DrawStructsInGhost( panel, DC, Component, wxPoint(0,0) );
-}
-
-
 /*
  * Routine to rotate and mirror a component.
- *
- ** If DC == NULL: no repaint
  */
-void WinEDA_SchematicFrame::CmpRotationMiroir( SCH_COMPONENT* DrawComponent,
-                                               wxDC* DC, int type_rotate )
+void SCH_EDIT_FRAME::OnChangeComponentOrientation( wxCommandEvent& aEvent )
 {
-    if( DrawComponent == NULL )
-        return;
+    SCH_SCREEN* screen = GetScreen();
+    SCH_ITEM* item = screen->GetCurItem();
 
-    /* Deletes the previous component. */
-    if( DC )
+    wxCHECK_RET( item != NULL && item->Type() == SCH_COMPONENT_T,
+                 wxT( "Cannot change orientation of invalid schematic item." ) );
+
+    SCH_COMPONENT* component = (SCH_COMPONENT*) item;
+
+    int orientation;
+
+    switch( aEvent.GetId() )
     {
-        DrawPanel->CursorOff( DC );
-        if( DrawComponent->m_Flags )
-            DrawStructsInGhost( DrawPanel, DC, DrawComponent, wxPoint( 0, 0 ) );
-        else
-        {
-            DrawPanel->PostDirtyRect( DrawComponent->GetBoundingBox() );
-        }
+    case ID_POPUP_SCH_MIROR_X_CMP:
+        orientation = CMP_MIRROR_X;
+        break;
+
+    case ID_POPUP_SCH_MIROR_Y_CMP:
+        orientation = CMP_MIRROR_Y;
+        break;
+
+    case ID_POPUP_SCH_ROTATE_CMP_COUNTERCLOCKWISE:
+        orientation = CMP_ROTATE_COUNTERCLOCKWISE;
+        break;
+
+    case ID_POPUP_SCH_ROTATE_CMP_CLOCKWISE:
+        orientation = CMP_ROTATE_CLOCKWISE;
+        break;
+
+    case ID_POPUP_SCH_ORIENT_NORMAL_CMP:
+    default:
+        orientation = CMP_NORMAL;
     }
 
-    DrawComponent->SetOrientation( type_rotate );
+    DrawPanel->MoveCursorToCrossHair();
+
+    if( component->GetFlags() == 0 )
+        SaveCopyInUndoList( item, UR_CHANGED );
+
+    INSTALL_UNBUFFERED_DC( dc, DrawPanel );
+
+    // Erase the previous component in it's current orientation.
+
+    DrawPanel->CrossHairOff( &dc );
+
+    if( component->GetFlags() )
+        component->Draw( DrawPanel, &dc, wxPoint( 0, 0 ), g_XorMode, g_GhostColor );
+    else
+        DrawPanel->RefreshDrawingRect( component->GetBoundingBox() );
+
+    component->SetOrientation( orientation );
 
     /* Redraw the component in the new position. */
-    if( DC )
-    {
-        if( DrawComponent->m_Flags )
-            DrawStructsInGhost( DrawPanel, DC, DrawComponent, wxPoint(0,0) );
-        else
-            DrawComponent->Draw( DrawPanel, DC, wxPoint( 0, 0 ),
-                                 GR_DEFAULT_DRAWMODE );
-        DrawPanel->CursorOn( DC );
-    }
+    if( component->GetFlags() )
+        component->Draw( DrawPanel, &dc, wxPoint( 0, 0 ), g_XorMode, g_GhostColor );
+    else
+        component->Draw( DrawPanel, &dc, wxPoint( 0, 0 ), GR_DEFAULT_DRAWMODE );
 
-    TestDanglingEnds( GetScreen()->EEDrawList, DC );
-    OnModify( );
-}
-
-
-/*
- * Abort a place component command in progress.
- */
-static void ExitPlaceCmp( WinEDA_DrawPanel* Panel, wxDC* DC )
-{
-    SCH_SCREEN*    screen = (SCH_SCREEN*) Panel->GetScreen();
-
-    SCH_COMPONENT* Component = (SCH_COMPONENT*) screen->GetCurItem();
-
-    if( Component->m_Flags & IS_NEW )
-    {
-        Component->m_Flags = 0;
-        SAFE_DELETE( Component );
-    }
-    else if( Component )
-    {
-        wxPoint move_vector = OldPos - Component->m_Pos;
-        Component->Move( move_vector );
-        memcpy( Component->m_Transform, OldTransMat, sizeof(OldTransMat) );
-        Component->m_Flags = 0;
-    }
-
-    Panel->Refresh( TRUE );
-    Panel->ManageCurseur = NULL;
-    Panel->ForceCloseManageCurseur = NULL;
-    screen->SetCurItem( NULL );
+    DrawPanel->CrossHairOn( &dc );
+    GetScreen()->TestDanglingEnds( DrawPanel, &dc );
+    OnModify();
 }
 
 
 /*
  * Handle select part in multi-part component.
  */
-void WinEDA_SchematicFrame::SelPartUnit( SCH_COMPONENT* DrawComponent,
-                                         int unit, wxDC* DC )
+void SCH_EDIT_FRAME::OnSelectUnit( wxCommandEvent& aEvent )
 {
-    int m_UnitCount;
-    LIB_COMPONENT* LibEntry;
+    SCH_SCREEN* screen = GetScreen();
+    SCH_ITEM* item = screen->GetCurItem();
 
-    if( DrawComponent == NULL )
+    wxCHECK_RET( item != NULL && item->Type() == SCH_COMPONENT_T,
+                 wxT( "Cannot select unit of invalid schematic item." ) );
+
+    INSTALL_UNBUFFERED_DC( dc, DrawPanel );
+
+    DrawPanel->MoveCursorToCrossHair();
+
+    SCH_COMPONENT* component = (SCH_COMPONENT*) item;
+
+    int unit = aEvent.GetId() + 1 - ID_POPUP_SCH_SELECT_UNIT1;
+
+    LIB_COMPONENT* libEntry = CMP_LIBRARY::FindLibraryComponent( component->GetLibName() );
+
+    if( libEntry == NULL )
         return;
 
-    LibEntry = CMP_LIBRARY::FindLibraryComponent( DrawComponent->m_ChipName );
+    wxCHECK_RET( (unit >= 1) && (unit <= libEntry->GetPartCount()),
+                 wxString::Format( wxT( "Cannot select unit %d from component "), unit ) +
+                 libEntry->GetName() );
 
-    if( LibEntry == NULL )
+    int unitCount = libEntry->GetPartCount();
+
+    if( (unitCount <= 1) || (component->GetUnit() == unit) )
         return;
 
-    m_UnitCount = LibEntry->GetPartCount();
-
-    if( m_UnitCount <= 1 )
-        return;
-
-    if( DrawComponent->m_Multi == unit )
-        return;
     if( unit < 1 )
         unit = 1;
-    if( unit > m_UnitCount )
-        unit = m_UnitCount;
 
-    if( DrawComponent->m_Flags )
-        DrawStructsInGhost( DrawPanel, DC, DrawComponent, wxPoint( 0, 0 ) );
+    if( unit > unitCount )
+        unit = unitCount;
+
+    int flags = component->GetFlags();
+
+    if( !flags )    // No command in progress: save in undo list
+        SaveCopyInUndoList( component, UR_CHANGED );
+
+    if( flags )
+        component->Draw( DrawPanel, &dc, wxPoint( 0, 0 ), g_XorMode, g_GhostColor );
     else
-        DrawComponent->Draw( DrawPanel, DC, wxPoint( 0, 0 ), g_XorMode );
+        component->Draw( DrawPanel, &dc, wxPoint( 0, 0 ), g_XorMode );
 
     /* Update the unit number. */
-    DrawComponent->SetUnitSelection( GetSheet(), unit );
-    DrawComponent->m_Multi = unit;
+    component->SetUnitSelection( GetSheet(), unit );
+    component->SetUnit( unit );
+    component->ClearFlags();
+    component->SetFlags( flags );   // Restore m_Flag modified by SetUnit()
 
     /* Redraw the component in the new position. */
-    if( DrawComponent->m_Flags )
-        DrawStructsInGhost( DrawPanel, DC, DrawComponent, wxPoint( 0, 0 ) );
+    if( flags )
+        component->Draw( DrawPanel, &dc, wxPoint( 0, 0 ), g_XorMode, g_GhostColor );
     else
-        DrawComponent->Draw( DrawPanel, DC, wxPoint( 0, 0 ),
-                             GR_DEFAULT_DRAWMODE );
+        component->Draw( DrawPanel, &dc, wxPoint( 0, 0 ), GR_DEFAULT_DRAWMODE );
 
-    TestDanglingEnds( GetScreen()->EEDrawList, DC );
-    OnModify( );
+    screen->TestDanglingEnds( DrawPanel, &dc );
+    OnModify();
 }
 
 
-void WinEDA_SchematicFrame::ConvertPart( SCH_COMPONENT* DrawComponent,
-                                         wxDC*          DC )
+void SCH_EDIT_FRAME::ConvertPart( SCH_COMPONENT* DrawComponent, wxDC* DC )
 {
     LIB_COMPONENT* LibEntry;
 
     if( DrawComponent == NULL )
         return;
 
-    LibEntry = CMP_LIBRARY::FindLibraryComponent( DrawComponent->m_ChipName );
+    LibEntry = CMP_LIBRARY::FindLibraryComponent( DrawComponent->GetLibName() );
 
     if( LibEntry == NULL )
         return;
@@ -374,82 +407,74 @@ void WinEDA_SchematicFrame::ConvertPart( SCH_COMPONENT* DrawComponent,
         return;
     }
 
+    int flags = DrawComponent->m_Flags;
     if( DrawComponent->m_Flags )
-        DrawStructsInGhost( DrawPanel, DC, DrawComponent, wxPoint( 0, 0 ) );
+        DrawComponent->Draw( DrawPanel, DC, wxPoint( 0, 0 ), g_XorMode, g_GhostColor );
     else
         DrawComponent->Draw( DrawPanel, DC, wxPoint( 0, 0 ), g_XorMode );
 
-    DrawComponent->m_Convert++;
+    DrawComponent->SetConvert( DrawComponent->GetConvert() + 1 );
+
     // ensure m_Convert = 0, 1 or 2
     // 0 and 1 = shape 1 = not converted
     // 2 = shape 2 = first converted shape
     // > 2 is not used but could be used for more shapes
     // like multiple shapes for a programmable component
     // When m_Convert = val max, return to the first shape
-    if( DrawComponent->m_Convert > 2 )
-        DrawComponent->m_Convert = 1;
+    if( DrawComponent->GetConvert() > 2 )
+        DrawComponent->SetConvert( 1 );
+
+    DrawComponent->ClearFlags();
+    DrawComponent->SetFlags( flags );   // Restore m_Flag (modified by SetConvert())
 
     /* Redraw the component in the new position. */
     if( DrawComponent->m_Flags & IS_MOVED )
-        DrawStructsInGhost( DrawPanel, DC, DrawComponent, wxPoint( 0, 0 ) );
+        DrawComponent->Draw( DrawPanel, DC, wxPoint( 0, 0 ), g_XorMode, g_GhostColor );
     else
-        DrawComponent->Draw( DrawPanel, DC, wxPoint( 0, 0 ),
-                             GR_DEFAULT_DRAWMODE );
+        DrawComponent->Draw( DrawPanel, DC, wxPoint( 0, 0 ), GR_DEFAULT_DRAWMODE );
 
-    TestDanglingEnds( GetScreen()->EEDrawList, DC );
+    GetScreen()->TestDanglingEnds( DrawPanel, DC );
     OnModify( );
 }
 
 
-void WinEDA_SchematicFrame::StartMovePart( SCH_COMPONENT* Component,
-                                           wxDC*          DC )
+void SCH_EDIT_FRAME::StartMovePart( SCH_COMPONENT* aComponent, wxDC* aDC )
 {
-    if( Component == NULL )
-        return;
-    if( Component->Type() != TYPE_SCH_COMPONENT )
-        return;
+    wxCHECK_RET( (aComponent != NULL) && (aComponent->Type() == SCH_COMPONENT_T),
+                 wxT( "Cannot move invalid component.  Bad Programmer!" ) );
 
-    if( Component->m_Flags == 0 )
-    {
-        if( g_ItemToUndoCopy )
-        {
-            SAFE_DELETE( g_ItemToUndoCopy );
-        }
-        g_ItemToUndoCopy = Component->GenCopy();
-    }
+    if( aComponent->GetFlags() == 0 )
+        SetUndoItem( aComponent );
 
-    DrawPanel->CursorOff( DC );
-    GetScreen()->m_Curseur = Component->m_Pos;
-    DrawPanel->MouseToCursorSchema();
+    DrawPanel->CrossHairOff( aDC );
+    GetScreen()->SetCrossHairPosition( aComponent->m_Pos );
+    DrawPanel->MoveCursorToCrossHair();
 
-    DrawPanel->ManageCurseur = ShowWhileMoving;
-    DrawPanel->ForceCloseManageCurseur = ExitPlaceCmp;
-    GetScreen()->SetCurItem( Component );
-    OldPos = Component->m_Pos;
-    memcpy( OldTransMat, Component->m_Transform, sizeof(OldTransMat) );
+    DrawPanel->SetMouseCapture( moveComponent, abortMoveComponent );
+    GetScreen()->SetCurItem( aComponent );
 
 #if 1
 
     // switch from normal mode to xor mode for the duration of the move, first
     // by erasing fully any "normal drawing mode" primitives with the
-    // PostDirtyRect(), then by drawing the first time in xor mode so that
+    // RefreshDrawingRect(), then by drawing the first time in xor mode so that
     // subsequent xor drawing modes will fully erase this first copy.
 
-    Component->m_Flags |= IS_MOVED; // omit redrawing the component, erase only
-    DrawPanel->PostDirtyRect( Component->GetBoundingBox() );
+    aComponent->SetFlags( IS_MOVED ); // omit redrawing the component, erase only
+    DrawPanel->RefreshDrawingRect( aComponent->GetBoundingBox() );
 
-    DrawStructsInGhost( DrawPanel, DC, Component, wxPoint(0,0) );
+    aComponent->Draw( DrawPanel, aDC, wxPoint( 0, 0 ), g_XorMode, g_GhostColor );
 
 #else
 
-    RedrawOneStruct( DrawPanel, DC, Component, g_XorMode );
+    aComponent->Draw( DrawPanel, aDC, wxPoint( 0, 0 ), g_XorMode );
 
-    Component->m_Flags |= IS_MOVED;
+    aComponent->SetFlags( IS_MOVED );
 
-    DrawPanel->ManageCurseur( DrawPanel, DC, FALSE );
+    moveComponent( DrawPanel, aDC, false );
 #endif
 
-    DrawPanel->m_AutoPAN_Request = TRUE;
+    DrawPanel->m_AutoPAN_Request = true;
 
-    DrawPanel->CursorOn( DC );
+    DrawPanel->CrossHairOn( aDC );
 }

@@ -38,7 +38,6 @@
 #include "pcbstruct.h"          // HISTORY_NUMBER
 #include "confirm.h"            // DisplayError()
 #include "gestfich.h"           // EDA_FileSelector()
-#include "autorout.h"           // NET_CODES_OK
 #include "class_board_design_settings.h"
 
 #include "trigo.h"              // RotatePoint()
@@ -62,9 +61,9 @@ static const double  safetyMargin = 0.1;
 
 
 // see wxPcbStruct.h
-void WinEDA_PcbFrame::ExportToSpecctra( wxCommandEvent& event )
+void PCB_EDIT_FRAME::ExportToSpecctra( wxCommandEvent& event )
 {
-    wxString        fullFileName = GetScreen()->m_FileName;
+    wxString        fullFileName = GetScreen()->GetFileName();
     wxString        path;
     wxString        name;
     wxString        ext;
@@ -112,7 +111,7 @@ void WinEDA_PcbFrame::ExportToSpecctra( wxCommandEvent& event )
         // if an exception is thrown by FromBOARD or ExportPCB(), then
         // ~SPECCTRA_DB() will close the file.
     }
-    catch( IOError ioe )
+    catch( IO_ERROR& ioe )
     {
         ok = false;
 
@@ -134,12 +133,12 @@ void WinEDA_PcbFrame::ExportToSpecctra( wxCommandEvent& event )
 
     if( ok )
     {
-        Affiche_Message( wxString( _("BOARD exported OK.")) );
+        SetStatusText( wxString( _( "BOARD exported OK." ) ) );
     }
     else
     {
         errorText += '\n';
-        errorText += _("Unable to export, please fix and try again.");
+        errorText += _( "Unable to export, please fix and try again." );
         DisplayError( this, errorText );
     }
 }
@@ -193,6 +192,7 @@ static POINT mapPt( const wxPoint& pt )
  * searches for a DRAWSEGMENT with an end point or start point of aPoint, and
  * if found, removes it from the TYPE_COLLECTOR and returns it, else returns NULL.
  * @param aPoint The starting or ending point to search for.
+ * @param items The list to remove from.
  * @return DRAWSEGMENT* - The first DRAWSEGMENT that has a start or end point matching
  *   aPoint, otherwise NULL if none.
  */
@@ -221,7 +221,7 @@ static DRAWSEGMENT* findPoint( const wxPoint& aPoint, TYPE_COLLECTOR* items )
         DRAWSEGMENT* graphic = (DRAWSEGMENT*) (*items)[i];
 
         printf( "type=%s, GetStart()=%d,%d  GetEnd()=%d,%d\n",
-                CONV_TO_UTF8( BOARD_ITEM::ShowShape( (Track_Shapes)graphic->m_Shape ) ),
+                TO_UTF8( BOARD_ITEM::ShowShape( (Track_Shapes)graphic->m_Shape ) ),
                 graphic->GetStart().x,
                 graphic->GetStart().y,
                 graphic->GetEnd().x,
@@ -268,30 +268,9 @@ static PATH* makePath( const POINT& aStart, const POINT& aEnd, const std::string
 }
 
 
-/**
- * Struct wxString_less_than
- * is used by std:set<> and std::map<> instantiations which use wxString as their key.
-struct wxString_less_than
-{
-    // a "less than" test on two wxStrings
-    bool operator()( const wxString& s1, const wxString& s2) const
-    {
-        return s1.Cmp( s2 ) < 0;  // case specific wxString compare
-    }
-};
- */
-
-
-/**
- * Function makePADSTACK
- * creates a PADSTACK which matches the given pad.  Only pads which do not
- * satisfy the function isKeepout() should be passed to this function.
- * @param aPad The D_PAD which needs to be made into a PADSTACK.
- * @return PADSTACK* - The created padstack, including its padstack_id.
- */
 PADSTACK* SPECCTRA_DB::makePADSTACK( BOARD* aBoard, D_PAD* aPad )
 {
-    char        name[80];                   // padstack name builder
+    char        name[256];                   // padstack name builder
     std::string uniqifier;
 
     // caller must do these checks before calling here.
@@ -456,10 +435,57 @@ PADSTACK* SPECCTRA_DB::makePADSTACK( BOARD* aBoard, D_PAD* aPad )
         }
         break;
 
-/*
     case PAD_TRAPEZOID:
+        {
+            double dx = scale( aPad->m_Size.x ) / 2.0;
+            double dy = scale( aPad->m_Size.y ) / 2.0;
+
+            double ddx = scale( aPad->m_DeltaSize.x ) / 2.0;
+            double ddy = scale( aPad->m_DeltaSize.y ) / 2.0;
+
+            // see class_pad_draw_functions.cpp which draws the trapezoid pad
+            POINT   lowerLeft(  -dx - ddy, -dy - ddx );
+            POINT   upperLeft(  -dx + ddy, +dy + ddx );
+            POINT   upperRight( +dx - ddy, +dy - ddx );
+            POINT   lowerRight( +dx + ddy, -dy + ddx );
+
+            lowerLeft  += dsnOffset;
+            upperLeft  += dsnOffset;
+            upperRight += dsnOffset;
+            lowerRight += dsnOffset;
+
+            for( int ndx=0;  ndx<reportedLayers;  ++ndx )
+            {
+                SHAPE*      shape = new SHAPE( padstack );
+                padstack->Append( shape );
+
+                // a T_polygon exists as a PATH
+                PATH*  polygon = new PATH( shape, T_polygon );
+                shape->SetShape( polygon );
+
+                polygon->SetLayerId( layerName[ndx] );
+
+                polygon->AppendPoint( lowerLeft );
+                polygon->AppendPoint( upperLeft );
+                polygon->AppendPoint( upperRight );
+                polygon->AppendPoint( lowerRight );
+            }
+
+            D(printf( "m_DeltaSize: %d,%d\n", aPad->m_DeltaSize.x, aPad->m_DeltaSize.y );)
+
+            // this string _must_ be unique for a given physical shape
+            snprintf( name, sizeof(name), "Trapz%sPad_%.6gx%.6g_%c%.6gx%c%.6g_mil",
+                     uniqifier.c_str(), scale(aPad->m_Size.x), scale(aPad->m_Size.y),
+                     aPad->m_DeltaSize.x < 0 ? 'n' : 'p',
+                     abs( scale( aPad->m_DeltaSize.x )),
+                     aPad->m_DeltaSize.y < 0 ? 'n' : 'p',
+                     abs( scale( aPad->m_DeltaSize.y ))
+                     );
+            name[ sizeof(name)-1 ] = 0;
+
+            padstack->SetPadstackId( name );
+        }
         break;
-*/
     }
 
     return padstack;
@@ -483,7 +509,7 @@ IMAGE* SPECCTRA_DB::makeIMAGE( BOARD* aBoard, MODULE* aModule )
 
     IMAGE*  image = new IMAGE(0);
 
-    image->image_id = CONV_TO_UTF8( aModule->m_LibRef );
+    image->image_id = TO_UTF8( aModule->m_LibRef );
 
     // from the pads, and make an IMAGE using collated padstacks.
     for( int p=0;  p<moduleItems.GetCount();  ++p )
@@ -532,7 +558,7 @@ IMAGE* SPECCTRA_DB::makeIMAGE( BOARD* aBoard, MODULE* aModule )
             PIN*    pin = new PIN(image);
 
             padName = pad->ReturnStringPadName();
-            pin->pin_id  = CONV_TO_UTF8( padName );
+            pin->pin_id  = TO_UTF8( padName );
 
             if( padName!=wxEmptyString && pinmap.find( padName )==pinmap.end() )
             {
@@ -633,7 +659,7 @@ IMAGE* SPECCTRA_DB::makeIMAGE( BOARD* aBoard, MODULE* aModule )
         case S_ARC:
         default:
             D( printf("makeIMAGE(): unsupported shape %s\n",
-                      CONV_TO_UTF8( BOARD_ITEM::ShowShape( (Track_Shapes)graphic->m_Shape))  );)
+                      TO_UTF8( BOARD_ITEM::ShowShape( (Track_Shapes)graphic->m_Shape))  );)
             continue;
         }
     }
@@ -693,7 +719,7 @@ PADSTACK* SPECCTRA_DB::makeVia( const SEGVIA* aVia )
 }
 
 
-void SPECCTRA_DB::fillBOUNDARY( BOARD* aBoard, BOUNDARY* boundary ) throw( IOError )
+void SPECCTRA_DB::fillBOUNDARY( BOARD* aBoard, BOUNDARY* boundary ) throw( IO_ERROR )
 {
     TYPE_COLLECTOR          items;
 
@@ -848,7 +874,7 @@ void SPECCTRA_DB::fillBOUNDARY( BOARD* aBoard, BOUNDARY* boundary ) throw( IOErr
         }
 
 #if 0 && defined(DEBUG)
-        STRINGFORMATTER sf;
+        STRING_FORMATTER sf;
         path->Format( &sf, 0 );
         printf( "%s\n", sf.GetString().c_str() );
 #endif
@@ -856,7 +882,7 @@ void SPECCTRA_DB::fillBOUNDARY( BOARD* aBoard, BOUNDARY* boundary ) throw( IOErr
     }
     else
     {
-        aBoard->ComputeBoundaryBox();
+        aBoard->ComputeBoundingBox();
 
         RECTANGLE*  rect = new RECTANGLE( boundary );
         boundary->rectangle = rect;
@@ -879,7 +905,7 @@ typedef std::set<std::string>  STRINGSET;
 typedef std::pair<STRINGSET::iterator, bool> STRINGSET_PAIR;
 
 
-void SPECCTRA_DB::FromBOARD( BOARD* aBoard ) throw( IOError )
+void SPECCTRA_DB::FromBOARD( BOARD* aBoard ) throw( IO_ERROR )
 {
     TYPE_COLLECTOR          items;
 
@@ -906,7 +932,7 @@ void SPECCTRA_DB::FromBOARD( BOARD* aBoard ) throw( IOError )
             }
 
             // if we cannot insert OK, that means the reference has been seen before.
-            STRINGSET_PAIR refpair = refs.insert( CONV_TO_UTF8( module->GetReference() ) );
+            STRINGSET_PAIR refpair = refs.insert( TO_UTF8( module->GetReference() ) );
             if( !refpair.second )      // insert failed
             {
                 ThrowIOError( _("Multiple components have identical reference IDs of \"%s\"."),
@@ -1070,7 +1096,7 @@ void SPECCTRA_DB::FromBOARD( BOARD* aBoard ) throw( IOError )
             PATH*           mainPolygon = new PATH( plane, T_polygon );
             plane->SetShape( mainPolygon );
 
-            plane->name = CONV_TO_UTF8( item->m_Netname );
+            plane->name = TO_UTF8( item->m_Netname );
 
             if( plane->name.size() == 0 )
             {
@@ -1155,7 +1181,7 @@ void SPECCTRA_DB::FromBOARD( BOARD* aBoard ) throw( IOError )
             NETINFO_ITEM* net = aBoard->m_NetInfo->GetNetItem(ii);
             int netcode = net->GetNet();
             if( netcode > 0 )
-                nets[ netcode ]->net_id = CONV_TO_UTF8( net->GetNetname() );
+                nets[ netcode ]->net_id = TO_UTF8( net->GetNetname() );
         }
 
         items.Collect( aBoard, scanMODULEs );
@@ -1168,7 +1194,7 @@ void SPECCTRA_DB::FromBOARD( BOARD* aBoard ) throw( IOError )
 
             IMAGE*  image  = makeIMAGE( aBoard, module );
 
-            componentId = CONV_TO_UTF8( module->GetReference() );
+            componentId = TO_UTF8( module->GetReference() );
 
             // create a net list entry for all the actual pins in the image
             // for the current module.  location of this code is critical
@@ -1215,7 +1241,7 @@ void SPECCTRA_DB::FromBOARD( BOARD* aBoard ) throw( IOError )
             place->SetRotation( module->m_Orient/10.0 );
             place->SetVertex( mapPt( module->m_Pos ) );
             place->component_id = componentId;
-            place->part_number  = CONV_TO_UTF8( module->GetValue() );
+            place->part_number  = TO_UTF8( module->GetValue() );
 
             // module is flipped from bottom side, set side to T_back
             if( module->flag )
@@ -1347,7 +1373,7 @@ void SPECCTRA_DB::FromBOARD( BOARD* aBoard ) throw( IOError )
                     old_netcode = netcode;
                     NETINFO_ITEM* net = aBoard->FindNet( netcode );
                     wxASSERT( net );
-                    netname = CONV_TO_UTF8( net->GetNetname() );
+                    netname = TO_UTF8( net->GetNetname() );
                 }
 
                 WIRE* wire = new WIRE( wiring );
@@ -1409,7 +1435,7 @@ void SPECCTRA_DB::FromBOARD( BOARD* aBoard ) throw( IOError )
             NETINFO_ITEM* net = aBoard->FindNet( netcode );
             wxASSERT( net );
 
-            dsnVia->net_id = CONV_TO_UTF8( net->GetNetname() );
+            dsnVia->net_id = TO_UTF8( net->GetNetname() );
 
             dsnVia->via_type = T_protect;     // @todo, this should be configurable
         }
@@ -1486,10 +1512,10 @@ void SPECCTRA_DB::exportNETCLASS( NETCLASS* aNetClass, BOARD* aBoard )
     // freerouter creates a class named 'default' anyway, and if we
     // try and use that, we end up with two 'default' via rules so use
     // something else as the name of our default class.
-    clazz->class_id = CONV_TO_UTF8( aNetClass->GetName() );
+    clazz->class_id = TO_UTF8( aNetClass->GetName() );
 
     for( NETCLASS::iterator net = aNetClass->begin();  net != aNetClass->end();  ++net )
-        clazz->net_ids.push_back( CONV_TO_UTF8( *net ) );
+        clazz->net_ids.push_back( TO_UTF8( *net ) );
 
     clazz->rules = new RULE( clazz, T_rule );
 

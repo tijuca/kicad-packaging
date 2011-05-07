@@ -1,3 +1,16 @@
+kicad (0.0.20110507-1) unstable; urgency=low
+
+  * upgraded to the new upstream version. Closes: #624439
+
+ -- Georges Khaznadar <georgesk@ofset.org>  Sat, 07 May 2011 16:52:33 +0200
+
+kicad (0.0.20101024-2) unstable; urgency=low
+
+  * changed the format to 3.0 (quilt)
+  * enabled the parallel build feature in debian/rules
+
+ -- Georges Khaznadar <georgesk@ofset.org>  Sun, 24 Oct 2010 10:54:16 +0200
+
 kicad (0.0.20101024-1) unstable; urgency=low
 
   * Maintainer change. 

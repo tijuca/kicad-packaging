@@ -43,7 +43,7 @@ IMPLEMENT_APP( WinEDA_App )
  * http://wiki.wxwidgets.org/WxMac-specific_topics
  */
 void WinEDA_App::MacOpenFile(const wxString &fileName) {
-    WinEDA_MainFrame * frame = ((WinEDA_MainFrame*)GetTopWindow());
+    KICAD_MANAGER_FRAME * frame = ((KICAD_MANAGER_FRAME*)GetTopWindow());
     wxFileName    fn = fileName;
 
     frame->m_ProjectFileName = fn;
@@ -62,8 +62,6 @@ void WinEDA_App::MacOpenFile(const wxString &fileName) {
 
     frame->SetTitle( GetTitle() + wxT( " " ) + GetBuildVersion() +
                      wxT( " " ) + frame->m_ProjectFileName.GetFullPath() );
-    frame->ReCreateMenuBar();
-    frame->RecreateBaseHToolbar();
 
     frame->m_LeftWin->ReCreateTreePrj();
 
@@ -77,16 +75,7 @@ void WinEDA_App::MacOpenFile(const wxString &fileName) {
 bool WinEDA_App::OnInit()
 /*****************************************************************************/
 {
-    /* WXMAC application specific */
-    /* TODO fix about dialog issue */
-    /* TODO fix SetExitOnFrameDelete */
-#ifdef __WXMAC__
-//	wxApp::SetExitOnFrameDelete(false);
-//	wxApp::s_macAboutMenuItemId = ID_KICAD_ABOUT;
-	wxApp::s_macPreferencesMenuItemId = ID_OPTIONS_SETUP;
-#endif /* __WXMAC__ */
-
-    WinEDA_MainFrame* frame;
+    KICAD_MANAGER_FRAME* frame;
 
     InitEDA_Appl( wxT( "KiCad" ), APP_TYPE_KICAD );
 
@@ -97,7 +86,7 @@ bool WinEDA_App::OnInit()
     /* Make nameless project translatable */
     wxFileName namelessProject( wxGetCwd(), NAMELESS_PROJECT, ProjectFileExtension );
 
-    frame = new WinEDA_MainFrame( NULL, wxT( "KiCad" ),
+    frame = new KICAD_MANAGER_FRAME( NULL, wxT( "KiCad" ),
                                   wxPoint( 30, 20 ), wxSize( 600, 400 ) );
 
     if( argc > 1 )
