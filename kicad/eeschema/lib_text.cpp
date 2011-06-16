@@ -1,5 +1,5 @@
 /***************************/
-/* class_BodyItem_Text.cpp */
+/* lib_text.cpp */
 /***************************/
 
 /**
@@ -169,6 +169,9 @@ bool LIB_TEXT::HitTest( const wxPoint& aPosition )
 
 bool LIB_TEXT::HitTest( wxPoint aPosition, int aThreshold, const TRANSFORM& aTransform )
 {
+    if( aThreshold < 0 )
+        aThreshold = 0;
+
     wxPoint physicalpos = aTransform.TransformCoordinate( m_Pos );
     wxPoint tmp = m_Pos;
     m_Pos = physicalpos;
@@ -262,6 +265,21 @@ void LIB_TEXT::DoMirrorHorizontal( const wxPoint& center )
     m_Pos.x -= center.x;
     m_Pos.x *= -1;
     m_Pos.x += center.x;
+}
+
+void LIB_TEXT::DoMirrorVertical( const wxPoint& center )
+{
+    m_Pos.y -= center.y;
+    m_Pos.y *= -1;
+    m_Pos.y += center.y;
+}
+
+void LIB_TEXT::DoRotate( const wxPoint& center, bool aRotateCCW )
+{
+    int rot_angle = aRotateCCW ? -900 : 900;
+
+    RotatePoint( &m_Pos, center, rot_angle );
+    m_Orient = m_Orient ? 0 : 900;
 }
 
 

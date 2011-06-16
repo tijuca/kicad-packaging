@@ -78,7 +78,7 @@ bool LIB_CIRCLE::Load( char* aLine, wxString& aErrorMsg )
  */
 bool LIB_CIRCLE::HitTest( const wxPoint& aPosRef )
 {
-    int mindist = m_Width ? m_Width / 2 : g_DrawDefaultLineThickness / 2;
+    int mindist = GetPenSize() / 2;
 
     // Have a minimal tolerance for hit test
     if( mindist < MINIMUM_SELECTION_DISTANCE )
@@ -97,6 +97,9 @@ bool LIB_CIRCLE::HitTest( const wxPoint& aPosRef )
  */
 bool LIB_CIRCLE::HitTest( wxPoint aPosRef, int aThreshold, const TRANSFORM& aTransform )
 {
+    if( aThreshold < 0 )
+        aThreshold = GetPenSize() / 2;
+
     wxPoint relpos = aPosRef - aTransform.TransformCoordinate( m_Pos );
 
     int dist = wxRound( sqrt( ( (double) relpos.x * relpos.x ) +
@@ -160,6 +163,20 @@ void LIB_CIRCLE::DoMirrorHorizontal( const wxPoint& aCenter )
     m_Pos.x -= aCenter.x;
     m_Pos.x *= -1;
     m_Pos.x += aCenter.x;
+}
+
+void LIB_CIRCLE::DoMirrorVertical( const wxPoint& aCenter )
+{
+    m_Pos.y -= aCenter.y;
+    m_Pos.y *= -1;
+    m_Pos.y += aCenter.y;
+}
+
+void LIB_CIRCLE::DoRotate( const wxPoint& aCenter, bool aRotateCCW )
+{
+    int rot_angle = aRotateCCW ? -900 : 900;
+
+    RotatePoint( &m_Pos, aCenter, rot_angle );
 }
 
 

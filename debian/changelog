@@ -1,3 +1,11 @@
+kicad (0.0.20110616-1) unstable; urgency=low
+
+  * upgraded to the latest upstream version.
+  * included the files sent by their author, by email 
+    <4DF93DA9.50504@iridec.com.au>, Closes: #630453
+
+ -- Georges Khaznadar <georgesk@ofset.org>  Thu, 16 Jun 2011 22:52:02 +0200
+
 kicad (0.0.20110507-1) unstable; urgency=low
 
   * upgraded to the new upstream version. Closes: #624439

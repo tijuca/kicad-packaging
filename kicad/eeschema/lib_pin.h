@@ -12,7 +12,7 @@
 class SCH_COMPONENT;
 
 
-#define TARGET_PIN_DIAM     12  /* Circle diameter drawn at the active end of pins */
+#define TARGET_PIN_RADIUS     12  /* Circle diameter drawn at the active end of pins */
 
 #define DEFAULT_TEXT_SIZE   50  /* Default size for field texts */
 #define PART_NAME_LEN       15  /* Maximum length of part name. */
@@ -52,7 +52,7 @@ enum ElectricPinType {
 extern const wxChar* MsgPinElectricType[];
 
 /* Pin visibility flag bit. */
-#define PINNOTDRAW 1    /* Set makes pin invisible */
+#define PIN_INVISIBLE 1    /* Set makes pin invisible */
 
 
 /**
@@ -169,7 +169,7 @@ public:
      * according to its orientation and the matrix transform (rot, mirror) \a aTransform
      * @param aTransform = transform matrix
      */
-    int ReturnPinDrawOrient( const TRANSFORM& aTransform );
+    int ReturnPinDrawOrient( const TRANSFORM& aTransform ) const;
 
     /**
      * Fill a string buffer with pin number.
@@ -350,7 +350,7 @@ public:
      *
      * @return True if draw object is visible otherwise false.
      */
-    bool IsVisible() { return ( m_attributes & PINNOTDRAW ) == 0; }
+    bool IsVisible() { return ( m_attributes & PIN_INVISIBLE ) == 0; }
 
     /**
      * @return the size of the "pen" that be used to draw or plot this item.
@@ -472,6 +472,8 @@ protected:
     virtual void DoMove( const wxPoint& aPosition );
     virtual wxPoint DoGetPosition() const { return m_position; }
     virtual void DoMirrorHorizontal( const wxPoint& aCenter );
+    virtual void DoMirrorVertical( const wxPoint& aCenter );
+    virtual void DoRotate( const wxPoint& aCenter, bool aRotateCCW = true );
     virtual void DoPlot( PLOTTER* aPlotter, const wxPoint& aOffset, bool aFill,
                          const TRANSFORM& aTransform );
     virtual int DoGetWidth() const { return m_width; }

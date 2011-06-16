@@ -22,7 +22,7 @@ class LIB_PIN;
 extern const int fill_tab[];
 
 
-#define MINIMUM_SELECTION_DISTANCE 15 // Minimum selection distance in mils
+#define MINIMUM_SELECTION_DISTANCE 2 // Minimum selection distance in internal units
 
 
 /**
@@ -218,6 +218,9 @@ public:
      * @param aPosition - a wxPoint to test
      * @param aThreshold - max distance to this object (usually the half
      *                     thickness of a line)
+     *                   if < 0, it will be automatically set to half
+     *                     pen size when locating lines or arcs
+     *                      and set to 0 for other items
      * @param aTransform - the transform matrix
      * @return - true if the point \a aPosition is near this object
      */
@@ -300,6 +303,26 @@ public:
     }
 
     /**
+     * Mirror the draw object along the MirrorVertical (Y) axis about a point.
+     *
+     * @param aCenter - Point to mirror around.
+     */
+    void MirrorVertical( const wxPoint& aCenter )
+    {
+        DoMirrorVertical( aCenter );
+    }
+
+    /**
+     * Rotate about a point.
+     *
+     * @param aCenter - Point to rotate around.
+     */
+    void Rotate( const wxPoint& aCenter )
+    {
+        DoRotate( aCenter );
+    }
+
+    /**
      * Rotate the draw item.
      */
     virtual void Rotate() {}
@@ -377,6 +400,8 @@ protected:
     virtual void DoMove( const wxPoint& aPosition ) = 0;
     virtual wxPoint DoGetPosition() const = 0;
     virtual void DoMirrorHorizontal( const wxPoint& aCenter ) = 0;
+    virtual void DoMirrorVertical( const wxPoint& aCenter ) = 0;
+    virtual void DoRotate( const wxPoint& aCenter, bool aRotateCCW = true ) = 0;
     virtual void DoPlot( PLOTTER* aPlotter, const wxPoint& aOffset, bool aFill,
                          const TRANSFORM& aTransform ) = 0;
     virtual int DoGetWidth() const = 0;

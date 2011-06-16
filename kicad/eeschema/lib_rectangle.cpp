@@ -132,6 +132,23 @@ void LIB_RECTANGLE::DoMirrorHorizontal( const wxPoint& aCenter )
     m_End.x += aCenter.x;
 }
 
+void LIB_RECTANGLE::DoMirrorVertical( const wxPoint& aCenter )
+{
+    m_Pos.y -= aCenter.y;
+    m_Pos.y *= -1;
+    m_Pos.y += aCenter.y;
+    m_End.y -= aCenter.y;
+    m_End.y *= -1;
+    m_End.y += aCenter.y;
+}
+
+void LIB_RECTANGLE::DoRotate( const wxPoint& aCenter, bool aRotateCCW )
+{
+    int rot_angle = aRotateCCW ? -900 : 900;
+    RotatePoint( &m_Pos, aCenter, rot_angle );
+    RotatePoint( &m_End, aCenter, rot_angle );
+}
+
 
 void LIB_RECTANGLE::DoPlot( PLOTTER* aPlotter, const wxPoint& aOffset, bool aFill,
                             const TRANSFORM& aTransform )
@@ -245,6 +262,9 @@ bool LIB_RECTANGLE::HitTest( const wxPoint& aPosition )
 
 bool LIB_RECTANGLE::HitTest( wxPoint aPosition, int aThreshold, const TRANSFORM& aTransform )
 {
+    if( aThreshold < 0 )
+        aThreshold = GetPenSize() / 2;
+
     wxPoint actualStart = aTransform.TransformCoordinate( m_Pos );
     wxPoint actualEnd   = aTransform.TransformCoordinate( m_End );
 

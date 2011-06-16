@@ -349,6 +349,9 @@ bool LIB_FIELD::HitTest( const wxPoint& aPosition )
 
 bool LIB_FIELD::HitTest( wxPoint aPosition, int aThreshold, const TRANSFORM& aTransform )
 {
+    if( aThreshold < 0 )
+        aThreshold = 0;
+
     int extraCharCount = 0;
 
     // Reference designator text has one or 2 additional character (displays
@@ -474,6 +477,20 @@ void LIB_FIELD::DoMirrorHorizontal( const wxPoint& center )
     m_Pos.x -= center.x;
     m_Pos.x *= -1;
     m_Pos.x += center.x;
+}
+
+void LIB_FIELD::DoMirrorVertical( const wxPoint& center )
+{
+    m_Pos.y -= center.y;
+    m_Pos.y *= -1;
+    m_Pos.y += center.y;
+}
+
+void LIB_FIELD::DoRotate( const wxPoint& center, bool aRotateCCW )
+{
+    int rot_angle = aRotateCCW ? -900 : 900;
+    RotatePoint( &m_Pos, center, rot_angle );
+    m_Orient = m_Orient ? 0 : 900;
 }
 
 

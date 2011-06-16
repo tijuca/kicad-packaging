@@ -159,7 +159,7 @@ bool LIB_ARC::Load( char* aLine, wxString& aErrorMsg )
 
 bool LIB_ARC::HitTest( const wxPoint& aRefPoint )
 {
-    int mindist = m_Width ? m_Width / 2 : g_DrawDefaultLineThickness / 2;
+    int mindist = GetPenSize() / 2;
 
     // Have a minimal tolerance for hit test
     if( mindist < MINIMUM_SELECTION_DISTANCE )
@@ -171,6 +171,9 @@ bool LIB_ARC::HitTest( const wxPoint& aRefPoint )
 
 bool LIB_ARC::HitTest( wxPoint aPosition, int aThreshold, const TRANSFORM& aTransform )
 {
+
+    if( aThreshold < 0 )
+        aThreshold = GetPenSize() / 2;
 
     // TODO: use aTransMat to calculates parameters
     wxPoint relativePosition = aPosition;
@@ -276,6 +279,29 @@ void LIB_ARC::DoMirrorHorizontal( const wxPoint& aCenter )
     m_ArcEnd.x += aCenter.x;
     EXCHG( m_ArcStart, m_ArcEnd );
 }
+
+void LIB_ARC::DoMirrorVertical( const wxPoint& aCenter )
+{
+    m_Pos.y -= aCenter.y;
+    m_Pos.y *= -1;
+    m_Pos.y += aCenter.y;
+    m_ArcStart.y -= aCenter.y;
+    m_ArcStart.y *= -1;
+    m_ArcStart.y += aCenter.y;
+    m_ArcEnd.y -= aCenter.y;
+    m_ArcEnd.y *= -1;
+    m_ArcEnd.y += aCenter.y;
+    EXCHG( m_ArcStart, m_ArcEnd );
+}
+
+void LIB_ARC::DoRotate( const wxPoint& aCenter, bool aRotateCCW )
+{
+    int rot_angle = aRotateCCW ? -900 : 900;
+    RotatePoint( &m_Pos, aCenter, rot_angle );
+    RotatePoint( &m_ArcStart, aCenter, rot_angle );
+    RotatePoint( &m_ArcEnd, aCenter, rot_angle );
+}
+
 
 
 void LIB_ARC::DoPlot( PLOTTER* aPlotter, const wxPoint& aOffset, bool aFill,
@@ -591,10 +617,6 @@ void LIB_ARC::calcEdit( const wxPoint& aPosition )
             // Use the cursor for adjusting the arc curvature
             startPos = m_ArcStart;
             endPos   = m_ArcEnd;
-
-            wxPoint middlePoint = wxPoint( (startPos.x + endPos.x) / 2,
-                                           (startPos.y + endPos.y) / 2 );
-
 
             // If the distance is too small, use the old center point
             // else the new center point is calculated over the three points start/end/cursor

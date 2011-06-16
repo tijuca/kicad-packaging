@@ -69,6 +69,7 @@ SCH_ITEM* SCH_EDIT_FRAME::LocateAndShowItem( const wxPoint& aPosition, const KIC
 
     case LIB_PIN_T:
         Pin = (LIB_PIN*) item;
+        LibItem = (SCH_COMPONENT*) LocateItem( aPosition, SCH_COLLECTOR::ComponentsOnly );
         break;
 
     default:
@@ -117,7 +118,8 @@ SCH_ITEM* SCH_EDIT_FRAME::LocateItem( const wxPoint& aPosition, const KICAD_T aF
             switch( aHotKeyCommandId )
             {
             case HK_DRAG:
-                if( m_collectedItems.IsCorner() || m_collectedItems.IsNode( false ) )
+                if( m_collectedItems.IsCorner() || m_collectedItems.IsNode( false )
+                    || m_collectedItems.IsDraggableJunction() )
                 {
                     item = m_collectedItems[0];
                     GetScreen()->SetCurItem( item );
@@ -220,8 +222,18 @@ void SCH_EDIT_FRAME::GeneralControl( wxDC* aDC, const wxPoint& aPosition, int aH
 
         if( DrawPanel->IsMouseCaptured() )
         {
+#ifdef USE_WX_OVERLAY
+            wxDCOverlay oDC( DrawPanel->m_overlay, (wxWindowDC*)aDC );
+            oDC.Clear();
+            DrawPanel->m_mouseCaptureCallback( DrawPanel, aDC, aPosition, false );
+#else
             DrawPanel->m_mouseCaptureCallback( DrawPanel, aDC, aPosition, true );
+#endif
         }
+#ifdef USE_WX_OVERLAY
+        else
+            DrawPanel->m_overlay.Reset();
+#endif
     }
 
     if( aHotKey )
@@ -293,8 +305,18 @@ void LIB_EDIT_FRAME::GeneralControl( wxDC* aDC, const wxPoint& aPosition, int aH
 
         if( DrawPanel->IsMouseCaptured() )
         {
+#ifdef USE_WX_OVERLAY
+            wxDCOverlay oDC( DrawPanel->m_overlay, (wxWindowDC*)aDC );
+            oDC.Clear();
+            DrawPanel->m_mouseCaptureCallback( DrawPanel, aDC, aPosition, false );
+#else
             DrawPanel->m_mouseCaptureCallback( DrawPanel, aDC, aPosition, true );
+#endif
         }
+#ifdef USE_WX_OVERLAY
+        else
+            DrawPanel->m_overlay.Reset();
+#endif
     }
 
     if( aHotKey )
