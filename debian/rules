@@ -6,120 +6,70 @@
 	dh $@ --parallel
 
 override_dh_clean:
-	rm -rf $(CURDIR)/build
-	# REMOVE AUTOMATICALLY GENERATED FILES	
-	rm -f kicad/pcbnew/dialog_freeroute_exchange_help_html.h \
-	      kicad/eeschema/cmp_library_base.h \
-	      kicad/eeschema/cmp_library_base.cpp
 	dh_clean
+	find . -type d -name CMakeFiles | xargs rm -rf
+	rm -f $(GENERATED_FILES)
 
-configure:
-	mkdir -p $(CURDIR)/build/kicad
-	mkdir -p $(CURDIR)/build/bitmaps
-	cd $(CURDIR)/build/kicad && cmake -DKICAD_MINIZIP=0 \
-		-DKICAD_DEMOS=$(CURDIR)/debian/kicad-common/usr/share/doc/kicad/demos ../../kicad \
-		-DXPM_CPP_PATH=$(CURDIR)/build/bitmaps \
-		-DKICAD_STABLE_VERSION=ON
-	mkdir -p $(CURDIR)/build/kicad-doc
-	cd $(CURDIR)/build/kicad-doc && cmake ../../kicad-doc
-	mkdir -p $(CURDIR)/build/kicad-library
-	cd $(CURDIR)/build/kicad-library && cmake ../../kicad-library
+override_dh_auto_configure:
+	cmake -DKICAD_STABLE_VERSION=ON .
+	cd $(CURDIR)/doc; cmake .
+	cd $(CURDIR)/library; cmake .
 
-build: configure build-arch build-indep
-
-build-indep:
-	$(MAKE) -C $(CURDIR)/build/kicad-doc
-	$(MAKE) -C $(CURDIR)/build/kicad-library
-
-build-arch:
-	$(MAKE) -C $(CURDIR)/build/kicad
-
-install-indep:
-	dh_testdir
-	dh_testroot
-	dh_clean -k -i 
-	dh_installdirs -i
-	dh_installdocs
-
-	cd $(CURDIR)/build/kicad/demos && cmake -P cmake_install.cmake
-	cd $(CURDIR)/build/kicad-doc/internat && cmake -DCMAKE_INSTALL_PREFIX=$(CURDIR)/debian/kicad-common/usr -P cmake_install.cmake
-	cd $(CURDIR)/build/kicad/template && cmake -DCMAKE_INSTALL_PREFIX=$(CURDIR)/debian/kicad-common/usr -P cmake_install.cmake
-	cd $(CURDIR)/build/kicad-library && cmake -DCOMPONENT=resources -DCMAKE_INSTALL_PREFIX=$(CURDIR)/debian/kicad-common/usr -P cmake_install.cmake
-	cd $(CURDIR)/build/kicad-doc && cmake -DCOMPONENT=file_formats -DCMAKE_INSTALL_PREFIX=$(CURDIR)/debian/kicad-common/usr -P cmake_install.cmake
-	cd $(CURDIR)/build/kicad-doc && cmake -DCOMPONENT=footprints_doc -DCMAKE_INSTALL_PREFIX=$(CURDIR)/debian/kicad-common/usr -P cmake_install.cmake
-
-	cd $(CURDIR)/build/kicad-doc && cmake -DCOMPONENT=doc-de -DCMAKE_INSTALL_PREFIX=$(CURDIR)/debian/kicad-doc-de/usr -P cmake_install.cmake
-	cd $(CURDIR)/build/kicad-doc && cmake -DCOMPONENT=help-de -DCMAKE_INSTALL_PREFIX=$(CURDIR)/debian/kicad-doc-de/usr -P cmake_install.cmake
-
-	cd $(CURDIR)/build/kicad-doc && cmake -DCOMPONENT=doc-en -DCMAKE_INSTALL_PREFIX=$(CURDIR)/debian/kicad-doc-en/usr -P cmake_install.cmake
-	cd $(CURDIR)/build/kicad-doc && cmake -DCOMPONENT=help-en -DCMAKE_INSTALL_PREFIX=$(CURDIR)/debian/kicad-doc-en/usr -P cmake_install.cmake
-
-	cd $(CURDIR)/build/kicad-doc && cmake -DCOMPONENT=doc-es -DCMAKE_INSTALL_PREFIX=$(CURDIR)/debian/kicad-doc-es/usr -P cmake_install.cmake
-	cd $(CURDIR)/build/kicad-doc && cmake -DCOMPONENT=help-es -DCMAKE_INSTALL_PREFIX=$(CURDIR)/debian/kicad-doc-es/usr -P cmake_install.cmake
-
-	cd $(CURDIR)/build/kicad-doc && cmake -DCOMPONENT=doc-fr -DCMAKE_INSTALL_PREFIX=$(CURDIR)/debian/kicad-doc-fr/usr -P cmake_install.cmake
-	cd $(CURDIR)/build/kicad-doc && cmake -DCOMPONENT=help-fr -DCMAKE_INSTALL_PREFIX=$(CURDIR)/debian/kicad-doc-fr/usr -P cmake_install.cmake
-
-	cd $(CURDIR)/build/kicad-doc && cmake -DCOMPONENT=doc-hu -DCMAKE_INSTALL_PREFIX=$(CURDIR)/debian/kicad-doc-hu/usr -P cmake_install.cmake
-	cd $(CURDIR)/build/kicad-doc && cmake -DCOMPONENT=help-hu -DCMAKE_INSTALL_PREFIX=$(CURDIR)/debian/kicad-doc-hu/usr -P cmake_install.cmake
-
-#	cd $(CURDIR)/build/kicad-doc && cmake -DCOMPONENT=doc-it -DCMAKE_INSTALL_PREFIX=$(CURDIR)/debian/kicad-doc-it/usr -P cmake_install.cmake
-#	cd $(CURDIR)/build/kicad-doc && cmake -DCOMPONENT=help-it -DCMAKE_INSTALL_PREFIX=$(CURDIR)/debian/kicad-doc-it/usr -P cmake_install.cmake
-
-	cd $(CURDIR)/build/kicad-doc && cmake -DCOMPONENT=doc-pt -DCMAKE_INSTALL_PREFIX=$(CURDIR)/debian/kicad-doc-pt/usr -P cmake_install.cmake
-	cd $(CURDIR)/build/kicad-doc && cmake -DCOMPONENT=help-pt -DCMAKE_INSTALL_PREFIX=$(CURDIR)/debian/kicad-doc-pt/usr -P cmake_install.cmake
-
-	cd $(CURDIR)/build/kicad-doc && cmake -DCOMPONENT=doc-ru -DCMAKE_INSTALL_PREFIX=$(CURDIR)/debian/kicad-doc-ru/usr -P cmake_install.cmake
-	cd $(CURDIR)/build/kicad-doc && cmake -DCOMPONENT=help-ru -DCMAKE_INSTALL_PREFIX=$(CURDIR)/debian/kicad-doc-ru/usr -P cmake_install.cmake
-
-	cd $(CURDIR)/build/kicad-doc && cmake -DCOMPONENT=doc-zh_CN -DCMAKE_INSTALL_PREFIX=$(CURDIR)/debian/kicad-doc-zh-cn/usr -P cmake_install.cmake
-	cd $(CURDIR)/build/kicad-doc && cmake -DCOMPONENT=help-zh_CN -DCMAKE_INSTALL_PREFIX=$(CURDIR)/debian/kicad-doc-zh-cn/usr -P cmake_install.cmake
-
-install-arch:
-	dh_testdir
-	dh_testroot
-	dh_clean -k -s 
-	dh_installdirs -s
-	dh_installmenu -s
-
-	$(MAKE) -C $(CURDIR)/build/kicad preinstall
-	cd $(CURDIR)/build/kicad && cmake -DCOMPONENT=binary -DCMAKE_INSTALL_PREFIX=$(CURDIR)/debian/kicad/usr -P cmake_install.cmake
-
-	dh_installdocs
-	dh_install -s
-
-# Build architecture independant packages.
-binary-indep: build-indep install-indep
-	dh_testdir
-	dh_testroot
-	dh_installchangelogs -i
-	dh_link -i
-	dh_strip -i
-# i don't want the helpfiles to be compressed
-	dh_compress -i --exclude=kicad/help --exclude=kicad/demos --exclude=.pdf
-	dh_fixperms -i
-	dh_makeshlibs -i
-	dh_installdeb -i
-	dh_shlibdeps -i
-	dh_gencontrol -i
-	dh_md5sums -i
-	dh_builddeb -i
-
-# Build architecture dependant packages.
-binary-arch: build-arch install-arch
-	dh_testdir
-	dh_testroot
-	dh_installchangelogs -s kicad/CHANGELOG.txt
-	dh_installman -s $(CURDIR)/debian/man/*.1
-	dh_link -s
-	dh_strip -s
-	dh_compress -s
-	dh_fixperms -s
-	dh_makeshlibs -s
-	dh_installdeb -s
-	dh_shlibdeps -s
-	dh_gencontrol -s
-	dh_md5sums -s
-	dh_builddeb -s
-
-binary: binary-arch binary-indep
+GENERATED_FILES = ./3d-viewer/Makefile \
+	 ./3d-viewer/cmake_install.cmake \
+	 ./CMakeCache.txt \
+	 ./CTestTestfile.cmake \
+	 ./DartConfiguration.tcl \
+	 ./Makefile \
+	 ./bitmap2component/Makefile \
+	 ./bitmap2component/cmake_install.cmake \
+	 ./bitmaps_png/Makefile \
+	 ./bitmaps_png/cmake_install.cmake \
+	 ./cmake_install.cmake \
+	 ./cmake_uninstall.cmake \
+	 ./common/Makefile \
+	 ./common/cmake_install.cmake \
+	 ./config.h \
+	 ./cvpcb/Makefile \
+	 ./cvpcb/cmake_install.cmake \
+	 ./demos/Makefile \
+	 ./demos/cmake_install.cmake \
+	 ./doc/CMakeCache.txt \
+	 ./doc/Makefile \
+	 ./doc/cmake_install.cmake \
+	 ./doc/doc/help/Makefile \
+	 ./doc/doc/help/cmake_install.cmake \
+	 ./doc/doc/tutorials/Makefile \
+	 ./doc/doc/tutorials/cmake_install.cmake \
+	 ./doc/internat/Makefile \
+	 ./doc/internat/cmake_install.cmake \
+	 ./eeschema/Makefile \
+	 ./eeschema/cmake_install.cmake \
+	 ./eeschema/plugins/Makefile \
+	 ./eeschema/plugins/cmake_install.cmake \
+	 ./gerbview/Makefile \
+	 ./gerbview/cmake_install.cmake \
+	 ./kicad/Makefile \
+	 ./kicad/cmake_install.cmake \
+	 ./library/CMakeCache.txt \
+	 ./library/Makefile \
+	 ./library/cmake_install.cmake \
+	 ./library/library/Makefile \
+	 ./library/library/cmake_install.cmake \
+	 ./library/modules/Makefile \
+	 ./library/modules/cmake_install.cmake \
+	 ./pcb_calculator/Makefile \
+	 ./pcb_calculator/cmake_install.cmake \
+	 ./pcbnew/Makefile \
+	 ./pcbnew/cmake_install.cmake \
+	 ./polygon/Makefile \
+	 ./polygon/cmake_install.cmake \
+	 ./polygon/kbool/src/Makefile \
+	 ./polygon/kbool/src/cmake_install.cmake \
+	 ./potrace/Makefile \
+	 ./potrace/cmake_install.cmake \
+	 ./template/Makefile \
+	 ./template/cmake_install.cmake \
+	./Testing/Temporary/CTestCostData.txt \
+	./Testing/Temporary/LastTest.log \
+	./install_manifest.txt

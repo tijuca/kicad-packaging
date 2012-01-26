@@ -1,13 +1,10 @@
-To package the upstream source the 3 svn repos are extracted to the same folder:
+To package the upstream source the 3 bzr repositories are extracted 
+to the same folder:
 <packaging folder>/
-	 kicad/
-	 kicad-doc/
-	 kicad-library/
+<packaging folder>/doc
+<packaging folder>/library
 
-Then, because we aren't building and it has a different license, we remove the
-kicad/kicad/minizip/ folder.
-We also remove some outdated docs, stuff that we don't ship because it's not up
-to date. As soon as it gets updated it will get restored.
 
-See packagesrc.sh, the script used to build the source package.
+See get-kicad.sh, the script used to build the source package.
 
+ -- Georges Khaznadar <georgesk@ofset.org>, Thu, 26 Jan 2012 08:38:35 +0100

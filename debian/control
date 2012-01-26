@@ -72,6 +72,12 @@ Depends: ${misc:Depends}
 Description: Kicad help files (French)
  This package provides documentation for Kicad in French.
 
+Package: kicad-doc-it
+Architecture: all
+Depends: ${misc:Depends}
+Description: Kicad help files (Italian)
+ This package provides documentation for Kicad in Italian.
+
 Package: kicad-doc-hu
 Architecture: all
 Depends: ${misc:Depends}
@@ -80,6 +86,12 @@ Description: Kicad help files (Hungarian)
  .
  This package does not provide a Hungarian translation of the manual, only the
  tutorial. Manual available in the French & English packages only.
+
+Package: kicad-doc-pl
+Architecture: all
+Depends: ${misc:Depends}
+Description: Kicad help files (Polish)
+ This package provides documentation for Kicad in Polish.
 
 Package: kicad-doc-pt
 Architecture: all
