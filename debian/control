@@ -39,6 +39,7 @@ Package: kicad-common
 Architecture: all
 Depends: ${misc:Depends}
 Recommends: kicad
+Replaces: kicad (< 0.20120126+bzr3256-1)
 Description: Common files used by kicad
  This package contains the component libraries and language files for Kicad.
 

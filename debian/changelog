@@ -1,3 +1,12 @@
+kicad (0.20120126+bzr3256-2) unstable; urgency=low
+
+  * added the l10n files into the package kicad-common. Closes: #659091
+  * added eeschema.svg into usr/share/icons/hicolor/scalable/apps. 
+    Closes: #659317
+  * applied Vincent Danjean's tip. Closes: #657729
+
+ -- Georges Khaznadar <georgesk@ofset.org>  Fri, 10 Feb 2012 17:54:11 +0000
+
 kicad (0.20120126+bzr3256-1) unstable; urgency=low
 
   * upgraded to the latest upstream version. Closes: #656215
