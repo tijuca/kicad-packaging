@@ -1,3 +1,9 @@
+kicad (0.20120126+bzr3256-3) unstable; urgency=low
+
+  * excluded .pdf files from dh_compress. Closes: #659660
+
+ -- Georges Khaznadar <georgesk@ofset.org>  Wed, 15 Feb 2012 18:07:06 +0000
+
 kicad (0.20120126+bzr3256-2) unstable; urgency=low
 
   * added the l10n files into the package kicad-common. Closes: #659091
