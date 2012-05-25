@@ -1,3 +1,12 @@
+kicad (0.20120126+bzr3256-3.1) unstable; urgency=low
+
+  * Non-maintainer upload.
+  * gcc-4.7: Fix build failure with GCC 4.7.  Closes: #672727.
+    - include/boost/polygon/polygon_90_set_data.hpp: Include
+      "detail/polygon_sort_adaptor.hpp" for gtlsort.
+
+ -- Matej Vela <vela@debian.org>  Fri, 25 May 2012 22:25:46 +0100
+
 kicad (0.20120126+bzr3256-3) unstable; urgency=low
 
   * excluded .pdf files from dh_compress. Closes: #659660
