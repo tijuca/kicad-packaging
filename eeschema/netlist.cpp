@@ -493,6 +493,11 @@ static NETLIST_OBJECT* FindBestNetName( NETLIST_OBJECT_LIST& aLabelItemBuffer )
                     // alphabetic label name order:
                     if( candidate->m_Label.Cmp( item->m_Label ) < 0 )
                         item = candidate;
+                    else if( candidate->m_Label.Cmp( item->m_Label ) == 0 )
+                    {
+                        if( candidate->m_SheetList.PathHumanReadable().Cmp( item->m_SheetList.PathHumanReadable() ) < 0 )
+                            item = candidate;
+                    }
                 }
             }
         }

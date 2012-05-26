@@ -1684,8 +1684,6 @@ D_PAD* BOARD::GetPad( std::vector<D_PAD*>& aPadList, const wxPoint& aPosition, i
     int idxmax = aPadList.size()-1;
 
     int delta = aPadList.size();
-    if( delta & 1 && delta > 1 )
-        delta += 1;
 
     int idx = 0;        // Starting index is the beginning of list
     while( delta )

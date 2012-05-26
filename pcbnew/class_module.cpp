@@ -665,7 +665,14 @@ int MODULE::ReadDescr( LINE_READER* aReader )
             else if( strnicmp( Line, ".SolderPaste ", 13 )  == 0 )
                 m_LocalSolderPasteMargin = atoi( Line + 13 );
             else if( strnicmp( Line, ".SolderPasteRatio ", 18 ) == 0 )
+            {
                 m_LocalSolderPasteMarginRatio = atof( Line + 18 );
+                // Due to a bug in Module editor that can create a stupid value, check it:
+                if( m_LocalSolderPasteMarginRatio > 0.0 )
+                    m_LocalSolderPasteMarginRatio = 0.0;    // Full area of pad used for mask
+                if( m_LocalSolderPasteMarginRatio < -0.5 )
+                    m_LocalSolderPasteMarginRatio = -0.5;   // Null area (no mask)
+            }
             else if( strnicmp( Line, ".LocalClearance ", 16 ) == 0 )
                 m_LocalClearance = atoi( Line + 16 );
 

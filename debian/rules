@@ -9,6 +9,7 @@ override_dh_clean:
 	dh_clean
 	find . -type d -name CMakeFiles | xargs rm -rf
 	rm -f $(GENERATED_FILES)
+	debian/clean_sourceless_pdf
 
 override_dh_auto_configure:
 	cmake -DKICAD_STABLE_VERSION=ON .

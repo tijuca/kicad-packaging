@@ -1,3 +1,19 @@
+kicad (0.20120526+bzr3261-1) unstable; urgency=low
+
+  * upgraded to the last stable revision. Closes: #656215
+  * removed debian/source/include-binaries and the additional files which
+    came with it
+  * added a script debian/clean_sourceless_pdf which removes PDF files
+    in many directories when no source was found. This script outputs
+    a log file: debian/erased_pdf.log, which should be cleared when a
+    new upstream package is downloaded.
+  * modified kicad-doc-es.install since there is no source for the pdf file
+  * modified kicad-doc-pl.install since a pdf source is missing
+  * upgraded Standards-Version to 3.9.3
+  * precised a Replaces: stance (kicad (<< 0.20120126+bzr3256-1))
+
+ -- Georges Khaznadar <georgesk@ofset.org>  Sat, 26 May 2012 17:28:12 +0000
+
 kicad (0.20120126+bzr3256-3.1) unstable; urgency=low
 
   * Non-maintainer upload.
