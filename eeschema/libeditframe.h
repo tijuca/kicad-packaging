@@ -28,14 +28,14 @@
  * @brief Definition of class LIB_EDIT_FRAME
  */
 
-#ifndef __LIBEDITFRM_H__
-#define __LIBEDITFRM_H__
+#ifndef LIBEDITFRM_H_
+#define LIBEDITFRM_H_
 
-#include "wxstruct.h"
-#include "class_sch_screen.h"
+#include <sch_base_frame.h>
+#include <class_sch_screen.h>
 
-#include "lib_draw_item.h"
-#include "lib_collectors.h"
+#include <lib_draw_item.h>
+#include <lib_collectors.h>
 
 
 class SCH_EDIT_FRAME;
@@ -49,23 +49,98 @@ class DIALOG_LIB_EDIT_TEXT;
 /**
  * The component library editor main window.
  */
-class LIB_EDIT_FRAME : public EDA_DRAW_FRAME
+class LIB_EDIT_FRAME : public SCH_BASE_FRAME
 {
     LIB_COMPONENT* m_tempCopyComponent;  ///< Temporary copy of current component during edit.
     LIB_COLLECTOR m_collectedItems;      // Used for hit testing.
+    wxComboBox* m_partSelectBox;         // a Box to select a part to edit (if any)
+    wxComboBox* m_aliasSelectBox;        // a box to select the alias to edit (if any)
+
+    wxString m_configPath;
+    wxString m_lastLibImportPath;
+    wxString m_lastLibExportPath;
+
+    /** Convert of the item currently being drawn. */
+    bool m_drawSpecificConvert;
+
+    /**
+     * Specify which component parts the current draw item applies to.
+     *
+     * If true, the item being drawn or edited applies only to the selected
+     * part.  Otherwise it applies to all parts in the component.
+     */
+    bool m_drawSpecificUnit;
+
+    /**
+     * Set to true to not synchronize pins at the same position when editing
+     * components with multiple parts or multiple body styles.  Setting this
+     * to false allows editing each pin per part or body style individually.
+     * This requires the user to open each part or body style to make changes
+     * to the pin at the same location.
+     */
+    bool m_editPinsPerPartOrConvert;
+
+    /** The current draw or edit graphic item fill style. */
+    static FILL_T m_drawFillStyle;
+
+    /** Default line width for drawing or editing graphic items. */
+    static int m_drawLineWidth;
+
+    /** The current active library. NULL if no active library is selected. */
+    static CMP_LIBRARY* m_library;
+    /** The current component being edited.  NULL if no component is selected. */
+    static LIB_COMPONENT* m_component;
+
+    static LIB_ITEM* m_lastDrawItem;
+    static LIB_ITEM* m_drawItem;
+    static wxString m_aliasName;
+
+    // The unit number to edit and show
+    static int m_unit;
+
+    // Show the normal shape ( m_convert <= 1 ) or the converted shape
+    // ( m_convert > 1 )
+    static int m_convert;
+
+    // true to force DeMorgan/normal tools selection enabled.
+    // They are enabled when the loaded component has
+    // Graphic items for converted shape
+    // But under some circumstances (New component created)
+    // these tools must left enable
+    static bool m_showDeMorgan;
+
+    /// The current text size setting.
+    static int m_textSize;
+
+    /// Current text orientation setting.
+    static int m_textOrientation;
+
+    static wxSize m_clientSize;
+
+    friend class DIALOG_LIB_EDIT_TEXT;
 
     LIB_ITEM* locateItem( const wxPoint& aPosition, const KICAD_T aFilterList[] );
 
 public:
-    wxComboBox* m_SelpartBox;            // a Box to select a part to edit (if any)
-    wxComboBox* m_SelAliasBox;           // a box to select the alias to edit (if any)
-
-public:
-    LIB_EDIT_FRAME( SCH_EDIT_FRAME* aParent, const wxString& title,
-                    const wxPoint& pos, const wxSize& size,
-                    long style = KICAD_DEFAULT_DRAWFRAME_STYLE );
+    LIB_EDIT_FRAME( SCH_EDIT_FRAME* aParent, const wxString& aTitle,
+                    const wxPoint& aPosition, const wxSize& aSize,
+                    long aStyle = KICAD_DEFAULT_DRAWFRAME_STYLE );
 
     ~LIB_EDIT_FRAME();
+
+    /**
+     * Function GetLibEditFrameName (static)
+     * @return the frame name used when creating the frame
+     * used to get a reference to this frame, if exists
+     */
+    static const wxChar* GetLibEditFrameName();
+
+    /**
+     * Function GetActiveLibraryEditor (static)
+     * @return a reference to the current opened Library editor
+     * or NULL if no Library editor currently opened
+     */
+    static LIB_EDIT_FRAME* GetActiveLibraryEditor();
 
     void ReCreateMenuBar();
 
@@ -186,7 +261,26 @@ public:
      */
     void DisplayLibInfos();
 
+    /**
+     * Function RedrawComponent
+     * Redraw the current component loaded in library editor
+     * Display reference like in schematic (a reference U is shown U? or U?A)
+     * accordint to the current selected unit and De Morgan selection
+     * although it is stored without ? and part id.
+     * @param aDC = the current device context
+     * @param aOffset = a draw offset. usually à,0 to draw on the screen, but
+     * can be set to page size / 2 to draw or print in SVG format.
+     */
+    void RedrawComponent( wxDC* aDC, wxPoint aOffset );
+
+    /**
+     * Function RedrawActiveWindow
+     * Redraw the current component loaded in library editor, an axes
+     * Display reference like in schematic (a reference U is shown U? or U?A)
+     * update status bar and info shown in the bottom of the window
+     */
     void RedrawActiveWindow( wxDC* DC, bool EraseBg );
+
     void OnCloseWindow( wxCloseEvent& Event );
     void ReCreateHToolbar();
     void ReCreateVToolbar();
@@ -195,8 +289,6 @@ public:
     bool OnRightClick( const wxPoint& MousePos, wxMenu* PopMenu );
     double BestZoom();         // Returns the best zoom
     void OnLeftDClick( wxDC* DC, const wxPoint& MousePos );
-
-    SCH_SCREEN* GetScreen() { return (SCH_SCREEN*) EDA_DRAW_FRAME::GetScreen(); }
 
     void OnHotKey( wxDC* aDC, int aHotKey, const wxPoint& aPosition, EDA_ITEM* aItem = NULL );
 
@@ -347,13 +439,24 @@ private:
     void SelectActiveLibrary( CMP_LIBRARY* aLibrary = NULL );
 
     /**
-     * Function SaveActiveLibrary
+     * Function OnSaveActiveLibrary
      * it the command event handler to save the changes to the current library.
      *
      * A backup file of the current library is saved with the .bak extension before the
      * changes made to the library are saved.
      */
-    void SaveActiveLibrary( wxCommandEvent& event );
+    void OnSaveActiveLibrary( wxCommandEvent& event );
+
+    /**
+     * Function SaveActiveLibrary
+     * saves the changes to the current library.
+     *
+     * A backup file of the current library is saved with the .bak extension before the
+     * changes made to the library are saved.
+     * @param newFile Ask for a new file name to save the library.
+     * @return True if the library was successfully saved.
+     */
+    bool SaveActiveLibrary( bool newFile );
 
     /**
      * Function LoadComponentFromCurrentLib
@@ -456,7 +559,7 @@ private:
     void EditSymbolText( wxDC* DC, LIB_ITEM* DrawItem );
     LIB_ITEM* LocateItemUsingCursor( const wxPoint& aPosition,
                                      const KICAD_T aFilterList[] = LIB_COLLECTOR::AllItems );
-    void EditField( wxDC* DC, LIB_FIELD* Field );
+    void EditField( LIB_FIELD* Field );
 
 public:
     /**
@@ -492,75 +595,31 @@ public:
      */
     virtual bool HandleBlockEnd( wxDC* DC );
 
-    void PlacePin( wxDC* DC );
-    void GlobalSetPins( wxDC* DC, LIB_PIN* MasterPin, int id );
+    /**
+     * Function PlacePin
+     * Place at cursor location the pin currently moved (i.e. pin pointed by m_drawItem)
+     * (and the linked pins, if any)
+     */
+    void PlacePin();
+
+    /**
+     * Function GlobalSetPins
+     * @param aMasterPin is the "template" pin
+     * @param aId is a param to select what should be mofified:
+     * - aId = ID_POPUP_LIBEDIT_PIN_GLOBAL_CHANGE_PINNAMESIZE_ITEM:
+     *          Change pins text name size
+     * - aId = ID_POPUP_LIBEDIT_PIN_GLOBAL_CHANGE_PINNUMSIZE_ITEM:
+     *          Change pins text num size
+     * - aId = ID_POPUP_LIBEDIT_PIN_GLOBAL_CHANGE_PINSIZE_ITEM:
+     *          Change pins length.
+     *
+     * If aMasterPin is selected ( .m_flag == IS_SELECTED ),
+     * only the other selected pins are modified
+     */
+    void GlobalSetPins( LIB_PIN* aMasterPin, int aId );
 
     // Automatic placement of pins
     void RepeatPinItem( wxDC* DC, LIB_PIN* Pin );
-
-protected:
-    wxString m_ConfigPath;
-    wxString m_LastLibImportPath;
-    wxString m_LastLibExportPath;
-
-    /** Convert of the item currently being drawn. */
-    bool m_drawSpecificConvert;
-
-    /**
-     * Specify which component parts the current draw item applies to.
-     *
-     * If true, the item being drawn or edited applies only to the selected
-     * part.  Otherwise it applies to all parts in the component.
-     */
-    bool m_drawSpecificUnit;
-
-    /**
-     * Set to true to not synchronize pins at the same position when editing
-     * components with multiple parts or multiple body styles.  Setting this
-     * to false allows editing each pin per part or body style individually.
-     * This requires the user to open each part or body style to make changes
-     * to the pin at the same location.
-     */
-    bool m_editPinsPerPartOrConvert;
-
-    /** The current draw or edit graphic item fill style. */
-    static FILL_T m_drawFillStyle;
-
-    /** Default line width for drawing or editing graphic items. */
-    static int m_drawLineWidth;
-
-    /** The current active library. NULL if no active library is selected. */
-    static CMP_LIBRARY* m_library;
-    /** The current component being edited.  NULL if no component is selected. */
-    static LIB_COMPONENT* m_component;
-
-    static LIB_ITEM* m_lastDrawItem;
-    static LIB_ITEM* m_drawItem;
-    static wxString m_aliasName;
-
-    // The unit number to edit and show
-    static int m_unit;
-
-    // Show the normal shape ( m_convert <= 1 ) or the converted shape
-    // ( m_convert > 1 )
-    static int m_convert;
-
-    // true to force DeMorgan/normal tools selection enabled.
-    // They are enabled when the loaded component has
-    // Graphic items for converted shape
-    // But under some circumstances (New component created)
-    // these tools must left enable
-    static bool m_showDeMorgan;
-
-    /// The current text size setting.
-    static int m_textSize;
-
-    /// Current text orientation setting.
-    static int m_textOrientation;
-
-    static wxSize m_clientSize;
-
-    friend class DIALOG_LIB_EDIT_TEXT;
 
     /**
      * Function CreatePNGorJPEGFile
@@ -592,4 +651,4 @@ protected:
     DECLARE_EVENT_TABLE()
 };
 
-#endif  /* __LIBEDITFRM_H__ */
+#endif  // LIBEDITFRM_H_

@@ -26,24 +26,22 @@
  * @file class_gerber_draw_item.cpp
  */
 
-#include "fctsys.h"
-#include "polygons_defs.h"
-#include "gr_basic.h"
-#include "common.h"
-#include "trigo.h"
-#include "class_drawpanel.h"
-#include "drawtxt.h"
-#include "macros.h"
+#include <fctsys.h>
+#include <polygons_defs.h>
+#include <gr_basic.h>
+#include <common.h>
+#include <trigo.h>
+#include <class_drawpanel.h>
+#include <macros.h>
+#include <msgpanel.h>
 
-#include "gerbview.h"
-#include "class_board_design_settings.h"
-#include "colors_selection.h"
-#include "class_gerber_draw_item.h"
-#include "class_GERBER.h"
+#include <gerbview.h>
+#include <class_gerber_draw_item.h>
+#include <class_GERBER.h>
 
 
-GERBER_DRAW_ITEM::GERBER_DRAW_ITEM( BOARD_ITEM* aParent, GERBER_IMAGE* aGerberparams ) :
-    BOARD_ITEM( aParent, TYPE_GERBER_DRAW_ITEM )
+GERBER_DRAW_ITEM::GERBER_DRAW_ITEM( GBR_LAYOUT* aParent, GERBER_IMAGE* aGerberparams ) :
+    EDA_ITEM( (EDA_ITEM*)aParent, TYPE_GERBER_DRAW_ITEM )
 {
     m_imageParams = aGerberparams;
     m_Layer         = 0;
@@ -64,15 +62,15 @@ GERBER_DRAW_ITEM::GERBER_DRAW_ITEM( BOARD_ITEM* aParent, GERBER_IMAGE* aGerberpa
 
 // Copy constructor
 GERBER_DRAW_ITEM::GERBER_DRAW_ITEM( const GERBER_DRAW_ITEM& aSource ) :
-    BOARD_ITEM( aSource )
+    EDA_ITEM( aSource )
 {
     m_imageParams = aSource.m_imageParams;
     m_Shape = aSource.m_Shape;
 
     m_Flags     = aSource.m_Flags;
-    m_TimeStamp = aSource.m_TimeStamp;
+    SetTimeStamp( aSource.m_TimeStamp );
 
-    SetStatus( aSource.ReturnStatus() );
+    SetStatus( aSource.GetStatus() );
     m_Start         = aSource.m_Start;
     m_End           = aSource.m_End;
     m_Size          = aSource.m_Size;
@@ -115,9 +113,9 @@ wxPoint GERBER_DRAW_ITEM::GetABPosition( const wxPoint& aXYPosition ) const
         EXCHG( abPos.x, abPos.y );
 
     abPos  += m_layerOffset + m_imageParams->m_ImageOffset;
-    abPos.x = wxRound( abPos.x * m_drawScale.x );
-    abPos.y = wxRound( abPos.y * m_drawScale.y );
-    int rotation = wxRound(m_lyrRotation*10) + (m_imageParams->m_ImageRotation*10);
+    abPos.x = KiROUND( abPos.x * m_drawScale.x );
+    abPos.y = KiROUND( abPos.y * m_drawScale.y );
+    int rotation = KiROUND(m_lyrRotation*10) + (m_imageParams->m_ImageRotation*10);
 
     if( rotation )
         RotatePoint( &abPos, -rotation );
@@ -144,13 +142,13 @@ wxPoint GERBER_DRAW_ITEM::GetXYPosition( const wxPoint& aABPosition )
     if( !m_mirrorB )
         NEGATE( xyPos.y );
 
-    int rotation = wxRound(m_lyrRotation*10) + (m_imageParams->m_ImageRotation*10);
+    int rotation = KiROUND(m_lyrRotation*10) + (m_imageParams->m_ImageRotation*10);
 
     if( rotation )
         RotatePoint( &xyPos, rotation );
 
-    xyPos.x = wxRound( xyPos.x / m_drawScale.x );
-    xyPos.y = wxRound( xyPos.y / m_drawScale.y );
+    xyPos.x = KiROUND( xyPos.x / m_drawScale.x );
+    xyPos.y = KiROUND( xyPos.y / m_drawScale.y );
     xyPos  -= m_layerOffset + m_imageParams->m_ImageOffset;
 
     if( m_swapAxis )
@@ -306,39 +304,34 @@ bool GERBER_DRAW_ITEM::HasNegativeItems()
 }
 
 
-void GERBER_DRAW_ITEM::Draw( EDA_DRAW_PANEL* aPanel, wxDC* aDC, int aDrawMode,
+void GERBER_DRAW_ITEM::Draw( EDA_DRAW_PANEL* aPanel, wxDC* aDC, GR_DRAWMODE aDrawMode,
                              const wxPoint& aOffset )
 {
     // used when a D_CODE is not found. default D_CODE to draw a flashed item
     static D_CODE dummyD_CODE( 0 );
-    int           color, alt_color;
+    EDA_COLOR_T   color, alt_color;
     bool          isFilled;
     int           radius;
     int           halfPenWidth;
     static bool   show_err;
-    BOARD*        brd = GetBoard();
     D_CODE*       d_codeDescr = GetDcodeDescr();
+    GERBVIEW_FRAME* gerbFrame = (GERBVIEW_FRAME*) aPanel->GetParent();
 
     if( d_codeDescr == NULL )
         d_codeDescr = &dummyD_CODE;
 
-    if( brd->IsLayerVisible( GetLayer() ) == false )
+    if( gerbFrame->IsLayerVisible( GetLayer() ) == false )
         return;
 
-    color = brd->GetLayerColor( GetLayer() );
+    color = gerbFrame->GetLayerColor( GetLayer() );
 
     if( aDrawMode & GR_HIGHLIGHT )
-    {
-        if( aDrawMode & GR_AND )
-            color &= ~HIGHLIGHT_FLAG;
-        else
-            color |= HIGHLIGHT_FLAG;
-    }
+        ColorChangeHighlightFlag( &color, !(aDrawMode & GR_AND) );
 
     if( color & HIGHLIGHT_FLAG )
         color = ColorRefs[color & MASKCOLOR].m_LightColor;
 
-    alt_color = g_DrawBgColor;
+    alt_color = gerbFrame->GetNegativeItemsColor();
 
     /* isDark is true if flash is positive and should use a drawing
      *   color other than the background color, else use the background color
@@ -354,21 +347,21 @@ void GERBER_DRAW_ITEM::Draw( EDA_DRAW_PANEL* aPanel, wxDC* aDC, int aDrawMode,
 
     GRSetDrawMode( aDC, aDrawMode );
 
-    isFilled = DisplayOpt.DisplayPcbTrackFill ? true : false;
+    isFilled = gerbFrame->DisplayLinesSolidMode();
 
     switch( m_Shape )
     {
     case GBR_POLYGON:
-        isFilled = (g_DisplayPolygonsModeSketch == false);
+        isFilled = gerbFrame->DisplayPolygonsSolidMode();
 
         if( !isDark )
             isFilled = true;
 
-        DrawGbrPoly( &aPanel->m_ClipBox, aDC, color, aOffset, isFilled );
+        DrawGbrPoly( aPanel->GetClipBox(), aDC, color, aOffset, isFilled );
         break;
 
     case GBR_CIRCLE:
-        radius = wxRound(hypot( (double) ( m_End.x - m_Start.x ),
+        radius = KiROUND(hypot( (double) ( m_End.x - m_Start.x ),
                                 (double) ( m_End.y - m_Start.y ) ));
 
         halfPenWidth = m_Size.x >> 1;
@@ -376,14 +369,14 @@ void GERBER_DRAW_ITEM::Draw( EDA_DRAW_PANEL* aPanel, wxDC* aDC, int aDrawMode,
         if( !isFilled )
         {
             // draw the border of the pen's path using two circles, each as narrow as possible
-            GRCircle( &aPanel->m_ClipBox, aDC, GetABPosition( m_Start ),
+            GRCircle( aPanel->GetClipBox(), aDC, GetABPosition( m_Start ),
                       radius - halfPenWidth, 0, color );
-            GRCircle( &aPanel->m_ClipBox, aDC, GetABPosition( m_Start ),
+            GRCircle( aPanel->GetClipBox(), aDC, GetABPosition( m_Start ),
                       radius + halfPenWidth, 0, color );
         }
         else    // Filled mode
         {
-            GRCircle( &aPanel->m_ClipBox, aDC, GetABPosition( m_Start ),
+            GRCircle( aPanel->GetClipBox(), aDC, GetABPosition( m_Start ),
                       radius, m_Size.x, color );
         }
         break;
@@ -393,21 +386,21 @@ void GERBER_DRAW_ITEM::Draw( EDA_DRAW_PANEL* aPanel, wxDC* aDC, int aDrawMode,
         // a round pen only is expected.
 
 #if 0   // for arc debug only
-        GRLine( &aPanel->m_ClipBox, aDC, GetABPosition( m_Start ),
+        GRLine( aPanel->GetClipBox(), aDC, GetABPosition( m_Start ),
                 GetABPosition( m_ArcCentre ), 0, color );
-        GRLine( &aPanel->m_ClipBox, aDC, GetABPosition( m_End ),
+        GRLine( aPanel->GetClipBox(), aDC, GetABPosition( m_End ),
                 GetABPosition( m_ArcCentre ), 0, color );
 #endif
 
         if( !isFilled )
         {
-            GRArc1( &aPanel->m_ClipBox, aDC, GetABPosition( m_Start ),
+            GRArc1( aPanel->GetClipBox(), aDC, GetABPosition( m_Start ),
                     GetABPosition( m_End ), GetABPosition( m_ArcCentre ),
                     0, color );
         }
         else
         {
-            GRArc1( &aPanel->m_ClipBox, aDC, GetABPosition( m_Start ),
+            GRArc1( aPanel->GetClipBox(), aDC, GetABPosition( m_Start ),
                     GetABPosition( m_End ), GetABPosition( m_ArcCentre ),
                     m_Size.x, color );
         }
@@ -419,8 +412,8 @@ void GERBER_DRAW_ITEM::Draw( EDA_DRAW_PANEL* aPanel, wxDC* aDC, int aDrawMode,
     case GBR_SPOT_OVAL:
     case GBR_SPOT_POLY:
     case GBR_SPOT_MACRO:
-        isFilled = DisplayOpt.DisplayPadFill ? true : false;
-        d_codeDescr->DrawFlashedShape( this, &aPanel->m_ClipBox, aDC, color, alt_color,
+        isFilled = gerbFrame->DisplayFlashedItemsSolidMode();
+        d_codeDescr->DrawFlashedShape( this, aPanel->GetClipBox(), aDC, color, alt_color,
                                        m_Start, isFilled );
         break;
 
@@ -435,18 +428,18 @@ void GERBER_DRAW_ITEM::Draw( EDA_DRAW_PANEL* aPanel, wxDC* aDC, int aDrawMode,
             if( m_PolyCorners.size() == 0 )
                 ConvertSegmentToPolygon( );
 
-            DrawGbrPoly( &aPanel->m_ClipBox, aDC, color, aOffset, isFilled );
+            DrawGbrPoly( aPanel->GetClipBox(), aDC, color, aOffset, isFilled );
         }
         else
         {
             if( !isFilled )
             {
-                    GRCSegm( &aPanel->m_ClipBox, aDC, GetABPosition( m_Start ),
+                    GRCSegm( aPanel->GetClipBox(), aDC, GetABPosition( m_Start ),
                              GetABPosition( m_End ), m_Size.x, color );
             }
             else
             {
-                GRFilledSegment( &aPanel->m_ClipBox, aDC, GetABPosition( m_Start ),
+                GRFilledSegment( aPanel->GetClipBox(), aDC, GetABPosition( m_Start ),
                                  GetABPosition( m_End ), m_Size.x, color );
             }
         }
@@ -531,7 +524,7 @@ void GERBER_DRAW_ITEM::ConvertSegmentToPolygon( )
 
 void GERBER_DRAW_ITEM::DrawGbrPoly( EDA_RECT*      aClipBox,
                                     wxDC*          aDC,
-                                    int            aColor,
+                                    EDA_COLOR_T    aColor,
                                     const wxPoint& aOffset,
                                     bool           aFilledShape )
 {
@@ -548,42 +541,41 @@ void GERBER_DRAW_ITEM::DrawGbrPoly( EDA_RECT*      aClipBox,
 }
 
 
-void GERBER_DRAW_ITEM::DisplayInfo( EDA_DRAW_FRAME* frame )
+void GERBER_DRAW_ITEM::GetMsgPanelInfo( std::vector< MSG_PANEL_ITEM >& aList )
 {
     wxString msg;
 
-    frame->ClearMsgPanel();
     msg = ShowGBRShape();
-    frame->AppendMsgPanel( _( "Type" ), msg, DARKCYAN );
+    aList.push_back( MSG_PANEL_ITEM( _( "Type" ), msg, DARKCYAN ) );
 
     // Display D_Code value:
     msg.Printf( wxT( "%d" ), m_DCode );
-    frame->AppendMsgPanel( _( "D Code" ), msg, RED );
+    aList.push_back( MSG_PANEL_ITEM( _( "D Code" ), msg, RED ) );
 
     // Display graphic layer number
     msg.Printf( wxT( "%d" ), GetLayer() + 1 );
-    frame->AppendMsgPanel( _( "Graphic layer" ), msg, BROWN );
+    aList.push_back( MSG_PANEL_ITEM( _( "Graphic layer" ), msg, BROWN ) );
 
     // Display item rotation
     // The full rotation is Image rotation + m_lyrRotation
     // but m_lyrRotation is specific to this object
     // so we display only this parameter
     msg.Printf( wxT( "%f" ), m_lyrRotation );
-    frame->AppendMsgPanel( _( "Rotation" ), msg, BLUE );
+    aList.push_back( MSG_PANEL_ITEM( _( "Rotation" ), msg, BLUE ) );
 
     // Display item polarity (item specific)
     msg = m_LayerNegative ? _("Clear") : _("Dark");
-    frame->AppendMsgPanel( _( "Polarity" ), msg, BLUE );
+    aList.push_back( MSG_PANEL_ITEM( _( "Polarity" ), msg, BLUE ) );
 
     // Display mirroring (item specific)
     msg.Printf( wxT( "A:%s B:%s" ),
                 m_mirrorA ? _("Yes") : _("No"),
                 m_mirrorB ? _("Yes") : _("No"));
-    frame->AppendMsgPanel( _( "Mirror" ), msg, DARKRED );
+    aList.push_back( MSG_PANEL_ITEM( _( "Mirror" ), msg, DARKRED ) );
 
     // Display AB axis swap (item specific)
     msg = m_swapAxis ? wxT( "A=Y B=X" ) : wxT( "A=X B=Y" );
-    frame->AppendMsgPanel( _( "AB axis" ), msg, DARKRED );
+    aList.push_back( MSG_PANEL_ITEM( _( "AB axis" ), msg, DARKRED ) );
 }
 
 
@@ -593,25 +585,12 @@ bool GERBER_DRAW_ITEM::HitTest( const wxPoint& aRefPos )
     wxPoint ref_pos = GetXYPosition( aRefPos );
 
     // TODO: a better analyze of the shape (perhaps create a D_CODE::HitTest for flashed items)
-    int     radius = MIN( m_Size.x, m_Size.y ) >> 1;
-
-    // delta is a vector from m_Start to m_End (an origin of m_Start)
-    wxPoint delta = m_End - m_Start;
-
-    // dist is a vector from m_Start to ref_pos (an origin of m_Start)
-    wxPoint dist = ref_pos - m_Start;
+    int     radius = std::min( m_Size.x, m_Size.y ) >> 1;
 
     if( m_Flashed )
-    {
-        return (double) dist.x * dist.x + (double) dist.y * dist.y <= (double) radius * radius;
-    }
+        return HitTestPoints( m_Start, ref_pos, radius );
     else
-    {
-        if( DistanceTest( radius, delta.x, delta.y, dist.x, dist.y ) )
-            return true;
-    }
-
-    return false;
+        return TestSegmentHit( ref_pos, m_Start, m_End, radius );
 }
 
 
@@ -633,7 +612,7 @@ bool GERBER_DRAW_ITEM::HitTest( EDA_RECT& aRefArea )
 
 #if defined(DEBUG)
 
-void GERBER_DRAW_ITEM::Show( int nestLevel, std::ostream& os )
+void GERBER_DRAW_ITEM::Show( int nestLevel, std::ostream& os ) const
 {
     NestedSpace( nestLevel, os ) << '<' << GetClass().Lower().mb_str() <<
 

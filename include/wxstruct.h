@@ -28,31 +28,30 @@
  * @brief Base window classes and related definitions.
  */
 
-#ifndef  WXSTRUCT_H
-#define  WXSTRUCT_H
+#ifndef  WXSTRUCT_H_
+#define  WXSTRUCT_H_
 
 
 #include <vector>
 
 #include <wx/socket.h>
-#include "wx/log.h"
-#include "wx/config.h"
+#include <wx/log.h>
+#include <wx/config.h>
 #include <wx/wxhtml.h>
 #include <wx/laywin.h>
 #include <wx/aui/aui.h>
 #include <wx/docview.h>
 
-#include "bitmaps.h"
-#include "colors.h"
-#include "common.h"
+#include <colors.h>
+#include <common.h>
+
+#ifdef USE_WX_OVERLAY
+#include <wx/overlay.h>
+#endif
 
 // C++ guarantees that operator delete checks its argument for null-ness
 #ifndef SAFE_DELETE
 #define SAFE_DELETE( p ) delete (p); (p) = NULL;
-#endif
-
-#ifndef EESCHEMA_INTERNAL_UNIT
-#define EESCHEMA_INTERNAL_UNIT 1000
 #endif
 
 // Option for dialog boxes
@@ -71,10 +70,12 @@ class EDA_RECT;
 class EDA_DRAW_PANEL;
 class EDA_MSG_PANEL;
 class BASE_SCREEN;
-class EDA_TOOLBAR;
 class PARAM_CFG_BASE;
-class Ki_PageDescr;
+class PAGE_INFO;
 class PLOTTER;
+class TITLE_BLOCK;
+class MSG_PANEL_ITEM;
+
 
 enum id_librarytype {
     LIBRARY_TYPE_EESCHEMA,
@@ -83,26 +84,22 @@ enum id_librarytype {
     LIBRARY_TYPE_SYMBOL
 };
 
-enum id_drawframe {
-    NOT_INIT_FRAME = 0,
-    SCHEMATIC_FRAME,
-    LIBEDITOR_FRAME,
-    VIEWER_FRAME,
-    PCB_FRAME,
-    MODULE_EDITOR_FRAME,
-    CVPCB_FRAME,
-    CVPCB_DISPLAY_FRAME,
-    GERBER_FRAME,
-    TEXT_EDITOR_FRAME,
-    DISPLAY3D_FRAME,
-    KICAD_MAIN_FRAME
-};
-
-enum id_toolbar {
-    TOOLBAR_MAIN = 1,       // Main horizontal Toolbar
-    TOOLBAR_TOOL,           // Right vertical Toolbar (list of tools)
-    TOOLBAR_OPTION,         // Left vertical Toolbar (option toolbar
-    TOOLBAR_AUX             // Secondary horizontal Toolbar
+enum ID_DRAWFRAME_TYPE
+{
+    NOT_INIT_FRAME_TYPE = 0,
+    SCHEMATIC_FRAME_TYPE,
+    LIBEDITOR_FRAME_TYPE,
+    VIEWER_FRAME_TYPE,
+    PCB_FRAME_TYPE,
+    MODULE_EDITOR_FRAME_TYPE,
+    MODULE_VIEWER_FRAME_TYPE,
+    FOOTPRINT_WIZARD_FRAME_TYPE,
+    CVPCB_FRAME_TYPE,
+    CVPCB_DISPLAY_FRAME_TYPE,
+    GERBER_FRAME_TYPE,
+    TEXT_EDITOR_FRAME_TYPE,
+    DISPLAY3D_FRAME_TYPE,
+    KICAD_MAIN_FRAME_TYPE
 };
 
 
@@ -118,12 +115,11 @@ extern const wxChar* traceAutoSave;
 class EDA_BASE_FRAME : public wxFrame
 {
 protected:
-    int          m_Ident;        // Id Type (pcb, schematic, library..)
+    ID_DRAWFRAME_TYPE m_Ident;  // Id Type (pcb, schematic, library..)
     wxPoint      m_FramePos;
     wxSize       m_FrameSize;
-    int          m_MsgFrameHeight;
 
-    EDA_TOOLBAR* m_HToolBar;     // Standard horizontal Toolbar
+    wxAuiToolBar* m_mainToolBar; // Standard horizontal Toolbar
     bool         m_FrameIsActive;
     wxString     m_FrameName;    // name used for writing and reading setup
                                  // It is "SchematicFrame", "PcbFrame" ....
@@ -165,9 +161,11 @@ protected:
     virtual bool doAutoSave();
 
 public:
-    EDA_BASE_FRAME( wxWindow* father, int idtype, const wxString& title,
-                    const wxPoint& pos, const wxSize& size,
-                    long style = KICAD_DEFAULT_DRAWFRAME_STYLE );
+    EDA_BASE_FRAME( wxWindow* aParent, ID_DRAWFRAME_TYPE aFrameType,
+                    const wxString& aTitle,
+                    const wxPoint& aPos, const wxSize& aSize,
+                    long aStyle,
+                    const wxString & aFrameName );
 
     ~EDA_BASE_FRAME();
 
@@ -188,7 +186,7 @@ public:
 
     bool IsActive() const { return m_FrameIsActive; }
 
-    bool IsType( int aType ) const { return m_Ident == aType; }
+    bool IsType( ID_DRAWFRAME_TYPE aType ) const { return m_Ident == aType; }
 
     void GetKicadHelp( wxCommandEvent& event );
 
@@ -313,11 +311,6 @@ public:
      */
     void UpdateFileHistory( const wxString& FullFileName, wxFileHistory * aFileHistory = NULL );
 
-    /*
-     * Display a bargraph (0 to 50 point length) for a PerCent value from 0 to 100
-     */
-    void DisplayActivity( int PerCent, const wxString& Text );
-
     /**
      * Function ReCreateMenuBar
      * Creates recreates the menu bar.
@@ -361,6 +354,19 @@ public:
      *                             used to create the backup file name.
      */
     void CheckForAutoSaveFile( const wxFileName& aFileName, const wxString& aBackupFileExtension );
+
+    /**
+     * Function SetModalMode
+     * Disable or enable all other windows, to emulate a dialog behavior
+     * Useful when the frame is used to show and selec items
+     * (see FOOTPRINT_VIEWER_FRAME and LIB_VIEW_FRAME)
+     *
+     * @param aModal = true to disable all other opened windows (i.e.
+     * this windows is in dialog mode
+     *               = false to enable other windows
+     * This function is analog to MakeModal( aModal ), deprecated since wxWidgets 2.9.4
+     */
+    void SetModalMode( bool aModal );
 };
 
 
@@ -371,60 +377,72 @@ public:
  */
 class EDA_DRAW_FRAME : public EDA_BASE_FRAME
 {
-    int               m_toolId;             ///< Id of active button on the vertical toolbar.
+    /// Let the #EDA_DRAW_PANEL object have access to the protected data since
+    /// it is closely tied to the #EDA_DRAW_FRAME.
+    friend class EDA_DRAW_PANEL;
 
-public:
-    EDA_DRAW_PANEL*   DrawPanel;            // Draw area
-    EDA_MSG_PANEL*    MsgPanel;             // Panel used to display some
-                                            //  info (bottom of the screen)
-    EDA_TOOLBAR*      m_VToolBar;           // Vertical (right side) Toolbar
-    EDA_TOOLBAR*      m_AuxVToolBar;        // Auxiliary Vertical (right side)
-                                            // Toolbar
-    EDA_TOOLBAR*      m_OptionsToolBar;     // Options Toolbar (left side)
-    EDA_TOOLBAR*      m_AuxiliaryToolBar;   // Auxiliary Toolbar used in Pcbnew
+    ///< Id of active button on the vertical toolbar.
+    int m_toolId;
 
-    wxComboBox*       m_SelGridBox;         // Choice box to choose the grid size
-    wxComboBox*       m_SelZoomBox;         // Choice box to choose the zoom value
-
-    int          m_CursorShape;             // shape for cursor (0 = default
-                                            // cursor)
-    int          m_ID_last_state;           // Id of previous active button
-                                            // on the vertical toolbar
-    int          m_HTOOL_current_state;     // Id of active button on
-                                            // horizontal toolbar
-
-    int          m_InternalUnits;           // Internal units count in 1 inch
-                                            // = 1000 for Eeschema, = 10000
-                                            // for Pcbnew and GerbView
-
-    bool         m_Draw_Axis;               // true to show X and Y axis
-    bool         m_Draw_Grid_Axis;          // true to show grid axis.
-    bool         m_Draw_Sheet_Ref;          // true to show frame references
-
-    bool         m_Print_Sheet_Ref;         // true to print frame references
-    bool         m_Draw_Auxiliary_Axis;     /* true to show auxiliary axis.
-                                             * Used in Pcbnew: the auxiliary
-                                             * axis is the origin of
-                                             * coordinates for drill, gerber
-                                             * and component position files
-                                             */
-    wxPoint      m_Auxiliary_Axis_Position; // position of the auxiliary axis
-
-protected:
-    EDA_HOTKEY_CONFIG* m_HotkeysZoomAndGridList;
-    int          m_LastGridSizeId;
-    bool         m_DrawGrid;                // hide/Show grid
-    int          m_GridColor;               // Grid color
-
-private:
     BASE_SCREEN* m_currentScreen;           ///< current used SCREEN
     bool         m_snapToGrid;              ///< Indicates if cursor should be snapped to grid.
 
 protected:
-    void SetScreen( BASE_SCREEN* aScreen )
-    {
-        m_currentScreen = aScreen;
-    }
+    EDA_HOTKEY_CONFIG* m_HotkeysZoomAndGridList;
+    int         m_LastGridSizeId;
+    bool        m_DrawGrid;                 // hide/Show grid
+    EDA_COLOR_T m_GridColor;                // Grid color
+
+    /// The area to draw on.
+    EDA_DRAW_PANEL* m_canvas;
+
+    /// Tool ID of previously active draw tool bar button.
+    int m_lastDrawToolId;
+
+    /// The shape of the KiCad cursor.  The default value (0) is the normal cross
+    /// hair cursor.  Set to non-zero value to draw the full screen cursor.
+    /// @note This is not the system mouse cursor.
+    int m_cursorShape;
+
+    /// True shows the X and Y axis indicators.
+    bool m_showAxis;
+
+    /// True shows the grid axis indicators.
+    bool m_showGridAxis;
+
+    /// True shows the origin axis used to indicate the coordinate offset for
+    /// drill, gerber, and component position files.
+    bool m_showOriginAxis;
+
+    /// True shows the drawing border and title block.
+    bool m_showBorderAndTitleBlock;
+
+    /// Choice box to choose the grid size.
+    wxComboBox* m_gridSelectBox;
+
+    /// Choice box to choose the zoom value.
+    wxComboBox* m_zoomSelectBox;
+
+    /// The tool bar that contains the buttons for quick access to the application draw
+    /// tools.  It typically is located on the right side of the main window.
+    wxAuiToolBar* m_drawToolBar;
+
+    /// The options tool bar typcially located on the left edge of the main window.
+    wxAuiToolBar* m_optionsToolBar;
+
+    /// Panel used to display information at the bottom of the main window.
+    EDA_MSG_PANEL* m_messagePanel;
+
+    int            m_MsgFrameHeight;
+
+#ifdef USE_WX_OVERLAY
+    // MAC Uses overlay to workaround the wxINVERT and wxXOR miss
+    wxOverlay m_overlay;
+#endif
+
+protected:
+
+    void SetScreen( BASE_SCREEN* aScreen )  { m_currentScreen = aScreen; }
 
     /**
      * Function unitsChangeRefresh
@@ -436,23 +454,66 @@ protected:
     virtual void unitsChangeRefresh();
 
 public:
-    EDA_DRAW_FRAME( wxWindow* father, int idtype, const wxString& title,
-                    const wxPoint& pos, const wxSize& size,
-                    long style = KICAD_DEFAULT_DRAWFRAME_STYLE );
+    EDA_DRAW_FRAME( wxWindow* aParent,
+                    ID_DRAWFRAME_TYPE aFrameType,
+                    const wxString& aTitle,
+                    const wxPoint& aPos, const wxSize& aSize,
+                    long aStyle,
+                    const wxString & aFrameName );
 
     ~EDA_DRAW_FRAME();
+
+    virtual void SetPageSettings( const PAGE_INFO& aPageSettings ) = 0;
+    virtual const PAGE_INFO& GetPageSettings() const = 0;
+
+    /**
+     * Function GetPageSizeIU
+     * works off of GetPageSettings() to return the size of the paper page in
+     * the internal units of this particular view.
+     */
+    virtual const wxSize GetPageSizeIU() const = 0;
+
+    virtual const wxPoint& GetOriginAxisPosition() const = 0;
+    virtual void SetOriginAxisPosition( const wxPoint& aPosition ) = 0;
+
+    virtual const TITLE_BLOCK& GetTitleBlock() const = 0;
+    virtual void SetTitleBlock( const TITLE_BLOCK& aTitleBlock ) = 0;
+
+    int GetCursorShape() const { return m_cursorShape; }
+
+    void SetCursorShape( int aCursorShape ) { m_cursorShape = aCursorShape; }
+
+    bool GetShowBorderAndTitleBlock() const { return m_showBorderAndTitleBlock; }
+
+    void SetShowBorderAndTitleBlock( bool aShow ) { m_showBorderAndTitleBlock = aShow; }
+
+    EDA_DRAW_PANEL* GetCanvas() { return m_canvas; }
 
     virtual wxString GetScreenDesc();
 
     /**
-     * Function GetBaseScreen
-     * is virtual and returns a pointer to a BASE_SCREEN or one of its
-     * derivatives.  It may be overloaded by derived classes.
+     * Function GetScreen
+     * returns a pointer to a BASE_SCREEN or one of its
+     * derivatives.  It is overloaded by derived classes to return
+     * SCH_SCREEN or PCB_SCREEN.
      */
-    virtual BASE_SCREEN* GetScreen() const { return m_currentScreen; }
+    virtual BASE_SCREEN* GetScreen() const  { return m_currentScreen; }
 
     void OnMenuOpen( wxMenuEvent& event );
     void  OnMouseEvent( wxMouseEvent& event );
+
+    /** function SkipNextLeftButtonReleaseEvent
+     * after calling this function, if the left mouse button
+     * is down, the next left mouse button release event will be ignored.
+     * It is is usefull for instance when closing a dialog on a mouse click,
+     * to skip the next mouse left button release event
+     * by the parent window, because the mouse button
+     * clicked on the dialog is often released in the parent frame,
+     * and therefore creates a left button released mouse event
+     * which can be unwanted in some cases
+     */
+    void SkipNextLeftButtonReleaseEvent();
+
     virtual void OnHotKey( wxDC* aDC, int aHotKey, const wxPoint& aPosition,
                            EDA_ITEM* aItem = NULL );
 
@@ -503,7 +564,7 @@ public:
      * Function IsGridVisible() , virtual
      * @return true if the grid must be shown
      */
-    virtual bool IsGridVisible()
+    virtual bool IsGridVisible() const
     {
         return m_DrawGrid;
     }
@@ -522,7 +583,7 @@ public:
      * Function GetGridColor() , virtual
      * @return the color of the grid
      */
-    virtual int GetGridColor()
+    virtual EDA_COLOR_T GetGridColor() const
     {
         return m_GridColor;
     }
@@ -531,7 +592,7 @@ public:
      * Function SetGridColor() , virtual
      * @param aColor = the new color of the grid
      */
-    virtual void SetGridColor( int aColor )
+    virtual void SetGridColor( EDA_COLOR_T aColor )
     {
         m_GridColor = aColor;
     }
@@ -544,7 +605,7 @@ public:
      * @param aPosition The position to test.
      * @return The wxPoint of the appropriate cursor position.
      */
-    wxPoint GetGridPosition( const wxPoint& aPosition );
+    wxPoint GetGridPosition( const wxPoint& aPosition ) const;
 
     /**
      * Command event handler for selecting grid sizes.
@@ -613,32 +674,65 @@ public:
      */
     void RedrawScreen( const wxPoint& aCenterPoint, bool aWarpPointer );
 
+    /**
+     * Function RedrawScreen2
+     * puts the crosshair back to the screen position it had before zooming
+     * @param posBefore screen position of the crosshair before zooming
+     */
+    void RedrawScreen2( const wxPoint& posBefore );
+
+    /**
+     * Function Zoom_Automatique
+     * redraws the screen with best zoom level and the best centering
+     * that shows all the page or the board
+     */
     void Zoom_Automatique( bool aWarpPointer );
 
     /* Set the zoom level to show the area Rect */
     void Window_Zoom( EDA_RECT& Rect );
 
-    /* Return the zoom level which displays the full page on screen */
+    /** Return the zoom level which displays the full page on screen */
     virtual double BestZoom() = 0;
 
     /**
      * Function GetZoom
      * @return The current zoom level.
      */
-    double GetZoom( void );
+    double GetZoom();
 
-    void TraceWorkSheet( wxDC* DC, BASE_SCREEN* screen, int line_width );
-    void  PlotWorkSheet( PLOTTER *plotter, BASE_SCREEN* screen );
+    void TraceWorkSheet( wxDC* aDC, BASE_SCREEN* aScreen, int aLineWidth,
+                         double aScale, const wxString &aFilename );
+
+    /**
+     * Function TraceWorkSheet is a core function for drawing of the page layout with
+     * the frame and the basic inscriptions.
+     * @param aDC The device context.
+     * @param aSz The size of the page layout.
+     * @param aLT The left top margin of the page layout.
+     * @param aRB The right bottom margin of the page layout.
+     * @param aType The paper size type (for basic inscriptions).
+     * @param aFlNm The file name (for basic inscriptions).
+     * @param aTb The block of titles (for basic inscriptions).
+     * @param aNScr The number of screens (for basic inscriptions).
+     * @param aScr The screen number (for basic inscriptions).
+     * @param aLnW The line width for drawing.
+     * @param aScalar Scalar to convert from mils to internal units.
+     * @param aClr1 The color for drawing.
+     * @param aClr2 The colr for inscriptions.
+     */
+    void TraceWorkSheet( wxDC* aDC, wxSize& aSz, wxPoint& aLT, wxPoint& aRB,
+                         wxString& aType, wxString& aFlNm, TITLE_BLOCK& aTb,
+                         int aNScr, int aScr, int aLnW, double aScalar,
+                         EDA_COLOR_T aClr1 = RED, EDA_COLOR_T aClr2 = RED );
 
     /**
      * Function GetXYSheetReferences
-     * Return the X,Y sheet references where the point position is located
-     * @param aScreen = screen to use
+     * returns the X,Y sheet references where the point position is located
      * @param aPosition = position to identify by YX ref
      * @return a wxString containing the message locator like A3 or B6
      *         (or ?? if out of page limits)
      */
-    wxString GetXYSheetReferences( BASE_SCREEN* aScreen, const wxPoint& aPosition );
+    const wxString GetXYSheetReferences( const wxPoint& aPosition ) const;
 
     void DisplayToolMsg( const wxString& msg );
     virtual void RedrawActiveWindow( wxDC* DC, bool EraseBg ) = 0;
@@ -679,13 +773,20 @@ public:
 
     /* Handlers for block commands */
     virtual void InitBlockPasteInfos();
-    virtual bool HandleBlockBegin( wxDC* DC, int cmd_type,const wxPoint& startpos );
+
+    /**
+     * Function HandleBlockBegin
+     * initializes the block command including the command type, initial position,
+     * and other variables.
+     */
+    virtual bool HandleBlockBegin( wxDC* aDC, int aKey, const wxPoint& aPosition );
 
     /**
      * Function ReturnBlockCommand
-     * Returns the block command internat code (BLOCK_MOVE, BLOCK_COPY...)
-     * corresponding to the keys pressed (ALT, SHIFT, SHIFT ALT ..) when
-     * block command is started by dragging the mouse.
+     * Returns the block command code (BLOCK_MOVE, BLOCK_COPY...) corresponding to the
+     * keys pressed (ALT, SHIFT, SHIFT ALT ..) when block command is started by dragging
+     * the mouse.
+     *
      * @param aKey = the key modifiers (Alt, Shift ...)
      * @return the block command id (BLOCK_MOVE, BLOCK_COPY...)
      */
@@ -753,12 +854,22 @@ public:
      * @param pad - Number of spaces to pad between messages (default = 4).
      */
     void AppendMsgPanel( const wxString& textUpper, const wxString& textLower,
-                         int color, int pad = 6 );
+                         EDA_COLOR_T color, int pad = 6 );
 
     /**
      * Clear all messages from the message panel.
      */
     void ClearMsgPanel( void );
+
+    /**
+     * Function SetMsgPanel
+     * clears the message panel and populates it with the contents of \a aList.
+     *
+     * @param aList is the list of #MSG_PANEL_ITEM objects to fill the message panel.
+     */
+    void SetMsgPanel( const std::vector< MSG_PANEL_ITEM >& aList );
+
+    void SetMsgPanel( EDA_ITEM* aItem );
 
     /**
      * Function PrintPage
@@ -773,309 +884,28 @@ public:
 
     /**
      * Function CoordinateToString
-     * is a helper to convert the integer coordinate \a aValue to a string in inches or mm
+     * is a helper to convert the \a integer coordinate \a aValue to a string in inches or mm
      * according to the current user units setting.
      * @param aValue The coordinate to convert.
      * @param aConvertToMils Convert inch values to mils if true.  This setting has no effect if
      *                       the current user unit is millimeters.
      * @return The converted string for display in user interface elements.
      */
-    wxString CoordinateToString( int aValue, bool aConvertToMils = false );
+    wxString CoordinateToString( int aValue, bool aConvertToMils = false ) const;
+
+    /**
+     * Function LengthDoubleToString
+     * is a helper to convert the \a double value \a aValue to a string in inches or mm
+     * according to the current user units setting.
+     * @param aValue The coordinate to convert.
+     * @param aConvertToMils Convert inch values to mils if true.  This setting has no effect if
+     *                       the current user unit is millimeters.
+     * @return The converted string for display in user interface elements.
+     */
+    wxString LengthDoubleToString( double aValue, bool aConvertToMils = false ) const;
 
     DECLARE_EVENT_TABLE()
 };
-
-
-/**
- * Struct EDA_MSG_ITEM
- * is used privately by EDA_MSG_PANEL as the item type for displaying messages.
- */
-struct EDA_MSG_ITEM
-{
-    int      m_X;
-    int      m_UpperY;
-    int      m_LowerY;
-    wxString m_UpperText;
-    wxString m_LowerText;
-    int      m_Color;
-
-    /**
-     * Function operator=
-     * overload the assignment operator so that the wxStrings get copied
-     * properly when copying a EDA_MSG_ITEM.
-     * No, actually I'm not sure this needed, C++ compiler may auto-generate it.
-     */
-    EDA_MSG_ITEM& operator=( const EDA_MSG_ITEM& rv )
-    {
-        m_X         = rv.m_X;
-        m_UpperY    = rv.m_UpperY;
-        m_LowerY    = rv.m_LowerY;
-        m_UpperText = rv.m_UpperText;   // overloaded operator=()
-        m_LowerText = rv.m_LowerText;   // overloaded operator=()
-        m_Color     = rv.m_Color;
-
-        return * this;
-    }
-};
-
-
-/**
- * class EDA_MSG_PANEL
- * is a panel to display various information messages.
- */
-class EDA_MSG_PANEL : public wxPanel
-{
-protected:
-    std::vector<EDA_MSG_ITEM> m_Items;
-    int                       m_last_x;      ///< the last used x coordinate
-    wxSize                    m_fontSize;
-
-    void showItem( wxDC& dc, const EDA_MSG_ITEM& aItem );
-
-    void erase( wxDC* DC );
-
-    /**
-     * Function getFontSize
-     * computes the height and width of a 'W' in the system font.
-     */
-    static wxSize computeFontSize();
-
-    /**
-     * Calculate the width and height of a text string using the system UI font.
-     */
-    wxSize computeTextSize( const wxString& text );
-
-public:
-    EDA_DRAW_FRAME* m_Parent;
-    int m_BgColor;
-
-public:
-    EDA_MSG_PANEL( EDA_DRAW_FRAME* parent, int id, const wxPoint& pos, const wxSize& size );
-    ~EDA_MSG_PANEL();
-
-    /**
-     * Function GetRequiredHeight
-     * returns the required height (in pixels) of a EDA_MSG_PANEL.  This takes
-     * into consideration the system gui font, wxSYS_DEFAULT_GUI_FONT.
-     */
-    static int GetRequiredHeight();
-
-    void OnPaint( wxPaintEvent& event );
-    void EraseMsgBox();
-
-    /**
-     * Function SetMessage
-     * sets a message at \a aXPosition to \a aUpperText and \a aLowerText in the message panel.
-     *
-     * @param aXPosition The horizontal position to display the message or less than zero
-     *                   to set the message using the last message position.
-     * @param aUpperText The text to be displayed in top line.
-     * @param aLowerText The text to be displayed in bottom line.
-     * @param aColor Color of the text to display.
-     */
-    void SetMessage( int aXPosition, const wxString& aUpperText,
-                     const wxString& aLowerText, int aColor );
-
-    /**
-     * Append a message to the message panel.
-     *
-     * This method automatically adjusts for the width of the text string.
-     * Making consecutive calls to AppendMessage will append each message
-     * to the right of the last message.  This message is not compatible
-     * with Affiche_1_Parametre.
-     *
-     * @param textUpper - The message upper text.
-     * @param textLower - The message lower text.
-     * @param color - A color ID from the KiCad color list (see colors.h).
-     * @param pad - Number of spaces to pad between messages (default = 4).
-     */
-    void AppendMessage( const wxString& textUpper, const wxString& textLower,
-                        int color, int pad = 6 );
-
-    DECLARE_EVENT_TABLE()
-};
-
-
-/**
- * Class EDA_TOOLBAR
- * is the base class for deriving KiCad tool bars.
- */
-class EDA_TOOLBAR : public wxAuiToolBar
-{
-public:
-    wxWindow*       m_Parent;
-    id_toolbar      m_Ident;
-    bool            m_Horizontal;       // some auxiliary TB are horizontal, others vertical
-
-public:
-    EDA_TOOLBAR( id_toolbar type, wxWindow* parent, wxWindowID id, bool horizontal );
-
-    bool GetToolState( int toolId ) { return GetToolToggled(toolId); };
-
-    void AddRadioTool( int             toolid,
-                       const wxString& label,
-                       const wxBitmap& bitmap,
-                       const wxBitmap& bmpDisabled = wxNullBitmap,
-                       const wxString& shortHelp = wxEmptyString,
-                       const wxString& longHelp = wxEmptyString,
-                       wxObject*       data = NULL )
-    {
-       AddTool( toolid, label, bitmap, bmpDisabled, wxITEM_CHECK,
-                shortHelp, longHelp, data );
-    };
-
-    void SetToolNormalBitmap( int id, const wxBitmap& bitmap ) {};
-    void SetRows( int nRows ) {};
-
-    /**
-     * Function GetDimension
-     * @return the dimension of this toolbar (Height if horizontal, Width if vertical.
-     */
-    int GetDimension();
-};
-
-
-/**
- * Function AddMenuItem
- * is an inline helper function to create and insert a menu item with an image
- * into \a aMenu
- *
- * @param aMenu is the menu to add the new item.
- * @param aId is the command ID for the new menu item.
- * @param aText is the string for the new menu item.
- * @param aImage is the image to add to the new menu item.
- */
-static inline void AddMenuItem( wxMenu*         aMenu,
-                                int             aId,
-                                const wxString& aText,
-                                const wxBitmap& aImage )
-{
-    wxMenuItem* item;
-
-    item = new wxMenuItem( aMenu, aId, aText );
-
-#if defined( USE_IMAGES_IN_MENUS )
-    item->SetBitmap( aImage );
-#endif
-
-    aMenu->Append( item );
-}
-
-
-/**
- * Function AddMenuItem
- * is an inline helper function to create and insert a menu item with an image
- * and a help message string into \a aMenu
- *
- * @param aMenu is the menu to add the new item.
- * @param aId is the command ID for the new menu item.
- * @param aText is the string for the new menu item.
- * @param aHelpText is the help message string for the new menu item.
- * @param aImage is the image to add to the new menu item.
- */
-static inline void AddMenuItem( wxMenu*         aMenu,
-                                int             aId,
-                                const wxString& aText,
-                                const wxString& aHelpText,
-                                const wxBitmap& aImage )
-{
-    wxMenuItem* item;
-
-    item = new wxMenuItem( aMenu, aId, aText, aHelpText );
-
-#if defined( USE_IMAGES_IN_MENUS )
-    item->SetBitmap( aImage );
-#endif
-
-    aMenu->Append( item );
-}
-
-
-/**
- * Function AddMenuItem
- * is an inline helper function to create and insert a menu item with an image
- * into \a aSubMenu in \a aMenu
- *
- * @param aMenu is the menu to add the new submenu item.
- * @param aSubMenu is the submenu to add the new menu.
- * @param aId is the command ID for the new menu item.
- * @param aText is the string for the new menu item.
- * @param aImage is the image to add to the new menu item.
- */
-static inline void AddMenuItem( wxMenu*         aMenu,
-                                wxMenu*         aSubMenu,
-                                int             aId,
-                                const wxString& aText,
-                                const wxBitmap& aImage )
-{
-    wxMenuItem* item;
-
-    item = new wxMenuItem( aMenu, aId, aText );
-    item->SetSubMenu( aSubMenu );
-
-#if defined( USE_IMAGES_IN_MENUS )
-    item->SetBitmap( aImage );
-#endif
-
-    aMenu->Append( item );
-};
-
-
-/**
- * Function AddMenuItem
- * is an inline helper function to create and insert a menu item with an image
- * and a help message string into \a aSubMenu in \a aMenu
- *
- * @param aMenu is the menu to add the new submenu item.
- * @param aSubMenu is the submenu to add the new menu.
- * @param aId is the command ID for the new menu item.
- * @param aText is the string for the new menu item.
- * @param aHelpText is the help message string for the new menu item.
- * @param aImage is the image to add to the new menu item.
- */
-static inline void AddMenuItem( wxMenu*         aMenu,
-                                wxMenu*         aSubMenu,
-                                int             aId,
-                                const wxString& aText,
-                                const wxString& aHelpText,
-                                const wxBitmap& aImage )
-{
-    wxMenuItem* item;
-
-    item = new wxMenuItem( aMenu, aId, aText, aHelpText );
-    item->SetSubMenu( aSubMenu );
-
-#if defined( USE_IMAGES_IN_MENUS )
-    item->SetBitmap( aImage );
-#endif
-
-    aMenu->Append( item );
-};
-
-
-/**
- * Definition SETBITMAPS
- * is a macro use to add a bitmaps to check menu item.
- * @note Do not use with normal menu items or any platform other than Windows.
- * @param aImage is the image to add the menu item.
- */
-#if defined( USE_IMAGES_IN_MENUS ) && defined(  __WINDOWS__ )
-#  define SETBITMAPS( aImage ) item->SetBitmaps( KiBitmap( apply_xpm ), KiBitmap( aImage ) )
-#else
-#  define SETBITMAPS( aImage )
-#endif
-
-/**
- * Definition SETBITMAP
- * is a macro use to add a bitmap to a menu items.
- * @note Do not use with checked menu items.
- * @param aImage is the image to add the menu item.
- */
-#if !defined( USE_IMAGES_IN_MENUS )
-#  define SET_BITMAP( aImage )
-#else
-#  define SET_BITMAP( aImage ) item->SetBitmap( aImage )
-#endif
 
 
 /**
@@ -1182,6 +1012,19 @@ public:
         return *this;
     }
 
+    /**
+     * Function ScriptingToolbarPane
+     * Change *this to a scripting toolbar for KiCad.
+     */
+    EDA_PANEINFO& ScriptingToolbarPane()
+    {
+        CloseButton( false );
+        Floatable( true );
+        Resizable( true );
+        return *this;
+    }
+
+
 };
 
-#endif  /* WXSTRUCT_H */
+#endif  // WXSTRUCT_H_

@@ -28,20 +28,19 @@
  * @brief BASE_SCREEN class implementation.
  */
 
-#ifndef  __CLASS_BASE_SCREEN_H__
-#define  __CLASS_BASE_SCREEN_H__
+#ifndef  CLASS_BASE_SCREEN_H_
+#define  CLASS_BASE_SCREEN_H_
 
-#include "base_struct.h"
-#include "class_undoredo_container.h"
-#include "block_commande.h"
-#include "common.h"
-
-
-// Forward declarations:
-class Ki_PageDescr;
+#include <base_struct.h>
+#include <class_undoredo_container.h>
+#include <block_commande.h>
+#include <common.h>
 
 
-/* Simple class for handling grid arrays. */
+/**
+ * Class GRID_TYPE
+ * is for grid arrays.
+ */
 class GRID_TYPE
 {
 public:
@@ -59,7 +58,6 @@ public:
         return *this;
     }
 
-
     const bool operator==( const GRID_TYPE& item ) const
     {
         return m_Size == item.m_Size && m_Id == item.m_Id;
@@ -72,21 +70,19 @@ typedef std::vector< GRID_TYPE > GRIDS;
 
 /**
  * Class BASE_SCREEN
- * handle how to draw a screen (a board, a schematic ...)
+ * handles how to draw a screen (a board, a schematic ...)
  */
 class BASE_SCREEN : public EDA_ITEM
 {
-    EDA_ITEMS m_items;          ///< The drawing items associated with this screen.
-    GRIDS     m_grids;          ///< List of valid grid sizes.
-    EDA_ITEM* m_drawList;       ///< Object list for the screen.
-    wxString  m_fileName;       ///< File used to load the screen.
-    char      m_FlagRefreshReq; ///< Indicates that the screen should be redrawn.
-    bool      m_FlagModified;   ///< Indicates current drawing has been modified.
-    bool      m_FlagSave;       ///< Indicates automatic file save.
-    EDA_ITEM* m_CurrentItem;    ///< Currently selected object
-    GRID_TYPE m_Grid;           ///< Current grid selection.
-    wxPoint   m_scrollCenter;   ///< Current scroll center point in logical units.
-    wxPoint   m_MousePosition;  ///< Mouse cursor coordinate in logical units.
+private:
+    GRIDS       m_grids;          ///< List of valid grid sizes.
+    bool        m_FlagModified;   ///< Indicates current drawing has been modified.
+    bool        m_FlagSave;       ///< Indicates automatic file save.
+    EDA_ITEM*   m_CurrentItem;    ///< Currently selected object
+    GRID_TYPE   m_Grid;           ///< Current grid selection.
+    wxPoint     m_scrollCenter;   ///< Current scroll center point in logical units.
+    wxPoint     m_MousePosition;  ///< Mouse cursor coordinate in logical units.
+
 
     /**
      * The cross hair position in logical (drawing) units.  The cross hair is not the cursor
@@ -95,19 +91,24 @@ class BASE_SCREEN : public EDA_ITEM
      */
     wxPoint m_crossHairPosition;
 
+    double     m_Zoom;          ///< Current zoom coefficient.
+
+
 public:
-    wxPoint m_DrawOrg;          /* offsets for drawing the circuit on the screen */
+    wxPoint m_DrawOrg;          ///< offsets for drawing the circuit on the screen
 
     wxPoint m_O_Curseur;        /* Relative Screen cursor coordinate (on grid)
                                  * in user units. (coordinates from last reset position)*/
 
     // Scrollbars management:
-    int     m_ScrollPixelsPerUnitX; /* Pixels per scroll unit in the horizontal direction. */
-    int     m_ScrollPixelsPerUnitY; /* Pixels per scroll unit in the vertical direction. */
+    int     m_ScrollPixelsPerUnitX; ///< Pixels per scroll unit in the horizontal direction.
+    int     m_ScrollPixelsPerUnitY; ///< Pixels per scroll unit in the vertical direction.
+
     wxSize  m_ScrollbarNumber;      /* Current virtual draw area size in scroll units.
                                      * m_ScrollbarNumber * m_ScrollPixelsPerUnit =
                                      * virtual draw area size in pixels */
-    wxPoint m_ScrollbarPos;     /* Current scroll bar position in scroll units. */
+
+    wxPoint m_ScrollbarPos;     ///< Current scroll bar position in scroll units.
 
     wxPoint m_StartVisu;        /* Coordinates in drawing units of the current
                                  * view position (upper left corner of device)
@@ -118,36 +119,23 @@ public:
                                   * > 0 except for schematics.
                                   * false: when coordinates can only be >= 0
                                   * Schematic */
-    bool m_FirstRedraw;
+    bool    m_FirstRedraw;
 
     // Undo/redo list of commands
-    UNDO_REDO_CONTAINER m_UndoList;          /* Objects list for the undo command (old data) */
-    UNDO_REDO_CONTAINER m_RedoList;          /* Objects list for the redo command (old data) */
-    unsigned            m_UndoRedoCountMax;  // undo/Redo command Max depth
+    UNDO_REDO_CONTAINER m_UndoList;         ///< Objects list for the undo command (old data)
+    UNDO_REDO_CONTAINER m_RedoList;         ///< Objects list for the redo command (old data)
+    unsigned            m_UndoRedoCountMax; ///< undo/Redo command Max depth
 
-    /* block control */
-    BLOCK_SELECTOR      m_BlockLocate;       /* Block description for block commands */
+    // block control
+    BLOCK_SELECTOR      m_BlockLocate;      ///< Block description for block commands
 
-    /* Page description */
-    Ki_PageDescr*       m_CurrentSheetDesc;
-    int             m_ScreenNumber;
-    int             m_NumberOfScreen;
+    int                 m_ScreenNumber;
+    int                 m_NumberOfScreens;
 
-    wxString        m_Title;
-    wxString        m_Date;
-    wxString        m_Revision;
-    wxString        m_Company;
-    wxString        m_Commentaire1;
-    wxString        m_Commentaire2;
-    wxString        m_Commentaire3;
-    wxString        m_Commentaire4;
+    wxPoint             m_GridOrigin;
 
-    /* Grid and zoom values. */
-    wxPoint	m_GridOrigin;
-
-    wxArrayDouble m_ZoomList;       /* Array of standard zoom (i.e. scale) coefficients. */
-    double     m_Zoom;              /* Current zoom coefficient. */
-    bool       m_IsPrinting;
+    std::vector<double> m_ZoomList;         ///< standard zoom (i.e. scale) coefficients.
+    bool                m_IsPrinting;
 
 public:
     BASE_SCREEN( KICAD_T aType = SCREEN_T );
@@ -162,33 +150,17 @@ public:
 
     EDA_ITEM* GetCurItem() const { return m_CurrentItem; }
 
-    /**
-     * Function GetDrawItems().
-     *
-     * @return - A pointer to the first item in the linked list of draw items.
-     */
-    virtual EDA_ITEM* GetDrawItems() const { return m_drawList; }
-
-    virtual void SetDrawItems( EDA_ITEM* aItem ) { m_drawList = aItem; }
-
-    void InitDatas();
-
-    void SetFileName( const wxString& aFileName ) { m_fileName = aFileName; }
-
-    wxString GetFileName() const { return m_fileName; }
-
-    void SetPageSize( wxSize& aPageSize );
-    wxSize ReturnPageSize( void );
+    void InitDataPoints( const wxSize& aPageSizeInternalUnits );
 
     /**
-     * Function GetInternalUnits
-     * @return the screen units scalar.
+     * Function MilsToIuScalar
+     * returns the scalar required to convert mils to internal units.
      *
-     * Default implementation returns scalar used for schematic screen.  The
-     * internal units used by the schematic screen is 1 mil (0.001").  Override
-     * this in derived classes that require internal units other than 1 mil.
+     * @note This is a temporary hack until the derived objects SCH_SCREEN and PCB_SCREEN
+     *       no longer need to be derived from BASE_SCREEN.  I does allow removal of the
+     *       obsolete GetInternalUnits function.
      */
-    virtual int GetInternalUnits( void );
+    virtual int MilsToIuScalar() { return 1; }
 
     /**
      * Function GetCrossHairPosition
@@ -268,13 +240,13 @@ public:
      */
     virtual PICKED_ITEMS_LIST* PopCommandFromRedoList();
 
-    int GetUndoCommandCount()
+    int GetUndoCommandCount() const
     {
         return m_UndoList.m_CommandsList.size();
     }
 
 
-    int GetRedoCommandCount()
+    int GetRedoCommandCount() const
     {
         return m_RedoList.m_CommandsList.size();
     }
@@ -284,52 +256,73 @@ public:
     void ClrModify() { m_FlagModified = false;; }
     void SetSave() { m_FlagSave = true; }
     void ClrSave() { m_FlagSave = false; }
-    int IsModify() { return m_FlagModified;  }
-    int IsSave() { return m_FlagSave;  }
+    bool IsModify() const { return m_FlagModified;  }
+    bool IsSave() const { return m_FlagSave;  }
 
 
     //----<zoom stuff>---------------------------------------------------------
 
     /**
-     * Function GetScalingFactor
-     * @return the the current scale used to draw items on screen
-     * draw coordinates are user coordinates * GetScalingFactor()
-     */
-    double GetScalingFactor() const;
-
-    /**
-     * Function SetScalingFactor
-     * @param aScale = the the current scale used to draw items on screen
-     * draw coordinates are user coordinates * GetScalingFactor()
-     */
-    void SetScalingFactor( double aScale );
-
-    /**
      * Function GetZoom
-     * @return the current zoom factor
-     * Note: the zoom factor is NOT the scaling factor
-     *       the scaling factor is m_ZoomScalar * GetZoom()
+     * returns the current "zoom factor", which is a measure of
+     * "internal units per device unit", or "world units per device unit".
+     * A device unit is typically a pixel.
      */
-    double GetZoom() const;
+    double GetZoom() const      { return m_Zoom; }
 
     /**
      * Function SetZoom
-     * adjusts the current zoom factor
-     * @param coeff - Zoom coefficient.
+     * adjusts the current zoom factor.
+     *
+     * @param iu_per_du is the number of internal units (world units) per
+     *   device units (pixels typically).
      */
-    bool SetZoom( double coeff );
-
-    /**
-     * Function SetZoomList
-     * sets the list of zoom factors.
-     * @param aZoomList An array of zoom factors in ascending order, zero terminated
-     */
-    void SetZoomList( const wxArrayDouble& aZoomList );
+    bool SetZoom( double iu_per_du );
 
     bool SetNextZoom();
     bool SetPreviousZoom();
     bool SetFirstZoom();
     bool SetLastZoom();
+
+    /**
+     * Function GetMaxAllowedZoom
+     * returns the maximum allowed zoom factor, which was established as the last entry
+     * in m_ZoomList.
+     */
+    double GetMaxAllowedZoom() const    { return m_ZoomList.size() ? *m_ZoomList.rbegin() : 1.0; }
+
+    /**
+     * Function GetMinAllowedZoom
+     * returns the minimum allowed zoom factor, which was established as the first entry
+     * in m_ZoomList.
+     */
+    double GetMinAllowedZoom() const    { return m_ZoomList.size() ? *m_ZoomList.begin() : 1.0; }
+
+    /**
+     * Function SetScalingFactor
+     * sets the scaling factor of "internal unit per device unit".
+     * If the output device is a screen, then "device units" are pixels.  The
+     * "logical unit" is wx terminology, and corresponds to KiCad's "Internal Unit (IU)".
+     * <p>
+     * This scaling factor is "internal units per device unit".  This function is
+     * the same thing currently as SetZoom(), but clamps the argument within a
+     * legal range.
+
+     * @param iu_per_du is the current scale used to draw items onto the device
+     *   context wxDC.
+     */
+    void SetScalingFactor( double iu_per_du );
+
+    /**
+     * Function GetScalingFactor
+     * returns the inverse of the current scale used to draw items on screen.
+     * <p>
+     * This function somehow got designed to be the inverse of SetScalingFactor().
+     * <p>
+     * device coordinates = user coordinates * GetScalingFactor()
+     */
+    double GetScalingFactor() const;
+
 
     //----<grid stuff>----------------------------------------------------------
 
@@ -338,23 +331,24 @@ public:
      *
      * @return int - Currently selected grid command ID.
      */
-    int GetGridId();
+    int GetGridId() const { return m_Grid.m_Id; }
 
     /**
      * Return the grid size of the currently selected grid.
      *
      * @return wxRealPoint - The currently selected grid size.
      */
-    wxRealPoint GetGridSize();
+    const wxRealPoint& GetGridSize() const { return m_Grid.m_Size; }
 
     /**
      * Return the grid object of the currently selected grid.
      *
      * @return GRID_TYPE - The currently selected grid.
      */
-    GRID_TYPE GetGrid();
+    const GRID_TYPE& GetGrid() const { return m_Grid; }
 
-    const wxPoint& GetGridOrigin();
+    const wxPoint& GetGridOrigin() const { return m_GridOrigin; }
+
     void SetGrid( const wxRealPoint& size );
 
     /**
@@ -404,7 +398,7 @@ public:
      * @return wxPoint - The reference point, either the mouse position or
      *                   the cursor position.
      */
-    wxPoint RefPos( bool useMouse )
+    wxPoint RefPos( bool useMouse ) const
     {
         return useMouse ? m_MousePosition : m_crossHairPosition;
     }
@@ -417,7 +411,7 @@ public:
      *        if \a aOnGrid is true.
      * @return The current cursor position.
      */
-    wxPoint GetCursorPosition( bool aOnGrid, wxRealPoint* aGridSize = NULL );
+    wxPoint GetCursorPosition( bool aOnGrid, wxRealPoint* aGridSize = NULL ) const;
 
     /**
      * Function GetCursorScreenPosition
@@ -434,7 +428,8 @@ public:
      *                  grid size is used.
      * @return The nearst grid position.
      */
-    wxPoint GetNearestGridPosition( const wxPoint& aPosition, wxRealPoint* aGridSize = NULL );
+    wxPoint GetNearestGridPosition( const wxPoint& aPosition,
+                                    wxRealPoint* aGridSize = NULL ) const;
 
     /**
      * Function GetClass
@@ -446,41 +441,19 @@ public:
         return wxT( "BASE_SCREEN" );
     }
 
-    /**
-     * Helpers for accessing the draw item list.
-     */
-    EDA_ITEMS::iterator Begin() { return m_items.begin(); }
-    EDA_ITEMS::iterator End() { return m_items.end(); }
-    virtual void AddItem( EDA_ITEM* aItem );
-    virtual void InsertItem(  EDA_ITEMS::iterator aIter, EDA_ITEM* aItem );
-
-    /**
-     * Function IsBlockActive
-     * returns true if a block command is in progress.
-     */
     inline bool IsBlockActive() const { return !m_BlockLocate.IsIdle(); }
 
     void ClearBlockCommand() { m_BlockLocate.Clear(); }
 
-    wxPoint GetScrollCenterPosition() const { return m_scrollCenter; }
+    const wxPoint& GetScrollCenterPosition() const { return m_scrollCenter; }
     void SetScrollCenterPosition( const wxPoint& aCenterPosition )
     {
         m_scrollCenter = aCenterPosition;
     }
 
 #if defined(DEBUG)
-
-    /**
-     * Function Show
-     * is used to output the object tree, currently for debugging only.
-     * @param nestLevel An aid to prettier tree indenting, and is the level
-     *          of nesting of this object within the overall tree.
-     * @param os The ostream& to output to.
-     */
-    void Show( int nestLevel, std::ostream& os );
-
+    void Show( int nestLevel, std::ostream& os ) const;     // overload
 #endif
 };
 
-
-#endif  /* #ifndef __CLASS_BASE_SCREEN_H__ */
+#endif  // CLASS_BASE_SCREEN_H_

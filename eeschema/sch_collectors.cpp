@@ -1,7 +1,3 @@
-/**
- * @file sch_collectors.cpp
- */
-
 /*
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
@@ -26,11 +22,17 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
  */
 
-#include "general.h"
-#include "transform.h"
-#include "sch_collectors.h"
-#include "sch_component.h"
-#include "sch_line.h"
+/**
+ * @file sch_collectors.cpp
+ */
+
+#include <macros.h>
+
+#include <general.h>
+#include <transform.h>
+#include <sch_collectors.h>
+#include <sch_component.h>
+#include <sch_line.h>
 
 
 const KICAD_T SCH_COLLECTOR::AllItems[] = {
@@ -87,6 +89,21 @@ const KICAD_T SCH_COLLECTOR::EditableItems[] = {
     EOT
 };
 
+const KICAD_T SCH_COLLECTOR::CmpFieldValueOnly[] = {
+    SCH_FIELD_LOCATE_VALUE_T,
+    EOT
+};
+
+const KICAD_T SCH_COLLECTOR::CmpFieldReferenceOnly[] = {
+    SCH_FIELD_LOCATE_REFERENCE_T,
+    EOT
+};
+
+const KICAD_T SCH_COLLECTOR::CmpFieldFootprintOnly[] = {
+    SCH_FIELD_LOCATE_FOOTPRINT_T,
+    EOT
+};
+
 
 const KICAD_T SCH_COLLECTOR::MovableItems[] = {
     SCH_MARKER_T,
@@ -113,6 +130,7 @@ const KICAD_T SCH_COLLECTOR::DraggableItems[] = {
     SCH_BUS_ENTRY_T,
     SCH_LINE_T,
     SCH_POLYLINE_T,
+    SCH_LABEL_T,
     SCH_GLOBAL_LABEL_T,
     SCH_HIERARCHICAL_LABEL_T,
     SCH_COMPONENT_T,
@@ -313,4 +331,215 @@ bool SCH_COLLECTOR::IsDraggableJunction() const
 
     return (wireEndCount >= 3) || ((wireEndCount >= 1) && (wireMidPoint == 1))
         || ((wireMidPoint >= 2) && (junctionCount == 1));
+}
+
+
+bool SCH_FIND_COLLECTOR::PassedEnd() const
+{
+    bool retv = false;
+
+    wxUint32 flags = m_findReplaceData.GetFlags();
+
+    if( GetCount() == 0 )
+        return true;
+
+    if( !(flags & FR_SEARCH_WRAP) )
+    {
+        if( flags & wxFR_DOWN )
+        {
+            if( m_foundIndex >= GetCount() )
+                retv = true;
+        }
+        else
+        {
+            if( m_foundIndex < 0 )
+                retv = true;
+        }
+    }
+
+    return retv;
+}
+
+
+#if defined(DEBUG)
+
+void SCH_FIND_COLLECTOR::dump()
+{
+    int tmp = m_foundIndex;
+
+    wxLogTrace( traceFindReplace, wxT( "%d items found to replace %s with %s." ),
+                GetCount(), GetChars( m_findReplaceData.GetFindString() ),
+                GetChars( m_findReplaceData.GetReplaceString() ) );
+
+    for( m_foundIndex = 0;  m_foundIndex < GetCount();  m_foundIndex++ )
+        wxLogTrace( traceFindReplace, wxT( "    " ) + GetText() );
+
+    m_foundIndex = tmp;
+}
+
+#endif
+
+
+void SCH_FIND_COLLECTOR::UpdateIndex()
+{
+    wxUint32 flags = m_findReplaceData.GetFlags();
+
+    if( flags & wxFR_DOWN )
+    {
+        if( m_foundIndex < GetCount() )
+            m_foundIndex += 1;
+        if( (m_foundIndex >= GetCount()) && (flags & FR_SEARCH_WRAP) )
+            m_foundIndex = 0;
+    }
+    else
+    {
+        if( m_foundIndex >= 0 )
+            m_foundIndex -= 1;
+        if( (m_foundIndex < 0) && (flags & FR_SEARCH_WRAP) )
+            m_foundIndex = GetCount() - 1;
+    }
+}
+
+
+SCH_FIND_COLLECTOR_DATA SCH_FIND_COLLECTOR::GetFindData( int aIndex )
+{
+    wxCHECK_MSG( (unsigned) aIndex < m_data.size(), SCH_FIND_COLLECTOR_DATA(),
+                 wxT( "Attempt to get find data outside of list boundary." ) );
+
+    return m_data[ aIndex ];
+}
+
+
+wxString SCH_FIND_COLLECTOR::GetText()
+{
+    wxCHECK_MSG( (GetCount() != 0) && IsValidIndex( m_foundIndex ), wxEmptyString,
+                 wxT( "Cannot get found item at invalid index." ) );
+
+    SCH_FIND_COLLECTOR_DATA data = m_data[ m_foundIndex ];
+    EDA_ITEM* foundItem = m_List[ m_foundIndex ];
+
+    wxCHECK_MSG( foundItem != NULL, wxEmptyString, wxT( "Invalid found item pointer." ) );
+
+    wxString msg;
+
+    if( data.GetParent() )
+    {
+        msg.Printf( _( "Child item %s of parent item %s found in sheet %s" ),
+                    GetChars( foundItem->GetSelectMenuText() ),
+                    GetChars( data.GetParent()->GetSelectMenuText() ),
+                    GetChars( data.GetSheetPath() ) );
+    }
+    else
+    {
+        msg.Printf( _( "Item %s found in sheet %s" ),
+                    GetChars( foundItem->GetSelectMenuText() ),
+                    GetChars( data.GetSheetPath() ) );
+    }
+
+    return msg;
+}
+
+
+EDA_ITEM* SCH_FIND_COLLECTOR::GetItem( SCH_FIND_COLLECTOR_DATA& aData )
+{
+    if( PassedEnd() )
+        return NULL;
+
+    aData = m_data[ m_foundIndex ];
+    return m_List[ m_foundIndex ];
+}
+
+
+bool SCH_FIND_COLLECTOR::ReplaceItem()
+{
+    if( PassedEnd() )
+        return false;
+
+    wxCHECK_MSG( IsValidIndex( m_foundIndex ), false,
+                 wxT( "Invalid replace list index in SCH_FIND_COLLECTOR." ) );
+
+    EDA_ITEM* item = m_List[ m_foundIndex ];
+
+    bool replaced = item->Replace( m_findReplaceData );
+
+    // If the replace was successful, remove the item from the find list to prevent
+    // iterating back over it again.
+    if( replaced )
+    {
+        Remove( m_foundIndex );
+        m_data.erase( m_data.begin() + m_foundIndex );
+    }
+
+    return replaced;
+}
+
+
+SEARCH_RESULT SCH_FIND_COLLECTOR::Inspect( EDA_ITEM* aItem, const void* aTestData )
+{
+    wxPoint position;
+
+    if( aItem->Matches( m_findReplaceData, m_sheetPath, &position ) )
+    {
+        if( aItem->Type() == LIB_PIN_T )
+        {
+            wxCHECK_MSG( aTestData && ( (EDA_ITEM*) aTestData )->Type() == SCH_COMPONENT_T,
+                         SEARCH_CONTINUE, wxT( "Cannot inspect invalid data.  Bad programmer!" ) );
+
+            // Pin positions are relative to their parent component's position and
+            // orientation in the schematic.  The pin's position must be converted
+            // schematic coordinates.
+            SCH_COMPONENT* component = (SCH_COMPONENT*) aTestData;
+            TRANSFORM transform = component->GetTransform();
+            position.y = -position.y;
+            position = transform.TransformCoordinate( position ) + component->GetPosition();
+        }
+
+        Append( aItem );
+        m_data.push_back( SCH_FIND_COLLECTOR_DATA( position, m_sheetPath->PathHumanReadable(),
+                                                   (SCH_ITEM*) aTestData ) );
+    }
+
+    return SEARCH_CONTINUE;
+}
+
+
+void SCH_FIND_COLLECTOR::Collect( SCH_FIND_REPLACE_DATA& aFindReplaceData,
+                                  SCH_SHEET_PATH* aSheetPath )
+{
+    if( !IsSearchRequired( aFindReplaceData ) && !m_List.empty() && !m_forceSearch )
+        return;
+
+    m_findReplaceData = aFindReplaceData;
+    Empty();                 // empty the collection just in case
+    m_data.clear();
+    m_foundIndex = 0;
+    m_forceSearch = false;
+
+    if( aSheetPath )
+    {
+        m_sheetPath = aSheetPath;
+        EDA_ITEM::IterateForward( aSheetPath->LastDrawList(), this, NULL, m_ScanTypes );
+    }
+    else
+    {
+        SCH_SHEET_LIST schematic;
+        m_sheetPath = schematic.GetFirst();
+
+        while( m_sheetPath != NULL )
+        {
+            EDA_ITEM::IterateForward( m_sheetPath->LastDrawList(), this, NULL, m_ScanTypes );
+            m_sheetPath = schematic.GetNext();
+        }
+    }
+
+#if defined(DEBUG)
+    dump();
+#endif
+
+    if( m_List.size() != m_data.size() )
+    {
+        wxFAIL_MSG( wxT( "List size mismatch." ) );
+        m_List.clear();
+        m_data.clear();
+    }
 }

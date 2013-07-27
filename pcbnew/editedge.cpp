@@ -1,19 +1,45 @@
-/***********************************/
-/* Edit segments and edges of PCB. */
-/***********************************/
+/*
+ * This program source code file is part of KiCad, a free EDA CAD application.
+ *
+ * Copyright (C) 2012 Jean-Pierre Charras, jean-pierre.charras@ujf-grenoble.fr
+ * Copyright (C) 2012 SoftPLC Corporation, Dick Hollenbeck <dick@softplc.com>
+ * Copyright (C) 1992-2012 KiCad Developers, see AUTHORS.txt for contributors.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation; either version 2
+ * of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, you may find one here:
+ * http://www.gnu.org/licenses/old-licenses/gpl-2.0.html
+ * or you may search the http://www.gnu.org website for the version 2 license,
+ * or you may write to the Free Software Foundation, Inc.,
+ * 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
+ */
 
-#include "fctsys.h"
-#include "class_drawpanel.h"
-#include "confirm.h"
-#include "wxPcbStruct.h"
-#include "gr_basic.h"
-#include "pcbcommon.h"
+/**
+ * @file editedge.cpp
+ * @brief Edit segments and edges of PCB.
+ */
 
-#include "pcbnew.h"
-#include "protos.h"
+#include <fctsys.h>
+#include <class_drawpanel.h>
+#include <confirm.h>
+#include <wxPcbStruct.h>
+#include <gr_basic.h>
+#include <pcbcommon.h>
 
-#include "class_board.h"
-#include "class_drawsegment.h"
+#include <pcbnew.h>
+#include <protos.h>
+
+#include <class_board.h>
+#include <class_drawsegment.h>
 
 
 static void Abort_EditEdge( EDA_DRAW_PANEL* Panel, wxDC* DC );
@@ -26,19 +52,19 @@ static wxPoint s_InitialPosition;  // Initial cursor position.
 static wxPoint s_LastPosition;     // Current cursor position.
 
 
-/* Start move of a graphic element type DRAWSEGMENT */
+// Start move of a graphic element type DRAWSEGMENT
 void PCB_EDIT_FRAME::Start_Move_DrawItem( DRAWSEGMENT* drawitem, wxDC* DC )
 {
     if( drawitem == NULL )
         return;
 
-    drawitem->Draw( DrawPanel, DC, GR_XOR );
-    drawitem->m_Flags |= IS_MOVED;
+    drawitem->Draw( m_canvas, DC, GR_XOR );
+    drawitem->SetFlags( IS_MOVED );
     s_InitialPosition = s_LastPosition = GetScreen()->GetCrossHairPosition();
-    drawitem->DisplayInfo( this );
-    DrawPanel->SetMouseCapture( Move_Segment, Abort_EditEdge );
+    SetMsgPanel( drawitem );
+    m_canvas->SetMouseCapture( Move_Segment, Abort_EditEdge );
     SetCurItem( drawitem );
-    DrawPanel->m_mouseCaptureCallback( DrawPanel, DC, wxDefaultPosition, false );
+    m_canvas->CallMouseCapture( DC, wxDefaultPosition, false );
 }
 
 
@@ -50,10 +76,10 @@ void PCB_EDIT_FRAME::Place_DrawItem( DRAWSEGMENT* drawitem, wxDC* DC )
     if( drawitem == NULL )
         return;
 
-    drawitem->m_Flags = 0;
+    drawitem->ClearFlags();
     SaveCopyInUndoList(drawitem, UR_MOVED, s_LastPosition - s_InitialPosition);
-    drawitem->Draw( DrawPanel, DC, GR_OR );
-    DrawPanel->SetMouseCapture( NULL, NULL );
+    drawitem->Draw( m_canvas, DC, GR_OR );
+    m_canvas->SetMouseCapture( NULL, NULL );
     SetCurItem( NULL );
     OnModify();
 }
@@ -64,21 +90,23 @@ void PCB_EDIT_FRAME::Place_DrawItem( DRAWSEGMENT* drawitem, wxDC* DC )
 static void Move_Segment( EDA_DRAW_PANEL* aPanel, wxDC* aDC, const wxPoint& aPosition,
                           bool aErase )
 {
-    DRAWSEGMENT* Segment = (DRAWSEGMENT*) aPanel->GetScreen()->GetCurItem();
+    DRAWSEGMENT* segment = (DRAWSEGMENT*) aPanel->GetScreen()->GetCurItem();
 
-    if( Segment == NULL )
+    if( segment == NULL )
         return;
 
     if( aErase )
-        Segment->Draw( aPanel, aDC, GR_XOR );
+        segment->Draw( aPanel, aDC, GR_XOR );
 
     wxPoint delta;
     delta = aPanel->GetScreen()->GetCrossHairPosition() - s_LastPosition;
-    Segment->m_Start += delta;
-    Segment->m_End   += delta;
+
+    segment->SetStart( segment->GetStart() + delta );
+    segment->SetEnd(   segment->GetEnd()   + delta );
+
     s_LastPosition = aPanel->GetScreen()->GetCrossHairPosition();
 
-    Segment->Draw( aPanel, aDC, GR_XOR );
+    segment->Draw( aPanel, aDC, GR_XOR );
 }
 
 
@@ -92,9 +120,9 @@ void PCB_EDIT_FRAME::Delete_Segment_Edge( DRAWSEGMENT* Segment, wxDC* DC )
 
     if( Segment->IsNew() )  // Trace in progress.
     {
-        /* Delete current segment. */
+        // Delete current segment.
         DisplayOpt.DisplayDrawItems = SKETCH;
-        Segment->Draw( DrawPanel, DC, GR_XOR );
+        Segment->Draw( m_canvas, DC, GR_XOR );
         PtStruct = Segment->Back();
         Segment ->DeleteStructure();
 
@@ -104,10 +132,10 @@ void PCB_EDIT_FRAME::Delete_Segment_Edge( DRAWSEGMENT* Segment, wxDC* DC )
         DisplayOpt.DisplayDrawItems = track_fill_copy;
         SetCurItem( NULL );
     }
-    else if( Segment->m_Flags == 0 )
+    else if( Segment->GetFlags() == 0 )
     {
-        Segment->Draw( DrawPanel, DC, GR_XOR );
-        Segment->m_Flags = 0;
+        Segment->Draw( m_canvas, DC, GR_XOR );
+        Segment->ClearFlags();
         SaveCopyInUndoList(Segment, UR_DELETED);
         Segment->UnLink();
         SetCurItem( NULL );
@@ -146,7 +174,7 @@ void PCB_EDIT_FRAME::Delete_Drawings_All_Layer( int aLayer )
             if( item->GetLayer() == aLayer )
             {
                 item->UnLink();
-                picker.m_PickedItem = item;
+                picker.SetItem( item );
                 pickList.PushItem( picker );
             }
 
@@ -183,7 +211,7 @@ static void Abort_EditEdge( EDA_DRAW_PANEL* Panel, wxDC* DC )
 
     if( Segment->IsNew() )
     {
-        Panel->m_mouseCaptureCallback( Panel, DC, wxDefaultPosition, false );
+        Panel->CallMouseCapture( DC, wxDefaultPosition, false );
         Segment ->DeleteStructure();
         Segment = NULL;
     }
@@ -191,12 +219,16 @@ static void Abort_EditEdge( EDA_DRAW_PANEL* Panel, wxDC* DC )
     {
         wxPoint pos = Panel->GetScreen()->GetCrossHairPosition();
         Panel->GetScreen()->SetCrossHairPosition( s_InitialPosition );
-        Panel->m_mouseCaptureCallback( Panel, DC, wxDefaultPosition, true );
+        Panel->CallMouseCapture( DC, wxDefaultPosition, true );
         Panel->GetScreen()->SetCrossHairPosition( pos );
-        Segment->m_Flags = 0;
+        Segment->ClearFlags();
         Segment->Draw( Panel, DC, GR_OR );
     }
 
+#ifdef USE_WX_OVERLAY
+    Panel->Refresh();
+#endif
+    
     Panel->SetMouseCapture( NULL, NULL );
     ( (PCB_EDIT_FRAME*) Panel->GetParent() )->SetCurItem( NULL );
 }
@@ -204,58 +236,60 @@ static void Abort_EditEdge( EDA_DRAW_PANEL* Panel, wxDC* DC )
 
 /* Initialize the drawing of a segment of type other than trace.
  */
-DRAWSEGMENT* PCB_EDIT_FRAME::Begin_DrawSegment( DRAWSEGMENT* Segment, int shape, wxDC* DC )
+DRAWSEGMENT* PCB_EDIT_FRAME::Begin_DrawSegment( DRAWSEGMENT* Segment, STROKE_T shape, wxDC* DC )
 {
     int          s_large;
     DRAWSEGMENT* DrawItem;
 
-    s_large = GetBoard()->GetBoardDesignSettings()->m_DrawSegmentWidth;
+    s_large = GetDesignSettings().m_DrawSegmentWidth;
 
     if( getActiveLayer() == EDGE_N )
     {
-        s_large = GetBoard()->GetBoardDesignSettings()->m_EdgeSegmentWidth;
+        s_large = GetDesignSettings().m_EdgeSegmentWidth;
     }
 
-    if( Segment == NULL )        /* Create new trace. */
+    if( Segment == NULL )        // Create new trace.
     {
         SetCurItem( Segment = new DRAWSEGMENT( GetBoard() ) );
-        Segment->m_Flags = IS_NEW;
+        Segment->SetFlags( IS_NEW );
         Segment->SetLayer( getActiveLayer() );
-        Segment->m_Width = s_large;
-        Segment->m_Shape = shape;
-        Segment->m_Angle = 900;
-        Segment->m_Start = Segment->m_End = GetScreen()->GetCrossHairPosition();
-        DrawPanel->SetMouseCapture( DrawSegment, Abort_EditEdge );
+        Segment->SetWidth( s_large );
+        Segment->SetShape( shape );
+        Segment->SetAngle( 900 );
+        Segment->SetStart( GetScreen()->GetCrossHairPosition() );
+        Segment->SetEnd( GetScreen()->GetCrossHairPosition() );
+        m_canvas->SetMouseCapture( DrawSegment, Abort_EditEdge );
     }
     else    /* The ending point ccordinate Segment->m_End was updated by he function
              * DrawSegment() called on a move mouse event
              * during the segment creation
              */
     {
-        if( Segment->m_Start != Segment->m_End )
+        if( Segment->GetStart() != Segment->GetEnd() )
         {
-            if( Segment->m_Shape == S_SEGMENT )
+            if( Segment->GetShape() == S_SEGMENT )
             {
-                SaveCopyInUndoList(Segment, UR_NEW );
+                SaveCopyInUndoList( Segment, UR_NEW );
                 GetBoard()->Add( Segment );
 
                 OnModify();
-                Segment->m_Flags = 0;
+                Segment->ClearFlags();
 
-                Segment->Draw( DrawPanel, DC, GR_OR );
+                Segment->Draw( m_canvas, DC, GR_OR );
 
                 DrawItem = Segment;
 
                 SetCurItem( Segment = new DRAWSEGMENT( GetBoard() ) );
 
-                Segment->m_Flags = IS_NEW;
+                Segment->SetFlags( IS_NEW );
                 Segment->SetLayer( DrawItem->GetLayer() );
-                Segment->m_Width = s_large;
-                Segment->m_Shape = DrawItem->m_Shape;
-                Segment->m_Type  = DrawItem->m_Type;
-                Segment->m_Angle = DrawItem->m_Angle;
-                Segment->m_Start = Segment->m_End = DrawItem->m_End;
-                DrawSegment( DrawPanel, DC, wxDefaultPosition, false );
+                Segment->SetWidth( s_large );
+                Segment->SetShape( DrawItem->GetShape() );
+                Segment->SetType( DrawItem->GetType() );
+                Segment->SetAngle( DrawItem->GetAngle() );
+                Segment->SetStart( DrawItem->GetEnd() );
+                Segment->SetEnd( DrawItem->GetEnd() );
+                DrawSegment( m_canvas, DC, wxDefaultPosition, false );
             }
             else
             {
@@ -274,22 +308,22 @@ void PCB_EDIT_FRAME::End_Edge( DRAWSEGMENT* Segment, wxDC* DC )
     if( Segment == NULL )
         return;
 
-    Segment->Draw( DrawPanel, DC, GR_OR );
+    Segment->Draw( m_canvas, DC, GR_OR );
 
-    /* Delete if segment length is zero. */
-    if( Segment->m_Start == Segment->m_End )
+    // Delete if segment length is zero.
+    if( Segment->GetStart() == Segment->GetEnd() )
     {
-        Segment ->DeleteStructure();
+        Segment->DeleteStructure();
     }
     else
     {
-        Segment->m_Flags = 0;
+        Segment->ClearFlags();
         GetBoard()->Add( Segment );
         OnModify();
         SaveCopyInUndoList( Segment, UR_NEW );
     }
 
-    DrawPanel->SetMouseCapture( NULL, NULL );
+    m_canvas->SetMouseCapture( NULL, NULL );
     SetCurItem( NULL );
 }
 
@@ -309,15 +343,18 @@ static void DrawSegment( EDA_DRAW_PANEL* aPanel, wxDC* aDC, const wxPoint& aPosi
     if( aErase )
         Segment->Draw( aPanel, aDC, GR_XOR );
 
-    if( Segments_45_Only && ( Segment->m_Shape == S_SEGMENT ) )
+    if( Segments_45_Only && Segment->GetShape() == S_SEGMENT )
     {
+        wxPoint pt;
+
         CalculateSegmentEndPoint( aPanel->GetScreen()->GetCrossHairPosition(),
-                                  Segment->m_Start.x, Segment->m_Start.y,
-                                  &Segment->m_End.x, &Segment->m_End.y );
+                                  Segment->GetStart().x, Segment->GetStart().y,
+                                  &pt.x, &pt.y );
+        Segment->SetEnd( pt );
     }
-    else    /* here the angle is arbitrary */
+    else    // here the angle is arbitrary
     {
-        Segment->m_End = aPanel->GetScreen()->GetCrossHairPosition();
+        Segment->SetEnd( aPanel->GetScreen()->GetCrossHairPosition() );
     }
 
     Segment->Draw( aPanel, aDC, GR_XOR );

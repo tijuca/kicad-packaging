@@ -2,21 +2,46 @@
  * @file xchgmod.cpp
  */
 
-#include "fctsys.h"
-#include "class_drawpanel.h"
-#include "confirm.h"
-#include "kicad_string.h"
-#include "wxPcbStruct.h"
-#include "macros.h"
-#include "pcbcommon.h"
+/*
+ * This program source code file is part of KiCad, a free EDA CAD application.
+ *
+ * Copyright (C) 2012 Jean-Pierre Charras, jean-pierre.charras@ujf-grenoble.fr
+ * Copyright (C) 1992-2012 KiCad Developers, see AUTHORS.txt for contributors.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation; either version 2
+ * of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, you may find one here:
+ * http://www.gnu.org/licenses/old-licenses/gpl-2.0.html
+ * or you may search the http://www.gnu.org website for the version 2 license,
+ * or you may write to the Free Software Foundation, Inc.,
+ * 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
+ */
 
-#include "class_board.h"
-#include "class_module.h"
+#include <fctsys.h>
+#include <class_drawpanel.h>
+#include <confirm.h>
+#include <kicad_string.h>
+#include <wxPcbStruct.h>
+#include <macros.h>
+#include <pcbcommon.h>
 
-#include "pcbnew.h"
-#include "dialog_exchange_modules_base.h"
-#include "ar_protos.h"
+#include <class_board.h>
+#include <class_module.h>
 
+#include <pcbnew.h>
+#include <dialog_exchange_modules_base.h>
+#include <wildcards_and_files_ext.h>
+
+static char*  quiet_gcc_4_4_3;      // GCC 4.4.3 and next ..
 
 int s_SelectionMode = 0;    // Remember the last exchange option, when exit dialog.
 
@@ -28,7 +53,8 @@ private:
     PCB_EDIT_FRAME* m_Parent;
     MODULE*         m_CurrentModule;
 
-public: DIALOG_EXCHANGE_MODULE( PCB_EDIT_FRAME* aParent, MODULE* aModule );
+public:
+    DIALOG_EXCHANGE_MODULE( PCB_EDIT_FRAME* aParent, MODULE* aModule );
     ~DIALOG_EXCHANGE_MODULE() { };
 
 private:
@@ -146,18 +172,19 @@ int DIALOG_EXCHANGE_MODULE::Maj_ListeCmp( const wxString& reference,
                                           const wxString& new_name,
                                           bool            ShowError )
 {
-    wxFileName fn;
-    wxFileName tmpFileName;
-    FILE*      FichCmp, * NewFile;
-    char       Line[1024];
-    wxString   msg;
+    wxFileName  fn;
+    wxFileName  tmpFileName;
+    FILE*       FichCmp, * NewFile;
+    char        line[1024];
+    wxString    msg;
+//    char*  quiet_gcc_4_4_3;
 
     if( old_name == new_name )
         return 0;
 
     /* Build CMP file name by changing the extension of NetList filename */
-    fn = m_Parent->GetScreen()->GetFileName();
-    fn.SetExt( NetCmpExtBuffer );
+    fn = m_Parent->GetBoard()->GetFileName();
+    fn.SetExt( ComponentFileExtension );
 
     FichCmp = wxFopen( fn.GetFullPath(), wxT( "rt" ) );
 
@@ -188,17 +215,18 @@ int DIALOG_EXCHANGE_MODULE::Maj_ListeCmp( const wxString& reference,
         return 1;
     }
 
-    fgets( Line, sizeof(Line), FichCmp );
-    fprintf( NewFile, "Cmp-Mod V01 Genere par PcbNew le %s\n", TO_UTF8( DateAndTime() ) );
+    quiet_gcc_4_4_3 = fgets( line, sizeof(line), FichCmp );
+
+    fprintf( NewFile, "Cmp-Mod V01 Created by PcbNew date = %s\n", TO_UTF8( DateAndTime() ) );
 
     bool start_descr = false;
 
-    while( fgets( Line, sizeof(Line), FichCmp ) != NULL )
+    while( fgets( line, sizeof(line), FichCmp ) != NULL )
     {
-        if( strnicmp( Line, "Reference = ", 9 ) == 0 )
+        if( strnicmp( line, "Reference = ", 9 ) == 0 )
         {
             char buf[1024];
-            strcpy( buf, Line + 12 );
+            strcpy( buf, line + 12 );
             strtok( buf, ";\n\r" );
 
             if( stricmp( buf, TO_UTF8( reference ) ) == 0 )
@@ -207,14 +235,14 @@ int DIALOG_EXCHANGE_MODULE::Maj_ListeCmp( const wxString& reference,
             }
         }
 
-        if( (strnicmp( Line, "Begin", 5 ) == 0) || (strnicmp( Line, "End", 3 ) == 0) )
+        if( (strnicmp( line, "Begin", 5 ) == 0) || (strnicmp( line, "End", 3 ) == 0) )
         {
             start_descr = false;
         }
 
-        if( start_descr && strnicmp( Line, "IdModule", 8 ) == 0 )
+        if( start_descr && strnicmp( line, "IdModule", 8 ) == 0 )
         {
-            sprintf( Line + 8, "  = %s;\n", TO_UTF8( new_name ) );
+            sprintf( line + 8, "  = %s;\n", TO_UTF8( new_name ) );
 
             msg = wxT( " * in <" ) + fn.GetFullPath() + wxT( ">.\n" );
             m_WinMessages->AppendText( msg );
@@ -222,7 +250,7 @@ int DIALOG_EXCHANGE_MODULE::Maj_ListeCmp( const wxString& reference,
             start_descr = false;
         }
 
-        fputs( Line, NewFile );
+        fputs( line, NewFile );
     }
 
     fclose( FichCmp );
@@ -254,7 +282,7 @@ void DIALOG_EXCHANGE_MODULE::Change_Current_Module()
         if( m_Parent->GetBoard()->IsElementVisible( RATSNEST_VISIBLE ) )
             m_Parent->Compile_Ratsnest( NULL, true );
 
-        m_Parent->DrawPanel->Refresh();
+        m_Parent->GetCanvas()->Refresh();
     }
 
     if( pickList.GetCount() )
@@ -343,7 +371,7 @@ void DIALOG_EXCHANGE_MODULE::Change_ModuleId( bool aUseValue )
         if( m_Parent->GetBoard()->IsElementVisible( RATSNEST_VISIBLE ) )
             m_Parent->Compile_Ratsnest( NULL, true );
 
-        m_Parent->DrawPanel->Refresh();
+        m_Parent->GetCanvas()->Refresh();
     }
 
     if( pickList.GetCount() )
@@ -396,7 +424,7 @@ void DIALOG_EXCHANGE_MODULE::Change_ModuleAll()
         if( m_Parent->GetBoard()->IsElementVisible( RATSNEST_VISIBLE ) )
             m_Parent->Compile_Ratsnest( NULL, true );
 
-        m_Parent->DrawPanel->Refresh();
+        m_Parent->GetCanvas()->Refresh();
     }
 
     if( pickList.GetCount() )
@@ -422,7 +450,7 @@ bool DIALOG_EXCHANGE_MODULE::Change_1_Module( MODULE*            Module,
 {
     wxString namecmp, oldnamecmp;
     MODULE*  NewModule;
-    wxString Line;
+    wxString line;
 
     if( Module == NULL )
         return false;
@@ -434,10 +462,10 @@ bool DIALOG_EXCHANGE_MODULE::Change_1_Module( MODULE*            Module,
     namecmp    = new_module;
 
     /* Load module. */
-    Line.Printf( _( "Change module %s (%s)  " ),
+    line.Printf( _( "Change module %s (%s)  " ),
                  GetChars( Module->m_Reference->m_Text ),
                  GetChars( oldnamecmp ) );
-    m_WinMessages->AppendText( Line );
+    m_WinMessages->AppendText( line );
 
     namecmp.Trim( true );
     namecmp.Trim( false );
@@ -514,7 +542,7 @@ void PCB_EDIT_FRAME::Exchange_Module( MODULE*            aOldModule,
     aNewModule->m_Value->m_Text     = aOldModule->m_Value->m_Text;
 
     /* Updating other parameters */
-    aNewModule->m_TimeStamp = aOldModule->m_TimeStamp;
+    aNewModule->SetTimeStamp( aOldModule->GetTimeStamp() );
     aNewModule->m_Path = aOldModule->m_Path;
 
     /* Update pad netnames ( when possible) */
@@ -528,7 +556,7 @@ void PCB_EDIT_FRAME::Exchange_Module( MODULE*            aOldModule,
 
         for( ; old_pad != NULL; old_pad = old_pad->Next() )
         {
-            if( strnicmp( pad->m_Padname, old_pad->m_Padname, sizeof(pad->m_Padname) ) == 0 )
+            if( pad->PadNameEqual( old_pad ) )
             {
                 pad->SetNetname( old_pad->GetNetname() );
                 pad->SetNet( old_pad->GetNet() );
@@ -550,7 +578,7 @@ void PCB_EDIT_FRAME::Exchange_Module( MODULE*            aOldModule,
     }
 
     GetBoard()->m_Status_Pcb = 0;
-    aNewModule->m_Flags = 0;
+    aNewModule->ClearFlags();
     OnModify();
 }
 
@@ -579,12 +607,12 @@ void DIALOG_EXCHANGE_MODULE::BrowseAndSelectFootprint( wxCommandEvent& event )
  */
 void PCB_EDIT_FRAME::RecreateCmpFileFromBoard( wxCommandEvent& aEvent )
 {
-    wxFileName fn;
-    FILE*      FichCmp;
-    char       Line[1024];
-    MODULE*    Module = GetBoard()->m_Modules;
-    wxString   msg;
-    wxString   wildcard;
+    wxFileName  fn;
+    FILE*       FichCmp;
+    char        line[1024];
+    MODULE*     Module = GetBoard()->m_Modules;
+    wxString    msg;
+    wxString    wildcard;
 
     if( Module == NULL )
     {
@@ -593,9 +621,9 @@ void PCB_EDIT_FRAME::RecreateCmpFileFromBoard( wxCommandEvent& aEvent )
     }
 
     /* Calculation file name by changing the extension name to NetList */
-    fn = GetScreen()->GetFileName();
-    fn.SetExt( NetCmpExtBuffer );
-    wildcard = _( "Component files (." ) + NetCmpExtBuffer + wxT( ")|*." ) + NetCmpExtBuffer;
+    fn = GetBoard()->GetFileName();
+    fn.SetExt( ComponentFileExtension );
+    wildcard = wxGetTranslation( ComponentFileWildcard );
 
     wxFileDialog dlg( this, _( "Save Component Files" ), wxGetCwd(),
                       fn.GetFullName(), wildcard,
@@ -615,13 +643,13 @@ void PCB_EDIT_FRAME::RecreateCmpFileFromBoard( wxCommandEvent& aEvent )
         return;
     }
 
-    fgets( Line, sizeof(Line), FichCmp );
+    quiet_gcc_4_4_3 = fgets( line, sizeof(line), FichCmp );
     fprintf( FichCmp, "Cmp-Mod V01 Genere par PcbNew le %s\n", TO_UTF8( DateAndTime() ) );
 
     for( ; Module != NULL; Module = Module->Next() )
     {
         fprintf( FichCmp, "\nBeginCmp\n" );
-        fprintf( FichCmp, "TimeStamp = %8.8lX\n", Module->m_TimeStamp );
+        fprintf( FichCmp, "TimeStamp = %8.8lX\n", Module->GetTimeStamp() );
         fprintf( FichCmp, "Path = %s\n", TO_UTF8( Module->m_Path ) );
         fprintf( FichCmp, "Reference = %s;\n",
                  !Module->m_Reference->m_Text.IsEmpty() ?

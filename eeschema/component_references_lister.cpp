@@ -29,17 +29,25 @@
  */
 
 
+#include <wx/regex.h>
 #include <algorithm> // to use sort vector
 #include <vector>
 
-#include "fctsys.h"
-#include "kicad_string.h"
-#include "wxEeschemaStruct.h"
-#include "netlist.h"
-#include "sch_component.h"
+#include <fctsys.h>
+#include <kicad_string.h>
+#include <wxEeschemaStruct.h>
+#include <netlist.h>
+#include <sch_component.h>
 
 
 //#define USE_OLD_ALGO
+
+
+void SCH_REFERENCE_LIST::RemoveItem( unsigned int aIndex )
+{
+    if( aIndex < componentFlatList.size() )
+        componentFlatList.erase( componentFlatList.begin() + aIndex );
+}
 
 
 bool SCH_REFERENCE_LIST::sortByXPosition( const SCH_REFERENCE& item1,
@@ -98,26 +106,220 @@ bool SCH_REFERENCE_LIST::sortByRefAndValue( const SCH_REFERENCE& item1,
     return ii < 0;
 }
 
+bool SCH_REFERENCE_LIST::sortByValueAndRef( const SCH_REFERENCE& item1,
+                                            const SCH_REFERENCE& item2 )
+{
+    int ii = item1.CompareValue( item2 );
 
+    if( ii == 0 )
+        ii = RefDesStringCompare( item1.GetRef(), item2.GetRef() );
+
+    if( ii == 0 )
+        ii = item1.m_Unit - item2.m_Unit;
+
+    if( ii == 0 )
+        ii = item1.m_SheetNum - item2.m_SheetNum;
+
+    if( ii == 0 )
+        ii = item1.m_CmpPos.x - item2.m_CmpPos.x;
+
+    if( ii == 0 )
+        ii = item1.m_CmpPos.y - item2.m_CmpPos.y;
+
+    if( ii == 0 )
+        ii = item1.m_TimeStamp - item2.m_TimeStamp;
+
+    return ii < 0;
+}
+
+/*
+ * Helper function to calculate in a component value string
+ * the value, depending on multiplier symbol:
+ * pico
+ * nano
+ * micro (u)
+ * milli (m)
+ * kilo (k ou K)
+ * Mega
+ * Giga
+ * Tera
+ *
+ * with notations like 1K; 1.5K; 1,5K; 1k5
+ * returns true if the string is a value, false if not
+ * (a value is a string starting by a number)
+ */
+
+static bool engStrToDouble( wxString aStr, double* aDouble )
+{
+    // A trick to take care of strings without a multiplier
+    aStr.Append( wxT( "R" ) );
+
+    // Regular expression for a value string, e.g., 47k2
+    static wxRegEx valueRegEx( wxT( "^([0-9]+)([pnumRkKMGT.,])([0-9]*)([pnumRkKMGT]*)" ) );
+
+    if( !valueRegEx.Matches( aStr ) )
+        return false;
+
+    wxString valueStr = wxString( valueRegEx.GetMatch( aStr, 1 )
+                                  + wxT( "." )
+                                  + valueRegEx.GetMatch( aStr, 3 ) );
+    wxString multiplierString = valueRegEx.GetMatch( aStr, 2 );
+    wxString post_multiplierString = valueRegEx.GetMatch( aStr, 4 );
+    double multiplier;
+
+    switch( (wxChar)multiplierString[0] )
+    {
+    case 'p':
+        multiplier = 1e-12;
+        break;
+    case 'n':
+        multiplier = 1e-9;
+        break;
+    case 'u':
+        multiplier = 1e-6;
+        break;
+    case 'm':
+        multiplier = 1e-3;
+        break;
+    case 'k':
+    case 'K':
+        multiplier = 1e3;
+        break;
+    case 'M':
+        multiplier = 1e6;
+        break;
+    case 'G':
+        multiplier = 1e9;
+        break;
+    case 'T':
+        multiplier = 1e12;
+        break;
+    case 'R':
+    case '.':       // floatting point separator
+    case ',':       // floatting point separator (some languages)
+    default:
+        multiplier = 1;
+        break;
+    }
+
+    switch( (wxChar)post_multiplierString[0] )
+    {
+    case 'p':
+        multiplier = 1e-12;
+        break;
+    case 'n':
+        multiplier = 1e-9;
+        break;
+    case 'u':
+        multiplier = 1e-6;
+        break;
+    case 'm':
+        multiplier = 1e-3;
+        break;
+    case 'k':
+    case 'K':
+        multiplier = 1e3;
+        break;
+    case 'M':
+        multiplier = 1e6;
+        break;
+    case 'G':
+        multiplier = 1e9;
+        break;
+    case 'T':
+        multiplier = 1e12;
+        break;
+    case 'R':
+    default:
+        break;
+    }
+
+    LOCALE_IO dummy;    // set to C floatting point standard
+    valueStr.ToDouble( aDouble );
+    *aDouble *= multiplier;
+
+    return true;
+}
+
+
+static bool splitRefStr( const wxString& aRef, wxString* aStr, int* aNumber )
+{
+    static wxRegEx refRegEx( wxT( "^([a-zA-Z]+)([0-9]+)" ) );
+
+    if( !refRegEx.Matches( aRef ) )
+        return false;
+
+    *aStr = refRegEx.GetMatch( aRef, 1 );
+    *aNumber = wxAtoi( refRegEx.GetMatch( aRef, 2 ) );
+    return true;
+}
+
+/* sort the list of references by value.
+ * Components are grouped by type and are sorted by value:
+ * The value of a component accept multiplier symbols (p, n, K ..)
+ * groups are made by first letter of reference
+ */
 bool SCH_REFERENCE_LIST::sortByValueOnly( const SCH_REFERENCE& item1,
                                           const SCH_REFERENCE& item2 )
 {
-    int             ii;
-    const wxString* Text1, * Text2;
+    // First, group by type according to reference text part (R, C, etc.)
+    wxString text1 = item1.GetComponent()->GetField( REFERENCE )->GetText();
+    wxString text2 = item2.GetComponent()->GetField( REFERENCE )->GetText();
+    wxString refNameStr1, refNameStr2;
+    int refNumber1, refNumber2;
 
-    Text1 = &( item1.m_RootCmp->GetField( VALUE )->m_Text );
-    Text2 = &( item2.m_RootCmp->GetField( VALUE )->m_Text );
-    ii    = Text1->CmpNoCase( *Text2 );
+    if( !splitRefStr( text1, &refNameStr1, &refNumber1 ) )
+        return false;
+
+    if( !splitRefStr( text2, &refNameStr2, &refNumber2 ) )
+        return false;
+
+    int ii = refNameStr1.CmpNoCase( refNameStr2 );
+
+    if( ii != 0 )
+        return ii < 0;
+
+    // We can compare here 2 values relative to components of the same type
+    // assuming references are correctly chosen
+    text1 = item1.GetComponent()->GetField( VALUE )->GetText();
+    text2 = item2.GetComponent()->GetField( VALUE )->GetText();
+
+    double value1, value2;
+
+    // Try to convert value to double (4k7 -> 4700 etc.)
+    bool match1 = engStrToDouble( text1, &value1 );
+    bool match2 = engStrToDouble( text2, &value2 );
+
+    // Values come before other strings
+    if( match1 && !match2 )
+        return true;
+
+    // Values come before other strings
+    if( !match1 && match2 )
+        return false;
+
+    if( match1 && match2 && (value1 != value2) )
+        return value1 < value2;
+
+    // Inside a group of components of same value, it could be good to group per footprints
+    text1 = item1.GetComponent()->GetField( FOOTPRINT )->GetText();
+    text2 = item2.GetComponent()->GetField( FOOTPRINT )->GetText();
+    ii = text1.CmpNoCase( text2 );
+
+    if( ii != 0 )
+        return ii < 0;
+
+    if( refNumber1 != refNumber2 )
+        return refNumber1 < refNumber2;
+
+    // Fall back to normal string compare
+    ii = text1.CmpNoCase( text2 );
 
     if( ii == 0 )
-    {
         ii = RefDesStringCompare( item1.GetRef(), item2.GetRef() );
-    }
 
     if( ii == 0 )
-    {
         ii = item1.m_Unit - item2.m_Unit;
-    }
 
     return ii < 0;
 }
@@ -501,7 +703,7 @@ int SCH_REFERENCE_LIST::CheckAnnotation( wxArrayString* aMessageList )
         // Error if unit number selected does not exist ( greater than the  number of
         // parts in the component ).  This can happen if a component has changed in a
         // library after a previous annotation.
-        if( MAX( componentFlatList[ii].GetLibComponent()->GetPartCount(), 1 )
+        if( std::max( componentFlatList[ii].GetLibComponent()->GetPartCount(), 1 )
           < componentFlatList[ii].m_Unit )
         {
             if( componentFlatList[ii].m_NumRef >= 0 )
@@ -668,7 +870,7 @@ SCH_REFERENCE::SCH_REFERENCE( SCH_COMPONENT* aComponent, LIB_COMPONENT* aLibComp
     m_SheetPath = aSheetPath;
     m_IsNew     = false;
     m_Flag      = 0;
-    m_TimeStamp = aComponent->m_TimeStamp;
+    m_TimeStamp = aComponent->GetTimeStamp();
     m_CmpPos    = aComponent->GetPosition();
     m_SheetNum  = 0;
 

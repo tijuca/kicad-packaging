@@ -28,21 +28,22 @@
 /* DRC control              */
 /****************************/
 
-#include "fctsys.h"
-#include "wxPcbStruct.h"
-#include "trigo.h"
-#include "class_board_design_settings.h"
+#include <fctsys.h>
+#include <wxPcbStruct.h>
+#include <trigo.h>
+#include <base_units.h>
+#include <class_board_design_settings.h>
 
-#include "class_module.h"
-#include "class_track.h"
-#include "class_pad.h"
-#include "class_zone.h"
+#include <class_module.h>
+#include <class_track.h>
+#include <class_pad.h>
+#include <class_zone.h>
 
-#include "pcbnew.h"
-#include "protos.h"
-#include "drc_stuff.h"
+#include <pcbnew.h>
+#include <protos.h>
+#include <drc_stuff.h>
 
-#include "dialog_drc.h"
+#include <dialog_drc.h>
 
 
 void DRC::ShowDialog()
@@ -55,14 +56,11 @@ void DRC::ShowDialog()
         // copy data retained in this DRC object into the m_ui DrcPanel:
 
         PutValueInLocalUnits( *m_ui->m_SetTrackMinWidthCtrl,
-                              m_pcb->GetBoardDesignSettings()->m_TrackMinWidth,
-                              m_mainWindow->m_InternalUnits );
+                              m_pcb->GetDesignSettings().m_TrackMinWidth );
         PutValueInLocalUnits( *m_ui->m_SetViaMinSizeCtrl,
-                              m_pcb->GetBoardDesignSettings()->m_ViasMinSize,
-                              m_mainWindow->m_InternalUnits );
+                              m_pcb->GetDesignSettings().m_ViasMinSize );
         PutValueInLocalUnits( *m_ui->m_SetMicroViakMinSizeCtrl,
-                              m_pcb->GetBoardDesignSettings()->m_MicroViasMinSize,
-                              m_mainWindow->m_InternalUnits );
+                              m_pcb->GetDesignSettings().m_MicroViasMinSize );
 
         m_ui->m_CreateRptCtrl->SetValue( m_doCreateRptFile );
         m_ui->m_RptFilenameCtrl->SetValue( m_rptFilename );
@@ -134,7 +132,15 @@ int DRC::Drc( TRACK* aRefSegm, TRACK* aList )
     {
         wxASSERT( m_currentMarker );
 
-        m_currentMarker->DisplayInfo( m_mainWindow );
+        m_mainWindow->SetMsgPanel( m_currentMarker );
+        return BAD_DRC;
+    }
+
+    if( !doTrackKeepoutDrc( aRefSegm ) )
+    {
+        wxASSERT( m_currentMarker );
+
+        m_mainWindow->SetMsgPanel( m_currentMarker );
         return BAD_DRC;
     }
 
@@ -159,7 +165,7 @@ int DRC::Drc( ZONE_CONTAINER* aArea, int aCornerIndex )
     if( !doEdgeZoneDrc( aArea, aCornerIndex ) )
     {
         wxASSERT( m_currentMarker );
-        m_currentMarker->DisplayInfo( m_mainWindow );
+        m_mainWindow->SetMsgPanel( m_currentMarker );
         return BAD_DRC;
     }
 
@@ -191,7 +197,7 @@ void DRC::RunTests( wxTextCtrl* aMessages )
     if( !testNetClasses() )
     {
         // testing the netclasses is a special case because if the netclasses
-        // do not pass the g_DesignSettings checks, then every member of a net
+        // do not pass the BOARD_DESIGN_SETTINGS checks, then every member of a net
         // class (a NET) will cause its items such as tracks, vias, and pads
         // to also fail.  So quit after *all* netclass errors have been reported.
         if( aMessages )
@@ -254,6 +260,18 @@ void DRC::RunTests( wxTextCtrl* aMessages )
         testUnconnected();
     }
 
+    // find and gather vias, tracks, pads inside keepout areas.
+    if( m_doKeepoutTest )
+    {
+        if( aMessages )
+        {
+            aMessages->AppendText( _( "Keepout areas ...\n" ) );
+            aMessages->Refresh();
+        }
+
+        testKeepoutAreas();
+    }
+
     // update the m_ui listboxes
     updatePointers();
 
@@ -292,9 +310,9 @@ bool DRC::doNetClass( NETCLASS* nc, wxString& msg )
 {
     bool ret = true;
 
-    const BOARD_DESIGN_SETTINGS& g = *m_pcb->GetBoardDesignSettings();
+    const BOARD_DESIGN_SETTINGS& g = m_pcb->GetDesignSettings();
 
-#define FmtVal( x ) GetChars( ReturnStringFromValue( g_UserUnit, x, PCB_INTERNAL_UNIT ) )
+#define FmtVal( x ) GetChars( ReturnStringFromValue( g_UserUnit, x ) )
 
 #if 0   // set to 1 when (if...) BOARD_DESIGN_SETTINGS has a m_MinClearance value
     if( nc->GetClearance() < g.m_MinClearance )
@@ -422,9 +440,10 @@ void DRC::testPad2Pad()
     {
         D_PAD* pad = sortedPads[i];
 
-        // m_ShapeMaxRadius is the radius value of the circle containing the pad
-        if( pad->m_ShapeMaxRadius > max_size )
-            max_size = pad->m_ShapeMaxRadius;
+        // GetBoundingRadius() is the radius of the minimum sized circle fully containing the pad
+        int radius = pad->GetBoundingRadius();
+        if( radius > max_size )
+            max_size = radius;
     }
 
     // Test the pads
@@ -435,7 +454,7 @@ void DRC::testPad2Pad()
         D_PAD* pad = sortedPads[i];
 
         int    x_limit = max_size + pad->GetClearance() +
-                         pad->m_ShapeMaxRadius + pad->GetPosition().x;
+                         pad->GetBoundingRadius() + pad->GetPosition().x;
 
         if( !doPadToPadsDrc( pad, &sortedPads[i], listEnd, x_limit ) )
         {
@@ -501,13 +520,14 @@ void DRC::testUnconnected()
 {
     if( (m_pcb->m_Status_Pcb & LISTE_RATSNEST_ITEM_OK) == 0 )
     {
-        wxClientDC dc( m_mainWindow->DrawPanel );
+        wxClientDC dc( m_mainWindow->GetCanvas() );
         m_mainWindow->Compile_Ratsnest( &dc, true );
     }
 
     if( m_pcb->GetRatsnestsCount() == 0 )
         return;
 
+    wxString msg;
     for( unsigned ii = 0; ii < m_pcb->GetRatsnestsCount();  ++ii )
     {
         RATSNEST_ITEM& rat = m_pcb->m_FullRatsnest[ii];
@@ -518,8 +538,9 @@ void DRC::testUnconnected()
         D_PAD*    padStart = rat.m_PadStart;
         D_PAD*    padEnd   = rat.m_PadEnd;
 
+        msg = padStart->GetSelectMenuText() + wxT( " net " ) + padStart->GetNetname();
         DRC_ITEM* uncItem = new DRC_ITEM( DRCE_UNCONNECTED_PADS,
-                                          padStart->GetSelectMenuText(),
+                                          msg,
                                           padEnd->GetSelectMenuText(),
                                           padStart->GetPosition(), padEnd->GetPosition() );
 
@@ -555,9 +576,110 @@ void DRC::testZones()
 }
 
 
+void DRC::testKeepoutAreas()
+{
+    // Test keepout areas for vias, tracks and pads inside keepout areas
+    for( int ii = 0; ii < m_pcb->GetAreaCount(); ii++ )
+    {
+        ZONE_CONTAINER* area = m_pcb->GetArea( ii );
+
+        if( !area->GetIsKeepout() )
+            continue;
+
+        for( TRACK* segm = m_pcb->m_Track; segm != NULL; segm = segm->Next() )
+        {
+            if( segm->Type() == PCB_TRACE_T )
+            {
+                if( ! area->GetDoNotAllowTracks()  )
+                    continue;
+
+                if( segm->GetLayer() != area->GetLayer() )
+                    continue;
+
+                if( area->m_Poly->Distance( segm->GetStart(), segm->GetEnd(), segm->GetWidth() ) == 0 )
+                {
+                    m_currentMarker = fillMarker( segm, NULL,
+                                                  DRCE_TRACK_INSIDE_KEEPOUT, m_currentMarker );
+                    m_pcb->Add( m_currentMarker );
+                    m_currentMarker = 0;
+                }
+            }
+            else if( segm->Type() == PCB_VIA_T )
+            {
+                if( ! area->GetDoNotAllowVias()  )
+                    continue;
+
+                if( ! ((SEGVIA*)segm)->IsOnLayer( area->GetLayer() ) )
+                    continue;
+
+                if( area->m_Poly->Distance( segm->GetPosition() ) < segm->GetWidth()/2 )
+                {
+                    m_currentMarker = fillMarker( segm, NULL,
+                                                  DRCE_VIA_INSIDE_KEEPOUT, m_currentMarker );
+                    m_pcb->Add( m_currentMarker );
+                    m_currentMarker = 0;
+                }
+            }
+        }
+        // Test pads: TODO
+    }
+}
+
+/*
+ * Function doTrackKeepoutDrc
+ * tests the current segment or via.
+ * aRefSeg is the segment to test
+ * return true if no DRC err
+ */
+bool DRC::doTrackKeepoutDrc( TRACK* aRefSeg )
+{
+    // Test keepout areas for vias, tracks and pads inside keepout areas
+    for( int ii = 0; ii < m_pcb->GetAreaCount(); ii++ )
+    {
+        ZONE_CONTAINER* area = m_pcb->GetArea( ii );
+
+        if( !area->GetIsKeepout() )
+            continue;
+
+        if( aRefSeg->Type() == PCB_TRACE_T )
+        {
+            if( ! area->GetDoNotAllowTracks()  )
+                continue;
+
+            if( aRefSeg->GetLayer() != area->GetLayer() )
+                continue;
+
+            if( area->m_Poly->Distance( aRefSeg->GetStart(), aRefSeg->GetEnd(), aRefSeg->GetWidth() ) == 0 )
+            {
+                m_currentMarker = fillMarker( aRefSeg, NULL,
+                                              DRCE_TRACK_INSIDE_KEEPOUT, m_currentMarker );
+                return false;
+            }
+        }
+        else if( aRefSeg->Type() == PCB_VIA_T )
+        {
+            if( ! area->GetDoNotAllowVias()  )
+                continue;
+
+            if( ! ((SEGVIA*)aRefSeg)->IsOnLayer( area->GetLayer() ) )
+                continue;
+
+            if( area->m_Poly->Distance( aRefSeg->GetPosition() ) < aRefSeg->GetWidth()/2 )
+            {
+                m_currentMarker = fillMarker( aRefSeg, NULL,
+                                              DRCE_VIA_INSIDE_KEEPOUT, m_currentMarker );
+                return false;
+            }
+        }
+    }
+
+    return true;
+}
+
+
 bool DRC::doPadToPadsDrc( D_PAD* aRefPad, D_PAD** aStart, D_PAD** aEnd, int x_limit )
 {
-    int layerMask = aRefPad->m_layerMask & ALL_CU_LAYERS;
+    int layerMask = aRefPad->GetLayerMask() & ALL_CU_LAYERS;
 
     /* used to test DRC pad to holes: this dummy pad has the size and shape of the hole
      * to test pad to pad hole DRC, using the pad to pad DRC test function.
@@ -567,12 +689,14 @@ bool DRC::doPadToPadsDrc( D_PAD* aRefPad, D_PAD** aStart, D_PAD** aEnd, int x_li
      */
     MODULE dummymodule( m_pcb );    // Creates a dummy parent
     D_PAD dummypad( &dummymodule );
-    dummypad.m_layerMask   |= ALL_CU_LAYERS;  // Ensure the hole is on all copper layers
-    dummypad.m_LocalClearance = 1;   /* Use the minimal local clearance value for the dummy pad
-                                      *  the clearance of the active pad will be used
-                                      *  as minimum distance to a hole
-                                      *  (a value = 0 means use netclass value)
-                                      */
+
+    // Ensure the hole is on all copper layers
+    dummypad.SetLayerMask( ALL_CU_LAYERS | dummypad.GetLayerMask() );
+
+    // Use the minimal local clearance value for the dummy pad.
+    // The clearance of the active pad will be used as minimum distance to a hole
+    // (a value = 0 means use netclass value)
+    dummypad.SetLocalClearance( 1 );
 
     for( D_PAD** pad_list = aStart;  pad_list<aEnd;  ++pad_list )
     {
@@ -581,43 +705,40 @@ bool DRC::doPadToPadsDrc( D_PAD* aRefPad, D_PAD** aStart, D_PAD** aEnd, int x_li
         if( pad == aRefPad )
             continue;
 
-        // We can stop the test when pad->m_Pos.x > x_limit
+        // We can stop the test when pad->GetPosition().x > x_limit
         // because the list is sorted by X values
-        if( pad->m_Pos.x > x_limit )
+        if( pad->GetPosition().x > x_limit )
             break;
 
         // No problem if pads are on different copper layers,
         // but their hole (if any ) can create DRC error because they are on all
         // copper layers, so we test them
-        if( ( pad->m_layerMask & layerMask ) == 0 )
+        if( ( pad->GetLayerMask() & layerMask ) == 0 )
         {
             // if holes are in the same location and have the same size and shape,
             // this can be accepted
             if( pad->GetPosition() == aRefPad->GetPosition()
-                && pad->m_Drill == aRefPad->m_Drill
-                && pad->m_DrillShape == aRefPad->m_DrillShape )
+                && pad->GetDrillSize() == aRefPad->GetDrillSize()
+                && pad->GetDrillShape() == aRefPad->GetDrillShape() )
             {
-                if( aRefPad->m_DrillShape == PAD_CIRCLE )
+                if( aRefPad->GetDrillShape() == PAD_CIRCLE )
                     continue;
 
                 // for oval holes: must also have the same orientation
-                if( pad->m_Orient == aRefPad->m_Orient )
+                if( pad->GetOrientation() == aRefPad->GetOrientation() )
                     continue;
             }
 
             /* Here, we must test clearance between holes and pads
              * dummy pad size and shape is adjusted to pad drill size and shape
              */
-            if( pad->m_Drill.x )
+            if( pad->GetDrillSize().x )
             {
                 // pad under testing has a hole, test this hole against pad reference
                 dummypad.SetPosition( pad->GetPosition() );
-                dummypad.m_Size     = pad->m_Drill;
-                dummypad.m_PadShape = (pad->m_DrillShape == PAD_OVAL) ? PAD_OVAL : PAD_CIRCLE;
-                dummypad.m_Orient   = pad->m_Orient;
-
-                // compute the radius of the circle containing this pad
-                dummypad.ComputeShapeMaxRadius();
+                dummypad.SetSize( pad->GetDrillSize() );
+                dummypad.SetShape( pad->GetDrillShape() == PAD_OVAL ? PAD_OVAL : PAD_CIRCLE );
+                dummypad.SetOrientation( pad->GetOrientation() );
 
                 if( !checkClearancePadToPad( aRefPad, &dummypad ) )
                 {
@@ -628,15 +749,12 @@ bool DRC::doPadToPadsDrc( D_PAD* aRefPad, D_PAD** aStart, D_PAD** aEnd, int x_li
                 }
             }
 
-            if( aRefPad->m_Drill.x ) // pad reference has a hole
+            if( aRefPad->GetDrillSize().x ) // pad reference has a hole
             {
                 dummypad.SetPosition( aRefPad->GetPosition() );
-                dummypad.m_Size     = aRefPad->m_Drill;
-                dummypad.m_PadShape = (aRefPad->m_DrillShape == PAD_OVAL) ? PAD_OVAL : PAD_CIRCLE;
-                dummypad.m_Orient   = aRefPad->m_Orient;
-
-                // compute the radius of the circle containing this pad
-                dummypad.ComputeShapeMaxRadius();
+                dummypad.SetSize( aRefPad->GetDrillSize() );
+                dummypad.SetShape( aRefPad->GetDrillShape() == PAD_OVAL ? PAD_OVAL : PAD_CIRCLE );
+                dummypad.SetOrientation( aRefPad->GetOrientation() );
 
                 if( !checkClearancePadToPad( pad, &dummypad ) )
                 {
@@ -649,7 +767,6 @@ bool DRC::doPadToPadsDrc( D_PAD* aRefPad, D_PAD** aStart, D_PAD** aEnd, int x_li
 
             continue;
         }
-
 
         // The pad must be in a net (i.e pt_pad->GetNet() != 0 ),
         // But no problem if pads have the same netcode (same net)
@@ -664,7 +781,7 @@ bool DRC::doPadToPadsDrc( D_PAD* aRefPad, D_PAD** aStart, D_PAD** aEnd, int x_li
             // one can argue that this 2nd test is not necessary, that any
             // two pads from a single module are acceptable.  This 2nd test
             // should eventually be a configuration option.
-            if( pad->m_NumPadName == aRefPad->m_NumPadName )
+            if( pad->PadNameEqual( aRefPad ) )
                 continue;
         }
 

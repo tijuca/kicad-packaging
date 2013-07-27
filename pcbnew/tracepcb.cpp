@@ -1,9 +1,10 @@
 /*
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
- * Copyright (C) 2006 Jean-Pierre Charras, jaen-pierre.charras@gipsa-lab.inpg.com
- * Copyright (C) 2011 Wayne Stambaugh <stambaughw@verizon.net>
- * Copyright (C) 1992-2011 KiCad Developers, see AUTHORS.txt for contributors.
+ * Copyright (C) 2012 Jean-Pierre Charras, jean-pierre.charras@ujf-grenoble.fr
+ * Copyright (C) 2012 SoftPLC Corporation, Dick Hollenbeck <dick@softplc.com>
+ * Copyright (C) 2012 Wayne Stambaugh <stambaughw@verizon.net>
+ * Copyright (C) 1992-2012 KiCad Developers, see AUTHORS.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -28,25 +29,23 @@
  * @brief Functions to redraw the current board.
  */
 
-#include "fctsys.h"
-#include "class_drawpanel.h"
-#include "wxPcbStruct.h"
+#include <fctsys.h>
+#include <class_drawpanel.h>
+#include <wxPcbStruct.h>
+#include <base_units.h>
 
-#include "class_board.h"
-#include "class_module.h"
-#include "class_track.h"
-#include "class_zone.h"
-#include "class_marker_pcb.h"
+#include <class_board.h>
+#include <class_module.h>
+#include <class_track.h>
+#include <class_zone.h>
+#include <class_marker_pcb.h>
 
-#include "pcbnew.h"
-#include "module_editor_frame.h"
-#include "pcbplot.h"
-#include "protos.h"
+#include <pcbnew.h>
+#include <module_editor_frame.h>
+#include <pcbplot.h>
+#include <protos.h>
 
 #include <wx/overlay.h>
-
-
-extern int g_DrawDefaultLineThickness; // Default line thickness, used to draw Frame references
 
 
 // Local functions:
@@ -56,41 +55,43 @@ extern int g_DrawDefaultLineThickness; // Default line thickness, used to draw F
  * The pads must appear on the layers selected in LayerMask
  */
 static void Trace_Pads_Only( EDA_DRAW_PANEL* panel, wxDC* DC, MODULE* Module,
-                             int ox, int oy, int LayerMask, int draw_mode );
+                             int ox, int oy, int LayerMask, GR_DRAWMODE draw_mode );
 
 
 void FOOTPRINT_EDIT_FRAME::RedrawActiveWindow( wxDC* DC, bool EraseBg )
 {
-    PCB_SCREEN* screen = (PCB_SCREEN*)GetScreen();
+    PCB_SCREEN* screen = (PCB_SCREEN*) GetScreen();
 
     if( !GetBoard() || !screen )
         return;
 
     GRSetDrawMode( DC, GR_COPY );
 
-    DrawPanel->DrawBackGround( DC );
-    TraceWorkSheet( DC, screen, 0 );
+    m_canvas->DrawBackGround( DC );
+    TraceWorkSheet( DC, screen, 0, IU_PER_MILS, wxEmptyString );
 
-    /* Redraw the footprints */
-    for( MODULE* module = GetBoard()->m_Modules;  module;  module = module->Next() )
+    // Redraw the footprints
+    for( MODULE* module = GetBoard()->m_Modules; module; module = module->Next() )
     {
-        module->Draw( DrawPanel, DC, GR_OR );
+        module->Draw( m_canvas, DC, GR_OR );
     }
 
 #ifdef USE_WX_OVERLAY
+
     if( IsShown() )
     {
-        DrawPanel->m_overlay.Reset();
-        wxDCOverlay overlaydc( DrawPanel->m_overlay, (wxWindowDC*)DC );
+        m_overlay.Reset();
+        wxDCOverlay overlaydc( m_overlay, (wxWindowDC*) DC );
         overlaydc.Clear();
     }
+
 #endif
 
-    if( DrawPanel->IsMouseCaptured() )
-        DrawPanel->m_mouseCaptureCallback( DrawPanel, DC, wxDefaultPosition, false );
+    if( m_canvas->IsMouseCaptured() )
+        m_canvas->CallMouseCapture( DC, wxDefaultPosition, false );
 
-    /* Redraw the cursor */
-    DrawPanel->DrawCrossHair( DC );
+    // Redraw the cursor
+    m_canvas->DrawCrossHair( DC );
 }
 
 
@@ -105,33 +106,36 @@ void PCB_EDIT_FRAME::RedrawActiveWindow( wxDC* DC, bool EraseBg )
 
     GRSetDrawMode( DC, GR_COPY );
 
-    DrawPanel->DrawBackGround( DC );
+    m_canvas->DrawBackGround( DC );
 
-    TraceWorkSheet( DC, GetScreen(), g_DrawDefaultLineThickness );
+    TraceWorkSheet( DC, GetScreen(), g_DrawDefaultLineThickness,
+                    IU_PER_MILS, GetBoard()->GetFileName() );
 
-    GetBoard()->Draw( DrawPanel, DC, GR_OR );
+    GetBoard()->Draw( m_canvas, DC, GR_OR | GR_ALLOW_HIGHCONTRAST );
 
     DrawGeneralRatsnest( DC );
 
 #ifdef USE_WX_OVERLAY
+
     if( IsShown() )
     {
-        DrawPanel->m_overlay.Reset();
-        wxDCOverlay overlaydc( DrawPanel->m_overlay, (wxWindowDC*)DC );
+        m_overlay.Reset();
+        wxDCOverlay overlaydc( m_overlay, (wxWindowDC*) DC );
         overlaydc.Clear();
     }
+
 #endif
 
-    if( DrawPanel->IsMouseCaptured() )
-        DrawPanel->m_mouseCaptureCallback( DrawPanel, DC, wxDefaultPosition, false );
+    if( m_canvas->IsMouseCaptured() )
+        m_canvas->CallMouseCapture( DC, wxDefaultPosition, false );
 
     // Redraw the cursor
-    DrawPanel->DrawCrossHair( DC );
+    m_canvas->DrawCrossHair( DC );
 }
 
 
-/* Redraw the BOARD items but not cursors, axis or grid */
-void BOARD::Draw( EDA_DRAW_PANEL* aPanel, wxDC* DC, int aDrawMode, const wxPoint& offset )
+// Redraw the BOARD items but not cursors, axis or grid
+void BOARD::Draw( EDA_DRAW_PANEL* aPanel, wxDC* DC, GR_DRAWMODE aDrawMode, const wxPoint& offset )
 {
     /* The order of drawing is flexible on some systems and not on others.  For
      * OSes which use OR to draw, the order is not important except for the
@@ -148,20 +152,20 @@ void BOARD::Draw( EDA_DRAW_PANEL* aPanel, wxDC* DC, int aDrawMode, const wxPoint
      * tracks.  But a white track will cover any other color since it has
      * more bits to OR in.
      */
-    for( TRACK* track = m_Track;  track;   track = track->Next() )
+    for( TRACK* track = m_Track; track; track = track->Next() )
     {
         track->Draw( aPanel, DC, aDrawMode );
     }
 
-    for( SEGZONE* zone = m_Zone;  zone;   zone = zone->Next() )
+    for( SEGZONE* zone = m_Zone; zone; zone = zone->Next() )
     {
         zone->Draw( aPanel, DC, aDrawMode );
     }
 
     // Draw the graphic items
-    for( BOARD_ITEM* item = m_Drawings;  item;  item = item->Next() )
+    for( BOARD_ITEM* item = m_Drawings; item; item = item->Next() )
     {
-        if( item->m_Flags & IS_MOVED )
+        if( item->IsMoving() )
             continue;
 
         switch( item->Type() )
@@ -173,34 +177,34 @@ void BOARD::Draw( EDA_DRAW_PANEL* aPanel, wxDC* DC, int aDrawMode, const wxPoint
             item->Draw( aPanel, DC, aDrawMode );
             break;
 
-       default:
+        default:
             break;
         }
     }
 
-    /* Draw areas (i.e. zones) */
+    // Draw areas (i.e. zones)
     for( int ii = 0; ii < GetAreaCount(); ii++ )
     {
-        ZONE_CONTAINER* zone = GetArea(ii);
+        ZONE_CONTAINER* zone = GetArea( ii );
 
         // Areas must be drawn here only if not moved or dragged,
         // because these areas are drawn by ManageCursor() in a specific manner
-        if ( (zone->m_Flags & (IN_EDIT | IS_DRAGGED | IS_MOVED)) == 0 )
+        if( ( zone->GetFlags() & (IN_EDIT | IS_DRAGGED | IS_MOVED) ) == 0 )
         {
             zone->Draw( aPanel, DC, aDrawMode );
             zone->DrawFilledArea( aPanel, DC, aDrawMode );
         }
     }
 
-    for( MODULE* module = m_Modules;  module;  module = module->Next() )
+    for( MODULE* module = m_Modules; module; module = module->Next() )
     {
-        bool display = true;
-        int  layerMask = ALL_CU_LAYERS;
+        bool    display     = true;
+        int     layerMask   = ALL_CU_LAYERS;
 
-        if( module->m_Flags & IS_MOVED )
+        if( module->IsMoving() )
             continue;
 
-        if( !IsElementVisible( PCB_VISIBLE(MOD_FR_VISIBLE) ) )
+        if( !IsElementVisible( PCB_VISIBLE( MOD_FR_VISIBLE ) ) )
         {
             if( module->GetLayer() == LAYER_N_FRONT )
                 display = false;
@@ -208,10 +212,11 @@ void BOARD::Draw( EDA_DRAW_PANEL* aPanel, wxDC* DC, int aDrawMode, const wxPoint
             layerMask &= ~LAYER_FRONT;
         }
 
-        if( !IsElementVisible( PCB_VISIBLE(MOD_BK_VISIBLE) ) )
+        if( !IsElementVisible( PCB_VISIBLE( MOD_BK_VISIBLE ) ) )
         {
             if( module->GetLayer() == LAYER_N_BACK )
                 display = false;
+
             layerMask &= ~LAYER_BACK;
         }
 
@@ -225,16 +230,16 @@ void BOARD::Draw( EDA_DRAW_PANEL* aPanel, wxDC* DC, int aDrawMode, const wxPoint
         DrawHighLight( aPanel, DC, GetHighLightNetCode() );
 
     // draw the BOARD's markers last, otherwise the high light will erase any marker on a pad
-    for( unsigned i=0; i < m_markers.size();  ++i )
+    for( unsigned i = 0; i < m_markers.size(); ++i )
     {
         m_markers[i]->Draw( aPanel, DC, aDrawMode );
     }
 }
 
 
-void BOARD::DrawHighLight( EDA_DRAW_PANEL* aDrawPanel, wxDC* DC, int aNetCode )
+void BOARD::DrawHighLight( EDA_DRAW_PANEL* am_canvas, wxDC* DC, int aNetCode )
 {
-    int draw_mode;
+    GR_DRAWMODE draw_mode;
 
     if( IsHighLightNetON() )
         draw_mode = GR_HIGHLIGHT | GR_OR;
@@ -244,32 +249,32 @@ void BOARD::DrawHighLight( EDA_DRAW_PANEL* aDrawPanel, wxDC* DC, int aNetCode )
     // Redraw ZONE_CONTAINERS
     BOARD::ZONE_CONTAINERS& zones = m_ZoneDescriptorList;
 
-    for( BOARD::ZONE_CONTAINERS::iterator zc = zones.begin();  zc!=zones.end();  ++zc )
+    for( BOARD::ZONE_CONTAINERS::iterator zc = zones.begin(); zc!=zones.end(); ++zc )
     {
         if( (*zc)->GetNet() == aNetCode )
         {
-            (*zc)->Draw( aDrawPanel, DC, draw_mode );
+            (*zc)->Draw( am_canvas, DC, draw_mode );
         }
     }
 
     // Redraw any pads that have aNetCode
-    for( MODULE* module = m_Modules;  module; module = module->Next() )
+    for( MODULE* module = m_Modules; module; module = module->Next() )
     {
-        for( D_PAD* pad = module->m_Pads;  pad;  pad = pad->Next() )
+        for( D_PAD* pad = module->m_Pads; pad; pad = pad->Next() )
         {
             if( pad->GetNet() == aNetCode )
             {
-                pad->Draw( aDrawPanel, DC, draw_mode );
+                pad->Draw( am_canvas, DC, draw_mode );
             }
         }
     }
 
     // Redraw track and vias that have aNetCode
-    for( TRACK* seg = m_Track;   seg;   seg = seg->Next() )
+    for( TRACK* seg = m_Track; seg; seg = seg->Next() )
     {
         if( seg->GetNet() == aNetCode )
         {
-            seg->Draw( aDrawPanel, DC, draw_mode );
+            seg->Draw( am_canvas, DC, draw_mode );
         }
     }
 }
@@ -280,21 +285,19 @@ void BOARD::DrawHighLight( EDA_DRAW_PANEL* aDrawPanel, wxDC* DC, int aNetCode )
  * and we want to see pad through.
  * The pads must appear on the layers selected in LayerMask
  */
-void Trace_Pads_Only( EDA_DRAW_PANEL* panel, wxDC* DC, MODULE* Module,
-                      int ox, int oy, int LayerMask, int draw_mode )
+static void Trace_Pads_Only( EDA_DRAW_PANEL* panel, wxDC* DC, MODULE* aModule,
+                             int ox, int oy, int aLayerMask, GR_DRAWMODE draw_mode )
 {
-    int             tmp;
-    PCB_BASE_FRAME* frame;
+    PCB_BASE_FRAME* frame = (PCB_BASE_FRAME*) panel->GetParent();
 
-    frame  = (PCB_BASE_FRAME*) panel->GetParent();
+    int             tmp = frame->m_DisplayPadFill;
 
-    tmp = frame->m_DisplayPadFill;
     frame->m_DisplayPadFill = false;
 
-    /* Draw pads. */
-    for( D_PAD* pad = Module->m_Pads;  pad;  pad = pad->Next() )
+    // Draw pads.
+    for( D_PAD* pad = aModule->m_Pads; pad; pad = pad->Next() )
     {
-        if( (pad->m_layerMask & LayerMask) == 0 )
+        if( (pad->GetLayerMask() & aLayerMask) == 0 )
             continue;
 
         pad->Draw( panel, DC, draw_mode, wxPoint( ox, oy ) );

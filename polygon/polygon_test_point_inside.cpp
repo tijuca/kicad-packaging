@@ -2,9 +2,9 @@
  * @file polygon_test_point_inside.cpp
  */
 
-#include <math.h>
+#include <cmath>
 #include <vector>
-#include "PolyLine.h"
+#include <PolyLine.h>
 
 /* this algo uses the the Jordan curve theorem to find if a point is inside or outside a polygon:
  * It run a semi-infinite line horizontally (increasing x, fixed y)

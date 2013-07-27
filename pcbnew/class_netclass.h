@@ -36,6 +36,8 @@
 
 #include <wx/string.h>
 
+#include <richio.h>
+
 
 class LINE_READER;
 class BOARD;
@@ -65,7 +67,7 @@ protected:
 
     STRINGSET   m_Members;              ///< names of NET members of this class
 
-    /// The units on these parameters is 1/10000 of an inch, see define #PCB_INTERNAL_UNIT
+    /// The units on these parameters is Internal Units (1 decimil or 1 nm)
 
     int         m_Clearance;            ///< clearance when routing
 
@@ -81,22 +83,12 @@ public:
     static const wxString Default;      ///< the name of the default NETCLASS
 
     /**
-     * Name of identifier within BOARD file.
-     * 08-Sept-2009: changed the name from "NETCLASS" to this so we can
-     * toss any previous NETCLASSes in migratory BOARD files which will not have
-     * the proper parameters in the default netclass
-     * (from m_Parent->m_designSettings) in them.
-     * Spare the user from having to enter those defaults manually.
-     */
-#define BRD_NETCLASS  "NCLASS"
-
-    /**
      * Constructor
      * stuffs a NETCLASS instance with aParent, aName, and optionally the initialParameters
      * @param aParent = the parent board
      * @param aName = the name of this new netclass
      * @param initialParameters is a NETCLASS to copy parameters from, or if
-     *  NULL tells me to copy from g_DesignSettings.
+     *  NULL tells me to copy default settings from BOARD::m_designSettings.
      */
     NETCLASS( BOARD* aParent, const wxString& aName, const NETCLASS* initialParameters = NULL );
 
@@ -111,6 +103,8 @@ public:
     {
         return m_Name;
     }
+
+    void SetName( const wxString& aName ) { m_Name = aName; }
 
     /**
      * Function GetCount
@@ -205,32 +199,19 @@ public:
     void    SetParams( const NETCLASS* defaults = NULL );
 
     /**
-     * Function Save
-     * writes the data structures for this object out to a FILE in "*.brd" format.
-     * @param aFile The FILE to write to.
-     * @return bool - true if success writing else false.
+     * Function Format
+     * outputs the net class to \a aFormatter in s-expression form.
+     *
+     * @param aFormatter The #OUTPUTFORMATTER object to write to.
+     * @param aNestLevel The indentation next level.
+     * @param aControlBits The control bit definition for object specific formatting.
+     * @throw IO_ERROR on write error.
      */
-    bool Save( FILE* aFile ) const;
-
-    /**
-     * Function ReadDescr
-     * reads the data structures for this object from a LINE_READER in "*.brd" format.
-     * @param aReader is a pointer to a LINE_READER to read from.
-     * @return bool - true if success reading else false.
-     */
-    bool ReadDescr( LINE_READER* aReader );
+    void Format( OUTPUTFORMATTER* aFormatter, int aNestLevel, int aControlBits ) const
+        throw( IO_ERROR );
 
 #if defined(DEBUG)
-
-    /**
-     * Function Show
-     * is used to output the object tree, currently for debugging only.
-     * @param nestLevel An aid to prettier tree indenting, and is the level
-     *  of nesting of this object within the overall tree.
-     * @param os The ostream& to output to.
-     */
-    void Show( int nestLevel, std::ostream& os );
-
+    void Show( int nestLevel, std::ostream& os ) const;     // overload
 #endif
 };
 
@@ -260,7 +241,7 @@ public:
 
     /**
      * Function Clear
-     * destroys any constained NETCLASS instances except the Default one.
+     * destroys any contained NETCLASS instances except the Default one.
      */
     void Clear();
 
@@ -313,14 +294,6 @@ public:
      */
     NETCLASS* Find( const wxString& aName ) const;
 
-    /**
-     * Function Save
-     * writes the data structures for this object out to a FILE in "*.brd" format.
-     * @param aFile The FILE to write to.
-     * @return bool - true if success writing else false.
-     */
-    bool Save( FILE* aFile ) const;
 };
 
 #endif  // CLASS_NETCLASS_H
-

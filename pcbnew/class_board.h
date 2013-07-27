@@ -3,17 +3,21 @@
  * @brief Class BOARD to handle a board.
  */
 
-#ifndef CLASS_BOARD_H
-#define CLASS_BOARD_H
+#ifndef CLASS_BOARD_H_
+#define CLASS_BOARD_H_
 
 
-#include "dlist.h"
+#include <dlist.h>
 
-#include "layers_id_colors_and_visibility.h"
-#include "class_netinfo.h"
-#include "class_pad.h"
-#include "class_colors_design_settings.h"
-#include "class_board_design_settings.h"
+#include <layers_id_colors_and_visibility.h>
+#include <class_netinfo.h>
+#include <class_pad.h>
+#include <class_colors_design_settings.h>
+#include <class_board_design_settings.h>
+#include <common.h>                         // PAGE_INFO
+#include <class_title_block.h>
+#include <class_zone_settings.h>
+#include <pcb_plot_params.h>
 
 
 class PCB_BASE_FRAME;
@@ -25,20 +29,22 @@ class SEGZONE;
 class TRACK;
 class D_PAD;
 class MARKER_PCB;
+class MSG_PANEL_ITEM;
 
 
-// buffer of item candidates when search for items on the same track.
-typedef std::vector< TRACK* > TRACK_PTRS;
+// non-owning container of item candidates when searching for items on the same track.
+typedef std::vector< TRACK* >   TRACK_PTRS;
 
-
-#define HISTORY_MAX_COUNT 8
+#define HISTORY_MAX_COUNT       8
 
 
 /**
  * Enum LAYER_T
  * gives the allowed types of layers, same as Specctra DSN spec.
  */
-enum LAYER_T {
+enum LAYER_T
+{
+    LT_UNDEFINED = -1,
     LT_SIGNAL,
     LT_POWER,
     LT_MIXED,
@@ -47,11 +53,27 @@ enum LAYER_T {
 
 
 /**
- * Struct LAYER
+ * Class LAYER
  * holds information pertinent to a layer of a BOARD.
  */
-struct LAYER
+class LAYER
 {
+public:
+    LAYER( const wxString& aName = wxEmptyString, LAYER_T aType = LT_SIGNAL,
+           bool aVisible = true ) :
+        m_Name( aName ),
+        m_Type( aType ),
+        m_visible( aVisible ),
+        m_fixedListIndex( UNDEFINED_LAYER )
+    {
+    }
+
+    void SetVisible( bool aEnable ) { m_visible = aEnable; }
+    bool IsVisible() const { return m_visible; }
+
+    void SetFixedListIndex( int aIndex ) { m_fixedListIndex = aIndex; }
+    int GetFixedListIndex() const { return m_fixedListIndex; }
+
     /** The name of the layer, there should be no spaces in this name. */
     wxString m_Name;
 
@@ -59,7 +81,6 @@ struct LAYER
     LAYER_T m_Type;
 
 //    int         m_Color;
-//    bool        m_Visible;      // ? use flags in m_Color instead ?
 
     /**
      * Function ShowType
@@ -77,31 +98,41 @@ struct LAYER
      *   LAYER_T(-1) if the string is invalid
      */
     static LAYER_T     ParseType( const char* aType );
+
+private:
+    bool    m_visible;
+    int     m_fixedListIndex;
 };
 
 
-/** a small helper class to handle a stock of specific vias diameter and drill pair
- * in the BOARD class
+/**
+ * Struct VIA_DIMENSION
+ * is a small helper container to handle a stock of specific vias each with
+ * unique diameter and drill sizes in the BOARD class.
  */
-class VIA_DIMENSION
+struct VIA_DIMENSION
 {
-public:
     int m_Diameter;     // <= 0 means use Netclass via diameter
     int m_Drill;        // <= 0 means use Netclass via drill
 
     VIA_DIMENSION()
     {
-        m_Diameter = 0; m_Drill = 0;
+        m_Diameter = 0;
+        m_Drill    = 0;
     }
 
+    VIA_DIMENSION( int aDiameter, int aDrill )
+    {
+        m_Diameter = aDiameter;
+        m_Drill    = aDrill;
+    }
 
-    bool operator ==( const VIA_DIMENSION& other ) const
+    bool operator == ( const VIA_DIMENSION& other ) const
     {
         return (m_Diameter == other.m_Diameter) && (m_Drill == other.m_Drill);
     }
 
-
-    bool operator <( const VIA_DIMENSION& other ) const
+    bool operator < ( const VIA_DIMENSION& other ) const
     {
         if( m_Diameter != other.m_Diameter )
             return m_Diameter < other.m_Diameter;
@@ -117,7 +148,7 @@ class HIGH_LIGHT_INFO
     friend class BOARD;
 protected:
     int m_netCode;           // net selected for highlight (-1 when no net selected )
-    bool m_highLightOn;     // highlight active
+    bool m_highLightOn;      // highlight active
 
 protected:
     void Clear()
@@ -142,59 +173,98 @@ class BOARD : public BOARD_ITEM
     friend class PCB_EDIT_FRAME;
 
 private:
+    /// the board filename
+    wxString                m_fileName;
+
     // @todo: switch to boost:ptr_vector, and change ~BOARD()
     typedef std::vector<MARKER_PCB*> MARKERS;
 
     /// MARKER_PCBs for clearance problems, owned by pointer.
-    MARKERS              m_markers;
+    MARKERS                 m_markers;
 
     // @todo: switch to boost::ptr_vector, and change ~BOARD()
     typedef std::vector<ZONE_CONTAINER*> ZONE_CONTAINERS;
 
     /// edge zone descriptors, owned by pointer.
-    ZONE_CONTAINERS      m_ZoneDescriptorList;
+    ZONE_CONTAINERS         m_ZoneDescriptorList;
 
-    LAYER                m_Layer[NB_COPPER_LAYERS];
-                                                       // if true m_hightLight_NetCode is used
-    HIGH_LIGHT_INFO m_hightLight;                      // current high light data
-    HIGH_LIGHT_INFO m_hightLightPrevious;              // a previously stored high light data
+    LAYER                   m_Layer[LAYER_COUNT];
+                                                    // if true m_highLight_NetCode is used
+    HIGH_LIGHT_INFO         m_highLight;                // current high light data
+    HIGH_LIGHT_INFO         m_highLightPrevious;        // a previously stored high light data
+
+    int                     m_fileFormatVersionAtLoad;  ///< the version loaded from the file
+
+    EDA_RECT                m_BoundingBox;
+    NETINFO_LIST            m_NetInfo;              ///< net info list (name, design constraints ..
+
+    BOARD_DESIGN_SETTINGS   m_designSettings;
+    ZONE_SETTINGS           m_zoneSettings;
+    COLORS_DESIGN_SETTINGS* m_colorsSettings;
+    PAGE_INFO               m_paper;
+    TITLE_BLOCK             m_titles;               ///< text in lower right of screen and plots
+    PCB_PLOT_PARAMS         m_plotOptions;
+
+    /// Position of the origin axis, which is used in exports mostly
+    wxPoint                 m_originAxisPosition;
+
+    /// Number of pads connected to the current net.
+    int                     m_nodeCount;
+
+    /// Number of unconnected nets in the current rats nest.
+    int                     m_unconnectedNetCount;
+
+    /// Current net class name used to display netclass info.
+    /// This is also the last used netclass after starting a track.
+    wxString                m_currentNetClassName;
+
+    /// Index for #m_ViasDimensionsList to select the current via size.
+    /// 0 is the index selection of the default value Netclass
+    unsigned                m_viaSizeIndex;
+
+    // Index for m_TrackWidthList to select the value.
+    unsigned                m_trackWidthIndex;
+
+    /**
+     * Function chainMarkedSegments
+     * is used by MarkTrace() to set the BUSY flag of connected segments of the trace
+     * segment located at \a aPosition on aLayerMask.
+     *  Vias are put in list but their flags BUSY is not set
+     * @param aPosition A wxPoint object containing the position of the starting search.
+     * @param aLayerMask The allowed layers for segments to search.
+     * @param aList The track list to fill with points of flagged segments.
+     */
+    void chainMarkedSegments( wxPoint aPosition, int aLayerMask, TRACK_PTRS* aList );
+
+    void formatNetClass( NETCLASS* aNetClass, OUTPUTFORMATTER* aFormatter, int aNestLevel,
+                         int aControlBits ) const
+        throw( IO_ERROR );
 
 public:
-    PCB_BASE_FRAME*      m_PcbFrame;                   // Window of visualization
-    EDA_RECT             m_BoundaryBox;                // Board size and position
+
+    void SetFileName( const wxString& aFileName ) { m_fileName = aFileName; }
+
+    const wxString &GetFileName() const { return m_fileName; }
 
     /// Flags used in ratsnest calculation and update.
     int m_Status_Pcb;
 
-    /// Active pads (pads attached to a net ) count.
-    int m_NbNodes;
-
-    /// Active ratsnest count (ratsnests not already connected by tracks)
-    int m_NbNoconnect;
-
-    DLIST<BOARD_ITEM>          m_Drawings;              // linked list of lines & texts
-    DLIST<MODULE>              m_Modules;               // linked list of MODULEs
-    DLIST<TRACK>               m_Track;                 // linked list of TRACKs and SEGVIAs
-    DLIST<SEGZONE>             m_Zone;                  // linked list of SEGZONEs
-
-    /// nets info list (name, design constraints ..
-    NETINFO_LIST*              m_NetInfo;
+    DLIST<BOARD_ITEM>           m_Drawings;              // linked list of lines & texts
+    DLIST<MODULE>               m_Modules;               // linked list of MODULEs
+    DLIST<TRACK>                m_Track;                 // linked list of TRACKs and SEGVIAs
+    DLIST<SEGZONE>              m_Zone;                  // linked list of SEGZONEs
 
     /// Ratsnest list for the BOARD
-    std::vector<RATSNEST_ITEM> m_FullRatsnest;
+    std::vector<RATSNEST_ITEM>  m_FullRatsnest;
 
     /// Ratsnest list relative to a given footprint (used while moving a footprint).
-    std::vector<RATSNEST_ITEM> m_LocalRatsnest;
+    std::vector<RATSNEST_ITEM>  m_LocalRatsnest;
 
     /// zone contour currently in progress
-    ZONE_CONTAINER*            m_CurrentZoneContour;
+    ZONE_CONTAINER*             m_CurrentZoneContour;
 
     /// List of current netclasses. There is always the default netclass.
-    NETCLASSES m_NetClasses;
-
-    /// Current net class name used to display netclass info.
-    /// This is also the last used netclass after starting a track.
-    wxString   m_CurrentNetClassName;
+    NETCLASSES                  m_NetClasses;
 
     // handling of vias and tracks size:
     // the first value is always the value of the current NetClass
@@ -208,31 +278,14 @@ public:
     // The first value is the current netclass track width
     std::vector <int>           m_TrackWidthList;
 
-    /// Index for m_ViaSizeList to select the value.
-    /// 0 is the index selection of the default value Netclass
-    unsigned m_ViaSizeSelector;
 
-    // Index for m_TrackWidthList to select the value.
-    unsigned m_TrackWidthSelector;
-
-private:
-    BOARD_DESIGN_SETTINGS*  m_boardDesignSettings;  // Link to current design settings
-    COLORS_DESIGN_SETTINGS* m_colorsSettings;       // Link to current colors settings
-
-    /**
-     * Function chainMarkedSegments
-     * is used by MarkTrace() to set the BUSY flag of connected segments of the trace
-     * segment located at \a aPosition on aLayerMask.
-     *  Vias are put in list but their flags BUSY is not set
-     * @param aPosition A wxPoint object containing the position of the starting search.
-     * @param aLayerMask The allowed layers for segments to search.
-     * @param aList The track list to fill with points of flagged segments.
-     */
-    void chainMarkedSegments( wxPoint aPosition, int aLayerMask, TRACK_PTRS* aList );
-
-public:
-    BOARD( EDA_ITEM* aParent, PCB_BASE_FRAME* frame );
+    BOARD();
     ~BOARD();
+
+    void Move( const wxPoint& aMoveVector );        // overload
+
+    void SetFileFormatVersionAtLoad( int aVersion ) { m_fileFormatVersionAtLoad = aVersion; }
+    int GetFileFormatVersionAtLoad()  const { return m_fileFormatVersionAtLoad; }
 
     /**
      * Function GetDefaultLayerName
@@ -242,18 +295,20 @@ public:
      * be different than the default if the user has renamed any copper layers.
      *
      * @param  aLayerNumber is the layer number to fetch
+     * @param  aTranslate = true to return the translated version
+     *                    = false to get the native version
      * @return wxString - containing the layer name or "BAD INDEX" if aLayerNumber
      *                      is not legal
      */
-    static wxString GetDefaultLayerName( int aLayerNumber );
+    static wxString GetDefaultLayerName( int aLayerNumber, bool aTranslate );
 
     /**
-     * Function GetPosition
-     * is here to satisfy BOARD_ITEM's requirements, but this implementation
-     * is a dummy.
-     * @return const wxPoint& of (0,0)
+     * Function ReturnFlippedLayerNumber
+     * @return the layer number after flipping an item
+     * some (not all) layers: external copper, Mask, Paste, and solder
+     * are swapped between front and back sides
      */
-    wxPoint& GetPosition();
+    static int ReturnFlippedLayerNumber( int oldlayer );
 
     /**
      * Function Add
@@ -264,7 +319,6 @@ public:
     void Add( BOARD_ITEM* aBoardItem, int aControl = 0 );
 
 #define ADD_APPEND 1        ///< aControl flag for Add( aControl ), appends not inserts
-
 
     /**
      * Function Delete
@@ -301,7 +355,6 @@ public:
      */
     void DeleteZONEOutlines();
 
-
     /**
      * Function GetMARKER
      * returns the MARKER at a given index.
@@ -316,7 +369,6 @@ public:
         return NULL;
     }
 
-
     /**
      * Function GetMARKERCount
      * @return int - The number of MARKER_PCBS.
@@ -326,22 +378,21 @@ public:
         return (int) m_markers.size();
     }
 
-
     /**
      * Function ResetHighLight
      * Reset all high light data to the init state
      */
     void ResetHighLight()
     {
-        m_hightLight.Clear();
-        m_hightLightPrevious.Clear();
+        m_highLight.Clear();
+        m_highLightPrevious.Clear();
     }
 
     /**
      * Function GetHighLightNetCode
      * @return netcode of net to highlight (-1 when no net selected)
      */
-    int GetHighLightNetCode() { return m_hightLight.m_netCode; }
+    int GetHighLightNetCode() { return m_highLight.m_netCode; }
 
     /**
      * Function SetHighLightNet
@@ -349,28 +400,27 @@ public:
      */
     void SetHighLightNet( int aNetCode)
     {
-        m_hightLight.m_netCode = aNetCode;
+        m_highLight.m_netCode = aNetCode;
     }
-
 
     /**
      * Function IsHighLightNetON
      * @return true if a net is currently highlighted
      */
-    bool IsHighLightNetON() { return m_hightLight.m_highLightOn; }
+    bool IsHighLightNetON() { return m_highLight.m_highLightOn; }
 
     /**
      * Function HighLightOFF
      * Disable highlight.
      */
-    void HighLightOFF() { m_hightLight.m_highLightOn = false; }
+    void HighLightOFF() { m_highLight.m_highLightOn = false; }
 
     /**
      * Function HighLightON
      * Enable highlight.
-     * if m_hightLight_NetCode >= 0, this net will be highlighted
+     * if m_highLight_NetCode >= 0, this net will be highlighted
      */
-    void HighLightON() { m_hightLight.m_highLightOn = true; }
+    void HighLightON() { m_highLight.m_highLightOn = true; }
 
     /**
      * Function PushHighLight
@@ -417,7 +467,7 @@ public:
      */
     bool IsLayerEnabled( int aLayer ) const
     {
-        return GetBoardDesignSettings()->IsLayerEnabled( aLayer );
+        return m_designSettings.IsLayerEnabled( aLayer );
     }
 
     /**
@@ -429,7 +479,7 @@ public:
      */
     bool IsLayerVisible( int aLayerIndex ) const
     {
-        return GetBoardDesignSettings()->IsLayerVisible( aLayerIndex );
+        return m_designSettings.IsLayerVisible( aLayerIndex );
     }
 
     /**
@@ -509,39 +559,46 @@ public:
      * returns the color of a pcb visible element.
      * @see enum PCB_VISIBLE
      */
-    int GetVisibleElementColor( int aPCB_VISIBLE );
+    EDA_COLOR_T GetVisibleElementColor( int aPCB_VISIBLE );
 
-    void SetVisibleElementColor( int aPCB_VISIBLE, int aColor );
+    void SetVisibleElementColor( int aPCB_VISIBLE, EDA_COLOR_T aColor );
 
     /**
-     * Function GetBoardDesignSettings
-     * @return the current BOARD_DESIGN_SETTINGS in use
+     * Function GetDesignSettings
+     * @return the BOARD_DESIGN_SETTINGS for this BOARD
      */
-    BOARD_DESIGN_SETTINGS* GetBoardDesignSettings() const
+    BOARD_DESIGN_SETTINGS& GetDesignSettings() const
     {
-        return m_boardDesignSettings;
+        // remove const-ness with cast.
+        return (BOARD_DESIGN_SETTINGS&) m_designSettings;
     }
 
-
     /**
-     * Function SetBoardDesignSettings
-     * @param aDesignSettings = the new BOARD_DESIGN_SETTINGS to use
+     * Function SetDesignSettings
+     * @param aDesignSettings the new BOARD_DESIGN_SETTINGS to use
      */
-    void SetBoardDesignSettings( BOARD_DESIGN_SETTINGS* aDesignSettings)
-    {
-        m_boardDesignSettings = aDesignSettings;
-    }
+    void SetDesignSettings( const BOARD_DESIGN_SETTINGS& aDesignSettings ) {  m_designSettings = aDesignSettings; }
 
+    const PAGE_INFO& GetPageSettings() const                { return m_paper; }
+    void SetPageSettings( const PAGE_INFO& aPageSettings )  { m_paper = aPageSettings; }
+
+    const PCB_PLOT_PARAMS& GetPlotOptions() const           { return m_plotOptions; }
+    void SetPlotOptions( const PCB_PLOT_PARAMS& aOptions )  { m_plotOptions = aOptions; }
+
+    const wxPoint& GetOriginAxisPosition() const            { return m_originAxisPosition; }
+    void SetOriginAxisPosition( const wxPoint& aPosition )  { m_originAxisPosition = aPosition; }
+
+    TITLE_BLOCK& GetTitleBlock()                            { return m_titles; }
+    void SetTitleBlock( const TITLE_BLOCK& aTitleBlock )    { m_titles = aTitleBlock; }
+
+    const ZONE_SETTINGS& GetZoneSettings() const            { return m_zoneSettings; }
+    void SetZoneSettings( const ZONE_SETTINGS& aSettings )  { m_zoneSettings = aSettings; }
 
     /**
-     * Function SetBoardSettings
+     * Function SetColorSettings
      * @return the current COLORS_DESIGN_SETTINGS in use
      */
-    COLORS_DESIGN_SETTINGS* GetColorsSettings() const
-    {
-        return m_colorsSettings;
-    }
-
+    COLORS_DESIGN_SETTINGS* GetColorsSettings() const { return m_colorsSettings; }
 
     /**
      * Function SetColorsSettings
@@ -552,15 +609,17 @@ public:
         m_colorsSettings = aColorsSettings;
     }
 
-
     /**
      * Function GetLayerName
      * returns the name of the layer given by aLayerIndex.
      *
-     * @param aLayerIndex A layer index, like LAYER_N_BACK, etc.
+     * @param aLayerIndex = A layer index, like LAYER_N_BACK, etc.
+     * @param  aTranslate = true to return the translated version (default)
+     *                    = false to get the native English name
+     *                   (Useful to build filenames from layer names)
      * @return wxString - the layer name.
      */
-    wxString GetLayerName( int aLayerIndex ) const;
+    wxString GetLayerName( int aLayerIndex, bool aTranslate = true ) const;
 
     /**
      * Function SetLayerName
@@ -572,6 +631,8 @@ public:
      *   layer names at other layer indices and aLayerIndex was within range, else false.
      */
     bool SetLayerName( int aLayerIndex, const wxString& aLayerName );
+
+    bool SetLayer( int aIndex, const LAYER& aLayer );
 
     /**
      * Function GetLayerType
@@ -597,27 +658,25 @@ public:
      * Function SetLayerColor
      * changes a layer color for any valid layer, including non-copper ones.
      */
-    void SetLayerColor( int aLayer, int aColor );
+    void SetLayerColor( int aLayer, EDA_COLOR_T aColor );
 
     /**
      * Function GetLayerColor
      * gets a layer color for any valid layer, including non-copper ones.
      */
-    int GetLayerColor( int aLayer );
+    EDA_COLOR_T GetLayerColor( int aLayer ) const;
 
-    /* Functions to get some items count */
-    int GetNumSegmTrack();
+    /** Functions to get some items count */
+    int GetNumSegmTrack() const;
 
-    /* Calculate the zone segment count */
-    int GetNumSegmZone();
-
-    unsigned GetNoconnectCount();        // Return the number of missing links.
+    /** Calculate the zone segment count */
+    int GetNumSegmZone() const;
 
     /**
      * Function GetNumRatsnests
      * @return int - The number of rats
      */
-    unsigned GetRatsnestsCount()
+    unsigned GetRatsnestsCount() const
     {
         return m_FullRatsnest.size();
     }
@@ -627,33 +686,129 @@ public:
      * Function GetNodesCount
      * @return the number of pads members of nets (i.e. with netcode > 0)
      */
-    unsigned GetNodesCount();
+    unsigned GetNodesCount() const;
 
     /**
-     * Function GetPadsCount
+     * Function SetNodeCount
+     * set the number of nodes of the current net to \a aCount.
+     *
+     * @param aCount is the number of nodes attached to the current net.
+     */
+    void SetNodeCount( unsigned aCount )   { m_nodeCount = aCount; }
+
+    /**
+     * Function GetUnconnectedNetCount
+     * @return the number of unconnected nets in the current rats nest.
+     */
+    unsigned GetUnconnectedNetCount() const { return m_unconnectedNetCount; }
+
+    /**
+     * Function SetUnconnectedNetCount
+     * sets the number of unconnected nets in the current rats nest to \a aCount.
+     *
+     * @param aCount is the number of unconneceted nets in the current rats nest.
+     */
+    void SetUnconnectedNetCount( unsigned aCount ) { m_unconnectedNetCount = aCount; }
+
+    /**
+     * Function SetCurrentNetClassName
+     * sets the current net class name to \a aName.
+     *
+     * @param aName is a reference to a wxString object containing the current net class name.
+     */
+    void SetCurrentNetClassName( const wxString& aName ) { m_currentNetClassName = aName; }
+
+    /**
+     * Function GetCurrentNetClassName
+     * @return the current net class name.
+     */
+    const wxString& GetCurrentNetClassName() const { return m_currentNetClassName; }
+
+    /**
+     * Function GetPadCount
      * @return the number of pads in board
      */
-    unsigned GetPadsCount()
+    unsigned GetPadCount() const
     {
-        return m_NetInfo->GetPadsCount();
+        return m_NetInfo.GetPadCount();
+    }
+
+    /**
+     * Function GetPad
+     * @return D_PAD* - at the \a aIndex from m_NetInfo
+     */
+    D_PAD* GetPad( unsigned aIndex ) const
+    {
+        return m_NetInfo.GetPad( aIndex );
+    }
+
+    /**
+     * Function GetPads
+     * returns a list of all the pads by value.  The returned list is not
+     * sorted and contains pointers to PADS, but those pointers do not convey
+     * ownership of the respective PADs.
+     * @return std::vector<D_PAD*> - a full list of pads
+     */
+    std::vector<D_PAD*> GetPads()
+    {
+        return m_NetInfo.m_PadsFullList;
+    }
+
+    void BuildListOfNets()
+    {
+        m_NetInfo.buildListOfNets();
+    }
+
+    /**
+     * Function FindNet
+     * searches for a net with the given netcode.
+     * @param aNetcode A netcode to search for.
+     * @return NETINFO_ITEM_ITEM* - the net or NULL if not found.
+     */
+    NETINFO_ITEM* FindNet( int aNetcode ) const;
+
+    /**
+     * Function FindNet overloaded
+     * searches for a net with the given name.
+     * @param aNetname A Netname to search for.
+     * @return NETINFO_ITEM* - the net or NULL if not found.
+     */
+    NETINFO_ITEM* FindNet( const wxString& aNetname ) const;
+
+    void AppendNet( NETINFO_ITEM* aNewNet )
+    {
+        m_NetInfo.AppendNet( aNewNet );
+    }
+
+    /**
+     * Function GetNetCount
+     * @return the number of nets (NETINFO_ITEM)
+     */
+    unsigned GetNetCount() const
+    {
+        return m_NetInfo.GetNetCount();
     }
 
     /**
      * Function ComputeBoundingBox
      * calculates the bounding box containing all board items (or board edge segments).
      * @param aBoardEdgesOnly is true if we are interested in board edge segments only.
-     * @return bool - True if items (or board edge segments) were found.
+     * @return EDA_RECT - the board's bounding box
+     * @see PCB_BASE_FRAME::GetBoardBoundingBox() which calls this and doctors the result
      */
-    bool ComputeBoundingBox( bool aBoardEdgesOnly = false );
+    EDA_RECT ComputeBoundingBox( bool aBoardEdgesOnly = false );
 
     /**
-     * Function DisplayInfo
-     * has knowledge about the frame and how and where to put status information
-     * about this object into the frame's message panel.
-     * Is virtual from EDA_ITEM.
-     * @param frame A EDA_DRAW_FRAME in which to print status information.
+     * Function GetBoundingBox
+     * may be called soon after ComputeBoundingBox() to return the same EDA_RECT,
+     * as long as the BOARD has not changed.  Remember, ComputeBoundingBox()'s
+     * aBoardEdgesOnly argument is considered in this return value also.
      */
-    void DisplayInfo( EDA_DRAW_FRAME* frame );
+    EDA_RECT GetBoundingBox() const { return m_BoundingBox; }   // override
+
+    void SetBoundingBox( const EDA_RECT& aBox ) { m_BoundingBox = aBox; }
+
+    void GetMsgPanelInfo( std::vector< MSG_PANEL_ITEM >& aList );
 
     /**
      * Function Draw.
@@ -664,7 +819,7 @@ public:
      * @param aOffset = an draw offset value (default = 0,0)
      */
     void Draw( EDA_DRAW_PANEL* aPanel, wxDC* aDC,
-               int aDrawMode, const wxPoint& aOffset = ZeroOffset );
+               GR_DRAWMODE aDrawMode, const wxPoint& aOffset = ZeroOffset );
 
     /**
      * Function DrawHighLight
@@ -692,23 +847,6 @@ public:
      */
     SEARCH_RESULT Visit( INSPECTOR* inspector, const void* testData,
                          const KICAD_T scanTypes[] );
-
-
-    /**
-     * Function FindNet
-     * searches for a net with the given netcode.
-     * @param aNetcode A netcode to search for.
-     * @return NETINFO_ITEM_ITEM* - the net or NULL if not found.
-     */
-    NETINFO_ITEM* FindNet( int aNetcode ) const;
-
-    /**
-     * Function FindNet overloaded
-     * searches for a net with the given name.
-     * @param aNetname A Netname to search for.
-     * @return NETINFO_ITEM* - the net or NULL if not found.
-     */
-    NETINFO_ITEM* FindNet( const wxString& aNetname ) const;
 
     /**
      * Function FindModuleByReference
@@ -761,16 +899,49 @@ public:
     int GetBiggestClearanceValue();
 
     /**
+     * Function GetSmallestClearanceValue
+     * @return the smallest clearance value found in NetClasses list
+     */
+    int GetSmallestClearanceValue();
+
+    /**
+     * Function GetTrackWidthIndex
+     * @return the current track width list index.
+     */
+    unsigned GetTrackWidthIndex() const { return m_trackWidthIndex; }
+
+    /**
+     * Function SetTrackWidthIndex
+     * sets the current track width list index to \a aIndex.
+     *
+     * @param aIndex is the track width list index.
+     */
+    void SetTrackWidthIndex( unsigned aIndex );
+
+    /**
      * Function GetCurrentTrackWidth
      * @return the current track width, according to the selected options
      * ( using the default netclass value or a preset value )
      * the default netclass is always in m_TrackWidthList[0]
      */
-    int GetCurrentTrackWidth()
+    int GetCurrentTrackWidth() const
     {
-        return m_TrackWidthList[m_TrackWidthSelector];
+        return m_TrackWidthList[m_trackWidthIndex];
     }
 
+    /**
+     * Function GetViaSizeIndex
+     * @return the current via size list index.
+     */
+    unsigned GetViaSizeIndex() const { return m_viaSizeIndex; }
+
+    /**
+     * Function SetViaSizeIndex
+     * sets the current via size list index to \a aIndex.
+     *
+     * @param aIndex is the via size list index.
+     */
+    void SetViaSizeIndex( unsigned aIndex );
 
     /**
      * Function GetCurrentViaSize
@@ -780,9 +951,8 @@ public:
      */
     int GetCurrentViaSize()
     {
-        return m_ViasDimensionsList[m_ViaSizeSelector].m_Diameter;
+        return m_ViasDimensionsList[m_viaSizeIndex].m_Diameter;
     }
-
 
     /**
      * Function GetCurrentViaDrill
@@ -792,10 +962,9 @@ public:
      */
     int GetCurrentViaDrill()
     {
-        return m_ViasDimensionsList[m_ViaSizeSelector].m_Drill > 0 ?
-               m_ViasDimensionsList[m_ViaSizeSelector].m_Drill : -1;
+        return m_ViasDimensionsList[m_viaSizeIndex].m_Drill > 0 ?
+               m_ViasDimensionsList[m_viaSizeIndex].m_Drill : -1;
     }
-
 
     /**
      * Function GetCurrentMicroViaSize
@@ -813,37 +982,13 @@ public:
 
     /***************************************************************************/
 
-    /**
-     * Function Save
-     * writes the data structures for this object out to a FILE in "*.brd" format.
-     * @param aFile The FILE to write to.
-     * @return bool - true if success writing else false.
-     */
-    bool Save( FILE* aFile ) const;
-
-
-    /**
-     * Function GetClass
-     * returns the class name.
-     * @return wxString
-     */
     wxString GetClass() const
     {
         return wxT( "BOARD" );
     }
 
-
 #if defined(DEBUG)
-
-    /**
-     * Function Show
-     * is used to output the object tree, currently for debugging only.
-     * @param nestLevel An aid to prettier tree indenting, and is the level
-     *                  of nesting of this object within the overall tree.
-     * @param os The ostream& to output to.
-     */
-    void Show( int nestLevel, std::ostream& os );
-
+    void Show( int nestLevel, std::ostream& os ) const;     // overload
 #endif
 
 
@@ -871,14 +1016,15 @@ public:
      */
     void RedrawAreasOutlines( EDA_DRAW_PANEL* aPanel,
                               wxDC*           aDC,
-                              int             aDrawMode,
+                              GR_DRAWMODE     aDrawMode,
                               int             aLayer );
 
     /**
      * Function RedrawFilledAreas
      * Redraw all filled areas on layer aLayer ( redraw all if aLayer < 0 )
      */
-    void RedrawFilledAreas( EDA_DRAW_PANEL* aPanel, wxDC* aDC, int aDrawMode, int aLayer );
+    void RedrawFilledAreas( EDA_DRAW_PANEL* aPanel, wxDC* aDC, GR_DRAWMODE aDrawMode,
+                            int aLayer );
 
     /**
      * Function SetAreasNetCodesFromNetNames
@@ -906,7 +1052,6 @@ public:
         return NULL;
     }
 
-
     /**
      * Function GetAreaIndex
      * returns the Area Index  for the given Zone Container.
@@ -924,7 +1069,6 @@ public:
         return -1;
     }
 
-
     /**
      * Function GetAreaCount
      * @return int - The number of Areas or ZONE_CONTAINER.
@@ -933,7 +1077,6 @@ public:
     {
         return (int) m_ZoneDescriptorList.size();
     }
-
 
     /* Functions used in test, merge and cut outlines */
 
@@ -946,7 +1089,7 @@ public:
      * @param aLayer = the layer of area
      * @param aStartPointPosition = position of the first point of the polygon outline of this area
      * @param aHatch = hatch option
-     * @return pointer to the new area
+     * @return a reference to the new area
      */
     ZONE_CONTAINER* AddArea( PICKED_ITEMS_LIST* aNewZonesList, int aNetcode,
                              int aLayer, wxPoint aStartPointPosition, int aHatch );
@@ -959,68 +1102,30 @@ public:
     ZONE_CONTAINER* InsertArea( int netcode, int iarea, int layer, int x, int y, int hatch );
 
     /**
-     *  Function CompleteArea
-     * complete copper area contour by adding a line from last to first corner
-     * if there is only 1 or 2 corners, remove (delete) the area
-     * @param area_to_complete = area to complete or remove
-     * @param style = style of last corner
-     * @return 1 if Ok, 0 if area removed
-     */
-    int CompleteArea( ZONE_CONTAINER* area_to_complete, int style );
-
-    /**
-     * Function TestAreaPolygon
-     * Test an area for self-intersection.
-     *
-     * @param CurrArea = copper area to test
-     * @return :
-     * -1 if arcs intersect other sides
-     *  0 if no intersecting sides
-     *  1 if intersecting sides, but no intersecting arcs
-     * Also sets utility2 flag of area with return value
-     */
-    int TestAreaPolygon( ZONE_CONTAINER* CurrArea );
-
-    /**
-     * Function ClipAreaPolygon
-     * Process an area that has been modified, by clipping its polygon against itself.
+     * Function NormalizeAreaPolygon
+     * Process an area that has been modified, by normalizing its polygon against itself.
+     * i.e. convert a self-intersecting polygon to one (or more) non self-intersecting polygon(s)
      * This may change the number and order of copper areas in the net.
-     * @param aNewZonesList = a PICKED_ITEMS_LIST * where to store new areas pickers (useful
-     *                        in undo commands) can be NULL
+     * @param aNewZonesList = a PICKED_ITEMS_LIST * where to store new created areas pickers
      * @param aCurrArea = the zone to process
-     * @param bMessageBoxInt == true, shows message when clipping occurs.
-     * @param  bMessageBoxArc == true, shows message when clipping can't be done due to arcs.
-     * @param bRetainArcs = true to handle arcs (not really used in KiCad)
-     * @return :
-     *  -1 if arcs intersect other sides, so polygon can't be clipped
-     *   0 if no intersecting sides
-     *   1 if intersecting sides
+     * @return true if changes are made
      * Also sets areas->utility1 flags if areas are modified
      */
-    int ClipAreaPolygon( PICKED_ITEMS_LIST* aNewZonesList,
-                         ZONE_CONTAINER*    aCurrArea,
-                         bool               bMessageBoxArc,
-                         bool               bMessageBoxInt,
-                         bool               bRetainArcs = true );
+    bool NormalizeAreaPolygon( PICKED_ITEMS_LIST * aNewZonesList,
+                               ZONE_CONTAINER* aCurrArea );
 
     /**
-     * Process an area that has been modified, by clipping its polygon against
-     * itself and the polygons for any other areas on the same net.
+     * Function OnAreaPolygonModified
+     * Process an area that has been modified, by normalizing its polygon
+     * and merging the intersecting polygons for any other areas on the same net.
      * This may change the number and order of copper areas in the net.
      * @param aModifiedZonesList = a PICKED_ITEMS_LIST * where to store deleted or added areas
-     *                      (useful in undo commands. Can be NULL
+     *                             (useful in undo commands can be NULL
      * @param modified_area = area to test
-     * @param bMessageBoxInt : if true, shows message boxes when clipping occurs.
-     * @param bMessageBoxArc if true, shows message when clipping can't be done due to arcs.
-     * @return :
-     * -1 if arcs intersect other sides, so polygon can't be clipped
-     *  0 if no intersecting sides
-     *  1 if intersecting sides, polygon clipped
-     */
-    int AreaPolygonModified( PICKED_ITEMS_LIST* aModifiedZonesList,
-                             ZONE_CONTAINER*    modified_area,
-                             bool               bMessageBoxArc,
-                             bool               bMessageBoxInt );
+     * @return true if some areas modified
+    */
+    bool OnAreaPolygonModified( PICKED_ITEMS_LIST* aModifiedZonesList,
+                                ZONE_CONTAINER*    modified_area );
 
     /**
      * Function CombineAllAreasInNet
@@ -1028,15 +1133,13 @@ public:
      * @param aDeletedList = a PICKED_ITEMS_LIST * where to store deleted areas (useful
      *                       in undo commands can be NULL
      * @param aNetCode = net to consider
-     * @param bMessageBox : if true display warning message box
-     * @param bUseUtility : if true, don't check areas if both utility flags are 0
+     * @param aUseUtility : if true, don't check areas if both utility flags are 0
      * Sets utility flag = 1 for any areas modified
-     * If an area has self-intersecting arcs, doesn't try to combine it
+     * @return true if some areas modified
      */
-    int CombineAllAreasInNet( PICKED_ITEMS_LIST* aDeletedList,
+    bool CombineAllAreasInNet( PICKED_ITEMS_LIST* aDeletedList,
                               int                aNetCode,
-                              bool               bMessageBox,
-                              bool               bUseUtility );
+                              bool               aUseUtility );
 
     /**
      * Function RemoveArea
@@ -1060,28 +1163,24 @@ public:
      * area_to_test must be after area_ref in m_ZoneDescriptorList
      * @param area_ref = area reference
      * @param area_to_test = area to compare for intersection calculations
-     * @return : 0 if no intersection
-     *         1 if intersection
-     *         2 if arcs intersect
+     * @return : false if no intersection, true if intersection
      */
-    int TestAreaIntersection( ZONE_CONTAINER* area_ref, ZONE_CONTAINER* area_to_test );
+    bool TestAreaIntersection( ZONE_CONTAINER* area_ref, ZONE_CONTAINER* area_to_test );
 
     /**
      * Function CombineAreas
      * If possible, combine 2 copper areas
-     * @param aDeletedList = a PICKED_ITEMS_LIST * where to store deleted areas (useful
-     *                       in undo commands can be NULL
+     * @param aDeletedList = a PICKED_ITEMS_LIST * where to store deleted areas
+     *                      (useful for undo).
      * @param area_ref = the main area (zone)
      * @param area_to_combine = the zone that can be merged with area_ref
      * area_ref must be BEFORE area_to_combine
      * area_to_combine will be deleted, if areas are combined
-     * @return : 0 if no intersection
-     *         1 if intersection
-     *         2 if arcs intersect
+     * @return : true if area_to_combine is combined with area_ref (and therefore be deleted)
      */
-    int CombineAreas( PICKED_ITEMS_LIST* aDeletedList,
-                      ZONE_CONTAINER*    area_ref,
-                      ZONE_CONTAINER*    area_to_combine );
+    bool CombineAreas( PICKED_ITEMS_LIST* aDeletedList,
+                       ZONE_CONTAINER*    area_ref,
+                       ZONE_CONTAINER*    area_to_combine );
 
     /**
      * Function Test_Drc_Areas_Outlines_To_Areas_Outlines
@@ -1142,7 +1241,7 @@ public:
 
     /**
      * Function GetPadFast
-     * return pad found at \a aPosition on \a aLayer uning the fast search method.
+     * return pad found at \a aPosition on \a aLayer using the fast search method.
      * <p>
      * The fast search method only works if the pad list has already been built.
      * </p>
@@ -1154,7 +1253,7 @@ public:
 
     /**
      * Function GetPad
-     * locates the pad connected at \a aPosition on \a aLayer starting at list postion
+     * locates the pad connected at \a aPosition on \a aLayer starting at list position
      * \a aPad
      * <p>
      * This function uses a fast search in this sorted pad list and it is faster than
@@ -1177,9 +1276,11 @@ public:
      * those pointers are only references to pads which are owned by the BOARD
      * through other links.
      * @param aVector Where to put the pad pointers.
+     * @param aNetCode = the netcode filter:
+     *                  = -1 to build the full pad list.
+     *                  = a given netcode to build the pad list relative to the given net
      */
-    void GetSortedPadListByXthenYCoord( std::vector<D_PAD*>& aVector );
-
+    void GetSortedPadListByXthenYCoord( std::vector<D_PAD*>& aVector, int aNetCode = -1 );
 
     /**
      * Function GetTrace
@@ -1206,9 +1307,9 @@ public:
      * @param aTrace The segment within a list of trace segments to test.
      * @param aCount A pointer to an integer where to return the number of
      *               marked segments.
-     * @param aTraceLength A pointer to an integer where to return the length of the
+     * @param aTraceLength A pointer to an double where to return the length of the
      *                     trace.
-     * @param aDieLength A pointer to an integer where to return the extra lengths inside
+     * @param aInPackageLength A pointer to an double where to return the extra lengths inside
      *                   integrated circuits from the pads connected to this track to the
      *                   die (if any).
      * @param aReorder true for reorder the interesting segments (useful for
@@ -1218,8 +1319,8 @@ public:
      *                 track length in this case, flags are reset
      * @return TRACK* The first in the chain of interesting segments.
      */
-    TRACK* MarkTrace( TRACK* aTrace, int* aCount, int* aTraceLength,
-                      int* aDieLength, bool aReorder );
+    TRACK* MarkTrace( TRACK* aTrace, int* aCount, double* aTraceLength,
+                      double* aInPackageLength, bool aReorder );
 
     /**
      * Function GetFootprint
@@ -1256,10 +1357,10 @@ public:
     /**
      * Function CreateLockPoint
      * creates an intermediate point on \a aSegment and break it into two segments
-     * at \a aPoition.
+     * at \a aPosition.
      * <p>
      * The new segment starts from \a aPosition and ends at the end point of \a
-     * aSegement.  The original segment now ends at \a aPosition.
+     * aSegment.  The original segment now ends at \a aPosition.
      * </p>
      *
      * @param aPosition A wxPoint object containing the position to test and the new
@@ -1273,4 +1374,4 @@ public:
     TRACK* CreateLockPoint( wxPoint& aPosition, TRACK* aSegment, PICKED_ITEMS_LIST* aList );
 };
 
-#endif      // #ifndef CLASS_BOARD_H
+#endif      // CLASS_BOARD_H_

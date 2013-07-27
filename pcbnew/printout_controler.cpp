@@ -1,7 +1,7 @@
 /*
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
- * Copyright (C) 2009 Jean-Pierre Charras, jaen-pierre.charras@gipsa-lab.inpg.com
+ * Copyright (C) 2009 Jean-Pierre Charras, jean-pierre.charras@ujf-grenoble.fr
  * Copyright (C) 1992-2011 KiCad Developers, see AUTHORS.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
@@ -23,63 +23,77 @@
  */
 
 /**
- * printout_controler.cpp
+ * @file printout_controler.cpp
+ * @brief Board print handler implementation file.
  */
+
 
 // Set this to 1 if you want to test PostScript printing under MSW.
 #define wxTEST_POSTSCRIPT_IN_MSW 1
 
-#include "fctsys.h"
-#include "appl_wxstruct.h"
-#include "gr_basic.h"
-#include "wxBasePcbFrame.h"
-#include "class_drawpanel.h"
-#include "confirm.h"
+#include <fctsys.h>
+#include <appl_wxstruct.h>
+#include <gr_basic.h>
+#include <class_drawpanel.h>
+#include <confirm.h>
+#include <base_units.h>
+#ifdef PCBNEW
+    #include <wxBasePcbFrame.h>
+    #include <class_board.h>
+    #include <pcbnew.h>
+#else
+    #include <wxstruct.h>
+    #include <class_base_screen.h>
+    #include <layers_id_colors_and_visibility.h>
+    #include <gerbview_frame.h>
+#endif
+#include <printout_controler.h>
 
-#include "class_board.h"
 
-#include "pcbnew.h"
-#include "protos.h"
+/**
+ * Definition for enabling and disabling print controller trace output.  See the
+ * wxWidgets documentation on using the WXTRACE environment variable.
+ */
+static const wxString tracePrinting( wxT( "KicadPrinting" ) );
 
-#include "printout_controler.h"
 
-// This class is an helper to pass print parameters to print functions
 PRINT_PARAMETERS::PRINT_PARAMETERS()
 {
-    m_PenDefaultSize  = 50;     // A reasonnable minimal value to draw items
-                                // mainly that do not have a specifed line width
-    m_PrintScale      = 1.0;
-    m_XScaleAdjust    = m_YScaleAdjust = 1.0;
-    m_Print_Sheet_Ref = false;
-    m_PrintMaskLayer  = 0xFFFFFFFF;
-    m_PrintMirror     = false;
+    m_PenDefaultSize        = Millimeter2iu( 0.2 ); // A reasonable defualt value to draw items
+                                      // which do not have a specified line width
+    m_PrintScale            = 1.0;
+    m_XScaleAdjust          = 1.0;
+    m_YScaleAdjust          = 1.0;
+    m_Print_Sheet_Ref       = false;
+    m_PrintMaskLayer        = 0xFFFFFFFF;
+    m_PrintMirror           = false;
     m_Print_Black_and_White = true;
-    m_OptionPrintPage = 1;
-    m_PageCount     = 1;
-    m_ForceCentered = false;
-    m_Flags = 0;
-    m_DrillShapeOpt = PRINT_PARAMETERS::SMALL_DRILL_SHAPE;
-    m_PageSetupData = NULL;
+    m_OptionPrintPage       = 1;
+    m_PageCount             = 1;
+    m_ForceCentered         = false;
+    m_Flags                 = 0;
+    m_DrillShapeOpt         = PRINT_PARAMETERS::SMALL_DRILL_SHAPE;
+    m_PageSetupData         = NULL;
 }
 
 
-BOARD_PRINTOUT_CONTROLER::BOARD_PRINTOUT_CONTROLER( const PRINT_PARAMETERS& print_params,
-                                                    EDA_DRAW_FRAME* parent,
-                                                    const wxString&   title ) :
-    wxPrintout( title )
+BOARD_PRINTOUT_CONTROLLER::BOARD_PRINTOUT_CONTROLLER( const PRINT_PARAMETERS& aParams,
+                                                      EDA_DRAW_FRAME*         aParent,
+                                                      const wxString&         aTitle ) :
+    wxPrintout( aTitle )
 {
-    m_PrintParams = print_params;   // Make a local copy of parameters.
-                                    // So they can change in printout controler
-    m_Parent = parent;
+    m_PrintParams = aParams;   // Make a local copy of the print parameters.
+    m_Parent = aParent;
 }
 
 
-bool BOARD_PRINTOUT_CONTROLER::OnPrintPage( int page )
+bool BOARD_PRINTOUT_CONTROLLER::OnPrintPage( int aPage )
 {
+#ifdef PCBNEW
     int layers_count = NB_LAYERS;
-
-    if( m_Parent->IsType( GERBER_FRAME ) )
-        layers_count = 32;
+#else
+    int layers_count = LAYER_COUNT;
+#endif
 
     int mask_layer = m_PrintParams.m_PrintMaskLayer;
 
@@ -93,7 +107,7 @@ bool BOARD_PRINTOUT_CONTROLER::OnPrintPage( int page )
             if( mask_layer & mask )
                 jj++;
 
-            if( jj == page )
+            if( jj == aPage )
             {
                 m_PrintParams.m_PrintMaskLayer = mask;
                 break;
@@ -106,9 +120,11 @@ bool BOARD_PRINTOUT_CONTROLER::OnPrintPage( int page )
     if( m_PrintParams.m_PrintMaskLayer == 0 )
         return false;
 
+#ifdef PCBNEW
     // In Pcbnew we can want the layer EDGE always printed
     if( m_PrintParams.m_Flags == 1 )
         m_PrintParams.m_PrintMaskLayer |= EDGE_LAYER;
+#endif
 
     DrawPage();
 
@@ -118,15 +134,14 @@ bool BOARD_PRINTOUT_CONTROLER::OnPrintPage( int page )
 }
 
 
-/*********************************************************/
-void BOARD_PRINTOUT_CONTROLER::GetPageInfo( int* minPage, int* maxPage,
-                                            int* selPageFrom, int* selPageTo )
-/*********************************************************/
+void BOARD_PRINTOUT_CONTROLLER::GetPageInfo( int* minPage, int* maxPage,
+                                             int* selPageFrom, int* selPageTo )
 {
     *minPage     = 1;
     *selPageFrom = 1;
 
     int icnt = 1;
+
     if( m_PrintParams.m_OptionPrintPage == 0 )
         icnt = m_PrintParams.m_PageCount;
 
@@ -135,87 +150,82 @@ void BOARD_PRINTOUT_CONTROLER::GetPageInfo( int* minPage, int* maxPage,
 }
 
 
-/*
- * This is the real print function: print the active screen
- */
-void BOARD_PRINTOUT_CONTROLER::DrawPage()
+void BOARD_PRINTOUT_CONTROLLER::DrawPage()
 {
-    int          tmpzoom;
-    wxPoint      tmp_startvisu;
-    wxSize       SheetSize;     // Page size in internal units
-    wxPoint      old_org;
-    wxPoint      DrawOffset; // Offset de trace
-    double       userscale;
-    double       DrawZoom = 1;
-    wxDC*        dc = GetDC();
-    PCB_SCREEN*  screen = (PCB_SCREEN*) m_Parent->GetScreen();
-    bool         printMirror = m_PrintParams.m_PrintMirror;
+    wxPoint       offset;
+    double        userscale;
+    EDA_RECT      boardBoundingBox;
+    EDA_RECT      drawRect;
+    wxDC*         dc = GetDC();
+    BASE_SCREEN*  screen = m_Parent->GetScreen();
+    bool          printMirror = m_PrintParams.m_PrintMirror;
+    wxSize        pageSizeIU = m_Parent->GetPageSizeIU();
 
-    wxBusyCursor dummy;
+    wxBusyCursor  dummy;
 
-    /* Save old draw scale and draw offset */
-    tmp_startvisu = screen->m_StartVisu;
-    tmpzoom = screen->GetZoom();
-    old_org = screen->m_DrawOrg;
-    /* Change draw scale and offset to draw the whole page */
-    screen->SetScalingFactor( DrawZoom );
-    screen->m_DrawOrg.x   = screen->m_DrawOrg.y = 0;
-    screen->m_StartVisu.x = screen->m_StartVisu.y = 0;
+#if defined (PCBNEW)
+    BOARD * brd = ((PCB_BASE_FRAME*) m_Parent)->GetBoard();
+    boardBoundingBox = brd->ComputeBoundingBox();
+    wxString titleblockFilename = brd->GetFileName();
+#elif defined (GERBVIEW)
+    boardBoundingBox = ((GERBVIEW_FRAME*) m_Parent)->GetLayoutBoundingBox();
+    wxString titleblockFilename;    // TODO see if we uses the gerber file name
+#else
+    #error BOARD_PRINTOUT_CONTROLLER::DrawPage() works only for PCBNEW or GERBVIEW
+#endif
 
-    SheetSize = screen->m_CurrentSheetDesc->m_Size;       // size in 1/1000 inch
-    SheetSize.x *= m_Parent->m_InternalUnits / 1000;
-    SheetSize.y *= m_Parent->m_InternalUnits / 1000;            // size in internal units
+    // Use the page size as the drawing area when the board is shown or the user scale
+    // is less than 1.
+    if( m_PrintParams.PrintBorderAndTitleBlock() )
+        boardBoundingBox = EDA_RECT( wxPoint( 0, 0 ), pageSizeIU );
 
-    PCB_BASE_FRAME* pcbframe = (PCB_BASE_FRAME*) m_Parent;
-    pcbframe->GetBoard()->ComputeBoundingBox();
-    EDA_RECT brd_BBox = pcbframe->GetBoard()->m_BoundaryBox;
+    wxLogTrace( tracePrinting, wxT( "Drawing bounding box:                 x=%d, y=%d, w=%d, h=%d" ),
+                boardBoundingBox.GetX(), boardBoundingBox.GetY(),
+                boardBoundingBox.GetWidth(), boardBoundingBox.GetHeight() );
 
-    // In module editor, the module is located at 0,0 but for printing
-    // it is moved to SheetSize.x/2, SheetSize.y/2.
-    // So the equivalent board must be moved:
-    if( m_Parent->IsType( MODULE_EDITOR_FRAME ) )
-    {
-        wxPoint mv_offset;
-        mv_offset.x = SheetSize.x / 2;
-        mv_offset.y = SheetSize.y / 2;
-        brd_BBox.Move( mv_offset );
-    }
-
-    /* Compute the PCB size in internal units*/
+    // Compute the PCB size in internal units
     userscale = m_PrintParams.m_PrintScale;
 
-    if( userscale == 0 )            //  fit in page
+    if( m_PrintParams.m_PrintScale == 0 )   //  fit in page option
     {
-        int extra_margin = 4000*2;    // Margin = 4000 units pcb = 0.4 inch
-        SheetSize.x = brd_BBox.GetWidth() + extra_margin;
-        SheetSize.y = brd_BBox.GetHeight() + extra_margin;
-        userscale   = 0.99;
+        if(boardBoundingBox.GetWidth() && boardBoundingBox.GetHeight())
+        {
+            int margin = Millimeter2iu( 10.0 ); // add a margin around the drawings
+            double scaleX = (double)(pageSizeIU.x - (2 * margin)) /
+                            boardBoundingBox.GetWidth();
+            double scaleY = (double)(pageSizeIU.y - (2 * margin)) /
+                            boardBoundingBox.GetHeight();
+            userscale = (scaleX < scaleY) ? scaleX : scaleY;
+        }
+        else
+            userscale = 1.0;
     }
 
+    wxSize scaledPageSize = pageSizeIU;
+    drawRect.SetSize( scaledPageSize );
+    scaledPageSize.x = wxRound( scaledPageSize.x / userscale );
+    scaledPageSize.y = wxRound( scaledPageSize.y / userscale );
 
-    if( (m_PrintParams.m_PrintScale > 1.0)          //  scale > 1 -> Recadrage
-       || (m_PrintParams.m_PrintScale == 0) )       //  fit in page
-    {
-        DrawOffset += brd_BBox.Centre();
-    }
 
     if( m_PrintParams.m_PageSetupData )
     {
-        wxSize pagesize;
-        pagesize.x = (int)  (SheetSize.x / userscale);
-        pagesize.y = (int)  (SheetSize.y / userscale);
-        FitThisSizeToPageMargins(pagesize, *m_PrintParams.m_PageSetupData );
+        wxLogTrace( tracePrinting, wxT( "Fit size to page margins:         x=%d, y=%d" ),
+                    scaledPageSize.x, scaledPageSize.y );
+
+        // Always scale to the size of the paper.
+        FitThisSizeToPageMargins( scaledPageSize, *m_PrintParams.m_PageSetupData );
     }
 
     // Compute Accurate scale 1
-    if( userscale == 1.0 )
+    if( m_PrintParams.m_PrintScale == 1.0 )
     {
-        // We want a 1:1 scale and margins for printing
-        MapScreenSizeToPaper( );
+        // We want a 1:1 scale, regardless the page setup
+        // like page size, margin ...
+        MapScreenSizeToPaper(); // set best scale and offset (scale is not used)
         int w, h;
         GetPPIPrinter( &w, &h );
-        double accurate_Xscale = ( (double) ( DrawZoom * w ) ) / (double) PCB_INTERNAL_UNIT;
-        double accurate_Yscale = ( (double) ( DrawZoom * h ) ) / (double) PCB_INTERNAL_UNIT;
+        double accurate_Xscale = (double) w / (IU_PER_MILS*1000);
+        double accurate_Yscale = (double) h / (IU_PER_MILS*1000);
 
         if( IsPreview() )  // Scale must take in account the DC size in Preview
         {
@@ -223,68 +233,81 @@ void BOARD_PRINTOUT_CONTROLER::DrawPage()
             wxSize       PlotAreaSize;
             dc->GetSize( &PlotAreaSize.x, &PlotAreaSize.y );
             GetPageSizePixels( &w, &h );
-            accurate_Xscale *= PlotAreaSize.x;
-            accurate_Xscale /= (double) w;
-            accurate_Yscale *= PlotAreaSize.y;
-            accurate_Yscale /= (double) h;
+            accurate_Xscale *= (double)PlotAreaSize.x / w;
+            accurate_Yscale *= (double)PlotAreaSize.y / h;
         }
+        // Fine scale adjust
         accurate_Xscale *= m_PrintParams.m_XScaleAdjust;
         accurate_Yscale *= m_PrintParams.m_YScaleAdjust;
-        // Fine scale adjust
+
+        // Set print scale for 1:1 exact scale
         dc->SetUserScale( accurate_Xscale, accurate_Yscale );
     }
 
     // Get the final size of the DC in pixels
     wxSize       PlotAreaSizeInPixels;
     dc->GetSize( &PlotAreaSizeInPixels.x, &PlotAreaSizeInPixels.y );
+    wxLogTrace( tracePrinting, wxT( "Plot area in pixels:              x=%d, y=%d" ),
+                PlotAreaSizeInPixels.x, PlotAreaSizeInPixels.y );
     double scalex, scaley;
-    dc->GetUserScale(&scalex, &scaley);
+    dc->GetUserScale( &scalex, &scaley );
+    wxLogTrace( tracePrinting, wxT( "DC user scale:                    x=%g, y=%g" ),
+                scalex, scaley );
+
     wxSize PlotAreaSizeInUserUnits;
     PlotAreaSizeInUserUnits.x = (int) (PlotAreaSizeInPixels.x/scalex);
     PlotAreaSizeInUserUnits.y = (int) (PlotAreaSizeInPixels.y/scaley);
+    wxLogTrace( tracePrinting, wxT( "Scaled plot area in user units:   x=%d, y=%d" ),
+                PlotAreaSizeInUserUnits.x, PlotAreaSizeInUserUnits.y );
 
-    /* In some cases the plot origin is the centre of the page
-     *  when:
-     *  - Asked
-     *  - scale > 1
-     *  - fit in page
-     */
-    if( m_PrintParams.m_ForceCentered
-       || (m_PrintParams.m_PrintScale > 1.0)        //  scale > 1
-       || (m_PrintParams.m_PrintScale == 0) )       //  fit in page
+    // In module editor, the module is located at 0,0 but for printing
+    // it is moved to pageSizeIU.x/2, pageSizeIU.y/2.
+    // So the equivalent board must be moved to the center of the page:
+    if( m_Parent->IsType( MODULE_EDITOR_FRAME_TYPE ) )
     {
-        DrawOffset.x -= PlotAreaSizeInUserUnits.x / 2;
-        DrawOffset.y -= PlotAreaSizeInUserUnits.y / 2;
+        boardBoundingBox.Move( wxPoint( pageSizeIU.x/2, pageSizeIU.y/2 ) );
     }
 
-    screen->m_DrawOrg = DrawOffset;
+    // In some cases the plot origin is the centre of the board outline rather than the center
+    // of the selected paper size.
+    if( m_PrintParams.CenterOnBoardOutline() )
+    {
+        // Here we are only drawing the board and it's contents.
+        drawRect = boardBoundingBox;
+        offset.x += wxRound( (double) -scaledPageSize.x / 2.0 );
+        offset.y += wxRound( (double) -scaledPageSize.y / 2.0 );
+
+        wxPoint center = boardBoundingBox.Centre();
+
+        if( printMirror )
+        {
+            // Calculate the mirrored center of the board.
+            center.y = m_Parent->GetPageSizeIU().y - boardBoundingBox.Centre().y;
+        }
+
+        offset += center;
+    }
 
     GRResetPenAndBrush( dc );
+
     if( m_PrintParams.m_Print_Black_and_White )
         GRForceBlackPen( true );
 
-
-    EDA_DRAW_PANEL* panel = m_Parent->DrawPanel;
-    EDA_RECT        tmp   = panel->m_ClipBox;
+    EDA_DRAW_PANEL* panel = m_Parent->GetCanvas();
+    EDA_RECT        tmp   = *panel->GetClipBox();
 
     // Set clip box to the max size
     #define MAX_VALUE (INT_MAX/2)   // MAX_VALUE is the max we can use in an integer
                                     // and that allows calculations without overflow
-    panel->m_ClipBox.SetOrigin( wxPoint( 0, 0 ) );
-    panel->m_ClipBox.SetSize( wxSize( MAX_VALUE, MAX_VALUE ) );
+    panel->SetClipBox( EDA_RECT( wxPoint( 0, 0 ), wxSize( MAX_VALUE, MAX_VALUE ) ) );
 
-    m_Parent->GetScreen()->m_IsPrinting = true;
-    int bg_color = g_DrawBgColor;
-
-    if( m_PrintParams.m_Print_Sheet_Ref )
-        m_Parent->TraceWorkSheet( dc, screen, m_PrintParams.m_PenDefaultSize );
+    screen->m_IsPrinting = true;
+    EDA_COLOR_T bg_color = g_DrawBgColor;
 
     if( printMirror )
     {
         // To plot mirror, we reverse the y axis, and modify the plot y origin
         dc->SetAxisOrientation( true, true );
-        if( userscale < 1.0 )
-            scaley /= userscale;
 
         /* Plot offset y is moved by the y plot area size in order to have
          * the old draw area in the new draw area, because the draw origin has not moved
@@ -293,49 +316,60 @@ void BOARD_PRINTOUT_CONTROLER::DrawPage()
         int y_dc_offset = PlotAreaSizeInPixels.y;
         y_dc_offset = (int) ( ( double ) y_dc_offset * userscale );
         dc->SetDeviceOrigin( 0, y_dc_offset );
-        int ysize = (int) ( PlotAreaSizeInPixels.y / scaley );
-        DrawOffset.y += ysize;
 
-        /* in order to keep the board position in the sheet
-         * (when user scale <= 1) the y offset in moved by the distance between
-         * the middle of the page and the middle of the board
-         * This is equivalent to put the mirror axis to the board centre
-         * for scales > 1, the DrawOffset was already computed to have the board centre
-         * to the middle of the page.
-         */
-        wxPoint pcb_centre = brd_BBox.Centre();
+        wxLogTrace( tracePrinting, wxT( "Device origin:                    x=%d, y=%d" ),
+                    0, y_dc_offset );
 
-        if( userscale <= 1.0 )
-            DrawOffset.y += pcb_centre.y - (ysize / 2);
-
-        dc->SetLogicalOrigin( screen->m_DrawOrg.x, screen->m_DrawOrg.y );
-        panel->m_ClipBox.SetOrigin( wxPoint( -MAX_VALUE/2, -MAX_VALUE/2 ) );
+        panel->SetClipBox( EDA_RECT( wxPoint( -MAX_VALUE/2, -MAX_VALUE/2 ),
+                                     panel->GetClipBox()->GetSize() ) );
     }
+
+    // screen->m_DrawOrg = offset;
+    dc->SetLogicalOrigin( offset.x, offset.y );
+
+    wxLogTrace( tracePrinting, wxT( "Logical origin:                   x=%d, y=%d" ),
+                offset.x, offset.y );
+
+#if defined(wxUSE_LOG_TRACE)
+    wxRect paperRect = GetPaperRectPixels();
+    wxLogTrace( tracePrinting, wxT( "Paper rectangle:                  left=%d, top=%d, "
+                                    "right=%d, bottom=%d" ),
+                paperRect.GetLeft(), paperRect.GetTop(), paperRect.GetRight(),
+                paperRect.GetBottom() );
+
+    int devLeft = dc->LogicalToDeviceX( drawRect.GetX() );
+    int devTop = dc->LogicalToDeviceY( drawRect.GetY() );
+    int devRight = dc->LogicalToDeviceX( drawRect.GetRight() );
+    int devBottom = dc->LogicalToDeviceY( drawRect.GetBottom() );
+    wxLogTrace( tracePrinting, wxT( "Final device rectangle:           left=%d, top=%d, "
+                                    "right=%d, bottom=%d\n" ),
+                devLeft, devTop, devRight, devBottom );
+#endif
 
     g_DrawBgColor = WHITE;
 
-    /* when printing in color mode, we use the graphic OR mode that gives the same look as the screen
-     * But because the background is white when printing, we must use a trick:
+    /* when printing in color mode, we use the graphic OR mode that gives the same look as
+     * the screen but because the background is white when printing, we must use a trick:
      * In order to plot on a white background in OR mode we must:
-     * 1 - Plot all items in black, this creates a local black backgroud
+     * 1 - Plot all items in black, this creates a local black background
      * 2 - Plot in OR mode on black "local" background
      */
     if( !m_PrintParams.m_Print_Black_and_White )
-    {   // Creates a "local" black background
+    {
+        // Creates a "local" black background
         GRForceBlackPen( true );
         m_Parent->PrintPage( dc, m_PrintParams.m_PrintMaskLayer, printMirror, &m_PrintParams );
         GRForceBlackPen( false );
     }
 
+    if( m_PrintParams.PrintBorderAndTitleBlock() )
+        m_Parent->TraceWorkSheet( dc, screen, m_PrintParams.m_PenDefaultSize,
+                                  IU_PER_MILS, titleblockFilename );
+
     m_Parent->PrintPage( dc, m_PrintParams.m_PrintMaskLayer, printMirror, &m_PrintParams );
 
     g_DrawBgColor = bg_color;
-    m_Parent->GetScreen()->m_IsPrinting = false;
-    panel->m_ClipBox = tmp;
-
+    screen->m_IsPrinting = false;
+    panel->SetClipBox( tmp );
     GRForceBlackPen( false );
-
-    screen->m_StartVisu = tmp_startvisu;
-    screen->m_DrawOrg   = old_org;
-    screen->SetZoom( tmpzoom );
 }

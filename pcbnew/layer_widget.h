@@ -41,7 +41,7 @@
 #include <wx/bitmap.h>
 #include <wx/image.h>
 #include <wx/icon.h>
-
+#include <colors.h>
 
 #define LYR_COLUMN_COUNT        4           ///< Layer tab column count
 #define RND_COLUMN_COUNT        2           ///< Rendering tab column count
@@ -49,8 +49,7 @@
 
 /**
  * Class LAYER_WIDGET
- * is abstract and is derived from a wxFormBuilder maintained class called
- * LAYER_PANEL_BASE.  It is used to manage a list of layers, with the notion of
+ * is abstract and is used to manage a list of layers, with the notion of
  * a "current" layer, and layer specific visibility control.  You must derive from
  * it to use it so you can implement the abstract functions which recieve the
  * events.  Each layer is given its own color, and that color can be changed
@@ -75,11 +74,11 @@ public:
     {
         wxString    rowName;    ///< the prompt or layername
         int         id;         ///< either a layer or "visible element" id
-        int         color;      ///< -1 if none.
+        EDA_COLOR_T color;      ///< -1 if none.
         bool        state;      ///< initial wxCheckBox state
         wxString    tooltip;    ///< if not empty, use this tooltip on row
 
-        ROW( const wxString& aRowName, int aId, int aColor = -1,
+        ROW( const wxString& aRowName, int aId, EDA_COLOR_T aColor = UNSPECIFIED_COLOR,
             const wxString& aTooltip = wxEmptyString, bool aState = true )
         {
             rowName = aRowName;
@@ -110,7 +109,7 @@ protected:
     int                 m_CurrentRow;           ///< selected row of layer list
     int                 m_PointSize;
 
-    static wxBitmap makeBitmap( int aColor );
+    static wxBitmap makeBitmap( EDA_COLOR_T aColor );
 
     /**
      * Virtual Function useAlternateBitmap
@@ -141,7 +140,7 @@ protected:
      * Function makeColorButton
      * creates a wxBitmapButton and assigns it a solid color and a control ID
      */
-    wxBitmapButton* makeColorButton( wxWindow* aParent, int aColor, int aID );
+    wxBitmapButton* makeColorButton( wxWindow* aParent, EDA_COLOR_T aColor, int aID );
 
     void OnLeftDownLayers( wxMouseEvent& event );
 
@@ -167,21 +166,22 @@ protected:
 
     /**
      * Function getLayerComp
-     * returns the component within the m_LayersFlexGridSizer at aRow and aCol
-     * or NULL if \a these parameters are out of range.
+     * returns the component within the m_LayersFlexGridSizer at @a aRow and @a aCol
+     * or NULL if these parameters are out of range.
      *
      * @param aRow is the row index
      * @param aColumn is the column
+     * @return wxWindow - the component installed within the sizer at given grid coordinate.
      */
-    wxWindow* getLayerComp( int aRow, int aColumn );
-    wxWindow* getRenderComp( int aRow, int aColumn );
+    wxWindow* getLayerComp( int aRow, int aColumn ) const;
+    wxWindow* getRenderComp( int aRow, int aColumn ) const;
 
     /**
      * Function findLayerRow
      * returns the row index that \a aLayer resides in, or -1 if not found.
      */
-    int findLayerRow( int aLayer );
-    int findRenderRow( int aId );
+    int findLayerRow( int aLayer ) const;
+    int findRenderRow( int aId ) const;
 
     /**
      * Function insertLayerRow
@@ -279,7 +279,6 @@ public:
             AppendRenderRow( aRowsArray[row] );
     }
 
-
     /**
      * Function ClearRenderRows
      * empties out the render rows.
@@ -320,13 +319,13 @@ public:
      * Function SetLayerColor
      * changes the color of \a aLayer
      */
-    void SetLayerColor( int aLayer, int aColor );
+    void SetLayerColor( int aLayer, EDA_COLOR_T aColor );
 
     /**
      * Function GetLayerColor
      * returns the color of the layer ROW associated with \a aLayer id.
      */
-    int GetLayerColor( int aLayer );
+    EDA_COLOR_T GetLayerColor( int aLayer ) const;
 
     /**
      * Function SetRenderState
@@ -374,7 +373,7 @@ public:
      * @param aLayer is the board layer to change
      * @param aColor is the new color
      */
-    virtual void OnLayerColorChange( int aLayer, int aColor ) = 0;
+    virtual void OnLayerColorChange( int aLayer, EDA_COLOR_T aColor ) = 0;
 
     /**
      * Function OnLayerSelect
@@ -405,7 +404,7 @@ public:
      * via the AddRenderRow() function.
      * @param aColor is the new color
      */
-    virtual void OnRenderColorChange( int aId, int aColor ) = 0;
+    virtual void OnRenderColorChange( int aId, EDA_COLOR_T aColor ) = 0;
 
     /**
      * Function OnRenderEnable
@@ -419,6 +418,5 @@ public:
 
     //-----</abstract functions>------------------------------------------
 };
-
 
 #endif // LAYERWIDGET_H_

@@ -28,57 +28,57 @@
  */
 
 
-#include "fctsys.h"
-#include "gr_basic.h"
-#include "common.h"
-#include "class_drawpanel.h"
-#include "drawtxt.h"
+#include <fctsys.h>
+#include <gr_basic.h>
+#include <common.h>
+#include <class_drawpanel.h>
+#include <drawtxt.h>
+#include <base_units.h>
 
-#include "gerbview.h"
-#include "class_board_design_settings.h"
-#include "colors_selection.h"
-#include "class_gerber_draw_item.h"
-#include "class_GERBER.h"
+#include <gerbview.h>
+#include <colors_selection.h>
+#include <class_gerber_draw_item.h>
+#include <class_GERBER.h>
 
 
 void GERBVIEW_FRAME::PrintPage( wxDC* aDC, int aPrintMasklayer,
                                 bool aPrintMirrorMode, void* aData )
 {
     // Save current draw options, because print mode has specific options:
-    int             DisplayPolygonsModeImg = g_DisplayPolygonsModeSketch;
-    int             visiblemask = GetBoard()->GetVisibleLayers();
-    DISPLAY_OPTIONS save_opt    = DisplayOpt;
+    int             visiblemask = GetVisibleLayers();
+    GBR_DISPLAY_OPTIONS imgDisplayOptions = m_DisplayOptions;
 
     // Set draw options for printing:
-    GetBoard()->SetVisibleLayers( aPrintMasklayer );
-    DisplayOpt.DisplayPcbTrackFill = FILLED;
-    DisplayOpt.DisplayDrawItems    = FILLED;
-    DisplayOpt.DisplayZonesMode    = 0;
-    g_DisplayPolygonsModeSketch    = 0;
+    SetVisibleLayers( aPrintMasklayer );
+    m_DisplayOptions.m_DisplayFlashedItemsFill = true;
+    m_DisplayOptions.m_DisplayLinesFill = true;
+    m_DisplayOptions.m_DisplayPolygonsFill = true;
+    m_DisplayOptions.m_DisplayDCodes = false;
+    m_DisplayOptions.m_IsPrinting = true;
 
-    DrawPanel->m_PrintIsMirrored = aPrintMirrorMode;
+    m_canvas->SetPrintMirrored( aPrintMirrorMode );
 
-    GetBoard()->Draw( DrawPanel, aDC, -1, wxPoint( 0, 0 ) );
+    // XXX -1 as drawmode?
+    GetLayout()->Draw( m_canvas, aDC, UNSPECIFIED_DRAWMODE, wxPoint( 0, 0 ) );
 
-    DrawPanel->m_PrintIsMirrored = false;
+    m_canvas->SetPrintMirrored( false );
 
     // Restore draw options:
-    GetBoard()->SetVisibleLayers( visiblemask );
-    DisplayOpt = save_opt;
-    g_DisplayPolygonsModeSketch = DisplayPolygonsModeImg;
+    SetVisibleLayers( visiblemask );
+    m_DisplayOptions = imgDisplayOptions;
 }
 
 
 void GERBVIEW_FRAME::RedrawActiveWindow( wxDC* DC, bool EraseBg )
 {
-    PCB_SCREEN* screen = (PCB_SCREEN*) GetScreen();
+    GBR_SCREEN* screen = (GBR_SCREEN*) GetScreen();
 
-    if( !GetBoard() )
+    if( !GetLayout() )
         return;
 
     wxBusyCursor dummy;
 
-    int          drawMode = -1;
+    GR_DRAWMODE drawMode = UNSPECIFIED_DRAWMODE;
 
     switch( GetDisplayMode() )
     {
@@ -96,22 +96,22 @@ void GERBVIEW_FRAME::RedrawActiveWindow( wxDC* DC, bool EraseBg )
     }
 
     // Draw according to the current setting.  This needs to be GR_COPY or GR_OR.
-    GetBoard()->Draw( DrawPanel, DC, drawMode, wxPoint( 0, 0 ) );
+    GetLayout()->Draw( m_canvas, DC, drawMode, wxPoint( 0, 0 ) );
 
     // Draw the "background" now, i.e. grid and axis after gerber layers
     // because most of time the actual background is erased by successive drawings of each gerber
     // layer mainly in COPY mode
-    DrawPanel->DrawBackGround( DC );
+    m_canvas->DrawBackGround( DC );
 
     if( IsElementVisible( DCODES_VISIBLE ) )
         DrawItemsDCodeID( DC, GR_COPY );
 
-    TraceWorkSheet( DC, screen, 0 );
+    TraceWorkSheet( DC, screen, 0, IU_PER_MILS, wxEmptyString );
 
-    if( DrawPanel->IsMouseCaptured() )
-        DrawPanel->m_mouseCaptureCallback( DrawPanel, DC, wxDefaultPosition, false );
+    if( m_canvas->IsMouseCaptured() )
+        m_canvas->CallMouseCapture( DC, wxDefaultPosition, false );
 
-    DrawPanel->DrawCrossHair( DC );
+    m_canvas->DrawCrossHair( DC );
 
     // Display the filename and the layer name (found in the gerber files, if any)
     // relative to the active layer
@@ -122,7 +122,8 @@ void GERBVIEW_FRAME::RedrawActiveWindow( wxDC* DC, bool EraseBg )
 /*
  * Redraw All GerbView layers, using a buffered mode or not
  */
-void BOARD::Draw( EDA_DRAW_PANEL* aPanel, wxDC* aDC, int aDrawMode, const wxPoint& aOffset )
+void GBR_LAYOUT::Draw( EDA_DRAW_PANEL* aPanel, wxDC* aDC, GR_DRAWMODE aDrawMode,
+                       const wxPoint& aOffset )
 {
     // Because Images can be negative (i.e with background filled in color) items are drawn
     // graphic layer per graphic layer, after the background is filled
@@ -133,6 +134,8 @@ void BOARD::Draw( EDA_DRAW_PANEL* aPanel, wxDC* aDC, int aDrawMode, const wxPoin
 
     wxColour bgColor = MakeColour( g_DrawBgColor );
     wxBrush  bgBrush( bgColor, wxSOLID );
+
+    GERBVIEW_FRAME* gerbFrame = (GERBVIEW_FRAME*) aPanel->GetParent();
 
     int      bitmapWidth, bitmapHeight;
     wxDC*    plotDC = aDC;
@@ -151,12 +154,16 @@ void BOARD::Draw( EDA_DRAW_PANEL* aPanel, wxDC* aDC, int aDrawMode, const wxPoin
     // on other images when drawn on screen
     bool useBufferBitmap = false;
 
+#ifndef __WXMAC__
+    // Can't work with MAC
+    // Don't try this with retina display
     if( (aDrawMode == GR_COPY) || ( aDrawMode == GR_OR ) )
         useBufferBitmap = true;
-
+#endif
+    
     // these parameters are saved here, because they are modified
     // and restored later
-    EDA_RECT   drawBox = aPanel->m_ClipBox;
+    EDA_RECT drawBox = *aPanel->GetClipBox();
     double scale;
     aDC->GetUserScale(&scale, &scale);
     wxPoint dev_org = aDC->GetDeviceOrigin();
@@ -169,7 +176,7 @@ void BOARD::Draw( EDA_DRAW_PANEL* aPanel, wxDC* aDC, int aDrawMode, const wxPoin
         screenBitmap = new wxBitmap( bitmapWidth, bitmapHeight );
         layerDC.SelectObject( *layerBitmap );
         aPanel->DoPrepareDC( layerDC );
-        aPanel->m_ClipBox = drawBox;
+        aPanel->SetClipBox( drawBox );
         layerDC.SetBackground( bgBrush );
         layerDC.SetBackgroundMode( wxSOLID );
         layerDC.Clear();
@@ -188,7 +195,7 @@ void BOARD::Draw( EDA_DRAW_PANEL* aPanel, wxDC* aDC, int aDrawMode, const wxPoin
 
     for( int layer = 0; !end; layer++ )
     {
-        int active_layer = ( (GERBVIEW_FRAME*) m_PcbFrame )->getActiveLayer();
+        int active_layer = gerbFrame->getActiveLayer();
 
         if( layer == active_layer ) // active layer will be drawn after other layers
             continue;
@@ -199,7 +206,7 @@ void BOARD::Draw( EDA_DRAW_PANEL* aPanel, wxDC* aDC, int aDrawMode, const wxPoin
             layer = active_layer;
         }
 
-        if( !GetBoard()->IsLayerVisible( layer ) )
+        if( !gerbFrame->IsLayerVisible( layer ) )
             continue;
 
         GERBER_IMAGE* gerber = g_GERBER_List[layer];
@@ -256,7 +263,7 @@ void BOARD::Draw( EDA_DRAW_PANEL* aPanel, wxDC* aDC, int aDrawMode, const wxPoin
         if( gerber->m_ImageNegative )
         {
             // Draw background negative (i.e. in graphic layer color) for negative images.
-            int color = GetBoard()->GetLayerColor( layer );
+            EDA_COLOR_T color = gerbFrame->GetLayerColor( layer );
 
             GRSetDrawMode( &layerDC, GR_COPY );
             GRFilledRect( &drawBox, plotDC, drawBox.GetX(), drawBox.GetY(),
@@ -269,29 +276,27 @@ void BOARD::Draw( EDA_DRAW_PANEL* aPanel, wxDC* aDC, int aDrawMode, const wxPoin
 
         int dcode_highlight = 0;
 
-        if( layer == ( (GERBVIEW_FRAME*) m_PcbFrame )->getActiveLayer() )
+        if( layer == gerbFrame->getActiveLayer() )
             dcode_highlight = gerber->m_Selected_Tool;
 
-        int layerdrawMode = GR_COPY;
+        GR_DRAWMODE layerdrawMode = GR_COPY;
 
         if( aDrawMode == GR_OR && !gerber->HasNegativeItems() )
             layerdrawMode = GR_OR;
 
         // Now we can draw the current layer to the bitmap buffer
         // When needed, the previous bitmap is already copied to the screen buffer.
-        for( BOARD_ITEM* item = GetBoard()->m_Drawings; item; item = item->Next() )
+        for( GERBER_DRAW_ITEM* item = gerbFrame->GetItemsList(); item; item = item->Next() )
         {
-            GERBER_DRAW_ITEM* gerb_item = (GERBER_DRAW_ITEM*) item;
-
-            if( gerb_item->GetLayer() != layer )
+            if( item->GetLayer() != layer )
                 continue;
 
-            int drawMode = layerdrawMode;
+            GR_DRAWMODE drawMode = layerdrawMode;
 
-            if( dcode_highlight && dcode_highlight == gerb_item->m_DCode )
-                drawMode |= GR_HIGHLIGHT;
+            if( dcode_highlight && dcode_highlight == item->m_DCode )
+                DrawModeAddHighlight( &drawMode);
 
-            gerb_item->Draw( aPanel, plotDC, drawMode );
+            item->Draw( aPanel, plotDC, drawMode, wxPoint(0,0) );
             doBlit = true;
         }
     }
@@ -345,54 +350,51 @@ void BOARD::Draw( EDA_DRAW_PANEL* aPanel, wxDC* aDC, int aDrawMode, const wxPoin
 }
 
 
-void GERBVIEW_FRAME::DrawItemsDCodeID( wxDC* aDC, int aDrawMode )
+void GERBVIEW_FRAME::DrawItemsDCodeID( wxDC* aDC, GR_DRAWMODE aDrawMode )
 {
     wxPoint     pos;
     int         width, orient;
     wxString    Line;
 
     GRSetDrawMode( aDC, aDrawMode );
-    BOARD_ITEM* item = GetBoard()->m_Drawings;
 
-    for( ; item != NULL; item = item->Next() )
+    for( GERBER_DRAW_ITEM* item = GetItemsList(); item != NULL; item = item->Next() )
     {
-        GERBER_DRAW_ITEM* gerb_item = (GERBER_DRAW_ITEM*) item;
-
-        if( GetBoard()->IsLayerVisible( gerb_item->GetLayer() ) == false )
+        if( IsLayerVisible( item->GetLayer() ) == false )
             continue;
 
-        if( gerb_item->m_DCode <= 0 )
+        if( item->m_DCode <= 0 )
             continue;
 
-        if( gerb_item->m_Flashed || gerb_item->m_Shape == GBR_ARC )
+        if( item->m_Flashed || item->m_Shape == GBR_ARC )
         {
-            pos = gerb_item->m_Start;
+            pos = item->m_Start;
         }
         else
         {
-            pos.x = (gerb_item->m_Start.x + gerb_item->m_End.x) / 2;
-            pos.y = (gerb_item->m_Start.y + gerb_item->m_End.y) / 2;
+            pos.x = (item->m_Start.x + item->m_End.x) / 2;
+            pos.y = (item->m_Start.y + item->m_End.y) / 2;
         }
 
-        pos = gerb_item->GetABPosition( pos );
+        pos = item->GetABPosition( pos );
 
-        Line.Printf( wxT( "D%d" ), gerb_item->m_DCode );
+        Line.Printf( wxT( "D%d" ), item->m_DCode );
 
-        if( gerb_item->GetDcodeDescr() )
-            width = gerb_item->GetDcodeDescr()->GetShapeDim( gerb_item );
+        if( item->GetDcodeDescr() )
+            width = item->GetDcodeDescr()->GetShapeDim( item );
         else
-            width = MIN( gerb_item->m_Size.x, gerb_item->m_Size.y );
+            width = std::min( item->m_Size.x, item->m_Size.y );
 
         orient = TEXT_ORIENT_HORIZ;
 
-        if( gerb_item->m_Flashed )
+        if( item->m_Flashed )
         {
             // A reasonable size for text is width/3 because most of time this text has 3 chars.
             width /= 3;
         }
         else        // this item is a line
         {
-            wxPoint delta = gerb_item->m_Start - gerb_item->m_End;
+            wxPoint delta = item->m_Start - item->m_End;
 
             if( abs( delta.x ) < abs( delta.y ) )
                 orient = TEXT_ORIENT_VERT;
@@ -402,40 +404,11 @@ void GERBVIEW_FRAME::DrawItemsDCodeID( wxDC* aDC, int aDrawMode )
             width /= 2;
         }
 
-        int color = g_ColorsSettings.GetItemColor( DCODES_VISIBLE );
+        int color = GetVisibleElementColor( DCODES_VISIBLE );
 
-        DrawGraphicText( DrawPanel, aDC, pos, (EDA_Colors) color, Line,
+        DrawGraphicText( m_canvas, aDC, pos, (EDA_COLOR_T) color, Line,
                          orient, wxSize( width, width ),
                          GR_TEXT_HJUSTIFY_CENTER, GR_TEXT_VJUSTIFY_CENTER,
                          0, false, false );
     }
-}
-
-
-/* Virtual function needed by the PCB_SCREEN class derived from BASE_SCREEN
- * this is a virtual pure function in BASE_SCREEN
- * do nothing in GerbView
- * could be removed later
- */
-void PCB_SCREEN::ClearUndoORRedoList( UNDO_REDO_CONTAINER&, int )
-{
-}
-
-
-/* dummy_functions
- *
- *  These functions are used in some classes.
- *  they are useful in Pcbnew, but have no meaning or are never used
- *  in CvPcb or GerbView.
- *  but they must exist because they appear in some classes, and here, no nothing.
- */
-
-TRACK* MarkTrace( BOARD* aPcb,
-                  TRACK* aStartSegm,
-                  int*   aSegmCount,
-                  int*   aTrackLen,
-                  int*   aLenDie,
-                  bool   aReorder )
-{
-    return NULL;
 }

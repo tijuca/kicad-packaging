@@ -1,9 +1,10 @@
 /*
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
- * Copyright (C) 2006 Jean-Pierre Charras, jaen-pierre.charras@gipsa-lab.inpg.com
- * Copyright (C) 2011 Wayne Stambaugh <stambaughw@verizon.net>
- * Copyright (C) 1992-2011 KiCad Developers, see AUTHORS.txt for contributors.
+ * Copyright (C) 2012 Jean-Pierre Charras, jean-pierre.charras@ujf-grenoble.fr
+ * Copyright (C) 2012 SoftPLC Corporation, Dick Hollenbeck <dick@softplc.com>
+ * Copyright (C) 2012 Wayne Stambaugh <stambaughw@verizon.net>
+ * Copyright (C) 1992-2012 KiCad Developers, see AUTHORS.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -28,21 +29,21 @@
  */
 
 
-#include "fctsys.h"
-#include "gr_basic.h"
-#include "class_drawpanel.h"
-#include "confirm.h"
-#include "wxPcbStruct.h"
-#include "pcbcommon.h"
+#include <fctsys.h>
+#include <gr_basic.h>
+#include <class_drawpanel.h>
+#include <confirm.h>
+#include <wxPcbStruct.h>
+#include <pcbcommon.h>
 
-#include "class_board.h"
-#include "class_module.h"
-#include "class_track.h"
-#include "class_marker_pcb.h"
+#include <class_board.h>
+#include <class_module.h>
+#include <class_track.h>
+#include <class_marker_pcb.h>
 
-#include "pcbnew.h"
-#include "drc_stuff.h"
-#include "protos.h"
+#include <pcbnew.h>
+#include <drc_stuff.h>
+#include <protos.h>
 
 
 bool PCB_EDIT_FRAME::Other_Layer_Route( TRACK* aTrack, wxDC* DC )
@@ -60,22 +61,22 @@ bool PCB_EDIT_FRAME::Other_Layer_Route( TRACK* aTrack, wxDC* DC )
         return true;
     }
 
-    /* Avoid more than one via on the current location: */
-    if( GetBoard()->GetViaByPosition( g_CurrentTrackSegment->m_End,
+    // Avoid more than one via on the current location:
+    if( GetBoard()->GetViaByPosition( g_CurrentTrackSegment->GetEnd(),
                                       g_CurrentTrackSegment->GetLayer() ) )
         return false;
 
     for( TRACK* segm = g_FirstTrackSegment;  segm;  segm = segm->Next() )
     {
-        if( segm->Type() == PCB_VIA_T && g_CurrentTrackSegment->m_End == segm->m_Start )
+        if( segm->Type() == PCB_VIA_T && g_CurrentTrackSegment->GetEnd() == segm->GetStart() )
             return false;
     }
 
-    /* Is the current segment Ok (no DRC error) ? */
+    // Is the current segment Ok (no DRC error) ?
     if( Drc_On )
     {
         if( BAD_DRC==m_drc->Drc( g_CurrentTrackSegment, GetBoard()->m_Track ) )
-            /* DRC error, the change layer is not made */
+            // DRC error, the change layer is not made
             return false;
 
         // Handle 2 segments.
@@ -92,20 +93,21 @@ bool PCB_EDIT_FRAME::Other_Layer_Route( TRACK* aTrack, wxDC* DC )
     itmp = g_CurrentTrackList.GetCount();
     Begin_Route( g_CurrentTrackSegment, DC );
 
-    DrawPanel->m_mouseCaptureCallback( DrawPanel, DC, wxDefaultPosition, false );
+    m_canvas->CallMouseCapture( DC, wxDefaultPosition, false );
 
-    /* create the via */
+    // create the via
     SEGVIA* via    = new SEGVIA( GetBoard() );
-    via->m_Flags   = IS_NEW;
-    via->m_Shape   = GetBoard()->GetBoardDesignSettings()->m_CurrentViaType;
-    via->m_Width   = GetBoard()->GetCurrentViaSize();
+    via->SetFlags( IS_NEW );
+    via->SetShape( GetDesignSettings().m_CurrentViaType );
+    via->SetWidth( GetBoard()->GetCurrentViaSize());
     via->SetNet( GetBoard()->GetHighLightNetCode() );
-    via->m_Start   = via->m_End = g_CurrentTrackSegment->m_End;
+    via->SetEnd( g_CurrentTrackSegment->GetEnd() );
+    via->SetStart( g_CurrentTrackSegment->GetEnd() );
 
     // Usual via is from copper to component.
     // layer pair is LAYER_N_BACK and LAYER_N_FRONT.
     via->SetLayerPair( LAYER_N_BACK, LAYER_N_FRONT );
-    via->SetDrillValue( GetBoard()->GetCurrentViaDrill() );
+    via->SetDrill( GetBoard()->GetCurrentViaDrill() );
 
     int first_layer = getActiveLayer();
     int last_layer;
@@ -116,8 +118,8 @@ bool PCB_EDIT_FRAME::Other_Layer_Route( TRACK* aTrack, wxDC* DC )
     else
         last_layer = GetScreen()->m_Route_Layer_BOTTOM;
 
-    /* Adjust the actual via layer pair */
-    switch ( via->Shape() )
+    // Adjust the actual via layer pair
+    switch ( via->GetShape() )
     {
         case VIA_BLIND_BURIED:
             via->SetLayerPair( first_layer, last_layer );
@@ -139,7 +141,7 @@ bool PCB_EDIT_FRAME::Other_Layer_Route( TRACK* aTrack, wxDC* DC )
             via->SetLayerPair( first_layer, last_layer );
             {
                 NETINFO_ITEM* net = GetBoard()->FindNet( via->GetNet() );
-                via->m_Width      = net->GetMicroViaSize();
+                via->SetWidth( net->GetMicroViaSize() );
             }
         }
             break;
@@ -150,10 +152,10 @@ bool PCB_EDIT_FRAME::Other_Layer_Route( TRACK* aTrack, wxDC* DC )
 
     if( Drc_On && BAD_DRC == m_drc->Drc( via, GetBoard()->m_Track ) )
     {
-        /* DRC fault: the Via cannot be placed here ... */
+        // DRC fault: the Via cannot be placed here ...
         delete via;
 
-        DrawPanel->m_mouseCaptureCallback( DrawPanel, DC, wxDefaultPosition, false );
+        m_canvas->CallMouseCapture( DC, wxDefaultPosition, false );
 
         // delete the track(s) added in Begin_Route()
         while( g_CurrentTrackList.GetCount() > itmp )
@@ -165,7 +167,7 @@ bool PCB_EDIT_FRAME::Other_Layer_Route( TRACK* aTrack, wxDC* DC )
 
         // Refresh DRC diag, erased by previous calls
         if( m_drc->GetCurrentMarker() )
-            m_drc->GetCurrentMarker()->DisplayInfo( this );
+            SetMsgPanel( m_drc->GetCurrentMarker() );
 
         return false;
     }
@@ -183,7 +185,7 @@ bool PCB_EDIT_FRAME::Other_Layer_Route( TRACK* aTrack, wxDC* DC )
      * it will become the new current segment (from via to the mouse cursor)
      */
 
-    TRACK* track = lastNonVia->Copy();
+    TRACK* track = (TRACK*)lastNonVia->Clone();
 
     /* the above creates a new segment from the last entered segment, with the
      * current width, flags, netcode, etc... values.
@@ -197,37 +199,22 @@ bool PCB_EDIT_FRAME::Other_Layer_Route( TRACK* aTrack, wxDC* DC )
     /* the start point is the via position and the end point is the cursor
      * which also is on the via (will change when moving mouse)
      */
-    track->m_Start = track->m_End = via->m_Start;
+    track->SetEnd( via->GetStart() );
+    track->SetStart( via->GetStart() ); 
 
     g_CurrentTrackList.PushBack( track );
 
     if( g_TwoSegmentTrackBuild )
     {
         // Create a second segment (we must have 2 track segments to adjust)
-        g_CurrentTrackList.PushBack( g_CurrentTrackSegment->Copy() );
+        g_CurrentTrackList.PushBack( (TRACK*)g_CurrentTrackSegment->Clone() );
     }
 
-    DrawPanel->m_mouseCaptureCallback( DrawPanel, DC, wxDefaultPosition, false );
-    via->DisplayInfo( this );
-
+    m_canvas->CallMouseCapture( DC, wxDefaultPosition, false );
+    SetMsgPanel( via );
     UpdateStatusBar();
 
     return true;
-}
-
-
-void PCB_EDIT_FRAME::DisplayNetStatus( wxDC* DC )
-{
-    TRACK* pt_segm;
-    int    layerMask = (1 << getActiveLayer());
-    wxPoint pos = GetScreen()->RefPos( true );
-
-    pt_segm = GetBoard()->GetTrace( GetBoard()->m_Track, pos, layerMask );
-
-    if( pt_segm == NULL )
-        GetBoard()->DisplayInfo( this );
-    else
-        TestNetConnection( DC, pt_segm->GetNet() );
 }
 
 
@@ -250,9 +237,9 @@ void PCB_EDIT_FRAME::Show_1_Ratsnest( EDA_ITEM* item, wxDC* DC )
             Module = (MODULE*) pt_pad->GetParent();
         }
 
-        if( pt_pad ) /* Displaying the ratsnest of the corresponding net. */
+        if( pt_pad ) // Displaying the ratsnest of the corresponding net.
         {
-            pt_pad->DisplayInfo( this );
+            SetMsgPanel( pt_pad );
 
             for( unsigned ii = 0; ii < GetBoard()->GetRatsnestsCount(); ii++ )
             {
@@ -268,7 +255,7 @@ void PCB_EDIT_FRAME::Show_1_Ratsnest( EDA_ITEM* item, wxDC* DC )
                     if( ( net->m_Status & CH_ACTIF ) == 0 )
                         continue;
 
-                    net->Draw( DrawPanel, DC, GR_XOR, wxPoint( 0, 0 ) );
+                    net->Draw( m_canvas, DC, GR_XOR, wxPoint( 0, 0 ) );
                 }
             }
         }
@@ -286,7 +273,7 @@ void PCB_EDIT_FRAME::Show_1_Ratsnest( EDA_ITEM* item, wxDC* DC )
 
             if( Module )
             {
-                Module->DisplayInfo( this );
+                SetMsgPanel( Module );
                 pt_pad = Module->m_Pads;
 
                 for( ; pt_pad != NULL; pt_pad = (D_PAD*) pt_pad->Next() )
@@ -305,7 +292,7 @@ void PCB_EDIT_FRAME::Show_1_Ratsnest( EDA_ITEM* item, wxDC* DC )
                             if( (net->m_Status & CH_ACTIF) == 0 )
                                 continue;
 
-                            net->Draw( DrawPanel, DC, GR_XOR, wxPoint( 0, 0 ) );
+                            net->Draw( m_canvas, DC, GR_XOR, wxPoint( 0, 0 ) );
                         }
                     }
                 }
@@ -315,7 +302,7 @@ void PCB_EDIT_FRAME::Show_1_Ratsnest( EDA_ITEM* item, wxDC* DC )
         }
     }
 
-    /* Erase if no pad or module has been selected. */
+    // Erase if no pad or module has been selected.
     if( ( pt_pad == NULL ) && ( Module == NULL ) )
     {
         DrawGeneralRatsnest( DC );
@@ -335,7 +322,7 @@ void PCB_EDIT_FRAME::HighlightUnconnectedPads( wxDC* DC )
         if( (net->m_Status & CH_ACTIF) == 0 )
             continue;
 
-        net->m_PadStart->Draw( DrawPanel, DC, GR_OR | GR_HIGHLIGHT );
-        net->m_PadEnd->Draw( DrawPanel, DC, GR_OR | GR_HIGHLIGHT );
+        net->m_PadStart->Draw( m_canvas, DC, GR_OR | GR_HIGHLIGHT );
+        net->m_PadEnd->Draw( m_canvas, DC, GR_OR | GR_HIGHLIGHT );
     }
 }

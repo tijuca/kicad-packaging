@@ -27,26 +27,25 @@
  * @file viewlib_frame.h
  */
 
-#ifndef __LIBVIEWFRM_H__
-#define __LIBVIEWFRM_H__
+#ifndef LIBVIEWFRM_H_
+#define LIBVIEWFRM_H_
 
 
 #include <wx/gdicmn.h>
 
-#include "wxstruct.h"
-
+#include <sch_base_frame.h>
+#include <class_sch_screen.h>
 
 class wxSashLayoutWindow;
 class wxListBox;
 class wxSemaphore;
-class SCH_SCREEN;
 class CMP_LIBRARY;
 
 
 /**
  * Component library viewer main window.
  */
-class LIB_VIEW_FRAME : public EDA_DRAW_FRAME
+class LIB_VIEW_FRAME : public SCH_BASE_FRAME
 {
 private:
     wxComboBox*         SelpartBox;
@@ -63,7 +62,7 @@ private:
 
     // Flags
     wxSemaphore*        m_Semaphore;        // != NULL if the frame must emulate a modal dialog
-    wxString            m_ConfigPath;       // subpath for configuration
+    wxString            m_configPath;       // subpath for configuration
 
 protected:
     static wxString m_libraryName;
@@ -74,9 +73,25 @@ protected:
     static int      m_convert;
 
 public:
-    LIB_VIEW_FRAME( wxWindow* father, CMP_LIBRARY* Library = NULL, wxSemaphore* semaphore = NULL );
+    LIB_VIEW_FRAME( SCH_BASE_FRAME* aParent, CMP_LIBRARY* aLibrary = NULL,
+                    wxSemaphore* aSemaphore = NULL,
+                    long aStyle = KICAD_DEFAULT_DRAWFRAME_STYLE );
 
     ~LIB_VIEW_FRAME();
+
+    /**
+     * Function GetLibViewerFrameName (static)
+     * @return the frame name used when creating the frame
+     * used to get a reference to this frame, if exists
+     */
+    static const wxChar* GetLibViewerFrameName();
+
+    /**
+     * Function GetActiveLibraryViewer (static)
+     * @return a reference to the current opened Library viewer
+     * or NULL if no Library viewer currently opened
+     */
+    static LIB_VIEW_FRAME* GetActiveLibraryViewer();
 
     void OnSize( wxSizeEvent& event );
 
@@ -84,7 +99,6 @@ public:
      * Function OnSashDrag
      * resizes the child windows when dragging a sash window border.
      */
-
     void OnSashDrag( wxSashEvent& event );
 
     /**
@@ -107,8 +121,6 @@ public:
     void ClickOnLibList( wxCommandEvent& event );
     void ClickOnCmpList( wxCommandEvent& event );
     void OnSetRelativeOffset( wxCommandEvent& event );
-
-    SCH_SCREEN* GetScreen() { return (SCH_SCREEN*) EDA_DRAW_FRAME::GetScreen(); }
 
     void GeneralControl( wxDC* aDC, const wxPoint& aPosition, int aHotKey = 0 );
 
@@ -133,8 +145,8 @@ public:
     wxString& GetEntryName( void ) const { return m_entryName; }
     wxString& GetSelectedComponent( void ) const { return m_exportToEeschemaCmpName; }
 
-    int  GetUnit( void ) { return m_unit; }
-    int  GetConvert( void ) { return m_convert; }
+    static int  GetUnit( void ) { return m_unit; }
+    static int  GetConvert( void ) { return m_convert; }
 
 private:
     /**
@@ -154,8 +166,9 @@ private:
     void ExportToSchematicLibraryPart( wxCommandEvent& event );
     void ViewOneLibraryContent( CMP_LIBRARY* Lib, int Flag );
     bool OnRightClick( const wxPoint& MousePos, wxMenu* PopMenu );
+    void DClickOnCmpList( wxCommandEvent& event );
 
     DECLARE_EVENT_TABLE()
 };
 
-#endif  /* __LIBVIEWFRM_H__ */
+#endif  // LIBVIEWFRM_H_

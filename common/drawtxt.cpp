@@ -2,24 +2,50 @@
  * Functions to draw and plot text on screen
  * @file drawtxt.cpp
  */
-#include "fctsys.h"
-#include "gr_basic.h"
 
-#include "common.h"
-#include "plot_common.h"
+/*
+ * This program source code file is part of KiCad, a free EDA CAD application.
+ *
+ * Copyright (C) 2012 Jean-Pierre Charras, jean-pierre.charras@ujf-grenoble.fr
+ * Copyright (C) 2012 SoftPLC Corporation, Dick Hollenbeck <dick@softplc.com>
+ * Copyright (C) 2012 Wayne Stambaugh <stambaughw@verizon.net>
+ * Copyright (C) 1992-2012 KiCad Developers, see AUTHORS.txt for contributors.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation; either version 2
+ * of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, you may find one here:
+ * http://www.gnu.org/licenses/old-licenses/gpl-2.0.html
+ * or you may search the http://www.gnu.org website for the version 2 license,
+ * or you may write to the Free Software Foundation, Inc.,
+ * 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
+ */
 
-#include "trigo.h"
-#include "macros.h"
-#include "class_drawpanel.h"
-#include "class_base_screen.h"
+#include <fctsys.h>
+#include <gr_basic.h>
+#include <common.h>
+#include <plot_common.h>
+#include <eda_text.h>               // EDA_TEXT_HJUSTIFY_T and EDA_TEXT_VJUSTIFY_T
+#include <trigo.h>
+#include <macros.h>
+#include <class_drawpanel.h>
+#include <class_base_screen.h>
 
 #ifndef DEFAULT_SIZE_TEXT
 #   define DEFAULT_SIZE_TEXT 50
 #endif
 
 #define EDA_DRAWBASE
-#include "newstroke_font.h"
-#include "plot_common.h"
+#include <newstroke_font.h>
+#include <plot_common.h>
 
 /* factor used to calculate actual size of shapes from hershey fonts (could be adjusted depending on the font name)
  * Its value is choosen in order to have letters like M, P .. vertical size equal to the vertical char size parameter
@@ -29,6 +55,13 @@
 double s_HerscheyScaleFactor = HERSHEY_SCALE_FACTOR;
 
 
+/* Helper function for texts with over bar
+ */
+int OverbarPositionY( int size_v, int thickness )
+{
+    return KiROUND( ( (double) size_v * 1.1 ) + ( (double) thickness * 1.5 ) );
+}
+
 /**
  * Function GetPensizeForBold
  * @return the "best" value for a pen size to draw/plot a bold text
@@ -36,13 +69,13 @@ double s_HerscheyScaleFactor = HERSHEY_SCALE_FACTOR;
  */
 int GetPenSizeForBold( int aTextSize )
 {
-    return wxRound( aTextSize / 5.0 );
+    return KiROUND( aTextSize / 5.0 );
 }
 
 
 /**
  * Function  Clamp_Text_PenSize
- *As a rule, pen width should not be >1/4em, otherwise the character
+ * As a rule, pen width should not be >1/4em, otherwise the character
  * will be cluttered up in its own fatness
  * so pen width max is aSize/4 for bold text, and aSize/6 for normal text
  * The "best" pen width is aSize/5 for bold texts,
@@ -56,7 +89,7 @@ int Clamp_Text_PenSize( int aPenSize, int aSize, bool aBold )
 {
     int    penSize  = aPenSize;
     double scale    = aBold ? 4.0 : 6.0;
-    int    maxWidth = wxRound( ABS( aSize ) / scale );
+    int    maxWidth = KiROUND( std::abs( aSize ) / scale );
 
     if( penSize > maxWidth )
         penSize = maxWidth;
@@ -66,7 +99,7 @@ int Clamp_Text_PenSize( int aPenSize, int aSize, bool aBold )
 
 int Clamp_Text_PenSize( int aPenSize, wxSize aSize, bool aBold )
 {
-    int size = MIN( ABS( aSize.x ), ABS( aSize.y ) );
+    int size = std::min( std::abs( aSize.x ), std::abs( aSize.y ) );
 
     return Clamp_Text_PenSize( aPenSize, size, aBold );
 }
@@ -139,13 +172,13 @@ int ReturnGraphicTextWidth( const wxString& aText, int aXSize, bool aItalic, boo
         /* Get metrics */
         int         xsta = *ptcar++ - 'R';
         int         xsto = *ptcar++ - 'R';
-        tally += wxRound( aXSize * (xsto - xsta) * s_HerscheyScaleFactor );
+        tally += KiROUND( aXSize * (xsto - xsta) * s_HerscheyScaleFactor );
     }
 
     /* Italic correction, 1/8em */
     if( aItalic )
     {
-        tally += wxRound( aXSize * 0.125 );
+        tally += KiROUND( aXSize * 0.125 );
     }
     return tally;
 }
@@ -155,7 +188,7 @@ int ReturnGraphicTextWidth( const wxString& aText, int aXSize, bool aItalic, boo
 static void DrawGraphicTextPline(
     EDA_RECT* aClipBox,
     wxDC* aDC,
-    EDA_Colors aColor,
+    EDA_COLOR_T aColor,
     int aWidth,
     bool aSketchMode,
     int point_count,
@@ -165,13 +198,13 @@ static void DrawGraphicTextPline(
 {
     if( aPlotter )
     {
-        aPlotter->move_to( coord[0] );
+        aPlotter->MoveTo( coord[0] );
         for( int ik = 1; ik < point_count; ik++ )
         {
-            aPlotter->line_to( coord[ik] );
+            aPlotter->LineTo( coord[ik] );
         }
 
-        aPlotter->pen_finish();
+        aPlotter->PenFinish();
     }
     else if( aCallback )
     {
@@ -193,21 +226,13 @@ static void DrawGraphicTextPline(
 }
 
 
-/* Helper function for texts with over bar
- */
-static int overbar_position( int size_v, int thickness )
-{
-    return wxRound( ( (double) size_v * 26 * s_HerscheyScaleFactor ) + ( (double) thickness * 1.5 ) );
-}
-
-
 /**
  * Function DrawGraphicText
  * Draw a graphic text (like module texts)
- *  @param aPanel = the current DrawPanel. NULL if draw within a 3D GL Canvas
+ *  @param aPanel = the current m_canvas. NULL if draw within a 3D GL Canvas
  *  @param aDC = the current Device Context. NULL if draw within a 3D GL Canvas
  *  @param aPos = text position (according to h_justify, v_justify)
- *  @param aColor (enum EDA_Colors) = text color
+ *  @param aColor (enum EDA_COLOR_T) = text color
  *  @param aText = text to draw
  *  @param aOrient = angle in 0.1 degree
  *  @param aSize = text size (size.x or size.y can be < 0 for mirrored texts)
@@ -226,12 +251,12 @@ static int overbar_position( int size_v, int thickness )
 void DrawGraphicText( EDA_DRAW_PANEL* aPanel,
                       wxDC* aDC,
                       const wxPoint& aPos,
-                      EDA_Colors aColor,
+                      EDA_COLOR_T aColor,
                       const wxString& aText,
                       int aOrient,
                       const wxSize& aSize,
-                      enum GRTextHorizJustifyType aH_justify,
-                      enum GRTextVertJustifyType aV_justify,
+                      enum EDA_TEXT_HJUSTIFY_T aH_justify,
+                      enum EDA_TEXT_VJUSTIFY_T aV_justify,
                       int aWidth,
                       bool aItalic,
                       bool aBold,
@@ -245,11 +270,10 @@ void DrawGraphicText( EDA_DRAW_PANEL* aPanel,
     int       dx, dy;                       // Draw coordinate for segments to draw. also used in some other calculation
     wxPoint   current_char_pos;             // Draw coordinates for the current char
     wxPoint   overbar_pos;                  // Start point for the current overbar
-    int       overbars;                     // Number of ~ seen
     int       overbar_italic_comp;          // Italic compensation for overbar
     EDA_RECT* clipBox;                      // Clip box used in basic draw functions
 
-    clipBox = aPanel ? &aPanel->m_ClipBox : NULL;
+    clipBox = aPanel ? aPanel->GetClipBox() : NULL;
     #define        BUF_SIZE 100
     wxPoint coord[BUF_SIZE + 1];                // Buffer coordinate used to draw polylines (one char shape)
     bool    sketch_mode    = false;
@@ -259,7 +283,7 @@ void DrawGraphicText( EDA_DRAW_PANEL* aPanel,
     size_v = aSize.y;
 
     if( aWidth == 0 && aBold )       // Use default values if aWidth == 0
-        aWidth = GetPenSizeForBold( MIN( aSize.x, aSize.y ) );
+        aWidth = GetPenSizeForBold( std::min( aSize.x, aSize.y ) );
 
     if( aWidth < 0 )
     {
@@ -287,15 +311,15 @@ void DrawGraphicText( EDA_DRAW_PANEL* aPanel,
     if( aPanel )
     {
         int xm, ym, ll, xc, yc;
-        ll = ABS( dx );
+        ll = std::abs( dx );
 
         xc = current_char_pos.x;
         yc = current_char_pos.y;
 
-        x0 = aPanel->m_ClipBox.GetX() - ll;
-        y0 = aPanel->m_ClipBox.GetY() - ll;
-        xm = aPanel->m_ClipBox.GetRight() + ll;
-        ym = aPanel->m_ClipBox.GetBottom() + ll;
+        x0 = aPanel->GetClipBox()->GetX() - ll;
+        y0 = aPanel->GetClipBox()->GetY() - ll;
+        xm = aPanel->GetClipBox()->GetRight() + ll;
+        ym = aPanel->GetClipBox()->GetBottom() + ll;
 
         if( xc < x0 )
             return;
@@ -348,7 +372,7 @@ void DrawGraphicText( EDA_DRAW_PANEL* aPanel,
 
     /* if a text size is too small, the text cannot be drawn, and it is drawn as a single
      * graphic line */
-    if( ABS( aSize.x ) < 3 )
+    if( std::abs( aSize.x ) < 3 )
     {
         /* draw the text as a line always vertically centered */
         wxPoint end( current_char_pos.x + dx, current_char_pos.y );
@@ -358,15 +382,15 @@ void DrawGraphicText( EDA_DRAW_PANEL* aPanel,
 
         if( aPlotter )
         {
-            aPlotter->move_to( current_char_pos );
-            aPlotter->finish_to( end );
+            aPlotter->MoveTo( current_char_pos );
+            aPlotter->FinishTo( end );
         }
         else if( aCallback )
         {
             aCallback( current_char_pos.x, current_char_pos.y, end.x, end.y );
         }
         else
-            GRLine( &aPanel->m_ClipBox, aDC,
+            GRLine( clipBox, aDC,
                     current_char_pos.x, current_char_pos.y, end.x, end.y, aWidth, aColor );
 
         return;
@@ -374,7 +398,7 @@ void DrawGraphicText( EDA_DRAW_PANEL* aPanel,
 
     if( aItalic )
     {
-        overbar_italic_comp = overbar_position( size_v, aWidth ) / 8;
+        overbar_italic_comp = OverbarPositionY( size_v, aWidth ) / 8;
         if( italic_reverse )
         {
             overbar_italic_comp = -overbar_italic_comp;
@@ -385,7 +409,7 @@ void DrawGraphicText( EDA_DRAW_PANEL* aPanel,
         overbar_italic_comp = 0;
     };
 
-    overbars = 0;
+    int overbars = 0;       // Number of ~ seen
     ptr = 0;   /* ptr = text index */
     while( ptr < char_count )
     {
@@ -394,12 +418,12 @@ void DrawGraphicText( EDA_DRAW_PANEL* aPanel,
             /* Found an overbar, adjust the pointers */
             overbars++;
 
-            if( overbars % 2 )
+            if( overbars & 1 )      // odd overbars count
             {
                 /* Starting the overbar */
                 overbar_pos    = current_char_pos;
                 overbar_pos.x += overbar_italic_comp;
-                overbar_pos.y -= overbar_position( size_v, aWidth );
+                overbar_pos.y -= OverbarPositionY( size_v, aWidth );
                 RotatePoint( &overbar_pos, aPos, aOrient );
             }
             else
@@ -408,7 +432,7 @@ void DrawGraphicText( EDA_DRAW_PANEL* aPanel,
                 coord[0]       = overbar_pos;
                 overbar_pos    = current_char_pos;
                 overbar_pos.x += overbar_italic_comp;
-                overbar_pos.y -= overbar_position( size_v, aWidth );
+                overbar_pos.y -= OverbarPositionY( size_v, aWidth );
                 RotatePoint( &overbar_pos, aPos, aOrient );
                 coord[1] = overbar_pos;
                 /* Plot the overbar segment */
@@ -461,12 +485,12 @@ void DrawGraphicText( EDA_DRAW_PANEL* aPanel,
             {
                 wxPoint currpoint;
                 hc1 -= xsta; hc2 -= 11; /* Align the midpoint */
-                hc1  = wxRound( hc1 * size_h * s_HerscheyScaleFactor );
-                hc2  = wxRound( hc2 * size_v * s_HerscheyScaleFactor );
+                hc1  = KiROUND( hc1 * size_h * s_HerscheyScaleFactor );
+                hc2  = KiROUND( hc2 * size_v * s_HerscheyScaleFactor );
 
                 // To simulate an italic font, add a x offset depending on the y offset
                 if( aItalic )
-                    hc1 -= wxRound( italic_reverse ? -hc2 / 8.0 : hc2 / 8.0 );
+                    hc1 -= KiROUND( italic_reverse ? -hc2 / 8.0 : hc2 / 8.0 );
                 currpoint.x = hc1 + current_char_pos.x;
                 currpoint.y = hc2 + current_char_pos.y;
 
@@ -482,7 +506,7 @@ void DrawGraphicText( EDA_DRAW_PANEL* aPanel,
         ptr++;
 
         // Apply the advance width
-        current_char_pos.x += wxRound( size_h * (xsto - xsta) * s_HerscheyScaleFactor );
+        current_char_pos.x += KiROUND( size_h * (xsto - xsta) * s_HerscheyScaleFactor );
     }
 
     if( overbars % 2 )
@@ -490,7 +514,7 @@ void DrawGraphicText( EDA_DRAW_PANEL* aPanel,
         /* Close the last overbar */
         coord[0]       = overbar_pos;
         overbar_pos    = current_char_pos;
-        overbar_pos.y -= overbar_position( size_v, aWidth );
+        overbar_pos.y -= OverbarPositionY( size_v, aWidth );
         RotatePoint( &overbar_pos, aPos, aOrient );
         coord[1] = overbar_pos;
         /* Plot the overbar segment */
@@ -504,7 +528,7 @@ void DrawGraphicText( EDA_DRAW_PANEL* aPanel,
  * Function PlotGraphicText
  *  same as DrawGraphicText, but plot graphic text insteed of draw it
  *  @param aPos = text position (according to aH_justify, aV_justify)
- *  @param aColor (enum EDA_Colors) = text color
+ *  @param aColor (enum EDA_COLOR_T) = text color
  *  @param aText = text to draw
  *  @param aOrient = angle in 0.1 degree
  *  @param aSize = text size (size.x or size.y can be < 0 for mirrored texts)
@@ -516,36 +540,41 @@ void DrawGraphicText( EDA_DRAW_PANEL* aPanel,
  *  @param aItalic = true to simulate an italic font
  *  @param aBold = true to use a bold font Useful only with default width value (aWidth = 0)
  */
-void PLOTTER::text( const wxPoint&              aPos,
-                    enum EDA_Colors             aColor,
+void PLOTTER::Text( const wxPoint&              aPos,
+                    enum EDA_COLOR_T            aColor,
                     const wxString&             aText,
                     int                         aOrient,
                     const wxSize&               aSize,
-                    enum GRTextHorizJustifyType aH_justify,
-                    enum GRTextVertJustifyType  aV_justify,
+                    enum EDA_TEXT_HJUSTIFY_T    aH_justify,
+                    enum EDA_TEXT_VJUSTIFY_T    aV_justify,
                     int                         aWidth,
                     bool                        aItalic,
                     bool                        aBold )
 {
-    if( aWidth == 0 && aBold )      // Use default values if aWidth == 0
-        aWidth = GetPenSizeForBold( MIN( aSize.x, aSize.y ) );
+    int textPensize = aWidth;
 
-    if( aWidth >= 0 )
-        aWidth = Clamp_Text_PenSize( aWidth, aSize, aBold );
+    if( textPensize == 0 && aBold )      // Use default values if aWidth == 0
+        textPensize = GetPenSizeForBold( std::min( aSize.x, aSize.y ) );
+
+    if( textPensize >= 0 )
+        textPensize = Clamp_Text_PenSize( aWidth, aSize, aBold );
     else
-        aWidth = -Clamp_Text_PenSize( -aWidth, aSize, aBold );
+        textPensize = -Clamp_Text_PenSize( -aWidth, aSize, aBold );
 
-    set_current_line_width( aWidth );
+    SetCurrentLineWidth( textPensize );
 
 
     if( aColor >= 0 )
-        set_color( aColor );
+        SetColor( aColor );
 
     DrawGraphicText( NULL, NULL, aPos, aColor, aText,
                      aOrient, aSize,
                      aH_justify, aV_justify,
-                     aWidth, aItalic,
+                     textPensize, aItalic,
                      aBold,
                      NULL,
                      this );
+
+    if( aWidth != textPensize )
+        SetCurrentLineWidth( aWidth );
 }

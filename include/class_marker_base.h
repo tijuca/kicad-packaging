@@ -5,7 +5,8 @@
 #ifndef _CLASS_MARKER_BASE_H
 #define _CLASS_MARKER_BASE_H
 
-#include "class_drc_item.h"
+#include <class_drc_item.h>
+#include <gr_basic.h>
 
 class MARKER_BASE
 {
@@ -14,7 +15,7 @@ public:
 protected:
     std::vector <wxPoint> m_Corners;             ///< Corner list for shape definition (a polygon)
     int                   m_MarkerType;          ///< Can be used as a flag
-    EDA_Colors            m_Color;               ///< color
+    EDA_COLOR_T           m_Color;               ///< color
     EDA_RECT              m_ShapeBoundingBox;    ///< Bounding box of the graphic symbol, relative
                                                  ///< to the position of the shape, used for Hit
                                                  ///< Tests
@@ -65,7 +66,8 @@ public:
      * Function DrawMarker
      * draws the shape is the polygon defined in m_Corners (array of wxPoints).
      */
-    void DrawMarker( EDA_DRAW_PANEL* aPanel, wxDC* aDC, int aDrawMode, const wxPoint& aOffset );
+    void DrawMarker( EDA_DRAW_PANEL* aPanel, wxDC* aDC, GR_DRAWMODE aDrawMode,
+                     const wxPoint& aOffset );
 
     /**
      * Function GetPos
@@ -80,7 +82,7 @@ public:
      * Function SetColor
      * Set the color of this marker
      */
-    void SetColor( EDA_Colors aColor )
+    void SetColor( EDA_COLOR_T aColor )
     {
         m_Color = aColor;
     }

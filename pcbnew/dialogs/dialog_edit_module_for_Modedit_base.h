@@ -1,26 +1,30 @@
 ///////////////////////////////////////////////////////////////////////////
-// C++ code generated with wxFormBuilder (version Apr 16 2008)
+// C++ code generated with wxFormBuilder (version Oct  8 2012)
 // http://www.wxformbuilder.org/
 //
 // PLEASE DO "NOT" EDIT THIS FILE!
 ///////////////////////////////////////////////////////////////////////////
 
-#ifndef __dialog_edit_module_for_Modedit_base__
-#define __dialog_edit_module_for_Modedit_base__
+#ifndef __DIALOG_EDIT_MODULE_FOR_MODEDIT_BASE_H__
+#define __DIALOG_EDIT_MODULE_FOR_MODEDIT_BASE_H__
 
+#include <wx/artprov.h>
+#include <wx/xrc/xmlres.h>
 #include <wx/intl.h>
+class DIALOG_SHIM;
 
+#include "dialog_shim.h"
 #include <wx/string.h>
-#include <wx/textctrl.h>
+#include <wx/stattext.h>
 #include <wx/gdicmn.h>
 #include <wx/font.h>
 #include <wx/colour.h>
 #include <wx/settings.h>
+#include <wx/textctrl.h>
+#include <wx/button.h>
 #include <wx/sizer.h>
 #include <wx/statbox.h>
-#include <wx/button.h>
 #include <wx/radiobox.h>
-#include <wx/stattext.h>
 #include <wx/slider.h>
 #include <wx/statline.h>
 #include <wx/panel.h>
@@ -40,7 +44,7 @@
 ///////////////////////////////////////////////////////////////////////////////
 /// Class DIALOG_MODULE_MODULE_EDITOR_BASE
 ///////////////////////////////////////////////////////////////////////////////
-class DIALOG_MODULE_MODULE_EDITOR_BASE : public wxDialog 
+class DIALOG_MODULE_MODULE_EDITOR_BASE : public DIALOG_SHIM
 {
 	private:
 		wxBoxSizer* m_GeneralBoxSizer;
@@ -49,16 +53,18 @@ class DIALOG_MODULE_MODULE_EDITOR_BASE : public wxDialog
 	protected:
 		wxNotebook* m_NoteBook;
 		wxPanel* m_PanelProperties;
+		wxStaticText* m_staticTextDoc;
 		wxTextCtrl* m_DocCtrl;
+		wxStaticText* m_staticTextKeywords;
 		wxTextCtrl* m_KeywordCtrl;
-		
+		wxStaticText* m_staticTextRef;
 		wxTextCtrl* m_ReferenceCtrl;
 		wxButton* m_button4;
+		wxStaticText* m_staticTextVal;
 		wxTextCtrl* m_ValueCtrl;
 		wxButton* m_button5;
-		
+		wxStaticText* m_staticTextFp;
 		wxTextCtrl* m_FootprintNameCtrl;
-		
 		wxRadioBox* m_AttributsCtrl;
 		wxRadioBox* m_AutoPlaceCtrl;
 		wxStaticText* m_staticText11;
@@ -91,20 +97,21 @@ class DIALOG_MODULE_MODULE_EDITOR_BASE : public wxDialog
 		wxButton* m_sdbSizerStdButtonsCancel;
 		
 		// Virtual event handlers, overide them in your derived class
-		virtual void OnEditReference( wxCommandEvent& event ){ event.Skip(); }
-		virtual void OnEditValue( wxCommandEvent& event ){ event.Skip(); }
-		virtual void On3DShapeNameSelected( wxCommandEvent& event ){ event.Skip(); }
-		virtual void BrowseAndAdd3DLib( wxCommandEvent& event ){ event.Skip(); }
-		virtual void Remove3DShape( wxCommandEvent& event ){ event.Skip(); }
-		virtual void OnCancelClick( wxCommandEvent& event ){ event.Skip(); }
-		virtual void OnOkClick( wxCommandEvent& event ){ event.Skip(); }
+		virtual void OnEditReference( wxCommandEvent& event ) { event.Skip(); }
+		virtual void OnEditValue( wxCommandEvent& event ) { event.Skip(); }
+		virtual void On3DShapeNameSelected( wxCommandEvent& event ) { event.Skip(); }
+		virtual void BrowseAndAdd3DLib( wxCommandEvent& event ) { event.Skip(); }
+		virtual void Remove3DShape( wxCommandEvent& event ) { event.Skip(); }
+		virtual void OnCancelClick( wxCommandEvent& event ) { event.Skip(); }
+		virtual void OnOkClick( wxCommandEvent& event ) { event.Skip(); }
 		
 	
 	public:
 		wxStaticBoxSizer* m_Sizer3DValues;
-		DIALOG_MODULE_MODULE_EDITOR_BASE( wxWindow* parent, wxWindowID id = wxID_ANY, const wxString& title = _("Module properties"), const wxPoint& pos = wxDefaultPosition, const wxSize& size = wxSize( 541,540 ), long style = wxDEFAULT_DIALOG_STYLE|wxRESIZE_BORDER );
+		
+		DIALOG_MODULE_MODULE_EDITOR_BASE( wxWindow* parent, wxWindowID id = wxID_ANY, const wxString& title = _("Module Properties"), const wxPoint& pos = wxDefaultPosition, const wxSize& size = wxSize( 486,462 ), long style = wxDEFAULT_DIALOG_STYLE|wxRESIZE_BORDER ); 
 		~DIALOG_MODULE_MODULE_EDITOR_BASE();
 	
 };
 
-#endif //__dialog_edit_module_for_Modedit_base__
+#endif //__DIALOG_EDIT_MODULE_FOR_MODEDIT_BASE_H__

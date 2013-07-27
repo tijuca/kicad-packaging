@@ -1,30 +1,62 @@
-/*************************************************************************/
-/* NETINFO_ITEM class, to handle info on nets (netnames, net constraints */
-/*************************************************************************/
+/**
+ * @brief NETINFO_ITEM class, to handle info on nets: netnames, net constraints
+ */
 
-#include "fctsys.h"
-#include "gr_basic.h"
-#include "class_drawpanel.h"
-#include "wxBasePcbFrame.h"
-#include "common.h"
-#include "kicad_string.h"
-#include "pcbnew.h"
-#include "colors_selection.h"
-#include "richio.h"
-#include "macros.h"
+/*
+ * This program source code file is part of KiCad, a free EDA CAD application.
+ *
+ * Copyright (C) 2012 Jean-Pierre Charras, jean-pierre.charras@ujf-grenoble.fr
+ * Copyright (C) 2012 SoftPLC Corporation, Dick Hollenbeck <dick@softplc.com>
+ * Copyright (C) 1992-2012 KiCad Developers, see AUTHORS.txt for contributors.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation; either version 2
+ * of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, you may find one here:
+ * http://www.gnu.org/licenses/old-licenses/gpl-2.0.html
+ * or you may search the http://www.gnu.org website for the version 2 license,
+ * or you may write to the Free Software Foundation, Inc.,
+ * 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
+ */
 
-#include "class_board.h"
-#include "class_module.h"
-#include "class_track.h"
+#include <fctsys.h>
+#include <gr_basic.h>
+#include <class_drawpanel.h>
+#include <wxBasePcbFrame.h>
+#include <common.h>
+#include <kicad_string.h>
+#include <pcbnew.h>
+#include <colors_selection.h>
+#include <richio.h>
+#include <macros.h>
+#include <msgpanel.h>
+#include <base_units.h>
+
+#include <class_board.h>
+#include <class_module.h>
+#include <class_track.h>
 
 
 /*********************************************************/
 /* class NETINFO_ITEM: handle data relative to a given net */
 /*********************************************************/
 
-NETINFO_ITEM::NETINFO_ITEM( BOARD_ITEM* aParent )
+NETINFO_ITEM::NETINFO_ITEM( BOARD_ITEM* aParent, const wxString& aNetName, int aNetCode )
 {
-    SetNet( 0 );
+    SetNet( aNetCode );
+
+    if( aNetName.size() )
+        SetNetname( aNetName );
+
+    m_parent   = aParent;
     m_NbNodes  = 0;
     m_NbLink   = 0;
     m_NbNoconn = 0;
@@ -45,59 +77,6 @@ NETINFO_ITEM::~NETINFO_ITEM()
 }
 
 
-/* Read NETINFO_ITEM from file.
- * Returns 0 if OK
- * 1 if incomplete reading
- */
-int NETINFO_ITEM::ReadDescr( LINE_READER* aReader )
-{
-    char* Line;
-    char  Ltmp[1024];
-    int   tmp;
-
-    while( aReader->ReadLine() )
-    {
-        Line = aReader->Line();
-        if( strnicmp( Line, "$End", 4 ) == 0 )
-            return 0;
-
-        if( strncmp( Line, "Na", 2 ) == 0 )
-        {
-            sscanf( Line + 2, " %d", &tmp );
-            SetNet( tmp );
-
-            ReadDelimitedText( Ltmp, Line + 2, sizeof(Ltmp) );
-            m_Netname = FROM_UTF8( Ltmp );
-            continue;
-        }
-    }
-
-    return 1;
-}
-
-
-/** Note: the old name of class NETINFO_ITEM was EQUIPOT
- * so in Save (and read) functions, for compatibility, we use EQUIPOT as
- * keyword
- */
-bool NETINFO_ITEM::Save( FILE* aFile ) const
-{
-    bool success = false;
-
-    fprintf( aFile, "$EQUIPOT\n" );
-    fprintf( aFile, "Na %d %s\n", GetNet(), EscapedUTF8( m_Netname ).c_str() );
-    fprintf( aFile, "St %s\n", "~" );
-
-    if( fprintf( aFile, "$EndEQUIPOT\n" ) != sizeof("$EndEQUIPOT\n") - 1 )
-        goto out;
-
-    success = true;
-
-out:
-    return success;
-}
-
-
 /**
  * Function SetNetname
  * @param aNetname : the new netname
@@ -114,7 +93,7 @@ void NETINFO_ITEM::SetNetname( const wxString& aNetname )
  */
 void NETINFO_ITEM::Draw( EDA_DRAW_PANEL* panel,
                          wxDC*           DC,
-                         int             aDrawMode,
+                         GR_DRAWMODE     aDrawMode,
                          const wxPoint&  aOffset )
 {
 }
@@ -127,7 +106,7 @@ void NETINFO_ITEM::Draw( EDA_DRAW_PANEL* panel,
  * Is virtual from EDA_ITEM.
  * @param frame A EDA_DRAW_FRAME in which to print status information.
  */
-void NETINFO_ITEM::DisplayInfo( EDA_DRAW_FRAME* frame )
+void NETINFO_ITEM::GetMsgPanelInfo( std::vector< MSG_PANEL_ITEM >& aList )
 {
     int       count;
     EDA_ITEM* Struct;
@@ -135,17 +114,16 @@ void NETINFO_ITEM::DisplayInfo( EDA_DRAW_FRAME* frame )
     MODULE*   module;
     D_PAD*    pad;
     double    lengthnet = 0;        // This  is the lenght of tracks on pcb
-    double    lengthdie = 0;        // this is the lenght of internal ICs connections
+    double    lengthPadToDie = 0;   // this is the lenght of internal ICs connections
 
-    frame->ClearMsgPanel();
-
-    frame->AppendMsgPanel( _( "Net Name" ), GetNetname(), RED );
+    aList.push_back( MSG_PANEL_ITEM( _( "Net Name" ), GetNetname(), RED ) );
 
     txt.Printf( wxT( "%d" ), GetNet() );
-    frame->AppendMsgPanel( _( "Net Code" ), txt, RED );
+    aList.push_back( MSG_PANEL_ITEM( _( "Net Code" ), txt, RED ) );
 
     count  = 0;
-    module = ( (PCB_BASE_FRAME*) frame )->GetBoard()->m_Modules;
+    module = m_parent->GetBoard()->m_Modules;
+
     for( ; module != 0; module = module->Next() )
     {
         for( pad = module->m_Pads; pad != 0; pad = pad->Next() )
@@ -153,16 +131,16 @@ void NETINFO_ITEM::DisplayInfo( EDA_DRAW_FRAME* frame )
             if( pad->GetNet() == GetNet() )
             {
                 count++;
-                lengthdie += pad->m_LengthDie;
+                lengthPadToDie += pad->GetPadToDieLength();
             }
         }
     }
 
     txt.Printf( wxT( "%d" ), count );
-    frame->AppendMsgPanel( _( "Pads" ), txt, DARKGREEN );
+    aList.push_back( MSG_PANEL_ITEM( _( "Pads" ), txt, DARKGREEN ) );
 
     count  = 0;
-    Struct = ( (PCB_BASE_FRAME*) frame )->GetBoard()->m_Track;
+    Struct = m_parent->GetBoard()->m_Track;
 
     for( ; Struct != NULL; Struct = Struct->Next() )
     {
@@ -180,20 +158,19 @@ void NETINFO_ITEM::DisplayInfo( EDA_DRAW_FRAME* frame )
     }
 
     txt.Printf( wxT( "%d" ), count );
-    frame->AppendMsgPanel( _( "Vias" ), txt, BLUE );
+    aList.push_back( MSG_PANEL_ITEM( _( "Vias" ), txt, BLUE ) );
 
-    // Displays the full net lenght (tracks on pcb + internal ICs connections ):
-    txt = frame->CoordinateToString( lengthnet + lengthdie );
-    frame->AppendMsgPanel( _( "Net Length:" ), txt, RED );
+    // Displays the full net length (tracks on pcb + internal ICs connections ):
+    txt = ::CoordinateToString( lengthnet + lengthPadToDie );
+    aList.push_back( MSG_PANEL_ITEM( _( "Net Length:" ), txt, RED ) );
 
-    // Displays the net lenght of tracks only:
-    txt = frame->CoordinateToString( lengthnet );
-    frame->AppendMsgPanel( _( "On Board" ), txt, RED );
+    // Displays the net length of tracks only:
+    txt = ::CoordinateToString( lengthnet );
+    aList.push_back( MSG_PANEL_ITEM( _( "On Board" ), txt, RED ) );
 
-    // Displays the net lenght of internal ICs connections (wires inside ICs):
-    txt = frame->CoordinateToString( lengthdie );
-    frame->AppendMsgPanel( _( "On Die" ), txt, RED );
-
+    // Displays the net length of internal ICs connections (wires inside ICs):
+    txt = ::CoordinateToString( lengthPadToDie );
+    aList.push_back( MSG_PANEL_ITEM( _( "In Package" ), txt, RED ) );
 }
 
 
@@ -219,11 +196,14 @@ RATSNEST_ITEM::RATSNEST_ITEM()
  */
 void RATSNEST_ITEM::Draw( EDA_DRAW_PANEL* panel,
                           wxDC*           DC,
-                          int             aDrawMode,
+                          GR_DRAWMODE     aDrawMode,
                           const wxPoint&  aOffset )
 {
     GRSetDrawMode( DC, aDrawMode );
-    int color = g_ColorsSettings.GetItemColor(RATSNEST_VISIBLE);
-    GRLine( &panel->m_ClipBox, DC, m_PadStart->m_Pos - aOffset,
-            m_PadEnd->m_Pos - aOffset, 0, color );
+
+    EDA_COLOR_T color = g_ColorsSettings.GetItemColor(RATSNEST_VISIBLE);
+
+    GRLine( panel->GetClipBox(), DC,
+            m_PadStart->GetPosition() - aOffset,
+            m_PadEnd->GetPosition() - aOffset, 0, color );
 }

@@ -2,14 +2,15 @@
 /** cfg.cpp **/
 /*************/
 
-#include "fctsys.h"
-#include "appl_wxstruct.h"
-#include "id.h"
-#include "common.h"
-#include "gestfich.h"
-#include "param_config.h"
-#include "cvpcb.h"
-#include "cvpcb_mainframe.h"
+#include <fctsys.h>
+#include <appl_wxstruct.h>
+#include <id.h>
+#include <common.h>
+#include <gestfich.h>
+#include <param_config.h>
+#include <cvpcb.h>
+#include <cvpcb_mainframe.h>
+#include <wildcards_and_files_ext.h>
 
 
 #define GROUP wxT("/cvpcb")

@@ -3,20 +3,20 @@
 /*  properties and characteristics              */
 /************************************************/
 
-#include "fctsys.h"
-#include "class_drawpanel.h"
-#include "confirm.h"
-#include "pcbnew.h"
-#include "wxPcbStruct.h"
-#include "module_editor_frame.h"
-#include "trigo.h"
-#include "3d_viewer.h"
+#include <fctsys.h>
+#include <class_drawpanel.h>
+#include <confirm.h>
+#include <pcbnew.h>
+#include <wxPcbStruct.h>
+#include <module_editor_frame.h>
+#include <trigo.h>
+#include <3d_viewer.h>
 
-#include "class_module.h"
-#include "class_pad.h"
-#include "class_edge_mod.h"
+#include <class_module.h>
+#include <class_pad.h>
+#include <class_edge_mod.h>
 
-#include "dialog_edit_module_for_BoardEditor.h"
+#include <dialog_edit_module_for_BoardEditor.h>
 
 
 /*
@@ -27,8 +27,14 @@ void PCB_EDIT_FRAME::InstallModuleOptionsFrame( MODULE* Module, wxDC* DC )
     if( Module == NULL )
         return;
 
+#ifndef __WXMAC__
     DIALOG_MODULE_BOARD_EDITOR* dialog = new DIALOG_MODULE_BOARD_EDITOR( this, Module, DC );
-
+#else
+    // avoid Avoid "writes" in the dialog, creates errors with WxOverlay and NSView & Modal
+    // Raising an Exception - Fixes #764678
+    DIALOG_MODULE_BOARD_EDITOR* dialog = new DIALOG_MODULE_BOARD_EDITOR( this, Module, NULL );
+#endif
+    
     int retvalue = dialog->ShowModal(); /* retvalue =
                                          *  -1 if abort,
                                          *  0 if exchange module,
@@ -37,72 +43,69 @@ void PCB_EDIT_FRAME::InstallModuleOptionsFrame( MODULE* Module, wxDC* DC )
                                          */
     dialog->Destroy();
 
+#ifdef __WXMAC__
+    // If something edited, push a refresh request
+    if (retvalue == 0 || retvalue == 1)
+        m_canvas->Refresh();
+#endif
+
     if( retvalue == 2 )
     {
-        if( m_ModuleEditFrame == NULL )
-        {
-            m_ModuleEditFrame = new FOOTPRINT_EDIT_FRAME( this,
-                                                          _( "Module Editor" ),
-                                                          wxPoint( -1, -1 ),
-                                                          wxSize( 600, 400 ) );
-        }
+        FOOTPRINT_EDIT_FRAME * editorFrame =
+                FOOTPRINT_EDIT_FRAME::GetActiveFootprintEditor();
+        if( editorFrame == NULL )
+            editorFrame = new FOOTPRINT_EDIT_FRAME( this );
 
-        m_ModuleEditFrame->Load_Module_From_BOARD( Module );
+        editorFrame->Load_Module_From_BOARD( Module );
         SetCurItem( NULL );
 
-        m_ModuleEditFrame->Show( true );
-        m_ModuleEditFrame->Iconize( false );
+        editorFrame->Show( true );
+        editorFrame->Iconize( false );
     }
 }
 
 
 /*
- * Position anchor under the cursor.
+ * Move the footprint anchor position to the current cursor position.
  */
-void FOOTPRINT_EDIT_FRAME::Place_Ancre( MODULE* pt_mod )
+void FOOTPRINT_EDIT_FRAME::Place_Ancre( MODULE* aModule )
 {
     wxPoint   moveVector;
-    EDA_ITEM* PtStruct;
-    D_PAD*    pt_pad;
 
-    if( pt_mod == NULL )
+    if( aModule == NULL )
         return;
 
-    moveVector = pt_mod->m_Pos - GetScreen()->GetCrossHairPosition();
+    moveVector = aModule->m_Pos - GetScreen()->GetCrossHairPosition();
 
-    pt_mod->m_Pos = GetScreen()->GetCrossHairPosition();
+    aModule->m_Pos = GetScreen()->GetCrossHairPosition();
 
     /* Update the relative coordinates:
      * The coordinates are relative to the anchor point.
      * Calculate deltaX and deltaY from the anchor. */
-    RotatePoint( &moveVector, -pt_mod->m_Orient );
+    RotatePoint( &moveVector, -aModule->m_Orient );
 
-    /* Update the pad coordinates. */
-    pt_pad = (D_PAD*) pt_mod->m_Pads;
-
-    for( ; pt_pad != NULL; pt_pad = pt_pad->Next() )
+    // Update the pad coordinates.
+    for( D_PAD* pad = (D_PAD*) aModule->m_Pads;  pad;  pad = pad->Next() )
     {
-        pt_pad->m_Pos0 += moveVector;
+        pad->SetPos0( pad->GetPos0() + moveVector );
     }
 
-    /* Update the draw element coordinates. */
-    PtStruct = pt_mod->m_Drawings;
-
-    for( ; PtStruct != NULL; PtStruct = PtStruct->Next() )
+    // Update the draw element coordinates.
+    for( EDA_ITEM* item = aModule->m_Drawings;  item;  item = item->Next() )
     {
-        switch( PtStruct->Type() )
+        switch( item->Type() )
         {
         case PCB_MODULE_EDGE_T:
-                #undef STRUCT
-                #define STRUCT ( (EDGE_MODULE*) PtStruct )
+            #undef STRUCT
+            #define STRUCT ( (EDGE_MODULE*) item )
             STRUCT->m_Start0 += moveVector;
             STRUCT->m_End0   += moveVector;
             break;
 
         case PCB_MODULE_TEXT_T:
-                #undef STRUCT
-                #define STRUCT ( (TEXTE_MODULE*) PtStruct )
-            STRUCT->m_Pos0 += moveVector;
+            #undef STRUCT
+            #define STRUCT ( (TEXTE_MODULE*) item )
+            STRUCT->SetPos0( STRUCT->GetPos0() + moveVector );
             break;
 
         default:
@@ -110,7 +113,7 @@ void FOOTPRINT_EDIT_FRAME::Place_Ancre( MODULE* pt_mod )
         }
     }
 
-    pt_mod->CalculateBoundingBox();
+    aModule->CalculateBoundingBox();
 }
 
 
@@ -129,13 +132,13 @@ void FOOTPRINT_EDIT_FRAME::RemoveStruct( EDA_ITEM* Item )
     {
         TEXTE_MODULE* text = (TEXTE_MODULE*) Item;
 
-        if( text->m_Type == TEXT_is_REFERENCE )
+        if( text->GetType() == TEXT_is_REFERENCE )
         {
             DisplayError( this, _( "Text is REFERENCE!" ) );
             break;
         }
 
-        if( text->m_Type == TEXT_is_VALUE )
+        if( text->GetType() == TEXT_is_VALUE )
         {
             DisplayError( this, _( "Text is VALUE!" ) );
             break;
@@ -147,7 +150,7 @@ void FOOTPRINT_EDIT_FRAME::RemoveStruct( EDA_ITEM* Item )
 
     case PCB_MODULE_EDGE_T:
         Delete_Edge_Module( (EDGE_MODULE*) Item );
-        DrawPanel->Refresh();
+        m_canvas->Refresh();
         break;
 
     case PCB_MODULE_T:

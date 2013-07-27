@@ -13,8 +13,6 @@ override_dh_clean:
 
 override_dh_auto_configure:
 	cmake -DKICAD_STABLE_VERSION=ON .
-	cd $(CURDIR)/doc; cmake .
-	cd $(CURDIR)/library; cmake .
 
 override_dh_compress:
 	dh_compress --exclude=.pdf
@@ -38,15 +36,6 @@ GENERATED_FILES = ./3d-viewer/Makefile \
 	 ./cvpcb/cmake_install.cmake \
 	 ./demos/Makefile \
 	 ./demos/cmake_install.cmake \
-	 ./doc/CMakeCache.txt \
-	 ./doc/Makefile \
-	 ./doc/cmake_install.cmake \
-	 ./doc/doc/help/Makefile \
-	 ./doc/doc/help/cmake_install.cmake \
-	 ./doc/doc/tutorials/Makefile \
-	 ./doc/doc/tutorials/cmake_install.cmake \
-	 ./doc/internat/Makefile \
-	 ./doc/internat/cmake_install.cmake \
 	 ./eeschema/Makefile \
 	 ./eeschema/cmake_install.cmake \
 	 ./eeschema/plugins/Makefile \
@@ -55,13 +44,6 @@ GENERATED_FILES = ./3d-viewer/Makefile \
 	 ./gerbview/cmake_install.cmake \
 	 ./kicad/Makefile \
 	 ./kicad/cmake_install.cmake \
-	 ./library/CMakeCache.txt \
-	 ./library/Makefile \
-	 ./library/cmake_install.cmake \
-	 ./library/library/Makefile \
-	 ./library/library/cmake_install.cmake \
-	 ./library/modules/Makefile \
-	 ./library/modules/cmake_install.cmake \
 	 ./pcb_calculator/Makefile \
 	 ./pcb_calculator/cmake_install.cmake \
 	 ./pcbnew/Makefile \
@@ -76,4 +58,9 @@ GENERATED_FILES = ./3d-viewer/Makefile \
 	 ./template/cmake_install.cmake \
 	./Testing/Temporary/CTestCostData.txt \
 	./Testing/Temporary/LastTest.log \
-	./install_manifest.txt
+	./install_manifest.txt \
+	./pcbnew/pcad2kicadpcb_plugin/Makefile \
+	./pcbnew/pcad2kicadpcb_plugin/cmake_install.cmake \
+	./tools/Makefile \
+	./tools/cmake_install.cmake \
+	./version.h

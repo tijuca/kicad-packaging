@@ -13,3 +13,5 @@ install(FILES ${lib_files}
 install(FILES ${sym_files}
         DESTINATION ${KICAD_LIBRARY}
         COMPONENT resources)
+
+add_subdirectory (contrib_symbols_dl1eic)

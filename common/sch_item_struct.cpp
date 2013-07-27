@@ -2,7 +2,6 @@
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
  * Copyright (C) 2006 Jean-Pierre Charras, jaen-pierre.charras@gipsa-lab.inpg.com
- * Copyright (C) 2011 Wayne Stambaugh <stambaughw@verizon.net>
  * Copyright (C) 1992-2011 KiCad Developers, see AUTHORS.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
@@ -27,19 +26,22 @@
  * @file sch_item_struct.cpp
  */
 
-#include "fctsys.h"
-#include "common.h"
-#include "gr_basic.h"
-#include "base_struct.h"
-#include "sch_item_struct.h"
-#include "class_sch_screen.h"
-#include "class_drawpanel.h"
-#include "wxEeschemaStruct.h"
+#include <fctsys.h>
+#include <common.h>
+#include <gr_basic.h>
+#include <base_struct.h>
+#include <sch_item_struct.h>
+#include <class_sch_screen.h>
+#include <class_drawpanel.h>
+#include <wxEeschemaStruct.h>
 
-#include "general.h"
-#include "protos.h"
+#include <general.h>
+#include <protos.h>
 
-#include "../eeschema/dialogs/dialog_schematic_find.h"
+
+const wxString traceFindReplace( wxT( "KicadFindReplace" ) );
+
+const wxString traceFindItem( wxT( "KicadFindItem" ) );
 
 
 bool sort_schematic_items( const SCH_ITEM* aItem1, const SCH_ITEM* aItem2 )
@@ -77,37 +79,6 @@ SCH_ITEM::~SCH_ITEM()
 }
 
 
-void SCH_ITEM::Place( SCH_EDIT_FRAME* aFrame, wxDC* aDC )
-{
-    SCH_SCREEN* screen = aFrame->GetScreen();
-
-    if( IsNew() )
-    {
-        if( !screen->CheckIfOnDrawList( this ) )  // don't want a loop!
-            screen->AddToDrawList( this );
-
-        aFrame->SetRepeatItem( this );
-        aFrame->SaveCopyInUndoList( this, UR_NEW );
-    }
-    else
-    {
-        aFrame->SaveUndoItemInUndoList( this );
-    }
-
-    m_Flags = 0;
-    screen->SetModify();
-    screen->SetCurItem( NULL );
-    aFrame->DrawPanel->SetMouseCapture( NULL, NULL );
-    aFrame->DrawPanel->EndMouseCapture();
-
-    if( aDC )
-    {
-        EDA_CROSS_HAIR_MANAGER( aFrame->DrawPanel, aDC );  // Erase schematic cursor
-        Draw( aFrame->DrawPanel, aDC, wxPoint( 0, 0 ), GR_DEFAULT_DRAWMODE );
-    }
-}
-
-
 bool SCH_ITEM::IsConnected( const wxPoint& aPosition ) const
 {
     if( m_Flags & STRUCT_DELETED || m_Flags & SKIP_STRUCT )
@@ -130,7 +101,56 @@ bool SCH_ITEM::operator < ( const SCH_ITEM& aItem ) const
 }
 
 
-void SCH_ITEM::doPlot( PLOTTER* aPlotter )
+void SCH_ITEM::Plot( PLOTTER* aPlotter )
 {
-    wxFAIL_MSG( wxT( "doPlot() method not implemented for class " ) + GetClass() );
+    wxFAIL_MSG( wxT( "Plot() method not implemented for class " ) + GetClass() );
+}
+
+
+std::string SCH_ITEM::FormatInternalUnits( int aValue )
+{
+    char    buf[50];
+    double  engUnits = aValue;
+    int     len;
+
+    if( engUnits != 0.0 && fabs( engUnits ) <= 0.0001 )
+    {
+        // printf( "f: " );
+        len = snprintf( buf, 49, "%.10f", engUnits );
+
+        while( --len > 0 && buf[len] == '0' )
+            buf[len] = '\0';
+
+        ++len;
+    }
+    else
+    {
+        // printf( "g: " );
+        len = snprintf( buf, 49, "%.10g", engUnits );
+    }
+
+    return std::string( buf, len );
+}
+
+
+std::string SCH_ITEM::FormatAngle( double aAngle )
+{
+    char temp[50];
+    int len;
+
+    len = snprintf( temp, 49, "%.10g", aAngle / 10.0 );
+
+    return std::string( temp, len );
+}
+
+
+std::string SCH_ITEM::FormatInternalUnits( const wxPoint& aPoint )
+{
+    return FormatInternalUnits( aPoint.x ) + " " + FormatInternalUnits( aPoint.y );
+}
+
+
+std::string SCH_ITEM::FormatInternalUnits( const wxSize& aSize )
+{
+    return FormatInternalUnits( aSize.GetWidth() ) + " " + FormatInternalUnits( aSize.GetHeight() );
 }

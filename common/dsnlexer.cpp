@@ -30,7 +30,7 @@
 #include <cctype>
 
 
-#include "dsnlexer.h"
+#include <dsnlexer.h>
 
 //#include "fctsys.h"
 //#include "pcbnew.h"
@@ -51,7 +51,9 @@ static int compare( const void* a1, const void* a2 )
 
 void DSNLEXER::init()
 {
-    curTok = DSN_NONE;
+    curTok  = DSN_NONE;
+    prevTok = DSN_NONE;
+
     stringDelimiter = '"';
 
     specctraMode = false;
@@ -302,9 +304,8 @@ void DSNLEXER::Unexpected( int aTok ) throw( IO_ERROR )
 
 void DSNLEXER::Duplicate( int aTok ) throw( IO_ERROR )
 {
-    wxString    errText;
-
-    errText.Printf( _("%s is a duplicate"), GetTokenString( aTok ).GetData() );
+    wxString errText = wxString::Format(
+        _("%s is a duplicate"), GetTokenString( aTok ).GetData() );
     THROW_PARSE_ERROR( errText, CurSource(), CurLine(), CurLineNumber(), CurOffset() );
 }
 
@@ -356,9 +357,8 @@ int DSNLEXER::NeedNUMBER( const char* aExpectation ) throw( IO_ERROR )
     int tok = NextTok();
     if( tok != DSN_NUMBER )
     {
-        wxString    errText;
-
-        errText.Printf( _("need a NUMBER for '%s'"), wxString::FromUTF8( aExpectation ).GetData() );
+        wxString errText = wxString::Format(
+            _("need a NUMBER for '%s'"), wxString::FromUTF8( aExpectation ).GetData() );
         THROW_PARSE_ERROR( errText, CurSource(), CurLine(), CurLineNumber(), CurOffset() );
     }
     return tok;
@@ -367,13 +367,27 @@ int DSNLEXER::NeedNUMBER( const char* aExpectation ) throw( IO_ERROR )
 
 /**
  * Function isSpace
- * strips the upper bits of the int to ensure the value passed to C++ %isspace() is
- * in the range of 0-255
+ * tests for whitespace.  Our whitespace, by our definition, is a subset of ASCII,
+ * i.e. no bytes with MSB on can be considered whitespace, since they are likely part
+ * of a multibyte UTF8 character.
  */
-static inline bool isSpace( int cc )
+static bool isSpace( int cc )
 {
-    // make sure int passed to ::isspace() is 0-255
-    return ::isspace( cc & 0xff );
+    // cc was signed extended from signed char, so it is often negative.
+    // Treat negative as large positive to exclude rapidly.
+    if( unsigned( cc ) <= ' ' )
+    {
+        switch( cc )
+        {
+        case ' ':
+        case '\n':
+        case '\r':
+        case '\t':
+        case '\0':              // PCAD s-expression files have this.
+            return true;
+        }
+    }
+    return false;
 }
 
 
@@ -433,6 +447,22 @@ L_read:
         if( cur >= limit )
             goto L_read;
 
+        if( *cur == '(' )
+        {
+            curText = *cur;
+            curTok = DSN_LEFT;
+            head = cur+1;
+            goto exit;
+        }
+
+        if( *cur == ')' )
+        {
+            curText = *cur;
+            curTok = DSN_RIGHT;
+            head = cur+1;
+            goto exit;
+        }
+
         // switching the string_quote character
         if( prevTok == DSN_STRING_QUOTE )
         {
@@ -459,22 +489,6 @@ L_read:
             }
 
             curTok = DSN_QUOTE_DEF;
-            goto exit;
-        }
-
-        if( *cur == '(' )
-        {
-            curText = *cur;
-            curTok = DSN_LEFT;
-            head = cur+1;
-            goto exit;
-        }
-
-        if( *cur == ')' )
-        {
-            curText = *cur;
-            curTok = DSN_RIGHT;
-            head = cur+1;
             goto exit;
         }
 

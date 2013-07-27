@@ -1,5 +1,26 @@
-#ifndef __dialog_schematic_find__
-#define __dialog_schematic_find__
+/*
+ * This program source code file is part of KiCad, a free EDA CAD application.
+ *
+ * Copyright (C) 2010 Wayne Stambaugh <stambaughw@verizon.net>
+ * Copyright (C) 2010-2011 KiCad Developers, see AUTHORS.txt for contributors.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation; either version 2
+ * of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, you may find one here:
+ * http://www.gnu.org/licenses/old-licenses/gpl-2.0.html
+ * or you may search the http://www.gnu.org website for the version 2 license,
+ * or you may write to the Free Software Foundation, Inc.,
+ * 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
+ */
 
 /**
  * @file
@@ -12,6 +33,9 @@
  * find out how matching is performed against that item.
  */
 
+#ifndef __dialog_schematic_find__
+#define __dialog_schematic_find__
+
 #include "dialog_schematic_find_base.h"
 
 #include <wx/fdrepdlg.h>          // Use the wxFindReplaceDialog events, data, and enums.
@@ -20,7 +44,7 @@
 /**
  * Define schematic specific find and replace dialog flags based on the enum entries
  * in wxFindReplaceFlags.   These flags are intended to be used as bit masks in the
- * wxFindReplaceData::m_Flags member variable.  The varialble is defined as a wxUint32.
+ * wxFindReplaceData::m_Flags member variable.  The variable is defined as a wxUint32.
  */
 enum SchematicFindReplaceFlags
 {
@@ -44,12 +68,84 @@ enum SchematicFindReplaceFlags
     /// Don't warp cursor to found item until the dialog is closed.
     FR_NO_WARP_CURSOR        = wxFR_MATCHCASE << 6,
 
-    /// Perform a search for a item that has repaceable text.
+    /// Perform a search for a item that has replaceable text.
     FR_SEARCH_REPLACE        = wxFR_MATCHCASE << 7,
 
     /// Used by the search event handler to let the dialog know that a replaceable
     /// item has been found.
-    FR_REPLACE_ITEM_FOUND    = wxFR_MATCHCASE << 8
+    FR_REPLACE_ITEM_FOUND    = wxFR_MATCHCASE << 8,
+
+    /// Used by replace to ignore the component reference designator field.
+    FR_REPLACE_REFERENCES    = wxFR_MATCHCASE << 9
+};
+
+
+/**
+ * Definition FR_MASK_NON_COMPARE_FLAGS
+ * is used to mask find/replace flag bits that do not effect the search results.
+ */
+#define FR_MASK_NON_COMPARE_FLAGS  ~( wxFR_DOWN | FR_SEARCH_WRAP | FR_NO_WARP_CURSOR | \
+                                      FR_REPLACE_ITEM_FOUND )
+
+
+/**
+ * Class SCH_FIND_REPLACE_DATA
+ * adds missing useful comparison and assignment operators to the wxFindReplaceData object.
+ */
+class SCH_FIND_REPLACE_DATA : public wxFindReplaceData
+{
+public:
+
+    SCH_FIND_REPLACE_DATA& operator =( SCH_FIND_REPLACE_DATA& aFindReplaceData )
+    {
+        if( this == &aFindReplaceData )
+            return *this;
+
+        SetFlags( aFindReplaceData.GetFlags() );
+        SetFindString( aFindReplaceData.GetFindString() );
+        SetReplaceString( aFindReplaceData.GetReplaceString() );
+
+        return *this;
+    }
+
+    bool operator ==( SCH_FIND_REPLACE_DATA& aFindReplaceData )
+    {
+        return ( (GetFlags() == aFindReplaceData.GetFlags())
+                 && (GetFindString() == aFindReplaceData.GetFindString())
+                 && (GetReplaceString() == aFindReplaceData.GetReplaceString()) );
+    }
+
+    bool operator !=( SCH_FIND_REPLACE_DATA& aFindReplaceData )
+    {
+        return !( *this == aFindReplaceData );
+    }
+
+
+    /**
+     * Function ChangesCompare
+     * tests \a aFindReplaceData to see if it would result in a change in the search string
+     * comparison results.
+     *
+     * @param aFindReplaceData A reference to a #SCH_FIND_REPLACE_DATA object to compare
+     *                         against.
+     * @return True if \a aFindReplaceData would result in a search and/or replace change,
+     *         otherwise false.
+     */
+    bool ChangesCompare( SCH_FIND_REPLACE_DATA& aFindReplaceData )
+    {
+        return ( (GetFindString() != aFindReplaceData.GetFindString())
+              || (GetCompareFlags() != aFindReplaceData.GetCompareFlags()) );
+    }
+
+    bool IsReplacing() const { return (GetFlags() & FR_SEARCH_REPLACE) != 0; }
+    bool IsWrapping() const { return (GetFlags() & FR_SEARCH_WRAP) != 0; }
+
+private:
+    /**
+     * Function GetSearchFlags
+     * @return The flags that only effect the search result.
+     */
+    wxUint32 GetCompareFlags() const { return GetFlags() & FR_MASK_NON_COMPARE_FLAGS; }
 };
 
 
@@ -60,9 +156,12 @@ protected:
     // Handlers for DIALOG_SCH_FIND_BASE events.
     void OnClose( wxCloseEvent& aEvent );
     void OnUpdateFindUI( wxUpdateUIEvent& aEvent );
+    void OnUpdateReplaceUI( wxUpdateUIEvent& aEvent );
     void OnUpdateWholeWordUI( wxUpdateUIEvent& aEvent );
     void OnUpdateWildcardUI( wxUpdateUIEvent& aEvent );
+
     void OnFind( wxCommandEvent& aEvent );
+    void OnReplace( wxCommandEvent& aEvent );
     void OnCancel( wxCommandEvent& aEvent );
 
     void SendEvent( const wxEventType& aEventType );

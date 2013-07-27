@@ -29,17 +29,17 @@
  * @brief  GerbView layers manager.
  */
 
-#include "fctsys.h"
-#include "common.h"
-#include "class_drawpanel.h"
-#include "pcbstruct.h"
-#include "macros.h"
-#include "class_layer_box_selector.h"
+#include <fctsys.h>
+#include <common.h>
+#include <class_drawpanel.h>
+#include <pcbstruct.h>
+#include <macros.h>
+#include <class_gbr_layer_box_selector.h>
 
-#include "gerbview.h"
-#include "class_GERBER.h"
-#include "layer_widget.h"
-#include "class_gerbview_layer_widget.h"
+#include <gerbview.h>
+#include <class_GERBER.h>
+#include <layer_widget.h>
+#include <class_gerbview_layer_widget.h>
 
 
 /*
@@ -67,7 +67,7 @@ GERBER_LAYER_WIDGET::GERBER_LAYER_WIDGET( GERBVIEW_FRAME* aParent, wxWindow* aFo
 
     // since Popupmenu() calls this->ProcessEvent() we must call this->Connect()
     // and not m_LayerScrolledWindow->Connect()
-    Connect( ID_SHOW_ALL_COPPERS, ID_SHOW_NO_COPPERS, wxEVT_COMMAND_MENU_SELECTED,
+    Connect( ID_SHOW_ALL_COPPERS, ID_SHOW_NO_COPPERS_BUT_ACTIVE, wxEVT_COMMAND_MENU_SELECTED,
         wxCommandEventHandler( GERBER_LAYER_WIDGET::onPopupSelection ), NULL, this );
 
     // install the right click handler into each control at end of ReFill()
@@ -91,30 +91,32 @@ void GERBER_LAYER_WIDGET::SetLayersManagerTabsText( )
  */
 void GERBER_LAYER_WIDGET::ReFillRender()
 {
-    BOARD*  board = myframe->GetBoard();
     ClearRenderRows();
 
     // Fixed "Rendering" tab rows within the LAYER_WIDGET, only the initial color
     // is changed before appending to the LAYER_WIDGET.  This is an automatic variable
     // not a static variable, change the color & state after copying from code to renderRows
     // on the stack.
-    LAYER_WIDGET::ROW renderRows[2] = {
+    LAYER_WIDGET::ROW renderRows[3] = {
 
 #define RR  LAYER_WIDGET::ROW   // Render Row abreviation to reduce source width
 
              // text                id                      color       tooltip                 checked
         RR( _( "Grid" ),            GERBER_GRID_VISIBLE,    WHITE,      _( "Show the (x,y) grid dots" ) ),
         RR( _( "DCodes" ),          DCODES_VISIBLE,         WHITE,      _( "Show DCodes identification" ) ),
+        RR( _( "Neg. Obj." ),       NEGATIVE_OBJECTS_VISIBLE,  DARKGRAY,
+                                    _( "Show negative objects in this color" ) ),
     };
 
     for( unsigned row=0;  row<DIM(renderRows);  ++row )
     {
         if( renderRows[row].color != -1 )       // does this row show a color?
         {
-            // this window frame must have an established BOARD, i.e. after SetBoard()
-            renderRows[row].color = board->GetVisibleElementColor( renderRows[row].id );
+            renderRows[row].color = myframe->GetVisibleElementColor(
+                                    (GERBER_VISIBLE_ID)renderRows[row].id );
         }
-        renderRows[row].state = board->IsElementVisible( renderRows[row].id );
+        renderRows[row].state = myframe->IsElementVisible(
+                                (GERBER_VISIBLE_ID)renderRows[row].id );
     }
 
     AppendRenderRows( renderRows, DIM(renderRows) );
@@ -143,10 +145,13 @@ void GERBER_LAYER_WIDGET::onRightDownLayers( wxMouseEvent& event )
     // menu text is capitalized:
     // http://library.gnome.org/devel/hig-book/2.20/design-text-labels.html.en#layout-capitalization
     menu.Append( new wxMenuItem( &menu, ID_SHOW_ALL_COPPERS,
-        _("Show All Layers") ) );
+                                 _("Show All Layers") ) );
+
+    menu.Append( new wxMenuItem( &menu, ID_SHOW_NO_COPPERS_BUT_ACTIVE,
+                                 _( "Hide All Layers But Active" ) ) );
 
     menu.Append( new wxMenuItem( &menu, ID_SHOW_NO_COPPERS,
-        _( "Hide All Layers" ) ) );
+                                 _( "Hide All Layers" ) ) );
 
     PopupMenu( &menu );
 
@@ -164,19 +169,25 @@ void GERBER_LAYER_WIDGET::onPopupSelection( wxCommandEvent& event )
     {
     case ID_SHOW_ALL_COPPERS:
     case ID_SHOW_NO_COPPERS:
+    case ID_SHOW_NO_COPPERS_BUT_ACTIVE:
         rowCount = GetLayerRowCount();
         for( int row=0; row < rowCount; ++row )
         {
+            bool loc_visible = visible;
+            if( (menuId == ID_SHOW_NO_COPPERS_BUT_ACTIVE ) &&
+                (row == m_CurrentRow ) )
+                loc_visible = true;
+
             wxCheckBox* cb = (wxCheckBox*) getLayerComp( row, 3 );
-            cb->SetValue( visible );
-            if( visible )
+            cb->SetValue( loc_visible );
+            if( loc_visible )
                 visibleLayers |= (1 << row);
             else
                 visibleLayers &= ~(1 << row);
         }
 
-        myframe->GetBoard()->SetVisibleLayers( visibleLayers );
-        myframe->DrawPanel->Refresh();
+        myframe->SetVisibleLayers( visibleLayers );
+        myframe->GetCanvas()->Refresh();
         break;
     }
 }
@@ -185,15 +196,15 @@ void GERBER_LAYER_WIDGET::onPopupSelection( wxCommandEvent& event )
 
 void GERBER_LAYER_WIDGET::ReFill()
 {
-    BOARD*  brd = myframe->GetBoard();
     int     layer;
     ClearLayerRows();
-    for( layer = 0; layer < LAYER_COUNT; layer++ )
+
+    for( layer = 0; layer < GERBVIEW_LAYER_COUNT; layer++ )
     {
         wxString msg;
         msg.Printf( _("Layer %d"), layer+1 );
         AppendLayerRow( LAYER_WIDGET::ROW( msg, layer,
-                        brd->GetLayerColor( layer ), wxEmptyString, true ) );
+                        myframe->GetLayerColor( layer ), wxEmptyString, true ) );
     }
 
     installRightLayerClickHandler();
@@ -201,11 +212,11 @@ void GERBER_LAYER_WIDGET::ReFill()
 
 //-----<LAYER_WIDGET callbacks>-------------------------------------------
 
-void GERBER_LAYER_WIDGET::OnLayerColorChange( int aLayer, int aColor )
+void GERBER_LAYER_WIDGET::OnLayerColorChange( int aLayer, EDA_COLOR_T aColor )
 {
-    myframe->GetBoard()->SetLayerColor( aLayer, aColor );
+    myframe->SetLayerColor( aLayer, aColor );
     myframe->m_SelLayerBox->ResyncBitmapOnly();
-    myframe->DrawPanel->Refresh();
+    myframe->GetCanvas()->Refresh();
 }
 
 bool GERBER_LAYER_WIDGET::OnLayerSelect( int aLayer )
@@ -215,40 +226,38 @@ bool GERBER_LAYER_WIDGET::OnLayerSelect( int aLayer )
     int layer = myframe->getActiveLayer( );
     myframe->setActiveLayer( aLayer, false );
     myframe->syncLayerBox();
+
     if( layer != myframe->getActiveLayer( ) )
-        myframe->DrawPanel->Refresh();
+        myframe->GetCanvas()->Refresh();
 
     return true;
 }
 
 void GERBER_LAYER_WIDGET::OnLayerVisible( int aLayer, bool isVisible, bool isFinal )
 {
-    BOARD* brd = myframe->GetBoard();
-    int visibleLayers = brd->GetVisibleLayers();
+    int visibleLayers = myframe->GetVisibleLayers();
 
     if( isVisible )
         visibleLayers |= (1 << aLayer);
     else
         visibleLayers &= ~(1 << aLayer);
 
-    brd->SetVisibleLayers( visibleLayers );
+    myframe->SetVisibleLayers( visibleLayers );
 
     if( isFinal )
-        myframe->DrawPanel->Refresh();
+        myframe->GetCanvas()->Refresh();
 }
 
-void GERBER_LAYER_WIDGET::OnRenderColorChange( int aId, int aColor )
+void GERBER_LAYER_WIDGET::OnRenderColorChange( int aId, EDA_COLOR_T aColor )
 {
-    myframe->GetBoard()->SetVisibleElementColor( aId, aColor );
-    myframe->DrawPanel->Refresh();
+    myframe->SetVisibleElementColor( (GERBER_VISIBLE_ID)aId, aColor );
+    myframe->GetCanvas()->Refresh();
 }
 
 void GERBER_LAYER_WIDGET::OnRenderEnable( int aId, bool isEnabled )
 {
-    BOARD*  brd = myframe->GetBoard();
-        brd->SetElementVisibility( aId, isEnabled );
-
-    myframe->DrawPanel->Refresh();
+    myframe->SetElementVisibility( (GERBER_VISIBLE_ID)aId, isEnabled );
+    myframe->GetCanvas()->Refresh();
 }
 
 //-----</LAYER_WIDGET callbacks>------------------------------------------

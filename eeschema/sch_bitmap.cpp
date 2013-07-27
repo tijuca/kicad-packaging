@@ -26,19 +26,11 @@
  * @file sch_bitmap.cpp
  */
 
-#include "fctsys.h"
-#include "gr_basic.h"
-#include "macros.h"
-#include "class_drawpanel.h"
-#include "trigo.h"
-#include "richio.h"
-#include "plot_common.h"
-
-#include "wxEeschemaStruct.h"
-#include "general.h"
-#include "sch_bitmap.h"
-
-#include "protos.h"
+#include <fctsys.h>
+#include <class_drawpanel.h>
+#include <trigo.h>
+#include <wxEeschemaStruct.h>
+#include <sch_bitmap.h>
 
 #include <wx/mstream.h>
 
@@ -64,6 +56,27 @@ SCH_BITMAP::SCH_BITMAP( const SCH_BITMAP& aSchBitmap ) :
     m_Pos   = aSchBitmap.m_Pos;
     m_Layer = aSchBitmap.m_Layer;
     m_Image = new BITMAP_BASE( *aSchBitmap.m_Image );
+}
+
+
+SCH_ITEM& SCH_BITMAP::operator=( const SCH_ITEM& aItem )
+{
+    wxCHECK_MSG( Type() == aItem.Type(), *this,
+                 wxT( "Cannot assign object type " ) + aItem.GetClass() + wxT( " to type " ) +
+                 GetClass() );
+
+    if( &aItem != this )
+    {
+        SCH_ITEM::operator=( aItem );
+
+        SCH_BITMAP* bitmap = (SCH_BITMAP*) &aItem;
+
+        delete m_Image;
+        m_Image = new BITMAP_BASE( *bitmap->m_Image );
+        m_Pos = bitmap->m_Pos;
+    }
+
+    return *this;
 }
 
 
@@ -101,7 +114,7 @@ bool SCH_BITMAP::Save( FILE* aFile ) const
 }
 
 
-EDA_ITEM* SCH_BITMAP::doClone() const
+EDA_ITEM* SCH_BITMAP::Clone() const
 {
     return new SCH_BITMAP( *this );
 }
@@ -174,7 +187,7 @@ EDA_RECT SCH_BITMAP::GetBoundingBox() const
 
 
 void SCH_BITMAP::Draw( EDA_DRAW_PANEL* aPanel, wxDC* aDC, const wxPoint& aOffset,
-                       int aDrawMode, int aColor )
+                       GR_DRAWMODE aDrawMode, EDA_COLOR_T aColor )
 {
     wxPoint pos = m_Pos + aOffset;
 
@@ -190,7 +203,7 @@ void SCH_BITMAP::Draw( EDA_DRAW_PANEL* aPanel, wxDC* aDC, const wxPoint& aOffset
         wxSize size = m_Image->GetSize();
         pos.x -= size.x / 2;
         pos.y -= size.y / 2;
-        GRRect( &aPanel->m_ClipBox, aDC, pos.x, pos.y,
+        GRRect( aPanel->GetClipBox(), aDC, pos.x, pos.y,
                 pos.x + size.x, pos.y + size.y, 0, aColor );
     }
 }
@@ -208,7 +221,7 @@ wxSize SCH_BITMAP::GetSize() const
 /*
  * Mirror image relative to a horizontal X axis )
  */
-void SCH_BITMAP::Mirror_X( int aXaxis_position )
+void SCH_BITMAP::MirrorX( int aXaxis_position )
 {
     m_Pos.y -= aXaxis_position;
     NEGATE( m_Pos.y );
@@ -221,7 +234,7 @@ void SCH_BITMAP::Mirror_X( int aXaxis_position )
 /*
  * Mirror image relative to a vertical Y axis
  */
-void SCH_BITMAP::Mirror_Y( int aYaxis_position )
+void SCH_BITMAP::MirrorY( int aYaxis_position )
 {
     m_Pos.x -= aYaxis_position;
     NEGATE( m_Pos.x );
@@ -230,9 +243,9 @@ void SCH_BITMAP::Mirror_Y( int aYaxis_position )
 }
 
 
-void SCH_BITMAP::Rotate( wxPoint rotationPoint )
+void SCH_BITMAP::Rotate( wxPoint aPosition )
 {
-    RotatePoint( &m_Pos, rotationPoint, 900 );
+    RotatePoint( &m_Pos, aPosition, 900 );
     m_Image->Rotate( false );
 }
 
@@ -251,7 +264,7 @@ bool SCH_BITMAP::IsSelectStateChanged( const wxRect& aRect )
 
 
 #if defined(DEBUG)
-void SCH_BITMAP::Show( int nestLevel, std::ostream& os )
+void SCH_BITMAP::Show( int nestLevel, std::ostream& os ) const
 {
     // XML output:
     wxString s = GetClass();
@@ -263,17 +276,17 @@ void SCH_BITMAP::Show( int nestLevel, std::ostream& os )
 #endif
 
 
-bool SCH_BITMAP::doHitTest( const wxPoint& aPoint, int aAccuracy ) const
+bool SCH_BITMAP::HitTest( const wxPoint& aPosition, int aAccuracy ) const
 {
     EDA_RECT rect = GetBoundingBox();
 
     rect.Inflate( aAccuracy );
 
-    return rect.Contains( aPoint );
+    return rect.Contains( aPosition );
 }
 
 
-bool SCH_BITMAP::doHitTest( const EDA_RECT& aRect, bool aContained, int aAccuracy ) const
+bool SCH_BITMAP::HitTest( const EDA_RECT& aRect, bool aContained, int aAccuracy ) const
 {
     EDA_RECT rect = aRect;
 
@@ -286,13 +299,7 @@ bool SCH_BITMAP::doHitTest( const EDA_RECT& aRect, bool aContained, int aAccurac
 }
 
 
-bool SCH_BITMAP::doIsConnected( const wxPoint& aPosition ) const
-{
-    return m_Pos == aPosition;
-}
-
-
-void SCH_BITMAP::doPlot( PLOTTER* aPlotter )
+void SCH_BITMAP::Plot( PLOTTER* aPlotter )
 {
     m_Image->PlotImage( aPlotter, m_Pos, ReturnLayerColor( GetLayer() ), GetPenSize() );
 }

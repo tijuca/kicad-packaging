@@ -29,11 +29,14 @@
 #ifndef CLASS_GERBER_DRAW_ITEM_H
 #define CLASS_GERBER_DRAW_ITEM_H
 
-#include "base_struct.h"
-#include "class_board_item.h"
-
+#include <base_struct.h>
+#include <dlist.h>
+#include <gr_basic.h>
 
 class GERBER_IMAGE;
+class GBR_LAYOUT;
+class D_CODE;
+class MSG_PANEL_ITEM;
 
 
 /* Shapes id for basic shapes ( .m_Shape member ) */
@@ -52,7 +55,7 @@ enum Gbr_Basic_Shapes {
 
 /***/
 
-class GERBER_DRAW_ITEM : public BOARD_ITEM
+class GERBER_DRAW_ITEM : public EDA_ITEM
 {
     // make SetNext() and SetBack() private so that they may not be called from anywhere.
     // list management is done on GERBER_DRAW_ITEMs using DLIST<GERBER_DRAW_ITEM> only.
@@ -86,6 +89,8 @@ public:
                                              * redundancy for these parameters
                                              */
 private:
+    int m_Layer;
+
     // These values are used to draw this item, according to gerber layers parameters
     // Because they can change inside a gerber image, they are stored here
     // for each item
@@ -98,7 +103,7 @@ private:
     double      m_lyrRotation;              // Fine rotation, from OR parameter, in degrees
 
 public:
-    GERBER_DRAW_ITEM( BOARD_ITEM* aParent, GERBER_IMAGE* aGerberparams );
+    GERBER_DRAW_ITEM( GBR_LAYOUT* aParent, GERBER_IMAGE* aGerberparams );
     GERBER_DRAW_ITEM( const GERBER_DRAW_ITEM& aSource );
     ~GERBER_DRAW_ITEM();
 
@@ -112,6 +117,21 @@ public:
 
     GERBER_DRAW_ITEM* Next() const { return (GERBER_DRAW_ITEM*) Pnext; }
     GERBER_DRAW_ITEM* Back() const { return (GERBER_DRAW_ITEM*) Pback; }
+
+    /**
+     * Function GetLayer
+     * returns the layer this item is on.
+     */
+    int GetLayer() const { return m_Layer; }
+
+    /**
+     * Function SetLayer
+     * sets the layer this item is on.
+     * @param aLayer The layer number.
+     * is virtual because some items (in fact: class DIMENSION)
+     * have a slightly different initialization
+     */
+    void SetLayer( int aLayer )  { m_Layer = aLayer; }
 
     int ReturnMaskLayer()
     {
@@ -167,10 +187,8 @@ public:
      * @return const wxPoint& - The position of this object.
      * This function exists mainly to satisfy the virtual GetPosition() in parent class
      */
-    wxPoint& GetPosition()
-    {
-        return m_Start;  // it had to be start or end.
-    }
+    const wxPoint& GetPosition() const          { return m_Start; }
+    void SetPosition( const wxPoint& aPos )     {  m_Start = aPos; }
 
     /**
      * Function GetABPosition
@@ -204,8 +222,8 @@ public:
     /* Display on screen: */
     void Draw( EDA_DRAW_PANEL*         aPanel,
                wxDC*                   aDC,
-               int                     aDrawMode,
-               const wxPoint&aOffset = ZeroOffset );
+               GR_DRAWMODE             aDrawMode,
+               const wxPoint&aOffset );
 
     /**
      * Function ConvertSegmentToPolygon
@@ -220,21 +238,13 @@ public:
      * a helper function used to draw the polygon stored in m_PolyCorners
      */
     void DrawGbrPoly( EDA_RECT* aClipBox,
-                      wxDC* aDC, int aColor,
+                      wxDC* aDC, EDA_COLOR_T aColor,
                       const wxPoint& aOffset, bool aFilledShape );
 
     /* divers */
     int Shape() const { return m_Shape; }
 
-    /**
-     * Function DisplayInfo
-     * has knowledge about the frame and how and where to put status information
-     * about this object into the frame's message panel.
-     * Is virtual from EDA_ITEM.
-     * Display info about this GERBER item
-     * @param frame A EDA_DRAW_FRAME in which to print status information.
-     */
-    void DisplayInfo( EDA_DRAW_FRAME* frame );
+    void GetMsgPanelInfo( std::vector< MSG_PANEL_ITEM >& aList );
 
     wxString ShowGBRShape();
 
@@ -265,7 +275,6 @@ public:
         return wxT( "GERBER_DRAW_ITEM" );
     }
 
-
     /**
      * Function Save.
      * currently: no nothing, but must be defined to meet requirements
@@ -273,18 +282,32 @@ public:
      */
     bool Save( FILE* aFile ) const;
 
-#if defined(DEBUG)
+    /**
+     * Function UnLink
+     * detaches this object from its owner.
+     */
+    void UnLink()
+    {
+        DLIST<GERBER_DRAW_ITEM>* list = (DLIST<GERBER_DRAW_ITEM>*) GetList();
+        wxASSERT( list );
+
+        if( list )
+            list->Remove( this );
+    }
 
     /**
-     * Function Show
-     * is used to output the object tree, currently for debugging only.
-     * @param nestLevel An aid to prettier tree indenting, and is the level
-     *                  of nesting of this object within the overall tree.
-     * @param os The ostream& to output to.
+     * Function DeleteStructure
+     * deletes this object after UnLink()ing it from its owner.
      */
-    virtual void Show( int nestLevel, std::ostream& os );
-
+    void DeleteStructure()
+    {
+        UnLink();
+        delete this;
+    }
+#if defined(DEBUG)
+    void Show( int nestLevel, std::ostream& os ) const;  // override
 #endif
+
 };
 
 #endif /* CLASS_GERBER_DRAW_ITEM_H */

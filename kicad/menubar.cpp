@@ -1,9 +1,9 @@
 /*
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
- * Copyright (C) 2007 Jean-Pierre Charras, jaen-pierre.charras@gipsa-lab.inpg.com
- * Copyright (C) 2009-2011 Wayne Stambaugh <stambaughw@verizon.net>
- * Copyright (C) 1992-2011 KiCad Developers, see AUTHORS.txt for contributors.
+ * Copyright (C) 2012 Jean-Pierre Charras, jp.charras at wanadoo.fr
+ * Copyright (C) 2009-2012 Wayne Stambaugh <stambaughw@verizon.net>
+ * Copyright (C) 1992-2012 KiCad Developers, see AUTHORS.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -27,10 +27,11 @@
  * @file kicad/menubar.cpp
  * @brief (Re)Create the project manager menubar for KiCad
  */
-#include "fctsys.h"
-#include "appl_wxstruct.h"
-#include "kicad.h"
-
+#include <fctsys.h>
+#include <appl_wxstruct.h>
+#include <kicad.h>
+#include <menus_helpers.h>
+#include <tree_project_frame.h>
 
 /* Menubar and toolbar event table */
 BEGIN_EVENT_TABLE( KICAD_MANAGER_FRAME, EDA_BASE_FRAME )
@@ -43,6 +44,7 @@ BEGIN_EVENT_TABLE( KICAD_MANAGER_FRAME, EDA_BASE_FRAME )
 
     /* Toolbar events */
     EVT_TOOL( ID_NEW_PROJECT, KICAD_MANAGER_FRAME::OnLoadProject )
+    EVT_TOOL( ID_NEW_PROJECT_FROM_TEMPLATE, KICAD_MANAGER_FRAME::OnLoadProject )
     EVT_TOOL( ID_LOAD_PROJECT, KICAD_MANAGER_FRAME::OnLoadProject )
     EVT_TOOL( ID_SAVE_PROJECT, KICAD_MANAGER_FRAME::OnSaveProject )
     EVT_TOOL( ID_SAVE_AND_ZIP_FILES, KICAD_MANAGER_FRAME::OnArchiveFiles )
@@ -66,8 +68,12 @@ BEGIN_EVENT_TABLE( KICAD_MANAGER_FRAME, EDA_BASE_FRAME )
 
     /* Range menu events */
     EVT_MENU_RANGE( ID_LANGUAGE_CHOICE, ID_LANGUAGE_CHOICE_END, KICAD_MANAGER_FRAME::SetLanguage )
-
     EVT_MENU_RANGE( wxID_FILE1, wxID_FILE9, KICAD_MANAGER_FRAME::OnFileHistory )
+
+    // Special functions
+    #ifdef KICAD_USE_FILES_WATCHER
+    EVT_MENU( ID_INIT_WATCHED_PATHS, KICAD_MANAGER_FRAME::OnChangeWatchedPaths )
+    #endif
 
     /* Button events */
     EVT_BUTTON( ID_TO_PCB, KICAD_MANAGER_FRAME::OnRunPcbNew )
@@ -89,6 +95,9 @@ END_EVENT_TABLE()
  */
 void KICAD_MANAGER_FRAME::ReCreateMenuBar()
 {
+    static wxMenu* openRecentMenu;  // Open Recent submenu,
+                                    // static to remember this menu
+
     // Create and try to get the current  menubar
     wxMenuItem* item;
     wxMenuBar*  menuBar = GetMenuBar();
@@ -100,6 +109,12 @@ void KICAD_MANAGER_FRAME::ReCreateMenuBar()
     // This allows language changes of the menu text on the fly.
     menuBar->Freeze();
 
+    // Before deleting, remove the menus managed by m_fileHistory
+    // (the file history will be updated when adding/removing files in history)
+    if( openRecentMenu )
+        wxGetApp().GetFileHistory().RemoveMenu( openRecentMenu );
+
+    // Delete all existing menus
     while( menuBar->GetMenuCount() )
         delete menuBar->Remove( 0 );
 
@@ -115,17 +130,10 @@ void KICAD_MANAGER_FRAME::ReCreateMenuBar()
                  _( "Open an existing project" ),
                  KiBitmap( open_project_xpm ) );
 
-    // Open Recent submenu
-    static wxMenu* openRecentMenu;
-
-    // Add this menu to list menu managed by m_fileHistory
-    // (the file history will be updated when adding/removing files in history
-    if( openRecentMenu )
-        wxGetApp().m_fileHistory.RemoveMenu( openRecentMenu );
-
+    // File history
     openRecentMenu = new wxMenu();
-    wxGetApp().m_fileHistory.UseMenu( openRecentMenu );
-    wxGetApp().m_fileHistory.AddFilesToMenu( );
+    wxGetApp().GetFileHistory().UseMenu( openRecentMenu );
+    wxGetApp().GetFileHistory().AddFilesToMenu( );
     AddMenuItem( fileMenu, openRecentMenu,
                  wxID_ANY,
                  _( "Open &Recent" ),
@@ -133,8 +141,20 @@ void KICAD_MANAGER_FRAME::ReCreateMenuBar()
                  KiBitmap( open_project_xpm ) );
 
     // New
-    AddMenuItem( fileMenu, ID_NEW_PROJECT,
-                 _( "&New\tCtrl+N" ),
+    wxMenu* newMenu = new wxMenu();
+    AddMenuItem( newMenu, ID_NEW_PROJECT,
+                 _( "&Blank\tCtrl+N" ),
+                 _( "Start a blank project" ),
+                 KiBitmap( new_project_xpm ) );
+
+    AddMenuItem( newMenu, ID_NEW_PROJECT_FROM_TEMPLATE,
+                 _( "New from &Template\tCtrl+T" ),
+                 _( "Start a new project from a template" ),
+                 KiBitmap( new_project_with_template_xpm ) );
+
+    AddMenuItem( fileMenu, newMenu,
+                 wxID_ANY,
+                 _( "New" ),
                  _( "Start a new project" ),
                  KiBitmap( new_project_xpm ) );
 
@@ -211,7 +231,7 @@ void KICAD_MANAGER_FRAME::ReCreateMenuBar()
 
     SubMenuPdfBrowserChoice->Append( item );
     SubMenuPdfBrowserChoice->Check( ID_SELECT_DEFAULT_PDF_BROWSER,
-                                    wxGetApp().m_PdfBrowserIsDefault );
+                                    wxGetApp().UseSystemPdfBrowser() );
 
     // Favourite
     item = new wxMenuItem( SubMenuPdfBrowserChoice,
@@ -225,7 +245,7 @@ void KICAD_MANAGER_FRAME::ReCreateMenuBar()
     SubMenuPdfBrowserChoice->Append( item );
     SubMenuPdfBrowserChoice->AppendSeparator();
     SubMenuPdfBrowserChoice->Check( ID_SELECT_PREFERED_PDF_BROWSER,
-                                    !wxGetApp().m_PdfBrowserIsDefault );
+                                    !wxGetApp().UseSystemPdfBrowser() );
 
     // Append PDF Viewer submenu to preferences
     AddMenuItem( SubMenuPdfBrowserChoice,
@@ -296,43 +316,48 @@ void KICAD_MANAGER_FRAME::ReCreateMenuBar()
 void KICAD_MANAGER_FRAME::RecreateBaseHToolbar()
 {
     // Check if toolbar is not already created
-    if( m_HToolBar != NULL )
+    if( m_mainToolBar != NULL )
         return;
 
-    // Allocate memory for m_HToolBar
-    m_HToolBar = new EDA_TOOLBAR( TOOLBAR_MAIN, this, ID_H_TOOLBAR, TRUE );
+    // Allocate memory for m_mainToolBar
+    m_mainToolBar = new wxAuiToolBar( this, ID_H_TOOLBAR, wxDefaultPosition, wxDefaultSize,
+                                      wxAUI_TB_DEFAULT_STYLE | wxAUI_TB_HORZ_LAYOUT );
 
     // New
-    m_HToolBar->AddTool( ID_NEW_PROJECT, wxEmptyString,
-                         KiBitmap( new_project_xpm ),
-                         _( "Start a new project" ) );
+    m_mainToolBar->AddTool( ID_NEW_PROJECT, wxEmptyString,
+                            KiBitmap( new_project_xpm ),
+                            _( "Start a new project" ) );
+
+    m_mainToolBar->AddTool( ID_NEW_PROJECT_FROM_TEMPLATE, wxEmptyString,
+                            KiBitmap( new_project_with_template_xpm ),
+                            _( "Start a new project from a template" ) );
 
     // Load
-    m_HToolBar->AddTool( ID_LOAD_PROJECT, wxEmptyString,
-                         KiBitmap( open_project_xpm ),
-                         _( "Load existing project" ) );
+    m_mainToolBar->AddTool( ID_LOAD_PROJECT, wxEmptyString,
+                            KiBitmap( open_project_xpm ),
+                            _( "Load existing project" ) );
 
     // Save
-    m_HToolBar->AddTool( ID_SAVE_PROJECT, wxEmptyString,
-                         KiBitmap( save_project_xpm ),
-                         _( "Save current project" ) );
+    m_mainToolBar->AddTool( ID_SAVE_PROJECT, wxEmptyString,
+                            KiBitmap( save_project_xpm ),
+                            _( "Save current project" ) );
 
     // Separator
-    m_HToolBar->AddSeparator();
+    m_mainToolBar->AddSeparator();
 
     // Archive
-    m_HToolBar->AddTool( ID_SAVE_AND_ZIP_FILES, wxEmptyString,
-                         KiBitmap( zip_xpm ),
-                         _( "Archive all project files" ) );
+    m_mainToolBar->AddTool( ID_SAVE_AND_ZIP_FILES, wxEmptyString,
+                            KiBitmap( zip_xpm ),
+                            _( "Archive all project files" ) );
 
     // Separator
-    m_HToolBar->AddSeparator();
+    m_mainToolBar->AddSeparator();
 
     // Refresh project tree
-    m_HToolBar->AddTool( ID_PROJECT_TREE_REFRESH, wxEmptyString,
-                         KiBitmap( reload_xpm ),
-                         _( "Refresh project tree" ) );
+    m_mainToolBar->AddTool( ID_PROJECT_TREE_REFRESH, wxEmptyString,
+                            KiBitmap( reload_xpm ),
+                            _( "Refresh project tree" ) );
 
-    // Create m_HToolBar
-    m_HToolBar->Realize();
+    // Create m_mainToolBar
+    m_mainToolBar->Realize();
 }

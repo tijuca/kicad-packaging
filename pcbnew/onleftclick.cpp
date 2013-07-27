@@ -1,7 +1,7 @@
 /*
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
- * Copyright (C) 2007 Jean-Pierre Charras, jaen-pierre.charras@gipsa-lab.inpg.com
+ * Copyright (C) 2007 Jean-Pierre Charras, jean-pierre.charras@gipsa-lab.inpg.fr
  * Copyright (C) 2011 Wayne Stambaugh <stambaughw@verizon.net>
  * Copyright (C) 1992-2011 KiCad Developers, see AUTHORS.txt for contributors.
  *
@@ -28,17 +28,19 @@
  * @brief Functions called when the left button is clicked or double clicked.
  */
 
-#include "fctsys.h"
-#include "class_drawpanel.h"
-#include "confirm.h"
-#include "wxPcbStruct.h"
+#include <fctsys.h>
+#include <class_drawpanel.h>
+#include <confirm.h>
+#include <wxPcbStruct.h>
+#include <msgpanel.h>
 
-#include "class_board.h"
-#include "class_zone.h"
-#include "class_pcb_text.h"
+#include <class_board.h>
+#include <class_zone.h>
+#include <class_pcb_text.h>
 
-#include "pcbnew.h"
-#include "pcbnew_id.h"
+#include <pcbnew.h>
+#include <pcbnew_id.h>
+#include <menus_helpers.h>
 
 
 /* Handle the left button mouse click, when a tool is active
@@ -49,21 +51,21 @@ void PCB_EDIT_FRAME::OnLeftClick( wxDC* aDC, const wxPoint& aPosition )
     bool        exit = false;
     bool no_tool = GetToolId() == ID_NO_TOOL_SELECTED;
 
-    if( no_tool || ( DrawStruct && DrawStruct->m_Flags ) )
+    if( no_tool || ( DrawStruct && DrawStruct->GetFlags() ) )
     {
-        DrawPanel->m_AutoPAN_Request = false;
+        m_canvas->SetAutoPanRequest( false );
 
-        if( DrawStruct && DrawStruct->m_Flags ) // Command in progress
+        if( DrawStruct && DrawStruct->GetFlags() ) // Command in progress
         {
-            DrawPanel->m_IgnoreMouseEvents = true;
-            DrawPanel->CrossHairOff( aDC );
+            m_canvas->SetIgnoreMouseEvents( true );
+            m_canvas->CrossHairOff( aDC );
 
             switch( DrawStruct->Type() )
             {
             case PCB_ZONE_AREA_T:
                 if( DrawStruct->IsNew() )
                 {
-                    DrawPanel->m_AutoPAN_Request = true;
+                    m_canvas->SetAutoPanRequest( true );
                     Begin_Zone( aDC );
                 }
                 else
@@ -76,7 +78,7 @@ void PCB_EDIT_FRAME::OnLeftClick( wxDC* aDC, const wxPoint& aPosition )
 
             case PCB_TRACE_T:
             case PCB_VIA_T:
-                if( DrawStruct->m_Flags & IS_DRAGGED )
+                if( DrawStruct->IsDragging() )
                 {
                     PlaceDraggedOrMovedTrackSegment( (TRACK*) DrawStruct, aDC );
                     exit = true;
@@ -134,8 +136,8 @@ void PCB_EDIT_FRAME::OnLeftClick( wxDC* aDC, const wxPoint& aPosition )
                 break;
             }
 
-            DrawPanel->m_IgnoreMouseEvents = false;
-            DrawPanel->CrossHairOn( aDC );
+            m_canvas->SetIgnoreMouseEvents( false );
+            m_canvas->CrossHairOn( aDC );
 
             if( exit )
                 return;
@@ -188,13 +190,17 @@ void PCB_EDIT_FRAME::OnLeftClick( wxDC* aDC, const wxPoint& aPosition )
         int netcode = SelectHighLight( aDC );
 
         if( netcode < 0 )
-            GetBoard()->DisplayInfo( this );
+            SetMsgPanel( GetBoard() );
         else
         {
             NETINFO_ITEM* net = GetBoard()->FindNet( netcode );
 
             if( net )
-                net->DisplayInfo( this );
+            {
+                MSG_PANEL_ITEMS items;
+                net->GetMsgPanelInfo( items );
+                SetMsgPanel( items );
+            }
         }
     }
     break;
@@ -209,10 +215,10 @@ void PCB_EDIT_FRAME::OnLeftClick( wxDC* aDC, const wxPoint& aPosition )
         break;
 
     case ID_PCB_MIRE_BUTT:
-        if( (DrawStruct == NULL) || (DrawStruct->m_Flags == 0) )
+        if( (DrawStruct == NULL) || (DrawStruct->GetFlags() == 0) )
         {
             SetCurItem( (BOARD_ITEM*) CreateTarget( aDC ) );
-            DrawPanel->MoveCursorToCrossHair();
+            m_canvas->MoveCursorToCrossHair();
         }
         else if( DrawStruct->Type() == PCB_TARGET_T )
         {
@@ -220,7 +226,7 @@ void PCB_EDIT_FRAME::OnLeftClick( wxDC* aDC, const wxPoint& aPosition )
         }
         else
         {
-            DisplayError( this, wxT( "Internal err: Struct not PCB_TARGET_T" ) );
+            DisplayError( this, wxT( "OnLeftClick err: not a PCB_TARGET_T" ) );
         }
 
         break;
@@ -228,37 +234,37 @@ void PCB_EDIT_FRAME::OnLeftClick( wxDC* aDC, const wxPoint& aPosition )
     case ID_PCB_CIRCLE_BUTT:
     case ID_PCB_ARC_BUTT:
     case ID_PCB_ADD_LINE_BUTT:
-    {
-        int shape = S_SEGMENT;
-
-        if( GetToolId() == ID_PCB_CIRCLE_BUTT )
-            shape = S_CIRCLE;
-
-        if( GetToolId() == ID_PCB_ARC_BUTT )
-            shape = S_ARC;
-
-        if( getActiveLayer() <= LAST_COPPER_LAYER )
         {
-            DisplayError( this, _( "Graphic not authorized on Copper layers" ) );
-            break;
-        }
+            STROKE_T shape = S_SEGMENT;
 
-        if( (DrawStruct == NULL) || (DrawStruct->m_Flags == 0) )
-        {
-            DrawStruct = (BOARD_ITEM*) Begin_DrawSegment( NULL, shape, aDC );
-            SetCurItem( DrawStruct );
-            DrawPanel->m_AutoPAN_Request = true;
-        }
-        else if( DrawStruct
-               && (DrawStruct->Type() == PCB_LINE_T)
-               && DrawStruct->IsNew() )
-        {
-            DrawStruct = (BOARD_ITEM*) Begin_DrawSegment( (DRAWSEGMENT*) DrawStruct, shape, aDC );
-            SetCurItem( DrawStruct );
-            DrawPanel->m_AutoPAN_Request = true;
+            if( GetToolId() == ID_PCB_CIRCLE_BUTT )
+                shape = S_CIRCLE;
+
+            if( GetToolId() == ID_PCB_ARC_BUTT )
+                shape = S_ARC;
+
+            if( getActiveLayer() <= LAST_COPPER_LAYER )
+            {
+                DisplayError( this, _( "Graphic not authorized on Copper layers" ) );
+                break;
+            }
+
+            if( (DrawStruct == NULL) || (DrawStruct->GetFlags() == 0) )
+            {
+                DrawStruct = (BOARD_ITEM*) Begin_DrawSegment( NULL, shape, aDC );
+                SetCurItem( DrawStruct );
+                m_canvas->SetAutoPanRequest( true );
+            }
+            else if( DrawStruct
+                   && (DrawStruct->Type() == PCB_LINE_T)
+                   && DrawStruct->IsNew() )
+            {
+                DrawStruct = (BOARD_ITEM*) Begin_DrawSegment( (DRAWSEGMENT*) DrawStruct, shape, aDC );
+                SetCurItem( DrawStruct );
+                m_canvas->SetAutoPanRequest( true );
+            }
         }
         break;
-    }
 
     case ID_TRACK_BUTT:
         if( getActiveLayer() > LAST_COPPER_LAYER )
@@ -267,13 +273,13 @@ void PCB_EDIT_FRAME::OnLeftClick( wxDC* aDC, const wxPoint& aPosition )
             break;
         }
 
-        if( (DrawStruct == NULL) || (DrawStruct->m_Flags == 0) )
+        if( (DrawStruct == NULL) || (DrawStruct->GetFlags() == 0) )
         {
             DrawStruct = (BOARD_ITEM*) Begin_Route( NULL, aDC );
             SetCurItem( DrawStruct );
 
             if( DrawStruct )
-                DrawPanel->m_AutoPAN_Request = true;
+                m_canvas->SetAutoPanRequest( true );
         }
         else if( DrawStruct && DrawStruct->IsNew() )
         {
@@ -284,50 +290,29 @@ void PCB_EDIT_FRAME::OnLeftClick( wxDC* aDC, const wxPoint& aPosition )
             if( track )  // A new segment was created
                 SetCurItem( DrawStruct = (BOARD_ITEM*) track, false );
 
-            DrawPanel->m_AutoPAN_Request = true;
+            m_canvas->SetAutoPanRequest( true );
         }
 
         break;
 
     case ID_PCB_ZONES_BUTT:
-
-        /* ZONE Tool is selected. Determine action for a left click:
+    case ID_PCB_KEEPOUT_AREA_BUTT:
+        /* ZONE or KEEPOUT Tool is selected. Determine action for a left click:
          *  this can be start a new zone or select and move an existing zone outline corner
          *  if found near the mouse cursor
          */
-        if( (DrawStruct == NULL) || (DrawStruct->m_Flags == 0) )
+        if( (DrawStruct == NULL) || (DrawStruct->GetFlags() == 0) )
         {
-            // there is no current item, try to find something under mouse
-            DrawStruct = PcbGeneralLocateAndDisplay();
-            bool hit_on_corner = false;
-
-            if( DrawStruct && (DrawStruct->Type() == PCB_ZONE_AREA_T) )
+            if( Begin_Zone( aDC ) )
             {
-                // We have a hit under mouse (a zone outline corner or segment)
-                // test for a corner only because want to move corners only.
-                ZONE_CONTAINER* edge_zone = (ZONE_CONTAINER*) DrawStruct;
-
-                if( edge_zone->HitTestForCorner( GetScreen()->RefPos( true ) ) ) // corner located!
-                    hit_on_corner = true;
-            }
-
-            if( hit_on_corner )
-            {
-                DrawPanel->MoveCursorToCrossHair();
-                ZONE_CONTAINER* zone_cont = (ZONE_CONTAINER*) GetCurItem();
-                DrawPanel->m_AutoPAN_Request = true;
-                Start_Move_Zone_Corner( aDC, zone_cont, zone_cont->m_CornerSelection, false );
-            }
-            else if( Begin_Zone( aDC ) )
-            {
-                DrawPanel->m_AutoPAN_Request = true;
+                m_canvas->SetAutoPanRequest( true );
                 DrawStruct = GetBoard()->m_CurrentZoneContour;
                 GetScreen()->SetCurItem( DrawStruct );
             }
         }
         else if( DrawStruct && (DrawStruct->Type() == PCB_ZONE_AREA_T) && DrawStruct->IsNew() )
         {   // Add a new corner to the current outline being created:
-            DrawPanel->m_AutoPAN_Request = true;
+            m_canvas->SetAutoPanRequest( true );
             Begin_Zone( aDC );
             DrawStruct = GetBoard()->m_CurrentZoneContour;
             GetScreen()->SetCurItem( DrawStruct );
@@ -340,38 +325,38 @@ void PCB_EDIT_FRAME::OnLeftClick( wxDC* aDC, const wxPoint& aPosition )
         break;
 
     case ID_PCB_ADD_TEXT_BUTT:
-        if( (DrawStruct == NULL) || (DrawStruct->m_Flags == 0) )
+        if( (DrawStruct == NULL) || (DrawStruct->GetFlags() == 0) )
         {
-            SetCurItem( Create_Texte_Pcb( aDC ) );
-            DrawPanel->MoveCursorToCrossHair();
-            DrawPanel->m_AutoPAN_Request = true;
+            SetCurItem( CreateTextePcb( aDC ) );
+            m_canvas->MoveCursorToCrossHair();
+            m_canvas->SetAutoPanRequest( true );
         }
         else if( DrawStruct->Type() == PCB_TEXT_T )
         {
             Place_Texte_Pcb( (TEXTE_PCB*) DrawStruct, aDC );
-            DrawPanel->m_AutoPAN_Request = false;
+            m_canvas->SetAutoPanRequest( false );
         }
         else
         {
-            DisplayError( this, wxT( "Internal err: Struct not PCB_TEXT_T" ) );
+            DisplayError( this, wxT( "OnLeftClick err: not a PCB_TEXT_T" ) );
         }
 
         break;
 
     case ID_PCB_MODULE_BUTT:
-        if( (DrawStruct == NULL) || (DrawStruct->m_Flags == 0) )
+        if( (DrawStruct == NULL) || (DrawStruct->GetFlags() == 0) )
         {
-            DrawPanel->MoveCursorToCrossHair();
-            DrawStruct = (BOARD_ITEM*) Load_Module_From_Library( wxEmptyString, aDC );
+            m_canvas->MoveCursorToCrossHair();
+            DrawStruct = (BOARD_ITEM*) Load_Module_From_Library( wxEmptyString, true, aDC );
             SetCurItem( DrawStruct );
 
             if( DrawStruct )
-                StartMove_Module( (MODULE*) DrawStruct, aDC );
+                StartMoveModule( (MODULE*) DrawStruct, aDC, false );
         }
         else if( DrawStruct->Type() == PCB_MODULE_T )
         {
             PlaceModule( (MODULE*) DrawStruct, aDC );
-            DrawPanel->m_AutoPAN_Request = false;
+            m_canvas->SetAutoPanRequest( false );
         }
         else
         {
@@ -387,17 +372,17 @@ void PCB_EDIT_FRAME::OnLeftClick( wxDC* aDC, const wxPoint& aPosition )
             break;
         }
 
-        if( (DrawStruct == NULL) || (DrawStruct->m_Flags == 0) )
+        if( (DrawStruct == NULL) || (DrawStruct->GetFlags() == 0) )
         {
             DrawStruct = (BOARD_ITEM*) EditDimension( NULL, aDC );
             SetCurItem( DrawStruct );
-            DrawPanel->m_AutoPAN_Request = true;
+            m_canvas->SetAutoPanRequest( true );
         }
         else if( DrawStruct && (DrawStruct->Type() == PCB_DIMENSION_T) && DrawStruct->IsNew() )
         {
             DrawStruct = (BOARD_ITEM*) EditDimension( (DIMENSION*) DrawStruct, aDC );
             SetCurItem( DrawStruct );
-            DrawPanel->m_AutoPAN_Request = true;
+            m_canvas->SetAutoPanRequest( true );
         }
         else
         {
@@ -408,11 +393,11 @@ void PCB_EDIT_FRAME::OnLeftClick( wxDC* aDC, const wxPoint& aPosition )
         break;
 
     case ID_PCB_DELETE_ITEM_BUTT:
-        if( !DrawStruct || (DrawStruct->m_Flags == 0) )
+        if( !DrawStruct || (DrawStruct->GetFlags() == 0) )
         {
             DrawStruct = PcbGeneralLocateAndDisplay();
 
-            if( DrawStruct && (DrawStruct->m_Flags == 0) )
+            if( DrawStruct && (DrawStruct->GetFlags() == 0) )
             {
                 RemoveStruct( DrawStruct, aDC );
                 SetCurItem( DrawStruct = NULL );
@@ -422,21 +407,21 @@ void PCB_EDIT_FRAME::OnLeftClick( wxDC* aDC, const wxPoint& aPosition )
         break;
 
     case ID_PCB_PLACE_OFFSET_COORD_BUTT:
-        DrawPanel->DrawAuxiliaryAxis( aDC, GR_XOR );
-        m_Auxiliary_Axis_Position = GetScreen()->GetCrossHairPosition();
-        DrawPanel->DrawAuxiliaryAxis( aDC, GR_COPY );
+        m_canvas->DrawAuxiliaryAxis( aDC, GR_XOR );
+        SetOriginAxisPosition( GetScreen()->GetCrossHairPosition() );
+        m_canvas->DrawAuxiliaryAxis( aDC, GR_COPY );
         OnModify();
         break;
 
     case ID_PCB_PLACE_GRID_COORD_BUTT:
-        DrawPanel->DrawGridAxis( aDC, GR_XOR );
+        m_canvas->DrawGridAxis( aDC, GR_XOR );
         GetScreen()->m_GridOrigin = GetScreen()->GetCrossHairPosition();
-        DrawPanel->DrawGridAxis( aDC, GR_COPY );
+        m_canvas->DrawGridAxis( aDC, GR_COPY );
         break;
 
     default:
         DisplayError( this, wxT( "PCB_EDIT_FRAME::OnLeftClick() id error" ) );
-        SetToolID( ID_NO_TOOL_SELECTED, DrawPanel->GetDefaultCursor(), wxEmptyString );
+        SetToolID( ID_NO_TOOL_SELECTED, m_canvas->GetDefaultCursor(), wxEmptyString );
         break;
     }
 }
@@ -451,12 +436,12 @@ void PCB_EDIT_FRAME::OnLeftDClick( wxDC* aDC, const wxPoint& aPosition )
     switch( GetToolId() )
     {
     case ID_NO_TOOL_SELECTED:
-        if( (DrawStruct == NULL) || (DrawStruct->m_Flags == 0) )
+        if( (DrawStruct == NULL) || (DrawStruct->GetFlags() == 0) )
         {
             DrawStruct = PcbGeneralLocateAndDisplay();
         }
 
-        if( (DrawStruct == NULL) || (DrawStruct->m_Flags != 0) )
+        if( (DrawStruct == NULL) || (DrawStruct->GetFlags() != 0) )
             break;
 
         SendMessageToEESCHEMA( DrawStruct );
@@ -471,9 +456,9 @@ void PCB_EDIT_FRAME::OnLeftDClick( wxDC* aDC, const wxPoint& aPosition )
             if( DrawStruct->IsNew() )
             {
                 if( End_Route( (TRACK*) DrawStruct, aDC ) )
-                    DrawPanel->m_AutoPAN_Request = false;
+                    m_canvas->SetAutoPanRequest( false );
             }
-            else if( DrawStruct->m_Flags == 0 )
+            else if( DrawStruct->GetFlags() == 0 )
             {
                 Edit_TrackSegm_Width( aDC, (TRACK*) DrawStruct );
             }
@@ -487,7 +472,7 @@ void PCB_EDIT_FRAME::OnLeftDClick( wxDC* aDC, const wxPoint& aPosition )
         case PCB_DIMENSION_T:
         case PCB_MODULE_TEXT_T:
             OnEditItemRequest( aDC, DrawStruct );
-            DrawPanel->MoveCursorToCrossHair();
+            m_canvas->MoveCursorToCrossHair();
             break;
 
         case PCB_LINE_T:
@@ -495,8 +480,9 @@ void PCB_EDIT_FRAME::OnLeftDClick( wxDC* aDC, const wxPoint& aPosition )
             break;
 
         case PCB_ZONE_AREA_T:
-            if( DrawStruct->m_Flags )
+            if( DrawStruct->GetFlags() )
                 break;
+
             OnEditItemRequest( aDC, DrawStruct );
             break;
 
@@ -510,15 +496,16 @@ void PCB_EDIT_FRAME::OnLeftDClick( wxDC* aDC, const wxPoint& aPosition )
         if( DrawStruct && DrawStruct->IsNew() )
         {
             if( End_Route( (TRACK*) DrawStruct, aDC ) )
-                DrawPanel->m_AutoPAN_Request = false;
+                m_canvas->SetAutoPanRequest( false );
         }
 
         break;
 
     case ID_PCB_ZONES_BUTT:
+    case ID_PCB_KEEPOUT_AREA_BUTT:
         if( End_Zone( aDC ) )
         {
-            DrawPanel->m_AutoPAN_Request = false;
+            m_canvas->SetAutoPanRequest( false );
             SetCurItem( NULL );
         }
 
@@ -533,14 +520,14 @@ void PCB_EDIT_FRAME::OnLeftDClick( wxDC* aDC, const wxPoint& aPosition )
         if( DrawStruct->Type() != PCB_LINE_T )
         {
             DisplayError( this, wxT( "DrawStruct Type error" ) );
-            DrawPanel->m_AutoPAN_Request = false;
+            m_canvas->SetAutoPanRequest( false );
             break;
         }
 
         if( DrawStruct->IsNew() )
         {
             End_Edge( (DRAWSEGMENT*) DrawStruct, aDC );
-            DrawPanel->m_AutoPAN_Request = false;
+            m_canvas->SetAutoPanRequest( false );
             SetCurItem( NULL );
         }
 

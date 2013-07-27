@@ -5,15 +5,17 @@
 #ifndef _DIALOG_GLOBAL_DELETION_H_
 #define _DIALOG_GLOBAL_DELETION_H_
 
-#include "dialog_global_deletion_base.h"
+#include <dialog_global_deletion_base.h>
 
 class DIALOG_GLOBAL_DELETION: public DIALOG_GLOBAL_DELETION_BASE
 {
 private:
-	PCB_EDIT_FRAME * m_Parent;
+    PCB_EDIT_FRAME * m_Parent;
+    int m_currentLayer;
 
 public:
     DIALOG_GLOBAL_DELETION( PCB_EDIT_FRAME* parent );
+    void SetCurrentLayer( int aLayer );
 
 private:
     void OnOkClick( wxCommandEvent& event )
@@ -26,9 +28,8 @@ private:
         EndModal(wxID_CANCEL);
     }
 
-	void AcceptPcbDelete();
-
+    void AcceptPcbDelete();
+    void OnCheckDeleteTracks( wxCommandEvent& event );
 };
 
-#endif
-    // _DIALOG_GLOBAL_DELETION_H_
+#endif  // _DIALOG_GLOBAL_DELETION_H_

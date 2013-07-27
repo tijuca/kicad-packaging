@@ -2,15 +2,40 @@
  * @file gerbview/files.cpp
  */
 
-#include "fctsys.h"
-#include "common.h"
-#include "class_drawpanel.h"
-#include "confirm.h"
-#include "gestfich.h"
+/*
+ * This program source code file is part of KiCad, a free EDA CAD application.
+ *
+ * Copyright (C) 2012 Jean-Pierre Charras, jaen-pierre.charras@gipsa-lab.inpg.com
+ * Copyright (C) 2004-2012 KiCad Developers, see change_log.txt for contributors.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation; either version 2
+ * of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, you may find one here:
+ * http://www.gnu.org/licenses/old-licenses/gpl-2.0.html
+ * or you may search the http://www.gnu.org website for the version 2 license,
+ * or you may write to the Free Software Foundation, Inc.,
+ * 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
+ */
 
-#include "gerbview.h"
-#include "gerbview_id.h"
-#include "class_gerbview_layer_widget.h"
+#include <fctsys.h>
+#include <common.h>
+#include <class_drawpanel.h>
+#include <confirm.h>
+#include <gestfich.h>
+
+#include <gerbview.h>
+#include <gerbview_id.h>
+#include <class_gerbview_layer_widget.h>
+#include <wildcards_and_files_ext.h>
 
 
 void GERBVIEW_FRAME::OnGbrFileHistory( wxCommandEvent& event )
@@ -56,18 +81,18 @@ void GERBVIEW_FRAME::Files_io( wxCommandEvent& event )
     case ID_GERBVIEW_ERASE_ALL:
         Clear_Pcb( true );
         Zoom_Automatique( false );
-        DrawPanel->Refresh();
+        m_canvas->Refresh();
         ClearMsgPanel();
         break;
 
     case ID_GERBVIEW_LOAD_DRILL_FILE:
         LoadExcellonFiles( wxEmptyString );
-        DrawPanel->Refresh();
+        m_canvas->Refresh();
         break;
 
     case ID_GERBVIEW_LOAD_DCODE_FILE:
         LoadDCodeFile( wxEmptyString );
-        DrawPanel->Refresh();
+        m_canvas->Refresh();
         break;
 
     default:
@@ -152,13 +177,13 @@ bool GERBVIEW_FRAME::LoadGerberFiles( const wxString& aFullFileName )
         if( !filename.IsAbsolute() )
             filename.SetPath( currentPath );
 
-        GetScreen()->SetFileName( filename.GetFullPath() );
+        m_lastFileName = filename.GetFullPath();
 
         setActiveLayer( layer, false );
 
         if( Read_GERBER_File( filename.GetFullPath(), filename.GetFullPath() ) )
         {
-            UpdateFileHistory( GetScreen()->GetFileName() );
+            UpdateFileHistory( m_lastFileName );
 
             layer = getNextAvailableLayer( layer );
 
@@ -192,12 +217,10 @@ bool GERBVIEW_FRAME::LoadExcellonFiles( const wxString& aFullFileName )
 
     if( !filename.IsOk() )
     {
-        filetypes = _( "Drill files (.drl)" );
-        filetypes << wxT("|");
-        filetypes += wxT(";*.drl;*.DRL" );
+        filetypes = wxGetTranslation( DrillFileWildcard );
         filetypes << wxT("|");
         /* All filetypes */
-        filetypes += AllFilesWildcard;
+        filetypes += wxGetTranslation( AllFilesWildcard );
 
         /* Use the current working directory if the file name path does not exist. */
         if( filename.DirExists() )
@@ -235,7 +258,7 @@ bool GERBVIEW_FRAME::LoadExcellonFiles( const wxString& aFullFileName )
         if( !filename.IsAbsolute() )
             filename.SetPath( currentPath );
 
-        GetScreen()->SetFileName( filename.GetFullPath() );
+        m_lastFileName = filename.GetFullPath();
 
         setActiveLayer( layer, false );
 
@@ -278,7 +301,7 @@ bool GERBVIEW_FRAME::LoadDCodeFile( const wxString& aFullFileName )
     {
         wildcard = _( "Gerber DCODE files" );
         wildcard += wxT(" ") + AllFilesWildcard;
-        fn = GetScreen()->GetFileName();
+        fn = m_lastFileName;
         wxFileDialog dlg( this, _( "Load GERBER DCODE File" ),
                           fn.GetPath(), fn.GetFullName(), wildcard,
                           wxFD_OPEN | wxFD_FILE_MUST_EXIST );

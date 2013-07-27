@@ -4,17 +4,17 @@
 
 /* Routines for automatic selection of modules. */
 
-#include "fctsys.h"
-#include "common.h"
-#include "confirm.h"
-#include "gestfich.h"
-#include "appl_wxstruct.h"
-#include "kicad_string.h"
-#include "macros.h"
+#include <fctsys.h>
+#include <common.h>
+#include <confirm.h>
+#include <gestfich.h>
+#include <appl_wxstruct.h>
+#include <kicad_string.h>
+#include <macros.h>
 
-#include "cvpcb.h"
-#include "cvpcb_mainframe.h"
-#include "cvstruct.h"
+#include <cvpcb.h>
+#include <cvpcb_mainframe.h>
+#include <cvstruct.h>
 
 #define QUOTE '\''
 
@@ -66,7 +66,8 @@ void CVPCB_MAINFRAME::AssocieModule( wxCommandEvent& event )
     {
         fn = m_AliasLibNames[ii];
 
-        if( !fn.HasExt() ) {
+        if( !fn.HasExt() )
+        {
             fn.SetExt( FootprintAliasFileExtension );
             // above fails if filename have more than one point
         }
@@ -124,14 +125,14 @@ found in the default search paths." ),
     msg.Printf( _( "%d footprint aliases found." ), aliases.size() );
     SetStatusText( msg, 0 );
 
+    m_skipComponentSelect = true;
     ii = 0;
-
-    BOOST_FOREACH( COMPONENT& component, m_components )
+    BOOST_FOREACH( COMPONENT_INFO& component, m_components )
     {
         bool found = false;
         m_ListCmp->SetSelection( ii++, true );
 
-        if( !component.m_Module.IsEmpty() )
+        if( !component.m_Footprint.IsEmpty() )
             continue;
 
         BOOST_FOREACH( FOOTPRINT_ALIAS& alias, aliases )
@@ -180,4 +181,5 @@ any of the project footprint libraries." ),
             }
         }
     }
+    m_skipComponentSelect = false;
 }

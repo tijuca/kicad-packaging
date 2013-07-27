@@ -27,18 +27,18 @@
  * @file viewlib_frame.cpp
  */
 
-#include "fctsys.h"
-#include "appl_wxstruct.h"
-#include "eeschema_id.h"
-#include "class_drawpanel.h"
-#include "wxEeschemaStruct.h"
+#include <fctsys.h>
+#include <appl_wxstruct.h>
+#include <eeschema_id.h>
+#include <class_drawpanel.h>
+#include <wxEeschemaStruct.h>
+#include <msgpanel.h>
 
-#include "general.h"
-#include "protos.h"
-#include "viewlib_frame.h"
-#include "class_library.h"
-#include "hotkeys.h"
-#include "dialog_helpers.h"
+#include <general.h>
+#include <viewlib_frame.h>
+#include <class_library.h>
+#include <hotkeys.h>
+#include <dialog_helpers.h>
 
 
 /**
@@ -74,6 +74,7 @@ BEGIN_EVENT_TABLE( LIB_VIEW_FRAME, EDA_DRAW_FRAME )
     /* listbox events */
     EVT_LISTBOX( ID_LIBVIEW_LIB_LIST, LIB_VIEW_FRAME::ClickOnLibList )
     EVT_LISTBOX( ID_LIBVIEW_CMP_LIST, LIB_VIEW_FRAME::ClickOnCmpList )
+    EVT_LISTBOX_DCLICK( ID_LIBVIEW_CMP_LIST, LIB_VIEW_FRAME::DClickOnCmpList )
 
     EVT_MENU( ID_SET_RELATIVE_OFFSET, LIB_VIEW_FRAME::OnSetRelativeOffset )
 END_EVENT_TABLE()
@@ -97,16 +98,17 @@ static wxAcceleratorEntry accels[] =
 #define ACCEL_TABLE_CNT ( sizeof( accels ) / sizeof( wxAcceleratorEntry ) )
 
 #define EXTRA_BORDER_SIZE 2
+#define LIB_VIEW_FRAME_NAME wxT( "ViewlibFrame" )
 
-
-LIB_VIEW_FRAME::LIB_VIEW_FRAME( wxWindow* father, CMP_LIBRARY* Library, wxSemaphore* semaphore ) :
-    EDA_DRAW_FRAME( father, VIEWER_FRAME, _( "Library Browser" ),
-                    wxDefaultPosition, wxDefaultSize )
+LIB_VIEW_FRAME::LIB_VIEW_FRAME( SCH_BASE_FRAME* aParent, CMP_LIBRARY* aLibrary,
+                                wxSemaphore* aSemaphore, long aStyle ) :
+    SCH_BASE_FRAME( aParent, VIEWER_FRAME_TYPE, _( "Library Browser" ),
+                    wxDefaultPosition, wxDefaultSize, aStyle, GetLibViewerFrameName() )
 {
     wxAcceleratorTable table( ACCEL_TABLE_CNT, accels );
 
-    m_FrameName = wxT( "ViewlibFrame" );
-    m_ConfigPath = wxT( "LibraryViewer" );
+    m_FrameName = GetLibViewerFrameName();
+    m_configPath = wxT( "LibraryViewer" );
 
     // Give an icon
     wxIcon  icon;
@@ -119,22 +121,19 @@ LIB_VIEW_FRAME::LIB_VIEW_FRAME( wxWindow* father, CMP_LIBRARY* Library, wxSemaph
     m_LibList = NULL;
     m_LibListWindow = NULL;
     m_CmpListWindow = NULL;
-    m_Semaphore     = semaphore;
+    m_Semaphore     = aSemaphore;
+    if( m_Semaphore )
+        SetModalMode( true );
     m_exportToEeschemaCmpName.Empty();
 
-    if( m_Semaphore )
-        MakeModal(true);
-
     SetScreen( new SCH_SCREEN() );
-    GetScreen()->m_Center = true;      // Center coordinate origins on screen.
+    GetScreen()->m_Center = true;      // Axis origin centered on screen.
     LoadSettings();
 
-    // Initialize grid id to a default value if not found in config or bad:
-    if( ( m_LastGridSizeId <= 0 ) ||
-        ( m_LastGridSizeId < ( ID_POPUP_GRID_USER - ID_POPUP_GRID_LEVEL_1000 ) ) )
-        m_LastGridSizeId = ID_POPUP_GRID_LEVEL_50 - ID_POPUP_GRID_LEVEL_1000;
-
     SetSize( m_FramePos.x, m_FramePos.y, m_FrameSize.x, m_FrameSize.y );
+
+    // Initialize grid id to the default value (50 mils):
+    m_LastGridSizeId = ID_POPUP_GRID_LEVEL_50 - ID_POPUP_GRID_LEVEL_1000;
     GetScreen()->SetGrid( ID_POPUP_GRID_LEVEL_1000 + m_LastGridSizeId  );
 
     ReCreateHToolbar();
@@ -147,7 +146,7 @@ LIB_VIEW_FRAME::LIB_VIEW_FRAME( wxWindow* father, CMP_LIBRARY* Library, wxSemaph
 
     wxPoint win_pos( 0, 0 );
 
-    if( Library == NULL )
+    if( aLibrary == NULL )
     {
         // Creates the libraries window display
         m_LibListWindow =
@@ -164,7 +163,7 @@ LIB_VIEW_FRAME::LIB_VIEW_FRAME( wxWindow* father, CMP_LIBRARY* Library, wxSemaph
     }
     else
     {
-        m_libraryName = Library->GetName();
+        m_libraryName = aLibrary->GetName();
         m_entryName.Clear();
         m_unit = 1;
         m_convert = 1;
@@ -191,8 +190,8 @@ LIB_VIEW_FRAME::LIB_VIEW_FRAME( wxWindow* father, CMP_LIBRARY* Library, wxSemaph
 
     DisplayLibInfos();
 
-    if( DrawPanel )
-        DrawPanel->SetAcceleratorTable( table );
+    if( m_canvas )
+        m_canvas->SetAcceleratorTable( table );
 
     m_auimgr.SetManagedWindow( this );
 
@@ -211,8 +210,8 @@ LIB_VIEW_FRAME::LIB_VIEW_FRAME( wxWindow* father, CMP_LIBRARY* Library, wxSemaph
 
 
     // Manage main toolbal
-    m_auimgr.AddPane( m_HToolBar,
-                      wxAuiPaneInfo( horiz ).Name( wxT ("m_HToolBar" ) ).Top().Row( 0 ) );
+    m_auimgr.AddPane( m_mainToolBar,
+                      wxAuiPaneInfo( horiz ).Name( wxT ("m_mainToolBar" ) ).Top().Row( 0 ) );
 
     wxSize minsize( 60, -1 );
 
@@ -227,11 +226,11 @@ LIB_VIEW_FRAME::LIB_VIEW_FRAME( wxWindow* father, CMP_LIBRARY* Library, wxSemaph
                       Left().Row( 1 ) );
 
     // Manage the draw panel
-    m_auimgr.AddPane( DrawPanel,
+    m_auimgr.AddPane( m_canvas,
                       wxAuiPaneInfo().Name( wxT( "DrawFrame" ) ).Centre() );
 
     // Manage the message panel
-    m_auimgr.AddPane( MsgPanel,
+    m_auimgr.AddPane( m_messagePanel,
                       wxAuiPaneInfo( mesg ).Name( wxT( "MsgPanel" ) ).Bottom().Layer(10) );
 
     /* Now the minimum windows are fixed, set library list
@@ -260,10 +259,20 @@ LIB_VIEW_FRAME::LIB_VIEW_FRAME( wxWindow* father, CMP_LIBRARY* Library, wxSemaph
 
 LIB_VIEW_FRAME::~LIB_VIEW_FRAME()
 {
-    SCH_EDIT_FRAME* frame = (SCH_EDIT_FRAME*) wxGetApp().GetTopWindow();
-    frame->m_ViewlibFrame = NULL;
 }
 
+const wxChar* LIB_VIEW_FRAME::GetLibViewerFrameName()
+{
+    return LIB_VIEW_FRAME_NAME;
+}
+
+/* return a reference to the current opened Library viewer
+ * or NULL if no Library viewer currently opened
+ */
+LIB_VIEW_FRAME* LIB_VIEW_FRAME::GetActiveLibraryViewer()
+{
+    return (LIB_VIEW_FRAME*) wxWindow::FindWindowByName(GetLibViewerFrameName());
+}
 
 void LIB_VIEW_FRAME::OnCloseWindow( wxCloseEvent& Event )
 {
@@ -272,9 +281,9 @@ void LIB_VIEW_FRAME::OnCloseWindow( wxCloseEvent& Event )
     if( m_Semaphore )
     {
         m_Semaphore->Post();
-        MakeModal(false);
         // This window will be destroyed by the calling function,
-        // to avoid side effects
+        // if needed
+        SetModalMode( false );
     }
     else
     {
@@ -304,12 +313,12 @@ void LIB_VIEW_FRAME::OnSashDrag( wxSashEvent& event )
         break;
 
     case ID_LIBVIEW_CMPWINDOW:
-    {
-        wxAuiPaneInfo& pane = m_auimgr.GetPane( m_CmpListWindow );
-        m_CmpListSize.x = event.GetDragRect().width;
-        pane.MinSize( m_CmpListSize );
-        m_auimgr.Update();
-    }
+        {
+            wxAuiPaneInfo& pane = m_auimgr.GetPane( m_CmpListWindow );
+            m_CmpListSize.x = event.GetDragRect().width;
+            pane.MinSize( m_CmpListSize );
+            m_auimgr.Update();
+        }
         break;
     }
 }
@@ -354,7 +363,7 @@ double LIB_VIEW_FRAME::BestZoom()
         return bestzoom;
     }
 
-    wxSize size = DrawPanel->GetClientSize();
+    wxSize size = m_canvas->GetClientSize();
 
     EDA_RECT BoundaryBox = component->GetBoundingBox( m_unit, m_convert );
 
@@ -366,7 +375,7 @@ double LIB_VIEW_FRAME::BestZoom()
                 ( margin_scale_factor * (double)size.y);
 
     // Calculates the best zoom
-    bestzoom = MAX( zx, zy );
+    bestzoom = std::max( zx, zy );
 
     // keep it >= minimal existing zoom (can happen for very small components
     // like small power symbols
@@ -407,7 +416,7 @@ void LIB_VIEW_FRAME::ReCreateListLib()
     ReCreateListCmp();
     ReCreateHToolbar();
     DisplayLibInfos();
-    DrawPanel->Refresh();
+    m_canvas->Refresh();
 }
 
 
@@ -462,7 +471,7 @@ void LIB_VIEW_FRAME::ClickOnLibList( wxCommandEvent& event )
 
     m_libraryName = name;
     ReCreateListCmp();
-    DrawPanel->Refresh();
+    m_canvas->Refresh();
     DisplayLibInfos();
     ReCreateHToolbar();
 }
@@ -485,10 +494,22 @@ void LIB_VIEW_FRAME::ClickOnCmpList( wxCommandEvent& event )
         m_convert = 1;
         Zoom_Automatique( false );
         ReCreateHToolbar();
-        DrawPanel->Refresh();
+        m_canvas->Refresh();
     }
 }
 
+void LIB_VIEW_FRAME::DClickOnCmpList( wxCommandEvent& event )
+{
+    if( m_Semaphore )
+    {
+        ExportToSchematicLibraryPart( event );
+
+        // Prevent the double click from being as a single click in the parent
+        // window which would cause the part to be parked rather than staying
+        // in drag mode.
+        ((SCH_BASE_FRAME*) GetParent())->SkipNextLeftButtonReleaseEvent();
+    }
+}
 
 void LIB_VIEW_FRAME::ExportToSchematicLibraryPart( wxCommandEvent& event )
 {
@@ -513,8 +534,8 @@ void LIB_VIEW_FRAME::LoadSettings( )
 
     EDA_DRAW_FRAME::LoadSettings();
 
-    wxConfigPathChanger cpc( wxGetApp().m_EDA_Config, m_ConfigPath );
-    cfg = wxGetApp().m_EDA_Config;
+    wxConfigPathChanger cpc( wxGetApp().GetSettings(), m_configPath );
+    cfg = wxGetApp().GetSettings();
 
     m_LibListSize.x = 150; // default width of libs list
     m_CmpListSize.x = 150; // default width of component list
@@ -537,8 +558,8 @@ void LIB_VIEW_FRAME::SaveSettings()
 
     EDA_DRAW_FRAME::SaveSettings();
 
-    wxConfigPathChanger cpc( wxGetApp().m_EDA_Config, m_ConfigPath );
-    cfg = wxGetApp().m_EDA_Config;
+    wxConfigPathChanger cpc( wxGetApp().GetSettings(), m_configPath );
+    cfg = wxGetApp().GetSettings();
 
     if ( m_LibListSize.x )
         cfg->Write( LIBLIST_WIDTH_KEY, m_LibListSize.x );

@@ -1,15 +1,19 @@
 ///////////////////////////////////////////////////////////////////////////
-// C++ code generated with wxFormBuilder (version Sep  8 2010)
+// C++ code generated with wxFormBuilder (version Oct  8 2012)
 // http://www.wxformbuilder.org/
 //
 // PLEASE DO "NOT" EDIT THIS FILE!
 ///////////////////////////////////////////////////////////////////////////
 
-#ifndef __dialog_schematic_find_base__
-#define __dialog_schematic_find_base__
+#ifndef __DIALOG_SCHEMATIC_FIND_BASE_H__
+#define __DIALOG_SCHEMATIC_FIND_BASE_H__
 
+#include <wx/artprov.h>
+#include <wx/xrc/xmlres.h>
 #include <wx/intl.h>
+class DIALOG_SHIM;
 
+#include "dialog_shim.h"
 #include <wx/string.h>
 #include <wx/stattext.h>
 #include <wx/gdicmn.h>
@@ -29,7 +33,7 @@
 ///////////////////////////////////////////////////////////////////////////////
 /// Class DIALOG_SCH_FIND_BASE
 ///////////////////////////////////////////////////////////////////////////////
-class DIALOG_SCH_FIND_BASE : public wxDialog 
+class DIALOG_SCH_FIND_BASE : public DIALOG_SHIM
 {
 	private:
 	
@@ -48,6 +52,7 @@ class DIALOG_SCH_FIND_BASE : public wxDialog
 		wxCheckBox* m_checkAllFields;
 		wxCheckBox* m_checkAllPins;
 		wxCheckBox* m_checkCurrentSheetOnly;
+		wxCheckBox* m_checkReplaceReferences;
 		wxCheckBox* m_checkNoWarpCursor;
 		wxButton* m_buttonFind;
 		wxButton* m_buttonReplace;
@@ -61,14 +66,16 @@ class DIALOG_SCH_FIND_BASE : public wxDialog
 		virtual void OnUpdateWildcardUI( wxUpdateUIEvent& event ) { event.Skip(); }
 		virtual void OnFind( wxCommandEvent& event ) { event.Skip(); }
 		virtual void OnUpdateFindUI( wxUpdateUIEvent& event ) { event.Skip(); }
+		virtual void OnReplace( wxCommandEvent& event ) { event.Skip(); }
+		virtual void OnUpdateReplaceUI( wxUpdateUIEvent& event ) { event.Skip(); }
 		virtual void OnCancel( wxCommandEvent& event ) { event.Skip(); }
 		
 	
 	public:
 		
-		DIALOG_SCH_FIND_BASE( wxWindow* parent, wxWindowID id = wxID_ANY, const wxString& title = _("Find"), const wxPoint& pos = wxDefaultPosition, const wxSize& size = wxDefaultSize, long style = wxDEFAULT_DIALOG_STYLE|wxRESIZE_BORDER );
+		DIALOG_SCH_FIND_BASE( wxWindow* parent, wxWindowID id = wxID_ANY, const wxString& title = _("Find"), const wxPoint& pos = wxDefaultPosition, const wxSize& size = wxSize( -1,-1 ), long style = wxDEFAULT_DIALOG_STYLE|wxRESIZE_BORDER ); 
 		~DIALOG_SCH_FIND_BASE();
 	
 };
 
-#endif //__dialog_schematic_find_base__
+#endif //__DIALOG_SCHEMATIC_FIND_BASE_H__

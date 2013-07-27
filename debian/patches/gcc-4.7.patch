@@ -5,8 +5,8 @@ Bug-Debian: http://bugs.debian.org/672727
 Author: Matej Vela <vela@debian.org>
 Last-Update: 2012-05-17
 
---- kicad-0.20120126+bzr3256~/include/boost/polygon/polygon_90_set_data.hpp
-+++ kicad-0.20120126+bzr3256/include/boost/polygon/polygon_90_set_data.hpp
+--- a/include/boost/polygon/polygon_90_set_data.hpp
++++ b/include/boost/polygon/polygon_90_set_data.hpp
 @@ -16,6 +16,7 @@
  #include "detail/iterator_points_to_compact.hpp"
  #include "detail/iterator_compact_to_points.hpp"

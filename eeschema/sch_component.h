@@ -2,7 +2,6 @@
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
  * Copyright (C) 2009 Jean-Pierre Charras, jaen-pierre.charras@gipsa-lab.inpg.com
- * Copyright (C) 2011 Wayne Stambaugh <stambaughw@verizon.net>
  * Copyright (C) 1992-2011 KiCad Developers, see AUTHORS.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
@@ -32,9 +31,9 @@
 #define COMPONENT_CLASS_H
 
 
-#include "sch_field.h"
-#include "transform.h"
-#include "general.h"
+#include <sch_field.h>
+#include <transform.h>
+#include <general.h>
 
 
 class SCH_SHEET_PATH;
@@ -67,6 +66,14 @@ class SCH_COMPONENT : public SCH_ITEM
                             ///<  non-digits in the reference fields.
     TRANSFORM m_transform;  ///< The rotation/mirror transformation matrix.
     SCH_FIELDS m_Fields;    ///< Variable length list of fields.
+
+    /**
+     * A temporary sheet path is required to generate the correct reference designator string
+     * in complex heirarchies.  Hopefully this is only a temporary hack to decouple schematic
+     * objects from the drawing window until a better design for handling complex heirarchies
+     * can be implemented.
+     */
+    const SCH_SHEET_PATH* m_currentSheetPath;
 
     /**
      * Defines the hierarchical path and reference of the component.  This allows support
@@ -112,7 +119,7 @@ public:
 
     ~SCH_COMPONENT() { }
 
-    virtual wxString GetClass() const
+    wxString GetClass() const
     {
         return wxT( "SCH_COMPONENT" );
     }
@@ -123,7 +130,22 @@ public:
 
     int GetUnit() const { return m_unit; }
 
+    /**
+     * change the unit id to aUnit
+     * has maening only for multiple parts per package
+     * Also set the modified flag bit
+     * @param aUnit = the new unit Id
+     */
     void SetUnit( int aUnit );
+
+    /**
+     * change the unit id to aUnit
+     * has maening only for multiple parts per package
+     * Do not change the modified flag bit, and should be used when
+     * change is not due to an edition command
+     * @param aUnit = the new unit Id
+     */
+    void UpdateUnit( int aUnit );
 
     int GetConvert() const { return m_convert; }
 
@@ -143,22 +165,9 @@ public:
      */
     int GetPartCount() const;
 
-    /**
-     * Function Save
-     * writes the data structures for this object out to a FILE in "*.sch" format.
-     * @param aFile The FILE to write to.
-     * @return bool - true if success writing else false.
-     */
     bool Save( FILE* aFile ) const;
 
-    /**
-     * Load schematic component from \a aLine in a .sch file.
-     *
-     * @param aLine Essentially this is file to read the component from.
-     * @param aErrorMsg Description of the error if an error occurs while loading the component.
-     * @return True if the component loaded successfully.
-     */
-    virtual bool Load( LINE_READER& aLine, wxString& aErrorMsg );
+    bool Load( LINE_READER& aLine, wxString& aErrorMsg );
 
     /**
      * Function SetOrientation
@@ -193,7 +202,7 @@ public:
      */
     wxPoint GetScreenCoord( const wxPoint& aPoint );
 
-    void DisplayInfo( EDA_DRAW_FRAME* frame );
+    void GetMsgPanelInfo( std::vector< MSG_PANEL_ITEM >& aList );
 
     /**
      * Function ClearAnnotation
@@ -209,16 +218,8 @@ public:
      * @see m_PathsAndReferences
      * @param aNewTimeStamp = new time stamp
      */
-    void SetTimeStamp( long aNewTimeStamp );
+    void SetTimeStamp( time_t aNewTimeStamp );
 
-    /**
-     * Function GetBoundingBox
-     * returns the bounding box of this object for display purposes. This box should be an
-     * enclosing perimeter for visible components of this object, and the units should be
-     * in the pcb or schematic coordinate system.  It is OK to overestimate the size by a
-     * few counts.
-     * @return The bounding rectangle of the component.
-     */
     EDA_RECT GetBoundingBox() const;
 
     //-----<Fields>-----------------------------------------------------------
@@ -268,11 +269,11 @@ public:
      */
     LIB_PIN* GetPin( const wxString& number );
 
-    virtual void Draw( EDA_DRAW_PANEL* panel,
-                       wxDC*           DC,
-                       const wxPoint&  offset,
-                       int             draw_mode,
-                       int             Color = -1 )
+    void Draw( EDA_DRAW_PANEL* panel,
+               wxDC*           DC,
+               const wxPoint&  offset,
+               GR_DRAWMODE     draw_mode,
+               EDA_COLOR_T     Color = UNSPECIFIED_COLOR )
     {
         Draw( panel, DC, offset, draw_mode, Color, true );
     }
@@ -280,14 +281,14 @@ public:
     void Draw( EDA_DRAW_PANEL* panel,
                wxDC*           DC,
                const wxPoint&  offset,
-               int             draw_mode,
-               int             Color,
+               GR_DRAWMODE     draw_mode,
+               EDA_COLOR_T     Color,
                bool            DrawPinText );
 
-    virtual void SwapData( SCH_ITEM* aItem );
+    void SwapData( SCH_ITEM* aItem );
 
     // returns a unique ID, in the form of a path.
-    wxString GetPath( SCH_SHEET_PATH* sheet );
+    wxString GetPath( const SCH_SHEET_PATH* sheet ) const;
 
     /**
      * Function IsReferenceStringValid (static)
@@ -297,18 +298,23 @@ public:
      * @param aReferenceString = the reference string to validate
      * @return true if OK
      */
-    static bool IsReferenceStringValid( const wxString &aReferenceString );
+    static bool IsReferenceStringValid( const wxString& aReferenceString );
+
+    void SetCurrentSheetPath( const SCH_SHEET_PATH* aSheetPath )
+    {
+        m_currentSheetPath = aSheetPath;
+    }
 
     /**
      * Function GetRef
      * returns the reference, for the given sheet path.
      */
-    const wxString GetRef( SCH_SHEET_PATH* sheet );
+    const wxString GetRef( const SCH_SHEET_PATH* sheet );
 
     /**
      * Set the reference, for the given sheet path.
      */
-    void SetRef( SCH_SHEET_PATH* sheet, const wxString& ref );
+    void SetRef( const SCH_SHEET_PATH* sheet, const wxString& ref );
 
     /**
      * Function AddHierarchicalReference
@@ -330,12 +336,7 @@ public:
 
     // Geometric transforms (used in block operations):
 
-    /**
-     * Function Move
-     * moves item to a new position by \a aMoveVector.
-     * @param aMoveVector The displacement to move the component
-     */
-    virtual void Move( const wxPoint& aMoveVector )
+    void Move( const wxPoint& aMoveVector )
     {
         if( aMoveVector == wxPoint( 0, 0 ) )
             return;
@@ -348,45 +349,25 @@ public:
         SetModified();
     }
 
-    /**
-     * Function Mirror_Y
-     * mirrors the component relative to an Y axis about the \a aYaxis_position.
-     * @param aYaxis_position The y axis position
-     */
-    virtual void Mirror_Y( int aYaxis_position );
+    void MirrorY( int aYaxis_position );
 
-    /**
-     * Function Mirror_X (virtual)
-     * mirrors item relative to an X axis about the \a aXaxis_position.
-     * @param aXaxis_position The x axis position
-     */
-    virtual void Mirror_X( int aXaxis_position );
+    void MirrorX( int aXaxis_position );
 
-    virtual void Rotate( wxPoint rotationPoint );
+    void Rotate( wxPoint aPosition );
 
-    /**
-     * Function Matches
-     * compares component reference and value fields against \a aSearchData.
-     *
-     * @param aSearchData Criteria to search against.
-     * @param aAuxData  Pointer to auxiliary data, if needed.
-     *        Used when searching string in REFERENCE field we must know the sheet path
-     * @param aFindLocation - a wxPoint where to put the location of matched item. can be NULL.
-     * @return True if this component reference or value field matches the search criteria.
-     */
-    virtual bool Matches( wxFindReplaceData& aSearchData, void* aAuxData, wxPoint* aFindLocation );
+    bool Matches( wxFindReplaceData& aSearchData, void* aAuxData, wxPoint* aFindLocation );
 
-    virtual void GetEndPoints( std::vector <DANGLING_END_ITEM>& aItemList );
+    void GetEndPoints( std::vector <DANGLING_END_ITEM>& aItemList );
 
     wxPoint GetPinPhysicalPosition( LIB_PIN* Pin );
 
-    virtual bool IsSelectStateChanged( const wxRect& aRect );
+    bool IsSelectStateChanged( const wxRect& aRect );
 
-    virtual bool IsConnectable() const { return true; }
+    bool IsConnectable() const { return true; }
 
-    virtual void GetConnectionPoints( vector< wxPoint >& aPoints ) const;
+    void GetConnectionPoints( vector< wxPoint >& aPoints ) const;
 
-    virtual SEARCH_RESULT Visit( INSPECTOR* inspector, const void* testData,
+    SEARCH_RESULT Visit( INSPECTOR* inspector, const void* testData,
                                  const KICAD_T scanTypes[] );
 
     /**
@@ -399,36 +380,40 @@ public:
      */
     LIB_ITEM* GetDrawItem( const wxPoint& aPosition, KICAD_T aType = TYPE_NOT_INIT );
 
-    virtual wxString GetSelectMenuText() const;
+    wxString GetSelectMenuText() const;
 
-    virtual BITMAP_DEF GetMenuImage() const { return  add_component_xpm; }
+    BITMAP_DEF GetMenuImage() const { return  add_component_xpm; }
 
-    virtual void GetNetListItem( vector<NETLIST_OBJECT*>& aNetListItems,
+    void GetNetListItem( vector<NETLIST_OBJECT*>& aNetListItems,
                                  SCH_SHEET_PATH*          aSheetPath );
 
-    virtual bool operator <( const SCH_ITEM& aItem ) const;
+    bool operator <( const SCH_ITEM& aItem ) const;
+
+    bool operator==( const SCH_COMPONENT& aComponent) const;
+    bool operator!=( const SCH_COMPONENT& aComponent) const;
+
+    SCH_ITEM& operator=( const SCH_ITEM& aItem );
+
+    bool IsReplaceable() const { return true; }
+
+    wxPoint GetPosition() const { return m_Pos; }
+
+    void SetPosition( const wxPoint& aPosition ) { Move( aPosition - m_Pos ); }
+
+    bool HitTest( const wxPoint& aPosition, int aAccuracy ) const;
+
+    bool HitTest( const EDA_RECT& aRect, bool aContained = false, int aAccuracy = 0 ) const;
+
+    void Plot( PLOTTER* aPlotter );
+
+    EDA_ITEM* Clone() const;
 
 #if defined(DEBUG)
-
-    /**
-     * Function Show
-     * is used to output the object tree, currently for debugging only.
-     * @param nestLevel An aid to prettier tree indenting, and is the level
-     *          of nesting of this object within the overall tree.
-     * @param os The ostream& to output to.
-     */
-    void Show( int nestLevel, std::ostream& os );
-
+    void Show( int nestLevel, std::ostream& os ) const;     // override
 #endif
 
 private:
-    virtual bool doHitTest( const wxPoint& aPoint, int aAccuracy ) const;
-    virtual bool doHitTest( const EDA_RECT& aRect, bool aContained, int aAccuracy ) const;
-    virtual bool doIsConnected( const wxPoint& aPosition ) const;
-    virtual EDA_ITEM* doClone() const;
-    virtual void doPlot( PLOTTER* aPlotter );
-    virtual wxPoint doGetPosition() const { return m_Pos; }
-    virtual void doSetPosition( const wxPoint& aPosition ) { Move( aPosition - m_Pos ); }
+    bool doIsConnected( const wxPoint& aPosition ) const;
 };
 
 

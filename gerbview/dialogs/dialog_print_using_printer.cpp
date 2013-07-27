@@ -5,21 +5,18 @@
 // Set this to 1 if you want to test PostScript printing under MSW.
 #define wxTEST_POSTSCRIPT_IN_MSW 1
 
-#include "fctsys.h"
-#include "appl_wxstruct.h"
-#include "common.h"
-#include "class_drawpanel.h"
-#include "confirm.h"
+#include <fctsys.h>
+#include <appl_wxstruct.h>
+#include <common.h>
+#include <class_drawpanel.h>
+#include <confirm.h>
 
-#include "dialog_print_using_printer_base.h"
-#include "printout_controler.h"
+#include <dialog_print_using_printer_base.h>
+#include <printout_controler.h>
 
-#include "gerbview.h"
-#include "pcbplot.h"
-#include "class_board_design_settings.h"
-
-#define WIDTH_MAX_VALUE           1000
-#define WIDTH_MIN_VALUE           1
+#include <gerbview.h>
+#include <pcbplot.h>
+#include <class_board_design_settings.h>
 
 static long   s_SelectedLayers;
 static double s_ScaleList[] =
@@ -46,8 +43,6 @@ private:
     GERBVIEW_FRAME* m_Parent;
     wxConfig*         m_Config;
     wxCheckBox*       m_BoxSelectLayer[32];
-    static wxPoint      s_LastPos;
-    static wxSize       s_LastSize;
 
 public:
     DIALOG_PRINT_USING_PRINTER( GERBVIEW_FRAME* parent );
@@ -59,23 +54,17 @@ private:
     void OnPageSetup( wxCommandEvent& event );
     void OnPrintPreview( wxCommandEvent& event );
     void OnPrintButtonClick( wxCommandEvent& event );
-	void OnScaleSelectionClick( wxCommandEvent& event );
+    void OnScaleSelectionClick( wxCommandEvent& event );
 
     void OnButtonCancelClick( wxCommandEvent& event ) { Close(); }
     void SetPrintParameters( );
     void InitValues( );
-
-    bool Show( bool show );     // overload stock function
 
 public:
     bool IsMirrored() { return m_Print_Mirror->IsChecked(); }
     bool PrintUsingSinglePage() { return true; }
     int SetLayerMaskFromListSelection();
 };
-
-// We want our dialog to remember its previous screen position
-wxPoint DIALOG_PRINT_USING_PRINTER::s_LastPos( -1, -1 );
-wxSize  DIALOG_PRINT_USING_PRINTER::s_LastSize;
 
 
 /*******************************************************/
@@ -95,12 +84,14 @@ void GERBVIEW_FRAME::ToPrinter( wxCommandEvent& event )
             DisplayError( this, _( "Error Init Printer info" ) );
         }
         g_PrintData->SetQuality( wxPRINT_QUALITY_HIGH );      // Default resolution = HIGHT;
-        g_PrintData->SetOrientation( DEFAULT_ORIENTATION_PAPER );
     }
+
+    g_PrintData->SetOrientation( GetPageSettings().IsPortrait() ? wxPORTRAIT : wxLANDSCAPE );
 
     DIALOG_PRINT_USING_PRINTER* frame = new DIALOG_PRINT_USING_PRINTER( this );
 
-    frame->ShowModal(); frame->Destroy();
+    frame->ShowModal();
+    frame->Destroy();
 }
 
 
@@ -110,7 +101,7 @@ DIALOG_PRINT_USING_PRINTER::DIALOG_PRINT_USING_PRINTER( GERBVIEW_FRAME* parent )
 /*************************************************************************************/
 {
     m_Parent = parent;
-    m_Config = wxGetApp().m_EDA_Config;
+    m_Config = wxGetApp().GetSettings();
 
     InitValues( );
 
@@ -132,7 +123,7 @@ void DIALOG_PRINT_USING_PRINTER::InitValues( )
 /************************************************************************/
 {
     SetFocus();
-    int      layer_max = NB_LAYERS;
+    int      layer_max = GERBVIEW_LAYER_COUNT;
     wxString msg;
 
     if( g_pageSetupData == NULL )
@@ -156,13 +147,13 @@ void DIALOG_PRINT_USING_PRINTER::InitValues( )
         m_BoxSelectLayer[ii] = new wxCheckBox( this, -1, msg );
 
         if( mask & s_SelectedLayers )
-            m_BoxSelectLayer[ii]->SetValue( TRUE );
+            m_BoxSelectLayer[ii]->SetValue( true );
         if( ii < 16 )
             m_leftLayersBoxSizer->Add( m_BoxSelectLayer[ii],
-                                         wxGROW | wxLEFT | wxRIGHT | wxTOP | wxADJUST_MINSIZE );
+                                         wxGROW | wxLEFT | wxRIGHT | wxTOP );
         else
             m_rightLayersBoxSizer->Add( m_BoxSelectLayer[ii],
-                                            wxGROW | wxLEFT | wxRIGHT | wxTOP | wxADJUST_MINSIZE );
+                                            wxGROW | wxLEFT | wxRIGHT | wxTOP );
     }
 
 
@@ -202,17 +193,6 @@ void DIALOG_PRINT_USING_PRINTER::InitValues( )
         }
     }
 
-    // Disable checkboxes if the corresponding layer is not enabled
-    BOARD* board = ((PCB_BASE_FRAME*)m_Parent)->GetBoard();
-    for( int layer = 0; layer<NB_LAYERS; layer++, mask <<= 1 )
-    {
-       if( ! board->IsLayerEnabled( layer ) )
-        {
-            m_BoxSelectLayer[layer]->Enable( false );
-            m_BoxSelectLayer[layer]->SetValue( false );
-        }
-    }
-
     m_ScaleOption->SetSelection( scale_idx );
     scale_idx = m_ScaleOption->GetSelection();
     s_Parameters.m_PrintScale =  s_ScaleList[scale_idx];
@@ -239,32 +219,6 @@ void DIALOG_PRINT_USING_PRINTER::InitValues( )
         m_FineAdjustYscaleOpt->Enable(enable);
 }
 
-/*************************************************/
-bool DIALOG_PRINT_USING_PRINTER::Show( bool show )
-/*************************************************/
-{
-    bool ret;
-
-    if( show )
-    {
-        if( s_LastPos.x != -1 )
-        {
-            SetSize( s_LastPos.x, s_LastPos.y, s_LastSize.x, s_LastSize.y, 0 );
-        }
-        ret = DIALOG_PRINT_USING_PRINTER_base::Show( show );
-    }
-    else
-    {
-        // Save the dialog's position before hiding
-        s_LastPos  = GetPosition();
-        s_LastSize = GetSize();
-
-        ret = DIALOG_PRINT_USING_PRINTER_base::Show( show );
-    }
-
-    return ret;
-}
-
 /**************************************************************/
 int DIALOG_PRINT_USING_PRINTER::SetLayerMaskFromListSelection()
 /**************************************************************/
@@ -272,7 +226,7 @@ int DIALOG_PRINT_USING_PRINTER::SetLayerMaskFromListSelection()
     int page_count;
     s_Parameters.m_PrintMaskLayer = 0;
     int ii;
-    for( ii = 0, page_count = 0; ii < LAYER_COUNT; ii++ )
+    for( ii = 0, page_count = 0; ii < GERBVIEW_LAYER_COUNT; ii++ )
     {
         if( m_BoxSelectLayer[ii]->IsChecked() )
         {
@@ -301,7 +255,7 @@ void DIALOG_PRINT_USING_PRINTER::OnCloseWindow( wxCloseEvent& event )
         m_Config->Write( OPTKEY_PRINT_PAGE_FRAME, s_Parameters.m_Print_Sheet_Ref);
         m_Config->Write( OPTKEY_PRINT_MONOCHROME_MODE, s_Parameters.m_Print_Black_and_White);
         wxString layerKey;
-        for( int layer = 0;  layer < LAYER_COUNT;  ++layer )
+        for( int layer = 0;  layer < GERBVIEW_LAYER_COUNT;  ++layer )
         {
             layerKey.Printf( OPTKEY_LAYERBASE, layer );
             m_Config->Write( layerKey, m_BoxSelectLayer[layer]->IsChecked() );
@@ -327,7 +281,6 @@ void DIALOG_PRINT_USING_PRINTER::SetPrintParameters( )
 
     int idx = m_ScaleOption->GetSelection();
     s_Parameters.m_PrintScale =  s_ScaleList[idx];
-    g_pcb_plot_options.Scale =  s_Parameters.m_PrintScale;
 
     if( m_FineAdjustXscaleOpt )
     {
@@ -344,8 +297,6 @@ void DIALOG_PRINT_USING_PRINTER::SetPrintParameters( )
             DisplayInfoMessage( NULL, _( "Warning: Scale option set to a very small value" ) );
         m_FineAdjustYscaleOpt->GetValue().ToDouble( &s_Parameters.m_YScaleAdjust );
     }
-    g_pcb_plot_options.ScaleAdjX = s_Parameters.m_XScaleAdjust;
-    g_pcb_plot_options.ScaleAdjX = s_Parameters.m_YScaleAdjust;
 }
 
 void DIALOG_PRINT_USING_PRINTER::OnScaleSelectionClick( wxCommandEvent& event )
@@ -387,8 +338,8 @@ void DIALOG_PRINT_USING_PRINTER::OnPrintPreview( wxCommandEvent& event )
     // Pass two printout objects: for preview, and possible printing.
     wxString        title   = _( "Print Preview" );
     wxPrintPreview* preview =
-        new wxPrintPreview( new BOARD_PRINTOUT_CONTROLER( s_Parameters, m_Parent, title ),
-                            new BOARD_PRINTOUT_CONTROLER( s_Parameters, m_Parent, title ),
+        new wxPrintPreview( new BOARD_PRINTOUT_CONTROLLER( s_Parameters, m_Parent, title ),
+                            new BOARD_PRINTOUT_CONTROLLER( s_Parameters, m_Parent, title ),
                             g_PrintData );
 
     if( preview == NULL )
@@ -416,7 +367,7 @@ void DIALOG_PRINT_USING_PRINTER::OnPrintPreview( wxCommandEvent& event )
     wxPreviewFrame* frame = new wxPreviewFrame( preview, this, title, WPos, WSize );
 
     frame->Initialize();
-    frame->Show( TRUE );
+    frame->Show( true );
 }
 
 
@@ -442,14 +393,14 @@ void DIALOG_PRINT_USING_PRINTER::OnPrintButtonClick( wxCommandEvent& event )
     wxPrinter         printer( &printDialogData );
 
     wxString          title = _( "Print" );
-    BOARD_PRINTOUT_CONTROLER      printout( s_Parameters, m_Parent, title );
+    BOARD_PRINTOUT_CONTROLLER      printout( s_Parameters, m_Parent, title );
 
 #if !defined(__WINDOWS__) && !wxCHECK_VERSION(2,9,0)
     wxDC*             dc = printout.GetDC();
     ( (wxPostScriptDC*) dc )->SetResolution( 600 );  // Postscript DC resolution is 600 ppi
 #endif
 
-    if( !printer.Print( this, &printout, TRUE ) )
+    if( !printer.Print( this, &printout, true ) )
     {
         if( wxPrinter::GetLastError() == wxPRINTER_ERROR )
             DisplayError( this, _( "There was a problem printing" ) );

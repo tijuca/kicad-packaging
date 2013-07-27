@@ -1,10 +1,50 @@
-EESchema-DOCLIB  Version 2.0  Date: 2012-05-20 19:38:43
+EESchema-DOCLIB  Version 2.0  Date: 2013-06-15 12:44:04
+#
+$CMP 2SA1016
+D 2SA1016, 50V Vce, 0.15A Ic, Low Noise Audio PNP Transistor, TO-92
+K Low Noise Audio PNP Transistor
+F http://www.datasheetcatalog.org/datasheet/toshiba/905.pdf
+$ENDCMP
+#
+$CMP 2SB631
+D 2SB631, Vce 100V, Ic 1A, High Voltage Power Transistor
+K High Voltage Transistor TO126
+$ENDCMP
+#
+$CMP 2SB817
+D 2SB817, 12A Ic, 140V Vce, Silicon Power Transistors PNP, TO-3PB
+K  Power Transistor PNP
+$ENDCMP
+#
+$CMP 2SC1815
+D 2SC1815, 50V Vce, 0.15A Ic, Low Noise Audio NPN Transistor,TO-92
+K Low Noise Audio NPN Transistor 2SC1815
+$ENDCMP
+#
+$CMP 2SC1941
+D 2SC1941, 160V Vce, 0.05A Ic, Audio High Voltage NPN Transistor,TO-92
+K Audio High Voltage NPN Transistor 2SC1941
+$ENDCMP
+#
+$CMP 2SD1047
+D 2SD1047, 12A Ic, 140V Vce, Silicon Power Transistors NPN, TO-3PB
+K  Power Transistor NPN
+$ENDCMP
+#
+$CMP 2SD600
+D 2SD600, Vce 100V, Ic 1A, High Voltage Power Transistor
+K High Voltage Power Transistor TO126
+$ENDCMP
 #
 $CMP BC237
+D BC237, Vce 50V, Ic 100mA, NPN Epitaxial Silicon Transistor, TO-92
+K NPN Epitaxial Silicon Transistor
 F transistors/bipolar/bc237.pdf
 $ENDCMP
 #
 $CMP BC307
+D BC307, Vce 45V, Ic 100mA, PNP Epitaxial Silicon Transistor, TO-92
+K PNP Epitaxial Silicon Transistor
 F transistors/bipolar/bc307.pdf
 $ENDCMP
 #
@@ -74,6 +114,18 @@ K BC636 PNP Transistor
 F http://www.fairchildsemi.com/ds/BC/BC636.pdf
 $ENDCMP
 #
+$CMP BC807-40
+D BC807-40, 45V Vce, 0.8A Ic, PNP, SOT-23
+K BC807 BC327 Equivalent
+F http://www.fairchildsemi.com/ds/BC/BC807.pdf
+$ENDCMP
+#
+$CMP BC808-40
+D BC808-40, 25V Vce, 0.8A Ic, PNP, SOT-23
+K BC808 BC328 Equivalent
+F http://www.fairchildsemi.com/ds/BC/BC807.pdf
+$ENDCMP
+#
 $CMP BC817-40
 D BC817-40, 45V Vce, 0.8A Ic, NPN, SOT-23
 K BC817 BC337 Equivalent
@@ -141,39 +193,75 @@ F http://www.infineon.com/dgdl/bcx51_bcx52_bcx53.pdf
 $ENDCMP
 #
 $CMP BD135
-D BD135, 1.5A, Low Voltage Transistor
+D BD135, Vce 45V, Ic 1.5A, Low Voltage Transistor
 K Low Voltage Transistor TO126
 F http://www.st.com/internet/com/TECHNICAL_RESOURCES/TECHNICAL_LITERATURE/DATASHEET/CD00001225.pdf
 $ENDCMP
 #
 $CMP BD136
-D BD136, 1.5A, Low Voltage Transistor
+D BD136, Vce 45V, Ic 1.5A, Low Voltage Transistor
 K Low Voltage Transistor TO126
 F http://www.st.com/internet/com/TECHNICAL_RESOURCES/TECHNICAL_LITERATURE/DATASHEET/CD00001225.pdf
 $ENDCMP
 #
 $CMP BD137
-D BD137, 1.5A, Low Voltage Transistor
+D BD137, Vce 60V, Ic 1.5A, Low Voltage Transistor
 K Low Voltage Transistor TO126
 F http://www.st.com/internet/com/TECHNICAL_RESOURCES/TECHNICAL_LITERATURE/DATASHEET/CD00001225.pdf
 $ENDCMP
 #
 $CMP BD138
-D BD138, 1.5A, Low Voltage Transistor
+D BD138, Vce 60V, Ic 1.5A, Low Voltage Transistor
 K Low Voltage Transistor TO126
 F http://www.st.com/internet/com/TECHNICAL_RESOURCES/TECHNICAL_LITERATURE/DATASHEET/CD00001225.pdf
 $ENDCMP
 #
 $CMP BD139
-D BD139, 1.5A, Low Voltage Transistor
+D BD139, Vce 80V, Ic 1.5A, Low Voltage Transistor
 K Low Voltage Transistor TO126
 F http://www.st.com/internet/com/TECHNICAL_RESOURCES/TECHNICAL_LITERATURE/DATASHEET/CD00001225.pdf
 $ENDCMP
 #
 $CMP BD140
-D BD140, 1.5A, Low Voltage Transistor
+D BD140, Vce 80V, Ic 1.5A, Low Voltage Transistor
 K Low Voltage Transistor TO126
 F http://www.st.com/internet/com/TECHNICAL_RESOURCES/TECHNICAL_LITERATURE/DATASHEET/CD00001225.pdf
+$ENDCMP
+#
+$CMP BD233
+D BD233, Vce 45V, Ic 2A, Low Voltage Transistor
+K Low Voltage Transistor TO126
+F http://www.fairchildsemi.com/ds/BD/BD233.pdf
+$ENDCMP
+#
+$CMP BD234
+D BD234, Vce 45V, Ic 2A, Low Voltage Transistor
+K Low Voltage Transistor TO126
+F http://www.electronica-pt.com/datasheets/bd/BD234.pdf
+$ENDCMP
+#
+$CMP BD235
+D BD235, Vce 60V, Ic 2A, Low Voltage Transistor
+K Low Voltage Transistor TO126
+F http://www.fairchildsemi.com/ds/BD/BD233.pdf
+$ENDCMP
+#
+$CMP BD236
+D BD236, Vce 60V, 2A, Low Voltage Transistor
+K Low Voltage Transistor TO126
+F http://www.electronica-pt.com/datasheets/bd/BD234.pdf
+$ENDCMP
+#
+$CMP BD237
+D BD237, Vce 80V, Ic 2A, Low Voltage Transistor
+K Low Voltage Transistor TO126
+F http://www.fairchildsemi.com/ds/BD/BD233.pdf
+$ENDCMP
+#
+$CMP BD238
+D BD238, Vce 80V, Ic 2A, Low Voltage Transistor
+K Low Voltage Transistor TO126
+F http://www.electronica-pt.com/datasheets/bd/BD234.pdf
 $ENDCMP
 #
 $CMP BD249
@@ -267,7 +355,8 @@ F http://www.noise.physx.u-szeged.hu/Education/ELabor/BF245.pdf
 $ENDCMP
 #
 $CMP BFR92
-F transistors/bipolar/bc237.pdf
+D NPN 5 GHz wideband transistor
+F transistors/bipolar/BFR92.pdf
 $ENDCMP
 #
 $CMP BS107
@@ -280,6 +369,24 @@ $CMP BSS138
 D BSS138, 50V Vds, 0.22A Id, N-Channel MOSFET, SOT-23
 K N-Channel MOSFET Logic Level
 F http://www.fairchildsemi.com/ds/BS/BSS138.pdf
+$ENDCMP
+#
+$CMP BUT11
+D BUT11, 5A 400V, Silicon Power Transistors NPN, TO-220
+K High Voltage Power Transistor NPN
+F http://www.fairchildsemi.com/ds/BU/BUT11.pdf
+$ENDCMP
+#
+$CMP BUT11A
+D BUT11A, 5A 450V, Silicon Power Transistors NPN, TO-220
+K High Voltage Power Transistor NPN
+F http://www.fairchildsemi.com/ds/BU/BUT11.pdf
+$ENDCMP
+#
+$CMP BUZ11
+D BUZ11, 50V Vds, 30A Id, N-Channel Power MOSFET, TO220
+K N-Channel Power MOSFET
+F http://www.fairchildsemi.com/ds/BU/BUZ11.pdf
 $ENDCMP
 #
 $CMP DTA113T
@@ -712,6 +819,132 @@ D DTD163T, Digital Transistor, 6k8/NONE, SOT23
 K ROHM Digital Transistor
 $ENDCMP
 #
+$CMP FDG1024NZ
+D FDG1024NZ, 20V Vds, 1.2A Id, 175mOhm Rds, Dual N-Channel MOSFET, SC70-6
+K Dual N-Channel MOSFET Logic Level
+F http://www.fairchildsemi.com/ds/FD/FDG1024NZ.pdf
+$ENDCMP
+#
+$CMP FDS6890A
+D FDS6890A, 20V Vds, 7.5A Id, 18mOhm Rds, Dual N-Channel MOSFET, SO-8
+K Dual N-Channel MOSFET
+F http://www.fairchildsemi.com/ds/FD/FDS6890A.pdf
+$ENDCMP
+#
+$CMP FDS6892A
+D FDS6892A, 20V Vds, 7.5A Id, 18mOhm Rds, Dual N-Channel MOSFET PWM Optimized, SO-8
+K Dual N-Channel MOSFET Low Gate Charge
+F http://www.fairchildsemi.com/ds/FD/FDS6892A.pdf
+$ENDCMP
+#
+$CMP FDS6898A
+D FDS6898A, 20V Vds, 9.4A Id, 14mOhm Rds, Dual N-Channel MOSFET, SO-8
+K Dual N-Channel MOSFET
+F http://www.fairchildsemi.com/ds/FD/FDS6898A.pdf
+$ENDCMP
+#
+$CMP FDS9926A
+D FDS9926A, 20V Vds, 6.5A Id, 30mOhm Rds, Dual N-Channel MOSFET, SO-8
+K Dual N-Channel MOSFET
+F http://www.fairchildsemi.com/ds/FD/FDS9926A.pdf
+$ENDCMP
+#
+$CMP IPS6011PBF
+D IPS6011PbF, 39V, 60A, Intelligent Power Switch High Side, TO220-5
+K  Intelligent Power Switch High Side MOSFET
+F http://www.irf.com/product-info/datasheets/data/ips6011pbf.pdf
+$ENDCMP
+#
+$CMP IPS6011RPBF
+D IPS6011RPbF, 39V, 60A, Intelligent Power Switch High Side, D-PAK 5pin
+K  Intelligent Power Switch High Side MOSFET
+F http://www.irf.com/product-info/datasheets/data/ips6011pbf.pdf
+$ENDCMP
+#
+$CMP IPS6011SPBF
+D IPS6011SPbF, 39V, 60A, Intelligent Power Switch High Side, D2-PAK 5pin
+K  Intelligent Power Switch High Side MOSFET
+F http://www.irf.com/product-info/datasheets/data/ips6011pbf.pdf
+$ENDCMP
+#
+$CMP IPS6021PBF
+D IPS6021PbF, 39V, 32A, Intelligent Power Switch High Side, TO220-5
+K  Intelligent Power Switch High Side MOSFET
+F http://www.irf.com/product-info/datasheets/data/ips6021pbf.pdf
+$ENDCMP
+#
+$CMP IPS6021RPBF
+D IPS6021RPbF, 39V, 32A, Intelligent Power Switch High Side, D-PAK 5pin
+K  Intelligent Power Switch High Side MOSFET
+F http://www.irf.com/product-info/datasheets/data/ips6021pbf.pdf
+$ENDCMP
+#
+$CMP IPS6021SPBF
+D IPS6021SPbF, 39V, 32A, Intelligent Power Switch High Side, D2-PAK 5pin
+K  Intelligent Power Switch High Side MOSFET
+F http://www.irf.com/product-info/datasheets/data/ips6021pbf.pdf
+$ENDCMP
+#
+$CMP IPS6031PBF
+D IPS6031PbF, 39V, 16A, Intelligent Power Switch High Side, TO220-5
+K  Intelligent Power Switch High Side MOSFET
+F http://www.irf.com/product-info/datasheets/data/ips6031pbf.pdf
+$ENDCMP
+#
+$CMP IPS6031RPBF
+D IPS6031RPbF, 39V, 16A, Intelligent Power Switch High Side, D-PAK 5pin
+K  Intelligent Power Switch High Side MOSFET
+F http://www.irf.com/product-info/datasheets/data/ips6031pbf.pdf
+$ENDCMP
+#
+$CMP IPS6031SPBF
+D IPS6031SPbF, 39V, 16A, Intelligent Power Switch High Side, D2-PAK 5pin
+K  Intelligent Power Switch High Side MOSFET
+F http://www.irf.com/product-info/datasheets/data/ips6031pbf.pdf
+$ENDCMP
+#
+$CMP IPS6041GPBF
+D IPS6041GPbF, 39V, 5A, Intelligent Power Switch High Side, SO8
+K  Intelligent Power Switch High Side MOSFET
+F http://www.irf.com/product-info/datasheets/data/ips6041pbf.pdf
+$ENDCMP
+#
+$CMP IPS6041PBF
+D IPS6041PbF, 39V, 5A, Intelligent Power Switch High Side, TO220
+K Intelligent Power Switch High Side MOSFET
+F http://www.irf.com/product-info/datasheets/data/ips6041pbf.pdf
+$ENDCMP
+#
+$CMP IPS6041RPBF
+D IPS6041RPbF, 39V, 5A, Intelligent Power Switch High Side, DPAK 5pin
+K Intelligent Power Switch High Side MOSFET
+F http://www.irf.com/product-info/datasheets/data/ips6041pbf.pdf
+$ENDCMP
+#
+$CMP IPS6041SPBF
+D IPS6041SPbF, 39V, 5A, Intelligent Power Switch High Side, D2PAK 5pin
+K Intelligent Power Switch High Side MOSFET
+F http://www.irf.com/product-info/datasheets/data/ips6041pbf.pdf
+$ENDCMP
+#
+$CMP IPS7091GPBF
+D IPS7091GPbF, 70V, 5A, Intelligent Power Switch High Side, D2-PAK 5pin
+K  Intelligent Power Switch High Side MOSFET
+F http://www.irf.com/product-info/datasheets/data/ips7091.pdf
+$ENDCMP
+#
+$CMP IPS7091PBF
+D IPS7091PbF, 70V, 5A, Intelligent Power Switch High Side, TO220-5
+K  Intelligent Power Switch High Side MOSFET
+F http://www.irf.com/product-info/datasheets/data/ips7091.pdf
+$ENDCMP
+#
+$CMP IPS7091SPBF
+D IPS7091SPbF, 70V, 5A, Intelligent Power Switch High Side, D2-PAK 5pin
+K  Intelligent Power Switch High Side MOSFET
+F http://www.irf.com/product-info/datasheets/data/ips7091.pdf
+$ENDCMP
+#
 $CMP IRF540N
 D IRF540N, 100V Vds, 33A Id, HEXFET N-Channel MOSFET, TO220
 K HEXFET N-Channel MOSFET
@@ -730,6 +963,18 @@ K Dual HEXFET N-Channel P-Channel MOSFET
 F http://www.irf.com/product-info/datasheets/data/irf7343ipbf.pdf
 $ENDCMP
 #
+$CMP IRF7606PBF
+D IRF7606PBF, HexFET P-MOS Power Mosfet, Vds -30V, Rdson 0.09R, Id -3.6A, Micro8
+K HexFET Power Mosfet P-MOS
+F http://www.irf.com/product-info/datasheets/data/irf7606pbf.pdf
+$ENDCMP
+#
+$CMP IRF7607PBF
+D IRF7607PBF, HexFET N-MOS Power Mosfet, Vds 20V, Rdson 0.03R, Id 5.2A, Micro8
+K HexFET Power Mosfet N-MOS
+F http://www.irf.com/product-info/datasheets/data/irf7607pbf.pdf
+$ENDCMP
+#
 $CMP IRF9540N
 D IRF9540N, -100V Vds, -23A Id, HEXFET P-Channel MOSFET, TO220
 K HEXFET P-Channel MOSFET
@@ -743,7 +988,33 @@ F http://www.irf.com/product-info/datasheets/data/irg4pf50w.pdf
 $ENDCMP
 #
 $CMP MAT02
-F transistors/bipolar/bc237.pdf
+D MAT02, Precision Dual Monolithic Transistor, Low Noise, Low Offset, Vce 40V, Ic 20mA, TO-78
+K Precision Dual Monolithic Transistor Low Noise EOL
+F http://www.elenota.pl/datasheet_download/93431/MAT02
+$ENDCMP
+#
+$CMP MJE13003
+D MJE13003, 1.5A Ic, 400V Vce, Silicon Switching Power Transistor NPN, TO225
+K Switching Power High Voltage Transistor NPN
+F http://www.onsemi.com/pub_link/Collateral/MJE13003-D.PDF
+$ENDCMP
+#
+$CMP MJE13005G
+D MJE13005G, 4A Ic, 400V Vce, Silicon Switching Power Transistors NPN, TO220
+K Switching Power Transistor NPN
+F http://www.onsemi.com/pub_link/Collateral/MJE13005-D.PDF
+$ENDCMP
+#
+$CMP MJE13007G
+D MJE13007G, 8A Ic, 400V Vce, Silicon Switching Power Transistors NPN, TO220
+K Switching Power Transistor NPN
+F http://www.onsemi.com/pub_link/Collateral/MJE13007-D.PDF
+$ENDCMP
+#
+$CMP MJE13009G
+D MJE13009G, 12A Ic, 400V Vce, Silicon Switching Power Transistors NPN, TO220
+K Switching Power Transistor NPN
+F http://www.onsemi.com/pub_link/Collateral/MJE13009-D.PDF
 $ENDCMP
 #
 $CMP MOSN-SO8
@@ -751,10 +1022,14 @@ D SI4456DY - SO8
 $ENDCMP
 #
 $CMP MPSA42
+D MPSA42, Vce 300V, Ic 500mA, NPN High Voltage Transistor
+K NPN High Voltage Transistor
 F transistors/bipolar/MPSA42.pdf
 $ENDCMP
 #
 $CMP MPSA92
+D MPSA92, Vce 300V, Ic 500mA, PNP High Voltage Transistor
+K PNP High Voltage Transistor
 F transistors/bipolar/mpsa92.pdf
 $ENDCMP
 #
@@ -768,6 +1043,12 @@ $CMP PZT2222A
 D PZT2222A, 40V Vce, 1A Ic, NPN, General Purpose Transistor, SOT223
 K NPN General Puprose Transistor SMD SOT223
 F http://www.fairchildsemi.com/ds/PN/PN2222A.pdf
+$ENDCMP
+#
+$CMP PZTA42
+D PZTA42, 300V Vce, 0.2A Ic, NPN, High Voltage Transistor, SOT223
+K NPN High Voltage Transistor SMD SOT223
+F http://www.fairchildsemi.com/ds/MP/MPSA42.pdf
 $ENDCMP
 #
 $CMP TIP120

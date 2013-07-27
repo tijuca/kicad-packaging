@@ -28,18 +28,20 @@
 
 #include <wx/progdlg.h>
 
-#include "fctsys.h"
-#include "appl_wxstruct.h"
-#include "class_drawpanel.h"
-#include "wxPcbStruct.h"
-#include "macros.h"
+#include <fctsys.h>
+#include <appl_wxstruct.h>
+#include <class_drawpanel.h>
+#include <wxPcbStruct.h>
+#include <macros.h>
 
-#include "class_board.h"
-#include "class_track.h"
-#include "class_zone.h"
+#include <class_board.h>
+#include <class_track.h>
+#include <class_zone.h>
 
-#include "pcbnew.h"
-#include "zones.h"
+#include <pcbnew.h>
+#include <zones.h>
+
+#define FORMAT_STRING _( "Filling zone %d out of %d (net %s)..." )
 
 
 /**
@@ -51,15 +53,15 @@
  * @param aZone = zone segment within the zone to delete. Can be NULL
  * @param aTimestamp = Timestamp for the zone to delete, used if aZone == NULL
  */
-void PCB_EDIT_FRAME::Delete_OldZone_Fill( SEGZONE* aZone, long aTimestamp )
+void PCB_EDIT_FRAME::Delete_OldZone_Fill( SEGZONE* aZone, time_t aTimestamp )
 {
     bool          modify  = false;
-    unsigned long TimeStamp;
+    time_t        TimeStamp;
 
     if( aZone == NULL )
         TimeStamp = aTimestamp;
     else
-        TimeStamp = aZone->m_TimeStamp; // Save reference time stamp (aZone will be deleted)
+        TimeStamp = aZone->GetTimeStamp(); // Save reference time stamp (aZone will be deleted)
 
     SEGZONE* next;
 
@@ -67,10 +69,10 @@ void PCB_EDIT_FRAME::Delete_OldZone_Fill( SEGZONE* aZone, long aTimestamp )
     {
         next = zone->Next();
 
-        if( zone->m_TimeStamp == TimeStamp )
+        if( zone->GetTimeStamp() == TimeStamp )
         {
             modify = true;
-            /* remove item from linked list and free memory */
+            // remove item from linked list and free memory
             zone->DeleteStructure();
         }
     }
@@ -78,28 +80,29 @@ void PCB_EDIT_FRAME::Delete_OldZone_Fill( SEGZONE* aZone, long aTimestamp )
     if( modify )
     {
         OnModify();
-        DrawPanel->Refresh();
+        m_canvas->Refresh();
     }
 }
 
 
-/**
- * Function Fill_Zone
- *  Calculate the zone filling for the outline zone_container
- *  The zone outline is a frontier, and can be complex (with holes)
- *  The filling starts from starting points like pads, tracks.
- * If exists, the old filling is removed
- * @param aZone = zone to fill
- * @return error level (0 = no error)
- */
 int PCB_EDIT_FRAME::Fill_Zone( ZONE_CONTAINER* aZone )
 {
+    aZone->ClearFilledPolysList();
+    aZone->UnFill();
+
+    // Cannot fill keepout zones:
+    if( aZone->GetIsKeepout() )
+        return 1;
+
     wxString msg;
 
     ClearMsgPanel();
 
     // Shows the net
-    g_Zone_Default_Setting.m_NetcodeSelection = aZone->GetNet();
+    ZONE_SETTINGS zoneInfo = GetZoneSettings();
+    zoneInfo.m_NetcodeSelection = aZone->GetNet();
+    SetZoneSettings( zoneInfo );
+
     msg = aZone->GetNetName();
 
     if( msg.IsEmpty() )
@@ -109,8 +112,6 @@ int PCB_EDIT_FRAME::Fill_Zone( ZONE_CONTAINER* aZone )
 
     wxBusyCursor dummy;     // Shows an hourglass cursor (removed by its destructor)
 
-    aZone->m_FilledPolysList.clear();
-    aZone->UnFill();
     aZone->BuildFilledPolysListData( GetBoard() );
 
     OnModify();
@@ -119,22 +120,12 @@ int PCB_EDIT_FRAME::Fill_Zone( ZONE_CONTAINER* aZone )
 }
 
 
-/*
- * Function Fill_All_Zones
- *  Fill all zones on the board
- * The old fillings are removed
- * aActiveWindow = the current active window, if a progress bar is shown
- *                      = NULL to do not display a progress bar
- * aVerbose = true to show error messages
- * return error level (0 = no error)
- */
 int PCB_EDIT_FRAME::Fill_All_Zones( wxWindow * aActiveWindow, bool aVerbose )
 {
     int errorLevel = 0;
     int areaCount = GetBoard()->GetAreaCount();
     wxBusyCursor dummyCursor;
     wxString msg;
-    #define FORMAT_STRING _( "Filling zone %d out of %d (net %s)..." )
     wxProgressDialog * progressDialog = NULL;
 
     // Create a message with a long net name, and build a wxProgressDialog
@@ -156,6 +147,9 @@ int PCB_EDIT_FRAME::Fill_All_Zones( wxWindow * aActiveWindow, bool aVerbose )
     for( ii = 0; ii < areaCount; ii++ )
     {
         ZONE_CONTAINER* zoneContainer = GetBoard()->GetArea( ii );
+        if( zoneContainer->GetIsKeepout() )
+            continue;
+
         msg.Printf( FORMAT_STRING, ii+1, areaCount, GetChars( zoneContainer->GetNetName() ) );
 
         if( progressDialog )

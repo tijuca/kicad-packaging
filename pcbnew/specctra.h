@@ -32,12 +32,9 @@
 //  see http://www.boost.org/libs/ptr_container/doc/ptr_set.html
 #include <boost/ptr_container/ptr_set.hpp>
 
-#include "fctsys.h"
-#include "macros.h"              // MAX definition.
-
-#include "specctra_lexer.h"
-
-#include "pcbnew.h"
+#include <fctsys.h>
+#include <specctra_lexer.h>
+#include <pcbnew.h>
 
 
 class TYPE_COLLECTOR;           // outside the DSN namespace
@@ -45,7 +42,7 @@ class BOARD;
 class TRACK;
 class SEGVIA;
 class NETCLASS;
-
+class MODULE;
 
 typedef DSN::T            DSN_T;
 using namespace DSN;
@@ -618,7 +615,7 @@ public:
                                quote, layer_id.c_str(), quote,
                                aperture_width );
 
-        int wrapNest = MAX( nestLevel+1, 6 );
+        int wrapNest = std::max( nestLevel+1, 6 );
         for( unsigned i=0;  i<points.size();  ++i )
         {
             if( perLine > RIGHTMARGIN )
@@ -3668,6 +3665,7 @@ class SPECCTRA_DB : public SPECCTRA_LEXER
     void doCIRCLE( CIRCLE* growth ) throw( IO_ERROR );
     void doQARC( QARC* growth ) throw( IO_ERROR );
     void doWINDOW( WINDOW* growth ) throw( IO_ERROR );
+    void doCONNECT( CONNECT* growth ) throw( IO_ERROR );
     void doREGION( REGION* growth ) throw( IO_ERROR );
     void doCLASS_CLASS( CLASS_CLASS* growth ) throw( IO_ERROR );
     void doLAYER_RULE( LAYER_RULE* growth ) throw( IO_ERROR );

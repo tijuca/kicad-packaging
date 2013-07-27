@@ -1,3 +1,25 @@
+kicad (0.20130727+bzr4024-1) unstable; urgency=low
+
+  * upgraded to the last revision. Closes: #694740
+  * updated Standards-Version to 3.9.4, compat to 9.
+  * commented out a few lines in include/common.h, to enable the build
+    with wx libraries available in Sid. Don't know why these lines were
+    introduced.
+
+ -- Georges Khaznadar <georgesk@debian.org>  Sat, 27 Jul 2013 18:31:03 +0200
+
+kicad (0.20130125+bzr3921-1) unstable; urgency=low
+
+  * upgraded to the last revision. Closes: #694740
+  * changed my DEBEMAIL
+  * updated the variable GENERATED_FILES in debian/rules to add
+    new files to the cleaning list and remove obsoleted directories
+  * updated the patches for quilt
+  * updated debian/kicad-common.install to take in account the
+    no longer existent directories library and doc.
+
+ -- Georges Khaznadar <georgesk@debian.org>  Fri, 25 Jan 2013 19:08:22 +0100
+
 kicad (0.20120526+bzr3261-1) unstable; urgency=low
 
   * upgraded to the last stable revision. Closes: #656215

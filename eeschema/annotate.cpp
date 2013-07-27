@@ -6,16 +6,16 @@
 #include <algorithm> // to use sort vector
 #include <vector>
 
-#include "fctsys.h"
-#include "class_drawpanel.h"
-#include "confirm.h"
-#include "wxEeschemaStruct.h"
+#include <fctsys.h>
+#include <class_drawpanel.h>
+#include <confirm.h>
+#include <wxEeschemaStruct.h>
 
-#include "netlist.h"
-#include "class_library.h"
-#include "protos.h"
-#include "sch_component.h"
-#include "lib_pin.h"
+#include <netlist.h>
+#include <class_library.h>
+#include <protos.h>
+#include <sch_component.h>
+#include <lib_pin.h>
 
 
 void SCH_EDIT_FRAME::DeleteAnnotation( bool aCurrentSheetOnly )
@@ -84,7 +84,7 @@ void SCH_EDIT_FRAME::AnnotateComponents( bool              aAnnotateSchematic,
     }
     else
     {
-        GetSheet()->GetComponents( references );
+        m_CurrentSheet->GetComponents( references );
     }
 
     /* Break full components reference in name (prefix) and number:
@@ -148,7 +148,7 @@ void SCH_EDIT_FRAME::AnnotateComponents( bool              aAnnotateSchematic,
     m_CurrentSheet->UpdateAllScreenReferences();
     SetSheetNumberAndCount();
 
-    DrawPanel->Refresh( true );
+    m_canvas->Refresh( true );
 }
 
 
@@ -162,7 +162,7 @@ int SCH_EDIT_FRAME::CheckAnnotate( wxArrayString* aMessageList, bool aOneSheetOn
     if( !aOneSheetOnly )
         SheetList.GetComponents( ComponentsList );
     else
-        GetSheet()->GetComponents( ComponentsList );
+        m_CurrentSheet->GetComponents( ComponentsList );
 
     return ComponentsList.CheckAnnotation( aMessageList );
 }

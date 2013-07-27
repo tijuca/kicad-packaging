@@ -2,16 +2,16 @@
 /*  library editor: undo and redo functions */
 /********************************************/
 
-#include "fctsys.h"
-#include "class_drawpanel.h"
-#include "wxPcbStruct.h"
+#include <fctsys.h>
+#include <class_drawpanel.h>
+#include <wxPcbStruct.h>
 
-#include "class_board.h"
-#include "class_module.h"
+#include <class_board.h>
+#include <class_module.h>
 
-#include "pcbnew.h"
-#include "protos.h"
-#include "module_editor_frame.h"
+#include <pcbnew.h>
+#include <protos.h>
+#include <module_editor_frame.h>
 
 
 void FOOTPRINT_EDIT_FRAME::SaveCopyInUndoList( BOARD_ITEM*    aItem,
@@ -22,8 +22,7 @@ void FOOTPRINT_EDIT_FRAME::SaveCopyInUndoList( BOARD_ITEM*    aItem,
     MODULE*            CopyItem;
     PICKED_ITEMS_LIST* lastcmd;
 
-    CopyItem = new MODULE( GetBoard() );
-    CopyItem->Copy( (MODULE*) aItem );
+    CopyItem = new MODULE( *( (MODULE*) aItem ) );
     CopyItem->SetParent( GetBoard() );
 
     lastcmd = new PICKED_ITEMS_LIST();
@@ -33,7 +32,7 @@ void FOOTPRINT_EDIT_FRAME::SaveCopyInUndoList( BOARD_ITEM*    aItem,
     GetScreen()->PushCommandToUndoList( lastcmd );
     /* Clear current flags (which can be temporary set by a current edit command) */
     for( item = CopyItem->m_Drawings; item != NULL; item = item->Next() )
-        item->m_Flags = 0;
+        item->ClearFlags();
 
     /* Clear redo list, because after new save there is no redo to do */
     GetScreen()->ClearUndoORRedoList( GetScreen()->m_RedoList );
@@ -64,7 +63,7 @@ void FOOTPRINT_EDIT_FRAME::GetComponentFromRedoList( wxCommandEvent& event )
     // Retrieve last module state from undo list
     lastcmd = GetScreen()->PopCommandFromRedoList();
     wrapper = lastcmd->PopItem();
-    module = (MODULE *)wrapper.m_PickedItem;
+    module = (MODULE *)wrapper.GetItem();
     delete lastcmd;
 
     if( module )
@@ -73,7 +72,7 @@ void FOOTPRINT_EDIT_FRAME::GetComponentFromRedoList( wxCommandEvent& event )
     SetCurItem( NULL );
 
     OnModify();
-    DrawPanel->Refresh();
+    m_canvas->Refresh();
 }
 
 
@@ -92,7 +91,7 @@ void FOOTPRINT_EDIT_FRAME::GetComponentFromUndoList( wxCommandEvent& event )
     // Retrieve last module state from undo list
     lastcmd = GetScreen()->PopCommandFromUndoList();
     wrapper = lastcmd->PopItem();
-    module = (MODULE *)wrapper.m_PickedItem;
+    module = (MODULE *)wrapper.GetItem();
     delete lastcmd;
 
     if( module )
@@ -102,5 +101,5 @@ void FOOTPRINT_EDIT_FRAME::GetComponentFromUndoList( wxCommandEvent& event )
     SetCurItem( NULL );
 
     OnModify();
-    DrawPanel->Refresh();
+    m_canvas->Refresh();
 }

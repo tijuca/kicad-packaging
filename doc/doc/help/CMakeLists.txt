@@ -1,47 +1,16 @@
-# install(DIRECTORY de
-#         DESTINATION ${KICAD_HELP}
-#         COMPONENT help-de
-#         PATTERN ".svn" EXCLUDE
-#         PATTERN "docs_src" EXCLUDE)
+set(HelpLangs de en es fr it ja pl pt ru)
 
-install(DIRECTORY en
-        DESTINATION ${KICAD_HELP}
-        COMPONENT help-en
-        PATTERN ".svn" EXCLUDE
-        PATTERN "docs_src" EXCLUDE)
-
-# install(DIRECTORY es
-#         DESTINATION ${KICAD_HELP}
-#         COMPONENT help-es
-#         PATTERN ".svn" EXCLUDE
-#         PATTERN "docs_src" EXCLUDE)
-
-install(DIRECTORY fr
-        DESTINATION ${KICAD_HELP}
-        COMPONENT help-fr
-        PATTERN ".svn" EXCLUDE
-        PATTERN "docs_src" EXCLUDE)
-
-# install(DIRECTORY it
-#         DESTINATION ${KICAD_HELP}
-#         COMPONENT help-it
-#         PATTERN ".svn" EXCLUDE
-#         PATTERN "docs_src" EXCLUDE)
-
-install(DIRECTORY pt
-        DESTINATION ${KICAD_HELP}
-        COMPONENT help-pt
-        PATTERN ".svn" EXCLUDE
-        PATTERN "docs_src" EXCLUDE)
-
-install(DIRECTORY ru
-        DESTINATION ${KICAD_HELP}
-        COMPONENT help-ru
-        PATTERN ".svn" EXCLUDE
-        PATTERN "docs_src" EXCLUDE)
+foreach(HelpLang ${HelpLangs})
+	install(DIRECTORY ${HelpLang}
+		DESTINATION ${KICAD_HELP}
+		COMPONENT help-${HelpLang}
+		PATTERN ".svn" EXCLUDE
+		PATTERN "docs_src" EXCLUDE)
+endforeach(HelpLang)
 
 install(DIRECTORY file_formats
-        DESTINATION ${KICAD_HELP}
-        COMPONENT file_formats
-        PATTERN ".svn" EXCLUDE
-        PATTERN "docs_src" EXCLUDE)
+	DESTINATION ${KICAD_HELP}
+	COMPONENT file_formats
+	PATTERN ".svn" EXCLUDE
+	PATTERN "docs_src" EXCLUDE)
+

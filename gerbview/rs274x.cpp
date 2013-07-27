@@ -2,12 +2,13 @@
  * @file rs274x.cpp
  */
 
-#include "fctsys.h"
-#include "common.h"
-#include "macros.h"
+#include <fctsys.h>
+#include <common.h>
+#include <macros.h>
+#include <base_units.h>
 
-#include "gerbview.h"
-#include "class_GERBER.h"
+#include <gerbview.h>
+#include <class_GERBER.h>
 
 extern int ReadInt( char*& text, bool aSkipSeparator = true );
 extern double ReadDouble( char*& text, bool aSkipSeparator = true );
@@ -152,19 +153,26 @@ bool GERBER_IMAGE::ExecuteRS274XCommand( int       command,
                                    char*&    text )
 {
     int      code;
-    int      xy_seq_len, xy_seq_char;
+    int      seq_len;    // not used, just provided
+    int      seq_char;
     bool     ok = true;
     char     line[GERBER_BUFZ];
     wxString msg;
     double   fcoord;
-    double   conv_scale = m_GerbMetric ? PCB_INTERNAL_UNIT / 25.4 : PCB_INTERNAL_UNIT;
+    bool     x_fmt_known = false;
+    bool     y_fmt_known = false;
+
+    // conv_scale = scaling factor from inch to Internal Unit
+    double   conv_scale = IU_PER_MILS * 1000;
+    if( m_GerbMetric )
+        conv_scale /= 25.4;
 
 //    D( printf( "%22s: Command <%c%c>\n", __func__, (command >> 8) & 0xFF, command & 0xFF ); )
 
     switch( command )
     {
     case FORMAT_STATEMENT:
-        xy_seq_len = 2;
+        seq_len = 2;
 
         while( *text != '*' )
         {
@@ -186,11 +194,6 @@ bool GERBER_IMAGE::ExecuteRS274XCommand( int       command,
                 text++;
                 break;
 
-            case 'D':       // Decimal format: sometimes found, but not really documented
-                m_DecimalFormat = true;
-                text++;
-                break;
-
             case 'A':       // Absolute coord
                 m_Relative = false;
                 text++;
@@ -201,22 +204,36 @@ bool GERBER_IMAGE::ExecuteRS274XCommand( int       command,
                 text++;
                 break;
 
-            case 'N':       // Sequence code (followed by the number of digits
-                            // for the X,Y command
+            case 'G':
+            case 'N':       // Sequence code (followed by one digit: the sequence len)
+                            // (sometimes found before the X,Y sequence)
+                            // Obscure option
                 text++;
-                xy_seq_char = *text++;
-                if( (xy_seq_char >= '0') && (xy_seq_char <= '9') )
-                    xy_seq_len = -'0';
+                seq_char = *text++;
+                if( (seq_char >= '0') && (seq_char <= '9') )
+                    seq_len = seq_char - '0';
+                break;
+
+            case 'D':
+            case 'M':       // Sequence code (followed by one digit: the sequence len)
+                            // (sometimes found after the X,Y sequence)
+                            // Obscure option
+                code = *text++;
+                if( ( *text >= '0' ) && ( *text<= '9' ) )
+                    text++;     // skip the digit
+                else if( code == 'D' )
+                    // Decimal format: sometimes found, but not really documented
+                    m_DecimalFormat = true;
                 break;
 
             case 'X':
-            case 'Y':       // Values transmitted :2 (really xy_seq_len : FIX
-                            // ME) digits
+            case 'Y':
             {
                 code = *(text++);
                 char ctmp = *(text++) - '0';
                 if( code == 'X' )
                 {
+                    x_fmt_known = true;
                     // number of digits after the decimal point (0 to 6 allowed)
                     m_FmtScale.x = *text - '0';
                     m_FmtLen.x   = ctmp + m_FmtScale.x;
@@ -229,6 +246,7 @@ bool GERBER_IMAGE::ExecuteRS274XCommand( int       command,
                 }
                 else
                 {
+                    y_fmt_known = true;
                     m_FmtScale.y = *text - '0';
                     m_FmtLen.y   = ctmp + m_FmtScale.y;
                     if( m_FmtScale.y < 0 )
@@ -244,11 +262,16 @@ bool GERBER_IMAGE::ExecuteRS274XCommand( int       command,
                 break;
 
             default:
+                msg.Printf( wxT( "Unknown id (%c) in FS command" ),
+                           *text );
+                ReportMessage( msg );
                 GetEndOfBlock( buff, text, m_Current_File );
                 ok = false;
                 break;
             }
         }
+        if( !x_fmt_known || !y_fmt_known )
+            ReportMessage( wxT( "RS274X: Format Statement (FS) without X or Y format" ) );
 
         break;
 
@@ -289,7 +312,7 @@ bool GERBER_IMAGE::ExecuteRS274XCommand( int       command,
             m_GerbMetric = false;
         else if( code == MILLIMETER )
             m_GerbMetric = true;
-        conv_scale = m_GerbMetric ? PCB_INTERNAL_UNIT / 25.4 : PCB_INTERNAL_UNIT;
+        conv_scale = m_GerbMetric ? IU_PER_MILS / 25.4 : IU_PER_MILS;
         break;
 
     case OFFSET:        // command: OFAnnBnn (nn = float number) = layer Offset
@@ -301,13 +324,13 @@ bool GERBER_IMAGE::ExecuteRS274XCommand( int       command,
             case 'A':       // A axis offset in current unit (inch or mm)
                 text++;
                 fcoord     = ReadDouble( text );
-                m_Offset.x = wxRound( fcoord * conv_scale );
+                m_Offset.x = KiROUND( fcoord * conv_scale );
                 break;
 
             case 'B':       // B axis offset in current unit (inch or mm)
                 text++;
                 fcoord     = ReadDouble( text );
-                m_Offset.y = wxRound( fcoord * conv_scale );
+                m_Offset.y = KiROUND( fcoord * conv_scale );
                 break;
             }
         }
@@ -341,13 +364,13 @@ bool GERBER_IMAGE::ExecuteRS274XCommand( int       command,
             case 'A':       // A axis offset in current unit (inch or mm)
                 text++;
                 fcoord     = ReadDouble( text );
-                m_ImageOffset.x = wxRound( fcoord * conv_scale );
+                m_ImageOffset.x = KiROUND( fcoord * conv_scale );
                 break;
 
             case 'B':       // B axis offset in current unit (inch or mm)
                 text++;
                 fcoord     = ReadDouble( text );
-                m_ImageOffset.y = wxRound( fcoord * conv_scale );
+                m_ImageOffset.y = KiROUND( fcoord * conv_scale );
                 break;
             }
         }
@@ -424,7 +447,7 @@ bool GERBER_IMAGE::ExecuteRS274XCommand( int       command,
                     m_ImageJustifyXCenter = true;
                     text++;
                 }
-                else m_ImageJustifyOffset.x = wxRound( ReadDouble( text ) * conv_scale);
+                else m_ImageJustifyOffset.x = KiROUND( ReadDouble( text ) * conv_scale);
                 break;
 
             case 'B':       // B axis justify
@@ -439,7 +462,7 @@ bool GERBER_IMAGE::ExecuteRS274XCommand( int       command,
                     m_ImageJustifyYCenter = true;
                     text++;
                 }
-                else m_ImageJustifyOffset.y = wxRound( ReadDouble( text ) * conv_scale);
+                else m_ImageJustifyOffset.y = KiROUND( ReadDouble( text ) * conv_scale);
                 break;
             default:
                 text++;
@@ -574,8 +597,8 @@ bool GERBER_IMAGE::ExecuteRS274XCommand( int       command,
 
             text += 2;              // skip "C," for example
 
-            dcode->m_Size.x = dcode->m_Size.y =
-                                  wxRound( ReadDouble( text ) * conv_scale );
+            dcode->m_Size.x = KiROUND( ReadDouble( text ) * conv_scale );
+            dcode->m_Size.y = dcode->m_Size.x;
 
             switch( stdAperture )   // Aperture desceiption has optional parameters. Read them
             {
@@ -588,7 +611,7 @@ bool GERBER_IMAGE::ExecuteRS274XCommand( int       command,
                 {
                     text++;
                     dcode->m_Drill.x = dcode->m_Drill.y =
-                                           wxRound( ReadDouble( text ) * conv_scale );
+                                           KiROUND( ReadDouble( text ) * conv_scale );
                     dcode->m_DrillShape = APT_DEF_ROUND_HOLE;
                 }
 
@@ -599,7 +622,7 @@ bool GERBER_IMAGE::ExecuteRS274XCommand( int       command,
                 {
                     text++;
                     dcode->m_Drill.y =
-                        wxRound( ReadDouble( text ) * conv_scale );
+                        KiROUND( ReadDouble( text ) * conv_scale );
 
                     dcode->m_DrillShape = APT_DEF_RECT_HOLE;
                 }
@@ -617,7 +640,7 @@ bool GERBER_IMAGE::ExecuteRS274XCommand( int       command,
                 {
                     text++;
                     dcode->m_Size.y =
-                        wxRound( ReadDouble( text ) * conv_scale );
+                        KiROUND( ReadDouble( text ) * conv_scale );
                 }
 
                 while( *text == ' ' )
@@ -626,8 +649,8 @@ bool GERBER_IMAGE::ExecuteRS274XCommand( int       command,
                 if( *text == 'X' )
                 {
                     text++;
-                    dcode->m_Drill.x = dcode->m_Drill.y =
-                                           wxRound( ReadDouble( text ) * conv_scale );
+                    dcode->m_Drill.x = KiROUND( ReadDouble( text ) * conv_scale );
+                    dcode->m_Drill.y = dcode->m_Drill.x;
                     dcode->m_DrillShape = APT_DEF_ROUND_HOLE;
                 }
 
@@ -638,7 +661,7 @@ bool GERBER_IMAGE::ExecuteRS274XCommand( int       command,
                 {
                     text++;
                     dcode->m_Drill.y =
-                        wxRound( ReadDouble( text ) * conv_scale );
+                        KiROUND( ReadDouble( text ) * conv_scale );
                     dcode->m_DrillShape = APT_DEF_RECT_HOLE;
                 }
                 dcode->m_Defined = true;
@@ -674,8 +697,8 @@ bool GERBER_IMAGE::ExecuteRS274XCommand( int       command,
                 if( *text == 'X' )
                 {
                     text++;
-                    dcode->m_Drill.x = dcode->m_Drill.y =
-                                           wxRound( ReadDouble( text ) * conv_scale );
+                    dcode->m_Drill.x = KiROUND( ReadDouble( text ) * conv_scale );
+                    dcode->m_Drill.y = dcode->m_Drill.x =
                     dcode->m_DrillShape = APT_DEF_ROUND_HOLE;
                 }
 
@@ -685,8 +708,7 @@ bool GERBER_IMAGE::ExecuteRS274XCommand( int       command,
                 if( *text == 'X' )
                 {
                     text++;
-                    dcode->m_Drill.y =
-                        wxRound( ReadDouble( text ) * conv_scale );
+                    dcode->m_Drill.y = KiROUND( ReadDouble( text ) * conv_scale );
                     dcode->m_DrillShape = APT_DEF_RECT_HOLE;
                 }
                 dcode->m_Defined = true;

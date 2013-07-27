@@ -3,23 +3,26 @@
  * @brief Functions of class MODULE to handle some geometric changes such as move, rotate ...
  */
 
-#include "fctsys.h"
-#include "wxstruct.h"
-#include "trigo.h"
-#include "pcbcommon.h"
-#include "pcbnew.h"
-#include "macros.h"
+#include <fctsys.h>
+#include <wxstruct.h>
+#include <trigo.h>
+#include <pcbcommon.h>
+#include <pcbnew.h>
+#include <macros.h>
 
-#include "protos.h"
-#include "class_pad.h"
-#include "class_edge_mod.h"
-#include "class_module.h"
+#include <protos.h>
+#include <class_board.h>
+#include <class_pad.h>
+#include <class_edge_mod.h>
+#include <class_module.h>
 
 
-/* Calculate the layer number for changing cu / cmp layers for Cu / CMP
- * (Copper, Mask, Paste, solder)
+
+/* Returns the layer number after flipping an item
+ * some layers: external copper, Mask, Paste, and solder
+ * are swapped between front and back sides
  */
-int ChangeSideNumLayer( int oldlayer )
+int BOARD::ReturnFlippedLayerNumber( int oldlayer )
 {
     int newlayer;
 
@@ -127,75 +130,45 @@ int ChangeSideMaskLayer( int aMask )
 }
 
 
-/**
- * Function Move (virtual)
- * move this object.
- * @param aMoveVector - the move vector for this object.
- */
-void MODULE::Move(const wxPoint& aMoveVector)
+void MODULE::Move( const wxPoint& aMoveVector )
 {
     wxPoint newpos = m_Pos + aMoveVector;
     SetPosition( newpos );
 }
 
 
-/**
- * Function Rotate
- * Rotate this object.
- * @param aRotCentre - the rotation point.
- * @param aAngle - the rotation angle in 0.1 degree.
- */
-void MODULE::Rotate(const wxPoint& aRotCentre, int aAngle)
+void MODULE::Rotate( const wxPoint& aRotCentre, double aAngle )
 {
     wxPoint newpos = m_Pos;
     RotatePoint( &newpos, aRotCentre, aAngle );
     SetPosition( newpos );
-    SetOrientation( m_Orient + aAngle );
+    SetOrientation( GetOrientation() + aAngle );
 }
 
 
-/**
- * Function Flip
- * Flip this object, i.e. change the board side for this object
- * @param aCentre - the rotation point.
- */
-void MODULE::Flip(const wxPoint& aCentre )
+void MODULE::Flip( const wxPoint& aCentre )
 {
-    D_PAD*        pt_pad;
     TEXTE_MODULE* pt_texte;
-    EDGE_MODULE*  pt_edgmod;
-    EDA_ITEM*     PtStruct;
 
     // Move module to its final position:
     wxPoint finalPos = m_Pos;
+
     finalPos.y  = aCentre.y - ( finalPos.y - aCentre.y );     /// Mirror the Y position
-    SetPosition(finalPos);
 
-    /* Flip layer */
-    SetLayer( ChangeSideNumLayer( GetLayer() ) );
+    SetPosition( finalPos );
 
-    /* Reverse mirror orientation. */
+    // Flip layer
+    SetLayer( BOARD::ReturnFlippedLayerNumber( GetLayer() ) );
+
+    // Reverse mirror orientation.
     NEGATE( m_Orient );
     NORMALIZE_ANGLE_POS( m_Orient );
 
-    /* Mirror inversion layers pads. */
-    pt_pad = m_Pads;
+    // Mirror pads to other side of board about the x axis, i.e. vertically.
+    for( D_PAD* pad = m_Pads;  pad;  pad = pad->Next() )
+        pad->Flip( m_Pos.y );
 
-    for( ; pt_pad != NULL; pt_pad = pt_pad->Next() )
-    {
-        pt_pad->m_Pos.y      -= m_Pos.y;
-        pt_pad->m_Pos.y       = -pt_pad->m_Pos.y;
-        pt_pad->m_Pos.y      += m_Pos.y;
-        NEGATE( pt_pad->m_Pos0.y );
-        NEGATE( pt_pad->m_Offset.y );
-        NEGATE( pt_pad->m_DeltaSize.y );
-        NEGATE_AND_NORMALIZE_ANGLE_POS( pt_pad->m_Orient );
-
-        /* flip pads layers*/
-        pt_pad->m_layerMask = ChangeSideMaskLayer( pt_pad->m_layerMask );
-    }
-
-    /* Mirror reference. */
+    // Mirror reference.
     pt_texte = m_Reference;
     pt_texte->m_Pos.y -= m_Pos.y;
     pt_texte->m_Pos.y  = -pt_texte->m_Pos.y;
@@ -204,7 +177,7 @@ void MODULE::Flip(const wxPoint& aCentre )
     pt_texte->m_Mirror = false;
     NEGATE_AND_NORMALIZE_ANGLE_POS( pt_texte->m_Orient );
     pt_texte->SetLayer( GetLayer() );
-    pt_texte->SetLayer( ChangeSideNumLayer( pt_texte->GetLayer() ) );
+    pt_texte->SetLayer( BOARD::ReturnFlippedLayerNumber( pt_texte->GetLayer() ) );
 
     if( GetLayer() == LAYER_N_BACK )
         pt_texte->SetLayer( SILKSCREEN_N_BACK );
@@ -216,7 +189,7 @@ void MODULE::Flip(const wxPoint& aCentre )
        || (GetLayer() == ADHESIVE_N_BACK) || (GetLayer() == LAYER_N_BACK) )
         pt_texte->m_Mirror = true;
 
-    /* Mirror value. */
+    // Mirror value.
     pt_texte = m_Value;
     pt_texte->m_Pos.y -= m_Pos.y;
     NEGATE( pt_texte->m_Pos.y );
@@ -225,7 +198,7 @@ void MODULE::Flip(const wxPoint& aCentre )
     pt_texte->m_Mirror = false;
     NEGATE_AND_NORMALIZE_ANGLE_POS( pt_texte->m_Orient );
     pt_texte->SetLayer( GetLayer() );
-    pt_texte->SetLayer( ChangeSideNumLayer( pt_texte->GetLayer() ) );
+    pt_texte->SetLayer( BOARD::ReturnFlippedLayerNumber( pt_texte->GetLayer() ) );
 
     if( GetLayer() == LAYER_N_BACK )
         pt_texte->SetLayer( SILKSCREEN_N_BACK );
@@ -237,33 +210,42 @@ void MODULE::Flip(const wxPoint& aCentre )
        || (GetLayer() == ADHESIVE_N_BACK) || (GetLayer() == LAYER_N_BACK) )
         pt_texte->m_Mirror = true;
 
-    /* Reverse mirror footprints. */
-    PtStruct = m_Drawings;
-    for( ; PtStruct != NULL; PtStruct = PtStruct->Next() )
+    // Reverse mirror module graphics and texts.
+    for( EDA_ITEM* item = m_Drawings;  item;  item = item->Next() )
     {
-        switch( PtStruct->Type() )
+        switch( item->Type() )
         {
         case PCB_MODULE_EDGE_T:
-            pt_edgmod = (EDGE_MODULE*) PtStruct;
-            pt_edgmod->m_Start.y -= m_Pos.y;
-            pt_edgmod->m_Start.y  = -pt_edgmod->m_Start.y;
-            pt_edgmod->m_Start.y += m_Pos.y;
-            pt_edgmod->m_End.y   -= m_Pos.y;
-            pt_edgmod->m_End.y    = -pt_edgmod->m_End.y;
-            pt_edgmod->m_End.y   += m_Pos.y;
-            NEGATE( pt_edgmod->m_Start0.y );
-            NEGATE( pt_edgmod->m_End0.y );
-            if( pt_edgmod->m_Shape == S_ARC )
             {
-                NEGATE(pt_edgmod->m_Angle);
-            }
+                EDGE_MODULE*  em = (EDGE_MODULE*) item;
 
-            pt_edgmod->SetLayer( ChangeSideNumLayer( pt_edgmod->GetLayer() ) );
+                wxPoint s = em->GetStart();
+                s.y -= m_Pos.y;
+                s.y  = -s.y;
+                s.y += m_Pos.y;
+                em->SetStart( s );
+
+                wxPoint e = em->GetEnd();
+                e.y -= m_Pos.y;
+                e.y  = -e.y;
+                e.y += m_Pos.y;
+                em->SetEnd( e );
+
+                NEGATE( em->m_Start0.y );
+                NEGATE( em->m_End0.y );
+
+                if( em->GetShape() == S_ARC )
+                {
+                    em->SetAngle( -em->GetAngle() );
+                }
+
+                em->SetLayer( BOARD::ReturnFlippedLayerNumber( em->GetLayer() ) );
+            }
             break;
 
         case PCB_MODULE_TEXT_T:
-            /* Reverse mirror position and mirror. */
-            pt_texte = (TEXTE_MODULE*) PtStruct;
+            // Reverse mirror position and mirror.
+            pt_texte = (TEXTE_MODULE*) item;
             pt_texte->m_Pos.y -= m_Pos.y;
             pt_texte->m_Pos.y  = -pt_texte->m_Pos.y;
             pt_texte->m_Pos.y += m_Pos.y;
@@ -272,7 +254,7 @@ void MODULE::Flip(const wxPoint& aCentre )
             NEGATE_AND_NORMALIZE_ANGLE_POS( pt_texte->m_Orient );
 
             pt_texte->SetLayer( GetLayer() );
-            pt_texte->SetLayer( ChangeSideNumLayer( pt_texte->GetLayer() ) );
+            pt_texte->SetLayer( BOARD::ReturnFlippedLayerNumber( pt_texte->GetLayer() ) );
 
             if( GetLayer() == LAYER_N_BACK )
                 pt_texte->SetLayer( SILKSCREEN_N_BACK );
@@ -298,35 +280,34 @@ void MODULE::Flip(const wxPoint& aCentre )
     CalculateBoundingBox();
 }
 
+
 void MODULE::SetPosition( const wxPoint& newpos )
 {
     wxPoint delta = newpos - m_Pos;
 
     m_Pos += delta;
-    m_Reference->m_Pos += delta;
-    m_Value->m_Pos += delta;
+    m_Reference->SetPosition( m_Reference->GetPosition() + delta );
+    m_Value->SetPosition( m_Value->GetPosition() + delta );
 
     for( D_PAD* pad = m_Pads;  pad;  pad = pad->Next() )
     {
-        pad->m_Pos += delta;
+        pad->SetPosition( pad->GetPosition() + delta );
     }
 
-    EDA_ITEM* PtStruct = m_Drawings;
-
-    for( ; PtStruct != NULL; PtStruct = PtStruct->Next() )
+    for( EDA_ITEM* item = m_Drawings;  item;  item = item->Next() )
     {
-        switch( PtStruct->Type() )
+        switch( item->Type() )
         {
         case PCB_MODULE_EDGE_T:
         {
-            EDGE_MODULE* pt_edgmod = (EDGE_MODULE*) PtStruct;
+            EDGE_MODULE* pt_edgmod = (EDGE_MODULE*) item;
             pt_edgmod->SetDrawCoord();
             break;
         }
 
         case PCB_MODULE_TEXT_T:
         {
-            TEXTE_MODULE* pt_texte = (TEXTE_MODULE*) PtStruct;
+            TEXTE_MODULE* pt_texte = (TEXTE_MODULE*) item;
             pt_texte->m_Pos += delta;
             break;
         }
@@ -341,33 +322,31 @@ void MODULE::SetPosition( const wxPoint& newpos )
 }
 
 
-void MODULE::SetOrientation( int newangle )
+void MODULE::SetOrientation( double newangle )
 {
-    int px, py;
+    double  angleChange = newangle - m_Orient;  // change in rotation
+    wxPoint pt;
 
-    newangle -= m_Orient;       // = Change in rotation
+    NORMALIZE_ANGLE_POS( newangle );
 
-    m_Orient += newangle;
-    NORMALIZE_ANGLE_POS( m_Orient );
+    m_Orient = newangle;
 
     for( D_PAD* pad = m_Pads;  pad;  pad = pad->Next() )
     {
-        px = pad->m_Pos0.x;
-        py = pad->m_Pos0.y;
+        pt = pad->GetPos0();
 
-        pad->m_Orient += newangle; /* change m_Orientation */
-        NORMALIZE_ANGLE_POS( pad->m_Orient );
+        pad->SetOrientation( pad->GetOrientation() + angleChange );
 
-        RotatePoint( &px, &py, m_Orient );
-        pad->m_Pos.x = m_Pos.x + px;
-        pad->m_Pos.y = m_Pos.y + py;
+        RotatePoint( &pt, m_Orient );
+
+        pad->SetPosition( GetPosition() + pt );
     }
 
-    /* Update of the reference and value. */
+    // Update of the reference and value.
     m_Reference->SetDrawCoord();
     m_Value->SetDrawCoord();
 
-    /* Displace contours and text of the footprint. */
+    // Displace contours and text of the footprint.
     for( BOARD_ITEM* item = m_Drawings;  item;  item = item->Next() )
     {
         if( item->Type() == PCB_MODULE_EDGE_T )
@@ -376,7 +355,7 @@ void MODULE::SetOrientation( int newangle )
             pt_edgmod->SetDrawCoord();
         }
 
-        if( item->Type() == PCB_MODULE_TEXT_T )
+        else if( item->Type() == PCB_MODULE_TEXT_T )
         {
             TEXTE_MODULE* pt_texte = (TEXTE_MODULE*) item;
             pt_texte->SetDrawCoord();

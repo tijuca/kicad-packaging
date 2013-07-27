@@ -22,11 +22,13 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
  */
 
-#include "collectors.h"
-#include "class_board_item.h"             // class BOARD_ITEM
+#include <collectors.h>
+#include <class_board_item.h>             // class BOARD_ITEM
 
-#include "class_module.h"
-#include "class_pad.h"
+#include <class_module.h>
+#include <class_pad.h>
+#include <class_track.h>
+#include <class_marker_pcb.h>
 
 
 /*  This module contains out of line member functions for classes given in
@@ -147,6 +149,8 @@ SEARCH_RESULT GENERAL_COLLECTOR::Inspect( EDA_ITEM* testItem, const void* testDa
     MODULE*     module = NULL;
     D_PAD*      pad    = NULL;
     bool        pad_through = false;
+    SEGVIA*     via    = NULL;
+    MARKER_PCB* marker = NULL;
 
 #if 0   // debugging
     static int  breakhere = 0;
@@ -210,6 +214,10 @@ SEARCH_RESULT GENERAL_COLLECTOR::Inspect( EDA_ITEM* testItem, const void* testDa
     }
         break;
 
+    case PCB_MARKER_T:
+        breakhere++;
+        break;
+
     default:
         breakhere++;
         break;
@@ -229,8 +237,8 @@ SEARCH_RESULT GENERAL_COLLECTOR::Inspect( EDA_ITEM* testItem, const void* testDa
         // for through pads: pads on Front or Back board sides must be seen
         pad = (D_PAD*) item;
 
-        if( (pad->m_Attribut != PAD_SMD) &&
-            (pad->m_Attribut != PAD_CONN) )    // a hole is present, so multiple layers
+        if( (pad->GetAttribute() != PAD_SMD) &&
+            (pad->GetAttribute() != PAD_CONN) )    // a hole is present, so multiple layers
         {
             // proceed to the common tests below, but without the parent module test,
             // by leaving module==NULL, but having pad != null
@@ -243,7 +251,8 @@ SEARCH_RESULT GENERAL_COLLECTOR::Inspect( EDA_ITEM* testItem, const void* testDa
 
         break;
 
-    case PCB_VIA_T:
+    case PCB_VIA_T:     // vias are on many layers, so layer test is specific
+        via = (SEGVIA*) item;
         break;
 
     case PCB_TRACE_T:
@@ -270,7 +279,7 @@ SEARCH_RESULT GENERAL_COLLECTOR::Inspect( EDA_ITEM* testItem, const void* testDa
     case PCB_MODULE_TEXT_T:
         module = (MODULE*) item->GetParent();
 
-        if( m_Guide->IgnoreMTextsMarkedNoShow() && ( (TEXTE_MODULE*) item )->m_NoShow )
+        if( m_Guide->IgnoreMTextsMarkedNoShow() && !( (TEXTE_MODULE*) item )->IsVisible() )
             goto exit;
 
         if( module )
@@ -280,11 +289,21 @@ SEARCH_RESULT GENERAL_COLLECTOR::Inspect( EDA_ITEM* testItem, const void* testDa
 
             if( m_Guide->IgnoreMTextsOnCmp() && module->GetLayer()==LAYER_N_FRONT )
                 goto exit;
+
+            if( m_Guide->IgnoreModulesVals() && item == module->m_Value )
+                goto exit;
+
+            if( m_Guide->IgnoreModulesRefs() && item == module->m_Reference )
+                goto exit;
         }
         break;
 
     case PCB_MODULE_T:
         module = (MODULE*) item;
+        break;
+
+    case PCB_MARKER_T:
+        marker = (MARKER_PCB*) item;
         break;
 
     default:
@@ -320,13 +339,23 @@ SEARCH_RESULT GENERAL_COLLECTOR::Inspect( EDA_ITEM* testItem, const void* testDa
         }
     }
 
+    if( marker )
+    {
+        // Markers are not sensitive to the layer
+        if( marker->HitTest( m_RefPos ) )
+            Append( item );
+
+        goto exit;
+    }
+
     if( item->IsOnLayer( m_Guide->GetPreferredLayer() ) || m_Guide->IgnorePreferredLayer() )
     {
         int layer = item->GetLayer();
 
         // Modules and their subcomponents: text and pads are not sensitive to the layer
         // visibility controls.  They all have their own separate visibility controls
-        if( module || pad || m_Guide->IsLayerVisible( layer ) || !m_Guide->IgnoreNonVisibleLayers() )
+        // for vias, GetLayer() has no meaning, but IsOnLayer() works fine
+        if( via || module || pad || m_Guide->IsLayerVisible( layer ) || !m_Guide->IgnoreNonVisibleLayers() )
         {
             if( !m_Guide->IsLayerLocked( layer ) || !m_Guide->IgnoreLockedLayers() )
             {
@@ -353,7 +382,7 @@ SEARCH_RESULT GENERAL_COLLECTOR::Inspect( EDA_ITEM* testItem, const void* testDa
 
         // Modules and their subcomponents: text and pads are not sensitive to the layer
         // visibility controls.  They all have their own separate visibility controls
-        if( module || pad || m_Guide->IsLayerVisible( layer ) || !m_Guide->IgnoreNonVisibleLayers() )
+        if( via || module || pad || m_Guide->IsLayerVisible( layer ) || !m_Guide->IgnoreNonVisibleLayers() )
         {
             if( !m_Guide->IsLayerLocked( layer ) || !m_Guide->IgnoreLockedLayers() )
             {

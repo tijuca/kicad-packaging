@@ -1,5 +1,5 @@
 ///////////////////////////////////////////////////////////////////////////
-// C++ code generated with wxFormBuilder (version Sep  8 2010)
+// C++ code generated with wxFormBuilder (version Apr 10 2012)
 // http://www.wxformbuilder.org/
 //
 // PLEASE DO "NOT" EDIT THIS FILE!
@@ -9,7 +9,7 @@
 
 ///////////////////////////////////////////////////////////////////////////
 
-DialogLabelEditor_Base::DialogLabelEditor_Base( wxWindow* parent, wxWindowID id, const wxString& title, const wxPoint& pos, const wxSize& size, long style ) : wxDialog( parent, id, title, pos, size, style )
+DIALOG_LABEL_EDITOR_BASE::DIALOG_LABEL_EDITOR_BASE( wxWindow* parent, wxWindowID id, const wxString& title, const wxPoint& pos, const wxSize& size, long style ) : DIALOG_SHIM( parent, id, title, pos, size, style )
 {
 	this->SetSizeHints( wxDefaultSize, wxDefaultSize );
 	
@@ -39,6 +39,7 @@ DialogLabelEditor_Base::DialogLabelEditor_Base( wxWindow* parent, wxWindowID id,
 	
 	bSizeText->Add( m_textLabelMultiLine, 1, wxEXPAND|wxLEFT, 3 );
 	
+	
 	m_textControlSizer->Add( bSizeText, 1, wxEXPAND, 3 );
 	
 	m_SizeTitle = new wxStaticText( this, wxID_ANY, _("&Size:"), wxDefaultPosition, wxDefaultSize, 0 );
@@ -55,7 +56,9 @@ DialogLabelEditor_Base::DialogLabelEditor_Base( wxWindow* parent, wxWindowID id,
 	m_staticSizeUnits->Wrap( -1 );
 	bSizeCtrlSizer->Add( m_staticSizeUnits, 0, wxALIGN_CENTER_VERTICAL|wxLEFT, 3 );
 	
+	
 	m_textControlSizer->Add( bSizeCtrlSizer, 1, wxEXPAND, 3 );
+	
 	
 	bMainSizer->Add( m_textControlSizer, 1, wxEXPAND|wxLEFT|wxRIGHT|wxTOP, 12 );
 	
@@ -80,6 +83,7 @@ DialogLabelEditor_Base::DialogLabelEditor_Base( wxWindow* parent, wxWindowID id,
 	m_TextShape->SetSelection( 0 );
 	m_OptionsSizer->Add( m_TextShape, 1, wxALL|wxLEFT|wxTOP, 3 );
 	
+	
 	bMainSizer->Add( m_OptionsSizer, 0, wxEXPAND|wxLEFT|wxRIGHT|wxTOP, 12 );
 	
 	m_sdbSizer1 = new wxStdDialogButtonSizer();
@@ -88,24 +92,27 @@ DialogLabelEditor_Base::DialogLabelEditor_Base( wxWindow* parent, wxWindowID id,
 	m_sdbSizer1Cancel = new wxButton( this, wxID_CANCEL );
 	m_sdbSizer1->AddButton( m_sdbSizer1Cancel );
 	m_sdbSizer1->Realize();
+	
 	bMainSizer->Add( m_sdbSizer1, 0, wxALL|wxEXPAND, 12 );
+	
 	
 	this->SetSizer( bMainSizer );
 	this->Layout();
+	bMainSizer->Fit( this );
 	
 	// Connect Events
-	m_textLabelSingleLine->Connect( wxEVT_COMMAND_TEXT_ENTER, wxCommandEventHandler( DialogLabelEditor_Base::OnEnterKey ), NULL, this );
-	m_textLabelMultiLine->Connect( wxEVT_COMMAND_TEXT_ENTER, wxCommandEventHandler( DialogLabelEditor_Base::OnEnterKey ), NULL, this );
-	m_sdbSizer1Cancel->Connect( wxEVT_COMMAND_BUTTON_CLICKED, wxCommandEventHandler( DialogLabelEditor_Base::OnCancelClick ), NULL, this );
-	m_sdbSizer1OK->Connect( wxEVT_COMMAND_BUTTON_CLICKED, wxCommandEventHandler( DialogLabelEditor_Base::OnOkClick ), NULL, this );
+	m_textLabelSingleLine->Connect( wxEVT_COMMAND_TEXT_ENTER, wxCommandEventHandler( DIALOG_LABEL_EDITOR_BASE::OnEnterKey ), NULL, this );
+	m_textLabelMultiLine->Connect( wxEVT_COMMAND_TEXT_ENTER, wxCommandEventHandler( DIALOG_LABEL_EDITOR_BASE::OnEnterKey ), NULL, this );
+	m_sdbSizer1Cancel->Connect( wxEVT_COMMAND_BUTTON_CLICKED, wxCommandEventHandler( DIALOG_LABEL_EDITOR_BASE::OnCancelClick ), NULL, this );
+	m_sdbSizer1OK->Connect( wxEVT_COMMAND_BUTTON_CLICKED, wxCommandEventHandler( DIALOG_LABEL_EDITOR_BASE::OnOkClick ), NULL, this );
 }
 
-DialogLabelEditor_Base::~DialogLabelEditor_Base()
+DIALOG_LABEL_EDITOR_BASE::~DIALOG_LABEL_EDITOR_BASE()
 {
 	// Disconnect Events
-	m_textLabelSingleLine->Disconnect( wxEVT_COMMAND_TEXT_ENTER, wxCommandEventHandler( DialogLabelEditor_Base::OnEnterKey ), NULL, this );
-	m_textLabelMultiLine->Disconnect( wxEVT_COMMAND_TEXT_ENTER, wxCommandEventHandler( DialogLabelEditor_Base::OnEnterKey ), NULL, this );
-	m_sdbSizer1Cancel->Disconnect( wxEVT_COMMAND_BUTTON_CLICKED, wxCommandEventHandler( DialogLabelEditor_Base::OnCancelClick ), NULL, this );
-	m_sdbSizer1OK->Disconnect( wxEVT_COMMAND_BUTTON_CLICKED, wxCommandEventHandler( DialogLabelEditor_Base::OnOkClick ), NULL, this );
+	m_textLabelSingleLine->Disconnect( wxEVT_COMMAND_TEXT_ENTER, wxCommandEventHandler( DIALOG_LABEL_EDITOR_BASE::OnEnterKey ), NULL, this );
+	m_textLabelMultiLine->Disconnect( wxEVT_COMMAND_TEXT_ENTER, wxCommandEventHandler( DIALOG_LABEL_EDITOR_BASE::OnEnterKey ), NULL, this );
+	m_sdbSizer1Cancel->Disconnect( wxEVT_COMMAND_BUTTON_CLICKED, wxCommandEventHandler( DIALOG_LABEL_EDITOR_BASE::OnCancelClick ), NULL, this );
+	m_sdbSizer1OK->Disconnect( wxEVT_COMMAND_BUTTON_CLICKED, wxCommandEventHandler( DIALOG_LABEL_EDITOR_BASE::OnOkClick ), NULL, this );
 	
 }

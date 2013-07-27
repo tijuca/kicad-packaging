@@ -1,8 +1,9 @@
 /*
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
- * Copyright (C) 2009 Jean-Pierre Charras, jaen-pierre.charras@gipsa-lab.inpg.com
- * Copyright (C) 1992-2011 KiCad Developers, see AUTHORS.txt for contributors.
+ * Copyright (C) 2012 Jean-Pierre Charras, jean-pierre.charras@ujf-grenoble.fr
+ * Copyright (C) 2012 SoftPLC Corporation, Dick Hollenbeck <dick@softplc.com>
+ * Copyright (C) 1992-2012 KiCad Developers, see AUTHORS.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -27,46 +28,43 @@
  * @brief Pcbnew main program.
  */
 
-#include "fctsys.h"
-#include "appl_wxstruct.h"
-#include "confirm.h"
-#include "macros.h"
-#include "class_drawpanel.h"
-#include "wxPcbStruct.h"
-#include "eda_dde.h"
-#include "pcbcommon.h"
-#include "colors_selection.h"
-#include "gr_basic.h"
+#ifdef KICAD_SCRIPTING
+#include <python_scripting.h>
+#include <pcbnew_scripting_helpers.h>
+#endif
+#include <fctsys.h>
+#include <appl_wxstruct.h>
+#include <confirm.h>
+#include <macros.h>
+#include <class_drawpanel.h>
+#include <wxPcbStruct.h>
+#include <eda_dde.h>
+#include <pcbcommon.h>
+#include <colors_selection.h>
+#include <gr_basic.h>
 
 #include <wx/file.h>
 #include <wx/snglinst.h>
 
-#include "pcbnew.h"
-#include "protos.h"
-#include "hotkeys.h"
+#include <pcbnew.h>
+#include <protos.h>
+#include <hotkeys.h>
+#include <wildcards_and_files_ext.h>
+#include <class_board.h>
 
 
 // Colors for layers and items
 COLORS_DESIGN_SETTINGS g_ColorsSettings;
-int g_DrawDefaultLineThickness = 60; /* Default line thickness in PCnew units used to draw
-                                      * or plot items having a default thickness line value
-                                      * (Frame references) (i.e. = 0 ). 0 = single pixel line
-                                      * width */
 
 bool           Drc_On = true;
 bool           g_AutoDeleteOldTrack = true;
-bool           g_Drag_Pistes_On;
 bool           g_Show_Module_Ratsnest;
-bool           g_Show_Pads_Module_in_Move = true;
 bool           g_Raccord_45_Auto = true;
 bool 	       g_Alternate_Track_Posture = false;
 bool           g_Track_45_Only_Allowed = true;  // True to allow horiz, vert. and 45deg only tracks
 bool           Segments_45_Only;                // True to allow horiz, vert. and 45deg only graphic segments
 bool           g_TwoSegmentTrackBuild = true;
 
-wxSize         g_ModuleTextSize;      /* Default footprint texts size */
-int            g_ModuleSegmentWidth;
-int            g_ModuleTextWidth;
 int            Route_Layer_TOP;
 int            Route_Layer_BOTTOM;
 int            g_MaxLinksShowed;
@@ -74,9 +72,6 @@ int            g_MagneticPadOption   = capture_cursor_in_track_tool;
 int            g_MagneticTrackOption = capture_cursor_in_track_tool;
 
 wxPoint        g_Offset_Module;     /* Distance to offset module trace when moving. */
-
-// Wildcard for footprint libraries filesnames
-const wxString g_FootprintLibFileWildcard( _( "KiCad footprint library file (*.mod)|*.mod" ) );
 
 /* Name of the document footprint list
  * usually located in share/modules/footprints_doc
@@ -87,6 +82,7 @@ wxString g_DocModulesFileName = wxT( "footprints_doc/footprints.pdf" );
 
 wxArrayString g_LibraryNames;
 
+// wxWindow* DoPythonStuff(wxWindow* parent); // declaration
 
 IMPLEMENT_APP( EDA_APP )
 
@@ -105,13 +101,48 @@ void EDA_APP::MacOpenFile( const wxString& fileName )
     frame->LoadOnePcbFile( fileName, false );
 }
 
-
 bool EDA_APP::OnInit()
 {
     wxFileName      fn;
     PCB_EDIT_FRAME* frame = NULL;
+    wxString msg;
+
+#ifdef KICAD_SCRIPTING
+    if ( !pcbnewInitPythonScripting() )
+    {
+        wxMessageBox( wxT( "pcbnewInitPythonScripting() fails" ) );
+        return false;
+    }
+#endif
 
     InitEDA_Appl( wxT( "Pcbnew" ), APP_PCBNEW_T );
+
+    if( argc > 1 )
+    {
+        fn = argv[1];
+
+        // Be sure the filename is absolute, to avoid issues
+        // when the filename is relative,
+        // for instance when stored in history list without path,
+        // and when building the config filename ( which should have a path )
+        if( fn.IsRelative() )
+            fn.MakeAbsolute();
+
+        if( fn.GetExt() != PcbFileExtension && fn.GetExt() != LegacyPcbFileExtension )
+        {
+            msg.Printf( _( "Pcbnew file <%s> has a wrong extension.\n\
+Changing extension to .%s." ), GetChars( fn.GetFullPath() ),
+                               GetChars( PcbFileExtension ) );
+            fn.SetExt( PcbFileExtension );
+            wxMessageBox( msg );
+        }
+
+        if( !wxGetApp().LockFile( fn.GetFullPath() ) )
+        {
+            DisplayError( NULL, _( "This file is already open." ) );
+            return false;
+        }
+    }
 
     if( m_Checker && m_Checker->IsAnotherRunning() )
     {
@@ -123,20 +154,8 @@ bool EDA_APP::OnInit()
     bool reopenLastUsedDirectory = argc == 1;
     GetSettings( reopenLastUsedDirectory );
 
-    if( argc > 1 )
-    {
-        fn = argv[1];
-
-        if( fn.GetExt() != PcbFileExtension )
-        {
-            wxLogDebug( wxT( "Pcbnew file <%s> has the wrong extension.  \
-Changing extension to .brd." ), GetChars( fn.GetFullPath() ) );
-            fn.SetExt( PcbFileExtension );
-        }
-
-        if( fn.IsOk() && fn.DirExists() )
-            wxSetWorkingDirectory( fn.GetPath() );
-    }
+    if( fn.IsOk() && fn.DirExists() )
+        wxSetWorkingDirectory( fn.GetPath() );
 
     g_DrawBgColor = BLACK;
 
@@ -145,6 +164,11 @@ Changing extension to .brd." ), GetChars( fn.GetFullPath() ) );
     ReadHotkeyConfig( wxT( "PcbFrame" ), g_Board_Editor_Hokeys_Descr );
 
     frame = new PCB_EDIT_FRAME( NULL, wxT( "Pcbnew" ), wxPoint( 0, 0 ), wxSize( 600, 400 ) );
+
+    #ifdef KICAD_SCRIPTING
+    ScriptingSetPcbEditFrame(frame); /* give the scripting helpers access to our frame */
+    #endif
+
     frame->UpdateTitle();
 
     SetTopWindow( frame );
@@ -157,34 +181,74 @@ Changing extension to .brd." ), GetChars( fn.GetFullPath() ) );
 
     frame->Zoom_Automatique( true );
 
-    // load project settings before BOARD, in case BOARD file has overrides.
-    frame->LoadProjectSettings( frame->GetScreen()->GetFileName() );
-
+    // Load config and default values before loading a board file
+    // Some will be overwritten after loading the board file
+    frame->LoadProjectSettings( fn.GetFullPath() );
 
     /* Load file specified in the command line. */
     if( fn.IsOk() )
     {
         /* Note the first time Pcbnew is called after creating a new project
          * the board file may not exist so we load settings only.
+         * However, because legacy board files are named *.brd,
+         * and new files are named *.kicad_pcb,
+         * for all previous projects ( before 2012, december 14 ),
+         * because KiCad manager ask to load a .kicad_pcb file
+         * if this file does not exist, it is certainly useful
+         * to test if a legacy file is existing,
+         * under the same name, and therefore if the user want to load it
          */
+        bool file_exists = false;
+
         if( fn.FileExists() )
         {
+            file_exists = true;
             frame->LoadOnePcbFile( fn.GetFullPath() );
         }
-        else
+        else if( fn.GetExt() == KiCadPcbFileExtension )
+        {
+            // Try to find a legacy file with the same name:
+            wxFileName fn_legacy = fn;
+            fn_legacy.SetExt( LegacyPcbFileExtension );
+            if( fn_legacy.FileExists() )
+            {
+                msg.Printf( _( "File <%s> does not exist.\n\
+However a legacy file <%s> exists.\nDo you want to load it?\n\
+It will be saved under the new file format" ),
+                            GetChars( fn.GetFullPath() ),
+                            GetChars( fn_legacy.GetFullPath() ) );
+                if( IsOK( frame, msg ) )
+                {
+                    file_exists = true;
+                    frame->LoadOnePcbFile( fn_legacy.GetFullPath() );
+                    wxString filename = fn.GetFullPath();
+                    filename.Replace( WIN_STRING_DIR_SEP, UNIX_STRING_DIR_SEP );
+                    frame->GetBoard()->SetFileName( filename );
+                    frame->UpdateTitle();
+                    frame->OnModify();  // Ready to save theboard inder the new fmt
+                }
+            }
+        }
+
+        if( ! file_exists )
         {   // File does not exists: prepare an empty board
-            wxSetWorkingDirectory( fn.GetPath() );
-            frame->GetScreen()->SetFileName( fn.GetFullPath( wxPATH_UNIX ) );
+            if( ! fn.GetPath().IsEmpty() )
+                wxSetWorkingDirectory( fn.GetPath() );
+            frame->GetBoard()->SetFileName( fn.GetFullPath( wxPATH_UNIX ) );
             frame->UpdateTitle();
-            frame->UpdateFileHistory( frame->GetScreen()->GetFileName() );
+            frame->UpdateFileHistory( frame->GetBoard()->GetFileName() );
             frame->OnModify();          // Ready to save the new empty board
 
-            wxString msg;
             msg.Printf( _( "File <%s> does not exist.\nThis is normal for a new project" ),
-                        GetChars( frame->GetScreen()->GetFileName() ) );
+                        GetChars( frame->GetBoard()->GetFileName() ) );
             wxMessageBox( msg );
         }
     }
+
+    else
+        // No file to open: initialize a new empty board
+        // using default values for design settings:
+        frame->Clear_Pcb( false );
 
     // update the layer names in the listbox
     frame->ReCreateLayerBox( NULL );
@@ -198,7 +262,27 @@ Changing extension to .brd." ), GetChars( fn.GetFullPath() ) );
      * This is more a workaround than a fix.
      */
     frame->SetFocus();
-    frame->DrawPanel->SetFocus();
+    frame->GetCanvas()->SetFocus();
 
     return true;
 }
+
+#if 0
+// for some reason KiCad classes do not implement OnExit
+// if I add it in the declaration, I need to fix it in every application
+// so for now make a note TODO TODO
+// we need to clean up python when the application exits
+int EDA_APP::OnExit() {
+    // Restore the thread state and tell Python to cleanup after itself.
+    // wxPython will do its own cleanup as part of that process.  This is done
+    // in OnExit instead of ~MyApp because OnExit is only called if OnInit is
+    // successful.
+#if KICAD_SCRIPTING_WXPYTHON
+    pcbnewFinishPythonScripting();
+#endif
+    return 0;
+}
+
+#endif
+
+

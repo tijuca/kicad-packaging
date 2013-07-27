@@ -3,7 +3,7 @@
 #define _DIALOG_SVG_PRINT_H_
 
 
-#include "dialog_SVG_print_base.h"
+#include <dialog_SVG_print_base.h>
 
 
 class BASE_SCREEN;
@@ -14,10 +14,17 @@ class wxConfig;
 class DIALOG_SVG_PRINT : public DIALOG_SVG_PRINT_base
 {
 private:
-    PCB_BASE_FRAME*  m_Parent;
-    wxConfig*        m_Config;
-    long             m_PrintMaskLayer;
-    wxCheckBox*      m_BoxSelectLayer[32];
+    PCB_BASE_FRAME* m_parent;
+    BOARD*          m_board;
+    wxConfig*       m_config;
+    long            m_printMaskLayer;
+    wxCheckBox*     m_boxSelectLayer[32];
+    bool            m_printBW;
+    wxString        m_outputDirectory;
+
+    // Static member to store options
+    static bool     m_printMirror;
+    static bool     m_oneFileOnly;
 
 public:
     DIALOG_SVG_PRINT( EDA_DRAW_FRAME* parent );
@@ -26,13 +33,20 @@ public:
 private:
     void OnCloseWindow( wxCloseEvent& event );
     void initDialog( );
-    void OnButtonPrintSelectedClick( wxCommandEvent& event );
-    void OnButtonPrintBoardClick( wxCommandEvent& event );
+    void OnButtonPlot( wxCommandEvent& event );
     void OnButtonCancelClick( wxCommandEvent& event );
-    void OnSetColorModeSelected( wxCommandEvent& event );
+    void OnOutputDirectoryBrowseClicked( wxCommandEvent& event );
     void SetPenWidth();
-    void PrintSVGDoc( bool aPrintAll, bool aPrint_Frame_Ref );
-    bool DrawPage( const wxString& FullFileName, BASE_SCREEN* screen, bool aPrint_Frame_Ref );
+    void ExportSVGFile( bool aOnlyOneFile );
+    bool PageIsBoardBoundarySize()
+    {
+        return m_rbSvgPageSizeOpt->GetSelection() == 2;
+    }
+    bool PrintPageRef()
+    {
+        return m_rbSvgPageSizeOpt->GetSelection() == 0;
+    }
+    bool CreateSVGFile( const wxString& FullFileName );
 };
 
 

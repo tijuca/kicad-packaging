@@ -2,20 +2,20 @@
  * @file cvpcb.cpp
  */
 
-#include "fctsys.h"
-#include "gr_basic.h"
-#include "appl_wxstruct.h"
-#include "wxstruct.h"
-#include "confirm.h"
-#include "gestfich.h"
+#include <fctsys.h>
+#include <gr_basic.h>
+#include <appl_wxstruct.h>
+#include <wxstruct.h>
+#include <confirm.h>
+#include <gestfich.h>
 
-#include "cvpcb.h"
-#include "zones.h"
-#include "cvpcb_mainframe.h"
-#include "colors_selection.h"
-#include "cvpcb_id.h"
+#include <cvpcb.h>
+#include <zones.h>
+#include <cvpcb_mainframe.h>
+#include <colors_selection.h>
+#include <cvpcb_id.h>
 
-#include "build_version.h"
+#include <build_version.h>
 
 #include <wx/snglinst.h>
 
@@ -23,7 +23,6 @@
 COLORS_DESIGN_SETTINGS g_ColorsSettings;
 
 /* Constant string definitions for CvPcb */
-const wxString ComponentFileExtension( wxT( "cmp" ) );
 const wxString RetroFileExtension( wxT( "stf" ) );
 const wxString FootprintAliasFileExtension( wxT( "equ" ) );
 
@@ -57,7 +56,7 @@ void EDA_APP::MacOpenFile(const wxString &fileName)
     wxGetApp().GetLibraryPathList().Insert( filename.GetPath(), 0 );
 
     frame->m_NetlistFileName = filename;
-    frame->ReadNetList();
+    frame->ReadNetListAndLinkFiles();
 }
 
 // Create a new application object
@@ -101,14 +100,14 @@ bool EDA_APP::OnInit()
     SetTopWindow( frame );
 
     frame->LoadProjectFile( filename.GetFullPath() );
-    frame->Show( TRUE );
+    frame->Show( true );
     frame->BuildFOOTPRINTS_LISTBOX();
 
     if( filename.IsOk() && filename.FileExists() )
     {
         frame->m_NetlistFileName = filename;
 
-        if( frame->ReadNetList() )
+        if( frame->ReadNetListAndLinkFiles() )
         {
             frame->m_NetlistFileExtension = filename.GetExt();
             return true;

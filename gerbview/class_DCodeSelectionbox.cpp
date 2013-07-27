@@ -2,19 +2,19 @@
 /* class_DCodeSelectionbox.cpp: class for displaying DCodes list */
 /*****************************************************************/
 
-#include "fctsys.h"
-#include "appl_wxstruct.h"
-#include "wxstruct.h"
-#include "class_drawpanel.h"
-#include "gerbview.h"
+#include <fctsys.h>
+#include <appl_wxstruct.h>
+#include <wxstruct.h>
+#include <class_drawpanel.h>
+#include <gerbview.h>
 
-#include "class_DCodeSelectionbox.h"
+#include <class_DCodeSelectionbox.h>
 
 /*******************************************/
 /* Helper class for displaying DCodes list */
 /*******************************************/
 
-DCODE_SELECTION_BOX::DCODE_SELECTION_BOX( EDA_TOOLBAR* aParent, wxWindowID aId,
+DCODE_SELECTION_BOX::DCODE_SELECTION_BOX( wxAuiToolBar* aParent, wxWindowID aId,
                                           const wxPoint& aLocation, const wxSize& aSize,
                                           const wxArrayString& aChoices  ) :
     wxComboBox( aParent, aId, wxEmptyString, aLocation, aSize, 0, NULL, wxCB_READONLY )

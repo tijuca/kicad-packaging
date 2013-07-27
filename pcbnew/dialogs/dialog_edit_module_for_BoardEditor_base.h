@@ -1,27 +1,32 @@
 ///////////////////////////////////////////////////////////////////////////
-// C++ code generated with wxFormBuilder (version Apr 16 2008)
+// C++ code generated with wxFormBuilder (version Oct  8 2012)
 // http://www.wxformbuilder.org/
 //
 // PLEASE DO "NOT" EDIT THIS FILE!
 ///////////////////////////////////////////////////////////////////////////
 
-#ifndef __dialog_edit_module_for_BoardEditor_base__
-#define __dialog_edit_module_for_BoardEditor_base__
+#ifndef __DIALOG_EDIT_MODULE_FOR_BOARDEDITOR_BASE_H__
+#define __DIALOG_EDIT_MODULE_FOR_BOARDEDITOR_BASE_H__
 
+#include <wx/artprov.h>
+#include <wx/xrc/xmlres.h>
 #include <wx/intl.h>
+class DIALOG_SHIM;
 
+#include "dialog_shim.h"
 #include <wx/string.h>
-#include <wx/textctrl.h>
+#include <wx/stattext.h>
 #include <wx/gdicmn.h>
 #include <wx/font.h>
 #include <wx/colour.h>
 #include <wx/settings.h>
+#include <wx/textctrl.h>
 #include <wx/button.h>
 #include <wx/sizer.h>
-#include <wx/statbox.h>
 #include <wx/radiobox.h>
-#include <wx/stattext.h>
 #include <wx/slider.h>
+#include <wx/statbox.h>
+#include <wx/choice.h>
 #include <wx/statline.h>
 #include <wx/panel.h>
 #include <wx/bitmap.h>
@@ -44,7 +49,7 @@
 ///////////////////////////////////////////////////////////////////////////////
 /// Class DIALOG_MODULE_BOARD_EDITOR_BASE
 ///////////////////////////////////////////////////////////////////////////////
-class DIALOG_MODULE_BOARD_EDITOR_BASE : public wxDialog 
+class DIALOG_MODULE_BOARD_EDITOR_BASE : public DIALOG_SHIM
 {
 	private:
 		wxBoxSizer* m_GeneralBoxSizer;
@@ -53,18 +58,23 @@ class DIALOG_MODULE_BOARD_EDITOR_BASE : public wxDialog
 	protected:
 		wxNotebook* m_NoteBook;
 		wxPanel* m_PanelProperties;
+		wxStaticText* m_staticTextRef;
 		wxTextCtrl* m_ReferenceCtrl;
 		wxButton* m_button4;
+		wxStaticText* m_staticTextVal;
 		wxTextCtrl* m_ValueCtrl;
 		wxButton* m_button5;
 		wxRadioBox* m_LayerCtrl;
 		wxRadioBox* m_OrientCtrl;
 		wxStaticText* m_staticText4;
 		wxTextCtrl* m_OrientValue;
-		wxStaticText* XPositionStatic;
+		wxStaticText* m_staticTextPos;
+		wxStaticText* m_XPosLabel;
 		wxTextCtrl* m_ModPositionX;
-		wxStaticText* YPositionStatic;
+		wxStaticText* m_XPosUnit;
+		wxStaticText* m_YPosLabel;
 		wxTextCtrl* m_ModPositionY;
+		wxStaticText* m_YPosUnit;
 		wxButton* m_buttonExchange;
 		wxButton* m_buttonModuleEditor;
 		wxRadioBox* m_AttributsCtrl;
@@ -73,6 +83,8 @@ class DIALOG_MODULE_BOARD_EDITOR_BASE : public wxDialog
 		wxSlider* m_CostRot90Ctrl;
 		wxStaticText* m_staticText12;
 		wxSlider* m_CostRot180Ctrl;
+		wxStaticText* m_staticText16;
+		wxChoice* m_ZoneConnectionChoice;
 		wxStaticText* m_staticTextInfo;
 		wxStaticText* m_staticTextNetClearance;
 		wxTextCtrl* m_NetClearanceValueCtrl;
@@ -100,24 +112,25 @@ class DIALOG_MODULE_BOARD_EDITOR_BASE : public wxDialog
 		wxButton* m_sdbSizerStdButtonsCancel;
 		
 		// Virtual event handlers, overide them in your derived class
-		virtual void OnEditReference( wxCommandEvent& event ){ event.Skip(); }
-		virtual void OnEditValue( wxCommandEvent& event ){ event.Skip(); }
-		virtual void ModuleOrientEvent( wxCommandEvent& event ){ event.Skip(); }
-		virtual void ExchangeModule( wxCommandEvent& event ){ event.Skip(); }
-		virtual void GotoModuleEditor( wxCommandEvent& event ){ event.Skip(); }
-		virtual void On3DShapeNameSelected( wxCommandEvent& event ){ event.Skip(); }
-		virtual void Browse3DLib( wxCommandEvent& event ){ event.Skip(); }
-		virtual void Add3DShape( wxCommandEvent& event ){ event.Skip(); }
-		virtual void Remove3DShape( wxCommandEvent& event ){ event.Skip(); }
-		virtual void OnCancelClick( wxCommandEvent& event ){ event.Skip(); }
-		virtual void OnOkClick( wxCommandEvent& event ){ event.Skip(); }
+		virtual void OnEditReference( wxCommandEvent& event ) { event.Skip(); }
+		virtual void OnEditValue( wxCommandEvent& event ) { event.Skip(); }
+		virtual void ModuleOrientEvent( wxCommandEvent& event ) { event.Skip(); }
+		virtual void ExchangeModule( wxCommandEvent& event ) { event.Skip(); }
+		virtual void GotoModuleEditor( wxCommandEvent& event ) { event.Skip(); }
+		virtual void On3DShapeNameSelected( wxCommandEvent& event ) { event.Skip(); }
+		virtual void Browse3DLib( wxCommandEvent& event ) { event.Skip(); }
+		virtual void Add3DShape( wxCommandEvent& event ) { event.Skip(); }
+		virtual void Remove3DShape( wxCommandEvent& event ) { event.Skip(); }
+		virtual void OnCancelClick( wxCommandEvent& event ) { event.Skip(); }
+		virtual void OnOkClick( wxCommandEvent& event ) { event.Skip(); }
 		
 	
 	public:
 		wxStaticBoxSizer* m_Sizer3DValues;
-		DIALOG_MODULE_BOARD_EDITOR_BASE( wxWindow* parent, wxWindowID id = wxID_ANY, const wxString& title = _("Module properties"), const wxPoint& pos = wxDefaultPosition, const wxSize& size = wxSize( 474,607 ), long style = wxDEFAULT_DIALOG_STYLE|wxRESIZE_BORDER );
+		
+		DIALOG_MODULE_BOARD_EDITOR_BASE( wxWindow* parent, wxWindowID id = wxID_ANY, const wxString& title = _("Module Properties"), const wxPoint& pos = wxDefaultPosition, const wxSize& size = wxSize( 499,561 ), long style = wxDEFAULT_DIALOG_STYLE|wxRESIZE_BORDER ); 
 		~DIALOG_MODULE_BOARD_EDITOR_BASE();
 	
 };
 
-#endif //__dialog_edit_module_for_BoardEditor_base__
+#endif //__DIALOG_EDIT_MODULE_FOR_BOARDEDITOR_BASE_H__

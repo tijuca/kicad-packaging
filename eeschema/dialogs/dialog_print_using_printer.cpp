@@ -2,20 +2,21 @@
 /* File: dialog_print_using_printer.cpp */
 /****************************************/
 
-#include "fctsys.h"
-#include "appl_wxstruct.h"
-#include "gr_basic.h"
-#include "class_drawpanel.h"
-#include "confirm.h"
-#include "class_sch_screen.h"
-#include "wxEeschemaStruct.h"
+#include <fctsys.h>
+#include <appl_wxstruct.h>
+#include <gr_basic.h>
+#include <class_drawpanel.h>
+#include <confirm.h>
+#include <class_sch_screen.h>
+#include <wxEeschemaStruct.h>
+#include <base_units.h>
 
-#include "general.h"
-#include "eeschema_config.h"
-#include "sch_sheet.h"
-#include "sch_sheet_path.h"
+#include <general.h>
+#include <eeschema_config.h>
+#include <sch_sheet.h>
+#include <sch_sheet_path.h>
 
-#include "dialog_print_using_printer.h"
+#include <dialog_print_using_printer.h>
 
 
 /**
@@ -61,23 +62,41 @@ public:
         return ( DIALOG_PRINT_USING_PRINTER* )wxWindow::GetParent();
     }
 
-    void OnCloseWindow( wxCloseEvent& event )
+    bool Show( bool show )      // overload
     {
-        if( !IsIconized() )
-        {
-            GetParent()->GetParent()->SetPreviewPosition( GetPosition() );
-            GetParent()->GetParent()->SetPreviewSize( GetSize() );
-        }
+        bool        ret;
 
-        wxPreviewFrame::OnCloseWindow( event );
+        // Show or hide the window.  If hiding, save current position and size.
+        // If showing, use previous position and size.
+        if( show )
+        {
+            ret = wxPreviewFrame::Show( show );
+
+            if( s_size.x != 0 && s_size.y != 0 )
+                SetSize( s_pos.x, s_pos.y, s_size.x, s_size.y, 0 );
+        }
+        else
+        {
+            // Save the dialog's position & size before hiding
+            s_size = GetSize();
+            s_pos  = GetPosition();
+
+            ret = wxPreviewFrame::Show( show );
+        }
+        return ret;
     }
 
 private:
+    static wxPoint  s_pos;
+    static wxSize   s_size;
+
     DECLARE_CLASS( SCH_PREVIEW_FRAME )
     DECLARE_EVENT_TABLE()
     DECLARE_NO_COPY_CLASS( SCH_PREVIEW_FRAME )
 };
 
+wxPoint SCH_PREVIEW_FRAME::s_pos;
+wxSize  SCH_PREVIEW_FRAME::s_size;
 
 IMPLEMENT_CLASS( SCH_PREVIEW_FRAME, wxPreviewFrame )
 
@@ -95,7 +114,7 @@ DIALOG_PRINT_USING_PRINTER::DIALOG_PRINT_USING_PRINTER( SCH_EDIT_FRAME* aParent 
     m_checkMonochrome->SetValue( aParent->GetPrintMonochrome() );
 
 #ifdef __WXMAC__
-    /* Problems with modal on wx-2.9 - Anyway preview is standard for OSX */
+    // Problems with modal on wx-2.9 - Anyway preview is standard for OSX
    m_buttonPreview->Hide();
 #endif
 }
@@ -111,23 +130,46 @@ void DIALOG_PRINT_USING_PRINTER::OnInitDialog( wxInitDialogEvent& event )
 {
     SCH_EDIT_FRAME* parent = GetParent();
 
+    // Initialize page specific print setup dialog settings.
+    const PAGE_INFO& pageInfo = parent->GetScreen()->GetPageSettings();
+    wxPageSetupDialogData& pageSetupDialogData = parent->GetPageSetupData();
+
+    pageSetupDialogData.SetPaperId( pageInfo.GetPaperId() );
+
+    if( pageInfo.IsCustom() )
+    {
+        if( pageInfo.IsPortrait() )
+            pageSetupDialogData.SetPaperSize( wxSize( Mils2mm( pageInfo.GetWidthMils() ),
+                                                      Mils2mm( pageInfo.GetHeightMils() ) ) );
+        else
+            pageSetupDialogData.SetPaperSize( wxSize( Mils2mm( pageInfo.GetHeightMils() ),
+                                                      Mils2mm( pageInfo.GetWidthMils() ) ) );
+    }
+
+    pageSetupDialogData.GetPrintData().SetOrientation( pageInfo.GetWxOrientation() );
+
     if ( GetSizer() )
         GetSizer()->SetSizeHints( this );
 
-    if( parent->GetPrintDialogPosition() == wxDefaultPosition &&
-        parent->GetPrintDialogSize() == wxDefaultSize )
-    {
-        Center();
-    }
-    else
-    {
-        SetPosition( parent->GetPrintDialogPosition() );
-        SetSize( parent->GetPrintDialogSize() );
-    }
+    // Rely on the policy in class DIALOG_SHIM, which centers the dialog
+    // initially during a runtime session but gives user the ability to move it in
+    // that session.
+    // This dialog may get moved and resized in Show(), but in case this is
+    // the first time, center it for starters.
+    Center();
 
-    SetFocus();
+    m_buttonPrint->SetDefault();    // on linux, this is inadequate to determine
+                                    // what ENTER does.  Must also SetFocus().
+    m_buttonPrint->SetFocus();
+}
 
-    m_buttonPrint->SetDefault();
+
+void DIALOG_PRINT_USING_PRINTER::GetPrintOptions()
+{
+    SCH_EDIT_FRAME* parent = GetParent();
+
+    parent->SetPrintMonochrome( m_checkMonochrome->IsChecked() );
+    parent->SetPrintSheetReference( m_checkReference->IsChecked() );
 }
 
 
@@ -141,8 +183,7 @@ void DIALOG_PRINT_USING_PRINTER::OnCloseWindow( wxCloseEvent& event )
         parent->SetPrintDialogSize( GetSize() );
     }
 
-    parent->SetPrintMonochrome( m_checkMonochrome->IsChecked() );
-    parent->SetPrintSheetReference( m_checkReference->IsChecked() );
+    GetPrintOptions();
 
     EndDialog( wxID_CANCEL );
 }
@@ -168,8 +209,7 @@ void DIALOG_PRINT_USING_PRINTER::OnPrintPreview( wxCommandEvent& event )
 {
     SCH_EDIT_FRAME* parent = GetParent();
 
-    parent->SetPrintMonochrome( m_checkMonochrome->IsChecked() );
-    parent->SetPrintSheetReference( m_checkReference->IsChecked() );
+    GetPrintOptions();
 
     // Pass two printout objects: for preview, and possible printing.
     wxString        title   = _( "Preview" );
@@ -185,9 +225,13 @@ void DIALOG_PRINT_USING_PRINTER::OnPrintPreview( wxCommandEvent& event )
 
     preview->SetZoom( 100 );
 
-    SCH_PREVIEW_FRAME* frame = new SCH_PREVIEW_FRAME( preview, this, title,
-                                                      parent->GetPreviewPosition(),
-                                                      parent->GetPreviewSize() );
+    SCH_PREVIEW_FRAME* frame = new SCH_PREVIEW_FRAME( preview, this, title );
+
+    // on first invocation in this runtime session, set to 2/3 size of my parent,
+    // but will be changed in Show() if not first time as will position.
+    frame->SetSize( (parent->GetSize() * 2) / 3 );
+    frame->Center();
+
     frame->Initialize();
     frame->Show( true );
 }
@@ -197,8 +241,7 @@ void DIALOG_PRINT_USING_PRINTER::OnPrintButtonClick( wxCommandEvent& event )
 {
     SCH_EDIT_FRAME* parent = GetParent();
 
-    parent->SetPrintMonochrome( m_checkMonochrome->IsChecked() );
-    parent->SetPrintSheetReference( m_checkReference->IsChecked() );
+    GetPrintOptions();
 
     wxPrintDialogData printDialogData( parent->GetPageSetupData().GetPrintData() );
     printDialogData.SetMaxPage( g_RootSheet->CountSheets() );
@@ -231,17 +274,17 @@ bool SCH_PRINTOUT::OnPrintPage( int page )
     parent->AppendMsgPanel( msg, wxEmptyString, CYAN );
 
     SCH_SCREEN*     screen       = parent->GetScreen();
-    SCH_SHEET_PATH* oldsheetpath = parent->GetSheet();
+    SCH_SHEET_PATH  oldsheetpath = parent->GetCurrentSheet();
     SCH_SHEET_PATH  list;
     SCH_SHEET_LIST  SheetList( NULL );
     SCH_SHEET_PATH* sheetpath = SheetList.GetSheet( page - 1 );
 
     if( list.BuildSheetPathInfoFromSheetPathValue( sheetpath->Path() ) )
     {
-        parent->m_CurrentSheet = &list;
-        parent->m_CurrentSheet->UpdateAllScreenReferences();
+        parent->SetCurrentSheet( list );
+        parent->GetCurrentSheet().UpdateAllScreenReferences();
         parent->SetSheetNumberAndCount();
-        screen = parent->m_CurrentSheet->LastScreen();
+        screen = parent->GetCurrentSheet().LastScreen();
     }
     else
     {
@@ -252,8 +295,8 @@ bool SCH_PRINTOUT::OnPrintPage( int page )
         return false;
 
     DrawPage( screen );
-    parent->m_CurrentSheet = oldsheetpath;
-    parent->m_CurrentSheet->UpdateAllScreenReferences();
+    parent->SetCurrentSheet( oldsheetpath );
+    parent->GetCurrentSheet().UpdateAllScreenReferences();
     parent->SetSheetNumberAndCount();
 
     return true;
@@ -310,57 +353,42 @@ void SCH_PRINTOUT::DrawPage( SCH_SCREEN* aScreen )
 {
     int      oldZoom;
     wxPoint  tmp_startvisu;
-    wxSize   SheetSize;      // Page size in internal units
+    wxSize   pageSizeIU;             // Page size in internal units
     wxPoint  old_org;
     EDA_RECT oldClipBox;
     wxRect   fitRect;
     wxDC*    dc = GetDC();
     SCH_EDIT_FRAME* parent = m_Parent->GetParent();
-    EDA_DRAW_PANEL* panel = parent->DrawPanel;
+    EDA_DRAW_PANEL* panel = parent->GetCanvas();
 
     wxBusyCursor dummy;
 
-    /* Save current scale factor, offsets, and clip box. */
+    // Save current scale factor, offsets, and clip box.
     tmp_startvisu = aScreen->m_StartVisu;
     oldZoom = aScreen->GetZoom();
     old_org = aScreen->m_DrawOrg;
-    oldClipBox = panel->m_ClipBox;
 
-    /* Change scale factor, offsets, and clip box to print the whole page. */
-    panel->m_ClipBox.SetOrigin( wxPoint( 0, 0 ) );
-    panel->m_ClipBox.SetSize( wxSize( 0x7FFFFF0, 0x7FFFFF0 ) );
+    oldClipBox = *panel->GetClipBox();
 
+    // Change clip box to print the whole page.
+    #define MAX_VALUE (INT_MAX/2)   // MAX_VALUE is the max we can use in an integer
+                                    // and that allows calculations without overflow
+    panel->SetClipBox( EDA_RECT( wxPoint( 0, 0 ), wxSize( MAX_VALUE, MAX_VALUE ) ) );
+
+    // Change scale factor and offset to print the whole page.
     bool printReference = parent->GetPrintSheetReference();
 
-    if( printReference )
-    {
-        /* Draw the page to a memory and let the dc calculate the drawing
-         * limits.
-         */
-        wxBitmap psuedoBitmap( 1, 1 );
-        wxMemoryDC memDC;
-        memDC.SelectObject( psuedoBitmap );
-        aScreen->Draw( panel, &memDC, GR_DEFAULT_DRAWMODE );
-        parent->TraceWorkSheet( &memDC, aScreen, g_DrawDefaultLineThickness );
-
-        wxLogDebug( wxT( "MinX = %d, MaxX = %d, MinY = %d, MaxY = %d" ),
-                    memDC.MinX(), memDC.MaxX(), memDC.MinY(), memDC.MaxY() );
-
-        SheetSize.x = memDC.MaxX() - memDC.MinX();
-        SheetSize.y = memDC.MaxY() - memDC.MinY();
-
-        FitThisSizeToPageMargins( SheetSize, parent->GetPageSetupData() );
-        fitRect = GetLogicalPageMarginsRect( parent->GetPageSetupData() );
-    }
-    else
-    {
-        SheetSize = aScreen->m_CurrentSheetDesc->m_Size;
-        FitThisSizeToPaper( SheetSize );
-        fitRect = GetLogicalPaperRect();
-    }
+    pageSizeIU = aScreen->GetPageSettings().GetSizeIU();
+    FitThisSizeToPaper( pageSizeIU );
+    fitRect = GetLogicalPaperRect();
 
     wxLogDebug( wxT( "Fit rectangle: %d, %d, %d, %d" ),
                 fitRect.x, fitRect.y, fitRect.width, fitRect.height );
+
+    int xoffset = ( fitRect.width - pageSizeIU.x ) / 2;
+    int yoffset = ( fitRect.height - pageSizeIU.y ) / 2;
+
+    OffsetLogicalOrigin( xoffset, yoffset );
 
     GRResetPenAndBrush( dc );
 
@@ -369,16 +397,17 @@ void SCH_PRINTOUT::DrawPage( SCH_SCREEN* aScreen )
 
     aScreen->m_IsPrinting = true;
 
-    int bg_color = g_DrawBgColor;
+    EDA_COLOR_T bg_color = g_DrawBgColor;
 
     aScreen->Draw( panel, dc, GR_DEFAULT_DRAWMODE );
 
     if( printReference )
-        parent->TraceWorkSheet( dc, aScreen, g_DrawDefaultLineThickness );
+        parent->TraceWorkSheet( dc, aScreen, GetDefaultLineThickness(),
+                IU_PER_MILS, aScreen->GetFileName() );
 
     g_DrawBgColor = bg_color;
     aScreen->m_IsPrinting = false;
-    panel->m_ClipBox = oldClipBox;
+    panel->SetClipBox( oldClipBox );
 
     GRForceBlackPen( false );
 

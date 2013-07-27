@@ -1,9 +1,8 @@
 /*
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
- * Copyright (C) 2004 Jean-Pierre Charras, jaen-pierre.charras@gipsa-lab.inpg.com
- * Copyright (C) 2008-2011 Wayne Stambaugh <stambaughw@verizon.net>
- * Copyright (C) 2004-2011 KiCad Developers, see change_log.txt for contributors.
+ * Copyright (C) 2012 Jean-Pierre Charras, jp.charras at wanadoo.fr
+ * Copyright (C) 2004-2012 KiCad Developers, see change_log.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -27,23 +26,25 @@
  * @file lib_field.cpp
  */
 
-#include "fctsys.h"
-#include "appl_wxstruct.h"
-#include "gr_basic.h"
-#include "macros.h"
-#include "base_struct.h"
-#include "drawtxt.h"
-#include "kicad_string.h"
-#include "class_drawpanel.h"
-#include "plot_common.h"
-#include "trigo.h"
+#include <fctsys.h>
+#include <appl_wxstruct.h>
+#include <gr_basic.h>
+#include <macros.h>
+#include <base_struct.h>
+#include <drawtxt.h>
+#include <kicad_string.h>
+#include <class_drawpanel.h>
+#include <plot_common.h>
+#include <trigo.h>
+#include <base_units.h>
+#include <msgpanel.h>
 
-#include "general.h"
-#include "protos.h"
-#include "class_libentry.h"
-#include "transform.h"
-#include "lib_field.h"
-#include "template_fieldnames.h"
+#include <general.h>
+#include <protos.h>
+#include <class_libentry.h>
+#include <transform.h>
+#include <lib_field.h>
+#include <template_fieldnames.h>
 
 
 LIB_FIELD::LIB_FIELD(LIB_COMPONENT * aParent, int idfield ) :
@@ -56,23 +57,6 @@ LIB_FIELD::LIB_FIELD(LIB_COMPONENT * aParent, int idfield ) :
 LIB_FIELD::LIB_FIELD( int idfield ) : LIB_ITEM( LIB_FIELD_T, NULL )
 {
     Init( idfield );
-}
-
-
-LIB_FIELD::LIB_FIELD( const LIB_FIELD& field ) : LIB_ITEM( field )
-{
-    m_id        = field.m_id;
-    m_Pos       = field.m_Pos;
-    m_Size      = field.m_Size;
-    m_Thickness = field.m_Thickness;
-    m_Orient    = field.m_Orient;
-    m_Attributs = field.m_Attributs;
-    m_Text      = field.m_Text;
-    m_name      = field.m_name;
-    m_HJustify  = field.m_HJustify;
-    m_VJustify  = field.m_VJustify;
-    m_Italic    = field.m_Italic;
-    m_Bold      = field.m_Bold;
 }
 
 
@@ -272,12 +256,13 @@ bool LIB_FIELD::Load( LINE_READER& aLineReader, wxString& errorMsg )
 
 int LIB_FIELD::GetPenSize() const
 {
-    return ( m_Thickness == 0 ) ? g_DrawDefaultLineThickness : m_Thickness;
+    return ( m_Thickness == 0 ) ? GetDefaultLineThickness() : m_Thickness;
 }
 
 
 void LIB_FIELD::drawGraphic( EDA_DRAW_PANEL* aPanel, wxDC* aDC, const wxPoint& aOffset,
-                             int aColor, int aDrawMode, void* aData, const TRANSFORM& aTransform )
+                             EDA_COLOR_T aColor, GR_DRAWMODE aDrawMode, void* aData,
+                             const TRANSFORM& aTransform )
 {
     wxPoint  text_pos;
     int      color;
@@ -290,11 +275,11 @@ void LIB_FIELD::drawGraphic( EDA_DRAW_PANEL* aPanel, wxDC* aDC, const wxPoint& a
 
     if( ( m_Attributs & TEXT_NO_VISIBLE ) && ( aColor < 0 ) )
     {
-        color = g_InvisibleItemColor;
+        color = GetInvisibleItemColor();
     }
-    else if( ( m_Selected & IS_SELECTED ) && ( aColor < 0 ) )
+    else if( IsSelected() && ( aColor < 0 ) )
     {
-        color = g_ItemSelectetColor;
+        color = GetItemSelectedColor();
     }
     else
     {
@@ -314,7 +299,7 @@ void LIB_FIELD::drawGraphic( EDA_DRAW_PANEL* aPanel, wxDC* aDC, const wxPoint& a
         text = m_Text;
 
     GRSetDrawMode( aDC, aDrawMode );
-    DrawGraphicText( aPanel, aDC, text_pos, (EDA_Colors) color, text, m_Orient, m_Size,
+    DrawGraphicText( aPanel, aDC, text_pos, (EDA_COLOR_T) color, text, m_Orient, m_Size,
                      m_HJustify, m_VJustify, linewidth, m_Italic, m_Bold );
 
     /* Set to one (1) to draw bounding box around field text to validate
@@ -325,7 +310,7 @@ void LIB_FIELD::drawGraphic( EDA_DRAW_PANEL* aPanel, wxDC* aDC, const wxPoint& a
     grBox.SetOrigin( aTransform.TransformCoordinate( bBox.GetOrigin() ) );
     grBox.SetEnd( aTransform.TransformCoordinate( bBox.GetEnd() ) );
     grBox.Move( aOffset );
-    GRRect( &aPanel->m_ClipBox, aDC, grBox, 0, LIGHTMAGENTA );
+    GRRect( aPanel->GetClipBox(), aDC, grBox, 0, LIGHTMAGENTA );
 #endif
 }
 
@@ -387,7 +372,7 @@ bool LIB_FIELD::HitTest( wxPoint aPosition, int aThreshold, const TRANSFORM& aTr
 }
 
 
-EDA_ITEM* LIB_FIELD::doClone() const
+EDA_ITEM* LIB_FIELD::Clone() const
 {
     LIB_FIELD* newfield = new LIB_FIELD( m_id );
 
@@ -414,7 +399,7 @@ void LIB_FIELD::Copy( LIB_FIELD* aTarget ) const
 }
 
 
-int LIB_FIELD::DoCompare( const LIB_ITEM& other ) const
+int LIB_FIELD::compare( const LIB_ITEM& other ) const
 {
     wxASSERT( other.Type() == LIB_FIELD_T );
 
@@ -444,13 +429,13 @@ int LIB_FIELD::DoCompare( const LIB_ITEM& other ) const
 }
 
 
-void LIB_FIELD::DoOffset( const wxPoint& offset )
+void LIB_FIELD::SetOffset( const wxPoint& aOffset )
 {
-    m_Pos += offset;
+    m_Pos += aOffset;
 }
 
 
-bool LIB_FIELD::DoTestInside( EDA_RECT& rect ) const
+bool LIB_FIELD::Inside( EDA_RECT& rect ) const
 {
     /*
      * FIXME: This fails to take into account the size and/or orientation of
@@ -460,27 +445,27 @@ bool LIB_FIELD::DoTestInside( EDA_RECT& rect ) const
 }
 
 
-void LIB_FIELD::DoMove( const wxPoint& newPosition )
+void LIB_FIELD::Move( const wxPoint& newPosition )
 {
     m_Pos = newPosition;
 }
 
 
-void LIB_FIELD::DoMirrorHorizontal( const wxPoint& center )
+void LIB_FIELD::MirrorHorizontal( const wxPoint& center )
 {
     m_Pos.x -= center.x;
     m_Pos.x *= -1;
     m_Pos.x += center.x;
 }
 
-void LIB_FIELD::DoMirrorVertical( const wxPoint& center )
+void LIB_FIELD::MirrorVertical( const wxPoint& center )
 {
     m_Pos.y -= center.y;
     m_Pos.y *= -1;
     m_Pos.y += center.y;
 }
 
-void LIB_FIELD::DoRotate( const wxPoint& center, bool aRotateCCW )
+void LIB_FIELD::Rotate( const wxPoint& center, bool aRotateCCW )
 {
     int rot_angle = aRotateCCW ? -900 : 900;
     RotatePoint( &m_Pos, center, rot_angle );
@@ -488,8 +473,8 @@ void LIB_FIELD::DoRotate( const wxPoint& center, bool aRotateCCW )
 }
 
 
-void LIB_FIELD::DoPlot( PLOTTER* plotter, const wxPoint& offset, bool fill,
-                        const TRANSFORM& aTransform )
+void LIB_FIELD::Plot( PLOTTER* plotter, const wxPoint& offset, bool fill,
+                      const TRANSFORM& aTransform )
 {
 }
 
@@ -531,9 +516,9 @@ EDA_RECT LIB_FIELD::GetBoundingBox() const
 }
 
 
-int LIB_FIELD::GetDefaultColor()
+EDA_COLOR_T LIB_FIELD::GetDefaultColor()
 {
-    int color;
+    EDA_COLOR_T color;
 
     switch( m_id )
     {
@@ -739,26 +724,26 @@ void LIB_FIELD::calcEdit( const wxPoint& aPosition )
     }
 }
 
-void LIB_FIELD::DisplayInfo( EDA_DRAW_FRAME* aFrame )
+void LIB_FIELD::GetMsgPanelInfo( MSG_PANEL_ITEMS& aList )
 {
     wxString msg;
 
-    LIB_ITEM::DisplayInfo( aFrame );
+    LIB_ITEM::GetMsgPanelInfo( aList );
 
     // Display style:
     msg = GetTextStyleName();
-    aFrame->AppendMsgPanel( _( "Style" ), msg, MAGENTA );
+    aList.push_back( MSG_PANEL_ITEM( _( "Style" ), msg, MAGENTA ) );
 
-    msg = ReturnStringFromValue( g_UserUnit, m_Size.x, EESCHEMA_INTERNAL_UNIT, true );
-    aFrame->AppendMsgPanel( _( "Size X" ), msg, BLUE );
+    msg = ReturnStringFromValue( g_UserUnit, m_Size.x, true );
+    aList.push_back( MSG_PANEL_ITEM( _( "Size X" ), msg, BLUE ) );
 
-    msg = ReturnStringFromValue( g_UserUnit, m_Size.y, EESCHEMA_INTERNAL_UNIT, true );
-    aFrame->AppendMsgPanel( _( "Size Y" ), msg, BLUE );
+    msg = ReturnStringFromValue( g_UserUnit, m_Size.y, true );
+    aList.push_back( MSG_PANEL_ITEM( _( "Size Y" ), msg, BLUE ) );
 
     // Display field name (ref, value ...)
     msg = GetName();
-    aFrame->AppendMsgPanel( _( "Field" ), msg, BROWN );
+    aList.push_back( MSG_PANEL_ITEM( _( "Field" ), msg, BROWN ) );
 
     // Display field text:
-    aFrame->AppendMsgPanel( _( "Value" ), m_Text, BROWN );
+    aList.push_back( MSG_PANEL_ITEM( _( "Value" ), m_Text, BROWN ) );
 }

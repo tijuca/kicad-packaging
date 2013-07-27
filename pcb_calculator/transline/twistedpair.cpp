@@ -25,11 +25,11 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
-#include <math.h>
+#include <cmath>
 
-#include "units.h"
-#include "transline.h"
-#include "twistedpair.h"
+#include <units.h>
+#include <transline.h>
+#include <twistedpair.h>
 
 TWISTEDPAIR::TWISTEDPAIR() : TRANSLINE()
 {

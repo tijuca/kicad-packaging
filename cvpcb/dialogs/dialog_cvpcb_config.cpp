@@ -1,24 +1,46 @@
-/////////////////////////////////////////////////////////////////////////////
-// Name:        dialog_cvpcb_config.cpp
-// Author:      jean-pierre Charras
-// Licence:     gpl
-/////////////////////////////////////////////////////////////////////////////
+/**
+ * @file dialog_cvpcb_config.cpp
+ */
 
-#include "fctsys.h"
+/*
+ * This program source code file is part of KiCad, a free EDA CAD application.
+ *
+ * Copyright (C) 2012 Jean-Pierre Charras, jaen-pierre.charras@gipsa-lab.inpg.com
+ * Copyright (C) 2012 Wayne Stambaugh <stambaughw@verizon.net>
+ * Copyright (C) 1992-2012 KiCad Developers, see AUTHORS.txt for contributors.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation; either version 2
+ * of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, you may find one here:
+ * http://www.gnu.org/licenses/old-licenses/gpl-2.0.html
+ * or you may search the http://www.gnu.org website for the version 2 license,
+ * or you may write to the Free Software Foundation, Inc.,
+ * 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
+ */
+
+#include <fctsys.h>
 #include <wx/tokenzr.h>
-#include "appl_wxstruct.h"
-#include "common.h"
-#include "confirm.h"
-#include "gestfich.h"
-#include "id.h"
-#include "macros.h"
+#include <appl_wxstruct.h>
+#include <common.h>
+#include <confirm.h>
+#include <gestfich.h>
+#include <id.h>
+#include <macros.h>
 
-#include "cvpcb.h"
-#include "cvpcb_mainframe.h"
+#include <cvpcb.h>
+#include <cvpcb_mainframe.h>
 
-#include "protos.h"
-
-#include "dialog_cvpcb_config.h"
+#include <dialog_cvpcb_config.h>
+#include <wildcards_and_files_ext.h>
 
 
 DIALOG_CVPCB_CONFIG::DIALOG_CVPCB_CONFIG( CVPCB_MAINFRAME* parent ) :
@@ -29,7 +51,7 @@ DIALOG_CVPCB_CONFIG::DIALOG_CVPCB_CONFIG( CVPCB_MAINFRAME* parent ) :
     fn.SetExt( ProjectFileExtension );
 
     m_Parent   = parent;
-    m_Config = wxGetApp().m_EDA_CommonConfig;
+    m_Config = wxGetApp().GetCommonSettings();
 
     Init( );
     title = _( "Project file: " ) + fn.GetFullPath();
@@ -186,7 +208,7 @@ void DIALOG_CVPCB_CONFIG::OnButtonUpClick( wxCommandEvent& event )
         list->SetSelection( jj-1 );
     }
 
-    m_LibListChanged = TRUE;
+    m_LibListChanged = true;
 }
 
 
@@ -229,7 +251,7 @@ void DIALOG_CVPCB_CONFIG::OnButtonDownClick( wxCommandEvent& event )
         list->SetSelection(jj+1);
     }
 
-    m_LibListChanged = TRUE;
+    m_LibListChanged = true;
 }
 
 
@@ -250,7 +272,7 @@ void DIALOG_CVPCB_CONFIG::OnRemoveLibClick( wxCommandEvent& event )
     for( int ii = selections.GetCount()-1; ii >= 0; ii-- )
     {
         list->Delete(selections[ii] );
-        m_LibListChanged = TRUE;
+        m_LibListChanged = true;
     }
 }
 
@@ -277,7 +299,7 @@ void DIALOG_CVPCB_CONFIG::OnAddOrInsertLibClick( wxCommandEvent& event )
     if( (event.GetId() == ID_ADD_LIB) || (event.GetId() == ID_INSERT_LIB) )
     {
         list = m_ListLibr;
-        wildcard = ModuleFileWildcard;
+        wildcard = LegacyFootprintLibPathWildcard;
     }
 
     wxArrayInt selections;
@@ -330,7 +352,7 @@ void DIALOG_CVPCB_CONFIG::OnAddOrInsertLibClick( wxCommandEvent& event )
         // Add or insert new library name, if not already in list
         if( list->FindString( libfilename, fn.IsCaseSensitive() ) == wxNOT_FOUND )
         {
-            m_LibListChanged = TRUE;
+            m_LibListChanged = true;
 
             if( ! insert )
                 list->Append( libfilename );

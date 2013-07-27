@@ -5,18 +5,27 @@
 #ifndef  PCB_CALCULATOR_H
 #define  PCB_CALCULATOR_H
 
-#include "pcb_calculator_frame_base.h"
+#include <pcb_calculator_frame_base.h>
 
-#include "transline.h"          // Included for SUBST_PRMS_ID definition.
-#include "transline_ident.h"
-#include "attenuator_classes.h"
+#include <transline.h>          // Included for SUBST_PRMS_ID definition.
+#include <transline_ident.h>
+#include <attenuator_classes.h>
+#include <class_regulator_data.h>
+
+extern const wxString PcbCalcDataFileExt;
 
 /* Class PCB_CALCULATOR_FRAME_BASE
 This is the main frame for this application
 */
 class PCB_CALCULATOR_FRAME : public PCB_CALCULATOR_FRAME_BASE
 {
+public:
+    REGULATOR_LIST m_RegulatorList;      // the list of known regulator
+
 private:
+    bool m_RegulatorListChanged;        // set to true when m_RegulatorList
+                                        // was modified, and the corresponging file
+                                        // must be rewritten
     wxSize m_FrameSize;
     wxPoint m_FramePos;
     wxConfig * m_Config;
@@ -27,6 +36,7 @@ private:
     ATTENUATOR * m_currAttenuator;
     // List ofattenuators: ordered like in dialog menu list
     std::vector <ATTENUATOR *> m_attenuator_list;
+    wxString m_lastSelectedRegulatorName;   // last regulator name selected
 
 
 public:
@@ -36,15 +46,33 @@ public:
 private:
 
     // Event handlers
+	void OnClosePcbCalc( wxCloseEvent& event );
+
     // These 3 functions are called by the OnPaint event, to draw
     // icons that show the current item on the specific panels
-	void OnPaintTranslinePanel( wxPaintEvent& event );
-	void OnPaintAttenuatorPanel( wxPaintEvent& event );
-	void OnPaintAttFormulaPanel( wxPaintEvent& event );
+    void OnPaintTranslinePanel( wxPaintEvent& event );
+    void OnPaintAttenuatorPanel( wxPaintEvent& event );
+    void OnPaintAttFormulaPanel( wxPaintEvent& event );
 
     // Config read-write
     void ReadConfig();
     void WriteConfig();
+
+    // R/W data files:
+    bool ReadDataFile();
+    bool WriteDataFile();
+
+    /**
+     * @return the full filename of the selected pcb_calculator data file
+     */
+    const wxString GetDataFilename();
+
+    /**
+     * Initialize the full filename of the selected pcb_calculator data file
+     * force the standard extension of the file (.pcbcalc)
+     * @param aFilename = the full filename, with or without extension
+     */
+    void SetDataFilename( const wxString & aFilename);
 
     // tracks width versus current functions:
     /**
@@ -82,42 +110,42 @@ private:
      * Function OnTranslineSelection
      * Called on new transmission line selection
     */
-	void OnTranslineSelection( wxCommandEvent& event );
+    void OnTranslineSelection( wxCommandEvent& event );
 
     /**
      * Function OnTranslineAnalyse
      * Run a new analyse for the current transline with current parameters
      * and displays the electrical parmeters
      */
-	void OnTranslineAnalyse( wxCommandEvent& event );
+    void OnTranslineAnalyse( wxCommandEvent& event );
 
     /**
      * Function OnTranslineSynthetize
      * Run a new synthezis for the current transline with current parameters
      * and displays the geometrical parmeters
      */
-	void OnTranslineSynthetize( wxCommandEvent& event );
+    void OnTranslineSynthetize( wxCommandEvent& event );
 
     /**
      * Function OnTranslineEpsilonR_Button
      * Shows a list of current relative dielectric constant(Er)
      * and set the selected value in main dialog frame
      */
-	void OnTranslineEpsilonR_Button( wxCommandEvent& event );
+    void OnTranslineEpsilonR_Button( wxCommandEvent& event );
 
     /**
      * Function OnTranslineTanD_Button
      * Shows a list of current dielectric loss factor (tangent delta)
      * and set the selected value in main dialog frame
      */
-	void OnTranslineTanD_Button( wxCommandEvent& event );
+    void OnTranslineTanD_Button( wxCommandEvent& event );
 
     /**
      * Function OnTranslineRho_Button
      * Shows a list of current Specific resistance list (rho)
      * and set the selected value in main dialog frame
      */
-	void OnTranslineRho_Button( wxCommandEvent& event );
+    void OnTranslineRho_Button( wxCommandEvent& event );
 
     /**
      * Function TranslineTypeSelection
@@ -127,7 +155,7 @@ private:
      * Irrelevant parameters texts are blanked.
      * @param aType = the transline_type_id of the new selected transline
     */
-	void TranslineTypeSelection( enum transline_type_id aType );
+    void TranslineTypeSelection( enum transline_type_id aType );
 
     /**
      * Function TransfDlgDataToTranslineParams
@@ -149,7 +177,31 @@ private:
     void TransfAttenuatorResultsToPanel();
 
     // Regulators Panel
-	void OnRegulatorCalcButtonClick( wxCommandEvent& event );
+    void OnRegulatorCalcButtonClick( wxCommandEvent& event );
+	void OnRegulTypeSelection( wxCommandEvent& event );
+	void OnRegulatorSelection( wxCommandEvent& event );
+	void OnDataFileSelection( wxCommandEvent& event );
+	void OnAddRegulator( wxCommandEvent& event );
+	void OnEditRegulator( wxCommandEvent& event );
+	void OnRemoveRegulator( wxCommandEvent& event );
+
+    /**
+     * Function RegulatorPageUpdate:
+     * Update the regulator page dialog display:
+     * enable the current regulator drawings and the formula used for calculations
+     */
+    void RegulatorPageUpdate();
+
+    /**
+     * Function SelectLastSelectedRegulator
+     * select in choice box the last selected regulator
+     * (name in m_lastSelectedRegulatorName)
+     * and update the displayed values.
+     * if m_lastSelectedRegulatorName is empty, just calls
+     * RegulatorPageUpdate()
+     */
+    void SelectLastSelectedRegulator();
+
     void RegulatorsSolve();
 
 public:
@@ -191,5 +243,8 @@ public:
     void BoardClassesUpdateData( double aUnitScale );
 
 };
+
+
+extern const wxString DataFileNameExt;
 
 #endif  // PCB_CALCULATOR_H

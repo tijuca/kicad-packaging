@@ -3,16 +3,17 @@
  * @brief Functions to handle reading component library files.
  */
 
-#include "fctsys.h"
-#include "confirm.h"
-#include "macros.h"
-#include "appl_wxstruct.h"
-#include "wxEeschemaStruct.h"
+#include <fctsys.h>
+#include <confirm.h>
+#include <macros.h>
+#include <appl_wxstruct.h>
+#include <wxEeschemaStruct.h>
 
-#include "general.h"
-#include "class_library.h"
+#include <general.h>
+#include <class_library.h>
+#include <wildcards_and_files_ext.h>
 
-#include "html_messagebox.h"
+#include <html_messagebox.h>
 
 
 void SCH_EDIT_FRAME::LoadLibraries( void )
@@ -34,18 +35,18 @@ void SCH_EDIT_FRAME::LoadLibraries( void )
             continue;
         }
 
-        if( m_ComponentLibFiles.Index( i->GetName(), false ) == wxNOT_FOUND )
+        if( m_componentLibFiles.Index( i->GetName(), false ) == wxNOT_FOUND )
             i = CMP_LIBRARY::GetLibraryList().erase( i );
         else
             i++;
     }
 
     /* Load missing libraries. */
-    for( ii = 0; ii < m_ComponentLibFiles.GetCount(); ii++ )
+    for( ii = 0; ii < m_componentLibFiles.GetCount(); ii++ )
     {
         fn.Clear();
-        fn.SetName( m_ComponentLibFiles[ii] );
-        fn.SetExt( CompLibFileExtension );
+        fn.SetName( m_componentLibFiles[ii] );
+        fn.SetExt( SchematicLibraryFileExtension );
 
         /* Skip if the file name is not valid.. */
         if( !fn.IsOk() )

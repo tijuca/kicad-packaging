@@ -1,9 +1,9 @@
 /*
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
- * Copyright (C) 2004 Jean-Pierre Charras, jaen-pierre.charras@gipsa-lab.inpg.com
+ * Copyright (C) 2012 Jean-Pierre Charras, jp.charras at wanadoo.fr
  * Copyright (C) 2008-2011 Wayne Stambaugh <stambaughw@verizon.net>
- * Copyright (C) 2004-2011 KiCad Developers, see change_log.txt for contributors.
+ * Copyright (C) 2004-2012 KiCad Developers, see change_log.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -27,21 +27,21 @@
  * @file eeschema/hotkeys.cpp
  */
 
-#include "fctsys.h"
-#include "eeschema_id.h"
-#include "hotkeys.h"
-#include "wxEeschemaStruct.h"
+#include <fctsys.h>
+#include <eeschema_id.h>
+#include <hotkeys.h>
+#include <wxEeschemaStruct.h>
 
-#include "general.h"
-#include "protos.h"
-#include "libeditframe.h"
-#include "class_libentry.h"
-#include "sch_junction.h"
-#include "sch_line.h"
-#include "sch_component.h"
-#include "sch_sheet.h"
+#include <general.h>
+#include <protos.h>
+#include <libeditframe.h>
+#include <class_libentry.h>
+#include <sch_junction.h>
+#include <sch_line.h>
+#include <sch_component.h>
+#include <sch_sheet.h>
 
-#include "dialogs/dialog_schematic_find.h"
+#include <dialogs/dialog_schematic_find.h>
 
 
 /* How to add a new hotkey:
@@ -130,14 +130,17 @@ static EDA_HOTKEY HkRedo( wxT( "Redo" ), HK_REDO, GR_KB_SHIFT + GR_KB_CTRL + 'Z'
 #endif
 
 // Schematic editor
+static EDA_HOTKEY HkBeginWire( wxT( "Begin Wire" ), HK_BEGIN_WIRE, 'W', ID_WIRE_BUTT );
+static EDA_HOTKEY HkBeginBus( wxT( "Begin Bus" ), HK_BEGIN_BUS, 'B', ID_BUS_BUTT );
+static EDA_HOTKEY HkEndLineWireBus( wxT( "End Line Wire Bus" ), HK_END_CURR_LINEWIREBUS, 'K',
+                                  ID_POPUP_END_LINE );
+
 static EDA_HOTKEY HkAddLabel( wxT( "Add Label" ), HK_ADD_LABEL, 'L', ID_LABEL_BUTT );
 static EDA_HOTKEY HkAddHierarchicalLabel( wxT( "Add Hierarchical Label" ), HK_ADD_HLABEL, 'H',
                                           ID_HIERLABEL_BUTT );
 static EDA_HOTKEY HkAddGlobalLabel( wxT( "Add Global Label" ), HK_ADD_GLABEL, GR_KB_CTRL + 'L',
                                     ID_GLABEL_BUTT );
 static EDA_HOTKEY HkAddJunction( wxT( "Add Junction" ), HK_ADD_JUNCTION, 'J', ID_JUNCTION_BUTT );
-static EDA_HOTKEY HkBeginWire( wxT( "Draw Wire" ), HK_BEGIN_WIRE, 'W', ID_WIRE_BUTT );
-static EDA_HOTKEY HkBeginBus( wxT( "Draw Bus" ), HK_BEGIN_BUS, 'B', ID_BUS_BUTT );
 static EDA_HOTKEY HkAddComponent( wxT( "Add Component" ), HK_ADD_NEW_COMPONENT, 'A',
                                   ID_SCH_PLACE_COMPONENT );
 static EDA_HOTKEY HkAddPower( wxT( "Add Power" ), HK_ADD_NEW_POWER, 'P',
@@ -165,6 +168,9 @@ static EDA_HOTKEY HkEdit( wxT( "Edit Schematic Item" ), HK_EDIT, 'E', ID_SCH_EDI
 static EDA_HOTKEY HkEditComponentValue( wxT( "Edit Component Value" ),
                                         HK_EDIT_COMPONENT_VALUE, 'V',
                                         ID_SCH_EDIT_COMPONENT_VALUE );
+static EDA_HOTKEY HkEditComponentReference( wxT( "Edit Component Reference" ),
+                                        HK_EDIT_COMPONENT_REFERENCE, 'U',
+                                        ID_SCH_EDIT_COMPONENT_REFERENCE );
 static EDA_HOTKEY HkEditComponentFootprint( wxT( "Edit Component Footprint" ),
                                             HK_EDIT_COMPONENT_FOOTPRINT, 'F',
                                             ID_SCH_EDIT_COMPONENT_FOOTPRINT );
@@ -177,6 +183,7 @@ static EDA_HOTKEY HkCopyComponentOrText( wxT( "Copy Component or Label" ),
                                          ID_POPUP_SCH_COPY_ITEM );
 
 static EDA_HOTKEY HkDrag( wxT( "Drag Schematic Item" ), HK_DRAG, 'G', ID_SCH_DRAG_ITEM );
+static EDA_HOTKEY HkSaveBlock( wxT( "Save Block" ), HK_SAVE_BLOCK, 'C' + GR_KB_CTRL );
 static EDA_HOTKEY HkMove2Drag( wxT( "Move Block -> Drag Block" ),
                                HK_MOVEBLOCK_TO_DRAGBLOCK, '\t' );
 static EDA_HOTKEY HkInsert( wxT( "Repeat Last Item" ), HK_REPEAT_LAST, WXK_INSERT );
@@ -193,6 +200,10 @@ static EDA_HOTKEY HkCreatePin( wxT( "Create Pin" ), HK_LIBEDIT_CREATE_PIN, 'P' )
 static EDA_HOTKEY HkInsertPin( wxT( "Repeat Pin" ), HK_REPEAT_LAST, WXK_INSERT );
 static EDA_HOTKEY HkMoveLibItem( wxT( "Move Library Item" ), HK_LIBEDIT_MOVE_GRAPHIC_ITEM, 'M' );
 
+// Load/save files
+static EDA_HOTKEY HkSaveLib( wxT( "Save Lib" ), HK_SAVE_LIB, 'S' + GR_KB_CTRL );
+static EDA_HOTKEY HkSaveSchematic( wxT( "Save Schematic" ), HK_SAVE_SCH, 'S' + GR_KB_CTRL );
+static EDA_HOTKEY HkLoadSchematic( wxT( "Load Schematic" ), HK_LOAD_SCH, 'L' + GR_KB_CTRL );
 
 // List of common hotkey descriptors
 EDA_HOTKEY* s_Common_Hotkey_List[] =
@@ -212,12 +223,15 @@ EDA_HOTKEY* s_Common_Hotkey_List[] =
 // List of hotkey descriptors for schematic
 EDA_HOTKEY* s_Schematic_Hotkey_List[] =
 {
+    &HkSaveSchematic,
+    &HkLoadSchematic,
     &HkFindItem,
     &HkFindNextItem,
     &HkFindNextDrcMarker,
     &HkDelete,
     &HkInsert,
     &HkMove2Drag,
+    &HkSaveBlock,
     &HkMove,
     &HkCopyComponentOrText,
     &HkDrag,
@@ -229,9 +243,11 @@ EDA_HOTKEY* s_Schematic_Hotkey_List[] =
     &HkOrientNormalComponent,
     &HkEdit,
     &HkEditComponentValue,
+    &HkEditComponentReference,
     &HkEditComponentFootprint,
     &HkBeginWire,
     &HkBeginBus,
+    &HkEndLineWireBus,
     &HkAddLabel,
     &HkAddHierarchicalLabel,
     &HkAddGlobalLabel,
@@ -248,6 +264,7 @@ EDA_HOTKEY* s_Schematic_Hotkey_List[] =
 // List of hotkey descriptors for library editor
 EDA_HOTKEY* s_LibEdit_Hotkey_List[] =
 {
+    &HkSaveLib,
     &HkCreatePin,
     &HkInsertPin,
     &HkEdit,
@@ -312,9 +329,14 @@ void SCH_EDIT_FRAME::OnHotKey( wxDC* aDC, int aHotKey, const wxPoint& aPosition,
     // itemInEdit == false means no item currently edited. We can ask for editing a new item
     bool itemInEdit = screen->GetCurItem() && screen->GetCurItem()->GetFlags();
 
+    // blocInProgress == false means no block in progress.
+    // Because a drag command uses a drag block, false means also no drag in progress
+    // If false, we can ask for editing a new item
+    bool blocInProgress = screen->m_BlockLocate.GetState() != STATE_NO_BLOCK;
+
     // notBusy == true means no item currently edited and no other command in progress
     // We can change active tool and ask for editing a new item
-    bool notBusy = (!itemInEdit) && (screen->m_BlockLocate.m_State == STATE_NO_BLOCK);
+    bool notBusy = (!itemInEdit) && (!blocInProgress);
 
     /* Convert lower to upper case (the usual toupper function has problem
      * with non ascii codes like function keys */
@@ -357,16 +379,28 @@ void SCH_EDIT_FRAME::OnHotKey( wxDC* aDC, int aHotKey, const wxPoint& aPosition,
         HandleBlockEndByPopUp( BLOCK_DRAG, aDC );
         break;
 
+    case HK_SAVE_BLOCK:
+        HandleBlockEndByPopUp( BLOCK_SAVE, aDC );
+        break;
+
     case HK_DELETE:
         if( notBusy )
             DeleteItemAtCrossHair( aDC );
-
         break;
 
     case HK_REPEAT_LAST:
         if( notBusy && m_itemToRepeat && ( m_itemToRepeat->GetFlags() == 0 ) )
             RepeatDrawItem( aDC );
+        break;
 
+    case HK_END_CURR_LINEWIREBUS:
+        // this key terminates a new line/bus/wire in progress
+        if( aItem && aItem->IsNew() &&
+            aItem->Type() == SCH_LINE_T )
+        {
+            cmd.SetId( hotKey->m_IdMenuEvent );
+            GetEventHandler()->ProcessEvent( cmd );
+        }
         break;
 
     case HK_UNDO:
@@ -377,7 +411,6 @@ void SCH_EDIT_FRAME::OnHotKey( wxDC* aDC, int aHotKey, const wxPoint& aPosition,
             cmd.SetId( hotKey->m_IdMenuEvent );
             GetEventHandler()->ProcessEvent( cmd );
         }
-
         break;
 
     case HK_FIND_NEXT_ITEM:
@@ -390,7 +423,6 @@ void SCH_EDIT_FRAME::OnHotKey( wxDC* aDC, int aHotKey, const wxPoint& aPosition,
             event.SetFindString( m_findReplaceData->GetFindString() );
             GetEventHandler()->ProcessEvent( event );
         }
-
         break;
 
     case HK_ADD_NEW_COMPONENT:      // Add component
@@ -439,7 +471,6 @@ void SCH_EDIT_FRAME::OnHotKey( wxDC* aDC, int aHotKey, const wxPoint& aPosition,
                 OnLeftClick( aDC, aPosition );
             }
         }
-
         break;
 
     case HK_COPY_COMPONENT_OR_LABEL:        // Duplicate component or text/label
@@ -458,23 +489,39 @@ void SCH_EDIT_FRAME::OnHotKey( wxDC* aDC, int aHotKey, const wxPoint& aPosition,
         wxPostEvent( this, cmd );
         break;
 
+    case HK_DRAG:                           // Start drag
+    case HK_MOVE_COMPONENT_OR_ITEM:         // Start move schematic item.
+        if( ! notBusy )
+            break;
+
+        // Fall through
+    case HK_EDIT:
+        // Edit schematic item. Do not allow sheet edition when mowing
+        // Because a sheet edition can be complex.
+        if( itemInEdit && screen->GetCurItem()->Type() == SCH_SHEET_T )
+                break;
+
+        // Fall through
+    case HK_EDIT_COMPONENT_VALUE:           // Edit component value field.
+    case HK_EDIT_COMPONENT_REFERENCE:       // Edit component value reference.
+    case HK_EDIT_COMPONENT_FOOTPRINT:       // Edit component footprint field.
     case HK_MIRROR_Y_COMPONENT:             // Mirror Y
     case HK_MIRROR_X_COMPONENT:             // Mirror X
     case HK_ORIENT_NORMAL_COMPONENT:        // Orient 0, no mirror (Component)
-    case HK_DRAG:                           // Start drag
-    case HK_ROTATE:                         // Rotate schematic item or block.
-    case HK_MOVE_COMPONENT_OR_ITEM:         // Start move schematic item.
-    case HK_EDIT:                           // Edit schematic item.
-    case HK_EDIT_COMPONENT_VALUE:           // Edit component value field.
-    case HK_EDIT_COMPONENT_FOOTPRINT:       // Edit component footprint field.
-    {
-        EDA_HOTKEY_CLIENT_DATA data( aPosition );
-        cmd.SetInt( hotKey->m_Idcommand );
-        cmd.SetClientObject( &data );
-        cmd.SetId( hotKey->m_IdMenuEvent );
-        GetEventHandler()->ProcessEvent( cmd );
+    case HK_ROTATE:                         // Rotate schematic item.
+        {
+            // force a new item search on hot keys at current position,
+            // if there is no currently edited item,
+            // to avoid using a previously selected item
+            if( ! itemInEdit )
+                screen->SetCurItem( NULL );
+            EDA_HOTKEY_CLIENT_DATA data( aPosition );
+            cmd.SetInt( hotKey->m_Idcommand );
+            cmd.SetClientObject( &data );
+            cmd.SetId( hotKey->m_IdMenuEvent );
+            GetEventHandler()->ProcessEvent( cmd );
+        }
         break;
-    }
     }
 }
 
@@ -493,7 +540,7 @@ void LIB_EDIT_FRAME::OnHotKey( wxDC* aDC, int aHotKey, const wxPoint& aPosition,
 
     cmd.SetEventObject( this );
 
-    bool itemInEdit = m_drawItem && m_drawItem->GetFlags();
+    bool itemInEdit = m_drawItem && m_drawItem->InEditMode();
 
     /* Convert lower to upper case (the usual toupper function has problem
      * with non ascii codes like function keys */
@@ -548,10 +595,13 @@ void LIB_EDIT_FRAME::OnHotKey( wxDC* aDC, int aHotKey, const wxPoint& aPosition,
         break;
 
     case HK_REPEAT_LAST:
-        if( m_lastDrawItem && (m_lastDrawItem->GetFlags() == 0)
-            && ( m_lastDrawItem->Type() == LIB_PIN_T ) )
-            RepeatPinItem( aDC, (LIB_PIN*) m_lastDrawItem );
-         break;
+        if( ! itemInEdit )
+        {
+            if( m_lastDrawItem && !m_lastDrawItem->InEditMode() &&
+                ( m_lastDrawItem->Type() == LIB_PIN_T ) )
+                RepeatPinItem( aDC, (LIB_PIN*) m_lastDrawItem );
+        }
+        break;
 
     case HK_EDIT:
         if( ! itemInEdit )
@@ -598,8 +648,11 @@ void LIB_EDIT_FRAME::OnHotKey( wxDC* aDC, int aHotKey, const wxPoint& aPosition,
         break;
 
     case HK_LIBEDIT_CREATE_PIN:
-        SetToolID( ID_LIBEDIT_PIN_BUTT, wxCURSOR_PENCIL, _( "Add Pin" ) );
-        OnLeftClick( aDC, aPosition );
+        if( ! itemInEdit )
+        {
+            SetToolID( ID_LIBEDIT_PIN_BUTT, wxCURSOR_PENCIL, _( "Add Pin" ) );
+            OnLeftClick( aDC, aPosition );
+        }
         break;
 
     case HK_DELETE:
@@ -627,12 +680,15 @@ void LIB_EDIT_FRAME::OnHotKey( wxDC* aDC, int aHotKey, const wxPoint& aPosition,
         break;
 
     case HK_DRAG:
-        m_drawItem = LocateItemUsingCursor( aPosition );
-
-        if( m_drawItem && !m_drawItem->InEditMode() )
+        if( !itemInEdit )
         {
-            cmd.SetId( ID_POPUP_LIBEDIT_MODIFY_ITEM );
-            Process_Special_Functions( cmd );
+            m_drawItem = LocateItemUsingCursor( aPosition );
+
+            if( m_drawItem && !m_drawItem->InEditMode() )
+            {
+                cmd.SetId( ID_POPUP_LIBEDIT_MODIFY_ITEM );
+                Process_Special_Functions( cmd );
+            }
         }
         break;
     }

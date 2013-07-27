@@ -28,8 +28,8 @@
 /* class_pcb_layer_widget.h : header for the layers manager */
 /************************************************************/
 
-#ifndef _CLASS_PCB_LAYER_WIDGET_H_
-#define _CLASS_PCB_LAYER_WIDGET_H_
+#ifndef CLASS_PCB_LAYER_WIDGET_H_
+#define CLASS_PCB_LAYER_WIDGET_H_
 
 /**
  * Class PCB_LAYER_WIDGET
@@ -39,24 +39,6 @@
  */
 class PCB_LAYER_WIDGET : public LAYER_WIDGET
 {
-    PCB_EDIT_FRAME*    myframe;
-
-    // popup menu ids.
-#define ID_SHOW_ALL_COPPERS     wxID_HIGHEST
-#define ID_SHOW_NO_COPPERS      (wxID_HIGHEST+1)
-
-    /**
-     * Function OnRightDownLayers
-     * puts up a popup menu for the layer panel.
-     */
-    void onRightDownLayers( wxMouseEvent& event );
-
-    void onPopupSelection( wxCommandEvent& event );
-
-    /// this is for the popup menu, the right click handler has to be installed
-    /// on every child control within the layer panel.
-    void installRightLayerClickHandler();
-
 public:
 
     /**
@@ -73,23 +55,63 @@ public:
 
     /**
      * Function ReFillRender
-     * Rebuild Render for instance after the config is read
+     * rebuilds Render for instance after the config is read
      */
     void ReFillRender();
 
-    //-----<implement LAYER_WIDGET abstract callback functions>-----------
-    void OnLayerColorChange( int aLayer, int aColor );
-    bool OnLayerSelect( int aLayer );
-    void OnLayerVisible( int aLayer, bool isVisible, bool isFinal );
-    void OnRenderColorChange( int aId, int aColor );
-    void OnRenderEnable( int aId, bool isEnabled );
+    /**
+     * Function SyncRenderStates
+     * updates the checkboxes (checked or not) to be consistent with the current state
+     * of the visibility of the visible rendering elements.
+     */
+    void SyncRenderStates();
+
+    /**
+     * Function SyncLayerVisibilities
+     * updates each "Layer" checkbox in this layer widget according
+     * to each layer's current visibility determined by IsLayerVisible(), and is
+     * helpful immediately after loading a BOARD which may have state information in it.
+     */
+    void SyncLayerVisibilities();
+
     /**
      * Function SetLayersManagerTabsText
      * Update the layer manager tabs labels
      * Useful when changing Language or to set labels to a non default value
      */
-    void SetLayersManagerTabsText( );
+    void SetLayersManagerTabsText();
+
+    //-----<implement LAYER_WIDGET abstract callback functions>-----------
+    void OnLayerColorChange( int aLayer, EDA_COLOR_T aColor );
+    bool OnLayerSelect( int aLayer );
+    void OnLayerVisible( int aLayer, bool isVisible, bool isFinal );
+    void OnRenderColorChange( int aId, EDA_COLOR_T aColor );
+    void OnRenderEnable( int aId, bool isEnabled );
     //-----</implement LAYER_WIDGET abstract callback functions>----------
+
+
+protected:
+
+    static const LAYER_WIDGET::ROW  s_render_rows[];
+
+    PCB_EDIT_FRAME*    myframe;
+
+    // popup menu ids.
+#define ID_SHOW_ALL_COPPERS             wxID_HIGHEST
+#define ID_SHOW_NO_COPPERS              (wxID_HIGHEST+1)
+#define ID_SHOW_NO_COPPERS_BUT_ACTIVE   (wxID_HIGHEST+2)
+
+    /**
+     * Function OnRightDownLayers
+     * puts up a popup menu for the layer panel.
+     */
+    void onRightDownLayers( wxMouseEvent& event );
+
+    void onPopupSelection( wxCommandEvent& event );
+
+    /// this is for the popup menu, the right click handler has to be installed
+    /// on every child control within the layer panel.
+    void installRightLayerClickHandler();
 };
 
-#endif  // _CLASS_PCB_LAYER_WIDGET_H_
+#endif  // CLASS_PCB_LAYER_WIDGET_H_

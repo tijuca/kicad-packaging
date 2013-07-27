@@ -4,23 +4,24 @@
 
 #include <algorithm>
 
-#include "fctsys.h"
-#include "appl_wxstruct.h"
-#include "confirm.h"
-#include "class_drawpanel.h"
-#include "wxEeschemaStruct.h"
-#include "id.h"
+#include <fctsys.h>
+#include <appl_wxstruct.h>
+#include <confirm.h>
+#include <class_drawpanel.h>
+#include <wxEeschemaStruct.h>
+#include <id.h>
+#include <base_units.h>
 
-#include "general.h"
-#include "protos.h"
-#include "libeditframe.h"
-#include "class_library.h"
-#include "sch_component.h"
-#include "sch_field.h"
-#include "template_fieldnames.h"
-#include "dialog_helpers.h"
+#include <general.h>
+#include <protos.h>
+#include <libeditframe.h>
+#include <class_library.h>
+#include <sch_component.h>
+#include <sch_field.h>
+#include <template_fieldnames.h>
+#include <dialog_helpers.h>
 
-#include "dialog_edit_libentry_fields_in_lib_base.h"
+#include <dialog_edit_libentry_fields_in_lib_base.h>
 
 // Local variables:
 static int s_SelectedRow;
@@ -109,7 +110,7 @@ void LIB_EDIT_FRAME::InstallFieldsEditorDialog( wxCommandEvent& event )
     if( m_component == NULL )
         return;
 
-    DrawPanel->EndMouseCapture( ID_NO_TOOL_SELECTED, DrawPanel->GetDefaultCursor() );
+    m_canvas->EndMouseCapture( ID_NO_TOOL_SELECTED, m_canvas->GetDefaultCursor() );
 
     DIALOG_EDIT_LIBENTRY_FIELDS_IN_LIB dlg( this, m_component );
 
@@ -320,7 +321,7 @@ void DIALOG_EDIT_LIBENTRY_FIELDS_IN_LIB::deleteFieldButtonHandler( wxCommandEven
     if( fieldNdx >= m_FieldsBuf.size() )    // traps the -1 case too
         return;
 
-    if( fieldNdx <= VALUE )
+    if( fieldNdx < MANDATORY_FIELDS )
     {
         wxBell();
         return;
@@ -359,7 +360,7 @@ void DIALOG_EDIT_LIBENTRY_FIELDS_IN_LIB:: moveUpButtonHandler( wxCommandEvent& e
     if( fieldNdx >= m_FieldsBuf.size() )    // traps the -1 case too
         return;
 
-    if( fieldNdx <= MANDATORY_FIELDS )
+    if( fieldNdx < MANDATORY_FIELDS )
     {
         wxBell();
         return;
@@ -650,15 +651,14 @@ void DIALOG_EDIT_LIBENTRY_FIELDS_IN_LIB::copySelectedFieldToPanel()
 
     // only user defined fields may be moved, and not the top most user defined
     // field since it would be moving up into the fixed fields, > not >=
-    moveUpButton->Enable( fieldNdx > MANDATORY_FIELDS );
+    moveUpButton->Enable( fieldNdx >= MANDATORY_FIELDS );
 
     // if fieldNdx == REFERENCE, VALUE, then disable delete button
-    deleteFieldButton->Enable( fieldNdx > VALUE );
+    deleteFieldButton->Enable( fieldNdx >= MANDATORY_FIELDS );
 
     fieldValueTextCtrl->SetValue( field.m_Text );
 
-    textSizeTextCtrl->SetValue( EDA_GRAPHIC_TEXT_CTRL::FormatSize( EESCHEMA_INTERNAL_UNIT,
-                                                                   g_UserUnit, field.m_Size.x ) );
+    textSizeTextCtrl->SetValue( EDA_GRAPHIC_TEXT_CTRL::FormatSize( g_UserUnit, field.m_Size.x ) );
 
     wxPoint coord = field.m_Pos;
     wxPoint zero;
@@ -679,13 +679,13 @@ void DIALOG_EDIT_LIBENTRY_FIELDS_IN_LIB::copySelectedFieldToPanel()
         // top of each other.
     }
 
-    wxString coordText = ReturnStringFromValue( g_UserUnit, coord.x, EESCHEMA_INTERNAL_UNIT );
+    wxString coordText = ReturnStringFromValue( g_UserUnit, coord.x );
     posXTextCtrl->SetValue( coordText );
 
     // Note: the Y axis for components in lib is from bottom to top
     // and the screen axis is top to bottom: we must change the y coord sign for editing
     NEGATE( coord.y );
-    coordText = ReturnStringFromValue( g_UserUnit, coord.y, EESCHEMA_INTERNAL_UNIT );
+    coordText = ReturnStringFromValue( g_UserUnit, coord.y );
     posYTextCtrl->SetValue( coordText );
 }
 
@@ -712,12 +712,12 @@ bool DIALOG_EDIT_LIBENTRY_FIELDS_IN_LIB::copyPanelToSelectedField()
         field.m_Orient = TEXT_ORIENT_HORIZ;
 
     // Copy the text justification
-    static const GRTextHorizJustifyType hjustify[3] = {
+    static const EDA_TEXT_HJUSTIFY_T hjustify[3] = {
         GR_TEXT_HJUSTIFY_LEFT, GR_TEXT_HJUSTIFY_CENTER,
         GR_TEXT_HJUSTIFY_RIGHT
     };
 
-    static const GRTextVertJustifyType vjustify[3] = {
+    static const EDA_TEXT_VJUSTIFY_T vjustify[3] = {
         GR_TEXT_VJUSTIFY_BOTTOM, GR_TEXT_VJUSTIFY_CENTER,
         GR_TEXT_VJUSTIFY_TOP
     };
@@ -744,8 +744,7 @@ bool DIALOG_EDIT_LIBENTRY_FIELDS_IN_LIB::copyPanelToSelectedField()
 
     setRowItem( fieldNdx, field );  // update fieldListCtrl
 
-    field.m_Size.x = EDA_GRAPHIC_TEXT_CTRL::ParseSize( textSizeTextCtrl->GetValue(),
-                                                       EESCHEMA_INTERNAL_UNIT, g_UserUnit );
+    field.m_Size.x = EDA_GRAPHIC_TEXT_CTRL::ParseSize( textSizeTextCtrl->GetValue(), g_UserUnit );
 
     field.m_Size.y = field.m_Size.x;
 
@@ -760,10 +759,8 @@ bool DIALOG_EDIT_LIBENTRY_FIELDS_IN_LIB::copyPanelToSelectedField()
     else
         field.m_Bold = false;
 
-    field.m_Pos.x = ReturnValueFromString( g_UserUnit, posXTextCtrl->GetValue(),
-            EESCHEMA_INTERNAL_UNIT );
-    field.m_Pos.y = ReturnValueFromString( g_UserUnit, posYTextCtrl->GetValue(),
-            EESCHEMA_INTERNAL_UNIT );
+    field.m_Pos.x = ReturnValueFromString( g_UserUnit, posXTextCtrl->GetValue() );
+    field.m_Pos.y = ReturnValueFromString( g_UserUnit, posYTextCtrl->GetValue() );
 
     // Note: the Y axis for components in lib is from bottom to top
     // and the screen axis is top to bottom: we must change the y coord sign for editing

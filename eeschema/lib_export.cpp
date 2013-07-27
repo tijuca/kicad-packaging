@@ -29,21 +29,16 @@
  *        create, edit, and delete components.
  */
 
-#include "fctsys.h"
-#include "gr_basic.h"
-#include "class_drawpanel.h"
-#include "confirm.h"
-#include "gestfich.h"
-#include "eeschema_id.h"
-#include "richio.h"
+#include <fctsys.h>
+#include <class_drawpanel.h>
+#include <confirm.h>
 
-#include "general.h"
-#include "protos.h"
-#include "libeditframe.h"
-#include "class_library.h"
+#include <general.h>
+#include <libeditframe.h>
+#include <class_library.h>
+#include <wildcards_and_files_ext.h>
 
 #include <wx/filename.h>
-#include <wx/wfstream.h>
 
 
 extern int ExportPartId;
@@ -58,8 +53,8 @@ void LIB_EDIT_FRAME::OnImportPart( wxCommandEvent& event )
 
     m_lastDrawItem = NULL;
 
-    wxFileDialog dlg( this, _( "Import Component" ), m_LastLibImportPath,
-                      wxEmptyString, CompLibFileWildcard,
+    wxFileDialog dlg( this, _( "Import Component" ), m_lastLibImportPath,
+                      wxEmptyString, SchematicLibraryFileWildcard,
                       wxFD_OPEN | wxFD_FILE_MUST_EXIST );
 
     if( dlg.ShowModal() == wxID_CANCEL )
@@ -86,10 +81,10 @@ void LIB_EDIT_FRAME::OnImportPart( wxCommandEvent& event )
     if( LoadOneLibraryPartAux( LibEntry, LibTmp ) )
     {
         fn = dlg.GetPath();
-        m_LastLibImportPath = fn.GetPath();
+        m_lastLibImportPath = fn.GetPath();
         DisplayLibInfos();
         GetScreen()->ClearUndoRedoList();
-        DrawPanel->Refresh();
+        m_canvas->Refresh();
     }
 
     delete LibTmp;
@@ -110,12 +105,12 @@ void LIB_EDIT_FRAME::OnExportPart( wxCommandEvent& event )
     }
 
     fn = m_component->GetName().Lower();
-    fn.SetExt( CompLibFileExtension );
+    fn.SetExt( SchematicLibraryFileExtension );
 
     title = createLib ? _( "New Library" ) : _( "Export Component" );
 
     wxFileDialog dlg( this, title, wxGetCwd(), fn.GetFullName(),
-                      CompLibFileWildcard, wxFD_SAVE | wxFD_OVERWRITE_PROMPT );
+                      SchematicLibraryFileWildcard, wxFD_SAVE | wxFD_OVERWRITE_PROMPT );
 
     if( dlg.ShowModal() == wxID_CANCEL )
         return;
@@ -128,9 +123,15 @@ void LIB_EDIT_FRAME::OnExportPart( wxCommandEvent& event )
 
     SaveOnePartInMemory();
 
-    wxFFileOutputStream os( fn.GetFullPath(), wxT( "wt" ) );
+    bool result = false;
 
-    if( !os.IsOk() )
+    try
+    {
+        FILE_OUTPUTFORMATTER    formatter( fn.GetFullPath() );
+
+        result = m_library->Save( formatter );
+    }
+    catch( ... /* IO_ERROR ioe */ )
     {
         fn.MakeAbsolute();
         msg = wxT( "Failed to create component library file " ) + fn.GetFullPath();
@@ -138,17 +139,13 @@ void LIB_EDIT_FRAME::OnExportPart( wxCommandEvent& event )
         return;
     }
 
-    STREAM_OUTPUTFORMATTER formatter( os );
-
-    bool success = m_library->Save( formatter );
-
-    if( success )
-        m_LastLibExportPath = fn.GetPath();
+    if( result )
+        m_lastLibExportPath = fn.GetPath();
 
     delete m_library;
     m_library = CurLibTmp;
 
-    if( success )
+    if( result )
     {
         if( createLib )
         {

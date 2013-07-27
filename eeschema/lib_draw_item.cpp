@@ -2,7 +2,6 @@
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
  * Copyright (C) 2004 Jean-Pierre Charras, jaen-pierre.charras@gipsa-lab.inpg.com
- * Copyright (C) 2008-2011 Wayne Stambaugh <stambaughw@verizon.net>
  * Copyright (C) 2004-2011 KiCad Developers, see change_log.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
@@ -27,14 +26,15 @@
  * @file lib_draw_item.cpp
  */
 
-#include "fctsys.h"
-#include "gr_basic.h"
-#include "class_drawpanel.h"
-#include "wxstruct.h"
+#include <fctsys.h>
+#include <gr_basic.h>
+#include <class_drawpanel.h>
+#include <wxstruct.h>
+#include <msgpanel.h>
 
-#include "protos.h"
-#include "general.h"
-#include "lib_draw_item.h"
+#include <protos.h>
+#include <general.h>
+#include <lib_draw_item.h>
 
 const int fill_tab[3] = { 'N', 'F', 'f' };
 
@@ -58,30 +58,18 @@ LIB_ITEM::LIB_ITEM( KICAD_T        aType,
 }
 
 
-LIB_ITEM::LIB_ITEM( const LIB_ITEM& aItem ) :
-    EDA_ITEM( aItem )
-{
-    m_Unit = aItem.m_Unit;
-    m_Convert = aItem.m_Convert;
-    m_Fill = aItem.m_Fill;
-    m_typeName = aItem.m_typeName;
-    m_isFillable = aItem.m_isFillable;
-    m_eraseLastDrawItem = false;
-}
-
-
-void LIB_ITEM::DisplayInfo( EDA_DRAW_FRAME* aFrame )
+void LIB_ITEM::GetMsgPanelInfo( MSG_PANEL_ITEMS& aList )
 {
     wxString msg;
 
-    aFrame->ClearMsgPanel();
-    aFrame->AppendMsgPanel( _( "Type" ), m_typeName, CYAN );
+    aList.push_back( MSG_PANEL_ITEM( _( "Type" ), m_typeName, CYAN ) );
 
     if( m_Unit == 0 )
         msg = _( "All" );
     else
         msg.Printf( wxT( "%d" ), m_Unit );
-    aFrame->AppendMsgPanel( _( "Unit" ), msg, BROWN );
+
+    aList.push_back( MSG_PANEL_ITEM( _( "Unit" ), msg, BROWN ) );
 
     if( m_Convert == 0 )
         msg = _( "All" );
@@ -91,7 +79,8 @@ void LIB_ITEM::DisplayInfo( EDA_DRAW_FRAME* aFrame )
         msg = _( "yes" );
     else
         msg = wxT( "?" );
-    aFrame->AppendMsgPanel( _( "Convert" ), msg, BROWN );
+
+    aList.push_back( MSG_PANEL_ITEM( _( "Convert" ), msg, BROWN ) );
 }
 
 
@@ -100,7 +89,7 @@ bool LIB_ITEM::operator==( const LIB_ITEM& aOther ) const
     return ( ( Type() == aOther.Type() )
              && ( m_Unit == aOther.m_Unit )
              && ( m_Convert == aOther.m_Convert )
-             && DoCompare( aOther ) == 0 );
+             && compare( aOther ) == 0 );
 }
 
 
@@ -121,35 +110,40 @@ bool LIB_ITEM::operator<( const LIB_ITEM& aOther ) const
     if( result != 0 )
         return result < 0;
 
-    return ( DoCompare( aOther ) < 0 );
+    return ( compare( aOther ) < 0 );
 }
 
 
-void LIB_ITEM::Draw( EDA_DRAW_PANEL* aPanel, wxDC* aDC, const wxPoint& aOffset, int aColor,
-                     int aDrawMode, void* aData, const TRANSFORM& aTransform )
+void LIB_ITEM::Draw( EDA_DRAW_PANEL* aPanel, wxDC* aDC,
+                     const wxPoint& aOffset, EDA_COLOR_T aColor,
+                     GR_DRAWMODE aDrawMode, void* aData,
+                     const TRANSFORM& aTransform )
 {
     if( InEditMode() )
     {
         // Temporarily disable filling while the item is being edited.
         FILL_T fillMode = m_Fill;
-        int  color = GetDefaultColor();
+        EDA_COLOR_T color = GetDefaultColor();
 
         m_Fill = NO_FILL;
 
+#ifndef USE_WX_OVERLAY
         // Erase the old items using the previous attributes.
         if( m_eraseLastDrawItem )
         {
             GRSetDrawMode( aDC, g_XorMode );
-            drawEditGraphics( &aPanel->m_ClipBox, aDC, color );
-            drawGraphic( aPanel, aDC, wxPoint( 0, 0 ), color, g_XorMode, aData, aTransform );
+            drawEditGraphics( aPanel->GetClipBox(), aDC, color );
+            drawGraphic( aPanel, aDC, wxPoint( 0, 0 ), color, g_XorMode, aData,
+                         aTransform );
         }
-
+#endif
         // Calculate the new attributes at the current cursor position.
         calcEdit( aOffset );
 
         // Draw the items using the new attributes.
-        drawEditGraphics( &aPanel->m_ClipBox, aDC, color );
-        drawGraphic( aPanel, aDC, wxPoint( 0, 0 ), color, g_XorMode, aData, aTransform );
+        drawEditGraphics( aPanel->GetClipBox(), aDC, color );
+        drawGraphic( aPanel, aDC, wxPoint( 0, 0 ), color, g_XorMode, aData,
+                     aTransform );
 
         m_Fill = fillMode;
     }
@@ -160,7 +154,7 @@ void LIB_ITEM::Draw( EDA_DRAW_PANEL* aPanel, wxDC* aDC, const wxPoint& aOffset, 
 }
 
 
-int LIB_ITEM::GetDefaultColor()
+EDA_COLOR_T LIB_ITEM::GetDefaultColor()
 {
     return ReturnLayerColor( LAYER_DEVICE );
 }

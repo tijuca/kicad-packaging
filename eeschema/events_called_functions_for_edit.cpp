@@ -2,26 +2,26 @@
  * @file events_called_functions.cpp
  */
 
-#include "fctsys.h"
-#include "gr_basic.h"
-#include "class_drawpanel.h"
-#include "general.h"
-#include "kicad_device_context.h"
-#include "wxEeschemaStruct.h"
+#include <fctsys.h>
+#include <gr_basic.h>
+#include <class_drawpanel.h>
+#include <general.h>
+#include <kicad_device_context.h>
+#include <wxEeschemaStruct.h>
 
-#include "protos.h"
-#include "sch_component.h"
-#include "sch_text.h"
+#include <protos.h>
+#include <sch_component.h>
+#include <sch_text.h>
 
 
 void SCH_EDIT_FRAME::OnCopySchematicItemRequest( wxCommandEvent& event )
 {
     SCH_ITEM * curr_item = GetScreen()->GetCurItem();
 
-    if( !curr_item || curr_item->m_Flags )
+    if( !curr_item || curr_item->GetFlags() )
         return;
 
-    INSTALL_UNBUFFERED_DC( dc, DrawPanel );
+    INSTALL_UNBUFFERED_DC( dc, m_canvas );
 
     switch( curr_item->Type() )
     {
@@ -29,14 +29,13 @@ void SCH_EDIT_FRAME::OnCopySchematicItemRequest( wxCommandEvent& event )
     {
         SCH_COMPONENT* newitem;
         newitem = new SCH_COMPONENT( *( (SCH_COMPONENT*) curr_item ) );
-        newitem->m_TimeStamp = GetTimeStamp();
+        newitem->SetTimeStamp( GetNewTimeStamp() );
         newitem->ClearAnnotation( NULL );
-        newitem->m_Flags = IS_NEW;
+        newitem->SetFlags( IS_NEW );
         MoveItem( (SCH_ITEM*) newitem, &dc );
 
-        /* Redraw the original part, because StartMovePart() erased
-         * it from screen */
-        curr_item->Draw( DrawPanel, &dc, wxPoint( 0, 0 ), GR_DEFAULT_DRAWMODE );
+        // Redraw the original part, because StartMovePart() erased it from screen.
+        curr_item->Draw( m_canvas, &dc, wxPoint( 0, 0 ), g_XorMode );
     }
     break;
 
@@ -50,7 +49,7 @@ void SCH_EDIT_FRAME::OnCopySchematicItemRequest( wxCommandEvent& event )
         MoveItem( (SCH_ITEM*) newitem, &dc );
 
         /* Redraw the original part in XOR mode */
-        curr_item->Draw( DrawPanel, &dc, wxPoint( 0, 0 ), g_XorMode );
+        curr_item->Draw( m_canvas, &dc, wxPoint( 0, 0 ), g_XorMode );
     }
         break;
 

@@ -1,15 +1,17 @@
 ///////////////////////////////////////////////////////////////////////////
-// C++ code generated with wxFormBuilder (version Nov 17 2010)
+// C++ code generated with wxFormBuilder (version Apr 11 2012)
 // http://www.wxformbuilder.org/
 //
 // PLEASE DO "NOT" EDIT THIS FILE!
 ///////////////////////////////////////////////////////////////////////////
 
-#ifndef __dialog_lib_edit_text_base__
-#define __dialog_lib_edit_text_base__
+#ifndef __DIALOG_LIB_EDIT_TEXT_BASE_H__
+#define __DIALOG_LIB_EDIT_TEXT_BASE_H__
 
+#include <wx/artprov.h>
+#include <wx/xrc/xmlres.h>
 #include <wx/intl.h>
-
+#include "dialog_shim.h"
 #include <wx/string.h>
 #include <wx/stattext.h>
 #include <wx/gdicmn.h>
@@ -30,7 +32,7 @@
 ///////////////////////////////////////////////////////////////////////////////
 /// Class DIALOG_LIB_EDIT_TEXT_BASE
 ///////////////////////////////////////////////////////////////////////////////
-class DIALOG_LIB_EDIT_TEXT_BASE : public wxDialog 
+class DIALOG_LIB_EDIT_TEXT_BASE : public DIALOG_SHIM
 {
 	private:
 	
@@ -43,6 +45,7 @@ class DIALOG_LIB_EDIT_TEXT_BASE : public wxDialog
 		wxStaticLine* m_staticline1;
 		wxCheckBox* m_CommonUnit;
 		wxCheckBox* m_CommonConvert;
+		wxCheckBox* m_Invisible;
 		wxRadioBox* m_TextShapeOpt;
 		wxRadioBox* m_TextHJustificationOpt;
 		wxRadioBox* m_TextVJustificationOpt;
@@ -62,4 +65,4 @@ class DIALOG_LIB_EDIT_TEXT_BASE : public wxDialog
 	
 };
 
-#endif //__dialog_lib_edit_text_base__
+#endif //__DIALOG_LIB_EDIT_TEXT_BASE_H__

@@ -8,19 +8,26 @@
 #include <vector>
 #include <set>
 
-#include "dcode.h"
-#include "class_gerber_draw_item.h"
-#include "class_aperture_macro.h"
+#include <dcode.h>
+#include <class_gerber_draw_item.h>
+#include <class_aperture_macro.h>
 
 #define CURSEUR_ON_GRILLE  0
 #define CURSEUR_OFF_GRILLE 1
 
 class GERBVIEW_FRAME;
-//class BOARD;
-
 class GERBER_IMAGE;
-class Ki_PageDescr;
+class PAGE_INFO;
+/**
+* size of single line of a text from a gerber file.
+* warning: some files can have very long lines, so the buffer must be large.
+*/
+#define GERBER_BUFZ     4000
 
+#define GERBVIEW_LAYER_COUNT 32     // Number of different layers shown by GerbView
+
+/// List of page sizes
+extern const wxChar* g_GerberPageSizeList[8];
 
 // Type of photoplotter action:
 #define GERB_ACTIVE_DRAW 1      // Activate light (lower pen)
@@ -28,36 +35,22 @@ class Ki_PageDescr;
 #define GERB_FLASH       3      // Flash
 
 
-typedef enum
-{
-    FORMAT_HPGL,
-    FORMAT_GERBER,
-    FORMAT_POST
-} PlotFormat;
-
 /**
- * Enum ITEM_VISIBLE
- * is a set of visible PCB elements.
+ * Enum GERBER_VISIBLE_ID
+ * is a set of visible GERBVIEW elements.
  */
-enum GERBER_VISIBLE
+enum GERBER_VISIBLE_ID
 {
-    DCODES_VISIBLE = 1,    // visible item id cannot be 0 because this id is used as wxWidget id
+    DCODES_VISIBLE = 1,         // visible item id cannot be 0
+                                // because this id is used as wxWidget id
     GERBER_GRID_VISIBLE,
-    END_GERBER_VISIBLE_LIST  // sentinel
+    NEGATIVE_OBJECTS_VISIBLE,   // use the selected color to draw negative objects
+                                // instaed of background color, to make them visible
+    END_GERBER_VISIBLE_LIST     // sentinel
 };
-
-/**
-* size of single line of a text from a gerber file.
-* warning: some files can have very long lines, so the buffer must be large.
-*/
-#define GERBER_BUFZ     4000
-
-extern int     g_DisplayPolygonsModeSketch;
 
 extern const wxString GerbviewProjectFileExt;
 extern const wxString GerbviewProjectFileWildcard;
-
-extern Ki_PageDescr* g_GerberPageSizeList[];
 
 // Interpolation type
 enum Gerb_Interpolation
@@ -109,7 +102,6 @@ enum Gerb_Analyse_Cmd
 bool GetEndOfBlock( char buff[GERBER_BUFZ], char*& text, FILE* gerber_file );
 extern GERBER_IMAGE* g_GERBER_List[32];
 
-#include "pcbcommon.h"
-#include "gerbview_frame.h"
+#include <gerbview_frame.h>
 
 #endif  // ifndef GERBVIEW_H

@@ -31,7 +31,7 @@
 #ifndef _CLASS_GERBER_LAYER_WIDGET_H_
 #define _CLASS_GERBER_LAYER_WIDGET_H_
 
-#include "layer_widget.h"
+#include <layer_widget.h>
 
 /**
  * Class GERBER_LAYER_WIDGET
@@ -44,8 +44,9 @@ class GERBER_LAYER_WIDGET : public LAYER_WIDGET
     GERBVIEW_FRAME*    myframe;
 
     // popup menu ids.
-#define ID_SHOW_ALL_COPPERS     wxID_HIGHEST
-#define ID_SHOW_NO_COPPERS      (wxID_HIGHEST+1)
+#define ID_SHOW_ALL_COPPERS             wxID_HIGHEST
+#define ID_SHOW_NO_COPPERS              (wxID_HIGHEST+1)
+#define ID_SHOW_NO_COPPERS_BUT_ACTIVE   (wxID_HIGHEST+2)
 
     /**
      * Function OnRightDownLayers
@@ -87,10 +88,10 @@ public:
     void ReFillRender();
 
     //-----<implement LAYER_WIDGET abstract callback functions>-----------
-    void OnLayerColorChange( int aLayer, int aColor );
+    void OnLayerColorChange( int aLayer, EDA_COLOR_T aColor );
     bool OnLayerSelect( int aLayer );
     void OnLayerVisible( int aLayer, bool isVisible, bool isFinal );
-    void OnRenderColorChange( int aId, int aColor );
+    void OnRenderColorChange( int aId, EDA_COLOR_T aColor );
     void OnRenderEnable( int aId, bool isEnabled );
     /**
      * Function SetLayersManagerTabsText

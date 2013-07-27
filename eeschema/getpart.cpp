@@ -1,9 +1,9 @@
 /*
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
- * Copyright (C) 2004 Jean-Pierre Charras, jaen-pierre.charras@gipsa-lab.inpg.com
- * Copyright (C) 2008-2011 Wayne Stambaugh <stambaughw@verizon.net>
- * Copyright (C) 2004-2011 KiCad Developers, see change_log.txt for contributors.
+ * Copyright (C) 2012 Jean-Pierre Charras, jp.charras at wanadoo.fr
+ * Copyright (C) 2008-2012 Wayne Stambaugh <stambaughw@verizon.net>
+ * Copyright (C) 2004-2012 KiCad Developers, see change_log.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -25,85 +25,89 @@
 
 /**
  * @file getpart.cpp
- * @brief Cod to handle get & place library component.
+ * @brief functions to get and place library components.
  */
 
-#include "fctsys.h"
-#include "appl_wxstruct.h"
-#include "gr_basic.h"
-#include "class_drawpanel.h"
-#include "confirm.h"
-#include "wxEeschemaStruct.h"
-#include "kicad_device_context.h"
+#include <fctsys.h>
+#include <appl_wxstruct.h>
+#include <gr_basic.h>
+#include <class_drawpanel.h>
+#include <confirm.h>
+#include <wxEeschemaStruct.h>
+#include <kicad_device_context.h>
+#include <msgpanel.h>
 
-#include "general.h"
-#include "protos.h"
-#include "class_library.h"
-#include "sch_component.h"
-#include "viewlib_frame.h"
-#include "eeschema_id.h"
+#include <general.h>
+#include <protos.h>
+#include <class_library.h>
+#include <sch_component.h>
+#include <libeditframe.h>
+#include <viewlib_frame.h>
+#include <eeschema_id.h>
 
-#include "dialog_get_component.h"
+#include <dialog_get_component.h>
 
 #include <boost/foreach.hpp>
 
 
-wxString SCH_EDIT_FRAME::SelectFromLibBrowser( void )
+wxString SCH_BASE_FRAME::SelectComponentFromLibBrowser( void )
 {
     wxSemaphore semaphore( 0, 1 );
     wxString cmpname;
 
-    /* Close the current Lib browser, if open, and open a new one, in "modal" mode */
-    if( m_ViewlibFrame )
-    {
-        m_ViewlibFrame->Destroy();
-        m_ViewlibFrame = NULL;
-    }
+    // Close the current Lib browser, if open, and open a new one, in "modal" mode:
+    LIB_VIEW_FRAME * viewlibFrame = LIB_VIEW_FRAME::GetActiveLibraryViewer();;
+    if( viewlibFrame )
+        viewlibFrame->Destroy();
 
-    m_ViewlibFrame = new LIB_VIEW_FRAME( this, NULL, &semaphore );
+    viewlibFrame = new LIB_VIEW_FRAME( this, NULL, &semaphore,
+                        KICAD_DEFAULT_DRAWFRAME_STYLE | wxFRAME_FLOAT_ON_PARENT );
     // Show the library viewer frame until it is closed
-    while( semaphore.TryWait() == wxSEMA_BUSY ) // Wait for viewer closing event
+    // Wait for viewer closing event:
+    while( semaphore.TryWait() == wxSEMA_BUSY )
     {
         wxYield();
         wxMilliSleep( 50 );
     }
 
-    cmpname = m_ViewlibFrame->GetSelectedComponent();
-    m_ViewlibFrame->Destroy();
+    cmpname = viewlibFrame->GetSelectedComponent();
+    viewlibFrame->Destroy();
 
     return cmpname;
 }
 
-
 /*
- * load from a library and place a component
- *  if libname != "", search in lib "libname"
- *  else search in all loaded libs
+ * Function SelectComponentFromLib
+ * Calls the library viewer to select component to import into schematic.
+ * if the library viewer is currently running, it is closed and reopened
+ * in modal mode.
+ * param aLibname = the lib name or an empty string.
+ *     if aLibname is empty, the full list of libraries is used
+ * param aList = list of previously loaded components
+ * param aUseLibBrowser = bool to call the library viewer to select the component
+ * param aUnit = a point to int to return the selected unit (if any)
+ * param aConvert = a point to int to return the selected De Morgan shape (if any)
+ *
+ * return the component name
  */
-SCH_COMPONENT* SCH_EDIT_FRAME::Load_Component( wxDC*           DC,
-                                               const wxString& libname,
-                                               wxArrayString&  HistoryList,
-                                               bool            UseLibBrowser )
+wxString SCH_BASE_FRAME::SelectComponentFromLibrary( const wxString& aLibname,
+                                                     wxArrayString&  aHistoryList,
+                                                     bool            aUseLibBrowser,
+                                                     int*            aUnit,
+                                                     int*            aConvert )
 {
     int             CmpCount  = 0;
-    int             unit      = 1;
-    int             convert   = 1;
-    LIB_COMPONENT*  Entry     = NULL;
-    SCH_COMPONENT*  component = NULL;
-    CMP_LIBRARY*    Library   = NULL;
-    wxString        Name, keys, msg;
-    bool            AllowWildSeach = true;
-    static wxString lastCommponentName;
+    LIB_COMPONENT*  libEntry     = NULL;
+    CMP_LIBRARY*    currLibrary   = NULL;
+    wxString        cmpName, keys, msg;
+    bool            allowWildSeach = true;
 
-    m_itemToRepeat = NULL;
-    DrawPanel->m_IgnoreMouseEvents = true;
-
-    if( !libname.IsEmpty() )
+    if( !aLibname.IsEmpty() )
     {
-        Library = CMP_LIBRARY::FindLibrary( libname );
+        currLibrary = CMP_LIBRARY::FindLibrary( aLibname );
 
-        if( Library != NULL )
-            CmpCount = Library->GetCount();
+        if( currLibrary != NULL )
+            CmpCount = currLibrary->GetCount();
     }
     else
     {
@@ -116,32 +120,113 @@ SCH_COMPONENT* SCH_EDIT_FRAME::Load_Component( wxDC*           DC,
     /* Ask for a component name or key words */
     msg.Printf( _( "component selection (%d items loaded):" ), CmpCount );
 
-    DIALOG_GET_COMPONENT dlg( this, GetComponentDialogPosition(), HistoryList,
-                              msg, UseLibBrowser );
-    dlg.SetComponentName( lastCommponentName );
+    DIALOG_GET_COMPONENT dlg( this, aHistoryList, msg, aUseLibBrowser );
+
+    if( aHistoryList.GetCount() )
+        dlg.SetComponentName( aHistoryList[0] );
 
     if ( dlg.ShowModal() == wxID_CANCEL )
-    {
-        DrawPanel->m_IgnoreMouseEvents = false;
-        DrawPanel->MoveCursorToCrossHair();
-        return NULL;
-    }
+        return wxEmptyString;
 
     if( dlg.m_GetExtraFunction )
     {
-        Name = SelectFromLibBrowser();
-        unit = m_ViewlibFrame->GetUnit();
-        convert = m_ViewlibFrame->GetConvert();
+        cmpName = SelectComponentFromLibBrowser();
+        if( aUnit )
+            *aUnit = LIB_VIEW_FRAME::GetUnit();
+        if( aConvert )
+            *aConvert = LIB_VIEW_FRAME::GetConvert();
+        if( !cmpName.IsEmpty() )
+            AddHistoryComponentName( aHistoryList, cmpName );
+        return cmpName;
     }
     else
+        cmpName = dlg.GetComponentName();
+
+    if( cmpName.IsEmpty() )
+        return wxEmptyString;
+
+    // Here, cmpName contains the component name,
+    // or "*" if the Select All dialog button was pressed
+
+#ifndef KICAD_KEEPCASE
+    cmpName.MakeUpper();
+#endif
+
+    if( dlg.IsKeyword() )
     {
-        Name = dlg.GetComponentName();
+        allowWildSeach = false;
+        keys = cmpName;
+        cmpName = DataBaseGetName( this, keys, cmpName );
+
+        if( cmpName.IsEmpty() )
+            return wxEmptyString;
+     }
+    else if( cmpName == wxT( "*" ) )
+    {
+        allowWildSeach = false;
+
+        if( GetNameOfPartToLoad( this, currLibrary, cmpName ) == 0 )
+            return wxEmptyString;
     }
+    else if( cmpName.Contains( wxT( "?" ) ) || cmpName.Contains( wxT( "*" ) ) )
+    {
+        allowWildSeach = false;
+        cmpName = DataBaseGetName( this, keys, cmpName );
+
+        if( cmpName.IsEmpty() )
+            return wxEmptyString;
+    }
+
+    libEntry = CMP_LIBRARY::FindLibraryComponent( cmpName, aLibname );
+
+    if( ( libEntry == NULL ) && allowWildSeach ) // Search with wildcard
+    {
+        allowWildSeach = false;
+        wxString wildname = wxChar( '*' ) + cmpName + wxChar( '*' );
+        cmpName = wildname;
+        cmpName = DataBaseGetName( this, keys, cmpName );
+
+        if( !cmpName.IsEmpty() )
+            libEntry = CMP_LIBRARY::FindLibraryComponent( cmpName, aLibname );
+
+        if( libEntry == NULL )
+            return wxEmptyString;
+    }
+
+    if( libEntry == NULL )
+    {
+        msg.Printf( _( "Failed to find part <%s> in library" ), GetChars( cmpName ) );
+        DisplayError( this, msg );
+        return wxEmptyString;
+    }
+
+    AddHistoryComponentName( aHistoryList, cmpName );
+    return cmpName;
+}
+
+
+/*
+ * load from a library and place a component
+ *  if libname != "", search in lib "libname"
+ *  else search in all loaded libs
+ */
+SCH_COMPONENT* SCH_EDIT_FRAME::Load_Component( wxDC*           aDC,
+                                               const wxString& aLibname,
+                                               wxArrayString&  aHistoryList,
+                                               bool            aUseLibBrowser )
+{
+    int unit    = 1;
+    int convert = 1;
+    m_itemToRepeat = NULL;
+    m_canvas->SetIgnoreMouseEvents( true );
+
+    wxString Name = SelectComponentFromLibrary( aLibname, aHistoryList, aUseLibBrowser,
+                                                &unit, &convert );
 
     if( Name.IsEmpty() )
     {
-        DrawPanel->m_IgnoreMouseEvents = false;
-        DrawPanel->MoveCursorToCrossHair();
+        m_canvas->SetIgnoreMouseEvents( false );
+        m_canvas->MoveCursorToCrossHair();
         return NULL;
     }
 
@@ -149,77 +234,21 @@ SCH_COMPONENT* SCH_EDIT_FRAME::Load_Component( wxDC*           DC,
     Name.MakeUpper();
 #endif
 
-    if( Name.GetChar( 0 ) == '=' )
-    {
-        AllowWildSeach = false;
-        keys = Name.AfterFirst( '=' );
-        Name = DataBaseGetName( this, keys, Name );
+    LIB_COMPONENT* Entry = CMP_LIBRARY::FindLibraryComponent( Name, aLibname );
 
-        if( Name.IsEmpty() )
-        {
-            DrawPanel->m_IgnoreMouseEvents = false;
-            DrawPanel->MoveCursorToCrossHair();
-            return NULL;
-        }
-    }
-    else if( Name == wxT( "*" ) )
-    {
-        AllowWildSeach = false;
-
-        if( GetNameOfPartToLoad( this, Library, Name ) == 0 )
-        {
-            DrawPanel->m_IgnoreMouseEvents = false;
-            DrawPanel->MoveCursorToCrossHair();
-            return NULL;
-        }
-    }
-    else if( Name.Contains( wxT( "?" ) ) || Name.Contains( wxT( "*" ) ) )
-    {
-        AllowWildSeach = false;
-        Name = DataBaseGetName( this, keys, Name );
-
-        if( Name.IsEmpty() )
-        {
-            DrawPanel->m_IgnoreMouseEvents = false;
-            DrawPanel->MoveCursorToCrossHair();
-            return NULL;
-        }
-    }
-
-    Entry = CMP_LIBRARY::FindLibraryComponent( Name, libname );
-
-    if( ( Entry == NULL ) && AllowWildSeach ) /* Search with wildcard */
-    {
-        AllowWildSeach = false;
-        wxString wildname = wxChar( '*' ) + Name + wxChar( '*' );
-        Name = wildname;
-        Name = DataBaseGetName( this, keys, Name );
-
-        if( !Name.IsEmpty() )
-            Entry = CMP_LIBRARY::FindLibraryComponent( Name, libname );
-
-        if( Entry == NULL )
-        {
-            DrawPanel->m_IgnoreMouseEvents = false;
-            DrawPanel->MoveCursorToCrossHair();
-            return NULL;
-        }
-    }
-
-    DrawPanel->m_IgnoreMouseEvents = false;
-    DrawPanel->MoveCursorToCrossHair();
+    m_canvas->SetIgnoreMouseEvents( false );
+    m_canvas->MoveCursorToCrossHair();
 
     if( Entry == NULL )
     {
-        msg = _( "Failed to find part " ) + Name + _( " in library" );
-        DisplayError( this, msg );
+        wxString msg;
+        msg.Printf( _( "Failed to find part <%s> in library" ), GetChars( Name ) );
+        wxMessageBox( msg );
         return NULL;
     }
 
-    lastCommponentName = Name;
-    AddHistoryComponentName( HistoryList, Name );
-
-    component = new SCH_COMPONENT( *Entry, GetSheet(), unit, convert,
+    SCH_COMPONENT*  component;
+    component = new SCH_COMPONENT( *Entry, m_CurrentSheet, unit, convert,
                                    GetScreen()->GetCrossHairPosition(), true );
 
     // Set the m_ChipName value, from component name in lib, for aliases
@@ -229,11 +258,14 @@ SCH_COMPONENT* SCH_EDIT_FRAME::Load_Component( wxDC*           DC,
 
     // Set the component value that can differ from component name in lib, for aliases
     component->GetField( VALUE )->m_Text = Name;
-    component->DisplayInfo( this );
-    component->Draw( DrawPanel, DC, wxPoint( 0, 0 ), g_XorMode, g_GhostColor );
-    component->SetFlags( IS_NEW );
 
-    MoveItem( (SCH_ITEM*) component, DC );
+    MSG_PANEL_ITEMS items;
+    component->SetCurrentSheetPath( &GetCurrentSheet() );
+    component->GetMsgPanelInfo( items );
+    SetMsgPanel( items );
+    component->Draw( m_canvas, aDC, wxPoint( 0, 0 ), g_XorMode );
+    component->SetFlags( IS_NEW );
+    MoveItem( (SCH_ITEM*) component, aDC );
 
     return component;
 }
@@ -252,7 +284,7 @@ void SCH_EDIT_FRAME::OrientComponent( COMPONENT_ORIENTATION_T aOrientation )
 
     SCH_COMPONENT* component = (SCH_COMPONENT*) item;
 
-    DrawPanel->MoveCursorToCrossHair();
+    m_canvas->MoveCursorToCrossHair();
 
     if( component->GetFlags() == 0 )
     {
@@ -260,27 +292,31 @@ void SCH_EDIT_FRAME::OrientComponent( COMPONENT_ORIENTATION_T aOrientation )
         GetScreen()->SetCurItem( NULL );
     }
 
-    INSTALL_UNBUFFERED_DC( dc, DrawPanel );
+    INSTALL_UNBUFFERED_DC( dc, m_canvas );
 
     // Erase the previous component in it's current orientation.
 
-    DrawPanel->CrossHairOff( &dc );
+    m_canvas->CrossHairOff( &dc );
 
     if( component->GetFlags() )
-        component->Draw( DrawPanel, &dc, wxPoint( 0, 0 ), g_XorMode, g_GhostColor );
+        component->Draw( m_canvas, &dc, wxPoint( 0, 0 ), g_XorMode );
     else
-        DrawPanel->RefreshDrawingRect( component->GetBoundingBox() );
+    {
+        component->SetFlags( IS_MOVED );    // do not redraw the component
+        m_canvas->RefreshDrawingRect( component->GetBoundingBox() );
+        component->ClearFlags( IS_MOVED );
+    }
 
     component->SetOrientation( aOrientation );
 
     /* Redraw the component in the new position. */
     if( component->GetFlags() )
-        component->Draw( DrawPanel, &dc, wxPoint( 0, 0 ), g_XorMode, g_GhostColor );
+        component->Draw( m_canvas, &dc, wxPoint( 0, 0 ), g_XorMode );
     else
-        component->Draw( DrawPanel, &dc, wxPoint( 0, 0 ), GR_DEFAULT_DRAWMODE );
+        component->Draw( m_canvas, &dc, wxPoint( 0, 0 ), GR_DEFAULT_DRAWMODE );
 
-    DrawPanel->CrossHairOn( &dc );
-    GetScreen()->TestDanglingEnds( DrawPanel, &dc );
+    m_canvas->CrossHairOn( &dc );
+    GetScreen()->TestDanglingEnds( m_canvas, &dc );
     OnModify();
 }
 
@@ -296,9 +332,9 @@ void SCH_EDIT_FRAME::OnSelectUnit( wxCommandEvent& aEvent )
     wxCHECK_RET( item != NULL && item->Type() == SCH_COMPONENT_T,
                  wxT( "Cannot select unit of invalid schematic item." ) );
 
-    INSTALL_UNBUFFERED_DC( dc, DrawPanel );
+    INSTALL_UNBUFFERED_DC( dc, m_canvas );
 
-    DrawPanel->MoveCursorToCrossHair();
+    m_canvas->MoveCursorToCrossHair();
 
     SCH_COMPONENT* component = (SCH_COMPONENT*) item;
 
@@ -330,23 +366,23 @@ void SCH_EDIT_FRAME::OnSelectUnit( wxCommandEvent& aEvent )
         SaveCopyInUndoList( component, UR_CHANGED );
 
     if( flags )
-        component->Draw( DrawPanel, &dc, wxPoint( 0, 0 ), g_XorMode, g_GhostColor );
+        component->Draw( m_canvas, &dc, wxPoint( 0, 0 ), g_XorMode, g_GhostColor );
     else
-        component->Draw( DrawPanel, &dc, wxPoint( 0, 0 ), g_XorMode );
+        component->Draw( m_canvas, &dc, wxPoint( 0, 0 ), g_XorMode );
 
     /* Update the unit number. */
-    component->SetUnitSelection( GetSheet(), unit );
+    component->SetUnitSelection( m_CurrentSheet, unit );
     component->SetUnit( unit );
     component->ClearFlags();
     component->SetFlags( flags );   // Restore m_Flag modified by SetUnit()
 
     /* Redraw the component in the new position. */
     if( flags )
-        component->Draw( DrawPanel, &dc, wxPoint( 0, 0 ), g_XorMode, g_GhostColor );
+        component->Draw( m_canvas, &dc, wxPoint( 0, 0 ), g_XorMode, g_GhostColor );
     else
-        component->Draw( DrawPanel, &dc, wxPoint( 0, 0 ), GR_DEFAULT_DRAWMODE );
+        component->Draw( m_canvas, &dc, wxPoint( 0, 0 ), GR_DEFAULT_DRAWMODE );
 
-    screen->TestDanglingEnds( DrawPanel, &dc );
+    screen->TestDanglingEnds( m_canvas, &dc );
     OnModify();
 }
 
@@ -369,11 +405,12 @@ void SCH_EDIT_FRAME::ConvertPart( SCH_COMPONENT* DrawComponent, wxDC* DC )
         return;
     }
 
-    int flags = DrawComponent->m_Flags;
-    if( DrawComponent->m_Flags )
-        DrawComponent->Draw( DrawPanel, DC, wxPoint( 0, 0 ), g_XorMode, g_GhostColor );
+    int flags = DrawComponent->GetFlags();
+
+    if( DrawComponent->GetFlags() )
+        DrawComponent->Draw( m_canvas, DC, wxPoint( 0, 0 ), g_XorMode, g_GhostColor );
     else
-        DrawComponent->Draw( DrawPanel, DC, wxPoint( 0, 0 ), g_XorMode );
+        DrawComponent->Draw( m_canvas, DC, wxPoint( 0, 0 ), g_XorMode );
 
     DrawComponent->SetConvert( DrawComponent->GetConvert() + 1 );
 
@@ -390,11 +427,11 @@ void SCH_EDIT_FRAME::ConvertPart( SCH_COMPONENT* DrawComponent, wxDC* DC )
     DrawComponent->SetFlags( flags );   // Restore m_Flag (modified by SetConvert())
 
     /* Redraw the component in the new position. */
-    if( DrawComponent->m_Flags & IS_MOVED )
-        DrawComponent->Draw( DrawPanel, DC, wxPoint( 0, 0 ), g_XorMode, g_GhostColor );
+    if( DrawComponent->IsMoving() )
+        DrawComponent->Draw( m_canvas, DC, wxPoint( 0, 0 ), g_XorMode, g_GhostColor );
     else
-        DrawComponent->Draw( DrawPanel, DC, wxPoint( 0, 0 ), GR_DEFAULT_DRAWMODE );
+        DrawComponent->Draw( m_canvas, DC, wxPoint( 0, 0 ), GR_DEFAULT_DRAWMODE );
 
-    GetScreen()->TestDanglingEnds( DrawPanel, DC );
+    GetScreen()->TestDanglingEnds( m_canvas, DC );
     OnModify( );
 }

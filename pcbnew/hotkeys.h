@@ -1,11 +1,11 @@
 /**
  * @file pcbnew/hotkeys.h
- * PCBNew hotkeys
+ * Pcbnew hotkeys
  */
 #ifndef _PCBNEW_KOTKEYS_H
 #define _PCBNEW_HOTKEYS_H
 
-#include "hotkeys_basic.h"
+#include <hotkeys_basic.h>
 
 // List of hot keys id.
 // see also enum common_hotkey_id_commnand in hotkeys_basic.h
@@ -14,9 +14,10 @@ enum hotkey_id_commnand {
     HK_DELETE = HK_COMMON_END,
     HK_BACK_SPACE,
     HK_ROTATE_ITEM,
+    HK_FLIP_ITEM,
+    HK_COPY_ITEM,
     HK_MOVE_ITEM,
     HK_DRAG_ITEM,
-    HK_FLIP_FOOTPRINT,
     HK_GET_AND_MOVE_FOOTPRINT,
     HK_LOCK_UNLOCK_FOOTPRINT,
     HK_ADD_NEW_TRACK,
@@ -26,6 +27,7 @@ enum hotkey_id_commnand {
     HK_DRAG_TRACK_KEEP_SLOPE,
     HK_END_TRACK,
     HK_SAVE_BOARD, HK_LOAD_BOARD,
+    HK_SAVE_MODULE,
     HK_SWITCH_UNITS,
     HK_SWITCH_TRACK_DISPLAY_MODE,
     HK_FIND_ITEM,
@@ -57,26 +59,29 @@ enum hotkey_id_commnand {
     HK_SWITCH_LAYER_TO_INNER14,
     HK_ADD_MODULE,
     HK_SLIDE_TRACK,
-    HK_RECORD_MACROS_0,
-    HK_CALL_MACROS_0,
-    HK_RECORD_MACROS_1,
-    HK_CALL_MACROS_1,
+    HK_MACRO_ID_BEGIN,
+    HK_RECORD_MACROS_0,     // keep these id ordered from 0 to 9
+    HK_RECORD_MACROS_1,     // because this order is used in code
     HK_RECORD_MACROS_2,
-    HK_CALL_MACROS_2,
     HK_RECORD_MACROS_3,
-    HK_CALL_MACROS_3,
     HK_RECORD_MACROS_4,
-    HK_CALL_MACROS_4,
     HK_RECORD_MACROS_5,
-    HK_CALL_MACROS_5,
     HK_RECORD_MACROS_6,
-    HK_CALL_MACROS_6,
     HK_RECORD_MACROS_7,
-    HK_CALL_MACROS_7,
     HK_RECORD_MACROS_8,
-    HK_CALL_MACROS_8,
     HK_RECORD_MACROS_9,
-    HK_CALL_MACROS_9
+    HK_CALL_MACROS_0,
+    HK_CALL_MACROS_1,
+    HK_CALL_MACROS_2,
+    HK_CALL_MACROS_3,
+    HK_CALL_MACROS_4,
+    HK_CALL_MACROS_5,
+    HK_CALL_MACROS_6,
+    HK_CALL_MACROS_7,
+    HK_CALL_MACROS_8,
+    HK_CALL_MACROS_9,
+    HK_MACRO_ID_END,
+    HK_SWITCH_HIGHCONTRAST_MODE,
 };
 
 // Full list of hotkey descriptors for board editor and footprint editor
@@ -87,6 +92,9 @@ extern struct EDA_HOTKEY_CONFIG g_Board_Editor_Hokeys_Descr[];
 
 // List of hotkey descriptors for the footprint editor only
 extern struct EDA_HOTKEY_CONFIG g_Module_Editor_Hokeys_Descr[];
+
+// List of hotkey descriptors for the footprint editor only
+extern struct EDA_HOTKEY_CONFIG g_Module_Viewer_Hokeys_Descr[];
 
 // List of common hotkey descriptors
 // used in hotkeys_board_editor.cpp and hotkeys_module_editor.cpp

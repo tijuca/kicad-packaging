@@ -1,24 +1,52 @@
 /*
+ * This program source code file is part of KiCad, a free EDA CAD application.
+ *
+ * Copyright (C) 2012 Jean-Pierre Charras, jean-pierre.charras@ujf-grenoble.fr
+ * Copyright (C) 2012 SoftPLC Corporation, Dick Hollenbeck <dick@softplc.com>
+ * Copyright (C) 2012 Wayne Stambaugh <stambaughw@verizon.net>
+ * Copyright (C) 1992-2012 KiCad Developers, see AUTHORS.txt for contributors.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation; either version 2
+ * of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, you may find one here:
+ * http://www.gnu.org/licenses/old-licenses/gpl-2.0.html
+ * or you may search the http://www.gnu.org website for the version 2 license,
+ * or you may write to the Free Software Foundation, Inc.,
+ * 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
+ */
+
+/*
  * @file modules.cpp
  */
 
-#include "fctsys.h"
-#include "gr_basic.h"
-#include "class_drawpanel.h"
-#include "confirm.h"
-#include "wxPcbStruct.h"
-#include "trigo.h"
-#include "macros.h"
-#include "pcbcommon.h"
+#include <fctsys.h>
+#include <gr_basic.h>
+#include <class_drawpanel.h>
+#include <confirm.h>
+#include <wxPcbStruct.h>
+#include <trigo.h>
+#include <macros.h>
+#include <pcbcommon.h>
 
-#include "class_board.h"
-#include "class_module.h"
+#include <class_board.h>
+#include <class_module.h>
 
-#include "pcbnew.h"
-#include "protos.h"
-#include "drag.h"
+#include <pcbnew.h>
+#include <protos.h>
+#include <drag.h>
 
 
+static void MoveFootprint( EDA_DRAW_PANEL* aPanel, wxDC* aDC,
+                           const wxPoint& aPosition, bool aErase );
 static void Abort_MoveOrCopyModule( EDA_DRAW_PANEL* Panel, wxDC* DC );
 
 
@@ -63,9 +91,10 @@ MODULE* PCB_BASE_FRAME::GetModuleByName()
 }
 
 
-void PCB_EDIT_FRAME::StartMove_Module( MODULE* module, wxDC* DC )
+void PCB_EDIT_FRAME::StartMoveModule( MODULE* aModule, wxDC* aDC,
+                                      bool aDragConnectedTracks )
 {
-    if( module == NULL )
+    if( aModule == NULL )
         return;
 
     if( s_ModuleInitialCopy )
@@ -74,49 +103,52 @@ void PCB_EDIT_FRAME::StartMove_Module( MODULE* module, wxDC* DC )
     s_PickedList.ClearItemsList();  // Should be empty, but...
 
     // Creates a copy of the current module, for abort and undo commands
-    s_ModuleInitialCopy = new MODULE( GetBoard() );
-    s_ModuleInitialCopy->Copy( module );
-    s_ModuleInitialCopy->m_Flags = 0;
+    s_ModuleInitialCopy = (MODULE*)aModule->Clone();
+    s_ModuleInitialCopy->SetParent( GetBoard() );
+    s_ModuleInitialCopy->ClearFlags();
 
-    SetCurItem( module );
+    SetCurItem( aModule );
     GetBoard()->m_Status_Pcb &= ~RATSNEST_ITEM_LOCAL_OK;
-    module->m_Flags |= IS_MOVED;
+    aModule->SetFlags( IS_MOVED );
 
     /* Show ratsnest. */
     if( GetBoard()->IsElementVisible( RATSNEST_VISIBLE ) )
-        DrawGeneralRatsnest( DC );
+        DrawGeneralRatsnest( aDC );
 
     EraseDragList();
 
-    if( g_Drag_Pistes_On )
+    if( aDragConnectedTracks )
     {
-        Build_Drag_Liste( DrawPanel, DC, module );
+        DRAG_LIST drglist( GetBoard() );
+        drglist.BuildDragListe( aModule );
+
         ITEM_PICKER itemWrapper( NULL, UR_CHANGED );
 
         for( unsigned ii = 0; ii < g_DragSegmentList.size(); ii++ )
         {
-            TRACK* segm = g_DragSegmentList[ii].m_Segm;
-            itemWrapper.m_PickedItem = segm;
-            itemWrapper.m_Link = segm->Copy();
-            itemWrapper.m_Link->SetState( IN_EDIT, OFF );
+            TRACK* segm = g_DragSegmentList[ii].m_Track;
+            itemWrapper.SetItem( segm );
+            itemWrapper.SetLink( segm->Clone() );
+            itemWrapper.GetLink()->SetState( IN_EDIT, OFF );
             s_PickedList.PushItem( itemWrapper );
         }
+
+        UndrawAndMarkSegmentsToDrag( m_canvas, aDC );
     }
 
     GetBoard()->m_Status_Pcb |= DO_NOT_SHOW_GENERAL_RASTNEST;
-    DrawPanel->SetMouseCapture( MoveFootprint, Abort_MoveOrCopyModule );
-    DrawPanel->m_AutoPAN_Request = true;
+    m_canvas->SetMouseCapture( MoveFootprint, Abort_MoveOrCopyModule );
+    m_canvas->SetAutoPanRequest( true );
 
     // Erase the module.
-    if( DC )
+    if( aDC )
     {
-        int tmp = module->m_Flags;
-        module->m_Flags |= DO_NOT_DRAW;
-        DrawPanel->RefreshDrawingRect( module->GetBoundingBox() );
-        module->m_Flags = tmp;
+        aModule->SetFlags( DO_NOT_DRAW );
+        m_canvas->RefreshDrawingRect( aModule->GetBoundingBox() );
+        aModule->ClearFlags( DO_NOT_DRAW );
     }
 
-    DrawPanel->m_mouseCaptureCallback( DrawPanel, DC, wxDefaultPosition, false );
+    m_canvas->CallMouseCapture( aDC, wxDefaultPosition, false );
 }
 
 
@@ -142,27 +174,18 @@ void Abort_MoveOrCopyModule( EDA_DRAW_PANEL* Panel, wxDC* DC )
          */
         if( module->IsMoving() )
         {
-            if( g_Drag_Pistes_On )
-            {
-                /* Erase on screen dragged tracks */
-                for( unsigned ii = 0; ii < g_DragSegmentList.size(); ii++ )
-                {
-                    pt_segm = g_DragSegmentList[ii].m_Segm;
-                    pt_segm->Draw( Panel, DC, GR_XOR );
-                }
-            }
-
-            /* Go to old position for dragged tracks */
+            /* Restore old position for dragged tracks */
             for( unsigned ii = 0; ii < g_DragSegmentList.size(); ii++ )
             {
-                pt_segm = g_DragSegmentList[ii].m_Segm;
+                pt_segm = g_DragSegmentList[ii].m_Track;
+                pt_segm->Draw( Panel, DC, GR_XOR );
                 pt_segm->SetState( IN_EDIT, OFF );
-                g_DragSegmentList[ii].SetInitialValues();
+                g_DragSegmentList[ii].RestoreInitialValues();
                 pt_segm->Draw( Panel, DC, GR_OR );
             }
 
             EraseDragList();
-            module->m_Flags &= ~IS_MOVED;
+            module->ClearFlags( IS_MOVED );
         }
 
         if( module->IsNew() )  // Copy command: delete new footprint
@@ -170,7 +193,7 @@ void Abort_MoveOrCopyModule( EDA_DRAW_PANEL* Panel, wxDC* DC )
             module->DeleteStructure();
             module = NULL;
             pcbframe->GetBoard()->m_Status_Pcb = 0;
-            pcbframe->GetBoard()->m_NetInfo->BuildListOfNets();
+            pcbframe->GetBoard()->BuildListOfNets();
         }
     }
 
@@ -186,7 +209,6 @@ void Abort_MoveOrCopyModule( EDA_DRAW_PANEL* Panel, wxDC* DC )
         module->Draw( Panel, DC, GR_OR );
     }
 
-    g_Drag_Pistes_On     = false;
     pcbframe->SetCurItem( NULL );
 
     delete s_ModuleInitialCopy;
@@ -235,7 +257,7 @@ bool PCB_EDIT_FRAME::Delete_Module( MODULE* aModule, wxDC* aDC, bool aAskBeforeD
     if( aModule == NULL )
         return false;
 
-    aModule->DisplayInfo( this );
+    SetMsgPanel( aModule );
 
     /* Confirm module delete. */
     if( aAskBeforeDeleting )
@@ -262,7 +284,7 @@ bool PCB_EDIT_FRAME::Delete_Module( MODULE* aModule, wxDC* aDC, bool aAskBeforeD
 
     // Redraw the full screen to ensure perfect display of board and ratsnest.
     if( aDC )
-        DrawPanel->Refresh();
+        m_canvas->Refresh();
 
     return true;
 }
@@ -278,16 +300,15 @@ void PCB_EDIT_FRAME::Change_Side_Module( MODULE* Module, wxDC* DC )
 
     OnModify();
 
-    if( !( Module->m_Flags & IS_MOVED ) ) /* This is a simple flip, no other edition in progress */
+    if( !Module->IsMoving() ) /* This is a simple flip, no other edition in progress */
     {
         GetBoard()->m_Status_Pcb &= ~( LISTE_RATSNEST_ITEM_OK | CONNEXION_OK );
 
         if( DC )
         {
-            int tmp = Module->m_Flags;
-            Module->m_Flags |= DO_NOT_DRAW;
-            DrawPanel->RefreshDrawingRect( Module->GetBoundingBox() );
-            Module->m_Flags = tmp;
+            Module->SetFlags( DO_NOT_DRAW );
+            m_canvas->RefreshDrawingRect( Module->GetBoundingBox() );
+            Module->ClearFlags( DO_NOT_DRAW );
         }
 
         /* Show ratsnest if necessary. */
@@ -302,21 +323,21 @@ void PCB_EDIT_FRAME::Change_Side_Module( MODULE* Module, wxDC* DC )
         /* Erase footprint and draw outline if it has been already drawn. */
         if( DC )
         {
-            DrawModuleOutlines( DrawPanel, DC, Module );
-            DrawSegmentWhileMovingFootprint( DrawPanel, DC );
+            DrawModuleOutlines( m_canvas, DC, Module );
+            DrawSegmentWhileMovingFootprint( m_canvas, DC );
         }
     }
 
     /* Flip the module */
     Module->Flip( Module->m_Pos );
 
-    Module->DisplayInfo( this );
+    SetMsgPanel( Module );
 
-    if( !( Module->m_Flags & IS_MOVED ) ) /* Inversion simple */
+    if( !Module->IsMoving() ) /* Inversion simple */
     {
         if( DC )
         {
-            Module->Draw( DrawPanel, DC, GR_OR );
+            Module->Draw( m_canvas, DC, GR_OR );
 
             if( GetBoard()->IsElementVisible( RATSNEST_VISIBLE ) )
                 Compile_Ratsnest( DC, true );
@@ -326,8 +347,8 @@ void PCB_EDIT_FRAME::Change_Side_Module( MODULE* Module, wxDC* DC )
     {
         if( DC )
         {
-            DrawModuleOutlines( DrawPanel, DC, Module );
-            DrawSegmentWhileMovingFootprint( DrawPanel, DC );
+            DrawModuleOutlines( m_canvas, DC, Module );
+            DrawSegmentWhileMovingFootprint( m_canvas, DC );
         }
 
         GetBoard()->m_Status_Pcb &= ~RATSNEST_ITEM_LOCAL_OK;
@@ -337,7 +358,6 @@ void PCB_EDIT_FRAME::Change_Side_Module( MODULE* Module, wxDC* DC )
 
 void PCB_BASE_FRAME::PlaceModule( MODULE* aModule, wxDC* aDC, bool aDoNotRecreateRatsnest )
 {
-    TRACK*  pt_segm;
     wxPoint newpos;
 
     if( aModule == 0 )
@@ -350,10 +370,10 @@ void PCB_BASE_FRAME::PlaceModule( MODULE* aModule, wxDC* aDC, bool aDoNotRecreat
     {
         SaveCopyInUndoList( aModule, UR_NEW );
     }
-    else if( (aModule->m_Flags & IS_MOVED ) )
+    else if( aModule->IsMoving() )
     {
         ITEM_PICKER picker( aModule, UR_CHANGED );
-        picker.m_Link = s_ModuleInitialCopy;
+        picker.SetLink( s_ModuleInitialCopy );
         s_PickedList.PushItem( picker );
         s_ModuleInitialCopy = NULL;     // the picker is now owner of s_ModuleInitialCopy.
     }
@@ -372,40 +392,36 @@ void PCB_BASE_FRAME::PlaceModule( MODULE* aModule, wxDC* aDC, bool aDoNotRecreat
 
     newpos = GetScreen()->GetCrossHairPosition();
     aModule->SetPosition( newpos );
-    aModule->m_Flags = 0;
+    aModule->ClearFlags();
 
     delete s_ModuleInitialCopy;
     s_ModuleInitialCopy = NULL;
 
     if( aDC )
-        aModule->Draw( DrawPanel, aDC, GR_OR );
+        aModule->Draw( m_canvas, aDC, GR_OR );
 
-    if( g_DragSegmentList.size() )
+    // Redraw dragged track segments, if any
+    for( unsigned ii = 0; ii < g_DragSegmentList.size(); ii++ )
     {
-        /* Redraw dragged track segments */
-        for( unsigned ii = 0; ii < g_DragSegmentList.size(); ii++ )
-        {
-            pt_segm = g_DragSegmentList[ii].m_Segm;
-            pt_segm->SetState( IN_EDIT, OFF );
+        TRACK * track = g_DragSegmentList[ii].m_Track;
+        track->SetState( IN_EDIT, OFF );
 
-            if( aDC )
-                pt_segm->Draw( DrawPanel, aDC, GR_OR );
-        }
-
-        // Delete drag list
-        EraseDragList();
+        if( aDC )
+            track->Draw( m_canvas, aDC, GR_OR );
     }
 
-    g_Drag_Pistes_On = false;
-    DrawPanel->SetMouseCapture( NULL, NULL );
+    // Delete drag list
+    EraseDragList();
+
+    m_canvas->SetMouseCapture( NULL, NULL );
 
     if( GetBoard()->IsElementVisible( RATSNEST_VISIBLE ) && !aDoNotRecreateRatsnest )
         Compile_Ratsnest( aDC, true );
 
     if( aDC )
-        DrawPanel->Refresh();
+        m_canvas->Refresh();
 
-    aModule->DisplayInfo( this );
+    SetMsgPanel( aModule );
 }
 
 
@@ -423,15 +439,14 @@ void PCB_BASE_FRAME::Rotate_Module( wxDC* DC, MODULE* module, int angle, bool in
 
     OnModify();
 
-    if( !( module->m_Flags & IS_MOVED ) ) /* This is a simple rotation, no other
+    if( !module->IsMoving() ) /* This is a simple rotation, no other
                                            * edition in progress */
     {
         if( DC )                          // Erase footprint to screen
         {
-            int tmp = module->m_Flags;
-            module->m_Flags |= DO_NOT_DRAW;
-            DrawPanel->RefreshDrawingRect( module->GetBoundingBox() );
-            module->m_Flags = tmp;
+            module->SetFlags( DO_NOT_DRAW );
+            m_canvas->RefreshDrawingRect( module->GetBoundingBox() );
+            module->ClearFlags( DO_NOT_DRAW );
 
             if( GetBoard()->IsElementVisible( RATSNEST_VISIBLE ) )
                 DrawGeneralRatsnest( DC );
@@ -441,8 +456,8 @@ void PCB_BASE_FRAME::Rotate_Module( wxDC* DC, MODULE* module, int angle, bool in
     {
         if( DC )
         {
-            DrawModuleOutlines( DrawPanel, DC, module );
-            DrawSegmentWhileMovingFootprint( DrawPanel, DC );
+            DrawModuleOutlines( m_canvas, DC, module );
+            DrawSegmentWhileMovingFootprint( m_canvas, DC );
         }
     }
 
@@ -453,14 +468,14 @@ void PCB_BASE_FRAME::Rotate_Module( wxDC* DC, MODULE* module, int angle, bool in
     else
         module->SetOrientation( angle );
 
-    module->DisplayInfo( this );
+    SetMsgPanel( module );
 
     if( DC )
     {
-        if( !( module->m_Flags & IS_MOVED ) )
+        if( !module->IsMoving() )
         {
             //  not beiing moved: redraw the module and update ratsnest
-            module->Draw( DrawPanel, DC, GR_OR );
+            module->Draw( m_canvas, DC, GR_OR );
 
             if( GetBoard()->IsElementVisible( RATSNEST_VISIBLE ) )
                 Compile_Ratsnest( DC, true );
@@ -468,12 +483,12 @@ void PCB_BASE_FRAME::Rotate_Module( wxDC* DC, MODULE* module, int angle, bool in
         else
         {
             // Beiing moved: just redraw it
-            DrawModuleOutlines( DrawPanel, DC, module );
-            DrawSegmentWhileMovingFootprint( DrawPanel, DC );
+            DrawModuleOutlines( m_canvas, DC, module );
+            DrawSegmentWhileMovingFootprint( m_canvas, DC );
         }
 
-        if( module->m_Flags == 0 )  // module not in edit: redraw full screen
-            DrawPanel->Refresh();
+        if( module->GetFlags() == 0 )  // module not in edit: redraw full screen
+            m_canvas->Refresh();
     }
 }
 
@@ -491,20 +506,16 @@ void DrawModuleOutlines( EDA_DRAW_PANEL* panel, wxDC* DC, MODULE* module )
 
     module->DrawEdgesOnly( panel, DC, g_Offset_Module, GR_XOR );
 
-    if( g_Show_Pads_Module_in_Move )
-    {
-        pad_fill_tmp = DisplayOpt.DisplayPadFill;
-        DisplayOpt.DisplayPadFill = true;
+    // Show pads in sketch mode to speedu up drawings
+    pad_fill_tmp = DisplayOpt.DisplayPadFill;
+    DisplayOpt.DisplayPadFill = true;
 
-        pt_pad = module->m_Pads;
+    pt_pad = module->m_Pads;
 
-        for( ; pt_pad != NULL; pt_pad = pt_pad->Next() )
-        {
-            pt_pad->Draw( panel, DC, GR_XOR, g_Offset_Module );
-        }
+    for( ; pt_pad != NULL; pt_pad = pt_pad->Next() )
+        pt_pad->Draw( panel, DC, GR_XOR, g_Offset_Module );
 
-        DisplayOpt.DisplayPadFill = pad_fill_tmp;
-    }
+    DisplayOpt.DisplayPadFill = pad_fill_tmp;
 
     if( g_Show_Module_Ratsnest && panel )
     {

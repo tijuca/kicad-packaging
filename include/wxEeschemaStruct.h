@@ -30,13 +30,13 @@
 #ifndef  WX_EESCHEMA_STRUCT_H
 #define  WX_EESCHEMA_STRUCT_H
 
-#include "wxstruct.h"
-#include "param_config.h"
-#include "class_undoredo_container.h"
-#include "template_fieldnames.h"
-#include "block_commande.h"
-#include "class_sch_screen.h"
-#include "sch_collectors.h"
+#include <sch_base_frame.h>
+#include <param_config.h>
+#include <class_undoredo_container.h>
+#include <template_fieldnames.h>
+#include <block_commande.h>
+#include <class_sch_screen.h>
+#include <sch_collectors.h>
 
 
 class LIB_EDIT_FRAME;
@@ -110,21 +110,10 @@ enum SCH_SEARCH_T {
 /**
  * Schematic editor (Eeschema) main window.
  */
-class SCH_EDIT_FRAME : public EDA_DRAW_FRAME
+class SCH_EDIT_FRAME : public SCH_BASE_FRAME
 {
-public:
-    wxComboBox*           m_SelPartBox;
-    SCH_SHEET_PATH*       m_CurrentSheet;    ///< which sheet we are presently working on.
-    int m_NetlistFormat;
-    int m_AddSubPrefix;
-    bool                  m_ShowAllPins;
-    wxPoint               m_OldPos;
-    LIB_EDIT_FRAME*       m_LibeditFrame;
-    LIB_VIEW_FRAME*       m_ViewlibFrame;
-    wxString              m_UserLibraryPath;
-    wxArrayString         m_ComponentLibFiles;
-
 private:
+    SCH_SHEET_PATH*       m_CurrentSheet;    ///< which sheet we are presently working on.
     wxString              m_DefaultSchematicFileName;
     int m_TextFieldSize;
     PARAM_CFG_ARRAY       m_projectFileParams;
@@ -146,11 +135,32 @@ private:
     SCH_ITEM*             m_itemToRepeat;       ///< Last item to insert by the repeat command.
     int                   m_repeatLabelDelta;   ///< Repeat label number increment step.
     SCH_COLLECTOR         m_collectedItems;     ///< List of collected items.
+    SCH_FIND_COLLECTOR    m_foundItems;         ///< List of find/replace items.
     SCH_ITEM*             m_undoItem;           ///< Copy of the current item being edited.
     wxString              m_simulatorCommand;   ///< Command line used to call the circuit
                                                 ///< simulator (gnucap, spice, ...)
     wxString              m_netListerCommand;   ///< Command line to call a custom net list
                                                 ///< generator.
+
+    bool                  m_forceHVLines;       ///< force H or V directions for wires, bus, line
+    int                   m_defaultLabelSize;   ///< size of a new label
+
+
+    /// An index to the last find item in the found items list #m_foundItems.
+    int m_foundItemIndex;
+
+    /// Flag to indicate show hidden pins.
+    bool m_showAllPins;
+
+    /// The name of the format to use when generating a net list.
+    wxString m_netListFormat;
+
+    /// Add X prefix to componen referencess when generating spice net lists.
+    bool m_addReferencPrefix;
+
+    wxString m_userLibraryPath;
+
+    wxArrayString m_componentLibFiles;
 
     static int            m_lastSheetPinType;      ///< Last sheet pin type.
     static wxSize         m_lastSheetPinTextSize;  ///< Last sheet pin text size.
@@ -173,16 +183,52 @@ protected:
      */
     virtual bool isAutoSaveRequired() const;
 
+    /**
+     * Function addCurrentItemToList
+     * adds the item currently being edited to the schematic and adds the changes to
+     * the undo/redo container.
+     *
+     * @param aDC A pointer the device context to draw on when not NULL.
+     */
+    void addCurrentItemToList( wxDC* aDC );
 
 public:
-    SCH_EDIT_FRAME( wxWindow* father,
-                    const wxString& title,
-                    const wxPoint& pos, const wxSize& size,
-                    long style = KICAD_DEFAULT_DRAWFRAME_STYLE );
+    SCH_EDIT_FRAME( wxWindow* aParent, const wxString& aTitle,
+                    const wxPoint& aPosition, const wxSize& aSize,
+                    long aStyle = KICAD_DEFAULT_DRAWFRAME_STYLE );
 
     ~SCH_EDIT_FRAME();
 
+    SCH_SCREEN* GetScreen() const;                  // overload SCH_BASE_FRAME
+
     void OnCloseWindow( wxCloseEvent& Event );
+
+    int GetDefaultLabelSize() const { return m_defaultLabelSize; }
+    void SetDefaultLabelSize( int aLabelSize ) { m_defaultLabelSize = aLabelSize; }
+
+    bool GetForceHVLines() const { return m_forceHVLines; }
+    void SetForceHVLines( bool aForceHVdirection ) { m_forceHVLines = aForceHVdirection; }
+
+    bool GetShowAllPins() const { return m_showAllPins; }
+
+    void SetShowAllPins( bool aEnable ) { m_showAllPins = aEnable; }
+
+    const wxString GetNetListFormatName() const { return m_netListFormat; }
+
+    void SetNetListFormatName( const wxString& aFormat ) { m_netListFormat = aFormat; }
+
+    bool GetAddReferencePrefix() const { return m_addReferencPrefix; }
+
+    void SetAddReferencePrefix( bool aEnable ) { m_addReferencPrefix = aEnable; }
+
+    wxString GetUserLibraryPath() const { return m_userLibraryPath; }
+
+    void SetUserLibraryPath( const wxString& aPath ) { m_userLibraryPath = aPath; }
+
+    const wxArrayString& GetComponentLibraries() const { return m_componentLibFiles; }
+
+    void SetComponentLibraries( const wxArrayString& aList ) { m_componentLibFiles = aList; }
+
     void Process_Special_Functions( wxCommandEvent& event );
     void OnColorConfig( wxCommandEvent& aEvent );
     void Process_Config( wxCommandEvent& event );
@@ -307,10 +353,6 @@ public:
      */
     void OnModify();
 
-    SCH_SHEET_PATH* GetSheet();
-
-    SCH_SCREEN* GetScreen() const;
-
     virtual wxString GetScreenDesc();
 
     void InstallConfigFrame( wxCommandEvent& event );
@@ -406,37 +448,43 @@ public:
 
     /**
      * Function CreateNetlist
-     * Create a netlist file:
-     *  build netlist info
-     *  test issues
-     *  create file
+     * <ul>
+     * <li> test for some issues (missing or duplicate references and sheet names)
+     * <li> build netlist info
+     * <li> create the netlist file (different formats)
+     * </ul>
      * @param aFormat = netlist format (NET_TYPE_PCBNEW ...)
      * @param aFullFileName = full netlist file name
-     * @param aUse_netnames = bool. if true, use net names from labels in schematic
-     *                              if false, use net numbers (net codes)
-     *   bool aUse_netnames is used only for Spice netlist
-     * @param aUsePrefix Prefix reference designator with an 'X' for spice output.
+     * @param aNetlistOptions = netlist options using OR'ed bits.
+     * <p>
+     * For SPICE netlist only:
+     *      if NET_USE_NETNAMES is set, use net names from labels in schematic
+     *                             else use net numbers (net codes)
+     *      if NET_USE_X_PREFIX is set : change "U" and "IC" refernce prefix to "X"
+     * </p>
      * @return true if success.
      */
     bool CreateNetlist( int             aFormat,
                         const wxString& aFullFileName,
-                        bool            aUse_netnames,
-                        bool            aUsePrefix );
+                        unsigned        aNetlistOptions );
 
     /**
      * Function  WriteNetListFile
      * Create the netlist file. Netlist info must be existing
      * @param aFormat = netlist format (NET_TYPE_PCBNEW ...)
      * @param aFullFileName = full netlist file name
-     * @param aUse_netnames = bool. if true, use net names from labels in schematic
-     *                              if false, use net numbers (net codes)
-     *   bool aUse_netnames is used only for Spice netlist
+     * @param aNetlistOptions = netlist options using OR'ed bits.
+     * <p>
+     * For SPICE netlist only:
+     *      if NET_USE_NETNAMES is set, use net names from labels in schematic
+     *                             else use net numbers (net codes)
+     *      if NET_USE_X_PREFIX is set : change "U" and "IC" refernce prefix to "X"
+     * </p>
      * @return true if success.
      */
     bool WriteNetListFile( int             aFormat,
                            const wxString& aFullFileName,
-                           bool            aUse_netnames,
-                           bool            aUsePrefix );
+                           unsigned        aNetlistOptions );
 
     /**
      * Function DeleteAnnotation
@@ -494,6 +542,10 @@ public:
     int CheckAnnotate( wxArrayString* aMessageList, bool aOneSheetOnly );
 
     // Functions used for hierarchy handling
+    SCH_SHEET_PATH& GetCurrentSheet();
+
+    void SetCurrentSheet( const SCH_SHEET_PATH& aSheet );
+
     /**
      * Function DisplayCurrentSheet
      * draws the current sheet on the display.
@@ -515,7 +567,7 @@ public:
 
     /**
      * Function SetSheetNumberAndCount
-     * Set the m_ScreenNumber and m_NumberOfScreen members for screens
+     * Set the m_ScreenNumber and m_NumberOfScreens members for screens
      * must be called after a delete or add sheet command, and when entering
      * a sheet
      */
@@ -547,13 +599,10 @@ public:
     void SetPrintMonochrome( bool aMonochrome ) { m_printMonochrome = aMonochrome; }
     bool GetPrintSheetReference() { return m_printSheetReference; }
     void SetPrintSheetReference( bool aShow ) { m_printSheetReference = aShow; }
-    void SVG_Print( wxCommandEvent& event );
 
     // Plot functions:
-    void ToPlot_PS( wxCommandEvent& event );
-    void ToPlot_HPGL( wxCommandEvent& event );
-    void ToPlot_DXF( wxCommandEvent& event );
-    void ToPostProcess( wxCommandEvent& event );
+//    void ToPostProcess( wxCommandEvent& event );
+    void PlotSchematic( wxCommandEvent& event );
 
     // read and save files
     void Save_File( wxCommandEvent& event );
@@ -582,6 +631,14 @@ public:
     bool LoadOneEEProject( const wxString& aFileName, bool aIsNew );
 
     /**
+     * Function AppendOneEEProject
+     * read an entire project and loads it into the schematic editor *whitout* replacing the
+     * existing contents.
+     * @return True if the project was imported properly.
+     */
+    bool AppendOneEEProject();
+
+    /**
      * Function LoadOneEEFile
      * loads the schematic (.sch) file \a aFullFileName into \a aScreen.
      *
@@ -589,29 +646,44 @@ public:
      *                \a aFullFileName.
      * @param aFullFileName A reference to a wxString object containing the absolute path
      *                      and file name to load.
+     * @param append True if loaded file is being appended to the currently open file instead
+ *                   of replacing it.
      * @return True if \a aFullFileName has been loaded (at least partially.)
      */
-    bool LoadOneEEFile( SCH_SCREEN* aScreen, const wxString& aFullFileName );
+    bool LoadOneEEFile( SCH_SCREEN* aScreen, const wxString& aFullFileName, bool append = false );
 
-    bool ReadInputStuffFile();
+    /**
+     * Function ReadCmpToFootprintLinkFile
+     * Loads a .cmp file from CvPcb and update the footprin field
+     * of components
+     * Prepares parameters and calls ProcessCmpToFootprintLinkFile
+     * to actually read the file and update Fp fields
+     */
+    bool LoadCmpToFootprintLinkFile();
 
     /**
      * Function ProcessStuffFile
      * gets footprint info from each line in the Stuff File by Ref Desg
      *
-     * Read a "stuff" file created by CvPcb.
+     * Read a Cmp To Footprint Link file created by CvPcb (the .cmp file).
      * That file has lines like:
-     * comp = "C1" module = "CP6"
-     * comp = "C2" module = "C1"
-     * comp = "C3" module = "C1"
-     * "comp =" gives the component reference
-     * "module =" gives the footprint name
+     *  BeginCmp
+     *  TimeStamp = /32307DE2/AA450F67;
+     *  Reference = C1;
+     *  ValeurCmp = 47uF;
+     *  IdModule  = CP6;
+     *  EndCmp
      *
-     * @param aFilename The file to read from.
-     * @param aSetFieldsAttributeToVisible = true to set the footprint field flag to visible
-     * @return bool - true if success, else true.
+     * @param aFullFilename = the full filename to read
+     * @param aForceFieldsVisibleAttribute = true to change the footprint field flag
+     *                                      visible or invisible
+     *                                      false = keep old state.
+     * @param aFieldsVisibleAttributeState = footprint field flag visible new state
+     * @return bool = true if success.
      */
-    bool ProcessStuffFile( FILE* aFilename, bool  aSetFieldsAttributeToVisible );
+    bool ProcessCmpToFootprintLinkFile( wxString& aFullFilename,
+                                        bool aForceFieldsVisibleAttribute,
+                                        bool aFieldsVisibleAttributeState );
 
     /**
      * Function SaveEEFile
@@ -619,14 +691,16 @@ public:
      *
      * @param aScreen A pointer to the SCH_SCREEN object to save.  A NULL pointer saves
      *                the current screen.
-     * @param aSaveType Controls how the file is to be saved.
+     * @param aSaveUnderNewName Controls how the file is to be saved;: using  previous name
+     *                          or under a new name .
      * @param aCreateBackupFile Creates a back of the file associated with \a aScreen
-     *                          if true.  Helper definitions #CREATE_BACKUP_FILE and
+     *                          if true.
+     *                           Helper definitions #CREATE_BACKUP_FILE and
      *                          #NO_BACKUP_FILE are defined for improved code readability.
      * @return True if the file has been saved.
      */
     bool SaveEEFile( SCH_SCREEN* aScreen,
-                     int         aSaveType,
+                     bool        aSaveUnderNewName = false,
                      bool        aCreateBackupFile = CREATE_BACKUP_FILE );
 
     // General search:
@@ -692,12 +766,12 @@ private:
     void OnFindReplace( wxFindDialogEvent& aEvent );
 
     void OnLoadFile( wxCommandEvent& event );
-    void OnLoadStuffFile( wxCommandEvent& event );
+    void OnLoadCmpToFootprintLinkFile( wxCommandEvent& event );
     void OnNewProject( wxCommandEvent& event );
     void OnLoadProject( wxCommandEvent& event );
+    void OnAppendProject( wxCommandEvent& event );
     void OnOpenPcbnew( wxCommandEvent& event );
     void OnOpenCvpcb( wxCommandEvent& event );
-    void OnOpenLibraryViewer( wxCommandEvent& event );
     void OnOpenLibraryEditor( wxCommandEvent& event );
     void OnSetOptions( wxCommandEvent& event );
     void OnCancelCurrentCommand( wxCommandEvent& aEvent );
@@ -723,10 +797,22 @@ private:
      */
     void SetLanguage( wxCommandEvent& event );
 
+    /**
+     * Function UpdateTitle
+     * sets the main window title bar text.
+     * <p>
+     * If file name defined by SCH_SCREEN::m_FileName is not set, the title is set to the
+     * application name appended with no file.
+     * Otherwise, the title is set to the hierarchical sheet path and the full file name,
+     * and read only is appended to the title if the user does not have write
+     * access to the file.
+     * </p>
+     */
+    void UpdateTitle();
+
     // Bus Entry
     SCH_BUS_ENTRY* CreateBusEntry( wxDC* DC, int entry_type );
     void SetBusEntryShape( wxDC* DC, SCH_BUS_ENTRY* BusEntry, int entry_type );
-    int GetBusEntryShape( SCH_BUS_ENTRY* BusEntry );
 
     /**
      * Function AddNoConnect
@@ -812,11 +898,8 @@ private:
     void InstallHierarchyFrame( wxDC* DC, wxPoint& pos );
     SCH_SHEET* CreateSheet( wxDC* DC );
     void ReSizeSheet( SCH_SHEET* Sheet, wxDC* DC );
-
-    /**
-     * Use the component viewer to select component to import into schematic.
-     */
-    wxString SelectFromLibBrowser( void );
+    // Loads the cache library associated to the aFileName
+    bool LoadCacheLibrary( const wxString& aFileName );
 
 public:
     /**
@@ -911,7 +994,14 @@ private:
     void ConvertPart( SCH_COMPONENT* DrawComponent, wxDC* DC );
     void SetInitCmp( SCH_COMPONENT* DrawComponent, wxDC* DC );
 
-    void EditComponentFieldText( SCH_FIELD* aField, wxDC* aDC );
+    /**
+     * Function EditComponentFieldText
+     * displays the edit field dialog to edit the parameters of \a aField.
+     *
+     * @param aField is a pointer to the SCH_FIELD object to be edited.
+     */
+    void EditComponentFieldText( SCH_FIELD* aField );
+
     void RotateField( SCH_FIELD* aField, wxDC* aDC );
 
     /**
@@ -1102,6 +1192,17 @@ public:
      * Clear all libraries currently loaded and load all of the project libraries.
      */
     void LoadLibraries( void );
+
+    /**
+     * Function CreateArchiveLibraryCacheFile
+     * creates a library file with the name of the root document plus the '-cache' suffix,
+     * That file will contain all components used in the current schematic.
+     *
+     * @param aUseCurrentSheetFilename = false to use the root shhet filename
+     * (default) or true to use the currently opened sheet.
+     * @return True if the file was written successfully.
+     */
+    bool CreateArchiveLibraryCacheFile( bool aUseCurrentSheetFilename = false  );
 
     /**
      * Function CreateArchiveLibrary

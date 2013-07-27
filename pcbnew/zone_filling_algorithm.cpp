@@ -2,19 +2,41 @@
  * @file zone_filling_algorithm.cpp:
  * Algorithms used to fill a zone defined by a polygon and a filling starting point.
  */
+/*
+ * This program source code file is part of KiCad, a free EDA CAD application.
+ *
+ * Copyright (C) 2012 Jean-Pierre Charras, jean-pierre.charras@ujf-grenoble.fr
+ * Copyright (C) 1992-2012 KiCad Developers, see AUTHORS.txt for contributors.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation; either version 2
+ * of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, you may find one here:
+ * http://www.gnu.org/licenses/old-licenses/gpl-2.0.html
+ * or you may search the http://www.gnu.org website for the version 2 license,
+ * or you may write to the Free Software Foundation, Inc.,
+ * 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
+ */
 
 
 #include <algorithm> // sort
 
-#include "fctsys.h"
-#include "trigo.h"
-#include "wxPcbStruct.h"
+#include <fctsys.h>
+#include <trigo.h>
+#include <wxPcbStruct.h>
 
-#include "class_zone.h"
+#include <class_zone.h>
 
-#include "pcbnew.h"
-#include "zones.h"
-#include "protos.h"
+#include <pcbnew.h>
+#include <zones.h>
 
 /* Local functions */
 
@@ -27,75 +49,86 @@
  * in order to have drawable (and plottable) filled polygons
  * drawable filled polygons are polygons without hole
  * @param aPcb: the current board (can be NULL for non copper zones)
+ * @param aCornerBuffer: A reference to a buffer to put polygon corners, or NULL
+ * if NULL (default), uses m_FilledPolysList and fill current zone.
  * @return number of polygons
  * This function does not add holes for pads and tracks but calls
  * AddClearanceAreasPolygonsToPolysList() to do that for copper layers
  */
-int ZONE_CONTAINER::BuildFilledPolysListData( BOARD* aPcb )
+int ZONE_CONTAINER::BuildFilledPolysListData( BOARD* aPcb, std::vector <CPolyPt>* aCornerBuffer )
 {
-    m_FilledPolysList.clear();
+    if( aCornerBuffer == NULL )
+        m_FilledPolysList.clear();
 
     /* convert outlines + holes to outlines without holes (adding extra segments if necessary)
      * m_Poly data is expected normalized, i.e. NormalizeAreaOutlines was used after building
      * this zone
      */
 
-    if( GetNumCorners() <= 2 )  // malformed zone. Kbool does not like it ...
+    if( GetNumCorners() <= 2 )  // malformed zone. polygon calculations do not like it ...
         return 0;
 
     // Make a smoothed polygon out of the user-drawn polygon if required
-    if( smoothedPoly ) {
-        delete smoothedPoly;
-        smoothedPoly = NULL;
+    if( m_smoothedPoly )
+    {
+        delete m_smoothedPoly;
+        m_smoothedPoly = NULL;
     }
 
-    switch( cornerSmoothingType )
+    switch( m_cornerSmoothingType )
     {
-    case ZONE_SETTING::SMOOTHING_CHAMFER:
-        smoothedPoly = m_Poly->Chamfer( cornerRadius );
+    case ZONE_SETTINGS::SMOOTHING_CHAMFER:
+        m_smoothedPoly = m_Poly->Chamfer( m_cornerRadius );
         break;
-    case ZONE_SETTING::SMOOTHING_FILLET:
-        smoothedPoly = m_Poly->Fillet( cornerRadius, m_ArcToSegmentsCount );
+    case ZONE_SETTINGS::SMOOTHING_FILLET:
+        m_smoothedPoly = m_Poly->Fillet( m_cornerRadius, m_ArcToSegmentsCount );
         break;
     default:
-        smoothedPoly = new CPolyLine;
-        smoothedPoly->Copy( m_Poly );
+        m_smoothedPoly = new CPolyLine;
+        m_smoothedPoly->Copy( m_Poly );
         break;
     }
 
-    smoothedPoly->MakeKboolPoly( -1, -1, NULL, true );
-    int count = 0;
-    while( smoothedPoly->GetKboolEngine()->StartPolygonGet() )
-    {
-        CPolyPt corner( 0, 0, false );
-        while( smoothedPoly->GetKboolEngine()->PolygonHasMorePoints() )
-        {
-            corner.x = (int) smoothedPoly->GetKboolEngine()->GetPolygonXPoint();
-            corner.y = (int) smoothedPoly->GetKboolEngine()->GetPolygonYPoint();
-            corner.end_contour = false;
-            m_FilledPolysList.push_back( corner );
-            count++;
-        }
-
-        corner.end_contour = true;
-        m_FilledPolysList.pop_back();
-        m_FilledPolysList.push_back( corner );
-        smoothedPoly->GetKboolEngine()->EndPolygonGet();
-    }
-
-    smoothedPoly->FreeKboolEngine();
+    if( aCornerBuffer )
+        ConvertPolysListWithHolesToOnePolygon( m_smoothedPoly->m_CornersList,
+                                               *aCornerBuffer );
+    else
+        ConvertPolysListWithHolesToOnePolygon( m_smoothedPoly->m_CornersList,
+                                               m_FilledPolysList );
 
     /* For copper layers, we now must add holes in the Polygon list.
      * holes are pads and tracks with their clearance area
+     * for non copper layers just recalculate the m_FilledPolysList
+     * with m_ZoneMinThickness taken in account
      */
+    if( ! aCornerBuffer )
+    {
+        if( IsOnCopperLayer() )
+            AddClearanceAreasPolygonsToPolysList( aPcb );
+        else
+        {
+            // This KI_POLYGON_SET is the area(s) to fill, with m_ZoneMinThickness/2
+            KI_POLYGON_SET polyset_zone_solid_areas;
+            int         margin = m_ZoneMinThickness / 2;
 
-    if( IsOnCopperLayer() )
-        AddClearanceAreasPolygonsToPolysList( aPcb );
+            /* First, creates the main polygon (i.e. the filled area using only one outline)
+             * to reserve a m_ZoneMinThickness/2 margin around the outlines and holes
+             * this margin is the room to redraw outlines with segments having a width set to
+             * m_ZoneMinThickness
+             * so m_ZoneMinThickness is the min thickness of the filled zones areas
+             * the polygon is stored in polyset_zone_solid_areas
+             */
+            CopyPolygonsFromFilledPolysListToKiPolygonList( polyset_zone_solid_areas );
+            polyset_zone_solid_areas -= margin;
+            // put solid area in m_FilledPolysList:
+            m_FilledPolysList.clear();
+            CopyPolygonsFromKiPolygonListToFilledPolysList( polyset_zone_solid_areas );
+        }
+        if ( m_FillMode )   // if fill mode uses segments, create them:
+            Fill_Zone_Areas_With_Segments( );
+    }
 
-    if ( m_FillMode )   // if fill mode uses segments, create them:
-        Fill_Zone_Areas_With_Segments( );
-
-    return count;
+    return 1;
 }
 
 // Sort function to build filled zones
@@ -123,9 +156,10 @@ int ZONE_CONTAINER::Fill_Zone_Areas_With_Segments()
     int      istart, iend;      // index od the starting and the endif corner of one filled area in m_FilledPolysList
 
     int margin = m_ZoneMinThickness * 2 / 10;
-    margin = max (2, margin);
+    int minwidth = Mils2iu( 2 );
+    margin = std::max ( minwidth, margin );
     int step = m_ZoneMinThickness - margin;
-    step = max(step, 2);
+    step = std::max( step, minwidth );
 
     // Read all filled areas in m_FilledPolysList
     m_FillSegmList.clear();
@@ -149,7 +183,7 @@ int ZONE_CONTAINER::Fill_Zone_Areas_With_Segments()
                 x_coordinates.clear();
                 for( ics = istart, ice = iend; ics <= iend; ice = ics, ics++ )
                 {
-                    if ( m_FilledPolysList[ice].utility )
+                    if ( m_FilledPolysList[ice].m_utility )
                         continue;
                     int seg_startX = m_FilledPolysList[ics].x;
                     int seg_startY = m_FilledPolysList[ics].y;

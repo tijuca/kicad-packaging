@@ -1,9 +1,10 @@
 /*
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
- * Copyright (C) 2007 Jean-Pierre Charras, jaen-pierre.charras@gipsa-lab.inpg.com
- * Copyright (C) 2010-2011 Wayne Stambaugh <stambaughw@verizon.net>
- * Copyright (C) 1992-2011 KiCad Developers, see AUTHORS.txt for contributors.
+ * Copyright (C) 2012 Jean-Pierre Charras, jean-pierre.charras@ujf-grenoble.fr
+ * Copyright (C) 2012 SoftPLC Corporation, Dick Hollenbeck <dick@softplc.com>
+ * Copyright (C) 2012 Wayne Stambaugh <stambaughw@verizon.net>
+ * Copyright (C) 1992-2012 KiCad Developers, see AUTHORS.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -27,15 +28,16 @@
  * @file menubar_pcbframe.cpp
  * Pcbnew editor menu bar
  */
-#include "fctsys.h"
-#include "appl_wxstruct.h"
-#include "pcbnew.h"
-#include "wxPcbStruct.h"
-#include "protos.h"
-#include "hotkeys.h"
-#include "pcbnew_id.h"
+#include <fctsys.h>
+#include <appl_wxstruct.h>
+#include <pcbnew.h>
+#include <wxPcbStruct.h>
+#include <protos.h>
+#include <hotkeys.h>
+#include <pcbnew_id.h>
 
-#include "help_common_strings.h"
+#include <help_common_strings.h>
+#include <menus_helpers.h>
 
 /**
  * Pcbnew mainframe menubar
@@ -78,11 +80,11 @@ void PCB_EDIT_FRAME::ReCreateMenuBar()
     // Add this menu to list menu managed by m_fileHistory
     // (the file history will be updated when adding/removing files in history
     if( openRecentMenu )
-        wxGetApp().m_fileHistory.RemoveMenu( openRecentMenu );
+        wxGetApp().GetFileHistory().RemoveMenu( openRecentMenu );
 
     openRecentMenu = new wxMenu();
-    wxGetApp().m_fileHistory.UseMenu( openRecentMenu );
-    wxGetApp().m_fileHistory.AddFilesToMenu();
+    wxGetApp().GetFileHistory().UseMenu( openRecentMenu );
+    wxGetApp().GetFileHistory().AddFilesToMenu();
     AddMenuItem( filesMenu, openRecentMenu,
                  -1, _( "Open &Recent" ),
                  _( "Open a recent opened board" ),
@@ -94,8 +96,6 @@ void PCB_EDIT_FRAME::ReCreateMenuBar()
                  _( "&Append Board" ),
                  _( "Append another Pcbnew board to the current loaded board" ),
                  KiBitmap( import_xpm ) );
-
-    // Separator
     filesMenu->AppendSeparator();
 
     // Save
@@ -112,33 +112,38 @@ void PCB_EDIT_FRAME::ReCreateMenuBar()
     filesMenu->AppendSeparator();
 
     // Revert
-    AddMenuItem( filesMenu, ID_MENU_READ_LAST_SAVED_VERSION_BOARD,
-                 _( "Revert" ),
-                 _( "Clear board and get previous saved version of board" ),
-                 KiBitmap( jigsaw_xpm ) );
+    AddMenuItem( filesMenu, ID_MENU_READ_BOARD_BACKUP_FILE,
+                 _( "Revert to Last" ),
+                 _( "Clear board and get previous backup version of board" ),
+                 KiBitmap( help_xpm ) );
 
     // Rescue
-    AddMenuItem( filesMenu, ID_MENU_RECOVER_BOARD, _( "Rescue" ),
-                 _( "Clear old board and get last rescue file" ),
-                 KiBitmap( hammer_xpm ) );
+    AddMenuItem( filesMenu, ID_MENU_RECOVER_BOARD_AUTOSAVE, _( "Rescue" ),
+                 _( "Clear board and get last rescue file automatically saved by Pcbnew" ),
+                 KiBitmap( help_xpm ) );
     filesMenu->AppendSeparator();
-
 
     /* Fabrication Outputs submenu */
     wxMenu* fabricationOutputsMenu = new wxMenu;
     AddMenuItem( fabricationOutputsMenu, ID_PCB_GEN_POS_MODULES_FILE,
-                 _( "&Modules Position File" ),
+                 _( "&Modules Position (.pos) File" ),
                  _( "Generate modules position file for pick and place" ),
                  KiBitmap( post_compo_xpm ) );
 
     AddMenuItem( fabricationOutputsMenu, ID_PCB_GEN_DRILL_FILE,
-                 _( "&Drill File" ),
+                 _( "&Drill (.drl) File" ),
                  _( "Generate excellon2 drill file" ),
                  KiBitmap( post_drill_xpm ) );
 
+    // Module Report
+    AddMenuItem( fabricationOutputsMenu, ID_GEN_EXPORT_FILE_MODULE_REPORT,
+                 _( "&Module (.rpt) Report" ),
+                 _( "Create a report of all modules on the current board" ),
+                 KiBitmap( tools_xpm ) );
+
     // Component File
     AddMenuItem( fabricationOutputsMenu, ID_PCB_GEN_CMP_FILE,
-                 _( "&Component File" ),
+                 _( "&Component (.cmp) File" ),
                  _( "(Re)create components file (*.cmp) for CvPcb" ),
                  KiBitmap( create_cmp_file_xpm ) );
 
@@ -146,7 +151,7 @@ void PCB_EDIT_FRAME::ReCreateMenuBar()
     AddMenuItem( fabricationOutputsMenu, ID_PCB_GEN_BOM_FILE_FROM_BOARD,
                  _( "&BOM File" ),
                  _( "Create a bill of materials from schematic" ),
-                 KiBitmap( tools_xpm ) );
+                 KiBitmap( bom_xpm ) );
 
     // Fabrications Outputs submenu append
     AddMenuItem( filesMenu, fabricationOutputsMenu,
@@ -160,9 +165,9 @@ void PCB_EDIT_FRAME::ReCreateMenuBar()
 
     // Specctra Session
     AddMenuItem( submenuImport, ID_GEN_IMPORT_SPECCTRA_SESSION,
-                           _( "&Specctra Session" ),
-                           _( "Import a routed \"Specctra Session\" (*.ses) file" ),
-                           KiBitmap( import_xpm ) );
+                 _( "&Specctra Session" ),
+                 _( "Import a routed \"Specctra Session\" (*.ses) file" ),
+                 KiBitmap( import_xpm ) );
 
     AddMenuItem( filesMenu, submenuImport,
                  ID_GEN_IMPORT_FILE, _( "&Import" ),
@@ -182,12 +187,6 @@ void PCB_EDIT_FRAME::ReCreateMenuBar()
     AddMenuItem( submenuexport, ID_GEN_EXPORT_FILE_GENCADFORMAT,
                  _( "&GenCAD" ), _( "Export GenCAD format" ),
                  KiBitmap( export_xpm ) );
-
-    // Module Report
-    AddMenuItem( submenuexport, ID_GEN_EXPORT_FILE_MODULE_REPORT,
-                 _( "&Module Report" ),
-                 _( "Create a report of all modules on the current board" ),
-                 KiBitmap( tools_xpm ) );
 
     // VRML
     AddMenuItem( submenuexport, ID_GEN_EXPORT_FILE_VRML,
@@ -214,9 +213,9 @@ void PCB_EDIT_FRAME::ReCreateMenuBar()
 
     // Create SVG file
     AddMenuItem( filesMenu, ID_GEN_PLOT_SVG,
-                 _( "Print SV&G" ),
-                 _( "Plot board in Scalable Vector Graphics format" ),
-                 KiBitmap( print_button_xpm ) );
+                 _( "Export SV&G" ),
+                 _( "Export a board file in Scalable Vector Graphics format" ),
+                 KiBitmap( plot_svg_xpm ) );
 
     // Plot
     AddMenuItem( filesMenu, ID_GEN_PLOT,
@@ -246,7 +245,7 @@ void PCB_EDIT_FRAME::ReCreateMenuBar()
                  _( "Archive or add footprints in a library file" ),
                  KiBitmap( library_xpm ) );
 
-    /* Quit */
+    // Quit
     filesMenu->AppendSeparator();
     AddMenuItem( filesMenu, wxID_EXIT, _( "&Quit" ), _( "Quit Pcbnew" ),
                  KiBitmap( exit_xpm ) );
@@ -265,7 +264,7 @@ void PCB_EDIT_FRAME::ReCreateMenuBar()
     // Delete
     AddMenuItem( editMenu, ID_PCB_DELETE_ITEM_BUTT,
                  _( "&Delete" ), _( "Delete items" ),
-                 KiBitmap( delete_body_xpm ) );
+                 KiBitmap( delete_xpm ) );
 
     editMenu->AppendSeparator();
 
@@ -285,7 +284,7 @@ void PCB_EDIT_FRAME::ReCreateMenuBar()
     AddMenuItem( editMenu, ID_MENU_PCB_CLEAN,
                  _( "&Cleanup Tracks and Vias" ),
                  _( "Clean stubs, vias, delete break points, or connect dangling tracks to pads and vias" ),
-                 KiBitmap( delete_body_xpm ) );
+                 KiBitmap( delete_xpm ) );
 
     // Swap Layers
     AddMenuItem( editMenu, ID_MENU_PCB_SWAP_LAYERS,
@@ -294,15 +293,9 @@ void PCB_EDIT_FRAME::ReCreateMenuBar()
                  KiBitmap( swap_layer_xpm ) );
 
     // Reset module reference sizes
-    AddMenuItem( editMenu, ID_MENU_PCB_RESET_TEXTMODULE_REFERENCE_SIZES,
-                 _( "Reset Module &Reference Sizes" ),
-                 _( "Reset text size and width of all module references to current defaults" ),
-                 KiBitmap( reset_text_xpm ) );
-
-    // Reset module value sizes
-    AddMenuItem( editMenu, ID_MENU_PCB_RESET_TEXTMODULE_VALUE_SIZES,
-                 _( "Reset Module &Value Sizes" ),
-                 _( "Reset text size and width of all module values to current defaults" ),
+    AddMenuItem( editMenu, ID_MENU_PCB_RESET_TEXTMODULE_FIELDS_SIZES,
+                 _( "&Reset Module Field Sizes" ),
+                 _( "Reset text size and width of all module fields to current defaults" ),
                  KiBitmap( reset_text_xpm ) );
 
     /** Create View menu **/
@@ -347,7 +340,7 @@ void PCB_EDIT_FRAME::ReCreateMenuBar()
 
     // 3D Display
     AddMenuItem( viewMenu, ID_MENU_PCB_SHOW_3D_FRAME,
-                 _( "3&D Display" ),_( "Show board in 3D viewer" ),
+                 _( "&3D Display" ),_( "Show board in 3D viewer" ),
                  KiBitmap( three_d_xpm ) );
 
     // List Nets
@@ -373,6 +366,10 @@ void PCB_EDIT_FRAME::ReCreateMenuBar()
     // Zone
     AddMenuItem( placeMenu, ID_PCB_ZONES_BUTT,
                  _( "&Zone" ), _( "Add filled zones" ), KiBitmap( add_zone_xpm ) );
+
+    // Keepout areas
+    AddMenuItem( placeMenu, ID_PCB_KEEPOUT_AREA_BUTT,
+                 _( "&Keepout Area" ), _( "Add keepout areas" ), KiBitmap( add_keepout_area_xpm ) );
 
     // Text
     AddMenuItem( placeMenu, ID_PCB_ADD_TEXT_BUTT,
@@ -424,9 +421,15 @@ void PCB_EDIT_FRAME::ReCreateMenuBar()
     wxMenu* configmenu = new wxMenu;
 
     // Library
+#if !defined( USE_FP_LIB_TABLE )
     AddMenuItem( configmenu, ID_CONFIG_REQ,
                  _( "Li&brary" ), _( "Setting libraries, directories and others..." ),
                  KiBitmap( library_xpm ) );
+#else
+    AddMenuItem( configmenu, ID_PCB_LIB_TABLE_EDIT,
+                _( "Li&brary Tables" ), _( "Setup footprint libraries" ),
+                KiBitmap( library_table_xpm ) );
+#endif
 
     // Colors and Visibility are also handled by the layers manager toolbar
     AddMenuItem( configmenu, ID_MENU_PCB_SHOW_HIDE_LAYERS_MANAGER_DIALOG,
@@ -450,7 +453,7 @@ void PCB_EDIT_FRAME::ReCreateMenuBar()
                  _( "Select how items (pads, tracks texts ... ) are displayed" ),
                  KiBitmap( display_options_xpm ) );
 
-    // Create Dimensions submenu
+    // Create sizes and dimensions submenu
     wxMenu* dimensionsMenu = new wxMenu;
 
     // Grid
@@ -467,7 +470,7 @@ void PCB_EDIT_FRAME::ReCreateMenuBar()
     // Pads
     AddMenuItem( dimensionsMenu, ID_PCB_PAD_SETUP,
                  _( "&Pads" ),  _( "Adjust default pad characteristics" ),
-                 KiBitmap( pad_xpm ) );
+                 KiBitmap( pad_dimensions_xpm ) );
 
     // Pads Mask Clearance
     AddMenuItem( dimensionsMenu, ID_PCB_MASK_CLEARANCE,
@@ -481,11 +484,6 @@ void PCB_EDIT_FRAME::ReCreateMenuBar()
                  _( "&Save" ), _( "Save dimension preferences" ),
                  KiBitmap( save_xpm ) );
 
-    // Append dimension menu to config menu
-    AddMenuItem( configmenu, dimensionsMenu,
-                 -1, _( "Di&mensions" ),
-                 _( "Global dimensions preferences" ),
-                 KiBitmap( add_dimension_xpm ) );
 
     // Language submenu
     wxGetApp().AddMenuLanguageList( configmenu );
@@ -554,6 +552,14 @@ void PCB_EDIT_FRAME::ReCreateMenuBar()
                  _( "Fast access to the Web Based FreeROUTE advanced router" ),
                  KiBitmap( web_support_xpm ) );
 
+#ifdef KICAD_SCRIPTING_WXPYTHON
+    /* Scripting */
+    AddMenuItem( toolsMenu, ID_TOOLBARH_PCB_SCRIPTING_CONSOLE,
+                 _( "&Scripting Console" ),
+                 _( "Show/Hide the Scripting console" ),
+                 KiBitmap( book_xpm ) );
+#endif
+
     /* Design Rules menu
      */
     wxMenu* designRulesMenu = new wxMenu;
@@ -601,6 +607,7 @@ void PCB_EDIT_FRAME::ReCreateMenuBar()
     menuBar->Append( viewMenu, _( "&View" ) );
     menuBar->Append( placeMenu, _( "&Place" ) );
     menuBar->Append( configmenu, _( "P&references" ) );
+    menuBar->Append( dimensionsMenu, _( "D&imensions" ) );
     menuBar->Append( toolsMenu, _( "&Tools" ) );
     menuBar->Append( designRulesMenu, _( "&Design Rules" ) );
     menuBar->Append( helpMenu, _( "&Help" ) );

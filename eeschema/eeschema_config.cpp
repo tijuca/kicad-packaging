@@ -2,35 +2,116 @@
  * @file eeschema_config.cpp
  */
 
-#include "fctsys.h"
-#include "appl_wxstruct.h"
-#include "class_drawpanel.h"
-#include "confirm.h"
-#include "gestfich.h"
-#include "wxEeschemaStruct.h"
+/*
+ * This program source code file is part of KiCad, a free EDA CAD application.
+ *
+ * Copyright (C) 2012 KiCad Developers, see CHANGELOG.TXT for contributors.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation; either version 2
+ * of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, you may find one here:
+ * http://www.gnu.org/licenses/old-licenses/gpl-2.0.html
+ * or you may search the http://www.gnu.org website for the version 2 license,
+ * or you may write to the Free Software Foundation, Inc.,
+ * 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
+ */
 
-#include "eeschema_id.h"
-#include "general.h"
-#include "netlist_control.h"
-#include "protos.h"
-#include "libeditframe.h"
-#include "eeschema_config.h"
-#include "worksheet.h"
-#include "hotkeys.h"
-#include "sch_sheet.h"
+#include <fctsys.h>
+#include <appl_wxstruct.h>
+#include <class_drawpanel.h>
+#include <confirm.h>
+#include <gestfich.h>
+#include <wxEeschemaStruct.h>
 
-#include "dialog_hotkeys_editor.h"
+#include <eeschema_id.h>
+#include <general.h>
+#include <libeditframe.h>
+#include <eeschema_config.h>
+#include <worksheet.h>
+#include <hotkeys.h>
+#include <sch_sheet.h>
 
-#include "dialogs/dialog_color_config.h"
-#include "dialogs/dialog_eeschema_config.h"
-#include "dialogs/dialog_eeschema_options.h"
+#include <dialog_hotkeys_editor.h>
 
-#include <wx/fdrepdlg.h>
+#include <dialogs/dialog_color_config.h>
+#include <dialogs/dialog_eeschema_config.h>
+#include <dialogs/dialog_eeschema_options.h>
+#include <dialogs/dialog_schematic_find.h>
 
+#include <wildcards_and_files_ext.h>
 
 #define HOTKEY_FILENAME         wxT( "eeschema" )
 
 #define FR_HISTORY_LIST_CNT     10   ///< Maximum number of find and replace strings.
+
+static EDA_COLOR_T s_layerColor[MAX_LAYERS];
+
+// The width to draw busses that do not have a specific width
+static int s_defaultBusThickness;
+
+int GetDefaultBusThickness()
+{
+    return s_defaultBusThickness;
+}
+
+void SetDefaultBusThickness( int aThickness)
+{
+    if( aThickness >=1 )
+        s_defaultBusThickness = aThickness;
+    else
+        s_defaultBusThickness = 1;
+}
+
+/*
+ * Default line (in Eeschema units) thickness used to draw/plot items having a
+ * default thickness line value (i.e. = 0 ).
+ */
+static int s_drawDefaultLineThickness;
+
+int GetDefaultLineThickness()
+{
+    return s_drawDefaultLineThickness;
+}
+
+void SetDefaultLineThickness( int aThickness)
+{
+    if( aThickness >=1 )
+        s_drawDefaultLineThickness = aThickness;
+    else
+        s_drawDefaultLineThickness = 1;
+}
+
+EDA_COLOR_T ReturnLayerColor( int aLayer )
+{
+    return s_layerColor[aLayer];
+}
+
+void SetLayerColor( EDA_COLOR_T aColor, int aLayer )
+{
+    s_layerColor[aLayer] = aColor;
+}
+
+// Color to draw selected items
+EDA_COLOR_T GetItemSelectedColor()
+{
+    return BROWN;
+}
+
+// Color to draw items flagged invisible, in libedit (they are invisible
+// in Eeschema
+EDA_COLOR_T GetInvisibleItemColor()
+{
+    return DARKGRAY;
+}
 
 
 void LIB_EDIT_FRAME::InstallConfigFrame( wxCommandEvent& event )
@@ -78,7 +159,7 @@ void LIB_EDIT_FRAME::Process_Config( wxCommandEvent& event )
     break;
 
 
-    /* Hotkey IDs */
+    // Hotkey IDs
     case ID_PREFERENCES_HOTKEY_SHOW_EDITOR:
         InstallHotkeyFrame( this, s_Eeschema_Hokeys_Descr );
         break;
@@ -146,7 +227,7 @@ void SCH_EDIT_FRAME::Process_Config( wxCommandEvent& event )
     break;
 
 
-    /* Hotkey IDs */
+    // Hotkey IDs
     case ID_PREFERENCES_HOTKEY_EXPORT_CONFIG:
         ExportHotkeyConfigToFile( s_Eeschema_Hokeys_Descr );
         break;
@@ -184,16 +265,20 @@ void SCH_EDIT_FRAME::OnSetOptions( wxCommandEvent& event )
 
     dlg.SetUnits( units, g_UserUnit );
     dlg.SetGridSizes( grid_list, GetScreen()->GetGridId() );
-    dlg.SetLineWidth( g_DrawDefaultLineThickness );
-    dlg.SetTextSize( g_DefaultTextLabelSize );
+    dlg.SetBusWidth( GetDefaultBusThickness() );
+    dlg.SetLineWidth( GetDefaultLineThickness() );
+    dlg.SetTextSize( GetDefaultLabelSize() );
     dlg.SetRepeatHorizontal( g_RepeatStep.x );
     dlg.SetRepeatVertical( g_RepeatStep.y );
     dlg.SetRepeatLabel( g_RepeatDeltaLabel );
     dlg.SetAutoSaveInterval( GetAutoSaveInterval() / 60 );
     dlg.SetShowGrid( IsGridVisible() );
-    dlg.SetShowHiddenPins( m_ShowAllPins );
-    dlg.SetEnableAutoPan( DrawPanel->m_AutoPAN_Enable );
-    dlg.SetEnableHVBusOrientation( g_HVLines );
+    dlg.SetShowHiddenPins( m_showAllPins );
+    dlg.SetEnableMiddleButtonPan( m_canvas->GetEnableMiddleButtonPan() );
+    dlg.SetEnableZoomNoCenter( m_canvas->GetEnableZoomNoCenter() );
+    dlg.SetMiddleButtonPanLimited( m_canvas->GetMiddleButtonPanLimited() );
+    dlg.SetEnableAutoPan( m_canvas->GetEnableAutoPan() );
+    dlg.SetEnableHVBusOrientation( GetForceHVLines() );
     dlg.SetShowPageLimits( g_ShowPageLimits );
     dlg.Layout();
     dlg.Fit();
@@ -215,16 +300,20 @@ void SCH_EDIT_FRAME::OnSetOptions( wxCommandEvent& event )
 
     GetScreen()->SetGrid( grid_list[ (size_t) dlg.GetGridSelection() ].m_Size );
 
-    g_DrawDefaultLineThickness = dlg.GetLineWidth();
-    g_DefaultTextLabelSize = dlg.GetTextSize();
+    SetDefaultBusThickness( dlg.GetBusWidth() );
+    SetDefaultLineThickness( dlg.GetLineWidth() );
+    SetDefaultLabelSize( dlg.GetTextSize() );
     g_RepeatStep.x = dlg.GetRepeatHorizontal();
     g_RepeatStep.y = dlg.GetRepeatVertical();
     g_RepeatDeltaLabel = dlg.GetRepeatLabel();
     SetAutoSaveInterval( dlg.GetAutoSaveInterval() * 60 );
     SetGridVisibility( dlg.GetShowGrid() );
-    m_ShowAllPins = dlg.GetShowHiddenPins();
-    DrawPanel->m_AutoPAN_Enable = dlg.GetEnableAutoPan();
-    g_HVLines = dlg.GetEnableHVBusOrientation();
+    m_showAllPins = dlg.GetShowHiddenPins();
+    m_canvas->SetEnableMiddleButtonPan( dlg.GetEnableMiddleButtonPan() );
+    m_canvas->SetEnableZoomNoCenter( dlg.GetEnableZoomNoCenter() );
+    m_canvas->SetMiddleButtonPanLimited( dlg.GetMiddleButtonPanLimited() );
+    m_canvas->SetEnableAutoPan( dlg.GetEnableAutoPan() );
+    SetForceHVLines( dlg.GetEnableHVBusOrientation() );
     g_ShowPageLimits = dlg.GetShowPageLimits();
 
     wxString templateFieldName;
@@ -248,76 +337,23 @@ void SCH_EDIT_FRAME::OnSetOptions( wxCommandEvent& event )
         }
     }
 
-    DrawPanel->Refresh( true );
+    m_canvas->Refresh( true );
 }
 
 
-PARAM_CFG_ARRAY& SCH_EDIT_FRAME::GetProjectFileParameters( void )
+PARAM_CFG_ARRAY& SCH_EDIT_FRAME::GetProjectFileParameters()
 {
     if( !m_projectFileParams.empty() )
         return m_projectFileParams;
 
     m_projectFileParams.push_back( new PARAM_CFG_FILENAME( wxT( "LibDir" ),
-                                                           &m_UserLibraryPath ) );
+                                                           &m_userLibraryPath ) );
     m_projectFileParams.push_back( new PARAM_CFG_LIBNAME_LIST( wxT( "LibName" ),
-                                                               &m_ComponentLibFiles,
+                                                               &m_componentLibFiles,
                                                                GROUPLIB ) );
-    m_projectFileParams.push_back( new PARAM_CFG_INT( wxT( "NetFmt" ),
-                                                      &m_NetlistFormat,
-                                                      NET_TYPE_PCBNEW,
-                                                      NET_TYPE_PCBNEW,
-                                                      NET_TYPE_CUSTOM_MAX ) );
+    m_projectFileParams.push_back( new PARAM_CFG_WXSTRING( wxT( "NetFmtName" ),
+                                                         &m_netListFormat) );
 
-    /* NOTE: Left as global until supporting code  can be fixed. */
-    m_projectFileParams.push_back( new PARAM_CFG_INT( wxT( "HPGLSpd" ),
-                                                      &g_HPGL_Pen_Descr.m_Pen_Speed,
-                                                      20, 2, 45 ) );
-    m_projectFileParams.push_back( new PARAM_CFG_INT( wxT( "HPGLDm" ),
-                                                      &g_HPGL_Pen_Descr.m_Pen_Diam,
-                                                      15, 1, 150 ) );
-    m_projectFileParams.push_back( new PARAM_CFG_INT( wxT( "HPGLNum" ),
-                                                      &g_HPGL_Pen_Descr.m_Pen_Num,
-                                                      1, 1, 8 ) );
-    m_projectFileParams.push_back( new PARAM_CFG_INT( wxT( "offX_A4" ),
-                                                      &g_Sheet_A4.m_Offset.x ) );
-    m_projectFileParams.push_back( new PARAM_CFG_INT( wxT( "offY_A4" ),
-                                                      &g_Sheet_A4.m_Offset.y ) );
-    m_projectFileParams.push_back( new PARAM_CFG_INT( wxT( "offX_A3" ),
-                                                      &g_Sheet_A3.m_Offset.x ) );
-    m_projectFileParams.push_back( new PARAM_CFG_INT( wxT( "offY_A3" ),
-                                                      &g_Sheet_A3.m_Offset.y ) );
-    m_projectFileParams.push_back( new PARAM_CFG_INT( wxT( "offX_A2" ),
-                                                      &g_Sheet_A2.m_Offset.x ) );
-    m_projectFileParams.push_back( new PARAM_CFG_INT( wxT( "offY_A2" ),
-                                                      &g_Sheet_A2.m_Offset.y ) );
-    m_projectFileParams.push_back( new PARAM_CFG_INT( wxT( "offX_A1" ),
-                                                      &g_Sheet_A1.m_Offset.x ) );
-    m_projectFileParams.push_back( new PARAM_CFG_INT( wxT( "offY_A1" ),
-                                                      &g_Sheet_A1.m_Offset.y ) );
-    m_projectFileParams.push_back( new PARAM_CFG_INT( wxT( "offX_A0" ),
-                                                      &g_Sheet_A0.m_Offset.x ) );
-    m_projectFileParams.push_back( new PARAM_CFG_INT( wxT( "offY_A0" ),
-                                                      &g_Sheet_A0.m_Offset.y ) );
-    m_projectFileParams.push_back( new PARAM_CFG_INT( wxT( "offX_A" ),
-                                                      &g_Sheet_A.m_Offset.x ) );
-    m_projectFileParams.push_back( new PARAM_CFG_INT( wxT( "offY_A" ),
-                                                      &g_Sheet_A.m_Offset.y ) );
-    m_projectFileParams.push_back( new PARAM_CFG_INT( wxT( "offX_B" ),
-                                                      &g_Sheet_B.m_Offset.x ) );
-    m_projectFileParams.push_back( new PARAM_CFG_INT( wxT( "offY_B" ),
-                                                      &g_Sheet_B.m_Offset.y ) );
-    m_projectFileParams.push_back( new PARAM_CFG_INT( wxT( "offX_C" ),
-                                                      &g_Sheet_C.m_Offset.x ) );
-    m_projectFileParams.push_back( new PARAM_CFG_INT( wxT( "offY_C" ),
-                                                      &g_Sheet_C.m_Offset.y ) );
-    m_projectFileParams.push_back( new PARAM_CFG_INT( wxT( "offX_D" ),
-                                                      &g_Sheet_D.m_Offset.x ) );
-    m_projectFileParams.push_back( new PARAM_CFG_INT( wxT( "offY_D" ),
-                                                      &g_Sheet_D.m_Offset.y ) );
-    m_projectFileParams.push_back( new PARAM_CFG_INT( wxT( "offX_E" ),
-                                                      &g_Sheet_E.m_Offset.x ) );
-    m_projectFileParams.push_back( new PARAM_CFG_INT( wxT( "offY_E" ),
-                                                      &g_Sheet_E.m_Offset.y ) );
     m_projectFileParams.push_back( new PARAM_CFG_INT( wxT( "RptD_X" ),
                                                       &g_RepeatStep.x,
                                                       0, -1000, +1000 ) );
@@ -328,8 +364,8 @@ PARAM_CFG_ARRAY& SCH_EDIT_FRAME::GetProjectFileParameters( void )
                                                       &g_RepeatDeltaLabel,
                                                       1, -10, +10 ) );
     m_projectFileParams.push_back( new PARAM_CFG_INT( wxT( "LabSize" ),
-                                                      &g_DefaultTextLabelSize,
-                                                      DEFAULT_SIZE_TEXT, 0,
+                                                      &m_defaultLabelSize,
+                                                      DEFAULT_SIZE_TEXT, 5,
                                                       1000 ) );
 
     return m_projectFileParams;
@@ -340,37 +376,37 @@ bool SCH_EDIT_FRAME::LoadProjectFile( const wxString& aFileName, bool aForceRere
 {
     wxFileName              fn;
     bool                    IsRead = true;
-    wxArrayString           liblist_tmp = m_ComponentLibFiles;
+    wxArrayString           liblist_tmp = m_componentLibFiles;
 
     if( aFileName.IsEmpty() )
         fn = g_RootSheet->GetScreen()->GetFileName();
     else
         fn = aFileName;
 
-    m_ComponentLibFiles.Clear();
+    m_componentLibFiles.Clear();
 
     /* Change the schematic file extension (.sch) to the project file
      * extension (.pro). */
     fn.SetExt( ProjectFileExtension );
 
-    wxGetApp().RemoveLibraryPath( m_UserLibraryPath );
+    wxGetApp().RemoveLibraryPath( m_userLibraryPath );
 
     if( !wxGetApp().ReadProjectConfig( fn.GetFullPath(), GROUP,
                                        GetProjectFileParameters(),
                                        !aForceReread ) )
     {
-        m_ComponentLibFiles = liblist_tmp;
+        m_componentLibFiles = liblist_tmp;
         IsRead = false;
     }
 
-    /* User library path takes precedent over default library search paths. */
-    wxGetApp().InsertLibraryPath( m_UserLibraryPath, 1 );
+    // User library path takes precedent over default library search paths.
+    wxGetApp().InsertLibraryPath( m_userLibraryPath, 1 );
 
     /* If the list is void, force loading the library "power.lib" that is
      * the "standard" library for power symbols.
      */
-    if( m_ComponentLibFiles.GetCount() == 0 )
-        m_ComponentLibFiles.Add( wxT( "power" ) );
+    if( m_componentLibFiles.GetCount() == 0 )
+        m_componentLibFiles.Add( wxT( "power" ) );
 
     LoadLibraries();
     GetScreen()->SetGrid( ID_POPUP_GRID_LEVEL_1000 + m_LastGridSizeId  );
@@ -383,7 +419,7 @@ void SCH_EDIT_FRAME::SaveProjectFile()
 {
     wxFileName fn;
 
-    fn = g_RootSheet->GetScreen()->GetFileName();  /*ConfigFileName*/
+    fn = g_RootSheet->GetScreen()->GetFileName();  //ConfigFileName
     fn.SetExt( ProjectFileExtension );
 
     if( !IsWritable( fn ) )
@@ -392,7 +428,7 @@ void SCH_EDIT_FRAME::SaveProjectFile()
     wxGetApp().WriteProjectConfig( fn.GetFullPath(), GROUP, GetProjectFileParameters() );
 }
 
-
+static const wxString DefaultBusWidthEntry( wxT( "DefaultBusWidth" ) );
 static const wxString DefaultDrawLineWidthEntry( wxT( "DefaultDrawLineWidth" ) );
 static const wxString ShowHiddenPinsEntry( wxT( "ShowHiddenPins" ) );
 static const wxString HorzVertLinesOnlyEntry( wxT( "HorizVertLinesOnly" ) );
@@ -414,7 +450,6 @@ static const wxString ReplaceStringEntry( wxT( "LastReplaceString" ) );
 static const wxString FindStringHistoryEntry( wxT( "FindStringHistoryList%d" ) );
 static const wxString ReplaceStringHistoryEntry( wxT( "ReplaceStringHistoryList%d" ) );
 static const wxString FieldNamesEntry( wxT( "FieldNames" ) );
-static const wxString SpiceNetNamesEntry( wxT( "SpiceUseNetNames" ) );
 static const wxString SimulatorCommandEntry( wxT( "SimCmdLine" ) );
 
 
@@ -423,83 +458,83 @@ PARAM_CFG_ARRAY& SCH_EDIT_FRAME::GetConfigurationSettings( void )
     if( !m_configSettings.empty() )
         return m_configSettings;
 
-    m_configSettings.push_back( new PARAM_CFG_INT( wxT( "Unite" ),
-                                                   (int*)&g_UserUnit, 0 ) );
+    m_configSettings.push_back( new PARAM_CFG_INT( true, wxT( "Units" ),
+                                                   (int*)&g_UserUnit, MILLIMETRES ) );
     m_configSettings.push_back( new PARAM_CFG_SETCOLOR( true, wxT( "ColWire" ),
-                                                        &g_LayerDescr.LayerColor[LAYER_WIRE],
+                                                        &s_layerColor[LAYER_WIRE],
                                                         GREEN ) );
     m_configSettings.push_back( new PARAM_CFG_SETCOLOR( true, wxT( "ColorBus" ),
-                                                        &g_LayerDescr.LayerColor[LAYER_BUS],
+                                                        &s_layerColor[LAYER_BUS],
                                                         BLUE ) );
     m_configSettings.push_back( new PARAM_CFG_SETCOLOR( true, wxT( "ColorConn" ),
-                                                        &g_LayerDescr.LayerColor[LAYER_JUNCTION],
+                                                        &s_layerColor[LAYER_JUNCTION],
                                                         GREEN ) );
     m_configSettings.push_back( new PARAM_CFG_SETCOLOR( true, wxT( "ColorLlab" ),
-                                                        &g_LayerDescr.LayerColor[LAYER_LOCLABEL],
+                                                        &s_layerColor[LAYER_LOCLABEL],
                                                         BLACK ) );
     m_configSettings.push_back( new PARAM_CFG_SETCOLOR( true, wxT( "ColorHlab" ),
-                                                        &g_LayerDescr.LayerColor[LAYER_HIERLABEL],
+                                                        &s_layerColor[LAYER_HIERLABEL],
                                                         BROWN ) );
     m_configSettings.push_back( new PARAM_CFG_SETCOLOR( true, wxT( "ColorGbllab" ),
-                                                        &g_LayerDescr.LayerColor[LAYER_GLOBLABEL],
+                                                        &s_layerColor[LAYER_GLOBLABEL],
                                                         RED ) );
     m_configSettings.push_back( new PARAM_CFG_SETCOLOR( true, wxT( "ColorPinF" ),
-                                                        &g_LayerDescr.LayerColor[LAYER_PINFUN],
+                                                        &s_layerColor[LAYER_PINFUN],
                                                         MAGENTA ) );
     m_configSettings.push_back( new PARAM_CFG_SETCOLOR( true, wxT( "ColPinN" ),
-                                                        &g_LayerDescr.LayerColor[LAYER_PINNUM],
+                                                        &s_layerColor[LAYER_PINNUM],
                                                         RED ) );
     m_configSettings.push_back( new PARAM_CFG_SETCOLOR( true, wxT( "ColorPNam" ),
-                                                        &g_LayerDescr.LayerColor[LAYER_PINNAM],
+                                                        &s_layerColor[LAYER_PINNAM],
                                                         CYAN ) );
     m_configSettings.push_back( new PARAM_CFG_SETCOLOR( true, wxT( "ColorField" ),
-                                                        &g_LayerDescr.LayerColor[LAYER_FIELDS],
+                                                        &s_layerColor[LAYER_FIELDS],
                                                         MAGENTA ) );
     m_configSettings.push_back( new PARAM_CFG_SETCOLOR( true, wxT( "ColorRef" ),
-                                                        &g_LayerDescr.LayerColor[LAYER_REFERENCEPART],
+                                                        &s_layerColor[LAYER_REFERENCEPART],
                                                         CYAN ) );
     m_configSettings.push_back( new PARAM_CFG_SETCOLOR( true, wxT( "ColorValue" ),
-                                                        &g_LayerDescr.LayerColor[LAYER_VALUEPART],
+                                                        &s_layerColor[LAYER_VALUEPART],
                                                         CYAN ) );
     m_configSettings.push_back( new PARAM_CFG_SETCOLOR( true, wxT( "ColorNote" ),
-                                                        &g_LayerDescr.LayerColor[LAYER_NOTES],
+                                                        &s_layerColor[LAYER_NOTES],
                                                         LIGHTBLUE ) );
     m_configSettings.push_back( new PARAM_CFG_SETCOLOR( true, wxT( "ColorBody" ),
-                                                        &g_LayerDescr.LayerColor[LAYER_DEVICE],
+                                                        &s_layerColor[LAYER_DEVICE],
                                                         RED ) );
     m_configSettings.push_back( new PARAM_CFG_SETCOLOR( true, wxT( "ColorBodyBg" ),
-                                                        &g_LayerDescr.LayerColor[LAYER_DEVICE_BACKGROUND],
+                                                        &s_layerColor[LAYER_DEVICE_BACKGROUND],
                                                         LIGHTYELLOW ) );
     m_configSettings.push_back( new PARAM_CFG_SETCOLOR( true, wxT( "ColorNetN" ),
-                                                        &g_LayerDescr.LayerColor[LAYER_NETNAM],
+                                                        &s_layerColor[LAYER_NETNAM],
                                                         DARKGRAY ) );
     m_configSettings.push_back( new PARAM_CFG_SETCOLOR( true, wxT( "ColorPin" ),
-                                                        &g_LayerDescr.LayerColor[LAYER_PIN],
+                                                        &s_layerColor[LAYER_PIN],
                                                         RED ) );
     m_configSettings.push_back( new PARAM_CFG_SETCOLOR( true, wxT( "ColorSheet" ),
-                                                        &g_LayerDescr.LayerColor[LAYER_SHEET],
+                                                        &s_layerColor[LAYER_SHEET],
                                                         MAGENTA ) );
     m_configSettings.push_back( new PARAM_CFG_SETCOLOR( true,
                                                         wxT( "ColorSheetFileName" ),
-                                                        &g_LayerDescr.LayerColor[LAYER_SHEETFILENAME],
+                                                        &s_layerColor[LAYER_SHEETFILENAME],
                                                         BROWN ) );
     m_configSettings.push_back( new PARAM_CFG_SETCOLOR( true, wxT( "ColorSheetName" ),
-                                                        &g_LayerDescr.LayerColor[LAYER_SHEETNAME],
+                                                        &s_layerColor[LAYER_SHEETNAME],
                                                         CYAN ) );
     m_configSettings.push_back( new PARAM_CFG_SETCOLOR( true, wxT( "ColorSheetLab" ),
-                                                        &g_LayerDescr.LayerColor[LAYER_SHEETLABEL],
+                                                        &s_layerColor[LAYER_SHEETLABEL],
                                                         BROWN ) );
     m_configSettings.push_back( new PARAM_CFG_SETCOLOR( true, wxT( "ColorNoCo" ),
-                                                        &g_LayerDescr.LayerColor[LAYER_NOCONNECT],
+                                                        &s_layerColor[LAYER_NOCONNECT],
                                                         BLUE ) );
     m_configSettings.push_back( new PARAM_CFG_SETCOLOR( true, wxT( "ColorErcW" ),
-                                                        &g_LayerDescr.LayerColor[LAYER_ERC_WARN],
+                                                        &s_layerColor[LAYER_ERC_WARN],
                                                         GREEN ) );
     m_configSettings.push_back( new PARAM_CFG_SETCOLOR( true, wxT( "ColorErcE" ),
-                                                        &g_LayerDescr.LayerColor[LAYER_ERC_ERR],
+                                                        &s_layerColor[LAYER_ERC_ERR],
                                                         RED ) );
     m_configSettings.push_back( new PARAM_CFG_SETCOLOR( true, wxT( "ColorGrid" ),
-                                                        &g_LayerDescr.LayerColor[LAYER_GRID],
+                                                        &s_layerColor[LAYER_GRID],
                                                         DARKGRAY ) );
     m_configSettings.push_back( new PARAM_CFG_BOOL( true, wxT( "PrintMonochrome" ),
                                                     &m_printMonochrome, true ) );
@@ -512,24 +547,25 @@ PARAM_CFG_ARRAY& SCH_EDIT_FRAME::GetConfigurationSettings( void )
 
 void SCH_EDIT_FRAME::LoadSettings()
 {
-    wxASSERT( wxGetApp().m_EDA_Config != NULL );
+    wxASSERT( wxGetApp().GetSettings() != NULL );
 
     long tmp;
 
-    wxConfig* cfg = wxGetApp().m_EDA_Config;
+    wxConfig* cfg = wxGetApp().GetSettings();
 
     EDA_DRAW_FRAME::LoadSettings();
 
     wxGetApp().ReadCurrentSetupValues( GetConfigurationSettings() );
 
-    // This is required until someone gets rid of the global variable g_LayerDescription().
-    m_GridColor = g_LayerDescr.LayerColor[LAYER_GRID];
+    // This is required until someone gets rid of the global variable s_layerColor.
+    m_GridColor = ReturnLayerColor( LAYER_GRID );
 
-    g_DrawDefaultLineThickness = cfg->Read( DefaultDrawLineWidthEntry,(long) 6 );
-    cfg->Read( ShowHiddenPinsEntry, &m_ShowAllPins, false );
-    cfg->Read( HorzVertLinesOnlyEntry, &g_HVLines, true );
+    SetDefaultBusThickness( cfg->Read( DefaultBusWidthEntry, 12l ) );
+    SetDefaultLineThickness( cfg->Read( DefaultDrawLineWidthEntry, 6l ) );
+    cfg->Read( ShowHiddenPinsEntry, &m_showAllPins, false );
+    cfg->Read( HorzVertLinesOnlyEntry, &m_forceHVLines, true );
 
-    /* Load print preview window session settings. */
+    // Load print preview window session settings.
     cfg->Read( PreviewFramePositionXEntry, &tmp, -1 );
     m_previewPosition.x = (int) tmp;
     cfg->Read( PreviewFramePositionYEntry, &tmp, -1 );
@@ -539,7 +575,7 @@ void SCH_EDIT_FRAME::LoadSettings()
     cfg->Read( PreviewFrameHeightEntry, &tmp, -1 );
     m_previewSize.SetHeight( (int) tmp );
 
-    /* Load print dialog session settings. */
+    // Load print dialog session settings.
     cfg->Read( PrintDialogPositionXEntry, &tmp, -1 );
     m_printDialogPosition.x = (int) tmp;
     cfg->Read( PrintDialogPositionYEntry, &tmp, -1 );
@@ -550,10 +586,9 @@ void SCH_EDIT_FRAME::LoadSettings()
     m_printDialogSize.SetHeight( (int) tmp );
 
     // Load netlists options:
-    cfg->Read( SpiceNetNamesEntry,  &g_OptNetListUseNames, false );
     cfg->Read( SimulatorCommandEntry, &m_simulatorCommand );
 
-    /* Load find dialog session setting. */
+    // Load find dialog session setting.
     cfg->Read( FindDialogPositionXEntry, &tmp, -1 );
     m_findDialogPosition.x = (int) tmp;
     cfg->Read( FindDialogPositionYEntry, &tmp, -1 );
@@ -565,12 +600,12 @@ void SCH_EDIT_FRAME::LoadSettings()
     wxASSERT_MSG( m_findReplaceData,
                   wxT( "Find dialog data settings object not created. Bad programmer!" ) );
     cfg->Read( FindReplaceFlagsEntry, &tmp, (long) wxFR_DOWN );
-    m_findReplaceData->SetFlags( (wxUint32) tmp );
+    m_findReplaceData->SetFlags( (wxUint32) tmp & ~FR_REPLACE_ITEM_FOUND );
     m_findReplaceData->SetFindString( cfg->Read( FindStringEntry, wxEmptyString ) );
     m_findReplaceData->SetReplaceString( cfg->Read( ReplaceStringEntry, wxEmptyString ) );
 
-    /* Load the find and replace string history list. */
-    for ( size_t i = 0; i < FR_HISTORY_LIST_CNT; i++ )
+    // Load the find and replace string history list.
+    for( int i = 0; i < FR_HISTORY_LIST_CNT; ++i )
     {
         wxString tmpHistory;
         wxString entry;
@@ -608,57 +643,58 @@ void SCH_EDIT_FRAME::LoadSettings()
 
 void SCH_EDIT_FRAME::SaveSettings()
 {
-    wxASSERT( wxGetApp().m_EDA_Config != NULL );
+    wxASSERT( wxGetApp().GetSettings() != NULL );
 
-    wxConfig* cfg = wxGetApp().m_EDA_Config;
+    wxConfig* cfg = wxGetApp().GetSettings();
 
     EDA_DRAW_FRAME::SaveSettings();
 
     wxGetApp().SaveCurrentSetupValues( GetConfigurationSettings() );
 
-    cfg->Write( DefaultDrawLineWidthEntry, (long) g_DrawDefaultLineThickness );
-    cfg->Write( ShowHiddenPinsEntry, m_ShowAllPins );
-    cfg->Write( HorzVertLinesOnlyEntry, g_HVLines );
+    cfg->Write( DefaultBusWidthEntry, (long) GetDefaultBusThickness() );
+    cfg->Write( DefaultDrawLineWidthEntry, (long) GetDefaultLineThickness() );
+    cfg->Write( ShowHiddenPinsEntry, m_showAllPins );
+    cfg->Write( HorzVertLinesOnlyEntry, GetForceHVLines() );
 
-    /* Save print preview window session settings. */
+    // Save print preview window session settings.
     cfg->Write( PreviewFramePositionXEntry, m_previewPosition.x );
     cfg->Write( PreviewFramePositionYEntry, m_previewPosition.y );
     cfg->Write( PreviewFrameWidthEntry, m_previewSize.GetWidth() );
     cfg->Write( PreviewFrameHeightEntry, m_previewSize.GetHeight() );
 
-    /* Save print dialog session settings. */
+    // Save print dialog session settings.
     cfg->Write( PrintDialogPositionXEntry, m_printDialogPosition.x );
     cfg->Write( PrintDialogPositionYEntry, m_printDialogPosition.y );
     cfg->Write( PrintDialogWidthEntry, m_printDialogSize.GetWidth() );
     cfg->Write( PrintDialogHeightEntry, m_printDialogSize.GetHeight() );
 
     // Save netlists options:
-    cfg->Write( SpiceNetNamesEntry,  g_OptNetListUseNames );
     cfg->Write( SimulatorCommandEntry, m_simulatorCommand );
 
-    /* Save find dialog session setting. */
+    // Save find dialog session setting.
     cfg->Write( FindDialogPositionXEntry, m_findDialogPosition.x );
     cfg->Write( FindDialogPositionYEntry, m_findDialogPosition.y );
     cfg->Write( FindDialogWidthEntry, m_findDialogSize.GetWidth() );
     cfg->Write( FindDialogHeightEntry, m_findDialogSize.GetHeight() );
     wxASSERT_MSG( m_findReplaceData,
                   wxT( "Find dialog data settings object not created. Bad programmer!" ) );
-    cfg->Write( FindReplaceFlagsEntry, (long) m_findReplaceData->GetFlags() );
+    cfg->Write( FindReplaceFlagsEntry,
+                (long) m_findReplaceData->GetFlags() & ~FR_REPLACE_ITEM_FOUND );
     cfg->Write( FindStringEntry, m_findReplaceData->GetFindString() );
     cfg->Write( ReplaceStringEntry, m_findReplaceData->GetReplaceString() );
 
-    /* Save the find and replace string history list. */
-    size_t i;
+    // Save the find and replace string history list.
+    unsigned i;
     wxString tmpHistory;
     wxString entry;     // invoke constructor outside of any loops
 
-    for ( i = 0; i < m_findStringHistoryList.GetCount() && i < FR_HISTORY_LIST_CNT; i++ )
+    for( i = 0; i < m_findStringHistoryList.GetCount() && i < FR_HISTORY_LIST_CNT; i++ )
     {
         entry.Printf( FindStringHistoryEntry, i );
         cfg->Write( entry, m_findStringHistoryList[ i ] );
     }
 
-    for ( i = 0; i < m_replaceStringHistoryList.GetCount() && i < FR_HISTORY_LIST_CNT; i++ )
+    for( i = 0; i < m_replaceStringHistoryList.GetCount() && i < FR_HISTORY_LIST_CNT; i++ )
     {
         entry.Printf( ReplaceStringHistoryEntry, i );
         cfg->Write( entry, m_replaceStringHistoryList[ i ] );

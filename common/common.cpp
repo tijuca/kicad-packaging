@@ -27,79 +27,45 @@
  * @file common.cpp
  */
 
-#include "fctsys.h"
-#include "gr_basic.h"
-#include "trigo.h"
-#include "wxstruct.h"
-#include "base_struct.h"
-#include "common.h"
-#include "macros.h"
-#include "build_version.h"
-#include "confirm.h"
+#include <fctsys.h>
+#include <gr_basic.h>
+#include <trigo.h>
+#include <wxstruct.h>
+#include <base_struct.h>
+#include <common.h>
+#include <macros.h>
+#include <build_version.h>
+#include <confirm.h>
+#include <base_units.h>
+
 #include <wx/process.h>
 
 /**
  * Global variables definitions.
  *
- * TODO: All if these variables should be moved into the class were they
+ * TODO: All of these variables should be moved into the class were they
  *       are defined and used.  Most of them probably belong in the
  *       application class.
  */
-
-/* Standard page sizes in 1/1000 inch */
-#if defined(KICAD_GOST)
-Ki_PageDescr  g_Sheet_A4( wxSize( 8283, 11700 ), wxPoint( 0, 0 ), wxT( "A4" ) );
-#else
-Ki_PageDescr  g_Sheet_A4( wxSize( 11700, 8267 ), wxPoint( 0, 0 ), wxT( "A4" ) );
-#endif
-Ki_PageDescr  g_Sheet_A3( wxSize( 16535, 11700 ), wxPoint( 0, 0 ), wxT( "A3" ) );
-Ki_PageDescr  g_Sheet_A2( wxSize( 23400, 16535 ), wxPoint( 0, 0 ), wxT( "A2" ) );
-Ki_PageDescr  g_Sheet_A1( wxSize( 33070, 23400 ), wxPoint( 0, 0 ), wxT( "A1" ) );
-Ki_PageDescr  g_Sheet_A0( wxSize( 46800, 33070 ), wxPoint( 0, 0 ), wxT( "A0" ) );
-Ki_PageDescr  g_Sheet_A( wxSize( 11000, 8500 ), wxPoint( 0, 0 ), wxT( "A" ) );
-Ki_PageDescr  g_Sheet_B( wxSize( 17000, 11000 ), wxPoint( 0, 0 ), wxT( "B" ) );
-Ki_PageDescr  g_Sheet_C( wxSize( 22000, 17000 ), wxPoint( 0, 0 ), wxT( "C" ) );
-Ki_PageDescr  g_Sheet_D( wxSize( 34000, 22000 ), wxPoint( 0, 0 ), wxT( "D" ) );
-Ki_PageDescr  g_Sheet_E( wxSize( 44000, 34000 ), wxPoint( 0, 0 ), wxT( "E" ) );
-Ki_PageDescr  g_Sheet_GERBER( wxSize( 32000, 32000 ), wxPoint( 0, 0 ), wxT( "GERBER" ) );
-Ki_PageDescr  g_Sheet_user( wxSize( 17000, 11000 ), wxPoint( 0, 0 ), wxT( "User" ) );
-
-Ki_PageDescr* g_SheetSizeList[NB_ITEMS + 1] =
-{
-    &g_Sheet_A4,   &g_Sheet_A3, &g_Sheet_A2, &g_Sheet_A1, &g_Sheet_A0,
-    &g_Sheet_A,    &g_Sheet_B,  &g_Sheet_C,  &g_Sheet_D,  &g_Sheet_E,
-    &g_Sheet_user, NULL
-};
-
-
-const wxString ProjectFileExtension( wxT( "pro" ) );
-const wxString SchematicFileExtension( wxT( "sch" ) );
-const wxString NetlistFileExtension( wxT( "net" ) );
-const wxString GerberFileExtension( wxT( "pho" ) );
-const wxString PcbFileExtension( wxT( "brd" ) );
-const wxString PdfFileExtension( wxT( "pdf" ) );
-const wxString MacrosFileExtension( wxT( "mcr" ) );
-
-const wxString ProjectFileWildcard( _( "KiCad project files (*.pro)|*.pro" ) );
-const wxString SchematicFileWildcard( _( "KiCad schematic files (*.sch)|*.sch" ) );
-const wxString NetlistFileWildcard( _( "KiCad netlist files (*.net)|*.net" ) );
-const wxString GerberFileWildcard( _( "Gerber files (*.pho)|*.pho" ) );
-const wxString PcbFileWildcard( _( "KiCad printed circuit board files (*.brd)|*.brd" ) );
-const wxString PdfFileWildcard( _( "Portable document format files (*.pdf)|*.pdf" ) );
-const wxString MacrosFileWildcard( _( "KiCad recorded macros (*.mcr)|*.mcr" ) );
-const wxString AllFilesWildcard( _( "All files (*)|*" ) );
-
 
 wxString       g_ProductName    = wxT( "KiCad E.D.A.  " );
 bool           g_ShowPageLimits = true;
 wxString       g_UserLibDirBuffer;
 
-wxString       g_Prj_Default_Config_FullFilename;
-wxString       g_Prj_Config_LocalFilename;
-
 EDA_UNITS_T    g_UserUnit;
+EDA_COLOR_T    g_GhostColor;
 
-int            g_GhostColor;
+#if defined(KICAD_GOST)
+static const bool s_gost = true;
+#else
+static const bool s_gost = false;
+#endif
+
+bool IsGOST()
+{
+    return s_gost;
+}
+
 
 /**
  * The predefined colors used in KiCad.
@@ -144,21 +110,38 @@ StructColors ColorRefs[NBCOLOR] =
  * And other problem is a bug when cross compiling under linux:
  * a printf print 1,5 and the read functions expects 1.5
  * (depending on version print = 1.5 and read = 1,5
- * Very annoying and we detect this and use a stupid but necessary workarount
+ * Very annoying and we detect this and use a stupid but necessary workaround
 */
 bool g_DisableFloatingPointLocalNotation = false;
 
 
-void SetLocaleTo_C_standard( void )
+int LOCALE_IO::C_count;
+
+
+void SetLocaleTo_C_standard()
 {
     setlocale( LC_NUMERIC, "C" );    // Switch the locale to standard C
 }
 
-
-void SetLocaleTo_Default( void )
+void SetLocaleTo_Default()
 {
-    if( ! g_DisableFloatingPointLocalNotation )
+    if( !g_DisableFloatingPointLocalNotation )
         setlocale( LC_NUMERIC, "" );      // revert to the current locale
+}
+
+
+wxSize GetTextSize( const wxString& aSingleLine, wxWindow* aWindow )
+{
+    wxCoord width;
+    wxCoord height;
+
+    {
+        wxClientDC dc( aWindow );
+        dc.SetFont( aWindow->GetFont() );
+        dc.GetTextExtent( aSingleLine, &width, &height );
+    }
+
+    return wxSize( width, height );
 }
 
 
@@ -177,44 +160,17 @@ bool EnsureTextCtrlWidth( wxTextCtrl* aCtrl, const wxString* aString )
         aString  = &ctrlText;
     }
 
-    wxCoord width;
-    wxCoord height;
+    wxSize  textz = GetTextSize( *aString, window );
+    wxSize  ctrlz = aCtrl->GetSize();
 
+    if( ctrlz.GetWidth() < textz.GetWidth() + 10 )
     {
-        wxClientDC dc( window );
-        dc.SetFont( aCtrl->GetFont() );
-        dc.GetTextExtent( *aString, &width, &height );
-    }
-
-    wxSize size = aCtrl->GetSize();
-
-    if( size.GetWidth() < width + 10 )
-    {
-        size.SetWidth( width + 10 );
-        aCtrl->SetSizeHints( size );
+        ctrlz.SetWidth( textz.GetWidth() + 10 );
+        aCtrl->SetSizeHints( ctrlz );
         return true;
     }
 
     return false;
-}
-
-
-Ki_PageDescr::Ki_PageDescr( const wxSize& size, const wxPoint& offset, const wxString& name )
-{
-    // All sizes are in 1/1000 inch
-    m_Size   = size;
-    m_Offset = offset;
-    m_Name   = name;
-
-    // Adjust the default value for margins to 400 mils (0,4 inch or 10 mm)
-#if defined(KICAD_GOST)
-    m_LeftMargin   = GOST_LEFTMARGIN;
-    m_RightMargin  = GOST_RIGHTMARGIN;
-    m_TopMargin    = GOST_TOPMARGIN;
-    m_BottomMargin = GOST_BOTTOMMARGIN;
-#else
-    m_LeftMargin = m_RightMargin = m_TopMargin = m_BottomMargin = 400;
-#endif
 }
 
 
@@ -301,197 +257,29 @@ void AddUnitSymbol( wxStaticText& Stext, EDA_UNITS_T aUnit )
 }
 
 
-void PutValueInLocalUnits( wxTextCtrl& TextCtr, int Value, int Internal_Unit )
-{
-    wxString msg = ReturnStringFromValue( g_UserUnit, Value, Internal_Unit );
-
-    TextCtr.SetValue( msg );
-}
-
-
-int ReturnValueFromTextCtrl( const wxTextCtrl& TextCtr, int Internal_Unit )
-{
-    int      value;
-    wxString msg = TextCtr.GetValue();
-
-    value = ReturnValueFromString( g_UserUnit, msg, Internal_Unit );
-
-    return value;
-}
-
-
-wxString ReturnStringFromValue( EDA_UNITS_T aUnit, int aValue, int aInternal_Unit,
-                                bool aAdd_unit_symbol )
-{
-    wxString StringValue;
-    double   value_to_print;
-
-    value_to_print = To_User_Unit( aUnit, aValue, aInternal_Unit );
-
-    /* Yet another 'if Pcbnew' :( */
-    StringValue.Printf( ( aInternal_Unit > 1000 ) ? wxT( "%.4f" ) : wxT( "%.3f" ),
-                        value_to_print );
-
-    if( aAdd_unit_symbol )
-        switch( aUnit )
-        {
-        case INCHES:
-            StringValue += _( " \"" );
-            break;
-
-        case MILLIMETRES:
-            StringValue += _( " mm" );
-            break;
-
-        case UNSCALED_UNITS:
-            break;
-        }
-
-    return StringValue;
-}
-
-
-int ReturnValueFromString( EDA_UNITS_T aUnit, const wxString& TextValue, int Internal_Unit )
-{
-    int    Value;
-    double dtmp = 0;
-
-    /* Acquire the 'right' decimal point separator */
-    const struct lconv* lc = localeconv();
-    wxChar decimal_point = lc->decimal_point[0];
-    wxString            buf( TextValue.Strip( wxString::both ) );
-
-    /* Convert the period in decimal point */
-    buf.Replace( wxT( "." ), wxString( decimal_point, 1 ) );
-
-    // An ugly fix needed by WxWidgets 2.9.1 that sometimes
-    // back to a point as separator, although the separator is the comma
-    // TODO: remove this line if WxWidgets 2.9.2 fixes this issue
-    buf.Replace( wxT( "," ), wxString( decimal_point, 1 ) );
-
-    /* Find the end of the numeric part */
-    unsigned brk_point = 0;
-
-    while( brk_point < buf.Len() )
-    {
-        wxChar ch = buf[brk_point];
-
-        if( !( (ch >= '0' && ch <='9') || (ch == decimal_point) || (ch == '-') || (ch == '+') ) )
-        {
-            break;
-        }
-
-        ++brk_point;
-    }
-
-    /* Extract the numeric part */
-    buf.Left( brk_point ).ToDouble( &dtmp );
-
-    /* Check the optional unit designator (2 ch significant) */
-    wxString unit( buf.Mid( brk_point ).Strip( wxString::leading ).Left( 2 ).Lower() );
-
-    if( unit == wxT( "in" ) || unit == wxT( "\"" ) )
-    {
-        aUnit = INCHES;
-    }
-    else if( unit == wxT( "mm" ) )
-    {
-        aUnit = MILLIMETRES;
-    }
-    else if( unit == wxT( "mi" ) || unit == wxT( "th" ) ) /* Mils or thous */
-    {
-        aUnit = INCHES;
-        dtmp /= 1000;
-    }
-
-    Value = From_User_Unit( aUnit, dtmp, Internal_Unit );
-
-    return Value;
-}
-
-
-/**
- * Function wxStringSplit
- * Split a String to a String List when founding 'splitter'
- * @return the list
- * @param txt : wxString : a String text
- * @param splitter : wxChar : the 'split' character
- */
-wxArrayString* wxStringSplit( wxString txt, wxChar splitter )
+wxArrayString* wxStringSplit( wxString aString, wxChar aSplitter )
 {
     wxArrayString* list = new wxArrayString();
 
     while( 1 )
     {
-        int index = txt.Find( splitter );
+        int index = aString.Find( aSplitter );
+
         if( index == wxNOT_FOUND )
             break;
 
         wxString tmp;
-        tmp = txt.Mid( 0, index );
-        txt = txt.Mid( index + 1, txt.size() - index );
+        tmp = aString.Mid( 0, index );
+        aString = aString.Mid( index + 1, aString.size() - index );
         list->Add( tmp );
     }
 
-    if( !txt.IsEmpty() )
+    if( !aString.IsEmpty() )
     {
-        list->Add( txt );
+        list->Add( aString );
     }
 
     return list;
-}
-
-
-
-/**
- * Function To_User_Unit
- * Convert in inch or mm the variable "val" (double)given in internal units
- * @return the converted value, in double
- * @param aUnit : user measure unit
- * @param val : double : the given value
- * @param internal_unit_value = internal units per inch
- */
-double To_User_Unit( EDA_UNITS_T aUnit, double val, int internal_unit_value )
-{
-
-    switch( aUnit )
-    {
-    case MILLIMETRES:
-        return val * 25.4 / internal_unit_value;
-
-    case INCHES:
-        return val / internal_unit_value;
-
-    default:
-        return val;
-    }
-}
-
-
-/*
- * Return in internal units the value "val" given in inch or mm
- */
-int From_User_Unit( EDA_UNITS_T aUnit, double val, int internal_unit_value )
-{
-    double value;
-
-    switch( aUnit )
-    {
-    case MILLIMETRES:
-        value = val * internal_unit_value / 25.4;
-        break;
-
-    case INCHES:
-        value = val * internal_unit_value;
-        break;
-
-    default:
-    case UNSCALED_UNITS:
-
-        value = val;
-    }
-
-    return wxRound( value );
 }
 
 
@@ -520,100 +308,46 @@ wxString GenDate()
 }
 
 
-bool ProcessExecute( const wxString& aCommandLine, int aFlags )
+int ProcessExecute( const wxString& aCommandLine, int aFlags, wxProcess *callback )
 {
-#ifdef __WINDOWS__
-    int        pid = wxExecute( aCommandLine );
-    return pid ? true : false;
-#else
-    wxProcess* process = wxProcess::Open( aCommandLine, aFlags );
-    return (process != NULL) ? true : false;
-#endif
+    return wxExecute( aCommandLine, aFlags, callback );
 }
 
 
-int GetTimeStamp()
+time_t GetNewTimeStamp()
 {
-    static int OldTimeStamp, NewTimeStamp;
+    static time_t oldTimeStamp;
+    time_t newTimeStamp;
 
-    NewTimeStamp = time( NULL );
+    newTimeStamp = time( NULL );
 
-    if( NewTimeStamp <= OldTimeStamp )
-        NewTimeStamp = OldTimeStamp + 1;
+    if( newTimeStamp <= oldTimeStamp )
+        newTimeStamp = oldTimeStamp + 1;
 
-    OldTimeStamp = NewTimeStamp;
+    oldTimeStamp = newTimeStamp;
 
-    return NewTimeStamp;
+    return newTimeStamp;
 }
 
 
-const wxString& valeur_param( int valeur, wxString& buf_texte )
+double RoundTo0( double x, double precision )
 {
-    switch( g_UserUnit )
-    {
-    case MILLIMETRES:
-        buf_texte.Printf( _( "%3.3f mm" ), valeur * 0.00254 );
-        break;
+    assert( precision != 0 );
 
-    case INCHES:
-        buf_texte.Printf( wxT( "%2.4f \"" ), valeur * 0.0001 );
-        break;
+    long long ix = KiROUND( x * precision );
 
-    case UNSCALED_UNITS:
-        buf_texte.Printf( wxT( "%d" ), valeur );
-        break;
-    }
+    if ( x < 0.0 )
+        NEGATE( ix );
 
-    return buf_texte;
-}
+    int remainder = ix % 10;   // remainder is in precision mm
 
+    if ( remainder <= 2 )
+        ix -= remainder;       // truncate to the near number
+    else if (remainder >= 8 )
+        ix += 10 - remainder;  // round to near number
 
-wxString CoordinateToString( int aValue, int aInternalUnits, bool aConvertToMils )
-{
-    wxCHECK_MSG( (aInternalUnits == EESCHEMA_INTERNAL_UNIT)
-                 || (aInternalUnits == PCB_INTERNAL_UNIT),
-                 wxString( _( "*** Bad Internal Units ***" ) ),
-                 wxT( "Invalid interanl units value." ) );
+    if ( x < 0 )
+        NEGATE( ix );
 
-    wxString      text;
-    const wxChar* format;
-    double        value = To_User_Unit( g_UserUnit, aValue, aInternalUnits );
-
-    if( g_UserUnit == INCHES )
-    {
-        if( aConvertToMils )
-        {
-            format = ( aInternalUnits == EESCHEMA_INTERNAL_UNIT ) ? wxT( "%.0f" ) : wxT( "%.1f" );
-            value *= 1000;
-        }
-        else
-        {
-            format = ( aInternalUnits == EESCHEMA_INTERNAL_UNIT ) ? wxT( "%.3f" ) : wxT( "%.4f" );
-        }
-    }
-    else
-    {
-        format = ( aInternalUnits == EESCHEMA_INTERNAL_UNIT ) ? wxT( "%.2f" ) : wxT( "%.3f" );
-    }
-
-    text.Printf( format, value );
-
-    if( g_UserUnit == INCHES )
-        text += ( aConvertToMils ) ? _( " mils" ) : _( " in" );
-    else
-        text += _( " mm" );
-
-    return text;
-}
-
-
-wxString& operator <<( wxString& aString, const wxPoint& aPos )
-{
-    wxString temp;
-
-    aString << wxT( "@ (" ) << valeur_param( aPos.x, temp );
-    aString << wxT( "," ) << valeur_param( aPos.y, temp );
-    aString << wxT( ")" );
-
-    return aString;
+    return (double) ix / precision;
 }

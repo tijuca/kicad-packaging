@@ -1,12 +1,8 @@
-/**
- * @file edit_bitmap.cpp
- */
-
 /*
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
- * Copyright (C) 2011 jean-pierre.charras
- * Copyright (C) 2011 KiCad Developers, see change_log.txt for contributors.
+ * Copyright (C) 2012 jean-pierre.charras
+ * Copyright (C) 2012 KiCad Developers, see change_log.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -26,18 +22,17 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
  */
 
-#include "fctsys.h"
-#include "gr_basic.h"
-#include "macros.h"
-#include "class_drawpanel.h"
-#include "trigo.h"
-#include "richio.h"
-#include "plot_common.h"
+/**
+ * @file edit_bitmap.cpp
+ */
 
-#include "wxEeschemaStruct.h"
-#include "general.h"
-#include "sch_bitmap.h"
-#include "dialog_image_editor.h"
+#include <fctsys.h>
+#include <class_drawpanel.h>
+
+#include <wxEeschemaStruct.h>
+#include <sch_bitmap.h>
+#include <dialog_image_editor.h>
+
 
 static void abortMoveBitmap( EDA_DRAW_PANEL* aPanel, wxDC* aDC )
 {
@@ -68,6 +63,7 @@ static void abortMoveBitmap( EDA_DRAW_PANEL* aPanel, wxDC* aDC )
         // Never delete existing item, because it can be referenced by an undo/redo command
         // Just restore its data
         item->SwapData( olditem );
+        parent->SetUndoItem( NULL );
     }
 
     screen->SetCurItem( item );
@@ -90,7 +86,7 @@ static void moveBitmap( EDA_DRAW_PANEL* aPanel, wxDC* aDC, const wxPoint& aPosit
         aPanel->SetMouseCapture( NULL, NULL );  // Avoid loop in redraw panel
 
         int flgs = image->GetFlags();
-        image->m_Flags = 0;
+        image->ClearFlags();
         aPanel->RefreshDrawingRect( dirty );
         image->SetFlags( flgs );
         aPanel->SetMouseCapture( moveBitmap, abortMoveBitmap );
@@ -133,9 +129,9 @@ SCH_BITMAP* SCH_EDIT_FRAME::CreateNewImage( wxDC* aDC )
 
 
     image->SetFlags( IS_NEW | IS_MOVED );
-    image->Draw( DrawPanel, aDC, wxPoint( 0, 0 ), GR_DEFAULT_DRAWMODE );
+    image->Draw( m_canvas, aDC, wxPoint( 0, 0 ), GR_DEFAULT_DRAWMODE );
 
-    DrawPanel->SetMouseCapture( moveBitmap, abortMoveBitmap );
+    m_canvas->SetMouseCapture( moveBitmap, abortMoveBitmap );
     GetScreen()->SetCurItem( image );
 
     OnModify();
@@ -146,16 +142,16 @@ void SCH_EDIT_FRAME::MoveImage( SCH_BITMAP* aImageItem, wxDC* aDC )
 {
     aImageItem->SetFlags( IS_MOVED );
 
-    DrawPanel->SetMouseCapture( moveBitmap, abortMoveBitmap );
+    m_canvas->SetMouseCapture( moveBitmap, abortMoveBitmap );
     GetScreen()->SetCurItem( aImageItem );
     m_itemToRepeat = NULL;
 
     SetUndoItem( aImageItem );
 
-    DrawPanel->CrossHairOff( aDC );
+    m_canvas->CrossHairOff( aDC );
     GetScreen()->SetCrossHairPosition( aImageItem->GetPosition() );
-    DrawPanel->MoveCursorToCrossHair();
-    DrawPanel->CrossHairOn( aDC );
+    m_canvas->MoveCursorToCrossHair();
+    m_canvas->CrossHairOn( aDC );
 
     OnModify();
 }
@@ -167,7 +163,7 @@ void SCH_EDIT_FRAME::RotateImage( SCH_BITMAP* aItem )
 
     aItem->Rotate( aItem->GetPosition() );
     OnModify();
-    DrawPanel->Refresh();
+    m_canvas->Refresh();
 }
 
 void SCH_EDIT_FRAME::MirrorImage( SCH_BITMAP* aItem, bool Is_X_axis )
@@ -176,12 +172,12 @@ void SCH_EDIT_FRAME::MirrorImage( SCH_BITMAP* aItem, bool Is_X_axis )
         SaveCopyInUndoList( aItem, UR_CHANGED );
 
     if( Is_X_axis )
-        aItem->Mirror_X( aItem->GetPosition().y );
+        aItem->MirrorX( aItem->GetPosition().y );
     else
-        aItem->Mirror_Y( aItem->GetPosition().x );
+        aItem->MirrorY( aItem->GetPosition().x );
 
     OnModify();
-    DrawPanel->Refresh();
+    m_canvas->Refresh();
 }
 
 void SCH_EDIT_FRAME::EditImage( SCH_BITMAP* aItem )
@@ -191,10 +187,13 @@ void SCH_EDIT_FRAME::EditImage( SCH_BITMAP* aItem )
     if( dlg.ShowModal() != wxID_OK )
         return;
 
-    if( aItem->GetFlags( ) == 0 )
+    // save old image in undo list if not already in edit
+    // or the image to be edited is part of a block
+    if( aItem->GetFlags() == 0 ||
+        GetScreen()->m_BlockLocate.GetState() != STATE_NO_BLOCK )
         SaveCopyInUndoList( aItem, UR_CHANGED );
 
     dlg.TransfertToImage(aItem->m_Image);
     OnModify();
-    DrawPanel->Refresh();
+    m_canvas->Refresh();
 }

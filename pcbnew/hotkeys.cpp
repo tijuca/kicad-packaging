@@ -2,11 +2,11 @@
  * @file pcbnew/hotkeys.cpp
  */
 
-#include "fctsys.h"
-#include "pcbnew.h"
-#include "wxPcbStruct.h"
+#include <fctsys.h>
+#include <pcbnew.h>
+#include <wxPcbStruct.h>
 
-#include "hotkeys.h"
+#include <hotkeys.h>
 
 /* How to add a new hotkey:
  *  add a new id in the enum hotkey_id_commnand like MY_NEW_ID_FUNCTION.
@@ -53,6 +53,7 @@ static EDA_HOTKEY HkSwitch2NextCopperLayer( wxT( "Switch to Next Layer" ),
 static EDA_HOTKEY HkSwitch2PreviousCopperLayer( wxT( "Switch to Previous Layer" ),
                                                 HK_SWITCH_LAYER_TO_PREVIOUS, '-' );
 
+static EDA_HOTKEY HkSaveModule( wxT( "Save Module" ), HK_SAVE_MODULE, 'S' + GR_KB_CTRL );
 static EDA_HOTKEY HkSavefile( wxT( "Save board" ), HK_SAVE_BOARD, 'S' + GR_KB_CTRL );
 static EDA_HOTKEY HkLoadfile( wxT( "Load board" ), HK_LOAD_BOARD, 'L' + GR_KB_CTRL );
 static EDA_HOTKEY HkFindItem( wxT( "Find Item" ), HK_FIND_ITEM, 'F' + GR_KB_CTRL );
@@ -67,9 +68,10 @@ static EDA_HOTKEY HkPlaceItem( wxT( "Place Item" ), HK_PLACE_ITEM, 'P' );
 static EDA_HOTKEY HkAddMicroVia( wxT( "Add MicroVia" ), HK_ADD_MICROVIA, 'V' + GR_KB_CTRL );
 static EDA_HOTKEY HkEndTrack( wxT( "End Track" ), HK_END_TRACK, WXK_END );
 static EDA_HOTKEY HkEditBoardItem( wxT( "Edit Item" ), HK_EDIT_ITEM, 'E' );
-static EDA_HOTKEY HkFlipFootprint( wxT( "Flip Footprint" ), HK_FLIP_FOOTPRINT, 'F' );
+static EDA_HOTKEY HkFlipItem( wxT( "Flip Item" ), HK_FLIP_ITEM, 'F' );
 static EDA_HOTKEY HkRotateItem( wxT( "Rotate Item" ), HK_ROTATE_ITEM, 'R' );
 static EDA_HOTKEY HkMoveItem( wxT( "Move Item" ), HK_MOVE_ITEM, 'M' );
+static EDA_HOTKEY HkCopyItem( wxT( "Copy Item" ), HK_COPY_ITEM, 'C' );
 static EDA_HOTKEY HkDragFootprint( wxT( "Drag Footprint" ), HK_DRAG_ITEM, 'G' );
 static EDA_HOTKEY HkGetAndMoveFootprint( wxT( "Get and Move Footprint" ),
                                          HK_GET_AND_MOVE_FOOTPRINT, 'T' );
@@ -78,7 +80,8 @@ static EDA_HOTKEY HkLock_Unlock_Footprint( wxT( "Lock/Unlock Footprint" ),
 static EDA_HOTKEY HkDelete( wxT( "Delete Track or Footprint" ), HK_DELETE, WXK_DELETE );
 static EDA_HOTKEY HkResetLocalCoord( wxT( "Reset Local Coordinates" ),
                                      HK_RESET_LOCAL_COORD, ' ' );
-
+static EDA_HOTKEY HkSwitchHighContrastMode( wxT("Switch Highcontrast mode"),
+					    HK_SWITCH_HIGHCONTRAST_MODE,'H');
 /* Fit on Screen */
 #if !defined( __WXMAC__ )
 static EDA_HOTKEY HkZoomAuto( wxT( "Zoom Auto" ), HK_ZOOM_AUTO, WXK_HOME );
@@ -208,9 +211,9 @@ EDA_HOTKEY* board_edit_Hotkey_List[] =
     &HkAddNewTrack,            &HkAddVia,                    &HkAddMicroVia,
     &HkSwitchTrackPosture,
     &HkDragTrackKeepSlope,
-    &HkPlaceItem,
-    &HkEndTrack,               &HkMoveItem,
-    &HkFlipFootprint,          &HkRotateItem,                &HkDragFootprint,
+    &HkPlaceItem,              &HkCopyItem,
+    &HkEndTrack,               &HkMoveItem,                  &HkFlipItem,
+    &HkRotateItem,             &HkDragFootprint,
     &HkGetAndMoveFootprint,    &HkLock_Unlock_Footprint,     &HkSavefile,
     &HkLoadfile,               &HkFindItem,                  &HkEditBoardItem,
     &HkSwitch2CopperLayer,     &HkSwitch2InnerLayer1,
@@ -224,6 +227,7 @@ EDA_HOTKEY* board_edit_Hotkey_List[] =
     &HkRecordMacros4,          &HkCallMacros4,    &HkRecordMacros5,          &HkCallMacros5,
     &HkRecordMacros6,          &HkCallMacros6,    &HkRecordMacros7,          &HkCallMacros7,
     &HkRecordMacros8,          &HkCallMacros8,    &HkRecordMacros9,          &HkCallMacros9,
+    &HkSwitchHighContrastMode,
     NULL
 };
 
@@ -231,6 +235,7 @@ EDA_HOTKEY* board_edit_Hotkey_List[] =
 EDA_HOTKEY* module_edit_Hotkey_List[] = {
     &HkMoveItem,               &HkRotateItem,                &HkEditBoardItem,
     &HkDelete,
+    &HkSaveModule,
     NULL
  };
 
@@ -258,3 +263,11 @@ struct EDA_HOTKEY_CONFIG g_Module_Editor_Hokeys_Descr[] = {
     { &g_ModuleEditSectionTag, module_edit_Hotkey_List, NULL },
     { NULL, NULL, NULL }
 };
+
+// list of sections and corresponding hotkey list for the footprint viewer
+// (used to list current hotkeys in the module viewer)
+struct EDA_HOTKEY_CONFIG g_Module_Viewer_Hokeys_Descr[] = {
+    { &g_CommonSectionTag, common_Hotkey_List, NULL },
+    { NULL, NULL, NULL }
+};
+

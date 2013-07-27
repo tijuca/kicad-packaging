@@ -2,14 +2,14 @@
  * @file gerbview/hotkeys.cpp
  */
 
-#include "fctsys.h"
-#include "common.h"
-#include "kicad_device_context.h"
-#include "id.h"
+#include <fctsys.h>
+#include <common.h>
+#include <kicad_device_context.h>
+#include <id.h>
 
-#include "gerbview.h"
-#include "class_drawpanel.h"
-#include "hotkeys.h"
+#include <gerbview.h>
+#include <class_drawpanel.h>
+#include <hotkeys.h>
 
 
 /* How to add a new hotkey:
@@ -71,23 +71,26 @@ struct EDA_HOTKEY_CONFIG s_Gerbview_Hokeys_Descr[] =
 };
 
 
-/* Hot keys. Some commands are relatives to the item under the mouse cursor
- *  Commands are case insensitive
- *  @param DC = current device context
- *  @param hotkey = hotkey code (ascii or wxWidget code for special keys)
- *  @param DrawStruct = NULL or pointer on a EDA_ITEM under the mouse cursor
+/*
+ * Function OnHotKey.
+ *  ** Commands are case insensitive **
+ *  Some commands are relatives to the item under the mouse cursor
+ * aDC = current device context
+ * aHotkeyCode = hotkey code (ascii or wxWidget code for special keys)
+ * aPosition The cursor position in logical (drawing) units.
+ * aItem = NULL or pointer on a EDA_ITEM under the mouse cursor
  */
-void GERBVIEW_FRAME::OnHotKey( wxDC* DC, int hotkey, EDA_ITEM* DrawStruct )
+void GERBVIEW_FRAME::OnHotKey( wxDC* aDC, int aHotkeyCode, const wxPoint& aPosition, EDA_ITEM* aItem )
 {
     wxCommandEvent cmd( wxEVT_COMMAND_MENU_SELECTED );
     cmd.SetEventObject( this );
 
     /* Convert lower to upper case (the usual toupper function has problem with non ascii
      * codes like function keys */
-    if( (hotkey >= 'a') && (hotkey <= 'z') )
-        hotkey += 'A' - 'a';
+    if( (aHotkeyCode >= 'a') && (aHotkeyCode <= 'z') )
+        aHotkeyCode += 'A' - 'a';
 
-    EDA_HOTKEY * HK_Descr = GetDescriptorFromHotkey( hotkey, s_Gerbview_Hotkey_List );
+    EDA_HOTKEY * HK_Descr = GetDescriptorFromHotkey( aHotkeyCode, s_Gerbview_Hotkey_List );
 
     if( HK_Descr == NULL )
         return;
@@ -136,15 +139,15 @@ void GERBVIEW_FRAME::OnHotKey( wxDC* DC, int hotkey, EDA_ITEM* DrawStruct )
         break;
 
     case HK_SWITCH_GBR_ITEMS_DISPLAY_MODE:
-        DisplayOpt.DisplayPcbTrackFill ^= 1; DisplayOpt.DisplayPcbTrackFill &= 1;
-        DrawPanel->Refresh();
+        m_DisplayOptions.m_DisplayLinesFill = not m_DisplayOptions.m_DisplayLinesFill;
+        m_canvas->Refresh();
         break;
 
     case HK_SWITCH_LAYER_TO_PREVIOUS:
         if( getActiveLayer() > 0 )
         {
             setActiveLayer( getActiveLayer() - 1 );
-            DrawPanel->Refresh();
+            m_canvas->Refresh();
         }
         break;
 
@@ -152,7 +155,7 @@ void GERBVIEW_FRAME::OnHotKey( wxDC* DC, int hotkey, EDA_ITEM* DrawStruct )
         if( getActiveLayer() < 31 )
         {
             setActiveLayer( getActiveLayer() + 1 );
-            DrawPanel->Refresh();
+            m_canvas->Refresh();
         }
         break;
     }

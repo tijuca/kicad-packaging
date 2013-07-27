@@ -2,43 +2,34 @@
  * @file pcbcommon.h
  */
 
-#ifndef __PCBCOMMON_H__
-#define __PCBCOMMON_H__
+#ifndef PCBCOMMON_H_
+#define PCBCOMMON_H_
 
 
-#include "dlist.h"
-#include "layers_id_colors_and_visibility.h"  // LAYER_COUNT and NB_COPPER_LAYERS definitions.
-
-#include <wx/string.h>                        // wxString class.
-#include <wx/arrstr.h>                        // wxArrayString class.
+#include <dlist.h>
+#include <layers_id_colors_and_visibility.h>  // LAYER_COUNT and NB_COPPER_LAYERS definitions.
 
 
-#define MIN_DRAW_WIDTH 1  /* Minimum trace drawing width. */
+#define MIN_DRAW_WIDTH      1               ///< Minimum trace drawing width.
 
 
-class PCB_SCREEN;
 class D_PAD;
 class TRACK;
 class BOARD;
 class DISPLAY_OPTIONS;
 
 
-/* Look up Table for conversion one layer number -> one bit layer mask: */
-extern int g_TabOneLayerMask[LAYER_COUNT];
+/**
+ * Function GetLayerMask
+ * @return a one bit layer mask from a layer number
+ * @param aLayerNumber = the layer number to convert (0 .. LAYER_COUNT-1)
+ */
+int GetLayerMask( int aLayerNumber );
 
-/* Look up Table for conversion copper layer count -> general copper layer mask: */
+/// Look up Table for conversion copper layer count -> general copper layer mask:
 extern int g_TabAllCopperLayerMask[NB_COPPER_LAYERS];
 
 extern DISPLAY_OPTIONS DisplayOpt;
-
-extern wxString g_SaveFileName;
-extern wxString NetExtBuffer;
-extern wxString NetCmpExtBuffer;
-extern const wxString ModuleFileExtension;
-
-extern const wxString ModuleFileWildcard;
-
-extern wxString g_ViaType_Name[4];
 
 extern int g_CurrentVersionPCB;
 
@@ -51,10 +42,5 @@ extern DLIST<TRACK> g_CurrentTrackList;
 
 #define g_FirstTrackSegment   g_CurrentTrackList.GetFirst()   ///< first segment created
 
-extern BOARD* g_ModuleEditor_Pcb;
 
-/* Pad editing */
-extern D_PAD g_Pad_Master;
-
-
-#endif  /*  __PCBCOMMON_H__ */
+#endif  // PCBCOMMON_H_

@@ -1,9 +1,10 @@
 /*
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
- * Copyright (C) 2004 Jean-Pierre Charras, jaen-pierre.charras@gipsa-lab.inpg.com
- * Copyright (C) 2011 Wayne Stambaugh <stambaughw@verizon.net>
- * Copyright (C) 1992-2011 KiCad Developers, see AUTHORS.txt for contributors.
+ * Copyright (C) 2012 Jean-Pierre Charras, jean-pierre.charras@ujf-grenoble.fr
+ * Copyright (C) 2012 SoftPLC Corporation, Dick Hollenbeck <dick@softplc.com>
+ * Copyright (C) 2012 Wayne Stambaugh <stambaughw@verizon.net>
+ * Copyright (C) 1992-2012 KiCad Developers, see AUTHORS.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -28,36 +29,41 @@
  * @brief Footprint editor block handling implementation.
  */
 
-#include "fctsys.h"
-#include "appl_wxstruct.h"
-#include "gr_basic.h"
-#include "class_drawpanel.h"
-#include "confirm.h"
-#include "block_commande.h"
-#include "macros.h"
+#include <fctsys.h>
+#include <appl_wxstruct.h>
+#include <gr_basic.h>
+#include <class_drawpanel.h>
+#include <confirm.h>
+#include <block_commande.h>
+#include <macros.h>
 
-#include "wxPcbStruct.h"
-#include "module_editor_frame.h"
-#include "pcbplot.h"
-#include "trigo.h"
+#include <wxPcbStruct.h>
+#include <module_editor_frame.h>
+#include <pcbplot.h>
+#include <trigo.h>
 
-#include "pcbnew.h"
-#include "protos.h"
+#include <pcbnew.h>
+#include <protos.h>
 
-#include "class_board.h"
-#include "class_track.h"
-#include "class_drawsegment.h"
-#include "class_pcb_text.h"
-#include "class_mire.h"
-#include "class_module.h"
-#include "class_dimension.h"
-#include "class_edge_mod.h"
+#include <class_board.h>
+#include <class_track.h>
+#include <class_drawsegment.h>
+#include <class_pcb_text.h>
+#include <class_mire.h>
+#include <class_module.h>
+#include <class_dimension.h>
+#include <class_edge_mod.h>
 
 
 #define BLOCK_COLOR BROWN
-#define IS_SELECTED 1
 
+// Functions defined here, but used also in other files
+// These 2 functions are used in modedit to rotate or mirror the whole footprint
+// so they are called with force_all = true
+void MirrorMarkedItems( MODULE* module, wxPoint offset, bool force_all = false );
+void RotateMarkedItems( MODULE* module, wxPoint offset, bool force_all = false );
 
+// Local functions:
 static void DrawMovingBlockOutlines( EDA_DRAW_PANEL* aPanel, wxDC* aDC, const wxPoint& aPosition,
                                      bool aErase );
 static int  MarkItemsInBloc( MODULE* module, EDA_RECT& Rect );
@@ -65,8 +71,6 @@ static int  MarkItemsInBloc( MODULE* module, EDA_RECT& Rect );
 static void ClearMarkItems( MODULE* module );
 static void CopyMarkedItems( MODULE* module, wxPoint offset );
 static void MoveMarkedItems( MODULE* module, wxPoint offset );
-static void MirrorMarkedItems( MODULE* module, wxPoint offset );
-static void RotateMarkedItems( MODULE* module, wxPoint offset );
 static void DeleteMarkedItems( MODULE* module );
 
 
@@ -121,18 +125,18 @@ bool FOOTPRINT_EDIT_FRAME::HandleBlockEnd( wxDC* DC )
 
     if( GetScreen()->m_BlockLocate.GetCount() )
     {
-        BlockState   state   = GetScreen()->m_BlockLocate.m_State;
-        CmdBlockType command = GetScreen()->m_BlockLocate.m_Command;
-        DrawPanel->m_endMouseCaptureCallback( DrawPanel, DC );
-        GetScreen()->m_BlockLocate.m_State   = state;
-        GetScreen()->m_BlockLocate.m_Command = command;
-        DrawPanel->SetMouseCapture( DrawAndSizingBlockOutlines, AbortBlockCurrentCommand );
+        BLOCK_STATE_T   state   = GetScreen()->m_BlockLocate.GetState();
+        BLOCK_COMMAND_T command = GetScreen()->m_BlockLocate.GetCommand();
+        m_canvas->CallEndMouseCapture( DC );
+        GetScreen()->m_BlockLocate.SetState( state );
+        GetScreen()->m_BlockLocate.SetCommand( command );
+        m_canvas->SetMouseCapture( DrawAndSizingBlockOutlines, AbortBlockCurrentCommand );
         GetScreen()->SetCrossHairPosition( wxPoint(  GetScreen()->m_BlockLocate.GetRight(),
                                                      GetScreen()->m_BlockLocate.GetBottom() ) );
-        DrawPanel->MoveCursorToCrossHair();
+        m_canvas->MoveCursorToCrossHair();
     }
 
-    switch( GetScreen()->m_BlockLocate.m_Command )
+    switch( GetScreen()->m_BlockLocate.GetCommand() )
     {
     case  BLOCK_IDLE:
         DisplayError( this, wxT( "Error in HandleBlockPLace" ) );
@@ -147,22 +151,23 @@ bool FOOTPRINT_EDIT_FRAME::HandleBlockEnd( wxDC* DC )
         {
             nextcmd = true;
 
-            if( DrawPanel->IsMouseCaptured() )
+            if( m_canvas->IsMouseCaptured() )
             {
-                DrawPanel->m_mouseCaptureCallback( DrawPanel, DC, wxDefaultPosition, false );
-                DrawPanel->m_mouseCaptureCallback = DrawMovingBlockOutlines;
-                DrawPanel->m_mouseCaptureCallback( DrawPanel, DC, wxDefaultPosition, false );
+                m_canvas->CallMouseCapture( DC, wxDefaultPosition, false );
+                m_canvas->SetMouseCaptureCallback( DrawMovingBlockOutlines );
+                m_canvas->CallMouseCapture( DC, wxDefaultPosition, false );
             }
 
-            GetScreen()->m_BlockLocate.m_State = STATE_BLOCK_MOVE;
-            DrawPanel->Refresh( true );
+            GetScreen()->m_BlockLocate.SetState( STATE_BLOCK_MOVE );
+            m_canvas->Refresh( true );
         }
+
         break;
 
     case BLOCK_PRESELECT_MOVE:     /* Move with preselection list*/
         nextcmd = true;
-        DrawPanel->m_mouseCaptureCallback = DrawMovingBlockOutlines;
-        GetScreen()->m_BlockLocate.m_State = STATE_BLOCK_MOVE;
+        m_canvas->SetMouseCaptureCallback( DrawMovingBlockOutlines );
+        GetScreen()->m_BlockLocate.SetState( STATE_BLOCK_MOVE );
         break;
 
     case BLOCK_DELETE:     /* Delete */
@@ -212,16 +217,16 @@ bool FOOTPRINT_EDIT_FRAME::HandleBlockEnd( wxDC* DC )
 
     if( !nextcmd )
     {
-        if( GetScreen()->m_BlockLocate.m_Command  != BLOCK_SELECT_ITEMS_ONLY )
+        if( GetScreen()->m_BlockLocate.GetCommand() != BLOCK_SELECT_ITEMS_ONLY )
         {
             ClearMarkItems( currentModule );
         }
 
         GetScreen()->ClearBlockCommand();
         SetCurItem( NULL );
-        DrawPanel->EndMouseCapture( GetToolId(), DrawPanel->GetCurrentCursor(), wxEmptyString,
-                                    false );
-        DrawPanel->Refresh( true );
+        m_canvas->EndMouseCapture( GetToolId(), m_canvas->GetCurrentCursor(), wxEmptyString,
+                                   false );
+        m_canvas->Refresh( true );
     }
 
     return nextcmd;
@@ -232,14 +237,14 @@ void FOOTPRINT_EDIT_FRAME::HandleBlockPlace( wxDC* DC )
 {
     MODULE* currentModule = GetBoard()->m_Modules;
 
-    if( !DrawPanel->IsMouseCaptured() )
+    if( !m_canvas->IsMouseCaptured() )
     {
         DisplayError( this, wxT( "HandleBlockPLace : m_mouseCaptureCallback = NULL" ) );
     }
 
-    GetScreen()->m_BlockLocate.m_State = STATE_BLOCK_STOP;
+    GetScreen()->m_BlockLocate.SetState( STATE_BLOCK_STOP );
 
-    switch( GetScreen()->m_BlockLocate.m_Command )
+    switch( GetScreen()->m_BlockLocate.GetCommand() )
     {
     case  BLOCK_IDLE:
         break;
@@ -249,14 +254,14 @@ void FOOTPRINT_EDIT_FRAME::HandleBlockPlace( wxDC* DC )
     case BLOCK_PRESELECT_MOVE:      /* Move with preselection list*/
         GetScreen()->m_BlockLocate.ClearItemsList();
         SaveCopyInUndoList( currentModule, UR_MODEDIT );
-        MoveMarkedItems( currentModule, GetScreen()->m_BlockLocate.m_MoveVector );
-        DrawPanel->Refresh( true );
+        MoveMarkedItems( currentModule, GetScreen()->m_BlockLocate.GetMoveVector() );
+        m_canvas->Refresh( true );
         break;
 
     case BLOCK_COPY:     /* Copy */
         GetScreen()->m_BlockLocate.ClearItemsList();
         SaveCopyInUndoList( currentModule, UR_MODEDIT );
-        CopyMarkedItems( currentModule, GetScreen()->m_BlockLocate.m_MoveVector );
+        CopyMarkedItems( currentModule, GetScreen()->m_BlockLocate.GetMoveVector() );
         break;
 
     case BLOCK_PASTE:     /* Paste */
@@ -285,12 +290,11 @@ void FOOTPRINT_EDIT_FRAME::HandleBlockPlace( wxDC* DC )
 
     OnModify();
 
-    GetScreen()->m_BlockLocate.m_Flags   = 0;
-    GetScreen()->m_BlockLocate.m_State   = STATE_NO_BLOCK;
-    GetScreen()->m_BlockLocate.m_Command = BLOCK_IDLE;
+    GetScreen()->m_BlockLocate.SetState( STATE_NO_BLOCK );
+    GetScreen()->m_BlockLocate.SetCommand( BLOCK_IDLE );
     SetCurItem( NULL );
-    DrawPanel->EndMouseCapture( GetToolId(), DrawPanel->GetCurrentCursor(), wxEmptyString, false );
-    DrawPanel->Refresh( true );
+    m_canvas->EndMouseCapture( GetToolId(), m_canvas->GetCurrentCursor(), wxEmptyString, false );
+    m_canvas->Refresh( true );
 }
 
 
@@ -300,29 +304,27 @@ void FOOTPRINT_EDIT_FRAME::HandleBlockPlace( wxDC* DC )
 static void DrawMovingBlockOutlines( EDA_DRAW_PANEL* aPanel, wxDC* aDC, const wxPoint& aPosition,
                                      bool aErase )
 {
-    BLOCK_SELECTOR*  PtBlock;
     BASE_SCREEN*     screen = aPanel->GetScreen();
-    BOARD_ITEM*      item;
-    wxPoint          move_offset;
-    MODULE*          currentModule =
-        ( (PCB_BASE_FRAME*) wxGetApp().GetTopWindow() )->m_ModuleEditFrame->GetBoard()->m_Modules;
+    FOOTPRINT_EDIT_FRAME * moduleEditFrame = FOOTPRINT_EDIT_FRAME::GetActiveFootprintEditor();
 
-    PtBlock = &screen->m_BlockLocate;
+    wxASSERT( moduleEditFrame );
+    MODULE* currentModule = moduleEditFrame->GetBoard()->m_Modules;
+
+    BLOCK_SELECTOR* block = &screen->m_BlockLocate;
     GRSetDrawMode( aDC, g_XorMode );
 
     if( aErase )
     {
-        PtBlock->Draw( aPanel, aDC, PtBlock->m_MoveVector, g_XorMode, PtBlock->m_Color );
+        block->Draw( aPanel, aDC, block->GetMoveVector(), g_XorMode, block->GetColor() );
 
         if( currentModule )
         {
-            move_offset.x = -PtBlock->m_MoveVector.x;
-            move_offset.y = -PtBlock->m_MoveVector.y;
-            item = currentModule->m_Drawings;
+            wxPoint move_offset = -block->GetMoveVector();
+            BOARD_ITEM* item = currentModule->m_Drawings;
 
             for( ; item != NULL; item = item->Next() )
             {
-                if( item->m_Selected == 0 )
+                if( !item->IsSelected() )
                     continue;
 
                 switch( item->Type() )
@@ -341,7 +343,7 @@ static void DrawMovingBlockOutlines( EDA_DRAW_PANEL* aPanel, wxDC* aDC, const wx
 
             for( ; pad != NULL; pad = pad->Next() )
             {
-                if( pad->m_Selected == 0 )
+                if( !pad->IsSelected() )
                     continue;
 
                 pad->Draw( aPanel, aDC, g_XorMode, move_offset );
@@ -350,18 +352,18 @@ static void DrawMovingBlockOutlines( EDA_DRAW_PANEL* aPanel, wxDC* aDC, const wx
     }
 
     /* Repaint new view. */
-    PtBlock->m_MoveVector = screen->GetCrossHairPosition() - PtBlock->m_BlockLastCursorPosition;
+    block->SetMoveVector( screen->GetCrossHairPosition() - block->GetLastCursorPosition() );
 
-    PtBlock->Draw( aPanel, aDC, PtBlock->m_MoveVector, g_XorMode, PtBlock->m_Color );
+    block->Draw( aPanel, aDC, block->GetMoveVector(), g_XorMode, block->GetColor() );
 
     if( currentModule )
     {
-        item = currentModule->m_Drawings;
-        move_offset = - PtBlock->m_MoveVector;
+        BOARD_ITEM* item = currentModule->m_Drawings;
+        wxPoint move_offset = - block->GetMoveVector();
 
         for( ; item != NULL; item = item->Next() )
         {
-            if( item->m_Selected == 0 )
+            if( !item->IsSelected() )
                 continue;
 
             switch( item->Type() )
@@ -380,7 +382,7 @@ static void DrawMovingBlockOutlines( EDA_DRAW_PANEL* aPanel, wxDC* aDC, const wx
 
         for( ; pad != NULL; pad = pad->Next() )
         {
-            if( pad->m_Selected == 0 )
+            if( !pad->IsSelected() )
                 continue;
 
             pad->Draw( aPanel, aDC, g_XorMode, move_offset );
@@ -398,45 +400,29 @@ void CopyMarkedItems( MODULE* module, wxPoint offset )
 
     for( D_PAD* pad = module->m_Pads;  pad;  pad = pad->Next() )
     {
-        if( pad->m_Selected == 0 )
+        if( !pad->IsSelected() )
             continue;
 
-        pad->m_Selected = 0;
-        D_PAD* NewPad = new D_PAD( module );
-        NewPad->Copy( pad );
-        NewPad->m_Selected = IS_SELECTED;
+        pad->ClearFlags( SELECTED );
+        D_PAD* NewPad = new D_PAD( *pad );
+        NewPad->SetParent( module );
+        NewPad->SetFlags( SELECTED );
         module->m_Pads.PushFront( NewPad );
     }
 
-    for( BOARD_ITEM* item = module->m_Drawings;  item; item = item->Next() )
+    BOARD_ITEM* newItem;
+
+    for( BOARD_ITEM* item = module->m_Drawings;  item;  item = item->Next() )
     {
-        if( item->m_Selected == 0 )
+        if( !item->IsSelected() )
             continue;
 
-        item->m_Selected = 0;
+        item->ClearFlags( SELECTED );
 
-        switch( item->Type() )
-        {
-        case PCB_MODULE_TEXT_T:
-            TEXTE_MODULE * textm;
-            textm = new TEXTE_MODULE( module );
-            textm->Copy( (TEXTE_MODULE*) item );
-            textm->m_Selected = IS_SELECTED;
-            module->m_Drawings.PushFront( textm );
-            break;
-
-        case PCB_MODULE_EDGE_T:
-            EDGE_MODULE * edge;
-            edge = new EDGE_MODULE( module );
-            edge->Copy( (EDGE_MODULE*) item );
-            edge->m_Selected = IS_SELECTED;
-            module->m_Drawings.PushFront( edge );
-            break;
-
-        default:
-            DisplayError( NULL, wxT( "CopyMarkedItems: type undefined" ) );
-            break;
-        }
+        newItem = (BOARD_ITEM*)item->Clone();
+        newItem->SetParent( module );
+        newItem->SetFlags( SELECTED );
+        module->m_Drawings.PushFront( newItem );
     }
 
     MoveMarkedItems( module, offset );
@@ -456,40 +442,45 @@ void MoveMarkedItems( MODULE* module, wxPoint offset )
 
     for( ; pad != NULL; pad = pad->Next() )
     {
-        if( pad->m_Selected == 0 )
+        if( !pad->IsSelected() )
             continue;
 
         pad->SetPosition( pad->GetPosition() + offset );
-        pad->m_Pos0 += offset;
+        pad->SetPos0( pad->GetPos0() + offset );
     }
 
     item = module->m_Drawings;
 
     for( ; item != NULL; item = item->Next() )
     {
-        if( item->m_Selected == 0 )
+        if( !item->IsSelected() )
             continue;
 
         switch( item->Type() )
         {
         case PCB_MODULE_TEXT_T:
-            ( (TEXTE_MODULE*) item )->m_Pos += offset;
-            ( (TEXTE_MODULE*) item )->m_Pos0 += offset;
+            {
+                TEXTE_MODULE* tm = (TEXTE_MODULE*) item;
+                tm->m_Pos += offset;
+                tm->SetPos0( tm->GetPos0() + offset );
+            }
             break;
 
         case PCB_MODULE_EDGE_T:
-            ( (EDGE_MODULE*) item )->m_Start += offset;
-            ( (EDGE_MODULE*) item )->m_End += offset;
-
-            ( (EDGE_MODULE*) item )->m_Start0 += offset;
-            ( (EDGE_MODULE*) item )->m_End0 += offset;
+            {
+                EDGE_MODULE* em = (EDGE_MODULE*) item;
+                em->SetStart( em->GetStart() + offset );
+                em->SetEnd( em->GetEnd() + offset );
+                em->SetStart0( em->GetStart0() + offset );
+                em->SetEnd0( em->GetEnd0() + offset );
+            }
             break;
 
         default:
             ;
         }
 
-        item->m_Flags = item->m_Selected = 0;
+        item->ClearFlags();
     }
 }
 
@@ -512,7 +503,7 @@ void DeleteMarkedItems( MODULE* module )
     {
         next_pad = pad->Next();
 
-        if( pad->m_Selected == 0 )
+        if( !pad->IsSelected() )
             continue;
 
         pad->DeleteStructure();
@@ -524,7 +515,7 @@ void DeleteMarkedItems( MODULE* module )
     {
         next_item = item->Next();
 
-        if( item->m_Selected == 0 )
+        if( !item->IsSelected() )
             continue;
 
         item->DeleteStructure();
@@ -532,116 +523,151 @@ void DeleteMarkedItems( MODULE* module )
 }
 
 
-/* Mirror marked items, refer to a Vertical axis at position offset
+/** Mirror marked items, refer to a Vertical axis at position offset
+ * Note: because this function is used in global transform,
+ * if force_all is true, all items will be mirrored
  */
-void MirrorMarkedItems( MODULE* module, wxPoint offset )
+void MirrorMarkedItems( MODULE* module, wxPoint offset, bool force_all )
 {
 #define SETMIRROR( z ) (z) -= offset.x; (z) = -(z); (z) += offset.x;
-    EDA_ITEM* item;
+    wxPoint     tmp;
+    wxSize      tmpz;
 
     if( module == NULL )
         return;
 
-    D_PAD* pad = module->m_Pads;
-
-    for( ; pad != NULL; pad = pad->Next() )
+    for( D_PAD* pad = module->m_Pads;  pad;  pad = pad->Next() )
     {
-        if( pad->m_Selected == 0 )
+        // Skip pads not selected, i.e. not inside the block to mirror:
+        if( !pad->IsSelected() && !force_all )
             continue;
 
-        SETMIRROR( pad->GetPosition().x );
-        pad->m_Pos0.x = pad->GetPosition().x;
-        NEGATE( pad->m_Offset.x );
-        NEGATE( pad->m_DeltaSize.x );
-        pad->m_Orient      = 1800 - pad->m_Orient;
-        NORMALIZE_ANGLE_POS( pad->m_Orient );
+        tmp = pad->GetPosition();
+        SETMIRROR( tmp.x );
+        pad->SetPosition( tmp );
+
+        pad->SetX0( pad->GetPosition().x );
+
+        tmp = pad->GetOffset();
+        NEGATE( tmp.x );
+        pad->SetOffset( tmp );
+
+        tmpz = pad->GetDelta();
+        NEGATE( tmpz.x );
+        pad->SetDelta( tmpz );
+
+        pad->SetOrientation( 1800 - pad->GetOrientation() );
     }
 
-    item = module->m_Drawings;
-
-    for( ; item != NULL; item = item->Next() )
+    for( EDA_ITEM* item = module->m_Drawings;  item;  item = item->Next() )
     {
-        if( item->m_Selected == 0 )
+        // Skip items not selected, i.e. not inside the block to mirror:
+        if( !item->IsSelected() && !force_all )
             continue;
 
         switch( item->Type() )
         {
         case PCB_MODULE_EDGE_T:
-        {
-            EDGE_MODULE * edge =  (EDGE_MODULE*) item;
-            SETMIRROR( edge->m_Start.x );
-            edge->m_Start0.x = edge->m_Start.x;
-            SETMIRROR( edge->m_End.x );
-            edge->m_End0.x = edge->m_End.x;
-            NEGATE( edge->m_Angle );
-        }
+            {
+                EDGE_MODULE* em = (EDGE_MODULE*) item;
+
+                tmp = em->GetStart0();
+                SETMIRROR( tmp.x );
+                em->SetStart0( tmp );
+                em->SetStartX( tmp.x );
+
+                tmp = em->GetEnd0();
+                SETMIRROR( tmp.x );
+                em->SetEnd0( tmp );
+                em->SetEndX( tmp.x );
+
+                em->SetAngle( -em->GetAngle() );
+            }
             break;
 
         case PCB_MODULE_TEXT_T:
-            SETMIRROR( ( (TEXTE_MODULE*) item )->GetPosition().x );
-            ( (TEXTE_MODULE*) item )->m_Pos0.x = ( (TEXTE_MODULE*) item )->GetPosition().x;
+            {
+                TEXTE_MODULE* tm = (TEXTE_MODULE*) item;
+                tmp = tm->GetPosition();
+                SETMIRROR( tmp.x );
+                tm->SetPosition( tmp );
+                tmp.y = tm->GetPos0().y;
+                tm->SetPos0( tmp );
+            }
             break;
 
         default:
             break;
         }
 
-        item->m_Flags = 0;
-        item->m_Selected = 0;
+        item->ClearFlags();
     }
 }
 
 
-/* Rotate marked items, refer to a Vertical axis at position offset
+/** Rotate marked items, refer to a rotation point at position offset
+ * Note: because this function is used in global transform,
+ * if force_all is true, all items will be rotated
  */
-void RotateMarkedItems( MODULE* module, wxPoint offset )
+void RotateMarkedItems( MODULE* module, wxPoint offset, bool force_all )
 {
 #define ROTATE( z ) RotatePoint( (&z), offset, 900 )
-    EDA_ITEM* item;
 
     if( module == NULL )
         return;
 
-    D_PAD* pad = module->m_Pads;
-
-    for( ; pad != NULL; pad = pad->Next() )
+    for( D_PAD* pad = module->m_Pads;  pad;  pad = pad->Next() )
     {
-        if( pad->m_Selected == 0 )
+        if( !pad->IsSelected() && !force_all )
             continue;
 
-        ROTATE( pad->GetPosition() );
-        pad->m_Pos0    = pad->GetPosition();
-        pad->m_Orient += 900;
-        NORMALIZE_ANGLE_POS( pad->m_Orient );
+        wxPoint pos = pad->GetPosition();
+        ROTATE( pos );
+        pad->SetPosition( pos );
+
+        pad->SetPos0( pad->GetPosition() );
+        pad->SetOrientation( pad->GetOrientation() + 900 );
     }
 
-    item = module->m_Drawings;
-
-    for( ; item != NULL; item = item->Next() )
+    for( EDA_ITEM* item = module->m_Drawings;  item;  item = item->Next() )
     {
-        if( item->m_Selected == 0 )
+        if( !item->IsSelected() && !force_all)
             continue;
 
         switch( item->Type() )
         {
         case PCB_MODULE_EDGE_T:
-            ROTATE( ( (EDGE_MODULE*) item )->m_Start );
-            ( (EDGE_MODULE*) item )->m_Start0 = ( (EDGE_MODULE*) item )->m_Start;
-            ROTATE( ( (EDGE_MODULE*) item )->m_End );
-            ( (EDGE_MODULE*) item )->m_End0 = ( (EDGE_MODULE*) item )->m_End;
-            break;
+        {
+            EDGE_MODULE* em = (EDGE_MODULE*) item;
+
+            wxPoint tmp = em->GetStart();
+            ROTATE( tmp );
+            em->SetStart( tmp );
+            em->SetStart0( tmp );
+
+            tmp = em->GetEnd();
+            ROTATE( tmp );
+            em->SetEnd( tmp );
+            em->SetEnd0( tmp );
+        }
+        break;
 
         case PCB_MODULE_TEXT_T:
-            ROTATE( ( (TEXTE_MODULE*) item )->GetPosition() );
-            ( (TEXTE_MODULE*) item )->m_Pos0 = ( (TEXTE_MODULE*) item )->GetPosition();
-            ( (TEXTE_MODULE*) item )->m_Orient += 900;
-            break;
+        {
+            TEXTE_MODULE* tm = (TEXTE_MODULE*) item;
+            wxPoint pos = tm->GetPosition();
+            ROTATE( pos );
+            tm->SetPosition( pos );
+            tm->SetPos0( tm->GetPosition() );
+            tm->SetOrientation( tm->GetOrientation() + 900 );
+        }
+        break;
 
         default:
             ;
         }
 
-        item->m_Flags = item->m_Selected = 0;
+        item->ClearFlags();
     }
 }
 
@@ -656,12 +682,16 @@ void ClearMarkItems( MODULE* module )
     item = module->m_Drawings;
 
     for( ; item != NULL; item = item->Next() )
-        item->m_Flags = item->m_Selected = 0;
+    {
+        item->ClearFlags();
+    }
 
     item = module->m_Pads;
 
     for( ; item != NULL; item = item->Next() )
-        item->m_Flags = item->m_Selected = 0;
+    {
+        item->ClearFlags();
+    }
 }
 
 
@@ -682,12 +712,12 @@ int MarkItemsInBloc( MODULE* module, EDA_RECT& Rect )
 
     for( ; pad != NULL; pad = pad->Next() )
     {
-        pad->m_Selected = 0;
+        pad->ClearFlags( SELECTED );
         pos = pad->GetPosition();
 
         if( Rect.Contains( pos ) )
         {
-            pad->m_Selected = IS_SELECTED;
+            pad->SetFlags( SELECTED );
             ItemsCount++;
         }
     }
@@ -696,14 +726,14 @@ int MarkItemsInBloc( MODULE* module, EDA_RECT& Rect )
 
     for( ; item != NULL; item = item->Next() )
     {
-        item->m_Selected = 0;
+        item->ClearFlags( SELECTED );
 
         switch( item->Type() )
         {
         case PCB_MODULE_EDGE_T:
             if( ((EDGE_MODULE*)item )->HitTest( Rect ) )
             {
-                item->m_Selected = IS_SELECTED;
+                item->SetFlags( SELECTED );
                 ItemsCount++;
             }
 
@@ -714,7 +744,7 @@ int MarkItemsInBloc( MODULE* module, EDA_RECT& Rect )
 
             if( Rect.Contains( pos ) )
             {
-                item->m_Selected = IS_SELECTED;
+                item->SetFlags( SELECTED );
                 ItemsCount++;
             }
 

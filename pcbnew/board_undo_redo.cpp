@@ -2,21 +2,46 @@
 /*  board editor: undo and redo functions for board editor  */
 /*************************************************************/
 
-#include "fctsys.h"
-#include "class_drawpanel.h"
-#include "macros.h"
+/*
+ * This program source code file is part of KiCad, a free EDA CAD application.
+ *
+ * Copyright (C) 2012 Jean-Pierre Charras, jean-pierre.charras@ujf-grenoble.fr
+ * Copyright (C) 2012 SoftPLC Corporation, Dick Hollenbeck <dick@softplc.com>
+ * Copyright (C) 1992-2012 KiCad Developers, see AUTHORS.txt for contributors.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation; either version 2
+ * of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, you may find one here:
+ * http://www.gnu.org/licenses/old-licenses/gpl-2.0.html
+ * or you may search the http://www.gnu.org website for the version 2 license,
+ * or you may write to the Free Software Foundation, Inc.,
+ * 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
+ */
 
-#include "pcbnew.h"
-#include "wxPcbStruct.h"
+#include <fctsys.h>
+#include <class_drawpanel.h>
+#include <macros.h>
 
-#include "class_board.h"
-#include "class_track.h"
-#include "class_drawsegment.h"
-#include "class_pcb_text.h"
-#include "class_mire.h"
-#include "class_module.h"
-#include "class_dimension.h"
-#include "class_zone.h"
+#include <pcbnew.h>
+#include <wxPcbStruct.h>
+
+#include <class_board.h>
+#include <class_track.h>
+#include <class_drawsegment.h>
+#include <class_pcb_text.h>
+#include <class_mire.h>
+#include <class_module.h>
+#include <class_dimension.h>
+#include <class_zone.h>
 
 
 /* Functions to undo and redo edit commands.
@@ -71,8 +96,6 @@
  *      so they are handled specifically.
  *
  */
-
-BOARD_ITEM* DuplicateStruct( BOARD_ITEM* aItem );
 
 
 /**
@@ -185,61 +208,72 @@ void SwapData( BOARD_ITEM* aItem, BOARD_ITEM* aImage )
     switch( aItem->Type() )
     {
     case PCB_MODULE_T:
-    {
-        MODULE* tmp = (MODULE*) DuplicateStruct( aImage );
-        ( (MODULE*) aImage )->Copy( (MODULE*) aItem );
-        ( (MODULE*) aItem )->Copy( tmp );
-        delete tmp;
-    }
-    break;
+        {
+            MODULE* tmp = (MODULE*) aImage->Clone();
+            ( (MODULE*) aImage )->Copy( (MODULE*) aItem );
+            ( (MODULE*) aItem )->Copy( tmp );
+            delete tmp;
+        }
+        break;
 
     case PCB_ZONE_AREA_T:
-    {
-        ZONE_CONTAINER* tmp = (ZONE_CONTAINER*) DuplicateStruct( aImage );
-        ( (ZONE_CONTAINER*) aImage )->Copy( (ZONE_CONTAINER*) aItem );
-        ( (ZONE_CONTAINER*) aItem )->Copy( tmp );
-        delete tmp;
-    }
-    break;
+        {
+            ZONE_CONTAINER* tmp = (ZONE_CONTAINER*) aImage->Clone();
+            ( (ZONE_CONTAINER*) aImage )->Copy( (ZONE_CONTAINER*) aItem );
+            ( (ZONE_CONTAINER*) aItem )->Copy( tmp );
+            delete tmp;
+        }
+        break;
 
     case PCB_LINE_T:
+#if 0
         EXCHG( ( (DRAWSEGMENT*) aItem )->m_Start, ( (DRAWSEGMENT*) aImage )->m_Start );
         EXCHG( ( (DRAWSEGMENT*) aItem )->m_End, ( (DRAWSEGMENT*) aImage )->m_End );
         EXCHG( ( (DRAWSEGMENT*) aItem )->m_Width, ( (DRAWSEGMENT*) aImage )->m_Width );
         EXCHG( ( (DRAWSEGMENT*) aItem )->m_Shape, ( (DRAWSEGMENT*) aImage )->m_Shape );
+#else
+        {
+            DRAWSEGMENT tmp = *(DRAWSEGMENT*) aImage;
+            *aImage = *aItem;
+            *aItem  = tmp;
+        }
+#endif
         break;
 
     case PCB_TRACE_T:
     case PCB_VIA_T:
-    {
-        TRACK* track = (TRACK*) aItem;
-        TRACK* image = (TRACK*) aImage;
-        EXCHG( track->m_Start, image->m_Start );
-        EXCHG( track->m_End, image->m_End );
-        EXCHG( track->m_Width, image->m_Width );
-        EXCHG( track->m_Shape, image->m_Shape );
-        int atmp = track->GetDrillValue();
+        {
+            TRACK* track = (TRACK*) aItem;
+            TRACK* image = (TRACK*) aImage;
 
-        if( track->IsDrillDefault() )
-            atmp = -1;
+            // swap start, end, width and shape for track and image.
+            wxPoint exchp = track->GetStart(); track->SetStart( image->GetStart() ); image->SetStart( exchp );
+            exchp = track->GetEnd(); track->SetEnd( image->GetEnd() ); image->SetEnd( exchp );
+            int atmp = track->GetWidth(); track->SetWidth( image->GetWidth() ); image->SetWidth( atmp );
+            atmp = track->GetShape(); track->SetShape( image->GetShape() ); image->SetShape( atmp );
 
-        int itmp = image->GetDrillValue();
+            atmp = track->GetDrillValue();
 
-        if( image->IsDrillDefault() )
-            itmp = -1;
+            if( track->IsDrillDefault() )
+                atmp = -1;
 
-        EXCHG(itmp, atmp );
+            int itmp = image->GetDrillValue();
 
-        if( atmp > 0 )
-            track->SetDrillValue( atmp );
-        else
-            track->SetDrillDefault();
+            if( image->IsDrillDefault() )
+                itmp = -1;
 
-        if( itmp > 0 )
-            image->SetDrillValue( itmp );
-        else
-            image->SetDrillDefault();
-    }
+            EXCHG(itmp, atmp );
+
+            if( atmp > 0 )
+                track->SetDrill( atmp );
+            else
+                track->SetDrillDefault();
+
+            if( itmp > 0 )
+                image->SetDrill( itmp );
+            else
+                image->SetDrillDefault();
+        }
         break;
 
     case PCB_TEXT_T:
@@ -256,124 +290,29 @@ void SwapData( BOARD_ITEM* aItem, BOARD_ITEM* aImage )
         break;
 
     case PCB_TARGET_T:
-        EXCHG( ( (PCB_TARGET*) aItem )->m_Pos, ( (PCB_TARGET*) aImage )->m_Pos );
-        EXCHG( ( (PCB_TARGET*) aItem )->m_Width, ( (PCB_TARGET*) aImage )->m_Width );
-        EXCHG( ( (PCB_TARGET*) aItem )->m_Size, ( (PCB_TARGET*) aImage )->m_Size );
-        EXCHG( ( (PCB_TARGET*) aItem )->m_Shape, ( (PCB_TARGET*) aImage )->m_Shape );
+        ( (PCB_TARGET*) aItem )->Exchg( (PCB_TARGET*) aImage );
         break;
 
     case PCB_DIMENSION_T:
-    {
-        wxString txt = ( (DIMENSION*) aItem )->GetText();
-        ( (DIMENSION*) aItem )->SetText( ( (DIMENSION*) aImage )->GetText() );
-        ( (DIMENSION*) aImage )->SetText( txt );
-        EXCHG( ( (DIMENSION*) aItem )->m_Width, ( (DIMENSION*) aImage )->m_Width );
-        EXCHG( ( (DIMENSION*) aItem )->m_Text->m_Size, ( (DIMENSION*) aImage )->m_Text->m_Size );
-        EXCHG( ( (DIMENSION*) aItem )->m_Text->m_Pos, ( (DIMENSION*) aImage )->m_Text->m_Pos );
-        EXCHG( ( (DIMENSION*) aItem )->m_Text->m_Thickness,
-               ( (DIMENSION*) aImage )->m_Text->m_Thickness );
-        EXCHG( ( (DIMENSION*) aItem )->m_Text->m_Mirror,
-               ( (DIMENSION*) aImage )->m_Text->m_Mirror );
-    }
-    break;
+        {
+            wxString txt = ( (DIMENSION*) aItem )->GetText();
+            ( (DIMENSION*) aItem )->SetText( ( (DIMENSION*) aImage )->GetText() );
+            ( (DIMENSION*) aImage )->SetText( txt );
+            EXCHG( ( (DIMENSION*) aItem )->m_Width, ( (DIMENSION*) aImage )->m_Width );
+            EXCHG( ( (DIMENSION*) aItem )->m_Text.m_Size, ( (DIMENSION*) aImage )->m_Text.m_Size );
+            EXCHG( ( (DIMENSION*) aItem )->m_Text.m_Pos, ( (DIMENSION*) aImage )->m_Text.m_Pos );
+            EXCHG( ( (DIMENSION*) aItem )->m_Text.m_Thickness,
+                   ( (DIMENSION*) aImage )->m_Text.m_Thickness );
+            EXCHG( ( (DIMENSION*) aItem )->m_Text.m_Mirror,
+                   ( (DIMENSION*) aImage )->m_Text.m_Mirror );
+        }
+        break;
 
     case PCB_ZONE_T:
     default:
         wxMessageBox( wxT( "SwapData() error: unexpected type" ) );
         break;
     }
-}
-
-
-/* Routine to create a new copy of given struct.
- *  The new object is not put in list (not linked)
- */
-BOARD_ITEM* DuplicateStruct( BOARD_ITEM* aItem )
-{
-    if( aItem == NULL )
-    {
-        wxMessageBox( wxT( "DuplicateStruct() error: NULL aItem" ) );
-        return NULL;
-    }
-
-    switch( aItem->Type() )
-    {
-    case PCB_MODULE_T:
-    {
-        MODULE* new_module;
-        new_module = new MODULE( (BOARD*) aItem->GetParent() );
-        new_module->Copy( (MODULE*) aItem );
-        return new_module;
-    }
-
-    case PCB_TRACE_T:
-    {
-        TRACK* new_track = ( (TRACK*) aItem )->Copy();
-        return new_track;
-    }
-
-    case PCB_VIA_T:
-    {
-        SEGVIA* new_via = (SEGVIA*)( (SEGVIA*) aItem )->Copy();
-        return new_via;
-    }
-
-    case PCB_ZONE_T:
-    {
-        SEGZONE* new_segzone = (SEGZONE*)( (SEGZONE*) aItem )->Copy();
-        return new_segzone;
-    }
-
-    case PCB_ZONE_AREA_T:
-    {
-        ZONE_CONTAINER* new_zone = new ZONE_CONTAINER( (BOARD*) aItem->GetParent() );
-        new_zone->Copy( (ZONE_CONTAINER*) aItem );
-        return new_zone;
-    }
-
-    case PCB_LINE_T:
-    {
-        DRAWSEGMENT* new_drawsegment = new DRAWSEGMENT( aItem->GetParent() );
-        new_drawsegment->Copy( (DRAWSEGMENT*) aItem );
-        return new_drawsegment;
-    }
-    break;
-
-    case PCB_TEXT_T:
-    {
-        TEXTE_PCB* new_pcbtext = new TEXTE_PCB( aItem->GetParent() );
-        new_pcbtext->Copy( (TEXTE_PCB*) aItem );
-        return new_pcbtext;
-    }
-    break;
-
-    case PCB_TARGET_T:
-    {
-        PCB_TARGET* target = new PCB_TARGET( aItem->GetParent() );
-        target->Copy( (PCB_TARGET*) aItem );
-        return target;
-    }
-    break;
-
-    case PCB_DIMENSION_T:
-    {
-        DIMENSION* new_cotation = new DIMENSION( aItem->GetParent() );
-        new_cotation->Copy( (DIMENSION*) aItem );
-        return new_cotation;
-    }
-    break;
-
-    default:
-    {
-        wxString msg;
-        msg << wxT( "DuplicateStruct error: unexpected StructType " ) <<
-        aItem->Type() << wxT( " " ) << aItem->GetClass();
-        wxMessageBox( msg );
-    }
-    break;
-    }
-
-    return NULL;
 }
 
 
@@ -401,23 +340,28 @@ void PCB_EDIT_FRAME::SaveCopyInUndoList( BOARD_ITEM*    aItem,
     commandToUndo->m_TransformPoint = aTransformPoint;
 
     ITEM_PICKER itemWrapper( aItem, aCommandType );
-    itemWrapper.m_PickedItemType = aItem->Type();
 
     switch( aCommandType )
     {
-    case UR_CHANGED:                        /* Create a copy of schematic */
-        if( itemWrapper.m_Link == NULL )    // When not null, the copy is already done
-            itemWrapper.m_Link = DuplicateStruct( aItem );;
-        if( itemWrapper.m_Link )
-            commandToUndo->PushItem( itemWrapper );
+    case UR_CHANGED:                        // Create a copy of item
+        if( itemWrapper.GetLink() == NULL ) // When not null, the copy is already done
+            itemWrapper.SetLink( aItem->Clone() );
+        commandToUndo->PushItem( itemWrapper );
         break;
 
     case UR_NEW:
+    case UR_DELETED:
+#ifdef USE_WX_OVERLAY
+    // Avoid to redraw when autoplacing
+    if( aItem->Type() == PCB_MODULE_T )    
+        if( ((MODULE*)aItem)->GetFlags() & MODULE_to_PLACE )
+            break;
+        m_canvas->Refresh();
+#endif
     case UR_MOVED:
     case UR_FLIPPED:
     case UR_ROTATED:
     case UR_ROTATED_CLOCKWISE:
-    case UR_DELETED:
         commandToUndo->PushItem( itemWrapper );
         break;
 
@@ -439,7 +383,9 @@ void PCB_EDIT_FRAME::SaveCopyInUndoList( BOARD_ITEM*    aItem,
         GetScreen()->ClearUndoORRedoList( GetScreen()->m_RedoList );
     }
     else
+    {
         delete commandToUndo;
+    }
 }
 
 
@@ -473,6 +419,7 @@ void PCB_EDIT_FRAME::SaveCopyInUndoList( PICKED_ITEMS_LIST& aItemsList,
         }
 
         wxASSERT( item );
+
         switch( command )
         {
         case UR_CHANGED:
@@ -482,9 +429,7 @@ void PCB_EDIT_FRAME::SaveCopyInUndoList( PICKED_ITEMS_LIST& aItemsList,
              * If this link is not null, the copy is already done
              */
             if( commandToUndo->GetPickedItemLink( ii ) == NULL )
-                commandToUndo->SetPickedItemLink( DuplicateStruct( item ), ii );
-            if( commandToUndo->GetPickedItemLink( ii ) == NULL )
-                 wxMessageBox( wxT( "SaveCopyInUndoList() in UR_CHANGED mode: NULL link" ) );
+                commandToUndo->SetPickedItemLink( item->Clone(), ii );
             break;
 
         case UR_MOVED:
@@ -501,7 +446,9 @@ void PCB_EDIT_FRAME::SaveCopyInUndoList( PICKED_ITEMS_LIST& aItemsList,
             msg.Printf( wxT( "SaveCopyInUndoList() error (unknown code %X)" ), command );
             wxMessageBox( msg );
         }
+
         break;
+
         }
     }
 
@@ -571,7 +518,7 @@ void PCB_EDIT_FRAME::PutDataInPreviousState( PICKED_ITEMS_LIST* aList, bool aRed
             }
         }
 
-        item->m_Flags = 0;
+        item->ClearFlags();
 
         // see if we must rebuild ratsnets and pointers lists
         switch( item->Type() )
@@ -645,10 +592,9 @@ void PCB_EDIT_FRAME::PutDataInPreviousState( PICKED_ITEMS_LIST* aList, bool aRed
 
 /**
  * Function GetBoardFromUndoList
- *  Undo the last edition:
- *  - Save the current board state in Redo list
- *  - Get an old version of the board state from Undo list
- *  @return none
+ * Undo the last edition:
+ *     - Save the current board state in Redo list
+ *     - Get an old version of the board state from Undo list
  */
 void PCB_EDIT_FRAME::GetBoardFromUndoList( wxCommandEvent& event )
 {
@@ -665,7 +611,7 @@ void PCB_EDIT_FRAME::GetBoardFromUndoList( wxCommandEvent& event )
     GetScreen()->PushCommandToRedoList( List );
 
     OnModify();
-    DrawPanel->Refresh();
+    m_canvas->Refresh();
 }
 
 
@@ -693,7 +639,7 @@ void PCB_EDIT_FRAME::GetBoardFromRedoList( wxCommandEvent& event )
     GetScreen()->PushCommandToUndoList( List );
 
     OnModify();
-    DrawPanel->Refresh();
+    m_canvas->Refresh();
 }
 
 

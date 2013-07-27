@@ -2,39 +2,31 @@
  * @file eda_doc.cpp
  */
 
-#include "fctsys.h"
-#include "appl_wxstruct.h"
-#include "common.h"
-#include "confirm.h"
-#include "gestfich.h"
+#include <fctsys.h>
+#include <appl_wxstruct.h>
+#include <common.h>
+#include <confirm.h>
+#include <gestfich.h>
 
 #include <wx/mimetype.h>
 #include <wx/tokenzr.h>
 #include <wx/filename.h>
-#include "macros.h"
+#include <macros.h>
 
 
 void EDA_APP::ReadPdfBrowserInfos()
 {
-    wxASSERT( m_EDA_CommonConfig != NULL );
+    wxASSERT( m_commonSettings != NULL );
 
-    m_PdfBrowserIsDefault = m_EDA_CommonConfig->Read( wxT( "PdfBrowserIsDefault" ), true );
-    m_PdfBrowser = m_EDA_CommonConfig->Read( wxT( "PdfBrowserName" ), wxEmptyString );
-
-    if( m_PdfBrowser.IsEmpty() )
-        m_PdfBrowserIsDefault = true;
+    m_PdfBrowser = m_commonSettings->Read( wxT( "PdfBrowserName" ), wxEmptyString );
 }
 
 
 void EDA_APP::WritePdfBrowserInfos()
 {
-    wxASSERT( m_EDA_CommonConfig != NULL );
+    wxASSERT( m_commonSettings != NULL );
 
-    if( m_PdfBrowser.IsEmpty() )
-        m_PdfBrowserIsDefault = true;
-
-    m_EDA_CommonConfig->Write( wxT( "PdfBrowserIsDefault" ), m_PdfBrowserIsDefault );
-    m_EDA_CommonConfig->Write( wxT( "PdfBrowserName" ), m_PdfBrowser );
+    m_commonSettings->Write( wxT( "PdfBrowserName" ), m_PdfBrowser );
 }
 
 

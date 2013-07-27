@@ -1,13 +1,33 @@
-/****************/
-/* files-io.cpp */
-/****************/
+/**
+ * @file kicad/files-io.cpp
+ */
 
-#ifdef __GNUG__
-#pragma implementation
-#endif
+/*
+ * This program source code file is part of KiCad, a free EDA CAD application.
+ *
+ * Copyright (C) 2004-2012 Jean-Pierre Charras
+ * Copyright (C) 2004-2012 KiCad Developers, see change_log.txt for contributors.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation; either version 2
+ * of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, you may find one here:
+ * http://www.gnu.org/licenses/old-licenses/gpl-2.0.html
+ * or you may search the http://www.gnu.org website for the version 2 license,
+ * or you may write to the Free Software Foundation, Inc.,
+ * 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
+ */
 
-#include "fctsys.h"
-#include "appl_wxstruct.h"
+#include <fctsys.h>
+#include <appl_wxstruct.h>
 #include <wx/fs_zip.h>
 #include <wx/zipstrm.h>
 #include <wx/docview.h>
@@ -15,12 +35,11 @@
 #include <wx/zstream.h>
 #include <wx/dir.h>
 
-#include "confirm.h"
-#include "gestfich.h"
-#include "macros.h"
+#include <confirm.h>
+#include <gestfich.h>
+#include <macros.h>
 
-#include "kicad.h"
-#include "prjconfig.h"
+#include <kicad.h>
 
 static const wxString ZipFileExtension( wxT( "zip" ) );
 static const wxString ZipFileWildcard( wxT( "Zip file (*.zip) | *.zip" ) );
@@ -52,7 +71,9 @@ void KICAD_MANAGER_FRAME::OnUnarchiveFiles( wxCommandEvent& event )
     if( dlg.ShowModal() == wxID_CANCEL )
         return;
 
-    PrintMsg( _( "\nOpen " ) + dlg.GetPath() + wxT( "\n" ) );
+    wxString msg;
+    msg.Printf( _("\nOpen <%s>\n" ), GetChars( dlg.GetPath() ) );
+    PrintMsg( msg );
 
     wxDirDialog dirDlg( this, _( "Target Directory" ), fn.GetPath(),
                         wxDD_DEFAULT_STYLE | wxDD_DIR_MUST_EXIST );
@@ -61,7 +82,8 @@ void KICAD_MANAGER_FRAME::OnUnarchiveFiles( wxCommandEvent& event )
         return;
 
     wxSetWorkingDirectory( dirDlg.GetPath() );
-    PrintMsg( _( "Unzipping project in " ) + dirDlg.GetPath() + wxT( "\n" ) );
+    msg.Printf( _( "Unzipping project in <%s>\n" ), GetChars( dirDlg.GetPath() ) );
+    PrintMsg( msg );
 
     wxFileSystem zipfilesys;
     zipfilesys.AddHandler( new wxZipFSHandler );
@@ -81,7 +103,8 @@ void KICAD_MANAGER_FRAME::OnUnarchiveFiles( wxCommandEvent& event )
 
         wxString unzipfilename = localfilename.AfterLast( ':' );
 
-        PrintMsg( _( "Extract file " ) + unzipfilename );
+        msg.Printf( _( "Extract file <%s>" ), GetChars( unzipfilename ) );
+        PrintMsg( msg );
 
         wxInputStream*       stream = zipfile->GetStream();
 
@@ -110,7 +133,8 @@ void KICAD_MANAGER_FRAME::OnArchiveFiles( wxCommandEvent& event )
 {
     /* List of file extensions to save. */
     static const wxChar* extentionList[] = {
-        wxT( "*.sch" ), wxT( "*.lib" ), wxT( "*.cmp" ), wxT( "*.brd" ),
+        wxT( "*.sch" ), wxT( "*.lib" ), wxT( "*.cmp" ),
+        wxT( "*.brd" ), wxT( "*.kicad_pcb" ),
         wxT( "*.net" ), wxT( "*.pro" ), wxT( "*.pho" ), wxT( "*.py" ),
         wxT( "*.pdf" ), wxT( "*.txt" ), wxT( "*.dcm" ),
         NULL
@@ -156,7 +180,8 @@ void KICAD_MANAGER_FRAME::OnArchiveFiles( wxCommandEvent& event )
         while( cont )
         {
             wxFileSystem fsfile;
-            PrintMsg( _( "Archive file " ) + currFilename );
+            msg.Printf(_( "Archive file <%s>" ), GetChars( currFilename ) );
+            PrintMsg( msg );
             // Read input file and put it in zip file:
             wxFSFile * infile = fsfile.OpenFile(currFilename);
             if( infile )
@@ -171,7 +196,7 @@ void KICAD_MANAGER_FRAME::OnArchiveFiles( wxCommandEvent& event )
                             infile->GetStream()->GetSize(), zippedsize );
                 PrintMsg( msg );
                 delete infile;
-             }
+            }
             else
             {
                 PrintMsg( _(" >>Error\n") );

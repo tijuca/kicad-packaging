@@ -1,9 +1,10 @@
 /*
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
- * Copyright (C) 2009 Jean-Pierre Charras, jaen-pierre.charras@gipsa-lab.inpg.com
- * Copyright (C) 2009 Wayne Stambaugh <stambaughw@verizon.net>
- * Copyright (C) 1992-2011 KiCad Developers, see AUTHORS.txt for contributors.
+ * Copyright (C) 2012 Jean-Pierre Charras, jean-pierre.charras@ujf-grenoble.fr
+ * Copyright (C) 2012 SoftPLC Corporation, Dick Hollenbeck <dick@softplc.com>
+ * Copyright (C) 2012 Wayne Stambaugh <stambaughw@verizon.net>
+ * Copyright (C) 1992-2012 KiCad Developers, see AUTHORS.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -28,24 +29,23 @@
  * @brief Functions relatives to tracks, vias and segments used to fill zones.
  */
 
-#include "fctsys.h"
-#include "gr_basic.h"
-#include "common.h"
-#include "trigo.h"
-#include "class_drawpanel.h"
-#include "class_pcb_screen.h"
-#include "drawtxt.h"
-#include "pcbcommon.h"
-#include "colors_selection.h"
-#include "wxstruct.h"
-#include "macros.h"
-#include "wxBasePcbFrame.h"
+#include <fctsys.h>
+#include <gr_basic.h>
+#include <common.h>
+#include <trigo.h>
+#include <class_drawpanel.h>
+#include <class_pcb_screen.h>
+#include <drawtxt.h>
+#include <pcbcommon.h>
+#include <colors_selection.h>
+#include <wxstruct.h>
+#include <wxBasePcbFrame.h>
+#include <class_board.h>
+#include <class_track.h>
+#include <pcbnew.h>
+#include <base_units.h>
+#include <msgpanel.h>
 
-#include "class_board.h"
-#include "class_track.h"
-
-#include "pcbnew.h"
-#include "protos.h"
 
 /**
  * Function ShowClearance
@@ -58,7 +58,7 @@ static bool ShowClearance( const TRACK* aTrack )
     return aTrack->GetLayer() <= LAST_COPPER_LAYER
            && ( aTrack->Type() == PCB_TRACE_T || aTrack->Type() == PCB_VIA_T )
            && ( ( DisplayOpt.ShowTrackClearanceMode == SHOW_CLEARANCE_NEW_AND_EDITED_TRACKS_AND_VIA_AREAS
-            && ( aTrack->m_Flags & IS_DRAGGED || aTrack->m_Flags & IS_MOVED || aTrack->m_Flags & IS_NEW ) )
+                  && ( aTrack->IsDragging() || aTrack->IsMoving() || aTrack->IsNew() ) )
             || ( DisplayOpt.ShowTrackClearanceMode == SHOW_CLEARANCE_ALWAYS )
             );
 
@@ -67,7 +67,7 @@ static bool ShowClearance( const TRACK* aTrack )
 
 /*
  * return true if the dist between p1 and p2 < max_dist
- * Currently in test (currently rasnest algos work only if p1 == p2)
+ * Currently in test (currently ratsnest algos work only if p1 == p2)
  */
 inline bool IsNear( wxPoint& p1, wxPoint& p2, int max_dist )
 {
@@ -98,13 +98,13 @@ TRACK* GetTrace( TRACK* aStartTrace, TRACK* aEndTrace, const wxPoint& aPosition,
     {
         if( PtSegm->GetState( IS_DELETED | BUSY ) == 0 )
         {
-            if( aPosition == PtSegm->m_Start )
+            if( aPosition == PtSegm->GetStart() )
             {
                 if( aLayerMask & PtSegm->ReturnMaskLayer() )
                     return PtSegm;
             }
 
-            if( aPosition == PtSegm->m_End )
+            if( aPosition == PtSegm->GetEnd() )
             {
                 if( aLayerMask & PtSegm->ReturnMaskLayer() )
                     return PtSegm;
@@ -130,12 +130,15 @@ TRACK::TRACK( BOARD_ITEM* aParent, KICAD_T idtype ) :
 }
 
 
+EDA_ITEM* TRACK::Clone() const
+{
+    return new TRACK( *this );
+}
+
+
 wxString TRACK::ShowWidth() const
 {
-    wxString msg;
-
-    valeur_param( m_Width, msg );
-
+    wxString msg = ::CoordinateToString( m_Width );
     return msg;
 }
 
@@ -146,13 +149,19 @@ SEGZONE::SEGZONE( BOARD_ITEM* aParent ) :
 }
 
 
+EDA_ITEM* SEGZONE::Clone() const
+{
+    return new SEGZONE( *this );
+}
+
+
 wxString SEGZONE::GetSelectMenuText() const
 {
     wxString text;
     NETINFO_ITEM* net;
     BOARD* board = GetBoard();
 
-    text << _( "Zone" ) << wxT( " " ) << wxString::Format( wxT( "(%8.8X)" ), m_TimeStamp );
+    text << _( "Zone" ) << wxT( " " ) << wxString::Format( wxT( "(%08lX)" ), m_TimeStamp );
 
     if( board )
     {
@@ -175,6 +184,13 @@ wxString SEGZONE::GetSelectMenuText() const
 SEGVIA::SEGVIA( BOARD_ITEM* aParent ) :
     TRACK( aParent, PCB_VIA_T )
 {
+    SetShape( VIA_THROUGH );
+}
+
+
+EDA_ITEM* SEGVIA::Clone() const
+{
+    return new SEGVIA( *this );
 }
 
 
@@ -186,7 +202,7 @@ wxString SEGVIA::GetSelectMenuText() const
 
     text << _( "Via" ) << wxT( " " ) << ShowWidth();
 
-    int shape = Shape();
+    int shape = GetShape();
 
     if( shape == VIA_BLIND_BURIED )
         text << wxT( " " ) << _( "Blind/Buried" );
@@ -219,40 +235,6 @@ wxString SEGVIA::GetSelectMenuText() const
     }
 
     return text;
-}
-
-
-// Copy constructor
-TRACK::TRACK( const TRACK& Source ) :
-    BOARD_CONNECTED_ITEM( Source )
-{
-    m_Shape = Source.m_Shape;
-    SetNet( Source.GetNet() );
-
-    m_Flags     = Source.m_Flags;
-    m_TimeStamp = Source.m_TimeStamp;
-    SetStatus( Source.ReturnStatus() );
-    m_Start = Source.m_Start;
-    m_End   = Source.m_End;
-    m_Width = Source.m_Width;
-    m_Drill = Source.m_Drill;
-    SetSubNet( Source.GetSubNet() );
-    m_Param = Source.m_Param;
-}
-
-
-TRACK* TRACK::Copy() const
-{
-    if( Type() == PCB_TRACE_T )
-        return new TRACK( *this );
-
-    if( Type() == PCB_VIA_T )
-        return new SEGVIA( (const SEGVIA &) * this );
-
-    if( Type() == PCB_ZONE_T )
-        return new SEGZONE( (const SEGZONE &) * this );
-
-    return NULL;    // should never happen
 }
 
 
@@ -364,11 +346,11 @@ EDA_RECT TRACK::GetBoundingBox() const
     {
         radius = ( m_Width + 1 ) / 2;
 
-        ymax = MAX( m_Start.y, m_End.y );
-        xmax = MAX( m_Start.x, m_End.x );
+        ymax = std::max( m_Start.y, m_End.y );
+        xmax = std::max( m_Start.x, m_End.x );
 
-        ymin = MIN( m_Start.y, m_End.y );
-        xmin = MIN( m_Start.x, m_End.x );
+        ymin = std::min( m_Start.y, m_End.y );
+        xmin = std::min( m_Start.x, m_End.x );
     }
 
     if( ShowClearance( this ) )
@@ -390,7 +372,7 @@ EDA_RECT TRACK::GetBoundingBox() const
 }
 
 
-void TRACK::Rotate( const wxPoint& aRotCentre, int aAngle )
+void TRACK::Rotate( const wxPoint& aRotCentre, double aAngle )
 {
     RotatePoint( &m_Start, aRotCentre, aAngle );
     RotatePoint( &m_End, aRotCentre, aAngle );
@@ -408,7 +390,7 @@ void TRACK::Flip( const wxPoint& aCentre )
     }
     else
     {
-        SetLayer( ChangeSideNumLayer( GetLayer() ) );
+        SetLayer( BOARD::ReturnFlippedLayerNumber( GetLayer() ) );
     }
 }
 
@@ -451,7 +433,7 @@ int TRACK::ReturnMaskLayer() const
 {
     if( Type() == PCB_VIA_T )
     {
-        int via_type = Shape();
+        int via_type = GetShape();
 
         if( via_type == VIA_THROUGH )
             return ALL_CU_LAYERS;
@@ -467,21 +449,21 @@ int TRACK::ReturnMaskLayer() const
 
         while( bottom_layer <= top_layer )
         {
-            layermask |= g_TabOneLayerMask[bottom_layer++];
+            layermask |= GetLayerMask( bottom_layer++ );
         }
 
         return layermask;
     }
     else
     {
-        return g_TabOneLayerMask[m_Layer];
+        return GetLayerMask( m_Layer );
     }
 }
 
 
 void SEGVIA::SetLayerPair( int top_layer, int bottom_layer )
 {
-    if( Shape() == VIA_THROUGH )
+    if( GetShape() == VIA_THROUGH )
     {
         top_layer    = LAYER_N_FRONT;
         bottom_layer = LAYER_N_BACK;
@@ -499,7 +481,7 @@ void SEGVIA::ReturnLayerPair( int* top_layer, int* bottom_layer ) const
     int b_layer = LAYER_N_BACK;
     int t_layer = LAYER_N_FRONT;
 
-    if( Shape() != VIA_THROUGH )
+    if( GetShape() != VIA_THROUGH )
     {
         b_layer = (m_Layer >> 4) & 15;
         t_layer = m_Layer & 15;
@@ -598,28 +580,10 @@ TRACK* TRACK::GetEndNetCode( int NetCode )
 }
 
 
-bool TRACK::Save( FILE* aFile ) const
-{
-    int type = 0;
-
-    if( Type() == PCB_VIA_T )
-        type = 1;
-
-    fprintf( aFile, "Po %d %d %d %d %d %d %d\n", m_Shape,
-             m_Start.x, m_Start.y, m_End.x, m_End.y, m_Width, m_Drill );
-
-    fprintf( aFile, "De %d %d %d %lX %X\n",
-             m_Layer, type, GetNet(),
-             m_TimeStamp, ReturnStatus() );
-
-    return true;
-}
-
-
-void TRACK::Draw( EDA_DRAW_PANEL* panel, wxDC* DC, int draw_mode, const wxPoint& aOffset )
+void TRACK::Draw( EDA_DRAW_PANEL* panel, wxDC* DC, GR_DRAWMODE draw_mode,
+                  const wxPoint& aOffset )
 {
     int l_trace;
-    int color;
     int radius;
     int curr_layer = ( (PCB_SCREEN*) panel->GetScreen() )->m_Active_Layer;
 
@@ -627,27 +591,25 @@ void TRACK::Draw( EDA_DRAW_PANEL* panel, wxDC* DC, int draw_mode, const wxPoint&
         return;
 
     BOARD * brd =  GetBoard( );
-    color = brd->GetLayerColor(m_Layer);
+    EDA_COLOR_T color = brd->GetLayerColor(m_Layer);
 
-    if( brd->IsLayerVisible( m_Layer ) == false && ( color & HIGHLIGHT_FLAG ) != HIGHLIGHT_FLAG )
+    if( brd->IsLayerVisible( m_Layer ) == false && !( draw_mode & GR_HIGHLIGHT ) )
         return;
 
-    if( DisplayOpt.ContrastModeDisplay )
+#ifdef USE_WX_OVERLAY
+    // If dragged not draw in OnPaint otherwise remains impressed in wxOverlay
+    if( (m_Flags && IS_DRAGGED) && DC->IsKindOf(wxCLASSINFO(wxPaintDC)))
+      return;
+#endif
+
+    if( ( draw_mode & GR_ALLOW_HIGHCONTRAST ) && DisplayOpt.ContrastModeDisplay )
     {
         if( !IsOnLayer( curr_layer ) )
-        {
-            color &= ~MASKCOLOR;
-            color |= DARKDARKGRAY;
-        }
+            ColorTurnToDarkDarkGray( &color );
     }
 
     if( draw_mode & GR_HIGHLIGHT )
-    {
-        if( draw_mode & GR_AND )
-            color &= ~HIGHLIGHT_FLAG;
-        else
-            color |= HIGHLIGHT_FLAG;
-    }
+        ColorChangeHighlightFlag( &color, !(draw_mode & GR_AND) );
 
     if( color & HIGHLIGHT_FLAG )
         color = ColorRefs[color & MASKCOLOR].m_LightColor;
@@ -666,7 +628,7 @@ void TRACK::Draw( EDA_DRAW_PANEL* panel, wxDC* DC, int draw_mode, const wxPoint&
 
         if( DC->LogicalToDeviceXRel( l_trace ) < MIN_DRAW_WIDTH )
         {
-            GRCircle( &panel->m_ClipBox, DC, m_Start.x + aOffset.x,
+            GRCircle( panel->GetClipBox(), DC, m_Start.x + aOffset.x,
                       m_Start.y + aOffset.y, radius, color );
         }
         else
@@ -674,19 +636,19 @@ void TRACK::Draw( EDA_DRAW_PANEL* panel, wxDC* DC, int draw_mode, const wxPoint&
 
             if( DC->LogicalToDeviceXRel( l_trace ) <= 1 ) /* Sketch mode if l_trace/zoom <= 1 */
             {
-                GRCircle( &panel->m_ClipBox, DC, m_Start.x + aOffset.x,
+                GRCircle( panel->GetClipBox(), DC, m_Start.x + aOffset.x,
                           m_Start.y + aOffset.y, radius, color );
             }
             else if( ( !DisplayOpt.DisplayPcbTrackFill) || GetState( FORCE_SKETCH ) )
             {
-                GRCircle( &panel->m_ClipBox, DC, m_Start.x + aOffset.x,
+                GRCircle( panel->GetClipBox(), DC, m_Start.x + aOffset.x,
                           m_Start.y + aOffset.y, radius - l_trace, color );
-                GRCircle( &panel->m_ClipBox, DC, m_Start.x + aOffset.x,
+                GRCircle( panel->GetClipBox(), DC, m_Start.x + aOffset.x,
                           m_Start.y + aOffset.y, radius + l_trace, color );
             }
             else
             {
-                GRCircle( &panel->m_ClipBox, DC, m_Start.x + aOffset.x,
+                GRCircle( panel->GetClipBox(), DC, m_Start.x + aOffset.x,
                           m_Start.y + aOffset.y, radius, m_Width, color );
             }
         }
@@ -696,17 +658,17 @@ void TRACK::Draw( EDA_DRAW_PANEL* panel, wxDC* DC, int draw_mode, const wxPoint&
 
     if( DC->LogicalToDeviceXRel( l_trace ) < MIN_DRAW_WIDTH )
     {
-        GRLine( &panel->m_ClipBox, DC, m_Start + aOffset, m_End + aOffset, 0, color );
+        GRLine( panel->GetClipBox(), DC, m_Start + aOffset, m_End + aOffset, 0, color );
         return;
     }
 
     if( !DisplayOpt.DisplayPcbTrackFill || GetState( FORCE_SKETCH ) )
     {
-        GRCSegm( &panel->m_ClipBox, DC, m_Start + aOffset, m_End + aOffset, m_Width, color );
+        GRCSegm( panel->GetClipBox(), DC, m_Start + aOffset, m_End + aOffset, m_Width, color );
     }
     else
     {
-        GRFillCSegm( &panel->m_ClipBox, DC, m_Start.x + aOffset.x,
+        GRFillCSegm( panel->GetClipBox(), DC, m_Start.x + aOffset.x,
                      m_Start.y + aOffset.y,
                      m_End.x + aOffset.x, m_End.y + aOffset.y, m_Width, color );
     }
@@ -717,7 +679,7 @@ void TRACK::Draw( EDA_DRAW_PANEL* panel, wxDC* DC, int draw_mode, const wxPoint&
     // Show clearance for tracks, not for zone segments
     if( ShowClearance( this ) )
     {
-        GRCSegm( &panel->m_ClipBox, DC, m_Start + aOffset, m_End + aOffset,
+        GRCSegm( panel->GetClipBox(), DC, m_Start + aOffset, m_End + aOffset,
                  m_Width + (GetClearance() * 2), color );
     }
 
@@ -737,7 +699,7 @@ void TRACK::Draw( EDA_DRAW_PANEL* panel, wxDC* DC, int draw_mode, const wxPoint&
     if( (m_End.x - m_Start.x) != 0 &&  (m_End.y - m_Start.y) != 0 )
         return;
 
-    int len = ABS( (m_End.x - m_Start.x) + (m_End.y - m_Start.y) );
+    int len = std::abs( (m_End.x - m_Start.x) + (m_End.y - m_Start.y) );
 
     if( len < THRESHOLD * m_Width )
         return;
@@ -758,7 +720,7 @@ void TRACK::Draw( EDA_DRAW_PANEL* panel, wxDC* DC, int draw_mode, const wxPoint&
     if( textlen > 0 )
     {
         // calculate a good size for the text
-        int     tsize = MIN( m_Width, len / textlen );
+        int     tsize = std::min( m_Width, len / textlen );
         wxPoint tpos  = m_Start + m_End;
         tpos.x /= 2;
         tpos.y /= 2;
@@ -784,9 +746,9 @@ void TRACK::Draw( EDA_DRAW_PANEL* panel, wxDC* DC, int draw_mode, const wxPoint&
 }
 
 
-void SEGVIA::Draw( EDA_DRAW_PANEL* panel, wxDC* DC, int draw_mode, const wxPoint& aOffset )
+void SEGVIA::Draw( EDA_DRAW_PANEL* panel, wxDC* DC, GR_DRAWMODE draw_mode,
+                   const wxPoint& aOffset )
 {
-    int color;
     int radius;
     int curr_layer = ( (PCB_SCREEN*) panel->GetScreen() )->m_Active_Layer;
 
@@ -800,7 +762,7 @@ void SEGVIA::Draw( EDA_DRAW_PANEL* panel, wxDC* DC, int draw_mode, const wxPoint
     GRSetDrawMode( DC, draw_mode );
 
     BOARD * brd =  GetBoard( );
-    color = brd->GetVisibleElementColor(VIAS_VISIBLE + m_Shape);
+    EDA_COLOR_T color = brd->GetVisibleElementColor(VIAS_VISIBLE + m_Shape);
 
     if( brd->IsElementVisible( PCB_VISIBLE(VIAS_VISIBLE + m_Shape) ) == false
         && ( color & HIGHLIGHT_FLAG ) != HIGHLIGHT_FLAG )
@@ -809,19 +771,11 @@ void SEGVIA::Draw( EDA_DRAW_PANEL* panel, wxDC* DC, int draw_mode, const wxPoint
     if( DisplayOpt.ContrastModeDisplay )
     {
         if( !IsOnLayer( curr_layer ) )
-        {
-            color &= ~MASKCOLOR;
-            color |= DARKDARKGRAY;
-        }
+            ColorTurnToDarkDarkGray( &color );
     }
 
     if( draw_mode & GR_HIGHLIGHT )
-    {
-        if( draw_mode & GR_AND )
-            color &= ~HIGHLIGHT_FLAG;
-        else
-            color |= HIGHLIGHT_FLAG;
-    }
+        ColorChangeHighlightFlag( &color, !(draw_mode & GR_AND) );
 
     if( color & HIGHLIGHT_FLAG )
         color = ColorRefs[color & MASKCOLOR].m_LightColor;
@@ -849,14 +803,16 @@ void SEGVIA::Draw( EDA_DRAW_PANEL* panel, wxDC* DC, int draw_mode, const wxPoint
 
     if( fillvia )
     {
-        GRFilledCircle( &panel->m_ClipBox, DC, m_Start + aOffset, radius, color );
+        GRFilledCircle( panel->GetClipBox(), DC, m_Start + aOffset, radius, color );
     }
     else
     {
-        GRCircle( &panel->m_ClipBox, DC, m_Start + aOffset,radius, 0, color );
+        GRCircle( panel->GetClipBox(), DC, m_Start + aOffset,radius, 0, color );
+
         if ( fast_draw )
             return;
-        GRCircle( &panel->m_ClipBox, DC, m_Start + aOffset, inner_radius, 0, color );
+
+        GRCircle( panel->GetClipBox(), DC, m_Start + aOffset, inner_radius, 0, color );
     }
 
     // Draw the via hole if the display option allows it
@@ -887,7 +843,7 @@ void SEGVIA::Draw( EDA_DRAW_PANEL* panel, wxDC* DC, int draw_mode, const wxPoint
                     GRSetDrawMode( DC, GR_XOR );
 
                 if( DC->LogicalToDeviceXRel( drill_radius ) > 1 )  // Draw hole if large enough.
-                    GRFilledCircle( &panel->m_ClipBox, DC, m_Start.x + aOffset.x,
+                    GRFilledCircle( panel->GetClipBox(), DC, m_Start.x + aOffset.x,
                                     m_Start.y + aOffset.y, drill_radius, 0, color, color );
 
                 if( screen->m_IsPrinting )
@@ -896,17 +852,19 @@ void SEGVIA::Draw( EDA_DRAW_PANEL* panel, wxDC* DC, int draw_mode, const wxPoint
             else
             {
                 if( drill_radius < inner_radius )         // We can show the via hole
-                    GRCircle( &panel->m_ClipBox, DC, m_Start + aOffset, drill_radius, 0, color );
+                    GRCircle( panel->GetClipBox(), DC, m_Start + aOffset, drill_radius, 0, color );
             }
         }
     }
 
-    if( DisplayOpt.ShowTrackClearanceMode == SHOW_CLEARANCE_ALWAYS )
-        GRCircle( &panel->m_ClipBox, DC, m_Start + aOffset, radius + GetClearance(), 0, color );
+    if( ShowClearance( this ) )
+    {
+        GRCircle( panel->GetClipBox(), DC, m_Start + aOffset, radius + GetClearance(), 0, color );
+    }
 
     // for Micro Vias, draw a partial cross : X on component layer, or + on copper layer
     // (so we can see 2 superimposed microvias ):
-    if( Shape() == VIA_MICROVIA )
+    if( GetShape() == VIA_MICROVIA )
     {
         int ax, ay, bx, by;
 
@@ -922,21 +880,21 @@ void SEGVIA::Draw( EDA_DRAW_PANEL* panel, wxDC* DC, int draw_mode, const wxPoint
         }
 
         /* lines | or \ */
-        GRLine( &panel->m_ClipBox, DC, m_Start.x + aOffset.x - ax,
+        GRLine( panel->GetClipBox(), DC, m_Start.x + aOffset.x - ax,
                 m_Start.y + aOffset.y - ay,
                 m_Start.x + aOffset.x - bx,
                 m_Start.y + aOffset.y - by, 0, color );
-        GRLine( &panel->m_ClipBox, DC, m_Start.x + aOffset.x + bx,
+        GRLine( panel->GetClipBox(), DC, m_Start.x + aOffset.x + bx,
                 m_Start.y + aOffset.y + by,
                 m_Start.x + aOffset.x + ax,
                 m_Start.y + aOffset.y + ay, 0, color );
 
         /* lines - or / */
-        GRLine( &panel->m_ClipBox, DC, m_Start.x + aOffset.x + ay,
+        GRLine( panel->GetClipBox(), DC, m_Start.x + aOffset.x + ay,
                 m_Start.y + aOffset.y - ax,
                 m_Start.x + aOffset.x + by,
                 m_Start.y + aOffset.y - bx, 0, color );
-        GRLine( &panel->m_ClipBox, DC, m_Start.x + aOffset.x - by,
+        GRLine( panel->GetClipBox(), DC, m_Start.x + aOffset.x - by,
                 m_Start.y + aOffset.y + bx,
                 m_Start.x + aOffset.x - ay,
                 m_Start.y + aOffset.y + ax, 0, color );
@@ -944,7 +902,7 @@ void SEGVIA::Draw( EDA_DRAW_PANEL* panel, wxDC* DC, int draw_mode, const wxPoint
 
     // for Buried Vias, draw a partial line : orient depending on layer pair
     // (so we can see superimposed buried vias ):
-    if( Shape() == VIA_BLIND_BURIED )
+    if( GetShape() == VIA_BLIND_BURIED )
     {
         int ax = 0, ay = radius, bx = 0, by = drill_radius;
         int layer_top, layer_bottom;
@@ -954,7 +912,7 @@ void SEGVIA::Draw( EDA_DRAW_PANEL* panel, wxDC* DC, int draw_mode, const wxPoint
         /* lines for the top layer */
         RotatePoint( &ax, &ay, layer_top * 3600 / brd->GetCopperLayerCount( ) );
         RotatePoint( &bx, &by, layer_top * 3600 / brd->GetCopperLayerCount( ) );
-        GRLine( &panel->m_ClipBox, DC, m_Start.x + aOffset.x - ax,
+        GRLine( panel->GetClipBox(), DC, m_Start.x + aOffset.x - ax,
                 m_Start.y + aOffset.y - ay,
                 m_Start.x + aOffset.x - bx,
                 m_Start.y + aOffset.y - by, 0, color );
@@ -963,7 +921,7 @@ void SEGVIA::Draw( EDA_DRAW_PANEL* panel, wxDC* DC, int draw_mode, const wxPoint
         ax = 0; ay = radius; bx = 0; by = drill_radius;
         RotatePoint( &ax, &ay, layer_bottom * 3600 / brd->GetCopperLayerCount( ) );
         RotatePoint( &bx, &by, layer_bottom * 3600 / brd->GetCopperLayerCount( ) );
-        GRLine( &panel->m_ClipBox, DC, m_Start.x + aOffset.x - ax,
+        GRLine( panel->GetClipBox(), DC, m_Start.x + aOffset.x - ax,
                 m_Start.y + aOffset.y - ay,
                 m_Start.x + aOffset.x - bx,
                 m_Start.y + aOffset.y - by, 0, color );
@@ -1001,30 +959,30 @@ void SEGVIA::Draw( EDA_DRAW_PANEL* panel, wxDC* DC, int draw_mode, const wxPoint
 
 
 // see class_track.h
-void TRACK::DisplayInfo( EDA_DRAW_FRAME* frame )
+void TRACK::GetMsgPanelInfo( std::vector< MSG_PANEL_ITEM >& aList )
 {
     wxString msg;
-    BOARD*   board = ( (PCB_BASE_FRAME*) frame )->GetBoard();
+    BOARD*   board = GetBoard();
 
     // Display basic infos
-    DisplayInfoBase( frame );
+    GetMsgPanelInfoBase( aList );
 
     // Display full track length (in Pcbnew)
-    if( frame->IsType( PCB_FRAME ) )
+    if( board )
     {
-        int trackLen = 0;
-        int lenDie = 0;
-        board->MarkTrace( this, NULL, &trackLen, &lenDie, false );
-        msg = frame->CoordinateToString( trackLen );
-        frame->AppendMsgPanel( _( "Track Len" ), msg, DARKCYAN );
+        double trackLen = 0;
+        double lenPadToDie = 0;
+        board->MarkTrace( this, NULL, &trackLen, &lenPadToDie, false );
+        msg = ::CoordinateToString( trackLen );
+        aList.push_back( MSG_PANEL_ITEM( _( "Track Len" ), msg, DARKCYAN ) );
 
-        if( lenDie != 0 )
+        if( lenPadToDie != 0 )
         {
-            msg = frame->CoordinateToString( trackLen + lenDie );
-            frame->AppendMsgPanel( _( "Full Len" ), msg, DARKCYAN );
+            msg = ::LengthDoubleToString( trackLen + lenPadToDie );
+            aList.push_back( MSG_PANEL_ITEM( _( "Full Len" ), msg, DARKCYAN ) );
 
-            msg = frame->CoordinateToString( lenDie );
-            frame->AppendMsgPanel( _( "On Die" ), msg, DARKCYAN );
+            msg = ::LengthDoubleToString( lenPadToDie );
+            aList.push_back( MSG_PANEL_ITEM( _( "In Package" ), msg, DARKCYAN ) );
         }
     }
 
@@ -1032,34 +990,53 @@ void TRACK::DisplayInfo( EDA_DRAW_FRAME* frame )
 
     if( netclass )
     {
-        frame->AppendMsgPanel( _( "NC Name" ), netclass->GetName(), DARKMAGENTA );
-        frame->AppendMsgPanel( _( "NC Clearance" ),
-                               frame->CoordinateToString( netclass->GetClearance(), true ),
-                               DARKMAGENTA );
-        frame->AppendMsgPanel( _( "NC Width" ),
-                               frame->CoordinateToString( netclass->GetTrackWidth(), true ),
-                               DARKMAGENTA );
-        frame->AppendMsgPanel( _( "NC Via Size"),
-                               frame->CoordinateToString( netclass->GetViaDiameter(), true ),
-                               DARKMAGENTA );
-        frame->AppendMsgPanel( _( "NC Via Drill"),
-                               frame->CoordinateToString( netclass->GetViaDrill(), true ),
-                               DARKMAGENTA );
+        aList.push_back( MSG_PANEL_ITEM( _( "NC Name" ), netclass->GetName(), DARKMAGENTA ) );
+        aList.push_back( MSG_PANEL_ITEM( _( "NC Clearance" ),
+                                         ::CoordinateToString( netclass->GetClearance(), true ),
+                                         DARKMAGENTA ) );
+        aList.push_back( MSG_PANEL_ITEM( _( "NC Width" ),
+                                         ::CoordinateToString( netclass->GetTrackWidth(), true ),
+                                         DARKMAGENTA ) );
+        aList.push_back( MSG_PANEL_ITEM( _( "NC Via Size" ),
+                                         ::CoordinateToString( netclass->GetViaDiameter(), true ),
+                                         DARKMAGENTA ) );
+        aList.push_back( MSG_PANEL_ITEM( _( "NC Via Drill"),
+                                         ::CoordinateToString( netclass->GetViaDrill(), true ),
+                                         DARKMAGENTA ) );
     }
 }
 
 
-void TRACK::DisplayInfoBase( EDA_DRAW_FRAME* frame )
+void TRACK::GetMsgPanelInfoBase( std::vector< MSG_PANEL_ITEM >& aList )
 {
     wxString msg;
-    BOARD*   board = ( (PCB_BASE_FRAME*) frame )->GetBoard();
-
-    frame->ClearMsgPanel();
+    BOARD*   board = GetBoard();
 
     switch( Type() )
     {
     case PCB_VIA_T:
-        msg = g_ViaType_Name[Shape()];
+        switch( GetShape() )
+        {
+        default:
+        case 0:
+            msg =  _( "??? Via" ); // Not used yet, does not exist currently
+            break;
+
+        case 1:
+            msg = _( "Micro Via" ); // from external layer (TOP or BOTTOM) from
+                                    // the near neighbor inner layer only
+            break;
+
+        case 2:
+            msg = _( "Blind/Buried Via" );  // from inner or external to inner
+                                            // or external layer (no restriction)
+            break;
+
+        case 3:
+            msg =  _( "Through Via" );  // Usual via (from TOP to BOTTOM layer only )
+            break;
+        }
+
         break;
 
     case PCB_TRACE_T:
@@ -1075,10 +1052,10 @@ void TRACK::DisplayInfoBase( EDA_DRAW_FRAME* frame )
         break;
     }
 
-    frame->AppendMsgPanel( _( "Type" ), msg, DARKCYAN );
+    aList.push_back( MSG_PANEL_ITEM( _( "Type" ), msg, DARKCYAN ) );
 
     // Display Net Name (in Pcbnew)
-    if( frame->IsType( PCB_FRAME ) )
+    if( board )
     {
         NETINFO_ITEM* net = board->FindNet( GetNet() );
 
@@ -1087,36 +1064,36 @@ void TRACK::DisplayInfoBase( EDA_DRAW_FRAME* frame )
         else
             msg = wxT( "<noname>" );
 
-        frame->AppendMsgPanel( _( "NetName" ), msg, RED );
+        aList.push_back( MSG_PANEL_ITEM( _( "NetName" ), msg, RED ) );
 
         /* Display net code : (useful in test or debug) */
         msg.Printf( wxT( "%d .%d" ), GetNet(), GetSubNet() );
-        frame->AppendMsgPanel( _( "NetCode" ), msg, RED );
+        aList.push_back( MSG_PANEL_ITEM( _( "NetCode" ), msg, RED ) );
     }
 
 #if defined(DEBUG)
 
     // Display the flags
     msg.Printf( wxT( "0x%08X" ), m_Flags );
-    frame->AppendMsgPanel( wxT( "Flags" ), msg, BLUE );
+    aList.push_back( MSG_PANEL_ITEM( wxT( "Flags" ), msg, BLUE ) );
 
 #if 0
     // Display start and end pointers:
     msg.Printf( wxT( "%p" ), start );
-    frame->AppendMsgPanel( wxT( "start ptr" ), msg, BLUE );
+    aList.push_back( MSG_PANEL_ITEM( wxT( "start ptr" ), msg, BLUE ) );
     msg.Printf( wxT( "%p" ), end );
-    frame->AppendMsgPanel( wxT( "end ptr" ), msg, BLUE );
+    aList.push_back( MSG_PANEL_ITEM( wxT( "end ptr" ), msg, BLUE ) );
     // Display this ptr
     msg.Printf( wxT( "%p" ), this );
-    frame->AppendMsgPanel( wxT( "this" ), msg, BLUE );
+    aList.push_back( MSG_PANEL_ITEM( wxT( "this" ), msg, BLUE ) );
 #endif
 
 #if 0
     // Display start and end positions:
     msg.Printf( wxT( "%d %d" ), m_Start.x, m_Start.y );
-    frame->AppendMsgPanel( wxT( "Start pos" ), msg, BLUE );
+    aList.push_back( MSG_PANEL_ITEM( wxT( "Start pos" ), msg, BLUE ) );
     msg.Printf( wxT( "%d %d" ), m_End.x, m_End.y );
-    frame->AppendMsgPanel( wxT( "End pos" ), msg, BLUE );
+    aList.push_back( MSG_PANEL_ITEM( wxT( "End pos" ), msg, BLUE ) );
 #endif
 
 #endif  // defined(DEBUG)
@@ -1130,7 +1107,7 @@ void TRACK::DisplayInfoBase( EDA_DRAW_FRAME* frame )
     if( GetState( TRACK_AR ) )
         msg[2] = 'A';
 
-    frame->AppendMsgPanel( _( "Status" ), msg, MAGENTA );
+    aList.push_back( MSG_PANEL_ITEM( _( "Status" ), msg, MAGENTA ) );
 
     /* Display layer or layer pair) */
     if( Type() == PCB_VIA_T )
@@ -1146,20 +1123,20 @@ void TRACK::DisplayInfoBase( EDA_DRAW_FRAME* frame )
         msg = board->GetLayerName( m_Layer );
     }
 
-    frame->AppendMsgPanel( _( "Layer" ), msg, BROWN );
+    aList.push_back( MSG_PANEL_ITEM( _( "Layer" ), msg, BROWN ) );
 
     /* Display width */
-    msg = frame->CoordinateToString( (unsigned) m_Width );
+    msg = ::CoordinateToString( (unsigned) m_Width );
 
     if( Type() == PCB_VIA_T )      // Display Diam and Drill values
     {
         // Display diameter value:
-        frame->AppendMsgPanel( _( "Diam" ), msg, DARKCYAN );
+        aList.push_back( MSG_PANEL_ITEM( _( "Diam" ), msg, DARKCYAN ) );
 
         // Display drill value
         int drill_value = GetDrillValue();
 
-        msg = frame->CoordinateToString( (unsigned) drill_value );
+        msg = ::CoordinateToString( (unsigned) drill_value );
 
         wxString title = _( "Drill" );
         title += wxT( " " );
@@ -1169,54 +1146,44 @@ void TRACK::DisplayInfoBase( EDA_DRAW_FRAME* frame )
         else
             title += _( "(Default)" );
 
-        frame->AppendMsgPanel( title, msg, RED );
+        aList.push_back( MSG_PANEL_ITEM( title, msg, RED ) );
     }
     else
     {
-        frame->AppendMsgPanel( _( "Width" ), msg, DARKCYAN );
+        aList.push_back( MSG_PANEL_ITEM( _( "Width" ), msg, DARKCYAN ) );
     }
 
     // Display segment length
     if( Type() != PCB_VIA_T )      // Display Diam and Drill values
     {
-        msg = frame->CoordinateToString( wxRound( GetLength() ) );
-        frame->AppendMsgPanel( _( "Segment Length" ), msg, DARKCYAN );
+        msg = ::LengthDoubleToString( GetLength() );
+        aList.push_back( MSG_PANEL_ITEM( _( "Segment Length" ), msg, DARKCYAN ) );
     }
 }
 
 
-bool TRACK::HitTest( const wxPoint& refPos )
+bool TRACK::HitTest( const wxPoint& aPosition )
 {
-    int radius = m_Width >> 1;
-
-    // (dx, dy) is a vector from m_Start to m_End (an origin of m_Start)
-    int dx = m_End.x - m_Start.x;
-    int dy = m_End.y - m_Start.y;
-
-    // (spot_cX, spot_cY) is a vector from m_Start to ref_pos (an origin of m_Start)
-    int spot_cX = refPos.x - m_Start.x;
-    int spot_cY = refPos.y - m_Start.y;
+    int max_dist = m_Width >> 1;
 
     if( Type() == PCB_VIA_T )
     {
-        return (double) spot_cX * spot_cX + (double) spot_cY * spot_cY <= (double) radius * radius;
-    }
-    else
-    {
-        if( DistanceTest( radius, dx, dy, spot_cX, spot_cY ) )
-            return true;
+        // rel_pos is aPosition relative to m_Start (or the center of the via)
+        wxPoint rel_pos = aPosition - m_Start;
+        double dist = (double) rel_pos.x * rel_pos.x + (double) rel_pos.y * rel_pos.y;
+        return  dist <= (double) max_dist * max_dist;
     }
 
-    return false;
+    return TestSegmentHit( aPosition, m_Start, m_End, max_dist );
 }
 
 
-bool TRACK::HitTest( EDA_RECT& refArea )
+bool TRACK::HitTest( const EDA_RECT& aRect ) const
 {
-    if( refArea.Contains( m_Start ) )
+    if( aRect.Contains( m_Start ) )
         return true;
 
-    if( refArea.Contains( m_End ) )
+    if( aRect.Contains( m_End ) )
         return true;
 
     return false;
@@ -1286,7 +1253,7 @@ TRACK* TRACK::GetTrace( TRACK* aStartTrace, TRACK* aEndTrace, int aEndPoint )
     int     ii;
     int     max_dist;
 
-    if( aEndPoint == START )
+    if( aEndPoint == FLG_START )
         position = m_Start;
     else
         position = m_End;
@@ -1559,7 +1526,7 @@ wxString TRACK::GetSelectMenuText() const
     }
 
     text << _( " on " ) << GetLayerName() << wxT("  ") << _("Net:") << GetNet()
-         << wxT("  ") << _("Length:") << valeur_param( GetLength(), temp );
+         << wxT("  ") << _("Length:") << ::LengthDoubleToString( GetLength() );
 
     return text;
 }
@@ -1567,7 +1534,7 @@ wxString TRACK::GetSelectMenuText() const
 
 #if defined(DEBUG)
 
-void TRACK::Show( int nestLevel, std::ostream& os )
+void TRACK::Show( int nestLevel, std::ostream& os ) const
 {
     NestedSpace( nestLevel, os ) << '<' << GetClass().Lower().mb_str() <<
 
@@ -1587,11 +1554,11 @@ void TRACK::Show( int nestLevel, std::ostream& os )
 }
 
 
-void SEGVIA::Show( int nestLevel, std::ostream& os )
+void SEGVIA::Show( int nestLevel, std::ostream& os ) const
 {
     const char* cp;
 
-    switch( Shape() )
+    switch( GetShape() )
     {
     case VIA_THROUGH:
         cp = "through";

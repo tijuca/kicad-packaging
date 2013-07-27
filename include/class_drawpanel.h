@@ -1,3 +1,28 @@
+/*
+ * This program source code file is part of KiCad, a free EDA CAD application.
+ *
+ * Copyright (C) 2004 Jean-Pierre Charras, jaen-pierre.charras@gipsa-lab.inpg.com
+ * Copyright (C) 2011 Wayne Stambaugh <stambaughw@verizon.net>
+ * Copyright (C) 1992-2011 KiCad Developers, see AUTHORS.txt for contributors.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation; either version 2
+ * of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, you may find one here:
+ * http://www.gnu.org/licenses/old-licenses/gpl-2.0.html
+ * or you may search the http://www.gnu.org website for the version 2 license,
+ * or you may write to the Free Software Foundation, Inc.,
+ * 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
+ */
+
 /**
  * @file class_drawpanel.h:
  * @brief EDA_DRAW_PANEL class definition.
@@ -6,11 +31,11 @@
 #ifndef  PANEL_WXSTRUCT_H
 #define  PANEL_WXSTRUCT_H
 
-#include "colors.h"
-#include "base_struct.h"
-#include <wx/overlay.h>
+#include <colors.h>
+#include <base_struct.h>
+#include <gr_basic.h>
 
-class EDA_DRAW_FRAME;
+
 class BASE_SCREEN;
 class PCB_SCREEN;
 
@@ -34,42 +59,58 @@ private:
     int m_defaultCursor;          ///< The default mouse cursor shape id.
     bool m_showCrossHair;         ///< Indicate if cross hair is to be shown.
     int m_cursorLevel;            ///< Index for cursor redraw in XOR mode.
+    int m_scrollIncrementX;       ///< X axis scroll increment in pixels per unit.
+    int m_scrollIncrementY;       ///< Y axis scroll increment in pixels per unit.
+    wxPoint m_CursorStartPos;     ///< Used for testing the cursor movement.
+    wxPoint m_PanStartCenter;     ///< Initial scroll center position when pan started
+    wxPoint m_PanStartEventPosition;   ///< Initial position of mouse event when pan started
 
-public:
-    EDA_RECT m_ClipBox;           // the clipbox used in screen redraw (usually gives the
-                                  // visible area in internal units)
-    wxPoint m_CursorStartPos;     // useful in testing the cursor movement
-    int m_scrollIncrementX;       // X axis scroll increment in pixels per unit.
-    int m_scrollIncrementY;       // Y axis scroll increment in pixels per unit.
+    /// The drawing area used to redraw the screen which is usually the visible area
+    /// of the drawing in internal units.
+    EDA_RECT m_ClipBox;
 
-    bool m_AbortRequest;          // Flag to abort long commands
-    bool m_AbortEnable;           // true if abort button or menu to be displayed
+    bool m_abortRequest;          ///< Flag used to abort long commands.
 
-    bool m_AutoPAN_Enable;        // true to allow auto pan
-    bool m_AutoPAN_Request;       // true to request an auto pan (will be made only if
-                                  // m_AutoPAN_Enable = true)
-    int m_IgnoreMouseEvents;      // when non-zero (true), then ignore mouse events
-    bool m_Block_Enable;          // true to accept Block Commands
+    bool m_enableZoomNoCenter;    ///< True to enable zooming around the crosshair instead of the center
+    bool m_enableMiddleButtonPan; ///< True to enable middle mouse button panning.
+    bool m_panScrollbarLimits;    ///< has meaning only if m_enableMiddleButtonPan = true
+                                  ///< true to limit panning to scrollbar current limits
+                                  ///< false to used unlimited pan
+
+    bool m_enableAutoPan;         ///< True to enable automatic panning.
+
+    /// true to request an auto pan.  Valid only when m_enableAutoPan = true.
+    bool m_requestAutoPan;
+
+    bool m_ignoreMouseEvents;     ///< Ignore mouse events when true.
+
+    /* Used to inhibit a response to a mouse left button release, after a double click
+     * (when releasing the left button at the end of the second click.  Used in Eeschema
+     * to inhibit a mouse left release command when switching between hierarchical sheets
+     * on a double click.
+     */
+    bool m_ignoreNextLeftButtonRelease;    ///< Ignore the next mouse left button release when true.
+
+    bool m_enableBlockCommands;   ///< True enables block commands.
+
+    int m_minDragEventCount;    /* Count the drag events. Used to filter mouse moves before starting a
+                                 * block command.  A block command can be started only if
+                                 * MinDragEventCount > MIN_DRAG_COUNT_FOR_START_BLOCK_COMMAND
+                                 * in order to avoid spurious block commands. */
+
+    /// True when drawing in mirror mode. Used by the draw arc function, because arcs
+    /// are oriented, and in mirror mode, orientations are reversed.
+    bool m_PrintIsMirrored;
+
+    /// Mouse capture move callback function.
+    MOUSE_CAPTURE_CALLBACK m_mouseCaptureCallback;
+
+    /// Abort mouse capture callback function.
+    END_MOUSE_CAPTURE_CALLBACK m_endMouseCaptureCallback;
 
     // useful to avoid false start block in certain cases
     // (like switch from a sheet to an other sheet
-    int m_CanStartBlock;          // >= 0 (or >= n) if a block can start
-    bool m_PrintIsMirrored;       // True when drawing in mirror mode. Used in draw arc function,
-                                  // because arcs are oriented, and in mirror mode, orientations
-                                  // are reversed
-
-#ifdef USE_WX_OVERLAY
-    // MAC Uses overlay to workaround the wxINVERT and wxXOR miss
-    wxOverlay m_overlay;
-#endif
-
-    /* Cursor management (used in editing functions) */
-
-    /* Mouse capture move callback function. */
-    MOUSE_CAPTURE_CALLBACK m_mouseCaptureCallback;
-
-    /* Abort mouse capture callback function. */
-    END_MOUSE_CAPTURE_CALLBACK m_endMouseCaptureCallback;
+    int m_canStartBlock;          // >= 0 (or >= n) if a block can start
 
 public:
 
@@ -82,6 +123,43 @@ public:
 
     void OnPaint( wxPaintEvent& event );
 
+    EDA_RECT* GetClipBox() { return &m_ClipBox; }
+
+    void SetClipBox( const EDA_RECT& aRect ) { m_ClipBox = aRect; }
+
+    bool GetAbortRequest() const { return m_abortRequest; }
+
+    void SetAbortRequest( bool aAbortRequest ) { m_abortRequest = aAbortRequest; }
+
+    bool GetEnableMiddleButtonPan() const { return m_enableMiddleButtonPan; }
+
+    void SetEnableMiddleButtonPan( bool aEnable ) { m_enableMiddleButtonPan = aEnable; }
+
+    bool GetEnableZoomNoCenter() const { return m_enableZoomNoCenter; }
+
+    void SetEnableZoomNoCenter( bool aEnable ) { m_enableZoomNoCenter = aEnable; }
+
+    bool GetMiddleButtonPanLimited() const { return m_panScrollbarLimits; }
+
+    void SetMiddleButtonPanLimited( bool aEnable ) { m_panScrollbarLimits = aEnable; }
+
+    bool GetEnableAutoPan() const { return m_enableAutoPan; }
+
+    void SetEnableAutoPan( bool aEnable ) { m_enableAutoPan = aEnable; }
+
+    void SetAutoPanRequest( bool aEnable ) { m_requestAutoPan = aEnable; }
+
+    void SetIgnoreMouseEvents( bool aIgnore ) { m_ignoreMouseEvents = aIgnore; }
+
+    void SetIgnoreLeftButtonReleaseEvent( bool aIgnore ) { m_ignoreNextLeftButtonRelease = aIgnore; }
+
+    void SetEnableBlockCommands( bool aEnable ) { m_enableBlockCommands = aEnable; }
+
+    bool GetPrintMirrored() const { return m_PrintIsMirrored; }
+
+    void SetPrintMirrored( bool aMirror ) { m_PrintIsMirrored = aMirror; }
+
+    void SetCanStartBlock( int aStartBlock ) { m_canStartBlock = aStartBlock; }
 
     /**
      * Function DrawBackGround
@@ -110,7 +188,7 @@ public:
      * @param aDC = current Device Context
      * @param aDrawMode = draw mode (GR_COPY, GR_OR ..)
      */
-    void DrawAuxiliaryAxis( wxDC* aDC, int aDrawMode );
+    void DrawAuxiliaryAxis( wxDC* aDC, GR_DRAWMODE aDrawMode );
 
     /**
      * Function DrawGridAxis
@@ -119,7 +197,7 @@ public:
      * @param aDC = current Device Context
      * @param aDrawMode = draw mode (GR_COPY, GR_OR ..)
      */
-    void DrawGridAxis( wxDC* aDC, int aDrawMode );
+    void DrawGridAxis( wxDC* aDC, GR_DRAWMODE aDrawMode );
 
     void OnEraseBackground( wxEraseEvent& event ) { }
 
@@ -127,7 +205,7 @@ public:
      * Function OnActivate
      * handles window activation events.
      * <p>
-     * The member m_CanStartBlock is initialize to avoid a block start command on activation
+     * The member m_canStartBlock is initialize to avoid a block start command on activation
      * (because a left mouse button can be pressed and no block command wanted.  This happens
      * when enter on a hierarchy sheet on double click.
      *</p>
@@ -177,6 +255,7 @@ public:
     void OnMouseEvent( wxMouseEvent& event );
     void OnMouseLeaving( wxMouseEvent& event );
     void OnKeyEvent( wxKeyEvent& event );
+    void OnCharHook( wxKeyEvent& event );
 
     void OnPan( wxCommandEvent& event );
 
@@ -184,8 +263,9 @@ public:
     void OnScrollWin( wxCommandEvent& event );
     void OnScroll( wxScrollWinEvent& event );
 
-    void SetZoom( int mode );
-    int GetZoom();
+    void SetZoom( double mode );
+    double GetZoom();
+
     void SetGrid( const wxRealPoint& size );
     wxRealPoint GetGrid();
 
@@ -244,6 +324,18 @@ public:
      * warps the cursor to the current cross hair position.
      */
     void MoveCursorToCrossHair();
+    
+    /**
+     * Function ToDeviceXY
+     * transforms logical to device coordinates
+     */
+    wxPoint ToDeviceXY( const wxPoint& pos );
+
+    /**
+     * Function ToLogicalXY
+     * transforms device to logical coordinates
+     */
+    wxPoint ToLogicalXY( const wxPoint& pos );
 
     /**
      * Function MoveCursor
@@ -265,7 +357,7 @@ public:
      * @param aDC - the device context to draw the cursor
      * @param aColor - the color to draw the cursor
      */
-    void DrawCrossHair( wxDC* aDC, int aColor = WHITE );
+    void DrawCrossHair( wxDC* aDC, EDA_COLOR_T aColor = WHITE );
 
     // Hide the cross hair.
     void CrossHairOff( wxDC* DC );
@@ -284,6 +376,13 @@ public:
         m_mouseCaptureCallback = aMouseCaptureCallback;
         m_endMouseCaptureCallback = aEndMouseCaptureCallback;
     }
+
+
+    void SetMouseCaptureCallback( MOUSE_CAPTURE_CALLBACK aMouseCaptureCallback )
+    {
+        m_mouseCaptureCallback = aMouseCaptureCallback;
+    }
+
 
     /**
      * Function EndMouseCapture
@@ -304,13 +403,33 @@ public:
     inline bool IsMouseCaptured() const { return m_mouseCaptureCallback != NULL; }
 
     /**
+     * Function CallMouseCapture
+     * calls the mouse capture callback.
+     *
+     * @param aDC A point to a wxDC object to perform any drawing upon.
+     * @param aPosition A referecnce to a wxPoint object containing the current cursor
+     *                  position.
+     * @param aErase True indicates the item being drawn should be erase before drawing
+     *               it a \a aPosition.
+     */
+    void CallMouseCapture( wxDC* aDC, const wxPoint& aPosition, bool aErase );
+
+    /**
+     * Function CallEndMouseCapture
+     * calls the end mouse capture callback.
+     *
+     * @param aDC A point to a wxDC object to perform any drawing upon.
+     */
+    void CallEndMouseCapture( wxDC* aDC );
+
+    /**
      * Function SetCurrentCursor
      * Set the current cursor shape for drawpanel
      */
     void SetCurrentCursor( int aCursor )
     {
         m_currentCursor = aCursor;
-        SetCursor( m_currentCursor );
+        SetCursor( (wxStockCursor) m_currentCursor );
     }
 
     /**

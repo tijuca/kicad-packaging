@@ -41,9 +41,11 @@
 # tools are required.  If MAINTAIN_PNG is defined, then you are a PNG maintainer
 # and will need the following tools findable in your PATH:
 #
-# 1) imagemagick - all its programs must be on your PATH
-# 2) inkscape - command line mode is used, must be on your PATH
-# 3) pngcrush -
+# 1) inkscape - command line mode is used, must be on your PATH
+# 2) pngcrush - this program must be on your PATH
+# 3) Under Windows only:
+#           dos2unix - to convert End Of Lines to unix EOL (CRLF to LF)
+#           this program must be on your PATH
 #
 
 # lower case is used for local variables, uppercase for global variables
@@ -70,14 +72,37 @@ option( MAINTAIN_PNGS
         OFF)
 
 
+# Used Only to maintain PNG files (and therefore to recreate .cpp files)
+# The png2cpp creates files with native End of Line format.
+# To avoid mixed EOF formats in these .cpp files, it is good to
+# convert them in Unix EOL format (LF)
+# Under Windows, the well known dos2unix.exe does the conversion
+# It is installed with MinGW and MSYS.
+# It is very easy to install (just an executable to copy in a known path) if it is missing
+
+if( WIN32 )
+    set( CONVERT_EOL true )
+    set( eol2unix_converter dos2unix )
+else()
+    set( CONVERT_EOL false )
+endif( WIN32 )
+
+include_directories(BEFORE ${INC_BEFORE})
+include_directories(
+    ${INC_AFTER}
+    )
+
+
+
 
 # Plan for three sizes of bitmaps:
-# SMALL - for listboxes or comboboxes and perhaps menus
+# SMALL - for menus
 # MID   - for toolbars  26 x 26
 # BIG   - for program icons  48 x 48
 # which are given on three basename lists: BMAPS_SMALL, BMAPS_MID,a nd BMAPS_BIG
 # respectively.  The basename is without file extension and without path.
 # A corresponding ${basename}.svg file must exist in 'sources' dir below here.
+
 
 # small icons (16x16) needed in listboxes
 set( BMAPS_SMALL
@@ -105,7 +130,10 @@ set( BMAPS_SMALL
     pintype_opencoll
     pintype_openemit
     pintype_noconnect
+    tree_nosel
+    tree_sel
     )
+
 
 # image basenames that go into the toolbar sized destinations, i.e. 26x26
 set( BMAPS_MID
@@ -123,6 +151,7 @@ set( BMAPS_MID
     add_hierar_pin
     add_hierarchical_subsheet
     add_junction
+    add_keepout_area
     add_line2bus
     add_line_label
     add_line
@@ -154,8 +183,8 @@ set( BMAPS_MID
     break_bus
     break_line
     browse_files
-    cancel_tool
     cancel
+    change_entry_orient
     create_cmp_file
     checked_ok
     component_select_unit
@@ -171,7 +200,6 @@ set( BMAPS_MID
     cvpcb
     dashline
     datasheet
-    delete_body
     delete_arc
     delete_association
     delete_bus
@@ -239,9 +267,12 @@ set( BMAPS_MID
     gbr_select_mode2
     gerber_file
     gerber_recent_files
+    gerber_open_dcode_file
+    gerbview_show_negative_objects
     gerbview_drill_file
     gerbview_clear_layers
     gerber_open_dcode_file
+    gerbview_open_recent_drill_files
     general_deletions
     general_ratsnest
     glabel2label
@@ -272,13 +303,13 @@ set( BMAPS_MID
     insert_module_board
     invert_module
     invisible_text
-    jigsaw
     kicad_icon_small
     label2glabel
     label2text
     label
     lang_catalan
     lang_chinese
+    lang_bg
     lang_cs
     lang_def
     lang_de
@@ -307,6 +338,7 @@ set( BMAPS_MID
     library_browse
     library_update
     library
+    library_table
     libview
     lines90
     load_module_board
@@ -317,17 +349,19 @@ set( BMAPS_MID
     mirepcb
     mirror_h
     mirror_v
-    modedit
     mode_module
     mode_track
     modratsnest
     module_check
-    modul_edit
+    module_editor
+    module_wizard
     module_filtered_list
     module_full_list
     module_options
+    module_pin_filtered_list
     module_ratsnest
     module
+    modview_icon
     morgan1
     morgan2
     move_arc
@@ -360,9 +394,9 @@ set( BMAPS_MID
     new_cvpcb
     new_footprint
     new_library
-    new_module
     new_pcb
     new_project
+    new_project_with_template
     new_sch
     new_txt
     new
@@ -394,6 +428,7 @@ set( BMAPS_MID
     ortho
     pad_sketch
     pad
+    pad_dimensions
     pads_mask_layers
     palette
     part_properties
@@ -406,9 +441,12 @@ set( BMAPS_MID
     pin_size_to
     pin_to
     pin
-    plot_hpg
-    plot_ps
     plot
+    plot_dxf
+    plot_hpg
+    plot_pdf
+    plot_ps
+    plot_svg
     polar_coord
     post_compo
     post_drill
@@ -457,6 +495,7 @@ set( BMAPS_MID
     show_zone
     show_zone_disable
     show_zone_outline_only
+    svg_file
     swap_layer
     text_sketch
     three_d
@@ -466,8 +505,6 @@ set( BMAPS_MID
     track_sketch
     track_unlocked
     transistor
-    tree_nosel
-    tree_sel
     undelete
     undo
     unit_inch
@@ -477,6 +514,8 @@ set( BMAPS_MID
     unzip
     update_module_board
     up
+    use_3D_copper_thickness
+    via
     via_sketch
     warning
     web_support
@@ -488,6 +527,8 @@ set( BMAPS_MID
     window_close
     zip_tool
     zip
+    zone_duplicate
+    zone_unfill
     zoom
     zoom_area
     zoom_fit_in_page
@@ -501,6 +542,7 @@ set( BMAPS_MID
 
 # 48 x 48 for now
 set( BMAPS_BIG
+    dialog_warning
     icon_3d
     icon_cvpcb
     icon_eeschema
@@ -525,7 +567,8 @@ function( svg2png inputFile outFile pngWidth pngHeight )
 
     add_custom_command(
         OUTPUT ${outFile}
-        COMMAND ${Inkscape_EXECUTABLE} --export-area-snap -f ${inputFile} -e ${outFile} -w ${pngWidth} -h ${pngHeight} > ${TMP_DIR}/${bmn}.inkscape.log
+        COMMAND ${Inkscape_EXECUTABLE} --export-area-snap -f ${inputFile} -e ${outFile}
+            -w ${pngWidth} -h ${pngHeight} > ${TMP_DIR}/${bmn}.inkscape.log
         DEPENDS ${inputFile}
         COMMENT "Creating ${pngHeight} pixel tall ${outFile}"
         )
@@ -550,9 +593,27 @@ function( png2png inputFile outFile )
         )
 endfunction()
 
-
 # Function png2cpp
 # converts a single *.png to *.cpp
+if( CONVERT_EOL )
+function( png2cpp inputFile outFile )
+    add_custom_command(
+        OUTPUT  ${outFile}
+
+        COMMAND rm -f ${outFile}.tmp
+        COMMAND ${CMAKE_COMMAND} -DinputFile=${inputFile} -DoutCppFile=${outFile}
+            -P ${CMAKE_MODULE_PATH}/PNG2cpp.cmake
+
+        DEPENDS ${inputFile} ${CMAKE_MODULE_PATH}/PNG2cpp.cmake
+
+        POST_BUILD
+        COMMAND ${eol2unix_EXECUTABLE} ${outFile}
+
+        COMMENT "Creating (with unix eol) ${outFile}"
+    )
+endfunction()
+
+else( CONVERT_EOL )
 function( png2cpp inputFile outFile )
     add_custom_command(
         OUTPUT  ${outFile}
@@ -561,10 +622,11 @@ function( png2cpp inputFile outFile )
             -P ${CMAKE_MODULE_PATH}/PNG2cpp.cmake
 
         DEPENDS ${inputFile} ${CMAKE_MODULE_PATH}/PNG2cpp.cmake
-
         COMMENT "Creating ${outFile}"
         )
 endfunction()
+
+endif(CONVERT_EOL)
 
 
 # Function bitmap_dir
@@ -636,12 +698,33 @@ if( MAINTAIN_PNGS )
         endif( NOT pngcrush_EXECUTABLE )
     endif( NOT pngcrush_FOUND )
 
+
     # these 3 cmake commands for each desired bitmap size set, repeat as needed:
     bitmap_dir( 16 16 "${BMAPS_SMALL}" )
 
     bitmap_dir( 26 26 "${BMAPS_MID}" )
 
     bitmap_dir( 48 48 "${BMAPS_BIG}" )
+
+if(CONVERT_EOL)
+    # dos2unix is required to convert EOL format (CRLF) to unix EOL format (LF)
+    set( eol2unix_FOUND FALSE )
+
+    if( NOT eol2unix_FOUND )
+        find_program( eol2unix_EXECUTABLE ${eol2unix_converter} DOC "The EOL to LF converter program." )
+
+        if( NOT eol2unix_EXECUTABLE )
+            message( FATAL_ERROR "Could not find the ${eol2unix_converter} EOL to LF converter program." )
+        else( NOT eol2unix_EXECUTABLE )
+            set( eol2unix_FOUND TRUE )
+            set( eol2unix_EXECUTABLE ${eol2unix_EXECUTABLE}
+                 CACHE FILEPATH "Path and file name of the end of line converter program." )
+            message( STATUS "The ${eol2unix_converter} EOL to LF converter program found." )
+        endif( NOT eol2unix_EXECUTABLE )
+    endif( NOT eol2unix_FOUND )
+elseif(APPLE)
+        #TODO: see if a EOL converted is needed # OSX
+endif(CONVERT_EOL)
 
     #message( "CPP_LIST: ${CPP_LIST}" )
 
@@ -668,5 +751,5 @@ foreach( bmn ${BMAPS_BIG} )
 endforeach()
 
 #add_library( bitmaps SHARED ${CPP_LIST} )
-add_library( bitmaps ${CPP_LIST} )
+add_library( bitmaps STATIC ${CPP_LIST} )
 

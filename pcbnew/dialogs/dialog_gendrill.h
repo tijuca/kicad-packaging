@@ -26,64 +26,68 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
  */
 
-#ifndef _DIALOG_GENDRILL_H_
-#define _DIALOG_GENDRILL_H_
+#ifndef DIALOG_GENDRILL_H_
+#define DIALOG_GENDRILL_H_
 
-#include "dialog_gendrill_base.h"
+#include <dialog_gendrill_base.h>
 
 class DIALOG_GENDRILL : public DIALOG_GENDRILL_BASE
 {
 public:
+    DIALOG_GENDRILL( PCB_EDIT_FRAME* parent );
+    ~DIALOG_GENDRILL();
+
     static int       m_UnitDrillIsInch;
     static int       m_ZerosFormat;
-    static int       m_PrecisionFormat;
     static bool      m_MinimalHeader;
     static bool      m_Mirror;
     static bool      m_DrillOriginIsAuxAxis; /* Axis selection (main / auxiliary)
                                               *  for drill origin coordinates */
-    DRILL_PRECISION  m_Precision;       // Selected precision for drill files
-    wxPoint          m_FileDrillOffset; // Drill offset: 0,0 for absolute coordiantes, or auxialry axis origin
+    DRILL_PRECISION  m_Precision;           // Selected precision for drill files
+    wxPoint          m_FileDrillOffset;     // Drill offset: 0,0 for absolute coordinates,
+                                            // or origin of the auxiliary axis
+
 
 private:
-    PCB_EDIT_FRAME* m_Parent;
+    PCB_EDIT_FRAME* m_parent;
+    wxConfig*       m_config;
+    BOARD*          m_board;
+    PCB_PLOT_PARAMS m_plotOpts;
+
     int m_platedPadsHoleCount;
     int m_notplatedPadsHoleCount;
     int m_throughViasCount;
     int m_microViasCount;
     int m_blindOrBuriedViasCount;
-    static bool m_createRpt;           // true to create a drill file report
-    static int m_createMap;            // > 0 to create a map file report
 
-public: DIALOG_GENDRILL( PCB_EDIT_FRAME* parent );
-    ~DIALOG_GENDRILL();
+    static int m_mapFileType;            // HPGL, PS ...
 
-private:
 
-    // Initialises member variables
     void            initDialog();
     void            InitDisplayParams( void );
 
     // event functions
     void            OnSelDrillUnitsSelected( wxCommandEvent& event );
     void            OnSelZerosFmtSelected( wxCommandEvent& event );
-    void            OnOkClick( wxCommandEvent& event );
+	void            OnGenDrillFile( wxCommandEvent& event );
+	void            OnGenMapFile( wxCommandEvent& event );
+	void            OnGenReportFile( wxCommandEvent& event );
     void            OnCancelClick( wxCommandEvent& event );
+    void            OnOutputDirectoryBrowseClicked( wxCommandEvent& event );
 
     // Specific functions:
     void            SetParams( void );
-    void            GenDrillAndReportFiles();
-    void            GenDrillMap( const wxString           aFileName,
-                                 std::vector<HOLE_INFO>&  aHoleListBuffer,
-                                 std::vector<DRILL_TOOL>& aToolListBuffer,
-                                 int                      format );
+    void            GenDrillAndMapFiles(bool aGenDrill, bool aGenMap);
+    void            GenDrillMap( const wxString  aFileName,
+                                 EXCELLON_WRITER& aExcellonWriter,
+                                 PlotFormat      format );
+
     void            UpdatePrecisionOptions();
     void            UpdateConfig();
-    void            GenDrillReport( const wxString aFileName );
-    int             Create_Drill_File_EXCELLON( FILE*                    aFile,
-                                                wxPoint                  aOffset,
-                                                std::vector<HOLE_INFO>&  aHoleListBuffer,
-                                                std::vector<DRILL_TOOL>& aToolListBuffer );
-    int             Gen_Liste_Tools( std::vector<DRILL_TOOL>& buffer, bool print_header );
+    int             Create_Drill_File_EXCELLON( FILE*  aFile,
+                                                wxPoint aOffset );
+    int             Gen_Liste_Tools( std::vector<DRILL_TOOL>& buffer,
+                                     bool print_header );
 
     /**
      * Return the selected format for coordinates, if not decimal
@@ -91,4 +95,4 @@ private:
     DRILL_PRECISION GetPrecison();
 };
 
-#endif      // _DIALOG_GENDRILL_H_
+#endif      // DIALOG_GENDRILL_H_

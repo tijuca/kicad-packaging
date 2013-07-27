@@ -1,9 +1,10 @@
 /*
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
- * Copyright (C) 2006 Jean-Pierre Charras, jaen-pierre.charras@gipsa-lab.inpg.com
- * Copyright (C) 2011 Wayne Stambaugh <stambaughw@verizon.net>
- * Copyright (C) 1992-2011 KiCad Developers, see AUTHORS.txt for contributors.
+ * Copyright (C) 2012 Jean-Pierre Charras, jean-pierre.charras@ujf-grenoble.fr
+ * Copyright (C) 2012 SoftPLC Corporation, Dick Hollenbeck <dick@softplc.com>
+ * Copyright (C) 2012 Wayne Stambaugh <stambaughw@verizon.net>
+ * Copyright (C) 1992-2012 KiCad Developers, see AUTHORS.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -25,23 +26,38 @@
 
 /**
  * @file tr_modif.cpp
- * @brief Trace editing.
+ * @brief Trace editing: detects an removes a track which is become redunding,
+ * after a new track is craeted.
  */
 
-#include "fctsys.h"
-#include "gr_basic.h"
-#include "wxPcbStruct.h"
+#include <fctsys.h>
+#include <gr_basic.h>
+#include <wxPcbStruct.h>
 
-#include "class_board.h"
-#include "class_track.h"
+#include <class_board.h>
+#include <class_track.h>
 
-#include "pcbnew.h"
-#include "protos.h"
+#include <pcbnew.h>
+#include <protos.h>
 
 
 static void ListSetState( EDA_ITEM* Start, int NbItem, int State, int onoff );
 
 
+void DrawTraces( EDA_DRAW_PANEL* panel, wxDC* DC, TRACK* aTrackList, int nbsegment,
+                 GR_DRAWMODE draw_mode )
+{
+    // preserve the start of the list for debugging.
+    for( TRACK* track = aTrackList; nbsegment > 0 && track; nbsegment--, track = track->Next() )
+    {
+        track->Draw( panel, DC, draw_mode );
+    }
+}
+
+/*
+ * This function try to remove an old track, when a new track is created,
+ * and the old track is no more needed
+ */
 int PCB_EDIT_FRAME::EraseRedundantTrack( wxDC*              aDC,
                                          TRACK*             aNewTrack,
                                          int                aNewTrackSegmentsCount,
@@ -72,7 +88,7 @@ int PCB_EDIT_FRAME::EraseRedundantTrack( wxDC*              aDC,
     wxASSERT( aNewTrack );
 
 #if 0 && defined(DEBUG)
-    TRACK* EndNewTrack;      /* The last segment of the list chained to the track */
+    TRACK* EndNewTrack;      // The last segment of the list chained to the track
 
     EndNewTrack = aNewTrack;
 
@@ -94,11 +110,10 @@ int PCB_EDIT_FRAME::EraseRedundantTrack( wxDC*              aDC,
     TRACK* bufStart = m_Pcb->m_Track->GetStartNetCode( netcode ); // Beginning of tracks of the net
     TRACK* bufEnd = bufStart->GetEndNetCode( netcode );           // End of tracks of the net
 
-    /* Flags for cleaning the net. */
+    // Flags for cleaning the net.
     for( pt_del = bufStart;  pt_del;  pt_del = pt_del->Next() )
     {
-        //D( printf( "track %p turning off BUSY | IN_EDIT | IS_LINKED\n", pt_del ); )
-        D( std::cout<<"track "<<pt_del<<" turning off BUSY | IN_EDIT | IS_LINKED"<<std::endl; )
+//        D( std::cout<<"track "<<pt_del<<" turning off BUSY | IN_EDIT | IS_LINKED"<<std::endl; )
         pt_del->SetState( BUSY | IN_EDIT | IS_LINKED, OFF );
 
         if( pt_del == bufEnd )  // Last segment reached
@@ -111,18 +126,18 @@ int PCB_EDIT_FRAME::EraseRedundantTrack( wxDC*              aDC,
     if( ( StartTrack == NULL ) || ( EndTrack == NULL ) )
         return 0;
 
-    start = StartTrack->m_Start;
-    end   = EndTrack->m_End;
+    start = StartTrack->GetStart();
+    end   = EndTrack->GetEnd();
 
-    /* The start and end points cannot be the same. */
+    // The start and end points cannot be the same.
     if( start == end )
         return 0;
 
-    /* Determine layers interconnected these points. */
+    // Determine layers interconnected these points.
     startmasklayer = StartTrack->ReturnMaskLayer();
     endmasklayer   = EndTrack->ReturnMaskLayer();
 
-    /* There may be a via or a pad on the end points. */
+    // There may be a via or a pad on the end points.
     pt_segm = m_Pcb->m_Track->GetVia( NULL, start, startmasklayer );
 
     if( pt_segm )
@@ -130,9 +145,9 @@ int PCB_EDIT_FRAME::EraseRedundantTrack( wxDC*              aDC,
 
     if( StartTrack->start && ( StartTrack->start->Type() == PCB_PAD_T ) )
     {
-        /* Start on pad. */
-        D_PAD* pt_pad = (D_PAD*)(StartTrack->start);
-        startmasklayer |= pt_pad->m_layerMask;
+        // Start on pad.
+        D_PAD* pad = (D_PAD*) StartTrack->start;
+        startmasklayer |= pad->GetLayerMask();
     }
 
     pt_segm = m_Pcb->m_Track->GetVia( NULL, end, endmasklayer );
@@ -142,8 +157,8 @@ int PCB_EDIT_FRAME::EraseRedundantTrack( wxDC*              aDC,
 
     if( EndTrack->end && ( EndTrack->end->Type() == PCB_PAD_T ) )
     {
-        D_PAD* pt_pad = (D_PAD*)(EndTrack->end);
-        endmasklayer |= pt_pad->m_layerMask;
+        D_PAD* pad = (D_PAD*) EndTrack->end;
+        endmasklayer |= pad->GetLayerMask();
     }
 
     // Mark as deleted a new track (which is not involved in the search for other connections)
@@ -154,9 +169,9 @@ int PCB_EDIT_FRAME::EraseRedundantTrack( wxDC*              aDC,
      */
     pt_segm = GetTrace( bufStart, bufEnd, start, startmasklayer );
 
-    if( pt_segm == NULL )     /* Not connected to the track starting point. */
+    if( pt_segm == NULL )     // Not connected to the track starting point.
     {
-        /* Clear the delete flag. */
+        // Clear the delete flag.
         ListSetState( aNewTrack, aNewTrackSegmentsCount, IS_DELETED, OFF );
         return 0;
     }
@@ -189,7 +204,7 @@ int PCB_EDIT_FRAME::EraseRedundantTrack( wxDC*              aDC,
 
     if( nbconnect == 0 )
     {
-        /* Clear used flags */
+        // Clear used flags
         for( pt_del = bufStart; pt_del; pt_del = pt_del->Next() )
         {
             pt_del->SetState( BUSY | IS_DELETED | IN_EDIT | IS_LINKED, OFF );
@@ -205,7 +220,7 @@ int PCB_EDIT_FRAME::EraseRedundantTrack( wxDC*              aDC,
     ListSetState( aNewTrack, aNewTrackSegmentsCount, IS_DELETED, OFF );
     ListSetState( aNewTrack, aNewTrackSegmentsCount, IN_EDIT, ON );
 
-    /* Test all marked segments. */
+    // Test all marked segments.
     while( nbconnect )
     {
         for( pt_del = bufStart; pt_del; pt_del = pt_del->Next() )
@@ -233,12 +248,12 @@ int PCB_EDIT_FRAME::EraseRedundantTrack( wxDC*              aDC,
             if( pt_segm->GetState( BUSY ) == 0 )
                 break;
 
-            if( pt_segm->m_Start == start || pt_segm->m_End == start )
+            if( pt_segm->GetStart() == start || pt_segm->GetEnd() == start )
             {
-                /* Marked track can be erased. */
+                // Marked track can be erased.
                 TRACK* NextS;
 
-                DrawTraces( DrawPanel, aDC, pt_del, nb_segm, GR_XOR | GR_HIGHLIGHT );
+                DrawTraces( m_canvas, aDC, pt_del, nb_segm, GR_XOR | GR_HIGHLIGHT );
 
                 for( jj = 0; jj < nb_segm; jj++, pt_del = NextS )
                 {
@@ -248,7 +263,7 @@ int PCB_EDIT_FRAME::EraseRedundantTrack( wxDC*              aDC,
                     {
                         pt_del->UnLink();
                         pt_del->SetStatus( 0 );
-                        pt_del->m_Flags = 0;
+                        pt_del->ClearFlags();
                         ITEM_PICKER picker( pt_del, UR_DELETED );
                         aItemsListPicker->PushItem( picker );
                     }
@@ -258,7 +273,7 @@ int PCB_EDIT_FRAME::EraseRedundantTrack( wxDC*              aDC,
                     }
                 }
 
-                /* Clean up flags. */
+                // Clean up flags.
                 for( pt_del = m_Pcb->m_Track; pt_del != NULL; pt_del = pt_del->Next() )
                 {
                     if( pt_del->GetState( IN_EDIT ) )
@@ -266,7 +281,7 @@ int PCB_EDIT_FRAME::EraseRedundantTrack( wxDC*              aDC,
                         pt_del->SetState( IN_EDIT, OFF );
 
                         if( aDC )
-                            pt_del->Draw( DrawPanel, aDC, GR_OR );
+                            pt_del->Draw( m_canvas, aDC, GR_OR );
                     }
 
                     pt_del->SetState( IN_EDIT | IS_LINKED, OFF );
@@ -280,7 +295,7 @@ int PCB_EDIT_FRAME::EraseRedundantTrack( wxDC*              aDC,
         ListSetState( pt_del, nb_segm, BUSY, OFF );
     }
 
-    /* Clear used flags */
+    // Clear used flags
     for( pt_del = m_Pcb->m_Track; pt_del; pt_del = pt_del->Next() )
     {
         pt_del->SetState( BUSY | IS_DELETED | IN_EDIT | IS_LINKED, OFF );
@@ -293,14 +308,11 @@ int PCB_EDIT_FRAME::EraseRedundantTrack( wxDC*              aDC,
 }
 
 
-/* Set the bits of .m_State member to on off value, using bit mask State
+/* Set the bits of .m_State member to on/off value, using bit mask State
  * of a list of EDA_ITEM
  */
 static void ListSetState( EDA_ITEM* Start, int NbItem, int State, int onoff )
 {
-    if( Start == NULL )
-        return;
-
     for( ; (Start != NULL ) && ( NbItem > 0 ); NbItem--, Start = Start->Next() )
     {
         Start->SetState( State, onoff );

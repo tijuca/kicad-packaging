@@ -1,9 +1,10 @@
 /*
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
- * Copyright (C) 2006 Jean-Pierre Charras, jaen-pierre.charras@gipsa-lab.inpg.com
- * Copyright (C) 2011 Wayne Stambaugh <stambaughw@verizon.net>
- * Copyright (C) 1992-2011 KiCad Developers, see AUTHORS.txt for contributors.
+ * Copyright (C) 2012 Jean-Pierre Charras, jean-pierre.charras@ujf-grenoble.fr
+ * Copyright (C) 2012 SoftPLC Corporation, Dick Hollenbeck <dick@softplc.com>
+ * Copyright (C) 2012 Wayne Stambaugh <stambaughw@verizon.net>
+ * Copyright (C) 1992-2012 KiCad Developers, see AUTHORS.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -27,23 +28,19 @@
  * @file class_pad_draw_functions.cpp
  */
 
-#include "fctsys.h"
-#include "gr_basic.h"
-#include "common.h"
-#include "trigo.h"
-#include "class_pcb_screen.h"
-#include "class_drawpanel.h"
-#include "drawtxt.h"
-#include "layers_id_colors_and_visibility.h"
-#include "wxBasePcbFrame.h"
-#include "pcbcommon.h"
-#include "macros.h"
-
-#include "pcbnew_id.h"             // ID_TRACK_BUTT
-#include "pcbnew.h"
-#include "colors_selection.h"
-
-#include "class_board.h"
+#include <fctsys.h>
+#include <gr_basic.h>
+#include <common.h>
+#include <trigo.h>
+#include <class_pcb_screen.h>
+#include <class_drawpanel.h>
+#include <drawtxt.h>
+#include <layers_id_colors_and_visibility.h>
+#include <wxBasePcbFrame.h>
+#include <pcbcommon.h>
+#include <pcbnew_id.h>             // ID_TRACK_BUTT
+#include <pcbnew.h>
+#include <class_board.h>
 
 
 /* uncomment this line to show this pad with its specfic size and color
@@ -60,7 +57,7 @@
 PAD_DRAWINFO::PAD_DRAWINFO()
 {
     m_DrawPanel       = NULL;
-    m_DrawMode        = 0;
+    m_DrawMode        = GR_COPY;
     m_Color           = BLACK;
     m_HoleColor       = BLACK; // could be DARKGRAY;
     m_NPHoleColor     = YELLOW;
@@ -74,9 +71,9 @@ PAD_DRAWINFO::PAD_DRAWINFO()
 }
 
 
-void D_PAD::Draw( EDA_DRAW_PANEL* aPanel, wxDC* aDC, int aDraw_mode, const wxPoint& aOffset )
+void D_PAD::Draw( EDA_DRAW_PANEL* aPanel, wxDC* aDC, GR_DRAWMODE aDraw_mode,
+                  const wxPoint& aOffset )
 {
-    int    color = 0;
     wxSize mask_margin;   // margin (clearance) used for some non copper layers
 
 #ifdef SHOW_PADMASK_REAL_SIZE_AND_COLOR
@@ -141,6 +138,7 @@ void D_PAD::Draw( EDA_DRAW_PANEL* aPanel, wxDC* aDC, int aDraw_mode, const wxPoi
     else
         drawInfo.m_ShowPadFilled = false;
 
+    EDA_COLOR_T color = ColorFromInt(0); // XXX EVIL (it will be ORed later)
     if( m_layerMask & LAYER_FRONT )
     {
         color = brd->GetVisibleElementColor( PAD_FR_VISIBLE );
@@ -148,10 +146,11 @@ void D_PAD::Draw( EDA_DRAW_PANEL* aPanel, wxDC* aDC, int aDraw_mode, const wxPoi
 
     if( m_layerMask & LAYER_BACK )
     {
-        color |= brd->GetVisibleElementColor( PAD_BK_VISIBLE );
+        // XXX EVIL merge
+        color = ColorFromInt( color | brd->GetVisibleElementColor( PAD_BK_VISIBLE ) );
     }
 
-    if( color == 0 ) /* Not on copper layer */
+    if( color == 0 ) // Not on a visible copper layer XXX EVIL check
     {
         // If the pad in on only one tech layer, use the layer color else use DARKGRAY
         int mask_non_copper_layers = m_layerMask & ~ALL_CU_LAYERS;
@@ -234,7 +233,9 @@ void D_PAD::Draw( EDA_DRAW_PANEL* aPanel, wxDC* aDC, int aDraw_mode, const wxPoi
     }
 
     // if PAD_SMD pad and high contrast mode
-    if( ( m_Attribut == PAD_SMD || m_Attribut == PAD_CONN ) && DisplayOpt.ContrastModeDisplay )
+    if( ( aDraw_mode & GR_ALLOW_HIGHCONTRAST ) &&
+        ( GetAttribute() == PAD_SMD || GetAttribute() == PAD_CONN ) &&
+        DisplayOpt.ContrastModeDisplay )
     {
         // when routing tracks
         if( frame && frame->GetToolId() == ID_TRACK_BUTT )
@@ -249,10 +250,7 @@ void D_PAD::Draw( EDA_DRAW_PANEL* aPanel, wxDC* aDC, int aDraw_mode, const wxPoi
                || ( ( 1 << screen->m_Active_Layer ) & ( LAYER_BACK | LAYER_FRONT ) ) )
             {
                 if( !IsOnLayer( screen->m_Active_Layer ) )
-                {
-                    color &= ~MASKCOLOR;
-                    color |= DARKDARKGRAY;
-                }
+                    ColorTurnToDarkDarkGray( &color );
             }
             // else routing between an internal signal layer and some other
             // layer.  Grey out all PAD_SMD pads not on current or the single
@@ -261,8 +259,7 @@ void D_PAD::Draw( EDA_DRAW_PANEL* aPanel, wxDC* aDC, int aDraw_mode, const wxPoi
                     && !IsOnLayer( routeTop )
                     && !IsOnLayer( routeBot ) )
             {
-                color &= ~MASKCOLOR;
-                color |= DARKDARKGRAY;
+                ColorTurnToDarkDarkGray( &color );
             }
         }
         // when not edting tracks, show PAD_SMD components not on active layer
@@ -270,10 +267,7 @@ void D_PAD::Draw( EDA_DRAW_PANEL* aPanel, wxDC* aDC, int aDraw_mode, const wxPoi
         else
         {
             if( !IsOnLayer( screen->m_Active_Layer ) )
-            {
-                color &= ~MASKCOLOR;
-                color |= DARKDARKGRAY;
-            }
+                ColorTurnToDarkDarkGray( &color );
         }
     }
 
@@ -301,7 +295,8 @@ void D_PAD::Draw( EDA_DRAW_PANEL* aPanel, wxDC* aDC, int aDraw_mode, const wxPoi
     // if Contrast mode is ON and a technical layer active, show pads on this
     // layer so we can see pads on paste or solder layer and the size of the
     // mask
-    if( DisplayOpt.ContrastModeDisplay && screen->m_Active_Layer > LAST_COPPER_LAYER )
+    if( ( aDraw_mode & GR_ALLOW_HIGHCONTRAST ) &&
+        DisplayOpt.ContrastModeDisplay && screen->m_Active_Layer > LAST_COPPER_LAYER )
     {
         if( IsOnLayer( screen->m_Active_Layer ) )
         {
@@ -331,12 +326,7 @@ void D_PAD::Draw( EDA_DRAW_PANEL* aPanel, wxDC* aDC, int aDraw_mode, const wxPoi
 
 
     if( aDraw_mode & GR_HIGHLIGHT )
-    {
-        if( aDraw_mode & GR_AND )
-            color &= ~HIGHLIGHT_FLAG;
-        else
-            color |= HIGHLIGHT_FLAG;
-    }
+        ColorChangeHighlightFlag( &color, !(aDraw_mode & GR_AND) );
 
     if( color & HIGHLIGHT_FLAG )
         color = ColorRefs[color & MASKCOLOR].m_LightColor;
@@ -346,7 +336,7 @@ void D_PAD::Draw( EDA_DRAW_PANEL* aPanel, wxDC* aDC, int aDraw_mode, const wxPoi
     if( ( m_layerMask & ALL_CU_LAYERS ) == 0 )
         DisplayIsol = false;
 
-    if( m_Attribut == PAD_HOLE_NOT_PLATED )
+    if( GetAttribute() == PAD_HOLE_NOT_PLATED )
         drawInfo.m_ShowNotPlatedHole = true;
 
     drawInfo.m_DrawMode    = aDraw_mode;
@@ -373,10 +363,11 @@ void D_PAD::Draw( EDA_DRAW_PANEL* aPanel, wxDC* aDC, int aDraw_mode, const wxPoi
 
     // Display net names is restricted to pads that are on the active layer
     // in hight contrast mode display
-    if( !IsOnLayer( screen->m_Active_Layer ) && DisplayOpt.ContrastModeDisplay )
+    if( ( aDraw_mode & GR_ALLOW_HIGHCONTRAST ) &&
+        !IsOnLayer( screen->m_Active_Layer ) && DisplayOpt.ContrastModeDisplay )
         drawInfo.m_Display_netname = false;
 
-    DrawShape( &aPanel->m_ClipBox, aDC, drawInfo );
+    DrawShape( aPanel->GetClipBox(), aDC, drawInfo );
 }
 
 
@@ -499,7 +490,7 @@ void D_PAD::DrawShape( EDA_RECT* aClipBox, wxDC* aDC, PAD_DRAWINFO& aDrawInfo )
         else
             GRSetDrawMode( aDC, GR_XOR );
 
-        int hole_color = aDrawInfo.m_HoleColor;
+        EDA_COLOR_T hole_color = aDrawInfo.m_HoleColor;
 
         if( aDrawInfo. m_ShowNotPlatedHole )    // Draw a specific hole color
             hole_color = aDrawInfo.m_NPHoleColor;
@@ -549,8 +540,8 @@ void D_PAD::DrawShape( EDA_RECT* aClipBox, wxDC* aDC, PAD_DRAWINFO& aDrawInfo )
     /* Draw "No connect" ( / or \ or cross X ) if necessary. : */
     if( m_Netname.IsEmpty() && aDrawInfo.m_ShowNCMark )
     {
-        int dx0 = MIN( halfsize.x, halfsize.y );
-        int nc_color = BLUE;
+        int dx0 = std::min( halfsize.x, halfsize.y );
+        EDA_COLOR_T nc_color = BLUE;
 
         if( m_layerMask & LAYER_FRONT )    /* Draw \ */
             GRLine( aClipBox, aDC, holepos.x - dx0, holepos.y - dx0,
@@ -613,9 +604,9 @@ void D_PAD::DrawShape( EDA_RECT* aClipBox, wxDC* aDC, PAD_DRAWINFO& aDrawInfo )
     {
         ReturnStringPadName( buffer );
         int numpad_len = buffer.Len();
-        numpad_len = MAX( numpad_len, MIN_CHAR_COUNT );
+        numpad_len = std::max( numpad_len, MIN_CHAR_COUNT );
 
-        tsize = min( AreaSize.y, AreaSize.x / numpad_len );
+        tsize = std::min( AreaSize.y, AreaSize.x / numpad_len );
         #define CHAR_SIZE_MIN 5
 
         if( aDC->LogicalToDeviceXRel( tsize ) >= CHAR_SIZE_MIN ) // Not drawable when size too small.
@@ -632,8 +623,8 @@ void D_PAD::DrawShape( EDA_RECT* aClipBox, wxDC* aDC, PAD_DRAWINFO& aDrawInfo )
     if( shortname_len == 0 )
         return;
 
-    shortname_len = MAX( shortname_len, MIN_CHAR_COUNT );
-    tsize = min( AreaSize.y, AreaSize.x / shortname_len );
+    shortname_len = std::max( shortname_len, MIN_CHAR_COUNT );
+    tsize = std::min( AreaSize.y, AreaSize.x / shortname_len );
 
     if( aDC->LogicalToDeviceXRel( tsize ) >= CHAR_SIZE_MIN )  // Not drawable in size too small.
     {
@@ -767,8 +758,8 @@ void D_PAD::BuildPadPolygon( wxPoint aCoord[4], wxSize aInflateValue, int aRotat
             // left and right sides are moved by aInflateValue.x in their perpendicular direction
             // We must calculate the corresponding displacement on the horizontal axis
             // that is delta.x +- corr.x depending on the corner
-            corr.x  = wxRound( tan( angle ) * aInflateValue.x );
-            delta.x = wxRound( aInflateValue.x / cos( angle ) );
+            corr.x  = KiROUND( tan( angle ) * aInflateValue.x );
+            delta.x = KiROUND( aInflateValue.x / cos( angle ) );
 
             // Horizontal sides are moved up and down by aInflateValue.y
             delta.y = aInflateValue.y;
@@ -783,8 +774,8 @@ void D_PAD::BuildPadPolygon( wxPoint aCoord[4], wxSize aInflateValue, int aRotat
             // lower and upper sides are moved by aInflateValue.x in their perpendicular direction
             // We must calculate the corresponding displacement on the vertical axis
             // that is delta.y +- corr.y depending on the corner
-            corr.y  = wxRound( tan( angle ) * aInflateValue.y );
-            delta.y = wxRound( aInflateValue.y / cos( angle ) );
+            corr.y  = KiROUND( tan( angle ) * aInflateValue.y );
+            delta.y = KiROUND( aInflateValue.y / cos( angle ) );
 
             // Vertical sides are moved left and right by aInflateValue.x
             delta.x = aInflateValue.x;

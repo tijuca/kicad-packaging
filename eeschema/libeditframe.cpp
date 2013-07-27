@@ -1,9 +1,9 @@
 /*
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
- * Copyright (C) 2004 Jean-Pierre Charras, jaen-pierre.charras@gipsa-lab.inpg.com
- * Copyright (C) 2008-2011 Wayne Stambaugh <stambaughw@verizon.net>
- * Copyright (C) 2004-2011 KiCad Developers, see change_log.txt for contributors.
+ * Copyright (C) 2013 Jean-Pierre Charras, jp.charras at wanadoo.fr
+ * Copyright (C) 2008-2013 Wayne Stambaugh <stambaughw@verizon.net>
+ * Copyright (C) 2004-2013 KiCad Developers, see change_log.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -28,32 +28,33 @@
  * @brief LIB_EDIT_FRAME class is the component library editor frame.
  */
 
-#include "fctsys.h"
-#include "appl_wxstruct.h"
-#include "class_drawpanel.h"
-#include "confirm.h"
-#include "eda_doc.h"
-#include "gr_basic.h"
-#include "wxEeschemaStruct.h"
+#include <fctsys.h>
+#include <appl_wxstruct.h>
+#include <class_drawpanel.h>
+#include <confirm.h>
+#include <eda_doc.h>
+#include <gr_basic.h>
+#include <wxEeschemaStruct.h>
+#include <msgpanel.h>
 
-#include "general.h"
-#include "protos.h"
-#include "eeschema_id.h"
-#include "libeditframe.h"
-#include "class_library.h"
-#include "lib_polyline.h"
+#include <general.h>
+#include <protos.h>
+#include <eeschema_id.h>
+#include <libeditframe.h>
+#include <class_library.h>
+#include <lib_polyline.h>
 
-#include "kicad_device_context.h"
-#include "hotkeys.h"
+#include <kicad_device_context.h>
+#include <hotkeys.h>
 
-#include "dialogs/dialog_lib_edit_text.h"
-#include "dialogs/dialog_SVG_print.h"
-#include "dialogs/dialog_edit_component_in_lib.h"
-#include "dialogs/dialog_libedit_dimensions.h"
+#include <dialogs/dialog_lib_edit_text.h>
+#include <dialogs/dialog_edit_component_in_lib.h>
+#include <dialogs/dialog_libedit_dimensions.h>
 
-#include "dialog_helpers.h"
+#include <menus_helpers.h>
 
 #include <boost/foreach.hpp>
+
 
 
 /* Library editor wxConfig entry names. */
@@ -97,9 +98,10 @@ BEGIN_EVENT_TABLE( LIB_EDIT_FRAME, EDA_DRAW_FRAME )
     EVT_ACTIVATE( LIB_EDIT_FRAME::OnActivate )
 
     /* Main horizontal toolbar. */
-    EVT_TOOL( ID_LIBEDIT_SAVE_CURRENT_LIB, LIB_EDIT_FRAME::SaveActiveLibrary )
+    EVT_TOOL( ID_LIBEDIT_SAVE_CURRENT_LIB, LIB_EDIT_FRAME::OnSaveActiveLibrary )
     EVT_TOOL( ID_LIBEDIT_SELECT_CURRENT_LIB, LIB_EDIT_FRAME::Process_Special_Functions )
     EVT_TOOL( ID_LIBEDIT_DELETE_PART, LIB_EDIT_FRAME::DeleteOnePart )
+    EVT_TOOL( ID_TO_LIBVIEW, LIB_EDIT_FRAME::OnOpenLibraryViewer )
     EVT_TOOL( ID_LIBEDIT_NEW_PART, LIB_EDIT_FRAME::CreateNewLibraryPart )
     EVT_TOOL( ID_LIBEDIT_NEW_PART_FROM_EXISTING, LIB_EDIT_FRAME::OnCreateNewPartFromExisting )
 
@@ -128,7 +130,7 @@ BEGIN_EVENT_TABLE( LIB_EDIT_FRAME, EDA_DRAW_FRAME )
 
     /* menubar commands */
     EVT_MENU( wxID_EXIT, LIB_EDIT_FRAME::CloseWindow )
-    EVT_MENU( ID_LIBEDIT_SAVE_CURRENT_LIB_AS, LIB_EDIT_FRAME::SaveActiveLibrary )
+    EVT_MENU( ID_LIBEDIT_SAVE_CURRENT_LIB_AS, LIB_EDIT_FRAME::OnSaveActiveLibrary )
     EVT_MENU( ID_LIBEDIT_GEN_PNG_FILE, LIB_EDIT_FRAME::OnPlotCurrentComponent )
     EVT_MENU( ID_LIBEDIT_GEN_SVG_FILE, LIB_EDIT_FRAME::OnPlotCurrentComponent )
     EVT_MENU( wxID_HELP, EDA_DRAW_FRAME::GetKicadHelp )
@@ -183,25 +185,28 @@ BEGIN_EVENT_TABLE( LIB_EDIT_FRAME, EDA_DRAW_FRAME )
                          LIB_EDIT_FRAME::OnUpdateEditingPart )
 END_EVENT_TABLE()
 
+#define LIB_EDIT_FRAME_NAME wxT( "LibeditFrame" )
 
 LIB_EDIT_FRAME::LIB_EDIT_FRAME( SCH_EDIT_FRAME* aParent,
                                 const wxString& title,
                                 const wxPoint&  pos,
                                 const wxSize&   size,
                                 long            style ) :
-    EDA_DRAW_FRAME( aParent, LIBEDITOR_FRAME, title, pos, size, style )
+    SCH_BASE_FRAME( aParent, LIBEDITOR_FRAME_TYPE, title, pos, size,
+                    style, GetLibEditFrameName() )
 {
     wxASSERT( aParent );
 
-    m_FrameName  = wxT( "LibeditFrame" );
-    m_Draw_Axis  = true;            // true to draw axis
-    m_ConfigPath = wxT( "LibraryEditor" );
+    m_FrameName  = GetLibEditFrameName();
+    m_showAxis   = true;            // true to draw axis
+    m_configPath = wxT( "LibraryEditor" );
     SetShowDeMorgan( false );
     m_drawSpecificConvert = true;
     m_drawSpecificUnit    = false;
     m_tempCopyComponent   = NULL;
     m_HotkeysZoomAndGridList = s_Libedit_Hokeys_Descr;
     m_editPinsPerPartOrConvert = false;
+    m_LastGridSizeId = ID_POPUP_GRID_LEVEL_50 - ID_POPUP_GRID_LEVEL_1000;
 
     wxIcon icon;
 
@@ -210,21 +215,21 @@ LIB_EDIT_FRAME::LIB_EDIT_FRAME( SCH_EDIT_FRAME* aParent,
     SetIcon( icon );
 
     SetScreen( new SCH_SCREEN() );
+
     GetScreen()->m_Center = true;
+
     GetScreen()->SetCrossHairPosition( wxPoint( 0, 0 ) );
 
     LoadSettings();
 
-    // Initialize grid id to a default value if not found in config or bad:
-    if( (m_LastGridSizeId <= 0)
-       || ( m_LastGridSizeId < (ID_POPUP_GRID_USER - ID_POPUP_GRID_LEVEL_1000) ) )
-        m_LastGridSizeId = ID_POPUP_GRID_LEVEL_50 - ID_POPUP_GRID_LEVEL_1000;
-
     SetSize( m_FramePos.x, m_FramePos.y, m_FrameSize.x, m_FrameSize.y );
+
+    // Initialize grid id to the default value 50 mils:
+    m_LastGridSizeId = ID_POPUP_GRID_LEVEL_50 - ID_POPUP_GRID_LEVEL_1000;
     GetScreen()->SetGrid( ID_POPUP_GRID_LEVEL_1000 + m_LastGridSizeId  );
 
-    if( DrawPanel )
-        DrawPanel->m_Block_Enable = true;
+    if( m_canvas )
+        m_canvas->SetEnableBlockCommands( true );
 
     EnsureActiveLibExists();
     ReCreateMenuBar();
@@ -247,19 +252,19 @@ LIB_EDIT_FRAME::LIB_EDIT_FRAME( SCH_EDIT_FRAME* aParent,
     EDA_PANEINFO mesg;
     mesg.MessageToolbarPane();
 
-    m_auimgr.AddPane( m_HToolBar,
-                      wxAuiPaneInfo( horiz ).Name( wxT( "m_HToolBar" ) ).Top().Row( 0 ) );
+    m_auimgr.AddPane( m_mainToolBar,
+                      wxAuiPaneInfo( horiz ).Name( wxT( "m_mainToolBar" ) ).Top().Row( 0 ) );
 
-    m_auimgr.AddPane( m_VToolBar,
+    m_auimgr.AddPane( m_drawToolBar,
                       wxAuiPaneInfo( vert ).Name( wxT( "m_VToolBar" ) ).Right() );
 
-    m_auimgr.AddPane( m_OptionsToolBar,
-                      wxAuiPaneInfo( vert ).Name( wxT( "m_OptionsToolBar" ) ).Left() );
+    m_auimgr.AddPane( m_optionsToolBar,
+                      wxAuiPaneInfo( vert ).Name( wxT( "m_optionsToolBar" ) ).Left() );
 
-    m_auimgr.AddPane( DrawPanel,
+    m_auimgr.AddPane( m_canvas,
                       wxAuiPaneInfo().Name( wxT( "DrawFrame" ) ).CentrePane() );
 
-    m_auimgr.AddPane( MsgPanel,
+    m_auimgr.AddPane( m_messagePanel,
                       wxAuiPaneInfo( mesg ).Name( wxT( "MsgPanel" ) ).Bottom().Layer(10) );
 
     m_auimgr.Update();
@@ -273,9 +278,6 @@ LIB_EDIT_FRAME::LIB_EDIT_FRAME( SCH_EDIT_FRAME* aParent,
 
 LIB_EDIT_FRAME::~LIB_EDIT_FRAME()
 {
-    SCH_EDIT_FRAME* frame = (SCH_EDIT_FRAME*) wxGetApp().GetTopWindow();
-
-    frame->m_LibeditFrame = NULL;
     m_drawItem = m_lastDrawItem = NULL;
 
     if ( m_tempCopyComponent )
@@ -284,6 +286,23 @@ LIB_EDIT_FRAME::~LIB_EDIT_FRAME()
     m_tempCopyComponent = NULL;
 }
 
+/**
+ * Function GetLibEditFrameName (static)
+ * @return the frame name used when creating the frame
+ * used to get a reference to this frame, if exists
+ */
+const wxChar* LIB_EDIT_FRAME::GetLibEditFrameName()
+{
+    return LIB_EDIT_FRAME_NAME;
+}
+
+/* return a reference to the current opened Library editor
+ * or NULL if no Library editor currently opened
+ */
+LIB_EDIT_FRAME* LIB_EDIT_FRAME::GetActiveLibraryEditor()
+{
+    return (LIB_EDIT_FRAME*) wxWindow::FindWindowByName(GetLibEditFrameName());
+}
 
 void LIB_EDIT_FRAME::LoadSettings()
 {
@@ -291,11 +310,11 @@ void LIB_EDIT_FRAME::LoadSettings()
 
     EDA_DRAW_FRAME::LoadSettings();
 
-    wxConfigPathChanger cpc( wxGetApp().m_EDA_Config, m_ConfigPath );
-    cfg = wxGetApp().m_EDA_Config;
+    wxConfigPathChanger cpc( wxGetApp().GetSettings(), m_configPath );
+    cfg = wxGetApp().GetSettings();
 
-    m_LastLibExportPath = cfg->Read( lastLibExportPathEntry, ::wxGetCwd() );
-    m_LastLibImportPath = cfg->Read( lastLibImportPathEntry, ::wxGetCwd() );
+    m_lastLibExportPath = cfg->Read( lastLibExportPathEntry, ::wxGetCwd() );
+    m_lastLibImportPath = cfg->Read( lastLibImportPathEntry, ::wxGetCwd() );
 }
 
 
@@ -312,11 +331,11 @@ void LIB_EDIT_FRAME::SaveSettings()
 
     EDA_DRAW_FRAME::SaveSettings();
 
-    wxConfigPathChanger cpc( wxGetApp().m_EDA_Config, m_ConfigPath );
-    cfg = wxGetApp().m_EDA_Config;
+    wxConfigPathChanger cpc( wxGetApp().GetSettings(), m_configPath );
+    cfg = wxGetApp().GetSettings();
 
-    cfg->Write( lastLibExportPathEntry, m_LastLibExportPath );
-    cfg->Write( lastLibImportPathEntry, m_LastLibImportPath );
+    cfg->Write( lastLibExportPathEntry, m_lastLibExportPath );
+    cfg->Write( lastLibImportPathEntry, m_lastLibImportPath );
 }
 
 
@@ -324,15 +343,25 @@ void LIB_EDIT_FRAME::OnCloseWindow( wxCloseEvent& Event )
 {
     if( GetScreen()->IsModify() )
     {
-        if( !IsOK( this, _( "Component was modified!\nDiscard changes?" ) ) )
+        int ii = DisplayExitDialog( this, _( "Save the changes in the library before closing?" ) );
+
+        switch( ii )
         {
+        case wxID_NO:
+            break;
+
+        case wxID_OK:
+        case wxID_YES:
+            if ( this->SaveActiveLibrary( false ) )
+                break;
+
+            // fall through: cancel the close because of an error
+
+        case wxID_CANCEL:
             Event.Veto();
             return;
         }
-        else
-        {
-            GetScreen()->ClrModify();
-        }
+        GetScreen()->ClrModify();
     }
 
     BOOST_FOREACH( const CMP_LIBRARY &lib, CMP_LIBRARY::GetLibraryList() )
@@ -377,19 +406,22 @@ double LIB_EDIT_FRAME::BestZoom()
     }
     else
     {
-        dx = GetScreen()->m_CurrentSheetDesc->m_Size.x;
-        dy = GetScreen()->m_CurrentSheetDesc->m_Size.y;
+        const PAGE_INFO& pageInfo = GetScreen()->GetPageSettings();
+
+        dx = pageInfo.GetSizeIU().x;
+        dy = pageInfo.GetSizeIU().y;
+
         GetScreen()->SetScrollCenterPosition( wxPoint( 0, 0 ) );
     }
 
-    size = DrawPanel->GetClientSize();
+    size = m_canvas->GetClientSize();
 
     // Reserve a 10% margin around component bounding box.
     double margin_scale_factor = 0.8;
     double zx =(double) dx / ( margin_scale_factor * (double)size.x );
     double zy = (double) dy / ( margin_scale_factor * (double)size.y );
 
-    double bestzoom = MAX( zx, zy );
+    double bestzoom = std::max( zx, zy );
 
     // keep it >= minimal existing zoom (can happen for very small components
     // for instance when starting a new component
@@ -402,35 +434,35 @@ double LIB_EDIT_FRAME::BestZoom()
 
 void LIB_EDIT_FRAME::UpdateAliasSelectList()
 {
-    if( m_SelAliasBox == NULL )
+    if( m_aliasSelectBox == NULL )
         return;
 
-    m_SelAliasBox->Clear();
+    m_aliasSelectBox->Clear();
 
     if( m_component == NULL )
         return;
 
-    m_SelAliasBox->Append( m_component->GetAliasNames() );
-    m_SelAliasBox->SetSelection( 0 );
+    m_aliasSelectBox->Append( m_component->GetAliasNames() );
+    m_aliasSelectBox->SetSelection( 0 );
 
-    int index = m_SelAliasBox->FindString( m_aliasName );
+    int index = m_aliasSelectBox->FindString( m_aliasName );
 
     if( index != wxNOT_FOUND )
-        m_SelAliasBox->SetSelection( index );
+        m_aliasSelectBox->SetSelection( index );
 }
 
 
 void LIB_EDIT_FRAME::UpdatePartSelectList()
 {
-    if( m_SelpartBox == NULL )
+    if( m_partSelectBox == NULL )
         return;
 
-    if( m_SelpartBox->GetCount() != 0 )
-        m_SelpartBox->Clear();
+    if( m_partSelectBox->GetCount() != 0 )
+        m_partSelectBox->Clear();
 
     if( m_component == NULL || m_component->GetPartCount() <= 1 )
     {
-        m_SelpartBox->Append( wxEmptyString );
+        m_partSelectBox->Append( wxEmptyString );
     }
     else
     {
@@ -438,11 +470,11 @@ void LIB_EDIT_FRAME::UpdatePartSelectList()
         {
             wxString msg;
             msg.Printf( _( "Part %c" ), 'A' + i );
-            m_SelpartBox->Append( msg );
+            m_partSelectBox->Append( msg );
         }
     }
 
-    m_SelpartBox->SetSelection( ( m_unit > 0 ) ? m_unit - 1 : 0 );
+    m_partSelectBox->SetSelection( ( m_unit > 0 ) ? m_unit - 1 : 0 );
 }
 
 
@@ -450,7 +482,7 @@ void LIB_EDIT_FRAME::OnUpdateEditingPart( wxUpdateUIEvent& aEvent )
 {
     aEvent.Enable( m_component != NULL );
 
-    if( m_component != NULL && aEvent.GetEventObject() == m_VToolBar )
+    if( m_component != NULL && aEvent.GetEventObject() == m_drawToolBar )
         aEvent.Check( GetToolId() == aEvent.GetId() );
 }
 
@@ -510,19 +542,19 @@ void LIB_EDIT_FRAME::OnUpdatePinByPin( wxUpdateUIEvent& event )
 
 void LIB_EDIT_FRAME::OnUpdatePartNumber( wxUpdateUIEvent& event )
 {
-    if( m_SelpartBox == NULL )
+    if( m_partSelectBox == NULL )
         return;
 
     /* Using the typical event.Enable() call doesn't seem to work with wxGTK
      * so use the pointer to alias combobox to directly enable or disable.
      */
-    m_SelpartBox->Enable( m_component && m_component->GetPartCount() > 1 );
+    m_partSelectBox->Enable( m_component && m_component->GetPartCount() > 1 );
 }
 
 
 void LIB_EDIT_FRAME::OnUpdateDeMorganNormal( wxUpdateUIEvent& event )
 {
-    if( m_HToolBar == NULL )
+    if( m_mainToolBar == NULL )
         return;
 
     event.Enable( GetShowDeMorgan() || ( m_component && m_component->HasConversion() ) );
@@ -532,7 +564,7 @@ void LIB_EDIT_FRAME::OnUpdateDeMorganNormal( wxUpdateUIEvent& event )
 
 void LIB_EDIT_FRAME::OnUpdateDeMorganConvert( wxUpdateUIEvent& event )
 {
-    if( m_HToolBar == NULL )
+    if( m_mainToolBar == NULL )
         return;
 
     event.Enable( GetShowDeMorgan() || ( m_component && m_component->HasConversion() ) );
@@ -542,27 +574,27 @@ void LIB_EDIT_FRAME::OnUpdateDeMorganConvert( wxUpdateUIEvent& event )
 
 void LIB_EDIT_FRAME::OnUpdateSelectAlias( wxUpdateUIEvent& event )
 {
-    if( m_SelAliasBox == NULL )
+    if( m_aliasSelectBox == NULL )
         return;
 
     /* Using the typical event.Enable() call doesn't seem to work with wxGTK
      * so use the pointer to alias combobox to directly enable or disable.
      */
-    m_SelAliasBox->Enable( m_component != NULL && m_component->GetAliasCount() > 1 );
+    m_aliasSelectBox->Enable( m_component != NULL && m_component->GetAliasCount() > 1 );
 }
 
 
 void LIB_EDIT_FRAME::OnSelectAlias( wxCommandEvent& event )
 {
-    if( m_SelAliasBox == NULL
-        || ( m_SelAliasBox->GetStringSelection().CmpNoCase( m_aliasName ) == 0)  )
+    if( m_aliasSelectBox == NULL
+        || ( m_aliasSelectBox->GetStringSelection().CmpNoCase( m_aliasName ) == 0)  )
         return;
 
     m_lastDrawItem = NULL;
-    m_aliasName = m_SelAliasBox->GetStringSelection();
+    m_aliasName = m_aliasSelectBox->GetStringSelection();
 
     DisplayCmpDoc();
-    DrawPanel->Refresh();
+    m_canvas->Refresh();
 }
 
 
@@ -575,7 +607,7 @@ void LIB_EDIT_FRAME::OnSelectPart( wxCommandEvent& event )
 
     m_lastDrawItem = NULL;
     m_unit = i + 1;
-    DrawPanel->Refresh();
+    m_canvas->Refresh();
     DisplayCmpDoc();
 }
 
@@ -599,7 +631,7 @@ void LIB_EDIT_FRAME::OnViewEntryDoc( wxCommandEvent& event )
 
 void LIB_EDIT_FRAME::OnSelectBodyStyle( wxCommandEvent& event )
 {
-    DrawPanel->EndMouseCapture( ID_NO_TOOL_SELECTED, DrawPanel->GetDefaultCursor() );
+    m_canvas->EndMouseCapture( ID_NO_TOOL_SELECTED, m_canvas->GetDefaultCursor() );
 
     if( event.GetId() == ID_DE_MORGAN_NORMAL_BUTT )
         m_convert = 1;
@@ -607,7 +639,7 @@ void LIB_EDIT_FRAME::OnSelectBodyStyle( wxCommandEvent& event )
         m_convert = 2;
 
     m_lastDrawItem = NULL;
-    DrawPanel->Refresh();
+    m_canvas->Refresh();
 }
 
 
@@ -616,7 +648,7 @@ void LIB_EDIT_FRAME::Process_Special_Functions( wxCommandEvent& event )
     int     id = event.GetId();
     wxPoint pos;
 
-    DrawPanel->m_IgnoreMouseEvents = true;
+    m_canvas->SetIgnoreMouseEvents( true );
 
     wxGetMousePosition( &pos.x, &pos.y );
     pos.y += 20;
@@ -642,23 +674,23 @@ void LIB_EDIT_FRAME::Process_Special_Functions( wxCommandEvent& event )
         break;
 
     case ID_POPUP_LIBEDIT_CANCEL_EDITING:
-        if( DrawPanel->IsMouseCaptured() )
-            DrawPanel->EndMouseCapture();
+        if( m_canvas->IsMouseCaptured() )
+            m_canvas->EndMouseCapture();
         else
-            DrawPanel->EndMouseCapture( ID_NO_TOOL_SELECTED, DrawPanel->GetDefaultCursor() );
+            m_canvas->EndMouseCapture( ID_NO_TOOL_SELECTED, m_canvas->GetDefaultCursor() );
         break;
 
     case ID_POPUP_LIBEDIT_DELETE_ITEM:
-        DrawPanel->EndMouseCapture();
+        m_canvas->EndMouseCapture();
         break;
 
     default:
-        DrawPanel->EndMouseCapture( ID_NO_TOOL_SELECTED, DrawPanel->GetDefaultCursor(),
+        m_canvas->EndMouseCapture( ID_NO_TOOL_SELECTED, m_canvas->GetDefaultCursor(),
                                     wxEmptyString );
         break;
     }
 
-    INSTALL_UNBUFFERED_DC( dc, DrawPanel );
+    INSTALL_UNBUFFERED_DC( dc, m_canvas );
 
     switch( id )
     {
@@ -674,11 +706,11 @@ void LIB_EDIT_FRAME::Process_Special_Functions( wxCommandEvent& event )
         break;
 
     case ID_LIBEDIT_EDIT_PIN_BY_PIN:
-        m_editPinsPerPartOrConvert = m_HToolBar->GetToolState( ID_LIBEDIT_EDIT_PIN_BY_PIN );
+        m_editPinsPerPartOrConvert = m_mainToolBar->GetToolToggled( ID_LIBEDIT_EDIT_PIN_BY_PIN );
         break;
 
     case ID_POPUP_LIBEDIT_END_CREATE_ITEM:
-        DrawPanel->MoveCursorToCrossHair();
+        m_canvas->MoveCursorToCrossHair();
         if( m_drawItem )
         {
             EndDrawGraphicItem( &dc );
@@ -688,7 +720,7 @@ void LIB_EDIT_FRAME::Process_Special_Functions( wxCommandEvent& event )
     case ID_POPUP_LIBEDIT_BODY_EDIT_ITEM:
         if( m_drawItem )
         {
-            DrawPanel->CrossHairOff( &dc );
+            m_canvas->CrossHairOff( &dc );
 
             switch( m_drawItem->Type() )
             {
@@ -707,7 +739,7 @@ void LIB_EDIT_FRAME::Process_Special_Functions( wxCommandEvent& event )
                 ;
             }
 
-            DrawPanel->CrossHairOn( &dc );
+            m_canvas->CrossHairOn( &dc );
         }
         break;
 
@@ -717,12 +749,12 @@ void LIB_EDIT_FRAME::Process_Special_Functions( wxCommandEvent& event )
         if( m_drawItem == NULL )
             break;
 
-        DrawPanel->MoveCursorToCrossHair();
+        m_canvas->MoveCursorToCrossHair();
         int oldFlags = m_drawItem->GetFlags();
         m_drawItem->ClearFlags();
-        m_drawItem->Draw( DrawPanel, &dc, wxPoint( 0, 0 ), -1, g_XorMode, NULL, DefaultTransform );
+        m_drawItem->Draw( m_canvas, &dc, wxPoint( 0, 0 ), UNSPECIFIED_COLOR, g_XorMode, NULL, DefaultTransform );
         ( (LIB_POLYLINE*) m_drawItem )->DeleteSegment( GetScreen()->GetCrossHairPosition( true ) );
-        m_drawItem->Draw( DrawPanel, &dc, wxPoint( 0, 0 ), -1, g_XorMode, NULL, DefaultTransform );
+        m_drawItem->Draw( m_canvas, &dc, wxPoint( 0, 0 ), UNSPECIFIED_COLOR, g_XorMode, NULL, DefaultTransform );
         m_drawItem->SetFlags( oldFlags );
         m_lastDrawItem = NULL;
         break;
@@ -749,7 +781,7 @@ void LIB_EDIT_FRAME::Process_Special_Functions( wxCommandEvent& event )
         if( m_drawItem == NULL )
             break;
 
-        DrawPanel->MoveCursorToCrossHair();
+        m_canvas->MoveCursorToCrossHair();
         if( m_drawItem->Type() == LIB_RECTANGLE_T
             || m_drawItem->Type() == LIB_CIRCLE_T
             || m_drawItem->Type() == LIB_POLYLINE_T
@@ -765,15 +797,15 @@ void LIB_EDIT_FRAME::Process_Special_Functions( wxCommandEvent& event )
         if( m_drawItem == NULL )
             break;
 
-        DrawPanel->CrossHairOff( &dc );
+        m_canvas->CrossHairOff( &dc );
 
         if( m_drawItem->Type() == LIB_FIELD_T )
         {
-            EditField( &dc, (LIB_FIELD*) m_drawItem );
+            EditField( (LIB_FIELD*) m_drawItem );
         }
 
-        DrawPanel->MoveCursorToCrossHair();
-        DrawPanel->CrossHairOn( &dc );
+        m_canvas->MoveCursorToCrossHair();
+        m_canvas->CrossHairOn( &dc );
         break;
 
     case ID_POPUP_LIBEDIT_PIN_GLOBAL_CHANGE_PINSIZE_ITEM:
@@ -783,61 +815,62 @@ void LIB_EDIT_FRAME::Process_Special_Functions( wxCommandEvent& event )
             break;
 
         SaveCopyInUndoList( m_component );
-        GlobalSetPins( &dc, (LIB_PIN*) m_drawItem, id );
-        DrawPanel->MoveCursorToCrossHair();
+        GlobalSetPins( (LIB_PIN*) m_drawItem, id );
+        m_canvas->MoveCursorToCrossHair();
+        m_canvas->Refresh();
         break;
 
     case ID_POPUP_ZOOM_BLOCK:
-        DrawPanel->m_AutoPAN_Request = false;
-        GetScreen()->m_BlockLocate.m_Command = BLOCK_ZOOM;
+        m_canvas->SetAutoPanRequest( false );
+        GetScreen()->m_BlockLocate.SetCommand( BLOCK_ZOOM );
         HandleBlockEnd( &dc );
         break;
 
     case ID_POPUP_DELETE_BLOCK:
-        DrawPanel->m_AutoPAN_Request = false;
-        GetScreen()->m_BlockLocate.m_Command = BLOCK_DELETE;
-        DrawPanel->MoveCursorToCrossHair();
+        m_canvas->SetAutoPanRequest( false );
+        GetScreen()->m_BlockLocate.SetCommand( BLOCK_DELETE );
+        m_canvas->MoveCursorToCrossHair();
         HandleBlockEnd( &dc );
         break;
 
     case ID_POPUP_COPY_BLOCK:
-        DrawPanel->m_AutoPAN_Request = false;
-        GetScreen()->m_BlockLocate.m_Command = BLOCK_COPY;
-        DrawPanel->MoveCursorToCrossHair();
+        m_canvas->SetAutoPanRequest( false );
+        GetScreen()->m_BlockLocate.SetCommand( BLOCK_COPY );
+        m_canvas->MoveCursorToCrossHair();
         HandleBlockPlace( &dc );
         break;
 
     case ID_POPUP_SELECT_ITEMS_BLOCK:
-        DrawPanel->m_AutoPAN_Request = false;
-        GetScreen()->m_BlockLocate.m_Command = BLOCK_SELECT_ITEMS_ONLY;
-        DrawPanel->MoveCursorToCrossHair();
+        m_canvas->SetAutoPanRequest( false );
+        GetScreen()->m_BlockLocate.SetCommand( BLOCK_SELECT_ITEMS_ONLY );
+        m_canvas->MoveCursorToCrossHair();
         HandleBlockEnd( &dc );
         break;
 
     case ID_POPUP_MIRROR_Y_BLOCK:
-        DrawPanel->m_AutoPAN_Request = false;
-        GetScreen()->m_BlockLocate.m_Command = BLOCK_MIRROR_Y;
-        DrawPanel->MoveCursorToCrossHair();
+        m_canvas->SetAutoPanRequest( false );
+        GetScreen()->m_BlockLocate.SetCommand( BLOCK_MIRROR_Y );
+        m_canvas->MoveCursorToCrossHair();
         HandleBlockPlace( &dc );
         break;
 
     case ID_POPUP_MIRROR_X_BLOCK:
-        DrawPanel->m_AutoPAN_Request = false;
-        GetScreen()->m_BlockLocate.m_Command = BLOCK_MIRROR_X;
-        DrawPanel->MoveCursorToCrossHair();
+        m_canvas->SetAutoPanRequest( false );
+        GetScreen()->m_BlockLocate.SetCommand( BLOCK_MIRROR_X );
+        m_canvas->MoveCursorToCrossHair();
         HandleBlockPlace( &dc );
         break;
 
     case ID_POPUP_ROTATE_BLOCK:
-        DrawPanel->m_AutoPAN_Request = false;
-        GetScreen()->m_BlockLocate.m_Command = BLOCK_ROTATE;
-        DrawPanel->MoveCursorToCrossHair();
+        m_canvas->SetAutoPanRequest( false );
+        GetScreen()->m_BlockLocate.SetCommand( BLOCK_ROTATE );
+        m_canvas->MoveCursorToCrossHair();
         HandleBlockPlace( &dc );
         break;
 
     case ID_POPUP_PLACE_BLOCK:
-        DrawPanel->m_AutoPAN_Request = false;
-        DrawPanel->MoveCursorToCrossHair();
+        m_canvas->SetAutoPanRequest( false );
+        m_canvas->MoveCursorToCrossHair();
         HandleBlockPlace( &dc );
         break;
 
@@ -846,7 +879,7 @@ void LIB_EDIT_FRAME::Process_Special_Functions( wxCommandEvent& event )
         break;
     }
 
-    DrawPanel->m_IgnoreMouseEvents = false;
+    m_canvas->SetIgnoreMouseEvents( false );
 
     if( GetToolId() == ID_NO_TOOL_SELECTED )
         m_lastDrawItem = NULL;
@@ -920,29 +953,24 @@ void LIB_EDIT_FRAME::ClearTempCopyComponent()
 }
 
 
-void LIB_EDIT_FRAME::SVG_Print_Component( const wxString& FullFileName )
-{
-    DIALOG_SVG_PRINT::DrawSVGPage( this, FullFileName, GetScreen() );
-}
-
 
 void LIB_EDIT_FRAME::EditSymbolText( wxDC* DC, LIB_ITEM* DrawItem )
 {
     if ( ( DrawItem == NULL ) || ( DrawItem->Type() != LIB_TEXT_T ) )
         return;
 
-    /* Deleting old text. */
+    // Deleting old text
     if( DC && !DrawItem->InEditMode() )
-        DrawItem->Draw( DrawPanel, DC, wxPoint( 0, 0 ), -1, g_XorMode, NULL, DefaultTransform );
+        DrawItem->Draw( m_canvas, DC, wxPoint( 0, 0 ), UNSPECIFIED_COLOR, g_XorMode, NULL, DefaultTransform );
 
     DIALOG_LIB_EDIT_TEXT* frame = new DIALOG_LIB_EDIT_TEXT( this, (LIB_TEXT*) DrawItem );
     frame->ShowModal();
     frame->Destroy();
     OnModify();
 
-    /* Display new text. */
+    // Display new text
     if( DC && !DrawItem->InEditMode() )
-        DrawItem->Draw( DrawPanel, DC, wxPoint( 0, 0 ), -1, GR_DEFAULT_DRAWMODE, NULL,
+        DrawItem->Draw( m_canvas, DC, wxPoint( 0, 0 ), UNSPECIFIED_COLOR, GR_DEFAULT_DRAWMODE, NULL,
                         DefaultTransform );
 }
 
@@ -968,7 +996,7 @@ void LIB_EDIT_FRAME::OnEditComponentProperties( wxCommandEvent& event )
     DisplayLibInfos();
     DisplayCmpDoc();
     OnModify();
-    DrawPanel->Refresh();
+    m_canvas->Refresh();
 }
 
 
@@ -984,11 +1012,11 @@ void LIB_EDIT_FRAME::OnCreateNewPartFromExisting( wxCommandEvent& event )
     wxCHECK_RET( m_component != NULL,
                  wxT( "Cannot create new part from non-existent current part." ) );
 
-    INSTALL_UNBUFFERED_DC( dc, DrawPanel );
-    DrawPanel->CrossHairOff( &dc );
-    EditField( &dc, &m_component->GetValueField() );
-    DrawPanel->MoveCursorToCrossHair();
-    DrawPanel->CrossHairOn( &dc );
+    INSTALL_UNBUFFERED_DC( dc, m_canvas );
+    m_canvas->CrossHairOff( &dc );
+    EditField( &m_component->GetValueField() );
+    m_canvas->MoveCursorToCrossHair();
+    m_canvas->CrossHairOn( &dc );
 }
 
 void LIB_EDIT_FRAME::OnSelectTool( wxCommandEvent& aEvent )
@@ -998,13 +1026,13 @@ void LIB_EDIT_FRAME::OnSelectTool( wxCommandEvent& aEvent )
     if( GetToolId() == ID_NO_TOOL_SELECTED )
         m_lastDrawItem = NULL;
 
-    DrawPanel->EndMouseCapture( ID_NO_TOOL_SELECTED, DrawPanel->GetDefaultCursor(),
+    m_canvas->EndMouseCapture( ID_NO_TOOL_SELECTED, m_canvas->GetDefaultCursor(),
                                 wxEmptyString );
 
     switch( id )
     {
     case ID_NO_TOOL_SELECTED:
-        SetToolID( id, DrawPanel->GetDefaultCursor(), wxEmptyString );
+        SetToolID( id, m_canvas->GetDefaultCursor(), wxEmptyString );
         break;
 
     case ID_LIBEDIT_PIN_BUTT:
@@ -1018,7 +1046,7 @@ void LIB_EDIT_FRAME::OnSelectTool( wxCommandEvent& aEvent )
             wxCommandEvent cmd( wxEVT_COMMAND_MENU_SELECTED );
             cmd.SetId( ID_LIBEDIT_EDIT_PIN );
             GetEventHandler()->ProcessEvent( cmd );
-            SetToolID( ID_NO_TOOL_SELECTED, DrawPanel->GetDefaultCursor(), wxEmptyString );
+            SetToolID( ID_NO_TOOL_SELECTED, m_canvas->GetDefaultCursor(), wxEmptyString );
         }
         break;
 
@@ -1047,15 +1075,15 @@ void LIB_EDIT_FRAME::OnSelectTool( wxCommandEvent& aEvent )
         break;
 
     case ID_LIBEDIT_IMPORT_BODY_BUTT:
-        SetToolID( id, DrawPanel->GetDefaultCursor(), _( "Import" ) );
+        SetToolID( id, m_canvas->GetDefaultCursor(), _( "Import" ) );
         LoadOneSymbol();
-        SetToolID( ID_NO_TOOL_SELECTED, DrawPanel->GetDefaultCursor(), wxEmptyString );
+        SetToolID( ID_NO_TOOL_SELECTED, m_canvas->GetDefaultCursor(), wxEmptyString );
         break;
 
     case ID_LIBEDIT_EXPORT_BODY_BUTT:
-        SetToolID( id, DrawPanel->GetDefaultCursor(), _( "Export" ) );
+        SetToolID( id, m_canvas->GetDefaultCursor(), _( "Export" ) );
         SaveOneSymbol();
-        SetToolID( ID_NO_TOOL_SELECTED, DrawPanel->GetDefaultCursor(), wxEmptyString );
+        SetToolID( ID_NO_TOOL_SELECTED, m_canvas->GetDefaultCursor(), wxEmptyString );
         break;
 
     case ID_LIBEDIT_DELETE_ITEM_BUTT:
@@ -1072,7 +1100,7 @@ void LIB_EDIT_FRAME::OnSelectTool( wxCommandEvent& aEvent )
         break;
     }
 
-    DrawPanel->m_IgnoreMouseEvents = false;
+    m_canvas->SetIgnoreMouseEvents( false );
 }
 
 
@@ -1093,7 +1121,7 @@ void LIB_EDIT_FRAME::OnRotateItem( wxCommandEvent& aEvent )
     if( !m_drawItem->InEditMode() )
         m_drawItem->ClearFlags();
 
-    DrawPanel->Refresh();
+    m_canvas->Refresh();
 
     if( GetToolId() == ID_NO_TOOL_SELECTED )
         m_lastDrawItem = NULL;
@@ -1160,17 +1188,23 @@ LIB_ITEM* LIB_EDIT_FRAME::locateItem( const wxPoint& aPosition, const KICAD_T aF
 
             // Set to NULL in case user aborts the clarification context menu.
             m_drawItem = NULL;
-            DrawPanel->m_AbortRequest = true;   // Changed to false if an item is selected
+            m_canvas->SetAbortRequest( true );   // Changed to false if an item is selected
             PopupMenu( &selectMenu );
-            DrawPanel->MoveCursorToCrossHair();
+            m_canvas->MoveCursorToCrossHair();
             item = m_drawItem;
         }
     }
 
     if( item )
-        item->DisplayInfo( this );
+    {
+        MSG_PANEL_ITEMS items;
+        item->GetMsgPanelInfo( items );
+        SetMsgPanel( items );
+    }
     else
+    {
         ClearMsgPanel();
+    }
 
     return item;
 }
@@ -1180,7 +1214,7 @@ void LIB_EDIT_FRAME::deleteItem( wxDC* aDC )
 {
     wxCHECK_RET( m_drawItem != NULL, wxT( "No drawing item selected to delete." ) );
 
-    DrawPanel->CrossHairOff( aDC );
+    m_canvas->CrossHairOff( aDC );
     SaveCopyInUndoList( m_component );
 
     if( m_drawItem->Type() == LIB_PIN_T )
@@ -1188,7 +1222,7 @@ void LIB_EDIT_FRAME::deleteItem( wxDC* aDC )
         LIB_PIN* pin = (LIB_PIN*) m_drawItem;
         wxPoint pos = pin->GetPosition();
 
-        m_component->RemoveDrawItem( (LIB_ITEM*) pin, DrawPanel, aDC );
+        m_component->RemoveDrawItem( (LIB_ITEM*) pin, m_canvas, aDC );
 
         if( SynchronizePins() )
         {
@@ -1206,25 +1240,25 @@ void LIB_EDIT_FRAME::deleteItem( wxDC* aDC )
             }
         }
 
-        DrawPanel->Refresh();
+        m_canvas->Refresh();
     }
     else
     {
-        if( DrawPanel->IsMouseCaptured() )
+        if( m_canvas->IsMouseCaptured() )
         {
-            DrawPanel->m_endMouseCaptureCallback( DrawPanel, aDC );
+            m_canvas->CallEndMouseCapture( aDC );
         }
         else
         {
-            m_component->RemoveDrawItem( m_drawItem, DrawPanel, aDC );
-            DrawPanel->Refresh();
+            m_component->RemoveDrawItem( m_drawItem, m_canvas, aDC );
+            m_canvas->Refresh();
         }
     }
 
     m_drawItem = NULL;
     m_lastDrawItem = NULL;
     OnModify();
-    DrawPanel->CrossHairOn( aDC );
+    m_canvas->CrossHairOn( aDC );
 }
 
 
@@ -1237,7 +1271,7 @@ void LIB_EDIT_FRAME::OnSelectItem( wxCommandEvent& aEvent )
         && (index >= 0 && index < m_collectedItems.GetCount()) )
     {
         LIB_ITEM* item = m_collectedItems[index];
-        DrawPanel->m_AbortRequest = false;
+        m_canvas->SetAbortRequest( false );
         m_drawItem = item;
     }
 }

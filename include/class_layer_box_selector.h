@@ -1,11 +1,11 @@
 #ifndef CLASS_LAYER_BOX_SELECTOR_H
 #define CLASS_LAYER_BOX_SELECTOR_H 1
 
-#include "hotkeys_basic.h"
+#include <hotkeys_basic.h>
 #include <wx/bmpcbox.h>
 
 
-class EDA_TOOLBAR;
+class wxAuiToolBar;
 
 
 /* class to display a layer list.
@@ -14,20 +14,37 @@ class EDA_TOOLBAR;
 
 class LAYER_BOX_SELECTOR : public wxBitmapComboBox
 {
-private:
+protected:
     bool m_layerhotkeys;
     bool m_layerorder;
+
 public:
-    LAYER_BOX_SELECTOR( EDA_TOOLBAR* parent, wxWindowID id,
+    // Hotkey Info
+    struct EDA_HOTKEY_CONFIG* m_hotkeys;
+
+public:
+    LAYER_BOX_SELECTOR( wxAuiToolBar* parent, wxWindowID id,
                         const wxPoint& pos = wxDefaultPosition,
                         const wxSize& size = wxDefaultSize,
                         int n = 0, const wxString choices[] = NULL );
 
-    LAYER_BOX_SELECTOR( EDA_TOOLBAR* parent, wxWindowID id,
+    LAYER_BOX_SELECTOR( wxAuiToolBar* parent, wxWindowID id,
                         const wxPoint& pos, const wxSize& size,
                         const wxArrayString& choices );
 
-    // Get Current Item #
+    // Returns a color index from the layer id
+    // Virtual function because GerbView uses its own functions in a derived class
+    virtual EDA_COLOR_T GetLayerColor( int aLayerIndex ) const = 0;
+
+    // Returns the name of the layer id
+    // Virtual pure function because GerbView uses its own functions in a derived class
+    virtual wxString GetLayerName( int aLayerIndex ) const = 0;
+
+    // Returns true if the layer id is enabled (i.e. is it should be displayed)
+    // Virtual function pure because GerbView uses its own functions in a derived class
+    virtual bool IsLayerEnabled( int aLayerIndex ) const = 0;
+
+   // Get Current Item #
     int GetChoice();
 
     // Get Current Layer
@@ -37,13 +54,18 @@ public:
     int SetLayerSelection(int layer);
 
     // Reload the Layers
-    void Resync();
+    // Virtual pure function because GerbView uses its own functions in a derived class
+    virtual void Resync() = 0;
+
+    // Reload the Layers bitmaps colors
     void ResyncBitmapOnly();
 
     bool SetLayersOrdered(bool value);
     bool SetLayersHotkeys(bool value);
-    // Hotkey Info
-    struct EDA_HOTKEY_CONFIG* m_hotkeys;
+
+protected:
+   // Fills the layer bitmap aLayerbmp with the layer color
+    void SetBitmapLayer( wxBitmap& aLayerbmp, int aLayerIndex );
 };
 
 #define DECLARE_LAYERS_HOTKEY(list) int list[LAYER_COUNT] = \
@@ -65,5 +87,4 @@ public:
             HK_SWITCH_LAYER_TO_INNER14,  \
             HK_SWITCH_LAYER_TO_COMPONENT \
         };
-
 #endif //CLASS_LAYER_BOX_SELECTOR_H

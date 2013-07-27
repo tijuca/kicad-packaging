@@ -1,13 +1,40 @@
+/*
+ * This program source code file is part of KiCad, a free EDA CAD application.
+ *
+ * Copyright (C) 2013 Jean-Pierre Charras, jp.charras at wanadoo.fr
+ * Copyright (C) 2008-2013 SoftPLC Corporation, Dick Hollenbeck <dick@softplc.com>
+ * Copyright (C) 2008-2013 Wayne Stambaugh <stambaughw@verizon.net>
+ * Copyright (C) 2004-2013 KiCad Developers, see change_log.txt for contributors.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation; either version 2
+ * of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, you may find one here:
+ * http://www.gnu.org/licenses/old-licenses/gpl-2.0.html
+ * or you may search the http://www.gnu.org website for the version 2 license,
+ * or you may write to the Free Software Foundation, Inc.,
+ * 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
+ */
+
 /**
  * @file  base_struct.h
  * @brief Basic classes for most KiCad items.
  */
 
-#ifndef BASE_STRUCT_H
-#define BASE_STRUCT_H
+#ifndef BASE_STRUCT_H_
+#define BASE_STRUCT_H_
 
-#include "colors.h"
-#include "bitmaps.h"
+#include <colors.h>
+#include <bitmaps.h>
+#include <richio.h>
 
 #include <boost/ptr_container/ptr_vector.hpp>
 
@@ -19,36 +46,38 @@ extern std::ostream& operator <<( std::ostream& out, const wxPoint& pt );
 #endif
 
 
-/* Id for class identification, at run time */
+/**
+ * Enum KICAD_T
+ * is the set of class identification values, stored in EDA_ITEM::m_StructType
+ */
 enum KICAD_T {
-    NOT_USED = -1,          // the 3d code uses this value
+    NOT_USED = -1,          ///< the 3d code uses this value
 
-    EOT = 0,                // search types array terminator (End Of Types)
+    EOT = 0,                ///< search types array terminator (End Of Types)
 
     TYPE_NOT_INIT = 0,
     PCB_T,
-    SCREEN_T,               // not really an item, used to identify a screen
+    SCREEN_T,               ///< not really an item, used to identify a screen
 
     // Items in pcb
-    PCB_MODULE_T,           // a footprint
-    PCB_PAD_T,              // a pad in a footprint
-    PCB_LINE_T,             // a segment not on copper layers
-    PCB_TEXT_T,             // a text on a layer
-    PCB_MODULE_TEXT_T,      // a text in a footprint
-    PCB_MODULE_EDGE_T,      // a footprint edge
-    PCB_TRACE_T,            // a track segment (segment on a copper layer)
-    PCB_VIA_T,              // a via (like atrack segment on a copper layer)
-    PCB_ZONE_T,             // a segment used to fill a zone area (segment on a
-                            // copper layer)
-    PCB_MARKER_T,           // a marker used to show something
-    PCB_DIMENSION_T,        // a dimension (graphic item)
-    PCB_TARGET_T,           // a target (graphic item)
-    PCB_ZONE_EDGE_T,        // in zone outline: a point to define an outline
-    PCB_ZONE_AREA_T,        // a zone area
-    PCB_ITEM_LIST_T,        // a list of board items
+    PCB_MODULE_T,           ///< class MODULE, a footprint
+    PCB_PAD_T,              ///< class D_PAD, a pad in a footprint
+    PCB_LINE_T,             ///< class DRAWSEGMENT, a segment not on copper layers
+    PCB_TEXT_T,             ///< class TEXTE_PCB, text on a layer
+    PCB_MODULE_TEXT_T,      ///< class TEXTE_MODULE, text in a footprint
+    PCB_MODULE_EDGE_T,      ///< class EDGE_MODULE, a footprint edge
+    PCB_TRACE_T,            ///< class TRACKE, a track segment (segment on a copper layer)
+    PCB_VIA_T,              ///< class SEGVIA, a via (like a track segment on a copper layer)
+    PCB_ZONE_T,             ///< class SEGZONE, a segment used to fill a zone area (segment on a
+                            ///< copper layer)
+    PCB_MARKER_T,           ///< class MARKER_PCB, a marker used to show something
+    PCB_DIMENSION_T,        ///< class DIMENSION, a dimension (graphic item)
+    PCB_TARGET_T,           ///< class PCB_TARGET, a target (graphic item)
+    PCB_ZONE_AREA_T,        ///< class ZONE_CONTAINER, a zone area
+    PCB_ITEM_LIST_T,        ///< class BOARD_ITEM_LIST, a list of board items
 
     // Schematic draw Items.  The order of these items effects the sort order.
-    // It is currenlty ordered to mimic the old Eeschema locate behavior where
+    // It is currently ordered to mimic the old Eeschema locate behavior where
     // the smallest item is the selected item.
     SCH_MARKER_T,
     SCH_JUNCTION_T,
@@ -66,9 +95,15 @@ enum KICAD_T {
     SCH_SHEET_PIN_T,
     SCH_SHEET_T,
 
+    // Be prudent with these 3 types:
+    // they should be used only to locate a specific field type
+    // among SCH_FIELD_T items types
+    SCH_FIELD_LOCATE_REFERENCE_T,
+    SCH_FIELD_LOCATE_VALUE_T,
+    SCH_FIELD_LOCATE_FOOTPRINT_T,
+
     // General
     SCH_SCREEN_T,
-    BLOCK_LOCATE_STRUCT_TYPE,
 
     /*
      * Draw items in library component.
@@ -104,6 +139,22 @@ enum KICAD_T {
 };
 
 
+/**
+ * Enum FILL_T
+ * is the set of fill types used in plotting or drawing enclosed areas.
+ */
+enum FILL_T {
+    NO_FILL,                     // Poly, Square, Circle, Arc = option No Fill
+    FILLED_SHAPE,                /* Poly, Square, Circle, Arc = option Fill
+                                  * with current color ("Solid shape") */
+    FILLED_WITH_BG_BODYCOLOR     /* Poly, Square, Circle, Arc = option Fill
+                                  * with background body color, translucent
+                                  * (texts inside this shape can be seen)
+                                  * not filled in B&W mode when plotting or
+                                  * printing */
+};
+
+
 enum SEARCH_RESULT {
     SEARCH_QUIT,
     SEARCH_CONTINUE
@@ -114,8 +165,8 @@ class wxFindReplaceData;
 class EDA_ITEM;
 class EDA_DRAW_FRAME;
 class EDA_RECT;
-class EDA_DRAW_PANEL;
 class DHEAD;
+class MSG_PANEL_ITEM;
 
 
 /**
@@ -137,16 +188,16 @@ public:
     /**
      * Function Inspect
      * is the examining function within the INSPECTOR which is passed to the
-     * Iterate function.  It is used primarily for searching, but not limited
-     * to that.  It can also collect or modify the scanned objects.
+     * EDA_ITEM::Iterate() function.  It is used primarily for searching, but
+     * not limited to that.  It can also collect or modify the scanned objects.
      *
-     * @param testItem An EDA_ITEM to examine.
-     * @param testData is arbitrary data needed by the inspector to determine
-     *                 if the EDA_ITEM under test meets its match criteria.
-     * @return SEARCH_RESULT - SEARCH_QUIT if the Iterator is to stop the scan,
-     *   else SCAN_CONTINUE;
+     * @param aItem An EDA_ITEM to examine.
+     * @param aTestData is arbitrary data needed by the inspector to determine
+     *                  if the EDA_ITEM under test meets its match criteria.
+     * @return A #SEARCH_RESULT type #SEARCH_QUIT if the iterator function is to
+     *          stop the scan, else #SEARCH_CONTINUE;
      */
-    SEARCH_RESULT virtual Inspect( EDA_ITEM* testItem, const void* testData ) = 0;
+    virtual SEARCH_RESULT Inspect( EDA_ITEM* aItem, const void* aTestData ) = 0;
 };
 
 
@@ -160,7 +211,7 @@ public:
  */
 class EDA_RECT
 {
-public:
+private:
     wxPoint m_Pos;      // Rectangle Origin
     wxSize  m_Size;     // Rectangle Size
 
@@ -172,7 +223,7 @@ public:
         m_Size( aSize )
     { }
 
-    wxPoint Centre()
+    wxPoint Centre() const
     {
         return wxPoint( m_Pos.x + ( m_Size.x >> 1 ),
                         m_Pos.y + ( m_Size.y >> 1 ) );
@@ -187,7 +238,7 @@ public:
 
     /**
      * Function Normalize
-     * ensures thatthe height ant width are positive.
+     * ensures that the height ant width are positive.
      */
     void Normalize();
 
@@ -212,16 +263,19 @@ public:
      */
     bool Contains( const EDA_RECT& aRect ) const;
 
-    wxSize GetSize() const { return m_Size; }
+    const wxSize& GetSize() const { return m_Size; }
     int GetX() const { return m_Pos.x; }
     int GetY() const { return m_Pos.y; }
-    wxPoint GetOrigin() const { return m_Pos; }
-    wxPoint GetPosition() const { return m_Pos; }
-    wxPoint GetEnd() const { return wxPoint( GetRight(), GetBottom() ); }
+
+    const wxPoint& GetOrigin() const { return m_Pos; }
+    const wxPoint& GetPosition() const { return m_Pos; }
+    const wxPoint GetEnd() const { return wxPoint( GetRight(), GetBottom() ); }
+
     int GetWidth() const { return m_Size.x; }
     int GetHeight() const { return m_Size.y; }
     int GetRight() const { return m_Pos.x + m_Size.x; }
     int GetBottom() const { return m_Pos.y + m_Size.y; }
+
     void SetOrigin( const wxPoint& pos ) { m_Pos = pos; }
     void SetOrigin( int x, int y ) { m_Pos.x = x; m_Pos.y = y; }
     void SetSize( const wxSize& size ) { m_Size = size; }
@@ -239,7 +293,6 @@ public:
         m_Size.x = pos.x - m_Pos.x; m_Size.y = pos.y - m_Pos.y;
     }
 
-
     /**
      * Function Intersects
      * @return bool - true if the argument rectangle intersects this rectangle.
@@ -250,8 +303,15 @@ public:
     /**
      * Function operator(wxRect)
      * overloads the cast operator to return a wxRect
+     * wxRect does not accept negative values for size, so ensure the
+     * wxRect size is always >= 0
      */
-    operator wxRect() const { return wxRect( m_Pos, m_Size ); }
+    operator wxRect() const
+    {
+        EDA_RECT rect( m_Pos, m_Size );
+        rect.Normalize();
+        return wxRect( rect.m_Pos, rect.m_Size );
+    }
 
     /**
      * Function Inflate
@@ -294,13 +354,13 @@ public:
 
 // These define are used for the .m_Flags and .m_UndoRedoStatus member of the
 // class EDA_ITEM
-#define IS_CHANGED     (1 << 0)   ///< Item was edited, and modified
-#define IS_LINKED      (1 << 1)   ///< Used in calculation to mark linked items (temporary use)
-#define IN_EDIT        (1 << 2)   ///< Item currently edited
-#define IS_MOVED       (1 << 3)   ///< Item being moved
-#define IS_NEW         (1 << 4)   ///< New item, just created
-#define IS_RESIZED     (1 << 5)   ///< Item being resized
-#define IS_DRAGGED     (1 << 6)   ///< Item being dragged
+#define IS_CHANGED     (1 << 0)    ///< Item was edited, and modified
+#define IS_LINKED      (1 << 1)    ///< Used in calculation to mark linked items (temporary use)
+#define IN_EDIT        (1 << 2)    ///< Item currently edited
+#define IS_MOVED       (1 << 3)    ///< Item being moved
+#define IS_NEW         (1 << 4)    ///< New item, just created
+#define IS_RESIZED     (1 << 5)    ///< Item being resized
+#define IS_DRAGGED     (1 << 6)    ///< Item being dragged
 #define IS_DELETED     (1 << 7)
 #define IS_WIRE_IMAGE  (1 << 8)
 #define STARTPOINT     (1 << 9)
@@ -320,7 +380,7 @@ public:
 #define BEGIN_ONPAD    (1 << 22)   ///< Pcbnew: flag set for track segment starting on a pad
 #define END_ONPAD      (1 << 23)   ///< Pcbnew: flag set for track segment ending on a pad
 #define BUSY           (1 << 24)   ///< Pcbnew: flag indicating that the structure has
-                                   // already been edited, in some functions
+                                   ///< already been edited, in some functions
 #define EDA_ITEM_ALL_FLAGS -1
 
 
@@ -342,39 +402,26 @@ private:
     int           m_Status;
 
 protected:
-    EDA_ITEM*     Pnext;          /* Linked list: Link (next struct) */
-    EDA_ITEM*     Pback;          /* Linked list: Link (previous struct) */
-    EDA_ITEM*     m_Parent;       /* Linked list: Link (parent struct) */
-    EDA_ITEM*     m_Son;          /* Linked list: Link (son struct) */
+    EDA_ITEM*     Pnext;          ///< next in linked list
+    EDA_ITEM*     Pback;          ///< previous in linked list
     DHEAD*        m_List;         ///< which DLIST I am on.
 
-public:
-    int           m_Flags;        // flags for editing and other uses.
+    EDA_ITEM*     m_Parent;       /* Linked list: Link (parent struct) */
+    EDA_ITEM*     m_Son;          /* Linked list: Link (son struct) */
+    time_t        m_TimeStamp;    ///< Time stamp used for logical links
 
-    unsigned long m_TimeStamp;    // Time stamp used for logical links
-    int           m_Selected;     /* Used by block commands, and selective
-                                     * editing */
+    /// Set to true to override the visibility setting of the item.
+    bool          m_forceVisible;
 
-    // member used in undo/redo function
-    EDA_ITEM*     m_Image;        // Link to an image copy to save a copy of
-                                  // old parameters values
+    /// Flag bits for editing and other uses.
+    int           m_Flags;
+
+    // Link to an copy of the item use to save the item's state for undo/redo feature.
+    EDA_ITEM*     m_Image;
+
 private:
-    void InitVars();
 
-    /**
-     * @brief Function doClone
-     * is used by the derived class to actually implement the cloning.
-     *
-     * The default version will return NULL in release builds and likely crash the
-     * program.  In debug builds, an warning message indicating the derived class
-     * has not implemented cloning.  This really should be a pure virtual function.
-     * Due to the fact that there are so many objects derived from EDA_ITEM, the
-     * decision was made to return NULL until all the objects derived from EDA_ITEM
-     * implement cloning.  Once that happens, this function should be made pure.
-     *
-     * @return A clone of the item.
-     */
-    virtual EDA_ITEM* doClone() const;
+    void InitVars();
 
 public:
 
@@ -391,6 +438,8 @@ public:
      */
     KICAD_T Type()  const { return m_StructType; }
 
+    void SetTimeStamp( time_t aNewTimeStamp ) { m_TimeStamp = aNewTimeStamp; }
+    time_t GetTimeStamp() const { return m_TimeStamp; }
 
     EDA_ITEM* Next() const { return (EDA_ITEM*) Pnext; }
     EDA_ITEM* Back() const { return (EDA_ITEM*) Pback; }
@@ -418,7 +467,6 @@ public:
         return m_Status & type;
     }
 
-
     void SetState( int type, int state )
     {
         if( state )
@@ -427,48 +475,64 @@ public:
             m_Status &= ~type;
     }
 
-
-    int ReturnStatus() const {  return m_Status;  }
-
-    void SetStatus( int new_status )
-    {
-        m_Status = new_status;
-    }
+    int GetStatus() const           { return m_Status; }
+    void SetStatus( int aStatus )   { m_Status = aStatus; }
 
     void SetFlags( int aMask ) { m_Flags |= aMask; }
     void ClearFlags( int aMask = EDA_ITEM_ALL_FLAGS ) { m_Flags &= ~aMask; }
     int GetFlags() const { return m_Flags; }
 
+    void SetImage( EDA_ITEM* aItem ) { m_Image = aItem; }
+
     /**
-     * Function DisplayInfo
-     * has knowledge about the frame and how and where to put status
-     * information about this object into the frame's message panel.
-     * @param frame A EDA_DRAW_FRAME in which to print status information.
+     * Function SetForceVisible
+     * is used to set and cleag force visible flag used to force the item to be drawn
+     * even if it's draw attribute is set to not visible.
+     *
+     * @param aEnable True forces the item to be drawn.  False uses the item's visibility
+     *                setting to determine if the item is to be drawn.
      */
-    virtual void DisplayInfo( EDA_DRAW_FRAME* frame )
+    void SetForceVisible( bool aEnable ) { m_forceVisible = aEnable; }
+
+    /**
+     * Function GetMsgPanelInfo
+     * populates \a aList of #MSG_PANEL_ITEM objects with it's internal state for display
+     * purposes.
+     *
+     * @note This method replaces DisplayInfo() so that KiCad objects no longer have any
+     *       knowledge of wxWidgets UI objects.
+     *
+     * @param aList is the list to populate.
+     */
+    virtual void GetMsgPanelInfo( std::vector< MSG_PANEL_ITEM >& aList )
     {
-        // derived classes may implement this
     }
 
     /**
      * Function HitTest
-     * tests if the given wxPoint is within the bounds of this object.
-     * @param refPos A wxPoint to test
-     * @return bool - true if a hit, else false
+     * tests if \a aPosition is contained within or on the bounding area of an item.
+     *
+     * @note This function cannot be const because some of the derive objects perform
+     *       intermediate calculations which change object members.  Make sure derived
+     *       objects do not declare this as const.
+     *
+     * @param aPosition A reference to a wxPoint object containing the coordinates to test.
+     * @return True if \a aPosition is within or on the item bounding area.
      */
-    virtual bool HitTest( const wxPoint& refPos )
+    virtual bool HitTest( const wxPoint& aPosition )
     {
         return false;   // derived classes should override this function
     }
 
     /**
-     * Function HitTest (overlaid)
-     * tests if the given EDA_RECT intersect this object.
-     * For now, an ending point must be inside this rect.
-     * @param refArea : the given EDA_RECT
-     * @return bool - true if a hit, else false
+     * Function HitTest
+     * tests if the \a aRect intersects this object.
+     * For now, an ending point must be inside \a aRect.
+     *
+     * @param aRect A reference to an EDA_RECT object containg the area to test.
+     * @return True if \a aRect intersects the object, otherwise false.
      */
-    virtual bool HitTest( EDA_RECT& refArea )
+    virtual bool HitTest( const EDA_RECT& aRect ) const
     {
         return false;   // derived classes should override this function
     }
@@ -495,15 +559,19 @@ public:
     }
 
     /**
-     * @brief Function Clone
+     * Function Clone
      * creates a duplicate of this item with linked list members set to NULL.
      *
-     * The Clone() function only calls the private virtual doClone() which actually
-     * does the cloning for the derived object.
+     * The default version will return NULL in release builds and likely crash the
+     * program.  In debug builds, a warning message indicating the derived class
+     * has not implemented cloning.  This really should be a pure virtual function.
+     * Due to the fact that there are so many objects derived from EDA_ITEM, the
+     * decision was made to return NULL until all the objects derived from EDA_ITEM
+     * implement cloning.  Once that happens, this function should be made pure.
      *
      * @return A clone of the item.
      */
-    EDA_ITEM* Clone() const { return doClone(); }
+    virtual EDA_ITEM* Clone() const; // should not be inline, to save the ~ 6 bytes per call site.
 
     /**
      * Function IterateForward
@@ -512,15 +580,15 @@ public:
      *
      * @param listStart The first in a list of EDA_ITEMs to iterate over.
      * @param inspector Is an INSPECTOR to call on each object that is one of
-     *  the requested scanTypes.
-     * @param testData Is an aid to testFunc, and should be sufficient to
-     *  allow it to fully determine if an item meets the match criteria, but it
-     *  may also be used to collect output.
-     * @param scanTypes A KICAD_T array that is EOT
-     *  terminated, and provides both the order and interest level of of
-     *  the types of objects to be iterated over.
-     * @return SEARCH_RESULT - SEARCH_QUIT if the called INSPECTOR returned
-     *  SEARCH_QUIT, else SCAN_CONTINUE;
+     *                  the requested scanTypes.
+     * @param testData Is an aid to testFunc, and should be sufficient to allow
+     *                 it to fully determine if an item meets the match criteria,
+     *                 but it may also be used to collect output.
+     * @param scanTypes A KICAD_T array that is EOT terminated, and provides both
+     *                  the order and interest level of of the types of objects to
+     *                  be iterated over.
+     * @return SEARCH_RESULT SEARCH_QUIT if the called INSPECTOR returned
+     *                       SEARCH_QUIT, else SCAN_CONTINUE;
      */
     static SEARCH_RESULT IterateForward( EDA_ITEM*     listStart,
                                          INSPECTOR*    inspector,
@@ -537,9 +605,9 @@ public:
      * @param inspector An INSPECTOR instance to use in the inspection.
      * @param testData Arbitrary data used by the inspector.
      * @param scanTypes Which KICAD_T types are of interest and the order
-     *  is significant too, terminated by EOT.
-     * @return SEARCH_RESULT - SEARCH_QUIT if the Iterator is to stop the scan,
-     *  else SCAN_CONTINUE, and determined by the inspector.
+     *                  is significant too, terminated by EOT.
+     * @return SEARCH_RESULT SEARCH_QUIT if the Iterator is to stop the scan,
+     *                       else SCAN_CONTINUE, and determined by the inspector.
      */
     virtual SEARCH_RESULT Visit( INSPECTOR* inspector, const void* testData,
                                  const KICAD_T scanTypes[] );
@@ -568,7 +636,7 @@ public:
     /**
      * Function GetMenuImage
      * returns a pointer to an image to be used in menus.  The default version returns
-     * the right arrow image.  Overide this function to provide object specific menu
+     * the right arrow image.  Override this function to provide object specific menu
      * images.
      * @return The menu image associated with the item.
      */
@@ -581,14 +649,13 @@ public:
      * The base class returns false since many of the objects derived from EDA_ITEM
      * do not have any text to search.
      *
-     * @param aSearchData A reference to a wxFindReplaceData object containin the
+     * @param aSearchData A reference to a wxFindReplaceData object containing the
      *                    search criteria.
      * @param aAuxData A pointer to optional data required for the search or NULL
      *                 if not used.
      * @param aFindLocation A pointer to a wxPoint object to store the location of
-     *                      matched item.  The pointer can be NULL is not used.
-     * @return True if this schematic text item matches the search criteria in
-     *         \a aSearchData.
+     *                      matched item.  The pointer can be NULL if it is not used.
+     * @return True if the item's text matches the search criteria in \a aSearchData.
      */
     virtual bool Matches( wxFindReplaceData& aSearchData, void* aAuxData, wxPoint* aFindLocation )
     {
@@ -599,11 +666,39 @@ public:
      * Function Matches
      * compares \a aText against search criteria in \a aSearchData.
      *
-     * @param aText A referenc to a wxString object containing the string to test.
+     * @param aText A reference to a wxString object containing the string to test.
      * @param aSearchData The criteria to search against.
      * @return True if \a aText matches the search criteria in \a aSearchData.
      */
     bool Matches( const wxString& aText, wxFindReplaceData& aSearchData );
+
+    /**
+     * Function Replace
+     * performs a text replace on \a aText using the find and replace criteria in
+     * \a aSearchData on items that support text find and replace.
+     *
+     * @param aSearchData A reference to a wxFindReplaceData object containing the
+     *                    search and replace criteria.
+     * @param aText A reference to a wxString object containing the text to be
+     *              replaced.
+     * @return True if \a aText was modified, otherwise false.
+     */
+    bool Replace( wxFindReplaceData& aSearchData, wxString& aText );
+
+    /**
+     * Function Replace
+     * performs a text replace using the find and replace criteria in \a aSearchData
+     * on items that support text find and replace.
+     *
+     * This function must be overridden for items that support text replace.
+     *
+     * @param aSearchData A reference to a wxFindReplaceData object containing the
+     *                    search and replace criteria.
+     * @param aAuxData A pointer to optional data required for the search or NULL
+     *                 if not used.
+     * @return True if the item text was modified, otherwise false.
+     */
+    virtual bool Replace( wxFindReplaceData& aSearchData, void* aAuxData = NULL ) { return false; }
 
     /**
      * Function IsReplaceable
@@ -636,17 +731,28 @@ public:
      */
     static bool Sort( const EDA_ITEM* aLeft, const EDA_ITEM* aRight ) { return *aLeft < *aRight; }
 
+    /**
+     * Operator assignment
+     * is used to assign the members of \a aItem to another object.
+     *
+     * @warning This is still a work in progress and not ready for prime time.  Do not use
+     *          as there is a known issue with wxString buffers.
+     */
+    virtual EDA_ITEM& operator=( const EDA_ITEM& aItem );
+
 #if defined(DEBUG)
 
     /**
      * Function Show
      * is used to output the object tree, currently for debugging only.
      * @param nestLevel An aid to prettier tree indenting, and is the level
-     *          of nesting of this object within the overall tree.
+     *                  of nesting of this object within the overall tree.
      * @param os The ostream& to output to.
      */
-    virtual void Show( int nestLevel, std::ostream& os ) const;
+    virtual void Show( int nestLevel, std::ostream& os ) const = 0;
+    // pure virtual so compiler warns if somebody mucks up a derived declaration
 
+    void ShowDummy( std::ostream& os ) const;  ///< call this if you are a lazy developer
 
     /**
      * Function NestedSpace
@@ -674,233 +780,10 @@ inline EDA_ITEM* new_clone( const EDA_ITEM& aItem ) { return aItem.Clone(); }
 /**
  * Define list of drawing items for screens.
  *
- * The standard C++ containter was choosen so the pointer can be removed  from a list without
+ * The standard C++ container was chosen so the pointer can be removed  from a list without
  * it being destroyed.
  */
 typedef std::vector< EDA_ITEM* > EDA_ITEMS;
 
 
-// Graphic Text justify:
-// Values -1,0,1 are used in computations, do not change them
-enum  GRTextHorizJustifyType {
-    GR_TEXT_HJUSTIFY_LEFT   = -1,
-    GR_TEXT_HJUSTIFY_CENTER = 0,
-    GR_TEXT_HJUSTIFY_RIGHT  = 1
-};
-
-
-enum GRTextVertJustifyType {
-    GR_TEXT_VJUSTIFY_TOP = -1,
-    GR_TEXT_VJUSTIFY_CENTER = 0,
-    GR_TEXT_VJUSTIFY_BOTTOM = 1
-};
-
-/* Options to show solid segments (segments, texts...) */
-enum GRTraceMode {
-    FILAIRE = 0,        // segments are drawn as lines
-    FILLED,             // normal mode: segments have thickness
-    SKETCH              // sketcg mode: segments have thickness, but are not
-                        // filled
-};
-
-/**
- * Enum FILL_T
- * is the set of fill types used in plotting or drawing enclosed areas.
- */
-enum FILL_T {
-    NO_FILL,                     // Poly, Square, Circle, Arc = option No Fill
-    FILLED_SHAPE,                /* Poly, Square, Circle, Arc = option Fill
-                                  * with current color ("Solid shape") */
-    FILLED_WITH_BG_BODYCOLOR    /* Poly, Square, Circle, Arc = option Fill
-                                  * with background body color, translucent
-                                  * (texts inside this shape can be seen)
-                                  * not filled in B&W mode when plotting or
-                                  * printing */
-};
-
-
-#define DEFAULT_SIZE_TEXT 60    /* default text height (in mils or 1/1000") */
-
-/**
- * Class EDA_TEXT
- * is a basic class to handle texts (labels, texts on components or footprints
- * ..) not used directly.
- * The text classes are derived from EDA_ITEM and EDA_TEXT
- */
-class EDA_TEXT
-{
-public:
-    wxString m_Text;                    /* text! */
-    wxPoint  m_Pos;                     /* XY position of anchor text. */
-    wxSize   m_Size;                    /* XY size of text */
-    int      m_Thickness;               /* pen size used to draw this text */
-    int      m_Orient;                  /* Orient in 0.1 degrees */
-    bool     m_Mirror;                  /* Display Normal / mirror */
-    int      m_Attributs;               /* flags (visible...) */
-    bool     m_Italic;                  /* true to simulate (or use if exists)
-                                         * an italic font... */
-    bool     m_Bold;                    /* true to simulate a bold font ... */
-    GRTextHorizJustifyType m_HJustify;  /* Horiz justification */
-    GRTextVertJustifyType m_VJustify;   /* Vertical justification */
-    bool     m_MultilineAllowed;        /* true to use multiline option, false
-                                         * to use only single line text
-                                         * Single line is faster in
-                                         * calculations than multiline */
-
-public:
-    EDA_TEXT( const wxString& text = wxEmptyString );
-    EDA_TEXT( const EDA_TEXT& aText );
-    virtual ~EDA_TEXT();
-
-    /**
-     * Function SetThickness
-     * sets text thickness.
-     * @param aNewThickness is the new text thickness.
-     */
-    void SetThickness( int aNewThickness ) { m_Thickness = aNewThickness; };
-
-    /**
-     * Function GetThickness
-     * returns text thickness.
-     * @return int - text thickness.
-     */
-    int GetThickness() const { return m_Thickness; };
-
-    /**
-     * Function SetSize
-     * sets text size.
-     * @param aNewSize is the new text size.
-     */
-    void SetSize( wxSize aNewSize ) { m_Size = aNewSize; };
-
-    /**
-     * Function GetSize
-     * returns text size.
-     * @return wxSize - text size.
-     */
-    wxSize GetSize() const { return m_Size; };
-
-    int GetLength() const { return m_Text.Length(); };
-
-    /**
-     * Function Draw
-     *  @param aPanel = the current DrawPanel
-     *  @param aDC = the current Device Context
-     *  @param aOffset = draw offset (usually (0,0))
-     *  @param aColor = text color
-     *  @param aDrawMode = GR_OR, GR_XOR.., -1 to use the current mode.
-     *  @param aDisplay_mode = FILAIRE, FILLED or SKETCH
-     *  @param aAnchor_color = anchor color ( UNSPECIFIED_COLOR = do
-     *                                    not draw anchor ).
-     */
-    void Draw( EDA_DRAW_PANEL* aPanel, wxDC* aDC,
-               const wxPoint& aOffset, EDA_Colors aColor,
-               int aDrawMode, GRTraceMode aDisplay_mode = FILAIRE,
-               EDA_Colors aAnchor_color = UNSPECIFIED_COLOR );
-
-private:
-
-    /**
-     * Function DrawOneLineOfText
-     * Draw a single text line.
-     * Used to draw each line of this EDA_TEXT, that can be multiline
-     *  @param aPanel = the current DrawPanel
-     *  @param aDC = the current Device Context
-     *  @param aOffset = draw offset (usually (0,0))
-     *  @param aColor = text color
-     *  @param aDrawMode = GR_OR, GR_XOR.., -1 to use the current mode.
-     *  @param aFillMode = FILAIRE, FILLED or SKETCH
-     *  @param aAnchor_color = anchor color ( UNSPECIFIED_COLOR = do
-     *    not draw anchor ).
-     *  @param aText = the single line of text to draw.
-     *  @param aPos = the position of this line ).
-     */
-    void DrawOneLineOfText( EDA_DRAW_PANEL* aPanel, wxDC* aDC,
-                            const wxPoint& aOffset, EDA_Colors aColor,
-                            int aDrawMode, GRTraceMode aFillMode,
-                            EDA_Colors aAnchor_color, wxString& aText,
-                            wxPoint aPos );
-
-public:
-
-    /**
-     * Function TextHitTest
-     * Test if \a aPoint is within the bounds of this object.
-     * @param aPoint- A wxPoint to test
-     * @param aAccuracy - Amount to inflate the bounding box.
-     * @return bool - true if a hit, else false
-     */
-    bool TextHitTest( const wxPoint& aPoint, int aAccuracy = 0 ) const;
-
-    /**
-     * Function TextHitTest (overloaded)
-     * Tests if object bounding box is contained within or intersects \a aRect.
-     *
-     * @param aRect - Rect to test against.
-     * @param aContains - Test for containment instead of intersection if true.
-     * @param aAccuracy - Amount to inflate the bounding box.
-     * @return bool - true if a hit, else false
-     */
-    bool TextHitTest( const EDA_RECT& aRect, bool aContains = false, int aAccuracy = 0 ) const;
-
-    /**
-     * Function LenSize
-     * @return the text length in internal units
-     * @param aLine : the line of text to consider.
-     * For single line text, this parameter is always m_Text
-     */
-    int LenSize( const wxString& aLine ) const;
-
-    /**
-     * Function GetTextBox
-     * useful in multiline texts to calculate the full text or a line area (for
-     * zones filling, locate functions....)
-     * @return the rect containing the line of text (i.e. the position and the
-     *  size of one line)
-     * this rectangle is calculated for 0 orient text. if orient is not 0 the
-     * rect must be rotated to match the physical area
-     * @param aLine : the line of text to consider.
-     * for single line text, aLine is unused
-     * If aLine == -1, the full area (considering all lines) is returned
-     * @param aThickness - Overrides the current thickness when greater than 0.
-     * @param aInvertY - Invert the Y axis when calculating bounding box.
-     */
-    EDA_RECT GetTextBox( int aLine = -1, int aThickness = -1, bool aInvertY = false ) const;
-
-    /**
-     * Function GetInterline
-     * return the distance between 2 text lines
-     * has meaning only for multiline texts
-     */
-    int GetInterline() const
-    {
-        return (( m_Size.y * 14 ) / 10) + m_Thickness;
-    }
-
-    /**
-     * Function GetTextStyleName
-     * @return a wxString with the style name( Normal, Italic, Bold, Bold+Italic)
-     */
-    wxString GetTextStyleName();
-
-    void SetText( const wxString& aText ) { m_Text = aText; }
-
-    /**
-     * Function GetText
-     * returns the string associated with the text object.
-     * <p>
-     * This function is virtual to allow derived classes to override getting the
-     * string to provide a way for modifying the base string by adding a suffix or
-     * prefix to the base string.
-     * </p>
-     * @return a wxString object containing the string of the item.
-     */
-    virtual wxString GetText() const { return m_Text; }
-
-    GRTextHorizJustifyType GetHorizJustify() const { return m_HJustify; };
-    GRTextVertJustifyType GetVertJustify() const { return m_VJustify; };
-    void SetHorizJustify( GRTextHorizJustifyType aType ) { m_HJustify = aType; };
-    void SetVertJustify( GRTextVertJustifyType aType ) { m_VJustify = aType; };
-};
-
-#endif /* BASE_STRUCT_H */
+#endif // BASE_STRUCT_H_

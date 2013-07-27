@@ -1,9 +1,8 @@
 /*
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
- * Copyright (C) 2009 Jean-Pierre Charras, jaen-pierre.charras@gipsa-lab.inpg.com
- * Copyright (C) 2009 Wayne Stambaugh <stambaughw@verizon.net>
- * Copyright (C) 1992-2011 KiCad Developers, see AUTHORS.txt for contributors.
+ * Copyright (C) 2012 Jean-Pierre Charras, jp.charras at wanadoo.fr
+ * Copyright (C) 1992-2012 KiCad Developers, see AUTHORS.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -27,24 +26,26 @@
  * @file lib_pin.cpp
  */
 
-#include "fctsys.h"
-#include "appl_wxstruct.h"
-#include "gr_basic.h"
-#include "macros.h"
-#include "trigo.h"
-#include "class_drawpanel.h"
-#include "drawtxt.h"
-#include "plot_common.h"
-#include "wxEeschemaStruct.h"
-#include "richio.h"
+#include <fctsys.h>
+#include <appl_wxstruct.h>
+#include <gr_basic.h>
+#include <macros.h>
+#include <trigo.h>
+#include <class_drawpanel.h>
+#include <drawtxt.h>
+#include <plot_common.h>
+#include <wxEeschemaStruct.h>
+#include <richio.h>
+#include <base_units.h>
+#include <msgpanel.h>
 
-#include "general.h"
-#include "protos.h"
-#include "libeditframe.h"
-#include "class_libentry.h"
-#include "lib_pin.h"
-#include "transform.h"
-#include "sch_component.h"
+#include <general.h>
+#include <protos.h>
+#include <libeditframe.h>
+#include <class_libentry.h>
+#include <lib_pin.h>
+#include <transform.h>
+#include <sch_component.h>
 
 
 /**
@@ -188,37 +189,13 @@ LIB_PIN::LIB_PIN( LIB_COMPONENT* aParent ) :
     m_length = 300;                             /* default Pin len */
     m_orientation = PIN_RIGHT;                  /* Pin orient: Up, Down, Left, Right */
     m_shape = NONE;                             /* Pin shape, bitwise. */
-    m_type  = PIN_UNSPECIFIED;                  /* electrical type of pin */
-    m_attributes  = 0;                          /* bit 0 != 0: pin invisible */
-    m_number      = 0;                          /* pin number ( i.e. 4 codes ASCII ) */
-    m_PinNumSize  = 50;
-    m_PinNameSize = 50;                         /* Default size for pin name and num */
-    m_width    = 0;
+    m_type = PIN_UNSPECIFIED;                   /* electrical type of pin */
+    m_attributes = 0;                           /* bit 0 != 0: pin invisible */
+    m_number = 0;                               /* pin number ( i.e. 4 codes ASCII ) */
+    m_numTextSize = 50;
+    m_nameTextSize = 50;                        /* Default size for pin name and num */
+    m_width = 0;
     m_typeName = _( "Pin" );
-    m_PinNumShapeOpt     = 0;
-    m_PinNameShapeOpt    = 0;
-    m_PinNumPositionOpt  = 0;
-    m_PinNamePositionOpt = 0;
-}
-
-
-LIB_PIN::LIB_PIN( const LIB_PIN& pin ) : LIB_ITEM( pin )
-{
-    m_position    = pin.m_position;
-    m_length      = pin.m_length;
-    m_orientation = pin.m_orientation;
-    m_shape = pin.m_shape;
-    m_type  = pin.m_type;
-    m_attributes         = pin.m_attributes;
-    m_number             = pin.m_number;
-    m_PinNumSize         = pin.m_PinNumSize;
-    m_PinNameSize        = pin.m_PinNameSize;
-    m_PinNumShapeOpt     = pin.m_PinNumShapeOpt;
-    m_PinNameShapeOpt    = pin.m_PinNameShapeOpt;
-    m_PinNumPositionOpt  = pin.m_PinNumPositionOpt;
-    m_PinNamePositionOpt = pin.m_PinNamePositionOpt;
-    m_width = pin.m_width;
-    m_name  = pin.m_name;
 }
 
 
@@ -253,9 +230,9 @@ void LIB_PIN::SetName( const wxString& aName )
 
 void LIB_PIN::SetNameTextSize( int size )
 {
-    if( size != m_PinNameSize )
+    if( size != m_nameTextSize )
     {
-        m_PinNameSize = size;
+        m_nameTextSize = size;
         SetModified();
     }
 
@@ -267,10 +244,10 @@ void LIB_PIN::SetNameTextSize( int size )
 
     for( size_t i = 0; i < pinList.size(); i++ )
     {
-        if( ( pinList[i]->m_Flags & IS_LINKED ) == 0 || pinList[i]->m_PinNameSize == size )
+        if( ( pinList[i]->m_Flags & IS_LINKED ) == 0 || pinList[i]->m_nameTextSize == size )
             continue;
 
-        pinList[i]->m_PinNameSize = size;
+        pinList[i]->m_nameTextSize = size;
         SetModified();
     }
 }
@@ -297,9 +274,9 @@ void LIB_PIN::SetNumber( const wxString& number )
 
 void LIB_PIN::SetNumberTextSize( int size )
 {
-    if( size != m_PinNumSize )
+    if( size != m_numTextSize )
     {
-        m_PinNumSize = size;
+        m_numTextSize = size;
         SetModified();
     }
 
@@ -311,10 +288,10 @@ void LIB_PIN::SetNumberTextSize( int size )
 
     for( size_t i = 0; i < pinList.size(); i++ )
     {
-        if( ( pinList[i]->m_Flags & IS_LINKED ) == 0 || pinList[i]->m_PinNumSize == size )
+        if( ( pinList[i]->m_Flags & IS_LINKED ) == 0 || pinList[i]->m_numTextSize == size )
             continue;
 
-        pinList[i]->m_PinNumSize = size;
+        pinList[i]->m_numTextSize = size;
         SetModified();
     }
 }
@@ -639,7 +616,7 @@ bool LIB_PIN::Save( OUTPUTFORMATTER& aFormatter )
 
     if( aFormatter.Print( 0, " %s %d %d %d %c %d %d %d %d %c",
                           TO_UTF8( StringPinNum ), m_position.x, m_position.y,
-                          (int) m_length, (int) m_orientation, m_PinNumSize, m_PinNameSize,
+                          (int) m_length, (int) m_orientation, m_numTextSize, m_nameTextSize,
                           m_Unit, m_Convert, Etype ) < 0 )
         return false;
 
@@ -692,8 +669,8 @@ bool LIB_PIN::Load( LINE_READER& aLineReader, wxString& aErrorMsg )
     *pinAttrs = 0;
 
     i = sscanf( line + 2, "%s %s %d %d %d %s %d %d %d %d %s %s", pinName,
-                pinNum, &m_position.x, &m_position.y, &m_length, pinOrient, &m_PinNumSize,
-                &m_PinNameSize, &m_Unit, &m_Convert, pinType, pinAttrs );
+                pinNum, &m_position.x, &m_position.y, &m_length, pinOrient, &m_numTextSize,
+                &m_nameTextSize, &m_Unit, &m_Convert, pinType, pinAttrs );
 
     if( i < 11 )
     {
@@ -806,33 +783,34 @@ bool LIB_PIN::Load( LINE_READER& aLineReader, wxString& aErrorMsg )
 
 int LIB_PIN::GetPenSize() const
 {
-    return ( m_width == 0 ) ? g_DrawDefaultLineThickness : m_width;
+    return ( m_width == 0 ) ? GetDefaultLineThickness() : m_width;
 }
 
 
 void LIB_PIN::drawGraphic( EDA_DRAW_PANEL*  aPanel,
                            wxDC*            aDC,
                            const wxPoint&   aOffset,
-                           int              aColor,
-                           int              aDrawMode,
+                           EDA_COLOR_T      aColor,
+                           GR_DRAWMODE      aDrawMode,
                            void*            aData,
                            const TRANSFORM& aTransform )
 {
     // Invisible pins are only drawn on request.
-    // They are drawn in g_InvisibleItemColor.
-    // in schematic, they are drawn only if m_ShowAllPins is true.
+    // They are drawn in GetInvisibleItemColor().
+    // in schematic, they are drawn only if m_showAllPins is true.
     // In other windows, they are always drawn because we must see them.
     if( ! IsVisible() )
     {
         EDA_DRAW_FRAME* frame = NULL;
+
         if( aPanel && aPanel->GetParent() )
             frame = (EDA_DRAW_FRAME*)aPanel->GetParent();
 
-        if( frame && frame->IsType( SCHEMATIC_FRAME ) &&
-            ! ((SCH_EDIT_FRAME*)frame)->m_ShowAllPins )
+        if( frame && frame->IsType( SCHEMATIC_FRAME_TYPE ) &&
+            ! ((SCH_EDIT_FRAME*)frame)->GetShowAllPins() )
             return;
 
-        aColor = g_InvisibleItemColor;
+        aColor = GetInvisibleItemColor();
     }
 
     LIB_COMPONENT* Entry = GetParent();
@@ -860,7 +838,7 @@ void LIB_PIN::drawGraphic( EDA_DRAW_PANEL*  aPanel,
     /* Set to one (1) to draw bounding box around pin to validate bounding
      * box calculation. */
 #if 0
-    EDA_RECT* clipbox = aPanel ? &aPanel->m_ClipBox : NULL;
+    EDA_RECT* clipbox = aPanel ? aPanel->GetClipBox() : NULL;
     TRANSFORM transform = DefaultTransform;
     DefaultTransform = aTransform;
     EDA_RECT  bBox    = GetBoundingBox();
@@ -876,21 +854,20 @@ void LIB_PIN::DrawPinSymbol( EDA_DRAW_PANEL* aPanel,
                              wxDC*           aDC,
                              const wxPoint&  aPinPos,
                              int             aOrient,
-                             int             aDrawMode,
-                             int             aColor )
+                             GR_DRAWMODE     aDrawMode,
+                             EDA_COLOR_T     aColor )
 {
     int       MapX1, MapY1, x1, y1;
-    int       color;
     int       width   = GetPenSize();
     int       posX    = aPinPos.x, posY = aPinPos.y, len = m_length;
-    EDA_RECT* clipbox = aPanel ? &aPanel->m_ClipBox : NULL;
+    EDA_RECT* clipbox = aPanel ? aPanel->GetClipBox() : NULL;
 
-    color = ReturnLayerColor( LAYER_PIN );
+    EDA_COLOR_T color = ReturnLayerColor( LAYER_PIN );
 
     if( aColor < 0 )       // Used normal color or selected color
     {
-        if( (m_Selected & IS_SELECTED) )
-            color = g_ItemSelectetColor;
+        if( IsSelected() )
+            color = GetItemSelectedColor();
     }
     else
         color = aColor;
@@ -1092,30 +1069,32 @@ void LIB_PIN::DrawPinTexts( EDA_DRAW_PANEL* panel,
                             int             TextInside,
                             bool            DrawPinNum,
                             bool            DrawPinName,
-                            int             Color,
-                            int             DrawMode )
+                            EDA_COLOR_T     Color,
+                            GR_DRAWMODE     DrawMode )
 {
-    int        x, y, x1, y1;
-    wxString   StringPinNum;
-    EDA_Colors NameColor, NumColor;
+    int         x, y, x1, y1;
+    wxString    StringPinNum;
+    EDA_COLOR_T NameColor, NumColor;
 
-    wxSize     PinNameSize( m_PinNameSize, m_PinNameSize );
-    wxSize     PinNumSize( m_PinNumSize, m_PinNumSize );
+    wxSize      PinNameSize( m_nameTextSize, m_nameTextSize );
+    wxSize      PinNumSize( m_numTextSize, m_numTextSize );
 
-    int        nameLineWidth = GetPenSize();
+    int         nameLineWidth = GetPenSize();
 
-    nameLineWidth = Clamp_Text_PenSize( nameLineWidth, m_PinNameSize, false );
+    nameLineWidth = Clamp_Text_PenSize( nameLineWidth, m_nameTextSize, false );
     int        numLineWidth = GetPenSize();
-    numLineWidth = Clamp_Text_PenSize( numLineWidth, m_PinNumSize, false );
+    numLineWidth = Clamp_Text_PenSize( numLineWidth, m_numTextSize, false );
 
     GRSetDrawMode( DC, DrawMode );
 
     /* Get the num and name colors */
-    if( (Color < 0) && (m_Selected & IS_SELECTED) )
-        Color = g_ItemSelectetColor;
+    if( (Color < 0) && IsSelected() )
+        Color = GetItemSelectedColor();
 
-    NameColor = (EDA_Colors) ( Color == -1 ? ReturnLayerColor( LAYER_PINNAM ) : Color );
-    NumColor  = (EDA_Colors) ( Color == -1 ? ReturnLayerColor( LAYER_PINNUM ) : Color );
+    NameColor = (EDA_COLOR_T) ( Color == UNSPECIFIED_COLOR ?
+                                ReturnLayerColor( LAYER_PINNAM ) : Color );
+    NumColor  = (EDA_COLOR_T) ( Color == UNSPECIFIED_COLOR ?
+                                ReturnLayerColor( LAYER_PINNUM ) : Color );
 
     /* Create the pin num string */
     ReturnPinStringNum( StringPinNum );
@@ -1143,7 +1122,7 @@ void LIB_PIN::DrawPinTexts( EDA_DRAW_PANEL* panel,
     }
 
     if( m_name.IsEmpty() )
-        DrawPinName = FALSE;
+        DrawPinName = false;
 
     if( TextInside )  /* Draw the text inside, but the pin numbers outside. */
     {
@@ -1293,12 +1272,10 @@ void LIB_PIN::DrawPinTexts( EDA_DRAW_PANEL* panel,
 
 void LIB_PIN::PlotSymbol( PLOTTER* aPlotter, const wxPoint& aPosition, int aOrientation )
 {
-    int        MapX1, MapY1, x1, y1;
-    EDA_Colors color = UNSPECIFIED_COLOR;
+    int         MapX1, MapY1, x1, y1;
+    EDA_COLOR_T color = ReturnLayerColor( LAYER_PIN );
 
-    color = ReturnLayerColor( LAYER_PIN );
-
-    aPlotter->set_color( color );
+    aPlotter->SetColor( color );
 
     MapX1 = MapY1 = 0;
     x1 = aPosition.x; y1 = aPosition.y;
@@ -1328,35 +1305,35 @@ void LIB_PIN::PlotSymbol( PLOTTER* aPlotter, const wxPoint& aPosition, int aOrie
 
     if( m_shape & INVERT )
     {
-        aPlotter->circle( wxPoint( MapX1 * INVERT_PIN_RADIUS + x1,
+        aPlotter->Circle( wxPoint( MapX1 * INVERT_PIN_RADIUS + x1,
                                    MapY1 * INVERT_PIN_RADIUS + y1 ),
                           INVERT_PIN_RADIUS * 2, // diameter
-                          NO_FILL,               // fill
-                          -1 );                  // width
+                          NO_FILL,               // fill option
+                          GetPenSize() );       // width
 
-        aPlotter->move_to( wxPoint( MapX1 * INVERT_PIN_RADIUS * 2 + x1,
+        aPlotter->MoveTo( wxPoint( MapX1 * INVERT_PIN_RADIUS * 2 + x1,
                                     MapY1 * INVERT_PIN_RADIUS * 2 + y1 ) );
-        aPlotter->finish_to( aPosition );
+        aPlotter->FinishTo( aPosition );
     }
     else
     {
-        aPlotter->move_to( wxPoint( x1, y1 ) );
-        aPlotter->finish_to( aPosition );
+        aPlotter->MoveTo( wxPoint( x1, y1 ) );
+        aPlotter->FinishTo( aPosition );
     }
 
     if( m_shape & CLOCK )
     {
         if( MapY1 == 0 ) /* MapX1 = +- 1 */
         {
-            aPlotter->move_to( wxPoint( x1, y1 + CLOCK_PIN_DIM ) );
-            aPlotter->line_to( wxPoint( x1 - MapX1 * CLOCK_PIN_DIM, y1 ) );
-            aPlotter->finish_to( wxPoint( x1, y1 - CLOCK_PIN_DIM ) );
+            aPlotter->MoveTo( wxPoint( x1, y1 + CLOCK_PIN_DIM ) );
+            aPlotter->LineTo( wxPoint( x1 - MapX1 * CLOCK_PIN_DIM, y1 ) );
+            aPlotter->FinishTo( wxPoint( x1, y1 - CLOCK_PIN_DIM ) );
         }
         else    /* MapX1 = 0 */
         {
-            aPlotter->move_to( wxPoint( x1 + CLOCK_PIN_DIM, y1 ) );
-            aPlotter->line_to( wxPoint( x1, y1 - MapY1 * CLOCK_PIN_DIM ) );
-            aPlotter->finish_to( wxPoint( x1 - CLOCK_PIN_DIM, y1 ) );
+            aPlotter->MoveTo( wxPoint( x1 + CLOCK_PIN_DIM, y1 ) );
+            aPlotter->LineTo( wxPoint( x1, y1 - MapY1 * CLOCK_PIN_DIM ) );
+            aPlotter->FinishTo( wxPoint( x1 - CLOCK_PIN_DIM, y1 ) );
         }
     }
 
@@ -1364,17 +1341,17 @@ void LIB_PIN::PlotSymbol( PLOTTER* aPlotter, const wxPoint& aPosition, int aOrie
     {
         if( MapY1 == 0 )        /* MapX1 = +- 1 */
         {
-            aPlotter->move_to( wxPoint( x1 + MapX1 * IEEE_SYMBOL_PIN_DIM * 2, y1 ) );
-            aPlotter->line_to( wxPoint( x1 + MapX1 * IEEE_SYMBOL_PIN_DIM * 2,
+            aPlotter->MoveTo( wxPoint( x1 + MapX1 * IEEE_SYMBOL_PIN_DIM * 2, y1 ) );
+            aPlotter->LineTo( wxPoint( x1 + MapX1 * IEEE_SYMBOL_PIN_DIM * 2,
                                         y1 - IEEE_SYMBOL_PIN_DIM ) );
-            aPlotter->finish_to( wxPoint( x1, y1 ) );
+            aPlotter->FinishTo( wxPoint( x1, y1 ) );
         }
         else    /* MapX1 = 0 */
         {
-            aPlotter->move_to( wxPoint( x1, y1 + MapY1 * IEEE_SYMBOL_PIN_DIM * 2 ) );
-            aPlotter->line_to( wxPoint( x1 - IEEE_SYMBOL_PIN_DIM,
+            aPlotter->MoveTo( wxPoint( x1, y1 + MapY1 * IEEE_SYMBOL_PIN_DIM * 2 ) );
+            aPlotter->LineTo( wxPoint( x1 - IEEE_SYMBOL_PIN_DIM,
                                         y1 + MapY1 * IEEE_SYMBOL_PIN_DIM * 2 ) );
-            aPlotter->finish_to( wxPoint( x1, y1 ) );
+            aPlotter->FinishTo( wxPoint( x1, y1 ) );
         }
     }
 
@@ -1383,13 +1360,13 @@ void LIB_PIN::PlotSymbol( PLOTTER* aPlotter, const wxPoint& aPosition, int aOrie
     {
         if( MapY1 == 0 )        /* MapX1 = +- 1 */
         {
-            aPlotter->move_to( wxPoint( x1, y1 - IEEE_SYMBOL_PIN_DIM ) );
-            aPlotter->finish_to( wxPoint( x1 + MapX1 * IEEE_SYMBOL_PIN_DIM * 2, y1 ) );
+            aPlotter->MoveTo( wxPoint( x1, y1 - IEEE_SYMBOL_PIN_DIM ) );
+            aPlotter->FinishTo( wxPoint( x1 + MapX1 * IEEE_SYMBOL_PIN_DIM * 2, y1 ) );
         }
         else    /* MapX1 = 0 */
         {
-            aPlotter->move_to( wxPoint( x1 - IEEE_SYMBOL_PIN_DIM, y1 ) );
-            aPlotter->finish_to( wxPoint( x1, y1 + MapY1 * IEEE_SYMBOL_PIN_DIM * 2 ) );
+            aPlotter->MoveTo( wxPoint( x1 - IEEE_SYMBOL_PIN_DIM, y1 ) );
+            aPlotter->FinishTo( wxPoint( x1, y1 + MapY1 * IEEE_SYMBOL_PIN_DIM * 2 ) );
         }
     }
 }
@@ -1403,11 +1380,11 @@ void LIB_PIN::PlotPinTexts( PLOTTER* plotter,
                             bool     DrawPinName,
                             int      aWidth )
 {
-    int        x, y, x1, y1;
-    wxString   StringPinNum;
-    EDA_Colors NameColor, NumColor;
-    wxSize     PinNameSize = wxSize( m_PinNameSize, m_PinNameSize );
-    wxSize     PinNumSize  = wxSize( m_PinNumSize, m_PinNumSize );
+    int         x, y, x1, y1;
+    wxString    StringPinNum;
+    EDA_COLOR_T NameColor, NumColor;
+    wxSize      PinNameSize = wxSize( m_nameTextSize, m_nameTextSize );
+    wxSize      PinNumSize  = wxSize( m_numTextSize, m_numTextSize );
 
     /* Get the num and name colors */
     NameColor = ReturnLayerColor( LAYER_PINNAM );
@@ -1438,7 +1415,7 @@ void LIB_PIN::PlotPinTexts( PLOTTER* plotter,
     }
 
     if( m_name.IsEmpty() )
-        DrawPinName = FALSE;
+        DrawPinName = false;
 
     /* Draw the text inside, but the pin numbers outside. */
     if( TextInside )
@@ -1450,7 +1427,7 @@ void LIB_PIN::PlotPinTexts( PLOTTER* plotter,
                 if( orient == PIN_RIGHT )
                 {
                     x = x1 + TextInside;
-                    plotter->text( wxPoint( x, y1 ), NameColor,
+                    plotter->Text( wxPoint( x, y1 ), NameColor,
                                    m_name,
                                    TEXT_ORIENT_HORIZ,
                                    PinNameSize,
@@ -1463,7 +1440,7 @@ void LIB_PIN::PlotPinTexts( PLOTTER* plotter,
                     x = x1 - TextInside;
 
                     if( DrawPinName )
-                        plotter->text( wxPoint( x, y1 ),
+                        plotter->Text( wxPoint( x, y1 ),
                                        NameColor, m_name, TEXT_ORIENT_HORIZ,
                                        PinNameSize,
                                        GR_TEXT_HJUSTIFY_RIGHT,
@@ -1473,7 +1450,7 @@ void LIB_PIN::PlotPinTexts( PLOTTER* plotter,
             }
             if( DrawPinNum )
             {
-                plotter->text( wxPoint( (x1 + pin_pos.x) / 2, y1 - TXTMARGE ),
+                plotter->Text( wxPoint( (x1 + pin_pos.x) / 2, y1 - TXTMARGE ),
                                NumColor, StringPinNum,
                                TEXT_ORIENT_HORIZ, PinNumSize,
                                GR_TEXT_HJUSTIFY_CENTER,
@@ -1488,7 +1465,7 @@ void LIB_PIN::PlotPinTexts( PLOTTER* plotter,
                 y = y1 + TextInside;
 
                 if( DrawPinName )
-                    plotter->text( wxPoint( x1, y ), NameColor,
+                    plotter->Text( wxPoint( x1, y ), NameColor,
                                    m_name,
                                    TEXT_ORIENT_VERT, PinNameSize,
                                    GR_TEXT_HJUSTIFY_RIGHT,
@@ -1497,7 +1474,7 @@ void LIB_PIN::PlotPinTexts( PLOTTER* plotter,
 
                 if( DrawPinNum )
                 {
-                    plotter->text( wxPoint( x1 - TXTMARGE, (y1 + pin_pos.y) / 2 ),
+                    plotter->Text( wxPoint( x1 - TXTMARGE, (y1 + pin_pos.y) / 2 ),
                                    NumColor, StringPinNum,
                                    TEXT_ORIENT_VERT, PinNumSize,
                                    GR_TEXT_HJUSTIFY_CENTER,
@@ -1510,7 +1487,7 @@ void LIB_PIN::PlotPinTexts( PLOTTER* plotter,
                 y = y1 - TextInside;
 
                 if( DrawPinName )
-                    plotter->text( wxPoint( x1, y ), NameColor,
+                    plotter->Text( wxPoint( x1, y ), NameColor,
                                    m_name,
                                    TEXT_ORIENT_VERT, PinNameSize,
                                    GR_TEXT_HJUSTIFY_LEFT,
@@ -1519,7 +1496,7 @@ void LIB_PIN::PlotPinTexts( PLOTTER* plotter,
 
                 if( DrawPinNum )
                 {
-                    plotter->text( wxPoint( x1 - TXTMARGE, (y1 + pin_pos.y) / 2 ),
+                    plotter->Text( wxPoint( x1 - TXTMARGE, (y1 + pin_pos.y) / 2 ),
                                    NumColor, StringPinNum,
                                    TEXT_ORIENT_VERT, PinNumSize,
                                    GR_TEXT_HJUSTIFY_CENTER,
@@ -1537,7 +1514,7 @@ void LIB_PIN::PlotPinTexts( PLOTTER* plotter,
             if( DrawPinName )
             {
                 x = (x1 + pin_pos.x) / 2;
-                plotter->text( wxPoint( x, y1 - TXTMARGE ),
+                plotter->Text( wxPoint( x, y1 - TXTMARGE ),
                                NameColor, m_name,
                                TEXT_ORIENT_HORIZ, PinNameSize,
                                GR_TEXT_HJUSTIFY_CENTER,
@@ -1548,7 +1525,7 @@ void LIB_PIN::PlotPinTexts( PLOTTER* plotter,
             if( DrawPinNum )
             {
                 x = ( x1 + pin_pos.x ) / 2;
-                plotter->text( wxPoint( x, y1 + TXTMARGE ),
+                plotter->Text( wxPoint( x, y1 + TXTMARGE ),
                                NumColor, StringPinNum,
                                TEXT_ORIENT_HORIZ, PinNumSize,
                                GR_TEXT_HJUSTIFY_CENTER,
@@ -1561,7 +1538,7 @@ void LIB_PIN::PlotPinTexts( PLOTTER* plotter,
             if( DrawPinName )
             {
                 y = ( y1 + pin_pos.y ) / 2;
-                plotter->text( wxPoint( x1 - TXTMARGE, y ),
+                plotter->Text( wxPoint( x1 - TXTMARGE, y ),
                                NameColor, m_name,
                                TEXT_ORIENT_VERT, PinNameSize,
                                GR_TEXT_HJUSTIFY_CENTER,
@@ -1571,7 +1548,7 @@ void LIB_PIN::PlotPinTexts( PLOTTER* plotter,
 
             if( DrawPinNum )
             {
-                plotter->text( wxPoint( x1 + TXTMARGE, ( y1 + pin_pos.y ) / 2 ),
+                plotter->Text( wxPoint( x1 + TXTMARGE, ( y1 + pin_pos.y ) / 2 ),
                                NumColor, StringPinNum,
                                TEXT_ORIENT_VERT, PinNumSize,
                                GR_TEXT_HJUSTIFY_CENTER,
@@ -1694,13 +1671,13 @@ void LIB_PIN::SetPinNumFromString( wxString& buffer )
 }
 
 
-EDA_ITEM* LIB_PIN::doClone() const
+EDA_ITEM* LIB_PIN::Clone() const
 {
     return new LIB_PIN( *this );
 }
 
 
-int LIB_PIN::DoCompare( const LIB_ITEM& other ) const
+int LIB_PIN::compare( const LIB_ITEM& other ) const
 {
     wxASSERT( other.Type() == LIB_PIN_T );
 
@@ -1724,13 +1701,13 @@ int LIB_PIN::DoCompare( const LIB_ITEM& other ) const
 }
 
 
-void LIB_PIN::DoOffset( const wxPoint& offset )
+void LIB_PIN::SetOffset( const wxPoint& aOffset )
 {
-    m_position += offset;
+    m_position += aOffset;
 }
 
 
-bool LIB_PIN::DoTestInside( EDA_RECT& rect ) const
+bool LIB_PIN::Inside( EDA_RECT& rect ) const
 {
     wxPoint end = ReturnPinEndPoint();
 
@@ -1738,7 +1715,7 @@ bool LIB_PIN::DoTestInside( EDA_RECT& rect ) const
 }
 
 
-void LIB_PIN::DoMove( const wxPoint& newPosition )
+void LIB_PIN::Move( const wxPoint& newPosition )
 {
     if( m_position != newPosition )
     {
@@ -1748,7 +1725,7 @@ void LIB_PIN::DoMove( const wxPoint& newPosition )
 }
 
 
-void LIB_PIN::DoMirrorHorizontal( const wxPoint& center )
+void LIB_PIN::MirrorHorizontal( const wxPoint& center )
 {
     m_position.x -= center.x;
     m_position.x *= -1;
@@ -1760,7 +1737,7 @@ void LIB_PIN::DoMirrorHorizontal( const wxPoint& center )
         m_orientation = PIN_RIGHT;
 }
 
-void LIB_PIN::DoMirrorVertical( const wxPoint& center )
+void LIB_PIN::MirrorVertical( const wxPoint& center )
 {
     m_position.y -= center.y;
     m_position.y *= -1;
@@ -1772,7 +1749,7 @@ void LIB_PIN::DoMirrorVertical( const wxPoint& center )
         m_orientation = PIN_UP;
 }
 
-void LIB_PIN::DoRotate( const wxPoint& center, bool aRotateCCW )
+void LIB_PIN::Rotate( const wxPoint& center, bool aRotateCCW )
 {
     int rot_angle = aRotateCCW ? -900 : 900;
 
@@ -1821,8 +1798,8 @@ void LIB_PIN::DoRotate( const wxPoint& center, bool aRotateCCW )
 }
 
 
-void LIB_PIN::DoPlot( PLOTTER* plotter, const wxPoint& offset, bool fill,
-                      const TRANSFORM& aTransform )
+void LIB_PIN::Plot( PLOTTER* plotter, const wxPoint& offset, bool fill,
+                    const TRANSFORM& aTransform )
 {
     if( ! IsVisible() )
         return;
@@ -1831,7 +1808,7 @@ void LIB_PIN::DoPlot( PLOTTER* plotter, const wxPoint& offset, bool fill,
 
     wxPoint pos = aTransform.TransformCoordinate( m_position ) + offset;
 
-    plotter->set_current_line_width( GetPenSize() );
+    plotter->SetCurrentLineWidth( GetPenSize() );
     PlotSymbol( plotter, pos, orient );
     PlotPinTexts( plotter, pos, orient, GetParent()->GetPinNameOffset(),
                   GetParent()->ShowPinNumbers(), GetParent()->ShowPinNames(),
@@ -1839,7 +1816,7 @@ void LIB_PIN::DoPlot( PLOTTER* plotter, const wxPoint& offset, bool fill,
 }
 
 
-void LIB_PIN::DoSetWidth( int aWidth )
+void LIB_PIN::SetWidth( int aWidth )
 {
     if( m_width != aWidth )
     {
@@ -1849,40 +1826,40 @@ void LIB_PIN::DoSetWidth( int aWidth )
 }
 
 
-void LIB_PIN::DisplayInfo( EDA_DRAW_FRAME* aFrame )
+void LIB_PIN::GetMsgPanelInfo( MSG_PANEL_ITEMS& aList )
 {
     wxString Text;
 
-    LIB_ITEM::DisplayInfo( aFrame );
+    LIB_ITEM::GetMsgPanelInfo( aList );
 
-    aFrame->AppendMsgPanel( _( "Name" ), m_name, DARKCYAN );
+    aList.push_back( MSG_PANEL_ITEM( _( "Name" ), m_name, DARKCYAN ) );
 
     if( m_number == 0 )
         Text = wxT( "?" );
     else
         ReturnPinStringNum( Text );
 
-    aFrame->AppendMsgPanel( _( "Number" ), Text, DARKCYAN );
+    aList.push_back( MSG_PANEL_ITEM( _( "Number" ), Text, DARKCYAN ) );
 
-    aFrame->AppendMsgPanel( _( "Type" ),
-                           wxGetTranslation( pin_electrical_type_names[ m_type ] ),
-                           RED );
+    aList.push_back( MSG_PANEL_ITEM( _( "Type" ),
+                                     wxGetTranslation( pin_electrical_type_names[ m_type ] ),
+                                     RED ) );
     Text = wxGetTranslation( pin_style_names[ GetStyleCodeIndex( m_shape ) ] );
-    aFrame->AppendMsgPanel( _( "Style" ), Text, BLUE );
+    aList.push_back( MSG_PANEL_ITEM( _( "Style" ), Text, BLUE ) );
 
     if( IsVisible() )
         Text = _( "Yes" );
     else
         Text = _( "No" );
 
-    aFrame->AppendMsgPanel( _( "Visible" ), Text, DARKGREEN );
+    aList.push_back( MSG_PANEL_ITEM( _( "Visible" ), Text, DARKGREEN ) );
 
     /* Display pin length */
-    Text = ReturnStringFromValue( g_UserUnit, m_length, EESCHEMA_INTERNAL_UNIT, true );
-    aFrame->AppendMsgPanel( _( "Length" ), Text, MAGENTA );
+    Text = ReturnStringFromValue( g_UserUnit, m_length, true );
+    aList.push_back( MSG_PANEL_ITEM( _( "Length" ), Text, MAGENTA ) );
 
     Text = wxGetTranslation( pin_orientation_names[ GetOrientationCodeIndex( m_orientation ) ] );
-    aFrame->AppendMsgPanel( _( "Orientation" ), Text, DARKMAGENTA );
+    aList.push_back( MSG_PANEL_ITEM( _( "Orientation" ), Text, DARKMAGENTA ) );
 }
 
 
@@ -1909,18 +1886,18 @@ EDA_RECT LIB_PIN::GetBoundingBox() const
     }
 
     // First, calculate boundary box corners position
-    int numberTextLength = showNum ? m_PinNumSize * GetNumberString().Len() : 0;
+    int numberTextLength = showNum ? m_numTextSize * GetNumberString().Len() : 0;
 
     // Actual text height is bigger than text size
-    int numberTextHeight  = showNum ? wxRound( m_PinNumSize * 1.1 ) : 0;
+    int numberTextHeight  = showNum ? KiROUND( m_numTextSize * 1.1 ) : 0;
 
     if( m_shape & INVERT )
-        minsizeV = MAX( TARGET_PIN_RADIUS, INVERT_PIN_RADIUS );
+        minsizeV = std::max( TARGET_PIN_RADIUS, INVERT_PIN_RADIUS );
 
     // calculate top left corner position
     // for the default pin orientation (PIN_RIGHT)
-    begin.y = MAX( minsizeV, numberTextHeight + TXTMARGE );
-    begin.x = MIN( -TARGET_PIN_RADIUS, m_length - (numberTextLength / 2) );
+    begin.y = std::max( minsizeV, numberTextHeight + TXTMARGE );
+    begin.x = std::min( -TARGET_PIN_RADIUS, m_length - (numberTextLength / 2) );
 
     // calculate bottom right corner position and adjust top left corner position
     int nameTextLength = 0;
@@ -1934,23 +1911,24 @@ EDA_RECT LIB_PIN::GetBoundingBox() const
         if( m_name.Left( 1 ) == wxT( "~" ) )
             length -= 1;
 
-        nameTextLength = ( m_PinNameSize * length ) + nameTextOffset;
+        nameTextLength = ( m_nameTextSize * length ) + nameTextOffset;
+
         // Actual text height are bigger than text size
-        nameTextHeight = wxRound( m_PinNameSize * 1.1 ) + TXTMARGE;
+        nameTextHeight = KiROUND( m_nameTextSize * 1.1 ) + TXTMARGE;
     }
 
     if( nameTextOffset )        // for values > 0, pin name is inside the body
     {
         end.x = m_length + nameTextLength;
-        end.y = MIN( -minsizeV, -nameTextHeight / 2 );
+        end.y = std::min( -minsizeV, -nameTextHeight / 2 );
     }
     else        // if value == 0:
                 // pin name is outside the body, and above the pin line
                 // pin num is below the pin line
     {
-        end.x = MAX(m_length, nameTextLength);
+        end.x = std::max(m_length, nameTextLength);
         end.y = -begin.y;
-        begin.y = MAX( minsizeV, nameTextHeight );
+        begin.y = std::max( minsizeV, nameTextHeight );
     }
 
     // Now, calculate boundary box corners position for the actual pin orientation
@@ -2142,9 +2120,34 @@ wxString LIB_PIN::GetSelectMenuText() const
 }
 
 
+bool LIB_PIN::Matches( wxFindReplaceData& aSearchData, void* aAuxData, wxPoint* aFindLocation )
+{
+    wxLogTrace( traceFindItem, wxT( "  item " ) + GetSelectMenuText() );
+
+    // Note: this will have to be modified if we add find and replace capability to the
+    // compoment library editor.  Otherwise, you wont be able to replace pin text.
+    if( !( aSearchData.GetFlags() & FR_SEARCH_ALL_PINS )
+        || ( aSearchData.GetFlags() & FR_SEARCH_REPLACE ) )
+        return false;
+
+    wxLogTrace( traceFindItem, wxT( "    child item " ) + GetSelectMenuText() );
+
+    if( EDA_ITEM::Matches( GetName(), aSearchData )
+        || EDA_ITEM::Matches( GetNumberString(), aSearchData ) )
+    {
+        if( aFindLocation )
+            *aFindLocation =  GetBoundingBox().Centre();
+
+        return true;
+    }
+
+    return false;
+}
+
+
 #if defined(DEBUG)
 
-void LIB_PIN::Show( int nestLevel, std::ostream& os )
+void LIB_PIN::Show( int nestLevel, std::ostream& os ) const
 {
     NestedSpace( nestLevel, os ) << '<' << GetClass().Lower().mb_str()
                                  << " num=\"" << GetNumberString().mb_str()

@@ -1,22 +1,49 @@
+/*
+ * This program source code file is part of KiCad, a free EDA CAD application.
+ *
+ * Copyright (C) 2012 Jean-Pierre Charras, jean-pierre.charras@ujf-grenoble.fr
+ * Copyright (C) 2012 SoftPLC Corporation, Dick Hollenbeck <dick@softplc.com>
+ * Copyright (C) 2012 Wayne Stambaugh <stambaughw@verizon.net>
+ * Copyright (C) 1992-2012 KiCad Developers, see AUTHORS.txt for contributors.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation; either version 2
+ * of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, you may find one here:
+ * http://www.gnu.org/licenses/old-licenses/gpl-2.0.html
+ * or you may search the http://www.gnu.org website for the version 2 license,
+ * or you may write to the Free Software Foundation, Inc.,
+ * 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
+ */
+
 /**
  * @file class_mire.cpp
  * MIRE class definition (targets for photo plots)
  */
 
-#include "fctsys.h"
-#include "gr_basic.h"
-#include "common.h"
-#include "class_drawpanel.h"
-#include "kicad_string.h"
-#include "pcbcommon.h"
-#include "colors_selection.h"
-#include "trigo.h"
-#include "macros.h"
-#include "protos.h"
-#include "richio.h"
+#include <fctsys.h>
+#include <gr_basic.h>
+#include <common.h>
+#include <class_drawpanel.h>
+#include <kicad_string.h>
+#include <pcbcommon.h>
+#include <colors_selection.h>
+#include <trigo.h>
+#include <macros.h>
+#include <protos.h>
+#include <richio.h>
 
-#include "class_board.h"
-#include "class_mire.h"
+#include <class_board.h>
+#include <class_mire.h>
+#include <base_units.h>
 
 
 PCB_TARGET::PCB_TARGET( BOARD_ITEM* aParent ) :
@@ -26,9 +53,29 @@ PCB_TARGET::PCB_TARGET( BOARD_ITEM* aParent ) :
     m_Size  = 5000;
 }
 
+PCB_TARGET::PCB_TARGET( BOARD_ITEM* aParent, int aShape, int aLayer,
+    const wxPoint& aPos, int aSize, int aWidth ) :
+    BOARD_ITEM( aParent, PCB_TARGET_T )
+{
+    m_Shape = aShape;
+    m_Layer = aLayer;
+    m_Pos   = aPos;
+    m_Size  = aSize;
+    m_Width = aWidth;
+}
+
 
 PCB_TARGET::~PCB_TARGET()
 {
+}
+
+
+void PCB_TARGET::Exchg( PCB_TARGET* source )
+{
+    EXCHG( m_Pos,   source->m_Pos );
+    EXCHG( m_Width, source->m_Width );
+    EXCHG( m_Size,  source->m_Size );
+    EXCHG( m_Shape, source->m_Shape );
 }
 
 
@@ -39,73 +86,18 @@ void PCB_TARGET::Copy( PCB_TARGET* source )
     m_Pos       = source->m_Pos;
     m_Shape     = source->m_Shape;
     m_Size      = source->m_Size;
-    m_TimeStamp = GetTimeStamp();
+    SetTimeStamp( GetNewTimeStamp() );
 }
-
-
-/* Read the description from the PCB file.
- */
-bool PCB_TARGET::ReadMirePcbDescr( LINE_READER* aReader )
-{
-    char* Line;
-
-    while( aReader->ReadLine() )
-    {
-        Line = aReader->Line();
-
-        if( strnicmp( Line, "$End", 4 ) == 0 )
-            return true;
-
-        if( Line[0] == 'P' )
-        {
-            sscanf( Line + 2, " %X %d %d %d %d %d %lX",
-                    &m_Shape, &m_Layer,
-                    &m_Pos.x, &m_Pos.y,
-                    &m_Size, &m_Width, &m_TimeStamp );
-
-            if( m_Layer < FIRST_NO_COPPER_LAYER )
-                m_Layer = FIRST_NO_COPPER_LAYER;
-
-            if( m_Layer > LAST_NO_COPPER_LAYER )
-                m_Layer = LAST_NO_COPPER_LAYER;
-        }
-    }
-
-    return false;
-}
-
-
-bool PCB_TARGET::Save( FILE* aFile ) const
-{
-    bool rc = false;
-
-    if( fprintf( aFile, "$PCB_TARGET\n" ) != sizeof("$PCB_TARGET\n")-1 )
-        goto out;
-
-    fprintf( aFile, "Po %X %d %d %d %d %d %8.8lX\n",
-             m_Shape, m_Layer,
-             m_Pos.x, m_Pos.y,
-             m_Size, m_Width, m_TimeStamp );
-
-    if( fprintf( aFile, "$EndPCB_TARGET\n" ) != sizeof("$EndPCB_TARGET\n")-1 )
-        goto out;
-
-    rc = true;
-
-out:
-    return rc;
-}
-
-
 
 
 /* Draw PCB_TARGET object: 2 segments + 1 circle
  * The circle radius is half the radius of the target
  * 2 lines have length the diameter of the target
  */
-void PCB_TARGET::Draw( EDA_DRAW_PANEL* panel, wxDC* DC, int mode_color, const wxPoint& offset )
+void PCB_TARGET::Draw( EDA_DRAW_PANEL* panel, wxDC* DC, GR_DRAWMODE mode_color,
+                       const wxPoint& offset )
 {
-    int radius, ox, oy, gcolor, width;
+    int radius, ox, oy, width;
     int dx1, dx2, dy1, dy2;
     int typeaff;
 
@@ -117,29 +109,31 @@ void PCB_TARGET::Draw( EDA_DRAW_PANEL* panel, wxDC* DC, int mode_color, const wx
     if( brd->IsLayerVisible( m_Layer ) == false )
         return;
 
-    gcolor = brd->GetLayerColor( m_Layer );
+    EDA_COLOR_T gcolor = brd->GetLayerColor( m_Layer );
 
     GRSetDrawMode( DC, mode_color );
     typeaff = DisplayOpt.DisplayDrawItems;
     width   = m_Width;
 
     if( DC->LogicalToDeviceXRel( width ) < 2 )
-        typeaff = FILAIRE;
+        typeaff = LINE;
 
-    radius = m_Size / 4;
+    radius = m_Size / 3;
+    if( GetShape() )   // shape X
+        radius = m_Size / 2;
 
     switch( typeaff )
     {
-    case FILAIRE:
+    case LINE:
         width = 0;
 
     case FILLED:
-        GRCircle( &panel->m_ClipBox, DC, ox, oy, radius, width, gcolor );
+        GRCircle( panel->GetClipBox(), DC, ox, oy, radius, width, gcolor );
         break;
 
     case SKETCH:
-        GRCircle( &panel->m_ClipBox, DC, ox, oy, radius + (width / 2), gcolor );
-        GRCircle( &panel->m_ClipBox, DC, ox, oy, radius - (width / 2), gcolor );
+        GRCircle( panel->GetClipBox(), DC, ox, oy, radius + (width / 2), gcolor );
+        GRCircle( panel->GetClipBox(), DC, ox, oy, radius - (width / 2), gcolor );
         break;
     }
 
@@ -150,80 +144,57 @@ void PCB_TARGET::Draw( EDA_DRAW_PANEL* panel, wxDC* DC, int mode_color, const wx
     dx2   = 0;
     dy2   = radius;
 
-    if( m_Shape ) /* Form X */
+    if( GetShape() )   // shape X
     {
-        dx1 = dy1 = ( radius * 7 ) / 5;
+        dx1 = dy1 = radius;
         dx2 = dx1;
         dy2 = -dy1;
     }
 
     switch( typeaff )
     {
-    case FILAIRE:
+    case LINE:
     case FILLED:
-        GRLine( &panel->m_ClipBox, DC, ox - dx1, oy - dy1, ox + dx1, oy + dy1, width, gcolor );
-        GRLine( &panel->m_ClipBox, DC, ox - dx2, oy - dy2, ox + dx2, oy + dy2, width, gcolor );
+        GRLine( panel->GetClipBox(), DC, ox - dx1, oy - dy1, ox + dx1, oy + dy1, width, gcolor );
+        GRLine( panel->GetClipBox(), DC, ox - dx2, oy - dy2, ox + dx2, oy + dy2, width, gcolor );
         break;
 
     case SKETCH:
-        GRCSegm( &panel->m_ClipBox, DC, ox - dx1, oy - dy1, ox + dx1, oy + dy1, width, gcolor );
-        GRCSegm( &panel->m_ClipBox, DC, ox - dx2, oy - dy2, ox + dx2, oy + dy2, width, gcolor );
+        GRCSegm( panel->GetClipBox(), DC, ox - dx1, oy - dy1, ox + dx1, oy + dy1, width, gcolor );
+        GRCSegm( panel->GetClipBox(), DC, ox - dx2, oy - dy2, ox + dx2, oy + dy2, width, gcolor );
         break;
     }
 }
 
 
-/**
- * Function HitTest
- * tests if the given wxPoint is within the bounds of this object.
- * @param refPos A wxPoint to test
- * @return bool - true if a hit, else false
- */
-bool PCB_TARGET::HitTest( const wxPoint& refPos )
+bool PCB_TARGET::HitTest( const wxPoint& aPosition )
 {
-    int dX    = refPos.x - m_Pos.x;
-    int dY    = refPos.y - m_Pos.y;
+    int dX = aPosition.x - m_Pos.x;
+    int dY = aPosition.y - m_Pos.y;
     int radius = m_Size / 2;
     return abs( dX ) <= radius && abs( dY ) <= radius;
 }
 
 
-/**
- * Function HitTest (overlayed)
- * tests if the given EDA_RECT intersect this object.
- * @param refArea : the given EDA_RECT
- * @return bool - true if a hit, else false
- */
-bool PCB_TARGET::HitTest( EDA_RECT& refArea )
+bool PCB_TARGET::HitTest( const EDA_RECT& aRect ) const
 {
-    if( refArea.Contains( m_Pos ) )
+    if( aRect.Contains( m_Pos ) )
         return true;
 
     return false;
 }
 
 
-/**
- * Function Rotate
- * Rotate this object.
- * @param aRotCentre - the rotation point.
- * @param aAngle - the rotation angle in 0.1 degree.
- */
-void PCB_TARGET::Rotate(const wxPoint& aRotCentre, int aAngle)
+void PCB_TARGET::Rotate(const wxPoint& aRotCentre, double aAngle)
 {
     RotatePoint( &m_Pos, aRotCentre, aAngle );
 }
 
 
-/**
- * Function Flip
- * Flip this object, i.e. change the board side for this object
- * @param aCentre - the rotation point.
- */
 void PCB_TARGET::Flip(const wxPoint& aCentre )
 {
     m_Pos.y  = aCentre.y - ( m_Pos.y - aCentre.y );
-    SetLayer( ChangeSideNumLayer( GetLayer() ) );
+    SetLayer( BOARD::ReturnFlippedLayerNumber( GetLayer() ) );
 }
 
 
@@ -244,10 +215,16 @@ wxString PCB_TARGET::GetSelectMenuText() const
     wxString text;
     wxString msg;
 
-    valeur_param( m_Size, msg );
+    msg = ::CoordinateToString( m_Size );
 
     text.Printf( _( "Target on %s size %s" ),
                  GetChars( GetLayerName() ), GetChars( msg ) );
 
     return text;
+}
+
+
+EDA_ITEM* PCB_TARGET::Clone() const
+{
+    return new PCB_TARGET( *this );
 }

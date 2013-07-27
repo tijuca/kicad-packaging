@@ -1,7 +1,7 @@
 /*
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
- * Copyright (C) 2004 Jean-Pierre Charras, jaen-pierre.charras@gipsa-lab.inpg.com
+ * Copyright (C) 2012 Jean-Pierre Charras, jp.charras@wanadoo.fr
  * Copyright (C) 2011 Wayne Stambaugh <stambaughw@verizon.net>
  * Copyright (C) 1992-2011 KiCad Developers, see AUTHORS.txt for contributors.
  *
@@ -27,14 +27,20 @@
  * @file 3d_read_mesh.cpp
  */
 
-#include "fctsys.h"
-#include "common.h"
-#include "macros.h"
-#include "kicad_string.h"
-#include "appl_wxstruct.h"
+#include <fctsys.h>
+#include <common.h>
+#include <macros.h>
+#include <kicad_string.h>
+#include <appl_wxstruct.h>
 
-#include "3d_viewer.h"
+#include <3d_viewer.h>
+#include <info3d_visu.h>
 
+// Imported function:
+extern void Set_Object_Data( std::vector< S3D_VERTEX >& aVertices, double aBiuTo3DUnits );
+
+// separator chars
+static const char* sep_chars = " \t\n\r";
 
 int S3D_MASTER::ReadData()
 {
@@ -85,13 +91,13 @@ int S3D_MASTER::ReadData()
 
     while( GetLine( file, line, &LineNum, 512 ) )
     {
-        text = strtok( line, " \t\n\r" );
+        text = strtok( line, sep_chars );
 
-        if( stricmp( text, "DEF" ) == 0 )
+        if( stricmp( text, "DEF" ) == 0 || stricmp( text, "Group" ) == 0)
         {
             while( GetLine( file, line, &LineNum, 512 ) )
             {
-                text = strtok( line, " \t\n\r" );
+                text = strtok( line, sep_chars );
 
                 if( text == NULL )
                     continue;
@@ -119,8 +125,8 @@ int S3D_MASTER::ReadMaterial( FILE* file, int* LineNum )
     wxString      mat_name;
     S3D_MATERIAL* material = NULL;
 
-    command  = strtok( NULL, " \t\n\r" );
-    text     = strtok( NULL, " \t\n\r" );
+    command  = strtok( NULL, sep_chars );
+    text     = strtok( NULL, sep_chars );
     mat_name = FROM_UTF8( text );
 
     if( stricmp( command, "USE" ) == 0 )
@@ -134,11 +140,11 @@ int S3D_MASTER::ReadMaterial( FILE* file, int* LineNum )
             }
         }
 
-        printf( "ReadMaterial error: material not found\n" );
+        D( printf( "ReadMaterial error: material not found\n" ) );
         return 0;
     }
 
-    if( stricmp( command, "DEF" ) == 0 )
+    if( stricmp( command, "DEF" ) == 0 || stricmp( command, "Material") == 0)
     {
         material = new S3D_MATERIAL( this, mat_name );
 
@@ -146,7 +152,7 @@ int S3D_MASTER::ReadMaterial( FILE* file, int* LineNum )
 
         while( GetLine( file, line, LineNum, 512 ) )
         {
-            text = strtok( line, " \t\n\r" );
+            text = strtok( line, sep_chars );
 
             if( text == NULL )
                 continue;
@@ -159,44 +165,44 @@ int S3D_MASTER::ReadMaterial( FILE* file, int* LineNum )
 
             if( stricmp( text, "diffuseColor" ) == 0 )
             {
-                text = strtok( NULL, " \t\n\r" );
+                text = strtok( NULL, sep_chars );
                 material->m_DiffuseColor.x = atof( text );
-                text = strtok( NULL, " \t\n\r" );
+                text = strtok( NULL, sep_chars );
                 material->m_DiffuseColor.y = atof( text );
-                text = strtok( NULL, " \t\n\r" );
+                text = strtok( NULL, sep_chars );
                 material->m_DiffuseColor.z = atof( text );
             }
             else if( stricmp( text, "emissiveColor" ) == 0 )
             {
-                text = strtok( NULL, " \t\n\r" );
+                text = strtok( NULL, sep_chars );
                 material->m_EmissiveColor.x = atof( text );
-                text = strtok( NULL, " \t\n\r" );
+                text = strtok( NULL, sep_chars );
                 material->m_EmissiveColor.y = atof( text );
-                text = strtok( NULL, " \t\n\r" );
+                text = strtok( NULL, sep_chars );
                 material->m_EmissiveColor.z = atof( text );
             }
             else if( strnicmp( text, "specularColor", 13 ) == 0 )
             {
-                text = strtok( NULL, " \t\n\r" );
+                text = strtok( NULL, sep_chars );
                 material->m_SpecularColor.x = atof( text );
-                text = strtok( NULL, " \t\n\r" );
+                text = strtok( NULL, sep_chars );
                 material->m_SpecularColor.y = atof( text );
-                text = strtok( NULL, " \t\n\r" );
+                text = strtok( NULL, sep_chars );
                 material->m_SpecularColor.z = atof( text );
             }
             else if( strnicmp( text, "ambientIntensity", 16 ) == 0 )
             {
-                text = strtok( NULL, " \t\n\r" );
+                text = strtok( NULL, sep_chars );
                 material->m_AmbientIntensity = atof( text );
             }
             else if( strnicmp( text, "transparency", 12 ) == 0 )
             {
-                text = strtok( NULL, " \t\n\r" );
+                text = strtok( NULL, sep_chars );
                 material->m_Transparency = atof( text );
             }
             else if( strnicmp( text, "shininess", 9 ) == 0 )
             {
-                text = strtok( NULL, " \t\n\r" );
+                text = strtok( NULL, sep_chars );
                 material->m_Shininess = atof( text );
             }
         }
@@ -212,7 +218,7 @@ int S3D_MASTER::ReadChildren( FILE* file, int* LineNum )
 
     while( GetLine( file, line, LineNum, 512 ) )
     {
-        text = strtok( line, " \t\n\r" );
+        text = strtok( line, sep_chars );
 
         if( *text == ']' )
             return 0;
@@ -226,7 +232,7 @@ int S3D_MASTER::ReadChildren( FILE* file, int* LineNum )
         }
         else
         {
-            printf( "ReadChildren error line %d <%s> \n", *LineNum, text );
+            D( printf( "ReadChildren error line %d <%s> \n", *LineNum, text ) );
             break;
         }
     }
@@ -242,7 +248,7 @@ int S3D_MASTER::ReadShape( FILE* file, int* LineNum )
 
     while( GetLine( file, line, LineNum, 512 ) )
     {
-        text = strtok( line, " \t\n\r" );
+        text = strtok( line, sep_chars );
 
         if( *text == '}' )
         {
@@ -260,7 +266,7 @@ int S3D_MASTER::ReadShape( FILE* file, int* LineNum )
         }
         else
         {
-            printf( "ReadShape error line %d <%s> \n", *LineNum, text );
+            D( printf( "ReadShape error line %d <%s> \n", *LineNum, text ) );
             break;
         }
     }
@@ -276,7 +282,7 @@ int S3D_MASTER::ReadAppearance( FILE* file, int* LineNum )
 
     while( GetLine( file, line, LineNum, 512 ) )
     {
-        text = strtok( line, " \t\n\r" );
+        text = strtok( line, sep_chars );
 
         if( *text == '}' )
         {
@@ -289,7 +295,7 @@ int S3D_MASTER::ReadAppearance( FILE* file, int* LineNum )
         }
         else
         {
-            printf( "ReadAppearance error line %d <%s> \n", *LineNum, text );
+            D( printf( "ReadAppearance error line %d <%s> \n", *LineNum, text ) );
             break;
         }
     }
@@ -398,11 +404,12 @@ int S3D_MASTER::ReadGeometry( FILE* file, int* LineNum )
     int     err    = 1;
     std::vector< double > points;
     std::vector< double > list;
+    double vrmlunits_to_3Dunits = g_Parm_3D_Visu.m_BiuTo3Dunits * UNITS3D_TO_UNITSPCB;
 
     while( GetLine( file, line, LineNum, 512 ) )
     {
         strcpy( buffer, line );
-        text = strtok( buffer, " \t\n\r" );
+        text = strtok( buffer, sep_chars );
 
         if( *text == '}' )
         {
@@ -471,6 +478,12 @@ int S3D_MASTER::ReadGeometry( FILE* file, int* LineNum )
             continue;
         }
 
+        if( stricmp( text, "solid" ) == 0 )
+        {
+            // ignore solid
+            continue;
+        }
+
         if( stricmp( text, "colorIndex" ) == 0 )
         {
             while( GetLine( file, line, LineNum, 512 ) )
@@ -507,7 +520,7 @@ int S3D_MASTER::ReadGeometry( FILE* file, int* LineNum )
             }
 
             std::vector< int > coordIndex;
-            std::vector< S3D_Vertex > vertices;
+            std::vector< S3D_VERTEX > vertices;
 
             while( GetLine( file, line, LineNum, 512 ) )
             {
@@ -535,7 +548,7 @@ int S3D_MASTER::ReadGeometry( FILE* file, int* LineNum )
                                 break;
                             }
 
-                            S3D_Vertex vertex;
+                            S3D_VERTEX vertex;
                             vertex.x = points[kk];
                             vertex.y = points[kk + 1];
                             vertex.z = points[kk + 2];
@@ -543,7 +556,7 @@ int S3D_MASTER::ReadGeometry( FILE* file, int* LineNum )
                         }
 
                         Set_Object_Coords( vertices );
-                        Set_Object_Data( vertices );
+                        Set_Object_Data( vertices, vrmlunits_to_3Dunits );
                         vertices.clear();
                         coordIndex.clear();
                     }
@@ -572,7 +585,7 @@ int S3D_MASTER::ReadGeometry( FILE* file, int* LineNum )
 }
 
 
-int Struct3D_Shape::ReadData( FILE* file, int* LineNum )
+int STRUCT_3D_SHAPE::ReadData( FILE* file, int* LineNum )
 {
     char line[512];
 

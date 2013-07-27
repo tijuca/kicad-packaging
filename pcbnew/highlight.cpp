@@ -1,8 +1,9 @@
 /*
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
- * Copyright (C) 2007 Jean-Pierre Charras, jaen-pierre.charras@gipsa-lab.inpg.com
- * Copyright (C) 1992-2011 KiCad Developers, see AUTHORS.txt for contributors.
+ * Copyright (C) 2012 Jean-Pierre Charras, jean-pierre.charras@ujf-grenoble.fr
+ * Copyright (C) 2012 SoftPLC Corporation, Dick Hollenbeck <dick@softplc.com>
+ * Copyright (C) 1992-2012 KiCad Developers, see AUTHORS.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -27,19 +28,19 @@
  * @brief Highlight nets.
  */
 
-#include "fctsys.h"
-#include "class_drawpanel.h"
-#include "kicad_string.h"
-#include "wxPcbStruct.h"
-#include "kicad_device_context.h"
-#include "macros.h"
+#include <fctsys.h>
+#include <class_drawpanel.h>
+#include <kicad_string.h>
+#include <wxPcbStruct.h>
+#include <kicad_device_context.h>
+#include <macros.h>
 
-#include "class_board.h"
-#include "class_track.h"
-#include "class_zone.h"
+#include <class_board.h>
+#include <class_track.h>
+#include <class_zone.h>
 
-#include "pcbnew.h"
-#include "collectors.h"
+#include <pcbnew.h>
+#include <collectors.h>
 
 
 #define Pad_fill ( Pad_Fill_Item.State == RUN )
@@ -63,9 +64,9 @@ void PCB_EDIT_FRAME::ListNetsAndSelect( wxCommandEvent& event )
         return;
 
     wxString Line;
-    for( unsigned ii = 0; ii < GetBoard()->m_NetInfo->GetCount(); ii++ )
+    for( unsigned ii = 0; ii < GetBoard()->GetNetCount(); ii++ )
     {
-        net = GetBoard()->m_NetInfo->GetNetItem( ii );
+        net = GetBoard()->m_NetInfo.GetNetItem( ii );
 
         if( !WildCompareString( netFilter, net->GetNetname(), false ) )
             continue;
@@ -75,7 +76,11 @@ void PCB_EDIT_FRAME::ListNetsAndSelect( wxCommandEvent& event )
         list.Add( Line );
     }
 
-    wxSingleChoiceDialog choiceDlg( this, wxEmptyString, _( "Select Net" ), list, NULL );
+#if wxCHECK_VERSION( 2, 9, 4 )
+    wxSingleChoiceDialog choiceDlg( this, wxEmptyString, _( "Select Net" ), list, (void**) NULL );
+#else
+    wxSingleChoiceDialog choiceDlg( this, wxEmptyString, _( "Select Net" ), list, (char**) NULL );
+#endif
 
     if( (choiceDlg.ShowModal() == wxID_CANCEL) || (choiceDlg.GetSelection() == wxNOT_FOUND) )
         return;
@@ -84,9 +89,9 @@ void PCB_EDIT_FRAME::ListNetsAndSelect( wxCommandEvent& event )
     unsigned netcode = (unsigned) choiceDlg.GetSelection();
 
     // Search for the net selected.
-    for( unsigned ii = 0; ii < GetBoard()->m_NetInfo->GetCount(); ii++ )
+    for( unsigned ii = 0; ii < GetBoard()->GetNetCount(); ii++ )
     {
-        net = GetBoard()->m_NetInfo->GetNetItem( ii );
+        net = GetBoard()->FindNet( ii );
 
         if( !WildCompareString( netFilter, net->GetNetname(), false ) )
             continue;
@@ -101,7 +106,7 @@ void PCB_EDIT_FRAME::ListNetsAndSelect( wxCommandEvent& event )
 
     if( found )
     {
-        INSTALL_UNBUFFERED_DC( dc, DrawPanel );
+        INSTALL_UNBUFFERED_DC( dc, m_canvas );
 
         if( GetBoard()->IsHighLightNetON() )
             HighLight( &dc );
@@ -177,5 +182,5 @@ void PCB_EDIT_FRAME::HighLight( wxDC* DC )
     else
         GetBoard()->HighLightON();
 
-    GetBoard()->DrawHighLight( DrawPanel, DC, GetBoard()->GetHighLightNetCode() );
+    GetBoard()->DrawHighLight( m_canvas, DC, GetBoard()->GetHighLightNetCode() );
 }

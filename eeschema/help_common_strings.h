@@ -25,7 +25,7 @@
 
 // Schematic editor:
 #define HELP_FIND _( "Find components and texts" )
-
+#define HELP_REPLACE _( "Find and replace text in schematic items" )
 #define HELP_PLACE_COMPONENTS     _( "Place a component" )
 #define HELP_PLACE_POWERPORT      _( "Place a power port" )
 #define HELP_PLACE_WIRE           _( "Place a wire" )
@@ -49,6 +49,13 @@
 #define HELP_PLACE_GRAPHICLINES _( "Place graphic lines or polygons" )
 #define HELP_PLACE_GRAPHICTEXTS _( "Place graphic text (comment)" )
 
+#define HELP_ANNOTATE _( "Annotate the components in the schematic" )
+#define HELP_RUN_LIB_EDITOR _( "Library editor - Create and edit components" )
+#define HELP_RUN_LIB_VIEWER _( "Library browser - Browse components" )
+#define HELP_GENERATE_BOM _( "Generate bill of materials and/or cross references" )
+#define HELP_IMPORT_FOOTPRINTS \
+    _( "Import the footprint selection from CvPcb (the .cmp file)\n\
+in component footprint fields" )
 
 // Component editor:
 #define HELP_ADD_PIN _( "Add pins to the component" )

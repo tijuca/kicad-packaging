@@ -23,11 +23,11 @@
 
 #include <stdio.h>
 #include <string.h>
-#include <math.h>
+#include <cmath>
 
-#include "units.h"
-#include "transline.h"
-#include "rectwaveguide.h"
+#include <units.h>
+#include <transline.h>
+#include <rectwaveguide.h>
 
 RECTWAVEGUIDE::RECTWAVEGUIDE() : TRANSLINE()
 {

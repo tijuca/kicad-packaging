@@ -1,5 +1,5 @@
 ///////////////////////////////////////////////////////////////////////////
-// C++ code generated with wxFormBuilder (version Jun 30 2011)
+// C++ code generated with wxFormBuilder (version Oct  8 2012)
 // http://www.wxformbuilder.org/
 //
 // PLEASE DO "NOT" EDIT THIS FILE!
@@ -11,6 +11,9 @@
 #include <wx/artprov.h>
 #include <wx/xrc/xmlres.h>
 #include <wx/intl.h>
+class DIALOG_SHIM;
+
+#include "dialog_shim.h"
 #include <wx/string.h>
 #include <wx/radiobox.h>
 #include <wx/gdicmn.h>
@@ -26,7 +29,7 @@
 ///////////////////////////////////////////////////////////////////////////////
 /// Class DIALOG_PRINT_FOR_MODEDIT_BASE
 ///////////////////////////////////////////////////////////////////////////////
-class DIALOG_PRINT_FOR_MODEDIT_BASE : public wxDialog 
+class DIALOG_PRINT_FOR_MODEDIT_BASE : public DIALOG_SHIM
 {
 	private:
 	
@@ -35,7 +38,7 @@ class DIALOG_PRINT_FOR_MODEDIT_BASE : public wxDialog
 		{
 			wxID_PRINT_MODE = 1000,
 			wxID_PRINT_OPTIONS,
-			wxID_PRINT_ALL,
+			wxID_PRINT_ALL
 		};
 		
 		wxRadioBox* m_ScaleOption;
@@ -47,7 +50,7 @@ class DIALOG_PRINT_FOR_MODEDIT_BASE : public wxDialog
 		
 		// Virtual event handlers, overide them in your derived class
 		virtual void OnCloseWindow( wxCloseEvent& event ) { event.Skip(); }
-		virtual void OnPrintSetup( wxCommandEvent& event ) { event.Skip(); }
+		virtual void OnPageSetup( wxCommandEvent& event ) { event.Skip(); }
 		virtual void OnPrintPreview( wxCommandEvent& event ) { event.Skip(); }
 		virtual void OnPrintButtonClick( wxCommandEvent& event ) { event.Skip(); }
 		virtual void OnButtonCancelClick( wxCommandEvent& event ) { event.Skip(); }
@@ -55,7 +58,7 @@ class DIALOG_PRINT_FOR_MODEDIT_BASE : public wxDialog
 	
 	public:
 		
-		DIALOG_PRINT_FOR_MODEDIT_BASE( wxWindow* parent, wxWindowID id = wxID_ANY, const wxString& title = _("Print"), const wxPoint& pos = wxDefaultPosition, const wxSize& size = wxSize( 375,254 ), long style = wxDEFAULT_DIALOG_STYLE|wxRESIZE_BORDER ); 
+		DIALOG_PRINT_FOR_MODEDIT_BASE( wxWindow* parent, wxWindowID id = wxID_ANY, const wxString& title = _("Print"), const wxPoint& pos = wxDefaultPosition, const wxSize& size = wxSize( -1,-1 ), long style = wxDEFAULT_DIALOG_STYLE|wxRESIZE_BORDER ); 
 		~DIALOG_PRINT_FOR_MODEDIT_BASE();
 	
 };

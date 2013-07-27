@@ -1,10 +1,10 @@
 /**
  * eeschema/hotkeys.h
  */
-#ifndef KOTKEYS_H
-#define KOTKEYS_H
+#ifndef EESCHEMA_KOTKEYS_H_
+#define EESCHEMA_KOTKEYS_H_
 
-#include "hotkeys_basic.h"
+#include <hotkeys_basic.h>
 
 // List of hot keys id.
 // see also enum common_hotkey_id_commnand in hotkeys_basic.h
@@ -17,11 +17,13 @@ enum hotkey_id_commnand {
     HK_REPEAT_LAST,
     HK_LIBEDIT_MOVE_GRAPHIC_ITEM,
     HK_MOVEBLOCK_TO_DRAGBLOCK,
+    HK_SAVE_BLOCK,
     HK_LIBEDIT_CREATE_PIN,
     HK_DELETE_PIN,
     HK_ROTATE,
     HK_EDIT,
     HK_EDIT_COMPONENT_VALUE,
+    HK_EDIT_COMPONENT_REFERENCE,
     HK_EDIT_COMPONENT_FOOTPRINT,
     HK_MIRROR_X_COMPONENT,
     HK_MIRROR_Y_COMPONENT,
@@ -33,6 +35,7 @@ enum hotkey_id_commnand {
     HK_ADD_NEW_POWER,
     HK_BEGIN_WIRE,
     HK_BEGIN_BUS,
+    HK_END_CURR_LINEWIREBUS,
     HK_ADD_WIRE_ENTRY,
     HK_ADD_BUS_ENTRY,
     HK_ADD_LABEL,
@@ -42,7 +45,10 @@ enum hotkey_id_commnand {
     HK_ADD_HIER_SHEET,
     HK_ADD_GRAPHIC_TEXT,
     HK_ADD_GRAPHIC_POLYLINE,
-    HK_ADD_NOCONN_FLAG
+    HK_ADD_NOCONN_FLAG,
+    HK_SAVE_LIB,
+    HK_SAVE_SCH,
+    HK_LOAD_SCH
 };
 
 // List of hotkey descriptors for Eeschema
@@ -57,4 +63,4 @@ extern struct EDA_HOTKEY_CONFIG s_Libedit_Hokeys_Descr[];
 // List of hotkey descriptors for the lib browser only
 extern struct EDA_HOTKEY_CONFIG s_Viewlib_Hokeys_Descr[];
 
-#endif      // KOTKEYS_H
+#endif      // EESCHEMA_KOTKEYS_H_

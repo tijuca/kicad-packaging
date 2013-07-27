@@ -28,19 +28,19 @@
  * @brief Electrical Rules Check implementation.
  */
 
-#include "fctsys.h"
-#include "class_drawpanel.h"
-#include "kicad_string.h"
-#include "wxEeschemaStruct.h"
+#include <fctsys.h>
+#include <class_drawpanel.h>
+#include <kicad_string.h>
+#include <wxEeschemaStruct.h>
 
-#include "general.h"
-#include "netlist.h"
-#include "lib_pin.h"
-#include "protos.h"
-#include "erc.h"
-#include "sch_marker.h"
-#include "sch_component.h"
-#include "sch_sheet.h"
+#include <general.h>
+#include <netlist.h>
+#include <lib_pin.h>
+#include <protos.h>
+#include <erc.h>
+#include <sch_marker.h>
+#include <sch_component.h>
+#include <sch_sheet.h>
 
 
 /* ERC tests :
@@ -197,22 +197,21 @@ int TestDuplicateSheetNames( bool aCreateMarker )
                     continue;
 
                 // We have found a second sheet: compare names
-                if( ( (SCH_SHEET*) item )->m_SheetName.CmpNoCase(
-                        ( ( SCH_SHEET* ) test_item )-> m_SheetName ) == 0 )
+                if( ( (SCH_SHEET*) item )->GetName().CmpNoCase(
+                        ( ( SCH_SHEET* ) test_item )->GetName() ) == 0 )
                 {
                     if( aCreateMarker )
                     {
                         /* Create a new marker type ERC error*/
                         SCH_MARKER* marker = new SCH_MARKER();
-                        marker->m_TimeStamp = GetTimeStamp();
+                        marker->SetTimeStamp( GetNewTimeStamp() );
                         marker->SetData( ERCE_DUPLICATE_SHEET_NAME,
-                                         ( (SCH_SHEET*) test_item )->m_Pos,
+                                         ( (SCH_SHEET*) test_item )->GetPosition(),
                                          _( "Duplicate sheet name" ),
-                                         ( (SCH_SHEET*) test_item )->m_Pos );
+                                         ( (SCH_SHEET*) test_item )->GetPosition() );
                         marker->SetMarkerType( MARK_ERC );
                         marker->SetErrorLevel( ERR );
-                        marker->SetNext( screen->GetDrawItems() );
-                        screen->SetDrawItems( marker );
+                        screen->Append( marker );
                     }
 
                     err_count++;
@@ -237,13 +236,12 @@ void Diagnose( NETLIST_OBJECT* aNetItemRef, NETLIST_OBJECT* aNetItemTst,
 
     /* Create new marker for ERC error. */
     marker = new SCH_MARKER();
-    marker->m_TimeStamp = GetTimeStamp();
+    marker->SetTimeStamp( GetNewTimeStamp() );
 
     marker->SetMarkerType( MARK_ERC );
     marker->SetErrorLevel( WAR );
     screen = aNetItemRef->m_SheetList.LastScreen();
-    marker->SetNext( screen->GetDrawItems() );
-    screen->SetDrawItems( marker );
+    screen->Append( marker );
 
     wxString msg;
 
@@ -454,12 +452,12 @@ void TestOthersItems( unsigned NetItemRef, unsigned netstart,
             break;
 
         case NET_NOCONNECT:
-            local_minconn = MAX( NET_NC, local_minconn );
+            local_minconn = std::max( NET_NC, local_minconn );
             break;
 
         case NET_PIN:
             jj = g_NetObjectslist[NetItemTst]->m_ElectricalType;
-            local_minconn = MAX( MinimalReq[ref_elect_type][jj], local_minconn );
+            local_minconn = std::max( MinimalReq[ref_elect_type][jj], local_minconn );
 
             if( NetItemTst <= NetItemRef )
                 break;
@@ -500,7 +498,7 @@ bool WriteDiagnosticERC( const wxString& aFullFileName )
     int             count = 0;
 
     if( ( file = wxFopen( aFullFileName, wxT( "wt" ) ) ) == NULL )
-        return FALSE;
+        return false;
 
     msg = _( "ERC report" );
 

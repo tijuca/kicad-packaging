@@ -26,34 +26,33 @@
  * @file gerbview/initpcb.cpp
  */
 
-#include "fctsys.h"
-#include "common.h"
-#include "class_drawpanel.h"
-#include "confirm.h"
+#include <fctsys.h>
+#include <common.h>
+#include <class_drawpanel.h>
+#include <confirm.h>
 
-#include "gerbview.h"
-#include "class_gerber_draw_item.h"
-#include "class_GERBER.h"
-#include "class_gerbview_layer_widget.h"
-
+#include <gerbview.h>
+#include <class_gerber_draw_item.h>
+#include <class_GERBER.h>
+#include <class_gerbview_layer_widget.h>
+#include <class_gbr_layout.h>
 
 bool GERBVIEW_FRAME::Clear_Pcb( bool query )
 {
     int layer;
 
-    if( GetBoard() == NULL )
-        return FALSE;
+    if( GetLayout() == NULL )
+        return false;
 
     if( query && GetScreen()->IsModify() )
     {
         if( !IsOK( this, _( "Current data will be lost?" ) ) )
-            return FALSE;
+            return false;
     }
 
-    SetCurItem( NULL );
-    GetBoard()->m_Drawings.DeleteAll();
+    GetLayout()->m_Drawings.DeleteAll();
 
-    for( layer = 0; layer < LAYER_COUNT; layer++ )
+    for( layer = 0; layer < GERBVIEW_LAYER_COUNT; layer++ )
     {
         if( g_GERBER_List[layer] )
         {
@@ -62,15 +61,11 @@ bool GERBVIEW_FRAME::Clear_Pcb( bool query )
         }
     }
 
-    GetBoard()->m_BoundaryBox.SetOrigin( 0, 0 );
-    GetBoard()->m_BoundaryBox.SetSize( 0, 0 );
-    GetBoard()->m_Status_Pcb  = 0;
-    GetBoard()->m_NbNodes     = 0;
-    GetBoard()->m_NbNoconnect = 0;
+    GetLayout()->SetBoundingBox( EDA_RECT() );
 
-    SetScreen( new PCB_SCREEN() );
-    GetScreen()->Init();
-    setActiveLayer(FIRST_COPPER_LAYER);
+    SetScreen( new GBR_SCREEN( GetPageSettings().GetSizeIU() ) );
+
+    setActiveLayer(0);
     m_LayersManager->UpdateLayerIcons();
     syncLayerBox();
     return true;
@@ -89,18 +84,17 @@ void GERBVIEW_FRAME::Erase_Current_Layer( bool query )
 
     SetCurItem( NULL );
 
-    BOARD_ITEM* item = GetBoard()->m_Drawings;
-    BOARD_ITEM * next;
+    GERBER_DRAW_ITEM* item = GetLayout()->m_Drawings;
+    GERBER_DRAW_ITEM * next;
 
     for( ; item; item = next )
     {
         next = item->Next();
-        GERBER_DRAW_ITEM* gerb_item = (GERBER_DRAW_ITEM*) item;
 
-        if( gerb_item->GetLayer() != layer )
+        if( item->GetLayer() != layer )
             continue;
 
-        gerb_item->DeleteStructure();
+        item->DeleteStructure();
     }
 
     if( g_GERBER_List[layer] )
@@ -110,7 +104,7 @@ void GERBVIEW_FRAME::Erase_Current_Layer( bool query )
     }
 
     GetScreen()->SetModify();
-    DrawPanel->Refresh();
+    m_canvas->Refresh();
     m_LayersManager->UpdateLayerIcons();
     syncLayerBox();
 }

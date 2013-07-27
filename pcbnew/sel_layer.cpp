@@ -3,14 +3,14 @@
  * @brief Set up the basic primitives for Layer control.
  */
 
-#include "fctsys.h"
-#include "common.h"
-#include "class_drawpanel.h"
-#include "confirm.h"
-#include "wxBasePcbFrame.h"
-#include "pcbcommon.h"
+#include <fctsys.h>
+#include <common.h>
+#include <class_drawpanel.h>
+#include <confirm.h>
+#include <wxBasePcbFrame.h>
+#include <pcbcommon.h>
 
-#include "class_board.h"
+#include <class_board.h>
 
 
 enum layer_sel_id {
@@ -114,7 +114,7 @@ SELECT_LAYER_DIALOG::SELECT_LAYER_DIALOG( PCB_BASE_FRAME* parent,
     {
         m_LayerId[ii] = 0;
 
-        if( g_TabOneLayerMask[ii] & Masque_Layer )
+        if( GetLayerMask( ii ) & Masque_Layer )
         {
             if( min_layer > ii )
                 continue;
@@ -234,18 +234,17 @@ void PCB_BASE_FRAME::SelectLayerPair()
         return;
     }
 
-    SELECT_LAYERS_PAIR_DIALOG* frame =
-        new SELECT_LAYERS_PAIR_DIALOG( this );
+    SELECT_LAYERS_PAIR_DIALOG* frame = new SELECT_LAYERS_PAIR_DIALOG( this );
 
     int result = frame->ShowModal();
     frame->Destroy();
-    DrawPanel->MoveCursorToCrossHair();
+    m_canvas->MoveCursorToCrossHair();
 
     // if user changed colors and we are in high contrast mode, then redraw
     // because the PAD_SMD pads may change color.
     if( result >= 0  &&  DisplayOpt.ContrastModeDisplay )
     {
-        DrawPanel->Refresh();
+        m_canvas->Refresh();
     }
 }
 
@@ -270,7 +269,7 @@ SELECT_LAYERS_PAIR_DIALOG::SELECT_LAYERS_PAIR_DIALOG( PCB_BASE_FRAME* parent ) :
     {
         m_LayerId[ii] = 0;
 
-        if( (g_TabOneLayerMask[ii] & Masque_Layer) )
+        if( (GetLayerMask( ii ) & Masque_Layer) )
         {
             LayerList[LayerCount] = board->GetLayerName( ii );
 

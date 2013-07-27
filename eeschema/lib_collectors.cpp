@@ -22,10 +22,10 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
  */
 
-#include "macros.h"
-#include "general.h"
-#include "transform.h"
-#include "lib_collectors.h"
+#include <macros.h>
+#include <general.h>
+#include <transform.h>
+#include <lib_collectors.h>
 
 
 const KICAD_T LIB_COLLECTOR::AllItems[] = {
@@ -96,8 +96,8 @@ SEARCH_RESULT LIB_COLLECTOR::Inspect( EDA_ITEM* aItem, const void* aTestData )
 {
     LIB_ITEM* item = (LIB_ITEM*) aItem;
 
-    wxLogDebug( wxT( "Inspecting item %s, unit %d, convert %d" ),
-                GetChars( item->GetSelectMenuText() ), item->GetUnit(), item->GetConvert() );
+//    wxLogDebug( wxT( "Inspecting item %s, unit %d, convert %d" ),
+//                GetChars( item->GetSelectMenuText() ), item->GetUnit(), item->GetConvert() );
 
     if( ( m_data.m_unit && item->GetUnit() && ( m_data.m_unit != item->GetUnit() ) )
         || ( m_data.m_convert && item->GetConvert() && ( m_data.m_convert != item->GetConvert() ) )

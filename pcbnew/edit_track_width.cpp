@@ -3,18 +3,18 @@
  * @brief Functions to modify sizes of segment, track, net, all vias and/or all tracks.
  */
 
-#include "fctsys.h"
-#include "gr_basic.h"
-#include "class_drawpanel.h"
-#include "confirm.h"
-#include "wxPcbStruct.h"
+#include <fctsys.h>
+#include <gr_basic.h>
+#include <class_drawpanel.h>
+#include <confirm.h>
+#include <wxPcbStruct.h>
 
-#include "class_board.h"
-#include "class_track.h"
+#include <class_board.h>
+#include <class_track.h>
 
-#include "pcbnew.h"
-#include "drc_stuff.h"
-#include "protos.h"
+#include <pcbnew.h>
+#include <drc_stuff.h>
+#include <protos.h>
 
 
 /**
@@ -23,7 +23,7 @@
  *  Basic routine used by other routines when editing tracks or vias
  * @param aTrackItem = the track segment or via to modify
  * @param aItemsListPicker = the list picker to use for an undo command (can be NULL)
- * @param aUseNetclassValue = true to use NetClass value, false to use g_DesignSettings value
+ * @param aUseNetclassValue = true to use NetClass value, false to use BOARD::m_designSettings value
  * @return  true if done, false if no not change (because DRC error)
  */
 bool PCB_EDIT_FRAME::SetTrackSegmentWidth( TRACK*             aTrackItem,
@@ -38,7 +38,7 @@ bool PCB_EDIT_FRAME::SetTrackSegmentWidth( TRACK*             aTrackItem,
     if( aUseNetclassValue )
         net = GetBoard()->FindNet( aTrackItem->GetNet() );
 
-    initial_width = aTrackItem->m_Width;
+    initial_width = aTrackItem->GetWidth();
 
     if( net )
         new_width = net->GetTrackWidth();
@@ -60,7 +60,7 @@ bool PCB_EDIT_FRAME::SetTrackSegmentWidth( TRACK*             aTrackItem,
             new_drill = GetBoard()->GetCurrentViaDrill();
         }
 
-        if( aTrackItem->m_Shape == VIA_MICROVIA )
+        if( aTrackItem->GetShape() == VIA_MICROVIA )
         {
             if( net )
                 new_width = net->GetViaSize();
@@ -69,9 +69,9 @@ bool PCB_EDIT_FRAME::SetTrackSegmentWidth( TRACK*             aTrackItem,
         }
     }
 
-    aTrackItem->m_Width = new_width;
+    aTrackItem->SetWidth( new_width );
 
-    /* make a DRC test because the new size is bigger than the old size */
+    // make a DRC test because the new size is bigger than the old size
     if( initial_width < new_width )
     {
         int diagdrc = OK_DRC;
@@ -98,17 +98,17 @@ bool PCB_EDIT_FRAME::SetTrackSegmentWidth( TRACK*             aTrackItem,
 
         if( aItemsListPicker )
         {
-            aTrackItem->m_Width = initial_width;
+            aTrackItem->SetWidth( initial_width );
             ITEM_PICKER picker( aTrackItem, UR_CHANGED );
-            picker.m_Link = aTrackItem->Copy();
+            picker.SetLink( aTrackItem->Clone() );
             aItemsListPicker->PushItem( picker );
-            aTrackItem->m_Width = new_width;
+            aTrackItem->SetWidth( new_width );
 
             if( aTrackItem->Type() == PCB_VIA_T )
             {
                 // Set new drill value. Note: currently microvias have only a default drill value
                 if( new_drill > 0 )
-                    aTrackItem->SetDrillValue(new_drill);
+                    aTrackItem->SetDrill( new_drill );
                 else
                     aTrackItem->SetDrillDefault();
             }
@@ -116,7 +116,7 @@ bool PCB_EDIT_FRAME::SetTrackSegmentWidth( TRACK*             aTrackItem,
     }
     else
     {
-        aTrackItem->m_Width = initial_width;
+        aTrackItem->SetWidth( initial_width );
     }
 
     return change_ok;
@@ -134,7 +134,7 @@ void PCB_EDIT_FRAME::Edit_TrackSegm_Width( wxDC* aDC, TRACK* aTrackItem )
     PICKED_ITEMS_LIST itemsListPicker;
     bool change = SetTrackSegmentWidth( aTrackItem, &itemsListPicker, false );
 
-    if( change == 0 || aTrackItem->m_Flags )
+    if( change == 0 || aTrackItem->GetFlags() )
         return;     // No change
 
     // The segment has changed: redraw it and save it in undo list
@@ -142,10 +142,10 @@ void PCB_EDIT_FRAME::Edit_TrackSegm_Width( wxDC* aDC, TRACK* aTrackItem )
     {
         TRACK* oldsegm = (TRACK*) itemsListPicker.GetPickedItemLink( 0 );
         wxASSERT( oldsegm );
-        DrawPanel->CrossHairOff( aDC );                  // Erase cursor shape
-        oldsegm->Draw( DrawPanel, aDC, GR_XOR );         // Erase old track shape
-        aTrackItem->Draw( DrawPanel, aDC, GR_OR );       // Display new track shape
-        DrawPanel->CrossHairOn( aDC );                   // Display cursor shape
+        m_canvas->CrossHairOff( aDC );                  // Erase cursor shape
+        oldsegm->Draw( m_canvas, aDC, GR_XOR );         // Erase old track shape
+        aTrackItem->Draw( m_canvas, aDC, GR_OR );       // Display new track shape
+        m_canvas->CrossHairOn( aDC );                   // Display cursor shape
     }
 
     SaveCopyInUndoList( itemsListPicker, UR_CHANGED );
@@ -187,17 +187,17 @@ void PCB_EDIT_FRAME::Edit_Track_Width( wxDC* aDC, TRACK* aTrackSegment )
     // Some segment have changed: redraw them and save in undo list
     if( aDC )
     {
-        DrawPanel->CrossHairOff( aDC );                     // Erase cursor shape
+        m_canvas->CrossHairOff( aDC );                     // Erase cursor shape
 
         for( unsigned ii = 0; ii < itemsListPicker.GetCount(); ii++ )
         {
             TRACK* segm = (TRACK*) itemsListPicker.GetPickedItemLink( ii );
-            segm->Draw( DrawPanel, aDC, GR_XOR );            // Erase old track shape
+            segm->Draw( m_canvas, aDC, GR_XOR );            // Erase old track shape
             segm = (TRACK*) itemsListPicker.GetPickedItem( ii );
-            segm->Draw( DrawPanel, aDC, GR_OR );             // Display new track shape
+            segm->Draw( m_canvas, aDC, GR_OR );             // Display new track shape
         }
 
-        DrawPanel->CrossHairOn( aDC );                   // Display cursor shape
+        m_canvas->CrossHairOn( aDC );                   // Display cursor shape
     }
 
     SaveCopyInUndoList( itemsListPicker, UR_CHANGED );
@@ -218,16 +218,16 @@ bool PCB_EDIT_FRAME::Change_Net_Tracks_And_Vias_Sizes( int aNetcode, bool aUseNe
     if( aNetcode <= 0 )
         return false;
 
-    /* Examine segments */
+    // Examine segments
     PICKED_ITEMS_LIST itemsListPicker;
     bool change = false;
 
     for( pt_segm = GetBoard()->m_Track; pt_segm != NULL; pt_segm = pt_segm->Next() )
     {
-        if( aNetcode != pt_segm->GetNet() )         /* not in net */
+        if( aNetcode != pt_segm->GetNet() )         // not in net
             continue;
 
-        /* we have found a item member of the net */
+        // we have found a item member of the net
         if( SetTrackSegmentWidth( pt_segm, &itemsListPicker, aUseNetclassValue ) )
             change = true;
     }
@@ -245,7 +245,7 @@ bool PCB_EDIT_FRAME::Reset_All_Tracks_And_Vias_To_Netclass_Values( bool aTrack, 
 {
     TRACK* pt_segm;
 
-    /* read and edit tracks and vias if required */
+    // read and edit tracks and vias if required
     PICKED_ITEMS_LIST itemsListPicker;
     bool change = false;
 

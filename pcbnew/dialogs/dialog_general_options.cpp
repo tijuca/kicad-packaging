@@ -30,41 +30,41 @@
  *   Preferences/general
  *   Preferences/display
  */
-#include "fctsys.h"
-#include "class_drawpanel.h"
-#include "confirm.h"
-#include "pcbnew.h"
-#include "wxPcbStruct.h"
-#include "class_board_design_settings.h"
-#include "pcbcommon.h"
+#include <fctsys.h>
+#include <class_drawpanel.h>
+#include <confirm.h>
+#include <pcbnew.h>
+#include <wxPcbStruct.h>
+#include <class_board_design_settings.h>
+#include <pcbcommon.h>
 
-#include "pcbnew_id.h"
-#include "class_board.h"
+#include <pcbnew_id.h>
+#include <class_board.h>
 
-#include "dialog_general_options.h"
+#include <dialog_general_options.h>
 
 
-Dialog_GeneralOptions::Dialog_GeneralOptions( PCB_EDIT_FRAME* parent ) :
-    DialogGeneralOptionsBoardEditor_base( parent )
+DIALOG_GENERALOPTIONS::DIALOG_GENERALOPTIONS( PCB_EDIT_FRAME* parent ) :
+    DIALOG_GENERALOPTIONS_BOARDEDITOR_BASE( parent )
 {
     init();
 
-    m_buttonOK->SetDefault();
     GetSizer()->SetSizeHints( this );
     Center();
 }
 
 
-void Dialog_GeneralOptions::init()
+void DIALOG_GENERALOPTIONS::init()
 {
     SetFocus();
+    m_sdbSizerOK->SetDefault();
 
     m_Board = GetParent()->GetBoard();
 
     /* Set display options */
     m_PolarDisplay->SetSelection( DisplayOpt.DisplayPolarCood ? 1 : 0 );
     m_UnitsSelection->SetSelection( g_UserUnit ? 1 : 0 );
-    m_CursorShape->SetSelection( GetParent()->m_CursorShape ? 1 : 0 );
+    m_CursorShape->SetSelection( GetParent()->GetCursorShape() ? 1 : 0 );
 
 
     switch( g_RotationAngle )
@@ -88,7 +88,11 @@ void Dialog_GeneralOptions::init()
     m_TrackAutodel->SetValue( g_AutoDeleteOldTrack );
     m_Track_45_Only_Ctrl->SetValue( g_Track_45_Only_Allowed );
     m_Segments_45_Only_Ctrl->SetValue( Segments_45_Only );
-    m_AutoPANOpt->SetValue( GetParent()->DrawPanel->m_AutoPAN_Enable );
+    m_ZoomNoCenterOpt->SetValue( GetParent()->GetCanvas()->GetEnableZoomNoCenter() );
+    m_MiddleButtonPANOpt->SetValue( GetParent()->GetCanvas()->GetEnableMiddleButtonPan() );
+    m_OptMiddleButtonPanLimited->SetValue( GetParent()->GetCanvas()->GetMiddleButtonPanLimited() );
+    m_OptMiddleButtonPanLimited->Enable( m_MiddleButtonPANOpt->GetValue() );
+    m_AutoPANOpt->SetValue( GetParent()->GetCanvas()->GetEnableAutoPan() );
     m_Segments_45_Only_Ctrl->SetValue( Segments_45_Only );
     m_Track_DoubleSegm_Ctrl->SetValue( g_TwoSegmentTrackBuild );
 
@@ -97,25 +101,24 @@ void Dialog_GeneralOptions::init()
 }
 
 
-void Dialog_GeneralOptions::OnCancelClick( wxCommandEvent& event )
+void DIALOG_GENERALOPTIONS::OnCancelClick( wxCommandEvent& event )
 {
     event.Skip();
 }
 
 
-void Dialog_GeneralOptions::OnOkClick( wxCommandEvent& event )
+void DIALOG_GENERALOPTIONS::OnOkClick( wxCommandEvent& event )
 {
     EDA_UNITS_T ii;
 
-    DisplayOpt.DisplayPolarCood =
-        ( m_PolarDisplay->GetSelection() == 0 ) ? false : true;
+    DisplayOpt.DisplayPolarCood = ( m_PolarDisplay->GetSelection() == 0 ) ? false : true;
     ii = g_UserUnit;
     g_UserUnit = ( m_UnitsSelection->GetSelection() == 0 )  ? INCHES : MILLIMETRES;
 
     if( ii != g_UserUnit )
         GetParent()->ReCreateAuxiliaryToolbar();
 
-    GetParent()->m_CursorShape = m_CursorShape->GetSelection();
+    GetParent()->SetCursorShape( m_CursorShape->GetSelection() );
     GetParent()->SetAutoSaveInterval( m_SaveTime->GetValue() * 60 );
 
     g_RotationAngle = 10 * wxAtoi( m_RotationAngle->GetStringSelection() );
@@ -127,16 +130,20 @@ void Dialog_GeneralOptions::OnOkClick( wxCommandEvent& event )
     if( m_Board->IsElementVisible(RATSNEST_VISIBLE) != m_ShowGlobalRatsnest->GetValue() )
     {
         GetParent()->SetElementVisibility(RATSNEST_VISIBLE, m_ShowGlobalRatsnest->GetValue() );
-        GetParent()->DrawPanel->Refresh( );
+        GetParent()->GetCanvas()->Refresh( );
     }
 
     g_Show_Module_Ratsnest = m_ShowModuleRatsnest->GetValue();
     g_AutoDeleteOldTrack   = m_TrackAutodel->GetValue();
     Segments_45_Only = m_Segments_45_Only_Ctrl->GetValue();
     g_Track_45_Only_Allowed    = m_Track_45_Only_Ctrl->GetValue();
-    GetParent()->DrawPanel->m_AutoPAN_Enable = m_AutoPANOpt->GetValue();
-    g_TwoSegmentTrackBuild = m_Track_DoubleSegm_Ctrl->GetValue();
 
+    GetParent()->GetCanvas()->SetEnableZoomNoCenter( m_ZoomNoCenterOpt->GetValue() );
+    GetParent()->GetCanvas()->SetEnableMiddleButtonPan( m_MiddleButtonPANOpt->GetValue() );
+    GetParent()->GetCanvas()->SetMiddleButtonPanLimited( m_OptMiddleButtonPanLimited->GetValue() );
+
+    GetParent()->GetCanvas()->SetEnableAutoPan( m_AutoPANOpt->GetValue() );
+    g_TwoSegmentTrackBuild = m_Track_DoubleSegm_Ctrl->GetValue();
     g_MagneticPadOption   = m_MagneticPadOptCtrl->GetSelection();
     g_MagneticTrackOption = m_MagneticTrackOptCtrl->GetSelection();
 
@@ -150,7 +157,7 @@ void Dialog_GeneralOptions::OnOkClick( wxCommandEvent& event )
 void PCB_EDIT_FRAME::OnSelectOptionToolbar( wxCommandEvent& event )
 {
     int id = event.GetId();
-    bool state = m_OptionsToolBar->GetToolState( id );
+    bool state = event.IsChecked();
 
     switch( id )
     {
@@ -160,22 +167,19 @@ void PCB_EDIT_FRAME::OnSelectOptionToolbar( wxCommandEvent& event )
         if( GetToolId() == ID_TRACK_BUTT )
         {
             if( Drc_On )
-                DrawPanel->SetCursor( wxCURSOR_PENCIL );
+                m_canvas->SetCursor( wxCURSOR_PENCIL );
             else
-                DrawPanel->SetCursor( wxCURSOR_QUESTION_ARROW );
+                m_canvas->SetCursor( wxCURSOR_QUESTION_ARROW );
         }
-
         break;
 
     case ID_TB_OPTIONS_SHOW_RATSNEST:
         SetElementVisibility( RATSNEST_VISIBLE, state );
 
         if( state && (GetBoard()->m_Status_Pcb & LISTE_RATSNEST_ITEM_OK) == 0 )
-        {
             Compile_Ratsnest( NULL, true );
-        }
 
-        DrawPanel->Refresh();
+        m_canvas->Refresh();
         break;
 
     case ID_TB_OPTIONS_SHOW_MODULE_RATSNEST:
@@ -188,37 +192,37 @@ void PCB_EDIT_FRAME::OnSelectOptionToolbar( wxCommandEvent& event )
 
     case ID_TB_OPTIONS_SHOW_ZONES:
         DisplayOpt.DisplayZonesMode = 0;
-        DrawPanel->Refresh();
+        m_canvas->Refresh();
         break;
 
     case ID_TB_OPTIONS_SHOW_ZONES_DISABLE:
         DisplayOpt.DisplayZonesMode = 1;
-        DrawPanel->Refresh();
+        m_canvas->Refresh();
         break;
 
     case ID_TB_OPTIONS_SHOW_ZONES_OUTLINES_ONLY:
         DisplayOpt.DisplayZonesMode = 2;
-        DrawPanel->Refresh();
+        m_canvas->Refresh();
         break;
 
     case ID_TB_OPTIONS_SHOW_VIAS_SKETCH:
         m_DisplayViaFill = DisplayOpt.DisplayViaFill = !state;
-        DrawPanel->Refresh();
+        m_canvas->Refresh();
         break;
 
     case ID_TB_OPTIONS_SHOW_TRACKS_SKETCH:
         m_DisplayPcbTrackFill = DisplayOpt.DisplayPcbTrackFill = !state;
-        DrawPanel->Refresh();
+        m_canvas->Refresh();
         break;
 
     case ID_TB_OPTIONS_SHOW_HIGH_CONTRAST_MODE:
         DisplayOpt.ContrastModeDisplay = state;
-        DrawPanel->Refresh();
+        m_canvas->Refresh();
         break;
 
     case ID_TB_OPTIONS_SHOW_EXTRA_VERTICAL_TOOLBAR_MICROWAVE:
         m_show_microwave_tools = state;
-        m_auimgr.GetPane( wxT( "m_AuxVToolBar" ) ).Show( m_show_microwave_tools );
+        m_auimgr.GetPane( wxT( "m_microWaveToolBar" ) ).Show( m_show_microwave_tools );
         m_auimgr.Update();
         break;
 

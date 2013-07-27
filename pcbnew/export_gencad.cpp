@@ -1,9 +1,10 @@
 /*
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
- * Copyright (C) 2004 Jean-Pierre Charras, jaen-pierre.charras@gipsa-lab.inpg.com
- * Copyright (C) 2008-2011 Wayne Stambaugh <stambaughw@verizon.net>
- * Copyright (C) 2004-2011 KiCad Developers, see change_log.txt for contributors.
+ * Copyright (C) 2012 Jean-Pierre Charras, jean-pierre.charras@ujf-grenoble.fr
+ * Copyright (C) 2012 SoftPLC Corporation, Dick Hollenbeck <dick@softplc.com>
+ * Copyright (C) 2012 Wayne Stambaugh <stambaughw@verizon.net>
+ * Copyright (C) 1992-2012 KiCad Developers, see AUTHORS.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -28,75 +29,97 @@
  * @brief Export GenCAD 1.4 format.
  */
 
-#include "fctsys.h"
-#include "class_drawpanel.h"
-#include "confirm.h"
-#include "gestfich.h"
-#include "appl_wxstruct.h"
-#include "wxPcbStruct.h"
-#include "trigo.h"
-#include "build_version.h"
-#include "macros.h"
+#include <fctsys.h>
+#include <class_drawpanel.h>
+#include <confirm.h>
+#include <gestfich.h>
+#include <appl_wxstruct.h>
+#include <wxPcbStruct.h>
+#include <trigo.h>
+#include <build_version.h>
+#include <macros.h>
 
-#include "pcbnew.h"
+#include <pcbnew.h>
 
-#include "class_board.h"
-#include "class_module.h"
-#include "class_track.h"
-#include "class_edge_mod.h"
+#include <class_board.h>
+#include <class_module.h>
+#include <class_track.h>
+#include <class_edge_mod.h>
 
 
-bool        CreateHeaderInfoData( FILE* file, PCB_EDIT_FRAME* frame );
-static void CreateTracksInfoData( FILE* file, BOARD* pcb );
-static void CreateBoardSection( FILE* file, BOARD* pcb );
-static void CreateComponentsSection( FILE* file, BOARD* pcb );
-static void CreateDevicesSection( FILE* file, BOARD* pcb );
-static void CreateRoutesSection( FILE* file, BOARD* pcb );
-static void CreateSignalsSection( FILE* file, BOARD* pcb );
-static void CreateShapesSection( FILE* file, BOARD* pcb );
-static void CreatePadsShapesSection( FILE* file, BOARD* pcb );
-static void CreatePadsStacksSection( FILE* file, BOARD* pcb );
+static bool CreateHeaderInfoData( FILE* aFile, PCB_EDIT_FRAME* frame );
+static void CreateArtworksSection( FILE* aFile );
+static void CreateTracksInfoData( FILE* aFile, BOARD* aPcb );
+static void CreateBoardSection( FILE* aFile, BOARD* aPcb );
+static void CreateComponentsSection( FILE* aFile, BOARD* aPcb );
+static void CreateDevicesSection( FILE* aFile, BOARD* aPcb );
+static void CreateRoutesSection( FILE* aFile, BOARD* aPcb );
+static void CreateSignalsSection( FILE* aFile, BOARD* aPcb );
+static void CreateShapesSection( FILE* aFile, BOARD* aPcb );
+static void CreatePadsShapesSection( FILE* aFile, BOARD* aPcb );
 static void FootprintWriteShape( FILE* File, MODULE* module );
 
 // layer name for Gencad export
-static const wxString GenCAD_Layer_Name[32] =
+static const wxString GenCADLayerName[32] =
 {
-    wxT( "BOTTOM" ),             wxT( "INNER1" ),            wxT( "INNER2" ),
-    wxT( "INNER3" ),             wxT( "INNER4" ),            wxT( "INNER5" ),
-    wxT( "INNER6" ),             wxT( "INNER7" ),            wxT( "INNER8" ),
-    wxT( "INNER9" ),             wxT( "INNER10" ),           wxT( "INNER11" ),
-    wxT( "INNER12" ),            wxT( "INNER13" ),           wxT( "INNER14" ),
-    wxT( "TOP" ),                wxT( "adhecu" ),            wxT( "adhecmp" ),
+    wxT( "BOTTOM" ),             wxT( "INNER1" ),          wxT( "INNER2" ),
+    wxT( "INNER3" ),             wxT( "INNER4" ),          wxT( "INNER5" ),
+    wxT( "INNER6" ),             wxT( "INNER7" ),          wxT( "INNER8" ),
+    wxT( "INNER9" ),             wxT( "INNER10" ),         wxT( "INNER11" ),
+    wxT( "INNER12" ),            wxT( "INNER13" ),         wxT( "INNER14" ),
+    wxT( "TOP" ),                wxT( "LAYER17" ),         wxT( "LAYER18" ),
     wxT( "SOLDERPASTE_BOTTOM" ), wxT( "SOLDERPASTE_TOP" ),
     wxT( "SILKSCREEN_BOTTOM" ),  wxT( "SILKSCREEN_TOP" ),
-    wxT( "SOLDERMASK_BOTTOM" ),  wxT( "SOLDERMASK_TOP" ),    wxT( "drawings" ),
-    wxT( "comments" ),           wxT( "eco1" ),              wxT( "eco2" ),
-    wxT( "edges" ),              wxT( "--" ),                wxT( "--" ),
-    wxT( "--" )
+    wxT( "SOLDERMASK_BOTTOM" ),  wxT( "SOLDERMASK_TOP" ),  wxT( "LAYER25" ),
+    wxT( "LAYER26" ),            wxT( "LAYER27" ),         wxT( "LAYER28" ),
+    wxT( "LAYER29" ),            wxT( "LAYER30" ),         wxT( "LAYER31" ),
+    wxT( "LAYER32" )
 };
 
-int    offsetX, offsetY;
-D_PAD* PadList;
+// flipped layer name for Gencad export (to make CAM350 imports correct)
+static const wxString GenCADLayerNameFlipped[32] =
+{
+    wxT( "TOP" ),             wxT( "INNER14" ),            wxT( "INNER13" ),
+    wxT( "INNER12" ),         wxT( "INNER11" ),            wxT( "INNER10" ),
+    wxT( "INNER9" ),          wxT( "INNER8" ),             wxT( "INNER7" ),
+    wxT( "INNER6" ),          wxT( "INNER5" ),             wxT( "INNER4" ),
+    wxT( "INNER3" ),          wxT( "INNER2" ),             wxT( "INNER1" ),
+    wxT( "BOTTOM" ),          wxT( "LAYER17" ),            wxT( "LAYER18" ),
+    wxT( "SOLDERPASTE_TOP" ), wxT( "SOLDERPASTE_BOTTOM" ),
+    wxT( "SILKSCREEN_TOP" ),  wxT( "SILKSCREEN_BOTTOM" ),
+    wxT( "SOLDERMASK_TOP" ),  wxT( "SOLDERMASK_BOTTOM" ),  wxT( "LAYER25" ),
+    wxT( "LAYER26" ),         wxT( "LAYER27" ),            wxT( "LAYER28" ),
+    wxT( "LAYER29" ),         wxT( "LAYER30" ),            wxT( "LAYER31" ),
+    wxT( "LAYER32" )
+};
+
+// These are the export origin (the auxiliary axis)
+static int GencadOffsetX, GencadOffsetY;
+
+/* GerbTool chokes on units different than INCH so this is the conversion
+ *  factor */
+const static double SCALE_FACTOR = 10000.0 * IU_PER_DECIMILS;
 
 
-/* 2 helper functions to calculate coordinates of modules in gencad values (
- * GenCAD Y axis from bottom to top)
+/* Two helper functions to calculate coordinates of modules in gencad values
+ * (GenCAD Y axis from bottom to top)
  */
-static int mapXto( int x )
+static double MapXTo( int aX )
 {
-    return x - offsetX;
+    return (aX - GencadOffsetX) / SCALE_FACTOR;
 }
 
 
-static int mapYto( int y )
+static double MapYTo( int aY )
 {
-    return offsetY - y;
+    return (GencadOffsetY - aY) / SCALE_FACTOR;
 }
 
 
-void PCB_EDIT_FRAME::ExportToGenCAD( wxCommandEvent& event )
+/* Driver function: processing starts here */
+void PCB_EDIT_FRAME::ExportToGenCAD( wxCommandEvent& aEvent )
 {
-    wxFileName fn = GetScreen()->GetFileName();
+    wxFileName fn = GetBoard()->GetFileName();
     wxString   msg, ext, wildcard;
     FILE*      file;
 
@@ -117,11 +140,16 @@ void PCB_EDIT_FRAME::ExportToGenCAD( wxCommandEvent& event )
         DisplayError( this, msg ); return;
     }
 
-    /* Update some board data, to ensure a reliable gencad export: */
+    SetLocaleTo_C_standard(); // No pesky decimal separators in gencad
+
+    // Update some board data, to ensure a reliable gencad export
     GetBoard()->ComputeBoundingBox();
 
-    offsetX = m_Auxiliary_Axis_Position.x;
-    offsetY = m_Auxiliary_Axis_Position.y;
+    // Save the auxiliary origin for the rest of the module
+    GencadOffsetX = GetOriginAxisPosition().x;
+    GencadOffsetY = GetOriginAxisPosition().y;
+
+    // No idea on *why* this should be needed... maybe to fix net names?
     Compile_Ratsnest( NULL, true );
 
     /* Temporary modification of footprints that are flipped (i.e. on bottom
@@ -130,9 +158,10 @@ void PCB_EDIT_FRAME::ExportToGenCAD( wxCommandEvent& event )
      *  that are given as normal orientation (non flipped, rotation = 0))
      * these changes will be undone later
      */
+    BOARD*  pcb = GetBoard();
     MODULE* module;
 
-    for( module = GetBoard()->m_Modules; module != NULL; module = module->Next() )
+    for( module = pcb->m_Modules; module != NULL; module = module->Next() )
     {
         module->flag = 0;
 
@@ -143,38 +172,33 @@ void PCB_EDIT_FRAME::ExportToGenCAD( wxCommandEvent& event )
         }
     }
 
-    // Create file header:
-    CreateHeaderInfoData( file, this );
-    CreateBoardSection( file, GetBoard() );
+    /* Gencad has some mandatory and some optional sections: some importer
+     *  need the padstack section (which is optional) anyway. Also the
+     *  order of the section *is* important */
 
-    /* Create TRACKS list
-     *  This is the section $TRACK) (track width sizes) */
-    CreateTracksInfoData( file, GetBoard() );
+    CreateHeaderInfoData( file, this );     // Gencad header
+    CreateBoardSection( file, pcb );        // Board perimeter
 
-    /* Create the shapes list
-     *  (shapes of pads and footprints */
-    CreatePadsShapesSection( file, GetBoard() );   /* Must be called
-                                                    * before
-                                                    * CreatePadsStacksSection
-                                                    * and
-                                                    * CreateShapesSection()
-                                                    */
-    CreatePadsStacksSection( file, GetBoard() );
-    CreateShapesSection( file, GetBoard() );
+    CreatePadsShapesSection( file, pcb );   // Pads and padstacks
+    CreateArtworksSection( file );          // Empty but mandatory
 
-    CreateDevicesSection( file, GetBoard() );
-    CreateComponentsSection( file, GetBoard() );
+    /* Gencad splits a component info in shape, component and device.
+     *  We don't do any sharing (it would be difficult since each module is
+     *  customizable after placement) */
+    CreateShapesSection( file, pcb );
+    CreateComponentsSection( file, pcb );
+    CreateDevicesSection( file, pcb );
 
-    /* Create the list of Nets: */
-    CreateSignalsSection( file, GetBoard() );
-
-    // Creates the Routes section (i.e. the list of board tracks)
-    CreateRoutesSection( file, GetBoard() );
+    // In a similar way the netlist is split in net, track and route
+    CreateSignalsSection( file, pcb );
+    CreateTracksInfoData( file, pcb );
+    CreateRoutesSection( file, pcb );
 
     fclose( file );
+    SetLocaleTo_Default();  // revert to the current locale
 
-    /* Undo the footprints modifications (flipped footprints) */
-    for( module = GetBoard()->m_Modules; module != NULL; module = module->Next() )
+    // Undo the footprints modifications (flipped footprints)
+    for( module = pcb->m_Modules; module != NULL; module = module->Next() )
     {
         if( module->flag )
         {
@@ -185,57 +209,98 @@ void PCB_EDIT_FRAME::ExportToGenCAD( wxCommandEvent& event )
 }
 
 
-static int Pad_list_Sort_by_Shapes( const void* refptr, const void* objptr )
+// Comparator for sorting pads with qsort
+static int PadListSortByShape( const void* aRefptr, const void* aObjptr )
 {
-    const D_PAD* padref = *(D_PAD**) refptr;
-    const D_PAD* padcmp = *(D_PAD**) objptr;
+    const D_PAD* padref = *(D_PAD**) aRefptr;
+    const D_PAD* padcmp = *(D_PAD**) aObjptr;
 
     return D_PAD::Compare( padref, padcmp );
 }
 
 
-/* Creates the pads shapes list ( 1 shape per pad )
- *  Uses .GetSubRatsnest member of class D_PAD, to handle the shape id (value 1
- * ..n) for pads shapes PAD1 to PADn
- *
- *  The PADS section is used to describe the shape of all the pads used on the
- *  printed circuit board. The PADS section must be included, even if only a
- *  default pad is described and used for all pads.
- * The keywords used in the PADS section are:
- *  $PADS
- *  PAD <pad_name> <pad_type> <drill_size>
- *  LINE <line_ref>
- *  ARC <arc_ref>
- *  CIRCLE <circle_ref>
- *  RECTANGLE <rectangle_ref>
- *  ATTRIBUTE <attrib_ref>
- *  $ENDPADS
- *  $PADS and $ENDPADS mark the PADS section of the GenCAD file. Each pad
- *  description must start with a PAD keyword.
- *  The layer in which a pad lies is defined in the SHAPE section of the GenCAD
- *  specification.
- *  The pad is always placed on a shape at the pad origin, or in a pad stack at
- *  the pad stack origin.
- */
-void CreatePadsShapesSection( FILE* file, BOARD* pcb )
+// Sort vias for uniqueness
+static int ViaSort( const void* aRefptr, const void* aObjptr )
+{
+    TRACK* padref = *(TRACK**) aRefptr;
+    TRACK* padcmp = *(TRACK**) aObjptr;
+
+    if( padref->GetWidth() != padcmp->GetWidth() )
+        return padref->GetWidth() - padcmp->GetWidth();
+
+    if( padref->GetDrillValue() != padcmp->GetDrillValue() )
+        return padref->GetDrillValue() - padcmp->GetDrillValue();
+
+    if( padref->ReturnMaskLayer() != padcmp->ReturnMaskLayer() )
+        return padref->ReturnMaskLayer() - padcmp->ReturnMaskLayer();
+
+    return 0;
+}
+
+
+// The ARTWORKS section is empty but (officially) mandatory
+static void CreateArtworksSection( FILE* aFile )
+{
+    /* The artworks section is empty */
+    fputs( "$ARTWORKS\n", aFile );
+    fputs( "$ENDARTWORKS\n\n", aFile );
+}
+
+
+// Emit PADS and PADSTACKS. They are sorted and emitted uniquely.
+// Via name is synthesized from their attributes, pads are numbered
+static void CreatePadsShapesSection( FILE* aFile, BOARD* aPcb )
 {
     std::vector<D_PAD*> pads;
+    std::vector<D_PAD*> padstacks;
+    std::vector<TRACK*> vias;
+    std::vector<TRACK*> viastacks;
+    padstacks.resize( 1 ); // We count pads from 1
 
-    const char*         pad_type;
+    // The master layermask (i.e. the enabled layers) for padstack generation
+    unsigned master_layermask = aPcb->GetDesignSettings().GetEnabledLayers();
 
-    fputs( "$PADS\n", file );
+    fputs( "$PADS\n", aFile );
 
-    if( pcb->GetPadsCount() > 0 )
+    // Enumerate and sort the pads
+    if( aPcb->GetPadCount() > 0 )
     {
-        pads.insert( pads.end(),
-                     pcb->m_NetInfo->m_PadsFullList.begin(),
-                     pcb->m_NetInfo->m_PadsFullList.end() );
-        qsort( &pads[0], pcb->GetPadsCount(), sizeof( D_PAD* ), Pad_list_Sort_by_Shapes );
+        pads = aPcb->GetPads();
+        qsort( &pads[0], aPcb->GetPadCount(), sizeof( D_PAD* ),
+               PadListSortByShape );
     }
 
-    D_PAD* old_pad = NULL;
-    int    pad_name_number = 0;
+    // The same for vias
+    for( TRACK* track = aPcb->m_Track; track != NULL; track = track->Next() )
+    {
+        if( track->Type() == PCB_VIA_T )
+        {
+            vias.push_back( track );
+        }
+    }
 
+    qsort( &vias[0], vias.size(), sizeof(TRACK*), ViaSort );
+
+    // Emit vias pads
+    TRACK* old_via = 0;
+    for( unsigned i = 0; i < vias.size(); i++ )
+    {
+        TRACK* via = vias[i];
+        if( old_via && 0 == ViaSort( &old_via, &via ) )
+            continue;
+
+        old_via = via;
+        viastacks.push_back( via );
+        fprintf( aFile, "PAD V%d.%d.%X ROUND %g\nCIRCLE 0 0 %g\n",
+                via->GetWidth(), via->GetDrillValue(),
+                via->ReturnMaskLayer(),
+                via->GetDrillValue() / SCALE_FACTOR,
+                via->GetWidth() / (SCALE_FACTOR * 2) );
+    }
+
+    // Emit component pads
+    D_PAD* old_pad = 0;
+    int    pad_name_number = 0;
     for( unsigned i = 0; i<pads.size(); ++i )
     {
         D_PAD* pad = pads[i];
@@ -250,124 +315,185 @@ void CreatePadsShapesSection( FILE* file, BOARD* pcb )
         pad_name_number++;
         pad->SetSubRatsnest( pad_name_number );
 
-        fprintf( file, "PAD PAD%d", pad->GetSubRatsnest() );
+        fprintf( aFile, "PAD P%d", pad->GetSubRatsnest() );
 
-        int dx = pad->m_Size.x / 2;
-        int dy = pad->m_Size.y / 2;
+        padstacks.push_back( pad ); // Will have its own padstack later
+        int dx = pad->GetSize().x / 2;
+        int dy = pad->GetSize().y / 2;
 
-        switch( pad->m_PadShape )
+        switch( pad->GetShape() )
         {
         default:
         case PAD_CIRCLE:
-            pad_type = "ROUND";
-            fprintf( file, " %s %d\n", pad_type, pad->m_Drill.x );
-            fprintf( file, "CIRCLE %d %d %d\n",
-                     pad->m_Offset.x, -pad->m_Offset.y, dx );
+            fprintf( aFile, " ROUND %g\n",
+                     pad->GetDrillSize().x / SCALE_FACTOR );
+            /* Circle is center, radius */
+            fprintf( aFile, "CIRCLE %g %g %g\n",
+                    pad->GetOffset().x / SCALE_FACTOR,
+                    -pad->GetOffset().y / SCALE_FACTOR,
+                    pad->GetSize().x / (SCALE_FACTOR * 2) );
             break;
 
         case PAD_RECT:
-            pad_type = "RECTANGULAR";
-            fprintf( file, " %s %d\n", pad_type, pad->m_Drill.x );
-            fprintf( file, "RECTANGLE %d %d %d %d\n",
-                     pad->m_Offset.x - dx, -pad->m_Offset.y - dy,
-                     pad->m_Size.x, pad->m_Size.y );
+            fprintf( aFile, " RECTANGULAR %g\n",
+                     pad->GetDrillSize().x / SCALE_FACTOR );
+
+            // Rectangle is begin, size *not* begin, end!
+            fprintf( aFile, "RECTANGLE %g %g %g %g\n",
+                    (-dx + pad->GetOffset().x ) / SCALE_FACTOR,
+                    (-dy - pad->GetOffset().y ) / SCALE_FACTOR,
+                    dx / (SCALE_FACTOR / 2), dy / (SCALE_FACTOR / 2) );
             break;
 
-        case PAD_OVAL:     /* Create outline by 2 lines and 2 arcs */
+        case PAD_OVAL:     // Create outline by 2 lines and 2 arcs
         {
-            pad_type = "FINGER";
-            fprintf( file, " %s %d\n", pad_type, pad->m_Drill.x );
+            // OrCAD Layout call them OVAL or OBLONG - GenCAD call them FINGERs
+            fprintf( aFile, " FINGER %g\n",
+                     pad->GetDrillSize().x / SCALE_FACTOR );
             int dr = dx - dy;
+
             if( dr >= 0 )       // Horizontal oval
             {
                 int radius = dy;
-                fprintf( file, "LINE %d %d %d %d\n",
-                         -dr + pad->m_Offset.x, -pad->m_Offset.y - radius,
-                         dr + pad->m_Offset.x, -pad->m_Offset.y - radius );
-                fprintf( file, "ARC %d %d %d %d %d %d\n",
-                         dr + pad->m_Offset.x, -pad->m_Offset.y - radius,
-                         dr + pad->m_Offset.x, -pad->m_Offset.y + radius,
-                         dr + pad->m_Offset.x, -pad->m_Offset.y );
+                fprintf( aFile, "LINE %g %g %g %g\n",
+                         (-dr + pad->GetOffset().x) / SCALE_FACTOR,
+                         (-pad->GetOffset().y - radius) / SCALE_FACTOR,
+                         (dr + pad->GetOffset().x ) / SCALE_FACTOR,
+                         (-pad->GetOffset().y - radius) / SCALE_FACTOR );
 
-                fprintf( file, "LINE %d %d %d %d\n",
-                         dr + pad->m_Offset.x, -pad->m_Offset.y + radius,
-                         -dr + pad->m_Offset.x, -pad->m_Offset.y + radius );
-                fprintf( file, "ARC %d %d %d %d %d %d\n",
-                         -dr + pad->m_Offset.x, -pad->m_Offset.y + radius,
-                         -dr + pad->m_Offset.x, -pad->m_Offset.y - radius,
-                         -dr + pad->m_Offset.x, -pad->m_Offset.y );
+                // GenCAD arcs are (start, end, center)
+                fprintf( aFile, "ARC %g %g %g %g %g %g\n",
+                         (dr + pad->GetOffset().x) / SCALE_FACTOR,
+                         (-pad->GetOffset().y - radius) / SCALE_FACTOR,
+                         (dr + pad->GetOffset().x) / SCALE_FACTOR,
+                         (-pad->GetOffset().y + radius) / SCALE_FACTOR,
+                         (dr + pad->GetOffset().x) / SCALE_FACTOR,
+                         -pad->GetOffset().y / SCALE_FACTOR );
+
+                fprintf( aFile, "LINE %g %g %g %g\n",
+                         (dr + pad->GetOffset().x) / SCALE_FACTOR,
+                         (-pad->GetOffset().y + radius) / SCALE_FACTOR,
+                         (-dr + pad->GetOffset().x) / SCALE_FACTOR,
+                         (-pad->GetOffset().y + radius) / SCALE_FACTOR );
+                fprintf( aFile, "ARC %g %g %g %g %g %g\n",
+                         (-dr + pad->GetOffset().x) / SCALE_FACTOR,
+                         (-pad->GetOffset().y + radius) / SCALE_FACTOR,
+                         (-dr + pad->GetOffset().x) / SCALE_FACTOR,
+                         (-pad->GetOffset().y - radius) / SCALE_FACTOR,
+                         (-dr + pad->GetOffset().x) / SCALE_FACTOR,
+                         -pad->GetOffset().y / SCALE_FACTOR );
             }
             else        // Vertical oval
             {
                 dr = -dr;
                 int radius = dx;
-                fprintf( file, "LINE %d %d %d %d\n",
-                         -radius + pad->m_Offset.x, -pad->m_Offset.y - dr,
-                         -radius + pad->m_Offset.x, -pad->m_Offset.y + dr );
-                fprintf( file, "ARC %d %d %d %d %d %d\n",
-                         -radius + pad->m_Offset.x, -pad->m_Offset.y + dr,
-                         radius + pad->m_Offset.x, -pad->m_Offset.y + dr,
-                         pad->m_Offset.x, -pad->m_Offset.y + dr );
+                fprintf( aFile, "LINE %g %g %g %g\n",
+                         (-radius + pad->GetOffset().x) / SCALE_FACTOR,
+                         (-pad->GetOffset().y - dr) / SCALE_FACTOR,
+                         (-radius + pad->GetOffset().x ) / SCALE_FACTOR,
+                         (-pad->GetOffset().y + dr) / SCALE_FACTOR );
+                fprintf( aFile, "ARC %g %g %g %g %g %g\n",
+                         (-radius + pad->GetOffset().x ) / SCALE_FACTOR,
+                         (-pad->GetOffset().y + dr) / SCALE_FACTOR,
+                         (radius + pad->GetOffset().x ) / SCALE_FACTOR,
+                         (-pad->GetOffset().y + dr) / SCALE_FACTOR,
+                         pad->GetOffset().x / SCALE_FACTOR,
+                         (-pad->GetOffset().y + dr) / SCALE_FACTOR );
 
-                fprintf( file, "LINE %d %d %d %d\n",
-                         radius + pad->m_Offset.x, -pad->m_Offset.y + dr,
-                         radius + pad->m_Offset.x, -pad->m_Offset.y - dr );
-                fprintf( file, "ARC %d %d %d %d %d %d\n",
-                         radius + pad->m_Offset.x, -pad->m_Offset.y - dr,
-                         -radius + pad->m_Offset.x, -pad->m_Offset.y - dr,
-                         pad->m_Offset.x, -pad->m_Offset.y - dr );
+                fprintf( aFile, "LINE %g %g %g %g\n",
+                         (radius + pad->GetOffset().x) / SCALE_FACTOR,
+                         (-pad->GetOffset().y + dr) / SCALE_FACTOR,
+                         (radius + pad->GetOffset().x) / SCALE_FACTOR,
+                         (-pad->GetOffset().y - dr) / SCALE_FACTOR );
+                fprintf( aFile, "ARC %g %g %g %g %g %g\n",
+                         (radius + pad->GetOffset().x) / SCALE_FACTOR,
+                         (-pad->GetOffset().y - dr) / SCALE_FACTOR,
+                         (-radius + pad->GetOffset().x) / SCALE_FACTOR,
+                         (-pad->GetOffset().y - dr) / SCALE_FACTOR,
+                         pad->GetOffset().x / SCALE_FACTOR,
+                         (-pad->GetOffset().y - dr) / SCALE_FACTOR );
             }
             break;
         }
 
         case PAD_TRAPEZOID:
-            pad_type = "POLYGON";
+            fprintf( aFile, " POLYGON %g\n",
+                     pad->GetDrillSize().x / SCALE_FACTOR );
+
+            // XXX TO BE IMPLEMENTED! and I don't know if it could be actually imported by something
             break;
         }
     }
 
-    fputs( "$ENDPADS\n\n", file );
-}
+    fputs( "\n$ENDPADS\n\n", aFile );
 
+    // Now emit the padstacks definitions, using the combined layer masks
+    fputs( "$PADSTACKS\n", aFile );
 
-/*The PADSTACKS section is optional, and is used to describe how a group of
- * pads are
- *  arranged. The keywords used in the PADSTACKS section are:
- *  $PADSTACKS
- *  PADSTACK <pad_name> <drill_size>
- *  PAD <pad_name> <layer> <rot> <mirror>
- *  ATTRIBUTE <attrib_ref>
- *  $ENDPADSTACKS
- *  $PADSTACKS and $ENDPADSTACKS mark the PADSTACKS section of the GenCAD file.
- */
-void CreatePadsStacksSection( FILE* file, BOARD* pcb )
-{
-    fputs( "$PADSTACKS\n", file );
-    fputs( "$ENDPADSTACKS\n\n", file );
+    // Via padstacks
+    for( unsigned i = 0; i < viastacks.size(); i++ )
+    {
+        TRACK*   via  = viastacks[i];
+        unsigned mask = via->ReturnMaskLayer() & master_layermask;
+        fprintf( aFile, "PADSTACK VIA%d.%d.%X %g\n",
+                 via->GetWidth(), via->GetDrillValue(), mask,
+                 via->GetDrillValue() / SCALE_FACTOR );
+
+        for( int layer = 0; layer < 32; layer++ )
+        {
+            if( mask & (1 << layer) )
+            {
+                fprintf( aFile, "PAD V%d.%d.%X %s 0 0\n",
+                        via->GetWidth(), via->GetDrillValue(),
+                        mask,
+                        TO_UTF8( GenCADLayerName[layer] ) );
+            }
+        }
+    }
+
+    /* Component padstacks
+     *  CAM350 don't apply correctly the FLIP semantics for padstacks, i.e. doesn't
+     *  swap the top and bottom layers... so I need to define the shape as MIRRORX
+     *  and define a separate 'flipped' padstack... until it appears yet another
+     *  noncompliant importer */
+    for( unsigned i = 1; i < padstacks.size(); i++ )
+    {
+        D_PAD* pad = padstacks[i];
+
+        // Straight padstack
+        fprintf( aFile, "PADSTACK PAD%d %g\n", i,
+                 pad->GetDrillSize().x / SCALE_FACTOR );
+        for( int layer = 0; layer < 32; layer++ )
+        {
+            if( pad->GetLayerMask() & (1 << layer) & master_layermask )
+            {
+                fprintf( aFile, "PAD P%d %s 0 0\n", i,
+                        TO_UTF8( GenCADLayerName[layer] ) );
+            }
+        }
+
+        // Flipped padstack
+        fprintf( aFile, "PADSTACK PAD%dF %g\n", i,
+                 pad->GetDrillSize().x / SCALE_FACTOR );
+        for( int layer = 0; layer < 32; layer++ )
+        {
+            if( pad->GetLayerMask() & (1 << layer) & master_layermask )
+            {
+                fprintf( aFile, "PAD P%d %s 0 0\n", i,
+                        TO_UTF8( GenCADLayerNameFlipped[layer] ) );
+            }
+        }
+    }
+
+    fputs( "$ENDPADSTACKS\n\n", aFile );
 }
 
 
 /* Creates the footprint shape list.
- * We must use one shape for identical footprint (i.e. come from the same
- * footprint in lib)
- *  But because pads shapes and positions can be easily modified on board,
- *  a shape is created by footprint found.
- * (todo : compare footprints shapes and creates only one shape for all
- * footprints found having the same shape)
- *  The shape is always given in orientation 0, position 0 not flipped
- *
- *  Syntax:
- *  $SHAPES
- *  SHAPE <shape_name>
- *  INSERT <string>         here <string> = "TH"
- *  shape_descr (line, arc ..)
- *  PIN <pin_name> <pad_name> <x_y_ref> <layer> <rot> <mirror>
- *
- *  SHAPE <shape_name>
- *  ..
- *  $ENDSHAPES
+ * Since module shape is customizable after the placement we cannot share them;
+ * instead we opt for the one-module-one-shape-one-component-one-device approach
  */
-void CreateShapesSection( FILE* file, BOARD* pcb )
+static void CreateShapesSection( FILE* aFile, BOARD* aPcb )
 {
     MODULE*     module;
     D_PAD*      pad;
@@ -376,80 +502,73 @@ void CreateShapesSection( FILE* file, BOARD* pcb )
     wxString    pinname;
     const char* mirror = "0";
 
-    fputs( "$SHAPES\n", file );
+    fputs( "$SHAPES\n", aFile );
 
-    for( module = pcb->m_Modules; module != NULL; module = module->Next() )
+    for( module = aPcb->m_Modules; module != NULL; module = module->Next() )
     {
-        FootprintWriteShape( file, module );
+        FootprintWriteShape( aFile, module );
 
         for( pad = module->m_Pads; pad != NULL; pad = pad->Next() )
         {
+            /* Funny thing: GenCAD requires the pad side even if you use
+             *  padstacks (which are theorically optional but gerbtools
+             *requires* them). Now the trouble thing is that 'BOTTOM'
+             *  is interpreted by someone as a padstack flip even
+             *  if the spec explicitly says it's not... */
             layer = "ALL";
 
-            if( ( pad->m_layerMask & ALL_CU_LAYERS ) == LAYER_BACK )
+            if( ( pad->GetLayerMask() & ALL_CU_LAYERS ) == LAYER_BACK )
             {
-                if( module->GetLayer() == LAYER_N_FRONT )
-                    layer = "BOTTOM";
-                else
-                    layer = "TOP";
+                layer = ( module->flag ) ? "TOP" : "BOTTOM";
             }
-            else if( ( pad->m_layerMask & ALL_CU_LAYERS ) == LAYER_FRONT )
+            else if( ( pad->GetLayerMask() & ALL_CU_LAYERS ) == LAYER_FRONT )
             {
-                if( module->GetLayer() == LAYER_N_FRONT )
-                    layer = "TOP";
-                else
-                    layer = "BOTTOM";
+                layer = ( module->flag ) ? "BOTTOM" : "TOP";
             }
 
             pad->ReturnStringPadName( pinname );
 
             if( pinname.IsEmpty() )
-                pinname = wxT( "noname" );
+                pinname = wxT( "none" );
 
-            orient = pad->m_Orient - module->m_Orient;
+            orient = pad->GetOrientation() - module->GetOrientation();
             NORMALIZE_ANGLE_POS( orient );
-            fprintf( file, "PIN %s PAD%d %d %d %s %d %s",
+
+            // Bottom side modules use the flipped padstack
+            fprintf( aFile, (module->flag) ?
+                     "PIN %s PAD%dF %g %g %s %g %s\n" :
+                     "PIN %s PAD%d %g %g %s %g %s\n",
                      TO_UTF8( pinname ), pad->GetSubRatsnest(),
-                     pad->m_Pos0.x, -pad->m_Pos0.y,
-                     layer, orient / 10, mirror );
-
-            if( orient % 10 )
-                fprintf( file, " .%d", orient % 10 );
-
-            fprintf( file, "\n" );
+                     pad->GetPos0().x / SCALE_FACTOR,
+                     -pad->GetPos0().y / SCALE_FACTOR,
+                     layer, orient / 10.0, mirror );
         }
     }
 
-    fputs( "$ENDSHAPES\n\n", file );
+    fputs( "$ENDSHAPES\n\n", aFile );
 }
 
 
 /* Creates the section $COMPONENTS (Footprints placement)
- *  When a footprint is on bottom side of the board::
- *  shapes are given with option "FLIP" and "MIRRORX".
- *  - But shapes remain given like component not mirrored and not flipped
- *  - orientation is given like if where not mirrored and not flipped.
+ * Bottom side components are difficult to handle: shapes must be mirrored or
+ * flipped, silk layers need to be handled correctly and so on. Also it seems
+ * that *noone* follows the specs...
  */
-void CreateComponentsSection( FILE* file, BOARD* pcb )
+static void CreateComponentsSection( FILE* aFile, BOARD* aPcb )
 {
-    MODULE*       module = pcb->m_Modules;
-    TEXTE_MODULE* PtTexte;
-    const char*   mirror;
-    const char*   flip;
-    int           ii;
+    fputs( "$COMPONENTS\n", aFile );
 
-    fputs( "$COMPONENTS\n", file );
-
-    for( ; module != NULL; module = module->Next() )
+    for( MODULE* module = aPcb->m_Modules; module != NULL; module = module->Next() )
     {
-        int orient = module->m_Orient;
+        TEXTE_MODULE* textmod;
+        const char*   mirror;
+        const char*   flip;
+        int           orient = module->GetOrientation();
 
         if( module->flag )
         {
-            mirror = "MIRRORX";         // Mirrored relative to X axis
-            flip   = "FLIP";            // Normal shape description ( gencad
-                                        // viewer must show it flipped and
-                                        // mirrored)
+            mirror = "0";
+            flip   = "FLIP";
             NEGATE_AND_NORMALIZE_ANGLE_POS( orient );
         }
         else
@@ -458,61 +577,62 @@ void CreateComponentsSection( FILE* file, BOARD* pcb )
             flip   = "0";
         }
 
-        fprintf( file, "COMPONENT %s\n", TO_UTF8( module->m_Reference->m_Text ) );
-        fprintf( file, "DEVICE %s\n", TO_UTF8( module->m_Reference->m_Text ) );
-        fprintf( file, "PLACE %d %d\n", mapXto( module->m_Pos.x ), mapYto( module->m_Pos.y ) );
-        fprintf( file, "LAYER %s\n", (module->flag) ? "BOTTOM" : "TOP" );
-        fprintf( file, "ROTATION %d", orient / 10 );
+        fprintf( aFile, "\nCOMPONENT %s\n",
+                TO_UTF8( module->m_Reference->m_Text ) );
+        fprintf( aFile, "DEVICE %s_%s\n",
+                TO_UTF8( module->m_Reference->m_Text ),
+                TO_UTF8( module->m_Value->m_Text ) );
+        fprintf( aFile, "PLACE %g %g\n",
+                MapXTo( module->m_Pos.x ),
+                MapYTo( module->m_Pos.y ) );
+        fprintf( aFile, "LAYER %s\n",
+                 (module->flag) ? "BOTTOM" : "TOP" );
+        fprintf( aFile, "ROTATION %g\n",
+                 orient / 10.0 );
+        fprintf( aFile, "SHAPE %s %s %s\n",
+                 TO_UTF8( module->m_Reference->m_Text ),
+                 mirror, flip );
 
-        if( orient % 10 )
-            fprintf( file, ".%d", orient % 10 );
+        // Text on silk layer: RefDes and value (are they actually useful?)
+        textmod = module->m_Reference;
 
-        fputs( "\n", file );
-
-        fprintf( file, "SHAPE %s %s %s\n", TO_UTF8( module->m_Reference->m_Text ), mirror, flip );
-
-        /* creates texts (ref and value) */
-        PtTexte = module->m_Reference;
-
-        for( ii = 0; ii < 2; ii++ )
+        for( int ii = 0; ii < 2; ii++ )
         {
-            int      orient = PtTexte->m_Orient;
-            wxString layer  = GenCAD_Layer_Name[SILKSCREEN_N_FRONT];
-            fprintf( file, "TEXT %d %d %d %d.%d %s %s \"%s\"",
-                     PtTexte->m_Pos0.x, -PtTexte->m_Pos0.y,
-                     PtTexte->m_Size.x,
-                     orient / 10, orient % 10,
-                     mirror,
-                     TO_UTF8( layer ),
-                     TO_UTF8( PtTexte->m_Text )
-                     );
+            int      orient = textmod->GetOrientation();
+            wxString layer  = GenCADLayerName[(module->flag) ?
+                                              SILKSCREEN_N_BACK : SILKSCREEN_N_FRONT];
 
-            fprintf( file, " 0 0 %d %d\n",
-                     (int) ( PtTexte->m_Size.x * PtTexte->m_Text.Len() ),
-                     (int) PtTexte->m_Size.y );
+            fprintf( aFile, "TEXT %g %g %g %g %s %s \"%s\"",
+                    textmod->GetPos0().x / SCALE_FACTOR,
+                    -textmod->GetPos0().y / SCALE_FACTOR,
+                    textmod->GetSize().x / SCALE_FACTOR,
+                    orient / 10.0,
+                    mirror,
+                    TO_UTF8( layer ),
+                    TO_UTF8( textmod->m_Text ) );
 
-            PtTexte = module->m_Value;
+            // Please note, the width is approx
+            fprintf( aFile, " 0 0 %g %g\n",
+                     ( textmod->GetSize().x * textmod->m_Text.Len() )
+                     / SCALE_FACTOR,
+                     textmod->GetSize().y / SCALE_FACTOR );
+
+            textmod = module->m_Value; // Dirty trick for the second iteration
         }
 
-        //put a comment:
-        fprintf( file, "SHEET Part %s %s\n",
-                 TO_UTF8( module->m_Reference->m_Text ),
-                 TO_UTF8( module->m_Value->m_Text ) );
+        // The SHEET is a 'generic description' for referencing the component
+        fprintf( aFile, "SHEET \"RefDes: %s, Value: %s\"\n",
+                TO_UTF8( module->m_Reference->m_Text ),
+                TO_UTF8( module->m_Value->m_Text ) );
     }
 
-    fputs( "$ENDCOMPONENTS\n\n", file );
+    fputs( "$ENDCOMPONENTS\n\n", aFile );
 }
 
 
-/* Creates the list of Nets:
- *  $SIGNALS
- *      SIGNAL <net name>
- *      NODE <component name> <pin name>
- *      ...
- *      NODE <component name> <pin name>
- *  $ENDSIGNALS
- */
-void CreateSignalsSection( FILE* file, BOARD* pcb )
+/* Emit the netlist (which is actually the thing for which GenCAD is used these
+ * days!); tracks are handled later */
+static void CreateSignalsSection( FILE* aFile, BOARD* aPcb )
 {
     wxString      msg;
     NETINFO_ITEM* net;
@@ -520,11 +640,11 @@ void CreateSignalsSection( FILE* file, BOARD* pcb )
     MODULE*       module;
     int           NbNoConn = 1;
 
-    fputs( "$SIGNALS\n", file );
+    fputs( "$SIGNALS\n", aFile );
 
-    for( unsigned ii = 0; ii < pcb->m_NetInfo->GetCount(); ii++ )
+    for( unsigned ii = 0; ii < aPcb->GetNetCount(); ii++ )
     {
-        net = pcb->m_NetInfo->GetNetItem( ii );
+        net = aPcb->FindNet( ii );
 
         if( net->GetNetname() == wxEmptyString ) // dummy netlist (no connection)
         {
@@ -537,10 +657,10 @@ void CreateSignalsSection( FILE* file, BOARD* pcb )
 
         msg = wxT( "SIGNAL " ) + net->GetNetname();
 
-        fputs( TO_UTF8( msg ), file );
-        fputs( "\n", file );
+        fputs( TO_UTF8( msg ), aFile );
+        fputs( "\n", aFile );
 
-        for( module = pcb->m_Modules; module != NULL; module = module->Next() )
+        for( module = aPcb->m_Modules; module != NULL; module = module->Next() )
         {
             for( pad = module->m_Pads; pad != NULL; pad = pad->Next() )
             {
@@ -550,43 +670,52 @@ void CreateSignalsSection( FILE* file, BOARD* pcb )
                     continue;
 
                 pad->ReturnStringPadName( padname );
-                msg.Printf( wxT( "NODE %s %.4s" ),
-                            GetChars( module->m_Reference->m_Text ),
-                            GetChars( padname ) );
+                msg.Printf( wxT( "NODE %s %s" ),
+                           GetChars( module->m_Reference->m_Text ),
+                           GetChars( padname ) );
 
-                fputs( TO_UTF8( msg ), file );
-                fputs( "\n", file );
+                fputs( TO_UTF8( msg ), aFile );
+                fputs( "\n", aFile );
             }
         }
     }
 
-    fputs( "$ENDSIGNALS\n\n", file );
+    fputs( "$ENDSIGNALS\n\n", aFile );
 }
 
 
-/* Creates the section $HEADER ... $ENDHEADER
- */
-bool CreateHeaderInfoData( FILE* file, PCB_EDIT_FRAME* frame )
+// Creates the header section
+static bool CreateHeaderInfoData( FILE* aFile, PCB_EDIT_FRAME* aFrame )
 {
     wxString    msg;
-    PCB_SCREEN* screen = (PCB_SCREEN*) ( frame->GetScreen() );
+    BOARD *board = aFrame->GetBoard();
 
-    fputs( "$HEADER\n", file );
-    fputs( "GENCAD 1.4\n", file );
-    msg = wxT( "USER " ) + wxGetApp().GetAppName() + wxT( " " ) + GetBuildVersion();
-    fputs( TO_UTF8( msg ), file ); fputs( "\n", file );
-    msg = wxT( "DRAWING " ) + screen->GetFileName();
-    fputs( TO_UTF8( msg ), file ); fputs( "\n", file );
-    msg = wxT( "REVISION " ) + screen->m_Revision + wxT( " " ) + screen->m_Date;
-    fputs( TO_UTF8( msg ), file ); fputs( "\n", file );
-    msg.Printf( wxT( "UNITS USER %d" ), PCB_INTERNAL_UNIT );
-    fputs( TO_UTF8( msg ), file ); fputs( "\n", file );
-    msg.Printf( wxT( "ORIGIN %d %d" ),
-                mapXto( frame->m_Auxiliary_Axis_Position.x ),
-                mapYto( frame->m_Auxiliary_Axis_Position.y ) );
-    fputs( TO_UTF8( msg ), file ); fputs( "\n", file );
-    fputs( "INTERTRACK 0\n", file );
-    fputs( "$ENDHEADER\n\n", file );
+    fputs( "$HEADER\n", aFile );
+    fputs( "GENCAD 1.4\n", aFile );
+
+    // Please note: GenCAD syntax requires quoted strings if they can contain spaces
+    msg.Printf( wxT( "USER \"%s %s\"\n" ),
+               GetChars( wxGetApp().GetAppName() ),
+               GetChars( GetBuildVersion() ) );
+    fputs( TO_UTF8( msg ), aFile );
+
+    msg = wxT( "DRAWING \"" ) + board->GetFileName() + wxT( "\"\n" );
+    fputs( TO_UTF8( msg ), aFile );
+
+    const TITLE_BLOCK&  tb = aFrame->GetTitleBlock();
+
+    msg = wxT( "REVISION \"" ) + tb.GetRevision() + wxT( " " ) + tb.GetDate() + wxT( "\"\n" );
+
+    fputs( TO_UTF8( msg ), aFile );
+    fputs( "UNITS INCH\n", aFile );
+
+    msg.Printf( wxT( "ORIGIN %g %g\n" ),
+                MapXTo( aFrame->GetOriginAxisPosition().x ),
+                MapYTo( aFrame->GetOriginAxisPosition().y ) );
+    fputs( TO_UTF8( msg ), aFile );
+
+    fputs( "INTERTRACK 0\n", aFile );
+    fputs( "$ENDHEADER\n\n", aFile );
 
     return true;
 }
@@ -596,7 +725,7 @@ bool CreateHeaderInfoData( FILE* file, PCB_EDIT_FRAME* frame )
  *  Sort function used to sort tracks segments:
  *   items are sorted by netcode, then by width then by layer
  */
-static int Track_list_Sort_by_Netcode( const void* refptr, const void* objptr )
+static int TrackListSortByNetcode( const void* refptr, const void* objptr )
 {
     const TRACK* ref, * cmp;
     int          diff;
@@ -607,7 +736,7 @@ static int Track_list_Sort_by_Netcode( const void* refptr, const void* objptr )
     if( ( diff = ref->GetNet() - cmp->GetNet() ) )
         return diff;
 
-    if( ( diff = ref->m_Width - cmp->m_Width ) )
+    if( ( diff = ref->GetWidth() - cmp->GetWidth() ) )
         return diff;
 
     if( ( diff = ref->GetLayer() - cmp->GetLayer() ) )
@@ -626,33 +755,34 @@ static int Track_list_Sort_by_Netcode( const void* refptr, const void* objptr )
  *  $ENROUTE
  *  Track segments must be sorted by nets
  */
-void CreateRoutesSection( FILE* file, BOARD* pcb )
+static void CreateRoutesSection( FILE* aFile, BOARD* aPcb )
 {
-    TRACK* track, ** tracklist;
-    int    vianum = 1;
-    int    old_netcode, old_width, old_layer;
-    int    nbitems, ii;
+    TRACK*   track, ** tracklist;
+    int      vianum = 1;
+    int      old_netcode, old_width, old_layer;
+    int      nbitems, ii;
+    unsigned master_layermask = aPcb->GetDesignSettings().GetEnabledLayers();
 
     // Count items
     nbitems = 0;
 
-    for( track = pcb->m_Track; track != NULL; track = track->Next() )
+    for( track = aPcb->m_Track; track != NULL; track = track->Next() )
         nbitems++;
 
-    for( track = pcb->m_Zone; track != NULL; track = track->Next() )
+    for( track = aPcb->m_Zone; track != NULL; track = track->Next() )
     {
         if( track->Type() == PCB_ZONE_T )
             nbitems++;
     }
 
-    tracklist = (TRACK**) operator new( (nbitems + 1) * sizeof( TRACK* ) );
+    tracklist = (TRACK**) operator new( (nbitems + 1)* sizeof( TRACK* ) );
 
     nbitems = 0;
 
-    for( track = pcb->m_Track; track != NULL; track = track->Next() )
+    for( track = aPcb->m_Track; track != NULL; track = track->Next() )
         tracklist[nbitems++] = track;
 
-    for( track = pcb->m_Zone; track != NULL; track = track->Next() )
+    for( track = aPcb->m_Zone; track != NULL; track = track->Next() )
     {
         if( track->Type() == PCB_ZONE_T )
             tracklist[nbitems++] = track;
@@ -660,9 +790,9 @@ void CreateRoutesSection( FILE* file, BOARD* pcb )
 
     tracklist[nbitems] = NULL;
 
-    qsort( tracklist, nbitems, sizeof(TRACK*), Track_list_Sort_by_Netcode );
+    qsort( tracklist, nbitems, sizeof(TRACK*), TrackListSortByNetcode );
 
-    fputs( "$ROUTES\n", file );
+    fputs( "$ROUTES\n", aFile );
 
     old_netcode = -1; old_width = -1; old_layer = -1;
 
@@ -673,7 +803,7 @@ void CreateRoutesSection( FILE* file, BOARD* pcb )
         if( old_netcode != track->GetNet() )
         {
             old_netcode = track->GetNet();
-            NETINFO_ITEM* net = pcb->FindNet( track->GetNet() );
+            NETINFO_ITEM* net = aPcb->FindNet( track->GetNet() );
             wxString      netname;
 
             if( net && (net->GetNetname() != wxEmptyString) )
@@ -681,13 +811,13 @@ void CreateRoutesSection( FILE* file, BOARD* pcb )
             else
                 netname = wxT( "_noname_" );
 
-            fprintf( file, "ROUTE %s\n", TO_UTF8( netname ) );
+            fprintf( aFile, "ROUTE %s\n", TO_UTF8( netname ) );
         }
 
-        if( old_width != track->m_Width )
+        if( old_width != track->GetWidth() )
         {
-            old_width = track->m_Width;
-            fprintf( file, "TRACK TRACK%d\n", track->m_Width );
+            old_width = track->GetWidth();
+            fprintf( aFile, "TRACK TRACK%d\n", track->GetWidth() );
         }
 
         if( (track->Type() == PCB_TRACE_T) || (track->Type() == PCB_ZONE_T) )
@@ -695,24 +825,25 @@ void CreateRoutesSection( FILE* file, BOARD* pcb )
             if( old_layer != track->GetLayer() )
             {
                 old_layer = track->GetLayer();
-                fprintf( file, "LAYER %s\n",
-                         TO_UTF8( GenCAD_Layer_Name[track->GetLayer() & 0x1F] ) );
+                fprintf( aFile, "LAYER %s\n",
+                        TO_UTF8( GenCADLayerName[track->GetLayer() & 0x1F] ) );
             }
 
-            fprintf( file, "LINE %d %d %d %d\n",
-                     mapXto( track->m_Start.x ), mapYto( track->m_Start.y ),
-                     mapXto( track->m_End.x ), mapYto( track->m_End.y ) );
+            fprintf( aFile, "LINE %g %g %g %g\n",
+                    MapXTo( track->GetStart().x ), MapYTo( track->GetStart().y ),
+                    MapXTo( track->GetEnd().x ), MapYTo( track->GetEnd().y ) );
         }
         if( track->Type() == PCB_VIA_T )
         {
-            fprintf( file, "VIA viapad%d %d %d ALL %d via%d\n",
-                     track->m_Width,
-                     mapXto( track->m_Start.x ), mapYto( track->m_Start.y ),
-                     track->GetDrillValue(), vianum++ );
+            fprintf( aFile, "VIA VIA%d.%d.%X %g %g ALL %g via%d\n",
+                     track->GetWidth(), track->GetDrillValue(),
+                     track->ReturnMaskLayer() & master_layermask,
+                     MapXTo( track->GetStart().x ), MapYTo( track->GetStart().y ),
+                     track->GetDrillValue() / SCALE_FACTOR, vianum++ );
         }
     }
 
-    fputs( "$ENDROUTES\n\n", file );
+    fputs( "$ENDROUTES\n\n", aFile );
 
     delete tracklist;
 }
@@ -722,64 +853,57 @@ void CreateRoutesSection( FILE* file, BOARD* pcb )
  * This is a list of footprints properties
  *  ( Shapes are in section $SHAPE )
  */
-void CreateDevicesSection( FILE* file, BOARD* pcb )
+static void CreateDevicesSection( FILE* aFile, BOARD* aPcb )
 {
     MODULE* module;
-    D_PAD*  pad;
 
-    fputs( "$DEVICES\n", file );
+    fputs( "$DEVICES\n", aFile );
 
-    for( module = pcb->m_Modules; module != NULL; module = module->Next() )
+    for( module = aPcb->m_Modules; module != NULL; module = module->Next() )
     {
-        fprintf( file, "DEVICE %s\n", TO_UTF8( module->m_Reference->m_Text ) );
-        fprintf( file, "PART %s\n", TO_UTF8( module->m_LibRef ) );
-        fprintf( file, "TYPE %s\n", "UNKNOWN" );
+        fprintf( aFile, "DEVICE \"%s\"\n", TO_UTF8( module->m_Reference->m_Text ) );
+        fprintf( aFile, "PART \"%s\"\n", TO_UTF8( module->m_Value->m_Text ) );
+        fprintf( aFile, "PACKAGE \"%s\"\n", TO_UTF8( module->m_LibRef ) );
 
-        for( pad = module->m_Pads; pad != NULL; pad = pad->Next() )
-        {
-            fprintf( file, "PINDESCR %.4s", pad->m_Padname );
-
-            if( pad->GetNetname() == wxEmptyString )
-                fputs( " NoConn\n", file );
-            else
-                fprintf( file, " %.4s\n", pad->m_Padname );
-        }
-
-        fprintf( file, "ATTRIBUTE %s\n", TO_UTF8( module->m_Value->m_Text ) );
+        // The TYPE attribute is almost freeform
+        const char* ty = "TH";
+        if( module->m_Attributs & MOD_CMS )
+            ty = "SMD";
+        if( module->m_Attributs & MOD_VIRTUAL )
+            ty = "VIRTUAL";
+        fprintf( aFile, "TYPE %s\n", ty );
     }
 
-    fputs( "$ENDDEVICES\n\n", file );
+    fputs( "$ENDDEVICES\n\n", aFile );
 }
 
 
 /* Creates the section $BOARD.
- *  We output here only the board boundary box
+ *  We output here only the board perimeter
  */
-void CreateBoardSection( FILE* file, BOARD* pcb )
+static void CreateBoardSection( FILE* aFile, BOARD* aPcb )
 {
-    fputs( "$BOARD\n", file );
-    fprintf( file, "LINE %d %d %d %d\n",
-             mapXto( pcb->m_BoundaryBox.m_Pos.x ),
-             mapYto( pcb->m_BoundaryBox.m_Pos.y ),
-             mapXto( pcb->m_BoundaryBox.GetRight() ),
-             mapYto( pcb->m_BoundaryBox.m_Pos.y ) );
-    fprintf( file, "LINE %d %d %d %d\n",
-             mapXto( pcb->m_BoundaryBox.GetRight() ),
-             mapYto( pcb->m_BoundaryBox.m_Pos.y ),
-             mapXto( pcb->m_BoundaryBox.GetRight() ),
-             mapYto( pcb->m_BoundaryBox.GetBottom() ) );
-    fprintf( file, "LINE %d %d %d %d\n",
-             mapXto( pcb->m_BoundaryBox.GetRight() ),
-             mapYto( pcb->m_BoundaryBox.GetBottom() ),
-             mapXto( pcb->m_BoundaryBox.m_Pos.x ),
-             mapYto( pcb->m_BoundaryBox.GetBottom() ) );
-    fprintf( file, "LINE %d %d %d %d\n",
-             mapXto( pcb->m_BoundaryBox.m_Pos.x ),
-             mapYto( pcb->m_BoundaryBox.GetBottom() ),
-             mapXto( pcb->m_BoundaryBox.m_Pos.x ),
-             mapYto( pcb->m_BoundaryBox.m_Pos.y ) );
+    fputs( "$BOARD\n", aFile );
 
-    fputs( "$ENDBOARD\n\n", file );
+    // Extract the board edges
+    for( EDA_ITEM* drawing = aPcb->m_Drawings;
+        drawing != 0;
+        drawing = drawing->Next() )
+    {
+        if( drawing->Type() == PCB_LINE_T )
+        {
+            DRAWSEGMENT* drawseg = dynamic_cast<DRAWSEGMENT*>( drawing );
+            if( drawseg->GetLayer() == EDGE_N )
+            {
+                // XXX GenCAD supports arc boundaries but I've seen nothing that reads them
+                fprintf( aFile, "LINE %g %g %g %g\n",
+                        MapXTo( drawseg->GetStart().x ), MapYTo( drawseg->GetStart().y ),
+                        MapXTo( drawseg->GetEnd().x ), MapYTo( drawseg->GetEnd().y ) );
+            }
+        }
+    }
+
+    fputs( "$ENDBOARD\n\n", aFile );
 }
 
 
@@ -793,162 +917,199 @@ void CreateBoardSection( FILE* file, BOARD* pcb )
  *  Each tool name is build like this: "TRACK" + track width.
  *  For instance for a width = 120 : name = "TRACK120".
  */
-void CreateTracksInfoData( FILE* file, BOARD* pcb )
+static void CreateTracksInfoData( FILE* aFile, BOARD* aPcb )
 {
     TRACK* track;
     int    last_width = -1;
 
-    /* Find thickness used for traces. */
+    // Find thickness used for traces
+    // XXX could use the same sorting approach used for pads
 
     std::vector <int> trackinfo;
 
     unsigned          ii;
 
-    for( track = pcb->m_Track; track != NULL; track = track->Next() )
+    for( track = aPcb->m_Track; track != NULL; track = track->Next() )
     {
-        if( last_width != track->m_Width ) // Find a thickness already used.
+        if( last_width != track->GetWidth() ) // Find a thickness already used.
         {
             for( ii = 0; ii < trackinfo.size(); ii++ )
             {
-                if( trackinfo[ii] == track->m_Width )
+                if( trackinfo[ii] == track->GetWidth() )
                     break;
             }
 
             if( ii == trackinfo.size() )    // not found
-                trackinfo.push_back( track->m_Width );
+                trackinfo.push_back( track->GetWidth() );
 
-            last_width = track->m_Width;
+            last_width = track->GetWidth();
         }
     }
 
-    for( track = pcb->m_Zone; track != NULL; track = track->Next() )
+    for( track = aPcb->m_Zone; track != NULL; track = track->Next() )
     {
-        if( last_width != track->m_Width ) // Find a thickness already used.
+        if( last_width != track->GetWidth() ) // Find a thickness already used.
         {
             for( ii = 0; ii < trackinfo.size(); ii++ )
             {
-                if( trackinfo[ii] == track->m_Width )
+                if( trackinfo[ii] == track->GetWidth() )
                     break;
             }
 
             if( ii == trackinfo.size() )    // not found
-                trackinfo.push_back( track->m_Width );
+                trackinfo.push_back( track->GetWidth() );
 
-            last_width = track->m_Width;
+            last_width = track->GetWidth();
         }
     }
 
     // Write data
-    fputs( "$TRACKS\n", file );
+    fputs( "$TRACKS\n", aFile );
 
     for( ii = 0; ii < trackinfo.size(); ii++ )
     {
-        fprintf( file, "TRACK TRACK%d %d\n", trackinfo[ii], trackinfo[ii] );
+        fprintf( aFile, "TRACK TRACK%d %g\n", trackinfo[ii],
+                 trackinfo[ii] / SCALE_FACTOR );
     }
 
-    fputs( "$ENDTRACKS\n\n", file );
+    fputs( "$ENDTRACKS\n\n", aFile );
 }
 
 
 /* Creates the shape of a footprint (section SHAPE)
  *  The shape is always given "normal" (Orient 0, not mirrored)
- *  Syntax:
- *  SHAPE <shape_name>
- *  INSERT <string>         here <string> = "TH"
- *  shape_descr (line, arc ..):
- *  LINE startX startY endX endY
- *  ARC startX startY endX endY centreX centreY
- *  PAD_CIRCLE centreX scentreY radius
+ * It's almost guaranteed that the silk layer will be imported wrong but
+ * the shape also contains the pads!
  */
-void FootprintWriteShape( FILE* file, MODULE* module )
+static void FootprintWriteShape( FILE* aFile, MODULE* module )
 {
-    EDGE_MODULE* edge;
-    EDA_ITEM*    item;
-    int          y_axis_sign = -1; // Control Y axis change sign (as normal
-                                   // module / mirror axis and conventions)
+    EDGE_MODULE* PtEdge;
+    EDA_ITEM*    PtStruct;
+
+    // Control Y axis change sign for flipped modules
+    int          Yaxis_sign = -1;
+
+    // Flip for bottom side components
+    if( module->flag )
+        Yaxis_sign = 1;
 
     /* creates header: */
-    fprintf( file, "SHAPE %s\n", TO_UTF8( module->m_Reference->m_Text ) );
-    fprintf( file, "INSERT %s\n", (module->m_Attributs & MOD_CMS) ? "SMD" : "TH" );
+    fprintf( aFile, "\nSHAPE %s\n", TO_UTF8( module->m_Reference->m_Text ) );
 
-    /* creates Attributes */
-    if( module->m_Attributs != MOD_DEFAULT )
+    if( module->m_Attributs & MOD_VIRTUAL )
     {
-        fprintf( file, "ATTRIBUTE" );
-
+        fprintf( aFile, "INSERT SMD\n" );
+    }
+    else
+    {
         if( module->m_Attributs & MOD_CMS )
-            fprintf( file, " PAD_SMD" );
-
-        if( module->m_Attributs & MOD_VIRTUAL )
-            fprintf( file, " VIRTUAL" );
-
-        fprintf( file, "\n" );
+        {
+            fprintf( aFile, "INSERT SMD\n" );
+        }
+        else
+        {
+            fprintf( aFile, "INSERT TH\n" );
+        }
     }
 
-    /* creates Drawing */
-    item = module->m_Drawings;
+#if 0 /* ATTRIBUTE name and value is unspecified and the original exporter
+       * got the syntax wrong, so CAM350 rejected the whole shape! */
 
-    for( ; item != NULL; item = item->Next() )
+    if( module->m_Attributs != MOD_DEFAULT )
     {
-        switch( item->Type() )
+        fprintf( aFile, "ATTRIBUTE" );
+
+        if( module->m_Attributs & MOD_CMS )
+            fprintf( aFile, " PAD_SMD" );
+
+        if( module->m_Attributs & MOD_VIRTUAL )
+            fprintf( aFile, " VIRTUAL" );
+
+        fprintf( aFile, "\n" );
+    }
+#endif
+
+    // Silk outline; wildly interpreted by various importers:
+    // CAM350 read it right but only closed shapes
+    // ProntoPlace double-flip it (at least the pads are correct)
+    // GerberTool usually get it right...
+    for( PtStruct = module->m_Drawings; PtStruct != NULL; PtStruct = PtStruct->Next() )
+    {
+        switch( PtStruct->Type() )
         {
         case PCB_MODULE_TEXT_T:
+
+            // If we wanted to export text, this is not the correct section
             break;
 
         case PCB_MODULE_EDGE_T:
-            edge = (EDGE_MODULE*) item;
-
-            switch( edge->m_Shape )
+            PtEdge = (EDGE_MODULE*) PtStruct;
+            if( PtEdge->GetLayer() == SILKSCREEN_N_FRONT
+                || PtEdge->GetLayer() == SILKSCREEN_N_BACK )
             {
-            case S_SEGMENT:
-                fprintf( file, "LINE %d %d %d %d\n",
-                         edge->m_Start0.x, y_axis_sign * edge->m_Start0.y,
-                         edge->m_End0.x, y_axis_sign * edge->m_End0.y );
-                break;
+                switch( PtEdge->GetShape() )
+                {
+                case S_SEGMENT:
+                    fprintf( aFile, "LINE %g %g %g %g\n",
+                             (PtEdge->m_Start0.x) / SCALE_FACTOR,
+                             (Yaxis_sign * PtEdge->m_Start0.y) / SCALE_FACTOR,
+                             (PtEdge->m_End0.x) / SCALE_FACTOR,
+                             (Yaxis_sign * PtEdge->m_End0.y ) / SCALE_FACTOR );
+                    break;
 
-            case S_CIRCLE:
-            {
-                int radius = (int) hypot( (double) ( edge->m_End0.x - edge->m_Start0.x ),
-                                          (double) ( edge->m_End0.y - edge->m_Start0.y ) );
-                fprintf( file, "CIRCLE %d %d %d\n",
-                         edge->m_Start0.x, y_axis_sign * edge->m_Start0.y, radius );
-                break;
+                case S_CIRCLE:
+                {
+                    int radius = (int) hypot(
+                        (double) ( PtEdge->m_End0.x - PtEdge->m_Start0.x ),
+                        (double) ( PtEdge->m_End0.y - PtEdge->m_Start0.y ) );
+                    fprintf( aFile, "CIRCLE %g %g %g\n",
+                             PtEdge->m_Start0.x / SCALE_FACTOR,
+                             Yaxis_sign * PtEdge->m_Start0.y / SCALE_FACTOR,
+                             radius / SCALE_FACTOR );
+                    break;
+                }
+
+                case S_ARC:
+                {
+                    int arcendx, arcendy;
+                    arcendx = PtEdge->m_End0.x - PtEdge->m_Start0.x;
+                    arcendy = PtEdge->m_End0.y - PtEdge->m_Start0.y;
+                    RotatePoint( &arcendx, &arcendy, -PtEdge->GetAngle() );
+                    arcendx += PtEdge->GetStart0().x;
+                    arcendy += PtEdge->GetStart0().y;
+                    if( Yaxis_sign == -1 )
+                    {
+                        // Flipping Y flips the arc direction too
+                        fprintf( aFile, "ARC %g %g %g %g %g %g\n",
+                                 (arcendx) / SCALE_FACTOR,
+                                 (Yaxis_sign * arcendy) / SCALE_FACTOR,
+                                 (PtEdge->m_End0.x) / SCALE_FACTOR,
+                                 (Yaxis_sign * PtEdge->GetEnd0().y) / SCALE_FACTOR,
+                                 (PtEdge->GetStart0().x) / SCALE_FACTOR,
+                                 (Yaxis_sign * PtEdge->GetStart0().y) / SCALE_FACTOR );
+                    }
+                    else
+                    {
+                        fprintf( aFile, "ARC %g %g %g %g %g %g\n",
+                                 (PtEdge->GetEnd0().x) / SCALE_FACTOR,
+                                 (Yaxis_sign * PtEdge->GetEnd0().y) / SCALE_FACTOR,
+                                 (arcendx) / SCALE_FACTOR,
+                                 (Yaxis_sign * arcendy) / SCALE_FACTOR,
+                                 (PtEdge->GetStart0().x) / SCALE_FACTOR,
+                                 (Yaxis_sign * PtEdge->GetStart0().y) / SCALE_FACTOR );
+                    }
+                    break;
+                }
+
+                default:
+                    DisplayError( NULL, wxT( "Type Edge Module invalid." ) );
+                    break;
+                }
             }
-
-            case S_ARC:         /* print ARC x,y start x,y end x,y center */
-            {   // Arcs are defined counter clockwise (positive trigonometric)
-                // from the start point to the end point (0 to 360 degrees)
-                wxPoint arcStart, arcEnd;
-
-                // edge->m_Start0 is the arc center relative to the shape position
-                // edge->m_End0 is the arc start point relative to the shape position
-                arcStart = edge->m_End0;
-
-                // calculate arcEnd arc end point relative to the shape position, in Pcbnew
-                // coordinates
-                arcEnd = arcStart;
-                RotatePoint( &arcEnd, edge->m_Start0, -edge->m_Angle );
-
-                // due to difference between Pcbnew and gencad, swap arc start and arc end
-                EXCHG(arcEnd, arcStart);
-
-                // print arc shape:
-                fprintf( file, "ARC %d %d %d %d %d %d\n",
-                         arcStart.x, y_axis_sign * arcStart.y,   // Start point
-                         arcEnd.x, y_axis_sign * arcEnd.y,               // End point
-                         edge->m_Start0.x, y_axis_sign * edge->m_Start0.y );
-                break;
-            }
-
-            default:
-                DisplayError( NULL, wxT( "Type Edge Module invalid." ) );
-                break;
-            }  /* end switch  PtEdge->m_Shape */
-
             break;
 
         default:
             break;
-        }  /* End switch Items type */
+        }
     }
 }

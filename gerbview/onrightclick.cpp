@@ -2,12 +2,13 @@
 /* onrightclick.cpp */
 /********************/
 
-#include "fctsys.h"
-#include "class_drawpanel.h"
-#include "confirm.h"
-#include "id.h"
+#include <fctsys.h>
+#include <class_drawpanel.h>
+#include <confirm.h>
+#include <id.h>
 
-#include "gerbview.h"
+#include <gerbview.h>
+#include <menus_helpers.h>
 
 
 /* Prepare the right-click pullup menu.
@@ -15,34 +16,36 @@
  */
 bool GERBVIEW_FRAME::OnRightClick( const wxPoint& aPosition, wxMenu* PopMenu )
 {
-    BOARD_ITEM* DrawStruct = GetScreen()->GetCurItem();
+    GERBER_DRAW_ITEM* DrawStruct = (GERBER_DRAW_ITEM*) GetScreen()->GetCurItem();
     wxString    msg;
-    bool        BlockActive = (GetScreen()->m_BlockLocate.m_Command !=  BLOCK_IDLE);
+    bool        BlockActive = !GetScreen()->m_BlockLocate.IsIdle();
+    bool        busy = DrawStruct && DrawStruct->GetFlags();
 
     // Do not initiate a start block validation on menu.
-    DrawPanel->m_CanStartBlock = -1;
+    m_canvas->SetCanStartBlock( -1 );
 
     // Simple location of elements where possible.
-    if( ( DrawStruct == NULL ) || ( DrawStruct->m_Flags == 0 ) )
+    if( !busy )
     {
         DrawStruct = Locate( aPosition, CURSEUR_OFF_GRILLE );
+        busy = DrawStruct && DrawStruct->GetFlags();
     }
 
     // If command in progress, end command.
     if( GetToolId() != ID_NO_TOOL_SELECTED )
     {
-        if( DrawStruct && DrawStruct->m_Flags )
+        if( busy )
             AddMenuItem( PopMenu, ID_POPUP_CANCEL_CURRENT_COMMAND,
                          _( "Cancel" ), KiBitmap( cancel_xpm )  );
         else
             AddMenuItem( PopMenu, ID_POPUP_CLOSE_CURRENT_TOOL,
-                         _( "End Tool" ), KiBitmap( cancel_tool_xpm ) );
+                         _( "End Tool" ), KiBitmap( cursor_xpm ) );
 
         PopMenu->AppendSeparator();
     }
     else
     {
-        if( (DrawStruct && DrawStruct->m_Flags) || BlockActive )
+        if( busy || BlockActive )
         {
             if( BlockActive )
             {
@@ -67,10 +70,8 @@ bool GERBVIEW_FRAME::OnRightClick( const wxPoint& aPosition, wxMenu* PopMenu )
     if( BlockActive )
         return true;
 
-    if( DrawStruct == NULL )
-        return true;
-
-    GetScreen()->SetCurItem( DrawStruct );
+    if( DrawStruct )
+        GetScreen()->SetCurItem( DrawStruct );
 
     return true;
 }

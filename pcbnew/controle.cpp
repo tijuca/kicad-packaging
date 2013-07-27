@@ -1,9 +1,10 @@
 /*
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
- * Copyright (C) 2009 Jean-Pierre Charras, jaen-pierre.charras@gipsa-lab.inpg.com
- * Copyright (C) 2011 Wayne Stambaugh <stambaughw@verizon.net>
- * Copyright (C) 1992-2011 KiCad Developers, see AUTHORS.txt for contributors.
+ * Copyright (C) 2012 Jean-Pierre Charras, jean-pierre.charras@ujf-grenoble.fr
+ * Copyright (C) 2012 SoftPLC Corporation, Dick Hollenbeck <dick@softplc.com>
+ * Copyright (C) 2012 Wayne Stambaugh <stambaughw@verizon.net>
+ * Copyright (C) 1992-2012 KiCad Developers, see AUTHORS.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -27,24 +28,22 @@
  * @file pcbnew/controle.cpp
  */
 
-#include "fctsys.h"
-#include "class_drawpanel.h"
-#include "wxPcbStruct.h"
-#include "pcbcommon.h"
-#include "macros.h"
+#include <fctsys.h>
+#include <class_drawpanel.h>
+#include <wxPcbStruct.h>
+#include <pcbcommon.h>
+#include <pcbnew_id.h>
+#include <class_board.h>
+#include <class_module.h>
 
-#include "pcbnew_id.h"
-
-#include "class_board.h"
-#include "class_module.h"
-
-#include "pcbnew.h"
-#include "protos.h"
-#include "collectors.h"
+#include <pcbnew.h>
+#include <protos.h>
+#include <collectors.h>
+#include <menus_helpers.h>
 
 //external functions used here:
-extern bool Magnetize( BOARD* m_Pcb, PCB_EDIT_FRAME* frame,
-                       int aCurrentTool, wxSize grid, wxPoint on_grid, wxPoint* curpos );
+extern bool Magnetize( PCB_EDIT_FRAME* frame, int aCurrentTool,
+                       wxSize aGridSize, wxPoint on_grid, wxPoint* curpos );
 
 
 /**
@@ -76,7 +75,7 @@ static BOARD_ITEM* AllAreModulesAndReturnSmallestIfSo( GENERAL_COLLECTOR* aColle
         int     lx = module->m_BoundaryBox.GetWidth();
         int     ly = module->m_BoundaryBox.GetHeight();
 
-        int     lmin = MIN( lx, ly );
+        int     lmin = std::min( lx, ly );
 
         if( lmin < minDim )
         {
@@ -107,18 +106,12 @@ BOARD_ITEM* PCB_BASE_FRAME::PcbGeneralLocateAndDisplay( int aHotKeyCode )
     }
     else if( GetToolId() == ID_NO_TOOL_SELECTED )
     {
-        switch( m_HTOOL_current_state )
-        {
-        case ID_TOOLBARH_PCB_MODE_MODULE:
+        if( m_mainToolBar->GetToolToggled( ID_TOOLBARH_PCB_MODE_MODULE ) )
             scanList = GENERAL_COLLECTOR::ModuleItems;
-            break;
-
-        default:
-            scanList = DisplayOpt.DisplayZonesMode == 0 ?
+        else
+            scanList = (DisplayOpt.DisplayZonesMode == 0) ?
                        GENERAL_COLLECTOR::AllBoardItems :
                        GENERAL_COLLECTOR::AllButZones;
-            break;
-        }
     }
     else
     {
@@ -137,6 +130,7 @@ BOARD_ITEM* PCB_BASE_FRAME::PcbGeneralLocateAndDisplay( int aHotKeyCode )
             break;
 
         case ID_PCB_ZONES_BUTT:
+        case ID_PCB_KEEPOUT_AREA_BUTT:
             scanList = GENERAL_COLLECTOR::Zones;
             break;
 
@@ -158,7 +152,7 @@ BOARD_ITEM* PCB_BASE_FRAME::PcbGeneralLocateAndDisplay( int aHotKeyCode )
     /* Remove redundancies: sometime, zones are found twice,
      * because zones can be filled by overlapping segments (this is a fill option)
      */
-    unsigned long timestampzone = 0;
+    time_t timestampzone = 0;
 
     for( int ii = 0;  ii < m_Collector->GetCount(); ii++ )
     {
@@ -168,14 +162,14 @@ BOARD_ITEM* PCB_BASE_FRAME::PcbGeneralLocateAndDisplay( int aHotKeyCode )
             continue;
 
         /* Found a TYPE ZONE */
-        if( item->m_TimeStamp == timestampzone )    // Remove it, redundant, zone already found
+        if( item->GetTimeStamp() == timestampzone )    // Remove it, redundant, zone already found
         {
             m_Collector->Remove( ii );
             ii--;
         }
         else
         {
-            timestampzone = item->m_TimeStamp;
+            timestampzone = item->GetTimeStamp();
         }
     }
 
@@ -219,7 +213,7 @@ BOARD_ITEM* PCB_BASE_FRAME::PcbGeneralLocateAndDisplay( int aHotKeyCode )
         itemMenu.Append( item_title );
         itemMenu.AppendSeparator();
 
-        int limit = MIN( MAX_ITEMS_IN_PICKER, m_Collector->GetCount() );
+        int limit = std::min( MAX_ITEMS_IN_PICKER, m_Collector->GetCount() );
 
         for( int i = 0;  i<limit;  ++i )
         {
@@ -240,18 +234,18 @@ BOARD_ITEM* PCB_BASE_FRAME::PcbGeneralLocateAndDisplay( int aHotKeyCode )
          * a m_IgnoreMouseEvents++ )
          *  was not balanced with the -- (now m_IgnoreMouseEvents=false), so I had to revert.
          *  Somebody should track down these and make them balanced.
-         *  DrawPanel->m_IgnoreMouseEvents = true;
+         *  m_canvas->SetIgnoreMouseEvents( true );
          */
 
         // this menu's handler is void PCB_BASE_FRAME::ProcessItemSelection()
         // and it calls SetCurItem() which in turn calls DisplayInfo() on the item.
-        DrawPanel->m_AbortRequest = true;   // changed in false if an item is selected
+        m_canvas->SetAbortRequest( true );   // changed in false if an item is selected
         PopupMenu( &itemMenu );
 
-        DrawPanel->MoveCursorToCrossHair();
+        m_canvas->MoveCursorToCrossHair();
 
         // The function ProcessItemSelection() has set the current item, return it.
-        if( DrawPanel->m_AbortRequest )     // Nothing selected
+        if( m_canvas->GetAbortRequest() )     // Nothing selected
             item = NULL;
         else
             item = GetCurItem();
@@ -265,7 +259,17 @@ void PCB_EDIT_FRAME::GeneralControl( wxDC* aDC, const wxPoint& aPosition, int aH
 {
     wxRealPoint gridSize;
     wxPoint     oldpos;
-    wxPoint     pos = GetScreen()->GetNearestGridPosition( aPosition );
+    wxPoint     pos = aPosition;
+
+    // when moving mouse, use the "magnetic" grid, unless the shift+ctrl keys is pressed
+    // for next cursor position
+    // ( shift or ctrl key down are PAN command with mouse wheel)
+    bool snapToGrid = true;
+    if( !aHotKey && wxGetKeyState( WXK_SHIFT ) && wxGetKeyState( WXK_CONTROL ) )
+        snapToGrid = false;
+
+    if( snapToGrid )
+        pos = GetScreen()->GetNearestGridPosition( pos );
 
     oldpos = GetScreen()->GetCrossHairPosition();
 
@@ -275,26 +279,26 @@ void PCB_EDIT_FRAME::GeneralControl( wxDC* aDC, const wxPoint& aPosition, int aH
     {
     case WXK_NUMPAD8:
     case WXK_UP:
-        pos.y -= wxRound( gridSize.y );
-        DrawPanel->MoveCursor( pos );
+        pos.y -= KiROUND( gridSize.y );
+        m_canvas->MoveCursor( pos );
         break;
 
     case WXK_NUMPAD2:
     case WXK_DOWN:
-        pos.y += wxRound( gridSize.y );
-        DrawPanel->MoveCursor( pos );
+        pos.y += KiROUND( gridSize.y );
+        m_canvas->MoveCursor( pos );
         break;
 
     case WXK_NUMPAD4:
     case WXK_LEFT:
-        pos.x -= wxRound( gridSize.x );
-        DrawPanel->MoveCursor( pos );
+        pos.x -= KiROUND( gridSize.x );
+        m_canvas->MoveCursor( pos );
         break;
 
     case WXK_NUMPAD6:
     case WXK_RIGHT:
-        pos.x += wxRound( gridSize.x );
-        DrawPanel->MoveCursor( pos );
+        pos.x += KiROUND( gridSize.x );
+        m_canvas->MoveCursor( pos );
         break;
 
     default:
@@ -302,72 +306,65 @@ void PCB_EDIT_FRAME::GeneralControl( wxDC* aDC, const wxPoint& aPosition, int aH
     }
 
     // Put cursor in new position, according to the zoom keys (if any).
-    GetScreen()->SetCrossHairPosition( pos );
+    GetScreen()->SetCrossHairPosition( pos, snapToGrid );
 
     /* Put cursor on grid or a pad centre if requested. If the tool DELETE is active the
      * cursor is left off grid this is better to reach items to delete off grid,
      */
-    bool   keep_on_grid = true;
-
     if( GetToolId() == ID_PCB_DELETE_ITEM_BUTT )
-        keep_on_grid = false;
+        snapToGrid = false;
 
-    /* Cursor is left off grid if no block in progress and no moving object */
-    if( GetScreen()->m_BlockLocate.m_State != STATE_NO_BLOCK )
-        keep_on_grid = true;
+    // Cursor is left off grid if no block in progress
+    if( GetScreen()->m_BlockLocate.GetState() != STATE_NO_BLOCK )
+        snapToGrid = true;
 
-    EDA_ITEM* DrawStruct = GetScreen()->GetCurItem();
+    wxPoint curs_pos = pos;
 
-    if( DrawStruct && DrawStruct->m_Flags )
-        keep_on_grid = true;
+    wxSize igridsize;
+    igridsize.x = KiROUND( gridSize.x );
+    igridsize.y = KiROUND( gridSize.y );
 
-    if( keep_on_grid )
+    if( Magnetize( this, GetToolId(), igridsize, curs_pos, &pos ) )
     {
-        wxPoint on_grid = GetScreen()->GetNearestGridPosition( pos );
-
-        wxSize grid;
-        grid.x = (int) GetScreen()->GetGridSize().x;
-        grid.y = (int) GetScreen()->GetGridSize().y;
-
-        if( Magnetize( m_Pcb, this, GetToolId(), grid, on_grid, &pos ) )
+        GetScreen()->SetCrossHairPosition( pos, false );
+    }
+    else
+    {
+        // If there's no intrusion and DRC is active, we pass the cursor
+        // "as is", and let ShowNewTrackWhenMovingCursor figure out what to do.
+        if( !Drc_On || !g_CurrentTrackSegment ||
+            (BOARD_ITEM*)g_CurrentTrackSegment != this->GetCurItem() ||
+            !LocateIntrusion( m_Pcb->m_Track, g_CurrentTrackSegment,
+                              GetScreen()->m_Active_Layer, GetScreen()->RefPos( true ) ) )
         {
-            GetScreen()->SetCrossHairPosition( pos, false );
-        }
-        else
-        {
-            // If there's no intrusion and DRC is active, we pass the cursor
-            // "as is", and let ShowNewTrackWhenMovingCursor figure out what to do.
-            if( !Drc_On || !g_CurrentTrackSegment
-              || (BOARD_ITEM*)g_CurrentTrackSegment != this->GetCurItem()
-                || !LocateIntrusion( m_Pcb->m_Track, g_CurrentTrackSegment,
-                                     GetScreen()->m_Active_Layer, GetScreen()->RefPos( true ) ) )
-            {
-                GetScreen()->SetCrossHairPosition( on_grid );
-            }
+            GetScreen()->SetCrossHairPosition( curs_pos, snapToGrid );
         }
     }
+
 
     if( oldpos != GetScreen()->GetCrossHairPosition() )
     {
         pos = GetScreen()->GetCrossHairPosition();
         GetScreen()->SetCrossHairPosition( oldpos, false );
-        DrawPanel->CrossHairOff( aDC );
+        m_canvas->CrossHairOff( aDC );
         GetScreen()->SetCrossHairPosition( pos, false );
-        DrawPanel->CrossHairOn( aDC );
+        m_canvas->CrossHairOn( aDC );
 
-        if( DrawPanel->IsMouseCaptured() )
+        if( m_canvas->IsMouseCaptured() )
         {
 #ifdef USE_WX_OVERLAY
-            wxDCOverlay oDC( DrawPanel->m_overlay, (wxWindowDC*)aDC );
+            wxDCOverlay oDC( m_overlay, (wxWindowDC*)aDC );
             oDC.Clear();
-            DrawPanel->m_mouseCaptureCallback( DrawPanel, aDC, aPosition, false );
+            m_canvas->CallMouseCapture( aDC, aPosition, false );
 #else
-            DrawPanel->m_mouseCaptureCallback( DrawPanel, aDC, aPosition, true );
+            m_canvas->CallMouseCapture( aDC, aPosition, true );
 #endif
         }
 #ifdef USE_WX_OVERLAY
         else
-            DrawPanel->m_overlay.Reset();
+        {
+            m_overlay.Reset();
+        }
 #endif
     }
 

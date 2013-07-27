@@ -49,9 +49,9 @@
  * Much mucking with by:
  * Gavin Bell
  */
-#include <math.h>
-#include "wx/glcanvas.h"     // used only to define GLfloat
-#include "trackball.h"
+#include <cmath>
+#include <wx/glcanvas.h>     // used only to define GLfloat
+#include <trackball.h>
 
 /*
  * This size should really be based on the distance from the center of

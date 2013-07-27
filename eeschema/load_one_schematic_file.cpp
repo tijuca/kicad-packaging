@@ -1,7 +1,7 @@
 /*
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
- * Copyright (C) 2004 Jean-Pierre Charras, jaen-pierre.charras@gipsa-lab.inpg.com
+ * Copyright (C) 2004 Jean-Pierre Charras, jean-pierre.charras@gipsa-lab.inpg.fr
  * Copyright (C) 2008 Wayne Stambaugh <stambaughw@verizon.net>
  * Copyright (C) 1992-2011 KiCad Developers, see AUTHORS.txt for contributors.
  *
@@ -28,39 +28,37 @@
  * @brief Code to load and save Eeschema files.
  */
 
-#include "fctsys.h"
-#include "confirm.h"
-#include "kicad_string.h"
-#include "wxEeschemaStruct.h"
-#include "richio.h"
+#include <fctsys.h>
+#include <confirm.h>
+#include <kicad_string.h>
+#include <wxEeschemaStruct.h>
+#include <richio.h>
 
-#include "general.h"
-#include "protos.h"
-#include "sch_bus_entry.h"
-#include "sch_marker.h"
-#include "sch_junction.h"
-#include "sch_line.h"
-#include "sch_no_connect.h"
-#include "sch_component.h"
-#include "sch_polyline.h"
-#include "sch_text.h"
-#include "sch_sheet.h"
-#include "sch_bitmap.h"
+#include <general.h>
+#include <sch_bus_entry.h>
+#include <sch_marker.h>
+#include <sch_junction.h>
+#include <sch_line.h>
+#include <sch_no_connect.h>
+#include <sch_component.h>
+#include <sch_polyline.h>
+#include <sch_text.h>
+#include <sch_sheet.h>
+#include <sch_bitmap.h>
+#include <wildcards_and_files_ext.h>
 
 
-bool ReadSchemaDescr( LINE_READER* aLine, wxString& aMsgDiag, BASE_SCREEN* Window );
+bool ReadSchemaDescr( LINE_READER* aLine, wxString& aMsgDiag, SCH_SCREEN* Window );
 
 static void LoadLayers( LINE_READER* aLine );
 
 
-bool SCH_EDIT_FRAME::LoadOneEEFile( SCH_SCREEN* aScreen, const wxString& aFullFileName )
+bool SCH_EDIT_FRAME::LoadOneEEFile( SCH_SCREEN* aScreen, const wxString& aFullFileName, bool append )
 {
-    char            Name1[256];
+    char            name1[256];
     bool            itemLoaded = false;
-    SCH_ITEM*       Phead;
-    SCH_ITEM*       Pnext;
     SCH_ITEM*       item;
-    wxString        MsgDiag;            // Error and log messages
+    wxString        msgDiag;            // Error and log messages
     char*           line;
     wxFileName      fn;
 
@@ -71,34 +69,41 @@ bool SCH_EDIT_FRAME::LoadOneEEFile( SCH_SCREEN* aScreen, const wxString& aFullFi
         return false;
 
     fn = aFullFileName;
-    CheckForAutoSaveFile( fn, g_SchematicBackupFileExtension );
+    CheckForAutoSaveFile( fn, SchematicBackupFileExtension );
 
     wxLogTrace( traceAutoSave, wxT( "Loading schematic file " ) + aFullFileName );
 
     aScreen->SetCurItem( NULL );
-    aScreen->SetFileName( aFullFileName );
+    if( !append )
+        aScreen->SetFileName( aFullFileName );
 
     FILE* f;
+    wxString fname = aFullFileName;
+#ifdef __WINDOWS__
+    fname.Replace( wxT("/"), wxT("\\") );
+#else
+    fname.Replace( wxT("\\"), wxT("/") );
+#endif
 
-    if( ( f = wxFopen( aFullFileName, wxT( "rt" ) ) ) == NULL )
+    if( ( f = wxFopen( fname, wxT( "rt" ) ) ) == NULL )
     {
-        MsgDiag = _( "Failed to open " ) + aFullFileName;
-        DisplayError( this, MsgDiag );
+        msgDiag = _( "Failed to open " ) + aFullFileName;
+        DisplayError( this, msgDiag );
         return false;
     }
 
     // reader now owns the open FILE.
     FILE_LINE_READER    reader( f, aFullFileName );
 
-    MsgDiag = _( "Loading " ) + aScreen->GetFileName();
-    PrintMsg( MsgDiag );
+    msgDiag = _( "Loading " ) + aScreen->GetFileName();
+    PrintMsg( msgDiag );
 
     if( !reader.ReadLine()
         || strncmp( (char*)reader + 9, SCHEMATIC_HEAD_STRING,
                     sizeof( SCHEMATIC_HEAD_STRING ) - 1 ) != 0 )
     {
-        MsgDiag = aFullFileName + _( " is NOT an Eeschema file!" );
-        DisplayError( this, MsgDiag );
+        msgDiag = aFullFileName + _( " is NOT an Eeschema file!" );
+        DisplayError( this, msgDiag );
         return false;
     }
 
@@ -115,9 +120,9 @@ bool SCH_EDIT_FRAME::LoadOneEEFile( SCH_SCREEN* aScreen, const wxString& aFullFi
 
     if( version > EESCHEMA_VERSION )
     {
-        MsgDiag = aFullFileName + _( " was created by a more recent \
+        msgDiag = aFullFileName + _( " was created by a more recent \
 version of Eeschema and may not load correctly. Please consider updating!" );
-        DisplayInfoMessage( this, MsgDiag );
+        DisplayInfoMessage( this, msgDiag );
     }
 
 #if 0
@@ -134,8 +139,8 @@ again." );
 
     if( !reader.ReadLine() || strncmp( reader, "LIBS:", 5 ) != 0 )
     {
-        MsgDiag = aFullFileName + _( " is NOT an Eeschema file!" );
-        DisplayError( this, MsgDiag );
+        msgDiag = aFullFileName + _( " is NOT an Eeschema file!" );
+        DisplayError( this, msgDiag );
         return false;
     }
 
@@ -160,7 +165,7 @@ again." );
             else if( line[1] == 'S' )
                 item = new SCH_SHEET();
             else if( line[1] == 'D' )
-                itemLoaded = ReadSchemaDescr( &reader, MsgDiag, aScreen );
+                itemLoaded = ReadSchemaDescr( &reader, msgDiag, aScreen );
             else if( line[1] == 'B' )
                 item = new SCH_BITMAP();
             break;
@@ -195,17 +200,17 @@ again." );
             break;
 
         case 'T':                       // It is a text item.
-            if( sscanf( sline, "%s", Name1 ) != 1 )
+            if( sscanf( sline, "%s", name1 ) != 1 )
             {
-                MsgDiag.Printf( wxT( "Eeschema file text load error at line %d" ),
+                msgDiag.Printf( _( "Eeschema file text load error at line %d" ),
                                 reader.LineNumber() );
                 itemLoaded = false;
             }
-            else if( Name1[0] == 'L' )
+            else if( name1[0] == 'L' )
                 item = new SCH_LABEL();
-            else if( Name1[0] == 'G' && version > 1 )
+            else if( name1[0] == 'G' && version > 1 )
                 item = new SCH_GLOBALLABEL();
-            else if( (Name1[0] == 'H') || (Name1[0] == 'G' && version == 1) )
+            else if( (name1[0] == 'H') || (name1[0] == 'G' && version == 1) )
                 item = new SCH_HIERLABEL();
             else
                 item = new SCH_TEXT();
@@ -213,14 +218,14 @@ again." );
 
         default:
             itemLoaded = false;
-            MsgDiag.Printf( wxT( "Eeschema file undefined object at line %d, aborted" ),
+            msgDiag.Printf( _( "Eeschema file undefined object at line %d, aborted" ),
                             reader.LineNumber() );
-            MsgDiag << wxT( "\n" ) << FROM_UTF8( line );
+            msgDiag << wxT( "\n" ) << FROM_UTF8( line );
         }
 
         if( item )
         {
-            itemLoaded = item->Load( reader, MsgDiag );
+            itemLoaded = item->Load( reader, msgDiag );
 
             if( !itemLoaded )
             {
@@ -228,30 +233,16 @@ again." );
             }
             else
             {
-                item->SetNext( aScreen->GetDrawItems() );
-                aScreen->SetDrawItems( item );
+                aScreen->Append( item );
             }
         }
 
         if( !itemLoaded )
         {
-            DisplayError( this, MsgDiag );
+            DisplayError( this, msgDiag );
             break;
         }
     }
-
-    /* GetDrawItems() was constructed in reverse order - reverse it back: */
-    Phead = NULL;
-
-    while( aScreen->GetDrawItems() )
-    {
-        Pnext = aScreen->GetDrawItems();
-        aScreen->SetDrawItems( aScreen->GetDrawItems()->Next() );
-        Pnext->SetNext( Phead );
-        Phead = Pnext;
-    }
-
-    aScreen->SetDrawItems( Phead );
 
 #if 0 && defined (DEBUG)
     aScreen->Show( 0, std::cout );
@@ -259,8 +250,8 @@ again." );
 
     aScreen->TestDanglingEnds();
 
-    MsgDiag = _( "Done Loading " ) + aScreen->GetFileName();
-    PrintMsg( MsgDiag );
+    msgDiag = _( "Done Loading " ) + aScreen->GetFileName();
+    PrintMsg( msgDiag );
 
     return true;    // Although it may be that file is only partially loaded.
 }
@@ -268,28 +259,12 @@ again." );
 
 static void LoadLayers( LINE_READER* aLine )
 {
-    int  Number;
-
-    //int Mode,Color,Layer;
-    char Name[256];
-
-    aLine->ReadLine();
-
-    sscanf( *aLine, "%s %d %d", Name, &Number, &g_LayerDescr.CurrentLayer );
-
-    if( strcmp( Name, "EELAYER" ) !=0 )
-    {
-        /* error : init par default */
-        Number = MAX_LAYER;
-    }
-
-    if( Number <= 0 )
-        Number = MAX_LAYER;
-
-    if( Number > MAX_LAYER )
-        Number = MAX_LAYER;
-
-    g_LayerDescr.NumberOfLayers = Number;
+    /* read the layer descr
+     * legacy code, not actually used, so this section is just skipped
+     * read lines like
+     * EELAYER 25  0
+     * EELAYER END
+     */
 
     while( aLine->ReadLine() )
     {
@@ -298,123 +273,126 @@ static void LoadLayers( LINE_READER* aLine )
     }
 }
 
+/// Get the length of a string constant, at compile time
+#define SZ( x )         (sizeof(x)-1)
+
+static const char delims[] = " \t\r\n";
 
 /* Read the schematic header. */
-bool ReadSchemaDescr( LINE_READER* aLine, wxString& aMsgDiag, BASE_SCREEN* aScreen )
+bool ReadSchemaDescr( LINE_READER* aLine, wxString& aMsgDiag, SCH_SCREEN* aScreen )
 {
-    char            Text[256];
-    char            buf[1024];
-    int             ii;
-    Ki_PageDescr*   wsheet = &g_Sheet_A4;
-    wxSize          PageSize;
-    char*           line;
+    char*   line = aLine->Line();
 
-    static Ki_PageDescr* SheetFormatList[] =
+    char*   pageType = strtok( line + SZ( "$Descr" ), delims );
+    char*   width    = strtok( NULL, delims );
+    char*   height   = strtok( NULL, delims );
+    char*   orient   = strtok( NULL, delims );
+
+    wxString pagename = FROM_UTF8( pageType );
+
+    PAGE_INFO       pageInfo;
+    TITLE_BLOCK     tb;
+
+    if( !pageInfo.SetType( pagename ) )
     {
-        &g_Sheet_A4,   &g_Sheet_A3,   &g_Sheet_A2,   &g_Sheet_A1, &g_Sheet_A0,
-        &g_Sheet_A,    &g_Sheet_B,    &g_Sheet_C,    &g_Sheet_D,  &g_Sheet_E,
-        &g_Sheet_user, NULL
-    };
-
-    line = aLine->Line();
-
-    sscanf( line, "%s %s %d %d", Text, Text, &PageSize.x, &PageSize.y );
-
-    wxString pagename = FROM_UTF8( Text );
-
-    for( ii = 0; SheetFormatList[ii] != NULL; ii++ )
-    {
-        wsheet = SheetFormatList[ii];
-
-        if( wsheet->m_Name.CmpNoCase( pagename ) == 0 ) /* Descr found ! */
-        {
-            // Get the user page size and make it the default
-            if( wsheet == &g_Sheet_user )
-            {
-                g_Sheet_user.m_Size = PageSize;
-            }
-
-            break;
-        }
-    }
-
-    if( SheetFormatList[ii] == NULL )
-    {
-        aMsgDiag.Printf( wxT( "Eeschema file dimension definition error \
-line %d, \aAbort reading file.\n" ),
+        aMsgDiag.Printf( _( "Eeschema file dimension definition error \
+line %d,\nAbort reading file.\n" ),
                          aLine->LineNumber() );
         aMsgDiag << FROM_UTF8( line );
     }
 
-    aScreen->m_CurrentSheetDesc = wsheet;
-
-    for( ; ; )
+    if( pagename == PAGE_INFO::Custom )
     {
+        if( width && height )
+        {
+            int w = atoi( width );
+            int h = atoi( height );
+
+            pageInfo.SetWidthMils( w );
+            pageInfo.SetHeightMils( h );
+        }
+    }
+
+    // non custom size, set portrait if its present
+    else if( orient && !strcmp( orient, "portrait" ) )
+    {
+        pageInfo.SetPortrait( true );
+    }
+
+    aScreen->SetPageSettings( pageInfo );
+
+    for(;;)
+    {
+        char    buf[1024];
+
         if( !aLine->ReadLine() )
             return true;
 
         line = aLine->Line();
 
         if( strnicmp( line, "$End", 4 ) == 0 )
+        {
+            aScreen->SetTitleBlock( tb );
             break;
+        }
 
         if( strnicmp( line, "Sheet", 2 ) == 0 )
             sscanf( line + 5, " %d %d",
-                    &aScreen->m_ScreenNumber, &aScreen->m_NumberOfScreen );
+                    &aScreen->m_ScreenNumber, &aScreen->m_NumberOfScreens );
 
         if( strnicmp( line, "Title", 2 ) == 0 )
         {
             ReadDelimitedText( buf, line, 256 );
-            aScreen->m_Title = FROM_UTF8( buf );
+            tb.SetTitle( FROM_UTF8( buf ) );
             continue;
         }
 
         if( strnicmp( line, "Date", 2 ) == 0 )
         {
             ReadDelimitedText( buf, line, 256 );
-            aScreen->m_Date = FROM_UTF8( buf );
+            tb.SetDate( FROM_UTF8( buf ) );
             continue;
         }
 
         if( strnicmp( line, "Rev", 2 ) == 0 )
         {
             ReadDelimitedText( buf, line, 256 );
-            aScreen->m_Revision = FROM_UTF8( buf );
+            tb.SetRevision( FROM_UTF8( buf ) );
             continue;
         }
 
         if( strnicmp( line, "Comp", 4 ) == 0 )
         {
             ReadDelimitedText( buf, line, 256 );
-            aScreen->m_Company = FROM_UTF8( buf );
+            tb.SetCompany( FROM_UTF8( buf ) );
             continue;
         }
 
         if( strnicmp( line, "Comment1", 8 ) == 0 )
         {
             ReadDelimitedText( buf, line, 256 );
-            aScreen->m_Commentaire1 = FROM_UTF8( buf );
+            tb.SetComment1( FROM_UTF8( buf ) );
             continue;
         }
 
         if( strnicmp( line, "Comment2", 8 ) == 0 )
         {
             ReadDelimitedText( buf, line, 256 );
-            aScreen->m_Commentaire2 = FROM_UTF8( buf );
+            tb.SetComment2( FROM_UTF8( buf ) );
             continue;
         }
 
         if( strnicmp( line, "Comment3", 8 ) == 0 )
         {
             ReadDelimitedText( buf, line, 256 );
-            aScreen->m_Commentaire3 = FROM_UTF8( buf );
+            tb.SetComment3( FROM_UTF8( buf ) );
             continue;
         }
 
         if( strnicmp( line, "Comment4", 8 ) == 0 )
         {
             ReadDelimitedText( buf, line, 256 );
-            aScreen->m_Commentaire4 = FROM_UTF8( buf );
+            tb.SetComment4( FROM_UTF8( buf ) );
             continue;
         }
     }

@@ -3,26 +3,26 @@
  * @brief GerbView command event functions.
  */
 
-#include "fctsys.h"
-#include "appl_wxstruct.h"
-#include "class_drawpanel.h"
-#include "confirm.h"
-#include "common.h"
-#include "gestfich.h"
+#include <fctsys.h>
+#include <appl_wxstruct.h>
+#include <class_drawpanel.h>
+#include <confirm.h>
+#include <common.h>
+#include <gestfich.h>
 
-#include "gerbview.h"
-#include "kicad_device_context.h"
-#include "gerbview_id.h"
-#include "class_GERBER.h"
-#include "dialog_helpers.h"
-#include "class_DCodeSelectionbox.h"
-#include "class_gerbview_layer_widget.h"
-#include "dialog_show_page_borders.h"
+#include <gerbview.h>
+#include <kicad_device_context.h>
+#include <gerbview_id.h>
+#include <class_GERBER.h>
+#include <dialog_helpers.h>
+#include <class_DCodeSelectionbox.h>
+#include <class_gerbview_layer_widget.h>
+#include <dialog_show_page_borders.h>
 
 
 // Event table:
 
-BEGIN_EVENT_TABLE( GERBVIEW_FRAME, PCB_BASE_FRAME )
+BEGIN_EVENT_TABLE( GERBVIEW_FRAME, EDA_DRAW_FRAME )
     EVT_CLOSE( GERBVIEW_FRAME::OnCloseWindow )
     EVT_SIZE( GERBVIEW_FRAME::OnSize )
 
@@ -85,20 +85,24 @@ BEGIN_EVENT_TABLE( GERBVIEW_FRAME, PCB_BASE_FRAME )
                     GERBVIEW_FRAME::Process_Special_Functions )
 
     // Option toolbar
+    EVT_TOOL( ID_TB_OPTIONS_SHOW_POLAR_COORD, GERBVIEW_FRAME::OnSelectOptionToolbar )
     EVT_TOOL( ID_TB_OPTIONS_SHOW_POLYGONS_SKETCH, GERBVIEW_FRAME::OnSelectOptionToolbar )
     EVT_TOOL( ID_TB_OPTIONS_SHOW_FLASHED_ITEMS_SKETCH, GERBVIEW_FRAME::OnSelectOptionToolbar )
     EVT_TOOL( ID_TB_OPTIONS_SHOW_LINES_SKETCH, GERBVIEW_FRAME::OnSelectOptionToolbar )
     EVT_TOOL( ID_TB_OPTIONS_SHOW_LAYERS_MANAGER_VERTICAL_TOOLBAR,
               GERBVIEW_FRAME::OnSelectOptionToolbar )
     EVT_TOOL( ID_TB_OPTIONS_SHOW_DCODES, GERBVIEW_FRAME::OnSelectOptionToolbar )
+    EVT_TOOL( ID_TB_OPTIONS_SHOW_NEGATIVE_ITEMS, GERBVIEW_FRAME::OnSelectOptionToolbar )
     EVT_TOOL_RANGE( ID_TB_OPTIONS_SHOW_GBR_MODE_0, ID_TB_OPTIONS_SHOW_GBR_MODE_2,
                     GERBVIEW_FRAME::OnSelectDisplayMode )
 
+    EVT_UPDATE_UI( ID_TB_OPTIONS_SHOW_POLAR_COORD, GERBVIEW_FRAME::OnUpdateCoordType )
     EVT_UPDATE_UI( ID_TB_OPTIONS_SHOW_FLASHED_ITEMS_SKETCH,
                    GERBVIEW_FRAME::OnUpdateFlashedItemsDrawMode )
     EVT_UPDATE_UI( ID_TB_OPTIONS_SHOW_LINES_SKETCH, GERBVIEW_FRAME::OnUpdateLinesDrawMode )
     EVT_UPDATE_UI( ID_TB_OPTIONS_SHOW_POLYGONS_SKETCH, GERBVIEW_FRAME::OnUpdatePolygonsDrawMode )
     EVT_UPDATE_UI( ID_TB_OPTIONS_SHOW_DCODES, GERBVIEW_FRAME::OnUpdateShowDCodes )
+    EVT_UPDATE_UI( ID_TB_OPTIONS_SHOW_NEGATIVE_ITEMS, GERBVIEW_FRAME::OnUpdateShowNegativeItems )
     EVT_UPDATE_UI( ID_TB_OPTIONS_SHOW_LAYERS_MANAGER_VERTICAL_TOOLBAR,
                    GERBVIEW_FRAME::OnUpdateShowLayerManager )
 
@@ -127,36 +131,37 @@ void GERBVIEW_FRAME::Process_Special_Functions( wxCommandEvent& event )
         break;
 
     case ID_POPUP_CANCEL_CURRENT_COMMAND:
-        DrawPanel->EndMouseCapture();
+        m_canvas->EndMouseCapture();
 
-        if( GetScreen()->m_BlockLocate.m_Command != BLOCK_IDLE )
+        if( GetScreen()->m_BlockLocate.GetCommand() != BLOCK_IDLE )
         {
             /* Should not be executed, except bug */
-            GetScreen()->m_BlockLocate.m_Command = BLOCK_IDLE;
-            GetScreen()->m_BlockLocate.m_State   = STATE_NO_BLOCK;
+            GetScreen()->m_BlockLocate.SetCommand( BLOCK_IDLE );
+            GetScreen()->m_BlockLocate.SetState( STATE_NO_BLOCK );
             GetScreen()->m_BlockLocate.ClearItemsList();
         }
 
         if( GetToolId() == ID_NO_TOOL_SELECTED )
-            SetToolID( ID_NO_TOOL_SELECTED, DrawPanel->GetDefaultCursor(), wxEmptyString );
+            SetToolID( ID_NO_TOOL_SELECTED, m_canvas->GetDefaultCursor(), wxEmptyString );
         else
-            DrawPanel->SetCursor( DrawPanel->GetCurrentCursor() );
+            m_canvas->SetCursor( (wxStockCursor) m_canvas->GetCurrentCursor() );
         break;
 
     default:
-        DrawPanel->EndMouseCapture();
+        m_canvas->EndMouseCapture();
         break;
     }
 
-    INSTALL_UNBUFFERED_DC( dc, DrawPanel );
+    INSTALL_UNBUFFERED_DC( dc, m_canvas );
 
     switch( id )
     {
     case ID_GERBVIEW_SET_PAGE_BORDER:
         {
-        DIALOG_PAGE_SHOW_PAGE_BORDERS dlg( this );
-        if (dlg.ShowModal() == wxID_OK )
-            DrawPanel->Refresh();
+            DIALOG_PAGE_SHOW_PAGE_BORDERS dlg( this );
+
+            if( dlg.ShowModal() == wxID_OK )
+                m_canvas->Refresh();
         }
         break;
 
@@ -166,11 +171,11 @@ void GERBVIEW_FRAME::Process_Special_Functions( wxCommandEvent& event )
         break;
 
     case ID_NO_TOOL_SELECTED:
-        SetToolID( ID_NO_TOOL_SELECTED, DrawPanel->GetDefaultCursor(), wxEmptyString );
+        SetToolID( ID_NO_TOOL_SELECTED, m_canvas->GetDefaultCursor(), wxEmptyString );
         break;
 
     case ID_POPUP_CLOSE_CURRENT_TOOL:
-        SetToolID( ID_NO_TOOL_SELECTED, DrawPanel->GetDefaultCursor(), wxEmptyString );
+        SetToolID( ID_NO_TOOL_SELECTED, m_canvas->GetDefaultCursor(), wxEmptyString );
         break;
 
     case ID_POPUP_CANCEL_CURRENT_COMMAND:
@@ -181,19 +186,19 @@ void GERBVIEW_FRAME::Process_Special_Functions( wxCommandEvent& event )
         break;
 
     case ID_POPUP_PLACE_BLOCK:
-        GetScreen()->m_BlockLocate.m_Command = BLOCK_MOVE;
-        DrawPanel->m_AutoPAN_Request = FALSE;
+        GetScreen()->m_BlockLocate.SetCommand( BLOCK_MOVE );
+        m_canvas->SetAutoPanRequest( false );
         HandleBlockPlace( &dc );
         break;
 
     case ID_POPUP_ZOOM_BLOCK:
-        GetScreen()->m_BlockLocate.m_Command = BLOCK_ZOOM;
+        GetScreen()->m_BlockLocate.SetCommand( BLOCK_ZOOM );
         GetScreen()->m_BlockLocate.SetMessageBlock( this );
         HandleBlockEnd( &dc );
         break;
 
     case ID_POPUP_DELETE_BLOCK:
-        GetScreen()->m_BlockLocate.m_Command = BLOCK_DELETE;
+        GetScreen()->m_BlockLocate.SetCommand( BLOCK_DELETE );
         GetScreen()->m_BlockLocate.SetMessageBlock( this );
         HandleBlockEnd( &dc );
         break;
@@ -211,13 +216,15 @@ void GERBVIEW_FRAME::Process_Special_Functions( wxCommandEvent& event )
 void GERBVIEW_FRAME::OnSelectActiveDCode( wxCommandEvent& event )
 {
     GERBER_IMAGE* gerber_image = g_GERBER_List[getActiveLayer()];
+
     if( gerber_image )
     {
         int tool = m_DCodeSelector->GetSelectedDCodeId();
+
         if( tool != gerber_image->m_Selected_Tool )
         {
             gerber_image->m_Selected_Tool = tool;
-            DrawPanel->Refresh();
+            m_canvas->Refresh();
         }
     }
 }
@@ -231,8 +238,9 @@ void GERBVIEW_FRAME::OnSelectActiveLayer( wxCommandEvent& event )
     int layer = getActiveLayer();
 
     setActiveLayer( event.GetSelection() );
+
     if( layer != getActiveLayer() )
-        DrawPanel->Refresh();
+        m_canvas->Refresh();
 }
 
 
@@ -253,9 +261,14 @@ void GERBVIEW_FRAME::OnShowGerberSourceFile( wxCommandEvent& event )
             ExecuteFile( this, editorname, QuoteFullPath( fn ) );
         }
         else
-        {
             wxMessageBox( _( "No editor defined. Please select one" ) );
-        }
+    }
+
+    else
+    {
+        wxString msg;
+        msg.Printf( _( "No file loaded on the active layer %d" ), layer + 1 );
+        wxMessageBox( msg );
     }
 }
 
@@ -283,7 +296,7 @@ void GERBVIEW_FRAME::OnSelectDisplayMode( wxCommandEvent& event )
     }
 
     if( GetDisplayMode() != oldMode )
-        DrawPanel->Refresh();
+        m_canvas->Refresh();
 }
 
 void GERBVIEW_FRAME::OnQuit( wxCommandEvent& event )
@@ -306,3 +319,71 @@ void GERBVIEW_FRAME::SetLanguage( wxCommandEvent& event )
 
     ReFillLayerWidget();
 }
+
+/**
+ * Function OnSelectOptionToolbar
+ *  called to validate current choices
+ */
+void GERBVIEW_FRAME::OnSelectOptionToolbar( wxCommandEvent& event )
+{
+    int id = event.GetId();
+    bool state;
+    switch( id )
+    {
+        case ID_MENU_GERBVIEW_SHOW_HIDE_LAYERS_MANAGER_DIALOG:
+            state = ! m_show_layer_manager_tools;
+            id = ID_TB_OPTIONS_SHOW_LAYERS_MANAGER_VERTICAL_TOOLBAR;
+            break;
+
+        default:
+            state = m_optionsToolBar->GetToolToggled( id );
+            break;
+    }
+
+    switch( id )
+    {
+    case ID_TB_OPTIONS_SHOW_POLAR_COORD:
+        m_DisplayOptions.m_DisplayPolarCood = state;
+        break;
+
+    case ID_TB_OPTIONS_SHOW_FLASHED_ITEMS_SKETCH:
+        m_DisplayOptions.m_DisplayFlashedItemsFill = not state;
+        m_canvas->Refresh( true );
+        break;
+
+    case ID_TB_OPTIONS_SHOW_LINES_SKETCH:
+        m_DisplayOptions.m_DisplayLinesFill = not state;
+        m_canvas->Refresh( true );
+        break;
+
+    case ID_TB_OPTIONS_SHOW_POLYGONS_SKETCH:
+        m_DisplayOptions.m_DisplayPolygonsFill = not state;
+        m_canvas->Refresh( true );
+        break;
+
+    case ID_TB_OPTIONS_SHOW_DCODES:
+        SetElementVisibility( DCODES_VISIBLE, state );
+        m_canvas->Refresh( true );
+        break;
+
+    case ID_TB_OPTIONS_SHOW_NEGATIVE_ITEMS:
+        SetElementVisibility( NEGATIVE_OBJECTS_VISIBLE, state );
+        m_canvas->Refresh( true );
+        break;
+
+    case ID_TB_OPTIONS_SHOW_LAYERS_MANAGER_VERTICAL_TOOLBAR:
+        // show/hide auxiliary Vertical layers and visibility manager toolbar
+        m_show_layer_manager_tools = state;
+        m_auimgr.GetPane( wxT( "m_LayersManagerToolBar" ) ).Show( m_show_layer_manager_tools );
+        m_auimgr.Update();
+        GetMenuBar()->SetLabel( ID_MENU_GERBVIEW_SHOW_HIDE_LAYERS_MANAGER_DIALOG,
+                                m_show_layer_manager_tools ?
+                                _("Hide &Layers Manager" ) : _("Show &Layers Manager" ));
+        break;
+
+    default:
+        wxMessageBox( wxT( "GERBVIEW_FRAME::OnSelectOptionToolbar error" ) );
+        break;
+    }
+}
+

@@ -1,11 +1,59 @@
 add_definitions(-DEESCHEMA)
 
-include_directories(${CMAKE_CURRENT_SOURCE_DIR}
-                    ${CMAKE_CURRENT_SOURCE_DIR}/dialogs
-                    ${CMAKE_SOURCE_DIR}/common
-                    ${CMAKE_SOURCE_DIR}/common/dialogs
-                    ${Boost_INCLUDE_DIR}
-                   )
+
+include_directories(BEFORE ${INC_BEFORE})
+include_directories(
+    ./dialogs
+    ../common
+    ../common/dialogs
+    ${Boost_INCLUDE_DIR}
+    ${INC_AFTER}
+    )
+
+set(EESCHEMA_DLGS
+    dialogs/dialog_color_config.cpp
+    dialogs/annotate_dialog.cpp
+    dialogs/dialog_annotate_base.cpp
+    dialogs/dialog_lib_edit_text.cpp
+    dialogs/dialog_lib_edit_text_base.cpp
+    dialogs/dialog_build_BOM.cpp
+    dialogs/dialog_build_BOM_base.cpp
+    dialogs/dialog_edit_component_in_lib.cpp
+    dialogs/dialog_edit_component_in_lib_base.cpp
+    dialogs/dialog_edit_component_in_schematic_fbp.cpp
+    dialogs/dialog_edit_component_in_schematic.cpp
+    dialogs/dialog_edit_label.cpp
+    dialogs/dialog_edit_label_base.cpp
+    dialogs/dialog_edit_libentry_fields_in_lib.cpp
+    dialogs/dialog_edit_libentry_fields_in_lib_base.cpp
+    dialogs/dialog_edit_one_field.cpp
+    dialogs/dialog_eeschema_config.cpp
+    dialogs/dialog_eeschema_config_fbp.cpp
+    dialogs/dialog_eeschema_options_base.cpp
+    dialogs/dialog_eeschema_options.cpp
+    dialogs/dialog_erc.cpp
+    dialogs/dialog_erc_base.cpp
+    dialogs/dialog_libedit_dimensions.cpp
+    dialogs/dialog_libedit_dimensions_base.cpp
+    dialogs/dialog_lib_edit_draw_item.cpp
+    dialogs/dialog_lib_edit_draw_item_base.cpp
+    dialogs/dialog_lib_edit_pin.cpp
+    dialogs/dialog_lib_edit_pin_base.cpp
+    dialogs/dialog_lib_new_component.cpp
+    dialogs/dialog_lib_new_component_base.cpp
+    dialogs/dialog_netlist.cpp
+    dialogs/dialog_netlist_base.cpp
+    dialogs/dialog_plot_schematic_base.cpp
+    dialogs/dialog_plot_schematic.cpp
+    dialogs/dialog_print_using_printer_base.cpp
+    dialogs/dialog_print_using_printer.cpp
+    dialogs/dialog_sch_edit_sheet_pin.cpp
+    dialogs/dialog_sch_edit_sheet_pin_base.cpp
+    dialogs/dialog_sch_sheet_props.cpp
+    dialogs/dialog_sch_sheet_props_base.cpp
+    dialogs/dialog_schematic_find.cpp
+    dialogs/dialog_schematic_find_base.cpp
+    )
 
 set(EESCHEMA_SRCS
     annotate.cpp
@@ -26,51 +74,7 @@ set(EESCHEMA_SRCS
     cross-probing.cpp
     dangling_ends.cpp
     database.cpp
-    dialogs/dialog_color_config.cpp
-    dialogs/dialog_plot_schematic_DXF.cpp
-    dialogs/dialog_plot_schematic_DXF_base.cpp
-    dialogs/dialog_plot_schematic_HPGL.cpp
-    dialogs/dialog_plot_schematic_HPGL_base.cpp
-    dialogs/dialog_plot_schematic_PS.cpp
-    dialogs/dialog_plot_schematic_PS_base.cpp
-    dialogs/annotate_dialog.cpp
-    dialogs/dialog_annotate_base.cpp
-    dialogs/dialog_lib_edit_text.cpp
-    dialogs/dialog_lib_edit_text_base.cpp
-    dialogs/dialog_build_BOM.cpp
-    dialogs/dialog_build_BOM_base.cpp
-    dialogs/dialog_edit_component_in_lib.cpp
-    dialogs/dialog_edit_component_in_lib_base.cpp
-    dialogs/dialog_edit_component_in_schematic_fbp.cpp
-    dialogs/dialog_edit_component_in_schematic.cpp
-    dialogs/dialog_edit_label.cpp
-    dialogs/dialog_edit_label_base.cpp
-    dialogs/dialog_edit_libentry_fields_in_lib.cpp
-    dialogs/dialog_edit_libentry_fields_in_lib_base.cpp
-    dialogs/dialog_eeschema_config.cpp
-    dialogs/dialog_eeschema_config_fbp.cpp
-    dialogs/dialog_eeschema_options_base.cpp
-    dialogs/dialog_eeschema_options.cpp
-    dialogs/dialog_erc.cpp
-    dialogs/dialog_erc_base.cpp
-    dialogs/dialog_libedit_dimensions.cpp
-    dialogs/dialog_libedit_dimensions_base.cpp
-    dialogs/dialog_lib_edit_draw_item.cpp
-    dialogs/dialog_lib_edit_draw_item_base.cpp
-    dialogs/dialog_lib_edit_pin.cpp
-    dialogs/dialog_lib_edit_pin_base.cpp
-    dialogs/dialog_lib_new_component.cpp
-    dialogs/dialog_lib_new_component_base.cpp
-    dialogs/dialog_print_using_printer_base.cpp
-    dialogs/dialog_print_using_printer.cpp
-    dialogs/dialog_sch_edit_sheet_pin.cpp
-    dialogs/dialog_sch_edit_sheet_pin_base.cpp
-    dialogs/dialog_sch_sheet_props.cpp
-    dialogs/dialog_sch_sheet_props_base.cpp
-    dialogs/dialog_schematic_find.cpp
-    dialogs/dialog_schematic_find_base.cpp
-    dialogs/dialog_SVG_print.cpp
-    dialogs/dialog_SVG_print_base.cpp
+    ${EESCHEMA_DLGS}
     edit_component_in_schematic.cpp
     edit_bitmap.cpp
     edit_label.cpp
@@ -108,12 +112,17 @@ set(EESCHEMA_SRCS
     menubar.cpp
     menubar_libedit.cpp
     netform.cpp
-    netlist_control.cpp
     netlist.cpp
     onleftclick.cpp
     onrightclick.cpp
     operations_on_items_lists.cpp
     pinedit.cpp
+    plot_schematic_DXF.cpp
+    plot_schematic_HPGL.cpp
+    plot_schematic_PS.cpp
+    plot_schematic_PDF.cpp
+    plot_schematic_SVG.cpp
+    sch_base_frame.cpp
     sch_bitmap.cpp
     sch_bus_entry.cpp
     sch_collectors.cpp
@@ -144,12 +153,22 @@ set(EESCHEMA_SRCS
     tool_viewlib.cpp
     transform.cpp
     viewlib_frame.cpp
-    viewlibs.cpp)
+    viewlibs.cpp
 
-set(EESCHEMA_EXTRA_SRCS
-    ../common/dialogs/dialog_page_settings.cpp
+    # This file does not look common.
+    # Keep it after template_fieldnames_keywords.cpp
     ../common/sch_item_struct.cpp
-)
+    )
+
+
+set(EESCHEMA_COMMON_SRCS
+    ../common/dialogs/dialog_page_settings.cpp
+    ../common/base_screen.cpp
+    ../common/eda_text.cpp
+    ../common/class_page_info.cpp
+    ../common/base_units.cpp
+    )
+
 
 if(WIN32)
     if(MINGW)
@@ -185,16 +204,24 @@ make_lexer(
     TFIELD_T
     )
 
-add_executable(eeschema WIN32 MACOSX_BUNDLE ${EESCHEMA_SRCS} ${EESCHEMA_EXTRA_SRCS}
-    ${EESCHEMA_RESOURCES})
+add_executable(eeschema WIN32 MACOSX_BUNDLE
+    ${EESCHEMA_SRCS}
+    ${EESCHEMA_COMMON_SRCS}
+    ${EESCHEMA_RESOURCES}
+    )
 
 if(APPLE)
     set_target_properties(eeschema PROPERTIES MACOSX_BUNDLE_INFO_PLIST
         ${CMAKE_CURRENT_SOURCE_DIR}/Info.plist)
 endif(APPLE)
 
-target_link_libraries(eeschema common bitmaps polygon kbool ${wxWidgets_LIBRARIES}
-    ${GDI_PLUS_LIBRARIES})
+target_link_libraries(eeschema
+    common
+    bitmaps
+    polygon
+    ${wxWidgets_LIBRARIES}
+    ${GDI_PLUS_LIBRARIES}
+    )
 
 install(TARGETS eeschema
         DESTINATION ${KICAD_BIN}

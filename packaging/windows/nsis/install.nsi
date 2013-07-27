@@ -17,12 +17,12 @@
 
 ; General Product Description Definitions
 !define PRODUCT_NAME "KiCad"
-!define PRODUCT_VERSION "2012.04.16"
+!define PRODUCT_VERSION "2013.07.07"
 !define PRODUCT_WEB_SITE "http://iut-tice.ujf-grenoble.fr/kicad/"
 !define SOURCEFORGE_WEB_SITE "http://kicad.sourceforge.net/"
 !define COMPANY_NAME ""
 !define TRADE_MARKS ""
-!define COPYRIGHT "Kicad Team (Jean-Pierre Charras et all)"
+!define COPYRIGHT "Kicad Developers Team"
 !define COMMENTS ""
 !define HELP_WEB_SITE "http://groups.yahoo.com/group/kicad-users/"
 !define DEVEL_WEB_SITE "https://launchpad.net/~kicad-developers/"
@@ -36,7 +36,7 @@ SetCompressor /final /solid lzma
 CRCCheck force
 XPStyle on
 Name "${PRODUCT_NAME} ${PRODUCT_VERSION}"
-OutFile "${PRODUCT_NAME}.exe"
+OutFile "${PRODUCT_NAME}_stable-${PRODUCT_VERSION}-BZR4022_Win_full_version.exe"
 InstallDir "$PROGRAMFILES\KiCad"
 ShowInstDetails hide
 ShowUnInstDetails hide
@@ -116,9 +116,8 @@ Section $(TITLE_SEC01) SEC01
   SetOverwrite try
   SetOutPath "$INSTDIR"
   File /nonfatal "..\AUTHORS.txt"
-  File /nonfatal "..\copyright.txt"
-  File /nonfatal "..\gpl.txt"
-  File /nonfatal "..\licendoc.txt"
+  File /nonfatal "..\COPYRIGHT.txt"
+  File /nonfatal "..\license_for_documentation.txt"
   SetOutPath "$INSTDIR\share\template"
   File /nonfatal /r "..\share\template\*"
   SetOutPath "$INSTDIR\bin"

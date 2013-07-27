@@ -1,5 +1,7 @@
-include_directories(${CMAKE_CURRENT_SOURCE_DIR}
-                    )
+include_directories(BEFORE ${INC_BEFORE})
+include_directories(
+    ${INC_AFTER}
+    )
 
 set(POTRACE_SRCS
     bitmap_io.cpp
@@ -11,4 +13,4 @@ set(POTRACE_SRCS
     trace.cpp
     )
 
-add_library(potrace ${POTRACE_SRCS})
+add_library(potrace STATIC ${POTRACE_SRCS})

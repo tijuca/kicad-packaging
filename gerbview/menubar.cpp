@@ -1,9 +1,9 @@
 /*
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
- * Copyright (C) 2007 Jean-Pierre Charras, jaen-pierre.charras@gipsa-lab.inpg.com
- * Copyright (C) 2009-2011 Wayne Stambaugh <stambaughw@verizon.net>
- * Copyright (C) 1992-2011 KiCad Developers, see AUTHORS.txt for contributors.
+ * Copyright (C) 2013 Jean-Pierre Charras, jp.charras at wanadoo.fr
+ * Copyright (C) 2009-2013 Wayne Stambaugh <stambaughw@verizon.net>
+ * Copyright (C) 1992-2013 KiCad Developers, see AUTHORS.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -27,13 +27,14 @@
  * @file gerbview/menubar.cpp
  * @brief (Re)Create the main menubar for GerbView
  */
-#include "fctsys.h"
+#include <fctsys.h>
 
-#include "appl_wxstruct.h"
+#include <appl_wxstruct.h>
 
-#include "gerbview.h"
-#include "gerbview_id.h"
-#include "hotkeys.h"
+#include <gerbview.h>
+#include <gerbview_id.h>
+#include <hotkeys.h>
+#include <menus_helpers.h>
 
 
 void GERBVIEW_FRAME::ReCreateMenuBar( void )
@@ -82,11 +83,11 @@ void GERBVIEW_FRAME::ReCreateMenuBar( void )
     // Add this menu to list menu managed by m_fileHistory
     // (the file history will be updated when adding/removing files in history
     if( openRecentGbrMenu )
-        wxGetApp().m_fileHistory.RemoveMenu( openRecentGbrMenu );
+        wxGetApp().GetFileHistory().RemoveMenu( openRecentGbrMenu );
 
     openRecentGbrMenu = new wxMenu();
-    wxGetApp().m_fileHistory.UseMenu( openRecentGbrMenu );
-    wxGetApp().m_fileHistory.AddFilesToMenu();
+    wxGetApp().GetFileHistory().UseMenu( openRecentGbrMenu );
+    wxGetApp().GetFileHistory().AddFilesToMenu();
     AddMenuItem( fileMenu, openRecentGbrMenu,
                  wxID_ANY,
                  _( "Open &Recent Gerber File" ),
@@ -106,7 +107,7 @@ void GERBVIEW_FRAME::ReCreateMenuBar( void )
                  wxID_ANY,
                  _( "Open Recent Dri&ll File" ),
                  _( "Open a recent opened drill file" ),
-                 KiBitmap( open_project_xpm ) );
+                 KiBitmap( gerbview_open_recent_drill_files_xpm ) );
 
     // Separator
     fileMenu->AppendSeparator();

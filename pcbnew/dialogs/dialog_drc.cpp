@@ -5,7 +5,8 @@
 /*
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
- * Copyright (C) 2011 Jean-Pierre Charras, jaen-pierre.charras@gipsa-lab.inpg.com
+ * Copyright (C) 2011 Jean-Pierre Charras, jean-pierre.charras@ujf-grenoble.fr
+ * Copyright (C) 2009 Dick Hollenbeck, dick@softplc.com
  * Copyright (C) 2004-2011 KiCad Developers, see change_log.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
@@ -26,15 +27,11 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
  */
 
-#include "fctsys.h"
-#include "dialog_drc.h"
-#include "wxPcbStruct.h"
-#include "class_board_design_settings.h"
-
-
-// dialog should remember its previous screen position and size
-wxPoint DIALOG_DRC_CONTROL::s_LastPos( -1, -1 );
-wxSize  DIALOG_DRC_CONTROL::s_LastSize;
+#include <fctsys.h>
+#include <dialog_drc.h>
+#include <wxPcbStruct.h>
+#include <base_units.h>
+#include <class_board_design_settings.h>
 
 
 /* class DIALOG_DRC_CONTROL: a dialog to set DRC parameters (clearance, min cooper size)
@@ -46,7 +43,7 @@ DIALOG_DRC_CONTROL::DIALOG_DRC_CONTROL( DRC* aTester, PCB_EDIT_FRAME* parent ) :
 {
     m_tester = aTester;
     m_Parent = parent;
-    m_BrdSettings = m_Parent->GetBoard()->GetBoardDesignSettings();
+    m_BrdSettings = m_Parent->GetBoard()->GetDesignSettings();
 
     InitValues();
     if( GetSizer() )
@@ -56,36 +53,6 @@ DIALOG_DRC_CONTROL::DIALOG_DRC_CONTROL( DRC* aTester, PCB_EDIT_FRAME* parent ) :
 
     Centre();
 }
-
-
-bool DIALOG_DRC_CONTROL::Show( bool show )
-{
-    bool ret;
-
-    if( show )
-    {
-        ret = DIALOG_DRC_CONTROL_BASE::Show( show );
-
-        if( s_LastPos.x != -1 )
-        {
-            SetSize( s_LastPos.x, s_LastPos.y, s_LastSize.x, s_LastSize.y, 0 );
-        }
-        else
-        {
-            // Do nothing: last position not yet saved.
-        }
-    }
-    else
-    {
-        // Save the dialog's position before hiding
-        s_LastPos  = GetPosition();
-        s_LastSize = GetSize();
-        ret = DIALOG_DRC_CONTROL_BASE::Show( show );
-    }
-
-    return ret;
-}
-
 
 
 void DIALOG_DRC_CONTROL::InitValues()
@@ -107,6 +74,8 @@ void DIALOG_DRC_CONTROL::InitValues()
     AddUnitSymbol( *m_TrackMinWidthTitle );
     AddUnitSymbol( *m_ViaMinTitle );
     AddUnitSymbol( *m_MicroViaMinTitle );
+
+    m_DeleteCurrentMarkerButton->Enable( false );
 
     /* this looks terrible! does not fit into text field, do it in wxformbuilder instead
     m_SetClearance->SetValue( _("Netclasses values"));
@@ -130,12 +99,11 @@ void DIALOG_DRC_CONTROL::InitValues()
 */
 void DIALOG_DRC_CONTROL::SetDrcParmeters( )
 {
-     m_BrdSettings->m_TrackMinWidth =
-        ReturnValueFromTextCtrl( *m_SetTrackMinWidthCtrl, m_Parent->m_InternalUnits );
-     m_BrdSettings->m_ViasMinSize =
-        ReturnValueFromTextCtrl( *m_SetViaMinSizeCtrl, m_Parent->m_InternalUnits );
-     m_BrdSettings->m_MicroViasMinSize =
-        ReturnValueFromTextCtrl( *m_SetMicroViakMinSizeCtrl, m_Parent->m_InternalUnits );
+     m_BrdSettings.m_TrackMinWidth = ReturnValueFromTextCtrl( *m_SetTrackMinWidthCtrl );
+     m_BrdSettings.m_ViasMinSize = ReturnValueFromTextCtrl( *m_SetViaMinSizeCtrl );
+     m_BrdSettings.m_MicroViasMinSize = ReturnValueFromTextCtrl( *m_SetMicroViakMinSizeCtrl );
+
+     m_Parent->GetBoard()->SetDesignSettings( m_BrdSettings );
 }
 
 
@@ -160,12 +128,13 @@ void DIALOG_DRC_CONTROL::OnStartdrcClick( wxCommandEvent& event )
         reportName = m_RptFilenameCtrl->GetValue();
     }
 
-    SetDrcParmeters( );
+    SetDrcParmeters();
 
     m_tester->SetSettings( true,        // Pad to pad DRC test enabled
-                          true,         // unconnected pdas DRC test enabled
-                          true,         // DRC test for zones enabled
-                          reportName, m_CreateRptCtrl->IsChecked() );
+                           true,        // unconnected pdas DRC test enabled
+                           true,        // DRC test for zones enabled
+                           true,        // DRC test for keepout areas enabled
+                           reportName, m_CreateRptCtrl->IsChecked() );
 
     DelDRCMarkers();
 
@@ -238,12 +207,13 @@ void DIALOG_DRC_CONTROL::OnListUnconnectedClick( wxCommandEvent& event )
         reportName = m_RptFilenameCtrl->GetValue();
     }
 
-    SetDrcParmeters( );
+    SetDrcParmeters();
 
     m_tester->SetSettings( true,        // Pad to pad DRC test enabled
-                          true,         // unconnected pdas DRC test enabled
-                          true,         // DRC test for zones enabled
-                          reportName, m_CreateRptCtrl->IsChecked() );
+                           true,        // unconnected pdas DRC test enabled
+                           true,        // DRC test for zones enabled
+                           true,        // DRC test for keepout areas enabled
+                           reportName, m_CreateRptCtrl->IsChecked() );
 
     DelDRCMarkers();
 
@@ -290,7 +260,7 @@ void DIALOG_DRC_CONTROL::OnButtonBrowseRptFileClick( wxCommandEvent& event )
     wxString   wildcard( _( "DRC report files (.rpt)|*.rpt" ) );
     wxString   Ext( wxT( "rpt" ) );
 
-    fn = m_Parent->GetScreen()->GetFileName() + wxT( "-drc" );
+    fn = m_Parent->GetBoard()->GetFileName() + wxT( "-drc" );
     fn.SetExt( Ext );
 
     wxFileDialog dlg( this, _( "Save DRC Report File" ), wxEmptyString,
@@ -311,7 +281,7 @@ void DIALOG_DRC_CONTROL::OnButtonBrowseRptFileClick( wxCommandEvent& event )
 void DIALOG_DRC_CONTROL::OnOkClick( wxCommandEvent& event )
 {
     SetReturnCode( wxID_OK );
-    SetDrcParmeters( );
+    SetDrcParmeters();
 
     m_tester->DestroyDialog( wxID_OK );
 }
@@ -379,7 +349,9 @@ void DIALOG_DRC_CONTROL::OnLeftDClickClearance( wxMouseEvent& event )
             // no destruction so we can preserve listbox cursor
             Show( false );
 
-            event.StopPropagation();    // still get the popup window.
+            // We do not want the clarification popup window.
+            // when releasing the left button in the main window
+            m_Parent->SkipNextLeftButtonReleaseEvent();
         }
     }
 }
@@ -517,12 +489,22 @@ void DIALOG_DRC_CONTROL::OnLeftDClickUnconnected( wxMouseEvent& event )
 
             Show( false );
 
-            // intermittently, still get the popup window, even with this.
-            event.StopPropagation();
+            // We do not want the clarification popup window.
+            // when releasing the left button in the main window
+            m_Parent->SkipNextLeftButtonReleaseEvent();
         }
     }
 }
 
+/* called when switching from Error list to Unconnected list
+ * To avoid mistakes, the current marker is selection is cleared
+ */
+void DIALOG_DRC_CONTROL::OnChangingMarkerList( wxNotebookEvent& event )
+{
+    m_DeleteCurrentMarkerButton->Enable( false );
+    m_ClearanceListBox->SetSelection( -1 );
+    m_UnconnectedListBox->SetSelection( -1 );
+}
 
 void DIALOG_DRC_CONTROL::OnMarkerSelectionEvent( wxCommandEvent& event )
 {
@@ -532,6 +514,12 @@ void DIALOG_DRC_CONTROL::OnMarkerSelectionEvent( wxCommandEvent& event )
     {
         // until a MARKER is selected, this button is not enabled.
         m_DeleteCurrentMarkerButton->Enable( true );
+
+        // Find the selected DRC_ITEM in the listbox, position cursor there,
+        // at the first of the two pads.
+        const DRC_ITEM* item = m_ClearanceListBox->GetItem( selection );
+        if( item )
+            m_Parent->CursorGoto( item->GetPointA(), false );
     }
 
     event.Skip();
@@ -546,6 +534,12 @@ void DIALOG_DRC_CONTROL::OnUnconnectedSelectionEvent( wxCommandEvent& event )
     {
         // until a MARKER is selected, this button is not enabled.
         m_DeleteCurrentMarkerButton->Enable( true );
+
+        // Find the selected DRC_ITEM in the listbox, position cursor there,
+        // at the first of the two pads.
+        const DRC_ITEM* item = m_UnconnectedListBox->GetItem( selection );
+        if( item )
+            m_Parent->CursorGoto( item->GetPointA(), false );
     }
 
     event.Skip();
@@ -554,17 +548,16 @@ void DIALOG_DRC_CONTROL::OnUnconnectedSelectionEvent( wxCommandEvent& event )
 
 void DIALOG_DRC_CONTROL::RedrawDrawPanel()
 {
-    m_Parent->DrawPanel->Refresh();
+    m_Parent->GetCanvas()->Refresh();
 }
 
 
-/*********************************************************/
 void DIALOG_DRC_CONTROL::DelDRCMarkers()
-/*********************************************************/
 {
     m_Parent->SetCurItem( NULL );           // clear curr item, because it could be a DRC marker
     m_ClearanceListBox->DeleteAllItems();
     m_UnconnectedListBox->DeleteAllItems();
+    m_DeleteCurrentMarkerButton->Enable( false );
 }
 
 
@@ -573,7 +566,7 @@ void DIALOG_DRC_CONTROL::writeReport( FILE* fp )
     int count;
 
     fprintf( fp, "** Drc report for %s **\n",
-             TO_UTF8( m_Parent->GetScreen()->GetFileName() ) );
+             TO_UTF8( m_Parent->GetBoard()->GetFileName() ) );
 
     wxDateTime now = wxDateTime::Now();
 
@@ -609,6 +602,7 @@ void DIALOG_DRC_CONTROL::OnDeleteOneClick( wxCommandEvent& event )
     if( curTab == 0 )
     {
         selectedIndex = m_ClearanceListBox->GetSelection();
+
         if( selectedIndex != wxNOT_FOUND )
         {
             m_ClearanceListBox->DeleteItem( selectedIndex );
@@ -620,6 +614,7 @@ void DIALOG_DRC_CONTROL::OnDeleteOneClick( wxCommandEvent& event )
     else if( curTab == 1 )
     {
         selectedIndex = m_UnconnectedListBox->GetSelection();
+
         if( selectedIndex != wxNOT_FOUND )
         {
             m_UnconnectedListBox->DeleteItem( selectedIndex );

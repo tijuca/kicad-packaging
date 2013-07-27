@@ -197,8 +197,8 @@ void BITMAP_BASE::DrawBitmap( EDA_DRAW_PANEL* aPanel, wxDC* aDC, const wxPoint& 
     aDC->SetLogicalOrigin( logicalOriginX / GetScalingFactor(),
                           logicalOriginY / GetScalingFactor() );
     aDC->DrawBitmap( *m_bitmap,
-                     wxRound( pos.x / GetScalingFactor() ),
-                     wxRound( pos.y / GetScalingFactor() ),
+                     KiROUND( pos.x / GetScalingFactor() ),
+                     KiROUND( pos.y / GetScalingFactor() ),
                      true );
     aDC->SetUserScale( scale, scale );
     aDC->SetLogicalOrigin( logicalOriginX, logicalOriginY );
@@ -217,8 +217,8 @@ wxSize BITMAP_BASE::GetSize() const
         size.x = m_bitmap->GetWidth();
         size.y = m_bitmap->GetHeight();
 
-        size.x = wxRound( size.x * GetScalingFactor() );
-        size.y = wxRound( size.y * GetScalingFactor() );
+        size.x = KiROUND( size.x * GetScalingFactor() );
+        size.y = KiROUND( size.y * GetScalingFactor() );
     }
 
     return size;
@@ -251,18 +251,18 @@ void BITMAP_BASE::Rotate( bool aRotateCCW )
 }
 
 
-void BITMAP_BASE::PlotImage( PLOTTER* aPlotter,
-                             wxPoint  aPos,
-                             int      aDefaultColor,
-                             int      aDefaultPensize )
+void BITMAP_BASE::PlotImage( PLOTTER*       aPlotter,
+                             const wxPoint& aPos,
+                             EDA_COLOR_T    aDefaultColor,
+                             int            aDefaultPensize )
 {
     if( m_image == NULL )
         return;
 
     // These 2 lines are useful only fot plotters that cannot plot a bitmap
-    // and plot arectangle instead of.
-    aPlotter->set_color( aDefaultColor );
-    aPlotter->set_current_line_width( aDefaultPensize );
+    // and plot a rectangle instead of.
+    aPlotter->SetColor( aDefaultColor );
+    aPlotter->SetCurrentLineWidth( aDefaultPensize );
 
     aPlotter->PlotImage( *m_image, aPos, GetScalingFactor() );
 }

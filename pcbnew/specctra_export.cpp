@@ -31,27 +31,28 @@
     Also see the comments at the top of the specctra.cpp file itself.
 */
 
-#include "wxPcbStruct.h"
-#include "pcbstruct.h"          // HISTORY_NUMBER
-#include "confirm.h"            // DisplayError()
-#include "gestfich.h"           // EDA_FileSelector()
-#include "trigo.h"              // RotatePoint()
+#include <wxPcbStruct.h>
+#include <pcbstruct.h>          // HISTORY_NUMBER
+#include <confirm.h>            // DisplayError()
+#include <gestfich.h>           // EDA_FileSelector()
+#include <trigo.h>              // RotatePoint()
 
 #include <set>                  // std::set
 #include <map>                  // std::map
 
 #include <boost/utility.hpp>    // boost::addressof()
 
-#include "class_board.h"
-#include "class_module.h"
-#include "class_edge_mod.h"
-#include "class_track.h"
-#include "class_zone.h"
-#include "class_drawsegment.h"
+#include <class_board.h>
+#include <class_module.h>
+#include <class_edge_mod.h>
+#include <class_track.h>
+#include <class_zone.h>
+#include <class_drawsegment.h>
+#include <base_units.h>
 
-#include "collectors.h"
+#include <collectors.h>
 
-#include "specctra.h"
+#include <specctra.h>
 
 
 using namespace DSN;
@@ -71,7 +72,7 @@ static const double  safetyMargin = 0.1;
 // see wxPcbStruct.h
 void PCB_EDIT_FRAME::ExportToSpecctra( wxCommandEvent& event )
 {
-    wxString        fullFileName = GetScreen()->GetFileName();
+    wxString        fullFileName = GetBoard()->GetFileName();
     wxString        path;
     wxString        name;
     wxString        ext;
@@ -99,7 +100,7 @@ void PCB_EDIT_FRAME::ExportToSpecctra( wxCommandEvent& event )
     wxString        errorText;
 
     BASE_SCREEN*    screen = GetScreen();
-    bool            wasModified = screen->IsModify() && !screen->IsSave();
+    bool            wasModified = screen->IsModify();
 
     db.SetPCB( SPECCTRA_DB::MakePCB() );
 
@@ -157,16 +158,37 @@ namespace DSN {
 
 const KICAD_T SPECCTRA_DB::scanPADs[] = { PCB_PAD_T, EOT };
 
+// "specctra reported units" are what we tell the external router that our
+// exported lengths are in.
+
 
 /**
  * Function scale
- * converts a distance from KiCad units to our reported specctra dsn units:
- * 1/10000 inches (deci-mils) to mils.  So the factor of 10 comes in.
+ * converts a distance from PCBNEW internal units to the reported specctra dsn units
+ * in floating point format.
  */
 static inline double scale( int kicadDist )
 {
+#if defined(USE_PCBNEW_NANOMETRES)
+
+    // nanometers to um
+    return kicadDist / ( IU_PER_MM / 1000.0 );
+
+    // nanometers to mils
+    // return kicadDist/IU_PER_MILS;
+
+#else
+    // deci-mils to mils.
     return kicadDist/10.0;
+#endif
 }
+
+/// Convert integer internal units to float um
+static inline double IU2um( int kicadDist )
+{
+    return kicadDist  * (1000.0 / IU_PER_MM);
+}
+
 
 static inline double mapX( int x )
 {
@@ -212,13 +234,24 @@ static DRAWSEGMENT* findPoint( const wxPoint& aPoint, TYPE_COLLECTOR* items )
 
         wxASSERT( graphic->Type() == PCB_LINE_T );
 
-        if( aPoint == graphic->GetStart() || aPoint == graphic->GetEnd() )
+        switch( graphic->GetShape() )
         {
-            items->Remove(i);
-            return graphic;
+        case S_ARC:
+            if( aPoint == graphic->GetArcStart() || aPoint == graphic->GetArcEnd() )
+            {
+                items->Remove(i);
+                return graphic;
+            }
+            break;
+
+        default:
+            if( aPoint == graphic->GetStart() || aPoint == graphic->GetEnd() )
+            {
+                items->Remove(i);
+                return graphic;
+            }
         }
     }
-
 
 #if defined(DEBUG)
     printf("Unable to find segment matching point (%d,%d)\n",
@@ -229,7 +262,7 @@ static DRAWSEGMENT* findPoint( const wxPoint& aPoint, TYPE_COLLECTOR* items )
         DRAWSEGMENT* graphic = (DRAWSEGMENT*) (*items)[i];
 
         printf( "type=%s, GetStart()=%d,%d  GetEnd()=%d,%d\n",
-                TO_UTF8( BOARD_ITEM::ShowShape( (Track_Shapes)graphic->m_Shape ) ),
+                TO_UTF8( BOARD_ITEM::ShowShape( (STROKE_T) graphic->GetShape() ) ),
                 graphic->GetStart().x,
                 graphic->GetStart().y,
                 graphic->GetEnd().x,
@@ -248,12 +281,12 @@ static DRAWSEGMENT* findPoint( const wxPoint& aPoint, TYPE_COLLECTOR* items )
  */
 static bool isRoundKeepout( D_PAD* aPad )
 {
-    if( aPad->m_PadShape==PAD_CIRCLE )
+    if( aPad->GetShape()==PAD_CIRCLE )
     {
-        if( aPad->m_Drill.x >= aPad->m_Size.x )
+        if( aPad->GetDrillSize().x >= aPad->GetSize().x )
             return true;
 
-        if( (aPad->m_layerMask & ALL_CU_LAYERS) == 0 )
+        if( (aPad->GetLayerMask() & ALL_CU_LAYERS) == 0 )
             return true;
     }
 
@@ -291,7 +324,7 @@ PADSTACK* SPECCTRA_DB::makePADSTACK( BOARD* aBoard, D_PAD* aPad )
 
     uniqifier = '[';
 
-    bool onAllCopperLayers = ( (aPad->m_layerMask & ALL_CU_LAYERS) == ALL_CU_LAYERS );
+    bool onAllCopperLayers = ( (aPad->GetLayerMask() & ALL_CU_LAYERS) == ALL_CU_LAYERS );
 
     if( onAllCopperLayers )
         uniqifier += 'A';               // A for all layers
@@ -321,11 +354,11 @@ PADSTACK* SPECCTRA_DB::makePADSTACK( BOARD* aBoard, D_PAD* aPad )
 
     POINT   dsnOffset;
 
-    if( aPad->m_Offset.x || aPad->m_Offset.y )
+    if( aPad->GetOffset().x || aPad->GetOffset().y )
     {
         char offsetTxt[64];
 
-        wxPoint offset( aPad->m_Offset.x, aPad->m_Offset.y );
+        wxPoint offset( aPad->GetOffset().x, aPad->GetOffset().y );
 
         dsnOffset = mapPt( offset );
 
@@ -336,12 +369,12 @@ PADSTACK* SPECCTRA_DB::makePADSTACK( BOARD* aBoard, D_PAD* aPad )
         uniqifier += offsetTxt;
     }
 
-    switch( aPad->m_PadShape )
+    switch( aPad->GetShape() )
     {
     default:
     case PAD_CIRCLE:
         {
-            double  diameter = scale(aPad->m_Size.x);
+            double  diameter = scale(aPad->GetSize().x);
 
             for( int ndx=0;  ndx<reportedLayers;  ++ndx )
             {
@@ -356,8 +389,9 @@ PADSTACK* SPECCTRA_DB::makePADSTACK( BOARD* aBoard, D_PAD* aPad )
                 circle->SetVertex( dsnOffset );
             }
 
-            snprintf( name, sizeof(name), "Round%sPad_%.6g_mil",
-                     uniqifier.c_str(), scale(aPad->m_Size.x) );
+            snprintf( name, sizeof(name), "Round%sPad_%.6g_um",
+                     uniqifier.c_str(), IU2um( aPad->GetSize().x ) );
+
             name[ sizeof(name)-1 ] = 0;
 
             padstack->SetPadstackId( name );
@@ -366,8 +400,8 @@ PADSTACK* SPECCTRA_DB::makePADSTACK( BOARD* aBoard, D_PAD* aPad )
 
     case PAD_RECT:
         {
-            double dx = scale( aPad->m_Size.x ) / 2.0;
-            double dy = scale( aPad->m_Size.y ) / 2.0;
+            double dx = scale( aPad->GetSize().x ) / 2.0;
+            double dy = scale( aPad->GetSize().y ) / 2.0;
 
             POINT   lowerLeft( -dx, -dy );
             POINT   upperRight( dx, dy );
@@ -387,8 +421,11 @@ PADSTACK* SPECCTRA_DB::makePADSTACK( BOARD* aBoard, D_PAD* aPad )
                 rect->SetCorners( lowerLeft, upperRight );
             }
 
-            snprintf( name, sizeof(name),  "Rect%sPad_%.6gx%.6g_mil",
-                     uniqifier.c_str(), scale(aPad->m_Size.x), scale(aPad->m_Size.y)  );
+            snprintf( name, sizeof(name),  "Rect%sPad_%.6gx%.6g_um",
+                     uniqifier.c_str(),
+                     IU2um( aPad->GetSize().x ),
+                     IU2um( aPad->GetSize().y ) );
+
             name[ sizeof(name)-1 ] = 0;
 
             padstack->SetPadstackId( name );
@@ -397,8 +434,8 @@ PADSTACK* SPECCTRA_DB::makePADSTACK( BOARD* aBoard, D_PAD* aPad )
 
     case PAD_OVAL:
         {
-            double  dx = scale( aPad->m_Size.x ) / 2.0;
-            double  dy = scale( aPad->m_Size.y ) / 2.0;
+            double  dx = scale( aPad->GetSize().x ) / 2.0;
+            double  dy = scale( aPad->GetSize().y ) / 2.0;
             double  dr = dx - dy;
             double  radius;
             POINT   start;
@@ -435,8 +472,10 @@ PADSTACK* SPECCTRA_DB::makePADSTACK( BOARD* aBoard, D_PAD* aPad )
                 path->aperture_width = 2.0 * radius;
             }
 
-            snprintf( name, sizeof(name),  "Oval%sPad_%.6gx%.6g_mil",
-                     uniqifier.c_str(), scale(aPad->m_Size.x), scale(aPad->m_Size.y)  );
+            snprintf( name, sizeof(name),  "Oval%sPad_%.6gx%.6g_um",
+                     uniqifier.c_str(),
+                     IU2um( aPad->GetSize().x ),
+                     IU2um( aPad->GetSize().y ) );
             name[ sizeof(name)-1 ] = 0;
 
             padstack->SetPadstackId( name );
@@ -445,11 +484,11 @@ PADSTACK* SPECCTRA_DB::makePADSTACK( BOARD* aBoard, D_PAD* aPad )
 
     case PAD_TRAPEZOID:
         {
-            double dx = scale( aPad->m_Size.x ) / 2.0;
-            double dy = scale( aPad->m_Size.y ) / 2.0;
+            double dx = scale( aPad->GetSize().x ) / 2.0;
+            double dy = scale( aPad->GetSize().y ) / 2.0;
 
-            double ddx = scale( aPad->m_DeltaSize.x ) / 2.0;
-            double ddy = scale( aPad->m_DeltaSize.y ) / 2.0;
+            double ddx = scale( aPad->GetDelta().x ) / 2.0;
+            double ddy = scale( aPad->GetDelta().y ) / 2.0;
 
             // see class_pad_draw_functions.cpp which draws the trapezoid pad
             POINT   lowerLeft(  -dx - ddy, -dy - ddx );
@@ -479,15 +518,15 @@ PADSTACK* SPECCTRA_DB::makePADSTACK( BOARD* aBoard, D_PAD* aPad )
                 polygon->AppendPoint( lowerRight );
             }
 
-            D(printf( "m_DeltaSize: %d,%d\n", aPad->m_DeltaSize.x, aPad->m_DeltaSize.y );)
+            D(printf( "m_DeltaSize: %d,%d\n", aPad->GetDelta().x, aPad->GetDelta().y );)
 
             // this string _must_ be unique for a given physical shape
-            snprintf( name, sizeof(name), "Trapz%sPad_%.6gx%.6g_%c%.6gx%c%.6g_mil",
-                     uniqifier.c_str(), scale(aPad->m_Size.x), scale(aPad->m_Size.y),
-                     aPad->m_DeltaSize.x < 0 ? 'n' : 'p',
-                     abs( scale( aPad->m_DeltaSize.x )),
-                     aPad->m_DeltaSize.y < 0 ? 'n' : 'p',
-                     abs( scale( aPad->m_DeltaSize.y ))
+            snprintf( name, sizeof(name), "Trapz%sPad_%.6gx%.6g_%c%.6gx%c%.6g_um",
+                     uniqifier.c_str(), IU2um( aPad->GetSize().x ), IU2um( aPad->GetSize().y ),
+                     aPad->GetDelta().x < 0 ? 'n' : 'p',
+                     std::abs( IU2um( aPad->GetDelta().x )),
+                     aPad->GetDelta().y < 0 ? 'n' : 'p',
+                     std::abs( IU2um( aPad->GetDelta().y ) )
                      );
             name[ sizeof(name)-1 ] = 0;
 
@@ -501,7 +540,6 @@ PADSTACK* SPECCTRA_DB::makePADSTACK( BOARD* aBoard, D_PAD* aPad )
 
 
 /// data type used to ensure unique-ness of pin names, holding (wxString and int)
-//typedef std::map<wxString, int, wxString_less_than> PINMAP;
 typedef std::map<wxString, int> PINMAP;
 
 
@@ -527,8 +565,8 @@ IMAGE* SPECCTRA_DB::makeIMAGE( BOARD* aBoard, MODULE* aModule )
         // see if this pad is a through hole with no copper on its perimeter
         if( isRoundKeepout( pad ) )
         {
-            double  diameter = scale( pad->m_Drill.x );
-            POINT   vertex   = mapPt( pad->m_Pos0 );
+            double  diameter = scale( pad->GetDrillSize().x );
+            POINT   vertex   = mapPt( pad->GetPos0() );
 
             int layerCount = aBoard->GetCopperLayerCount();
             for( int layer=0;  layer<layerCount;  ++layer )
@@ -565,7 +603,7 @@ IMAGE* SPECCTRA_DB::makeIMAGE( BOARD* aBoard, MODULE* aModule )
 
             PIN*    pin = new PIN(image);
 
-            padName = pad->ReturnStringPadName();
+            padName = pad->GetPadName();
             pin->pin_id  = TO_UTF8( padName );
 
             if( padName!=wxEmptyString && pinmap.find( padName )==pinmap.end() )
@@ -589,14 +627,14 @@ IMAGE* SPECCTRA_DB::makeIMAGE( BOARD* aBoard, MODULE* aModule )
 
             pin->padstack_id = padstack->padstack_id;
 
-            int angle = pad->m_Orient - aModule->m_Orient;   // tenths of degrees
+            int angle = pad->GetOrientation() - aModule->GetOrientation();   // tenths of degrees
             if( angle )
             {
                 NORMALIZE_ANGLE_POS(angle);
                 pin->SetRotation( angle / 10.0 );
             }
 
-            wxPoint pos( pad->m_Pos0 );
+            wxPoint pos( pad->GetPos0() );
 
             pin->SetVertex( mapPt( pos )  );
         }
@@ -614,17 +652,17 @@ IMAGE* SPECCTRA_DB::makeIMAGE( BOARD* aBoard, MODULE* aModule )
         SHAPE*          outline;
         PATH*           path;
 
-        switch( graphic->m_Shape )
+        switch( graphic->GetShape() )
         {
         case S_SEGMENT:
             outline = new SHAPE( image, T_outline );
             image->Append( outline );
             path = new PATH( outline );
             outline->SetShape( path );
-            path->SetAperture( scale( graphic->m_Width ) );
+            path->SetAperture( scale( graphic->GetWidth() ) );
             path->SetLayerId( "signal" );
-            path->AppendPoint( mapPt( graphic->m_Start0 ) );
-            path->AppendPoint( mapPt( graphic->m_End0 ) );
+            path->AppendPoint( mapPt( graphic->GetStart0() ) );
+            path->AppendPoint( mapPt( graphic->GetEnd0() ) );
             break;
 
         case S_CIRCLE:
@@ -636,7 +674,7 @@ IMAGE* SPECCTRA_DB::makeIMAGE( BOARD* aBoard, MODULE* aModule )
                 image->Append( outline );
                 path = new PATH( outline );
                 outline->SetShape( path );
-                path->SetAperture( scale( graphic->m_Width ) );
+                path->SetAperture( scale( graphic->GetWidth() ) );
                 path->SetLayerId( "signal" );
 
                 // Do the math using KiCad units, that way we stay out of the
@@ -645,8 +683,8 @@ IMAGE* SPECCTRA_DB::makeIMAGE( BOARD* aBoard, MODULE* aModule )
                 // lexer/beautifier, and the spec is not clear that this is
                 // required.  Fixed point floats are all that should be needed.
 
-                double  radius = hypot( double( graphic->m_Start.x - graphic->m_End.x ),
-                                        double( graphic->m_Start.y - graphic->m_End.y ) );
+                double  radius = hypot( double( graphic->GetStart().x - graphic->GetEnd().x ),
+                                        double( graphic->GetStart().y - graphic->GetEnd().y ) );
 
                 // better if evenly divisible into 360
                 const int DEGREE_INTERVAL = 18;         // 18 means 20 line segments
@@ -667,7 +705,7 @@ IMAGE* SPECCTRA_DB::makeIMAGE( BOARD* aBoard, MODULE* aModule )
         case S_ARC:
         default:
             D( printf("makeIMAGE(): unsupported shape %s\n",
-                      TO_UTF8( BOARD_ITEM::ShowShape( (Track_Shapes)graphic->m_Shape))  );)
+                      TO_UTF8( BOARD_ITEM::ShowShape( (STROKE_T) graphic->GetShape() ))  );)
             continue;
         }
     }
@@ -697,10 +735,10 @@ PADSTACK* SPECCTRA_DB::makeVia( int aCopperDiameter, int aDrillDiameter,
         circle->SetLayerId( layerIds[layer].c_str() );
     }
 
-    snprintf( name, sizeof(name),  "Via[%d-%d]_%.6g:%.6g_mil",
+    snprintf( name, sizeof(name),  "Via[%d-%d]_%.6g:%.6g_um",
              aTopLayer, aBotLayer, dsnDiameter,
              // encode the drill value into the name for later import
-             scale( aDrillDiameter )
+             IU2um( aDrillDiameter )
              );
 
     name[ sizeof(name)-1 ] = 0;
@@ -723,42 +761,35 @@ PADSTACK* SPECCTRA_DB::makeVia( const SEGVIA* aVia )
     if( topLayer > botLayer )
         EXCHG( topLayer, botLayer );
 
-    return makeVia( aVia->m_Width, aVia->GetDrillValue(), topLayer, botLayer );
+    return makeVia( aVia->GetWidth(), aVia->GetDrillValue(), topLayer, botLayer );
 }
 
 
 void SPECCTRA_DB::fillBOUNDARY( BOARD* aBoard, BOUNDARY* boundary ) throw( IO_ERROR )
 {
-    TYPE_COLLECTOR          items;
+    TYPE_COLLECTOR  items;
 
     // get all the DRAWSEGMENTS into 'items', then look for layer == EDGE_N,
     // and those segments comprise the board's perimeter.
 
-    static const KICAD_T  scanDRAWSEGMENTS[] = { PCB_LINE_T, EOT };
+    static const KICAD_T  scan_graphics[] = { PCB_LINE_T, PCB_MODULE_EDGE_T, EOT };
 
-    items.Collect( aBoard, scanDRAWSEGMENTS );
-
-    bool haveEdges = false;
+    items.Collect( aBoard, scan_graphics );
 
     for( int i=0;  i<items.GetCount();  )
     {
-        DRAWSEGMENT* item = (DRAWSEGMENT*) items[i];
-
-        wxASSERT( item->Type() == PCB_LINE_T );
-
-        if( item->GetLayer() != EDGE_N )
+        if( items[i]->GetLayer() != EDGE_N )
         {
             items.Remove( i );
         }
-        else
+        else    // remove graphics not on EDGE_N layer
         {
-            haveEdges = true;
             ++i;
-            D( item->Show( 0, std::cout );)
+            D( items[i]->Show( 0, std::cout );)
         }
     }
 
-    if( haveEdges )
+    if( items.GetCount() )
     {
         PATH*  path = new PATH( boundary );
         boundary->paths.push_back( path );
@@ -778,7 +809,7 @@ void SPECCTRA_DB::fillBOUNDARY( BOARD* aBoard, BOUNDARY* boundary ) throw( IO_ER
 
         for(;;)
         {
-            switch( graphic->m_Shape )
+            switch( graphic->GetShape() )
             {
             case S_SEGMENT:
                 {
@@ -807,14 +838,14 @@ void SPECCTRA_DB::fillBOUNDARY( BOARD* aBoard, BOUNDARY* boundary ) throw( IO_ER
                 {
                     const int STEPS =  9;      // in an arc of 90 degrees
 
-                    wxPoint start  = graphic->GetStart();
-                    wxPoint end    = graphic->GetEnd();
-                    wxPoint center = graphic->m_Start;
-                    int     angle  = -graphic->m_Angle;
+                    wxPoint start  = graphic->GetArcStart();
+                    wxPoint end    = graphic->GetArcEnd();
+                    wxPoint center = graphic->GetCenter();
+                    double  angle  = -graphic->GetAngle();
 
                     if( prevPt != start )
                     {
-                        wxASSERT( prevPt == graphic->GetEnd() );
+                        wxASSERT( prevPt == graphic->GetArcEnd() );
 
                         angle = -angle;
                         EXCHG( start, end );
@@ -824,7 +855,7 @@ void SPECCTRA_DB::fillBOUNDARY( BOARD* aBoard, BOUNDARY* boundary ) throw( IO_ER
 
                     for( int step=1;  step<=STEPS;  ++step )
                     {
-                        int rotation = ( angle * step )/STEPS;
+                        double rotation = ( angle * step )/STEPS;
 
                         nextPt = start;
 
@@ -858,7 +889,7 @@ void SPECCTRA_DB::fillBOUNDARY( BOARD* aBoard, BOUNDARY* boundary ) throw( IO_ER
                     wxString error;
 
                     error.Printf( _("Unsupported DRAWSEGMENT type %s"),
-                        GetChars( BOARD_ITEM::ShowShape( (Track_Shapes) graphic->m_Shape ) ) );
+                        GetChars( BOARD_ITEM::ShowShape( (STROKE_T) graphic->GetShape() ) ) );
 
                     ThrowIOError( error );
                 }
@@ -890,7 +921,7 @@ void SPECCTRA_DB::fillBOUNDARY( BOARD* aBoard, BOUNDARY* boundary ) throw( IO_ER
     }
     else
     {
-        aBoard->ComputeBoundingBox();
+        EDA_RECT bbbox = aBoard->ComputeBoundingBox();
 
         RECTANGLE*  rect = new RECTANGLE( boundary );
         boundary->rectangle = rect;
@@ -898,11 +929,9 @@ void SPECCTRA_DB::fillBOUNDARY( BOARD* aBoard, BOUNDARY* boundary ) throw( IO_ER
         rect->layer_id = "pcb";
 
         // opposite corners
-        wxPoint bottomRight;
-        bottomRight.x = aBoard->m_BoundaryBox.GetRight();
-        bottomRight.y = aBoard->m_BoundaryBox.GetBottom();
+        wxPoint bottomRight( bbbox.GetRight(), bbbox.GetBottom() );
 
-        rect->SetCorners( mapPt( aBoard->m_BoundaryBox.GetOrigin() ),
+        rect->SetCorners( mapPt( bbbox.GetOrigin() ),
                           mapPt( bottomRight ) );
     }
 }
@@ -995,6 +1024,18 @@ void SPECCTRA_DB::FromBOARD( BOARD* aBoard ) throw( IO_ERROR )
 
     //-----<unit_descriptor> & <resolution_descriptor>--------------------
     {
+
+#if defined(USE_PCBNEW_NANOMETRES)
+        // tell freerouter to use "tenths of micrometers",
+        // which is 100 nm resolution.  Possibly more resolution is possible
+        // in freerouter, but it would need testing.
+
+        pcb->unit->units = T_um;
+        pcb->resolution->units = T_um;
+        pcb->resolution->value = 10;        // tenths of a um
+        // pcb->resolution->value = 1000;   // "thousandths of a um" (i.e. "nm")
+
+#else
         pcb->unit->units = T_mil;
         pcb->resolution->units = T_mil;
 
@@ -1004,8 +1045,8 @@ void SPECCTRA_DB::FromBOARD( BOARD* aBoard ) throw( IO_ERROR )
         // resolution precisely at 1/10th for now.  For more on this, see:
         // http://www.freerouting.net/usren/viewtopic.php?f=3&t=354
         pcb->resolution->value = 10;
+#endif
     }
-
 
     //-----<boundary_descriptor>------------------------------------------
     {
@@ -1087,7 +1128,8 @@ void SPECCTRA_DB::FromBOARD( BOARD* aBoard ) throw( IO_ERROR )
     }
 
 
-    //-----<zone containers become planes>--------------------------------
+    //-----<zone containers (not keepout areas) become planes>--------------------------------
+    // Note: only zones are output here, keepout areas be be created later
     {
         int netlessZones = 0;
 
@@ -1098,13 +1140,16 @@ void SPECCTRA_DB::FromBOARD( BOARD* aBoard ) throw( IO_ERROR )
         {
             ZONE_CONTAINER* item = (ZONE_CONTAINER*) items[i];
 
+            if( item->GetIsKeepout() )
+                continue;
+
             COPPER_PLANE*   plane = new COPPER_PLANE( pcb->structure );
             pcb->structure->planes.push_back( plane );
 
             PATH*           mainPolygon = new PATH( plane, T_polygon );
             plane->SetShape( mainPolygon );
 
-            plane->name = TO_UTF8( item->m_Netname );
+            plane->name = TO_UTF8( item->GetNetName() );
 
             if( plane->name.size() == 0 )
             {
@@ -1126,16 +1171,16 @@ void SPECCTRA_DB::FromBOARD( BOARD* aBoard ) throw( IO_ERROR )
 
             mainPolygon->layer_id = layerIds[ kicadLayer2pcb[ item->GetLayer() ] ];
 
-            int count = item->m_Poly->corner.size();
+            int count = item->m_Poly->m_CornersList.size();
             int ndx = 0;  // used in 2 for() loops below
             for( ; ndx<count; ++ndx )
             {
-                wxPoint   point( item->m_Poly->corner[ndx].x,
-                                 item->m_Poly->corner[ndx].y );
+                wxPoint   point( item->m_Poly->m_CornersList[ndx].x,
+                                 item->m_Poly->m_CornersList[ndx].y );
                 mainPolygon->AppendPoint( mapPt(point) );
 
                 // this was the end of the main polygon
-                if( item->m_Poly->corner[ndx].end_contour )
+                if( item->m_Poly->m_CornersList[ndx].end_contour )
                     break;
             }
 
@@ -1145,7 +1190,7 @@ void SPECCTRA_DB::FromBOARD( BOARD* aBoard ) throw( IO_ERROR )
             // handle the cutouts
             for( ++ndx; ndx<count; ++ndx )
             {
-                if( item->m_Poly->corner[ndx-1].end_contour )
+                if( item->m_Poly->m_CornersList[ndx-1].end_contour )
                 {
                     window = new WINDOW( plane );
                     plane->AddWindow( window );
@@ -1159,14 +1204,87 @@ void SPECCTRA_DB::FromBOARD( BOARD* aBoard ) throw( IO_ERROR )
                 wxASSERT( window );
                 wxASSERT( cutout );
 
-                wxPoint point(item->m_Poly->corner[ndx].x,
-                              item->m_Poly->corner[ndx].y );
+                wxPoint point(item->m_Poly->m_CornersList[ndx].x,
+                              item->m_Poly->m_CornersList[ndx].y );
                 cutout->AppendPoint( mapPt(point) );
             }
         }
     }
 
-    // keepouts could go here, there are none in Kicad at this time.
+    //-----<zone containers flagged keepout areas become keepout>--------------------------------
+    {
+        static const KICAD_T  scanZONEs[] = { PCB_ZONE_AREA_T, EOT };
+        items.Collect( aBoard, scanZONEs );
+
+        for( int i=0;  i<items.GetCount();  ++i )
+        {
+            ZONE_CONTAINER* item = (ZONE_CONTAINER*) items[i];
+
+            if( ! item->GetIsKeepout() )
+                continue;
+
+            // keepout areas have a type. types are
+            // T_place_keepout, T_via_keepout, T_wire_keepout,
+            // T_bend_keepout, T_elongate_keepout, T_keepout.
+            // Pcbnew knows only T_keepout, T_via_keepout and T_wire_keepout
+            DSN_T keepout_type;
+
+            if( item->GetDoNotAllowVias() && item->GetDoNotAllowTracks() )
+                keepout_type = T_keepout;
+            else if( item->GetDoNotAllowVias() )
+                keepout_type = T_via_keepout;
+            else if( item->GetDoNotAllowTracks() )
+                keepout_type = T_wire_keepout;
+            else
+                keepout_type = T_keepout;
+
+            KEEPOUT*   keepout = new KEEPOUT( pcb->structure, keepout_type );
+            pcb->structure->keepouts.push_back( keepout );
+
+            PATH* mainPolygon = new PATH( keepout, T_polygon );
+            keepout->SetShape( mainPolygon );
+
+            mainPolygon->layer_id = layerIds[ kicadLayer2pcb[ item->GetLayer() ] ];
+
+            int count = item->m_Poly->m_CornersList.size();
+            int ndx = 0;  // used in 2 for() loops below
+            for( ; ndx<count; ++ndx )
+            {
+                wxPoint   point( item->m_Poly->m_CornersList[ndx].x,
+                                 item->m_Poly->m_CornersList[ndx].y );
+                mainPolygon->AppendPoint( mapPt(point) );
+
+                // this was the end of the main polygon
+                if( item->m_Poly->m_CornersList[ndx].end_contour )
+                    break;
+            }
+
+            WINDOW* window = 0;
+            PATH*   cutout = 0;
+
+            // handle the cutouts
+            for( ++ndx; ndx<count; ++ndx )
+            {
+                if( item->m_Poly->m_CornersList[ndx-1].end_contour )
+                {
+                    window = new WINDOW( keepout );
+                    keepout->AddWindow( window );
+
+                    cutout = new PATH( window, T_polygon );
+                    window->SetShape( cutout );
+
+                    cutout->layer_id = layerIds[ kicadLayer2pcb[ item->GetLayer() ] ];
+                }
+
+                wxASSERT( window );
+                wxASSERT( cutout );
+
+                wxPoint point(item->m_Poly->m_CornersList[ndx].x,
+                              item->m_Poly->m_CornersList[ndx].y );
+                cutout->AppendPoint( mapPt(point) );
+            }
+        }
+    }
 
     //-----<build the images, components, and netlist>-----------------------
     {
@@ -1174,7 +1292,7 @@ void SPECCTRA_DB::FromBOARD( BOARD* aBoard ) throw( IO_ERROR )
         std::string componentId;
 
         // find the highest numbered netCode within the board.
-        int highestNetCode = aBoard->m_NetInfo->GetCount() - 1;
+        int highestNetCode = aBoard->GetNetCount() - 1;
         deleteNETs();
 
         // expand the net vector to highestNetCode+1, setting empty to NULL
@@ -1184,9 +1302,9 @@ void SPECCTRA_DB::FromBOARD( BOARD* aBoard ) throw( IO_ERROR )
         for( unsigned i=1;  i<nets.size();  ++i )
             nets[i] = new NET( pcb->network );
 
-        for( unsigned ii = 0;  ii < aBoard->m_NetInfo->GetCount(); ii++ )
+        for( unsigned ii = 0;  ii < aBoard->GetNetCount(); ii++ )
         {
-            NETINFO_ITEM* net = aBoard->m_NetInfo->GetNetItem(ii);
+            NETINFO_ITEM* net = aBoard->FindNet(ii);
             int netcode = net->GetNet();
             if( netcode > 0 )
                 nets[ netcode ]->net_id = TO_UTF8( net->GetNetname() );
@@ -1246,7 +1364,7 @@ void SPECCTRA_DB::FromBOARD( BOARD* aBoard ) throw( IO_ERROR )
             PLACE* place = new PLACE( comp );
             comp->places.push_back( place );
 
-            place->SetRotation( module->m_Orient/10.0 );
+            place->SetRotation( module->GetOrientation()/10.0 );
             place->SetVertex( mapPt( module->m_Pos ) );
             place->component_id = componentId;
             place->part_number  = TO_UTF8( module->GetValue() );
@@ -1254,7 +1372,7 @@ void SPECCTRA_DB::FromBOARD( BOARD* aBoard ) throw( IO_ERROR )
             // module is flipped from bottom side, set side to T_back
             if( module->flag )
             {
-                int angle = 1800 - module->m_Orient;
+                int angle = 1800 - module->GetOrientation();
                 NORMALIZE_ANGLE_POS(angle);
                 place->SetRotation( angle/10.0 );
 
@@ -1368,12 +1486,12 @@ void SPECCTRA_DB::FromBOARD( BOARD* aBoard ) throw( IO_ERROR )
                 continue;
 
             if( old_netcode != netcode
-            ||  old_width   != track->m_Width
+            ||  old_width   != track->GetWidth()
             ||  old_layer   != track->GetLayer()
-            ||  (path && path->points.back() != mapPt(track->m_Start) )
+            ||  (path && path->points.back() != mapPt(track->GetStart()) )
               )
             {
-                old_width   = track->m_Width;
+                old_width   = track->GetWidth();
                 old_layer   = track->GetLayer();
 
                 if( old_netcode != netcode )
@@ -1399,10 +1517,10 @@ void SPECCTRA_DB::FromBOARD( BOARD* aBoard ) throw( IO_ERROR )
                 path->layer_id = layerIds[pcbLayer];
                 path->aperture_width = scale( old_width );
 
-                path->AppendPoint( mapPt( track->m_Start ) );
+                path->AppendPoint( mapPt( track->GetStart() ) );
             }
 
-            path->AppendPoint( mapPt( track->m_End ) );
+            path->AppendPoint( mapPt( track->GetEnd() ) );
         }
     }
 

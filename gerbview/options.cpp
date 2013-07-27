@@ -4,12 +4,12 @@
  */
 
 
-#include "fctsys.h"
-#include "common.h"
-#include "class_drawpanel.h"
+#include <fctsys.h>
+#include <common.h>
+#include <class_drawpanel.h>
 
-#include "gerbview.h"
-#include "gerbview_id.h"
+#include <gerbview.h>
+#include <gerbview_id.h>
 
 
 /**
@@ -28,49 +28,30 @@ void GERBVIEW_FRAME::OnSelectOptionToolbar( wxCommandEvent& event )
             break;
 
         default:
-            state = m_OptionsToolBar->GetToolState( id );
+            state = m_optionsToolBar->GetToolToggled( id );
             break;
     }
 
     switch( id )
     {
     case ID_TB_OPTIONS_SHOW_FLASHED_ITEMS_SKETCH:
-        if( state )
-        {
-            DisplayOpt.DisplayPadFill = m_DisplayPadFill = false;
-        }
-        else
-        {
-            DisplayOpt.DisplayPadFill = m_DisplayPadFill = true;
-        }
-        DrawPanel->Refresh( true );
+        m_DisplayOptions.m_DisplayFlashedItemsFill = not state;
+        m_canvas->Refresh( true );
         break;
 
     case ID_TB_OPTIONS_SHOW_LINES_SKETCH:
-        if(state )
-        {
-            m_DisplayPcbTrackFill = false;
-            DisplayOpt.DisplayPcbTrackFill = false;
-        }
-        else
-        {
-            m_DisplayPcbTrackFill = true;
-            DisplayOpt.DisplayPcbTrackFill = true;
-        }
-        DrawPanel->Refresh( true );
+        m_DisplayOptions.m_DisplayLinesFill = not state;
+        m_canvas->Refresh( true );
         break;
 
     case ID_TB_OPTIONS_SHOW_POLYGONS_SKETCH:
-        if( state )      // Polygons filled asked
-            g_DisplayPolygonsModeSketch = 1;
-        else
-            g_DisplayPolygonsModeSketch = 0;
-        DrawPanel->Refresh( true );
+        m_DisplayOptions.m_DisplayPolygonsFill = not state;
+        m_canvas->Refresh( true );
         break;
 
     case ID_TB_OPTIONS_SHOW_DCODES:
         SetElementVisibility( DCODES_VISIBLE, state );
-        DrawPanel->Refresh( true );
+        m_canvas->Refresh( true );
         break;
 
     case ID_TB_OPTIONS_SHOW_LAYERS_MANAGER_VERTICAL_TOOLBAR:
@@ -84,7 +65,7 @@ void GERBVIEW_FRAME::OnSelectOptionToolbar( wxCommandEvent& event )
         break;
 
     default:
-        wxMessageBox( wxT( "WinEDA_PcbFrame::OnSelectOptionToolbar error" ) );
+        wxMessageBox( wxT( "GERBVIEW_FRAME::OnSelectOptionToolbar error" ) );
         break;
     }
 }

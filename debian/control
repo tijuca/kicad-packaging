@@ -1,10 +1,14 @@
 Source: kicad
 Section: electronics
 Priority: optional
-Maintainer:  Georges Khaznadar <georgesk@ofset.org>
-Uploaders: Richard Antony Burton <richardaburton@gmail.com>, Daniel J. Priem <danielpriem@flexserv.de>
-Build-Depends: debhelper (>= 7.0.50~), quilt, libx11-dev, libglu1-mesa-dev, libgl1-mesa-dev, mesa-common-dev, libwxbase2.8-dev, libwxgtk2.8-dev, libboost-dev, cmake (>= 2.6.0)
-Standards-Version: 3.9.3
+Maintainer:  Georges Khaznadar <georgesk@debian.org>
+Uploaders: Richard Antony Burton <richardaburton@gmail.com>,
+ Daniel J. Priem <danielpriem@flexserv.de>
+Build-Depends: debhelper (>= 9), quilt, libx11-dev,
+ libglu1-mesa-dev, libgl1-mesa-dev, mesa-common-dev,
+ libwxbase2.8-dev, libwxgtk2.8-dev, libboost-dev,
+ cmake (>= 2.6.0)
+Standards-Version: 3.9.4
 Homepage: http://iut-tice.ujf-grenoble.fr/kicad/
 
 Package: kicad
