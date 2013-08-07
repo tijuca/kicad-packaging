@@ -1,3 +1,12 @@
+kicad (0.20130727+bzr4024-2) unstable; urgency=low
+
+  * modified the homepage in d/control. Closes: #713858
+  * modified ./scripts/kicad-get-rss to remove bashisms. Closes: #690645
+  * modified d/kicad-common.install to fix forgotten libraries.
+    Closes: #719530
+
+ -- Georges Khaznadar <georgesk@debian.org>  Wed, 07 Aug 2013 11:19:25 +0200
+
 kicad (0.20130727+bzr4024-1) unstable; urgency=low
 
   * upgraded to the last revision. Closes: #694740
