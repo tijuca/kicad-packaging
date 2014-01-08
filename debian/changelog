@@ -1,3 +1,14 @@
+kicad (0.20131208+bzr4024-1) unstable; urgency=medium
+
+  * scheduled the installation of doc/internat into usr/share/kicad.
+    Closes: #734552
+  * upgraded Standards-Version to 3.9.5
+  * Upgraded to the newest upstream release. Closes: #712303
+  * The script debian/get-kicad.sh makes easier to fetch newer source files
+    Closes: #713861
+
+ -- Georges Khaznadar <georgesk@debian.org>  Wed, 08 Jan 2014 17:25:14 +0100
+
 kicad (0.20130727+bzr4024-2) unstable; urgency=low
 
   * modified the homepage in d/control. Closes: #713858

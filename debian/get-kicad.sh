@@ -13,7 +13,7 @@ bzr export $origpackage         lp:kicad/stable
 echo "========== Getting the documents ========================="
 bzr export $origpackage/doc     lp:~kicad-developers/kicad/doc
 echo "========== Getting the libraries ========================="
-bzr export $origpackage/library lp:~kicad-lib-committers/kicad/library
+bzr export $origpackage/library lp:~kicad-testing-committers/kicad/library
 
 echo "========== Compressing the archive ======================="
 tar czf $origtargz $origpackage

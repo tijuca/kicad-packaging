@@ -1,4 +1,5 @@
 debian/tmp/usr/local/share usr
 library/library usr/share/kicad
 library/modules usr/share/kicad
+doc/internat usr/share/kicad
 bitmaps_png/sources/eeschema.svg usr/share/icons/hicolor/scalable/apps

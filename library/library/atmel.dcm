@@ -1,4 +1,4 @@
-EESchema-DOCLIB  Version 2.0  Date: 2013-04-13 13:28:03
+EESchema-DOCLIB  Version 2.0
 #
 $CMP AT89C2051-P
 D 89C2051, PDIP20, 2k Flash, 128B SRAM
@@ -630,6 +630,30 @@ K AVR 8bit Microcontroller MegaAVR
 F http://www.atmel.com/dyn/resources/prod_documents/doc8209.pdf
 $ENDCMP
 #
+$CMP ATMEGA16U4-A
+D ATMEGA16U4, TQFP44, 16K Flash, 1.25K SRAM, 512B EEPROM, USB2.0
+K AVR 8bit Microcontroller MegaAVR USB
+F http://www.atmel.com/Images/doc7766.pdf
+$ENDCMP
+#
+$CMP ATMEGA16U4-M
+D ATMEGA16U4, QFN44, 16K Flash, 1.25K SRAM, 512B EEPROM, USB2.0
+K AVR 8bit Microcontroller MegaAVR USB
+F http://www.atmel.com/Images/doc7766.pdf
+$ENDCMP
+#
+$CMP ATMEGA16U4RC-A
+D ATMEGA16U4RC, TQFP44, 16K Flash, 1.25K SRAM, 512B EEPROM, USB2.0, RC Osc
+K AVR 8bit Microcontroller MegaAVR USB
+F http://www.atmel.com/Images/doc7766.pdf
+$ENDCMP
+#
+$CMP ATMEGA16U4RC-M
+D ATMEGA16U4RC, QFN44, 16K Flash, 1.25K SRAM, 512B EEPROM, USB2.0, RC Osc
+K AVR 8bit Microcontroller MegaAVR USB
+F http://www.atmel.com/Images/doc7766.pdf
+$ENDCMP
+#
 $CMP ATMEGA2560-A
 D ATMEGA2560, TQFP100, 256k Flash, 8k SRAM, 4k EEPROM, JTAG
 K AVR 8bit Microcontroller MegaAVR
@@ -899,9 +923,33 @@ D 8-Bit AVR Microcontroller with 32K Bytes of ISP Flash and USB Controller
 K Microcontroller, ATmega32U4
 $ENDCMP
 #
+$CMP ATMEGA32U4-A
+D ATMEGA32U4, TQFP44, 32K Flash, 2.5K SRAM, 1K EEPROM, USB2.0
+K AVR 8bit Microcontroller MegaAVR USB
+F http://www.atmel.com/Images/doc7766.pdf
+$ENDCMP
+#
 $CMP ATMEGA32U4-AU
 D 8-Bit AVR Microcontroller with 32K Bytes of ISP Flash and USB Controller
 K Microcontroller, ATmega32U4-AU
+$ENDCMP
+#
+$CMP ATMEGA32U4-M
+D ATMEGA32U4, QFN44, 32K Flash, 2.5K SRAM, 1K EEPROM, USB2.0
+K AVR 8bit Microcontroller MegaAVR USB
+F http://www.atmel.com/Images/doc7766.pdf
+$ENDCMP
+#
+$CMP ATMEGA32U4RC-A
+D ATMEGA32U4RC, TQFP44, 32K Flash, 2.5K SRAM, 1K EEPROM, USB2.0
+K AVR 8bit Microcontroller MegaAVR USB
+F http://www.atmel.com/Images/doc7766.pdf
+$ENDCMP
+#
+$CMP ATMEGA32U4RC-M
+D ATMEGA32U4RC, QFN44, 32K Flash, 2.5K SRAM, 1K EEPROM, USB2.0
+K AVR 8bit Microcontroller MegaAVR USB
+F http://www.atmel.com/Images/doc7766.pdf
 $ENDCMP
 #
 $CMP ATMEGA48-A
@@ -2188,6 +2236,24 @@ K AVR 8/16bit Microcontroller XMegaAVR
 F http://www.atmel.com/Images/doc8135.pdf
 $ENDCMP
 #
+$CMP ATXMEGA16E5-A
+D ATXMEGA16E5, TQFP32, 16k Flash, 4k Boot, 2k SRAM, 512B EEPROM
+K AVR 8/16bit Microcontroller XMegaAVR
+F http://www.atmel.com/Images/Atmel-8153-8-and-16-bit-AVR-Microcontroller-XMEGA-E-ATxmega8E5-ATxmega16E5-ATxmega32E5_Datasheet.pdf
+$ENDCMP
+#
+$CMP ATXMEGA16E5-M4
+D ATXMEGA16E5, UQFN32, 16k Flash, 4k Boot, 2k SRAM, 512B EEPROM
+K AVR 8/16bit Microcontroller XMegaAVR
+F http://www.atmel.com/Images/Atmel-8153-8-and-16-bit-AVR-Microcontroller-XMEGA-E-ATxmega8E5-ATxmega16E5-ATxmega32E5_Datasheet.pdf
+$ENDCMP
+#
+$CMP ATXMEGA16E5-MU
+D ATXMEGA16E5, VQFN32, 16k Flash, 4k Boot, 2k SRAM, 512B EEPROM
+K AVR 8/16bit Microcontroller XMegaAVR
+F http://www.atmel.com/Images/Atmel-8153-8-and-16-bit-AVR-Microcontroller-XMEGA-E-ATxmega8E5-ATxmega16E5-ATxmega32E5_Datasheet.pdf
+$ENDCMP
+#
 $CMP ATXMEGA192A1-A
 D ATXMEGA192A1, TQFP100, 192k Flash, 8k Boot, 16k SRAM, 2k EEPROM, JTAG
 K AVR 8/16bit Microcontroller XMegaAVR
@@ -2368,6 +2434,24 @@ K AVR 8/16bit Microcontroller XMegaAVR
 F http://www.atmel.com/Images/doc8135.pdf
 $ENDCMP
 #
+$CMP ATXMEGA32E5-A
+D ATXMEGA32E5, TQFP32, 32k Flash, 4k Boot, 4k SRAM, 1k EEPROM
+K AVR 8/16bit Microcontroller XMegaAVR
+F http://www.atmel.com/Images/Atmel-8153-8-and-16-bit-AVR-Microcontroller-XMEGA-E-ATxmega8E5-ATxmega16E5-ATxmega32E5_Datasheet.pdf
+$ENDCMP
+#
+$CMP ATXMEGA32E5-M4
+D ATXMEGA32E5, UQFN32, 32k Flash, 4k Boot, 4k SRAM, 1k EEPROM
+K AVR 8/16bit Microcontroller XMegaAVR
+F http://www.atmel.com/Images/Atmel-8153-8-and-16-bit-AVR-Microcontroller-XMEGA-E-ATxmega8E5-ATxmega16E5-ATxmega32E5_Datasheet.pdf
+$ENDCMP
+#
+$CMP ATXMEGA32E5-MU
+D ATXMEGA32E5, VQFN32, 32k Flash, 4k Boot, 4k SRAM, 1k EEPROM
+K AVR 8/16bit Microcontroller XMegaAVR
+F http://www.atmel.com/Images/Atmel-8153-8-and-16-bit-AVR-Microcontroller-XMEGA-E-ATxmega8E5-ATxmega16E5-ATxmega32E5_Datasheet.pdf
+$ENDCMP
+#
 $CMP ATXMEGA384A1-A
 D ATXMEGA128A1, TQFP100, 384k Flash, 8k Boot, 32k SRAM, 4k EEPROM, JTAG
 K AVR 8/16bit Microcontroller XMegaAVR
@@ -2488,6 +2572,24 @@ K AVR 8/16bit Microcontroller XMegaAVR
 F http://www.atmel.com/Images/doc8135.pdf
 $ENDCMP
 #
+$CMP ATXMEGA8E5-A
+D ATXMEGA8E5, TQFP32, 8k Flash, 2k Boot, 1k SRAM, 512B EEPROM
+K AVR 8/16bit Microcontroller XMegaAVR
+F http://www.atmel.com/Images/Atmel-8153-8-and-16-bit-AVR-Microcontroller-XMEGA-E-ATxmega8E5-ATxmega16E5-ATxmega32E5_Datasheet.pdf
+$ENDCMP
+#
+$CMP ATXMEGA8E5-M4
+D ATXMEGA8E5, UQFN32, 8k Flash, 2k Boot, 1k SRAM, 512B EEPROM
+K AVR 8/16bit Microcontroller XMegaAVR
+F http://www.atmel.com/Images/Atmel-8153-8-and-16-bit-AVR-Microcontroller-XMEGA-E-ATxmega8E5-ATxmega16E5-ATxmega32E5_Datasheet.pdf
+$ENDCMP
+#
+$CMP ATXMEGA8E5-MU
+D ATXMEGA8E5, VQFN32, 8k Flash, 2k Boot, 1k SRAM, 512B EEPROM
+K AVR 8/16bit Microcontroller XMegaAVR
+F http://www.atmel.com/Images/Atmel-8153-8-and-16-bit-AVR-Microcontroller-XMEGA-E-ATxmega8E5-ATxmega16E5-ATxmega32E5_Datasheet.pdf
+$ENDCMP
+#
 $CMP AVR-ISP-10
 D Standard IDC10 Male Connector, ISP Kanda (STK200/300)
 K IDC10 Male Connector
@@ -2511,6 +2613,174 @@ $ENDCMP
 $CMP AVR-TPI-6
 D Standard IDC6 Male Connector, ATMEL TPI 6pin
 K IDC6 Male Connector
+$ENDCMP
+#
+$CMP SAMD20E14A-A
+D SAMD20E14A-A, TQFP32, 16K Flash, 2K RAM, 48MHz, CortexM0+
+K ARM 32bit Microcontroller 48MHz CortexM0+
+F http://www.atmel.com/Images/Atmel-42129-SAM-D20_Datasheet.pdf
+$ENDCMP
+#
+$CMP SAMD20E14A-M
+D SAMD20E14A-M, QFN32, 16K Flash, 2K RAM, 48MHz, CortexM0+
+K ARM 32bit Microcontroller 48MHz CortexM0+
+F http://www.atmel.com/Images/Atmel-42129-SAM-D20_Datasheet.pdf
+$ENDCMP
+#
+$CMP SAMD20E15A-A
+D SAMD20E15A-A, TQFP32, 32K Flash, 4K RAM, 48MHz, CortexM0+
+K ARM 32bit Microcontroller 48MHz CortexM0+
+F http://www.atmel.com/Images/Atmel-42129-SAM-D20_Datasheet.pdf
+$ENDCMP
+#
+$CMP SAMD20E15A-M
+D SAMD20E15A-M, QFN32, 32K Flash, 4K RAM, 48MHz, CortexM0+
+K ARM 32bit Microcontroller 48MHz CortexM0+
+F http://www.atmel.com/Images/Atmel-42129-SAM-D20_Datasheet.pdf
+$ENDCMP
+#
+$CMP SAMD20E16A-A
+D SAMD20E16A-A, TQFP32, 64K Flash, 8K RAM, 48MHz, CortexM0+
+K ARM 32bit Microcontroller 48MHz CortexM0+
+F http://www.atmel.com/Images/Atmel-42129-SAM-D20_Datasheet.pdf
+$ENDCMP
+#
+$CMP SAMD20E16A-M
+D SAMD20E16A-M, QFN32, 64K Flash, 8K RAM, 48MHz, CortexM0+
+K ARM 32bit Microcontroller 48MHz CortexM0+
+F http://www.atmel.com/Images/Atmel-42129-SAM-D20_Datasheet.pdf
+$ENDCMP
+#
+$CMP SAMD20E17A-A
+D SAMD20E17A-A, TQFP32, 128K Flash, 16K RAM, 48MHz, CortexM0+
+K ARM 32bit Microcontroller 48MHz CortexM0+
+F http://www.atmel.com/Images/Atmel-42129-SAM-D20_Datasheet.pdf
+$ENDCMP
+#
+$CMP SAMD20E17A-M
+D SAMD20E17A-M, QFN32, 128K Flash, 16K RAM, 48MHz, CortexM0+
+K ARM 32bit Microcontroller 48MHz CortexM0+
+F http://www.atmel.com/Images/Atmel-42129-SAM-D20_Datasheet.pdf
+$ENDCMP
+#
+$CMP SAMD20G14A-A
+D SAMD20G14A-A, TQFP48, 16K Flash, 2K RAM, 48MHz, CortexM0+
+K ARM 32bit Microcontroller 48MHz CortexM0+
+F http://www.atmel.com/Images/Atmel-42129-SAM-D20_Datasheet.pdf
+$ENDCMP
+#
+$CMP SAMD20G14A-M
+D SAMD20G14A-M, QFN48, 16K Flash, 2K RAM, 48MHz, CortexM0+
+K ARM 32bit Microcontroller 48MHz CortexM0+
+F http://www.atmel.com/Images/Atmel-42129-SAM-D20_Datasheet.pdf
+$ENDCMP
+#
+$CMP SAMD20G15A-A
+D SAMD20G15A-A, TQFP48, 32K Flash, 4K RAM, 48MHz, CortexM0+
+K ARM 32bit Microcontroller 48MHz CortexM0+
+F http://www.atmel.com/Images/Atmel-42129-SAM-D20_Datasheet.pdf
+$ENDCMP
+#
+$CMP SAMD20G15A-M
+D SAMD20G15A-M, QFN48, 32K Flash, 4K RAM, 48MHz, CortexM0+
+K ARM 32bit Microcontroller 48MHz CortexM0+
+F http://www.atmel.com/Images/Atmel-42129-SAM-D20_Datasheet.pdf
+$ENDCMP
+#
+$CMP SAMD20G16A-A
+D SAMD20G16A-A, TQFP48, 64K Flash, 8K RAM, 48MHz, CortexM0+
+K ARM 32bit Microcontroller 48MHz CortexM0+
+F http://www.atmel.com/Images/Atmel-42129-SAM-D20_Datasheet.pdf
+$ENDCMP
+#
+$CMP SAMD20G16A-M
+D SAMD20G16A-M, QFN48, 64K Flash, 8K RAM, 48MHz, CortexM0+
+K ARM 32bit Microcontroller 48MHz CortexM0+
+F http://www.atmel.com/Images/Atmel-42129-SAM-D20_Datasheet.pdf
+$ENDCMP
+#
+$CMP SAMD20G17A-A
+D SAMD20G17A-A, TQFP48, 128K Flash, 16K RAM, 48MHz, CortexM0+
+K ARM 32bit Microcontroller 48MHz CortexM0+
+F http://www.atmel.com/Images/Atmel-42129-SAM-D20_Datasheet.pdf
+$ENDCMP
+#
+$CMP SAMD20G17A-M
+D SAMD20G17A-M, QFN48, 128K Flash, 16K RAM, 48MHz, CortexM0+
+K ARM 32bit Microcontroller 48MHz CortexM0+
+F http://www.atmel.com/Images/Atmel-42129-SAM-D20_Datasheet.pdf
+$ENDCMP
+#
+$CMP SAMD20G18A-A
+D SAMD20G18A-A, TQFP48, 256K Flash, 32K RAM, 48MHz, CortexM0+
+K ARM 32bit Microcontroller 48MHz CortexM0+
+F http://www.atmel.com/Images/Atmel-42129-SAM-D20_Datasheet.pdf
+$ENDCMP
+#
+$CMP SAMD20G18A-M
+D SAMD20G18A-M, QFN48, 256K Flash, 32K RAM, 48MHz, CortexM0+
+K ARM 32bit Microcontroller 48MHz CortexM0+
+F http://www.atmel.com/Images/Atmel-42129-SAM-D20_Datasheet.pdf
+$ENDCMP
+#
+$CMP SAMD20J14A-A
+D SAMD20J14A-A, TQFP64, 16K Flash, 2K RAM, 48MHz, CortexM0+
+K ARM 32bit Microcontroller 48MHz CortexM0+
+F http://www.atmel.com/Images/Atmel-42129-SAM-D20_Datasheet.pdf
+$ENDCMP
+#
+$CMP SAMD20J14A-M
+D SAMD20J14A-M, QFN64, 16K Flash, 2K RAM, 48MHz, CortexM0+
+K ARM 32bit Microcontroller 48MHz CortexM0+
+F http://www.atmel.com/Images/Atmel-42129-SAM-D20_Datasheet.pdf
+$ENDCMP
+#
+$CMP SAMD20J15A-A
+D SAMD20J15A-A, TQFP64, 32K Flash, 4K RAM, 48MHz, CortexM0+
+K ARM 32bit Microcontroller 48MHz CortexM0+
+F http://www.atmel.com/Images/Atmel-42129-SAM-D20_Datasheet.pdf
+$ENDCMP
+#
+$CMP SAMD20J15A-M
+D SAMD20J15A-M, QFN64, 32K Flash, 4K RAM, 48MHz, CortexM0+
+K ARM 32bit Microcontroller 48MHz CortexM0+
+F http://www.atmel.com/Images/Atmel-42129-SAM-D20_Datasheet.pdf
+$ENDCMP
+#
+$CMP SAMD20J16A-A
+D SAMD20J16A-A, TQFP64, 64K Flash, 8K RAM, 48MHz, CortexM0+
+K ARM 32bit Microcontroller 48MHz CortexM0+
+F http://www.atmel.com/Images/Atmel-42129-SAM-D20_Datasheet.pdf
+$ENDCMP
+#
+$CMP SAMD20J16A-M
+D SAMD20J16A-M, QFN64, 64K Flash, 8K RAM, 48MHz, CortexM0+
+K ARM 32bit Microcontroller 48MHz CortexM0+
+F http://www.atmel.com/Images/Atmel-42129-SAM-D20_Datasheet.pdf
+$ENDCMP
+#
+$CMP SAMD20J17A-A
+D SAMD20J17A-A, TQFP64, 128K Flash, 16K RAM, 48MHz, CortexM0+
+K ARM 32bit Microcontroller 48MHz CortexM0+
+F http://www.atmel.com/Images/Atmel-42129-SAM-D20_Datasheet.pdf
+$ENDCMP
+#
+$CMP SAMD20J17A-M
+D SAMD20J17A-M, QFN64, 128K Flash, 16K RAM, 48MHz, CortexM0+
+K ARM 32bit Microcontroller 48MHz CortexM0+
+F http://www.atmel.com/Images/Atmel-42129-SAM-D20_Datasheet.pdf
+$ENDCMP
+#
+$CMP SAMD20J18A-A
+D SAMD20J18A-A, TQFP64, 256K Flash, 32K RAM, 48MHz, CortexM0+
+K ARM 32bit Microcontroller 48MHz CortexM0+
+F http://www.atmel.com/Images/Atmel-42129-SAM-D20_Datasheet.pdf
+$ENDCMP
+#
+$CMP SAMD20J18A-M
+D SAMD20J18A-M, QFN64, 256K Flash, 32K RAM, 48MHz, CortexM0+
+K ARM 32bit Microcontroller 48MHz CortexM0+
+F http://www.atmel.com/Images/Atmel-42129-SAM-D20_Datasheet.pdf
 $ENDCMP
 #
 #End Doc Library
