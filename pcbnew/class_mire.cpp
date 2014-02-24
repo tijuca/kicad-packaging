@@ -50,7 +50,7 @@ PCB_TARGET::PCB_TARGET( BOARD_ITEM* aParent ) :
     BOARD_ITEM( aParent, PCB_TARGET_T )
 {
     m_Shape = 0;
-    m_Size  = 5000;
+    m_Size  = Millimeter2iu( 5.0 );
 }
 
 PCB_TARGET::PCB_TARGET( BOARD_ITEM* aParent, int aShape, int aLayer,

@@ -24,7 +24,7 @@ static void ShowTargetShapeWhileMovingMouse( EDA_DRAW_PANEL* aPanel,
                                              bool            aErase );
 
 /* Local variables : */
-static int     MireDefaultSize = 5000;
+static int     MireDefaultSize = Millimeter2iu( 5 );
 static PCB_TARGET s_TargetCopy( NULL ); /* Used to store "old" values of the
                                          * current item parameters before
                                          * edition (used in undo/redo or

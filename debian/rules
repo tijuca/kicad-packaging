@@ -2,6 +2,10 @@
 # -*- makefile -*-
 #export DH_VERBOSE=1
 
+COMMONDIR = debian/kicad-common
+PKGDIR    = debian/kicad
+TMPPKGDIR = debian/tmp
+
 %:
 	dh $@ --parallel
 
@@ -16,6 +20,16 @@ override_dh_auto_configure:
 
 override_dh_compress:
 	dh_compress --exclude=.pdf
+
+override_dh_install:
+	convert bitmaps_png/icons/icon_kicad.xpm -resize 32x32 debian/tmp/icon_kicad.xpm
+	dh_install
+	# fix wrong permissions and link jnlp file to usr/share
+	chmod a-x $(COMMONDIR)/usr/share/kicad/internat/ja/*
+	ln -s ../share/kicad/freeroute.jnlp $(PKGDIR)/usr/bin
+	chmod a-x $(PKGDIR)/usr/share/kicad/freeroute.jnlp
+	# remove out-of-topic files
+	find $(COMMONDIR)/usr/share/kicad -name "CMake*" -exec rm {} \;
 
 GENERATED_FILES = ./3d-viewer/Makefile \
 	 ./3d-viewer/cmake_install.cmake \

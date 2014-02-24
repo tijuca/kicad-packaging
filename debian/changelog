@@ -1,3 +1,22 @@
+kicad (0.20140224+bzr4027-1) unstable; urgency=medium
+
+  * changed the lp: repository for kicad's library in order to match active
+    repositories listed at
+    https://code.launchpad.net/kicad/+branches?field.lifecycle=ALL&field.lifecycle-empty-marker=1&field.sort_by=most+recently+changed+first&field.sort_by-empty-marker=1
+    the file debian/get-kicad.sh should be more efficient now.
+    Closes: #712259
+  * modified the script debian/clean_sourceless_pdf: more formats are allowed
+    for source files, and the search for source files is now case-insensitive.
+    names without prefixes are allowed too (they are directory names)
+  * fixed a few wrong permissions in packaged files
+  * modified the package assignation for files in usr/share/applications
+  * modified the script debian/get-kicad.sh to add a minimum set of
+    legacy footprints. Closes: #736180; Closes: #707956
+  * removed bloated .ps files from the source package. Closes: #737933
+  * added a dependency on imagemagick to mamange the icons at build time
+
+ -- Georges Khaznadar <georgesk@debian.org>  Mon, 24 Feb 2014 15:40:26 +0100
+
 kicad (0.20131208+bzr4024-1) unstable; urgency=medium
 
   * scheduled the installation of doc/internat into usr/share/kicad.

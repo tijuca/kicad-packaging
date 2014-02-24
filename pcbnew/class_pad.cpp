@@ -422,7 +422,7 @@ int D_PAD::GetSolderMaskMargin()
         int minsize = -std::min( m_Size.x, m_Size.y ) / 2;
 
         if( margin < minsize )
-            minsize = minsize;
+            margin = minsize;
     }
 
     return margin;

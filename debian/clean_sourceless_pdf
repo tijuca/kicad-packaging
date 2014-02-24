@@ -1,6 +1,6 @@
 #!/bin/bash
 
-sourceSuffixes="odt odg odm sxw"
+sourceSuffixes="odt odp odg odm sxw"
 
 for d in doc Documentation pcb_calculator; do
     find $d -name '*.pdf' -print |
@@ -10,11 +10,14 @@ for d in doc Documentation pcb_calculator; do
 	b=$(basename "$p")
 	for s in $sourceSuffixes; do
 	    sourcePattern="${b/.pdf/*.$s}"
-	    found=$(find $dir -name "$sourcePattern")
-	    if  [ -n "$found" ]; then
+	    found=$(find $dir -iname "$sourcePattern")
+	    if  [ -n "$found" ]; then ## found source file
 		ok=1
 	    fi
 	done
+	if [ -n "$(find $dir -iname '${b/.pdf/}')" ]; then ## found directory
+	    ok=1
+	fi
 	if [ $ok = 0 ]; then
 	    echo $p is sourceless, erasing it | tee -a debian/erased_pdfs.log
 	    rm "$p"

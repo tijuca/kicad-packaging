@@ -134,6 +134,26 @@ if(CMAKE_COMPILER_IS_GNUCXX)
         set(CMAKE_CXX_FLAGS_DEBUG "-Wall ${KICAD_GCC_DEBUG_BUILD_FLAGS} -g3 -ggdb3 -DDEBUG")
         set(CMAKE_MODULE_LINKER_FLAGS "-static-libgcc -static-libstdc++") # SWIG macros on Windows
 
+        # _UNICODE definition seems needed under mingw/gcc 4.8
+        # (Kicad uses unicode, and on Windows, wxWidgets >= 2.9.4 is mandatory
+        # and uses unicode)
+        if( GCC_VERSION VERSION_EQUAL 4.8.0 OR GCC_VERSION VERSION_GREATER 4.8.0 )
+            add_definitions(-D_UNICODE)
+        endif()
+
+        # Since version 2.8.5, Cmake uses a response file (.rsp) to
+        # pass the list of include paths to gcc
+        # unfortunately, under mingw32+msys, at least with gcc 4.8 and previous,
+        # this file is not expanded and include paths defined in this file are not taken in account
+        # this is the case of wxWidgets includes
+        # Disable this response file for includes ( See Windows-GNU.cmake module )
+        if( WIN32 AND MSYS AND NOT CMAKE_CROSSCOMPILING )
+            # fixme: it is needed only with MSYS+MINGW32? or always under MINGW
+            if (${CMAKE_SIZEOF_VOID_P} MATCHES 4)
+                set(CMAKE_CXX_USE_RESPONSE_FILE_FOR_INCLUDES 0)
+            endif()
+        endif()
+
     else()
         # We build DLL/DSOs from static libraries, so create position independent code
         # for all cases, since we do not have DLL/DSO specific static libraries.
@@ -153,6 +173,11 @@ if(CMAKE_COMPILER_IS_GNUCXX)
         # Set default flags for Debug build.
         set(CMAKE_C_FLAGS_DEBUG "${KICAD_GCC_DEBUG_BUILD_FLAGS} -Wall  -g3 -ggdb3 -DDEBUG")
         set(CMAKE_CXX_FLAGS_DEBUG "${KICAD_GCC_DEBUG_BUILD_FLAGS} -Wall -g3 -ggdb3 -DDEBUG")
+    endif()
+
+    # quiet GCC 4.8.1 while in boost
+    if( GCC_VERSION VERSION_GREATER 4.8 OR GCC_VERSION VERSION_EQUAL 4.8 )
+        set( CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-unused-local-typedefs" )
     endif()
 
 endif(CMAKE_COMPILER_IS_GNUCXX)

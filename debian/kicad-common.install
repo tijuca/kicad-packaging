@@ -1,4 +1,8 @@
-debian/tmp/usr/local/share usr
+usr/local/share/mimelnk usr/share
+usr/local/share/mime usr/share
+usr/local/share/kicad usr/share
+usr/local/share/icons usr/share
+usr/local/share/doc usr/share
 library/library usr/share/kicad
 library/modules usr/share/kicad
 doc/internat usr/share/kicad
