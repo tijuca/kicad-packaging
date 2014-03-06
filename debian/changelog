@@ -1,3 +1,13 @@
+kicad (0.20140224+bzr4027-2) unstable; urgency=medium
+
+  * fixed a bug in d/rules.
+  * added a clause Conflicts: kicad-common ( << 0.20140224),
+    Closes: #740276
+  * Checked that the file Getting_Started_in_KiCad.pdf is distributed with
+    some -doc-xy packages. Closes: #691660
+
+ -- Georges Khaznadar <georgesk@debian.org>  Thu, 06 Mar 2014 02:24:33 +0100
+
 kicad (0.20140224+bzr4027-1) unstable; urgency=medium
 
   * changed the lp: repository for kicad's library in order to match active

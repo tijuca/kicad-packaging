@@ -13,8 +13,9 @@ Homepage: http://www.kicad-pcb.org
 
 Package: kicad
 Architecture: any
-Depends: kicad-common (>= ${source:Version}), ${shlibs:Depends}, ${misc:Depends}, zlib-bin
-Replaces: kicad-common (<< 0.0.20071129a-1)
+Depends: kicad-common (>= ${source:Version}),
+ ${shlibs:Depends}, ${misc:Depends}, zlib-bin
+Conflicts: kicad-common ( << 0.20140224)
 Suggests: extra-xdg-menus,
 	kicad-doc-en | kicad-doc-fr | kicad-doc-de | kicad-doc-es | kicad-doc-hu | kicad-doc-ru | kicad-doc-zh-cn
 Description: Electronic schematic and PCB design software

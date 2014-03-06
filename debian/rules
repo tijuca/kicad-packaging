@@ -25,7 +25,8 @@ override_dh_install:
 	convert bitmaps_png/icons/icon_kicad.xpm -resize 32x32 debian/tmp/icon_kicad.xpm
 	dh_install
 	# fix wrong permissions and link jnlp file to usr/share
-	chmod a-x $(COMMONDIR)/usr/share/kicad/internat/ja/*
+	[ -d $(COMMONDIR)/usr/share/kicad/internat/ja/ ] && \
+	  chmod a-x $(COMMONDIR)/usr/share/kicad/internat/ja/*
 	ln -s ../share/kicad/freeroute.jnlp $(PKGDIR)/usr/bin
 	chmod a-x $(PKGDIR)/usr/share/kicad/freeroute.jnlp
 	# remove out-of-topic files
