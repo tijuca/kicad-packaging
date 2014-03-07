@@ -1,3 +1,9 @@
+kicad (0.20140224+bzr4027-3) unstable; urgency=medium
+
+  * taken in account Samuel Thibault's hint. Closes: #740999
+
+ -- Georges Khaznadar <georgesk@debian.org>  Fri, 07 Mar 2014 11:48:29 +0100
+
 kicad (0.20140224+bzr4027-2) unstable; urgency=medium
 
   * fixed a bug in d/rules.
