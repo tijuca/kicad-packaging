@@ -1,3 +1,12 @@
+kicad (0.20140224+bzr4027-3.1) unstable; urgency=low
+
+  * Non-maintainer upload.
+  * It FTBFS because kicad-common is arch independent.
+    Patch by Dejan Latinovic <Dejan.Latinovic@imgtec.com>.
+    Closes: #741743
+
+ -- Anibal Monsalve Salazar <anibal@debian.org>  Fri, 09 May 2014 04:33:24 +0100
+
 kicad (0.20140224+bzr4027-3) unstable; urgency=medium
 
   * taken in account Samuel Thibault's hint. Closes: #740999
