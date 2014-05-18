@@ -1,0 +1,16 @@
+Description: Fix to build with wxWidgets 3.0
+ Should also work with wxWidgets 2.8.
+Author: Olly Betts <olly@survex.com>
+Last-Update: 2014-03-12
+
+--- a/common/edaappl.cpp
++++ b/common/edaappl.cpp
+@@ -451,7 +451,7 @@
+ 
+     // Linux and Unix
+ #elif defined(__UNIX__)
+-    m_BinDir = wxStandardPaths().GetExecutablePath();
++    m_BinDir = wxStandardPaths::Get().GetExecutablePath();
+ #else
+     m_BinDir = argv[0];
+ #endif // __UNIX__

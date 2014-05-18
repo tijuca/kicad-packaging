@@ -2,3 +2,4 @@ gcc-4.7.patch
 getting_started.patch
 fix_common.h
 fix-bashism.patch
+wx3.0-compat.patch

@@ -6,6 +6,7 @@ COMMONDIR = debian/kicad-common
 PKGDIR    = debian/kicad
 TMPPKGDIR = debian/tmp
 
+
 %:
 	dh $@ --parallel
 
@@ -34,6 +35,8 @@ override_dh_install-indep:
 	dh_install
 	# remove out-of-topic files
 	find $(COMMONDIR)/usr/share/kicad -name "CMake*" -exec rm {} \;
+	# fix permissions for ja/kicad.po
+	find $(COMMONDIR)/usr/share/kicad -name "kicad.po" -exec chmod 644 {} \;
 
 GENERATED_FILES = ./3d-viewer/Makefile \
 	 ./3d-viewer/cmake_install.cmake \

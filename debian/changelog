@@ -1,3 +1,15 @@
+kicad (0.20140518+bzr4027-1) unstable; urgency=medium
+
+  * retrieved the last upstream version, Closes: #741673, Closes: #741437
+  * upgraded some build-dependencies, libwxgtk3.0-dev, applied a part of
+    Olly Betts' patch. Closes: #741440
+  * applied Dimitris Lampridis' patch. Closes: #745705
+  * modified get-kikad.sh to make xz compressed file.
+  * added a rule to fix permissions of ja/kicad.po
+  * 
+
+ -- Georges Khaznadar <georgesk@debian.org>  Sun, 18 May 2014 14:59:05 +0200
+
 kicad (0.20140224+bzr4027-3.1) unstable; urgency=low
 
   * Non-maintainer upload.
