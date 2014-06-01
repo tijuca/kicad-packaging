@@ -1,3 +1,9 @@
+kicad (0.20140518+bzr4027-2) unstable; urgency=medium
+
+  * applied Samuel Thibault's patch. Closes: #749930
+
+ -- Georges Khaznadar <georgesk@debian.org>  Sun, 01 Jun 2014 16:34:06 +0200
+
 kicad (0.20140518+bzr4027-1) unstable; urgency=medium
 
   * retrieved the last upstream version, Closes: #741673, Closes: #741437

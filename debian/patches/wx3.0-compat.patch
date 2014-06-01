@@ -3,9 +3,11 @@ Description: Fix to build with wxWidgets 3.0
 Author: Olly Betts <olly@survex.com>
 Last-Update: 2014-03-12
 
---- a/common/edaappl.cpp
-+++ b/common/edaappl.cpp
-@@ -451,7 +451,7 @@
+Index: kicad-0.20140518+bzr4027/common/edaappl.cpp
+===================================================================
+--- kicad-0.20140518+bzr4027.orig/common/edaappl.cpp
++++ kicad-0.20140518+bzr4027/common/edaappl.cpp
+@@ -451,7 +451,7 @@ bool EDA_APP::SetBinDir()
  
      // Linux and Unix
  #elif defined(__UNIX__)
@@ -14,3 +16,18 @@ Last-Update: 2014-03-12
  #else
      m_BinDir = argv[0];
  #endif // __UNIX__
+Index: kicad-0.20140518+bzr4027/kicad/kicad.h
+===================================================================
+--- kicad-0.20140518+bzr4027.orig/kicad/kicad.h
++++ kicad-0.20140518+bzr4027/kicad/kicad.h
+@@ -44,8 +44,10 @@
+ // With a recent wxWidget, we can use the wxFileSystemWatcherEvent
+ // to monitor files add/remove/rename in tree project
+ #if wxCHECK_VERSION( 2, 9, 4  )
++#if wxUSE_FSWATCHER
+ #define KICAD_USE_FILES_WATCHER
+ #endif
++#endif
+ 
+ extern const wxString g_KicadPrjFilenameExtension;
+ 
