@@ -1,3 +1,10 @@
+kicad (0.20140622+bzr4027-1) unstable; urgency=medium
+
+  * added a routine to creat the version string. Closes: #749308
+  * upgraded to the newest component libraries. Closes: #751994
+
+ -- Georges Khaznadar <georgesk@debian.org>  Sun, 22 Jun 2014 18:29:50 +0200
+
 kicad (0.20140518+bzr4027-2) unstable; urgency=medium
 
   * applied Samuel Thibault's patch. Closes: #749930
