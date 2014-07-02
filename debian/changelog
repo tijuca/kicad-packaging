@@ -1,3 +1,14 @@
+kicad (0.20140622+bzr4027-2) unstable; urgency=medium
+
+  * added  -DCMAKE_BUILD_TYPE=Release as a definition for cmake.
+    This does not fix every bug, but it removes dialogs about failed
+    assertions raised by wxASSERT, which are usually non-blocking, 
+    as long as one decides to continue and unactivate the assert warnings.
+    Feel free to report bugs which affect user-level features.
+    Closes: #749278
+
+ -- Georges Khaznadar <georgesk@debian.org>  Wed, 02 Jul 2014 22:28:01 +0200
+
 kicad (0.20140622+bzr4027-1) unstable; urgency=medium
 
   * added a routine to creat the version string. Closes: #749308
