@@ -8,7 +8,7 @@ Build-Depends: debhelper (>= 9), quilt, libx11-dev,
  libglu1-mesa-dev, libgl1-mesa-dev, mesa-common-dev,
  libwxgtk3.0-dev, libboost-dev,
  cmake (>= 2.6.0), imagemagick
-Standards-Version: 3.9.5
+Standards-Version: 3.9.6
 Homepage: http://www.kicad-pcb.org
 
 Package: kicad
@@ -83,6 +83,15 @@ Architecture: all
 Depends: ${misc:Depends}
 Description: Kicad help files (Italian)
  This package provides documentation for Kicad in Italian.
+
+Package: kicad-doc-ja
+Architecture: all
+Depends: ${misc:Depends}
+Description: Kicad help files (Japanese)
+ This package provides documentation for Kicad in Japanese.
+ .
+ This package does not provide a Russian translation of the manual, only the
+ tutorial. Manual available in the French & English packages only.
 
 Package: kicad-doc-hu
 Architecture: all

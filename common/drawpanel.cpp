@@ -84,9 +84,18 @@ END_EVENT_TABLE()
 
 EDA_DRAW_PANEL::EDA_DRAW_PANEL( EDA_DRAW_FRAME* parent, int id,
                                 const wxPoint& pos, const wxSize& size ) :
+#if wxCHECK_VERSION( 2, 9, 5 )
+    wxScrolledWindow( parent, id, pos, size, wxBORDER | wxHSCROLL | wxVSCROLL )
+#else
     wxScrolledWindow( parent, id, pos, size, wxBORDER | wxHSCROLL | wxVSCROLL | wxALWAYS_SHOW_SB )
+#endif
 {
     wxASSERT( parent );
+
+#if wxCHECK_VERSION( 2, 9, 5 )
+    ShowScrollbars( wxSHOW_SB_ALWAYS, wxSHOW_SB_ALWAYS );
+    DisableKeyboardScrolling();
+#endif
 
     m_scrollIncrementX = std::min( size.x / 8, 10 );
     m_scrollIncrementY = std::min( size.y / 8, 10 );
@@ -102,7 +111,7 @@ EDA_DRAW_PANEL::EDA_DRAW_PANEL( EDA_DRAW_FRAME* parent, int id,
     m_ClipBox.SetY( 0 );
     m_canStartBlock = -1;       // Command block can start if >= 0
     m_abortRequest = false;
-    m_enableMiddleButtonPan = false;
+    m_enableMiddleButtonPan = true;
     m_enableZoomNoCenter = false;
     m_panScrollbarLimits = false;
     m_enableAutoPan = true;
@@ -114,7 +123,7 @@ EDA_DRAW_PANEL::EDA_DRAW_PANEL( EDA_DRAW_FRAME* parent, int id,
 
     if( wxGetApp().GetSettings() )
     {
-        wxGetApp().GetSettings()->Read( ENBL_MIDDLE_BUTT_PAN_KEY, &m_enableMiddleButtonPan, false );
+        wxGetApp().GetSettings()->Read( ENBL_MIDDLE_BUTT_PAN_KEY, &m_enableMiddleButtonPan, true );
         wxGetApp().GetSettings()->Read( ENBL_ZOOM_NO_CENTER_KEY, &m_enableZoomNoCenter, false );
         wxGetApp().GetSettings()->Read( MIDDLE_BUTT_PAN_LIMITED_KEY, &m_panScrollbarLimits, false );
         wxGetApp().GetSettings()->Read( ENBL_AUTO_PAN_KEY, &m_enableAutoPan, true );
@@ -355,12 +364,10 @@ void EDA_DRAW_PANEL::OnActivate( wxActivateEvent& event )
 void EDA_DRAW_PANEL::OnScroll( wxScrollWinEvent& event )
 {
     int id = event.GetEventType();
-    int dir;
     int x, y;
     int ppux, ppuy;
     int csizeX, csizeY;
     int unitsX, unitsY;
-    int maxX, maxY;
 
     GetViewStart( &x, &y );
     GetScrollPixelsPerUnit( &ppux, &ppuy );
@@ -376,10 +383,19 @@ void EDA_DRAW_PANEL::OnScroll( wxScrollWinEvent& event )
     unitsX /= ppux;
     unitsY /= ppuy;
 
-    maxX = unitsX - csizeX;
-    maxY = unitsY - csizeY;
+    int dir = event.GetOrientation();   // wxHORIZONTAL or wxVERTICAL
 
-    dir = event.GetOrientation();   // wxHORIZONTAL or wxVERTICAL
+    // On windows and on wxWidgets >= 2.9.5 and < 3.1,
+    // there is a bug in mousewheel event which always generates 2 scroll events
+    // (should be the case only for the default mousewheel event)
+    // with id = wxEVT_SCROLLWIN_LINEUP or wxEVT_SCROLLWIN_LINEDOWN
+    // so we skip these events.
+    // Note they are here just in case, because they are not actually used
+    // in Kicad
+#if wxCHECK_VERSION( 3, 1, 0 ) || !wxCHECK_VERSION( 2, 9, 5 ) || !defined (__WINDOWS__)
+    int maxX = unitsX - csizeX;
+    int maxY = unitsY - csizeY;
+
 
     if( id == wxEVT_SCROLLWIN_LINEUP )
     {
@@ -414,7 +430,9 @@ void EDA_DRAW_PANEL::OnScroll( wxScrollWinEvent& event )
                 y = maxY;
         }
     }
-    else if( id == wxEVT_SCROLLWIN_THUMBTRACK )
+    else
+#endif
+    if( id == wxEVT_SCROLLWIN_THUMBTRACK )
     {
         if( dir == wxHORIZONTAL )
             x = event.GetPosition();

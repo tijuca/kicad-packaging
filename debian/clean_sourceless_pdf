@@ -1,6 +1,7 @@
 #!/bin/bash
 
 sourceSuffixes="odt odp odg odm sxw"
+: > debian/erased_pdfs.log
 
 for d in doc Documentation pcb_calculator; do
     find $d -name '*.pdf' -print |

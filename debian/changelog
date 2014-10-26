@@ -1,3 +1,16 @@
+kicad (0.20141025+bzr4029-1) unstable; urgency=medium
+
+  * upgraded to the newest upstream releases for the code and the components.
+  * added a rule in d/rules to remove useless .ps files. Closes: #737933
+  * modified kicad.pro. Closes: #763683
+  * updated Standards-Version to 3.9.6
+  * added a build-dependency on unoconv
+  * added build rules to make PDF help files from sources
+  * added the package kicad-doc-ja in d/control, and files
+    d/kicad-doc-*.install, for "pt" and "ja" languages.
+
+ -- Georges Khaznadar <georgesk@debian.org>  Sun, 26 Oct 2014 10:26:51 +0100
+
 kicad (0.20140622+bzr4027-3) unstable; urgency=medium
 
   * dropped the dependency on zlib-bin, since grep shows no occurence
@@ -9,7 +22,7 @@ kicad (0.20140622+bzr4027-2) unstable; urgency=medium
 
   * added  -DCMAKE_BUILD_TYPE=Release as a definition for cmake.
     This does not fix every bug, but it removes dialogs about failed
-    assertions raised by wxASSERT, which are usually non-blocking, 
+    assertions raised by wxASSERT, which are usually non-blocking,
     as long as one decides to continue and unactivate the assert warnings.
     Feel free to report bugs which affect user-level features.
     Closes: #749278
@@ -37,7 +50,6 @@ kicad (0.20140518+bzr4027-1) unstable; urgency=medium
   * applied Dimitris Lampridis' patch. Closes: #745705
   * modified get-kikad.sh to make xz compressed file.
   * added a rule to fix permissions of ja/kicad.po
-  * 
 
  -- Georges Khaznadar <georgesk@debian.org>  Sun, 18 May 2014 14:59:05 +0200
 
@@ -161,7 +173,7 @@ kicad (0.20120126+bzr3256-3) unstable; urgency=low
 kicad (0.20120126+bzr3256-2) unstable; urgency=low
 
   * added the l10n files into the package kicad-common. Closes: #659091
-  * added eeschema.svg into usr/share/icons/hicolor/scalable/apps. 
+  * added eeschema.svg into usr/share/icons/hicolor/scalable/apps.
     Closes: #659317
   * applied Vincent Danjean's tip. Closes: #657729
 
@@ -178,7 +190,7 @@ kicad (0.20120126+bzr3256-1) unstable; urgency=low
 kicad (0.0.20110616-1) unstable; urgency=low
 
   * upgraded to the latest upstream version.
-  * included the files sent by their author, by email 
+  * included the files sent by their author, by email
     <4DF93DA9.50504@iridec.com.au>, Closes: #630453
 
  -- Georges Khaznadar <georgesk@ofset.org>  Thu, 16 Jun 2011 22:52:02 +0200
@@ -198,13 +210,13 @@ kicad (0.0.20101024-2) unstable; urgency=low
 
 kicad (0.0.20101024-1) unstable; urgency=low
 
-  * Maintainer change. 
+  * Maintainer change.
     - Closes: #599427
   * changed the way sources are downloaded. See debian/packagesrc.sh
-  * upgraded to newest stable release. 
+  * upgraded to newest stable release.
     - Closes: #590483
     - Closes: #580497
-  * moved the dependency on extra-xdg-menus to Suggests: level. 
+  * moved the dependency on extra-xdg-menus to Suggests: level.
     - Closes: #577282
   * added a list of auto-generated files to remove upon clean target
 

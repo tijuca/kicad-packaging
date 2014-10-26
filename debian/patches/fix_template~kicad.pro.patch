@@ -1,0 +1,23 @@
+These changes can close bug #763683 
+(https://bugs.debian.org/cgi-bin/bugreport.cgi?bug=763683)
+Summary:
+when starting cvpcb on a new project I get the following Load Error:
+.
+Some files could not be found!
+* smd_crystal&oscillator.mod
+* smd_dil.mod
+Index: kicad-0.20141025+bzr4029/template/kicad.pro
+===================================================================
+--- kicad-0.20141025+bzr4029.orig/template/kicad.pro
++++ kicad-0.20141025+bzr4029/template/kicad.pro
+@@ -77,8 +77,8 @@ LibName4=pin_array
+ LibName5=divers
+ LibName6=smd_capacitors
+ LibName7=smd_resistors
+-LibName8=smd_crystal&oscillator
+-LibName9=smd_dil
++LibName8=smd_crystal_and_oscillator
++LibName9=smd_soic_packages
+ LibName10=smd_transistors
+ LibName11=libcms
+ LibName12=display

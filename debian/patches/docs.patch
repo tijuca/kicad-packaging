@@ -1,0 +1,12 @@
+Index: kicad-0.20141025+bzr4029/doc/doc/help/CMakeLists.txt
+===================================================================
+--- kicad-0.20141025+bzr4029.orig/doc/doc/help/CMakeLists.txt
++++ kicad-0.20141025+bzr4029/doc/doc/help/CMakeLists.txt
+@@ -1,5 +1,6 @@
+ set(HelpLangs de en es fr it ja pl pt ru)
+-
++set(KICAD_HELP share/kicad/help
++            CACHE PATH "Location of KiCad help files.")
+ foreach(HelpLang ${HelpLangs})
+ 	install(DIRECTORY ${HelpLang}
+ 		DESTINATION ${KICAD_HELP}

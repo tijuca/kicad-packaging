@@ -17,7 +17,7 @@
 
 ; General Product Description Definitions
 !define PRODUCT_NAME "KiCad"
-!define PRODUCT_VERSION "2013.12.23"
+!define PRODUCT_VERSION "2014.07.20"
 !define PRODUCT_WEB_SITE "http://iut-tice.ujf-grenoble.fr/kicad/"
 !define SOURCEFORGE_WEB_SITE "http://kicad.sourceforge.net/"
 !define COMPANY_NAME ""
@@ -36,7 +36,7 @@ SetCompressor /final /solid lzma
 CRCCheck force
 XPStyle on
 Name "${PRODUCT_NAME} ${PRODUCT_VERSION}"
-OutFile "${PRODUCT_NAME}_stable-${PRODUCT_VERSION}-BZR4022_Win_full_version.exe"
+OutFile "${PRODUCT_NAME}_stable-${PRODUCT_VERSION}-BZR4029_Win_full_version.exe"
 InstallDir "$PROGRAMFILES\KiCad"
 ShowInstDetails hide
 ShowUnInstDetails hide

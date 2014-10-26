@@ -19,6 +19,16 @@ override_dh_clean:
 override_dh_auto_configure:
 	cmake -DKICAD_STABLE_VERSION=ON -DCMAKE_BUILD_TYPE=Release .
 
+LANG2BUILD = $(shell ls doc/doc/help| grep -v CMake)
+buildPDF:
+	for l in $(LANG2BUILD); do \
+	  for f in $$(find doc/doc/help/$$l -name "*.odm" -o -name "*.sxg"); do \
+	    target=$$(echo doc/doc/help/$$l/$$(basename $$f)| sed 's/....$$/.pdf/'); \
+	    echo -n "Compiling $$f to $${target}... "; \
+	    unoconv -f pdf $$f 2>/dev/null && mv $$(echo $$f| sed 's/....$$/.pdf/') $${target}; \
+	    echo "[Done]"; \
+	  done; \
+	done
 override_dh_compress:
 	dh_compress --exclude=.pdf
 
@@ -37,6 +47,8 @@ override_dh_install-indep:
 	find $(COMMONDIR)/usr/share/kicad -name "CMake*" -exec rm {} \;
 	# fix permissions for ja/kicad.po
 	find $(COMMONDIR)/usr/share/kicad -name "kicad.po" -exec chmod 644 {} \;
+	# remove useless .ps files
+	find $(COMMONDIR) -name "*.ps" | xargs rm -f
 
 GENERATED_FILES = ./3d-viewer/Makefile \
 	 ./3d-viewer/cmake_install.cmake \
