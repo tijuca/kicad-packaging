@@ -1,3 +1,11 @@
+kicad (0.20141025+bzr4029-2) unstable; urgency=medium
+
+  * modified the description of the package for Japanese documentation.
+    Closes: #767647
+  * modified the default path to templates. Closes: #771354
+
+ -- Georges Khaznadar <georgesk@debian.org>  Sat, 01 Nov 2014 19:39:30 +0100
+
 kicad (0.20141025+bzr4029-1) unstable; urgency=medium
 
   * upgraded to the newest upstream releases for the code and the components.

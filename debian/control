@@ -90,7 +90,7 @@ Depends: ${misc:Depends}
 Description: Kicad help files (Japanese)
  This package provides documentation for Kicad in Japanese.
  .
- This package does not provide a Russian translation of the manual, only the
+ This package does not provide a Japanese translation of the manual, only the
  tutorial. Manual available in the French & English packages only.
 
 Package: kicad-doc-hu

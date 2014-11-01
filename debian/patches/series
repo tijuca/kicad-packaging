@@ -5,3 +5,4 @@ getting_started.patch
 fix-bashism.patch
 wx3.0-compat.patch
 version.patch
+path_to_templates.patch
