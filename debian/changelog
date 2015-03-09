@@ -1,3 +1,16 @@
+kicad (0.20140622+bzr4027-3~bpo70+1) wheezy-backports; urgency=low
+
+  * Rebuild for wheezy-backports.
+
+ -- Andrew Bradford <andrew@bradfordembedded.com>  Mon, 09 Mar 2015 09:51:44 -0400
+
+kicad (0.20140622+bzr4027-3) unstable; urgency=medium
+
+  * dropped the dependency on zlib-bin, since grep shows no occurence
+    of "minizip" nor "miniunzip" in kicad's source. Closes:  #761320
+
+ -- Georges Khaznadar <georgesk@debian.org>  Fri, 12 Sep 2014 23:20:43 +0200
+
 kicad (0.20140622+bzr4027-2) unstable; urgency=medium
 
   * added  -DCMAKE_BUILD_TYPE=Release as a definition for cmake.
