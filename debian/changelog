@@ -1,3 +1,21 @@
+kicad (4.0.0~rc1-1) unstable; urgency=medium
+
+  * updated the script get-kicad.sh to download the core from Github, docs
+    and libraryes from Github. *.pretty libraries are downloaded from
+    Github too.
+  * created Makefile, doc/Makefile, library/Makefile
+  * modified d/rules, d/control, d/*.install, d/kicad.manpages
+  * written recipes to move shared libraries which were in /usr/bin/_*.kiface
+  * written recipes to choose the file fp-lib-table.for-pretty as a default
+    template
+  * written recipes to fix missing icons and to resize badly shaped 48x48
+    icons.
+  * updated the file debian/copyright
+  * the new package Closes: #795077; Closes: #770227; Closes: #783040;
+    Closes: #787983; Closes: #802973; Closes: #794311; Closes: #798966
+
+ -- Georges Khaznadar <georgesk@debian.org>  Fri, 23 Oct 2015 13:17:13 +0200
+
 kicad (0.20141025+bzr4029-2) unstable; urgency=medium
 
   * modified the description of the package for Japanese documentation.

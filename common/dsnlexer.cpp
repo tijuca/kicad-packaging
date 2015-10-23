@@ -2,8 +2,8 @@
 /*
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
- * Copyright (C) 2007-2008 SoftPLC Corporation, Dick Hollenbeck <dick@softplc.com>
- * Copyright (C) 2007 KiCad Developers, see change_log.txt for contributors.
+ * Copyright (C) 2007-2013 SoftPLC Corporation, Dick Hollenbeck <dick@softplc.com>
+ * Copyright (C) 2007-2015 KiCad Developers, see change_log.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -29,22 +29,14 @@
 #include <cstdlib>         // bsearch()
 #include <cctype>
 
-
+#include <macros.h>
+#include <fctsys.h>
 #include <dsnlexer.h>
 
-//#include "fctsys.h"
-//#include "pcbnew.h"
 
 //#define STANDALONE  1       // enable this for stand alone testing.
 
-static int compare( const void* a1, const void* a2 )
-{
-    const KEYWORD* k1 = (const KEYWORD*) a1;
-    const KEYWORD* k2 = (const KEYWORD*) a2;
-
-    int ret = strcmp( k1->name, k2->name );
-    return ret;
-}
+#define FMT_CLIPBOARD       _( "clipboard" )
 
 
 //-----<DSNLEXER>-------------------------------------------------------------
@@ -58,14 +50,36 @@ void DSNLEXER::init()
 
     specctraMode = false;
     space_in_quoted_tokens = false;
-
     commentsAreTokens = false;
+
+    curOffset = 0;
+
+#if 1
+    if( keywordCount > 11 )
+    {
+        // resize the hashtable bucket count
+        keyword_hash.reserve( keywordCount );
+    }
+
+    // fill the specialized "C string" hashtable from keywords[]
+    const KEYWORD*  it  = keywords;
+    const KEYWORD*  end = it + keywordCount;
+
+    for( ; it < end; ++it )
+    {
+        keyword_hash[it->name] = it->token;
+    }
+#endif
 }
 
 
 DSNLEXER::DSNLEXER( const KEYWORD* aKeywordTable, unsigned aKeywordCount,
                     FILE* aFile, const wxString& aFilename ) :
     iOwnReaders( true ),
+    start( NULL ),
+    next( NULL ),
+    limit( NULL ),
+    reader( NULL ),
     keywords( aKeywordTable ),
     keywordCount( aKeywordCount )
 {
@@ -78,11 +92,15 @@ DSNLEXER::DSNLEXER( const KEYWORD* aKeywordTable, unsigned aKeywordCount,
 DSNLEXER::DSNLEXER( const KEYWORD* aKeywordTable, unsigned aKeywordCount,
                     const std::string& aClipboardTxt, const wxString& aSource ) :
     iOwnReaders( true ),
+    start( NULL ),
+    next( NULL ),
+    limit( NULL ),
+    reader( NULL ),
     keywords( aKeywordTable ),
     keywordCount( aKeywordCount )
 {
     STRING_LINE_READER* stringReader = new STRING_LINE_READER( aClipboardTxt, aSource.IsEmpty() ?
-                                        wxString( _( "clipboard" ) ) : aSource );
+                                        wxString( FMT_CLIPBOARD ) : aSource );
     PushReader( stringReader );
     init();
 }
@@ -91,11 +109,33 @@ DSNLEXER::DSNLEXER( const KEYWORD* aKeywordTable, unsigned aKeywordCount,
 DSNLEXER::DSNLEXER( const KEYWORD* aKeywordTable, unsigned aKeywordCount,
                     LINE_READER* aLineReader ) :
     iOwnReaders( false ),
+    start( NULL ),
+    next( NULL ),
+    limit( NULL ),
+    reader( NULL ),
     keywords( aKeywordTable ),
     keywordCount( aKeywordCount )
 {
     if( aLineReader )
         PushReader( aLineReader );
+    init();
+}
+
+
+static const KEYWORD empty_keywords[1] = {};
+
+DSNLEXER::DSNLEXER( const std::string& aSExpression, const wxString& aSource ) :
+    iOwnReaders( true ),
+    start( NULL ),
+    next( NULL ),
+    limit( NULL ),
+    reader( NULL ),
+    keywords( empty_keywords ),
+    keywordCount( 0 )
+{
+    STRING_LINE_READER* stringReader = new STRING_LINE_READER( aSExpression, aSource.IsEmpty() ?
+                                        wxString( FMT_CLIPBOARD ) : aSource );
+    PushReader( stringReader );
     init();
 }
 
@@ -124,6 +164,30 @@ void DSNLEXER::SetSpecctraMode( bool aMode )
         stringDelimiter = '"';
     }
 }
+
+
+bool DSNLEXER::SyncLineReaderWith( DSNLEXER& aLexer )
+{
+    // Synchronize the pointers handling the data read by the LINE_READER
+    // only if aLexer shares the same LINE_READER, because only in this case
+    // the char buffer is be common
+
+    if( reader != aLexer.reader )
+        return false;
+
+    // We can synchronize the pointers which handle the data currently read
+    start = aLexer.start;
+    next = aLexer.next;
+    limit = aLexer.limit;
+
+    // Sync these parameters is not mandatory, but could help
+    // for instance in debug
+    curText = aLexer.curText;
+    curOffset = aLexer.curOffset;
+
+    return true;
+}
+
 
 void DSNLEXER::PushReader( LINE_READER* aLineReader )
 {
@@ -167,21 +231,21 @@ LINE_READER* DSNLEXER::PopReader()
 }
 
 
+#if 0
+static int compare( const void* a1, const void* a2 )
+{
+    const KEYWORD* k1 = (const KEYWORD*) a1;
+    const KEYWORD* k2 = (const KEYWORD*) a2;
+
+    int ret = strcmp( k1->name, k2->name );
+    return ret;
+}
+
 int DSNLEXER::findToken( const std::string& tok )
 {
-    // convert to lower case once, this should be faster than using strcasecmp()
-    // for each test in compare().
-    lowercase.clear();
-
-    for( std::string::const_iterator iter = tok.begin();  iter!=tok.end();  ++iter )
-        lowercase += (char) tolower( *iter );
-
     KEYWORD search;
 
-    search.name = lowercase.c_str();
-
-    // a boost hashtable might be a few percent faster, depending on
-    // hashtable size and quality of the hash function.
+    search.name = tok.c_str();
 
     const KEYWORD* findings = (const KEYWORD*) bsearch( &search,
                                    keywords, keywordCount,
@@ -189,8 +253,20 @@ int DSNLEXER::findToken( const std::string& tok )
     if( findings )
         return findings->token;
     else
-        return -1;
+        return DSN_SYMBOL;      // not a keyword, some arbitrary symbol.
 }
+
+#else
+
+inline int DSNLEXER::findToken( const std::string& tok )
+{
+    KEYWORD_MAP::const_iterator it = keyword_hash.find( tok.c_str() );
+    if( it != keyword_hash.end() )
+        return it->second;
+
+    return DSN_SYMBOL;      // not a keyword, some arbitrary symbol.
+}
+#endif
 
 
 const char* DSNLEXER::Syntax( int aTok )
@@ -280,24 +356,24 @@ bool DSNLEXER::IsSymbol( int aTok )
 
 void DSNLEXER::Expecting( int aTok ) throw( IO_ERROR )
 {
-    wxString    errText( _("Expecting") );
-    errText << wxT(" ") << GetTokenString( aTok );
+    wxString errText = wxString::Format(
+        _("Expecting '%s'"), GetChars( GetTokenString( aTok ) ) );
     THROW_PARSE_ERROR( errText, CurSource(), CurLine(), CurLineNumber(), CurOffset() );
 }
 
 
 void DSNLEXER::Expecting( const char* text ) throw( IO_ERROR )
 {
-    wxString    errText( _("Expecting") );
-    errText << wxT(" '") << wxString::FromUTF8( text ) << wxT("'");
+    wxString errText = wxString::Format(
+        _("Expecting '%s'"), GetChars( wxString::FromUTF8( text ) ) );
     THROW_PARSE_ERROR( errText, CurSource(), CurLine(), CurLineNumber(), CurOffset() );
 }
 
 
 void DSNLEXER::Unexpected( int aTok ) throw( IO_ERROR )
 {
-    wxString    errText( _("Unexpected") );
-    errText << wxT(" ") << GetTokenString( aTok );
+    wxString errText = wxString::Format(
+        _("Unexpected '%s'"), GetChars( GetTokenString( aTok ) ) );
     THROW_PARSE_ERROR( errText, CurSource(), CurLine(), CurLineNumber(), CurOffset() );
 }
 
@@ -312,8 +388,8 @@ void DSNLEXER::Duplicate( int aTok ) throw( IO_ERROR )
 
 void DSNLEXER::Unexpected( const char* text ) throw( IO_ERROR )
 {
-    wxString    errText( _("Unexpected") );
-    errText << wxT(" '") << wxString::FromUTF8( text ) << wxT("'");
+    wxString errText = wxString::Format(
+        _("Unexpected '%s'"), GetChars( wxString::FromUTF8( text ) ) );
     THROW_PARSE_ERROR( errText, CurSource(), CurLine(), CurLineNumber(), CurOffset() );
 }
 
@@ -371,13 +447,13 @@ int DSNLEXER::NeedNUMBER( const char* aExpectation ) throw( IO_ERROR )
  * i.e. no bytes with MSB on can be considered whitespace, since they are likely part
  * of a multibyte UTF8 character.
  */
-static bool isSpace( int cc )
+static bool isSpace( char cc )
 {
-    // cc was signed extended from signed char, so it is often negative.
+    // cc is signed, so it is often negative.
     // Treat negative as large positive to exclude rapidly.
-    if( unsigned( cc ) <= ' ' )
+    if( (unsigned char) cc <= ' ' )
     {
-        switch( cc )
+        switch( (unsigned char) cc )
         {
         case ' ':
         case '\n':
@@ -391,6 +467,80 @@ static bool isSpace( int cc )
 }
 
 
+inline bool isDigit( char cc )
+{
+    return '0' <= cc && cc <= '9';
+}
+
+
+/// return true if @a cc is an s-expression separator character
+inline bool isSep( char cc )
+{
+    return isSpace( cc ) || cc=='(' || cc==')';
+}
+
+
+/**
+ * Function isNumber
+ * returns true if the next sequence of text is a number:
+ * either an integer, fixed point, or float with exponent.  Stops scanning
+ * at the first non-number character, even if it is not whitespace.
+ *
+ * @param cp is the start of the current token.
+ * @param limit is the end of the current token.
+ *
+ * @return bool - true if input token is a number, else false.
+ */
+static bool isNumber( const char* cp, const char* limit )
+{
+    // regex for a float: "^[-+]?[0-9]*\\.?[0-9]+([eE][-+]?[0-9]+)?" i.e. any number,
+    // code traversal manually here:
+
+    bool sawNumber = false;
+
+    if( cp < limit && ( *cp=='-' || *cp=='+' ) )
+        ++cp;
+
+    while( cp < limit && isDigit( *cp ) )
+    {
+        ++cp;
+        sawNumber = true;
+    }
+
+    if( cp < limit && *cp == '.' )
+    {
+        ++cp;
+
+        while( cp < limit && isDigit( *cp ) )
+        {
+            ++cp;
+            sawNumber = true;
+        }
+    }
+
+    if( sawNumber )
+    {
+        if( cp < limit && ( *cp=='E' || *cp=='e' ) )
+        {
+            ++cp;
+
+            sawNumber = false;  // exponent mandates at least one digit thereafter.
+
+            if( cp < limit && ( *cp=='-' || *cp=='+' )  )
+                ++cp;
+
+            while( cp < limit && isDigit( *cp ) )
+            {
+                ++cp;
+                sawNumber = true;
+            }
+        }
+    }
+
+    return sawNumber && cp==limit;
+}
+
+
 int DSNLEXER::NextTok() throw( IO_ERROR )
 {
     const char*   cur  = next;
@@ -398,67 +548,179 @@ int DSNLEXER::NextTok() throw( IO_ERROR )
 
     prevTok = curTok;
 
-    if( curTok != DSN_EOF )
+    if( curTok == DSN_EOF )
+        goto exit;
+
+    if( cur >= limit )
     {
-        if( cur >= limit )
-        {
 L_read:
-            // blank lines are returned as "\n" and will have a len of 1.
-            // EOF will have a len of 0 and so is detectable.
-            int len = readLine();
-            if( len == 0 )
-            {
-                cur = start;        // after readLine(), since start can change, set cur offset to start
-                curTok = DSN_EOF;
-                goto exit;
-            }
-
-            cur = start;    // after readLine() since start can change.
-
-            // skip leading whitespace
-            while( cur<limit && isSpace(*cur) )
-                ++cur;
-
-            // If the first non-blank character is #, this line is a comment.
-            // Comments cannot follow any other token on the same line.
-            if( cur<limit && *cur=='#' )
-            {
-                if( commentsAreTokens )
-                {
-                    // save the entire line, including new line as the current token.
-                    // the '#' character may not be at offset zero.
-                    curText = start;      // entire line is the token
-                    cur     = start;      // ensure a good curOffset below
-                    curTok  = DSN_COMMENT;
-                    head    = limit;        // do a readLine() on next call in here.
-                    goto exit;
-                }
-                else
-                    goto L_read;
-            }
-        }
-        else
+        // blank lines are returned as "\n" and will have a len of 1.
+        // EOF will have a len of 0 and so is detectable.
+        int len = readLine();
+        if( len == 0 )
         {
-            // skip leading whitespace
-            while( cur<limit && isSpace(*cur) )
-                ++cur;
-        }
-
-        if( cur >= limit )
-            goto L_read;
-
-        if( *cur == '(' )
-        {
-            curText = *cur;
-            curTok = DSN_LEFT;
-            head = cur+1;
+            cur = start;        // after readLine(), since start can change, set cur offset to start
+            curTok = DSN_EOF;
             goto exit;
         }
 
-        if( *cur == ')' )
+        cur = start;    // after readLine() since start can change.
+
+        // skip leading whitespace
+        while( cur<limit && isSpace( *cur ) )
+            ++cur;
+
+        // If the first non-blank character is #, this line is a comment.
+        // Comments cannot follow any other token on the same line.
+        if( cur<limit && *cur=='#' )
         {
-            curText = *cur;
-            curTok = DSN_RIGHT;
+            if( commentsAreTokens )
+            {
+                // Grab the entire current line [excluding end of line char(s)] as the
+                // current token.  The '#' character may not be at offset zero.
+
+                while( limit[-1] == '\n' || limit[-1] == '\r' )
+                    --limit;
+
+                curText.clear();
+                curText.append( start, limit );
+
+                cur     = start;        // ensure a good curOffset below
+                curTok  = DSN_COMMENT;
+                head    = limit;        // do a readLine() on next call in here.
+                goto exit;
+            }
+            else
+                goto L_read;
+        }
+    }
+    else
+    {
+        // skip leading whitespace
+        while( cur<limit && isSpace( *cur ) )
+            ++cur;
+    }
+
+    if( cur >= limit )
+        goto L_read;
+
+    if( *cur == '(' )
+    {
+        curText = *cur;
+        curTok = DSN_LEFT;
+        head = cur+1;
+        goto exit;
+    }
+
+    if( *cur == ')' )
+    {
+        curText = *cur;
+        curTok = DSN_RIGHT;
+        head = cur+1;
+        goto exit;
+    }
+
+    // Non-specctraMode, understands and deciphers escaped \, \r, \n, and \".
+    // Strips off leading and trailing double quotes
+    if( !specctraMode )
+    {
+        // a quoted string, will return DSN_STRING
+        if( *cur == stringDelimiter )
+        {
+            // copy the token, character by character so we can remove doubled up quotes.
+            curText.clear();
+
+            ++cur;  // skip over the leading delimiter, which is always " in non-specctraMode
+
+            head = cur;
+
+            while( head<limit )
+            {
+                // ESCAPE SEQUENCES:
+                if( *head =='\\' )
+                {
+                    char    tbuf[8];
+                    char    c;
+                    int     i;
+
+                    if( ++head >= limit )
+                        break;  // throw exception at L_unterminated
+
+                    switch( *head++ )
+                    {
+                    case '"':
+                    case '\\':  c = head[-1];   break;
+                    case 'a':   c = '\x07';     break;
+                    case 'b':   c = '\x08';     break;
+                    case 'f':   c = '\x0c';     break;
+                    case 'n':   c = '\n';       break;
+                    case 'r':   c = '\r';       break;
+                    case 't':   c = '\x09';     break;
+                    case 'v':   c = '\x0b';     break;
+
+                    case 'x':   // 1 or 2 byte hex escape sequence
+                        for( i=0; i<2; ++i )
+                        {
+                            if( !isxdigit( head[i] ) )
+                                break;
+                            tbuf[i] = head[i];
+                        }
+                        tbuf[i] = '\0';
+                        if( i > 0 )
+                            c = (char) strtoul( tbuf, NULL, 16 );
+                        else
+                            c = 'x';   // a goofed hex escape sequence, interpret as 'x'
+                        head += i;
+                        break;
+
+                    default:    // 1-3 byte octal escape sequence
+                        --head;
+                        for( i=0; i<3; ++i )
+                        {
+                            if( head[i] < '0' || head[i] > '7' )
+                                break;
+                            tbuf[i] = head[i];
+                        }
+                        tbuf[i] = '\0';
+                        if( i > 0 )
+                            c = (char) strtoul( tbuf, NULL, 8 );
+                        else
+                            c = '\\';   // a goofed octal escape sequence, interpret as '\'
+                        head += i;
+                        break;
+                    }
+
+                    curText += c;
+                }
+
+                else if( *head == '"' )     // end of the non-specctraMode DSN_STRING
+                {
+                    curTok = DSN_STRING;
+                    ++head;                 // omit this trailing double quote
+                    goto exit;
+                }
+
+                else
+                    curText += *head++;
+
+            }   // while
+
+            // L_unterminated:
+            wxString errtxt( _( "Un-terminated delimited string" ) );
+            THROW_PARSE_ERROR( errtxt, CurSource(), CurLine(), CurLineNumber(), CurOffset() );
+        }
+    }
+
+    else    // is specctraMode, tests in this block should not occur in KiCad mode.
+    {
+        /*  get the dash out of a <pin_reference> which is embedded for example
+            like:  U2-14 or "U2"-"14"
+            This is detectable by a non-space immediately preceeding the dash.
+        */
+        if( *cur == '-' && cur>start && !isSpace( cur[-1] ) )
+        {
+            curText = '-';
+            curTok = DSN_DASH;
             head = cur+1;
             goto exit;
         }
@@ -483,7 +745,7 @@ L_read:
 
             head = cur+1;
 
-            if( head<limit && *head!=')' && *head!='(' && !isSpace(*head) )
+            if( head<limit && !isSep( *head ) )
             {
                 THROW_PARSE_ERROR( errtxt, CurSource(), CurLine(), CurLineNumber(), CurOffset() );
             }
@@ -492,173 +754,52 @@ L_read:
             goto exit;
         }
 
-        /*  get the dash out of a <pin_reference> which is embedded for example
-            like:  U2-14 or "U2"-"14"
-            This is detectable by a non-space immediately preceeding the dash.
-        */
-        if( *cur == '-' && cur>start && !isSpace( cur[-1] ) )
-        {
-            curText = '-';
-            curTok = DSN_DASH;
-            head = cur+1;
-            goto exit;
-        }
-
-        // handle DSN_NUMBER
-        if( strchr( "+-.0123456789", *cur ) )
-        {
-            head = cur+1;
-            while( head<limit && strchr( ".0123456789", *head )  )
-                ++head;
-
-            if( (head<limit && isSpace(*head)) || *head==')' || *head=='(' || head==limit )
-            {
-                curText.clear();
-                curText.append( cur, head );
-                curTok = DSN_NUMBER;
-                goto exit;
-            }
-
-            // else it was something like +5V, fall through below
-        }
-
-        // a quoted string, will return DSN_STRING
+        // specctraMode DSN_STRING
         if( *cur == stringDelimiter )
         {
-            // Non-specctraMode, understands and deciphers escaped \, \r, \n, and \".
-            // Strips off leading and trailing double quotes
-            if( !specctraMode )
+            ++cur;  // skip over the leading delimiter: ",', or $
+
+            head = cur;
+
+            while( head<limit  &&  !isStringTerminator( *head ) )
+                ++head;
+
+            if( head >= limit )
             {
-                // copy the token, character by character so we can remove doubled up quotes.
-                curText.clear();
-
-                ++cur;  // skip over the leading delimiter, which is always " in non-specctraMode
-
-                head = cur;
-
-                while( head<limit )
-                {
-                    // ESCAPE SEQUENCES:
-                    if( *head =='\\' )
-                    {
-                        char    tbuf[8];
-                        char    c;
-                        int     i;
-
-                        if( ++head >= limit )
-                            break;  // throw exception at L_unterminated
-
-                        switch( *head++ )
-                        {
-                        case '"':
-                        case '\\':  c = head[-1];   break;
-                        case 'a':   c = '\x07';     break;
-                        case 'b':   c = '\x08';     break;
-                        case 'f':   c = '\x0c';     break;
-                        case 'n':   c = '\n';       break;
-                        case 'r':   c = '\r';       break;
-                        case 't':   c = '\x09';     break;
-                        case 'v':   c = '\x0b';     break;
-
-                        case 'x':   // 1 or 2 byte hex escape sequence
-                            for( i=0; i<2; ++i )
-                            {
-                                if( !isxdigit( head[i] ) )
-                                    break;
-                                tbuf[i] = head[i];
-                            }
-                            tbuf[i] = '\0';
-                            if( i > 0 )
-                                c = (char) strtoul( tbuf, NULL, 16 );
-                            else
-                                c = 'x';   // a goofed hex escape sequence, interpret as 'x'
-                            head += i;
-                            break;
-
-                        default:    // 1-3 byte octal escape sequence
-                            --head;
-                            for( i=0; i<3; ++i )
-                            {
-                                if( head[i] < '0' || head[i] > '7' )
-                                    break;
-                                tbuf[i] = head[i];
-                            }
-                            tbuf[i] = '\0';
-                            if( i > 0 )
-                                c = (char) strtoul( tbuf, NULL, 8 );
-                            else
-                                c = '\\';   // a goofed octal escape sequence, interpret as '\'
-                            head += i;
-                            break;
-                        }
-
-                        curText += c;
-                    }
-
-                    else if( *head == '"' )     // end of the non-specctraMode DSN_STRING
-                    {
-                        curTok = DSN_STRING;
-                        ++head;                 // omit this trailing double quote
-                        goto exit;
-                    }
-
-                    else
-                        curText += *head++;
-
-                }   // while
-
-                // L_unterminated:
-                wxString errtxt(_("Un-terminated delimited string") );
+                wxString errtxt( _( "Un-terminated delimited string" ) );
                 THROW_PARSE_ERROR( errtxt, CurSource(), CurLine(), CurLineNumber(), CurOffset() );
             }
-
-            else    // specctraMode DSN_STRING
-            {
-                ++cur;  // skip over the leading delimiter: ",', or $
-
-                head = cur;
-
-                while( head<limit  &&  !isStringTerminator( *head ) )
-                    ++head;
-
-                if( head >= limit )
-                {
-                    wxString errtxt(_("Un-terminated delimited string") );
-                    THROW_PARSE_ERROR( errtxt, CurSource(), CurLine(), CurLineNumber(), CurOffset() );
-                }
-
-                curText.clear();
-                curText.append( cur, head );
-
-                ++head;     // skip over the trailing delimiter
-
-                curTok  = DSN_STRING;
-                goto exit;
-            }
-        }
-
-        // Maybe it is a token we will find in the token table.
-        // If not, then call it a DSN_SYMBOL.
-        {
-            head = cur+1;
-            while( head<limit && !isSpace( *head ) && *head!=')' && *head!='(' )
-                ++head;
 
             curText.clear();
             curText.append( cur, head );
 
-            int found = findToken( curText );
+            ++head;     // skip over the trailing delimiter
 
-            if( found != -1 )
-                curTok = found;
-
-            else if( 0 == curText.compare( "string_quote" ) )
-                curTok = DSN_STRING_QUOTE;
-
-            else                    // unrecogized token, call it a symbol
-                curTok = DSN_SYMBOL;
+            curTok  = DSN_STRING;
+            goto exit;
         }
+    }           // specctraMode
+
+    // non-quoted token, read it into curText.
+    curText.clear();
+
+    head = cur;
+    while( head<limit && !isSep( *head ) )
+        curText += *head++;
+
+    if( isNumber( curText.c_str(), curText.c_str() + curText.size() ) )
+    {
+        curTok = DSN_NUMBER;
+        goto exit;
     }
+
+    if( specctraMode && curText == "string_quote" )
+    {
+        curTok = DSN_STRING_QUOTE;
+        goto exit;
+    }
+
+    curTok = findToken( curText );
 
 exit:   // single point of exit, no returns elsewhere please.
 
@@ -670,3 +811,25 @@ exit:   // single point of exit, no returns elsewhere please.
     return curTok;
 }
 
+
+wxArrayString* DSNLEXER::ReadCommentLines() throw( IO_ERROR )
+{
+    wxArrayString*  ret = 0;
+    bool            cmt_setting = SetCommentsAreTokens( true );
+    int             tok = NextTok();
+
+    if( tok == DSN_COMMENT )
+    {
+        ret = new wxArrayString();
+
+        do
+        {
+            ret->Add( FromUTF8() );
+        }
+        while( ( tok = NextTok() ) == DSN_COMMENT );
+    }
+
+    SetCommentsAreTokens( cmt_setting );
+
+    return ret;
+}

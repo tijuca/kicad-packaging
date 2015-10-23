@@ -13,7 +13,7 @@ pcb.m_NetClasses.GetDefault().SetClearance(FromMM(0.1))
 # create a new module, it's parent is our previously created pcb
 module = MODULE(pcb)
 module.SetReference("FPC"+str(pads))   # give it a reference name
-module.m_Reference.SetPos0(wxPointMM(-1,-1))
+module.Reference().SetPos0(wxPointMM(-1,-1))
 pcb.Add(module)             # add it to our pcb
 m_pos = wxPointMM(50,50)
 module.SetPosition(m_pos)
@@ -34,10 +34,10 @@ def smdRectPad(module,size,pos,name):
 for n in range (0,pads):
     pad = smdRectPad(module,size_025_160mm,wxPointMM(0.5*n,0),str(n+1))
     module.Add(pad)
-  
+
 
 pad_s0 = smdRectPad(module,size_150_200mm,wxPointMM(-1.6,1.3),"0")
-pad_s1 = smdRectPad(module,size_150_200mm,wxPointMM((pads-1)*0.5+1.6,1.3),"0")        
+pad_s1 = smdRectPad(module,size_150_200mm,wxPointMM((pads-1)*0.5+1.6,1.3),"0")
 module.Add(pad_s0)
 module.Add(pad_s1)
 
@@ -50,10 +50,11 @@ e.SetShape(S_SEGMENT)
 module.Add(e)
 
 # save the PCB to disk
-module.SetLibRef("FPC"+str(pads))
+fpid = FPID("FPC"+str(pads))   #the name in library
+module.SetFPID( fpid )
+
 try:
-    FootprintLibCreate("fpc.mod")
+    FootprintLibCreate("fpc40.mod")
 except:
     pass # we try to create, but may be it exists already
 FootprintSave("fpc40.mod",module)
-

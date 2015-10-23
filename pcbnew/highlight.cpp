@@ -76,11 +76,7 @@ void PCB_EDIT_FRAME::ListNetsAndSelect( wxCommandEvent& event )
         list.Add( Line );
     }
 
-#if wxCHECK_VERSION( 2, 9, 4 )
-    wxSingleChoiceDialog choiceDlg( this, wxEmptyString, _( "Select Net" ), list, (void**) NULL );
-#else
-    wxSingleChoiceDialog choiceDlg( this, wxEmptyString, _( "Select Net" ), list, (char**) NULL );
-#endif
+    wxSingleChoiceDialog choiceDlg( this, wxEmptyString, _( "Select Net" ), list );
 
     if( (choiceDlg.ShowModal() == wxID_CANCEL) || (choiceDlg.GetSelection() == wxNOT_FOUND) )
         return;
@@ -133,7 +129,7 @@ int PCB_EDIT_FRAME::SelectHighLight( wxDC* DC )
     // optionally, modify the "guide" here as needed using its member functions
 
     m_Collector->Collect( GetBoard(), GENERAL_COLLECTOR::PadsTracksOrZones,
-                          GetScreen()->RefPos( true ), guide );
+                          RefPos( true ), guide );
 
     BOARD_ITEM* item = (*m_Collector)[0];
 
@@ -142,7 +138,7 @@ int PCB_EDIT_FRAME::SelectHighLight( wxDC* DC )
         switch( item->Type() )
         {
         case PCB_PAD_T:
-            netcode = ( (D_PAD*) item )->GetNet();
+            netcode = ( (D_PAD*) item )->GetNetCode();
             SendMessageToEESCHEMA( item );
             break;
 
@@ -151,11 +147,11 @@ int PCB_EDIT_FRAME::SelectHighLight( wxDC* DC )
         case PCB_ZONE_T:
             // since these classes are all derived from TRACK, use a common
             // GetNet() function:
-            netcode = ( (TRACK*) item )->GetNet();
+            netcode = ( (TRACK*) item )->GetNetCode();
             break;
 
         case PCB_ZONE_AREA_T:
-            netcode = ( (ZONE_CONTAINER*) item )->GetNet();
+            netcode = ( (ZONE_CONTAINER*) item )->GetNetCode();
             break;
 
         default:
@@ -170,7 +166,6 @@ int PCB_EDIT_FRAME::SelectHighLight( wxDC* DC )
         HighLight( DC );
     }
 
-
     return netcode;      // HitTest() failed.
 }
 
@@ -183,4 +178,18 @@ void PCB_EDIT_FRAME::HighLight( wxDC* DC )
         GetBoard()->HighLightON();
 
     GetBoard()->DrawHighLight( m_canvas, DC, GetBoard()->GetHighLightNetCode() );
+}
+
+void PCB_EDIT_FRAME::HighlightUnconnectedPads( wxDC* DC )
+{
+    for( unsigned ii = 0; ii < GetBoard()->GetRatsnestsCount(); ii++ )
+    {
+        RATSNEST_ITEM* net = &GetBoard()->m_FullRatsnest[ii];
+
+        if( (net->m_Status & CH_ACTIF) == 0 )
+            continue;
+
+        net->m_PadStart->Draw( m_canvas, DC, GR_OR | GR_HIGHLIGHT );
+        net->m_PadEnd->Draw( m_canvas, DC, GR_OR | GR_HIGHLIGHT );
+    }
 }

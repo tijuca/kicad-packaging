@@ -1,5 +1,5 @@
 ///////////////////////////////////////////////////////////////////////////
-// C++ code generated with wxFormBuilder (version Oct  8 2012)
+// C++ code generated with wxFormBuilder (version Jun  5 2014)
 // http://www.wxformbuilder.org/
 //
 // PLEASE DO "NOT" EDIT THIS FILE!
@@ -11,6 +11,9 @@
 #include <wx/artprov.h>
 #include <wx/xrc/xmlres.h>
 #include <wx/intl.h>
+class DIALOG_SHIM;
+
+#include "dialog_shim.h"
 #include <wx/string.h>
 #include <wx/stattext.h>
 #include <wx/gdicmn.h>
@@ -20,6 +23,7 @@
 #include <wx/listbox.h>
 #include <wx/button.h>
 #include <wx/sizer.h>
+#include <wx/checkbox.h>
 #include <wx/statline.h>
 #include <wx/dialog.h>
 
@@ -28,7 +32,7 @@
 ///////////////////////////////////////////////////////////////////////////////
 /// Class DIALOG_EESCHEMA_CONFIG_FBP
 ///////////////////////////////////////////////////////////////////////////////
-class DIALOG_EESCHEMA_CONFIG_FBP : public wxDialog 
+class DIALOG_EESCHEMA_CONFIG_FBP : public DIALOG_SHIM
 {
 	private:
 	
@@ -56,6 +60,7 @@ class DIALOG_EESCHEMA_CONFIG_FBP : public wxDialog
 		wxButton* m_buttonRemovePath;
 		wxStaticText* m_staticTextPathlist;
 		wxListBox* m_DefaultLibraryPathslistBox;
+		wxCheckBox* m_cbRescue;
 		wxStaticLine* m_staticline3;
 		
 		// Virtual event handlers, overide them in your derived class

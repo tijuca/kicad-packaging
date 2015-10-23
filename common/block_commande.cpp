@@ -29,7 +29,7 @@
 
 #include <fctsys.h>
 #include <gr_basic.h>
-#include <wxstruct.h>
+#include <draw_frame.h>
 #include <common.h>
 #include <macros.h>
 #include <base_struct.h>
@@ -42,8 +42,8 @@
 BLOCK_SELECTOR::BLOCK_SELECTOR() :
     EDA_RECT()
 {
-    m_state   = STATE_NO_BLOCK; /* State (enum BLOCK_STATE_T) of block. */
-    m_command = BLOCK_IDLE;     /* Type (enum BLOCK_COMMAND_T) of operation. */
+    m_state   = STATE_NO_BLOCK; // State (enum BLOCK_STATE_T) of block.
+    m_command = BLOCK_IDLE;     // Type (enum BLOCK_COMMAND_T) of operation.
     m_color   = BROWN;
 }
 
@@ -62,24 +62,29 @@ void BLOCK_SELECTOR::SetMessageBlock( EDA_DRAW_FRAME* frame )
     case BLOCK_IDLE:
         break;
 
-    case BLOCK_MOVE:                /* Move */
-    case BLOCK_PRESELECT_MOVE:      /* Move with preselection list*/
+    case BLOCK_MOVE:                // Move
+    case BLOCK_PRESELECT_MOVE:      // Move with preselection list
+    case BLOCK_MOVE_EXACT:
         msg = _( "Block Move" );
         break;
 
-    case BLOCK_DRAG:     /* Drag */
+    case BLOCK_DRAG:     // Drag
         msg = _( "Block Drag" );
         break;
 
-    case BLOCK_COPY:     /* Copy */
+    case BLOCK_DRAG_ITEM:     // Drag
+        msg = _( "Drag item" );
+        break;
+
+    case BLOCK_COPY:     // Copy
         msg = _( "Block Copy" );
         break;
 
-    case BLOCK_DELETE:     /* Delete */
+    case BLOCK_DELETE:     // Delete
         msg = _( "Block Delete" );
         break;
 
-    case BLOCK_SAVE:     /* Save */
+    case BLOCK_SAVE:     // Save
         msg = _( "Block Save" );
         break;
 
@@ -87,20 +92,20 @@ void BLOCK_SELECTOR::SetMessageBlock( EDA_DRAW_FRAME* frame )
         msg = _( "Block Paste" );
         break;
 
-    case BLOCK_ZOOM:     /* Window Zoom */
+    case BLOCK_ZOOM:     // Window Zoom
         msg = _( "Win Zoom" );
         break;
 
-    case BLOCK_ROTATE:     /* Rotate 90 deg */
+    case BLOCK_ROTATE:     // Rotate 90 deg
         msg = _( "Block Rotate" );
         break;
 
-    case BLOCK_FLIP:     /* Flip */
+    case BLOCK_FLIP:     // Flip
         msg = _( "Block Flip" );
         break;
 
     case BLOCK_MIRROR_X:
-    case BLOCK_MIRROR_Y:     /* mirror */
+    case BLOCK_MIRROR_Y:     // mirror
         msg = _( "Block Mirror" );
         break;
 
@@ -108,7 +113,7 @@ void BLOCK_SELECTOR::SetMessageBlock( EDA_DRAW_FRAME* frame )
         break;
 
     default:
-        msg = wxT( "????" );
+        msg = wxT( "???" );
         break;
     }
 
@@ -119,6 +124,8 @@ void BLOCK_SELECTOR::SetMessageBlock( EDA_DRAW_FRAME* frame )
 void BLOCK_SELECTOR::Draw( EDA_DRAW_PANEL* aPanel, wxDC* aDC, const wxPoint& aOffset,
                            GR_DRAWMODE aDrawMode, EDA_COLOR_T aColor )
 {
+    if( !aDC )
+        return;
 
     int w = GetWidth();
     int h = GetHeight();
@@ -182,18 +189,19 @@ void DrawAndSizingBlockOutlines( EDA_DRAW_PANEL* aPanel, wxDC* aDC, const wxPoin
 
     block->SetMoveVector( wxPoint( 0, 0 ) );
 
-    if( aErase )
+    if( aErase && aDC )
         block->Draw( aPanel, aDC, wxPoint( 0, 0 ), g_XorMode, block->GetColor() );
 
-    block->SetLastCursorPosition( aPanel->GetScreen()->GetCrossHairPosition() );
-    block->SetEnd( aPanel->GetScreen()->GetCrossHairPosition() );
+    block->SetLastCursorPosition( aPanel->GetParent()->GetCrossHairPosition() );
+    block->SetEnd( aPanel->GetParent()->GetCrossHairPosition() );
 
-    block->Draw( aPanel, aDC, wxPoint( 0, 0 ), g_XorMode, block->GetColor() );
+    if( aDC )
+        block->Draw( aPanel, aDC, wxPoint( 0, 0 ), g_XorMode, block->GetColor() );
 
     if( block->GetState() == STATE_BLOCK_INIT )
     {
         if( block->GetWidth() || block->GetHeight() )
-            /* 2nd point exists: the rectangle is not surface anywhere */
+            // 2nd point exists: the rectangle is not surface anywhere
             block->SetState( STATE_BLOCK_END );
     }
 }
@@ -203,14 +211,14 @@ void AbortBlockCurrentCommand( EDA_DRAW_PANEL* aPanel, wxDC* aDC )
 {
     BASE_SCREEN* screen = aPanel->GetScreen();
 
-    if( aPanel->IsMouseCaptured() )      /* Erase current drawing on screen */
+    if( aPanel->IsMouseCaptured() )      // Erase current drawing on screen
     {
-        /* Clear block outline. */
+        // Clear block outline.
         aPanel->CallMouseCapture( aDC, wxDefaultPosition, false );
         aPanel->SetMouseCapture( NULL, NULL );
         screen->SetCurItem( NULL );
 
-        /* Delete the picked wrapper if this is a picked list. */
+        // Delete the picked wrapper if this is a picked list.
         if( screen->m_BlockLocate.GetCommand() != BLOCK_PASTE )
             screen->m_BlockLocate.ClearItemsList();
     }

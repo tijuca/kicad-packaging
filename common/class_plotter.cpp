@@ -1,3 +1,27 @@
+/*
+ * This program source code file is part of KiCad, a free EDA CAD application.
+ *
+ * Copyright (C) 2014 Jean-Pierre Charras, jp.charras at wanadoo.fr
+ * Copyright (C) 2014 KiCad Developers, see CHANGELOG.TXT for contributors.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation; either version 2
+ * of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, you may find one here:
+ * http://www.gnu.org/licenses/old-licenses/gpl-2.0.html
+ * or you may search the http://www.gnu.org website for the version 2 license,
+ * or you may write to the Free Software Foundation, Inc.,
+ * 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
+ */
+
 /**
  * @file class_plotter.cpp
  * @brief KiCad: Base of all the plot routines
@@ -20,7 +44,6 @@
 #include <base_struct.h>
 #include <common.h>
 #include <plot_common.h>
-#include <worksheet.h>
 #include <macros.h>
 #include <class_base_screen.h>
 #include <drawtxt.h>
@@ -31,10 +54,17 @@ PLOTTER::PLOTTER( )
     defaultPenWidth = 0;
     currentPenWidth = -1;       // To-be-set marker
     penState = 'Z';             // End-of-path idle
-    plotMirror = false;    		// Mirror flag
+    m_plotMirror = false;       // Plot mirror option flag
+    m_mirrorIsHorizontal = true;
+    m_yaxisReversed = false;
     outputFile = 0;
     colorMode = false;          // Starts as a BW plot
     negativeMode = false;
+    // Temporary init to avoid not initialized vars, will be set later
+    m_IUsPerDecimil = 1;        // will be set later to the actual value
+    iuPerDeviceUnit = 1;        // will be set later to the actual value
+    m_dashMarkLength_mm = 0.5;  // Dashed line parameter in mm: segment
+    m_dashGapLength_mm = 0.25;   // Dashed line parameter in mm: gap
 }
 
 PLOTTER::~PLOTTER()
@@ -42,18 +72,10 @@ PLOTTER::~PLOTTER()
     // Emergency cleanup, but closing the file is
     // usually made in EndPlot().
     if( outputFile )
-    {
         fclose( outputFile );
-    }
 }
 
-/*
- * Open or create the plot file aFullFilename
- * return true if success, false if the file connot be created/opened
- *
- * Virtual because some plotters use ascii files, some others binary files (PDF)
- * The base class open the file in text mode
- */
+
 bool PLOTTER::OpenFile( const wxString& aFullFilename )
 {
     filename = aFullFilename;
@@ -70,82 +92,85 @@ bool PLOTTER::OpenFile( const wxString& aFullFilename )
     return true;
 }
 
-/**
- * Modifies coordinates according to the orientation,
- * scale factor, and offsets trace. Also convert from a wxPoint to DPOINT,
- * since some output engines needs floating point coordinates.
- */
-DPOINT PLOTTER::userToDeviceCoordinates( const wxPoint& pos )
-{
-    double x = (pos.x - plotOffset.x) * plotScale * iuPerDeviceUnit;
-    double y;
 
-    if( plotMirror )
-        y = ( pos.y - plotOffset.y ) * plotScale * iuPerDeviceUnit ;
-    else
-        y = ( paperSize.y - ( pos.y - plotOffset.y )
-	      * plotScale ) * iuPerDeviceUnit ;
+DPOINT PLOTTER::userToDeviceCoordinates( const wxPoint& aCoordinate )
+{
+    wxPoint pos = aCoordinate - plotOffset;
+
+    double x = pos.x * plotScale;
+    double y = ( paperSize.y - pos.y * plotScale );
+
+    if( m_plotMirror )
+    {
+        if( m_mirrorIsHorizontal )
+            x = ( paperSize.x - pos.x * plotScale );
+        else
+            y = pos.y * plotScale;
+    }
+
+    if( m_yaxisReversed )
+        y = paperSize.y - y;
+
+    x *= iuPerDeviceUnit;
+    y *= iuPerDeviceUnit;
+
     return DPOINT( x, y );
 }
 
-/**
- * Modifies size according to the plotter scale factors
- * (wxSize version, returns a DPOINT)
- */
+
 DPOINT PLOTTER::userToDeviceSize( const wxSize& size )
 {
     return DPOINT( size.x * plotScale * iuPerDeviceUnit,
 	           size.y * plotScale * iuPerDeviceUnit );
 }
 
-/**
- * Modifies size according to the plotter scale factors
- * (simple double version)
- */
-double PLOTTER::userToDeviceSize( double size )
+
+double PLOTTER::userToDeviceSize( double size ) const
 {
     return size * plotScale * iuPerDeviceUnit;
 }
 
 
-/**
- * Generic fallback: arc rendered as a polyline
- */
-void PLOTTER::Arc( const wxPoint& centre, int StAngle, int EndAngle, int radius,
+double PLOTTER::GetDashMarkLenIU() const
+{
+    double mark = userToDeviceSize( m_dashMarkLength_mm*10000/25.4*m_IUsPerDecimil - GetCurrentLineWidth() );
+    return ( mark < 0.0 ) ? 0.0 : mark;
+}
+
+
+double PLOTTER::GetDashGapLenIU() const
+{
+    return userToDeviceSize( m_dashGapLength_mm*10000/25.4*m_IUsPerDecimil + GetCurrentLineWidth() );
+}
+
+void PLOTTER::Arc( const wxPoint& centre, double StAngle, double EndAngle, int radius,
                    FILL_T fill, int width )
 {
     wxPoint   start, end;
     const int delta = 50;   // increment (in 0.1 degrees) to draw circles
-    double    alpha;
 
     if( StAngle > EndAngle )
-        EXCHG( StAngle, EndAngle );
+        std::swap( StAngle, EndAngle );
 
     SetCurrentLineWidth( width );
     /* Please NOTE the different sign due to Y-axis flip */
-    alpha   = DEG2RAD( StAngle / 10.0 );
-    start.x = centre.x + (int) ( radius * cos( -alpha ) );
-    start.y = centre.y + (int) ( radius * sin( -alpha ) );
+    start.x = centre.x + KiROUND( cosdecideg( radius, -StAngle ) );
+    start.y = centre.y + KiROUND( sindecideg( radius, -StAngle ) );
     MoveTo( start );
     for( int ii = StAngle + delta; ii < EndAngle; ii += delta )
     {
-        alpha = DEG2RAD( ii / 10.0 );
-        end.x = centre.x + (int) ( radius * cos( -alpha ) );
-        end.y = centre.y + (int) ( radius * sin( -alpha ) );
+        end.x = centre.x + KiROUND( cosdecideg( radius, -ii ) );
+        end.y = centre.y + KiROUND( sindecideg( radius, -ii ) );
         LineTo( end );
     }
 
-    alpha = DEG2RAD( EndAngle / 10.0 );
-    end.x = centre.x + (int) ( radius * cos( -alpha ) );
-    end.y = centre.y + (int) ( radius * sin( -alpha ) );
+    end.x = centre.x + KiROUND( cosdecideg( radius, -EndAngle ) );
+    end.y = centre.y + KiROUND( sindecideg( radius, -EndAngle ) );
     FinishTo( end );
 }
 
-/**
- * Fallback: if it doesn't handle bitmaps, we plot a rectangle
- */
-void PLOTTER::PlotImage(const wxImage & aImage, const wxPoint& aPos,
-                        double aScaleFactor )
+
+void PLOTTER::PlotImage(const wxImage & aImage, const wxPoint& aPos, double aScaleFactor )
 {
     wxSize size( aImage.GetWidth() * aScaleFactor,
 	         aImage.GetHeight() * aScaleFactor );
@@ -162,9 +187,6 @@ void PLOTTER::PlotImage(const wxImage & aImage, const wxPoint& aPos,
 }
 
 
-/**
- * Plot a square centered on the position. Building block for markers
- */
 void PLOTTER::markerSquare( const wxPoint& position, int radius )
 {
     double r = KiROUND( radius / 1.4142 );
@@ -186,20 +208,16 @@ void PLOTTER::markerSquare( const wxPoint& position, int radius )
     corner.y = position.y + r;
     corner_list.push_back( corner );
 
-    PlotPoly( corner_list, NO_FILL );
+    PlotPoly( corner_list, NO_FILL, GetCurrentLineWidth() );
 }
 
-/**
- * Plot a circle centered on the position. Building block for markers
- */
+
 void PLOTTER::markerCircle( const wxPoint& position, int radius )
 {
-    Circle( position, radius * 2, NO_FILL );
+    Circle( position, radius * 2, NO_FILL, GetCurrentLineWidth() );
 }
 
-/**
- * Plot a lozenge centered on the position. Building block for markers
- */
+
 void PLOTTER::markerLozenge( const wxPoint& position, int radius )
 {
     std::vector< wxPoint > corner_list;
@@ -220,51 +238,38 @@ void PLOTTER::markerLozenge( const wxPoint& position, int radius )
     corner.y = position.y + radius;
     corner_list.push_back( corner );
 
-    PlotPoly( corner_list, NO_FILL );
+    PlotPoly( corner_list, NO_FILL, GetCurrentLineWidth() );
 }
 
-/**
- * Plot a - bar centered on the position. Building block for markers
- */
+
 void PLOTTER::markerHBar( const wxPoint& pos, int radius )
 {
     MoveTo( wxPoint( pos.x - radius, pos.y ) );
     FinishTo( wxPoint( pos.x + radius, pos.y ) );
 }
 
-/**
- * Plot a / bar centered on the position. Building block for markers
- */
+
 void PLOTTER::markerSlash( const wxPoint& pos, int radius )
 {
     MoveTo( wxPoint( pos.x - radius, pos.y - radius ) );
     FinishTo( wxPoint( pos.x + radius, pos.y + radius ) );
 }
 
-/**
- * Plot a \ bar centered on the position. Building block for markers
- */
+
 void PLOTTER::markerBackSlash( const wxPoint& pos, int radius )
 {
     MoveTo( wxPoint( pos.x + radius, pos.y - radius ) );
     FinishTo( wxPoint( pos.x - radius, pos.y + radius ) );
 }
 
-/**
- * Plot a | bar centered on the position. Building block for markers
- */
+
 void PLOTTER::markerVBar( const wxPoint& pos, int radius )
 {
     MoveTo( wxPoint( pos.x, pos.y - radius ) );
     FinishTo( wxPoint( pos.x, pos.y + radius ) );
 }
 
-/**
- * Draw a pattern shape number aShapeId, to coord x0, y0.
- * x0, y0 = coordinates tables
- * Diameter diameter = (coord table) hole
- * AShapeId = index (used to generate forms characters)
- */
+
 void PLOTTER::Marker( const wxPoint& position, int diametre, unsigned aShapeId )
 {
     int radius = diametre / 2;
@@ -346,8 +351,8 @@ void PLOTTER::Marker( const wxPoint& position, int diametre, unsigned aShapeId )
     };
     if( aShapeId >= MARKER_COUNT )
     {
-	// Fallback shape
-	markerCircle( position, radius );
+        // Fallback shape
+        markerCircle( position, radius );
     }
     else
     {
@@ -368,37 +373,31 @@ void PLOTTER::Marker( const wxPoint& position, int diametre, unsigned aShapeId )
 	if( pat & 0100 )
 	    markerCircle( position, radius );
     }
-
 }
 
 
-/**
- * Convert a thick segment and plot it as an oval
- */
 void PLOTTER::segmentAsOval( const wxPoint& start, const wxPoint& end, int width,
                              EDA_DRAW_MODE_T tracemode )
 {
     wxPoint center( (start.x + end.x) / 2, (start.y + end.y) / 2 );
     wxSize  size( end.x - start.x, end.y - start.y );
-    int     orient;
+    double  orient;
 
     if( size.y == 0 )
         orient = 0;
     else if( size.x == 0 )
         orient = 900;
     else
-        orient = -(int) ( RAD2DEG( atan2( (double)size.y, (double)size.x ) ) * 10.0 );
+        orient = -ArcTangente( size.y, size.x );
 
-    size.x = (int) sqrt( ( (double) size.x * size.x )
-                       + ( (double) size.y * size.y ) ) + width;
+    size.x = KiROUND( EuclideanNorm( size ) ) + width;
     size.y = width;
 
     FlashPadOval( center, size, orient, tracemode );
 }
 
 
-void PLOTTER::sketchOval( const wxPoint& pos, const wxSize& aSize, int orient,
-                          int width )
+void PLOTTER::sketchOval( const wxPoint& pos, const wxSize& aSize, double orient, int width )
 {
     SetCurrentLineWidth( width );
     width = currentPenWidth;
@@ -407,10 +406,8 @@ void PLOTTER::sketchOval( const wxPoint& pos, const wxSize& aSize, int orient,
 
     if( size.x > size.y )
     {
-        EXCHG( size.x, size.y );
-        orient += 900;
-        if( orient >= 3600 )
-            orient -= 3600;
+        std::swap( size.x, size.y );
+        orient = AddAngles( orient, 900 );
     }
 
     deltaxy = size.y - size.x;       /* distance between centers of the oval */
@@ -448,49 +445,35 @@ void PLOTTER::sketchOval( const wxPoint& pos, const wxSize& aSize, int orient,
 }
 
 
-/* Plot 1 segment like a track segment
- */
 void PLOTTER::ThickSegment( const wxPoint& start, const wxPoint& end, int width,
                             EDA_DRAW_MODE_T tracemode )
 {
-    switch( tracemode )
+    if( tracemode == FILLED )
     {
-    case FILLED:
-    case LINE:
-        SetCurrentLineWidth( tracemode==FILLED ? width : -1 );
+        SetCurrentLineWidth( width );
         MoveTo( start );
         FinishTo( end );
-        break;
-
-    case SKETCH:
+    }
+    else
+    {
         SetCurrentLineWidth( -1 );
         segmentAsOval( start, end, width, tracemode );
-        break;
     }
 }
 
 
-void PLOTTER::ThickArc( const wxPoint& centre, int StAngle, int EndAngle, int radius,
-                        int width, EDA_DRAW_MODE_T tracemode )
+void PLOTTER::ThickArc( const wxPoint& centre, double StAngle, double EndAngle,
+                        int radius, int width, EDA_DRAW_MODE_T tracemode )
 {
-    switch( tracemode )
-    {
-    case LINE:
-        SetCurrentLineWidth( -1 );
-        Arc( centre, StAngle, EndAngle, radius, NO_FILL, -1 );
-        break;
-
-    case FILLED:
+    if( tracemode == FILLED )
         Arc( centre, StAngle, EndAngle, radius, NO_FILL, width );
-        break;
-
-    case SKETCH:
+    else
+    {
         SetCurrentLineWidth( -1 );
         Arc( centre, StAngle, EndAngle,
              radius - ( width - currentPenWidth ) / 2, NO_FILL, -1 );
         Arc( centre, StAngle, EndAngle,
              radius + ( width - currentPenWidth ) / 2, NO_FILL, -1 );
-        break;
     }
 }
 
@@ -498,17 +481,10 @@ void PLOTTER::ThickArc( const wxPoint& centre, int StAngle, int EndAngle, int ra
 void PLOTTER::ThickRect( const wxPoint& p1, const wxPoint& p2, int width,
                          EDA_DRAW_MODE_T tracemode )
 {
-    switch( tracemode )
-    {
-    case LINE:
-        Rect( p1, p2, NO_FILL, -1 );
-        break;
-
-    case FILLED:
+    if( tracemode == FILLED )
         Rect( p1, p2, NO_FILL, width );
-        break;
-
-    case SKETCH:
+    else
+    {
         SetCurrentLineWidth( -1 );
         wxPoint offsetp1( p1.x - (width - currentPenWidth) / 2,
                           p1.y - (width - currentPenWidth) / 2 );
@@ -520,29 +496,19 @@ void PLOTTER::ThickRect( const wxPoint& p1, const wxPoint& p2, int width,
         offsetp2.x -= (width - currentPenWidth);
         offsetp2.y -= (width - currentPenWidth);
         Rect( offsetp1, offsetp2, NO_FILL, -1 );
-        break;
     }
 }
 
 
-void PLOTTER::ThickCircle( const wxPoint& pos, int diametre, int width,
-                           EDA_DRAW_MODE_T tracemode )
+void PLOTTER::ThickCircle( const wxPoint& pos, int diametre, int width, EDA_DRAW_MODE_T tracemode )
 {
-    switch( tracemode )
-    {
-    case LINE:
-        Circle( pos, diametre, NO_FILL, -1 );
-        break;
-
-    case FILLED:
+    if( tracemode == FILLED )
         Circle( pos, diametre, NO_FILL, width );
-        break;
-
-    case SKETCH:
+    else
+    {
         SetCurrentLineWidth( -1 );
         Circle( pos, diametre - width + currentPenWidth, NO_FILL, -1 );
         Circle( pos, diametre + width - currentPenWidth, NO_FILL, -1 );
-        break;
     }
 }
 
@@ -552,4 +518,3 @@ void PLOTTER::SetPageSettings( const PAGE_INFO& aPageSettings )
     wxASSERT( !outputFile );
     pageInfo = aPageSettings;
 }
-

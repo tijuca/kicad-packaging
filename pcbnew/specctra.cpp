@@ -3,7 +3,7 @@
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
  * Copyright (C) 2007-2011 SoftPLC Corporation, Dick Hollenbeck <dick@softplc.com>
- * Copyright (C) 2007 KiCad Developers, see change_log.txt for contributors.
+ * Copyright (C) 2007-2015 KiCad Developers, see change_log.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -56,6 +56,7 @@
 #include <class_track.h>
 
 #include <specctra.h>
+#include <macros.h>
 
 
 namespace DSN {
@@ -74,39 +75,64 @@ void SPECCTRA_DB::buildLayerMaps( BOARD* aBoard )
 {
     // specctra wants top physical layer first, then going down to the
     // bottom most physical layer in physical sequence.
-    // @question : why does KiCad not display layers in that order?
-    int layerCount = aBoard->GetCopperLayerCount();
+    // Same as KiCad now except for B_Cu
+    unsigned layerCount = aBoard->GetCopperLayerCount();
 
     layerIds.clear();
     pcbLayer2kicad.resize( layerCount );
-    kicadLayer2pcb.resize( LAYER_N_FRONT+1 );
+    kicadLayer2pcb.resize( B_Cu + 1 );
 
-    for( int kiNdx=layerCount-1, pcbNdx=0;  kiNdx >= 0;  --kiNdx, ++pcbNdx )
+#if 0 // was:
+    for( LAYER_NUM kiNdx = layerCount - 1, pcbNdx=FIRST_LAYER;
+         kiNdx >= 0; --kiNdx, ++pcbNdx )
     {
-        int kilayer = kiNdx>0 && kiNdx==layerCount-1 ? LAYER_N_FRONT : kiNdx;
+        LAYER_NUM kilayer = (kiNdx>0 && kiNdx==layerCount-1) ? F_Cu : kiNdx;
 
         // establish bi-directional mapping between KiCad's BOARD layer and PCB layer
         pcbLayer2kicad[pcbNdx]  = kilayer;
         kicadLayer2pcb[kilayer] = pcbNdx;
 
         // save the specctra layer name in SPECCTRA_DB::layerIds for later.
-        layerIds.push_back( TO_UTF8( aBoard->GetLayerName( kilayer ) ) );
+        layerIds.push_back( TO_UTF8( aBoard->GetLayerName( ToLAYER_ID( kilayer ) ) ) );
     }
+#else
+
+    // establish bi-directional mapping between KiCad's BOARD layer and PCB layer
+
+    for( unsigned i = 0;  i < kicadLayer2pcb.size();  ++i )
+    {
+        if( i < layerCount-1 )
+            kicadLayer2pcb[i] = i;
+        else
+            kicadLayer2pcb[i] = layerCount - 1;
+    }
+
+    for( unsigned i = 0;  i < pcbLayer2kicad.size();  ++i )
+    {
+        LAYER_ID id = ( i < layerCount-1 ) ? ToLAYER_ID( i ) : B_Cu;
+
+        pcbLayer2kicad[i] = id;
+
+        // save the specctra layer name in SPECCTRA_DB::layerIds for later.
+        layerIds.push_back( TO_UTF8( aBoard->GetLayerName( id ) ) );
+    }
+
+#endif
 }
 
 
 int SPECCTRA_DB::findLayerName( const std::string& aLayerName ) const
 {
-    for( unsigned i=0;  i<layerIds.size();  ++i )
+    for( int i=0;  i < int(layerIds.size());  ++i )
     {
         if( 0 == aLayerName.compare( layerIds[i] ) )
-            return (int) i;
+            return i;
     }
     return -1;
 }
 
 
-void SPECCTRA_DB::ThrowIOError( const wxChar* fmt, ... ) throw( IO_ERROR )
+void SPECCTRA_DB::ThrowIOError( const wxString& fmt, ... ) throw( IO_ERROR )
 {
     wxString    errText;
     va_list     args;
@@ -228,7 +254,7 @@ void SPECCTRA_DB::readTIME( time_t* time_stamp ) throw( IO_ERROR )
 }
 
 
-void SPECCTRA_DB::LoadPCB( const wxString& filename ) throw( IO_ERROR )
+void SPECCTRA_DB::LoadPCB( const wxString& filename ) throw( IO_ERROR, boost::bad_pointer )
 {
     FILE_LINE_READER    reader( filename );
 
@@ -247,7 +273,7 @@ void SPECCTRA_DB::LoadPCB( const wxString& filename ) throw( IO_ERROR )
 }
 
 
-void SPECCTRA_DB::LoadSESSION( const wxString& filename ) throw( IO_ERROR )
+void SPECCTRA_DB::LoadSESSION( const wxString& filename ) throw( IO_ERROR, boost::bad_pointer )
 {
     FILE_LINE_READER    reader( filename );
 
@@ -267,7 +293,7 @@ void SPECCTRA_DB::LoadSESSION( const wxString& filename ) throw( IO_ERROR )
 }
 
 
-void SPECCTRA_DB::doPCB( PCB* growth ) throw( IO_ERROR )
+void SPECCTRA_DB::doPCB( PCB* growth ) throw( IO_ERROR, boost::bad_pointer )
 {
     T     tok;
 
@@ -575,7 +601,8 @@ void SPECCTRA_DB::doLAYER_PAIR( LAYER_PAIR* growth ) throw( IO_ERROR )
 }
 
 
-void SPECCTRA_DB::doLAYER_NOISE_WEIGHT( LAYER_NOISE_WEIGHT* growth ) throw( IO_ERROR )
+void SPECCTRA_DB::doLAYER_NOISE_WEIGHT( LAYER_NOISE_WEIGHT* growth )
+    throw( IO_ERROR, boost::bad_pointer )
 {
     T       tok;
 
@@ -594,7 +621,7 @@ void SPECCTRA_DB::doLAYER_NOISE_WEIGHT( LAYER_NOISE_WEIGHT* growth ) throw( IO_E
 }
 
 
-void SPECCTRA_DB::doSTRUCTURE( STRUCTURE* growth ) throw( IO_ERROR )
+void SPECCTRA_DB::doSTRUCTURE( STRUCTURE* growth ) throw( IO_ERROR, boost::bad_pointer )
 {
     T       tok;
 
@@ -728,7 +755,7 @@ L_place:
 }
 
 
-void SPECCTRA_DB::doSTRUCTURE_OUT( STRUCTURE_OUT* growth ) throw( IO_ERROR )
+void SPECCTRA_DB::doSTRUCTURE_OUT( STRUCTURE_OUT* growth ) throw( IO_ERROR, boost::bad_pointer )
 {
     /*
     <structure_out_descriptor >::=
@@ -771,7 +798,7 @@ void SPECCTRA_DB::doSTRUCTURE_OUT( STRUCTURE_OUT* growth ) throw( IO_ERROR )
 }
 
 
-void SPECCTRA_DB::doKEEPOUT( KEEPOUT* growth ) throw( IO_ERROR )
+void SPECCTRA_DB::doKEEPOUT( KEEPOUT* growth ) throw( IO_ERROR, boost::bad_pointer )
 {
     T       tok = NextTok();
 
@@ -947,7 +974,7 @@ void SPECCTRA_DB::doWINDOW( WINDOW* growth ) throw( IO_ERROR )
 }
 
 
-void SPECCTRA_DB::doBOUNDARY( BOUNDARY* growth ) throw( IO_ERROR )
+void SPECCTRA_DB::doBOUNDARY( BOUNDARY* growth ) throw( IO_ERROR, boost::bad_pointer )
 {
     T       tok = NextTok();
 
@@ -1169,7 +1196,7 @@ void SPECCTRA_DB::doVIA( VIA* growth ) throw( IO_ERROR )
 }
 
 
-void SPECCTRA_DB::doCONTROL( CONTROL* growth ) throw( IO_ERROR )
+void SPECCTRA_DB::doCONTROL( CONTROL* growth ) throw( IO_ERROR, boost::bad_pointer )
 {
     T       tok;
 
@@ -1493,7 +1520,7 @@ void SPECCTRA_DB::doPLACE_RULE( PLACE_RULE* growth, bool expect_object_type ) th
 #endif
 
 
-void SPECCTRA_DB::doREGION( REGION* growth ) throw( IO_ERROR )
+void SPECCTRA_DB::doREGION( REGION* growth ) throw( IO_ERROR, boost::bad_pointer )
 {
     T     tok = NextTok();
 
@@ -1562,7 +1589,7 @@ void SPECCTRA_DB::doREGION( REGION* growth ) throw( IO_ERROR )
 }
 
 
-void SPECCTRA_DB::doCLASS_CLASS( CLASS_CLASS* growth ) throw( IO_ERROR )
+void SPECCTRA_DB::doCLASS_CLASS( CLASS_CLASS* growth ) throw( IO_ERROR, boost::bad_pointer )
 {
     T       tok = NextTok();
 
@@ -1720,7 +1747,7 @@ void SPECCTRA_DB::doLAYER_RULE( LAYER_RULE* growth ) throw( IO_ERROR )
 }
 
 
-void SPECCTRA_DB::doPLACE( PLACE* growth ) throw( IO_ERROR )
+void SPECCTRA_DB::doPLACE( PLACE* growth ) throw( IO_ERROR, boost::bad_pointer )
 {
     T       tok = NextTok();
 
@@ -1835,7 +1862,7 @@ void SPECCTRA_DB::doPLACE( PLACE* growth ) throw( IO_ERROR )
 }
 
 
-void SPECCTRA_DB::doCOMPONENT( COMPONENT* growth ) throw( IO_ERROR )
+void SPECCTRA_DB::doCOMPONENT( COMPONENT* growth ) throw( IO_ERROR, boost::bad_pointer )
 {
     T       tok = NextTok();
 
@@ -1865,66 +1892,62 @@ void SPECCTRA_DB::doCOMPONENT( COMPONENT* growth ) throw( IO_ERROR )
 }
 
 
-void SPECCTRA_DB::doPLACEMENT( PLACEMENT* growth ) throw( IO_ERROR )
+void SPECCTRA_DB::doPLACEMENT( PLACEMENT* growth ) throw( IO_ERROR, boost::bad_pointer )
 {
     T       tok;
 
-    NeedLEFT();
-
-    tok = NextTok();
-    if( tok==T_unit || tok==T_resolution )
+    while( (tok = NextTok()) != T_RIGHT )
     {
-        growth->unit = new UNIT_RES( growth, tok );
-        if( tok==T_resolution )
-            doRESOLUTION( growth->unit );
-        else
-            doUNIT( growth->unit );
+        if( tok == T_EOF )
+            Unexpected( T_EOF );
 
-        if( NextTok() != T_LEFT )
-            Expecting( T_LEFT );
-        tok = NextTok();
-    }
-
-    if( tok == T_place_control )
-    {
-        if( NextTok() != T_LEFT )
+        if( tok != T_LEFT )
             Expecting( T_LEFT );
 
         tok = NextTok();
-        if( tok != T_flip_style )
-            Expecting( T_flip_style );
 
-        tok = NextTok();
-        if( tok==T_mirror_first || tok==T_rotate_first )
-            growth->flip_style = tok;
-        else
-            Expecting("mirror_first|rotate_first");
+        switch( tok )
+        {
+        case T_unit:
+        case T_resolution:
+            growth->unit = new UNIT_RES( growth, tok );
+            if( tok==T_resolution )
+                doRESOLUTION( growth->unit );
+            else
+                doUNIT( growth->unit );
+            break;
 
-        NeedRIGHT();
-        NeedRIGHT();
-        NeedLEFT();
-        tok = NextTok();
-    }
-
-    while( tok == T_component )
-    {
-        COMPONENT* component = new COMPONENT( growth );
-        growth->components.push_back( component );
-        doCOMPONENT( component );
-
-        tok = NextTok();
-        if( tok == T_RIGHT )
-            return;
-
-        else if( tok == T_LEFT )
+        case T_place_control:
+            NeedRIGHT();
             tok = NextTok();
-    }
+            if( tok != T_flip_style )
+                Expecting( T_flip_style );
 
-    Unexpected( CurText() );
+            tok = NextTok();
+            if( tok==T_mirror_first || tok==T_rotate_first )
+                growth->flip_style = tok;
+            else
+                Expecting( "mirror_first|rotate_first" );
+
+            NeedRIGHT();
+            NeedRIGHT();
+            break;
+
+        case T_component:
+            COMPONENT* component;
+            component = new COMPONENT( growth );
+            growth->components.push_back( component );
+            doCOMPONENT( component );
+            break;
+
+        default:
+            Unexpected( tok );
+        }
+    }
 }
 
 
-void SPECCTRA_DB::doPADSTACK( PADSTACK* growth ) throw( IO_ERROR )
+void SPECCTRA_DB::doPADSTACK( PADSTACK* growth ) throw( IO_ERROR, boost::bad_pointer )
 {
     T       tok = NextTok();
 
@@ -2024,7 +2047,7 @@ void SPECCTRA_DB::doPADSTACK( PADSTACK* growth ) throw( IO_ERROR )
 }
 
 
-void SPECCTRA_DB::doSHAPE( SHAPE* growth ) throw( IO_ERROR )
+void SPECCTRA_DB::doSHAPE( SHAPE* growth ) throw( IO_ERROR, boost::bad_pointer )
 {
     T       tok;
 
@@ -2107,7 +2130,7 @@ L_done_that:
 }
 
 
-void SPECCTRA_DB::doIMAGE( IMAGE* growth ) throw( IO_ERROR )
+void SPECCTRA_DB::doIMAGE( IMAGE* growth ) throw( IO_ERROR, boost::bad_pointer )
 {
     T       tok = NextTok();
 
@@ -2250,7 +2273,7 @@ void SPECCTRA_DB::doPIN( PIN* growth ) throw( IO_ERROR )
 }
 
 
-void SPECCTRA_DB::doLIBRARY( LIBRARY* growth ) throw( IO_ERROR )
+void SPECCTRA_DB::doLIBRARY( LIBRARY* growth ) throw( IO_ERROR, boost::bad_pointer )
 {
     T       tok;
 
@@ -2304,7 +2327,7 @@ void SPECCTRA_DB::doLIBRARY( LIBRARY* growth ) throw( IO_ERROR )
 }
 
 
-void SPECCTRA_DB::doNET( NET* growth ) throw( IO_ERROR )
+void SPECCTRA_DB::doNET( NET* growth ) throw( IO_ERROR, boost::bad_pointer )
 {
     T           tok = NextTok();
     PIN_REFS*   pin_refs;
@@ -2444,7 +2467,7 @@ L_pins:
 }
 
 
-void SPECCTRA_DB::doTOPOLOGY( TOPOLOGY* growth ) throw( IO_ERROR )
+void SPECCTRA_DB::doTOPOLOGY( TOPOLOGY* growth ) throw( IO_ERROR, boost::bad_pointer )
 {
     T       tok;
 
@@ -2482,7 +2505,7 @@ void SPECCTRA_DB::doTOPOLOGY( TOPOLOGY* growth ) throw( IO_ERROR )
 }
 
 
-void SPECCTRA_DB::doCLASS( CLASS* growth ) throw( IO_ERROR )
+void SPECCTRA_DB::doCLASS( CLASS* growth ) throw( IO_ERROR, boost::bad_pointer )
 {
     T       tok;
 
@@ -2592,7 +2615,7 @@ void SPECCTRA_DB::doCLASS( CLASS* growth ) throw( IO_ERROR )
 }
 
 
-void SPECCTRA_DB::doNETWORK( NETWORK* growth ) throw( IO_ERROR )
+void SPECCTRA_DB::doNETWORK( NETWORK* growth ) throw( IO_ERROR, boost::bad_pointer )
 {
     T       tok;
 
@@ -2655,7 +2678,7 @@ void SPECCTRA_DB::doCOMP_ORDER( COMP_ORDER* growth ) throw( IO_ERROR )
 }
 
 
-void SPECCTRA_DB::doFROMTO( FROMTO* growth ) throw( IO_ERROR )
+void SPECCTRA_DB::doFROMTO( FROMTO* growth ) throw( IO_ERROR, boost::bad_pointer )
 {
     T       tok;
 
@@ -2741,7 +2764,7 @@ void SPECCTRA_DB::doFROMTO( FROMTO* growth ) throw( IO_ERROR )
 }
 
 
-void SPECCTRA_DB::doWIRE( WIRE* growth ) throw( IO_ERROR )
+void SPECCTRA_DB::doWIRE( WIRE* growth ) throw( IO_ERROR, boost::bad_pointer )
 {
     T       tok;
 
@@ -2966,7 +2989,7 @@ void SPECCTRA_DB::doWIRE_VIA( WIRE_VIA* growth ) throw( IO_ERROR )
 }
 
 
-void SPECCTRA_DB::doWIRING( WIRING* growth ) throw( IO_ERROR )
+void SPECCTRA_DB::doWIRING( WIRING* growth ) throw( IO_ERROR, boost::bad_pointer )
 {
     T       tok;
 
@@ -3060,7 +3083,7 @@ void SPECCTRA_DB::doANCESTOR( ANCESTOR* growth ) throw( IO_ERROR )
 }
 
 
-void SPECCTRA_DB::doHISTORY( HISTORY* growth ) throw( IO_ERROR )
+void SPECCTRA_DB::doHISTORY( HISTORY* growth ) throw( IO_ERROR, boost::bad_pointer )
 {
     T       tok;
 
@@ -3116,7 +3139,7 @@ void SPECCTRA_DB::doHISTORY( HISTORY* growth ) throw( IO_ERROR )
 }
 
 
-void SPECCTRA_DB::doSESSION( SESSION* growth ) throw( IO_ERROR )
+void SPECCTRA_DB::doSESSION( SESSION* growth ) throw( IO_ERROR, boost::bad_pointer )
 {
     T       tok;
 
@@ -3234,7 +3257,7 @@ void SPECCTRA_DB::doWAS_IS( WAS_IS* growth ) throw( IO_ERROR )
 }
 
 
-void SPECCTRA_DB::doROUTE( ROUTE* growth ) throw( IO_ERROR )
+void SPECCTRA_DB::doROUTE( ROUTE* growth ) throw( IO_ERROR, boost::bad_pointer )
 {
     T       tok;
 
@@ -3317,7 +3340,7 @@ void SPECCTRA_DB::doROUTE( ROUTE* growth ) throw( IO_ERROR )
 }
 
 
-void SPECCTRA_DB::doNET_OUT( NET_OUT* growth ) throw( IO_ERROR )
+void SPECCTRA_DB::doNET_OUT( NET_OUT* growth ) throw( IO_ERROR, boost::bad_pointer )
 {
     T       tok;
 

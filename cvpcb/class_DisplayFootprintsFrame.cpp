@@ -1,9 +1,9 @@
 /*
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
- * Copyright (C) 2007 Jean-Pierre Charras, jaen-pierre.charras@gipsa-lab.inpg.com
- * Copyright (C) 2011 Wayne Stambaugh <stambaughw@verizon.net>
- * Copyright (C) 2007-2011 KiCad Developers, see AUTHORS.txt for contributors.
+ * Copyright (C) 2015 Jean-Pierre Charras, jp.charras at wanadoo.fr
+ * Copyright (C) 2015 Wayne Stambaugh <stambaughw@verizon.net>
+ * Copyright (C) 2007-2015 KiCad Developers, see AUTHORS.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -28,28 +28,29 @@
  */
 
 #include <fctsys.h>
-#include <appl_wxstruct.h>
+#include <pgm_base.h>
 #include <common.h>
 #include <class_drawpanel.h>
+#include <class_draw_panel_gal.h>
 #include <confirm.h>
 #include <macros.h>
 #include <bitmaps.h>
 #include <msgpanel.h>
+#include <wildcards_and_files_ext.h>
+#include <fpid.h>
+#include <fp_lib_table.h>
+#include <pcbcommon.h>
 
+#include <io_mgr.h>
+#include <class_module.h>
 #include <class_board.h>
 
-#include <cvpcb.h>
 #include <cvpcb_mainframe.h>
 #include <class_DisplayFootprintsFrame.h>
 #include <cvpcb_id.h>
+#include <cvstruct.h>
 
-/*
- * NOTE: There is something in 3d_viewer.h that causes a compiler error in
- *       <boost/foreach.hpp> in Linux so move it after cvpcb.h where it is
- *       included to prevent the error from occurring.
- */
 #include <3d_viewer.h>
-
 
 
 BEGIN_EVENT_TABLE( DISPLAY_FOOTPRINTS_FRAME, PCB_BASE_FRAME )
@@ -57,6 +58,7 @@ BEGIN_EVENT_TABLE( DISPLAY_FOOTPRINTS_FRAME, PCB_BASE_FRAME )
     EVT_SIZE( DISPLAY_FOOTPRINTS_FRAME::OnSize )
     EVT_TOOL( ID_OPTIONS_SETUP, DISPLAY_FOOTPRINTS_FRAME::InstallOptionsDisplay )
     EVT_TOOL( ID_CVPCB_SHOW3D_FRAME, DISPLAY_FOOTPRINTS_FRAME::Show3D_Frame )
+
     EVT_TOOL( ID_TB_OPTIONS_SHOW_MODULE_TEXT_SKETCH,
               DISPLAY_FOOTPRINTS_FRAME::OnSelectOptionToolbar)
     EVT_TOOL( ID_TB_OPTIONS_SHOW_MODULE_EDGE_SKETCH,
@@ -68,43 +70,37 @@ BEGIN_EVENT_TABLE( DISPLAY_FOOTPRINTS_FRAME, PCB_BASE_FRAME )
                    DISPLAY_FOOTPRINTS_FRAME::OnUpdateLineDrawMode )
 END_EVENT_TABLE()
 
-#define DISPLAY_FOOTPRINTS_FRAME_NAME wxT( "CmpFrame" )
 
-/***************************************************************************/
-/* DISPLAY_FOOTPRINTS_FRAME: the frame to display the current focused footprint */
-/***************************************************************************/
-
-DISPLAY_FOOTPRINTS_FRAME::DISPLAY_FOOTPRINTS_FRAME( CVPCB_MAINFRAME* parent,
-                                                    const wxString& title,
-                                                    const wxPoint& pos,
-                                                    const wxSize& size, long style ) :
-    PCB_BASE_FRAME( parent, CVPCB_DISPLAY_FRAME_TYPE, title, pos, size,
-                    style, DISPLAY_FOOTPRINTS_FRAME_NAME )
+DISPLAY_FOOTPRINTS_FRAME::DISPLAY_FOOTPRINTS_FRAME( KIWAY* aKiway, CVPCB_MAINFRAME* aParent ) :
+    PCB_BASE_FRAME( aKiway, aParent, FRAME_CVPCB_DISPLAY, _( "Footprint Viewer" ),
+        wxDefaultPosition, wxDefaultSize,
+        KICAD_DEFAULT_DRAWFRAME_STYLE, FOOTPRINTVIEWER_FRAME_NAME )
 {
-    m_FrameName = DISPLAY_FOOTPRINTS_FRAME_NAME;
     m_showAxis = true;         // true to draw axis.
 
     // Give an icon
     wxIcon  icon;
+
     icon.CopyFromBitmap( KiBitmap( icon_cvpcb_xpm ) );
     SetIcon( icon );
 
     SetBoard( new BOARD() );
     SetScreen( new PCB_SCREEN( GetPageSizeIU() ) );
 
-    LoadSettings();
+    LoadSettings( config() );
 
-    // Initialize grid id to a default value if not found in config or bad:
-    if( (m_LastGridSizeId <= 0) ||
-        (m_LastGridSizeId > (ID_POPUP_GRID_USER - ID_POPUP_GRID_LEVEL_1000)) )
+    // Initialize grid id to a default value if not found in config or incorrect:
+    if( !( GetScreen()->GridExists( m_LastGridSizeId + ID_POPUP_GRID_LEVEL_1000 ) ) )
         m_LastGridSizeId = ID_POPUP_GRID_LEVEL_500 - ID_POPUP_GRID_LEVEL_1000;
-    GetScreen()->SetGrid( ID_POPUP_GRID_LEVEL_1000 + m_LastGridSizeId );
+
+    GetScreen()->SetGrid( m_LastGridSizeId + ID_POPUP_GRID_LEVEL_1000 );
 
     // Initialize some display options
-    DisplayOpt.DisplayPadIsol = false;      // Pad clearance has no meaning here
+    DISPLAY_OPTIONS* displ_opts = (DISPLAY_OPTIONS*)GetDisplayOptions();
+    displ_opts->m_DisplayPadIsol = false;      // Pad clearance has no meaning here
 
     // Track and via clearance has no meaning here.
-    DisplayOpt.ShowTrackClearanceMode = DO_NOT_SHOW_CLEARANCE;
+    displ_opts->m_ShowTrackClearanceMode = DO_NOT_SHOW_CLEARANCE;
 
     SetSize( m_FramePos.x, m_FramePos.y, m_FrameSize.x, m_FrameSize.y );
     ReCreateHToolbar();
@@ -121,8 +117,6 @@ DISPLAY_FOOTPRINTS_FRAME::DISPLAY_FOOTPRINTS_FRAME( CVPCB_MAINFRAME* parent,
 
     EDA_PANEINFO mesg;
     mesg.MessageToolbarPane();
-
-
 
     m_auimgr.AddPane( m_mainToolBar,
                       wxAuiPaneInfo( horiz ).Name( wxT( "m_mainToolBar" ) ).Top(). Row( 0 ) );
@@ -150,20 +144,14 @@ DISPLAY_FOOTPRINTS_FRAME::~DISPLAY_FOOTPRINTS_FRAME()
 {
     delete GetScreen();
     SetScreen( NULL );      // Be sure there is no double deletion
-
-    ( (CVPCB_MAINFRAME*) wxGetApp().GetTopWindow() )->m_DisplayFootprintFrame = NULL;
 }
 
 
-/* Called when the frame is closed
- *  Save current settings (frame position and size
- */
 void DISPLAY_FOOTPRINTS_FRAME::OnCloseWindow( wxCloseEvent& event )
 {
     if( m_Draw3DFrame )
         m_Draw3DFrame->Close( true );
 
-    SaveSettings();
     Destroy();
 }
 
@@ -247,7 +235,7 @@ void DISPLAY_FOOTPRINTS_FRAME::ReCreateHToolbar()
 
     m_mainToolBar->AddSeparator();
     m_mainToolBar->AddTool( ID_CVPCB_SHOW3D_FRAME, wxEmptyString, KiBitmap( three_d_xpm ),
-                            _( "3D Display" ) );
+                            _( "3D Display (Alt+3)" ) );
 
     // after adding the buttons to the toolbar, must call Realize() to reflect
     // the changes
@@ -257,16 +245,14 @@ void DISPLAY_FOOTPRINTS_FRAME::ReCreateHToolbar()
 
 void DISPLAY_FOOTPRINTS_FRAME::OnUpdateTextDrawMode( wxUpdateUIEvent& aEvent )
 {
-    wxString msgTextsFill[3] = { _( "Show texts in line mode" ),
-                                 _( "Show texts in filled mode" ),
+    DISPLAY_OPTIONS* displ_opts = (DISPLAY_OPTIONS*)GetDisplayOptions();
+
+    wxString msgTextsFill[2] = { _( "Show texts in filled mode" ),
                                  _( "Show texts in sketch mode" ) };
 
-    unsigned i = m_DisplayModText + 1;
+    unsigned i = displ_opts->m_DisplayModTextFill == SKETCH ? 0 : 1;
 
-    if ( i > 2 )
-        i = 0;
-
-    aEvent.Check( m_DisplayModText == 0 );
+    aEvent.Check( displ_opts->m_DisplayModTextFill == SKETCH );
     m_optionsToolBar->SetToolShortHelp( ID_TB_OPTIONS_SHOW_MODULE_TEXT_SKETCH, msgTextsFill[i] );
 
 }
@@ -274,16 +260,14 @@ void DISPLAY_FOOTPRINTS_FRAME::OnUpdateTextDrawMode( wxUpdateUIEvent& aEvent )
 
 void DISPLAY_FOOTPRINTS_FRAME::OnUpdateLineDrawMode( wxUpdateUIEvent& aEvent )
 {
-    wxString msgEdgesFill[3] = { _( "Show outlines in line mode" ),
-                                 _( "Show outlines in filled mode" ),
+    DISPLAY_OPTIONS* displ_opts = (DISPLAY_OPTIONS*)GetDisplayOptions();
+
+    wxString msgEdgesFill[2] = { _( "Show outlines in filled mode" ),
                                  _( "Show outlines in sketch mode" ) };
 
-    int i = m_DisplayModEdge + 1;
+    int i = displ_opts->m_DisplayModEdgeFill == SKETCH ? 0 : 1;
 
-    if ( i > 2 )
-        i = 0;
-
-    aEvent.Check( m_DisplayModEdge == 0 );
+    aEvent.Check( displ_opts->m_DisplayModEdgeFill == SKETCH );
     m_optionsToolBar->SetToolShortHelp( ID_TB_OPTIONS_SHOW_MODULE_EDGE_SKETCH, msgEdgesFill[i] );
 }
 
@@ -307,24 +291,17 @@ bool DISPLAY_FOOTPRINTS_FRAME::OnRightClick( const wxPoint& MousePos, wxMenu* Po
 void DISPLAY_FOOTPRINTS_FRAME::OnSelectOptionToolbar( wxCommandEvent& event )
 {
     int        id = event.GetId();
+    DISPLAY_OPTIONS* displ_opts = (DISPLAY_OPTIONS*)GetDisplayOptions();
 
     switch( id )
     {
     case ID_TB_OPTIONS_SHOW_MODULE_TEXT_SKETCH:
-        m_DisplayModText++;
-
-        if( m_DisplayModText > 2 )
-            m_DisplayModText = 0;
-
+        displ_opts->m_DisplayModTextFill = displ_opts->m_DisplayModTextFill == FILLED ? SKETCH : FILLED;
         m_canvas->Refresh( );
         break;
 
     case ID_TB_OPTIONS_SHOW_MODULE_EDGE_SKETCH:
-        m_DisplayModEdge++;
-
-        if( m_DisplayModEdge > 2 )
-            m_DisplayModEdge = 0;
-
+        displ_opts->m_DisplayModEdgeFill = displ_opts->m_DisplayModEdgeFill == FILLED ? SKETCH : FILLED;
         m_canvas->Refresh();
         break;
 
@@ -336,19 +313,23 @@ void DISPLAY_FOOTPRINTS_FRAME::OnSelectOptionToolbar( wxCommandEvent& event )
 }
 
 
-void DISPLAY_FOOTPRINTS_FRAME::GeneralControl( wxDC* aDC, const wxPoint& aPosition, int aHotKey )
+bool DISPLAY_FOOTPRINTS_FRAME::GeneralControl( wxDC* aDC, const wxPoint& aPosition, int aHotKey )
 {
-    wxRealPoint gridSize;
-    wxPoint     oldpos;
-    PCB_SCREEN* screen = GetScreen();
-    wxPoint     pos = aPosition;
+    bool eventHandled = true;
+
+    // Filter out the 'fake' mouse motion after a keyboard movement
+    if( !aHotKey && m_movingCursorWithKeyboard )
+    {
+        m_movingCursorWithKeyboard = false;
+        return false;
+    }
 
     wxCommandEvent cmd( wxEVT_COMMAND_MENU_SELECTED );
     cmd.SetEventObject( this );
 
-    pos = screen->GetNearestGridPosition( pos );
-    oldpos = screen->GetCrossHairPosition();
-    gridSize = screen->GetGridSize();
+    wxPoint pos = aPosition;
+    wxPoint oldpos = GetCrossHairPosition();
+    GeneralControlKeyMovement( aHotKey, &pos, true );
 
     switch( aHotKey )
     {
@@ -378,57 +359,27 @@ void DISPLAY_FOOTPRINTS_FRAME::GeneralControl( wxDC* aDC, const wxPoint& aPositi
         break;
 
     case ' ':
-        screen->m_O_Curseur = screen->GetCrossHairPosition();
+        GetScreen()->m_O_Curseur = GetCrossHairPosition();
         break;
 
-    case WXK_NUMPAD8:       /* cursor moved up */
-    case WXK_UP:
-        pos.y -= KiROUND( gridSize.y );
-        m_canvas->MoveCursor( pos );
+    case GR_KB_ALT + '3':
+        cmd.SetId( ID_CVPCB_SHOW3D_FRAME );
+        GetEventHandler()->ProcessEvent( cmd );
         break;
 
-    case WXK_NUMPAD2:       /* cursor moved down */
-    case WXK_DOWN:
-        pos.y += KiROUND( gridSize.y );
-        m_canvas->MoveCursor( pos );
-        break;
-
-    case WXK_NUMPAD4:       /*  cursor moved left */
-    case WXK_LEFT:
-        pos.x -= KiROUND( gridSize.x );
-        m_canvas->MoveCursor( pos );
-        break;
-
-    case WXK_NUMPAD6:      /*  cursor moved right */
-    case WXK_RIGHT:
-        pos.x += KiROUND( gridSize.x );
-        m_canvas->MoveCursor( pos );
-        break;
+    default:
+        eventHandled = false;
     }
 
-    screen->SetCrossHairPosition( pos );
-
-    if( oldpos != screen->GetCrossHairPosition() )
-    {
-        pos = screen->GetCrossHairPosition();
-        screen->SetCrossHairPosition( oldpos );
-        m_canvas->CrossHairOff( aDC );
-        screen->SetCrossHairPosition( pos );
-        m_canvas->CrossHairOn( aDC );
-
-        if( m_canvas->IsMouseCaptured() )
-        {
-            m_canvas->CallMouseCapture( aDC, aPosition, 0 );
-        }
-    }
+    SetCrossHairPosition( pos );
+    RefreshCrossHair( oldpos, aPosition, aDC );
 
     UpdateStatusBar();    /* Display new cursor coordinates */
+
+    return eventHandled;
 }
 
 
-/**
- * Display 3D frame of current footprint selection.
- */
 void DISPLAY_FOOTPRINTS_FRAME::Show3D_Frame( wxCommandEvent& event )
 {
     if( m_Draw3DFrame )
@@ -447,7 +398,7 @@ void DISPLAY_FOOTPRINTS_FRAME::Show3D_Frame( wxCommandEvent& event )
         return;
     }
 
-    m_Draw3DFrame = new EDA_3D_FRAME( this, _( "3D Viewer" ), KICAD_DEFAULT_3D_DRAWFRAME_STYLE );
+    m_Draw3DFrame = new EDA_3D_FRAME( &Kiway(), this, _( "3D Viewer" ), KICAD_DEFAULT_3D_DRAWFRAME_STYLE );
     m_Draw3DFrame->Show( true );
 }
 
@@ -463,33 +414,155 @@ void PCB_SCREEN::ClearUndoORRedoList( UNDO_REDO_CONTAINER&, int )
 }
 
 
-/**
- * Function IsGridVisible() , virtual
- * @return true if the grid must be shown
- */
 bool DISPLAY_FOOTPRINTS_FRAME::IsGridVisible() const
 {
-    return m_DrawGrid;
+    return m_drawGrid;
 }
 
 
-/**
- * Function SetGridVisibility() , virtual
- * It may be overloaded by derived classes
- * if you want to store/retrieve the grid visibility in configuration.
- * @param aVisible = true if the grid must be shown
- */
 void DISPLAY_FOOTPRINTS_FRAME::SetGridVisibility(bool aVisible)
 {
-    m_DrawGrid = aVisible;
+    m_drawGrid = aVisible;
 }
 
 
-/**
- * Function GetGridColor() , virtual
- * @return the color of the grid
- */
 EDA_COLOR_T DISPLAY_FOOTPRINTS_FRAME::GetGridColor() const
 {
     return DARKGRAY;
+}
+
+
+MODULE* DISPLAY_FOOTPRINTS_FRAME::Get_Module( const wxString& aFootprintName )
+{
+    MODULE* footprint = NULL;
+
+    try
+    {
+        FPID fpid;
+
+        if( fpid.Parse( aFootprintName ) >= 0 )
+        {
+            DisplayInfoMessage( this, wxString::Format( wxT( "Footprint ID <%s> is not valid." ),
+                                                        GetChars( aFootprintName ) ) );
+            return NULL;
+        }
+
+        std::string nickname = fpid.GetLibNickname();
+        std::string fpname   = fpid.GetFootprintName();
+
+        wxLogDebug( wxT( "Load footprint <%s> from library <%s>." ),
+                    fpname.c_str(), nickname.c_str()  );
+
+        footprint = Prj().PcbFootprintLibs()->FootprintLoad(
+                FROM_UTF8( nickname.c_str() ), FROM_UTF8( fpname.c_str() ) );
+    }
+    catch( const IO_ERROR& ioe )
+    {
+        DisplayError( this, ioe.errorText );
+        return NULL;
+    }
+
+    if( footprint )
+    {
+        footprint->SetParent( (EDA_ITEM*) GetBoard() );
+        footprint->SetPosition( wxPoint( 0, 0 ) );
+        return footprint;
+    }
+
+    wxString msg = wxString::Format( _( "Footprint '%s' not found" ), aFootprintName.GetData() );
+    DisplayError( this, msg );
+    return NULL;
+}
+
+
+void DISPLAY_FOOTPRINTS_FRAME::InitDisplay()
+{
+    wxString msg;
+
+    CVPCB_MAINFRAME* parentframe = (CVPCB_MAINFRAME *) GetParent();
+
+    wxString footprintName = parentframe->m_footprintListBox->GetSelectedFootprint();
+
+    if( !footprintName.IsEmpty() )
+    {
+        msg.Printf( _( "Footprint: %s" ), GetChars( footprintName ) );
+
+        SetTitle( msg );
+        const FOOTPRINT_INFO* module_info = parentframe->m_footprints.GetModuleInfo( footprintName );
+
+        const wxChar* libname;
+
+        if( module_info )
+            libname = GetChars( module_info->GetNickname() );
+        else
+            libname = GetChars( wxT( "???" ) );
+
+        msg.Printf( _( "Lib: %s" ), libname );
+
+        SetStatusText( msg, 0 );
+
+        if( GetBoard()->m_Modules.GetCount() )
+        {
+            // there is only one module in the list
+            GetBoard()->m_Modules.DeleteAll();
+        }
+
+        MODULE* module = Get_Module( footprintName );
+
+        if( module )
+            GetBoard()->m_Modules.PushBack( module );
+
+        Zoom_Automatique( false );
+    }
+    else   // No footprint to display. Erase old footprint, if any
+    {
+        if( GetBoard()->m_Modules.GetCount() )
+        {
+            GetBoard()->m_Modules.DeleteAll();
+            Zoom_Automatique( false );
+            SetStatusText( wxEmptyString, 0 );
+        }
+    }
+
+    // Display new cursor coordinates and zoom value:
+    UpdateStatusBar();
+
+    GetCanvas()->Refresh();
+
+    if( m_Draw3DFrame )
+        m_Draw3DFrame->NewDisplay();
+}
+
+
+void DISPLAY_FOOTPRINTS_FRAME::RedrawActiveWindow( wxDC* DC, bool EraseBg )
+{
+    if( !GetBoard() )
+        return;
+
+    m_canvas->DrawBackGround( DC );
+    GetBoard()->Draw( m_canvas, DC, GR_COPY );
+
+    MODULE* Module = GetBoard()->m_Modules;
+
+    if ( Module )
+    {
+        MSG_PANEL_ITEMS items;
+        Module->GetMsgPanelInfo( items );
+        SetMsgPanel( items );
+    }
+
+    m_canvas->DrawCrossHair( DC );
+}
+
+
+/*
+ * Redraw the BOARD items but not cursors, axis or grid.
+ */
+void BOARD::Draw( EDA_DRAW_PANEL* aPanel, wxDC* aDC,
+                  GR_DRAWMODE aDrawMode, const wxPoint& aOffset )
+{
+    if( m_Modules )
+    {
+        m_Modules->Draw( aPanel, aDC, GR_COPY );
+    }
 }

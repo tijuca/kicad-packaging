@@ -30,9 +30,11 @@
 #ifndef CLASS_DRAWSEGMENT_H_
 #define CLASS_DRAWSEGMENT_H_
 
-
 #include <class_board_item.h>
 #include <PolyLine.h>
+#include <math_for_graphics.h>
+#include <trigo.h>
+#include <common.h>
 
 
 class LINE_READER;
@@ -57,6 +59,9 @@ protected:
     std::vector<wxPoint>    m_BezierPoints;
     std::vector<wxPoint>    m_PolyPoints;
 
+    // Computes the bounding box for an arc
+    void computeArcBBox( EDA_RECT& aBBox ) const;
+
 public:
     DRAWSEGMENT( BOARD_ITEM* aParent = NULL, KICAD_T idtype = PCB_LINE_T );
 
@@ -67,8 +72,10 @@ public:
     /// skip the linked list stuff, and parent
     const DRAWSEGMENT& operator = ( const DRAWSEGMENT& rhs );
 
-    DRAWSEGMENT* Next() const { return (DRAWSEGMENT*) Pnext; }
-    DRAWSEGMENT* Back() const { return (DRAWSEGMENT*) Pback; }
+    static inline bool ClassOf( const EDA_ITEM* aItem )
+    {
+        return aItem && PCB_LINE_T == aItem->Type();
+    }
 
     void SetWidth( int aWidth )             { m_Width = aWidth; }
     int GetWidth() const                    { return m_Width; }
@@ -114,18 +121,19 @@ public:
     void SetEndY( int y )                   { m_End.y = y; }
     void SetEndX( int x )                   { m_End.x = x; }
 
-    // Arc attributes are read only, since they are "calculated" from
-    // m_Start, m_End, and m_Angle.  No Set...() functions.
+    // Some attributes are read only, since they are "calculated" from
+    // m_Start, m_End, and m_Angle.
+    // No Set...() function for these attributes.
 
-    const wxPoint& GetCenter() const        { return m_Start; }
+    const wxPoint GetCenter() const;        //override
     const wxPoint& GetArcStart() const      { return m_End; }
     const wxPoint GetArcEnd() const;
 
     /**
      * function GetArcAngleStart()
-     * @return the angle of the stating point of this arc, between 0 and 3600 in 0.1 deg
+     * @return the angle of the starting point of this arc, between 0 and 3600 in 0.1 deg
      */
-    const double GetArcAngleStart() const;
+    double GetArcAngleStart() const;
 
     /**
      * Function GetRadius
@@ -134,9 +142,20 @@ public:
      */
     int GetRadius() const
     {
-        double radius = hypot( (double) (m_End.x - m_Start.x), (double) (m_End.y - m_Start.y) );
+        double radius = GetLineLength( m_Start, m_End );
         return KiROUND( radius );
     }
+
+    /**
+     * Initialize the start arc point. can be used for circles
+     * to initialize one point of the cicumference
+     */
+    void SetArcStart( const wxPoint& aArcStartPoint )
+    { m_End = aArcStartPoint; }
+
+    /** For arcs and circles:
+     */
+    void SetCenter( const wxPoint& aCenterPoint ) { m_Start = aCenterPoint; }
 
     /**
      * Function GetParentModule
@@ -146,8 +165,11 @@ public:
      */
     MODULE* GetParentModule() const;
 
-    const std::vector<wxPoint>& GetBezierPoints() const { return m_BezierPoints; };
-    const std::vector<wxPoint>& GetPolyPoints() const   { return m_PolyPoints; };
+    // Accessors:
+    const std::vector<wxPoint>& GetBezierPoints() const { return m_BezierPoints; }
+    const std::vector<wxPoint>& GetPolyPoints() const   { return m_PolyPoints; }
+    // same accessor, to add/change corners of the polygon
+    std::vector<wxPoint>& GetPolyPoints()               { return m_PolyPoints; }
 
     void SetBezierPoints( const std::vector<wxPoint>& aPoints )
     {
@@ -166,11 +188,14 @@ public:
 
     virtual void GetMsgPanelInfo( std::vector< MSG_PANEL_ITEM >& aList );
 
-    virtual EDA_RECT GetBoundingBox() const;
+    virtual const EDA_RECT GetBoundingBox() const;
 
-    virtual bool HitTest( const wxPoint& aPosition );
+    virtual bool HitTest( const wxPoint& aPosition ) const;
 
-    virtual bool HitTest( const EDA_RECT& aRect ) const;
+    /** @copydoc BOARD_ITEM::HitTest(const EDA_RECT& aRect,
+     *                               bool aContained = true, int aAccuracy ) const
+     */
+    bool HitTest( const EDA_RECT& aRect, bool aContained = true, int aAccuracy = 0 ) const;
 
     wxString GetClass() const
     {
@@ -184,9 +209,7 @@ public:
      */
     double  GetLength() const
     {
-        wxPoint delta = GetEnd() - GetStart();
-
-        return hypot( double( delta.x ), double( delta.y ) );
+        return GetLineLength( GetStart(), GetEnd() );
     }
 
     virtual void Move( const wxPoint& aMoveVector )
@@ -211,10 +234,10 @@ public:
      * clearance when the circle is approximated by segment bigger or equal
      * to the real clearance value (usually near from 1.0)
      */
-    void TransformShapeWithClearanceToPolygon( std::vector <CPolyPt>& aCornerBuffer,
-                                               int                    aClearanceValue,
-                                               int                    aCircleToSegmentsCount,
-                                               double                 aCorrectionFactor );
+    void TransformShapeWithClearanceToPolygon( SHAPE_POLY_SET& aCornerBuffer,
+                                               int             aClearanceValue,
+                                               int             aCircleToSegmentsCount,
+                                               double          aCorrectionFactor ) const;
 
     virtual wxString GetSelectMenuText() const;
 
@@ -222,8 +245,11 @@ public:
 
     virtual EDA_ITEM* Clone() const;
 
+    /// @copydoc VIEW_ITEM::ViewBBox()
+    virtual const BOX2I ViewBBox() const;
+
 #if defined(DEBUG)
-    void Show( int nestLevel, std::ostream& os ) const;     // overload
+    void Show( int nestLevel, std::ostream& os ) const { ShowDummy( os ); } // override
 #endif
 };
 

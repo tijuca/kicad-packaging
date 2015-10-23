@@ -1,3 +1,27 @@
+/*
+ * This program source code file is part of KiCad, a free EDA CAD application.
+ *
+ * Copyright (C) 2010 Jean-Pierre Charras, jp.charras at wanadoo.fr
+ * Copyright (C) 2014 KiCad Developers, see CHANGELOG.TXT for contributors.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation; either version 2
+ * of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, you may find one here:
+ * http://www.gnu.org/licenses/old-licenses/gpl-2.0.html
+ * or you may search the http://www.gnu.org website for the version 2 license,
+ * or you may write to the Free Software Foundation, Inc.,
+ * 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
+ */
+
 #ifndef __dialog_lib_edit_pin__
 #define __dialog_lib_edit_pin__
 
@@ -17,7 +41,7 @@ class DIALOG_LIB_EDIT_PIN : public DIALOG_LIB_EDIT_PIN_BASE
 
 public:
     /** Constructor */
-    DIALOG_LIB_EDIT_PIN( wxWindow* parent, LIB_PIN* aPin );
+    DIALOG_LIB_EDIT_PIN( EDA_DRAW_FRAME* parent, LIB_PIN* aPin );
     ~DIALOG_LIB_EDIT_PIN();
 
     void OnCloseDialog( wxCloseEvent& event );
@@ -47,19 +71,19 @@ public:
     void SetStyle( int style ) { m_choiceStyle->SetSelection( style ); }
     int GetStyle( void ) { return m_choiceStyle->GetSelection(); }
 
-    void SetName( const wxString& name ) { m_textPinName->SetValue( name ); }
-    wxString GetName( void ) { return m_textPinName->GetValue(); }
+    void SetPinName( const wxString& name ) { m_textPinName->SetValue( name ); }
+    wxString GetPinName( void ) { return m_textPinName->GetValue(); }
 
-    void SetNameTextSize( const wxString& size )
+    void SetPinNameTextSize( const wxString& size )
     {
         m_textPinNameTextSize->SetValue( size );
     }
-    wxString GetNameTextSize( void )
+    wxString GetPinNameTextSize( void )
     {
         return m_textPinNameTextSize->GetValue();
     }
 
-    void SetNameTextSizeUnits( const wxString& units )
+    void SetPinNameTextSizeUnits( const wxString& units )
     {
         m_staticNameTextSizeUnits->SetLabel( units );
     }

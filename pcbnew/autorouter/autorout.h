@@ -34,9 +34,11 @@
 
 
 #include <base_struct.h>
+#include <layers_id_colors_and_visibility.h>
 
 
 class BOARD;
+class DRAWSEGMENT;
 
 
 #define TOP     0
@@ -194,6 +196,7 @@ void PlacePad( D_PAD* pt_pad, int type, int marge, int op_logic );
 
 /* Draws a segment of track on the board. */
 void TraceSegmentPcb( TRACK* pt_segm, int type, int marge, int op_logic );
+void TraceSegmentPcb( DRAWSEGMENT* pt_segm, int type, int marge, int op_logic );
 
 /* Uses the color value of all cells included in the board
  * coord of the rectangle ux0, uy0 (top right corner)
@@ -203,18 +206,19 @@ void TraceSegmentPcb( TRACK* pt_segm, int type, int marge, int op_logic );
  * op_logic = WRITE_CELL, WRITE_OR_CELL, WRITE_XOR_CELL, WRITE_AND_CELL
  */
 void TraceFilledRectangle( int ux0, int uy0, int ux1, int uy1,
-                           int side, int color, int op_logic);
+                           LSET side, int color, int op_logic);
 
 
 /* Same as above, but the rectangle is inclined angle angle. */
 void TraceFilledRectangle( int ux0, int uy0, int ux1, int uy1,
-                           int angle, int masque_layer, int color, int op_logic );
+                           double angle, LSET masque_layer,
+                           int color, int op_logic );
 
 /* QUEUE.CPP */
 void FreeQueue();
 void InitQueue();
 void GetQueue( int *, int *, int *, int *, int * );
-int  SetQueue( int, int, int, int, int, int, int );
+bool  SetQueue( int, int, int, int, int, int, int );
 void ReSetQueue( int, int, int, int, int, int, int );
 
 /* WORK.CPP */

@@ -2,7 +2,7 @@
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
  * Copyright (C) 2012 SoftPLC Corporation, Dick Hollenbeck <dick@softplc.com>
- * Copyright (C) 2012 Wayne Stambaugh <stambaughw@verizon.net>
+ * Copyright (C) 2013 CERN
  * Copyright (C) 2012 KiCad Developers, see change_log.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
@@ -26,46 +26,48 @@
 
 /*  TODO:
 
-*)  Check for duplicate nicknames per table
-
-*)  Grab text from any pending ChoiceEditor when OK button pressed.
-
-*)  Test wxRE_ADVANCED on Windows.
-
-*)  Do environment variable substitution on lookup
+*)  After any change to uri, reparse the environment variables.
 
 */
 
 
+#include <set>
+#include <wx/regex.h>
 
 #include <fctsys.h>
+#include <project.h>
+#include <3d_viewer.h>      // for KISYS3DMOD
 #include <dialog_fp_lib_table_base.h>
 #include <fp_lib_table.h>
-#include <wx/grid.h>
-#include <wx/clipbrd.h>
-#include <wx/tokenzr.h>
-#include <wx/arrstr.h>
-#include <wx/regex.h>
-#include <set>
+#include <fp_lib_table_lexer.h>
+#include <invoke_pcb_dialog.h>
+#include <grid_tricks.h>
+#include <confirm.h>
+#include <wizard_add_fplib.h>
+
+
+/// grid column order is established by this sequence
+enum COL_ORDER
+{
+    COL_NICKNAME,
+    COL_URI,
+    COL_TYPE,
+    COL_OPTIONS,
+    COL_DESCR,
+    COL_COUNT       // keep as last
+};
+
 
 /**
  * Class FP_TBL_MODEL
- * mixes in wxGridTableBase into FP_LIB_TABLE so that the latter can be used
+ * mixes in FP_LIB_TABLE into wxGridTableBase so the result can be used
  * as a table within wxGrid.
  */
 class FP_TBL_MODEL : public wxGridTableBase, public FP_LIB_TABLE
 {
-public:
+    friend class FP_GRID_TRICKS;
 
-    enum COL_ORDER      ///<  grid column order, established by this sequence
-    {
-        COL_NICKNAME,
-        COL_URI,
-        COL_TYPE,
-        COL_OPTIONS,
-        COL_DESCR,
-        COL_COUNT       // keep as last
-    };
+public:
 
     /**
      * Constructor FP_TBL_MODEL
@@ -79,8 +81,8 @@ public:
 
     //-----<wxGridTableBase overloads>-------------------------------------------
 
-    int         GetNumberRows () { return rows.size(); }
-    int         GetNumberCols () { return COL_COUNT; }
+    int         GetNumberRows()     { return rows.size(); }
+    int         GetNumberCols()     { return COL_COUNT; }
 
     wxString    GetValue( int aRow, int aCol )
     {
@@ -122,9 +124,7 @@ public:
 
     bool IsEmptyCell( int aRow, int aCol )
     {
-        if( unsigned( aRow ) < rows.size() )
-            return false;
-        return true;
+        return !GetValue( aRow, aCol );
     }
 
     bool InsertRows( size_t aPos = 0, size_t aNumRows = 1 )
@@ -169,7 +169,9 @@ public:
 
     bool DeleteRows( size_t aPos, size_t aNumRows )
     {
-        if( aPos + aNumRows <= rows.size() )
+        // aPos may be a large positive, e.g. size_t(-1), and the sum of
+        // aPos+aNumRows may wrap here, so both ends of the range are tested.
+        if( aPos < rows.size() && aPos + aNumRows <= rows.size() )
         {
             ROWS_ITER start = rows.begin() + aPos;
             rows.erase( start, start + aNumRows );
@@ -202,7 +204,7 @@ public:
         case COL_NICKNAME:  return _( "Nickname" );
         case COL_URI:       return _( "Library Path" );
 
-        // keep this text fairly long so column is sized wide enough
+        // keep this "Plugin Type" text fairly long so column is sized wide enough
         case COL_TYPE:      return _( "Plugin Type" );
         case COL_OPTIONS:   return _( "Options" );
         case COL_DESCR:     return _( "Description" );
@@ -214,10 +216,69 @@ public:
 };
 
 
-// It works for table data on clipboard for an Excell spreadsheet,
-// why not us too for now.
-#define COL_SEP     wxT( '\t' )
-#define ROW_SEP     wxT( '\n' )
+class FP_GRID_TRICKS : public GRID_TRICKS
+{
+public:
+    FP_GRID_TRICKS( wxGrid* aGrid ) :
+        GRID_TRICKS( aGrid )
+    {
+    }
+
+protected:
+
+    /// handle specialized clipboard text, with leading "(fp_lib_table", OR
+    /// spreadsheet formatted text.
+    virtual void paste_text( const wxString& cb_text )
+    {
+        FP_TBL_MODEL*       tbl = (FP_TBL_MODEL*) m_grid->GetTable();
+
+        size_t  ndx = cb_text.find( wxT( "(fp_lib_table" ) );
+
+        if( ndx != std::string::npos )
+        {
+            // paste the ROWs of s-expression (fp_lib_table), starting
+            // at column 0 regardless of current cursor column.
+
+            STRING_LINE_READER  slr( TO_UTF8( cb_text ), wxT( "Clipboard" ) );
+            FP_LIB_TABLE_LEXER  lexer( &slr );
+            FP_LIB_TABLE        tmp_tbl;
+            bool                parsed = true;
+
+            try
+            {
+                tmp_tbl.Parse( &lexer );
+            }
+            catch( PARSE_ERROR& pe )
+            {
+                DisplayError( NULL, pe.errorText );
+                parsed = false;
+            }
+
+            if( parsed )
+            {
+                const int cur_row = std::max( getCursorRow(), 0 );
+
+                // if clipboard rows would extend past end of current table size...
+                if( tmp_tbl.GetCount() > tbl->GetNumberRows() - cur_row )
+                {
+                    int newRowsNeeded = tmp_tbl.GetCount() - ( tbl->GetNumberRows() - cur_row );
+                    tbl->AppendRows( newRowsNeeded );
+                }
+
+                for( int i = 0;  i < tmp_tbl.GetCount();  ++i )
+                {
+                    tbl->At( cur_row+i ) = tmp_tbl.At( i );
+                }
+            }
+            m_grid->AutoSizeColumns( false );
+        }
+        else
+        {
+            // paste spreadsheet formatted text.
+            GRID_TRICKS::paste_text( cb_text );
+        }
+    }
+};
 
 
 /**
@@ -227,200 +288,295 @@ public:
  */
 class DIALOG_FP_LIB_TABLE : public DIALOG_FP_LIB_TABLE_BASE
 {
+
+public:
+    DIALOG_FP_LIB_TABLE( wxTopLevelWindow* aParent, FP_LIB_TABLE* aGlobal, FP_LIB_TABLE* aProject ) :
+        DIALOG_FP_LIB_TABLE_BASE( aParent ),
+        m_global( aGlobal ),
+        m_project( aProject )
+    {
+        // For user info, shows the table filenames:
+        m_PrjTableFilename->SetLabel( Prj().FootprintLibTblName() );
+        m_GblTableFilename->SetLabel( FP_LIB_TABLE::GetGlobalTableFileName() );
+
+        // wxGrid only supports user owned tables if they exist past end of ~wxGrid(),
+        // so make it a grid owned table.
+        m_global_grid->SetTable(  new FP_TBL_MODEL( *aGlobal ),  true );
+        m_project_grid->SetTable( new FP_TBL_MODEL( *aProject ), true );
+
+        // add Cut, Copy, and Paste to wxGrids
+        m_global_grid->PushEventHandler( new FP_GRID_TRICKS( m_global_grid ) );
+        m_project_grid->PushEventHandler( new FP_GRID_TRICKS( m_project_grid ) );
+
+        m_global_grid->AutoSizeColumns( false );
+        m_project_grid->AutoSizeColumns( false );
+
+        wxArrayString choices;
+
+        choices.Add( IO_MGR::ShowType( IO_MGR::KICAD ) );
+        choices.Add( IO_MGR::ShowType( IO_MGR::GITHUB ) );
+        choices.Add( IO_MGR::ShowType( IO_MGR::LEGACY ) );
+        choices.Add( IO_MGR::ShowType( IO_MGR::EAGLE ) );
+        choices.Add( IO_MGR::ShowType( IO_MGR::GEDA_PCB ) );
+
+        /* PCAD_PLUGIN does not support Footprint*() functions
+        choices.Add( IO_MGR::ShowType( IO_MGR::GITHUB ) );
+        */
+
+        wxGridCellAttr* attr;
+
+        attr = new wxGridCellAttr;
+        attr->SetEditor( new wxGridCellChoiceEditor( choices ) );
+        m_project_grid->SetColAttr( COL_TYPE, attr );
+
+        attr = new wxGridCellAttr;
+        attr->SetEditor( new wxGridCellChoiceEditor( choices ) );
+        m_global_grid->SetColAttr( COL_TYPE, attr );
+
+        populateEnvironReadOnlyTable();
+
+        for( int i=0; i<2; ++i )
+        {
+            wxGrid* g = i==0 ? m_global_grid : m_project_grid;
+
+            // all but COL_OPTIONS, which is edited with Option Editor anyways.
+            g->AutoSizeColumn( COL_NICKNAME, false );
+            g->AutoSizeColumn( COL_TYPE, false );
+            g->AutoSizeColumn( COL_URI, false );
+            g->AutoSizeColumn( COL_DESCR, false );
+
+            // would set this to width of title, if it was easily known.
+            g->SetColSize( COL_OPTIONS, 80 );
+        }
+
+        // This scrunches the dialog hideously, probably due to wxAUI container.
+        // Fit();
+        // We derive from DIALOG_SHIM so prior size will be used anyways.
+
+        // select the last selected page
+        m_auinotebook->SetSelection( m_pageNdx );
+
+        // fire pageChangedHandler() so m_cur_grid gets set
+        // m_auinotebook->SetSelection will generate a pageChangedHandler()
+        // event call later, but too late.
+        wxAuiNotebookEvent uneventful;
+        pageChangedHandler( uneventful );
+
+        // Gives a selection for each grid, mainly for delete lib button.
+        // Without that, we do not see what lib will be deleted
+        m_global_grid->SelectRow(0);
+        m_project_grid->SelectRow(0);
+
+        // for ALT+A handling, we want the initial focus to be on the first selected grid.
+        m_cur_grid->SetFocus();
+
+        // On some windows manager (Unity, XFCE), this dialog is
+        // not always raised, depending on this dialog is run.
+        // Force it to be raised
+        Raise();
+    }
+
+    ~DIALOG_FP_LIB_TABLE()
+    {
+        // Delete the GRID_TRICKS.
+        // Any additional event handlers should be popped before the window is deleted.
+        m_global_grid->PopEventHandler( true );
+        m_project_grid->PopEventHandler( true );
+    }
+
+
+private:
     typedef FP_LIB_TABLE::ROW   ROW;
 
-    enum
+    /// If the cursor is not on a valid cell, because there are no rows at all, return -1,
+    /// else return a 0 based column index.
+    int getCursorCol() const
     {
-        ID_CUT,     //  = wxID_HIGHEST + 1,
-        ID_COPY,
-        ID_PASTE,
-    };
-
-    // row & col "selection" acquisition
-    // selected area by cell coordinate and count
-    int selRowStart;
-    int selColStart;
-    int selRowCount;
-    int selColCount;
-
-    /// Gets the selected area into a sensible rectangle of sel{Row,Col}{Start,Count} above.
-    void getSelectedArea()
-    {
-        wxGridCellCoordsArray topLeft  = m_cur_grid->GetSelectionBlockTopLeft();
-        wxGridCellCoordsArray botRight = m_cur_grid->GetSelectionBlockBottomRight();
-
-        wxArrayInt  cols = m_cur_grid->GetSelectedCols();
-        wxArrayInt  rows = m_cur_grid->GetSelectedRows();
-
-        D(printf("topLeft.Count():%zd botRight:Count():%zd\n", topLeft.Count(), botRight.Count() );)
-
-        if( topLeft.Count() && botRight.Count() )
-        {
-            selRowStart = topLeft[0].GetRow();
-            selColStart = topLeft[0].GetCol();
-
-            selRowCount = botRight[0].GetRow() - selRowStart + 1;
-            selColCount = botRight[0].GetCol() - selColStart + 1;
-        }
-        else if( cols.Count() )
-        {
-            selColStart = cols[0];
-            selColCount = cols.Count();
-            selRowStart = 0;
-            selRowCount = m_cur_grid->GetNumberRows();
-        }
-        else if( rows.Count() )
-        {
-            selColStart = 0;
-            selColCount = m_cur_grid->GetNumberCols();
-            selRowStart = rows[0];
-            selRowCount = rows.Count();
-        }
-        else
-        {
-            selRowStart = -1;
-            selColStart = -1;
-            selRowCount = 0;
-            selColCount = 0;
-        }
-
-        // D(printf("selRowStart:%d selColStart:%d selRowCount:%d selColCount:%d\n", selRowStart, selColStart, selRowCount, selColCount );)
+        return m_cur_grid->GetGridCursorCol();
     }
 
-    void rightClickCellPopupMenu()
+    /// If the cursor is not on a valid cell, because there are no rows at all, return -1,
+    /// else return a 0 based row index.
+    int getCursorRow() const
     {
-        wxMenu      menu;
-
-        menu.Append( ID_CUT, _( "Cut" ),      _( "Clear selected cells" ) );
-        menu.Append( ID_COPY, _( "Copy" ),    _( "Copy selected cells to clipboard" ) );
-        menu.Append( ID_PASTE, _( "Paste" ),  _( "Paste clipboard cells to matrix at current cell" ) );
-
-        getSelectedArea();
-
-        // if nothing is selected, diable cut and copy.
-        if( !selRowCount && !selColCount )
-        {
-            menu.Enable( ID_CUT,  false );
-            menu.Enable( ID_COPY, false );
-        }
-
-        // if there is no current cell cursor, disable paste.
-        if( m_cur_row == -1 || m_cur_col == -1 )
-            menu.Enable( ID_PASTE, false );
-
-        PopupMenu( &menu );
-
-        // passOnFocus();
+        return m_cur_grid->GetGridCursorRow();
     }
 
-    // the user clicked on a popup menu choice:
-    void onPopupSelection( wxCommandEvent& event )
+    /**
+     * Function verifyTables
+     * trims important fields, removes blank row entries, and checks for duplicates.
+     * @return bool - true if tables are OK, else false.
+     */
+    bool verifyTables()
     {
-        int     menuId = event.GetId();
-
-        // assume getSelectedArea() was called by rightClickPopupMenu() and there's
-        // no way to have gotten here without that having been called.
-
-        switch( menuId )
+        for( int t=0; t<2; ++t )
         {
-        case ID_CUT:
-        case ID_COPY:
-            // this format is compatible with most spreadsheets
-            if( wxTheClipboard->Open() )
+            FP_TBL_MODEL& model = t==0 ? *global_model() : *project_model();
+
+            for( int r = 0; r < model.GetNumberRows(); )
             {
-                wxGridTableBase*    tbl = m_cur_grid->GetTable();
-                wxString            txt;
+                wxString nick = model.GetValue( r, COL_NICKNAME ).Trim( false ).Trim();
+                wxString uri  = model.GetValue( r, COL_URI ).Trim( false ).Trim();
 
-                for( int row = selRowStart;  row < selRowStart + selRowCount;  ++row )
+                if( !nick || !uri )
                 {
-                    for( int col = selColStart;  col < selColStart + selColCount; ++col )
-                    {
-                        txt += tbl->GetValue( row, col );
-
-                        if( col < selColStart + selColCount - 1 )   // that was not last column
-                            txt += COL_SEP;
-
-                        if( menuId == ID_CUT )
-                            tbl->SetValue( row, col, wxEmptyString );
-                    }
-                    txt += ROW_SEP;
+                    // Delete the "empty" row, where empty means missing nick or uri.
+                    // This also updates the UI which could be slow, but there should only be a few
+                    // rows to delete, unless the user fell asleep on the Add Row
+                    // button.
+                    model.DeleteRows( r, 1 );
                 }
-
-                wxTheClipboard->SetData( new wxTextDataObject( txt ) );
-                wxTheClipboard->Close();
-                m_cur_grid->ForceRefresh();
-            }
-            break;
-
-        case ID_PASTE:
-            D(printf( "paste\n" );)
-            // assume format came from a spreadsheet or us.
-            if( wxTheClipboard->Open() )
-            {
-                if( wxTheClipboard->IsSupported( wxDF_TEXT ) )
+                else if( nick.find(':') != size_t(-1) )
                 {
-                    wxGridTableBase*    tbl = m_cur_grid->GetTable();
-                    wxTextDataObject    data;
+                    wxString msg = wxString::Format(
+                        _( "Illegal character '%s' found in Nickname: '%s' in row %d" ),
+                        wxT( ":" ), GetChars( nick ), r );
 
-                    wxTheClipboard->GetData( data );
-
-                    wxStringTokenizer   rows( data.GetText(), ROW_SEP, wxTOKEN_RET_EMPTY );
-
-                    // if clipboard rows would extend past end of current table size...
-                    if( int( rows.CountTokens() ) > tbl->GetNumberRows() - m_cur_row )
+                    // show the tabbed panel holding the grid we have flunked:
+                    if( &model != cur_model() )
                     {
-                        int newRowsNeeded = rows.CountTokens() - ( tbl->GetNumberRows() - m_cur_row );
-                        tbl->AppendRows( newRowsNeeded );
+                        m_auinotebook->SetSelection( &model == global_model() ? 0 : 1 );
                     }
 
-                    for( int row = m_cur_row;  rows.HasMoreTokens();  ++row )
+                    // go to the problematic row
+                    m_cur_grid->SetGridCursor( r, 0 );
+                    m_cur_grid->SelectBlock( r, 0, r, 0 );
+                    m_cur_grid->MakeCellVisible( r, 0 );
+
+                    wxMessageDialog errdlg( this, msg, _( "No Colon in Nicknames" ) );
+                    errdlg.ShowModal();
+                    return false;
+                }
+                else
+                {
+                    // set the trimmed values back into the table so they get saved to disk.
+                    model.SetValue( r, COL_NICKNAME, nick );
+                    model.SetValue( r, COL_URI, uri );
+                    ++r;        // this row was OK.
+                }
+            }
+        }
+
+        // check for duplicate nickNames, separately in each table.
+        for( int t=0; t<2; ++t )
+        {
+            FP_TBL_MODEL& model = t==0 ? *global_model() : *project_model();
+
+            for( int r1 = 0; r1 < model.GetNumberRows() - 1;  ++r1 )
+            {
+                wxString    nick1 = model.GetValue( r1, COL_NICKNAME );
+
+                for( int r2=r1+1; r2 < model.GetNumberRows();  ++r2 )
+                {
+                    wxString    nick2 = model.GetValue( r2, COL_NICKNAME );
+
+                    if( nick1 == nick2 )
                     {
-                        wxString rowTxt = rows.GetNextToken();
+                        wxString msg = wxString::Format(
+                            _( "Duplicate Nickname: '%s' in rows %d and %d" ),
+                            GetChars( nick1 ), r1+1, r2+1
+                            );
 
-                        wxStringTokenizer   cols( rowTxt, COL_SEP, wxTOKEN_RET_EMPTY );
-
-                        for( int col = m_cur_col; cols.HasMoreTokens();  ++col )
+                        // show the tabbed panel holding the grid we have flunked:
+                        if( &model != cur_model() )
                         {
-                            wxString cellTxt = cols.GetNextToken();
-                            tbl->SetValue( row, col, cellTxt );
+                            m_auinotebook->SetSelection( &model == global_model() ? 0 : 1 );
                         }
+
+                        // go to the lower of the two rows, it is technically the duplicate:
+                        m_cur_grid->SetGridCursor( r2, 0 );
+                        m_cur_grid->SelectBlock( r2, 0, r2, 0 );
+                        m_cur_grid->MakeCellVisible( r2, 0 );
+
+                        wxMessageDialog errdlg( this, msg, _( "Please Delete or Modify One" ) );
+                        errdlg.ShowModal();
+                        return false;
                     }
                 }
-
-                wxTheClipboard->Close();
-                m_cur_grid->ForceRefresh();
             }
-            break;
         }
+
+        return true;
     }
 
     //-----<event handlers>----------------------------------
 
+    void onKeyDown( wxKeyEvent& ev )
+    {
+#if 0
+        // send the key to the current grid
+        ((wxEvtHandler*)m_cur_grid)->ProcessEvent( ev );
+#else
+        // or no:
+        // m_cur_grid has the focus most of the time anyways, so above not needed.
+        ev.Skip();
+#endif
+    }
+
     void pageChangedHandler( wxAuiNotebookEvent& event )
     {
-        int pageNdx = m_auinotebook->GetSelection();
-        m_cur_grid = ( pageNdx == 0 ) ? m_global_grid : m_project_grid;
+        m_pageNdx = m_auinotebook->GetSelection();
+        m_cur_grid = ( m_pageNdx == 0 ) ? m_global_grid : m_project_grid;
     }
 
-    void appendRowHandler( wxMouseEvent& event )
+    void appendRowHandler( wxCommandEvent& event )
     {
-        m_cur_grid->AppendRows( 1 );
+        if( m_cur_grid->AppendRows( 1 ) )
+        {
+            int last_row = m_cur_grid->GetNumberRows() - 1;
+
+            // wx documentation is wrong, SetGridCursor does not make visible.
+            m_cur_grid->MakeCellVisible( last_row, 0 );
+            m_cur_grid->SetGridCursor( last_row, 0 );
+            m_cur_grid->SelectRow( m_cur_grid->GetGridCursorRow() );
+        }
     }
 
-    void deleteRowHandler( wxMouseEvent& event )
+    void deleteRowHandler( wxCommandEvent& event )
     {
-        int curRow = m_cur_grid->GetGridCursorRow();
-        m_cur_grid->DeleteRows( curRow );
+#if 1
+        int currRow = getCursorRow();
+        wxArrayInt selectedRows	= m_cur_grid->GetSelectedRows();
+
+        if( selectedRows.size() == 0 && getCursorRow() >= 0 )
+            selectedRows.Add( getCursorRow() );
+
+        std::sort( selectedRows.begin(), selectedRows.end() );
+
+        for( int ii = selectedRows.GetCount()-1; ii >= 0; ii-- )
+        {
+            int row = selectedRows[ii];
+            m_cur_grid->DeleteRows( row, 1 );
+        }
+
+        if( currRow >= m_cur_grid->GetNumberRows() )
+            m_cur_grid->SetGridCursor(m_cur_grid->GetNumberRows()-1, getCursorCol() );
+
+        m_cur_grid->SelectRow( m_cur_grid->GetGridCursorRow() );
+#else
+        int rowCount = m_cur_grid->GetNumberRows();
+        int curRow   = getCursorRow();
+
+        if( curRow >= 0 )
+        {
+            m_cur_grid->DeleteRows( curRow );
+
+            if( curRow && curRow == rowCount - 1 )
+            {
+                m_cur_grid->SetGridCursor( curRow-1, getCursorCol() );
+            }
+        }
+#endif
     }
 
-    void moveUpHandler( wxMouseEvent& event )
+    void moveUpHandler( wxCommandEvent& event )
     {
-        int curRow = m_cur_grid->GetGridCursorRow();
+        int curRow = getCursorRow();
         if( curRow >= 1 )
         {
-            int curCol = m_cur_grid->GetGridCursorCol();
+            int curCol = getCursorCol();
 
-            FP_TBL_MODEL* tbl = (FP_TBL_MODEL*) m_cur_grid->GetTable();
+            FP_TBL_MODEL* tbl = cur_model();
 
             ROW move_me = tbl->rows[curRow];
 
@@ -439,18 +595,20 @@ class DIALOG_FP_LIB_TABLE : public DIALOG_FP_LIB_TABLE_BASE
                 tbl->GetView()->ProcessTableMessage( msg );
             }
 
+            m_cur_grid->MakeCellVisible( curRow, curCol );
             m_cur_grid->SetGridCursor( curRow, curCol );
+            m_cur_grid->SelectRow( getCursorRow() );
         }
     }
 
-    void moveDownHandler( wxMouseEvent& event )
+    void moveDownHandler( wxCommandEvent& event )
     {
-        FP_TBL_MODEL* tbl = (FP_TBL_MODEL*) m_cur_grid->GetTable();
+        FP_TBL_MODEL* tbl = cur_model();
 
-        int curRow = m_cur_grid->GetGridCursorRow();
+        int curRow = getCursorRow();
         if( unsigned( curRow + 1 ) < tbl->rows.size() )
         {
-            int curCol  = m_cur_grid->GetGridCursorCol();
+            int curCol  = getCursorCol();
 
             ROW move_me = tbl->rows[curRow];
 
@@ -469,12 +627,52 @@ class DIALOG_FP_LIB_TABLE : public DIALOG_FP_LIB_TABLE_BASE
                 tbl->GetView()->ProcessTableMessage( msg );
             }
 
+            m_cur_grid->MakeCellVisible( curRow, curCol );
             m_cur_grid->SetGridCursor( curRow, curCol );
+            m_cur_grid->SelectRow( getCursorRow() );
         }
-        D(printf("%s\n", __func__);)
     }
 
+    void optionsEditor( wxCommandEvent& event )
+    {
+        FP_TBL_MODEL*   tbl = cur_model();
+
+        if( tbl->GetNumberRows() )
+        {
+            int     curRow = getCursorRow();
+            ROW&    row    = tbl->rows[curRow];
+
+            wxString        result;
+            const wxString& options = row.GetOptions();
+
+            InvokePluginOptionsEditor( this, row.GetNickName(), row.GetType(), options, &result );
+
+            if( options != result )
+            {
+                row.SetOptions( result );
+
+                // all but options:
+                m_cur_grid->AutoSizeColumn( COL_NICKNAME, false );
+                m_cur_grid->AutoSizeColumn( COL_URI, false );
+                m_cur_grid->AutoSizeColumn( COL_TYPE, false );
+
+                // On Windows, the grid is not refresh,
+                // so force resfresh after a change
+#ifdef __WINDOWS__
+                Refresh();
+#endif
+            }
+        }
+    }
+
+    void OnClickLibraryWizard( wxCommandEvent& event );
+
     void onCancelButtonClick( wxCommandEvent& event )
+    {
+        EndModal( 0 );
+    }
+
+    void onCancelCaptionButtonClick( wxCloseEvent& event )
     {
         EndModal( 0 );
     }
@@ -483,49 +681,29 @@ class DIALOG_FP_LIB_TABLE : public DIALOG_FP_LIB_TABLE_BASE
     {
         int dialogRet = 0;
 
-        if( m_global_model != *m_global )
+        // stuff any pending cell editor text into the table.
+        m_cur_grid->SaveEditControlValue();
+
+        if( verifyTables() )
         {
-            dialogRet |= 1;
+            if( *global_model() != *m_global )
+            {
+                dialogRet |= 1;
 
-            *m_global  = m_global_model;
-            m_global->reindex();
+                *m_global  = *global_model();
+                m_global->reindex();
+            }
+
+            if( *project_model() != *m_project )
+            {
+                dialogRet |= 2;
+
+                *m_project = *project_model();
+                m_project->reindex();
+            }
+
+            EndModal( dialogRet );
         }
-
-        if( m_project_model != *m_project )
-        {
-            dialogRet |= 2;
-
-            *m_project = m_project_model;
-            m_project->reindex();
-        }
-
-        EndModal( dialogRet );
-    }
-
-    void onGridCellLeftClick( wxGridEvent& event )
-    {
-        event.Skip();
-    }
-
-    void onGridCellLeftDClick( wxGridEvent& event )
-    {
-        event.Skip();
-    }
-
-    void onGridCellRightClick( wxGridEvent& event )
-    {
-        rightClickCellPopupMenu();
-    }
-
-    void onGridCmdSelectCell( wxGridEvent& event )
-    {
-        m_cur_row = event.GetRow();
-        m_cur_col = event.GetCol();
-
-        D(printf("change cursor(%d,%d)\n", m_cur_row, m_cur_col );)
-
-        // somebody else wants this
-        event.Skip();
     }
 
     /// Populate the readonly environment variable table with names and values
@@ -538,15 +716,19 @@ class DIALOG_FP_LIB_TABLE : public DIALOG_FP_LIB_TABLE_BASE
         std::set< wxString >        unique;
         typedef std::set<wxString>::const_iterator      SET_CITER;
 
+        // clear the table
         m_path_subs_grid->DeleteRows( 0, m_path_subs_grid->GetNumberRows() );
 
-        int gblRowCount = m_global_model.GetNumberRows();
-        int prjRowCount = m_project_model.GetNumberRows();
+        FP_TBL_MODEL*   gbl = global_model();
+        FP_TBL_MODEL*   prj = project_model();
+
+        int gblRowCount = gbl->GetNumberRows();
+        int prjRowCount = prj->GetNumberRows();
         int row;
 
         for( row = 0;  row < gblRowCount;  ++row )
         {
-            wxString uri = m_global_model.GetValue( row, FP_TBL_MODEL::COL_URI );
+            wxString uri = gbl->GetValue( row, COL_URI );
 
             while( re.Matches( uri ) )
             {
@@ -562,7 +744,7 @@ class DIALOG_FP_LIB_TABLE : public DIALOG_FP_LIB_TABLE_BASE
 
         for( row = 0;  row < prjRowCount;  ++row )
         {
-            wxString uri = m_project_model.GetValue( row, FP_TBL_MODEL::COL_URI );
+            wxString uri = prj->GetValue( row, COL_URI );
 
             while( re.Matches( uri ) )
             {
@@ -575,6 +757,14 @@ class DIALOG_FP_LIB_TABLE : public DIALOG_FP_LIB_TABLE_BASE
                 uri.Replace( re.GetMatch( uri, 0 ), wxEmptyString );
             }
         }
+
+        // Make sure this special environment variable shows up even if it was
+        // not used yet.  It is automatically set by KiCad to the directory holding
+        // the current project.
+        unique.insert( PROJECT_VAR_NAME );
+        unique.insert( FP_LIB_TABLE::GlobalPathEnvVariableName() );
+        // This special environment variable is used to locate 3d shapes
+        unique.insert( KISYS3DMOD );
 
         m_path_subs_grid->AppendRows( unique.size() );
 
@@ -595,85 +785,68 @@ class DIALOG_FP_LIB_TABLE : public DIALOG_FP_LIB_TABLE_BASE
 
     //-----</event handlers>---------------------------------
 
-    // caller's tables are modified only on OK button.
+    // caller's tables are modified only on OK button and successful verification.
     FP_LIB_TABLE*       m_global;
     FP_LIB_TABLE*       m_project;
 
-    // local copies which are edited, but aborted if Cancel button.
-    FP_TBL_MODEL        m_global_model;
-    FP_TBL_MODEL        m_project_model;
+    FP_TBL_MODEL*       global_model()  const   { return (FP_TBL_MODEL*) m_global_grid->GetTable(); }
+    FP_TBL_MODEL*       project_model() const   { return (FP_TBL_MODEL*) m_project_grid->GetTable(); }
+    FP_TBL_MODEL*       cur_model() const       { return (FP_TBL_MODEL*) m_cur_grid->GetTable(); }
 
     wxGrid*             m_cur_grid;     ///< changed based on tab choice
-
-    // wxGrid makes it difficult to know if the cursor is yet visible,
-    // use this to solve that, initial values are -1
-    int                 m_cur_row;      ///< cursor position
-    int                 m_cur_col;
-
-public:
-    DIALOG_FP_LIB_TABLE( wxFrame* aParent, FP_LIB_TABLE* aGlobal, FP_LIB_TABLE* aProject ) :
-        DIALOG_FP_LIB_TABLE_BASE( aParent ),
-        m_global( aGlobal ),
-        m_project( aProject ),
-        m_global_model( *aGlobal ),
-        m_project_model( *aProject ),
-        m_cur_row( -1 ),
-        m_cur_col( -1 )
-    {
-        m_global_grid->SetTable( (wxGridTableBase*) &m_global_model );
-        m_project_grid->SetTable( (wxGridTableBase*) &m_project_model );
-
-        m_global_grid->AutoSizeColumns( false );
-        m_project_grid->AutoSizeColumns( false );
-
-        wxArrayString choices;
-        choices.Add( IO_MGR::ShowType( IO_MGR::KICAD ) );
-        choices.Add( IO_MGR::ShowType( IO_MGR::LEGACY ) );
-        choices.Add( IO_MGR::ShowType( IO_MGR::EAGLE ) );
-        choices.Add( IO_MGR::ShowType( IO_MGR::GEDA_PCB ) );
-
-        wxGridCellAttr* attr;
-
-        attr = new wxGridCellAttr;
-        attr->SetEditor( new wxGridCellChoiceEditor( choices ) );
-        m_project_grid->SetColAttr( FP_TBL_MODEL::COL_TYPE, attr );
-
-        attr = new wxGridCellAttr;
-        attr->SetEditor( new wxGridCellChoiceEditor( choices ) );
-        m_global_grid->SetColAttr(  FP_TBL_MODEL::COL_TYPE, attr );
-
-        m_global_grid->AutoSizeColumns();
-        m_project_grid->AutoSizeColumns();
-
-        Connect( ID_CUT, ID_PASTE, wxEVT_COMMAND_MENU_SELECTED,
-            wxCommandEventHandler( DIALOG_FP_LIB_TABLE::onPopupSelection ), NULL, this );
-
-        populateEnvironReadOnlyTable();
-
-        /* This scrunches the dialog hideously
-        Fit();
-        */
-
-        // fire pageChangedHandler() so m_cur_grid gets set
-        wxAuiNotebookEvent uneventful;
-        pageChangedHandler( uneventful );
-    }
-
-    ~DIALOG_FP_LIB_TABLE()
-    {
-        Disconnect( ID_CUT, ID_PASTE, wxEVT_COMMAND_MENU_SELECTED,
-            wxCommandEventHandler( DIALOG_FP_LIB_TABLE::onPopupSelection ), NULL, this );
-
-        // ~wxGrid() examines its table, and the tables will have been destroyed before
-        // the wxGrids are, so remove the tables from the wxGrids' awareness.
-        // Otherwise there is a segfault.
-        m_global_grid->SetTable( NULL );
-        m_project_grid->SetTable( NULL );
-    }
+    static int          m_pageNdx;      ///< Remember the last notebook page selected during a session
 };
 
+int DIALOG_FP_LIB_TABLE::m_pageNdx = 0;
 
-int InvokePcbLibTableEditor( wxFrame* aParent, FP_LIB_TABLE* aGlobal, FP_LIB_TABLE* aProject )
+
+void DIALOG_FP_LIB_TABLE::OnClickLibraryWizard( wxCommandEvent& event )
+{
+    WIZARD_FPLIB_TABLE dlg( this );
+
+    if( !dlg.RunWizard( dlg.GetFirstPage() ) )
+        return;     // Aborted by user
+
+    const std::vector<WIZARD_FPLIB_TABLE::LIBRARY>& libs = dlg.GetLibraries();
+    bool global_scope = dlg.GetLibScope() == WIZARD_FPLIB_TABLE::GLOBAL;
+    wxGrid* libgrid = global_scope ? m_global_grid : m_project_grid;
+    FP_TBL_MODEL* tbl = (FP_TBL_MODEL*) libgrid->GetTable();
+
+    for( std::vector<WIZARD_FPLIB_TABLE::LIBRARY>::const_iterator it = libs.begin();
+            it != libs.end(); ++it )
+    {
+        if( it->GetStatus() == WIZARD_FPLIB_TABLE::LIBRARY::INVALID )
+            continue;
+
+        if( libgrid->AppendRows( 1 ) )
+        {
+            int last_row = libgrid->GetNumberRows() - 1;
+
+            // Add the nickname: currently make it from filename
+            tbl->SetValue( last_row, COL_NICKNAME, it->GetDescription() );
+
+            // Add the path:
+            tbl->SetValue( last_row, COL_URI, it->GetAutoPath( dlg.GetLibScope() ) );
+
+            // Add the plugin name:
+            tbl->SetValue( last_row, COL_TYPE, it->GetPluginName() );
+
+            libgrid->MakeCellVisible( last_row, 0 );
+            libgrid->SetGridCursor( last_row, 0 );
+        }
+    }
+
+    // Switch to the current scope tab
+    if( global_scope )
+        m_auinotebook->SetSelection( 0 );
+    else
+        m_auinotebook->SetSelection( 1 );
+
+    libgrid->SelectRow( libgrid->GetGridCursorRow() );
+}
+
+
+int InvokePcbLibTableEditor( wxTopLevelWindow* aParent, FP_LIB_TABLE* aGlobal, FP_LIB_TABLE* aProject )
 {
     DIALOG_FP_LIB_TABLE dlg( aParent, aGlobal, aProject );
 
@@ -682,3 +855,33 @@ int InvokePcbLibTableEditor( wxFrame* aParent, FP_LIB_TABLE* aGlobal, FP_LIB_TAB
     return dialogRet;
 }
 
+
+int InvokeFootprintWizard( wxTopLevelWindow* aParent, FP_LIB_TABLE* aGlobal, FP_LIB_TABLE* aProject )
+{
+    WIZARD_FPLIB_TABLE dlg( aParent );
+
+    if( !dlg.RunWizard( dlg.GetFirstPage() ) )
+        return 0;     // Aborted by user
+
+    const std::vector<WIZARD_FPLIB_TABLE::LIBRARY>& libs = dlg.GetLibraries();
+    WIZARD_FPLIB_TABLE::LIB_SCOPE scope = dlg.GetLibScope();
+    FP_LIB_TABLE* fp_tbl = ( scope == WIZARD_FPLIB_TABLE::GLOBAL ? aGlobal : aProject );
+
+    if( fp_tbl )
+    {
+        for( std::vector<WIZARD_FPLIB_TABLE::LIBRARY>::const_iterator it = libs.begin();
+                it != libs.end(); ++it )
+        {
+            if( it->GetStatus() == WIZARD_FPLIB_TABLE::LIBRARY::INVALID )
+                continue;
+
+            FP_LIB_TABLE::ROW row( it->GetDescription(),
+                                it->GetAutoPath( scope ),
+                                it->GetPluginName(),
+                                wxEmptyString );     // options
+            fp_tbl->InsertRow( row );
+        }
+    }
+
+    return scope;
+}

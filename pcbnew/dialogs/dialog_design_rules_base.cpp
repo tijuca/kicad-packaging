@@ -1,5 +1,5 @@
 ///////////////////////////////////////////////////////////////////////////
-// C++ code generated with wxFormBuilder (version Oct  8 2012)
+// C++ code generated with wxFormBuilder (version Mar  9 2015)
 // http://www.wxformbuilder.org/
 //
 // PLEASE DO "NOT" EDIT THIS FILE!
@@ -54,8 +54,7 @@ DIALOG_DESIGN_RULES_BASE::DIALOG_DESIGN_RULES_BASE( wxWindow* parent, wxWindowID
 	m_grid->SetColLabelAlignment( wxALIGN_CENTRE, wxALIGN_CENTRE );
 	
 	// Rows
-	m_grid->AutoSizeRows();
-	m_grid->EnableDragRowSize( true );
+	m_grid->EnableDragRowSize( false );
 	m_grid->SetRowLabelSize( 120 );
 	m_grid->SetRowLabelValue( 0, _("Default") );
 	m_grid->SetRowLabelAlignment( wxALIGN_LEFT, wxALIGN_CENTRE );
@@ -65,6 +64,7 @@ DIALOG_DESIGN_RULES_BASE::DIALOG_DESIGN_RULES_BASE( wxWindow* parent, wxWindowID
 	// Cell Defaults
 	m_grid->SetDefaultCellAlignment( wxALIGN_LEFT, wxALIGN_TOP );
 	m_grid->SetToolTip( _("Net Class parameters") );
+	m_grid->SetMinSize( wxSize( -1,150 ) );
 	
 	sbSizerUpper->Add( m_grid, 1, wxEXPAND, 5 );
 	
@@ -74,12 +74,12 @@ DIALOG_DESIGN_RULES_BASE::DIALOG_DESIGN_RULES_BASE( wxWindow* parent, wxWindowID
 	m_addButton = new wxButton( m_panelNetClassesEditor, wxID_ADD_NETCLASS, _("Add"), wxDefaultPosition, wxDefaultSize, 0 );
 	m_addButton->SetToolTip( _("Add another Net Class") );
 	
-	buttonBoxSizer->Add( m_addButton, 0, wxALIGN_CENTER_HORIZONTAL|wxTOP|wxRIGHT|wxLEFT, 5 );
+	buttonBoxSizer->Add( m_addButton, 0, wxLEFT|wxRIGHT|wxTOP, 5 );
 	
 	m_removeButton = new wxButton( m_panelNetClassesEditor, wxID_REMOVE_NETCLASS, _("Remove"), wxDefaultPosition, wxDefaultSize, 0 );
 	m_removeButton->SetToolTip( _("Remove the currently select Net Class\nThe default Net Class cannot be removed") );
 	
-	buttonBoxSizer->Add( m_removeButton, 0, wxALIGN_CENTER_HORIZONTAL|wxTOP|wxRIGHT|wxLEFT, 5 );
+	buttonBoxSizer->Add( m_removeButton, 0, wxLEFT|wxRIGHT|wxTOP, 5 );
 	
 	m_moveUpButton = new wxButton( m_panelNetClassesEditor, wxID_ANY, _("Move Up"), wxDefaultPosition, wxDefaultSize, 0 );
 	m_moveUpButton->SetToolTip( _("Move the currently selected Net Class up one row") );
@@ -115,22 +115,22 @@ DIALOG_DESIGN_RULES_BASE::DIALOG_DESIGN_RULES_BASE( wxWindow* parent, wxWindowID
 	m_buttonRightToLeft = new wxButton( m_panelNetClassesEditor, ID_LEFT_TO_RIGHT_COPY, _("<<<"), wxDefaultPosition, wxDefaultSize, 0 );
 	m_buttonRightToLeft->SetToolTip( _("Move the selected nets in the right list to the left list") );
 	
-	bmiddleSizerNetSelect->Add( m_buttonRightToLeft, 0, wxALL|wxALIGN_CENTER_HORIZONTAL, 5 );
+	bmiddleSizerNetSelect->Add( m_buttonRightToLeft, 0, wxALL, 5 );
 	
 	m_buttonLeftToRight = new wxButton( m_panelNetClassesEditor, ID_RIGHT_TO_LEFT_COPY, _(">>>"), wxDefaultPosition, wxDefaultSize, 0 );
 	m_buttonLeftToRight->SetToolTip( _("Move the selected nets in the left list to the right list") );
 	
-	bmiddleSizerNetSelect->Add( m_buttonLeftToRight, 0, wxALL|wxALIGN_CENTER_HORIZONTAL, 5 );
+	bmiddleSizerNetSelect->Add( m_buttonLeftToRight, 0, wxALL, 5 );
 	
 	m_buttonLeftSelAll = new wxButton( m_panelNetClassesEditor, wxID_ANY, _("<< Select All"), wxDefaultPosition, wxDefaultSize, 0 );
 	m_buttonLeftSelAll->SetToolTip( _("Select all nets in the left list") );
 	
-	bmiddleSizerNetSelect->Add( m_buttonLeftSelAll, 0, wxALL|wxALIGN_CENTER_HORIZONTAL, 5 );
+	bmiddleSizerNetSelect->Add( m_buttonLeftSelAll, 0, wxALL, 5 );
 	
 	m_buttonRightSelAll = new wxButton( m_panelNetClassesEditor, wxID_ANY, _("Select All >>"), wxDefaultPosition, wxDefaultSize, 0 );
 	m_buttonRightSelAll->SetToolTip( _("Select all nets in the right list") );
 	
-	bmiddleSizerNetSelect->Add( m_buttonRightSelAll, 0, wxALIGN_BOTTOM|wxALL|wxALIGN_CENTER_HORIZONTAL, 5 );
+	bmiddleSizerNetSelect->Add( m_buttonRightSelAll, 0, wxALL, 5 );
 	
 	
 	sbSizerNetSelectMain->Add( bmiddleSizerNetSelect, 0, wxALIGN_CENTER_VERTICAL, 5 );
@@ -167,11 +167,11 @@ DIALOG_DESIGN_RULES_BASE::DIALOG_DESIGN_RULES_BASE( wxWindow* parent, wxWindowID
 	wxStaticBoxSizer* sbViasOptionSizer;
 	sbViasOptionSizer = new wxStaticBoxSizer( new wxStaticBox( m_panelGolbalDesignRules, wxID_ANY, _("Via Options:") ), wxVERTICAL );
 	
-	wxString m_OptViaTypeChoices[] = { _("Through via"), _("Blind or buried via") };
+	wxString m_OptViaTypeChoices[] = { _("Do not allow blind/buried vias"), _("Allow blind/buried vias") };
 	int m_OptViaTypeNChoices = sizeof( m_OptViaTypeChoices ) / sizeof( wxString );
-	m_OptViaType = new wxRadioBox( m_panelGolbalDesignRules, wxID_ANY, _("Default Via Type:"), wxDefaultPosition, wxDefaultSize, m_OptViaTypeNChoices, m_OptViaTypeChoices, 1, wxRA_SPECIFY_COLS );
+	m_OptViaType = new wxRadioBox( m_panelGolbalDesignRules, wxID_ANY, _("Blind/buried Vias:"), wxDefaultPosition, wxDefaultSize, m_OptViaTypeNChoices, m_OptViaTypeChoices, 1, wxRA_SPECIFY_COLS );
 	m_OptViaType->SetSelection( 0 );
-	m_OptViaType->SetToolTip( _("Select the current via type.\nTrough via is the usual selection") );
+	m_OptViaType->SetToolTip( _("Allows or not blind/buried vias.\nDo not allow is the usual selection.\nNote: micro vias are a special type of blind vias and are not managed here") );
 	
 	sbViasOptionSizer->Add( m_OptViaType, 0, wxALL|wxEXPAND, 5 );
 	
@@ -184,7 +184,7 @@ DIALOG_DESIGN_RULES_BASE::DIALOG_DESIGN_RULES_BASE( wxWindow* parent, wxWindowID
 	sbViasOptionSizer->Add( m_AllowMicroViaCtrl, 0, wxALL|wxEXPAND, 5 );
 	
 	
-	bDesignRulesUpperSizer->Add( sbViasOptionSizer, 1, wxALIGN_CENTER_VERTICAL|wxTOP|wxRIGHT|wxLEFT|wxEXPAND, 5 );
+	bDesignRulesUpperSizer->Add( sbViasOptionSizer, 1, wxEXPAND|wxLEFT|wxRIGHT|wxTOP, 5 );
 	
 	wxStaticBoxSizer* sbMinSizesSizer;
 	sbMinSizesSizer = new wxStaticBoxSizer( new wxStaticBox( m_panelGolbalDesignRules, wxID_ANY, _("Minimum Allowed Values:") ), wxVERTICAL );
@@ -302,7 +302,7 @@ DIALOG_DESIGN_RULES_BASE::DIALOG_DESIGN_RULES_BASE( wxWindow* parent, wxWindowID
 	sViaSizeBox->Add( m_gridViaSizeList, 1, wxALL|wxEXPAND, 5 );
 	
 	
-	bDesignRulesLowerSizer->Add( sViaSizeBox, 1, wxALIGN_CENTER_HORIZONTAL|wxALL|wxEXPAND, 5 );
+	bDesignRulesLowerSizer->Add( sViaSizeBox, 1, wxALL|wxEXPAND, 5 );
 	
 	wxStaticBoxSizer* sbTracksListSizer;
 	sbTracksListSizer = new wxStaticBoxSizer( new wxStaticBox( m_panelGolbalDesignRules, wxID_ANY, _("Custom Track Widths:") ), wxVERTICAL );
@@ -351,10 +351,10 @@ DIALOG_DESIGN_RULES_BASE::DIALOG_DESIGN_RULES_BASE( wxWindow* parent, wxWindowID
 	sbTracksListSizer->Add( m_gridTrackWidthList, 1, wxALL|wxEXPAND, 5 );
 	
 	
-	bDesignRulesLowerSizer->Add( sbTracksListSizer, 1, wxALIGN_CENTER_HORIZONTAL|wxALL|wxEXPAND|wxALIGN_CENTER_VERTICAL, 5 );
+	bDesignRulesLowerSizer->Add( sbTracksListSizer, 1, wxALL|wxEXPAND, 5 );
 	
 	
-	bpanelGlobRulesSizer->Add( bDesignRulesLowerSizer, 0, wxALIGN_CENTER_HORIZONTAL|wxEXPAND, 5 );
+	bpanelGlobRulesSizer->Add( bDesignRulesLowerSizer, 0, wxEXPAND, 5 );
 	
 	
 	m_panelGolbalDesignRules->SetSizer( bpanelGlobRulesSizer );

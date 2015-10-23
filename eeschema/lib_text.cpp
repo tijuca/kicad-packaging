@@ -39,12 +39,11 @@
 
 #include <lib_draw_item.h>
 #include <general.h>
-#include <protos.h>
 #include <transform.h>
 #include <lib_text.h>
 
 
-LIB_TEXT::LIB_TEXT( LIB_COMPONENT * aParent ) :
+LIB_TEXT::LIB_TEXT( LIB_PART * aParent ) :
     LIB_ITEM( LIB_TEXT_T, aParent ),
     EDA_TEXT()
 {
@@ -99,7 +98,7 @@ bool LIB_TEXT::Save( OUTPUTFORMATTER& aFormatter )
 
 bool LIB_TEXT::Load( LINE_READER& aLineReader, wxString& errorMsg )
 {
-    int     cnt, thickness;
+    int     cnt, thickness = 0;
     char    hjustify = 'C', vjustify = 'C';
     char    buf[256];
     char    tmp[256];
@@ -109,7 +108,7 @@ bool LIB_TEXT::Load( LINE_READER& aLineReader, wxString& errorMsg )
     buf[0] = 0;
     tmp[0] = 0;         // For italic option, Not in old versions
 
-    cnt = sscanf( line + 2, "%lf %d %d %d %d %d %d \"%[^\"]\" %s %d %c %c",
+    cnt = sscanf( line + 2, "%lf %d %d %d %d %d %d \"%[^\"]\" %255s %d %c %c",
                   &angle, &m_Pos.x, &m_Pos.y, &m_Size.x, &m_Attributs,
                   &m_Unit, &m_Convert, buf, tmp, &thickness, &hjustify,
                   &vjustify );
@@ -123,14 +122,14 @@ bool LIB_TEXT::Load( LINE_READER& aLineReader, wxString& errorMsg )
     }
     else
     {
-        cnt = sscanf( line + 2, "%lf %d %d %d %d %d %d %s %s %d %c %c",
+        cnt = sscanf( line + 2, "%lf %d %d %d %d %d %d %255s %255s %d %c %c",
                       &angle, &m_Pos.x, &m_Pos.y, &m_Size.x, &m_Attributs,
                       &m_Unit, &m_Convert, buf, tmp, &thickness, &hjustify,
                       &vjustify );
 
         if( cnt < 8 )
         {
-            errorMsg.Printf( _( "text only had %d parameters of the required 8" ), cnt );
+            errorMsg.Printf( _( "Text only had %d parameters of the required 8" ), cnt );
             return false;
         }
 
@@ -186,32 +185,27 @@ bool LIB_TEXT::Load( LINE_READER& aLineReader, wxString& errorMsg )
 }
 
 
-bool LIB_TEXT::HitTest( const wxPoint& aPosition )
+bool LIB_TEXT::HitTest( const wxPoint& aPosition ) const
 {
     return HitTest( aPosition, 0, DefaultTransform );
 }
 
 
-bool LIB_TEXT::HitTest( wxPoint aPosition, int aThreshold, const TRANSFORM& aTransform )
+bool LIB_TEXT::HitTest( const wxPoint &aPosition, int aThreshold, const TRANSFORM& aTransform ) const
 {
     if( aThreshold < 0 )
         aThreshold = 0;
 
-    wxPoint physicalpos = aTransform.TransformCoordinate( m_Pos );
-    wxPoint tmp = m_Pos;
-    m_Pos = physicalpos;
+    EDA_TEXT tmp_text( *this );
+    tmp_text.SetTextPosition( aTransform.TransformCoordinate( m_Pos ) );
 
     /* The text orientation may need to be flipped if the
      *  transformation matrix causes xy axes to be flipped.
      * this simple algo works only for schematic matrix (rot 90 or/and mirror)
      */
     int t1 = ( aTransform.x1 != 0 ) ^ ( m_Orient != 0 );
-    int orient = t1 ? TEXT_ORIENT_HORIZ : TEXT_ORIENT_VERT;
-    EXCHG( m_Orient, orient );
-    bool hit = TextHitTest( aPosition );
-    EXCHG( m_Orient, orient );
-    m_Pos = tmp;
-    return hit;
+    tmp_text.SetOrientation( t1 ? TEXT_ORIENT_HORIZ : TEXT_ORIENT_VERT );
+    return tmp_text.TextHitTest( aPosition );
 }
 
 
@@ -227,12 +221,12 @@ EDA_ITEM* LIB_TEXT::Clone() const
     newitem->m_Convert   = m_Convert;
     newitem->m_Flags     = m_Flags;
     newitem->m_Text      = m_Text;
-    newitem->m_Thickness     = m_Thickness;
+    newitem->m_Thickness = m_Thickness;
     newitem->m_Italic    = m_Italic;
     newitem->m_Bold      = m_Bold;
     newitem->m_HJustify  = m_HJustify;
     newitem->m_VJustify  = m_VJustify;
-    return (EDA_ITEM*) newitem;
+    return newitem;
 }
 
 
@@ -326,7 +320,7 @@ void LIB_TEXT::Plot( PLOTTER* plotter, const wxPoint& offset, bool fill,
     else
         color = BLACK;
 
-    plotter->Text( pos, color, m_Text,
+    plotter->Text( pos, color, GetShownText(),
                    t1 ? TEXT_ORIENT_HORIZ : TEXT_ORIENT_VERT,
                    m_Size, GR_TEXT_HJUSTIFY_CENTER, GR_TEXT_VJUSTIFY_CENTER,
                    GetPenSize(), m_Italic, m_Bold );
@@ -355,7 +349,7 @@ void LIB_TEXT::drawGraphic( EDA_DRAW_PANEL* aPanel, wxDC* aDC, const wxPoint& aO
                             EDA_COLOR_T aColor, GR_DRAWMODE aDrawMode, void* aData,
                             const TRANSFORM& aTransform )
 {
-    EDA_COLOR_T     color = GetDefaultColor();
+    EDA_COLOR_T color = GetDefaultColor();
 
     if( aColor < 0 )       // Used normal color or selected color
     {
@@ -394,12 +388,15 @@ void LIB_TEXT::drawGraphic( EDA_DRAW_PANEL* aPanel, wxDC* aDC, const wxPoint& aO
      * and use GetBoundaryBox to know the text coordinate considered as centered
     */
     EDA_RECT bBox = GetBoundingBox();
+    // convert coordinates from draw Y axis to libedit Y axis:
+    bBox.RevertYAxis();
     wxPoint txtpos = bBox.Centre();
 
-    // Calculate pos accordint to mirror/rotation.
+    // Calculate pos according to mirror/rotation.
     txtpos = aTransform.TransformCoordinate( txtpos ) + aOffset;
 
-    DrawGraphicText( aPanel, aDC, txtpos, (EDA_COLOR_T) color, m_Text, orient, m_Size,
+    EDA_RECT* clipbox = aPanel? aPanel->GetClipBox() : NULL;
+    DrawGraphicText( clipbox, aDC, txtpos, color, GetShownText(), orient, m_Size,
                      GR_TEXT_HJUSTIFY_CENTER, GR_TEXT_VJUSTIFY_CENTER, GetPenSize(),
                      m_Italic, m_Bold );
 
@@ -408,11 +405,10 @@ void LIB_TEXT::drawGraphic( EDA_DRAW_PANEL* aPanel, wxDC* aDC, const wxPoint& aO
      * the bounding box calculations.
      */
 #if 0
-    EDA_RECT grBox;
-    grBox.SetOrigin( aTransform.TransformCoordinate( bBox.GetOrigin() ) );
-    grBox.SetEnd( aTransform.TransformCoordinate( bBox.GetEnd() ) );
-    grBox.Move( aOffset );
-    GRRect( aPanel->GetClipBox(), aDC, grBox, 0, LIGHTMAGENTA );
+    // bBox already uses libedit Y axis.
+    bBox = aTransform.TransformCoordinate( bBox );
+    bBox.Move( aOffset );
+    GRRect( clipbox, aDC, bBox, 0, LIGHTMAGENTA );
 #endif
 }
 
@@ -423,29 +419,31 @@ void LIB_TEXT::GetMsgPanelInfo( MSG_PANEL_ITEMS& aList )
 
     LIB_ITEM::GetMsgPanelInfo( aList );
 
-    msg = ReturnStringFromValue( g_UserUnit, m_Thickness, true );
+    msg = StringFromValue( g_UserUnit, m_Thickness, true );
 
-    aList.push_back( MSG_PANEL_ITEM( _( "Line width" ), msg, BLUE ) );
+    aList.push_back( MSG_PANEL_ITEM( _( "Line Width" ), msg, BLUE ) );
 }
 
 
-EDA_RECT LIB_TEXT::GetBoundingBox() const
+const EDA_RECT LIB_TEXT::GetBoundingBox() const
 {
     /* Y coordinates for LIB_ITEMS are bottom to top, so we must invert the Y position when
      * calling GetTextBox() that works using top to bottom Y axis orientation.
      */
     EDA_RECT rect = GetTextBox( -1, -1, true );
+    rect.RevertYAxis();
 
+    // We are using now a bottom to top Y axis.
     wxPoint orig = rect.GetOrigin();
     wxPoint end = rect.GetEnd();
-    NEGATE( orig.y);
-    NEGATE( end.y);
-
     RotatePoint( &orig, m_Pos, -m_Orient );
     RotatePoint( &end, m_Pos, -m_Orient );
+
     rect.SetOrigin( orig );
     rect.SetEnd( end );
-    rect.Normalize();
+
+    // We are using now a top to bottom Y axis:
+    rect.RevertYAxis();
 
     return rect;
 }
@@ -483,19 +481,13 @@ void LIB_TEXT::SetText( const wxString& aText )
 
 wxString LIB_TEXT::GetSelectMenuText() const
 {
-    wxString tmp = GetText();
-    tmp.Replace( wxT( "\n" ), wxT( " " ) );
-    tmp.Replace( wxT( "\r" ), wxT( " " ) );
-    tmp.Replace( wxT( "\t" ), wxT( " " ) );
-    tmp =( tmp.Length() > 15 ) ? tmp.Left( 12 ) + wxT( "..." ) : tmp;
-
     wxString msg;
-    msg.Printf( _( "Graphic Text %s" ), GetChars( tmp ) );
+    msg.Printf( _( "Graphic Text %s" ), GetChars( ShortenedShownText() ) );
     return msg;
 }
 
 
-void LIB_TEXT::BeginEdit( int aEditMode, const wxPoint aPosition )
+void LIB_TEXT::BeginEdit( STATUS_FLAGS aEditMode, const wxPoint aPosition )
 {
     wxCHECK_RET( ( aEditMode & ( IS_NEW | IS_MOVED ) ) != 0,
                  wxT( "Invalid edit mode for LIB_TEXT object." ) );
@@ -546,7 +538,7 @@ void LIB_TEXT::calcEdit( const wxPoint& aPosition )
 
     if( m_updateText )
     {
-        EXCHG( m_Text, m_savedText );
+        std::swap( m_Text, m_savedText );
         m_updateText = false;
     }
 

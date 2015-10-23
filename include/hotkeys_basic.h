@@ -29,21 +29,23 @@
 #ifndef  HOTKEYS_BASIC_H
 #define  HOTKEYS_BASIC_H
 
-#define DEFAULT_HOTKEY_FILENAME_EXT wxT( "key" )
+#define DEFAULT_HOTKEY_FILENAME_EXT wxT( "hotkeys" )
 
+// A define to allow translation of Hot Key message Info in hotkey help menu
+// We do not want to use the _( x ) usual macro from wxWidgets, which calls wxGetTranslation(),
+// because the English string is used in key file configuration
+// The translated string is used only when displaying the help window.
+// Therefore translation tools have to use the "_" and the "_HKI" prefix to extract
+// strings to translate
+#define _HKI( x ) wxT( x )
 
-class EDA_DRAW_FRAME;
+class EDA_BASE_FRAME;
 
 
 /* Identifiers (tags) in key code configuration file (or section names)
  *  .m_SectionTag member of a EDA_HOTKEY_CONFIG
  */
 extern wxString g_CommonSectionTag;
-extern wxString g_SchematicSectionTag;
-extern wxString g_LibEditSectionTag;
-extern wxString g_BoardEditorSectionTag;
-extern wxString g_ModuleEditSectionTag;
-
 
 /**
  * class EDA_HOTKEY
@@ -81,7 +83,7 @@ struct EDA_HOTKEY_CONFIG
 public:
     wxString*       m_SectionTag;     // The configuration file section name.
     EDA_HOTKEY**    m_HK_InfoList;    // List of EDA_HOTKEY pointers
-    const wchar_t*  m_Comment;        // Will be printed in the config file only.
+    wxString*  m_Title;        // Title displayed in hotkey editor and used as comment in file
 };
 
 
@@ -110,10 +112,10 @@ public:
 /* Functions:
  */
 void AddHotkeyConfigMenu( wxMenu* menu );
-void HandleHotkeyConfigMenuSelection( EDA_DRAW_FRAME* frame, int id );
+void HandleHotkeyConfigMenuSelection( EDA_BASE_FRAME* frame, int id );
 
 /**
- * Function ReturnKeyNameFromKeyCode
+ * Function KeyNameFromKeyCode
  * return the key name from the key code
  * * Only some wxWidgets key values are handled for function key ( see
  * s_Hotkey_Name_List[] )
@@ -121,32 +123,33 @@ void HandleHotkeyConfigMenuSelection( EDA_DRAW_FRAME* frame, int id );
  * @param aIsFound = a pointer to a bool to return true if found, or false. an be NULL default)
  * @return the key name in a wxString
  */
-wxString ReturnKeyNameFromKeyCode( int aKeycode, bool * aIsFound = NULL );
+wxString KeyNameFromKeyCode( int aKeycode, bool * aIsFound = NULL );
 
 /**
- * Function ReturnKeyNameFromCommandId
+ * Function KeyNameFromCommandId
  * return the key name from the Command id value ( m_Idcommand member value)
  * @param aList = pointer to a EDA_HOTKEY list of commands
  * @param aCommandId = Command Id value
  * @return the key name in a wxString
  */
-wxString ReturnKeyNameFromCommandId( EDA_HOTKEY** aList, int aCommandId );
+wxString KeyNameFromCommandId( EDA_HOTKEY** aList, int aCommandId );
 
 /**
 
- * Function ReturnKeyCodeFromKeyName
+ * Function KeyCodeFromKeyName
  * return the key code from its key name
  * Only some wxWidgets key values are handled for function key
  * @param keyname = wxString key name to find in s_Hotkey_Name_List[],
  *   like F2 or space or an usual (ascii) char.
  * @return the key code
  */
-int ReturnKeyCodeFromKeyName( const wxString& keyname );
+int KeyCodeFromKeyName( const wxString& keyname );
 
-/* An helper enum for AddHotkeyName function
- * In menus we can an a hot key, or an accelerator , or sometimes just a comment
+/**
+ * An helper enum for AddHotkeyName function
+ * In menus we can add a hot key, or an accelerator , or sometimes just a comment
  * Hot keys can perform actions using the current mouse cursor position
- * Accelerators performs the same action as the associated menu
+ * Accelerators perform the same action as the associated menu
  * A comment is used in tool tips for some tools (zoom ..)
  *    to show the hot key that performs this action
  */
@@ -189,16 +192,25 @@ wxString AddHotkeyName( const wxString&           aText,
  * @param aFrame = current active frame
  * @param aList = pointer to a EDA_HOTKEY_CONFIG list (Null terminated)
  */
-void DisplayHotkeyList( EDA_DRAW_FRAME* aFrame, struct EDA_HOTKEY_CONFIG* aList );
+void DisplayHotkeyList( EDA_BASE_FRAME* aFrame, struct EDA_HOTKEY_CONFIG* aList );
 
 /**
  * Function GetDescriptorFromHotkey
- * Return a EDA_HOTKEY * pointer from a key code for OnHotKey() function
+ * Returns a EDA_HOTKEY* pointer from a key code for OnHotKey() function
  * @param aKey = key code (ascii value, or wxWidgets value for function keys
  * @param aList = pointer to a EDA_HOTKEY list of commands
  * @return the corresponding EDA_HOTKEY pointer from the EDA_HOTKEY List
  */
-EDA_HOTKEY*  GetDescriptorFromHotkey( int aKey, EDA_HOTKEY** aList );
+EDA_HOTKEY* GetDescriptorFromHotkey( int aKey, EDA_HOTKEY** aList );
+
+/**
+ * Function GetDescriptorFromCommand
+ * Returns a EDA_HOTKEY* pointer from a hot key identifier.
+ * @param aCommand = hot key identifier (@see hotkeys.h)
+ * @param aList = pointer to a EDA_HOTKEY list of commands
+ * @return the corresponding EDA_HOTKEY pointer from the EDA_HOTKEY List
+ */
+EDA_HOTKEY* GetDescriptorFromCommand( int aCommand, EDA_HOTKEY** aList );
 
 /**
  * Function ReadHotkeyConfig
@@ -217,6 +229,8 @@ void ParseHotkeyConfig( const wxString& data, struct EDA_HOTKEY_CONFIG* aDescLis
 enum common_hotkey_id_commnand {
     HK_NOT_FOUND = 0,
     HK_RESET_LOCAL_COORD,
+    HK_SET_GRID_ORIGIN,
+    HK_RESET_GRID_ORIGIN,
     HK_HELP,
     HK_ZOOM_IN,
     HK_ZOOM_OUT,

@@ -1,2 +1,1 @@
-doc/doc/tutorials/it/*.pdf usr/share/doc/kicad/tutorials/it
-#  doc/doc/help/it/*.pdf usr/share/doc/kicad/help/it
+usr/share/doc/kicad/help/it

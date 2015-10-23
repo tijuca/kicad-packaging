@@ -1,10 +1,15 @@
-To package the upstream source the 3 bzr repositories are extracted 
+To package the upstream source three repositories are extracted 
 to the same folder:
 <packaging folder>/
 <packaging folder>/doc
 <packaging folder>/library
 
-
 See get-kicad.sh, the script used to build the source package.
+--------------------------
 
- -- Georges Khaznadar <georgesk@ofset.org>, Thu, 26 Jan 2012 08:38:35 +0100
+The script get-kicad is run once, then debian patches are applied, and
+a build is done in the directory <packaging folder>/doc to generate
+PDF, HTML, EPUB files.  Sourceless PDF files are erased, and the
+source package is compressed again.
+
+ -- Georges Khaznadar <georgesk@debian.org>, Thu, 23 Oct 2015 08:38:35 +0200

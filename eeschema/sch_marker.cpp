@@ -38,21 +38,6 @@
 #include <erc.h>
 
 
-/* Marker are mainly used to show an ERC error
- * but they could be used to give a specific info
- */
-
-
-const wxChar* NameMarqueurType[] =
-{
-    wxT( "" ),
-    wxT( "ERC" ),
-    wxT( "PCB" ),
-    wxT( "SIMUL" ),
-    wxT( "?????" )
-};
-
-
 /********************/
 /* class SCH_MARKER */
 /********************/
@@ -65,11 +50,6 @@ SCH_MARKER::SCH_MARKER() : SCH_ITEM( NULL, SCH_MARKER_T ), MARKER_BASE()
 SCH_MARKER::SCH_MARKER( const wxPoint& pos, const wxString& text ) :
     SCH_ITEM( NULL, SCH_MARKER_T ),
     MARKER_BASE( 0, pos, text, pos )
-{
-}
-
-
-SCH_MARKER::~SCH_MARKER()
 {
 }
 
@@ -109,10 +89,10 @@ void SCH_MARKER::Draw( EDA_DRAW_PANEL* aPanel, wxDC* aDC,
     EDA_COLOR_T color = m_Color;
     EDA_COLOR_T tmp   = color;
 
-    if( GetMarkerType() == MARK_ERC )
+    if( GetMarkerType() == MARKER_BASE::MARKER_ERC )
     {
-        color = ( GetErrorLevel() == WAR ) ? ReturnLayerColor( LAYER_ERC_WARN ) :
-                                             ReturnLayerColor( LAYER_ERC_ERR );
+        color = ( GetErrorLevel() == MARKER_BASE::MARKER_SEVERITY_ERROR ) ?
+                  GetLayerColor( LAYER_ERC_ERR ) : GetLayerColor( LAYER_ERC_WARN );
     }
 
     if( aColor < 0 )
@@ -125,22 +105,20 @@ void SCH_MARKER::Draw( EDA_DRAW_PANEL* aPanel, wxDC* aDC,
 }
 
 
-bool SCH_MARKER::Matches( wxFindReplaceData& aSearchData, wxPoint * aFindLocation )
+bool SCH_MARKER::Matches( wxFindReplaceData& aSearchData, void* aAuxData,
+                          wxPoint * aFindLocation )
 {
-    if( !SCH_ITEM::Matches( m_drc.GetMainText(), aSearchData ) )
+    if( SCH_ITEM::Matches( m_drc.GetErrorText(), aSearchData ) ||
+        SCH_ITEM::Matches( m_drc.GetMainText(), aSearchData ) ||
+        SCH_ITEM::Matches( m_drc.GetAuxiliaryText(), aSearchData ) )
     {
-        if( SCH_ITEM::Matches( m_drc.GetAuxiliaryText(), aSearchData ) )
-        {
-            if( aFindLocation )
-                *aFindLocation = m_Pos;
-            return true;
-        }
-        return false;
+        if( aFindLocation )
+            *aFindLocation = m_Pos;
+
+        return true;
     }
 
-    if( aFindLocation )
-        *aFindLocation = m_Pos;
-    return true;
+    return false;
 }
 
 
@@ -151,7 +129,7 @@ bool SCH_MARKER::Matches( wxFindReplaceData& aSearchData, wxPoint * aFindLocatio
  * object, and the units should be in the pcb or schematic coordinate system.
  * It is OK to overestimate the size by a few counts.
  */
-EDA_RECT SCH_MARKER::GetBoundingBox() const
+const EDA_RECT SCH_MARKER::GetBoundingBox() const
 {
     return GetBoundingBoxMarker();
 }
@@ -161,7 +139,7 @@ void SCH_MARKER::GetMsgPanelInfo( MSG_PANEL_ITEMS& aList )
 {
     wxString msg;
 
-    aList.push_back( MSG_PANEL_ITEM( _( "Electronics rule check error" ),
+    aList.push_back( MSG_PANEL_ITEM( _( "Electronics Rule Check Error" ),
                                      GetReporter().GetErrorText(), DARKRED ) );
 }
 
@@ -193,9 +171,9 @@ bool SCH_MARKER::IsSelectStateChanged( const wxRect& aRect )
     bool previousState = IsSelected();
 
     if( aRect.Contains( m_Pos ) )
-        m_Flags |= SELECTED;
+        SetFlags( SELECTED );
     else
-        m_Flags &= ~SELECTED;
+        ClearFlags( SELECTED );
 
     return previousState != IsSelected();
 }

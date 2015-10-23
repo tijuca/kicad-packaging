@@ -6,7 +6,7 @@
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
  * Copyright (C) 2009 Jean-Pierre Charras <jp.charras@wanadoo.fr>
- * Copyright (C) 2007 KiCad Developers, see change_log.txt for contributors.
+ * Copyright (C) 2007-2015 KiCad Developers, see change_log.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -43,7 +43,7 @@
  */
 
 #include <fctsys.h>
-#include <appl_wxstruct.h>
+#include <pgm_base.h>
 #include <class_drawpanel.h>
 #include <wxPcbStruct.h>
 
@@ -67,7 +67,7 @@ bool ZONE_CONTAINER::IsSame( const ZONE_CONTAINER& aZoneToCompare )
     if( GetLayer() != aZoneToCompare.GetLayer() )
         return false;
 
-    if( m_Netname != aZoneToCompare.m_Netname )
+    if( GetNetCode() != aZoneToCompare.GetNetCode() )
         return false;
 
     if( GetPriority() != aZoneToCompare.GetPriority() )
@@ -89,16 +89,16 @@ bool ZONE_CONTAINER::IsSame( const ZONE_CONTAINER& aZoneToCompare )
             return false;
     }
 
-    if( m_ArcToSegmentsCount != aZoneToCompare.m_ArcToSegmentsCount )
+    if( m_ArcToSegmentsCount != aZoneToCompare.GetArcSegmentCount() )
         return false;
 
     if( m_ZoneClearance != aZoneToCompare.m_ZoneClearance )
         return false;
 
-    if( m_ZoneMinThickness != aZoneToCompare.m_ZoneMinThickness )
+    if( m_ZoneMinThickness != aZoneToCompare.GetMinThickness() )
         return false;
 
-    if( m_FillMode != aZoneToCompare.m_FillMode )
+    if( m_FillMode != aZoneToCompare.GetFillMode() )
         return false;
 
     if( m_PadConnection != aZoneToCompare.m_PadConnection )
@@ -113,9 +113,10 @@ bool ZONE_CONTAINER::IsSame( const ZONE_CONTAINER& aZoneToCompare )
 
     // Compare outlines
     wxASSERT( m_Poly );                                      // m_Poly == NULL Should never happen
-    wxASSERT( aZoneToCompare.m_Poly );
+    wxASSERT( aZoneToCompare.Outline() );
 
-    if( m_Poly->m_CornersList != aZoneToCompare.m_Poly->m_CornersList )    // Compare vector
+    if( Outline()->m_CornersList.GetList() !=
+        aZoneToCompare.Outline()->m_CornersList.GetList() )    // Compare vector
         return false;
 
     return true;
@@ -134,7 +135,7 @@ bool ZONE_CONTAINER::IsSame( const ZONE_CONTAINER& aZoneToCompare )
  * @param aLayer = the layer of zones. if aLayer < 0, all layers are used
  * @return the count of saved copies
  */
-int SaveCopyOfZones( PICKED_ITEMS_LIST& aPickList, BOARD* aPcb, int aNetCode, int aLayer )
+int SaveCopyOfZones( PICKED_ITEMS_LIST& aPickList, BOARD* aPcb, int aNetCode, LAYER_NUM aLayer )
 {
     int copyCount = 0;
 
@@ -145,7 +146,7 @@ int SaveCopyOfZones( PICKED_ITEMS_LIST& aPickList, BOARD* aPcb, int aNetCode, in
         if( zone == NULL )      // End of list
             break;
 
-        if( aNetCode >= 0 && aNetCode != zone->GetNet() )
+        if( aNetCode >= 0 && aNetCode != zone->GetNetCode() )
             continue;
 
         if( aLayer >= 0 && aLayer != zone->GetLayer() )
@@ -224,6 +225,7 @@ void UpdateCopyOfZonesList( PICKED_ITEMS_LIST& aPickList,
                 if( status == UR_NEW )
                 {
                     delete ref;
+                    ref = NULL;
                     aPickList.RemovePicker( kk );
                     kk--;
                 }
@@ -232,10 +234,10 @@ void UpdateCopyOfZonesList( PICKED_ITEMS_LIST& aPickList,
                     ZONE_CONTAINER* zcopy = (ZONE_CONTAINER*) aPickList.GetPickedItemLink( kk );
                     aPickList.SetPickedItemStatus( UR_DELETED, kk );
 
-                    if( zcopy )
-                        ref->Copy( zcopy );
-                    else
-                        wxMessageBox( wxT( "UpdateCopyOfZonesList() error: link = NULL" ) );
+                    wxASSERT_MSG( zcopy != NULL,
+                                  wxT( "UpdateCopyOfZonesList() error: link = NULL" ) );
+
+                    ref->Copy( zcopy );
 
                     // the copy was deleted; the link does not exists now.
                     aPickList.SetPickedItemLink( NULL, kk );
@@ -247,7 +249,7 @@ void UpdateCopyOfZonesList( PICKED_ITEMS_LIST& aPickList,
 
                 for( unsigned nn = 0; nn < aAuxiliaryList.GetCount(); nn++ )
                 {
-                    if( aAuxiliaryList.GetPickedItem( nn ) == ref )
+                    if( ref != NULL && aAuxiliaryList.GetPickedItem( nn ) == ref )
                     {
                         aAuxiliaryList.RemovePicker( nn );
                         notfound = false;
@@ -255,11 +257,16 @@ void UpdateCopyOfZonesList( PICKED_ITEMS_LIST& aPickList,
                     }
                 }
 
-                if( notfound )
-                    wxMessageBox( wxT( "UpdateCopyOfZonesList() error: item not found in aAuxiliaryList" ) );
-
+                if( notfound )  // happens when the new zone overlaps an existing zone
+                                // and these zones are combined
+                {
+                    DBG( printf(
+                        "UpdateCopyOfZonesList(): item not found in aAuxiliaryList,"
+                        "combined with an other zone\n" ) );
+                }
                 break;
             }
+
             if( zone == ref )      // picked zone found
             {
                 if( aPickList.GetPickedItemStatus( kk ) != UR_NEW )
@@ -278,7 +285,6 @@ void UpdateCopyOfZonesList( PICKED_ITEMS_LIST& aPickList,
             }
         }
     }
-
 
     // Add new zones in main pick list, and remove pickers from Auxiliary List
     for( unsigned ii = 0; ii < aAuxiliaryList.GetCount(); )
@@ -299,17 +305,6 @@ void UpdateCopyOfZonesList( PICKED_ITEMS_LIST& aPickList,
     }
 
     // Should not occur:
-    if( aAuxiliaryList.GetCount()> 0 )
-    {
-        wxString msg;
-        msg.Printf( wxT( "UpdateCopyOfZonesList() error: aAuxiliaryList not void: %d item left (status %d)" ),
-                    aAuxiliaryList.GetCount(), aAuxiliaryList.GetPickedItemStatus( 0 ) );
-        wxMessageBox( msg );
-
-        while( aAuxiliaryList.GetCount() > 0 )
-        {
-            delete aAuxiliaryList.GetPickedItemLink( 0 );
-            aAuxiliaryList.RemovePicker( 0 );
-        }
-    }
+    wxASSERT_MSG( aAuxiliaryList.GetCount() == 0,
+                  wxT( "UpdateCopyOfZonesList() error: aAuxiliaryList not empty." ) );
 }

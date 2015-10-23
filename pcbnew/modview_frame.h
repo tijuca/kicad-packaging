@@ -34,67 +34,25 @@
 
 class wxSashLayoutWindow;
 class wxListBox;
-class wxSemaphore;
+class FP_LIB_TABLE;
 
+namespace PCB { struct IFACE; }
 
 /**
  * Component library viewer main window.
  */
 class FOOTPRINT_VIEWER_FRAME : public PCB_BASE_FRAME
 {
-private:
-    // List of libraries (for selection )
-    wxSashLayoutWindow* m_LibListWindow;
-    wxListBox*          m_LibList;          // The list of libs names
-    wxSize              m_LibListSize;      // size of the window
-
-    // List of components in the selected library
-    wxSashLayoutWindow* m_FootprintListWindow;
-    wxListBox*          m_FootprintList;          // The list of footprint names
-    wxSize              m_FootprintListSize;      // size of the window
-
-    // Flags
-    wxSemaphore*        m_Semaphore;        // != NULL if the frame must emulate a modal dialog
-    wxString            m_configPath;       // subpath for configuration
+    friend struct PCB::IFACE;       // constructor called from here only
 
 protected:
-    static wxString m_libraryName;                  // Current selected libary
-    static wxString m_footprintName;                // Current selected footprint
-    static wxString m_selectedFootprintName;   // When the viewer is used to select a footprint
-                                                    // the selected footprint is here
+    FOOTPRINT_VIEWER_FRAME( KIWAY* aKiway, wxWindow* aParent, FRAME_T aFrameType );
+
 
 public:
-    FOOTPRINT_VIEWER_FRAME( PCB_BASE_FRAME* parent, wxSemaphore* semaphore = NULL,
-                            long style = KICAD_DEFAULT_DRAWFRAME_STYLE );
-
     ~FOOTPRINT_VIEWER_FRAME();
 
-    /**
-     * Function GetFootprintViewerFrameName (static)
-     * @return the frame name used when creating the frame
-     * used to get a reference to this frame, if exists
-     */
-    static const wxChar* GetFootprintViewerFrameName();
-
-    /**
-     * Function GetActiveFootprintViewer (static)
-     * @return a reference to the current opened Footprint viewer
-     * or NULL if no Footprint viewer currently opened
-     */
-    static FOOTPRINT_VIEWER_FRAME* GetActiveFootprintViewer();
-
-    wxString& GetSelectedFootprint( void ) const { return m_selectedFootprintName; }
-
-private:
-
-    void OnSize( wxSizeEvent& event );
-
-    /**
-     * Function OnSashDrag
-     * resizes the child windows when dragging a sash window border.
-     */
-
-    void OnSashDrag( wxSashEvent& event );
+    virtual EDA_COLOR_T GetGridColor() const;
 
     /**
      * Function ReCreateLibraryList
@@ -104,40 +62,67 @@ private:
      */
     void ReCreateLibraryList();
 
+private:
+
+    wxListBox*          m_libList;               // The list of libs names
+    wxListBox*          m_footprintList;         // The list of footprint names
+
+    wxString            m_configPath;            // subpath for configuration
+
+    const wxString      getCurNickname();
+    void                setCurNickname( const wxString& aNickname );
+
+    const wxString      getCurFootprintName();
+    void                setCurFootprintName( const wxString& aName );
+
+    void OnSize( wxSizeEvent& event );
+
     void ReCreateFootprintList();
-    void Process_Special_Functions( wxCommandEvent& event );
-    void DisplayLibInfos();
+    void OnIterateFootprintList( wxCommandEvent& event );
+
+    /**
+     * Function UpdateTitle
+     * updates the window title with current library information.
+     */
+    void UpdateTitle();
+
+    /**
+     * Function RedrawActiveWindow
+     * Display the current selected component.
+     * If the component is an alias, the ROOT component is displayed
+     */
     void RedrawActiveWindow( wxDC* DC, bool EraseBg );
+
     void OnCloseWindow( wxCloseEvent& Event );
+    void CloseFootprintViewer( wxCommandEvent& event );
+
     void ReCreateHToolbar();
     void ReCreateVToolbar();
+    void ReCreateMenuBar();
+
     void OnLeftClick( wxDC* DC, const wxPoint& MousePos );
     void ClickOnLibList( wxCommandEvent& event );
     void ClickOnFootprintList( wxCommandEvent& event );
     void DClickOnFootprintList( wxCommandEvent& event );
     void OnSetRelativeOffset( wxCommandEvent& event );
 
-    void GeneralControl( wxDC* aDC, const wxPoint& aPosition, int aHotKey = 0 );
+    bool GeneralControl( wxDC* aDC, const wxPoint& aPosition, int aHotKey = 0 );
+
+    ///> @copydoc EDA_DRAW_FRAME::GetHotKeyDescription()
+    EDA_HOTKEY* GetHotKeyDescription( int aCommand ) const;
 
     /**
-     * Function LoadSettings
-     * loads the library viewer frame specific configuration settings.
-     *
-     * Don't forget to call this base method from any derived classes or the
-     * settings will not get loaded.
+     * Function OnHotKey
+     * handle hot key events.
+     * <p?
+     * Some commands are relative to the item under the mouse cursor.  Commands are
+     * case insensitive
+     * </p>
      */
-    void LoadSettings();
+    bool OnHotKey( wxDC* aDC, int aHotKey, const wxPoint& aPosition, EDA_ITEM* aItem = NULL );
 
-    /**
-     * Function SaveSettings
-     * save library viewer frame specific configuration settings.
-     *
-     * Don't forget to call this base method from any derived classes or the
-     * settings will not get saved.
-     */
-    void SaveSettings();
-
-    wxString& GetFootprintName( void ) const { return m_footprintName; }
+    void LoadSettings( wxConfigBase* aCfg );    // override virtual
+    void SaveSettings( wxConfigBase* aCfg );    // override virtual
 
     /**
      * Function OnActivate
@@ -148,6 +133,10 @@ private:
 
     void SelectCurrentLibrary( wxCommandEvent& event );
 
+    /**
+     * Function SelectCurrentFootprint
+     * Selects the current footprint name and display it
+     */
     void SelectCurrentFootprint( wxCommandEvent& event );
 
     /**
@@ -159,7 +148,8 @@ private:
     /**
      * Function SelectAndViewFootprint
      * Select and load the next or the previous footprint
-     * if no current footprint, Rebuild the list of footprints availlable in a given footprint library
+     * if no current footprint, Rebuild the list of footprints available in a given footprint
+     * library
      * @param aMode = NEXT_PART or PREVIOUS_PART
      */
     void SelectAndViewFootprint( int aMode );
@@ -177,7 +167,7 @@ private:
      * must be called after a footprint selection
      * Updates the 3D view and 3D frame title.
      * @param aForceReloadFootprint = true to reload data (default)
-     *   = false to update title only -(aftre creating the 3D viewer)
+     *   = false to update title only -(after creating the 3D viewer)
      */
     void Update3D_Frame( bool aForceReloadFootprint = true );
 
@@ -185,10 +175,11 @@ private:
      * Virtual functions, not used here, but needed by PCB_BASE_FRAME
      * (virtual pure functions )
      */
-    void OnLeftDClick(wxDC*, const wxPoint&) {}
-    void SaveCopyInUndoList(BOARD_ITEM*, UNDO_REDO_T, const wxPoint&) {}
-    void SaveCopyInUndoList(PICKED_ITEMS_LIST&, UNDO_REDO_T, const wxPoint&) {}
+    void OnLeftDClick( wxDC*, const wxPoint& ) {}
+    void SaveCopyInUndoList( BOARD_ITEM*, UNDO_REDO_T, const wxPoint& ) {}
+    void SaveCopyInUndoList( const PICKED_ITEMS_LIST&, UNDO_REDO_T, const wxPoint &) {}
 
+    void updateView();
 
     DECLARE_EVENT_TABLE()
 };

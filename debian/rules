@@ -1,99 +1,36 @@
 #!/usr/bin/make -f
-# -*- makefile -*-
 #export DH_VERBOSE=1
 
-COMMONDIR = debian/kicad-common
-PKGDIR    = debian/kicad
-TMPPKGDIR = debian/tmp
+DPKG_EXPORT_BUILDFLAGS = 1
+include /usr/share/dpkg/default.mk
 
-
+# main packaging script based on dh7 syntax
 %:
-	dh $@ --parallel
+	dh $@
 
-override_dh_clean:
-	dh_clean
-	find . -type d -name CMakeFiles | xargs rm -rf
-	rm -f $(GENERATED_FILES)
-	debian/clean_sourceless_pdf
-
-override_dh_auto_configure:
-	cmake -DKICAD_STABLE_VERSION=ON -DCMAKE_BUILD_TYPE=Release .
-
-LANG2BUILD = $(shell ls doc/doc/help| grep -v CMake)
-buildPDF:
-	for l in $(LANG2BUILD); do \
-	  for f in $$(find doc/doc/help/$$l -name "*.odm" -o -name "*.sxg"); do \
-	    target=$$(echo doc/doc/help/$$l/$$(basename $$f)| sed 's/....$$/.pdf/'); \
-	    echo -n "Compiling $$f to $${target}... "; \
-	    unoconv -f pdf $$f 2>/dev/null && mv $$(echo $$f| sed 's/....$$/.pdf/') $${target}; \
-	    echo "[Done]"; \
-	  done; \
-	done
-override_dh_compress:
-	dh_compress --exclude=.pdf
-
-override_dh_install-arch:
-	convert bitmaps_png/icons/icon_kicad.xpm -resize 32x32 debian/tmp/icon_kicad.xpm
-	dh_install
-	# fix wrong permissions and link jnlp file to usr/share
-	[ ! -d $(COMMONDIR)/usr/share/kicad/internat/ja/ ] || \
-	  chmod a-x $(COMMONDIR)/usr/share/kicad/internat/ja/*
-	ln -s ../share/kicad/freeroute.jnlp $(PKGDIR)/usr/bin
-	chmod a-x $(PKGDIR)/usr/share/kicad/freeroute.jnlp
-
-override_dh_install-indep:
-	dh_install
-	# remove out-of-topic files
-	find $(COMMONDIR)/usr/share/kicad -name "CMake*" -exec rm {} \;
-	# fix permissions for ja/kicad.po
-	find $(COMMONDIR)/usr/share/kicad -name "kicad.po" -exec chmod 644 {} \;
-	# remove useless .ps files
-	find $(COMMONDIR) -name "*.ps" | xargs rm -f
-
-GENERATED_FILES = ./3d-viewer/Makefile \
-	 ./3d-viewer/cmake_install.cmake \
-	 ./CMakeCache.txt \
-	 ./CTestTestfile.cmake \
-	 ./DartConfiguration.tcl \
-	 ./Makefile \
-	 ./bitmap2component/Makefile \
-	 ./bitmap2component/cmake_install.cmake \
-	 ./bitmaps_png/Makefile \
-	 ./bitmaps_png/cmake_install.cmake \
-	 ./cmake_install.cmake \
-	 ./cmake_uninstall.cmake \
-	 ./common/Makefile \
-	 ./common/cmake_install.cmake \
-	 ./config.h \
-	 ./cvpcb/Makefile \
-	 ./cvpcb/cmake_install.cmake \
-	 ./demos/Makefile \
-	 ./demos/cmake_install.cmake \
-	 ./eeschema/Makefile \
-	 ./eeschema/cmake_install.cmake \
-	 ./eeschema/plugins/Makefile \
-	 ./eeschema/plugins/cmake_install.cmake \
-	 ./gerbview/Makefile \
-	 ./gerbview/cmake_install.cmake \
-	 ./kicad/Makefile \
-	 ./kicad/cmake_install.cmake \
-	 ./pcb_calculator/Makefile \
-	 ./pcb_calculator/cmake_install.cmake \
-	 ./pcbnew/Makefile \
-	 ./pcbnew/cmake_install.cmake \
-	 ./polygon/Makefile \
-	 ./polygon/cmake_install.cmake \
-	 ./polygon/kbool/src/Makefile \
-	 ./polygon/kbool/src/cmake_install.cmake \
-	 ./potrace/Makefile \
-	 ./potrace/cmake_install.cmake \
-	 ./template/Makefile \
-	 ./template/cmake_install.cmake \
-	./Testing/Temporary/CTestCostData.txt \
-	./Testing/Temporary/LastTest.log \
-	./install_manifest.txt \
-	./pcbnew/pcad2kicadpcb_plugin/Makefile \
-	./pcbnew/pcad2kicadpcb_plugin/cmake_install.cmake \
-	./tools/Makefile \
-	./tools/cmake_install.cmake \
-	./version.h
+override_dh_auto_clean:
+	make clean_all
+	dh_auto_clean
+	rm -f common/fp_lib_table_keywords.cpp
+	rm -f common/gal/opengl/shader_src.h
+	rm -f common/netlist_keywords.cpp
+	rm -f common/page_layout/page_layout_reader_keywords.cpp
+	rm -f common/pcb_keywords.cpp
+	rm -f common/pcb_plot_params_keywords.cpp
+	rm -f eeschema/cmp_library_keywords.cpp
+	rm -f eeschema/cmp_library_lexer.h
+	rm -f eeschema/dialogs/dialog_bom_cfg_keywords.cpp
+	rm -f eeschema/dialogs/dialog_bom_cfg_lexer.h
+	rm -f eeschema/dialogs/dialog_bom_help_html.h
+	rm -f eeschema/template_fieldnames_keywords.cpp
+	rm -f eeschema/template_fieldnames_lexer.h
+	rm -f include/fp_lib_table_lexer.h
+	rm -f include/netlist_lexer.h
+	rm -f include/page_layout_reader_lexer.h
+	rm -f include/pcb_lexer.h
+	rm -f include/pcb_plot_params_lexer.h
+	rm -f pcb_calculator/pcb_calculator_datafile_keywords.cpp
+	rm -f pcb_calculator/pcb_calculator_datafile_lexer.h
+	rm -f pcbnew/dialogs/dialog_freeroute_exchange_help_html.h
+	rm -f pcbnew/specctra_keywords.cpp
+	rm -f pcbnew/specctra_lexer.h

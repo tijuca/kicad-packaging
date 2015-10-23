@@ -29,136 +29,214 @@
  */
 
 #include <fctsys.h>
-#include <appl_wxstruct.h>
+#include <pgm_base.h>
+#include <kiface_i.h>
 #include <class_drawpanel.h>
-#include <confirm.h>
 #include <gestfich.h>
 #include <eda_dde.h>
-#include <wxEeschemaStruct.h>
+#include <schframe.h>
+#include <libeditframe.h>
+#include <viewlib_frame.h>
 #include <eda_text.h>
 
 #include <general.h>
-#include <protos.h>
+#include <class_libentry.h>
 #include <hotkeys.h>
 #include <dialogs/dialog_color_config.h>
 #include <transform.h>
 #include <wildcards_and_files_ext.h>
 
-#include <wx/snglinst.h>
+#include <kiway.h>
 
-
-// Global variables
-wxSize  g_RepeatStep;
-int     g_RepeatDeltaLabel;
-int     g_DefaultBusWidth;
+// The main sheet of the project
 SCH_SHEET*  g_RootSheet = NULL;
 
+// a transform matrix, to display components in lib editor
 TRANSFORM DefaultTransform = TRANSFORM( 1, 0, 0, -1 );
 
 
-/************************************/
-/* Called to initialize the program */
-/************************************/
+namespace SCH {
 
-// Create a new application object: this macro will allow wxWindows to create
-// the application object during program execution (it's better than using a
-// static object for many reasons) and also declares the accessor function
-// wxGetApp() which will return the reference of the right type (i.e. MyApp and
-// not wxApp)
-IMPLEMENT_APP( EDA_APP )
-
-/* MacOSX: Needed for file association
- * http://wiki.wxwidgets.org/WxMac-specific_topics
- */
-void EDA_APP::MacOpenFile( const wxString &fileName )
+static struct IFACE : public KIFACE_I
 {
-    wxFileName      filename = fileName;
-    SCH_EDIT_FRAME* frame = ((SCH_EDIT_FRAME*) GetTopWindow());
+    // Of course all are virtual overloads, implementations of the KIFACE.
 
-    if( !frame )
-        return;
+    IFACE( const char* aName, KIWAY::FACE_T aType ) :
+        KIFACE_I( aName, aType )
+    {}
 
-    if( !filename.FileExists() )
-        return;
+    bool OnKifaceStart( PGM_BASE* aProgram, int aCtlBits );
 
-    frame->LoadOneEEProject( fileName, false );
+    void OnKifaceEnd();
+
+    wxWindow* CreateWindow( wxWindow* aParent, int aClassId, KIWAY* aKiway, int aCtlBits = 0 )
+    {
+        switch( aClassId )
+        {
+        case FRAME_SCH:
+            {
+                SCH_EDIT_FRAME* frame = new SCH_EDIT_FRAME( aKiway, aParent );
+
+                if( Kiface().IsSingle() )
+                {
+                    // only run this under single_top, not under a project manager.
+                    CreateServer( frame, KICAD_SCH_PORT_SERVICE_NUMBER );
+                }
+                return frame;
+            }
+            break;
+
+        case FRAME_SCH_LIB_EDITOR:
+            {
+                LIB_EDIT_FRAME* frame = new LIB_EDIT_FRAME( aKiway, aParent );
+                return frame;
+            }
+            break;
+
+
+        case FRAME_SCH_VIEWER:
+        case FRAME_SCH_VIEWER_MODAL:
+            {
+                LIB_VIEW_FRAME* frame = new LIB_VIEW_FRAME( aKiway, aParent, FRAME_T( aClassId ) );
+                return frame;
+            }
+            break;
+
+        default:
+            return NULL;
+        }
+    }
+
+    /**
+     * Function IfaceOrAddress
+     * return a pointer to the requested object.  The safest way to use this
+     * is to retrieve a pointer to a static instance of an interface, similar to
+     * how the KIFACE interface is exported.  But if you know what you are doing
+     * use it to retrieve anything you want.
+     *
+     * @param aDataId identifies which object you want the address of.
+     *
+     * @return void* - and must be cast into the know type.
+     */
+    void* IfaceOrAddress( int aDataId )
+    {
+        return NULL;
+    }
+
+} kiface( "eeschema", KIWAY::FACE_SCH );
+
+} // namespace
+
+using namespace SCH;
+
+static PGM_BASE* process;
+
+
+KIFACE_I& Kiface() { return kiface; }
+
+
+// KIFACE_GETTER's actual spelling is a substitution macro found in kiway.h.
+// KIFACE_GETTER will not have name mangling due to declaration in kiway.h.
+MY_API( KIFACE* ) KIFACE_GETTER(  int* aKIFACEversion, int aKiwayVersion, PGM_BASE* aProgram )
+{
+    process = (PGM_BASE*) aProgram;
+    return &kiface;
 }
 
 
-bool EDA_APP::OnInit()
+PGM_BASE& Pgm()
 {
-    wxFileName      filename;
-    SCH_EDIT_FRAME* frame = NULL;
-    bool fileReady = false;
+    wxASSERT( process );    // KIFACE_GETTER has already been called.
+    return *process;
+}
 
-    InitEDA_Appl( wxT( "Eeschema" ), APP_EESCHEMA_T );
 
-    if( argc > 1 )
-        filename = argv[1];
+static EDA_COLOR_T s_layerColor[LAYERSCH_ID_COUNT];
 
-    if( filename.IsOk() )
+EDA_COLOR_T GetLayerColor( LAYERSCH_ID aLayer )
+{
+    wxASSERT( unsigned( aLayer ) < DIM( s_layerColor ) );
+    return s_layerColor[aLayer];
+}
+
+void SetLayerColor( EDA_COLOR_T aColor, LAYERSCH_ID aLayer )
+{
+    wxASSERT( unsigned( aLayer ) < DIM( s_layerColor ) );
+    s_layerColor[aLayer] = aColor;
+}
+
+
+static PARAM_CFG_ARRAY& cfg_params()
+{
+    static PARAM_CFG_ARRAY ca;
+
+    if( !ca.size() )
     {
-        if( filename.GetExt() != SchematicFileExtension )
-            filename.SetExt( SchematicFileExtension );
+        // These are KIFACE specific, they need to be loaded once when the
+        // eeschema KIFACE comes in.
 
-        if( !wxGetApp().LockFile( filename.GetFullPath() ) )
-        {
-            DisplayError( NULL, _( "This file is already open." ) );
-            return false;
-        }
+#define CLR(x, y, z)\
+    ca.push_back( new PARAM_CFG_SETCOLOR( true, wxT( x ), &s_layerColor[y], z ) );
 
-        fileReady = true;
+        CLR( "ColorWireEx",             LAYER_WIRE,             GREEN )
+        CLR( "ColorBusEx",              LAYER_BUS,              BLUE )
+        CLR( "ColorConnEx",             LAYER_JUNCTION,         GREEN )
+        CLR( "ColorLLabelEx",           LAYER_LOCLABEL,         BLACK )
+        CLR( "ColorHLabelEx",           LAYER_HIERLABEL,        BROWN )
+        CLR( "ColorGLabelEx",           LAYER_GLOBLABEL,        RED )
+        CLR( "ColorPinNumEx",           LAYER_PINNUM,           RED )
+        CLR( "ColorPinNameEx",          LAYER_PINNAM,           CYAN )
+        CLR( "ColorFieldEx",            LAYER_FIELDS,           MAGENTA )
+        CLR( "ColorReferenceEx",        LAYER_REFERENCEPART,    CYAN )
+        CLR( "ColorValueEx",            LAYER_VALUEPART,        CYAN )
+        CLR( "ColorNoteEx",             LAYER_NOTES,            LIGHTBLUE )
+        CLR( "ColorBodyEx",             LAYER_DEVICE,           RED )
+        CLR( "ColorBodyBgEx",           LAYER_DEVICE_BACKGROUND,LIGHTYELLOW )
+        CLR( "ColorNetNameEx",          LAYER_NETNAM,           DARKGRAY )
+        CLR( "ColorPinEx",              LAYER_PIN,              RED )
+        CLR( "ColorSheetEx",            LAYER_SHEET,            MAGENTA )
+        CLR( "ColorSheetFileNameEx",    LAYER_SHEETFILENAME,    BROWN )
+        CLR( "ColorSheetNameEx",        LAYER_SHEETNAME,        CYAN )
+        CLR( "ColorSheetLabelEx",       LAYER_SHEETLABEL,       BROWN )
+        CLR( "ColorNoConnectEx",        LAYER_NOCONNECT,        BLUE )
+        CLR( "ColorErcWEx",             LAYER_ERC_WARN,         GREEN )
+        CLR( "ColorErcEEx",             LAYER_ERC_ERR,          RED )
+        CLR( "ColorGridEx",             LAYER_GRID,             DARKGRAY )
+        CLR( "ColorBgCanvasEx",         LAYER_BACKGROUND,       WHITE )
     }
 
-    if( m_Checker && m_Checker->IsAnotherRunning() )
-      {
-          if( !IsOK( NULL, _( "Eeschema is already running, Continue?" ) ) )
-              return false;
-      }
+    return ca;
+}
+
+
+bool IFACE::OnKifaceStart( PGM_BASE* aProgram, int aCtlBits )
+{
+    // This is process level, not project level, initialization of the DSO.
+
+    // Do nothing in here pertinent to a project!
+
+    start_common( aCtlBits );
 
     // Give a default colour for all layers
-    // (actual color will beinitialized by config)
-    for( int ii = 0; ii < MAX_LAYERS; ii++ )
+    // (actual color will be initialized by config)
+    for( LAYERSCH_ID ii = LAYER_FIRST; ii < LAYERSCH_ID_COUNT; ++ii )
         SetLayerColor( DARKGRAY, ii );
 
-    // read current setup and reopen last directory if no filename to open in
-    // command line
-    bool reopenLastUsedDirectory = argc == 1;
-    GetSettings( reopenLastUsedDirectory );
+    SetLayerColor( WHITE, LAYER_BACKGROUND );
 
-   /* Must be called before creating the main frame in order to
-    * display the real hotkeys in menus or tool tips */
-    ReadHotkeyConfig( wxT("SchematicFrame"), s_Eeschema_Hokeys_Descr );
+    // Must be called before creating the main frame in order to
+    // display the real hotkeys in menus or tool tips
+    ReadHotkeyConfig( SCH_EDIT_FRAME_NAME, g_Eeschema_Hokeys_Descr );
 
-    // Create main frame (schematic frame) :
-    frame = new SCH_EDIT_FRAME( NULL, wxT( "Eeschema" ), wxPoint( 0, 0 ), wxSize( 600, 400 ) );
-
-    SetTopWindow( frame );
-    frame->Show( true );
-
-    if( CreateServer( frame, KICAD_SCH_PORT_SERVICE_NUMBER ) )
-    {
-        // RemoteCommand is in controle.cpp and is called when Pcbnew sends Eeschema a command.
-        SetupServerFunction( RemoteCommand );
-    }
-
-    frame->Zoom_Automatique( true );
-
-    /* Load file specified in the command line. */
-    if( fileReady )
-    {
-        if( !filename.GetPath().IsEmpty() )
-            wxSetWorkingDirectory( filename.GetPath() );
-
-        if( frame->LoadOneEEProject( filename.GetFullPath(), false ) )
-            frame->GetCanvas()->Refresh( true );
-    }
-    else
-    {
-        // Read a default config file if no file to load.
-        frame->LoadProjectFile( wxEmptyString, true );
-        frame->GetCanvas()->Refresh( true );
-    }
+    wxConfigLoadSetups( KifaceSettings(), cfg_params() );
 
     return true;
 }
+
+
+void IFACE::OnKifaceEnd()
+{
+    wxConfigSaveSetups( KifaceSettings(), cfg_params() );
+    end_common();
+}
+

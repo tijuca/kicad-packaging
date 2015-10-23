@@ -1,8 +1,8 @@
 /*
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
- * Copyright (C) 2012 Jean-Pierre Charras, jp.charras at wanadoo.fr
- * Copyright (C) 1992-2011 KiCad Developers, see AUTHORS.txt for contributors.
+ * Copyright (C) 2014 Jean-Pierre Charras, jp.charras at wanadoo.fr
+ * Copyright (C) 1992-2014 KiCad Developers, see AUTHORS.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -39,9 +39,9 @@
 
 // Thickness of copper
 // TODO: define the actual copper thickness by user
-#define COPPER_THICKNESS (int)(0.035 * IU_PER_MM)   // for 35 u
-#define TECH_LAYER_THICKNESS (int)(0.04 * IU_PER_MM)
-#define EPOXY_THICKNESS (int)(1.6 * IU_PER_MM)   // for 1.6 mm
+#define COPPER_THICKNESS KiROUND( 0.035 * IU_PER_MM )   // for 35 um
+#define TECH_LAYER_THICKNESS KiROUND( 0.04 * IU_PER_MM )
+#define EPOXY_THICKNESS KiROUND( 1.6 * IU_PER_MM )   // for 1.6 mm
 
 
 /* INFO3D_VISU in an helper class to store parameters like scaling factors,
@@ -62,16 +62,19 @@ INFO3D_VISU::INFO3D_VISU()
 
     m_CopperLayersCount = 2;
     m_BoardSettings     = NULL;
-    m_CopperThickness   = 0;
-    m_EpoxyThickness    = 0;
-    m_NonCopperLayerThickness = 0;
+    m_copperThickness   = 0;
+    m_epoxyThickness    = 0;
+    m_nonCopperLayerThickness = 0;
+    m_BiuTo3Dunits = 1.0;
+    zpos_offset = 0.0;
 
     // default all special item layers Visible
-    for( ii = 0; ii < FL_LAST; ii++ )
-        m_DrawFlags[ii] = true;
+    m_drawFlags.set();
 
-    m_DrawFlags[FL_GRID] = false;
-    m_DrawFlags[FL_USE_COPPER_THICKNESS] = false;
+    SetFlag( FL_GRID, false );
+    SetFlag( FL_USE_COPPER_THICKNESS, false );
+    SetFlag( FL_RENDER_SHADOWS, false );
+    SetFlag( FL_RENDER_SHOW_HOLES_IN_ZONES, false );
 }
 
 
@@ -84,13 +87,17 @@ INFO3D_VISU::~INFO3D_VISU()
  */
 void INFO3D_VISU::InitSettings( BOARD* aBoard )
 {
-    EDA_RECT bbbox = aBoard->ComputeBoundingBox( false );
+    // Calculates the board bounding box
+    // First, use only the board outlines
+    EDA_RECT bbbox = aBoard->ComputeBoundingBox( true );
 
+    // If no outlines, use the board with items
     if( bbbox.GetWidth() == 0 && bbbox.GetHeight() == 0 )
-    {
-        bbbox.SetWidth( 100 * IU_PER_MM );
-        bbbox.SetHeight( 100 * IU_PER_MM );
-    }
+       bbbox = aBoard->ComputeBoundingBox( false );
+
+    // Gives a non null size to avoid issues in zoom / scale calculations
+    if( bbbox.GetWidth() == 0 && bbbox.GetHeight() == 0 )
+        bbbox.Inflate( Millimeter2iu( 10 ) );
 
     m_BoardSettings = &aBoard->GetDesignSettings();
 
@@ -107,104 +114,109 @@ void INFO3D_VISU::InitSettings( BOARD* aBoard )
 
     m_BiuTo3Dunits = 2.0 / std::max( m_BoardSize.x, m_BoardSize.y );
 
-    m_EpoxyThickness = aBoard->GetDesignSettings().GetBoardThickness() * m_BiuTo3Dunits;
+    m_epoxyThickness = aBoard->GetDesignSettings().GetBoardThickness() * m_BiuTo3Dunits;
 
     // TODO use value defined by user (currently use default values by ctor
-    m_CopperThickness   = COPPER_THICKNESS * m_BiuTo3Dunits;
-    m_NonCopperLayerThickness = TECH_LAYER_THICKNESS * m_BiuTo3Dunits;
+    m_copperThickness   = COPPER_THICKNESS * m_BiuTo3Dunits;
+    m_nonCopperLayerThickness = TECH_LAYER_THICKNESS * m_BiuTo3Dunits;
 
     // Init  Z position of each layer
     // calculate z position for each copper layer
+    // Z = 0 is the z position of the back (bottom) layer (layer id = 31)
+    // Z = m_epoxyThickness is the z position of the front (top) layer (layer id = 0)
+    // all unused copper layer z position are set to 0
     int layer;
     int copper_layers_cnt = m_CopperLayersCount;
 
     for( layer = 0; layer < copper_layers_cnt; layer++ )
     {
-        m_LayerZcoord[layer] =
-            m_EpoxyThickness * layer / (copper_layers_cnt - 1);
+        m_layerZcoord[layer] =
+            m_epoxyThickness - (m_epoxyThickness * layer / (copper_layers_cnt - 1));
     }
 
-    double  zpos_copper_back    = m_LayerZcoord[0];
-    double  zpos_copper_front   = m_EpoxyThickness;
+    #define layerThicknessMargin 1.1
+    double zpos_offset = m_nonCopperLayerThickness * layerThicknessMargin;
+    double  zpos_copper_back    = - layerThicknessMargin*m_copperThickness/2;
+    double  zpos_copper_front   = m_epoxyThickness + layerThicknessMargin*m_copperThickness/2;
 
-    // Fill remaining unused copper layers and front layer zpos
-    // with m_EpoxyThickness
-    for( ; layer <= LAST_COPPER_LAYER; layer++ )
+    // Fill remaining unused copper layers and back layer zpos
+    // with 0
+    for( ; layer < MAX_CU_LAYERS; layer++ )
     {
-        m_LayerZcoord[layer] = m_EpoxyThickness;
+        m_layerZcoord[layer] = 0;
     }
 
     // calculate z position for each non copper layer
-    for( int layer_id = FIRST_NO_COPPER_LAYER; layer_id < NB_LAYERS; layer_id++ )
+    // Solder mask and Solder paste have the same Z position
+    for( int layer_id = MAX_CU_LAYERS; layer_id < LAYER_ID_COUNT; layer_id++ )
     {
         double zpos;
-        #define NonCopperLayerThicknessMargin 1.1
 
         switch( layer_id )
         {
-        case ADHESIVE_N_BACK:
-            zpos = zpos_copper_back -
-                   4 * m_NonCopperLayerThickness * NonCopperLayerThicknessMargin;
+        case B_Adhes:
+            zpos = zpos_copper_back - 3 * zpos_offset;
             break;
 
-        case ADHESIVE_N_FRONT:
-            zpos = zpos_copper_front +
-                   4 * m_NonCopperLayerThickness * NonCopperLayerThicknessMargin;
+        case F_Adhes:
+            zpos = zpos_copper_front + 3 * zpos_offset;
             break;
 
-        case SOLDERPASTE_N_BACK:
-            zpos = zpos_copper_back -
-                   3 * m_NonCopperLayerThickness * NonCopperLayerThicknessMargin;
+        case B_Paste:
+            zpos = zpos_copper_back - 1 * zpos_offset;
             break;
 
-        case SOLDERPASTE_N_FRONT:
-            zpos = zpos_copper_front +
-                   3 * m_NonCopperLayerThickness * NonCopperLayerThicknessMargin;
+        case F_Paste:
+            zpos = zpos_copper_front + 1 * zpos_offset;
             break;
 
-        case SOLDERMASK_N_BACK:
-            zpos = zpos_copper_back -
-                   1 * m_NonCopperLayerThickness * NonCopperLayerThicknessMargin;
+        case B_Mask:
+            zpos = zpos_copper_back - 1 * zpos_offset;
             break;
 
-        case SOLDERMASK_N_FRONT:
-            zpos = zpos_copper_front +
-                   1 * m_NonCopperLayerThickness * NonCopperLayerThicknessMargin;
+        case F_Mask:
+            zpos = zpos_copper_front + 1 * zpos_offset;
             break;
 
-        case SILKSCREEN_N_BACK:
-            zpos = zpos_copper_back -
-                   2 * m_NonCopperLayerThickness * NonCopperLayerThicknessMargin;
+        case B_SilkS:
+            zpos = zpos_copper_back - 2 * zpos_offset;
             break;
 
-        case SILKSCREEN_N_FRONT:
-            zpos = zpos_copper_front +
-                   2 * m_NonCopperLayerThickness * NonCopperLayerThicknessMargin;
+        case F_SilkS:
+            zpos = zpos_copper_front + 2 * zpos_offset;
             break;
 
         default:
-            zpos = zpos_copper_front +
-                   (layer_id - FIRST_NO_COPPER_LAYER + 5) *
-                   m_NonCopperLayerThickness * NonCopperLayerThicknessMargin;
+            zpos = zpos_copper_front + (layer_id - MAX_CU_LAYERS + 4) * zpos_offset;
             break;
         }
 
-        m_LayerZcoord[layer_id] = zpos;
+        m_layerZcoord[layer_id] = zpos;
     }
 }
 
 /* return the Z position of 3D shapes, in 3D Units
  * aIsFlipped: true for modules on Front (top) layer, false
  * if on back (bottom) layer
- * Note: in draw functions, the copper has a thickness = m_CopperThickness
- * Vias and tracks are draw with the top side position = m_CopperThickness/2
- * and the bottom side position = -m_CopperThickness/2 from the Z layer position
+ * Note: in draw functions, the copper has a thickness = m_copperThickness
+ * Vias and tracks are draw with the top side position = m_copperThickness/2
+ * and the bottom side position = -m_copperThickness/2 from the Z layer position
  */
 double INFO3D_VISU::GetModulesZcoord3DIU( bool aIsFlipped )
 {
-    if(  aIsFlipped )
-        return m_LayerZcoord[LAYER_N_BACK] - ( m_CopperThickness / 2 );
+    if( aIsFlipped )
+    {
+        if( g_Parm_3D_Visu.GetFlag( FL_SOLDERPASTE ) )
+            return m_layerZcoord[B_SilkS] - ( m_copperThickness / 2.0 );
+        else
+            return m_layerZcoord[B_Paste] - ( m_copperThickness / 2.0 );
+    }
     else
-        return m_LayerZcoord[LAYER_N_FRONT] + ( m_CopperThickness / 2 );
+    {
+        if( g_Parm_3D_Visu.GetFlag( FL_SOLDERPASTE ) )
+            return m_layerZcoord[F_SilkS] + ( m_copperThickness / 2.0 );
+        else
+            return m_layerZcoord[F_Paste] + ( m_copperThickness / 2.0 );
+    }
 }
 

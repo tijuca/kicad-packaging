@@ -6,7 +6,7 @@
 /*
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
- * Copyright (C) 20011 Jean-Pierre Charras, jaen-pierre.charras@gipsa-lab.inpg.com
+ * Copyright (C) 2001 Jean-Pierre Charras, jaen-pierre.charras@gipsa-lab.inpg.com
  * Copyright (C) 2004-2011 KiCad Developers, see change_log.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
@@ -64,26 +64,26 @@ void DIALOG_LIB_EDIT_TEXT::initDlg( )
 
     if ( m_graphicText )
     {
-        msg = ReturnStringFromValue( g_UserUnit, m_graphicText->m_Size.x );
+        msg = StringFromValue( g_UserUnit, m_graphicText->GetSize().x );
         m_TextSize->SetValue( msg );
-        m_TextValue->SetValue( m_graphicText->m_Text );
+        m_TextValue->SetValue( m_graphicText->GetText() );
 
         if ( m_graphicText->GetUnit() == 0 )
             m_CommonUnit->SetValue( true );
         if ( m_graphicText->GetConvert() == 0 )
             m_CommonConvert->SetValue( true );
-        if ( m_graphicText->m_Orient == TEXT_ORIENT_VERT )
+        if ( m_graphicText->GetOrientation() == TEXT_ORIENT_VERT )
             m_Orient->SetValue( true );
 
         int shape = 0;
-        if ( m_graphicText->m_Italic )
+        if ( m_graphicText->IsItalic() )
             shape = 1;
-        if ( m_graphicText->m_Bold )
+        if ( m_graphicText->IsBold() )
             shape |= 2;
 
         m_TextShapeOpt->SetSelection( shape );
 
-        switch ( m_graphicText->m_HJustify )
+        switch ( m_graphicText->GetHorizJustify() )
         {
             case GR_TEXT_HJUSTIFY_LEFT:
                 m_TextHJustificationOpt->SetSelection( 0 );
@@ -99,7 +99,7 @@ void DIALOG_LIB_EDIT_TEXT::initDlg( )
 
         }
 
-        switch ( m_graphicText->m_VJustify )
+        switch ( m_graphicText->GetVertJustify() )
         {
         case GR_TEXT_VJUSTIFY_BOTTOM:
             m_TextVJustificationOpt->SetSelection( 0 );
@@ -116,7 +116,7 @@ void DIALOG_LIB_EDIT_TEXT::initDlg( )
     }
     else
     {
-        msg = ReturnStringFromValue( g_UserUnit, m_parent->m_textSize );
+        msg = StringFromValue( g_UserUnit, m_parent->m_textSize );
         m_TextSize->SetValue( msg );
 
         if ( ! m_parent->m_drawSpecificUnit )
@@ -131,6 +131,13 @@ void DIALOG_LIB_EDIT_TEXT::initDlg( )
     m_TextSizeText->SetLabel( msg );
 
     m_sdbSizerButtonsOK->SetDefault();
+
+    // Hide the select button as the child dialog classes use this
+    m_TextValueSelectButton->Hide();
+
+    // Hide the "Power component value text cannot be modified!" warning
+    m_PowerComponentValues->Show( false );
+    Fit();
 }
 
 
@@ -148,7 +155,7 @@ void DIALOG_LIB_EDIT_TEXT::OnOkClick( wxCommandEvent& event )
     Line = m_TextValue->GetValue();
     m_parent->m_textOrientation = m_Orient->GetValue() ? TEXT_ORIENT_VERT : TEXT_ORIENT_HORIZ;
     wxString msg = m_TextSize->GetValue();
-    m_parent->m_textSize = ReturnValueFromString( g_UserUnit, msg );
+    m_parent->m_textSize = ValueFromString( g_UserUnit, msg );
     m_parent->m_drawSpecificConvert = m_CommonConvert->GetValue() ? false : true;
     m_parent->m_drawSpecificUnit = m_CommonUnit->GetValue() ? false : true;
 
@@ -159,8 +166,8 @@ void DIALOG_LIB_EDIT_TEXT::OnOkClick( wxCommandEvent& event )
         else
             m_graphicText->SetText( wxT( "[null]" ) );
 
-        m_graphicText->m_Size.x = m_graphicText->m_Size.y = m_parent->m_textSize;
-        m_graphicText->m_Orient = m_parent->m_textOrientation;
+        m_graphicText->SetSize( wxSize( m_parent->m_textSize, m_parent->m_textSize ) );
+        m_graphicText->SetOrientation( m_parent->m_textOrientation );
 
         if( m_parent->m_drawSpecificUnit )
             m_graphicText->SetUnit( m_parent->GetUnit() );
@@ -172,43 +179,36 @@ void DIALOG_LIB_EDIT_TEXT::OnOkClick( wxCommandEvent& event )
         else
             m_graphicText->SetConvert( 0 );
 
-        if( ( m_TextShapeOpt->GetSelection() & 1 ) != 0 )
-            m_graphicText->m_Italic = true;
-        else
-            m_graphicText->m_Italic = false;
-
-        if( ( m_TextShapeOpt->GetSelection() & 2 ) != 0 )
-            m_graphicText->m_Bold = true;
-        else
-            m_graphicText->m_Bold = false;
+        m_graphicText->SetItalic( ( m_TextShapeOpt->GetSelection() & 1 ) != 0 );
+        m_graphicText->SetBold( ( m_TextShapeOpt->GetSelection() & 2 ) != 0 );
 
         switch( m_TextHJustificationOpt->GetSelection() )
         {
         case 0:
-            m_graphicText->m_HJustify = GR_TEXT_HJUSTIFY_LEFT;
+            m_graphicText->SetHorizJustify( GR_TEXT_HJUSTIFY_LEFT );
             break;
 
         case 1:
-            m_graphicText->m_HJustify = GR_TEXT_HJUSTIFY_CENTER;
+            m_graphicText->SetHorizJustify( GR_TEXT_HJUSTIFY_CENTER );
             break;
 
         case 2:
-            m_graphicText->m_HJustify = GR_TEXT_HJUSTIFY_RIGHT;
+            m_graphicText->SetHorizJustify( GR_TEXT_HJUSTIFY_RIGHT );
             break;
         }
 
         switch( m_TextVJustificationOpt->GetSelection() )
         {
         case 0:
-            m_graphicText->m_VJustify = GR_TEXT_VJUSTIFY_BOTTOM;
+            m_graphicText->SetVertJustify( GR_TEXT_VJUSTIFY_BOTTOM );
             break;
 
         case 1:
-            m_graphicText->m_VJustify = GR_TEXT_VJUSTIFY_CENTER;
+            m_graphicText->SetVertJustify( GR_TEXT_VJUSTIFY_CENTER );
             break;
 
         case 2:
-            m_graphicText->m_VJustify = GR_TEXT_VJUSTIFY_TOP;
+            m_graphicText->SetVertJustify( GR_TEXT_VJUSTIFY_TOP );
             break;
         }
     }

@@ -33,17 +33,21 @@
 #include <fctsys.h>
 #include <id.h>
 #include <class_drawpanel.h>
+#include <view/view.h>
 #include <class_base_screen.h>
-#include <wxstruct.h>
+#include <draw_frame.h>
 #include <kicad_device_context.h>
 #include <hotkeys_basic.h>
 #include <menus_helpers.h>
 #include <base_units.h>
-
+#include <tool/tool_manager.h>
 
 
 void EDA_DRAW_FRAME::RedrawScreen( const wxPoint& aCenterPoint, bool aWarpPointer )
 {
+    if( IsGalCanvasActive() )
+        return;
+
     AdjustScrollBars( aCenterPoint );
 
     // Move the mouse cursor to the on grid graphic cursor position
@@ -56,8 +60,11 @@ void EDA_DRAW_FRAME::RedrawScreen( const wxPoint& aCenterPoint, bool aWarpPointe
 
 void EDA_DRAW_FRAME::RedrawScreen2( const wxPoint& posBefore )
 {
+    if( IsGalCanvasActive() )
+        return;
+
     wxPoint dPos = posBefore - m_canvas->GetClientSize() / 2; // relative screen position to center before zoom
-    wxPoint newScreenPos = m_canvas->ToDeviceXY( GetScreen()->GetCrossHairPosition() ); // screen position of crosshair after zoom
+    wxPoint newScreenPos = m_canvas->ToDeviceXY( GetCrossHairPosition() ); // screen position of crosshair after zoom
     wxPoint newCenter = m_canvas->ToLogicalXY( newScreenPos - dPos );
 
     AdjustScrollBars( newCenter );
@@ -80,9 +87,12 @@ void EDA_DRAW_FRAME::Zoom_Automatique( bool aWarpPointer )
     screen->SetScalingFactor( bestzoom );
 
     if( screen->m_FirstRedraw )
-        screen->SetCrossHairPosition( screen->GetScrollCenterPosition() );
+        SetCrossHairPosition( GetScrollCenterPosition() );
 
-    RedrawScreen( screen->GetScrollCenterPosition(), aWarpPointer );
+    if( !IsGalCanvasActive() )
+        RedrawScreen( GetScrollCenterPosition(), aWarpPointer );
+    else
+        m_toolManager->RunAction( "common.Control.zoomFitScreen", true );
 }
 
 
@@ -120,51 +130,57 @@ void EDA_DRAW_FRAME::OnZoom( wxCommandEvent& event )
     int          id = event.GetId();
     bool         zoom_at_cursor = false;
     BASE_SCREEN* screen = GetScreen();
-    wxPoint      center = screen->GetScrollCenterPosition();
+    wxPoint      center = GetScrollCenterPosition();
 
     switch( id )
     {
     case ID_OFFCENTER_ZOOM_IN:
-        center = m_canvas->ToDeviceXY( screen->GetCrossHairPosition() );
+        center = m_canvas->ToDeviceXY( GetCrossHairPosition() );
         if( screen->SetPreviousZoom() )
             RedrawScreen2( center );
         break;
 
     case ID_POPUP_ZOOM_IN:
         zoom_at_cursor = true;
-        center = screen->GetCrossHairPosition();
+        center = GetCrossHairPosition();
 
     // fall thru
+    case ID_VIEWER_ZOOM_IN:
     case ID_ZOOM_IN:
         if( screen->SetPreviousZoom() )
             RedrawScreen( center, zoom_at_cursor );
         break;
 
     case ID_OFFCENTER_ZOOM_OUT:
-        center = m_canvas->ToDeviceXY( screen->GetCrossHairPosition() );
+        center = m_canvas->ToDeviceXY( GetCrossHairPosition() );
         if( screen->SetNextZoom() )
             RedrawScreen2( center );
         break;
 
     case ID_POPUP_ZOOM_OUT:
         zoom_at_cursor = true;
-        center = screen->GetCrossHairPosition();
+        center = GetCrossHairPosition();
 
     // fall thru
+    case ID_VIEWER_ZOOM_OUT:
     case ID_ZOOM_OUT:
         if( screen->SetNextZoom() )
             RedrawScreen( center, zoom_at_cursor );
         break;
 
+    case ID_VIEWER_ZOOM_REDRAW:
+    case ID_POPUP_ZOOM_REDRAW:
     case ID_ZOOM_REDRAW:
         m_canvas->Refresh();
         break;
 
     case ID_POPUP_ZOOM_CENTER:
-        center = screen->GetCrossHairPosition();
+        center = GetCrossHairPosition();
         RedrawScreen( center, true );
         break;
 
+    case ID_POPUP_ZOOM_PAGE:
+    case ID_VIEWER_ZOOM_PAGE:
     case ID_ZOOM_PAGE:
         Zoom_Automatique( false );
         break;
@@ -177,19 +193,41 @@ void EDA_DRAW_FRAME::OnZoom( wxCommandEvent& event )
         break;
 
     default:
-        unsigned i;
-
-        i = id - ID_POPUP_ZOOM_LEVEL_START;
-
-        if( i >= screen->m_ZoomList.size() )
-        {
-            wxLogDebug( wxT( "%s %d: index %d is outside the bounds of the zoom list." ),
-                        __TFILE__, __LINE__, i );
-            return;
-        }
-        if( screen->SetZoom( screen->m_ZoomList[i] ) )
-            RedrawScreen( center, true );
+        SetPresetZoom( id - ID_POPUP_ZOOM_LEVEL_START );
     }
+
+    UpdateStatusBar();
+}
+
+
+void EDA_DRAW_FRAME::SetNextZoom()
+{
+    GetScreen()->SetNextZoom();
+}
+
+
+void EDA_DRAW_FRAME::SetPrevZoom()
+{
+    GetScreen()->SetPreviousZoom();
+}
+
+
+void EDA_DRAW_FRAME::SetPresetZoom( int aIndex )
+{
+    BASE_SCREEN* screen = GetScreen();
+
+    if( aIndex >= (int) screen->m_ZoomList.size() )
+    {
+        wxLogDebug( wxT( "%s %d: index %d is outside the bounds of the zoom list." ),
+                    __TFILE__, __LINE__, aIndex );
+        return;
+    }
+
+    if( m_zoomSelectBox )
+        m_zoomSelectBox->SetSelection( aIndex );
+
+    if( screen->SetZoom( screen->m_ZoomList[aIndex] ) )
+        RedrawScreen( GetScrollCenterPosition(), true );
 
     UpdateStatusBar();
 }
@@ -201,20 +239,20 @@ void EDA_DRAW_FRAME::OnZoom( wxCommandEvent& event )
 void EDA_DRAW_FRAME::AddMenuZoomAndGrid( wxMenu* MasterMenu )
 {
     int         maxZoomIds;
-    int         zoom;
+    double      zoom;
     wxString    msg;
     BASE_SCREEN* screen = m_canvas->GetScreen();
 
-    msg = AddHotkeyName( _( "Center" ), m_HotkeysZoomAndGridList, HK_ZOOM_CENTER );
+    msg = AddHotkeyName( _( "Center" ), m_hotkeysDescrList, HK_ZOOM_CENTER );
     AddMenuItem( MasterMenu, ID_POPUP_ZOOM_CENTER, msg, KiBitmap( zoom_center_on_screen_xpm ) );
-    msg = AddHotkeyName( _( "Zoom in" ), m_HotkeysZoomAndGridList, HK_ZOOM_IN );
+    msg = AddHotkeyName( _( "Zoom in" ), m_hotkeysDescrList, HK_ZOOM_IN );
     AddMenuItem( MasterMenu, ID_POPUP_ZOOM_IN, msg, KiBitmap( zoom_in_xpm ) );
-    msg = AddHotkeyName( _( "Zoom out" ), m_HotkeysZoomAndGridList, HK_ZOOM_OUT );
+    msg = AddHotkeyName( _( "Zoom out" ), m_hotkeysDescrList, HK_ZOOM_OUT );
     AddMenuItem( MasterMenu, ID_POPUP_ZOOM_OUT, msg, KiBitmap( zoom_out_xpm ) );
-    msg = AddHotkeyName( _( "Redraw view" ), m_HotkeysZoomAndGridList, HK_ZOOM_REDRAW );
-    AddMenuItem( MasterMenu, ID_ZOOM_REDRAW, msg, KiBitmap( zoom_redraw_xpm ) );
-    msg = AddHotkeyName( _( "Zoom auto" ), m_HotkeysZoomAndGridList, HK_ZOOM_AUTO );
-    AddMenuItem( MasterMenu, ID_ZOOM_PAGE, msg, KiBitmap( zoom_fit_in_page_xpm ) );
+    msg = AddHotkeyName( _( "Redraw view" ), m_hotkeysDescrList, HK_ZOOM_REDRAW );
+    AddMenuItem( MasterMenu, ID_POPUP_ZOOM_REDRAW, msg, KiBitmap( zoom_redraw_xpm ) );
+    msg = AddHotkeyName( _( "Zoom auto" ), m_hotkeysDescrList, HK_ZOOM_AUTO );
+    AddMenuItem( MasterMenu, ID_POPUP_ZOOM_PAGE, msg, KiBitmap( zoom_fit_in_page_xpm ) );
 
 
     wxMenu* zoom_choice = new wxMenu;
@@ -230,7 +268,7 @@ void EDA_DRAW_FRAME::AddMenuZoomAndGrid( wxMenu* MasterMenu )
     // Populate zoom submenu.
     for( int i = 0; i < maxZoomIds; i++ )
     {
-        msg.Printf( wxT( "%g" ), screen->m_ZoomList[i] );
+        msg.Printf( wxT( "%.2f" ), m_zoomLevelCoeff / screen->m_ZoomList[i] );
 
         zoom_choice->Append( ID_POPUP_ZOOM_LEVEL_START + i, _( "Zoom: " ) + msg,
                              wxEmptyString, wxITEM_CHECK );
@@ -245,43 +283,16 @@ void EDA_DRAW_FRAME::AddMenuZoomAndGrid( wxMenu* MasterMenu )
         AddMenuItem( MasterMenu, gridMenu, ID_POPUP_GRID_SELECT,
                      _( "Grid Select" ), KiBitmap( grid_select_xpm ) );
 
-        GRID_TYPE   tmp;
-        wxRealPoint grid = screen->GetGridSize();
+        wxArrayString gridsList;
+        int icurr = screen->BuildGridsChoiceList( gridsList, g_UserUnit != INCHES );
 
-        for( size_t i = 0; i < screen->GetGridCount(); i++ )
+        for( unsigned i = 0; i < gridsList.GetCount(); i++ )
         {
-            tmp = screen->GetGrid( i );
-            double gridValueInch = To_User_Unit( INCHES, tmp.m_Size.x );
-            double gridValue_mm = To_User_Unit( MILLIMETRES, tmp.m_Size.x );
+            GRID_TYPE& grid = screen->GetGrid( i );
+            gridMenu->Append( grid.m_CmdId, gridsList[i], wxEmptyString, true );
 
-            if( tmp.m_Id == ID_POPUP_GRID_USER )
-            {
-                msg = _( "User Grid" );
-            }
-            else
-            {
-                switch( g_UserUnit )
-                {
-                case INCHES:
-                    msg.Printf( wxT( "%.1f mils, (%.4f mm)" ),
-                                gridValueInch * 1000, gridValue_mm );
-                    break;
-
-                case MILLIMETRES:
-                    msg.Printf( wxT( "%.4f mm, (%.1f mils)" ),
-                                gridValue_mm, gridValueInch * 1000 );
-                    break;
-
-                case UNSCALED_UNITS:
-                    msg = wxT( "???" );
-                    break;
-                }
-            }
-
-            gridMenu->Append( tmp.m_Id, msg, wxEmptyString, true );
-
-            if( grid == tmp.m_Size )
-                gridMenu->Check( tmp.m_Id, true );
+            if( (int)i == icurr )
+                gridMenu->Check( grid.m_CmdId, true );
         }
     }
 

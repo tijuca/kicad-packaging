@@ -31,12 +31,12 @@
 
 
 #include <sch_item_struct.h>
-
+class NETLIST_OBJECT_LIST;
 
 class SCH_JUNCTION : public SCH_ITEM
 {
-    wxPoint m_pos;                  /* XY coordinates of connection. */
-    wxSize  m_size;
+    wxPoint m_pos;                  // Position of the junction.
+    static int m_symbolSize;        // diameter of the junction graphic symbol
 
 public:
     SCH_JUNCTION( const wxPoint& pos = wxPoint( 0, 0 ) );
@@ -50,9 +50,12 @@ public:
         return wxT( "SCH_JUNCTION" );
     }
 
+    static int GetSymbolSize() { return m_symbolSize; }
+    static void SetSymbolSize( int aSize ) { m_symbolSize = aSize; }
+
     void SwapData( SCH_ITEM* aItem );
 
-    EDA_RECT GetBoundingBox() const;
+    const EDA_RECT GetBoundingBox() const;    // Virtual
 
     void Draw( EDA_DRAW_PANEL* aPanel, wxDC* aDC, const wxPoint& aOffset,
                GR_DRAWMODE aDrawMode, EDA_COLOR_T aColor = UNSPECIFIED_COLOR );
@@ -78,13 +81,13 @@ public:
 
     bool IsConnectable() const { return true; }
 
-    void GetConnectionPoints( vector< wxPoint >& aPoints ) const;
+    void GetConnectionPoints( std::vector< wxPoint >& aPoints ) const;
 
     wxString GetSelectMenuText() const { return wxString( _( "Junction" ) ); }
 
     BITMAP_DEF GetMenuImage() const { return  add_junction_xpm; }
 
-    void GetNetListItem( vector<NETLIST_OBJECT*>& aNetListItems, SCH_SHEET_PATH* aSheetPath );
+    void GetNetListItem( NETLIST_OBJECT_LIST& aNetListItems, SCH_SHEET_PATH* aSheetPath );
 
     wxPoint GetPosition() const { return m_pos; }
 

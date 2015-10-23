@@ -1,3 +1,27 @@
+/*
+ * This program source code file is part of KiCad, a free EDA CAD application.
+ *
+ * Copyright (C) 2014 Jean-Pierre Charras, jp.charras at wanadoo.fr
+ * Copyright (C) 2014 KiCad Developers, see CHANGELOG.TXT for contributors.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation; either version 2
+ * of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, you may find one here:
+ * http://www.gnu.org/licenses/old-licenses/gpl-2.0.html
+ * or you may search the http://www.gnu.org website for the version 2 license,
+ * or you may write to the Free Software Foundation, Inc.,
+ * 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
+ */
+
 /**
  * @file class_marker_base.cpp
  * @brief Implementation of MARKER_BASE class.
@@ -19,12 +43,12 @@
 
 
 // Default marquer shape:
-#define M_SHAPE_SCALE 6     // default scaling factor for MarkerShapeCorners coordinates
-#define CORNERS_COUNT 8
-/* corners of the default shape
+const int      M_SHAPE_SCALE = 6;     // default scaling factor for MarkerShapeCorners coordinates
+/* The graphic shape of markers is a polygon.
+ * MarkerShapeCorners contains the coordinates of corners of the polygonal default shape
  * actual coordinates are these values * .m_ScalingFactor
 */
-static const wxPoint MarkerShapeCorners[CORNERS_COUNT] =
+static const wxPoint MarkerShapeCorners[] =
 {
     wxPoint( 0,  0 ),
     wxPoint( 8,  1 ),
@@ -35,6 +59,7 @@ static const wxPoint MarkerShapeCorners[CORNERS_COUNT] =
     wxPoint( 3,  4 ),
     wxPoint( 1,  8 )
 };
+const unsigned CORNERS_COUNT = DIM( MarkerShapeCorners );
 
 /*******************/
 /* Classe MARKER_BASE */
@@ -42,14 +67,15 @@ static const wxPoint MarkerShapeCorners[CORNERS_COUNT] =
 
 void MARKER_BASE::init()
 {
-    m_MarkerType = 0;
+    m_MarkerType = MARKER_UNSPEC;
+    m_ErrorLevel = MARKER_SEVERITY_UNSPEC;
     m_Color = RED;
     wxPoint start = MarkerShapeCorners[0];
     wxPoint end = MarkerShapeCorners[0];
+
     for( unsigned ii = 0; ii < CORNERS_COUNT; ii++ )
     {
         wxPoint corner = MarkerShapeCorners[ii];
-        m_Corners.push_back( corner );
         start.x = std::min( start.x, corner.x);
         start.y = std::min( start.y, corner.y);
         end.x = std::max( end.x, corner.x);
@@ -64,7 +90,7 @@ void MARKER_BASE::init()
 MARKER_BASE::MARKER_BASE( const MARKER_BASE& aMarker )
 {
     m_Pos = aMarker.m_Pos;
-    m_Corners = aMarker.m_Corners;
+    m_ErrorLevel = aMarker.m_ErrorLevel;
     m_MarkerType = aMarker.m_MarkerType;
     m_Color = aMarker.m_Color;
     m_ShapeBoundingBox = aMarker.m_ShapeBoundingBox;
@@ -154,9 +180,9 @@ void MARKER_BASE::DrawMarker( EDA_DRAW_PANEL* aPanel, wxDC* aDC, GR_DRAWMODE aDr
 
     GRSetDrawMode( aDC, aDrawMode );
 
-    for( unsigned ii = 0; ii < m_Corners.size(); ii++ )
+    for( unsigned ii = 0; ii < CORNERS_COUNT; ii++ )
     {
-        corners[ii] = m_Corners[ii];
+        corners[ii] = MarkerShapeCorners[ii];
         corners[ii].x *= m_ScalingFactor;
         corners[ii].y *= m_ScalingFactor;
         corners[ii] += m_Pos + aOffset;

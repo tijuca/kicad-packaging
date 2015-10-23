@@ -5,8 +5,8 @@
 /*
  * This program source code file is part of KICAD, a free EDA CAD application.
  *
- * Copyright (C) 12011 jean-pierre.charras
- * Copyright (C) 2011 Kicad Developers, see change_log.txt for contributors.
+ * Copyright (C) 2015 jean-pierre.charras
+ * Copyright (C) 2015 Kicad Developers, see change_log.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -30,7 +30,7 @@
 #include <pcb_calculator.h>
 #include <attenuator_classes.h>
 
-extern double ReturnDoubleFromString( const wxString& TextValue );
+extern double DoubleFromString( const wxString& TextValue );
 
 // Called on a attenuator selection
 void PCB_CALCULATOR_FRAME::OnAttenuatorSelection( wxCommandEvent& event )
@@ -46,7 +46,7 @@ void PCB_CALCULATOR_FRAME::SetAttenuator( unsigned aIdx )
         aIdx = m_attenuator_list.size() - 1;
     m_currAttenuator = m_attenuator_list[aIdx];
     TransfAttenuatorDataToPanel();
-    m_Attenuator_Messages->Clear();
+    m_Attenuator_Messages->SetPage( wxEmptyString );
     m_Att_R1_Value->SetValue( wxEmptyString );
     m_Att_R2_Value->SetValue( wxEmptyString );
     m_Att_R3_Value->SetValue( wxEmptyString );
@@ -66,11 +66,11 @@ void PCB_CALCULATOR_FRAME::TransfPanelDataToAttenuator()
     wxString msg;
 
     msg = m_AttValueCtrl->GetValue();
-    m_currAttenuator->m_Attenuation = ReturnDoubleFromString(msg);
+    m_currAttenuator->m_Attenuation = DoubleFromString(msg);
     msg = m_ZinValueCtrl->GetValue();
-    m_currAttenuator->m_Zin = ReturnDoubleFromString(msg);
+    m_currAttenuator->m_Zin = DoubleFromString(msg);
     msg = m_ZoutValueCtrl->GetValue();
-    m_currAttenuator->m_Zout = ReturnDoubleFromString(msg);
+    m_currAttenuator->m_Zout = DoubleFromString(msg);
 }
 
 
@@ -83,10 +83,12 @@ void PCB_CALCULATOR_FRAME::TransfAttenuatorDataToPanel()
     m_AttValueCtrl->Enable( m_currAttenuator->m_Attenuation_Enable );
 
     m_ZinValueCtrl->Enable( m_currAttenuator->m_Zin_Enable );
+
     if( m_currAttenuator->m_Zin_Enable )
         msg.Printf( wxT( "%g" ), m_currAttenuator->m_Zin );
     else
-        msg.Clear();;
+        msg.Clear();
+
     m_ZinValueCtrl->SetValue( msg );
 
     msg.Printf( wxT( "%g" ), m_currAttenuator->m_Zout );
@@ -98,13 +100,17 @@ void PCB_CALCULATOR_FRAME::TransfAttenuatorResultsToPanel()
 {
     wxString msg;
 
-    m_Attenuator_Messages->Clear();
+    m_Attenuator_Messages->SetPage( wxEmptyString );
 
     if( m_currAttenuator->m_Error )
     {
-        msg.Printf( _( "Error!\nSet attenuation more than %f dB" ),
+        msg.Printf( _( "Attenuation more than %f dB" ),
                     m_currAttenuator->m_MinimumATT );
-        m_Attenuator_Messages->AppendText( msg );
+        m_Attenuator_Messages->AppendToPage( wxT( "<br><b>Error!</b></br><br><em>" ) );
+        m_Attenuator_Messages->AppendToPage( msg );
+        m_Attenuator_Messages->AppendToPage( wxT( "</em></br>" ) );
+
+        // Display -- as resistor values:
         msg = wxT( "--" );
         m_Att_R1_Value->SetValue( msg );
         m_Att_R2_Value->SetValue( msg );

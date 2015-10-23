@@ -1,8 +1,8 @@
 /*
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
- * Copyright (C) 2004 Jean-Pierre Charras, jaen-pierre.charras@gipsa-lab.inpg.com
- * Copyright (C) 2004-2011 KiCad Developers, see change_log.txt for contributors.
+ * Copyright (C) 2013 Jean-Pierre Charras, jp.charras at wanadoo.fr
+ * Copyright (C) 2004-2013 KiCad Developers, see change_log.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -33,11 +33,10 @@
 #include <drawtxt.h>
 #include <class_drawpanel.h>
 #include <confirm.h>
-#include <wxEeschemaStruct.h>
+#include <schframe.h>
 #include <kicad_device_context.h>
 
 #include <general.h>
-#include <protos.h>
 #include <sch_text.h>
 #include <eeschema_id.h>
 
@@ -72,25 +71,25 @@ SCH_TEXT* SCH_EDIT_FRAME::CreateNewText( wxDC* aDC, int aType )
 {
     SCH_TEXT* textItem = NULL;
 
-    m_itemToRepeat = NULL;
+    SetRepeatItem( NULL );
 
     switch( aType )
     {
     case LAYER_NOTES:
-        textItem = new SCH_TEXT( GetScreen()->GetCrossHairPosition() );
+        textItem = new SCH_TEXT( GetCrossHairPosition() );
         break;
 
     case LAYER_LOCLABEL:
-        textItem = new SCH_LABEL( GetScreen()->GetCrossHairPosition() );
+        textItem = new SCH_LABEL( GetCrossHairPosition() );
         break;
 
     case LAYER_HIERLABEL:
-        textItem = new SCH_HIERLABEL( GetScreen()->GetCrossHairPosition() );
+        textItem = new SCH_HIERLABEL( GetCrossHairPosition() );
         textItem->SetShape( lastGlobalLabelShape );
         break;
 
     case LAYER_GLOBLABEL:
-        textItem = new SCH_GLOBALLABEL( GetScreen()->GetCrossHairPosition() );
+        textItem = new SCH_GLOBALLABEL( GetCrossHairPosition() );
         textItem->SetShape( lastGlobalLabelShape );
         break;
 
@@ -99,32 +98,33 @@ SCH_TEXT* SCH_EDIT_FRAME::CreateNewText( wxDC* aDC, int aType )
         return NULL;
     }
 
-    textItem->m_Bold = lastTextBold;
-    textItem->m_Italic = lastTextItalic;
+    textItem->SetBold( lastTextBold );
+    textItem->SetItalic( lastTextItalic );
     textItem->SetOrientation( lastTextOrientation );
-    textItem->m_Size.x = textItem->m_Size.y = GetDefaultLabelSize();
+    textItem->SetSize( wxSize( GetDefaultTextSize(), GetDefaultTextSize() ) );
     textItem->SetFlags( IS_NEW | IS_MOVED );
 
-    textItem->Draw( m_canvas, aDC, wxPoint( 0, 0 ), g_XorMode );
     EditSchematicText( textItem );
 
-    if( textItem->m_Text.IsEmpty() )
+    if( textItem->GetText().IsEmpty() )
     {
-        SAFE_DELETE( textItem );
+        delete textItem;
         return NULL;
     }
 
-    lastTextBold = textItem->m_Bold;
-    lastTextItalic = textItem->m_Italic;
+    lastTextBold = textItem->IsBold();
+    lastTextItalic = textItem->IsItalic();
     lastTextOrientation = textItem->GetOrientation();
 
-    if( (aType == SCH_GLOBAL_LABEL_T) || (aType == SCH_HIERARCHICAL_LABEL_T) )
+    if( ( textItem->Type() == SCH_GLOBAL_LABEL_T ) ||
+        ( textItem->Type() == SCH_HIERARCHICAL_LABEL_T ) )
     {
         lastGlobalLabelShape = textItem->GetShape();
     }
 
-    textItem->Draw( m_canvas, aDC, wxPoint( 0, 0 ), GR_DEFAULT_DRAWMODE );
-    MoveItem( (SCH_ITEM*) textItem, aDC );
+    // Prepare display to move the new item
+    textItem->Draw( m_canvas, aDC, wxPoint( 0, 0 ), g_XorMode );
+    PrepareMoveItem( (SCH_ITEM*) textItem, aDC );
 
     return textItem;
 }
@@ -176,23 +176,25 @@ void SCH_EDIT_FRAME::OnConvertTextType( wxCommandEvent& aEvent )
         return;
 
     SCH_TEXT* newtext;
+    const wxPoint &position = text->GetPosition();
+    const wxString &txt = text->GetText();
 
     switch( type )
     {
     case SCH_LABEL_T:
-        newtext = new SCH_LABEL( text->m_Pos, text->m_Text );
+        newtext = new SCH_LABEL( position, txt );
         break;
 
     case SCH_GLOBAL_LABEL_T:
-        newtext = new SCH_GLOBALLABEL( text->m_Pos, text->m_Text );
+        newtext = new SCH_GLOBALLABEL( position, txt );
         break;
 
     case SCH_HIERARCHICAL_LABEL_T:
-        newtext = new SCH_HIERLABEL( text->m_Pos, text->m_Text );
+        newtext = new SCH_HIERLABEL( position, txt );
         break;
 
     case SCH_TEXT_T:
-        newtext = new SCH_TEXT( text->m_Pos, text->m_Text );
+        newtext = new SCH_TEXT( position, txt );
         break;
 
     default:
@@ -208,10 +210,10 @@ void SCH_EDIT_FRAME::OnConvertTextType( wxCommandEvent& aEvent )
     newtext->SetFlags( text->GetFlags() );
     newtext->SetShape( text->GetShape() );
     newtext->SetOrientation( text->GetOrientation() );
-    newtext->m_Size = text->m_Size;
-    newtext->m_Thickness = text->m_Thickness;
-    newtext->m_Italic = text->m_Italic;
-    newtext->m_Bold = text->m_Bold;
+    newtext->SetSize( text->GetSize() );
+    newtext->SetThickness( text->GetThickness() );
+    newtext->SetItalic( text->IsItalic() );
+    newtext->SetBold( text->IsBold() );
 
     /* Save the new text in undo list if the old text was not itself a "new created text"
      * In this case, the old text is already in undo list as a deleted item.
@@ -235,7 +237,7 @@ void SCH_EDIT_FRAME::OnConvertTextType( wxCommandEvent& aEvent )
         }
     }
 
-    m_itemToRepeat = NULL;
+    SetRepeatItem( NULL );
     OnModify();
     newtext->Draw( m_canvas, &dc, wxPoint( 0, 0 ), GR_DEFAULT_DRAWMODE );
     m_canvas->CrossHairOn( &dc );    // redraw schematic cursor
@@ -290,9 +292,9 @@ void SCH_EDIT_FRAME::OnConvertTextType( wxCommandEvent& aEvent )
 
 /* Function to increment bus label members numbers,
  * i.e. when a text is ending with a number, adds
- * <RepeatDeltaLabel> to this number
+ * aIncrement to this number
  */
-void IncrementLabelMember( wxString& name )
+void IncrementLabelMember( wxString& name, int aIncrement )
 {
     int  ii, nn;
     long number = 0;
@@ -312,7 +314,7 @@ void IncrementLabelMember( wxString& name )
 
     if( litt_number.ToLong( &number ) )
     {
-        number += g_RepeatDeltaLabel;
+        number += aIncrement;
         name.Remove( ii ); name << number;
     }
 }

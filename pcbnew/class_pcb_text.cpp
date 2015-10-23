@@ -3,7 +3,7 @@
  *
  * Copyright (C) 2012 Jean-Pierre Charras, jean-pierre.charras@ujf-grenoble.fr
  * Copyright (C) 2012 SoftPLC Corporation, Dick Hollenbeck <dick@softplc.com>
- * Copyright (C) 1992-2012 KiCad Developers, see AUTHORS.txt for contributors.
+ * Copyright (C) 1992-2015 KiCad Developers, see AUTHORS.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -35,18 +35,16 @@
 #include <drawtxt.h>
 #include <kicad_string.h>
 #include <trigo.h>
-#include <pcbcommon.h>
 #include <colors_selection.h>
 #include <richio.h>
 #include <class_drawpanel.h>
 #include <macros.h>
+#include <wxBasePcbFrame.h>
 #include <msgpanel.h>
 #include <base_units.h>
 
 #include <class_board.h>
 #include <class_pcb_text.h>
-
-#include <protos.h>
 
 
 TEXTE_PCB::TEXTE_PCB( BOARD_ITEM* parent ) :
@@ -77,7 +75,7 @@ void TEXTE_PCB::Copy( TEXTE_PCB* source )
     m_Bold      = source->m_Bold;
     m_HJustify  = source->m_HJustify;
     m_VJustify  = source->m_VJustify;
-    m_MultilineAllowed = m_MultilineAllowed;
+    m_MultilineAllowed = source->m_MultilineAllowed;
 
     m_Text = source->m_Text;
 }
@@ -94,59 +92,79 @@ void TEXTE_PCB::Draw( EDA_DRAW_PANEL* panel, wxDC* DC,
     EDA_COLOR_T color = brd->GetLayerColor( m_Layer );
 
     EDA_DRAW_MODE_T fillmode = FILLED;
+    DISPLAY_OPTIONS* displ_opts =
+        panel ? (DISPLAY_OPTIONS*)panel->GetDisplayOptions() : NULL;
 
-    if( DisplayOpt.DisplayDrawItems == SKETCH )
+    if( displ_opts && displ_opts->m_DisplayDrawItemsFill == SKETCH )
         fillmode = SKETCH;
+
+    // shade text if high contrast mode is active
+    if( ( DrawMode & GR_ALLOW_HIGHCONTRAST ) && displ_opts && displ_opts->m_ContrastModeDisplay )
+    {
+        LAYER_ID curr_layer = ( (PCB_SCREEN*) panel->GetScreen() )->m_Active_Layer;
+
+        if( !IsOnLayer( curr_layer ) )
+            ColorTurnToDarkDarkGray( &color );
+    }
 
     EDA_COLOR_T anchor_color = UNSPECIFIED_COLOR;
 
     if( brd->IsElementVisible( ANCHOR_VISIBLE ) )
         anchor_color = brd->GetVisibleElementColor( ANCHOR_VISIBLE );
 
-    EDA_TEXT::Draw( panel, DC, offset, color,
+    EDA_RECT* clipbox = panel? panel->GetClipBox() : NULL;
+    EDA_TEXT::Draw( clipbox, DC, offset, color,
                     DrawMode, fillmode, anchor_color );
+
+    // Enable these line to draw the bounding box (debug tests purposes only)
+#if 0
+    {
+        EDA_RECT BoundaryBox = GetBoundingBox();
+        GRRect( clipbox, DC, BoundaryBox, 0, BROWN );
+    }
+#endif
 }
 
 
 void TEXTE_PCB::GetMsgPanelInfo( std::vector< MSG_PANEL_ITEM >& aList )
 {
     wxString    msg;
-    BOARD*      board;
-    BOARD_ITEM* parent = (BOARD_ITEM*) m_Parent;
 
-    wxASSERT( parent );
+    wxCHECK_RET( m_Parent != NULL, wxT( "TEXTE_PCB::GetMsgPanelInfo() m_Parent is NULL." ) );
 
-    if( parent->Type() == PCB_DIMENSION_T )
-        board = (BOARD*) parent->GetParent();
+    if( m_Parent->Type() == PCB_DIMENSION_T )
+        aList.push_back( MSG_PANEL_ITEM( _( "Dimension" ), GetShownText(), DARKGREEN ) );
     else
-        board = (BOARD*) parent;
+        aList.push_back( MSG_PANEL_ITEM( _( "PCB Text" ), GetShownText(), DARKGREEN ) );
 
-    wxASSERT( board );
-
-    if( m_Parent && m_Parent->Type() == PCB_DIMENSION_T )
-        aList.push_back( MSG_PANEL_ITEM( _( "DIMENSION" ), m_Text, DARKGREEN ) );
-    else
-        aList.push_back( MSG_PANEL_ITEM( _( "PCB Text" ), m_Text, DARKGREEN ) );
-
-    aList.push_back( MSG_PANEL_ITEM( _( "Layer" ),
-                                     board->GetLayerName( m_Layer ), BLUE ) );
+    aList.push_back( MSG_PANEL_ITEM( _( "Layer" ), GetLayerName(), BLUE ) );
 
     if( !m_Mirror )
         aList.push_back( MSG_PANEL_ITEM( _( "Mirror" ), _( "No" ), DARKGREEN ) );
     else
         aList.push_back( MSG_PANEL_ITEM( _( "Mirror" ), _( "Yes" ), DARKGREEN ) );
 
-    msg.Printf( wxT( "%.1f" ), (float) m_Orient / 10 );
-    aList.push_back( MSG_PANEL_ITEM( _( "Orientation" ), msg, DARKGREEN ) );
+    msg.Printf( wxT( "%.1f" ), m_Orient / 10.0 );
+    aList.push_back( MSG_PANEL_ITEM( _( "Angle" ), msg, DARKGREEN ) );
 
     msg = ::CoordinateToString( m_Thickness );
     aList.push_back( MSG_PANEL_ITEM( _( "Thickness" ), msg, MAGENTA ) );
 
     msg = ::CoordinateToString( m_Size.x );
-    aList.push_back( MSG_PANEL_ITEM( _( "Size X" ), msg, RED ) );
+    aList.push_back( MSG_PANEL_ITEM( _( "Width" ), msg, RED ) );
 
     msg = ::CoordinateToString( m_Size.y );
-    aList.push_back( MSG_PANEL_ITEM( _( "Size Y" ), msg, RED ) );
+    aList.push_back( MSG_PANEL_ITEM( _( "Height" ), msg, RED ) );
+}
+
+const EDA_RECT TEXTE_PCB::GetBoundingBox() const
+{
+    EDA_RECT rect = GetTextBox( -1, -1 );
+
+    if( m_Orient )
+        rect = rect.GetBoundingBoxRotated( m_Pos, m_Orient );
+
+    return rect;
 }
 
 
@@ -161,29 +179,17 @@ void TEXTE_PCB::Rotate( const wxPoint& aRotCentre, double aAngle )
 void TEXTE_PCB::Flip(const wxPoint& aCentre )
 {
     m_Pos.y  = aCentre.y - ( m_Pos.y - aCentre.y );
-//    NEGATE( m_Orient );   not needed: m_Mirror handles this
-    if( GetLayer() == LAYER_N_BACK
-        || GetLayer() == LAYER_N_FRONT
-        || GetLayer() == SILKSCREEN_N_BACK
-        || GetLayer() == SILKSCREEN_N_FRONT )
-    {
-        m_Mirror = not m_Mirror;      /* inverse mirror */
-    }
-    SetLayer( BOARD::ReturnFlippedLayerNumber( GetLayer() ) );
+    SetLayer( FlipLayer( GetLayer() ) );
+    m_Mirror = !m_Mirror;
 }
 
 
 wxString TEXTE_PCB::GetSelectMenuText() const
 {
-    wxString text, shorttxt;
+    wxString text;
 
-    if( m_Text.Len() < 12 )
-        shorttxt << m_Text;
-    else
-        shorttxt += m_Text.Left( 10 ) + wxT( ".." );
-
-    text.Printf( _( "Pcb Text %s on %s"),
-                 GetChars ( shorttxt ), GetChars( GetLayerName() ) );
+    text.Printf( _( "Pcb Text \"%s\" on %s"),
+                 GetChars ( ShortenedShownText() ), GetChars( GetLayerName() ) );
 
     return text;
 }
@@ -193,19 +199,3 @@ EDA_ITEM* TEXTE_PCB::Clone() const
 {
     return new TEXTE_PCB( *this );
 }
-
-
-#if defined(DEBUG)
-
-void TEXTE_PCB::Show( int nestLevel, std::ostream& os ) const
-{
-    // for now, make it look like XML:
-    NestedSpace( nestLevel, os ) << '<' << GetClass().Lower().mb_str() <<
-    " string=\"" << m_Text.mb_str() << "\"/>\n";
-
-//    NestedSpace( nestLevel, os ) << "</" << GetClass().Lower().mb_str()
-//                                 << ">\n";
-}
-
-
-#endif

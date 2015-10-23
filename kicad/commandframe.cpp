@@ -35,80 +35,59 @@
 #include <menus_helpers.h>
 
 
-RIGHT_KM_FRAME::RIGHT_KM_FRAME( KICAD_MANAGER_FRAME* parent ) :
-    wxSashLayoutWindow( parent, wxID_ANY )
+LAUNCHER_PANEL::LAUNCHER_PANEL( wxWindow* parent ) :
+    wxPanel( parent, wxID_ANY )
 {
-    m_Parent    = parent;
-    m_MessagesBox = NULL;
     m_bitmapButtons_maxHeigth = 0;
-    m_ButtonSeparation = 10;        // control of command buttons position
-    m_ButtonsListPosition.x = m_ButtonSeparation;
-    m_ButtonsListPosition.y = m_ButtonSeparation;
-    m_ButtonLastPosition    = m_ButtonsListPosition;
+    m_buttonSeparation = 10;        // control of command buttons position
+    m_buttonsListPosition.x = m_buttonSeparation;
+    m_buttonsListPosition.y = m_buttonSeparation;
+    m_buttonLastPosition    = m_buttonsListPosition;
 
     // Add bitmap buttons to launch KiCad utilities:
-    m_ButtPanel = new wxPanel( this, wxID_ANY );
     CreateCommandToolbar();
-    m_ButtonsPanelHeight    = m_ButtonsListPosition.y + m_bitmapButtons_maxHeigth + m_ButtonSeparation;
-
-    // Add the wxTextCtrl showing all messages from KiCad:
-    m_MessagesBox = new wxTextCtrl( this, wxID_ANY, wxEmptyString,
-                                  wxDefaultPosition, wxDefaultSize,
-                                  wxTE_MULTILINE | wxSUNKEN_BORDER | wxTE_READONLY );
 }
 
-
-void RIGHT_KM_FRAME::OnSize( wxSizeEvent& event )
+int LAUNCHER_PANEL::GetPanelHeight() const
 {
-    #define EXTRA_MARGE 4
-    wxSize  wsize;
-    wsize.x = GetClientSize().x;
-
-    // Fix size of buttons area
-    wsize.y = m_ButtonsPanelHeight;
-    m_ButtPanel->SetSize( wsize );
-
-    // Fix position and size of the message area, below the buttons area
-    wsize.y = GetClientSize().y - m_ButtonsPanelHeight;
-    m_MessagesBox->SetSize( wsize );
-    m_MessagesBox->SetPosition( wxPoint( 0, m_ButtonsPanelHeight ) );
-
-    event.Skip();
+    int height = m_buttonsListPosition.y + m_bitmapButtons_maxHeigth
+                 + m_buttonSeparation;
+    return height;
 }
-
-
-BEGIN_EVENT_TABLE( RIGHT_KM_FRAME, wxSashLayoutWindow )
-EVT_SIZE( RIGHT_KM_FRAME::OnSize )
-END_EVENT_TABLE()
-
 
 /**
  * Function CreateCommandToolbar
  * create the buttons to call Eeschema CvPcb, Pcbnew and GerbView
  */
-void RIGHT_KM_FRAME::CreateCommandToolbar( void )
+void LAUNCHER_PANEL::CreateCommandToolbar()
 {
     wxBitmapButton* btn;
 
-    btn = AddBitmapButton( ID_TO_EESCHEMA, KiBitmap( icon_eeschema_xpm ) );
-    btn->SetToolTip( _( "Eeschema (Schematic editor)" ) );
+    btn = AddBitmapButton( ID_TO_SCH, KiBitmap( icon_eeschema_xpm ) );
+    btn->SetToolTip( _( "Eeschema - Electronic schematic editor" ) );
 
-    btn = AddBitmapButton( ID_TO_CVPCB, KiBitmap( icon_cvpcb_xpm ) );
-    btn->SetToolTip( _( "CvPcb (Components to modules)" ) );
+    btn = AddBitmapButton( ID_TO_SCH_LIB_EDITOR, KiBitmap( libedit_icon_xpm ) );
+    btn->SetToolTip( _( "Schematic library editor" ) );
 
     btn = AddBitmapButton( ID_TO_PCB, KiBitmap( icon_pcbnew_xpm ) );
-    btn->SetToolTip( _( "Pcbnew (PCB editor)" ) );
+    btn->SetToolTip( _( "Pcbnew - Printed circuit board editor" ) );
+
+    btn = AddBitmapButton( ID_TO_PCB_FP_EDITOR, KiBitmap( icon_modedit_xpm ) );
+    btn->SetToolTip( _( "PCB footprint editor" ) );
 
     btn = AddBitmapButton( ID_TO_GERBVIEW, KiBitmap( icon_gerbview_xpm ) );
-    btn->SetToolTip( _( "GerbView (Gerber viewer)" ) );
+    btn->SetToolTip( _( "GerbView - Gerber viewer" ) );
 
     btn = AddBitmapButton( ID_TO_BITMAP_CONVERTER, KiBitmap( icon_bitmap2component_xpm ) );
     btn->SetToolTip( _(
-                        "Bitmap2Component (a tool to build a logo from a bitmap)\n\
-Creates a component (for Eeschema) or a footprint (for Pcbnew) that shows a B&W picture"                                                                                     ) );
+                        "Bitmap2Component - Convert bitmap images to Eeschema\n"
+                        "or Pcbnew elements" ) );
 
     btn = AddBitmapButton( ID_TO_PCB_CALCULATOR, KiBitmap( icon_pcbcalculator_xpm ) );
-    btn->SetToolTip( _( "Pcb calculator, the Swiss army knife..." ) );
+    btn->SetToolTip( _( "Pcb calculator - Calculator for components, track width, etc." ) );
+
+    btn = AddBitmapButton( ID_TO_PL_EDITOR, KiBitmap( icon_pagelayout_editor_xpm ) );
+    btn->SetToolTip( _( "Pl editor - Worksheet layout editor" ) );
 }
 
 
@@ -118,9 +97,9 @@ Creates a component (for Eeschema) or a footprint (for Pcbnew) that shows a B&W 
  * @param aId = the button id
  * @param aBitmap = the wxBitmap used to create the button
  */
-wxBitmapButton* RIGHT_KM_FRAME::AddBitmapButton( wxWindowID aId, const wxBitmap& aBitmap  )
+wxBitmapButton* LAUNCHER_PANEL::AddBitmapButton( wxWindowID aId, const wxBitmap& aBitmap  )
 {
-    wxPoint buttPos = m_ButtonLastPosition;
+    wxPoint buttPos = m_buttonLastPosition;
     wxSize  buttSize;
     int     btn_margin = 10;     // extra margin around the bitmap.
 
@@ -130,8 +109,8 @@ wxBitmapButton* RIGHT_KM_FRAME::AddBitmapButton( wxWindowID aId, const wxBitmap&
     if( m_bitmapButtons_maxHeigth < buttSize.y )
         m_bitmapButtons_maxHeigth = buttSize.y;
 
-    wxBitmapButton* btn = new wxBitmapButton( m_ButtPanel, aId, aBitmap, buttPos, buttSize );
-    m_ButtonLastPosition.x += buttSize.x + m_ButtonSeparation;
+    wxBitmapButton* btn = new wxBitmapButton( this, aId, aBitmap, buttPos, buttSize );
+    m_buttonLastPosition.x += buttSize.x + m_buttonSeparation;
 
     return btn;
 }

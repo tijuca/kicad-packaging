@@ -1,3 +1,27 @@
+/*
+ * This program source code file is part of KiCad, a free EDA CAD application.
+ *
+ * Copyright (C) 2014 Jean-Pierre Charras, jp.charras at wanadoo.fr
+ * Copyright (C) 2014 KiCad Developers, see CHANGELOG.TXT for contributors.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation; either version 2
+ * of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, you may find one here:
+ * http://www.gnu.org/licenses/old-licenses/gpl-2.0.html
+ * or you may search the http://www.gnu.org website for the version 2 license,
+ * or you may write to the Free Software Foundation, Inc.,
+ * 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
+ */
+
 /**
  * @file trigo.cpp
  * @brief Trigonometric and geometric basic functions.
@@ -8,6 +32,92 @@
 #include <trigo.h>
 #include <common.h>
 #include <math_for_graphics.h>
+
+// Returns true if the point P is on the segment S.
+// faster than TestSegmentHit() because P should be exactly on S
+// therefore works fine only for H, V and 45 deg segm (suitable for wires in eeschema)
+bool IsPointOnSegment( const wxPoint& aSegStart, const wxPoint& aSegEnd,
+                       const wxPoint& aTestPoint )
+{
+    wxPoint vectSeg   = aSegEnd - aSegStart;    // Vector from S1 to S2
+    wxPoint vectPoint = aTestPoint - aSegStart; // Vector from S1 to P
+
+    // Use long long here to avoid overflow in calculations
+    if( (long long) vectSeg.x * vectPoint.y - (long long) vectSeg.y * vectPoint.x )
+        return false;        /* Cross product non-zero, vectors not parallel */
+
+    if( ( (long long) vectSeg.x * vectPoint.x + (long long) vectSeg.y * vectPoint.y ) <
+        ( (long long) vectPoint.x * vectPoint.x + (long long) vectPoint.y * vectPoint.y ) )
+        return false;          /* Point not on segment */
+
+    return true;
+}
+
+
+// Returns true if the segment 1 intersectd the segment 2.
+bool SegmentIntersectsSegment( const wxPoint &a_p1_l1, const wxPoint &a_p2_l1,
+                               const wxPoint &a_p1_l2, const wxPoint &a_p2_l2 )
+{
+
+    //We are forced to use 64bit ints because the internal units can oveflow 32bit ints when
+    // multiplied with each other, the alternative would be to scale the units down (i.e. divide
+    // by a fixed number).
+    long long dX_a, dY_a, dX_b, dY_b, dX_ab, dY_ab;
+    long long num_a, num_b, den;
+
+    //Test for intersection within the bounds of both line segments using line equations of the
+    // form:
+    // x_k(u_k) = u_k * dX_k + x_k(0)
+    // y_k(u_k) = u_k * dY_k + y_k(0)
+    // with  0 <= u_k <= 1 and k = [ a, b ]
+
+    dX_a  = a_p2_l1.x - a_p1_l1.x;
+    dY_a  = a_p2_l1.y - a_p1_l1.y;
+    dX_b  = a_p2_l2.x - a_p1_l2.x;
+    dY_b  = a_p2_l2.y - a_p1_l2.y;
+    dX_ab = a_p1_l2.x - a_p1_l1.x;
+    dY_ab = a_p1_l2.y - a_p1_l1.y;
+
+    den   = dY_a  * dX_b - dY_b * dX_a ;
+
+    //Check if lines are parallel
+    if( den == 0 )
+        return false;
+
+    num_a = dY_ab * dX_b - dY_b * dX_ab;
+    num_b = dY_ab * dX_a - dY_a * dX_ab;
+
+    //We wont calculate directly the u_k of the intersection point to avoid floating point
+    // division but they could be calculated with:
+    // u_a = (float) num_a / (float) den;
+    // u_b = (float) num_b / (float) den;
+
+    if( den < 0 )
+    {
+        den   = -den;
+        num_a = -num_a;
+        num_b = -num_b;
+    }
+
+    //Test sign( u_a ) and return false if negative
+    if( num_a < 0 )
+        return false;
+
+    //Test sign( u_b ) and return false if negative
+    if( num_b < 0 )
+        return false;
+
+    //Test to ensure (u_a <= 1)
+    if( num_a > den )
+        return false;
+
+    //Test to ensure (u_b <= 1)
+    if( num_b > den )
+        return false;
+
+    return true;
+}
+
 
 /* Function TestSegmentHit
  * test for hit on line segment
@@ -29,7 +139,8 @@ static inline double square( int x )    // helper function to calculate x*x
 {
     return (double) x * x;
 }
-bool TestSegmentHit( wxPoint aRefPoint, wxPoint aStart, wxPoint aEnd, int aDist )
+bool TestSegmentHit( const wxPoint &aRefPoint, wxPoint aStart,
+                     wxPoint aEnd, int aDist )
 {
     // test for vertical or horizontal segment
     if( aEnd.x == aStart.x )
@@ -42,7 +153,7 @@ bool TestSegmentHit( wxPoint aRefPoint, wxPoint aStart, wxPoint aEnd, int aDist 
 
         // To have only one case to examine, ensure aEnd.y > aStart.y
         if( aEnd.y < aStart.y )
-            EXCHG( aStart.y, aEnd.y );
+            std::swap( aStart.y, aEnd.y );
 
         if( aRefPoint.y <= aEnd.y && aRefPoint.y >= aStart.y )
             return true;
@@ -75,7 +186,7 @@ bool TestSegmentHit( wxPoint aRefPoint, wxPoint aStart, wxPoint aEnd, int aDist 
 
         // To have only one case to examine, ensure xf > xi
         if( aEnd.x < aStart.x )
-            EXCHG( aStart.x, aEnd.x );
+            std::swap( aStart.x, aEnd.x );
 
         if( aRefPoint.x <= aEnd.x && aRefPoint.x >= aStart.x )
             return true;
@@ -84,7 +195,7 @@ bool TestSegmentHit( wxPoint aRefPoint, wxPoint aStart, wxPoint aEnd, int aDist 
         // the distance should be carefully calculated
         if( (aStart.x - aRefPoint.x) <= aDist )
         {
-            double dd = square( aRefPoint.x - aStart.x) +
+            double dd = square( aRefPoint.x - aStart.x ) +
                         square( aRefPoint.y - aStart.y );
             if( dd <= square( aDist ) )
                 return true;
@@ -92,8 +203,8 @@ bool TestSegmentHit( wxPoint aRefPoint, wxPoint aStart, wxPoint aEnd, int aDist 
 
         if( (aRefPoint.x - aEnd.x) <= aDist )
         {
-            double dd = square(aRefPoint.x - aEnd.x) +
-                        square( aRefPoint.y - aEnd.y);
+            double dd = square( aRefPoint.x - aEnd.x ) +
+                        square( aRefPoint.y - aEnd.y );
             if( dd <= square( aDist ) )
                 return true;
         }
@@ -157,9 +268,14 @@ bool TestSegmentHit( wxPoint aRefPoint, wxPoint aStart, wxPoint aEnd, int aDist 
 }
 
 
-int ArcTangente( int dy, int dx )
+double ArcTangente( int dy, int dx )
 {
-    double fangle;
+
+    /* gcc is surprisingly smart in optimizing these conditions in
+       a tree! */
+
+    if( dx == 0 && dy == 0 )
+        return 0;
 
     if( dy == 0 )
     {
@@ -193,8 +309,8 @@ int ArcTangente( int dy, int dx )
             return 1800 - 450;
     }
 
-    fangle = atan2( (double) dy, (double) dx ) / M_PI * 1800;
-    return KiROUND( fangle );
+    // Of course dy and dx are treated as double
+    return RAD2DECIDEG( atan2( dy, dx ) );
 }
 
 
@@ -202,11 +318,7 @@ void RotatePoint( int* pX, int* pY, double angle )
 {
     int tmp;
 
-    while( angle < 0 )
-        angle += 3600;
-
-    while( angle >= 3600 )
-        angle -= 3600;
+    NORMALIZE_ANGLE_POS( angle );
 
     // Cheap and dirty optimizations for 0, 90, 180, and 270 degrees.
     if( angle == 0 )
@@ -231,7 +343,7 @@ void RotatePoint( int* pX, int* pY, double angle )
     }
     else
     {
-        double fangle = DEG2RAD( angle / 10.0 );
+        double fangle = DECIDEG2RAD( angle );
         double sinus = sin( fangle );
         double cosinus = cos( fangle );
         double fpx = (*pY * sinus ) + (*pX * cosinus );
@@ -287,11 +399,7 @@ void RotatePoint( double* pX, double* pY, double angle )
 {
     double tmp;
 
-    while( angle < 0 )
-        angle += 3600;
-
-    while( angle >= 3600 )
-        angle -= 3600;
+    NORMALIZE_ANGLE_POS( angle );
 
     // Cheap and dirty optimizations for 0, 90, 180, and 270 degrees.
     if( angle == 0 )
@@ -316,7 +424,7 @@ void RotatePoint( double* pX, double* pY, double angle )
     }
     else
     {
-        double fangle = DEG2RAD( angle / 10.0 );
+        double fangle = DECIDEG2RAD( angle );
         double sinus = sin( fangle );
         double cosinus = cos( fangle );
 
@@ -325,39 +433,4 @@ void RotatePoint( double* pX, double* pY, double angle )
         *pX = fpx;
         *pY = fpy;
     }
-}
-
-
-double EuclideanNorm( wxPoint vector )
-{
-    return hypot( (double) vector.x, (double) vector.y );
-}
-
-double DistanceLinePoint( wxPoint linePointA, wxPoint linePointB, wxPoint referencePoint )
-{
-    return fabs( (double) ( (linePointB.x - linePointA.x) * (linePointA.y - referencePoint.y) -
-                 (linePointA.x - referencePoint.x ) * (linePointB.y - linePointA.y) )
-                  / EuclideanNorm( linePointB - linePointA ) );
-}
-
-
-bool HitTestPoints( wxPoint pointA, wxPoint pointB, double threshold )
-{
-    wxPoint vectorAB = pointB - pointA;
-    double  distance = EuclideanNorm( vectorAB );
-
-    return distance < threshold;
-}
-
-
-double CrossProduct( wxPoint vectorA, wxPoint vectorB )
-{
-    return (double)vectorA.x * vectorB.y - (double)vectorA.y * vectorB.x;
-}
-
-
-double GetLineLength( const wxPoint& aPointA, const wxPoint& aPointB )
-{
-    return hypot( (double) aPointA.x - (double) aPointB.x,
-                  (double) aPointA.y - (double) aPointB.y );
 }

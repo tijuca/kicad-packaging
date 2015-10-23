@@ -72,7 +72,8 @@ void PCB_LINE::Parse( XNODE*        aNode,
         SetPosition( lNode->GetNodeContent(), aDefaultMeasurementUnit,
                      &m_positionX, &m_positionY, aActualConversion );
 
-    lNode = lNode->GetNext();
+    if( lNode )
+        lNode = lNode->GetNext();
 
     if( lNode )
         SetPosition( lNode->GetNodeContent(), aDefaultMeasurementUnit,
@@ -110,16 +111,16 @@ void PCB_LINE::Flip()
     PCB_COMPONENT::Flip();
 
     m_toX = -m_toX;
-    m_KiCadLayer = FlipLayers( m_KiCadLayer );
+    m_KiCadLayer = FlipLayer( m_KiCadLayer );
 }
 
 
 void PCB_LINE::AddToModule( MODULE* aModule )
 {
-    if( IsValidNonCopperLayerIndex( m_KiCadLayer ) )
+    if( IsNonCopperLayer( m_KiCadLayer ) )
     {
         EDGE_MODULE* segment = new EDGE_MODULE( aModule, S_SEGMENT );
-        aModule->m_Drawings.PushBack( segment );
+        aModule->GraphicalItems().PushBack( segment );
 
         segment->m_Start0   = wxPoint( m_positionX, m_positionY );
         segment->m_End0     = wxPoint( m_toX, m_toY );
@@ -134,7 +135,7 @@ void PCB_LINE::AddToModule( MODULE* aModule )
 
 void PCB_LINE::AddToBoard()
 {
-    if( IsValidCopperLayerIndex( m_KiCadLayer ) )
+    if( IsCopperLayer( m_KiCadLayer ) )
     {
         TRACK* track = new TRACK( m_board );
         m_board->m_Track.Append( track );
@@ -147,7 +148,7 @@ void PCB_LINE::AddToBoard()
         track->SetWidth( m_width );
 
         track->SetLayer( m_KiCadLayer );
-        track->SetNet( m_netCode );
+        track->SetNetCode( m_netCode );
     }
     else
     {

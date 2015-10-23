@@ -3,7 +3,7 @@
 /*
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
- * Copyright (C) 1992-2011 KiCad Developers, see change_log.txt for contributors.
+ * Copyright (C) 1992-2015 KiCad Developers, see change_log.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -24,49 +24,11 @@
  */
 
 #include <wx/wx.h>
-#include <pcb_plot_params_lexer.h>
 #include <eda_text.h>                // EDA_DRAW_MODE_T
 #include <plot_common.h>
 #include <layers_id_colors_and_visibility.h>
 
-class PCB_PLOT_PARAMS;
-class LINE_READER;
-
-
-/**
- * Class PCB_PLOT_PARAMS_PARSER
- * is the parser class for PCB_PLOT_PARAMS.
- */
-class PCB_PLOT_PARAMS_PARSER : public PCB_PLOT_PARAMS_LEXER
-{
-public:
-    PCB_PLOT_PARAMS_PARSER( LINE_READER* aReader );
-    PCB_PLOT_PARAMS_PARSER( char* aLine, const wxString& aSource );
-
-    LINE_READER* GetReader() { return reader; };
-
-    void Parse( PCB_PLOT_PARAMS* aPcbPlotParams ) throw( PARSE_ERROR, IO_ERROR );
-
-private:
-    bool parseBool();
-
-    /**
-     * Function parseInt
-     * parses an integer and constrains it between two values.
-     * @param aMin is the smallest return value.
-     * @param aMax is the largest return value.
-     * @return int - the parsed integer.
-     */
-    int parseInt( int aMin, int aMax );
-
-    /**
-     * Function parseDouble
-     * parses a double
-     * @return double - the parsed double.
-     */
-    double parseDouble();
-};
-
+class PCB_PLOT_PARAMS_PARSER;
 
 /**
  * Class PCB_PLOT_PARAMS
@@ -87,9 +49,10 @@ private:
     // (mainly used to disable NPTH pads plotting on copper layers)
     bool        m_skipNPTH_Pads;
 
-    /** LINE, FILLED or SKETCH selects how to plot filled objects.
-     *  FILLED is not available with all drivers */
-    EDA_DRAW_MODE_T m_mode;
+    /** FILLED or SKETCH selects how to plot filled objects.
+     *  FILLED or SKETCH not available with all drivers: some have fixed mode
+     */
+    EDA_DRAW_MODE_T m_plotMode;
 
     /// Plot format type (chooses the driver to be used)
     PlotFormat  m_format;
@@ -125,11 +88,20 @@ private:
     bool        m_excludeEdgeLayer;
 
     /// Set of layers to plot
-    long        m_layerSelection;
+    LSET        m_layerSelection;
 
     /** When plotting gerbers use a conventional set of extensions instead of
      * appending a suffix to the board name */
     bool        m_useGerberExtensions;
+
+    /// Include attributes from the Gerber X2 format (chapter 5 in revision J2)
+    bool        m_useGerberAttributes;
+
+    /// precision of coordinates in Gerber files: accepted 5 or 6
+    /// when units are in mm (6 or 7 in inches, but Pcbnew uses mm).
+    /// 6 is the internal resolution of Pcbnew, but not alwys accepted by board maker
+    /// 5 is the minimal value for professional boards.
+    int         m_gerberPrecision;
 
     /// Plot gerbers using auxiliary (drill) origin instead of page coordinates
     bool        m_useAuxOrigin;
@@ -151,9 +123,6 @@ private:
 
     /// Enable plotting of part values
     bool        m_plotValue;
-
-    /// Enable plotting of other fields
-    bool        m_plotOtherText;
 
     /// Force plotting of fields marked invisible
     bool        m_plotInvisibleText;
@@ -210,8 +179,8 @@ public:
     void        SetTextMode( PlotTextMode aVal ) { m_textMode = aVal; }
     PlotTextMode GetTextMode() const { return m_textMode; }
 
-    void        SetMode( EDA_DRAW_MODE_T aVal ) { m_mode = aVal; }
-    EDA_DRAW_MODE_T GetMode() const { return m_mode; }
+    void        SetPlotMode( EDA_DRAW_MODE_T aPlotMode ) { m_plotMode = aPlotMode; }
+    EDA_DRAW_MODE_T GetPlotMode() const { return m_plotMode; }
 
     void        SetDrillMarksType( DrillMarksType aVal ) { m_drillMarks = aVal; }
     DrillMarksType GetDrillMarksType() const { return m_drillMarks; }
@@ -237,8 +206,6 @@ public:
 
     void        SetPlotInvisibleText( bool aFlag ) { m_plotInvisibleText = aFlag; }
     bool        GetPlotInvisibleText() const { return m_plotInvisibleText; }
-    void        SetPlotOtherText( bool aFlag ) { m_plotOtherText = aFlag; }
-    bool        GetPlotOtherText() const { return m_plotOtherText; }
     void        SetPlotValue( bool aFlag ) { m_plotValue = aFlag; }
     bool        GetPlotValue() const { return m_plotValue; }
     void        SetPlotReference( bool aFlag ) { m_plotReference = aFlag; }
@@ -256,21 +223,32 @@ public:
     void        SetExcludeEdgeLayer( bool aFlag ) { m_excludeEdgeLayer = aFlag; }
     bool        GetExcludeEdgeLayer() const { return m_excludeEdgeLayer; }
 
-    void        SetFormat( PlotFormat aFormat ) { m_format = aFormat; };
-    PlotFormat  GetFormat() const { return m_format; };
+    void        SetFormat( PlotFormat aFormat ) { m_format = aFormat; }
+    PlotFormat  GetFormat() const { return m_format; }
 
-    void        SetOutputDirectory( wxString aDir ) { m_outputDirectory = aDir; };
-    wxString    GetOutputDirectory() const { return m_outputDirectory; };
+    void        SetOutputDirectory( wxString aDir ) { m_outputDirectory = aDir; }
+    wxString    GetOutputDirectory() const { return m_outputDirectory; }
 
-    void        SetUseGerberExtensions( bool aUse ) { m_useGerberExtensions = aUse; };
-    bool        GetUseGerberExtensions() const { return m_useGerberExtensions; };
+    void        SetUseGerberAttributes( bool aUse ) { m_useGerberAttributes = aUse; }
+    bool        GetUseGerberAttributes() const { return m_useGerberAttributes; }
+
+    void        SetUseGerberExtensions( bool aUse ) { m_useGerberExtensions = aUse; }
+    bool        GetUseGerberExtensions() const { return m_useGerberExtensions; }
+
+    void        SetGerberPrecision( int aPrecision );
+    int         GetGerberPrecision() const { return m_gerberPrecision; }
+
+    /** Default precision of coordinates in Gerber files.
+     * when units are in mm (7 in inches, but Pcbnew uses mm).
+     * 6 is the internal resolution of Pcbnew, so the default is 6
+     */
+    static int  GetGerberDefaultPrecision() { return 6; }
 
     void        SetSubtractMaskFromSilk( bool aSubtract ) { m_subtractMaskFromSilk = aSubtract; };
-    bool        GetSubtractMaskFromSilk() const { return m_subtractMaskFromSilk; };
+    bool        GetSubtractMaskFromSilk() const { return m_subtractMaskFromSilk; }
 
-    void        SetLayerSelection( long aSelection )
-                    { m_layerSelection = aSelection; };
-    long        GetLayerSelection() const { return m_layerSelection; };
+    void        SetLayerSelection( LSET aSelection )    { m_layerSelection = aSelection; };
+    LSET        GetLayerSelection() const               { return m_layerSelection; };
 
     void        SetUseAuxOrigin( bool aAux ) { m_useAuxOrigin = aAux; };
     bool        GetUseAuxOrigin() const { return m_useAuxOrigin; };

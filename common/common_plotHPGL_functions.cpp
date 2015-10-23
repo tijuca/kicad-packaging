@@ -1,3 +1,27 @@
+/*
+ * This program source code file is part of KiCad, a free EDA CAD application.
+ *
+ * Copyright (C) 2014 Jean-Pierre Charras, jp.charras at wanadoo.fr
+ * Copyright (C) 2014 KiCad Developers, see CHANGELOG.TXT for contributors.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation; either version 2
+ * of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, you may find one here:
+ * http://www.gnu.org/licenses/old-licenses/gpl-2.0.html
+ * or you may search the http://www.gnu.org website for the version 2 license,
+ * or you may write to the Free Software Foundation, Inc.,
+ * 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
+ */
+
 /**
  * @file common_plotHPGL_functions.cpp
  * @brief KiCad: Common plot HPGL Routines
@@ -179,8 +203,10 @@ static const double PLUsPERDECIMIL = 0.102041;
 
 HPGL_PLOTTER::HPGL_PLOTTER()
 {
-    SetPenSpeed( 40 );      // Default pen speed = 40 cm/s
+    SetPenSpeed( 40 );      // Default pen speed = 40 cm/s; Pen speed is *always* in cm
     SetPenNumber( 1 );      // Default pen num = 1
+    SetPenDiameter( 0.0 );
+    SetPenOverlap( 0.0 );
 }
 
 void HPGL_PLOTTER::SetViewport( const wxPoint& aOffset, double aIusPerDecimil,
@@ -196,7 +222,9 @@ void HPGL_PLOTTER::SetViewport( const wxPoint& aOffset, double aIusPerDecimil,
     paperSize.x *= 10.0 * aIusPerDecimil;
     paperSize.y *= 10.0 * aIusPerDecimil;
     SetDefaultLineWidth( 0 );    // HPGL has pen sizes instead
-    plotMirror = aMirror;
+    m_plotMirror = aMirror;
+    penOverlap = 0;
+    penDiameter = 0;
 }
 
 
@@ -263,6 +291,8 @@ void HPGL_PLOTTER::PlotPoly( const std::vector<wxPoint>& aCornerList,
 {
     if( aCornerList.size() <= 1 )
         return;
+
+    SetCurrentLineWidth( aWidth );
 
     MoveTo( aCornerList[0] );
 
@@ -362,8 +392,8 @@ void HPGL_PLOTTER::ThickSegment( const wxPoint& start, const wxPoint& end,
     wxPoint center;
     wxSize  size;
 
-    // Suppress overlap if pen is too big or in line mode
-    if( (penDiameter >= width) || (tracemode == LINE) )
+    // Suppress overlap if pen is too big
+    if( penDiameter >= width )
     {
         MoveTo( start );
         FinishTo( end );
@@ -381,7 +411,7 @@ void HPGL_PLOTTER::ThickSegment( const wxPoint& start, const wxPoint& end,
  * PU PY x, y; PD start_arc_X AA, start_arc_Y, angle, NbSegm; PU;
  * Or PU PY x, y; PD start_arc_X AA, start_arc_Y, angle, PU;
  */
-void HPGL_PLOTTER::Arc( const wxPoint& centre, int StAngle, int EndAngle, int radius,
+void HPGL_PLOTTER::Arc( const wxPoint& centre, double StAngle, double EndAngle, int radius,
                         FILL_T fill, int width )
 {
     wxASSERT( outputFile );
@@ -392,25 +422,24 @@ void HPGL_PLOTTER::Arc( const wxPoint& centre, int StAngle, int EndAngle, int ra
 
     DPOINT centre_dev = userToDeviceCoordinates( centre );
 
-    if( plotMirror )
+    if( m_plotMirror )
         angle = StAngle - EndAngle;
     else
         angle = EndAngle - StAngle;
+
     NORMALIZE_ANGLE_180( angle );
     angle /= 10;
 
-    // Calculate start point,
+    // Calculate arc start point:
     wxPoint cmap;
-    cmap.x  = int( centre.x + ( radius * cos( DEG2RAD( StAngle / 10.0 ) ) ) );
-    cmap.y  = int( centre.y - ( radius * sin( DEG2RAD( StAngle / 10.0 ) ) ) );
+    cmap.x  = centre.x + KiROUND( cosdecideg( radius, StAngle ) );
+    cmap.y  = centre.y - KiROUND( sindecideg( radius, StAngle ) );
     DPOINT  cmap_dev = userToDeviceCoordinates( cmap );
 
     fprintf( outputFile,
              "PU;PA %.0f,%.0f;PD;AA %.0f,%.0f,",
-             cmap_dev.x,
-             cmap_dev.y,
-             centre_dev.x,
-             centre_dev.y );
+             cmap_dev.x, cmap_dev.y,
+             centre_dev.x, centre_dev.y );
     fprintf( outputFile, "%.0f", angle );
     fprintf( outputFile, ";PU;\n" );
     PenFinish();
@@ -419,7 +448,7 @@ void HPGL_PLOTTER::Arc( const wxPoint& centre, int StAngle, int EndAngle, int ra
 
 /* Plot oval pad.
  */
-void HPGL_PLOTTER::FlashPadOval( const wxPoint& pos, const wxSize& aSize, int orient,
+void HPGL_PLOTTER::FlashPadOval( const wxPoint& pos, const wxSize& aSize, double orient,
                                  EDA_DRAW_MODE_T trace_mode )
 {
     wxASSERT( outputFile );
@@ -431,10 +460,8 @@ void HPGL_PLOTTER::FlashPadOval( const wxPoint& pos, const wxSize& aSize, int or
      */
     if( size.x > size.y )
     {
-        EXCHG( size.x, size.y ); orient += 900;
-
-        if( orient >= 3600 )
-            orient -= 3600;
+        std::swap( size.x, size.y );
+        orient = AddAngles( orient, 900 );
     }
 
     deltaxy = size.y - size.x;     // distance between centers of the oval
@@ -466,17 +493,10 @@ void HPGL_PLOTTER::FlashPadCircle( const wxPoint& pos, int diametre,
     DPOINT  pos_dev = userToDeviceCoordinates( pos );
 
     int     delta   = KiROUND( penDiameter - penOverlap );
-    int     radius  = diametre / 2;
-
-    if( trace_mode != LINE )
-    {
-        radius = ( diametre - KiROUND( penDiameter ) ) / 2;
-    }
+    int     radius  = ( diametre - KiROUND( penDiameter ) ) / 2;
 
     if( radius < 0 )
-    {
         radius = 0;
-    }
 
     double rsize = userToDeviceSize( radius );
 
@@ -501,7 +521,7 @@ void HPGL_PLOTTER::FlashPadCircle( const wxPoint& pos, int diametre,
 
 
 void HPGL_PLOTTER::FlashPadRect( const wxPoint& pos, const wxSize& padsize,
-                                 int orient, EDA_DRAW_MODE_T trace_mode )
+                                 double orient, EDA_DRAW_MODE_T trace_mode )
 {
     wxASSERT( outputFile );
     wxSize  size;
@@ -511,11 +531,8 @@ void HPGL_PLOTTER::FlashPadRect( const wxPoint& pos, const wxSize& padsize,
     size.x  = padsize.x / 2;
     size.y  = padsize.y / 2;
 
-    if( trace_mode != LINE )
-    {
-        size.x  = (padsize.x - (int) penDiameter) / 2;
-        size.y  = (padsize.y - (int) penDiameter) / 2;
-    }
+    size.x  = (padsize.x - (int) penDiameter) / 2;
+    size.y  = (padsize.y - (int) penDiameter) / 2;
 
     if( size.x < 0 )
         size.x = 0;
@@ -618,7 +635,7 @@ void HPGL_PLOTTER::FlashPadRect( const wxPoint& pos, const wxSize& padsize,
 
 
 void HPGL_PLOTTER::FlashPadTrapez( const wxPoint& aPadPos, const wxPoint* aCorners,
-                                   int aPadOrient, EDA_DRAW_MODE_T aTrace_Mode )
+                                   double aPadOrient, EDA_DRAW_MODE_T aTrace_Mode )
 {
     wxASSERT( outputFile );
     wxPoint polygone[4];        // coordinates of corners relatives to the pad

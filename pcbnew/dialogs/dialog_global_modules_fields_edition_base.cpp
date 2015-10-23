@@ -1,5 +1,5 @@
 ///////////////////////////////////////////////////////////////////////////
-// C++ code generated with wxFormBuilder (version Oct  8 2012)
+// C++ code generated with wxFormBuilder (version Mar  9 2015)
 // http://www.wxformbuilder.org/
 //
 // PLEASE DO "NOT" EDIT THIS FILE!
@@ -39,7 +39,7 @@ DIALOG_GLOBAL_MODULES_FIELDS_EDITION_BASE::DIALOG_GLOBAL_MODULES_FIELDS_EDITION_
 	
 	m_staticTextFilter = new wxStaticText( this, wxID_ANY, _("Footprint Filter:"), wxDefaultPosition, wxDefaultSize, 0 );
 	m_staticTextFilter->Wrap( -1 );
-	m_staticTextFilter->SetToolTip( _("A string to filter modules to edit.\nIf not void, footprint names should match this filter.\nA filter can be something like SM* (case insensitive)") );
+	m_staticTextFilter->SetToolTip( _("A string to filter footprints to edit.\nIf not void, footprint names should match this filter.\nA filter can be something like SM* (case insensitive)") );
 	
 	bLeftSizer->Add( m_staticTextFilter, 0, wxTOP|wxRIGHT|wxLEFT, 5 );
 	
@@ -68,7 +68,7 @@ DIALOG_GLOBAL_MODULES_FIELDS_EDITION_BASE::DIALOG_GLOBAL_MODULES_FIELDS_EDITION_
 	
 	m_SizeX_Value = new wxTextCtrl( this, wxID_ANY, wxEmptyString, wxDefaultPosition, wxDefaultSize, 0 );
 	m_SizeX_Value->SetMaxLength( 0 ); 
-	fgSizerCurrSettings->Add( m_SizeX_Value, 0, wxEXPAND|wxTOP|wxRIGHT|wxLEFT|wxALIGN_CENTER_VERTICAL, 5 );
+	fgSizerCurrSettings->Add( m_SizeX_Value, 0, wxEXPAND|wxTOP|wxRIGHT|wxLEFT, 5 );
 	
 	m_SizeXunit = new wxStaticText( this, wxID_ANY, _("unit"), wxDefaultPosition, wxDefaultSize, 0 );
 	m_SizeXunit->Wrap( -1 );
@@ -80,7 +80,7 @@ DIALOG_GLOBAL_MODULES_FIELDS_EDITION_BASE::DIALOG_GLOBAL_MODULES_FIELDS_EDITION_
 	
 	m_SizeY_Value = new wxTextCtrl( this, wxID_ANY, wxEmptyString, wxDefaultPosition, wxDefaultSize, 0 );
 	m_SizeY_Value->SetMaxLength( 0 ); 
-	fgSizerCurrSettings->Add( m_SizeY_Value, 0, wxALIGN_CENTER_VERTICAL|wxEXPAND|wxLEFT|wxRIGHT|wxTOP, 5 );
+	fgSizerCurrSettings->Add( m_SizeY_Value, 0, wxEXPAND|wxLEFT|wxRIGHT|wxTOP, 5 );
 	
 	m_SizeYunit = new wxStaticText( this, wxID_ANY, _("unit"), wxDefaultPosition, wxDefaultSize, 0 );
 	m_SizeYunit->Wrap( -1 );
@@ -92,7 +92,7 @@ DIALOG_GLOBAL_MODULES_FIELDS_EDITION_BASE::DIALOG_GLOBAL_MODULES_FIELDS_EDITION_
 	
 	m_TicknessValue = new wxTextCtrl( this, wxID_ANY, wxEmptyString, wxDefaultPosition, wxDefaultSize, 0 );
 	m_TicknessValue->SetMaxLength( 0 ); 
-	fgSizerCurrSettings->Add( m_TicknessValue, 0, wxALIGN_CENTER_VERTICAL|wxALL|wxEXPAND, 5 );
+	fgSizerCurrSettings->Add( m_TicknessValue, 0, wxALL|wxEXPAND, 5 );
 	
 	m_Ticknessunit = new wxStaticText( this, wxID_ANY, _("unit"), wxDefaultPosition, wxDefaultSize, 0 );
 	m_Ticknessunit->Wrap( -1 );

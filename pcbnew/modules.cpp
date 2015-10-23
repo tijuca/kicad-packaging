@@ -24,7 +24,7 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
  */
 
-/*
+/**
  * @file modules.cpp
  */
 
@@ -35,13 +35,11 @@
 #include <wxPcbStruct.h>
 #include <trigo.h>
 #include <macros.h>
-#include <pcbcommon.h>
 
 #include <class_board.h>
 #include <class_module.h>
 
 #include <pcbnew.h>
-#include <protos.h>
 #include <drag.h>
 
 
@@ -65,7 +63,7 @@ MODULE* PCB_BASE_FRAME::GetModuleByName()
     wxString          moduleName;
     MODULE*           module = NULL;
 
-    wxTextEntryDialog dlg( this, _( "Name:" ), _( "Search footprint" ), moduleName );
+    wxTextEntryDialog dlg( this, _( "Reference:" ), _( "Search for footprint" ), moduleName );
 
     if( dlg.ShowModal() != wxID_OK )
         return NULL;    //Aborted by user
@@ -80,7 +78,7 @@ MODULE* PCB_BASE_FRAME::GetModuleByName()
 
         while( module )
         {
-            if( module->m_Reference->m_Text.CmpNoCase( moduleName ) == 0 )
+            if( module->GetReference().CmpNoCase( moduleName ) == 0 )
                 break;
 
             module = module->Next();
@@ -129,7 +127,7 @@ void PCB_EDIT_FRAME::StartMoveModule( MODULE* aModule, wxDC* aDC,
             TRACK* segm = g_DragSegmentList[ii].m_Track;
             itemWrapper.SetItem( segm );
             itemWrapper.SetLink( segm->Clone() );
-            itemWrapper.GetLink()->SetState( IN_EDIT, OFF );
+            itemWrapper.GetLink()->SetState( IN_EDIT, false );
             s_PickedList.PushItem( itemWrapper );
         }
 
@@ -167,7 +165,7 @@ void Abort_MoveOrCopyModule( EDA_DRAW_PANEL* Panel, wxDC* DC )
     if( module )
     {
         // Erase the current footprint on screen
-        DrawModuleOutlines( Panel, DC, module );
+        module->DrawOutlinesWhenMoving( Panel, DC, g_Offset_Module );
 
         /* If a move command: return to old position
          * If a copy command, delete the new footprint
@@ -179,7 +177,8 @@ void Abort_MoveOrCopyModule( EDA_DRAW_PANEL* Panel, wxDC* DC )
             {
                 pt_segm = g_DragSegmentList[ii].m_Track;
                 pt_segm->Draw( Panel, DC, GR_XOR );
-                pt_segm->SetState( IN_EDIT, OFF );
+                pt_segm->SetState( IN_EDIT, false );
+                pt_segm->ClearFlags();
                 g_DragSegmentList[ii].RestoreInitialValues();
                 pt_segm->Draw( Panel, DC, GR_OR );
             }
@@ -200,8 +199,8 @@ void Abort_MoveOrCopyModule( EDA_DRAW_PANEL* Panel, wxDC* DC )
     /* Redraw the module. */
     if( module && s_ModuleInitialCopy )
     {
-        if( s_ModuleInitialCopy->m_Orient != module->m_Orient )
-            pcbframe->Rotate_Module( NULL, module, s_ModuleInitialCopy->m_Orient, false );
+        if( s_ModuleInitialCopy->GetOrientation() != module->GetOrientation() )
+            pcbframe->Rotate_Module( NULL, module, s_ModuleInitialCopy->GetOrientation(), false );
 
         if( s_ModuleInitialCopy->GetLayer() != module->GetLayer() )
             pcbframe->Change_Side_Module( module, NULL );
@@ -239,12 +238,12 @@ void MoveFootprint( EDA_DRAW_PANEL* aPanel, wxDC* aDC, const wxPoint& aPosition,
     /* Erase current footprint. */
     if( aErase )
     {
-        DrawModuleOutlines( aPanel, aDC, module );
+        module->DrawOutlinesWhenMoving( aPanel, aDC, g_Offset_Module );
     }
 
     /* Redraw the module at the new position. */
-    g_Offset_Module = module->m_Pos - aPanel->GetScreen()->GetCrossHairPosition();
-    DrawModuleOutlines( aPanel, aDC, module );
+    g_Offset_Module = module->GetPosition() - aPanel->GetParent()->GetCrossHairPosition();
+    module->DrawOutlinesWhenMoving( aPanel, aDC, g_Offset_Module );
 
     DrawSegmentWhileMovingFootprint( aPanel, aDC );
 }
@@ -262,9 +261,9 @@ bool PCB_EDIT_FRAME::Delete_Module( MODULE* aModule, wxDC* aDC, bool aAskBeforeD
     /* Confirm module delete. */
     if( aAskBeforeDeleting )
     {
-        msg.Printf( _( "Delete Module %s (value %s) ?" ),
-                    GetChars( aModule->m_Reference->m_Text ),
-                    GetChars( aModule->m_Value->m_Text ) );
+        msg.Printf( _( "Delete Footprint %s (value %s) ?" ),
+                    GetChars( aModule->GetReference() ),
+                    GetChars( aModule->GetValue() ) );
 
         if( !IsOK( this, msg ) )
         {
@@ -276,7 +275,7 @@ bool PCB_EDIT_FRAME::Delete_Module( MODULE* aModule, wxDC* aDC, bool aAskBeforeD
 
     /* Remove module from list, and put it in undo command list */
     m_Pcb->m_Modules.Remove( aModule );
-    aModule->SetState( IS_DELETED, ON );
+    aModule->SetState( IS_DELETED, true );
     SaveCopyInUndoList( aModule, UR_DELETED );
 
     if( aDC && GetBoard()->IsElementVisible( RATSNEST_VISIBLE ) )
@@ -295,7 +294,7 @@ void PCB_EDIT_FRAME::Change_Side_Module( MODULE* Module, wxDC* DC )
     if( Module == NULL )
         return;
 
-    if( ( Module->GetLayer() != LAYER_N_FRONT ) && ( Module->GetLayer() != LAYER_N_BACK ) )
+    if( ( Module->GetLayer() != F_Cu ) && ( Module->GetLayer() != B_Cu ) )
         return;
 
     OnModify();
@@ -323,13 +322,13 @@ void PCB_EDIT_FRAME::Change_Side_Module( MODULE* Module, wxDC* DC )
         /* Erase footprint and draw outline if it has been already drawn. */
         if( DC )
         {
-            DrawModuleOutlines( m_canvas, DC, Module );
+            Module->DrawOutlinesWhenMoving( m_canvas, DC, g_Offset_Module );
             DrawSegmentWhileMovingFootprint( m_canvas, DC );
         }
     }
 
     /* Flip the module */
-    Module->Flip( Module->m_Pos );
+    Module->Flip( Module->GetPosition() );
 
     SetMsgPanel( Module );
 
@@ -347,7 +346,7 @@ void PCB_EDIT_FRAME::Change_Side_Module( MODULE* Module, wxDC* DC )
     {
         if( DC )
         {
-            DrawModuleOutlines( m_canvas, DC, Module );
+            Module->DrawOutlinesWhenMoving( m_canvas, DC, g_Offset_Module );
             DrawSegmentWhileMovingFootprint( m_canvas, DC );
         }
 
@@ -387,10 +386,12 @@ void PCB_BASE_FRAME::PlaceModule( MODULE* aModule, wxDC* aDC, bool aDoNotRecreat
         s_PickedList.ClearItemsList();
     }
 
-    if( g_Show_Module_Ratsnest && ( GetBoard()->m_Status_Pcb & LISTE_PAD_OK ) && aDC )
+    DISPLAY_OPTIONS* displ_opts = (DISPLAY_OPTIONS*)GetDisplayOptions();
+
+    if( displ_opts->m_Show_Module_Ratsnest && ( GetBoard()->m_Status_Pcb & LISTE_PAD_OK ) && aDC )
         TraceModuleRatsNest( aDC );
 
-    newpos = GetScreen()->GetCrossHairPosition();
+    newpos = GetCrossHairPosition();
     aModule->SetPosition( newpos );
     aModule->ClearFlags();
 
@@ -404,7 +405,8 @@ void PCB_BASE_FRAME::PlaceModule( MODULE* aModule, wxDC* aDC, bool aDoNotRecreat
     for( unsigned ii = 0; ii < g_DragSegmentList.size(); ii++ )
     {
         TRACK * track = g_DragSegmentList[ii].m_Track;
-        track->SetState( IN_EDIT, OFF );
+        track->SetState( IN_EDIT, false );
+        track->ClearFlags();
 
         if( aDC )
             track->Draw( m_canvas, aDC, GR_OR );
@@ -432,7 +434,7 @@ void PCB_BASE_FRAME::PlaceModule( MODULE* aModule, wxDC* aDC, bool aDoNotRecreat
  * If DC == NULL, the component does not redraw.
  * Otherwise, it erases and redraws turns
  */
-void PCB_BASE_FRAME::Rotate_Module( wxDC* DC, MODULE* module, int angle, bool incremental )
+void PCB_BASE_FRAME::Rotate_Module( wxDC* DC, MODULE* module, double angle, bool incremental )
 {
     if( module == NULL )
         return;
@@ -456,7 +458,7 @@ void PCB_BASE_FRAME::Rotate_Module( wxDC* DC, MODULE* module, int angle, bool in
     {
         if( DC )
         {
-            DrawModuleOutlines( m_canvas, DC, module );
+            module->DrawOutlinesWhenMoving( m_canvas, DC, g_Offset_Module );
             DrawSegmentWhileMovingFootprint( m_canvas, DC );
         }
     }
@@ -464,7 +466,7 @@ void PCB_BASE_FRAME::Rotate_Module( wxDC* DC, MODULE* module, int angle, bool in
     GetBoard()->m_Status_Pcb &= ~( LISTE_RATSNEST_ITEM_OK | CONNEXION_OK );
 
     if( incremental )
-        module->SetOrientation( module->m_Orient + angle );
+        module->SetOrientation( module->GetOrientation() + angle );
     else
         module->SetOrientation( angle );
 
@@ -483,7 +485,7 @@ void PCB_BASE_FRAME::Rotate_Module( wxDC* DC, MODULE* module, int angle, bool in
         else
         {
             // Beiing moved: just redraw it
-            DrawModuleOutlines( m_canvas, DC, module );
+            module->DrawOutlinesWhenMoving( m_canvas, DC, g_Offset_Module );
             DrawSegmentWhileMovingFootprint( m_canvas, DC );
         }
 
@@ -493,34 +495,31 @@ void PCB_BASE_FRAME::Rotate_Module( wxDC* DC, MODULE* module, int angle, bool in
 }
 
 
-/*************************************************/
-/* Redraw in XOR mode the outlines of a module. */
-/*************************************************/
-void DrawModuleOutlines( EDA_DRAW_PANEL* panel, wxDC* DC, MODULE* module )
+// Redraw in XOR mode the outlines of the module.
+void MODULE::DrawOutlinesWhenMoving( EDA_DRAW_PANEL* panel, wxDC* DC,
+                                     const wxPoint&  aMoveVector )
 {
     int    pad_fill_tmp;
     D_PAD* pt_pad;
 
-    if( module == NULL )
-        return;
-
-    module->DrawEdgesOnly( panel, DC, g_Offset_Module, GR_XOR );
+    DrawEdgesOnly( panel, DC, aMoveVector, GR_XOR );
+    DISPLAY_OPTIONS* displ_opts = (DISPLAY_OPTIONS*)panel->GetDisplayOptions();
 
     // Show pads in sketch mode to speedu up drawings
-    pad_fill_tmp = DisplayOpt.DisplayPadFill;
-    DisplayOpt.DisplayPadFill = true;
+    pad_fill_tmp = displ_opts->m_DisplayPadFill;
+    displ_opts->m_DisplayPadFill = true;
 
-    pt_pad = module->m_Pads;
+    pt_pad = Pads();
 
     for( ; pt_pad != NULL; pt_pad = pt_pad->Next() )
-        pt_pad->Draw( panel, DC, GR_XOR, g_Offset_Module );
+        pt_pad->Draw( panel, DC, GR_XOR, aMoveVector );
 
-    DisplayOpt.DisplayPadFill = pad_fill_tmp;
+    displ_opts->m_DisplayPadFill = pad_fill_tmp;
 
-    if( g_Show_Module_Ratsnest && panel )
+    if( displ_opts->m_Show_Module_Ratsnest )
     {
         PCB_BASE_FRAME* frame = (PCB_BASE_FRAME*) panel->GetParent();
-        frame->build_ratsnest_module( module );
+        frame->build_ratsnest_module( this );
         frame->TraceModuleRatsNest( DC );
     }
 }

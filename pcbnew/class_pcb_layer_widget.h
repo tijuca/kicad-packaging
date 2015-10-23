@@ -1,7 +1,7 @@
 /*
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
- * Copyright (C) 2004-2010 Jean-Pierre Charras, jean-pierre.charras@gpisa-lab.inpg.fr
+ * Copyright (C) 2004-2015 Jean-Pierre Charras, jean-pierre.charras@gpisa-lab.inpg.fr
  * Copyright (C) 2010 SoftPLC Corporation, Dick Hollenbeck <dick@softplc.com>
  * Copyright (C) 2010 KiCad Developers, see change_log.txt for contributors.
  *
@@ -31,6 +31,8 @@
 #ifndef CLASS_PCB_LAYER_WIDGET_H_
 #define CLASS_PCB_LAYER_WIDGET_H_
 
+#include <layer_widget.h>
+
 /**
  * Class PCB_LAYER_WIDGET
  * is here to implement the abtract functions of LAYER_WIDGET so they
@@ -48,8 +50,12 @@ public:
      * @param aPointSize is the font point size to use within the widget.  This
      *  effectively sets the overal size of the widget via the row height and bitmap
      *  button sizes.
+     * @param aFpEditorMode false for the board editor (default), true for fp editor
+     *  when true, some options or layers which cannot be used in editor mode are not
+     * displayed
      */
-    PCB_LAYER_WIDGET( PCB_EDIT_FRAME* aParent, wxWindow* aFocusOwner, int aPointSize = 10 );
+    PCB_LAYER_WIDGET( PCB_BASE_FRAME* aParent, wxWindow* aFocusOwner,
+                      int aPointSize = 10, bool aFpEditorMode = false );
 
     void ReFill();
 
@@ -89,17 +95,48 @@ public:
     void OnRenderEnable( int aId, bool isEnabled );
     //-----</implement LAYER_WIDGET abstract callback functions>----------
 
+    /**
+     * Function OnLayerSelected
+     * ensure the active layer is visible, and other layers not visible
+     * when m_alwaysShowActiveLayer is true
+     * Otherwise do nothing.
+     * @return true m_alwaysShowActiveLayer is true and the canvas is refreshed,
+     * and false if do nothing
+     */
+    bool OnLayerSelected();     // postprocess after an active layer selection
+                                // ensure active layer visible if
+                                // m_alwaysShowActiveCopperLayer is true;
+
 
 protected:
 
     static const LAYER_WIDGET::ROW  s_render_rows[];
+    bool m_alwaysShowActiveCopperLayer;         // If true: Only shows the current active layer
+                                                // even if it is changed
+    bool m_fp_editor_mode;
 
-    PCB_EDIT_FRAME*    myframe;
+    PCB_BASE_FRAME* myframe;
 
     // popup menu ids.
-#define ID_SHOW_ALL_COPPERS             wxID_HIGHEST
-#define ID_SHOW_NO_COPPERS              (wxID_HIGHEST+1)
-#define ID_SHOW_NO_COPPERS_BUT_ACTIVE   (wxID_HIGHEST+2)
+#define ID_SHOW_ALL_COPPERS                     wxID_HIGHEST
+#define ID_SHOW_NO_COPPERS                      (wxID_HIGHEST+1)
+#define ID_SHOW_NO_COPPERS_BUT_ACTIVE           (wxID_HIGHEST+2)
+#define ID_ALWAYS_SHOW_NO_COPPERS_BUT_ACTIVE    (wxID_HIGHEST+3)
+
+    /**
+     * Function isAllowedInFpMode
+     * @return true if item aId has meaning in footprint editor mode.
+     * and therefore is shown in render panel
+     */
+    bool isAllowedInFpMode( int aId );
+
+    /**
+     * Function isLayerAllowedInFpMode
+     * @param aLayer is the layer id to test
+     * @return true if LAYER_ID aLayer has meaning in footprint editor mode.
+     * and therefore is shown in render panel
+     */
+    bool isLayerAllowedInFpMode( LAYER_ID aLayer );
 
     /**
      * Function OnRightDownLayers

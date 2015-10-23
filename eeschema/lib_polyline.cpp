@@ -2,7 +2,7 @@
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
  * Copyright (C) 2012 Jean-Pierre Charras, jp.charras at wanadoo.fr
- * Copyright (C) 2004-2011 KiCad Developers, see change_log.txt for contributors.
+ * Copyright (C) 2004-2015 KiCad Developers, see change_log.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -38,20 +38,20 @@
 #include <msgpanel.h>
 
 #include <general.h>
-#include <protos.h>
 #include <lib_polyline.h>
 #include <transform.h>
 
 #include <boost/foreach.hpp>
 
 
-LIB_POLYLINE::LIB_POLYLINE( LIB_COMPONENT* aParent ) :
+LIB_POLYLINE::LIB_POLYLINE( LIB_PART*      aParent ) :
     LIB_ITEM( LIB_POLYLINE_T, aParent )
 {
     m_Fill  = NO_FILL;
     m_Width = 0;
     m_isFillable = true;
     m_typeName   = _( "PolyLine" );
+    m_ModifyIndex = 0;
 }
 
 
@@ -85,19 +85,19 @@ bool LIB_POLYLINE::Load( LINE_READER& aLineReader, wxString& aErrorMsg )
 
     if( i < 4 )
     {
-        aErrorMsg.Printf( _( "polyline only had %d parameters of the required 4" ), i );
+        aErrorMsg.Printf( _( "Polyline only had %d parameters of the required 4" ), i );
         return false;
     }
 
     if( ccount <= 0 )
     {
-        aErrorMsg.Printf( _( "polyline count parameter %d is invalid" ), ccount );
+        aErrorMsg.Printf( _( "Polyline count parameter %d is invalid" ), ccount );
         return false;
     }
 
-    p = strtok( line + 2, " \t\n" );
-    p = strtok( NULL, " \t\n" );
-    p = strtok( NULL, " \t\n" );
+    strtok( line + 2, " \t\n" );     // Skip field
+    strtok( NULL, " \t\n" );         // Skip field
+    strtok( NULL, " \t\n" );         // Skip field
     p = strtok( NULL, " \t\n" );
 
     for( i = 0; i < ccount; i++ )
@@ -107,7 +107,7 @@ bool LIB_POLYLINE::Load( LINE_READER& aLineReader, wxString& aErrorMsg )
 
         if( p == NULL || sscanf( p, "%d", &pt.x ) != 1 )
         {
-            aErrorMsg.Printf( _( "polyline point %d X position not defined" ), i );
+            aErrorMsg.Printf( _( "Polyline point %d X position not defined" ), i );
             return false;
         }
 
@@ -115,7 +115,7 @@ bool LIB_POLYLINE::Load( LINE_READER& aLineReader, wxString& aErrorMsg )
 
         if( p == NULL || sscanf( p, "%d", &pt.y ) != 1 )
         {
-            aErrorMsg.Printf( _( "polyline point %d Y position not defined" ), i );
+            aErrorMsg.Printf( _( "Polyline point %d Y position not defined" ), i );
             return false;
         }
 
@@ -242,13 +242,13 @@ void LIB_POLYLINE::Plot( PLOTTER* aPlotter, const wxPoint& aOffset, bool aFill,
 
     if( aFill && m_Fill == FILLED_WITH_BG_BODYCOLOR )
     {
-        aPlotter->SetColor( ReturnLayerColor( LAYER_DEVICE_BACKGROUND ) );
+        aPlotter->SetColor( GetLayerColor( LAYER_DEVICE_BACKGROUND ) );
         aPlotter->PlotPoly( cornerList, FILLED_WITH_BG_BODYCOLOR, 0 );
         aFill = false;  // body is now filled, do not fill it later.
     }
 
     bool already_filled = m_Fill == FILLED_WITH_BG_BODYCOLOR;
-    aPlotter->SetColor( ReturnLayerColor( LAYER_DEVICE ) );
+    aPlotter->SetColor( GetLayerColor( LAYER_DEVICE ) );
     aPlotter->PlotPoly( cornerList, already_filled ? NO_FILL : m_Fill, GetPenSize() );
 }
 
@@ -270,7 +270,7 @@ void LIB_POLYLINE::drawGraphic( EDA_DRAW_PANEL* aPanel, wxDC* aDC, const wxPoint
                                 const TRANSFORM& aTransform )
 {
     wxPoint  pos1;
-    EDA_COLOR_T color = ReturnLayerColor( LAYER_DEVICE );
+    EDA_COLOR_T color = GetLayerColor( LAYER_DEVICE );
     wxPoint* buffer = NULL;
 
     if( aColor < 0 )                // Used normal color or selected color
@@ -297,15 +297,16 @@ void LIB_POLYLINE::drawGraphic( EDA_DRAW_PANEL* aPanel, wxDC* aDC, const wxPoint
 
     GRSetDrawMode( aDC, aDrawMode );
 
+    EDA_RECT* const clipbox  = aPanel? aPanel->GetClipBox() : NULL;
     if( fill == FILLED_WITH_BG_BODYCOLOR )
-        GRPoly( aPanel->GetClipBox(), aDC, m_PolyPoints.size(), buffer, 1, GetPenSize(),
-                (m_Flags & IS_MOVED) ? color : ReturnLayerColor( LAYER_DEVICE_BACKGROUND ),
-                ReturnLayerColor( LAYER_DEVICE_BACKGROUND ) );
+        GRPoly( clipbox, aDC, m_PolyPoints.size(), buffer, 1, GetPenSize(),
+                (m_Flags & IS_MOVED) ? color : GetLayerColor( LAYER_DEVICE_BACKGROUND ),
+                GetLayerColor( LAYER_DEVICE_BACKGROUND ) );
     else if( fill == FILLED_SHAPE  )
-        GRPoly( aPanel->GetClipBox(), aDC, m_PolyPoints.size(), buffer, 1, GetPenSize(),
+        GRPoly( clipbox, aDC, m_PolyPoints.size(), buffer, 1, GetPenSize(),
                 color, color );
     else
-        GRPoly( aPanel->GetClipBox(), aDC, m_PolyPoints.size(), buffer, 0, GetPenSize(),
+        GRPoly( clipbox, aDC, m_PolyPoints.size(), buffer, 0, GetPenSize(),
                 color, color );
 
     delete[] buffer;
@@ -314,14 +315,15 @@ void LIB_POLYLINE::drawGraphic( EDA_DRAW_PANEL* aPanel, wxDC* aDC, const wxPoint
      * bounding box calculation. */
 #if 0
     EDA_RECT bBox = GetBoundingBox();
-    bBox.Inflate( m_Thickness + 1, m_Thickness + 1 );
-    GRRect( aPanel->GetClipBox(), aDC, bBox.GetOrigin().x, bBox.GetOrigin().y,
-            bBox.GetEnd().x, bBox.GetEnd().y, 0, LIGHTMAGENTA );
+    bBox.RevertYAxis();
+    bBox = aTransform.TransformCoordinate( bBox );
+    bBox.Move( aOffset );
+    GRRect( clipbox, aDC, bBox, 0, LIGHTMAGENTA );
 #endif
 }
 
 
-bool LIB_POLYLINE::HitTest( const wxPoint& aPosition )
+bool LIB_POLYLINE::HitTest( const wxPoint& aPosition ) const
 {
     int mindist = GetPenSize() / 2;
 
@@ -333,7 +335,7 @@ bool LIB_POLYLINE::HitTest( const wxPoint& aPosition )
 }
 
 
-bool LIB_POLYLINE::HitTest( wxPoint aPosition, int aThreshold, const TRANSFORM& aTransform )
+bool LIB_POLYLINE::HitTest( const wxPoint &aPosition, int aThreshold, const TRANSFORM& aTransform ) const
 {
     wxPoint ref, start, end;
 
@@ -353,7 +355,7 @@ bool LIB_POLYLINE::HitTest( wxPoint aPosition, int aThreshold, const TRANSFORM& 
 }
 
 
-EDA_RECT LIB_POLYLINE::GetBoundingBox() const
+const EDA_RECT LIB_POLYLINE::GetBoundingBox() const
 {
     EDA_RECT rect;
     int      xmin, xmax, ymin, ymax;
@@ -369,9 +371,11 @@ EDA_RECT LIB_POLYLINE::GetBoundingBox() const
         ymax = std::max( ymax, m_PolyPoints[ii].y );
     }
 
-    rect.SetOrigin( xmin, ymin * -1 );
-    rect.SetEnd( xmax, ymax * -1 );
-    rect.Inflate( m_Width / 2, m_Width / 2 );
+    rect.SetOrigin( xmin, ymin );
+    rect.SetEnd( xmax, ymax );
+    rect.Inflate( ( GetPenSize()+1 ) / 2 );
+
+    rect.RevertYAxis();
 
     return rect;
 }
@@ -400,27 +404,27 @@ void LIB_POLYLINE::GetMsgPanelInfo( MSG_PANEL_ITEMS& aList )
 
     LIB_ITEM::GetMsgPanelInfo( aList );
 
-    msg = ReturnStringFromValue( g_UserUnit, m_Width, true );
+    msg = StringFromValue( g_UserUnit, m_Width, true );
 
-    aList.push_back( MSG_PANEL_ITEM( _( "Line width" ), msg, BLUE ) );
+    aList.push_back( MSG_PANEL_ITEM( _( "Line Width" ), msg, BLUE ) );
 
     msg.Printf( wxT( "(%d, %d, %d, %d)" ), bBox.GetOrigin().x,
                 bBox.GetOrigin().y, bBox.GetEnd().x, bBox.GetEnd().y );
 
-    aList.push_back( MSG_PANEL_ITEM( _( "Bounding box" ), msg, BROWN ) );
+    aList.push_back( MSG_PANEL_ITEM( _( "Bounding Box" ), msg, BROWN ) );
 }
 
 
 wxString LIB_POLYLINE::GetSelectMenuText() const
 {
-    return wxString::Format( _( "Polyline at (%s, %s) with %zu points" ),
+    return wxString::Format( _( "Polyline at (%s, %s) with %d points" ),
                              GetChars( CoordinateToString( m_PolyPoints[0].x ) ),
                              GetChars( CoordinateToString( m_PolyPoints[0].y ) ),
-                             m_PolyPoints.size() );
+                             int( m_PolyPoints.size() ) );
 }
 
 
-void LIB_POLYLINE::BeginEdit( int aEditMode, const wxPoint aPosition )
+void LIB_POLYLINE::BeginEdit( STATUS_FLAGS aEditMode, const wxPoint aPosition )
 {
     wxCHECK_RET( ( aEditMode & ( IS_NEW | IS_MOVED | IS_RESIZED ) ) != 0,
                  wxT( "Invalid edit mode for LIB_POLYLINE object." ) );

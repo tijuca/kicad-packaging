@@ -29,7 +29,7 @@
 #include <fctsys.h>
 
 #include <gr_basic.h>
-#include <appl_wxstruct.h>
+#include <pgm_base.h>
 #include <class_drawpanel.h>
 #include <confirm.h>
 #include <gestfich.h>
@@ -41,15 +41,18 @@
 #include <class_library.h>
 #include <dialogs/dialog_plot_schematic.h>
 
+#include <boost/foreach.hpp>
+
 
 void LIB_EDIT_FRAME::OnPlotCurrentComponent( wxCommandEvent& event )
 {
-    LIB_COMPONENT* cmp = GetComponent();
-    wxString   FullFileName;
+    wxString   fullFileName;
     wxString   file_ext;
     wxString   mask;
 
-    if( cmp == NULL )
+    LIB_PART*      part = GetCurPart();
+
+    if( !part )
     {
         wxMessageBox( _( "No component" ) );
         return;
@@ -63,20 +66,22 @@ void LIB_EDIT_FRAME::OnPlotCurrentComponent( wxCommandEvent& event )
 
             file_ext = fmt_is_jpeg ? wxT( "jpg" ) : wxT( "png" );
             mask     = wxT( "*." ) + file_ext;
-            wxFileName fn( cmp->GetName() );
+            wxFileName fn( part->GetName() );
             fn.SetExt( file_ext );
 
-            FullFileName = EDA_FileSelector( _( "Filename:" ), wxGetCwd(),
+            wxString pro_dir = wxPathOnly( Prj().GetProjectFullName() );
+
+            fullFileName = EDA_FileSelector( _( "Filename:" ), pro_dir,
                                              fn.GetFullName(), file_ext, mask, this,
                                              wxFD_SAVE, true );
 
-            if( FullFileName.IsEmpty() )
+            if( fullFileName.IsEmpty() )
                 return;
 
             // calling wxYield is mandatory under Linux, after closing the file selector dialog
             // to refresh the screen before creating the PNG or JPEG image from screen
             wxYield();
-            CreatePNGorJPEGFile( FullFileName, fmt_is_jpeg );
+            CreatePNGorJPEGFile( fullFileName, fmt_is_jpeg );
         }
         break;
 
@@ -84,26 +89,29 @@ void LIB_EDIT_FRAME::OnPlotCurrentComponent( wxCommandEvent& event )
         {
             file_ext = wxT( "svg" );
             mask     = wxT( "*." ) + file_ext;
-            wxFileName fn( cmp->GetName() );
+            wxFileName fn( part->GetName() );
             fn.SetExt( file_ext );
-            FullFileName = EDA_FileSelector( _( "Filename:" ), wxGetCwd(),
+
+            wxString pro_dir = wxPathOnly( Prj().GetProjectFullName() );
+
+            fullFileName = EDA_FileSelector( _( "Filename:" ), pro_dir,
                                              fn.GetFullName(), file_ext, mask, this,
                                              wxFD_SAVE, true );
 
-            if( FullFileName.IsEmpty() )
+            if( fullFileName.IsEmpty() )
                 return;
 
             PAGE_INFO pageSave = GetScreen()->GetPageSettings();
             PAGE_INFO pageTemp = pageSave;
 
-            wxSize componentSize = m_component->GetBoundingBox( m_unit, m_convert ).GetSize();
+            wxSize componentSize = part->GetBoundingBox( m_unit, m_convert ).GetSize();
 
             // Add a small margin to the plot bounding box
             pageTemp.SetWidthMils(  int( componentSize.x * 1.2 ) );
             pageTemp.SetHeightMils( int( componentSize.y * 1.2 ) );
 
             GetScreen()->SetPageSettings( pageTemp );
-            SVG_Print_Component( FullFileName );
+            SVG_PlotComponent( fullFileName );
             GetScreen()->SetPageSettings( pageSave );
         }
         break;
@@ -136,17 +144,58 @@ void LIB_EDIT_FRAME::CreatePNGorJPEGFile( const wxString& aFileName, bool aFmt_j
 }
 
 
-void LIB_EDIT_FRAME::SVG_Print_Component( const wxString& FullFileName )
+void LIB_EDIT_FRAME::SVG_PlotComponent( const wxString& aFullFileName )
 {
-    bool plotBW = false;
-    bool plotFrameRef = false;
-    DIALOG_PLOT_SCHEMATIC::plotOneSheetSVG( this, FullFileName, GetScreen(),
-                                            plotBW, plotFrameRef );
+    const bool plotBW = false;
+    const PAGE_INFO& pageInfo = GetScreen()->GetPageSettings();
+
+    SVG_PLOTTER* plotter = new SVG_PLOTTER();
+    plotter->SetPageSettings( pageInfo );
+    plotter->SetDefaultLineWidth( GetDefaultLineThickness() );
+    plotter->SetColorMode( plotBW );
+
+    wxPoint plot_offset;
+    const double scale = 1.0;
+    plotter->SetViewport( plot_offset, IU_PER_DECIMILS, scale, false );
+
+    // Init :
+    plotter->SetCreator( wxT( "Eeschema-SVG" ) );
+
+    if( ! plotter->OpenFile( aFullFileName ) )
+    {
+        delete plotter;
+        return;
+    }
+
+    LOCALE_IO   toggle;
+
+    plotter->StartPlot();
+
+    LIB_PART*      part = GetCurPart();
+
+    if( part )
+    {
+        TRANSFORM   temp;     // Uses default transform
+        wxPoint     plotPos;
+
+        plotPos.x = pageInfo.GetWidthIU() /2;
+        plotPos.y = pageInfo.GetHeightIU()/2;
+
+        part->Plot( plotter, GetUnit(), GetConvert(), plotPos, temp );
+
+        // Plot lib fields, not plotted by m_component->Plot():
+        part->PlotLibFields( plotter, GetUnit(), GetConvert(), plotPos, temp );
+    }
+
+    plotter->EndPlot();
+    delete plotter;
 }
 
-void LIB_EDIT_FRAME::PrintPage( wxDC* aDC, int aPrintMask, bool aPrintMirrorMode, void* aData)
+void LIB_EDIT_FRAME::PrintPage( wxDC* aDC, LSET aPrintMask, bool aPrintMirrorMode, void* aData)
 {
-    if( ! m_component )
+    LIB_PART*      part = GetCurPart();
+
+    if( !part )
         return;
 
     wxSize pagesize = GetScreen()->GetPageSettings().GetSizeIU();
@@ -159,7 +208,7 @@ void LIB_EDIT_FRAME::PrintPage( wxDC* aDC, int aPrintMask, bool aPrintMirrorMode
     plot_offset.x = pagesize.x/2;
     plot_offset.y = pagesize.y/2;
 
-    m_component->Draw( m_canvas, aDC, plot_offset, m_unit, m_convert, GR_DEFAULT_DRAWMODE );
+    part->Draw( m_canvas, aDC, plot_offset, m_unit, m_convert, GR_DEFAULT_DRAWMODE );
 }
 
 

@@ -40,6 +40,13 @@
  */
 #define MAX_SELECT_ITEM_IDS 10
 
+/**
+ * The maximum number of units per package.
+ * Increase this number if that ever becomes a problem, but remember
+ * the popup menu to select a given unit could be not easy to use.
+ */
+#define MAX_UNIT_COUNT_PER_PACKAGE 64
+
 
 /**
  * Command IDs for the schematic editor.
@@ -53,6 +60,9 @@ enum id_eeschema_frm
 {
     ID_UPDATE_ONE_SHEET = ID_END_LIST,
     ID_SAVE_ONE_SHEET_UNDER_NEW_NAME,
+
+    /* Schematic editor main menubar IDs. */
+    ID_RESCUE_CACHED,
 
     /* Schematic editor horizontal toolbar IDs */
     ID_HIERARCHY,
@@ -110,7 +120,7 @@ enum id_eeschema_frm
     ID_POPUP_SCH_END_SHEET,
     ID_POPUP_SCH_RESIZE_SHEET,
     ID_POPUP_SCH_CLEANUP_SHEET,
-    ID_POPUP_IMPORT_GLABEL,
+    ID_POPUP_IMPORT_HLABEL_TO_SHEETPIN,
     ID_POPUP_SCH_GENERIC_ORIENT_CMP,
     ID_POPUP_SCH_GENERIC_EDIT_CMP,
     ID_POPUP_SCH_EDIT_CONVERT_CMP,
@@ -129,31 +139,10 @@ enum id_eeschema_frm
     // Unit select context menus command IDs.
     ID_POPUP_SCH_SELECT_UNIT_CMP,
     ID_POPUP_SCH_SELECT_UNIT1,
-    ID_POPUP_SCH_SELECT_UNIT2,
-    ID_POPUP_SCH_SELECT_UNIT3,
-    ID_POPUP_SCH_SELECT_UNIT4,
-    ID_POPUP_SCH_SELECT_UNIT5,
-    ID_POPUP_SCH_SELECT_UNIT6,
-    ID_POPUP_SCH_SELECT_UNIT7,
-    ID_POPUP_SCH_SELECT_UNIT8,
-    ID_POPUP_SCH_SELECT_UNIT9,
-    ID_POPUP_SCH_SELECT_UNIT10,
-    ID_POPUP_SCH_SELECT_UNIT11,
-    ID_POPUP_SCH_SELECT_UNIT12,
-    ID_POPUP_SCH_SELECT_UNIT13,
-    ID_POPUP_SCH_SELECT_UNIT14,
-    ID_POPUP_SCH_SELECT_UNIT15,
-    ID_POPUP_SCH_SELECT_UNIT16,
-    ID_POPUP_SCH_SELECT_UNIT17,
-    ID_POPUP_SCH_SELECT_UNIT18,
-    ID_POPUP_SCH_SELECT_UNIT19,
-    ID_POPUP_SCH_SELECT_UNIT20,
-    ID_POPUP_SCH_SELECT_UNIT21,
-    ID_POPUP_SCH_SELECT_UNIT22,
-    ID_POPUP_SCH_SELECT_UNIT23,
-    ID_POPUP_SCH_SELECT_UNIT24,
-    ID_POPUP_SCH_SELECT_UNIT25,
-    ID_POPUP_SCH_SELECT_UNIT26,
+    // ... leave room for MAX_UNIT_COUNT_PER_PACKAGE IDs ,
+    // to select one unit among MAX_UNIT_COUNT_PER_PACKAGE in popup menu
+    ID_POPUP_SCH_SELECT_UNIT_CMP_MAX = ID_POPUP_SCH_SELECT_UNIT1
+                                       + MAX_UNIT_COUNT_PER_PACKAGE,
 
     // Change text type context menu command IDs.
     ID_POPUP_SCH_CHANGE_TYPE_TEXT,
@@ -199,6 +188,7 @@ enum id_eeschema_frm
     ID_DE_MORGAN_NORMAL_BUTT,
     ID_DE_MORGAN_CONVERT_BUTT,
     ID_LIBEDIT_EDIT_PIN_BY_PIN,
+    ID_LIBEDIT_EDIT_PIN_BY_TABLE,
     ID_LIBEDIT_VIEW_DOC,
     ID_LIBEDIT_CHECK_PART,
 

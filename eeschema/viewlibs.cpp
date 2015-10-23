@@ -1,17 +1,41 @@
+/*
+ * This program source code file is part of KiCad, a free EDA CAD application.
+ *
+ * Copyright (C) 2015 Jean-Pierre Charras, jp.charras at wanadoo.fr
+ * Copyright (C) 2015 KiCad Developers, see CHANGELOG.TXT for contributors.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation; either version 2
+ * of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, you may find one here:
+ * http://www.gnu.org/licenses/old-licenses/gpl-2.0.html
+ * or you may search the http://www.gnu.org website for the version 2 license,
+ * or you may write to the Free Software Foundation, Inc.,
+ * 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
+ */
+
 /**
  * @file viewlibs.cpp
  */
 
 #include <fctsys.h>
+#include <kiway.h>
 #include <gr_basic.h>
-#include <appl_wxstruct.h>
+#include <pgm_base.h>
 #include <class_drawpanel.h>
 #include <confirm.h>
 #include <eda_doc.h>
 #include <class_sch_screen.h>
 
 #include <general.h>
-#include <protos.h>
 #include <viewlib_frame.h>
 #include <eeschema_id.h>
 #include <class_library.h>
@@ -26,7 +50,7 @@
 void LIB_VIEW_FRAME::Process_Special_Functions( wxCommandEvent& event )
 {
     wxString   msg;
-    LIB_ALIAS* LibEntry;
+    LIB_ALIAS* entry;
     int        ii, id = event.GetId();
 
     switch( id )
@@ -48,11 +72,14 @@ void LIB_VIEW_FRAME::Process_Special_Functions( wxCommandEvent& event )
         break;
 
     case ID_LIBVIEW_VIEWDOC:
-        LibEntry = CMP_LIBRARY::FindLibraryEntry( m_entryName, m_libraryName );
+        entry = Prj().SchLibs()->FindLibraryEntry( m_entryName, m_libraryName );
 
-        if( LibEntry && ( !LibEntry->GetDocFileName().IsEmpty() ) )
-            GetAssociatedDocument( this, LibEntry->GetDocFileName(),
-                                   &wxGetApp().GetLibraryPathList() );
+        if( entry && !entry->GetDocFileName().IsEmpty() )
+        {
+            SEARCH_STACK* lib_search = Prj().SchSearchS();
+
+            GetAssociatedDocument( this, entry->GetDocFileName(), lib_search );
+        }
         break;
 
     case ID_LIBVIEW_DE_MORGAN_NORMAL_BUTT:
@@ -70,7 +97,7 @@ void LIB_VIEW_FRAME::Process_Special_Functions( wxCommandEvent& event )
         break;
 
     case ID_LIBVIEW_SELECT_PART_NUMBER:
-        ii = SelpartBox->GetCurrentSelection();
+        ii = m_selpartBox->GetCurrentSelection();
         if( ii < 0 )
             return;
         m_unit = ii + 1;
@@ -96,35 +123,35 @@ bool LIB_VIEW_FRAME::OnRightClick( const wxPoint& MousePos, wxMenu* PopMenu )
 }
 
 
-/* Displays the name of the current opened library in the caption */
 void LIB_VIEW_FRAME::DisplayLibInfos()
 {
-    wxString     msg;
-    CMP_LIBRARY* Lib;
+    PART_LIBS*  libs = Prj().SchLibs();
 
-    Lib = CMP_LIBRARY::FindLibrary( m_libraryName );
-    msg = _( "Library Browser" );
+    if( libs )
+    {
+        PART_LIB* lib = libs->FindLibrary( m_libraryName );
 
-    msg << wxT( " [" );
+        wxString     msg = _( "Library Browser" );
 
-    if( Lib )
-        msg <<  Lib->GetFullFileName();
-    else
-        msg += _( "no library selected" );
+        msg += wxT( " [" );
 
-    msg << wxT( "]" );
-    SetTitle( msg );
+        if( lib )
+            msg += lib->GetFullFileName();
+        else
+            msg += _( "no library selected" );
+
+        msg += wxT( "]" );
+
+        SetTitle( msg );
+    }
 }
 
 
-/*****************************************/
-/* Function to Select Current library      */
-/*****************************************/
 void LIB_VIEW_FRAME::SelectCurrentLibrary()
 {
-    CMP_LIBRARY* Lib;
+    PART_LIB* Lib;
 
-    Lib = SelectLibraryFromList( this );
+    Lib = SelectLibraryFromList();
 
     if( Lib )
     {
@@ -132,65 +159,55 @@ void LIB_VIEW_FRAME::SelectCurrentLibrary()
         m_libraryName = Lib->GetName();
         DisplayLibInfos();
 
-        if( m_LibList )
+        if( m_libList )
         {
             ReCreateListCmp();
             m_canvas->Refresh();
             DisplayLibInfos();
             ReCreateHToolbar();
-            int id = m_LibList->FindString( m_libraryName.GetData() );
+            int id = m_libList->FindString( m_libraryName.GetData() );
 
             if( id >= 0 )
-                m_LibList->SetSelection( id );
+                m_libList->SetSelection( id );
         }
     }
 }
 
 
-/*
- * Routine to select and view library Part (NEW, NEXT or PREVIOUS)
- */
 void LIB_VIEW_FRAME::SelectAndViewLibraryPart( int option )
 {
-    CMP_LIBRARY* Lib;
-
     if( m_libraryName.IsEmpty() )
         SelectCurrentLibrary();
+
     if( m_libraryName.IsEmpty() )
         return;
 
-    Lib = CMP_LIBRARY::FindLibrary( m_libraryName );
-
-    if( Lib == NULL )
-        return;
-
-    if( ( m_entryName.IsEmpty() ) || ( option == NEW_PART ) )
+    if( PART_LIBS* libs = Prj().SchLibs() )
     {
-        ViewOneLibraryContent( Lib, NEW_PART );
-        return;
+        if( PART_LIB* lib = libs->FindLibrary( m_libraryName ) )
+        {
+            if( m_entryName.IsEmpty() || option == NEW_PART )
+            {
+                ViewOneLibraryContent( lib, NEW_PART );
+                return;
+            }
+
+            if( lib->FindEntry( m_entryName ) )
+            {
+                if( option == NEXT_PART )
+                    ViewOneLibraryContent( lib, NEXT_PART );
+
+                if( option == PREVIOUS_PART )
+                    ViewOneLibraryContent( lib, PREVIOUS_PART );
+            }
+        }
     }
-
-    LIB_ALIAS* LibEntry = Lib->FindEntry( m_entryName );
-
-    if( LibEntry == NULL )
-        return;
-
-    if( option == NEXT_PART )
-        ViewOneLibraryContent( Lib, NEXT_PART );
-
-    if( option == PREVIOUS_PART )
-        ViewOneLibraryContent( Lib, PREVIOUS_PART );
 }
 
 
-/*************************************************/
-/* Routine to view one selected library content. */
-/*************************************************/
-void LIB_VIEW_FRAME::ViewOneLibraryContent( CMP_LIBRARY* Lib, int Flag )
+void LIB_VIEW_FRAME::ViewOneLibraryContent( PART_LIB* Lib, int Flag )
 {
     int        NumOfParts = 0;
-    LIB_ALIAS* LibEntry;
-    wxString   CmpName;
 
     if( Lib )
         NumOfParts = Lib->GetCount();
@@ -201,85 +218,72 @@ void LIB_VIEW_FRAME::ViewOneLibraryContent( CMP_LIBRARY* Lib, int Flag )
         return;
     }
 
-    if( Lib == NULL )
-        return;
+    LIB_ALIAS* entry;
+    wxString   CmpName;
 
     if( Flag == NEW_PART )
-    {
-        DisplayComponentsNamesInLib( this, Lib, CmpName, m_entryName );
-    }
+        DisplayListComponentsInLib( Lib, CmpName, m_entryName );
 
     if( Flag == NEXT_PART )
     {
-        LibEntry = Lib->GetNextEntry( m_entryName );
+        entry = Lib->GetNextEntry( m_entryName );
 
-        if( LibEntry )
-            CmpName = LibEntry->GetName();
+        if( entry )
+            CmpName = entry->GetName();
     }
 
     if( Flag == PREVIOUS_PART )
     {
-        LibEntry = Lib->GetPreviousEntry( m_entryName );
+        entry = Lib->GetPreviousEntry( m_entryName );
 
-        if( LibEntry )
-            CmpName = LibEntry->GetName();
+        if( entry )
+            CmpName = entry->GetName();
     }
 
     m_unit    = 1;
     m_convert = 1;
 
-    LibEntry = Lib->FindEntry( CmpName );
+    entry = Lib->FindEntry( CmpName );
     m_entryName = CmpName;
     DisplayLibInfos();
     Zoom_Automatique( false );
     m_canvas->Refresh( );
 
-    if( m_CmpList )
+    if( m_cmpList )
     {
-        int id = m_CmpList->FindString( m_entryName.GetData() );
+        int id = m_cmpList->FindString( m_entryName.GetData() );
         if( id >= 0 )
-            m_CmpList->SetSelection( id );
+            m_cmpList->SetSelection( id );
     }
+
     ReCreateHToolbar();
 }
 
 
-/**
- * Function RedrawActiveWindow
- * Display the current selected component.
- * If the component is an alias, the ROOT component is displayed
-*/
 void LIB_VIEW_FRAME::RedrawActiveWindow( wxDC* DC, bool EraseBg )
 {
-    LIB_COMPONENT* component;
-    LIB_ALIAS*     entry;
-    CMP_LIBRARY*   lib;
-    wxString       msg;
-    wxString       tmp;
+    LIB_ALIAS* entry = Prj().SchLibs()->FindLibraryEntry( m_entryName, m_libraryName );
 
-    lib = CMP_LIBRARY::FindLibrary( m_libraryName );
-
-    if( lib == NULL )
+    if( !entry )
         return;
 
-    entry = lib->FindEntry( m_entryName );
+    LIB_PART* part = entry->GetPart();
 
-    if( entry == NULL )
+    if( !part )
         return;
 
-    component = entry->GetComponent();
+    wxString    msg;
+    wxString    tmp;
 
     m_canvas->DrawBackGround( DC );
 
     if( !entry->IsRoot() )
     {
-        if( component == NULL )     // Should not occur
-            return;
-
         // Temporarily change the name field text to reflect the alias name.
         msg = entry->GetName();
-        tmp = component->GetName();
-        component->SetName( msg );
+        tmp = part->GetName();
+
+        part->SetName( msg );
 
         if( m_unit < 1 )
             m_unit = 1;
@@ -288,20 +292,18 @@ void LIB_VIEW_FRAME::RedrawActiveWindow( wxDC* DC, bool EraseBg )
             m_convert = 1;
     }
     else
-    {
         msg = _( "None" );
-    }
 
-    component->Draw( m_canvas, DC, wxPoint( 0, 0 ), m_unit, m_convert, GR_DEFAULT_DRAWMODE );
+    part->Draw( m_canvas, DC, wxPoint( 0, 0 ), m_unit, m_convert, GR_DEFAULT_DRAWMODE );
 
-    /* Redraw the cursor */
+    // Redraw the cursor
     m_canvas->DrawCrossHair( DC );
 
     if( !tmp.IsEmpty() )
-        component->SetName( tmp );
+        part->SetName( tmp );
 
     ClearMsgPanel();
-    AppendMsgPanel( _( "Part" ), component->GetName(), BLUE, 6 );
+    AppendMsgPanel( _( "Part" ), part->GetName(), BLUE, 6 );
     AppendMsgPanel( _( "Alias" ), msg, RED, 6 );
     AppendMsgPanel( _( "Description" ), entry->GetDescription(), CYAN, 6 );
     AppendMsgPanel( _( "Key words" ), entry->GetKeyWords(), DARKDARKGRAY );

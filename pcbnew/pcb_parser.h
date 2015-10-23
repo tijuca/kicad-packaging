@@ -31,8 +31,9 @@
 
 #include <pcb_lexer.h>
 #include <hashtables.h>
-
-using namespace PCB_KEYS_T;
+#include <layers_id_colors_and_visibility.h>    // LAYER_ID
+#include <common.h>                             // KiROUND
+#include <convert_to_biu.h>                     // IU_PER_MM
 
 
 class BOARD;
@@ -40,15 +41,17 @@ class BOARD_ITEM;
 class D_PAD;
 class DIMENSION;
 class DRAWSEGMENT;
+class EDA_TEXT;
 class EDGE_MODULE;
 class TEXTE_MODULE;
 class TEXTE_PCB;
+class TRACK;
 class MODULE;
 class PCB_TARGET;
+class VIA;
 class S3D_MASTER;
 class ZONE_CONTAINER;
-class FPL_CACHE;
-
+struct LAYER;
 
 
 /**
@@ -58,12 +61,32 @@ class FPL_CACHE;
  */
 class PCB_PARSER : public PCB_LEXER
 {
-    typedef KEYWORD_MAP     LAYER_MAP;
+    typedef boost::unordered_map< std::string, LAYER_ID >   LAYER_ID_MAP;
+    typedef boost::unordered_map< std::string, LSET >       LSET_MAP;
 
-    BOARD*          m_board;
-    LAYER_MAP       m_layerIndices;     ///< map layer name to it's index
-    LAYER_MAP       m_layerMasks;       ///< map layer names to their masks
+    BOARD*              m_board;
+    LAYER_ID_MAP        m_layerIndices;     ///< map layer name to it's index
+    LSET_MAP            m_layerMasks;       ///< map layer names to their masks
+    std::vector<int>    m_netCodes;         ///< net codes mapping for boards being loaded
 
+    ///> Converts net code using the mapping table if available,
+    ///> otherwise returns unchanged net code if < 0 or if is is out of range
+    inline int getNetCode( int aNetCode )
+    {
+        if( ( aNetCode >= 0 ) && ( aNetCode < (int) m_netCodes.size() ) )
+            return m_netCodes[aNetCode];
+
+        return aNetCode;
+    }
+
+    /**
+     * function pushValueIntoMap
+     * Add aValue value in netcode mapping (m_netCodes) at index aIndex
+     * ensure there is room in m_netCodes for that, and add room if needed.
+     * @param aIndex = the index ( expected >=0 )of the location to use in m_netCodes
+     * @param aValue = the netcode value to map
+     */
+    void pushValueIntoMap( int aIndex, int aValue );
 
     /**
      * Function init
@@ -77,35 +100,47 @@ class PCB_PARSER : public PCB_LEXER
     void parseGeneralSection() throw( IO_ERROR, PARSE_ERROR );
     void parsePAGE_INFO() throw( IO_ERROR, PARSE_ERROR );
     void parseTITLE_BLOCK() throw( IO_ERROR, PARSE_ERROR );
+
     void parseLayers() throw( IO_ERROR, PARSE_ERROR );
+    void parseLayer( LAYER* aLayer ) throw( IO_ERROR, PARSE_ERROR );
+
     void parseSetup() throw( IO_ERROR, PARSE_ERROR );
     void parseNETINFO_ITEM() throw( IO_ERROR, PARSE_ERROR );
     void parseNETCLASS() throw( IO_ERROR, PARSE_ERROR );
-    DRAWSEGMENT* parseDRAWSEGMENT() throw( IO_ERROR, PARSE_ERROR );
-    TEXTE_PCB* parseTEXTE_PCB() throw( IO_ERROR, PARSE_ERROR );
-    DIMENSION* parseDIMENSION() throw( IO_ERROR, PARSE_ERROR );
-    MODULE* parseMODULE() throw( IO_ERROR, PARSE_ERROR );
-    TEXTE_MODULE* parseTEXTE_MODULE() throw( IO_ERROR, PARSE_ERROR );
-    EDGE_MODULE* parseEDGE_MODULE() throw( IO_ERROR, PARSE_ERROR );
-    D_PAD* parseD_PAD() throw( IO_ERROR, PARSE_ERROR );
-    TRACK* parseTRACK() throw( IO_ERROR, PARSE_ERROR );
-    SEGVIA* parseSEGVIA() throw( IO_ERROR, PARSE_ERROR );
+
+    DRAWSEGMENT*    parseDRAWSEGMENT() throw( IO_ERROR, PARSE_ERROR );
+    TEXTE_PCB*      parseTEXTE_PCB() throw( IO_ERROR, PARSE_ERROR );
+    DIMENSION*      parseDIMENSION() throw( IO_ERROR, PARSE_ERROR );
+
+    /**
+     * Function parseModule
+     * @param aInitialComments may be a pointer to a heap allocated initial comment block
+     *   or NULL.  If not NULL, then caller has given ownership of a wxArrayString to
+     *   this function and care must be taken to delete it even on exception.
+     */
+    MODULE*         parseMODULE( wxArrayString* aInitialComments = 0 ) throw( IO_ERROR, PARSE_ERROR );
+    TEXTE_MODULE*   parseTEXTE_MODULE() throw( IO_ERROR, PARSE_ERROR );
+    EDGE_MODULE*    parseEDGE_MODULE() throw( IO_ERROR, PARSE_ERROR );
+    D_PAD*          parseD_PAD( MODULE* aParent = NULL ) throw( IO_ERROR, PARSE_ERROR );
+    TRACK*          parseTRACK() throw( IO_ERROR, PARSE_ERROR );
+    VIA*            parseVIA() throw( IO_ERROR, PARSE_ERROR );
     ZONE_CONTAINER* parseZONE_CONTAINER() throw( IO_ERROR, PARSE_ERROR );
-    PCB_TARGET* parsePCB_TARGET() throw( IO_ERROR, PARSE_ERROR );
-    BOARD* parseBOARD() throw( IO_ERROR, PARSE_ERROR );
+    PCB_TARGET*     parsePCB_TARGET() throw( IO_ERROR, PARSE_ERROR );
+    BOARD*          parseBOARD() throw( IO_ERROR, PARSE_ERROR );
 
 
     /**
      * Function lookUpLayer
      * parses the current token for the layer definition of a #BOARD_ITEM object.
      *
-     * @param aMap is the LAYER_MAP to use for the lookup.
+     * @param aMap is the LAYER_{NUM|MSK}_MAP to use for the lookup.
      *
      * @throw IO_ERROR if the layer is not valid.
      * @throw PARSE_ERROR if the layer syntax is incorrect.
      * @return int - The result of the parsed #BOARD_ITEM layer or set designator.
      */
-    int lookUpLayer( const LAYER_MAP& aMap ) throw( PARSE_ERROR, IO_ERROR );
+    template<class T, class M>
+    T lookUpLayer( const M& aMap ) throw( PARSE_ERROR, IO_ERROR );
 
     /**
      * Function parseBoardItemLayer
@@ -115,7 +150,7 @@ class PCB_PARSER : public PCB_LEXER
      * @throw PARSE_ERROR if the layer syntax is incorrect.
      * @return The index the parsed #BOARD_ITEM layer.
      */
-    int parseBoardItemLayer() throw( IO_ERROR, PARSE_ERROR );
+    LAYER_ID parseBoardItemLayer() throw( IO_ERROR, PARSE_ERROR );
 
     /**
      * Function parseBoardItemLayersAsMask
@@ -125,7 +160,7 @@ class PCB_PARSER : public PCB_LEXER
      * @throw PARSE_ERROR if the layers syntax is incorrect.
      * @return The mask of layers the parsed #BOARD_ITEM is on.
      */
-    int parseBoardItemLayersAsMask() throw( PARSE_ERROR, IO_ERROR );
+    LSET parseBoardItemLayersAsMask() throw( PARSE_ERROR, IO_ERROR );
 
     /**
      * Function parseXY
@@ -138,9 +173,9 @@ class PCB_PARSER : public PCB_LEXER
      * @throw PARSE_ERROR if the coordinate pair syntax is incorrect.
      * @return A wxPoint object containing the coordinate pair.
      */
-    wxPoint parseXY() throw( PARSE_ERROR );
+    wxPoint parseXY() throw( PARSE_ERROR, IO_ERROR );
 
-    void parseXY( int* aX, int* aY ) throw( PARSE_ERROR );
+    void parseXY( int* aX, int* aY ) throw( PARSE_ERROR, IO_ERROR );
 
     /**
      * Function parseEDA_TEXT
@@ -149,14 +184,14 @@ class PCB_PARSER : public PCB_LEXER
      * @throw PARSE_ERROR if the text syntax is not valid.
      * @param aText A point to the #EDA_TEXT object to save the parsed settings into.
      */
-    void parseEDA_TEXT( EDA_TEXT* aText ) throw( PARSE_ERROR );
+    void parseEDA_TEXT( EDA_TEXT* aText ) throw( PARSE_ERROR, IO_ERROR );
 
-    S3D_MASTER* parse3DModel() throw( PARSE_ERROR );
+    S3D_MASTER* parse3DModel() throw( PARSE_ERROR, IO_ERROR );
 
     /**
      * Function parseDouble
-     * parses the current token as an ASCII numeric string with possible leading whitespace into
-     * a double precision floating point number.
+     * parses the current token as an ASCII numeric string with possible leading
+     * whitespace into a double precision floating point number.
      *
      * @throw IO_ERROR if an error occurs attempting to convert the current token.
      * @return The result of the parsed token.
@@ -169,20 +204,23 @@ class PCB_PARSER : public PCB_LEXER
         return parseDouble();
     }
 
-    inline double parseDouble( T aToken ) throw( IO_ERROR )
+    inline double parseDouble( PCB_KEYS_T::T aToken ) throw( IO_ERROR )
     {
         return parseDouble( GetTokenText( aToken ) );
     }
 
     inline int parseBoardUnits() throw( IO_ERROR )
     {
-        // There should be no major rounding issues here,
-        // since the values in the file are in mm
-        // and get converted to nano-meters.
+        // There should be no major rounding issues here, since the values in
+        // the file are in mm and get converted to nano-meters.
+        // See test program tools/test-nm-biu-to-ascii-mm-round-tripping.cpp
+        // to confirm or experiment.  Use a similar strategy in both places, here
+        // and in the test program. Make that program with:
+        // $ make test-nm-biu-to-ascii-mm-round-tripping
         return KiROUND( parseDouble() * IU_PER_MM );
     }
 
-    inline int parseBoardUnits( const char* aExpected ) throw( PARSE_ERROR )
+    inline int parseBoardUnits( const char* aExpected ) throw( PARSE_ERROR, IO_ERROR )
     {
         // Use here KiROUND, not KIROUND (see comments about them)
         // when having a function as argument, because it will be called twice
@@ -190,7 +228,7 @@ class PCB_PARSER : public PCB_LEXER
         return KiROUND( parseDouble( aExpected ) * IU_PER_MM );
     }
 
-    inline int parseBoardUnits( T aToken ) throw( PARSE_ERROR )
+    inline int parseBoardUnits( PCB_KEYS_T::T aToken ) throw( PARSE_ERROR, IO_ERROR )
     {
         return parseBoardUnits( GetTokenText( aToken ) );
     }

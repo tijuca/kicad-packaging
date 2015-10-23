@@ -33,7 +33,6 @@
 #include <class_drawpanel.h>
 #include <confirm.h>
 #include <block_commande.h>
-#include <pcbcommon.h>
 #include <wxPcbStruct.h>
 #include <trigo.h>
 
@@ -120,7 +119,7 @@ private:
 
 static bool InstallBlockCmdFrame( PCB_BASE_FRAME* parent, const wxString& title )
 {
-    wxPoint oldpos = parent->GetScreen()->GetCrossHairPosition();
+    wxPoint oldpos = parent->GetCrossHairPosition();
 
     parent->GetCanvas()->SetIgnoreMouseEvents( true );
     DIALOG_BLOCK_OPTIONS * dlg = new DIALOG_BLOCK_OPTIONS( parent, title );
@@ -128,7 +127,7 @@ static bool InstallBlockCmdFrame( PCB_BASE_FRAME* parent, const wxString& title 
     int cmd = dlg->ShowModal();
     dlg->Destroy();
 
-    parent->GetScreen()->SetCrossHairPosition( oldpos );
+    parent->SetCrossHairPosition( oldpos );
     parent->GetCanvas()->MoveCursorToCrossHair();
     parent->GetCanvas()->SetIgnoreMouseEvents( false );
 
@@ -179,14 +178,14 @@ void DIALOG_BLOCK_OPTIONS::ExecuteCommand( wxCommandEvent& event )
 }
 
 
-int PCB_EDIT_FRAME::ReturnBlockCommand( int aKey )
+int PCB_EDIT_FRAME::BlockCommand( int aKey )
 {
     int cmd = 0;
 
     switch( aKey )
     {
     default:
-        cmd = aKey & 0x255;
+        cmd = aKey & 0xFF;
         break;
 
     case 0:
@@ -220,6 +219,8 @@ int PCB_EDIT_FRAME::ReturnBlockCommand( int aKey )
 
 void PCB_EDIT_FRAME::HandleBlockPlace( wxDC* DC )
 {
+    GetBoard()->m_Status_Pcb &= ~DO_NOT_SHOW_GENERAL_RASTNEST;
+
     if( !m_canvas->IsMouseCaptured() )
     {
         DisplayError( this, wxT( "Error in HandleBlockPLace : m_mouseCaptureCallback = NULL" ) );
@@ -227,14 +228,16 @@ void PCB_EDIT_FRAME::HandleBlockPlace( wxDC* DC )
 
     GetScreen()->m_BlockLocate.SetState( STATE_BLOCK_STOP );
 
-    switch( GetScreen()->m_BlockLocate.GetCommand() )
+    const BLOCK_COMMAND_T command = GetScreen()->m_BlockLocate.GetCommand();
+
+    switch( command )
     {
     case BLOCK_IDLE:
         break;
 
-    case BLOCK_DRAG:                /* Drag */
-    case BLOCK_MOVE:                /* Move */
-    case BLOCK_PRESELECT_MOVE:      /* Move with preselection list*/
+    case BLOCK_DRAG:                // Drag
+    case BLOCK_MOVE:                // Move
+    case BLOCK_PRESELECT_MOVE:      // Move with preselection list
         if( m_canvas->IsMouseCaptured() )
             m_canvas->CallMouseCapture( DC, wxDefaultPosition, false );
 
@@ -242,11 +245,12 @@ void PCB_EDIT_FRAME::HandleBlockPlace( wxDC* DC )
         GetScreen()->m_BlockLocate.ClearItemsList();
         break;
 
-    case BLOCK_COPY:     /* Copy */
+    case BLOCK_COPY:     // Copy
+    case BLOCK_COPY_AND_INCREMENT:
         if( m_canvas->IsMouseCaptured() )
             m_canvas->CallMouseCapture( DC, wxDefaultPosition, false );
 
-        Block_Duplicate();
+        Block_Duplicate( command == BLOCK_COPY_AND_INCREMENT );
         GetScreen()->m_BlockLocate.ClearItemsList();
         break;
 
@@ -275,7 +279,6 @@ bool PCB_EDIT_FRAME::HandleBlockEnd( wxDC* DC )
 {
     bool nextcmd = false;       // Will be set to true if a block place is needed
     bool cancelCmd = false;
-
     // If coming here after cancel block, clean up and exit
     if( GetScreen()->m_BlockLocate.GetState() == STATE_NO_BLOCK )
     {
@@ -294,7 +297,8 @@ bool PCB_EDIT_FRAME::HandleBlockEnd( wxDC* DC )
             cancelCmd = true;
 
             // undraw block outline
-            m_canvas->CallMouseCapture( DC, wxDefaultPosition, false );
+            if( DC )
+                m_canvas->CallMouseCapture( DC, wxDefaultPosition, false );
         }
         else
         {
@@ -315,35 +319,37 @@ bool PCB_EDIT_FRAME::HandleBlockEnd( wxDC* DC )
             DisplayError( this, wxT( "Error in HandleBlockPLace" ) );
             break;
 
-        case BLOCK_DRAG:            /* Drag (not used, for future enhancements)*/
-        case BLOCK_MOVE:            /* Move */
-        case BLOCK_COPY:            /* Copy */
-        case BLOCK_PRESELECT_MOVE:  /* Move with preselection list*/
+        case BLOCK_DRAG:                // Drag (not used, for future enhancements)
+        case BLOCK_MOVE:                // Move
+        case BLOCK_COPY:                // Copy
+        case BLOCK_COPY_AND_INCREMENT:  // Copy and increment relevant references
+        case BLOCK_PRESELECT_MOVE:      // Move with preselection list
             GetScreen()->m_BlockLocate.SetState( STATE_BLOCK_MOVE );
             nextcmd = true;
             m_canvas->SetMouseCaptureCallback( drawMovingBlock );
-            m_canvas->CallMouseCapture( DC, wxDefaultPosition, false );
+            if( DC )
+                m_canvas->CallMouseCapture( DC, wxDefaultPosition, false );
             break;
 
-        case BLOCK_DELETE: /* Delete */
+        case BLOCK_DELETE: // Delete
             m_canvas->SetMouseCaptureCallback( NULL );
             GetScreen()->m_BlockLocate.SetState( STATE_BLOCK_STOP );
             Block_Delete();
             break;
 
-        case BLOCK_ROTATE: /* Rotation */
+        case BLOCK_ROTATE: // Rotation
             m_canvas->SetMouseCaptureCallback( NULL );
             GetScreen()->m_BlockLocate.SetState( STATE_BLOCK_STOP );
             Block_Rotate();
             break;
 
-        case BLOCK_FLIP: /* Flip */
+        case BLOCK_FLIP: // Flip
             m_canvas->SetMouseCaptureCallback( NULL );
             GetScreen()->m_BlockLocate.SetState( STATE_BLOCK_STOP );
             Block_Flip();
             break;
 
-        case BLOCK_SAVE: /* Save (not used, for future enhancements)*/
+        case BLOCK_SAVE: // Save (not used, for future enhancements)
             GetScreen()->m_BlockLocate.SetState( STATE_BLOCK_STOP );
 
             if( GetScreen()->m_BlockLocate.GetCount() )
@@ -355,7 +361,7 @@ bool PCB_EDIT_FRAME::HandleBlockEnd( wxDC* DC )
         case BLOCK_PASTE:
             break;
 
-        case BLOCK_ZOOM: /* Window Zoom */
+        case BLOCK_ZOOM: // Window Zoom
 
             // Turn off the redraw block routine now so it is not displayed
             // with one corner at the new center of the screen
@@ -370,6 +376,7 @@ bool PCB_EDIT_FRAME::HandleBlockEnd( wxDC* DC )
 
     if( ! nextcmd )
     {
+        GetBoard()->m_Status_Pcb |= DO_NOT_SHOW_GENERAL_RASTNEST;
         GetScreen()->ClearBlockCommand();
         m_canvas->EndMouseCapture( GetToolId(), m_canvas->GetCurrentCursor(), wxEmptyString,
                                    false );
@@ -381,7 +388,8 @@ bool PCB_EDIT_FRAME::HandleBlockEnd( wxDC* DC )
 
 void PCB_EDIT_FRAME::Block_SelectItems()
 {
-    int layerMask;
+    LSET layerMask;
+    bool selectOnlyComplete = GetScreen()->m_BlockLocate.GetWidth() > 0 ;
 
     GetScreen()->m_BlockLocate.Normalize();
 
@@ -391,11 +399,11 @@ void PCB_EDIT_FRAME::Block_SelectItems()
     // Add modules
     if( blockIncludeModules )
     {
-        for( MODULE* module = m_Pcb->m_Modules; module != NULL; module = module->Next() )
+        for( MODULE* module = m_Pcb->m_Modules;  module;  module = module->Next() )
         {
-            int layer = module->GetLayer();
+            LAYER_ID layer = module->GetLayer();
 
-            if( module->HitTest( GetScreen()->m_BlockLocate )
+            if( module->HitTest( GetScreen()->m_BlockLocate, selectOnlyComplete )
                 && ( !module->IsLocked() || blockIncludeLockedModules ) )
             {
                 if( blockIncludeItemsOnInvisibleLayers || m_Pcb->IsModuleLayerVisible( layer ) )
@@ -410,14 +418,14 @@ void PCB_EDIT_FRAME::Block_SelectItems()
     // Add tracks and vias
     if( blockIncludeTracks )
     {
-        for( TRACK* pt_segm = m_Pcb->m_Track; pt_segm != NULL; pt_segm = pt_segm->Next() )
+        for( TRACK* track = m_Pcb->m_Track; track != NULL; track = track->Next() )
         {
-            if( pt_segm->HitTest( GetScreen()->m_BlockLocate ) )
+            if( track->HitTest( GetScreen()->m_BlockLocate, selectOnlyComplete ) )
             {
                 if( blockIncludeItemsOnInvisibleLayers
-                  || m_Pcb->IsLayerVisible( pt_segm->GetLayer() ) )
+                  || m_Pcb->IsLayerVisible( track->GetLayer() ) )
                 {
-                    picker.SetItem ( pt_segm );
+                    picker.SetItem( track );
                     itemsList->PushItem( picker );
                 }
             }
@@ -425,13 +433,13 @@ void PCB_EDIT_FRAME::Block_SelectItems()
     }
 
     // Add graphic items
-    layerMask = EDGE_LAYER;
+    layerMask = LSET( Edge_Cuts );
 
     if( blockIncludeItemsOnTechLayers )
-        layerMask = ALL_LAYERS;
+        layerMask.set();
 
     if( !blockIncludeBoardOutlineLayer )
-        layerMask &= ~EDGE_LAYER;
+        layerMask.set( Edge_Cuts, false );
 
     for( BOARD_ITEM* PtStruct = m_Pcb->m_Drawings; PtStruct != NULL; PtStruct = PtStruct->Next() )
     {
@@ -443,10 +451,10 @@ void PCB_EDIT_FRAME::Block_SelectItems()
         switch( PtStruct->Type() )
         {
         case PCB_LINE_T:
-            if( (GetLayerMask( PtStruct->GetLayer() ) & layerMask) == 0  )
+            if( !layerMask[PtStruct->GetLayer()] )
                 break;
 
-            if( !PtStruct->HitTest( GetScreen()->m_BlockLocate ) )
+            if( !PtStruct->HitTest( GetScreen()->m_BlockLocate, selectOnlyComplete ) )
                 break;
 
             select_me = true; // This item is in bloc: select it
@@ -456,27 +464,27 @@ void PCB_EDIT_FRAME::Block_SelectItems()
             if( !blockIncludePcbTexts )
                 break;
 
-            if( !PtStruct->HitTest( GetScreen()->m_BlockLocate ) )
+            if( !PtStruct->HitTest( GetScreen()->m_BlockLocate, selectOnlyComplete ) )
                 break;
 
             select_me = true; // This item is in bloc: select it
             break;
 
         case PCB_TARGET_T:
-            if( ( GetLayerMask( PtStruct->GetLayer() ) & layerMask ) == 0  )
+            if( !layerMask[PtStruct->GetLayer()] )
                 break;
 
-            if( !PtStruct->HitTest( GetScreen()->m_BlockLocate ) )
+            if( !PtStruct->HitTest( GetScreen()->m_BlockLocate, selectOnlyComplete ) )
                 break;
 
             select_me = true; // This item is in bloc: select it
             break;
 
         case PCB_DIMENSION_T:
-            if( ( GetLayerMask( PtStruct->GetLayer() ) & layerMask ) == 0 )
+            if( !layerMask[PtStruct->GetLayer()] )
                 break;
 
-            if( !PtStruct->HitTest( GetScreen()->m_BlockLocate ) )
+            if( !PtStruct->HitTest( GetScreen()->m_BlockLocate, selectOnlyComplete ) )
                 break;
 
             select_me = true; // This item is in bloc: select it
@@ -500,7 +508,7 @@ void PCB_EDIT_FRAME::Block_SelectItems()
         {
             ZONE_CONTAINER* area = m_Pcb->GetArea( ii );
 
-            if( area->HitTest( GetScreen()->m_BlockLocate ) )
+            if( area->HitTest( GetScreen()->m_BlockLocate, selectOnlyComplete ) )
             {
                 if( blockIncludeItemsOnInvisibleLayers
                   || m_Pcb->IsLayerVisible( area->GetLayer() ) )
@@ -530,7 +538,7 @@ static void drawPickedItems( EDA_DRAW_PANEL* aPanel, wxDC* aDC, wxPoint aOffset 
         {
         case PCB_MODULE_T:
             frame->GetBoard()->m_Status_Pcb &= ~RATSNEST_ITEM_LOCAL_OK;
-            DrawModuleOutlines( aPanel, aDC, (MODULE*) item );
+            ((MODULE*) item)->DrawOutlinesWhenMoving( aPanel, aDC, g_Offset_Module );
             break;
 
         case PCB_LINE_T:
@@ -562,6 +570,11 @@ static void drawMovingBlock( EDA_DRAW_PANEL* aPanel, wxDC* aDC, const wxPoint& a
 {
     BASE_SCREEN* screen = aPanel->GetScreen();
 
+    // do not show local module rastnest in block move, it is not usable.
+    DISPLAY_OPTIONS* displ_opts = (DISPLAY_OPTIONS*)aPanel->GetDisplayOptions();
+    bool showRats = displ_opts->m_Show_Module_Ratsnest;
+    displ_opts->m_Show_Module_Ratsnest = false;
+
     if( aErase )
     {
         if( screen->m_BlockLocate.GetMoveVector().x || screen->m_BlockLocate.GetMoveVector().y )
@@ -577,7 +590,7 @@ static void drawMovingBlock( EDA_DRAW_PANEL* aPanel, wxDC* aDC, const wxPoint& a
 
     if( screen->m_BlockLocate.GetState() != STATE_BLOCK_STOP )
     {
-        screen->m_BlockLocate.SetMoveVector( screen->GetCrossHairPosition() -
+        screen->m_BlockLocate.SetMoveVector( aPanel->GetParent()->GetCrossHairPosition() -
                                              screen->m_BlockLocate.GetLastCursorPosition() );
     }
 
@@ -589,6 +602,8 @@ static void drawMovingBlock( EDA_DRAW_PANEL* aPanel, wxDC* aDC, const wxPoint& a
         if( blockDrawItems )
             drawPickedItems( aPanel, aDC, screen->m_BlockLocate.GetMoveVector() );
     }
+
+    displ_opts->m_Show_Module_Ratsnest = showRats;
 }
 
 
@@ -600,7 +615,7 @@ void PCB_EDIT_FRAME::Block_Delete()
     PICKED_ITEMS_LIST* itemsList = &GetScreen()->m_BlockLocate.GetItems();
     itemsList->m_Status = UR_DELETED;
 
-    /* unlink items and clear flags */
+    // unlink items and clear flags
     for( unsigned ii = 0; ii < itemsList->GetCount(); ii++ )
     {
         BOARD_ITEM* item = (BOARD_ITEM*) itemsList->GetPickedItem( ii );
@@ -655,23 +670,22 @@ void PCB_EDIT_FRAME::Block_Delete()
 void PCB_EDIT_FRAME::Block_Rotate()
 {
     wxPoint oldpos;
-    wxPoint centre;         // rotation cent-re for the rotation transform
-    int     rotAngle = 900; // rotation angle in 0.1 deg.
+    wxPoint centre;                     // rotation cent-re for the rotation transform
+    int     rotAngle = m_rotationAngle; // rotation angle in 0.1 deg.
 
-    oldpos = GetScreen()->GetCrossHairPosition();
+    oldpos = GetCrossHairPosition();
     centre = GetScreen()->m_BlockLocate.Centre();
 
     OnModify();
 
     PICKED_ITEMS_LIST* itemsList = &GetScreen()->m_BlockLocate.GetItems();
-    itemsList->m_Status = UR_ROTATED;
+    itemsList->m_Status = UR_CHANGED;
 
     for( unsigned ii = 0; ii < itemsList->GetCount(); ii++ )
     {
         BOARD_ITEM* item = (BOARD_ITEM*) itemsList->GetPickedItem( ii );
         wxASSERT( item );
-        itemsList->SetPickedItemStatus( UR_ROTATED, ii );
-        item->Rotate( centre, rotAngle );
+        itemsList->SetPickedItemStatus( UR_CHANGED, ii );
 
         switch( item->Type() )
         {
@@ -680,7 +694,7 @@ void PCB_EDIT_FRAME::Block_Rotate()
             m_Pcb->m_Status_Pcb = 0;
             break;
 
-        /* Move and rotate the track segments */
+        // Move and rotate the track segments
         case PCB_TRACE_T:       // a track segment (segment on a copper layer)
         case PCB_VIA_T:         // a via (like track segment on a copper layer)
             m_Pcb->m_Status_Pcb = 0;
@@ -705,7 +719,16 @@ void PCB_EDIT_FRAME::Block_Rotate()
         }
     }
 
-    SaveCopyInUndoList( *itemsList, UR_ROTATED, centre );
+    // Save all the block items in there current state before applying the rotation.
+    SaveCopyInUndoList( *itemsList, UR_CHANGED, centre );
+
+    // Now perform the rotation.
+    for( unsigned ii = 0; ii < itemsList->GetCount(); ii++ )
+    {
+        BOARD_ITEM* item = (BOARD_ITEM*) itemsList->GetPickedItem( ii );
+        wxASSERT( item );
+        item->Rotate( centre, rotAngle );
+    }
 
     Compile_Ratsnest( NULL, true );
     m_canvas->Refresh( true );
@@ -716,14 +739,14 @@ void PCB_EDIT_FRAME::Block_Flip()
 {
 #define INVERT( pos ) (pos) = center.y - ( (pos) - center.y )
     wxPoint memo;
-    wxPoint center; /* Position of the axis for inversion of all elements */
+    wxPoint center; // Position of the axis for inversion of all elements
 
     OnModify();
 
     PICKED_ITEMS_LIST* itemsList = &GetScreen()->m_BlockLocate.GetItems();
     itemsList->m_Status = UR_FLIPPED;
 
-    memo = GetScreen()->GetCrossHairPosition();
+    memo = GetCrossHairPosition();
 
     center = GetScreen()->m_BlockLocate.Centre();
 
@@ -741,7 +764,7 @@ void PCB_EDIT_FRAME::Block_Flip()
             m_Pcb->m_Status_Pcb = 0;
             break;
 
-        /* Move and rotate the track segments */
+        // Move and rotate the track segments
         case PCB_TRACE_T:       // a track segment (segment on a copper layer)
         case PCB_VIA_T:         // a via (like track segment on a copper layer)
             m_Pcb->m_Status_Pcb = 0;
@@ -787,6 +810,7 @@ void PCB_EDIT_FRAME::Block_Move()
         BOARD_ITEM* item = (BOARD_ITEM*) itemsList->GetPickedItem( ii );
         itemsList->SetPickedItemStatus( UR_MOVED, ii );
         item->Move( MoveVector );
+        item->ClearFlags( IS_MOVED );
 
         switch( item->Type() )
         {
@@ -795,7 +819,7 @@ void PCB_EDIT_FRAME::Block_Move()
             item->ClearFlags();
             break;
 
-        /* Move track segments */
+        // Move track segments
         case PCB_TRACE_T:       // a track segment (segment on a copper layer)
         case PCB_VIA_T:         // a via (like a track segment on a copper layer)
             m_Pcb->m_Status_Pcb = 0;
@@ -827,7 +851,7 @@ void PCB_EDIT_FRAME::Block_Move()
 }
 
 
-void PCB_EDIT_FRAME::Block_Duplicate()
+void PCB_EDIT_FRAME::Block_Duplicate( bool aIncrement )
 {
     wxPoint MoveVector = GetScreen()->m_BlockLocate.GetMoveVector();
 
@@ -846,6 +870,9 @@ void PCB_EDIT_FRAME::Block_Duplicate()
         BOARD_ITEM* item = (BOARD_ITEM*) itemsList->GetPickedItem( ii );
 
         newitem = (BOARD_ITEM*)item->Clone();
+
+        if( aIncrement )
+            newitem->IncrementItemReference();
 
         if( item->Type() == PCB_MODULE_T )
             m_Pcb->m_Status_Pcb = 0;

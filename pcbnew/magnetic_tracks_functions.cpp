@@ -1,3 +1,27 @@
+/*
+ * This program source code file is part of KiCad, a free EDA CAD application.
+ *
+ * Copyright (C) 2009-2014 Jean-Pierre Charras, jp.charras at wanadoo.fr
+ * Copyright (C) 1992-2015 KiCad Developers, see AUTHORS.txt for contributors.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation; either version 2
+ * of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, you may find one here:
+ * http://www.gnu.org/licenses/old-licenses/gpl-2.0.html
+ * or you may search the http://www.gnu.org website for the version 2 license,
+ * or you may write to the Free Software Foundation, Inc.,
+ * 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
+ */
+
 /**
  * @file magnetic_tracks_functions.cpp
  */
@@ -12,7 +36,6 @@
 #include <pcbnew.h>
 #include <wxPcbStruct.h>
 #include <macros.h>
-#include <pcbcommon.h>
 
 #include <class_board.h>
 #include <class_track.h>
@@ -107,7 +130,7 @@ bool Project( wxPoint* aNearPos, wxPoint on_grid, const TRACK* track )
 bool Magnetize( PCB_EDIT_FRAME* frame, int aCurrentTool, wxSize aGridSize,
                 wxPoint on_grid, wxPoint* curpos )
 {
-    bool    doCheckNet = g_MagneticPadOption != capture_always && Drc_On;
+    bool    doCheckNet = g_MagneticPadOption != capture_always && g_Drc_On;
     bool    doTrack = false;
     bool    doPad = false;
     bool    amMovingVia = false;
@@ -116,7 +139,7 @@ bool Magnetize( PCB_EDIT_FRAME* frame, int aCurrentTool, wxSize aGridSize,
     TRACK*      currTrack = g_CurrentTrackSegment;
     BOARD_ITEM* currItem  = frame->GetCurItem();
     PCB_SCREEN* screen = frame->GetScreen();
-    wxPoint     pos = screen->RefPos( true );
+    wxPoint     pos = frame->RefPos( true );
 
     // D( printf( "currTrack=%p currItem=%p currTrack->Type()=%d currItem->Type()=%d\n",  currTrack, currItem, currTrack ? currTrack->Type() : 0, currItem ? currItem->Type() : 0 ); )
 
@@ -132,7 +155,6 @@ bool Magnetize( PCB_EDIT_FRAME* frame, int aCurrentTool, wxSize aGridSize,
     {
         currTrack = NULL;
     }
-
 
     if( g_MagneticPadOption == capture_always )
         doPad = true;
@@ -157,12 +179,12 @@ bool Magnetize( PCB_EDIT_FRAME* frame, int aCurrentTool, wxSize aGridSize,
 
     if( doPad )
     {
-        int layer_mask = GetLayerMask( screen->m_Active_Layer );
-        D_PAD* pad = m_Pcb->GetPad( pos, layer_mask );
+        LSET    layer_mask( screen->m_Active_Layer );
+        D_PAD*  pad = m_Pcb->GetPad( pos, layer_mask );
 
         if( pad )
         {
-            if( doCheckNet && currTrack && currTrack->GetNet() != pad->GetNet() )
+            if( doCheckNet && currTrack && currTrack->GetNetCode() != pad->GetNetCode() )
                 return false;
 
             *curpos = pad->GetPosition();
@@ -173,15 +195,15 @@ bool Magnetize( PCB_EDIT_FRAME* frame, int aCurrentTool, wxSize aGridSize,
     // after pads, only track & via tests remain, skip them if not desired
     if( doTrack )
     {
-        int layer = screen->m_Active_Layer;
+        LAYER_ID layer = screen->m_Active_Layer;
 
         for( TRACK* via = m_Pcb->m_Track;
-             via && (via = via->GetVia( *curpos, layer )) != NULL;
-             via = via->Next() )
+                via && (via = via->GetVia( *curpos, layer )) != NULL;
+                via = via->Next() )
         {
             if( via != currTrack )   // a via cannot influence itself
             {
-                if( !doCheckNet || !currTrack || currTrack->GetNet() == via->GetNet() )
+                if( !doCheckNet || !currTrack || currTrack->GetNetCode() == via->GetNetCode() )
                 {
                     *curpos = via->GetStart();
                     // D(printf("via hit\n");)
@@ -192,9 +214,9 @@ bool Magnetize( PCB_EDIT_FRAME* frame, int aCurrentTool, wxSize aGridSize,
 
         if( !currTrack )
         {
-            int layer_mask = GetLayerMask( layer );
+            LSET layer_mask( layer );
 
-            TRACK* track = m_Pcb->GetTrace( m_Pcb->m_Track, pos, layer_mask );
+            TRACK* track = m_Pcb->GetTrack( m_Pcb->m_Track, pos, layer_mask );
 
             if( !track || track->Type() != PCB_TRACE_T )
             {
@@ -224,7 +246,7 @@ bool Magnetize( PCB_EDIT_FRAME* frame, int aCurrentTool, wxSize aGridSize,
             if( track->Type() != PCB_TRACE_T )
                 continue;
 
-            if( doCheckNet && currTrack && currTrack->GetNet() != track->GetNet() )
+            if( doCheckNet && currTrack && currTrack->GetNetCode() != track->GetNetCode() )
                 continue;
 
             if( m_Pcb->IsLayerVisible( track->GetLayer() ) == false )
@@ -251,24 +273,23 @@ bool Magnetize( PCB_EDIT_FRAME* frame, int aCurrentTool, wxSize aGridSize,
                 // a new track and that new track is parallel to the track the
                 // mouse is on. Find the nearest end point of the track under mouse
                 // to the mouse and return that.
-                double distStart = hypot( double( curpos->x - track->GetStart().x ),
-                                          double( curpos->y - track->GetStart().y ));
-
-                double distEnd   = hypot( double( curpos->x - track->GetEnd().x ),
-                                          double( curpos->y - track->GetEnd().y ));
+                double distStart = GetLineLength( *curpos, track->GetStart() );
+                double distEnd   = GetLineLength( *curpos, track->GetEnd() );
 
                 // if track not via, or if its a via dragging but not with its adjacent track
                 if( currTrack->Type() != PCB_VIA_T
                   || ( currTrack->GetStart() != track->GetStart() && currTrack->GetStart() != track->GetEnd() ))
                 {
-                    if( distStart <= currTrack->GetWidth()/2 )
+                    double max_dist = currTrack->GetWidth() / 2.0f;
+
+                    if( distStart <= max_dist )
                     {
                         // D(printf("nearest end is start\n");)
                         *curpos = track->GetStart();
                         return true;
                     }
 
-                    if( distEnd <= currTrack->GetWidth()/2 )
+                    if( distEnd <= max_dist )
                     {
                         // D(printf("nearest end is end\n");)
                         *curpos = track->GetEnd();

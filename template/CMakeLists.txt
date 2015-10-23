@@ -1,18 +1,10 @@
-install(FILES kicad.pro
-        DESTINATION ${KICAD_TEMPLATE}
-        COMPONENT resources)
+install( FILES
+    kicad.pro
+    gost_landscape.kicad_wks
+    gost_portrait.kicad_wks
+    pagelayout_default.kicad_wks
+    pagelayout_logo.kicad_wks
 
-# template_lst is a list of all templates.
-set( template_lst
-    raspberrypi-gpio
-    stm32f100-discovery-shield
-    ti-stellaris-boosterpack40
-    ti-stellaris-boosterpack40_min
+    DESTINATION ${KICAD_TEMPLATE}
+    COMPONENT resources
     )
-
-foreach( tpl ${template_lst} )
-    install( DIRECTORY ${tpl}
-        DESTINATION ${KICAD_TEMPLATE}
-        COMPONENT templates )
-endforeach()
-

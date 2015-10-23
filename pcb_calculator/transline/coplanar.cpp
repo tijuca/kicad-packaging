@@ -36,6 +36,18 @@ COPLANAR::COPLANAR() : TRANSLINE()
 {
     m_name = "CoPlanar";
     backMetal = false;
+
+    // Initialize these variables mainly to avoid warnings from a static analyzer
+    h = 0.0;                    // height of substrate
+    t = 0.0;                    // thickness of top metal
+    w = 0.0;                    // width of line
+    s = 0.0;                    // width of gap between line and ground
+    len = 0.0;                  // length of line
+    Z0 = 0.0;                   // characteristic impedance
+    ang_l = 0.0;                // Electrical length in angle
+    atten_dielectric = 0.0;     // Loss in dielectric (dB)
+    atten_cond = 0.0;           // Loss in conductors (dB)
+    er_eff = 1.0;               // Effective dielectric constant
 }
 
 
@@ -184,7 +196,7 @@ void COPLANAR::show_results()
     setResult( 1, atten_cond, "dB" );
     setResult( 2, atten_dielectric, "dB" );
 
-    setResult( 3, skindepth / UNIT_MICRON, "µm" );
+    setResult( 3, skindepth / UNIT_MICRON, "Âµm" );
 }
 
 

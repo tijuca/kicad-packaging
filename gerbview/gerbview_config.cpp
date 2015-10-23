@@ -34,17 +34,16 @@
 #include <common.h>
 #include <class_drawpanel.h>
 #include <gestfich.h>
-#include <param_config.h>
+#include <config_params.h>
 #include <colors_selection.h>
 
 #include <gerbview.h>
+#include <gerbview_frame.h>
 #include <hotkeys.h>
 #include <dialog_hotkeys_editor.h>
 
 
 #define GROUP wxT("/gerbview")
-
-#define INSETUP true
 
 
 void GERBVIEW_FRAME::Process_Config( wxCommandEvent& event )
@@ -56,21 +55,21 @@ void GERBVIEW_FRAME::Process_Config( wxCommandEvent& event )
     {
     // Hotkey IDs
     case ID_PREFERENCES_HOTKEY_EXPORT_CONFIG:
-        ExportHotkeyConfigToFile( s_Gerbview_Hokeys_Descr );
+        ExportHotkeyConfigToFile( GerbviewHokeysDescr, wxT( "gerbview" ) );
         break;
 
     case ID_PREFERENCES_HOTKEY_IMPORT_CONFIG:
-        ImportHotkeyConfigFromFile( s_Gerbview_Hokeys_Descr );
+        ImportHotkeyConfigFromFile( GerbviewHokeysDescr, wxT( "gerbview" ) );
         break;
 
     case ID_PREFERENCES_HOTKEY_SHOW_EDITOR:
-        InstallHotkeyFrame( this, s_Gerbview_Hokeys_Descr );
+        InstallHotkeyFrame( this, GerbviewHokeysDescr );
         break;
 
     case ID_PREFERENCES_HOTKEY_SHOW_CURRENT_LIST:
 
         // Display current hotkey list for GerbView.
-        DisplayHotkeyList( this, s_Gerbview_Hokeys_Descr );
+        DisplayHotkeyList( this, GerbviewHokeysDescr );
         break;
 
     default:
@@ -91,12 +90,12 @@ PARAM_CFG_ARRAY& GERBVIEW_FRAME::GetConfigurationSettings()
     m_configSettings.push_back( new PARAM_CFG_INT( true, wxT( "DrawModeOption" ),
                                                    &m_displayMode, 2, 0, 2 ) );
     m_configSettings.push_back( new PARAM_CFG_SETCOLOR( true,
-                                                        wxT( "DCodeColor" ),
+                                                        wxT( "DCodeColorEx" ),
                                                         &g_ColorsSettings.m_ItemsColors[
                                                             DCODES_VISIBLE],
                                                         WHITE ) );
     m_configSettings.push_back( new PARAM_CFG_SETCOLOR( true,
-                                                        wxT( "NegativeObjectsColor" ),
+                                                        wxT( "NegativeObjectsColorEx" ),
                                                         &g_ColorsSettings.m_ItemsColors[
                                                             NEGATIVE_OBJECTS_VISIBLE],
                                                         DARKGRAY ) );
@@ -122,15 +121,14 @@ PARAM_CFG_ARRAY& GERBVIEW_FRAME::GetConfigurationSettings()
     // because the parameter list that use these keywords does not store them,
     // just points to them.
     static const wxChar* keys[] = {
-        wxT("ColorLayer_0"),     wxT("ColorLayer_1"),     wxT("ColorLayer_2"),     wxT("ColorLayer_3"),
-        wxT("ColorLayer_4"),     wxT("ColorLayer_5"),     wxT("ColorLayer_6"),     wxT("ColorLayer_7"),
-        wxT("ColorLayer_8"),     wxT("ColorLayer_9"),     wxT("ColorLayer_10"),    wxT("ColorLayer_11"),
-        wxT("ColorLayer_12"),    wxT("ColorLayer_13"),    wxT("ColorLayer_14"),    wxT("ColorLayer_15"),
-
-        wxT("ColorLayer_16"),    wxT("ColorLayer_17"),    wxT("ColorLayer_18"),    wxT("ColorLayer_19"),
-        wxT("ColorLayer_20"),    wxT("ColorLayer_21"),    wxT("ColorLayer_22"),    wxT("ColorLayer_23"),
-        wxT("ColorLayer_24"),    wxT("ColorLayer_25"),    wxT("ColorLayer_26"),    wxT("ColorLayer_27"),
-        wxT("ColorLayer_28"),    wxT("ColorLayer_29"),    wxT("ColorLayer_30"),    wxT("ColorLayer_31"),
+        wxT("ColorLayer0Ex"),  wxT("ColorLayer1Ex"),  wxT("ColorLayer2Ex"),  wxT("ColorLayer3Ex"),
+        wxT("ColorLayer4Ex"),  wxT("ColorLayer5Ex"),  wxT("ColorLayer6Ex"),  wxT("ColorLayer7Ex"),
+        wxT("ColorLayer8Ex"),  wxT("ColorLayer9Ex"),  wxT("ColorLayer10Ex"), wxT("ColorLayer11Ex"),
+        wxT("ColorLayer12Ex"), wxT("ColorLayer13Ex"), wxT("ColorLayer14Ex"), wxT("ColorLayer15Ex"),
+        wxT("ColorLayer16Ex"), wxT("ColorLayer17Ex"), wxT("ColorLayer18Ex"), wxT("ColorLayer19Ex"),
+        wxT("ColorLayer20Ex"), wxT("ColorLayer21Ex"), wxT("ColorLayer22Ex"), wxT("ColorLayer23Ex"),
+        wxT("ColorLayer24Ex"), wxT("ColorLayer25Ex"), wxT("ColorLayer26Ex"), wxT("ColorLayer27Ex"),
+        wxT("ColorLayer28Ex"), wxT("ColorLayer29Ex"), wxT("ColorLayer30Ex"), wxT("ColorLayer31Ex"),
     };
 
     wxASSERT( DIM(keys) == DIM(color_default) );

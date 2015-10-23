@@ -1,7 +1,7 @@
 /*
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
- * Copyright (C) 2004 Jean-Pierre Charras, jp.charras at wanadoo.fr
+ * Copyright (C) 2014 Jean-Pierre Charras, jp.charras at wanadoo.fr
  * Copyright (C) 2011 Wayne Stambaugh <stambaughw@verizon.net>
  * Copyright (C) 1992-2011 KiCad Developers, see AUTHORS.txt for contributors.
  *
@@ -30,57 +30,53 @@
 #ifndef __3D_VIEWER_H__
 #define __3D_VIEWER_H__
 
-#include <wxBasePcbFrame.h>         // for m_auimanager member.
-#include <layers_id_colors_and_visibility.h>    // Layers id definitions
-#include <PolyLine.h>               // fot CPolyPt
+#include <draw_frame.h>
 
 #if !wxUSE_GLCANVAS
-#error Please set wxUSE_GLCANVAS to 1 in setup.h.
+#error Please build wxWidgets with Opengl support (./configure --with-opengl)
 #endif
 
 #include <wx/glcanvas.h>
-
-#ifdef __WXMAC__
-#  ifdef __DARWIN__
-#    include <OpenGL/glu.h>
-#  else
-#    include <glu.h>
-#  endif
-#else
-#  include <GL/glu.h>
-#endif
-
 #include <3d_struct.h>
+#include <info3d_visu.h>
+
+/// A variable name whose value holds the path of 3D shape files.
+/// Currently an environment variable, eventually a project variable.
+#define KISYS3DMOD wxT( "KISYS3DMOD" )
+
+/// All 3D files are expected to be stored in LIB3D_FOLDER, or one of
+/// its subdirectory.
+#define LIB3D_FOLDER  wxT( "packages3d" )
 
 class EDA_3D_CANVAS;
+class PCB_BASE_FRAME;
+class wxColourData;
 
-#define KICAD_DEFAULT_3D_DRAWFRAME_STYLE wxDEFAULT_FRAME_STYLE | wxWANTS_CHARS
-#define LIB3D_PATH wxT( "packages3d" )
+#define KICAD_DEFAULT_3D_DRAWFRAME_STYLE    (wxDEFAULT_FRAME_STYLE | wxWANTS_CHARS)
 
-class EDA_3D_FRAME : public wxFrame
+
+class EDA_3D_FRAME : public KIWAY_PLAYER
 {
 private:
-    wxString        m_frameName;        // name used for writing and reading setup. It is "Frame3D"
     EDA_3D_CANVAS*  m_canvas;
-    wxAuiToolBar*   m_HToolBar;
-    wxAuiToolBar*   m_VToolBar;
-    wxPoint         m_framePos;
-    wxSize          m_frameSize;
-    wxAuiManager    m_auimgr;
     bool            m_reloadRequest;
     wxString        m_defaultFileName;  /// Filename to propose for screenshot
+
     /// Tracks whether to use Orthographic or Perspective projection
     bool            m_ortho;
 
 public:
-    EDA_3D_FRAME( PCB_BASE_FRAME* parent, const wxString& title,
+    EDA_3D_FRAME( KIWAY* aKiway, PCB_BASE_FRAME* aParent, const wxString& aTitle,
                   long style = KICAD_DEFAULT_3D_DRAWFRAME_STYLE );
+
     ~EDA_3D_FRAME()
     {
         m_auimgr.UnInit();
     };
 
-    PCB_BASE_FRAME* Parent() { return (PCB_BASE_FRAME*)GetParent(); }
+    PCB_BASE_FRAME* Parent() const { return (PCB_BASE_FRAME*)GetParent(); }
+
+    BOARD* GetBoard();
 
     /**
      * Function ReloadRequest
@@ -97,8 +93,10 @@ public:
      * Function NewDisplay
      * Rebuild the display list.
      * must be called when 3D opengl data is modified
+     * @param aGlList = the list to rebuild.
+     * if 0 (default) all lists are rebuilt
      */
-    void NewDisplay();
+    void NewDisplay( int aGlList = 0 );
 
     void SetDefaultFileName(const wxString &aFn) { m_defaultFileName = aFn; }
     const wxString &GetDefaultFileName() const { return m_defaultFileName; }
@@ -106,8 +104,20 @@ public:
     /// Toggles orthographic projection on and off
     void ToggleOrtho(){ m_ortho = !m_ortho ; Refresh(true);};
 
-    /// Returns the orthographic projection flag
+    /// @return the orthographic projection flag
     bool ModeIsOrtho() { return m_ortho ;};
+
+    /** @return the INFO3D_VISU which contains the current parameters
+     * to draw the 3D view og the board
+     */
+    INFO3D_VISU& GetPrm3DVisu() const;
+
+    /**
+     * @return true if aItem must be displayed
+     * @param aItem = an item of DISPLAY3D_FLG enum
+     */
+    bool IsEnabled( DISPLAY3D_FLG aItem ) const;
+
 
 private:
     // Event handlers:
@@ -117,14 +127,17 @@ private:
     void On3DGridSelection( wxCommandEvent& event );
     void Process_Zoom( wxCommandEvent& event );
     void OnActivate( wxActivateEvent& event );
+    void Install_3D_ViewOptionDialog( wxCommandEvent& event );
 
     // initialisation
-    void ReCreateMenuBar();
-    void ReCreateHToolbar();
-    void ReCreateVToolbar();
+    void CreateMenuBar();
+    void SetMenuBarOptionsState();  // Set the state of toggle menus according
+                                    // to the current display options
+    void ReCreateMainToolbar();
     void SetToolbars();
-    void GetSettings();
-    void SaveSettings();
+
+    void LoadSettings( wxConfigBase* aCfg );    // overload virtual
+    void SaveSettings( wxConfigBase* aCfg );    // overload virtual
 
     // Other functions
     void OnLeftClick( wxDC* DC, const wxPoint& MousePos );
@@ -133,7 +146,59 @@ private:
     double BestZoom();
     void RedrawActiveWindow( wxDC* DC, bool EraseBg );
 
-    void Set3DBgColor();
+    /**
+     * Function Set3DColorFromUser
+     * Get a S3D_COLOR from a wx colour dialog
+     * @param aColor is the S3D_COLOR to change
+     * @param aTitle is the title displayed in the colordialog selector
+     * @param aPredefinedColors is a reference to a wxColourData
+     * which contains a few predefined colors
+     * if it is NULL, no predefined colors are used
+     * @return true if a new color is chosen, false if
+     * no change or aborted by user
+     */
+    bool Set3DColorFromUser( S3D_COLOR &aColor, const wxString& aTitle,
+                             wxColourData* aPredefinedColors = NULL );
+
+    /**
+     * Function Set3DSolderMaskColorFromUser
+     * Set the solder mask color from a set of colors
+     * @return true if a new color is chosen, false if
+     * no change or aborted by user
+     */
+    bool Set3DSolderMaskColorFromUser();
+
+    /**
+     * Function Set3DSolderPasteColorFromUser
+     * Set the solder mask color from a set of colors
+     * @return true if a new color is chosen, false if
+     * no change or aborted by user
+     */
+    bool Set3DSolderPasteColorFromUser();
+
+    /**
+     * Function Set3DCopperColorFromUser
+     * Set the copper color from a set of colors
+     * @return true if a new color is chosen, false if
+     * no change or aborted by user
+     */
+    bool Set3DCopperColorFromUser();
+
+    /**
+     * Function Set3DBoardBodyBodyColorFromUser
+     * Set the copper color from a set of colors
+     * @return true if a new color is chosen, false if
+     * no change or aborted by user
+     */
+    bool Set3DBoardBodyColorFromUser();
+
+    /**
+     * Function Set3DSilkScreenColorFromUser
+     * Set the silkscreen color from a set of colors
+     * @return true if a new color is chosen, false if
+     * no change or aborted by user
+     */
+    bool Set3DSilkScreenColorFromUser();
 
     DECLARE_EVENT_TABLE()
 };

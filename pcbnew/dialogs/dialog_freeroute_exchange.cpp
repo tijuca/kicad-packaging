@@ -27,12 +27,13 @@
  */
 
 #include <fctsys.h>
-#include <appl_wxstruct.h>
+#include <kiface_i.h>
 #include <confirm.h>
 #include <gestfich.h>
 #include <pcbnew.h>
 #include <wxPcbStruct.h>
 #include <macros.h>
+#include <class_board.h>
 
 #include <../common/dialogs/dialog_display_info_HTML_base.h>
 
@@ -41,10 +42,6 @@
 #ifdef __WINDOWS__
 #include <wx/msw/registry.h>
 #endif
-
-
-#define FREEROUTE_URL_KEY wxT( "freeroute_url" )
-#define FREEROUTE_RUN_KEY wxT( "freeroute_command" )
 
 
 void PCB_EDIT_FRAME::Access_to_External_Tool( wxCommandEvent& event )
@@ -61,33 +58,32 @@ DIALOG_FREEROUTE::DIALOG_FREEROUTE( PCB_EDIT_FRAME* parent ):
     m_Parent = parent;
     MyInit();
 
-    m_sdbSizer1OK->SetDefault();
+    m_sdbSizerOK->SetDefault();
     GetSizer()->SetSizeHints( this );
     Centre();
 }
 
 
 
-/* Specific data initialization
- */
-
+// Specific data initialization
 void DIALOG_FREEROUTE::MyInit()
 {
     SetFocus();
-    m_FreeRouteSetupChanged = false;
+    m_freeRouterFound = false;
 
-    wxString msg;
-    wxGetApp().GetSettings()->Read( FREEROUTE_URL_KEY, &msg );
+    wxFileName fileName( FindKicadFile( wxT( "freeroute.jar" ) ), wxPATH_UNIX );
 
-    if( msg.IsEmpty() )
-        m_FreerouteURLName->SetValue( wxT( "http://www.freerouting.net/" ) );
-    else
-        m_FreerouteURLName->SetValue( msg );
+    if( fileName.FileExists() )
+        m_freeRouterFound = true;
+
+    m_buttonLaunchFreeroute->Enable( m_freeRouterFound );
+
 }
 
 const char * s_FreeRouteHelpInfo =
 #include <dialog_freeroute_exchange_help_html.h>
 ;
+
 void DIALOG_FREEROUTE::OnHelpButtonClick( wxCommandEvent& event )
 {
     DIALOG_DISPLAY_HTML_TEXT_BASE help_Dlg( this, wxID_ANY,
@@ -98,21 +94,18 @@ void DIALOG_FREEROUTE::OnHelpButtonClick( wxCommandEvent& event )
     help_Dlg.ShowModal();
 }
 
-/*  wxEVT_COMMAND_BUTTON_CLICKED event handler for ID_CREATE_EXPORT_DSN_FILE
- */
+
 void DIALOG_FREEROUTE::OnExportButtonClick( wxCommandEvent& event )
 {
     m_Parent->ExportToSpecctra( event );
 }
 
 
-/*  wxEVT_COMMAND_BUTTON_CLICKED event handler for ID_IMPORT_FREEROUTE_DSN_FILE
- */
 void DIALOG_FREEROUTE::OnImportButtonClick( wxCommandEvent& event )
 {
     m_Parent->ImportSpecctraSession(  event );
 
-    /* Connectivity inf must be rebuild.
+    /* Connectivity must be rebuild.
      * because for large board it can take some time, this is made only on demand
      */
     if( IsOK( this, _("Do you want to rebuild connectivity data ?" ) ) )
@@ -120,99 +113,96 @@ void DIALOG_FREEROUTE::OnImportButtonClick( wxCommandEvent& event )
 }
 
 
-/* wxEVT_COMMAND_BUTTON_CLICKED event handler for ID_RUN_FREEROUTE
- */
+// Run freeroute, if it is available (freeroute.jar found in kicad binaries)
 void DIALOG_FREEROUTE::OnLaunchButtonClick( wxCommandEvent& event )
 {
-    wxString url;
-    wxString command;
-    wxFileName fileName( FindKicadFile( wxT( "freeroute.jnlp" ) ), wxPATH_UNIX );
+    wxString dsnFile;
 
-    if( fileName.FileExists() )
+    if( m_freeRouterFound )
     {
-        wxString javaWebStartCommand = wxT( "javaws" );
+        dsnFile = createDSN_File();
 
-        // Find the Java web start application on Windows.
-#ifdef __WINDOWS__
-        // If you thought the registry was brain dead before, now you have to deal with
-        // accessing it in either 64 or 32 bit mode depending on the build version of
-        // Windows and the build version of KiCad.
-
-        // This key works for 32 bit Java on 32 bit Windows and 64 bit Java on 64 bit Windows.
-        wxRegKey key( wxRegKey::HKLM, wxT( "SOFTWARE\\JavaSoft\\Java Web Start" ),
-                      wxIsPlatform64Bit() ? wxRegKey::WOW64ViewMode_64 :
-                      wxRegKey::WOW64ViewMode_Default );
-
-        // It's possible that 32 bit Java is installed on 64 bit Windows.
-        if( !key.Exists() && wxIsPlatform64Bit() )
-            key.SetName( wxRegKey::HKLM, wxT( "SOFTWARE\\Wow6432Node\\JavaSoft\\Java Web Start" ) );
-
-        if( !key.Exists() )
-        {
-            ::wxMessageBox( _( "It appears that the Java run time environment is not "
-                               "installed on this computer.  Java is required to use "
-                               "FreeRoute." ),
-                            _( "Pcbnew Error" ), wxOK | wxICON_ERROR );
+        if( dsnFile.IsEmpty() )     // Something is wrong or command cancelled
             return;
-        }
+    }
 
-        key.Open( wxRegKey::Read );
+    wxFileName jarfileName( FindKicadFile( wxT( "freeroute.jar" ) ), wxPATH_UNIX );
+    wxString command;
 
-        // Get the current version of java installed to determine the executable path.
-        wxString value;
-        key.QueryValue( wxT( "CurrentVersion" ), value );
-        key.SetName( key.GetName() + wxT( "\\" ) + value );
-        key.QueryValue( wxT( "Home" ), value );
-        javaWebStartCommand = value + wxFileName::GetPathSeparator() + javaWebStartCommand;
-#endif
+    // Find the Java application on Windows.
+    // Colud be no more needed since we now have to run only java, not java web start
+#ifdef __WINDOWS__
 
-        // Wrap FullFileName in double quotes in case it has C:\Program Files in it.
-        // The space is interpreted as an argument separator.
-        command << javaWebStartCommand << wxChar( ' ' ) << wxChar( '"' )
-                << fileName.GetFullPath() << wxChar( '"' );
-        ProcessExecute( command );
+    // If you thought the registry was brain dead before, now you have to deal with
+    // accessing it in either 64 or 32 bit mode depending on the build version of
+    // Windows and the build version of KiCad.
+
+    // This key works for 32 bit Java on 32 bit Windows and 64 bit Java on 64 bit Windows.
+    wxString keyName = wxT( "SOFTWARE\\JavaSoft\\Java Runtime Environment" );
+    wxRegKey key( wxRegKey::HKLM, keyName,
+                  wxIsPlatform64Bit() ? wxRegKey::WOW64ViewMode_64 :
+                  wxRegKey::WOW64ViewMode_Default );
+
+    // It's possible that 32 bit Java is installed on 64 bit Windows.
+    if( !key.Exists() && wxIsPlatform64Bit() )
+    {
+        keyName = wxT( "SOFTWARE\\Wow6432Node\\JavaSoft\\Java Runtime Environment" );
+        key.SetName( wxRegKey::HKLM, keyName );
+    }
+
+    if( !key.Exists() )
+    {
+        ::wxMessageBox( _( "It appears that the Java run time environment is not "
+                           "installed on this computer.  Java is required to use "
+                           "FreeRoute." ),
+                        _( "Pcbnew Error" ), wxOK | wxICON_ERROR );
         return;
     }
 
-    url = m_FreerouteURLName->GetValue() + wxT( "/java/freeroute.jnlp" );
+    key.Open( wxRegKey::Read );
 
-    wxLaunchDefaultBrowser( url );
+    // Get the current version of java installed to determine the executable path.
+    wxString value;
+    key.QueryValue( wxT( "CurrentVersion" ), value );
+    key.SetName( key.GetName() + wxT( "\\" ) + value );
+
+    key.QueryValue( wxT( "JavaHome" ), value );
+    command = value + wxFileName::GetPathSeparator();
+    command << wxT("bin\\java");
+#else   //  __WINDOWS__
+        command = wxT( "java" );
+#endif
+
+    command << wxT(" -jar ");
+    // add "freeroute.jar" to command line:
+    command << wxChar( '"' ) << jarfileName.GetFullPath() << wxChar( '"' );
+    // add option to load the .dsn file
+    command << wxT( " -de " );
+    // add *.dsn full filename (quoted):
+    command << wxChar( '"' ) << dsnFile << wxChar( '"' );
+
+    ProcessExecute( command );
 }
 
-
-/* wxEVT_COMMAND_BUTTON_CLICKED event handler for ID_BUTTON
- */
-void DIALOG_FREEROUTE::OnVisitButtonClick( wxCommandEvent& event )
+const wxString DIALOG_FREEROUTE::createDSN_File()
 {
-    wxString command = m_FreerouteURLName->GetValue();
+    wxFileName fn( m_Parent->GetBoard()->GetFileName() );
+    wxString dsn_ext = wxT( "dsn" );
+    fn.SetExt( dsn_ext );
+    wxString mask    = wxT( "*." ) + dsn_ext;
 
-    wxLaunchDefaultBrowser( command );
-}
+    wxString fullFileName = EDA_FileSelector( _( "Specctra DSN file:" ),
+                                     fn.GetPath(), fn.GetFullName(),
+                                     dsn_ext, mask,
+                                     this, wxFD_SAVE, false );
 
-
-/*  wxEVT_COMMAND_BUTTON_CLICKED event handler for wxID_CLOSE
- */
-void DIALOG_FREEROUTE::OnCancelButtonClick( wxCommandEvent& event )
-{
-    EndModal(wxID_CANCEL);
-}
-
-
-void DIALOG_FREEROUTE::OnOKButtonClick( wxCommandEvent& event )
-{
-    if( m_FreeRouteSetupChanged )  // Save new config
+    if( !fullFileName.IsEmpty() )
     {
-        wxGetApp().GetSettings()->Write( FREEROUTE_URL_KEY,
-                                         m_FreerouteURLName->GetValue() );
+        if( ! m_Parent->ExportSpecctraFile( fullFileName ) ) // the file was not created
+            return wxEmptyString;
     }
 
-    EndModal(wxID_OK);
+    return fullFileName;
 }
 
 
-/* wxEVT_COMMAND_TEXT_UPDATED event handler for ID_TEXT_EDIT_FR_URL
- */
-void DIALOG_FREEROUTE::OnTextEditFrUrlUpdated( wxCommandEvent& event )
-{
-    m_FreeRouteSetupChanged = true;
-}

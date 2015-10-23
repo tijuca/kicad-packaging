@@ -1,3 +1,27 @@
+/*
+ * This program source code file is part of KiCad, a free EDA CAD application.
+ *
+ * Copyright (C) 2012-2014 Jean-Pierre Charras  jp.charras at wanadoo.fr
+ * Copyright (C) 1992-2014 KiCad Developers, see change_log.txt for contributors.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation; either version 2
+ * of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, you may find one here:
+ * http://www.gnu.org/licenses/old-licenses/gpl-2.0.html
+ * or you may search the http://www.gnu.org website for the version 2 license,
+ * or you may write to the Free Software Foundation, Inc.,
+ * 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
+ */
+
 /**
  * @file class_gbr_screen.cpp
  */
@@ -7,13 +31,7 @@
 #include <macros.h>
 #include <class_gbr_screen.h>
 #include <base_units.h>
-
-#include <pcbnew.h>
-#include <class_board_design_settings.h>
-#include <layers_id_colors_and_visibility.h>
-
-#include <pcbnew_id.h>
-
+#include <gerbview_id.h>
 
 #define DMIL_GRID( x ) wxRealPoint( x * IU_PER_DECIMILS,\
                                     x * IU_PER_DECIMILS )
@@ -23,12 +41,12 @@
 
 /**
     Default GerbView zoom values.
-    Limited to 19 values to keep a decent size to menus.
     Roughly a 1.5 progression.
 */
 static const double gbrZoomList[] =
 {
     ZOOM_FACTOR( 0.5 ),
+    ZOOM_FACTOR( 0.75 ),
     ZOOM_FACTOR( 1.0 ),
     ZOOM_FACTOR( 1.5 ),
     ZOOM_FACTOR( 2.0 ),
@@ -41,7 +59,8 @@ static const double gbrZoomList[] =
     ZOOM_FACTOR( 35.0 ),
     ZOOM_FACTOR( 50.0 ),
     ZOOM_FACTOR( 80.0 ),
-    ZOOM_FACTOR( 120.0 ),
+    ZOOM_FACTOR( 110.0 ),
+    ZOOM_FACTOR( 150.0 ),
     ZOOM_FACTOR( 200.0 ),
     ZOOM_FACTOR( 350.0 ),
     ZOOM_FACTOR( 500.0 ),
@@ -93,7 +112,7 @@ GBR_SCREEN::GBR_SCREEN( const wxSize& aPageSizeIU ) :
     // Set the working grid size to a reasonable value (in 1/10000 inch)
     SetGrid( DMIL_GRID( 500 ) );
 
-    m_Active_Layer       = LAYER_N_BACK;      // default active layer = bottom layer
+    m_Active_Layer       = B_Cu;      // default active layer = bottom layer
 
     SetZoom( ZOOM_FACTOR( 350 ) );            // a default value for zoom
 

@@ -50,7 +50,7 @@ PICKED_ITEMS_LIST::~PICKED_ITEMS_LIST()
 }
 
 
-void PICKED_ITEMS_LIST::PushItem( ITEM_PICKER& aItem )
+void PICKED_ITEMS_LIST::PushItem( const ITEM_PICKER& aItem )
 {
     m_ItemsList.push_back( aItem );
 }
@@ -70,7 +70,7 @@ ITEM_PICKER PICKED_ITEMS_LIST::PopItem()
 }
 
 
-bool PICKED_ITEMS_LIST::ContainsItem( EDA_ITEM* aItem ) const
+bool PICKED_ITEMS_LIST::ContainsItem( const EDA_ITEM* aItem ) const
 {
     for( size_t i = 0;  i < m_ItemsList.size();  i++ )
     {
@@ -79,6 +79,18 @@ bool PICKED_ITEMS_LIST::ContainsItem( EDA_ITEM* aItem ) const
     }
 
     return false;
+}
+
+
+int PICKED_ITEMS_LIST::FindItem( const EDA_ITEM* aItem ) const
+{
+    for( size_t i = 0; i < m_ItemsList.size(); i++ )
+    {
+        if( m_ItemsList[i].GetItem() == aItem )
+            return i;
+    }
+
+    return -1;
 }
 
 
@@ -102,7 +114,7 @@ void PICKED_ITEMS_LIST::ClearListAndDeleteItems()
         {
         case UR_UNSPECIFIED:
             if( show_error_message )
-                wxMessageBox( wxT( "ClearUndoORRedoList() error: UR_UNSPECIFIED command type" ) );
+                wxMessageBox( wxT( "ClearListAndDeleteItems() error: UR_UNSPECIFIED command type" ) );
 
             show_error_message = false;
             break;
@@ -157,7 +169,7 @@ void PICKED_ITEMS_LIST::ClearListAndDeleteItems()
 }
 
 
-ITEM_PICKER PICKED_ITEMS_LIST::GetItemWrapper( unsigned int aIdx )
+ITEM_PICKER PICKED_ITEMS_LIST::GetItemWrapper( unsigned int aIdx ) const
 {
     ITEM_PICKER picker;
 
@@ -168,7 +180,7 @@ ITEM_PICKER PICKED_ITEMS_LIST::GetItemWrapper( unsigned int aIdx )
 }
 
 
-EDA_ITEM* PICKED_ITEMS_LIST::GetPickedItem( unsigned int aIdx )
+EDA_ITEM* PICKED_ITEMS_LIST::GetPickedItem( unsigned int aIdx ) const
 {
     if( aIdx < m_ItemsList.size() )
         return m_ItemsList[aIdx].GetItem();
@@ -177,7 +189,7 @@ EDA_ITEM* PICKED_ITEMS_LIST::GetPickedItem( unsigned int aIdx )
 }
 
 
-EDA_ITEM* PICKED_ITEMS_LIST::GetPickedItemLink( unsigned int aIdx )
+EDA_ITEM* PICKED_ITEMS_LIST::GetPickedItemLink( unsigned int aIdx ) const
 {
     if( aIdx < m_ItemsList.size() )
         return m_ItemsList[aIdx].GetLink();
@@ -186,7 +198,7 @@ EDA_ITEM* PICKED_ITEMS_LIST::GetPickedItemLink( unsigned int aIdx )
 }
 
 
-UNDO_REDO_T PICKED_ITEMS_LIST::GetPickedItemStatus( unsigned int aIdx )
+UNDO_REDO_T PICKED_ITEMS_LIST::GetPickedItemStatus( unsigned int aIdx ) const
 {
     if( aIdx < m_ItemsList.size() )
         return m_ItemsList[aIdx].GetStatus();
@@ -195,7 +207,7 @@ UNDO_REDO_T PICKED_ITEMS_LIST::GetPickedItemStatus( unsigned int aIdx )
 }
 
 
-int PICKED_ITEMS_LIST::GetPickerFlags( unsigned aIdx )
+STATUS_FLAGS PICKED_ITEMS_LIST::GetPickerFlags( unsigned aIdx ) const
 {
     if( aIdx < m_ItemsList.size() )
         return m_ItemsList[aIdx].GetFlags();
@@ -253,7 +265,7 @@ bool PICKED_ITEMS_LIST::SetPickedItemStatus( UNDO_REDO_T aStatus, unsigned aIdx 
 }
 
 
-bool PICKED_ITEMS_LIST::SetPickerFlags( int aFlags, unsigned aIdx )
+bool PICKED_ITEMS_LIST::SetPickerFlags( STATUS_FLAGS aFlags, unsigned aIdx )
 {
     if( aIdx < m_ItemsList.size() )
     {
@@ -331,7 +343,6 @@ PICKED_ITEMS_LIST* UNDO_REDO_CONTAINER::PopCommand()
         m_CommandsList.pop_back();
         return item;
     }
+
     return NULL;
 }
-
-

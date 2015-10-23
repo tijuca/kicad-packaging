@@ -38,6 +38,7 @@
 #include <base_units.h>
 
 #include <gerbview.h>
+#include <gerbview_frame.h>
 #include <class_gerber_draw_item.h>
 #include <class_GERBER.h>
 
@@ -154,134 +155,6 @@ int D_CODE::GetShapeDim( GERBER_DRAW_ITEM* aParent )
 }
 
 
-int GERBVIEW_FRAME::ReadDCodeDefinitionFile( const wxString& D_Code_FullFileName )
-{
-    int      current_Dcode, ii;
-    char*    ptcar;
-    int      dimH, dimV, drill, dummy;
-    float    fdimH, fdimV, fdrill;
-    char     c_type_outil[256];
-    char     line[GERBER_BUFZ];
-    wxString msg;
-    D_CODE*  dcode;
-    FILE*    dest;
-    int      layer = getActiveLayer();
-    int      type_outil;
-
-    if( g_GERBER_List[layer] == NULL )
-        g_GERBER_List[layer] = new GERBER_IMAGE( this, layer );
-
-    GERBER_IMAGE* gerber = g_GERBER_List[layer];
-
-
-    /* Updating gerber scale: */
-    double dcode_scale = IU_PER_MILS; // By uniting dCode = mil,
-                                                    // internal unit = IU_PER_MILS
-    current_Dcode = 0;
-
-    if( D_Code_FullFileName.IsEmpty() )
-        return 0;
-
-    dest = wxFopen( D_Code_FullFileName, wxT( "rt" ) );
-    if( dest == 0 )
-    {
-        msg = _( "File " ) + D_Code_FullFileName + _( " not found" );
-        DisplayError( this, msg, 10 );
-        return -1;
-    }
-
-    gerber->InitToolTable();
-
-    while( fgets( line, sizeof(line) - 1, dest ) != NULL )
-    {
-        if( *line == ';' )
-            continue;
-
-        if( strlen( line ) < 10 )
-            continue;                       /* Skip blank line. */
-
-        dcode = NULL;
-        current_Dcode = 0;
-
-        /* Determine of the type of file from D_Code. */
-        ptcar = line;
-        ii    = 0;
-
-        while( *ptcar )
-            if( *(ptcar++) == ',' )
-                ii++;
-
-        if( ii >= 6 )   /* value in mils */
-        {
-            sscanf( line, "%d,%d,%d,%d,%d,%d,%d", &ii,
-                    &dimH, &dimV, &drill, &dummy, &dummy, &type_outil );
-
-            dimH  = KiROUND( dimH * dcode_scale );
-            dimV  = KiROUND( dimV * dcode_scale );
-            drill = KiROUND( drill * dcode_scale );
-
-            if( ii < 1 )
-                ii = 1;
-
-            current_Dcode = ii - 1 + FIRST_DCODE;
-        }
-        else        /* Values in inches are converted to mils. */
-        {
-            fdrill = 0;
-            current_Dcode = 0;
-
-            sscanf( line, "%f,%f,%1s", &fdimV, &fdimH, c_type_outil );
-            ptcar = line;
-
-            while( *ptcar )
-            {
-                if( *ptcar == 'D' )
-                {
-                    sscanf( ptcar + 1, "%d,%f", &current_Dcode, &fdrill );
-                    break;
-                }
-                else
-                {
-                    ptcar++;
-                }
-            }
-
-            dimH  = KiROUND( fdimH * dcode_scale * 1000 );
-            dimV  = KiROUND( fdimV * dcode_scale * 1000 );
-            drill = KiROUND( fdrill * dcode_scale * 1000 );
-
-            if( strchr( "CLROP", c_type_outil[0] ) )
-            {
-                type_outil = (APERTURE_T) c_type_outil[0];
-            }
-            else
-            {
-                fclose( dest );
-                return -2;
-            }
-        }
-
-        /* Update the list of d_codes if consistent. */
-        if( current_Dcode < FIRST_DCODE )
-            continue;
-
-        if( current_Dcode >= TOOLS_MAX_COUNT )
-            continue;
-
-        dcode = gerber->GetDCODE( current_Dcode );
-        dcode->m_Size.x  = dimH;
-        dcode->m_Size.y  = dimV;
-        dcode->m_Shape   = (APERTURE_T) type_outil;
-        dcode->m_Drill.x = dcode->m_Drill.y = drill;
-        dcode->m_Defined = true;
-    }
-
-    fclose( dest );
-
-    return 1;
-}
-
-
 void GERBVIEW_FRAME::CopyDCodesSizeToItems()
 {
     static D_CODE dummy( 999 );   //Used if D_CODE not found in list
@@ -321,7 +194,7 @@ void GERBVIEW_FRAME::CopyDCodesSizeToItems()
                 gerb_item->m_Shape = GBR_SPOT_RECT;
                 break;
 
-            case APT_POLYGON:                /* spot regular polyg 3 to 1é edges */
+            case APT_POLYGON:
                 gerb_item->m_Shape = GBR_SPOT_POLY;
                 break;
 
@@ -502,7 +375,7 @@ void D_CODE::ConvertShapeToPolygon()
         for( unsigned ii = 0; ii <= SEGS_CNT; ii++ )
         {
             currpos = initialpos;
-            RotatePoint( &currpos, ii * 3600 / SEGS_CNT );
+            RotatePoint( &currpos, ii * 3600.0 / SEGS_CNT );
             m_PolyCorners.push_back( currpos );
         }
 
@@ -552,7 +425,7 @@ void D_CODE::ConvertShapeToPolygon()
         for( ; ii <= SEGS_CNT / 2; ii++ )
         {
             currpos = initialpos;
-            RotatePoint( &currpos, ii * 3600 / SEGS_CNT );
+            RotatePoint( &currpos, ii * 3600.0 / SEGS_CNT );
             currpos.x += delta;
             m_PolyCorners.push_back( currpos );
         }
@@ -561,7 +434,7 @@ void D_CODE::ConvertShapeToPolygon()
         for( ii = SEGS_CNT / 2; ii <= SEGS_CNT; ii++ )
         {
             currpos = initialpos;
-            RotatePoint( &currpos, ii * 3600 / SEGS_CNT );
+            RotatePoint( &currpos, ii * 3600.0 / SEGS_CNT );
             currpos.x -= delta;
             m_PolyCorners.push_back( currpos );
         }
@@ -592,7 +465,7 @@ void D_CODE::ConvertShapeToPolygon()
         for( int ii = 0; ii <= m_EdgesCount; ii++ )
         {
             currpos = initialpos;
-            RotatePoint( &currpos, ii * 3600 / m_EdgesCount );
+            RotatePoint( &currpos, ii * 3600.0 / m_EdgesCount );
             m_PolyCorners.push_back( currpos );
         }
 
@@ -633,7 +506,7 @@ static void addHoleToPolygon( std::vector<wxPoint>& aBuffer,
         {
             currpos.x = 0;
             currpos.y = aSize.x / 2;            // aSize.x / 2 is the radius of the hole
-            RotatePoint( &currpos, ii * 3600 / SEGS_CNT );
+            RotatePoint( &currpos, ii * 3600.0 / SEGS_CNT );
             aBuffer.push_back( currpos );
         }
 

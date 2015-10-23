@@ -1,9 +1,9 @@
 /*
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
- * Copyright (C) 2012 Jean-Pierre Charras, jean-pierre.charras@ujf-grenoble.fr
+ * Copyright (C) 2015 Jean-Pierre Charras, jp.charras at wanadoo.fr
  * Copyright (C) 2012 SoftPLC Corporation, Dick Hollenbeck <dick@softplc.com>
- * Copyright (C) 1992-2012 KiCad Developers, see AUTHORS.txt for contributors.
+ * Copyright (C) 1992-2015 KiCad Developers, see AUTHORS.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -35,7 +35,6 @@
 #include <class_drawpanel.h>
 #include <drawtxt.h>
 #include <kicad_string.h>
-#include <pcbcommon.h>
 #include <colors_selection.h>
 #include <richio.h>
 #include <macros.h>
@@ -49,42 +48,31 @@
 #include <pcbnew.h>
 
 
-TEXTE_MODULE::TEXTE_MODULE( MODULE* parent, int text_type ) :
+TEXTE_MODULE::TEXTE_MODULE( MODULE* parent, TEXT_TYPE text_type ) :
     BOARD_ITEM( parent, PCB_MODULE_TEXT_T ),
     EDA_TEXT()
 {
-    MODULE* module = (MODULE*) m_Parent;
+    MODULE* module = static_cast<MODULE*>( m_Parent );
 
-    m_Type = text_type;         /* Reference */
-
-    if( (m_Type != TEXT_is_REFERENCE) && (m_Type != TEXT_is_VALUE) )
-        m_Type = TEXT_is_DIVERS;
-
+    m_Type = text_type;
     m_NoShow = false;
-    m_Thickness = Millimeter2iu( 0.15 );    // Set default to a reasonable value
+    // Set text tickness to a default value
+    m_Thickness = Millimeter2iu( 0.15 );
+    SetLayer( F_SilkS );
 
-    SetLayer( SILKSCREEN_N_FRONT );
-
+    // Set position and give a default layer if a valid parent footprint exists
     if( module && ( module->Type() == PCB_MODULE_T ) )
     {
-        m_Pos = module->m_Pos;
+        m_Pos = module->GetPosition();
 
-        int moduleLayer = module->GetLayer();
-
-        if( moduleLayer == LAYER_N_BACK )
-            SetLayer( SILKSCREEN_N_BACK );
-        else if( moduleLayer == LAYER_N_FRONT )
-            SetLayer( SILKSCREEN_N_FRONT );
-        else
-            SetLayer( moduleLayer );
-
-        if(  moduleLayer == SILKSCREEN_N_BACK
-             || moduleLayer == ADHESIVE_N_BACK
-             || moduleLayer == LAYER_N_BACK )
+        if( IsBackLayer( module->GetLayer() ) )
         {
+            SetLayer( B_SilkS );
             m_Mirror = true;
         }
     }
+
+    SetDrawCoord();
 }
 
 
@@ -92,6 +80,48 @@ TEXTE_MODULE::~TEXTE_MODULE()
 {
 }
 
+
+void TEXTE_MODULE::Rotate( const wxPoint& aRotCentre, double aAngle )
+{
+    // Used in footprint edition
+    // Note also in module editor, m_Pos0 = m_Pos
+    RotatePoint( &m_Pos, aRotCentre, aAngle );
+    SetOrientation( GetOrientation() + aAngle );
+    SetLocalCoord();
+}
+
+
+void TEXTE_MODULE::Flip( const wxPoint& aCentre )
+{
+    // flipping the footprint is relative to the X axis
+    MIRROR( m_Pos.y, aCentre.y );
+    NEGATE_AND_NORMALIZE_ANGLE_POS( m_Orient );
+    SetLayer( FlipLayer( GetLayer() ) );
+    m_Mirror = IsBackLayer( GetLayer() );
+    SetLocalCoord();
+}
+
+
+void TEXTE_MODULE::Mirror( const wxPoint& aCentre, bool aMirrorAroundXAxis )
+{
+    // Used in modedit, to transform the footprint
+    // the mirror is around the Y axis or X axis if aMirrorAroundXAxis = true
+    // the position is mirrored, but the text itself is not mirrored
+    if( aMirrorAroundXAxis )
+        MIRROR( m_Pos.y, aCentre.y );
+    else
+        MIRROR( m_Pos.x, aCentre.x );
+
+    NEGATE_AND_NORMALIZE_ANGLE_POS( m_Orient );
+    SetLocalCoord();
+}
+
+
+void TEXTE_MODULE::Move( const wxPoint& aMoveVector )
+{
+    m_Pos += aMoveVector;
+    SetLocalCoord();
+}
 
 void TEXTE_MODULE::Copy( TEXTE_MODULE* source )
 {
@@ -119,79 +149,47 @@ int TEXTE_MODULE::GetLength() const
     return m_Text.Len();
 }
 
-// Update draw coordinates
+
 void TEXTE_MODULE::SetDrawCoord()
 {
-    MODULE* module = (MODULE*) m_Parent;
+    const MODULE* module = static_cast<const MODULE*>( m_Parent );
 
     m_Pos = m_Pos0;
 
-    if( module == NULL )
-        return;
+    if( module  )
+    {
+        double angle = module->GetOrientation();
 
-    double angle = module->GetOrientation();
-
-    RotatePoint( &m_Pos.x, &m_Pos.y, angle );
-    m_Pos += module->GetPosition();
+        RotatePoint( &m_Pos.x, &m_Pos.y, angle );
+        m_Pos += module->GetPosition();
+    }
 }
 
 
-// Update "local" coordinates (coordinates relatives to the footprint
-//  anchor point)
 void TEXTE_MODULE::SetLocalCoord()
 {
-    MODULE* module = (MODULE*) m_Parent;
+    const MODULE* module = static_cast<const MODULE*>( m_Parent );
 
-    if( module == NULL )
+    if( module )
+    {
+        m_Pos0 = m_Pos - module->GetPosition();
+        double angle = module->GetOrientation();
+        RotatePoint( &m_Pos0.x, &m_Pos0.y, -angle );
+    }
+    else
     {
         m_Pos0 = m_Pos;
-        return;
     }
-
-    m_Pos0 = m_Pos - module->m_Pos;
-
-    int angle = module->m_Orient;
-
-    RotatePoint( &m_Pos0.x, &m_Pos0.y, -angle );
 }
 
 
-/**
- * Function GetTextRect
- * @return an EDA_RECT which gives the position and size of the text area
- *         (for the footprint orientation)
- */
-EDA_RECT TEXTE_MODULE::GetTextRect( void ) const
-{
-    EDA_RECT area;
-
-    int      dx, dy;
-
-    dx  = ( m_Size.x * GetLength() ) / 2;
-    dx  = (dx * 10) / 9; /* letter size = 10/9 */
-    dx += m_Thickness / 2;
-    dy  = ( m_Size.y + m_Thickness ) / 2;
-
-    wxPoint Org = m_Pos;    // This is the position of the center of the area
-    Org.x -= dx;
-    Org.y -= dy;
-    area.SetOrigin( Org );
-    area.SetHeight( 2 * dy );
-    area.SetWidth( 2 * dx );
-    area.Normalize();
-
-    return area;
-}
-
-
-bool TEXTE_MODULE::HitTest( const wxPoint& aPosition )
+bool TEXTE_MODULE::HitTest( const wxPoint& aPosition ) const
 {
     wxPoint  rel_pos;
-    EDA_RECT area = GetTextRect();
+    EDA_RECT area = GetTextBox( -1, -1 );
 
-    /* Rotate refPos to - angle
-     * to test if refPos is within area (which is relative to an horizontal
-     * text)
+    /* Rotate refPos to - angle to test if refPos is within area (which
+     * is relative to an horizontal text)
      */
     rel_pos = aPosition;
     RotatePoint( &rel_pos, m_Pos, -GetDrawRotation() );
@@ -203,27 +201,19 @@ bool TEXTE_MODULE::HitTest( const wxPoint& aPosition )
 }
 
 
-/**
- * Function GetBoundingBox
+/*
+ * Function GetBoundingBox (virtual)
  * returns the bounding box of this Text (according to text and footprint
  * orientation)
  */
-EDA_RECT TEXTE_MODULE::GetBoundingBox() const
+const EDA_RECT TEXTE_MODULE::GetBoundingBox() const
 {
-    // Calculate area without text fields:
-    EDA_RECT text_area;
-    int      angle = GetDrawRotation();
-    wxPoint  textstart, textend;
+    double   angle = GetDrawRotation();
+    EDA_RECT text_area = GetTextBox( -1, -1 );
 
-    text_area = GetTextRect();
-    textstart = text_area.GetOrigin();
-    textend   = text_area.GetEnd();
-    RotatePoint( &textstart, m_Pos, angle );
-    RotatePoint( &textend, m_Pos, angle );
+    if( angle )
+        text_area = text_area.GetBoundingBoxRotated( m_Pos, angle );
 
-    text_area.SetOrigin( textstart );
-    text_area.SetEnd( textend );
-    text_area.Normalize();
     return text_area;
 }
 
@@ -239,80 +229,87 @@ EDA_RECT TEXTE_MODULE::GetBoundingBox() const
 void TEXTE_MODULE::Draw( EDA_DRAW_PANEL* panel, wxDC* DC, GR_DRAWMODE draw_mode,
                          const wxPoint& offset )
 {
-    int             width, orient;
-    wxSize          size;
-    wxPoint         pos;      // Center of text
-    PCB_BASE_FRAME* frame;
-    MODULE*         module = (MODULE*) m_Parent;   /* parent must *not* be null
-                                                    *  (a module text without a footprint
-                                                    * parent has no sense) */
-
-
     if( panel == NULL )
         return;
 
-    frame  = (PCB_BASE_FRAME*) panel->GetParent();
+    /* parent must *not* be NULL (a footprint text without a footprint
+       parent has no sense) */
+    wxASSERT( m_Parent );
 
-    pos.x = m_Pos.x - offset.x;
-    pos.y = m_Pos.y - offset.y;
+    BOARD* brd = GetBoard( );
+    EDA_COLOR_T color = brd->GetLayerColor( GetLayer() );
 
-    size   = m_Size;
-    orient = GetDrawRotation();
-    width  = m_Thickness;
+    /* For reference and value suppress the element if the layer it is
+     * on is on a disabled side, user text also has standard layer
+     * hiding.
+     * If the whole module side is disabled this isn't even called */
+    LAYER_ID text_layer = GetLayer();
 
-    if( ( frame->m_DisplayModText == LINE )
-        || ( DC->LogicalToDeviceXRel( width ) < MIN_DRAW_WIDTH ) )
-        width = 0;
-    else if( frame->m_DisplayModText == SKETCH )
+    if( (IsFrontLayer( text_layer ) && !brd->IsElementVisible( MOD_TEXT_FR_VISIBLE )) ||
+        (IsBackLayer( text_layer ) && !brd->IsElementVisible( MOD_TEXT_BK_VISIBLE )) )
+        return;
+
+    // text which are not ref or value are shown only if the layer is visible
+    // ref or value have a specific display option
+    if( GetType() == TEXT_is_DIVERS && ! brd->IsLayerVisible( m_Layer ) )
+        return;
+
+    // Invisible texts are still drawn (not plotted) in MOD_TEXT_INVISIBLE
+    // Just because we must have to edit them (at least to make them visible)
+    if( m_NoShow )
+    {
+        if( !brd->IsElementVisible( MOD_TEXT_INVISIBLE ) )
+            return;
+        color = brd->GetVisibleElementColor( MOD_TEXT_INVISIBLE );
+    }
+
+    DISPLAY_OPTIONS* displ_opts = (DISPLAY_OPTIONS*)panel->GetDisplayOptions();
+
+    // shade text if high contrast mode is active
+    if( ( draw_mode & GR_ALLOW_HIGHCONTRAST ) && displ_opts &&
+        displ_opts->m_ContrastModeDisplay )
+    {
+        LAYER_ID curr_layer = ( (PCB_SCREEN*) panel->GetScreen() )->m_Active_Layer;
+
+        if( !IsOnLayer( curr_layer ) )
+            ColorTurnToDarkDarkGray( &color );
+    }
+
+    // Draw mode compensation for the width
+    int width = m_Thickness;
+
+    if( displ_opts && displ_opts->m_DisplayModTextFill == SKETCH )
         width = -width;
 
     GRSetDrawMode( DC, draw_mode );
+    wxPoint pos = m_Pos - offset;
 
-    BOARD * brd =  GetBoard( );
-    EDA_COLOR_T color;
+    // Draw the text anchor point
     if( brd->IsElementVisible( ANCHOR_VISIBLE ) )
     {
-        color = brd->GetVisibleElementColor(ANCHOR_VISIBLE);
-
-        int anchor_size = DC->DeviceToLogicalXRel( 2 );
-
-        GRLine( panel->GetClipBox(), DC,
-                pos.x - anchor_size, pos.y,
-                pos.x + anchor_size, pos.y, 0, color );
-        GRLine( panel->GetClipBox(), DC,
-                pos.x, pos.y - anchor_size,
-                pos.x, pos.y + anchor_size, 0, color );
+        EDA_COLOR_T anchor_color = brd->GetVisibleElementColor(ANCHOR_VISIBLE);
+        GRDrawAnchor( panel->GetClipBox(), DC, pos.x, pos.y,
+                      DIM_ANCRE_TEXTE, anchor_color );
     }
 
-    color = brd->GetLayerColor(module->GetLayer());
+    // Draw the text proper, with the right attributes
+    wxSize size   = m_Size;
+    double orient = GetDrawRotation();
 
-
-    if( module->GetLayer() == LAYER_N_BACK )
-    {
-        if( brd->IsElementVisible( MOD_TEXT_BK_VISIBLE ) == false )
-            return;
-        color = brd->GetVisibleElementColor(MOD_TEXT_BK_VISIBLE);
-    }
-    else if( module->GetLayer() == LAYER_N_FRONT )
-    {
-        if( brd->IsElementVisible( MOD_TEXT_FR_VISIBLE ) == false )
-            return;
-        color = brd->GetVisibleElementColor(MOD_TEXT_FR_VISIBLE);
-    }
-
-    if( m_NoShow )
-    {
-        if( brd->IsElementVisible( MOD_TEXT_INVISIBLE ) == false )
-            return;
-        color = brd->GetVisibleElementColor(MOD_TEXT_INVISIBLE);
-    }
-
-    /* If the text is mirrored : negate size.x (mirror / Y axis) */
+    // If the text is mirrored : negate size.x (mirror / Y axis)
     if( m_Mirror )
         size.x = -size.x;
 
-    DrawGraphicText( panel, DC, pos, (enum EDA_COLOR_T) color, m_Text, orient,
+    DrawGraphicText( panel->GetClipBox(), DC, pos, color, GetShownText(), orient,
                      size, m_HJustify, m_VJustify, width, m_Italic, m_Bold );
+
+    // Enable these line to draw the bounding box (debug test purpose only)
+#if 0
+    {
+        EDA_RECT BoundaryBox = GetBoundingBox();
+        GRRect( panel->GetClipBox(), DC, BoundaryBox, 0, BROWN );
+    }
+#endif
 }
 
 /* Draws a line from the TEXTE_MODULE origin to parent MODULE origin.
@@ -322,28 +319,26 @@ void TEXTE_MODULE::DrawUmbilical( EDA_DRAW_PANEL* aPanel,
                                   GR_DRAWMODE     aDrawMode,
                                   const wxPoint&  aOffset )
 {
-    MODULE* parent = (MODULE*) GetParent();
+    MODULE* parent = static_cast<MODULE*>( GetParent() );
 
     if( !parent )
         return;
 
     GRSetDrawMode( aDC, GR_XOR );
     GRLine( aPanel->GetClipBox(), aDC,
-            parent->GetPosition(), GetPosition() + aOffset,
+            parent->GetPosition(), GetTextPosition() + aOffset,
             0, UMBILICAL_COLOR);
 }
 
 /* Return text rotation for drawings and plotting
  */
-int TEXTE_MODULE::GetDrawRotation() const
+double TEXTE_MODULE::GetDrawRotation() const
 {
-    int     rotation;
     MODULE* module = (MODULE*) m_Parent;
-
-    rotation = m_Orient;
+    double  rotation = m_Orient;
 
     if( module )
-        rotation += module->m_Orient;
+        rotation += module->GetOrientation();
 
     NORMALIZE_ANGLE_POS( rotation );
 
@@ -364,25 +359,20 @@ void TEXTE_MODULE::GetMsgPanelInfo( std::vector< MSG_PANEL_ITEM >& aList )
         return;
 
     wxString msg, Line;
-    int      ii;
 
     static const wxString text_type_msg[3] =
     {
         _( "Ref." ), _( "Value" ), _( "Text" )
     };
 
-    Line = module->m_Reference->m_Text;
-    aList.push_back( MSG_PANEL_ITEM( _( "Module" ), Line, DARKCYAN ) );
+    Line = module->GetReference();
+    aList.push_back( MSG_PANEL_ITEM( _( "Footprint" ), Line, DARKCYAN ) );
 
-    Line = m_Text;
+    Line = GetShownText();
     aList.push_back( MSG_PANEL_ITEM( _( "Text" ), Line, BROWN ) );
 
-    ii = m_Type;
-
-    if( ii > 2 )
-        ii = 2;
-
-    aList.push_back( MSG_PANEL_ITEM( _( "Type" ), text_type_msg[ii], DARKGREEN ) );
+    wxASSERT( m_Type >= TEXT_is_REFERENCE && m_Type <= TEXT_is_DIVERS );
+    aList.push_back( MSG_PANEL_ITEM( _( "Type" ), text_type_msg[m_Type], DARKGREEN ) );
 
     if( m_NoShow )
         msg = _( "No" );
@@ -391,89 +381,48 @@ void TEXTE_MODULE::GetMsgPanelInfo( std::vector< MSG_PANEL_ITEM >& aList )
 
     aList.push_back( MSG_PANEL_ITEM( _( "Display" ), msg, DARKGREEN ) );
 
-    // Display text layer (use layer name if possible)
-    BOARD* board = NULL;
-    board = (BOARD*) module->GetParent();
-
-    if( m_Layer < NB_LAYERS && board )
-        msg = board->GetLayerName( m_Layer );
-    else
-        msg.Printf( wxT( "%d" ), m_Layer );
-
-    aList.push_back( MSG_PANEL_ITEM( _( "Layer" ), msg, DARKGREEN ) );
-
-    msg = _( " No" );
+    // Display text layer
+    aList.push_back( MSG_PANEL_ITEM( _( "Layer" ), GetLayerName(), DARKGREEN ) );
 
     if( m_Mirror )
         msg = _( " Yes" );
+    else
+        msg = _( " No" );
 
     aList.push_back( MSG_PANEL_ITEM( _( "Mirror" ), msg, DARKGREEN ) );
 
-    msg.Printf( wxT( "%.1f" ), (float) m_Orient / 10 );
-    aList.push_back( MSG_PANEL_ITEM( _( "Orient" ), msg, DARKGREEN ) );
+    msg.Printf( wxT( "%.1f" ), m_Orient / 10.0 );
+    aList.push_back( MSG_PANEL_ITEM( _( "Angle" ), msg, DARKGREEN ) );
 
     msg = ::CoordinateToString( m_Thickness );
     aList.push_back( MSG_PANEL_ITEM( _( "Thickness" ), msg, DARKGREEN ) );
 
     msg = ::CoordinateToString( m_Size.x );
-    aList.push_back( MSG_PANEL_ITEM( _( "H Size" ), msg, RED ) );
+    aList.push_back( MSG_PANEL_ITEM( _( "Width" ), msg, RED ) );
 
     msg = ::CoordinateToString( m_Size.y );
-    aList.push_back( MSG_PANEL_ITEM( _( "V Size" ), msg, RED ) );
+    aList.push_back( MSG_PANEL_ITEM( _( "Height" ), msg, RED ) );
 }
-
-
-// see class_text_mod.h
-bool TEXTE_MODULE::IsOnLayer( int aLayer ) const
-{
-    if( m_Layer == aLayer )
-        return true;
-
-    /* test the parent, which is a MODULE */
-    if( aLayer == GetParent()->GetLayer() )
-        return true;
-
-    if( aLayer == LAYER_N_BACK )
-    {
-        if( m_Layer==ADHESIVE_N_BACK || m_Layer==SILKSCREEN_N_BACK )
-            return true;
-    }
-    else if( aLayer == LAYER_N_FRONT )
-    {
-        if( m_Layer==ADHESIVE_N_FRONT || m_Layer==SILKSCREEN_N_FRONT )
-            return true;
-    }
-
-    return false;
-}
-
-
-/* see class_text_mod.h
- * bool TEXTE_MODULE::IsOnOneOfTheseLayers( int aLayerMask ) const
- * {
- *
- * }
- */
 
 
 wxString TEXTE_MODULE::GetSelectMenuText() const
 {
     wxString text;
+    const wxChar *reference = GetChars( static_cast<MODULE*>( GetParent() )->GetReference() );
 
     switch( m_Type )
     {
     case TEXT_is_REFERENCE:
-        text << _( "Reference" ) << wxT( " " ) << m_Text;
+        text.Printf( _( "Reference %s" ), reference );
         break;
 
     case TEXT_is_VALUE:
-        text << _( "Value" ) << wxT( " " ) << m_Text << _( " of " )
-             << ( (MODULE*) GetParent() )->GetReference();
+        text.Printf( _( "Value %s of %s" ), GetChars( GetShownText() ), reference );
         break;
 
     default:    // wrap this one in quotes:
-        text << _( "Text" ) << wxT( " \"" ) << m_Text << wxT( "\"" ) << _( " of " )
-             << ( (MODULE*) GetParent() )->GetReference();
+        text.Printf( _( "Text \"%s\" on %s of %s" ), GetChars( ShortenedShownText() ),
+                     GetChars( GetLayerName() ), reference );
         break;
     }
 
@@ -487,16 +436,115 @@ EDA_ITEM* TEXTE_MODULE::Clone() const
 }
 
 
-#if defined(DEBUG)
-
-void TEXTE_MODULE::Show( int nestLevel, std::ostream& os ) const
+const BOX2I TEXTE_MODULE::ViewBBox() const
 {
-    // for now, make it look like XML:
-    NestedSpace( nestLevel, os ) << '<' << GetClass().Lower().mb_str() <<
-    " string=\"" << m_Text.mb_str() << "\"/>\n";
+    double   angle = GetDrawRotation();
+    EDA_RECT text_area = GetTextBox( -1, -1 );
 
-//    NestedSpace( nestLevel, os ) << "</" << GetClass().Lower().mb_str()
-//                                 << ">\n";
+    if( angle )
+        text_area = text_area.GetBoundingBoxRotated( m_Pos, angle );
+
+    return BOX2I( text_area.GetPosition(), text_area.GetSize() );
 }
 
-#endif
+
+void TEXTE_MODULE::ViewGetLayers( int aLayers[], int& aCount ) const
+{
+    if( m_NoShow )      // Hidden text
+        aLayers[0] = ITEM_GAL_LAYER( MOD_TEXT_INVISIBLE );
+    //else if( IsFrontLayer( m_Layer ) )
+        //aLayers[0] = ITEM_GAL_LAYER( MOD_TEXT_FR_VISIBLE );
+    //else if( IsBackLayer( m_Layer ) )
+        //aLayers[0] = ITEM_GAL_LAYER( MOD_TEXT_BK_VISIBLE );
+    else
+        aLayers[0] = GetLayer();
+
+    aCount = 1;
+}
+
+
+unsigned int TEXTE_MODULE::ViewGetLOD( int aLayer ) const
+{
+    const int MAX = std::numeric_limits<unsigned int>::max();
+
+    if( !m_view )
+        return 0;
+
+    if( m_Type == TEXT_is_VALUE && !m_view->IsLayerVisible( ITEM_GAL_LAYER( MOD_VALUES_VISIBLE ) ) )
+        return MAX;
+
+    if( m_Type == TEXT_is_REFERENCE && !m_view->IsLayerVisible( ITEM_GAL_LAYER( MOD_REFERENCES_VISIBLE ) ) )
+        return MAX;
+
+    if( IsFrontLayer( m_Layer ) && ( !m_view->IsLayerVisible( ITEM_GAL_LAYER( MOD_TEXT_FR_VISIBLE ) ) ||
+                                     !m_view->IsLayerVisible( ITEM_GAL_LAYER( MOD_FR_VISIBLE ) ) ) )
+        return MAX;
+
+    if( IsBackLayer( m_Layer ) && ( !m_view->IsLayerVisible( ITEM_GAL_LAYER( MOD_TEXT_BK_VISIBLE ) ) ||
+                                    !m_view->IsLayerVisible( ITEM_GAL_LAYER( MOD_BK_VISIBLE ) ) ) )
+        return MAX;
+
+    return 0;
+}
+
+
+/**
+ * Macro-expansion for text in library modules
+ */
+wxString TEXTE_MODULE::GetShownText() const
+{
+    /* First order optimization: no % means that no processing is
+     * needed; just hope that RVO and copy constructor implementation
+     * avoid to copy the whole block; anyway it should be better than
+     * rebuild the string one character at a time...
+     * Also it seems wise to only expand macros in user text (but there
+     * is no technical reason, probably) */
+
+    if( (m_Type != TEXT_is_DIVERS) || (wxString::npos == m_Text.find('%')) )
+        return m_Text;
+
+    wxString newbuf;
+    const MODULE *module = static_cast<MODULE*>( GetParent() );
+
+    for( wxString::const_iterator it = m_Text.begin();
+            it != m_Text.end(); ++it )
+    {
+        // Process '%' and copy everything else
+        if( *it != '%' )
+            newbuf.append(*it);
+        else
+        {
+            /* Look at the next character (if is it there) and append
+             * its expansion */
+            ++it;
+            if( it != m_Text.end() )
+            {
+                switch( char(*it) )
+                {
+                case '%':
+                    newbuf.append( '%' );
+                    break;
+
+                case 'R':
+                    if( module )
+                        newbuf.append( module->GetReference() );
+                    break;
+
+                case 'V':
+                    if( module )
+                        newbuf.append( module->GetValue() );
+                    break;
+
+                default:
+                    newbuf.append( '?' );
+                    break;
+                }
+            }
+            else
+                break; // The string is over and we can't ++ anymore
+        }
+    }
+    return newbuf;
+}
+
+

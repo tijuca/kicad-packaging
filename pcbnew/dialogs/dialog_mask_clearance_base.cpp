@@ -1,5 +1,5 @@
 ///////////////////////////////////////////////////////////////////////////
-// C++ code generated with wxFormBuilder (version Oct  8 2012)
+// C++ code generated with wxFormBuilder (version Mar  9 2015)
 // http://www.wxformbuilder.org/
 //
 // PLEASE DO "NOT" EDIT THIS FILE!
@@ -22,20 +22,17 @@ DIALOG_PADS_MASK_CLEARANCE_BASE::DIALOG_PADS_MASK_CLEARANCE_BASE( wxWindow* pare
 	bMainSizer = new wxBoxSizer( wxVERTICAL );
 	
 	wxBoxSizer* bMainUpperSizer;
-	bMainUpperSizer = new wxBoxSizer( wxHORIZONTAL );
-	
-	wxStaticBoxSizer* sbMiddleRightSizer;
-	sbMiddleRightSizer = new wxStaticBoxSizer( new wxStaticBox( this, wxID_ANY, _("Dimensions:") ), wxVERTICAL );
+	bMainUpperSizer = new wxBoxSizer( wxVERTICAL );
 	
 	m_staticTextInfo = new wxStaticText( this, wxID_ANY, _("Note: For clearance values:\n- a positive value means a mask bigger than a pad\n- a negative value means a mask smaller than a pad\n"), wxDefaultPosition, wxDefaultSize, 0 );
 	m_staticTextInfo->Wrap( -1 );
-	sbMiddleRightSizer->Add( m_staticTextInfo, 0, wxALIGN_CENTER_HORIZONTAL|wxRIGHT|wxLEFT, 5 );
+	bMainUpperSizer->Add( m_staticTextInfo, 0, wxALIGN_CENTER_HORIZONTAL|wxTOP|wxRIGHT|wxLEFT, 5 );
 	
 	m_staticline1 = new wxStaticLine( this, wxID_ANY, wxDefaultPosition, wxDefaultSize, wxLI_HORIZONTAL );
-	sbMiddleRightSizer->Add( m_staticline1, 0, wxEXPAND | wxALL, 5 );
+	bMainUpperSizer->Add( m_staticline1, 0, wxEXPAND | wxALL, 5 );
 	
 	wxFlexGridSizer* fgGridSolderMaskSizer;
-	fgGridSolderMaskSizer = new wxFlexGridSizer( 4, 3, 0, 0 );
+	fgGridSolderMaskSizer = new wxFlexGridSizer( 0, 3, 0, 0 );
 	fgGridSolderMaskSizer->AddGrowableCol( 1 );
 	fgGridSolderMaskSizer->SetFlexibleDirection( wxBOTH );
 	fgGridSolderMaskSizer->SetNonFlexibleGrowMode( wxFLEX_GROWMODE_SPECIFIED );
@@ -48,7 +45,7 @@ DIALOG_PADS_MASK_CLEARANCE_BASE::DIALOG_PADS_MASK_CLEARANCE_BASE( wxWindow* pare
 	
 	m_SolderMaskMarginCtrl = new wxTextCtrl( this, wxID_ANY, wxEmptyString, wxDefaultPosition, wxDefaultSize, 0 );
 	m_SolderMaskMarginCtrl->SetMaxLength( 0 ); 
-	fgGridSolderMaskSizer->Add( m_SolderMaskMarginCtrl, 0, wxEXPAND|wxALL|wxALIGN_CENTER_VERTICAL, 5 );
+	fgGridSolderMaskSizer->Add( m_SolderMaskMarginCtrl, 0, wxEXPAND|wxALL, 5 );
 	
 	m_SolderMaskMarginUnits = new wxStaticText( this, wxID_ANY, _("Inch"), wxDefaultPosition, wxDefaultSize, 0 );
 	m_SolderMaskMarginUnits->Wrap( -1 );
@@ -62,7 +59,7 @@ DIALOG_PADS_MASK_CLEARANCE_BASE::DIALOG_PADS_MASK_CLEARANCE_BASE( wxWindow* pare
 	
 	m_SolderMaskMinWidthCtrl = new wxTextCtrl( this, wxID_ANY, wxEmptyString, wxDefaultPosition, wxDefaultSize, 0 );
 	m_SolderMaskMinWidthCtrl->SetMaxLength( 0 ); 
-	fgGridSolderMaskSizer->Add( m_SolderMaskMinWidthCtrl, 0, wxALL|wxALIGN_CENTER_VERTICAL|wxEXPAND, 5 );
+	fgGridSolderMaskSizer->Add( m_SolderMaskMinWidthCtrl, 0, wxALL|wxEXPAND, 5 );
 	
 	m_solderMaskMinWidthUnit = new wxStaticText( this, wxID_ANY, _("Inch"), wxDefaultPosition, wxDefaultSize, 0 );
 	m_solderMaskMinWidthUnit->Wrap( -1 );
@@ -85,7 +82,7 @@ DIALOG_PADS_MASK_CLEARANCE_BASE::DIALOG_PADS_MASK_CLEARANCE_BASE( wxWindow* pare
 	
 	m_SolderPasteMarginCtrl = new wxTextCtrl( this, wxID_ANY, wxEmptyString, wxDefaultPosition, wxDefaultSize, 0 );
 	m_SolderPasteMarginCtrl->SetMaxLength( 0 ); 
-	fgGridSolderMaskSizer->Add( m_SolderPasteMarginCtrl, 0, wxALL|wxALIGN_CENTER_VERTICAL|wxEXPAND, 5 );
+	fgGridSolderMaskSizer->Add( m_SolderPasteMarginCtrl, 0, wxALL|wxEXPAND, 5 );
 	
 	m_SolderPasteMarginUnits = new wxStaticText( this, wxID_ANY, _("Inch"), wxDefaultPosition, wxDefaultSize, 0 );
 	m_SolderPasteMarginUnits->Wrap( -1 );
@@ -99,23 +96,20 @@ DIALOG_PADS_MASK_CLEARANCE_BASE::DIALOG_PADS_MASK_CLEARANCE_BASE( wxWindow* pare
 	
 	m_SolderPasteMarginRatioCtrl = new wxTextCtrl( this, wxID_ANY, wxEmptyString, wxDefaultPosition, wxDefaultSize, 0 );
 	m_SolderPasteMarginRatioCtrl->SetMaxLength( 0 ); 
-	fgGridSolderMaskSizer->Add( m_SolderPasteMarginRatioCtrl, 0, wxALL|wxALIGN_CENTER_VERTICAL|wxEXPAND, 5 );
+	fgGridSolderMaskSizer->Add( m_SolderPasteMarginRatioCtrl, 0, wxALL|wxEXPAND, 5 );
 	
 	m_SolderPasteRatioMarginUnits = new wxStaticText( this, wxID_ANY, _("%"), wxDefaultPosition, wxDefaultSize, 0 );
 	m_SolderPasteRatioMarginUnits->Wrap( -1 );
 	fgGridSolderMaskSizer->Add( m_SolderPasteRatioMarginUnits, 0, wxTOP|wxBOTTOM|wxRIGHT|wxALIGN_CENTER_VERTICAL, 5 );
 	
 	
-	sbMiddleRightSizer->Add( fgGridSolderMaskSizer, 1, wxEXPAND, 5 );
+	bMainUpperSizer->Add( fgGridSolderMaskSizer, 1, wxEXPAND, 5 );
 	
-	
-	bMainUpperSizer->Add( sbMiddleRightSizer, 1, wxEXPAND, 5 );
+	m_staticline11 = new wxStaticLine( this, wxID_ANY, wxDefaultPosition, wxDefaultSize, wxLI_HORIZONTAL );
+	bMainUpperSizer->Add( m_staticline11, 0, wxEXPAND | wxALL, 5 );
 	
 	
 	bMainSizer->Add( bMainUpperSizer, 1, wxEXPAND, 5 );
-	
-	m_staticline11 = new wxStaticLine( this, wxID_ANY, wxDefaultPosition, wxDefaultSize, wxLI_HORIZONTAL );
-	bMainSizer->Add( m_staticline11, 0, wxEXPAND | wxALL, 5 );
 	
 	m_sdbButtonsSizer = new wxStdDialogButtonSizer();
 	m_sdbButtonsSizerOK = new wxButton( this, wxID_OK );
@@ -124,7 +118,7 @@ DIALOG_PADS_MASK_CLEARANCE_BASE::DIALOG_PADS_MASK_CLEARANCE_BASE( wxWindow* pare
 	m_sdbButtonsSizer->AddButton( m_sdbButtonsSizerCancel );
 	m_sdbButtonsSizer->Realize();
 	
-	bMainSizer->Add( m_sdbButtonsSizer, 0, wxBOTTOM|wxALIGN_RIGHT, 5 );
+	bMainSizer->Add( m_sdbButtonsSizer, 0, wxALIGN_RIGHT|wxTOP|wxBOTTOM, 5 );
 	
 	
 	this->SetSizer( bMainSizer );

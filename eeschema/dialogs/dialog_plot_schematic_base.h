@@ -1,5 +1,5 @@
 ///////////////////////////////////////////////////////////////////////////
-// C++ code generated with wxFormBuilder (version Oct  8 2012)
+// C++ code generated with wxFormBuilder (version Jun  6 2014)
 // http://www.wxformbuilder.org/
 //
 // PLEASE DO "NOT" EDIT THIS FILE!
@@ -12,21 +12,23 @@
 #include <wx/xrc/xmlres.h>
 #include <wx/intl.h>
 class DIALOG_SHIM;
+class WX_HTML_REPORT_PANEL;
 
 #include "dialog_shim.h"
 #include <wx/string.h>
-#include <wx/radiobox.h>
+#include <wx/stattext.h>
 #include <wx/gdicmn.h>
 #include <wx/font.h>
 #include <wx/colour.h>
 #include <wx/settings.h>
-#include <wx/stattext.h>
-#include <wx/choice.h>
 #include <wx/textctrl.h>
+#include <wx/button.h>
 #include <wx/sizer.h>
+#include <wx/radiobox.h>
+#include <wx/choice.h>
 #include <wx/statbox.h>
 #include <wx/checkbox.h>
-#include <wx/button.h>
+#include <wx/panel.h>
 #include <wx/dialog.h>
 
 ///////////////////////////////////////////////////////////////////////////
@@ -45,6 +47,9 @@ class DIALOG_PLOT_SCHEMATIC_BASE : public DIALOG_SHIM
 			wxID_PRINT_ALL
 		};
 		
+		wxStaticText* m_staticTextOutputDirectory;
+		wxTextCtrl* m_outputDirectoryName;
+		wxButton* m_browseButton;
 		wxBoxSizer* m_optionsSizer;
 		wxStaticBoxSizer* m_paperOptionsSizer;
 		wxRadioBox* m_PaperSizeOption;
@@ -64,10 +69,11 @@ class DIALOG_PLOT_SCHEMATIC_BASE : public DIALOG_SHIM
 		wxButton* m_buttonPlotAll;
 		wxButton* m_buttonQuit;
 		wxStaticText* m_staticText2;
-		wxTextCtrl* m_MessagesBox;
+		WX_HTML_REPORT_PANEL* m_MessagesBox;
 		
 		// Virtual event handlers, overide them in your derived class
 		virtual void OnCloseWindow( wxCloseEvent& event ) { event.Skip(); }
+		virtual void OnOutputDirectoryBrowseClicked( wxCommandEvent& event ) { event.Skip(); }
 		virtual void OnHPGLPageSelected( wxCommandEvent& event ) { event.Skip(); }
 		virtual void OnPlotFormatSelection( wxCommandEvent& event ) { event.Skip(); }
 		virtual void OnButtonPlotCurrentClick( wxCommandEvent& event ) { event.Skip(); }
@@ -77,7 +83,7 @@ class DIALOG_PLOT_SCHEMATIC_BASE : public DIALOG_SHIM
 	
 	public:
 		
-		DIALOG_PLOT_SCHEMATIC_BASE( wxWindow* parent, wxWindowID id = wxID_ANY, const wxString& title = _("Plot"), const wxPoint& pos = wxDefaultPosition, const wxSize& size = wxSize( -1,-1 ), long style = wxDEFAULT_DIALOG_STYLE|wxRESIZE_BORDER ); 
+		DIALOG_PLOT_SCHEMATIC_BASE( wxWindow* parent, wxWindowID id = wxID_ANY, const wxString& title = _("Plot Schematic"), const wxPoint& pos = wxDefaultPosition, const wxSize& size = wxSize( -1,-1 ), long style = wxDEFAULT_DIALOG_STYLE|wxRESIZE_BORDER ); 
 		~DIALOG_PLOT_SCHEMATIC_BASE();
 	
 };

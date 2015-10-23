@@ -34,6 +34,7 @@
 #include <gr_basic.h>
 #include <class_drawpanel.h>
 #include <wxBasePcbFrame.h>
+#include <macros.h>
 
 #include <drag.h>
 #include <pcbnew.h>
@@ -55,7 +56,7 @@ DRAG_SEGM_PICKER::DRAG_SEGM_PICKER( TRACK* aTrack )
     m_endInitialValue   = m_Track->GetEnd();
     m_Pad_Start = m_Track->GetState( START_ON_PAD ) ? (D_PAD*)m_Track->start : NULL;
     m_Pad_End = m_Track->GetState( END_ON_PAD ) ? (D_PAD*)m_Track->end : NULL;
-    m_Flag = 0;
+    m_TempFlags = 0;
     m_RotationOffset = 0.0;
     m_Flipped = false;
 }
@@ -125,7 +126,7 @@ void DRAG_SEGM_PICKER::SetTrackEndsCoordinates( wxPoint aOffset )
             RotatePoint(&padoffset, curr_rot_offset);
 
         if( flip )
-            NEGATE( padoffset.y );
+            padoffset.y = -padoffset.y;
 
         m_Track->SetStart( m_Pad_Start->GetPosition() - aOffset + padoffset );
     }
@@ -138,7 +139,7 @@ void DRAG_SEGM_PICKER::SetTrackEndsCoordinates( wxPoint aOffset )
             RotatePoint( &padoffset, curr_rot_offset );
 
         if( flip )
-            NEGATE( padoffset.y );
+            padoffset.y = -padoffset.y;
 
         m_Track->SetEnd( m_Pad_End->GetPosition() - aOffset + padoffset );
     }
@@ -158,7 +159,7 @@ void DRAG_LIST::BuildDragListe( MODULE* aModule )
     CONNECTIONS connections( m_Brd );
     std::vector<D_PAD*>&padList = connections.GetPadsList();
 
-    for( D_PAD* pad = aModule->m_Pads;  pad;  pad = pad->Next() )
+    for( D_PAD* pad = aModule->Pads();  pad;  pad = pad->Next() )
         padList.push_back( pad );
 
     sort( padList.begin(), padList.end(), sortPadsByXthenYCoord );
@@ -209,7 +210,7 @@ void DRAG_LIST::fillList( CONNECTIONS& aConnections )
             TRACK * track = pad->m_TracksConnected[jj];
             track->start = NULL;
             track->end = NULL;
-            track->SetState( START_ON_PAD|END_ON_PAD|BUSY, OFF );
+            track->SetState( START_ON_PAD|END_ON_PAD|BUSY, false );
         }
     }
 
@@ -226,13 +227,13 @@ void DRAG_LIST::fillList( CONNECTIONS& aConnections )
             if( pad->HitTest( track->GetStart() ) )
             {
                 track->start = pad;
-                track->SetState( START_ON_PAD, ON );
+                track->SetState( START_ON_PAD, true );
             }
 
             if( pad->HitTest( track->GetEnd() ) )
             {
                 track->end = pad;
-                track->SetState( END_ON_PAD, ON );
+                track->SetState( END_ON_PAD, true );
             }
 
             DRAG_SEGM_PICKER wrapper( track );
@@ -319,38 +320,38 @@ void AddSegmentToDragList( int flag, TRACK* aTrack )
     DRAG_SEGM_PICKER wrapper( aTrack );
 
     if( flag & STARTPOINT )
-        wrapper.m_Flag |= 1;
-
-    if( flag & ENDPOINT )
-        wrapper.m_Flag |= 2;
-
-    if( flag & STARTPOINT )
+    {
+        wrapper.m_TempFlags |= STARTPOINT;
         aTrack->SetFlags( STARTPOINT );
+    }
 
     if( flag & ENDPOINT )
+    {
+        wrapper.m_TempFlags |= ENDPOINT;
         aTrack->SetFlags( ENDPOINT );
+    }
 
     g_DragSegmentList.push_back( wrapper );
 }
 
 
-void Collect_TrackSegmentsToDrag( BOARD* aPcb, const wxPoint& aRefPos, int aLayerMask,
+void Collect_TrackSegmentsToDrag( BOARD* aPcb, const wxPoint& aRefPos, LSET aLayerMask,
                                   int aNetCode, int aMaxDist )
 {
     TRACK* track = aPcb->m_Track->GetStartNetCode( aNetCode );
 
     for( ; track; track = track->Next() )
     {
-        if( track->GetNet() != aNetCode )   // not the same netcodenet code: all candidates tested
+        if( track->GetNetCode() != aNetCode )   // not the same netcode: all candidates tested
             break;
 
-        if( ( aLayerMask & track->ReturnMaskLayer() ) == 0 )
+        if( !( aLayerMask & track->GetLayerSet() ).any() )
             continue;                       // Cannot be connected, not on the same layer
 
         if( track->IsDragging() )
             continue;                       // already put in list
 
-        int flag = 0;
+        STATUS_FLAGS flag = 0;
         int maxdist = std::max( aMaxDist, track->GetWidth() / 2 );
 
         if( (track->GetFlags() & STARTPOINT) == 0 )
@@ -359,7 +360,7 @@ void Collect_TrackSegmentsToDrag( BOARD* aPcb, const wxPoint& aRefPos, int aLaye
 
             if( std::abs( delta.x ) <= maxdist && std::abs( delta.y ) <= maxdist )
             {
-                int dist = (int) hypot( (double) delta.x, (double) delta.y );
+                int dist = KiROUND( EuclideanNorm( delta ) );
 
                 if( dist <= maxdist )
                 {
@@ -377,7 +378,7 @@ void Collect_TrackSegmentsToDrag( BOARD* aPcb, const wxPoint& aRefPos, int aLaye
 
             if( std::abs( delta.x ) <= maxdist && std::abs( delta.y ) <= maxdist )
             {
-                int dist = (int) hypot( (double) delta.x, (double) delta.y );
+                int dist = KiROUND( EuclideanNorm( delta ) );
 
                 if( dist <= maxdist )
                     flag |= ENDPOINT;
@@ -393,7 +394,7 @@ void Collect_TrackSegmentsToDrag( BOARD* aPcb, const wxPoint& aRefPos, int aLaye
             // If a connected via is found at location aRefPos,
             // collect also tracks connected by this via.
             if( track->Type() == PCB_VIA_T )
-                Collect_TrackSegmentsToDrag( aPcb, aRefPos, track->ReturnMaskLayer(),
+                Collect_TrackSegmentsToDrag( aPcb, aRefPos, track->GetLayerSet(),
                                              aNetCode, track->GetWidth() / 2 );
         }
     }
@@ -407,12 +408,13 @@ void UndrawAndMarkSegmentsToDrag( EDA_DRAW_PANEL* aCanvas, wxDC* aDC )
         TRACK* track = g_DragSegmentList[ii].m_Track;
 
         track->Draw( aCanvas, aDC, GR_XOR );
-        track->SetState( IN_EDIT, ON );
+        track->SetState( IN_EDIT, false );
+        track->SetFlags( IS_DRAGGED );
 
-        if( g_DragSegmentList[ii].m_Flag & STARTPOINT )
+        if( g_DragSegmentList[ii].m_TempFlags & STARTPOINT )
             track->SetFlags( STARTPOINT );
 
-        if( g_DragSegmentList[ii].m_Flag & ENDPOINT )
+        if( g_DragSegmentList[ii].m_TempFlags & ENDPOINT )
             track->SetFlags( ENDPOINT );
 
         track->Draw( aCanvas, aDC, GR_XOR );

@@ -1,10 +1,10 @@
 /*
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
- * Copyright (C) 2012 Jean-Pierre Charras, jean-pierre.charras@ujf-grenoble.fr
- * Copyright (C) 2012 SoftPLC Corporation, Dick Hollenbeck <dick@softplc.com>
- * Copyright (C) 2012 Wayne Stambaugh <stambaughw@verizon.net>
- * Copyright (C) 1992-2012 KiCad Developers, see AUTHORS.txt for contributors.
+ * Copyright (C) 2013 Jean-Pierre Charras, jp.charras at wanadoo.fr
+ * Copyright (C) 2013 SoftPLC Corporation, Dick Hollenbeck <dick@softplc.com>
+ * Copyright (C) 2013 Wayne Stambaugh <stambaughw@verizon.net>
+ * Copyright (C) 1992-2013 KiCad Developers, see AUTHORS.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -66,7 +66,7 @@ void FOOTPRINT_EDIT_FRAME::Start_Move_EdgeMod( EDGE_MODULE* aEdge, wxDC* DC )
     aEdge->Draw( m_canvas, DC, GR_XOR );
     aEdge->SetFlags( IS_MOVED );
     MoveVector.x   = MoveVector.y = 0;
-    CursorInitialPosition    = GetScreen()->GetCrossHairPosition();
+    CursorInitialPosition    = GetCrossHairPosition();
     m_canvas->SetMouseCapture( ShowCurrentOutlineWhileMoving, Abort_Move_ModuleOutline );
     SetCurItem( aEdge );
     m_canvas->CallMouseCapture( DC, wxDefaultPosition, false );
@@ -115,7 +115,7 @@ static void ShowCurrentOutlineWhileMoving( EDA_DRAW_PANEL* aPanel, wxDC* aDC,
         edge->Draw( aPanel, aDC, GR_XOR, MoveVector );
     }
 
-    MoveVector = -(screen->GetCrossHairPosition() - CursorInitialPosition);
+    MoveVector = -(aPanel->GetParent()->GetCrossHairPosition() - CursorInitialPosition);
 
     edge->Draw( aPanel, aDC, GR_XOR, MoveVector );
 
@@ -142,7 +142,7 @@ static void ShowNewEdgeModule( EDA_DRAW_PANEL* aPanel, wxDC* aDC, const wxPoint&
         edge->Draw( aPanel, aDC, GR_XOR );
     }
 
-    edge->SetEnd( screen->GetCrossHairPosition() );
+    edge->SetEnd( aPanel->GetParent()->GetCrossHairPosition() );
 
     // Update relative coordinate.
     edge->SetEnd0( edge->GetEnd() - module->GetPosition() );
@@ -167,14 +167,14 @@ void FOOTPRINT_EDIT_FRAME::Edit_Edge_Width( EDGE_MODULE* aEdge )
 
     if( aEdge == NULL )
     {
-        aEdge = (EDGE_MODULE*) (BOARD_ITEM*) module->m_Drawings;
+        aEdge = (EDGE_MODULE*) (BOARD_ITEM*) module->GraphicalItems();
 
-        for( ; aEdge != NULL; aEdge = aEdge->Next() )
+        for( BOARD_ITEM *item = module->GraphicalItems(); item; item = item->Next() )
         {
-            if( aEdge->Type() != PCB_MODULE_EDGE_T )
-                continue;
+            aEdge = dyn_cast<EDGE_MODULE*>( item );
 
-            aEdge->SetWidth( GetDesignSettings().m_ModuleSegmentWidth );
+            if( aEdge )
+                aEdge->SetWidth( GetDesignSettings().m_ModuleSegmentWidth );
         }
     }
     else
@@ -190,49 +190,59 @@ void FOOTPRINT_EDIT_FRAME::Edit_Edge_Width( EDGE_MODULE* aEdge )
 
 void FOOTPRINT_EDIT_FRAME::Edit_Edge_Layer( EDGE_MODULE* aEdge )
 {
-    MODULE* module    = GetBoard()->m_Modules;
-    int     new_layer = SILKSCREEN_N_FRONT;
+    // note: if aEdge == NULL, all outline segments will be modified
+
+    MODULE*     module = GetBoard()->m_Modules;
+    LAYER_ID    layer = F_SilkS;
+    bool        modified = false;
 
     if( aEdge )
-        new_layer = aEdge->GetLayer();
+        layer = aEdge->GetLayer();
 
     // Ask for the new layer
-    new_layer = SelectLayer( new_layer, FIRST_COPPER_LAYER, ECO2_N );
+    LAYER_ID new_layer = SelectLayer( layer, Edge_Cuts );
 
-    if( new_layer < 0 )
+    if( layer < 0 )
         return;
 
-    if( IsValidCopperLayerIndex( new_layer ) )
+    if( IsCopperLayer( new_layer ) )
     {
-        /* an edge is put on a copper layer, and it is very dangerous. a
-         *confirmation is requested */
+        // an edge is put on a copper layer, and it is very dangerous.
+        // A confirmation is requested
         if( !IsOK( this,
-                   _( "The graphic item will be on a copper layer. This is very dangerous. Are you sure?" ) ) )
+                   _( "The graphic item will be on a copper layer.\n"
+                      "This is very dangerous. Are you sure?" ) ) )
             return;
     }
 
-    SaveCopyInUndoList( module, UR_MODEDIT );
-
-    if( aEdge == NULL )
+    if( !aEdge )
     {
-        aEdge = (EDGE_MODULE*) (BOARD_ITEM*) module->m_Drawings;
-
-        for( ; aEdge != NULL; aEdge = aEdge->Next() )
+        for( BOARD_ITEM *item = module->GraphicalItems() ; item != NULL;
+                item = item->Next() )
         {
-            if( aEdge->Type() != PCB_MODULE_EDGE_T )
-                continue;
+            aEdge = dyn_cast<EDGE_MODULE*>( item );
 
-            aEdge->SetLayer( new_layer );
+            if( aEdge && (aEdge->GetLayer() != new_layer) )
+            {
+                if( ! modified )    // save only once
+                    SaveCopyInUndoList( module, UR_MODEDIT );
+                aEdge->SetLayer( new_layer );
+                modified = true;
+            }
         }
     }
-    else
+    else if( aEdge->GetLayer() != new_layer )
     {
+        SaveCopyInUndoList( module, UR_MODEDIT );
         aEdge->SetLayer( new_layer );
+        modified = true;
     }
 
-    OnModify();
-    module->CalculateBoundingBox();
-    module->SetLastEditTime();
+    if( modified )
+    {
+        module->CalculateBoundingBox();
+        module->SetLastEditTime();
+    }
 }
 
 
@@ -240,14 +250,14 @@ void FOOTPRINT_EDIT_FRAME::Enter_Edge_Width( EDGE_MODULE* aEdge )
 {
     wxString buffer;
 
-    buffer = ReturnStringFromValue( g_UserUnit, GetDesignSettings().m_ModuleSegmentWidth );
+    buffer = StringFromValue( g_UserUnit, GetDesignSettings().m_ModuleSegmentWidth );
     wxTextEntryDialog dlg( this, _( "New Width:" ), _( "Edge Width" ), buffer );
 
     if( dlg.ShowModal() != wxID_OK )
         return; // canceled by user
 
     buffer = dlg.GetValue( );
-    GetDesignSettings().m_ModuleSegmentWidth = ReturnValueFromString( g_UserUnit, buffer );
+    GetDesignSettings().m_ModuleSegmentWidth = ValueFromString( g_UserUnit, buffer );
 
     if( aEdge )
     {
@@ -314,7 +324,6 @@ EDGE_MODULE* FOOTPRINT_EDIT_FRAME::Begin_Edge_Module( EDGE_MODULE* aEdge,
                                                       STROKE_T     type_edge )
 {
     MODULE* module = GetBoard()->m_Modules;
-    int     angle  = 0;
 
     if( module == NULL )
         return NULL;
@@ -327,27 +336,21 @@ EDGE_MODULE* FOOTPRINT_EDIT_FRAME::Begin_Edge_Module( EDGE_MODULE* aEdge,
         MoveVector.x = MoveVector.y = 0;
 
         // Add the new item to the Drawings list head
-        module->m_Drawings.PushFront( aEdge );
+        module->GraphicalItems().PushFront( aEdge );
 
         // Update characteristics of the segment or arc.
         aEdge->SetFlags( IS_NEW );
-        aEdge->SetAngle( angle );
+        aEdge->SetAngle( 0 );
         aEdge->SetShape( type_edge );
 
         if( aEdge->GetShape() == S_ARC )
             aEdge->SetAngle( ArcValue );
 
         aEdge->SetWidth( GetDesignSettings().m_ModuleSegmentWidth );
-        aEdge->SetLayer( module->GetLayer() );
-
-        if( module->GetLayer() == LAYER_N_FRONT )
-            aEdge->SetLayer( SILKSCREEN_N_FRONT );
-
-        if( module->GetLayer() == LAYER_N_BACK )
-            aEdge->SetLayer( SILKSCREEN_N_BACK );
+        aEdge->SetLayer( GetActiveLayer() );
 
         // Initialize the starting point of the new segment or arc
-        aEdge->SetStart( GetScreen()->GetCrossHairPosition() );
+        aEdge->SetStart( GetCrossHairPosition() );
 
         // Initialize the ending point of the new segment or arc
         aEdge->SetEnd( aEdge->GetStart() );
@@ -355,7 +358,7 @@ EDGE_MODULE* FOOTPRINT_EDIT_FRAME::Begin_Edge_Module( EDGE_MODULE* aEdge,
         // Initialize the relative coordinates
         aEdge->SetStart0( aEdge->GetStart() - module->GetPosition() );
 
-        RotatePoint( &aEdge->m_Start0, -module->m_Orient );
+        RotatePoint( &aEdge->m_Start0, -module->GetOrientation() );
 
         aEdge->m_End0 = aEdge->m_Start0;
         module->CalculateBoundingBox();
@@ -377,14 +380,14 @@ EDGE_MODULE* FOOTPRINT_EDIT_FRAME::Begin_Edge_Module( EDGE_MODULE* aEdge,
                 EDGE_MODULE* newedge = new EDGE_MODULE( *aEdge );
 
                 // insert _after_ aEdge, which is the same as inserting before aEdge->Next()
-                module->m_Drawings.Insert( newedge, aEdge->Next() );
+                module->GraphicalItems().Insert( newedge, aEdge->Next() );
                 aEdge->ClearFlags();
 
                 aEdge = newedge;     // point now new item
 
                 aEdge->SetFlags( IS_NEW );
                 aEdge->SetWidth( GetDesignSettings().m_ModuleSegmentWidth );
-                aEdge->SetStart( GetScreen()->GetCrossHairPosition() );
+                aEdge->SetStart( GetCrossHairPosition() );
                 aEdge->SetEnd( aEdge->GetStart() );
 
                 // Update relative coordinate.

@@ -1,7 +1,7 @@
 /*
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
- * Copyright (C) 2009 Jean-Pierre Charras, jaen-pierre.charras@gipsa-lab.inpg.com
+ * Copyright (C) 2010 Jean-Pierre Charras, jp.charras@wanadoo.fr
  * Copyright (C) 1992-2011 KiCad Developers, see AUTHORS.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
@@ -30,8 +30,8 @@
 #define  WXPCB_STRUCT_H_
 
 
-#include <wxBasePcbFrame.h>
-#include <param_config.h>
+#include <pcb_base_edit_frame.h>
+#include <config_params.h>
 #include <class_macros_record.h>
 #include <class_undoredo_container.h>
 #include <zones.h>
@@ -44,7 +44,7 @@ class TEXTE_PCB;
 class MODULE;
 class TRACK;
 class SEGZONE;
-class SEGVIA;
+class VIA;
 class D_PAD;
 class TEXTE_MODULE;
 class PCB_TARGET;
@@ -59,16 +59,25 @@ class PCB_LAYER_WIDGET;
 class MARKER_PCB;
 class BOARD_ITEM;
 class PCB_LAYER_BOX_SELECTOR;
+class NETLIST;
+class REPORTER;
+struct PARSE_ERROR;
+struct IO_ERROR;
+class FP_LIB_TABLE;
 
+namespace PCB { struct IFACE; }     // KIFACE_I is in pcbnew.cpp
 
 /**
- * class PCB_EDIT_FRAME
- * the main frame for Pcbnew
+ * Class PCB_EDIT_FRAME
+ * is the main frame for Pcbnew.
  *
  * See also class PCB_BASE_FRAME(): Basic class for Pcbnew and GerbView.
  */
-class PCB_EDIT_FRAME : public PCB_BASE_FRAME
+#define PCB_EDIT_FRAME_NAME wxT( "PcbFrame" )
+
+class PCB_EDIT_FRAME : public PCB_BASE_EDIT_FRAME
 {
+    friend struct PCB::IFACE;
     friend class PCB_LAYER_WIDGET;
 
     void updateTraceWidthSelectBox();
@@ -80,23 +89,29 @@ class PCB_EDIT_FRAME : public PCB_BASE_FRAME
     /// The auxiliary right vertical tool bar used to access the microwave tools.
     wxAuiToolBar* m_microWaveToolBar;
 
+    /**
+     * Function loadFootprints
+     * loads the footprints for each #COMPONENT in \a aNetlist from the list of libraries.
+     *
+     * @param aNetlist is the netlist of components to load the footprints into.
+     * @param aReporter is the #REPORTER object to report to.
+     * @throw IO_ERROR if an I/O error occurs or a #PARSE_ERROR if a file parsing error
+     *           occurs while reading footprint library files.
+     */
+    void loadFootprints( NETLIST& aNetlist, REPORTER* aReporter )
+        throw( IO_ERROR, PARSE_ERROR );
+
 protected:
-
-#ifdef KICAD_SCRIPTING_WXPYTHON
-    // Panel used to let user talk with internal scripting
-    wxWindow* m_pythonPanel;
-    bool m_pythonPanelHidden;
-#endif
-
     PCB_LAYER_WIDGET* m_Layers;
 
     DRC* m_drc;                                 ///< the DRC controller, see drc.cpp
 
-    PARAM_CFG_ARRAY   m_configSettings;          ///< List of Pcbnew configuration settings.
+    PARAM_CFG_ARRAY   m_configSettings;         ///< List of Pcbnew configuration settings.
 
     wxString          m_lastNetListRead;        ///< Last net list read with relative path.
-    bool              m_useCmpFileForFpNames;   ///< is true, use the .cmp file from CvPcb, else use the netlist
-                                                // to know the footprint name of components.
+
+    // The Tool Framework initalization
+    void setupTools();
 
     // we'll use lower case function names for private member functions.
     void createPopUpMenuForZones( ZONE_CONTAINER* edge_zone, wxMenu* aPopMenu );
@@ -109,31 +124,33 @@ protected:
     void createPopUpMenuForMarkers( MARKER_PCB* aMarker, wxMenu* aPopMenu );
 
     /**
-     * Function setActiveLayer
-     * will change the currently active layer to \a aLayer and also
-     * update the PCB_LAYER_WIDGET.
+     * an helper function to enable some menus only active when the display
+     * is switched to GAL mode and which do nothing in legacy mode
      */
-    void setActiveLayer( int aLayer, bool doLayerWidgetUpdate = true )
-    {
-        ( (PCB_SCREEN*) GetScreen() )->m_Active_Layer = aLayer;
+    void enableGALSpecificMenus();
 
-        if( doLayerWidgetUpdate )
-            syncLayerWidgetLayer();
+
+    // Has meaning only if DKICAD_SCRIPTING_WXPYTHON option is on
+    /**
+     * @return the frame name identifier for the python console frame
+     */
+    static const wxChar * pythonConsoleNameId()
+    {
+        return wxT( "PythonConsole" );
     }
 
     /**
-     * Function getActiveLayer
-     * returns the active layer
+     * @return a pointer to the python console frame, or NULL if not exist
      */
-    int getActiveLayer()
+    static wxWindow * findPythonConsole()
     {
-        return ( (PCB_SCREEN*) GetScreen() )->m_Active_Layer;
+       return FindWindowByName( pythonConsoleNameId() );
     }
 
     /**
      * Function syncLayerWidgetLayer
      * updates the currently layer "selection" within the PCB_LAYER_WIDGET.
-     * The currently selected layer is defined by the return value of getActiveLayer().
+     * The currently selected layer is defined by the return value of GetActiveLayer().
      * <p>
      * This function cannot be inline without including layer_widget.h in
      * here and we do not want to do that.
@@ -182,23 +199,43 @@ protected:
      */
     void duplicateZone( wxDC* aDC, ZONE_CONTAINER* aZone );
 
+    /**
+     * Function moveExact
+     * Move the selected item exactly
+     */
+    void moveExact();
+
+    /**
+     * Function duplicateItems
+     * Duplicate selected item if possible and start a move
+     * @param aIncrement increment the item number if appropriate
+     */
+    void duplicateItems( bool aIncrement ); //override
+
+    // protected so that PCB::IFACE::CreateWindow() is the only factory.
+    PCB_EDIT_FRAME( KIWAY* aKiway, wxWindow* aParent );
+
 public:
     PCB_LAYER_BOX_SELECTOR* m_SelLayerBox;  // a combo box to display and select active layer
-    wxComboBox* m_SelTrackWidthBox;     // a combo box to display and select current track width
-    wxComboBox* m_SelViaSizeBox;        // a combo box to display and select current via diameter
+    wxChoice* m_SelTrackWidthBox;           // a choice box to display and select current track width
+    wxChoice* m_SelViaSizeBox;              // a choice box to display and select current via diameter
 
     bool m_show_microwave_tools;
     bool m_show_layer_manager_tools;
 
-
-public:
-    PCB_EDIT_FRAME( wxWindow* father, const wxString& title,
-                    const wxPoint& pos, const wxSize& size,
-                    long style = KICAD_DEFAULT_DRAWFRAME_STYLE );
-
-    ~PCB_EDIT_FRAME();
+    virtual ~PCB_EDIT_FRAME();
 
     void OnQuit( wxCommandEvent& event );
+
+    /**
+     * Execute a remote command send by Eeschema via a socket,
+     * port KICAD_PCB_PORT_SERVICE_NUMBER (currently 4242)
+     * this is a virtual function called by EDA_DRAW_FRAME::OnSockRequest().
+     * @param cmdline = received command from socket
+     */
+    virtual void ExecuteRemoteCommand( const char* cmdline );
+
+    void KiwayMailIn( KIWAY_EXPRESS& aEvent );      // virtual overload from KIWAY_PLAYER
 
     /**
      * Function ToPlotter
@@ -237,8 +274,12 @@ public:
     void OnUpdateZoneDisplayStyle( wxUpdateUIEvent& aEvent );
     void OnUpdateSelectTrackWidth( wxUpdateUIEvent& aEvent );
     void OnUpdateSelectAutoTrackWidth( wxUpdateUIEvent& aEvent );
+    void OnUpdateSelectCustomTrackWidth( wxUpdateUIEvent& aEvent );
     void OnUpdateAutoPlaceModulesMode( wxUpdateUIEvent& aEvent );
     void OnUpdateAutoPlaceTracksMode( wxUpdateUIEvent& aEvent );
+    void OnUpdateMuWaveToolbar( wxUpdateUIEvent& aEvent );
+    void OnLayerColorChange( wxCommandEvent& aEvent );
+    void OnConfigurePaths( wxCommandEvent& aEvent );
 
     /**
      * Function RecordMacros.
@@ -270,8 +311,8 @@ public:
      * @param aPrintMirrorMode = true to plot mirrored
      * @param aData = a pointer on an auxiliary data (NULL if not used)
      */
-    virtual void PrintPage( wxDC* aDC, int aPrintMaskLayer, bool aPrintMirrorMode,
-                            void * aData = NULL );
+    virtual void PrintPage( wxDC* aDC, LSET aPrintMaskLayer, bool aPrintMirrorMode,
+                            void* aData = NULL );
 
     void GetKicadAbout( wxCommandEvent& event );
 
@@ -299,10 +340,12 @@ public:
      * Function SetGridColor() , virtual
      * @param aColor = the new color of the grid
      */
-    virtual void SetGridColor(EDA_COLOR_T aColor);
+    virtual void SetGridColor( EDA_COLOR_T aColor );
+
+    ///> @copydoc EDA_DRAW_FRAME::SetCursorShape()
+    virtual void SetCursorShape( int aCursorShape );
 
     // Configurations:
-    void InstallConfigFrame();
     void Process_Config( wxCommandEvent& event );
 
     /**
@@ -319,16 +362,20 @@ public:
      */
     PARAM_CFG_ARRAY GetProjectFileParameters();
 
-    void SaveProjectSettings();
+    /**
+     * Function SaveProjectSettings
+     * saves changes to the project settings to the project (.pro) file.
+     * @param aAskForSave = true to open a dialog before saving the settings
+     */
+    void SaveProjectSettings( bool aAskForSave );
 
     /**
-     * Load the project file configuration settings.
+     * Load the current project's file configuration settings which are pertinent
+     * to this PCB_EDIT_FRAME instance.
      *
-     * @param aProjectFileName = The project filename.
-     *  if not found use kicad.pro and initialize default values
      * @return always returns true.
      */
-    bool LoadProjectSettings( const wxString& aProjectFileName );
+    bool LoadProjectSettings();
 
     /**
      * Function GetConfigurationSettings
@@ -343,36 +390,15 @@ public:
      * to define a configuration setting that needs to be loaded at run time,
      * this is the place to define it.
      *
-     * @todo: Define the configuration variables as member variables instead of
-     *        global variables or move them to the object class where they are
-     *        used.
      * @return - Reference to the list of applications settings.
      */
     PARAM_CFG_ARRAY& GetConfigurationSettings();
 
-    /**
-     * Function LoadSettings
-     * loads applications settings specific to Pcbnew.
-     *
-     * This overrides the base class PCB_BASE_FRAME::LoadSettings() to
-     * handle settings specific common to the PCB layout application.  It
-     * calls down to the base class to load settings common to all PCB type
-     * drawing frames.  Please put your application settings for Pcbnew here
-     * to avoid having application settings loaded all over the place.
-     */
-    virtual void LoadSettings();
+    void LoadSettings( wxConfigBase* aCfg );    // override virtual
 
-    /**
-     * Function SaveSettings
-     * saves applications settings common to Pcbnew.
-     *
-     * This overrides the base class PCB_BASE_FRAME::SaveSettings() to
-     * save settings specific to the PCB layout application main window.  It
-     * calls down to the base class to save settings common to all PCB type
-     * drawing frames.  Please put your application settings for Pcbnew here
-     * to avoid having application settings saved all over the place.
-     */
-    virtual void SaveSettings();
+    void SaveSettings( wxConfigBase* aCfg );    // override virtual
+
+    wxConfigBase* GetSettings() { return config(); };
 
     /**
      * Get the last net list read with the net list dialog box.
@@ -394,46 +420,8 @@ public:
      */
     void SetLastNetListRead( const wxString& aNetListFile );
 
-    /**
-     * @return true if the .cmp file created by CvPcb should be used to know the
-     * footprint associated to components, false to use the netlist file only
-     */
-    bool GetUseCmpFileForFpNames() { return m_useCmpFileForFpNames; }
-
-    /**
-     * Set the default option to use or not the .cmp file craeted by CvPcb
-     * should be used to know the footprints associated to components when
-     * reading a netlist
-     * When the .cmp netlist is not used, footprint names are read from the netlist.
-     * This imply the user has filled the footprint fields in schematic
-     * @param aUseCmpfile = true to use the .cmp file,
-     *                      false to use the netlist file only
-     */
-    void SetUseCmpFileForFpNames( bool aUseCmpfile)
-    {
-        m_useCmpFileForFpNames = aUseCmpfile;
-    }
-
-    /**
-     * Function Test_Duplicate_Missing_And_Extra_Footprints
-     * Build a list of duplicate, missing and extra footprints
-     * from the current board and a netlist netlist :
-     * Shows 3 lists:
-     *  1 - duplicate footprints on board
-     *  2 - missing footprints (found in netlist but not on board)
-     *  3 - footprints not in netlist but on board
-     * @param aFilename = the full filename netlist
-     * @param aDuplicate = the list of duplicate modules to populate
-     * @param aMissing = the list of missing module references and values
-     *      to populate. For each missing item, the first string is the ref,
-     *                   the second is the value.
-     * @param aNotInNetlist = the list of not-in-netlist modules to populate
-     * @return true if the netlist was read, or false
-     */
-    bool Test_Duplicate_Missing_And_Extra_Footprints( const wxString& aFilename,
-        std::vector <MODULE*>& aDuplicate,
-        wxArrayString& aMissing,
-        std::vector <MODULE*>& aNotInNetlist );
+    ///> @copydoc EDA_DRAW_FRAME::GetHotKeyDescription()
+    EDA_HOTKEY* GetHotKeyDescription( int aCommand ) const;
 
     /**
      * Function OnHotKey.
@@ -444,7 +432,7 @@ public:
      * @param aPosition The cursor position in logical (drawing) units.
      * @param aItem = NULL or pointer on a EDA_ITEM under the mouse cursor
      */
-    void OnHotKey( wxDC* aDC, int aHotkeyCode, const wxPoint& aPosition, EDA_ITEM* aItem = NULL );
+    bool OnHotKey( wxDC* aDC, int aHotkeyCode, const wxPoint& aPosition, EDA_ITEM* aItem = NULL );
 
     /**
      * Function OnHotkeyDeleteItem
@@ -478,6 +466,15 @@ public:
      * @return Event id of a suitable copy event, zero when no copyable item found.
      */
     int OnHotkeyCopyItem();
+
+    /**
+     * Function OnHotkeyDuplicateOrArrayItem
+     * Duplicate an item (optionally incrementing if necessary and possible)
+     * or invoke array dialog and create an array
+     * @param aIdCommand = the hotkey command id
+     * @return true if item duplicated or arrayed
+     */
+    bool OnHotkeyDuplicateOrArrayItem( int aIdCommand );
 
     /**
      * Function OnHotkeyMoveItem
@@ -532,7 +529,28 @@ public:
     void ReCreateMicrowaveVToolbar();
     void ReCreateOptToolbar();
     void ReCreateMenuBar();
-    PCB_LAYER_BOX_SELECTOR* ReCreateLayerBox( wxAuiToolBar* parent );
+
+    /**
+     * Re create the layer Box by clearing the old list, and building
+     * le new one, from the new layers names and cole layers
+     * @param aForceResizeToolbar = true to resize the parent toolbar
+     * false if not needed (mainly in parent toolbar creation,
+     * or when the layers names are not modified)
+     */
+    void ReCreateLayerBox( bool aForceResizeToolbar = true );
+
+
+    /**
+     * Function SetCurrentNetClass
+     * Must be called after a netclass selection (or after a netclass parameter change
+     * calls BOARD_DESIGN_SETTINGS::SetCurrentNetClass() and update trace width and via size
+     * combo boxes on main toolbar
+     * Initialize vias and tracks values displayed in comb boxes of the auxiliary toolbar
+     * and some others parameters (netclass name ....)
+     * @param aNetClassName = the new netclass name
+     * @return true if lists of tracks and vias sizes are modified
+     */
+    bool SetCurrentNetClass( const wxString& aNetClassName );
 
     /**
      * Function OnModify
@@ -543,6 +561,13 @@ public:
      * </p>
      */
     virtual void OnModify();
+
+    /**
+     * Function SetActiveLayer
+     * will change the currently active layer to \a aLayer and also
+     * update the PCB_LAYER_WIDGET.
+     */
+    virtual void SetActiveLayer( LAYER_ID aLayer );
 
     /**
      * Function IsElementVisible
@@ -581,7 +606,11 @@ public:
      * displays the 3D view of current printed circuit board.
      */
     void Show3D_Frame( wxCommandEvent& event );
-    void GeneralControl( wxDC* aDC, const wxPoint& aPosition, int aHotKey = 0 );
+
+    ///> @copydoc EDA_DRAW_FRAME::UseGalCanvas()
+    void UseGalCanvas( bool aEnable );
+
+    bool GeneralControl( wxDC* aDC, const wxPoint& aPosition, int aHotKey = 0 );
 
     /**
      * Function ShowDesignRulesEditor
@@ -631,7 +660,7 @@ public:
      * @param aTransformPoint = the reference point of the transformation, for
      *                          commands like move
      */
-    virtual void SaveCopyInUndoList( PICKED_ITEMS_LIST& aItemsList,
+    virtual void SaveCopyInUndoList( const PICKED_ITEMS_LIST& aItemsList,
                                      UNDO_REDO_T aTypeCommand,
                                      const wxPoint& aTransformPoint = wxPoint( 0, 0 ) );
 
@@ -650,34 +679,34 @@ public:
                                  bool               aRebuildRatsnet = true );
 
     /**
-     * Function GetBoardFromRedoList
+     * Function RestoreCopyFromRedoList
      *  Redo the last edition:
      *  - Save the current board in Undo list
      *  - Get an old version of the board from Redo list
      *  @return none
      */
-    void GetBoardFromRedoList( wxCommandEvent& event );
+    void RestoreCopyFromRedoList( wxCommandEvent& aEvent );
 
     /**
-     * Function GetBoardFromUndoList
+     * Function RestoreCopyFromUndoList
      *  Undo the last edition:
      *  - Save the current board in Redo list
      *  - Get an old version of the board from Undo list
      *  @return none
      */
-    void GetBoardFromUndoList( wxCommandEvent& event );
+    void RestoreCopyFromUndoList( wxCommandEvent& aEvent );
 
     /* Block operations: */
 
     /**
-     * Function ReturnBlockCommand
+     * Function BlockCommand
      * Returns the block command internat code (BLOCK_MOVE, BLOCK_COPY...)
      * corresponding to the keys pressed (ALT, SHIFT, SHIFT ALT ..) when
      * block command is started by dragging the mouse.
      * @param aKey = the key modifiers (Alt, Shift ...)
      * @return the block command id (BLOCK_MOVE, BLOCK_COPY...)
      */
-    virtual int ReturnBlockCommand( int aKey );
+    virtual int BlockCommand( int aKey );
 
     /**
      * Function HandleBlockPlace()
@@ -748,14 +777,12 @@ public:
      * New location is determined by the current offset from the selected
      * block's original location.
      */
-    void Block_Duplicate();
+    void Block_Duplicate( bool aIncrement );
 
     void Process_Settings( wxCommandEvent& event );
     void OnConfigurePcbOptions( wxCommandEvent& aEvent );
     void InstallDisplayOptionsDialog( wxCommandEvent& aEvent );
     void InstallPcbGlobalDeleteFrame( const wxPoint& pos );
-
-    void InstallDialogLayerSetup();
 
     /**
      * Function GenFootprintsPositionFile
@@ -798,45 +825,62 @@ public:
     bool DoGenFootprintsReport( const wxString& aFullFilename, bool aUnitsMM );
 
     void InstallDrillFrame( wxCommandEvent& event );
+    void GenD356File( wxCommandEvent& event );
     void ToPostProcess( wxCommandEvent& event );
 
     void OnFileHistory( wxCommandEvent& event );
 
     /**
      * Function Files_io
-     * is the command event handler for read and write file commands.
+     * @param event is the command event handler.
+     * do nothing else than call Files_io_from_id with the
+     * wxCommandEvent id
      */
     void Files_io( wxCommandEvent& event );
 
     /**
-     * Function LoadOnePcbFile
-     * loads a KiCad board (.brd) from \a aFileName.
-     *
-     *  @param aFileName - File name including path. If empty, a file dialog will
-     *                     be displayed.
-     *  @param aAppend - Append board file aFileName to the currently loaded file if true.
-     *                   Default = false.
-     *  @param aForceFileDialog - Display the file open dialog even if aFullFileName is
-     *                            valid if true; Default = false.
-     *
-     *  @return False if file load fails or is canceled by the user, otherwise true.
+     * Function Files_io_from_id
+     * Read and write board files
+     * @param aId is an event ID ciming from file command events:
+     * ID_LOAD_FILE
+     * ID_MENU_READ_BOARD_BACKUP_FILE
+     * ID_MENU_RECOVER_BOARD_AUTOSAVE
+     * ID_APPEND_FILE
+     * ID_NEW_BOARD
+     * ID_SAVE_BOARD
+     * ID_COPY_BOARD_AS
+     * ID_SAVE_BOARD_AS
+     * Files_io_from_id prepare parameters and calls the specialized function
      */
-    bool LoadOnePcbFile( const wxString& aFileName, bool aAppend = false,
-                         bool aForceFileDialog = false );
+    void Files_io_from_id( int aId );
 
     /**
-     * Function ReadPcbFile
-     * reads a board file  &ltfile&gt.brd
-     * @param aReader The line reader object to read from.
-     * @param Append if 0: a previously loaded board is deleted before loading
-     *               the file else all items of the board file are added to the
-     *               existing board
+     * Function OpenProjectFiles    (was LoadOnePcbFile)
+     * loads a KiCad board (.kicad_pcb) from \a aFileName.
+     *
+     * @param aFileSet - hold the BOARD file to load, a vector of one element.
+     *
+     * @param aCtl      - KICTL_ bits, one to indicate that an append of the board file
+     *                      aFileName to the currently loaded file is desired.
+     *                    @see #KIWAY_PLAYER for bit defines.
+     *
+     * @return bool - false if file load fails, otherwise true.
+    bool LoadOnePcbFile( const wxString& aFileName, bool aAppend = false,
+                         bool aForceFileDialog = false );
      */
-    int ReadPcbFile( LINE_READER* aReader, bool Append );
+    bool OpenProjectFiles( const std::vector<wxString>& aFileSet, int aCtl = 0 );
+
+    /**
+     * Function AppendBoardFile
+     * appends a board file onto the current one, creating God knows what.
+     * the main purpose is only to allow panelizing boards.
+     */
+    bool AppendBoardFile( const wxString& aFullFileName, int aCtl );
 
     /**
      * Function SavePcbFile
      * writes the board data structures to \a a aFileName
+     * Creates backup when requested and update flags (modified and saved flgs)
      *
      * @param aFileName The file name to write or wxEmptyString to prompt user for
      *                  file name.
@@ -847,8 +891,18 @@ public:
      */
     bool SavePcbFile( const wxString& aFileName, bool aCreateBackupFile = CREATE_BACKUP_FILE );
 
-    int SavePcbFormatAscii( FILE* File );
-    bool WriteGeneralDescrPcb( FILE* File );
+    /**
+     * Function SavePcbCopy
+     * writes the board data structures to \a a aFileName
+     * but unlike SavePcbFile, does not make anything else
+     * (no backup, borad fliename change, no flag changes ...)
+     * Used under a project mgr to save under a new name the current board
+     *
+     * When not under a project mgr, the full SavePcbFile is used.
+     * @param aFileName The file name to write.
+     * @return True if file was saved successfully.
+     */
+    bool SavePcbCopy( const wxString& aFileName );
 
     // BOARD handling
 
@@ -858,6 +912,12 @@ public:
      * @param aQuery = true to prompt user for confirmation, false to initialize silently
      */
     bool Clear_Pcb( bool aQuery );
+
+    ///> @copydoc PCB_BASE_FRAME::SetBoard()
+    void SetBoard( BOARD* aBoard );
+
+    ///> @copydoc PCB_BASE_FRAME::SetPageSettings()
+    void SetPageSettings( const PAGE_INFO& aPageSettings ); // overload
 
     // Drc control
 
@@ -877,12 +937,11 @@ public:
     /**
      * Function ArchiveModulesOnBoard
      * Save modules in a library:
-     * @param aLibName: the full filename of the library to create or modify
      * @param aNewModulesOnly:
      *              true : save modules not already existing in this lib
      *              false: save all modules
      */
-    void ArchiveModulesOnBoard( const wxString& aLibName, bool aNewModulesOnly );
+    void ArchiveModulesOnBoard( bool aNewModulesOnly );
 
     /**
      * Function RecreateBOMFileFromBoard
@@ -905,24 +964,58 @@ public:
     /**
      * Function ExportVRML_File
      * Creates the file(s) exporting current BOARD to a VRML file.
+     *
+     * @note When copying 3D shapes files, the new filename is build from the full path
+     *       name, changing the separators by underscore.  This is needed because files
+     *       with the same shortname can exist in different directories
+     * @note ExportVRML_File generates coordinates in board units (BIU) inside the file.
+     * @todo Use mm inside the file.  A general scale transform is applied to the whole
+     *       file (1.0 to have the actual WRML unit im mm, 0.001 to have the actual WRML
+     *       unit in meters.
+     * @note For 3D models built by a 3D modeler, the unit is 0,1 inches.  A specific scale
+     *       is applied to 3D models to convert them to internal units.
+     *
      * @param aFullFileName = the full filename of the file to create
      * @param aMMtoWRMLunit = the VRML scaling factor:
      *      1.0 to export in mm. 0.001 for meters
      * @param aExport3DFiles = true to copy 3D shapes in the subir a3D_Subdir
-     * @param a3D_Subdir = sub directory where 3D shapes files are copied
-     * used only when aExport3DFiles == true
+     * @param aUseRelativePaths set to true to use relative paths instead of absolute paths
+     *                          in the board VRML file URLs.
+     * @param aUsePlainPCB set to true to export a board with no copper or silkskreen;
+     *                          this is useful for generating a VRML file which can be
+     *                          converted to a STEP model.
+     * @param a3D_Subdir = sub directory where 3D shapes files are copied.  This is only used
+     *                     when aExport3DFiles == true
+     * @param aXRef = X value of PCB (0,0) reference point
+     * @param aYRef = Y value of PCB (0,0) reference point
      * @return true if Ok.
      */
     bool ExportVRML_File( const wxString & aFullFileName, double aMMtoWRMLunit,
-                          bool aExport3DFiles, const wxString & a3D_Subdir );
+                          bool aExport3DFiles, bool aUseRelativePaths,
+                          bool aUsePlainPCB, const wxString & a3D_Subdir,
+                          double aXRef, double aYRef );
+
+    /**
+     * Function ExportToIDF3
+     * will export the current BOARD to a IDFv3 board and lib files.
+     */
+    void ExportToIDF3( wxCommandEvent& event );
 
     /**
      * Function ExporttoSPECCTRA
-     * will export the current BOARD to a specctra dsn file.  See
-     * See http://www.autotraxeda.com/docs/SPECCTRA/SPECCTRA.pdf for the
-     * specification.
+     * Ask for a filename and call ExportSpecctraFile to export the current BOARD
+     * to a specctra dsn file.
      */
     void ExportToSpecctra( wxCommandEvent& event );
+
+    /**
+     * Function ExportSpecctraFile
+     * will export the current BOARD to a specctra dsn file.
+     * See http://www.autotraxeda.com/docs/SPECCTRA/SPECCTRA.pdf for the
+     * specification.
+     * @return true if OK
+     */
+    bool ExportSpecctraFile( const wxString& aFullFilename );
 
     /**
      * Function ImportSpecctraSession
@@ -949,6 +1042,11 @@ public:
      */
     void Access_to_External_Tool( wxCommandEvent& event );
 
+    /**
+     * Function ListAndSelectModuleName
+     * builds and shows a list of existing modules on board that the user can select.
+     * @return a pointer to the selected module or NULL.
+     */
     MODULE* ListAndSelectModuleName();
 
     /**
@@ -1019,7 +1117,7 @@ public:
      */
     void Change_Side_Module( MODULE* Module, wxDC* DC );
 
-    void InstallExchangeModuleFrame( MODULE* ExchangeModuleModule );
+    int InstallExchangeModuleFrame( MODULE* ExchangeModuleModule );
 
     /**
      * Function Exchange_Module
@@ -1195,7 +1293,7 @@ public:
     bool MergeCollinearTracks( TRACK* track, wxDC* DC, int end );
 
     void Start_DragTrackSegmentAndKeepSlope( TRACK* track, wxDC* DC );
-    void SwitchLayer( wxDC* DC, int layer );
+    void SwitchLayer( wxDC* DC, LAYER_ID layer );
 
     /**
      * Function Add45DegreeSegment
@@ -1395,7 +1493,7 @@ public:
     DRAWSEGMENT* Begin_DrawSegment( DRAWSEGMENT* Segment, STROKE_T shape, wxDC* DC );
     void End_Edge( DRAWSEGMENT* Segment, wxDC* DC );
     void Delete_Segment_Edge( DRAWSEGMENT* Segment, wxDC* DC );
-    void Delete_Drawings_All_Layer( int aLayer );
+    void Delete_Drawings_All_Layer( LAYER_ID aLayer );
 
     // Dimension handling:
     void ShowDimensionPropertyDialog( DIMENSION* aDimension, wxDC* aDC );
@@ -1410,29 +1508,34 @@ public:
 
     /**
      * Function ReadPcbNetlist
-     * Update footprints (load missing footprints and delete on demand extra
-     * footprints)
+     * reads \a aNetlistFileName and updates the footprints (load missing footprints and
+     * delete on demand extra footprints) on the board.
      * Update connectivity info, references, values and "TIME STAMP"
-     * @param aNetlistFullFilename = netlist file name (*.net)
-     * @param aCmpFullFileName = cmp/footprint link file name (*.cmp).
-     *                         if not found or empty, only the netlist will be used
-     * @param aMessageWindow = a reference to a wxTextCtrl where to display messages.
-     *                  can be NULL
+     *
+     * @param aNetlistFileName = netlist file name (*.net)
+     * @param aCmpFileName = cmp/footprint link file name (*.cmp).
+     *                       if not found or empty, only the netlist will be used
+     * @param aReporter is a pointer to a #REPORTER object to write display messages.
+     *                  can be NULL.
      * @param aChangeFootprint if true, footprints that have changed in netlist will be changed
      * @param aDeleteBadTracks if true, erroneous tracks will be deleted
      * @param aDeleteExtraFootprints if true, remove unlocked footprints that are not in netlist
-     * @param aSelect_By_Timestamp if true, use timestamp instead of reference to identify
-     *                             footprints from components (use after reannotation of the
-     *                             schematic)
-     * @return true if Ok
+     * @param aSelectByTimestamp if true, use timestamp instead of reference to identify
+     *                           footprints from components (use after reannotation of the
+     *                           schematic)
+     * @param aDeleteSinglePadNets if true, remove nets counting only one pad
+     *                             and set net code to 0 for these pads
+     * @param aIsDryRun performs a dry run without making any changes if true.
      */
-    bool ReadPcbNetlist( const wxString&  aNetlistFullFilename,
-                         const wxString&  aCmpFullFileName,
-                         wxTextCtrl*      aMessageWindow,
+    void ReadPcbNetlist( const wxString&  aNetlistFileName,
+                         const wxString&  aCmpFileName,
+                         REPORTER*        aReporter,
                          bool             aChangeFootprint,
                          bool             aDeleteBadTracks,
                          bool             aDeleteExtraFootprints,
-                         bool             aSelect_By_Timestamp );
+                         bool             aSelectByTimestamp,
+                         bool             aDeleteSinglePadNets,
+                         bool             aIsDryRun );
 
     /**
      * Function RemoveMisConnectedTracks
@@ -1445,13 +1548,15 @@ public:
 
 
     // Autoplacement:
-    void AutoPlace( wxCommandEvent& event );
+    void OnPlaceOrRouteFootprints( wxCommandEvent& event );
 
     /**
      * Function ScriptingConsoleEnableDisable
      * enables or disabled the scripting console
      */
-    void ScriptingConsoleEnableDisable( wxCommandEvent& event );
+    void ScriptingConsoleEnableDisable( wxCommandEvent& aEvent );
+
+    void OnUpdateScriptingConsoleState( wxUpdateUIEvent& aEvent );
 
     void OnSelectAutoPlaceMode( wxCommandEvent& aEvent );
 
@@ -1469,10 +1574,19 @@ public:
      * @param include_fixe = true to orient locked footprints
      * @return true if some footprints modified, false if no change
      */
-    bool ReOrientModules( const wxString& ModuleMask, int Orient,
-                                  bool include_fixe );
+    bool ReOrientModules( const wxString& ModuleMask, double Orient, bool include_fixe );
     void LockModule( MODULE* aModule, bool aLocked );
-    void AutoMoveModulesOnPcb( bool PlaceModulesHorsPcb );
+
+    /**
+     * Function SpreadFootprints
+     * Footprints (after loaded by reading a netlist for instance) are moved
+     * to be in a small free area (outside the current board) without overlapping.
+     * @param aFootprintsOutsideBoardOnly: true to move only
+     * footprints outside the board outlines
+     * (they are outside if the position of a footprint is outside
+     * the board outlines bounding box
+     */
+    void SpreadFootprints( bool aFootprintsOutsideBoardOnly );
 
     /**
      * Function AutoPlaceModule
@@ -1481,52 +1595,6 @@ public:
      * calling the placement of 1 module, it will be replaced.
      */
     void AutoPlaceModule( MODULE* Module, int place_mode, wxDC* DC );
-
-    /**
-     * Function GetOptimalModulePlacement
-     * searches for the optimal position of the \a aModule.
-     *
-     * @param aModule A pointer to the MODULE object to get the optimal placement.
-     * @param aDC The device context to draw on.
-     * @return 1 if placement impossible or 0 if OK.
-     */
-    int GetOptimalModulePlacement( MODULE* aModule, wxDC* aDC );
-
-    void GenModuleOnBoard( MODULE* Module );
-
-    /**
-     * Function Compute_Ratsnest_PlaceModule
-     * displays the module's ratsnest during displacement, and assess the "cost"
-     * of the position.
-     *
-     * The cost is the longest ratsnest distance with penalty for connections
-     * approaching 45 degrees.
-     */
-    double Compute_Ratsnest_PlaceModule( wxDC* DC );
-
-    /**
-     * Function GenPlaceBoard
-     * generates board board (component side copper + rating):
-     * Allocate the memory needed to represent in "bitmap" on the grid
-     * Current:
-     * - The size of clearance area of component (the board)
-     * - The bitmap PENALTIES
-     * And initialize the cells of the board has
-     * - Hole in the cells occupied by a segment EDGE
-     * - CELL_is_ZONE for cell internal contour EDGE (if closed)
-     *
-     * Placement surface (board) gives the cells internal to the contour
-     * PCB, and among the latter the free cells and cells already occupied
-     *
-     * The bitmap PENALTIES give cells occupied by the modules,
-     * Plus a surface penalty related to the number of pads of the module
-     *
-     * Bitmap of the penalty is set to 0
-     * Occupation cell is a 0 leaves
-     */
-    int GenPlaceBoard();
-
-    void DrawInfoPlace( wxDC* DC );
 
     // Autorouting:
     int Solve( wxDC* DC, int two_sides );
@@ -1571,18 +1639,21 @@ public:
     void Edit_Gap( wxDC* DC, MODULE* Module );
 
     /**
-     * Function Create_MuWaveBasicShape
-     * create a footprint with pad_count pads for micro wave applications.
-     * This footprint has pad_count pads:
-     *  PAD_SMD, rectangular, H size = V size = current track width.
+     * Function CreateMuWaveBaseFootprint
+     * create a basic footprint for micro wave applications.
+     * @param aValue = the text value
+     * @param aTextSize = the size of ref and value texts ( <= 0 to use board default values )
+     * @param aPadCount = number of pads
+     * Pads settings are:
+     *  PAD_ATTRIB_SMD, rectangular, H size = V size = current track width.
      */
-    MODULE* Create_MuWaveBasicShape( const wxString& name, int pad_count );
+    MODULE* CreateMuWaveBaseFootprint( const wxString& aValue, int aTextSize, int aPadCount );
 
     /**
      * Create_MuWaveComponent
      * creates a module "GAP" or "STUB" used in micro wave designs.
      *  This module has 2 pads:
-     *  PAD_SMD, rectangular, H size = V size = current track width.
+     *  PAD_ATTRIB_SMD, rectangular, H size = V size = current track width.
      *  the "gap" is isolation created between this 2 pads
      */
     MODULE* Create_MuWaveComponent( int shape_type );
@@ -1629,11 +1700,7 @@ public:
      */
     MODULE* Genere_Self( wxDC* DC );
 
-    /**
-     * Function SetLanguage
-     * called on a language menu selection
-     */
-    virtual void SetLanguage( wxCommandEvent& event );
+    void ShowChangedLanguage();         // override EDA_BASE_FRAME virtual
 
     /**
      * Function UpdateTitle
@@ -1649,18 +1716,5 @@ public:
 
     DECLARE_EVENT_TABLE()
 };
-
-
-class FP_LIB_TABLE;
-
-/**
- * Function InvokePcbLibTableEditor
- * shows the modal DIALOG_FP_LIB_TABLE for purposes of editing two lib tables.
- *
- * @return int - bits 0 and 1 tell whether a change was made to the @a aGlobal
- *  and/or the @a aProject table, respectively.  If set, table was modified.
- */
-int InvokePcbLibTableEditor( wxFrame* aParent, FP_LIB_TABLE* aGlobal, FP_LIB_TABLE* aProject );
-
 
 #endif  // WXPCB_STRUCT_H_

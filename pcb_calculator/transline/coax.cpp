@@ -41,6 +41,17 @@
 COAX::COAX() : TRANSLINE()
 {
     m_name = "Coax";
+
+    // Initialize these variables mainly to avoid warnings from a static analyzer
+    mur = 0.0;              // magnetic permeability of substrate
+    din = 0.0;              // Inner diameter of cable
+    dout = 0.0;             // Outer diameter of cable
+    l = 0.0;                // Length of cable
+    Z0 = 0.0;               // characteristic impedance
+    ang_l = 0.0;            // Electrical length in angle
+    atten_dielectric = 0.0; // Loss in dielectric (dB)
+    atten_cond = 0.0;       // Loss in conductors (dB)
+    fc = 0.0;               // Cutoff frequency for higher order modes
 }
 
 

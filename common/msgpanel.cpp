@@ -28,11 +28,6 @@
  * @brief Message panel implementation file.
  */
 
-#ifdef __GNUG__
-#pragma implementation
-#endif
-
-
 #include <msgpanel.h>
 
 
@@ -42,8 +37,9 @@ END_EVENT_TABLE()
 
 
 EDA_MSG_PANEL::EDA_MSG_PANEL( wxWindow* aParent, int aId,
-                              const wxPoint& aPosition, const wxSize& aSize ) :
-    wxPanel( aParent, aId, aPosition, aSize )
+                              const wxPoint& aPosition, const wxSize& aSize,
+                              long style, const wxString &name ) :
+    wxPanel( aParent, aId, aPosition, aSize, style, name )
 {
     SetFont( wxSystemSettings::GetFont( wxSYS_DEFAULT_GUI_FONT ) );
     SetBackgroundColour( wxSystemSettings::GetColour( wxSYS_COLOUR_BTNFACE ) );
@@ -205,9 +201,7 @@ void EDA_MSG_PANEL::showItem( wxDC& aDC, const MSG_PANEL_ITEM& aItem )
     if( color >= 0 )
     {
         color = ColorGetBase( color );
-        aDC.SetTextForeground( wxColour( ColorRefs[color].m_Red,
-                                         ColorRefs[color].m_Green,
-                                         ColorRefs[color].m_Blue ) );
+        aDC.SetTextForeground( MakeColour( color ) );
     }
 
     if( !aItem.m_UpperText.IsEmpty() )
@@ -241,7 +235,7 @@ void EDA_MSG_PANEL::erase( wxDC* aDC )
     pen.SetColour( color );
 
     brush.SetColour( color );
-    brush.SetStyle( wxSOLID );
+    brush.SetStyle( wxBRUSHSTYLE_SOLID );
 
     aDC->SetPen( pen );
     aDC->SetBrush( brush );

@@ -39,12 +39,11 @@
 #include <msgpanel.h>
 
 #include <general.h>
-#include <protos.h>
 #include <lib_circle.h>
 #include <transform.h>
 
 
-LIB_CIRCLE::LIB_CIRCLE( LIB_COMPONENT* aParent ) :
+LIB_CIRCLE::LIB_CIRCLE( LIB_PART*      aParent ) :
     LIB_ITEM( LIB_CIRCLE_T, aParent )
 {
     m_Radius     = 0;
@@ -69,12 +68,12 @@ bool LIB_CIRCLE::Load( LINE_READER& aLineReader, wxString& aErrorMsg )
     char tmp[256];
     char* line = (char*) aLineReader;
 
-    int  cnt = sscanf( line + 2, "%d %d %d %d %d %d %s", &m_Pos.x, &m_Pos.y,
+    int  cnt = sscanf( line + 2, "%d %d %d %d %d %d %255s", &m_Pos.x, &m_Pos.y,
                        &m_Radius, &m_Unit, &m_Convert, &m_Width, tmp );
 
     if( cnt < 6 )
     {
-        aErrorMsg.Printf( _( "circle only had %d parameters of the required 6" ), cnt );
+        aErrorMsg.Printf( _( "Circle only had %d parameters of the required 6" ), cnt );
         return false;
     }
 
@@ -88,7 +87,7 @@ bool LIB_CIRCLE::Load( LINE_READER& aLineReader, wxString& aErrorMsg )
 }
 
 
-bool LIB_CIRCLE::HitTest( const wxPoint& aPosRef )
+bool LIB_CIRCLE::HitTest( const wxPoint& aPosRef ) const
 {
     int mindist = GetPenSize() / 2;
 
@@ -100,15 +99,12 @@ bool LIB_CIRCLE::HitTest( const wxPoint& aPosRef )
 }
 
 
-bool LIB_CIRCLE::HitTest( wxPoint aPosRef, int aThreshold, const TRANSFORM& aTransform )
+bool LIB_CIRCLE::HitTest( const wxPoint &aPosRef, int aThreshold, const TRANSFORM& aTransform ) const
 {
     if( aThreshold < 0 )
         aThreshold = GetPenSize() / 2;
 
-    wxPoint relpos = aPosRef - aTransform.TransformCoordinate( m_Pos );
-
-    int dist = KiROUND( sqrt( ( (double) relpos.x * relpos.x ) +
-                              ( (double) relpos.y * relpos.y ) ) );
+    int dist = KiROUND( GetLineLength( aPosRef, aTransform.TransformCoordinate( m_Pos ) ) );
 
     if( abs( dist - m_Radius ) <= aThreshold )
         return true;
@@ -194,12 +190,12 @@ void LIB_CIRCLE::Plot( PLOTTER* aPlotter, const wxPoint& aOffset, bool aFill,
 
     if( aFill && m_Fill == FILLED_WITH_BG_BODYCOLOR )
     {
-        aPlotter->SetColor( ReturnLayerColor( LAYER_DEVICE_BACKGROUND ) );
+        aPlotter->SetColor( GetLayerColor( LAYER_DEVICE_BACKGROUND ) );
         aPlotter->Circle( pos, m_Radius * 2, FILLED_SHAPE, 0 );
     }
 
     bool already_filled = m_Fill == FILLED_WITH_BG_BODYCOLOR;
-    aPlotter->SetColor( ReturnLayerColor( LAYER_DEVICE ) );
+    aPlotter->SetColor( GetLayerColor( LAYER_DEVICE ) );
     aPlotter->Circle( pos, m_Radius * 2, already_filled ? NO_FILL : m_Fill, GetPenSize() );
 }
 
@@ -216,7 +212,7 @@ void LIB_CIRCLE::drawGraphic( EDA_DRAW_PANEL* aPanel, wxDC* aDC, const wxPoint& 
 {
     wxPoint pos1;
 
-    EDA_COLOR_T color = ReturnLayerColor( LAYER_DEVICE );
+    EDA_COLOR_T color = GetLayerColor( LAYER_DEVICE );
 
     if( aColor < 0 )       // Used normal color or selected color
     {
@@ -235,32 +231,37 @@ void LIB_CIRCLE::drawGraphic( EDA_DRAW_PANEL* aPanel, wxDC* aDC, const wxPoint& 
     if( aColor >= 0 )
         fill = NO_FILL;
 
+    EDA_RECT* const clipbox  = aPanel? aPanel->GetClipBox() : NULL;
     if( fill == FILLED_WITH_BG_BODYCOLOR )
-        GRFilledCircle( aPanel->GetClipBox(), aDC, pos1.x, pos1.y, m_Radius, GetPenSize(),
-                        (m_Flags & IS_MOVED) ? color : ReturnLayerColor( LAYER_DEVICE_BACKGROUND ),
-                        ReturnLayerColor( LAYER_DEVICE_BACKGROUND ) );
+        GRFilledCircle( clipbox, aDC, pos1.x, pos1.y, m_Radius, GetPenSize(),
+                        (m_Flags & IS_MOVED) ? color : GetLayerColor( LAYER_DEVICE_BACKGROUND ),
+                        GetLayerColor( LAYER_DEVICE_BACKGROUND ) );
     else if( fill == FILLED_SHAPE )
-        GRFilledCircle( aPanel->GetClipBox(), aDC, pos1.x, pos1.y, m_Radius, 0, color, color );
+        GRFilledCircle( clipbox, aDC, pos1.x, pos1.y, m_Radius, 0, color, color );
     else
-        GRCircle( aPanel->GetClipBox(), aDC, pos1.x, pos1.y, m_Radius, GetPenSize(), color );
+        GRCircle( clipbox, aDC, pos1.x, pos1.y, m_Radius, GetPenSize(), color );
 
     /* Set to one (1) to draw bounding box around circle to validate bounding
      * box calculation. */
 #if 0
     EDA_RECT bBox = GetBoundingBox();
-    GRRect( aPanel->GetClipBox(), aDC, bBox.GetOrigin().x, bBox.GetOrigin().y,
-            bBox.GetEnd().x, bBox.GetEnd().y, 0, LIGHTMAGENTA );
+    bBox.RevertYAxis();
+    bBox = aTransform.TransformCoordinate( bBox );
+    bBox.Move( aOffset );
+    GRRect( clipbox, aDC, bBox, 0, LIGHTMAGENTA );
 #endif
 }
 
 
-EDA_RECT LIB_CIRCLE::GetBoundingBox() const
+const EDA_RECT LIB_CIRCLE::GetBoundingBox() const
 {
     EDA_RECT rect;
 
-    rect.SetOrigin( m_Pos.x - m_Radius, ( m_Pos.y - m_Radius ) * -1 );
-    rect.SetEnd( m_Pos.x + m_Radius, ( m_Pos.y + m_Radius ) * -1 );
-    rect.Inflate( m_Width / 2, m_Width / 2 );
+    rect.SetOrigin( m_Pos.x - m_Radius, m_Pos.y - m_Radius );
+    rect.SetEnd( m_Pos.x + m_Radius, m_Pos.y + m_Radius );
+    rect.Inflate( ( GetPenSize()+1 ) / 2 );
+
+    rect.RevertYAxis();
 
     return rect;
 }
@@ -273,17 +274,17 @@ void LIB_CIRCLE::GetMsgPanelInfo( MSG_PANEL_ITEMS& aList )
 
     LIB_ITEM::GetMsgPanelInfo( aList );
 
-    msg = ReturnStringFromValue( g_UserUnit, m_Width, true );
+    msg = StringFromValue( g_UserUnit, m_Width, true );
 
-    aList.push_back( MSG_PANEL_ITEM(  _( "Line width" ), msg, BLUE ) );
+    aList.push_back( MSG_PANEL_ITEM(  _( "Line Width" ), msg, BLUE ) );
 
-    msg = ReturnStringFromValue( g_UserUnit, m_Radius, true );
+    msg = StringFromValue( g_UserUnit, m_Radius, true );
     aList.push_back( MSG_PANEL_ITEM( _( "Radius" ), msg, RED ) );
 
     msg.Printf( wxT( "(%d, %d, %d, %d)" ), bBox.GetOrigin().x,
                 bBox.GetOrigin().y, bBox.GetEnd().x, bBox.GetEnd().y );
 
-    aList.push_back( MSG_PANEL_ITEM( _( "Bounding box" ), msg, BROWN ) );
+    aList.push_back( MSG_PANEL_ITEM( _( "Bounding Box" ), msg, BROWN ) );
 }
 
 
@@ -296,7 +297,7 @@ wxString LIB_CIRCLE::GetSelectMenuText() const
 }
 
 
-void LIB_CIRCLE::BeginEdit( int aEditMode, const wxPoint aPosition )
+void LIB_CIRCLE::BeginEdit( STATUS_FLAGS aEditMode, const wxPoint aPosition )
 {
     wxCHECK_RET( ( aEditMode & ( IS_NEW | IS_MOVED | IS_RESIZED ) ) != 0,
                  wxT( "Invalid edit mode for LIB_CIRCLE object." ) );
@@ -346,9 +347,7 @@ void LIB_CIRCLE::calcEdit( const wxPoint& aPosition )
         if( m_Flags == IS_NEW )
             SetEraseLastDrawItem();
 
-        int dx = m_Pos.x - aPosition.x;
-        int dy = m_Pos.y - aPosition.y;
-        m_Radius = KiROUND( sqrt( ( (double) dx * dx ) + ( (double) dy * dy ) ) );
+        m_Radius = KiROUND( GetLineLength( m_Pos, aPosition ) );
     }
     else
     {

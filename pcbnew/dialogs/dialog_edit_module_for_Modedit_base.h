@@ -1,5 +1,5 @@
 ///////////////////////////////////////////////////////////////////////////
-// C++ code generated with wxFormBuilder (version Oct  8 2012)
+// C++ code generated with wxFormBuilder (version Mar  9 2015)
 // http://www.wxformbuilder.org/
 //
 // PLEASE DO "NOT" EDIT THIS FILE!
@@ -90,8 +90,18 @@ class DIALOG_MODULE_MODULE_EDITOR_BASE : public DIALOG_SHIM
 		wxPanel* m_Panel3D;
 		wxStaticText* m_staticText3Dname;
 		wxListBox* m_3D_ShapeNameListBox;
+		wxStaticText* m_staticTextDefault3DPath;
+		wxTextCtrl* m_textCtrl3DDefaultPath;
+		wxStaticBoxSizer* m_Sizer3DValues;
+		wxBoxSizer* m_bSizerShapeScale;
+		wxStaticText* m_staticTextShapeScale;
+		wxBoxSizer* m_bSizerShapeOffset;
+		wxStaticText* m_staticTextShapeOffset;
+		wxBoxSizer* m_bSizerShapeRotation;
+		wxStaticText* m_staticTextShapeRotation;
 		wxButton* m_buttonBrowse;
 		wxButton* m_buttonRemove;
+		wxButton* m_buttonEdit;
 		wxStdDialogButtonSizer* m_sdbSizerStdButtons;
 		wxButton* m_sdbSizerStdButtonsOK;
 		wxButton* m_sdbSizerStdButtonsCancel;
@@ -100,16 +110,16 @@ class DIALOG_MODULE_MODULE_EDITOR_BASE : public DIALOG_SHIM
 		virtual void OnEditReference( wxCommandEvent& event ) { event.Skip(); }
 		virtual void OnEditValue( wxCommandEvent& event ) { event.Skip(); }
 		virtual void On3DShapeNameSelected( wxCommandEvent& event ) { event.Skip(); }
-		virtual void BrowseAndAdd3DLib( wxCommandEvent& event ) { event.Skip(); }
+		virtual void Add3DShape( wxCommandEvent& event ) { event.Skip(); }
 		virtual void Remove3DShape( wxCommandEvent& event ) { event.Skip(); }
+		virtual void Edit3DShapeFilename( wxCommandEvent& event ) { event.Skip(); }
 		virtual void OnCancelClick( wxCommandEvent& event ) { event.Skip(); }
 		virtual void OnOkClick( wxCommandEvent& event ) { event.Skip(); }
 		
 	
 	public:
-		wxStaticBoxSizer* m_Sizer3DValues;
 		
-		DIALOG_MODULE_MODULE_EDITOR_BASE( wxWindow* parent, wxWindowID id = wxID_ANY, const wxString& title = _("Module Properties"), const wxPoint& pos = wxDefaultPosition, const wxSize& size = wxSize( 486,462 ), long style = wxDEFAULT_DIALOG_STYLE|wxRESIZE_BORDER ); 
+		DIALOG_MODULE_MODULE_EDITOR_BASE( wxWindow* parent, wxWindowID id = wxID_ANY, const wxString& title = _("Footprint Properties"), const wxPoint& pos = wxDefaultPosition, const wxSize& size = wxSize( 486,510 ), long style = wxDEFAULT_DIALOG_STYLE|wxRESIZE_BORDER ); 
 		~DIALOG_MODULE_MODULE_EDITOR_BASE();
 	
 };

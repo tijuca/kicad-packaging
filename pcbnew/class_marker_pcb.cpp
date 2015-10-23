@@ -46,7 +46,7 @@
 
 MARKER_PCB::MARKER_PCB( BOARD_ITEM* aParent ) :
     BOARD_ITEM( aParent, PCB_MARKER_T ),
-    MARKER_BASE( )
+    MARKER_BASE(), m_item( NULL )
 {
     m_Color = WHITE;
     m_ScalingFactor = SCALING_FACTOR;
@@ -57,8 +57,7 @@ MARKER_PCB::MARKER_PCB( int aErrorCode, const wxPoint& aMarkerPos,
                         const wxString& aText, const wxPoint& aPos,
                         const wxString& bText, const wxPoint& bPos ) :
     BOARD_ITEM( NULL, PCB_MARKER_T ),  // parent set during BOARD::Add()
-    MARKER_BASE( aErrorCode, aMarkerPos, aText, aPos, bText, bPos )
-
+    MARKER_BASE( aErrorCode, aMarkerPos, aText, aPos, bText, bPos ), m_item( NULL )
 {
     m_Color = WHITE;
     m_ScalingFactor = SCALING_FACTOR;
@@ -67,7 +66,7 @@ MARKER_PCB::MARKER_PCB( int aErrorCode, const wxPoint& aMarkerPos,
 MARKER_PCB::MARKER_PCB( int aErrorCode, const wxPoint& aMarkerPos,
                         const wxString& aText, const wxPoint& aPos ) :
     BOARD_ITEM( NULL, PCB_MARKER_T ),  // parent set during BOARD::Add()
-    MARKER_BASE( aErrorCode, aMarkerPos, aText,  aPos )
+    MARKER_BASE( aErrorCode, aMarkerPos, aText,  aPos ), m_item( NULL )
 {
     m_Color = WHITE;
     m_ScalingFactor = SCALING_FACTOR;
@@ -86,9 +85,9 @@ MARKER_PCB::~MARKER_PCB()
  * param aLayer The layer to test for.
  * return bool - true if on given layer, else false.
  */
-bool MARKER_PCB::IsOnLayer( int aLayer ) const
+bool MARKER_PCB::IsOnLayer( LAYER_ID aLayer ) const
 {
-    return IsValidCopperLayerIndex( aLayer );
+    return IsCopperLayer( aLayer );
 }
 
 void MARKER_PCB::GetMsgPanelInfo( std::vector< MSG_PANEL_ITEM >& aList )
@@ -99,8 +98,9 @@ void MARKER_PCB::GetMsgPanelInfo( std::vector< MSG_PANEL_ITEM >& aList )
 
     wxString errorTxt;
 
-    errorTxt << _( "ErrType" ) << wxT( "(" ) << rpt.GetErrorCode() << wxT( ")-  " )
-             << rpt.GetErrorText() << wxT( ":" );
+    errorTxt.Printf( _( "ErrType (%d)- %s:" ),
+            rpt.GetErrorCode(),
+            GetChars( rpt.GetErrorText() ) );
 
     aList.push_back( MSG_PANEL_ITEM( errorTxt, wxEmptyString, RED ) );
 
@@ -131,8 +131,14 @@ void MARKER_PCB::Flip(const wxPoint& aCentre )
 wxString MARKER_PCB::GetSelectMenuText() const
 {
     wxString text;
-
-    text << _( "Marker" ) << wxT( " @(" ) << GetPos().x << wxT( "," ) << GetPos().y << wxT( ")" );
+    text.Printf( _( "Marker @(%d,%d)" ), GetPos().x, GetPos().y );
 
     return text;
+}
+
+
+void MARKER_PCB::ViewGetLayers( int aLayers[], int& aCount ) const
+{
+    aCount = 1;
+    aLayers[0] = ITEM_GAL_LAYER( DRC_VISIBLE );
 }

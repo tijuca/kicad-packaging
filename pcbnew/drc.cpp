@@ -2,9 +2,9 @@
 /*
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
- * Copyright (C) 2004-2007 Jean-Pierre Charras, jean-pierre.charras@gipsa-lab.inpg.fr
- * Copyright (C) 2007 Dick Hollenbeck, dick@softplc.com
- * Copyright (C) 2007 KiCad Developers, see change_log.txt for contributors.
+ * Copyright (C) 2004-2015 Jean-Pierre Charras, jp.charras at wanadoo.fr
+ * Copyright (C) 2014 Dick Hollenbeck, dick@softplc.com
+ * Copyright (C) 2015 KiCad Developers, see change_log.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -24,9 +24,9 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
  */
 
-/****************************/
-/* DRC control              */
-/****************************/
+/**
+ * @file drc.cpp
+ */
 
 #include <fctsys.h>
 #include <wxPcbStruct.h>
@@ -38,12 +38,16 @@
 #include <class_track.h>
 #include <class_pad.h>
 #include <class_zone.h>
+#include <class_pcb_text.h>
+#include <class_draw_panel_gal.h>
+#include <view/view.h>
+#include <geometry/seg.h>
 
 #include <pcbnew.h>
-#include <protos.h>
 #include <drc_stuff.h>
 
 #include <dialog_drc.h>
+#include <wx/progdlg.h>
 
 
 void DRC::ShowDialog()
@@ -99,6 +103,9 @@ DRC::DRC( PCB_EDIT_FRAME* aPcbWindow )
     m_doPad2PadTest     = true;     // enable pad to pad clearance tests
     m_doUnconnectedTest = true;     // enable unconnected tests
     m_doZonesTest = true;           // enable zone to items clearance tests
+    m_doKeepoutTest = true;         // enable keepout areas to items clearance tests
+    m_abortDRC = false;
+    m_drcInProgress = false;
 
     m_doCreateRptFile = false;
 
@@ -148,16 +155,6 @@ int DRC::Drc( TRACK* aRefSegm, TRACK* aList )
 }
 
 
-/**
- * Function Drc
- * tests the outline segment starting at CornerIndex and returns the result and displays the error
- * in the status panel only if one exists.
- *      Test Edge inside other areas
- *      Test Edge too close other areas
- * @param aArea The areaparent which contains the corner.
- * @param aCornerIndex The starting point of the segment to test.
- * @return int - BAD_DRC (1) if DRC error  or OK_DRC (0) if OK
- */
 int DRC::Drc( ZONE_CONTAINER* aArea, int aCornerIndex )
 {
     updatePointers();
@@ -173,11 +170,6 @@ int DRC::Drc( ZONE_CONTAINER* aArea, int aCornerIndex )
 }
 
 
-/**
- * Function RunTests
- * will actually run all the tests specified with a previous call to
- * SetSettings()
- */
 void DRC::RunTests( wxTextCtrl* aMessages )
 {
     // Ensure ratsnest is up to date:
@@ -227,7 +219,8 @@ void DRC::RunTests( wxTextCtrl* aMessages )
         aMessages->AppendText( _( "Track clearances...\n" ) );
         wxSafeYield();
     }
-    testTracks( true );
+
+    testTracks( aMessages ? aMessages->GetParent() : m_mainWindow, true );
 
     // Before testing segments and unconnected, refill all zones:
     // this is a good caution, because filled areas can be outdated.
@@ -237,7 +230,8 @@ void DRC::RunTests( wxTextCtrl* aMessages )
         wxSafeYield();
     }
 
-    m_mainWindow->Fill_All_Zones( aMessages->GetParent(), false );
+    m_mainWindow->Fill_All_Zones( aMessages ? aMessages->GetParent() : m_mainWindow,
+                                  false );
 
     // test zone clearances to other zones
     if( aMessages )
@@ -272,6 +266,15 @@ void DRC::RunTests( wxTextCtrl* aMessages )
         testKeepoutAreas();
     }
 
+    // find and gather vias, tracks, pads inside text boxes.
+    if( aMessages )
+    {
+        aMessages->AppendText( _( "Test texts...\n" ) );
+        wxSafeYield();
+    }
+
+    testTexts();
+
     // update the m_ui listboxes
     updatePointers();
 
@@ -295,7 +298,7 @@ void DRC::ListUnconnectedPads()
 
 void DRC::updatePointers()
 {
-    // update my pointers, m_mainWindow is the only unchangable one
+    // update my pointers, m_mainWindow is the only unchangeable one
     m_pcb = m_mainWindow->GetBoard();
 
     if( m_ui )  // Use diag list boxes only in DRC dialog
@@ -306,13 +309,13 @@ void DRC::updatePointers()
 }
 
 
-bool DRC::doNetClass( NETCLASS* nc, wxString& msg )
+bool DRC::doNetClass( NETCLASSPTR nc, wxString& msg )
 {
     bool ret = true;
 
     const BOARD_DESIGN_SETTINGS& g = m_pcb->GetDesignSettings();
 
-#define FmtVal( x ) GetChars( ReturnStringFromValue( g_UserUnit, x ) )
+#define FmtVal( x ) GetChars( StringFromValue( g_UserUnit, x ) )
 
 #if 0   // set to 1 when (if...) BOARD_DESIGN_SETTINGS has a m_MinClearance value
     if( nc->GetClearance() < g.m_MinClearance )
@@ -325,6 +328,7 @@ bool DRC::doNetClass( NETCLASS* nc, wxString& msg )
 
         m_currentMarker = fillMarker( DRCE_NETCLASS_CLEARANCE, msg, m_currentMarker );
         m_pcb->Add( m_currentMarker );
+        m_mainWindow->GetGalCanvas()->GetView()->Add( m_currentMarker );
         m_currentMarker = 0;
         ret = false;
     }
@@ -340,6 +344,7 @@ bool DRC::doNetClass( NETCLASS* nc, wxString& msg )
 
         m_currentMarker = fillMarker( DRCE_NETCLASS_TRACKWIDTH, msg, m_currentMarker );
         m_pcb->Add( m_currentMarker );
+        m_mainWindow->GetGalCanvas()->GetView()->Add( m_currentMarker );
         m_currentMarker = 0;
         ret = false;
     }
@@ -354,6 +359,7 @@ bool DRC::doNetClass( NETCLASS* nc, wxString& msg )
 
         m_currentMarker = fillMarker( DRCE_NETCLASS_VIASIZE, msg, m_currentMarker );
         m_pcb->Add( m_currentMarker );
+        m_mainWindow->GetGalCanvas()->GetView()->Add( m_currentMarker );
         m_currentMarker = 0;
         ret = false;
     }
@@ -368,6 +374,7 @@ bool DRC::doNetClass( NETCLASS* nc, wxString& msg )
 
         m_currentMarker = fillMarker( DRCE_NETCLASS_VIADRILLSIZE, msg, m_currentMarker );
         m_pcb->Add( m_currentMarker );
+        m_mainWindow->GetGalCanvas()->GetView()->Add( m_currentMarker );
         m_currentMarker = 0;
         ret = false;
     }
@@ -382,6 +389,7 @@ bool DRC::doNetClass( NETCLASS* nc, wxString& msg )
 
         m_currentMarker = fillMarker( DRCE_NETCLASS_uVIASIZE, msg, m_currentMarker );
         m_pcb->Add( m_currentMarker );
+        m_mainWindow->GetGalCanvas()->GetView()->Add( m_currentMarker );
         m_currentMarker = 0;
         ret = false;
     }
@@ -396,6 +404,7 @@ bool DRC::doNetClass( NETCLASS* nc, wxString& msg )
 
         m_currentMarker = fillMarker( DRCE_NETCLASS_uVIADRILLSIZE, msg, m_currentMarker );
         m_pcb->Add( m_currentMarker );
+        m_mainWindow->GetGalCanvas()->GetView()->Add( m_currentMarker );
         m_currentMarker = 0;
         ret = false;
     }
@@ -408,7 +417,7 @@ bool DRC::testNetClasses()
 {
     bool        ret = true;
 
-    NETCLASSES& netclasses = m_pcb->m_NetClasses;
+    NETCLASSES& netclasses = m_pcb->GetDesignSettings().m_NetClasses;
 
     wxString    msg;   // construct this only once here, not in a loop, since somewhat expensive.
 
@@ -417,7 +426,7 @@ bool DRC::testNetClasses()
 
     for( NETCLASSES::const_iterator i = netclasses.begin();  i != netclasses.end();  ++i )
     {
-        NETCLASS* nc = i->second;
+        NETCLASSPTR nc = i->second;
 
         if( !doNetClass( nc, msg ) )
             ret = false;
@@ -460,19 +469,14 @@ void DRC::testPad2Pad()
         {
             wxASSERT( m_currentMarker );
             m_pcb->Add( m_currentMarker );
+            m_mainWindow->GetGalCanvas()->GetView()->Add( m_currentMarker );
             m_currentMarker = 0;
         }
     }
 }
 
 
-#include <wx/progdlg.h>
-/* Function testTracks
- * performs the DRC on all tracks.
- * because this test can take a while, a progress bar can be displayed
- * (Note: it is shown only if there are many tracks)
- */
-void DRC::testTracks( bool aShowProgressBar )
+void DRC::testTracks( wxWindow *aActiveWindow, bool aShowProgressBar )
 {
     wxProgressDialog * progressDialog = NULL;
     const int delta = 500;  // This is the number of tests between 2 calls to the
@@ -482,35 +486,47 @@ void DRC::testTracks( bool aShowProgressBar )
         count++;
 
     int deltamax = count/delta;
+
     if( aShowProgressBar && deltamax > 3 )
     {
         progressDialog = new wxProgressDialog( _( "Track clearances" ), wxEmptyString,
-                                     deltamax, m_mainWindow,
-                                     wxPD_AUTO_HIDE | wxPD_CAN_ABORT );
+                                               deltamax, aActiveWindow,
+                                               wxPD_AUTO_HIDE | wxPD_CAN_ABORT |
+                                               wxPD_APP_MODAL | wxPD_ELAPSED_TIME );
         progressDialog->Update( 0, wxEmptyString );
     }
 
     int ii = 0;
     count = 0;
+
     for( TRACK* segm = m_pcb->m_Track; segm && segm->Next(); segm = segm->Next() )
     {
         if ( ii++ > delta )
         {
             ii = 0;
             count++;
+
             if( progressDialog )
             {
                 if( !progressDialog->Update( count, wxEmptyString ) )
                     break;  // Aborted by user
+#ifdef __WXMAC__
+                // Work around a dialog z-order issue on OS X
+                if( count == deltamax )
+                    aActiveWindow->Raise();
+#endif
             }
         }
+
         if( !doTrackDrc( segm, segm->Next(), true ) )
         {
             wxASSERT( m_currentMarker );
             m_pcb->Add( m_currentMarker );
+            m_mainWindow->GetGalCanvas()->GetView()->Add( m_currentMarker );
             m_currentMarker = 0;
         }
     }
+
     if( progressDialog )
         progressDialog->Destroy();
 }
@@ -528,6 +544,7 @@ void DRC::testUnconnected()
         return;
 
     wxString msg;
+
     for( unsigned ii = 0; ii < m_pcb->GetRatsnestsCount();  ++ii )
     {
         RATSNEST_ITEM& rat = m_pcb->m_FullRatsnest[ii];
@@ -539,6 +556,7 @@ void DRC::testUnconnected()
         D_PAD*    padEnd   = rat.m_PadEnd;
 
         msg = padStart->GetSelectMenuText() + wxT( " net " ) + padStart->GetNetname();
+
         DRC_ITEM* uncItem = new DRC_ITEM( DRCE_UNCONNECTED_PADS,
                                           msg,
                                           padEnd->GetSelectMenuText(),
@@ -555,19 +573,32 @@ void DRC::testZones()
     // if a netcode is < 0 the netname was not found when reading a netlist
     // if a netcode is == 0 the netname is void, and the zone is not connected.
     // This is allowed, but i am not sure this is a good idea
+    //
+    // In recent Pcbnew versions, the netcode is always >= 0, but an internal net name
+    // is stored, and initalized from the file or the zone properpies editor.
+    // if it differs from the net name from net code, there is a DRC issue
     for( int ii = 0; ii < m_pcb->GetAreaCount(); ii++ )
     {
-        ZONE_CONTAINER* Area_To_Test = m_pcb->GetArea( ii );
+        ZONE_CONTAINER* test_area = m_pcb->GetArea( ii );
 
-        if( !Area_To_Test->IsOnCopperLayer() )
+        if( !test_area->IsOnCopperLayer() )
             continue;
 
-        if( Area_To_Test->GetNet() < 0 )
+        int netcode = test_area->GetNetCode();
+
+        // a netcode < 0 or > 0 and no pad in net  is a error or strange
+        // perhaps a "dead" net, which happens when all pads in this net were removed
+        // Remark: a netcode < 0 should not happen (this is more a bug somewhere)
+        int pads_in_net = (test_area->GetNetCode() > 0) ?
+                            test_area->GetNet()->GetNodesCount() : 1;
+
+        if( ( netcode < 0 ) || pads_in_net == 0 )
         {
-            m_currentMarker = fillMarker( Area_To_Test,
-                                          DRCE_NON_EXISTANT_NET_FOR_ZONE_OUTLINE, m_currentMarker );
+            m_currentMarker = fillMarker( test_area,
+                                          DRCE_SUSPICIOUS_NET_FOR_ZONE_OUTLINE, m_currentMarker );
             m_pcb->Add( m_currentMarker );
-            m_currentMarker = 0;
+            m_mainWindow->GetGalCanvas()->GetView()->Add( m_currentMarker );
+            m_currentMarker = NULL;
         }
     }
 
@@ -596,11 +627,13 @@ void DRC::testKeepoutAreas()
                 if( segm->GetLayer() != area->GetLayer() )
                     continue;
 
-                if( area->m_Poly->Distance( segm->GetStart(), segm->GetEnd(), segm->GetWidth() ) == 0 )
+                if( area->Outline()->Distance( segm->GetStart(), segm->GetEnd(),
+                                               segm->GetWidth() ) == 0 )
                 {
                     m_currentMarker = fillMarker( segm, NULL,
                                                   DRCE_TRACK_INSIDE_KEEPOUT, m_currentMarker );
                     m_pcb->Add( m_currentMarker );
+                    m_mainWindow->GetGalCanvas()->GetView()->Add( m_currentMarker );
                     m_currentMarker = 0;
                 }
             }
@@ -609,14 +642,15 @@ void DRC::testKeepoutAreas()
                 if( ! area->GetDoNotAllowVias()  )
                     continue;
 
-                if( ! ((SEGVIA*)segm)->IsOnLayer( area->GetLayer() ) )
+                if( ! ((VIA*)segm)->IsOnLayer( area->GetLayer() ) )
                     continue;
 
-                if( area->m_Poly->Distance( segm->GetPosition() ) < segm->GetWidth()/2 )
+                if( area->Outline()->Distance( segm->GetPosition() ) < segm->GetWidth()/2 )
                 {
                     m_currentMarker = fillMarker( segm, NULL,
                                                   DRCE_VIA_INSIDE_KEEPOUT, m_currentMarker );
                     m_pcb->Add( m_currentMarker );
+                    m_mainWindow->GetGalCanvas()->GetView()->Add( m_currentMarker );
                     m_currentMarker = 0;
                 }
             }
@@ -625,12 +659,138 @@ void DRC::testKeepoutAreas()
     }
 }
 
-/*
- * Function doTrackKeepoutDrc
- * tests the current segment or via.
- * aRefSeg is the segment to test
- * return true if no DRC err
- */
+
+void DRC::testTexts()
+{
+    std::vector<wxPoint> textShape;      // a buffer to store the text shape (set of segments)
+    std::vector<D_PAD*> padList = m_pcb->GetPads();
+
+    // Test text areas for vias, tracks and pads inside text areas
+    for( BOARD_ITEM* item = m_pcb->m_Drawings; item; item = item->Next() )
+    {
+        // Drc test only items on copper layers
+        if( ! IsCopperLayer( item->GetLayer() ) )
+            continue;
+
+        // only texts on copper layers are tested
+        if( item->Type() !=  PCB_TEXT_T )
+            continue;
+
+        textShape.clear();
+
+        // So far the bounding box makes up the text-area
+        TEXTE_PCB* text = (TEXTE_PCB*) item;
+        text->TransformTextShapeToSegmentList( textShape );
+
+        if( textShape.size() == 0 )     // Should not happen (empty text?)
+            continue;
+
+        for( TRACK* track = m_pcb->m_Track; track != NULL; track = track->Next() )
+        {
+            if( ! track->IsOnLayer( item->GetLayer() ) )
+                    continue;
+
+            // Test the distance between each segment and the current track/via
+            int min_dist = ( track->GetWidth() + text->GetThickness() ) /2 +
+                           track->GetClearance(NULL);
+
+            if( track->Type() == PCB_TRACE_T )
+            {
+                SEG segref( track->GetStart(), track->GetEnd() );
+
+                // Error condition: Distance between text segment and track segment is
+                // smaller than the clearance of the segment
+                for( unsigned jj = 0; jj < textShape.size(); jj += 2 )
+                {
+                    SEG segtest( textShape[jj], textShape[jj+1] );
+                    int dist = segref.Distance( segtest );
+
+                    if( dist < min_dist )
+                    {
+                        m_currentMarker = fillMarker( track, text,
+                                                      DRCE_TRACK_INSIDE_TEXT,
+                                                      m_currentMarker );
+                        m_pcb->Add( m_currentMarker );
+                        m_mainWindow->GetGalCanvas()->GetView()->Add( m_currentMarker );
+                        m_currentMarker = NULL;
+                        break;
+                    }
+                }
+            }
+            else if( track->Type() == PCB_VIA_T )
+            {
+                // Error condition: Distance between text segment and via is
+                // smaller than the clearance of the via
+                for( unsigned jj = 0; jj < textShape.size(); jj += 2 )
+                {
+                    SEG segtest( textShape[jj], textShape[jj+1] );
+
+                    if( segtest.PointCloserThan( track->GetPosition(), min_dist ) )
+                    {
+                        m_currentMarker = fillMarker( track, text,
+                                                      DRCE_VIA_INSIDE_TEXT, m_currentMarker );
+                        m_pcb->Add( m_currentMarker );
+                        m_mainWindow->GetGalCanvas()->GetView()->Add( m_currentMarker );
+                        m_currentMarker = NULL;
+                        break;
+                    }
+                }
+            }
+        }
+
+        // Test pads
+        for( unsigned ii = 0; ii < padList.size(); ii++ )
+        {
+            D_PAD* pad = padList[ii];
+
+            if( ! pad->IsOnLayer( item->GetLayer() ) )
+                    continue;
+
+            wxPoint shape_pos = pad->ShapePos();
+
+            for( unsigned jj = 0; jj < textShape.size(); jj += 2 )
+            {
+                SEG segtest( textShape[jj], textShape[jj+1] );
+                /* In order to make some calculations more easier or faster,
+                 * pads and tracks coordinates will be made relative
+                 * to the segment origin
+                 */
+                wxPoint origin = textShape[jj];  // origin will be the origin of other coordinates
+                m_segmEnd = textShape[jj+1] - origin;
+                wxPoint delta = m_segmEnd;
+                m_segmAngle = 0;
+
+                // for a non horizontal or vertical segment Compute the segment angle
+                // in tenths of degrees and its length
+                if( delta.x || delta.y )    // delta.x == delta.y == 0 for vias
+                {
+                    // Compute the segment angle in 0,1 degrees
+                    m_segmAngle = ArcTangente( delta.y, delta.x );
+
+                    // Compute the segment length: we build an equivalent rotated segment,
+                    // this segment is horizontal, therefore dx = length
+                    RotatePoint( &delta, m_segmAngle );    // delta.x = length, delta.y = 0
+                }
+
+                m_segmLength = delta.x;
+                m_padToTestPos = shape_pos - origin;
+
+                if( !checkClearanceSegmToPad( pad, text->GetThickness(),
+                                              pad->GetClearance(NULL) ) )
+                {
+                    m_currentMarker = fillMarker( pad, text,
+                                                  DRCE_PAD_INSIDE_TEXT, m_currentMarker );
+                    m_pcb->Add( m_currentMarker );
+                    m_mainWindow->GetGalCanvas()->GetView()->Add( m_currentMarker );
+                    m_currentMarker = NULL;
+                    break;
+                }
+            }
+        }
+    }
+}
+
+
 bool DRC::doTrackKeepoutDrc( TRACK* aRefSeg )
 {
     // Test keepout areas for vias, tracks and pads inside keepout areas
@@ -649,7 +809,8 @@ bool DRC::doTrackKeepoutDrc( TRACK* aRefSeg )
             if( aRefSeg->GetLayer() != area->GetLayer() )
                 continue;
 
-            if( area->m_Poly->Distance( aRefSeg->GetStart(), aRefSeg->GetEnd(), aRefSeg->GetWidth() ) == 0 )
+            if( area->Outline()->Distance( aRefSeg->GetStart(), aRefSeg->GetEnd(),
+                                           aRefSeg->GetWidth() ) == 0 )
             {
                 m_currentMarker = fillMarker( aRefSeg, NULL,
                                               DRCE_TRACK_INSIDE_KEEPOUT, m_currentMarker );
@@ -661,10 +822,10 @@ bool DRC::doTrackKeepoutDrc( TRACK* aRefSeg )
             if( ! area->GetDoNotAllowVias()  )
                 continue;
 
-            if( ! ((SEGVIA*)aRefSeg)->IsOnLayer( area->GetLayer() ) )
+            if( ! ((VIA*)aRefSeg)->IsOnLayer( area->GetLayer() ) )
                 continue;
 
-            if( area->m_Poly->Distance( aRefSeg->GetPosition() ) < aRefSeg->GetWidth()/2 )
+            if( area->Outline()->Distance( aRefSeg->GetPosition() ) < aRefSeg->GetWidth()/2 )
             {
                 m_currentMarker = fillMarker( aRefSeg, NULL,
                                               DRCE_VIA_INSIDE_KEEPOUT, m_currentMarker );
@@ -679,7 +840,9 @@ bool DRC::doTrackKeepoutDrc( TRACK* aRefSeg )
 
 bool DRC::doPadToPadsDrc( D_PAD* aRefPad, D_PAD** aStart, D_PAD** aEnd, int x_limit )
 {
-    int layerMask = aRefPad->GetLayerMask() & ALL_CU_LAYERS;
+    const static LSET all_cu = LSET::AllCuMask();
+
+    LSET layerMask = aRefPad->GetLayerSet() & all_cu;
 
     /* used to test DRC pad to holes: this dummy pad has the size and shape of the hole
      * to test pad to pad hole DRC, using the pad to pad DRC test function.
@@ -687,11 +850,11 @@ bool DRC::doPadToPadsDrc( D_PAD* aRefPad, D_PAD** aStart, D_PAD** aEnd, int x_li
      * A pad must have a parent because some functions expect a non null parent
      * to find the parent board, and some other data
      */
-    MODULE dummymodule( m_pcb );    // Creates a dummy parent
-    D_PAD dummypad( &dummymodule );
+    MODULE  dummymodule( m_pcb );    // Creates a dummy parent
+    D_PAD   dummypad( &dummymodule );
 
     // Ensure the hole is on all copper layers
-    dummypad.SetLayerMask( ALL_CU_LAYERS | dummypad.GetLayerMask() );
+    dummypad.SetLayerSet( all_cu | dummypad.GetLayerSet() );
 
     // Use the minimal local clearance value for the dummy pad.
     // The clearance of the active pad will be used as minimum distance to a hole
@@ -713,7 +876,7 @@ bool DRC::doPadToPadsDrc( D_PAD* aRefPad, D_PAD** aStart, D_PAD** aEnd, int x_li
         // No problem if pads are on different copper layers,
         // but their hole (if any ) can create DRC error because they are on all
         // copper layers, so we test them
-        if( ( pad->GetLayerMask() & layerMask ) == 0 )
+        if( ( pad->GetLayerSet() & layerMask ) == 0 )
         {
             // if holes are in the same location and have the same size and shape,
             // this can be accepted
@@ -721,7 +884,7 @@ bool DRC::doPadToPadsDrc( D_PAD* aRefPad, D_PAD** aStart, D_PAD** aEnd, int x_li
                 && pad->GetDrillSize() == aRefPad->GetDrillSize()
                 && pad->GetDrillShape() == aRefPad->GetDrillShape() )
             {
-                if( aRefPad->GetDrillShape() == PAD_CIRCLE )
+                if( aRefPad->GetDrillShape() == PAD_DRILL_SHAPE_CIRCLE )
                     continue;
 
                 // for oval holes: must also have the same orientation
@@ -737,7 +900,8 @@ bool DRC::doPadToPadsDrc( D_PAD* aRefPad, D_PAD** aStart, D_PAD** aEnd, int x_li
                 // pad under testing has a hole, test this hole against pad reference
                 dummypad.SetPosition( pad->GetPosition() );
                 dummypad.SetSize( pad->GetDrillSize() );
-                dummypad.SetShape( pad->GetDrillShape() == PAD_OVAL ? PAD_OVAL : PAD_CIRCLE );
+                dummypad.SetShape( pad->GetDrillShape() == PAD_DRILL_SHAPE_OBLONG ?
+                                                           PAD_SHAPE_OVAL : PAD_SHAPE_CIRCLE );
                 dummypad.SetOrientation( pad->GetOrientation() );
 
                 if( !checkClearancePadToPad( aRefPad, &dummypad ) )
@@ -753,7 +917,8 @@ bool DRC::doPadToPadsDrc( D_PAD* aRefPad, D_PAD** aStart, D_PAD** aEnd, int x_li
             {
                 dummypad.SetPosition( aRefPad->GetPosition() );
                 dummypad.SetSize( aRefPad->GetDrillSize() );
-                dummypad.SetShape( aRefPad->GetDrillShape() == PAD_OVAL ? PAD_OVAL : PAD_CIRCLE );
+                dummypad.SetShape( aRefPad->GetDrillShape() == PAD_DRILL_SHAPE_OBLONG ?
+                                                               PAD_SHAPE_OVAL : PAD_SHAPE_CIRCLE );
                 dummypad.SetOrientation( aRefPad->GetOrientation() );
 
                 if( !checkClearancePadToPad( pad, &dummypad ) )
@@ -770,7 +935,7 @@ bool DRC::doPadToPadsDrc( D_PAD* aRefPad, D_PAD** aStart, D_PAD** aEnd, int x_li
 
         // The pad must be in a net (i.e pt_pad->GetNet() != 0 ),
         // But no problem if pads have the same netcode (same net)
-        if( pad->GetNet() && ( aRefPad->GetNet() == pad->GetNet() ) )
+        if( pad->GetNetCode() && ( aRefPad->GetNetCode() == pad->GetNetCode() ) )
             continue;
 
         // if pads are from the same footprint

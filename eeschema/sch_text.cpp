@@ -1,8 +1,9 @@
 /*
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
- * Copyright (C) 2009 Jean-Pierre Charras, jp.charras at wanadoo.fr
- * Copyright (C) 1992-2011 KiCad Developers, see AUTHORS.txt for contributors.
+ * Copyright (C) 2015 Jean-Pierre Charras, jp.charras at wanadoo.fr
+ * Copyright (C) 2015 Wayne Stambaugh <stambaughw@verizon.net>
+ * Copyright (C) 1992-2015 KiCad Developers, see AUTHORS.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -34,7 +35,7 @@
 #include <eeschema_id.h>
 #include <class_drawpanel.h>
 #include <drawtxt.h>
-#include <wxEeschemaStruct.h>
+#include <schframe.h>
 #include <plot_common.h>
 #include <base_units.h>
 #include <msgpanel.h>
@@ -45,8 +46,7 @@
 #include <class_netlist_object.h>
 
 
-extern void IncrementLabelMember( wxString& name );
-extern int OverbarPositionY( int size_v, int thickness );
+extern void IncrementLabelMember( wxString& name, int aIncrement );
 
 
 /* Names of sheet label types. */
@@ -57,7 +57,7 @@ const char* SheetLabelType[] =
     "BiDi",
     "3State",
     "UnSpc",
-    "?????"
+    "???"
 };
 
 /* Coding polygons for global symbol graphic shapes.
@@ -131,9 +131,9 @@ EDA_ITEM* SCH_TEXT::Clone() const
 }
 
 
-void SCH_TEXT::IncrementLabel()
+void SCH_TEXT::IncrementLabel( int aIncrement )
 {
-    IncrementLabelMember( m_Text );
+    IncrementLabelMember( m_Text, aIncrement );
 }
 
 
@@ -204,9 +204,7 @@ void SCH_TEXT::MirrorY( int aYaxis_position )
         break;
     }
 
-    m_Pos.x -= aYaxis_position;
-    NEGATE( m_Pos.x );
-    m_Pos.x += aYaxis_position;
+    MIRROR( m_Pos.x, aYaxis_position );
 }
 
 
@@ -228,9 +226,8 @@ void SCH_TEXT::MirrorX( int aXaxis_position )
     default:
         break;
     }
-    m_Pos.y -= aXaxis_position;
-    NEGATE( m_Pos.y );
-    m_Pos.y += aXaxis_position;
+
+    MIRROR( m_Pos.y, aXaxis_position );
 }
 
 
@@ -306,18 +303,18 @@ void SCH_TEXT::SwapData( SCH_ITEM* aItem )
 {
     SCH_TEXT* item = (SCH_TEXT*) aItem;
 
-    EXCHG( m_Text, item->m_Text );
-    EXCHG( m_Pos, item->m_Pos );
-    EXCHG( m_Size, item->m_Size );
-    EXCHG( m_Thickness, item->m_Thickness );
-    EXCHG( m_shape, item->m_shape );
-    EXCHG( m_Orient, item->m_Orient );
+    std::swap( m_Text, item->m_Text );
+    std::swap( m_Pos, item->m_Pos );
+    std::swap( m_Size, item->m_Size );
+    std::swap( m_Thickness, item->m_Thickness );
+    std::swap( m_shape, item->m_shape );
+    std::swap( m_Orient, item->m_Orient );
 
-    EXCHG( m_Layer, item->m_Layer );
-    EXCHG( m_HJustify, item->m_HJustify );
-    EXCHG( m_VJustify, item->m_VJustify );
-    EXCHG( m_isDangling, item->m_isDangling );
-    EXCHG( m_schematicOrientation, item->m_schematicOrientation );
+    std::swap( m_Layer, item->m_Layer );
+    std::swap( m_HJustify, item->m_HJustify );
+    std::swap( m_VJustify, item->m_VJustify );
+    std::swap( m_isDangling, item->m_isDangling );
+    std::swap( m_schematicOrientation, item->m_schematicOrientation );
 }
 
 
@@ -344,29 +341,30 @@ void SCH_TEXT::Draw( EDA_DRAW_PANEL* panel, wxDC* DC, const wxPoint& aOffset,
 {
     EDA_COLOR_T color;
     int         linewidth = ( m_Thickness == 0 ) ? GetDefaultLineThickness() : m_Thickness;
+    EDA_RECT* clipbox = panel? panel->GetClipBox() : NULL;
 
     linewidth = Clamp_Text_PenSize( linewidth, m_Size, m_Bold );
 
     if( Color >= 0 )
         color = Color;
     else
-        color = ReturnLayerColor( m_Layer );
+        color = GetLayerColor( m_Layer );
 
     GRSetDrawMode( DC, DrawMode );
 
     wxPoint text_offset = aOffset + GetSchematicTextOffset();
-    EXCHG( linewidth, m_Thickness );            // Set the minimum width
-    EDA_TEXT::Draw( panel, DC, text_offset, color, DrawMode, FILLED, UNSPECIFIED_COLOR );
-    EXCHG( linewidth, m_Thickness );            // set initial value
+    std::swap( linewidth, m_Thickness );            // Set the minimum width
+    EDA_TEXT::Draw( clipbox, DC, text_offset, color, DrawMode, FILLED, UNSPECIFIED_COLOR );
+    std::swap( linewidth, m_Thickness );            // set initial value
 
-    if( m_isDangling )
+    if( m_isDangling && panel)
         DrawDanglingSymbol( panel, DC, m_Pos + aOffset, color );
 
     // Enable these line to draw the bounding box (debug tests purposes only)
 #if 0
     {
         EDA_RECT BoundaryBox = GetBoundingBox();
-        GRRect( panel->GetClipBox(), DC, BoundaryBox, 0, BROWN );
+        GRRect( clipbox, DC, BoundaryBox, 0, BROWN );
     }
 #endif
 }
@@ -427,7 +425,7 @@ bool SCH_TEXT::Load( LINE_READER& aLine, wxString& aErrorMsg )
         sline++;
 
     // sline points the start of parameters
-    int ii = sscanf( sline, "%s %d %d %d %d %s %s %d", Name1, &m_Pos.x, &m_Pos.y,
+    int ii = sscanf( sline, "%255s %d %d %d %d %255s %255s %d", Name1, &m_Pos.x, &m_Pos.y,
                      &orient, &size, Name2, Name3, &thickness );
 
     if( ii < 4 )
@@ -445,7 +443,7 @@ bool SCH_TEXT::Load( LINE_READER& aLine, wxString& aErrorMsg )
     }
 
     if( size == 0 )
-        size = DEFAULT_SIZE_TEXT;
+        size = GetDefaultTextSize();
 
     char* text = strtok( (char*) aLine, "\n\r" );
 
@@ -535,7 +533,7 @@ bool SCH_TEXT::IsDanglingStateChanged( std::vector< DANGLING_END_ITEM >& aItemLi
                          wxT( "Dangling end type list overflow.  Bad programmer!" ) );
 
             DANGLING_END_ITEM & nextItem = aItemList[ii];
-            m_isDangling = !SegmentIntersect( item.GetPosition(), nextItem.GetPosition(), m_Pos );
+            m_isDangling = !IsPointOnSegment( item.GetPosition(), nextItem.GetPosition(), m_Pos );
         }
             break;
 
@@ -543,7 +541,7 @@ bool SCH_TEXT::IsDanglingStateChanged( std::vector< DANGLING_END_ITEM >& aItemLi
             break;
         }
 
-        if( m_isDangling == false )
+        if( !m_isDangling )
             break;
     }
 
@@ -556,15 +554,15 @@ bool SCH_TEXT::IsSelectStateChanged( const wxRect& aRect )
     bool previousState = IsSelected();
 
     if( aRect.Contains( m_Pos ) )
-        m_Flags |= SELECTED;
+        SetFlags( SELECTED );
     else
-        m_Flags &= ~SELECTED;
+        ClearFlags( SELECTED );
 
     return previousState != IsSelected();
 }
 
 
-void SCH_TEXT::GetConnectionPoints( vector< wxPoint >& aPoints ) const
+void SCH_TEXT::GetConnectionPoints( std::vector< wxPoint >& aPoints ) const
 {
     // Normal text labels do not have connection points.  All others do.
     if( Type() == SCH_TEXT_T )
@@ -574,7 +572,7 @@ void SCH_TEXT::GetConnectionPoints( vector< wxPoint >& aPoints ) const
 }
 
 
-EDA_RECT SCH_TEXT::GetBoundingBox() const
+const EDA_RECT SCH_TEXT::GetBoundingBox() const
 {
     // We must pass the effective text thickness to GetTextBox
     // when calculating the bounding box
@@ -601,27 +599,21 @@ EDA_RECT SCH_TEXT::GetBoundingBox() const
 
 wxString SCH_TEXT::GetSelectMenuText() const
 {
-    wxString tmp = GetText();
-    tmp.Replace( wxT( "\n" ), wxT( " " ) );
-    tmp.Replace( wxT( "\r" ), wxT( " " ) );
-    tmp.Replace( wxT( "\t" ), wxT( " " ) );
-    tmp =( tmp.Length() > 15 ) ? tmp.Left( 12 ) + wxT( "..." ) : tmp;
-
     wxString msg;
-    msg.Printf( _( "Graphic Text %s" ), GetChars( tmp ) );
+    msg.Printf( _( "Graphic Text %s" ), GetChars( ShortenedShownText() ) );
     return msg;
 }
 
 
-void SCH_TEXT::GetNetListItem( vector<NETLIST_OBJECT*>& aNetListItems,
-                               SCH_SHEET_PATH*          aSheetPath )
+void SCH_TEXT::GetNetListItem( NETLIST_OBJECT_LIST& aNetListItems,
+                               SCH_SHEET_PATH*      aSheetPath )
 {
     if( GetLayer() == LAYER_NOTES || GetLayer() == LAYER_SHEETLABEL )
         return;
 
     NETLIST_OBJECT* item = new NETLIST_OBJECT();
-    item->m_SheetList = *aSheetPath;
-    item->m_SheetListInclude = *aSheetPath;
+    item->m_SheetPath = *aSheetPath;
+    item->m_SheetPathInclude = *aSheetPath;
     item->m_Comp = (SCH_ITEM*) this;
     item->m_Type = NET_LABEL;
 
@@ -643,13 +635,21 @@ void SCH_TEXT::GetNetListItem( vector<NETLIST_OBJECT*>& aNetListItems,
 
 bool SCH_TEXT::HitTest( const wxPoint& aPosition, int aAccuracy ) const
 {
-    return TextHitTest( aPosition, aAccuracy );
+    EDA_RECT bBox = GetBoundingBox();
+    bBox.Inflate( aAccuracy );
+    return bBox.Contains( aPosition );
 }
 
 
 bool SCH_TEXT::HitTest( const EDA_RECT& aRect, bool aContained, int aAccuracy ) const
 {
-    return TextHitTest( aRect, aContained, aAccuracy );
+    EDA_RECT bBox = GetBoundingBox();
+    bBox.Inflate( aAccuracy );
+
+    if( aContained )
+        return aRect.Contains( bBox );
+
+    return aRect.Intersects( bBox );
 }
 
 
@@ -657,7 +657,7 @@ void SCH_TEXT::Plot( PLOTTER* aPlotter )
 {
     static std::vector <wxPoint> Poly;
 
-    EDA_COLOR_T color = ReturnLayerColor( GetLayer() );
+    EDA_COLOR_T color = GetLayerColor( GetLayer() );
     wxPoint     textpos   = m_Pos + GetSchematicTextOffset();
     int         thickness = GetPenSize();
 
@@ -665,27 +665,23 @@ void SCH_TEXT::Plot( PLOTTER* aPlotter )
 
     if( m_MultilineAllowed )
     {
-        wxPoint        pos  = textpos;
-        wxArrayString* list = wxStringSplit( m_Text, '\n' );
-        wxPoint        offset;
+        std::vector<wxPoint> positions;
+        wxArrayString strings_list;
+        wxStringSplit( GetShownText(), strings_list, '\n' );
+        positions.reserve( strings_list.Count() );
 
-        offset.y = GetInterline();
+        GetPositionsOfLinesOfMultilineText(positions, strings_list.Count() );
 
-        RotatePoint( &offset, m_Orient );
-
-        for( unsigned i = 0; i<list->Count(); i++ )
+        for( unsigned ii = 0; ii < strings_list.Count(); ii++ )
         {
-            wxString txt = list->Item( i );
-            aPlotter->Text( pos, color, txt, m_Orient, m_Size, m_HJustify,
+            wxString& txt = strings_list.Item( ii );
+            aPlotter->Text( positions[ii], color, txt, m_Orient, m_Size, m_HJustify,
                             m_VJustify, thickness, m_Italic, m_Bold );
-            pos += offset;
         }
-
-        delete (list);
     }
     else
     {
-        aPlotter->Text( textpos, color, m_Text, m_Orient, m_Size, m_HJustify,
+        aPlotter->Text( textpos, color, GetShownText(), m_Orient, m_Size, m_HJustify,
                         m_VJustify, thickness, m_Italic, m_Bold );
     }
 
@@ -709,7 +705,7 @@ void SCH_TEXT::GetMsgPanelInfo( MSG_PANEL_ITEMS& aList )
     switch( Type() )
     {
     case SCH_TEXT_T:
-        msg = _( "Graphic text" );
+        msg = _( "Graphic Text" );
         break;
 
     case SCH_LABEL_T:
@@ -717,11 +713,11 @@ void SCH_TEXT::GetMsgPanelInfo( MSG_PANEL_ITEMS& aList )
         break;
 
     case SCH_GLOBAL_LABEL_T:
-        msg = _( "Global label" );
+        msg = _( "Global Label" );
         break;
 
     case SCH_HIERARCHICAL_LABEL_T:
-        msg = _( "Hierarchical label" );
+        msg = _( "Hierarchical Label" );
         break;
 
     case SCH_SHEET_PIN_T:
@@ -732,7 +728,7 @@ void SCH_TEXT::GetMsgPanelInfo( MSG_PANEL_ITEMS& aList )
         return;
     }
 
-    aList.push_back( MSG_PANEL_ITEM( msg, GetText(), DARKCYAN ) );
+    aList.push_back( MSG_PANEL_ITEM( msg, GetShownText(), DARKCYAN ) );
 
     switch( GetOrientation() )
     {
@@ -768,7 +764,7 @@ void SCH_TEXT::GetMsgPanelInfo( MSG_PANEL_ITEMS& aList )
     if( m_Bold )
         style += 2;
 
-    aList.push_back( MSG_PANEL_ITEM( _("Style"), textStyle[style], BROWN ) );
+    aList.push_back( MSG_PANEL_ITEM( _( "Style" ), textStyle[style], BROWN ) );
 
 
     // Display electricat type if it is relevant
@@ -790,7 +786,7 @@ void SCH_TEXT::GetMsgPanelInfo( MSG_PANEL_ITEMS& aList )
     }
 
     // Display text size (X or Y value, with are the same value in Eeschema)
-    msg = ReturnStringFromValue( g_UserUnit, m_Size.x, true );
+    msg = StringFromValue( g_UserUnit, m_Size.x, true );
     aList.push_back( MSG_PANEL_ITEM( _( "Size" ), msg, RED ) );
 }
 
@@ -860,9 +856,7 @@ void SCH_LABEL::MirrorX( int aXaxis_position )
         break;
     }
 
-    m_Pos.y -= aXaxis_position;
-    NEGATE( m_Pos.y );
-    m_Pos.y += aXaxis_position;
+    MIRROR( m_Pos.y, aXaxis_position );
 }
 
 
@@ -907,7 +901,7 @@ bool SCH_LABEL::Load( LINE_READER& aLine, wxString& aErrorMsg )
         sline++;
 
     // sline points the start of parameters
-    int ii = sscanf( sline, "%s %d %d %d %d %s %s %d", Name1, &m_Pos.x, &m_Pos.y,
+    int ii = sscanf( sline, "%255s %d %d %d %d %255s %255s %d", Name1, &m_Pos.x, &m_Pos.y,
                      &orient, &size, Name2, Name3, &thickness );
 
     if( ii < 4 )
@@ -925,7 +919,7 @@ bool SCH_LABEL::Load( LINE_READER& aLine, wxString& aErrorMsg )
     }
 
     if( size == 0 )
-        size = DEFAULT_SIZE_TEXT;
+        size = GetDefaultTextSize();
 
     char* text = strtok( (char*) aLine, "\n\r" );
 
@@ -961,14 +955,14 @@ void SCH_LABEL::Draw( EDA_DRAW_PANEL* panel, wxDC* DC, const wxPoint& offset,
 }
 
 
-EDA_RECT SCH_LABEL::GetBoundingBox() const
+const EDA_RECT SCH_LABEL::GetBoundingBox() const
 {
     int x, y, dx, dy, length, height;
 
     x = m_Pos.x;
     y = m_Pos.y;
     int width = (m_Thickness == 0) ? GetDefaultLineThickness() : m_Thickness;
-    length = LenSize( m_Text );
+    length = LenSize( GetShownText() );
     height = m_Size.y + width;
     dx     = dy = 0;
 
@@ -1011,18 +1005,11 @@ EDA_RECT SCH_LABEL::GetBoundingBox() const
 
 wxString SCH_LABEL::GetSelectMenuText() const
 {
-    wxString tmp = ( GetText().Length() > 15 ) ? GetText().Left( 12 ) + wxT( "..." ) : GetText();
-
     wxString msg;
-    msg.Printf( _( "Label %s" ), GetChars(tmp) );
+    msg.Printf( _( "Label %s" ), GetChars( ShortenedShownText() ) );
     return msg;
 }
 
-
-bool SCH_LABEL::HitTest( const wxPoint& aPosition, int aAccuracy ) const
-{
-    return TextHitTest( aPosition, aAccuracy );
-}
 
 
 SCH_GLOBALLABEL::SCH_GLOBALLABEL( const wxPoint& pos, const wxString& text ) :
@@ -1075,7 +1062,7 @@ bool SCH_GLOBALLABEL::Load( LINE_READER& aLine, wxString& aErrorMsg )
         sline++;
 
     // sline points the start of parameters
-    int ii = sscanf( sline, "%s %d %d %d %d %s %s %d", Name1, &m_Pos.x, &m_Pos.y,
+    int ii = sscanf( sline, "%255s %d %d %d %d %255s %255s %d", Name1, &m_Pos.x, &m_Pos.y,
                      &orient, &size, Name2, Name3, &thickness );
 
     if( ii < 4 )
@@ -1093,7 +1080,7 @@ bool SCH_GLOBALLABEL::Load( LINE_READER& aLine, wxString& aErrorMsg )
     }
 
     if( size == 0 )
-        size = DEFAULT_SIZE_TEXT;
+        size = GetDefaultTextSize();
 
     char* text = strtok( (char*) aLine, "\n\r" );
 
@@ -1148,9 +1135,7 @@ void SCH_GLOBALLABEL::MirrorY( int aYaxis_position )
         break;
     }
 
-    m_Pos.x -= aYaxis_position;
-    NEGATE( m_Pos.x );
-    m_Pos.x += aYaxis_position;
+    MIRROR( m_Pos.x, aYaxis_position );
 }
 
 
@@ -1167,9 +1152,7 @@ void SCH_GLOBALLABEL::MirrorX( int aXaxis_position )
         break;
     }
 
-    m_Pos.y -= aXaxis_position;
-    NEGATE( m_Pos.y );
-    m_Pos.y += aXaxis_position;
+    MIRROR( m_Pos.y, aXaxis_position );
 }
 
 
@@ -1276,27 +1259,28 @@ void SCH_GLOBALLABEL::Draw( EDA_DRAW_PANEL* panel,
     if( Color >= 0 )
         color = Color;
     else
-        color = ReturnLayerColor( m_Layer );
+        color = GetLayerColor( m_Layer );
 
     GRSetDrawMode( DC, DrawMode );
 
     int linewidth = (m_Thickness == 0) ? GetDefaultLineThickness() : m_Thickness;
     linewidth = Clamp_Text_PenSize( linewidth, m_Size, m_Bold );
-    EXCHG( linewidth, m_Thickness );            // Set the minimum width
-    EDA_TEXT::Draw( panel, DC, text_offset, color, DrawMode, FILLED, UNSPECIFIED_COLOR );
-    EXCHG( linewidth, m_Thickness );            // set initial value
+    std::swap( linewidth, m_Thickness );            // Set the minimum width
+    EDA_RECT* clipbox = panel? panel->GetClipBox() : NULL;
+    EDA_TEXT::Draw( clipbox, DC, text_offset, color, DrawMode, FILLED, UNSPECIFIED_COLOR );
+    std::swap( linewidth, m_Thickness );            // set initial value
 
     CreateGraphicShape( Poly, m_Pos + aOffset );
-    GRPoly( panel->GetClipBox(), DC, Poly.size(), &Poly[0], 0, linewidth, color, color );
+    GRPoly( clipbox, DC, Poly.size(), &Poly[0], 0, linewidth, color, color );
 
-    if( m_isDangling )
+    if( m_isDangling && panel )
         DrawDanglingSymbol( panel, DC, m_Pos + aOffset, color );
 
     // Enable these line to draw the bounding box (debug tests purposes only)
 #if 0
     {
         EDA_RECT BoundaryBox = GetBoundingBox();
-        GRRect( panel->GetClipBox(), DC, BoundaryBox, 0, BROWN );
+        GRRect( clipbox, DC, BoundaryBox, 0, BROWN );
     }
 #endif
 }
@@ -1311,17 +1295,17 @@ void SCH_GLOBALLABEL::CreateGraphicShape( std::vector <wxPoint>& aPoints, const 
 
     aPoints.clear();
 
-    int symb_len = LenSize( m_Text ) + ( TXTMARGE * 2 );
+    int symb_len = LenSize( GetShownText() ) + ( TXTMARGE * 2 );
 
     // Create outline shape : 6 points
     int x = symb_len + linewidth + 3;
 
     // Use negation bar Y position to calculate full vertical size
-    #define Y_CORRECTION 1.22
+    #define Y_CORRECTION 1.3
     // Note: this factor is due to the fact the negation bar Y position
     // does not give exactly the full Y size of text
     // and is experimentally set  to this value
-    int y = KiROUND( OverbarPositionY( HalfSize, linewidth ) * Y_CORRECTION );
+    int y = KiROUND( OverbarPositionY( HalfSize ) * Y_CORRECTION );
     // add room for line thickness and space between top of text and graphic shape
     y += linewidth;
 
@@ -1393,7 +1377,7 @@ void SCH_GLOBALLABEL::CreateGraphicShape( std::vector <wxPoint>& aPoints, const 
 }
 
 
-EDA_RECT SCH_GLOBALLABEL::GetBoundingBox() const
+const EDA_RECT SCH_GLOBALLABEL::GetBoundingBox() const
 {
     int x, y, dx, dy, length, height;
 
@@ -1405,7 +1389,7 @@ EDA_RECT SCH_GLOBALLABEL::GetBoundingBox() const
     height = ( (m_Size.y * 15) / 10 ) + width + 2 * TXTMARGE;
 
     // text X size add height for triangular shapes(bidirectional)
-    length = LenSize( m_Text ) + height + DANGLING_SYMBOL_SIZE;
+    length = LenSize( GetShownText() ) + height + DANGLING_SYMBOL_SIZE;
 
     switch( m_schematicOrientation )    // respect orientation
     {
@@ -1446,18 +1430,11 @@ EDA_RECT SCH_GLOBALLABEL::GetBoundingBox() const
 
 wxString SCH_GLOBALLABEL::GetSelectMenuText() const
 {
-    wxString tmp = ( GetText().Length() > 15 ) ? GetText().Left( 12 ) + wxT( "..." ) : GetText();
-
     wxString msg;
-    msg.Printf( _( "Global Label %s" ), GetChars(tmp) );
+    msg.Printf( _( "Global Label %s" ), GetChars( ShortenedShownText() ) );
     return msg;
 }
 
-
-bool SCH_GLOBALLABEL::HitTest( const wxPoint& aPosition, int aAccuracy ) const
-{
-    return TextHitTest( aPosition, aAccuracy );
-}
 
 
 SCH_HIERLABEL::SCH_HIERLABEL( const wxPoint& pos, const wxString& text, KICAD_T aType ) :
@@ -1510,7 +1487,7 @@ bool SCH_HIERLABEL::Load( LINE_READER& aLine, wxString& aErrorMsg )
         sline++;
 
     // sline points the start of parameters
-    int ii = sscanf( sline, "%s %d %d %d %d %s %s %d", Name1, &m_Pos.x, &m_Pos.y,
+    int ii = sscanf( sline, "%255s %d %d %d %d %255s %255s %d", Name1, &m_Pos.x, &m_Pos.y,
                      &orient, &size, Name2, Name3, &thickness );
 
     if( ii < 4 )
@@ -1528,7 +1505,7 @@ bool SCH_HIERLABEL::Load( LINE_READER& aLine, wxString& aErrorMsg )
     }
 
     if( size == 0 )
-        size = DEFAULT_SIZE_TEXT;
+        size = GetDefaultTextSize();
 
     char* text = strtok( (char*) aLine, "\n\r" );
 
@@ -1607,33 +1584,35 @@ void SCH_HIERLABEL::Draw( EDA_DRAW_PANEL* panel,
 {
     static std::vector <wxPoint> Poly;
     EDA_COLOR_T color;
-    int         linewidth = ( m_Thickness == 0 ) ? GetDefaultLineThickness() : m_Thickness;
+    int         linewidth = m_Thickness == 0 ?
+                            GetDefaultLineThickness() : m_Thickness;
+    EDA_RECT* clipbox = panel? panel->GetClipBox() : NULL;
 
     linewidth = Clamp_Text_PenSize( linewidth, m_Size, m_Bold );
 
     if( Color >= 0 )
         color = Color;
     else
-        color = ReturnLayerColor( m_Layer );
+        color = GetLayerColor( m_Layer );
 
     GRSetDrawMode( DC, DrawMode );
 
-    EXCHG( linewidth, m_Thickness );            // Set the minimum width
+    std::swap( linewidth, m_Thickness );            // Set the minimum width
     wxPoint text_offset = offset + GetSchematicTextOffset();
-    EDA_TEXT::Draw( panel, DC, text_offset, color, DrawMode, FILLED, UNSPECIFIED_COLOR );
-    EXCHG( linewidth, m_Thickness );            // set initial value
+    EDA_TEXT::Draw( clipbox, DC, text_offset, color, DrawMode, FILLED, UNSPECIFIED_COLOR );
+    std::swap( linewidth, m_Thickness );            // set initial value
 
     CreateGraphicShape( Poly, m_Pos + offset );
-    GRPoly( panel->GetClipBox(), DC, Poly.size(), &Poly[0], 0, linewidth, color, color );
+    GRPoly( clipbox, DC, Poly.size(), &Poly[0], 0, linewidth, color, color );
 
-    if( m_isDangling )
+    if( m_isDangling && panel )
         DrawDanglingSymbol( panel, DC, m_Pos + offset, color );
 
     // Enable these line to draw the bounding box (debug tests purposes only)
 #if 0
     {
         EDA_RECT BoundaryBox = GetBoundingBox();
-        GRRect( panel->GetClipBox(), DC, BoundaryBox, 0, BROWN );
+        GRRect( clipbox, DC, BoundaryBox, 0, BROWN );
     }
 #endif
 }
@@ -1662,7 +1641,7 @@ void SCH_HIERLABEL::CreateGraphicShape( std::vector <wxPoint>& aPoints, const wx
 }
 
 
-EDA_RECT SCH_HIERLABEL::GetBoundingBox() const
+const EDA_RECT SCH_HIERLABEL::GetBoundingBox() const
 {
     int x, y, dx, dy, length, height;
 
@@ -1672,7 +1651,7 @@ EDA_RECT SCH_HIERLABEL::GetBoundingBox() const
 
     int width = (m_Thickness == 0) ? GetDefaultLineThickness() : m_Thickness;
     height = m_Size.y + width + 2 * TXTMARGE;
-    length = LenSize( m_Text )
+    length = LenSize( GetShownText() )
              + height                 // add height for triangular shapes
              + 2 * DANGLING_SYMBOL_SIZE;
 
@@ -1762,9 +1741,7 @@ void SCH_HIERLABEL::MirrorY( int aYaxis_position )
         break;
     }
 
-    m_Pos.x -= aYaxis_position;
-    NEGATE( m_Pos.x );
-    m_Pos.x += aYaxis_position;
+    MIRROR( m_Pos.x, aYaxis_position );
 }
 
 
@@ -1781,9 +1758,7 @@ void SCH_HIERLABEL::MirrorX( int aXaxis_position )
         break;
     }
 
-    m_Pos.y -= aXaxis_position;
-    NEGATE( m_Pos.y );
-    m_Pos.y += aXaxis_position;
+    MIRROR( m_Pos.y, aXaxis_position );
 }
 
 
@@ -1796,15 +1771,7 @@ void SCH_HIERLABEL::Rotate( wxPoint aPosition )
 
 wxString SCH_HIERLABEL::GetSelectMenuText() const
 {
-    wxString tmp = ( GetText().Length() > 15 ) ? GetText().Left( 12 ) + wxT( "..." ) : GetText();
-
     wxString msg;
-    msg.Printf( _( "Hierarchical Label %s" ), GetChars( tmp ) );
+    msg.Printf( _( "Hierarchical Label %s" ), GetChars( ShortenedShownText() ) );
     return msg;
-}
-
-
-bool SCH_HIERLABEL::HitTest( const wxPoint& aPosition, int aAccuracy ) const
-{
-    return TextHitTest( aPosition, aAccuracy );
 }

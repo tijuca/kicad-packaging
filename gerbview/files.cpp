@@ -5,7 +5,7 @@
 /*
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
- * Copyright (C) 2012 Jean-Pierre Charras, jaen-pierre.charras@gipsa-lab.inpg.com
+ * Copyright (C) 2012 Jean-Pierre Charras, jp.charras at wanadoo.fr
  * Copyright (C) 2004-2012 KiCad Developers, see change_log.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
@@ -33,6 +33,7 @@
 #include <gestfich.h>
 
 #include <gerbview.h>
+#include <gerbview_frame.h>
 #include <gerbview_id.h>
 #include <class_gerbview_layer_widget.h>
 #include <wildcards_and_files_ext.h>
@@ -46,7 +47,7 @@ void GERBVIEW_FRAME::OnGbrFileHistory( wxCommandEvent& event )
 
     if( !fn.IsEmpty() )
     {
-        Erase_Current_Layer( false );
+        Erase_Current_DrawLayer( false );
         LoadGerberFiles( fn );
     }
 }
@@ -60,7 +61,7 @@ void GERBVIEW_FRAME::OnDrlFileHistory( wxCommandEvent& event )
 
     if( !fn.IsEmpty() )
     {
-        Erase_Current_Layer( false );
+        Erase_Current_DrawLayer( false );
         LoadExcellonFiles( fn );
     }
 }
@@ -74,24 +75,20 @@ void GERBVIEW_FRAME::Files_io( wxCommandEvent& event )
     switch( id )
     {
     case wxID_FILE:
-        Erase_Current_Layer( false );
+        Erase_Current_DrawLayer( false );
         LoadGerberFiles( wxEmptyString );
         break;
 
     case ID_GERBVIEW_ERASE_ALL:
-        Clear_Pcb( true );
+        Clear_DrawLayers( false );
         Zoom_Automatique( false );
         m_canvas->Refresh();
         ClearMsgPanel();
+        ReFillLayerWidget();
         break;
 
     case ID_GERBVIEW_LOAD_DRILL_FILE:
         LoadExcellonFiles( wxEmptyString );
-        m_canvas->Refresh();
-        break;
-
-    case ID_GERBVIEW_LOAD_DCODE_FILE:
-        LoadDCodeFile( wxEmptyString );
         m_canvas->Refresh();
         break;
 
@@ -113,15 +110,17 @@ bool GERBVIEW_FRAME::LoadGerberFiles( const wxString& aFullFileName )
     {
         /* Standard gerber filetypes
          * (See http://en.wikipedia.org/wiki/Gerber_File)
-         * the .pho extension is the default used in Pcbnew
+         * the .gbr (.pho in legacy files) extension is the default used in Pcbnew
          * However there are a lot of other extensions used for gerber files
          * Because the first letter is usually g, we accept g* as extension
          * (Mainly internal copper layers do not have specific extention,
          *  and filenames are like *.g1, *.g2 *.gb1 ...).
+         * Now (2014) Ucamco (the company which manager the Gerber format) encourage
+         * use of .gbr only and the Gerber X2 file format.
          */
         filetypes = _( "Gerber files (.g* .lgr .pho)" );
         filetypes << wxT("|");
-        filetypes += wxT("*.g*;*.G*;*.lgr;*.LGR;*.pho;*.PHO" );
+        filetypes += wxT("*.g*;*.G*;*.pho;*.PHO" );
         filetypes << wxT("|");
 
         /* Special gerber filetypes */
@@ -189,8 +188,8 @@ bool GERBVIEW_FRAME::LoadGerberFiles( const wxString& aFullFileName )
 
             if( layer == NO_AVAILABLE_LAYERS )
             {
-                wxString msg = wxT( "No more empty layers are available.  The remaining gerber " );
-                msg += wxT( "files will not be loaded." );
+                wxString msg = wxT( "No more empty available layers.\n"
+                                    "The remaining gerber files will not be loaded." );
                 wxMessageBox( msg );
                 break;
             }
@@ -202,6 +201,7 @@ bool GERBVIEW_FRAME::LoadGerberFiles( const wxString& aFullFileName )
     Zoom_Automatique( false );
 
     // Synchronize layers tools with actual active layer:
+    ReFillLayerWidget();
     setActiveLayer( getActiveLayer() );
     m_LayersManager->UpdateLayerIcons();
     syncLayerBox();
@@ -271,8 +271,8 @@ bool GERBVIEW_FRAME::LoadExcellonFiles( const wxString& aFullFileName )
 
             if( layer == NO_AVAILABLE_LAYERS )
             {
-                wxString msg = wxT( "No more empty layers are available.  The remaining gerber " );
-                msg += wxT( "files will not be loaded." );
+                wxString msg = wxT( "No more empty available layers.\n"
+                                    "The remaining gerber files will not be loaded." );
                 wxMessageBox( msg );
                 break;
             }
@@ -284,35 +284,10 @@ bool GERBVIEW_FRAME::LoadExcellonFiles( const wxString& aFullFileName )
     Zoom_Automatique( false );
 
     // Synchronize layers tools with actual active layer:
+    ReFillLayerWidget();
     setActiveLayer( getActiveLayer() );
     m_LayersManager->UpdateLayerIcons();
     syncLayerBox();
 
-    return true;
-}
-
-
-bool GERBVIEW_FRAME::LoadDCodeFile( const wxString& aFullFileName )
-{
-    wxString   wildcard;
-    wxFileName fn = aFullFileName;
-
-    if( !fn.IsOk() )
-    {
-        wildcard = _( "Gerber DCODE files" );
-        wildcard += wxT(" ") + AllFilesWildcard;
-        fn = m_lastFileName;
-        wxFileDialog dlg( this, _( "Load GERBER DCODE File" ),
-                          fn.GetPath(), fn.GetFullName(), wildcard,
-                          wxFD_OPEN | wxFD_FILE_MUST_EXIST );
-
-        if( dlg.ShowModal() == wxID_CANCEL )
-            return false;
-
-        fn = dlg.GetPath();
-    }
-
-    ReadDCodeDefinitionFile( fn.GetFullPath() );
-    CopyDCodesSizeToItems();
     return true;
 }

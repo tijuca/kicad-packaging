@@ -11,7 +11,9 @@
  */
 
 #include <fctsys.h>
-#include <appl_wxstruct.h>
+#include <pgm_base.h>
+#include <kiface_i.h>
+#include <kiway_express.h>
 #include <wxPcbStruct.h>
 #include <eda_dde.h>
 #include <macros.h>
@@ -22,18 +24,19 @@
 
 #include <collectors.h>
 #include <pcbnew.h>
-#include <protos.h>
 
+#include <tools/common_actions.h>
+#include <tool/tool_manager.h>
+#include <pcb_draw_panel_gal.h>
 
-/**
- * Read a remote command send by Eeschema via a socket,
- * port KICAD_PCB_PORT_SERVICE_NUMBER (currently 4242)
- * @param cmdline = received command from Eeschema
+/* Execute a remote command send by Eeschema via a socket,
+ * port KICAD_PCB_PORT_SERVICE_NUMBER
+ * cmdline = received command from Eeschema
  * Commands are
  * $PART: "reference"   put cursor on component
  * $PIN: "pin name"  $PART: "reference" put cursor on the footprint pin
  */
-void RemoteCommand( const char* cmdline )
+void PCB_EDIT_FRAME::ExecuteRemoteCommand( const char* cmdline )
 {
     char            line[1024];
     wxString        msg;
@@ -41,11 +44,11 @@ void RemoteCommand( const char* cmdline )
     char*           idcmd;
     char*           text;
     MODULE*         module = 0;
-    PCB_EDIT_FRAME* frame  = (PCB_EDIT_FRAME*)wxGetApp().GetTopWindow();
-    BOARD* pcb             = frame->GetBoard();
+    BOARD* pcb = GetBoard();
     wxPoint         pos;
 
     strncpy( line, cmdline, sizeof(line) - 1 );
+    line[sizeof(line) - 1] = 0;
 
     idcmd = strtok( line, " \n\r" );
     text  = strtok( NULL, " \n\r" );
@@ -57,14 +60,14 @@ void RemoteCommand( const char* cmdline )
     {
         modName = FROM_UTF8( text );
 
-        module = frame->GetBoard()->FindModuleByReference( modName );
+        module = pcb->FindModuleByReference( modName );
 
         if( module )
             msg.Printf( _( "%s found" ), GetChars( modName ) );
         else
             msg.Printf( _( "%s not found" ), GetChars( modName ) );
 
-        frame->SetStatusText( msg );
+        SetStatusText( msg );
 
         if( module )
             pos = module->GetPosition();
@@ -90,13 +93,13 @@ void RemoteCommand( const char* cmdline )
 
         if( pad )
         {
-            netcode = pad->GetNet();
+            netcode = pad->GetNetCode();
 
             // put cursor on the pad:
             pos = pad->GetPosition();
         }
 
-        if( netcode > 0 )               /* highlight the pad net*/
+        if( netcode > 0 )               // highlight the pad net
         {
             pcb->HighLightON();
             pcb->SetHighLightNet( netcode );
@@ -114,87 +117,130 @@ void RemoteCommand( const char* cmdline )
         else if( pad == NULL )
         {
             msg.Printf( _( "%s pin %s not found" ), GetChars( modName ), GetChars( pinName ) );
-            frame->SetCurItem( module );
+            SetCurItem( module );
         }
         else
         {
             msg.Printf( _( "%s pin %s found" ), GetChars( modName ), GetChars( pinName ) );
-            frame->SetCurItem( pad );
+            SetCurItem( pad );
         }
 
-        frame->SetStatusText( msg );
+        SetStatusText( msg );
     }
 
     if( module )  // if found, center the module on screen, and redraw the screen.
     {
-        frame->GetScreen()->SetCrossHairPosition(pos);
-        frame->RedrawScreen( pos, false );
+        if( IsGalCanvasActive() )
+        {
+            GetToolManager()->RunAction( COMMON_ACTIONS::crossProbeSchToPcb, true, module );
+        }
+        else
+        {
+            SetCrossHairPosition( pos );
+            RedrawScreen( pos, false );
+        }
     }
 }
 
 
-/**
- * Send a remote command to Eeschema via a socket,
- * @param objectToSync = item to be located on schematic (module, pin or text)
+std::string FormatProbeItem( BOARD_ITEM* aItem )
+{
+    MODULE*     module;
+
+    switch( aItem->Type() )
+    {
+    case PCB_MODULE_T:
+        module = (MODULE*) aItem;
+        return StrPrintf( "$PART: \"%s\"", TO_UTF8( module->GetReference() ) );
+
+    case PCB_PAD_T:
+        {
+            module = (MODULE*) aItem->GetParent();
+            wxString pad = ((D_PAD*)aItem)->GetPadName();
+
+            return StrPrintf( "$PART: \"%s\" $PAD: \"%s\"",
+                     TO_UTF8( module->GetReference() ),
+                     TO_UTF8( pad ) );
+        }
+
+    case PCB_MODULE_TEXT_T:
+        {
+            module = static_cast<MODULE*>( aItem->GetParent() );
+
+            TEXTE_MODULE*   text_mod = static_cast<TEXTE_MODULE*>( aItem );
+
+            const char*     text_key;
+
+            /* This can't be a switch since the break need to pull out
+             * from the outer switch! */
+            if( text_mod->GetType() == TEXTE_MODULE::TEXT_is_REFERENCE )
+                text_key = "$REF:";
+            else if( text_mod->GetType() == TEXTE_MODULE::TEXT_is_VALUE )
+                text_key = "$VAL:";
+            else
+                break;
+
+            return StrPrintf( "$PART: \"%s\" %s \"%s\"",
+                     TO_UTF8( module->GetReference() ),
+                     text_key,
+                     TO_UTF8( text_mod->GetText() ) );
+        }
+
+    default:
+        break;
+    }
+
+    return "";
+}
+
+
+/* Send a remote command to Eeschema via a socket,
+ * aSyncItem = item to be located on schematic (module, pin or text)
  * Commands are
  * $PART: "reference"   put cursor on component anchor
  * $PART: "reference" $PAD: "pad number" put cursor on the component pin
  * $PART: "reference" $REF: "reference" put cursor on the component ref
  * $PART: "reference" $VAL: "value" put cursor on the component value
  */
-void PCB_EDIT_FRAME::SendMessageToEESCHEMA( BOARD_ITEM* objectToSync )
+void PCB_EDIT_FRAME::SendMessageToEESCHEMA( BOARD_ITEM* aSyncItem )
 {
-    char          cmd[1024];
-    const char*   text_key;
-    MODULE*       module = NULL;
-    D_PAD*        pad;
-    TEXTE_MODULE* text_mod;
-    wxString      msg;
-
-    if( objectToSync == NULL )
+#if 1
+    wxASSERT( aSyncItem );      // can't we fix the caller?
+#else
+    if( !aSyncItem )
         return;
+#endif
 
-    switch( objectToSync->Type() )
+    std::string packet = FormatProbeItem( aSyncItem );
+
+    if( packet.size() )
     {
-    case PCB_MODULE_T:
-        module = (MODULE*) objectToSync;
-        sprintf( cmd, "$PART: \"%s\"", TO_UTF8( module->m_Reference->m_Text ) );
-        break;
-
-    case PCB_PAD_T:
-        module = (MODULE*) objectToSync->GetParent();
-        pad    = (D_PAD*) objectToSync;
-        msg    = pad->GetPadName();
-        sprintf( cmd, "$PART: \"%s\" $PAD: \"%s\"",
-                 TO_UTF8( module->m_Reference->m_Text ),
-                 TO_UTF8( msg ) );
-        break;
-
-    case PCB_MODULE_TEXT_T:
-        #define REFERENCE 0
-        #define VALUE     1
-        module   = (MODULE*) objectToSync->GetParent();
-        text_mod = (TEXTE_MODULE*) objectToSync;
-
-        if( text_mod->GetType() == REFERENCE )
-            text_key = "$REF:";
-        else if( text_mod->GetType() == VALUE )
-            text_key = "$VAL:";
+        if( Kiface().IsSingle() )
+            SendCommand( MSG_TO_SCH, packet.c_str() );
         else
-            break;
-
-        sprintf( cmd, "$PART: \"%s\" %s \"%s\"",
-                 TO_UTF8( module->m_Reference->m_Text ),
-                 text_key,
-                 TO_UTF8( text_mod->m_Text ) );
-        break;
-
-    default:
-        break;
-    }
-
-    if( module )
-    {
-        SendCommand( MSG_TO_SCH, cmd );
+        {
+            // Typically ExpressMail is going to be s-expression packets, but since
+            // we have existing interpreter of the cross probe packet on the other
+            // side in place, we use that here.
+            Kiway().ExpressMail( FRAME_SCH, MAIL_CROSS_PROBE, packet, this );
+        }
     }
 }
+
+
+void PCB_EDIT_FRAME::KiwayMailIn( KIWAY_EXPRESS& mail )
+{
+    const std::string& payload = mail.GetPayload();
+
+    switch( mail.Command() )
+    {
+    case MAIL_CROSS_PROBE:
+        ExecuteRemoteCommand( payload.c_str() );
+        break;
+
+    // many many others.
+    default:
+        ;
+    }
+}
+

@@ -1,6 +1,27 @@
-/***************************************/
-/* Markers: used to show a drc problem */
-/***************************************/
+/*
+ * This program source code file is part of KiCad, a free EDA CAD application.
+ *
+ * Copyright (C) 2009-2014 Jean-Pierre Charras, jp.charras at wanadoo.fr
+ * Copyright (C) 1992-2014 KiCad Developers, see CHANGELOG.TXT for contributors.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation; either version 2
+ * of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, you may find one here:
+ * http://www.gnu.org/licenses/old-licenses/gpl-2.0.html
+ * or you may search the http://www.gnu.org website for the version 2 license,
+ * or you may write to the Free Software Foundation, Inc.,
+ * 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
+ */
+
 
 #ifndef _CLASS_MARKER_BASE_H
 #define _CLASS_MARKER_BASE_H
@@ -8,13 +29,32 @@
 #include <class_drc_item.h>
 #include <gr_basic.h>
 
+
+/* Marker are mainly used to show a DRC or ERC error or warning
+ */
+
+
 class MARKER_BASE
 {
 public:
+    enum TYPEMARKER {   // Marker type: can be used to identify the purpose of the marker
+        MARKER_UNSPEC,
+        MARKER_ERC,
+        MARKER_PCB,
+        MARKER_SIMUL
+    };
+    enum MARKER_SEVERITY {  // Severity of the marker: this is the level of error
+        MARKER_SEVERITY_UNSPEC,
+        MARKER_SEVERITY_INFO,
+        MARKER_SEVERITY_WARNING,
+        MARKER_SEVERITY_ERROR
+    };
+
     wxPoint               m_Pos;                 ///< position of the marker
+
 protected:
-    std::vector <wxPoint> m_Corners;             ///< Corner list for shape definition (a polygon)
-    int                   m_MarkerType;          ///< Can be used as a flag
+    TYPEMARKER            m_MarkerType;          ///< The type of marker (useful to filter markers)
+    MARKER_SEVERITY       m_ErrorLevel;          ///< Specify the severity of the error
     EDA_COLOR_T           m_Color;               ///< color
     EDA_RECT              m_ShapeBoundingBox;    ///< Bounding box of the graphic symbol, relative
                                                  ///< to the position of the shape, used for Hit
@@ -88,34 +128,28 @@ public:
     }
 
     /**
-     * Function to set/get error levels (warning, fatal ..)
-     * this value is stored in m_MarkerType
+     * accessors to set/get error levels (warning, error, fatal error..)
      */
-    void SetErrorLevel( int aErrorLevel )
+    void SetErrorLevel( MARKER_SEVERITY aErrorLevel )
     {
-        m_MarkerType &= ~0xFF00;
-        aErrorLevel  &= 0xFF;
-        m_MarkerType |= aErrorLevel << 8;
+        m_ErrorLevel = aErrorLevel;
     }
 
-    int GetErrorLevel() const
+    MARKER_SEVERITY GetErrorLevel() const
     {
-        return (m_MarkerType >> 8) & 0xFF;
+        return m_ErrorLevel;
     }
 
-    /** Functions to set/get marker type (DRC, ERC, or other)
-     * this value is stored in m_MarkerType
+    /** accessors to set/get marker type (DRC, ERC, or other)
      */
-    void SetMarkerType( int aMarkerType )
+    void SetMarkerType( enum TYPEMARKER aMarkerType )
     {
-        m_MarkerType &= ~0xFF;
-        aMarkerType  &= 0xFF;
-        m_MarkerType |= aMarkerType;
+        m_MarkerType = aMarkerType;
     }
 
-    int GetMarkerType() const
+    enum TYPEMARKER GetMarkerType() const
     {
-        return m_MarkerType & 0xFF;
+        return m_MarkerType;
     }
 
     /**

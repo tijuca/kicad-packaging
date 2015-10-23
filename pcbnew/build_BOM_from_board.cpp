@@ -1,3 +1,27 @@
+/*
+ * This program source code file is part of KiCad, a free EDA CAD application.
+ *
+ * Copyright (C) 2009-2014 Jean-Pierre Charras, jean-pierre.charras@ujf-grenoble.fr
+ * Copyright (C) 1992-2012 KiCad Developers, see AUTHORS.txt for contributors.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation; either version 2
+ * of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, you may find one here:
+ * http://www.gnu.org/licenses/old-licenses/gpl-2.0.html
+ * or you may search the http://www.gnu.org website for the version 2 license,
+ * or you may write to the Free Software Foundation, Inc.,
+ * 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
+ */
+
 /* build_BOM_from_board.cpp */
 
 
@@ -8,6 +32,7 @@
 #include <pcbnew.h>
 #include <wxPcbStruct.h>
 #include <macros.h>
+#include <project.h>
 
 #include <class_board.h>
 #include <class_module.h>
@@ -41,7 +66,7 @@ class cmp
 public:
     wxString m_Ref;
     wxString m_Val;
-    wxString m_Pkg;
+    FPID     m_fpid;
     int      m_Id;
     int      m_CmpCount;
 };
@@ -52,14 +77,13 @@ WX_DEFINE_LIST( CmpList )
 void PCB_EDIT_FRAME::RecreateBOMFileFromBoard( wxCommandEvent& aEvent )
 {
     wxFileName fn;
-    FILE*      FichBom;
-    MODULE*    Module = GetBoard()->m_Modules;
+    FILE*      fp_bom;
+    MODULE*    module = GetBoard()->m_Modules;
     wxString   msg;
 
-
-    if( Module == NULL )
+    if( module == NULL )
     {
-        DisplayError( this, _( "No Modules!" ) );
+        DisplayError( this, _( "Cannot export BOM: there are no footprints in the PCB" ) );
         return;
     }
 
@@ -67,7 +91,9 @@ void PCB_EDIT_FRAME::RecreateBOMFileFromBoard( wxCommandEvent& aEvent )
     fn = GetBoard()->GetFileName();
     fn.SetExt( CsvFileExtension );
 
-    wxFileDialog dlg( this, _( "Save Bill of Materials" ), wxGetCwd(),
+    wxString pro_dir = wxPathOnly( Prj().GetProjectFullName() );
+
+    wxFileDialog dlg( this, _( "Save Bill of Materials" ), pro_dir,
                       fn.GetFullName(), CsvFileWildcard,
                       wxFD_SAVE | wxFD_OVERWRITE_PROMPT );
 
@@ -76,11 +102,11 @@ void PCB_EDIT_FRAME::RecreateBOMFileFromBoard( wxCommandEvent& aEvent )
 
     fn = dlg.GetPath();
 
-    FichBom = wxFopen( fn.GetFullPath(), wxT( "wt" ) );
+    fp_bom = wxFopen( fn.GetFullPath(), wxT( "wt" ) );
 
-    if( FichBom == NULL )
+    if( fp_bom == NULL )
     {
-        msg = _( "Unable to create file " ) + fn.GetFullPath();
+        msg.Printf( _( "Unable to create file <%s>" ), GetChars( fn.GetFullPath() ) );
         DisplayError( this, msg );
         return;
     }
@@ -93,25 +119,27 @@ void PCB_EDIT_FRAME::RecreateBOMFileFromBoard( wxCommandEvent& aEvent )
     msg << _( "Quantity" ) << wxT( "\";\"" );
     msg << _( "Designation" ) << wxT( "\";\"" );
     msg << _( "Supplier and ref" ) << wxT( "\";\n" );
-    fprintf( FichBom, "%s", TO_UTF8( msg ) );
+    fprintf( fp_bom, "%s", TO_UTF8( msg ) );
 
     // Build list
     CmpList           list;
     cmp*              comp = NULL;
     CmpList::iterator iter;
-    int i = 1;
-    while( Module != NULL )
+    int               i = 1;
+
+    while( module != NULL )
     {
         bool valExist = false;
 
         // try to find component in existing list
-        for( iter = list.begin(); iter != list.end(); iter++ )
+        for( iter = list.begin(); iter != list.end(); ++iter )
         {
             cmp* current = *iter;
-            if( (current->m_Val == Module->m_Value->m_Text) && (current->m_Pkg == Module->m_LibRef) )
+
+            if( (current->m_Val == module->GetValue()) && (current->m_fpid == module->GetFPID()) )
             {
                 current->m_Ref.Append( wxT( ", " ), 1 );
-                current->m_Ref.Append( Module->m_Reference->m_Text );
+                current->m_Ref.Append( module->GetReference() );
                 current->m_CmpCount++;
 
                 valExist = true;
@@ -124,35 +152,36 @@ void PCB_EDIT_FRAME::RecreateBOMFileFromBoard( wxCommandEvent& aEvent )
         {
             comp = new cmp();
             comp->m_Id  = i++;
-            comp->m_Val = Module->m_Value->m_Text;
-            comp->m_Ref = Module->m_Reference->m_Text;
-            comp->m_Pkg = Module->m_LibRef;
+            comp->m_Val = module->GetValue();
+            comp->m_Ref = module->GetReference();
+            comp->m_fpid = module->GetFPID();
             comp->m_CmpCount = 1;
             list.Append( comp );
         }
 
         // increment module
-        Module = Module->Next();
+        module = module->Next();
     }
 
-    // Print list
-    for( iter = list.begin(); iter != list.end(); iter++ )
+    // Print list. Also delete temporary created objects.
+    for( size_t ii = list.GetCount(); ii > 0; ii-- )
     {
-        cmp* current = *iter;
+        cmp* current = *list.begin();   // Because the first object will be removed
+                                        // from list, all objects will be get here
 
         msg.Empty();
 
         msg << current->m_Id << wxT( ";\"" );
         msg << current->m_Ref << wxT( "\";\"" );
-        msg << current->m_Pkg << wxT( "\";" );
+        msg << FROM_UTF8( current->m_fpid.GetFootprintName().c_str() ) << wxT( "\";" );
         msg << current->m_CmpCount << wxT( ";\"" );
         msg << current->m_Val << wxT( "\";;;\n" );
-        fprintf( FichBom, "%s", TO_UTF8( msg ) );
+        fprintf( fp_bom, "%s", TO_UTF8( msg ) );
 
+        // We do not need this object, now: remove it from list and delete it
         list.DeleteObject( current );
         delete (current);
     }
 
-
-    fclose( FichBom );
+    fclose( fp_bom );
 }

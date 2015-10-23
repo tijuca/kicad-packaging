@@ -54,28 +54,28 @@ if( Bazaar_EXECUTABLE )
 
     # Fetch the Bazaar executable version.
     execute_process( COMMAND ${Bazaar_EXECUTABLE} --version
-                     OUTPUT_VARIABLE bzr_version_output
+                     OUTPUT_VARIABLE _bzr_version_output
                      ERROR_VARIABLE _bzr_version_error
                      RESULT_VARIABLE _bzr_version_result
                      OUTPUT_STRIP_TRAILING_WHITESPACE )
 
     if( ${_bzr_version_result} EQUAL 0 )
         set( Bazaar_FOUND TRUE )
-        string( REGEX REPLACE "^(.*\n)? \(bzr\) ([^\n]+).*"
-                "\\2" Bazaar_VERSION "${_bzr_version_output}" )
+        string( REGEX REPLACE "^[\n]*Bazaar \\(bzr\\) ([0-9.a-z]+).*"
+                "\\1" Bazaar_VERSION "${_bzr_version_output}" )
         message( STATUS "Bazaar version control system version ${Bazaar_VERSION} found." )
-    endif( ${_bzr_version_result} EQUAL 0 )
+    endif()
 
     # restore the previous LC_ALL
     set( ENV{LC_ALL} ${_Bazaar_SAVED_LC_ALL} )
-endif( Bazaar_EXECUTABLE )
+endif()
 
 if( NOT Bazaar_FOUND )
     if( NOT Bazaar_FIND_QUIETLY )
         message( STATUS "Bazaar version control command line client was not found." )
-    else( NOT Bazaar_FIND_QUIETLY )
+    else()
         if( Bazaar_FIND_REQUIRED )
             message( FATAL_ERROR "Bazaar version control command line client was not found." )
-        endif( Bazaar_FIND_REQUIRED )
-    endif( NOT Bazaar_FIND_QUIETLY )
-endif( NOT Bazaar_FOUND )
+        endif()
+    endif()
+endif()

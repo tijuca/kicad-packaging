@@ -1,9 +1,5 @@
-usr/local/share/mimelnk usr/share
-usr/local/share/mime usr/share
-usr/local/share/kicad usr/share
-usr/local/share/icons usr/share
-usr/local/share/doc usr/share
-library/library usr/share/kicad
-library/modules usr/share/kicad
-doc/internat usr/share/kicad
-bitmaps_png/sources/eeschema.svg usr/share/icons/hicolor/scalable/apps
+usr/share/icons
+usr/share/kicad
+usr/share/mime
+usr/share/mimelnk
+usr/share/doc/kicad/scripts

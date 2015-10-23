@@ -1,5 +1,5 @@
 ///////////////////////////////////////////////////////////////////////////
-// C++ code generated with wxFormBuilder (version Oct  8 2012)
+// C++ code generated with wxFormBuilder (version Mar  9 2015)
 // http://www.wxformbuilder.org/
 //
 // PLEASE DO "NOT" EDIT THIS FILE!
@@ -42,9 +42,8 @@ class DIALOG_SHIM;
 #define ID_LISTBOX_ORIENT_SELECT 1001
 #define ID_MODULE_PROPERTIES_EXCHANGE 1002
 #define ID_GOTO_MODULE_EDITOR 1003
-#define ID_BROWSE_3D_LIB 1004
-#define ID_ADD_3D_SHAPE 1005
-#define ID_REMOVE_3D_SHAPE 1006
+#define ID_ADD_3D_SHAPE 1004
+#define ID_REMOVE_3D_SHAPE 1005
 
 ///////////////////////////////////////////////////////////////////////////////
 /// Class DIALOG_MODULE_BOARD_EDITOR_BASE
@@ -66,7 +65,7 @@ class DIALOG_MODULE_BOARD_EDITOR_BASE : public DIALOG_SHIM
 		wxButton* m_button5;
 		wxRadioBox* m_LayerCtrl;
 		wxRadioBox* m_OrientCtrl;
-		wxStaticText* m_staticText4;
+		wxStaticText* m_staticTextRotation;
 		wxTextCtrl* m_OrientValue;
 		wxStaticText* m_staticTextPos;
 		wxStaticText* m_XPosLabel;
@@ -75,6 +74,8 @@ class DIALOG_MODULE_BOARD_EDITOR_BASE : public DIALOG_SHIM
 		wxStaticText* m_YPosLabel;
 		wxTextCtrl* m_ModPositionY;
 		wxStaticText* m_YPosUnit;
+		wxStaticText* m_TextSheetPath;
+		wxTextCtrl* m_textCtrlSheetPath;
 		wxButton* m_buttonExchange;
 		wxButton* m_buttonModuleEditor;
 		wxRadioBox* m_AttributsCtrl;
@@ -104,9 +105,17 @@ class DIALOG_MODULE_BOARD_EDITOR_BASE : public DIALOG_SHIM
 		wxPanel* m_Panel3D;
 		wxStaticText* m_staticText3Dname;
 		wxListBox* m_3D_ShapeNameListBox;
-		wxButton* m_buttonBrowse;
+		wxStaticText* m_staticTextDefault3DPath;
+		wxTextCtrl* m_textCtrl3DDefaultPath;
+		wxBoxSizer* m_bSizerShapeScale;
+		wxStaticText* m_staticTextShapeScale;
+		wxBoxSizer* m_bSizerShapeOffset;
+		wxStaticText* m_staticTextShapeOffset;
+		wxBoxSizer* m_bSizerShapeRotation;
+		wxStaticText* m_staticTextShapeRotation;
 		wxButton* m_buttonAdd;
 		wxButton* m_buttonRemove;
+		wxButton* m_buttonEdit;
 		wxStdDialogButtonSizer* m_sdbSizerStdButtons;
 		wxButton* m_sdbSizerStdButtonsOK;
 		wxButton* m_sdbSizerStdButtonsCancel;
@@ -118,9 +127,9 @@ class DIALOG_MODULE_BOARD_EDITOR_BASE : public DIALOG_SHIM
 		virtual void ExchangeModule( wxCommandEvent& event ) { event.Skip(); }
 		virtual void GotoModuleEditor( wxCommandEvent& event ) { event.Skip(); }
 		virtual void On3DShapeNameSelected( wxCommandEvent& event ) { event.Skip(); }
-		virtual void Browse3DLib( wxCommandEvent& event ) { event.Skip(); }
 		virtual void Add3DShape( wxCommandEvent& event ) { event.Skip(); }
 		virtual void Remove3DShape( wxCommandEvent& event ) { event.Skip(); }
+		virtual void Edit3DShapeFilename( wxCommandEvent& event ) { event.Skip(); }
 		virtual void OnCancelClick( wxCommandEvent& event ) { event.Skip(); }
 		virtual void OnOkClick( wxCommandEvent& event ) { event.Skip(); }
 		
@@ -128,7 +137,7 @@ class DIALOG_MODULE_BOARD_EDITOR_BASE : public DIALOG_SHIM
 	public:
 		wxStaticBoxSizer* m_Sizer3DValues;
 		
-		DIALOG_MODULE_BOARD_EDITOR_BASE( wxWindow* parent, wxWindowID id = wxID_ANY, const wxString& title = _("Module Properties"), const wxPoint& pos = wxDefaultPosition, const wxSize& size = wxSize( 499,561 ), long style = wxDEFAULT_DIALOG_STYLE|wxRESIZE_BORDER ); 
+		DIALOG_MODULE_BOARD_EDITOR_BASE( wxWindow* parent, wxWindowID id = wxID_ANY, const wxString& title = _("Footprint Properties"), const wxPoint& pos = wxDefaultPosition, const wxSize& size = wxSize( 548,630 ), long style = wxDEFAULT_DIALOG_STYLE|wxRESIZE_BORDER ); 
 		~DIALOG_MODULE_BOARD_EDITOR_BASE();
 	
 };

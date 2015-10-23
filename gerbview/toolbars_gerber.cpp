@@ -1,9 +1,9 @@
 /*
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
- * Copyright (C) 2009 Jean-Pierre Charras, jaen-pierre.charras@gipsa-lab.inpg.com
- * Copyright (C) 2011 Wayne Stambaugh <stambaughw@verizon.net>
- * Copyright (C) 1992-2011 KiCad Developers, see AUTHORS.txt for contributors.
+ * Copyright (C) 2013 Jean-Pierre Charras, jp.charras at wanadoo.fr
+ * Copyright (C) 2013 Wayne Stambaugh <stambaughw@verizon.net>
+ * Copyright (C) 1992-2013 KiCad Developers, see AUTHORS.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -33,6 +33,7 @@
 #include <common.h>
 #include <macros.h>
 #include <gerbview.h>
+#include <gerbview_frame.h>
 #include <bitmaps.h>
 #include <gerbview_id.h>
 #include <hotkeys.h>
@@ -73,22 +74,23 @@ void GERBVIEW_FRAME::ReCreateHToolbar( void )
                             _( "Print layers" ) );
 
     m_mainToolBar->AddSeparator();
-    msg = AddHotkeyName( _( "Zoom in" ), s_Gerbview_Hokeys_Descr, HK_ZOOM_IN,  IS_COMMENT );
+    msg = AddHotkeyName( _( "Zoom in" ), GerbviewHokeysDescr, HK_ZOOM_IN,  IS_COMMENT );
     m_mainToolBar->AddTool( ID_ZOOM_IN, wxEmptyString, KiBitmap( zoom_in_xpm ), msg );
 
-    msg = AddHotkeyName( _( "Zoom out" ), s_Gerbview_Hokeys_Descr, HK_ZOOM_OUT,  IS_COMMENT );
+    msg = AddHotkeyName( _( "Zoom out" ), GerbviewHokeysDescr, HK_ZOOM_OUT,  IS_COMMENT );
     m_mainToolBar->AddTool( ID_ZOOM_OUT, wxEmptyString, KiBitmap( zoom_out_xpm ), msg );
 
-    msg = AddHotkeyName( _( "Redraw view" ), s_Gerbview_Hokeys_Descr, HK_ZOOM_REDRAW,  IS_COMMENT );
+    msg = AddHotkeyName( _( "Redraw view" ), GerbviewHokeysDescr, HK_ZOOM_REDRAW,  IS_COMMENT );
     m_mainToolBar->AddTool( ID_ZOOM_REDRAW, wxEmptyString, KiBitmap( zoom_redraw_xpm ), msg );
 
-    msg = AddHotkeyName( _( "Zoom auto" ), s_Gerbview_Hokeys_Descr, HK_ZOOM_AUTO,  IS_COMMENT );
+    msg = AddHotkeyName( _( "Zoom auto" ), GerbviewHokeysDescr, HK_ZOOM_AUTO,  IS_COMMENT );
     m_mainToolBar->AddTool( ID_ZOOM_PAGE, wxEmptyString, KiBitmap( zoom_fit_in_page_xpm ), msg );
 
     m_mainToolBar->AddSeparator();
 
-    m_SelLayerBox = new GBR_LAYER_BOX_SELECTOR( m_mainToolBar, ID_TOOLBARH_GERBVIEW_SELECT_ACTIVE_LAYER,
-                                            wxDefaultPosition, wxSize( 150, -1 ), 0,NULL);
+    m_SelLayerBox = new GBR_LAYER_BOX_SELECTOR( m_mainToolBar,
+                                ID_TOOLBARH_GERBVIEW_SELECT_ACTIVE_LAYER,
+                                wxDefaultPosition, wxSize( 150, -1 ), 0,NULL);
     m_SelLayerBox->Resync();
 
     m_mainToolBar->AddControl( m_SelLayerBox );
@@ -292,7 +294,7 @@ void GERBVIEW_FRAME::OnUpdateShowLayerManager( wxUpdateUIEvent& aEvent )
 void GERBVIEW_FRAME::OnUpdateSelectDCode( wxUpdateUIEvent& aEvent )
 {
     int layer = getActiveLayer();
-    GERBER_IMAGE* gerber = g_GERBER_List[layer];
+    GERBER_IMAGE* gerber = g_GERBER_List.GetGbrImage( layer );
     int selected = ( gerber ) ? gerber->m_Selected_Tool : 0;
 
     if( m_DCodeSelector && m_DCodeSelector->GetSelectedDCodeId() != selected )

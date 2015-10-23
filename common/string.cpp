@@ -1,3 +1,26 @@
+/*
+ * This program source code file is part of KiCad, a free EDA CAD application.
+ *
+ * Copyright (C) 2004 KiCad Developers, see change_log.txt for contributors.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation; either version 2
+ * of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, you may find one here:
+ * http://www.gnu.org/licenses/old-licenses/gpl-2.0.html
+ * or you may search the http://www.gnu.org website for the version 2 license,
+ * or you may write to the Free Software Foundation, Inc.,
+ * 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
+ */
+
 /**
  * @file string.cpp
  * @brief Some useful functions to handle strings.
@@ -5,7 +28,16 @@
 
 #include <fctsys.h>
 #include <macros.h>
+#include <richio.h>                        // StrPrintf
 #include <kicad_string.h>
+
+
+/**
+ * Illegal file name characters used to insure file names will be valid on all supported
+ * platforms.  This is the list of illegal file name characters for Windows which includes
+ * the illegal file name characters for Linux and OSX.
+ */
+static const char illegalFileNameChars[] = "\\/:\"<>|";
 
 
 int ReadDelimitedText( wxString* aDest, const char* aSource )
@@ -179,31 +211,33 @@ wxString DateAndTime()
 }
 
 
-int StrNumCmp( const wxChar* aString1, const wxChar* aString2, int aLength, bool aIgnoreCase )
+int StrNumCmp( const wxString& aString1, const wxString& aString2, int aLength, bool aIgnoreCase )
 {
     int i;
     int nb1 = 0, nb2 = 0;
 
-    if( ( aString1 == NULL ) || ( aString2 == NULL ) )
+    wxString::const_iterator str1 = aString1.begin(), str2 = aString2.begin();
+
+    if( ( str1 == aString1.end() ) || ( str2 == aString2.end() ) )
         return 0;
 
     for( i = 0; i < aLength; i++ )
     {
-        if( isdigit( *aString1 ) && isdigit( *aString2 ) ) /* digit found */
+        if( isdigit( *str1 ) && isdigit( *str2 ) ) /* digit found */
         {
             nb1 = 0;
             nb2 = 0;
 
-            while( isdigit( *aString1 ) )
+            while( isdigit( *str1 ) )
             {
-                nb1 = nb1 * 10 + *aString1 - '0';
-                aString1++;
+                nb1 = nb1 * 10 + (int) *str1 - '0';
+                ++str1;
             }
 
-            while( isdigit( *aString2 ) )
+            while( isdigit( *str2 ) )
             {
-                nb2 = nb2 * 10 + *aString2 - '0';
-                aString2++;
+                nb2 = nb2 * 10 + (int) *str2 - '0';
+                ++str2;
             }
 
             if( nb1 < nb2 )
@@ -215,29 +249,29 @@ int StrNumCmp( const wxChar* aString1, const wxChar* aString2, int aLength, bool
 
         if( aIgnoreCase )
         {
-            if( toupper( *aString1 ) < toupper( *aString2 ) )
+            if( toupper( *str1 ) < toupper( *str2 ) )
                 return -1;
 
-            if( toupper( *aString1 ) > toupper( *aString2 ) )
+            if( toupper( *str1 ) > toupper( *str2 ) )
                 return 1;
 
-            if( ( *aString1 == 0 ) && ( *aString2 == 0 ) )
+            if( ( *str1 == 0 ) && ( *str2 == 0 ) )
                 return 0;
         }
         else
         {
-            if( *aString1 < *aString2 )
+            if( *str1 < *str2 )
                 return -1;
 
-            if( *aString1 > *aString2 )
+            if( *str1 > *str2 )
                 return 1;
 
-            if( ( *aString1 == 0 ) && ( *aString2 == 0 ) )
+            if( ( str1 == aString1.end() ) && ( str2 == aString2.end() ) )
                 return 0;
         }
 
-        aString1++;
-        aString2++;
+        ++str1;
+        ++str2;
     }
 
     return 0;
@@ -413,4 +447,39 @@ int SplitString( wxString  strToSplit,
     }
 
     return 0;
+}
+
+
+wxString GetIllegalFileNameWxChars()
+{
+    return FROM_UTF8( illegalFileNameChars );
+}
+
+
+bool ReplaceIllegalFileNameChars( std::string* aName, int aReplaceChar )
+{
+    bool              changed = false;
+    std::string       result;
+
+    for( std::string::iterator it = aName->begin();  it != aName->end();  ++it )
+    {
+        if( strchr( illegalFileNameChars, *it ) )
+        {
+            if( aReplaceChar )
+                StrPrintf( &result, "%c", aReplaceChar );
+            else
+                StrPrintf( &result, "%%%02x", *it );
+
+            changed = true;
+        }
+        else
+        {
+            result += *it;
+        }
+    }
+
+    if( changed )
+        *aName =  result;
+
+    return changed;
 }

@@ -27,7 +27,6 @@
  */
 
 #include <fctsys.h>
-#include <polygons_defs.h>
 #include <gr_basic.h>
 #include <common.h>
 #include <trigo.h>
@@ -36,6 +35,7 @@
 #include <msgpanel.h>
 
 #include <gerbview.h>
+#include <gerbview_frame.h>
 #include <class_gerber_draw_item.h>
 #include <class_GERBER.h>
 
@@ -110,39 +110,39 @@ wxPoint GERBER_DRAW_ITEM::GetABPosition( const wxPoint& aXYPosition ) const
     wxPoint abPos = aXYPosition + m_imageParams->m_ImageJustifyOffset;
 
     if( m_swapAxis )
-        EXCHG( abPos.x, abPos.y );
+        std::swap( abPos.x, abPos.y );
 
     abPos  += m_layerOffset + m_imageParams->m_ImageOffset;
     abPos.x = KiROUND( abPos.x * m_drawScale.x );
     abPos.y = KiROUND( abPos.y * m_drawScale.y );
-    int rotation = KiROUND(m_lyrRotation*10) + (m_imageParams->m_ImageRotation*10);
+    double rotation = m_lyrRotation * 10 + m_imageParams->m_ImageRotation * 10;
 
     if( rotation )
         RotatePoint( &abPos, -rotation );
 
     // Negate A axis if mirrored
     if( m_mirrorA )
-        NEGATE( abPos.x );
+        abPos.x = -abPos.x;
 
     // abPos.y must be negated when no mirror, because draw axis is top to bottom
     if( !m_mirrorB )
-        NEGATE( abPos.y );
+        abPos.y = -abPos.y;
     return abPos;
 }
 
 
-wxPoint GERBER_DRAW_ITEM::GetXYPosition( const wxPoint& aABPosition )
+wxPoint GERBER_DRAW_ITEM::GetXYPosition( const wxPoint& aABPosition ) const
 {
     // do the inverse transform made by GetABPosition
     wxPoint xyPos = aABPosition;
 
     if( m_mirrorA )
-        NEGATE( xyPos.x );
+        xyPos.x = -xyPos.x;
 
     if( !m_mirrorB )
-        NEGATE( xyPos.y );
+        xyPos.y = -xyPos.y;
 
-    int rotation = KiROUND(m_lyrRotation*10) + (m_imageParams->m_ImageRotation*10);
+    double rotation = m_lyrRotation * 10 + m_imageParams->m_ImageRotation * 10;
 
     if( rotation )
         RotatePoint( &xyPos, rotation );
@@ -152,7 +152,7 @@ wxPoint GERBER_DRAW_ITEM::GetXYPosition( const wxPoint& aABPosition )
     xyPos  -= m_layerOffset + m_imageParams->m_ImageOffset;
 
     if( m_swapAxis )
-        EXCHG( xyPos.x, xyPos.y );
+        std::swap( xyPos.x, xyPos.y );
 
     return xyPos - m_imageParams->m_ImageJustifyOffset;
 }
@@ -224,7 +224,9 @@ D_CODE* GERBER_DRAW_ITEM::GetDcodeDescr()
 {
     if( (m_DCode < FIRST_DCODE) || (m_DCode > LAST_DCODE) )
         return NULL;
-    GERBER_IMAGE* gerber = g_GERBER_List[m_Layer];
+
+    GERBER_IMAGE* gerber = g_GERBER_List.GetGbrImage( m_Layer );
+
     if( gerber == NULL )
         return NULL;
 
@@ -234,7 +236,7 @@ D_CODE* GERBER_DRAW_ITEM::GetDcodeDescr()
 }
 
 
-EDA_RECT GERBER_DRAW_ITEM::GetBoundingBox() const
+const EDA_RECT GERBER_DRAW_ITEM::GetBoundingBox() const
 {
     // return a rectangle which is (pos,dim) in nature.  therefore the +1
     EDA_RECT bbox( m_Start, wxSize( 1, 1 ) );
@@ -328,8 +330,7 @@ void GERBER_DRAW_ITEM::Draw( EDA_DRAW_PANEL* aPanel, wxDC* aDC, GR_DRAWMODE aDra
     if( aDrawMode & GR_HIGHLIGHT )
         ColorChangeHighlightFlag( &color, !(aDrawMode & GR_AND) );
 
-    if( color & HIGHLIGHT_FLAG )
-        color = ColorRefs[color & MASKCOLOR].m_LightColor;
+    ColorApplyHighlightFlag( &color );
 
     alt_color = gerbFrame->GetNegativeItemsColor();
 
@@ -342,7 +343,7 @@ void GERBER_DRAW_ITEM::Draw( EDA_DRAW_PANEL* aPanel, wxDC* aDC, GR_DRAWMODE aDra
     if( !isDark )
     {
         // draw in background color ("negative" color)
-        EXCHG( color, alt_color );
+        std::swap( color, alt_color );
     }
 
     GRSetDrawMode( aDC, aDrawMode );
@@ -361,8 +362,7 @@ void GERBER_DRAW_ITEM::Draw( EDA_DRAW_PANEL* aPanel, wxDC* aDC, GR_DRAWMODE aDra
         break;
 
     case GBR_CIRCLE:
-        radius = KiROUND(hypot( (double) ( m_End.x - m_Start.x ),
-                                (double) ( m_End.y - m_Start.y ) ));
+        radius = KiROUND( GetLineLength( m_Start, m_End ) );
 
         halfPenWidth = m_Size.x >> 1;
 
@@ -469,7 +469,7 @@ void GERBER_DRAW_ITEM::ConvertSegmentToPolygon( )
     // make calculations more easy if ensure start.x < end.x
     // (only 2 quadrants to consider)
     if( start.x > end.x )
-        EXCHG( start, end );
+        std::swap( start, end );
 
     // calculate values relative to start point:
     wxPoint delta = end - start;
@@ -480,7 +480,7 @@ void GERBER_DRAW_ITEM::ConvertSegmentToPolygon( )
     bool change = delta.y < 0;
 
     if( change )
-        NEGATE( delta.y);
+        delta.y = -delta.y;
 
     // Now create the full polygon.
     // Due to previous changes, the shape is always something like
@@ -515,7 +515,7 @@ void GERBER_DRAW_ITEM::ConvertSegmentToPolygon( )
     for( unsigned ii = 0; ii < m_PolyCorners.size(); ii++ )
     {
         if( change )
-            NEGATE( m_PolyCorners[ii].y);
+            m_PolyCorners[ii].y = -m_PolyCorners[ii].y;
 
          m_PolyCorners[ii] += start;
     }
@@ -554,7 +554,7 @@ void GERBER_DRAW_ITEM::GetMsgPanelInfo( std::vector< MSG_PANEL_ITEM >& aList )
 
     // Display graphic layer number
     msg.Printf( wxT( "%d" ), GetLayer() + 1 );
-    aList.push_back( MSG_PANEL_ITEM( _( "Graphic layer" ), msg, BROWN ) );
+    aList.push_back( MSG_PANEL_ITEM( _( "Graphic Layer" ), msg, BROWN ) );
 
     // Display item rotation
     // The full rotation is Image rotation + m_lyrRotation
@@ -579,7 +579,7 @@ void GERBER_DRAW_ITEM::GetMsgPanelInfo( std::vector< MSG_PANEL_ITEM >& aList )
 }
 
 
-bool GERBER_DRAW_ITEM::HitTest( const wxPoint& aRefPos )
+bool GERBER_DRAW_ITEM::HitTest( const wxPoint& aRefPos ) const
 {
     // calculate aRefPos in XY gerber axis:
     wxPoint ref_pos = GetXYPosition( aRefPos );
@@ -594,7 +594,7 @@ bool GERBER_DRAW_ITEM::HitTest( const wxPoint& aRefPos )
 }
 
 
-bool GERBER_DRAW_ITEM::HitTest( EDA_RECT& aRefArea )
+bool GERBER_DRAW_ITEM::HitTest( const EDA_RECT& aRefArea ) const
 {
     wxPoint pos = GetABPosition( m_Start );
 
@@ -621,7 +621,7 @@ void GERBER_DRAW_ITEM::Show( int nestLevel, std::ostream& os ) const
     " layer=\"" << m_Layer << '"' <<
     " size=\"" << m_Size << '"' <<
     " flags=\"" << m_Flags << '"' <<
-    " status=\"" << GetState( -1 ) << '"' <<
+    " status=\"" << GetStatus() << '"' <<
     "<start" << m_Start << "/>" <<
     "<end" << m_End << "/>";
 

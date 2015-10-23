@@ -41,10 +41,16 @@
 #include <wx/bitmap.h>
 #include <wx/image.h>
 #include <wx/icon.h>
+#include <layers_id_colors_and_visibility.h>
 #include <colors.h>
 
 #define LYR_COLUMN_COUNT        4           ///< Layer tab column count
 #define RND_COLUMN_COUNT        2           ///< Rendering tab column count
+
+#define COLUMN_ICON_ACTIVE 0
+#define COLUMN_COLORBM 1
+#define COLUMN_COLOR_LYR_CB 2
+#define COLUMN_COLOR_LYRNAME 3
 
 
 /**
@@ -61,6 +67,10 @@
  * <p> void OnLayerVisible( int aLayer, bool isVisible );
  * <p> void OnRenderColorChange( int id, int aColor );
  * <p> void OnRenderEnable( int id, bool isEnabled );
+ *
+ * Please note that even if designed toward layers, it is used to
+ * contain other stuff, too (the second page in pcbnew contains render
+ * items, for example)
  */
 class LAYER_WIDGET : public wxPanel
 {
@@ -89,6 +99,7 @@ public:
         }
     };
 
+    static const wxEventType EVT_LAYER_COLOR_CHANGE;
 
 protected:
 
@@ -132,9 +143,11 @@ protected:
 
     /**
      * Function getDecodedId
-     * decodes \a aControlId to original un-encoded value.
+     * decodes \a aControlId to original un-encoded value. This of
+     * course holds iff encodedId was called with a LAYER_NUM (this box
+     * is used for other things than layers, too)
      */
-    static int getDecodedId( int aControlId );
+    static LAYER_NUM getDecodedId( int aControlId );
 
     /**
      * Function makeColorButton
@@ -180,7 +193,7 @@ protected:
      * Function findLayerRow
      * returns the row index that \a aLayer resides in, or -1 if not found.
      */
-    int findLayerRow( int aLayer ) const;
+    int findLayerRow( LAYER_NUM aLayer ) const;
     int findRenderRow( int aId ) const;
 
     /**
@@ -215,6 +228,8 @@ public:
         wxWindowID id = wxID_ANY, const wxPoint& pos = wxDefaultPosition,
         const wxSize& size = wxDefaultSize, long style = wxTAB_TRAVERSAL );
 
+    virtual ~LAYER_WIDGET();
+
     /**
      * Function GetBestSize
      * returns the preferred minimum size, taking into consideration the
@@ -241,8 +256,6 @@ public:
      * ensure that ROW::id is unique for all existing rows on Windows.
      */
     void AppendLayerRow( const ROW& aRow );
-
-#define MAX_LAYER_ROWS          64  ///< cannot append more than this number of rows
 
     /**
      * Function AppendLayerRows
@@ -295,37 +308,37 @@ public:
      * Function SelectLayer
      * changes the row selection in the layer list to \a aLayer provided.
      */
-    void SelectLayer( int aLayer );
+    void SelectLayer( LAYER_NUM aLayer );
 
     /**
      * Function GetSelectedLayer
      * returns the selected layer or -1 if none.
      */
-    int GetSelectedLayer();
+    LAYER_NUM GetSelectedLayer();
 
     /**
      * Function SetLayerVisible
      * sets \a aLayer visible or not.  This does not invoke OnLayerVisible().
      */
-    void SetLayerVisible( int aLayer, bool isVisible );
+    void SetLayerVisible( LAYER_NUM aLayer, bool isVisible );
 
     /**
      * Function IsLayerVisible
      * returns the visible state of the layer ROW associated with \a aLayer id.
      */
-    bool IsLayerVisible( int aLayer );
+    bool IsLayerVisible( LAYER_NUM aLayer );
 
     /**
      * Function SetLayerColor
      * changes the color of \a aLayer
      */
-    void SetLayerColor( int aLayer, EDA_COLOR_T aColor );
+    void SetLayerColor( LAYER_NUM aLayer, EDA_COLOR_T aColor );
 
     /**
      * Function GetLayerColor
      * returns the color of the layer ROW associated with \a aLayer id.
      */
-    EDA_COLOR_T GetLayerColor( int aLayer ) const;
+    EDA_COLOR_T GetLayerColor( LAYER_NUM aLayer ) const;
 
     /**
      * Function SetRenderState
@@ -344,7 +357,6 @@ public:
      * @return bool - true if checked, else false.
      */
     bool GetRenderState( int aId );
-
 
     void UpdateLayouts();
 
@@ -389,12 +401,12 @@ public:
      * is called to notify client code about a layer visibility change.
      *
      * @param aLayer is the board layer to select
-     * @param isVisible is the new vosible state
+     * @param isVisible is the new visible state
      * @param isFinal is true when this is the last of potentially several
      *  such calls, and can be used to decide when to update the screen only
      *  one time instead of several times in the midst of a multiple layer change.
      */
-    virtual void OnLayerVisible( int aLayer, bool isVisible, bool isFinal = true ) = 0;
+    virtual void OnLayerVisible( LAYER_NUM aLayer, bool isVisible, bool isFinal = true ) = 0;
 
     /**
      * Function OnRenderColorChange

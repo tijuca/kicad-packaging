@@ -1,7 +1,7 @@
 /*
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
- * Copyright (C) 2004 Jean-Pierre Charras, jaen-pierre.charras@gipsa-lab.inpg.com
+ * Copyright (C) 2004 Jean-Pierre Charras, jp.charras at wanadoo.fr
  * Copyright (C) 2008-2011 Wayne Stambaugh <stambaughw@verizon.net>
  * Copyright (C) 2004-2011 KiCad Developers, see change_log.txt for contributors.
  *
@@ -30,7 +30,8 @@
 #include <fctsys.h>
 #include <class_drawpanel.h>
 #include <confirm.h>
-#include <wxEeschemaStruct.h>
+#include <id.h>
+#include <schframe.h>
 
 #include <general.h>
 #include <sch_sheet.h>
@@ -55,7 +56,8 @@ class TreeItemData : public wxTreeItemData
 {
 public:
     SCH_SHEET_PATH m_SheetPath;
-    TreeItemData( SCH_SHEET_PATH sheet ) : wxTreeItemData()
+
+    TreeItemData( SCH_SHEET_PATH& sheet ) : wxTreeItemData()
     {
         m_SheetPath = sheet;
     }
@@ -69,7 +71,12 @@ private:
     wxImageList*      imageList;
 
 public:
-    HIERARCHY_TREE() { }
+    HIERARCHY_TREE()
+    {
+        m_Parent = NULL;
+        imageList = NULL;
+    }
+
     HIERARCHY_TREE( HIERARCHY_NAVIG_DLG* parent );
 
     DECLARE_DYNAMIC_CLASS( HIERARCHY_TREE )
@@ -101,16 +108,15 @@ class HIERARCHY_NAVIG_DLG : public wxDialog
 {
 public:
     SCH_EDIT_FRAME* m_Parent;
-    HIERARCHY_TREE*    m_Tree;
+    HIERARCHY_TREE* m_Tree;
     int             m_nbsheets;
-    wxDC*           m_DC;
 
 private:
     wxSize m_TreeSize;
     int    maxposx;
 
 public:
-    HIERARCHY_NAVIG_DLG( SCH_EDIT_FRAME* parent, wxDC* DC, const wxPoint& pos );
+    HIERARCHY_NAVIG_DLG( SCH_EDIT_FRAME* aParent, const wxPoint& aPos );
     void BuildSheetsTree( SCH_SHEET_PATH* list, wxTreeItemId* previousmenu );
 
     ~HIERARCHY_NAVIG_DLG();
@@ -128,22 +134,22 @@ BEGIN_EVENT_TABLE( HIERARCHY_NAVIG_DLG, wxDialog )
 END_EVENT_TABLE()
 
 
-void SCH_EDIT_FRAME::InstallHierarchyFrame( wxDC* DC, wxPoint& pos )
+void SCH_EDIT_FRAME::InstallHierarchyFrame( wxPoint& pos )
 {
-    HIERARCHY_NAVIG_DLG* treeframe = new HIERARCHY_NAVIG_DLG( this, DC, pos );
+    HIERARCHY_NAVIG_DLG* treeframe = new HIERARCHY_NAVIG_DLG( this, pos );
 
     treeframe->ShowModal();
     treeframe->Destroy();
 }
 
 
-HIERARCHY_NAVIG_DLG::HIERARCHY_NAVIG_DLG( SCH_EDIT_FRAME* parent, wxDC* DC, const wxPoint& pos ) :
-    wxDialog( parent, -1, _( "Navigator" ), pos, wxSize( 110, 50 ), DIALOG_STYLE )
+HIERARCHY_NAVIG_DLG::HIERARCHY_NAVIG_DLG( SCH_EDIT_FRAME* aParent, const wxPoint& aPos ) :
+    wxDialog( aParent, wxID_ANY, _( "Navigator" ), aPos, wxSize( 110, 50 ),
+    wxDEFAULT_DIALOG_STYLE | wxRESIZE_BORDER )
 {
     wxTreeItemId cellule;
 
-    m_Parent = parent;
-    m_DC   = DC;
+    m_Parent = aParent;
     m_Tree = new HIERARCHY_TREE( this );
 
     m_nbsheets = 1;
@@ -168,7 +174,7 @@ HIERARCHY_NAVIG_DLG::HIERARCHY_NAVIG_DLG( SCH_EDIT_FRAME* parent, wxDC* DC, cons
 
     // Set dialog window size to be large enough
     m_TreeSize.x = itemrect.GetWidth() + 20;
-    m_TreeSize.x = max( m_TreeSize.x, 250 );
+    m_TreeSize.x = std::max( m_TreeSize.x, 250 );
 
     // Readjust the size of the frame to an optimal value.
     m_TreeSize.y = m_nbsheets * itemrect.GetHeight();
@@ -268,12 +274,15 @@ void HIERARCHY_NAVIG_DLG::OnSelect( wxTreeEvent& event )
 
 void SCH_EDIT_FRAME::DisplayCurrentSheet()
 {
-    m_itemToRepeat = NULL;
+    SetRepeatItem( NULL );
     ClearMsgPanel();
 
     SCH_SCREEN* screen = m_CurrentSheet->LastScreen();
 
+    // Switch to current sheet,
+    // and update the grid size, because it can be modified in latest screen
     SetScreen( screen );
+    GetScreen()->SetGrid( m_LastGridSizeId + ID_POPUP_GRID_LEVEL_1000 );
 
     // update the References
     m_CurrentSheet->UpdateAllScreenReferences();
@@ -284,12 +293,13 @@ void SCH_EDIT_FRAME::DisplayCurrentSheet()
     {
         Zoom_Automatique( false );
         screen->m_FirstRedraw = false;
-        screen->SetCrossHairPosition( screen->GetScrollCenterPosition() );
+        SetCrossHairPosition( GetScrollCenterPosition() );
         m_canvas->MoveCursorToCrossHair();
+        screen->SchematicCleanUp( GetCanvas(), NULL );
     }
     else
     {
-        RedrawScreen( screen->GetScrollCenterPosition(), true );
+        RedrawScreen( GetScrollCenterPosition(), true );
     }
 
     // Now refresh m_canvas. Should be not necessary, but because screen has changed

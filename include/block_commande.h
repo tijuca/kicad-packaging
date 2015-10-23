@@ -51,15 +51,19 @@ typedef enum {
     BLOCK_IDLE,
     BLOCK_MOVE,
     BLOCK_COPY,
+    BLOCK_COPY_AND_INCREMENT,
     BLOCK_SAVE,
     BLOCK_DELETE,
     BLOCK_PASTE,
     BLOCK_DRAG,
+    BLOCK_DRAG_ITEM,    // like BLOCK_DRAG, when used to drag a selected component
+                        // and not using an area defined by a mouse drag
     BLOCK_ROTATE,
     BLOCK_FLIP,
     BLOCK_ZOOM,
     BLOCK_ABORT,
     BLOCK_PRESELECT_MOVE,
+    BLOCK_MOVE_EXACT,
     BLOCK_SELECT_ITEMS_ONLY,
     BLOCK_MIRROR_X,
     BLOCK_MIRROR_Y
@@ -166,7 +170,10 @@ public:
      * Function IsDragging
      * returns true if the current block command is a drag operation.
      */
-    bool IsDragging() const { return m_command == BLOCK_DRAG; }
+    bool IsDragging() const
+    {
+        return m_command == BLOCK_DRAG || m_command == BLOCK_DRAG_ITEM;
+    }
 
     /**
      * Function IsIdle

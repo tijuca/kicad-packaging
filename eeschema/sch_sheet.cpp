@@ -32,12 +32,11 @@
 #include <drawtxt.h>
 #include <trigo.h>
 #include <richio.h>
-#include <wxEeschemaStruct.h>
+#include <schframe.h>
 #include <plot_common.h>
 #include <kicad_string.h>
 #include <msgpanel.h>
 
-#include <general.h>
 #include <sch_sheet.h>
 #include <sch_sheet_path.h>
 #include <sch_component.h>
@@ -51,10 +50,11 @@ SCH_SHEET::SCH_SHEET( const wxPoint& pos ) :
     m_pos = pos;
     m_size = wxSize( MIN_SHEET_WIDTH, MIN_SHEET_HEIGHT );
     SetTimeStamp( GetNewTimeStamp() );
-    m_sheetNameSize = m_fileNameSize = DEFAULT_TEXT_SIZE;
+    m_sheetNameSize = GetDefaultTextSize();
+    m_fileNameSize = GetDefaultTextSize();
     m_screen = NULL;
-    m_name.Printf( wxT( "Sheet%8.8lX" ), m_TimeStamp );
-    m_fileName.Printf( wxT( "file%8.8lX.sch" ), m_TimeStamp );
+    m_name.Printf( wxT( "Sheet%8.8lX" ), (long) m_TimeStamp );
+    m_fileName.Printf( wxT( "file%8.8lX.sch" ), (long) m_TimeStamp );
 }
 
 
@@ -270,7 +270,7 @@ bool SCH_SHEET::Load( LINE_READER& aLine, wxString& aErrorMsg )
             }
 
             if( size == 0 )
-                size = DEFAULT_SIZE_TEXT;
+                size = GetDefaultTextSize();
 
             if( fieldNdx == 0 )
             {
@@ -319,11 +319,11 @@ void SCH_SHEET::SwapData( SCH_ITEM* aItem )
 
     SCH_SHEET* sheet = ( SCH_SHEET* ) aItem;
 
-    EXCHG( m_pos, sheet->m_pos );
-    EXCHG( m_size, sheet->m_size );
-    EXCHG( m_name, sheet->m_name );
-    EXCHG( m_sheetNameSize, sheet->m_sheetNameSize );
-    EXCHG( m_fileNameSize, sheet->m_fileNameSize );
+    std::swap( m_pos, sheet->m_pos );
+    std::swap( m_size, sheet->m_size );
+    std::swap( m_name, sheet->m_name );
+    std::swap( m_sheetNameSize, sheet->m_sheetNameSize );
+    std::swap( m_fileNameSize, sheet->m_fileNameSize );
     m_pins.swap( sheet->m_pins );
 
     // Ensure sheet labels have their .m_Parent member pointing really on their
@@ -368,7 +368,7 @@ void SCH_SHEET::RemovePin( SCH_SHEET_PIN* aSheetPin )
     }
 
     wxLogDebug( wxT( "Fix me: attempt to remove label %s which is not in sheet %s." ),
-                GetChars( aSheetPin->m_Text ), GetChars( m_name ) );
+                GetChars( aSheetPin->GetShownText() ), GetChars( m_name ) );
 }
 
 
@@ -376,7 +376,7 @@ bool SCH_SHEET::HasPin( const wxString& aName )
 {
     BOOST_FOREACH( SCH_SHEET_PIN pin, m_pins )
     {
-        if( pin.m_Text.CmpNoCase( aName ) == 0 )
+        if( pin.GetText().CmpNoCase( aName ) == 0 )
             return true;
     }
 
@@ -401,16 +401,16 @@ bool SCH_SHEET::HasUndefinedPins()
     {
         /* Search the schematic for a hierarchical label corresponding to this sheet label. */
         EDA_ITEM* DrawStruct  = m_screen->GetDrawItems();
-        SCH_HIERLABEL* HLabel = NULL;
+        const SCH_HIERLABEL* HLabel = NULL;
 
         for( ; DrawStruct != NULL; DrawStruct = DrawStruct->Next() )
         {
             if( DrawStruct->Type() != SCH_HIERARCHICAL_LABEL_T )
                 continue;
 
-            HLabel = (SCH_HIERLABEL*) DrawStruct;
+            HLabel = static_cast<SCH_HIERLABEL*>( DrawStruct );
 
-            if( pin.m_Text.CmpNoCase( HLabel->m_Text ) == 0 )
+            if( pin.GetText().CmpNoCase( HLabel->GetText() ) == 0 )
                 break;  // Found!
 
             HLabel = NULL;
@@ -443,7 +443,7 @@ int SCH_SHEET::GetMinWidth() const
 
         for( size_t j = 0; j < m_pins.size(); j++ )
         {
-            if( (i == j) || (m_pins[i].m_Pos.y != m_pins[j].m_Pos.y) )
+            if( (i == j) || (m_pins[i].GetPosition().y != m_pins[j].GetPosition().y) )
                 continue;
 
             if( width < rect.GetWidth() + m_pins[j].GetBoundingBox().GetWidth() )
@@ -464,7 +464,7 @@ int SCH_SHEET::GetMinHeight() const
 
     for( size_t i = 0; i < m_pins.size();  i++ )
     {
-        int pinY = m_pins[i].m_Pos.y - m_pos.y;
+        int pinY = m_pins[i].GetPosition().y - m_pos.y;
 
         if( pinY > height )
             height = pinY;
@@ -485,16 +485,16 @@ void SCH_SHEET::CleanupSheet()
     {
         /* Search the schematic for a hierarchical label corresponding to this sheet label. */
         EDA_ITEM* DrawStruct = m_screen->GetDrawItems();
-        SCH_HIERLABEL* HLabel = NULL;
+        const SCH_HIERLABEL* HLabel = NULL;
 
         for( ; DrawStruct != NULL; DrawStruct = DrawStruct->Next() )
         {
             if( DrawStruct->Type() != SCH_HIERARCHICAL_LABEL_T )
                 continue;
 
-            HLabel = (SCH_HIERLABEL*) DrawStruct;
+            HLabel = static_cast<SCH_HIERLABEL*>( DrawStruct );
 
-            if( i->m_Text.CmpNoCase( HLabel->m_Text ) == 0 )
+            if( i->GetText().CmpNoCase( HLabel->GetText() ) == 0 )
                 break;  // Found!
 
             HLabel = NULL;
@@ -573,15 +573,16 @@ void SCH_SHEET::Draw( EDA_DRAW_PANEL* aPanel, wxDC* aDC,
     wxPoint  pos_sheetname,pos_filename;
     wxPoint  pos = m_pos + aOffset;
     int      lineWidth = GetPenSize();
+    EDA_RECT* clipbox  = aPanel? aPanel->GetClipBox() : NULL;
 
     if( aColor >= 0 )
         color = aColor;
     else
-        color = ReturnLayerColor( m_Layer );
+        color = GetLayerColor( m_Layer );
 
     GRSetDrawMode( aDC, aDrawMode );
 
-    GRRect( aPanel->GetClipBox(), aDC, pos.x, pos.y,
+    GRRect( clipbox, aDC, pos.x, pos.y,
             pos.x + m_size.x, pos.y + m_size.y, lineWidth, color );
 
     pos_sheetname = GetSheetNamePosition() + aOffset;
@@ -596,10 +597,10 @@ void SCH_SHEET::Draw( EDA_DRAW_PANEL* aPanel, wxDC* aDC,
     if( aColor > 0 )
         txtcolor = aColor;
     else
-        txtcolor = ReturnLayerColor( LAYER_SHEETNAME );
+        txtcolor = GetLayerColor( LAYER_SHEETNAME );
 
     Text = wxT( "Sheet: " ) + m_name;
-    DrawGraphicText( aPanel, aDC, pos_sheetname,
+    DrawGraphicText( clipbox, aDC, pos_sheetname,
                      (EDA_COLOR_T) txtcolor, Text, name_orientation,
                      wxSize( m_sheetNameSize, m_sheetNameSize ),
                      GR_TEXT_HJUSTIFY_LEFT, GR_TEXT_VJUSTIFY_BOTTOM, lineWidth,
@@ -609,10 +610,10 @@ void SCH_SHEET::Draw( EDA_DRAW_PANEL* aPanel, wxDC* aDC,
     if( aColor >= 0 )
         txtcolor = aColor;
     else
-        txtcolor = ReturnLayerColor( LAYER_SHEETFILENAME );
+        txtcolor = GetLayerColor( LAYER_SHEETFILENAME );
 
     Text = wxT( "File: " ) + m_fileName;
-    DrawGraphicText( aPanel, aDC, pos_filename,
+    DrawGraphicText( clipbox, aDC, pos_filename,
                      (EDA_COLOR_T) txtcolor, Text, name_orientation,
                      wxSize( m_fileNameSize, m_fileNameSize ),
                      GR_TEXT_HJUSTIFY_LEFT, GR_TEXT_VJUSTIFY_TOP, lineWidth,
@@ -628,7 +629,7 @@ void SCH_SHEET::Draw( EDA_DRAW_PANEL* aPanel, wxDC* aDC,
 }
 
 
-EDA_RECT SCH_SHEET::GetBoundingBox() const
+const EDA_RECT SCH_SHEET::GetBoundingBox() const
 {
     wxPoint end;
     EDA_RECT box( m_pos, m_size );
@@ -636,9 +637,9 @@ EDA_RECT SCH_SHEET::GetBoundingBox() const
 
     // Determine length of texts
     wxString text    = wxT( "Sheet: " ) + m_name;
-    int      textlen  = ReturnGraphicTextWidth( text, m_sheetNameSize, false, lineWidth );
+    int      textlen  = GraphicTextWidth( text, m_sheetNameSize, false, lineWidth );
     text = wxT( "File: " ) + m_fileName;
-    int      textlen2 = ReturnGraphicTextWidth( text, m_fileNameSize, false, lineWidth );
+    int      textlen2 = GraphicTextWidth( text, m_fileNameSize, false, lineWidth );
 
     // Calculate bounding box X size:
     textlen = std::max( textlen, textlen2 );
@@ -673,7 +674,7 @@ int SCH_SHEET::ComponentCount()
             {
                 SCH_COMPONENT* Cmp = (SCH_COMPONENT*) bs;
 
-                if( Cmp->GetField( VALUE )->m_Text.GetChar( 0 ) != '#' )
+                if( Cmp->GetField( VALUE )->GetText().GetChar( 0 ) != '#' )
                     n++;
             }
 
@@ -754,9 +755,9 @@ bool SCH_SHEET::Load( SCH_EDIT_FRAME* aFrame )
 {
     bool success = true;
 
+    SCH_SCREEN* screen = NULL;
     if( !m_screen )
     {
-        SCH_SCREEN* screen = NULL;
         g_RootSheet->SearchHierarchy( m_fileName, &screen );
 
         if( screen )
@@ -767,7 +768,8 @@ bool SCH_SHEET::Load( SCH_EDIT_FRAME* aFrame )
         }
         else
         {
-            SetScreen( new SCH_SCREEN() );
+            SetScreen( new SCH_SCREEN( &aFrame->Kiway() ) );
+
             success = aFrame->LoadOneEEFile( m_screen, m_fileName );
 
             if( success )
@@ -776,7 +778,7 @@ bool SCH_SHEET::Load( SCH_EDIT_FRAME* aFrame )
 
                 while( bs )
                 {
-                    if( bs->Type() ==  SCH_SHEET_T )
+                    if( bs->Type() == SCH_SHEET_T )
                     {
                         SCH_SHEET* sheetstruct = (SCH_SHEET*) bs;
 
@@ -823,8 +825,8 @@ wxString SCH_SHEET::GetFileName( void ) const
 
 void SCH_SHEET::GetMsgPanelInfo( MSG_PANEL_ITEMS& aList )
 {
-    aList.push_back( MSG_PANEL_ITEM( _( "Sheet name" ), m_name, CYAN ) );
-    aList.push_back( MSG_PANEL_ITEM( _( "File name" ), m_fileName, BROWN ) );
+    aList.push_back( MSG_PANEL_ITEM( _( "Sheet Name" ), m_name, CYAN ) );
+    aList.push_back( MSG_PANEL_ITEM( _( "File Name" ), m_fileName, BROWN ) );
 
 #if 0   // Set to 1 to display the sheet time stamp (mainly for test)
     wxString msg;
@@ -842,13 +844,13 @@ void SCH_SHEET::Rotate(wxPoint aPosition)
     if( m_size.x < 0 )
     {
         m_pos.x += m_size.x;
-        NEGATE( m_size.x );
+        m_size.x = -m_size.x;
     }
 
     if( m_size.y < 0 )
     {
         m_pos.y += m_size.y;
-        NEGATE( m_size.y );
+        m_size.y = -m_size.y;
     }
 
     BOOST_FOREACH( SCH_SHEET_PIN& sheetPin, m_pins )
@@ -860,9 +862,7 @@ void SCH_SHEET::Rotate(wxPoint aPosition)
 
 void SCH_SHEET::MirrorX( int aXaxis_position )
 {
-    m_pos.y -= aXaxis_position;
-    NEGATE( m_pos.y );
-    m_pos.y += aXaxis_position;
+    MIRROR( m_pos.y, aXaxis_position );
     m_pos.y -= m_size.y;
 
     BOOST_FOREACH( SCH_SHEET_PIN& sheetPin, m_pins )
@@ -874,9 +874,7 @@ void SCH_SHEET::MirrorX( int aXaxis_position )
 
 void SCH_SHEET::MirrorY( int aYaxis_position )
 {
-    m_pos.x -= aYaxis_position;
-    NEGATE( m_pos.x );
-    m_pos.x += aYaxis_position;
+    MIRROR( m_pos.x, aYaxis_position );
     m_pos.x -= m_size.x;
 
     BOOST_FOREACH( SCH_SHEET_PIN& label, m_pins )
@@ -884,6 +882,14 @@ void SCH_SHEET::MirrorY( int aYaxis_position )
         label.MirrorY( aYaxis_position );
     }
 }
+
+void SCH_SHEET::SetPosition( const wxPoint& aPosition )
+{
+    // Remember the sheet and all pin sheet positions must be
+    // modified. So use Move function to do that.
+    Move( aPosition - m_pos );
+}
+
 
 
 void SCH_SHEET::Resize( const wxSize& aSize )
@@ -896,7 +902,7 @@ void SCH_SHEET::Resize( const wxSize& aSize )
     /* Move the sheet labels according to the new sheet size. */
     BOOST_FOREACH( SCH_SHEET_PIN& label, m_pins )
     {
-        label.ConstrainOnEdge( label.m_Pos );
+        label.ConstrainOnEdge( label.GetPosition() );
     }
 }
 
@@ -992,18 +998,18 @@ bool SCH_SHEET::IsSelectStateChanged( const wxRect& aRect )
     EDA_RECT boundingBox = GetBoundingBox();
 
     if( aRect.Intersects( boundingBox ) )
-        m_Flags |= SELECTED;
+        SetFlags( SELECTED );
     else
-        m_Flags &= ~SELECTED;
+        ClearFlags( SELECTED );
 
     return previousState != IsSelected();
 }
 
 
-void SCH_SHEET::GetConnectionPoints( vector< wxPoint >& aPoints ) const
+void SCH_SHEET::GetConnectionPoints( std::vector< wxPoint >& aPoints ) const
 {
     for( size_t i = 0; i < GetPins().size(); i++ )
-        aPoints.push_back( GetPins()[i].m_Pos );
+        aPoints.push_back( GetPins()[i].GetPosition() );
 }
 
 
@@ -1072,8 +1078,8 @@ wxPoint SCH_SHEET::GetResizePosition() const
 }
 
 
-void SCH_SHEET::GetNetListItem( vector<NETLIST_OBJECT*>& aNetListItems,
-                                SCH_SHEET_PATH*          aSheetPath )
+void SCH_SHEET::GetNetListItem( NETLIST_OBJECT_LIST& aNetListItems,
+                                SCH_SHEET_PATH*      aSheetPath )
 {
     SCH_SHEET_PATH sheetPath = *aSheetPath;
     sheetPath.Push( this );
@@ -1081,17 +1087,17 @@ void SCH_SHEET::GetNetListItem( vector<NETLIST_OBJECT*>& aNetListItems,
     for( size_t i = 0;  i < m_pins.size();  i++ )
     {
         NETLIST_OBJECT* item = new NETLIST_OBJECT();
-        item->m_SheetListInclude = sheetPath;
-        item->m_SheetList = *aSheetPath;
+        item->m_SheetPathInclude = sheetPath;
+        item->m_SheetPath = *aSheetPath;
         item->m_Comp = &m_pins[i];
         item->m_Link = this;
         item->m_Type = NET_SHEETLABEL;
         item->m_ElectricalType = m_pins[i].GetShape();
-        item->m_Label = m_pins[i].m_Text;
-        item->m_Start = item->m_End = m_pins[i].m_Pos;
+        item->m_Label = m_pins[i].GetText();
+        item->m_Start = item->m_End = m_pins[i].GetPosition();
         aNetListItems.push_back( item );
 
-        if( IsBusLabel( m_pins[i].m_Text ) )
+        if( IsBusLabel( m_pins[i].GetText() ) )
             item->ConvertBusToNetListItems( aNetListItems );
     }
 }
@@ -1106,7 +1112,7 @@ void SCH_SHEET::Plot( PLOTTER* aPlotter )
     wxPoint     pos_sheetname, pos_filename;
     wxPoint     pos;
 
-    aPlotter->SetColor( ReturnLayerColor( GetLayer() ) );
+    aPlotter->SetColor( GetLayerColor( GetLayer() ) );
 
     int thickness = GetPenSize();
     aPlotter->SetCurrentLineWidth( thickness );
@@ -1146,7 +1152,7 @@ void SCH_SHEET::Plot( PLOTTER* aPlotter )
     thickness = GetDefaultLineThickness();
     thickness = Clamp_Text_PenSize( thickness, size, false );
 
-    aPlotter->SetColor( ReturnLayerColor( LAYER_SHEETNAME ) );
+    aPlotter->SetColor( GetLayerColor( LAYER_SHEETNAME ) );
 
     bool italic = false;
     aPlotter->Text( pos_sheetname, txtcolor, Text, name_orientation, size,
@@ -1159,13 +1165,13 @@ void SCH_SHEET::Plot( PLOTTER* aPlotter )
     thickness = GetDefaultLineThickness();
     thickness = Clamp_Text_PenSize( thickness, size, false );
 
-    aPlotter->SetColor( ReturnLayerColor( LAYER_SHEETFILENAME ) );
+    aPlotter->SetColor( GetLayerColor( LAYER_SHEETFILENAME ) );
 
     aPlotter->Text( pos_filename, txtcolor, Text, name_orientation, size,
                     GR_TEXT_HJUSTIFY_LEFT, GR_TEXT_VJUSTIFY_TOP,
                     thickness, italic, false );
 
-    aPlotter->SetColor( ReturnLayerColor( GetLayer() ) );
+    aPlotter->SetColor( GetLayerColor( GetLayer() ) );
 
     /* Draw texts : SheetLabel */
     for( size_t i = 0; i < m_pins.size(); i++ )

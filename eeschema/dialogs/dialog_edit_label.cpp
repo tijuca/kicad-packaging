@@ -1,9 +1,9 @@
 /*
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
- * Copyright (C) 2008 Jean-Pierre Charras, jaen-pierre.charras@gipsa-lab.inpg.com
- * Copyright (C) 2011 Wayne Stambaugh <stambaughw@verizon.net>
- * Copyright (C) 1992-2011 KiCad Developers, see AUTHORS.txt for contributors.
+ * Copyright (C) 2013 Jean-Pierre Charras, jp.charras at wanadoo.fr
+ * Copyright (C) 2013 Wayne Stambaugh <stambaughw@verizon.net>
+ * Copyright (C) 1992-2013 KiCad Developers, see AUTHORS.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -30,7 +30,7 @@
 
 #include <fctsys.h>
 #include <wx/valgen.h>
-#include <wxEeschemaStruct.h>
+#include <schframe.h>
 #include <base_units.h>
 
 #include <class_drawpanel.h>
@@ -38,6 +38,7 @@
 #include <drawtxt.h>
 #include <confirm.h>
 #include <sch_text.h>
+#include <typeinfo>
 
 #include <dialog_edit_label_base.h>
 
@@ -49,6 +50,30 @@ class DIALOG_LABEL_EDITOR : public DIALOG_LABEL_EDITOR_BASE
 {
 public:
     DIALOG_LABEL_EDITOR( SCH_EDIT_FRAME* parent, SCH_TEXT* aTextItem );
+
+    void SetTitle( const wxString& aTitle )    // OVERRIDE wxTopLevelWindow::SetTitle
+    {
+        // This class is shared for numerous tasks: a couple of
+        // single line labels and multi-line text fields.
+        // Often the desired size of the multi-line text field editor
+        // is larger than is needed for the single line label.
+        // Therefore the session retained sizes of these dialogs needs
+        // to be class independent, make them title dependent.
+        switch( m_CurrentText->Type() )
+        {
+        case SCH_GLOBAL_LABEL_T:
+        case SCH_HIERARCHICAL_LABEL_T:
+        case SCH_LABEL_T:
+            // labels can share retained settings probably.
+            break;
+
+        default:
+            m_hash_key = TO_UTF8( aTitle );
+            m_hash_key += typeid(*this).name();
+        }
+
+        DIALOG_LABEL_EDITOR_BASE::SetTitle( aTitle );
+    }
 
 private:
     void InitDialog( );
@@ -99,19 +124,25 @@ void DIALOG_LABEL_EDITOR::InitDialog()
     wxString msg;
     bool multiLine = false;
 
-    if( m_CurrentText->m_MultilineAllowed )
+    if( m_CurrentText->IsMultilineAllowed() )
     {
         m_textLabel = m_textLabelMultiLine;
-        m_textLabelSingleLine->Show(false);
+        m_textLabelSingleLine->Show( false );
         multiLine = true;
     }
     else
     {
         m_textLabel = m_textLabelSingleLine;
-        m_textLabelMultiLine->Show(false);
+        m_textLabelMultiLine->Show( false );
+        wxTextValidator* validator = (wxTextValidator*) m_textLabel->GetValidator();
+        wxArrayString excludes;
+
+        // Add invalid label characters to this list.
+        excludes.Add( wxT( " " ) );
+        validator->SetExcludes( excludes );
     }
 
-    m_textLabel->SetValue( m_CurrentText->m_Text );
+    m_textLabel->SetValue( m_CurrentText->GetText() );
     m_textLabel->SetFocus();
 
     switch( m_CurrentText->Type() )
@@ -140,25 +171,25 @@ void DIALOG_LABEL_EDITOR::InitDialog()
         break;
     }
 
-    int MINTEXTWIDTH = 40;    // M's are big characters, a few establish a lot of width
+    const int MINTEXTWIDTH = 40;    // M's are big characters, a few establish a lot of width
 
     int max_len = 0;
 
     if ( !multiLine )
     {
-        max_len =m_CurrentText->m_Text.Length();
+        max_len = m_CurrentText->GetText().Length();
     }
     else
     {
         // calculate the length of the biggest line
         // we cannot use the length of the entire text that has no meaning
         int curr_len = MINTEXTWIDTH;
-        int imax = m_CurrentText->m_Text.Len();
+        int imax = m_CurrentText->GetText().Length();
 
         for( int count = 0; count < imax; count++ )
         {
-            if( m_CurrentText->m_Text[count] == '\n' ||
-                m_CurrentText->m_Text[count] == '\r' ) // new line
+            if( m_CurrentText->GetText()[count] == '\n' ||
+                m_CurrentText->GetText()[count] == '\r' ) // new line
             {
                 curr_len = 0;
             }
@@ -185,19 +216,19 @@ void DIALOG_LABEL_EDITOR::InitDialog()
 
     int style = 0;
 
-    if( m_CurrentText->m_Italic )
+    if( m_CurrentText->IsItalic() )
         style = 1;
 
-    if( m_CurrentText->m_Bold )
+    if( m_CurrentText->IsBold() )
         style += 2;
 
     m_TextStyle->SetSelection( style );
 
     wxString units = ReturnUnitSymbol( g_UserUnit, wxT( "(%s)" ) );
-    msg = _( "H" ) + units + _( " x W" ) + units;
+    msg.Printf( _( "H%s x W%s" ), GetChars( units ), GetChars( units ) );
     m_staticSizeUnits->SetLabel( msg );
 
-    msg = ReturnStringFromValue( g_UserUnit, m_CurrentText->m_Size.x );
+    msg = StringFromValue( g_UserUnit, m_CurrentText->GetSize().x );
     m_TextSize->SetValue( msg );
 
     if( m_CurrentText->Type() != SCH_GLOBAL_LABEL_T
@@ -257,7 +288,7 @@ void DIALOG_LABEL_EDITOR::TextPropertiesAccept( wxCommandEvent& aEvent )
     text = m_textLabel->GetValue();
 
     if( !text.IsEmpty() )
-        m_CurrentText->m_Text = text;
+        m_CurrentText->SetText( text );
     else if( !m_CurrentText->IsNew() )
     {
         DisplayError( this, _( "Empty Text!" ) );
@@ -266,35 +297,32 @@ void DIALOG_LABEL_EDITOR::TextPropertiesAccept( wxCommandEvent& aEvent )
 
     m_CurrentText->SetOrientation( m_TextOrient->GetSelection() );
     text  = m_TextSize->GetValue();
-    value = ReturnValueFromString( g_UserUnit, text );
-    m_CurrentText->m_Size.x = m_CurrentText->m_Size.y = value;
+    value = ValueFromString( g_UserUnit, text );
+    m_CurrentText->SetSize( wxSize( value, value ) );
 
     if( m_TextShape )
         m_CurrentText->SetShape( m_TextShape->GetSelection() );
 
     int style = m_TextStyle->GetSelection();
 
-    if( ( style & 1 ) )
-        m_CurrentText->m_Italic = 1;
-    else
-        m_CurrentText->m_Italic = 0;
+    m_CurrentText->SetItalic( ( style & 1 ) );
 
     if( ( style & 2 ) )
     {
-        m_CurrentText->m_Bold  = true;
-        m_CurrentText->m_Thickness = GetPenSizeForBold( m_CurrentText->m_Size.x );
+        m_CurrentText->SetBold( true );
+        m_CurrentText->SetThickness( GetPenSizeForBold( m_CurrentText->GetSize().x ) );
     }
     else
     {
-        m_CurrentText->m_Bold  = false;
-        m_CurrentText->m_Thickness = 0;
+        m_CurrentText->SetBold( false );
+        m_CurrentText->SetThickness( 0 );
     }
 
     m_Parent->OnModify();
 
-    /* Make the text size as new default size if it is a new text */
+    // Make the text size the new default size ( if it is a new text ):
     if( m_CurrentText->IsNew() )
-        m_Parent->SetDefaultLabelSize( m_CurrentText->m_Size.x );
+        SetDefaultTextSize( m_CurrentText->GetSize().x );
 
     m_Parent->GetCanvas()->RefreshDrawingRect( m_CurrentText->GetBoundingBox() );
     m_Parent->GetCanvas()->MoveCursorToCrossHair();

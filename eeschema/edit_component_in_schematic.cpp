@@ -32,7 +32,7 @@
 #include <gr_basic.h>
 #include <class_drawpanel.h>
 #include <confirm.h>
-#include <wxEeschemaStruct.h>
+#include <schframe.h>
 #include <msgpanel.h>
 
 #include <general.h>
@@ -53,21 +53,13 @@ void SCH_EDIT_FRAME::EditComponentFieldText( SCH_FIELD* aField )
     wxCHECK_RET( component != NULL && component->Type() == SCH_COMPONENT_T,
                  wxT( "Invalid schematic field parent item." ) );
 
-    LIB_COMPONENT* entry = CMP_LIBRARY::FindLibraryComponent( component->GetLibName() );
+    LIB_PART* part = Prj().SchLibs()->FindLibPart( component->GetPartName() );
 
-    wxCHECK_RET( entry != NULL, wxT( "Library entry for component <" ) +
-                 component->GetLibName() + wxT( "> could not be found." ) );
+    wxCHECK_RET( part, wxT( "Library part for component <" ) +
+                 component->GetPartName() + wxT( "> could not be found." ) );
 
     fieldNdx = aField->GetId();
 
-    if( fieldNdx == VALUE && entry->IsPower() )
-    {
-        wxString msg;
-        msg.Printf( _( "%s is a power component and it's value cannot be modified!\n\nYou must \
-create a new power component with the new value." ), GetChars( entry->GetName() ) );
-        DisplayInfoMessage( this, msg );
-        return;
-    }
 
     // Save old component in undo list if not already in edit, or moving.
     if( aField->GetFlags() == 0 )
@@ -75,7 +67,6 @@ create a new power component with the new value." ), GetChars( entry->GetName() 
 
     // Don't use GetText() here.  If the field is the reference designator and it's parent
     // component has multiple parts, we don't want the part suffix added to the field.
-    wxString newtext = aField->m_Text;
     m_canvas->SetIgnoreMouseEvents( true );
 
     wxString title;
@@ -83,11 +74,20 @@ create a new power component with the new value." ), GetChars( entry->GetName() 
 
     DIALOG_SCH_EDIT_ONE_FIELD dlg( this, title, aField );
 
-    int response = dlg.ShowModal();
+    // Value fields of power components cannot be modified. This will grey out
+    // the text box and display an explanation.
+    if( fieldNdx == VALUE && part->IsPower() )
+    {
+        dlg.SetPowerWarning( true );
+    }
+
+    //The diag may invoke a kiway player for footprint fields
+    //so we must use a quasimodal
+    int response = dlg.ShowQuasiModal();
 
     m_canvas->MoveCursorToCrossHair();
     m_canvas->SetIgnoreMouseEvents( false );
-    newtext = dlg.GetTextField( );
+    wxString newtext = dlg.GetTextField( );
 
     if ( response != wxID_OK )
         return;  // canceled by user
@@ -117,12 +117,17 @@ create a new power component with the new value." ), GetChars( entry->GetName() 
             DisplayError( this, _( "The reference field cannot be empty!  No change" ) );
             can_update = false;
         }
-        else if( fieldNdx == VALUE )
+        else if( fieldNdx == VALUE && ! part->IsPower() )
         {
+            // Note that power components also should not have empty value fields - but
+            // since the user is forbidden from changing the value field here, if it
+            // were to happen somehow, it'd be awfully confusing if an error were to
+            // be displayed!
+
             DisplayError( this, _( "The value field cannot be empty!  No change" ) );
             can_update = false;
         }
-        else
+        else if ( !( fieldNdx == VALUE && part->IsPower() ) )
         {
             dlg.SetTextField( wxT( "~" ) );
         }
@@ -130,7 +135,7 @@ create a new power component with the new value." ), GetChars( entry->GetName() 
 
     if( can_update )
     {
-        dlg.TransfertDataToField();
+        dlg.TransfertDataToField( /* aIncludeText = */ !( fieldNdx == VALUE && part->IsPower() ) );
         OnModify();
         m_canvas->Refresh();
     }
@@ -155,10 +160,10 @@ void SCH_EDIT_FRAME::RotateField( SCH_FIELD* aField, wxDC* aDC )
 
     aField->Draw( m_canvas, aDC, wxPoint( 0, 0 ), g_XorMode );
 
-    if( aField->m_Orient == TEXT_ORIENT_HORIZ )
-        aField->m_Orient = TEXT_ORIENT_VERT;
+    if( aField->GetOrientation() == TEXT_ORIENT_HORIZ )
+        aField->SetOrientation( TEXT_ORIENT_VERT );
     else
-        aField->m_Orient = TEXT_ORIENT_HORIZ;
+        aField->SetOrientation( TEXT_ORIENT_HORIZ );
 
     aField->Draw( m_canvas, aDC, wxPoint( 0, 0 ), g_XorMode );
 

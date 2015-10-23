@@ -32,77 +32,141 @@
   *   |
   *   |\-FilePlugin
   *   |\-FootprintWizardPlugin
-  *   |\-ActionPlugin 
+  *   |\-ActionPlugin
   *
   * It defines the LoadPlugins() function that loads all the plugins
   * available in the system
   *
   */
-%pythoncode 
+
+/*
+ * Remark:
+ * Avoid using the print function in python wizards
+ *
+ * Be aware print messages create IO exceptions, because the wizard
+ * is run from Pcbnew. And if pcbnew is not run from a console, there is
+ * no io channel to read the output of print function.
+ * When the io buffer is full, a IO exception is thrown.
+ */
+
+%pythoncode
 {
 
-def LoadPlugins():  
+KICAD_PLUGINS={}
+
+def ReloadPlugin(name):
+    if not KICAD_PLUGINS.has_key(name):
+        return False
+
+    KICAD_PLUGINS[name]["object"].deregister()
+    mod = reload(KICAD_PLUGINS[name]["module"])
+    KICAD_PLUGINS[name]["object"]= mod.register()
+
+
+def ReloadPlugins():
+    import os.path
+    for k in KICAD_PLUGINS.keys():
+        plugin = KICAD_PLUGINS[k]
+
+        filename = plugin["filename"]
+        mtime = plugin["modification_time"]
+        now_mtime = os.path.getmtime(filename)
+
+        if mtime!=now_mtime:
+            # /* print filename, " is modified, reloading" */
+            KICAD_PLUGINS[k]["modification_time"]=now_mtime
+            ReloadPlugin(k)
+
+
+def LoadPlugins( plugpath ):
     import os
     import sys
 
-    # Use environment variable KICAD_PATH to derive path to plugins as a temporary solution
     kicad_path = os.environ.get('KICAD_PATH')
     plugin_directories=[]
 
+    if plugpath and os.path.isdir( plugpath ):
+        plugin_directories.append( plugpath )
+
     if kicad_path and os.path.isdir(kicad_path):
         plugin_directories.append(os.path.join(kicad_path, 'scripting', 'plugins'))
-        
+
     if sys.platform.startswith('linux'):
         plugin_directories.append(os.environ['HOME']+'/.kicad_plugins/')
         plugin_directories.append(os.environ['HOME']+'/.kicad/scripting/plugins/')
 
-    # scan all possible directories for plugins, and load them
+    if sys.platform.startswith('darwin'):
+        for singlepath in sys.path:
+            if os.path.isdir( os.path.join( singlepath, 'scripting', 'plugins') ):
+                plugin_directories.append( os.path.join( singlepath, 'scripting', 'plugins') )
 
     for plugins_dir in plugin_directories:
         sys.path.append(plugins_dir)
-	if not os.path.isdir(plugins_dir):
+
+        if not os.path.isdir(plugins_dir):
             continue
+
         for module in os.listdir(plugins_dir):
             if os.path.isdir(plugins_dir+module):
                 __import__(module, locals(), globals())
 
             if module == '__init__.py' or module[-3:] != '.py':
                 continue
-            __import__(module[:-3], locals(), globals())
+
+            mod = __import__(module[:-3], locals(), globals())
+
+            module_filename = plugins_dir+"/"+module
+            mtime = os.path.getmtime(module_filename)
+            if hasattr(mod,'register'):
+                KICAD_PLUGINS[module]={"filename":module_filename,
+                                       "modification_time":mtime,
+                                       "object":mod.register(),
+                                       "module":mod}
 
 
-# KiCadPlugin base class will register any plugin into the right place
+
 class KiCadPlugin:
     def __init__(self):
         pass
-        
+
     def register(self):
         if isinstance(self,FilePlugin):
             pass # register to file plugins in C++
         if isinstance(self,FootprintWizardPlugin):
             PYTHON_FOOTPRINT_WIZARDS.register_wizard(self)
             return
-        
+
         if isinstance(self,ActionPlugin):
             pass # register to action plugins in C++
-        
+
         return
-            
 
-    
+    def deregister(self):
+        if isinstance(self,FilePlugin):
+            pass # register to file plugins in C++
+        if isinstance(self,FootprintWizardPlugin):
+            PYTHON_FOOTPRINT_WIZARDS.deregister_wizard(self)
+            return
 
-# This will be the file io scripting based plugins class
+        if isinstance(self,ActionPlugin):
+            pass # register to action plugins in C++
+
+        return
+
+
+
+
 class FilePlugin(KiCadPlugin):
     def __init__(self):
         KiCadPlugin.__init__(self)
-        
-        
-# Scriping footprint wizards
+
+
+
 class FootprintWizardPlugin(KiCadPlugin):
     def __init__(self):
         KiCadPlugin.__init__(self)
         self.defaults()
-        
+
     def defaults(self):
         self.module = None
         self.parameters = {}
@@ -110,50 +174,51 @@ class FootprintWizardPlugin(KiCadPlugin):
         self.name = "Undefined Footprint Wizard plugin"
         self.description = ""
         self.image = ""
-        
+        self.buildmessages = ""
+
     def GetName(self):
         return self.name
-    
+
     def GetImage(self):
         return self.image
-    
+
     def GetDescription(self):
         return self.description
-        
-    
+
+
     def GetNumParameterPages(self):
         return len(self.parameters)
-    
+
     def GetParameterPageName(self,page_n):
         return self.parameters.keys()[page_n]
-    
+
     def GetParameterNames(self,page_n):
         name = self.GetParameterPageName(page_n)
         return self.parameters[name].keys()
-        
+
     def GetParameterValues(self,page_n):
         name = self.GetParameterPageName(page_n)
         values = self.parameters[name].values()
         return map( lambda x: str(x) , values) # list elements as strings
-    
+
     def GetParameterErrors(self,page_n):
         self.CheckParameters()
         name = self.GetParameterPageName(page_n)
         values = self.parameter_errors[name].values()
         return map( lambda x: str(x) , values) # list elements as strings
-        
+
     def CheckParameters(self):
         return ""
-    
+
     def TryConvertToFloat(self,value):
         v = value
         try:
             v = float(value)
         except:
             pass
-        
+
         return v
-    
+
     def SetParameterValues(self,page_n,values):
         name = self.GetParameterPageName(page_n)
         keys = self.parameters[name].keys()
@@ -161,31 +226,33 @@ class FootprintWizardPlugin(KiCadPlugin):
         for key in keys:
             val = self.TryConvertToFloat(values[n])
             self.parameters[name][key] = val
-            print "[%s][%s]<="%(name,key),val
             n+=1
-        
-    # copies the parameter list on parameter_errors but empty
+
+
     def ClearErrors(self):
         errs={}
-        
+
         for page in self.parameters.keys():
             page_dict = self.parameters[page]
             page_params = {}
             for param in page_dict.keys():
                 page_params[param]=""
-                
+
             errs[page]=page_params
-            
-        self.parameter_errors = errs    
-        
-    
-    def GetModule(self):
+
+        self.parameter_errors = errs
+
+
+    def GetFootprint( self ):
         self.BuildFootprint()
         return self.module
-    
+
     def BuildFootprint(self):
         return
-            
+
+    def GetBuildMessages( self ):
+        return self.buildmessages
+
     def Show(self):
         print "Footprint Wizard Name:        ",self.GetName()
         print "Footprint Wizard Description: ",self.GetDescription()
@@ -202,7 +269,5 @@ class FootprintWizardPlugin(KiCadPlugin):
 class ActionPlugin(KiCadPlugin):
     def __init__(self):
         KiCadPlugin.__init__(self)
-
-
 
 }

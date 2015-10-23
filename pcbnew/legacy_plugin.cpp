@@ -4,7 +4,7 @@
  *
  * Copyright (C) 2007-2012 SoftPLC Corporation, Dick Hollenbeck <dick@softplc.com>
  * Copyright (C) 2004 Jean-Pierre Charras, jp.charras@wanadoo.fr
- * Copyright (C) 1992-2012 KiCad Developers, see change_log.txt for contributors.
+ * Copyright (C) 1992-2015 KiCad Developers, see change_log.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -81,10 +81,13 @@
 #include <class_edge_mod.h>
 #include <3d_struct.h>
 #include <pcb_plot_params.h>
+#include <pcb_plot_params_parser.h>
 #include <drawtxt.h>
 #include <convert_to_biu.h>
 #include <trigo.h>
 #include <build_version.h>
+
+#include <boost/make_shared.hpp>
 
 
 typedef LEGACY_PLUGIN::BIU      BIU;
@@ -96,6 +99,92 @@ typedef LEGACY_PLUGIN::BIU      BIU;
 #define UNKNOWN_PAD_ATTRIBUTE   _( "unknown pad attribute: %d" )
 
 
+typedef unsigned                LEG_MASK;
+
+#define FIRST_LAYER             0
+#define FIRST_COPPER_LAYER      0
+#define LAYER_N_BACK            0
+#define LAYER_N_2               1
+#define LAYER_N_3               2
+#define LAYER_N_4               3
+#define LAYER_N_5               4
+#define LAYER_N_6               5
+#define LAYER_N_7               6
+#define LAYER_N_8               7
+#define LAYER_N_9               8
+#define LAYER_N_10              9
+#define LAYER_N_11              10
+#define LAYER_N_12              11
+#define LAYER_N_13              12
+#define LAYER_N_14              13
+#define LAYER_N_15              14
+#define LAYER_N_FRONT           15
+#define LAST_COPPER_LAYER       LAYER_N_FRONT
+
+#define FIRST_NON_COPPER_LAYER  16
+#define ADHESIVE_N_BACK         16
+#define ADHESIVE_N_FRONT        17
+#define SOLDERPASTE_N_BACK      18
+#define SOLDERPASTE_N_FRONT     19
+#define SILKSCREEN_N_BACK       20
+#define SILKSCREEN_N_FRONT      21
+#define SOLDERMASK_N_BACK       22
+#define SOLDERMASK_N_FRONT      23
+#define DRAW_N                  24
+#define COMMENT_N               25
+#define ECO1_N                  26
+#define ECO2_N                  27
+#define EDGE_N                  28
+#define LAST_NON_COPPER_LAYER   28
+
+// Masks to identify a layer by a bit map
+typedef unsigned LAYER_MSK;
+#define LAYER_BACK              (1 << LAYER_N_BACK)     ///< bit mask for copper layer
+#define LAYER_2                 (1 << LAYER_N_2)        ///< bit mask for layer 2
+#define LAYER_3                 (1 << LAYER_N_3)        ///< bit mask for layer 3
+#define LAYER_4                 (1 << LAYER_N_4)        ///< bit mask for layer 4
+#define LAYER_5                 (1 << LAYER_N_5)        ///< bit mask for layer 5
+#define LAYER_6                 (1 << LAYER_N_6)        ///< bit mask for layer 6
+#define LAYER_7                 (1 << LAYER_N_7)        ///< bit mask for layer 7
+#define LAYER_8                 (1 << LAYER_N_8)        ///< bit mask for layer 8
+#define LAYER_9                 (1 << LAYER_N_9)        ///< bit mask for layer 9
+#define LAYER_10                (1 << LAYER_N_10)       ///< bit mask for layer 10
+#define LAYER_11                (1 << LAYER_N_11)       ///< bit mask for layer 11
+#define LAYER_12                (1 << LAYER_N_12)       ///< bit mask for layer 12
+#define LAYER_13                (1 << LAYER_N_13)       ///< bit mask for layer 13
+#define LAYER_14                (1 << LAYER_N_14)       ///< bit mask for layer 14
+#define LAYER_15                (1 << LAYER_N_15)       ///< bit mask for layer 15
+#define LAYER_FRONT             (1 << LAYER_N_FRONT)    ///< bit mask for component layer
+#define ADHESIVE_LAYER_BACK     (1 << ADHESIVE_N_BACK)
+#define ADHESIVE_LAYER_FRONT    (1 << ADHESIVE_N_FRONT)
+#define SOLDERPASTE_LAYER_BACK  (1 << SOLDERPASTE_N_BACK)
+#define SOLDERPASTE_LAYER_FRONT (1 << SOLDERPASTE_N_FRONT)
+#define SILKSCREEN_LAYER_BACK   (1 << SILKSCREEN_N_BACK)
+#define SILKSCREEN_LAYER_FRONT  (1 << SILKSCREEN_N_FRONT)
+#define SOLDERMASK_LAYER_BACK   (1 << SOLDERMASK_N_BACK)
+#define SOLDERMASK_LAYER_FRONT  (1 << SOLDERMASK_N_FRONT)
+#define DRAW_LAYER              (1 << DRAW_N)
+#define COMMENT_LAYER           (1 << COMMENT_N)
+#define ECO1_LAYER              (1 << ECO1_N)
+#define ECO2_LAYER              (1 << ECO2_N)
+#define EDGE_LAYER              (1 << EDGE_N)
+
+// Helpful global layer masks:
+// ALL_AUX_LAYERS layers are technical layers, ALL_NO_CU_LAYERS has user
+// and edge layers too!
+#define ALL_NO_CU_LAYERS        0x1FFF0000
+#define ALL_CU_LAYERS           0x0000FFFF
+#define FRONT_TECH_LAYERS       (SILKSCREEN_LAYER_FRONT | SOLDERMASK_LAYER_FRONT \
+                                    | ADHESIVE_LAYER_FRONT | SOLDERPASTE_LAYER_FRONT)
+#define BACK_TECH_LAYERS        (SILKSCREEN_LAYER_BACK | SOLDERMASK_LAYER_BACK \
+                                    | ADHESIVE_LAYER_BACK | SOLDERPASTE_LAYER_BACK)
+#define ALL_TECH_LAYERS         (FRONT_TECH_LAYERS | BACK_TECH_LAYERS)
+#define BACK_LAYERS             (LAYER_BACK | BACK_TECH_LAYERS)
+#define FRONT_LAYERS            (LAYER_FRONT | FRONT_TECH_LAYERS)
+
+#define ALL_USER_LAYERS         (DRAW_LAYER | COMMENT_LAYER | ECO1_LAYER | ECO2_LAYER )
+
+#define NO_LAYERS               0x00000000
 
 
 // Old internal units definition (UI = decimil)
@@ -110,6 +199,7 @@ static const char delims[] = " \t\r\n";
 
 static bool inline isSpace( int c ) { return strchr( delims, c ) != 0; }
 
+#define MASK(x)             (1<<(x))
 
 //-----<BOARD Load Functions>---------------------------------------------------
 
@@ -145,6 +235,7 @@ static inline char* ReadLine( LINE_READER* rdr, const char* caller )
 }
 #define READLINE( rdr )     ReadLine( rdr, __FUNCTION__ )
 #endif
+
 
 
 using namespace std;    // auto_ptr
@@ -195,6 +286,97 @@ static EDA_TEXT_VJUSTIFY_T vertJustify( const char* vertical )
 }
 
 
+/// Count the number of set layers in the mask
+inline int layerMaskCountSet( LEG_MASK aMask )
+{
+    int count = 0;
+
+    for( int i = 0;  aMask;  ++i, aMask >>= 1 )
+    {
+        if( aMask & 1 )
+            ++count;
+    }
+
+    return count;
+}
+
+
+// return true if aLegacyLayerNum is a valid copper layer legacy id, therefore
+// top, bottom or inner activated layer
+inline bool is_leg_copperlayer_valid( int aCu_Count, LAYER_NUM aLegacyLayerNum )
+{
+    return ( aLegacyLayerNum == LAYER_N_FRONT ) || ( aLegacyLayerNum < aCu_Count );
+}
+
+
+LAYER_ID LEGACY_PLUGIN::leg_layer2new( int cu_count, LAYER_NUM aLayerNum )
+{
+    int         newid;
+    unsigned    old = aLayerNum;
+
+    // this is a speed critical function, be careful.
+
+    if( unsigned( old ) <= unsigned( LAYER_N_FRONT ) )
+    {
+        if( old == LAYER_N_FRONT )
+            newid = F_Cu;
+        else if( old == LAYER_N_BACK )
+            newid = B_Cu;
+        else
+        {
+            newid = cu_count - 1 - old;
+            wxASSERT( newid >= 0 );
+        }
+    }
+    else
+    {
+        switch( old )
+        {
+        case ADHESIVE_N_BACK:       newid = B_Adhes;    break;
+        case ADHESIVE_N_FRONT:      newid = F_Adhes;    break;
+        case SOLDERPASTE_N_BACK:    newid = B_Paste;    break;
+        case SOLDERPASTE_N_FRONT:   newid = F_Paste;    break;
+        case SILKSCREEN_N_BACK:     newid = B_SilkS;    break;
+        case SILKSCREEN_N_FRONT:    newid = F_SilkS;    break;
+        case SOLDERMASK_N_BACK:     newid = B_Mask;     break;
+        case SOLDERMASK_N_FRONT:    newid = F_Mask;     break;
+        case DRAW_N:                newid = Dwgs_User;  break;
+        case COMMENT_N:             newid = Cmts_User;  break;
+        case ECO1_N:                newid = Eco1_User;  break;
+        case ECO2_N:                newid = Eco2_User;  break;
+        case EDGE_N:                newid = Edge_Cuts;  break;
+        default:
+//            wxASSERT( 0 );
+            // Remap all illegal non copper layers to comment layer
+            newid = Cmts_User;
+        }
+    }
+
+    return LAYER_ID( newid );
+}
+
+
+LSET LEGACY_PLUGIN::leg_mask2new( int cu_count, unsigned aMask )
+{
+    LSET    ret;
+
+    if( ( aMask & ALL_CU_LAYERS ) == ALL_CU_LAYERS )
+    {
+        ret = LSET::AllCuMask();
+
+        aMask &= ~ALL_CU_LAYERS;
+    }
+
+    for( int i=0;  aMask;  ++i, aMask >>= 1 )
+    {
+        if( aMask & 1 )
+            ret.set( leg_layer2new( cu_count, i ) );
+    }
+
+    return ret;
+}
+
+
 /**
  * Function intParse
  * parses an ASCII integer string with possible leading whitespace into
@@ -208,6 +390,14 @@ static inline int intParse( const char* next, const char** out = NULL )
     return (int) strtol( next, (char**) out, 10 );
 }
 
+/**
+ * Function layerParse
+ * Like intParse but returns a LAYER_NUM
+ */
+static inline LAYER_NUM layerParse( const char* next, const char** out = NULL )
+{
+    return intParse( next, out );
+}
 
 /**
  * Function hexParse
@@ -223,7 +413,7 @@ static inline long hexParse( const char* next, const char** out = NULL )
 }
 
 
-BOARD* LEGACY_PLUGIN::Load( const wxString& aFileName, BOARD* aAppendToMe, PROPERTIES* aProperties )
+BOARD* LEGACY_PLUGIN::Load( const wxString& aFileName, BOARD* aAppendToMe, const PROPERTIES* aProperties )
 {
     LOCALE_IO   toggle;     // toggles on, then off, the C locale.
 
@@ -268,8 +458,22 @@ void LEGACY_PLUGIN::loadAllSections( bool doAppend )
 
         if( TESTLINE( "$MODULE" ) )
         {
-            MODULE* m = LoadMODULE();
-            m_board->Add( m, ADD_APPEND );
+            auto_ptr<MODULE>    module( new MODULE( m_board ) );
+
+            FPID        fpid;
+            std::string fpName = StrPurge( line + SZ( "$MODULE" ) );
+
+            // The footprint names in legacy libraries can contain the '/' and ':'
+            // characters which will cause the FPID parser to choke.
+            ReplaceIllegalFileNameChars( &fpName );
+
+            if( !fpName.empty() )
+                fpid = FPID( fpName );
+
+            module->SetFPID( fpid );
+
+            loadMODULE( module.get() );
+            m_board->Add( module.release(), ADD_APPEND );
         }
 
         else if( TESTLINE( "$DRAWSEGMENT" ) )
@@ -387,6 +591,8 @@ void LEGACY_PLUGIN::checkVersion()
 void LEGACY_PLUGIN::loadGENERAL()
 {
     char*   line;
+    char*   saveptr;
+    bool    saw_LayerCount = false;
 
     while( ( line = READLINE( m_reader ) ) != NULL )
     {
@@ -395,47 +601,68 @@ void LEGACY_PLUGIN::loadGENERAL()
         if( TESTLINE( "Units" ) )
         {
             // what are the engineering units of the lengths in the BOARD?
-            data = strtok( line + SZ("Units"), delims );
+            data = strtok_r( line + SZ("Units"), delims, &saveptr );
 
             if( !strcmp( data, "mm" ) )
             {
-#if defined( USE_PCBNEW_NANOMETRES )
                 diskToBiu = IU_PER_MM;
-#else
-                THROW_IO_ERROR( _( "May not load millimeter *.brd file into 'Pcbnew compiled for deci-mils'" ) );
-#endif
             }
+        }
+
+        else if( TESTLINE( "LayerCount" ) )
+        {
+            int tmp = intParse( line + SZ( "LayerCount" ) );
+            m_board->SetCopperLayerCount( tmp );
+
+            // This has to be set early so that leg_layer2new() works OK, and
+            // that means before parsing "EnabledLayers" and "VisibleLayers".
+            m_cu_count = tmp;
+
+            saw_LayerCount = true;
         }
 
         else if( TESTLINE( "EnabledLayers" ) )
         {
-            int enabledLayers = hexParse( line + SZ( "EnabledLayers" ) );
+            if( !saw_LayerCount )
+                THROW_IO_ERROR( "Missing '$GENERAL's LayerCount" );
 
-            // layer usage
-            m_board->SetEnabledLayers( enabledLayers );
+            LEG_MASK enabledLayers = hexParse( line + SZ( "EnabledLayers" ) );
+
+            LSET new_mask = leg_mask2new( m_cu_count, enabledLayers );
+
+            //DBG( printf( "EnabledLayers: %s\n", new_mask.FmtHex().c_str() );)
+
+            m_board->SetEnabledLayers( new_mask );
 
             // layer visibility equals layer usage, unless overridden later via "VisibleLayers"
-            m_board->SetVisibleLayers( enabledLayers );
+            // Must call SetEnabledLayers() before calling SetVisibleLayers().
+            m_board->SetVisibleLayers( new_mask );
         }
 
         else if( TESTLINE( "VisibleLayers" ) )
         {
-            int visibleLayers = hexParse( line + SZ( "VisibleLayers" ) );
-            m_board->SetVisibleLayers( visibleLayers );
+            if( !saw_LayerCount )
+                THROW_IO_ERROR( "Missing '$GENERAL's LayerCount" );
+
+            LEG_MASK visibleLayers = hexParse( line + SZ( "VisibleLayers" ) );
+
+            LSET new_mask = leg_mask2new( m_cu_count, visibleLayers );
+
+            m_board->SetVisibleLayers( new_mask );
         }
 
         else if( TESTLINE( "Ly" ) )    // Old format for Layer count
         {
-            int layer_mask  = hexParse( line + SZ( "Ly" ) );
-            int layer_count = 0;
-
-            for( int ii = 0;  ii < NB_COPPER_LAYERS && layer_mask;  ++ii, layer_mask >>= 1 )
+            if( !saw_LayerCount )
             {
-                if( layer_mask & 1 )
-                    layer_count++;
-            }
+                LEG_MASK layer_mask  = hexParse( line + SZ( "Ly" ) );
 
-            m_board->SetCopperLayerCount( layer_count );
+                m_cu_count = layerMaskCountSet( layer_mask & ALL_CU_LAYERS );
+
+                m_board->SetCopperLayerCount( m_cu_count );
+
+                saw_LayerCount = true;
+            }
         }
 
         else if( TESTLINE( "BoardThickness" ) )
@@ -469,7 +696,8 @@ void LEGACY_PLUGIN::loadGENERAL()
             m_board->SetBoundingBox( bbbox );
         }
 
-        /* Read the number of segments of type DRAW, TRACK, ZONE
+        /* This is no more usefull, so this info is no more parsed
+        // Read the number of segments of type DRAW, TRACK, ZONE
         else if( TESTLINE( "Ndraw" ) )
         {
             NbDraw = intParse( line + SZ( "Ndraw" ) );
@@ -488,13 +716,17 @@ void LEGACY_PLUGIN::loadGENERAL()
         else if( TESTLINE( "Nmodule" ) )
         {
             NbMod = intParse( line + SZ( "Nmodule" ) );
-        }
+        }*/
 
         else if( TESTLINE( "Nnets" ) )
         {
-            NbNets = intParse( line + SZ( "Nnets" ) );
+            m_netCodes.resize( intParse( line + SZ( "Nnets" ) ) );
         }
-        */
+
+        else if( TESTLINE( "Nn" ) )     // id "Nnets" for old .brd files
+        {
+            m_netCodes.resize( intParse( line + SZ( "Nn" ) ) );
+        }
 
         else if( TESTLINE( "$EndGENERAL" ) )
             return;     // preferred exit
@@ -509,6 +741,7 @@ void LEGACY_PLUGIN::loadSHEET()
     char        buf[260];
     TITLE_BLOCK tb;
     char*       line;
+    char*       saveptr;
 
     while( ( line = READLINE( m_reader ) ) != NULL )
     {
@@ -518,7 +751,7 @@ void LEGACY_PLUGIN::loadSHEET()
             // width and height are in 1/1000th of an inch, always
 
             PAGE_INFO   page;
-            char*       sname  = strtok( line + SZ( "Sheet" ), delims );
+            char*       sname  = strtok_r( line + SZ( "Sheet" ), delims, &saveptr );
 
             if( sname )
             {
@@ -530,9 +763,9 @@ void LEGACY_PLUGIN::loadSHEET()
                     THROW_IO_ERROR( m_error );
                 }
 
-                char*   width  = strtok( NULL, delims );
-                char*   height = strtok( NULL, delims );
-                char*   orient = strtok( NULL, delims );
+                char*   width  = strtok_r( NULL, delims, &saveptr );
+                char*   height = strtok_r( NULL, delims, &saveptr );
+                char*   orient = strtok_r( NULL, delims, &saveptr );
 
                 // only parse the width and height if page size is custom ("User")
                 if( wname == PAGE_INFO::Custom )
@@ -619,10 +852,13 @@ void LEGACY_PLUGIN::loadSHEET()
 
 void LEGACY_PLUGIN::loadSETUP()
 {
-    NETCLASS*               netclass_default  = m_board->m_NetClasses.GetDefault();
+    NETCLASSPTR             netclass_default = m_board->GetDesignSettings().GetDefault();
+    // TODO Orson: is it really necessary to first operate on a copy and then apply it?
+    // would not it be better to use reference here and apply all the changes instantly?
     BOARD_DESIGN_SETTINGS   bds = m_board->GetDesignSettings();
     ZONE_SETTINGS           zs  = m_board->GetZoneSettings();
     char*                   line;
+    char*                   saveptr;
 
     while( ( line = READLINE( m_reader ) ) != NULL )
     {
@@ -644,40 +880,68 @@ void LEGACY_PLUGIN::loadSETUP()
             BIU gx = biuParse( line + SZ( "AuxiliaryAxisOrg" ), &data );
             BIU gy = biuParse( data );
 
-            m_board->SetOriginAxisPosition( wxPoint( gx, gy ) );
+            // m_board->SetAuxOrigin( wxPoint( gx, gy ) ); gets overwritten by SetDesignSettings() below
+            bds.m_AuxOrigin = wxPoint( gx, gy );
         }
 
+        /* Done from $General above's "LayerCount"
         else if( TESTLINE( "Layers" ) )
         {
             int tmp = intParse( line + SZ( "Layers" ) );
             m_board->SetCopperLayerCount( tmp );
+
+            m_cu_count = tmp;
         }
+        */
 
         else if( TESTSUBSTR( "Layer[" ) )
         {
             // eg: "Layer[n]  <a_Layer_name_with_no_spaces> <LAYER_T>"
 
-            int   layer = intParse( line + SZ( "Layer[" ), &data );
+            LAYER_NUM   layer_num = layerParse( line + SZ( "Layer[" ), &data );
+            LAYER_ID    layer_id  = leg_layer2new( m_cu_count, layer_num );
 
-            data = strtok( (char*) data+1, delims );    // +1 for ']'
+            /*
+            switch( layer_num )
+            {
+            case LAYER_N_BACK:
+                layer_id = B_Cu;
+                break;
+
+            case LAYER_N_FRONT:
+                layer_id = F_Cu;
+                break;
+
+            default:
+                layer_id = LAYER_ID( layer_num );
+            }
+            */
+
+            data = strtok_r( (char*) data+1, delims, &saveptr );    // +1 for ']'
             if( data )
             {
                 wxString layerName = FROM_UTF8( data );
-                m_board->SetLayerName( layer, layerName );
+                m_board->SetLayerName( layer_id, layerName );
 
-                data = strtok( NULL, delims );
+                data = strtok_r( NULL, delims, &saveptr );
                 if( data )  // optional in old board files
                 {
                     LAYER_T type = LAYER::ParseType( data );
-                    m_board->SetLayerType( layer, type );
+                    m_board->SetLayerType( layer_id, type );
                 }
             }
+        }
+
+        else if( TESTLINE( "TrackWidth" ) )
+        {
+            BIU tmp = biuParse( line + SZ( "TrackWidth" ) );
+            netclass_default->SetTrackWidth( tmp );
         }
 
         else if( TESTLINE( "TrackWidthList" ) )
         {
             BIU tmp = biuParse( line + SZ( "TrackWidthList" ) );
-            m_board->m_TrackWidthList.push_back( tmp );
+            bds.m_TrackWidthList.push_back( tmp );
         }
 
         else if( TESTLINE( "TrackClearence" ) )
@@ -735,11 +999,18 @@ void LEGACY_PLUGIN::loadSETUP()
             BIU drill    = 0;
             BIU diameter = biuParse( line + SZ( "ViaSizeList" ), &data );
 
-            data = strtok( (char*) data, delims );
+            data = strtok_r( (char*) data, delims, &saveptr );
             if( data )  // DRILL may not be present ?
                 drill = biuParse( data );
 
-            m_board->m_ViasDimensionsList.push_back( VIA_DIMENSION( diameter, drill ) );
+            bds.m_ViasDimensionsList.push_back( VIA_DIMENSION( diameter,
+                                                                                        drill ) );
+        }
+
+        else if( TESTLINE( "ViaSize" ) )
+        {
+            BIU tmp = biuParse( line + SZ( "ViaSize" ) );
+            netclass_default->SetViaDiameter( tmp );
         }
 
         else if( TESTLINE( "ViaDrill" ) )
@@ -752,6 +1023,12 @@ void LEGACY_PLUGIN::loadSETUP()
         {
             BIU tmp = biuParse( line + SZ( "ViaMinDrill" ) );
             bds.m_ViasMinDrill = tmp;
+        }
+
+        else if( TESTLINE( "MicroViaSize" ) )
+        {
+            BIU tmp = biuParse( line + SZ( "MicroViaSize" ) );
+            netclass_default->SetuViaDiameter( tmp );
         }
 
         else if( TESTLINE( "MicroViaDrill" ) )
@@ -846,13 +1123,11 @@ void LEGACY_PLUGIN::loadSETUP()
 
         else if( TESTLINE( "GridOrigin" ) )
         {
-            /* @todo
-            BIU gx = biuParse( line + SZ( "GridOrigin" ), &data );
-            BIU gy = biuParse( data );
+            BIU x = biuParse( line + SZ( "GridOrigin" ), &data );
+            BIU y = biuParse( data );
 
-            GetScreen()->m_GridOrigin.x = Ox;
-            GetScreen()->m_GridOrigin.y = Oy;
-            */
+            // m_board->SetGridOrigin( wxPoint( x, y ) ); gets overwritten by SetDesignSettings() below
+            bds.m_GridOrigin = wxPoint( x, y );
         }
 
         else if( TESTLINE( "VisibleElements" ) )
@@ -866,22 +1141,14 @@ void LEGACY_PLUGIN::loadSETUP()
             m_board->SetDesignSettings( bds );
             m_board->SetZoneSettings( zs );
 
-            // Until such time as the *.brd file does not have the
-            // global parameters:
-            // "TrackWidth", "TrackMinWidth", "ViaSize", "ViaDrill",
-            // "ViaMinSize", and "TrackClearence", put those same global
-            // values into the default NETCLASS until later board load
+            // Very old *.brd file does not have  NETCLASSes
+            // "TrackWidth", "ViaSize", "ViaDrill", "ViaMinSize",
+            // and "TrackClearence", were defined in SETUP
+            // these values are put into the default NETCLASS until later board load
             // code should override them.  *.brd files which have been
             // saved with knowledge of NETCLASSes will override these
-            // defaults, old boards will not.
-            //
-            // @todo: I expect that at some point we can remove said global
-            //        parameters from the *.brd file since the ones in the
-            //        default netclass serve the same purpose.  If needed
-            //        at all, the global defaults should go into a preferences
-            //        file instead so they are there to start new board
-            //        projects.
-            m_board->m_NetClasses.GetDefault()->SetParams();
+            // defaults, very old boards (before 2009) will not and use the setup values.
+            // However these values should be the same as default NETCLASS.
 
             return;     // preferred exit
         }
@@ -894,33 +1161,34 @@ void LEGACY_PLUGIN::loadSETUP()
      * Sort lists by by increasing value and remove duplicates
      * (the first value is not tested, because it is the netclass value
      */
-    sort( m_board->m_ViasDimensionsList.begin() + 1, m_board->m_ViasDimensionsList.end() );
-    sort( m_board->m_TrackWidthList.begin() + 1, m_board->m_TrackWidthList.end() );
+    BOARD_DESIGN_SETTINGS& designSettings = m_board->GetDesignSettings();
+    sort( designSettings.m_ViasDimensionsList.begin() + 1, designSettings.m_ViasDimensionsList.end() );
+    sort( designSettings.m_TrackWidthList.begin() + 1, designSettings.m_TrackWidthList.end() );
 
-    for( unsigned ii = 1; ii < m_board->m_ViasDimensionsList.size() - 1; ii++ )
+    for( unsigned ii = 1; ii < designSettings.m_ViasDimensionsList.size() - 1; ii++ )
     {
-        if( m_board->m_ViasDimensionsList[ii] == m_board->m_ViasDimensionsList[ii + 1] )
+        if( designSettings.m_ViasDimensionsList[ii] == designSettings.m_ViasDimensionsList[ii + 1] )
         {
-            m_board->m_ViasDimensionsList.erase( m_board->m_ViasDimensionsList.begin() + ii );
+            designSettings.m_ViasDimensionsList.erase( designSettings.m_ViasDimensionsList.begin() + ii );
             ii--;
         }
     }
 
-    for( unsigned ii = 1; ii < m_board->m_TrackWidthList.size() - 1; ii++ )
+    for( unsigned ii = 1; ii < designSettings.m_TrackWidthList.size() - 1; ii++ )
     {
-        if( m_board->m_TrackWidthList[ii] == m_board->m_TrackWidthList[ii + 1] )
+        if( designSettings.m_TrackWidthList[ii] == designSettings.m_TrackWidthList[ii + 1] )
         {
-            m_board->m_TrackWidthList.erase( m_board->m_TrackWidthList.begin() + ii );
+            designSettings.m_TrackWidthList.erase( designSettings.m_TrackWidthList.begin() + ii );
             ii--;
         }
     }
 }
 
 
-MODULE* LEGACY_PLUGIN::LoadMODULE()
+void LEGACY_PLUGIN::loadMODULE( MODULE* aModule )
 {
-    auto_ptr<MODULE>    module( new MODULE( m_board ) );
-    char*               line;
+    char*   line;
+    char*   saveptr;
 
     while( ( line = READLINE( m_reader ) ) != NULL )
     {
@@ -928,14 +1196,14 @@ MODULE* LEGACY_PLUGIN::LoadMODULE()
 
         // most frequently encountered ones at the top
 
-        if( TESTSUBSTR( "D" ) )          // read a drawing item, e.g. "DS"
+        if( TESTSUBSTR( "D" ) && strchr( "SCAP", line[1] ) )  // read a drawing item, e.g. "DS"
         {
-            loadMODULE_EDGE( module.get() );
+            loadMODULE_EDGE( aModule );
         }
 
         else if( TESTLINE( "$PAD" ) )
         {
-            loadPAD( module.get() );
+            loadPAD( aModule );
         }
 
         // Read a footprint text description (ref, value, or drawing)
@@ -945,18 +1213,24 @@ MODULE* LEGACY_PLUGIN::LoadMODULE()
 
             int tnum = intParse( line + SZ( "T" ) );
 
-            TEXTE_MODULE* textm;
+            TEXTE_MODULE* textm = 0;
 
-            if( tnum == TEXT_is_REFERENCE )
-                textm = module->m_Reference;
-            else if( tnum == TEXT_is_VALUE )
-                textm = module->m_Value;
-            else
+            switch( tnum )
             {
-                // text is a drawing
-                textm = new TEXTE_MODULE( module.get() );
-                module->m_Drawings.PushBack( textm );
+            case TEXTE_MODULE::TEXT_is_REFERENCE:
+                textm = &aModule->Reference();
+                break;
+
+            case TEXTE_MODULE::TEXT_is_VALUE:
+                textm = &aModule->Value();
+                break;
+
+            // All other fields greater than 1.
+            default:
+                textm = new TEXTE_MODULE( aModule );
+                aModule->GraphicalItems().PushBack( textm );
             }
+
             loadMODULE_TEXT( textm );
         }
 
@@ -969,39 +1243,43 @@ MODULE* LEGACY_PLUGIN::LoadMODULE()
             BIU pos_x  = biuParse( line + SZ( "Po" ), &data );
             BIU pos_y  = biuParse( data, &data );
             int orient = intParse( data, &data );
-            int layer  = intParse( data, &data );
+
+            LAYER_NUM layer_num = layerParse( data, &data );
+            LAYER_ID  layer_id  = leg_layer2new( m_cu_count,  layer_num );
 
             long edittime  = hexParse( data, &data );
             time_t timestamp = hexParse( data, &data );
 
-            data = strtok( (char*) data+1, delims );
+            data = strtok_r( (char*) data+1, delims, &saveptr );
 
             // data is now a two character long string
             // Note: some old files do not have this field
             if( data && data[0] == 'F' )
-                module->SetLocked( true );
+                aModule->SetLocked( true );
 
             if( data && data[1] == 'P' )
-                module->SetIsPlaced( true );
+                aModule->SetIsPlaced( true );
 
-            module->SetPosition( wxPoint( pos_x, pos_y ) );
-            module->SetLayer( layer );
-            module->SetOrientation( orient );
-            module->SetTimeStamp( timestamp );
-            module->SetLastEditTime( edittime );
+            aModule->SetPosition( wxPoint( pos_x, pos_y ) );
+            aModule->SetLayer( layer_id );
+            aModule->SetOrientation( orient );
+            aModule->SetTimeStamp( timestamp );
+            aModule->SetLastEditTime( edittime );
         }
 
+        /* footprint name set earlier, immediately after MODULE construction
         else if( TESTLINE( "Li" ) )         // Library name of footprint
         {
             // There can be whitespace in the footprint name on some old libraries.
             // Grab everything after "Li" up to end of line:
-            module->SetLibRef( FROM_UTF8( StrPurge( line + SZ( "Li" ) ) ) );
+            //aModule->SetFPID( FROM_UTF8( StrPurge( line + SZ( "Li" ) ) ) );
         }
+        */
 
         else if( TESTLINE( "Sc" ) )         // timestamp
         {
             time_t timestamp = hexParse( line + SZ( "Sc" ) );
-            module->SetTimeStamp( timestamp );
+            aModule->SetTimeStamp( timestamp );
         }
 
         else if( TESTLINE( "Op" ) )         // (Op)tions for auto placement
@@ -1013,7 +1291,7 @@ MODULE* LEGACY_PLUGIN::LoadMODULE()
             if( cntRot180 > 10 )
                 cntRot180 = 10;
 
-            module->m_CntRot180 = cntRot180;
+            aModule->SetPlacementCost180( cntRot180 );
 
             int cntRot90  = itmp1 & 0x0F;
             if( cntRot90 > 10 )
@@ -1023,7 +1301,7 @@ MODULE* LEGACY_PLUGIN::LoadMODULE()
             if( itmp1 > 10 )
                 itmp1 = 0;
 
-            module->m_CntRot90 = (itmp1 << 4) | cntRot90;
+            aModule->SetPlacementCost90( (itmp1 << 4) | cntRot90 );
         }
 
         else if( TESTLINE( "At" ) )         // (At)tributes of module
@@ -1038,30 +1316,31 @@ MODULE* LEGACY_PLUGIN::LoadMODULE()
             if( strstr( data, "VIRTUAL" ) )
                 attrs |= MOD_VIRTUAL;
 
-            module->SetAttributes( attrs );
+            aModule->SetAttributes( attrs );
         }
 
         else if( TESTLINE( "AR" ) )         // Alternate Reference
         {
             // e.g. "AR /47BA2624/45525076"
-            data = strtok( line + SZ( "AR" ), delims );
-            module->SetPath( FROM_UTF8( data ) );
+            data = strtok_r( line + SZ( "AR" ), delims, &saveptr );
+            if( data )
+                aModule->SetPath( FROM_UTF8( data ) );
         }
 
         else if( TESTLINE( "$SHAPE3D" ) )
         {
-            load3D( module.get() );
+            load3D( aModule );
         }
 
         else if( TESTLINE( "Cd" ) )
         {
             // e.g. "Cd Double rangee de contacts 2 x 4 pins\r\n"
-            module->m_Doc = FROM_UTF8( StrPurge( line + SZ( "Cd" ) ) );
+            aModule->SetDescription( FROM_UTF8( StrPurge( line + SZ( "Cd" ) ) ) );
         }
 
         else if( TESTLINE( "Kw" ) )         // Key words
         {
-            module->m_KeyWord = FROM_UTF8( StrPurge( line + SZ( "Kw" ) ) );
+            aModule->SetKeywords( FROM_UTF8( StrPurge( line + SZ( "Kw" ) ) ) );
         }
 
         else if( TESTLINE( ".SolderPasteRatio" ) )
@@ -1075,54 +1354,58 @@ MODULE* LEGACY_PLUGIN::LoadMODULE()
                 tmp = -0.50;
             if( tmp > 0.0 )
                 tmp = 0.0;
-            module->SetLocalSolderPasteMarginRatio( tmp );
+            aModule->SetLocalSolderPasteMarginRatio( tmp );
         }
 
         else if( TESTLINE( ".SolderPaste" ) )
         {
             BIU tmp = biuParse( line + SZ( ".SolderPaste" ) );
-            module->SetLocalSolderPasteMargin( tmp );
+            aModule->SetLocalSolderPasteMargin( tmp );
         }
 
         else if( TESTLINE( ".SolderMask" ) )
         {
             BIU tmp = biuParse( line + SZ( ".SolderMask" ) );
-            module->SetLocalSolderMaskMargin( tmp );
+            aModule->SetLocalSolderMaskMargin( tmp );
         }
 
         else if( TESTLINE( ".LocalClearance" ) )
         {
             BIU tmp = biuParse( line + SZ( ".LocalClearance" ) );
-            module->SetLocalClearance( tmp );
+            aModule->SetLocalClearance( tmp );
         }
 
         else if( TESTLINE( ".ZoneConnection" ) )
         {
             int tmp = intParse( line + SZ( ".ZoneConnection" ) );
-            module->SetZoneConnection( (ZoneConnection)tmp );
+            aModule->SetZoneConnection( (ZoneConnection)tmp );
         }
 
         else if( TESTLINE( ".ThermalWidth" ) )
         {
             BIU tmp = biuParse( line + SZ( ".ThermalWidth" ) );
-            module->SetThermalWidth( tmp );
+            aModule->SetThermalWidth( tmp );
         }
 
         else if( TESTLINE( ".ThermalGap" ) )
         {
             BIU tmp = biuParse( line + SZ( ".ThermalGap" ) );
-            module->SetThermalGap( tmp );
+            aModule->SetThermalGap( tmp );
         }
 
         else if( TESTLINE( "$EndMODULE" ) )
         {
-            module->CalculateBoundingBox();
+            aModule->CalculateBoundingBox();
 
-            return module.release();     // preferred exit
+            return;     // preferred exit
         }
     }
 
-    THROW_IO_ERROR( "Missing '$EndMODULE'" );
+    wxString msg = wxString::Format(
+        wxT( "Missing '$EndMODULE' for MODULE '%s'" ),
+        GetChars( aModule->GetFPID().GetFootprintName() ) );
+
+    THROW_IO_ERROR( msg );
 }
 
 
@@ -1130,6 +1413,7 @@ void LEGACY_PLUGIN::loadPAD( MODULE* aModule )
 {
     auto_ptr<D_PAD> pad( new D_PAD( aModule ) );
     char*           line;
+    char*           saveptr;
 
     while( ( line = READLINE( m_reader ) ) != NULL )
     {
@@ -1153,7 +1437,9 @@ void LEGACY_PLUGIN::loadPAD( MODULE* aModule )
             // sscanf( PtLine, " %s %d %d %d %d %d", BufCar, &m_Size.x, &m_Size.y, &m_DeltaSize.x, &m_DeltaSize.y, &m_Orient );
             while( isSpace( *data ) )
                 ++data;
-            int     padshape = *data++;
+
+            unsigned char   padchar = (unsigned char) *data++;
+            int             padshape;
 
             BIU     size_x   = biuParse( data, &data );
             BIU     size_y   = biuParse( data, &data );
@@ -1161,15 +1447,19 @@ void LEGACY_PLUGIN::loadPAD( MODULE* aModule )
             BIU     delta_y  = biuParse( data, &data );
             double  orient   = degParse( data );
 
-            switch( padshape )
+            switch( padchar )
             {
-            case 'C':   padshape = PAD_CIRCLE;      break;
-            case 'R':   padshape = PAD_RECT;        break;
-            case 'O':   padshape = PAD_OVAL;        break;
-            case 'T':   padshape = PAD_TRAPEZOID;   break;
+            case 'C':   padshape = PAD_SHAPE_CIRCLE;      break;
+            case 'R':   padshape = PAD_SHAPE_RECT;        break;
+            case 'O':   padshape = PAD_SHAPE_OVAL;        break;
+            case 'T':   padshape = PAD_SHAPE_TRAPEZOID;   break;
             default:
-                m_error.Printf( _( "Unknown padshape '%s' on line:%d" ),
-                    FROM_UTF8( line ).GetData(), m_reader->LineNumber() );
+                m_error.Printf( _( "Unknown padshape '%c=0x%02x' on line: %d of module: '%s'" ),
+                                padchar,
+                                padchar,
+                                m_reader->LineNumber(),
+                                GetChars( aModule->GetFPID().GetFootprintName() )
+                    );
                 THROW_IO_ERROR( m_error );
             }
 
@@ -1210,19 +1500,19 @@ void LEGACY_PLUGIN::loadPAD( MODULE* aModule )
             BIU offs_x  = biuParse( data, &data );
             BIU offs_y  = biuParse( data, &data );
 
-            PAD_SHAPE_T drShape = PAD_CIRCLE;
+            PAD_DRILL_SHAPE_T drShape = PAD_DRILL_SHAPE_CIRCLE;
 
-            data = strtok( (char*) data, delims );
+            data = strtok_r( (char*) data, delims, &saveptr );
             if( data )  // optional shape
             {
                 if( data[0] == 'O' )
                 {
-                    drShape = PAD_OVAL;
+                    drShape = PAD_DRILL_SHAPE_OBLONG;
 
-                    data    = strtok( NULL, delims );
+                    data    = strtok_r( NULL, delims, &saveptr );
                     drill_x = biuParse( data );
 
-                    data    = strtok( NULL, delims );
+                    data    = strtok_r( NULL, delims, &saveptr );
                     drill_y = biuParse( data );
                 }
             }
@@ -1238,25 +1528,24 @@ void LEGACY_PLUGIN::loadPAD( MODULE* aModule )
             // sscanf( PtLine, "%s %s %X", BufLine, BufCar, &m_layerMask );
 
             PAD_ATTR_T  attribute;
-            int         layer_mask;
 
-            data = strtok( line + SZ( "At" ), delims );
+            data = strtok_r( line + SZ( "At" ), delims, &saveptr );
 
             if( !strcmp( data, "SMD" ) )
-                attribute = PAD_SMD;
+                attribute = PAD_ATTRIB_SMD;
             else if( !strcmp( data, "CONN" ) )
-                attribute = PAD_CONN;
+                attribute = PAD_ATTRIB_CONN;
             else if( !strcmp( data, "HOLE" ) )
-                attribute = PAD_HOLE_NOT_PLATED;
+                attribute = PAD_ATTRIB_HOLE_NOT_PLATED;
             else
-                attribute = PAD_STANDARD;
+                attribute = PAD_ATTRIB_STANDARD;
 
-            data = strtok( NULL, delims );  // skip BufCar
-            data = strtok( NULL, delims );
+            strtok_r( NULL, delims, &saveptr );  // skip BufCar
+            data = strtok_r( NULL, delims, &saveptr );
 
-            layer_mask = hexParse( data );
+            LEG_MASK layer_mask = hexParse( data );
 
-            pad->SetLayerMask( layer_mask );
+            pad->SetLayerSet( leg_mask2new( m_cu_count, layer_mask ) );
             pad->SetAttribute( attribute );
         }
 
@@ -1267,11 +1556,16 @@ void LEGACY_PLUGIN::loadPAD( MODULE* aModule )
             char    buf[1024];  // can be fairly long
             int     netcode = intParse( line + SZ( "Ne" ), &data );
 
-            pad->SetNet( netcode );
+            // Store the new code mapping
+            pad->SetNetCode( getNetCode( netcode ) );
 
             // read Netname
             ReadDelimitedText( buf, data, sizeof(buf) );
-            pad->SetNetname( FROM_UTF8( StrPurge( buf ) ) );
+#ifndef NDEBUG
+            if( m_board )
+                assert( m_board->FindNet( getNetCode( netcode ) )->GetNetname() ==
+                        FROM_UTF8( StrPurge( buf ) ) );
+#endif /* NDEBUG */
         }
 
         else if( TESTLINE( "Po" ) )         // (Po)sition
@@ -1345,7 +1639,7 @@ void LEGACY_PLUGIN::loadPAD( MODULE* aModule )
 
             pad->SetPosition( padpos + aModule->GetPosition() );
 
-            aModule->m_Pads.PushBack( pad.release() );
+            aModule->Pads().PushBack( pad.release() );
             return;     // preferred exit
         }
     }
@@ -1366,8 +1660,12 @@ void LEGACY_PLUGIN::loadMODULE_EDGE( MODULE* aModule )
     case 'A':   shape = S_ARC;       break;
     case 'P':   shape = S_POLYGON;   break;
     default:
-        m_error.Printf( wxT( "Unknown EDGE_MODULE type '%s' line %d" ),
-                        FROM_UTF8( line ).GetData(), m_reader->LineNumber() );
+        m_error.Printf( wxT( "Unknown EDGE_MODULE type:'%c=0x%02x' on line:%d of module:'%s'" ),
+                        (unsigned char) line[1],
+                        (unsigned char) line[1],
+                        m_reader->LineNumber(),
+                        GetChars( aModule->GetFPID().GetFootprintName() )
+                        );
         THROW_IO_ERROR( m_error );
     }
 
@@ -1376,8 +1674,8 @@ void LEGACY_PLUGIN::loadMODULE_EDGE( MODULE* aModule )
     const char* data;
 
     // common to all cases, and we have to check their values uniformly at end
-    BIU     width = 1;
-    int     layer = FIRST_NON_COPPER_LAYER;
+    BIU         width = 1;
+    LAYER_NUM   layer = FIRST_NON_COPPER_LAYER;
 
     switch( shape )
     {
@@ -1391,7 +1689,7 @@ void LEGACY_PLUGIN::loadMODULE_EDGE( MODULE* aModule )
             double  angle    = degParse( data, &data );
 
             width   = biuParse( data, &data );
-            layer   = intParse( data );
+            layer   = layerParse( data );
 
             dwg->SetAngle( angle );
             dwg->m_Start0 = wxPoint( start0_x, start0_y );
@@ -1411,7 +1709,7 @@ void LEGACY_PLUGIN::loadMODULE_EDGE( MODULE* aModule )
             BIU     end0_y   = biuParse( data, &data );
 
             width   = biuParse( data, &data );
-            layer   = intParse( data );
+            layer   = layerParse( data );
 
             dwg->m_Start0 = wxPoint( start0_x, start0_y );
             dwg->m_End0   = wxPoint( end0_x, end0_y );
@@ -1430,7 +1728,7 @@ void LEGACY_PLUGIN::loadMODULE_EDGE( MODULE* aModule )
             int ptCount  = intParse( data, &data );
 
             width   = biuParse( data, &data );
-            layer   = intParse( data );
+            layer   = layerParse( data );
 
             dwg->m_Start0 = wxPoint( start0_x, start0_y );
             dwg->m_End0   = wxPoint( end0_x, end0_y );
@@ -1481,15 +1779,15 @@ void LEGACY_PLUGIN::loadMODULE_EDGE( MODULE* aModule )
     // can use the copper layers m_Layer < FIRST_NON_COPPER_LAYER is allowed.
     // @todo: changes use of EDGE_MODULE these footprints and allows only
     // m_Layer >= FIRST_NON_COPPER_LAYER
-    if( layer < 0 || layer > LAST_NON_COPPER_LAYER )
+    if( layer < FIRST_LAYER || layer > LAST_NON_COPPER_LAYER )
         layer = SILKSCREEN_N_FRONT;
 
     dwg->SetWidth( width );
-    dwg->SetLayer( layer );
+    dwg->SetLayer( leg_layer2new( m_cu_count,  layer ) );
 
     EDGE_MODULE* em = dwg.release();
 
-    aModule->m_Drawings.PushBack( em );
+    aModule->GraphicalItems().PushBack( em );
 
     // this had been done at the MODULE level before, presumably because the
     // EDGE_MODULE needs to be already added to a module before this function will work.
@@ -1502,6 +1800,7 @@ void LEGACY_PLUGIN::loadMODULE_TEXT( TEXTE_MODULE* aText )
     const char* data;
     const char* txt_end;
     const char* line = m_reader->Line();     // current (old) line
+    char*       saveptr;
 
     // sscanf( line + 1, "%d %d %d %d %d %d %d %s %s %d %s",
     //  &type, &m_Pos0.x, &m_Pos0.y, &m_Size.y, &m_Size.x,
@@ -1540,24 +1839,28 @@ void LEGACY_PLUGIN::loadMODULE_TEXT( TEXTE_MODULE* aText )
 
     // after switching to strtok, there's no easy coming back because of the
     // embedded nul(s?) placed to the right of the current field.
-    char*   mirror  = strtok( (char*) data, delims );
-    char*   hide    = strtok( NULL, delims );
-    char*   tmp     = strtok( NULL, delims );
-    int     layer   = tmp ? intParse( tmp ) : SILKSCREEN_N_FRONT;
-    char*   italic  = strtok( NULL, delims );
+    // (that's the reason why strtok was deprecated...)
+    char*   mirror  = strtok_r( (char*) data, delims, &saveptr );
+    char*   hide    = strtok_r( NULL, delims, &saveptr );
+    char*   tmp     = strtok_r( NULL, delims, &saveptr );
 
-    char*   hjust   = strtok( (char*) txt_end, delims );
-    char*   vjust   = strtok( NULL, delims );
+    LAYER_NUM layer_num = tmp ? layerParse( tmp ) : SILKSCREEN_N_FRONT;
 
-    if( type != TEXT_is_REFERENCE && type != TEXT_is_VALUE )
-        type = TEXT_is_DIVERS;
+    char*   italic  = strtok_r( NULL, delims, &saveptr );
 
-    aText->SetType( type );
+    char*   hjust   = strtok_r( (char*) txt_end, delims, &saveptr );
+    char*   vjust   = strtok_r( NULL, delims, &saveptr );
+
+    if( type != TEXTE_MODULE::TEXT_is_REFERENCE
+     && type != TEXTE_MODULE::TEXT_is_VALUE )
+        type = TEXTE_MODULE::TEXT_is_DIVERS;
+
+    aText->SetType( static_cast<TEXTE_MODULE::TEXT_TYPE>( type ) );
 
     aText->SetPos0( wxPoint( pos0_x, pos0_y ) );
     aText->SetSize( wxSize( size0_x, size0_y ) );
 
-    orient -= ( (MODULE*) aText->GetParent() )->GetOrientation();
+    orient -= ( static_cast<MODULE*>( aText->GetParent() ) )->GetOrientation();
 
     aText->SetOrientation( orient );
 
@@ -1584,16 +1887,16 @@ void LEGACY_PLUGIN::loadMODULE_TEXT( TEXTE_MODULE* aText )
     if( vjust )
         aText->SetVertJustify( vertJustify( vjust ) );
 
-    if( layer < 0 )
-        layer = 0;
-    else if( layer > LAST_NO_COPPER_LAYER )
-        layer = LAST_NO_COPPER_LAYER;
-    else if( layer == LAYER_N_BACK )
-        layer = SILKSCREEN_N_BACK;
-    else if( layer == LAYER_N_FRONT )
-        layer = SILKSCREEN_N_FRONT;
+    if( layer_num < FIRST_LAYER )
+        layer_num = FIRST_LAYER;
+    else if( layer_num > LAST_NON_COPPER_LAYER )
+        layer_num = LAST_NON_COPPER_LAYER;
+    else if( layer_num == LAYER_N_BACK )
+        layer_num = SILKSCREEN_N_BACK;
+    else if( layer_num == LAYER_N_FRONT )
+        layer_num = SILKSCREEN_N_FRONT;
 
-    aText->SetLayer( layer );
+    aText->SetLayer( leg_layer2new( m_cu_count,  layer_num ) );
 
     // Calculate the actual position.
     aText->SetDrawCoord();
@@ -1602,13 +1905,13 @@ void LEGACY_PLUGIN::loadMODULE_TEXT( TEXTE_MODULE* aText )
 
 void LEGACY_PLUGIN::load3D( MODULE* aModule )
 {
-    S3D_MASTER* t3D = aModule->m_3D_Drawings;
+    S3D_MASTER* t3D = aModule->Models();
 
-    if( !t3D->m_Shape3DName.IsEmpty() )
+    if( !t3D->GetShape3DName().IsEmpty() )
     {
         S3D_MASTER* n3D = new S3D_MASTER( aModule );
 
-        aModule->m_3D_Drawings.PushBack( n3D );
+        aModule->Models().PushBack( n3D );
 
         t3D = n3D;
     }
@@ -1620,7 +1923,7 @@ void LEGACY_PLUGIN::load3D( MODULE* aModule )
         {
             char    buf[512];
             ReadDelimitedText( buf, line + SZ( "Na" ), sizeof(buf) );
-            t3D->m_Shape3DName = FROM_UTF8( buf );
+            t3D->SetShape3DName( FROM_UTF8( buf ) );
         }
 
         else if( TESTLINE( "Sc" ) )     // Scale
@@ -1665,7 +1968,9 @@ void LEGACY_PLUGIN::loadPCB_LINE()
     */
 
     auto_ptr<DRAWSEGMENT>   dseg( new DRAWSEGMENT( m_board ) );
-    char*                   line;
+
+    char*   line;
+    char*   saveptr;
 
     while( ( line = READLINE( m_reader ) ) != NULL )
     {
@@ -1695,22 +2000,22 @@ void LEGACY_PLUGIN::loadPCB_LINE()
             BIU     x = 0;
             BIU     y;
 
-            data = strtok( line + SZ( "De" ), delims );
-            for( int i = 0;  data;  ++i, data = strtok( NULL, delims ) )
+            data = strtok_r( line + SZ( "De" ), delims, &saveptr );
+            for( int i = 0;  data;  ++i, data = strtok_r( NULL, delims, &saveptr ) )
             {
                 switch( i )
                 {
                 case 0:
-                    int layer;
-                    layer = intParse( data );
+                    LAYER_NUM layer;
+                    layer = layerParse( data );
 
-                    if( layer < FIRST_NO_COPPER_LAYER )
-                        layer = FIRST_NO_COPPER_LAYER;
+                    if( layer < FIRST_NON_COPPER_LAYER )
+                        layer = FIRST_NON_COPPER_LAYER;
 
-                    else if( layer > LAST_NO_COPPER_LAYER )
-                        layer = LAST_NO_COPPER_LAYER;
+                    else if( layer > LAST_NON_COPPER_LAYER )
+                        layer = LAST_NON_COPPER_LAYER;
 
-                    dseg->SetLayer( layer );
+                    dseg->SetLayer( leg_layer2new( m_cu_count,  layer ) );
                     break;
                 case 1:
                     int mtype;
@@ -1728,9 +2033,9 @@ void LEGACY_PLUGIN::loadPCB_LINE()
                     dseg->SetTimeStamp( timestamp );
                     break;
                 case 4:
-                    int state;
-                    state = hexParse( data );
-                    dseg->SetState( state, ON );
+                    STATUS_FLAGS state;
+                    state = static_cast<STATUS_FLAGS>( hexParse( data ) );
+                    dseg->SetState( state, true );
                     break;
 
                     // Bezier Control Points
@@ -1768,10 +2073,18 @@ void LEGACY_PLUGIN::loadPCB_LINE()
 
 void LEGACY_PLUGIN::loadNETINFO_ITEM()
 {
+    /* a net description is something like
+     * $EQUIPOT
+     * Na 5 "/BIT1"
+     * St ~
+     * $EndEQUIPOT
+     */
+
     char  buf[1024];
 
-    NETINFO_ITEM*   net = new NETINFO_ITEM( m_board );
+    NETINFO_ITEM*   net = NULL;
     char*           line;
+    int             netCode = 0;
 
     while( ( line = READLINE( m_reader ) ) != NULL )
     {
@@ -1781,25 +2094,45 @@ void LEGACY_PLUGIN::loadNETINFO_ITEM()
         {
             // e.g. "Na 58 "/cpu.sch/PAD7"\r\n"
 
-            int tmp = intParse( line + SZ( "Na" ), &data );
-            net->SetNet( tmp );
+            netCode = intParse( line + SZ( "Na" ), &data );
 
             ReadDelimitedText( buf, data, sizeof(buf) );
-            net->SetNetname( FROM_UTF8( buf ) );
+
+            if( net == NULL )
+                net = new NETINFO_ITEM( m_board, FROM_UTF8( buf ), netCode );
+            else
+            {
+                THROW_IO_ERROR( "Two net definitions in  '$EQUIPOT' block" );
+            }
         }
 
         else if( TESTLINE( "$EndEQUIPOT" ) )
         {
             // net 0 should be already in list, so store this net
             // if it is not the net 0, or if the net 0 does not exists.
-            if( net->GetNet() > 0 || m_board->FindNet( 0 ) == NULL )
+            if( net && ( net->GetNet() > 0 || m_board->FindNet( 0 ) == NULL ) )
+            {
                 m_board->AppendNet( net );
+
+                // Be sure we have room to store the net in m_netCodes
+                if( (int)m_netCodes.size() <= netCode )
+                    m_netCodes.resize( netCode+1 );
+
+                m_netCodes[netCode] = net->GetNet();
+                net = NULL;
+            }
             else
+            {
                 delete net;
+                net = NULL;     // Avoid double deletion.
+            }
+
             return;     // preferred exit
         }
     }
 
+    // If we are here, there is an error.
+    delete net;
     THROW_IO_ERROR( "Missing '$EndEQUIPOT'" );
 }
 
@@ -1812,7 +2145,7 @@ void LEGACY_PLUGIN::loadPCB_TEXT()
         $TEXTPCB
         Te "Text example"
         Po 66750 53450 600 800 150 0
-        From 24 1 0 Italic
+        De 24 1 0 Italic
         $EndTEXTPCB
 
         For a multi line text:
@@ -1821,7 +2154,7 @@ void LEGACY_PLUGIN::loadPCB_TEXT()
         Te "Text example"
         Nl "Line 2"
         Po 66750 53450 600 800 150 0
-        From 24 1 0 Italic
+        De 24 1 0 Italic
         $EndTEXTPCB
         Nl "line nn" is a line added to the current text
     */
@@ -1832,7 +2165,8 @@ void LEGACY_PLUGIN::loadPCB_TEXT()
     TEXTE_PCB*  pcbtxt = new TEXTE_PCB( m_board );
     m_board->Add( pcbtxt, ADD_APPEND );
 
-    char*       line;
+    char*   line;
+    char*   saveptr;
 
     while( ( line = READLINE( m_reader ) ) != NULL )
     {
@@ -1885,7 +2219,7 @@ void LEGACY_PLUGIN::loadPCB_TEXT()
             pcbtxt->SetThickness( thickn );
             pcbtxt->SetOrientation( angle );
 
-            pcbtxt->SetPosition( wxPoint( pos_x, pos_y ) );
+            pcbtxt->SetTextPosition( wxPoint( pos_x, pos_y ) );
         }
 
         else if( TESTLINE( "De" ) )
@@ -1893,12 +2227,12 @@ void LEGACY_PLUGIN::loadPCB_TEXT()
             // e.g. "De 21 1 0 Normal C\r\n"
             // sscanf( line + 2, " %d %d %lX %s %c\n", &m_Layer, &normal_display, &m_TimeStamp, style, &hJustify );
 
-            int     layer       = intParse( line + SZ( "De" ), &data );
+            LAYER_NUM layer_num = layerParse( line + SZ( "De" ), &data );
             int     notMirrored = intParse( data, &data );
             time_t  timestamp   = hexParse( data, &data );
-            char*   style       = strtok( (char*) data, delims );
-            char*   hJustify    = strtok( NULL, delims );
-            char*   vJustify    = strtok( NULL, delims );
+            char*   style       = strtok_r( (char*) data, delims, &saveptr );
+            char*   hJustify    = strtok_r( NULL, delims, &saveptr );
+            char*   vJustify    = strtok_r( NULL, delims, &saveptr );
 
             pcbtxt->SetMirrored( !notMirrored );
             pcbtxt->SetTimeStamp( timestamp );
@@ -1915,12 +2249,16 @@ void LEGACY_PLUGIN::loadPCB_TEXT()
             if( vJustify )
                 pcbtxt->SetVertJustify( vertJustify( vJustify ) );
 
-            if( layer < FIRST_COPPER_LAYER )
-                layer = FIRST_COPPER_LAYER;
-            else if( layer > LAST_NO_COPPER_LAYER )
-                layer = LAST_NO_COPPER_LAYER;
+            if( layer_num < FIRST_COPPER_LAYER )
+                layer_num = FIRST_COPPER_LAYER;
+            else if( layer_num > LAST_NON_COPPER_LAYER )
+                layer_num = LAST_NON_COPPER_LAYER;
 
-            pcbtxt->SetLayer( layer );
+            if( layer_num >= FIRST_NON_COPPER_LAYER ||
+                is_leg_copperlayer_valid( m_cu_count, layer_num ) )
+                pcbtxt->SetLayer( leg_layer2new( m_cu_count, layer_num ) );
+            else    // not perfect, but putting this text on front layer is a workaround
+                pcbtxt->SetLayer( F_Cu );
         }
 
         else if( TESTLINE( "$EndTEXTPCB" ) )
@@ -1936,6 +2274,7 @@ void LEGACY_PLUGIN::loadPCB_TEXT()
 void LEGACY_PLUGIN::loadTrackList( int aStructType )
 {
     char*   line;
+    char*   saveptr;
 
     while( ( line = READLINE( m_reader ) ) != NULL )
     {
@@ -1953,7 +2292,7 @@ void LEGACY_PLUGIN::loadTrackList( int aStructType )
 
         assert( TESTLINE( "Po" ) );
 
-        int shape   = intParse( line + SZ( "Po" ), &data );
+        VIATYPE_T viatype = static_cast<VIATYPE_T>( intParse( line + SZ( "Po" ), &data ));
         BIU start_x = biuParse( data, &data );
         BIU start_y = biuParse( data, &data );
         BIU end_x   = biuParse( data, &data );
@@ -1961,7 +2300,7 @@ void LEGACY_PLUGIN::loadTrackList( int aStructType )
         BIU width   = biuParse( data, &data );
 
         // optional 7th drill parameter (must be optional in an old format?)
-        data = strtok( (char*) data, delims );
+        data = strtok_r( (char*) data, delims, &saveptr );
 
         BIU drill   = data ? biuParse( data ) : -1;     // SetDefault() if < 0
 
@@ -1989,35 +2328,38 @@ void LEGACY_PLUGIN::loadTrackList( int aStructType )
 
         int         makeType;
         time_t      timeStamp;
-        int         layer, type, flags, net_code;
+        LAYER_NUM   layer_num;
+        int         type, net_code, flags_int;
 
         // parse the 2nd line to determine the type of object
         // e.g. "De 15 1 7 0 0"   for a via
-        sscanf( line + SZ( "De" ), " %d %d %d %lX %X", &layer, &type, &net_code, &timeStamp, &flags );
+        sscanf( line + SZ( "De" ), " %d %d %d %lX %X", &layer_num, &type, &net_code,
+                &timeStamp, &flags_int );
+
+        STATUS_FLAGS flags;
+
+        flags = static_cast<STATUS_FLAGS>( flags_int );
 
         if( aStructType==PCB_TRACE_T && type==1 )
             makeType = PCB_VIA_T;
         else
             makeType = aStructType;
 
-        TRACK*  newTrack;   // BOARD insert this new one immediately after instantiation
+        TRACK* newTrack;
 
         switch( makeType )
         {
         default:
         case PCB_TRACE_T:
             newTrack = new TRACK( m_board );
-            m_board->m_Track.Append( newTrack );
             break;
 
         case PCB_VIA_T:
-            newTrack = new SEGVIA( m_board );
-            m_board->m_Track.Append( newTrack );
+            newTrack = new VIA( m_board );
             break;
 
         case PCB_ZONE_T:     // this is now deprecated, but exist in old boards
             newTrack = new SEGZONE( m_board );
-            m_board->m_Zone.Append( (SEGZONE*) newTrack );
             break;
         }
 
@@ -2027,23 +2369,55 @@ void LEGACY_PLUGIN::loadTrackList( int aStructType )
         newTrack->SetEnd( wxPoint( end_x, end_y ) );
 
         newTrack->SetWidth( width );
-        newTrack->SetShape( shape );
-
-        if( drill < 0 )
-            newTrack->SetDrillDefault();
-        else
-            newTrack->SetDrill( drill );
-
-        newTrack->SetLayer( layer );
 
         if( makeType == PCB_VIA_T )     // Ensure layers are OK when possible:
         {
-            if( newTrack->GetShape() == VIA_THROUGH )
-                ( (SEGVIA*) newTrack )->SetLayerPair( LAYER_N_FRONT, LAYER_N_BACK );
+            VIA *via = static_cast<VIA*>( newTrack );
+            via->SetViaType( viatype );
+
+            if( drill < 0 )
+                via->SetDrillDefault();
+            else
+                via->SetDrill( drill );
+
+            if( via->GetViaType() == VIA_THROUGH )
+                via->SetLayerPair( F_Cu, B_Cu );
+            else
+            {
+                LAYER_ID  back  = leg_layer2new( m_cu_count, (layer_num >> 4) & 0xf );
+                LAYER_ID  front = leg_layer2new( m_cu_count, layer_num & 0xf );
+
+                if( is_leg_copperlayer_valid( m_cu_count, back ) &&
+                    is_leg_copperlayer_valid( m_cu_count, front ) )
+                    via->SetLayerPair( front, back );
+                else
+                {
+                    delete via;
+                    newTrack = NULL;
+                }
+            }
+        }
+        else
+        {
+            // A few legacy boards can have tracks on non existent layers, because
+            // reducing the number of layers does not remove tracks on removed layers
+            // If happens, skip them
+            if( is_leg_copperlayer_valid( m_cu_count, layer_num ) )
+                newTrack->SetLayer( leg_layer2new( m_cu_count, layer_num ) );
+            else
+            {
+                delete newTrack;
+                newTrack = NULL;
+            }
         }
 
-        newTrack->SetNet( net_code );
-        newTrack->SetState( flags, ON );
+        if( newTrack )
+        {
+            newTrack->SetNetCode( getNetCode( net_code ) );
+            newTrack->SetState( flags, true );
+
+            m_board->Add( newTrack );
+        }
     }
 
     THROW_IO_ERROR( "Missing '$EndTRACK'" );
@@ -2060,7 +2434,7 @@ void LEGACY_PLUGIN::loadNETCLASS()
     // yet since that would bypass duplicate netclass name checking within the BOARD.
     // store it temporarily in an auto_ptr until successfully inserted into the BOARD
     // just before returning.
-    auto_ptr<NETCLASS> nc( new NETCLASS( m_board, wxEmptyString ) );
+    NETCLASSPTR nc = boost::make_shared<NETCLASS>( wxEmptyString );
 
     while( ( line = READLINE( m_reader ) ) != NULL )
     {
@@ -2122,11 +2496,7 @@ void LEGACY_PLUGIN::loadNETCLASS()
 
         else if( TESTLINE( "$EndNCLASS" ) )
         {
-            if( m_board->m_NetClasses.Add( nc.get() ) )
-            {
-                nc.release();
-            }
-            else
+            if( !m_board->GetDesignSettings().m_NetClasses.Add( nc ) )
             {
                 // Must have been a name conflict, this is a bad board file.
                 // User may have done a hand edit to the file.
@@ -2153,6 +2523,7 @@ void LEGACY_PLUGIN::loadZONE_CONTAINER()
     bool    sawCorner = false;
     char    buf[1024];
     char*   line;
+    char*   saveptr;
 
     while( ( line = READLINE( m_reader ) ) != NULL )
     {
@@ -2166,14 +2537,14 @@ void LEGACY_PLUGIN::loadZONE_CONTAINER()
             int flag = intParse( data );
 
             if( !sawCorner )
-                zc->m_Poly->Start( zc->GetLayer(), x, y, outline_hatch );
+                zc->Outline()->Start( zc->GetLayer(), x, y, outline_hatch );
             else
                 zc->AppendCorner( wxPoint( x, y ) );
 
             sawCorner = true;
 
             if( flag )
-                zc->m_Poly->CloseLastContour();
+                zc->Outline()->CloseLastContour();
         }
 
         else if( TESTLINE( "ZInfo" ) )      // general info found
@@ -2191,25 +2562,24 @@ void LEGACY_PLUGIN::loadZONE_CONTAINER()
             // Init the net code only, not the netname, to be sure
             // the zone net name is the name read in file.
             // (When mismatch, the user will be prompted in DRC, to fix the actual name)
-            zc->BOARD_CONNECTED_ITEM::SetNet( netcode );
-            zc->SetNetName( FROM_UTF8( buf ) );     // init the net name here
+            zc->BOARD_CONNECTED_ITEM::SetNetCode( getNetCode( netcode ) );
         }
 
         else if( TESTLINE( "ZLayer" ) )     // layer found
         {
-            int layer = intParse( line + SZ( "ZLayer" ) );
-            zc->SetLayer( layer );
+            LAYER_NUM layer_num = layerParse( line + SZ( "ZLayer" ) );
+            zc->SetLayer( leg_layer2new( m_cu_count,  layer_num ) );
         }
 
         else if( TESTLINE( "ZAux" ) )       // aux info found
         {
             // e.g. "ZAux 7 E"
             int     ignore = intParse( line + SZ( "ZAux" ), &data );
-            char*   hopt   = strtok( (char*) data, delims );
+            char*   hopt   = strtok_r( (char*) data, delims, &saveptr );
 
             if( !hopt )
             {
-                m_error.Printf( wxT( "Bad ZAux for CZONE_CONTAINER '%s'" ), zc->GetNetName().GetData() );
+                m_error.Printf( wxT( "Bad ZAux for CZONE_CONTAINER '%s'" ), zc->GetNetname().GetData() );
                 THROW_IO_ERROR( m_error );
             }
 
@@ -2220,7 +2590,7 @@ void LEGACY_PLUGIN::loadZONE_CONTAINER()
             case 'F':   outline_hatch = CPolyLine::DIAGONAL_FULL;   break;
 
             default:
-                m_error.Printf( wxT( "Bad ZAux for CZONE_CONTAINER '%s'" ), zc->GetNetName().GetData() );
+                m_error.Printf( wxT( "Bad ZAux for CZONE_CONTAINER '%s'" ), zc->GetNetname().GetData() );
                 THROW_IO_ERROR( m_error );
             }
 
@@ -2237,7 +2607,7 @@ void LEGACY_PLUGIN::loadZONE_CONTAINER()
 
             if( smoothing >= ZONE_SETTINGS::SMOOTHING_LAST || smoothing < 0 )
             {
-                m_error.Printf( wxT( "Bad ZSmoothing for CZONE_CONTAINER '%s'" ), zc->GetNetName().GetData() );
+                m_error.Printf( wxT( "Bad ZSmoothing for CZONE_CONTAINER '%s'" ), zc->GetNetname().GetData() );
                 THROW_IO_ERROR( m_error );
             }
 
@@ -2249,27 +2619,27 @@ void LEGACY_PLUGIN::loadZONE_CONTAINER()
         {
             zc->SetIsKeepout( true );
             // e.g. "ZKeepout tracks N vias N pads Y"
-           data = strtok( line + SZ( "ZKeepout" ), delims );
+           data = strtok_r( line + SZ( "ZKeepout" ), delims, &saveptr );
 
             while( data )
             {
                 if( !strcmp( data, "tracks" ) )
                 {
-                    data = strtok( NULL, delims );
+                    data = strtok_r( NULL, delims, &saveptr );
                     zc->SetDoNotAllowTracks( data && *data == 'N' );
                 }
                 else if( !strcmp( data, "vias" ) )
                 {
-                    data = strtok( NULL, delims );
+                    data = strtok_r( NULL, delims, &saveptr );
                     zc->SetDoNotAllowVias( data && *data == 'N' );
                 }
                 else if( !strcmp( data, "copperpour" ) )
                 {
-                    data = strtok( NULL, delims );
+                    data = strtok_r( NULL, delims, &saveptr );
                     zc->SetDoNotAllowCopperPour( data && *data == 'N' );
                 }
 
-                data = strtok( NULL, delims );
+                data = strtok_r( NULL, delims, &saveptr );
             }
         }
 
@@ -2290,8 +2660,8 @@ void LEGACY_PLUGIN::loadZONE_CONTAINER()
             if( arcsegcount >= 32 )
                 arcsegcount = 32;
 
-            zc->SetArcSegCount( arcsegcount );
-            zc->SetIsFilled( fillstate == 'S' ? true : false );
+            zc->SetArcSegmentCount( arcsegcount );
+            zc->SetIsFilled( fillstate == 'S' );
             zc->SetThermalReliefGap( thermalReliefGap );
             zc->SetThermalReliefCopperBridge( thermalReliefCopperBridge );
         }
@@ -2300,19 +2670,19 @@ void LEGACY_PLUGIN::loadZONE_CONTAINER()
         {
             // e.g. "ZClearance 40 I"
             BIU     clearance = biuParse( line + SZ( "ZClearance" ), &data );
-            char*   padoption = strtok( (char*) data, delims );  // data: " I"
+            char*   padoption = strtok_r( (char*) data, delims, &saveptr );  // data: " I"
 
             ZoneConnection popt;
             switch( *padoption )
             {
-            case 'I':   popt = PAD_IN_ZONE;        break;
-            case 'T':   popt = THERMAL_PAD;        break;
-            case 'H':   popt = THT_THERMAL;        break;
-            case 'X':   popt = PAD_NOT_IN_ZONE;    break;
+            case 'I': popt = PAD_ZONE_CONN_FULL;        break;
+            case 'T': popt = PAD_ZONE_CONN_THERMAL;     break;
+            case 'H': popt = PAD_ZONE_CONN_THT_THERMAL; break;
+            case 'X': popt = PAD_ZONE_CONN_NONE;        break;
 
             default:
                 m_error.Printf( wxT( "Bad ZClearance padoption for CZONE_CONTAINER '%s'" ),
-                    zc->GetNetName().GetData() );
+                    zc->GetNetname().GetData() );
                 THROW_IO_ERROR( m_error );
             }
 
@@ -2335,7 +2705,9 @@ void LEGACY_PLUGIN::loadZONE_CONTAINER()
         else if( TESTLINE( "$POLYSCORNERS" ) )
         {
             // Read the PolysList (polygons used for fill areas in the zone)
-            std::vector<CPolyPt> polysList;
+            SHAPE_POLY_SET polysList;
+
+            bool makeNewOutline = true;
 
             while( ( line = READLINE( m_reader ) ) != NULL )
             {
@@ -2346,11 +2718,17 @@ void LEGACY_PLUGIN::loadZONE_CONTAINER()
                 BIU     x = biuParse( line, &data );
                 BIU     y = biuParse( data, &data );
 
-                bool    end_contour = intParse( data, &data );  // end_countour was a bool when file saved, so '0' or '1' here
-                int     utility     = intParse( data );
+                if( makeNewOutline )
+                    polysList.NewOutline();
 
-               polysList.push_back( CPolyPt( x, y, end_contour, utility ) );
+                polysList.Append( x, y );
+
+                bool end_contour = intParse( data, &data );  // end_countour was a bool when file saved, so '0' or '1' here
+                intParse( data ); // skip corner utility flag
+
+                makeNewOutline = end_contour;
             }
+
             zc->AddFilledPolysList( polysList );
         }
 
@@ -2367,9 +2745,7 @@ void LEGACY_PLUGIN::loadZONE_CONTAINER()
                 BIU ex = biuParse( data, &data );
                 BIU ey = biuParse( data );
 
-                zc->m_FillSegmList.push_back( SEGMENT(
-                        wxPoint( sx, sy ),
-                        wxPoint( ex, ey ) ) );
+                zc->FillSegments().push_back( SEGMENT( wxPoint( sx, sy ), wxPoint( ex, ey ) ) );
             }
         }
 
@@ -2378,10 +2754,7 @@ void LEGACY_PLUGIN::loadZONE_CONTAINER()
             // Ensure keepout does not have a net
             // (which have no sense for a keepout zone)
             if( zc->GetIsKeepout() )
-            {
-                zc->SetNet(0);
-                zc->SetNetName( wxEmptyString );
-            }
+                zc->SetNetCode( NETINFO_LIST::UNCONNECTED );
 
             // should always occur, but who knows, a zone without two corners
             // is no zone at all, it's a spot?
@@ -2391,14 +2764,14 @@ void LEGACY_PLUGIN::loadZONE_CONTAINER()
                 if( !zc->IsOnCopperLayer() )
                 {
                     zc->SetFillMode( 0 );
-                    zc->SetNet( 0 );
+                    zc->SetNetCode( NETINFO_LIST::UNCONNECTED );
                 }
 
                 // Hatch here, after outlines corners are read
                 // Set hatch here, after outlines corners are read
-                zc->m_Poly->SetHatch( outline_hatch,
-                                      Mils2iu( CPolyLine::GetDefaultHatchPitchMils() ),
-                                      true );
+                zc->Outline()->SetHatch( outline_hatch,
+                                         Mils2iu( CPolyLine::GetDefaultHatchPitchMils() ),
+                                         true );
 
                 m_board->Add( zc.release() );
             }
@@ -2414,7 +2787,9 @@ void LEGACY_PLUGIN::loadZONE_CONTAINER()
 void LEGACY_PLUGIN::loadDIMENSION()
 {
     auto_ptr<DIMENSION> dim( new DIMENSION( m_board ) );
-    char*               line;
+
+    char*   line;
+    char*   saveptr;
 
     while( ( line = READLINE( m_reader ) ) != NULL )
     {
@@ -2429,24 +2804,26 @@ void LEGACY_PLUGIN::loadDIMENSION()
         else if( TESTLINE( "Va" ) )
         {
             BIU value = biuParse( line + SZ( "Va" ) );
-            dim->m_Value = value;
+            dim->SetValue( value );
         }
 
         else if( TESTLINE( "Ge" ) )
         {
-            int     layer;
+            LAYER_NUM layer_num;
             time_t  timestamp;
             int     shape;
+            int     ilayer;
 
-            sscanf( line + SZ( "Ge" ), " %d %d %lX", &shape, &layer, &timestamp );
+            sscanf( line + SZ( "Ge" ), " %d %d %lX", &shape, &ilayer, &timestamp );
 
-            if( layer < FIRST_NO_COPPER_LAYER )
-                layer = FIRST_NO_COPPER_LAYER;
+            if( ilayer < FIRST_NON_COPPER_LAYER )
+                layer_num = FIRST_NON_COPPER_LAYER;
+            else if( ilayer > LAST_NON_COPPER_LAYER )
+                layer_num = LAST_NON_COPPER_LAYER;
+            else
+                layer_num = ilayer;
 
-            else if( layer > LAST_NO_COPPER_LAYER )
-                layer = LAST_NO_COPPER_LAYER;
-
-            dim->SetLayer( layer );
+            dim->SetLayer( leg_layer2new( m_cu_count,  layer_num ) );
             dim->SetTimeStamp( timestamp );
             dim->SetShape( shape );
         }
@@ -2456,7 +2833,7 @@ void LEGACY_PLUGIN::loadDIMENSION()
             char  buf[2048];
 
             ReadDelimitedText( buf, line + SZ( "Te" ), sizeof(buf) );
-            dim->m_Text.SetText( FROM_UTF8( buf ) );
+            dim->SetText( FROM_UTF8( buf ) );
         }
 
         else if( TESTLINE( "Po" ) )
@@ -2470,17 +2847,16 @@ void LEGACY_PLUGIN::loadDIMENSION()
             BIU     height = biuParse( data, &data );
             BIU     thickn = biuParse( data, &data );
             double  orient = degParse( data, &data );
-            char*   mirror = strtok( (char*) data, delims );
+            char*   mirror = strtok_r( (char*) data, delims, &saveptr );
 
             // This sets both DIMENSION's position and internal m_Text's.
             // @todo: But why do we even know about internal m_Text?
             dim->SetPosition( wxPoint( pos_x, pos_y ) );
             dim->SetTextSize( wxSize( width, height ) );
 
-            dim->m_Text.SetMirrored( mirror && *mirror == '0' );
-
-            dim->m_Text.SetThickness( thickn );
-            dim->m_Text.SetOrientation( orient );
+            dim->Text().SetMirrored( mirror && *mirror == '0' );
+            dim->Text().SetThickness( thickn );
+            dim->Text().SetOrientation( orient );
         }
 
         else if( TESTLINE( "Sb" ) )
@@ -2498,7 +2874,7 @@ void LEGACY_PLUGIN::loadDIMENSION()
             dim->m_crossBarO.y = crossBarOy;
             dim->m_crossBarF.x = crossBarFx;
             dim->m_crossBarF.y = crossBarFy;
-            dim->m_Width = width;
+            dim->SetWidth( width );
             (void) ignore;
         }
 
@@ -2541,13 +2917,11 @@ void LEGACY_PLUGIN::loadDIMENSION()
             // sscanf( Line + 2, " %d %d %d %d %d %d", &Dummy, &m_arrowD1Ox, &m_arrowD1Oy, &m_arrowD1Fx, &m_arrowD1Fy, &Dummy );
 
             int ignore      = intParse( line + SZ( "S1" ), &data );
-            BIU arrowD10x   = biuParse( data, &data );
-            BIU arrowD10y   = biuParse( data, &data );
+            biuParse( data, &data );    // skipping excessive data
+            biuParse( data, &data );    // skipping excessive data
             BIU arrowD1Fx   = biuParse( data, &data );
             BIU arrowD1Fy   = biuParse( data );
 
-            dim->m_arrowD1O.x = arrowD10x;
-            dim->m_arrowD1O.y = arrowD10y;
             dim->m_arrowD1F.x = arrowD1Fx;
             dim->m_arrowD1F.y = arrowD1Fy;
             (void) ignore;
@@ -2558,13 +2932,11 @@ void LEGACY_PLUGIN::loadDIMENSION()
             // sscanf( Line + 2, " %d %d %d %d %d %d", &Dummy, &m_arrowD2Ox, &m_arrowD2Oy, &m_arrowD2Fx, &m_arrowD2Fy, &Dummy );
 
             int ignore    = intParse( line + SZ( "S2" ), &data );
-            BIU arrowD2Ox = biuParse( data, &data );
-            BIU arrowD2Oy = biuParse( data, &data );
+            biuParse( data, &data );    // skipping excessive data
+            biuParse( data, &data );    // skipping excessive data
             BIU arrowD2Fx = biuParse( data, &data );
             BIU arrowD2Fy = biuParse( data, &data );
 
-            dim->m_arrowD2O.x = arrowD2Ox;
-            dim->m_arrowD2O.y = arrowD2Oy;
             dim->m_arrowD2F.x = arrowD2Fx;
             dim->m_arrowD2F.y = arrowD2Fy;
             (void) ignore;
@@ -2574,13 +2946,11 @@ void LEGACY_PLUGIN::loadDIMENSION()
         {
             // sscanf( Line + 2, " %d %d %d %d %d %d\n", &Dummy, &m_arrowG1Ox, &m_arrowG1Oy, &m_arrowG1Fx, &m_arrowG1Fy, &Dummy );
             int ignore    = intParse( line + SZ( "S3" ), &data );
-            BIU arrowG1Ox = biuParse( data, &data );
-            BIU arrowG1Oy = biuParse( data, &data );
+            biuParse( data, &data );    // skipping excessive data
+            biuParse( data, &data );    // skipping excessive data
             BIU arrowG1Fx = biuParse( data, &data );
             BIU arrowG1Fy = biuParse( data, &data );
 
-            dim->m_arrowG1O.x = arrowG1Ox;
-            dim->m_arrowG1O.y = arrowG1Oy;
             dim->m_arrowG1F.x = arrowG1Fx;
             dim->m_arrowG1F.y = arrowG1Fy;
             (void) ignore;
@@ -2590,13 +2960,11 @@ void LEGACY_PLUGIN::loadDIMENSION()
         {
             // sscanf( Line + 2, " %d %d %d %d %d %d", &Dummy, &m_arrowG2Ox, &m_arrowG2Oy, &m_arrowG2Fx, &m_arrowG2Fy, &Dummy );
             int ignore    = intParse( line + SZ( "S4" ), &data );
-            BIU arrowG2Ox = biuParse( data, &data );
-            BIU arrowG2Oy = biuParse( data, &data );
+            biuParse( data, &data );    // skipping excessive data
+            biuParse( data, &data );    // skipping excessive data
             BIU arrowG2Fx = biuParse( data, &data );
             BIU arrowG2Fy = biuParse( data, &data );
 
-            dim->m_arrowG2O.x = arrowG2Ox;
-            dim->m_arrowG2O.y = arrowG2Oy;
             dim->m_arrowG2F.x = arrowG2Fx;
             dim->m_arrowG2F.y = arrowG2Fy;
             (void) ignore;
@@ -2625,20 +2993,23 @@ void LEGACY_PLUGIN::loadPCB_TARGET()
             // sscanf( Line + 2, " %X %d %d %d %d %d %lX", &m_Shape, &m_Layer, &m_Pos.x, &m_Pos.y, &m_Size, &m_Width, &m_TimeStamp );
 
             int shape = intParse( line + SZ( "Po" ), &data );
-            int layer = intParse( data, &data );
+
+            LAYER_NUM layer_num = layerParse( data, &data );
+
             BIU pos_x = biuParse( data, &data );
             BIU pos_y = biuParse( data, &data );
             BIU size  = biuParse( data, &data );
             BIU width = biuParse( data, &data );
             time_t timestamp = hexParse( data );
 
-            if( layer < FIRST_NO_COPPER_LAYER )
-                layer = FIRST_NO_COPPER_LAYER;
+            if( layer_num < FIRST_NON_COPPER_LAYER )
+                layer_num = FIRST_NON_COPPER_LAYER;
 
-            else if( layer > LAST_NO_COPPER_LAYER )
-                layer = LAST_NO_COPPER_LAYER;
+            else if( layer_num > LAST_NON_COPPER_LAYER )
+                layer_num = LAST_NON_COPPER_LAYER;
 
-            PCB_TARGET* t = new PCB_TARGET( m_board, shape, layer, wxPoint( pos_x, pos_y ), size, width );
+            PCB_TARGET* t = new PCB_TARGET( m_board, shape, leg_layer2new( m_cu_count,  layer_num ),
+                                    wxPoint( pos_x, pos_y ), size, width );
             m_board->Add( t, ADD_APPEND );
 
             t->SetTimeStamp( timestamp );
@@ -2648,6 +3019,147 @@ void LEGACY_PLUGIN::loadPCB_TARGET()
     THROW_IO_ERROR( "Missing '$EndDIMENSION'" );
 }
 
+
+BIU LEGACY_PLUGIN::biuParse( const char* aValue, const char** nptrptr )
+{
+    char*   nptr;
+
+    errno = 0;
+
+    double fval = strtod( aValue, &nptr );
+
+    if( errno )
+    {
+        m_error.Printf( _( "invalid float number in file: '%s'\nline: %d, offset: %d" ),
+            m_reader->GetSource().GetData(),
+            m_reader->LineNumber(), aValue - m_reader->Line() + 1 );
+
+        THROW_IO_ERROR( m_error );
+    }
+
+    if( aValue == nptr )
+    {
+        m_error.Printf( _( "missing float number in file: '%s'\nline: %d, offset: %d" ),
+            m_reader->GetSource().GetData(),
+            m_reader->LineNumber(), aValue - m_reader->Line() + 1 );
+
+        THROW_IO_ERROR( m_error );
+    }
+
+    if( nptrptr )
+        *nptrptr = nptr;
+
+    fval *= diskToBiu;
+
+    // fval is up into the whole number realm here, and should be bounded
+    // within INT_MIN to INT_MAX since BIU's are nanometers.
+    return KiROUND( fval );
+}
+
+
+double LEGACY_PLUGIN::degParse( const char* aValue, const char** nptrptr )
+{
+    char*   nptr;
+
+    errno = 0;
+
+    double fval = strtod( aValue, &nptr );
+
+    if( errno )
+    {
+        m_error.Printf( _( "invalid float number in file: '%s'\nline: %d, offset: %d" ),
+            m_reader->GetSource().GetData(), m_reader->LineNumber(), aValue - m_reader->Line() + 1 );
+
+        THROW_IO_ERROR( m_error );
+    }
+
+    if( aValue == nptr )
+    {
+        m_error.Printf( _( "missing float number in file: '%s'\nline: %d, offset: %d" ),
+            m_reader->GetSource().GetData(), m_reader->LineNumber(), aValue - m_reader->Line() + 1 );
+
+        THROW_IO_ERROR( m_error );
+    }
+
+    if( nptrptr )
+        *nptrptr = nptr;
+
+    return fval;
+}
+
+
+void LEGACY_PLUGIN::init( const PROPERTIES* aProperties )
+{
+    m_loading_format_version = 0;
+    m_cu_count = 16;
+    m_board = NULL;
+    m_props = aProperties;
+
+    // conversion factor for saving RAM BIUs to KICAD legacy file format.
+    biuToDisk = 1.0/IU_PER_MM;      // BIUs are nanometers & file is mm
+
+    // Conversion factor for loading KICAD legacy file format into BIUs in RAM
+    // Start by assuming the *.brd file is in deci-mils.
+    // If we see "Units mm" in the $GENERAL section, set diskToBiu to 1000000.0
+    // then, during the file loading process, to start a conversion from
+    // mm to nanometers.  The deci-mil legacy files have no such "Units" marker
+    // so we must assume the file is in deci-mils until told otherwise.
+
+    diskToBiu = IU_PER_DECIMILS;    // BIUs are nanometers
+}
+
+
+void LEGACY_PLUGIN::SaveModule3D( const MODULE* me ) const
+{
+    for( S3D_MASTER* t3D = me->Models();  t3D;  t3D = t3D->Next() )
+    {
+        if( !t3D->GetShape3DName().IsEmpty() )
+        {
+            fprintf( m_fp, "$SHAPE3D\n" );
+
+            fprintf( m_fp, "Na %s\n", EscapedUTF8( t3D->GetShape3DName() ).c_str() );
+
+            fprintf(m_fp,
+#if defined(DEBUG)
+                    // use old formats for testing, just to verify compatibility
+                    // using "diff", then switch to more concise form for release builds.
+                    "Sc %lf %lf %lf\n",
+#else
+                    "Sc %.10g %.10g %.10g\n",
+#endif
+                    t3D->m_MatScale.x,
+                    t3D->m_MatScale.y,
+                    t3D->m_MatScale.z );
+
+            fprintf(m_fp,
+#if defined(DEBUG)
+                    "Of %lf %lf %lf\n",
+#else
+                    "Of %.10g %.10g %.10g\n",
+#endif
+                    t3D->m_MatPosition.x,
+                    t3D->m_MatPosition.y,
+                    t3D->m_MatPosition.z );
+
+            fprintf(m_fp,
+#if defined(DEBUG)
+                    "Ro %lf %lf %lf\n",
+#else
+                    "Ro %.10g %.10g %.10g\n",
+#endif
+                    t3D->m_MatRotation.x,
+                    t3D->m_MatRotation.y,
+                    t3D->m_MatRotation.z );
+
+            fprintf( m_fp, "$EndSHAPE3D\n" );
+        }
+    }
+}
+
+
+#if 0
+
+//-----<BOARD Save Functions>---------------------------------------------------
 
 #define SPBUFZ  50      // wire all usages of this together.
 
@@ -2719,100 +3231,7 @@ std::string LEGACY_PLUGIN::fmtBIUPair( BIU first, BIU second ) const
     return std::string( temp, cp - temp );
 }
 
-
-BIU LEGACY_PLUGIN::biuParse( const char* aValue, const char** nptrptr )
-{
-    char*   nptr;
-
-    errno = 0;
-
-    double fval = strtod( aValue, &nptr );
-
-    if( errno )
-    {
-        m_error.Printf( _( "invalid float number in\nfile: '%s'\nline: %d\noffset: %d" ),
-            m_reader->GetSource().GetData(), m_reader->LineNumber(), aValue - m_reader->Line() + 1 );
-
-        THROW_IO_ERROR( m_error );
-    }
-
-    if( aValue == nptr )
-    {
-        m_error.Printf( _( "missing float number in\nfile: '%s'\nline: %d\noffset: %d" ),
-            m_reader->GetSource().GetData(), m_reader->LineNumber(), aValue - m_reader->Line() + 1 );
-
-        THROW_IO_ERROR( m_error );
-    }
-
-    if( nptrptr )
-        *nptrptr = nptr;
-
-    fval *= diskToBiu;
-
-    // fval is up into the whole number realm here, and should be bounded
-    // within INT_MIN to INT_MAX since BIU's are nanometers.
-    return KiROUND( fval );
-}
-
-
-double LEGACY_PLUGIN::degParse( const char* aValue, const char** nptrptr )
-{
-    char*   nptr;
-
-    errno = 0;
-
-    double fval = strtod( aValue, &nptr );
-
-    if( errno )
-    {
-        m_error.Printf( _( "invalid float number in\nfile: '%s'\nline: %d\noffset: %d" ),
-            m_reader->GetSource().GetData(), m_reader->LineNumber(), aValue - m_reader->Line() + 1 );
-
-        THROW_IO_ERROR( m_error );
-    }
-
-    if( aValue == nptr )
-    {
-        m_error.Printf( _( "missing float number in\nfile: '%s'\nline: %d\noffset: %d" ),
-            m_reader->GetSource().GetData(), m_reader->LineNumber(), aValue - m_reader->Line() + 1 );
-
-        THROW_IO_ERROR( m_error );
-    }
-
-    if( nptrptr )
-        *nptrptr = nptr;
-
-    return fval;
-}
-
-
-void LEGACY_PLUGIN::init( PROPERTIES* aProperties )
-{
-    m_board = NULL;
-    m_props = aProperties;
-
-    // conversion factor for saving RAM BIUs to KICAD legacy file format.
-#if defined( USE_PCBNEW_NANOMETRES )
-    biuToDisk = 1.0/IU_PER_MM;      // BIUs are nanometers & file is mm
-#else
-    biuToDisk = 1.0;                // BIUs are deci-mils
-#endif
-
-    // Conversion factor for loading KICAD legacy file format into BIUs in RAM
-    // Start by assuming the *.brd file is in deci-mils.
-    // If we see "Units mm" in the $GENERAL section, set diskToBiu to 1000000.0
-    // then, during the file loading process, to start a conversion from
-    // mm to nanometers.  The deci-mil legacy files have no such "Units" marker
-    // so we must assume the file is in deci-mils until told otherwise.
-
-    diskToBiu = IU_PER_DECIMILS;    // BIUs are nanometers if defined(USE_PCBNEW_NANOMETRES)
-                                    // else are deci-mils
-}
-
-
-//-----<BOARD Save Functions>---------------------------------------------------
-
-void LEGACY_PLUGIN::Save( const wxString& aFileName, BOARD* aBoard, PROPERTIES* aProperties )
+void LEGACY_PLUGIN::Save( const wxString& aFileName, BOARD* aBoard, const PROPERTIES* aProperties )
 {
     LOCALE_IO   toggle;     // toggles on, then off, the C locale.
 
@@ -2832,17 +3251,6 @@ void LEGACY_PLUGIN::Save( const wxString& aFileName, BOARD* aBoard, PROPERTIES* 
 
     m_fp = fp;          // member function accessibility
 
-#if 0   // old school, property "header" was not used by any other plugin.
-    if( m_props )
-    {
-        wxString header = (*m_props)["header"];
-
-        // save a file header, if caller provided one (with trailing \n hopefully).
-        fprintf( m_fp, "%s", TO_UTF8( header ) );
-    }
-
-#else
-
     wxString header = wxString::Format(
         wxT( "PCBNEW-BOARD Version %d date %s\n\n# Created by Pcbnew%s\n\n" ),
         LEGACY_BOARD_FILE_VERSION, DateAndTime().GetData(),
@@ -2850,7 +3258,6 @@ void LEGACY_PLUGIN::Save( const wxString& aFileName, BOARD* aBoard, PROPERTIES* 
 
     // save a file header, if caller provided one (with trailing \n hopefully).
     fprintf( m_fp, "%s", TO_UTF8( header ) );
-#endif
 
     SaveBOARD( aBoard );
 }
@@ -2870,8 +3277,13 @@ do { \
 } while(0)
 
 
+// With the advent of the LSET expansion it was agreed to abort the legacy save since
+// we'd have to expand the old format in order to suppor the new LAYER_IDs.
+
 void LEGACY_PLUGIN::SaveBOARD( const BOARD* aBoard ) const
 {
+    m_mapping->SetBoard( aBoard );
+
     saveGENERAL( aBoard );
 
     saveSHEET( aBoard );
@@ -2888,11 +3300,7 @@ void LEGACY_PLUGIN::saveGENERAL( const BOARD* aBoard ) const
     fprintf( m_fp, "encoding utf-8\n" );
 
     // tell folks the units used within the file, as early as possible here.
-#if defined( USE_PCBNEW_NANOMETRES )
     fprintf( m_fp, "Units mm\n" );
-#else
-    fprintf( m_fp, "Units deci-mils\n" );
-#endif
 
     // Write copper layer count
     fprintf( m_fp, "LayerCount %d\n", aBoard->GetCopperLayerCount() );
@@ -2924,7 +3332,7 @@ void LEGACY_PLUGIN::saveGENERAL( const BOARD* aBoard ) const
     fprintf( m_fp, "Nzone %d\n",            aBoard->GetNumSegmZone() );
     fprintf( m_fp, "BoardThickness %s\n",   fmtBIU( aBoard->GetDesignSettings().GetBoardThickness() ).c_str() );
     fprintf( m_fp, "Nmodule %d\n",          aBoard->m_Modules.GetCount() );
-    fprintf( m_fp, "Nnets %d\n",            aBoard->GetNetCount() );
+    fprintf( m_fp, "Nnets %d\n",            m_mapping->GetSize() );
     fprintf( m_fp, "$EndGENERAL\n\n" );
 }
 
@@ -2959,8 +3367,8 @@ void LEGACY_PLUGIN::saveSHEET( const BOARD* aBoard ) const
 
 void LEGACY_PLUGIN::saveSETUP( const BOARD* aBoard ) const
 {
-    NETCLASS* netclass_default       = aBoard->m_NetClasses.GetDefault();
     const BOARD_DESIGN_SETTINGS& bds = aBoard->GetDesignSettings();
+    NETCLASSPTR netclass_default     = bds.GetDefault();
 
     fprintf( m_fp, "$SETUP\n" );
 
@@ -2973,9 +3381,9 @@ void LEGACY_PLUGIN::saveSETUP( const BOARD* aBoard ) const
 
     unsigned layerMask = ALL_CU_LAYERS & aBoard->GetEnabledLayers();
 
-    for( int layer = 0;  layerMask;  ++layer, layerMask >>= 1 )
+    for( LAYER_NUM layer = FIRST_LAYER; layer <= LAST_COPPER_LAYER; ++layer )
     {
-        if( layerMask & 1 )
+        if( layerMask & MASK( layer ) )
         {
             fprintf( m_fp, "Layer[%d] %s %s\n", layer,
                      TO_UTF8( aBoard->GetLayerName( layer ) ),
@@ -2984,11 +3392,12 @@ void LEGACY_PLUGIN::saveSETUP( const BOARD* aBoard ) const
     }
 
     // Save current default track width, for compatibility with older Pcbnew version;
-    fprintf( m_fp, "TrackWidth %s\n",  fmtBIU( aBoard->GetCurrentTrackWidth() ).c_str() );
+    fprintf( m_fp, "TrackWidth %s\n",
+             fmtBIU( aBoard->GetDesignSettings().GetCurrentTrackWidth() ).c_str() );
 
     // Save custom tracks width list (the first is not saved here: this is the netclass value
-    for( unsigned ii = 1; ii < aBoard->m_TrackWidthList.size(); ii++ )
-        fprintf( m_fp, "TrackWidthList %s\n", fmtBIU( aBoard->m_TrackWidthList[ii] ).c_str() );
+    for( unsigned ii = 1; ii < aBoard->GetDesignSettings().m_TrackWidthList.size(); ii++ )
+        fprintf( m_fp, "TrackWidthList %s\n", fmtBIU( aBoard->GetDesignSettings().m_TrackWidthList[ii] ).c_str() );
 
     fprintf( m_fp, "TrackClearence %s\n",  fmtBIU( netclass_default->GetClearance() ).c_str() );
 
@@ -3009,10 +3418,10 @@ void LEGACY_PLUGIN::saveSETUP( const BOARD* aBoard ) const
 
     // Save custom vias diameters list (the first is not saved here: this is
     // the netclass value
-    for( unsigned ii = 1; ii < aBoard->m_ViasDimensionsList.size(); ii++ )
+    for( unsigned ii = 1; ii < aBoard->GetDesignSettings().m_ViasDimensionsList.size(); ii++ )
         fprintf( m_fp, "ViaSizeList %s %s\n",
-                 fmtBIU( aBoard->m_ViasDimensionsList[ii].m_Diameter ).c_str(),
-                 fmtBIU( aBoard->m_ViasDimensionsList[ii].m_Drill ).c_str() );
+                 fmtBIU( aBoard->GetDesignSettings().m_ViasDimensionsList[ii].m_Diameter ).c_str(),
+                 fmtBIU( aBoard->GetDesignSettings().m_ViasDimensionsList[ii].m_Drill ).c_str() );
 
     // for old versions compatibility:
     fprintf( m_fp, "MicroViaSize %s\n", fmtBIU( netclass_default->GetuViaDiameter() ).c_str() );
@@ -3040,14 +3449,8 @@ void LEGACY_PLUGIN::saveSETUP( const BOARD* aBoard ) const
     if( bds.m_SolderPasteMarginRatio != 0 )
         fprintf( m_fp, "Pad2PasteClearanceRatio %g\n", bds.m_SolderPasteMarginRatio );
 
-    /* @todo no aFrame
-    if ( aFrame->GetScreen()->m_GridOrigin != wxPoint( 0, 0 ) )
-    {
-        fprintf( m_fp, "GridOrigin %s\n", fmtBIUPoint( aFrame->GetScreen()->m_GridOrigin ).c_str() );
-    }
-    */
-
-    fprintf( m_fp, "AuxiliaryAxisOrg %s\n", fmtBIUPoint( aBoard->GetOriginAxisPosition() ).c_str() );
+    fprintf( m_fp, "GridOrigin %s\n", fmtBIUPoint( aBoard->GetGridOrigin() ).c_str() );
+    fprintf( m_fp, "AuxiliaryAxisOrg %s\n", fmtBIUPoint( aBoard->GetAuxOrigin() ).c_str() );
 
     fprintf( m_fp, "VisibleElements %X\n", bds.GetVisibleElements() );
 
@@ -3071,16 +3474,18 @@ void LEGACY_PLUGIN::saveSETUP( const BOARD* aBoard ) const
 void LEGACY_PLUGIN::saveBOARD_ITEMS( const BOARD* aBoard ) const
 {
     // save the nets
-    int netcount = aBoard->GetNetCount();
-    for( int i = 0; i < netcount;  ++i )
-        saveNETINFO_ITEM( aBoard->FindNet( i ) );
+    for( NETINFO_MAPPING::iterator net = m_mapping->begin(), netEnd = m_mapping->end();
+            net != netEnd; ++net )
+    {
+        saveNETINFO_ITEM( *net );
+    }
 
     // Saved nets do not include netclass names, so save netclasses after nets.
-    saveNETCLASSES( &aBoard->m_NetClasses );
+    saveNETCLASSES( &aBoard->GetDesignSettings().m_NetClasses );
 
     // save the modules
     for( MODULE* m = aBoard->m_Modules;  m;  m = (MODULE*) m->Next() )
-        SaveMODULE( m );
+        saveMODULE( m );
 
     // save the graphics owned by the board (not owned by a module)
     for( BOARD_ITEM* gr = aBoard->m_Drawings;  gr;  gr = gr->Next() )
@@ -3097,7 +3502,7 @@ void LEGACY_PLUGIN::saveBOARD_ITEMS( const BOARD* aBoard ) const
             savePCB_TARGET( (PCB_TARGET*) gr );
             break;
         case PCB_DIMENSION_T:
-            saveDIMENTION( (DIMENSION*) gr );
+            saveDIMENSION( (DIMENSION*) gr );
             break;
         default:
             THROW_IO_ERROR( wxString::Format( UNKNOWN_GRAPHIC_FORMAT, gr->Type() ) );
@@ -3131,7 +3536,8 @@ void LEGACY_PLUGIN::saveBOARD_ITEMS( const BOARD* aBoard ) const
 void LEGACY_PLUGIN::saveNETINFO_ITEM( const NETINFO_ITEM* aNet ) const
 {
     fprintf( m_fp, "$EQUIPOT\n" );
-    fprintf( m_fp, "Na %d %s\n", aNet->GetNet(), EscapedUTF8( aNet->GetNetname() ).c_str() );
+    fprintf( m_fp, "Na %d %s\n", m_mapping->Translate( aNet->GetNet() ),
+                                 EscapedUTF8( aNet->GetNetname() ).c_str() );
     fprintf( m_fp, "St %s\n", "~" );
     fprintf( m_fp, "$EndEQUIPOT\n" );
 
@@ -3147,7 +3553,7 @@ void LEGACY_PLUGIN::saveNETCLASSES( const NETCLASSES* aNetClasses ) const
     // the rest will be alphabetical in the *.brd file.
     for( NETCLASSES::const_iterator it = aNetClasses->begin();  it != aNetClasses->end();  ++it )
     {
-        NETCLASS*   netclass = it->second;
+        NETCLASSPTR   netclass = it->second;
         saveNETCLASS( netclass );
     }
 
@@ -3155,7 +3561,7 @@ void LEGACY_PLUGIN::saveNETCLASSES( const NETCLASSES* aNetClasses ) const
 }
 
 
-void LEGACY_PLUGIN::saveNETCLASS( const NETCLASS* nc ) const
+void LEGACY_PLUGIN::saveNETCLASS( const NETCLASSPTR nc ) const
 {
     fprintf( m_fp, "$NCLASS\n" );
     fprintf( m_fp, "Name %s\n", EscapedUTF8( nc->GetName() ).c_str() );
@@ -3283,10 +3689,10 @@ void LEGACY_PLUGIN::savePAD( const D_PAD* me ) const
 
     switch( me->GetShape() )
     {
-    case PAD_CIRCLE:    cshape = 'C';   break;
-    case PAD_RECT:      cshape = 'R';   break;
-    case PAD_OVAL:      cshape = 'O';   break;
-    case PAD_TRAPEZOID: cshape = 'T';   break;
+    case PAD_SHAPE_CIRCLE:    cshape = 'C';   break;
+    case PAD_SHAPE_RECT:      cshape = 'R';   break;
+    case PAD_SHAPE_OVAL:      cshape = 'O';   break;
+    case PAD_SHAPE_TRAPEZOID: cshape = 'T';   break;
 
     default:
         THROW_IO_ERROR( wxString::Format( UNKNOWN_PAD_FORMAT, me->GetShape() ) );
@@ -3326,7 +3732,7 @@ void LEGACY_PLUGIN::savePAD( const D_PAD* me ) const
                     fmtBIU( me->GetDrillSize().x ).c_str(),
                     fmtBIUPoint( me->GetOffset() ).c_str() );
 
-    if( me->GetDrillShape() == PAD_OVAL )
+    if( me->GetDrillShape() == PAD_DRILL_SHAPE_OBLONG )
     {
         fprintf( m_fp, " %c %s", 'O', fmtBIUSize( me->GetDrillSize() ).c_str() );
     }
@@ -3337,18 +3743,19 @@ void LEGACY_PLUGIN::savePAD( const D_PAD* me ) const
 
     switch( me->GetAttribute() )
     {
-    case PAD_STANDARD:          texttype = "STD";       break;
-    case PAD_SMD:               texttype = "SMD";       break;
-    case PAD_CONN:              texttype = "CONN";      break;
-    case PAD_HOLE_NOT_PLATED:   texttype = "HOLE";      break;
+    case PAD_ATTRIB_STANDARD:          texttype = "STD";       break;
+    case PAD_ATTRIB_SMD:               texttype = "SMD";       break;
+    case PAD_ATTRIB_CONN:              texttype = "CONN";      break;
+    case PAD_ATTRIB_HOLE_NOT_PLATED:   texttype = "HOLE";      break;
 
     default:
         THROW_IO_ERROR( wxString::Format( UNKNOWN_PAD_ATTRIBUTE, me->GetAttribute() ) );
     }
 
-    fprintf( m_fp, "At %s N %08X\n", texttype, me->GetLayerMask() );
+    fprintf( m_fp, "At %s N %08X\n", texttype, me->GetLayerSet() );
 
-    fprintf( m_fp, "Ne %d %s\n", me->GetNet(), EscapedUTF8( me->GetNetname() ).c_str() );
+    fprintf( m_fp, "Ne %d %s\n", m_mapping->Translate( me->GetNetCode() ),
+             EscapedUTF8( me->GetNetname() ).c_str() );
 
     fprintf( m_fp, "Po %s\n", fmtBIUPoint( me->GetPos0() ).c_str() );
 
@@ -3368,7 +3775,7 @@ void LEGACY_PLUGIN::savePAD( const D_PAD* me ) const
     if( me->GetLocalClearance() != 0 )
         fprintf( m_fp, ".LocalClearance %s\n", fmtBIU( me->GetLocalClearance( ) ).c_str() );
 
-    if( me->GetZoneConnection() != UNDEFINED_CONNECTION )
+    if( me->GetZoneConnection() != PAD_ZONE_CONN_INHERITED )
         fprintf( m_fp, ".ZoneConnection %d\n", me->GetZoneConnection() );
 
     if( me->GetThermalWidth() != 0 )
@@ -3383,12 +3790,14 @@ void LEGACY_PLUGIN::savePAD( const D_PAD* me ) const
 }
 
 
-void LEGACY_PLUGIN::SaveMODULE( const MODULE* me ) const
+void LEGACY_PLUGIN::saveMODULE( const MODULE* me ) const
 {
     char        statusTxt[3];
     double      orient = me->GetOrientation();
 
-    fprintf( m_fp, "$MODULE %s\n", TO_UTF8( me->GetLibRef() ) );
+    // Do not save full FPID.  Only the footprint name.  The legacy file format should
+    // never support FPIDs.
+    fprintf( m_fp, "$MODULE %s\n", me->GetFPID().GetFootprintName().c_str() );
 
     statusTxt[0] = me->IsLocked() ? 'F' : '~';
     statusTxt[1] = me->IsPlaced() ? 'P' : '~';
@@ -3402,7 +3811,7 @@ void LEGACY_PLUGIN::SaveMODULE( const MODULE* me ) const
                     me->GetTimeStamp(),
                     statusTxt );
 
-    fprintf( m_fp, "Li %s\n", TO_UTF8( me->GetLibRef() ) );
+    fprintf( m_fp, "Li %s\n", me->GetFPID().GetFootprintName().c_str() );
 
     if( !me->GetDescription().IsEmpty() )
     {
@@ -3416,7 +3825,7 @@ void LEGACY_PLUGIN::SaveMODULE( const MODULE* me ) const
 
     fprintf( m_fp, "Sc %lX\n", me->GetTimeStamp() );
     fprintf( m_fp, "AR %s\n", TO_UTF8( me->GetPath() ) );
-    fprintf( m_fp, "Op %X %X 0\n", me->m_CntRot90, me->m_CntRot180 );
+    fprintf( m_fp, "Op %X %X 0\n", me->GetPlacementCost90(), me->GetPlacementCost180() );
 
     if( me->GetLocalSolderMaskMargin() != 0 )
         fprintf( m_fp, ".SolderMask %s\n", fmtBIU( me->GetLocalSolderMaskMargin() ).c_str() );
@@ -3431,7 +3840,7 @@ void LEGACY_PLUGIN::SaveMODULE( const MODULE* me ) const
     if( me->GetLocalClearance() != 0 )
         fprintf( m_fp, ".LocalClearance %s\n", fmtBIU( me->GetLocalClearance( ) ).c_str() );
 
-    if( me->GetZoneConnection() != UNDEFINED_CONNECTION )
+    if( me->GetZoneConnection() != PAD_ZONE_CONN_INHERITED )
         fprintf( m_fp, ".ZoneConnection %d\n", me->GetZoneConnection() );
 
     if( me->GetThermalWidth() != 0 )
@@ -3454,82 +3863,34 @@ void LEGACY_PLUGIN::SaveMODULE( const MODULE* me ) const
         fprintf( m_fp, "\n" );
     }
 
-    saveMODULE_TEXT( me->m_Reference );
+    saveMODULE_TEXT( &me->Reference() );
 
-    saveMODULE_TEXT( me->m_Value );
+    saveMODULE_TEXT( &me->Value() );
 
     // save drawing elements
-    for( BOARD_ITEM* gr = me->m_Drawings;  gr;  gr = gr->Next() )
+    for( BOARD_ITEM* gr = me->GraphicalItems();  gr;  gr = gr->Next() )
     {
         switch( gr->Type() )
         {
         case PCB_MODULE_TEXT_T:
-            saveMODULE_TEXT( (TEXTE_MODULE*) gr );
+            saveMODULE_TEXT( static_cast<TEXTE_MODULE*>( gr ));
             break;
         case PCB_MODULE_EDGE_T:
-            saveMODULE_EDGE( (EDGE_MODULE*) gr );
+            saveMODULE_EDGE( static_cast<EDGE_MODULE*>( gr ));
             break;
         default:
             THROW_IO_ERROR( wxString::Format( UNKNOWN_GRAPHIC_FORMAT, gr->Type() ) );
         }
     }
 
-    for( D_PAD* pad = me->m_Pads;  pad;  pad = pad->Next() )
+    for( D_PAD* pad = me->Pads();  pad;  pad = pad->Next() )
         savePAD( pad );
 
     SaveModule3D( me );
 
-    fprintf( m_fp, "$EndMODULE %s\n", TO_UTF8( me->GetLibRef() ) );
+    fprintf( m_fp, "$EndMODULE %s\n", me->GetFPID().GetFootprintName().c_str() );
 
     CHECK_WRITE_ERROR();
-}
-
-
-void LEGACY_PLUGIN::SaveModule3D( const MODULE* me ) const
-{
-    for( S3D_MASTER* t3D = me->m_3D_Drawings;  t3D;  t3D = t3D->Next() )
-    {
-        if( !t3D->m_Shape3DName.IsEmpty() )
-        {
-            fprintf( m_fp, "$SHAPE3D\n" );
-
-            fprintf( m_fp, "Na %s\n", EscapedUTF8( t3D->m_Shape3DName ).c_str() );
-
-            fprintf(m_fp,
-#if defined(DEBUG)
-                    // use old formats for testing, just to verify compatibility
-                    // using "diff", then switch to more concise form for release builds.
-                    "Sc %lf %lf %lf\n",
-#else
-                    "Sc %.10g %.10g %.10g\n",
-#endif
-                    t3D->m_MatScale.x,
-                    t3D->m_MatScale.y,
-                    t3D->m_MatScale.z );
-
-            fprintf(m_fp,
-#if defined(DEBUG)
-                    "Of %lf %lf %lf\n",
-#else
-                    "Of %.10g %.10g %.10g\n",
-#endif
-                    t3D->m_MatPosition.x,
-                    t3D->m_MatPosition.y,
-                    t3D->m_MatPosition.z );
-
-            fprintf(m_fp,
-#if defined(DEBUG)
-                    "Ro %lf %lf %lf\n",
-#else
-                    "Ro %.10g %.10g %.10g\n",
-#endif
-                    t3D->m_MatRotation.x,
-                    t3D->m_MatRotation.y,
-                    t3D->m_MatRotation.z );
-
-            fprintf( m_fp, "$EndSHAPE3D\n" );
-        }
-    }
 }
 
 
@@ -3593,20 +3954,27 @@ void LEGACY_PLUGIN::savePCB_LINE( const DRAWSEGMENT* me ) const
 void LEGACY_PLUGIN::saveTRACK( const TRACK* me ) const
 {
     int type = 0;
+    VIATYPE_T viatype = VIA_NOT_DEFINED;
+    int drill = UNDEFINED_DRILL_DIAMETER;
 
     if( me->Type() == PCB_VIA_T )
+    {
+        const VIA *via = static_cast<const VIA *>(me);
         type = 1;
+        viatype = via->GetViaType();
+        drill = via->GetDrill();
+    }
 
     fprintf(m_fp, "Po %d %s %s %s %s\n",
-            me->GetShape(),
+            viatype,
             fmtBIUPoint( me->GetStart() ).c_str(),
             fmtBIUPoint( me->GetEnd() ).c_str(),
             fmtBIU( me->GetWidth() ).c_str(),
-            me->GetDrill() == UNDEFINED_DRILL_DIAMETER ?
-                "-1" :  fmtBIU( me->GetDrill() ).c_str() );
+            drill == UNDEFINED_DRILL_DIAMETER ?
+                "-1" :  fmtBIU( drill ).c_str() );
 
     fprintf(m_fp, "De %d %d %d %lX %X\n",
-            me->GetLayer(), type, me->GetNet(),
+            me->GetLayer(), type, m_mapping->Translate( me->GetNetCode() ),
             me->GetTimeStamp(), me->GetStatus() );
 }
 
@@ -3620,8 +3988,8 @@ void LEGACY_PLUGIN::saveZONE_CONTAINER( const ZONE_CONTAINER* me ) const
     // just for ZONE_CONTAINER compatibility
     fprintf( m_fp,  "ZInfo %lX %d %s\n",
                     me->GetTimeStamp(),
-                    me->GetIsKeepout() ? 0 : me->GetNet(),
-                    EscapedUTF8( me->GetIsKeepout() ? wxT("") : me->GetNetName() ).c_str() );
+                    me->GetIsKeepout() ? 0 : m_mapping->Translate( me->GetNetCode() ),
+                    EscapedUTF8( me->GetIsKeepout() ? wxT("") : me->GetNetname() ).c_str() );
 
     // Save the outline layer info
     fprintf( m_fp, "ZLayer %d\n", me->GetLayer() );
@@ -3648,10 +4016,10 @@ void LEGACY_PLUGIN::saveZONE_CONTAINER( const ZONE_CONTAINER* me ) const
     switch( me->GetPadConnection() )
     {
     default:
-    case PAD_IN_ZONE:       padoption = 'I';  break;
-    case THERMAL_PAD:       padoption = 'T';  break;
-    case THT_THERMAL:       padoption = 'H';  break; // H is for 'hole' since it reliefs holes only
-    case PAD_NOT_IN_ZONE:   padoption = 'X';  break;
+    case PAD_ZONE_CONN_FULL:        padoption = 'I';  break;
+    case PAD_ZONE_CONN_THERMAL:     padoption = 'T';  break;
+    case PAD_ZONE_CONN_THT_THERMAL: padoption = 'H';  break; // H is for 'hole' since it reliefs holes only
+    case PAD_ZONE_CONN_NONE:        padoption = 'X';  break;
     }
 
     fprintf( m_fp,  "ZClearance %s %c\n",
@@ -3662,7 +4030,7 @@ void LEGACY_PLUGIN::saveZONE_CONTAINER( const ZONE_CONTAINER* me ) const
 
     fprintf( m_fp,  "ZOptions %d %d %c %s %s\n",
                     me->GetFillMode(),
-                    me->GetArcSegCount(),
+                    me->GetArcSegmentCount(),
                     me->IsFilled() ? 'S' : 'F',
                     fmtBIU( me->GetThermalReliefGap() ).c_str(),
                     fmtBIU( me->GetThermalReliefCopperBridge() ).c_str() );
@@ -3679,29 +4047,28 @@ void LEGACY_PLUGIN::saveZONE_CONTAINER( const ZONE_CONTAINER* me ) const
                     me->GetCornerSmoothingType(),
                     fmtBIU( me->GetCornerRadius() ).c_str() );
 
-    typedef std::vector< CPolyPt >    CPOLY_PTS;
-
     // Save the corner list
-    const CPOLY_PTS& cv = me->m_Poly->m_CornersList;
-    for( CPOLY_PTS::const_iterator it = cv.begin();  it != cv.end();  ++it )
+    const CPOLYGONS_LIST& cv = me->Outline()->m_CornersList;
+
+    for( unsigned it = 0; it < cv.GetCornersCount(); ++it )
     {
         fprintf( m_fp,  "ZCorner %s %d\n",
-                        fmtBIUPair( it->x, it->y ).c_str(),
-                        it->end_contour );
+                        fmtBIUPair( cv.GetX( it ), cv.GetY( it ) ).c_str(),
+                        cv.IsEndContour( it ) );
     }
 
     // Save the PolysList
-    const CPOLY_PTS& fv = me->GetFilledPolysList();
-    if( fv.size() )
+    const CPOLYGONS_LIST& fv = me->GetFilledPolysList();
+    if( fv.GetCornersCount() )
     {
         fprintf( m_fp, "$POLYSCORNERS\n" );
 
-        for( CPOLY_PTS::const_iterator it = fv.begin(); it != fv.end(); ++it )
+        for( unsigned it = 0; it < fv.GetCornersCount(); ++it )
         {
             fprintf( m_fp, "%s %d %d\n",
-                           fmtBIUPair( it->x, it->y ).c_str(),
-                           it->end_contour,
-                           it->m_utility );
+                           fmtBIUPair( fv.GetX( it ), fv.GetY( it ) ).c_str(),
+                           fv.IsEndContour( it ),
+                           fv.GetUtility( it )  );
         }
 
         fprintf( m_fp, "$endPOLYSCORNERS\n" );
@@ -3710,7 +4077,8 @@ void LEGACY_PLUGIN::saveZONE_CONTAINER( const ZONE_CONTAINER* me ) const
     typedef std::vector< SEGMENT > SEGMENTS;
 
     // Save the filling segments list
-    const SEGMENTS& segs = me->m_FillSegmList;
+    const SEGMENTS& segs = me->FillSegments();
+
     if( segs.size() )
     {
         fprintf( m_fp, "$FILLSEGMENTS\n" );
@@ -3731,7 +4099,7 @@ void LEGACY_PLUGIN::saveZONE_CONTAINER( const ZONE_CONTAINER* me ) const
 }
 
 
-void LEGACY_PLUGIN::saveDIMENTION( const DIMENSION* me ) const
+void LEGACY_PLUGIN::saveDIMENSION( const DIMENSION* me ) const
 {
     // note: COTATION was the previous name of DIMENSION
     // this old keyword is used here for compatibility
@@ -3739,19 +4107,19 @@ void LEGACY_PLUGIN::saveDIMENTION( const DIMENSION* me ) const
 
     fprintf( m_fp, "Ge %d %d %lX\n", me->GetShape(), me->GetLayer(), me->GetTimeStamp() );
 
-    fprintf( m_fp, "Va %s\n", fmtBIU( me->m_Value ).c_str() );
+    fprintf( m_fp, "Va %s\n", fmtBIU( me->GetValue() ).c_str() );
 
-    if( !me->m_Text.GetText().IsEmpty() )
-        fprintf( m_fp, "Te %s\n", EscapedUTF8( me->m_Text.GetText() ).c_str() );
+    if( !me->GetText().IsEmpty() )
+        fprintf( m_fp, "Te %s\n", EscapedUTF8( me->GetText() ).c_str() );
     else
         fprintf( m_fp, "Te \"?\"\n" );
 
     fprintf( m_fp,  "Po %s %s %s %s %d\n",
-                    fmtBIUPoint( me->m_Text.GetPosition() ).c_str(),
-                    fmtBIUSize( me->m_Text.GetSize() ).c_str(),
-                    fmtBIU( me->m_Text.GetThickness() ).c_str(),
-                    fmtDEG( me->m_Text.GetOrientation() ).c_str(),
-                    me->m_Text.IsMirrored() ? 0 : 1     // strange but true
+                    fmtBIUPoint( me->Text().GetTextPosition() ).c_str(),
+                    fmtBIUSize( me->Text().GetSize() ).c_str(),
+                    fmtBIU( me->Text().GetThickness() ).c_str(),
+                    fmtDEG( me->Text().GetOrientation() ).c_str(),
+                    me->Text().IsMirrored() ? 0 : 1     // strange but true
                     );
 
     fprintf( m_fp,  "Sb %d %s %s %s\n", S_SEGMENT,
@@ -3770,22 +4138,22 @@ void LEGACY_PLUGIN::saveDIMENTION( const DIMENSION* me ) const
                     fmtBIU( me->GetWidth() ).c_str() );
 
     fprintf( m_fp,  "S1 %d %s %s %s\n", S_SEGMENT,
-                    fmtBIUPair( me->m_arrowD1O.x, me->m_arrowD1O.y ).c_str(),
+                    fmtBIUPair( me->m_crossBarF.x, me->m_crossBarF.y ).c_str(),
                     fmtBIUPair( me->m_arrowD1F.x, me->m_arrowD1F.y ).c_str(),
                     fmtBIU( me->GetWidth() ).c_str() );
 
     fprintf( m_fp,  "S2 %d %s %s %s\n", S_SEGMENT,
-                    fmtBIUPair( me->m_arrowD2O.x, me->m_arrowD2O.y ).c_str(),
+                    fmtBIUPair( me->m_crossBarF.x, me->m_crossBarF.y ).c_str(),
                     fmtBIUPair( me->m_arrowD2F.x, me->m_arrowD2F.y ).c_str(),
                     fmtBIU( me->GetWidth() ).c_str() );
 
     fprintf( m_fp,  "S3 %d %s %s %s\n", S_SEGMENT,
-                    fmtBIUPair( me->m_arrowG1O.x, me->m_arrowG1O.y ).c_str(),
+                    fmtBIUPair( me->m_crossBarO.x, me->m_crossBarO.y ).c_str(),
                     fmtBIUPair( me->m_arrowG1F.x, me->m_arrowG1F.y ).c_str(),
                     fmtBIU( me->GetWidth() ).c_str() );
 
     fprintf( m_fp,  "S4 %d %s %s %s\n", S_SEGMENT,
-                    fmtBIUPair( me->m_arrowG2O.x, me->m_arrowG2O.y ).c_str(),
+                    fmtBIUPair( me->m_crossBarO.x, me->m_crossBarO.y ).c_str(),
                     fmtBIUPair( me->m_arrowG2F.x, me->m_arrowG2F.y ).c_str(),
                     fmtBIU( me->GetWidth() ).c_str() );
 
@@ -3817,7 +4185,7 @@ void LEGACY_PLUGIN::savePCB_TEXT( const TEXTE_PCB* me ) const
     delete list;
 
     fprintf( m_fp,  "Po %s %s %s %s\n",
-                    fmtBIUPoint( me->GetPosition() ).c_str(),
+                    fmtBIUPoint( me->GetTextPosition() ).c_str(),
                     fmtBIUSize( me->GetSize() ).c_str(),
                     fmtBIU( me->GetThickness() ).c_str(),
                     fmtDEG( me->GetOrientation() ).c_str() );
@@ -3842,6 +4210,8 @@ void LEGACY_PLUGIN::savePCB_TEXT( const TEXTE_PCB* me ) const
     fprintf( m_fp, "$EndTEXTPCB\n" );
 }
 
+#endif  // NO LEGACY_PLUGIN::Save()
+
 
 //-----<FOOTPRINT LIBRARY FUNCTIONS>--------------------------------------------
 
@@ -3854,7 +4224,7 @@ void LEGACY_PLUGIN::savePCB_TEXT( const TEXTE_PCB* me ) const
     would have to re-read the file when searching for any MODULE, and this would
     be very problematic filling a FOOTPRINT_LIST via this PLUGIN API. If memory
     becomes a concern, consider the cache lifetime policy, which determines the
-    time that a FPL_CACHE is in RAM. Note PLUGIN lifetime also plays a role in
+    time that a LP_CACHE is in RAM. Note PLUGIN lifetime also plays a role in
     cache lifetime.
 
 */
@@ -3869,20 +4239,20 @@ typedef MODULE_MAP::const_iterator              MODULE_CITER;
 
 
 /**
- * Class FPL_CACHE
+ * Class LP_CACHE
  * assists only for the footprint portion of the PLUGIN API, and only for the
  * LEGACY_PLUGIN, so therefore is private to this implementation file, i.e. not placed
  * into a header.
  */
-struct FPL_CACHE
+struct LP_CACHE
 {
-    LEGACY_PLUGIN*  m_owner;        // my owner, I need its LEGACY_PLUGIN::LoadMODULE()
+    LEGACY_PLUGIN*  m_owner;        // my owner, I need its LEGACY_PLUGIN::loadMODULE()
     wxString        m_lib_path;
     wxDateTime      m_mod_time;
     MODULE_MAP      m_modules;      // map or tuple of footprint_name vs. MODULE*
     bool            m_writable;
 
-    FPL_CACHE( LEGACY_PLUGIN* aOwner, const wxString& aLibraryPath );
+    LP_CACHE( LEGACY_PLUGIN* aOwner, const wxString& aLibraryPath );
 
     // Most all functions in this class throw IO_ERROR exceptions.  There are no
     // error codes nor user interface calls from here, nor in any PLUGIN.
@@ -3914,7 +4284,7 @@ struct FPL_CACHE
 };
 
 
-FPL_CACHE::FPL_CACHE( LEGACY_PLUGIN* aOwner, const wxString& aLibraryPath ) :
+LP_CACHE::LP_CACHE( LEGACY_PLUGIN* aOwner, const wxString& aLibraryPath ) :
     m_owner( aOwner ),
     m_lib_path( aLibraryPath ),
     m_writable( true )
@@ -3922,7 +4292,7 @@ FPL_CACHE::FPL_CACHE( LEGACY_PLUGIN* aOwner, const wxString& aLibraryPath ) :
 }
 
 
-wxDateTime FPL_CACHE::GetLibModificationTime()
+wxDateTime LP_CACHE::GetLibModificationTime()
 {
     wxFileName  fn( m_lib_path );
 
@@ -3934,7 +4304,7 @@ wxDateTime FPL_CACHE::GetLibModificationTime()
 }
 
 
-void FPL_CACHE::Load()
+void LP_CACHE::Load()
 {
     FILE_LINE_READER    reader( m_lib_path );
 
@@ -3949,9 +4319,10 @@ void FPL_CACHE::Load()
 }
 
 
-void FPL_CACHE::ReadAndVerifyHeader( LINE_READER* aReader )
+void LP_CACHE::ReadAndVerifyHeader( LINE_READER* aReader )
 {
     char* line = aReader->ReadLine();
+    char* saveptr;
 
     if( !line )
         goto L_bad_library;
@@ -3963,15 +4334,11 @@ void FPL_CACHE::ReadAndVerifyHeader( LINE_READER* aReader )
     {
         if( TESTLINE( "Units" ) )
         {
-            const char* units = strtok( line + SZ( "Units" ), delims );
+            const char* units = strtok_r( line + SZ( "Units" ), delims, &saveptr );
 
             if( !strcmp( units, "mm" ) )
             {
-#if defined( USE_PCBNEW_NANOMETRES )
                 m_owner->diskToBiu = IU_PER_MM;
-#else
-                THROW_IO_ERROR( _( "May not load millimeter legacy library file into 'Pcbnew compiled for deci-mils'" ) );
-#endif
             }
 
         }
@@ -3985,7 +4352,7 @@ L_bad_library:
 }
 
 
-void FPL_CACHE::SkipIndex( LINE_READER* aReader )
+void LP_CACHE::SkipIndex( LINE_READER* aReader )
 {
     // Some broken INDEX sections have more than one section, due to prior bugs.
     // So we must read the next line after $EndINDEX tag,
@@ -4014,7 +4381,7 @@ void FPL_CACHE::SkipIndex( LINE_READER* aReader )
 }
 
 
-void FPL_CACHE::LoadModules( LINE_READER* aReader )
+void LP_CACHE::LoadModules( LINE_READER* aReader )
 {
     m_owner->SetReader( aReader );
 
@@ -4025,9 +4392,33 @@ void FPL_CACHE::LoadModules( LINE_READER* aReader )
         // test first for the $MODULE, even before reading because of INDEX bug.
         if( TESTLINE( "$MODULE" ) )
         {
-            MODULE* m = m_owner->LoadMODULE();
+            auto_ptr<MODULE>    module( new MODULE( m_owner->m_board ) );
 
-            std::string footprintName = TO_UTF8( m->GetLibRef() );
+            std::string         footprintName = StrPurge( line + SZ( "$MODULE" ) );
+
+            // The footprint names in legacy libraries can contain the '/' and ':'
+            // characters which will cause the FPID parser to choke.
+            ReplaceIllegalFileNameChars( &footprintName );
+
+            // set the footprint name first thing, so exceptions can use name.
+            module->SetFPID( FPID( footprintName ) );
+
+#if 0 && defined( DEBUG )
+            printf( "%s\n", footprintName.c_str() );
+            if( footprintName == "QFN40" )
+            {
+                int breakhere = 1;
+                (void) breakhere;
+            }
+#endif
+
+            m_owner->loadMODULE( module.get() );
+
+            MODULE* m = module.release();   // exceptions after this are not expected.
+
+            // Not sure why this is asserting on debug builds.  The debugger shows the
+            // strings are the same.  If it's not really needed maybe it can be removed.
+//            wxASSERT( footprintName == m->GetFPID().GetFootprintName() );
 
             /*
 
@@ -4074,7 +4465,7 @@ void FPL_CACHE::LoadModules( LINE_READER* aReader )
                     {
                         nameOK = true;
 
-                        m->SetLibRef( FROM_UTF8( newName.c_str() ) );
+                        m->SetFPID( FPID( newName ) );
                         std::pair<MODULE_ITER, bool> r = m_modules.insert( newName, m );
 
                         wxASSERT_MSG( r.second, wxT( "error doing cache insert using guaranteed unique name" ) );
@@ -4088,7 +4479,8 @@ void FPL_CACHE::LoadModules( LINE_READER* aReader )
 }
 
 
-void FPL_CACHE::Save()
+#if 0
+void LP_CACHE::Save()
 {
     if( !m_writable )
     {
@@ -4106,8 +4498,7 @@ void FPL_CACHE::Save()
         abs_lib_name.MakeAbsolute();
         tempFileName = wxFileName::CreateTempFileName( abs_lib_name.GetFullPath() );
 
-        wxLogDebug( wxT( "tempFileName:'%s'  m_lib_path:'%s'\n" ),
-                    TO_UTF8( tempFileName ), TO_UTF8( m_lib_path ) );
+        //wxLogDebug( wxT( "tempFileName:'%s'  m_lib_path:'%s'\n" ), TO_UTF8( tempFileName ), TO_UTF8( m_lib_path ) );
 
         FILE* fp = wxFopen( tempFileName, wxT( "w" ) );
         if( !fp )
@@ -4136,7 +4527,7 @@ void FPL_CACHE::Save()
     // and it is fully inexplicable.  See if this dodges the error.
     wxMilliSleep( 250L );
 
-    if( wxRename( tempFileName, m_lib_path ) )
+    if( !wxRenameFile( tempFileName, m_lib_path ) )
     {
         THROW_IO_ERROR( wxString::Format(
             _( "Unable to rename tempfile '%s' to library file '%s'" ),
@@ -4146,19 +4537,15 @@ void FPL_CACHE::Save()
 }
 
 
-void FPL_CACHE::SaveHeader( FILE* aFile )
+void LP_CACHE::SaveHeader( FILE* aFile )
 {
     fprintf( aFile, "%s  %s\n", FOOTPRINT_LIBRARY_HEADER, TO_UTF8( DateAndTime() ) );
     fprintf( aFile, "# encoding utf-8\n" );
-#if defined( USE_PCBNEW_NANOMETRES )
     fprintf( aFile, "Units mm\n" );
-#else
-    fprintf( aFile, "Units deci-mils\n" );
-#endif
 }
 
 
-void FPL_CACHE::SaveIndex( FILE* aFile )
+void LP_CACHE::SaveIndex( FILE* aFile )
 {
     fprintf( aFile, "$INDEX\n" );
 
@@ -4171,16 +4558,16 @@ void FPL_CACHE::SaveIndex( FILE* aFile )
 }
 
 
-void FPL_CACHE::SaveModules( FILE* aFile )
+void LP_CACHE::SaveModules( FILE* aFile )
 {
     m_owner->SetFilePtr( aFile );
 
     for( MODULE_CITER it = m_modules.begin();  it != m_modules.end();  ++it )
     {
-        m_owner->SaveMODULE( it->second );
+        m_owner->saveMODULE( it->second );
     }
 }
-
+#endif
 
 void LEGACY_PLUGIN::cacheLib( const wxString& aLibraryPath )
 {
@@ -4190,13 +4577,13 @@ void LEGACY_PLUGIN::cacheLib( const wxString& aLibraryPath )
     {
         // a spectacular episode in memory management:
         delete m_cache;
-        m_cache = new FPL_CACHE( this, aLibraryPath );
+        m_cache = new LP_CACHE( this, aLibraryPath );
         m_cache->Load();
     }
 }
 
 
-wxArrayString LEGACY_PLUGIN::FootprintEnumerate( const wxString& aLibraryPath, PROPERTIES* aProperties )
+wxArrayString LEGACY_PLUGIN::FootprintEnumerate( const wxString& aLibraryPath, const PROPERTIES* aProperties )
 {
     LOCALE_IO   toggle;     // toggles on, then off, the C locale.
 
@@ -4217,8 +4604,8 @@ wxArrayString LEGACY_PLUGIN::FootprintEnumerate( const wxString& aLibraryPath, P
 }
 
 
-MODULE* LEGACY_PLUGIN::FootprintLoad( const wxString& aLibraryPath, const wxString& aFootprintName,
-                                    PROPERTIES* aProperties )
+MODULE* LEGACY_PLUGIN::FootprintLoad( const wxString& aLibraryPath,
+        const wxString& aFootprintName, const PROPERTIES* aProperties )
 {
     LOCALE_IO   toggle;     // toggles on, then off, the C locale.
 
@@ -4245,7 +4632,10 @@ MODULE* LEGACY_PLUGIN::FootprintLoad( const wxString& aLibraryPath, const wxStri
 }
 
 
-void LEGACY_PLUGIN::FootprintSave( const wxString& aLibraryPath, const MODULE* aFootprint, PROPERTIES* aProperties )
+#if 0   // omit FootprintSave()
+
+void LEGACY_PLUGIN::FootprintSave( const wxString& aLibraryPath,
+        const MODULE* aFootprint, const PROPERTIES* aProperties )
 {
     LOCALE_IO   toggle;     // toggles on, then off, the C locale.
 
@@ -4258,7 +4648,7 @@ void LEGACY_PLUGIN::FootprintSave( const wxString& aLibraryPath, const MODULE* a
         THROW_IO_ERROR( wxString::Format( _( "Library '%s' is read only" ), aLibraryPath.GetData() ) );
     }
 
-    std::string footprintName = TO_UTF8( aFootprint->GetLibRef() );
+    std::string footprintName = aFootprint->GetFPID().GetFootprintName();
 
     MODULE_MAP&  mods = m_cache->m_modules;
 
@@ -4280,7 +4670,7 @@ void LEGACY_PLUGIN::FootprintSave( const wxString& aLibraryPath, const MODULE* a
 
     my_module->SetOrientation( 0 );
 
-    if( my_module->GetLayer() != LAYER_N_FRONT )
+    if( my_module->GetLayer() != F_Cu )
         my_module->Flip( my_module->GetPosition() );
 
     mods.insert( footprintName, my_module );
@@ -4289,7 +4679,8 @@ void LEGACY_PLUGIN::FootprintSave( const wxString& aLibraryPath, const MODULE* a
 }
 
 
-void LEGACY_PLUGIN::FootprintDelete( const wxString& aLibraryPath, const wxString& aFootprintName )
+void LEGACY_PLUGIN::FootprintDelete( const wxString& aLibraryPath,
+        const wxString& aFootprintName, const PROPERTIES* aProperties )
 {
     LOCALE_IO   toggle;     // toggles on, then off, the C locale.
 
@@ -4317,12 +4708,12 @@ void LEGACY_PLUGIN::FootprintDelete( const wxString& aLibraryPath, const wxStrin
 }
 
 
-void LEGACY_PLUGIN::FootprintLibCreate( const wxString& aLibraryPath, PROPERTIES* aProperties )
+void LEGACY_PLUGIN::FootprintLibCreate( const wxString& aLibraryPath, const PROPERTIES* aProperties )
 {
     if( wxFileExists( aLibraryPath ) )
     {
         THROW_IO_ERROR( wxString::Format(
-            _( "library '%s' already exists, will not create anew" ),
+            _( "library '%s' already exists, will not create a new" ),
             aLibraryPath.GetData() ) );
     }
 
@@ -4331,13 +4722,15 @@ void LEGACY_PLUGIN::FootprintLibCreate( const wxString& aLibraryPath, PROPERTIES
     init( NULL );
 
     delete m_cache;
-    m_cache = new FPL_CACHE( this, aLibraryPath );
+    m_cache = new LP_CACHE( this, aLibraryPath );
     m_cache->Save();
     m_cache->Load();    // update m_writable and m_mod_time
 }
 
+#endif  // omit FootprintSave()
 
-bool LEGACY_PLUGIN::FootprintLibDelete( const wxString& aLibraryPath, PROPERTIES* aProperties )
+
+bool LEGACY_PLUGIN::FootprintLibDelete( const wxString& aLibraryPath, const PROPERTIES* aProperties )
 {
     wxFileName fn = aLibraryPath;
 
@@ -4365,6 +4758,9 @@ bool LEGACY_PLUGIN::FootprintLibDelete( const wxString& aLibraryPath, PROPERTIES
 
 bool LEGACY_PLUGIN::IsFootprintLibWritable( const wxString& aLibraryPath )
 {
+#if 0   // no support for 32 Cu layers in legacy format
+    return false;
+#else
     LOCALE_IO   toggle;
 
     init( NULL );
@@ -4372,15 +4768,18 @@ bool LEGACY_PLUGIN::IsFootprintLibWritable( const wxString& aLibraryPath )
     cacheLib( aLibraryPath );
 
     return m_cache->m_writable;
+#endif
 }
 
 
 LEGACY_PLUGIN::LEGACY_PLUGIN() :
+    m_cu_count( 16 ),               // for FootprintLoad()
     m_board( 0 ),
     m_props( 0 ),
     m_reader( 0 ),
     m_fp( 0 ),
-    m_cache( 0 )
+    m_cache( 0 ),
+    m_mapping( new NETINFO_MAPPING() )
 {
     init( NULL );
 }
@@ -4389,4 +4788,5 @@ LEGACY_PLUGIN::LEGACY_PLUGIN() :
 LEGACY_PLUGIN::~LEGACY_PLUGIN()
 {
     delete m_cache;
+    delete m_mapping;
 }

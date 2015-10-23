@@ -2,7 +2,7 @@
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
  * Copyright (C) 2004-2010 Jean-Pierre Charras <jean-pierre.charras@gpisa-lab.inpg.fr>
- * Copyright (C) 2010 KiCad Developers, see change_log.txt for contributors.
+ * Copyright (C) 2010-2015 KiCad Developers, see change_log.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -41,6 +41,7 @@
 #include <vector>
 #include <wx/wx.h>
 #include <dialog_pcb_text_properties_base.h>
+#include <class_pcb_layer_box_selector.h>
 
 
 class PCB_EDIT_FRAME;
@@ -56,7 +57,6 @@ private:
     PCB_EDIT_FRAME*     m_Parent;
     wxDC*               m_DC;
     TEXTE_PCB*          m_SelectedPCBText;
-    std::vector<int>    layerList;
 
     void MyInit();
 
@@ -118,39 +118,33 @@ void DIALOG_PCB_TEXT_PROPERTIES::MyInit()
     AddUnitSymbol( *m_PositionYLabel );
 
     // Fill fields with current values
-    *m_TextContentCtrl << m_SelectedPCBText->m_Text;
+    *m_TextContentCtrl << m_SelectedPCBText->GetText();
 
-    PutValueInLocalUnits( *m_SizeXCtrl, m_SelectedPCBText->m_Size.x );
-    PutValueInLocalUnits( *m_SizeYCtrl, m_SelectedPCBText->m_Size.y );
-    PutValueInLocalUnits( *m_ThicknessCtrl, m_SelectedPCBText->m_Thickness );
-    PutValueInLocalUnits( *m_PositionXCtrl, m_SelectedPCBText->m_Pos.x );
-    PutValueInLocalUnits( *m_PositionYCtrl, m_SelectedPCBText->m_Pos.y );
+    PutValueInLocalUnits( *m_SizeXCtrl, m_SelectedPCBText->GetSize().x );
+    PutValueInLocalUnits( *m_SizeYCtrl, m_SelectedPCBText->GetSize().y );
+    PutValueInLocalUnits( *m_ThicknessCtrl, m_SelectedPCBText->GetThickness() );
+    PutValueInLocalUnits( *m_PositionXCtrl, m_SelectedPCBText->GetTextPosition().x );
+    PutValueInLocalUnits( *m_PositionYCtrl, m_SelectedPCBText->GetTextPosition().y );
 
-    int enabledLayers = m_Parent->GetBoard()->GetEnabledLayers();
+    // Configure the layers list selector
+    m_LayerSelectionCtrl->SetLayersHotkeys( false );
 
-    for( int layer = 0; layer < NB_LAYERS;  ++layer )
-    {
-        if( enabledLayers & (1 << layer) )
-        {
-            layerList.push_back( layer );
-            int itemIndex =
-                m_LayerSelectionCtrl->Append( m_Parent->GetBoard()->GetLayerName( layer ) );
-
-            if( m_SelectedPCBText->GetLayer() == layer )
-                m_LayerSelectionCtrl->SetSelection( itemIndex );
-        }
-    }
+    // A text has no sense on edge cut layer
+    m_LayerSelectionCtrl->SetLayerSet( Edge_Cuts );
+    m_LayerSelectionCtrl->SetBoardFrame( m_Parent );
+    m_LayerSelectionCtrl->Resync();
+    m_LayerSelectionCtrl->SetLayerSelection( m_SelectedPCBText->GetLayer() );
 
     wxString orientationStr;
     orientationStr << m_SelectedPCBText->GetOrientation();
     m_OrientationCtrl->SetValue( orientationStr );
 
-    if( m_SelectedPCBText->m_Mirror )
+    if( m_SelectedPCBText->IsMirrored() )
         m_DisplayCtrl->SetSelection( 1 );
     else
         m_DisplayCtrl->SetSelection( 0 );
 
-    if( m_SelectedPCBText->m_Italic )
+    if( m_SelectedPCBText->IsItalic() )
         m_StyleCtrl->SetSelection( 1 );
     else
         m_StyleCtrl->SetSelection( 0 );
@@ -158,6 +152,18 @@ void DIALOG_PCB_TEXT_PROPERTIES::MyInit()
     // Set justification
     EDA_TEXT_HJUSTIFY_T hJustify = m_SelectedPCBText->GetHorizJustify();
     m_justifyChoice->SetSelection( (int) hJustify + 1 );
+
+    // Manually set tab order
+    m_SizeXCtrl->MoveAfterInTabOrder( m_TextContentCtrl );
+    m_SizeYCtrl->MoveAfterInTabOrder( m_SizeXCtrl );
+    m_ThicknessCtrl->MoveAfterInTabOrder( m_SizeYCtrl );
+    m_PositionXCtrl->MoveAfterInTabOrder( m_ThicknessCtrl );
+    m_PositionYCtrl->MoveAfterInTabOrder( m_PositionXCtrl );
+    m_OrientationCtrl->MoveAfterInTabOrder( m_PositionYCtrl );
+    m_LayerSelectionCtrl->MoveAfterInTabOrder( m_OrientationCtrl );
+    m_StyleCtrl->MoveAfterInTabOrder( m_LayerSelectionCtrl );
+    m_DisplayCtrl->MoveAfterInTabOrder( m_StyleCtrl );
+    m_justifyChoice->MoveAfterInTabOrder( m_DisplayCtrl );
 
     // Set focus on most important control
     m_TextContentCtrl->SetFocus();
@@ -179,6 +185,15 @@ void DIALOG_PCB_TEXT_PROPERTIES::OnCancelClick( wxCommandEvent& event )
 
 void DIALOG_PCB_TEXT_PROPERTIES::OnOkClick( wxCommandEvent& event )
 {
+    // Test for acceptable layer.
+    // Incorrect layer can happen for old boards,
+    // having texts on edge cut layer for instance
+    if( m_LayerSelectionCtrl->GetLayerSelection() < 0 )
+    {
+        wxMessageBox( _( "No layer selected, Please select the text layer" ) );
+        return;
+    }
+
     wxPoint newPosition;
     wxSize  newSize;
 
@@ -194,26 +209,28 @@ void DIALOG_PCB_TEXT_PROPERTIES::OnOkClick( wxCommandEvent& event )
     if( m_SelectedPCBText->GetFlags() != 0 )
         m_SelectedPCBText->SetFlags( IN_EDIT );
 
+#ifndef USE_WX_OVERLAY
     // Erase old text on screen if context is available
     if( m_DC )
     {
         m_SelectedPCBText->Draw( m_Parent->GetCanvas(), m_DC, GR_XOR );
     }
+#endif
 
     // Set the new text content
     if( !m_TextContentCtrl->GetValue().IsEmpty() )
     {
-        m_SelectedPCBText->m_Text = m_TextContentCtrl->GetValue();
+        m_SelectedPCBText->SetText( m_TextContentCtrl->GetValue() );
     }
 
     // Set PCB Text position
-    newPosition.x = ReturnValueFromString( g_UserUnit, m_PositionXCtrl->GetValue() );
-    newPosition.y = ReturnValueFromString( g_UserUnit, m_PositionYCtrl->GetValue() );
-    m_SelectedPCBText->m_Pos  = newPosition;
+    newPosition.x = ValueFromString( g_UserUnit, m_PositionXCtrl->GetValue() );
+    newPosition.y = ValueFromString( g_UserUnit, m_PositionYCtrl->GetValue() );
+    m_SelectedPCBText->SetTextPosition( newPosition );
 
     // Check constraints and set PCB Text size
-    newSize.x = ReturnValueFromString( g_UserUnit, m_SizeXCtrl->GetValue() );
-    newSize.y = ReturnValueFromString( g_UserUnit, m_SizeYCtrl->GetValue() );
+    newSize.x = ValueFromString( g_UserUnit, m_SizeXCtrl->GetValue() );
+    newSize.y = ValueFromString( g_UserUnit, m_SizeYCtrl->GetValue() );
 
     if( newSize.x < TEXTS_MIN_SIZE )
         newSize.x = TEXTS_MIN_SIZE;
@@ -227,28 +244,28 @@ void DIALOG_PCB_TEXT_PROPERTIES::OnOkClick( wxCommandEvent& event )
     if( newSize.y > TEXTS_MAX_WIDTH )
         newSize.y = TEXTS_MAX_WIDTH;
 
-    m_SelectedPCBText->m_Size = newSize;
+    m_SelectedPCBText->SetSize( newSize );
 
     // Set the new thickness
-    m_SelectedPCBText->m_Thickness = ReturnValueFromString( g_UserUnit,
-                                                            m_ThicknessCtrl->GetValue() );
+    m_SelectedPCBText->SetThickness( ValueFromString( g_UserUnit,
+                                                      m_ThicknessCtrl->GetValue() ) );
 
     // Test for acceptable values for thickness and size and clamp if fails
-    int maxthickness = Clamp_Text_PenSize( m_SelectedPCBText->m_Thickness,
-                                           m_SelectedPCBText->m_Size  );
+    int maxthickness = Clamp_Text_PenSize( m_SelectedPCBText->GetThickness(),
+                                           m_SelectedPCBText->GetSize()  );
 
-    if( m_SelectedPCBText->m_Thickness > maxthickness )
+    if( m_SelectedPCBText->GetThickness() > maxthickness )
     {
         DisplayError( NULL,
                       _( "The text thickness is too large for the text size. It will be clamped" ) );
-        m_SelectedPCBText->m_Thickness = maxthickness;
+        m_SelectedPCBText->SetThickness( maxthickness );
     }
 
     // Set the layer on which the PCB text is laying
-    m_SelectedPCBText->SetLayer( layerList[m_LayerSelectionCtrl->GetSelection()] );
+    m_SelectedPCBText->SetLayer( ToLAYER_ID( m_LayerSelectionCtrl->GetLayerSelection() ) );
 
     // Set whether the PCB text is mirrored (faced down from layer face perspective)
-    m_SelectedPCBText->m_Mirror = (m_DisplayCtrl->GetSelection() == 1) ? true : false;
+    m_SelectedPCBText->SetMirrored( m_DisplayCtrl->GetSelection() == 1 );
 
     // Set the text orientation
     long orientation;
@@ -257,7 +274,7 @@ void DIALOG_PCB_TEXT_PROPERTIES::OnOkClick( wxCommandEvent& event )
     m_SelectedPCBText->SetOrientation( orientation );
 
     // Set whether the PCB text is slanted (it is not italics, as italics has additional curves in style)
-    m_SelectedPCBText->m_Italic = m_StyleCtrl->GetSelection() ? 1 : 0;
+    m_SelectedPCBText->SetItalic( m_StyleCtrl->GetSelection() );
 
     // Set justification
     switch( m_justifyChoice->GetSelection() )
@@ -275,12 +292,15 @@ void DIALOG_PCB_TEXT_PROPERTIES::OnOkClick( wxCommandEvent& event )
         break;
     }
 
+#ifndef USE_WX_OVERLAY
     // Finally, display new text if there is a context to do so
     if( m_DC )
     {
         m_SelectedPCBText->Draw( m_Parent->GetCanvas(), m_DC, GR_OR );
     }
-
+#else
+    m_parent->Refresh();
+#endif
     m_Parent->OnModify();
     EndModal( 1 );
 }

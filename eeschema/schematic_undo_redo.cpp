@@ -29,7 +29,7 @@
 
 #include <fctsys.h>
 #include <class_drawpanel.h>
-#include <wxEeschemaStruct.h>
+#include <schframe.h>
 
 #include <general.h>
 #include <protos.h>
@@ -39,7 +39,6 @@
 #include <sch_line.h>
 #include <sch_no_connect.h>
 #include <sch_component.h>
-#include <sch_polyline.h>
 #include <sch_sheet.h>
 #include <sch_bitmap.h>
 
@@ -161,7 +160,7 @@ void SCH_EDIT_FRAME::SaveCopyInUndoList( SCH_ITEM*      aItem,
 }
 
 
-void SCH_EDIT_FRAME::SaveCopyInUndoList( PICKED_ITEMS_LIST& aItemsList,
+void SCH_EDIT_FRAME::SaveCopyInUndoList( const PICKED_ITEMS_LIST& aItemsList,
                                          UNDO_REDO_T        aTypeCommand,
                                          const wxPoint&     aTransformPoint )
 {
@@ -270,19 +269,15 @@ void SCH_EDIT_FRAME::PutDataInPreviousState( PICKED_ITEMS_LIST* aList, bool aRed
     for( int ii = aList->GetCount() - 1; ii >= 0; ii--  )
     {
         item = (SCH_ITEM*) aList->GetPickedItem( ii );
+        wxASSERT( item );
 
-        if( item )
-            item->ClearFlags();
+        item->ClearFlags();
 
         SCH_ITEM* image = (SCH_ITEM*) aList->GetPickedItemLink( ii );
 
         switch( aList->GetPickedItemStatus( ii ) )
         {
         case UR_CHANGED: /* Exchange old and new data for each item */
-            // tmp = item->Clone();
-            // *item = *image;
-            // *image = *tmp;
-            // delete tmp;
             item->SwapData( image );
             break;
 

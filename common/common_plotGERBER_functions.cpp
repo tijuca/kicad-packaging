@@ -1,3 +1,27 @@
+/*
+ * This program source code file is part of KiCad, a free EDA CAD application.
+ *
+ * Copyright (C) 2014 Jean-Pierre Charras, jp.charras at wanadoo.fr
+ * Copyright (C) 2014 KiCad Developers, see CHANGELOG.TXT for contributors.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation; either version 2
+ * of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, you may find one here:
+ * http://www.gnu.org/licenses/old-licenses/gpl-2.0.html
+ * or you may search the http://www.gnu.org website for the version 2 license,
+ * or you may write to the Free Software Foundation, Inc.,
+ * 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
+ */
+
 /**
  * @file common_plotGERBER_functions.cpp
  * @brief Common GERBER plot routines.
@@ -16,41 +40,67 @@
 #include <build_version.h>
 
 
+GERBER_PLOTTER::GERBER_PLOTTER()
+{
+    workFile  = 0;
+    finalFile = 0;
+    currentAperture = apertures.end();
+
+    // number of digits after the point (number of digits of the mantissa
+    // Be carefull: the Gerber coordinates are stored in an integer
+    // so 6 digits (inches) or 5 digits (mm) is a good value
+    // To avoid overflow, 7 digits (inches) or 6 digits is a max.
+    // with lower values than 6 digits (inches) or 5 digits (mm),
+    // Creating self-intersecting polygons from non-intersecting polygons
+    // happen easily.
+    m_gerberUnitInch = false;
+    m_gerberUnitFmt = 6;
+}
+
+
 void GERBER_PLOTTER::SetViewport( const wxPoint& aOffset, double aIusPerDecimil,
 				  double aScale, bool aMirror )
 {
     wxASSERT( !outputFile );
     wxASSERT( aMirror == false );
-    plotMirror = false;
+    m_plotMirror = false;
     plotOffset = aOffset;
-    wxASSERT( aScale == 1 );
-    plotScale = 1;
+    wxASSERT( aScale == 1 );    // aScale parameter is not used in Gerber
+    plotScale = 1;              // Plot scale is *always* 1.0
+
     m_IUsPerDecimil = aIusPerDecimil;
-    iuPerDeviceUnit = 1.0 / aIusPerDecimil;
-    /* We don't handle the filmbox, and it's more useful to keep the
-     * origin at the origin */
+    // gives now a default value to iuPerDeviceUnit (because the units of the caller is now known)
+    // which could be modified later by calling SetGerberCoordinatesFormat()
+    iuPerDeviceUnit = pow( 10.0, m_gerberUnitFmt ) / ( m_IUsPerDecimil * 10000.0 );
+
+    // We don't handle the filmbox, and it's more useful to keep the
+    // origin at the origin
     paperSize.x = 0;
     paperSize.y = 0;
     SetDefaultLineWidth( 100 * aIusPerDecimil ); // Arbitrary default
 }
 
-/**
- * Emit a D-Code record, using proper conversions
- * to format a leading zero omitted gerber coordinate
- * (for 4 decimal positions, see header generation in start_plot
- */
+
+void GERBER_PLOTTER::SetGerberCoordinatesFormat( int aResolution, bool aUseInches )
+{
+    m_gerberUnitInch = aUseInches;
+    m_gerberUnitFmt = aResolution;
+
+    iuPerDeviceUnit = pow( 10.0, m_gerberUnitFmt ) / ( m_IUsPerDecimil * 10000.0 );
+
+    if( ! m_gerberUnitInch )
+        iuPerDeviceUnit *= 25.4;     // gerber output in mm
+}
+
+
 void GERBER_PLOTTER::emitDcode( const DPOINT& pt, int dcode )
 {
 
     fprintf( outputFile, "X%dY%dD%02d*\n",
-	    int( pt.x ), int( pt.y ), dcode );
+	    KiROUND( pt.x ), KiROUND( pt.y ), dcode );
 }
 
-/**
- * Function start_plot
- * Write GERBER header to file
- * initialize global variable g_Plot_PlotOutputFile
- */
+
 bool GERBER_PLOTTER::StartPlot()
 {
     wxASSERT( outputFile );
@@ -67,19 +117,38 @@ bool GERBER_PLOTTER::StartPlot()
     if( outputFile == NULL )
         return false;
 
+    for( unsigned ii = 0; ii < m_headerExtraLines.GetCount(); ii++ )
+    {
+        if( ! m_headerExtraLines[ii].IsEmpty() )
+            fprintf( outputFile, "%s\n", TO_UTF8( m_headerExtraLines[ii] ) );
+    }
+
+    // Set coordinate format to 3.6 or 4.5 absolute, leading zero omitted
+    // the number of digits for the integer part of coordintes is needed
+    // in gerber format, but is not very important when omitting leading zeros
+    // It is fixed here to 3 (inch) or 4 (mm), but is not actually used
+    int leadingDigitCount = m_gerberUnitInch ? 3 : 4;
+
+    fprintf( outputFile, "%%FSLAX%d%dY%d%d*%%\n",
+             leadingDigitCount, m_gerberUnitFmt,
+             leadingDigitCount, m_gerberUnitFmt );
+    fprintf( outputFile,
+             "G04 Gerber Fmt %d.%d, Leading zero omitted, Abs format (unit %s)*\n",
+             leadingDigitCount, m_gerberUnitFmt,
+             m_gerberUnitInch ? "inch" : "mm" );
+
     wxString Title = creator + wxT( " " ) + GetBuildVersion();
-    fprintf( outputFile, "G04 (created by %s) date %s*\n",
+    fprintf( outputFile, "G04 Created by KiCad (%s) date %s*\n",
              TO_UTF8( Title ), TO_UTF8( DateAndTime() ) );
 
-    /* Mass parameter: unit = INCHES */
-    fputs( "%MOIN*%\n", outputFile );
+    /* Mass parameter: unit = INCHES/MM */
+    if( m_gerberUnitInch )
+        fputs( "%MOIN*%\n", outputFile );
+    else
+        fputs( "%MOMM*%\n", outputFile );
 
-    /* Set coordinate format to 3.4 absolute, leading zero omitted */
-    fputs( "G04 Gerber Fmt 3.4, Leading zero omitted, Abs format*\n%FSLAX34Y34*%\n",
-           outputFile );
-
-    /* Specify linear interpol (G01), unit = INCH (G70), abs format (G90) */
-    fputs( "G01*\nG70*\nG90*\n", outputFile );
+    /* Specify linear interpol (G01) */
+    fputs( "G01*\n", outputFile );
     fputs( "G04 APERTURE LIST*\n", outputFile );
     /* Select the default aperture */
     SetCurrentLineWidth( -1 );
@@ -183,47 +252,56 @@ void GERBER_PLOTTER::selectAperture( const wxSize&           size,
        || ( currentAperture->Type != type )
        || ( currentAperture->Size != size ) )
     {
-        /* Pick an existing aperture or create a new one */
+        // Pick an existing aperture or create a new one
         currentAperture = getAperture( size, type );
-        fprintf( outputFile, "G54D%d*\n", currentAperture->DCode );
+        fprintf( outputFile, "D%d*\n", currentAperture->DCode );
     }
 }
 
 
-/**
- * Generate the table of D codes
- */
 void GERBER_PLOTTER::writeApertureList()
 {
     wxASSERT( outputFile );
     char cbuf[1024];
 
-    /* Init : */
+    // Init
     for( std::vector<APERTURE>::iterator tool = apertures.begin();
          tool != apertures.end(); tool++ )
     {
-        const double fscale = 0.0001f * plotScale
-				* iuPerDeviceUnit ; // For 3.4 format
+        // apertude sizes are in inch or mm, regardless the
+        // coordinates format
+        double fscale = 0.0001 * plotScale / m_IUsPerDecimil; // inches
+
+        if(! m_gerberUnitInch )
+            fscale *= 25.4;     // size in mm
+
         char* text = cbuf + sprintf( cbuf, "%%ADD%d", tool->DCode );
+
+        /* Please note: the Gerber specs for mass parameters say that
+           exponential syntax is *not* allowed and the decimal point should
+           also be always inserted. So the %g format is ruled out, but %f is fine
+           (the # modifier forces the decimal point). Sadly the %f formatter
+           can't remove trailing zeros but thats not a problem, since nothing
+           forbid it (the file is only slightly longer) */
 
         switch( tool->Type )
         {
         case APERTURE::Circle:
-            sprintf( text, "C,%g*%%\n", tool->Size.x * fscale );
+            sprintf( text, "C,%#f*%%\n", tool->Size.x * fscale );
             break;
 
         case APERTURE::Rect:
-            sprintf( text, "R,%gX%g*%%\n",
+            sprintf( text, "R,%#fX%#f*%%\n",
 	             tool->Size.x * fscale,
                      tool->Size.y * fscale );
             break;
 
         case APERTURE::Plotting:
-            sprintf( text, "C,%g*%%\n", tool->Size.x * fscale );
+            sprintf( text, "C,%#f*%%\n", tool->Size.x * fscale );
             break;
 
         case APERTURE::Oval:
-            sprintf( text, "O,%gX%g*%%\n",
+            sprintf( text, "O,%#fX%#f*%%\n",
 	            tool->Size.x * fscale,
 		    tool->Size.y * fscale );
             break;
@@ -245,19 +323,18 @@ void GERBER_PLOTTER::PenTo( const wxPoint& aPos, char plume )
         break;
 
     case 'U':
-	emitDcode( pos_dev, 2 );
+        emitDcode( pos_dev, 2 );
         break;
 
     case 'D':
-	emitDcode( pos_dev, 1 );
+        emitDcode( pos_dev, 1 );
     }
 
     penState = plume;
 }
 
 
-void GERBER_PLOTTER::Rect( const wxPoint& p1, const wxPoint& p2, FILL_T fill,
-                           int width )
+void GERBER_PLOTTER::Rect( const wxPoint& p1, const wxPoint& p2, FILL_T fill, int width )
 {
     std::vector< wxPoint > cornerList;
 
@@ -275,102 +352,102 @@ void GERBER_PLOTTER::Rect( const wxPoint& p1, const wxPoint& p2, FILL_T fill,
 }
 
 
-void GERBER_PLOTTER::Circle( const wxPoint& aCenter, int aDiameter, FILL_T aFill,
-                             int aWidth )
+void GERBER_PLOTTER::Circle( const wxPoint& aCenter, int aDiameter, FILL_T aFill, int aWidth )
 {
     Arc( aCenter, 0, 3600, aDiameter / 2, aFill, aWidth );
 }
 
 
-void GERBER_PLOTTER::Arc( const wxPoint& aCenter, int aStAngle, int aEndAngle,
+void GERBER_PLOTTER::Arc( const wxPoint& aCenter, double aStAngle, double aEndAngle,
                           int aRadius, FILL_T aFill, int aWidth )
 {
     wxASSERT( outputFile );
     wxPoint start, end;
-    start.x = aCenter.x + KiROUND( aRadius*cos( DEG2RAD( aStAngle/10.0 ) ) );
-    start.y = aCenter.y - KiROUND( aRadius*sin( DEG2RAD( aStAngle/10.0 ) ) );
+    start.x = aCenter.x + KiROUND( cosdecideg( aRadius, aStAngle ) );
+    start.y = aCenter.y - KiROUND( sindecideg( aRadius, aStAngle ) );
     SetCurrentLineWidth( aWidth );
     MoveTo( start );
-    end.x = aCenter.x + KiROUND( aRadius*cos( DEG2RAD( aEndAngle/10.0 ) ) );
-    end.y = aCenter.y - KiROUND( aRadius*sin( DEG2RAD( aEndAngle/10.0 ) ) );
+    end.x = aCenter.x + KiROUND( cosdecideg( aRadius, aEndAngle ) );
+    end.y = aCenter.y - KiROUND( sindecideg( aRadius, aEndAngle ) );
     DPOINT devEnd = userToDeviceCoordinates( end );
-    DPOINT devCenter = userToDeviceCoordinates( aCenter )
-        - userToDeviceCoordinates( start );
+    DPOINT devCenter = userToDeviceCoordinates( aCenter ) - userToDeviceCoordinates( start );
+
     fprintf( outputFile, "G75*\n" ); // Multiquadrant mode
 
     if( aStAngle < aEndAngle )
         fprintf( outputFile, "G03" );
     else
         fprintf( outputFile, "G02" );
-    fprintf( outputFile, "X%dY%dI%dJ%dD01*\n", int( devEnd.x ), int( devEnd.y ),
-             int( devCenter.x ), int( devCenter.y ) );
-    fprintf( outputFile, "G74*\nG01*\n" ); // Back to single quadrant and linear interp.
+
+    fprintf( outputFile, "X%dY%dI%dJ%dD01*\n",
+             KiROUND( devEnd.x ), KiROUND( devEnd.y ),
+             KiROUND( devCenter.x ), KiROUND( devCenter.y ) );
+    fprintf( outputFile, "G01*\n" ); // Back to linear interp.
 }
 
 
-/**
- * Gerber polygon: they can (and *should*) be filled with the
- * appropriate G36/G37 sequence (raster fills are deprecated)
- */
-void GERBER_PLOTTER::PlotPoly( const std::vector< wxPoint >& aCornerList,
+void GERBER_PLOTTER:: PlotPoly( const std::vector< wxPoint >& aCornerList,
                                FILL_T aFill, int aWidth )
 {
     if( aCornerList.size() <= 1 )
         return;
 
+    // Gerber format does not know filled polygons with thick outline
+    // Therefore, to plot a filled polygon with outline having a thickness,
+    // one should plot outline as thick segments
+
     SetCurrentLineWidth( aWidth );
 
     if( aFill )
+    {
         fputs( "G36*\n", outputFile );
 
-    MoveTo( aCornerList[0] );
+        MoveTo( aCornerList[0] );
 
-    for( unsigned ii = 1; ii < aCornerList.size(); ii++ )
-    {
-        LineTo( aCornerList[ii] );
-    }
+        for( unsigned ii = 1; ii < aCornerList.size(); ii++ )
+            LineTo( aCornerList[ii] );
 
-    if( aFill )
-    {
         FinishTo( aCornerList[0] );
         fputs( "G37*\n", outputFile );
     }
-    else
+
+    if( aWidth > 0 )
     {
+        MoveTo( aCornerList[0] );
+
+        for( unsigned ii = 1; ii < aCornerList.size(); ii++ )
+            LineTo( aCornerList[ii] );
+
+        // Ensure the thick outline is closed for filled polygons
+        // (if not filled, could be only a polyline)
+        if( aFill && ( aCornerList[aCornerList.size()-1] != aCornerList[0] ) )
+            LineTo( aCornerList[0] );
+
         PenFinish();
     }
 }
 
-/**
- * Filled circular flashes are stored as apertures
- */
-void GERBER_PLOTTER::FlashPadCircle( const wxPoint& pos, int diametre,
-				     EDA_DRAW_MODE_T trace_mode )
+
+void GERBER_PLOTTER::FlashPadCircle( const wxPoint& pos, int diametre, EDA_DRAW_MODE_T trace_mode )
 {
     wxASSERT( outputFile );
     wxSize size( diametre, diametre );
 
-    switch( trace_mode )
+    if( trace_mode == SKETCH )
     {
-    case LINE:
-    case SKETCH:
         SetCurrentLineWidth( -1 );
         Circle( pos, diametre - currentPenWidth, NO_FILL );
-        break;
-
-    case FILLED:
-	DPOINT pos_dev = userToDeviceCoordinates( pos );
+    }
+    else
+    {
+        DPOINT pos_dev = userToDeviceCoordinates( pos );
         selectAperture( size, APERTURE::Circle );
-	emitDcode( pos_dev, 3 );
-        break;
+        emitDcode( pos_dev, 3 );
     }
 }
 
 
-/**
- * Filled oval flashes are handled as aperture in the 90 degree positions only
- */
-void GERBER_PLOTTER::FlashPadOval( const wxPoint& pos, const wxSize& aSize, int orient,
+void GERBER_PLOTTER::FlashPadOval( const wxPoint& pos, const wxSize& aSize, double orient,
                                    EDA_DRAW_MODE_T trace_mode )
 {
     wxASSERT( outputFile );
@@ -382,17 +459,17 @@ void GERBER_PLOTTER::FlashPadOval( const wxPoint& pos, const wxSize& aSize, int 
        && trace_mode == FILLED )
     {
         if( orient == 900 || orient == 2700 ) /* orientation turned 90 deg. */
-            EXCHG( size.x, size.y );
+            std::swap( size.x, size.y );
 
-	DPOINT pos_dev = userToDeviceCoordinates( pos );
+        DPOINT pos_dev = userToDeviceCoordinates( pos );
         selectAperture( size, APERTURE::Oval );
-	emitDcode( pos_dev, 3 );
+        emitDcode( pos_dev, 3 );
     }
     else /* Plot pad as a segment. */
     {
         if( size.x > size.y )
         {
-            EXCHG( size.x, size.y );
+            std::swap( size.x, size.y );
 
             if( orient < 2700 )
                 orient += 900;
@@ -423,45 +500,39 @@ void GERBER_PLOTTER::FlashPadOval( const wxPoint& pos, const wxSize& aSize, int 
 }
 
 
-/**
- * Filled rect flashes are handled as aperture in the 90 degree positions only
- */
 void GERBER_PLOTTER::FlashPadRect( const wxPoint& pos, const wxSize& aSize,
-                                   int orient, EDA_DRAW_MODE_T trace_mode )
+                                   double orient, EDA_DRAW_MODE_T trace_mode )
 
 {
     wxASSERT( outputFile );
     wxSize size( aSize );
 
-    /* Plot as flashed. */
-    switch( orient )
+    // Plot as an aperture flash
+    switch( int( orient ) )
     {
     case 900:
-    case 2700:        /* rotation of 90 degrees or 270 swaps dimensions */
-	EXCHG( size.x, size.y );
+    case 2700:        // rotation of 90 degrees or 270 swaps sizes
+        std::swap( size.x, size.y );
 
 	// Pass through
     case 0:
     case 1800:
-	switch( trace_mode )
-	{
-	case LINE:
-	case SKETCH:
-	    SetCurrentLineWidth( -1 );
-	    Rect( wxPoint( pos.x - (size.x - currentPenWidth) / 2,
-			pos.y - (size.y - currentPenWidth) / 2 ),
-		    wxPoint( pos.x + (size.x - currentPenWidth) / 2,
-			pos.y + (size.y - currentPenWidth) / 2 ),
-		    NO_FILL );
-	    break;
-
-	case FILLED:
-	    DPOINT pos_dev = userToDeviceCoordinates( pos );
-	    selectAperture( size, APERTURE::Rect );
-	    emitDcode( pos_dev, 3 );
-	    break;
-	}
-	break;
+        if( trace_mode == SKETCH )
+        {
+            SetCurrentLineWidth( -1 );
+            Rect( wxPoint( pos.x - (size.x - currentPenWidth) / 2,
+                           pos.y - (size.y - currentPenWidth) / 2 ),
+                  wxPoint( pos.x + (size.x - currentPenWidth) / 2,
+                           pos.y + (size.y - currentPenWidth) / 2 ),
+                  NO_FILL );
+        }
+        else
+        {
+            DPOINT pos_dev = userToDeviceCoordinates( pos );
+            selectAperture( size, APERTURE::Rect );
+            emitDcode( pos_dev, 3 );
+        }
+        break;
 
     default: // plot pad shape as polygon
 	{
@@ -489,12 +560,8 @@ void GERBER_PLOTTER::FlashPadRect( const wxPoint& pos, const wxSize& aSize,
 }
 
 
-/**
- * Trapezoidal pad at the moment are *never* handled as aperture, since
- * they require aperture macros
- */
 void GERBER_PLOTTER::FlashPadTrapez( const wxPoint& aPadPos,  const wxPoint* aCorners,
-                                     int aPadOrient, EDA_DRAW_MODE_T aTrace_Mode )
+                                     double aPadOrient, EDA_DRAW_MODE_T aTrace_Mode )
 
 {
     // XXX to do: use an aperture macro to declare the pad
@@ -518,10 +585,7 @@ void GERBER_PLOTTER::FlashPadTrapez( const wxPoint& aPadPos,  const wxPoint* aCo
     PlotPoly( cornerList, aTrace_Mode==FILLED ? FILLED_SHAPE : NO_FILL );
 }
 
-/**
- * Change the plot polarity and begin a new layer
- * Used to 'scratch off' silk screen away from solder mask
- */
+
 void GERBER_PLOTTER::SetLayerPolarity( bool aPositive )
 {
     if( aPositive )
@@ -529,4 +593,3 @@ void GERBER_PLOTTER::SetLayerPolarity( bool aPositive )
     else
         fprintf( outputFile, "%%LPC*%%\n" );
 }
-

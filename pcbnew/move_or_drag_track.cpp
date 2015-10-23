@@ -36,7 +36,6 @@
 #include <trigo.h>
 #include <macros.h>
 #include <gr_basic.h>
-#include <pcbcommon.h>
 
 #include <class_board.h>
 
@@ -44,7 +43,6 @@
 #include <drc_stuff.h>
 #include <drag.h>
 #include <pcbnew_id.h>
-#include <protos.h>
 
 
 static void Show_MoveNode( EDA_DRAW_PANEL* aPanel, wxDC* aDC, const wxPoint& aPosition,
@@ -85,12 +83,12 @@ static void Abort_MoveTrack( EDA_DRAW_PANEL* aPanel, wxDC* aDC )
     frame->SetCurItem( NULL );
     aPanel->SetMouseCapture( NULL, NULL );
 
-    /* Undo move and redraw trace segments. */
+    // Undo move and redraw trace segments.
     for( unsigned jj=0 ; jj < g_DragSegmentList.size(); jj++ )
     {
         TRACK* track = g_DragSegmentList[jj].m_Track;
         g_DragSegmentList[jj].RestoreInitialValues();
-        track->SetState( IN_EDIT, OFF );
+        track->SetState( IN_EDIT, false );
         track->ClearFlags();
     }
 
@@ -101,16 +99,16 @@ static void Abort_MoveTrack( EDA_DRAW_PANEL* aPanel, wxDC* aDC )
 }
 
 
-/* Redraw the moved node according to the mouse cursor position */
+// Redraw the moved node according to the mouse cursor position
 static void Show_MoveNode( EDA_DRAW_PANEL* aPanel, wxDC* aDC, const wxPoint& aPosition,
                            bool aErase )
 {
+    DISPLAY_OPTIONS* displ_opts = (DISPLAY_OPTIONS*) aPanel->GetDisplayOptions();
     wxPoint      moveVector;
-    BASE_SCREEN* screen = aPanel->GetScreen();
-    int          track_fill_copy = DisplayOpt.DisplayPcbTrackFill;
+    int          tmp = displ_opts->m_DisplayPcbTrackFill;
     GR_DRAWMODE  draw_mode = GR_XOR | GR_HIGHLIGHT;
 
-    DisplayOpt.DisplayPcbTrackFill = false;
+    displ_opts->m_DisplayPcbTrackFill = false;
 
 #ifndef USE_WX_OVERLAY
     aErase = true;
@@ -118,8 +116,8 @@ static void Show_MoveNode( EDA_DRAW_PANEL* aPanel, wxDC* aDC, const wxPoint& aPo
     aErase = false;
 #endif
 
-    /* set the new track coordinates */
-    wxPoint Pos = screen->GetCrossHairPosition();
+    // set the new track coordinates
+    wxPoint Pos = aPanel->GetParent()->GetCrossHairPosition();
 
     moveVector = Pos - s_LastPos;
     s_LastPos  = Pos;
@@ -145,7 +143,7 @@ static void Show_MoveNode( EDA_DRAW_PANEL* aPanel, wxDC* aDC, const wxPoint& aPo
         track->Draw( aPanel, aDC, draw_mode );
     }
 
-    DisplayOpt.DisplayPcbTrackFill = track_fill_copy;
+    displ_opts->m_DisplayPcbTrackFill = tmp;
 
     // Display track length
     if( track )
@@ -202,7 +200,6 @@ static void Show_Drag_Track_Segment_With_Cte_Slope( EDA_DRAW_PANEL* aPanel, wxDC
     double       xi1 = 0, yi1 = 0, xi2 = 0, yi2 = 0;    // calculated intersection points
     double       tx1, tx2, ty1, ty2;                    // temporary storage of points
     int          dx, dy;
-    BASE_SCREEN* screen = aPanel->GetScreen();
     bool         update = true;
     TRACK*       Track;
     TRACK*       tSegmentToStart = NULL, * tSegmentToEnd = NULL;
@@ -243,7 +240,7 @@ static void Show_Drag_Track_Segment_With_Cte_Slope( EDA_DRAW_PANEL* aPanel, wxDC
 
     GR_DRAWMODE draw_mode = GR_XOR | GR_HIGHLIGHT;
 
-    /* Undraw the current moved track segments before modification*/
+    // Undraw the current moved track segments before modification
 
 #ifndef USE_WX_OVERLAY
 //  if( erase )
@@ -258,13 +255,13 @@ static void Show_Drag_Track_Segment_With_Cte_Slope( EDA_DRAW_PANEL* aPanel, wxDC
     }
 #endif
 
-    /* Compute the new track segment position */
-    wxPoint Pos = screen->GetCrossHairPosition();
+    // Compute the new track segment position
+    wxPoint Pos = aPanel->GetParent()->GetCrossHairPosition();
 
     dx = Pos.x - s_LastPos.x;
     dy = Pos.y - s_LastPos.y;
 
-    //move the line by dx and dy
+    // move the line by dx and dy
     tx1 = (double) ( Track->GetStart().x + dx );
     ty1 = (double) ( Track->GetStart().y + dy );
     tx2 = (double) ( Track->GetEnd().x + dx );
@@ -274,9 +271,7 @@ static void Show_Drag_Track_Segment_With_Cte_Slope( EDA_DRAW_PANEL* aPanel, wxDC
     // only the intercept will change, segment slopes does not change
     // because we are moving parallel with is initial state
     if( !s_MovingSegmentVertical )
-    {
         s_MovingSegment_Yorg = ty1 - ( s_MovingSegmentSlope * tx1 );
-    }
 
     if( ( !s_EndPointVertical ) && ( !s_MovingSegmentVertical ) )
     {
@@ -286,43 +281,29 @@ static void Show_Drag_Track_Segment_With_Cte_Slope( EDA_DRAW_PANEL* aPanel, wxDC
     else
     {
         if( !s_EndPointVertical )
-        {
             xi2 = tx2;
-        }
         else
         {
             //P1=P2
             if( !s_EndPointHorizontal )
-            {
                 xi2 = tx2 - dx;
-            }
             else
-            {
                 update = false;
-            }
         }
     }
 
     if( !s_MovingSegmentVertical )
-    {
-        yi2 = s_MovingSegmentSlope * ( xi2 ) + s_MovingSegment_Yorg;
-    }
+        yi2 = ( s_MovingSegmentSlope * xi2 ) + s_MovingSegment_Yorg;
     else
     {
         if( !s_EndPointVertical )
-        {
-            yi2 = s_EndSegmentSlope * ( xi2 ) + s_EndSegment_Yorg;
-        }
+            yi2 = ( s_EndSegmentSlope * xi2 ) + s_EndSegment_Yorg;
         else
         {
             if( !s_EndPointHorizontal )
-            {
                 update = false;
-            }
-            else
-            {
-                yi2 = s_MovingSegmentSlope * ( xi2 ) + s_MovingSegment_Yorg;
-            }
+             else
+                yi2 = ( s_MovingSegmentSlope * xi2 ) + s_MovingSegment_Yorg;
         }
     }
 
@@ -334,46 +315,32 @@ static void Show_Drag_Track_Segment_With_Cte_Slope( EDA_DRAW_PANEL* aPanel, wxDC
     else
     {
         if( !s_StartPointVertical )
-        {
             xi1 = tx1;
-        }
         else
         {
             //P1=P2
             if( !s_StartPointHorizontal )
-            {
                 xi1 = tx1 - dx;
-            }
             else
             {
                 if( !s_StartPointHorizontal )
-                {
                     update = false;
-                }
             }
         }
     }
 
     if( !s_MovingSegmentVertical )
-    {
-        yi1 = s_MovingSegmentSlope * ( xi1 ) + s_MovingSegment_Yorg;
-    }
+        yi1 = ( s_MovingSegmentSlope * xi1 ) + s_MovingSegment_Yorg;
     else
     {
         if( !s_StartPointVertical )
-        {
-            yi1 = s_StartSegmentSlope * ( xi1 ) + s_StartSegment_Yorg;
-        }
+            yi1 = ( s_StartSegmentSlope * xi1 ) + s_StartSegment_Yorg;
         else
         {
             if( !s_StartPointHorizontal )
-            {
                 update = false;
-            }
             else
-            {
-                yi2 = s_MovingSegmentSlope * ( xi1 ) + s_MovingSegment_Yorg;
-            }
+                yi2 = ( s_MovingSegmentSlope * xi1 ) + s_MovingSegment_Yorg;
         }
     }
 
@@ -613,13 +580,13 @@ void PCB_EDIT_FRAME::StartMoveOneNodeOrSegment( TRACK* aTrack, wxDC* aDC, int aC
 
     EraseDragList();
 
-    /* Change highlighted net: the new one will be highlighted */
+    // Change highlighted net: the new one will be highlighted
     GetBoard()->PushHighLight();
 
     if( GetBoard()->IsHighLightNetON() )
         HighLight( aDC );
 
-    PosInit = GetScreen()->GetCrossHairPosition();
+    PosInit = GetCrossHairPosition();
 
     if( aTrack->Type() == PCB_VIA_T )
     {
@@ -629,15 +596,15 @@ void PCB_EDIT_FRAME::StartMoveOneNodeOrSegment( TRACK* aTrack, wxDC* aDC, int aC
         if( aCommand != ID_POPUP_PCB_MOVE_TRACK_SEGMENT )
         {
             Collect_TrackSegmentsToDrag( GetBoard(), aTrack->GetStart(),
-                                         aTrack->ReturnMaskLayer(),
-                                         aTrack->GetNet(), aTrack->GetWidth() / 2 );
+                                         aTrack->GetLayerSet(),
+                                         aTrack->GetNetCode(), aTrack->GetWidth() / 2 );
         }
 
         PosInit = aTrack->GetStart();
     }
     else
     {
-        int     diag = aTrack->IsPointOnEnds( GetScreen()->GetCrossHairPosition(), -1 );
+        STATUS_FLAGS diag = aTrack->IsPointOnEnds( GetCrossHairPosition(), -1 );
         wxPoint pos;
 
         switch( aCommand )
@@ -649,18 +616,18 @@ void PCB_EDIT_FRAME::StartMoveOneNodeOrSegment( TRACK* aTrack, wxDC* aDC, int aC
 
         case ID_POPUP_PCB_DRAG_TRACK_SEGMENT:   // drag a segment
             pos = aTrack->GetStart();
-            Collect_TrackSegmentsToDrag( GetBoard(), pos, aTrack->ReturnMaskLayer(),
-                                         aTrack->GetNet(), aTrack->GetWidth() / 2 );
+            Collect_TrackSegmentsToDrag( GetBoard(), pos, aTrack->GetLayerSet(),
+                                         aTrack->GetNetCode(), aTrack->GetWidth() / 2 );
             pos = aTrack->GetEnd();
             aTrack->SetFlags( IS_DRAGGED | ENDPOINT | STARTPOINT );
-            Collect_TrackSegmentsToDrag( GetBoard(), pos, aTrack->ReturnMaskLayer(),
-                                         aTrack->GetNet(), aTrack->GetWidth() / 2 );
+            Collect_TrackSegmentsToDrag( GetBoard(), pos, aTrack->GetLayerSet(),
+                                         aTrack->GetNetCode(), aTrack->GetWidth() / 2 );
             break;
 
         case ID_POPUP_PCB_MOVE_TRACK_NODE:  // Drag via or move node
             pos = (diag & STARTPOINT) ? aTrack->GetStart() : aTrack->GetEnd();
-            Collect_TrackSegmentsToDrag( GetBoard(), pos, aTrack->ReturnMaskLayer(),
-                                         aTrack->GetNet(), aTrack->GetWidth() / 2 );
+            Collect_TrackSegmentsToDrag( GetBoard(), pos, aTrack->GetLayerSet(),
+                                         aTrack->GetNetCode(), aTrack->GetWidth() / 2 );
             PosInit = pos;
             break;
         }
@@ -687,7 +654,7 @@ void PCB_EDIT_FRAME::StartMoveOneNodeOrSegment( TRACK* aTrack, wxDC* aDC, int aC
     s_LastPos = PosInit;
     m_canvas->SetMouseCapture( Show_MoveNode, Abort_MoveTrack );
 
-    GetBoard()->SetHighLightNet( aTrack->GetNet() );
+    GetBoard()->SetHighLightNet( aTrack->GetNetCode() );
     GetBoard()->HighLightON();
 
     GetBoard()->DrawHighLight( m_canvas, aDC, GetBoard()->GetHighLightNetCode() );
@@ -706,39 +673,39 @@ void PCB_EDIT_FRAME::Start_DragTrackSegmentAndKeepSlope( TRACK* track, wxDC*  DC
     if( !track )
         return;
 
-    // TODO: Use clenup functions to merge collinear segments if track
+    // TODO: Use cleanup functions to merge collinear segments if track
     // is connected to a collinear segment.
 
     s_StartSegmentPresent = s_EndSegmentPresent = true;
 
     if( ( track->start == NULL ) || ( track->start->Type() == PCB_TRACE_T ) )
-        TrackToStartPoint = track->GetTrace( GetBoard()->m_Track, NULL, FLG_START );
+        TrackToStartPoint = track->GetTrack( GetBoard()->m_Track, NULL, ENDPOINT_START, true, false );
 
     //  Test if more than one segment is connected to this point
     if( TrackToStartPoint )
     {
-        TrackToStartPoint->SetState( BUSY, ON );
+        TrackToStartPoint->SetState( BUSY, true );
 
         if( ( TrackToStartPoint->Type() == PCB_VIA_T )
-           || track->GetTrace( GetBoard()->m_Track, NULL, FLG_START ) )
+           || track->GetTrack( GetBoard()->m_Track, NULL, ENDPOINT_START, true, false ) )
             error = true;
 
-        TrackToStartPoint->SetState( BUSY, OFF );
+        TrackToStartPoint->SetState( BUSY, false );
     }
 
     if( ( track->end == NULL ) || ( track->end->Type() == PCB_TRACE_T ) )
-        TrackToEndPoint = track->GetTrace( GetBoard()->m_Track, NULL, FLG_END );
+        TrackToEndPoint = track->GetTrack( GetBoard()->m_Track, NULL, ENDPOINT_END, true, false );
 
     //  Test if more than one segment is connected to this point
     if( TrackToEndPoint )
     {
-        TrackToEndPoint->SetState( BUSY, ON );
+        TrackToEndPoint->SetState( BUSY, true );
 
         if( (TrackToEndPoint->Type() == PCB_VIA_T)
-           || track->GetTrace( GetBoard()->m_Track, NULL, FLG_END ) )
+           || track->GetTrack( GetBoard()->m_Track, NULL, ENDPOINT_END, true, false ) )
             error = true;
 
-        TrackToEndPoint->SetState( BUSY, OFF );
+        TrackToEndPoint->SetState( BUSY, false );
     }
 
     if( error )
@@ -754,7 +721,7 @@ void PCB_EDIT_FRAME::Start_DragTrackSegmentAndKeepSlope( TRACK* track, wxDC*  DC
     if( !TrackToEndPoint || ( TrackToEndPoint->Type() != PCB_TRACE_T ) )
         s_EndSegmentPresent = false;
 
-    /* Change high light net: the new one will be highlighted */
+    // Change high light net: the new one will be highlighted
     GetBoard()->PushHighLight();
 
     if( GetBoard()->IsHighLightNetON() )
@@ -766,7 +733,7 @@ void PCB_EDIT_FRAME::Start_DragTrackSegmentAndKeepSlope( TRACK* track, wxDC*  DC
 
     if( TrackToStartPoint )
     {
-        int flag = STARTPOINT;
+        STATUS_FLAGS flag = STARTPOINT;
 
         if( track->GetStart() != TrackToStartPoint->GetStart() )
             flag = ENDPOINT;
@@ -777,7 +744,7 @@ void PCB_EDIT_FRAME::Start_DragTrackSegmentAndKeepSlope( TRACK* track, wxDC*  DC
 
     if( TrackToEndPoint )
     {
-        int flag = STARTPOINT;
+        STATUS_FLAGS flag = STARTPOINT;
 
         if( track->GetEnd() != TrackToEndPoint->GetStart() )
             flag = ENDPOINT;
@@ -791,11 +758,11 @@ void PCB_EDIT_FRAME::Start_DragTrackSegmentAndKeepSlope( TRACK* track, wxDC*  DC
     UndrawAndMarkSegmentsToDrag( m_canvas, DC );
 
 
-    PosInit   = GetScreen()->GetCrossHairPosition();
-    s_LastPos = GetScreen()->GetCrossHairPosition();
+    PosInit   = GetCrossHairPosition();
+    s_LastPos = GetCrossHairPosition();
     m_canvas->SetMouseCapture( Show_Drag_Track_Segment_With_Cte_Slope, Abort_MoveTrack );
 
-    GetBoard()->SetHighLightNet( track->GetNet() );
+    GetBoard()->SetHighLightNet( track->GetNetCode() );
     GetBoard()->HighLightON();
     GetBoard()->DrawHighLight( m_canvas, DC, GetBoard()->GetHighLightNetCode() );
 
@@ -823,7 +790,7 @@ void PCB_EDIT_FRAME::Start_DragTrackSegmentAndKeepSlope( TRACK* track, wxDC*  DC
 }
 
 
-/* Place a dragged (or moved) track segment or via */
+// Place a dragged (or moved) track segment or via
 bool PCB_EDIT_FRAME::PlaceDraggedOrMovedTrackSegment( TRACK* Track, wxDC* DC )
 {
     int        errdrc;
@@ -831,17 +798,17 @@ bool PCB_EDIT_FRAME::PlaceDraggedOrMovedTrackSegment( TRACK* Track, wxDC* DC )
     if( Track == NULL )
         return false;
 
-    int current_net_code = Track->GetNet();
+    int current_net_code = Track->GetNetCode();
 
     // DRC control:
-    if( Drc_On )
+    if( g_Drc_On )
     {
         errdrc = m_drc->Drc( Track, GetBoard()->m_Track );
 
         if( errdrc == BAD_DRC )
             return false;
 
-        /* Redraw the dragged segments */
+        // Redraw the dragged segments
         for( unsigned ii = 0; ii < g_DragSegmentList.size(); ii++ )
         {
             errdrc = m_drc->Drc( g_DragSegmentList[ii].m_Track, GetBoard()->m_Track );
@@ -853,32 +820,33 @@ bool PCB_EDIT_FRAME::PlaceDraggedOrMovedTrackSegment( TRACK* Track, wxDC* DC )
 
     // DRC Ok: place track segments
     Track->ClearFlags();
-    Track->SetState( IN_EDIT, OFF );
+    Track->SetState( IN_EDIT, false );
 
-    /* Draw dragged tracks */
+    // Draw dragged tracks
     for( unsigned ii = 0; ii < g_DragSegmentList.size(); ii++ )
     {
         Track = g_DragSegmentList[ii].m_Track;
-        Track->SetState( IN_EDIT, OFF );
+        Track->SetState( IN_EDIT, false );
         Track->ClearFlags();
 
         /* Test the connections modified by the move
          *  (only pad connection must be tested, track connection will be
          * tested by TestNetConnection() ) */
-        int layerMask = GetLayerMask( Track->GetLayer() );
+        LSET layerMask( Track->GetLayer() );
+
         Track->start = GetBoard()->GetPadFast( Track->GetStart(), layerMask );
 
         if( Track->start )
-            Track->SetState( BEGIN_ONPAD, ON );
+            Track->SetState( BEGIN_ONPAD, true );
         else
-            Track->SetState( BEGIN_ONPAD, OFF );
+            Track->SetState( BEGIN_ONPAD, false );
 
         Track->end = GetBoard()->GetPadFast( Track->GetEnd(), layerMask );
 
         if( Track->end )
-            Track->SetState( END_ONPAD, ON );
+            Track->SetState( END_ONPAD, true );
         else
-            Track->SetState( END_ONPAD, OFF );
+            Track->SetState( END_ONPAD, false );
     }
 
     EraseDragList();

@@ -1,9 +1,9 @@
 /*
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
- * Copyright (C) 2004 Jean-Pierre Charras, jaen-pierre.charras@gipsa-lab.inpg.com
- * Copyright (C) 2008-2011 Wayne Stambaugh <stambaughw@verizon.net>
- * Copyright (C) 2004-2011 KiCad Developers, see change_log.txt for contributors.
+ * Copyright (C) 2014 Jean-Pierre Charras, jp.charras at wanadoo.fr
+ * Copyright (C) 2008-2014 Wayne Stambaugh <stambaughw@verizon.net>
+ * Copyright (C) 2004-2014 KiCad Developers, see change_log.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -36,10 +36,9 @@
 #include <sch_base_frame.h>
 #include <class_sch_screen.h>
 
-class wxSashLayoutWindow;
 class wxListBox;
-class wxSemaphore;
-class CMP_LIBRARY;
+class PART_LIB;
+class SCHLIB_FILTER;
 
 
 /**
@@ -47,59 +46,22 @@ class CMP_LIBRARY;
  */
 class LIB_VIEW_FRAME : public SCH_BASE_FRAME
 {
-private:
-    wxComboBox*         SelpartBox;
-
-    // List of libraries (for selection )
-    wxSashLayoutWindow* m_LibListWindow;
-    wxListBox*          m_LibList;          // The list of libs
-    wxSize              m_LibListSize;      // size of the window
-
-    // List of components in the selected library
-    wxSashLayoutWindow* m_CmpListWindow;
-    wxListBox*          m_CmpList;          // The list of components
-    wxSize              m_CmpListSize;      // size of the window
-
-    // Flags
-    wxSemaphore*        m_Semaphore;        // != NULL if the frame must emulate a modal dialog
-    wxString            m_configPath;       // subpath for configuration
-
-protected:
-    static wxString m_libraryName;
-    static wxString m_entryName;
-    static wxString m_exportToEeschemaCmpName;  // When the viewer is used to select a component
-                                                // in schematic, the selected component is here
-    static int      m_unit;
-    static int      m_convert;
-
 public:
-    LIB_VIEW_FRAME( SCH_BASE_FRAME* aParent, CMP_LIBRARY* aLibrary = NULL,
-                    wxSemaphore* aSemaphore = NULL,
-                    long aStyle = KICAD_DEFAULT_DRAWFRAME_STYLE );
+
+    /**
+     * Constructor
+     * @param aKiway
+     * @param aParent = the parent frame
+     * @param aFrameType must be given either FRAME_SCH_LIB_VIEWER or
+     *  FRAME_SCH_LIB_VIEWER_MODAL
+     * @param aLibrary = the library to open when starting (default = NULL)
+     */
+    LIB_VIEW_FRAME( KIWAY* aKiway, wxWindow* aParent,
+            FRAME_T aFrameType, PART_LIB* aLibrary = NULL );
 
     ~LIB_VIEW_FRAME();
 
-    /**
-     * Function GetLibViewerFrameName (static)
-     * @return the frame name used when creating the frame
-     * used to get a reference to this frame, if exists
-     */
-    static const wxChar* GetLibViewerFrameName();
-
-    /**
-     * Function GetActiveLibraryViewer (static)
-     * @return a reference to the current opened Library viewer
-     * or NULL if no Library viewer currently opened
-     */
-    static LIB_VIEW_FRAME* GetActiveLibraryViewer();
-
     void OnSize( wxSizeEvent& event );
-
-    /**
-     * Function OnSashDrag
-     * resizes the child windows when dragging a sash window border.
-     */
-    void OnSashDrag( wxSashEvent& event );
 
     /**
      * Function ReCreateListLib
@@ -114,39 +76,66 @@ public:
     void DisplayLibInfos();
     void RedrawActiveWindow( wxDC* DC, bool EraseBg );
     void OnCloseWindow( wxCloseEvent& Event );
+    void CloseLibraryViewer( wxCommandEvent& event );
     void ReCreateHToolbar();
     void ReCreateVToolbar();
+    void ReCreateMenuBar();
+
     void OnLeftClick( wxDC* DC, const wxPoint& MousePos );
     double BestZoom();
     void ClickOnLibList( wxCommandEvent& event );
     void ClickOnCmpList( wxCommandEvent& event );
     void OnSetRelativeOffset( wxCommandEvent& event );
 
-    void GeneralControl( wxDC* aDC, const wxPoint& aPosition, int aHotKey = 0 );
+    bool GeneralControl( wxDC* aDC, const wxPoint& aPosition, int aHotKey = 0 );
+
+    ///> @copydoc EDA_DRAW_FRAME::GetHotKeyDescription()
+    EDA_HOTKEY* GetHotKeyDescription( int aCommand ) const;
 
     /**
-     * Function LoadSettings
-     * loads the library viewer frame specific configuration settings.
-     *
-     * Don't forget to call this base method from any derived classes or the
-     * settings will not get loaded.
+     * Function OnHotKey
+     * handle hot key events.
+     * <p?
+     * Some commands are relative to the item under the mouse cursor.  Commands are
+     * case insensitive
+     * </p>
      */
-    void LoadSettings();
+    bool OnHotKey( wxDC* aDC, int aHotKey, const wxPoint& aPosition, EDA_ITEM* aItem = NULL );
+
+    void LoadSettings( wxConfigBase* aCfg );
+    void SaveSettings( wxConfigBase* aCfg );
 
     /**
-     * Function SaveSettings
-     * save library viewer frame specific configuration settings.
+     * set a filter to display only libraries and/or components
+     * which match the filter
      *
-     * Don't forget to call this base method from any derived classes or the
-     * settings will not get saved.
+     * @param aFilter is a filter to pass the allowed library name list
+     *          and/or some other filter
+     *  see SCH_BASE_FRAME::SelectComponentFromLibrary() for details.
+     * if aFilter == NULL, remove all filtering
      */
-    void SaveSettings();
+    void SetFilter( const SCHLIB_FILTER* aFilter );
 
-    wxString& GetEntryName( void ) const { return m_entryName; }
-    wxString& GetSelectedComponent( void ) const { return m_exportToEeschemaCmpName; }
+    /**
+     * Set the selected library in the library window.
+     *
+     * @param aLibName name of the library to be selected.
+     */
+    void SetSelectedLibrary( const wxString& aLibName );
 
-    static int  GetUnit( void ) { return m_unit; }
-    static int  GetConvert( void ) { return m_convert; }
+    /**
+     * Set the selected component.
+     *
+     * @param aComponentName : the name of the component to be selected.
+     */
+    void SetSelectedComponent( const wxString& aComponentName );
+
+    // Accessors:
+    void SetUnit( int aUnit ) { m_unit = aUnit; }
+    int GetUnit( void ) { return m_unit; }
+
+    void SetConvert( int aConvert ) { m_convert = aConvert; }
+    int GetConvert( void ) { return m_convert; }
 
 private:
     /**
@@ -164,9 +153,34 @@ private:
      * exports the current component to schematic and close the library browser.
      */
     void ExportToSchematicLibraryPart( wxCommandEvent& event );
-    void ViewOneLibraryContent( CMP_LIBRARY* Lib, int Flag );
+    void ViewOneLibraryContent( PART_LIB* Lib, int Flag );
     bool OnRightClick( const wxPoint& MousePos, wxMenu* PopMenu );
     void DClickOnCmpList( wxCommandEvent& event );
+
+// Private members:
+    wxComboBox*         m_selpartBox;
+
+    // List of libraries (for selection )
+    wxListBox*          m_libList;          // The list of libs
+    int                 m_libListWidth;     // Last width of the window
+
+    // List of components in the selected library
+    wxListBox*          m_cmpList;          // The list of components
+    int                 m_cmpListWidth;     // Last width of the window
+
+    // Filters to build list of libs/list of parts
+    bool                m_listPowerCmpOnly;
+    wxArrayString       m_allowedLibs;
+
+    // TODO(hzeller): looks like these members were chosen to be static to survive different
+    // instances of this browser and communicate it to the next instance. This looks like an
+    // ugly hack, and should be solved differently.
+    static wxString m_libraryName;
+
+    static wxString m_entryName;
+
+    static int      m_unit;
+    static int      m_convert;
 
     DECLARE_EVENT_TABLE()
 };

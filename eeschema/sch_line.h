@@ -32,6 +32,7 @@
 
 #include <sch_item_struct.h>
 
+class NETLIST_OBJECT_LIST;
 
 /**
  * Class SCH_LINE
@@ -42,7 +43,6 @@ class SCH_LINE : public SCH_ITEM
 {
     bool    m_startIsDangling;  ///< True if start point is not connected.
     bool    m_endIsDangling;    ///< True if end point is not connected.
-    int     m_width;            ///< Set to 0 for wires and greater than 0 for busses.
     wxPoint m_start;            ///< Line start point
     wxPoint m_end;              ///< Line end point
 
@@ -76,7 +76,7 @@ public:
 
     void SetEndPoint( const wxPoint& aPosition ) { m_end = aPosition; }
 
-    EDA_RECT GetBoundingBox() const;
+    const EDA_RECT GetBoundingBox() const;    // Virtual
 
     /**
      * Function GetLength
@@ -113,9 +113,9 @@ public:
      */
     bool MergeOverlap( SCH_LINE* aLine );
 
-    void GetEndPoints( vector <DANGLING_END_ITEM>& aItemList );
+    void GetEndPoints( std::vector<DANGLING_END_ITEM>& aItemList );
 
-    bool IsDanglingStateChanged( vector< DANGLING_END_ITEM >& aItemList );
+    bool IsDanglingStateChanged( std::vector< DANGLING_END_ITEM >& aItemList );
 
     bool IsDangling() const { return m_startIsDangling || m_endIsDangling; }
 
@@ -123,13 +123,13 @@ public:
 
     bool IsConnectable() const;
 
-    void GetConnectionPoints( vector< wxPoint >& aPoints ) const;
+    void GetConnectionPoints(std::vector< wxPoint >& aPoints ) const;
 
     wxString GetSelectMenuText() const;
 
     BITMAP_DEF GetMenuImage() const;
 
-    void GetNetListItem( vector<NETLIST_OBJECT*>& aNetListItems, SCH_SHEET_PATH* aSheetPath );
+    void GetNetListItem( NETLIST_OBJECT_LIST& aNetListItems, SCH_SHEET_PATH* aSheetPath );
 
     bool operator <( const SCH_ITEM& aItem ) const;
 

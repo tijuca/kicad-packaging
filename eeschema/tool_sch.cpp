@@ -29,7 +29,8 @@
 
 #include <fctsys.h>
 #include <class_drawpanel.h>
-#include <wxEeschemaStruct.h>
+#include <schframe.h>
+#include <kiface_i.h>
 
 #include <general.h>
 #include <hotkeys.h>
@@ -50,32 +51,31 @@ void SCH_EDIT_FRAME::ReCreateHToolbar()
                                       wxAUI_TB_DEFAULT_STYLE | wxAUI_TB_HORZ_LAYOUT );
 
     // Set up toolbar
-    m_mainToolBar->AddTool( ID_NEW_PROJECT, wxEmptyString, KiBitmap( new_xpm ),
-                            _( "New schematic project" ) );
+    if( Kiface().IsSingle() )   // not when under a project mgr
+    {
+        // These 2 menus have meaning only outside a project, i.e. not under a project manager:
+        m_mainToolBar->AddTool( ID_NEW_PROJECT, wxEmptyString, KiBitmap( new_sch_xpm ),
+                                _( "New schematic project" ) );
 
-    m_mainToolBar->AddTool( ID_LOAD_PROJECT, wxEmptyString, KiBitmap( open_document_xpm ),
-                            _( "Open schematic project" ) );
+        m_mainToolBar->AddTool( ID_LOAD_PROJECT, wxEmptyString, KiBitmap( open_document_xpm ),
+                                _( "Open schematic project" ) );
+    }
 
     m_mainToolBar->AddTool( ID_SAVE_PROJECT, wxEmptyString, KiBitmap( save_project_xpm ),
                             _( "Save schematic project" ) );
 
-
     m_mainToolBar->AddSeparator();
-
 
     m_mainToolBar->AddTool( ID_SHEET_SET, wxEmptyString, KiBitmap( sheetset_xpm ),
                             _( "Page settings" ) );
 
-
     m_mainToolBar->AddSeparator();
-
 
     m_mainToolBar->AddTool( wxID_PRINT, wxEmptyString, KiBitmap( print_button_xpm ),
                             _( "Print schematic" ) );
 
 
     m_mainToolBar->AddSeparator();
-
 
     m_mainToolBar->AddTool( wxID_CUT, wxEmptyString, KiBitmap( cut_button_xpm ),
                             _( "Cut selected item" ) );
@@ -89,51 +89,50 @@ void SCH_EDIT_FRAME::ReCreateHToolbar()
 
     m_mainToolBar->AddSeparator();
 
-
-    msg = AddHotkeyName( HELP_UNDO, s_Schematic_Hokeys_Descr, HK_UNDO, IS_COMMENT );
+    msg = AddHotkeyName( HELP_UNDO, g_Schematic_Hokeys_Descr, HK_UNDO, IS_COMMENT );
     m_mainToolBar->AddTool( wxID_UNDO, wxEmptyString, KiBitmap( undo_xpm ), msg );
 
-    msg = AddHotkeyName( HELP_REDO, s_Schematic_Hokeys_Descr, HK_REDO, IS_COMMENT );
+    msg = AddHotkeyName( HELP_REDO, g_Schematic_Hokeys_Descr, HK_REDO, IS_COMMENT );
     m_mainToolBar->AddTool( wxID_REDO, wxEmptyString, KiBitmap( redo_xpm ), msg );
 
 
     m_mainToolBar->AddSeparator();
 
-
-    msg = AddHotkeyName( HELP_FIND, s_Schematic_Hokeys_Descr, HK_FIND_ITEM, IS_COMMENT );
+    msg = AddHotkeyName( HELP_FIND, g_Schematic_Hokeys_Descr, HK_FIND_ITEM, IS_COMMENT );
     m_mainToolBar->AddTool( ID_FIND_ITEMS, wxEmptyString, KiBitmap( find_xpm ), msg );
 
     m_mainToolBar->AddTool( wxID_REPLACE, wxEmptyString, KiBitmap( find_replace_xpm ),
                             wxNullBitmap, wxITEM_NORMAL, _( "Find and replace text" ),
                             HELP_REPLACE, NULL );
 
+
     m_mainToolBar->AddSeparator();
 
-
-    msg = AddHotkeyName( HELP_ZOOM_IN, s_Schematic_Hokeys_Descr, HK_ZOOM_IN, IS_COMMENT );
+    msg = AddHotkeyName( HELP_ZOOM_IN, g_Schematic_Hokeys_Descr, HK_ZOOM_IN, IS_COMMENT );
     m_mainToolBar->AddTool( ID_ZOOM_IN, wxEmptyString, KiBitmap( zoom_in_xpm ), msg );
 
-    msg = AddHotkeyName( HELP_ZOOM_OUT, s_Schematic_Hokeys_Descr, HK_ZOOM_OUT, IS_COMMENT );
+    msg = AddHotkeyName( HELP_ZOOM_OUT, g_Schematic_Hokeys_Descr, HK_ZOOM_OUT, IS_COMMENT );
     m_mainToolBar->AddTool( ID_ZOOM_OUT, wxEmptyString, KiBitmap( zoom_out_xpm ), msg );
 
-    msg = AddHotkeyName( HELP_ZOOM_REDRAW, s_Schematic_Hokeys_Descr, HK_ZOOM_REDRAW, IS_COMMENT );
+    msg = AddHotkeyName( HELP_ZOOM_REDRAW, g_Schematic_Hokeys_Descr, HK_ZOOM_REDRAW, IS_COMMENT );
     m_mainToolBar->AddTool( ID_ZOOM_REDRAW, wxEmptyString, KiBitmap( zoom_redraw_xpm ), msg );
 
-    msg = AddHotkeyName( HELP_ZOOM_FIT, s_Schematic_Hokeys_Descr, HK_ZOOM_AUTO, IS_COMMENT );
+    msg = AddHotkeyName( HELP_ZOOM_FIT, g_Schematic_Hokeys_Descr, HK_ZOOM_AUTO, IS_COMMENT );
     m_mainToolBar->AddTool( ID_ZOOM_PAGE, wxEmptyString, KiBitmap( zoom_fit_in_page_xpm ), msg );
 
 
     m_mainToolBar->AddSeparator();
 
-
     m_mainToolBar->AddTool( ID_HIERARCHY, wxEmptyString, KiBitmap( hierarchy_nav_xpm ),
                             _( "Navigate schematic hierarchy" ) );
 
 
+    m_mainToolBar->AddTool( ID_POPUP_SCH_LEAVE_SHEET, wxEmptyString, KiBitmap( leave_sheet_xpm ),
+                            _( "Leave sheet" ) );
+
     m_mainToolBar->AddSeparator();
 
-
-    m_mainToolBar->AddTool( ID_TO_LIBRARY, wxEmptyString, KiBitmap( libedit_xpm ),
+    m_mainToolBar->AddTool( ID_RUN_LIBRARY, wxEmptyString, KiBitmap( libedit_xpm ),
                             HELP_RUN_LIB_EDITOR );
 
     m_mainToolBar->AddTool( ID_TO_LIBVIEW, wxEmptyString, KiBitmap( library_browse_xpm ),
@@ -142,12 +141,11 @@ void SCH_EDIT_FRAME::ReCreateHToolbar()
 
     m_mainToolBar->AddSeparator();
 
-
     m_mainToolBar->AddTool( ID_GET_ANNOTATE, wxEmptyString, KiBitmap( annotate_xpm ),
                             HELP_ANNOTATE );
 
     m_mainToolBar->AddTool( ID_GET_ERC, wxEmptyString, KiBitmap( erc_xpm ),
-                            _( "Perform electric rules check" ) );
+                            _( "Perform electrical rules check" ) );
 
     m_mainToolBar->AddTool( ID_GET_NETLIST, wxEmptyString, KiBitmap( netlist_xpm ),
                             _( "Generate netlist" ) );
@@ -158,21 +156,20 @@ void SCH_EDIT_FRAME::ReCreateHToolbar()
 
     m_mainToolBar->AddSeparator();
 
+    // The user must have footprints before he can assign them.  So put this before CvPcb.
 
-    m_mainToolBar->AddTool( ID_TO_CVPCB, wxEmptyString, KiBitmap( cvpcb_xpm ),
+    m_mainToolBar->AddTool( ID_RUN_PCB_MODULE_EDITOR, wxEmptyString, KiBitmap( module_editor_xpm ),
+                            _( "Footprint Editor" ) );
+
+    m_mainToolBar->AddTool( ID_RUN_CVPCB, wxEmptyString, KiBitmap( cvpcb_xpm ),
                             _( "Run CvPcb to associate components and footprints" ) );
 
-    m_mainToolBar->AddTool( ID_TO_PCB, wxEmptyString, KiBitmap( pcbnew_xpm ),
+    m_mainToolBar->AddTool( ID_RUN_PCB, wxEmptyString, KiBitmap( pcbnew_xpm ),
                             _( "Run Pcbnew to layout printed circuit board" ) );
 
     m_mainToolBar->AddTool( ID_BACKANNO_ITEMS, wxEmptyString,
                             KiBitmap( import_footprint_names_xpm ),
                             HELP_IMPORT_FOOTPRINTS );
-
-    // set icon paddings
-    m_mainToolBar->SetToolBorderPadding(3); // padding
-    m_mainToolBar->SetToolSeparation(0);
-    //m_mainToolBar->SetMargins(0,1); // margins width and height
 
     // after adding the tools to the toolbar, must call Realize() to reflect the changes
     m_mainToolBar->Realize();
@@ -195,7 +192,7 @@ void SCH_EDIT_FRAME::ReCreateVToolbar()
 
     m_drawToolBar->AddTool( ID_HIERARCHY_PUSH_POP_BUTT, wxEmptyString,
                             KiBitmap( hierarchy_cursor_xpm ),
-                            _( "Ascend or descend hierarchy" ), wxITEM_CHECK );
+                            _( "Ascend/descend hierarchy" ), wxITEM_CHECK );
 
     m_drawToolBar->AddTool( ID_SCH_PLACE_COMPONENT, wxEmptyString, KiBitmap( add_component_xpm ),
                             HELP_PLACE_COMPONENTS, wxITEM_CHECK );
@@ -251,16 +248,11 @@ void SCH_EDIT_FRAME::ReCreateVToolbar()
                             HELP_PLACE_GRAPHICTEXTS, wxITEM_CHECK );
 
     m_drawToolBar->AddTool( ID_ADD_IMAGE_BUTT, wxEmptyString, KiBitmap( image_xpm ),
-                            _("Add a bitmap image"), wxITEM_CHECK );
+                            _("Add bitmap image"), wxITEM_CHECK );
 
     m_drawToolBar->AddTool( ID_SCHEMATIC_DELETE_ITEM_BUTT, wxEmptyString,
                             KiBitmap( delete_xpm ),
                             HELP_DELETE_ITEMS, wxITEM_CHECK );
-
-    // set icon paddings
-    m_drawToolBar->SetToolBorderPadding(2); // padding
-    m_drawToolBar->SetToolSeparation(0);
-    //m_drawToolBar->SetMargins(1,0); // margins width and height
 
     m_drawToolBar->Realize();
 }
@@ -282,11 +274,11 @@ void SCH_EDIT_FRAME::ReCreateOptToolbar()
 
     m_optionsToolBar->AddTool( ID_TB_OPTIONS_SELECT_UNIT_INCH, wxEmptyString,
                                KiBitmap( unit_inch_xpm ),
-                               _( "Units in inches" ), wxITEM_CHECK );
+                               _( "Set unit to inch" ), wxITEM_CHECK );
 
     m_optionsToolBar->AddTool( ID_TB_OPTIONS_SELECT_UNIT_MM, wxEmptyString,
                                KiBitmap( unit_mm_xpm ),
-                               _( "Units in millimeters" ), wxITEM_CHECK );
+                               _( "Set unit to mm" ), wxITEM_CHECK );
 
     m_optionsToolBar->AddTool( ID_TB_OPTIONS_SELECT_CURSOR, wxEmptyString,
                                KiBitmap( cursor_shape_xpm ),
@@ -302,10 +294,6 @@ void SCH_EDIT_FRAME::ReCreateOptToolbar()
                                KiBitmap( lines90_xpm ),
                                _( "HV orientation for wires and bus" ),
                                wxITEM_CHECK );
-
-    // set icon paddings
-    m_optionsToolBar->SetToolBorderPadding(2); // padding
-    m_optionsToolBar->SetToolSeparation(0);
 
     m_optionsToolBar->Realize();
 }

@@ -1,9 +1,33 @@
+/*
+ * This program source code file is part of KiCad, a free EDA CAD application.
+ *
+ * Copyright (C) 2014 Jean-Pierre Charras, jp.charras at wanadoo.fr
+ * Copyright (C) 2014 KiCad Developers, see CHANGELOG.TXT for contributors.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation; either version 2
+ * of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, you may find one here:
+ * http://www.gnu.org/licenses/old-licenses/gpl-2.0.html
+ * or you may search the http://www.gnu.org website for the version 2 license,
+ * or you may write to the Free Software Foundation, Inc.,
+ * 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
+ */
+
 /**
  * @file eda_doc.cpp
  */
 
 #include <fctsys.h>
-#include <appl_wxstruct.h>
+#include <pgm_base.h>
 #include <common.h>
 #include <confirm.h>
 #include <gestfich.h>
@@ -14,19 +38,25 @@
 #include <macros.h>
 
 
-void EDA_APP::ReadPdfBrowserInfos()
+void PGM_BASE::ReadPdfBrowserInfos()
 {
-    wxASSERT( m_commonSettings != NULL );
+    wxASSERT( m_common_settings );
 
-    m_PdfBrowser = m_commonSettings->Read( wxT( "PdfBrowserName" ), wxEmptyString );
+    wxString browser = m_common_settings->Read( wxT( "PdfBrowserName" ), wxEmptyString );
+    SetPdfBrowserName( browser );
+
+    int tmp;
+    m_common_settings->Read( wxT( "UseSystemBrowser" ), &tmp, 0 );
+    m_use_system_pdf_browser = bool( tmp );
 }
 
 
-void EDA_APP::WritePdfBrowserInfos()
+void PGM_BASE::WritePdfBrowserInfos()
 {
-    wxASSERT( m_commonSettings != NULL );
+    wxASSERT( m_common_settings );
 
-    m_commonSettings->Write( wxT( "PdfBrowserName" ), m_PdfBrowser );
+    m_common_settings->Write( wxT( "PdfBrowserName" ), GetPdfBrowserName() );
+    m_common_settings->Write( wxT( "UseSystemBrowser" ), m_use_system_pdf_browser );
 }
 
 
@@ -53,20 +83,24 @@ static const wxFileTypeInfo EDAfallbacks[] =
 };
 
 
-bool GetAssociatedDocument( wxFrame* aFrame,
+bool GetAssociatedDocument( wxWindow* aParent,
                             const wxString& aDocName,
                             const wxPathList* aPaths)
 
 {
-    wxString docname, fullfilename, file_ext;
+    wxString docname, fullfilename;
     wxString msg;
     wxString command;
     bool     success = false;
 
     // Is an internet url
-    static const wxString url_header[3] = { wxT( "http:" ), wxT( "ftp:" ), wxT( "www." ) };
+    static const wxChar* url_header[3] = {
+        wxT( "http:" ),
+        wxT( "ftp:" ),
+        wxT( "www." )
+    };
 
-    for( int ii = 0; ii < 3; ii++ )
+    for( unsigned ii = 0; ii < DIM(url_header); ii++ )
     {
         if( aDocName.First( url_header[ii] ) == 0 )   //. seems an internet url
         {
@@ -112,7 +146,7 @@ bool GetAssociatedDocument( wxFrame* aFrame,
                                          fullfilename,
                                          extension,
                                          mask,
-                                         aFrame,
+                                         aParent,
                                          wxFD_OPEN,
                                          true,
                                          wxPoint( -1, -1 ) );
@@ -122,14 +156,14 @@ bool GetAssociatedDocument( wxFrame* aFrame,
 
     if( !wxFileExists( fullfilename ) )
     {
-        msg = _( "Doc File " );
-        msg << wxT("\"") << aDocName << wxT("\"") << _( " not found" );
-        DisplayError( aFrame, msg );
+        msg.Printf( _( "Doc File '%s' not found" ), GetChars( aDocName ) );
+        DisplayError( aParent, msg );
         return false;
     }
 
-    wxFileName CurrentFileName( fullfilename );
-    file_ext = CurrentFileName.GetExt();
+    wxFileName currentFileName( fullfilename );
+
+    wxString file_ext = currentFileName.GetExt();
 
     if( file_ext == wxT( "pdf" ) )
     {
@@ -166,7 +200,7 @@ bool GetAssociatedDocument( wxFrame* aFrame,
     if( !success )
     {
         msg.Printf( _( "Unknown MIME type for doc file <%s>" ), GetChars( fullfilename ) );
-        DisplayError( aFrame, msg );
+        DisplayError( aParent, msg );
     }
 
     return success;

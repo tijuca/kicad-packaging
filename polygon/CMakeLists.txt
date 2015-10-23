@@ -9,6 +9,9 @@ set(POLYGON_SRCS
     PolyLine.cpp
     polygon_test_point_inside.cpp
     clipper.cpp
-    )
+)
 
 add_library(polygon STATIC ${POLYGON_SRCS})
+
+add_dependencies( polygon lib-dependencies )
+

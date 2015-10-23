@@ -1,9 +1,9 @@
 /*
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
- * Copyright (C) 2004 Jean-Pierre Charras, jaen-pierre.charras@gipsa-lab.inpg.com
- * Copyright (C) 2008-2011 Wayne Stambaugh <stambaughw@verizon.net>
- * Copyright (C) 2004-2011 KiCad Developers, see change_log.txt for contributors.
+ * Copyright (C) 2014 Jean-Pierre Charras, jp.charras at wanadoo.fr
+ * Copyright (C) 2008-2014 Wayne Stambaugh <stambaughw@verizon.net>
+ * Copyright (C) 2004-2014 KiCad Developers, see change_log.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -39,24 +39,23 @@
 
 
 class SCH_EDIT_FRAME;
-class CMP_LIBRARY;
-class LIB_COMPONENT;
+class PART_LIB;
+class LIB_PART;
 class LIB_ALIAS;
 class LIB_FIELD;
 class DIALOG_LIB_EDIT_TEXT;
-
 
 /**
  * The component library editor main window.
  */
 class LIB_EDIT_FRAME : public SCH_BASE_FRAME
 {
-    LIB_COMPONENT* m_tempCopyComponent;  ///< Temporary copy of current component during edit.
-    LIB_COLLECTOR m_collectedItems;      // Used for hit testing.
-    wxComboBox* m_partSelectBox;         // a Box to select a part to edit (if any)
-    wxComboBox* m_aliasSelectBox;        // a box to select the alias to edit (if any)
+    LIB_PART*       m_my_part;              ///< a part I own, it is not in any library, but a copy could be.
+    LIB_PART*       m_tempCopyComponent;    ///< temp copy of a part during edit, I own it here.
+    LIB_COLLECTOR   m_collectedItems;       ///< Used for hit testing.
+    wxComboBox*     m_partSelectBox;        ///< a Box to select a part to edit (if any)
+    wxComboBox*     m_aliasSelectBox;       ///< a box to select the alias to edit (if any)
 
-    wxString m_configPath;
     wxString m_lastLibImportPath;
     wxString m_lastLibExportPath;
 
@@ -86,14 +85,9 @@ class LIB_EDIT_FRAME : public SCH_BASE_FRAME
     /** Default line width for drawing or editing graphic items. */
     static int m_drawLineWidth;
 
-    /** The current active library. NULL if no active library is selected. */
-    static CMP_LIBRARY* m_library;
-    /** The current component being edited.  NULL if no component is selected. */
-    static LIB_COMPONENT* m_component;
-
-    static LIB_ITEM* m_lastDrawItem;
-    static LIB_ITEM* m_drawItem;
-    static wxString m_aliasName;
+    static LIB_ITEM*    m_lastDrawItem;
+    static LIB_ITEM*    m_drawItem;
+    static wxString     m_aliasName;
 
     // The unit number to edit and show
     static int m_unit;
@@ -106,7 +100,7 @@ class LIB_EDIT_FRAME : public SCH_BASE_FRAME
     // They are enabled when the loaded component has
     // Graphic items for converted shape
     // But under some circumstances (New component created)
-    // these tools must left enable
+    // these tools must left enabled
     static bool m_showDeMorgan;
 
     /// The current text size setting.
@@ -115,6 +109,18 @@ class LIB_EDIT_FRAME : public SCH_BASE_FRAME
     /// Current text orientation setting.
     static int m_textOrientation;
 
+    /// The default pin num text size setting.
+    static int m_textPinNumDefaultSize;
+
+    /// The default  pin name text size setting.
+    static int m_textPinNameDefaultSize;
+
+    ///  Default pin length
+    static int m_defaultPinLength;
+
+    /// Default repeat offset for pins in repeat place pin
+    int m_repeatPinStep;
+
     static wxSize m_clientSize;
 
     friend class DIALOG_LIB_EDIT_TEXT;
@@ -122,25 +128,60 @@ class LIB_EDIT_FRAME : public SCH_BASE_FRAME
     LIB_ITEM* locateItem( const wxPoint& aPosition, const KICAD_T aFilterList[] );
 
 public:
-    LIB_EDIT_FRAME( SCH_EDIT_FRAME* aParent, const wxString& aTitle,
-                    const wxPoint& aPosition, const wxSize& aSize,
-                    long aStyle = KICAD_DEFAULT_DRAWFRAME_STYLE );
+
+    LIB_EDIT_FRAME( KIWAY* aKiway, wxWindow* aParent );
 
     ~LIB_EDIT_FRAME();
 
-    /**
-     * Function GetLibEditFrameName (static)
-     * @return the frame name used when creating the frame
-     * used to get a reference to this frame, if exists
-     */
-    static const wxChar* GetLibEditFrameName();
+    /** The current library being edited, or NULL if none. */
+    PART_LIB* GetCurLib();
+
+    /** Sets the current library and return the old. */
+    PART_LIB* SetCurLib( PART_LIB* aLib );
 
     /**
-     * Function GetActiveLibraryEditor (static)
-     * @return a reference to the current opened Library editor
-     * or NULL if no Library editor currently opened
+     * Function GetCurPart
+     * returns the current part being edited, or NULL if none selected.
+     * This is a LIB_PART that I own, it is at best a copy of one in a library.
      */
-    static LIB_EDIT_FRAME* GetActiveLibraryEditor();
+    LIB_PART* GetCurPart();
+
+    /**
+     * Function SetCurPart
+     * takes ownership over aPart and notes that it is the one currently
+     * being edited.
+     */
+    void SetCurPart( LIB_PART* aPart );
+
+    /** @return the default pin num text size.
+     */
+    static int GetPinNumDefaultSize() { return m_textPinNumDefaultSize; }
+
+    /** @return The default  pin name text size setting.
+     */
+    static int GetPinNameDefaultSize() { return m_textPinNameDefaultSize; }
+
+    /** @return The default pin len setting.
+     */
+    static int GetDefaultPinLength() { return m_defaultPinLength; }
+
+    /** Set the default pin len.
+     */
+    static void SetDefaultPinLength( int aLength ) { m_defaultPinLength = aLength; }
+
+    /**
+     * @return the increment value of the position of a pin
+     * for the pin repeat command
+     */
+    int GetRepeatPinStep() const { return m_repeatPinStep; }
+
+    /**
+     * Sets the repeat step value for pins repeat command
+     * @param aStep the increment value of the position of an item
+     * for the repeat command
+     */
+    void SetRepeatPinStep( int aStep) { m_repeatPinStep = aStep; }
+
 
     void ReCreateMenuBar();
 
@@ -151,15 +192,9 @@ public:
      */
     static void EnsureActiveLibExists();
 
-    /**
-     * Function SetLanguage
-     * is called on a language menu selection
-     */
-    void SetLanguage( wxCommandEvent& event );
-
     void InstallConfigFrame( wxCommandEvent& event );
-    void InstallDimensionsDialog( wxCommandEvent& event );
     void OnColorConfig( wxCommandEvent& aEvent );
+    void OnPreferencesOptions( wxCommandEvent& event );
     void Process_Config( wxCommandEvent& event );
 
     /**
@@ -168,7 +203,7 @@ public:
      *         component has multiple parts or body styles.  Otherwise false is
      *         returned.
      */
-    bool SynchronizePins() const;
+    bool SynchronizePins();
 
     /**
      * Function OnPlotCurrentComponent
@@ -238,6 +273,8 @@ public:
     void OnEditPin( wxCommandEvent& event );
     void OnSelectItem( wxCommandEvent& aEvent );
 
+    void OnOpenPinTable( wxCommandEvent& aEvent );
+
     void OnUpdateSelectTool( wxUpdateUIEvent& aEvent );
     void OnUpdateEditingPart( wxUpdateUIEvent& event );
     void OnUpdateNotEditingPart( wxUpdateUIEvent& event );
@@ -246,6 +283,7 @@ public:
     void OnUpdateSaveCurrentLib( wxUpdateUIEvent& event );
     void OnUpdateViewDoc( wxUpdateUIEvent& event );
     void OnUpdatePinByPin( wxUpdateUIEvent& event );
+    void OnUpdatePinTable( wxUpdateUIEvent& event );
     void OnUpdatePartNumber( wxUpdateUIEvent& event );
     void OnUpdateDeMorganNormal( wxUpdateUIEvent& event );
     void OnUpdateDeMorganConvert( wxUpdateUIEvent& event );
@@ -268,7 +306,7 @@ public:
      * accordint to the current selected unit and De Morgan selection
      * although it is stored without ? and part id.
      * @param aDC = the current device context
-     * @param aOffset = a draw offset. usually à,0 to draw on the screen, but
+     * @param aOffset = a draw offset. usually 0,0 to draw on the screen, but
      * can be set to page size / 2 to draw or print in SVG format.
      */
     void RedrawComponent( wxDC* aDC, wxPoint aOffset );
@@ -290,27 +328,16 @@ public:
     double BestZoom();         // Returns the best zoom
     void OnLeftDClick( wxDC* DC, const wxPoint& MousePos );
 
-    void OnHotKey( wxDC* aDC, int aHotKey, const wxPoint& aPosition, EDA_ITEM* aItem = NULL );
+    ///> @copydoc EDA_DRAW_FRAME::GetHotKeyDescription()
+    EDA_HOTKEY* GetHotKeyDescription( int aCommand ) const;
 
-    void GeneralControl( wxDC* aDC, const wxPoint& aPosition, int aHotKey = 0 );
+    bool OnHotKey( wxDC* aDC, int aHotKey, const wxPoint& aPosition, EDA_ITEM* aItem = NULL );
 
-    /**
-     * Function LoadSettings
-     * loads the library editor frame specific configuration settings.
-     *
-     * Don't forget to call this method from any derived classes or the settings will not
-     * get loaded.
-     */
-    void LoadSettings();
+    bool GeneralControl( wxDC* aDC, const wxPoint& aPosition, int aHotKey = 0 );
 
-    /**
-     * Function SaveSettings
-     * saves the library editor frame specific configuration settings.
-     *
-     * Don't forget to call this base method from any derived classes or the settings will
-     * not get saved.
-     */
-    void SaveSettings();
+    void LoadSettings( wxConfigBase* aCfg );
+
+    void SaveSettings( wxConfigBase* aCfg );
 
     /**
      * Function CloseWindow
@@ -325,7 +352,6 @@ public:
         Close( false );
     }
 
-
     /**
      * Function OnModify
      * Must be called after a schematic change
@@ -336,14 +362,9 @@ public:
         GetScreen()->SetModify();
     }
 
+    const wxString& GetAliasName()      { return m_aliasName; }
 
-    LIB_COMPONENT* GetComponent( void ) { return m_component; }
-
-    CMP_LIBRARY* GetLibrary( void ) { return m_library; }
-
-    wxString& GetAliasName( void ) { return m_aliasName; }
-
-    int GetUnit( void ) { return m_unit; }
+    int GetUnit() { return m_unit; }
 
     void SetUnit( int unit )
     {
@@ -351,8 +372,7 @@ public:
         m_unit = unit;
     }
 
-
-    int GetConvert( void ) { return m_convert; }
+    int GetConvert() { return m_convert; }
 
     void SetConvert( int convert )
     {
@@ -360,24 +380,22 @@ public:
         m_convert = convert;
     }
 
-
-    LIB_ITEM* GetLastDrawItem( void ) { return m_lastDrawItem; }
+    LIB_ITEM* GetLastDrawItem() { return m_lastDrawItem; }
 
     void SetLastDrawItem( LIB_ITEM* drawItem )
     {
         m_lastDrawItem = drawItem;
     }
 
-
-    LIB_ITEM* GetDrawItem( void ) { return m_drawItem; }
+    LIB_ITEM* GetDrawItem() { return m_drawItem; }
 
     void SetDrawItem( LIB_ITEM* drawItem );
 
-    bool GetShowDeMorgan( void ) { return m_showDeMorgan; }
+    bool GetShowDeMorgan() { return m_showDeMorgan; }
 
     void SetShowDeMorgan( bool show ) { m_showDeMorgan = show; }
 
-    FILL_T GetFillStyle( void ) { return m_drawFillStyle; }
+    FILL_T GetFillStyle() { return m_drawFillStyle; }
 
     /**
      * Function TempCopyComponent
@@ -397,7 +415,7 @@ public:
      * Function GetTempCopyComponent
      * @return the temporary copy of the current component.
      */
-    LIB_COMPONENT* GetTempCopyComponent() { return m_tempCopyComponent; }
+    LIB_PART*      GetTempCopyComponent() { return m_tempCopyComponent; }
 
     /**
      * Function ClearTempCopyComponent
@@ -413,30 +431,34 @@ private:
      * Function OnActivate
      * is called when the frame is activated. Tests if the current library exists.
      * The library list can be changed by the schematic editor after reloading a new schematic
-     * and the current m_library can point a non existent lib.
+     * and the current library can point a non existent lib.
      */
     virtual void OnActivate( wxActivateEvent& event );
 
     // General:
 
     /**
-     * Function SaveOnePartInMemory
-     * updates the current component being edited in the active library.
+     * Function SaveOnePart
+     * saves the current LIB_PART into the provided PART_LIB.
      *
      * Any changes are updated in memory only and NOT to a file.  The old component is
      * deleted from the library and/or any aliases before the edited component is updated
      * in the library.
+     * @param aLib - the part library where the part must be saved.
+     * @param aPromptUser true to ask for confirmation, when the part_lib is already existing
+     *      in memory, false to save silently
+     * @return true if the part was saved, false if aborted by user
      */
-    void SaveOnePartInMemory();
+    bool SaveOnePart( PART_LIB* aLib, bool aPromptUser = true );
 
     /**
      * Function SelectActiveLibrary
      * sets the current active library to \a aLibrary.
      *
-     * @param aLibrary A pointer to the CMP_LIBRARY object to select.  If NULL, then display
+     * @param aLibrary A pointer to the PART_LIB object to select.  If NULL, then display
      *                 list of available libraries to select from.
      */
-    void SelectActiveLibrary( CMP_LIBRARY* aLibrary = NULL );
+    void SelectActiveLibrary( PART_LIB* aLibrary = NULL );
 
     /**
      * Function OnSaveActiveLibrary
@@ -471,10 +493,10 @@ private:
      * loads a copy of \a aLibEntry from \a aLibrary into memory.
      *
      * @param aLibEntry A pointer to the LIB_ALIAS object to load.
-     * @param aLibrary A pointer to the CMP_LIBRARY object to load \a aLibEntry from.
+     * @param aLibrary A pointer to the PART_LIB object to load \a aLibEntry from.
      * @return True if a copy of \a aLibEntry was successfully loaded from \a aLibrary.
      */
-    bool LoadOneLibraryPartAux( LIB_ALIAS* aLibEntry, CMP_LIBRARY* aLibrary );
+    bool LoadOneLibraryPartAux( LIB_ALIAS* aLibEntry, PART_LIB* aLibrary );
 
     /**
      * Function DisplayCmpDoc
@@ -497,7 +519,13 @@ private:
 
     // General editing
 public:
-    void SaveCopyInUndoList( EDA_ITEM* ItemToCopy, int flag_type_command = 0 );
+    /**
+     * Function SaveCopyInUndoList.
+     * Create a copy of the current component, and save it in the undo list.
+     * Because a component in library editor does not a lot of primitives,
+     * the full data is duplicated. It is not worth to try to optimize this save funtion
+     */
+    void SaveCopyInUndoList( EDA_ITEM* ItemToCopy );
 
 private:
     void GetComponentFromUndoList( wxCommandEvent& event );
@@ -530,7 +558,7 @@ private:
     void PlaceAnchor();
 
     // Editing graphic items
-    LIB_ITEM* CreateGraphicItem( LIB_COMPONENT* LibEntry, wxDC* DC );
+    LIB_ITEM* CreateGraphicItem( LIB_PART*      LibEntry, wxDC* DC );
     void GraphicItemBeginDraw( wxDC* DC );
     void StartMoveDrawSymbol( wxDC* DC );
     void StartModifyDrawSymbol( wxDC* DC ); //<! Modify the item, adjust size etc.
@@ -566,20 +594,20 @@ public:
      * Function LoadComponentAndSelectLib
      * selects the current active library.
      *
-     * @param aLibrary The CMP_LIBRARY to select
+     * @param aLibrary The PART_LIB to select
      * @param aLibEntry The component to load from aLibrary (can be an alias).
      * @return true if \a aLibEntry was loaded from \a aLibrary.
      */
-    bool LoadComponentAndSelectLib( LIB_ALIAS* aLibEntry, CMP_LIBRARY* aLibrary );
+    bool LoadComponentAndSelectLib( LIB_ALIAS* aLibEntry, PART_LIB* aLibrary );
 
     /* Block commands: */
 
     /**
-     * Function ReturnBlockCommand
+     * Function BlockCommand
      * returns the block command (BLOCK_MOVE, BLOCK_COPY...) corresponding to
      * the \a aKey (ALT, SHIFT ALT ..)
      */
-    virtual int ReturnBlockCommand( int aKey );
+    virtual int BlockCommand( int aKey );
 
     /**
      * Function HandleBlockPlace
@@ -637,16 +665,15 @@ public:
      * @param aPrintMirrorMode = not used here (Set when printing in mirror mode)
      * @param aData = a pointer on an auxiliary data (not always used, NULL if not used)
      */
-    virtual void PrintPage( wxDC* aDC, int aPrintMask,
+    virtual void PrintPage( wxDC* aDC, LSET aPrintMask,
                             bool aPrintMirrorMode, void* aData = NULL );
 
     /**
-     * Function SVG_Print_Component
+     * Function SVG_PlotComponent
      * Creates the SVG print file for the current edited component.
-     * @param aFullFileName = the full filename of the file
+     * @param aFullFileName = the full filename
      */
-    void SVG_Print_Component( const wxString& aFullFileName );
-
+    void SVG_PlotComponent( const wxString& aFullFileName );
 
     DECLARE_EVENT_TABLE()
 };

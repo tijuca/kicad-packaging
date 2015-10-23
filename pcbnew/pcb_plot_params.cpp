@@ -2,7 +2,7 @@
 /*
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
- * Copyright (C) 1992-2013 KiCad Developers, see change_log.txt for contributors.
+ * Copyright (C) 1992-2015 KiCad Developers, see change_log.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -22,9 +22,9 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
  */
 
-#include <wx/wx.h>
+//#include <wx/wx.h>
+#include <pcb_plot_params_parser.h>
 #include <pcb_plot_params.h>
-#include <pcb_plot_params_lexer.h>
 #include <layers_id_colors_and_visibility.h>
 #include <plot_common.h>
 #include <macros.h>
@@ -49,6 +49,10 @@
  * default thickness line value (Frame references)
  */
 int g_DrawDefaultLineThickness = PLOT_LINEWIDTH_DEFAULT;
+
+// default trailing digits in Gerber coordinates, when units are mm
+// This is also the max usable precision (i.e. internal Pcbnew Units)
+static const int gbrDefaultPrecision = 6;
 
 
 using namespace PCBPLOTPARAMS_T;
@@ -75,16 +79,17 @@ static bool setInt( int* aInt, int aValue, int aMin, int aMax )
 
 // PCB_PLOT_PARAMS
 
-PCB_PLOT_PARAMS::PCB_PLOT_PARAMS()
+PCB_PLOT_PARAMS::PCB_PLOT_PARAMS() :
+    m_layerSelection( 4, B_Cu, F_Cu, F_SilkS, B_SilkS )
 {
-    m_layerSelection       = LAYER_BACK | LAYER_FRONT
-        | SILKSCREEN_LAYER_FRONT | SILKSCREEN_LAYER_BACK;
-    m_useGerberExtensions  = true;
+    m_useGerberExtensions  = false;
+    m_useGerberAttributes  = false;
+    m_gerberPrecision      = gbrDefaultPrecision;
     m_excludeEdgeLayer     = true;
     m_lineWidth            = g_DrawDefaultLineThickness;
     m_plotFrameRef         = false;
     m_plotViaOnMaskLayer   = false;
-    m_mode                 = FILLED;
+    m_plotMode             = FILLED;
     m_useAuxOrigin         = false;
     m_HPGLPenNum           = 1;
     m_HPGLPenSpeed         = 20;        // this param is always in cm/s
@@ -94,7 +99,6 @@ PCB_PLOT_PARAMS::PCB_PLOT_PARAMS()
     m_A4Output             = false;
     m_plotReference        = true;
     m_plotValue            = true;
-    m_plotOtherText        = true;
     m_plotInvisibleText    = false;
     m_plotPadsOnSilkLayer  = false;
     m_subtractMaskFromSilk = false;
@@ -111,11 +115,22 @@ PCB_PLOT_PARAMS::PCB_PLOT_PARAMS()
     m_color                = BLACK;
     m_referenceColor       = BLACK;
     m_valueColor           = BLACK;
-    m_textMode             = PLOTTEXTMODE_PHANTOM;
+    m_textMode             = PLOTTEXTMODE_DEFAULT;
 
     // This parameter controls if the NPTH pads will be plotted or not
     // it is a "local" parameter
     m_skipNPTH_Pads        = false;
+}
+
+void PCB_PLOT_PARAMS::SetGerberPrecision( int aPrecision )
+{
+    // Currently geber files use mm.
+    // accepted precision is only 6 (max value, this is the resolution of Pcbnew)
+    // or 5, min value for professional boards, when 6 creates problems
+    // to board makers.
+
+    m_gerberPrecision = aPrecision == gbrDefaultPrecision-1 ? gbrDefaultPrecision-1 :
+                                      gbrDefaultPrecision;
 }
 
 
@@ -127,10 +142,22 @@ void PCB_PLOT_PARAMS::Format( OUTPUTFORMATTER* aFormatter,
     const char* trueStr = getTokenName( T_true );
 
     aFormatter->Print( aNestLevel, "(%s\n", getTokenName( T_pcbplotparams ) );
-    aFormatter->Print( aNestLevel+1, "(%s %ld)\n", getTokenName( T_layerselection ),
-                       long(m_layerSelection) );
+
+    aFormatter->Print( aNestLevel+1, "(%s 0x%s)\n", getTokenName( T_layerselection ),
+                       m_layerSelection.FmtHex().c_str() );
+
     aFormatter->Print( aNestLevel+1, "(%s %s)\n", getTokenName( T_usegerberextensions ),
                        m_useGerberExtensions ? trueStr : falseStr );
+
+    if( m_useGerberAttributes ) // save this option only if active,
+                                // to avoid incompatibility with older Pcbnew version
+        aFormatter->Print( aNestLevel+1, "(%s %s)\n", getTokenName( T_usegerberattributes ), trueStr );
+
+    if( m_gerberPrecision != gbrDefaultPrecision ) // save this option only if it is not the default value,
+                                                   // to avoid incompatibility with older Pcbnew version
+        aFormatter->Print( aNestLevel+1, "(%s %d)\n",
+                           getTokenName( T_gerberprecision ), m_gerberPrecision );
+
     aFormatter->Print( aNestLevel+1, "(%s %s)\n", getTokenName( T_excludeedgelayer ),
                        m_excludeEdgeLayer ? trueStr : falseStr );
     aFormatter->Print( aNestLevel+1, "(%s %f)\n", getTokenName( T_linewidth ),
@@ -140,15 +167,17 @@ void PCB_PLOT_PARAMS::Format( OUTPUTFORMATTER* aFormatter,
     aFormatter->Print( aNestLevel+1, "(%s %s)\n", getTokenName( T_viasonmask ),
                        m_plotViaOnMaskLayer ? trueStr : falseStr );
     aFormatter->Print( aNestLevel+1, "(%s %d)\n", getTokenName( T_mode ),
-                       m_mode );
+                       GetPlotMode() == SKETCH ? 2 : 1 );       // Value 0 (LINE mode) no more used
     aFormatter->Print( aNestLevel+1, "(%s %s)\n", getTokenName( T_useauxorigin ),
                        m_useAuxOrigin ? trueStr : falseStr );
     aFormatter->Print( aNestLevel+1, "(%s %d)\n", getTokenName( T_hpglpennumber ),
                        m_HPGLPenNum );
-//  Obsolete parameter, pen speed is no more managed, because hpgl format
-// is now an export format, and for this, pen speed has no meaning
-//    aFormatter->Print( aNestLevel+1, "(%s %d)\n", getTokenName( T_hpglpenspeed ),
-//                       m_HPGLPenSpeed );
+
+    //  Obsolete parameter, pen speed is no more managed, because hpgl format
+    // is now an export format, and for this, pen speed has no meaning
+    //    aFormatter->Print( aNestLevel+1, "(%s %d)\n", getTokenName( T_hpglpenspeed ),
+    //                       m_HPGLPenSpeed );
+
     aFormatter->Print( aNestLevel+1, "(%s %d)\n", getTokenName( T_hpglpenspeed ),
                        m_HPGLPenSpeed );
     aFormatter->Print( aNestLevel+1, "(%s %d)\n", getTokenName( T_hpglpendiameter ),
@@ -163,8 +192,6 @@ void PCB_PLOT_PARAMS::Format( OUTPUTFORMATTER* aFormatter,
                        m_plotReference ? trueStr : falseStr );
     aFormatter->Print( aNestLevel+1, "(%s %s)\n", getTokenName( T_plotvalue ),
                        m_plotValue ? trueStr : falseStr );
-    aFormatter->Print( aNestLevel+1, "(%s %s)\n", getTokenName( T_plotothertext ),
-                       m_plotOtherText ? trueStr : falseStr );
     aFormatter->Print( aNestLevel+1, "(%s %s)\n", getTokenName( T_plotinvisibletext ),
                        m_plotInvisibleText ? trueStr : falseStr );
     aFormatter->Print( aNestLevel+1, "(%s %s)\n", getTokenName( T_padsonsilk ),
@@ -198,6 +225,10 @@ bool PCB_PLOT_PARAMS::operator==( const PCB_PLOT_PARAMS &aPcbPlotParams ) const
         return false;
     if( m_useGerberExtensions != aPcbPlotParams.m_useGerberExtensions )
         return false;
+    if( m_useGerberAttributes != aPcbPlotParams.m_useGerberAttributes )
+        return false;
+    if( m_gerberPrecision != aPcbPlotParams.m_gerberPrecision )
+        return false;
     if( m_excludeEdgeLayer != aPcbPlotParams.m_excludeEdgeLayer )
         return false;
     if( m_lineWidth != aPcbPlotParams.m_lineWidth )
@@ -206,7 +237,7 @@ bool PCB_PLOT_PARAMS::operator==( const PCB_PLOT_PARAMS &aPcbPlotParams ) const
         return false;
     if( m_plotViaOnMaskLayer != aPcbPlotParams.m_plotViaOnMaskLayer )
         return false;
-    if( m_mode != aPcbPlotParams.m_mode )
+    if( m_plotMode != aPcbPlotParams.m_plotMode )
         return false;
     if( m_useAuxOrigin != aPcbPlotParams.m_useAuxOrigin )
         return false;
@@ -225,8 +256,6 @@ bool PCB_PLOT_PARAMS::operator==( const PCB_PLOT_PARAMS &aPcbPlotParams ) const
     if( m_plotReference != aPcbPlotParams.m_plotReference )
         return false;
     if( m_plotValue != aPcbPlotParams.m_plotValue )
-        return false;
-    if( m_plotOtherText != aPcbPlotParams.m_plotOtherText )
         return false;
     if( m_plotInvisibleText != aPcbPlotParams.m_plotInvisibleText )
         return false;
@@ -312,7 +341,8 @@ PCB_PLOT_PARAMS_PARSER::PCB_PLOT_PARAMS_PARSER( char* aLine, const wxString& aSo
 void PCB_PLOT_PARAMS_PARSER::Parse( PCB_PLOT_PARAMS* aPcbPlotParams )
                              throw( PARSE_ERROR, IO_ERROR )
 {
-    T token;
+    T   token;
+
     while( ( token = NextTok() ) != T_RIGHT )
     {
         if( token == T_EOF)
@@ -324,45 +354,89 @@ void PCB_PLOT_PARAMS_PARSER::Parse( PCB_PLOT_PARAMS* aPcbPlotParams )
         if( token == T_pcbplotparams )
             continue;
 
+        bool skip_right = false;
+
         switch( token )
         {
         case T_layerselection:
-            token = NextTok();
-            if( token != T_NUMBER )
-                Expecting( T_NUMBER );
-            aPcbPlotParams->m_layerSelection = atol( CurText() );
+            {
+                token = NeedSYMBOLorNUMBER();
+
+                const std::string& cur = CurStr();
+
+                if( token == T_NUMBER ) // pretty 3 format had legacy Cu stack.
+                {
+                    // unsigned legacy_mask = atol( cur.c_str() );
+
+                    /*  It's not possible to convert a legacy Cu layer number to a new
+                        Cu layer number without knowing the number or total Cu layers
+                        in the legacy board.  We do not have that information here.
+                        So simply set all layers ON.  User can turn them off in the UI.
+                        This is one of the superiorities of the new Cu sequence.
+                    aPcbPlotParams->m_layerSelection = LEGACY_PLUGIN::leg_mask2new( cu_count, legacy_mask );
+                    */
+
+                    // sorry, use the UI once to fix:
+                    aPcbPlotParams->m_layerSelection = LSET( 4, B_Cu, F_Cu, F_SilkS, B_SilkS );
+                }
+                else if( cur.find_first_of( "0x" ) == 0 )   // pretty ver. 4.
+                {
+                    // skip the leading 2 0x bytes.
+                    aPcbPlotParams->m_layerSelection.ParseHex( cur.c_str()+2, cur.size()-2 );
+                }
+                else
+                    Expecting( "integer or hex layerSelection" );
+            }
             break;
+
         case T_usegerberextensions:
             aPcbPlotParams->m_useGerberExtensions = parseBool();
             break;
+
+        case T_usegerberattributes:
+            aPcbPlotParams->m_useGerberAttributes = parseBool();
+            break;
+
+        case T_gerberprecision:
+            aPcbPlotParams->m_gerberPrecision =
+                parseInt( gbrDefaultPrecision-1, gbrDefaultPrecision);
+            break;
+
         case T_psa4output:
             aPcbPlotParams->m_A4Output = parseBool();
             break;
+
         case T_excludeedgelayer:
             aPcbPlotParams->m_excludeEdgeLayer = parseBool();
             break;
+
         case T_linewidth:
-        {
-            // Due to a bug, this (minor) parameter was saved in biu
-            // and now is saved in mm
-            // If the read value is outside bounds, force a default value
-            double tmp = parseDouble();
-            if( !aPcbPlotParams->SetLineWidth( KiROUND( tmp * IU_PER_MM ) ) )
-                aPcbPlotParams->SetLineWidth( PLOT_LINEWIDTH_DEFAULT );
-        }
+            {
+                // Due to a bug, this (minor) parameter was saved in biu
+                // and now is saved in mm
+                // If the read value is outside bounds, force a default value
+                double tmp = parseDouble();
+                if( !aPcbPlotParams->SetLineWidth( KiROUND( tmp * IU_PER_MM ) ) )
+                    aPcbPlotParams->SetLineWidth( PLOT_LINEWIDTH_DEFAULT );
+            }
             break;
+
         case T_plotframeref:
             aPcbPlotParams->m_plotFrameRef = parseBool();
             break;
+
         case T_viasonmask:
             aPcbPlotParams->m_plotViaOnMaskLayer = parseBool();
             break;
+
         case T_mode:
-            aPcbPlotParams->m_mode = static_cast<EDA_DRAW_MODE_T>( parseInt( 0, 2 ) );
+            aPcbPlotParams->SetPlotMode( parseInt( 0, 2 ) > 1 ? SKETCH : FILLED );
             break;
+
         case T_useauxorigin:
             aPcbPlotParams->m_useAuxOrigin = parseBool();
             break;
+
         case T_hpglpennumber:
             aPcbPlotParams->m_HPGLPenNum = parseInt( HPGL_PEN_NUMBER_MIN,
                                                      HPGL_PEN_NUMBER_MAX );
@@ -382,50 +456,62 @@ void PCB_PLOT_PARAMS_PARSER::Parse( PCB_PLOT_PARAMS* aPcbPlotParams )
         case T_pscolor:
             NeedSYMBOL(); // This actually was never used...
             break;
+
         case T_psnegative:
             aPcbPlotParams->m_negative = parseBool();
             break;
+
         case T_plotreference:
             aPcbPlotParams->m_plotReference = parseBool();
             break;
+
         case T_plotvalue:
             aPcbPlotParams->m_plotValue = parseBool();
             break;
-        case T_plotothertext:
-            aPcbPlotParams->m_plotOtherText = parseBool();
-            break;
+
         case T_plotinvisibletext:
             aPcbPlotParams->m_plotInvisibleText = parseBool();
             break;
+
         case T_padsonsilk:
             aPcbPlotParams->m_plotPadsOnSilkLayer= parseBool();
             break;
+
         case T_subtractmaskfromsilk:
             aPcbPlotParams->m_subtractMaskFromSilk = parseBool();
             break;
+
         case T_outputformat:
             aPcbPlotParams->m_format = static_cast<PlotFormat>(
                                     parseInt( PLOT_FIRST_FORMAT, PLOT_LAST_FORMAT ) );
             break;
+
         case T_mirror:
             aPcbPlotParams->m_mirror = parseBool();
             break;
+
         case T_drillshape:
             aPcbPlotParams->m_drillMarks = static_cast<PCB_PLOT_PARAMS::DrillMarksType>
                                             ( parseInt( 0, 2 ) );
             break;
+
         case T_scaleselection:
             aPcbPlotParams->m_scaleSelection = parseInt( 0, 4 );
             break;
+
         case T_outputdirectory:
             NeedSYMBOL();
             aPcbPlotParams->m_outputDirectory = FROM_UTF8( CurText() );
             break;
+
         default:
-            Unexpected( CurText() );
+            skipCurrent();      // skip unknown or outdated plot parameter
+            skip_right = true;  // the closing right token is already read.
             break;
         }
-        NeedRIGHT();
+
+        if( ! skip_right )
+            NeedRIGHT();
     }
 }
 
@@ -469,4 +555,24 @@ double PCB_PLOT_PARAMS_PARSER::parseDouble()
     double val = strtod( CurText(), NULL );
 
     return val;
+}
+
+void PCB_PLOT_PARAMS_PARSER::skipCurrent() throw( IO_ERROR, PARSE_ERROR )
+{
+    int curr_level = 0;
+    T token;
+
+    while( ( token = NextTok() ) != T_EOF )
+    {
+        if( token == T_LEFT )
+            curr_level--;
+
+        if( token == T_RIGHT )
+        {
+            curr_level++;
+
+            if( curr_level > 0 )
+                return;
+        }
+    }
 }

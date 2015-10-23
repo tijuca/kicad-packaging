@@ -61,12 +61,12 @@ void PCB_EDIT_FRAME::Autoroute( wxDC* DC, int mode )
 
     if( GetBoard()->GetCopperLayerCount() > 1 )
     {
-        Route_Layer_TOP    = GetScreen()->m_Route_Layer_TOP;
-        Route_Layer_BOTTOM = GetScreen()->m_Route_Layer_BOTTOM;
+        g_Route_Layer_TOP    = GetScreen()->m_Route_Layer_TOP;
+        g_Route_Layer_BOTTOM = GetScreen()->m_Route_Layer_BOTTOM;
     }
     else
     {
-        Route_Layer_TOP = Route_Layer_BOTTOM = LAYER_N_BACK;
+        g_Route_Layer_TOP = g_Route_Layer_BOTTOM = B_Cu;
     }
 
     switch( mode )
@@ -78,7 +78,7 @@ void PCB_EDIT_FRAME::Autoroute( wxDC* DC, int mode )
             {
             case PCB_PAD_T:
                 Pad = (D_PAD*) GetScreen()->GetCurItem();
-                autoroute_net_code = Pad->GetNet();
+                autoroute_net_code = Pad->GetNetCode();
                 break;
 
             default:
@@ -95,7 +95,7 @@ void PCB_EDIT_FRAME::Autoroute( wxDC* DC, int mode )
         Module = (MODULE*) GetScreen()->GetCurItem();
         if( (Module == NULL) || (Module->Type() != PCB_MODULE_T) )
         {
-            wxMessageBox( _( "Module not selected" ) );
+            wxMessageBox( _( "Footprint not selected" ) );
             return;
         }
         break;
@@ -134,7 +134,7 @@ void PCB_EDIT_FRAME::Autoroute( wxDC* DC, int mode )
 
         case ROUTE_MODULE:
         {
-            D_PAD* pt_pad = (D_PAD*) Module->m_Pads;
+            D_PAD* pt_pad = (D_PAD*) Module->Pads();
             for( ; pt_pad != NULL; pt_pad = pt_pad->Next() )
             {
                 if( ptmp->m_PadStart == pt_pad )
@@ -172,7 +172,7 @@ void PCB_EDIT_FRAME::Autoroute( wxDC* DC, int mode )
     /* Map the board */
     RoutingMatrix.m_RoutingLayersCount = 1;
 
-    if( Route_Layer_TOP != Route_Layer_BOTTOM )
+    if( g_Route_Layer_TOP != g_Route_Layer_BOTTOM )
         RoutingMatrix.m_RoutingLayersCount = 2;
 
     if( RoutingMatrix.InitRoutingMatrix() < 0 )
@@ -221,7 +221,7 @@ void PCB_EDIT_FRAME::Reset_Noroutable( wxDC* DC )
 /* DEBUG Function: displays the routing matrix */
 void DisplayRoutingMatrix( EDA_DRAW_PANEL* panel, wxDC* DC )
 {
-    int dcell0, dcell1 = 0;
+    int dcell0;
     EDA_COLOR_T color;
 
     int maxi = 600 / RoutingMatrix.m_Ncols;
@@ -242,14 +242,17 @@ void DisplayRoutingMatrix( EDA_DRAW_PANEL* panel, wxDC* DC )
             if( dcell0 & HOLE )
                 color = GREEN;
 
-//            if( RoutingMatrix.m_RoutingLayersCount )
-//                dcell1 = GetCell( row, col, TOP );
+#if 0
+            int dcell1 = 0;
+
+            if( RoutingMatrix.m_RoutingLayersCount )
+                dcell1 = GetCell( row, col, TOP );
 
             if( dcell1 & HOLE )
                 color = RED;
 
-//            dcell0 |= dcell1;
-
+            dcell0 |= dcell1;
+#endif
             if( !color && ( dcell0 & VIA_IMPOSSIBLE ) )
                 color = BLUE;
 

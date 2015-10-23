@@ -5,8 +5,8 @@
 /*
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
- * Copyright (C) 2012 Jean-Pierre Charras, jean-pierre.charras@ujf-grenoble.fr
- * Copyright (C) 1992-2012 KiCad Developers, see AUTHORS.txt for contributors.
+ * Copyright (C) 2013 Jean-Pierre Charras, jean-pierre.charras@ujf-grenoble.fr
+ * Copyright (C) 1992-2013 KiCad Developers, see AUTHORS.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -27,7 +27,6 @@
  */
 
 #include <fctsys.h>
-#include <polygons_defs.h>
 #include <PolyLine.h>
 #include <wxPcbStruct.h>
 #include <trigo.h>
@@ -39,62 +38,97 @@
 #include <pcbnew.h>
 #include <zones.h>
 
+ /* Function TransformOutlinesShapeWithClearanceToPolygon
+  * Convert the zone filled areas polygons to polygons
+  * inflated (optional) by max( aClearanceValue, the zone clearance)
+  * and copy them in aCornerBuffer
+  * param aClearanceValue = the clearance around polygons
+  * param aAddClearance = true to add a clearance area to the polygon
+  *                      false to create the outline polygon.
+  */
+void ZONE_CONTAINER::TransformOutlinesShapeWithClearanceToPolygon(
+        SHAPE_POLY_SET& aCornerBuffer, int aMinClearanceValue, bool aUseNetClearance )
+{
+    // Creates the zone outline polygon (with holes if any)
+    SHAPE_POLY_SET polybuffer;
+    BuildFilledSolidAreasPolygons( NULL, &polybuffer );
+
+    // add clearance to outline
+    int clearance = aMinClearanceValue;
+
+    if( aUseNetClearance && IsOnCopperLayer() )
+    {
+        clearance = GetClearance();
+        if( aMinClearanceValue > clearance )
+            clearance = aMinClearanceValue;
+    }
+
+    // Calculate the polygon with clearance
+    // holes are linked to the main outline, so only one polygon is created.
+    if( clearance )
+        polybuffer.Inflate( clearance, 16 );
+
+    polybuffer.Fracture();
+    aCornerBuffer.Append( polybuffer );
+}
+
+
 
 /**
  * Function BuildUnconnectedThermalStubsPolygonList
  * Creates a set of polygons corresponding to stubs created by thermal shapes on pads
  * which are not connected to a zone (dangling bridges)
- * @param aCornerBuffer = a std::vector<CPolyPt> where to store polygons
+ * @param aCornerBuffer = a SHAPE_POLY_SET where to store polygons
  * @param aPcb = the board.
  * @param aZone = a pointer to the ZONE_CONTAINER  to examine.
  * @param aArcCorrection = a pointer to the ZONE_CONTAINER  to examine.
  * @param aRoundPadThermalRotation = the rotation in 1.0 degree for thermal stubs in round pads
  */
 
-void BuildUnconnectedThermalStubsPolygonList( std::vector<CPolyPt>& aCornerBuffer,
+void BuildUnconnectedThermalStubsPolygonList( SHAPE_POLY_SET& aCornerBuffer,
                                               BOARD*                aPcb,
                                               ZONE_CONTAINER*       aZone,
                                               double                aArcCorrection,
-                                              int                   aRoundPadThermalRotation )
+                                              double                aRoundPadThermalRotation )
 {
     std::vector<wxPoint> corners_buffer;    // a local polygon buffer to store one stub
     corners_buffer.reserve( 4 );
     wxPoint  ptTest[4];
 
-    int      zone_clearance = aZone->m_ZoneClearance;
+    int      zone_clearance = aZone->GetZoneClearance();
 
     EDA_RECT item_boundingbox;
     EDA_RECT zone_boundingbox  = aZone->GetBoundingBox();
-    int      biggest_clearance = aPcb->GetBiggestClearanceValue();
+    int      biggest_clearance = aPcb->GetDesignSettings().GetBiggestClearanceValue();
     biggest_clearance = std::max( biggest_clearance, zone_clearance );
     zone_boundingbox.Inflate( biggest_clearance );
 
     // half size of the pen used to draw/plot zones outlines
-    int pen_radius = aZone->m_ZoneMinThickness / 2;
+    int pen_radius = aZone->GetMinThickness() / 2;
 
     for( MODULE* module = aPcb->m_Modules;  module;  module = module->Next() )
     {
-        for( D_PAD* pad = module->m_Pads; pad != NULL; pad = pad->Next() )
+        for( D_PAD* pad = module->Pads(); pad != NULL; pad = pad->Next() )
         {
             // Rejects non-standard pads with tht-only thermal reliefs
-            if( aZone->GetPadConnection( pad ) == THT_THERMAL
-             && pad->GetAttribute() != PAD_STANDARD )
+            if( aZone->GetPadConnection( pad ) == PAD_ZONE_CONN_THT_THERMAL
+             && pad->GetAttribute() != PAD_ATTRIB_STANDARD )
                 continue;
 
-            if( aZone->GetPadConnection( pad ) != THERMAL_PAD
-             && aZone->GetPadConnection( pad ) != THT_THERMAL )
+            if( aZone->GetPadConnection( pad ) != PAD_ZONE_CONN_THERMAL
+             && aZone->GetPadConnection( pad ) != PAD_ZONE_CONN_THT_THERMAL )
                 continue;
 
             // check
             if( !pad->IsOnLayer( aZone->GetLayer() ) )
                 continue;
 
-            if( pad->GetNet() != aZone->GetNet() )
+            if( pad->GetNetCode() != aZone->GetNetCode() )
                 continue;
 
             // Calculate thermal bridge half width
             int thermalBridgeWidth = aZone->GetThermalReliefCopperBridge( pad )
-                                     - aZone->m_ZoneMinThickness;
+                                     - aZone->GetMinThickness();
             if( thermalBridgeWidth <= 0 )
                 continue;
 
@@ -122,12 +156,13 @@ void BuildUnconnectedThermalStubsPolygonList( std::vector<CPolyPt>& aCornerBuffe
             // inside the pad
             wxPoint startpoint;
             int copperThickness = aZone->GetThermalReliefCopperBridge( pad )
-                                  - aZone->m_ZoneMinThickness;
+                                  - aZone->GetMinThickness();
+
             if( copperThickness < 0 )
                 copperThickness = 0;
 
             // Leave a small extra size to the copper area inside to pad
-            copperThickness += (int)(IU_PER_MM * 0.04);
+            copperThickness += KiROUND( IU_PER_MM * 0.04 );
 
             startpoint.x = std::min( pad->GetSize().x, copperThickness );
             startpoint.y = std::min( pad->GetSize().y, copperThickness );
@@ -137,10 +172,10 @@ void BuildUnconnectedThermalStubsPolygonList( std::vector<CPolyPt>& aCornerBuffe
 
             // This is a CIRCLE pad tweak
             // for circle pads, the thermal stubs orientation is 45 deg
-            int fAngle = pad->GetOrientation();
-            if( pad->GetShape() == PAD_CIRCLE )
+            double fAngle = pad->GetOrientation();
+            if( pad->GetShape() == PAD_SHAPE_CIRCLE )
             {
-                endpoint.x     = (int) ( endpoint.x * aArcCorrection );
+                endpoint.x     = KiROUND( endpoint.x * aArcCorrection );
                 endpoint.y     = endpoint.x;
                 fAngle = aRoundPadThermalRotation;
             }
@@ -161,7 +196,7 @@ void BuildUnconnectedThermalStubsPolygonList( std::vector<CPolyPt>& aCornerBuffe
                 RotatePoint( &ptTest[i], fAngle );
 
                 // translate point
-                ptTest[i] += pad->ReturnShapePos();
+                ptTest[i] += pad->ShapePos();
 
                 if( aZone->HitTestFilledArea( ptTest[i] ) )
                     continue;
@@ -200,18 +235,15 @@ void BuildUnconnectedThermalStubsPolygonList( std::vector<CPolyPt>& aCornerBuffe
                     break;
                 }
 
+                aCornerBuffer.NewOutline();
 
                 // add computed polygon to list
                 for( unsigned ic = 0; ic < corners_buffer.size(); ic++ )
                 {
                     wxPoint cpos = corners_buffer[ic];
                     RotatePoint( &cpos, fAngle );                               // Rotate according to module orientation
-                    cpos += pad->ReturnShapePos();                              // Shift origin to position
-                    CPolyPt corner;
-                    corner.x = cpos.x;
-                    corner.y = cpos.y;
-                    corner.end_contour = ( ic < (corners_buffer.size() - 1) ) ? 0 : 1;
-                    aCornerBuffer.push_back( corner );
+                    cpos += pad->ShapePos();                              // Shift origin to position
+                    aCornerBuffer.Append( cpos.x, cpos.y );
                 }
             }
         }

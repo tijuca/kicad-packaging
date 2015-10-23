@@ -1,8 +1,9 @@
 /*
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
- * Copyright (C) 2004 Jean-Pierre Charras, jaen-pierre.charras@gipsa-lab.inpg.com
- * Copyright (C) 2004-2011 KiCad Developers, see change_log.txt for contributors.
+ * Copyright (C) 2015 Jean-Pierre Charras, jaen-pierre.charras at wanadoo.fr
+ * Copyright (C) 2015 Wayne Stambaugh <stambaughw@verizon.net>
+ * Copyright (C) 2004-2015 KiCad Developers, see change_log.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -32,7 +33,6 @@
 #include <wxstruct.h>
 #include <msgpanel.h>
 
-#include <protos.h>
 #include <general.h>
 #include <lib_draw_item.h>
 
@@ -42,7 +42,7 @@ const int fill_tab[3] = { 'N', 'F', 'f' };
 
 
 LIB_ITEM::LIB_ITEM( KICAD_T        aType,
-                    LIB_COMPONENT* aComponent,
+                    LIB_PART*      aComponent,
                     int            aUnit,
                     int            aConvert,
                     FILL_T         aFillType ) :
@@ -156,5 +156,5 @@ void LIB_ITEM::Draw( EDA_DRAW_PANEL* aPanel, wxDC* aDC,
 
 EDA_COLOR_T LIB_ITEM::GetDefaultColor()
 {
-    return ReturnLayerColor( LAYER_DEVICE );
+    return GetLayerColor( LAYER_DEVICE );
 }

@@ -1,3 +1,27 @@
+/*
+ * This program source code file is part of KiCad, a free EDA CAD application.
+ *
+ * Copyright (C) 2014 Jean-Pierre Charras, jp.charras at wanadoo.fr
+ * Copyright (C) 2014 KiCad Developers, see CHANGELOG.TXT for contributors.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation; either version 2
+ * of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, you may find one here:
+ * http://www.gnu.org/licenses/old-licenses/gpl-2.0.html
+ * or you may search the http://www.gnu.org website for the version 2 license,
+ * or you may write to the Free Software Foundation, Inc.,
+ * 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
+ */
+
 /**
  * @file common_plotPS_functions.cpp
  * @brief Kicad: Common plot Postscript Routines
@@ -39,9 +63,9 @@ void PSLIKE_PLOTTER::SetColor( EDA_COLOR_T color )
 
     if( colorMode )
     {
-        double r = ColorRefs[color].m_Red / 255.0;
-        double g = ColorRefs[color].m_Green / 255.0;
-        double b = ColorRefs[color].m_Blue / 255.0;
+        double r = g_ColorRefs[color].m_Red / 255.0;
+        double g = g_ColorRefs[color].m_Green / 255.0;
+        double b = g_ColorRefs[color].m_Blue / 255.0;
         if( negativeMode )
             emitSetRGBColor( 1 - r, 1 - g, 1 - b );
         else
@@ -64,8 +88,8 @@ void PSLIKE_PLOTTER::SetColor( EDA_COLOR_T color )
 }
 
 
-void PSLIKE_PLOTTER::FlashPadOval( const wxPoint& pos, const wxSize& aSize, int orient,
-                                   EDA_DRAW_MODE_T modetrace )
+void PSLIKE_PLOTTER::FlashPadOval( const wxPoint& aPadPos, const wxSize& aSize,
+                                   double aPadOrient, EDA_DRAW_MODE_T aTraceMode )
 {
     wxASSERT( outputFile );
     int x0, y0, x1, y1, delta;
@@ -74,10 +98,8 @@ void PSLIKE_PLOTTER::FlashPadOval( const wxPoint& pos, const wxSize& aSize, int 
     // The pad is reduced to an oval by dy > dx
     if( size.x > size.y )
     {
-        EXCHG( size.x, size.y );
-        orient += 900;
-        if( orient >= 3600 )
-            orient -= 3600;
+        std::swap( size.x, size.y );
+        aPadOrient = AddAngles( aPadOrient, 900 );
     }
 
     delta = size.y - size.x;
@@ -85,50 +107,56 @@ void PSLIKE_PLOTTER::FlashPadOval( const wxPoint& pos, const wxSize& aSize, int 
     y0    = -delta / 2;
     x1    = 0;
     y1    = delta / 2;
-    RotatePoint( &x0, &y0, orient );
-    RotatePoint( &x1, &y1, orient );
+    RotatePoint( &x0, &y0, aPadOrient );
+    RotatePoint( &x1, &y1, aPadOrient );
 
-    if( modetrace == FILLED )
-        ThickSegment( wxPoint( pos.x + x0, pos.y + y0 ),
-                      wxPoint( pos.x + x1, pos.y + y1 ), size.x, modetrace );
+    if( aTraceMode == FILLED )
+        ThickSegment( wxPoint( aPadPos.x + x0, aPadPos.y + y0 ),
+                      wxPoint( aPadPos.x + x1, aPadPos.y + y1 ), size.x, aTraceMode );
     else
-        sketchOval( pos, size, orient, -1 );
+        sketchOval( aPadPos, size, aPadOrient, -1 );
 }
 
 
-void PSLIKE_PLOTTER::FlashPadCircle( const wxPoint& pos, int diametre,
-                                     EDA_DRAW_MODE_T modetrace )
+void PSLIKE_PLOTTER::FlashPadCircle( const wxPoint& aPadPos, int aDiameter,
+                                     EDA_DRAW_MODE_T aTraceMode )
 {
-    int current_line_width;
-    wxASSERT( outputFile );
+    if( aTraceMode == FILLED )
+        Circle( aPadPos, aDiameter, FILLED_SHAPE, 0 );
+    else    // Plot a ring:
+    {
+        SetCurrentLineWidth( USE_DEFAULT_LINE_WIDTH );
+        int linewidth = GetCurrentLineWidth();
 
-    SetCurrentLineWidth( -1 );
-    current_line_width = GetCurrentLineWidth();
-    if( current_line_width > diametre )
-        current_line_width = diametre;
+        // avoid aDiameter <= 1 )
+        if( linewidth > aDiameter-2 )
+            linewidth = aDiameter-2;
 
-    if( modetrace == FILLED )
-        Circle( pos, diametre - currentPenWidth, FILLED_SHAPE, current_line_width );
-    else
-        Circle( pos, diametre - currentPenWidth, NO_FILL, current_line_width );
+        Circle( aPadPos, aDiameter - linewidth, NO_FILL, linewidth );
+    }
 
-    SetCurrentLineWidth( -1 );
+    SetCurrentLineWidth( USE_DEFAULT_LINE_WIDTH );
 }
 
 
-void PSLIKE_PLOTTER::FlashPadRect( const wxPoint& pos, const wxSize& aSize,
-                                   int orient, EDA_DRAW_MODE_T trace_mode )
+void PSLIKE_PLOTTER::FlashPadRect( const wxPoint& aPadPos, const wxSize& aSize,
+                                   double aPadOrient, EDA_DRAW_MODE_T aTraceMode )
 {
     static std::vector< wxPoint > cornerList;
     wxSize size( aSize );
     cornerList.clear();
 
-    SetCurrentLineWidth( -1 );
-    int w = currentPenWidth;
-    size.x -= w;
+    if( aTraceMode == FILLED )
+        SetCurrentLineWidth( 0 );
+    else
+        SetCurrentLineWidth( USE_DEFAULT_LINE_WIDTH );
+
+    size.x -= GetCurrentLineWidth();
+    size.y -= GetCurrentLineWidth();
+
     if( size.x < 1 )
         size.x = 1;
-    size.y -= w;
+
     if( size.y < 1 )
         size.y = 1;
 
@@ -136,32 +164,33 @@ void PSLIKE_PLOTTER::FlashPadRect( const wxPoint& pos, const wxSize& aSize,
     int dy = size.y / 2;
 
     wxPoint corner;
-    corner.x = pos.x - dx;
-    corner.y = pos.y + dy;
+    corner.x = aPadPos.x - dx;
+    corner.y = aPadPos.y + dy;
     cornerList.push_back( corner );
-    corner.x = pos.x - dx;
-    corner.y = pos.y - dy;
+    corner.x = aPadPos.x - dx;
+    corner.y = aPadPos.y - dy;
     cornerList.push_back( corner );
-    corner.x = pos.x + dx;
-    corner.y = pos.y - dy;
+    corner.x = aPadPos.x + dx;
+    corner.y = aPadPos.y - dy;
     cornerList.push_back( corner );
-    corner.x = pos.x + dx;
-    corner.y = pos.y + dy,
+    corner.x = aPadPos.x + dx;
+    corner.y = aPadPos.y + dy,
     cornerList.push_back( corner );
 
     for( unsigned ii = 0; ii < cornerList.size(); ii++ )
     {
-        RotatePoint( &cornerList[ii], pos, orient );
+        RotatePoint( &cornerList[ii], aPadPos, aPadOrient );
     }
 
     cornerList.push_back( cornerList[0] );
 
-    PlotPoly( cornerList, ( trace_mode == FILLED ) ? FILLED_SHAPE : NO_FILL );
+    PlotPoly( cornerList, ( aTraceMode == FILLED ) ? FILLED_SHAPE : NO_FILL,
+              GetCurrentLineWidth() );
 }
 
 
 void PSLIKE_PLOTTER::FlashPadTrapez( const wxPoint& aPadPos, const wxPoint *aCorners,
-                                     int aPadOrient, EDA_DRAW_MODE_T aTrace_Mode )
+                                     double aPadOrient, EDA_DRAW_MODE_T aTraceMode )
 {
     static std::vector< wxPoint > cornerList;
     cornerList.clear();
@@ -169,14 +198,14 @@ void PSLIKE_PLOTTER::FlashPadTrapez( const wxPoint& aPadPos, const wxPoint *aCor
     for( int ii = 0; ii < 4; ii++ )
         cornerList.push_back( aCorners[ii] );
 
-    if( aTrace_Mode == FILLED )
+    if( aTraceMode == FILLED )
     {
         SetCurrentLineWidth( 0 );
     }
     else
     {
-        SetCurrentLineWidth( -1 );
-        int w = currentPenWidth;
+        SetCurrentLineWidth( USE_DEFAULT_LINE_WIDTH );
+        int w = GetCurrentLineWidth();
         // offset polygon by w
         // coord[0] is assumed the lower left
         // coord[1] is assumed the upper left
@@ -201,46 +230,49 @@ void PSLIKE_PLOTTER::FlashPadTrapez( const wxPoint& aPadPos, const wxPoint *aCor
     }
 
     cornerList.push_back( cornerList[0] );
-    PlotPoly( cornerList, ( aTrace_Mode == FILLED ) ? FILLED_SHAPE : NO_FILL );
+    PlotPoly( cornerList, ( aTraceMode == FILLED ) ? FILLED_SHAPE : NO_FILL,
+              GetCurrentLineWidth() );
 }
 
 
 /**
- * Write on a stream a string escaped for postscript/PDF
+ * Write on a stream a string escaped for postscript/PDF
  */
 void PSLIKE_PLOTTER::fputsPostscriptString(FILE *fout, const wxString& txt)
 {
     putc( '(', fout );
     for( unsigned i = 0; i < txt.length(); i++ )
     {
-	// Lazyness made me use stdio buffering yet another time...
-	wchar_t ch = txt[i];
-	if( ch < 256 )
-	{
-	    switch (ch)
-	    {
-	    // The ~ shouldn't reach the outside
-	    case '~':
-		break;
-	    // These characters must be escaped
-	    case '(':
-	    case ')':
-	    case '\\':
-		putc( '\\', fout );
+        // Lazyness made me use stdio buffering yet another time...
+        wchar_t ch = txt[i];
 
-		// FALLTHRU
-	    default:
-		putc( ch, fout );
-		break;
-	    }
-	}
+        if( ch < 256 )
+        {
+            switch (ch)
+            {
+                // The ~ shouldn't reach the outside
+            case '~':
+                break;
+                // These characters must be escaped
+            case '(':
+            case ')':
+            case '\\':
+                putc( '\\', fout );
+
+                // FALLTHRU
+            default:
+                putc( ch, fout );
+                break;
+            }
+        }
     }
+
     putc( ')', fout );
 }
 
 
 /**
- * Sister function for the ReturnGraphicTextWidth in drawtxt.cpp
+ * Sister function for the GraphicTextWidth in drawtxt.cpp
  * Does the same processing (i.e. calculates a text string width) but
  * using postscript metrics for the Helvetica font (optionally used for
  * PS and PDF plotting
@@ -305,10 +337,10 @@ void PSLIKE_PLOTTER::postscriptOverlinePositions( const wxString& aText, int aXS
 }
 
 void PS_PLOTTER::SetViewport( const wxPoint& aOffset, double aIusPerDecimil,
-			      double aScale, bool aMirror )
+                  double aScale, bool aMirror )
 {
     wxASSERT( !outputFile );
-    plotMirror = aMirror;
+    m_plotMirror = aMirror;
     plotOffset = aOffset;
     plotScale = aScale;
     m_IUsPerDecimil = aIusPerDecimil;
@@ -345,11 +377,6 @@ void PSLIKE_PLOTTER::computeTextParameters( const wxPoint&           aPos,
                                             double                   *ctm_f,
                                             double                   *heightFactor )
 {
-    // These are for the rotation matrix
-    double alpha = DEG2RAD( aOrient / 10.0 );
-    double sinalpha = sin( alpha );
-    double cosalpha = cos( alpha );
-
     // Compute the starting position (compensated for alignment)
     wxPoint start_pos = aPos;
 
@@ -361,31 +388,31 @@ void PSLIKE_PLOTTER::computeTextParameters( const wxPoint&           aPos,
     switch( aH_justify )
     {
     case GR_TEXT_HJUSTIFY_CENTER:
-	dx = -tw / 2;
-	break;
+        dx = -tw / 2;
+        break;
 
     case GR_TEXT_HJUSTIFY_RIGHT:
-	dx = -tw;
-	break;
+        dx = -tw;
+        break;
 
     case GR_TEXT_HJUSTIFY_LEFT:
-	dx = 0;
-	break;
+        dx = 0;
+        break;
     }
 
     switch( aV_justify )
     {
     case GR_TEXT_VJUSTIFY_CENTER:
-	dy = th / 2;
-	break;
+        dy = th / 2;
+        break;
 
     case GR_TEXT_VJUSTIFY_TOP:
         dy = th;
-	break;
+        break;
 
     case GR_TEXT_VJUSTIFY_BOTTOM:
-	dy = 0;
-	break;
+        dy = 0;
+        break;
     }
 
     RotatePoint( &dx, &dy, aOrient );
@@ -399,6 +426,10 @@ void PSLIKE_PLOTTER::computeTextParameters( const wxPoint&           aPos,
     *wideningFactor = sz_dev.y / sz_dev.x;
 
     // The CTM transformation matrix
+    double alpha = DECIDEG2RAD( aOrient );
+    double sinalpha = sin( alpha );
+    double cosalpha = cos( alpha );
+
     *ctm_a = cosalpha;
     *ctm_b = sinalpha;
     *ctm_c = -sinalpha;
@@ -423,12 +454,12 @@ void PS_PLOTTER::SetCurrentLineWidth( int width )
     else
         pen_width = defaultPenWidth;
 
-    if( pen_width != currentPenWidth )
-        fprintf( outputFile, "%g setlinewidth\n",
-                 userToDeviceSize( pen_width ) );
+    if( pen_width != GetCurrentLineWidth() )
+        fprintf( outputFile, "%g setlinewidth\n", userToDeviceSize( pen_width ) );
 
     currentPenWidth = pen_width;
 }
+
 
 void PS_PLOTTER::emitSetRGBColor( double r, double g, double b )
 {
@@ -446,7 +477,8 @@ void PS_PLOTTER::SetDash( bool dashed )
 {
     wxASSERT( outputFile );
     if( dashed )
-        fputs( "dashedline\n", outputFile );
+        fprintf( outputFile, "[%d %d] 0 setdash\n",
+                 (int) GetDashMarkLenIU(), (int) GetDashGapLenIU() );
     else
         fputs( "solidline\n", outputFile );
 }
@@ -474,29 +506,39 @@ void PS_PLOTTER::Circle( const wxPoint& pos, int diametre, FILL_T fill, int widt
 }
 
 
-void PS_PLOTTER::Arc( const wxPoint& centre, int StAngle, int EndAngle, int radius,
-                      FILL_T fill, int width )
+void PS_PLOTTER::Arc( const wxPoint& centre, double StAngle, double EndAngle,
+                      int radius, FILL_T fill, int width )
 {
     wxASSERT( outputFile );
     if( radius <= 0 )
         return;
 
     if( StAngle > EndAngle )
-        EXCHG( StAngle, EndAngle );
+        std::swap( StAngle, EndAngle );
 
     SetCurrentLineWidth( width );
 
     // Calculate start point.
     DPOINT centre_dev = userToDeviceCoordinates( centre );
     double radius_dev = userToDeviceSize( radius );
-    if( plotMirror )
-        fprintf( outputFile, "%g %g %g %g %g arc%d\n", centre_dev.x, centre_dev.y,
-                 radius_dev, -EndAngle / 10.0, -StAngle / 10.0,
-                 fill );
-    else
-        fprintf( outputFile, "%g %g %g %g %g arc%d\n", centre_dev.x, centre_dev.y,
-                 radius_dev, StAngle / 10.0, EndAngle / 10.0,
-                 fill );
+
+    if( m_plotMirror )
+    {
+        if( m_mirrorIsHorizontal )
+        {
+            StAngle = 1800.0 -StAngle;
+            EndAngle = 1800.0 -EndAngle;
+            std::swap( StAngle, EndAngle );
+        }
+        else
+        {
+            StAngle = -StAngle;
+            EndAngle = -EndAngle;
+        }
+    }
+
+    fprintf( outputFile, "%g %g %g %g %g arc%d\n", centre_dev.x, centre_dev.y,
+             radius_dev, StAngle / 10.0, EndAngle / 10.0, fill );
 }
 
 
@@ -553,7 +595,7 @@ void PS_PLOTTER::PlotImage( const wxImage & aImage, const wxPoint& aPos,
     // Map image size to device
     DPOINT end_dev = userToDeviceCoordinates( end );
     fprintf( outputFile, "%g %g scale\n",
-            std::abs(end_dev.x - start_dev.x), std::abs(end_dev.y - start_dev.y));
+             std::abs(end_dev.x - start_dev.x), std::abs(end_dev.y - start_dev.y));
 
     // Dimensions of source image (in pixels
     fprintf( outputFile, "%d %d 8", pix_size.x, pix_size.y );
@@ -561,6 +603,7 @@ void PS_PLOTTER::PlotImage( const wxImage & aImage, const wxPoint& aPos,
     fprintf( outputFile, " [%d 0 0 %d 0 %d]\n", pix_size.x, -pix_size.y , pix_size.y);
     // include image data in ps file
     fprintf( outputFile, "{currentfile pix readhexstring pop}\n" );
+
     if( colorMode )
         fputs( "false 3 colorimage\n", outputFile );
     else
@@ -568,6 +611,7 @@ void PS_PLOTTER::PlotImage( const wxImage & aImage, const wxPoint& aPos,
     // Single data source, 3 colors, Output RGB data (hexadecimal)
     // (or the same downscaled to gray)
     int jj = 0;
+
     for( int yy = 0; yy < pix_size.y; yy ++ )
     {
         for( int xx = 0; xx < pix_size.x; xx++, jj++ )
@@ -577,16 +621,19 @@ void PS_PLOTTER::PlotImage( const wxImage & aImage, const wxPoint& aPos,
                 jj = 0;
                 fprintf( outputFile, "\n");
             }
+
             int red, green, blue;
             red = aImage.GetRed( xx, yy) & 0xFF;
             green = aImage.GetGreen( xx, yy) & 0xFF;
             blue = aImage.GetBlue( xx, yy) & 0xFF;
+
             if( colorMode )
                 fprintf( outputFile, "%2.2X%2.2X%2.2X", red, green, blue );
             else
                 fprintf( outputFile, "%2.2X", (red + green + blue) / 3 );
         }
     }
+
     fprintf( outputFile, "\n");
     fprintf( outputFile, "origstate restore\n" );
 }
@@ -595,6 +642,7 @@ void PS_PLOTTER::PlotImage( const wxImage & aImage, const wxPoint& aPos,
 void PS_PLOTTER::PenTo( const wxPoint& pos, char plume )
 {
     wxASSERT( outputFile );
+
     if( plume == 'Z' )
     {
         if( penState != 'Z' )
@@ -604,6 +652,7 @@ void PS_PLOTTER::PenTo( const wxPoint& pos, char plume )
             penLastpos.x = -1;
             penLastpos.y = -1;
         }
+
         return;
     }
 
@@ -611,13 +660,15 @@ void PS_PLOTTER::PenTo( const wxPoint& pos, char plume )
     {
         fputs( "newpath\n", outputFile );
     }
+
     if( penState != plume || pos != penLastpos )
     {
-	DPOINT pos_dev = userToDeviceCoordinates( pos );
+        DPOINT pos_dev = userToDeviceCoordinates( pos );
         fprintf( outputFile, "%g %g %sto\n",
                  pos_dev.x, pos_dev.y,
                  ( plume=='D' ) ? "line" : "move" );
     }
+
     penState   = plume;
     penLastpos = pos;
 }
@@ -643,55 +694,55 @@ bool PS_PLOTTER::StartPlot()
 
     static const char* PSMacro[] =
     {
-	"%%BeginProlog\n"
-	"/line { newpath moveto lineto stroke } bind def\n",
-	"/cir0 { newpath 0 360 arc stroke } bind def\n",
-	"/cir1 { newpath 0 360 arc gsave fill grestore stroke } bind def\n",
-	"/cir2 { newpath 0 360 arc gsave fill grestore stroke } bind def\n",
-	"/arc0 { newpath arc stroke } bind def\n",
-	"/arc1 { newpath 4 index 4 index moveto arc closepath gsave fill\n",
-	"    grestore stroke } bind def\n",
-	"/arc2 { newpath 4 index 4 index moveto arc closepath gsave fill\n",
-	"    grestore stroke } bind def\n",
-	"/poly0 { stroke } bind def\n",
-	"/poly1 { closepath gsave fill grestore stroke } bind def\n",
-	"/poly2 { closepath gsave fill grestore stroke } bind def\n",
-	"/rect0 { rectstroke } bind def\n",
-	"/rect1 { rectfill } bind def\n",
-	"/rect2 { rectfill } bind def\n",
-	"/linemode0 { 0 setlinecap 0 setlinejoin 0 setlinewidth } bind def\n",
-	"/linemode1 { 1 setlinecap 1 setlinejoin } bind def\n",
-	"/dashedline { [200] 100 setdash } bind def\n",
-	"/solidline { [] 0 setdash } bind def\n",
+    "%%BeginProlog\n",
+    "/line { newpath moveto lineto stroke } bind def\n",
+    "/cir0 { newpath 0 360 arc stroke } bind def\n",
+    "/cir1 { newpath 0 360 arc gsave fill grestore stroke } bind def\n",
+    "/cir2 { newpath 0 360 arc gsave fill grestore stroke } bind def\n",
+    "/arc0 { newpath arc stroke } bind def\n",
+    "/arc1 { newpath 4 index 4 index moveto arc closepath gsave fill\n",
+    "    grestore stroke } bind def\n",
+    "/arc2 { newpath 4 index 4 index moveto arc closepath gsave fill\n",
+    "    grestore stroke } bind def\n",
+    "/poly0 { stroke } bind def\n",
+    "/poly1 { closepath gsave fill grestore stroke } bind def\n",
+    "/poly2 { closepath gsave fill grestore stroke } bind def\n",
+    "/rect0 { rectstroke } bind def\n",
+    "/rect1 { rectfill } bind def\n",
+    "/rect2 { rectfill } bind def\n",
+    "/linemode0 { 0 setlinecap 0 setlinejoin 0 setlinewidth } bind def\n",
+    "/linemode1 { 1 setlinecap 1 setlinejoin } bind def\n",
+    "/dashedline { [200] 100 setdash } bind def\n",
+    "/solidline { [] 0 setdash } bind def\n",
 
-	// This is for 'hidden' text (search anchors for PDF)
-        "/phantomshow { moveto\n",
-        "    /KicadFont findfont 0.000001 scalefont setfont\n",
-	"    show } bind def\n",
+    // This is for 'hidden' text (search anchors for PDF)
+    "/phantomshow { moveto\n",
+    "    /KicadFont findfont 0.000001 scalefont setfont\n",
+    "    show } bind def\n",
 
-        // This is for regular postscript text
-        "/textshow { gsave\n",
-        "    findfont exch scalefont setfont concat 1 scale 0 0 moveto show\n",
-        "    } bind def\n",
+    // This is for regular postscript text
+    "/textshow { gsave\n",
+    "    findfont exch scalefont setfont concat 1 scale 0 0 moveto show\n",
+    "    } bind def\n",
 
-	// Utility for getting Latin1 encoded fonts
-	"/reencodefont {\n",
-        "  findfont dup length dict begin\n",
-        "  { 1 index /FID ne\n",
-        "    { def }\n",
-        "    { pop pop } ifelse\n",
-        "  } forall\n",
-        "  /Encoding ISOLatin1Encoding def\n",
-        "  currentdict\n",
-        "  end } bind def\n"
+    // Utility for getting Latin1 encoded fonts
+    "/reencodefont {\n",
+    "  findfont dup length dict begin\n",
+    "  { 1 index /FID ne\n",
+    "    { def }\n",
+    "    { pop pop } ifelse\n",
+    "  } forall\n",
+    "  /Encoding ISOLatin1Encoding def\n",
+    "  currentdict\n",
+    "  end } bind def\n"
 
-	// Remap AdobeStandard fonts to Latin1
-	"/KicadFont /Helvetica reencodefont definefont pop\n",
-	"/KicadFont-Bold /Helvetica-Bold reencodefont definefont pop\n",
-	"/KicadFont-Oblique /Helvetica-Oblique reencodefont definefont pop\n",
-	"/KicadFont-BoldOblique /Helvetica-BoldOblique reencodefont definefont pop\n",
-	"%%EndProlog\n",
-	NULL
+    // Remap AdobeStandard fonts to Latin1
+    "/KicadFont /Helvetica reencodefont definefont pop\n",
+    "/KicadFont-Bold /Helvetica-Bold reencodefont definefont pop\n",
+    "/KicadFont-Oblique /Helvetica-Oblique reencodefont definefont pop\n",
+    "/KicadFont-BoldOblique /Helvetica-BoldOblique reencodefont definefont pop\n",
+    "%%EndProlog\n",
+    NULL
     };
 
     time_t time1970 = time( NULL );
@@ -719,8 +770,8 @@ bool PS_PLOTTER::StartPlot()
         psPaperSize.Set( pageInfo.GetHeightMils(), pageInfo.GetWidthMils() );
 
     fprintf( outputFile, "%%%%BoundingBox: 0 0 %d %d\n",
-	    (int) ceil( psPaperSize.x * BIGPTsPERMIL ),
-	    (int) ceil( psPaperSize.y * BIGPTsPERMIL ) );
+        (int) ceil( psPaperSize.x * BIGPTsPERMIL ),
+        (int) ceil( psPaperSize.y * BIGPTsPERMIL ) );
 
     // Specify the size of the sheet and the name associated with that size.
     // (If the "User size" option has been selected for the sheet size,
@@ -768,9 +819,9 @@ bool PS_PLOTTER::StartPlot()
     // within the Document Structuring Convention.
     fputs( "%%Page: 1 1\n"
            "%%BeginPageSetup\n"
-	   "gsave\n"
-	   "0.0072 0.0072 scale\n"    // Configure postscript for decimils coordinates
-	   "linemode1\n", outputFile );
+       "gsave\n"
+       "0.0072 0.0072 scale\n"    // Configure postscript for decimils coordinates
+       "linemode1\n", outputFile );
 
 
     // Rototranslate the coordinate to achieve the landscape layout
@@ -783,8 +834,7 @@ bool PS_PLOTTER::StartPlot()
                  plotScaleAdjX, plotScaleAdjY );
 
     // Set default line width
-    fprintf( outputFile, "%g setlinewidth\n",
-             userToDeviceSize( defaultPenWidth ) );
+    fprintf( outputFile, "%g setlinewidth\n", userToDeviceSize( defaultPenWidth ) );
     fputs( "%%EndPageSetup\n", outputFile );
 
     return true;
@@ -796,7 +846,7 @@ bool PS_PLOTTER::EndPlot()
     wxASSERT( outputFile );
     fputs( "showpage\n"
            "grestore\n"
-	   "%%EOF\n", outputFile );
+           "%%EOF\n", outputFile );
     fclose( outputFile );
     outputFile = NULL;
 
@@ -805,27 +855,32 @@ bool PS_PLOTTER::EndPlot()
 
 
 
-void PS_PLOTTER::Text( const wxPoint&              aPos,
-		       enum EDA_COLOR_T            aColor,
-		       const wxString&             aText,
-		       int                         aOrient,
-		       const wxSize&               aSize,
-		       enum EDA_TEXT_HJUSTIFY_T    aH_justify,
-		       enum EDA_TEXT_VJUSTIFY_T    aV_justify,
-		       int                         aWidth,
-		       bool                        aItalic,
-		       bool                        aBold )
+void PS_PLOTTER::Text( const wxPoint&       aPos,
+                enum EDA_COLOR_T            aColor,
+                const wxString&             aText,
+                double                      aOrient,
+                const wxSize&               aSize,
+                enum EDA_TEXT_HJUSTIFY_T    aH_justify,
+                enum EDA_TEXT_VJUSTIFY_T    aV_justify,
+                int                         aWidth,
+                bool                        aItalic,
+                bool                        aBold,
+                bool                        aMultilineAllowed )
 {
     SetCurrentLineWidth( aWidth );
     SetColor( aColor );
 
+    // Fix me: see how to use PS text mode for multiline texts
+    if( aMultilineAllowed && !aText.Contains( wxT( "\n" ) ) )
+        aMultilineAllowed = false;  // the text has only one line.
+
     // Draw the native postscript text (if requested)
-    if( m_textMode == PLOTTEXTMODE_NATIVE )
+    if( m_textMode == PLOTTEXTMODE_NATIVE && !aMultilineAllowed )
     {
         const char *fontname = aItalic ? (aBold ? "/KicadFont-BoldOblique"
                 : "/KicadFont-Oblique")
-            : (aBold ? "/KicadFont-Bold"
-                    : "/KicadFont");
+                : (aBold ? "/KicadFont-Bold"
+                : "/KicadFont");
 
         // Compute the copious tranformation parameters
         double ctm_a, ctm_b, ctm_c, ctm_d, ctm_e, ctm_f;
@@ -851,12 +906,13 @@ void PS_PLOTTER::Text( const wxPoint&              aPos,
         std::vector<int> pos_pairs;
         postscriptOverlinePositions( aText, aSize.x, aItalic, aBold, &pos_pairs );
         int overbar_y = KiROUND( aSize.y * 1.1 );
+
         for( unsigned i = 0; i < pos_pairs.size(); i += 2)
         {
             DPOINT dev_from = userToDeviceSize( wxSize( pos_pairs[i], overbar_y ) );
             DPOINT dev_to = userToDeviceSize( wxSize( pos_pairs[i + 1], overbar_y ) );
             fprintf( outputFile, "%g %g %g %g line ",
-                    dev_from.x, dev_from.y, dev_to.x, dev_to.y );
+                     dev_from.x, dev_from.y, dev_to.x, dev_to.y );
         }
 
         // Restore the CTM
@@ -867,16 +923,15 @@ void PS_PLOTTER::Text( const wxPoint&              aPos,
     if( m_textMode == PLOTTEXTMODE_PHANTOM )
     {
         fputsPostscriptString( outputFile, aText );
-	DPOINT pos_dev = userToDeviceCoordinates( aPos );
-        fprintf( outputFile, " %g %g phantomshow\n",
-                 pos_dev.x, pos_dev.y );
+        DPOINT pos_dev = userToDeviceCoordinates( aPos );
+        fprintf( outputFile, " %g %g phantomshow\n", pos_dev.x, pos_dev.y );
     }
 
     // Draw the stroked text (if requested)
-    if( m_textMode != PLOTTEXTMODE_NATIVE )
+    if( m_textMode != PLOTTEXTMODE_NATIVE || aMultilineAllowed )
     {
         PLOTTER::Text( aPos, aColor, aText, aOrient, aSize, aH_justify, aV_justify,
-                aWidth, aItalic, aBold );
+                       aWidth, aItalic, aBold, aMultilineAllowed );
     }
 }
 
@@ -1032,4 +1087,3 @@ const double hvbo_widths[256] = {
     0.611, 0.611, 0.611, 0.611, 0.611, 0.611, 0.611, 0.584,
     0.611, 0.611, 0.611, 0.611, 0.611, 0.556, 0.611, 0.556
 };
-

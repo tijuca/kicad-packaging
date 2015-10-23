@@ -27,11 +27,26 @@
 
 #include <wx/dialog.h>
 #include <hashtables.h>
+#include <kiway_player.h>
 
 #if wxMINOR_VERSION == 8 && defined(__WXGTK__)
  #define DLGSHIM_USE_SETFOCUS      1
 #else
  #define DLGSHIM_USE_SETFOCUS      0
+#endif
+
+class WDO_ENABLE_DISABLE;
+class EVENT_LOOP;
+
+// These macros are for DIALOG_SHIM only, NOT for KIWAY_PLAYER.  KIWAY_PLAYER
+// has its own support for quasi modal and its platform specific issues are different
+// than for a wxDialog.
+#if wxCHECK_VERSION( 3, 0, 0 )
+ #define SHOWQUASIMODAL     ShowQuasiModal
+ #define ENDQUASIMODAL      EndQuasiModal
+#else
+ #define SHOWQUASIMODAL     ShowModal
+ #define ENDQUASIMODAL      EndModal
 #endif
 
 
@@ -44,7 +59,7 @@
  * <br>
  * in the dialog window's properties.
  **/
-class DIALOG_SHIM : public wxDialog
+class DIALOG_SHIM : public wxDialog, public KIWAY_HOLDER
 {
 public:
 
@@ -52,10 +67,34 @@ public:
             const   wxPoint& pos = wxDefaultPosition,
             const   wxSize&  size = wxDefaultSize,
             long    style = wxDEFAULT_DIALOG_STYLE,
-            const   wxString& name = wxDialogNameStr );
+            const   wxString& name = wxDialogNameStr
+            );
 
-    bool Show( bool show );     // overload wxDialog::Show
+    ~DIALOG_SHIM();
 
+    int ShowQuasiModal();      // disable only the parent window, otherwise modal.
+
+    void EndQuasiModal( int retCode );  // End quasi-modal mode
+
+    bool IsQuasiModal()         { return m_qmodal_showing; }
+
+    bool Show( bool show );     // override wxDialog::Show
+
+    bool Enable( bool enable ); // override wxDialog::Enable virtual
+
+protected:
+
+#if !wxCHECK_VERSION( 2, 9, 4 )
+    wxWindow* CheckIfCanBeUsedAsParent( wxWindow* parent ) const;
+    wxWindow* GetParentForModalDialog( wxWindow *parent, long style ) const;
+#endif
+
+    std::string m_hash_key;     // alternate for class_map when classname re-used.
+
+    // variables for quasi-modal behavior support, only used by a few derivatives.
+    EVENT_LOOP*         m_qmodal_loop;      // points to nested event_loop, NULL means not qmodal and dismissed
+    bool                m_qmodal_showing;
+    WDO_ENABLE_DISABLE* m_qmodal_parent_disabler;
 
 #if DLGSHIM_USE_SETFOCUS
 private:

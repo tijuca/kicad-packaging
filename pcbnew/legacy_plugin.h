@@ -26,8 +26,9 @@
  */
 
 #include <io_mgr.h>
+#include <boost/shared_ptr.hpp>
 #include <string>
-
+#include <layers_id_colors_and_visibility.h>
 
 #define FOOTPRINT_LIBRARY_HEADER       "PCBNEW-LibModule-V1"
 #define FOOTPRINT_LIBRARY_HEADER_CNT   18
@@ -44,12 +45,13 @@ class NETCLASSES;
 class ZONE_CONTAINER;
 class DIMENSION;
 class NETINFO_ITEM;
+class NETINFO_MAPPING;
 class TEXTE_MODULE;
 class EDGE_MODULE;
 class TRACK;
 class SEGZONE;
 class D_PAD;
-struct FPL_CACHE;
+struct LP_CACHE;
 
 
 /**
@@ -59,40 +61,40 @@ struct FPL_CACHE;
  */
 class LEGACY_PLUGIN : public PLUGIN
 {
-public:
+    friend struct LP_CACHE;
 
+public:
 
     //-----<PLUGIN IMPLEMENTATION>----------------------------------------------
 
-    const wxString& PluginName() const
+    const wxString PluginName() const
     {
-        static const wxString name = wxT( "KiCad-Legacy" );
-        return name;
+        return wxT( "KiCad-Legacy" );
     }
 
-    const wxString& GetFileExtension() const
+    const wxString GetFileExtension() const
     {
-        static const wxString extension = wxT( "brd" );
-        return extension;
+        return wxT( "brd" );
     }
 
-    BOARD* Load( const wxString& aFileName, BOARD* aAppendToMe, PROPERTIES* aProperties = NULL );   // overload
+    BOARD* Load( const wxString& aFileName, BOARD* aAppendToMe, const PROPERTIES* aProperties = NULL );
 
-    void Save( const wxString& aFileName, BOARD* aBoard, PROPERTIES* aProperties = NULL );          // overload
-
-    wxArrayString FootprintEnumerate( const wxString& aLibraryPath, PROPERTIES* aProperties = NULL);
-
-    MODULE* FootprintLoad( const wxString& aLibraryPath, const wxString& aFootprintName,
-                                    PROPERTIES* aProperties = NULL );
+    /* we let go of "save" support when the number of CU layers were expanded from 16 to 32.
+    void Save( const wxString& aFileName, BOARD* aBoard, const PROPERTIES* aProperties = NULL );
 
     void FootprintSave( const wxString& aLibraryPath, const MODULE* aFootprint,
-                                    PROPERTIES* aProperties = NULL );
+                                    const PROPERTIES* aProperties = NULL );
+    void FootprintDelete( const wxString& aLibraryPath, const wxString& aFootprintName, const PROPERTIES* aProperties = NULL );
 
-    void FootprintDelete( const wxString& aLibraryPath, const wxString& aFootprintName );
+    void FootprintLibCreate( const wxString& aLibraryPath, const PROPERTIES* aProperties = NULL );
+    */
 
-    void FootprintLibCreate( const wxString& aLibraryPath, PROPERTIES* aProperties = NULL );
+    wxArrayString FootprintEnumerate( const wxString& aLibraryPath, const PROPERTIES* aProperties = NULL);
 
-    bool FootprintLibDelete( const wxString& aLibraryPath, PROPERTIES* aProperties = NULL );
+    MODULE* FootprintLoad( const wxString& aLibraryPath, const wxString& aFootprintName,
+                                    const PROPERTIES* aProperties = NULL );
+
+    bool FootprintLibDelete( const wxString& aLibraryPath, const PROPERTIES* aProperties = NULL );
 
     bool IsFootprintLibWritable( const wxString& aLibraryPath );
 
@@ -106,17 +108,20 @@ public:
     void SetReader( LINE_READER* aReader )      { m_reader = aReader; }
     void SetFilePtr( FILE* aFile )              { m_fp = aFile; }
 
-    MODULE* LoadMODULE();
-    void    SaveMODULE( const MODULE* aModule ) const;
     void    SaveModule3D( const MODULE* aModule ) const;
-    void    SaveBOARD( const BOARD* aBoard ) const;
 
+    // return the new .kicad_pcb layer id from the old (legacy) layer id
+    static LAYER_ID leg_layer2new( int cu_count, LAYER_NUM aLayerNum );
+
+    static LSET     leg_mask2new( int cu_count, unsigned aMask );
 
 protected:
 
+    int             m_cu_count;
+
     wxString        m_error;        ///< for throwing exceptions
     BOARD*          m_board;        ///< which BOARD, no ownership here
-    PROPERTIES*     m_props;        ///< passed via Save() or Load(), no ownership, may be NULL.
+    const PROPERTIES*   m_props;    ///< passed via Save() or Load(), no ownership, may be NULL.
 
     LINE_READER*    m_reader;       ///< no ownership here.
     FILE*           m_fp;           ///< no ownership here.
@@ -124,16 +129,30 @@ protected:
 
     wxString        m_field;        ///< reused to stuff MODULE fields.
     int             m_loading_format_version;   ///< which BOARD_FORMAT_VERSION am I Load()ing?
-    FPL_CACHE*      m_cache;
+    LP_CACHE*       m_cache;
+
+    NETINFO_MAPPING*    m_mapping;  ///< mapping for net codes, so only not empty nets
+                                    ///< are stored with consecutive integers as net codes
+    std::vector<int>    m_netCodes; ///< net codes mapping for boards being loaded
 
     /// initialize PLUGIN like a constructor would, and futz with fresh BOARD if needed.
-    void    init( PROPERTIES* aProperties );
+    void    init( const PROPERTIES* aProperties );
 
     double  biuToDisk;              ///< convert from BIUs to disk engineering units
                                     ///< with this scale factor
 
     double  diskToBiu;              ///< convert from disk engineering units to BIUs
                                     ///< with this scale factor
+
+    ///> Converts net code using the mapping table if available,
+    ///> otherwise returns unchanged net code
+    inline int getNetCode( int aNetCode )
+    {
+        if( aNetCode < (int) m_netCodes.size() )
+            return m_netCodes[aNetCode];
+
+        return aNetCode;
+    }
 
     /**
      * Function biuParse
@@ -186,6 +205,7 @@ protected:
     void loadNETINFO_ITEM();
     void loadPCB_TEXT();
     void loadNETCLASS();
+    void loadMODULE( MODULE* aModule );
 
     /**
      * Function loadTrackList
@@ -204,7 +224,7 @@ protected:
 
 
     //-----<save functions>-----------------------------------------------------
-
+#if 0
     /**
      * Function writeError
      * returns an error message wxString containing the filename being
@@ -254,13 +274,14 @@ protected:
 
     void saveNETINFO_ITEM( const NETINFO_ITEM* aNet ) const;
     void saveNETCLASSES( const NETCLASSES* aNetClasses ) const;
-    void saveNETCLASS( const NETCLASS* aNetclass ) const;
+    void saveNETCLASS( const boost::shared_ptr<NETCLASS> aNetclass ) const;
 
     void savePCB_TEXT( const TEXTE_PCB* aText ) const;
     void savePCB_TARGET( const PCB_TARGET* aTarget ) const;
     void savePCB_LINE( const DRAWSEGMENT* aStroke ) const;
-    void saveDIMENTION( const DIMENSION* aDimension ) const;
+    void saveDIMENSION( const DIMENSION* aDimension ) const;
     void saveTRACK( const TRACK* aTrack ) const;
+    void saveBOARD( const BOARD* aBoard ) const;
 
     /**
      * Function saveZONE_CONTAINER
@@ -269,11 +290,10 @@ protected:
     void saveZONE_CONTAINER( const ZONE_CONTAINER* aZone ) const;
 
     //-----</save functions>----------------------------------------------------
+#endif
 
     /// we only cache one footprint library for now, this determines which one.
     void cacheLib( const wxString& aLibraryPath );
-
-    friend struct FPL_CACHE;
 };
 
 #endif  // LEGACY_PLUGIN_H_

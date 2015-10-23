@@ -1,3 +1,27 @@
+/*
+ * This program source code file is part of KiCad, a free EDA CAD application.
+ *
+ * Copyright (C) 2011-2014 Jean-Pierre Charras
+ * Copyright (C) 2004-2014 KiCad Developers, see change_log.txt for contributors.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation; either version 2
+ * of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, you may find one here:
+ * http://www.gnu.org/licenses/old-licenses/gpl-2.0.html
+ * or you may search the http://www.gnu.org website for the version 2 license,
+ * or you may write to the Free Software Foundation, Inc.,
+ * 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
+ */
+
 /**
  * @file transline_ident.cpp
  */
@@ -48,30 +72,35 @@ TRANSLINE_PRM::TRANSLINE_PRM( PRM_TYPE aType, PRMS_ID aId,
     m_ValueCtrl     = NULL;
     m_UnitCtrl      = NULL;
     m_UnitSelection = 0;
-}
+    m_NormalizedValue = 0;
+ }
 
 
 #define TRANSLINE_PRM_KEY wxT( "translineprm%d" )
 
-void TRANSLINE_PRM::ReadConfig( wxConfig* aConfig )
+void TRANSLINE_PRM::ReadConfig( wxConfigBase* aConfig )
 {
     if( m_Id == UNKNOWN_ID || m_Id == DUMMY_PRM )
         return;
+
     wxString key;
     key.Printf( TRANSLINE_PRM_KEY, (int) m_Id );
     aConfig->Read( key, &m_Value );
+
     key += wxT( "unit" );
     aConfig->Read( key, &m_UnitSelection );
 }
 
 
-void TRANSLINE_PRM::WriteConfig( wxConfig* aConfig )
+void TRANSLINE_PRM::WriteConfig( wxConfigBase* aConfig )
 {
     if( m_Id == UNKNOWN_ID || m_Id == DUMMY_PRM )
         return;
+
     wxString key;
     key.Printf( TRANSLINE_PRM_KEY, (int) m_Id );
     aConfig->Write( key, m_Value );
+
     key += wxT( "unit" );
     aConfig->Write( key, m_UnitSelection );
 }
@@ -100,7 +129,7 @@ double TRANSLINE_PRM::FromUserUnit()
  * A class to handle a list of parameters of a given transline
  */
 
-TRANSLINE_IDENT::TRANSLINE_IDENT( enum transline_type_id aType )
+TRANSLINE_IDENT::TRANSLINE_IDENT( enum TRANSLINE_TYPE_ID aType )
 {
     m_Type = aType;                     // The type of transline handled
     m_Icon = NULL;                      // An xpm icon to display in dialogs
@@ -119,17 +148,17 @@ TRANSLINE_IDENT::TRANSLINE_IDENT( enum transline_type_id aType )
     // Default value is for copper
     AddPrm( new TRANSLINE_PRM( PRM_TYPE_SUBS, RHO_PRM,
                                _( "Rho" ),
-                               _(
-                                   "Electrical resistivity or specific electrical resistance of conductor (Ohm*meter)" ),
+                               _( "Electrical resistivity or specific electrical resistance of conductor (Ohm*meter)" ),
                                1.72e-8, false ) );
 
     // Default value is in GHz
     AddPrm( new TRANSLINE_PRM( PRM_TYPE_FREQUENCY, FREQUENCY_PRM,
                                _( "Frequency" ), _( "Height of Substrate" ), 1.0, true ) );
 
+
     switch( m_Type )
     {
-    case microstrip_type:      // microstrip
+    case MICROSTRIP_TYPE:      // microstrip
         m_TLine    = new MICROSTRIP();
         m_Icon = new wxBitmap( microstrip_xpm );
 
@@ -147,10 +176,10 @@ TRANSLINE_IDENT::TRANSLINE_IDENT( enum transline_type_id aType )
         AddPrm( new TRANSLINE_PRM( PRM_TYPE_SUBS, ROUGH_PRM,
                                    _( "Rough" ), _( "Conductor Roughness" ), 0.0, true ) );
         AddPrm( new TRANSLINE_PRM( PRM_TYPE_SUBS, MUR_PRM,
-                                   _( "Mur" ),
-                                   _( "Relative Permeability of Substrate" ), 1, false ) );
+                                   _( "mu Rel S" ),
+                                   _( "Relative Permeability (mu) of Substrate" ), 1, false ) );
         AddPrm( new TRANSLINE_PRM( PRM_TYPE_SUBS, MURC_PRM,
-                                   _( "MurC" ), _( "Relative Permeability of Conductor" ), 1,
+                                   _( "mu Rel C" ), _( "Relative Permeability (mu) of Conductor" ), 1,
                                    false ) );
 
         AddPrm( new TRANSLINE_PRM( PRM_TYPE_PHYS, PHYS_WIDTH_PRM,
@@ -165,7 +194,7 @@ TRANSLINE_IDENT::TRANSLINE_IDENT( enum transline_type_id aType )
                                    _( "Ang_l" ), _( "Electrical Length" ), 0.0, true ) );
         break;
 
-    case cpw_type:          // coplanar waveguide
+    case CPW_TYPE:          // coplanar waveguide
         m_TLine    = new COPLANAR();
         m_Icon = new wxBitmap( cpw_xpm );
         m_HasPrmSelection = true;
@@ -180,7 +209,7 @@ TRANSLINE_IDENT::TRANSLINE_IDENT( enum transline_type_id aType )
         AddPrm( new TRANSLINE_PRM( PRM_TYPE_SUBS, T_PRM,
                                    _( "T" ), _( "Strip Thickness" ), 0.035, true ) );
         AddPrm( new TRANSLINE_PRM( PRM_TYPE_SUBS, MURC_PRM,
-                                   _( "MurC" ), _( "Relative Permeability of Conductor" ), 1,
+                                   _( "mu Rel C" ), _( "Relative Permeability (mu) of Conductor" ), 1,
                                    false ) );
 
         AddPrm( new TRANSLINE_PRM( PRM_TYPE_PHYS, PHYS_WIDTH_PRM,
@@ -197,7 +226,7 @@ TRANSLINE_IDENT::TRANSLINE_IDENT( enum transline_type_id aType )
                                    _( "Ang_l" ), _( "Electrical Length" ), 0.0, true ) );
         break;
 
-    case grounded_cpw_type:      // grounded coplanar waveguide
+    case GROUNDED_CPW_TYPE:      // grounded coplanar waveguide
         m_TLine    = new GROUNDEDCOPLANAR();
         m_Icon = new wxBitmap( cpw_back_xpm );
         m_HasPrmSelection = true;
@@ -212,7 +241,7 @@ TRANSLINE_IDENT::TRANSLINE_IDENT( enum transline_type_id aType )
         AddPrm( new TRANSLINE_PRM( PRM_TYPE_SUBS, T_PRM,
                                    _( "T" ), _( "Strip Thickness" ), 0.035, true ) );
         AddPrm( new TRANSLINE_PRM( PRM_TYPE_SUBS, MURC_PRM,
-                                   _( "MurC" ), _( "Relative Permeability of Conductor" ), 1,
+                                   _( "mu Rel C" ), _( "Relative Permeability (mu) of Conductor" ), 1,
                                    false ) );
 
         AddPrm( new TRANSLINE_PRM( PRM_TYPE_PHYS, PHYS_WIDTH_PRM,
@@ -230,7 +259,7 @@ TRANSLINE_IDENT::TRANSLINE_IDENT( enum transline_type_id aType )
         break;
 
 
-    case rectwaveguide_type:      // rectangular waveguide
+    case RECTWAVEGUIDE_TYPE:      // rectangular waveguide
         m_TLine    = new RECTWAVEGUIDE();
         m_Icon = new wxBitmap( rectwaveguide_xpm );
         m_HasPrmSelection = true;
@@ -243,11 +272,11 @@ TRANSLINE_IDENT::TRANSLINE_IDENT( enum transline_type_id aType )
         m_Messages.Add( _( "TM-Modes" ) );
 
         AddPrm( new TRANSLINE_PRM( PRM_TYPE_SUBS, MUR_PRM,
-                                   _( "Mur" ), _( "Relative Permeability of Insulator" ), 1, false ) );
+                                   _( "mu Rel I" ), _( "Relative Permeability (mu) of Insulator" ), 1, false ) );
         AddPrm( new TRANSLINE_PRM( PRM_TYPE_SUBS, TANM_PRM,
                                    _( "TanM" ), _( "Magnetic Loss Tangent" ), 0, false ) );
         AddPrm( new TRANSLINE_PRM( PRM_TYPE_SUBS, MURC_PRM,
-                                   _( "MurC" ), _( "Relative Permeability of Conductor" ), 1,
+                                   _( "mu Rel C" ), _( "Relative Permeability (mu) of Conductor" ), 1,
                                    false ) );
 
         AddPrm( new TRANSLINE_PRM( PRM_TYPE_PHYS, PHYS_WIDTH_PRM,
@@ -264,7 +293,7 @@ TRANSLINE_IDENT::TRANSLINE_IDENT( enum transline_type_id aType )
                                    _( "Ang_l" ), _( "Electrical Length" ), 0, true ) );
         break;
 
-    case coax_type:      // coaxial cable
+    case COAX_TYPE:      // coaxial cable
         m_TLine    = new COAX();
         m_Icon = new wxBitmap( coax_xpm );
         m_HasPrmSelection = true;
@@ -276,9 +305,9 @@ TRANSLINE_IDENT::TRANSLINE_IDENT( enum transline_type_id aType )
         m_Messages.Add( _( "TM-Modes" ) );
 
         AddPrm( new TRANSLINE_PRM( PRM_TYPE_SUBS, MUR_PRM,
-                                   _( "Mur" ), _( "Relative Permeability of Insulator" ), 1, false ) );
+                                   _( "mu Rel I" ), _( "Relative Permeability (mu) of Insulator" ), 1, false ) );
         AddPrm( new TRANSLINE_PRM( PRM_TYPE_SUBS, MURC_PRM,
-                                   _( "MurC" ), _( "Relative Permeability of Conductor" ), 1,
+                                   _( "mu Rel C" ), _( "Relative Permeability (mu) of Conductor" ), 1,
                                    false ) );
 
         AddPrm( new TRANSLINE_PRM( PRM_TYPE_PHYS, PHYS_DIAM_IN_PRM,
@@ -295,7 +324,7 @@ TRANSLINE_IDENT::TRANSLINE_IDENT( enum transline_type_id aType )
                                    _( "Ang_l" ), _( "Electrical Length" ), 0.0, true ) );
         break;
 
-    case c_microstrip_type:      // coupled microstrip
+    case C_MICROSTRIP_TYPE:      // coupled microstrip
         m_TLine    = new C_MICROSTRIP();
         m_Icon = new wxBitmap( c_microstrip_xpm );
         m_HasPrmSelection = true;
@@ -317,7 +346,7 @@ TRANSLINE_IDENT::TRANSLINE_IDENT( enum transline_type_id aType )
         AddPrm( new TRANSLINE_PRM( PRM_TYPE_SUBS, ROUGH_PRM,
                                    _( "Rough" ), _( "Conductor Roughness" ), 0.0, true ) );
         AddPrm( new TRANSLINE_PRM( PRM_TYPE_SUBS, MURC_PRM,
-                                   _( "MurC" ), _( "Relative Permeability of Conductor" ), 1,
+                                   _( "mu Rel C" ), _( "Relative Permeability (mu) of Conductor" ), 1,
                                    false ) );
 
         AddPrm( new TRANSLINE_PRM( PRM_TYPE_PHYS, PHYS_WIDTH_PRM,
@@ -328,14 +357,14 @@ TRANSLINE_IDENT::TRANSLINE_IDENT( enum transline_type_id aType )
                                    _( "L" ), _( "Line Length" ), 50.0, true ) );
 
         AddPrm( new TRANSLINE_PRM( PRM_TYPE_ELEC, Z0_E_PRM,
-                                   _( "Z0e" ), _( "Even-Mode Impedance" ), 50.0, true ) );
+                                   _( "Zeven" ), _( "Even mode impedance (lines driven by common voltages)" ), 50.0, true ) );
         AddPrm( new TRANSLINE_PRM( PRM_TYPE_ELEC, Z0_O_PRM,
-                                   _( "Z0o" ), _( "Odd-Mode Impedance" ), 50.0, true ) );
+                                   _( "Zodd" ), _( "Odd mode impedance (lines driven by opposite (differential) voltages)" ), 50.0, true ) );
         AddPrm( new TRANSLINE_PRM( PRM_TYPE_ELEC, ANG_L_PRM,
-                                   _( "Ang_l" ), _( "Electrical Length" ), 0.0, true ) );
+                                   _( "Ang_l" ), _( "Electrical length" ), 0.0, true ) );
         break;
 
-    case stripline_type:      // stripline
+    case STRIPLINE_TYPE:      // stripline
         m_TLine    = new STRIPLINE();
         m_Icon = new wxBitmap( stripline_xpm );
 
@@ -352,7 +381,7 @@ TRANSLINE_IDENT::TRANSLINE_IDENT( enum transline_type_id aType )
         AddPrm( new TRANSLINE_PRM( PRM_TYPE_SUBS, T_PRM,
                                    _( "T" ), _( "Strip Thickness" ), 0.035, true ) );
         AddPrm( new TRANSLINE_PRM( PRM_TYPE_SUBS, MURC_PRM,
-                                   _( "MurC" ), _( "Relative Permeability of Conductor" ), 1,
+                                   _( "mu Rel C" ), _( "Relative Permeability (mu) of Conductor" ), 1,
                                    false ) );
 
         AddPrm( new TRANSLINE_PRM( PRM_TYPE_PHYS, PHYS_WIDTH_PRM,
@@ -367,7 +396,7 @@ TRANSLINE_IDENT::TRANSLINE_IDENT( enum transline_type_id aType )
                                    _( "Ang_l" ), _( "Electrical Length" ), 0, true ) );
         break;
 
-    case twistedpair_type:      // twisted pair
+    case TWISTEDPAIR_TYPE:      // twisted pair
         m_TLine    = new TWISTEDPAIR();
         m_Icon = new wxBitmap( twistedpair_xpm );
         m_HasPrmSelection = true;
@@ -380,7 +409,7 @@ TRANSLINE_IDENT::TRANSLINE_IDENT( enum transline_type_id aType )
         AddPrm( new TRANSLINE_PRM( PRM_TYPE_SUBS, TWISTEDPAIR_TWIST_PRM,
                                    _( "Twists" ), _( "Number of Twists per Length" ), 0.0, false ) );
         AddPrm( new TRANSLINE_PRM( PRM_TYPE_SUBS, MURC_PRM,
-                                   _( "MurC" ), _( "Relative Permeability of Conductor" ), 1,
+                                   _( "mu Rel C" ), _( "Relative Permeability (mu) of Conductor" ), 1,
                                    false ) );
         AddPrm( new TRANSLINE_PRM( PRM_TYPE_SUBS, TWISTEDPAIR_EPSILONR_ENV_PRM,
                                    _( "ErEnv" ), _( "Relative Permittivity of Environment" ), 1,
@@ -399,7 +428,7 @@ TRANSLINE_IDENT::TRANSLINE_IDENT( enum transline_type_id aType )
                                    _( "Ang_l" ), _( "Electrical Length" ), 0.0, true ) );
         break;
 
-    case end_of_list_type:      // Not really used
+    case END_OF_LIST_TYPE:      // Not really used
         break;
     }
 }
@@ -415,7 +444,7 @@ TRANSLINE_IDENT::~TRANSLINE_IDENT()
 }
 
 
-void TRANSLINE_IDENT::ReadConfig( wxConfig* aConfig )
+void TRANSLINE_IDENT::ReadConfig( wxConfigBase* aConfig )
 {
     wxString text = wxString::FromUTF8( m_TLine->m_name );
     aConfig->SetPath( text );
@@ -426,7 +455,7 @@ void TRANSLINE_IDENT::ReadConfig( wxConfig* aConfig )
 }
 
 
-void TRANSLINE_IDENT::WriteConfig( wxConfig* aConfig )
+void TRANSLINE_IDENT::WriteConfig( wxConfigBase* aConfig )
 {
     wxString text = wxString::FromUTF8( m_TLine->m_name );
     aConfig->SetPath( text );

@@ -73,4 +73,13 @@ Dialogs:
     within the dialog, but for testing purposes please do not exceed this dialog
     size should the user have selected a font size of 13 points.
 
+Quoting:
+    Filenames, paths or other text should be with single quotes ''.  e.g.:
+    'filename.kicad_pcb'
+    'longpath/subdir'
+    'FOOTPRINTNAME'
+    'anything else'
+
+    Often text strings like this end up in panels which use HTML rendering, and this
+    can happen in the future.  Previously used angle brackets only cause grief there.
 

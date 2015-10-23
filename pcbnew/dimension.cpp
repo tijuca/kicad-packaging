@@ -6,9 +6,9 @@
 /*
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
- * Copyright (C) 2012 Jean-Pierre Charras, jean-pierre.charras@ujf-grenoble.fr
+ * Copyright (C) 2015 Jean-Pierre Charras, jp.charras at wanadoo.fr
  * Copyright (C) 2012 SoftPLC Corporation, Dick Hollenbeck <dick@softplc.com>
- * Copyright (C) 1992-2012 KiCad Developers, see AUTHORS.txt for contributors.
+ * Copyright (C) 1992-2015 KiCad Developers, see AUTHORS.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -44,10 +44,11 @@
 
 #include <pcbnew.h>
 #include <dialog_dimension_editor_base.h>
+#include <class_pcb_layer_box_selector.h>
 
 /* Local functions */
 static void BuildDimension( EDA_DRAW_PANEL* aPanel, wxDC* aDC,
-                           const wxPoint& aPosition, bool aErase );
+                            const wxPoint& aPosition, bool aErase );
 
 static void MoveDimensionText( EDA_DRAW_PANEL* aPanel, wxDC* aDC,
                                const wxPoint& aPosition, bool aErase );
@@ -109,36 +110,48 @@ DIALOG_DIMENSION_EDITOR::DIALOG_DIMENSION_EDITOR( PCB_EDIT_FRAME* aParent,
 
     CurrentDimension = aDimension;
 
-    if( aDimension->m_Text.m_Mirror )
+    if( aDimension->Text().IsMirrored() )
         m_rbMirror->SetSelection( 1 );
     else
         m_rbMirror->SetSelection( 0 );
 
-    m_Name->SetValue( aDimension->m_Text.m_Text );
+    m_Name->SetValue( aDimension->Text().GetText() );
 
     // Enter size value in dialog
-    PutValueInLocalUnits( *m_TxtSizeXCtrl, aDimension->m_Text.m_Size.x );
+    PutValueInLocalUnits( *m_TxtSizeXCtrl, aDimension->Text().GetSize().x );
     AddUnitSymbol( *m_staticTextSizeX );
-    PutValueInLocalUnits( *m_TxtSizeYCtrl, aDimension->m_Text.m_Size.y );
+    PutValueInLocalUnits( *m_TxtSizeYCtrl, aDimension->Text().GetSize().y );
     AddUnitSymbol( *m_staticTextSizeY );
 
     // Enter lines thickness value in dialog
-    PutValueInLocalUnits( *m_TxtWidthCtrl, aDimension->m_Width );
+    PutValueInLocalUnits( *m_TxtWidthCtrl, aDimension->GetWidth() );
     AddUnitSymbol( *m_staticTextWidth );
 
     // Enter position value in dialog
-    PutValueInLocalUnits( *m_textCtrlPosX, aDimension->m_Text.m_Pos.x );
+    PutValueInLocalUnits( *m_textCtrlPosX, aDimension->Text().GetTextPosition().x );
     AddUnitSymbol( *m_staticTextPosX );
-    PutValueInLocalUnits( *m_textCtrlPosY, aDimension->m_Text.m_Pos.y );
+    PutValueInLocalUnits( *m_textCtrlPosY, aDimension->Text().GetTextPosition().y );
     AddUnitSymbol( *m_staticTextPosY );
 
-    for( int layer = FIRST_NO_COPPER_LAYER;  layer<NB_LAYERS;  layer++ )
+    // Configure the layers list selector
+    if( !m_Parent->GetBoard()->IsLayerEnabled( aDimension->GetLayer() ) )
+        // Should not happens, because one cannot select a board item on a
+        // not activated layer, but ...
+        m_SelLayerBox->ShowNonActivatedLayers( true );
+
+    m_SelLayerBox->SetLayersHotkeys( false );
+    m_SelLayerBox->SetLayerSet( LSET::AllCuMask().set( Edge_Cuts ) );
+    m_SelLayerBox->SetBoardFrame( m_Parent );
+    m_SelLayerBox->Resync();
+
+    if( m_SelLayerBox->SetLayerSelection( aDimension->GetLayer() ) < 0 )
     {
-        m_SelLayerBox->Append( aParent->GetBoard()->GetLayerName( layer ) );
+        wxMessageBox( _( "This item has an illegal layer id.\n"
+                         "Now, forced on the drawings layer. Please, fix it" ) );
+        m_SelLayerBox->SetLayerSelection( Dwgs_User );
     }
 
-    m_SelLayerBox->SetSelection( aDimension->GetLayer() - FIRST_NO_COPPER_LAYER );
-
+    m_sdbSizerBtsOK->SetDefault();
     GetSizer()->Fit( this );
     GetSizer()->SetSizeHints( this );
     Centre();
@@ -153,10 +166,21 @@ void DIALOG_DIMENSION_EDITOR::OnCancelClick( wxCommandEvent& event )
 
 void DIALOG_DIMENSION_EDITOR::OnOKClick( wxCommandEvent& event )
 {
+    LAYER_ID newlayer = ToLAYER_ID( m_SelLayerBox->GetLayerSelection() );
+
+    if( !m_Parent->GetBoard()->IsLayerEnabled( newlayer ) )
+    {
+        wxMessageBox( _( "The layer currently selected is not enabled for this board\n"
+                         "You cannot use it" ) );
+        return;
+    }
+
+#ifndef USE_WX_OVERLAY
     if( m_DC )     // Delete old text.
     {
         CurrentDimension->Draw( m_Parent->GetCanvas(), m_DC, GR_XOR );
     }
+#endif
 
     m_Parent->SaveCopyInUndoList(CurrentDimension, UR_CHANGED);
 
@@ -169,39 +193,45 @@ void DIALOG_DIMENSION_EDITOR::OnOKClick( wxCommandEvent& event )
 
     // Get new size value:
     msg = m_TxtSizeXCtrl->GetValue();
-    CurrentDimension->m_Text.m_Size.x = ReturnValueFromString( g_UserUnit, msg );
+    CurrentDimension->Text().SetWidth( ValueFromString( g_UserUnit, msg ) );
     msg = m_TxtSizeYCtrl->GetValue();
-    CurrentDimension->m_Text.m_Size.y = ReturnValueFromString( g_UserUnit, msg );
+    CurrentDimension->Text().SetHeight( ValueFromString( g_UserUnit, msg ) );
 
     // Get new position value:
     // It will be copied later in dimension, because
     msg = m_textCtrlPosX->GetValue();
-    CurrentDimension->m_Text.m_Pos.x = ReturnValueFromString( g_UserUnit, msg );
+    wxPoint pos;
+    pos.x = ValueFromString( g_UserUnit, msg );
     msg = m_textCtrlPosY->GetValue();
-    CurrentDimension->m_Text.m_Pos.y = ReturnValueFromString( g_UserUnit, msg );
+    pos.y = ValueFromString( g_UserUnit, msg );
+    CurrentDimension->Text().SetTextPosition( pos );
 
     // Get new line thickness value:
     msg = m_TxtWidthCtrl->GetValue();
-    int width = ReturnValueFromString( g_UserUnit, msg );
-    int maxthickness = Clamp_Text_PenSize( width, CurrentDimension->m_Text.m_Size );
+    int width = ValueFromString( g_UserUnit, msg );
+    int maxthickness = Clamp_Text_PenSize( width, CurrentDimension->Text().GetSize() );
 
     if( width > maxthickness )
     {
         DisplayError( NULL,
-                      _( "The text thickness is too large for the text size. It will be clamped") );
+                      _( "The text thickness is too large for the text size.  "
+                         "It will be clamped" ) );
         width = maxthickness;
     }
 
-    CurrentDimension->m_Text.m_Thickness = CurrentDimension->m_Width = width ;
+    CurrentDimension->SetWidth( width );
+    CurrentDimension->Text().SetThickness( width );
+    CurrentDimension->Text().SetMirrored( ( m_rbMirror->GetSelection() == 1 ) ? true : false );
+    CurrentDimension->SetLayer( newlayer );
 
-    CurrentDimension->m_Text.m_Mirror = ( m_rbMirror->GetSelection() == 1 ) ? true : false;
-
-    CurrentDimension->SetLayer( m_SelLayerBox->GetCurrentSelection() + FIRST_NO_COPPER_LAYER );
-
+#ifndef USE_WX_OVERLAY
     if( m_DC )     // Display new text
     {
         CurrentDimension->Draw( m_Parent->GetCanvas(), m_DC, GR_OR );
     }
+#else
+    m_Parent->Refresh();
+#endif
 
     m_Parent->OnModify();
     EndModal( 1 );
@@ -237,34 +267,26 @@ DIMENSION* PCB_EDIT_FRAME::EditDimension( DIMENSION* aDimension, wxDC* aDC )
     if( aDimension == NULL )
     {
         status_dimension = 1;
-        pos = GetScreen()->GetCrossHairPosition();
+        pos = GetCrossHairPosition();
 
         aDimension = new DIMENSION( GetBoard() );
         aDimension->SetFlags( IS_NEW );
+        aDimension->SetLayer( GetActiveLayer() );
+        aDimension->SetOrigin( pos );
+        aDimension->SetEnd( pos );
 
-        aDimension->SetLayer( getActiveLayer() );
-
-        aDimension->m_crossBarO = aDimension->m_crossBarF = pos;
-        aDimension->m_featureLineDO = aDimension->m_featureLineDF = pos;
-        aDimension->m_featureLineGO = aDimension->m_featureLineGF = pos;
-        aDimension->m_arrowG1O = aDimension->m_arrowG1F = pos;
-        aDimension->m_arrowG2O = aDimension->m_arrowG2F = pos;
-        aDimension->m_arrowD1O = aDimension->m_arrowD1F = pos;
-        aDimension->m_arrowD2O = aDimension->m_arrowD2F = pos;
-
-        aDimension->m_Text.m_Size   = GetBoard()->GetDesignSettings().m_PcbTextSize;
+        aDimension->Text().SetSize( GetBoard()->GetDesignSettings().m_PcbTextSize );
         int width = GetBoard()->GetDesignSettings().m_PcbTextWidth;
-        int maxthickness = Clamp_Text_PenSize(width, aDimension->m_Text.m_Size );
+        int maxthickness = Clamp_Text_PenSize(width, aDimension->Text().GetSize() );
 
         if( width > maxthickness )
         {
             width = maxthickness;
         }
 
-        aDimension->m_Text.m_Thickness = aDimension->m_Width = width ;
-
-        aDimension->AdjustDimensionDetails( );
-
+        aDimension->Text().SetThickness( width );
+        aDimension->SetWidth( width );
+        aDimension->AdjustDimensionDetails();
         aDimension->Draw( m_canvas, aDC, GR_XOR );
 
         m_canvas->SetMouseCapture( BuildDimension, AbortBuildDimension );
@@ -295,11 +317,11 @@ DIMENSION* PCB_EDIT_FRAME::EditDimension( DIMENSION* aDimension, wxDC* aDC )
 
 
 static void BuildDimension( EDA_DRAW_PANEL* aPanel, wxDC* aDC,
-                           const wxPoint& aPosition, bool aErase )
+                            const wxPoint& aPosition, bool aErase )
 {
     PCB_SCREEN* screen   = (PCB_SCREEN*) aPanel->GetScreen();
     DIMENSION*  Dimension = (DIMENSION*) screen->GetCurItem();
-    wxPoint     pos = screen->GetCrossHairPosition();
+    wxPoint     pos = aPanel->GetParent()->GetCrossHairPosition();
 
     if( Dimension == NULL )
         return;
@@ -320,24 +342,12 @@ static void BuildDimension( EDA_DRAW_PANEL* aPanel, wxDC* aDC,
     }
     else
     {
-        wxPoint delta;
-        int dx, dy;
-        float angle, depl;
-        delta = Dimension->m_featureLineDO - Dimension->m_featureLineGO;
-
         /* Calculating the direction of travel perpendicular to the selected axis. */
-        angle = atan2( (double)delta.y, (double)delta.x ) + (M_PI / 2);
+        double angle = Dimension->GetAngle() + (M_PI / 2);
 
-        delta = pos - Dimension->m_featureLineDO;
-        depl   = ( delta.x * cos( angle ) ) + ( delta.y * sin( angle ) );
-        dx = (int) ( depl * cos( angle ) );
-        dy = (int) ( depl * sin( angle ) );
-        Dimension->m_crossBarO.x = Dimension->m_featureLineGO.x + dx;
-        Dimension->m_crossBarO.y = Dimension->m_featureLineGO.y + dy;
-        Dimension->m_crossBarF.x = Dimension->m_featureLineDO.x + dx;
-        Dimension->m_crossBarF.y = Dimension->m_featureLineDO.y + dy;
-
-        Dimension->AdjustDimensionDetails( );
+        wxPoint delta = pos - Dimension->m_featureLineDO;
+        double depl   = ( delta.x * cos( angle ) ) + ( delta.y * sin( angle ) );
+        Dimension->SetHeight( depl );
     }
 
     Dimension->Draw( aPanel, aDC, GR_XOR );
@@ -368,22 +378,24 @@ void PCB_EDIT_FRAME::DeleteDimension( DIMENSION* aDimension, wxDC* aDC )
     OnModify();
 }
 
+
 /* Initialize parameters to move a pcb text
  */
 static wxPoint initialTextPosition;
+
 void PCB_EDIT_FRAME::BeginMoveDimensionText( DIMENSION* aItem, wxDC* DC )
 {
     if( aItem == NULL )
         return;
 
     // Store the initial position for undo/abort command
-    initialTextPosition = aItem->m_Text.m_Pos;
+    initialTextPosition = aItem->Text().GetTextPosition();
 
     aItem->Draw( m_canvas, DC, GR_XOR );
     aItem->SetFlags( IS_MOVED );
     SetMsgPanel( aItem );
 
-    GetScreen()->SetCrossHairPosition( aItem->m_Text.m_Pos );
+    SetCrossHairPosition( aItem->Text().GetTextPosition() );
     m_canvas->MoveCursorToCrossHair();
 
     m_canvas->SetMouseCapture( MoveDimensionText, AbortMoveDimensionText );
@@ -394,7 +406,7 @@ void PCB_EDIT_FRAME::BeginMoveDimensionText( DIMENSION* aItem, wxDC* DC )
 
 /* Move dimension text following the cursor. */
 static void MoveDimensionText( EDA_DRAW_PANEL* aPanel, wxDC* aDC, const wxPoint& aPosition,
-                            bool aErase )
+                               bool aErase )
 {
     DIMENSION* dimension = (DIMENSION*) aPanel->GetScreen()->GetCurItem();
 
@@ -404,10 +416,11 @@ static void MoveDimensionText( EDA_DRAW_PANEL* aPanel, wxDC* aDC, const wxPoint&
     if( aErase )
         dimension->Draw( aPanel, aDC, GR_XOR );
 
-    dimension->m_Text.m_Pos = aPanel->GetScreen()->GetCrossHairPosition();
+    dimension->Text().SetTextPosition( aPanel->GetParent()->GetCrossHairPosition() );
 
     dimension->Draw( aPanel, aDC, GR_XOR );
 }
+
 
 /*
  * Abort current text edit progress.
@@ -425,10 +438,11 @@ void AbortMoveDimensionText( EDA_DRAW_PANEL* aPanel, wxDC* aDC )
         return;
 
     dimension->Draw( aPanel, aDC, GR_XOR );
-    dimension->m_Text.m_Pos = initialTextPosition;
+    dimension->Text().SetTextPosition( initialTextPosition );
     dimension->ClearFlags();
     dimension->Draw( aPanel, aDC, GR_OR );
 }
+
 
 /*
  *  Place the current dimension text being moving
@@ -444,9 +458,9 @@ void PCB_EDIT_FRAME::PlaceDimensionText( DIMENSION* aItem, wxDC* DC )
     aItem->Draw( m_canvas, DC, GR_OR );
     OnModify();
 
-    EXCHG( aItem->m_Text.m_Pos, initialTextPosition );
+    wxPoint tmp = aItem->Text().GetTextPosition();
+    aItem->Text().SetTextPosition( initialTextPosition );
     SaveCopyInUndoList( aItem, UR_CHANGED );
-    EXCHG( aItem->m_Text.m_Pos, initialTextPosition );
-
+    aItem->Text().SetTextPosition( tmp );
     aItem->ClearFlags();
 }

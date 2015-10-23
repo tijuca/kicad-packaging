@@ -1,8 +1,8 @@
 /*
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
- * Copyright (C) 2004 Jean-Pierre Charras, jaen-pierre.charras@gipsa-lab.inpg.com
- * Copyright (C) 1992-2011 KiCad Developers, see AUTHORS.txt for contributors.
+ * Copyright (C) 2015 Jean-Pierre Charras, jaen-pierre.charras@gipsa-lab.inpg.com
+ * Copyright (C) 1992-2015 KiCad Developers, see AUTHORS.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -38,6 +38,10 @@
 
 #include "../eeschema/dialogs/dialog_schematic_find.h"
 
+
+const wxString traceFindReplace( wxT( "KicadFindReplace" ) );
+
+
 enum textbox {
     ID_TEXTBOX_LIST = 8010
 };
@@ -45,7 +49,7 @@ enum textbox {
 
 EDA_ITEM::EDA_ITEM( EDA_ITEM* parent, KICAD_T idType )
 {
-    InitVars();
+    initVars();
     m_StructType = idType;
     m_Parent     = parent;
 }
@@ -53,17 +57,16 @@ EDA_ITEM::EDA_ITEM( EDA_ITEM* parent, KICAD_T idType )
 
 EDA_ITEM::EDA_ITEM( KICAD_T idType )
 {
-    InitVars();
+    initVars();
     m_StructType = idType;
 }
 
 
 EDA_ITEM::EDA_ITEM( const EDA_ITEM& base )
 {
-    InitVars();
+    initVars();
     m_StructType = base.m_StructType;
     m_Parent     = base.m_Parent;
-    m_Son        = base.m_Son;
     m_Flags      = base.m_Flags;
 
     // A copy of an item cannot have the same time stamp as the original item.
@@ -72,13 +75,12 @@ EDA_ITEM::EDA_ITEM( const EDA_ITEM& base )
 }
 
 
-void EDA_ITEM::InitVars()
+void EDA_ITEM::initVars()
 {
     m_StructType = TYPE_NOT_INIT;
     Pnext       = NULL;     // Linked list: Link (next struct)
     Pback       = NULL;     // Linked list: Link (previous struct)
     m_Parent    = NULL;     // Linked list: Link (parent struct)
-    m_Son       = NULL;     // Linked list: Link (son struct)
     m_List      = NULL;     // I am not on any list yet
     m_Image     = NULL;     // Link to an image copy for undelete or abort command
     m_Flags     = 0;        // flags for editions and other
@@ -90,7 +92,7 @@ void EDA_ITEM::InitVars()
 
 void EDA_ITEM::SetModified()
 {
-    m_Flags |= IS_CHANGED;
+    SetFlags( IS_CHANGED );
 
     // If this a child object, then the parent modification state also needs to be set.
     if( m_Parent )
@@ -190,8 +192,28 @@ bool EDA_ITEM::Replace( wxFindReplaceData& aSearchData, wxString& aText )
     wxCHECK_MSG( IsReplaceable(), false,
                  wxT( "Attempt to replace text in <" ) + GetClass() + wxT( "> item." ) );
 
-    return aText.Replace( aSearchData.GetFindString(),
-                          aSearchData.GetReplaceString(), false ) != 0;
+    wxString searchString = (aSearchData.GetFlags() & wxFR_MATCHCASE) ? aText : aText.Upper();
+
+    int result = searchString.Find( (aSearchData.GetFlags() & wxFR_MATCHCASE) ?
+                                    aSearchData.GetFindString() :
+                                    aSearchData.GetFindString().Upper() );
+
+    if( result == wxNOT_FOUND )
+        return false;
+
+    wxString prefix = aText.Left( result );
+    wxString suffix;
+
+    if( aSearchData.GetFindString().length() + result < aText.length() )
+        suffix = aText.Right( aText.length() - ( aSearchData.GetFindString().length() + result ) );
+
+    wxLogTrace( traceFindReplace, wxT( "Replacing '%s', prefix '%s', replace '%s', suffix '%s'." ),
+                GetChars( aText ), GetChars( prefix ), GetChars( aSearchData.GetReplaceString() ),
+                GetChars( suffix ) );
+
+    aText = prefix + aSearchData.GetReplaceString() + suffix;
+
+    return true;
 }
 
 
@@ -203,7 +225,7 @@ bool EDA_ITEM::operator<( const EDA_ITEM& aItem ) const
     return false;
 }
 
-
+#ifdef USE_EDA_ITEM_OP_EQ   // see base_struct.h for explanations
 EDA_ITEM& EDA_ITEM::operator=( const EDA_ITEM& aItem )
 {
     if( &aItem != this )
@@ -211,7 +233,6 @@ EDA_ITEM& EDA_ITEM::operator=( const EDA_ITEM& aItem )
         m_Image = aItem.m_Image;
         m_StructType = aItem.m_StructType;
         m_Parent = aItem.m_Parent;
-        m_Son = aItem.m_Son;
         m_Flags = aItem.m_Flags;
         m_TimeStamp = aItem.m_TimeStamp;
         m_Status = aItem.m_Status;
@@ -219,6 +240,22 @@ EDA_ITEM& EDA_ITEM::operator=( const EDA_ITEM& aItem )
     }
 
     return *this;
+}
+#endif
+
+const BOX2I EDA_ITEM::ViewBBox() const
+{
+    // Basic fallback
+    return BOX2I( VECTOR2I( GetBoundingBox().GetOrigin() ),
+                  VECTOR2I( GetBoundingBox().GetSize() ) );
+}
+
+
+void EDA_ITEM::ViewGetLayers( int aLayers[], int& aCount ) const
+{
+    // Basic fallback
+    aCount      = 1;
+    aLayers[0]  = 0;
 }
 
 
@@ -317,6 +354,36 @@ bool EDA_RECT::Contains( const wxPoint& aPoint ) const
 bool EDA_RECT::Contains( const EDA_RECT& aRect ) const
 {
     return Contains( aRect.GetOrigin() ) && Contains( aRect.GetEnd() );
+}
+
+
+/* Intersects
+ * test for a common area between segment and rect.
+ * return true if at least a common point is found
+ */
+bool EDA_RECT::Intersects( const wxPoint& aPoint1, const wxPoint& aPoint2 ) const
+{
+    wxPoint point2, point4;
+
+    if( Contains( aPoint1 ) || Contains( aPoint2 ) )
+        return true;
+
+    point2.x = GetEnd().x;
+    point2.y = GetOrigin().y;
+    point4.x = GetOrigin().x;
+    point4.y = GetEnd().y;
+
+    //Only need to test 3 sides since a straight line cant enter and exit on same side
+    if( SegmentIntersectsSegment( aPoint1, aPoint2, GetOrigin() , point2 ) )
+        return true;
+
+    if( SegmentIntersectsSegment( aPoint1, aPoint2, point2      , GetEnd() ) )
+        return true;
+
+    if( SegmentIntersectsSegment( aPoint1, aPoint2, GetEnd()    , point4 ) )
+        return true;
+
+    return false;
 }
 
 
@@ -461,4 +528,65 @@ void EDA_RECT::Merge( const wxPoint& aPoint )
 double EDA_RECT::GetArea() const
 {
     return (double) GetWidth() * (double) GetHeight();
+}
+
+
+EDA_RECT EDA_RECT::Common( const EDA_RECT& aRect ) const
+{
+    EDA_RECT r;
+
+    if( Intersects( aRect ) )
+    {
+        wxPoint originA( std::min( GetOrigin().x, GetEnd().x ),
+                         std::min( GetOrigin().y, GetEnd().y ) );
+        wxPoint originB( std::min( aRect.GetOrigin().x, aRect.GetEnd().x ),
+                         std::min( aRect.GetOrigin().y, aRect.GetEnd().y ) );
+        wxPoint endA( std::max( GetOrigin().x, GetEnd().x ),
+                      std::max( GetOrigin().y, GetEnd().y ) );
+        wxPoint endB( std::max( aRect.GetOrigin().x, aRect.GetEnd().x ),
+                      std::max( aRect.GetOrigin().y, aRect.GetEnd().y ) );
+
+        r.SetOrigin( wxPoint( std::max( originA.x, originB.x ), std::max( originA.y, originB.y ) ) );
+        r.SetEnd   ( wxPoint( std::min( endA.x, endB.x ),       std::min( endA.y, endB.y ) ) );
+    }
+
+    return r;
+}
+
+
+/* Calculate the bounding box of this, when rotated
+ */
+const EDA_RECT EDA_RECT::GetBoundingBoxRotated( wxPoint aRotCenter, double aAngle )
+{
+    wxPoint corners[4];
+
+    // Build the corners list
+    corners[0]   = GetOrigin();
+    corners[2]   = GetEnd();
+    corners[1].x = corners[0].x;
+    corners[1].y = corners[2].y;
+    corners[3].x = corners[2].x;
+    corners[3].y = corners[0].y;
+
+    // Rotate all corners, to find the bounding box
+    for( int ii = 0; ii < 4; ii ++ )
+        RotatePoint( &corners[ii], aRotCenter, aAngle );
+
+    // Find the corners bounding box
+    wxPoint start = corners[0];
+    wxPoint end = corners[0];
+
+    for( int ii = 1; ii < 4; ii ++ )
+    {
+        start.x = std::min( start.x, corners[ii].x);
+        start.y = std::min( start.y, corners[ii].y);
+        end.x = std::max( end.x, corners[ii].x);
+        end.y = std::max( end.y, corners[ii].y);
+    }
+
+    EDA_RECT bbox;
+    bbox.SetOrigin( start );
+    bbox.SetEnd( end );
+
+    return bbox;
 }

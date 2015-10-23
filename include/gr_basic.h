@@ -1,9 +1,9 @@
 /*
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
- * Copyright (C) 2006 Jean-Pierre Charras, jaen-pierre.charras@gipsa-lab.inpg.com
+ * Copyright (C) 2015 Jean-Pierre Charras, jp.charras at wanadoo.fr
  * Copyright (C) 2011 Wayne Stambaugh <stambaughw@verizon.net>
- * Copyright (C) 1992-2011 KiCad Developers, see AUTHORS.txt for contributors.
+ * Copyright (C) 1992-2015 KiCad Developers, see AUTHORS.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -37,13 +37,13 @@ class EDA_RECT;
 
 /// Drawmode. Compositing mode plus a flag or two
 enum GR_DRAWMODE {
-    GR_COPY               = 0,
     GR_OR                 = 0x01000000,
     GR_XOR                = 0x02000000,
     GR_AND                = 0x04000000,
     GR_NXOR               = 0x08000000,
     GR_INVERT             = 0x10000000,
     GR_ALLOW_HIGHCONTRAST = 0x20000000,
+    GR_COPY               = 0x40000000,
     GR_HIGHLIGHT          = 0x80000000,
     UNSPECIFIED_DRAWMODE  = -1
 };
@@ -78,18 +78,8 @@ inline GR_DRAWMODE operator &(const GR_DRAWMODE& a, const GR_DRAWMODE& b)
 #define GR_M_MIDDLE_DOWN 0x40000000
 #define GR_M_DCLICK      0x80000000
 
-//wxWidgets 2.8 compatibility
-#if !wxCHECK_VERSION(2,9,0)
-#define wxPENSTYLE_SOLID wxSOLID
-#define wxPENSTYLE_SHORT_DASH wxSHORT_DASH
-#define wxPENSTYLE_DOT_DASH wxDOT_DASH
-typedef int wxPenStyle;
-#endif
-
 
 extern GR_DRAWMODE g_XorMode;
-extern EDA_COLOR_T g_DrawBgColor;
-
 
 typedef enum {
     /* Line styles for Get/SetLineStyle. */
@@ -203,10 +193,10 @@ void GRFilledCircle( EDA_RECT* ClipBox, wxDC* DC, int x, int y, int r, int width
 void GRFilledCircle( EDA_RECT* aClipBox, wxDC* aDC, wxPoint aPos, int aRadius, EDA_COLOR_T aColor );
 void GRCircle( EDA_RECT* aClipBox, wxDC* aDC, wxPoint aPos, int aRadius, int aWidth, EDA_COLOR_T aColor );
 
-void GRArc( EDA_RECT* ClipBox, wxDC* DC, int x, int y, int StAngle,
-            int EndAngle, int r, EDA_COLOR_T Color );
-void GRArc( EDA_RECT* ClipBox, wxDC* DC, int x, int y, int StAngle,
-            int EndAngle, int r, int width, EDA_COLOR_T Color );
+void GRArc( EDA_RECT* ClipBox, wxDC* DC, int x, int y, double StAngle,
+            double EndAngle, int r, EDA_COLOR_T Color );
+void GRArc( EDA_RECT* ClipBox, wxDC* DC, int x, int y, double StAngle,
+            double EndAngle, int r, int width, EDA_COLOR_T Color );
 void GRArc1( EDA_RECT* ClipBox, wxDC* DC, int x1, int y1, int x2, int y2,
              int xc, int yc, EDA_COLOR_T Color );
 void GRArc1( EDA_RECT* ClipBox, wxDC* DC, int x1, int y1, int x2, int y2,
@@ -214,9 +204,9 @@ void GRArc1( EDA_RECT* ClipBox, wxDC* DC, int x1, int y1, int x2, int y2,
 void GRArc1( EDA_RECT* aClipBox, wxDC* aDC, wxPoint aStart, wxPoint aEnd,
              wxPoint aCenter, int aWidth, EDA_COLOR_T aColor );
 void GRFilledArc( EDA_RECT* ClipBox, wxDC* DC, int x, int y,
-                  int StAngle, int EndAngle, int r, EDA_COLOR_T Color, EDA_COLOR_T BgColor );
-void GRFilledArc( EDA_RECT* ClipBox, wxDC* DC, int x, int y, int StAngle,
-                  int EndAngle, int r, int width, EDA_COLOR_T Color, EDA_COLOR_T BgColor );
+                  double StAngle, double EndAngle, int r, EDA_COLOR_T Color, EDA_COLOR_T BgColor );
+void GRFilledArc( EDA_RECT* ClipBox, wxDC* DC, int x, int y, double StAngle,
+                  double EndAngle, int r, int width, EDA_COLOR_T Color, EDA_COLOR_T BgColor );
 void GRCSegm( EDA_RECT* ClipBox, wxDC* DC, int x1, int y1, int x2, int y2, int width, EDA_COLOR_T Color );
 
 void GRFillCSegm( EDA_RECT* ClipBox, wxDC* DC, int x1, int y1, int x2, int y2,
@@ -259,5 +249,8 @@ void GRSFilledRect( EDA_RECT* ClipBox, wxDC* DC, int x1, int y1,
  */
 void GRLineArray(  EDA_RECT* aClipBox, wxDC* aDC,std::vector<wxPoint>& aLines,
                    int aWidth, EDA_COLOR_T aColor );
+
+void GRDrawAnchor( EDA_RECT* aClipBox, wxDC *aDC, int x, int y, int aSize,
+                   EDA_COLOR_T aColor );
 
 #endif      /* define GR_BASIC */

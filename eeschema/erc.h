@@ -1,9 +1,9 @@
 /*
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
- * Copyright (C) 2009 Jean-Pierre Charras, jaen-pierre.charras@gipsa-lab.inpg.com
+ * Copyright (C) 2009 Jean-Pierre Charras, jp.charras at wanadoo.fr
  * Copyright (C) 2011 Wayne Stambaugh <stambaughw@verizon.net>
- * Copyright (C) 2009-2011 KiCad Developers, see change_log.txt for contributors.
+ * Copyright (C) 2009-2015 KiCad Developers, see change_log.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -33,6 +33,7 @@
 
 class EDA_DRAW_PANEL;
 class NETLIST_OBJECT;
+class NETLIST_OBJECT_LIST;
 
 /* For ERC markers: error types (used in diags, and to set the color):
 */
@@ -44,6 +45,8 @@ enum errortype
     UNC         // Error: unconnected pin
 };
 
+extern const wxString CommentERC_H[];
+extern const wxString CommentERC_V[];
 
 /// DRC error codes:
 #define ERCE_UNSPECIFIED          0
@@ -54,6 +57,7 @@ enum errortype
 #define ERCE_PIN_TO_PIN_ERROR     5    // pin connected to an other pin: error level
 #define ERCE_HIERACHICAL_LABEL    6    // mismatch between hierarchical labels and pins sheets
 #define ERCE_NOCONNECT_CONNECTED  7    // a no connect symbol is connected to more than 1 pin
+#define ERCE_GLOBLABEL            8    // global label not connected to any other global label
 
 /* Minimal connection table */
 #define NPI    4  // Net with Pin isolated, this pin has type Not Connected and must be left N.C.
@@ -81,17 +85,33 @@ extern void Diagnose( NETLIST_OBJECT* NetItemRef, NETLIST_OBJECT* NetItemTst,
 
 /**
  * Perform ERC testing for electrical conflicts between \a NetItemRef and other items
- * on the same net.
+ * (mainly pin) on the same net.
+ * @param aList = a reference to the list of connected objects
+ * @param aNetItemRef = index in list of the current object
+ * @param aNetStart = index in list of net objects of the first item
+ * @param aMinConnexion = a pointer to a variable to store the minimal connection
+ * found( NOD, DRV, NPI, NET_NC)
  */
-extern void TestOthersItems( unsigned NetItemRef, unsigned NetStart,
-                             int* NetNbItems, int* MinConnexion );
+extern void TestOthersItems( NETLIST_OBJECT_LIST* aList,
+                             unsigned aNetItemRef, unsigned aNetStart,
+                             int* aMinConnexion );
+
+/**
+ * Counts number of pins connected on the same net.
+ * Used to find all pins conected to a no connect symbol
+ * @return the pin count of the net starting at aNetStart
+ * @param aNetStart = index in list of net objects of the first item
+ * @param aList = a reference to the list of connected objects
+ */
+int CountPinsInNet( NETLIST_OBJECT_LIST* aList, unsigned aNetStart );
+
 
 /**
  * Function TestLabel
  * performs an ERC on a sheet labels to verify that it is connected to a corresponding
  * sub sheet global label.
  */
-extern void TestLabel( unsigned NetItemRef, unsigned StartNet );
+extern void TestLabel( NETLIST_OBJECT_LIST* aList, unsigned aNetItemRef, unsigned aStartNet );
 
 /**
  * Function TestDuplicateSheetNames( )

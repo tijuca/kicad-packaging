@@ -2,7 +2,7 @@
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
  * Copyright (C) 2012 SoftPLC Corporation, Dick Hollenbeck <dick@softplc.com>
- * Copyright (C) 2012 KiCad Developers, see change_log.txt for contributors.
+ * Copyright (C) 2015 KiCad Developers, see change_log.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -26,25 +26,52 @@
 #include <viewlib_frame.h>
 #include <libeditframe.h>
 #include <base_units.h>
+#include <kiway.h>
+#include <class_drawpanel.h>
 
-SCH_BASE_FRAME::SCH_BASE_FRAME( wxWindow* aParent,
-                                ID_DRAWFRAME_TYPE aWindowType,
-                                const wxString& aTitle,
-                                const wxPoint& aPosition, const wxSize& aSize,
-                                long aStyle, const wxString & aFrameName ) :
-    EDA_DRAW_FRAME( aParent, aWindowType, aTitle, aPosition, aSize, aStyle, aFrameName )
+// Sttaic members:
+
+
+SCH_BASE_FRAME::SCH_BASE_FRAME( KIWAY* aKiway, wxWindow* aParent,
+        FRAME_T aWindowType, const wxString& aTitle,
+        const wxPoint& aPosition, const wxSize& aSize, long aStyle,
+        const wxString& aFrameName ) :
+    EDA_DRAW_FRAME( aKiway, aParent, aWindowType, aTitle, aPosition,
+            aSize, aStyle, aFrameName )
 {
+    m_zoomLevelCoeff = 11.0;    // Adjusted to roughly displays zoom level = 1
+                                // when the screen shows a 1:1 image
+                                // obviously depends on the monitor,
+                                // but this is an acceptable value
+    m_repeatStep = wxPoint( DEFAULT_REPEAT_OFFSET_X, DEFAULT_REPEAT_OFFSET_Y );
+    m_repeatDeltaLabel = DEFAULT_REPEAT_LABEL_INC;
 }
 
 
 void SCH_BASE_FRAME::OnOpenLibraryViewer( wxCommandEvent& event )
 {
-    LIB_VIEW_FRAME * viewlibFrame = LIB_VIEW_FRAME::GetActiveLibraryViewer();;
+    LIB_VIEW_FRAME* viewlibFrame = (LIB_VIEW_FRAME*) Kiway().Player( FRAME_SCH_VIEWER, true );
 
-    if( viewlibFrame )
-        viewlibFrame->Show( true );
-    else
-        new LIB_VIEW_FRAME( this );
+    viewlibFrame->PushPreferences( m_canvas );
+
+    // On Windows, Raise() does not bring the window on screen, when iconized
+    if( viewlibFrame->IsIconized() )
+        viewlibFrame->Iconize( false );
+
+    viewlibFrame->Show( true );
+    viewlibFrame->Raise();
+}
+
+// Virtual from EDA_DRAW_FRAME
+EDA_COLOR_T SCH_BASE_FRAME::GetDrawBgColor() const
+{
+    return GetLayerColor( LAYER_BACKGROUND );
+}
+
+void SCH_BASE_FRAME::SetDrawBgColor( EDA_COLOR_T aColor)
+{
+    m_drawBgColor= aColor;
+    SetLayerColor( aColor, LAYER_BACKGROUND );
 }
 
 
@@ -53,6 +80,10 @@ SCH_SCREEN* SCH_BASE_FRAME::GetScreen() const
     return (SCH_SCREEN*) EDA_DRAW_FRAME::GetScreen();
 }
 
+const wxString SCH_BASE_FRAME::GetZoomLevelIndicator() const
+{
+    return EDA_DRAW_FRAME::GetZoomLevelIndicator();
+}
 
 void SCH_BASE_FRAME::SetPageSettings( const PAGE_INFO& aPageSettings )
 {
@@ -73,17 +104,17 @@ const wxSize SCH_BASE_FRAME::GetPageSizeIU() const
 }
 
 
-const wxPoint& SCH_BASE_FRAME::GetOriginAxisPosition() const
+const wxPoint& SCH_BASE_FRAME::GetAuxOrigin() const
 {
     wxASSERT( GetScreen() );
-    return GetScreen()->GetOriginAxisPosition();
+    return GetScreen()->GetAuxOrigin();
 }
 
 
-void SCH_BASE_FRAME::SetOriginAxisPosition( const wxPoint& aPosition )
+void SCH_BASE_FRAME::SetAuxOrigin( const wxPoint& aPosition )
 {
     wxASSERT( GetScreen() );
-    GetScreen()->SetOriginAxisPosition( aPosition );
+    GetScreen()->SetAuxOrigin( aPosition );
 }
 
 
@@ -113,8 +144,8 @@ void SCH_BASE_FRAME::UpdateStatusBar()
     EDA_DRAW_FRAME::UpdateStatusBar();
 
     // Display absolute coordinates:
-    double dXpos = To_User_Unit( g_UserUnit, screen->GetCrossHairPosition().x );
-    double dYpos = To_User_Unit( g_UserUnit, screen->GetCrossHairPosition().y );
+    double dXpos = To_User_Unit( g_UserUnit, GetCrossHairPosition().x );
+    double dYpos = To_User_Unit( g_UserUnit, GetCrossHairPosition().y );
 
     if ( g_UserUnit == MILLIMETRES )
     {
@@ -129,17 +160,21 @@ void SCH_BASE_FRAME::UpdateStatusBar()
     {
     case INCHES:
         absformatter = wxT( "X %.3f  Y %.3f" );
-        locformatter = wxT( "dx %.3f  dy %.3f  d %.3f" );
+        locformatter = wxT( "dx %.3f  dy %.3f  dist %.3f" );
         break;
 
     case MILLIMETRES:
         absformatter = wxT( "X %.2f  Y %.2f" );
-        locformatter = wxT( "dx %.2f  dy %.2f  d %.2f" );
+        locformatter = wxT( "dx %.2f  dy %.2f  dist %.2f" );
         break;
 
     case UNSCALED_UNITS:
         absformatter = wxT( "X %f  Y %f" );
-        locformatter = wxT( "dx %f  dy %f  d %f" );
+        locformatter = wxT( "dx %f  dy %f  dist %f" );
+        break;
+
+    case DEGREES:
+        wxASSERT( false );
         break;
     }
 
@@ -147,8 +182,9 @@ void SCH_BASE_FRAME::UpdateStatusBar()
     SetStatusText( line, 2 );
 
     // Display relative coordinates:
-    dx = screen->GetCrossHairPosition().x - screen->m_O_Curseur.x;
-    dy = screen->GetCrossHairPosition().y - screen->m_O_Curseur.y;
+    dx = GetCrossHairPosition().x - screen->m_O_Curseur.x;
+    dy = GetCrossHairPosition().y - screen->m_O_Curseur.y;
+
     dXpos = To_User_Unit( g_UserUnit, dx );
     dYpos = To_User_Unit( g_UserUnit, dy );
 
@@ -159,7 +195,7 @@ void SCH_BASE_FRAME::UpdateStatusBar()
     }
 
     // We already decided the formatter above
-    line.Printf( locformatter, dXpos, dYpos, sqrt( dXpos * dXpos + dYpos * dYpos ) );
+    line.Printf( locformatter, dXpos, dYpos, hypot( dXpos, dYpos ) );
     SetStatusText( line, 3 );
 
     // refresh units display

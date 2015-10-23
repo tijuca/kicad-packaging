@@ -1,3 +1,27 @@
+/*
+ * This program source code file is part of KiCad, a free EDA CAD application.
+ *
+ * Copyright (C) 2007-2014 Jean-Pierre Charras, jp.charras at wanadoo.fr
+ * Copyright (C) 2007-2014 KiCad Developers, see CHANGELOG.TXT for contributors.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation; either version 2
+ * of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, you may find one here:
+ * http://www.gnu.org/licenses/old-licenses/gpl-2.0.html
+ * or you may search the http://www.gnu.org website for the version 2 license,
+ * or you may write to the Free Software Foundation, Inc.,
+ * 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
+ */
+
 /**
  * @file polygon_test_point_inside.cpp
  */
@@ -26,11 +50,11 @@
 #define OUTSIDE false
 #define INSIDE true
 
-bool TestPointInsidePolygon( std::vector <CPolyPt> aPolysList,
-                             int                   aIdxstart,
-                             int                   aIdxend,
-                             int                   aRefx,
-                             int                   aRefy)
+bool TestPointInsidePolygon( const CPOLYGONS_LIST& aPolysList,
+                             int             aIdxstart,
+                             int             aIdxend,
+                             int             aRefx,
+                             int             aRefy)
 
 /**
  * Function TestPointInsidePolygon
@@ -50,10 +74,10 @@ bool TestPointInsidePolygon( std::vector <CPolyPt> aPolysList,
     // find all intersection points of line with polyline sides
     for( ics = aIdxstart, ice = aIdxend; ics <= aIdxend; ice = ics++ )
     {
-        int seg_startX = aPolysList[ics].x;
-        int seg_startY = aPolysList[ics].y;
-        int seg_endX   = aPolysList[ice].x;
-        int seg_endY   = aPolysList[ice].y;
+        int seg_startX = aPolysList.GetX( ics );
+        int seg_startY = aPolysList.GetY( ics );
+        int seg_endX   = aPolysList.GetX( ice );
+        int seg_endY   = aPolysList.GetY( ice );
 
         /* Trivial cases: skip if ref above or below the segment to test */
         if( ( seg_startY > aRefy ) && (seg_endY > aRefy ) )
@@ -96,7 +120,7 @@ bool TestPointInsidePolygon( std::vector <CPolyPt> aPolysList,
 /* Function TestPointInsidePolygon (overlaid)
  * same as previous, but use wxPoint and aCount corners
  */
-bool TestPointInsidePolygon( wxPoint *aPolysList, int aCount,wxPoint aRefPoint )
+bool TestPointInsidePolygon( const wxPoint *aPolysList, int aCount, const wxPoint &aRefPoint )
 {
     // count intersection points to right of (refx,refy). If odd number, point (refx,refy) is inside polyline
     int ics, ice;

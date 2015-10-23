@@ -5,7 +5,7 @@
 /*
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
- * Copyright (C) 2012 KiCad Developers, see CHANGELOG.TXT for contributors.
+ * Copyright (C) 2014 KiCad Developers, see CHANGELOG.TXT for contributors.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -26,63 +26,83 @@
  */
 
 #include <fctsys.h>
-#include <appl_wxstruct.h>
+#include <pgm_base.h>
+#include <kiface_i.h>
 #include <class_drawpanel.h>
 #include <confirm.h>
 #include <gestfich.h>
-#include <wxEeschemaStruct.h>
+#include <schframe.h>
+#include <invoke_sch_dialog.h>
+#include <common.h>
 
 #include <eeschema_id.h>
 #include <general.h>
 #include <libeditframe.h>
 #include <eeschema_config.h>
-#include <worksheet.h>
 #include <hotkeys.h>
 #include <sch_sheet.h>
+#include <class_libentry.h>
+#include <worksheet_shape_builder.h>
+#include <class_library.h>
 
 #include <dialog_hotkeys_editor.h>
 
 #include <dialogs/dialog_color_config.h>
-#include <dialogs/dialog_eeschema_config.h>
 #include <dialogs/dialog_eeschema_options.h>
+#include <dialogs/dialog_libedit_options.h>
 #include <dialogs/dialog_schematic_find.h>
 
 #include <wildcards_and_files_ext.h>
 
-#define HOTKEY_FILENAME         wxT( "eeschema" )
-
 #define FR_HISTORY_LIST_CNT     10   ///< Maximum number of find and replace strings.
 
-static EDA_COLOR_T s_layerColor[MAX_LAYERS];
 
-// The width to draw busses that do not have a specific width
-static int s_defaultBusThickness;
+static int s_defaultBusThickness = DEFAULTBUSTHICKNESS;
 
 int GetDefaultBusThickness()
 {
     return s_defaultBusThickness;
 }
 
+
 void SetDefaultBusThickness( int aThickness)
 {
-    if( aThickness >=1 )
+    if( aThickness >= 1 )
         s_defaultBusThickness = aThickness;
     else
         s_defaultBusThickness = 1;
 }
 
+
+/// Default size for text (not only labels)
+static int s_defaultTextSize = DEFAULT_SIZE_TEXT;
+
+int GetDefaultTextSize()
+{
+    return s_defaultTextSize;
+}
+
+
+void SetDefaultTextSize( int aTextSize )
+{
+    s_defaultTextSize = aTextSize;
+}
+
+
 /*
  * Default line (in Eeschema units) thickness used to draw/plot items having a
  * default thickness line value (i.e. = 0 ).
  */
-static int s_drawDefaultLineThickness;
+static int s_drawDefaultLineThickness  = DEFAULTDRAWLINETHICKNESS;
+
 
 int GetDefaultLineThickness()
 {
     return s_drawDefaultLineThickness;
 }
 
-void SetDefaultLineThickness( int aThickness)
+
+void SetDefaultLineThickness( int aThickness )
 {
     if( aThickness >=1 )
         s_drawDefaultLineThickness = aThickness;
@@ -90,21 +110,13 @@ void SetDefaultLineThickness( int aThickness)
         s_drawDefaultLineThickness = 1;
 }
 
-EDA_COLOR_T ReturnLayerColor( int aLayer )
-{
-    return s_layerColor[aLayer];
-}
-
-void SetLayerColor( EDA_COLOR_T aColor, int aLayer )
-{
-    s_layerColor[aLayer] = aColor;
-}
 
 // Color to draw selected items
 EDA_COLOR_T GetItemSelectedColor()
 {
     return BROWN;
 }
+
 
 // Color to draw items flagged invisible, in libedit (they are invisible
 // in Eeschema
@@ -116,9 +128,31 @@ EDA_COLOR_T GetInvisibleItemColor()
 
 void LIB_EDIT_FRAME::InstallConfigFrame( wxCommandEvent& event )
 {
-    DIALOG_EESCHEMA_CONFIG CfgFrame( (SCH_EDIT_FRAME *)GetParent(), this );
+    // Identical to SCH_EDIT_FRAME::InstallConfigFrame()
 
-    CfgFrame.ShowModal();
+    PROJECT*        prj = &Prj();
+    wxArrayString   lib_names;
+    wxString        lib_paths;
+
+    try
+    {
+        PART_LIBS::LibNamesAndPaths( prj, false, &lib_paths, &lib_names );
+    }
+    catch( const IO_ERROR& ioe )
+    {
+        DBG(printf( "%s: %s\n", __func__, TO_UTF8( ioe.errorText ) );)
+        return;
+    }
+
+    if( InvokeEeschemaConfig( this, &lib_paths, &lib_names ) )
+    {
+        // save the [changed] settings.
+        PART_LIBS::LibNamesAndPaths( prj, true, &lib_paths, &lib_names );
+
+        // Force a reload of the PART_LIBS
+        prj->SetElem( PROJECT::ELEM_SCH_PART_LIBS, NULL );
+        prj->SetElem( PROJECT::ELEM_SCH_SEARCH_STACK, NULL );
+    }
 }
 
 
@@ -134,47 +168,25 @@ void LIB_EDIT_FRAME::Process_Config( wxCommandEvent& event )
 {
     int        id = event.GetId();
     wxFileName fn;
-    SCH_EDIT_FRAME* schFrame = ( SCH_EDIT_FRAME* ) GetParent();
 
     switch( id )
     {
-    case ID_CONFIG_SAVE:
-        schFrame->SaveProjectFile();
-        break;
-
-    case ID_CONFIG_READ:
-    {
-        fn = g_RootSheet->GetScreen()->GetFileName();
-        fn.SetExt( ProjectFileExtension );
-
-        wxFileDialog dlg( this, _( "Read Project File" ), fn.GetPath(),
-                          fn.GetFullName(), ProjectFileWildcard,
-                          wxFD_OPEN | wxFD_FILE_MUST_EXIST );
-
-        if( dlg.ShowModal() == wxID_CANCEL )
-            break;
-
-        schFrame->LoadProjectFile( dlg.GetPath(), true );
-    }
-    break;
-
-
     // Hotkey IDs
     case ID_PREFERENCES_HOTKEY_SHOW_EDITOR:
-        InstallHotkeyFrame( this, s_Eeschema_Hokeys_Descr );
+        InstallHotkeyFrame( this, g_Eeschema_Hokeys_Descr );
         break;
 
     case ID_PREFERENCES_HOTKEY_EXPORT_CONFIG:
-        ExportHotkeyConfigToFile( s_Eeschema_Hokeys_Descr );
+        ExportHotkeyConfigToFile( g_Eeschema_Hokeys_Descr, wxT( "eeschema" ) );
         break;
 
     case ID_PREFERENCES_HOTKEY_IMPORT_CONFIG:
-        ImportHotkeyConfigFromFile( s_Eeschema_Hokeys_Descr );
+        ImportHotkeyConfigFromFile( g_Eeschema_Hokeys_Descr, wxT( "eeschema" ) );
         break;
 
     case ID_PREFERENCES_HOTKEY_SHOW_CURRENT_LIST:
         // Display current hotkey list for LibEdit.
-        DisplayHotkeyList( this, s_Libedit_Hokeys_Descr );
+        DisplayHotkeyList( this, g_Libedit_Hokeys_Descr );
         break;
 
     default:
@@ -193,9 +205,41 @@ void SCH_EDIT_FRAME::OnColorConfig( wxCommandEvent& aEvent )
 
 void SCH_EDIT_FRAME::InstallConfigFrame( wxCommandEvent& event )
 {
-    DIALOG_EESCHEMA_CONFIG CfgFrame( this, this );
+    // Identical to LIB_EDIT_FRAME::InstallConfigFrame()
 
-    CfgFrame.ShowModal();
+    PROJECT*        prj = &Prj();
+    wxArrayString   lib_names;
+    wxString        lib_paths;
+
+    try
+    {
+        PART_LIBS::LibNamesAndPaths( prj, false, &lib_paths, &lib_names );
+    }
+    catch( const IO_ERROR& ioe )
+    {
+        DBG(printf( "%s: %s\n", __func__, TO_UTF8( ioe.errorText ) );)
+        return;
+    }
+
+    if( InvokeEeschemaConfig( this, &lib_paths, &lib_names ) )
+    {
+        // save the [changed] settings.
+        PART_LIBS::LibNamesAndPaths( prj, true, &lib_paths, &lib_names );
+
+#if defined(DEBUG)
+        printf( "%s: lib_names:\n", __func__ );
+        for( unsigned i=0; i<lib_names.size();  ++i )
+        {
+            printf( " %s\n", TO_UTF8( lib_names[i] ) );
+        }
+
+        printf( "%s: lib_paths:'%s'\n", __func__, TO_UTF8( lib_paths ) );
+#endif
+
+        // Force a reload of the PART_LIBS
+        prj->SetElem( PROJECT::ELEM_SCH_PART_LIBS, NULL );
+        prj->SetElem( PROJECT::ELEM_SCH_SEARCH_STACK, NULL );
+    }
 }
 
 
@@ -207,42 +251,51 @@ void SCH_EDIT_FRAME::Process_Config( wxCommandEvent& event )
     switch( id )
     {
     case ID_CONFIG_SAVE:
-        SaveProjectFile();
+        SaveProjectSettings( true );
         break;
 
     case ID_CONFIG_READ:
-    {
-        fn = g_RootSheet->GetScreen()->GetFileName();
-        fn.SetExt( ProjectFileExtension );
+        {
+            fn = g_RootSheet->GetScreen()->GetFileName();
+            fn.SetExt( ProjectFileExtension );
 
-        wxFileDialog dlg( this, _( "Read Project File" ), fn.GetPath(),
-                          fn.GetFullName(), ProjectFileWildcard,
-                          wxFD_OPEN | wxFD_FILE_MUST_EXIST );
+            wxFileDialog dlg( this, _( "Read Project File" ), fn.GetPath(),
+                              fn.GetFullName(), ProjectFileWildcard,
+                              wxFD_OPEN | wxFD_FILE_MUST_EXIST );
 
-        if( dlg.ShowModal() == wxID_CANCEL )
-            break;
+            if( dlg.ShowModal() == wxID_CANCEL )
+                break;
 
-        LoadProjectFile( dlg.GetPath(), true );
-    }
-    break;
+            wxString chosen = dlg.GetPath();
 
+            if( chosen == Prj().GetProjectFullName() )
+                LoadProjectFile();
+            else
+            {
+                // Read library list and library path list
+                Prj().ConfigLoad( Kiface().KifaceSearch(), GROUP_SCH, GetProjectFileParametersList() );
+                // Read schematic editor setup
+                Prj().ConfigLoad( Kiface().KifaceSearch(), GROUP_SCH_EDITOR, GetProjectFileParametersList() );
+            }
+        }
+        break;
 
     // Hotkey IDs
     case ID_PREFERENCES_HOTKEY_EXPORT_CONFIG:
-        ExportHotkeyConfigToFile( s_Eeschema_Hokeys_Descr );
+        ExportHotkeyConfigToFile( g_Eeschema_Hokeys_Descr, wxT( "eeschema" ) );
         break;
 
     case ID_PREFERENCES_HOTKEY_IMPORT_CONFIG:
-        ImportHotkeyConfigFromFile( s_Eeschema_Hokeys_Descr );
+        ImportHotkeyConfigFromFile( g_Eeschema_Hokeys_Descr, wxT( "eeschema" ) );
         break;
 
     case ID_PREFERENCES_HOTKEY_SHOW_EDITOR:
-        InstallHotkeyFrame( this, s_Eeschema_Hokeys_Descr );
+        InstallHotkeyFrame( this, g_Eeschema_Hokeys_Descr );
         break;
 
     case ID_PREFERENCES_HOTKEY_SHOW_CURRENT_LIST:
         // Display current hotkey list for eeschema.
-        DisplayHotkeyList( this, s_Schematic_Hokeys_Descr );
+        DisplayHotkeyList( this, g_Schematic_Hokeys_Descr );
         break;
 
     default:
@@ -251,12 +304,11 @@ void SCH_EDIT_FRAME::Process_Config( wxCommandEvent& event )
 }
 
 
-void SCH_EDIT_FRAME::OnSetOptions( wxCommandEvent& event )
+void SCH_EDIT_FRAME::OnPreferencesOptions( wxCommandEvent& event )
 {
     wxArrayString units;
-    GRIDS grid_list;
-
-    GetScreen()->GetGrids( grid_list );
+    GRIDS grid_list = GetScreen()->GetGrids();
+    bool saveProjectConfig = false;
 
     DIALOG_EESCHEMA_OPTIONS dlg( this );
 
@@ -264,14 +316,18 @@ void SCH_EDIT_FRAME::OnSetOptions( wxCommandEvent& event )
     units.Add( GetUnitsLabel( MILLIMETRES ) );
 
     dlg.SetUnits( units, g_UserUnit );
-    dlg.SetGridSizes( grid_list, GetScreen()->GetGridId() );
+    dlg.SetGridSizes( grid_list, GetScreen()->GetGridCmdId() );
     dlg.SetBusWidth( GetDefaultBusThickness() );
     dlg.SetLineWidth( GetDefaultLineThickness() );
-    dlg.SetTextSize( GetDefaultLabelSize() );
-    dlg.SetRepeatHorizontal( g_RepeatStep.x );
-    dlg.SetRepeatVertical( g_RepeatStep.y );
-    dlg.SetRepeatLabel( g_RepeatDeltaLabel );
+    dlg.SetTextSize( GetDefaultTextSize() );
+    dlg.SetRepeatHorizontal( GetRepeatStep().x );
+    dlg.SetRepeatVertical( GetRepeatStep().y );
+    dlg.SetRepeatLabel( GetRepeatDeltaLabel() );
     dlg.SetAutoSaveInterval( GetAutoSaveInterval() / 60 );
+    dlg.SetMaxUndoItems( GetScreen()->GetMaxUndoItems() );
+    dlg.SetRefIdSeparator( LIB_PART::GetSubpartIdSeparator(),
+                           LIB_PART::GetSubpartFirstId() );
+
     dlg.SetShowGrid( IsGridVisible() );
     dlg.SetShowHiddenPins( m_showAllPins );
     dlg.SetEnableMiddleButtonPan( m_canvas->GetEnableMiddleButtonPan() );
@@ -279,34 +335,47 @@ void SCH_EDIT_FRAME::OnSetOptions( wxCommandEvent& event )
     dlg.SetMiddleButtonPanLimited( m_canvas->GetMiddleButtonPanLimited() );
     dlg.SetEnableAutoPan( m_canvas->GetEnableAutoPan() );
     dlg.SetEnableHVBusOrientation( GetForceHVLines() );
-    dlg.SetShowPageLimits( g_ShowPageLimits );
+    dlg.SetShowPageLimits( m_showPageLimits );
     dlg.Layout();
     dlg.Fit();
     dlg.SetMinSize( dlg.GetSize() );
-
-    const TEMPLATE_FIELDNAMES&  tfnames = m_TemplateFieldNames.GetTemplateFieldNames();
-
-    for( unsigned i=0; i<tfnames.size(); ++i )
-    {
-        D(printf("dlg.SetFieldName(%d, '%s')\n", i, TO_UTF8( tfnames[i].m_Name) );)
-
-        dlg.SetFieldName( i, tfnames[i].m_Name );
-    }
+    dlg.SetTemplateFields( m_TemplateFieldNames.GetTemplateFieldNames() );
 
     if( dlg.ShowModal() == wxID_CANCEL )
         return;
 
     g_UserUnit = (EDA_UNITS_T)dlg.GetUnitsSelection();
 
-    GetScreen()->SetGrid( grid_list[ (size_t) dlg.GetGridSelection() ].m_Size );
+    wxRealPoint  gridsize = grid_list[ (size_t) dlg.GetGridSelection() ].m_Size;
+    m_LastGridSizeId = GetScreen()->SetGrid( gridsize );
+
+    int sep, firstId;
+    dlg.GetRefIdSeparator( sep, firstId);
+
+    if( sep != (int)LIB_PART::GetSubpartIdSeparator() ||
+        firstId != (int)LIB_PART::GetSubpartFirstId() )
+    {
+        LIB_PART::SetSubpartIdNotation( sep, firstId );
+        saveProjectConfig = true;
+    }
 
     SetDefaultBusThickness( dlg.GetBusWidth() );
     SetDefaultLineThickness( dlg.GetLineWidth() );
-    SetDefaultLabelSize( dlg.GetTextSize() );
-    g_RepeatStep.x = dlg.GetRepeatHorizontal();
-    g_RepeatStep.y = dlg.GetRepeatVertical();
-    g_RepeatDeltaLabel = dlg.GetRepeatLabel();
+
+    if( dlg.GetTextSize() != GetDefaultTextSize() )
+    {
+        SetDefaultTextSize( dlg.GetTextSize() );
+        saveProjectConfig = true;
+    }
+
+    wxPoint step;
+    step.x = dlg.GetRepeatHorizontal();
+    step.y = dlg.GetRepeatVertical();
+    SetRepeatStep( step );
+    SetRepeatDeltaLabel( dlg.GetRepeatLabel() );
+
     SetAutoSaveInterval( dlg.GetAutoSaveInterval() * 60 );
+    GetScreen()->SetMaxUndoItems( dlg.GetMaxUndoItems() );
     SetGridVisibility( dlg.GetShowGrid() );
     m_showAllPins = dlg.GetShowHiddenPins();
     m_canvas->SetEnableMiddleButtonPan( dlg.GetEnableMiddleButtonPan() );
@@ -314,57 +383,64 @@ void SCH_EDIT_FRAME::OnSetOptions( wxCommandEvent& event )
     m_canvas->SetMiddleButtonPanLimited( dlg.GetMiddleButtonPanLimited() );
     m_canvas->SetEnableAutoPan( dlg.GetEnableAutoPan() );
     SetForceHVLines( dlg.GetEnableHVBusOrientation() );
-    g_ShowPageLimits = dlg.GetShowPageLimits();
+    m_showPageLimits = dlg.GetShowPageLimits();
 
-    wxString templateFieldName;
-
-    // @todo this will change when the template field editor is redone to
-    // look like the component field property editor, showing visibility and value also
-
+    // Delete all template fieldnames and then restore them using the template field data from
+    // the options dialog
     DeleteAllTemplateFieldNames();
+    TEMPLATE_FIELDNAMES newFieldNames = dlg.GetTemplateFields();
 
-    for( int i=0; i<8; ++i )    // no. fields in this dialog window
+    for( TEMPLATE_FIELDNAMES::iterator dlgfld = newFieldNames.begin();
+         dlgfld != newFieldNames.end(); ++dlgfld )
     {
-        templateFieldName = dlg.GetFieldName( i );
-
-        if( !templateFieldName.IsEmpty() )
-        {
-            TEMPLATE_FIELDNAME  fld( dlg.GetFieldName( i ) );
-
-            // @todo set visibility and value also from a better editor
-
-            AddTemplateFieldName( fld );
-        }
+        TEMPLATE_FIELDNAME fld = *dlgfld;
+        AddTemplateFieldName( fld );
     }
+
+    SaveSettings( config() );  // save values shared by eeschema applications.
+
+    if( saveProjectConfig )
+        SaveProjectSettings( true );
 
     m_canvas->Refresh( true );
 }
 
 
-PARAM_CFG_ARRAY& SCH_EDIT_FRAME::GetProjectFileParameters()
+PARAM_CFG_ARRAY& SCH_EDIT_FRAME::GetProjectFileParametersList()
 {
     if( !m_projectFileParams.empty() )
         return m_projectFileParams;
 
+    m_projectFileParams.push_back( new PARAM_CFG_FILENAME( wxT( "PageLayoutDescrFile" ),
+                                        &BASE_SCREEN::m_PageLayoutDescrFileName ) );
+
+    m_projectFileParams.push_back( new PARAM_CFG_FILENAME( wxT( "PlotDirectoryName" ),
+                                        &m_plotDirectoryName ) );
+
+    m_projectFileParams.push_back( new PARAM_CFG_INT( wxT( "SubpartIdSeparator" ),
+                                        LIB_PART::SubpartIdSeparatorPtr(),
+                                        0, 0, 126 ) );
+    m_projectFileParams.push_back( new PARAM_CFG_INT( wxT( "SubpartFirstId" ),
+                                        LIB_PART::SubpartFirstIdPtr(),
+                                        'A', '1', 'z' ) );
+
+    /* moved to library load/save specific code, in a specific section in .pro file
     m_projectFileParams.push_back( new PARAM_CFG_FILENAME( wxT( "LibDir" ),
                                                            &m_userLibraryPath ) );
     m_projectFileParams.push_back( new PARAM_CFG_LIBNAME_LIST( wxT( "LibName" ),
                                                                &m_componentLibFiles,
-                                                               GROUPLIB ) );
+                                                               GROUP_SCH_LIBS ) );
+    */
+
     m_projectFileParams.push_back( new PARAM_CFG_WXSTRING( wxT( "NetFmtName" ),
                                                          &m_netListFormat) );
+    m_projectFileParams.push_back( new PARAM_CFG_BOOL( wxT( "SpiceForceRefPrefix" ),
+                                                    &m_spiceNetlistAddReferencePrefix, false ) );
+    m_projectFileParams.push_back( new PARAM_CFG_BOOL( wxT( "SpiceUseNetNumbers" ),
+                                                    &m_spiceNetlistUseNetcodeAsNetname, false ) );
 
-    m_projectFileParams.push_back( new PARAM_CFG_INT( wxT( "RptD_X" ),
-                                                      &g_RepeatStep.x,
-                                                      0, -1000, +1000 ) );
-    m_projectFileParams.push_back( new PARAM_CFG_INT( wxT( "RptD_Y" ),
-                                                      &g_RepeatStep.y,
-                                                      100, -1000, +1000 ) );
-    m_projectFileParams.push_back( new PARAM_CFG_INT( wxT( "RptLab" ),
-                                                      &g_RepeatDeltaLabel,
-                                                      1, -10, +10 ) );
     m_projectFileParams.push_back( new PARAM_CFG_INT( wxT( "LabSize" ),
-                                                      &m_defaultLabelSize,
+                                                      &s_defaultTextSize,
                                                       DEFAULT_SIZE_TEXT, 5,
                                                       1000 ) );
 
@@ -372,237 +448,186 @@ PARAM_CFG_ARRAY& SCH_EDIT_FRAME::GetProjectFileParameters()
 }
 
 
-bool SCH_EDIT_FRAME::LoadProjectFile( const wxString& aFileName, bool aForceReread )
+bool SCH_EDIT_FRAME::LoadProjectFile()
 {
-    wxFileName              fn;
-    bool                    IsRead = true;
-    wxArrayString           liblist_tmp = m_componentLibFiles;
+    // Read library list and library path list
+    bool isRead = Prj().ConfigLoad( Kiface().KifaceSearch(),
+                    GROUP_SCH, GetProjectFileParametersList() );
 
-    if( aFileName.IsEmpty() )
-        fn = g_RootSheet->GetScreen()->GetFileName();
-    else
-        fn = aFileName;
+    // Read schematic editor setup
+    isRead = isRead && Prj().ConfigLoad( Kiface().KifaceSearch(),
+                                         GROUP_SCH_EDITOR, GetProjectFileParametersList() );
 
-    m_componentLibFiles.Clear();
+    // Verify some values, because the config file can be edited by hand,
+    // and have bad values:
+    LIB_PART::SetSubpartIdNotation(
+            LIB_PART::GetSubpartIdSeparator(),
+            LIB_PART::GetSubpartFirstId() );
 
-    /* Change the schematic file extension (.sch) to the project file
-     * extension (.pro). */
-    fn.SetExt( ProjectFileExtension );
+    // Load the page layout decr file, from the filename stored in
+    // BASE_SCREEN::m_PageLayoutDescrFileName, read in config project file
+    // If empty, or not existing, the default descr is loaded
+    WORKSHEET_LAYOUT& pglayout = WORKSHEET_LAYOUT::GetTheInstance();
+    wxString pg_fullfilename = WORKSHEET_LAYOUT::MakeFullFileName(
+                                    BASE_SCREEN::m_PageLayoutDescrFileName,
+                                    Prj().GetProjectPath() );
 
-    wxGetApp().RemoveLibraryPath( m_userLibraryPath );
+    pglayout.SetPageLayout( pg_fullfilename );
 
-    if( !wxGetApp().ReadProjectConfig( fn.GetFullPath(), GROUP,
-                                       GetProjectFileParameters(),
-                                       !aForceReread ) )
-    {
-        m_componentLibFiles = liblist_tmp;
-        IsRead = false;
-    }
-
-    // User library path takes precedent over default library search paths.
-    wxGetApp().InsertLibraryPath( m_userLibraryPath, 1 );
-
-    /* If the list is void, force loading the library "power.lib" that is
-     * the "standard" library for power symbols.
-     */
-    if( m_componentLibFiles.GetCount() == 0 )
-        m_componentLibFiles.Add( wxT( "power" ) );
-
-    LoadLibraries();
-    GetScreen()->SetGrid( ID_POPUP_GRID_LEVEL_1000 + m_LastGridSizeId  );
-
-    return IsRead;
+    return isRead;
 }
 
 
-void SCH_EDIT_FRAME::SaveProjectFile()
+void SCH_EDIT_FRAME::SaveProjectSettings( bool aAskForSave )
 {
-    wxFileName fn;
+    PROJECT&        prj = Prj();
+    wxFileName      fn = g_RootSheet->GetScreen()->GetFileName();  //ConfigFileName
 
-    fn = g_RootSheet->GetScreen()->GetFileName();  //ConfigFileName
     fn.SetExt( ProjectFileExtension );
 
     if( !IsWritable( fn ) )
         return;
 
-    wxGetApp().WriteProjectConfig( fn.GetFullPath(), GROUP, GetProjectFileParameters() );
+    if( aAskForSave )
+    {
+        wxFileDialog dlg( this, _( "Save Project File" ),
+                          fn.GetPath(), fn.GetFullPath(),
+                          ProjectFileWildcard, wxFD_SAVE );
+
+        if( dlg.ShowModal() == wxID_CANCEL )
+            return;
+
+        fn = dlg.GetPath();
+    }
+
+    prj.ConfigSave( Kiface().KifaceSearch(), GROUP_SCH_EDITOR, GetProjectFileParametersList() );
 }
 
-static const wxString DefaultBusWidthEntry( wxT( "DefaultBusWidth" ) );
-static const wxString DefaultDrawLineWidthEntry( wxT( "DefaultDrawLineWidth" ) );
-static const wxString ShowHiddenPinsEntry( wxT( "ShowHiddenPins" ) );
-static const wxString HorzVertLinesOnlyEntry( wxT( "HorizVertLinesOnly" ) );
-static const wxString PreviewFramePositionXEntry( wxT( "PreviewFramePositionX" ) );
-static const wxString PreviewFramePositionYEntry( wxT( "PreviewFramePositionY" ) );
-static const wxString PreviewFrameWidthEntry( wxT( "PreviewFrameWidth" ) );
-static const wxString PreviewFrameHeightEntry( wxT( "PreviewFrameHeight" ) );
-static const wxString PrintDialogPositionXEntry( wxT( "PrintDialogPositionX" ) );
-static const wxString PrintDialogPositionYEntry( wxT( "PrintDialogPositionY" ) );
-static const wxString PrintDialogWidthEntry( wxT( "PrintDialogWidth" ) );
-static const wxString PrintDialogHeightEntry( wxT( "PrintDialogHeight" ) );
-static const wxString FindDialogPositionXEntry( wxT( "FindDialogPositionX" ) );
-static const wxString FindDialogPositionYEntry( wxT( "FindDialogPositionY" ) );
-static const wxString FindDialogWidthEntry( wxT( "FindDialogWidth" ) );
-static const wxString FindDialogHeightEntry( wxT( "FindDialogHeight" ) );
-static const wxString FindReplaceFlagsEntry( wxT( "LastFindReplaceFlags" ) );
-static const wxString FindStringEntry( wxT( "LastFindString" ) );
-static const wxString ReplaceStringEntry( wxT( "LastReplaceString" ) );
-static const wxString FindStringHistoryEntry( wxT( "FindStringHistoryList%d" ) );
-static const wxString ReplaceStringHistoryEntry( wxT( "ReplaceStringHistoryList%d" ) );
-static const wxString FieldNamesEntry( wxT( "FieldNames" ) );
-static const wxString SimulatorCommandEntry( wxT( "SimCmdLine" ) );
+
+static const wxChar DefaultBusWidthEntry[] =        wxT( "DefaultBusWidth" );
+static const wxChar DefaultDrawLineWidthEntry[] =   wxT( "DefaultDrawLineWidth" );
+static const wxChar ShowHiddenPinsEntry[] =         wxT( "ShowHiddenPins" );
+static const wxChar HorzVertLinesOnlyEntry[] =      wxT( "HorizVertLinesOnly" );
+static const wxChar PreviewFramePositionXEntry[] =  wxT( "PreviewFramePositionX" );
+static const wxChar PreviewFramePositionYEntry[] =  wxT( "PreviewFramePositionY" );
+static const wxChar PreviewFrameWidthEntry[] =      wxT( "PreviewFrameWidth" );
+static const wxChar PreviewFrameHeightEntry[] =     wxT( "PreviewFrameHeight" );
+static const wxChar PrintDialogPositionXEntry[] =   wxT( "PrintDialogPositionX" );
+static const wxChar PrintDialogPositionYEntry[] =   wxT( "PrintDialogPositionY" );
+static const wxChar PrintDialogWidthEntry[] =       wxT( "PrintDialogWidth" );
+static const wxChar PrintDialogHeightEntry[] =      wxT( "PrintDialogHeight" );
+static const wxChar FindDialogPositionXEntry[] =    wxT( "FindDialogPositionX" );
+static const wxChar FindDialogPositionYEntry[] =    wxT( "FindDialogPositionY" );
+static const wxChar FindDialogWidthEntry[] =        wxT( "FindDialogWidth" );
+static const wxChar FindDialogHeightEntry[] =       wxT( "FindDialogHeight" );
+static const wxChar FindReplaceFlagsEntry[] =       wxT( "LastFindReplaceFlags" );
+static const wxChar FindStringEntry[] =             wxT( "LastFindString" );
+static const wxChar ReplaceStringEntry[] =          wxT( "LastReplaceString" );
+static const wxChar FindStringHistoryEntry[] =      wxT( "FindStringHistoryList%d" );
+static const wxChar ReplaceStringHistoryEntry[] =   wxT( "ReplaceStringHistoryList%d" );
+static const wxChar FieldNamesEntry[] =             wxT( "FieldNames" );
+static const wxChar SimulatorCommandEntry[] =       wxT( "SimCmdLine" );
+
+// Library editor wxConfig entry names.
+static const wxChar lastLibExportPathEntry[] =      wxT( "LastLibraryExportPath" );
+static const wxChar lastLibImportPathEntry[] =      wxT( "LastLibraryImportPath" );
+static const wxChar defaultPinNumSizeEntry[] =      wxT( "LibeditPinNumSize" );
+static const wxChar defaultPinNameSizeEntry[] =     wxT( "LibeditPinNameSize" );
+static const wxChar DefaultPinLengthEntry[] =       wxT( "DefaultPinLength" );
+static const wxChar repeatLibLabelIncEntry[] =      wxT( "LibeditRepeatLabelInc" );
+static const wxChar pinRepeatStepEntry[] =          wxT( "LibeditPinRepeatStep" );
+static const wxChar repeatLibStepXEntry[] =         wxT( "LibeditRepeatStepX" );
+static const wxChar repeatLibStepYEntry[] =         wxT( "LibeditRepeatStepY" );
 
 
-PARAM_CFG_ARRAY& SCH_EDIT_FRAME::GetConfigurationSettings( void )
+PARAM_CFG_ARRAY& SCH_EDIT_FRAME::GetConfigurationSettings()
 {
     if( !m_configSettings.empty() )
         return m_configSettings;
 
+    m_configSettings.push_back( new PARAM_CFG_BOOL( true, wxT( "ShowPageLimits" ),
+                                                    &m_showPageLimits, true ) );
     m_configSettings.push_back( new PARAM_CFG_INT( true, wxT( "Units" ),
                                                    (int*)&g_UserUnit, MILLIMETRES ) );
-    m_configSettings.push_back( new PARAM_CFG_SETCOLOR( true, wxT( "ColWire" ),
-                                                        &s_layerColor[LAYER_WIRE],
-                                                        GREEN ) );
-    m_configSettings.push_back( new PARAM_CFG_SETCOLOR( true, wxT( "ColorBus" ),
-                                                        &s_layerColor[LAYER_BUS],
-                                                        BLUE ) );
-    m_configSettings.push_back( new PARAM_CFG_SETCOLOR( true, wxT( "ColorConn" ),
-                                                        &s_layerColor[LAYER_JUNCTION],
-                                                        GREEN ) );
-    m_configSettings.push_back( new PARAM_CFG_SETCOLOR( true, wxT( "ColorLlab" ),
-                                                        &s_layerColor[LAYER_LOCLABEL],
-                                                        BLACK ) );
-    m_configSettings.push_back( new PARAM_CFG_SETCOLOR( true, wxT( "ColorHlab" ),
-                                                        &s_layerColor[LAYER_HIERLABEL],
-                                                        BROWN ) );
-    m_configSettings.push_back( new PARAM_CFG_SETCOLOR( true, wxT( "ColorGbllab" ),
-                                                        &s_layerColor[LAYER_GLOBLABEL],
-                                                        RED ) );
-    m_configSettings.push_back( new PARAM_CFG_SETCOLOR( true, wxT( "ColorPinF" ),
-                                                        &s_layerColor[LAYER_PINFUN],
-                                                        MAGENTA ) );
-    m_configSettings.push_back( new PARAM_CFG_SETCOLOR( true, wxT( "ColPinN" ),
-                                                        &s_layerColor[LAYER_PINNUM],
-                                                        RED ) );
-    m_configSettings.push_back( new PARAM_CFG_SETCOLOR( true, wxT( "ColorPNam" ),
-                                                        &s_layerColor[LAYER_PINNAM],
-                                                        CYAN ) );
-    m_configSettings.push_back( new PARAM_CFG_SETCOLOR( true, wxT( "ColorField" ),
-                                                        &s_layerColor[LAYER_FIELDS],
-                                                        MAGENTA ) );
-    m_configSettings.push_back( new PARAM_CFG_SETCOLOR( true, wxT( "ColorRef" ),
-                                                        &s_layerColor[LAYER_REFERENCEPART],
-                                                        CYAN ) );
-    m_configSettings.push_back( new PARAM_CFG_SETCOLOR( true, wxT( "ColorValue" ),
-                                                        &s_layerColor[LAYER_VALUEPART],
-                                                        CYAN ) );
-    m_configSettings.push_back( new PARAM_CFG_SETCOLOR( true, wxT( "ColorNote" ),
-                                                        &s_layerColor[LAYER_NOTES],
-                                                        LIGHTBLUE ) );
-    m_configSettings.push_back( new PARAM_CFG_SETCOLOR( true, wxT( "ColorBody" ),
-                                                        &s_layerColor[LAYER_DEVICE],
-                                                        RED ) );
-    m_configSettings.push_back( new PARAM_CFG_SETCOLOR( true, wxT( "ColorBodyBg" ),
-                                                        &s_layerColor[LAYER_DEVICE_BACKGROUND],
-                                                        LIGHTYELLOW ) );
-    m_configSettings.push_back( new PARAM_CFG_SETCOLOR( true, wxT( "ColorNetN" ),
-                                                        &s_layerColor[LAYER_NETNAM],
-                                                        DARKGRAY ) );
-    m_configSettings.push_back( new PARAM_CFG_SETCOLOR( true, wxT( "ColorPin" ),
-                                                        &s_layerColor[LAYER_PIN],
-                                                        RED ) );
-    m_configSettings.push_back( new PARAM_CFG_SETCOLOR( true, wxT( "ColorSheet" ),
-                                                        &s_layerColor[LAYER_SHEET],
-                                                        MAGENTA ) );
-    m_configSettings.push_back( new PARAM_CFG_SETCOLOR( true,
-                                                        wxT( "ColorSheetFileName" ),
-                                                        &s_layerColor[LAYER_SHEETFILENAME],
-                                                        BROWN ) );
-    m_configSettings.push_back( new PARAM_CFG_SETCOLOR( true, wxT( "ColorSheetName" ),
-                                                        &s_layerColor[LAYER_SHEETNAME],
-                                                        CYAN ) );
-    m_configSettings.push_back( new PARAM_CFG_SETCOLOR( true, wxT( "ColorSheetLab" ),
-                                                        &s_layerColor[LAYER_SHEETLABEL],
-                                                        BROWN ) );
-    m_configSettings.push_back( new PARAM_CFG_SETCOLOR( true, wxT( "ColorNoCo" ),
-                                                        &s_layerColor[LAYER_NOCONNECT],
-                                                        BLUE ) );
-    m_configSettings.push_back( new PARAM_CFG_SETCOLOR( true, wxT( "ColorErcW" ),
-                                                        &s_layerColor[LAYER_ERC_WARN],
-                                                        GREEN ) );
-    m_configSettings.push_back( new PARAM_CFG_SETCOLOR( true, wxT( "ColorErcE" ),
-                                                        &s_layerColor[LAYER_ERC_ERR],
-                                                        RED ) );
-    m_configSettings.push_back( new PARAM_CFG_SETCOLOR( true, wxT( "ColorGrid" ),
-                                                        &s_layerColor[LAYER_GRID],
-                                                        DARKGRAY ) );
+
     m_configSettings.push_back( new PARAM_CFG_BOOL( true, wxT( "PrintMonochrome" ),
                                                     &m_printMonochrome, true ) );
     m_configSettings.push_back( new PARAM_CFG_BOOL( true, wxT( "PrintSheetReferenceAndTitleBlock" ),
                                                     &m_printSheetReference, true ) );
 
+    m_configSettings.push_back( new PARAM_CFG_INT( true, wxT( "RepeatStepX" ),
+                                                      &m_repeatStep.x,
+                                                      DEFAULT_REPEAT_OFFSET_X,
+                                                      -REPEAT_OFFSET_MAX,
+                                                      REPEAT_OFFSET_MAX ) );
+    m_configSettings.push_back( new PARAM_CFG_INT( true, wxT( "RepeatStepY" ),
+                                                      &m_repeatStep.y,
+                                                      DEFAULT_REPEAT_OFFSET_Y,
+                                                      -REPEAT_OFFSET_MAX,
+                                                      REPEAT_OFFSET_MAX ) );
+    m_configSettings.push_back( new PARAM_CFG_INT( true, wxT( "RepeatLabelIncrement" ),
+                                                      &m_repeatDeltaLabel,
+                                                      DEFAULT_REPEAT_LABEL_INC, -10, +10 ) );
     return m_configSettings;
 }
 
 
-void SCH_EDIT_FRAME::LoadSettings()
+void SCH_EDIT_FRAME::LoadSettings( wxConfigBase* aCfg )
 {
-    wxASSERT( wxGetApp().GetSettings() != NULL );
+    EDA_DRAW_FRAME::LoadSettings( aCfg );
 
     long tmp;
 
-    wxConfig* cfg = wxGetApp().GetSettings();
+    wxConfigLoadSetups( aCfg, GetConfigurationSettings() );
 
-    EDA_DRAW_FRAME::LoadSettings();
+    SetGridColor( GetLayerColor( LAYER_GRID ) );
+    SetDrawBgColor( GetLayerColor( LAYER_BACKGROUND ) );
 
-    wxGetApp().ReadCurrentSetupValues( GetConfigurationSettings() );
-
-    // This is required until someone gets rid of the global variable s_layerColor.
-    m_GridColor = ReturnLayerColor( LAYER_GRID );
-
-    SetDefaultBusThickness( cfg->Read( DefaultBusWidthEntry, 12l ) );
-    SetDefaultLineThickness( cfg->Read( DefaultDrawLineWidthEntry, 6l ) );
-    cfg->Read( ShowHiddenPinsEntry, &m_showAllPins, false );
-    cfg->Read( HorzVertLinesOnlyEntry, &m_forceHVLines, true );
+    SetDefaultBusThickness( aCfg->Read( DefaultBusWidthEntry, DEFAULTBUSTHICKNESS ) );
+    SetDefaultLineThickness( aCfg->Read( DefaultDrawLineWidthEntry, DEFAULTDRAWLINETHICKNESS ) );
+    aCfg->Read( ShowHiddenPinsEntry, &m_showAllPins, false );
+    aCfg->Read( HorzVertLinesOnlyEntry, &m_forceHVLines, true );
 
     // Load print preview window session settings.
-    cfg->Read( PreviewFramePositionXEntry, &tmp, -1 );
+    aCfg->Read( PreviewFramePositionXEntry, &tmp, -1 );
     m_previewPosition.x = (int) tmp;
-    cfg->Read( PreviewFramePositionYEntry, &tmp, -1 );
+    aCfg->Read( PreviewFramePositionYEntry, &tmp, -1 );
     m_previewPosition.y = (int) tmp;
-    cfg->Read( PreviewFrameWidthEntry, &tmp, -1 );
+    aCfg->Read( PreviewFrameWidthEntry, &tmp, -1 );
     m_previewSize.SetWidth( (int) tmp );
-    cfg->Read( PreviewFrameHeightEntry, &tmp, -1 );
+    aCfg->Read( PreviewFrameHeightEntry, &tmp, -1 );
     m_previewSize.SetHeight( (int) tmp );
 
     // Load print dialog session settings.
-    cfg->Read( PrintDialogPositionXEntry, &tmp, -1 );
+    aCfg->Read( PrintDialogPositionXEntry, &tmp, -1 );
     m_printDialogPosition.x = (int) tmp;
-    cfg->Read( PrintDialogPositionYEntry, &tmp, -1 );
+    aCfg->Read( PrintDialogPositionYEntry, &tmp, -1 );
     m_printDialogPosition.y = (int) tmp;
-    cfg->Read( PrintDialogWidthEntry, &tmp, -1 );
+    aCfg->Read( PrintDialogWidthEntry, &tmp, -1 );
     m_printDialogSize.SetWidth( (int) tmp );
-    cfg->Read( PrintDialogHeightEntry, &tmp, -1 );
+    aCfg->Read( PrintDialogHeightEntry, &tmp, -1 );
     m_printDialogSize.SetHeight( (int) tmp );
 
     // Load netlists options:
-    cfg->Read( SimulatorCommandEntry, &m_simulatorCommand );
+    aCfg->Read( SimulatorCommandEntry, &m_simulatorCommand );
 
     // Load find dialog session setting.
-    cfg->Read( FindDialogPositionXEntry, &tmp, -1 );
+    aCfg->Read( FindDialogPositionXEntry, &tmp, -1 );
     m_findDialogPosition.x = (int) tmp;
-    cfg->Read( FindDialogPositionYEntry, &tmp, -1 );
+    aCfg->Read( FindDialogPositionYEntry, &tmp, -1 );
     m_findDialogPosition.y = (int) tmp;
-    cfg->Read( FindDialogWidthEntry, &tmp, -1 );
+    aCfg->Read( FindDialogWidthEntry, &tmp, -1 );
     m_findDialogSize.SetWidth( (int) tmp );
-    cfg->Read( FindDialogHeightEntry, &tmp, -1 );
+    aCfg->Read( FindDialogHeightEntry, &tmp, -1 );
     m_findDialogSize.SetHeight( (int) tmp );
+
     wxASSERT_MSG( m_findReplaceData,
                   wxT( "Find dialog data settings object not created. Bad programmer!" ) );
-    cfg->Read( FindReplaceFlagsEntry, &tmp, (long) wxFR_DOWN );
+
+    aCfg->Read( FindReplaceFlagsEntry, &tmp, (long) wxFR_DOWN );
     m_findReplaceData->SetFlags( (wxUint32) tmp & ~FR_REPLACE_ITEM_FOUND );
-    m_findReplaceData->SetFindString( cfg->Read( FindStringEntry, wxEmptyString ) );
-    m_findReplaceData->SetReplaceString( cfg->Read( ReplaceStringEntry, wxEmptyString ) );
+    m_findReplaceData->SetFindString( aCfg->Read( FindStringEntry, wxEmptyString ) );
+    m_findReplaceData->SetReplaceString( aCfg->Read( ReplaceStringEntry, wxEmptyString ) );
 
     // Load the find and replace string history list.
     for( int i = 0; i < FR_HISTORY_LIST_CNT; ++i )
@@ -610,78 +635,75 @@ void SCH_EDIT_FRAME::LoadSettings()
         wxString tmpHistory;
         wxString entry;
         entry.Printf( FindStringHistoryEntry, i );
-        tmpHistory = cfg->Read( entry, wxEmptyString );
+        tmpHistory = aCfg->Read( entry, wxEmptyString );
 
         if( !tmpHistory.IsEmpty() )
             m_findStringHistoryList.Add( tmpHistory );
 
         entry.Printf( ReplaceStringHistoryEntry, i );
-        tmpHistory = cfg->Read( entry, wxEmptyString );
+        tmpHistory = aCfg->Read( entry, wxEmptyString );
 
         if( !tmpHistory.IsEmpty() )
             m_replaceStringHistoryList.Add( tmpHistory );
     }
 
-    wxString templateFieldNames = cfg->Read( FieldNamesEntry, wxEmptyString );
+    wxString templateFieldNames = aCfg->Read( FieldNamesEntry, wxEmptyString );
 
     if( !templateFieldNames.IsEmpty() )
     {
         TEMPLATE_FIELDNAMES_LEXER  lexer( TO_UTF8( templateFieldNames ) );
+
         try
         {
             m_TemplateFieldNames.Parse( &lexer );
         }
-        catch( IO_ERROR& e )
+        catch( const IO_ERROR& e )
         {
             // @todo show error msg
-            D( printf( "templatefieldnames parsing error: '%s'\n",
+            DBG( printf( "templatefieldnames parsing error: '%s'\n",
                        TO_UTF8( e.errorText ) ); )
         }
     }
 }
 
 
-void SCH_EDIT_FRAME::SaveSettings()
+void SCH_EDIT_FRAME::SaveSettings( wxConfigBase* aCfg )
 {
-    wxASSERT( wxGetApp().GetSettings() != NULL );
+    EDA_DRAW_FRAME::SaveSettings( aCfg );
 
-    wxConfig* cfg = wxGetApp().GetSettings();
+    wxConfigSaveSetups( aCfg, GetConfigurationSettings() );
 
-    EDA_DRAW_FRAME::SaveSettings();
-
-    wxGetApp().SaveCurrentSetupValues( GetConfigurationSettings() );
-
-    cfg->Write( DefaultBusWidthEntry, (long) GetDefaultBusThickness() );
-    cfg->Write( DefaultDrawLineWidthEntry, (long) GetDefaultLineThickness() );
-    cfg->Write( ShowHiddenPinsEntry, m_showAllPins );
-    cfg->Write( HorzVertLinesOnlyEntry, GetForceHVLines() );
+    aCfg->Write( DefaultBusWidthEntry, (long) GetDefaultBusThickness() );
+    aCfg->Write( DefaultDrawLineWidthEntry, (long) GetDefaultLineThickness() );
+    aCfg->Write( ShowHiddenPinsEntry, m_showAllPins );
+    aCfg->Write( HorzVertLinesOnlyEntry, GetForceHVLines() );
 
     // Save print preview window session settings.
-    cfg->Write( PreviewFramePositionXEntry, m_previewPosition.x );
-    cfg->Write( PreviewFramePositionYEntry, m_previewPosition.y );
-    cfg->Write( PreviewFrameWidthEntry, m_previewSize.GetWidth() );
-    cfg->Write( PreviewFrameHeightEntry, m_previewSize.GetHeight() );
+    aCfg->Write( PreviewFramePositionXEntry, m_previewPosition.x );
+    aCfg->Write( PreviewFramePositionYEntry, m_previewPosition.y );
+    aCfg->Write( PreviewFrameWidthEntry, m_previewSize.GetWidth() );
+    aCfg->Write( PreviewFrameHeightEntry, m_previewSize.GetHeight() );
 
     // Save print dialog session settings.
-    cfg->Write( PrintDialogPositionXEntry, m_printDialogPosition.x );
-    cfg->Write( PrintDialogPositionYEntry, m_printDialogPosition.y );
-    cfg->Write( PrintDialogWidthEntry, m_printDialogSize.GetWidth() );
-    cfg->Write( PrintDialogHeightEntry, m_printDialogSize.GetHeight() );
+    aCfg->Write( PrintDialogPositionXEntry, m_printDialogPosition.x );
+    aCfg->Write( PrintDialogPositionYEntry, m_printDialogPosition.y );
+    aCfg->Write( PrintDialogWidthEntry, m_printDialogSize.GetWidth() );
+    aCfg->Write( PrintDialogHeightEntry, m_printDialogSize.GetHeight() );
 
     // Save netlists options:
-    cfg->Write( SimulatorCommandEntry, m_simulatorCommand );
+    aCfg->Write( SimulatorCommandEntry, m_simulatorCommand );
 
     // Save find dialog session setting.
-    cfg->Write( FindDialogPositionXEntry, m_findDialogPosition.x );
-    cfg->Write( FindDialogPositionYEntry, m_findDialogPosition.y );
-    cfg->Write( FindDialogWidthEntry, m_findDialogSize.GetWidth() );
-    cfg->Write( FindDialogHeightEntry, m_findDialogSize.GetHeight() );
+    aCfg->Write( FindDialogPositionXEntry, m_findDialogPosition.x );
+    aCfg->Write( FindDialogPositionYEntry, m_findDialogPosition.y );
+    aCfg->Write( FindDialogWidthEntry, m_findDialogSize.GetWidth() );
+    aCfg->Write( FindDialogHeightEntry, m_findDialogSize.GetHeight() );
     wxASSERT_MSG( m_findReplaceData,
                   wxT( "Find dialog data settings object not created. Bad programmer!" ) );
-    cfg->Write( FindReplaceFlagsEntry,
+    aCfg->Write( FindReplaceFlagsEntry,
                 (long) m_findReplaceData->GetFlags() & ~FR_REPLACE_ITEM_FOUND );
-    cfg->Write( FindStringEntry, m_findReplaceData->GetFindString() );
-    cfg->Write( ReplaceStringEntry, m_findReplaceData->GetReplaceString() );
+    aCfg->Write( FindStringEntry, m_findReplaceData->GetFindString() );
+    aCfg->Write( ReplaceStringEntry, m_findReplaceData->GetReplaceString() );
 
     // Save the find and replace string history list.
     unsigned i;
@@ -691,25 +713,104 @@ void SCH_EDIT_FRAME::SaveSettings()
     for( i = 0; i < m_findStringHistoryList.GetCount() && i < FR_HISTORY_LIST_CNT; i++ )
     {
         entry.Printf( FindStringHistoryEntry, i );
-        cfg->Write( entry, m_findStringHistoryList[ i ] );
+        aCfg->Write( entry, m_findStringHistoryList[ i ] );
     }
 
     for( i = 0; i < m_replaceStringHistoryList.GetCount() && i < FR_HISTORY_LIST_CNT; i++ )
     {
         entry.Printf( ReplaceStringHistoryEntry, i );
-        cfg->Write( entry, m_replaceStringHistoryList[ i ] );
+        aCfg->Write( entry, m_replaceStringHistoryList[ i ] );
     }
 
     // Save template fieldnames
     STRING_FORMATTER sf;
-
     m_TemplateFieldNames.Format( &sf, 0 );
-
-    D(printf("saving formatted template fieldnames:'%s'\n", sf.GetString().c_str() );)
 
     wxString record = FROM_UTF8( sf.GetString().c_str() );
     record.Replace( wxT("\n"), wxT(""), true );   // strip all newlines
     record.Replace( wxT("  "), wxT(" "), true );  // double space to single
 
-    cfg->Write( FieldNamesEntry, record );
+    aCfg->Write( FieldNamesEntry, record );
 }
+
+
+void LIB_EDIT_FRAME::LoadSettings( wxConfigBase* aCfg )
+{
+    EDA_DRAW_FRAME::LoadSettings( aCfg );
+
+    SetGridColor( GetLayerColor( LAYER_GRID ) );
+    SetDrawBgColor( GetLayerColor( LAYER_BACKGROUND ) );
+
+    wxString pro_dir = Prj().GetProjectFullName();
+
+    m_lastLibExportPath = aCfg->Read( lastLibExportPathEntry, pro_dir );
+    m_lastLibImportPath = aCfg->Read( lastLibImportPathEntry, pro_dir );
+
+    SetDefaultLineThickness( aCfg->Read( DefaultDrawLineWidthEntry, DEFAULTDRAWLINETHICKNESS ) );
+    SetDefaultPinLength( aCfg->Read( DefaultPinLengthEntry, DEFAULTPINLENGTH ) );
+    m_textPinNumDefaultSize = aCfg->Read( defaultPinNumSizeEntry, DEFAULTPINNUMSIZE );
+    m_textPinNameDefaultSize = aCfg->Read( defaultPinNameSizeEntry, DEFAULTPINNAMESIZE );
+    SetRepeatDeltaLabel( aCfg->Read( repeatLibLabelIncEntry, DEFAULT_REPEAT_LABEL_INC ) );
+    SetRepeatPinStep( aCfg->Read( pinRepeatStepEntry, DEFAULT_REPEAT_OFFSET_PIN ) );
+    wxPoint step;
+    step.x = aCfg->Read( repeatLibStepXEntry, (long)DEFAULT_REPEAT_OFFSET_X );
+    step.y = aCfg->Read( repeatLibStepYEntry, (long)DEFAULT_REPEAT_OFFSET_Y );
+    SetRepeatStep( step );
+}
+
+
+void LIB_EDIT_FRAME::SaveSettings( wxConfigBase* aCfg )
+{
+    EDA_DRAW_FRAME::SaveSettings( aCfg );
+
+    aCfg->Write( lastLibExportPathEntry, m_lastLibExportPath );
+    aCfg->Write( lastLibImportPathEntry, m_lastLibImportPath );
+    aCfg->Write( DefaultPinLengthEntry, (long) GetDefaultPinLength() );
+    aCfg->Write( defaultPinNumSizeEntry, (long) GetPinNumDefaultSize() );
+    aCfg->Write( defaultPinNameSizeEntry, (long) GetPinNameDefaultSize() );
+    aCfg->Write( repeatLibLabelIncEntry, (long) GetRepeatDeltaLabel() );
+    aCfg->Write( pinRepeatStepEntry, (long) GetRepeatPinStep() );
+    aCfg->Write( repeatLibStepXEntry, (long) GetRepeatStep().x );
+    aCfg->Write( repeatLibStepYEntry, (long) GetRepeatStep().y );
+}
+
+
+void LIB_EDIT_FRAME::OnPreferencesOptions( wxCommandEvent& event )
+{
+    wxArrayString units;
+    GRIDS grid_list = GetScreen()->GetGrids();
+
+    DIALOG_LIBEDIT_OPTIONS dlg( this );
+
+    dlg.SetGridSizes( grid_list, GetScreen()->GetGridCmdId() );
+    dlg.SetLineWidth( GetDefaultLineThickness() );
+    dlg.SetPinLength( GetDefaultPinLength() );
+    dlg.SetPinNumSize( m_textPinNumDefaultSize );
+    dlg.SetPinNameSize( m_textPinNameDefaultSize );
+    dlg.SetMaxUndoItems( GetScreen()->GetMaxUndoItems() );
+
+    dlg.SetShowGrid( IsGridVisible() );
+    dlg.Layout();
+    dlg.Fit();
+
+    if( dlg.ShowModal() == wxID_CANCEL )
+        return;
+
+    wxRealPoint  gridsize = grid_list[ (size_t) dlg.GetGridSelection() ].m_Size;
+    m_LastGridSizeId = GetScreen()->SetGrid( gridsize );
+
+    SetDefaultLineThickness( dlg.GetLineWidth() );
+    SetDefaultPinLength( dlg.GetPinLength() );
+    m_textPinNumDefaultSize = dlg.GetPinNumSize();
+    m_textPinNameDefaultSize = dlg.GetPinNameSize();
+    SetGridVisibility( dlg.GetShowGrid() );
+    SetRepeatPinStep( dlg.GetPinRepeatStep() );
+    SetRepeatStep( dlg.GetItemRepeatStep() );
+    SetRepeatDeltaLabel( dlg.GetRepeatLabelInc() );
+    GetScreen()->SetMaxUndoItems( dlg.GetMaxUndoItems() );
+
+    SaveSettings( config() );  // save values shared by eeschema applications.
+
+    m_canvas->Refresh( true );
+}
+

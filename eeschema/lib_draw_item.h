@@ -1,8 +1,9 @@
 /*
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
- * Copyright (C) 2004 Jean-Pierre Charras, jaen-pierre.charras@gipsa-lab.inpg.com
- * Copyright (C) 2004-2011 KiCad Developers, see change_log.txt for contributors.
+ * Copyright (C) 2015 Jean-Pierre Charras, jaen-pierre.charras at wanadoo.fr
+ * Copyright (C) 2015 Wayne Stambaugh <stambaughw@verizon.net>
+ * Copyright (C) 2004-2015 KiCad Developers, see change_log.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -32,13 +33,14 @@
 
 #include <base_struct.h>
 #include <transform.h>
+#include <gr_basic.h>
 
 #include <boost/ptr_container/ptr_vector.hpp>
 
 
 class LINE_READER;
 class OUTPUTFORMATTER;
-class LIB_COMPONENT;
+class LIB_PART;
 class PLOTTER;
 class LIB_ITEM;
 class LIB_PIN;
@@ -116,7 +118,7 @@ class LIB_ITEM : public EDA_ITEM
     bool    m_eraseLastDrawItem; ///< Used when editing a new draw item to prevent drawing
                                  ///< artifacts.
 
-    friend class LIB_COMPONENT;
+    friend class LIB_PART;
 
 protected:
     /**
@@ -149,7 +151,7 @@ protected:
 public:
 
     LIB_ITEM( KICAD_T        aType,
-              LIB_COMPONENT* aComponent = NULL,
+              LIB_PART*      aComponent = NULL,
               int            aUnit      = 0,
               int            aConvert   = 0,
               FILL_T         aFillType  = NO_FILL );
@@ -175,7 +177,7 @@ public:
      *                  started.  This may or may not be required depending on the item
      *                  being edited and the edit mode.
      */
-    virtual void BeginEdit( int aEditMode, const wxPoint aPosition = wxPoint( 0, 0 ) ) {}
+    virtual void BeginEdit( STATUS_FLAGS aEditMode, const wxPoint aPosition = wxPoint( 0, 0 ) ) {}
 
     /**
      * Continue an edit in progress at \a aPosition.
@@ -236,12 +238,12 @@ public:
 
     virtual bool Load( LINE_READER& aLine, wxString& aErrorMsg ) = 0;
 
-    LIB_COMPONENT* GetParent()
+    LIB_PART*      GetParent() const
     {
-        return (LIB_COMPONENT *)m_Parent;
+        return (LIB_PART *)m_Parent;
     }
 
-    virtual bool HitTest( const wxPoint& aPosition )
+    virtual bool HitTest( const wxPoint& aPosition ) const
     {
         return EDA_ITEM::HitTest( aPosition );
     }
@@ -254,12 +256,12 @@ public:
      * @param aTransform The transform matrix.
      * @return True if the point \a aPosition is near this object
      */
-    virtual bool HitTest( wxPoint aPosition, int aThreshold, const TRANSFORM& aTransform ) = 0;
+    virtual bool HitTest( const wxPoint &aPosition, int aThreshold, const TRANSFORM& aTransform ) const = 0;
 
    /**
      * @return the boundary box for this, in library coordinates
      */
-    virtual EDA_RECT GetBoundingBox() const { return EDA_ITEM::GetBoundingBox(); }
+    virtual const EDA_RECT GetBoundingBox() const { return EDA_ITEM::GetBoundingBox(); }
 
     /**
      * Function GetMsgPanelInfo

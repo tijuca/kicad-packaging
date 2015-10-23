@@ -1,9 +1,9 @@
 /*
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
- * Copyright (C) 2009 Jean-Pierre Charras, jaen-pierre.charras@gipsa-lab.inpg.com
- * Copyright (C) 2011 Wayne Stambaugh <stambaughw@verizon.net>
- * Copyright (C) 1992-2011 KiCad Developers, see AUTHORS.txt for contributors.
+ * Copyright (C) 2013 Jean-Pierre Charras, jpierre.charras at wanadoo
+ * Copyright (C) 2013-2015 Wayne Stambaugh <stambaughw@verizon.net>
+ * Copyright (C) 1992-2015 KiCad Developers, see AUTHORS.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -36,35 +36,57 @@
 #include <base_units.h>
 
 #include <gerbview.h>
+#include <gerbview_frame.h>
 #include <colors_selection.h>
 #include <class_gerber_draw_item.h>
 #include <class_GERBER.h>
+#include <printout_controler.h>
 
 
-void GERBVIEW_FRAME::PrintPage( wxDC* aDC, int aPrintMasklayer,
+void GERBVIEW_FRAME::PrintPage( wxDC* aDC, LSET aPrintMasklayer,
                                 bool aPrintMirrorMode, void* aData )
 {
+    wxCHECK_RET( aData != NULL, wxT( "aData cannot be NULL." ) );
+
     // Save current draw options, because print mode has specific options:
-    int             visiblemask = GetVisibleLayers();
     GBR_DISPLAY_OPTIONS imgDisplayOptions = m_DisplayOptions;
+    std::bitset <GERBER_DRAWLAYERS_COUNT> printLayersMask = GetGerberLayout()->GetPrintableLayers();
 
     // Set draw options for printing:
-    SetVisibleLayers( aPrintMasklayer );
     m_DisplayOptions.m_DisplayFlashedItemsFill = true;
     m_DisplayOptions.m_DisplayLinesFill = true;
     m_DisplayOptions.m_DisplayPolygonsFill = true;
     m_DisplayOptions.m_DisplayDCodes = false;
     m_DisplayOptions.m_IsPrinting = true;
 
-    m_canvas->SetPrintMirrored( aPrintMirrorMode );
+    PRINT_PARAMETERS* printParameters = (PRINT_PARAMETERS*) aData;
 
-    // XXX -1 as drawmode?
-    GetLayout()->Draw( m_canvas, aDC, UNSPECIFIED_DRAWMODE, wxPoint( 0, 0 ) );
+    // Find the layer to be printed
+    int page = printParameters->m_Flags;    // contains the page number (not necessarily layer number)
+    int layer = 0;
+
+    // Find the layer number for the printed page (search through the mask and count bits)
+    while( page > 0 )
+    {
+        if( printLayersMask[layer++] )
+            --page;
+    }
+    --layer;
+
+    std::bitset <GERBER_DRAWLAYERS_COUNT> printCurrLayerMask;
+    printCurrLayerMask.reset();
+    printCurrLayerMask.set( layer );
+    GetGerberLayout()->SetPrintableLayers( printCurrLayerMask );
+    m_canvas->SetPrintMirrored( aPrintMirrorMode );
+    bool printBlackAndWhite = printParameters->m_Print_Black_and_White;
+
+    GetGerberLayout()->Draw( m_canvas, aDC, (GR_DRAWMODE) 0,
+                             wxPoint( 0, 0 ), printBlackAndWhite );
 
     m_canvas->SetPrintMirrored( false );
 
     // Restore draw options:
-    SetVisibleLayers( visiblemask );
+    GetGerberLayout()->SetPrintableLayers( printLayersMask );
     m_DisplayOptions = imgDisplayOptions;
 }
 
@@ -73,7 +95,7 @@ void GERBVIEW_FRAME::RedrawActiveWindow( wxDC* DC, bool EraseBg )
 {
     GBR_SCREEN* screen = (GBR_SCREEN*) GetScreen();
 
-    if( !GetLayout() )
+    if( !GetGerberLayout() )
         return;
 
     wxBusyCursor dummy;
@@ -96,7 +118,7 @@ void GERBVIEW_FRAME::RedrawActiveWindow( wxDC* DC, bool EraseBg )
     }
 
     // Draw according to the current setting.  This needs to be GR_COPY or GR_OR.
-    GetLayout()->Draw( m_canvas, DC, drawMode, wxPoint( 0, 0 ) );
+    GetGerberLayout()->Draw( m_canvas, DC, drawMode, wxPoint( 0, 0 ) );
 
     // Draw the "background" now, i.e. grid and axis after gerber layers
     // because most of time the actual background is erased by successive drawings of each gerber
@@ -106,7 +128,16 @@ void GERBVIEW_FRAME::RedrawActiveWindow( wxDC* DC, bool EraseBg )
     if( IsElementVisible( DCODES_VISIBLE ) )
         DrawItemsDCodeID( DC, GR_COPY );
 
-    TraceWorkSheet( DC, screen, 0, IU_PER_MILS, wxEmptyString );
+    DrawWorkSheet( DC, screen, 0, IU_PER_MILS, wxEmptyString );
+
+#ifdef USE_WX_OVERLAY
+    if( IsShown() )
+    {
+        m_overlay.Reset();
+        wxDCOverlay overlaydc( m_overlay, (wxWindowDC*)DC );
+        overlaydc.Clear();
+    }
+#endif
 
     if( m_canvas->IsMouseCaptured() )
         m_canvas->CallMouseCapture( DC, wxDefaultPosition, false );
@@ -123,19 +154,19 @@ void GERBVIEW_FRAME::RedrawActiveWindow( wxDC* DC, bool EraseBg )
  * Redraw All GerbView layers, using a buffered mode or not
  */
 void GBR_LAYOUT::Draw( EDA_DRAW_PANEL* aPanel, wxDC* aDC, GR_DRAWMODE aDrawMode,
-                       const wxPoint& aOffset )
+                       const wxPoint& aOffset, bool aPrintBlackAndWhite )
 {
+    GERBVIEW_FRAME* gerbFrame = (GERBVIEW_FRAME*) aPanel->GetParent();
+
     // Because Images can be negative (i.e with background filled in color) items are drawn
     // graphic layer per graphic layer, after the background is filled
     // to a temporary bitmap
     // at least when aDrawMode = GR_COPY or aDrawMode = GR_OR
-    // If aDrawMode = -1, items are drawn to the main screen, and therefore
+    // If aDrawMode = UNSPECIFIED_DRAWMODE, items are drawn to the main screen, and therefore
     // artifacts can happen with negative items or negative images
 
-    wxColour bgColor = MakeColour( g_DrawBgColor );
-    wxBrush  bgBrush( bgColor, wxSOLID );
-
-    GERBVIEW_FRAME* gerbFrame = (GERBVIEW_FRAME*) aPanel->GetParent();
+    wxColour bgColor = MakeColour( gerbFrame->GetDrawBgColor() );
+    wxBrush  bgBrush( bgColor, wxBRUSHSTYLE_SOLID );
 
     int      bitmapWidth, bitmapHeight;
     wxDC*    plotDC = aDC;
@@ -160,7 +191,7 @@ void GBR_LAYOUT::Draw( EDA_DRAW_PANEL* aPanel, wxDC* aDC, GR_DRAWMODE aDrawMode,
     if( (aDrawMode == GR_COPY) || ( aDrawMode == GR_OR ) )
         useBufferBitmap = true;
 #endif
-    
+
     // these parameters are saved here, because they are modified
     // and restored later
     EDA_RECT drawBox = *aPanel->GetClipBox();
@@ -193,14 +224,16 @@ void GBR_LAYOUT::Draw( EDA_DRAW_PANEL* aPanel, wxDC* aDC, GR_DRAWMODE aDrawMode,
 
     bool end = false;
 
-    for( int layer = 0; !end; layer++ )
+    // Draw layers from bottom to top, and active layer last
+    // in non transparent modes, the last layer drawn mask mask previously drawn layer
+    for( int layer = GERBER_DRAWLAYERS_COUNT-1; !end; --layer )
     {
         int active_layer = gerbFrame->getActiveLayer();
 
         if( layer == active_layer ) // active layer will be drawn after other layers
             continue;
 
-        if( layer == 32 )   // last loop: draw active layer
+        if( layer < 0 )   // last loop: draw active layer
         {
             end   = true;
             layer = active_layer;
@@ -209,10 +242,16 @@ void GBR_LAYOUT::Draw( EDA_DRAW_PANEL* aPanel, wxDC* aDC, GR_DRAWMODE aDrawMode,
         if( !gerbFrame->IsLayerVisible( layer ) )
             continue;
 
-        GERBER_IMAGE* gerber = g_GERBER_List[layer];
+        GERBER_IMAGE* gerber = g_GERBER_List.GetGbrImage( layer );
 
         if( gerber == NULL )    // Graphic layer not yet used
             continue;
+
+        EDA_COLOR_T color = gerbFrame->GetLayerColor( layer );
+
+        // Force black and white draw mode on request:
+        if( aPrintBlackAndWhite )
+            gerbFrame->SetLayerColor( layer, gerbFrame->GetDrawBgColor() == BLACK ? WHITE : BLACK );
 
         if( useBufferBitmap )
         {
@@ -299,6 +338,9 @@ void GBR_LAYOUT::Draw( EDA_DRAW_PANEL* aPanel, wxDC* aDC, GR_DRAWMODE aDrawMode,
             item->Draw( aPanel, plotDC, drawMode, wxPoint(0,0) );
             doBlit = true;
         }
+
+        if( aPrintBlackAndWhite )
+            gerbFrame->SetLayerColor( layer, color );
     }
 
     if( doBlit && useBufferBitmap )     // Blit is used only if aDrawMode >= 0
@@ -353,7 +395,8 @@ void GBR_LAYOUT::Draw( EDA_DRAW_PANEL* aPanel, wxDC* aDC, GR_DRAWMODE aDrawMode,
 void GERBVIEW_FRAME::DrawItemsDCodeID( wxDC* aDC, GR_DRAWMODE aDrawMode )
 {
     wxPoint     pos;
-    int         width, orient;
+    int         width;
+    double      orient;
     wxString    Line;
 
     GRSetDrawMode( aDC, aDrawMode );
@@ -406,7 +449,7 @@ void GERBVIEW_FRAME::DrawItemsDCodeID( wxDC* aDC, GR_DRAWMODE aDrawMode )
 
         int color = GetVisibleElementColor( DCODES_VISIBLE );
 
-        DrawGraphicText( m_canvas, aDC, pos, (EDA_COLOR_T) color, Line,
+        DrawGraphicText( m_canvas->GetClipBox(), aDC, pos, (EDA_COLOR_T) color, Line,
                          orient, wxSize( width, width ),
                          GR_TEXT_HJUSTIFY_CENTER, GR_TEXT_VJUSTIFY_CENTER,
                          0, false, false );

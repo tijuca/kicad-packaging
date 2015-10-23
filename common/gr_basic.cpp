@@ -15,6 +15,7 @@
 #include <wx/graphics.h>
 
 static const bool FILLED = true;
+static const bool NOT_FILLED = false;
 
 /* Important Note:
  * These drawing functions  clip draw item before send these items to wxDC draw
@@ -46,15 +47,9 @@ static const bool FILLED = true;
 // For draw mode = XOR GR_XOR or GR_NXOR by background color
 GR_DRAWMODE g_XorMode = GR_NXOR;
 
-// Background color of the design frame
-EDA_COLOR_T g_DrawBgColor = WHITE;
 
-
-#define USE_CLIP_FILLED_POLYGONS
-
-#ifdef USE_CLIP_FILLED_POLYGONS
-static void ClipAndDrawFilledPoly( EDA_RECT * ClipBox, wxDC * DC, wxPoint Points[], int n );
-#endif
+static void ClipAndDrawPoly( EDA_RECT * ClipBox, wxDC * DC, wxPoint Points[],
+                             int n );
 
 /* These functions are used by corresponding functions
  * ( GRSCircle is called by GRCircle for instance) after mapping coordinates
@@ -81,6 +76,26 @@ static EDA_COLOR_T   s_DC_lastbrushcolor = UNSPECIFIED_COLOR;
 static bool  s_DC_lastbrushfill  = false;
 static wxDC* s_DC_lastDC = NULL;
 
+/***
+ * Utility for the line clipping code, returns the boundary code of
+ * a point. Bit allocation is arbitrary
+ */
+static inline int clipOutCode( const EDA_RECT *aClipBox, int x, int y )
+{
+    int code;
+    if( y < aClipBox->GetY() )
+        code = 2;
+    else if( y > aClipBox->GetBottom() )
+        code = 1;
+    else
+        code = 0;
+    if( x < aClipBox->GetX() )
+        code |= 4;
+    else if( x > aClipBox->GetRight() )
+        code |= 8;
+    return code;
+}
+
 
 /**
  * Test if any part of a line falls within the bounds of a rectangle.
@@ -95,227 +110,69 @@ static wxDC* s_DC_lastDC = NULL;
  *
  * @return - False if any part of the line lies within the rectangle.
  */
-static bool clipLine( EDA_RECT* aClipBox, int& x1, int& y1, int& x2, int& y2 )
+static bool clipLine( const EDA_RECT *aClipBox, int &x1, int &y1, int &x2, int &y2 )
 {
-    if( aClipBox->Contains( x1, y1 ) && aClipBox->Contains( x2, y2 ) )
-        return false;
+    // Stock Cohen-Sutherland algorithm; check *any* CG book for details
+    int outcode1 = clipOutCode( aClipBox, x1, y1 );
+    int outcode2 = clipOutCode( aClipBox, x2, y2 );
 
-    wxRect rect = *aClipBox;
-    int    minX = rect.GetLeft();
-    int    maxX = rect.GetRight();
-    int    minY = rect.GetTop();
-    int    maxY = rect.GetBottom();
-    int    clippedX, clippedY;
-
-#if DEBUG_DUMP_CLIP_COORDS
-    int    tmpX1, tmpY1, tmpX2, tmpY2;
-    tmpX1 = x1;
-    tmpY1 = y1;
-    tmpX2 = x2;
-    tmpY2 = y2;
-#endif
-
-    if( aClipBox->Contains( x1, y1 ) )
+    while( outcode1 || outcode2 )
     {
-        if( x1 == x2 )         /* Vertical line, clip Y. */
-        {
-            if( y2 < minY )
-            {
-                y2 = minY;
-                return false;
-            }
+        // Fast reject
+        if( outcode1 & outcode2 )
+            return true;
 
-            if( y2 > maxY )
-            {
-                y2 = maxY;
-                return false;
-            }
+        // Choose a side to clip
+        int thisoutcode, x, y;
+        if( outcode1 )
+            thisoutcode = outcode1;
+        else
+            thisoutcode = outcode2;
+
+        /* One clip round
+         * Since we use the full range of 32 bit ints, the proportion
+         * computation has to be done in 64 bits to avoid horrible
+         * results */
+        if( thisoutcode & 1 ) // Clip the bottom
+        {
+            y = aClipBox->GetBottom();
+            x = x1 + (x2 - x1) * int64_t(y - y1) / (y2 - y1);
         }
-        else if( y1 == y2 )    /* Horizontal line, clip X. */
+        else if( thisoutcode & 2 ) // Clip the top
         {
-            if( x2 < minX )
-            {
-                x2 = minX;
-                return false;
-            }
-
-            if( x2 > maxX )
-            {
-                x2 = maxX;
-                return false;
-            }
+            y = aClipBox->GetY();
+            x = x1 + (x2 - x1) * int64_t(y - y1) / (y2 - y1);
         }
-
-        /* If we're here, it's a diagonal line. */
-
-        if( TestForIntersectionOfStraightLineSegments( x1, y1, x2, y2, minX, minY, minX, maxY,
-                                                       &clippedX, &clippedY )       /* Left */
-           || TestForIntersectionOfStraightLineSegments( x1, y1, x2, y2, minX, minY, maxX, minY,
-                                                         &clippedX, &clippedY )     /* Top */
-           || TestForIntersectionOfStraightLineSegments( x1, y1, x2, y2, maxX, minY, maxX, maxY,
-                                                         &clippedX, &clippedY )     /* Right */
-           || TestForIntersectionOfStraightLineSegments( x1, y1, x2, y2, minX, maxY, maxX, maxY,
-                                                         &clippedX, &clippedY ) )   /* Bottom */
+        else if( thisoutcode & 8 ) // Clip the right
         {
-            if( x2 != clippedX )
-                x2 = clippedX;
-            if( y2 != clippedY )
-                y2 = clippedY;
-            return false;
+            x = aClipBox->GetRight();
+            y = y1 + (y2 - y1) * int64_t(x - x1) / (x2 - x1);
+        }
+        else // if( thisoutcode & 4), obviously, clip the left
+        {
+            x = aClipBox->GetX();
+            y = y1 + (y2 - y1) * int64_t(x - x1) / (x2 - x1);
         }
 
-        /* If we're here, something has gone terribly wrong. */
-#if DEBUG_DUMP_CLIP_ERROR_COORDS
-        wxLogDebug( wxT( "Line (%d,%d):(%d,%d) in rectangle (%d,%d,%d,%d) clipped to (%d,%d,%d,%d)" ),
-                    tmpX1, tmpY1, tmpX2, tmpY2, minX, minY, maxX, maxY, x1, y1, x2, y2 );
-#endif
-        return false;
+        // Put the result back and update the boundary code
+        // No ambiguity, otherwise it would have been a fast reject
+        if( thisoutcode == outcode1 )
+        {
+            x1 = x;
+            y1 = y;
+            outcode1 = clipOutCode( aClipBox, x1, y1 );
+        }
+        else
+        {
+            x2 = x;
+            y2 = y;
+            outcode2 = clipOutCode( aClipBox, x2, y2 );
+        }
     }
-    else if( aClipBox->Contains( x2, y2 ) )
-    {
-        if( x1 == x2 )         /* Vertical line, clip Y. */
-        {
-            if( y2 < minY )
-            {
-                y2 = minY;
-                return false;
-            }
-
-            if( y2 > maxY )
-            {
-                y2 = maxY;
-                return false;
-            }
-        }
-        else if( y1 == y2 )    /* Horizontal line, clip X. */
-        {
-            if( x2 < minX )
-            {
-                x2 = minX;
-                return false;
-            }
-
-            if( x2 > maxX )
-            {
-                x2 = maxX;
-                return false;
-            }
-        }
-
-        if( TestForIntersectionOfStraightLineSegments( x1, y1, x2, y2, minX, minY, minX, maxY,
-                                                       &clippedX, &clippedY )       /* Left */
-           || TestForIntersectionOfStraightLineSegments( x1, y1, x2, y2, minX, minY, maxX, minY,
-                                                         &clippedX, &clippedY )     /* Top */
-           || TestForIntersectionOfStraightLineSegments( x1, y1, x2, y2, maxX, minY, maxX, maxY,
-                                                         &clippedX, &clippedY )     /* Right */
-           || TestForIntersectionOfStraightLineSegments( x1, y1, x2, y2, minX, maxY, maxX, maxY,
-                                                         &clippedX, &clippedY ) )   /* Bottom */
-        {
-            if( x1 != clippedX )
-                x1 = clippedX;
-            if( y1 != clippedY )
-                y1 = clippedY;
-            return false;
-        }
-
-        /* If we're here, something has gone terribly wrong. */
-#if DEBUG_DUMP_CLIP_ERROR_COORDS
-        wxLogDebug( wxT( "Line (%d,%d):(%d,%d) in rectangle (%d,%d,%d,%d) clipped to (%d,%d,%d,%d)" ),
-                    tmpX1, tmpY1, tmpX2, tmpY2, minX, minY, maxX, maxY, x1, y1, x2, y2 );
-#endif
-        return false;
-    }
-    else
-    {
-        int* intersectX;
-        int* intersectY;
-        int  intersectX1, intersectY1, intersectX2, intersectY2;
-        bool haveFirstPoint = false;
-
-        intersectX = &intersectX1;
-        intersectY = &intersectY1;
-
-        /* Left clip rectangle line. */
-        if( TestForIntersectionOfStraightLineSegments( x1, y1, x2, y2, minX, minY, minX, maxY,
-                                                       intersectX, intersectY ) )
-        {
-            intersectX     = &intersectX2;
-            intersectY     = &intersectY2;
-            haveFirstPoint = true;
-        }
-
-        /* Top clip rectangle line. */
-        if( TestForIntersectionOfStraightLineSegments( x1, y1, x2, y2, minX, minY, maxX, minY,
-                                                       intersectX, intersectY ) )
-        {
-            intersectX = &intersectX2;
-            intersectY = &intersectY2;
-            if( haveFirstPoint )
-            {
-                x1 = intersectX1;
-                y1 = intersectY1;
-                x2 = intersectX2;
-                y2 = intersectY2;
-                return false;
-            }
-            haveFirstPoint = true;
-        }
-
-        /* Right clip rectangle line. */
-        if( TestForIntersectionOfStraightLineSegments( x1, y1, x2, y2, maxX, minY, maxX, maxY,
-                                                       intersectX, intersectY ) )
-        {
-            intersectX = &intersectX2;
-            intersectY = &intersectY2;
-            if( haveFirstPoint )
-            {
-                x1 = intersectX1;
-                y1 = intersectY1;
-                x2 = intersectX2;
-                y2 = intersectY2;
-                return false;
-            }
-            haveFirstPoint = true;
-        }
-
-        /* Bottom clip rectangle line. */
-        if( TestForIntersectionOfStraightLineSegments( x1, y1, x2, y2, minX, maxY, maxX, maxY,
-                                                       intersectX, intersectY ) )
-        {
-            intersectX = &intersectX2;
-            intersectY = &intersectY2;
-            if( haveFirstPoint )
-            {
-                x1 = intersectX1;
-                y1 = intersectY1;
-                x2 = intersectX2;
-                y2 = intersectY2;
-                return false;
-            }
-        }
-
-        /* If we're here and only one line of the clip box has been intersected,
-         * something has gone terribly wrong. */
-#if DEBUG_DUMP_CLIP_ERROR_COORDS
-        if( haveFirstPoint )
-            wxLogDebug( wxT( "Line (%d,%d):(%d,%d) in rectangle (%d,%d,%d,%d) clipped to (%d,%d,%d,%d)" ),
-                        tmpX1, tmpY1, tmpX2, tmpY2, minX, minY, maxX, maxY, x1, y1, x2, y2 );
-#endif
-    }
-
-    /* Set this to one to verify that diagonal lines get clipped properly. */
-#if DEBUG_DUMP_CLIP_COORDS
-    if( !( x1 == x2 || y1 == y2 ) )
-        wxLogDebug( wxT( "Clipped line (%d,%d):(%d,%d) from rectangle (%d,%d,%d,%d)" ),
-                    tmpX1, tmpY1, tmpX2, tmpY2, minX, minY, maxX, maxY );
-#endif
-
-    return true;
+    return false;
 }
 
-
-static void WinClipAndDrawLine( EDA_RECT* ClipBox, wxDC* DC, int x1, int y1, int x2, int y2,
-                                EDA_COLOR_T Color, int width = 1 )
+static void WinClipAndDrawLine( EDA_RECT* ClipBox, wxDC* DC, int x1, int y1, int x2, int y2, int width )
 {
     GRLastMoveToX = x2;
     GRLastMoveToY = y2;
@@ -328,7 +185,6 @@ static void WinClipAndDrawLine( EDA_RECT* ClipBox, wxDC* DC, int x1, int y1, int
             return;
     }
 
-    GRSetColorPen( DC, Color, width );
     DC->DrawLine( x1, y1, x2, y2 );
 }
 
@@ -351,15 +207,10 @@ void GRResetPenAndBrush( wxDC* DC )
  */
 void GRSetColorPen( wxDC* DC, EDA_COLOR_T Color, int width, wxPenStyle style )
 {
-    if( width < 0 )
-        width = 0;
-
-#ifdef __WXMAC__
-    // Under OSX when wxPen is set to 0, cocoa follows the request drawing nothing &
-    // in the bitmap world the minimum is enough to light a pixel, in vectorial one not
+    // Under OSX and while printing when wxPen is set to 0, renderer follows the request drawing
+    // nothing & in the bitmap world the minimum is enough to light a pixel, in vectorial one not
     if( width <= 1 )
         width = DC->DeviceToLogicalXRel( 1 );
-#endif
 
     if( s_ForceBlackPen )
     {
@@ -369,7 +220,8 @@ void GRSetColorPen( wxDC* DC, EDA_COLOR_T Color, int width, wxPenStyle style )
     if(   s_DC_lastcolor != Color
        || s_DC_lastwidth != width
        || s_DC_lastpenstyle != style
-       || s_DC_lastDC != DC  )
+       || s_DC_lastDC != DC
+       || s_ForceBlackPen )
     {
         wxPen    pen;
 
@@ -396,17 +248,18 @@ void GRSetBrush( wxDC* DC, EDA_COLOR_T Color, bool fill )
 
     if(   s_DC_lastbrushcolor != Color
        || s_DC_lastbrushfill  != fill
-       || s_DC_lastDC != DC  )
+       || s_DC_lastDC != DC )
     {
-        wxBrush DrawBrush;
-        DrawBrush.SetColour( MakeColour( Color ) );
+        wxBrush brush;
+
+        brush.SetColour( MakeColour( Color ) );
 
         if( fill )
-            DrawBrush.SetStyle( wxSOLID );
+            brush.SetStyle( wxBRUSHSTYLE_SOLID );
         else
-            DrawBrush.SetStyle( wxTRANSPARENT );
+            brush.SetStyle( wxBRUSHSTYLE_TRANSPARENT );
 
-        DC->SetBrush( DrawBrush );
+        DC->SetBrush( brush );
 
         s_DC_lastbrushcolor = Color;
         s_DC_lastbrushfill  = fill;
@@ -478,7 +331,7 @@ void GRSetDrawMode( wxDC* DC, GR_DRAWMODE draw_mode )
 
         DC->SetLogicalFunction( wxINVERT );
 #endif
-    else
+    else if( draw_mode & GR_COPY )
         DC->SetLogicalFunction( wxCOPY );
 
 #ifdef USE_WX_OVERLAY
@@ -509,7 +362,8 @@ void GRLine( EDA_RECT* ClipBox,
              int       width,
              EDA_COLOR_T       Color )
 {
-    WinClipAndDrawLine( ClipBox, DC, x1, y1, x2, y2, Color, width );
+    GRSetColorPen( DC, Color, width );
+    WinClipAndDrawLine( ClipBox, DC, x1, y1, x2, y2, width );
     GRLastMoveToX = x2;
     GRLastMoveToY = y2;
 }
@@ -525,7 +379,7 @@ void GRDashedLineTo( EDA_RECT* ClipBox, wxDC* DC, int x2, int y2, int width, EDA
 {
     s_DC_lastcolor = UNSPECIFIED_COLOR;
     GRSetColorPen( DC, Color, width, wxPENSTYLE_SHORT_DASH );
-    GRLine( ClipBox, DC, GRLastMoveToX, GRLastMoveToY, x2, y2, width, Color );
+    WinClipAndDrawLine( ClipBox, DC, GRLastMoveToX, GRLastMoveToY, x2, y2, width );
     s_DC_lastcolor = UNSPECIFIED_COLOR;
     GRSetColorPen( DC, Color, width );
     GRLastMoveToX = x2;
@@ -546,7 +400,7 @@ void GRDashedLine( EDA_RECT* ClipBox,
     GRLastMoveToY  = y2;
     s_DC_lastcolor = UNSPECIFIED_COLOR;
     GRSetColorPen( DC, Color, width, wxPENSTYLE_SHORT_DASH );
-    GRLine( ClipBox, DC, x1, y1, x2, y2, width, Color );
+    WinClipAndDrawLine( ClipBox, DC, x1, y1, x2, y2, width );
     s_DC_lastcolor = UNSPECIFIED_COLOR;
     GRSetColorPen( DC, Color, width );
 }
@@ -618,18 +472,10 @@ void GRLineArray( EDA_RECT* aClipBox, wxDC* aDC, std::vector<wxPoint>& aLines,
         aClipBox->Inflate(-aWidth/2);
 }
 
-
+// Draw  the outline of a thick segment wih rounded ends
 void GRCSegm( EDA_RECT* ClipBox, wxDC* DC, int x1, int y1, int x2, int y2,
               int width, int aPenSize, EDA_COLOR_T Color )
 {
-    long radius;
-    int  dwx, dwy;
-    long dx, dy, dwx2, dwy2;
-    long sx1, sy1, ex1, ey1;
-    long sx2, sy2, ex2, ey2;
-    bool swap_ends = false;
-
-
     GRLastMoveToX = x2;
     GRLastMoveToY = y2;
 
@@ -650,117 +496,66 @@ void GRCSegm( EDA_RECT* ClipBox, wxDC* DC, int x1, int y1, int x2, int y2,
         return;
     }
 
+    GRSetBrush( DC, Color, NOT_FILLED );
     GRSetColorPen( DC, Color, aPenSize );
-    GRSetBrush( DC, Color, false );
 
-    radius = (width + 1) >> 1;
+    int radius = (width + 1) >> 1;
+    int dx = x2 - x1;
+    int dy = y2 - y1;
+    double angle = -ArcTangente( dy, dx );
+    wxPoint start;
+    wxPoint end;
+    wxPoint org( x1, y1);
+    int len = (int) hypot( dx, dy );
 
-    dx = x2 - x1;
-    dy = y2 - y1;
+    // We know if the DC is mirrored, to draw arcs
+    int slx = DC->DeviceToLogicalX( 1 ) - DC->DeviceToLogicalX( 0 );
+    int sly = DC->DeviceToLogicalY( 1 ) - DC->DeviceToLogicalY( 0 );
+    bool mirrored = (slx > 0 && sly < 0) || (slx < 0 && sly > 0);
 
-    if( dx == 0 )  /* segment vertical */
-    {
-        dwx = radius;
-        if( dy >= 0 )
-            dwx = -dwx;
+    // first edge
+    start.x = 0;
+    start.y = radius;
+    end.x = len;
+    end.y = radius;
+    RotatePoint( &start, angle);
+    RotatePoint( &end, angle);
 
-        sx1 = x1 - dwx;
-        sy1 = y1;
+    start += org;
+    end += org;
 
-        ex1 = x2 - dwx;
-        ey1 = y2;
+    DC->DrawLine( start, end );
 
-        DC->DrawLine( sx1, sy1, ex1, ey1 );
+    // first rounded end
+    end.x = 0;
+    end.y = -radius;
+    RotatePoint( &end, angle);
+    end += org;
 
-        sx2 = x1 + dwx;
-        sy2 = y1;
-
-        ex2 = x2 + dwx;
-        ey2 = y2;
-
-        DC->DrawLine( sx2, sy2, ex2, ey2 );
-    }
-    else if( dy == 0 ) /* segment horizontal */
-    {
-        dwy = radius;
-        if( dx < 0 )
-            dwy = -dwy;
-
-        sx1 = x1;
-        sy1 = y1 - dwy;
-
-        ex1 = x2;
-        ey1 = y2 - dwy;
-
-        DC->DrawLine( sx1, sy1, ex1, ey1 );
-
-        sx2 = x1;
-        sy2 = y1 + dwy;
-
-        ex2 = x2;
-        ey2 = y2 + dwy;
-
-        DC->DrawLine( sx2, sy2, ex2, ey2 );
-    }
+    if( !mirrored )
+        DC->DrawArc( end, start, org );
     else
-    {
-        if( std::abs( dx ) == std::abs( dy ) )  // segment 45 degrees
-        {
-            dwx = dwy = ( (width * 5) + 4 ) / 7;    // = width / 2 * 0.707
-            if( dy < 0 )
-            {
-                if( dx <= 0 )
-                {
-                    dwx = -dwx; swap_ends = true;
-                }
-            }
-            else    // dy >= 0
-            {
-                if( dx > 0 )
-                {
-                    dwy = -dwy; swap_ends = true;
-                }
-                else
-                    swap_ends = true;
-            }
-        }
-        else
-        {
-            int delta_angle = ArcTangente( dy, dx );
-            dwx = 0;
-            dwy = width;
-            RotatePoint( &dwx, &dwy, -delta_angle );
-        }
-        dwx2 = dwx >> 1;
-        dwy2 = dwy >> 1;
+        DC->DrawArc( start, end, org );
 
-        sx1 = x1 - dwx2;
-        sy1 = y1 - dwy2;
 
-        ex1 = x2 - dwx2;
-        ey1 = y2 - dwy2;
+    // second edge
+    start.x = len;
+    start.y = -radius;
+    RotatePoint( &start, angle);
+    start += org;
 
-        DC->DrawLine( sx1, sy1, ex1, ey1 );
+    DC->DrawLine( start, end );
 
-        sx2 = x1 + dwx2;
-        sy2 = y1 + dwy2;
+    // second rounded end
+    end.x = len;
+    end.y = radius;
+    RotatePoint( &end, angle);
+    end += org;
 
-        ex2 = x2 + dwx2;
-        ey2 = y2 + dwy2;
-
-        DC->DrawLine( sx2, sy2, ex2, ey2 );
-    }
-
-    if( swap_ends )
-    {
-        DC->DrawArc( sx2, sy2, sx1, sy1, x1, y1 );
-        DC->DrawArc( ex1, ey1, ex2, ey2, x2, y2 );
-    }
+    if( !mirrored )
+        DC->DrawArc( end.x, end.y, start.x, start.y, x2, y2 );
     else
-    {
-        DC->DrawArc( sx1, sy1, sx2, sy2, x1, y1 );
-        DC->DrawArc( ex2, ey2, ex1, ey1, x2, y2 );
-    }
+        DC->DrawArc( start.x, start.y, end.x, end.y, x2, y2 );
 }
 
 
@@ -784,14 +579,16 @@ void GRCSegm( EDA_RECT* aClipBox, wxDC* aDC, wxPoint aStart, wxPoint aEnd,
 void GRFillCSegm( EDA_RECT* ClipBox, wxDC* DC, int x1, int y1, int x2, int y2,
                   int width, EDA_COLOR_T Color )
 {
-    WinClipAndDrawLine( ClipBox, DC, x1, y1, x2, y2, Color, width );
+    GRSetColorPen( DC, Color, width );
+    WinClipAndDrawLine( ClipBox, DC, x1, y1, x2, y2, width );
 }
 
 
 void GRFilledSegment( EDA_RECT* aClipBox, wxDC* aDC, wxPoint aStart, wxPoint aEnd,
                       int aWidth, EDA_COLOR_T aColor )
 {
-    WinClipAndDrawLine( aClipBox, aDC, aStart.x, aStart.y, aEnd.x, aEnd.y, aColor, aWidth );
+    GRSetColorPen( aDC, aColor, aWidth );
+    WinClipAndDrawLine( aClipBox, aDC, aStart.x, aStart.y, aEnd.x, aEnd.y, aWidth );
 }
 
 
@@ -837,45 +634,31 @@ static bool IsGRSPolyDrawable( EDA_RECT* ClipBox, int n, wxPoint Points[] )
 /*
  * Draw a new polyline and fill it if Fill, in screen space.
  */
-static void GRSPoly( EDA_RECT* ClipBox,
-                     wxDC*     DC,
-                     int       n,
-                     wxPoint   Points[],
-                     bool      Fill,
-                     int       width,
-                     EDA_COLOR_T       Color,
-                     EDA_COLOR_T       BgColor )
+static void GRSPoly( EDA_RECT* ClipBox, wxDC* DC, int n, wxPoint Points[],
+                     bool      Fill, int width,
+                     EDA_COLOR_T Color, EDA_COLOR_T BgColor )
 {
     if( !IsGRSPolyDrawable( ClipBox, n, Points ) )
         return;
 
-    GRSetColorPen( DC, Color, width );
-
     if( Fill && ( n > 2 ) )
     {
         GRSetBrush( DC, BgColor, FILLED );
-
+        GRSetColorPen( DC, Color, width );
 
         /* clip before send the filled polygon to wxDC, because under linux
          * (GTK?) polygons having large coordinates are incorrectly drawn
+         * (integer overflow in coordinates, I am guessing)
          */
-#ifdef USE_CLIP_FILLED_POLYGONS
-        ClipAndDrawFilledPoly( ClipBox, DC, Points, n );
-#else
-        DC->DrawPolygon( n, Points );  // does not work very well under linux
-#endif
+        ClipAndDrawPoly( ClipBox, DC, Points, n );
     }
     else
     {
-        wxPoint endPt = Points[n - 1];
-
-        GRSetBrush( DC, Color );
-        DC->DrawLines( n, Points );
-
-        // The last point is not drawn by DrawLine and DrawLines
-        // Add it if the polygon is not closed
-        if( endPt != Points[0] )
-            DC->DrawPoint( endPt.x, endPt.y );
+        GRMoveTo( Points[0].x, Points[0].y );
+        for( int i = 1; i < n; ++i )
+        {
+            GRLineTo( ClipBox, DC, Points[i].x, Points[i].y, width, Color );
+        }
     }
 }
 
@@ -883,47 +666,37 @@ static void GRSPoly( EDA_RECT* ClipBox,
 /*
  * Draw a new closed polyline and fill it if Fill, in screen space.
  */
-static void GRSClosedPoly( EDA_RECT* ClipBox,
-                           wxDC*     DC,
-                           int       aPointCount,
-                           wxPoint   aPoints[],
-                           bool      Fill,
-                           int       width,
-                           EDA_COLOR_T       Color,
-                           EDA_COLOR_T       BgColor )
+static void GRSClosedPoly( EDA_RECT* aClipBox, wxDC* aDC,
+                           int       aPointCount, wxPoint aPoints[],
+                           bool      aFill, int aWidth,
+                           EDA_COLOR_T       aColor,
+                           EDA_COLOR_T       aBgColor )
 {
-    if( !IsGRSPolyDrawable( ClipBox, aPointCount, aPoints ) )
+    if( !IsGRSPolyDrawable( aClipBox, aPointCount, aPoints ) )
         return;
 
-    GRSetColorPen( DC, Color, width );
-
-    if( Fill && ( aPointCount > 2 ) )
+    if( aFill && ( aPointCount > 2 ) )
     {
         GRLastMoveToX = aPoints[aPointCount - 1].x;
         GRLastMoveToY = aPoints[aPointCount - 1].y;
-        GRSetBrush( DC, BgColor, FILLED );
-#ifdef USE_CLIP_FILLED_POLYGONS
-        ClipAndDrawFilledPoly( ClipBox, DC, aPoints, aPointCount );
-#else
-        DC->DrawPolygon( aPointCount, aPoints );  // does not work very well under linux
-#endif
+        GRSetBrush( aDC, aBgColor, FILLED );
+        GRSetColorPen( aDC, aColor, aWidth );
+        ClipAndDrawPoly( aClipBox, aDC, aPoints, aPointCount );
     }
     else
     {
-        GRSetBrush( DC, BgColor );
-        DC->DrawLines( aPointCount, aPoints );
-
-        /* Close the polygon. */
-        if( aPoints[aPointCount - 1] != aPoints[0] )
+        GRMoveTo( aPoints[0].x, aPoints[0].y );
+        for( int i = 1; i < aPointCount; ++i )
         {
-            GRLine( ClipBox,
-                    DC,
-                    aPoints[0].x,
-                    aPoints[0].y,
-                    aPoints[aPointCount - 1].x,
-                    aPoints[aPointCount - 1].y,
-                    width,
-                    Color );
+            GRLineTo( aClipBox, aDC, aPoints[i].x, aPoints[i].y, aWidth, aColor );
+        }
+
+        int lastpt = aPointCount - 1;
+
+        // Close the polygon
+        if( aPoints[lastpt] != aPoints[0] )
+        {
+            GRLineTo( aClipBox, aDC, aPoints[0].x, aPoints[0].y, aWidth, aColor );
         }
     }
 }
@@ -980,8 +753,8 @@ void GRCircle( EDA_RECT* ClipBox, wxDC* DC, int xc, int yc, int r, int width, ED
             return;
     }
 
+    GRSetBrush( DC, Color, NOT_FILLED );
     GRSetColorPen( DC, Color, width );
-    GRSetBrush( DC, Color, false );
     DC->DrawEllipse( xc - r, yc - r, r + r, r + r );
 }
 
@@ -1009,18 +782,22 @@ void GRFilledCircle( EDA_RECT* ClipBox, wxDC* DC, int x, int y, int r,
         y0 = ClipBox->GetY();
         xm = ClipBox->GetRight();
         ym = ClipBox->GetBottom();
-        if( x < (x0 - r) )
+
+        if( x < ( x0 - r ) )
             return;
-        if( y < (y0 - r) )
+
+        if( y < ( y0 - r ) )
             return;
-        if( x > (r + xm) )
+
+        if( x > ( r + xm ) )
             return;
-        if( y > (r + ym) )
+
+        if( y > ( r + ym ) )
             return;
     }
 
-    GRSetColorPen( DC, Color, width );
     GRSetBrush( DC, BgColor, FILLED );
+    GRSetColorPen( DC, Color, width );
     DC->DrawEllipse( x - r, y - r, r + r, r + r );
 }
 
@@ -1055,7 +832,7 @@ void GRArc1( EDA_RECT* ClipBox, wxDC* DC, int x1, int y1, int x2, int y2,
         y0 = ClipBox->GetY();
         xm = ClipBox->GetRight();
         ym = ClipBox->GetBottom();
-        r  = (int) hypot( x1 - xc, y1 - yc );
+        r  = KiROUND( Distance( x1, y1, xc, yc ) );
         if( xc < ( x0 - r ) )
             return;
         if( yc < ( y0 - r ) )
@@ -1066,8 +843,8 @@ void GRArc1( EDA_RECT* ClipBox, wxDC* DC, int x1, int y1, int x2, int y2,
             return;
     }
 
-    GRSetColorPen( DC, Color, width );
     GRSetBrush( DC, Color );
+    GRSetColorPen( DC, Color, width );
     DC->DrawArc( x1, y1, x2, y2, xc, yc );
 }
 
@@ -1087,8 +864,8 @@ void GRFilledArc( EDA_RECT* ClipBox,
                   wxDC*     DC,
                   int       x,
                   int       y,
-                  int       StAngle,
-                  int       EndAngle,
+                  double    StAngle,
+                  double    EndAngle,
                   int       r,
                   int       width,
                   EDA_COLOR_T       Color,
@@ -1133,7 +910,8 @@ void GRFilledArc( EDA_RECT* ClipBox,
 
 
 void GRFilledArc( EDA_RECT* ClipBox, wxDC* DC, int x, int y,
-                  int StAngle, int EndAngle, int r, EDA_COLOR_T Color, EDA_COLOR_T BgColor )
+                  double StAngle, double EndAngle, int r,
+                  EDA_COLOR_T Color, EDA_COLOR_T BgColor )
 {
     GRFilledArc( ClipBox, DC, x, y, StAngle, EndAngle, r, 0, Color, BgColor );
 }
@@ -1142,8 +920,8 @@ void GRFilledArc( EDA_RECT* ClipBox, wxDC* DC, int x, int y,
 /*
  * Draw an arc in drawing space.
  */
-void GRArc( EDA_RECT* ClipBox, wxDC* DC, int xc, int yc, int StAngle,
-            int EndAngle, int r, EDA_COLOR_T Color )
+void GRArc( EDA_RECT* ClipBox, wxDC* DC, int xc, int yc, double StAngle,
+            double EndAngle, int r, EDA_COLOR_T Color )
 {
     int x1, y1, x2, y2;
 
@@ -1177,8 +955,8 @@ void GRArc( EDA_RECT* ClipBox, wxDC* DC, int xc, int yc, int StAngle,
     y2 = 0;
     RotatePoint( &x2, &y2, StAngle );
 
+    GRSetBrush( DC, Color, NOT_FILLED );
     GRSetColorPen( DC, Color );
-    GRSetBrush( DC, Color, false );
     DC->DrawArc( xc + x1, yc - y1, xc + x2, yc - y2, xc, yc );
 }
 
@@ -1190,8 +968,8 @@ void GRArc( EDA_RECT* ClipBox,
             wxDC*     DC,
             int       x,
             int       y,
-            int       StAngle,
-            int       EndAngle,
+            double    StAngle,
+            double    EndAngle,
             int       r,
             int       width,
             EDA_COLOR_T       Color )
@@ -1228,8 +1006,8 @@ void GRArc( EDA_RECT* ClipBox,
     y2 = 0;
     RotatePoint( &x2, &y2, StAngle );
 
-    GRSetColorPen( DC, Color, width );
     GRSetBrush( DC, Color );
+    GRSetColorPen( DC, Color, width );
     DC->DrawArc( x + x1, y - y1, x + x2, y - y2, x, y );
 }
 
@@ -1301,53 +1079,42 @@ void GRFilledRect( EDA_RECT* ClipBox, wxDC* DC, int x1, int y1, int x2, int y2,
 void GRSRect( EDA_RECT* aClipBox, wxDC* aDC, int x1, int y1, int x2, int y2,
               int aWidth, EDA_COLOR_T aColor, wxPenStyle aStyle )
 {
-
     wxPoint points[5];
     points[0] = wxPoint(x1, y1);
     points[1] = wxPoint(x1, y2);
     points[2] = wxPoint(x2, y2);
     points[3] = wxPoint(x2, y1);
     points[4] = points[0];
-    GRSetColorPen( aDC, aColor, aWidth, aStyle );
-    GRSetBrush( aDC, BLACK );
-    if( aClipBox )
-    {
-        EDA_RECT clipbox(*aClipBox);
-        clipbox.Inflate(aWidth);
-        ClipAndDrawFilledPoly(&clipbox, aDC, points, 5); // polygon approach is more accurate
-    }
-    else
-        ClipAndDrawFilledPoly(aClipBox, aDC, points, 5);
+    GRSClosedPoly( aClipBox, aDC, 5, points, NOT_FILLED, aWidth,
+                           aColor, aColor );
 }
 
 
 void GRSFilledRect( EDA_RECT* aClipBox, wxDC* aDC, int x1, int y1, int x2, int y2,
                     int aWidth, EDA_COLOR_T aColor, EDA_COLOR_T aBgColor )
 {
-
     wxPoint points[5];
     points[0] = wxPoint(x1, y1);
     points[1] = wxPoint(x1, y2);
     points[2] = wxPoint(x2, y2);
     points[3] = wxPoint(x2, y1);
     points[4] = points[0];
+
     GRSetBrush( aDC, aBgColor, FILLED );
     GRSetColorPen( aDC, aBgColor, aWidth );
+
     if( aClipBox && (aWidth > 0) )
     {
         EDA_RECT clipbox(*aClipBox);
         clipbox.Inflate(aWidth);
-        ClipAndDrawFilledPoly(&clipbox, aDC, points, 5); // polygon approach is more accurate
+        ClipAndDrawPoly(&clipbox, aDC, points, 5); // polygon approach is more accurate
     }
     else
-        ClipAndDrawFilledPoly(aClipBox, aDC, points, 5);
+        ClipAndDrawPoly(aClipBox, aDC, points, 5 );
 }
 
-
-#ifdef USE_CLIP_FILLED_POLYGONS
-
 /**
- * Function ClipAndDrawFilledPoly
+ * Function ClipAndDrawPoly
  *  Used to clip a polygon and draw it as Filled Polygon
  *  uses the Sutherland and Hodgman algo to clip the given poly against a
  *  rectangle.  This rectangle is the drawing area this is useful under
@@ -1361,7 +1128,7 @@ void GRSFilledRect( EDA_RECT* aClipBox, wxDC* aDC, int x1, int y1, int x2, int y
  */
 #include <SutherlandHodgmanClipPoly.h>
 
-void ClipAndDrawFilledPoly( EDA_RECT* aClipBox, wxDC* aDC, wxPoint aPoints[], int n )
+void ClipAndDrawPoly( EDA_RECT* aClipBox, wxDC* aDC, wxPoint aPoints[], int n )
 {
     if( aClipBox == NULL )
     {
@@ -1370,8 +1137,8 @@ void ClipAndDrawFilledPoly( EDA_RECT* aClipBox, wxDC* aDC, wxPoint aPoints[], in
     }
 
     // A clip box exists: clip and draw the polygon.
-    static vector<wxPoint> clippedPolygon;
-    static pointVector     inputPolygon, outputPolygon;
+    static std::vector<wxPoint> clippedPolygon;
+    static pointVector inputPolygon, outputPolygon;
 
     inputPolygon.clear();
     outputPolygon.clear();
@@ -1394,9 +1161,6 @@ void ClipAndDrawFilledPoly( EDA_RECT* aClipBox, wxDC* aDC, wxPoint aPoints[], in
     if( clippedPolygon.size() )
         aDC->DrawPolygon( clippedPolygon.size(), &clippedPolygon[0] );
 }
-
-
-#endif
 
 
 void GRBezier( EDA_RECT* ClipBox,
@@ -1430,4 +1194,18 @@ void GRBezier( EDA_RECT* ClipBox,
 {
     std::vector<wxPoint> Points = Bezier2Poly( x1, y1, x2, y2, x3, y3, x4, y4 );
     GRPoly( ClipBox, DC, Points.size(), &Points[0], false, width, Color, Color );
+}
+
+
+void GRDrawAnchor( EDA_RECT *aClipBox, wxDC *aDC, int x, int y,
+                   int aSize, EDA_COLOR_T aColor )
+{
+        int anchor_size = aDC->DeviceToLogicalXRel( aSize );
+
+        GRLine( aClipBox, aDC,
+                x - anchor_size, y,
+                x + anchor_size, y, 0, aColor );
+        GRLine( aClipBox, aDC,
+                x, y - anchor_size,
+                x, y + anchor_size, 0, aColor );
 }

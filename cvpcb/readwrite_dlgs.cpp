@@ -5,7 +5,7 @@
 /*
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
- * Copyright (C) 2012 Jean-Pierre Charras, jean-pierre.charras
+ * Copyright (C) 2015 Jean-Pierre Charras, jean-pierre.charras
  * Copyright (C) 2011 Wayne Stambaugh <stambaughw@verizon.net>
  * Copyright (C) 1992-2011 KiCad Developers, see AUTHORS.txt for contributors.
  *
@@ -28,208 +28,353 @@
  */
 
 #include <fctsys.h>
+#include <kiway.h>
 #include <common.h>
 #include <confirm.h>
 #include <build_version.h>
+#include <macros.h>
+#include <fpid.h>
+#include <fp_lib_table.h>
+#include <reporter.h>
+#include <html_messagebox.h>
 
 #include <cvpcb.h>
 #include <cvpcb_mainframe.h>
 #include <cvstruct.h>
 #include <wildcards_and_files_ext.h>
+#include <fp_conflict_assignment_selector.h>
 
-#define titleComponentLibErr _( "Component Library Error" )
 
 void CVPCB_MAINFRAME::SetNewPkg( const wxString& aFootprintName )
 {
-    COMPONENT_INFO* component;
+    COMPONENT* component;
     bool       hasFootprint = false;
     int        componentIndex;
-    wxString   description;
 
-    if( m_components.empty() )
+    if( m_netlist.IsEmpty() )
         return;
 
-    // if no component is selected, select the first one
-
-    if(m_ListCmp->GetFirstSelected() < 0)
+    // If no component is selected, select the first one
+    if( m_compListBox->GetFirstSelected() < 0 )
     {
         componentIndex = 0;
-        m_ListCmp->SetSelection( componentIndex, true );
+        m_compListBox->SetSelection( componentIndex, true );
     }
 
     // iterate over the selection
-
-    while( m_ListCmp->GetFirstSelected() != -1)
+    while( m_compListBox->GetFirstSelected() != -1 )
     {
-        // get the component for the current iteration
-
-        componentIndex = m_ListCmp->GetFirstSelected();
-        component = &m_components[componentIndex];
+        // Get the component for the current iteration
+        componentIndex = m_compListBox->GetFirstSelected();
+        component = m_netlist.GetComponent( componentIndex );
 
         if( component == NULL )
             return;
 
-        // check to see if the component has allready a footprint set.
+        // Check to see if the component has already a footprint set.
+        hasFootprint = !component->GetFPID().empty();
 
-        hasFootprint = !(component->m_Footprint.IsEmpty());
+        FPID fpid;
 
-        component->m_Footprint = aFootprintName;
-
-        // create the new component description
-
-        description.Printf( CMP_FORMAT, componentIndex + 1,
-                    GetChars( component->m_Reference ),
-                    GetChars( component->m_Value ),
-                    GetChars( component->m_Footprint ) );
-
-        // if the component hasn't had a footprint associated with it
-        // it now has, so we decrement the count of components without
-        // a footprint assigned.
-
-        if( !hasFootprint )
+        if( !aFootprintName.IsEmpty() )
         {
-            hasFootprint = true;
-            m_undefinedComponentCnt -= 1;
+            wxCHECK_RET( fpid.Parse( aFootprintName ) < 0,
+                         wxString::Format( wxT( "<%s> is not a valid FPID." ),
+                                           GetChars( aFootprintName ) ) );
         }
 
-        // set the new description and deselect the processed component
-        m_ListCmp->SetString( componentIndex, description );
-        m_ListCmp->SetSelection( componentIndex, false );
+        component->SetFPID( fpid );
+
+        // create the new component description
+        wxString   description = wxString::Format( CMP_FORMAT, componentIndex + 1,
+                            GetChars( component->GetReference() ),
+                            GetChars( component->GetValue() ),
+                            GetChars( FROM_UTF8( component->GetFPID().Format().c_str() ) ) );
+
+        // If the component hasn't had a footprint associated with it
+        // it now has, so we decrement the count of components without
+        // a footprint assigned.
+        if( !hasFootprint )
+            m_undefinedComponentCnt -= 1;
+
+        // Set the new description and deselect the processed component
+        m_compListBox->SetString( componentIndex, description );
+        m_compListBox->SetSelection( componentIndex, false );
     }
 
-    // mark this "session" as modified
+    // Mark this "session" as modified
     m_modified = true;
 
     // select the next component, if there is one
-    if( componentIndex < (m_ListCmp->GetCount() - 1) )
+    if( componentIndex < (m_compListBox->GetCount() - 1) )
         componentIndex++;
 
-    m_ListCmp->SetSelection( componentIndex, true );
+    m_compListBox->SetSelection( componentIndex, true );
 
     // update the statusbar
     DisplayStatus();
 }
 
 
-bool CVPCB_MAINFRAME::ReadNetListAndLinkFiles()
+/// Return true if the resultant FPID has a certain nickname.  The guess
+/// is only made if this footprint resides in only one library.
+/// @return int - 0 on success, 1 on not found, 2 on ambiguous i.e. multiple matches
+static int guessNickname( FP_LIB_TABLE* aTbl, FPID* aFootprintId )
 {
-    wxString   msg;
-    int        error_level;
+    if( aFootprintId->GetLibNickname().size() )
+        return 0;
 
-    error_level = ReadSchematicNetlist();
+    wxString    nick;
+    wxString    fpname = aFootprintId->GetFootprintName();
 
-    if( error_level < 0 )
+    std::vector<wxString> nicks = aTbl->GetLogicalLibs();
+
+    // Search each library going through libraries alphabetically.
+    for( unsigned libNdx = 0;  libNdx<nicks.size();  ++libNdx )
     {
-        msg.Printf( _( "File <%s> does not appear to be a valid KiCad net list file." ),
-                    GetChars( m_NetlistFileName.GetFullPath() ) );
-        wxMessageBox( msg, _( "File Error" ), wxOK | wxICON_ERROR, this );
-        m_NetlistFileName.Clear();
-        UpdateTitle();
-        return false;
+        wxArrayString fpnames = aTbl->FootprintEnumerate( nicks[libNdx] );
+
+        for( unsigned nameNdx = 0;  nameNdx<fpnames.size();   ++nameNdx )
+        {
+            if( fpname == fpnames[nameNdx] )
+            {
+                if( !nick )
+                    nick = nicks[libNdx];
+                else
+                    return 2;       // duplicate, the guess would not be certain
+            }
+        }
     }
 
-    LoadComponentLinkFile( m_NetlistFileName.GetFullPath() );
+    if( nick.size() )
+    {
+        aFootprintId->SetLibNickname( nick );
+        return 0;
+    }
 
-    if( m_ListCmp == NULL )
+    return 1;
+}
+
+
+bool CVPCB_MAINFRAME::ReadNetListAndLinkFiles( const std::string& aNetlist )
+{
+    wxString        msg;
+    bool            hasMissingNicks = false;
+
+    ReadSchematicNetlist( aNetlist );
+
+    if( m_compListBox == NULL )
         return false;
 
-    LoadProjectFile( m_NetlistFileName.GetFullPath() );
+    LoadProjectFile();
     LoadFootprintFiles();
-    BuildFOOTPRINTS_LISTBOX();
 
-    m_ListCmp->Clear();
+    BuildFOOTPRINTS_LISTBOX();
+    BuildLIBRARY_LISTBOX();
+
+    m_compListBox->Clear();
     m_undefinedComponentCnt = 0;
 
-    BOOST_FOREACH( COMPONENT_INFO& component, m_components )
+    if( m_netlist.AnyFootprintsLinked() )
     {
-        msg.Printf( CMP_FORMAT, m_ListCmp->GetCount() + 1,
-                    GetChars( component.m_Reference ),
-                    GetChars( component.m_Value ),
-                    GetChars( component.m_Footprint ) );
-        m_ListCmp->AppendLine( msg );
+        for( unsigned i = 0;  i < m_netlist.GetCount();  i++ )
+        {
+            COMPONENT* component = m_netlist.GetComponent( i );
 
-        if( component.m_Footprint.IsEmpty() )
-            m_undefinedComponentCnt += 1;
+            if( component->GetFPID().empty() )
+                continue;
+
+            if( component->GetFPID().IsLegacy() )
+                hasMissingNicks = true;
+        }
     }
 
-    if( !m_components.empty() )
-        m_ListCmp->SetSelection( 0, true );
+    // Check if footprint links were generated before the footprint library table was implemented.
+    if( hasMissingNicks )
+    {
+        msg = _(
+            "Some of the assigned footprints are legacy entries (are missing lib nicknames). "
+            "Would you like CvPcb to attempt to convert them to the new required FPID format? "
+            "(If you answer no, then these assignments will be cleared out and you will "
+            "have to re-assign these footprints yourself.)"
+            );
+
+        if( IsOK( this, msg ) )
+        {
+            msg.Clear();
+
+            try
+            {
+                for( unsigned i = 0;  i < m_netlist.GetCount();  i++ )
+                {
+                    COMPONENT* component = m_netlist.GetComponent( i );
+
+                    if( component->GetFPID().IsLegacy() )
+                    {
+                        // get this first here, it's possibly obsoleted if we get it too soon.
+                        FP_LIB_TABLE*   tbl = Prj().PcbFootprintLibs();
+
+                        int guess = guessNickname( tbl, (FPID*) &component->GetFPID() );
+
+                        switch( guess )
+                        {
+                        case 0:
+                            DBG(printf("%s: guessed OK ref:%s  fpid:%s\n", __func__,
+                                TO_UTF8( component->GetReference() ), component->GetFPID().Format().c_str() );)
+                            m_modified = true;
+                            break;
+
+                        case 1:
+                            msg += wxString::Format( _(
+                                    "Component '%s' footprint '%s' was <b>not found</b> in any library.\n" ),
+                                    GetChars( component->GetReference() ),
+                                    GetChars( component->GetFPID().GetFootprintName() )
+                                    );
+                            break;
+
+                        case 2:
+                            msg += wxString::Format( _(
+                                    "Component '%s' footprint '%s' was found in <b>multiple</b> libraries.\n" ),
+                                    GetChars( component->GetReference() ),
+                                    GetChars( component->GetFPID().GetFootprintName() )
+                                    );
+                            break;
+                        }
+                    }
+                }
+            }
+            catch( const IO_ERROR& ioe )
+            {
+                wxString msg = ioe.errorText;
+                msg += wxT( "\n\n" );
+                msg += _( "First check your footprint library table entries." );
+
+                wxMessageBox( msg, _( "Problematic Footprint Library Tables" ) );
+                return false;
+            }
+
+            if( msg.size() )
+            {
+                HTML_MESSAGE_BOX dlg( this, wxEmptyString );
+
+                dlg.MessageSet( _( "The following errors occurred attempting to convert the "
+                                   "footprint assignments:\n\n" ) );
+                dlg.ListSet( msg );
+                dlg.MessageSet( _( "\nYou will need to reassign them manually if you want them "
+                                   "to be updated correctly the next time you import the "
+                                   "netlist in Pcbnew." ) );
+
+#if 1
+                dlg.ShowModal();
+#else
+                dlg.Fit();
+                dlg.Show( true );   // modeless lets user watch while fixing the problems, but its not working.
+#endif
+            }
+        }
+        else
+        {
+            // Clear the legacy footprint assignments.
+            for( unsigned i = 0;  i < m_netlist.GetCount();  i++ )
+            {
+                COMPONENT* component = m_netlist.GetComponent( i );
+
+                if( component->GetFPID().IsLegacy() )
+                {
+                    component->SetFPID( FPID() /* empty */ );
+                    m_modified = true;
+                }
+            }
+        }
+    }
+
+
+    // Display a dialog to select footprint selection, if the netlist
+    // and the .cmp file give 2 different valid footprints
+    std::vector <int > m_indexes;   // indexes of footprints in netlist
+
+    for( unsigned ii = 0; ii < m_netlist.GetCount(); ii++ )
+    {
+        COMPONENT* component = m_netlist.GetComponent( ii );
+
+        if( component->GetAltFPID().empty() )
+            continue;
+
+        if( component->GetFPID().IsLegacy() || component->GetAltFPID().IsLegacy())
+            continue;
+
+        m_indexes.push_back( ii );
+    }
+
+    // If a n assignment conflict is found,
+    // open a dialog to chose between schematic assignment
+    // and .cmp file assignment:
+    if( m_indexes.size() > 0 )
+    {
+        DIALOG_FP_CONFLICT_ASSIGNMENT_SELECTOR dlg( this );
+
+        for( unsigned ii = 0; ii < m_indexes.size(); ii++ )
+        {
+            COMPONENT* component = m_netlist.GetComponent( m_indexes[ii] );
+
+            wxString cmpfpid = component->GetFPID().Format();
+            wxString schfpid = component->GetAltFPID().Format();
+
+            dlg.Add( component->GetReference(), schfpid, cmpfpid );
+        }
+
+        if( dlg.ShowModal() == wxID_OK )
+        {
+
+            // Update the fp selection:
+            for( unsigned ii = 0; ii < m_indexes.size(); ii++ )
+            {
+                COMPONENT* component = m_netlist.GetComponent( m_indexes[ii] );
+
+                int choice = dlg.GetSelection( component->GetReference() );
+
+                if( choice == 0 )   // the schematic (alt fpid) is chosen:
+                    component->SetFPID( component->GetAltFPID() );
+            }
+        }
+    }
+
+    // Populates the component list box:
+    for( unsigned i = 0;  i < m_netlist.GetCount();  i++ )
+    {
+        COMPONENT* component = m_netlist.GetComponent( i );
+
+        msg.Printf( CMP_FORMAT, m_compListBox->GetCount() + 1,
+                    GetChars( component->GetReference() ),
+                    GetChars( component->GetValue() ),
+                    GetChars( FROM_UTF8( component->GetFPID().Format().c_str() ) ) );
+
+        m_compListBox->AppendLine( msg );
+
+        if( component->GetFPID().empty() )
+        {
+            m_undefinedComponentCnt += 1;
+            continue;
+        }
+    }
+
+    if( !m_netlist.IsEmpty() )
+        m_compListBox->SetSelection( 0, true );
 
     DisplayStatus();
 
     UpdateTitle();
-
-    UpdateFileHistory( m_NetlistFileName.GetFullPath() );
-
     return true;
 }
 
 
-bool CVPCB_MAINFRAME::LoadComponentLinkFile( const wxString& aFileName )
+void CVPCB_MAINFRAME::SaveEdits()
 {
-    FILE*       linkfile;
-    wxFileName  fn = aFileName;
+    STRING_FORMATTER sf;
 
-    fn.SetExt( ComponentFileExtension );
+    m_netlist.FormatBackAnnotation( &sf );
 
-    linkfile = wxFopen( fn.GetFullPath(), wxT( "rt" ) );
-    if( linkfile == NULL )
-    {
-        wxString msg;
-        msg.Printf( _( "Cannot open CvPcb component file <%s>." ),
-                    GetChars( fn.GetFullPath() ) );
-        msg << wxT( "\n" ) << _( "This is normal if you are opening a new netlist file" );
-        wxMessageBox( msg, titleComponentLibErr, wxOK | wxICON_ERROR );
-        return false;
-    }
+    Kiway().ExpressMail( FRAME_SCH, MAIL_BACKANNOTATE_FOOTPRINTS, sf.GetString() );
 
-    // read and close the file
-    if( ! ReadComponentLinkFile( linkfile ) )
-    {
-        wxString msg;
-        msg.Printf( _( " <%s> does not appear to be a valid KiCad component link file." ),
-                    GetChars( fn.GetFullPath() ) );
-        wxMessageBox( msg, titleComponentLibErr, wxOK | wxICON_ERROR );
-        return false;
-    }
-
-    return true;
-}
-
-int CVPCB_MAINFRAME::SaveCmpLinkFile( const wxString& aFullFileName )
-{
-    wxFileName fn;
-
-    if( !aFullFileName.IsEmpty() )
-    {
-        fn = m_NetlistFileName;
-        fn.SetExt( ComponentFileExtension );
-    }
-    else
-    {
-        wxFileDialog dlg( this, _( "Save Component/Footprint Link File" ), wxGetCwd(),
-                          wxEmptyString, ComponentFileWildcard, wxFD_SAVE );
-
-        if( dlg.ShowModal() == wxID_CANCEL )
-            return -1;
-
-        fn = dlg.GetPath();
-
-        if( !fn.HasExt() )
-            fn.SetExt( ComponentFileExtension );
-    }
-
-    if( !IsWritable( fn.GetFullPath() ) )
-        return 0;
-
-    if( WriteComponentLinkFile( fn.GetFullPath() ) == 0 )
-    {
-        DisplayError( this, _( "Unable to create component file (.cmp)" ) );
-        return 0;
-    }
-
-    wxString msg;
-    msg.Printf( _("File %s saved"), GetChars( fn.GetFullPath() ) );
-    SetStatusText( msg );
-    return 1;
+    SetStatusText( _("Edits sent to Eeschema") );
 }

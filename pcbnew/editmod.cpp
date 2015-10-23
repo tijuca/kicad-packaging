@@ -1,15 +1,39 @@
-/************************************************/
-/* Module editor: Dialog box for editing module */
-/*  properties and characteristics              */
-/************************************************/
+/*
+ * This program source code file is part of KiCad, a free EDA CAD application.
+ *
+ * Copyright (C) 1992-2012 KiCad Developers, see AUTHORS.txt for contributors.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation; either version 2
+ * of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, you may find one here:
+ * http://www.gnu.org/licenses/old-licenses/gpl-2.0.html
+ * or you may search the http://www.gnu.org website for the version 2 license,
+ * or you may write to the Free Software Foundation, Inc.,
+ * 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
+ */
+
+/**
+ * @file edit.cpp
+ * @brief  Module editor dialog box for editing module properties and characteristics.
+ */
 
 #include <fctsys.h>
-#include <class_drawpanel.h>
+#include <kiface_i.h>
+#include <kiway.h>
 #include <confirm.h>
+#include <class_drawpanel.h>
 #include <pcbnew.h>
 #include <wxPcbStruct.h>
 #include <module_editor_frame.h>
-#include <trigo.h>
 #include <3d_viewer.h>
 
 #include <class_module.h>
@@ -27,93 +51,46 @@ void PCB_EDIT_FRAME::InstallModuleOptionsFrame( MODULE* Module, wxDC* DC )
     if( Module == NULL )
         return;
 
-#ifndef __WXMAC__
-    DIALOG_MODULE_BOARD_EDITOR* dialog = new DIALOG_MODULE_BOARD_EDITOR( this, Module, DC );
-#else
+#ifdef __WXMAC__
     // avoid Avoid "writes" in the dialog, creates errors with WxOverlay and NSView & Modal
     // Raising an Exception - Fixes #764678
-    DIALOG_MODULE_BOARD_EDITOR* dialog = new DIALOG_MODULE_BOARD_EDITOR( this, Module, NULL );
+    DC = NULL;
 #endif
-    
-    int retvalue = dialog->ShowModal(); /* retvalue =
-                                         *  -1 if abort,
-                                         *  0 if exchange module,
-                                         *  1 for normal edition
-                                         *  and 2 for a goto editor command
-                                         */
-    dialog->Destroy();
+
+    DIALOG_MODULE_BOARD_EDITOR* dlg = new DIALOG_MODULE_BOARD_EDITOR( this, Module, DC );
+
+    int retvalue = dlg->ShowModal();
+    /* retvalue =
+     *  FP_PRM_EDITOR_RETVALUE::PRM_EDITOR_ABORT if abort,
+     *  FP_PRM_EDITOR_RETVALUE::PRM_EDITOR_WANT_EXCHANGE_FP if exchange module,
+     *  FP_PRM_EDITOR_RETVALUE::PRM_EDITOR_EDIT_OK for normal edition
+     *  FP_PRM_EDITOR_RETVALUE::PRM_EDITOR_WANT_MODEDIT for a goto editor command
+     */
+    dlg->Destroy();
 
 #ifdef __WXMAC__
     // If something edited, push a refresh request
-    if (retvalue == 0 || retvalue == 1)
+    if( retvalue == DIALOG_MODULE_BOARD_EDITOR::PRM_EDITOR_EDIT_OK )
         m_canvas->Refresh();
 #endif
 
-    if( retvalue == 2 )
+    if( retvalue == DIALOG_MODULE_BOARD_EDITOR::PRM_EDITOR_WANT_MODEDIT )
     {
-        FOOTPRINT_EDIT_FRAME * editorFrame =
-                FOOTPRINT_EDIT_FRAME::GetActiveFootprintEditor();
-        if( editorFrame == NULL )
-            editorFrame = new FOOTPRINT_EDIT_FRAME( this );
+        FOOTPRINT_EDIT_FRAME* editor = (FOOTPRINT_EDIT_FRAME*) Kiway().Player( FRAME_PCB_MODULE_EDITOR, true );
 
-        editorFrame->Load_Module_From_BOARD( Module );
+        editor->Load_Module_From_BOARD( Module );
         SetCurItem( NULL );
 
-        editorFrame->Show( true );
-        editorFrame->Iconize( false );
+        editor->Show( true );
+        editor->Raise();        // Iconize( false );
     }
-}
 
-
-/*
- * Move the footprint anchor position to the current cursor position.
- */
-void FOOTPRINT_EDIT_FRAME::Place_Ancre( MODULE* aModule )
-{
-    wxPoint   moveVector;
-
-    if( aModule == NULL )
-        return;
-
-    moveVector = aModule->m_Pos - GetScreen()->GetCrossHairPosition();
-
-    aModule->m_Pos = GetScreen()->GetCrossHairPosition();
-
-    /* Update the relative coordinates:
-     * The coordinates are relative to the anchor point.
-     * Calculate deltaX and deltaY from the anchor. */
-    RotatePoint( &moveVector, -aModule->m_Orient );
-
-    // Update the pad coordinates.
-    for( D_PAD* pad = (D_PAD*) aModule->m_Pads;  pad;  pad = pad->Next() )
+    if( retvalue == DIALOG_MODULE_BOARD_EDITOR::PRM_EDITOR_WANT_EXCHANGE_FP )
     {
-        pad->SetPos0( pad->GetPos0() + moveVector );
+        InstallExchangeModuleFrame( Module );
+        // Warning: the current item can be deleted by exchange module
+        SetCurItem( NULL );
     }
-
-    // Update the draw element coordinates.
-    for( EDA_ITEM* item = aModule->m_Drawings;  item;  item = item->Next() )
-    {
-        switch( item->Type() )
-        {
-        case PCB_MODULE_EDGE_T:
-            #undef STRUCT
-            #define STRUCT ( (EDGE_MODULE*) item )
-            STRUCT->m_Start0 += moveVector;
-            STRUCT->m_End0   += moveVector;
-            break;
-
-        case PCB_MODULE_TEXT_T:
-            #undef STRUCT
-            #define STRUCT ( (TEXTE_MODULE*) item )
-            STRUCT->SetPos0( STRUCT->GetPos0() + moveVector );
-            break;
-
-        default:
-            break;
-        }
-    }
-
-    aModule->CalculateBoundingBox();
 }
 
 
@@ -130,21 +107,21 @@ void FOOTPRINT_EDIT_FRAME::RemoveStruct( EDA_ITEM* Item )
 
     case PCB_MODULE_TEXT_T:
     {
-        TEXTE_MODULE* text = (TEXTE_MODULE*) Item;
+        TEXTE_MODULE* text = static_cast<TEXTE_MODULE*>( Item );
 
-        if( text->GetType() == TEXT_is_REFERENCE )
+        switch( text->GetType() )
         {
-            DisplayError( this, _( "Text is REFERENCE!" ) );
+        case TEXTE_MODULE::TEXT_is_REFERENCE:
+            DisplayError( this, _( "Cannot delete REFERENCE!" ) );
             break;
-        }
 
-        if( text->GetType() == TEXT_is_VALUE )
-        {
-            DisplayError( this, _( "Text is VALUE!" ) );
+        case TEXTE_MODULE::TEXT_is_VALUE:
+            DisplayError( this, _( "Cannot delete VALUE!" ) );
             break;
-        }
 
-        DeleteTextModule( text );
+        case TEXTE_MODULE::TEXT_is_DIVERS:
+            DeleteTextModule( text );
+        }
     }
     break;
 
@@ -159,8 +136,8 @@ void FOOTPRINT_EDIT_FRAME::RemoveStruct( EDA_ITEM* Item )
     default:
     {
         wxString Line;
-        Line.Printf( wxT( " Remove: draw item type %d unknown." ), Item->Type() );
-        DisplayError( this, Line );
+        Line.Printf( wxT( " RemoveStruct: item type %d unknown." ), Item->Type() );
+        wxMessageBox( Line );
     }
     break;
     }

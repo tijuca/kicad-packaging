@@ -1,7 +1,7 @@
 /*
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
- * Copyright (C) 2007-2010 SoftPLC Corporation, Dick Hollenbeck <dick@softplc.com>
+ * Copyright (C) 2007-2013 SoftPLC Corporation, Dick Hollenbeck <dick@softplc.com>
  * Copyright (C) 2007 KiCad Developers, see change_log.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
@@ -36,6 +36,7 @@
 #include <confirm.h>            // DisplayError()
 #include <gestfich.h>           // EDA_FileSelector()
 #include <wxPcbStruct.h>
+#include <macros.h>
 
 #include <class_board.h>
 #include <class_module.h>
@@ -94,7 +95,6 @@ void PCB_EDIT_FRAME::ImportSpecctraSession( wxCommandEvent& event )
         return;
 
     SPECCTRA_DB     db;
-
     LOCALE_IO       toggle;
 
     try
@@ -102,14 +102,15 @@ void PCB_EDIT_FRAME::ImportSpecctraSession( wxCommandEvent& event )
         db.LoadSESSION( fullFileName );
         db.FromSESSION( GetBoard() );
     }
-    catch( IO_ERROR& ioe )
+    catch( const IO_ERROR& ioe )
     {
-        ioe.errorText += '\n';
-        ioe.errorText += _("BOARD may be corrupted, do not save it.");
-        ioe.errorText += '\n';
-        ioe.errorText += _("Fix problem and try again.");
+        wxString msg = ioe.errorText;
+        msg += '\n';
+        msg += _("BOARD may be corrupted, do not save it.");
+        msg += '\n';
+        msg += _("Fix problem and try again.");
 
-        DisplayError( this, ioe.errorText );
+        DisplayError( this, msg );
         return;
     }
 
@@ -118,7 +119,7 @@ void PCB_EDIT_FRAME::ImportSpecctraSession( wxCommandEvent& event )
 
     /* At this point we should call Compile_Ratsnest()
      * but this could be time consumming.
-     * So if incorrect number of Connecred and No connected pads is accepted
+     * So if incorrect number of Connected and No connected pads is accepted
      * until Compile_Ratsnest() is called (when track tool selected for instance)
      * leave the next line commented
      * Otherwise uncomment this line
@@ -147,8 +148,6 @@ static int scale( double distance, UNIT_RES* aResolution )
     double  resValue = aResolution->GetValue();
     double  factor;
 
-#if defined(USE_PCBNEW_NANOMETRES)
-
     switch( aResolution->GetEngUnits() )
     {
     default:
@@ -170,36 +169,6 @@ static int scale( double distance, UNIT_RES* aResolution )
     }
 
     int ret = KiROUND( factor * distance / resValue );
-
-#else
-
-    switch( aResolution->GetEngUnits() )
-    {
-    default:
-    case T_inch:
-        factor = 1000.0;
-        break;
-    case T_mil:
-        factor = 1.0;
-        break;
-    case T_cm:
-        factor = 1000.0/2.54;
-        break;
-    case T_mm:
-        factor = 1000.0/25.4;
-        break;
-    case T_um:
-        factor = 1.0/25.4;
-        break;
-    }
-
-    // the factor of 10.0 is used to convert mils to deci-mils, the units
-    // used within KiCad.
-    factor *= 10.0;
-
-    int ret = KiROUND( factor * distance / resValue );
-
-#endif
 
     return ret;
 }
@@ -230,7 +199,7 @@ TRACK* SPECCTRA_DB::makeTRACK( PATH* aPath, int aPointIndex, int aNetcode ) thro
     {
         wxString layerName = FROM_UTF8( aPath->layer_id.c_str() );
         ThrowIOError( _("Session file uses invalid layer id \"%s\""),
-                        GetChars(layerName) );
+                        GetChars( layerName ) );
     }
 
     TRACK* track = new TRACK( sessionBoard );
@@ -239,47 +208,50 @@ TRACK* SPECCTRA_DB::makeTRACK( PATH* aPath, int aPointIndex, int aNetcode ) thro
     track->SetEnd( mapPt( aPath->points[aPointIndex+1], routeResolution ) );
     track->SetLayer( pcbLayer2kicad[layerNdx] );
     track->SetWidth( scale( aPath->aperture_width, routeResolution ) );
-    track->SetNet( aNetcode );
+    track->SetNetCode( aNetcode );
 
     return track;
 }
 
 
-SEGVIA* SPECCTRA_DB::makeVIA( PADSTACK* aPadstack, const POINT& aPoint, int aNetCode ) throw( IO_ERROR )
+::VIA* SPECCTRA_DB::makeVIA( PADSTACK* aPadstack, const POINT& aPoint,
+            int aNetCode, int aViaDrillDefault )
+    throw( IO_ERROR )
 {
-    SEGVIA* via = 0;
+    ::VIA*  via = 0;
     SHAPE*  shape;
 
     int     shapeCount = aPadstack->Length();
-    int     drillDiam = -1;
+    int     drill_diam_iu = -1;
     int     copperLayerCount = sessionBoard->GetCopperLayerCount();
 
 
     // The drill diameter is encoded in the padstack name if Pcbnew did the DSN export.
-    // It is in mils and is after the colon and before the last '_'
+    // It is after the colon and before the last '_'
     int     drillStartNdx = aPadstack->padstack_id.find( ':' );
 
     if( drillStartNdx != -1 )
     {
         ++drillStartNdx;    // skip over the ':'
+
         int drillEndNdx = aPadstack->padstack_id.rfind( '_' );
         if( drillEndNdx != -1 )
         {
-            std::string diamTxt( aPadstack->padstack_id, drillStartNdx, drillEndNdx-drillStartNdx );
-            const char* sdiamTxt = diamTxt.c_str();
-            double drillMils = strtod( sdiamTxt, 0 );
+            std::string diam_txt( aPadstack->padstack_id,
+                            drillStartNdx, drillEndNdx-drillStartNdx );
 
-            // drillMils is not in the session units, but actual mils so we don't use scale()
-            drillDiam = (int) (drillMils * 10);
-/** @todo: see if we use default netclass or specific value
-*/
-            drillDiam = -1;         // import as default: real drill is the netclass value
+            double drill_um = strtod( diam_txt.c_str(), 0 );
+
+            drill_diam_iu = int( drill_um * (IU_PER_MM / 1000.0) );
+
+            if( drill_diam_iu == aViaDrillDefault )
+                drill_diam_iu = UNDEFINED_DRILL_DIAMETER;
         }
     }
 
     if( shapeCount == 0 )
     {
-        ThrowIOError( _( "Session via padstack has no shapes") );
+        ThrowIOError( _( "Session via padstack has no shapes" ) );
     }
     else if( shapeCount == 1 )
     {
@@ -292,12 +264,12 @@ SEGVIA* SPECCTRA_DB::makeVIA( PADSTACK* aPadstack, const POINT& aPoint, int aNet
         CIRCLE* circle = (CIRCLE*) shape->shape;
         int viaDiam = scale( circle->diameter, routeResolution );
 
-        via = new SEGVIA( sessionBoard );
+        via = new ::VIA( sessionBoard );
         via->SetPosition( mapPt( aPoint, routeResolution ) );
-        via->SetDrill( drillDiam );
-        via->SetShape( VIA_THROUGH );
+        via->SetDrill( drill_diam_iu );
+        via->SetViaType( VIA_THROUGH );
         via->SetWidth( viaDiam );
-        via->SetLayerPair( LAYER_N_FRONT, LAYER_N_BACK );
+        via->SetLayerPair( F_Cu, B_Cu );
     }
     else if( shapeCount == copperLayerCount )
     {
@@ -310,17 +282,18 @@ SEGVIA* SPECCTRA_DB::makeVIA( PADSTACK* aPadstack, const POINT& aPoint, int aNet
         CIRCLE* circle = (CIRCLE*) shape->shape;
         int viaDiam = scale( circle->diameter, routeResolution );
 
-        via = new SEGVIA( sessionBoard );
+        via = new ::VIA( sessionBoard );
         via->SetPosition( mapPt( aPoint, routeResolution ) );
-        via->SetDrill( drillDiam );
-        via->SetShape( VIA_THROUGH );
+        via->SetDrill( drill_diam_iu );
+        via->SetViaType( VIA_THROUGH );
         via->SetWidth( viaDiam );
-        via->SetLayerPair( LAYER_N_FRONT, LAYER_N_BACK );
+        via->SetLayerPair( F_Cu, B_Cu );
     }
     else    // VIA_MICROVIA or VIA_BLIND_BURIED
     {
-        int topLayerNdx = -1;
-        int botLayerNdx = 7000;
+        int topLayerNdx = -1;           // session layer detectors
+        int botLayerNdx = INT_MAX;
+
         int viaDiam = -1;
 
         for( int i=0; i<shapeCount;  ++i )
@@ -351,30 +324,29 @@ SEGVIA* SPECCTRA_DB::makeVIA( PADSTACK* aPadstack, const POINT& aPoint, int aNet
                 viaDiam = scale( circle->diameter, routeResolution );
         }
 
-        via = new SEGVIA( sessionBoard );
+        via = new ::VIA( sessionBoard );
         via->SetPosition( mapPt( aPoint, routeResolution ) );
-        via->SetDrill( drillDiam );
+        via->SetDrill( drill_diam_iu );
 
         if( (topLayerNdx==0 && botLayerNdx==1)
          || (topLayerNdx==copperLayerCount-2 && botLayerNdx==copperLayerCount-1))
-            via->SetShape( VIA_MICROVIA );
+            via->SetViaType( VIA_MICROVIA );
         else
-            via->SetShape( VIA_BLIND_BURIED );
+            via->SetViaType( VIA_BLIND_BURIED );
 
         via->SetWidth( viaDiam );
 
-        topLayerNdx = pcbLayer2kicad[topLayerNdx];
-        botLayerNdx = pcbLayer2kicad[botLayerNdx];
+        LAYER_ID topLayer = pcbLayer2kicad[topLayerNdx];
+        LAYER_ID botLayer = pcbLayer2kicad[botLayerNdx];
 
-        via->SetLayerPair( topLayerNdx, botLayerNdx );
+        via->SetLayerPair( topLayer, botLayer );
     }
 
     if( via )
-        via->SetNet( aNetCode );
+        via->SetNetCode( aNetCode );
 
     return via;
 }
-
 
 
 // no UI code in this function, throw exception to report problems to the
@@ -439,22 +411,26 @@ void SPECCTRA_DB::FromSESSION( BOARD* aBoard ) throw( IO_ERROR )
                 if( place->side == T_front )
                 {
                     // convert from degrees to tenths of degrees used in KiCad.
-                    int orientation = (int) (place->rotation * 10.0);
-                    if( module->GetLayer() != LAYER_N_FRONT )
+                    int orientation = KiROUND( place->rotation * 10.0 );
+
+                    if( module->GetLayer() != F_Cu )
                     {
                         // module is on copper layer (back)
-                        module->Flip( module->m_Pos );
+                        module->Flip( module->GetPosition() );
                     }
+
                     module->SetOrientation( orientation );
                 }
                 else if( place->side == T_back )
                 {
-                    int orientation = (int) ((place->rotation + 180.0) * 10.0);
-                    if( module->GetLayer() != LAYER_N_BACK )
+                    int orientation = KiROUND( (place->rotation + 180.0) * 10.0 );
+
+                    if( module->GetLayer() != B_Cu )
                     {
                         // module is on component layer (front)
-                        module->Flip( module->m_Pos );
+                        module->Flip( module->GetPosition() );
                     }
+
                     module->SetOrientation( orientation );
                 }
                 else
@@ -571,9 +547,13 @@ void SPECCTRA_DB::FromSESSION( BOARD* aBoard ) throw( IO_ERROR )
                              GetChars( psid ) );
             }
 
+            NETCLASSPTR netclass = aBoard->GetDesignSettings().m_NetClasses.GetDefault();
+
+            int via_drill_default = netclass->GetViaDrill();
+
             for( unsigned v=0;  v<wire_via->vertexes.size();  ++v )
             {
-                SEGVIA* via = makeVIA( padstack, wire_via->vertexes[v], netCode );
+                ::VIA* via = makeVIA( padstack, wire_via->vertexes[v], netCode, via_drill_default );
                 aBoard->Add( via );
             }
         }

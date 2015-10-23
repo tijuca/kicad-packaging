@@ -3,20 +3,42 @@
  * @brief Component annotation.
  */
 
-#include <algorithm> // to use sort vector
-#include <vector>
+/*
+ * This program source code file is part of KiCad, a free EDA CAD application.
+ *
+ * Copyright (C) 2004-2013 KiCad Developers, see change_log.txt for contributors.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation; either version 2
+ * of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, you may find one here:
+ * http://www.gnu.org/licenses/old-licenses/gpl-2.0.html
+ * or you may search the http://www.gnu.org website for the version 2 license,
+ * or you may write to the Free Software Foundation, Inc.,
+ * 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
+ */
+
+#include <algorithm>
 
 #include <fctsys.h>
 #include <class_drawpanel.h>
 #include <confirm.h>
-#include <wxEeschemaStruct.h>
+#include <schframe.h>
 
-#include <netlist.h>
+#include <sch_reference_list.h>
 #include <class_library.h>
-#include <protos.h>
 #include <sch_component.h>
 #include <lib_pin.h>
 
+#include <boost/foreach.hpp>
 
 void SCH_EDIT_FRAME::DeleteAnnotation( bool aCurrentSheetOnly )
 {
@@ -41,16 +63,18 @@ void SCH_EDIT_FRAME::AnnotateComponents( bool              aAnnotateSchematic,
                                          ANNOTATE_ORDER_T  aSortOption,
                                          ANNOTATE_OPTION_T aAlgoOption,
                                          bool              aResetAnnotation,
-                                         bool              aRepairTimestamps )
+                                         bool              aRepairTimestamps,
+                                         bool              aLockUnits )
 {
     SCH_REFERENCE_LIST references;
-
-    wxBusyCursor dummy;
 
     SCH_SCREENS screens;
 
     // Build the sheet list.
     SCH_SHEET_LIST sheets;
+
+    // Map of locked components
+    SCH_MULTI_UNIT_REFERENCE_MAP lockedComponents;
 
     // Test for and replace duplicate time stamps in components and sheets.  Duplicate
     // time stamps can happen with old schematics, schematic conversions, or manual
@@ -67,28 +91,38 @@ void SCH_EDIT_FRAME::AnnotateComponents( bool              aAnnotateSchematic,
         }
     }
 
+    // If units must be locked, collect all the sets that must be annotated together.
+    if( aLockUnits )
+    {
+        if( aAnnotateSchematic )
+        {
+            sheets.GetMultiUnitComponents( Prj().SchLibs(), lockedComponents );
+        }
+        else
+        {
+            m_CurrentSheet->GetMultiUnitComponents( Prj().SchLibs(), lockedComponents );
+        }
+    }
+
     // If it is an annotation for all the components, reset previous annotation.
     if( aResetAnnotation )
         DeleteAnnotation( !aAnnotateSchematic );
 
-    // Update the screen date.
-    screens.SetDate( GenDate() );
-
     // Set sheet number and number of sheets.
     SetSheetNumberAndCount();
 
-    /* Build component list */
+    // Build component list
     if( aAnnotateSchematic )
     {
-        sheets.GetComponents( references );
+        sheets.GetComponents( Prj().SchLibs(), references );
     }
     else
     {
-        m_CurrentSheet->GetComponents( references );
+        m_CurrentSheet->GetComponents( Prj().SchLibs(), references );
     }
 
-    /* Break full components reference in name (prefix) and number:
-     * example: IC1 become IC, and 1 */
+    // Break full components reference in name (prefix) and number:
+    // example: IC1 become IC, and 1
     references.SplitReferences();
 
     switch( aSortOption )
@@ -123,7 +157,7 @@ void SCH_EDIT_FRAME::AnnotateComponents( bool              aAnnotateSchematic,
     }
 
     // Recalculate and update reference numbers in schematic
-    references.Annotate( useSheetNum, idStep );
+    references.Annotate( useSheetNum, idStep, lockedComponents );
     references.UpdateAnnotation();
 
     wxArrayString errors;
@@ -154,15 +188,15 @@ void SCH_EDIT_FRAME::AnnotateComponents( bool              aAnnotateSchematic,
 
 int SCH_EDIT_FRAME::CheckAnnotate( wxArrayString* aMessageList, bool aOneSheetOnly )
 {
-    /* build the screen list */
+    // build the screen list
     SCH_SHEET_LIST SheetList;
     SCH_REFERENCE_LIST ComponentsList;
 
-    /* Build the list of components */
+    // Build the list of components
     if( !aOneSheetOnly )
-        SheetList.GetComponents( ComponentsList );
+        SheetList.GetComponents( Prj().SchLibs(), ComponentsList );
     else
-        m_CurrentSheet->GetComponents( ComponentsList );
+        m_CurrentSheet->GetComponents( Prj().SchLibs(), ComponentsList );
 
     return ComponentsList.CheckAnnotation( aMessageList );
 }

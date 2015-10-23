@@ -49,42 +49,21 @@
 /* class NETINFO_ITEM: handle data relative to a given net */
 /*********************************************************/
 
-NETINFO_ITEM::NETINFO_ITEM( BOARD_ITEM* aParent, const wxString& aNetName, int aNetCode )
+NETINFO_ITEM::NETINFO_ITEM( BOARD_ITEM* aParent, const wxString& aNetName, int aNetCode ) :
+    m_NetCode( aNetCode ), m_Netname( aNetName ), m_ShortNetname( m_Netname.AfterLast( '/' ) )
 {
-    SetNet( aNetCode );
-
-    if( aNetName.size() )
-        SetNetname( aNetName );
-
     m_parent   = aParent;
-    m_NbNodes  = 0;
-    m_NbLink   = 0;
-    m_NbNoconn = 0;
-    m_Flag     = 0;
     m_RatsnestStartIdx = 0;     // Starting point of ratsnests of this net in a
                                 // general buffer of ratsnest
     m_RatsnestEndIdx   = 0;     // Ending point of ratsnests of this net
 
     m_NetClassName = NETCLASS::Default;
-
-    m_NetClass = 0;
 }
 
 
 NETINFO_ITEM::~NETINFO_ITEM()
 {
     // m_NetClass is not owned by me.
-}
-
-
-/**
- * Function SetNetname
- * @param aNetname : the new netname
- */
-void NETINFO_ITEM::SetNetname( const wxString& aNetname )
-{
-    m_Netname = aNetname;
-    m_ShortNetname = m_Netname.AfterLast( '/' );
 }
 
 
@@ -99,36 +78,30 @@ void NETINFO_ITEM::Draw( EDA_DRAW_PANEL* panel,
 }
 
 
-/**
- * Function DisplayInfo
- * has knowledge about the frame and how and where to put status information
- * about this object into the frame's message panel.
- * Is virtual from EDA_ITEM.
- * @param frame A EDA_DRAW_FRAME in which to print status information.
- */
 void NETINFO_ITEM::GetMsgPanelInfo( std::vector< MSG_PANEL_ITEM >& aList )
 {
-    int       count;
-    EDA_ITEM* Struct;
     wxString  txt;
-    MODULE*   module;
-    D_PAD*    pad;
-    double    lengthnet = 0;        // This  is the lenght of tracks on pcb
-    double    lengthPadToDie = 0;   // this is the lenght of internal ICs connections
+    double    lengthnet = 0.0;      // This  is the lenght of tracks on pcb
+    double    lengthPadToDie = 0.0; // this is the lenght of internal ICs connections
 
     aList.push_back( MSG_PANEL_ITEM( _( "Net Name" ), GetNetname(), RED ) );
 
     txt.Printf( wxT( "%d" ), GetNet() );
     aList.push_back( MSG_PANEL_ITEM( _( "Net Code" ), txt, RED ) );
 
-    count  = 0;
-    module = m_parent->GetBoard()->m_Modules;
+    // Warning: for netcode == NETINFO_LIST::ORPHANED, the parent or the board
+    // can be NULL
+    BOARD * board = m_parent ? m_parent->GetBoard() : NULL;
 
-    for( ; module != 0; module = module->Next() )
+    if( board == NULL )
+        return;
+
+    int count = 0;
+    for( MODULE* module = board->m_Modules; module != NULL; module = module->Next() )
     {
-        for( pad = module->m_Pads; pad != 0; pad = pad->Next() )
+        for( D_PAD* pad = module->Pads(); pad != 0; pad = pad->Next() )
         {
-            if( pad->GetNet() == GetNet() )
+            if( pad->GetNetCode() == GetNet() )
             {
                 count++;
                 lengthPadToDie += pad->GetPadToDieLength();
@@ -140,20 +113,19 @@ void NETINFO_ITEM::GetMsgPanelInfo( std::vector< MSG_PANEL_ITEM >& aList )
     aList.push_back( MSG_PANEL_ITEM( _( "Pads" ), txt, DARKGREEN ) );
 
     count  = 0;
-    Struct = m_parent->GetBoard()->m_Track;
 
-    for( ; Struct != NULL; Struct = Struct->Next() )
+    for( const TRACK *track = board->m_Track; track != NULL; track = track->Next() )
     {
-        if( Struct->Type() == PCB_VIA_T )
+        if( track->Type() == PCB_VIA_T )
         {
-            if( ( (SEGVIA*) Struct )->GetNet() == GetNet() )
+            if( track->GetNetCode() == GetNet() )
                 count++;
         }
 
-        if( Struct->Type() == PCB_TRACE_T )
+        if( track->Type() == PCB_TRACE_T )
         {
-            if( ( (TRACK*) Struct )->GetNet() == GetNet() )
-                lengthnet += ( (TRACK*) Struct )->GetLength();
+            if( track->GetNetCode() == GetNet() )
+                lengthnet += track->GetLength();
         }
     }
 
@@ -161,15 +133,15 @@ void NETINFO_ITEM::GetMsgPanelInfo( std::vector< MSG_PANEL_ITEM >& aList )
     aList.push_back( MSG_PANEL_ITEM( _( "Vias" ), txt, BLUE ) );
 
     // Displays the full net length (tracks on pcb + internal ICs connections ):
-    txt = ::CoordinateToString( lengthnet + lengthPadToDie );
-    aList.push_back( MSG_PANEL_ITEM( _( "Net Length:" ), txt, RED ) );
+    txt = ::LengthDoubleToString( lengthnet + lengthPadToDie );
+    aList.push_back( MSG_PANEL_ITEM( _( "Net Length" ), txt, RED ) );
 
     // Displays the net length of tracks only:
-    txt = ::CoordinateToString( lengthnet );
+    txt = ::LengthDoubleToString( lengthnet );
     aList.push_back( MSG_PANEL_ITEM( _( "On Board" ), txt, RED ) );
 
     // Displays the net length of internal ICs connections (wires inside ICs):
-    txt = ::CoordinateToString( lengthPadToDie );
+    txt = ::LengthDoubleToString( lengthPadToDie );
     aList.push_back( MSG_PANEL_ITEM( _( "In Package" ), txt, RED ) );
 }
 

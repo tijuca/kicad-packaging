@@ -2,7 +2,7 @@
  * This program source code file is part of KICAD, a free EDA CAD application.
  *
  * Copyright (C) 2007-2010 SoftPLC Corporation, Dick Hollenbeck <dick@softplc.com>
- * Copyright (C) 2007 Kicad Developers, see change_log.txt for contributors.
+ * Copyright (C) 2007-2015 Kicad Developers, see change_log.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -28,6 +28,7 @@
 #include <stdio.h>
 #include <string>
 #include <vector>
+#include <hashtables.h>
 
 #include <richio.h>
 
@@ -70,7 +71,7 @@ enum DSN_SYNTAX_T {
 
 
 /**
- * Class DLEXER
+ * Class DSNLEXER
  * implements a lexical analyzer for the SPECCTRA DSN file format.  It
  * reads lexical tokens from the current LINE_READER through the NextTok()
  * function.
@@ -101,15 +102,15 @@ protected:
 
     bool                commentsAreTokens;      ///< true if should return comments as tokens
 
-    int                 prevTok;        ///< curTok from previous NextTok() call.
-    int                 curOffset;      ///< offset within current line of the current token
+    int                 prevTok;                ///< curTok from previous NextTok() call.
+    int                 curOffset;              ///< offset within current line of the current token
 
-    int                 curTok;         ///< the current token obtained on last NextTok()
-    std::string         curText;        ///< the text of the current token
-    std::string         lowercase;      ///< a scratch buf holding token in lowercase
+    int                 curTok;                 ///< the current token obtained on last NextTok()
+    std::string         curText;                ///< the text of the current token
 
-    const KEYWORD*      keywords;
-    unsigned            keywordCount;
+    const KEYWORD*      keywords;               ///< table sorted by CMake for bsearch()
+    unsigned            keywordCount;           ///< count of keywords table
+    KEYWORD_MAP         keyword_hash;           ///< fast, specialized "C string" hashtable
 
     void init();
 
@@ -133,29 +134,15 @@ protected:
         return 0;
     }
 
-
-    /**
-     * Function readLineOrCmt
-     * reads a line from the LINE_READER and returns either:
-     * <ol>
-     * <li> a positive line length (a +1 if empty line)
-     * <li> zero of end of file.
-     * <li> DSN_COMMENT if the line is a comment
-     * </ol>
-     */
-    int readLineOrCmt();
-
-
     /**
      * Function findToken
-     * takes a string and looks up the string in the list of expected
-     * tokens.
+     * takes aToken string and looks up the string in the keywords table.
      *
-     * @param tok A string holding the token text to lookup, in an
-     *   unpredictable case: uppercase or lowercase
-     * @return int - DSN_T or -1 if argument string is not a recognized token.
+     * @param aToken is a string to lookup in the keywords table.
+     * @return int - with a value from the enum DSN_T matching the keyword text,
+     *         or DSN_SYMBOL if @a aToken is not in the kewords table.
      */
-    int findToken( const std::string& tok );
+    int findToken( const std::string& aToken );
 
     bool isStringTerminator( char cc )
     {
@@ -167,6 +154,7 @@ protected:
 
         return false;
     }
+
 #endif
 
 public:
@@ -186,7 +174,7 @@ public:
               FILE* aFile, const wxString& aFileName );
 
     /**
-     * Constructor ( std::string&*, const wxString& )
+     * Constructor ( const KEYWORD*, unsigned, const std::string&, const wxString& )
      * intializes a DSN lexer and prepares to read from @a aSExpression.
      *
      * @param aKeywordTable is an array of KEYWORDS holding \a aKeywordCount.  This
@@ -197,6 +185,16 @@ public:
      */
     DSNLEXER( const KEYWORD* aKeywordTable, unsigned aKeywordCount,
               const std::string& aSExpression, const wxString& aSource = wxEmptyString );
+
+    /**
+     * Constructor ( const std::string&, const wxString& )
+     * intializes a DSN lexer and prepares to read from @a aSExpression.  Use this
+     * one without a keyword table with the DOM parser in ptree.h.
+     *
+     * @param aSExpression is text to feed through a STRING_LINE_READER
+     * @param aSource is a description of aSExpression, used for error reporting.
+     */
+    DSNLEXER( const std::string& aSExpression, const wxString& aSource = wxEmptyString );
 
     /**
      * Constructor ( LINE_READER* )
@@ -216,6 +214,16 @@ public:
               LINE_READER* aLineReader = NULL );
 
     virtual ~DSNLEXER();
+
+    /**
+     * Useable only for DSN lexers which share the same LINE_READER
+     * Synchronizes the pointers handling the data read by the LINE_READER
+     * Allows 2 DNSLEXER to share the same current line, when switching from a
+     * DNSLEXER to an other DNSLEXER
+     * @param aLexer = the model
+     * @return true if the sync can be made ( at least the same line reader )
+     */
+    bool SyncLineReaderWith( DSNLEXER& aLexer );
 
     /**
      * Function SetSpecctraMode
@@ -369,6 +377,19 @@ public:
     }
 
     /**
+     * Function ReadCommentLines
+     * checks the next sequence of tokens and reads them into a wxArrayString
+     * if they are comments.  Reading continues until a non-comment token is
+     * encountered, and such last read token remains as CurTok() and as CurText().
+     * No push back or "un get" mechanism is used for this support.  Upon return
+     * you simply avoid calling NextTok() for the next token, but rather CurTok().
+     *
+     * @return wxArrayString* - heap allocated block of comments, or NULL if none;
+     *   caller owns the allocation and must delete if not NULL.
+     */
+    wxArrayString* ReadCommentLines() throw( IO_ERROR );
+
+    /**
      * Function IsSymbol
      * tests a token to see if it is a symbol.  This means it cannot be a
      * special delimiter character such as DSN_LEFT, DSN_RIGHT, DSN_QUOTE, etc.  It may
@@ -458,6 +479,15 @@ public:
     const char* CurText()
     {
         return curText.c_str();
+    }
+
+    /**
+     * Function CurStr
+     * returns a reference to current token in std::string form.
+     */
+    const std::string& CurStr()
+    {
+        return curText;
     }
 
     /**

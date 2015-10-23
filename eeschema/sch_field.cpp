@@ -1,8 +1,8 @@
 /*
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
- * Copyright (C) 2004 Jean-Pierre Charras, jaen-pierre.charras@gipsa-lab.inpg.com
- * Copyright (C) 2004-2011 KiCad Developers, see change_log.txt for contributors.
+ * Copyright (C) 2015 Jean-Pierre Charras, jp.charras at wanadoo.fr
+ * Copyright (C) 2004-2014 KiCad Developers, see change_log.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -35,31 +35,16 @@
  * They can be renamed and can appear in reports
  */
 
-/* set USE_TEXT_JUSTIFY_INITIAL_BEHAVIOR to 0 to use
- * a justification relative to the text itself
- * i.e. justification relative to an horizontal text
- * or to 1 to keep the initial Eeschema behavior
- * The initial behavior is:
- *  For vertical texts, exchange the horizontal and the vertical justification
- *  The idea is to keep the justification always left or top for instance,
- *  no matter the text orientation
- *  This is a bit tricky when you want to change a text field justification
- *  when the fiels and the component are both rotated 90.0 degrees
- */
-#define USE_TEXT_JUSTIFY_INITIAL_BEHAVIOR 0
-
 #include <fctsys.h>
 #include <class_drawpanel.h>
 #include <base_struct.h>
 #include <gr_basic.h>
 #include <drawtxt.h>
 #include <macros.h>
-#include <trigo.h>
-#include <wxEeschemaStruct.h>
+#include <schframe.h>
 #include <plot_common.h>
 
 #include <general.h>
-#include <protos.h>
 #include <class_library.h>
 #include <sch_component.h>
 #include <sch_field.h>
@@ -90,7 +75,7 @@ EDA_ITEM* SCH_FIELD::Clone() const
 }
 
 
-const wxString SCH_FIELD::GetText() const
+const wxString SCH_FIELD::GetFullyQualifiedText() const
 {
     wxString text = m_Text;
 
@@ -103,8 +88,8 @@ const wxString SCH_FIELD::GetText() const
         wxCHECK_MSG( component != NULL, text,
                      wxT( "No component associated with field" ) + text );
 
-        if( component->GetPartCount() > 1 )
-            text << LIB_COMPONENT::ReturnSubReference( component->GetUnit() );
+        if( component->GetUnitCount() > 1 )
+            text << LIB_PART::SubReference( component->GetUnit() );
     }
 
     return text;
@@ -129,8 +114,8 @@ int SCH_FIELD::GetPenSize() const
 }
 
 
-void SCH_FIELD::Draw( EDA_DRAW_PANEL* panel, wxDC* DC,
-                      const wxPoint& offset, GR_DRAWMODE DrawMode, EDA_COLOR_T Color )
+void SCH_FIELD::Draw( EDA_DRAW_PANEL* aPanel, wxDC* aDC, const wxPoint& aOffset,
+                      GR_DRAWMODE aDrawMode, EDA_COLOR_T aColor )
 {
     int            orient;
     EDA_COLOR_T    color;
@@ -146,14 +131,13 @@ void SCH_FIELD::Draw( EDA_DRAW_PANEL* panel, wxDC* DC,
             LineWidth = GetDefaultLineThickness();
     }
 
-
     // Clip pen size for small texts:
     LineWidth = Clamp_Text_PenSize( LineWidth, m_Size, m_Bold );
 
     if( ((m_Attributs & TEXT_NO_VISIBLE) && !m_forceVisible) || IsVoid() )
         return;
 
-    GRSetDrawMode( DC, DrawMode );
+    GRSetDrawMode( aDC, aDrawMode );
 
     // Calculate the text orientation according to the component orientation.
     orient = m_Orient;
@@ -178,7 +162,7 @@ void SCH_FIELD::Draw( EDA_DRAW_PANEL* panel, wxDC* DC,
      * and use GetBoundaryBox to know the text coordinate considered as centered
      */
     EDA_RECT boundaryBox = GetBoundingBox();
-    textpos = boundaryBox.Centre();
+    textpos = boundaryBox.Centre() + aOffset;
 
     if( m_forceVisible )
     {
@@ -187,16 +171,27 @@ void SCH_FIELD::Draw( EDA_DRAW_PANEL* panel, wxDC* DC,
     else
     {
         if( m_id == REFERENCE )
-            color = ReturnLayerColor( LAYER_REFERENCEPART );
+            color = GetLayerColor( LAYER_REFERENCEPART );
         else if( m_id == VALUE )
-            color = ReturnLayerColor( LAYER_VALUEPART );
+            color = GetLayerColor( LAYER_VALUEPART );
         else
-            color = ReturnLayerColor( LAYER_FIELDS );
+            color = GetLayerColor( LAYER_FIELDS );
     }
 
-    DrawGraphicText( panel, DC, textpos, color, GetText(), orient, m_Size,
+    EDA_RECT* clipbox = aPanel ? aPanel->GetClipBox() : NULL;
+    DrawGraphicText( clipbox, aDC, textpos, color, GetFullyQualifiedText(), orient, m_Size,
                      GR_TEXT_HJUSTIFY_CENTER, GR_TEXT_VJUSTIFY_CENTER,
                      LineWidth, m_Italic, m_Bold );
+
+    // While moving: don't loose visual contact to which component this label belongs.
+    if ( IsWireImage() )
+    {
+        const wxPoint origin = parentComponent->GetPosition();
+        textpos  = m_Pos - origin;
+        textpos  = parentComponent->GetScreenCoord( textpos );
+        textpos += parentComponent->GetPosition();
+        GRLine( clipbox, aDC, origin, textpos, 2, DARKGRAY );
+    }
 
     /* Enable this to draw the bounding box around the text field to validate
      * the bounding box calculations.
@@ -204,7 +199,7 @@ void SCH_FIELD::Draw( EDA_DRAW_PANEL* panel, wxDC* DC,
 #if 0
 
     // Draw boundary box:
-    GRRect( panel->GetClipBox(), DC, boundaryBox, 0, BROWN );
+    GRRect( aPanel->GetClipBox(), aDC, boundaryBox, 0, BROWN );
 
     // Draw the text anchor point
 
@@ -214,9 +209,9 @@ void SCH_FIELD::Draw( EDA_DRAW_PANEL* panel, wxDC* DC,
     textpos  = parentComponent->GetScreenCoord( textpos );
     textpos += parentComponent->GetPosition();
     const int len = 10;
-    GRLine( panel->GetClipBox(), DC,
+    GRLine( clipbox, aDC,
             textpos.x - len, textpos.y, textpos.x + len, textpos.y, 0, BLUE );
-    GRLine( panel->GetClipBox(), DC,
+    GRLine( clipbox, aDC,
             textpos.x, textpos.y - len, textpos.x, textpos.y + len, 0, BLUE );
 #endif
 }
@@ -224,15 +219,15 @@ void SCH_FIELD::Draw( EDA_DRAW_PANEL* panel, wxDC* DC,
 
 void SCH_FIELD::ImportValues( const LIB_FIELD& aSource )
 {
-    m_Orient    = aSource.m_Orient;
-    m_Size      = aSource.m_Size;
-    m_HJustify  = aSource.m_HJustify;
-    m_VJustify  = aSource.m_VJustify;
-    m_Italic    = aSource.m_Italic;
-    m_Bold      = aSource.m_Bold;
-    m_Thickness = aSource.m_Thickness;
-    m_Attributs = aSource.m_Attributs;
-    m_Mirror    = aSource.m_Mirror;
+    m_Orient    = aSource.GetOrientation();
+    m_Size      = aSource.GetSize();
+    m_HJustify  = aSource.GetHorizJustify();
+    m_VJustify  = aSource.GetVertJustify();
+    m_Italic    = aSource.IsItalic();
+    m_Bold      = aSource.IsBold();
+    m_Thickness = aSource.GetThickness();
+    m_Attributs = aSource.GetAttributes();
+    m_Mirror    = aSource.IsMirrored();
 }
 
 
@@ -243,22 +238,22 @@ void SCH_FIELD::SwapData( SCH_ITEM* aItem )
 
     SCH_FIELD* item = (SCH_FIELD*) aItem;
 
-    EXCHG( m_Text, item->m_Text );
-    EXCHG( m_Layer, item->m_Layer );
-    EXCHG( m_Pos, item->m_Pos );
-    EXCHG( m_Size, item->m_Size );
-    EXCHG( m_Thickness, item->m_Thickness );
-    EXCHG( m_Orient, item->m_Orient );
-    EXCHG( m_Mirror, item->m_Mirror );
-    EXCHG( m_Attributs, item->m_Attributs );
-    EXCHG( m_Italic, item->m_Italic );
-    EXCHG( m_Bold, item->m_Bold );
-    EXCHG( m_HJustify, item->m_HJustify );
-    EXCHG( m_VJustify, item->m_VJustify );
+    std::swap( m_Text, item->m_Text );
+    std::swap( m_Layer, item->m_Layer );
+    std::swap( m_Pos, item->m_Pos );
+    std::swap( m_Size, item->m_Size );
+    std::swap( m_Thickness, item->m_Thickness );
+    std::swap( m_Orient, item->m_Orient );
+    std::swap( m_Mirror, item->m_Mirror );
+    std::swap( m_Attributs, item->m_Attributs );
+    std::swap( m_Italic, item->m_Italic );
+    std::swap( m_Bold, item->m_Bold );
+    std::swap( m_HJustify, item->m_HJustify );
+    std::swap( m_VJustify, item->m_VJustify );
 }
 
 
-EDA_RECT SCH_FIELD::GetBoundingBox() const
+const EDA_RECT SCH_FIELD::GetBoundingBox() const
 {
     SCH_COMPONENT* parentComponent = (SCH_COMPONENT*) m_Parent;
     int linewidth = ( m_Thickness == 0 ) ? GetDefaultLineThickness() : m_Thickness;
@@ -270,26 +265,14 @@ EDA_RECT SCH_FIELD::GetBoundingBox() const
     // Calculate the text bounding box:
     EDA_RECT rect;
 
-    // set USE_TEXT_JUSTIFY_INITIAL_BEHAVIOR to 0 to use
-    // a justification relative to the text itself
-    // i.e. justification relative to an horizontal text
-    // or to 1 to keep the initial behavior
-#if (USE_TEXT_JUSTIFY_INITIAL_BEHAVIOR == 1 )
-    if( m_Orient == TEXT_ORIENT_VERT )
+    if( m_id == REFERENCE )     // multi units have one letter or more added to reference
     {
-        // For vertical texts, exchange the horizontal and the vertical justification
-        // The idea is to keep the justification always left or top for instance,
-        // no matter the text orientation
-        SCH_FIELD text( *this );    // Make a local copy to swap justifications
+        SCH_FIELD text( *this );    // Make a local copy to change text
                                     // because GetBoundingBox() is const
-        int tmp = (int)text.m_VJustify;
-        NEGATE( tmp );
-        text.m_VJustify  = (EDA_TEXT_VJUSTIFY_T)text.m_HJustify;
-        text.m_HJustify = (EDA_TEXT_HJUSTIFY_T)tmp;
+        text.SetText( GetFullyQualifiedText() );
         rect = text.GetTextBox( -1, linewidth );
     }
     else
-#endif
         rect = GetTextBox( -1, linewidth );
 
     // Calculate the bounding box position relative to the component:
@@ -302,12 +285,8 @@ EDA_RECT SCH_FIELD::GetBoundingBox() const
 
     // Due to the Y axis direction, we must mirror the bounding box,
     // relative to the text position:
-    begin.y -= pos.y;
-    end.y -= pos.y;
-    NEGATE( begin.y );
-    NEGATE( end.y );
-    begin.y += pos.y;
-    end.y += pos.y;
+    MIRROR( begin.y, pos.y );
+    MIRROR( end.y,   pos.y );
 
     // Now, apply the component transform (mirror/rot)
     begin = parentComponent->GetTransform().TransformCoordinate( begin );
@@ -387,7 +366,7 @@ void SCH_FIELD::Place( SCH_EDIT_FRAME* frame, wxDC* DC )
 bool SCH_FIELD::Matches( wxFindReplaceData& aSearchData, void* aAuxData, wxPoint* aFindLocation )
 {
     bool match;
-    wxString text = GetText();
+    wxString text = GetFullyQualifiedText();
 
     // User defined fields have an ID of -1.
     if( ((m_id > VALUE || m_id < REFERENCE) && !(aSearchData.GetFlags() & FR_SEARCH_ALL_FIELDS))
@@ -407,8 +386,8 @@ bool SCH_FIELD::Matches( wxFindReplaceData& aSearchData, void* aAuxData, wxPoint
 
         text = component->GetRef( (SCH_SHEET_PATH*) aAuxData );
 
-        if( component->GetPartCount() > 1 )
-            text << LIB_COMPONENT::ReturnSubReference( component->GetUnit() );
+        if( component->GetUnitCount() > 1 )
+            text << LIB_PART::SubReference( component->GetUnit() );
     }
 
     match = SCH_ITEM::Matches( text, aSearchData );
@@ -428,10 +407,13 @@ bool SCH_FIELD::Matches( wxFindReplaceData& aSearchData, void* aAuxData, wxPoint
 bool SCH_FIELD::Replace( wxFindReplaceData& aSearchData, void* aAuxData )
 {
     bool isReplaced;
-    wxString text = GetText();
+    wxString text = GetFullyQualifiedText();
 
-    if( m_id == REFERENCE && aAuxData != NULL )
+    if( m_id == REFERENCE )
     {
+        wxCHECK_MSG( aAuxData != NULL, false,
+                     wxT( "Cannot replace reference designator without valid sheet path." ) );
+
         wxCHECK_MSG( aSearchData.GetFlags() & FR_REPLACE_REFERENCES, false,
                      wxT( "Invalid replace component reference field call." ) ) ;
 
@@ -442,8 +424,8 @@ bool SCH_FIELD::Replace( wxFindReplaceData& aSearchData, void* aAuxData )
 
         text = component->GetRef( (SCH_SHEET_PATH*) aAuxData );
 
-        if( component->GetPartCount() > 1 )
-            text << LIB_COMPONENT::ReturnSubReference( component->GetUnit() );
+        // if( component->GetUnitCount() > 1 )
+        //     text << LIB_PART::SubReference( component->GetUnit() );
 
         isReplaced = EDA_ITEM::Replace( aSearchData, text );
 
@@ -538,7 +520,7 @@ void SCH_FIELD::Plot( PLOTTER* aPlotter )
     wxCHECK_RET( parent != NULL && parent->Type() == SCH_COMPONENT_T,
                  wxT( "Cannot plot field with invalid parent." ) );
 
-    EDA_COLOR_T color = ReturnLayerColor( GetLayer() );
+    EDA_COLOR_T color = GetLayerColor( GetLayer() );
 
     if( m_Attributs & TEXT_NO_VISIBLE )
         return;
@@ -576,19 +558,8 @@ void SCH_FIELD::Plot( PLOTTER* aPlotter )
 
     int      thickness = GetPenSize();
 
-    if( (parent->GetPartCount() <= 1) || (m_id != REFERENCE) )
-    {
-        aPlotter->Text( textpos, color, m_Text, orient, m_Size, hjustify, vjustify,
-                        thickness, m_Italic, m_Bold );
-    }
-    else    /* We plot the reference, for a multiple parts per package */
-    {
-        /* Adding A, B ... to the reference */
-        wxString Text = m_Text + LIB_COMPONENT::ReturnSubReference( parent->GetUnit() );
-
-        aPlotter->Text( textpos, color, Text, orient, m_Size, hjustify, vjustify,
-                        thickness, m_Italic, m_Bold );
-    }
+    aPlotter->Text( textpos, color, GetFullyQualifiedText(), orient, m_Size, hjustify, vjustify,
+            thickness, m_Italic, m_Bold );
 }
 
 

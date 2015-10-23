@@ -1,14 +1,34 @@
-/****************************************/
-/* File: dialog_print_using_printer.cpp */
-/****************************************/
+/*
+ * This program source code file is part of KiCad, a free EDA CAD application.
+ *
+ * Copyright (C) 2009 Jean-Pierre Charras, jp.charras at wanadoo.fr
+ * Copyright (C) 2014 KiCad Developers, see CHANGELOG.TXT for contributors.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation; either version 2
+ * of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, you may find one here:
+ * http://www.gnu.org/licenses/old-licenses/gpl-2.0.html
+ * or you may search the http://www.gnu.org website for the version 2 license,
+ * or you may write to the Free Software Foundation, Inc.,
+ * 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
+ */
 
 #include <fctsys.h>
-#include <appl_wxstruct.h>
+#include <pgm_base.h>
 #include <gr_basic.h>
 #include <class_drawpanel.h>
 #include <confirm.h>
 #include <class_sch_screen.h>
-#include <wxEeschemaStruct.h>
+#include <schframe.h>
 #include <base_units.h>
 
 #include <general.h>
@@ -16,7 +36,38 @@
 #include <sch_sheet.h>
 #include <sch_sheet_path.h>
 
-#include <dialog_print_using_printer.h>
+#include <invoke_sch_dialog.h>
+#include <dialog_print_using_printer_base.h>
+
+
+
+/**
+ * Class DIALOG_PRINT_USING_PRINTER
+ * offers to print a schematic dialog.
+ *
+ * Derived from DIALOG_PRINT_USING_PRINTER_base created by wxFormBuilder
+ */
+class DIALOG_PRINT_USING_PRINTER : public DIALOG_PRINT_USING_PRINTER_BASE
+{
+public:
+    DIALOG_PRINT_USING_PRINTER( SCH_EDIT_FRAME* aParent );
+
+    SCH_EDIT_FRAME* GetParent() const
+    {
+        return ( SCH_EDIT_FRAME* ) wxWindow::GetParent();
+    }
+
+private:
+    void OnCloseWindow( wxCloseEvent& event );
+    void OnPageSetup( wxCommandEvent& event );
+    void OnPrintPreview( wxCommandEvent& event );
+    void OnPrintButtonClick( wxCommandEvent& event );
+    void OnButtonCancelClick( wxCommandEvent& event ) { Close(); }
+
+    void initDialog();
+    void GetPrintOptions();
+};
+
 
 
 /**
@@ -25,7 +76,7 @@
 class SCH_PRINTOUT : public wxPrintout
 {
 private:
-    DIALOG_PRINT_USING_PRINTER* m_Parent;
+    DIALOG_PRINT_USING_PRINTER* m_parent;
 
 public:
     SCH_PRINTOUT( DIALOG_PRINT_USING_PRINTER* aParent, const wxString& aTitle ) :
@@ -33,9 +84,9 @@ public:
     {
         wxASSERT( aParent != NULL );
 
-        m_Parent = aParent;
+        m_parent = aParent;
     }
-
+    SCH_EDIT_FRAME* GetSchFrameParent() { return m_parent->GetParent(); }
     bool OnPrintPage( int page );
     bool HasPage( int page );
     bool OnBeginDocument( int startPage, int endPage );
@@ -112,21 +163,18 @@ DIALOG_PRINT_USING_PRINTER::DIALOG_PRINT_USING_PRINTER( SCH_EDIT_FRAME* aParent 
 
     m_checkReference->SetValue( aParent->GetPrintSheetReference() );
     m_checkMonochrome->SetValue( aParent->GetPrintMonochrome() );
+    initDialog();
 
 #ifdef __WXMAC__
     // Problems with modal on wx-2.9 - Anyway preview is standard for OSX
    m_buttonPreview->Hide();
 #endif
+
+    GetSizer()->Fit( this );
 }
 
 
-SCH_EDIT_FRAME* DIALOG_PRINT_USING_PRINTER::GetParent() const
-{
-    return ( SCH_EDIT_FRAME* ) wxWindow::GetParent();
-}
-
-
-void DIALOG_PRINT_USING_PRINTER::OnInitDialog( wxInitDialogEvent& event )
+void DIALOG_PRINT_USING_PRINTER::initDialog()
 {
     SCH_EDIT_FRAME* parent = GetParent();
 
@@ -226,6 +274,7 @@ void DIALOG_PRINT_USING_PRINTER::OnPrintPreview( wxCommandEvent& event )
     preview->SetZoom( 100 );
 
     SCH_PREVIEW_FRAME* frame = new SCH_PREVIEW_FRAME( preview, this, title );
+    frame->SetMinSize( wxSize( 550, 350 ) );
 
     // on first invocation in this runtime session, set to 2/3 size of my parent,
     // but will be changed in Show() if not first time as will position.
@@ -233,6 +282,8 @@ void DIALOG_PRINT_USING_PRINTER::OnPrintPreview( wxCommandEvent& event )
     frame->Center();
 
     frame->Initialize();
+
+    frame->Raise(); // Needed on Ubuntu/Unity to display the frame
     frame->Show( true );
 }
 
@@ -268,7 +319,7 @@ void DIALOG_PRINT_USING_PRINTER::OnPrintButtonClick( wxCommandEvent& event )
 bool SCH_PRINTOUT::OnPrintPage( int page )
 {
     wxString msg;
-    SCH_EDIT_FRAME* parent = m_Parent->GetParent();
+    SCH_EDIT_FRAME* parent = m_parent->GetParent();
     msg.Printf( _( "Print page %d" ), page );
     parent->ClearMsgPanel();
     parent->AppendMsgPanel( msg, wxEmptyString, CYAN );
@@ -328,7 +379,7 @@ bool SCH_PRINTOUT::OnBeginDocument( int startPage, int endPage )
         return false;
 
 #ifdef __WXDEBUG__
-    SCH_EDIT_FRAME* parent = m_Parent->GetParent();
+    SCH_EDIT_FRAME* parent = m_parent->GetParent();
     wxLogDebug( wxT( "Printer name: " ) +
                 parent->GetPageSetupData().GetPrintData().GetPrinterName() );
     wxLogDebug( wxT( "Paper ID: %d" ),
@@ -358,7 +409,7 @@ void SCH_PRINTOUT::DrawPage( SCH_SCREEN* aScreen )
     EDA_RECT oldClipBox;
     wxRect   fitRect;
     wxDC*    dc = GetDC();
-    SCH_EDIT_FRAME* parent = m_Parent->GetParent();
+    SCH_EDIT_FRAME* parent = m_parent->GetParent();
     EDA_DRAW_PANEL* panel = parent->GetCanvas();
 
     wxBusyCursor dummy;
@@ -382,12 +433,31 @@ void SCH_PRINTOUT::DrawPage( SCH_SCREEN* aScreen )
     FitThisSizeToPaper( pageSizeIU );
     fitRect = GetLogicalPaperRect();
 
-    wxLogDebug( wxT( "Fit rectangle: %d, %d, %d, %d" ),
-                fitRect.x, fitRect.y, fitRect.width, fitRect.height );
+    wxLogDebug( wxT( "Fit rectangle: x = %d, y = %d, w = %d, h = %d" ),
+                  fitRect.x, fitRect.y, fitRect.width, fitRect.height );
 
+    // When is the actual paper size does not match the schematic page
+    // size, the drawing is not perfectly centered on X or Y axis.
+    // Give a draw offset centers the schematic page on the paper draw area
+    // Because the sizes are fitted, only an Y or X offset is needed
+    // and both are 0 when sizes are identical.
+    // Y or Y offset is not null when the X/Y size ratio differs between
+    // the actual paper size and the schematic page
     int xoffset = ( fitRect.width - pageSizeIU.x ) / 2;
-    int yoffset = ( fitRect.height - pageSizeIU.y ) / 2;
 
+    // For an obscure reason, OffsetLogicalOrigin creates issues,
+    // under some circumstances, when yoffset is not always null
+    // and changes from a page to an other page
+    // This is only a workaround, not a fix
+    // see https://bugs.launchpad.net/kicad/+bug/1464773
+    // xoffset does not create issues.
+#if 0   // FIX ME
+    int yoffset = ( fitRect.height - pageSizeIU.y ) / 2;
+#else
+    // the Y centering will be not perfect, but this is less annoying
+    // than a blank page or a buggy centering
+    int yoffset = 0;
+#endif
     OffsetLogicalOrigin( xoffset, yoffset );
 
     GRResetPenAndBrush( dc );
@@ -397,15 +467,15 @@ void SCH_PRINTOUT::DrawPage( SCH_SCREEN* aScreen )
 
     aScreen->m_IsPrinting = true;
 
-    EDA_COLOR_T bg_color = g_DrawBgColor;
+    EDA_COLOR_T bg_color = GetSchFrameParent()->GetDrawBgColor();
 
-    aScreen->Draw( panel, dc, GR_DEFAULT_DRAWMODE );
+    aScreen->Draw( panel, dc, (GR_DRAWMODE) 0 );
 
     if( printReference )
-        parent->TraceWorkSheet( dc, aScreen, GetDefaultLineThickness(),
+        parent->DrawWorkSheet( dc, aScreen, GetDefaultLineThickness(),
                 IU_PER_MILS, aScreen->GetFileName() );
 
-    g_DrawBgColor = bg_color;
+    GetSchFrameParent()->SetDrawBgColor( bg_color );
     aScreen->m_IsPrinting = false;
     panel->SetClipBox( oldClipBox );
 
@@ -414,4 +484,12 @@ void SCH_PRINTOUT::DrawPage( SCH_SCREEN* aScreen )
     aScreen->m_StartVisu = tmp_startvisu;
     aScreen->m_DrawOrg   = old_org;
     aScreen->SetZoom( oldZoom );
+}
+
+
+int InvokeDialogPrintUsingPrinter( SCH_EDIT_FRAME* aCaller )
+{
+    DIALOG_PRINT_USING_PRINTER dlg( aCaller );
+
+    return dlg.ShowModal();
 }

@@ -1,9 +1,9 @@
 /*
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
- * Copyright (C) 2012 Jean-Pierre Charras, jp.charras at wanadoo.fr
- * Copyright (C) 2008-2011 Wayne Stambaugh <stambaughw@verizon.net>
- * Copyright (C) 2004-2012 KiCad Developers, see change_log.txt for contributors.
+ * Copyright (C) 2012-2015 Jean-Pierre Charras, jp.charras at wanadoo.fr
+ * Copyright (C) 2008-2015 Wayne Stambaugh <stambaughw@verizon.net>
+ * Copyright (C) 2004-2015 KiCad Developers, see change_log.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -28,12 +28,17 @@
  */
 
 #include <fctsys.h>
-#include <appl_wxstruct.h>
+#include <pgm_base.h>
+#include <kiway.h>
 #include <class_drawpanel.h>
+#include <pcb_draw_panel_gal.h>
 #include <wxPcbStruct.h>
 #include <3d_viewer.h>
-#include <pcbcommon.h>
+#include <dialog_helpers.h>
 #include <msgpanel.h>
+#include <fp_lib_table.h>
+#include <fpid.h>
+#include <confirm.h>
 
 #include <class_board.h>
 #include <class_module.h>
@@ -45,168 +50,172 @@
 
 #include <hotkeys.h>
 #include <wildcards_and_files_ext.h>
+#include <pcbnew_config.h>
+
+#include <tool/tool_manager.h>
+#include <tool/tool_dispatcher.h>
+#include "tools/pcbnew_control.h"
+#include "tools/common_actions.h"
+
+#include <boost/bind.hpp>
 
 
-/**
- * Save previous component library viewer state.
- */
-wxString FOOTPRINT_VIEWER_FRAME::m_libraryName;
-wxString FOOTPRINT_VIEWER_FRAME::m_footprintName;
-
-
-/// When the viewer is used to select a component in schematic, the selected component is here.
-wxString FOOTPRINT_VIEWER_FRAME::m_selectedFootprintName;
+#define NEXT_PART       1
+#define NEW_PART        0
+#define PREVIOUS_PART   -1
 
 
 BEGIN_EVENT_TABLE( FOOTPRINT_VIEWER_FRAME, EDA_DRAW_FRAME )
-    /* Window events */
+    // Window events
     EVT_CLOSE( FOOTPRINT_VIEWER_FRAME::OnCloseWindow )
     EVT_SIZE( FOOTPRINT_VIEWER_FRAME::OnSize )
     EVT_ACTIVATE( FOOTPRINT_VIEWER_FRAME::OnActivate )
 
-    /* Sash drag events */
-    EVT_SASH_DRAGGED( ID_MODVIEW_LIBWINDOW, FOOTPRINT_VIEWER_FRAME::OnSashDrag )
-    EVT_SASH_DRAGGED( ID_MODVIEW_FOOTPRINT_WINDOW, FOOTPRINT_VIEWER_FRAME::OnSashDrag )
+    // Menu (and/or hotkey) events
+    EVT_MENU( wxID_EXIT, FOOTPRINT_VIEWER_FRAME::CloseFootprintViewer )
+    EVT_MENU( ID_SET_RELATIVE_OFFSET, FOOTPRINT_VIEWER_FRAME::OnSetRelativeOffset )
 
-    /* Toolbar events */
+    // Toolbar events
     EVT_TOOL( ID_MODVIEW_SELECT_LIB,
               FOOTPRINT_VIEWER_FRAME::SelectCurrentLibrary )
     EVT_TOOL( ID_MODVIEW_SELECT_PART,
               FOOTPRINT_VIEWER_FRAME::SelectCurrentFootprint )
     EVT_TOOL( ID_MODVIEW_NEXT,
-              FOOTPRINT_VIEWER_FRAME::Process_Special_Functions )
+              FOOTPRINT_VIEWER_FRAME::OnIterateFootprintList )
     EVT_TOOL( ID_MODVIEW_PREVIOUS,
-              FOOTPRINT_VIEWER_FRAME::Process_Special_Functions )
+              FOOTPRINT_VIEWER_FRAME::OnIterateFootprintList )
     EVT_TOOL( ID_MODVIEW_FOOTPRINT_EXPORT_TO_BOARD,
               FOOTPRINT_VIEWER_FRAME::ExportSelectedFootprint )
     EVT_TOOL( ID_MODVIEW_SHOW_3D_VIEW, FOOTPRINT_VIEWER_FRAME::Show3D_Frame )
 
-    /* listbox events */
+    // listbox events
     EVT_LISTBOX( ID_MODVIEW_LIB_LIST, FOOTPRINT_VIEWER_FRAME::ClickOnLibList )
     EVT_LISTBOX( ID_MODVIEW_FOOTPRINT_LIST, FOOTPRINT_VIEWER_FRAME::ClickOnFootprintList )
     EVT_LISTBOX_DCLICK( ID_MODVIEW_FOOTPRINT_LIST, FOOTPRINT_VIEWER_FRAME::DClickOnFootprintList )
 
-    EVT_MENU( ID_SET_RELATIVE_OFFSET, FOOTPRINT_VIEWER_FRAME::OnSetRelativeOffset )
 END_EVENT_TABLE()
 
 
-/*
- * This emulates the zoom menu entries found in the other KiCad applications.
- * The library viewer does not have any menus so add an accelerator table to
- * the main frame.
+/* Note:
+ * FOOTPRINT_VIEWER_FRAME can be build in "modal mode", or as a usual frame.
+ * In modal mode:
+ *  a tool to export the selected footprint is shown in the toolbar
+ *  the style is wxSTAY_ON_TOP on Windows and wxFRAME_FLOAT_ON_PARENT on unix
+ * reason:
+ * the parent is usually the kicad window manager (not easy to change)
+ * On windows, when the frame with stype wxFRAME_FLOAT_ON_PARENT is displayed
+ * its parent frame is brought to the foreground, on the top of the calling frame.
+ * and stays displayed when closing the FOOTPRINT_VIEWER_FRAME frame.
+ * this issue does not happen on unix
+ *
+ * So we use wxSTAY_ON_TOP on Windows, and wxFRAME_FLOAT_ON_PARENT on unix
+ * to simulate a dialog called by ShowModal.
  */
-static wxAcceleratorEntry accels[] =
+
+
+#define FOOTPRINT_VIEWER_FRAME_NAME     wxT( "ModViewFrame" )
+
+
+FOOTPRINT_VIEWER_FRAME::FOOTPRINT_VIEWER_FRAME( KIWAY* aKiway, wxWindow* aParent, FRAME_T aFrameType ) :
+    PCB_BASE_FRAME( aKiway, aParent, aFrameType, _( "Footprint Library Browser" ),
+            wxDefaultPosition, wxDefaultSize,
+            aFrameType == FRAME_PCB_MODULE_VIEWER_MODAL ?
+#ifdef __WINDOWS__
+                KICAD_DEFAULT_DRAWFRAME_STYLE | wxSTAY_ON_TOP :
+#else
+                KICAD_DEFAULT_DRAWFRAME_STYLE | wxFRAME_FLOAT_ON_PARENT :
+#endif
+                KICAD_DEFAULT_DRAWFRAME_STYLE,
+            FOOTPRINT_VIEWER_FRAME_NAME )
 {
-    wxAcceleratorEntry( wxACCEL_NORMAL, WXK_F1, ID_ZOOM_IN ),
-    wxAcceleratorEntry( wxACCEL_NORMAL, WXK_F2, ID_ZOOM_OUT ),
-    wxAcceleratorEntry( wxACCEL_NORMAL, WXK_F3, ID_ZOOM_REDRAW ),
-    wxAcceleratorEntry( wxACCEL_NORMAL, WXK_F4, ID_POPUP_ZOOM_CENTER ),
-    wxAcceleratorEntry( wxACCEL_NORMAL, WXK_HOME, ID_ZOOM_PAGE ),
-    wxAcceleratorEntry( wxACCEL_NORMAL, WXK_SPACE, ID_SET_RELATIVE_OFFSET )
-};
+    wxASSERT( aFrameType==FRAME_PCB_MODULE_VIEWER || aFrameType==FRAME_PCB_MODULE_VIEWER_MODAL );
 
-#define ACCEL_TABLE_CNT ( sizeof( accels ) / sizeof( wxAcceleratorEntry ) )
+    if( aFrameType == FRAME_PCB_MODULE_VIEWER_MODAL )
+        SetModal( true );
 
-#define EXTRA_BORDER_SIZE 2
-
-#define FOOTPRINT_VIEWER_FRAME_NAME wxT( "ModViewFrame" )
-
-FOOTPRINT_VIEWER_FRAME::FOOTPRINT_VIEWER_FRAME( PCB_BASE_FRAME* parent,
-                                                wxSemaphore* semaphore, long style ) :
-    PCB_BASE_FRAME( parent, MODULE_VIEWER_FRAME_TYPE, _( "Footprint Library Browser" ),
-                    wxDefaultPosition, wxDefaultSize, style, GetFootprintViewerFrameName() )
-{
-    wxAcceleratorTable table( ACCEL_TABLE_CNT, accels );
-
-    m_FrameName = GetFootprintViewerFrameName();
-    m_configPath = wxT( "FootprintViewer" );
-    m_showAxis = true;         // true to draw axis.
+    m_configFrameName = FOOTPRINT_VIEWER_FRAME_NAME;
+    m_showAxis   = true;         // true to draw axis.
 
     // Give an icon
     wxIcon  icon;
     icon.CopyFromBitmap( KiBitmap( modview_icon_xpm ) );
     SetIcon( icon );
 
-    m_HotkeysZoomAndGridList = g_Module_Viewer_Hokeys_Descr;
-    m_FootprintList = NULL;
-    m_LibList = NULL;
-    m_LibListWindow = NULL;
-    m_FootprintListWindow = NULL;
-    m_Semaphore     = semaphore;
-    m_selectedFootprintName.Empty();
+    m_hotkeysDescrList = g_Module_Viewer_Hokeys_Descr;
 
-    if( m_Semaphore )
-        SetModalMode(true);
+    m_libList = new wxListBox( this, ID_MODVIEW_LIB_LIST,
+            wxDefaultPosition, wxDefaultSize, 0, NULL, wxLB_HSCROLL );
+
+    m_footprintList = new wxListBox( this, ID_MODVIEW_FOOTPRINT_LIST,
+            wxDefaultPosition, wxDefaultSize, 0, NULL, wxLB_HSCROLL );
 
     SetBoard( new BOARD() );
+    // In viewer, the default net clearance is not known (it depends on the actual board).
+    // So we do not show the default clearance, by setting it to 0
+    // The footprint or pad specific clearance will be shown
+    GetBoard()->GetDesignSettings().GetDefault()->SetClearance(0);
+
     // Ensure all layers and items are visible:
     GetBoard()->SetVisibleAlls();
-    SetScreen( new PCB_SCREEN(GetPageSizeIU()) );
+    SetScreen( new PCB_SCREEN( GetPageSizeIU() ) );
+
     GetScreen()->m_Center = true;      // Center coordinate origins on screen.
-    LoadSettings();
+    LoadSettings( config() );
 
     SetSize( m_FramePos.x, m_FramePos.y, m_FrameSize.x, m_FrameSize.y );
+
     GetScreen()->SetGrid( ID_POPUP_GRID_LEVEL_1000 + m_LastGridSizeId  );
 
+    // Menu bar is not mandatory: uncomment/comment the next line
+    // to add/remove the menubar
+    ReCreateMenuBar();
     ReCreateHToolbar();
     ReCreateVToolbar();
 
-    wxSize  size = GetClientSize();
-    size.y -= m_MsgFrameHeight + 2;
-
-    m_LibListSize.y = -1;
-
-    wxPoint win_pos( 0, 0 );
-
-     // Creates the libraries window display
-    m_LibListWindow =
-        new wxSashLayoutWindow( this, ID_MODVIEW_LIBWINDOW, win_pos,
-                                wxDefaultSize, wxCLIP_CHILDREN | wxSW_3D,
-                                wxT( "LibWindow" ) );
-    m_LibListWindow->SetOrientation( wxLAYOUT_VERTICAL );
-    m_LibListWindow->SetAlignment( wxLAYOUT_LEFT );
-    m_LibListWindow->SetSashVisible( wxSASH_RIGHT, true );
-    m_LibListWindow->SetExtraBorderSize( EXTRA_BORDER_SIZE );
-    m_LibList = new wxListBox( m_LibListWindow, ID_MODVIEW_LIB_LIST,
-                               wxPoint( 0, 0 ), wxDefaultSize,
-                               0, NULL, wxLB_HSCROLL );
-
-    // Creates the component window display
-    m_FootprintListSize.y = size.y;
-    win_pos.x = m_LibListSize.x;
-    m_FootprintListWindow = new wxSashLayoutWindow( this, ID_MODVIEW_FOOTPRINT_WINDOW,
-                                              win_pos, wxDefaultSize,
-                                              wxCLIP_CHILDREN | wxSW_3D,
-                                              wxT( "CmpWindow" ) );
-    m_FootprintListWindow->SetOrientation( wxLAYOUT_VERTICAL );
-
-    m_FootprintListWindow->SetSashVisible( wxSASH_RIGHT, true );
-    m_FootprintListWindow->SetExtraBorderSize( EXTRA_BORDER_SIZE );
-    m_FootprintList = new wxListBox( m_FootprintListWindow, ID_MODVIEW_FOOTPRINT_LIST,
-                               wxPoint( 0, 0 ), wxDefaultSize,
-                               0, NULL, wxLB_HSCROLL );
-
     ReCreateLibraryList();
+    UpdateTitle();
 
-    DisplayLibInfos();
+    PCB_BASE_FRAME* parentFrame = static_cast<PCB_BASE_FRAME*>( Kiway().Player( FRAME_PCB, true ) );
 
-    // If a footprint was previsiously loaded, reload it
-    if( !m_libraryName.IsEmpty() && !m_footprintName.IsEmpty() )
-        GetModuleLibrary( m_libraryName + wxT(".") + LegacyFootprintLibPathExtension,
-                      m_footprintName, false );
+    // Create GAL canvas
+    PCB_DRAW_PANEL_GAL* drawPanel = new PCB_DRAW_PANEL_GAL( this, -1, wxPoint( 0, 0 ), m_FrameSize,
+                                                            parentFrame->GetGalCanvas()->GetBackend() );
+    SetGalCanvas( drawPanel );
 
+    // Create the manager and dispatcher & route draw panel events to the dispatcher
+    m_toolManager = new TOOL_MANAGER;
+    m_toolManager->SetEnvironment( GetBoard(), drawPanel->GetView(),
+                                   drawPanel->GetViewControls(), this );
+    m_toolDispatcher = new TOOL_DISPATCHER( m_toolManager );
+    drawPanel->SetEventDispatcher( m_toolDispatcher );
 
-    if( m_canvas )
-        m_canvas->SetAcceleratorTable( table );
+    m_toolManager->RegisterTool( new PCBNEW_CONTROL );
+    m_toolManager->ResetTools( TOOL_BASE::RUN );
+
+    // If a footprint was previously loaded, reload it
+    if( getCurNickname().size() && getCurFootprintName().size() )
+    {
+        FPID id;
+
+        id.SetLibNickname( getCurNickname() );
+        id.SetFootprintName( getCurFootprintName() );
+        GetBoard()->Add( loadFootprint( id ) );
+    }
+
+    drawPanel->DisplayBoard( m_Pcb );
+    updateView();
 
     m_auimgr.SetManagedWindow( this );
 
+    wxSize minsize(100,-1);     // Min size of list boxes
 
-    EDA_PANEINFO horiz;
-    horiz.HorizontalToolbarPane();
-
-    EDA_PANEINFO vert;
-    vert.VerticalToolbarPane();
+    // Main toolbar is initially docked at the top of the main window and dockable on any side.
+    // The close button is disable because the footprint viewer has no main menu to re-enable it.
+    // The tool bar will only be dockable on the top or bottom of the main frame window.  This is
+    // most likely due to the fact that the other windows are not dockable and are preventing the
+    // tool bar from docking on the right and left.
+    wxAuiPaneInfo toolbarPaneInfo;
+    toolbarPaneInfo.Name( wxT( "m_mainToolBar" ) ).ToolbarPane().Top().CloseButton( false );
 
     EDA_PANEINFO info;
     info.InfoToolbarPane();
@@ -214,42 +223,45 @@ FOOTPRINT_VIEWER_FRAME::FOOTPRINT_VIEWER_FRAME( PCB_BASE_FRAME* parent,
     EDA_PANEINFO mesg;
     mesg.MessageToolbarPane();
 
+    // Manage main toolbar, top pane
+    m_auimgr.AddPane( m_mainToolBar, toolbarPaneInfo );
 
-    // Manage main toolbal
-    m_auimgr.AddPane( m_mainToolBar,
-                      wxAuiPaneInfo( horiz ).Name( wxT ("m_mainToolBar" ) ).Top().Row( 0 ) );
+    // Manage the list of libraries, left pane.
+    m_auimgr.AddPane( m_libList,
+                      wxAuiPaneInfo( info ).Name( wxT( "m_libList" ) )
+                      .Left().Row( 1 ).MinSize( minsize ) );
 
-    wxSize minsize( 60, -1 );
+    // Manage the list of footprints, center pane.
+    m_auimgr.AddPane( m_footprintList,
+                      wxAuiPaneInfo( info ).Name( wxT( "m_footprintList" ) )
+                      .Left().Row( 2 ).MinSize( minsize ) );
 
-    // Manage the left window (list of libraries)
-    if( m_LibListWindow )
-        m_auimgr.AddPane( m_LibListWindow, wxAuiPaneInfo( info ).Name( wxT( "m_LibList" ) ).
-                          Left().Row( 0 ));
-
-    // Manage the list of components)
-    m_auimgr.AddPane( m_FootprintListWindow,
-                      wxAuiPaneInfo( info ).Name( wxT( "m_FootprintList" ) ).
-                      Left().Row( 1 ) );
-
-    // Manage the draw panel
+    // Manage the draw panel, right pane.
     m_auimgr.AddPane( m_canvas,
-                      wxAuiPaneInfo().Name( wxT( "DrawFrame" ) ).Centre() );
+                      wxAuiPaneInfo().Name( wxT( "DrawFrame" ) ).CentrePane() );
+    m_auimgr.AddPane( (wxWindow*) GetGalCanvas(),
+                      wxAuiPaneInfo().Name( wxT( "DrawFrameGal" ) ).CentrePane().Hide() );
 
-    // Manage the message panel
+    // Manage the message panel, bottom pane.
     m_auimgr.AddPane( m_messagePanel,
-                      wxAuiPaneInfo( mesg ).Name( wxT( "MsgPanel" ) ).Bottom().Layer(10) );
+                      wxAuiPaneInfo( mesg ).Name( wxT( "MsgPanel" ) ).Bottom() );
 
-    /* Now the minimum windows are fixed, set library list
-     * and component list of the previous values from last viewlib use
-     */
-    if( m_LibListWindow )
+    if( !m_perspective.IsEmpty() )
     {
-        wxAuiPaneInfo& pane = m_auimgr.GetPane(m_LibListWindow);
-        pane.MinSize( wxSize(m_LibListSize.x, -1));
+        // Restore last saved sizes, pos and other params
+        // However m_mainToolBar size cannot be set to its last saved size
+        // because the actual size change depending on the way modview was called:
+        // the tool to export the current footprint exist or not.
+        // and the saved size is not always OK
+        // the trick is to get the default toolbar size, and set the size after
+        // calling LoadPerspective
+        wxSize tbsize = m_mainToolBar->GetSize();
+        m_auimgr.LoadPerspective( m_perspective, false );
+        m_auimgr.GetPane( m_mainToolBar ).BestSize( tbsize );
     }
-    wxAuiPaneInfo& pane = m_auimgr.GetPane(m_FootprintListWindow);
-    pane.MinSize(wxSize(m_FootprintListSize.x, -1));
 
+    // after changing something to the aui manager,
+    // call Update()() to reflect the changes
     m_auimgr.Update();
 
     // Now Drawpanel is sized, we can use BestZoom to show the component (if any)
@@ -259,7 +271,13 @@ FOOTPRINT_VIEWER_FRAME::FOOTPRINT_VIEWER_FRAME( PCB_BASE_FRAME* parent,
     Zoom_Automatique( false );
 #endif
 
-    Show( true );
+    UseGalCanvas( parentFrame->IsGalCanvasActive() );
+
+    if( !IsModal() )        // For modal mode, calling ShowModal() will show this frame
+    {
+        Raise();            // On some window managers, this is needed
+        Show( true );
+    }
 }
 
 
@@ -269,69 +287,26 @@ FOOTPRINT_VIEWER_FRAME::~FOOTPRINT_VIEWER_FRAME()
         m_Draw3DFrame->Destroy();
 }
 
-/* return the frame name used when creating the frame
- * used to get a reference to this frame, if exists
- */
-const wxChar* FOOTPRINT_VIEWER_FRAME::GetFootprintViewerFrameName()
-{
-    return FOOTPRINT_VIEWER_FRAME_NAME;
-}
-
-/* return a reference to the current opened Footprint viewer
- * or NULL if no Footprint viewer currently opened
- */
-FOOTPRINT_VIEWER_FRAME* FOOTPRINT_VIEWER_FRAME::GetActiveFootprintViewer()
-{
-    return (FOOTPRINT_VIEWER_FRAME*)
-            wxWindow::FindWindowByName(GetFootprintViewerFrameName());
-}
 
 
 void FOOTPRINT_VIEWER_FRAME::OnCloseWindow( wxCloseEvent& Event )
 {
-    SaveSettings();
+    DBG(printf( "%s:\n", __func__ );)
 
-    if( m_Semaphore )
+    if( IsGalCanvasActive() )
+        GetGalCanvas()->StopDrawing();
+
+    if( IsModal() )
     {
-        m_Semaphore->Post();
-        SetModalMode(false);
-        // This window will be destroyed by the calling function,
-        // to avoid side effects
+        // Only dismiss a modal frame once, so that the return values set by
+        // the prior DismissModal() are not bashed for ShowModal().
+        if( !IsDismissed() )
+            DismissModal( false );
+
+        // window to be destroyed by the caller of KIWAY_PLAYER::ShowModal()
     }
     else
         Destroy();
-}
-
-
-void FOOTPRINT_VIEWER_FRAME::OnSashDrag( wxSashEvent& event )
-{
-    if( event.GetDragStatus() == wxSASH_STATUS_OUT_OF_RANGE )
-        return;
-
-    m_LibListSize.y = GetClientSize().y - m_MsgFrameHeight;
-    m_FootprintListSize.y = m_LibListSize.y;
-
-    switch( event.GetId() )
-    {
-    case ID_MODVIEW_LIBWINDOW:
-        if( m_LibListWindow )
-        {
-            wxAuiPaneInfo& pane = m_auimgr.GetPane( m_LibListWindow );
-            m_LibListSize.x = event.GetDragRect().width;
-            pane.MinSize( m_LibListSize );
-            m_auimgr.Update();
-        }
-        break;
-
-    case ID_MODVIEW_FOOTPRINT_WINDOW:
-    {
-        wxAuiPaneInfo& pane = m_auimgr.GetPane( m_FootprintListWindow );
-        m_FootprintListSize.x = event.GetDragRect().width;
-        pane.MinSize( m_FootprintListSize );
-        m_auimgr.Update();
-    }
-        break;
-    }
 }
 
 
@@ -346,190 +321,230 @@ void FOOTPRINT_VIEWER_FRAME::OnSize( wxSizeEvent& SizeEv )
 
 void FOOTPRINT_VIEWER_FRAME::OnSetRelativeOffset( wxCommandEvent& event )
 {
-    GetScreen()->m_O_Curseur = GetScreen()->GetCrossHairPosition();
+    GetScreen()->m_O_Curseur = GetCrossHairPosition();
     UpdateStatusBar();
 }
 
 
 void FOOTPRINT_VIEWER_FRAME::ReCreateLibraryList()
 {
-    if( m_LibList == NULL )
-        return;
+    m_libList->Clear();
 
-    m_LibList->Clear();
-    for( unsigned ii = 0; ii < g_LibraryNames.GetCount(); ii++ )
-    {
-        m_LibList->Append( g_LibraryNames[ii] );
-    }
+    std::vector< wxString > nicknames = Prj().PcbFootprintLibs()->GetLogicalLibs();
+
+    for( unsigned ii = 0; ii < nicknames.size(); ii++ )
+        m_libList->Append( nicknames[ii] );
 
     // Search for a previous selection:
-    int index =  m_LibList->FindString( m_libraryName );
+    int index =  m_libList->FindString( getCurNickname() );
 
     if( index != wxNOT_FOUND )
     {
-        m_LibList->SetSelection( index, true );
+        m_libList->SetSelection( index, true );
     }
     else
     {
-        /* If not found, clear current library selection because it can be
-         * deleted after a config change. */
-        m_libraryName = wxEmptyString;
-        m_footprintName = wxEmptyString;
+        // If not found, clear current library selection because it can be
+        // deleted after a configuration change.
+        setCurNickname( wxEmptyString );
+        setCurFootprintName( wxEmptyString );
     }
 
     ReCreateFootprintList();
     ReCreateHToolbar();
-    DisplayLibInfos();
+
     m_canvas->Refresh();
 }
 
 
 void FOOTPRINT_VIEWER_FRAME::ReCreateFootprintList()
 {
-    if( m_FootprintList == NULL )
-        return;
+    m_footprintList->Clear();
 
-    m_FootprintList->Clear();
-
-    if( m_libraryName.IsEmpty() )
+    if( !getCurNickname() )
     {
-        m_footprintName = wxEmptyString;
+        setCurFootprintName( wxEmptyString );
         return;
     }
 
-    wxArrayString libsList;
-    libsList.Add( m_libraryName );
     FOOTPRINT_LIST fp_info_list;
-    fp_info_list.ReadFootprintFiles( libsList );
 
-    wxArrayString  fpList;
-    BOOST_FOREACH( FOOTPRINT_INFO& footprint, fp_info_list.m_List )
+    wxString nickname = getCurNickname();
+
+    fp_info_list.ReadFootprintFiles( Prj().PcbFootprintLibs(), !nickname ? NULL : &nickname );
+
+    if( fp_info_list.GetErrorCount() )
     {
-        fpList.Add(( footprint.m_Module ) );
+        fp_info_list.DisplayErrors( this );
+        return;
     }
-    m_FootprintList->Append( fpList );
 
-    int index = m_FootprintList->FindString( m_footprintName );
+    BOOST_FOREACH( const FOOTPRINT_INFO& footprint, fp_info_list.GetList() )
+    {
+        m_footprintList->Append( footprint.GetFootprintName() );
+    }
+
+    int index = m_footprintList->FindString( getCurFootprintName() );
 
     if( index == wxNOT_FOUND )
-        m_footprintName = wxEmptyString;
+        setCurFootprintName( wxEmptyString );
     else
-        m_FootprintList->SetSelection( index, true );
+        m_footprintList->SetSelection( index, true );
 }
 
 
 void FOOTPRINT_VIEWER_FRAME::ClickOnLibList( wxCommandEvent& event )
 {
-    int ii = m_LibList->GetSelection();
+    int ii = m_libList->GetSelection();
 
     if( ii < 0 )
         return;
 
-    wxString name = m_LibList->GetString( ii );
+    wxString name = m_libList->GetString( ii );
 
-    if( m_libraryName == name )
+    if( getCurNickname() == name )
         return;
 
-    m_libraryName = name;
+    setCurNickname( name );
+
     ReCreateFootprintList();
-    m_canvas->Refresh();
-    DisplayLibInfos();
+    UpdateTitle();
     ReCreateHToolbar();
 }
 
 
 void FOOTPRINT_VIEWER_FRAME::ClickOnFootprintList( wxCommandEvent& event )
 {
-    int ii = m_FootprintList->GetSelection();
+    if( m_footprintList->GetCount() == 0 )
+        return;
+
+    int ii = m_footprintList->GetSelection();
 
     if( ii < 0 )
         return;
 
-    wxString name = m_FootprintList->GetString( ii );
+    wxString name = m_footprintList->GetString( ii );
 
-    if( m_footprintName.CmpNoCase( name ) != 0 )
+    if( getCurFootprintName().CmpNoCase( name ) != 0 )
     {
-        m_footprintName = name;
+        setCurFootprintName( name );
+
         SetCurItem( NULL );
+
         // Delete the current footprint
         GetBoard()->m_Modules.DeleteAll();
-        GetModuleLibrary( m_libraryName + wxT(".") + LegacyFootprintLibPathExtension,
-                          m_footprintName, true );
-        DisplayLibInfos();
+
+        FPID id;
+        id.SetLibNickname( getCurNickname() );
+        id.SetFootprintName( getCurFootprintName() );
+
+        try
+        {
+            GetBoard()->Add( loadFootprint( id ) );
+        }
+        catch( const IO_ERROR& ioe )
+        {
+            wxString msg = wxString::Format(
+                        _( "Could not load footprint \"%s\" from library \"%s\".\n\nError %s." ),
+                        GetChars( getCurFootprintName() ),
+                        GetChars( getCurNickname() ),
+                        GetChars( ioe.errorText ) );
+
+            DisplayError( this, msg );
+        }
+
+        UpdateTitle();
+
+        if( IsGalCanvasActive() )
+            updateView();
+
         Zoom_Automatique( false );
         m_canvas->Refresh();
         Update3D_Frame();
     }
 }
 
+
 void FOOTPRINT_VIEWER_FRAME::DClickOnFootprintList( wxCommandEvent& event )
 {
-    if( m_Semaphore )
+    if( IsModal() )
     {
+        // @todo(DICK)
         ExportSelectedFootprint( event );
+
         // Prevent the double click from being as a single mouse button release
         // event in the parent window which would cause the part to be parked
-        // rather than staying in mode mode.
+        // rather than staying in move mode.
         // Remember the mouse button will be released in the parent window
-        // thus creating a mouse button release event which should be ingnored.
-        ((PCB_BASE_FRAME*)GetParent())->SkipNextLeftButtonReleaseEvent();
+        // thus creating a mouse button release event which should be ignored
+        PCB_EDIT_FRAME* pcbframe = dynamic_cast<PCB_EDIT_FRAME*>( GetParent() );
+
+        // The parent may not be the board editor:
+        if( pcbframe )
+        {
+            pcbframe->SkipNextLeftButtonReleaseEvent();
+        }
     }
 }
 
+
 void FOOTPRINT_VIEWER_FRAME::ExportSelectedFootprint( wxCommandEvent& event )
 {
-    int ii = m_FootprintList->GetSelection();
+    int ii = m_footprintList->GetSelection();
 
     if( ii >= 0 )
-        m_selectedFootprintName = m_FootprintList->GetString( ii );
+    {
+        wxString fp_name = m_footprintList->GetString( ii );
+
+        FPID fpid;
+
+        fpid.SetLibNickname( getCurNickname() );
+        fpid.SetFootprintName( fp_name );
+
+        DismissModal( true, fpid.Format() );
+    }
     else
-        m_selectedFootprintName.Empty();
+    {
+        DismissModal( false );
+    }
 
     Close( true );
 }
 
 
-#define LIBLIST_WIDTH_KEY wxT( "Liblist_width" )
-#define CMPLIST_WIDTH_KEY wxT( "Cmplist_width" )
-
-
-void FOOTPRINT_VIEWER_FRAME::LoadSettings( )
+void FOOTPRINT_VIEWER_FRAME::LoadSettings( wxConfigBase* aCfg )
 {
-    wxConfig* cfg ;
-
-    EDA_DRAW_FRAME::LoadSettings();
-
-    wxConfigPathChanger cpc( wxGetApp().GetSettings(), m_configPath );
-    cfg = wxGetApp().GetSettings();
-
-    m_LibListSize.x = 150; // default width of libs list
-    m_FootprintListSize.x = 150; // default width of component list
-
-    cfg->Read( LIBLIST_WIDTH_KEY, &m_LibListSize.x );
-    cfg->Read( CMPLIST_WIDTH_KEY, &m_FootprintListSize.x );
-
-    // Set parameters to a reasonable value.
-    if ( m_LibListSize.x > m_FrameSize.x/2 )
-        m_LibListSize.x = m_FrameSize.x/2;
-
-    if ( m_FootprintListSize.x > m_FrameSize.x/2 )
-        m_FootprintListSize.x = m_FrameSize.x/2;
+    EDA_DRAW_FRAME::LoadSettings( aCfg );
 }
 
 
-void FOOTPRINT_VIEWER_FRAME::SaveSettings()
+void FOOTPRINT_VIEWER_FRAME::SaveSettings( wxConfigBase* aCfg )
 {
-    wxConfig* cfg;
+    EDA_DRAW_FRAME::SaveSettings( aCfg );
+}
 
-    EDA_DRAW_FRAME::SaveSettings();
 
-    wxConfigPathChanger cpc( wxGetApp().GetSettings(), m_configPath );
-    cfg = wxGetApp().GetSettings();
+const wxString FOOTPRINT_VIEWER_FRAME::getCurNickname()
+{
+    return Prj().GetRString( PROJECT::PCB_FOOTPRINT_VIEWER_NICKNAME );
+}
 
-    if ( m_LibListSize.x )
-        cfg->Write( LIBLIST_WIDTH_KEY, m_LibListSize.x );
 
-    cfg->Write( CMPLIST_WIDTH_KEY, m_FootprintListSize.x );
+void FOOTPRINT_VIEWER_FRAME::setCurNickname( const wxString& aNickname )
+{
+    Prj().SetRString( PROJECT::PCB_FOOTPRINT_VIEWER_NICKNAME, aNickname );
+}
+
+
+const wxString FOOTPRINT_VIEWER_FRAME::getCurFootprintName()
+{
+    return Prj().GetRString( PROJECT::PCB_FOOTPRINT_VIEWER_FPNAME );
+}
+
+
+void FOOTPRINT_VIEWER_FRAME::setCurFootprintName( const wxString& aName )
+{
+    Prj().SetRString( PROJECT::PCB_FOOTPRINT_VIEWER_FPNAME, aName );
 }
 
 
@@ -538,117 +553,61 @@ void FOOTPRINT_VIEWER_FRAME::OnActivate( wxActivateEvent& event )
     EDA_DRAW_FRAME::OnActivate( event );
 
     // Ensure we do not have old selection:
-    if( ! m_FrameIsActive )
+    if( !event.GetActive() )
         return;
 
-    m_selectedFootprintName.Empty();
-
     // Ensure we have the right library list:
-    if( g_LibraryNames.GetCount() == m_LibList->GetCount() )
+    std::vector< wxString > libNicknames = Prj().PcbFootprintLibs()->GetLogicalLibs();
+
+    if( libNicknames.size() == m_libList->GetCount() )
     {
         unsigned ii;
-        for( ii = 0; ii < g_LibraryNames.GetCount(); ii++ )
+
+        for( ii = 0;  ii < libNicknames.size();  ii++ )
         {
-            if( m_LibList->GetString(ii) != g_LibraryNames[ii] )
+            if( libNicknames[ii] != m_libList->GetString( ii ) )
                 break;
         }
-        if( ii == g_LibraryNames.GetCount() )
+
+        if( ii == libNicknames.size() )
             return;
     }
 
     // If we are here, the library list has changed, rebuild it
     ReCreateLibraryList();
-    DisplayLibInfos();
+    UpdateTitle();
 }
 
 
-void FOOTPRINT_VIEWER_FRAME::GeneralControl( wxDC* aDC, const wxPoint& aPosition, int aHotKey )
+bool FOOTPRINT_VIEWER_FRAME::GeneralControl( wxDC* aDC, const wxPoint& aPosition, int aHotKey )
 {
-    wxRealPoint gridSize;
-    wxPoint     oldpos;
-    PCB_SCREEN* screen = GetScreen();
-    wxPoint     pos = aPosition;
+    bool eventHandled = true;
+
+    // Filter out the 'fake' mouse motion after a keyboard movement
+    if( !aHotKey && m_movingCursorWithKeyboard )
+    {
+        m_movingCursorWithKeyboard = false;
+        return false;
+    }
 
     wxCommandEvent cmd( wxEVT_COMMAND_MENU_SELECTED );
     cmd.SetEventObject( this );
 
-    pos = screen->GetNearestGridPosition( pos );
-    oldpos = screen->GetCrossHairPosition();
-    gridSize = screen->GetGridSize();
+    wxPoint oldpos = GetCrossHairPosition();
+    wxPoint pos = aPosition;
+    GeneralControlKeyMovement( aHotKey, &pos, true );
 
-    switch( aHotKey )
+    if( aHotKey )
     {
-    case WXK_F1:
-        cmd.SetId( ID_POPUP_ZOOM_IN );
-        GetEventHandler()->ProcessEvent( cmd );
-        break;
-
-    case WXK_F2:
-        cmd.SetId( ID_POPUP_ZOOM_OUT );
-        GetEventHandler()->ProcessEvent( cmd );
-        break;
-
-    case WXK_F3:
-        cmd.SetId( ID_ZOOM_REDRAW );
-        GetEventHandler()->ProcessEvent( cmd );
-        break;
-
-    case WXK_F4:
-        cmd.SetId( ID_POPUP_ZOOM_CENTER );
-        GetEventHandler()->ProcessEvent( cmd );
-        break;
-
-    case WXK_HOME:
-        cmd.SetId( ID_ZOOM_PAGE );
-        GetEventHandler()->ProcessEvent( cmd );
-        break;
-
-    case ' ':
-        screen->m_O_Curseur = screen->GetCrossHairPosition();
-        break;
-
-    case WXK_NUMPAD8:       /* cursor moved up */
-    case WXK_UP:
-        pos.y -= KiROUND( gridSize.y );
-        m_canvas->MoveCursor( pos );
-        break;
-
-    case WXK_NUMPAD2:       /* cursor moved down */
-    case WXK_DOWN:
-        pos.y += KiROUND( gridSize.y );
-        m_canvas->MoveCursor( pos );
-        break;
-
-    case WXK_NUMPAD4:       /*  cursor moved left */
-    case WXK_LEFT:
-        pos.x -= KiROUND( gridSize.x );
-        m_canvas->MoveCursor( pos );
-        break;
-
-    case WXK_NUMPAD6:      /*  cursor moved right */
-    case WXK_RIGHT:
-        pos.x += KiROUND( gridSize.x );
-        m_canvas->MoveCursor( pos );
-        break;
+        eventHandled = OnHotKey( aDC, aHotKey, aPosition );
     }
 
-    screen->SetCrossHairPosition( pos );
+    SetCrossHairPosition( pos );
+    RefreshCrossHair( oldpos, aPosition, aDC );
 
-    if( oldpos != screen->GetCrossHairPosition() )
-    {
-        pos = screen->GetCrossHairPosition();
-        screen->SetCrossHairPosition( oldpos );
-        m_canvas->CrossHairOff( aDC );
-        screen->SetCrossHairPosition( pos );
-        m_canvas->CrossHairOn( aDC );
+    UpdateStatusBar();    // Display new cursor coordinates
 
-        if( m_canvas->IsMouseCaptured() )
-        {
-            m_canvas->CallMouseCapture( aDC, aPosition, 0 );
-        }
-    }
-
-    UpdateStatusBar();    /* Display new cursor coordinates */
+    return eventHandled;
 }
 
 
@@ -670,30 +629,236 @@ void FOOTPRINT_VIEWER_FRAME::Show3D_Frame( wxCommandEvent& event )
         return;
     }
 
-    m_Draw3DFrame = new EDA_3D_FRAME( this, wxEmptyString );
+    m_Draw3DFrame = new EDA_3D_FRAME( &Kiway(), this, wxEmptyString );
     Update3D_Frame( false );
     m_Draw3DFrame->Show( true );
 }
 
-/**
- * Function Update3D_Frame
- * must be called after a footprint selection
- * Updates the 3D view and 3D frame title.
- */
+
 void FOOTPRINT_VIEWER_FRAME::Update3D_Frame( bool aForceReloadFootprint )
 {
     if( m_Draw3DFrame == NULL )
         return;
 
-    wxString frm3Dtitle;
-    frm3Dtitle.Printf( _( "ModView: 3D Viewer [%s]" ), GetChars( m_footprintName ) );
+    wxString frm3Dtitle = wxString::Format(
+                _( "ModView: 3D Viewer [%s]" ),
+                GetChars( getCurFootprintName() ) );
+
     m_Draw3DFrame->SetTitle( frm3Dtitle );
 
     if( aForceReloadFootprint )
     {
         m_Draw3DFrame->ReloadRequest();
+
         // Force 3D screen refresh immediately
         if( GetBoard()->m_Modules )
             m_Draw3DFrame->NewDisplay();
     }
+}
+
+
+EDA_COLOR_T FOOTPRINT_VIEWER_FRAME::GetGridColor() const
+{
+    return g_ColorsSettings.GetItemColor( GRID_VISIBLE );
+}
+
+
+void FOOTPRINT_VIEWER_FRAME::OnIterateFootprintList( wxCommandEvent& event )
+{
+    wxString   msg;
+
+    switch( event.GetId() )
+    {
+    case ID_MODVIEW_NEXT:
+        SelectAndViewFootprint( NEXT_PART );
+        break;
+
+    case ID_MODVIEW_PREVIOUS:
+        SelectAndViewFootprint( PREVIOUS_PART );
+        break;
+
+    default:
+        wxString id = wxString::Format(wxT("%i"),event.GetId());
+        wxFAIL_MSG( wxT( "FOOTPRINT_VIEWER_FRAME::OnIterateFootprintList error: id = " ) + id );
+    }
+}
+
+
+void FOOTPRINT_VIEWER_FRAME::OnLeftClick( wxDC* DC, const wxPoint& MousePos )
+{
+}
+
+
+bool FOOTPRINT_VIEWER_FRAME::OnRightClick( const wxPoint& MousePos, wxMenu* PopMenu )
+{
+    return true;
+}
+
+
+void FOOTPRINT_VIEWER_FRAME::UpdateTitle()
+{
+    wxString     msg;
+
+    msg = _( "Library Browser" );
+    msg << wxT( " [" );
+
+    if( getCurNickname().size() )
+        msg << getCurNickname();
+    else
+        msg += _( "no library selected" );
+
+    msg << wxT( "]" );
+
+    SetTitle( msg );
+}
+
+
+void FOOTPRINT_VIEWER_FRAME::SelectCurrentLibrary( wxCommandEvent& event )
+{
+    wxString selection = SelectLibrary( getCurNickname() );
+
+    if( !!selection && selection != getCurNickname() )
+    {
+        setCurNickname( selection );
+
+        UpdateTitle();
+        ReCreateFootprintList();
+
+        int id = m_libList->FindString( getCurNickname() );
+
+        if( id >= 0 )
+            m_libList->SetSelection( id );
+    }
+}
+
+
+void FOOTPRINT_VIEWER_FRAME::SelectCurrentFootprint( wxCommandEvent& event )
+{
+#if 0 // cannot remember why this is here
+    // The PCB_EDIT_FRAME may not be the FOOTPRINT_VIEW_FRAME's parent,
+    // so use Kiway().Player() to fetch.
+    PCB_EDIT_FRAME* parent = (PCB_EDIT_FRAME*) Kiway().Player( FRAME_PCB, true );
+    (void*) parent;
+#endif
+
+    wxString        nickname = getCurNickname();
+    MODULE*         oldmodule = GetBoard()->m_Modules;
+    MODULE*         module = LoadModuleFromLibrary( nickname, Prj().PcbFootprintLibs(), false );
+
+    if( module )
+    {
+        module->SetPosition( wxPoint( 0, 0 ) );
+
+        // Only one footprint allowed: remove the previous footprint (if exists)
+        if( oldmodule )
+        {
+            GetBoard()->Remove( oldmodule );
+            delete oldmodule;
+        }
+
+        setCurFootprintName( module->GetFPID().GetFootprintName() );
+
+        wxString nickname = module->GetFPID().GetLibNickname();
+
+        if( !getCurNickname() && nickname.size() )
+        {
+            // Set the listbox
+            int index =  m_libList->FindString( nickname );
+            if( index != wxNOT_FOUND )
+                m_libList->SetSelection( index, true );
+
+            setCurNickname( nickname );
+        }
+
+        module->ClearFlags();
+        SetCurItem( NULL );
+
+        Zoom_Automatique( false );
+        m_canvas->Refresh();
+        Update3D_Frame();
+        m_footprintList->SetStringSelection( getCurFootprintName() );
+   }
+}
+
+
+void FOOTPRINT_VIEWER_FRAME::SelectAndViewFootprint( int aMode )
+{
+    if( !getCurNickname() )
+        return;
+
+    int selection = m_footprintList->FindString( getCurFootprintName() );
+
+    if( aMode == NEXT_PART )
+    {
+        if( selection != wxNOT_FOUND && selection < (int)m_footprintList->GetCount()-1 )
+            selection++;
+    }
+
+    if( aMode == PREVIOUS_PART )
+    {
+        if( selection != wxNOT_FOUND && selection > 0 )
+            selection--;
+    }
+
+    if( selection != wxNOT_FOUND )
+    {
+        m_footprintList->SetSelection( selection );
+        setCurFootprintName( m_footprintList->GetString( selection ) );
+        SetCurItem( NULL );
+
+        // Delete the current footprint
+        GetBoard()->m_Modules.DeleteAll();
+
+        MODULE* footprint = Prj().PcbFootprintLibs()->FootprintLoad(
+                                getCurNickname(), getCurFootprintName() );
+
+        if( footprint )
+            GetBoard()->Add( footprint, ADD_APPEND );
+
+        Update3D_Frame();
+
+        if( IsGalCanvasActive() )
+            updateView();
+    }
+
+
+    UpdateTitle();
+    Zoom_Automatique( false );
+    m_canvas->Refresh();
+}
+
+
+void FOOTPRINT_VIEWER_FRAME::RedrawActiveWindow( wxDC* DC, bool EraseBg )
+{
+    if( !GetBoard() )
+        return;
+
+    m_canvas->DrawBackGround( DC );
+    GetBoard()->Draw( m_canvas, DC, GR_COPY );
+
+    MODULE* module = GetBoard()->m_Modules;
+
+    m_canvas->DrawCrossHair( DC );
+
+    ClearMsgPanel();
+
+    if( module )
+        SetMsgPanel( module );
+}
+
+
+void FOOTPRINT_VIEWER_FRAME::updateView()
+{
+    if( IsGalCanvasActive() )
+    {
+        static_cast<PCB_DRAW_PANEL_GAL*>( GetGalCanvas() )->DisplayBoard( GetBoard() );
+        m_toolManager->ResetTools( TOOL_BASE::MODEL_RELOAD );
+        m_toolManager->RunAction( COMMON_ACTIONS::zoomFitScreen, true );
+    }
+}
+
+
+void FOOTPRINT_VIEWER_FRAME::CloseFootprintViewer( wxCommandEvent& event )
+{
+    Close();
 }

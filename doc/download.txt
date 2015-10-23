@@ -1,0 +1,1 @@
+20151023: downloaded https://github.com/KiCad/kicad-doc/archive/master.tar.gz

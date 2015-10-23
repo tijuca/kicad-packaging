@@ -1,62 +1,53 @@
-/******************************************************************/
-/* onleftclick.cpp: functions called on left or double left click */
-/******************************************************************/
+/*
+ * This program source code file is part of KiCad, a free EDA CAD application.
+ *
+ * Copyright (C) 2011-2014 Jean-Pierre Charras  jp.charras at wanadoo.fr
+ * Copyright (C) 1992-2014 KiCad Developers, see change_log.txt for contributors.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation; either version 2
+ * of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, you may find one here:
+ * http://www.gnu.org/licenses/old-licenses/gpl-2.0.html
+ * or you may search the http://www.gnu.org website for the version 2 license,
+ * or you may write to the Free Software Foundation, Inc.,
+ * 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
+ */
 
 #include <fctsys.h>
 #include <class_drawpanel.h>
 #include <common.h>
-//#include "gestfich.h"
-//#include "appl_wxstruct.h"
 
 #include <gerbview.h>
-//#include "pcbplot.h"
-//#include "kicad_device_context.h"
+#include <gerbview_frame.h>
 #include <gerbview_id.h>
 #include <class_GERBER.h>
 #include <dialog_helpers.h>
 #include <class_DCodeSelectionbox.h>
 
-/* Process the command triggered by the left button of the mouse when a tool
- * is already selected.
+/* Process the command triggered by the left button of the mouse
+ * currently: just display info in the message panel.
  */
 void GERBVIEW_FRAME::OnLeftClick( wxDC* DC, const wxPoint& aPosition )
 {
-    GERBER_DRAW_ITEM* DrawStruct = (GERBER_DRAW_ITEM*) GetScreen()->GetCurItem();
-    wxString    msg;
+    GERBER_DRAW_ITEM* DrawStruct = Locate( aPosition, CURSEUR_OFF_GRILLE );
 
-    if( GetToolId() == ID_NO_TOOL_SELECTED )
+    GetScreen()->SetCurItem( DrawStruct );
+
+    if( DrawStruct == NULL )
     {
-        if( DrawStruct && DrawStruct->GetFlags() )
-        {
-            msg.Printf( wxT( "GERBVIEW_FRAME::OnLeftClick err: Struct %d, m_Flags = %X" ),
-                        (unsigned) DrawStruct->Type(),
-                        (unsigned) DrawStruct->GetFlags() );
-            wxFAIL_MSG( msg );
-        }
-        else
-        {
-            DrawStruct = Locate( aPosition, CURSEUR_OFF_GRILLE );
-            GetScreen()->SetCurItem( DrawStruct );
-            if( DrawStruct == NULL )
-            {
-                GERBER_IMAGE* gerber = g_GERBER_List[getActiveLayer() ];
-                if( gerber )
-                    gerber->DisplayImageInfo( );
-            }
-        }
-    }
+        GERBER_IMAGE* gerber = g_GERBER_List.GetGbrImage( getActiveLayer() );
 
-    switch( GetToolId() )
-    {
-    case ID_NO_TOOL_SELECTED:
-        break;
-
-        if( DrawStruct == NULL )
-            break;
-
-    default:
-        wxFAIL_MSG( wxT( "GERBVIEW_FRAME::ProcessCommand error" ) );
-        break;
+        if( gerber )
+            gerber->DisplayImageInfo( );
     }
 }
 

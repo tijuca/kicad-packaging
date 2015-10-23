@@ -35,20 +35,17 @@
 #include <richio.h>
 #include <plot_common.h>
 
-#include <general.h>
-#include <protos.h>
 #include <sch_junction.h>
 #include <class_netlist_object.h>
 
 
+int SCH_JUNCTION::m_symbolSize = 40;    // Default diameter of the junction symbol
+
 SCH_JUNCTION::SCH_JUNCTION( const wxPoint& pos ) :
     SCH_ITEM( NULL, SCH_JUNCTION_T )
 {
-#define DRAWJUNCTION_DIAMETER 32   /* Diameter of junction symbol between wires */
     m_pos    = pos;
     m_Layer  = LAYER_JUNCTION;
-    m_size.x = m_size.y = DRAWJUNCTION_DIAMETER;
-#undef DRAWJUNCTION_DIAMETER
 }
 
 
@@ -77,8 +74,7 @@ void SCH_JUNCTION::SwapData( SCH_ITEM* aItem )
                  wxT( "Cannot swap junction data with invalid item." ) );
 
     SCH_JUNCTION* item = (SCH_JUNCTION*) aItem;
-    EXCHG( m_pos, item->m_pos );
-    EXCHG( m_size, item->m_size );
+    std::swap( m_pos, item->m_pos );
 }
 
 
@@ -90,7 +86,7 @@ bool SCH_JUNCTION::Load( LINE_READER& aLine, wxString& aErrorMsg )
     while( (*line != ' ' ) && *line )
         line++;
 
-    if( sscanf( line, "%s %d %d", name, &m_pos.x, &m_pos.y ) != 3 )
+    if( sscanf( line, "%255s %d %d", name, &m_pos.x, &m_pos.y ) != 3 )
     {
         aErrorMsg.Printf( wxT( "Eeschema file connection load error at line %d, aborted" ),
                           aLine.LineNumber() );
@@ -102,12 +98,12 @@ bool SCH_JUNCTION::Load( LINE_READER& aLine, wxString& aErrorMsg )
 }
 
 
-EDA_RECT SCH_JUNCTION::GetBoundingBox() const
+const EDA_RECT SCH_JUNCTION::GetBoundingBox() const
 {
     EDA_RECT rect;
 
     rect.SetOrigin( m_pos );
-    rect.Inflate( ( GetPenSize() + m_size.x ) / 2 );
+    rect.Inflate( ( GetPenSize() + GetSymbolSize() ) / 2 );
 
     return rect;
 }
@@ -121,28 +117,24 @@ void SCH_JUNCTION::Draw( EDA_DRAW_PANEL* aPanel, wxDC* aDC, const wxPoint& aOffs
     if( aColor >= 0 )
         color = aColor;
     else
-        color = ReturnLayerColor( m_Layer );
+        color = GetLayerColor( m_Layer );
 
     GRSetDrawMode( aDC, aDrawMode );
 
     GRFilledCircle( aPanel->GetClipBox(), aDC, m_pos.x + aOffset.x, m_pos.y + aOffset.y,
-                    ( m_size.x / 2 ), 0, color, color );
+                    ( GetSymbolSize() / 2 ), 0, color, color );
 }
 
 
 void SCH_JUNCTION::MirrorX( int aXaxis_position )
 {
-    m_pos.y -= aXaxis_position;
-    NEGATE( m_pos.y );
-    m_pos.y += aXaxis_position;
+    MIRROR( m_pos.y, aXaxis_position );
 }
 
 
 void SCH_JUNCTION::MirrorY( int aYaxis_position )
 {
-    m_pos.x -= aYaxis_position;
-    NEGATE( m_pos.x );
-    m_pos.x += aYaxis_position;
+    MIRROR( m_pos.x, aYaxis_position );
 }
 
 
@@ -164,27 +156,27 @@ bool SCH_JUNCTION::IsSelectStateChanged( const wxRect& aRect )
     bool previousState = IsSelected();
 
     if( aRect.Contains( m_pos ) )
-        m_Flags |= SELECTED;
+        SetFlags( SELECTED );
     else
-        m_Flags &= ~SELECTED;
+        ClearFlags( SELECTED );
 
     return previousState != IsSelected();
 }
 
 
-void SCH_JUNCTION::GetConnectionPoints( vector< wxPoint >& aPoints ) const
+void SCH_JUNCTION::GetConnectionPoints( std::vector< wxPoint >& aPoints ) const
 {
     aPoints.push_back( m_pos );
 }
 
 
-void SCH_JUNCTION::GetNetListItem( vector<NETLIST_OBJECT*>& aNetListItems,
+void SCH_JUNCTION::GetNetListItem( NETLIST_OBJECT_LIST& aNetListItems,
                                    SCH_SHEET_PATH*          aSheetPath )
 {
     NETLIST_OBJECT* item = new NETLIST_OBJECT();
 
-    item->m_SheetList = *aSheetPath;
-    item->m_SheetListInclude = *aSheetPath;
+    item->m_SheetPath = *aSheetPath;
+    item->m_SheetPathInclude = *aSheetPath;
     item->m_Comp = (SCH_ITEM*) this;
     item->m_Type = NET_JUNCTION;
     item->m_Start = item->m_End = m_pos;
@@ -238,6 +230,6 @@ bool SCH_JUNCTION::doIsConnected( const wxPoint& aPosition ) const
 
 void SCH_JUNCTION::Plot( PLOTTER* aPlotter )
 {
-    aPlotter->SetColor( ReturnLayerColor( GetLayer() ) );
-    aPlotter->Circle( m_pos, m_size.x, FILLED_SHAPE );
+    aPlotter->SetColor( GetLayerColor( GetLayer() ) );
+    aPlotter->Circle( m_pos, GetSymbolSize(), FILLED_SHAPE );
 }

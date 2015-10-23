@@ -1,9 +1,9 @@
 /*
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
- * Copyright (C) 2004 Jean-Pierre Charras, jaen-pierre.charras@gipsa-lab.inpg.com
+ * Copyright (C) 2015 Jean-Pierre Charras, jp.charras at wanadoo.fr
  * Copyright (C) 2008-2011 Wayne Stambaugh <stambaughw@verizon.net>
- * Copyright (C) 2004-2011 KiCad Developers, see change_log.txt for contributors.
+ * Copyright (C) 2004-2015 KiCad Developers, see change_log.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -28,10 +28,11 @@
  */
 
 #include <fctsys.h>
-#include <appl_wxstruct.h>
+#include <kiface_i.h>
+#include <pgm_base.h>
 #include <eeschema_id.h>
 #include <class_drawpanel.h>
-#include <wxEeschemaStruct.h>
+#include <schframe.h>
 #include <msgpanel.h>
 
 #include <general.h>
@@ -41,94 +42,91 @@
 #include <dialog_helpers.h>
 
 
-/**
- * Save previous component library viewer state.
- */
+// Save previous component library viewer state.
 wxString LIB_VIEW_FRAME::m_libraryName;
 wxString LIB_VIEW_FRAME::m_entryName;
+
 int LIB_VIEW_FRAME::m_unit = 1;
 int LIB_VIEW_FRAME::m_convert = 1;
 
 
-/// When the viewer is used to select a component in schematic, the selected component is here.
-wxString LIB_VIEW_FRAME::m_exportToEeschemaCmpName;
-
-
 BEGIN_EVENT_TABLE( LIB_VIEW_FRAME, EDA_DRAW_FRAME )
-    /* Window events */
+    // Window events
     EVT_CLOSE( LIB_VIEW_FRAME::OnCloseWindow )
     EVT_SIZE( LIB_VIEW_FRAME::OnSize )
     EVT_ACTIVATE( LIB_VIEW_FRAME::OnActivate )
 
-    /* Sash drag events */
-    EVT_SASH_DRAGGED( ID_LIBVIEW_LIBWINDOW, LIB_VIEW_FRAME::OnSashDrag )
-    EVT_SASH_DRAGGED( ID_LIBVIEW_CMPWINDOW, LIB_VIEW_FRAME::OnSashDrag )
-
-    /* Toolbar events */
+    // Toolbar events
     EVT_TOOL_RANGE( ID_LIBVIEW_NEXT, ID_LIBVIEW_DE_MORGAN_CONVERT_BUTT,
                     LIB_VIEW_FRAME::Process_Special_Functions )
 
     EVT_TOOL( ID_LIBVIEW_CMP_EXPORT_TO_SCHEMATIC, LIB_VIEW_FRAME::ExportToSchematicLibraryPart )
     EVT_COMBOBOX( ID_LIBVIEW_SELECT_PART_NUMBER, LIB_VIEW_FRAME::Process_Special_Functions )
 
-    /* listbox events */
+    // listbox events
     EVT_LISTBOX( ID_LIBVIEW_LIB_LIST, LIB_VIEW_FRAME::ClickOnLibList )
     EVT_LISTBOX( ID_LIBVIEW_CMP_LIST, LIB_VIEW_FRAME::ClickOnCmpList )
     EVT_LISTBOX_DCLICK( ID_LIBVIEW_CMP_LIST, LIB_VIEW_FRAME::DClickOnCmpList )
 
+    // Menu (and/or hotkey) events
+    EVT_MENU( wxID_HELP, EDA_DRAW_FRAME::GetKicadHelp )
+    EVT_MENU( wxID_EXIT, LIB_VIEW_FRAME::CloseLibraryViewer )
     EVT_MENU( ID_SET_RELATIVE_OFFSET, LIB_VIEW_FRAME::OnSetRelativeOffset )
+
 END_EVENT_TABLE()
 
 
-/*
- * This emulates the zoom menu entries found in the other KiCad applications.
- * The library viewer does not have any menus so add an accelerator table to
- * the main frame.
+/* Note:
+ * LIB_VIEW_FRAME can be build in "modal mode", or as a usual frame.
+ * In modal mode:
+ *  a tool to export the selected symbol is shown in the toolbar
+ *  the style is wxSTAY_ON_TOP on Windows and wxFRAME_FLOAT_ON_PARENT on unix
+ * reason:
+ * the parent is usually the kicad window manager (not easy to change)
+ * On windows, when the frame with stype wxFRAME_FLOAT_ON_PARENT is displayed
+ * its parent frame is brought to the foreground, on the top of the calling frame.
+ * and stays displayed when closing the LIB_VIEW_FRAME frame.
+ * this issue does not happen on unix.
+ *
+ * So we use wxSTAY_ON_TOP on Windows, and wxFRAME_FLOAT_ON_PARENT on unix
+ * to simulate a dialog called by ShowModal.
  */
-static wxAcceleratorEntry accels[] =
-{
-    wxAcceleratorEntry( wxACCEL_NORMAL, WXK_F1, ID_ZOOM_IN ),
-    wxAcceleratorEntry( wxACCEL_NORMAL, WXK_F2, ID_ZOOM_OUT ),
-    wxAcceleratorEntry( wxACCEL_NORMAL, WXK_F3, ID_ZOOM_REDRAW ),
-    wxAcceleratorEntry( wxACCEL_NORMAL, WXK_F4, ID_POPUP_ZOOM_CENTER ),
-    wxAcceleratorEntry( wxACCEL_NORMAL, WXK_HOME, ID_ZOOM_PAGE ),
-    wxAcceleratorEntry( wxACCEL_NORMAL, WXK_SPACE, ID_SET_RELATIVE_OFFSET )
-};
 
-#define ACCEL_TABLE_CNT ( sizeof( accels ) / sizeof( wxAcceleratorEntry ) )
-
-#define EXTRA_BORDER_SIZE 2
 #define LIB_VIEW_FRAME_NAME wxT( "ViewlibFrame" )
 
-LIB_VIEW_FRAME::LIB_VIEW_FRAME( SCH_BASE_FRAME* aParent, CMP_LIBRARY* aLibrary,
-                                wxSemaphore* aSemaphore, long aStyle ) :
-    SCH_BASE_FRAME( aParent, VIEWER_FRAME_TYPE, _( "Library Browser" ),
-                    wxDefaultPosition, wxDefaultSize, aStyle, GetLibViewerFrameName() )
+LIB_VIEW_FRAME::LIB_VIEW_FRAME( KIWAY* aKiway, wxWindow* aParent, FRAME_T aFrameType,
+        PART_LIB* aLibrary ) :
+    SCH_BASE_FRAME( aKiway, aParent, aFrameType, _( "Library Browser" ),
+            wxDefaultPosition, wxDefaultSize,
+            aFrameType==FRAME_SCH_VIEWER_MODAL ?
+#ifdef __WINDOWS__
+                KICAD_DEFAULT_DRAWFRAME_STYLE | wxSTAY_ON_TOP :
+#else
+                KICAD_DEFAULT_DRAWFRAME_STYLE | wxFRAME_FLOAT_ON_PARENT :
+#endif
+                KICAD_DEFAULT_DRAWFRAME_STYLE,
+            LIB_VIEW_FRAME_NAME )
 {
-    wxAcceleratorTable table( ACCEL_TABLE_CNT, accels );
+    wxASSERT( aFrameType == FRAME_SCH_VIEWER || aFrameType == FRAME_SCH_VIEWER_MODAL );
 
-    m_FrameName = GetLibViewerFrameName();
-    m_configPath = wxT( "LibraryViewer" );
+    if( aFrameType == FRAME_SCH_VIEWER_MODAL )
+        SetModal( true );
+
+    m_configFrameName = LIB_VIEW_FRAME_NAME;
 
     // Give an icon
     wxIcon  icon;
     icon.CopyFromBitmap( KiBitmap( library_browse_xpm ) );
-
     SetIcon( icon );
 
-    m_HotkeysZoomAndGridList = s_Viewlib_Hokeys_Descr;
-    m_CmpList = NULL;
-    m_LibList = NULL;
-    m_LibListWindow = NULL;
-    m_CmpListWindow = NULL;
-    m_Semaphore     = aSemaphore;
-    if( m_Semaphore )
-        SetModalMode( true );
-    m_exportToEeschemaCmpName.Empty();
+    m_hotkeysDescrList = g_Viewlib_Hokeys_Descr;
+    m_cmpList   = NULL;
+    m_libList   = NULL;
+    m_listPowerCmpOnly = false;
 
-    SetScreen( new SCH_SCREEN() );
+    SetScreen( new SCH_SCREEN( aKiway ) );
     GetScreen()->m_Center = true;      // Axis origin centered on screen.
-    LoadSettings();
+    LoadSettings( config() );
 
     SetSize( m_FramePos.x, m_FramePos.y, m_FrameSize.x, m_FrameSize.y );
 
@@ -136,29 +134,22 @@ LIB_VIEW_FRAME::LIB_VIEW_FRAME( SCH_BASE_FRAME* aParent, CMP_LIBRARY* aLibrary,
     m_LastGridSizeId = ID_POPUP_GRID_LEVEL_50 - ID_POPUP_GRID_LEVEL_1000;
     GetScreen()->SetGrid( ID_POPUP_GRID_LEVEL_1000 + m_LastGridSizeId  );
 
+    // Menu bar is not mandatory: uncomment/comment the next line
+    // to add/remove the menubar
+    ReCreateMenuBar();
     ReCreateHToolbar();
     ReCreateVToolbar();
 
     wxSize  size = GetClientSize();
     size.y -= m_MsgFrameHeight + 2;
 
-    m_LibListSize.y = -1;
-
     wxPoint win_pos( 0, 0 );
 
-    if( aLibrary == NULL )
+    if( !aLibrary )
     {
         // Creates the libraries window display
-        m_LibListWindow =
-            new wxSashLayoutWindow( this, ID_LIBVIEW_LIBWINDOW, win_pos,
-                                    wxDefaultSize, wxCLIP_CHILDREN | wxSW_3D,
-                                    wxT( "LibWindow" ) );
-        m_LibListWindow->SetOrientation( wxLAYOUT_VERTICAL );
-        m_LibListWindow->SetAlignment( wxLAYOUT_LEFT );
-        m_LibListWindow->SetSashVisible( wxSASH_RIGHT, true );
-        m_LibListWindow->SetExtraBorderSize( EXTRA_BORDER_SIZE );
-        m_LibList = new wxListBox( m_LibListWindow, ID_LIBVIEW_LIB_LIST,
-                                   wxPoint( 0, 0 ), wxDefaultSize,
+        m_libList = new wxListBox( this, ID_LIBVIEW_LIB_LIST,
+                                   wxPoint( 0, 0 ), wxSize(m_libListWidth, -1),
                                    0, NULL, wxLB_HSCROLL );
     }
     else
@@ -167,34 +158,21 @@ LIB_VIEW_FRAME::LIB_VIEW_FRAME( SCH_BASE_FRAME* aParent, CMP_LIBRARY* aLibrary,
         m_entryName.Clear();
         m_unit = 1;
         m_convert = 1;
-        m_LibListSize.x = 0;
+        m_libListWidth = 0;
     }
 
     // Creates the component window display
-    m_CmpListSize.y = size.y;
-    win_pos.x = m_LibListSize.x;
-    m_CmpListWindow = new wxSashLayoutWindow( this, ID_LIBVIEW_CMPWINDOW,
-                                              win_pos, wxDefaultSize,
-                                              wxCLIP_CHILDREN | wxSW_3D,
-                                              wxT( "CmpWindow" ) );
-    m_CmpListWindow->SetOrientation( wxLAYOUT_VERTICAL );
-
-    m_CmpListWindow->SetSashVisible( wxSASH_RIGHT, true );
-    m_CmpListWindow->SetExtraBorderSize( EXTRA_BORDER_SIZE );
-    m_CmpList = new wxListBox( m_CmpListWindow, ID_LIBVIEW_CMP_LIST,
-                               wxPoint( 0, 0 ), wxDefaultSize,
+    win_pos.x = m_libListWidth;
+    m_cmpList = new wxListBox( this, ID_LIBVIEW_CMP_LIST,
+                               wxPoint( 0, 0 ), wxSize(m_cmpListWidth, -1),
                                0, NULL, wxLB_HSCROLL );
 
-    if( m_LibList )
+    if( m_libList )
         ReCreateListLib();
 
     DisplayLibInfos();
 
-    if( m_canvas )
-        m_canvas->SetAcceleratorTable( table );
-
     m_auimgr.SetManagedWindow( this );
-
 
     EDA_PANEINFO horiz;
     horiz.HorizontalToolbarPane();
@@ -213,21 +191,19 @@ LIB_VIEW_FRAME::LIB_VIEW_FRAME( SCH_BASE_FRAME* aParent, CMP_LIBRARY* aLibrary,
     m_auimgr.AddPane( m_mainToolBar,
                       wxAuiPaneInfo( horiz ).Name( wxT ("m_mainToolBar" ) ).Top().Row( 0 ) );
 
-    wxSize minsize( 60, -1 );
-
     // Manage the left window (list of libraries)
-    if( m_LibListWindow )
-        m_auimgr.AddPane( m_LibListWindow, wxAuiPaneInfo( info ).Name( wxT( "m_LibList" ) ).
-                          Left().Row( 0 ));
+    if( m_libList )
+        m_auimgr.AddPane( m_libList, wxAuiPaneInfo( info ).Name( wxT( "m_libList" ) ).
+                          Left().Row( 0 ) );
 
     // Manage the list of components)
-    m_auimgr.AddPane( m_CmpListWindow,
-                      wxAuiPaneInfo( info ).Name( wxT( "m_CmpList" ) ).
+    m_auimgr.AddPane( m_cmpList,
+                      wxAuiPaneInfo( info ).Name( wxT( "m_cmpList" ) ).
                       Left().Row( 1 ) );
 
     // Manage the draw panel
     m_auimgr.AddPane( m_canvas,
-                      wxAuiPaneInfo().Name( wxT( "DrawFrame" ) ).Centre() );
+                      wxAuiPaneInfo().Name( wxT( "DrawFrame" ) ).CentrePane() );
 
     // Manage the message panel
     m_auimgr.AddPane( m_messagePanel,
@@ -236,13 +212,14 @@ LIB_VIEW_FRAME::LIB_VIEW_FRAME( SCH_BASE_FRAME* aParent, CMP_LIBRARY* aLibrary,
     /* Now the minimum windows are fixed, set library list
      * and component list of the previous values from last viewlib use
      */
-    if( m_LibListWindow )
+    if( m_libList )
     {
-        wxAuiPaneInfo& pane = m_auimgr.GetPane(m_LibListWindow);
-        pane.MinSize( wxSize(m_LibListSize.x, -1));
+        m_auimgr.GetPane( m_libList ).MinSize( wxSize( 80, -1) );
+        m_auimgr.GetPane( m_libList ).BestSize( wxSize(m_libListWidth, -1) );
     }
-    wxAuiPaneInfo& pane = m_auimgr.GetPane(m_CmpListWindow);
-    pane.MinSize(wxSize(m_CmpListSize.x, -1));
+
+    m_auimgr.GetPane( m_cmpList ).MinSize( wxSize( 80, -1) );
+    m_auimgr.GetPane( m_cmpList ).BestSize(wxSize(m_cmpListWidth, -1) );
 
     m_auimgr.Update();
 
@@ -253,7 +230,11 @@ LIB_VIEW_FRAME::LIB_VIEW_FRAME( SCH_BASE_FRAME* aParent, CMP_LIBRARY* aLibrary,
     Zoom_Automatique( false );
 #endif
 
-    Show( true );
+    if( !IsModal() )        // For modal mode, calling ShowModal() will show this frame
+    {
+        Raise();
+        Show( true );
+    }
 }
 
 
@@ -261,65 +242,19 @@ LIB_VIEW_FRAME::~LIB_VIEW_FRAME()
 {
 }
 
-const wxChar* LIB_VIEW_FRAME::GetLibViewerFrameName()
-{
-    return LIB_VIEW_FRAME_NAME;
-}
-
-/* return a reference to the current opened Library viewer
- * or NULL if no Library viewer currently opened
- */
-LIB_VIEW_FRAME* LIB_VIEW_FRAME::GetActiveLibraryViewer()
-{
-    return (LIB_VIEW_FRAME*) wxWindow::FindWindowByName(GetLibViewerFrameName());
-}
 
 void LIB_VIEW_FRAME::OnCloseWindow( wxCloseEvent& Event )
 {
-    SaveSettings();
-
-    if( m_Semaphore )
-    {
-        m_Semaphore->Post();
-        // This window will be destroyed by the calling function,
-        // if needed
-        SetModalMode( false );
-    }
-    else
+    if( !IsModal() )
     {
         Destroy();
     }
-}
-
-
-void LIB_VIEW_FRAME::OnSashDrag( wxSashEvent& event )
-{
-    if( event.GetDragStatus() == wxSASH_STATUS_OUT_OF_RANGE )
-        return;
-
-    m_LibListSize.y = GetClientSize().y - m_MsgFrameHeight;
-    m_CmpListSize.y = m_LibListSize.y;
-
-    switch( event.GetId() )
+    else if( !IsDismissed() )
     {
-    case ID_LIBVIEW_LIBWINDOW:
-        if( m_LibListWindow )
-        {
-            wxAuiPaneInfo& pane = m_auimgr.GetPane( m_LibListWindow );
-            m_LibListSize.x = event.GetDragRect().width;
-            pane.MinSize( m_LibListSize );
-            m_auimgr.Update();
-        }
-        break;
+        // only dismiss modal frame if not already dismissed.
+        DismissModal( false );
 
-    case ID_LIBVIEW_CMPWINDOW:
-        {
-            wxAuiPaneInfo& pane = m_auimgr.GetPane( m_CmpListWindow );
-            m_CmpListSize.x = event.GetDragRect().width;
-            pane.MinSize( m_CmpListSize );
-            m_auimgr.Update();
-        }
-        break;
+        // Modal frame will be destroyed by the calling function.
     }
 }
 
@@ -335,43 +270,42 @@ void LIB_VIEW_FRAME::OnSize( wxSizeEvent& SizeEv )
 
 void LIB_VIEW_FRAME::OnSetRelativeOffset( wxCommandEvent& event )
 {
-    GetScreen()->m_O_Curseur = GetScreen()->GetCrossHairPosition();
+    GetScreen()->m_O_Curseur = GetCrossHairPosition();
     UpdateStatusBar();
 }
 
 
 double LIB_VIEW_FRAME::BestZoom()
 {
-/* Please, note: wxMSW before version 2.9 seems have
- * problems with zoom values < 1 ( i.e. userscale > 1) and needs to be patched:
- * edit file <wxWidgets>/src/msw/dc.cpp
- * search for line static const int VIEWPORT_EXTENT = 1000;
- * and replace by static const int VIEWPORT_EXTENT = 10000;
- */
-    LIB_COMPONENT* component = NULL;
-    CMP_LIBRARY* lib;
-    double bestzoom = 16.0;      // default value for bestzoom
+    /* Please, note: wxMSW before version 2.9 seems have
+     * problems with zoom values < 1 ( i.e. userscale > 1) and needs to be patched:
+     * edit file <wxWidgets>/src/msw/dc.cpp
+     * search for line static const int VIEWPORT_EXTENT = 1000;
+     * and replace by static const int VIEWPORT_EXTENT = 10000;
+     */
 
-    lib = CMP_LIBRARY::FindLibrary( m_libraryName );
+    LIB_PART*   part = NULL;
+    double      bestzoom = 16.0;      // default value for bestzoom
+    PART_LIB*   lib = Prj().SchLibs()->FindLibrary( m_libraryName );
 
     if( lib  )
-        component = lib->FindComponent( m_entryName );
+        part = lib->FindPart( m_entryName );
 
-    if( component == NULL )
+    if( !part )
     {
-        GetScreen()->SetScrollCenterPosition( wxPoint( 0, 0 ) );
+        SetScrollCenterPosition( wxPoint( 0, 0 ) );
         return bestzoom;
     }
 
     wxSize size = m_canvas->GetClientSize();
 
-    EDA_RECT BoundaryBox = component->GetBoundingBox( m_unit, m_convert );
+    EDA_RECT boundingBox = part->GetBoundingBox( m_unit, m_convert );
 
     // Reserve a 10% margin around component bounding box.
     double margin_scale_factor = 0.8;
-    double zx =(double) BoundaryBox.GetWidth() /
+    double zx =(double) boundingBox.GetWidth() /
                ( margin_scale_factor * (double)size.x );
-    double zy = (double) BoundaryBox.GetHeight() /
+    double zy = (double) boundingBox.GetHeight() /
                 ( margin_scale_factor * (double)size.y);
 
     // Calculates the best zoom
@@ -382,7 +316,7 @@ double LIB_VIEW_FRAME::BestZoom()
     if( bestzoom  < GetScreen()->m_ZoomList[0] )
         bestzoom  = GetScreen()->m_ZoomList[0];
 
-    GetScreen()->SetScrollCenterPosition( BoundaryBox.Centre() );
+    SetScrollCenterPosition( boundingBox.Centre() );
 
     return bestzoom;
 }
@@ -390,23 +324,52 @@ double LIB_VIEW_FRAME::BestZoom()
 
 void LIB_VIEW_FRAME::ReCreateListLib()
 {
-    if( m_LibList == NULL )
+    if( !m_libList )
         return;
 
-    m_LibList->Clear();
-    m_LibList->Append( CMP_LIBRARY::GetLibraryNames() );
+    m_libList->Clear();
+
+    wxArrayString libs = Prj().SchLibs()->GetLibraryNames();
+
+    // Remove not allowed libs from main list, if the allowed lib list is not empty
+    if( m_allowedLibs.GetCount() )
+    {
+        for( unsigned ii = 0; ii < libs.GetCount(); )
+        {
+            if( m_allowedLibs.Index( libs[ii] ) == wxNOT_FOUND )
+                libs.RemoveAt( ii );
+            else
+                ii++;
+        }
+    }
+
+    // Remove libs which have no power components, if this filter is activated
+    if( m_listPowerCmpOnly )
+    {
+        for( unsigned ii = 0; ii < libs.GetCount(); )
+        {
+            PART_LIB* lib = Prj().SchLibs()->FindLibrary( libs[ii] );
+
+            if( lib && !lib->HasPowerParts() )
+                libs.RemoveAt( ii );
+            else
+                ii++;
+        }
+    }
+
+    m_libList->Append( libs );
 
     // Search for a previous selection:
-    int index =  m_LibList->FindString( m_libraryName );
+    int index = m_libList->FindString( m_libraryName );
 
     if( index != wxNOT_FOUND )
     {
-        m_LibList->SetSelection( index, true );
+        m_libList->SetSelection( index, true );
     }
     else
     {
-        /* If not found, clear current library selection because it can be
-         * deleted after a config change. */
+        // If not found, clear current library selection because it can be
+        // deleted after a config change.
         m_libraryName = wxEmptyString;
         m_entryName = wxEmptyString;
         m_unit = 1;
@@ -422,14 +385,14 @@ void LIB_VIEW_FRAME::ReCreateListLib()
 
 void LIB_VIEW_FRAME::ReCreateListCmp()
 {
-    if( m_CmpList == NULL )
+    if( m_cmpList == NULL )
         return;
 
-    m_CmpList->Clear();
+    m_cmpList->Clear();
 
-    CMP_LIBRARY* Library = CMP_LIBRARY::FindLibrary( m_libraryName );
+    PART_LIB* lib = Prj().SchLibs()->FindLibrary( m_libraryName );
 
-    if( Library == NULL )
+    if( !lib )
     {
         m_libraryName = wxEmptyString;
         m_entryName = wxEmptyString;
@@ -439,10 +402,15 @@ void LIB_VIEW_FRAME::ReCreateListCmp()
     }
 
     wxArrayString  nameList;
-    Library->GetEntryNames( nameList );
-    m_CmpList->Append( nameList );
 
-    int index = m_CmpList->FindString( m_entryName );
+    if( m_listPowerCmpOnly )
+        lib->GetEntryTypePowerNames( nameList );
+    else
+        lib->GetEntryNames( nameList );
+
+    m_cmpList->Append( nameList );
+
+    int index = m_cmpList->FindString( m_entryName );
 
     if( index == wxNOT_FOUND )
     {
@@ -452,43 +420,61 @@ void LIB_VIEW_FRAME::ReCreateListCmp()
     }
     else
     {
-        m_CmpList->SetSelection( index, true );
+        m_cmpList->SetSelection( index, true );
     }
 }
 
 
 void LIB_VIEW_FRAME::ClickOnLibList( wxCommandEvent& event )
 {
-    int ii = m_LibList->GetSelection();
+    int ii = m_libList->GetSelection();
 
     if( ii < 0 )
         return;
 
-    wxString name = m_LibList->GetString( ii );
+    SetSelectedLibrary( m_libList->GetString( ii ) );
+}
 
-    if( m_libraryName == name )
+
+void LIB_VIEW_FRAME::SetSelectedLibrary( const wxString& aLibraryName )
+{
+    if( m_libraryName == aLibraryName )
         return;
 
-    m_libraryName = name;
+    m_libraryName = aLibraryName;
     ReCreateListCmp();
     m_canvas->Refresh();
     DisplayLibInfos();
     ReCreateHToolbar();
+
+    // Ensure the corresponding line in m_libList is selected
+    // (which is not necessary the case if SetSelectedLibrary is called
+    // by an other caller than ClickOnLibList.
+    m_libList->SetStringSelection( m_libraryName, true );
 }
 
 
 void LIB_VIEW_FRAME::ClickOnCmpList( wxCommandEvent& event )
 {
-    int ii = m_CmpList->GetSelection();
+    int ii = m_cmpList->GetSelection();
 
     if( ii < 0 )
         return;
 
-    wxString name = m_CmpList->GetString( ii );
+    SetSelectedComponent( m_cmpList->GetString( ii ) );
+}
 
-    if( m_entryName.CmpNoCase( name ) != 0 )
+
+void LIB_VIEW_FRAME::SetSelectedComponent( const wxString& aComponentName )
+{
+    if( m_entryName.CmpNoCase( aComponentName ) != 0 )
     {
-        m_entryName = name;
+        m_entryName = aComponentName;
+
+        // Ensure the corresponding line in m_cmpList is selected
+        // (which is not necessarily the case if SetSelectedComponent is called
+        // by another caller than ClickOnCmpList.
+        m_cmpList->SetStringSelection( aComponentName, true );
         DisplayLibInfos();
         m_unit    = 1;
         m_convert = 1;
@@ -498,73 +484,89 @@ void LIB_VIEW_FRAME::ClickOnCmpList( wxCommandEvent& event )
     }
 }
 
+
 void LIB_VIEW_FRAME::DClickOnCmpList( wxCommandEvent& event )
 {
-    if( m_Semaphore )
+    if( IsModal() )
     {
         ExportToSchematicLibraryPart( event );
 
-        // Prevent the double click from being as a single click in the parent
-        // window which would cause the part to be parked rather than staying
-        // in drag mode.
-        ((SCH_BASE_FRAME*) GetParent())->SkipNextLeftButtonReleaseEvent();
+        // The schematic editor might not be the parent of the library viewer.
+        // It could be a python window.
+        SCH_EDIT_FRAME* schframe = dynamic_cast<SCH_EDIT_FRAME*>( GetParent() );
+
+        if( schframe )
+        {
+            // Prevent the double click from being as a single click in the parent
+            // window which would cause the part to be parked rather than staying
+            // in drag mode.
+            schframe->SkipNextLeftButtonReleaseEvent();
+        }
     }
 }
 
+
 void LIB_VIEW_FRAME::ExportToSchematicLibraryPart( wxCommandEvent& event )
 {
-    int ii = m_CmpList->GetSelection();
+    int ii = m_cmpList->GetSelection();
 
     if( ii >= 0 )
-        m_exportToEeschemaCmpName = m_CmpList->GetString( ii );
+    {
+        wxString part_name = m_cmpList->GetString( ii );
+
+        // a selection was made, pass true
+        DismissModal( true, part_name );
+    }
     else
-        m_exportToEeschemaCmpName.Empty();
+    {
+        // no selection was made, pass false
+        DismissModal( false );
+    }
 
     Close( true );
 }
 
 
-#define LIBLIST_WIDTH_KEY wxT( "Liblist_width" )
-#define CMPLIST_WIDTH_KEY wxT( "Cmplist_width" )
+#define LIBLIST_WIDTH_KEY wxT( "ViewLiblistWidth" )
+#define CMPLIST_WIDTH_KEY wxT( "ViewCmplistWidth" )
+
+// Currently, the library viewer has no dialog to change the background color
+// of the draw canvas. Therefore the background color is here just
+// in case of this option is added to some library viewer config dialog
+#define LIBVIEW_BGCOLOR   wxT( "LibviewBgColor" )
 
 
-void LIB_VIEW_FRAME::LoadSettings( )
+void LIB_VIEW_FRAME::LoadSettings( wxConfigBase* aCfg )
 {
-    wxConfig* cfg ;
+    EDA_DRAW_FRAME::LoadSettings( aCfg );
 
-    EDA_DRAW_FRAME::LoadSettings();
+    SetGridColor( GetLayerColor( LAYER_GRID ) );
+    SetDrawBgColor( GetLayerColor( LAYER_BACKGROUND ) );
 
-    wxConfigPathChanger cpc( wxGetApp().GetSettings(), m_configPath );
-    cfg = wxGetApp().GetSettings();
-
-    m_LibListSize.x = 150; // default width of libs list
-    m_CmpListSize.x = 150; // default width of component list
-
-    cfg->Read( LIBLIST_WIDTH_KEY, &m_LibListSize.x );
-    cfg->Read( CMPLIST_WIDTH_KEY, &m_CmpListSize.x );
+    aCfg->Read( LIBLIST_WIDTH_KEY, &m_libListWidth, 150 );
+    aCfg->Read( CMPLIST_WIDTH_KEY, &m_cmpListWidth, 150 );
 
     // Set parameters to a reasonable value.
-    if ( m_LibListSize.x > m_FrameSize.x/2 )
-        m_LibListSize.x = m_FrameSize.x/2;
+    if( m_libListWidth > m_FrameSize.x/2 )
+        m_libListWidth = m_FrameSize.x/2;
 
-    if ( m_CmpListSize.x > m_FrameSize.x/2 )
-        m_CmpListSize.x = m_FrameSize.x/2;
+    if( m_cmpListWidth > m_FrameSize.x/2 )
+        m_cmpListWidth = m_FrameSize.x/2;
 }
 
 
-void LIB_VIEW_FRAME::SaveSettings()
+void LIB_VIEW_FRAME::SaveSettings( wxConfigBase* aCfg )
 {
-    wxConfig* cfg;
+    EDA_DRAW_FRAME::SaveSettings( aCfg );
 
-    EDA_DRAW_FRAME::SaveSettings();
+    if( m_libListWidth && m_libList )
+    {
+        m_libListWidth = m_libList->GetSize().x;
+        aCfg->Write( LIBLIST_WIDTH_KEY, m_libListWidth );
+    }
 
-    wxConfigPathChanger cpc( wxGetApp().GetSettings(), m_configPath );
-    cfg = wxGetApp().GetSettings();
-
-    if ( m_LibListSize.x )
-        cfg->Write( LIBLIST_WIDTH_KEY, m_LibListSize.x );
-
-    cfg->Write( CMPLIST_WIDTH_KEY, m_CmpListSize.x );
+    m_cmpListWidth = m_cmpList->GetSize().x;
+    aCfg->Write( CMPLIST_WIDTH_KEY, m_cmpListWidth );
 }
 
 
@@ -572,12 +574,28 @@ void LIB_VIEW_FRAME::OnActivate( wxActivateEvent& event )
 {
     EDA_DRAW_FRAME::OnActivate( event );
 
-    // Ensure we do not have old selection:
-    if( m_FrameIsActive )
-        m_exportToEeschemaCmpName.Empty();
-
-    if( m_LibList )
+    if( m_libList )
         ReCreateListLib();
 
     DisplayLibInfos();
+}
+
+
+void LIB_VIEW_FRAME::CloseLibraryViewer( wxCommandEvent& event )
+{
+    Close();
+}
+
+void LIB_VIEW_FRAME::SetFilter( const SCHLIB_FILTER* aFilter )
+{
+    m_listPowerCmpOnly = false;
+    m_allowedLibs.Clear();
+
+    if( aFilter )
+    {
+        m_allowedLibs = aFilter->GetAllowedLibList();
+        m_listPowerCmpOnly = aFilter->GetFilterPowerParts();
+    }
+
+    ReCreateListLib();
 }

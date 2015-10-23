@@ -1,10 +1,10 @@
 /*
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
- * Copyright (C) 2004 Jean-Pierre Charras, jaen-pierre.charras@gipsa-lab.inpg.com
- * Copyright (C) 2007-2011 SoftPLC Corporation, Dick Hollenbeck <dick@softplc.com>
- * Copyright (C) 2008-2011 Wayne Stambaugh <stambaughw@verizon.net>
- * Copyright (C) 1992-2011 KiCad Developers, see AUTHORS.txt for contributors.
+ * Copyright (C) 2014-2015 Jean-Pierre Charras, jp.charras at wanadoo.fr
+ * Copyright (C) 2007-2015 SoftPLC Corporation, Dick Hollenbeck <dick@softplc.com>
+ * Copyright (C) 2008-2015 Wayne Stambaugh <stambaughw@verizon.net>
+ * Copyright (C) 1992-2015 KiCad Developers, see AUTHORS.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -39,11 +39,14 @@
 #include <wx/fileconf.h>
 
 #include <richio.h>
-#include <convert_to_biu.h>
 #include <colors.h>
 
 
 class wxAboutDialogInfo;
+class SEARCH_STACK;
+class wxSingleInstanceChecker;
+class REPORTER;
+
 
 // Flag for special keys
 #define GR_KB_RIGHTSHIFT 0x10000000                 /* Keybd states: right
@@ -83,22 +86,15 @@ enum pseudokeys {
 #define GERBVIEW_EXE        wxT( "gerbview.exe" )
 #define BITMAPCONVERTER_EXE wxT( "bitmap2component.exe" )
 #define PCB_CALCULATOR_EXE  wxT( "pcb_calculator.exe" )
+#define PL_EDITOR_EXE       wxT( "pl_editor.exe" )
 #else
-#ifndef __WXMAC__
 #define CVPCB_EXE           wxT( "cvpcb" )
 #define PCBNEW_EXE          wxT( "pcbnew" )
 #define EESCHEMA_EXE        wxT( "eeschema" )
 #define GERBVIEW_EXE        wxT( "gerbview" )
 #define BITMAPCONVERTER_EXE wxT( "bitmap2component" )
 #define PCB_CALCULATOR_EXE  wxT( "pcb_calculator" )
-#else
-#define CVPCB_EXE           wxT( "cvpcb.app/Contents/MacOS/cvpcb" )
-#define PCBNEW_EXE          wxT( "pcbnew.app/Contents/MacOS/pcbnew" )
-#define EESCHEMA_EXE        wxT( "eeschema.app/Contents/MacOS/eeschema" )
-#define GERBVIEW_EXE        wxT( "gerbview.app/Contents/MacOS/gerbview" )
-#define BITMAPCONVERTER_EXE wxT( "bitmap2component.app/Contents/MacOS/bitmap2component" )
-#define PCB_CALCULATOR_EXE  wxT( "pcb_calculator.app/Contents/MacOS/pcb_calculator" )
-# endif
+#define PL_EDITOR_EXE       wxT( "pl_editor" )
 #endif
 
 
@@ -106,8 +102,6 @@ enum pseudokeys {
 #define TEXT_ORIENT_HORIZ 0
 #define TEXT_ORIENT_VERT  900
 
-#define ON  1
-#define OFF 0
 
 
 //-----<KiROUND KIT>------------------------------------------------------------
@@ -168,292 +162,19 @@ inline int Mm2mils( double x ) { return KiROUND( x * 1000./25.4 ); }
 inline int Mils2mm( double x ) { return KiROUND( x * 25.4 / 1000. ); }
 
 
-/// Return whether GOST is in play
-bool IsGOST();
-
-
 enum EDA_UNITS_T {
     INCHES = 0,
     MILLIMETRES = 1,
-    UNSCALED_UNITS = 2
+    UNSCALED_UNITS = 2,
+    DEGREES = 3,
 };
 
-
-// forward declarations:
-class LibNameList;
-
-
-/**
- * Class PAGE_INFO
- * describes the page size and margins of a paper page on which to
- * eventually print or plot.  Paper sizes are often described in inches.
- * Here paper is described in 1/1000th of an inch (mils).  For convenience
- * there are some read only accessors for internal units (IU), which is a compile
- * time calculation, not runtime.
- *
- * @author Dick Hollenbeck
- */
-class PAGE_INFO
-{
-public:
-
-    PAGE_INFO( const wxString& aType = PAGE_INFO::A3, bool IsPortrait = false );
-
-    // paper size names which are part of the public API, pass to SetType() or
-    // above constructor.
-
-    static const wxString A4;
-    static const wxString A3;
-    static const wxString A2;
-    static const wxString A1;
-    static const wxString A0;
-    static const wxString A;
-    static const wxString B;
-    static const wxString C;
-    static const wxString D;
-    static const wxString E;
-    static const wxString GERBER;
-    static const wxString USLetter;
-    static const wxString USLegal;
-    static const wxString USLedger;
-    static const wxString Custom;     ///< "User" defined page type
-
-
-    /**
-     * Function SetType
-     * sets the name of the page type and also the sizes and margins
-     * commonly associated with that type name.
-     *
-     * @param aStandardPageDescriptionName is a wxString constant giving one of:
-     * "A4" "A3" "A2" "A1" "A0" "A" "B" "C" "D" "E" "GERBER", "USLetter", "USLegal",
-     * "USLedger", or "User".  If "User" then the width and height are custom,
-     * and will be set according to <b>previous</b> calls to
-     * static PAGE_INFO::SetUserWidthMils() and
-     * static PAGE_INFO::SetUserHeightMils();
-     * @param IsPortrait Set to true to set page orientation to portrait mode.
-     *
-     * @return bool - true if @a aStandarePageDescription was a recognized type.
-     */
-    bool SetType( const wxString& aStandardPageDescriptionName, bool IsPortrait = false );
-    const wxString& GetType() const { return m_type; }
-
-    /**
-     * Function IsDefault
-     * @return True if the object has the default page settings which are A3, landscape.
-     */
-    bool IsDefault() const { return m_type == PAGE_INFO::A3 && !m_portrait; }
-
-    /**
-     * Function IsCustom
-     * returns true if the type is Custom
-     */
-    bool IsCustom() const;
-
-    /**
-     * Function SetPortrait
-     * will rotate the paper page 90 degrees.  This PAGE_INFO may either be in
-     * portrait or landscape mode.  Use this function to change from one to the
-     * other mode.
-     * @param isPortrait if true and not already in portrait mode, will change
-     *  this PAGE_INFO to portrait mode.  Or if false and not already in landscape mode,
-     *  will change this PAGE_INFO to landscape mode.
-     */
-    void SetPortrait( bool isPortrait );
-    bool IsPortrait() const { return m_portrait; }
-
-    /**
-     * Function GetWxOrientation.
-     * @return ws' style printing orientation (wxPORTRAIT or wxLANDSCAPE).
-     */
-#if wxCHECK_VERSION( 2, 9, 0  )
-    wxPrintOrientation  GetWxOrientation() const { return IsPortrait() ? wxPORTRAIT : wxLANDSCAPE; }
-#else
-    int  GetWxOrientation() const { return IsPortrait() ? wxPORTRAIT : wxLANDSCAPE; }
-#endif
-
-    /**
-     * Function GetPaperId
-     * @return wxPaperSize - wxPrintData's style paper id associated with
-     * page type name.
-     */
-    wxPaperSize GetPaperId() const { return m_paper_id; }
-
-    void SetWidthMils(  int aWidthInMils );
-    int GetWidthMils() const { return m_size.x; }
-
-    void SetHeightMils( int aHeightInMils );
-    int GetHeightMils() const { return m_size.y; }
-
-    const wxSize& GetSizeMils() const { return m_size; }
-
-    // Accessors returning "Internal Units (IU)".  IUs are mils in EESCHEMA,
-    // and either deci-mils or nanometers in PCBNew.
-#if defined(PCBNEW) || defined(EESCHEMA) || defined(GERBVIEW)
-    int GetWidthIU() const  { return IU_PER_MILS * GetWidthMils();  }
-    int GetHeightIU() const { return IU_PER_MILS * GetHeightMils(); }
-    const wxSize GetSizeIU() const  { return wxSize( GetWidthIU(), GetHeightIU() ); }
-#endif
-
-    /**
-     * Function GetLeftMarginMils.
-     * @return int - logical page left margin in mils.
-     */
-    int GetLeftMarginMils() const           { return m_left_margin; }
-
-    /**
-     * Function GetLeftMarginMils.
-     * @return int - logical page right margin in mils.
-     */
-    int GetRightMarginMils() const          { return m_right_margin; }
-
-    /**
-     * Function GetLeftMarginMils.
-     * @return int - logical page top margin in mils.
-     */
-    int GetTopMarginMils() const            { return m_top_margin; }
-
-    /**
-     * Function GetBottomMarginMils.
-     * @return int - logical page bottom margin in mils.
-     */
-    int GetBottomMarginMils() const         { return m_bottom_margin; }
-
-    /**
-     * Function SetLeftMarginMils
-     * sets left page margin to @a aMargin in mils.
-     */
-    void SetLeftMarginMils( int aMargin )   { m_left_margin = aMargin; }
-
-    /**
-     * Function SetRightMarginMils
-     * sets right page margin to @a aMargin in mils.
-     */
-    void SetRightMarginMils( int aMargin )  { m_right_margin = aMargin; }
-
-    /**
-     * Function SetTopMarginMils
-     * sets top page margin to @a aMargin in mils.
-     */
-    void SetTopMarginMils( int aMargin )    { m_top_margin = aMargin; }
-
-    /**
-     * Function SetBottomMarginMils
-     * sets bottom page margin to @a aMargin in mils.
-     */
-    void SetBottomMarginMils( int aMargin ) { m_bottom_margin = aMargin; }
-
-    /**
-     * Function SetCustomWidthMils
-     * sets the width of Custom page in mils, for any custom page
-     * constructed or made via SetType() after making this call.
-     */
-    static void SetCustomWidthMils( int aWidthInMils );
-
-    /**
-     * Function SetCustomHeightMils
-     * sets the height of Custom page in mils, for any custom page
-     * constructed or made via SetType() after making this call.
-     */
-    static void SetCustomHeightMils( int aHeightInMils );
-
-    /**
-     * Function GetCustomWidthMils.
-     * @return int - custom paper width in mils.
-     */
-    static int GetCustomWidthMils() { return s_user_width; }
-
-    /**
-     * Function GetCustomHeightMils.
-     * @return int - custom paper height in mils.
-     */
-    static int GetCustomHeightMils() { return s_user_height; }
-
-    /**
-     * Function GetStandardSizes
-     * returns the standard page types, such as "A4", "A3", etc.
-    static wxArrayString GetStandardSizes();
-     */
-
-    /**
-     * Function Format
-     * outputs the page class to \a aFormatter in s-expression form.
-     *
-     * @param aFormatter The #OUTPUTFORMATTER object to write to.
-     * @param aNestLevel The indentation next level.
-     * @param aControlBits The control bit definition for object specific formatting.
-     * @throw IO_ERROR on write error.
-     */
-    void Format( OUTPUTFORMATTER* aFormatter, int aNestLevel, int aControlBits ) const
-        throw( IO_ERROR );
-
-protected:
-    // only the class implementation(s) may use this constructor
-    PAGE_INFO( const wxSize& aSizeMils, const wxString& aName, wxPaperSize aPaperId );
-
-
-private:
-
-    // standard pre-defined sizes
-    static const PAGE_INFO pageA4;
-    static const PAGE_INFO pageA3;
-    static const PAGE_INFO pageA2;
-    static const PAGE_INFO pageA1;
-    static const PAGE_INFO pageA0;
-    static const PAGE_INFO pageA;
-    static const PAGE_INFO pageB;
-    static const PAGE_INFO pageC;
-    static const PAGE_INFO pageD;
-    static const PAGE_INFO pageE;
-    static const PAGE_INFO pageGERBER;
-
-    static const PAGE_INFO pageUSLetter;
-    static const PAGE_INFO pageUSLegal;
-    static const PAGE_INFO pageUSLedger;
-
-    static const PAGE_INFO pageUser;
-
-    // all dimensions here are in mils
-
-    wxString    m_type;             ///< paper type: A4, A3, etc.
-    wxSize      m_size;             ///< mils
-
-/// Min and max page sizes for clamping.
-#define MIN_PAGE_SIZE   4000
-#define MAX_PAGE_SIZE   48000
-
-
-    int         m_left_margin;
-    int         m_right_margin;
-    int         m_top_margin;
-    int         m_bottom_margin;
-
-    bool        m_portrait;         ///< true if portrait, false if landscape
-
-    wxPaperSize m_paper_id;         ///< wx' style paper id.
-
-    static int s_user_height;
-    static int s_user_width;
-
-    void    updatePortrait();
-
-    void    setMargins();
-};
-
-
-extern wxString     g_ProductName;
-
-/// Default user lib path can be left void, if the standard lib path is used
-extern wxString     g_UserLibDirBuffer;
-
-extern bool         g_ShowPageLimits;       ///< true to display the page limits
 
 extern EDA_UNITS_T  g_UserUnit;     ///< display units
 
 /// Draw color for moving objects.
 extern EDA_COLOR_T  g_GhostColor;
 
-
-// COMMON.CPP
 
 /**
  * Function SetLocaleTo_C_standard
@@ -495,18 +216,30 @@ class LOCALE_IO
 public:
     LOCALE_IO()
     {
-        if( C_count++ == 0 )
+        wxASSERT_MSG( C_count >= 0, wxT( "LOCALE_IO::C_count mismanaged." ) );
+
+        // use thread safe, atomic operation
+        if( __sync_fetch_and_add( &C_count, 1 ) == 0 )
+        {
+            // printf( "setting C locale.\n" );
             SetLocaleTo_C_standard();
+        }
     }
 
     ~LOCALE_IO()
     {
-        if( --C_count == 0 )
+        // use thread safe, atomic operation
+        if( __sync_sub_and_fetch( &C_count, 1 ) == 0 )
+        {
+            // printf( "restoring default locale.\n" );
             SetLocaleTo_Default();
+        }
+
+        wxASSERT_MSG( C_count >= 0, wxT( "LOCALE_IO::C_count mismanaged." ) );
     }
 
 private:
-    static int C_count;     // allow for nesting of LOCALE_IO instantiations
+    static int  C_count;    // allow for nesting of LOCALE_IO instantiations
 };
 
 
@@ -545,13 +278,7 @@ bool EnsureTextCtrlWidth( wxTextCtrl* aCtrl, const wxString* aString = NULL );
  *               wxExecute())
  */
 int ProcessExecute( const wxString& aCommandLine, int aFlags = wxEXEC_ASYNC,
-                     wxProcess *callback = NULL );
-
-
-/*******************/
-/* about_kicad.cpp */
-/*******************/
-void InitKiCadAbout( wxAboutDialogInfo& info );
+                    wxProcess *callback = NULL );
 
 
 /**************/
@@ -606,18 +333,11 @@ double RoundTo0( double x, double precision );
 /**
  * Function wxStringSplit
  * splits \a aString to a string list separated at \a aSplitter.
- * @return the list
- * @param aString is the text to split
+ * @param aText is the text to split
+ * @param aStrings will contain the splitted lines
  * @param aSplitter is the 'split' character
  */
-wxArrayString* wxStringSplit( wxString aString, wxChar aSplitter );
-
-/**
- * Function GenDate
- * @return A wxString object containing the date in the format "day month year" like
- *         "23 jun 2005".
- */
-wxString GenDate();
+void wxStringSplit( const wxString& aText, wxArrayString& aStrings, wxChar aSplitter );
 
 /**
  * Function GetRunningMicroSecs
@@ -626,5 +346,118 @@ wxString GenDate();
  * @author Dick Hollenbeck
  */
 unsigned GetRunningMicroSecs();
+
+
+/**
+ * Function SystemDirsAppend
+ * appends system places to aSearchStack in a platform specific way, and pertinent
+ * to KiCad programs.  It seems to be a place to collect bad ideas and keep them
+ * out of view.
+ */
+void SystemDirsAppend( SEARCH_STACK* aSearchStack );
+
+
+/**
+ * Function SearchHelpFileFullPath
+ * returns the help file's full path.
+ * <p>
+ * Return the KiCad help file with path and extension.
+ * Help files can be html (.html ext) or pdf (.pdf ext) files.
+ * A \<BaseName\>.html file is searched and if not found,
+ * \<BaseName\>.pdf file is searched in the same path.
+ * If the help file for the current locale is not found, an attempt to find
+ * the English version of the help file is made.
+ * Help file is searched in directories in this order:
+ *  help/\<canonical name\> like help/en_GB
+ *  help/\<short name\> like help/en
+ *  help/en
+ * </p>
+ * @param aSearchStack contains some possible base dirs that may be above the
+ *  the one actually holding @a aBaseName.  These are starting points for nested searches.
+ * @param aBaseName is the name of the help file to search for, <p>without extension</p>.
+ * @return  wxEmptyString is returned if aBaseName is not found, else the full path & filename.
+ */
+wxString SearchHelpFileFullPath( const SEARCH_STACK& aSearchStack, const wxString& aBaseName );
+
+/**
+ * Helper function EnsureFileDirectoryExists
+ * make \a aTargetFullFileName absolute and creates the path of this file if it doesn't yet exist.
+ * @param aTargetFullFileName  the wxFileName containing the full path and file name to modify.  The path
+ *                    may be absolute or relative to \a aBaseFilename .
+ * @param aBaseFilename a full filename. Only its path is used to set the aTargetFullFileName path.
+ * @param aReporter a point to a REPORTER object use to show messages (can be NULL)
+ * @return true if \a aOutputDir already exists or was successfully created.
+ */
+bool EnsureFileDirectoryExists( wxFileName*     aTargetFullFileName,
+                                  const wxString& aBaseFilename,
+                                  REPORTER*       aReporter = NULL );
+
+/**
+ * Function LockFile
+ * tests to see if aFileName can be locked (is not already locked) and only then
+ * returns a wxSingleInstanceChecker protecting aFileName.  Caller owns the return value.
+ */
+wxSingleInstanceChecker* LockFile( const wxString& aFileName );
+
+
+/// Put aPriorityPath in front of all paths in the value of aEnvVar.
+const wxString PrePendPath( const wxString& aEnvVar, const wxString& aPriorityPath );
+
+/**
+ * Function GetNewConfig
+ *
+ * Use this function instead of creating a new wxConfig so we can put config files in
+ * a more proper place for each platform. This is generally $HOME/.config/kicad/ in Linux
+ * according to the FreeDesktop specification at
+ * http://standards.freedesktop.org/basedir-spec/basedir-spec-0.6.html
+ * The config object created here should be destroyed by the caller.
+ *
+ * @param aProgName is the name of the program calling this function - can be obtained by
+ *  calling Pgm().App().GetAppName().  This will be the actual file name of the config file.
+ * @return A pointer to a new wxConfigBase derived object is returned.  The caller is in charge
+ *  of deleting it.
+ */
+wxConfigBase* GetNewConfig( const wxString& aProgName );
+
+/**
+ * Function GetKicadLockFilePath
+ * @return A wxString containing the path for lockfiles in Kicad
+ */
+wxString GetKicadLockFilePath();
+
+/**
+ * Function GetKicadConfigPath
+ * @return A wxString containing the config path for Kicad
+ */
+wxString GetKicadConfigPath();
+
+/**
+ * Function ExpandEnvVarSubstitutions
+ * replaces any environment variable references with their values
+ * @param aString = a string containing (perhaps) references to env var
+ * @return a string where env var are replaced by their value
+ */
+const wxString ExpandEnvVarSubstitutions( const wxString& aString );
+
+
+#ifdef __WXMAC__
+/**
+ * OSX specific function GetOSXKicadUserDataDir
+ * @return A wxString pointing to the user data directory for Kicad
+ */
+wxString GetOSXKicadUserDataDir();
+
+/**
+ * OSX specific function GetOSXMachineDataDir
+ * @return A wxString pointing to the machine data directory for Kicad
+ */
+wxString GetOSXKicadMachineDataDir();
+
+/**
+ * OSX specific function GetOSXKicadDataDir
+ * @return A wxString pointing to the bundle data directory for Kicad
+ */
+wxString GetOSXKicadDataDir();
+#endif
 
 #endif  // INCLUDE__COMMON_H_
