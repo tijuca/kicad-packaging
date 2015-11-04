@@ -1,3 +1,15 @@
+kicad (4.0.0~rc1-2) unstable; urgency=medium
+
+  * fixed a typo in Makefile
+  * lowered the number of dependencies (dropped the dependency on all boost
+    libs, made a list of more precise dependencies)
+  * added CPPFLAGS to CXXFLAGS (workaround explained at
+    https://wiki.debian.org/Hardening#Notes_for_packages_using_CMake)
+  * added a switch -j4 in Makefile to trigger multithreading for the main
+    build
+
+ -- Georges Khaznadar <georgesk@debian.org>  Wed, 04 Nov 2015 10:48:42 +0100
+
 kicad (4.0.0~rc1-1) unstable; urgency=medium
 
   * updated the script get-kicad.sh to download the core from Github, docs

@@ -29,22 +29,25 @@ Index: kicad-4.0.0~rc1/Makefile
 ===================================================================
 --- /dev/null
 +++ kicad-4.0.0~rc1/Makefile
-@@ -0,0 +1,52 @@
-+DESTDIR =
-+DATE    = $(shell date +%Y%m%d)
-+CMAKE_OPTS = -DKICAD_SKIP_BOOST=ON -DCMAKE_INSTALL_PREFIX=/usr -DCMAKE_CXX_FLAGS="$(shell dpkg-buildflags --get CXXFLAGS)" -DBUILD_GITHUB_PLUGIN=OFF
+@@ -0,0 +1,55 @@
++DESTDIR    =
++DATE       = $(shell date +%Y%m%d)
++CPPFLAGS   = $(shell dpkg-buildflags --get CPPFLAGS)
++CXXFLAGS   = $(shell dpkg-buildflags --get CXXFLAGS) $(CPPFLAGS)
++CMAKE_OPTS = -DKICAD_SKIP_BOOST=ON -DCMAKE_INSTALL_PREFIX=/usr -DCMAKE_CXX_FLAGS="$(CXXFLAGS)" -DBUILD_GITHUB_PLUGIN=OFF
 +SUBDIRS = doc library
 +LDFLAGS = $(shell dpkg-buildflags --get LDFLAGS)
++MULTI   = -j4
 +
 +all:
 +	mkdir -p build
 +	if [ -z "$$(ls build/buildlog*)" ]; then \
 +	  cd build; \
 +	  echo "Build begin: $$(date +%H:%M:%S)" > buildlog-$(DATE); \
-+	  cmake $(CMAKE_OPTS) ..; make LDFLAGS=$(LDFLAGS) | tee --append buildlog-$(DATE); \
++	  cmake $(CMAKE_OPTS) ..; make $(MULTI) LDFLAGS=$(LDFLAGS) | tee --append buildlog-$(DATE); \
 +	  echo "Build end: $$(date +%H:%M:%S)" >> buildlog-$(DATE); \
 +	fi
-+	for d in $(SUBDIRS); do make -C $$d $@; done
++	for d in $(SUBDIRS); do make -C $$d $(MULTI)   $@; done
 +
 +clean:
 +
@@ -52,7 +55,7 @@ Index: kicad-4.0.0~rc1/Makefile
 +	rm -rf build boost_root .downloads-by-cmake
 +	for d in $(SUBDIRS); do make -C $$d $@; done
 +
-+fix_48x48icons:
++fix_48x48_icons:
 +	images=$$(find $(DESTDIR)/usr/share/icons/hicolor/48x48 -name "*.png"); \
 +	for f in $${images}; do \
 +	  size=$$(identify $$f| sed -n 's/.* PNG \(4[^ ]*\) .*/\1/ p'); \
