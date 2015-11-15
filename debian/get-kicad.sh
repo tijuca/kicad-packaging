@@ -32,6 +32,8 @@ rm master.tar.gz
 echo "[Done]."
 echo "====== Getting libraries (common and Pretty files) ======="
 PRETTY_REPOS=$(curl https://api.github.com/orgs/KiCad/repos?per_page=2000 2> /dev/null | sed -r 's:.+ "full_name".*"KiCad/(.+\.pretty)",:\1:p;d')
+echo "adding repositories TO_SOT_Packages_THT.pretty and TO_SOT_Packages_SMD.pretty"
+PRETTY_REPOS=$PRETTY_REPOS TO_SOT_Packages_THT.pretty TO_SOT_Packages_SMD.pretty
 PRETTY_REPOS=$(echo $PRETTY_REPOS | tr " " "\n" | sort)
 mkdir $package/library
 for project in kicad-library $PRETTY_REPOS; do

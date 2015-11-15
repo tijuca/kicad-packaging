@@ -21,7 +21,8 @@ Homepage: http://www.kicad-pcb.org
 Package: kicad
 Architecture: any
 Depends: kicad-common (>= ${source:Version}),
- ${shlibs:Depends}, ${misc:Depends}
+ ${shlibs:Depends}, ${misc:Depends},
+ libglew1.13
 Suggests: extra-xdg-menus,
 	kicad-doc-en | kicad-doc-fr | kicad-doc-it | kicad-doc-ja | kicad-doc-nl | kicad-doc-pl
 Description: Electronic schematic and PCB design software

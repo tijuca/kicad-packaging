@@ -1,3 +1,15 @@
+kicad (4.0.0~rc1a-1) unstable; urgency=medium
+
+  * added a dependency on libglew1.13; Closes #805115
+  * added new flags for CMAKE_OPTS in Makefile to display the correct version
+    in windows' titles.
+  * added "manually" repositories for TO_SOT_Packages_THT.pretty and
+    TO_SOT_Packages_SMD.pretty; Closes #804614
+  * remade the source package as too much files have been added for a simple
+    patch
+
+ -- Georges Khaznadar <georgesk@debian.org>  Sun, 15 Nov 2015 15:58:56 +0100
+
 kicad (4.0.0~rc1-2) unstable; urgency=medium
 
   * fixed a typo in Makefile

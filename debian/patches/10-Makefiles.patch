@@ -29,12 +29,13 @@ Index: kicad-4.0.0~rc1/Makefile
 ===================================================================
 --- /dev/null
 +++ kicad-4.0.0~rc1/Makefile
-@@ -0,0 +1,55 @@
+@@ -0,0 +1,56 @@
 +DESTDIR    =
++VERSION    = $(shell basename $$(pwd)| sed 's/kicad-//')
 +DATE       = $(shell date +%Y%m%d)
 +CPPFLAGS   = $(shell dpkg-buildflags --get CPPFLAGS)
 +CXXFLAGS   = $(shell dpkg-buildflags --get CXXFLAGS) $(CPPFLAGS)
-+CMAKE_OPTS = -DKICAD_SKIP_BOOST=ON -DCMAKE_INSTALL_PREFIX=/usr -DCMAKE_CXX_FLAGS="$(CXXFLAGS)" -DBUILD_GITHUB_PLUGIN=OFF
++CMAKE_OPTS = -DKICAD_SKIP_BOOST=ON -DCMAKE_INSTALL_PREFIX=/usr -DCMAKE_CXX_FLAGS="$(CXXFLAGS)" -DBUILD_GITHUB_PLUGIN=OFF -DKICAD_REPO_NAME=stable -DKICAD_BUILD_VERSION=$(VERSION)  -DDEFAULT_INSTALL_PATH=/usr
 +SUBDIRS = doc library
 +LDFLAGS = $(shell dpkg-buildflags --get LDFLAGS)
 +MULTI   = -j4
