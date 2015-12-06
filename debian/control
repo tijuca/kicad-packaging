@@ -14,7 +14,13 @@ Build-Depends: debhelper (>= 9), quilt,
  dblatex, po4a, asciidoc, git, texlive-xetex, pandoc, gettext, fonts-vlgothic,
  texlive-lang-english, texlive-lang-french, texlive-lang-italian,
  texlive-lang-japanese, texlive-lang-polish, texlive-lang-european,
- source-highlight
+ source-highlight,
+ libxml2-utils, docbook-utils, xmlto,
+ libtext-wrapi18n-perl,
+ libterm-readkey-perl,
+ liblocale-gettext-perl,
+ libunicode-linebreak-perl,
+ lmodern, docbook-xsl
 Standards-Version: 3.9.6
 Homepage: http://www.kicad-pcb.org
 

@@ -1,3 +1,16 @@
+kicad (4.0.0~rc1a-3) unstable; urgency=medium
+
+  * added a build-dependency on docbook-xsl; enforced a non-parallel build
+    for documents, following Simon Richter's hints. Closes: #806967
+
+ -- Georges Khaznadar <georgesk@debian.org>  Sun, 06 Dec 2015 20:08:42 +0100
+
+kicad (4.0.0~rc1a-2) unstable; urgency=medium
+
+  * applied Graham Inggs' patch. Closes: #806967
+
+ -- Georges Khaznadar <georgesk@debian.org>  Thu, 03 Dec 2015 18:27:16 +0100
+
 kicad (4.0.0~rc1a-1) unstable; urgency=medium
 
   * added a dependency on libglew1.13; Closes #805115

@@ -1,7 +1,7 @@
-Index: kicad-4.0.0~rc1/doc/Makefile
+Index: kicad-4.0.0~rc1a/doc/Makefile
 ===================================================================
 --- /dev/null
-+++ kicad-4.0.0~rc1/doc/Makefile
++++ kicad-4.0.0~rc1a/doc/Makefile
 @@ -0,0 +1,22 @@
 +DESTDIR =
 +DATE    = $(shell date +%Y%m%d)
@@ -25,11 +25,11 @@ Index: kicad-4.0.0~rc1/doc/Makefile
 +	cd build; export DESTDIR=$(DESTDIR); make install
 +
 +.PHONY: all clean install
-Index: kicad-4.0.0~rc1/Makefile
+Index: kicad-4.0.0~rc1a/Makefile
 ===================================================================
 --- /dev/null
-+++ kicad-4.0.0~rc1/Makefile
-@@ -0,0 +1,56 @@
++++ kicad-4.0.0~rc1a/Makefile
+@@ -0,0 +1,60 @@
 +DESTDIR    =
 +VERSION    = $(shell basename $$(pwd)| sed 's/kicad-//')
 +DATE       = $(shell date +%Y%m%d)
@@ -48,7 +48,11 @@ Index: kicad-4.0.0~rc1/Makefile
 +	  cmake $(CMAKE_OPTS) ..; make $(MULTI) LDFLAGS=$(LDFLAGS) | tee --append buildlog-$(DATE); \
 +	  echo "Build end: $$(date +%H:%M:%S)" >> buildlog-$(DATE); \
 +	fi
-+	for d in $(SUBDIRS); do make -C $$d $(MULTI)   $@; done
++	# no parallel build for doc: some intermediary files must be
++	# built in order
++	make -C doc -j1   $@
++	# parallel build does not harm with libraries
++	make -C library $(MULTI)   $@
 +
 +clean:
 +
@@ -86,10 +90,10 @@ Index: kicad-4.0.0~rc1/Makefile
 +
 +
 +.PHONY: all clean clean_all install fix_48x48icons
-Index: kicad-4.0.0~rc1/library/Makefile
+Index: kicad-4.0.0~rc1a/library/Makefile
 ===================================================================
 --- /dev/null
-+++ kicad-4.0.0~rc1/library/Makefile
++++ kicad-4.0.0~rc1a/library/Makefile
 @@ -0,0 +1,30 @@
 +DESTDIR =
 +DATE    = $(shell date +%Y%m%d)
