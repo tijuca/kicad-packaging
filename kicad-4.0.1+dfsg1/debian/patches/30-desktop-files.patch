@@ -1,0 +1,52 @@
+Index: kicad-4.0.0~rc1/resources/linux/mime/applications/bitmap2component.desktop
+===================================================================
+--- kicad-4.0.0~rc1.orig/resources/linux/mime/applications/bitmap2component.desktop
++++ kicad-4.0.0~rc1/resources/linux/mime/applications/bitmap2component.desktop
+@@ -1,7 +1,7 @@
+ [Desktop Entry]
+ Categories=Development;Electronics;
+ Comment=Create a component from a bitmap for use with KiCad
+-Exec=bitmap2component
++Exec=bitmap2component %f
+ GenericName=EDA Suite
+ Icon=bitmap2component
+ MimeType=application/x-bitmap2component-project;
+Index: kicad-4.0.0~rc1/resources/linux/mime/applications/cvpcb.desktop
+===================================================================
+--- kicad-4.0.0~rc1.orig/resources/linux/mime/applications/cvpcb.desktop
++++ kicad-4.0.0~rc1/resources/linux/mime/applications/cvpcb.desktop
+@@ -1,7 +1,7 @@
+ [Desktop Entry]
+ Categories=Development;Electronics;
+ Comment=Assign footprints to symbols (part of KiCad)
+-Exec=cvpcb
++Exec=cvpcb %f
+ GenericName=EDA Suite
+ Icon=cvpcb
+ MimeType=application/x-cvpcb-project;
+Index: kicad-4.0.0~rc1/resources/linux/mime/applications/gerbview.desktop
+===================================================================
+--- kicad-4.0.0~rc1.orig/resources/linux/mime/applications/gerbview.desktop
++++ kicad-4.0.0~rc1/resources/linux/mime/applications/gerbview.desktop
+@@ -1,7 +1,7 @@
+ [Desktop Entry]
+ Categories=Development;Electronics;
+ Comment=View gerber files
+-Exec=gerbview
++Exec=gerbview %f
+ GenericName=EDA Suite
+ Icon=gerbview
+ MimeType=application/x-gerbview-project;
+Index: kicad-4.0.0~rc1/resources/linux/mime/applications/pcbcalculator.desktop
+===================================================================
+--- kicad-4.0.0~rc1.orig/resources/linux/mime/applications/pcbcalculator.desktop
++++ kicad-4.0.0~rc1/resources/linux/mime/applications/pcbcalculator.desktop
+@@ -1,7 +1,7 @@
+ [Desktop Entry]
+ Categories=Development;Electronics;
+ Comment=Calculator for various electronics related computations
+-Exec=pcb_calculator
++Exec=pcb_calculator %f
+ GenericName=EDA Suite
+ Icon=pcbcalculator
+ MimeType=application/x-pcbcalculator-project;
