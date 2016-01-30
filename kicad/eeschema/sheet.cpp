@@ -105,6 +105,9 @@ structures and cannot be undone.\nOk to continue renaming?" );
                     aSheet->ChangeFileName( this, fileName.GetFullPath() );
                 }
             }
+            
+            else
+                SaveCopyInUndoList( aSheet, UR_CHANGED );
 
             aSheet->m_FileNameSize = ReturnValueFromString( g_UnitMetric,
                                                             dlg.GetFileNameTextSize(),
@@ -138,7 +141,7 @@ structures and cannot be undone.\nOk to continue renaming?" );
 /* Move selected sheet with the cursor.
  * Callback function use by ManageCurseur.
  */
-static void MoveSheet( WinEDA_DrawPanel* aPanel, wxDC* aDC, bool aErase )
+static void MoveOrResizeSheet( WinEDA_DrawPanel* aPanel, wxDC* aDC, bool aErase )
 {
     wxPoint        moveVector;
     SCH_SHEET_PIN* sheetLabel;
@@ -185,20 +188,11 @@ static void ExitSheet( WinEDA_DrawPanel* aPanel, wxDC* aDC )
         RedrawOneStruct( aPanel, aDC, sheet, g_XorMode );
         SAFE_DELETE( sheet );
     }
-    else if( sheet->m_Flags & IS_RESIZED )
-    {
-        /* Resize in progress, cancel move. */
-        RedrawOneStruct( aPanel, aDC, sheet, g_XorMode );
-        sheet->m_Size.x = s_OldPos.x;
-        sheet->m_Size.y = s_OldPos.y;
-        RedrawOneStruct( aPanel, aDC, sheet, GR_DEFAULT_DRAWMODE );
-        sheet->m_Flags = 0;
-    }
-    else if( sheet->m_Flags & IS_MOVED )
+    else if( (sheet->m_Flags & (IS_RESIZED|IS_MOVED)) )
     {
         wxPoint curspos = screen->m_Curseur;
         aPanel->GetScreen()->m_Curseur = s_OldPos;
-        MoveSheet( aPanel, aDC, true );
+        MoveOrResizeSheet( aPanel, aDC, true );
         RedrawOneStruct( aPanel, aDC, sheet, GR_DEFAULT_DRAWMODE );
         sheet->m_Flags = 0;
         screen->m_Curseur = curspos;
@@ -211,6 +205,7 @@ static void ExitSheet( WinEDA_DrawPanel* aPanel, wxDC* aDC )
     screen->SetCurItem( NULL );
     aPanel->ManageCurseur = NULL;
     aPanel->ForceCloseManageCurseur = NULL;
+    SAFE_DELETE( g_ItemToUndoCopy );
 }
 
 
@@ -222,6 +217,7 @@ static void ExitSheet( WinEDA_DrawPanel* aPanel, wxDC* aDC )
 SCH_SHEET* WinEDA_SchematicFrame::CreateSheet( wxDC* aDC )
 {
     g_ItemToRepeat = NULL;
+    SAFE_DELETE( g_ItemToUndoCopy );
 
     SCH_SHEET* sheet = new SCH_SHEET( GetScreen()->m_Curseur );
 
@@ -237,7 +233,7 @@ SCH_SHEET* WinEDA_SchematicFrame::CreateSheet( wxDC* aDC )
     // a sheet to a screen that already has multiple instances (!)
     GetScreen()->SetCurItem( sheet );
 
-    DrawPanel->ManageCurseur = MoveSheet;
+    DrawPanel->ManageCurseur = MoveOrResizeSheet;
     DrawPanel->ForceCloseManageCurseur = ExitSheet;
 
     DrawPanel->ManageCurseur( DrawPanel, aDC, false );
@@ -263,8 +259,7 @@ void WinEDA_SchematicFrame::ReSizeSheet( SCH_SHEET* aSheet, wxDC* aDC )
     OnModify( );
     aSheet->m_Flags |= IS_RESIZED;
 
-    s_OldPos.x = aSheet->m_Size.x;
-    s_OldPos.y = aSheet->m_Size.y;
+    s_OldPos = aSheet->m_Pos + aSheet->m_Size;
 
     s_PreviousSheetWidth = SHEET_MIN_WIDTH;
     s_PreviousSheetHeight = SHEET_MIN_HEIGHT;
@@ -280,9 +275,15 @@ void WinEDA_SchematicFrame::ReSizeSheet( SCH_SHEET* aSheet, wxDC* aDC )
         sheetLabel   = sheetLabel->Next();
     }
 
-    DrawPanel->ManageCurseur = MoveSheet;
+    DrawPanel->ManageCurseur = MoveOrResizeSheet;
     DrawPanel->ForceCloseManageCurseur = ExitSheet;
     DrawPanel->ManageCurseur( DrawPanel, aDC, true );
+
+    if( (aSheet->m_Flags & IS_NEW) == 0 )    // not already in edit, save a copy for undo/redo
+    {
+        delete g_ItemToUndoCopy;
+        g_ItemToUndoCopy = DuplicateStruct( aSheet, true );
+    }
 }
 
 
@@ -297,8 +298,14 @@ void WinEDA_SchematicFrame::StartMoveSheet( SCH_SHEET* aSheet, wxDC* aDC )
 
     s_OldPos = aSheet->m_Pos;
     aSheet->m_Flags |= IS_MOVED;
-    DrawPanel->ManageCurseur = MoveSheet;
+    DrawPanel->ManageCurseur = MoveOrResizeSheet;
     DrawPanel->ForceCloseManageCurseur = ExitSheet;
     DrawPanel->ManageCurseur( DrawPanel, aDC, true );
     DrawPanel->CursorOn( aDC );
+    
+    if( (aSheet->m_Flags & IS_NEW) == 0 )    // not already in edit, save a copy for undo/redo
+    {
+        delete g_ItemToUndoCopy;
+        g_ItemToUndoCopy = DuplicateStruct( aSheet, true );
+    }
 }

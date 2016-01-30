@@ -37,38 +37,36 @@ int g_DrawDefaultLineThickness = 60; /* Default line thickness in PCBNEW units u
                                       * default thickness line value (Frame references)
                                       * (i.e. = 0 ). 0 = single pixel line width */
 
-bool Drc_On = true;
-bool g_AutoDeleteOldTrack = true;
-bool g_Drag_Pistes_On;
-bool g_Show_Module_Ratsnest;
-bool g_Show_Pads_Module_in_Move = true;
-bool g_Raccord_45_Auto = true;
-bool Track_45_Only;
-bool Segments_45_Only;
-bool g_TwoSegmentTrackBuild = true;
-bool g_HighLight_Status;
-extern PARAM_CFG_BASE* ParamCfgList[];
+bool           Drc_On = true;
+bool           g_AutoDeleteOldTrack = true;
+bool           g_Drag_Pistes_On;
+bool           g_Show_Module_Ratsnest;
+bool           g_Show_Pads_Module_in_Move = true;
+bool           g_Raccord_45_Auto = true;
+bool           g_Track_45_Only_Allowed = true;  // True to allow horiz, vert. and 45deg only tracks
+bool           Segments_45_Only;                // True to allow horiz, vert. and 45deg only graphic segments
+bool           g_TwoSegmentTrackBuild = true;
+bool           g_HighLight_Status;
 
-int                    ModuleSegmentWidth;
-int                    ModuleTextWidth;
-int                    Route_Layer_TOP;
-int                    Route_Layer_BOTTOM;
-int                    g_MaxLinksShowed;
-int                    g_MagneticPadOption   = capture_cursor_in_track_tool;
-int                    g_MagneticTrackOption = capture_cursor_in_track_tool;
-int                    g_HighLight_NetCode   = -1;
+int            ModuleSegmentWidth;
+int            ModuleTextWidth;
+int            Route_Layer_TOP;
+int            Route_Layer_BOTTOM;
+int            g_MaxLinksShowed;
+int            g_MagneticPadOption   = capture_cursor_in_track_tool;
+int            g_MagneticTrackOption = capture_cursor_in_track_tool;
+int            g_HighLight_NetCode   = -1;
 
-wxSize                 ModuleTextSize;      /* Default footprint texts size */
-wxPoint                g_Offset_Module;     /* Offset de trace du modul en depl */
-wxString               g_Current_PadName;   // Last used pad name (pad num)
+wxSize         ModuleTextSize;      /* Default footprint texts size */
+wxPoint        g_Offset_Module;     /* Offset de trace du modul en depl */
+wxString       g_Current_PadName;   // Last used pad name (pad num)
 
 // Wildcard for footprint libraries filesnames
-const wxString         g_FootprintLibFileWildcard( wxT(
-                                                      "Kicad footprint library file (*.mod)|*.mod" ) );
+const wxString g_FootprintLibFileWildcard( wxT( "Kicad footprint library file (*.mod)|*.mod" ) );
 
 /* Name of the document footprint list
  * usually located in share/modules/footprints_doc
- * this is of the responsability to users to create this file
+ * this is of the responsibility to users to create this file
  * if they want to have a list of footprints
  */
 wxString g_DocModulesFileName = wxT( "footprints_doc/footprints.pdf" );
@@ -90,9 +88,7 @@ void WinEDA_App::MacOpenFile( const wxString& fileName )
 }
 
 
-/****************************/
 bool WinEDA_App::OnInit()
-/****************************/
 {
     /* WXMAC application specific */
 #ifdef __WXMAC__
@@ -124,28 +120,24 @@ bool WinEDA_App::OnInit()
     {
         fn = argv[1];
 
-        if( fn.GetExt() != BoardFileExtension )
+        if( fn.GetExt() != PcbFileExtension )
         {
-            wxLogDebug( wxT(
-                           "PcbNew file <%s> has the wrong extension.\
-Changing extension to .brd."                                                                         ),
-                       GetChars( fn.GetFullPath() ) );
-            fn.SetExt( BoardFileExtension );
+            wxLogDebug( wxT( "PcbNew file <%s> has the wrong extension.  \
+Changing extension to .brd." ), GetChars( fn.GetFullPath() ) );
+            fn.SetExt( PcbFileExtension );
         }
 
         if( fn.IsOk() && fn.DirExists() )
             wxSetWorkingDirectory( fn.GetPath() );
     }
 
-    wxGetApp().ReadCurrentSetupValues( ParamCfgList );
     g_DrawBgColor = BLACK;
     Read_Hotkey_Config( frame, false );  /* Must be called before creating the
                                           * main frame in order to display the
                                           * real hotkeys in menus or tool tips */
 
 
-    frame = new WinEDA_PcbFrame( NULL, wxT( "PcbNew" ),
-                                wxPoint( 0, 0 ), wxSize( 600, 400 ) );
+    frame = new WinEDA_PcbFrame( NULL, wxT( "PcbNew" ), wxPoint( 0, 0 ), wxSize( 600, 400 ) );
     frame->SetTitle( GetTitle() + wxT( " " ) + GetBuildVersion() );
     ActiveScreen = ScreenPcb;
 
@@ -157,18 +149,36 @@ Changing extension to .brd."                                                    
         SetupServerFunction( RemoteCommand );
     }
 
-    frame->Read_Config( fn.GetFullPath() );
-
     frame->Zoom_Automatique( true );
 
     /* Load file specified in the command line. */
     if( fn.IsOk() )
     {
-        frame->LoadOnePcbFile( fn.GetFullPath(), FALSE );
+        /* Note the first time Pcbnew is called after creating a new project
+         * the board file may not exists
+         * So we load settings only
+        */
+        if( fn.FileExists() )
+            frame->LoadOnePcbFile( fn.GetFullPath() );
+        else
+        {   // File does not exists: prepare an empty board
+            wxSetWorkingDirectory( fn.GetPath() );
+            frame->GetScreen()->m_FileName = fn.GetFullPath();
+            frame->GetScreen()->m_FileName.Replace( WIN_STRING_DIR_SEP, UNIX_STRING_DIR_SEP );
+            frame->SetTitle( frame->GetScreen()->m_FileName );
+            frame->SetLastProject( frame->GetScreen()->m_FileName );
+            frame->OnModify();  // Ready to save the new empty board
 
-        // update the layer names in the listbox
-        frame->ReCreateLayerBox( NULL );
+            wxString msg;
+            msg.Printf( _( "File <%s> not existing\nThis is normal for a new project" ),
+                GetChars( frame->GetScreen()->m_FileName ) );
+            wxMessageBox( msg );
+        }
     }
+
+    frame->LoadProjectSettings( fn.GetFullPath() );
+    // update the layer names in the listbox
+    frame->ReCreateLayerBox( NULL );
 
     /* For an obscure reason the focus is lost after loading a board file
      * when starting (i.e. only at this point)

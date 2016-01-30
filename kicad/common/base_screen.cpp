@@ -65,7 +65,7 @@ void BASE_SCREEN::InitDatas()
         m_Curseur.y = ReturnPageSize().y / 2;
     }
 
-    m_O_Curseur = m_Curseur;
+    m_O_Curseur.x = m_O_Curseur.y = 0;
 
     SetCurItem( NULL );
 
@@ -90,9 +90,19 @@ int BASE_SCREEN::GetInternalUnits( void )
 wxSize BASE_SCREEN::ReturnPageSize( void )
 {
     int internal_units = GetInternalUnits();
+    wxSize size = m_CurrentSheetDesc->m_Size;
+    size.x =  (int)( (double)size.x * internal_units / 1000 );
+    size.y =  (int)( (double)size.y * internal_units / 1000 );
 
-    return wxSize( ( m_CurrentSheetDesc->m_Size.x * internal_units ) / 1000,
-                   ( m_CurrentSheetDesc->m_Size.y * internal_units ) / 1000 );
+    return size;
+}
+
+void BASE_SCREEN::SetPageSize( wxSize& aPageSize )
+{
+    int internal_units = GetInternalUnits();
+
+    m_CurrentSheetDesc->m_Size.x = (int) ((double)aPageSize.x * 1000 / internal_units);
+    m_CurrentSheetDesc->m_Size.y = (int) ((double)aPageSize.y * 1000 / internal_units);
 }
 
 
@@ -441,13 +451,13 @@ void BASE_SCREEN::AddGrid( const wxRealPoint& size, int units, int id )
 
     if( units == MILLIMETRE )
     {
-        x = size.x / 25.4000508001016;
-        y = size.y / 25.4000508001016;
+        x = size.x / 25.4;
+        y = size.y / 25.4;
     }
     else if( units == CENTIMETRE )
     {
-        x = size.x / 2.54000508001016;
-        y = size.y / 2.54000508001016;
+        x = size.x / 2.54;
+        y = size.y / 2.54;
     }
     else
     {

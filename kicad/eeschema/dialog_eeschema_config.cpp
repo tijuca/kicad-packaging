@@ -43,27 +43,39 @@ private:
 	void OnOkClick( wxCommandEvent& event );
 	void OnCancelClick( wxCommandEvent& event );
     void OnRemoveUserPath( wxCommandEvent& event );
+	void OnButtonUpClick( wxCommandEvent& event );
+	void OnButtonDownClick( wxCommandEvent& event );
 
 
 public:
-    DIALOG_EESCHEMA_CONFIG( WinEDA_SchematicFrame * parent );
+    DIALOG_EESCHEMA_CONFIG( WinEDA_SchematicFrame * parent, WinEDA_DrawFrame * activeWindow );
     ~DIALOG_EESCHEMA_CONFIG() {};
 };
 
 
 /******************************************************************/
-void WinEDA_SchematicFrame::InstallConfigFrame( const wxPoint& pos )
+void WinEDA_SchematicFrame::InstallConfigFrame( wxCommandEvent& event )
 /******************************************************************/
 {
-    DIALOG_EESCHEMA_CONFIG CfgFrame( this );
+    DIALOG_EESCHEMA_CONFIG CfgFrame( this, this );
 
     CfgFrame.ShowModal();
 }
 
 
+/******************************************************************/
+void WinEDA_LibeditFrame::InstallConfigFrame( wxCommandEvent& event )
+/******************************************************************/
+{
+    DIALOG_EESCHEMA_CONFIG CfgFrame( (WinEDA_SchematicFrame *)GetParent(), this );
+
+    CfgFrame.ShowModal();
+}
+
 /*******************************************************************************/
-DIALOG_EESCHEMA_CONFIG::DIALOG_EESCHEMA_CONFIG( WinEDA_SchematicFrame* parent )
-    : DIALOG_EESCHEMA_CONFIG_FBP( parent )
+DIALOG_EESCHEMA_CONFIG::DIALOG_EESCHEMA_CONFIG( WinEDA_SchematicFrame* parent,
+                WinEDA_DrawFrame * activeWindow )
+    : DIALOG_EESCHEMA_CONFIG_FBP( activeWindow )
 /*******************************************************************************/
 {
     wxString msg;
@@ -114,6 +126,72 @@ void DIALOG_EESCHEMA_CONFIG::Init()
     // select the first path afer the current path project
     if ( libpaths.GetCount() > 1 )
         m_DefaultLibraryPathslistBox->Select( 1 );
+}
+
+
+/********************************************************************/
+void DIALOG_EESCHEMA_CONFIG::OnButtonUpClick( wxCommandEvent& event )
+/********************************************************************/
+{
+    wxArrayInt selections;
+
+    m_ListLibr->GetSelections(selections);
+    if ( selections.GetCount() <= 0 )   // No selection.
+        return;
+
+    if( selections[0] == 0 )            // The first lib is selected. cannot move up it
+        return;
+
+    wxArrayString libnames = m_ListLibr->GetStrings();
+
+    for( size_t ii = 0; ii < selections.GetCount(); ii++ )
+    {
+        int jj = selections[ii];
+        EXCHG( libnames[jj],  libnames[jj-1]);
+    }
+    m_ListLibr->Set(libnames);
+
+    // Reselect previously selected names
+    for( size_t ii = 0; ii < selections.GetCount(); ii++ )
+    {
+        int jj = selections[ii];
+        m_ListLibr->SetSelection(jj-1);
+    }
+
+    m_LibListChanged = TRUE;
+}
+
+
+/*********************************************************************/
+void DIALOG_EESCHEMA_CONFIG::OnButtonDownClick( wxCommandEvent& event )
+/*********************************************************************/
+{
+    wxArrayInt selections;
+
+    m_ListLibr->GetSelections(selections);
+    if ( selections.GetCount() <= 0 )   // No selection.
+        return;
+
+    // The last lib is selected. cannot move down it
+    if( selections.Last() == (int)(m_ListLibr->GetCount()-1) )
+        return;
+
+    wxArrayString libnames = m_ListLibr->GetStrings();
+
+    for( int ii = selections.GetCount()-1; ii >= 0; ii-- )
+    {
+        int jj = selections[ii];
+        EXCHG( libnames[jj],  libnames[jj+1]);
+    }
+    m_ListLibr->Set(libnames);
+
+    // Reselect previously selected names
+    for( size_t ii = 0; ii < selections.GetCount(); ii++ )
+    {
+        int jj = selections[ii];
+        m_ListLibr->SetSelection(jj+1);
+    }
+    m_LibListChanged = TRUE;
 }
 
 
@@ -186,14 +264,14 @@ void DIALOG_EESCHEMA_CONFIG::OnRemoveLibClick( wxCommandEvent& event )
  * The real list (m_Parent->m_ComponentLibFiles) is not changed, so the change can be cancelled
  */
 {
-    int ii;
+    wxArrayInt selections;
 
-    ii = m_ListLibr->GetSelection();
-    if( ii < 0 )
-        return;
-
-    m_ListLibr->Delete(ii);
-    m_LibListChanged = TRUE;
+    m_ListLibr->GetSelections(selections);
+    for( int ii = selections.GetCount()-1; ii >= 0; ii-- )
+    {
+        m_ListLibr->Delete(selections[ii] );
+        m_LibListChanged = TRUE;
+    }
 }
 
 
@@ -212,8 +290,13 @@ void DIALOG_EESCHEMA_CONFIG::OnAddOrInsertLibClick( wxCommandEvent& event )
     wxString   libfilename;
     wxFileName fn;
 
-    ii = m_ListLibr->GetSelection();
-    if( ii == wxNOT_FOUND && event.GetId() != ID_ADD_LIB )
+    wxArrayInt selections;
+    m_ListLibr->GetSelections(selections);
+
+    ii = selections.GetCount();
+    if( ii > 0 )
+        ii = selections[0];
+    else
         ii = 0;
 
     wxString libpath;

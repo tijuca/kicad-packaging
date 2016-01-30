@@ -55,9 +55,9 @@ void WinEDA_BasePcbFrame::Plot_Serigraphie( PLOTTER*    plotter,
                           trace_mode );
             break;
 
-        case TYPE_COTATION:
-            PlotCotation( plotter,
-                          (COTATION*) PtStruct,
+        case TYPE_DIMENSION:
+            PlotDimension( plotter,
+                          (DIMENSION*) PtStruct,
                           masque_layer,
                           trace_mode );
             break;
@@ -262,69 +262,75 @@ static void PlotTextModule( PLOTTER* plotter, TEXTE_MODULE* pt_texte,
     if( pt_texte->m_Mirror )
         NEGATE( size.x );  // Text is mirrored
 
+    // Non bold texts thickness is clamped at 1/6 char size by the low level draw function.
+    // but in Pcbnew we do not manage bold texts and thickness up to 1/4 char size
+    // (like bold text) and we manage the thickness.
+    // So we set bold flag to true
+    bool allow_bold = pt_texte->m_Bold || thickness;
+
     plotter->text( pos, BLACK,
                    pt_texte->m_Text,
                    orient, size,
                    pt_texte->m_HJustify, pt_texte->m_VJustify,
-                   thickness, pt_texte->m_Italic, pt_texte->m_Bold );
+                   thickness, pt_texte->m_Italic, allow_bold );
 }
 
 
-void PlotCotation( PLOTTER* plotter, COTATION* Cotation, int masque_layer,
+void PlotDimension( PLOTTER* plotter, DIMENSION* Dimension, int masque_layer,
                    GRTraceMode trace_mode )
 {
     DRAWSEGMENT* DrawTmp;
 
-    if( (g_TabOneLayerMask[Cotation->GetLayer()] & masque_layer) == 0 )
+    if( (g_TabOneLayerMask[Dimension->GetLayer()] & masque_layer) == 0 )
         return;
 
     DrawTmp = new DRAWSEGMENT( NULL );
 
-    DrawTmp->m_Width = (trace_mode==FILAIRE) ? -1 : Cotation->m_Width;
-    DrawTmp->SetLayer( Cotation->GetLayer() );
+    DrawTmp->m_Width = (trace_mode==FILAIRE) ? -1 : Dimension->m_Width;
+    DrawTmp->SetLayer( Dimension->GetLayer() );
 
-    PlotTextePcb( plotter, Cotation->m_Text, masque_layer, trace_mode );
+    PlotTextePcb( plotter, Dimension->m_Text, masque_layer, trace_mode );
 
-    DrawTmp->m_Start.x = Cotation->Barre_ox;
-    DrawTmp->m_Start.y = Cotation->Barre_oy;
-    DrawTmp->m_End.x = Cotation->Barre_fx;
-    DrawTmp->m_End.y = Cotation->Barre_fy;
+    DrawTmp->m_Start.x = Dimension->Barre_ox;
+    DrawTmp->m_Start.y = Dimension->Barre_oy;
+    DrawTmp->m_End.x = Dimension->Barre_fx;
+    DrawTmp->m_End.y = Dimension->Barre_fy;
     PlotDrawSegment( plotter, DrawTmp, masque_layer, trace_mode );
 
-    DrawTmp->m_Start.x = Cotation->TraitG_ox;
-    DrawTmp->m_Start.y = Cotation->TraitG_oy;
-    DrawTmp->m_End.x = Cotation->TraitG_fx;
-    DrawTmp->m_End.y = Cotation->TraitG_fy;
+    DrawTmp->m_Start.x = Dimension->TraitG_ox;
+    DrawTmp->m_Start.y = Dimension->TraitG_oy;
+    DrawTmp->m_End.x = Dimension->TraitG_fx;
+    DrawTmp->m_End.y = Dimension->TraitG_fy;
     PlotDrawSegment( plotter, DrawTmp, masque_layer, trace_mode );
 
-    DrawTmp->m_Start.x = Cotation->TraitD_ox;
-    DrawTmp->m_Start.y = Cotation->TraitD_oy;
-    DrawTmp->m_End.x = Cotation->TraitD_fx;
-    DrawTmp->m_End.y = Cotation->TraitD_fy;
+    DrawTmp->m_Start.x = Dimension->TraitD_ox;
+    DrawTmp->m_Start.y = Dimension->TraitD_oy;
+    DrawTmp->m_End.x = Dimension->TraitD_fx;
+    DrawTmp->m_End.y = Dimension->TraitD_fy;
     PlotDrawSegment( plotter, DrawTmp, masque_layer, trace_mode );
 
-    DrawTmp->m_Start.x = Cotation->FlecheD1_ox;
-    DrawTmp->m_Start.y = Cotation->FlecheD1_oy;
-    DrawTmp->m_End.x = Cotation->FlecheD1_fx;
-    DrawTmp->m_End.y = Cotation->FlecheD1_fy;
+    DrawTmp->m_Start.x = Dimension->FlecheD1_ox;
+    DrawTmp->m_Start.y = Dimension->FlecheD1_oy;
+    DrawTmp->m_End.x = Dimension->FlecheD1_fx;
+    DrawTmp->m_End.y = Dimension->FlecheD1_fy;
     PlotDrawSegment( plotter, DrawTmp, masque_layer, trace_mode );
 
-    DrawTmp->m_Start.x = Cotation->FlecheD2_ox;
-    DrawTmp->m_Start.y = Cotation->FlecheD2_oy;
-    DrawTmp->m_End.x = Cotation->FlecheD2_fx;
-    DrawTmp->m_End.y = Cotation->FlecheD2_fy;
+    DrawTmp->m_Start.x = Dimension->FlecheD2_ox;
+    DrawTmp->m_Start.y = Dimension->FlecheD2_oy;
+    DrawTmp->m_End.x = Dimension->FlecheD2_fx;
+    DrawTmp->m_End.y = Dimension->FlecheD2_fy;
     PlotDrawSegment( plotter, DrawTmp, masque_layer, trace_mode );
 
-    DrawTmp->m_Start.x = Cotation->FlecheG1_ox;
-    DrawTmp->m_Start.y = Cotation->FlecheG1_oy;
-    DrawTmp->m_End.x = Cotation->FlecheG1_fx;
-    DrawTmp->m_End.y = Cotation->FlecheG1_fy;
+    DrawTmp->m_Start.x = Dimension->FlecheG1_ox;
+    DrawTmp->m_Start.y = Dimension->FlecheG1_oy;
+    DrawTmp->m_End.x = Dimension->FlecheG1_fx;
+    DrawTmp->m_End.y = Dimension->FlecheG1_fy;
     PlotDrawSegment( plotter, DrawTmp, masque_layer, trace_mode );
 
-    DrawTmp->m_Start.x = Cotation->FlecheG2_ox;
-    DrawTmp->m_Start.y = Cotation->FlecheG2_oy;
-    DrawTmp->m_End.x = Cotation->FlecheG2_fx;
-    DrawTmp->m_End.y = Cotation->FlecheG2_fy;
+    DrawTmp->m_Start.x = Dimension->FlecheG2_ox;
+    DrawTmp->m_Start.y = Dimension->FlecheG2_oy;
+    DrawTmp->m_End.x = Dimension->FlecheG2_fx;
+    DrawTmp->m_End.y = Dimension->FlecheG2_fy;
     PlotDrawSegment( plotter, DrawTmp, masque_layer, trace_mode );
 
     delete DrawTmp;
@@ -511,6 +517,12 @@ void PlotTextePcb( PLOTTER* plotter, TEXTE_PCB* pt_texte, int masque_layer,
     if( pt_texte->m_Mirror )
         size.x = -size.x;
 
+    // Non bold texts thickness is clamped at 1/6 char size by the low level draw function.
+    // but in Pcbnew we do not manage bold texts and thickness up to 1/4 char size
+    // (like bold text) and we manage the thickness.
+    // So we set bold flag to true
+    bool allow_bold = pt_texte->m_Bold || thickness;
+
     if( pt_texte->m_MultilineAllowed )
     {
         wxArrayString* list = wxStringSplit( pt_texte->m_Text, '\n' );
@@ -526,7 +538,7 @@ void PlotTextePcb( PLOTTER* plotter, TEXTE_PCB* pt_texte, int masque_layer,
                            txt,
                            orient, size,
                            pt_texte->m_HJustify, pt_texte->m_VJustify,
-                           thickness, pt_texte->m_Italic, pt_texte->m_Bold );
+                           thickness, pt_texte->m_Italic, allow_bold );
             pos += offset;
         }
 
@@ -537,7 +549,7 @@ void PlotTextePcb( PLOTTER* plotter, TEXTE_PCB* pt_texte, int masque_layer,
                        pt_texte->m_Text,
                        orient, size,
                        pt_texte->m_HJustify, pt_texte->m_VJustify,
-                       thickness, pt_texte->m_Italic, pt_texte->m_Bold );
+                       thickness, pt_texte->m_Italic, allow_bold );
 }
 
 
@@ -793,8 +805,8 @@ void WinEDA_BasePcbFrame::Plot_Standard_Layer( PLOTTER*    aPlotter,
             PlotTextePcb( aPlotter, (TEXTE_PCB*) item, aLayerMask, aPlotMode );
             break;
 
-        case TYPE_COTATION:
-            PlotCotation( aPlotter, (COTATION*) item, aLayerMask, aPlotMode );
+        case TYPE_DIMENSION:
+            PlotDimension( aPlotter, (DIMENSION*) item, aLayerMask, aPlotMode );
             break;
 
         case TYPE_MIRE:

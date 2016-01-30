@@ -123,7 +123,7 @@ public:
     double    m_BoardScale;     /* Normalization scale for coordinates:
                                  * when scaled between -1.0 and +1.0 */
     double    m_LayerZcoord[32];
-	double	  m_ActZpos;	
+	double	  m_ActZpos;
 public: Info_3D_Visu();
     ~Info_3D_Visu();
 };
@@ -185,23 +185,25 @@ class WinEDA3D_DrawFrame : public wxFrame
 {
 public:
     WinEDA_BasePcbFrame* m_Parent;
+private:
+    wxString m_FrameName;       // name used for writing and reading setup
+                                // It is "Frame3D"
     Pcb3D_GLCanvas*      m_Canvas;
     WinEDA_Toolbar*      m_HToolBar;
     WinEDA_Toolbar*      m_VToolBar;
     int          m_InternalUnits;
     wxPoint      m_FramePos;
     wxSize       m_FrameSize;
-
     wxAuiManager m_auimgr;
-    ~WinEDA3D_DrawFrame() { m_auimgr.UnInit(); };
-
-private:
-    wxString m_FrameName;       // name used for writing and reading setup
-                                // It is "Frame3D"
+    bool         m_reloadRequest;
 
 public:
     WinEDA3D_DrawFrame( WinEDA_BasePcbFrame* parent, const wxString& title,
                         long style = KICAD_DEFAULT_3D_DRAWFRAME_STYLE );
+    ~WinEDA3D_DrawFrame()
+    {
+        m_auimgr.UnInit();
+    };
 
     void Exit3DFrame( wxCommandEvent& event );
     void OnCloseWindow( wxCloseEvent& Event );
@@ -211,6 +213,15 @@ public:
     void SetToolbars();
     void GetSettings();
     void SaveSettings();
+    /** function ReloadRequest
+     * must be called when reloading data from Pcbnew is needed
+     * mainly after edition of the board or footprint beeing displayed.
+     * mainly for the mudule editor.
+     */
+    void ReloadRequest( )
+    {
+        m_reloadRequest = true;
+    }
 
     void OnLeftClick( wxDC* DC, const wxPoint& MousePos );
     void OnRightClick( const wxPoint& MousePos, wxMenu* PopMenu );
@@ -219,6 +230,7 @@ public:
     void RedrawActiveWindow( wxDC* DC, bool EraseBg );
     void Process_Special_Functions( wxCommandEvent& event );
     void Process_Zoom( wxCommandEvent& event );
+    void OnActivate( wxActivateEvent& event );
 
     void NewDisplay();
     void Set3DBgColor();

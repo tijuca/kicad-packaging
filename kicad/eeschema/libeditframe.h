@@ -27,12 +27,14 @@ public:
     WinEDAChoiceBox* m_SelAliasBox;     // a box to select the alias to edit (if any)
 
 public:
-    WinEDA_LibeditFrame( wxWindow* father,
+    WinEDA_LibeditFrame( WinEDA_SchematicFrame* aParent,
                          const wxString& title,
                          const wxPoint& pos, const wxSize& size,
                          long style = KICAD_DEFAULT_DRAWFRAME_STYLE );
 
     ~WinEDA_LibeditFrame();
+
+    void ReCreateMenuBar();
 
     /** Function EnsureActiveLibExists
      * Must be called after the libraries are reloaded
@@ -40,6 +42,15 @@ public:
      */
     static void EnsureActiveLibExists();
 
+    /** function SetLanguage
+     * called on a language menu selection
+     */
+    void SetLanguage( wxCommandEvent& event );
+
+    void InstallConfigFrame( wxCommandEvent& event );
+    void InstallDimensionsDialog( wxCommandEvent& event );
+    void Process_Config( wxCommandEvent& event );
+    void OnPlotCurrentComponent( wxCommandEvent& event );
     void Process_Special_Functions( wxCommandEvent& event );
     void OnImportPart( wxCommandEvent& event );
     void OnExportPart( wxCommandEvent& event );
@@ -262,6 +273,35 @@ protected:
     static wxSize         m_clientSize;
 
     friend class Dialog_BodyGraphicText_Properties;
+
+    /** function CreatePNGorJPEGFile
+     * Create an image (screenshot) of the current component.
+     *  Output file format is png or jpeg
+     * @param aFileName = the full filename
+     * @param aFmt_jpeg = true to use JPEG ffile format, false to use PNG file format
+     */
+    void CreatePNGorJPEGFile( const wxString& aFileName, bool aFmt_jpeg );
+
+
+    /** Virtual function PrintPage
+     * used to print a page
+     * Print the page pointed by ActiveScreen, set by the calling print function
+     * @param aDC = wxDC given by the calling print function
+     * @param aPrint_Sheet_Ref = true to print page references
+     * @param aPrintMask = not used here
+     * @param aPrintMirrorMode = not used here (Set when printing in mirror mode)
+     * @param aData = a pointer on an auxiliary data (not always used, NULL if not used)
+     */
+    virtual void PrintPage( wxDC* aDC, bool aPrint_Sheet_Ref,
+                    int aPrintMask, bool aPrintMirrorMode,
+                    void * aData = NULL);
+
+    /** function SVG_Print_component
+     * Creates the SVG print file for the current edited component.
+     * @param aFullFileName = the full filename of the file
+    */
+    void SVG_Print_Component( const wxString& aFullFileName );
+
 
     DECLARE_EVENT_TABLE()
 };

@@ -12,6 +12,7 @@
 #include "macros.h"
 #include "protos.h"
 #include "class_library.h"
+#include "dialog_schematic_find.h"
 
 #include <wx/tokenzr.h>
 
@@ -62,8 +63,6 @@ SCH_COMPONENT::SCH_COMPONENT( LIB_COMPONENT& libComponent,
                               const wxPoint& pos, bool setNewItemFlag ) :
     SCH_ITEM( NULL, TYPE_SCH_COMPONENT )
 {
-    size_t         i;
-    LIB_FIELD_LIST libFields;
 
     Init( pos );
 
@@ -75,32 +74,34 @@ SCH_COMPONENT::SCH_COMPONENT( LIB_COMPONENT& libComponent,
     if( setNewItemFlag )
         m_Flags = IS_NEW | IS_MOVED;
 
+    // Import predefined fields from the library component:
+    LIB_FIELD_LIST libFields;
     libComponent.GetFields( libFields );
 
-    for( i = 0; i < libFields.size(); i++ )
+    for(  size_t i = 0; i < libFields.size(); i++ )
     {
         if( libFields[i].m_Text.IsEmpty() && libFields[i].m_Name.IsEmpty() )
             continue;
 
+        int field_idx = libFields[i].m_FieldId;
         /* Add extra fields if library component has more than the default
          * number of fields.
          */
-        if( (int) i >= GetFieldCount() )
+        if( field_idx >= GetFieldCount() )
         {
-            while( (int) i >= GetFieldCount() )
+            while( field_idx >= GetFieldCount() )
             {
                 SCH_FIELD field( wxPoint( 0, 0 ), GetFieldCount(), this,
-                                 ReturnDefaultFieldName( i ) );
+                                 ReturnDefaultFieldName( field_idx ) );
                 AddField( field );
             }
         }
-
-        SCH_FIELD* schField = GetField( i );
+        SCH_FIELD* schField = GetField( field_idx );
 
         schField->m_Pos = m_Pos + libFields[i].m_Pos;
         schField->ImportValues( libFields[i] );
         schField->m_Text = libFields[i].m_Text;
-        schField->m_Name = ( i < FIELD1 ) ? ReturnDefaultFieldName( i ) :
+        schField->m_Name = ( field_idx < FIELD1 ) ? ReturnDefaultFieldName( field_idx ) :
             libFields[i].m_Name;
     }
 
@@ -155,9 +156,9 @@ void SCH_COMPONENT::Init( const wxPoint& pos )
     m_Transform[1][0] = 0;
     m_Transform[1][1] = -1;
 
-    m_Fields.reserve( NUMBER_OF_FIELDS );
+    m_Fields.reserve( DEFAULT_NUMBER_OF_FIELDS );
 
-    for( int i = 0; i < NUMBER_OF_FIELDS; ++i )
+    for( int i = 0; i < DEFAULT_NUMBER_OF_FIELDS; ++i )
     {
         SCH_FIELD field( pos, i, this, ReturnDefaultFieldName( i ) );
 
@@ -606,7 +607,8 @@ void SCH_COMPONENT::SwapData( SCH_COMPONENT* copyitem )
     {
        GetField(ii)->SetParent( this );
     }
-
+    
+    EXCHG( m_PathsAndReferences, copyitem->m_PathsAndReferences);
 }
 
 
@@ -1149,4 +1151,35 @@ void SCH_COMPONENT::Mirror_Y(int aYaxis_position)
          * has moved */
         GetField( ii )->m_Pos.x -= dx;
     }
+}
+
+
+bool SCH_COMPONENT::Matches( wxFindReplaceData& aSearchData, void * aAuxData )
+{
+    // Search reference.
+    // reference is a special field because a part identifier is added
+    // in multi parts per package
+    // the .m_AddExtraText of the field msut be set to add this identifier:
+    LIB_COMPONENT* Entry = CMP_LIBRARY::FindLibraryComponent( m_ChipName );
+    if( Entry && Entry->GetPartCount() > 1 )
+            GetField( REFERENCE )->m_AddExtraText = true;
+    else
+        GetField( REFERENCE )->m_AddExtraText = false;
+
+    if( GetField( REFERENCE )->Matches( aSearchData, aAuxData ) )
+        return true;
+
+    if( GetField( VALUE )->Matches( aSearchData, aAuxData ) )
+        return true;
+
+    if( !( aSearchData.GetFlags() & FR_SEARCH_ALL_FIELDS ) )
+        return false;
+
+    for( size_t i = VALUE+1; i < m_Fields.size(); i++ )
+    {
+        if( GetField( i )->Matches( aSearchData, aAuxData ) )
+            return true;
+    }
+
+    return false;
 }

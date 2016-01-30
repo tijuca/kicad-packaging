@@ -19,6 +19,8 @@ static void Move_PinSheet( WinEDA_DrawPanel* panel, wxDC* DC, bool erase );
 
 static int    s_CurrentTypeLabel = NET_INPUT;
 static wxSize NetSheetTextSize( DEFAULT_SIZE_TEXT, DEFAULT_SIZE_TEXT );
+static wxPoint s_InitialPosition;       // remember here the initial value of the pin label when moving it
+
 
 /****************************************/
 /* class WinEDA_PinSheetPropertiesFrame */
@@ -126,7 +128,9 @@ void WinEDA_PinSheetPropertiesFrame::OnOkClick( wxCommandEvent& event )
     EndModal( wxID_OK );
 }
 
-
+/* Called when aborting a move pinsheet label
+ * delete a new pin sheet label, or restire its old position
+ */
 static void ExitPinSheet( WinEDA_DrawPanel* Panel, wxDC* DC )
 {
     SCH_SHEET_PIN* SheetLabel =
@@ -142,6 +146,15 @@ static void ExitPinSheet( WinEDA_DrawPanel* Panel, wxDC* DC )
     }
     else
     {
+        RedrawOneStruct( Panel, DC, SheetLabel, g_XorMode );
+        SheetLabel->m_Pos = s_InitialPosition;
+        // Restore edge position:
+        SCH_SHEET* sheet = (SCH_SHEET*) SheetLabel->GetParent();
+        if( s_InitialPosition.x > ( sheet->m_Pos.x + (sheet->m_Size.x / 2) ) )
+            SheetLabel->m_Edge  = 1;
+        else
+            SheetLabel->m_Edge  = 0;
+
         RedrawOneStruct( Panel, DC, SheetLabel, GR_DEFAULT_DRAWMODE );
         SheetLabel->m_Flags = 0;
     }
@@ -155,9 +168,14 @@ static void ExitPinSheet( WinEDA_DrawPanel* Panel, wxDC* DC )
 void SCH_SHEET_PIN::Place( WinEDA_SchematicFrame* frame, wxDC* DC )
 {
     SCH_SHEET* Sheet = (SCH_SHEET*) GetParent();
+    SAFE_DELETE( g_ItemToUndoCopy );
+    
+    int flags = m_Flags;
+    m_Flags = 0;
 
-    if( m_Flags & IS_NEW )
+    if( flags & IS_NEW )
     {
+        frame->SaveCopyInUndoList( Sheet, UR_CHANGED );
         if( Sheet->m_Label == NULL )
             Sheet->m_Label = this;
         else
@@ -174,11 +192,20 @@ void SCH_SHEET_PIN::Place( WinEDA_SchematicFrame* frame, wxDC* DC )
             }
         }
     }
+    
+    else    // pin sheet was existing and only moved
+    {
+        wxPoint tmp = m_Pos;
+        m_Pos = s_InitialPosition;
+        m_Edge  = 0;
+        if( m_Pos.x > ( Sheet->m_Pos.x + (Sheet->m_Size.x / 2) ) )
+            m_Edge  = 1;
+        frame->SaveCopyInUndoList( Sheet, UR_CHANGED );
+        m_Pos = tmp;
+    }
 
-    m_Flags = 0;
     m_Pos.x = Sheet->m_Pos.x;
     m_Edge  = 0;
-
     if( frame->GetScreen()->m_Curseur.x > ( Sheet->m_Pos.x + (Sheet->m_Size.x / 2) ) )
     {
         m_Edge  = 1;
@@ -204,6 +231,7 @@ void WinEDA_SchematicFrame::StartMove_PinSheet( SCH_SHEET_PIN* SheetLabel,
     NetSheetTextSize     = SheetLabel->m_Size;
     s_CurrentTypeLabel   = SheetLabel->m_Shape;
     SheetLabel->m_Flags |= IS_MOVED;
+    s_InitialPosition = SheetLabel->m_Pos;
 
     DrawPanel->ManageCurseur = Move_PinSheet;
     DrawPanel->ForceCloseManageCurseur = ExitPinSheet;
@@ -336,11 +364,13 @@ SCH_SHEET_PIN* WinEDA_SchematicFrame::Import_PinSheet( SCH_SHEET* Sheet,
 
     if( (HLabel == NULL ) || SheetLabel )
     {
-        DisplayError( this, _( "No new hierarchical labels found" ), 10 );
+        DisplayInfoMessage( this, _( "No new hierarchical labels found" ), 10 );
         return NULL;
     }
 
     OnModify( );
+    SAFE_DELETE( g_ItemToUndoCopy );
+    SaveCopyInUndoList( Sheet, UR_CHANGED );
 
     NewSheetLabel = new SCH_SHEET_PIN( Sheet, wxPoint( 0, 0 ), HLabel->m_Text );
     NewSheetLabel->m_Flags = IS_NEW;

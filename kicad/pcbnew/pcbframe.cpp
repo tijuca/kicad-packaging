@@ -47,6 +47,8 @@
 #include "dialog_design_rules.h"
 #include "class_pcb_layer_widget.h"
 #include "hotkeys.h"
+#include "pcbnew_config.h"
+
 
 extern int g_DrawDefaultLineThickness;
 
@@ -94,6 +96,7 @@ BEGIN_EVENT_TABLE( WinEDA_PcbFrame, WinEDA_BasePcbFrame )
     EVT_MENU( ID_GEN_EXPORT_FILE_GENCADFORMAT, WinEDA_PcbFrame::ExportToGenCAD )
     EVT_MENU( ID_GEN_EXPORT_FILE_MODULE_REPORT,
               WinEDA_PcbFrame::GenModuleReport )
+    EVT_MENU( ID_GEN_EXPORT_FILE_VRML, WinEDA_PcbFrame::OnExportVRML )
 
     EVT_MENU( ID_GEN_IMPORT_SPECCTRA_SESSION,
               WinEDA_PcbFrame::ImportSpecctraSession )
@@ -108,24 +111,24 @@ BEGIN_EVENT_TABLE( WinEDA_PcbFrame, WinEDA_BasePcbFrame )
     EVT_MENU( wxID_EXIT, WinEDA_PcbFrame::OnQuit )
 
     // menu Config
-    EVT_MENU_RANGE( ID_CONFIG_AND_PREFERENCES_START,
-                    ID_CONFIG_AND_PREFERENCES_END,
+    EVT_MENU( ID_PCB_DRAWINGS_WIDTHS_SETUP, WinEDA_PcbFrame::OnConfigurePcbOptions )
+    EVT_MENU( ID_CONFIG_REQ, WinEDA_PcbFrame::Process_Config )
+    EVT_MENU( ID_CONFIG_SAVE, WinEDA_PcbFrame::Process_Config )
+    EVT_MENU( ID_CONFIG_READ, WinEDA_PcbFrame::Process_Config )
+    EVT_MENU_RANGE( ID_PREFERENCES_HOTKEY_START,
+                    ID_PREFERENCES_HOTKEY_END,
                     WinEDA_PcbFrame::Process_Config )
-
     EVT_MENU( ID_MENU_PCB_SHOW_HIDE_LAYERS_MANAGER_DIALOG,
-                WinEDA_PcbFrame::Process_Config )
+              WinEDA_PcbFrame::Process_Config )
     EVT_MENU( ID_OPTIONS_SETUP, WinEDA_PcbFrame::Process_Config )
     EVT_MENU( ID_PCB_LAYERS_SETUP, WinEDA_PcbFrame::Process_Config )
     EVT_MENU( ID_PCB_MASK_CLEARANCE, WinEDA_PcbFrame::Process_Config )
-    EVT_MENU( ID_PCB_DRAWINGS_WIDTHS_SETUP, WinEDA_PcbFrame::Process_Config )
     EVT_MENU( ID_PCB_PAD_SETUP, WinEDA_PcbFrame::Process_Config )
     EVT_MENU( ID_CONFIG_SAVE, WinEDA_PcbFrame::Process_Config )
     EVT_MENU( ID_CONFIG_READ, WinEDA_PcbFrame::Process_Config )
     EVT_MENU( ID_PCB_DISPLAY_OPTIONS_SETUP,
               WinEDA_PcbFrame::InstallDisplayOptionsDialog )
-
-    EVT_MENU( ID_PCB_USER_GRID_SETUP,
-              WinEDA_PcbFrame::Process_Special_Functions )
+    EVT_MENU( ID_PCB_USER_GRID_SETUP, WinEDA_PcbFrame::Process_Special_Functions )
 
     EVT_MENU_RANGE( ID_LANGUAGE_CHOICE, ID_LANGUAGE_CHOICE_END,
                     WinEDA_PcbFrame::SetLanguage )
@@ -202,7 +205,7 @@ BEGIN_EVENT_TABLE( WinEDA_PcbFrame, WinEDA_BasePcbFrame )
     EVT_TOOL( ID_PCB_CIRCLE_BUTT, WinEDA_PcbFrame::Process_Special_Functions )
     EVT_TOOL( ID_PCB_ADD_TEXT_BUTT, WinEDA_PcbFrame::Process_Special_Functions )
     EVT_TOOL( ID_PCB_ADD_LINE_BUTT, WinEDA_PcbFrame::Process_Special_Functions )
-    EVT_TOOL( ID_PCB_COTATION_BUTT, WinEDA_PcbFrame::Process_Special_Functions )
+    EVT_TOOL( ID_PCB_DIMENSION_BUTT, WinEDA_PcbFrame::Process_Special_Functions )
     EVT_TOOL( ID_PCB_DELETE_ITEM_BUTT,
               WinEDA_PcbFrame::Process_Special_Functions )
     EVT_TOOL( ID_PCB_SHOW_1_RATSNEST_BUTT,
@@ -218,7 +221,7 @@ BEGIN_EVENT_TABLE( WinEDA_PcbFrame, WinEDA_BasePcbFrame )
     EVT_TOOL_RCLICKED( ID_PCB_ARC_BUTT, WinEDA_PcbFrame::ToolOnRightClick )
     EVT_TOOL_RCLICKED( ID_PCB_ADD_TEXT_BUTT, WinEDA_PcbFrame::ToolOnRightClick )
     EVT_TOOL_RCLICKED( ID_PCB_ADD_LINE_BUTT, WinEDA_PcbFrame::ToolOnRightClick )
-    EVT_TOOL_RCLICKED( ID_PCB_COTATION_BUTT, WinEDA_PcbFrame::ToolOnRightClick )
+    EVT_TOOL_RCLICKED( ID_PCB_DIMENSION_BUTT, WinEDA_PcbFrame::ToolOnRightClick )
 
     EVT_MENU_RANGE( ID_POPUP_PCB_AUTOPLACE_START_RANGE,
                     ID_POPUP_PCB_AUTOPLACE_END_RANGE,
@@ -383,9 +386,6 @@ WinEDA_PcbFrame::WinEDA_PcbFrame( wxWindow* father,
 
 WinEDA_PcbFrame::~WinEDA_PcbFrame()
 {
-    extern PARAM_CFG_BASE* ParamCfgList[];
-
-    wxGetApp().SaveCurrentSetupValues( ParamCfgList );
     delete m_drc;
 }
 
@@ -410,7 +410,7 @@ void WinEDA_PcbFrame::ReFillLayerWidget()
 
 void WinEDA_PcbFrame::OnQuit( wxCommandEvent & WXUNUSED(event) )
 {
-    Close(true);
+    Close( true );
 }
 
 void WinEDA_PcbFrame::OnCloseWindow( wxCloseEvent& Event )
@@ -441,6 +441,13 @@ void WinEDA_PcbFrame::OnCloseWindow( wxCloseEvent& Event )
             SavePcbFile( GetScreen()->m_FileName );
             break;
         }
+    }
+
+    if( !GetScreen()->m_FileName.IsEmpty() )
+    {
+        wxFileName fn = GetScreen()->m_FileName;
+        fn.SetExt( ProjectFileExtension );
+        wxGetApp().WriteProjectConfig( fn.GetFullPath(), GROUP, GetProjectFileParameters() );
     }
 
     SaveSettings();
@@ -492,6 +499,11 @@ void WinEDA_PcbFrame::LoadSettings()
     if( config == NULL )
         return;
 
+    /* The configuration setting that used to be mixed in with the project
+     * file settings.
+     */
+    wxGetApp().ReadCurrentSetupValues( GetConfigurationSettings() );
+
     WinEDA_BasePcbFrame::LoadSettings();
 
     long tmp;
@@ -511,6 +523,11 @@ void WinEDA_PcbFrame::SaveSettings()
 
     if( config == NULL )
         return;
+
+    /* The configuration setting that used to be mixed in with the project
+     * file settings.
+     */
+    wxGetApp().SaveCurrentSetupValues( GetConfigurationSettings() );
 
     WinEDA_BasePcbFrame::SaveSettings();
 
@@ -625,7 +642,53 @@ void WinEDA_PcbFrame::SetLanguage( wxCommandEvent& event )
     WinEDA_DrawFrame::SetLanguage( event );
     m_Layers->SetLayersManagerTabsText( );
     wxAuiPaneInfo& pane_info = m_auimgr.GetPane(m_Layers);
-    pane_info.Caption( _( "Visibles" ) ); 
+    pane_info.Caption( _( "Visibles" ) );
     m_auimgr.Update();
     ReFillLayerWidget();
+
+    if( m_ModuleEditFrame )
+        m_ModuleEditFrame->WinEDA_DrawFrame::SetLanguage( event );
 }
+
+
+wxString WinEDA_PcbFrame::GetLastNetListRead()
+{
+    wxFileName absoluteFileName = m_lastNetListRead;
+    wxFileName pcbFileName = GetScreen()->m_FileName;
+
+    if( !absoluteFileName.MakeAbsolute( pcbFileName.GetPath() )
+        || !absoluteFileName.FileExists() )
+    {
+        absoluteFileName.Clear();
+        m_lastNetListRead = wxEmptyString;
+    }
+
+    return absoluteFileName.GetFullPath();
+}
+
+
+void WinEDA_PcbFrame::SetLastNetListRead( const wxString& aLastNetListRead )
+{
+    wxFileName relativeFileName = aLastNetListRead;
+    wxFileName pcbFileName = GetScreen()->m_FileName;
+
+    if( relativeFileName.MakeRelativeTo( pcbFileName.GetPath() )
+        && relativeFileName.GetFullPath() != aLastNetListRead )
+    {
+        m_lastNetListRead = relativeFileName.GetFullPath();
+    }
+}
+
+/** Virtual Function OnModify()
+ * Must be called after a change
+ * in order to set the "modify" flag of the current screen
+ * and prepare, if needed the refresh of the 3D frame showing the footprint
+ * do not forget to call the basic OnModify function to update auxiliary info
+ */
+void WinEDA_PcbFrame::OnModify( )
+{
+    WinEDA_BasePcbFrame::OnModify( );
+    if( m_Draw3DFrame )
+        m_Draw3DFrame->ReloadRequest( );
+}
+

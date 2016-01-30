@@ -1,9 +1,10 @@
 project(kicad)
 
+# test the minimum Cmake version requirement (could be different under unix or Windows
 if(WIN32)
-    cmake_minimum_required(VERSION 2.6.1 FATAL_ERROR)
+    cmake_minimum_required(VERSION 2.6.4 FATAL_ERROR)
 else(WIN32)
-    cmake_minimum_required(VERSION 2.6.0 FATAL_ERROR)
+    cmake_minimum_required(VERSION 2.6.4 FATAL_ERROR)
 endif(WIN32)
 
 # Path to local CMake modules.
@@ -86,8 +87,6 @@ endif(WIN32)
 
 set(KICAD_DEMOS ${KICAD_DATA}/demos
     CACHE PATH "Location of KiCad demo files.")
-set(KICAD_INTERNAT ${KICAD_DATA}/internat
-    CACHE PATH "Location of KiCad i18n files.")
 set(KICAD_TEMPLATE ${KICAD_DATA}/template
     CACHE PATH "Location of KiCad template files.")
 
@@ -96,7 +95,6 @@ mark_as_advanced(KICAD_BIN
                  KICAD_DATA
                  KICAD_DOCS
                  KICAD_DEMOS
-                 KICAD_INTERNAT
                  KICAD_TEMPLATE)
 
 
@@ -153,8 +151,8 @@ if(WIN32 AND USE_WX_GRAPHICS_CONTEXT)
 endif(WIN32 AND USE_WX_GRAPHICS_CONTEXT)
 
 # Automagically create version header file.
-include(CreateSVNVersionHeader)
-create_svn_version_header()
+include(CreateBzrVersionHeader)
+create_bzr_version_header()
 
 if(EXISTS ${CMAKE_SOURCE_DIR}/include/config.h)
     # This file may exist (created by an alternate process to the svn test above),
@@ -194,7 +192,6 @@ add_subdirectory(polygon/kbool/src)
 # Resources #
 #############
 add_subdirectory(demos)
-add_subdirectory(internat)
 add_subdirectory(template)
 
 

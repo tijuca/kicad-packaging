@@ -33,10 +33,6 @@ SCH_ITEM* g_ItemToUndoCopy;     /* copy of last modified schematic item
                                  * before it is modified (used for undo
                                  * managing to restore old values ) */
 
-bool g_LastSearchIsMarker;      /* True if last seach is a marker serach
-                                 * False for a schematic item search
-                                 * Used for hotkey next search */
-
 /* Block operation (copy, paste) */
 BLOCK_SELECTOR           g_BlockSaveDataList;   // List of items to paste
                                                 // (Created by Block Save)
@@ -103,7 +99,8 @@ IMPLEMENT_APP( WinEDA_App )
 /* MacOSX: Needed for file association
  * http://wiki.wxwidgets.org/WxMac-specific_topics
  */
-void WinEDA_App::MacOpenFile(const wxString &fileName) {
+void WinEDA_App::MacOpenFile( const wxString &fileName )
+{
     wxFileName    filename = fileName;
     WinEDA_SchematicFrame * frame = ((WinEDA_SchematicFrame*) GetTopWindow());
 
@@ -172,11 +169,14 @@ bool WinEDA_App::OnInit()
     /* Load file specified in the command line. */
     if( filename.IsOk() )
     {
+        wxLogDebug( wxT( "Loading schematic file " ) + filename.GetFullPath() );
+
         if( filename.GetExt() != SchematicFileExtension )
             filename.SetExt( SchematicFileExtension );
         wxSetWorkingDirectory( filename.GetPath() );
+
         if( frame->DrawPanel
-            && frame->LoadOneEEProject( filename.GetFullPath(), false ) <= 0 )
+            && frame->LoadOneEEProject( filename.GetFullPath(), false ) )
             frame->DrawPanel->Refresh( true );
     }
     else

@@ -44,12 +44,12 @@ set(COMMON_SRCS
     hotkeys_basic.cpp
     msgpanel.cpp
     newstroke_font.cpp
+    ../pcbnew/class_drc_item.cpp
     projet_config.cpp
-#   pyhandler.cpp
     richio.cpp
     selcolor.cpp
     string.cpp
-    toolbars.cpp
+    wineda_toolbar.cpp
     trigo.cpp
     worksheet.cpp
     wxwineda.cpp

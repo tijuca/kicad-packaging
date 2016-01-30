@@ -13,12 +13,12 @@
 class DialogLabelEditor : public DialogLabelEditor_Base
 {
 private:
-    WinEDA_SchematicFrame * m_Parent;
-    SCH_TEXT * m_CurrentText;
-    wxTextCtrl* m_TextLabel;
+    WinEDA_SchematicFrame* m_Parent;
+    SCH_TEXT*              m_CurrentText;
+    wxTextCtrl *           m_textLabel;
 
 public:
-    DialogLabelEditor( WinEDA_SchematicFrame* parent, SCH_TEXT * CurrentText);
+    DialogLabelEditor( WinEDA_SchematicFrame* parent, SCH_TEXT* aTextItem );
     ~DialogLabelEditor(){};
 
 
@@ -26,10 +26,10 @@ public:
 
 private:
     void InitDialog( );
-  	void onEnterKey( wxCommandEvent& event );
-    void OnButtonOKClick( wxCommandEvent& event );
-    void OnButtonCANCEL_Click( wxCommandEvent& event );
-    void TextPropertiesAccept( wxCommandEvent& event );
+  	virtual void OnEnterKey( wxCommandEvent& aEvent );
+    virtual void OnOkClick( wxCommandEvent& aEvent );
+    virtual void OnCancelClick( wxCommandEvent& aEvent );
+    void TextPropertiesAccept( wxCommandEvent& aEvent );
 };
 
 

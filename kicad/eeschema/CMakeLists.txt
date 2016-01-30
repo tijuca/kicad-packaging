@@ -32,6 +32,7 @@ set(EESCHEMA_SRCS
     class_text-label.cpp
     classes_body_items.cpp
     cleanup.cpp
+    cmp_library_lexer.cpp
     controle.cpp
     cross-probing.cpp
     dangling_ends.cpp
@@ -56,7 +57,8 @@ set(EESCHEMA_SRCS
     dialog_eeschema_options.cpp
     dialog_erc.cpp
     dialog_erc_base.cpp
-#   dialog_find.cpp
+    dialog_libedit_dimensions.cpp
+    dialog_libedit_dimensions_base.cpp
     dialog_lib_edit_draw_item.cpp
     dialog_lib_edit_draw_item_base.cpp
     dialog_lib_edit_pin.cpp
@@ -67,6 +69,8 @@ set(EESCHEMA_SRCS
     dialog_print_using_printer.cpp
     dialog_sch_sheet_props.cpp
     dialog_sch_sheet_props_base.cpp
+    dialog_schematic_find.cpp
+    dialog_schematic_find_base.cpp
     dialog_SVG_print.cpp
     dialog_SVG_print_base.cpp
     edit_component_in_lib.cpp
@@ -90,12 +94,14 @@ set(EESCHEMA_SRCS
     libeditframe.cpp
     libedit_onleftclick.cpp
     libedit_onrightclick.cpp
+    libedit_plot_component.cpp
     libedit_undo_redo.cpp
     lib_export.cpp
     libfield.cpp
     load_one_schematic_file.cpp
     locate.cpp
     menubar.cpp
+    menubar_libedit.cpp
     netform.cpp
     netlist_control.cpp
     netlist.cpp
@@ -142,19 +148,37 @@ if(APPLE)
     set(EESCHEMA_RESOURCES eeschema.icns eeschema_doc.icns)
     set_source_files_properties("${CMAKE_CURRENT_SOURCE_DIR}/eeschema.icns"
                                 PROPERTIES MACOSX_PACKAGE_LOCATION Resources)
-    set_source_files_properties("${CMAKE_CURRENT_SOURCE_DIR}/eeschema_doc.icns"
-                                PROPERTIES MACOSX_PACKAGE_LOCATION Resources)
     set(MACOSX_BUNDLE_ICON_FILE eeschema.icns)
     set(MACOSX_BUNDLE_GUI_IDENTIFIER org.kicad-eda.eeschema)
 endif(APPLE)
 
-add_executable(eeschema WIN32 MACOSX_BUNDLE ${EESCHEMA_SRCS} ${EESCHEMA_EXTRA_SRCS} ${EESCHEMA_RESOURCES})
+# Generate DSN lexer header and source files for the component library file
+# format.
+add_custom_command(
+    OUTPUT ${CMAKE_CURRENT_SOURCE_DIR}/cmp_library_base.h
+    COMMAND ${CMAKE_COMMAND}
+        -DinputFile=${CMAKE_CURRENT_SOURCE_DIR}/cmp_library.lst
+        -P ${CMAKE_MODULE_PATH}/TokenList2DsnLexer.cmake
+    DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/cmp_library.lst
+    COMMENT "creating ${CMAKE_CURRENT_SOURCE_DIR}/cmp_library_base.h(.cpp)
+       from ${CMAKE_CURRENT_SOURCE_DIR}/cmp_library.lst"
+    )
+
+set_source_files_properties( cmp_library_lexer.cpp
+    PROPERTIES
+        OBJECT_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/cmp_library_base.h
+    )
+
+add_executable(eeschema WIN32 MACOSX_BUNDLE ${EESCHEMA_SRCS} ${EESCHEMA_EXTRA_SRCS}
+    ${EESCHEMA_RESOURCES})
 
 if(APPLE)
-    set_target_properties(eeschema PROPERTIES MACOSX_BUNDLE_INFO_PLIST ${CMAKE_CURRENT_SOURCE_DIR}/Info.plist)
+    set_target_properties(eeschema PROPERTIES MACOSX_BUNDLE_INFO_PLIST
+        ${CMAKE_CURRENT_SOURCE_DIR}/Info.plist)
 endif(APPLE)
 
-target_link_libraries(eeschema common bitmaps polygon ${wxWidgets_LIBRARIES} ${GDI_PLUS_LIBRARIES})
+target_link_libraries(eeschema common bitmaps kbool polygon ${wxWidgets_LIBRARIES}
+    ${GDI_PLUS_LIBRARIES})
 
 install(TARGETS eeschema
         DESTINATION ${KICAD_BIN}

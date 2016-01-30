@@ -208,6 +208,22 @@ void SCH_SHEET::Place( WinEDA_SchematicFrame* frame, wxDC* DC )
             return;
         }
     }
+    else    /* save old text in undo list */
+    {
+        if( g_ItemToUndoCopy && ( g_ItemToUndoCopy->Type() == Type() ) )
+        {
+            /* restore old values and save new ones */
+            SwapData( (SCH_SHEET*) g_ItemToUndoCopy );
+
+            /* save in undo list */
+            frame->SaveCopyInUndoList( this, UR_CHANGED );
+
+            /* restore new values */
+            SwapData( (SCH_SHEET*) g_ItemToUndoCopy );
+
+            SAFE_DELETE( g_ItemToUndoCopy );
+        }
+    }
 
     SCH_ITEM::Place( frame, DC ); //puts it on the EEDrawList.
     if( isnew )
@@ -223,9 +239,11 @@ void SCH_SHEET::Place( WinEDA_SchematicFrame* frame, wxDC* DC )
  * @param aFrame = the schematic frame
  */
 void SCH_SHEET::CleanupSheet( WinEDA_SchematicFrame* aFrame,
-                              bool                   aRedraw )
+                              bool                   aRedraw,
+                              bool                   aSaveForUndoRedo)
 {
     SCH_SHEET_PIN* Pinsheet, * NextPinsheet;
+    bool isSaved = false;
 
     if( !IsOK( aFrame, _( "Ok to cleanup this sheet" ) ) )
         return;
@@ -252,6 +270,11 @@ void SCH_SHEET::CleanupSheet( WinEDA_SchematicFrame* aFrame,
         NextPinsheet = Pinsheet->Next();
         if( HLabel == NULL )   // Hlabel not found: delete pinsheet
         {
+            if( aSaveForUndoRedo && !isSaved )
+            {
+                isSaved = true;
+                aFrame->SaveCopyInUndoList( this, UR_CHANGED);
+            }
             aFrame->OnModify( );
             aFrame->DeleteSheetLabel( false, Pinsheet );
         }
@@ -691,6 +714,15 @@ void SCH_SHEET::Mirror_Y( int aYaxis_position )
         label->Mirror_Y( aYaxis_position );
         label = label->Next();
     }
+}
+
+
+bool SCH_SHEET::Matches( wxFindReplaceData& aSearchData )
+{
+    if( !SCH_ITEM::Matches( m_SheetName, aSearchData ) )
+        return SCH_ITEM::Matches( m_FileName, aSearchData );
+
+    return true;
 }
 
 

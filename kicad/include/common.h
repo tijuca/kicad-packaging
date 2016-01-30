@@ -160,9 +160,9 @@ extern bool           g_ShowPageLimits; // TRUE to display the page limits
 /* File name extension definitions. */
 extern const wxString ProjectFileExtension;
 extern const wxString SchematicFileExtension;
-extern const wxString BoardFileExtension;
 extern const wxString NetlistFileExtension;
 extern const wxString GerberFileExtension;
+extern const wxString PcbFileExtension;
 extern const wxString PdfFileExtension;
 
 extern const wxString ProjectFileWildcard;
@@ -170,6 +170,7 @@ extern const wxString SchematicFileWildcard;
 extern const wxString BoardFileWildcard;
 extern const wxString NetlistFileWildcard;
 extern const wxString GerberFileWildcard;
+extern const wxString PcbFileWildcard;
 extern const wxString PdfFileWildcard;
 extern const wxString AllFilesWildcard;
 
@@ -300,18 +301,28 @@ int GetCommandOptions( const int argc, const char** argv,
  */
 const wxString& valeur_param( int valeur, wxString& buf_texte );
 
-wxString        ReturnUnitSymbol( int Units = g_UnitMetric );
+/**
+ * Returns the units symbol.
+ *
+ * @param aUnits - Units type, default is current units setting.
+ * @param aFormatString - A formatting string to embed the units symbol into.  Note:
+ *                        the format string must contain the %s format specifier.
+ * @return The formatted units symbol.
+ */
+wxString        ReturnUnitSymbol( int aUnits                    = g_UnitMetric,
+                                  const wxString& aFormatString = _( " (%s):" ) );
 
 /**
  * Get a human readable units string.
  *
  * The strings returned are full text name and not abbreviations or symbolic
- * representations of units.  Set ReturnUnitSymbol() for that.
+ * representations of the units.  Use ReturnUnitSymbol() for that.
  *
- * @param units - The units text to return.
+ * @param aUnits - The units text to return.
  * @return The human readable units string.
  */
-wxString        GetUnitsLabel( int units );
+wxString        GetUnitsLabel( int aUnits );
+wxString        GetAbbreviatedUnitsLabel( int aUnits = g_UnitMetric );
 
 int             ReturnValueFromString( int Units, const wxString& TextValue,
                                        int Internal_Unit );

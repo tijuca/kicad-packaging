@@ -28,9 +28,10 @@ public:
                         // m_Number >= 2
                         // value 0 is for sheet name and 1 for sheet filename
 
-public: SCH_SHEET_PIN( SCH_SHEET* parent,
-                       const wxPoint& pos = wxPoint( 0, 0 ),
-                       const wxString& text = wxEmptyString );
+public:
+    SCH_SHEET_PIN( SCH_SHEET* parent,
+                   const wxPoint& pos = wxPoint( 0, 0 ),
+                   const wxString& text = wxEmptyString );
 
     ~SCH_SHEET_PIN() { }
 
@@ -107,6 +108,14 @@ public: SCH_SHEET_PIN( SCH_SHEET* parent,
         NEGATE(  m_Pos.x );
         m_Pos.x += aYaxis_position;
     }
+
+    /**
+     * Compare schematic sheet entry (pin?) name against search string.
+     *
+     * @param aSearchData - Criteria to search against.
+     * @return True if this item matches the search criteria.
+     */
+    virtual bool Matches( wxFindReplaceData& aSearchData );
 };
 
 
@@ -169,10 +178,12 @@ public:
 
     /** Function CleanupSheet
      * Delete pinsheets which are not corresponding to a hierarchical label
-     * @param aRedraw = true to redraw Sheet
      * @param aFrame = the schematic frame
+     * @param aRedraw = true to redraw Sheet
+     * @param aSaveForUndoRedo = true to put this sheet in UndoRedo list,
+     *          if it is modified.
      */
-    void         CleanupSheet( WinEDA_SchematicFrame* frame, bool aRedraw );
+    void         CleanupSheet( WinEDA_SchematicFrame* frame, bool aRedraw, bool aSaveForUndoRedo );
 
     /** Function GetPenSize
      * @return the size of the "pen" that be used to draw or plot this item
@@ -307,6 +318,16 @@ public:
      * @param aYaxis_position = the y axis position
      */
     virtual void Mirror_Y( int aYaxis_position );
+
+    /**
+     * Compare schematic sheet file and sheet name against search string.
+     *
+     * @param aSearchData - Criteria to search against.
+     * @param aCaseSensitive - True for case sensitive search.
+     * @param aWholeWord - True to match whole word.
+     * @return True if this item matches the search criteria.
+     */
+    virtual bool Matches( wxFindReplaceData& aSearchData );
 
 #if defined(DEBUG)
 
