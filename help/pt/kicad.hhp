@@ -1,0 +1,14 @@
+[OPTIONS]
+Compatibility=1.1
+Contents file=contents.hhc
+Display compile progress=No
+Language=0x405
+Title=Kicad Help (Portuguese version):
+
+[FILES]
+eeschema/eeschema_pt_BR.html
+pcbnew/pcbnew_pt_BR.html
+cvpcb/cvpcb-pt.html
+kicad/kicad_pt_BR.html
+gerbview/gerbview.html
+file_formats/file_formats.html

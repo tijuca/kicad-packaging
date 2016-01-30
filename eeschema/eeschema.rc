@@ -1,0 +1,4 @@
+icon_eeschema ICON eeschema.ico
+libsch ICON libedit_icon.ico
+viewlibs ICON viewlibs_icon.ico
+#include "wx/msw/wx.rc"
