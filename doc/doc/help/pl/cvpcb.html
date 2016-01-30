@@ -1,0 +1,680 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="pl" lang="pl">
+  <head>
+    <meta http-equiv="content-type" content="text/html; charset=iso-8859-2" />
+    <title>CvPcb - Przypisywanie footprintów komponentom</title>
+    <meta name="keywords" content="" />
+    <meta name="description" content="" />
+    <link rel="stylesheet" type="text/css" href="style.css" media="screen" />
+    <link rel="stylesheet" type="text/css" href="cvpcb-files/localstyle.css" media="screen" />
+	<link rel="stylesheet" type="text/css" href="http://fonts.googleapis.com/css?family=Open+Sans:400italic,400,700&subset=latin,latin-ext" />
+    <link rel="stylesheet" type="text/css" href="http://fonts.googleapis.com/css?family=Merriweather+Sans:400,700&subset=latin,latin-ext" />	
+  </head>
+
+<body>
+
+<div id="document">
+
+<div id="navbar">
+
+<div id="firstpage">
+<img src="kicad_logo.png" width="100%" alt="Logo programu" />
+
+<p class="left"><span class="title">CvPcb</span><br />
+<span class="subtitle">Narzędzie do przypisywania footprintów komponentom</span></p>
+</div>
+
+<div id="index">
+<h1>Spis treści</h1>
+<ol>
+  <li><a href="#p1">Przeznaczenie</a></li>
+  <li><a href="#p2">Ogólna charakterystyka aplikacji</a>
+  <ul>
+    <li><a href="#p21">Charakterystyka aplikacji</a></li>
+    <li><a href="#p22">Pliki wejściowe</a></li>
+    <li><a href="#p23">Pliki wyjściowe</a></li>
+  </ul></li>
+  <li><a href="#p3">Uruchamianie CvPcb</a></li>
+  <li><a href="#p4">Obsługa CvPcb</a>
+  <ul>
+    <li><a href="#p41">Ekran główny</a></li>
+    <li><a href="#p42">Główny pasek narzędzi</a></li>
+    <li><a href="#p43">Konfigurowanie CvPcb bez obsługi tabeli bibliotek</a>
+    <ul>
+      <li><a href="#p431">Główne okno</a></li>
+      <li><a href="#p432">Wybór bibliotek footprintów</a></li>
+      <li><a href="#p433">Wybór plików aliasów footprintów (skrypty przypisań)</a></li>	
+    </ul></li>
+    <li><a href="#p44">Wybór domyślnej ścieżki bibliotek footprintów</a>
+    <ul>
+      <li><a href="#p441">Ścieżki poszukiwań</a></li>
+      <li><a href="#p442">Ścieżki użytkownika</a></li>
+      <li><a href="#p443">Ścieżki ustalane automatycznie przez CvPcb</a></li>	
+    </ul></li>
+    <li><a href="#p45">Tabele footprintów - Zarządzanie bibliotekami po nowemu</a>
+    <ul>
+      <li><a href="#p451">Globalna tabela bibliotek footprintów</a></li>
+      <li><a href="#p452">Lokalna tabela bibliotek footprintów zależna od projektu</a></li>
+      <li><a href="#p453">Konfiguracja początkowa</a></li>	
+      <li><a href="#p454">Dodawanie nowych wpisów w tabeli</a></li>
+      <li><a href="#p455">Pobieranie wartości ze zmiennych systemowych</a></li>
+      <li><a href="#p456">Używanie wtyczki GitHub</a></li>	
+      <li><a href="#p457">Przykładowe wpisy w tabeli</a></li>
+      <li><a href="#p458">Co robić z plikami w COW?</a></li>
+      <li><a href="#p459">Generalne zalecenia przy używaniu tabeli bibliotek</a></li>	
+    </ul></li>
+    <li><a href="#p46">Podgląd bieżącego footprintu</a>
+    <ul>
+      <li><a href="#p461">Wyświetlanie</a></li>
+      <li><a href="#p462">Skróty klawiaturowe</a></li>
+      <li><a href="#p463">Menu kontekstowe</a></li>	
+      <li><a href="#p464">Pasek narzędzi</a></li>
+      <li><a href="#p465">Podgląd 3D</a></li>
+    </ul></li>
+  </ul></li>
+  <li><a href="#p5">Przypisywanie footprintów do komponentów</a>
+  <ul>
+    <li><a href="#p51">Podstawy</a></li>
+    <li><a href="#p52">Operacja przypisywania</a></li>
+    <li><a href="#p53">Zmiana bieżącego przypisania</a></li>
+    <li><a href="#p54">Filtrowanie listy footprintów</a>
+    <ul>
+      <li><a href="#p541">Filtrowanie za pomocą wzorców z ustawień komponentów</a></li>
+      <li><a href="#p542">Filtrowanie za pomocą pasującej liczby wyprowadzeń</a></li>
+      <li><a href="#p543">Filtrowanie za pomocą wybranej biblioteki</a></li>
+    </ul></li>
+  </ul></li>
+  <li><a href="#p6">Automatyczne przypisywanie footprintów</a>
+  <ul>
+    <li><a href="#p61">Pliki aliasów footprintów</a></li>
+    <li><a href="#p62">Format plików</a></li>
+    <li><a href="#p63">Przypisywanie automatyczne</a></li>
+  </ul></li>
+  <li><a href="#p7">Pliki numeracji wstecznej</a></li>
+</ol>
+</div>
+
+<div id="copyright">
+<p><strong>Prawa autorskie</strong><br />
+Copyright &copy; 2010-2014. Ten dokument jest chroniony prawem autorskim. Lista autorów znajduje się poniżej.<br />
+Możesz go rozpowszechniać oraz modyfikować na zasadach określonych w <strong>GNU General Public License</strong> (<a href="http://www.gnu.org/licenses/gpl.html">http://www.gnu.org/licenses/gpl.html</a>), wersja 3 lub późniejsza, albo określonych w <strong>Creative Commons Attribution License</strong> (<a href="http://creativecommons.org/licenses/by/3.0/">http://creativecommons.org/licenses/by/3.0/</a>), wersja 3.0 lub późniejsza.<br />
+Wszystkie znaki towarowe użyte w tym dokumencie należą do ich właścicieli.</p>
+
+<p><strong>Autorzy</strong><br />
+Jean-Pierre Charras, Wayne Stambaugh, Fabrizio Tappero, Kerusey Karyu.</p>
+
+<p><strong>Kontakt</strong><br />
+Wszelkie komentarze lub sugestie dotyczące tego dokumentu prosimy kierować na listę dyskusyjną deweloperów programu KiCad: <a href="https://launchpad.net/~kicad-developers">https://launchpad.net/~kicad-developers</a></p>
+
+<p><strong>Wersja</strong><br />
+19 Października 2014</p>
+
+<p><strong>Informacja dla użytkowników komputerów Apple Macintosh</strong><br />
+Wsparcie programu KiCad dla systemu operacyjnego Apple OS X jest w zaawansowanej fazie eksperymentalnej.</p>
+</div>
+
+</div>
+
+<div id="text">
+
+<a name="p1" />
+<h1>1. Przeznaczenie</h1>
+
+<p><strong>CvPcb</strong> pozwala na przypisanie każdemu <strong>komponentowi</strong> jaki występuje na liście sieci stworzonej przez program do edycji schematu, nazwy <strong>footprintu</strong>, który będzie go reprezentował na obwodzie drukowanym, a także na dodanie tych informacji do listy sieci.<br />
+Generalnie, lista sieci nie określa który footprint (fizyczne odzwierciedlenie komponentu) będzie wyświetlany przez oprogramowanie do edycji obwodu drukowanego (<strong>Pcbnew</strong>) podczas tworzenia płytki.<br />
+Komponenty mogą mieć manualnie przypisane footprinty. Można też utworzyć skrypty przypisań (ang: <em>equivalence files</em>), które stanowią specyficzną bazę danych dla przypisywania komponentom ich footprintów. Jeśli dostępne są skrypty przypisań, jest również możliwa praca automatyczna.<br />
+Lista footprintów dostępnych dla oprogramowania PCB przechowywana jest w <strong>bibliotekach footprintów</strong>, których może być więcej niż jedna.</p>
+
+<p>Ten interaktywny proces jest znacznie prostszy niż bezpośrednie przypisywanie tych informacji z poziomu schematu, ponieważ pozwala na jego automatyzację. <strong>CvPcb</strong> pozwala także na przeglądanie list dostępnych footprintów oraz podgląd ich wyglądu na ekranie.</p>
+
+<a name="p2" />
+<h1>2. Ogólna charakterystyka aplikacji</h1>
+
+<a name="p21" />
+<h2>Charakterystyka aplikacji</h2>
+
+<p>Aplikacja służy do interaktywnego lub automatycznego - w oparciu o pliki skryptów -  przypisywania komponentom ich footprintów.<br />
+Tworzenie (jeśli zachodzi taka potrzeba) <strong>plików numeracji wstecznej</strong> (ang: <em>back-annotation files</em>) dla edytora schematów z tymi przypisaniami.</p>
+
+<a name="p22" />
+<h2>Pliki wejściowe</h2>
+
+<ul>
+  <li>Pliki listy sieci <code>*.net</code> tworzone przez program <strong>Eeschema</strong> (z lub bez odnośników do footprintów),</li>
+  <li>Zewnętrzne skrypty przypisań footprintów <code>*.cmp</code> stworzone wcześniej przez <strong>CvPcb</strong>, jeśli istnieją.</li>
+</ul>
+
+<a name="p23" />
+<h2>Pliki wyjściowe</h2>
+
+<p>Są generowane dwa pliki dla <strong>Pcbnew</strong>:</p>
+<ul>
+  <li>Rozszerzony plik z listą sieci (z odnośnikami do footprintów),</li>
+  <li>Zewnętrzny skrypt przypisań (.cmp).</li>
+</ul>
+
+<a name="p3" />
+<h1>3. Uruchamianie CvPcb</h1>
+
+<p><strong>CvPcb</strong> można uruchomić z poziomu schematu (plik o tej nazwie jest wybierany po naciśnięciu klawisza <strong>CvPcb</strong>, z poziomu menu) lub wsadowo poprzez wpisanie z konsoli polecenia: <code>cvpcb &lt;filename&gt;</code>, (<code>filename</code> to nazwa pliku z listą sieci pochodząca z narzędzia do edycji schematów <strong>Eeschema</strong>).<br />
+Nazwa pliku może zostać przekazana jako plik z rozszerzeniem lub bez. Rozszerzenie pliku może, jeśli jest potrzebne zostać dostarczone przez zdefiniowaną w <strong>CvPcb</strong> konfigurację.<br />
+Dwa tworzone pliki będą posiadać tą samą nazwę (ale z innym rozszerzeniem).<br />
+Domyślnym rozszerzeniem pliku wejściowego jest <code>.net</code>. Domyślnym rozszerzeniem pliku wyjściowego również jest <code>.net</code>, i zastępuje poprzedni plik <code>.net</code>.<br />
+Standardowym rozszerzeniem pliku zewnętrznego skryptu przypisań do przypisywania footprintów poszczególnym symbolom na schemacie (także generowanym przez <strong>CvPcb</strong>) jest <code>.cmp</code>.</p>
+
+<a name="p4" />
+<h1>4. Obsługa CvPcb</h1>
+
+<a name="p41" />
+<h2>Ekran główny</h2>
+
+<p><img src="cvpcb-files/main_window.png" width="80%" alt="Głowne okno programu" /></p>
+
+<p><strong>Panel listy bibliotek</strong> (z lewej strony) zawiera listę dostępnych w projekcie bibliotek. Panel ten współpracuje z opcją filtrowaniem według bibliotek.<br />
+<strong>Panel komponentów</strong> (w środku) zawiera listę komponentów odczytanych z listy sieci.<br />
+<strong>Panel footprintów</strong> (z prawej strony) zawiera listę modułów odczytanych z dostępnych bibliotek. Zawartość tej listy może być filtrowana.</p>
+
+<a name="p42" />
+<h2>Główny pasek narzędzi</h2>
+
+<p><img src="cvpcb-files/main_toolbar.png" alt="Główny pasek narzędzi" /></p>
+
+<p>Znaczenie poszczególnych przycisków jest następujące:</p>
+
+<table>
+  <tr>
+    <td><img src="cvpcb-files/icon_open.png" alt="ikona " /></td>
+    <td>Wybiera listę sieci, która ma być przetworzona.</td>
+  </tr>
+  <tr>
+    <td><img src="cvpcb-files/icon_save.png" alt="ikona" /></td>
+    <td>Tworzy skrypt przypisań komponentów <code>.cmp</code> oraz plik <code>.net</code>, czyli zmodyfikowaną, rozszerzoną listę sieci.</td>
+  </tr>
+  <tr>  
+    <td><img src="cvpcb-files/icon_config.png" alt="ikona " /></td>
+    <td>Uruchamia menu konfiguracji <strong>CvPcb</strong>.</td>
+  </tr>
+  <tr>
+    <td><img src="cvpcb-files/icon_show.png" alt="ikona " /></td>
+    <td>Wyświetla bieżący footprint (czyli ten który obecnie jest wskazany na liście dostępnych footprintów).</td>
+  </tr>
+  <tr>
+    <td><img src="cvpcb-files/icon_autoassign.png" alt="ikona " /></td>
+    <td>Automatycznie przypisuje nazwy footprintów korzystając z baz danych <code>.equ</code> o przypisaniach automatycznych.<br />
+    Użycie tego narzędzia domyślnie przyjmuje, że te pliki są dostępne.</td>
+  </tr>
+  <tr>
+    <td><img src="cvpcb-files/icon_back.png" alt="ikona " /></td>
+    <td>Automatycznie przeskakuje do poprzedniego elementu, któremu jeszcze nie został przypisany żaden footprint.</td>
+  </tr>
+  <tr>
+    <td><img src="cvpcb-files/icon_next.png" alt="ikona " /></td>
+    <td>Automatycznie przeskakuje do następnego elementu, któremu jeszcze nie został przypisany żaden footprint.</td>
+  </tr>
+  <tr>
+    <td><img src="cvpcb-files/icon_delassign.png" alt="ikona " /></td>
+    <td>Kasuje wszystkie przypisania.</td>
+  </tr>
+  <tr>
+    <td><img src="cvpcb-files/icon_pdf.png" alt="ikona " /></td>
+    <td>Wyświetla dokumentację footprintu, jeśli istnieje.</td>
+  </tr>
+  <tr>
+    <td><img src="cvpcb-files/icon_filter.png" alt="ikona " /></td>
+    <td>Przełącznik poszczególnych filtrów służących do filtrowania listy dostępnych footprintów na <strong>panelu footprintów</strong>. Możliwa jest filtracja według wzorców ustawionych w ustawieniach poszczególnych komponentów (pierwsza opcja), liczby wyprowadzeń (druga opcja) oraz według wybranej biblioteki (ostatnia opcja). Opcje te można łączyć.<br />
+    Gdy filtrowanie jest włączone, <strong>panel footprintów</strong> zawiera tylko elementy pasujące do sumy wybranych filtrów.</td>
+  </tr>
+</table>
+
+<a name="p43" />
+<h2>Konfigurowanie CvPcb bez obsługi tabeli bibliotek</h2>
+
+<a name="p431" />
+<h3>Główne okno</h3>
+
+<p>Uruchomienie menu konfiguracji powoduje otwarcie następującego okna dialogowego:<br />
+<img src="cvpcb-files/config_window.png" alt="Okno z konfiguracją" /></p>
+
+<a name="p432" />
+<h3>Wybór bibliotek footprintów</h3>
+
+<p><img src="cvpcb-files/footprint_select.png" alt="Wybór bibliotek footprintów" /></p>
+
+<p>Po wybraniu elementu z listy za pomocą myszy:</p>
+<ul>
+  <li><span class="command">Dodaj</span> - dodaje nową bibliotekę do listy na końcu listy.</li>
+  <li><span class="command">Wstaw</span> - dodaje nową bibliotekę do listy przed aktualnie wybranym elementem.</li>
+  <li><span class="command">Usuń</span> - usuwa wskazaną bibliotekę z listy.</li>
+  <li><span class="command">Góra</span> - przesuwa wybraną bibliotekę wyżej na liście (zwiększa priorytet).</li>
+  <li><span class="command">Dół</span> - przesuwa wybrany bibliotekę niżej na liście (zmniejsza priorytet).</li>
+</ul>
+
+<p><strong>Zapamiętaj:</strong><br />
+Dowolna modyfikacja tej listy przenosi się do <strong>Pcbnew</strong>.</p>
+
+<a name="p433" />
+<h3>Wybór plików aliasów footprintów (skrypty przypisań)</h3>
+
+<p><img src="cvpcb-files/alias_select.png" alt="Wybór list aliasów" /></p>
+
+<p>Po wybraniu nazwy pliku z listy:</p>
+<ul>
+  <li><span class="command">Dodaj</span> - dodaje nową nazwę do listy na końcu listy.</li>
+  <li><span class="command">Wstaw</span> - dodaje nową nazwę do listy przed aktualnie wybranym elementem.</li>
+  <li><span class="command">Usuń</span> - usuwa wskazany element z listy.</li>
+  <li><span class="command">Góra</span> - przesuwa wybrany element wyżej na liście (zwiększa priorytet).</li>
+  <li><span class="command">Dół</span> - przesuwa wybrany element niżej na liście (zmniejsza priorytet).</li>
+</ul>
+
+<a name="p44" />
+<h2>Wybór domyślnej ścieżki bibliotek footprintów</h2>
+
+<p>Domyślna ścieżka do bibliotek jest wyświetlana przez <strong>CvPcb</strong>. <strong>CvPcb</strong> używa tych ścieżek do odnajdywania bibliotek footprintów (pliki <code>.mod</code>) oraz skryptów przypisań (pliki <code>.equ</code>).</p>
+
+<a name="p441" />
+<h3>Ścieżki poszukiwań</h3>
+<p>CvPcb używa dwóch typów ścieżek:</p>
+<ul>
+  <li>Ścieżki ustawiane automatycznie przez <strong>CvPcb</strong>.</li>
+  <li>Ścieżki dodane przez użytkownika.</li>
+</ul>
+
+<p><img src="cvpcb-files/path_select.png" alt="Wybór ścieżek poszukiwań" /></p>
+
+<a name="p442" />
+<h3>Ścieżki użytkownika</h3>
+
+<p><img src="cvpcb-files/user_path.png" alt="Ścieżki użytkownika" /></p>
+
+<a name="p443" />
+<h3>Ścieżki ustalane automatycznie przez CvPcb</h3>
+
+<p>Zależą one (częściowo) od systemu operacyjnego. Zawsze występuje na liście katalog roboczy.<br />
+Następnie:</p>
+<ul>
+  <li><code>kicad/share/modules</code>.</li>
+  <li><code>kicad/share/modules/packages3d</code> (dla obiektów 3D w formacie VRML stworzonych przez Wings3D).</li>
+  <li><code>kicad/share/template</code>.</li>
+</ul>
+<p>Ścieżka główna programu KiCad to:</p>
+<ul>
+  <li>Ścieżka gdzie znaleziono pliki binarne programu <strong>KiCad</strong> (<code>.../kicad/bin</code>).</li>
+</ul>
+<p>Jeśli nie znaleziono:<br />
+W systemie Windows:</p>
+<ul>
+  <li><code>c:\kicad</code></li>
+  <li><code>d:\kicad</code></li>
+</ul>
+<p>W systemach Linux/Unix:</p>
+<ul>
+  <li><code>/usr/local/kicad</code></li>
+  <li><code>/usr/share/kicad</code></li>
+</ul>
+
+<a name="p45" />
+<h2>Tabele footprintów - Zarządzanie bibliotekami po nowemu</h2>
+
+<p>Począwszy od <strong>wersji z dnia 2013-12-08 BZR4535-product</strong>, <strong>CvPcb</strong> nie używa narzędzia do konfiguracji opisanego w poprzednim punkcie. Nowa implementacja tego narzędzia opiera się na <strong>tabeli bibliotek footprintów</strong>.<br />
+Poniższy rysunek pokazuje okno dialogowe z wspomnianą tabelą. Aby go wywołać należy użyć polecenia <span class="command">Tabela bibliotek</span>.</p>
+
+<p><img src="cvpcb-files/lib_table.png" width="80%" alt="Tabele bibliotek footprintów" /></p>
+
+<p>Tabela bibliotek footprintów jest używana do mapowania plików bibliotek obsługiwanych przez program do ich <strong>nazw skrótowych</strong>. Nazwa skrótowa jest używana do wyszukiwania footprintów zamiast poprzedniej metody z wyszukiwaniem plików zgodnie z ustalonym układem ścieżek dostępu. Pozwala to programowi <strong>CvPcb</strong> na dostęp do footprintów za pomocą tej samej nazwy w różnych bibliotekach gwarantując tym samym, że właściwy footprint zostanie załadowany z odpowiedniej biblioteki. Pozwala to również na obsługę bibliotek pochodzących z innych programów (z pomocą wtyczek) EDA, takich jak np. Eagle czy gEDA.</p>
+
+<a name="p451" />
+<h3>Globalna tabela bibliotek footprintów</h3>
+
+<p><strong>Globalna tabela bibliotek footprintów</strong> zawiera listę biblioteki, które są dostępne zawsze, niezależnie od obecnie wczytanego projektu. Tabela ta jest zapisana w pliku <code>fp-lib-table</code> w katalogu domowym użytkownika. Jego rzeczywista lokacja zależy użytego systemu operacyjnego.</p>
+
+<a name="p452" />
+<h3>Lokalna tabela bibliotek footprintów zależna od projektu</h3>
+
+<p><strong>Lokalna tabela bibliotek footprintów</strong> zależna od projektu zawiera listę bibliotek, które są dostępne wyłącznie w obecnie wczytanym projekcie. Lokalna tabela może być modyfikowana tylko wtedy, gdy zostanie ona załadowana razem z listą sieci tego projektu. Gdy projekt nie został załadowany lub gdy taka lokalna tabela nie istnieje, tworzona jest pusta tabela, którą będzie można wypełnić i później zapisać razem z plikiem przypisań footprintów (z rozszerzeniem <code>.cmp</code>).</p>
+
+<a name="p453" />
+<h3>Konfiguracja początkowa</h3>
+
+<p>Gdy <strong>CvPcb</strong> lub <strong>Pcbnew</strong> zostanie uruchomiony i globalna tabela bibliotek <code>fp-lib-table</code> nie zostanie znaleziona w katalogu domowym użytkownika, <strong>CvPcb</strong> będzie próbował skopiować domyślną tabelę bibliotek <code>fp_global_table</code> zapisaną w folderze <code>template</code> do pliku <code>fp-lib-table</code> w katalogu domowym użytkownika. Jeśli plik <code>fp_global_table</code> nie został znaleziony, to zamiast operacji kopiowania zostanie utworzona pusta tabela. Gdyby taka sytuacja miała miejsce użytkownik ma też możliwość skopiowania <code>fp_global_table</code> samodzielnie lub "ręczne" skonfigurowania tabeli.<br />
+Domyślna tabela bibliotek zawiera wszystkie standardowe biblioteki jakie zostały zainstalowane razem z programem <strong>KiCad EDA Suite</strong>.</p>
+
+<a name="p454" />
+<h3>Dodawanie nowych wpisów w tabeli</h3>
+
+<p>By móc używać biblioteki najpierw należy dodać globalną lub lokalną tabelę. Lokalna tabela ma zastosowanie tylko gdy istnieje otwarta lista sieci projektu.</p>
+
+<p>Każda pozycja tabeli musi posiadać <strong>unikalną nazwę skrótową</strong>. Nie musi ona mieć jakiegokolwiek związku z bieżącą nazwą pliku lub ścieżki do niego. Znak dwukropka <code>':'</code> nie może być używany w nazwach skrótowych. Każda pozycja musi również odnosić się do prawidłowej ścieżki/nazwy pliku w zależności od typu biblioteki. Ścieżki do plików mogą być bezpośrednie, względne lub pochodzić ze specjalnych zmiennych systemowych - opisanych dalej.<br />
+Aby biblioteka została wczytana przez <strong>CvPcb</strong> musi być także wybrana właściwa <strong>wtyczka</strong> obsługująca dany format pliku. <strong>CvPcb</strong> obecnie wspiera następujące formaty plików bibliotek: <strong>KiCad Legacy</strong>, <strong>KiCad Pretty</strong>, <strong>Eagle</strong> oraz <strong>gEDA</strong>.</p>
+
+<p>Istnieje również pole przeznaczone do wpisania opisu dla danego wpisu w tabeli. Pole z opcjami nie jest w tej chwili używane, zatem umieszczanie jakichkolwiek opcji nie ma znaczenia przy ładowaniu bibliotek.</p>
+
+<p>Proszę zauważyć, że nie można umieścić dwóch takich samych nazw skrótowych w jednej tabeli. Jednakże, można wpisać tą samą nazwę skrótową w globalnej i lokalnej tabeli bibliotek, ponieważ tabela lokalna ma większy priorytet niż tabela globalna w takim przypadku.</p>
+
+<p>Gdy wpisy zostaną zdefiniowane w lokalnej tabeli bibliotek, to plik <code>fp-lib-table</code> zawierający te wpisy zostanie umieszczony w folderze skąd pochodzi lista sieci.</p>
+
+<a name="p455" />
+<h3>Pobieranie wartości ze zmiennych systemowych</h3>
+
+<p>Jednym z największych zalet tabeli bibliotek footprintów jest możliwość używania <strong>odnośników do zmiennych systemowych</strong>. Pozwala to na zdefiniowanie własnych ścieżek do bibliotek w zmiennych systemowych i używanie ich w projektach.</p>
+
+<p>Odnośniki do zmiennych systemowych można wplatać w treść pól zawierających ścieżkę do pliku używając powszechnie znanego formatu <var>${nazwa_zmiennej}</var>. Domyślnie <strong>CvPcb</strong> definiuje zmienną środowiskową <var>KISYSMOD</var>. Wskazuje ona na miejsce, gdzie zainstalowane zostały biblioteki instalowane razem z programem <strong>KiCad EDA Suite</strong>. Można ją re-definiować samodzielnie, co pozwala na zastąpienie standardowych bibliotek ich własnymi odpowiednikami. Gdy wczytana zostanie lista sieci, <strong>CvPcb</strong> automatycznie definiuje również zmienną <var>KIPRJMOD</var>. Pozwala to na tworzenie bibliotek w miejscu wskazywanym przez  projekt bez konieczności definiowania bezwzględnej ścieżki do biblioteki w lokalnej tabeli footprintów projektu.</p>
+
+<a name="p456" />
+<h3>Używanie wtyczki GitHub</h3>
+
+<p><strong>GitHub</strong> to specjalna wtyczka pozwalająca na łączenie się ze zdalnym repozytorium GitHub zawierającym footprinty w formacie <code>.pretty</code> (nowa wersja formatu zapisu footprintów przez program <strong>KiCad</strong>). Repozytorium to jest tylko do odczytu, ale wtyczka umożliwia również dostęp do technologi "<em>Copy On Write</em>" (COW) wspierającej możliwość edycji footpritnów odczytanych z repozytorium GitHub i zapisanie ich nowych wersji na dysku lokalnym, które później można wysłać z w celu ich aktualizacji. Sama wtyczka nie umożliwia zapisu do repozytorium.</p>
+
+<p>By dodać wpis GitHub do tabeli bibliotek, pole <em>Ścieżka</em> musi zostać wypełniona ważnym adresem URL do repozytorium GitHub.<br />
+Przykładowo:<br />
+  <a href="https://github.com/liftoff-sr/pretty_footprints">https://github.com/liftoff-sr/pretty_footprints</a><br />
+Zwykle poprawna ścieżka URL jest tworzona wg następującego schematu:<br />
+  https://github.com/nazwa_użytkownika/nazwa_repozytorium</p>
+
+<p>Pole <em>Typ Wtyczki</em> musi być ustawione jako <code>Github</code>. Aby włączyć funkcję "Copy On Write" należy w polu <em>Opcje</em> dodać parametr <code>allow_pretty_writing_to_this_dir</code> który zawierał będzie ścieżkę na dysku lokalnym gdzie zapisywane będą pliki z modyfikacjami. Jeśli ta opcja zostanie pominięta to biblioteka GitHub jest tylko do odczytu.<br />
+Footprinty tam zapisane są połączeniem części tylko do odczytu repozytorium GitHub i treści lokalnych zmian by utworzyć zmodyfikowaną bibliotekę footprintów. Każda modyfikacja biblioteki GitHub będzie trafiać do tej lokalnej biblioteki hybrydowej COW umieszczonej w odpowiednim folderze <code>*.pretty</code>.<br />
+Należy w tym miejscu nadmienić, iż część rezydentna COW pochodząca z repozytorium GitHub jest zawsze tylko do odczytu, co oznacza, że nie można niczego samodzielnie usunąć lub zmodyfikować bezpośrednio w samym repozytorium GitHub. Niezależnie czy biblioteka będzie hybrydowa, czyli połączona z lokalnej części tylko do odczytu i zapisu, czy tylko część zdalną przeznaczoną tylko do odczytu, będzie ona dalej zwana biblioteką "Github" w dalszych rozważaniach.</p>
+
+<a name="p457" />
+<h3>Przykładowe wpisy w tabeli</h3>
+
+<p>Poniższa tabela pokazuje wpis z tabeli bibliotek, której nie została przypisana opcja  allow_pretty_writing_to_this_dir:</p>
+<table>
+<thead>
+  <tr>
+    <td><em>Nazwa skrótowa</em></td>
+    <td><em>Ścieżka</em></td>
+    <td><em>Typ wtyczki</em></td>
+    <td><em>Opcje</em></td>
+    <td><em>Opis</em></td>
+  </tr>
+</thead>
+<tbody>
+  <tr>
+    <td>github</td>
+    <td>https://github.com/liftoff-sr/pretty_footprints</td>
+    <td>Github</td>
+    <td>&nbsp;</td>
+    <td>Liftoff's GH footprints</td>
+  </tr>
+</tbody>  
+</table>
+
+<p>Następna tabela pokazuje wpis z tabeli bibliotek z opcją dotyczącą COW. Zmienna <var>${HOME}</var> jest tylko przykładowa. Folder <code>github.pretty</code> jest umieszczony w folderze do którego prowadzi ścieżka <code>${HOME}/pretty/</code>. W każdym przypadku użycia opcji <code>allow_pretty_writing_to_this_dir</code>, wymagane jest samodzielne utworzenie tego folderu i musi on posiadać rozszerzenie <code>.pretty</code>.</p>
+<table>
+<thead>
+  <tr>
+    <td><em>Nazwa skrótowa</em></td>
+    <td><em>Ścieżka</em></td>
+    <td><em>Typ wtyczki</em></td>
+    <td><em>Opcje</em></td>
+    <td><em>Opis</em></td>
+  </tr>
+</thead>
+<tbody>
+  <tr>
+    <td>github</td>
+    <td>https://github.com/liftoff-sr/pretty_footprints</td>
+    <td>Github</td>
+    <td>allow_pretty_writing_to_this_dir=${HOME}/pretty/github.pretty</td>
+    <td>Liftoff's GH footprints</td>
+  </tr>
+</tbody>
+</table>
+
+<p>Footprinty pobierane z repozytorium mają zawsze pierwszeństwo przed tymi umieszczonymi w folderze na który wskazuje opcja <code>allow_pretty_writing_to_this_dir</code>. Po zapisaniu footprintu do lokalnego folderu przechowującego hybrydowe pliki COW, np. poprzez zapisanie zmian w edytorze footprintów, żadne aktualizacje GitHub nie będą widoczne podczas ładowania footprintów o tej samej nazwie, niż te, które zostały zapisane lokalnie.<br />
+<strong>Zawsze</strong> należy korzystać z odrębnego folderu <code>*.pretty</code> dla poszczególnych bibliotek GitHub i nigdy nie powinno się łączyć folderów przez przypisywanie tego samego folderu do innych bibliotek GitHub, gdyż mogłoby to doprowadzić do bałaganu nad którym nie byłoby można zapanować.</p>
+
+<p>Wartości symboliczne w zmiennych systemowych zapisane w notacji <code>${nazwa_zmiennej}</code> przypisane do opcji <code>allow_pretty_writing_to_this_dir</code> będą rozwijane automatycznie by utworzyć właściwą ścieżkę, tak samo jak to ma miejsce w polu <em>Ścieżka</em>.</p>
+
+<a name="p458" />
+<h3>Co robić z plikami w COW?</h3>
+
+<p>System COW to element przyśpieszający współużytkowanie footprintów. Jeśli zawartość COW będzie regularnie przesyłana do zarządcy repozytorium GitHub, będzie można pomóc w uaktualnianiu kopii znajdujących się w repozytorium zdalnym.<br />
+Całość jest bardzo prosta. Za pomocą poczty elektronicznej należy wysłać pliki <code>*.kicad_mod</code> znajdujące się w folderach systemu COW do osoby zarządzającej repozytorium. Po otrzymaniu potwierdzenia, że zmiany zostały zaakceptowane i wprowadzone, można skasować wysłane pliki z COW. Nowe wersje plików zostaną pobrane z repozytorium GitHub.<br />
+Głównym celem jest utrzymywanie jak najmniejszego zestawu plików systemu COW jak tylko jest to możliwe poprzez regularne przesyłanie zawartych w niej plików.</p>
+
+<a name="p459" />
+<h3>Generalne zalecenia przy używaniu tabeli bibliotek</h3>
+
+<p>Biblioteki footprintów mogą być zdefiniowane globalne lub lokalnie dla obecnie wczytanego projektu. Biblioteki umieszczone w globalnej tabeli bibliotek użytkownika są zawsze dostępne i są zapisane w pliku <code>fp-lib-table</code> w katalogu domowym użytkownika. Globalne biblioteki będą dostępne nawet jeśli nie została otwarta lista sieci danego projektu. Inaczej sprawa się ma w przypadku lokalnych bibliotek, które są aktywne wyłącznie dla bieżącej listy sieci. Lokalna tabela bibliotek jest zapisywana w pliku <code>fp-lib-table</code> umieszczonym w tej samej ścieżce co lista sieci.</p>
+
+<p>Nie ma przeszkód co do definiowania odnośników do bibliotek w obu tabelach. Dlatego też nie zostało odgórnie określone w jaki sposób użytkownik będzie wykorzystywał możliwości jakie dają globalne i lokalne tabele. Są jednak zalety i wady każdego z rozwiązań, które należy rozważyć.<br />
+Można zdefiniować wszystkie biblioteki w globalnej tabeli bibliotek, co oznacza, że będą one zawsze dostępne gdy będą potrzebne. Wadą takiego rozwiązania będzie szybkość wyszukiwania w nich odpowiedniego footprintu.<br />
+Można zdefiniować wszystkie biblioteki w lokalnej tabeli bibliotek. Zaletą takiego rozwiązania będzie możliwość zdefiniowania tylko tych bibliotek, które będą w danej chwili potrzebne oraz skrócenie czasu ich przeszukiwania. Wadą tego rozwiązania będzie zaś to, że będzie trzeba zawsze pamiętać, by dodać odpowiednie biblioteki dla każdego nowego projektu.</p>
+
+<p>Można zdefiniować biblioteki w obu tabelach jednocześnie. Sensowne staje się wtedy wpisanie bibliotek, które są wykorzystywane prawie we wszystkich projektach do tabeli globalnej, a w lokalnych tabelach umieszczać tylko te, które są przydatne tylko w tym konkretnym projekcie. Będzie to rozwiązanie, które będzie posiadało największą elastyczność kosztem zmniejszenia szybkości wyszukiwania.</p>
+
+<a name="p46" />
+<h2>Podgląd bieżącego footprintu</h2>
+
+<p>Polecenie <span class="command">Podgląd footprintu</span> pozwala na wyświetlenie bieżącego footprintu, czyli tego który aktualnie jest wskazany na liście w panelu footprintów.<br />
+Można przeglądać w ten sposób listę footprintów klikając na ich nazwy przy pozostawionym oknie podglądu footprintów.<br />
+Można również podglądać widok 3D (jeśli moduły maja przypisane kształty 3D).</p>
+
+<a name="p461" />
+<h3>Wyświetlanie</h3>
+
+<p>Pozycja kursora jest wyświetlana na dolnym pasku ekranu:<br />
+<img src="cvpcb-files/footprint_view.png" width="80%" alt="Podgląd footprintu" /></p>
+
+<p>Pozycja absolutna (<code>X nnnn Y nnnn</code>) oraz relatywna (<code>dx nnnn dy nnnn</code>). Punkt odniesienia dla pozycji relatywnej można zmieniać klawiszem spacji.</p>
+
+<a name="p462" />
+<h3>Skróty klawiaturowe</h3>
+
+<table>
+  <tr>
+    <td><strong>F1</strong></td>
+    <td>Przybliżenie</td>
+  </tr>
+  <tr>
+    <td><strong>F2</strong></td>
+    <td>Oddalenie</td>
+  </tr>
+  <tr>
+    <td><strong>F3</strong></td>
+    <td>Odświeża obraz</td>
+  </tr>
+  <tr>
+    <td><strong>&lt;spacja&gt;</strong></td>
+    <td>Ustawia punkt odniesienia</td>
+  </tr>
+</table>
+
+<a name="p463" />
+<h3>Menu kontekstowe</h3>
+
+<p><img src="cvpcb-files/context_menu.png" alt="Menu kontekstowe" /></p>
+
+<p>Wyświetlane jest klikając prawy klawisz myszy. Pierwsze cztery polecenia służą do bezpośredniego dostosowywania powiększenia. Dwa kolejne wyświetlają dodatkowe podmenu:</p>
+<table>
+  <tr>
+    <td><span class="command">Wybór powiększenia</span></td>
+    <td>Ustawienie wybranego współczynnika powiększenia z listy dostępnych.</td>
+  </tr>
+  <tr>
+    <td><span class="command">Wybór siatki</span></td>
+    <td>Wybór ustawienia skoku siatki z listy dostępnych.</td>
+  </tr>
+</table>
+  
+<a name="p464" />
+<h3>Pasek narzędzi</h3>
+
+<p><img src="cvpcb-files/show_toolbar.png" alt="Wybór bibliotek footprintów" /></p>
+
+<table>
+  <tr>
+    <td><img src="cvpcb-files/icon_show_options.png" alt="Ikona wyboru opcji" /></td>
+    <td>Opcje wyświetlania</td>
+  </tr>
+  <tr>
+    <td><img src="cvpcb-files/icon_show_zoom.png" alt="Ikona wyboru powiększenia" /></td>
+    <td>Opcje powiększania</td>
+  </tr>
+  <tr>
+    <td><img src="cvpcb-files/icon_show_3d.png" alt="Ikona podglądu 3D" /></td>
+    <td>Wyświetlanie kształtów 3D</td>
+  </tr>
+</table>
+
+<a name="p465" />
+<h3>Podgląd 3D</h3>
+
+<p><img src="cvpcb-files/3d_window.png" width="80%" alt="Wybór bibliotek footprintów" /></p>
+
+<a name="p5" />
+<h1>5. Przypisywanie footprintów do komponentów</h1>
+
+<a name="p51" />
+<h2>Podstawy</h2>
+
+<p>Aby przypisać wybranemu <strong>komponentowi</strong> (podświetlony element) <strong>z panelu komponentów</strong> określony footprint, należy w <strong>panelu footprintów</strong> dwukrotnie kliknąć nazwę wybranego footprintu.<br />
+Następny komponent z listy komponentów jest podświetlany:</p>
+<ul>
+  <li>Automatycznie po poprzednim przypisaniu.</li>
+  <li>Ręcznie z pomocą myszy lub klawiszy kursora.</li>
+</ul>
+
+<a name="p52" />
+<h2>Operacja przypisywania</h2>
+
+<p>Wystarczy kliknąć dwukrotnie lewym klawiszem myszy na wybranym footprincie.</p>
+
+<a name="p53" />
+<h2>Zmiana bieżącego przypisania</h2>
+
+<p>Jest wykonywana na zasadzie nowego przypisania, jak wyżej.</p>
+
+<a name="p54" />
+<h2>Filtrowanie listy footprintów</h2>
+
+<p>Polecenia z paska narzędzi <img src="cvpcb-files/icon_filter.png" alt="Wybór filtrowania" /> pozwalają na włączenie/wyłączenie poszczególnych sposobów filtracji. Poszczególne filtry można włączać niezależnie by bardziej zawęzić wynik filtracji.<br />
+Możliwa jest filtracja <strong>według wzorców</strong> ustawionych w ustawieniach poszczególnych komponentów (pierwsza ikona), <strong>liczby wyprowadzeń</strong> (druga ikona) oraz według <strong>wybranej biblioteki</strong> (ostatnia ikona).<br />
+Jeśli nie ma ustalonej filtracji wyświetlana jest pełna lista footprintów. Poniższy rysunek ukazuje przykład listy <strong>bez filtracji</strong>:</p>
+
+<p><img src="cvpcb-files/filter_none.png" width="80%" alt="Lista bez filtracji" /></p>
+
+<a name="p541" />
+<h3>Filtrowanie za pomocą wzorców z ustawień komponentów</h3>
+
+<p>Jeśli wybrany komponent posiada zdefiniowane wzorce nazw dozwolonych footprintów, lista footprintów w <strong>CvPcb</strong> może być według niej filtrowana.<br />
+Po włączeniu <strong>filtracji według pasujących nazw</strong> lista footprintów ulegnie znacznemu skróceniu. W tym konkretnym przypadku wyświetlonych zostanie tylko 8 footprintów:</p>
+
+<p><img src="cvpcb-files/filter_comp.png" width="80%" alt="Filtracja według komponentów" /></p>
+
+<p>Dzieje się tak, gdyż w <strong>Eeschema</strong> podczas tworzeniu symbolu zostały uzupełnione informacje o dozwolonych footprintach dla tego komponentu w zakładce <strong><em>Filtr footprintów</em></strong>:</p>
+
+<p><img src="cvpcb-files/eeschema_filter.png" alt="Ustawienia filtra w Eeschema" /></p>
+
+<a name="p542" />
+<h3>Filtrowanie za pomocą pasującej liczby wyprowadzeń</h3>
+
+<p>W przypadku włączenia <strong>filtracji według liczby wyprowadzeń</strong>, widok prawego panelu  zmieni się i zostaną wyświetlone tylko te footprinty, które posiadają odpowiednią liczbę wyprowadzeń (tu: 9).</p>
+
+<p><img src="cvpcb-files/filter_pincount.png" width="80%" alt="Filtracja według ilości pinów" /></p> 
+
+<a name="p543" />
+<h3>Filtrowanie za pomocą wybranej biblioteki</h3>
+
+<p>W przypadku włączenia <strong>filtracji według wybranej biblioteki</strong>, widok prawego panelu będzie podobny i zostaną wyświetlone tylko te footprinty, które pochodzą z wybranej w <strong>panelu bibliotek</strong> biblioteki.<br />
+
+<img src="cvpcb-files/filter_library.png" width="80%" alt="Filtracja według bibliotek" /></p>
+
+<a name="p6" />
+<h1>6. Automatyczne przypisywanie footprintów</h1>
+
+<a name="p61" />
+<h2>Pliki aliasów footprintów</h2>
+
+<p>Pliki te pozwalają na proces automatycznego przypisywania footprintów.<br />
+Pobierane są z nich nazwy footprintów na podstawie wartości (pole <em>Value</em>) komponentów.<br />
+Pliki te mają standardowe rozszerzenie <code>.equ</code><br />
+Po wybraniu odpowiedniego pliku w zależności od przeznaczenia projektu, można w prosty sposób dostosowywać technologię jego wykonania, np. wersja SMD, wersja THT...<br />
+Zobacz też <a href="#p433">Wybór plików aliasów footprintów (skryptów przypisań)</a>.</p>
+
+<a name="p62" />
+<h2>Format plików</h2>
+
+<p>Pliki <code>.equ</code> zawierają zwykły tekst, gdzie każda linia odpowiada jednemu komponentowi.<br />
+Każda z linii posiada strukturę:</p>
+<pre><code>
+    'component value' 'footprint name'
+
+</code></pre>
+
+<p>Każda nazwa musi być zamknięta w apostrofach, obie nazwy muszą być rozdzielone przynajmniej jednym znakiem spacji.</p>
+
+<p><strong>Przykładowo</strong>:<br />
+Jeśli element <strong>U3</strong> to układ scalony <strong>14011</strong> a jego odpowiedni footprint to <strong>14DIP300</strong>, to linia powinna wyglądać tak:</p>
+<pre><code>	
+    '14011'  '14DIP300'
+
+</code></pre>
+
+<p>Linie rozpoczynające się od znaku <em>hash</em> (<code>#</code>) są traktowane jako komentarz.</p>
+
+<p>Przykładowa zawartość pliku:</p>
+<pre><code>
+#integrated circuits (smd):
+'74LV14' 'SO14E'
+'74HCT541M' 'SO20L'
+'EL7242C' 'SO8E'
+'DS1302N' 'SO8E'
+'XRC3064' 'VQFP44'
+'LM324N' 'S014E'
+'LT3430' 'SSOP17'
+'LM358' 'SO8E'
+'LTC1878' 'MSOP8'
+'24LC512I/SM' 'SO8E'
+'LM2903M' 'SO8E'
+'LT1129_SO8' 'SO8E'
+'LT1129CS8-3.3' 'SO8E'
+'LT1129CS8' 'SO8E'
+'LM358M' 'SO8E'
+'TL7702BID' 'SO8E'
+'TL7702BCD' 'SO8E'
+'U2270B' 'SO16E'
+#Xilinx
+'XC3S400PQ208' 'PQFP208'
+'XCR3128-VQ100' 'VQFP100'
+'XCF08P' 'BGA48'
+
+#upro
+'MCF5213-LQFP100' 'VQFP100'
+
+#regulators
+'LP2985LV'	'SOT23-5'
+
+</code></pre>
+
+<a name="p63" />
+<h2>Przypisywanie automatyczne</h2>
+
+<p>Proces automatycznego przypisywania jest uruchamiany przez wybranie ikony:<br />
+<img src="cvpcb-files/icon_autoassign.png" alt="Ikona automatycznego przypisywania" /></p>
+
+<p>Wszystkie komponenty jakie zostały znalezione (na podstawie ich wartości) w pliku <code>.equ</code> będą miały przypisany automatycznie wskazany tam footprint.</p>
+
+<a name="p7" />
+<h1>7. Pliki numeracji wstecznej</h1>
+
+<p>Pliki te mogą być użyte do przeprowadzenia procesu numeracji wstecznej na schemacie. Nie są one używane przez <strong>Pcbnew</strong>.</p>
+
+<p>Zawierają zwykły tekst, gdzie każda linia odpowiada jednemu komponentowi, podając nazwę komponentu (identyfikator) na schemacie i przypisany jemu footprint.</p>
+
+<p><strong>Przykładowo</strong>:<br />
+Jeśli komponentowi oznaczonemu jako <strong>U3</strong> został przypisany footprint <strong>14DIP300</strong>, to wygenerowana linia będzie zawierać tekst:</p>
+
+<pre><code>
+comp "U3" = footprint "14DIP300"
+
+</code></pre>
+
+<p>Utworzony plik będzie się nazywał tak samo jak plik wejściowy <strong>CvPcb</strong>, ale z rozszerzeniem <code>.stf</code>, i zostanie umieszczony w tym samym folderze gdzie zostanie wygenerowana nowa lista sieci.</p>
+</div>
+
+</div>
+
+</body>
+</html>
