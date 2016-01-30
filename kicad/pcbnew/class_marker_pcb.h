@@ -6,8 +6,7 @@
 #define CLASS_MARKER_PCB_H
 
 #include "base_struct.h"
-
-#include "drc_stuff.h"
+#include "class_marker_base.h"
 
 class MARKER_PCB : public BOARD_ITEM, public MARKER_BASE
 {
@@ -44,7 +43,7 @@ public:
     /**
      * Function Move
      * move this object.
-     * @param const wxPoint& aMoveVector - the move vector for this object.
+     * @param aMoveVector - the move vector for this object.
      */
     virtual void Move(const wxPoint& aMoveVector)
     {
@@ -54,7 +53,7 @@ public:
     /**
      * Function Rotate
      * Rotate this object.
-     * @param const wxPoint& aRotCentre - the rotation point.
+     * @param aRotCentre - the rotation point.
      * @param aAngle - the rotation angle in 0.1 degree.
      */
     virtual void Rotate(const wxPoint& aRotCentre, int aAngle);
@@ -62,13 +61,15 @@ public:
     /**
      * Function Flip
      * Flip this object, i.e. change the board side for this object
-     * @param const wxPoint& aCentre - the rotation point.
+     * @param aCentre - the rotation point.
      */
     virtual void Flip(const wxPoint& aCentre );
 
-    /** Function Draw
+    /**
+     * Function Draw
      */
-    void    Draw( WinEDA_DrawPanel* aPanel, wxDC* aDC, int aDrawMode, const wxPoint& aOffset = ZeroOffset )
+    void    Draw( EDA_DRAW_PANEL* aPanel, wxDC* aDC, int aDrawMode,
+                  const wxPoint& aOffset = ZeroOffset )
     {
         DrawMarker( aPanel, aDC, aDrawMode, aOffset );
     }
@@ -83,7 +84,8 @@ public:
     }
 
 
-    /** Function HitTest
+    /**
+     * Function HitTest
      * @return true if the point aPosRef is within item area
      * @param aPosRef = a wxPoint to test
      */
@@ -96,9 +98,9 @@ public:
      * Function DisplayInfo
      * has knowledge about the frame and how and where to put status information
      * about this object into the frame's message panel.
-     * @param frame A WinEDA_DrawFrame in which to print status information.
+     * @param frame A EDA_DRAW_FRAME in which to print status information.
      */
-    void    DisplayInfo( WinEDA_DrawFrame* frame );
+    void    DisplayInfo( EDA_DRAW_FRAME* frame );
 
     /**
      * Function Save

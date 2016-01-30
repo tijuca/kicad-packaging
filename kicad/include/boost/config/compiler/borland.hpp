@@ -46,6 +46,8 @@
 // Borland C++Builder 5, command-line compiler 5.5:
 #       define BOOST_NO_OPERATORS_IN_NAMESPACE
 #     endif
+// Variadic macros do not exist for C++ Builder versions 5 and below
+#define BOOST_NO_VARIADIC_MACROS
 #   endif
 
 // Version 5.51 and below:
@@ -66,7 +68,6 @@
 
 // Borland C++ Builder 6 and below:
 #if (__BORLANDC__ <= 0x564)
-#  define BOOST_NO_INTEGRAL_INT64_T
 
 #  ifdef NDEBUG
       // fix broken <cstring> so that Boost.test works:
@@ -121,6 +122,7 @@
 #endif
 
 // Borland C++ Builder 2008 and below:
+#  define BOOST_NO_INTEGRAL_INT64_T
 #  define BOOST_FUNCTION_SCOPE_USING_DECLARATION_BREAKS_ADL
 #  define BOOST_NO_DEPENDENT_NESTED_DERIVATIONS
 #  define BOOST_NO_MEMBER_TEMPLATE_FRIENDS
@@ -218,7 +220,7 @@
 //
 // check for exception handling support:
 //
-#if !defined(_CPPUNWIND) && !defined(BOOST_CPPUNWIND) && !defined(__EXCEPTIONS)
+#if !defined(_CPPUNWIND) && !defined(BOOST_CPPUNWIND) && !defined(__EXCEPTIONS) && !defined(BOOST_NO_EXCEPTIONS)
 #  define BOOST_NO_EXCEPTIONS
 #endif
 //
@@ -230,8 +232,9 @@
 //
 // all versions support __declspec:
 //
-#ifndef __STRICT_ANSI__
-#  define BOOST_HAS_DECLSPEC
+#if defined(__STRICT_ANSI__)
+// config/platform/win32.hpp will define BOOST_SYMBOL_EXPORT, etc., unless already defined  
+#  define BOOST_SYMBOL_EXPORT
 #endif
 //
 // ABI fixing headers:
@@ -260,6 +263,13 @@
 #  define BOOST_NO_ARGUMENT_DEPENDENT_LOOKUP
 #  define BOOST_NO_VOID_RETURNS
 #endif
+
+// Borland did not implement value-initialization completely, as I reported
+// in 2007, Borland Report 51854, "Value-initialization: POD struct should be
+// zero-initialized", http://qc.embarcadero.com/wc/qcmain.aspx?d=51854
+// See also: http://www.boost.org/libs/utility/value_init.htm#compiler_issues
+// (Niels Dekker, LKEB, April 2010)
+#define BOOST_NO_COMPLETE_VALUE_INITIALIZATION
 
 #define BOOST_COMPILER "Borland C++ version " BOOST_STRINGIZE(__BORLANDC__)
 

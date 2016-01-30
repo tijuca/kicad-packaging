@@ -10,40 +10,26 @@
 #include "gestfich.h"
 
 #include "gerbview.h"
-#include "wxGerberFrame.h"
+#include "gerbview_id.h"
 #include "pcbplot.h"
 #include "bitmaps.h"
-#include "protos.h"
 #include "zones.h"
 #include "class_board_design_settings.h"
 #include "colors_selection.h"
+#include "hotkeys.h"
 
 #include "build_version.h"
 
 #include <wx/file.h>
 #include <wx/snglinst.h>
 
-
-wxString g_PhotoFilenameExt;
-wxString g_DrillFilenameExt;
-wxString g_PenFilenameExt;
-
 // Colors for layers and items
 COLORS_DESIGN_SETTINGS g_ColorsSettings;
 
 int      g_Default_GERBER_Format;
-int      g_Plot_Spot_Mini;  /* Diameter of the opening mini-track for GERBER. */
 int      g_DisplayPolygonsModeSketch;
 
-
-const wxString GerbviewProjectFileExt( wxT( "cnf" ) );
-const wxString GerbviewProjectFileWildcard( _( "GerbView project files (.cnf)|*.cnf" ) );
-
-// Config keywords
-const wxString GerbviewShowPageSizeOption( wxT( "ShowPageSizeOpt" ) );
-extern const wxString GerbviewShowDCodes( wxT( "ShowDCodesOpt" ) );
-
-GERBER*  g_GERBER_List[32];
+GERBER_IMAGE*  g_GERBER_List[32];
 
 // List of page sizes
 Ki_PageDescr* g_GerberPageSizeList[] =
@@ -64,49 +50,42 @@ IMPLEMENT_APP( WinEDA_App )
 void WinEDA_App::MacOpenFile(const wxString &fileName)
 {
     wxFileName           filename = fileName;
-    WinEDA_GerberFrame * frame = ((WinEDA_GerberFrame*)GetTopWindow());
+    GERBVIEW_FRAME * frame = ((GERBVIEW_FRAME*)GetTopWindow());
 
     if( !filename.FileExists() )
         return;
 
-    frame->LoadOneGerberFile( fileName );
+    frame->LoadGerberFiles( fileName );
 }
 
 
 bool WinEDA_App::OnInit()
 {
     wxFileName          fn;
-    WinEDA_GerberFrame* frame = NULL;
+    GERBVIEW_FRAME* frame = NULL;
 
     InitEDA_Appl( wxT( "GerbView" ), APP_TYPE_GERBVIEW );
-
-    ScreenPcb = new PCB_SCREEN();
-    ScreenPcb->m_CurrentSheetDesc = &g_Sheet_GERBER;
-
-    ActiveScreen = ScreenPcb;
-
-    // read current setup and reopen last directory if no filename to open in
-    // command line
-    bool reopenLastUsedDirectory = argc == 1;
-    GetSettings( reopenLastUsedDirectory );
-
-    extern PARAM_CFG_BASE* ParamCfgList[];
-    wxGetApp().ReadCurrentSetupValues( ParamCfgList );
 
     if( m_Checker && m_Checker->IsAnotherRunning() )
     {
         if( !IsOK( NULL, _( "GerbView is already running. Continue?" ) ) )
             return false;
     }
+    ScreenPcb = new PCB_SCREEN();
+    ScreenPcb->m_CurrentSheetDesc = &g_Sheet_GERBER;
+
+    // read current setup and reopen last directory if no filename to open in
+    // command line
+    bool reopenLastUsedDirectory = argc == 1;
+    GetSettings( reopenLastUsedDirectory );
 
     g_DrawBgColor = BLACK;
 
-    Read_Hotkey_Config( frame, false );  /* Must be called before creating the
-                                          * main frame in order to display the
-                                          * real hotkeys in menus or tool tips
-                                          */
+   /* Must be called before creating the main frame in order to
+    * display the real hotkeys in menus or tool tips */
+    ReadHotkeyConfig( wxT("GerberFrame"), s_Gerbview_Hokeys_Descr );
 
-    frame = new  WinEDA_GerberFrame( NULL, wxT( "GerbView" ),
+    frame = new  GERBVIEW_FRAME( NULL, wxT( "GerbView" ),
                                      wxPoint( 0, 0 ),
                                      wxSize( 600, 400 ) );
 
@@ -120,10 +99,10 @@ bool WinEDA_App::OnInit()
                                             // meaning here
 
     SetTopWindow( frame );                  // Set GerbView mainframe on top
-    frame->Show( TRUE );                    // Show GerbView mainframe
-    frame->Zoom_Automatique( TRUE );        // Zoomfit drawing in frame
+    frame->Show( true );                    // Show GerbView mainframe
+    frame->Zoom_Automatique( true );        // Zoom fit in frame
+    frame->GetScreen()->m_FirstRedraw = false;
 
-    Read_Config();
 
     if( argc <= 1 )
         return true;
@@ -136,14 +115,15 @@ bool WinEDA_App::OnInit()
             wxSetWorkingDirectory( fn.GetPath() );
 
         // Load all files specified on the command line.
+        int jj = 0;
         for( int ii = 1; ii < argc && ii <= LAYER_COUNT; ++ii )
         {
             fn = wxFileName( argv[ii] );
 
             if( fn.FileExists() )
             {
-                ( (PCB_SCREEN*) frame->GetScreen() )->m_Active_Layer = ii - 1;
-                frame->LoadOneGerberFile( fn.GetFullPath() );
+                frame->setActiveLayer( jj++ );
+                frame->LoadGerberFiles( fn.GetFullPath() );
             }
         }
     }

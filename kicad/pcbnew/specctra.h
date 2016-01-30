@@ -34,13 +34,15 @@
 
 #include "fctsys.h"
 
-#include "dsnlexer.h"
+#include "specctra_lexer.h"
 
 #include "pcbnew.h"
 
 
 class TYPE_COLLECTOR;           // outside the DSN namespace
 
+typedef DSN::T            DSN_T;
+using namespace DSN;
 
 
 /**
@@ -52,433 +54,20 @@ class TYPE_COLLECTOR;           // outside the DSN namespace
     Since there are so many classes in here, it may be helpful to generate
     the Doxygen directory:
 
-    $ cd <kicadSourceRoot>
+    $ cd &ltkicadSourceRoot&gt
     $ doxygen
 
-    Then you can view the html documentation in the <kicadSourceRoot>/doxygen
+    Then you can view the html documentation in the &ltkicadSourceRoot&gt/doxygen
     directory.  The main class in this file is SPECCTRA_DB and its main
     functions are LoadPCB(), LoadSESSION(), and ExportPCB().
 
-    Wide use is made of boost::ptr_vector<> and std::vector<> template classes.
+    Wide use is made of boost::ptr_vector&lt&gt and std::vector&lt&gt template classes.
     If the contained object is small, then std::vector tends to be used.
     If the contained object is large, variable size, or would require writing
     an assignment operator() or copy constructore, then boost::ptr_vector
     cannot be beat.
 */
 namespace DSN {
-
-
-enum DSN_T {
-
-    // these first few are negative special ones for syntax, and are
-    // inherited from DSNLEXER.
-    T_NONE = DSN_NONE,
-    T_COMMENT = DSN_COMMENT,
-    T_STRING_QUOTE = DSN_STRING_QUOTE,
-    T_QUOTE_DEF = DSN_QUOTE_DEF,
-    T_DASH = DSN_DASH,
-    T_SYMBOL = DSN_SYMBOL,
-    T_NUMBER = DSN_NUMBER,
-    T_RIGHT = DSN_RIGHT,    // right bracket, ')'
-    T_LEFT = DSN_LEFT,      // left bracket, '('
-    T_STRING = DSN_STRING,  // a quoted string, stripped of the quotes
-    T_EOF = DSN_EOF,        // special case for end of file
-
-
-    // This should be coordinated with the
-    // const static KEYWORD tokens[] array, and both must be sorted
-    // identically and alphabetically.  Remember that '_' is less than any
-    // alpha character according to ASCII.
-
-    T_absolute = 0,        // this one should be == zero
-    T_added,
-    T_add_group,
-    T_add_pins,
-    T_allow_antenna,
-    T_allow_redundant_wiring,
-    T_amp,
-    T_ancestor,
-    T_antipad,
-    T_aperture_type,
-    T_array,
-    T_attach,
-    T_attr,
-    T_average_pair_length,
-    T_back,
-    T_base_design,
-    T_bbv_ctr2ctr,
-    T_bend_keepout,
-    T_bond,
-    T_both,
-    T_bottom,
-    T_bottom_layer_sel,
-    T_boundary,
-    T_brickpat,
-    T_bundle,
-    T_bus,
-    T_bypass,
-    T_capacitance_resolution,
-    T_capacitor,
-    T_case_sensitive,
-    T_cct1,
-    T_cct1a,
-    T_center_center,
-    T_checking_trim_by_pin,
-    T_circ,
-    T_circle,
-    T_circuit,
-    T_class,
-    T_class_class,
-    T_classes,
-    T_clear,
-    T_clearance,
-    T_cluster,
-    T_cm,
-    T_color,
-    T_colors,
-    T_comment,
-    T_comp,
-    T_comp_edge_center,
-    T_comp_order,
-    T_component,
-    T_composite,
-    T_conductance_resolution,
-    T_conductor,
-    T_conflict,
-    T_connect,
-    T_constant,
-    T_contact,
-    T_control,
-    T_corner,
-    T_corners,
-    T_cost,
-    T_created_time,
-    T_cross,
-    T_crosstalk_model,
-    T_current_resolution,
-    T_delete_pins,
-    T_deleted,
-    T_deleted_keepout,
-    T_delta,
-    T_diagonal,
-    T_direction,
-    T_directory,
-    T_discrete,
-    T_effective_via_length,
-    T_elongate_keepout,
-    T_exclude,
-    T_expose,
-    T_extra_image_directory,
-    T_family,
-    T_family_family,
-    T_family_family_spacing,
-    T_fanout,
-    T_farad,
-    T_file,
-    T_fit,
-    T_fix,
-    T_flip_style,
-    T_floor_plan,
-    T_footprint,
-    T_forbidden,
-    T_force_to_terminal_point,
-    T_free,
-    T_forgotten,
-    T_fromto,
-    T_front,
-    T_front_only,
-    T_gap,
-    T_gate,
-    T_gates,
-    T_generated_by_freeroute,
-    T_global,
-    T_grid,
-    T_group,
-    T_group_set,
-    T_guide,
-    T_hard,
-    T_height,
-    T_high,
-    T_history,
-    T_horizontal,
-    T_host_cad,
-    T_host_version,
-    T_image,
-    T_image_conductor,
-    T_image_image,
-    T_image_image_spacing,
-    T_image_outline_clearance,
-    T_image_set,
-    T_image_type,
-    T_inch,
-    T_include,
-    T_include_pins_in_crosstalk,
-    T_inductance_resolution,
-    T_insert,
-    T_instcnfg,
-    T_inter_layer_clearance,
-    T_jumper,
-    T_junction_type,
-    T_keepout,
-    T_kg,
-    T_kohm,
-    T_large,
-    T_large_large,
-    T_layer,
-    T_layer_depth,
-    T_layer_noise_weight,
-    T_layer_pair,
-    T_layer_rule,
-    T_length,
-    T_length_amplitude,
-    T_length_factor,
-    T_length_gap,
-    T_library,
-    T_library_out,
-    T_limit,
-    T_limit_bends,
-    T_limit_crossing,
-    T_limit_vias,
-    T_limit_way,
-    T_linear,
-    T_linear_interpolation,
-    T_load,
-    T_lock_type,
-    T_logical_part,
-    T_logical_part_mapping,
-    T_low,
-    T_match_fromto_delay,
-    T_match_fromto_length,
-    T_match_group_delay,
-    T_match_group_length,
-    T_match_net_delay,
-    T_match_net_length,
-    T_max_delay,
-    T_max_len,
-    T_max_length,
-    T_max_noise,
-    T_max_restricted_layer_length,
-    T_max_stagger,
-    T_max_stub,
-    T_max_total_delay,
-    T_max_total_length,
-    T_max_total_vias,
-    T_medium,
-    T_mhenry,
-    T_mho,
-    T_microvia,
-    T_mid_driven,
-    T_mil,
-    T_min_gap,
-    T_mirror,
-    T_mirror_first,
-    T_mixed,
-    T_mm,
-    T_negative_diagonal,
-    T_net,
-    T_net_number,
-    T_net_out,
-    T_net_pin_changes,
-    T_nets,
-    T_network,
-    T_network_out,
-    T_no,
-    T_noexpose,
-    T_noise_accumulation,
-    T_noise_calculation,
-    T_normal,
-    T_object_type,
-    T_off,
-    T_off_grid,
-    T_offset,
-    T_on,
-    T_open,
-    T_opposite_side,
-    T_order,
-    T_orthogonal,
-    T_outline,
-    T_overlap,
-    T_pad,
-    T_pad_pad,
-    T_padstack,
-    T_pair,
-    T_parallel,
-    T_parallel_noise,
-    T_parallel_segment,
-    T_parser,
-    T_part_library,
-    T_path,
-    T_pcb,
-    T_permit_orient,
-    T_permit_side,
-    T_physical,
-    T_physical_part_mapping,
-    T_piggyback,
-    T_pin,
-    T_pin_allow,
-    T_pin_cap_via,
-    T_pin_via_cap,
-    T_pin_width_taper,
-    T_pins,
-    T_pintype,
-    T_place,
-    T_place_boundary,
-    T_place_control,
-    T_place_keepout,
-    T_place_rule,
-    T_placement,
-    T_plan,
-    T_plane,
-    T_pn,
-    T_point,
-    T_polyline_path,
-    T_polygon,
-    T_position,
-    T_positive_diagonal,
-    T_power,
-    T_power_dissipation,
-    T_power_fanout,
-    T_prefix,
-    T_primary,
-    T_priority,
-    T_property,
-    T_protect,
-    T_qarc,
-    T_quarter,
-    T_radius,
-    T_ratio,
-    T_ratio_tolerance,
-    T_rect,
-    T_reduced,
-    T_region,
-    T_region_class,
-    T_region_class_class,
-    T_region_net,
-    T_relative_delay,
-    T_relative_group_delay,
-    T_relative_group_length,
-    T_relative_length,
-    T_reorder,
-    T_reroute_order_viols,
-    T_resistance_resolution,
-    T_resistor,
-    T_resolution,
-    T_restricted_layer_length_factor,
-    T_room,
-    T_rotate,
-    T_rotate_first,
-    T_round,
-    T_roundoff_rotation,
-    T_route,
-    T_route_to_fanout_only,
-    T_routes,
-    T_routes_include,
-    T_rule,
-    T_same_net_checking,
-    T_sample_window,
-    T_saturation_length,
-    T_sec,
-    T_secondary,
-    T_self,
-    T_sequence_number,
-    T_session,
-    T_set_color,
-    T_set_pattern,
-    T_shape,
-    T_shield,
-    T_shield_gap,
-    T_shield_loop,
-    T_shield_tie_down_interval,
-    T_shield_width,
-    T_side,
-    T_signal,
-    T_site,
-    T_small,
-    T_smd,
-    T_snap,
-    T_snap_angle,
-    T_soft,
-    T_source,
-    T_space_in_quoted_tokens,
-    T_spacing,
-    T_spare,
-    T_spiral_via,
-    T_square,
-    T_stack_via,
-    T_stack_via_depth,
-    T_standard,
-    T_starburst,
-    T_status,
-    T_structure,
-    T_structure_out,
-    T_subgate,
-    T_subgates,
-    T_substituted,
-    T_such,
-    T_suffix,
-    T_super_placement,
-    T_supply,
-    T_supply_pin,
-    T_swapping,
-    T_switch_window,
-    T_system,
-    T_tandem_noise,
-    T_tandem_segment,
-    T_tandem_shield_overhang,
-    T_terminal,
-    T_terminator,
-    T_term_only,
-    T_test,
-    T_test_points,
-    T_testpoint,
-    T_threshold,
-    T_time_length_factor,
-    T_time_resolution,
-    T_tjunction,
-    T_tolerance,
-    T_top,
-    T_topology,
-    T_total,
-    T_track_id,
-    T_turret,
-    T_type,
-    T_um,
-    T_unassigned,
-    T_unconnects,
-    T_unit,
-    T_up,
-    T_use_array,
-    T_use_layer,
-    T_use_net,
-    T_use_via,
-    T_value,
-    T_vertical,
-    T_via,
-    T_via_array_template,
-    T_via_at_smd,
-    T_via_keepout,
-    T_via_number,
-    T_via_rotate_first,
-    T_via_site,
-    T_via_size,
-    T_virtual_pin,
-    T_volt,
-    T_voltage_resolution,
-    T_was_is,
-    T_way,
-    T_weight,
-    T_width,
-    T_window,
-    T_wire,
-    T_wire_keepout,
-    T_wires,
-    T_wires_include,
-    T_wiring,
-    T_write_resolution,
-    T_x,
-    T_xy,
-    T_y,
-};
 
 
 class SPECCTRA_DB;
@@ -490,7 +79,7 @@ class SPECCTRA_DB;
  * SPECCTRA_DB::keyword.  We needed a non-instanance function to get at
  * the SPECCTRA_DB::keyword[] and class SPECCTRA_DB is not defined yet.
  */
-const char* GetTokenText( int aTok );
+const char* GetTokenText( T aTok );
 
 
 /**
@@ -554,9 +143,9 @@ struct POINT
      * SPECCTRA DSN format.
      * @param out The formatter to write to.
      * @param nestLevel A multiple of the number of spaces to preceed the output with.
-     * @throw IOError if a system error writing the output, such as a full disk.
+     * @throw IO_ERROR if a system error writing the output, such as a full disk.
      */
-    void Format( OUTPUTFORMATTER* out, int nestLevel ) const throw( IOError )
+    void Format( OUTPUTFORMATTER* out, int nestLevel ) const throw( IO_ERROR )
     {
         out->Print( nestLevel, " %.6g %.6g", x, y );
     }
@@ -576,9 +165,9 @@ struct PROPERTY
      * SPECCTRA DSN format.
      * @param out The formatter to write to.
      * @param nestLevel A multiple of the number of spaces to preceed the output with.
-     * @throw IOError if a system error writing the output, such as a full disk.
+     * @throw IO_ERROR if a system error writing the output, such as a full disk.
      */
-    void Format( OUTPUTFORMATTER* out, int nestLevel ) const throw( IOError )
+    void Format( OUTPUTFORMATTER* out, int nestLevel ) const throw( IO_ERROR )
     {
         const char* quoteName  = out->GetQuoteChar( name.c_str() );
         const char* quoteValue = out->GetQuoteChar( value.c_str() );
@@ -626,7 +215,7 @@ protected:
     }
 
     // avoid creating this for every compare, make static.
-    static STRINGFORMATTER  sf;
+    static STRING_FORMATTER  sf;
 
 
 public:
@@ -654,9 +243,9 @@ public:
      * SPECCTRA DSN format.
      * @param out The formatter to write to.
      * @param nestLevel A multiple of the number of spaces to preceed the output with.
-     * @throw IOError if a system error writing the output, such as a full disk.
+     * @throw IO_ERROR if a system error writing the output, such as a full disk.
      */
-    virtual void Format( OUTPUTFORMATTER* out, int nestLevel ) throw( IOError );
+    virtual void Format( OUTPUTFORMATTER* out, int nestLevel ) throw( IO_ERROR );
 
 
     /**
@@ -666,9 +255,9 @@ public:
      * wrapper is not included.
      * @param out The formatter to write to.
      * @param nestLevel A multiple of the number of spaces to preceed the output with.
-     * @throw IOError if a system error writing the output, such as a full disk.
+     * @throw IO_ERROR if a system error writing the output, such as a full disk.
      */
-    virtual void FormatContents( OUTPUTFORMATTER* out, int nestLevel ) throw( IOError )
+    virtual void FormatContents( OUTPUTFORMATTER* out, int nestLevel ) throw( IO_ERROR )
     {
         // overridden in ELEM_HOLDER
     }
@@ -700,7 +289,7 @@ public:
     {
     }
 
-    virtual void FormatContents( OUTPUTFORMATTER* out, int nestLevel ) throw( IOError );
+    virtual void FormatContents( OUTPUTFORMATTER* out, int nestLevel ) throw( IO_ERROR );
 
 
     //-----< list operations >--------------------------------------------
@@ -796,7 +385,7 @@ public:
 
     PARSER( ELEM* aParent );
 
-    void FormatContents( OUTPUTFORMATTER* out, int nestLevel ) throw( IOError );
+    void FormatContents( OUTPUTFORMATTER* out, int nestLevel ) throw( IO_ERROR );
 };
 
 
@@ -820,7 +409,6 @@ public:
      */
     static UNIT_RES Default;
 
-
     UNIT_RES( ELEM* aParent, DSN_T aType ) :
         ELEM( aType, aParent )
     {
@@ -831,7 +419,7 @@ public:
     DSN_T   GetEngUnits() const  { return units; }
     int     GetValue() const  { return value; }
 
-    void Format( OUTPUTFORMATTER* out, int nestLevel ) throw( IOError )
+    void Format( OUTPUTFORMATTER* out, int nestLevel ) throw( IO_ERROR )
     {
         if( type == T_unit )
             out->Print( nestLevel, "(%s %s)\n", Name(),
@@ -874,7 +462,7 @@ public:
         point1.FixNegativeZero();
     }
 
-    void Format( OUTPUTFORMATTER* out, int nestLevel ) throw( IOError )
+    void Format( OUTPUTFORMATTER* out, int nestLevel ) throw( IO_ERROR )
     {
         const char* newline = nestLevel ? "\n" : "";
 
@@ -907,7 +495,7 @@ public:
     {
     }
 
-    void Format( OUTPUTFORMATTER* out, int nestLevel ) throw( IOError )
+    void Format( OUTPUTFORMATTER* out, int nestLevel ) throw( IO_ERROR )
     {
         out->Print( nestLevel, "(%s", Name() );
 
@@ -953,7 +541,7 @@ public:
         delete rule;
     }
 
-    void Format( OUTPUTFORMATTER* out, int nestLevel ) throw( IOError )
+    void Format( OUTPUTFORMATTER* out, int nestLevel ) throw( IO_ERROR )
     {
         out->Print( nestLevel, "(%s", Name() );
 
@@ -1012,7 +600,7 @@ public:
         aperture_width = aWidth;
     }
 
-    void Format( OUTPUTFORMATTER* out, int nestLevel ) throw( IOError )
+    void Format( OUTPUTFORMATTER* out, int nestLevel ) throw( IO_ERROR )
     {
         const char* newline = nestLevel ? "\n" : "";
 
@@ -1071,7 +659,7 @@ public:
         delete rectangle;
     }
 
-    void Format( OUTPUTFORMATTER* out, int nestLevel ) throw( IOError )
+    void Format( OUTPUTFORMATTER* out, int nestLevel ) throw( IO_ERROR )
     {
         out->Print( nestLevel, "(%s\n", Name() );
 
@@ -1104,7 +692,7 @@ public:
         diameter = 0.0;
     }
 
-    void Format( OUTPUTFORMATTER* out, int nestLevel ) throw( IOError )
+    void Format( OUTPUTFORMATTER* out, int nestLevel ) throw( IO_ERROR )
     {
         const char* newline = nestLevel ? "\n" : "";
 
@@ -1151,7 +739,7 @@ public:
         aperture_width = 0.0;
     }
 
-    void Format( OUTPUTFORMATTER* out, int nestLevel ) throw( IOError )
+    void Format( OUTPUTFORMATTER* out, int nestLevel ) throw( IO_ERROR )
     {
         const char* newline = nestLevel ? "\n" : "";
 
@@ -1233,7 +821,7 @@ public:
         }
     }
 
-    void Format( OUTPUTFORMATTER* out, int nestLevel ) throw( IOError )
+    void Format( OUTPUTFORMATTER* out, int nestLevel ) throw( IO_ERROR )
     {
         out->Print( nestLevel, "(%s ", Name() );
 
@@ -1316,7 +904,7 @@ public:
         windows.push_back( aWindow );
     }
 
-    void Format( OUTPUTFORMATTER* out, int nestLevel ) throw( IOError )
+    void Format( OUTPUTFORMATTER* out, int nestLevel ) throw( IO_ERROR )
     {
         const char* newline = "\n";
 
@@ -1393,7 +981,7 @@ public:
         padstacks.push_back( aViaName );
     }
 
-    void Format( OUTPUTFORMATTER* out, int nestLevel ) throw( IOError )
+    void Format( OUTPUTFORMATTER* out, int nestLevel ) throw( IO_ERROR )
     {
         const int RIGHTMARGIN = 80;
         int perLine = out->Print( nestLevel, "(%s", Name() );
@@ -1447,7 +1035,7 @@ public:
     {
     }
 
-    void FormatContents( OUTPUTFORMATTER* out, int nestLevel ) throw( IOError )
+    void FormatContents( OUTPUTFORMATTER* out, int nestLevel ) throw( IO_ERROR )
     {
         for( STRINGS::iterator i=class_ids.begin();  i!=class_ids.end();  ++i )
         {
@@ -1472,6 +1060,7 @@ public:
 
     /**
      * Constructor CLASS_CLASS
+     * @param aParent - Parent element of the object.
      * @param aType May be either T_class_class or T_region_class_class
      */
     CLASS_CLASS( ELEM* aParent, DSN_T aType ) :
@@ -1485,7 +1074,7 @@ public:
         delete classes;
     }
 
-    void FormatContents( OUTPUTFORMATTER* out, int nestLevel ) throw( IOError )
+    void FormatContents( OUTPUTFORMATTER* out, int nestLevel ) throw( IO_ERROR )
     {
         if( classes )
             classes->Format( out, nestLevel );
@@ -1515,7 +1104,7 @@ public:
     {
     }
 
-    void Format( OUTPUTFORMATTER* out, int nestLevel ) throw( IOError )
+    void Format( OUTPUTFORMATTER* out, int nestLevel ) throw( IO_ERROR )
     {
         out->Print( nestLevel, "(%s\n", Name() );
 
@@ -1570,7 +1159,7 @@ public:
         delete rules;
     }
 
-    void Format( OUTPUTFORMATTER* out, int nestLevel ) throw( IOError )
+    void Format( OUTPUTFORMATTER* out, int nestLevel ) throw( IO_ERROR )
     {
         const char* quote = out->GetQuoteChar( name.c_str() );
 
@@ -1644,7 +1233,7 @@ public:
         layer_weight = 0.0;
     }
 
-    void Format( OUTPUTFORMATTER* out, int nestLevel ) throw( IOError )
+    void Format( OUTPUTFORMATTER* out, int nestLevel ) throw( IO_ERROR )
     {
         const char* quote0 = out->GetQuoteChar( layer_id0.c_str() );
         const char* quote1 = out->GetQuoteChar( layer_id1.c_str() );
@@ -1671,7 +1260,7 @@ public:
     {
     }
 
-    void Format( OUTPUTFORMATTER* out, int nestLevel ) throw( IOError )
+    void Format( OUTPUTFORMATTER* out, int nestLevel ) throw( IO_ERROR )
     {
         out->Print( nestLevel, "(%s\n", Name() );
 
@@ -1717,7 +1306,7 @@ public:
     {
     }
 
-    void Format( OUTPUTFORMATTER* out, int nestLevel ) throw( IOError )
+    void Format( OUTPUTFORMATTER* out, int nestLevel ) throw( IO_ERROR )
     {
         out->Print( nestLevel, "(%s %s)\n", Name(),
                    GetTokenText( value ) );
@@ -1743,7 +1332,7 @@ public:
     {
     }
 
-    void Format( OUTPUTFORMATTER* out, int nestLevel ) throw( IOError )
+    void Format( OUTPUTFORMATTER* out, int nestLevel ) throw( IO_ERROR )
     {
         const char* quote = out->GetQuoteChar( value.c_str() );
 
@@ -1786,7 +1375,7 @@ public:
         delete rules;
     }
 
-    void FormatContents( OUTPUTFORMATTER* out, int nestLevel ) throw( IOError )
+    void FormatContents( OUTPUTFORMATTER* out, int nestLevel ) throw( IO_ERROR )
     {
         if( region_id.size() )
         {
@@ -1813,14 +1402,10 @@ class GRID : public ELEM
     friend class SPECCTRA_DB;
 
     DSN_T       grid_type;      ///< T_via | T_wire | T_via_keepout | T_place | T_snap
-
     double      dimension;
-
-    int         direction;      ///< T_x | T_y | -1 for both
-
+    DSN_T       direction;      ///< T_x | T_y | -1 for both
     double      offset;
-
-    int         image_type;     // DSN_T
+    DSN_T       image_type;
 
 public:
 
@@ -1834,7 +1419,7 @@ public:
         image_type= T_NONE;
     }
 
-    void Format( OUTPUTFORMATTER* out, int nestLevel ) throw( IOError )
+    void Format( OUTPUTFORMATTER* out, int nestLevel ) throw( IO_ERROR )
     {
         out->Print( nestLevel, "(%s %s %.6g",
                    Name(),
@@ -1878,7 +1463,7 @@ public:
         delete rules;
     }
 
-    void FormatContents( OUTPUTFORMATTER* out, int nestLevel ) throw( IOError )
+    void FormatContents( OUTPUTFORMATTER* out, int nestLevel ) throw( IO_ERROR )
     {
         for( LAYERS::iterator i=layers.begin();  i!=layers.end();  ++i )
             i->Format( out, nestLevel );
@@ -1962,7 +1547,7 @@ public:
             place_boundary->SetParent( this );
     }
 
-    void FormatContents( OUTPUTFORMATTER* out, int nestLevel ) throw( IOError )
+    void FormatContents( OUTPUTFORMATTER* out, int nestLevel ) throw( IO_ERROR )
     {
         if( unit )
             unit->Format( out, nestLevel );
@@ -2059,18 +1644,18 @@ public:
     PLACE( ELEM* aParent ) :
         ELEM( T_place, aParent )
     {
-        side = DSN_T( T_front );
+        side = T_front;
 
         rotation = 0.0;
 
         hasVertex = false;
 
-        mirror = DSN_T( T_NONE );
-        status = DSN_T( T_NONE );
+        mirror = T_NONE;
+        status = T_NONE;
 
         place_rules = 0;
 
-        lock_type = DSN_T( T_NONE );
+        lock_type = T_NONE;
         rules = 0;
         region = 0;
     }
@@ -2094,7 +1679,7 @@ public:
         rotation = aRotation;
     }
 
-    void Format( OUTPUTFORMATTER* out, int nestLevel ) throw( IOError );
+    void Format( OUTPUTFORMATTER* out, int nestLevel ) throw( IO_ERROR );
 };
 typedef boost::ptr_vector<PLACE>    PLACES;
 
@@ -2131,7 +1716,7 @@ public:
      */
 //    static int Compare( IMAGE* lhs, IMAGE* rhs );
 
-    void Format( OUTPUTFORMATTER* out, int nestLevel ) throw( IOError )
+    void Format( OUTPUTFORMATTER* out, int nestLevel ) throw( IO_ERROR )
     {
         const char* quote = out->GetQuoteChar( image_id.c_str() );
         out->Print( nestLevel, "(%s %s%s%s\n", Name(),
@@ -2142,7 +1727,7 @@ public:
         out->Print( nestLevel, ")\n" );
     }
 
-    void FormatContents( OUTPUTFORMATTER* out, int nestLevel ) throw( IOError )
+    void FormatContents( OUTPUTFORMATTER* out, int nestLevel ) throw( IO_ERROR )
     {
         for( PLACES::iterator i=places.begin();  i!=places.end();  ++i )
             i->Format( out, nestLevel );
@@ -2195,7 +1780,7 @@ public:
         return added;
     }
 
-    void FormatContents( OUTPUTFORMATTER* out, int nestLevel ) throw( IOError )
+    void FormatContents( OUTPUTFORMATTER* out, int nestLevel ) throw( IO_ERROR )
     {
         if( unit )
             unit->Format( out, nestLevel );
@@ -2261,7 +1846,7 @@ public:
         connect = aConnect;
     }
 
-    void Format( OUTPUTFORMATTER* out, int nestLevel ) throw( IOError )
+    void Format( OUTPUTFORMATTER* out, int nestLevel ) throw( IO_ERROR )
     {
         out->Print( nestLevel, "(%s ", Name() );
 
@@ -2320,7 +1905,7 @@ public:
         vertex.FixNegativeZero();
     }
 
-    void Format( OUTPUTFORMATTER* out, int nestLevel ) throw( IOError )
+    void Format( OUTPUTFORMATTER* out, int nestLevel ) throw( IO_ERROR )
     {
         const char* quote = out->GetQuoteChar( padstack_id.c_str() );
         if( isRotated )
@@ -2405,7 +1990,7 @@ public:
         return image_id;
     }
 
-    void Format( OUTPUTFORMATTER* out, int nestLevel ) throw( IOError )
+    void Format( OUTPUTFORMATTER* out, int nestLevel ) throw( IO_ERROR )
     {
         std::string imageId = GetImageId();
 
@@ -2420,7 +2005,7 @@ public:
     }
 
     // this is here for makeHash()
-    void FormatContents( OUTPUTFORMATTER* out, int nestLevel ) throw( IOError )
+    void FormatContents( OUTPUTFORMATTER* out, int nestLevel ) throw( IO_ERROR )
     {
         if( side != T_both )
             out->Print( 0, " (side %s)", GetTokenText( side ) );
@@ -2520,7 +2105,7 @@ public:
         padstack_id = aPadstackId;
     }
 
-    void Format( OUTPUTFORMATTER* out, int nestLevel ) throw( IOError )
+    void Format( OUTPUTFORMATTER* out, int nestLevel ) throw( IO_ERROR )
     {
         const char* quote = out->GetQuoteChar( padstack_id.c_str() );
 
@@ -2534,7 +2119,7 @@ public:
 
 
     // this factored out for use by Compare()
-    void FormatContents( OUTPUTFORMATTER* out, int nestLevel ) throw( IOError )
+    void FormatContents( OUTPUTFORMATTER* out, int nestLevel ) throw( IO_ERROR )
     {
         if( unit )
             unit->Format( out, nestLevel );
@@ -2580,7 +2165,7 @@ typedef boost::ptr_vector<PADSTACK> PADSTACKS;
 
 
 /**
- * Function operator<()
+ * Function operator<
  * is used by the PADSTACKSET boost::ptr_set below
  */
 inline bool operator<( const PADSTACK& lhs, const PADSTACK& rhs )
@@ -2763,7 +2348,7 @@ public:
         return NULL;
     }
 
-    void FormatContents( OUTPUTFORMATTER* out, int nestLevel ) throw( IOError )
+    void FormatContents( OUTPUTFORMATTER* out, int nestLevel ) throw( IO_ERROR )
     {
         if( unit )
             unit->Format( out, nestLevel );
@@ -2808,7 +2393,7 @@ struct PIN_REF : public ELEM
      * is like Format() but is not virual and returns the number of characters
      * that were output.
      */
-    int FormatIt( OUTPUTFORMATTER* out, int nestLevel ) throw( IOError )
+    int FormatIt( OUTPUTFORMATTER* out, int nestLevel ) throw( IO_ERROR )
     {
         // only print the newline if there is a nest level, and make
         // the quotes unconditional on this one.
@@ -2852,7 +2437,7 @@ public:
         delete rules;
     }
 
-    void Format( OUTPUTFORMATTER* out, int nestLevel ) throw( IOError )
+    void Format( OUTPUTFORMATTER* out, int nestLevel ) throw( IO_ERROR )
     {
         // no quoting on these two, the lexer preserved the quotes on input
         out->Print( nestLevel, "(%s %s %s ",
@@ -2910,7 +2495,7 @@ public:
     {
     }
 
-    void Format( OUTPUTFORMATTER* out, int nestLevel ) throw( IOError )
+    void Format( OUTPUTFORMATTER* out, int nestLevel ) throw( IO_ERROR )
     {
         out->Print( nestLevel, "(%s", Name() );
 
@@ -2993,7 +2578,7 @@ public:
         return -1;
     }
 
-    void Format( OUTPUTFORMATTER* out, int nestLevel ) throw( IOError )
+    void Format( OUTPUTFORMATTER* out, int nestLevel ) throw( IO_ERROR )
     {
         const char* quote = out->GetQuoteChar( net_id.c_str() );
         const char* space = " ";
@@ -3070,7 +2655,7 @@ public:
     {
     }
 
-    void FormatContents( OUTPUTFORMATTER* out, int nestLevel ) throw( IOError )
+    void FormatContents( OUTPUTFORMATTER* out, int nestLevel ) throw( IO_ERROR )
     {
         for( FROMTOS::iterator i=fromtos.begin();  i!=fromtos.end();  ++i )
             i->Format( out, nestLevel );
@@ -3117,7 +2702,7 @@ public:
     }
 
 
-    void Format( OUTPUTFORMATTER* out, int nestLevel ) throw( IOError )
+    void Format( OUTPUTFORMATTER* out, int nestLevel ) throw( IO_ERROR )
     {
         const char* quote = out->GetQuoteChar( class_id.c_str() );
 
@@ -3186,7 +2771,7 @@ public:
     {
     }
 
-    void FormatContents( OUTPUTFORMATTER* out, int nestLevel ) throw( IOError )
+    void FormatContents( OUTPUTFORMATTER* out, int nestLevel ) throw( IO_ERROR )
     {
         for( NETS::iterator i=nets.begin();  i!=nets.end();  ++i )
             i->Format( out, nestLevel );
@@ -3267,7 +2852,7 @@ public:
         }
     }
 
-    void Format( OUTPUTFORMATTER* out, int nestLevel ) throw( IOError )
+    void Format( OUTPUTFORMATTER* out, int nestLevel ) throw( IO_ERROR )
     {
         out->Print( nestLevel, "(%s ", Name() );
 
@@ -3351,7 +2936,7 @@ public:
         return padstack_id;
     }
 
-    void Format( OUTPUTFORMATTER* out, int nestLevel ) throw( IOError )
+    void Format( OUTPUTFORMATTER* out, int nestLevel ) throw( IO_ERROR )
     {
         const char* quote = out->GetQuoteChar( padstack_id.c_str() );
 
@@ -3477,7 +3062,7 @@ public:
         delete unit;
     }
 
-    void FormatContents( OUTPUTFORMATTER* out, int nestLevel ) throw( IOError )
+    void FormatContents( OUTPUTFORMATTER* out, int nestLevel ) throw( IO_ERROR )
     {
         if( unit )
             unit->Format( out, nestLevel );
@@ -3540,7 +3125,7 @@ public:
         delete wiring;
     }
 
-    void Format( OUTPUTFORMATTER* out, int nestLevel ) throw( IOError )
+    void Format( OUTPUTFORMATTER* out, int nestLevel ) throw( IO_ERROR )
     {
         const char* quote = out->GetQuoteChar( pcbname.c_str() );
 
@@ -3603,7 +3188,7 @@ public:
         time_stamp = time(NULL);
     }
 
-    void Format( OUTPUTFORMATTER* out, int nestLevel ) throw( IOError )
+    void Format( OUTPUTFORMATTER* out, int nestLevel ) throw( IO_ERROR )
     {
         char    temp[80];
         struct  tm* tmp;
@@ -3647,7 +3232,7 @@ public:
         time_stamp = time(NULL);
     }
 
-    void FormatContents( OUTPUTFORMATTER* out, int nestLevel ) throw( IOError )
+    void FormatContents( OUTPUTFORMATTER* out, int nestLevel ) throw( IO_ERROR )
     {
         for( ANCESTORS::iterator i=ancestors.begin();  i!=ancestors.end();  ++i )
             i->Format( out, nestLevel );
@@ -3690,7 +3275,7 @@ public:
     {
     }
 
-    void Format( OUTPUTFORMATTER* out, int nestLevel ) throw( IOError )
+    void Format( OUTPUTFORMATTER* out, int nestLevel ) throw( IO_ERROR )
     {
         bool singleLine = pin_refs.size() <= 1;
         out->Print( nestLevel, "(%s", Name() );
@@ -3749,7 +3334,7 @@ public:
         delete rules;
     }
 
-    void Format( OUTPUTFORMATTER* out, int nestLevel ) throw( IOError )
+    void Format( OUTPUTFORMATTER* out, int nestLevel ) throw( IO_ERROR )
     {
         const char* quote = out->GetQuoteChar( net_id.c_str() );
 
@@ -3816,7 +3401,7 @@ public:
         return ELEM::GetUnits();
     }
 
-    void FormatContents( OUTPUTFORMATTER* out, int nestLevel ) throw( IOError )
+    void FormatContents( OUTPUTFORMATTER* out, int nestLevel ) throw( IO_ERROR )
     {
         if( resolution )
             resolution->Format( out, nestLevel );
@@ -3879,7 +3464,7 @@ public:
     {
     }
 
-    void FormatContents( OUTPUTFORMATTER* out, int nestLevel ) throw( IOError )
+    void FormatContents( OUTPUTFORMATTER* out, int nestLevel ) throw( IO_ERROR )
     {
         for( PIN_PAIRS::iterator i=pin_pairs.begin();  i!=pin_pairs.end();  ++i )
         {
@@ -3936,7 +3521,7 @@ public:
         delete route;
     }
 
-    void Format( OUTPUTFORMATTER* out, int nestLevel ) throw( IOError )
+    void Format( OUTPUTFORMATTER* out, int nestLevel ) throw( IO_ERROR )
     {
         const char* quote = out->GetQuoteChar( session_id.c_str() );
         out->Print( nestLevel, "(%s %s%s%s\n", Name(),
@@ -3968,29 +3553,23 @@ typedef boost::ptr_set<PADSTACK>    PADSTACKSET;
 
 /**
  * Class SPECCTRA_DB
- * holds a DSN data tree, usually coming from a DSN file.
+ * holds a DSN data tree, usually coming from a DSN file. Is essentially a
+ * SPECCTRA_PARSER class.
  */
-class SPECCTRA_DB : public OUTPUTFORMATTER
+class SPECCTRA_DB : public SPECCTRA_LEXER
 {
     /// specctra DSN keywords
     static const KEYWORD keywords[];
     static const unsigned keywordCount;
 
-    DSNLEXER*       lexer;
-
     PCB*            pcb;
-
     SESSION*        session;
-
-    FILE*           fp;
-
     wxString        filename;
-
     std::string     quote_char;
 
     bool            modulesAreFlipped;
 
-    STRINGFORMATTER sf;
+    STRING_FORMATTER sf;
 
     STRINGS         layerIds;       ///< indexed by PCB layer number
 
@@ -4028,63 +3607,6 @@ class SPECCTRA_DB : public OUTPUTFORMATTER
      */
     int findLayerName( const std::string& aLayerName ) const;
 
-
-    /**
-     * Function nextTok
-     * returns the next token from the lexer as a DSN_T.  Note to anybody
-     * who wants to use SPECCTRA_DB as a model for usage of DSNLEXER, you
-     * want to have this function return an enum, not an int, and to use
-     * that enum type whereever you can, because this allows the debugger
-     * to show you symbolic values for your tokens.
-     */
-    DSN_T   nextTok();
-
-
-    /**
-     * Function isSymbol
-     * tests a token to see if it is a symbol.  This means it cannot be a
-     * special delimiter character such as T_LEFT, T_RIGHT, T_QUOTE, etc.  It may
-     * however, coincidentally match a keyword and still be a symbol.
-     */
-    static bool isSymbol( DSN_T aTok );
-
-
-    /**
-     * Function needLEFT
-     * calls nextTok() and then verifies that the token read in is a T_LEFT.
-     * If it is not, an IOError is thrown.
-     * @throw IOError, if the next token is not a T_LEFT
-     */
-    void needLEFT() throw( IOError );
-
-    /**
-     * Function needRIGHT
-     * calls nextTok() and then verifies that the token read in is a T_RIGHT.
-     * If it is not, an IOError is thrown.
-     * @throw IOError, if the next token is not a T_RIGHT
-     */
-    void needRIGHT() throw( IOError );
-
-    /**
-     * Function needSYMBOL
-     * calls nextTok() and then verifies that the token read in
-     * satisfies bool isSymbol().
-     * If not, an IOError is thrown.
-     * @return DSN_T - the actual token read in.
-     * @throw IOError, if the next token does not satisfy isSymbol()
-     */
-    DSN_T needSYMBOL() throw( IOError );
-
-    /**
-     * Function needSYMBOLorNUMBER
-     * calls nextTok() and then verifies that the token read in
-     * satisfies bool isSymbol() or tok==T_NUMBER.
-     * If not, an IOError is thrown.
-     * @return DSN_T - the actual token read in.
-     * @throw IOError, if the next token does not satisfy the above test
-     */
-    DSN_T needSYMBOLorNUMBER() throw( IOError );
-
     /**
      * Function readCOMPnPIN
      * reads a &lt;pin_reference&gt; and splits it into the two parts which are
@@ -4094,15 +3616,14 @@ class SPECCTRA_DB : public OUTPUTFORMATTER
      * single T_SYMBOL, so in that case we have to split it into two here.
      * <p>
      * The caller should have already read in the first token comprizing the
-     * pin_reference and it will be tested through lexer->CurTok().
+     * pin_reference and it will be tested through CurTok().
      *
      * @param component_id Where to put the text preceeding the '-' hyphen.
      * @param pin_d Where to put the text which trails the '-'.
-     * @throw IOError, if the next token or two do no make up a pin_reference,
+     * @throw IO_ERROR, if the next token or two do no make up a pin_reference,
      * or there is an error reading from the input stream.
      */
-    void readCOMPnPIN( std::string* component_id, std::string* pid_id ) throw( IOError );
-
+    void readCOMPnPIN( std::string* component_id, std::string* pid_id ) throw( IO_ERROR );
 
     /**
      * Function readTIME
@@ -4115,74 +3636,62 @@ class SPECCTRA_DB : public OUTPUTFORMATTER
      * time stamp.
      *
      * @param time_stamp Where to put the parsed time value.
-     * @throw IOError, if the next token or 8 do no make up a time stamp,
+     * @throw IO_ERROR, if the next token or 8 do no make up a time stamp,
      * or there is an error reading from the input stream.
      */
-    void readTIME( time_t* time_stamp ) throw( IOError );
+    void readTIME( time_t* time_stamp ) throw( IO_ERROR );
 
-
-    /**
-     * Function expecting
-     * throws an IOError exception with an input file specific error message.
-     * @param int is the token type which was expected at the current input location.
-     * @throw IOError with the location within the input file of the problem.
-     */
-    void expecting( DSN_T aTok ) throw( IOError );
-    void expecting( const char* text ) throw( IOError );
-    void unexpected( DSN_T aTok ) throw( IOError );
-    void unexpected( const char* text ) throw( IOError );
-
-    void doPCB( PCB* growth ) throw(IOError);
-    void doPARSER( PARSER* growth ) throw(IOError);
-    void doRESOLUTION( UNIT_RES* growth ) throw(IOError);
-    void doUNIT( UNIT_RES* growth ) throw( IOError );
-    void doSTRUCTURE( STRUCTURE* growth ) throw( IOError );
-    void doSTRUCTURE_OUT( STRUCTURE_OUT* growth ) throw( IOError );
-    void doLAYER_NOISE_WEIGHT( LAYER_NOISE_WEIGHT* growth ) throw( IOError );
-    void doLAYER_PAIR( LAYER_PAIR* growth ) throw( IOError );
-    void doBOUNDARY( BOUNDARY* growth ) throw( IOError );
-    void doRECTANGLE( RECTANGLE* growth ) throw( IOError );
-    void doPATH( PATH* growth ) throw( IOError );
-    void doSTRINGPROP( STRINGPROP* growth ) throw( IOError );
-    void doTOKPROP( TOKPROP* growth ) throw( IOError );
-    void doVIA( VIA* growth ) throw( IOError );
-    void doCONTROL( CONTROL* growth ) throw( IOError );
-    void doLAYER( LAYER* growth ) throw( IOError );
-    void doRULE( RULE* growth ) throw( IOError );
-    void doKEEPOUT( KEEPOUT* growth ) throw( IOError );
-    void doCIRCLE( CIRCLE* growth ) throw( IOError );
-    void doQARC( QARC* growth ) throw( IOError );
-    void doWINDOW( WINDOW* growth ) throw( IOError );
-    void doREGION( REGION* growth ) throw( IOError );
-    void doCLASS_CLASS( CLASS_CLASS* growth ) throw( IOError );
-    void doLAYER_RULE( LAYER_RULE* growth ) throw( IOError );
-    void doCLASSES( CLASSES* growth ) throw( IOError );
-    void doGRID( GRID* growth ) throw( IOError );
-    void doPLACE( PLACE* growth ) throw( IOError );
-    void doCOMPONENT( COMPONENT* growth ) throw( IOError );
-    void doPLACEMENT( PLACEMENT* growth ) throw( IOError );
-    void doPROPERTIES( PROPERTIES* growth ) throw( IOError );
-    void doPADSTACK( PADSTACK* growth ) throw( IOError );
-    void doSHAPE( SHAPE* growth ) throw( IOError );
-    void doIMAGE( IMAGE* growth ) throw( IOError );
-    void doLIBRARY( LIBRARY* growth ) throw( IOError );
-    void doPIN( PIN* growth ) throw( IOError );
-    void doNET( NET* growth ) throw( IOError );
-    void doNETWORK( NETWORK* growth ) throw( IOError );
-    void doCLASS( CLASS* growth ) throw( IOError );
-    void doTOPOLOGY( TOPOLOGY* growth ) throw( IOError );
-    void doFROMTO( FROMTO* growth ) throw( IOError );
-    void doCOMP_ORDER( COMP_ORDER* growth ) throw( IOError );
-    void doWIRE( WIRE* growth ) throw( IOError );
-    void doWIRE_VIA( WIRE_VIA* growth ) throw( IOError );
-    void doWIRING( WIRING* growth ) throw( IOError );
-    void doSESSION( SESSION* growth ) throw( IOError );
-    void doANCESTOR( ANCESTOR* growth ) throw( IOError );
-    void doHISTORY( HISTORY* growth ) throw( IOError );
-    void doROUTE( ROUTE* growth ) throw( IOError );
-    void doWAS_IS( WAS_IS* growth ) throw( IOError );
-    void doNET_OUT( NET_OUT* growth ) throw( IOError );
-    void doSUPPLY_PIN( SUPPLY_PIN* growth ) throw( IOError );
+    void doPCB( PCB* growth ) throw( IO_ERROR );
+    void doPARSER( PARSER* growth ) throw( IO_ERROR );
+    void doRESOLUTION( UNIT_RES* growth ) throw( IO_ERROR );
+    void doUNIT( UNIT_RES* growth ) throw( IO_ERROR );
+    void doSTRUCTURE( STRUCTURE* growth ) throw( IO_ERROR );
+    void doSTRUCTURE_OUT( STRUCTURE_OUT* growth ) throw( IO_ERROR );
+    void doLAYER_NOISE_WEIGHT( LAYER_NOISE_WEIGHT* growth ) throw( IO_ERROR );
+    void doLAYER_PAIR( LAYER_PAIR* growth ) throw( IO_ERROR );
+    void doBOUNDARY( BOUNDARY* growth ) throw( IO_ERROR );
+    void doRECTANGLE( RECTANGLE* growth ) throw( IO_ERROR );
+    void doPATH( PATH* growth ) throw( IO_ERROR );
+    void doSTRINGPROP( STRINGPROP* growth ) throw( IO_ERROR );
+    void doTOKPROP( TOKPROP* growth ) throw( IO_ERROR );
+    void doVIA( VIA* growth ) throw( IO_ERROR );
+    void doCONTROL( CONTROL* growth ) throw( IO_ERROR );
+    void doLAYER( LAYER* growth ) throw( IO_ERROR );
+    void doRULE( RULE* growth ) throw( IO_ERROR );
+    void doKEEPOUT( KEEPOUT* growth ) throw( IO_ERROR );
+    void doCIRCLE( CIRCLE* growth ) throw( IO_ERROR );
+    void doQARC( QARC* growth ) throw( IO_ERROR );
+    void doWINDOW( WINDOW* growth ) throw( IO_ERROR );
+    void doREGION( REGION* growth ) throw( IO_ERROR );
+    void doCLASS_CLASS( CLASS_CLASS* growth ) throw( IO_ERROR );
+    void doLAYER_RULE( LAYER_RULE* growth ) throw( IO_ERROR );
+    void doCLASSES( CLASSES* growth ) throw( IO_ERROR );
+    void doGRID( GRID* growth ) throw( IO_ERROR );
+    void doPLACE( PLACE* growth ) throw( IO_ERROR );
+    void doCOMPONENT( COMPONENT* growth ) throw( IO_ERROR );
+    void doPLACEMENT( PLACEMENT* growth ) throw( IO_ERROR );
+    void doPROPERTIES( PROPERTIES* growth ) throw( IO_ERROR );
+    void doPADSTACK( PADSTACK* growth ) throw( IO_ERROR );
+    void doSHAPE( SHAPE* growth ) throw( IO_ERROR );
+    void doIMAGE( IMAGE* growth ) throw( IO_ERROR );
+    void doLIBRARY( LIBRARY* growth ) throw( IO_ERROR );
+    void doPIN( PIN* growth ) throw( IO_ERROR );
+    void doNET( NET* growth ) throw( IO_ERROR );
+    void doNETWORK( NETWORK* growth ) throw( IO_ERROR );
+    void doCLASS( CLASS* growth ) throw( IO_ERROR );
+    void doTOPOLOGY( TOPOLOGY* growth ) throw( IO_ERROR );
+    void doFROMTO( FROMTO* growth ) throw( IO_ERROR );
+    void doCOMP_ORDER( COMP_ORDER* growth ) throw( IO_ERROR );
+    void doWIRE( WIRE* growth ) throw( IO_ERROR );
+    void doWIRE_VIA( WIRE_VIA* growth ) throw( IO_ERROR );
+    void doWIRING( WIRING* growth ) throw( IO_ERROR );
+    void doSESSION( SESSION* growth ) throw( IO_ERROR );
+    void doANCESTOR( ANCESTOR* growth ) throw( IO_ERROR );
+    void doHISTORY( HISTORY* growth ) throw( IO_ERROR );
+    void doROUTE( ROUTE* growth ) throw( IO_ERROR );
+    void doWAS_IS( WAS_IS* growth ) throw( IO_ERROR );
+    void doNET_OUT( NET_OUT* growth ) throw( IO_ERROR );
+    void doSUPPLY_PIN( SUPPLY_PIN* growth ) throw( IO_ERROR );
 
     //-----<FromBOARD>-------------------------------------------------------
 
@@ -4192,7 +3701,7 @@ class SPECCTRA_DB : public OUTPUTFORMATTER
      * @param aBoard The BOARD to get information from in order to make the BOUNDARY.
      * @param aBoundary The empty BOUNDARY to fill in.
      */
-    void fillBOUNDARY( BOARD* aBoard, BOUNDARY* aBoundary ) throw( IOError );
+    void fillBOUNDARY( BOARD* aBoard, BOUNDARY* aBoundary ) throw( IO_ERROR );
 
 
     /**
@@ -4266,7 +3775,7 @@ class SPECCTRA_DB : public OUTPUTFORMATTER
      * Function makeTRACK
      * creates a TRACK form the PATH and BOARD info.
      */
-    TRACK* makeTRACK( PATH* aPath, int aPointIndex, int aNetcode ) throw( IOError );
+    TRACK* makeTRACK( PATH* aPath, int aPointIndex, int aNetcode ) throw( IO_ERROR );
 
 
     /**
@@ -4274,49 +3783,32 @@ class SPECCTRA_DB : public OUTPUTFORMATTER
      * instantiates a Kicad SEGVIA on the heap and initializes it with internal
      * values consistent with the given PADSTACK, POINT, and netcode.
      */
-    SEGVIA* makeVIA( PADSTACK* aPadstack, const POINT& aPoint, int aNetCode ) throw( IOError );
+    SEGVIA* makeVIA( PADSTACK* aPadstack, const POINT& aPoint, int aNetCode ) throw( IO_ERROR );
 
     //-----</FromSESSION>----------------------------------------------------
 
 public:
 
-    SPECCTRA_DB()
+    SPECCTRA_DB() :
+        SPECCTRA_LEXER( 0 )         // LINE_READER* == NULL, no DSNLEXER::PushReader()
     {
-        lexer = 0;
+        iOwnReaders = true;         // if an exception is thrown, close file.
+
         pcb   = 0;
         session = 0;
-        fp    = 0;
         quote_char += '"';
         modulesAreFlipped = false;
+
+        SetSpecctraMode( true );
     }
 
     virtual ~SPECCTRA_DB()
     {
-        delete lexer;
         delete pcb;
         delete session;
 
         deleteNETs();
-
-        if( fp )
-            fclose( fp );
     }
-
-
-    //-----<OUTPUTFORMATTER>-------------------------------------------------
-    int PRINTF_FUNC Print( int nestLevel, const char* fmt, ... ) throw( IOError );
-
-    const char* GetQuoteChar( const char* wrapee );
-    //-----</OUTPUTFORMATTER>------------------------------------------------
-
-    static const char* TokenName( int aToken );
-
-
-    /**
-     * Function GetTokenString
-     * returns the wxString representation of aToken.
-     */
-    static wxString GetTokenString( int aToken );
 
     /**
      * Function MakePCB
@@ -4334,11 +3826,6 @@ public:
         pcb = aPcb;
     }
     PCB*  GetPCB()  { return pcb; }
-
-    void SetFILE( FILE* aFile )
-    {
-        fp = aFile;
-    }
 
     /**
      * Function SetSESSION
@@ -4359,9 +3846,9 @@ public:
      * missing only the silkscreen stuff).
      *
      * @param filename The name of the dsn file to load.
-     * @throw IOError if there is a lexer or parser error.
+     * @throw IO_ERROR if there is a lexer or parser error.
      */
-    void LoadPCB( const wxString& filename ) throw( IOError );
+    void LoadPCB( const wxString& filename ) throw( IO_ERROR );
 
 
     /**
@@ -4372,12 +3859,12 @@ public:
      * tracks, vias, and component locations.
      *
      * @param filename The name of the dsn file to load.
-     * @throw IOError if there is a lexer or parser error.
+     * @throw IO_ERROR if there is a lexer or parser error.
      */
-    void LoadSESSION( const wxString& filename ) throw( IOError );
+    void LoadSESSION( const wxString& filename ) throw( IO_ERROR );
 
 
-    void ThrowIOError( const wxChar* fmt, ... ) throw( IOError );
+    void ThrowIOError( const wxChar* fmt, ... ) throw( IO_ERROR );
 
 
     /**
@@ -4387,9 +3874,9 @@ public:
      * @param aFilename The file to save to.
      * @param aNameChange If true, causes the pcb's name to change to "aFilename"
      *          and also to to be changed in the output file.
-     * @throw IOError, if an i/o error occurs saving the file.
+     * @throw IO_ERROR, if an i/o error occurs saving the file.
      */
-    void ExportPCB( wxString aFilename,  bool aNameChange=false ) throw( IOError );
+    void ExportPCB( wxString aFilename,  bool aNameChange=false ) throw( IO_ERROR );
 
 
     /**
@@ -4398,12 +3885,12 @@ public:
      * the BOARD given to this function must have all the MODULEs on the component
      * side of the BOARD.
      *
-     * See void WinEDA_PcbFrame::ExportToSpecctra( wxCommandEvent& event )
+     * See void PCB_EDIT_FRAME::ExportToSpecctra( wxCommandEvent& event )
      * for how this can be done before calling this function.
      *
      * @param aBoard The BOARD to convert to a PCB.
      */
-    void FromBOARD( BOARD* aBoard ) throw( IOError );
+    void FromBOARD( BOARD* aBoard ) throw( IO_ERROR );
 
     /**
      * Function FromSESSION
@@ -4413,7 +3900,7 @@ public:
      *
      * @param aBoard The BOARD to merge the SESSION information into.
      */
-    void FromSESSION( BOARD* aBoard ) throw( IOError );
+    void FromSESSION( BOARD* aBoard ) throw( IO_ERROR );
 
     /**
      * Function ExportSESSION

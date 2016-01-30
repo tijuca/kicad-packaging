@@ -8,22 +8,24 @@
 #include "common.h"
 #include "pcbnew.h"
 #include "wxPcbStruct.h"
+#include "module_editor_frame.h"
 
 #include "protos.h"
 
 
-/** Function SaveCopyInUndoList.
+/**
+ * Function SaveCopyInUndoList.
  * Creates a new entry in undo list of commands.
  * add a picker to handle aItemToCopy
  * @param aItem = the board item modified by the command to undo
- * @param aTypeCommand = command type (see enum UndoRedoOpType)
+ * @param aTypeCommand = command type (see enum UNDO_REDO_T)
  * @param aTransformPoint = the reference point of the transformation, for commands like move
  */
 void WinEDA_ModuleEditFrame::SaveCopyInUndoList( BOARD_ITEM*    aItem,
-                                                 UndoRedoOpType aTypeCommand,
+                                                 UNDO_REDO_T aTypeCommand,
                                                  const wxPoint& aTransformPoint )
 {
-    EDA_BaseStruct*    item;
+    EDA_ITEM*          item;
     MODULE*            CopyItem;
     PICKED_ITEMS_LIST* lastcmd;
 
@@ -45,16 +47,17 @@ void WinEDA_ModuleEditFrame::SaveCopyInUndoList( BOARD_ITEM*    aItem,
 }
 
 
-/** Function SaveCopyInUndoList (overloaded).
+/**
+ * Function SaveCopyInUndoList (overloaded).
  * Creates a new entry in undo list of commands.
  * add a list of pickers to handle a list of items
  * @param aItemsList = the list of items modified by the command to undo
- * @param aTypeCommand = command type (see enum UndoRedoOpType)
+ * @param aTypeCommand = command type (see enum UNDO_REDO_T)
  * @param aTransformPoint = the reference point of the transformation, for commands like move
  */
 void WinEDA_ModuleEditFrame::SaveCopyInUndoList( PICKED_ITEMS_LIST& aItemsList,
-                                                UndoRedoOpType aTypeCommand,
-                                                const wxPoint& aTransformPoint )
+                                                 UNDO_REDO_T aTypeCommand,
+                                                 const wxPoint& aTransformPoint )
 {
     // Currently unused in modedit, because the module itself is saved for each change
     wxMessageBox( wxT( "SaveCopyInUndoList( PICKED_ITEMS_LIST& aItemsList..) not yet in use" ) );
@@ -92,8 +95,6 @@ void WinEDA_ModuleEditFrame::GetComponentFromRedoList( wxCommandEvent& event )
     SetCurItem( NULL );
 
     OnModify();
-    ReCreateHToolbar();
-    SetToolbars();
     DrawPanel->Refresh();
 }
 
@@ -127,10 +128,8 @@ void WinEDA_ModuleEditFrame::GetComponentFromUndoList( wxCommandEvent& event )
         GetBoard()->Add( module, ADD_APPEND );
 
 
-    SetCurItem( NULL );;
+    SetCurItem( NULL );
 
     OnModify();
-    ReCreateHToolbar();
-    SetToolbars();
     DrawPanel->Refresh();
 }

@@ -2,17 +2,17 @@
 /******* initpcb.cpp ********************/
 /****************************************/
 
-
 #include "fctsys.h"
 #include "common.h"
 #include "class_drawpanel.h"
 #include "confirm.h"
 
 #include "gerbview.h"
-#include "protos.h"
+#include "class_gerber_draw_item.h"
+#include "class_GERBER.h"
 
 
-bool WinEDA_GerberFrame::Clear_Pcb( bool query )
+bool GERBVIEW_FRAME::Clear_Pcb( bool query )
 {
     int layer;
 
@@ -25,16 +25,16 @@ bool WinEDA_GerberFrame::Clear_Pcb( bool query )
             return FALSE;
     }
 
+    SetCurItem( NULL );
     GetBoard()->m_Drawings.DeleteAll();
 
-    GetBoard()->m_Track.DeleteAll();
-
-    GetBoard()->m_Zone.DeleteAll();
-
-    for( layer = 0; layer < 32; layer++ )
+    for( layer = 0; layer < LAYER_COUNT; layer++ )
     {
         if( g_GERBER_List[layer] )
+        {
             g_GERBER_List[layer]->InitToolTable();
+            g_GERBER_List[layer]->ResetDefaultValues();
+        }
     }
 
     GetBoard()->m_BoundaryBox.SetOrigin( 0, 0 );
@@ -43,45 +43,45 @@ bool WinEDA_GerberFrame::Clear_Pcb( bool query )
     GetBoard()->m_NbNodes     = 0;
     GetBoard()->m_NbNoconnect = 0;
 
-    SetBaseScreen( ActiveScreen = ScreenPcb );
+    SetScreen( ScreenPcb );
     GetScreen()->Init();
-    setActiveLayer(LAYER_N_BACK);
-
+    setActiveLayer(FIRST_COPPER_LAYER);
+    m_LayersManager->UpdateLayerIcons();
+    syncLayerBox();
     return TRUE;
 }
 
 
-void WinEDA_GerberFrame::Erase_Current_Layer( bool query )
+void GERBVIEW_FRAME::Erase_Current_Layer( bool query )
 {
     int      layer = getActiveLayer();
     wxString msg;
 
-    msg.Printf( _( "Delete layer %d?" ), layer + 1 );
+    msg.Printf( _( "Clear layer %d?" ), layer + 1 );
     if( query && !IsOK( this, msg ) )
         return;
 
-    /* Delete tracks (spots and lines) */
-    TRACK* PtNext;
-    for( TRACK* pt_segm = GetBoard()->m_Track;
-         pt_segm != NULL;
-         pt_segm = (TRACK*) PtNext )
+    SetCurItem( NULL );
+
+    BOARD_ITEM* item = GetBoard()->m_Drawings;
+    BOARD_ITEM * next;
+    for( ; item; item = next )
     {
-        PtNext = pt_segm->Next();
-        if( pt_segm->GetLayer() != layer )
+        next = item->Next();
+        GERBER_DRAW_ITEM* gerb_item = (GERBER_DRAW_ITEM*) item;
+        if( gerb_item->GetLayer() != layer )
             continue;
-        pt_segm->DeleteStructure();
+        gerb_item->DeleteStructure();
     }
 
-    /* Delete polygons */
-    SEGZONE* Nextzone;
-    for( SEGZONE* zone = GetBoard()->m_Zone; zone != NULL; zone = Nextzone )
+    if( g_GERBER_List[layer] )
     {
-        Nextzone = zone->Next();
-        if( zone->GetLayer() != layer )
-            continue;
-        zone->DeleteStructure();
+        g_GERBER_List[layer]->InitToolTable();
+        g_GERBER_List[layer]->ResetDefaultValues();
     }
 
     ScreenPcb->SetModify();
-    ScreenPcb->SetRefreshReq();
+    DrawPanel->Refresh();
+    m_LayersManager->UpdateLayerIcons();
+    syncLayerBox();
 }

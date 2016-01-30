@@ -30,6 +30,7 @@
 #include "kicad_string.h"
 #include "pcbnew.h"
 #include "class_board_design_settings.h"
+#include "richio.h"
 
 // Current design settings (used also to read configs):
 extern BOARD_DESIGN_SETTINGS boardDesignSettings;
@@ -285,8 +286,8 @@ bool NETCLASS::Save( FILE* aFile ) const
     bool result = true;
 
     fprintf( aFile, "$" BRD_NETCLASS "\n" );
-    fprintf( aFile, "Name \"%s\"\n", CONV_TO_UTF8( m_Name ) );
-    fprintf( aFile, "Desc \"%s\"\n", CONV_TO_UTF8( GetDescription() ) );
+    fprintf( aFile, "Name %s\n",        EscapedUTF8( m_Name ).c_str() );
+    fprintf( aFile, "Desc %s\n",        EscapedUTF8( GetDescription() ).c_str() );
 
     // Write parameters
 
@@ -301,7 +302,7 @@ bool NETCLASS::Save( FILE* aFile ) const
 
     // Write members:
     for( const_iterator i = begin();  i!=end();  ++i )
-        fprintf( aFile, "AddNet \"%s\"\n", CONV_TO_UTF8( *i ) );
+        fprintf( aFile, "AddNet %s\n", EscapedUTF8( *i ).c_str() );
 
     fprintf( aFile, "$End" BRD_NETCLASS "\n" );
 
@@ -321,7 +322,7 @@ void NETCLASS::Show( int nestLevel, std::ostream& os )
     for( const_iterator i = begin();  i!=end();  ++i )
     {
         // NestedSpace( nestLevel+1, os ) << *i;
-        os << *i;
+        os << TO_UTF8( *i );
     }
 
     // NestedSpace( nestLevel, os )
@@ -332,19 +333,20 @@ void NETCLASS::Show( int nestLevel, std::ostream& os )
 
 
 
-bool NETCLASS::ReadDescr( FILE* aFile, int* aLineNum )
+bool NETCLASS::ReadDescr( LINE_READER* aReader )
 {
     bool        result = false;
-    char        Line[1024];
+    char*       Line;
     char        Buffer[1024];
     wxString    netname;
 
-    while( GetLine( aFile, Line, aLineNum, 1024 ) != NULL )
+    while( aReader->ReadLine() )
     {
+        Line = aReader->Line();
         if( strnicmp( Line, "AddNet", 6 ) == 0 )
         {
             ReadDelimitedText( Buffer, Line + 6, sizeof(Buffer) );
-            netname = CONV_FROM_UTF8( Buffer );
+            netname = FROM_UTF8( Buffer );
             Add( netname );
             continue;
         }
@@ -390,13 +392,13 @@ bool NETCLASS::ReadDescr( FILE* aFile, int* aLineNum )
         if( strnicmp( Line, "Name", 4 ) == 0 )
         {
             ReadDelimitedText( Buffer, Line + 4, sizeof(Buffer) );
-            m_Name = CONV_FROM_UTF8( Buffer );
+            m_Name = FROM_UTF8( Buffer );
             continue;
         }
         if( strnicmp( Line, "Desc", 4 ) == 0 )
         {
             ReadDelimitedText( Buffer, Line + 4, sizeof(Buffer) );
-            SetDescription( CONV_FROM_UTF8( Buffer ) );
+            SetDescription( FROM_UTF8( Buffer ) );
             continue;
         }
     }

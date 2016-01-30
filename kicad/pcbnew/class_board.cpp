@@ -1,6 +1,7 @@
 /*******************************************/
 /* class_board.cpp - BOARD class functions */
 /*******************************************/
+#include <limits.h>
 #include "fctsys.h"
 #include "common.h"
 
@@ -22,7 +23,7 @@ BOARD_DESIGN_SETTINGS boardDesignSettings;
 /* Class BOARD: */
 /*****************/
 
-BOARD::BOARD( EDA_BaseStruct* parent, WinEDA_BasePcbFrame* frame ) :
+BOARD::BOARD( EDA_ITEM* parent, PCB_BASE_FRAME* frame ) :
     BOARD_ITEM( (BOARD_ITEM*)parent, TYPE_PCB ),
     m_NetClasses( this )
 {
@@ -87,6 +88,24 @@ BOARD::~BOARD()
     delete m_NetInfo;
 }
 
+/*
+ * Function PushHightLight
+ * save current hight light info for later use
+ */
+void BOARD::PushHightLight()
+{
+    m_hightLightPrevious = m_hightLight;
+}
+
+/*
+ * Function PopHightLight
+ * retrieve a previously saved hight light info
+ */
+void BOARD::PopHightLight()
+{
+    m_hightLight = m_hightLightPrevious;
+    m_hightLightPrevious.Clear();
+}
 
 /**
  * Function SetCurrentNetClass
@@ -141,7 +160,8 @@ bool BOARD::SetCurrentNetClass( const wxString& aNetClassName )
 }
 
 
-/** function GetBiggestClearanceValue
+/**
+ * Function GetBiggestClearanceValue
  * @return the biggest clearance value found in NetClasses list
  */
 int BOARD::GetBiggestClearanceValue()
@@ -161,7 +181,8 @@ int BOARD::GetBiggestClearanceValue()
 }
 
 
-/** function GetCurrentMicroViaSize
+/**
+ * Function GetCurrentMicroViaSize
  * @return the current micro via size,
  * that is the current netclass value
  */
@@ -173,7 +194,8 @@ int BOARD::GetCurrentMicroViaSize()
 }
 
 
-/** function GetCurrentMicroViaDrill
+/**
+ * Function GetCurrentMicroViaDrill
  * @return the current micro via drill,
  * that is the current netclass value
  */
@@ -738,98 +760,152 @@ unsigned BOARD::GetNodesCount()
 }
 
 
-/** Function ComputeBoundaryBox()
- * Calculate the bounding box of the board
- *  This box contains pcb edges, pads , vias and tracks
- *  Update m_PcbBox member
- *
- *  @return 0 for an empty board (no items), else 1
- */
-bool BOARD::ComputeBoundaryBox()
+bool BOARD::ComputeBoundingBox( bool aBoardEdgesOnly )
 {
-    int             rayon, cx, cy, d, xmin, ymin, xmax, ymax;
-    bool            hasItems = FALSE;
-    EDA_BaseStruct* PtStruct;
-    DRAWSEGMENT*    ptr;
+    int  rayon, cx, cy, d, xmin, ymin, xmax, ymax;
+    bool hasItems = false;
 
-    xmin = ymin = 0x7FFFFFFFl;
-    xmax = ymax = -0x7FFFFFFFl;
+    xmin = ymin = INT_MAX;
+    xmax = ymax = INT_MIN;
 
-    /* Analyze PCB edges*/
-    PtStruct = m_Drawings;
-    for( ; PtStruct != NULL; PtStruct = PtStruct->Next() )
+    // Check segments, dimensions, texts, and fiducials
+    for( EDA_ITEM* PtStruct = m_Drawings; PtStruct != NULL; PtStruct = PtStruct->Next() )
     {
-        if( PtStruct->Type() != TYPE_DRAWSEGMENT )
-            continue;
-
-        ptr = (DRAWSEGMENT*) PtStruct;
-        d   = (ptr->m_Width / 2) + 1;
-
-        if( ptr->m_Shape == S_CIRCLE )
+        switch( PtStruct->Type() )
         {
-            cx    = ptr->m_Start.x; cy = ptr->m_Start.y;
-            rayon = (int) hypot( (double) ( ptr->m_End.x - cx ),
-                                (double) ( ptr->m_End.y - cy ) );
-            rayon   += d;
-            xmin     = MIN( xmin, cx - rayon );
-            ymin     = MIN( ymin, cy - rayon );
-            xmax     = MAX( xmax, cx + rayon );
-            ymax     = MAX( ymax, cy + rayon );
-            hasItems = TRUE;
+        case TYPE_DRAWSEGMENT:
+        {
+            DRAWSEGMENT* ptr;
+            ptr = (DRAWSEGMENT*) PtStruct;
+            d   = (ptr->m_Width / 2) + 1;
+
+            if( aBoardEdgesOnly && ptr->GetLayer() != EDGE_N )
+                break;
+
+            if( ptr->m_Shape == S_CIRCLE )
+            {
+                cx    = ptr->m_Start.x; cy = ptr->m_Start.y;
+                rayon = (int) hypot( (double) ( ptr->m_End.x - cx ),
+                                     (double) ( ptr->m_End.y - cy ) );
+                rayon   += d;
+                xmin     = MIN( xmin, cx - rayon );
+                ymin     = MIN( ymin, cy - rayon );
+                xmax     = MAX( xmax, cx + rayon );
+                ymax     = MAX( ymax, cy + rayon );
+                hasItems = true;
+            }
+            else
+            {
+                cx = MIN( ptr->m_Start.x, ptr->m_End.x );
+                cy = MIN( ptr->m_Start.y, ptr->m_End.y );
+                xmin     = MIN( xmin, cx - d );
+                ymin     = MIN( ymin, cy - d );
+                cx       = MAX( ptr->m_Start.x, ptr->m_End.x );
+                cy       = MAX( ptr->m_Start.y, ptr->m_End.y );
+                xmax     = MAX( xmax, cx + d );
+                ymax     = MAX( ymax, cy + d );
+                hasItems = true;
+            }
+            break;
         }
-        else
+        case TYPE_DIMENSION:
         {
-            cx = MIN( ptr->m_Start.x, ptr->m_End.x );
-            cy = MIN( ptr->m_Start.y, ptr->m_End.y );
+            if( aBoardEdgesOnly )
+                break;
+
+            EDA_RECT rect = ((DIMENSION*) PtStruct)->GetBoundingBox();
+            xmin = MIN( xmin, rect.GetX() );
+            ymin = MIN( ymin, rect.GetY() );
+            xmax = MAX( xmax, rect.GetRight() );
+            ymax = MAX( ymax, rect.GetBottom() );
+            hasItems = true;
+            break;
+        }
+        case TYPE_TEXTE:
+        {
+            if( aBoardEdgesOnly )
+                break;
+
+            EDA_RECT rect = ((TEXTE_PCB*) PtStruct)->GetTextBox( -1 );
+            xmin = MIN( xmin, rect.GetX() );
+            ymin = MIN( ymin, rect.GetY() );
+            xmax = MAX( xmax, rect.GetRight() );
+            ymax = MAX( ymax, rect.GetBottom() );
+            hasItems = true;
+            break;
+        }
+        case TYPE_MIRE:
+        {
+            if( aBoardEdgesOnly )
+                break;
+
+            EDA_RECT rect = ((DIMENSION*) PtStruct)->GetBoundingBox();
+            xmin = MIN( xmin, rect.GetX() );
+            ymin = MIN( ymin, rect.GetY() );
+            xmax = MAX( xmax, rect.GetRight() );
+            ymax = MAX( ymax, rect.GetBottom() );
+            hasItems = true;
+            break;
+        }
+        default:
+            break;
+        }
+    }
+
+    if( !aBoardEdgesOnly )
+    {
+        // Check modules
+        for( MODULE* module = m_Modules; module; module = module->Next() )
+        {
+            EDA_RECT bBox = module->GetBoundingBox();
+            xmin     = MIN( xmin, bBox.GetX() );
+            ymin     = MIN( ymin, bBox.GetY() );
+            xmax     = MAX( xmax, bBox.GetRight() );
+            ymax     = MAX( ymax, bBox.GetBottom() );
+            hasItems = true;
+        }
+
+        // Check tracks
+        for( TRACK* track = m_Track; track; track = track->Next() )
+        {
+            d = ( track->m_Width / 2 ) + 1;
+            cx = MIN( track->m_Start.x, track->m_End.x );
+            cy = MIN( track->m_Start.y, track->m_End.y );
             xmin     = MIN( xmin, cx - d );
             ymin     = MIN( ymin, cy - d );
-            cx       = MAX( ptr->m_Start.x, ptr->m_End.x );
-            cy       = MAX( ptr->m_Start.y, ptr->m_End.y );
+            cx       = MAX( track->m_Start.x, track->m_End.x );
+            cy       = MAX( track->m_Start.y, track->m_End.y );
             xmax     = MAX( xmax, cx + d );
             ymax     = MAX( ymax, cy + d );
-            hasItems = TRUE;
+            hasItems = true;
         }
-    }
 
-    /* Analyze footprints  */
+        // Check segment zones
+        for( TRACK* track = m_Zone; track; track = track->Next() )
+        {
+            d = ( track->m_Width / 2 ) + 1;
+            cx = MIN( track->m_Start.x, track->m_End.x );
+            cy = MIN( track->m_Start.y, track->m_End.y );
+            xmin     = MIN( xmin, cx - d );
+            ymin     = MIN( ymin, cy - d );
+            cx       = MAX( track->m_Start.x, track->m_End.x );
+            cy       = MAX( track->m_Start.y, track->m_End.y );
+            xmax     = MAX( xmax, cx + d );
+            ymax     = MAX( ymax, cy + d );
+            hasItems = true;
+        }
 
-    for( MODULE* module = m_Modules; module; module = module->Next() )
-    {
-        hasItems = TRUE;
-        EDA_Rect box = module->GetBoundingBox();
-        xmin     = MIN( xmin, box.GetX() );
-        ymin     = MIN( ymin, box.GetY() );
-        xmax     = MAX( xmax, box.GetRight() );
-        ymax     = MAX( ymax, box.GetBottom() );
-    }
-
-    /* Analize track and zones */
-    for( TRACK* track = m_Track; track; track = track->Next() )
-    {
-        d = ( track->m_Width / 2 ) + 1;
-        cx = MIN( track->m_Start.x, track->m_End.x );
-        cy = MIN( track->m_Start.y, track->m_End.y );
-        xmin     = MIN( xmin, cx - d );
-        ymin     = MIN( ymin, cy - d );
-        cx       = MAX( track->m_Start.x, track->m_End.x );
-        cy       = MAX( track->m_Start.y, track->m_End.y );
-        xmax     = MAX( xmax, cx + d );
-        ymax     = MAX( ymax, cy + d );
-        hasItems = TRUE;
-    }
-
-    for( TRACK* track = m_Zone; track; track = track->Next() )
-    {
-        d = ( track->m_Width / 2 ) + 1;
-        cx = MIN( track->m_Start.x, track->m_End.x );
-        cy = MIN( track->m_Start.y, track->m_End.y );
-        xmin     = MIN( xmin, cx - d );
-        ymin     = MIN( ymin, cy - d );
-        cx       = MAX( track->m_Start.x, track->m_End.x );
-        cy       = MAX( track->m_Start.y, track->m_End.y );
-        xmax     = MAX( xmax, cx + d );
-        ymax     = MAX( ymax, cy + d );
-        hasItems = TRUE;
+        // Check polygonal zones
+        for( unsigned int i = 0; i < m_ZoneDescriptorList.size(); i++ )
+        {
+            ZONE_CONTAINER* aZone = m_ZoneDescriptorList[i];
+            EDA_RECT bBox = aZone->GetBoundingBox();
+            xmin = MIN( xmin, bBox.GetX() );
+            ymin = MIN( ymin, bBox.GetY() );
+            xmax = MAX( xmax, bBox.GetRight() );
+            ymax = MAX( ymax, bBox.GetBottom() );
+            hasItems = true;
+        }
     }
 
     if( !hasItems && m_PcbFrame )
@@ -862,17 +938,20 @@ bool BOARD::ComputeBoundaryBox()
 
 /* Display board statistics: pads, nets, connections.. count
  */
-void BOARD::DisplayInfo( WinEDA_DrawFrame* frame )
+void BOARD::DisplayInfo( EDA_DRAW_FRAME* frame )
 {
     wxString txt;
 
     frame->ClearMsgPanel();
 
     int viasCount = 0;
+    int trackSegmentsCount = 0;
     for( BOARD_ITEM* item = m_Track; item; item = item->Next() )
     {
         if( item->Type() == TYPE_VIA )
             viasCount++;
+        else
+            trackSegmentsCount++;
     }
 
     txt.Printf( wxT( "%d" ), GetPadsCount() );
@@ -880,6 +959,9 @@ void BOARD::DisplayInfo( WinEDA_DrawFrame* frame )
 
     txt.Printf( wxT( "%d" ), viasCount );
     frame->AppendMsgPanel( _( "Vias" ), txt, DARKGREEN );
+
+    txt.Printf( wxT( "%d" ), trackSegmentsCount );
+    frame->AppendMsgPanel( _( "trackSegm" ), txt, DARKGREEN );
 
     txt.Printf( wxT( "%d" ), GetNodesCount() );
     frame->AppendMsgPanel( _( "Nodes" ), txt, DARKCYAN );
@@ -1103,7 +1185,7 @@ SEARCH_RESULT BOARD::Visit( INSPECTOR* inspector, const void* testData,
  *           found(0), layer(alayer), layer_mask( g_TabOneLayerMask[alayer] )
  *       {}
  *
- *       SEARCH_RESULT Inspect( EDA_BaseStruct* testItem, const void* testData
+ *       SEARCH_RESULT Inspect( EDA_ITEM* testItem, const void* testData
  * )
  *       {
  *           BOARD_ITEM*     item   = (BOARD_ITEM*) testItem;
@@ -1170,23 +1252,23 @@ SEARCH_RESULT BOARD::Visit( INSPECTOR* inspector, const void* testData,
 /**
  * Function FindNet
  * searches for a net with the given netcode.
- * @param anetcode The netcode to search for.
+ * @param aNetcode The netcode to search for.
  * @return NETINFO_ITEM* - the net or NULL if not found.
  */
-NETINFO_ITEM* BOARD::FindNet( int anetcode ) const
+NETINFO_ITEM* BOARD::FindNet( int aNetcode ) const
 {
     // the first valid netcode is 1 and the last is m_NetInfo->GetCount()-1.
     // zero is reserved for "no connection" and is not used.
     // NULL is returned for non valid netcodes
-    NETINFO_ITEM* net = m_NetInfo->GetNetItem( anetcode );
+    NETINFO_ITEM* net = m_NetInfo->GetNetItem( aNetcode );
 
 #if defined(DEBUG)
     if( net )     // item can be NULL if anetcode is not valid
     {
-        if( anetcode != net->GetNet() )
+        if( aNetcode != net->GetNet() )
         {
             printf( "FindNet() anetcode %d != GetNet() %d (net: %s)\n",
-                    anetcode, net->GetNet(), CONV_TO_UTF8( net->GetNetname() ) );
+                    aNetcode, net->GetNet(), TO_UTF8( net->GetNetname() ) );
         }
     }
 #endif
@@ -1277,7 +1359,7 @@ MODULE* BOARD::FindModuleByReference( const wxString& aReference ) const
         FindModule() : found( 0 )  {}
 
         // implement interface INSPECTOR
-        SEARCH_RESULT Inspect( EDA_BaseStruct* item, const void* data )
+        SEARCH_RESULT Inspect( EDA_ITEM* item, const void* data )
         {
             MODULE*         module = (MODULE*) item;
             const wxString& ref    = *(const wxString*) data;
@@ -1421,14 +1503,11 @@ out:
 }
 
 
-/**
+/*
  * Function RedrawAreasOutlines
  * Redraw all areas outlines on layer aLayer ( redraw all if aLayer < 0 )
  */
-void BOARD::RedrawAreasOutlines( WinEDA_DrawPanel* panel,
-                                 wxDC*             aDC,
-                                 int               aDrawMode,
-                                 int               aLayer )
+void BOARD::RedrawAreasOutlines( EDA_DRAW_PANEL* panel, wxDC* aDC, int aDrawMode, int aLayer )
 {
     if( !aDC )
         return;
@@ -1446,10 +1525,7 @@ void BOARD::RedrawAreasOutlines( WinEDA_DrawPanel* panel,
  * Function RedrawFilledAreas
  * Redraw all areas outlines on layer aLayer ( redraw all if aLayer < 0 )
  */
-void BOARD::RedrawFilledAreas( WinEDA_DrawPanel* panel,
-                               wxDC*             aDC,
-                               int               aDrawMode,
-                               int               aLayer )
+void BOARD::RedrawFilledAreas( EDA_DRAW_PANEL* panel, wxDC* aDC, int aDrawMode, int aLayer )
 {
     if( !aDC )
         return;
@@ -1469,7 +1545,7 @@ void BOARD::RedrawFilledAreas( WinEDA_DrawPanel* panel,
  * zone.
  * the test is made on zones on layer from aStartLayer to aEndLayer
  * Note: if a zone has its flag BUSY (in .m_State) is set, it is ignored.
- * @param refPos A wxPoint to test
+ * @param aRefPos A wxPoint to test
  * @param aStartLayer the first layer to test
  * @param aEndLayer the last layer (-1 to ignore it) to test
  * @return ZONE_CONTAINER* return a pointer to the ZONE_CONTAINER found, else

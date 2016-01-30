@@ -7,6 +7,9 @@
 #ifndef _NETLIST_CONTROL_H_
 #define _NETLIST_CONTROL_H_
 
+class WinEDA_EnterText;
+
+
 /* Event id for notebook page buttons: */
 enum id_netlist {
     ID_CREATE_NETLIST = 1550,
@@ -15,7 +18,9 @@ enum id_netlist {
     ID_SETUP_PLUGIN,
     ID_VALIDATE_PLUGIN,
     ID_DELETE_PLUGIN,
-    ID_NETLIST_NOTEBOOK
+    ID_NETLIST_NOTEBOOK,
+    ID_CHANGE_NOTEBOOK_PAGE,
+    ID_ADD_SUBCIRCUIT_PREFIX,
 };
 
 /* panel (notebook page) identifiers */
@@ -37,11 +42,12 @@ enum gen_netlist_diag {
 
 
 /* wxPanels for creating the NoteBook pages for each netlist format: */
-class EDA_NoteBookPage : public wxPanel
+class NETLIST_PAGE_DIALOG : public wxPanel
 {
 public:
     int               m_IdNetType;
     wxCheckBox*       m_IsCurrentFormat;
+    wxCheckBox*       m_AddSubPrefix;
     WinEDA_EnterText* m_CommandStringCtrl;
     WinEDA_EnterText* m_TitleStringCtrl;
     wxButton*         m_ButtonCancel;
@@ -50,28 +56,55 @@ public:
     wxBoxSizer*       m_RightOptionsBoxSizer;
     wxBoxSizer*       m_LowBoxSizer;
 
-    EDA_NoteBookPage( wxNotebook* parent, const wxString& title,
+    /** Contructor to create a setup page for one netlist format.
+     * Used in Netlist format Dialog box creation
+     * @param parent = wxNotebook * parent
+     * @param title = title (name) of the notebook page
+     * @param id_NetType = netlist type id
+     * @param idCheckBox = event ID attached to the "format is default" check box
+     * @param idCreateFile = event ID attached to the "create netlist" button
+     * @param selected = true to have this notebook page selected when the dialog is opened
+     *    Only one page can be created with selected = true.
+     */
+    NETLIST_PAGE_DIALOG( wxNotebook* parent, const wxString& title,
                       int id_NetType, int idCheckBox, int idCreateFile,
                       bool selected );
-    ~EDA_NoteBookPage() { };
+    ~NETLIST_PAGE_DIALOG() { };
+};
+
+
+#define CUSTOMPANEL_COUNTMAX 8  // Max number of netlist plugins
+
+/* Id to select netlist type */
+enum  TypeNetForm {
+    NET_TYPE_UNINIT = 0,
+    NET_TYPE_PCBNEW,
+    NET_TYPE_ORCADPCB2,
+    NET_TYPE_CADSTAR,
+    NET_TYPE_SPICE,
+    NET_TYPE_CUSTOM1,   /* NET_TYPE_CUSTOM1
+                         * is the first id for user netlist format
+                         * NET_TYPE_CUSTOM1+CUSTOMPANEL_COUNTMAX-1
+                         * is the last id for user netlist format
+                         */
+    NET_TYPE_CUSTOM_MAX = NET_TYPE_CUSTOM1 + CUSTOMPANEL_COUNTMAX - 1
 };
 
 
 /* Dialog frame for creating netlists */
-class WinEDA_NetlistFrame : public wxDialog
+class NETLIST_DIALOG : public wxDialog
 {
 public:
-    WinEDA_SchematicFrame* m_Parent;
-    wxNotebook*            m_NoteBook;
-    EDA_NoteBookPage*      m_PanelNetType[4 + CUSTOMPANEL_COUNTMAX];
-
-    wxRadioBox*            m_UseNetNamesInNetlist;
+    SCH_EDIT_FRAME*   m_Parent;
+    wxNotebook*       m_NoteBook;
+    NETLIST_PAGE_DIALOG* m_PanelNetType[4 + CUSTOMPANEL_COUNTMAX];
+    wxRadioBox*       m_UseNetNamesInNetlist;
 
 public:
 
     // Constructor and destructor
-    WinEDA_NetlistFrame( WinEDA_SchematicFrame* parent );
-    ~WinEDA_NetlistFrame() { };
+    NETLIST_DIALOG( SCH_EDIT_FRAME* parent );
+    ~NETLIST_DIALOG() { };
 
 private:
     void    InstallCustomPages();
@@ -81,7 +114,8 @@ private:
     void    NetlistUpdateOpt();
     void    OnCancelClick( wxCommandEvent& event );
     void    SelectNetlistType( wxCommandEvent& event );
-    void    SetupPluginData( wxCommandEvent& event );
+    void    EnableSubcircuitPrefix( wxCommandEvent& event );
+    void    AddNewPluginPanel( wxCommandEvent& event );
     void    DeletePluginPanel( wxCommandEvent& event );
     void    ValidatePluginPanel( wxCommandEvent& event );
 

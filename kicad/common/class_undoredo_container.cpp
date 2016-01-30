@@ -2,6 +2,7 @@
  * This program source code file is part of KICAD, a free EDA CAD application.
  *
  * Copyright (C) 2009 jean-pierre.charras@gipsa-lab.inpg.fr
+ * Copyright (C) 2011 Wayne Stambaugh <stambaughw@verizon.net>
  * Copyright (C) 2009 Kicad Developers, see change_log.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
@@ -26,12 +27,11 @@
 #include "common.h"
 #include "base_struct.h"
 
-//#include "sch_item_struct.h"
 #include "base_struct.h"
 #include "class_undoredo_container.h"
 
 
-ITEM_PICKER::ITEM_PICKER( EDA_BaseStruct* aItem, UndoRedoOpType aUndoRedoStatus )
+ITEM_PICKER::ITEM_PICKER( EDA_ITEM* aItem, UNDO_REDO_T aUndoRedoStatus )
 {
     m_UndoRedoStatus = aUndoRedoStatus;
     m_PickedItem     = aItem;
@@ -44,27 +44,19 @@ ITEM_PICKER::ITEM_PICKER( EDA_BaseStruct* aItem, UndoRedoOpType aUndoRedoStatus 
 PICKED_ITEMS_LIST::PICKED_ITEMS_LIST()
 {
     m_Status = UR_UNSPECIFIED;
-};
+}
 
 PICKED_ITEMS_LIST::~PICKED_ITEMS_LIST()
 {
 }
 
 
-/** PushItem
- * push a picker to the top of the list
- * @param aItem = picker to push
- */
 void PICKED_ITEMS_LIST::PushItem( ITEM_PICKER& aItem )
 {
     m_ItemsList.push_back( aItem );
 }
 
 
-/** PopItem
- * @return the picker from the top of the list
- * the picker is removed from the list
- */
 ITEM_PICKER PICKED_ITEMS_LIST::PopItem()
 {
     ITEM_PICKER item;
@@ -74,23 +66,29 @@ ITEM_PICKER PICKED_ITEMS_LIST::PopItem()
         item = m_ItemsList.back();
         m_ItemsList.pop_back();
     }
+
     return item;
 }
 
 
-/** Function ClearItemsList
- * delete only the list of pickers, NOT the picked data itself
- */
+bool PICKED_ITEMS_LIST::ContainsItem( EDA_ITEM* aItem ) const
+{
+    for( size_t i = 0;  i < m_ItemsList.size();  i++ )
+    {
+        if( m_ItemsList[ i ].m_PickedItem == aItem )
+            return true;
+    }
+
+    return false;
+}
+
+
 void PICKED_ITEMS_LIST::ClearItemsList()
 {
     m_ItemsList.clear();
 }
 
 
-/** Function ClearListAndDeleteItems
- * delete the list of pickers, AND the data pointed
- * by m_PickedItem or m_PickedItemLink, according to the type of undo/redo command recorded
- */
 void PICKED_ITEMS_LIST::ClearListAndDeleteItems()
 {
     bool show_error_message = true;
@@ -106,18 +104,20 @@ void PICKED_ITEMS_LIST::ClearListAndDeleteItems()
         case UR_UNSPECIFIED:
             if( show_error_message )
                 wxMessageBox( wxT( "ClearUndoORRedoList() error: UR_UNSPECIFIED command type" ) );
+
             show_error_message = false;
             break;
 
         case UR_WIRE_IMAGE:
         {
-            // Specific to eeschema: a linked list of wires is stored.
-            // the wrapper picks only the first item (head of list), and is owner of all picked items
-            EDA_BaseStruct* item = wrapper.m_PickedItem;
+            // Specific to eeschema: a linked list of wires is stored.  The wrapper picks only
+            // the first item (head of list), and is owner of all picked items.
+            EDA_ITEM* item = wrapper.m_PickedItem;
+
             while( item )
             {
                 // Delete old copy of wires
-                EDA_BaseStruct* nextitem = item->Next();
+                EDA_ITEM* nextitem = item->Next();
                 delete item;
                 item = nextitem;
             }
@@ -134,6 +134,7 @@ void PICKED_ITEMS_LIST::ClearListAndDeleteItems()
             break;
 
         case UR_CHANGED:
+        case UR_EXCHANGE_T:
             delete wrapper.m_Link;   //  the picker is owner of this item
             break;
 
@@ -141,32 +142,22 @@ void PICKED_ITEMS_LIST::ClearListAndDeleteItems()
         case UR_LIBEDIT:            /* Libedit save always a copy of the current item
                                      *  So, the picker is always owner of the picked item
                                      */
-        case UR_MODEDIT:            /* Specific to the module editor
-                                     *  (modedit creates a full copy of the current module when changed),
-                                     *  and the picker is owner of this item
+        case UR_MODEDIT:            /* Specific to the module editor (modedit creates a full
+                                     * copy of the current module when changed),
+                                     * and the picker is owner of this item
                                      */
             delete wrapper.m_PickedItem;
             break;
 
         default:
-        {
-            wxString msg;
-            msg.Printf( wxT( "ClearUndoORRedoList() error: unknown command type %d" ),
-                        wrapper.m_UndoRedoStatus );
-            wxMessageBox( msg );
-        }
-        break;
+            wxFAIL_MSG( wxString::Format( wxT( "Cannot clear unknown undo/redo command %d" ),
+                                          wrapper.m_UndoRedoStatus ) );
+            break;
         }
     }
 }
 
 
-/** function GetItemWrapper
- * @return the picker of a picked item
- * @param aIdx = index of the picker in the picked list
- * if this picker does not exist, a picker is returned,
- * with its members set to 0 or NULL
- */
 ITEM_PICKER PICKED_ITEMS_LIST::GetItemWrapper( unsigned int aIdx )
 {
     ITEM_PICKER picker;
@@ -178,11 +169,7 @@ ITEM_PICKER PICKED_ITEMS_LIST::GetItemWrapper( unsigned int aIdx )
 }
 
 
-/** function GetPickedItem
- * @return a pointer to the picked item, or null if does not exist
- * @param aIdx = index of the picked item in the picked list
- */
-EDA_BaseStruct* PICKED_ITEMS_LIST::GetPickedItem( unsigned int aIdx )
+EDA_ITEM* PICKED_ITEMS_LIST::GetPickedItem( unsigned int aIdx )
 {
     if( aIdx < m_ItemsList.size() )
         return m_ItemsList[aIdx].m_PickedItem;
@@ -191,11 +178,7 @@ EDA_BaseStruct* PICKED_ITEMS_LIST::GetPickedItem( unsigned int aIdx )
 }
 
 
-/** function GetPickedItemLink
- * @return link of the picked item, or null if does not exist
- * @param aIdx = index of the picked item in the picked list
- */
-EDA_BaseStruct* PICKED_ITEMS_LIST::GetPickedItemLink( unsigned int aIdx )
+EDA_ITEM* PICKED_ITEMS_LIST::GetPickedItemLink( unsigned int aIdx )
 {
     if( aIdx < m_ItemsList.size() )
         return m_ItemsList[aIdx].m_Link;
@@ -204,12 +187,7 @@ EDA_BaseStruct* PICKED_ITEMS_LIST::GetPickedItemLink( unsigned int aIdx )
 }
 
 
-/** function GetPickedItemStatus
- * @return the type of undo/redo opertaion associated to the picked item,
- *   or UR_UNSPECIFIED if does not exist
- * @param aIdx = index of the picked item in the picked list
- */
-UndoRedoOpType PICKED_ITEMS_LIST::GetPickedItemStatus( unsigned int aIdx )
+UNDO_REDO_T PICKED_ITEMS_LIST::GetPickedItemStatus( unsigned int aIdx )
 {
     if( aIdx < m_ItemsList.size() )
         return m_ItemsList[aIdx].m_UndoRedoStatus;
@@ -217,11 +195,7 @@ UndoRedoOpType PICKED_ITEMS_LIST::GetPickedItemStatus( unsigned int aIdx )
         return UR_UNSPECIFIED;
 }
 
-/** function GetPickerFlags
- * return the value of the picker flag
-  * @param aIdx = index of the picker in the picked list
- * @return the value stored in the picker, if the picker exists, or 0 if does not exist
- */
+
 int PICKED_ITEMS_LIST::GetPickerFlags( unsigned aIdx )
 {
     if( aIdx < m_ItemsList.size() )
@@ -230,12 +204,8 @@ int PICKED_ITEMS_LIST::GetPickerFlags( unsigned aIdx )
         return 0;
 }
 
-/** function SetPickedItem
- * @param aItem = a pointer to the item to pick
- * @param aIdx = index of the picker in the picked list
- * @return true if the picker exists, or false if does not exist
- */
-bool PICKED_ITEMS_LIST::SetPickedItem( EDA_BaseStruct* aItem, unsigned aIdx )
+
+bool PICKED_ITEMS_LIST::SetPickedItem( EDA_ITEM* aItem, unsigned aIdx )
 {
     if( aIdx < m_ItemsList.size() )
     {
@@ -247,13 +217,7 @@ bool PICKED_ITEMS_LIST::SetPickedItem( EDA_BaseStruct* aItem, unsigned aIdx )
 }
 
 
-/** function SetPickedItemLink
- * Set the link associated to a given picked item
- * @param aLink = the link to the item associated to the picked item
- * @param aIdx = index of the picker in the picked list
- * @return true if the picker exists, or false if does not exist
- */
-bool PICKED_ITEMS_LIST::SetPickedItemLink( EDA_BaseStruct* aLink, unsigned aIdx )
+bool PICKED_ITEMS_LIST::SetPickedItemLink( EDA_ITEM* aLink, unsigned aIdx )
 {
     if( aIdx < m_ItemsList.size() )
     {
@@ -265,15 +229,7 @@ bool PICKED_ITEMS_LIST::SetPickedItemLink( EDA_BaseStruct* aLink, unsigned aIdx 
 }
 
 
-/** function SetPickedItem
- * @param aItem = a pointer to the item to pick
- * @param aStatus = the type of undo/redo operation associated to the item to pick
- * @param aIdx = index of the picker in the picked list
- * @return true if the picker exists, or false if does not exist
- */
-bool PICKED_ITEMS_LIST::SetPickedItem( EDA_BaseStruct* aItem,
-                                       UndoRedoOpType  aStatus,
-                                       unsigned        aIdx )
+bool PICKED_ITEMS_LIST::SetPickedItem( EDA_ITEM* aItem, UNDO_REDO_T aStatus, unsigned aIdx )
 {
     if( aIdx < m_ItemsList.size() )
     {
@@ -286,13 +242,7 @@ bool PICKED_ITEMS_LIST::SetPickedItem( EDA_BaseStruct* aItem,
 }
 
 
-/** function SetPickedItemStatus
- * Set the the type of undo/redo operation for a given picked item
- * @param aStatus = the type of undo/redo operation associated to the picked item
- * @param aIdx = index of the picker in the picked list
- * @return true if the picker exists, or false if does not exist
- */
-bool PICKED_ITEMS_LIST::SetPickedItemStatus( UndoRedoOpType aStatus, unsigned aIdx )
+bool PICKED_ITEMS_LIST::SetPickedItemStatus( UNDO_REDO_T aStatus, unsigned aIdx )
 {
     if( aIdx < m_ItemsList.size() )
     {
@@ -302,12 +252,8 @@ bool PICKED_ITEMS_LIST::SetPickedItemStatus( UndoRedoOpType aStatus, unsigned aI
     else
         return false;
 }
-/** function SetPickerFlags
- * Set the flags of the picker (usually to the picked item m_Flags value)
- * @param aFlags = the value to save in picker
- * @param aIdx = index of the picker in the picked list
- * @return true if the picker exists, or false if does not exist
- */
+
+
 bool PICKED_ITEMS_LIST::SetPickerFlags( int aFlags, unsigned aIdx )
 {
     if( aIdx < m_ItemsList.size() )
@@ -320,11 +266,6 @@ bool PICKED_ITEMS_LIST::SetPickerFlags( int aFlags, unsigned aIdx )
 }
 
 
-/** function RemovePicker
- * remùove one entry (one picker) from the list of picked items
- * @param aIdx = index of the picker in the picked list
- * @return true if ok, or false if did not exist
- */
 bool PICKED_ITEMS_LIST::RemovePicker( unsigned aIdx )
 {
     if( aIdx >= m_ItemsList.size() )
@@ -334,22 +275,12 @@ bool PICKED_ITEMS_LIST::RemovePicker( unsigned aIdx )
 }
 
 
-/** Function CopyList
- * copy all data from aSource
- * Picked items are not copied. just pointers on them are copied
- */
 void PICKED_ITEMS_LIST::CopyList( const PICKED_ITEMS_LIST& aSource )
 {
     m_ItemsList = aSource.m_ItemsList;  // Vector's copy
 }
 
-/** function ReversePickersListOrder()
- * reverses the order of pickers stored in this list
- * Useful when pop a list from Undo to Redo (and vice-versa)
- * because sometimes undo (or redo) a command needs to keep the
- * order of successive changes.
- * and obviously, undo and redo are in reverse order
- */
+
 void PICKED_ITEMS_LIST::ReversePickersListOrder()
 {
     std::vector <ITEM_PICKER> tmp;

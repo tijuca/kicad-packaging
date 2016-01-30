@@ -225,7 +225,8 @@ void WinEDA_App::WriteProjectConfig( const wxString&  fileName,
 }
 
 
-/** Function SaveCurrentSetupValues()
+/**
+ * Function SaveCurrentSetupValues
  * Save the current setup values in m_EDA_Config
  * saved parameters are parameters that have the .m_Setup member set to true
  * @param aList = array of PARAM_CFG_BASE pointers
@@ -275,7 +276,8 @@ void WinEDA_App::SaveCurrentSetupValues( PARAM_CFG_ARRAY& List )
 }
 
 
-/** Function ReadProjectConfig
+/**
+ * Function ReadProjectConfig
  *  Read the current "projet" parameters
  *  Parameters are parameters that have the .m_Setup member set to false
  *  read file is the .pro file project
@@ -390,7 +392,8 @@ bool WinEDA_App::ReadProjectConfig( const wxString&  local_config_filename,
 }
 
 
-/** Function ReadCurrentSetupValues()
+/**
+ * Function ReadCurrentSetupValues
  * Raed the current setup values previously saved, from m_EDA_Config
  * saved parameters are parameters that have the .m_Setup member set to true
  * @param aList = array of PARAM_CFG_BASE pointers
@@ -661,11 +664,13 @@ PARAM_CFG_WXSTRING::PARAM_CFG_WXSTRING( const wxChar* ident,
 
 PARAM_CFG_WXSTRING::PARAM_CFG_WXSTRING( bool Insetup, const wxChar* ident,
                                         wxString* ptparam,
+                                        const wxString& default_val,
                                         const wxChar* group ) :
     PARAM_CFG_BASE( ident, PARAM_WXSTRING, group )
 {
     m_Pt_param = ptparam;
     m_Setup    = Insetup;
+    m_default = default_val;
 }
 
 
@@ -677,7 +682,7 @@ void PARAM_CFG_WXSTRING::ReadParam( wxConfigBase* aConfig )
 {
     if( m_Pt_param == NULL || aConfig == NULL )
         return;
-    *m_Pt_param = aConfig->Read( m_Ident );
+    *m_Pt_param = aConfig->Read( m_Ident, m_default );
 }
 
 
@@ -690,6 +695,50 @@ void PARAM_CFG_WXSTRING::SaveParam( wxConfigBase* aConfig )
     if( m_Pt_param == NULL || aConfig == NULL )
         return;
     aConfig->Write( m_Ident, *m_Pt_param );
+}
+
+
+
+PARAM_CFG_FILENAME::PARAM_CFG_FILENAME( const wxChar* ident,
+                                        wxString*     ptparam,
+                                        const wxChar* group ) :
+    PARAM_CFG_BASE( ident, PARAM_FILENAME, group )
+{
+    m_Pt_param = ptparam;
+}
+
+
+/** ReadParam
+ * read the value of parameter this stored in aConfig
+ * @param aConfig = the wxConfigBase that store the parameter
+ */
+void PARAM_CFG_FILENAME::ReadParam( wxConfigBase* aConfig )
+{
+    if( m_Pt_param == NULL || aConfig == NULL )
+        return;
+    wxString prm = aConfig->Read( m_Ident );
+    // filesnames are stored using Unix notation
+    // under Window we must use \ instead of /
+    // mainly if there is a server name in path (something like \\server\kicad)
+#ifdef __WINDOWS__
+    prm.Replace(wxT("/"), wxT("\\"));
+#endif
+    *m_Pt_param = prm;
+}
+
+
+/** SaveParam
+ * save the value of parameter this stored in aConfig
+ * @param aConfig = the wxConfigBase that can store the parameter
+ */
+void PARAM_CFG_FILENAME::SaveParam( wxConfigBase* aConfig )
+{
+    if( m_Pt_param == NULL || aConfig == NULL )
+        return;
+    wxString prm = *m_Pt_param;
+    // filenames are stored using Unix notation
+    prm.Replace(wxT("\\"), wxT("/") );
+    aConfig->Write( m_Ident, prm );
 }
 
 
@@ -722,6 +771,12 @@ void PARAM_CFG_LIBNAME_LIST::ReadParam( wxConfigBase* aConfig )
         libname = aConfig->Read( id_lib, wxT( "" ) );
         if( libname.IsEmpty() )
             break;
+        // filesnames are stored using Unix notation
+        // under Window we must use \ instead of /
+        // mainly if there is a server name in path (something like \\server\kicad)
+#ifdef __WINDOWS__
+        libname.Replace(wxT("/"), wxT("\\"));
+#endif
         libname_list->Add( libname );
     }
 }
@@ -738,13 +793,17 @@ void PARAM_CFG_LIBNAME_LIST::SaveParam( wxConfigBase* aConfig )
     wxArrayString* libname_list = m_Pt_param;
 
     unsigned       indexlib = 0;
-    wxString       cle_config;
+    wxString       configkey;
+    wxString       libname;
     for( ; indexlib < libname_list->GetCount(); indexlib++ )
     {
-        cle_config = m_Ident;
+        configkey = m_Ident;
 
         // We use indexlib+1 because first lib name is LibName1
-        cle_config << (indexlib + 1);
-        aConfig->Write( cle_config, libname_list->Item( indexlib ) );
+        configkey << (indexlib + 1);
+        libname = libname_list->Item( indexlib );
+        // filenames are stored using Unix notation
+        libname.Replace(wxT("\\"), wxT("/") );
+        aConfig->Write( configkey, libname );
     }
 }

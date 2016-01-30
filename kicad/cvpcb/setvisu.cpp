@@ -8,7 +8,7 @@
 
 #include "bitmaps.h"
 #include "cvpcb.h"
-#include "protos.h"
+#include "cvpcb_mainframe.h"
 #include "cvstruct.h"
 #include "class_DisplayFootprintsFrame.h"
 
@@ -20,12 +20,11 @@
 #include "3d_viewer.h"
 
 
-
 /*
  * Create or Update the frame showing the current highlighted footprint
  * and (if showed) the 3D display frame
  */
-void WinEDA_CvpcbFrame::CreateScreenCmp()
+void CVPCB_MAINFRAME::CreateScreenCmp()
 {
     wxString msg, FootprintName;
     bool     IsNew = FALSE;
@@ -47,7 +46,7 @@ void WinEDA_CvpcbFrame::CreateScreenCmp()
     {
         msg = _( "Footprint: " ) + FootprintName;
         DrawFrame->SetTitle( msg );
-        FOOTPRINT* Module = GetModuleDescrByName( FootprintName, m_footprints );
+        FOOTPRINT_INFO* Module = m_footprints.GetModuleInfo( FootprintName );
         msg = _( "Lib: " );
 
         if( Module )
@@ -91,16 +90,15 @@ void DISPLAY_FOOTPRINTS_FRAME::RedrawActiveWindow( wxDC* DC, bool EraseBg )
     if( !GetBoard() )
         return;
 
-    ActiveScreen = (PCB_SCREEN*) GetScreen();
-
     DrawPanel->DrawBackGround( DC );
     GetBoard()->Draw( DrawPanel, DC, GR_COPY );
 
     MODULE* Module = GetBoard()->m_Modules;
+
     if ( Module )
         Module->DisplayInfo( this );
 
-    DrawPanel->DrawCursor( DC );
+    DrawPanel->DrawCrossHair( DC );
 }
 
 
@@ -108,11 +106,27 @@ void DISPLAY_FOOTPRINTS_FRAME::RedrawActiveWindow( wxDC* DC, bool EraseBg )
 /*
  * Redraw the BOARD items but not cursors, axis or grid.
  */
-void BOARD::Draw( WinEDA_DrawPanel* aPanel, wxDC* DC,
-                  int aDrawMode, const wxPoint& offset )
+void BOARD::Draw( EDA_DRAW_PANEL* aPanel, wxDC* aDC, int aDrawMode, const wxPoint& aOffset )
 {
     if( m_Modules )
     {
-        m_Modules->Draw( aPanel, DC, GR_COPY );
+        m_Modules->Draw( aPanel, aDC, GR_COPY );
     }
+}
+
+/* dummy_functions:
+ *
+ *  These functions are used in some classes.
+ *  they are useful in pcbnew, but have no meaning or are never used
+ *  in cvpcb or gerbview.
+ *  but they must exist because they appear in some classes.
+ *  Do nothing in CvPcb.
+ */
+TRACK* Marque_Une_Piste( BOARD* aPcb,
+                         TRACK* aStartSegm,
+                         int*   aSegmCount,
+                         int*   aTrackLen,
+                         bool   aReorder )
+{
+    return NULL;
 }

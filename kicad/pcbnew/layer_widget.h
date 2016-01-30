@@ -103,12 +103,24 @@ protected:
 
     wxWindow*           m_FocusOwner;
     wxBitmap*           m_BlankBitmap;
+    wxBitmap*           m_BlankAlternateBitmap;
     wxBitmap*           m_RightArrowBitmap;
+    wxBitmap*           m_RightArrowAlternateBitmap;
     wxSize              m_BitmapSize;
     int                 m_CurrentRow;           ///< selected row of layer list
     int                 m_PointSize;
 
     static wxBitmap makeBitmap( int aColor );
+
+    /**
+     * Virtual Function useAlternateBitmap
+     * @return true if bitmaps shown in Render layer list
+     * are alternate bitmaps, or false if they are "normal" bitmaps
+     * This is a virtual function because Pcbnew uses normal bitmaps
+     * but Gerbview uses both bitmaps
+     * (alternate bitmaps to show layers in use, normal fo others)
+     */
+    virtual bool useAlternateBitmap(int aRow) { return false; }
 
     /**
      * Function encodeId
@@ -188,7 +200,15 @@ protected:
 public:
 
     /** Constructor
+     * @param aParent is the parent window
      * @param aFocusOwner is the window that should be sent the focus after
+     * @param aPointSize is the font point size to use within the widget.  This
+     *  effectively sets the overal size of the widget via the row height and bitmap
+     *  button sizes.
+     * @param id is the wxWindow id ( default = wxID_ANY)
+     * @param pos is the window position
+     * @param size is the window size
+     * @param style is the window style
      * every operation.
      */
     LAYER_WIDGET( wxWindow* aParent, wxWindow* aFocusOwner, int aPointSize = -1,
@@ -315,6 +335,7 @@ public:
      * not invoke OnRenderEnable().
      * @param aId is the same unique id used when adding a ROW to the
      *  Render tab.
+     * @param isSet = the new checkbox state
      */
     void SetRenderState( int aId, bool isSet );
 
@@ -350,6 +371,8 @@ public:
      * Function OnLayerColorChange
      * is called to notify client code about a layer color change.  Derived
      * classes will handle this accordingly.
+     * @param aLayer is the board layer to change
+     * @param aColor is the new color
      */
     virtual void OnLayerColorChange( int aLayer, int aColor ) = 0;
 
@@ -358,6 +381,7 @@ public:
      * is called to notify client code whenever the user selects a different
      * layer.  Derived classes will handle this accordingly, and can deny
      * the change by returning false.
+     * @param aLayer is the board layer to select
      */
     virtual bool OnLayerSelect( int aLayer ) = 0;
 
@@ -365,6 +389,8 @@ public:
      * Function OnLayerVisible
      * is called to notify client code about a layer visibility change.
      *
+     * @param aLayer is the board layer to select
+     * @param isVisible is the new vosible state
      * @param isFinal is true when this is the last of potentially several
      *  such calls, and can be used to decide when to update the screen only
      *  one time instead of several times in the midst of a multiple layer change.
@@ -377,6 +403,7 @@ public:
      * color.
      * @param aId is the same id that was established in a Rendering row
      * via the AddRenderRow() function.
+     * @param aColor is the new color
      */
     virtual void OnRenderColorChange( int aId, int aColor ) = 0;
 

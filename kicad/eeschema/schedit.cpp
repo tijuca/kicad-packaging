@@ -9,21 +9,28 @@
 #include "class_drawpanel.h"
 #include "confirm.h"
 #include "eda_doc.h"
+#include "wxEeschemaStruct.h"
+#include "class_sch_screen.h"
+#include "kicad_device_context.h"
 
-#include "class_marker_sch.h"
-#include "program.h"
 #include "general.h"
 #include "eeschema_id.h"
 #include "protos.h"
 #include "class_library.h"
-#include "kicad_device_context.h"
+#include "sch_bus_entry.h"
+#include "sch_marker.h"
+#include "sch_component.h"
+#include "sch_junction.h"
+#include "sch_line.h"
+#include "sch_sheet.h"
 
 
-void WinEDA_SchematicFrame::Process_Special_Functions( wxCommandEvent& event )
+void SCH_EDIT_FRAME::Process_Special_Functions( wxCommandEvent& event )
 {
     int         id = event.GetId();
     wxPoint     pos;
     SCH_SCREEN* screen = GetScreen();
+    SCH_ITEM*   item = screen->GetCurItem();
 
     pos = wxGetMousePosition();
 
@@ -32,13 +39,13 @@ void WinEDA_SchematicFrame::Process_Special_Functions( wxCommandEvent& event )
     // If needed, stop the current command and deselect current tool
     switch( id )
     {
+    case wxID_CUT:
+    case wxID_COPY:
+    case ID_POPUP_CANCEL_CURRENT_COMMAND:
     case ID_POPUP_SCH_ENTRY_SELECT_SLASH:
     case ID_POPUP_SCH_ENTRY_SELECT_ANTISLASH:
     case ID_POPUP_END_LINE:
     case ID_POPUP_SCH_EDIT_TEXT:
-    case ID_POPUP_SCH_CHANGE_TYPE_TEXT_TO_LABEL:
-    case ID_POPUP_SCH_CHANGE_TYPE_TEXT_TO_GLABEL:
-    case ID_POPUP_SCH_CHANGE_TYPE_TEXT_TO_COMMENT:
     case ID_POPUP_SCH_SET_SHAPE_TEXT:
     case ID_POPUP_SCH_ROTATE_TEXT:
     case ID_POPUP_SCH_EDIT_SHEET:
@@ -46,51 +53,17 @@ void WinEDA_SchematicFrame::Process_Special_Functions( wxCommandEvent& event )
     case ID_POPUP_SCH_END_SHEET:
     case ID_POPUP_SCH_RESIZE_SHEET:
     case ID_POPUP_IMPORT_GLABEL:
-    case ID_POPUP_SCH_EDIT_PINSHEET:
-    case ID_POPUP_SCH_MOVE_PINSHEET:
-    case ID_POPUP_SCH_MOVE_ITEM_REQUEST:
-    case ID_POPUP_SCH_MOVE_CMP_REQUEST:
+    case ID_POPUP_SCH_EDIT_SHEET_PIN:
+    case ID_POPUP_SCH_MOVE_SHEET_PIN:
     case ID_POPUP_SCH_DRAG_CMP_REQUEST:
     case ID_POPUP_SCH_DRAG_WIRE_REQUEST:
     case ID_POPUP_SCH_EDIT_CMP:
-    case ID_POPUP_SCH_MIROR_X_CMP:
-    case ID_POPUP_SCH_MIROR_Y_CMP:
-    case ID_POPUP_SCH_ROTATE_CMP_CLOCKWISE:
-    case ID_POPUP_SCH_ROTATE_CMP_COUNTERCLOCKWISE:
-    case ID_POPUP_SCH_ORIENT_NORMAL_CMP:
     case ID_POPUP_SCH_INIT_CMP:
     case ID_POPUP_SCH_DISPLAYDOC_CMP:
     case ID_POPUP_SCH_EDIT_VALUE_CMP:
     case ID_POPUP_SCH_EDIT_REF_CMP:
     case ID_POPUP_SCH_EDIT_FOOTPRINT_CMP:
     case ID_POPUP_SCH_EDIT_CONVERT_CMP:
-    case ID_POPUP_SCH_SELECT_UNIT_CMP:
-    case ID_POPUP_SCH_SELECT_UNIT1:
-    case ID_POPUP_SCH_SELECT_UNIT2:
-    case ID_POPUP_SCH_SELECT_UNIT3:
-    case ID_POPUP_SCH_SELECT_UNIT4:
-    case ID_POPUP_SCH_SELECT_UNIT5:
-    case ID_POPUP_SCH_SELECT_UNIT6:
-    case ID_POPUP_SCH_SELECT_UNIT7:
-    case ID_POPUP_SCH_SELECT_UNIT8:
-    case ID_POPUP_SCH_SELECT_UNIT9:
-    case ID_POPUP_SCH_SELECT_UNIT10:
-    case ID_POPUP_SCH_SELECT_UNIT11:
-    case ID_POPUP_SCH_SELECT_UNIT12:
-    case ID_POPUP_SCH_SELECT_UNIT13:
-    case ID_POPUP_SCH_SELECT_UNIT14:
-    case ID_POPUP_SCH_SELECT_UNIT15:
-    case ID_POPUP_SCH_SELECT_UNIT16:
-    case ID_POPUP_SCH_SELECT_UNIT17:
-    case ID_POPUP_SCH_SELECT_UNIT18:
-    case ID_POPUP_SCH_SELECT_UNIT19:
-    case ID_POPUP_SCH_SELECT_UNIT20:
-    case ID_POPUP_SCH_SELECT_UNIT21:
-    case ID_POPUP_SCH_SELECT_UNIT22:
-    case ID_POPUP_SCH_SELECT_UNIT23:
-    case ID_POPUP_SCH_SELECT_UNIT24:
-    case ID_POPUP_SCH_SELECT_UNIT25:
-    case ID_POPUP_SCH_SELECT_UNIT26:
     case ID_POPUP_SCH_ROTATE_FIELD:
     case ID_POPUP_SCH_EDIT_FIELD:
     case ID_POPUP_DELETE_BLOCK:
@@ -103,8 +76,6 @@ void WinEDA_SchematicFrame::Process_Special_Functions( wxCommandEvent& event )
     case ID_POPUP_MIRROR_Y_BLOCK:
     case ID_POPUP_SCH_DELETE_NODE:
     case ID_POPUP_SCH_DELETE_CONNECTION:
-    case wxID_CUT:
-    case wxID_COPY:
     case ID_POPUP_SCH_ENTER_SHEET:
     case ID_POPUP_SCH_LEAVE_SHEET:
     case ID_POPUP_SCH_ADD_JUNCTION:
@@ -117,181 +88,73 @@ void WinEDA_SchematicFrame::Process_Special_Functions( wxCommandEvent& event )
          */
         break;
 
-    case ID_POPUP_CANCEL_CURRENT_COMMAND:
-        if( screen->m_BlockLocate.m_Command != BLOCK_IDLE )
-            DrawPanel->SetCursor( wxCursor( DrawPanel->m_PanelCursor =
-                                                DrawPanel->
-                                                m_PanelDefaultCursor ) );
-
-        // Stop the current command (if any) but keep the current tool
-        DrawPanel->UnManageCursor( );
-
-        /* Should not be executed, except bug. */
-        if( screen->m_BlockLocate.m_Command != BLOCK_IDLE )
-        {
-            screen->m_BlockLocate.m_Command = BLOCK_IDLE;
-            screen->m_BlockLocate.m_State   = STATE_NO_BLOCK;
-            screen->m_BlockLocate.ClearItemsList();
-        }
-        break;
-
     case ID_POPUP_SCH_DELETE_CMP:
     case ID_POPUP_SCH_DELETE:
+
         // Stop the current command (if any) but keep the current tool
-        DrawPanel->UnManageCursor( );
+        DrawPanel->EndMouseCapture();
         break;
 
     default:
+
         // Stop the current command and deselect the current tool
-        DrawPanel->m_PanelCursor = DrawPanel->m_PanelDefaultCursor =
-                                       wxCURSOR_ARROW;
-        DrawPanel->UnManageCursor( 0, DrawPanel->m_PanelCursor );
+        DrawPanel->EndMouseCapture( ID_NO_TOOL_SELECTED, DrawPanel->GetDefaultCursor() );
         break;
     }
 
-    INSTALL_DC( dc, DrawPanel );
+    INSTALL_UNBUFFERED_DC( dc, DrawPanel );
+
     switch( id )
     {
     case ID_HIERARCHY:
         InstallHierarchyFrame( &dc, pos );
-        g_ItemToRepeat = NULL;
+        m_itemToRepeat = NULL;
         break;
 
     case wxID_CUT:
         if( screen->m_BlockLocate.m_Command != BLOCK_MOVE )
             break;
         HandleBlockEndByPopUp( BLOCK_DELETE, &dc );
-        g_ItemToRepeat = NULL;
+        m_itemToRepeat = NULL;
         SetSheetNumberAndCount();
         break;
 
     case wxID_PASTE:
-        HandleBlockBegin( &dc, BLOCK_PASTE, screen->m_Curseur );
-        break;
-
-    case ID_HIERARCHY_PUSH_POP_BUTT:
-        SetToolID( id, wxCURSOR_HAND, _( "Push/Pop Hierarchy" ) );
-        break;
-
-    case ID_NOCONN_BUTT:
-        SetToolID( id, wxCURSOR_PENCIL, _( "Add NoConnect Flag" ) );
-        break;
-
-    case ID_WIRE_BUTT:
-        SetToolID( id, wxCURSOR_PENCIL, _( "Add Wire" ) );
-        break;
-
-    case ID_BUS_BUTT:
-        SetToolID( id, wxCURSOR_PENCIL, _( "Add Bus" ) );
-        break;
-
-    case ID_LINE_COMMENT_BUTT:
-        SetToolID( id, wxCURSOR_PENCIL, _( "Add Drawing" ) );
-        break;
-
-    case ID_JUNCTION_BUTT:
-        SetToolID( id, wxCURSOR_PENCIL, _( "Add Junction" ) );
-        break;
-
-    case ID_LABEL_BUTT:
-        SetToolID( id, wxCURSOR_PENCIL, _( "Add Label" ) );
-        break;
-
-    case ID_GLABEL_BUTT:
-        SetToolID( id, wxCURSOR_PENCIL, _( "Add Global label" ) );
-        break;
-
-    case ID_HIERLABEL_BUTT:
-        SetToolID( id, wxCURSOR_PENCIL, _( "Add Hierarchal label" ) );
-        break;
-
-    case ID_TEXT_COMMENT_BUTT:
-        SetToolID( id, wxCURSOR_PENCIL, _( "Add Text" ) );
-        break;
-
-    case ID_WIRETOBUS_ENTRY_BUTT:
-        SetToolID( id, wxCURSOR_PENCIL, _( "Add Wire to Bus entry" ) );
-        break;
-
-    case ID_BUSTOBUS_ENTRY_BUTT:
-        SetToolID( id, wxCURSOR_PENCIL, _( "Add Bus to Bus entry" ) );
-        break;
-
-    case ID_SHEET_SYMBOL_BUTT:
-        SetToolID( id, wxCURSOR_PENCIL, _( "Add Sheet" ) );
-        break;
-
-    case ID_SHEET_LABEL_BUTT:
-        SetToolID( id, wxCURSOR_PENCIL, _( "Add PinSheet" ) );
-        break;
-
-    case ID_IMPORT_HLABEL_BUTT:
-        SetToolID( id, wxCURSOR_PENCIL, _( "Import PinSheet" ) );
-        break;
-
-    case ID_COMPONENT_BUTT:
-        SetToolID( id, wxCURSOR_PENCIL, _( "Add Component" ) );
-        break;
-
-    case ID_PLACE_POWER_BUTT:
-        SetToolID( id, wxCURSOR_PENCIL, _( "Add Power" ) );
+        HandleBlockBegin( &dc, BLOCK_PASTE, screen->GetCrossHairPosition() );
         break;
 
     case ID_POPUP_SCH_ENTRY_SELECT_SLASH:
-        DrawPanel->MouseToCursorSchema();
-        SetBusEntryShape( &dc, (SCH_BUS_ENTRY*) screen->GetCurItem(), '/' );
+        DrawPanel->MoveCursorToCrossHair();
+        SetBusEntryShape( &dc, (SCH_BUS_ENTRY*) item, '/' );
         break;
 
     case ID_POPUP_SCH_ENTRY_SELECT_ANTISLASH:
-        DrawPanel->MouseToCursorSchema();
-        SetBusEntryShape( &dc, (SCH_BUS_ENTRY*) screen->GetCurItem(), '\\' );
-        break;
-
-    case ID_NO_SELECT_BUTT:
-        SetToolID( 0, wxCURSOR_ARROW, wxEmptyString );
+        DrawPanel->MoveCursorToCrossHair();
+        SetBusEntryShape( &dc, (SCH_BUS_ENTRY*) item, '\\' );
         break;
 
     case ID_POPUP_CANCEL_CURRENT_COMMAND:
-        if( m_ID_current_state == 0 )
-            SetToolID( 0, wxCURSOR_ARROW, wxEmptyString );
+        if( DrawPanel->IsMouseCaptured() )
+        {
+            DrawPanel->EndMouseCapture();
+            SetToolID( GetToolId(), DrawPanel->GetCurrentCursor(), wxEmptyString );
+        }
+        else
+            SetToolID( ID_NO_TOOL_SELECTED, DrawPanel->GetDefaultCursor(), wxEmptyString );
         break;
 
     case ID_POPUP_END_LINE:
-        DrawPanel->MouseToCursorSchema();
+        DrawPanel->MoveCursorToCrossHair();
         EndSegment( &dc );
         break;
 
     case ID_POPUP_SCH_EDIT_TEXT:
-        EditSchematicText( (SCH_TEXT*) screen->GetCurItem() );
+        EditSchematicText( (SCH_TEXT*) item );
         break;
 
     case ID_POPUP_SCH_ROTATE_TEXT:
-        DrawPanel->MouseToCursorSchema();
-        ChangeTextOrient( (SCH_TEXT*) screen->GetCurItem(), &dc );
-        break;
-
-    case ID_POPUP_SCH_CHANGE_TYPE_TEXT_TO_LABEL:
-        DrawPanel->MouseToCursorSchema();
-        ConvertTextType( (SCH_TEXT*) screen->GetCurItem(),
-                        &dc, TYPE_SCH_LABEL );
-        break;
-
-    case ID_POPUP_SCH_CHANGE_TYPE_TEXT_TO_GLABEL:
-        DrawPanel->MouseToCursorSchema();
-        ConvertTextType( (SCH_TEXT*) screen->GetCurItem(),
-                        &dc, TYPE_SCH_GLOBALLABEL );
-        break;
-
-    case ID_POPUP_SCH_CHANGE_TYPE_TEXT_TO_HLABEL:
-        DrawPanel->MouseToCursorSchema();
-        ConvertTextType( (SCH_TEXT*) screen->GetCurItem(),
-                        &dc, TYPE_SCH_HIERLABEL );
-        break;
-
-    case ID_POPUP_SCH_CHANGE_TYPE_TEXT_TO_COMMENT:
-        DrawPanel->MouseToCursorSchema();
-        ConvertTextType( (SCH_TEXT*) screen->GetCurItem(),
-                        &dc, TYPE_SCH_TEXT );
+        DrawPanel->MoveCursorToCrossHair();
+        ChangeTextOrient( (SCH_TEXT*) item, &dc );
         break;
 
     case ID_POPUP_SCH_SET_SHAPE_TEXT:
@@ -300,320 +163,177 @@ void WinEDA_SchematicFrame::Process_Special_Functions( wxCommandEvent& event )
         break;
 
     case ID_POPUP_SCH_ROTATE_FIELD:
-        DrawPanel->MouseToCursorSchema();
-        RotateCmpField( (SCH_FIELD*) screen->GetCurItem(), &dc );
+        DrawPanel->MoveCursorToCrossHair();
+        RotateField( (SCH_FIELD*) item, &dc );
         break;
 
     case ID_POPUP_SCH_EDIT_FIELD:
-        EditCmpFieldText( (SCH_FIELD*) screen->GetCurItem(), &dc );
+        EditComponentFieldText( (SCH_FIELD*) item, &dc );
         break;
 
     case ID_POPUP_SCH_DELETE_NODE:
     case ID_POPUP_SCH_DELETE_CONNECTION:
-        DrawPanel->MouseToCursorSchema();
-        DeleteConnection( id == ID_POPUP_SCH_DELETE_CONNECTION ? TRUE : FALSE );
+        DrawPanel->MoveCursorToCrossHair();
+        DeleteConnection( id == ID_POPUP_SCH_DELETE_CONNECTION );
         screen->SetCurItem( NULL );
-        g_ItemToRepeat = NULL;
-        TestDanglingEnds( screen->EEDrawList, &dc );
+        m_itemToRepeat = NULL;
+        screen->TestDanglingEnds( DrawPanel, &dc );
         DrawPanel->Refresh();
         break;
 
     case ID_POPUP_SCH_BREAK_WIRE:
     {
-        DrawPanel->MouseToCursorSchema();
+        DrawPanel->MoveCursorToCrossHair();
         SCH_ITEM* oldWiresList = screen->ExtractWires( true );
-        BreakSegment( screen, screen->m_Curseur );
+        screen->BreakSegment( screen->GetCrossHairPosition() );
+
         if( oldWiresList )
             SaveCopyInUndoList( oldWiresList, UR_WIRE_IMAGE );
-        TestDanglingEnds( screen->EEDrawList, &dc );
+
+        screen->TestDanglingEnds( DrawPanel, &dc );
     }
-        break;
+    break;
 
     case ID_POPUP_SCH_DELETE_CMP:
-        if( screen->GetCurItem() == NULL )
+    case ID_POPUP_SCH_DELETE:
+        if( item == NULL )
             break;
 
-        // Ensure the struct is a component (could be a struct of a
-        // component, like Field, text..)
-        if( screen->GetCurItem()->Type() != TYPE_SCH_COMPONENT )
-            screen->SetCurItem( LocateSmallestComponent( screen ) );
-
-    case ID_POPUP_SCH_DELETE:
-        {
-            SCH_ITEM* item = screen->GetCurItem();
-            if( item == NULL )
-                break;
-
-            DeleteStruct( DrawPanel, &dc, item );
-            screen->SetCurItem( NULL );
-            g_ItemToRepeat = NULL;
-            TestDanglingEnds( screen->EEDrawList, &dc );
-            SetSheetNumberAndCount();
-            OnModify();
-        }
-        break;
-
-    case ID_SCHEMATIC_DELETE_ITEM_BUTT:
-        SetToolID( id, wxCURSOR_BULLSEYE, _( "Delete item" ) );
+        DeleteItem( item );
+        screen->SetCurItem( NULL );
+        m_itemToRepeat = NULL;
+        screen->TestDanglingEnds( DrawPanel, &dc );
+        SetSheetNumberAndCount();
+        OnModify();
         break;
 
     case ID_POPUP_SCH_END_SHEET:
-        DrawPanel->MouseToCursorSchema();
-        screen->GetCurItem()->Place( this, &dc );
+        DrawPanel->MoveCursorToCrossHair();
+        item->Place( this, &dc );
         break;
 
     case ID_POPUP_SCH_RESIZE_SHEET:
-        DrawPanel->MouseToCursorSchema();
-        ReSizeSheet( (SCH_SHEET*) screen->GetCurItem(), &dc );
-        TestDanglingEnds( screen->EEDrawList, &dc );
+        DrawPanel->MoveCursorToCrossHair();
+        ReSizeSheet( (SCH_SHEET*) item, &dc );
+        screen->TestDanglingEnds( DrawPanel, &dc );
         break;
 
     case ID_POPUP_SCH_EDIT_SHEET:
-        if( EditSheet( (SCH_SHEET*) screen->GetCurItem(), &dc ) )
+        if( EditSheet( (SCH_SHEET*) item, &dc ) )
             OnModify();
         break;
 
     case ID_POPUP_IMPORT_GLABEL:
-        if ( screen->GetCurItem()
-             && screen->GetCurItem()->Type() == DRAW_SHEET_STRUCT_TYPE )
-            GetScreen()->SetCurItem(
-                Import_PinSheet( (SCH_SHEET*)screen->GetCurItem(), &dc ) );
+        if( item != NULL && item->Type() == SCH_SHEET_T )
+            screen->SetCurItem( ImportSheetPin( (SCH_SHEET*) item, &dc ) );
         break;
 
     case ID_POPUP_SCH_CLEANUP_SHEET:
-        if ( screen->GetCurItem()
-             && screen->GetCurItem()->Type() == DRAW_SHEET_STRUCT_TYPE )
-            ( (SCH_SHEET*) screen->GetCurItem() )->CleanupSheet( this, true, true );
+        if( item != NULL && item->Type() == SCH_SHEET_T )
+        {
+            SCH_SHEET* sheet = (SCH_SHEET*) item;
+
+            if( !sheet->HasUndefinedPins() )
+            {
+                DisplayInfoMessage( this,
+                                    _( "There are no undefined labels in this sheet to clean up." ) );
+                return;
+            }
+
+            if( !IsOK( this, _( "Do you wish to cleanup this sheet?" ) ) )
+                return;
+
+            /* Save sheet in undo list before cleaning up unreferenced hierarchical labels. */
+            SaveCopyInUndoList( sheet, UR_CHANGED );
+            sheet->CleanupSheet();
+            OnModify();
+            DrawPanel->RefreshDrawingRect( sheet->GetBoundingBox() );
+        }
         break;
 
-    case ID_POPUP_SCH_EDIT_PINSHEET:
-        Edit_PinSheet( (SCH_SHEET_PIN*) screen->GetCurItem(), &dc );
+    case ID_POPUP_SCH_EDIT_SHEET_PIN:
+        EditSheetPin( (SCH_SHEET_PIN*) item, &dc );
         break;
 
-    case ID_POPUP_SCH_MOVE_PINSHEET:
-        DrawPanel->MouseToCursorSchema();
-        StartMove_PinSheet( (SCH_SHEET_PIN*)screen->GetCurItem(), &dc );
+    case ID_POPUP_SCH_MOVE_SHEET_PIN:
+        DrawPanel->MoveCursorToCrossHair();
+        MoveSheetPin( (SCH_SHEET_PIN*) item, &dc );
         break;
 
     case ID_POPUP_SCH_DRAG_CMP_REQUEST:
-    case ID_POPUP_SCH_MOVE_CMP_REQUEST:
-        // Ensure the struct is a component (could be a struct of a
-        // component, like Field, text..) or a hierachical sheet
-        if( (screen->GetCurItem()->Type() != TYPE_SCH_COMPONENT)
-            && (screen->GetCurItem()->Type() != DRAW_SHEET_STRUCT_TYPE) )
-            screen->SetCurItem( LocateSmallestComponent( screen ) );
-        if( screen->GetCurItem() == NULL )
-            break;
-        // fall through
-    case ID_POPUP_SCH_MOVE_ITEM_REQUEST:
-        DrawPanel->MouseToCursorSchema();
-        if( id == ID_POPUP_SCH_DRAG_CMP_REQUEST )
-        {
-            // The easiest way to handle a drag component or sheet command
-            // is to simulate a block drag command
-            if( screen->m_BlockLocate.m_State == STATE_NO_BLOCK )
-            {
-                if( !HandleBlockBegin( &dc, BLOCK_DRAG,
-                                       screen->m_Curseur ) )
-                    break;
-                // Give a non null size to the search block:
-                screen->m_BlockLocate.Inflate(1);
-                HandleBlockEnd( &dc );
-            }
-        }
-        else
-            Process_Move_Item( (SCH_ITEM*) screen->GetCurItem(), &dc );
-        break;
-
     case ID_POPUP_SCH_DRAG_WIRE_REQUEST:
-        DrawPanel->MouseToCursorSchema();
-        // The easiest way to handle a drag component is to simulate a
-        // block drag command
+        DrawPanel->MoveCursorToCrossHair();
+
+        // The easiest way to handle a drag component or sheet command
+        // is to simulate a block drag command
         if( screen->m_BlockLocate.m_State == STATE_NO_BLOCK )
         {
-            if( !HandleBlockBegin( &dc, BLOCK_DRAG,
-                                   screen->m_Curseur ) )
+            if( !HandleBlockBegin( &dc, BLOCK_DRAG, screen->GetCrossHairPosition() ) )
                 break;
-            // Ensure the block selection contains the segment, or one end of
-            // the segment.  The initial rect is only one point (w = h = 0)
-            // The rect must contains one or 2 ends.
-            // If only one end is selected, this is a drag Node
-            // if no ends selected, we adjust the rect area to contain the
-            // whole segment.  This works fine only for H and V segments and
-            // only if they do not cross a component
-            // TODO: a better way to drag only wires
-            SCH_LINE* segm = (SCH_LINE*)screen->GetCurItem();
-            if( !screen->m_BlockLocate.Inside(segm->m_Start) &&
-                !screen->m_BlockLocate.Inside(segm->m_End) )
-            {
-                screen->m_BlockLocate.SetOrigin(segm->m_Start);
-                screen->m_BlockLocate.SetEnd(segm->m_End);
-            }
+
+            // Give a non null size to the search block:
+            screen->m_BlockLocate.Inflate( 1 );
             HandleBlockEnd( &dc );
         }
+
         break;
 
-   case ID_POPUP_SCH_EDIT_CMP:
-
+    case ID_POPUP_SCH_EDIT_CMP:
         // Ensure the struct is a component (could be a struct of a
         // component, like Field, text..)
-        if( screen->GetCurItem()->Type() != TYPE_SCH_COMPONENT )
-            screen->SetCurItem( LocateSmallestComponent( screen ) );
-        if( screen->GetCurItem() == NULL )
-            break;
-        InstallCmpeditFrame( this, pos,
-                            (SCH_COMPONENT*) screen->GetCurItem() );
+        if( item && item->Type() == SCH_COMPONENT_T )
+            InstallCmpeditFrame( this, (SCH_COMPONENT*) item );
+
         break;
-
-    case ID_POPUP_SCH_MIROR_X_CMP:
-    case ID_POPUP_SCH_MIROR_Y_CMP:
-    case ID_POPUP_SCH_ROTATE_CMP_CLOCKWISE:
-    case ID_POPUP_SCH_ROTATE_CMP_COUNTERCLOCKWISE:
-    case ID_POPUP_SCH_ORIENT_NORMAL_CMP:
-
-        // Ensure the struct is a component (could be a struct of a
-        // component, like Field, text..)
-        if( screen->GetCurItem()->Type() != TYPE_SCH_COMPONENT )
-            screen->SetCurItem( LocateSmallestComponent( screen ) );
-        if( screen->GetCurItem() == NULL )
-            break;
-        {
-            int option;
-
-            switch( id )
-            {
-            case ID_POPUP_SCH_MIROR_X_CMP:
-                option = CMP_MIRROR_X; break;
-
-            case ID_POPUP_SCH_MIROR_Y_CMP:
-                option = CMP_MIRROR_Y; break;
-
-            case ID_POPUP_SCH_ROTATE_CMP_COUNTERCLOCKWISE:
-                option = CMP_ROTATE_COUNTERCLOCKWISE; break;
-
-            case ID_POPUP_SCH_ROTATE_CMP_CLOCKWISE:
-                option = CMP_ROTATE_CLOCKWISE; break;
-
-            default:
-            case ID_POPUP_SCH_ORIENT_NORMAL_CMP:
-                option = CMP_NORMAL; break;
-            }
-
-            DrawPanel->MouseToCursorSchema();
-            if( screen->GetCurItem()->m_Flags == 0 )
-                SaveCopyInUndoList( (SCH_ITEM*) screen->GetCurItem(),
-                                    UR_CHANGED );
-
-            CmpRotationMiroir( (SCH_COMPONENT*) screen->GetCurItem(),
-                               &dc, option );
-            break;
-        }
 
     case ID_POPUP_SCH_INIT_CMP:
-        DrawPanel->MouseToCursorSchema();
+        DrawPanel->MoveCursorToCrossHair();
         break;
 
     case ID_POPUP_SCH_EDIT_VALUE_CMP:
 
         // Ensure the struct is a component (could be a struct of a
         // component, like Field, text..)
-        if( screen->GetCurItem()->Type() != TYPE_SCH_COMPONENT )
-            screen->SetCurItem( LocateSmallestComponent( screen ) );
-        if( screen->GetCurItem() == NULL )
-            break;
+        if( item != NULL && item->Type() == SCH_COMPONENT_T )
+            EditComponentFieldText( ( (SCH_COMPONENT*) item )->GetField( VALUE ), &dc );
 
-        EditComponentValue(
-            (SCH_COMPONENT*) screen->GetCurItem(), &dc );
         break;
 
     case ID_POPUP_SCH_EDIT_REF_CMP:
 
-        // Ensure the struct is a component (could be a struct of a
-        // component, like Field, text..)
-        if( screen->GetCurItem()->Type() != TYPE_SCH_COMPONENT )
-            screen->SetCurItem( LocateSmallestComponent( screen ) );
-        if( screen->GetCurItem() == NULL )
-            break;
+        // Ensure the struct is a component (could be a struct of a component, like Field, text..)
+        if( item != NULL && item->Type() == SCH_COMPONENT_T )
+            EditComponentFieldText( ( (SCH_COMPONENT*) item )->GetField( REFERENCE ), &dc );
 
-        EditComponentReference( (SCH_COMPONENT*) screen->GetCurItem(), &dc );
         break;
 
     case ID_POPUP_SCH_EDIT_FOOTPRINT_CMP:
 
-        // Ensure the struct is a component (could be a struct of a
-        // component, like Field, text..)
-        if( screen->GetCurItem()->Type() != TYPE_SCH_COMPONENT )
-            screen->SetCurItem( LocateSmallestComponent( screen ) );
-        if( screen->GetCurItem() == NULL )
-            break;
-        EditComponentFootprint( (SCH_COMPONENT*) screen->GetCurItem(), &dc );
+        // Ensure the struct is a component (could be a struct of a component, like Field, text..)
+        if( item && item->Type() == SCH_COMPONENT_T )
+            EditComponentFieldText( ( (SCH_COMPONENT*) item )->GetField( FOOTPRINT ), &dc );
+
         break;
 
 
     case ID_POPUP_SCH_EDIT_CONVERT_CMP:
 
-        // Ensure the struct is a component (could be a struct of a
-        // component, like Field, text..)
-        if( screen->GetCurItem()->Type() != TYPE_SCH_COMPONENT )
-            screen->SetCurItem( LocateSmallestComponent( screen ) );
-        if( screen->GetCurItem() == NULL )
-            break;
-        DrawPanel->MouseToCursorSchema();
-        ConvertPart(
-            (SCH_COMPONENT*) screen->GetCurItem(),
-            &dc );
-        break;
+        // Ensure the struct is a component (could be a struct of a component, like Field, text..)
+        if( item && item->Type() == SCH_COMPONENT_T )
+        {
+            DrawPanel->MoveCursorToCrossHair();
+            ConvertPart( (SCH_COMPONENT*) item, &dc );
+        }
 
-    case ID_POPUP_SCH_SELECT_UNIT1:
-    case ID_POPUP_SCH_SELECT_UNIT2:
-    case ID_POPUP_SCH_SELECT_UNIT3:
-    case ID_POPUP_SCH_SELECT_UNIT4:
-    case ID_POPUP_SCH_SELECT_UNIT5:
-    case ID_POPUP_SCH_SELECT_UNIT6:
-    case ID_POPUP_SCH_SELECT_UNIT7:
-    case ID_POPUP_SCH_SELECT_UNIT8:
-    case ID_POPUP_SCH_SELECT_UNIT9:
-    case ID_POPUP_SCH_SELECT_UNIT10:
-    case ID_POPUP_SCH_SELECT_UNIT11:
-    case ID_POPUP_SCH_SELECT_UNIT12:
-    case ID_POPUP_SCH_SELECT_UNIT13:
-    case ID_POPUP_SCH_SELECT_UNIT14:
-    case ID_POPUP_SCH_SELECT_UNIT15:
-    case ID_POPUP_SCH_SELECT_UNIT16:
-    case ID_POPUP_SCH_SELECT_UNIT17:
-    case ID_POPUP_SCH_SELECT_UNIT18:
-    case ID_POPUP_SCH_SELECT_UNIT19:
-    case ID_POPUP_SCH_SELECT_UNIT20:
-    case ID_POPUP_SCH_SELECT_UNIT21:
-    case ID_POPUP_SCH_SELECT_UNIT22:
-    case ID_POPUP_SCH_SELECT_UNIT23:
-    case ID_POPUP_SCH_SELECT_UNIT24:
-    case ID_POPUP_SCH_SELECT_UNIT25:
-    case ID_POPUP_SCH_SELECT_UNIT26:
-
-        // Ensure the struct is a component (could be a struct of a
-        // component, like Field, text..)
-        if( screen->GetCurItem()->Type() != TYPE_SCH_COMPONENT )
-            screen->SetCurItem( LocateSmallestComponent( screen ) );
-        if( screen->GetCurItem() == NULL )
-            break;
-        DrawPanel->MouseToCursorSchema();
-        SelPartUnit( (SCH_COMPONENT*) screen->GetCurItem(),
-                     id + 1 - ID_POPUP_SCH_SELECT_UNIT1, &dc );
         break;
 
     case ID_POPUP_SCH_DISPLAYDOC_CMP:
 
-        // Ensure the struct is a component (could be a piece of a
-        // component, like Field, text..)
-        if( screen->GetCurItem()->Type() != TYPE_SCH_COMPONENT )
-            screen->SetCurItem( LocateSmallestComponent( screen ) );
-        if( screen->GetCurItem() == NULL )
-            break;
+        // Ensure the struct is a component (could be a piece of a component, like Field, text..)
+        if( item && item->Type() == SCH_COMPONENT_T )
         {
-            CMP_LIB_ENTRY* LibEntry;
-            LibEntry = CMP_LIBRARY::FindLibraryEntry(
-                ( (SCH_COMPONENT*) screen->GetCurItem() )->m_ChipName );
+            LIB_ALIAS* LibEntry;
+            LibEntry = CMP_LIBRARY::FindLibraryEntry( ( (SCH_COMPONENT*) item )->GetLibName() );
 
             if( LibEntry && LibEntry->GetDocFileName() != wxEmptyString )
             {
@@ -624,21 +344,22 @@ void WinEDA_SchematicFrame::Process_Special_Functions( wxCommandEvent& event )
         break;
 
     case ID_POPUP_SCH_ENTER_SHEET:
-    {
-        EDA_BaseStruct* DrawStruct = screen->GetCurItem();
-        if( DrawStruct && (DrawStruct->Type() == DRAW_SHEET_STRUCT_TYPE) )
+
+        if( item && (item->Type() == SCH_SHEET_T) )
         {
-            InstallNextScreen( (SCH_SHEET*) DrawStruct );
+            m_CurrentSheet->Push( (SCH_SHEET*) item );
+            DisplayCurrentSheet();
         }
-    }
+
         break;
 
     case ID_POPUP_SCH_LEAVE_SHEET:
-        InstallPreviousSheet();
+        m_CurrentSheet->Pop();
+        DisplayCurrentSheet();
         break;
 
     case ID_POPUP_CLOSE_CURRENT_TOOL:
-        SetToolID( 0, wxCURSOR_ARROW, wxEmptyString );
+        SetToolID( ID_NO_TOOL_SELECTED, DrawPanel->GetDefaultCursor(), wxEmptyString );
         break;
 
     case wxID_COPY:         // really this is a Save block for paste
@@ -646,8 +367,8 @@ void WinEDA_SchematicFrame::Process_Special_Functions( wxCommandEvent& event )
         break;
 
     case ID_POPUP_PLACE_BLOCK:
-        DrawPanel->m_AutoPAN_Request = FALSE;
-        DrawPanel->MouseToCursorSchema();
+        DrawPanel->m_AutoPAN_Request = false;
+        DrawPanel->MoveCursorToCrossHair();
         HandleBlockPlace( &dc );
         break;
 
@@ -656,123 +377,290 @@ void WinEDA_SchematicFrame::Process_Special_Functions( wxCommandEvent& event )
         break;
 
     case ID_POPUP_DELETE_BLOCK:
-        DrawPanel->MouseToCursorSchema();
+        DrawPanel->MoveCursorToCrossHair();
         HandleBlockEndByPopUp( BLOCK_DELETE, &dc );
         SetSheetNumberAndCount();
         break;
 
     case ID_POPUP_ROTATE_BLOCK:
-        DrawPanel->MouseToCursorSchema();
+        DrawPanel->MoveCursorToCrossHair();
         HandleBlockEndByPopUp( BLOCK_ROTATE, &dc );
         break;
 
     case ID_POPUP_MIRROR_X_BLOCK:
+        DrawPanel->MoveCursorToCrossHair();
+        HandleBlockEndByPopUp( BLOCK_MIRROR_X, &dc );
+        break;
+
     case ID_POPUP_MIRROR_Y_BLOCK:
-        DrawPanel->MouseToCursorSchema();
+        DrawPanel->MoveCursorToCrossHair();
         HandleBlockEndByPopUp( BLOCK_MIRROR_Y, &dc );
         break;
 
     case ID_POPUP_COPY_BLOCK:
-        DrawPanel->MouseToCursorSchema();
+        DrawPanel->MoveCursorToCrossHair();
         HandleBlockEndByPopUp( BLOCK_COPY, &dc );
         break;
 
     case ID_POPUP_DRAG_BLOCK:
-        DrawPanel->MouseToCursorSchema();
+        DrawPanel->MoveCursorToCrossHair();
         HandleBlockEndByPopUp( BLOCK_DRAG, &dc );
         break;
 
     case ID_POPUP_SCH_ADD_JUNCTION:
-        DrawPanel->MouseToCursorSchema();
-        screen->SetCurItem( CreateNewJunctionStruct( &dc, screen->m_Curseur,
-                                                     true ) );
-        TestDanglingEnds( screen->EEDrawList, &dc );
+        DrawPanel->MoveCursorToCrossHair();
+        screen->SetCurItem( AddJunction( &dc, screen->GetCrossHairPosition(), true ) );
+        screen->TestDanglingEnds( DrawPanel, &dc );
         screen->SetCurItem( NULL );
         break;
 
     case ID_POPUP_SCH_ADD_LABEL:
     case ID_POPUP_SCH_ADD_GLABEL:
-        screen->SetCurItem(
-            CreateNewText( &dc,
-                           id == ID_POPUP_SCH_ADD_LABEL ?
-                           LAYER_LOCLABEL : LAYER_GLOBLABEL ) );
-        if( screen->GetCurItem() )
+        screen->SetCurItem( CreateNewText( &dc, id == ID_POPUP_SCH_ADD_LABEL ?
+                                           LAYER_LOCLABEL : LAYER_GLOBLABEL ) );
+        item = screen->GetCurItem();
+
+        if( item )
         {
-            ((SCH_ITEM*)screen->GetCurItem())->Place( this, &dc );
-            TestDanglingEnds( screen->EEDrawList, &dc );
+            item->Place( this, &dc );
+            screen->TestDanglingEnds( DrawPanel, &dc );
             screen->SetCurItem( NULL );
         }
+
         break;
 
     case ID_POPUP_SCH_GETINFO_MARKER:
-        if( screen->GetCurItem()
-            && screen->GetCurItem()->Type() == TYPE_SCH_MARKER )
-            ((SCH_MARKER*)screen->GetCurItem())->DisplayMarkerInfo( this );
+        if( item && item->Type() == SCH_MARKER_T )
+            ( (SCH_MARKER*) item )->DisplayMarkerInfo( this );
+
         break;
 
     default:        // Log error:
-        DisplayError( this,
-                      wxT( "WinEDA_SchematicFrame::Process_Special_Functions error" ) );
+        DisplayError( this, wxT( "SCH_EDIT_FRAME::Process_Special_Functions error" ) );
         break;
     }
 
     // End switch ( id )    (Command execution)
 
-    if( m_ID_current_state == 0 )
-        g_ItemToRepeat = NULL;
-    SetToolbars();
+    if( GetToolId() == ID_NO_TOOL_SELECTED )
+        m_itemToRepeat = NULL;
 }
 
 
-void WinEDA_SchematicFrame::Process_Move_Item( SCH_ITEM* DrawStruct, wxDC*  DC )
+void SCH_EDIT_FRAME::OnMoveItem( wxCommandEvent& aEvent )
 {
-    if( DrawStruct == NULL )
+    SCH_SCREEN* screen = GetScreen();
+    SCH_ITEM* item = screen->GetCurItem();
+
+    if( item == NULL )
         return;
 
-    DrawPanel->MouseToCursorSchema();
+    INSTALL_UNBUFFERED_DC( dc, DrawPanel );
 
-    switch( DrawStruct->Type() )
+    DrawPanel->MoveCursorToCrossHair();
+
+    switch( item->Type() )
     {
-    case DRAW_JUNCTION_STRUCT_TYPE:
+    case SCH_JUNCTION_T:
         break;
 
-    case DRAW_BUSENTRY_STRUCT_TYPE:
-        StartMoveBusEntry( (SCH_BUS_ENTRY*) DrawStruct, DC );
+    case SCH_BUS_ENTRY_T:
+        StartMoveBusEntry( (SCH_BUS_ENTRY*) item, &dc );
         break;
 
-    case TYPE_SCH_LABEL:
-    case TYPE_SCH_GLOBALLABEL:
-    case TYPE_SCH_HIERLABEL:
-    case TYPE_SCH_TEXT:
-        StartMoveTexte( (SCH_TEXT*) DrawStruct, DC );
+    case SCH_LABEL_T:
+    case SCH_GLOBAL_LABEL_T:
+    case SCH_HIERARCHICAL_LABEL_T:
+    case SCH_TEXT_T:
+        MoveText( (SCH_TEXT*) item, &dc );
         break;
 
-    case TYPE_SCH_COMPONENT:
-        StartMovePart( (SCH_COMPONENT*) DrawStruct, DC );
+    case SCH_COMPONENT_T:
+        StartMovePart( (SCH_COMPONENT*) item, &dc );
         break;
 
-    case DRAW_SEGMENT_STRUCT_TYPE:
+    case SCH_LINE_T:
         break;
 
-    case DRAW_SHEET_STRUCT_TYPE:
-        StartMoveSheet( (SCH_SHEET*) DrawStruct, DC );
+    case SCH_SHEET_T:
+        StartMoveSheet( (SCH_SHEET*) item, &dc );
         break;
 
-    case DRAW_NOCONNECT_STRUCT_TYPE:
+    case SCH_NO_CONNECT_T:
         break;
 
-    case DRAW_PART_TEXT_STRUCT_TYPE:
-        StartMoveCmpField( (SCH_FIELD*) DrawStruct, DC );
+    case SCH_FIELD_T:
+        MoveField( (SCH_FIELD*) item, &dc );
         break;
 
-    case TYPE_SCH_MARKER:
-    case DRAW_HIERARCHICAL_PIN_SHEET_STRUCT_TYPE:
+    case SCH_MARKER_T:
+    case SCH_SHEET_PIN_T:
     default:
-        wxString msg;
-        msg.Printf(
-            wxT( "WinEDA_SchematicFrame::Move_Item Error: Bad DrawType %d" ),
-            DrawStruct->Type() );
-        DisplayError( this, msg );
+        wxFAIL_MSG( wxString::Format( wxT( "Cannot move item type %s" ),
+                                      GetChars( item->GetClass() ) ) );
         break;
     }
+
+    if( GetToolId() == ID_NO_TOOL_SELECTED )
+        m_itemToRepeat = NULL;
+}
+
+
+void SCH_EDIT_FRAME::OnCancelCurrentCommand( wxCommandEvent& aEvent )
+{
+    SCH_SCREEN* screen = GetScreen();
+
+    if( screen->IsBlockActive() )
+    {
+        DrawPanel->SetCursor( wxCursor( DrawPanel->GetDefaultCursor() ) );
+        screen->ClearBlockCommand();
+
+        // Stop the current command (if any) but keep the current tool
+        DrawPanel->EndMouseCapture();
+    }
+    else
+    {
+        if( DrawPanel->IsMouseCaptured() ) // Stop the current command but keep the current tool
+            DrawPanel->EndMouseCapture();
+        else                    // Deselect current tool
+            DrawPanel->EndMouseCapture( ID_NO_TOOL_SELECTED, DrawPanel->GetDefaultCursor() );
+     }
+}
+
+
+void SCH_EDIT_FRAME::OnSelectTool( wxCommandEvent& aEvent )
+{
+    int id = aEvent.GetId();
+
+    // Stop the current command and deselect the current tool.
+    DrawPanel->EndMouseCapture( ID_NO_TOOL_SELECTED, DrawPanel->GetDefaultCursor() );
+
+    switch( id )
+    {
+    case ID_NO_TOOL_SELECTED:
+        SetToolID( id, DrawPanel->GetDefaultCursor(), _( "No tool selected" ) );
+        break;
+
+    case ID_HIERARCHY_PUSH_POP_BUTT:
+        SetToolID( id, wxCURSOR_HAND, _( "Descend or ascend hierarchy" ) );
+        break;
+
+    case ID_NOCONN_BUTT:
+        SetToolID( id, wxCURSOR_PENCIL, _( "Add no connect" ) );
+        break;
+
+    case ID_WIRE_BUTT:
+        SetToolID( id, wxCURSOR_PENCIL, _( "Add wire" ) );
+        break;
+
+    case ID_BUS_BUTT:
+        SetToolID( id, wxCURSOR_PENCIL, _( "Add bus" ) );
+        break;
+
+    case ID_LINE_COMMENT_BUTT:
+        SetToolID( id, wxCURSOR_PENCIL, _( "Add lines" ) );
+        break;
+
+    case ID_JUNCTION_BUTT:
+        SetToolID( id, wxCURSOR_PENCIL, _( "Add junction" ) );
+        break;
+
+    case ID_LABEL_BUTT:
+        SetToolID( id, wxCURSOR_PENCIL, _( "Add label" ) );
+        break;
+
+    case ID_GLABEL_BUTT:
+        SetToolID( id, wxCURSOR_PENCIL, _( "Add global label" ) );
+        break;
+
+    case ID_HIERLABEL_BUTT:
+        SetToolID( id, wxCURSOR_PENCIL, _( "Add hierarchical label" ) );
+        break;
+
+    case ID_TEXT_COMMENT_BUTT:
+        SetToolID( id, wxCURSOR_PENCIL, _( "Add text" ) );
+        break;
+
+    case ID_WIRETOBUS_ENTRY_BUTT:
+        SetToolID( id, wxCURSOR_PENCIL, _( "Add wire to bus entry" ) );
+        break;
+
+    case ID_BUSTOBUS_ENTRY_BUTT:
+        SetToolID( id, wxCURSOR_PENCIL, _( "Add bus to bus entry" ) );
+        break;
+
+    case ID_SHEET_SYMBOL_BUTT:
+        SetToolID( id, wxCURSOR_PENCIL, _( "Add sheet" ) );
+        break;
+
+    case ID_SHEET_PIN_BUTT:
+        SetToolID( id, wxCURSOR_PENCIL, _( "Add sheet pins" ) );
+        break;
+
+    case ID_IMPORT_HLABEL_BUTT:
+        SetToolID( id, wxCURSOR_PENCIL, _( "Import sheet pins" ) );
+        break;
+
+    case ID_SCH_PLACE_COMPONENT:
+        SetToolID( id, wxCURSOR_PENCIL, _( "Add component" ) );
+        break;
+
+    case ID_PLACE_POWER_BUTT:
+        SetToolID( id, wxCURSOR_PENCIL, _( "Add power" ) );
+        break;
+
+    case ID_SCHEMATIC_DELETE_ITEM_BUTT:
+        SetToolID( id, wxCURSOR_BULLSEYE, _( "Delete item" ) );
+        break;
+
+    default:
+        m_itemToRepeat = NULL;
+    }
+}
+
+
+void SCH_EDIT_FRAME::OnUpdateSelectTool( wxUpdateUIEvent& aEvent )
+{
+    if( aEvent.GetEventObject() == m_VToolBar )
+        aEvent.Check( GetToolId() == aEvent.GetId() );
+}
+
+
+void SCH_EDIT_FRAME::DeleteConnection( bool aFullConnection )
+{
+    PICKED_ITEMS_LIST pickList;
+    SCH_SCREEN* screen = GetScreen();
+    wxPoint pos = screen->GetCrossHairPosition();
+
+    if( screen->GetConnection( pos, pickList, aFullConnection ) != 0 )
+    {
+        DeleteItemsInList( DrawPanel, pickList );
+        OnModify();
+    }
+}
+
+
+bool SCH_EDIT_FRAME::DeleteItemAtCrossHair( wxDC* DC )
+{
+    SCH_ITEM* item;
+    SCH_SCREEN* screen = GetScreen();
+
+    item = LocateItem( screen->GetCrossHairPosition(), SCH_COLLECTOR::ParentItems );
+
+    if( item )
+    {
+        bool itemHasConnections = item->IsConnectable();
+
+        screen->SetCurItem( NULL );
+        SetRepeatItem( NULL );
+        DeleteItem( item );
+
+        if( itemHasConnections )
+            screen->TestDanglingEnds( DrawPanel, DC );
+
+        OnModify();
+        return true;
+    }
+
+    return false;
 }

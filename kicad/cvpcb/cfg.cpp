@@ -8,8 +8,7 @@
 #include "gestfich.h"
 #include "param_config.h"
 #include "cvpcb.h"
-#include "protos.h"
-#include "cvstruct.h"
+#include "cvpcb_mainframe.h"
 
 
 #define GROUP wxT("/cvpcb")
@@ -26,7 +25,7 @@
  * to define local variables.  The old method of statically building the array
  * at compile time requiring global variable definitions.
  */
-PARAM_CFG_ARRAY& WinEDA_CvpcbFrame::GetProjectFileParameters( void )
+PARAM_CFG_ARRAY& CVPCB_MAINFRAME::GetProjectFileParameters( void )
 {
     if( !m_projectFileParams.empty() )
         return m_projectFileParams;
@@ -41,7 +40,7 @@ PARAM_CFG_ARRAY& WinEDA_CvpcbFrame::GetProjectFileParameters( void )
                                                                GROUPEQU ) );
     m_projectFileParams.push_back( new PARAM_CFG_WXSTRING( wxT( "NetIExt" ),
                                                            &m_NetlistFileExtension ) );
-    m_projectFileParams.push_back( new PARAM_CFG_WXSTRING( wxT( "LibDir" ),
+    m_projectFileParams.push_back( new PARAM_CFG_FILENAME( wxT( "LibDir" ),
                                                            &m_UserLibraryPath,
                                                            GROUPLIB ) );
 
@@ -59,7 +58,7 @@ PARAM_CFG_ARRAY& WinEDA_CvpcbFrame::GetProjectFileParameters( void )
  * The path of the executable must be in cvpcb.exe.
  *
  */
-void WinEDA_CvpcbFrame::LoadProjectFile( const wxString& FileName )
+void CVPCB_MAINFRAME::LoadProjectFile( const wxString& FileName )
 {
     wxFileName fn = FileName;
 
@@ -82,13 +81,13 @@ void WinEDA_CvpcbFrame::LoadProjectFile( const wxString& FileName )
 }
 
 
-void WinEDA_CvpcbFrame::Update_Config( wxCommandEvent& event )
+void CVPCB_MAINFRAME::Update_Config( wxCommandEvent& event )
 {
     SaveProjectFile( m_NetlistFileName.GetFullPath() );
 }
 
 
-void WinEDA_CvpcbFrame::SaveProjectFile( const wxString& fileName )
+void CVPCB_MAINFRAME::SaveProjectFile( const wxString& fileName )
 {
     wxFileName fn = fileName;
 

@@ -93,7 +93,7 @@ int BOARD_CONNECTED_ITEM::GetClearance( BOARD_CONNECTED_ITEM* aItem ) const
     else
     {
 #ifdef __WXDEBUG__
-        wxLogWarning(wxT("BOARD_CONNECTED_ITEM::GetClearance(): NULL netclass") );
+        wxLogWarning(wxT("BOARD_CONNECTED_ITEM::GetClearance():NULL netclass,type %d"), Type() );
 #endif
     }
 
@@ -116,7 +116,7 @@ NETCLASS* BOARD_CONNECTED_ITEM::GetNetClass() const
     if( board == NULL )     // Should not occurs
     {
 #ifdef __WXDEBUG__
-        wxLogWarning(wxT("BOARD_CONNECTED_ITEM::GetNetClass(): NULL board, type %d"), Type() );
+        wxLogWarning(wxT("BOARD_CONNECTED_ITEM::GetNetClass():NULL board,type %d"), Type() );
 #endif
         return NULL;
     }
@@ -128,7 +128,9 @@ NETCLASS* BOARD_CONNECTED_ITEM::GetNetClass() const
         netclass = net->GetNetClass();
 #ifdef __WXDEBUG__
         if( netclass == NULL )
-            wxLogWarning(wxT("BOARD_CONNECTED_ITEM::GetNetClass(): NULL netclass") );
+        {
+            wxLogWarning(wxT("BOARD_CONNECTED_ITEM::GetNetClass():NULL netclass,type %d"), Type());
+        }
 #endif
     }
 
@@ -138,7 +140,8 @@ NETCLASS* BOARD_CONNECTED_ITEM::GetNetClass() const
         return board->m_NetClasses.GetDefault();
 }
 
-/** function GetNetClassName
+/**
+ * Function GetNetClassName
  * @return the Net Class name of this item
  */
 wxString BOARD_CONNECTED_ITEM::GetNetClassName( ) const

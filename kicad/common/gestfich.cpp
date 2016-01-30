@@ -114,7 +114,8 @@ static wxString    s_KicadBinaryPathList[] = {
 };
 
 
-/** Function MakeReducedFileName
+/**
+ * Function MakeReducedFileName
  * Calculate the "reduced" filename from
  * @param  fullfilename = full filename
  * @param  default_path = default path
@@ -180,7 +181,8 @@ wxString MakeReducedFileName( const wxString& fullfilename,
 }
 
 
-/** Function AddDelimiterString
+/**
+ * Function AddDelimiterString
  * Add un " to the start and the end of string (if not already done).
  * @param string = string to modify
  */
@@ -263,10 +265,10 @@ wxString EDA_FileSelector( const wxString& Title,
 
 #if 0 && defined (DEBUG)
     printf( "defaultpath=\"%s\" defaultname=\"%s\" Ext=\"%s\" Mask=\"%s\" flag=%d keep_working_directory=%d\n",
-            CONV_TO_UTF8( defaultpath ),
-            CONV_TO_UTF8( defaultname ),
-            CONV_TO_UTF8( Ext ),
-            CONV_TO_UTF8( Mask ),
+            TO_UTF8( defaultpath ),
+            TO_UTF8( defaultname ),
+            TO_UTF8( Ext ),
+            TO_UTF8( Mask ),
             flag,
             keep_working_directory );
 #endif
@@ -287,13 +289,14 @@ wxString EDA_FileSelector( const wxString& Title,
 }
 
 
-/** Function FindKicadHelpPath
- * Find an absolute path for KiCad "help" (or "help/<language>")
+/**
+ * Function FindKicadHelpPath
+ * Find an absolute path for KiCad "help" (or "help/&ltlanguage&gt")
  *  Find path kicad/doc/help/xx/ or kicad/doc/help/:
  *  from BinDir
  *  else from environment variable KICAD
  *  else from one of s_HelpPathList
- *  typically c:\kicad\doc\help or /usr/share/kicad/help
+ *  typically c:/kicad/doc/help or /usr/share/kicad/help
  *            or /usr/local/share/kicad/help
  *  (must have kicad in path name)
  *
@@ -443,7 +446,7 @@ int ExecuteFile( wxWindow* frame, const wxString& ExecFile,
     }
 
     wxString msg;
-    msg.Printf( _( "Command <%s> could not found" ), GetChars( ExecFile ) );
+    msg.Printf( _( "Command <%s> could not found" ), GetChars( FullFileName ) );
     DisplayError( frame, msg, 20 );
     return -1;
 }
@@ -563,7 +566,8 @@ wxString& WinEDA_App::GetEditorName()
 }
 
 
-/** Function OpenPDF
+/**
+ * Function OpenPDF
  * run the PDF viewer and display a PDF file
  * @param file = PDF file to open
  * @return true is success, false if no PDF viewer found

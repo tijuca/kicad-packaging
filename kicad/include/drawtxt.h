@@ -9,10 +9,11 @@
 
 #include "base_struct.h"
 
-class WinEDA_DrawPanel;
+class EDA_DRAW_PANEL;
 class PLOTTER;
 
-/** Function  Clamp_Text_PenSize
+/**
+ * Function  Clamp_Text_PenSize
  *As a rule, pen width should not be >1/4em, otherwise the character
  * will be cluttered up in its own fatness
  * The pen width max is aSize/4 for bold texts, and aSize/6 for normal texts
@@ -26,23 +27,27 @@ class PLOTTER;
 int Clamp_Text_PenSize( int aPenSize, int aSize, bool aBold = true );
 int Clamp_Text_PenSize( int aPenSize, wxSize aSize, bool aBold = true );
 
-/** Function GetPensizeForBold
+/**
+ * Function GetPensizeForBold
  * @return the "best" value for a pen size to draw/plot a bold text
  * @param aTextSize = the char size (height or width)
  */
 int GetPenSizeForBold( int aTextSize );
 
-/** Function ReturnGraphicTextWidth
+/**
+ * Function ReturnGraphicTextWidth
  * @return the X size of the graphic text
  * the full X size is ReturnGraphicTextWidth + the thickness of graphic lines
  */
 int ReturnGraphicTextWidth( const wxString& aText, int size_h, bool italic, bool bold );
 
-/** Function NegableTextLength
+/**
+ * Function NegableTextLength
  * Return the text length of a negable string, excluding the ~ markers */
 int NegableTextLength( const wxString& aText );
 
-/** Function DrawGraphicText
+/**
+ * Function DrawGraphicText
  * Draw a graphic text (like module texts)
  *  @param aPanel = the current DrawPanel. NULL if draw within a 3D GL Canvas
  *  @param aDC = the current Device Context. NULL if draw within a 3D GL Canvas
@@ -60,8 +65,10 @@ int NegableTextLength( const wxString& aText );
  *  @param aBold = true to use a bold font
  *  @param aCallback() = function called (if non null) to draw each segment.
  *                  used to draw 3D texts or for plotting, NULL for normal drawings
+ *  @param aPlotter = a pointer to a PLOTTER instance, when this function is used to plot
+ *                  the text. NULL to draw this text.
  */
-void DrawGraphicText( WinEDA_DrawPanel * aPanel,
+void DrawGraphicText( EDA_DRAW_PANEL * aPanel,
                       wxDC * aDC,
                       const wxPoint &aPos,
                       enum EDA_Colors aColor,
@@ -74,7 +81,7 @@ void DrawGraphicText( WinEDA_DrawPanel * aPanel,
                       bool aItalic,
                       bool aBold,
                       void (*aCallback)( int x0, int y0, int xf, int yf ) = NULL,
-                      PLOTTER * plotter = NULL );
+                      PLOTTER * aPlotter = NULL );
 
 
 #endif /* __INCLUDE__DRAWTXT_H__ */

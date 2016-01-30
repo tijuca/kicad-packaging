@@ -59,11 +59,13 @@ set(BITMAP_SRCS
     Browse_Files.xpm
     cancel_tool.xpm
     Cancel.xpm
+    create_cmp_file.xpm
     checked_ok.xpm
     component_select_unit.xpm
     component_select_alternate_shape.xpm
     config.xpm
     CopyBlock.xpm
+    copyComponent.xmp
     copy.xpm
     copper_layers_setup.cpp
     Cursor_Shape.xpm
@@ -124,6 +126,7 @@ set(BITMAP_SRCS
     ercwarn.xpm
     erc.xpm
     Exit.xpm
+    export_footprint_names.xpm
     Export_Module.xpm
     Export_Options_Pad.xpm
     export.xpm
@@ -134,6 +137,14 @@ set(BITMAP_SRCS
     Flag.xpm
     Fonts.xpm
     Footprint_Text.xpm
+    gbr_select_mode0.xpm
+    gbr_select_mode1.xpm
+    gbr_select_mode2.xpm
+    gerber_file.xpm
+    gerber_recent_files.xpm
+    gerbview_drill_file.xpm
+    gerbview_clear_layers.xpm
+    gerber_open_dcode_file.xpm
     general_deletions.xpm
     general_ratsnet.xpm
     GLabel2Label.xpm
@@ -142,6 +153,7 @@ set(BITMAP_SRCS
     Global_Options_Pad.xpm
     green.xpm
     grid_select.xpm
+    grid_select_axis.xpm
     grid.xpm
     hammer.xpm
     help.xpm
@@ -160,6 +172,8 @@ set(BITMAP_SRCS
     icon_pcbnew.xpm
     icon_txt.xpm
     import3d.xpm
+    import_cmp_from_lib.xpm
+    import_footprint_names.xpm
     import_hierarchical_label.xpm
     Import_Module.xpm
     import.xpm
@@ -181,8 +195,10 @@ set(BITMAP_SRCS
     Lang_Es.xpm
     Lang_Fr.xpm
     Lang_Fi.xpm
+    Lang_Gr.xpm
     Lang_Hu.xpm
     Lang_It.xpm
+    Lang_Jp.xpm
     Lang_Ko.xpm
     Lang_Nl.xpm
     Lang_Pl.xpm
@@ -265,7 +281,7 @@ set(BITMAP_SRCS
     online_help.xpm
     Open_Library.xpm
     Open_Project.xpm
-    open.xpm
+    open_document.xpm
     options_all_tracks_and_vias.xpm
     Options_All_Tracks.xpm
     Options_All_Vias.xpm
@@ -284,6 +300,7 @@ set(BITMAP_SRCS
     Options_Vias.xpm
     opt_show_polygon.xpm
     Orient.xpm
+    ortho.xpm
     Pad_Sketch.xpm
     pad.xpm
     pads_mask_layers.xpm
@@ -307,6 +324,8 @@ set(BITMAP_SRCS
     pinshape_active_low_input.xpm
     pinshape_clock_active_low.xpm
     pinshape_active_low_output.xpm
+    pinshape_clock_fall.xpm
+    pinshape_nonlogic.xpm
     pintype_input.xpm
     pintype_output.xpm
     pintype_bidi.xpm
@@ -335,6 +354,7 @@ set(BITMAP_SRCS
     red.xpm
     reload2.xpm
     reload.xpm
+    Reset_Text.xpm
     Resize_Sheet.xpm
     right.xpm
     Rotate_Field.xpm
@@ -351,7 +371,6 @@ set(BITMAP_SRCS
     rotate-z.xpm
     rotate+z.xpm
     save_as.xpm
-    Save_CmpStuff.xpm
     Save_Library.xpm
     Save_NetList.xpm
     Save_Project.xpm
@@ -364,6 +383,7 @@ set(BITMAP_SRCS
     shape_3d.xpm
     sheetset.xpm
     showdcode.xpm
+    show_footprint.xpm
     showmodedge.xpm
     showtrack.xpm
     Show_Zone.xpm
@@ -396,22 +416,21 @@ set(BITMAP_SRCS
     Width_Track_Via.xpm
     Width_Track.xpm
     Width_Vias.xpm
+    window_close.xpm
     zip_tool.xpm
     zip.xpm
-    Zoom_1.xpm
-    zoom_auto.xpm
-    Zoom_Center.xpm
+    zoom.xpm
+    zoom_area.xpm
+    zoom_fit_in_page.xpm
+    zoom_center_on_screen.xpm
     zoom_in.xpm
     zoomoins3d.xpm
     zoom_out.xpm
     zoompage3d.xpm
-    Zoom_Page.xpm
     zoomplus3d.xpm
     zoom_redraw.xpm
     zoomrefr3d.xpm
-    Zoom_Selected.xpm
-    Zoom_Select.xpm
-    zoom.xpm
+    zoom_selection.xpm
 )
 
 
@@ -429,7 +448,7 @@ foreach(LOOP_VAR ${BITMAP_SRCS})
     set(CPP_BITMAP "${XPM_CPP_PATH}/${BASENAME}.cpp")
     add_custom_command(
         OUTPUT ${CPP_BITMAP}
-        COMMAND "$(CMAKE_COMMAND)" -E copy "${PATH}/${BASENAME}.xpm" "${CPP_BITMAP}"
+        COMMAND "${CMAKE_COMMAND}" -E copy "${PATH}/${BASENAME}.xpm" "${CPP_BITMAP}"
         DEPENDS ${BASENAME}.xpm)
     list(APPEND CPP_BITMAPS ${CPP_BITMAP})
     set_source_files_properties(${CPP_BITMAP} PROPERTIES COMPILE_FLAGS -DXPMMAIN)

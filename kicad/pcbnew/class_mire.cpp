@@ -13,6 +13,7 @@
 #include "colors_selection.h"
 #include "trigo.h"
 #include "protos.h"
+#include "richio.h"
 
 
 MIREPCB::MIREPCB( BOARD_ITEM* aParent ) :
@@ -41,12 +42,13 @@ void MIREPCB::Copy( MIREPCB* source )
 
 /* Read the description from the PCB file.
  */
-bool MIREPCB::ReadMirePcbDescr( FILE* File, int* LineNum )
+bool MIREPCB::ReadMirePcbDescr( LINE_READER* aReader )
 {
-    char Line[256];
+    char* Line;
 
-    while( GetLine( File, Line, LineNum ) != NULL )
+    while( aReader->ReadLine() )
     {
+        Line = aReader->Line();
         if( strnicmp( Line, "$End", 4 ) == 0 )
             return TRUE;
         if( Line[0] == 'P' )
@@ -68,9 +70,6 @@ bool MIREPCB::ReadMirePcbDescr( FILE* File, int* LineNum )
 
 bool MIREPCB::Save( FILE* aFile ) const
 {
-    if( GetState( DELETED ) )
-        return true;
-
     bool rc = false;
 
     if( fprintf( aFile, "$MIREPCB\n" ) != sizeof("$MIREPCB\n")-1 )
@@ -97,8 +96,7 @@ out:
  * The circle radius is half the radius of the target
  * 2 lines have length the diameter of the target
  */
-void MIREPCB::Draw( WinEDA_DrawPanel* panel, wxDC* DC,
-                    int mode_color, const wxPoint& offset )
+void MIREPCB::Draw( EDA_DRAW_PANEL* panel, wxDC* DC, int mode_color, const wxPoint& offset )
 {
     int rayon, ox, oy, gcolor, width;
     int dx1, dx2, dy1, dy2;
@@ -117,11 +115,7 @@ void MIREPCB::Draw( WinEDA_DrawPanel* panel, wxDC* DC,
     typeaff = DisplayOpt.DisplayDrawItems;
     width   = m_Width;
 
-#ifdef USE_WX_ZOOM
     if( DC->LogicalToDeviceXRel( width ) < 2 )
-#else
-    if( panel->GetScreen()->Scale( width ) < 2 )
-#endif
         typeaff = FILAIRE;
 
     rayon = m_Size / 4;
@@ -194,13 +188,13 @@ bool MIREPCB::HitTest( const wxPoint& refPos )
 
 /**
  * Function HitTest (overlayed)
- * tests if the given EDA_Rect intersect this object.
- * @param EDA_Rect : the given EDA_Rect
+ * tests if the given EDA_RECT intersect this object.
+ * @param refArea : the given EDA_RECT
  * @return bool - true if a hit, else false
  */
-bool    MIREPCB::HitTest( EDA_Rect& refArea )
+bool    MIREPCB::HitTest( EDA_RECT& refArea )
 {
-    if( refArea.Inside( m_Pos ) )
+    if( refArea.Contains( m_Pos ) )
         return true;
     return false;
 }
@@ -209,7 +203,7 @@ bool    MIREPCB::HitTest( EDA_Rect& refArea )
 /**
  * Function Rotate
  * Rotate this object.
- * @param const wxPoint& aRotCentre - the rotation point.
+ * @param aRotCentre - the rotation point.
  * @param aAngle - the rotation angle in 0.1 degree.
  */
 void MIREPCB::Rotate(const wxPoint& aRotCentre, int aAngle)
@@ -221,10 +215,22 @@ void MIREPCB::Rotate(const wxPoint& aRotCentre, int aAngle)
 /**
  * Function Flip
  * Flip this object, i.e. change the board side for this object
- * @param const wxPoint& aCentre - the rotation point.
+ * @param aCentre - the rotation point.
  */
 void MIREPCB::Flip(const wxPoint& aCentre )
 {
     m_Pos.y  = aCentre.y - ( m_Pos.y - aCentre.y );
     SetLayer( ChangeSideNumLayer( GetLayer() ) );
+}
+
+
+EDA_RECT MIREPCB::GetBoundingBox() const
+{
+    EDA_RECT bBox;
+    bBox.SetX( m_Pos.x - m_Size/2 );
+    bBox.SetY( m_Pos.y - m_Size/2 );
+    bBox.SetWidth( m_Size );
+    bBox.SetHeight( m_Size );
+
+    return bBox;
 }

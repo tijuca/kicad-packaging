@@ -15,8 +15,10 @@
 
 #include "pcbnew.h"
 #include "wxPcbStruct.h"
+#include "module_editor_frame.h"
 #include "pcbplot.h"
 #include "protos.h"
+#include <wx/overlay.h>
 
 extern int g_DrawDefaultLineThickness; // Default line thickness, used to draw Frame references
 
@@ -27,8 +29,8 @@ extern int g_DrawDefaultLineThickness; // Default line thickness, used to draw F
  * and we want to see pad through.
  * The pads must appear on the layers selected in MasqueLayer
  */
-static void Trace_Pads_Only( WinEDA_DrawPanel* panel, wxDC* DC, MODULE* Module,
-                      int ox, int oy, int MasqueLayer, int draw_mode );
+static void Trace_Pads_Only( EDA_DRAW_PANEL* panel, wxDC* DC, MODULE* Module,
+                             int ox, int oy, int MasqueLayer, int draw_mode );
 
 
 /* Draw the footprint editor BOARD, and others elements : axis, grid ..
@@ -40,7 +42,6 @@ void WinEDA_ModuleEditFrame::RedrawActiveWindow( wxDC* DC, bool EraseBg )
     if( !GetBoard() || !screen )
         return;
 
-    ActiveScreen = screen;
     GRSetDrawMode( DC, GR_COPY );
 
     DrawPanel->DrawBackGround( DC );
@@ -52,26 +53,32 @@ void WinEDA_ModuleEditFrame::RedrawActiveWindow( wxDC* DC, bool EraseBg )
         module->Draw( DrawPanel, DC, GR_OR );
     }
 
-    screen->ClrRefreshReq();
+#ifdef USE_WX_OVERLAY
+    if(IsShown())
+    {
+        DrawPanel->m_overlay.Reset();
+        wxDCOverlay overlaydc( DrawPanel->m_overlay, (wxWindowDC*)DC );
+        overlaydc.Clear();
+    }
+#endif
 
-    if( DrawPanel->ManageCurseur )
-        DrawPanel->ManageCurseur( DrawPanel, DC, FALSE );
+    if( DrawPanel->IsMouseCaptured() )
+        DrawPanel->m_mouseCaptureCallback( DrawPanel, DC, wxDefaultPosition, FALSE );
 
     /* Redraw the cursor */
-    DrawPanel->DrawCursor( DC );
+    DrawPanel->DrawCrossHair( DC );
 }
 
 
 /* Draw the BOARD, and others elements : axis, grid ..
  */
-void WinEDA_PcbFrame::RedrawActiveWindow( wxDC* DC, bool EraseBg )
+void PCB_EDIT_FRAME::RedrawActiveWindow( wxDC* DC, bool EraseBg )
 {
     PCB_SCREEN* screen = GetScreen();
 
     if( !GetBoard() || !screen )
         return;
 
-    ActiveScreen = screen;
     GRSetDrawMode( DC, GR_COPY );
 
     DrawPanel->DrawBackGround( DC );
@@ -82,18 +89,25 @@ void WinEDA_PcbFrame::RedrawActiveWindow( wxDC* DC, bool EraseBg )
 
     DrawGeneralRatsnest( DC );
 
-    GetScreen()->ClrRefreshReq();
+#ifdef USE_WX_OVERLAY
+    if(IsShown())
+    {
+        DrawPanel->m_overlay.Reset();
+        wxDCOverlay overlaydc( DrawPanel->m_overlay, (wxWindowDC*)DC );
+        overlaydc.Clear();
+    }
+#endif
 
-    if( DrawPanel->ManageCurseur )
-        DrawPanel->ManageCurseur( DrawPanel, DC, FALSE );
+    if( DrawPanel->IsMouseCaptured() )
+        DrawPanel->m_mouseCaptureCallback( DrawPanel, DC, wxDefaultPosition, FALSE );
 
     // Redraw the cursor
-    DrawPanel->DrawCursor( DC );
+    DrawPanel->DrawCrossHair( DC );
 }
 
 
 /* Redraw the BOARD items but not cursors, axis or grid */
-void BOARD::Draw( WinEDA_DrawPanel* aPanel, wxDC* DC,
+void BOARD::Draw( EDA_DRAW_PANEL* aPanel, wxDC* DC,
                   int aDrawMode, const wxPoint& offset )
 {
     /* The order of drawing is flexible on some systems and not on others.  For
@@ -183,9 +197,8 @@ void BOARD::Draw( WinEDA_DrawPanel* aPanel, wxDC* DC,
             Trace_Pads_Only( aPanel, DC, module, 0, 0, layerMask, aDrawMode );
     }
 
-    // @todo: this high-light functionality could be built into me.
-    if( g_HighLight_Status )
-        DrawHighLight( aPanel, DC, g_HighLight_NetCode );
+    if( IsHightLightNetON() )
+        DrawHighLight( aPanel, DC, GetHightLightNetCode() );
 
     // draw the BOARD's markers last, otherwise the high light will erase
     // any marker on a pad
@@ -196,25 +209,14 @@ void BOARD::Draw( WinEDA_DrawPanel* aPanel, wxDC* DC,
 }
 
 
-void BOARD::DrawHighLight( WinEDA_DrawPanel* aDrawPanel, wxDC* DC, int aNetCode )
+void BOARD::DrawHighLight( EDA_DRAW_PANEL* aDrawPanel, wxDC* DC, int aNetCode )
 {
     int draw_mode;
 
-    if( g_HighLight_Status )
+    if( IsHightLightNetON() )
         draw_mode = GR_SURBRILL | GR_OR;
     else
         draw_mode = GR_AND | GR_SURBRILL;
-
-#if 0   // does not unhighlight properly
-    // redraw the zones with the aNetCode
-    for( SEGZONE* zone = m_Zone;   zone;   zone = zone->Next() )
-    {
-        if( zone->GetNet() == aNetCode )
-        {
-            zone->Draw( aDrawPanel, DC, draw_mode );
-        }
-    }
-#endif
 
     // Redraw ZONE_CONTAINERS
     BOARD::ZONE_CONTAINERS& zones = m_ZoneDescriptorList;
@@ -227,7 +229,7 @@ void BOARD::DrawHighLight( WinEDA_DrawPanel* aDrawPanel, wxDC* DC, int aNetCode 
     }
 
     // Redraw any pads that have aNetCode
-    for( MODULE* module = m_Modules;  module;   module = module->Next() )
+    for( MODULE* module = m_Modules;  module; module = module->Next() )
     {
         for( D_PAD* pad = module->m_Pads;  pad;  pad = pad->Next() )
         {
@@ -254,15 +256,15 @@ void BOARD::DrawHighLight( WinEDA_DrawPanel* aDrawPanel, wxDC* DC, int aNetCode 
  * and we want to see pad through.
  * The pads must appear on the layers selected in MasqueLayer
  */
-void Trace_Pads_Only( WinEDA_DrawPanel* panel, wxDC* DC, MODULE* Module,
+void Trace_Pads_Only( EDA_DRAW_PANEL* panel, wxDC* DC, MODULE* Module,
                       int ox, int oy, int MasqueLayer, int draw_mode )
 {
-    int                  tmp;
-    PCB_SCREEN*          screen;
-    WinEDA_BasePcbFrame* frame;
+    int             tmp;
+    PCB_SCREEN*     screen;
+    PCB_BASE_FRAME* frame;
 
     screen = (PCB_SCREEN*) panel->GetScreen();
-    frame  = (WinEDA_BasePcbFrame*) panel->GetParent();
+    frame  = (PCB_BASE_FRAME*) panel->GetParent();
 
     tmp = frame->m_DisplayPadFill;
     frame->m_DisplayPadFill = FALSE;

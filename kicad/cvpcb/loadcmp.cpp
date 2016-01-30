@@ -12,28 +12,29 @@
 #include "appl_wxstruct.h"
 
 #include "cvpcb.h"
-#include "protos.h"
-#include "cvstruct.h"
+#include "cvpcb_mainframe.h"
 #include "class_DisplayFootprintsFrame.h"
+#include "richio.h"
+#include "filter_reader.h"
 
 
 /**
- * Analyze the libraries to find the module.
- * If this module is found, copy it into memory, and
- * string end of the list of modules.
+ * Read libraries to find a module.
+ * If this module is found, copy it into memory
  *
  * @param CmpName - Module name
- * @return - Module if found otherwise NULL.
+ * @return - a pointer to the loaded module or NULL.
  */
 MODULE* DISPLAY_FOOTPRINTS_FRAME::Get_Module( const wxString& CmpName )
 {
-    int        LineNum, Found = 0;
+    int        Found = 0;
     unsigned   ii;
-    char       Line[1024], Name[255];
+    char*      Line;
+    char       Name[255];
     wxString   tmp, msg;
     wxFileName fn;
     MODULE*    Module = NULL;
-    WinEDA_CvpcbFrame* parent = ( WinEDA_CvpcbFrame* ) GetParent();
+    CVPCB_MAINFRAME* parent = ( CVPCB_MAINFRAME* ) GetParent();
 
     for( ii = 0; ii < parent->m_ModuleLibNames.GetCount(); ii++ )
     {
@@ -61,9 +62,13 @@ found in the default search paths." ),
             continue;
         }
 
+        FILE_LINE_READER fileReader( file, tmp );
+
+        FILTER_READER reader( fileReader );
+
         /* Read header. */
-        LineNum = 0;
-        GetLine( file, Line, &LineNum );
+        reader.ReadLine();
+        Line = reader.Line();
         StrPurge( Line );
 
         if( strnicmp( Line, ENTETE_LIBRAIRIE, L_ENTETE_LIB ) != 0 )
@@ -76,20 +81,22 @@ found in the default search paths." ),
         }
 
         Found = 0;
-        while( !Found && GetLine( file, Line, &LineNum ) )
+        while( !Found && reader.ReadLine() )
         {
+            Line = reader.Line();
             if( strncmp( Line, "$MODULE", 6 ) == 0 )
                 break;
 
             if( strnicmp( Line, "$INDEX", 6 ) == 0 )
             {
-                while( GetLine( file, Line, &LineNum ) )
+                while( reader.ReadLine() )
                 {
+                    Line = reader.Line();
                     if( strnicmp( Line, "$EndINDEX", 9 ) == 0 )
                         break;
 
                     StrPurge( Line );
-                    if( stricmp( Line, CONV_TO_UTF8( CmpName ) ) == 0 )
+                    if( stricmp( Line, TO_UTF8( CmpName ) ) == 0 )
                     {
                         Found = 1;
                         break;
@@ -98,8 +105,9 @@ found in the default search paths." ),
             }
         }
 
-        while( Found && GetLine( file, Line, &LineNum ) )
+        while( Found && reader.ReadLine() )
         {
+            Line = reader.Line();
             if( Line[0] != '$' )
                 continue;
 
@@ -111,21 +119,19 @@ found in the default search paths." ),
 
             /* Read component name. */
             sscanf( Line + 7, " %s", Name );
-            if( stricmp( Name, CONV_TO_UTF8( CmpName ) ) == 0 )
+            if( stricmp( Name, TO_UTF8( CmpName ) ) == 0 )
             {
                 Module = new MODULE( GetBoard() );
                 // Switch the locale to standard C (needed to print floating
                 // point numbers like 1.3)
                 SetLocaleTo_C_standard();
-                Module->ReadDescr( file, &LineNum );
+                Module->ReadDescr( &reader );
                 SetLocaleTo_Default();       // revert to the current locale
                 Module->SetPosition( wxPoint( 0, 0 ) );
-                fclose( file );
                 return Module;
             }
         }
 
-        fclose( file );
         file = NULL;
     }
 

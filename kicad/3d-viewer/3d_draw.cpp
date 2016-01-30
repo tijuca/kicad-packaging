@@ -20,6 +20,8 @@
 #error Please set wxUSE_GLCANVAS to 1 in setup.h.
 #endif
 
+extern void CheckGLError();
+
 static void    Draw3D_FilledCircle( double posx, double posy, double rayon,
                                     double hole_rayon, double zpos );
 static void    Draw3D_FilledSegment( double startx, double starty,
@@ -45,14 +47,19 @@ static GLfloat Get3DLayerSide( int act_layer );
 #endif
 
 // CALLBACK functions for GLU_TESS
-void CALLBACK tessBeginCB( GLenum which );
-void CALLBACK tessEndCB();
-void CALLBACK tessErrorCB( GLenum errorCode );
-void CALLBACK tessVertexCB( const GLvoid* data );
+static void CALLBACK tessBeginCB( GLenum which );
+static void CALLBACK tessEndCB();
+static void CALLBACK tessErrorCB( GLenum errorCode );
+static void CALLBACK tessCPolyPt2Vertex( const GLvoid* data );
+static void CALLBACK tesswxPoint2Vertex( const GLvoid* data );
 
 void Pcb3D_GLCanvas::Redraw( bool finish )
 {
-#if wxCHECK_VERSION( 2, 9, 0 )
+    /* SwapBuffer requires the window to be shown before calling */
+    if( !IsShown() )
+        return;
+
+#if wxCHECK_VERSION( 2, 7, 0 )
     SetCurrent( *m_glRC );
 #else
     SetCurrent();
@@ -93,8 +100,9 @@ void Pcb3D_GLCanvas::Redraw( bool finish )
     }
 
     glFlush();
-    if( finish )
+    if( finish );
         glFinish();
+
     SwapBuffers();
 }
 
@@ -103,7 +111,7 @@ void Pcb3D_GLCanvas::Redraw( bool finish )
  */
 GLuint Pcb3D_GLCanvas::CreateDrawGL_List()
 {
-    WinEDA_BasePcbFrame* pcbframe = m_Parent->m_Parent;
+    PCB_BASE_FRAME* pcbframe = m_Parent->m_Parent;
     BOARD* pcb = pcbframe->GetBoard();
     TRACK* track;
     SEGZONE*             segzone;
@@ -113,7 +121,7 @@ GLuint Pcb3D_GLCanvas::CreateDrawGL_List()
 
     m_gllist = glGenLists( 1 );
 
-    pcb->ComputeBoundaryBox();
+    pcb->ComputeBoundingBox();
     g_Parm_3D_Visu.m_BoardSettings = pcb->GetBoardDesignSettings();
     g_Parm_3D_Visu.m_BoardSize     = pcb->m_BoundaryBox.GetSize();
     g_Parm_3D_Visu.m_BoardPos   = pcb->m_BoundaryBox.Centre();
@@ -241,7 +249,8 @@ GLuint Pcb3D_GLCanvas::CreateDrawGL_List()
         {
             ZONE_CONTAINER* curr_zone = pcb->GetArea( ii );
             if( curr_zone->m_FillMode == 0 )
-            {   // solid polygons only are used to fill areas
+            {
+                // solid polygons only are used to fill areas
                 if( curr_zone->m_FilledPolysList.size() > 3 )
                 {
                     Draw3D_SolidPolygonsInZones( curr_zone );
@@ -249,7 +258,7 @@ GLuint Pcb3D_GLCanvas::CreateDrawGL_List()
             }
             else
             {
-                // segments are used to fill ares
+                // segments are used to fill areas
                 for( unsigned iseg = 0; iseg < curr_zone->m_FillSegmList.size(); iseg++ )
                 {
                     SEGZONE dummysegment( pcb );
@@ -316,10 +325,9 @@ GLuint Pcb3D_GLCanvas::CreateDrawGL_List()
     }
 
     /* draw graphic items */
-    EDA_BaseStruct* PtStruct;
-    for( PtStruct = pcb->m_Drawings;
-        PtStruct != NULL;
-        PtStruct = PtStruct->Next() )
+    EDA_ITEM* PtStruct;
+
+    for( PtStruct = pcb->m_Drawings;  PtStruct != NULL;  PtStruct = PtStruct->Next() )
     {
         switch( PtStruct->Type() )
         {
@@ -346,9 +354,8 @@ GLuint Pcb3D_GLCanvas::CreateDrawGL_List()
     glEndList();
 
     /* Test for errors */
-    GLenum err = glGetError();
-    if( err != GL_NO_ERROR )
-        DisplayError( this, wxT( "Error in GL commands" ) );
+    CheckGLError();
+
     return m_gllist;
 }
 
@@ -363,7 +370,7 @@ void Pcb3D_GLCanvas::Draw3D_Track( TRACK* track )
     if( g_Parm_3D_Visu.m_BoardSettings->IsLayerVisible( layer ) == false )
         return;
 
-    int color = g_ColorsSettings.GetLayerColor(layer);
+    int color = g_ColorsSettings.GetLayerColor( layer );
 
     if( layer == LAST_COPPER_LAYER )
         layer = g_Parm_3D_Visu.m_Layers - 1;
@@ -381,19 +388,20 @@ void Pcb3D_GLCanvas::Draw3D_Track( TRACK* track )
 }
 
 
-/** Function Draw3D_SolidPolygonsInZones
+/**
+ * Function Draw3D_SolidPolygonsInZones
  * draw all solid polygons used as filles areas in a zone
- * @param aZone_c = the zone to draw
-*/
-void Pcb3D_GLCanvas::Draw3D_SolidPolygonsInZones( ZONE_CONTAINER* zone_c )
+ * @param aZone = the zone to draw
+ */
+void Pcb3D_GLCanvas::Draw3D_SolidPolygonsInZones( ZONE_CONTAINER* aZone )
 {
     double zpos;
-    int    layer = zone_c->GetLayer();
+    int    layer = aZone->GetLayer();
 
     if( g_Parm_3D_Visu.m_BoardSettings->IsLayerVisible( layer ) == false )
         return;
 
-    int color = g_ColorsSettings.GetLayerColor(layer);
+    int color = g_ColorsSettings.GetLayerColor( layer );
 
     if( layer == LAST_COPPER_LAYER )
         layer = g_Parm_3D_Visu.m_Layers - 1;
@@ -408,29 +416,28 @@ void Pcb3D_GLCanvas::Draw3D_SolidPolygonsInZones( ZONE_CONTAINER* zone_c )
     gluTessCallback( tess, GLU_TESS_BEGIN, ( void (CALLBACK*)() )tessBeginCB );
     gluTessCallback( tess, GLU_TESS_END, ( void (CALLBACK*)() )tessEndCB );
     gluTessCallback( tess, GLU_TESS_ERROR, ( void (CALLBACK*)() )tessErrorCB );
-    gluTessCallback( tess, GLU_TESS_VERTEX, ( void (CALLBACK*)() )tessVertexCB );
+    gluTessCallback( tess, GLU_TESS_VERTEX, ( void (CALLBACK*)() )tessCPolyPt2Vertex );
 
     GLdouble v_data[3];
+    v_data[2] = zpos;
 
     //gluTessProperty(tess, GLU_TESS_WINDING_RULE, GLU_TESS_WINDING_NONZERO);
 
     // Draw solid areas contained in this zone
-    int      StartContour = 1;
-    for( unsigned ii = 0; ii < zone_c->m_FilledPolysList.size(); ii++ )
+    int StartContour = 1;
+    for( unsigned ii = 0; ii < aZone->m_FilledPolysList.size(); ii++ )
     {
         if( StartContour == 1 )
         {
-            gluTessBeginPolygon( tess, 0 );
+            gluTessBeginPolygon( tess, NULL );
             gluTessBeginContour( tess );
             StartContour = 0;
         }
-        v_data[0] = zone_c->m_FilledPolysList[ii].x * g_Parm_3D_Visu.m_BoardScale;
-        v_data[1] = zone_c->m_FilledPolysList[ii].y * g_Parm_3D_Visu.m_BoardScale * -1;
-        v_data[2] = zpos;
-        D( printf( "Tess gluTessVertex(%f,%f,%f)\n", v_data[0], v_data[1], v_data[2] ); )
-        gluTessVertex( tess, v_data, &zone_c->m_FilledPolysList[ii] );
+        v_data[0] = aZone->m_FilledPolysList[ii].x * g_Parm_3D_Visu.m_BoardScale;
+        v_data[1] = -aZone->m_FilledPolysList[ii].y * g_Parm_3D_Visu.m_BoardScale;
+        gluTessVertex( tess, v_data, &aZone->m_FilledPolysList[ii] );
 
-        if( zone_c->m_FilledPolysList[ii].end_contour == 1 )
+        if( aZone->m_FilledPolysList[ii].end_contour == 1 )
         {
             gluTessEndContour( tess );
             gluTessEndPolygon( tess );
@@ -468,14 +475,14 @@ void Pcb3D_GLCanvas::Draw3D_Via( SEGVIA* via )
             if( g_Parm_3D_Visu.m_BoardSettings->IsLayerVisible( layer ) ==
                 false )
                 continue;
-            color = g_ColorsSettings.GetLayerColor(layer);
+            color = g_ColorsSettings.GetLayerColor( layer );
         }
         else
         {
             if( g_Parm_3D_Visu.m_BoardSettings->IsLayerVisible( LAYER_N_FRONT ) ==
                 false )
                 continue;
-            color = g_ColorsSettings.GetLayerColor(LAYER_N_FRONT);
+            color = g_ColorsSettings.GetLayerColor( LAYER_N_FRONT );
         }
 
         SetGLColor( color );
@@ -492,7 +499,7 @@ void Pcb3D_GLCanvas::Draw3D_Via( SEGVIA* via )
     }
 
     // Drawing hole:
-    color =  g_ColorsSettings.GetItemColor(VIAS_VISIBLE + via->m_Shape);
+    color = g_ColorsSettings.GetItemColor( VIAS_VISIBLE + via->m_Shape );
     SetGLColor( color );
     height = g_Parm_3D_Visu.m_LayerZcoord[top_layer] -
              g_Parm_3D_Visu.m_LayerZcoord[bottom_layer];
@@ -511,7 +518,7 @@ void Pcb3D_GLCanvas::Draw3D_DrawSegment( DRAWSEGMENT* segment )
     if( g_Parm_3D_Visu.m_BoardSettings->IsLayerVisible( layer ) == false )
         return;
 
-    int color = g_ColorsSettings.GetLayerColor(layer);
+    int color = g_ColorsSettings.GetLayerColor( layer );
 
     SetGLColor( color );
     w  = segment->m_Width * g_Parm_3D_Visu.m_BoardScale;
@@ -597,12 +604,12 @@ void Pcb3D_GLCanvas::Draw3D_DrawText( TEXTE_PCB* text )
     if( !Get3DLayerEnable( layer ) )
         return;
 
-    int color = g_ColorsSettings.GetLayerColor(layer);
+    int color = g_ColorsSettings.GetLayerColor( layer );
 
 
     SetGLColor( color );
     s_Text3DZPos  = g_Parm_3D_Visu.m_LayerZcoord[layer];
-    s_Text3DWidth = text->m_Width * g_Parm_3D_Visu.m_BoardScale;
+    s_Text3DWidth = text->m_Thickness * g_Parm_3D_Visu.m_BoardScale;
     glNormal3f( 0.0, 0.0, Get3DLayerSide( layer ) );
     wxSize size = text->m_Size;
     if( text->m_Mirror )
@@ -622,7 +629,7 @@ void Pcb3D_GLCanvas::Draw3D_DrawText( TEXTE_PCB* text )
             DrawGraphicText( NULL, NULL, pos, (EDA_Colors) color,
                              txt, text->m_Orient, size,
                              text->m_HJustify, text->m_VJustify,
-                             text->m_Width, text->m_Italic,
+                             text->m_Thickness, text->m_Italic,
                              true, Draw3dTextSegm );
             pos += offset;
         }
@@ -633,7 +640,7 @@ void Pcb3D_GLCanvas::Draw3D_DrawText( TEXTE_PCB* text )
         DrawGraphicText( NULL, NULL, text->m_Pos, (EDA_Colors) color,
                          text->m_Text, text->m_Orient, size,
                          text->m_HJustify, text->m_VJustify,
-                         text->m_Width, text->m_Italic,
+                         text->m_Thickness, text->m_Italic,
                          true,
                          Draw3dTextSegm );
 }
@@ -643,19 +650,6 @@ void MODULE::Draw3D( Pcb3D_GLCanvas* glcanvas )
 {
     D_PAD* pad = m_Pads;
 
-#if 0
-    if( !DisplayOpt.Show_Modules_Cmp )
-    {
-        if( m_Layer == LAYER_N_FRONT )
-            return;
-    }
-    if( !DisplayOpt.Show_Modules_Cu )
-    {
-        if( m_Layer == LAYER_N_BACK )
-            return;
-    }
-#endif
-
     /* Draw pads */
     glColorMaterial( GL_FRONT_AND_BACK, GL_AMBIENT_AND_DIFFUSE );
     glNormal3f( 0.0, 0.0, 1.0 ); // Normal is Z axis
@@ -664,9 +658,10 @@ void MODULE::Draw3D( Pcb3D_GLCanvas* glcanvas )
         pad->Draw3D( glcanvas );
     }
 
-    /* Draw module shape: 3D shape if exists (or module edge if not exists) */
+    /* Draw module shape: 3D shape if exists (or module outlines if not exists) */
     S3D_MASTER* Struct3D  = m_3D_Drawings;
     bool        As3dShape = FALSE;
+
     if( g_Parm_3D_Visu.m_Draw3DModule )
     {
         glPushMatrix();
@@ -679,6 +674,7 @@ void MODULE::Draw3D( Pcb3D_GLCanvas* glcanvas )
         {
             glRotatef( (double) m_Orient / 10, 0.0, 0.0, 1.0 );
         }
+
         if( m_Layer == LAYER_N_BACK )
         {
             glRotatef( 180.0, 0.0, 1.0, 0.0 );
@@ -698,25 +694,29 @@ void MODULE::Draw3D( Pcb3D_GLCanvas* glcanvas )
         glPopMatrix();
     }
 
-    if( !As3dShape )
+    EDA_ITEM* Struct = m_Drawings;
+    glNormal3f( 0.0, 0.0, 1.0 ); // Normal is Z axis
+
+    for( ; Struct != NULL; Struct = Struct->Next() )
     {
-        // The footprint does not have a 3D shape, draw its 2D shape instead
-        EDA_BaseStruct* Struct = m_Drawings;
-        glNormal3f( 0.0, 0.0, 1.0 ); // Normal is Z axis
-        for( ; Struct != NULL; Struct = Struct->Next() )
+        switch( Struct->Type() )
         {
-            switch( Struct->Type() )
-            {
-            case TYPE_TEXTE_MODULE:
-                break;
+        case TYPE_TEXTE_MODULE:
+            break;
 
-            case TYPE_EDGE_MODULE:
-                ( (EDGE_MODULE*) Struct )->Draw3D( glcanvas );
-                break;
+        case TYPE_EDGE_MODULE:
+        {
+            EDGE_MODULE* edge = (EDGE_MODULE*) Struct;
 
-            default:
-                break;
-            }
+            // Draw module edges when no 3d shape exists.
+            // Always draw pcb edges.
+            if( !As3dShape || edge->GetLayer() == EDGE_N )
+                edge->Draw3D( glcanvas );
+        }
+        break;
+
+        default:
+            break;
         }
     }
 }
@@ -726,21 +726,17 @@ void EDGE_MODULE::Draw3D( Pcb3D_GLCanvas* glcanvas )
 {
     wxString s;
     int      dx, dy;
-    double   scale, x, y, fx, fy, w, zpos;
+    double   x, y, fx, fy, w, zpos;
 
     if( g_Parm_3D_Visu.m_BoardSettings->IsLayerVisible( m_Layer ) == false )
         return;
 
-    int color = g_ColorsSettings.GetLayerColor(m_Layer);
-
+    int color = g_ColorsSettings.GetLayerColor( m_Layer );
 
     SetGLColor( color );
-    glNormal3f( 0.0, 0.0, (m_Layer == LAYER_N_BACK) ? -1.0 : 1.0 );
-    scale = g_Parm_3D_Visu.m_BoardScale;
 
     dx   = m_End.x;
     dy   = m_End.y;
-    zpos = g_Parm_3D_Visu.m_LayerZcoord[m_Layer];
     w    = m_Width * g_Parm_3D_Visu.m_BoardScale;
     x    = m_Start.x * g_Parm_3D_Visu.m_BoardScale;
     y    = m_Start.y * g_Parm_3D_Visu.m_BoardScale;
@@ -748,24 +744,102 @@ void EDGE_MODULE::Draw3D( Pcb3D_GLCanvas* glcanvas )
     fy   = dy * g_Parm_3D_Visu.m_BoardScale;
 
 
-    switch( m_Shape )
+    if( m_Layer == EDGE_N )
     {
-    case S_SEGMENT:
-        Draw3D_FilledSegment( x, -y, fx, -fy, w, zpos );
+        for( int layer = 0; layer < g_Parm_3D_Visu.m_Layers; layer++ )
+        {
+            glNormal3f( 0.0, 0.0, (layer == LAYER_N_BACK) ? -1.0 : 1.0 );
+            zpos = g_Parm_3D_Visu.m_LayerZcoord[layer];
+
+            switch( m_Shape )
+            {
+            case S_SEGMENT:
+                Draw3D_FilledSegment( x, -y, fx, -fy, w, zpos );
+                break;
+
+            case S_CIRCLE:
+                Draw3D_CircleSegment( x, -y, fx, -fy, w, zpos );
+                break;
+
+            case S_ARC:
+                Draw3D_ArcSegment( x, -y, fx, -fy, (double) m_Angle, w, zpos );
+                break;
+
+            case S_POLYGON:
+            {
+                // We must compute true coordinates from m_PolyPoints
+                // which are relative to module position and module orientation = 0
+                std::vector<wxPoint> points = m_PolyPoints;
+                MODULE* module = (MODULE*) m_Parent;
+
+                if( module == NULL )
+                    break;
+
+                for( unsigned ii = 0; ii < points.size(); ii++ )
+                {
+                    wxPoint& pt = points[ii];
+
+                    RotatePoint( &pt.x, &pt.y, module->m_Orient );
+                    pt += module->m_Pos;
+                }
+
+                glcanvas->Draw3D_Polygon( points, zpos );
+            }
+            break;
+
+            default:
+                s.Printf( wxT( "Error: Shape nr %d not implemented!\n" ), m_Shape );
+                D( printf( "%s", TO_UTF8( s ) ); )
+                    break;
+            }
+        }
+    }
+    else
+    {
+        glNormal3f( 0.0, 0.0, (m_Layer == LAYER_N_BACK) ? -1.0 : 1.0 );
+        zpos = g_Parm_3D_Visu.m_LayerZcoord[m_Layer];
+
+        switch( m_Shape )
+        {
+        case S_SEGMENT:
+            Draw3D_FilledSegment( x, -y, fx, -fy, w, zpos );
+            break;
+
+        case S_CIRCLE:
+            Draw3D_CircleSegment( x, -y, fx, -fy, w, zpos );
+            break;
+
+        case S_ARC:
+            Draw3D_ArcSegment( x, -y, fx, -fy, (double) m_Angle, w, zpos );
+            break;
+
+        case S_POLYGON:
+        {
+            // We must compute true coordinates from m_PolyPoints
+            // which are relative to module position and module orientation = 0
+            std::vector<wxPoint> points = m_PolyPoints;
+            MODULE* module = (MODULE*) m_Parent;
+
+            if( module == NULL )
+                break;
+
+            for( unsigned ii = 0; ii < points.size(); ii++ )
+            {
+                wxPoint& pt = points[ii];
+
+                RotatePoint( &pt.x, &pt.y, module->m_Orient );
+                pt += module->m_Pos;
+            }
+
+            glcanvas->Draw3D_Polygon( points, zpos );
+        }
         break;
 
-    case S_CIRCLE:
-        Draw3D_CircleSegment( x, -y, fx, -fy, w, zpos );
-        break;
-
-    case S_ARC:
-        Draw3D_ArcSegment( x, -y, fx, -fy, (double) m_Angle, w, zpos );
-        break;
-
-    default:
-        s.Printf( wxT( "Error: Shape nr %d not implemented!\n" ), m_Shape );
-        D( printf( "%s", CONV_TO_UTF8( s ) ); )
-        break;
+        default:
+            s.Printf( wxT( "Error: Shape nr %d not implemented!\n" ), m_Shape );
+            D( printf( "%s", TO_UTF8( s ) ); )
+                break;
+        }
     }
 }
 
@@ -779,8 +853,6 @@ void D_PAD::Draw3D( Pcb3D_GLCanvas* glcanvas )
         delta_cx, delta_cy,
         xc, yc;
     int     angle, delta_angle;
-    int     coord[4][2];
-    double  fcoord[8][2], f_hole_coord[8][2];
     double  scale;
     double  zpos;
     wxPoint shape_pos;
@@ -839,7 +911,7 @@ void D_PAD::Draw3D( Pcb3D_GLCanvas* glcanvas )
             if( (layer > FIRST_COPPER_LAYER) && (layer < LAST_COPPER_LAYER)
                && !Both )
                 continue;
-            color = g_ColorsSettings.GetLayerColor(layer);
+            color = g_ColorsSettings.GetLayerColor( layer );
             if( g_Parm_3D_Visu.m_BoardSettings->IsLayerVisible( layer ) ==
                 false )
                 continue;
@@ -891,7 +963,7 @@ void D_PAD::Draw3D( Pcb3D_GLCanvas* glcanvas )
                 if( (layer > FIRST_COPPER_LAYER)
                    && (layer < LAST_COPPER_LAYER) && !Both )
                     continue;
-                color = g_ColorsSettings.GetLayerColor(layer);
+                color = g_ColorsSettings.GetLayerColor( layer );
                 glNormal3f( 0.0, 0.0, (layer == LAYER_N_BACK) ? -1.0 : 1.0 );
                 if( g_Parm_3D_Visu.m_BoardSettings->IsLayerVisible( layer ) ==
                     false )
@@ -910,33 +982,18 @@ void D_PAD::Draw3D( Pcb3D_GLCanvas* glcanvas )
         break;
 
     case PAD_RECT:
-
     case PAD_TRAPEZOID:
     {
-        int ddx, ddy;
-        ddx = m_DeltaSize.x >> 1;
-        ddy = m_DeltaSize.y >> 1;
-
-        coord[0][0] = -dx - ddy;
-        coord[0][1] = +dy + ddx;
-
-        coord[1][0] = -dx + ddy;
-        coord[1][1] = -dy - ddx;
-
-        coord[2][0] = +dx - ddy;
-        coord[2][1] = -dy + ddx;
-
-        coord[3][0] = +dx + ddy;
-        coord[3][1] = +dy - ddx;
-
+        wxPoint  coord[5];
+        wxRealPoint  fcoord[8], f_hole_coord[8];
+        BuildPadPolygon( coord, wxSize(0,0), angle );
         for( ii = 0; ii < 4; ii++ )
         {
-            RotatePoint( &coord[ii][0], &coord[ii][1], angle );
-            coord[ii][0] += ux0;
-            coord[ii][1] += uy0;
+            coord[ii].x += ux0;
+            coord[ii].y += uy0;
             ll = ii * 2;
-            fcoord[ll][0] = coord[ii][0] * scale;
-            fcoord[ll][1] = coord[ii][1] * scale;
+            fcoord[ll].x = coord[ii].x *scale;
+            fcoord[ll].y = coord[ii].y *scale;
         }
 
         for( ii = 0; ii < 7; ii += 2 )
@@ -944,18 +1001,17 @@ void D_PAD::Draw3D( Pcb3D_GLCanvas* glcanvas )
             ll = ii + 2;
             if( ll > 7 )
                 ll -= 8;
-            fcoord[ii + 1][0] = (fcoord[ii][0] + fcoord[ll][0]) / 2;
-            fcoord[ii + 1][1] = (fcoord[ii][1] + fcoord[ll][1]) / 2;
+            fcoord[ii + 1].x = (fcoord[ii].x + fcoord[ll].x) / 2;
+            fcoord[ii + 1].y = (fcoord[ii].y + fcoord[ll].y) / 2;
         }
 
         for( ii = 0; ii < 8; ii++ )
         {
-            f_hole_coord[ii][0] = -hole * 0.707;
-            f_hole_coord[ii][1] = hole * 0.707;
-            RotatePoint( &f_hole_coord[ii][0], &f_hole_coord[ii][1],
-                        angle - (ii * 450) );
-            f_hole_coord[ii][0] += drillx;
-            f_hole_coord[ii][1] += drilly;
+            f_hole_coord[ii].x = -hole * 0.707;
+            f_hole_coord[ii].y = hole * 0.707;
+            RotatePoint( &f_hole_coord[ii].x, &f_hole_coord[ii].y, angle - (ii * 450) );
+            f_hole_coord[ii].x += drillx;
+            f_hole_coord[ii].y += drilly;
         }
 
         for( layer = FIRST_COPPER_LAYER; layer <= LAST_COPPER_LAYER; layer++ )
@@ -969,7 +1025,7 @@ void D_PAD::Draw3D( Pcb3D_GLCanvas* glcanvas )
             if( (layer > FIRST_COPPER_LAYER) && (layer < LAST_COPPER_LAYER)
                && !Both )
                 continue;
-            color = g_ColorsSettings.GetLayerColor(layer);
+            color = g_ColorsSettings.GetLayerColor( layer );
             glNormal3f( 0.0, 0.0, (layer == LAYER_N_BACK) ? -1.0 : 1.0 );
             if( g_Parm_3D_Visu.m_BoardSettings->IsLayerVisible( layer ) ==
                 false )
@@ -984,12 +1040,12 @@ void D_PAD::Draw3D( Pcb3D_GLCanvas* glcanvas )
             glBegin( GL_QUAD_STRIP );
             for( ii = 0; ii < 8; ii++ )
             {
-                glVertex3f( f_hole_coord[ii][0], -f_hole_coord[ii][1], zpos );
-                glVertex3f( fcoord[ii][0], -fcoord[ii][1], zpos );
+                glVertex3f( f_hole_coord[ii].x, -f_hole_coord[ii].y, zpos );
+                glVertex3f( fcoord[ii].x, -fcoord[ii].y, zpos );
             }
 
-            glVertex3f( f_hole_coord[0][0], -f_hole_coord[0][1], zpos );
-            glVertex3f( fcoord[0][0], -fcoord[0][1], zpos );
+            glVertex3f( f_hole_coord[0].x, -f_hole_coord[0].y, zpos );
+            glVertex3f( fcoord[0].x, -fcoord[0].y, zpos );
             glEnd();
         }
     }
@@ -1202,7 +1258,7 @@ static void Draw3D_ArcSegment( double startx, double starty, double centrex,
     int    ii;
     int    slice = 36;             // Number of segments to approximate a circle by segments
     double hole, rayon;
-    double    arcStart_Angle;
+    double arcStart_Angle;
 
     arcStart_Angle = (atan2( startx - centrex, starty - centrey ) * 1800 / M_PI );
     rayon = hypot( startx - centrex, starty - centrey ) + ( width / 2);
@@ -1212,7 +1268,7 @@ static void Draw3D_ArcSegment( double startx, double starty, double centrex,
     int imax = (int) ( (double) arc_angle * slice / 3600.0 );
     if( imax < 0 )
         imax = -imax;
-    if (imax == 0 )
+    if( imax == 0 )
         imax = 1;
 
     // Adjust delta_angle to have exactly imax segments in arc_angle
@@ -1226,11 +1282,11 @@ static void Draw3D_ArcSegment( double startx, double starty, double centrex,
         angle += arcStart_Angle + 900;
         double dx = hole;
         double dy = 0.0;
-        RotatePoint( &dx, &dy, (int)angle );
+        RotatePoint( &dx, &dy, (int) angle );
         glVertex3f( dx + startx, dy + starty, zpos );
         dx = rayon;
         dy = 0.0;
-        RotatePoint( &dx, &dy, (int)angle );
+        RotatePoint( &dx, &dy, (int) angle );
         glVertex3f( dx + startx, dy + starty, zpos );
     }
 
@@ -1259,6 +1315,47 @@ static void Draw3D_CircleSegment( double startx, double starty, double endx,
     }
 
     glEnd();
+}
+
+
+/**
+ * Function Draw3D_Polygon
+ * draw one solid polygon
+ * @param aCornersList = a std::vector<wxPoint> liste of corners, in physical coordinates
+ * @param aZpos = the z position in 3D units
+ */
+void Pcb3D_GLCanvas::Draw3D_Polygon( std::vector<wxPoint>& aCornersList, double aZpos )
+{
+    g_Parm_3D_Visu.m_ActZpos = aZpos;
+
+    GLUtesselator* tess = gluNewTess();
+    gluTessCallback( tess, GLU_TESS_BEGIN, ( void (CALLBACK*)() )tessBeginCB );
+    gluTessCallback( tess, GLU_TESS_END, ( void (CALLBACK*)() )tessEndCB );
+    gluTessCallback( tess, GLU_TESS_ERROR, ( void (CALLBACK*)() )tessErrorCB );
+    gluTessCallback( tess, GLU_TESS_VERTEX, ( void (CALLBACK*)() )tesswxPoint2Vertex );
+
+    GLdouble v_data[3];
+    v_data[2] = aZpos;
+
+    //gluTessProperty(tess, GLU_TESS_WINDING_RULE, GLU_TESS_WINDING_NONZERO);
+
+    // Draw solid polygon
+    gluTessBeginPolygon( tess, NULL );
+    gluTessBeginContour( tess );
+    for( unsigned ii = 0; ii < aCornersList.size(); ii++ )
+    {
+        v_data[0] = aCornersList[ii].x * g_Parm_3D_Visu.m_BoardScale;
+        v_data[1] = -aCornersList[ii].y * g_Parm_3D_Visu.m_BoardScale;
+        // gluTessVertex store pointers on data, not data, so do not store
+        // different corners values in a temporary variable
+        // but send pointer on each corner value in aCornersList
+        gluTessVertex( tess, v_data, &aCornersList[ii] );
+    }
+
+    gluTessEndContour( tess );
+    gluTessEndPolygon( tess );
+
+    gluDeleteTess( tess );
 }
 
 
@@ -1302,32 +1399,32 @@ static GLfloat Get3DLayerSide( int act_layer )
 void CALLBACK tessBeginCB( GLenum which )
 {
     glBegin( which );
-
-    // DEBUG //
-    D( printf( "Tess glBegin()\n" ); )
 }
 
 
 void CALLBACK tessEndCB()
 {
     glEnd();
-
-    // DEBUG //
-    D( printf( "Tess glEnd()\n" ); )
 }
 
 
-void CALLBACK tessVertexCB( const GLvoid* data )
+void CALLBACK tessCPolyPt2Vertex( const GLvoid* data )
 {
     // cast back to double type
     const CPolyPt* ptr = (const CPolyPt*) data;
 
-    glVertex3f( (*ptr).x * g_Parm_3D_Visu.m_BoardScale,
-               (*ptr).y * g_Parm_3D_Visu.m_BoardScale * -1,
-               g_Parm_3D_Visu.m_ActZpos );
+    glVertex3f( ptr->x * g_Parm_3D_Visu.m_BoardScale,
+                -ptr->y * g_Parm_3D_Visu.m_BoardScale,
+                g_Parm_3D_Visu.m_ActZpos );
+}
 
-    // DEBUG //
-    D( printf( "TessVertex glVertex3d(%d,%d,%f)\n", (*ptr).x, (*ptr).y, g_Parm_3D_Visu.m_ActZpos ); )
+void CALLBACK tesswxPoint2Vertex( const GLvoid* data )
+{
+    const wxPoint* ptr = (const wxPoint*) data;
+
+    glVertex3f( ptr->x * g_Parm_3D_Visu.m_BoardScale,
+                -ptr->y * g_Parm_3D_Visu.m_BoardScale,
+                g_Parm_3D_Visu.m_ActZpos );
 }
 
 

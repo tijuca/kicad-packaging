@@ -4,17 +4,10 @@
 
 #include "fctsys.h"
 
-//#include "gr_basic.h"
 #include "common.h"
 #include "class_drawpanel.h"
 #include "confirm.h"
 #include "pcbnew.h"
-
-//#include "trigo.h"
-
-//#include "drag.h"
-
-//#include "protos.h"
 #include "dialog_global_pads_edition_base.h"
 
 
@@ -25,7 +18,7 @@
 class DIALOG_GLOBAL_PADS_EDITION : public DIALOG_GLOBAL_PADS_EDITION_BASE
 {
 private:
-    WinEDA_BasePcbFrame* m_Parent;
+    PCB_BASE_FRAME* m_Parent;
     D_PAD*      m_CurrentPad;
 
 public:
@@ -34,7 +27,7 @@ public:
     static bool m_Pad_Orient_Filter;
 
 public:
-    DIALOG_GLOBAL_PADS_EDITION( WinEDA_BasePcbFrame* parent, D_PAD* Pad );
+    DIALOG_GLOBAL_PADS_EDITION( PCB_BASE_FRAME* parent, D_PAD* Pad );
     ~DIALOG_GLOBAL_PADS_EDITION() { }
 
 private:
@@ -44,9 +37,7 @@ private:
 };
 
 
-DIALOG_GLOBAL_PADS_EDITION::DIALOG_GLOBAL_PADS_EDITION(
-    WinEDA_BasePcbFrame* parent,
-    D_PAD*               Pad ) :
+DIALOG_GLOBAL_PADS_EDITION::DIALOG_GLOBAL_PADS_EDITION( PCB_BASE_FRAME* parent, D_PAD* Pad ) :
     DIALOG_GLOBAL_PADS_EDITION_BASE( parent )
 {
     m_Parent     = parent;
@@ -104,17 +95,20 @@ void DIALOG_GLOBAL_PADS_EDITION::PadPropertiesAccept( wxCommandEvent& event )
         EndModal( returncode );
         break;
     }
+
+    m_Parent->OnModify();
 }
 
 
-/** Function Global_Import_Pad_Settings
+/**
+ * Function Global_Import_Pad_Settings
  * Function to change pad caracteristics for the given footprint
  * or alls footprints which look like the given footprint
  * @param aPad pad to use as pattern. The given footprint is the parent of
  *             this pad
  * @param aDraw: if true: redraws the footprint
  */
-void WinEDA_BasePcbFrame::Global_Import_Pad_Settings( D_PAD* aPad, bool aDraw )
+void PCB_BASE_FRAME::Global_Import_Pad_Settings( D_PAD* aPad, bool aDraw )
 {
     MODULE* Module_Ref, * Module;
     int     diag;
@@ -203,7 +197,7 @@ void WinEDA_BasePcbFrame::Global_Import_Pad_Settings( D_PAD* aPad, bool aDraw )
         if( aDraw )
         {
             Module->m_Flags |= DO_NOT_DRAW;
-            DrawPanel->PostDirtyRect( Module->GetBoundingBox() );
+            DrawPanel->RefreshDrawingRect( Module->GetBoundingBox() );
             Module->m_Flags &= ~DO_NOT_DRAW;
         }
 
@@ -272,12 +266,12 @@ void WinEDA_BasePcbFrame::Global_Import_Pad_Settings( D_PAD* aPad, bool aDraw )
                 break;
             }
 
-            pt_pad->ComputeRayon();
+            pt_pad->ComputeShapeMaxRadius();
         }
 
         Module->Set_Rectangle_Encadrement();
         if( aDraw )
-            DrawPanel->PostDirtyRect( Module->GetBoundingBox() );
+            DrawPanel->RefreshDrawingRect( Module->GetBoundingBox() );
     }
 
     OnModify();

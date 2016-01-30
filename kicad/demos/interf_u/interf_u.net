@@ -1,4 +1,4 @@
-# EESchema Netlist Version 1.1 created  1/8/2008-07:52:43
+# EESchema Netlist Version 1.1 created  21/02/2011 18:31:31
 (
  ( /322D3011 BUS_PC BUS1 BUSPC
   ( 1 GND )
@@ -69,11 +69,11 @@
   ( 2 GND )
  )
  ( /32307ECF C1 C2 47pF
-  ( 1 N-000005 )
+  ( 1 N-000145 )
   ( 2 GND )
  )
  ( /32307ED4 C1 C3 47pF
-  ( 1 N-000004 )
+  ( 1 N-000146 )
   ( 2 GND )
  )
  ( /32307DCF CP6 C4 47uF
@@ -89,11 +89,11 @@
   ( 2 GND )
  )
  ( /322D32AC LEDV D1 LED
-  ( 1 N-000006 )
+  ( 1 N-000105 )
   ( 2 GND )
  )
  ( /322D32BE LEDV D2 LED
-  ( 1 N-000007 )
+  ( 1 N-000104 )
   ( 2 GND )
  )
  ( /32568D1E pin_array_8x2 JP1 CONN_8X2
@@ -142,23 +142,23 @@
   ( 25 GND )
  )
  ( /32307EA1 R3 R1 100K
-  ( 1 N-000004 )
-  ( 2 N-000005 )
+  ( 1 N-000146 )
+  ( 2 N-000145 )
  )
  ( /32307EAA R3 R2 1K
   ( 1 /8MH-OUT )
-  ( 2 N-000004 )
+  ( 2 N-000146 )
  )
  ( /324002E6 R3 R3 10K
-  ( 1 N-000114 )
+  ( 1 N-000071 )
   ( 2 VCC )
  )
  ( /322D3295 R3 R4 330
-  ( 1 N-000006 )
+  ( 1 N-000105 )
   ( 2 /LED1 )
  )
  ( /322D32A0 R3 R5 330
-  ( 1 N-000007 )
+  ( 1 N-000104 )
   ( 2 /LED2 )
  )
  ( /325679C1 r_pack9 RR1 9x1K
@@ -217,7 +217,7 @@
   ( 19 /MATCHL )
   ( 20 VCC )
  )
- ( /322D31CA 20dip300 U3 74LS541
+ ( /4A087146 $noname$ U3 74LS541
   ( 1 GND )
   ( 2 /PC-A1 )
   ( 3 /PC-A0 )
@@ -232,10 +232,10 @@
   ( 12 /RSTL )
   ( 13 /PC-RD )
   ( 14 /PC-WR )
-  ( 15 N-000124 )
-  ( 16 N-000125 )
-  ( 17 N-000126 )
-  ( 18 N-000127 )
+  ( 15 N-000109 )
+  ( 16 N-000108 )
+  ( 17 N-000107 )
+  ( 18 N-000106 )
   ( 19 GND )
   ( 20 VCC )
  )
@@ -268,17 +268,17 @@
   ( 27 /MA8 )
   ( 28 /MA13 )
   ( 29 /WR- )
-  ( 30 N-000114 )
+  ( 30 N-000071 )
   ( 31 /MA15 )
   ( 32 VCC )
  )
  ( /322D321C 24dip300 U8 EP600
   ( 1 GND )
   ( 2 /MATCHL )
-  ( 3 N-000127 )
-  ( 4 N-000126 )
-  ( 5 N-000125 )
-  ( 6 N-000124 )
+  ( 3 N-000106 )
+  ( 4 N-000107 )
+  ( 5 N-000108 )
+  ( 6 N-000109 )
   ( 7 /PC-WR )
   ( 8 ? )
   ( 9 ? )
@@ -378,7 +378,7 @@
   ( K11 GND )
   ( K12 ? )
   ( K13 /ACK )
-  ( L1 N-000005 )
+  ( L1 N-000145 )
   ( L2 /SEL_LPT )
   ( L3 VCC )
   ( L4 /CLKLCA )
@@ -418,8 +418,8 @@
   ( N13 /SLCT+ )
  )
  ( /32307EC0 HC-18UH X1 8MHz
-  ( 1 N-000005 )
-  ( 2 N-000004 )
+  ( 1 N-000145 )
+  ( 2 N-000146 )
  )
 )
 *
@@ -450,6 +450,24 @@ $component C6
  CP*
  SM*
 $endlist
+$component D1
+ LED-3MM
+ LED-5MM
+ LED-10MM
+ LED-0603
+ LED-0805
+ LED-1206
+ LEDV
+$endlist
+$component D2
+ LED-3MM
+ LED-5MM
+ LED-10MM
+ LED-0603
+ LED-0805
+ LED-1206
+ LEDV
+$endlist
 $component P1
  DB25*
 $endlist
@@ -457,26 +475,36 @@ $component R1
  R?
  SM0603
  SM0805
+ R?-*
+ SM1206
 $endlist
 $component R2
  R?
  SM0603
  SM0805
+ R?-*
+ SM1206
 $endlist
 $component R3
  R?
  SM0603
  SM0805
+ R?-*
+ SM1206
 $endlist
 $component R4
  R?
  SM0603
  SM0805
+ R?-*
+ SM1206
 $endlist
 $component R5
  R?
  SM0603
  SM0805
+ R?-*
+ SM1206
 $endlist
 $endfootprintlist
 }

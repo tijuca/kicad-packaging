@@ -34,12 +34,12 @@
 /**
  * Class PCB_LAYER_WIDGET
  * is here to implement the abtract functions of LAYER_WIDGET so they
- * may be tied into the WinEDA_PcbFrame's data and so we can add a popup
+ * may be tied into the PCB_EDIT_FRAME's data and so we can add a popup
  * menu which is specific to PCBNEW's needs.
  */
 class PCB_LAYER_WIDGET : public LAYER_WIDGET
 {
-    WinEDA_PcbFrame*    myframe;
+    PCB_EDIT_FRAME*    myframe;
 
     // popup menu ids.
 #define ID_SHOW_ALL_COPPERS     wxID_HIGHEST
@@ -61,13 +61,21 @@ public:
 
     /**
      * Constructor
+     * @param aParent is the parent window
+     * @param aFocusOwner is the window that should be sent the focus after
      * @param aPointSize is the font point size to use within the widget.  This
      *  effectively sets the overal size of the widget via the row height and bitmap
      *  button sizes.
      */
-    PCB_LAYER_WIDGET( WinEDA_PcbFrame* aParent, wxWindow* aFocusOwner, int aPointSize = 10 );
+    PCB_LAYER_WIDGET( PCB_EDIT_FRAME* aParent, wxWindow* aFocusOwner, int aPointSize = 10 );
 
     void ReFill();
+
+    /**
+     * Function ReFillRender
+     * Rebuild Render for instance after the config is read
+     */
+    void ReFillRender();
 
     //-----<implement LAYER_WIDGET abstract callback functions>-----------
     void OnLayerColorChange( int aLayer, int aColor );
@@ -75,7 +83,8 @@ public:
     void OnLayerVisible( int aLayer, bool isVisible, bool isFinal );
     void OnRenderColorChange( int aId, int aColor );
     void OnRenderEnable( int aId, bool isEnabled );
-    /** Function SetLayersManagerTabsText
+    /**
+     * Function SetLayersManagerTabsText
      * Update the layer manager tabs labels
      * Useful when changing Language or to set labels to a non default value
      */

@@ -1,5 +1,5 @@
 /**
- * @file hotkeys.h
+ * @file pcbnew/hotkeys.h
  * PCBNew hotkeys
  */
 #ifndef _PCBNEW_KOTKEYS_H
@@ -13,20 +13,22 @@
 enum hotkey_id_commnand {
     HK_DELETE = HK_COMMON_END,
     HK_BACK_SPACE,
-    HK_ROTATE_FOOTPRINT,
-    HK_MOVE_FOOTPRINT,
-    HK_DRAG_FOOTPRINT,
+    HK_ROTATE_ITEM,
+    HK_MOVE_ITEM,
+    HK_DRAG_ITEM,
     HK_FLIP_FOOTPRINT,
     HK_GET_AND_MOVE_FOOTPRINT,
     HK_LOCK_UNLOCK_FOOTPRINT,
     HK_ADD_NEW_TRACK,
     HK_ADD_VIA,
     HK_ADD_MICROVIA,
+    HK_SWITCH_TRACK_POSTURE,
     HK_END_TRACK,
     HK_SAVE_BOARD, HK_LOAD_BOARD,
     HK_SWITCH_UNITS,
     HK_SWITCH_TRACK_DISPLAY_MODE,
     HK_FIND_ITEM,
+    HK_EDIT_ITEM,
     HK_SWITCH_LAYER_TO_COPPER,
     HK_SWITCH_LAYER_TO_COMPONENT,
     HK_SWITCH_LAYER_TO_NEXT,
@@ -46,17 +48,27 @@ enum hotkey_id_commnand {
     HK_SWITCH_LAYER_TO_INNER13,
     HK_SWITCH_LAYER_TO_INNER14,
     HK_ADD_MODULE,
-    HK_MOVE_TRACK,
     HK_SLIDE_TRACK
 };
 
-// List of hotkey descriptors for pcbnew
-extern struct Ki_HotkeyInfoSectionDescriptor s_Pcbnew_Editor_Hokeys_Descr[];
+// Full list of hotkey descriptors for borad editor and footprint editor
+extern struct Ki_HotkeyInfoSectionDescriptor g_Pcbnew_Editor_Hokeys_Descr[];
 
 // List of hotkey descriptors for the board editor only
-extern struct Ki_HotkeyInfoSectionDescriptor s_Board_Editor_Hokeys_Descr[];
+extern struct Ki_HotkeyInfoSectionDescriptor g_Board_Editor_Hokeys_Descr[];
 
 // List of hotkey descriptors for the footprint editor only
-extern struct Ki_HotkeyInfoSectionDescriptor s_Module_Editor_Hokeys_Descr[];
+extern struct Ki_HotkeyInfoSectionDescriptor g_Module_Editor_Hokeys_Descr[];
+
+// List of common hotkey descriptors
+// used in hotkeys_board_editor.cpp and hotkeys_module_editor.cpp
+extern Ki_HotkeyInfo* common_Hotkey_List[];
+// List of hotkey descriptors for pcbnew
+// used in hotkeys_board_editor.cpp
+extern Ki_HotkeyInfo* board_edit_Hotkey_List[];
+// List of hotkey descriptors for the module editor
+// used in hotkeys_module_editor.cpp
+extern Ki_HotkeyInfo* module_edit_Hotkey_List[];
+
 
 #endif /* _PCBNEW_HOTKEYS_H_ */

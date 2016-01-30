@@ -24,6 +24,34 @@
 #include "bitmaps.h"
 
 
+// -----------------
+// helper function (from wxWidgets, opengl/cube.cpp sample
+// -----------------
+void CheckGLError()
+{
+    GLenum errLast = GL_NO_ERROR;
+
+    for ( ; ; )
+    {
+        GLenum err = glGetError();
+        if ( err == GL_NO_ERROR )
+            return;
+
+        // normally the error is reset by the call to glGetError() but if
+        // glGetError() itself returns an error, we risk looping forever here
+        // so check that we get a different error than the last time
+        if ( err == errLast )
+        {
+            wxLogError(wxT("OpenGL error state couldn't be reset."));
+            return;
+        }
+
+        errLast = err;
+
+        wxLogError(wxT("OpenGL error %d"), err);
+    }
+}
+
 /*
  * Pcb3D_GLCanvas implementation
  */
@@ -45,9 +73,9 @@ EVT_MENU_RANGE( ID_POPUP_3D_VIEW_START, ID_POPUP_3D_VIEW_END,
                 Pcb3D_GLCanvas::OnPopUpMenu )
 END_EVENT_TABLE()
 
-Pcb3D_GLCanvas::Pcb3D_GLCanvas( WinEDA3D_DrawFrame* parent ) :
-#if wxCHECK_VERSION( 2, 9, 0 )
-    wxGLCanvas( parent, -1, NULL, wxDefaultPosition, wxDefaultSize,
+Pcb3D_GLCanvas::Pcb3D_GLCanvas( WinEDA3D_DrawFrame* parent, int* attribList ) :
+#if wxCHECK_VERSION( 2, 7, 0 )
+    wxGLCanvas( parent, -1, attribList, wxDefaultPosition, wxDefaultSize,
                 wxFULL_REPAINT_ON_RESIZE )
 #else
     wxGLCanvas( parent, -1, wxDefaultPosition, wxDefaultSize,
@@ -57,8 +85,9 @@ Pcb3D_GLCanvas::Pcb3D_GLCanvas( WinEDA3D_DrawFrame* parent ) :
     m_init   = FALSE;
     m_gllist = 0;
     m_Parent = parent;
+    m_ortho = false;
 
-#if wxCHECK_VERSION( 2, 9, 0 )
+#if wxCHECK_VERSION( 2, 7, 0 )
 
     // Explicitly create a new rendering context instance for this canvas.
     m_glRC = new wxGLContext( this );
@@ -72,7 +101,7 @@ Pcb3D_GLCanvas::~Pcb3D_GLCanvas()
 {
     ClearLists();
     m_init = FALSE;
-#if wxCHECK_VERSION( 2, 9, 0 )
+#if wxCHECK_VERSION( 2, 7, 0 )
     delete m_glRC;
 #endif
 }
@@ -498,33 +527,47 @@ void Pcb3D_GLCanvas::InitGL()
         glBlendFunc( GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA );
     }
 
-    /* set viewing projection */
+    // set viewing projection
 
-    // Ratio width / height of the window display
-    double ratio_HV = (double) size.x / size.y;
     glMatrixMode( GL_PROJECTION );
     glLoadIdentity();
 
 #define MAX_VIEW_ANGLE 160.0 / 45.0
     if( g_Parm_3D_Visu.m_Zoom > MAX_VIEW_ANGLE )
         g_Parm_3D_Visu.m_Zoom = MAX_VIEW_ANGLE;
-    gluPerspective( 45.0 * g_Parm_3D_Visu.m_Zoom, ratio_HV, 1, 10 );
 
-//	glFrustum(-1., 1.1F, -1.1F, 1.1F, ZBottom, ZTop);
+     if( ModeIsOrtho() )
+     {
+         // OrthoReductionFactor is chosen so as to provide roughly the same size as Perspective View
+         const double orthoReductionFactor = 400/g_Parm_3D_Visu.m_Zoom;
+         // Initialize Projection Matrix for Ortographic View
+         glOrtho(-size.x/orthoReductionFactor, size.x/orthoReductionFactor, -size.y/orthoReductionFactor, size.y/orthoReductionFactor, 1, 10);
+     }
+     else
+     {
+         // Ratio width / height of the window display
+         double ratio_HV = (double) size.x / size.y;
 
-    /* position viewer */
+         // Initialize Projection Matrix for Perspective View
+         gluPerspective( 45.0 * g_Parm_3D_Visu.m_Zoom, ratio_HV, 1, 10 );
+     }
+
+
+    // position viewer
     glMatrixMode( GL_MODELVIEW );
     glLoadIdentity();
     glTranslatef( 0.0F, 0.0F, -( ZBottom + ZTop) / 2 );
 
-    /* clear color and depth buffers */
+    // clear color and depth buffers
     glClearColor( g_Parm_3D_Visu.m_BgColor.m_Red,
                   g_Parm_3D_Visu.m_BgColor.m_Green,
                   g_Parm_3D_Visu.m_BgColor.m_Blue, 1 );
     glClear( GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT );
 
-    /* Setup light souces: */
+    // Setup light souces:
     SetLights();
+
+    CheckGLError();
 }
 
 
@@ -559,7 +602,7 @@ void Pcb3D_GLCanvas::SetLights()
  */
 void Pcb3D_GLCanvas::TakeScreenshot( wxCommandEvent& event )
 {
-    wxFileName fn( m_Parent->m_Parent->GetScreen()->m_FileName );
+    wxFileName fn( m_Parent->m_Parent->GetScreen()->GetFileName() );
     wxString   FullFileName;
     wxString   file_ext, mask;
     bool       fmt_is_jpeg = FALSE;
@@ -568,9 +611,9 @@ void Pcb3D_GLCanvas::TakeScreenshot( wxCommandEvent& event )
         fmt_is_jpeg = TRUE;
     if( event.GetId() != ID_TOOL_SCREENCOPY_TOCLIBBOARD )
     {
-        file_ext = fmt_is_jpeg ? wxT( "jpg" ) : wxT( "png" );
-        mask = wxT( "*." ) + file_ext;
-        FullFileName    = m_Parent->m_Parent->GetScreen()->m_FileName;
+        file_ext     = fmt_is_jpeg ? wxT( "jpg" ) : wxT( "png" );
+        mask         = wxT( "*." ) + file_ext;
+        FullFileName = m_Parent->m_Parent->GetScreen()->GetFileName();
         fn.SetExt( file_ext );
 
         FullFileName =
@@ -580,19 +623,14 @@ void Pcb3D_GLCanvas::TakeScreenshot( wxCommandEvent& event )
 
         if( FullFileName.IsEmpty() )
             return;
+
+        // Be sure the screen area destroyed by the file dialog is redrawn before making
+        // a screen copy.
+        // Without this call, under Linux the screen refresh is made to late.
+        wxYield();
     }
 
-    Redraw( true );
-
-    wxSize     image_size = GetClientSize();
- #ifndef __WXMAC__
-    wxClientDC dc( this );
-    wxBitmap   bitmap( image_size.x, image_size.y );
-    wxMemoryDC memdc;
-    memdc.SelectObject( bitmap );
-    memdc.Blit( 0, 0, image_size.x, image_size.y, &dc, 0, 0 );
-    memdc.SelectObject( wxNullBitmap );
-#else
+    wxSize image_size = GetClientSize();
     struct vieport_params
     {
         GLint originx;
@@ -601,6 +639,7 @@ void Pcb3D_GLCanvas::TakeScreenshot( wxCommandEvent& event )
         GLint y;
     } viewport;
 
+    // Build image from the 3D buffer
     wxWindowUpdateLocker noUpdates( this );
     glGetIntegerv( GL_VIEWPORT, (GLint*) &viewport );
 
@@ -610,27 +649,18 @@ void Pcb3D_GLCanvas::TakeScreenshot( wxCommandEvent& event )
 
     glPixelStorei( GL_PACK_ALIGNMENT, 1 );
     glReadBuffer( GL_BACK_LEFT );
-    glReadPixels( viewport.originx,
-                  viewport.originy,
-                  viewport.x,
-                  viewport.y,
-                  GL_RGB,
-                  GL_UNSIGNED_BYTE,
-                  pixelbuffer );
-    glReadPixels( viewport.originx,
-                  viewport.originy,
-                  viewport.x,
-                  viewport.y,
-                  GL_ALPHA,
-                  GL_UNSIGNED_BYTE,
-                  alphabuffer );
+    glReadPixels( viewport.originx, viewport.originy,
+                  viewport.x, viewport.y,
+                  GL_RGB, GL_UNSIGNED_BYTE, pixelbuffer );
+    glReadPixels( viewport.originx, viewport.originy,
+                  viewport.x, viewport.y,
+                  GL_ALPHA, GL_UNSIGNED_BYTE, alphabuffer );
 
 
     image.SetData( pixelbuffer );
     image.SetAlpha( alphabuffer );
     image = image.Mirror( false );
     wxBitmap bitmap( image );
-#endif
 
     if( event.GetId() == ID_TOOL_SCREENCOPY_TOCLIBBOARD )
     {
@@ -639,7 +669,8 @@ void Pcb3D_GLCanvas::TakeScreenshot( wxCommandEvent& event )
         if( wxTheClipboard->Open() )
         {
             if( !wxTheClipboard->SetData( dobjBmp ) )
-                wxLogError( _T( "Failed to copy image to clipboard" ) );
+                wxMessageBox( _( "Failed to copy image to clipboard" ) );
+
             wxTheClipboard->Flush();    /* the data in clipboard will stay
                                          * available after the
                                          * application exits */
@@ -653,7 +684,7 @@ void Pcb3D_GLCanvas::TakeScreenshot( wxCommandEvent& event )
         if( !image.SaveFile( FullFileName,
                              fmt_is_jpeg ? wxBITMAP_TYPE_JPEG :
                              wxBITMAP_TYPE_PNG ) )
-            wxLogError( wxT( "Can't save file" ) );
+            wxMessageBox( _( "Can't save file" ) );
 
         image.Destroy();
     }

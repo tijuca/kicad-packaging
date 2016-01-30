@@ -6,43 +6,55 @@ add_definitions(-DGERBVIEW -DPCBNEW)
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}
                     ${Boost_INCLUDE_DIR}
                     ../3d-viewer
+                    ../common
                     ../cvpcb
                     ../pcbnew
                     ../polygon)
 ###
 # Sources
 ###
+
+set(DIALOGS_SRCS
+    dialogs/gerbview_dialog_display_options_frame_base.cpp
+    dialogs/gerbview_dialog_display_options_frame.cpp
+    dialogs/dialog_layers_select_to_pcb_base.cpp
+    dialogs/dialog_print_using_printer.cpp
+    dialogs/dialog_print_using_printer_base.cpp
+    )
+
 set(GERBVIEW_SRCS
     block.cpp
+    class_am_param.cpp
+    class_aperture_macro.cpp
+    class_DCodeSelectionbox.cpp
+    class_GERBER.cpp
+    class_gerber_draw_item.cpp
     class_gerbview_layer_widget.cpp
     controle.cpp
     dcode.cpp
-    deltrack.cpp
-    dialog_print_using_printer.cpp
-    dialog_print_using_printer_base.cpp
-    dummy_functions.cpp
-    edit.cpp
+    draw_gerber_screen.cpp
+    events_called_functions.cpp
+    excellon_read_drill_file.cpp
     export_to_pcbnew.cpp
     files.cpp
-    gerberframe.cpp
-    gerbview_config.cpp
-    gerbview_dialog_display_options_frame_base.cpp
-    gerbview_dialog_display_options_frame.cpp
     gerbview.cpp
+    gerbview_config.cpp
+    gerbview_frame.cpp
     hotkeys.cpp
     initpcb.cpp
-    lay2plot.cpp
     locate.cpp
+    menubar.cpp
+    onleftclick.cpp
     onrightclick.cpp
     options.cpp
     pcbplot.cpp
     readgerb.cpp
-    reglage.cpp
+    rs274_read_XY_and_IJ_coordinates.cpp
     rs274d.cpp
     rs274x.cpp
     select_layers_to_pcb.cpp
-    tool_gerber.cpp
-    tracepcb.cpp )
+    toolbars_gerber.cpp
+    )
 
 ###
 # We need some extra sources from pcbnew
@@ -82,7 +94,8 @@ endif(APPLE)
 ###
 add_executable(gerbview WIN32 MACOSX_BUNDLE
                ${GERBVIEW_SRCS}
-               ${GERBVIEW_EXTRA_SRCS} 
+               ${DIALOGS_SRCS}
+               ${GERBVIEW_EXTRA_SRCS}
                ${GERBVIEW_RESOURCES})
 
 ###

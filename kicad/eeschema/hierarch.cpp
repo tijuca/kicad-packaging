@@ -3,20 +3,20 @@
 /******************/
 
 #include "fctsys.h"
-#include "gr_basic.h"
 #include "common.h"
 #include "class_drawpanel.h"
 #include "confirm.h"
 #include "bitmaps.h"
+#include "class_sch_screen.h"
+#include "wxEeschemaStruct.h"
 
-#include "program.h"
 #include "general.h"
+#include "sch_sheet.h"
+#include "sch_sheet_path.h"
 
 #include "wx/imaglist.h"
 #include "wx/treectrl.h"
 
-
-static bool UpdateScreenFromSheet( WinEDA_SchematicFrame* frame );
 
 enum
 {
@@ -24,7 +24,7 @@ enum
 };
 
 
-class WinEDA_HierFrame;
+class HIERARCHY_NAVIG_DLG;
 
 /* This class derived from wxTreeItemData stores the SCH_SHEET_PATH of each
  * sheet in hierarchy in each TreeItem, in its associated data buffer
@@ -40,25 +40,24 @@ public:
 };
 
 /* Class to handle hierarchy tree. */
-class WinEDA_Tree : public wxTreeCtrl
+class HIERARCHY_TREE : public wxTreeCtrl
 {
 private:
-    WinEDA_HierFrame* m_Parent;
+    HIERARCHY_NAVIG_DLG* m_Parent;
     wxImageList*      imageList;
 
 public:
-    WinEDA_Tree() { }
-    WinEDA_Tree( WinEDA_HierFrame* parent );
+    HIERARCHY_TREE() { }
+    HIERARCHY_TREE( HIERARCHY_NAVIG_DLG* parent );
 
-    DECLARE_DYNAMIC_CLASS( WinEDA_Tree )
+    DECLARE_DYNAMIC_CLASS( HIERARCHY_TREE )
 };
 
-IMPLEMENT_DYNAMIC_CLASS( WinEDA_Tree, wxTreeCtrl )
+IMPLEMENT_DYNAMIC_CLASS( HIERARCHY_TREE, wxTreeCtrl )
 
 
-WinEDA_Tree::WinEDA_Tree( WinEDA_HierFrame* parent ) :
-    wxTreeCtrl( (wxWindow*)parent, ID_TREECTRL_HIERARCHY,
-                wxDefaultPosition, wxDefaultSize,
+HIERARCHY_TREE::HIERARCHY_TREE( HIERARCHY_NAVIG_DLG* parent ) :
+    wxTreeCtrl( (wxWindow*)parent, ID_TREECTRL_HIERARCHY, wxDefaultPosition, wxDefaultSize,
                 wxTR_HAS_BUTTONS, wxDefaultValidator, wxT( "HierachyTreeCtrl" ) )
 {
     m_Parent = parent;
@@ -73,23 +72,23 @@ WinEDA_Tree::WinEDA_Tree( WinEDA_HierFrame* parent ) :
 }
 
 
-class WinEDA_HierFrame : public wxDialog
+class HIERARCHY_NAVIG_DLG : public wxDialog
 {
 public:
-    WinEDA_SchematicFrame* m_Parent;
-    WinEDA_Tree*           m_Tree;
-    int    m_nbsheets;
-    wxDC*  m_DC;
+    SCH_EDIT_FRAME* m_Parent;
+    HIERARCHY_TREE*    m_Tree;
+    int             m_nbsheets;
+    wxDC*           m_DC;
 
 private:
     wxSize m_TreeSize;
     int    maxposx;
 
 public:
-    WinEDA_HierFrame( WinEDA_SchematicFrame* parent, wxDC* DC, const wxPoint& pos );
+    HIERARCHY_NAVIG_DLG( SCH_EDIT_FRAME* parent, wxDC* DC, const wxPoint& pos );
     void BuildSheetsTree( SCH_SHEET_PATH* list, wxTreeItemId* previousmenu );
 
-    ~WinEDA_HierFrame();
+    ~HIERARCHY_NAVIG_DLG();
 
     void OnSelect( wxTreeEvent& event );
 
@@ -99,31 +98,28 @@ private:
     DECLARE_EVENT_TABLE()
 };
 
-BEGIN_EVENT_TABLE( WinEDA_HierFrame, wxDialog )
-    EVT_TREE_ITEM_ACTIVATED( ID_TREECTRL_HIERARCHY,
-                             WinEDA_HierFrame::OnSelect )
+BEGIN_EVENT_TABLE( HIERARCHY_NAVIG_DLG, wxDialog )
+    EVT_TREE_ITEM_ACTIVATED( ID_TREECTRL_HIERARCHY, HIERARCHY_NAVIG_DLG::OnSelect )
 END_EVENT_TABLE()
 
 
-void WinEDA_SchematicFrame::InstallHierarchyFrame( wxDC* DC, wxPoint& pos )
+void SCH_EDIT_FRAME::InstallHierarchyFrame( wxDC* DC, wxPoint& pos )
 {
-    WinEDA_HierFrame* treeframe = new WinEDA_HierFrame( this, DC, pos );
+    HIERARCHY_NAVIG_DLG* treeframe = new HIERARCHY_NAVIG_DLG( this, DC, pos );
 
     treeframe->ShowModal();
     treeframe->Destroy();
 }
 
 
-WinEDA_HierFrame::WinEDA_HierFrame( WinEDA_SchematicFrame* parent, wxDC* DC,
-                                    const wxPoint& pos ) :
-    wxDialog( parent, -1, _( "Navigator" ), pos, wxSize( 110, 50 ),
-              DIALOG_STYLE )
+HIERARCHY_NAVIG_DLG::HIERARCHY_NAVIG_DLG( SCH_EDIT_FRAME* parent, wxDC* DC, const wxPoint& pos ) :
+    wxDialog( parent, -1, _( "Navigator" ), pos, wxSize( 110, 50 ), DIALOG_STYLE )
 {
     wxTreeItemId cellule;
 
     m_Parent = parent;
     m_DC   = DC;
-    m_Tree = new WinEDA_Tree( this );
+    m_Tree = new HIERARCHY_TREE( this );
 
     m_nbsheets = 1;
 
@@ -162,24 +158,22 @@ WinEDA_HierFrame::WinEDA_HierFrame( WinEDA_SchematicFrame* parent, wxDC* DC,
 }
 
 
-WinEDA_HierFrame::~WinEDA_HierFrame()
+HIERARCHY_NAVIG_DLG::~HIERARCHY_NAVIG_DLG()
 {
 }
 
 
-void WinEDA_HierFrame::OnQuit( wxCommandEvent& WXUNUSED (event) )
+void HIERARCHY_NAVIG_DLG::OnQuit( wxCommandEvent& event )
 {
     // true is to force the frame to close
     Close( true );
 }
 
 
-/* Routine to create the tree in the navigation hierarchy
- * Schematic
+/* Routine to create the hierarchical tree of the schematic
  * This routine is re-entrant!
  */
-void WinEDA_HierFrame::BuildSheetsTree( SCH_SHEET_PATH* list,
-                                        wxTreeItemId*  previousmenu )
+void HIERARCHY_NAVIG_DLG::BuildSheetsTree( SCH_SHEET_PATH* list, wxTreeItemId*  previousmenu )
 
 {
     wxTreeItemId menu;
@@ -193,14 +187,16 @@ void WinEDA_HierFrame::BuildSheetsTree( SCH_SHEET_PATH* list,
             DisplayError( this, msg );
             m_nbsheets++;
         }
+
         return;
     }
 
     maxposx += m_Tree->GetIndent();
     SCH_ITEM* schitem = list->LastDrawList();
+
     while( schitem && m_nbsheets < NB_MAX_SHEET )
     {
-        if( schitem->Type() == DRAW_SHEET_STRUCT_TYPE )
+        if( schitem->Type() == SCH_SHEET_T )
         {
             SCH_SHEET* sheet = (SCH_SHEET*) schitem;
             m_nbsheets++;
@@ -208,6 +204,7 @@ void WinEDA_HierFrame::BuildSheetsTree( SCH_SHEET_PATH* list,
             list->Push( sheet );
             m_Tree->SetItemData( menu, new TreeItemData( *list ) );
             int ll = m_Tree->GetItemText( menu ).Len();
+
 #ifdef __WINDOWS__
             ll *= 9;    //  * char width
 #else
@@ -216,15 +213,18 @@ void WinEDA_HierFrame::BuildSheetsTree( SCH_SHEET_PATH* list,
             ll += maxposx + 20;
             m_TreeSize.x  = MAX( m_TreeSize.x, ll );
             m_TreeSize.y += 1;
+
             if( *list == *( m_Parent->GetSheet() ) )
             {
                 m_Tree->EnsureVisible( menu );
                 m_Tree->SelectItem( menu );
             }
+
             BuildSheetsTree( list, &menu );
             m_Tree->Expand( menu );
             list->Pop();
         }
+
         schitem = schitem->Next();
     }
 
@@ -235,102 +235,50 @@ void WinEDA_HierFrame::BuildSheetsTree( SCH_SHEET_PATH* list,
 /* Called on a double-click on a tree item:
  * Open the selected sheet, and display the corresponding screen
  */
-void WinEDA_HierFrame::OnSelect( wxTreeEvent& event )
+void HIERARCHY_NAVIG_DLG::OnSelect( wxTreeEvent& event )
 
 {
     wxTreeItemId ItemSel = m_Tree->GetSelection();
 
     *(m_Parent->m_CurrentSheet) =
         ( (TreeItemData*) m_Tree->GetItemData( ItemSel ) )->m_SheetPath;
-    UpdateScreenFromSheet( m_Parent );
-    Close( TRUE );
+    m_Parent->DisplayCurrentSheet();
+    Close( true );
 }
 
 
-/* Set the current screen to display the parent sheet of the current
- * displayed sheet
- */
-void WinEDA_SchematicFrame::InstallPreviousSheet()
+void SCH_EDIT_FRAME::DisplayCurrentSheet()
 {
-    if( m_CurrentSheet->Last() == g_RootSheet )
-        return;
-
-    g_ItemToRepeat = NULL;
+    m_itemToRepeat = NULL;
     ClearMsgPanel();
 
-    //make a copy for testing purposes.
-    SCH_SHEET_PATH listtemp = *m_CurrentSheet;
-    listtemp.Pop();
-    if( listtemp.LastScreen() == NULL )
-    {
-        DisplayError( this,
-                      wxT( "InstallPreviousScreen() Error: Sheet not found" ) );
-        return;
-    }
-    m_CurrentSheet->Pop();
-    UpdateScreenFromSheet( this );
-}
+    SCH_SCREEN* screen = m_CurrentSheet->LastScreen();
 
-
-/* Routine installation of the screen corresponding to the symbol edge Sheet
- * Be careful here because the SCH_SHEETs within the EEDrawList
- * don't actually have a valid m_AssociatedScreen (on purpose -- you need the
- * m_SubSheet hierarchy to maintain path info (well, this is but one way to
- * maintain path info..)
- */
-void WinEDA_SchematicFrame::InstallNextScreen( SCH_SHEET* Sheet )
-{
-    if( Sheet == NULL )
-    {
-        DisplayError( this, wxT( "InstallNextScreen() error" ) ); return;
-    }
-    m_CurrentSheet->Push( Sheet );
-    g_ItemToRepeat = NULL;
-    ClearMsgPanel();
-    UpdateScreenFromSheet( this );
-}
-
-
-/* Find and install the screen on the sheet symbol Sheet.
- * If Sheet == NULL installation of the screen base (Root).
- */
-static bool UpdateScreenFromSheet( WinEDA_SchematicFrame* frame )
-{
-    SCH_SCREEN* NewScreen;
-
-    NewScreen = frame->m_CurrentSheet->LastScreen();
-    if( !NewScreen )
-    {
-        DisplayError( frame, wxT( "Screen not found for this sheet" ) );
-        return false;
-    }
-
-    // Reset display settings of the new screen
-    // Assumes m_CurrentSheet has already been updated.
-    frame->ClearMsgPanel();
-    frame->DrawPanel->SetScrollbars( NewScreen->m_ScrollPixelsPerUnitX,
-                                     NewScreen->m_ScrollPixelsPerUnitY,
-                                     NewScreen->m_ScrollbarNumber.x,
-                                     NewScreen->m_ScrollbarNumber.y,
-                                     NewScreen->m_ScrollbarPos.x,
-                                     NewScreen->m_ScrollbarPos.y, TRUE );
+    SetScreen( screen );
 
     // update the References
-    frame->m_CurrentSheet->UpdateAllScreenReferences();
-    frame->SetSheetNumberAndCount();
-    frame->DrawPanel->m_CanStartBlock = -1;
-    ActiveScreen = frame->m_CurrentSheet->LastScreen();
+    m_CurrentSheet->UpdateAllScreenReferences();
+    SetSheetNumberAndCount();
+    DrawPanel->m_CanStartBlock = -1;
 
-    if( NewScreen->m_FirstRedraw )
+    if( screen->m_FirstRedraw )
     {
-        NewScreen->m_FirstRedraw = FALSE;
-        frame->Zoom_Automatique( TRUE );
+        Zoom_Automatique( false );
+        screen->m_FirstRedraw = false;
+        screen->SetCrossHairPosition( screen->GetScrollCenterPosition() );
+        DrawPanel->MoveCursorToCrossHair();
     }
     else
     {
-        frame->DrawPanel->MouseToCursorSchema();
+        RedrawScreen( screen->GetScrollCenterPosition(), true );
     }
 
-    frame->DrawPanel->Refresh();
-    return true;
+    // Now refresh DrawPanel. Should be not necessary, but because screen has changed
+    // the previous refresh has set all new draw parameters (scroll position ..)
+    // but most of time there were some inconsitencies about cursor parameters
+    // ( previous position of cursor ...) and artefacts can happen
+    // mainly when sheet size has changed
+    // This second refresh clears artefacts because at this point,
+    // all parameters are now updated
+    DrawPanel->Refresh();
 }

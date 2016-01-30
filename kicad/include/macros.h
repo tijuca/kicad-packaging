@@ -5,31 +5,48 @@
 #ifndef MACROS_H
 #define MACROS_H
 
-#if wxUSE_UNICODE
-#define CONV_TO_UTF8( wxstring )     ( (const char*) wxConvCurrent->cWX2MB( wxstring ) )
-#define CONV_FROM_UTF8( utf8string ) ( wxConvCurrent->cMB2WC( utf8string ) )
-#else
-#define CONV_TO_UTF8( wxstring )     ( (const char*) ( (wxstring).c_str() ) )
-#define CONV_FROM_UTF8( utf8string ) (utf8string)
-#endif
+#include <wx/wx.h>
 
+/**
+ * Macro TO_UTF8
+ * converts a wxString to a UTF8 encoded C string for all wxWidgets build modes.
+ * wxstring is a wxString, not a wxT() or _().  The scope of the return value
+ * is very limited and volatile, but can be used with printf() style functions well.
+ */
+#define TO_UTF8( wxstring )  ( (const char*) (wxstring).utf8_str() )
+
+/**
+ * Macro FROM_UTF8
+ * converts a UTF8 encoded C string to a wxString for all wxWidgets build modes.
+ */
+//#define FROM_UTF8( cstring )    wxString::FromUTF8( cstring )
+static inline wxString FROM_UTF8( const char* cstring )
+{
+    wxString line = wxString::FromUTF8( cstring );
+    if( line.IsEmpty() )  // happens when cstring is not a valid UTF8 sequence
+        line = wxConvCurrent->cMB2WC( cstring );    // try to use locale conversion
+    return line;
+}
 
 /**
  * Function GetChars
- * returns a pointer to the actual character data, either 8 or
- * 16 bits wide, depending on how the wxWidgets library was compiled.
+ * returns a wxChar* to the actual character data within a wxString, and is
+ * helpful for passing strings to wxString::Printf(wxT("%s"), GetChars(wxString) )
+ * <p>
+ * wxChar is defined to be
+ * <ul>
+ * <li> standard C style char when wxUSE_UNICODE==0 </li>
+ * <li> wchar_t when wxUSE_UNICODE==1 (the default). </li>
+ * </ul>
+ * i.e. it depends on how the wxWidgets library was compiled.  There was a period
+ * during the development of wxWidgets 2.9 when GetData() was missing, so this
+ * function was used to provide insulation from that design change.  It may
+ * no longer be needed, and is harmless.  GetData() seems to be an acceptable
+ * alternative in all cases now.
  */
-static inline const wxChar* GetChars( wxString s )
+static inline const wxChar* GetChars( const wxString& s )
 {
 #if wxCHECK_VERSION( 2, 9, 0 )
-
-/* To be Fixed:
- *   Currently, access to the actual character data in <wxString::Printf
- *   is a moving target
- *   So, with wxWidgets 2.9.0 this line is subject to change:
- */
-
-//    return (const wxChar*) s.wx_str();
     return (const wxChar*) s.c_str();
 #else
     return s.GetData();
@@ -57,15 +74,16 @@ static inline const wxChar* GetChars( wxString s )
 #define DEG2RAD( Deg ) ( (Deg) * M_PI / 180.0 )
 #define RAD2DEG( Rad ) ( (Rad) * 180.0 / M_PI )
 
-/* Normalize angle to be in the -360.0 .. 360.0 range or 0 .. 360.0: */
-#define NORMALIZE_ANGLE( Angle ) { while( Angle < 0 ) \
+// Normalize angle to be in the -360.0 .. 360.0:
+#define NORMALIZE_ANGLE_360( Angle ) { while( Angle < -3600 ) \
                                        Angle += 3600;\
                                    while( Angle > 3600 ) \
                                        Angle -= 3600;}
 
 /* Normalize angle to be in the 0.0 .. 360.0 range: */
 #define NORMALIZE_ANGLE_POS( Angle ) { while( Angle < 0 ) \
-                                           Angle += 3600;while( Angle >= 3600 ) \
+                                           Angle += 3600;\
+                                           while( Angle >= 3600 ) \
                                            Angle -= 3600;}
 #define NEGATE_AND_NORMALIZE_ANGLE_POS( Angle ) \
     { Angle = -Angle; while( Angle < 0 ) \
@@ -100,18 +118,18 @@ static inline const wxChar* GetChars( wxString s )
 #include "boost/typeof/typeof.hpp"
 
 // we have to register the types used with the typeof keyword with boost
-BOOST_TYPEOF_REGISTER_TYPE( wxPoint );
-BOOST_TYPEOF_REGISTER_TYPE( wxSize );
-BOOST_TYPEOF_REGISTER_TYPE( wxString );
+BOOST_TYPEOF_REGISTER_TYPE( wxPoint )
+BOOST_TYPEOF_REGISTER_TYPE( wxSize )
+BOOST_TYPEOF_REGISTER_TYPE( wxString )
 class DrawSheetLabelStruct;
-BOOST_TYPEOF_REGISTER_TYPE( DrawSheetLabelStruct* );
-class EDA_BaseStruct;
-BOOST_TYPEOF_REGISTER_TYPE( EDA_BaseStruct* );
+BOOST_TYPEOF_REGISTER_TYPE( DrawSheetLabelStruct* )
+class EDA_ITEM;
+BOOST_TYPEOF_REGISTER_TYPE( EDA_ITEM* )
 class D_PAD;
-BOOST_TYPEOF_REGISTER_TYPE( D_PAD* );
-BOOST_TYPEOF_REGISTER_TYPE( const D_PAD* );
+BOOST_TYPEOF_REGISTER_TYPE( D_PAD* )
+BOOST_TYPEOF_REGISTER_TYPE( const D_PAD* )
 class BOARD_ITEM;
-BOOST_TYPEOF_REGISTER_TYPE( BOARD_ITEM* );
+BOOST_TYPEOF_REGISTER_TYPE( BOARD_ITEM* )
 
 #define EXCHG( a, b ) { BOOST_TYPEOF( a ) __temp__ = (a);      \
                         (a) = (b);                           \
@@ -134,7 +152,7 @@ static inline void ADD_MENUITEM( wxMenu* menu, int id,
 #endif /* !defined( __WXMAC__ ) */
 
     menu->Append( l_item );
-};
+}
 
 static inline void ADD_MENUITEM_WITH_HELP( wxMenu* menu, int id,
                                            const wxString& text,
@@ -150,7 +168,7 @@ static inline void ADD_MENUITEM_WITH_HELP( wxMenu* menu, int id,
 #endif /* !defined( __WXMAC__ ) */
 
     menu->Append( l_item );
-};
+}
 
 #ifdef __WINDOWS__
 static inline void ADD_MENUITEM_WITH_SUBMENU( wxMenu* menu, wxMenu* submenu,
@@ -196,7 +214,7 @@ static inline void ADD_MENUITEM_WITH_SUBMENU( wxMenu* menu, wxMenu* submenu,
 #endif /* !defined( __WXMAC__ ) */
 
     menu->Append( l_item );
-};
+}
 
 static inline void ADD_MENUITEM_WITH_HELP_AND_SUBMENU( wxMenu*         menu,
                                                        wxMenu*         submenu,
@@ -215,14 +233,22 @@ static inline void ADD_MENUITEM_WITH_HELP_AND_SUBMENU( wxMenu*         menu,
 #endif /* !defined( __WXMAC__ ) */
 
     menu->Append( l_item );
-};
+}
 
 #endif
 
+// macro to add a bitmap list to check menus (do not use with normal menus)
 #ifdef __WINDOWS__
 #  define SETBITMAPS( icon ) item->SetBitmaps( apply_xpm, (icon) )
 #else
 #  define SETBITMAPS( icon )
+#endif
+
+// macro to add a bitmap menus (do not use with check menus)
+#ifdef __WXMAC__
+#  define SET_BITMAP( icon )
+#else
+#  define SET_BITMAP( icon ) item->SetBitmap( (icon) )
 #endif
 
 #endif /* ifdef MACRO_H */

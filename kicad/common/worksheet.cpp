@@ -825,9 +825,54 @@ Ki_WorkSheetData WS_Segm7_LU =
 Ki_WorkSheetData WS_Segm8_LU =
 {
     WS_SEGMENT_LU,
-    &WS_Podp1_LU,
+    &WS_Segm9_LU,
     STAMP_12,     0,
     0,            0,
+    NULL,         NULL
+};
+
+Ki_WorkSheetData WS_Segm9_LU =
+{
+    WS_SEGMENT_LU,
+    &WS_Segm10_LU,
+    STAMP_12,     STAMP_287,
+    STAMP_12,     STAMP_167,
+    NULL,         NULL
+};
+
+Ki_WorkSheetData WS_Segm10_LU =
+{
+    WS_SEGMENT_LU,
+    &WS_Segm11_LU,
+    STAMP_7,     STAMP_287,
+    STAMP_7,     STAMP_167,
+    NULL,         NULL
+};
+
+Ki_WorkSheetData WS_Segm11_LU =
+{
+    WS_SEGMENT_LU,
+    &WS_Segm12_LU,
+    STAMP_12,     STAMP_287,
+    0,            STAMP_287,
+    NULL,         NULL
+};
+
+Ki_WorkSheetData WS_Segm12_LU =
+{
+    WS_SEGMENT_LU,
+    &WS_Segm13_LU,
+    STAMP_12,     STAMP_227,
+    0,            STAMP_227,
+    NULL,         NULL
+};
+
+Ki_WorkSheetData WS_Segm13_LU =
+{
+    WS_SEGMENT_LU,
+    &WS_Podp1_LU,
+    STAMP_12,     STAMP_167,
+    0,            STAMP_167,
     NULL,         NULL
 };
 
@@ -870,10 +915,28 @@ Ki_WorkSheetData WS_Podp4_LU =
 Ki_WorkSheetData WS_Podp5_LU =
 {
     WS_PODPIS_LU,
-    NULL,
+    &WS_Podp6_LU,
     STAMP_7 + 90, STAMP_110 + 688,
     0,            0,
     wxT( "Подп. и дата" ),NULL
+};
+
+Ki_WorkSheetData WS_Podp6_LU =
+{
+    WS_PODPIS_LU,
+    &WS_Podp7_LU,
+    STAMP_7 + 90, STAMP_167 + 1180,
+    0,            0,
+    wxT( "Справ. N" ),NULL
+};
+
+Ki_WorkSheetData WS_Podp7_LU =
+{
+    WS_PODPIS_LU,
+    NULL,
+    STAMP_7 + 90, STAMP_227 + 1180,
+    0,            0,
+    wxT( "Перв. примен." ),NULL
 };
 
 Ki_WorkSheetData WS_Segm1_LT =
@@ -928,8 +991,7 @@ Ki_WorkSheetData WS_Segm5_LT =
 
 /* Draw the page reference sheet.
  */
-void WinEDA_DrawFrame::TraceWorkSheet( wxDC* DC, BASE_SCREEN* screen,
-                                       int line_width )
+void EDA_DRAW_FRAME::TraceWorkSheet( wxDC* DC, BASE_SCREEN* screen, int line_width )
 {
     if( !m_Draw_Sheet_Ref )
         return;
@@ -958,7 +1020,7 @@ void WinEDA_DrawFrame::TraceWorkSheet( wxDC* DC, BASE_SCREEN* screen,
     if( Sheet == NULL )
     {
         DisplayError( this,
-                      wxT( "WinEDA_DrawFrame::TraceWorkSheet() error: NULL Sheet" ) );
+                      wxT( "EDA_DRAW_FRAME::TraceWorkSheet() error: NULL Sheet" ) );
         return;
     }
 
@@ -1389,10 +1451,11 @@ void WinEDA_DrawFrame::TraceWorkSheet( wxDC* DC, BASE_SCREEN* screen,
         case WS_FILENAME:
         {
             wxString fname, fext;
-            wxFileName::SplitPath( screen->m_FileName, (wxString*) NULL,
-                                   &fname, &fext );
+            wxFileName::SplitPath( screen->GetFileName(), (wxString*) NULL, &fname, &fext );
+
             if( WsItem->m_Legende )
                 msg = WsItem->m_Legende;
+
             msg << fname << wxT( "." ) << fext;
             DrawGraphicText( DrawPanel, DC, pos, Color,
                              msg, TEXT_ORIENT_HORIZ, size,
@@ -1519,14 +1582,14 @@ void WinEDA_DrawFrame::TraceWorkSheet( wxDC* DC, BASE_SCREEN* screen,
 }
 
 
-/** Function GetXYSheetReferences
+/**
+ * Function GetXYSheetReferences
  * Return the X,Y sheet references where the point position is located
  * @param aScreen = screen to use
  * @param aPosition = position to identify by YX ref
  * @return a wxString containing the message locator like A3 or B6 (or ?? if out of page limits)
  */
-wxString WinEDA_DrawFrame::GetXYSheetReferences( BASE_SCREEN*   aScreen,
-                                                 const wxPoint& aPosition )
+wxString EDA_DRAW_FRAME::GetXYSheetReferences( BASE_SCREEN* aScreen, const wxPoint& aPosition )
 {
     Ki_PageDescr* Sheet = aScreen->m_CurrentSheetDesc;
     int ii, xg, yg, ipas, gxpas, gypas;
@@ -1536,7 +1599,7 @@ wxString WinEDA_DrawFrame::GetXYSheetReferences( BASE_SCREEN*   aScreen,
     if( Sheet == NULL )
     {
         DisplayError( this,
-                      wxT( "WinEDA_DrawFrame::GetXYSheetReferences() error: NULL Sheet" ) );
+                      wxT( "EDA_DRAW_FRAME::GetXYSheetReferences() error: NULL Sheet" ) );
         return msg;
     }
 
@@ -1572,11 +1635,11 @@ wxString WinEDA_DrawFrame::GetXYSheetReferences( BASE_SCREEN*   aScreen,
 }
 
 
-wxString WinEDA_DrawFrame::GetScreenDesc()
+wxString EDA_DRAW_FRAME::GetScreenDesc()
 {
     wxString msg;
 
-    msg << GetBaseScreen()->m_ScreenNumber << wxT( "/" )
-        << GetBaseScreen()->m_NumberOfScreen;
+    msg << GetScreen()->m_ScreenNumber << wxT( "/" )
+        << GetScreen()->m_NumberOfScreen;
     return msg;
 }

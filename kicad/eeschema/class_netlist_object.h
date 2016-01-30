@@ -6,6 +6,11 @@
 #ifndef _CLASS_NETLIST_OBJECT_H_
 #define _CLASS_NETLIST_OBJECT_H_
 
+#include "sch_sheet_path.h"
+
+#include "lib_pin.h"      // LIB_PIN::ReturnPinStringNum( m_PinNum )
+
+
 /* Type of Net objects (wires, labels, pins...) */
 enum NetObjetType {
     NET_ITEM_UNSPECIFIED,           // only for not yet initialized instances
@@ -55,7 +60,7 @@ class NETLIST_OBJECT
 public:
     NetObjetType    m_Type;             /* Type of item (see NetObjetType
                                          * enum) */
-    EDA_BaseStruct* m_Comp;             /* Pointer on the library item that
+    EDA_ITEM      * m_Comp;             /* Pointer on the library item that
                                          * created this net object (the parent)
                                          */
     SCH_ITEM*       m_Link;             /* For SCH_SHEET_PIN:
@@ -64,18 +69,18 @@ public:
                                          * For Pins: pointer to the component
                                          *   that contains this pin
                                          */
-    int             m_Flag;             /* flag used in calculations */
-    SCH_SHEET_PATH  m_SheetList;
-    int             m_ElectricalType;   /* Has meaning only for Pins and
+    int            m_Flag;              /* flag used in calculations */
+    SCH_SHEET_PATH m_SheetList;
+    int            m_ElectricalType;    /* Has meaning only for Pins and
                                          * hierarchical pins: electrical type */
 private:
-    int             m_NetCode;          /* net code for all items except BUS
+    int            m_NetCode;           /* net code for all items except BUS
                                          * labels because a BUS label has
                                          * as many net codes as bus members
                                          */
 public:
-    int             m_BusNetCode;       /* Used for BUS connections */
-    int             m_Member;           /* for labels type NET_BUSLABELMEMBER
+    int m_BusNetCode;                   /* Used for BUS connections */
+    int m_Member;                       /* for labels type NET_BUSLABELMEMBER
                                          * ( bus member created from the BUS
                                          * label ) member number
                                          */
@@ -84,12 +89,15 @@ public:
                                          * connects to.*/
     long            m_PinNum;           /* pin number ( 1 long = 4 bytes ->
                                          * 4 ascii codes) */
-    const wxString* m_Label;            /* For all labels:pointer on the text
-                                         * label */
+    wxString        m_Label;            /* Label text. */
     wxPoint         m_Start;            // Position of object or for segments:
                                         // starting point
     wxPoint         m_End;              // For segments (wire and buses):
                                         // ending point
+    NETLIST_OBJECT* m_NetNameCandidate; /* a pointer to a label connected to the net,
+                                         * that can be used to give a name to the net
+                                         * NULL if no usable label
+                                         */
 
 #if defined(DEBUG)
     void Show( std::ostream& out, int ndx );
@@ -102,6 +110,21 @@ public:
 
     void SetNet( int aNetCode ) { m_NetCode = aNetCode; }
     int GetNet() const { return m_NetCode; }
+
+    /**
+     * Function GetPinNum
+     * returns a pin number in wxString form.  Pin numbers are not always
+     * numbers.  "A23" would be a valid pin number.
+     */
+    wxString GetPinNumText()
+    {
+        // hide the ugliness in here, but do it inline.
+        return  LIB_PIN::ReturnPinStringNum( m_PinNum );
+    }
 };
+
+// Buffer to build the list of items used in netlist and erc calculations
+typedef std::vector <NETLIST_OBJECT*> NETLIST_OBJECT_LIST;
+
 
 #endif  // _CLASS_NETLIST_OBJECT_H_

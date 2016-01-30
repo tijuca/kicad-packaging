@@ -5,11 +5,12 @@
 
 #include "fctsys.h"
 #include "common.h"
-#include "program.h"
+#include "macros.h"
+#include "wxEeschemaStruct.h"
+
 #include "general.h"
-
+#include "sch_component.h"
 #include "class_netlist_object.h"
-
 
 #if defined(DEBUG)
 #include <iostream>
@@ -76,18 +77,36 @@ void NETLIST_OBJECT::Show( std::ostream& out, int ndx )
     out << "<netItem ndx=\"" << ndx << '"' <<
     " type=\"" << ShowType( m_Type ) << '"' <<
     " netCode=\"" << GetNet() << '"' <<
-    " sheet=\"" << CONV_TO_UTF8( path ) << '"' <<
+    " sheet=\"" << TO_UTF8( path ) << '"' <<
     ">\n";
 
     out << " <start " << m_Start << "/> <end " << m_End << "/>\n";
 
-    if( m_Label )
-        out << " <label>" << m_Label->mb_str() << "</label>\n";
+    if( !m_Label.IsEmpty() )
+        out << " <label>" << m_Label.mb_str() << "</label>\n";
 
+    out << " <sheetpath>" << m_SheetList.PathHumanReadable().mb_str() << "</sheetpath>\n";
+
+    switch( m_Type )
+    {
+    case NET_PIN:
+        out << " <refOfComp>" << ((SCH_COMPONENT*)m_Link)->GetRef(&m_SheetList).mb_str() << "</refOfComp>\n";
+
+        if( m_Comp )
+            m_Comp->Show( 1, out );
+        break;
+
+    default:
+        // not all the m_Comp classes have working Show functions.
+        ;
+    }
+
+/*  was segfault-ing
     if( m_Comp )
-        m_Comp->Show( 1, out );
+        m_Comp->Show( 1, out );     // labels may not have good Show() funcs?
     else
         out << " m_Comp==NULL\n";
+*/
 
     out << "</netItem>\n";
 }
@@ -98,52 +117,40 @@ void NETLIST_OBJECT::Show( std::ostream& out, int ndx )
 
 NETLIST_OBJECT::NETLIST_OBJECT()
 {
-    m_Type = NET_ITEM_UNSPECIFIED;              /* Type of this item (see NetObjetType enum) */
-    m_Comp = NULL;                              /* Pointer on the library item that created this net object (the parent)*/
-    m_Link = NULL;       /* For SCH_SHEET_PIN:
-                          * Pointer to the hierarchy sheet that contains this SCH_SHEET_PIN
-                          *  For Pins: pointer to the component that contains this pin
-                          */
-    m_Flag = 0;                                 /* flag used in calculations */
-    m_ElectricalType = 0;                       /* Has meaning only for Pins and hierachical pins: electrical type */
-    m_NetCode    = 0;          /* net code for all items except BUS labels because a BUS label has
-                                *  as many net codes as bus members
-                                */
-    m_BusNetCode = 0;                           /* Used for BUS connections */
-    m_Member     = 0;       /* for labels type NET_BUSLABELMEMBER ( bus member created from the BUS label )
-                             *  member number
-                             */
+    m_Type = NET_ITEM_UNSPECIFIED;  /* Type of this item (see NetObjetType enum) */
+    m_Comp = NULL;                  /* Pointer on the library item that created this net object
+                                     * (the parent)*/
+    m_Link = NULL;                  /* For SCH_SHEET_PIN:
+                                     * Pointer to the hierarchy sheet that contains this
+                                     * SCH_SHEET_PIN For Pins: pointer to the component that
+                                     * contains this pin
+                                     */
+    m_Flag = 0;                     /* flag used in calculations */
+    m_ElectricalType = 0;           /* Has meaning only for Pins and hierachical pins: electrical
+                                     * type */
+    m_NetCode    = 0;               /* net code for all items except BUS labels because a BUS
+                                     * label has as many net codes as bus members
+                                     */
+    m_BusNetCode = 0;               /* Used for BUS connections */
+    m_Member     = 0;               /* for labels type NET_BUSLABELMEMBER ( bus member created
+                                     * from the BUS label )  member number
+                                     */
     m_FlagOfConnection = UNCONNECTED;
     m_PinNum = 0;                   /* pin number ( 1 long = 4 bytes -> 4 ascii codes) */
-    m_Label  = 0;                   /* For all labels:pointer on the text label */
+    m_NetNameCandidate = NULL;      /* a pointer to a NETLIST_OBJECT type label connected to this
+                                     * object used to give a name to the net
+                                     */
 }
+
 
 // Copy constructor
 NETLIST_OBJECT::NETLIST_OBJECT( NETLIST_OBJECT& aSource )
 {
     *this = aSource;
-    m_Label  = NULL;        // set to null because some items are owner, so the delete operator can create problems
-                            // if this member is copied here (if 2 different items are owner of the same object)
 }
+
 
 NETLIST_OBJECT::~NETLIST_OBJECT()
 {
-    /* NETLIST_OBJECT is owner of m_Label only if its type is
-     *  NET_HIERBUSLABELMEMBER, NET_GLOBBUSLABELMEMBER, NET_SHEETBUSLABELMEMBER or NET_BUSLABELMEMBER
-     *  So we must delete m_Label only for these cases
-     *  ( see the note in ConvertBustToMembers)
-     */
-
-    switch( m_Type )
-    {
-    default:
-        break;
-
-    case NET_HIERBUSLABELMEMBER:
-    case NET_GLOBBUSLABELMEMBER:
-    case NET_SHEETBUSLABELMEMBER:
-    case NET_BUSLABELMEMBER:
-        SAFE_DELETE( m_Label );
-        break;
-    }
 }
+

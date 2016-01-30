@@ -21,11 +21,12 @@ static const wxString SchematicRootNameEntry( wxT( "RootSch" ) );
 static const wxString BoardFileNameEntry( wxT( "BoardNm" ) );
 
 
-void WinEDA_MainFrame::CreateNewProject( const wxString PrjFullFileName )
+void KICAD_MANAGER_FRAME::CreateNewProject( const wxString PrjFullFileName )
 {
     wxString   filename;
     wxFileName newProjectName = PrjFullFileName;
 
+    ClearMsg();
     /* Init default config filename */
     filename = wxGetApp().FindLibraryPath( wxT( "kicad" ) + g_KicadPrjFilenameExtension);
 
@@ -58,11 +59,12 @@ void WinEDA_MainFrame::CreateNewProject( const wxString PrjFullFileName )
 /**
  * Loading a new project
  */
-void WinEDA_MainFrame::OnLoadProject( wxCommandEvent& event )
+void KICAD_MANAGER_FRAME::OnLoadProject( wxCommandEvent& event )
 {
     int style;
     wxString title;
 
+    ClearMsg();
     if( event.GetId() != wxID_ANY )
     {
         if( event.GetId() == ID_NEW_PROJECT )
@@ -76,7 +78,6 @@ void WinEDA_MainFrame::OnLoadProject( wxCommandEvent& event )
             style = wxFD_OPEN | wxFD_FILE_MUST_EXIST;
         }
 
-        SetLastProject( m_ProjectFileName.GetFullPath() );
         wxFileDialog dlg( this, title, wxGetCwd(), wxEmptyString,
                           ProjectFileWildcard, style );
 
@@ -96,8 +97,6 @@ void WinEDA_MainFrame::OnLoadProject( wxCommandEvent& event )
             }
             CreateNewProject( m_ProjectFileName.GetFullPath() );
         }
-
-        SetLastProject( m_ProjectFileName.GetFullPath() );
     }
 
     wxLogDebug( wxT( "Loading Kicad project file: " ) +
@@ -121,7 +120,7 @@ void WinEDA_MainFrame::OnLoadProject( wxCommandEvent& event )
 
     SetTitle( wxGetApp().GetTitle() + wxT( " " ) + GetBuildVersion() +
               wxT( " " ) +  m_ProjectFileName.GetFullPath() );
-    SetLastProject( m_ProjectFileName.GetFullPath() );
+    UpdateFileHistory( m_ProjectFileName.GetFullPath() );
     m_LeftWin->ReCreateTreePrj();
 
     PrintMsg( _( "Working dir: " ) + m_ProjectFileName.GetPath() +
@@ -134,7 +133,7 @@ void WinEDA_MainFrame::OnLoadProject( wxCommandEvent& event )
 /**
  * Save the project top level configuration parameters.
  */
-void WinEDA_MainFrame::OnSaveProject( wxCommandEvent& event )
+void KICAD_MANAGER_FRAME::OnSaveProject( wxCommandEvent& event )
 {
     wxString fn;
 

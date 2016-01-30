@@ -14,33 +14,31 @@
 #include <wx/wxhtml.h>
 #include <wx/laywin.h>
 #include <wx/aui/aui.h>
+#include <wx/docview.h>
 
 #include "colors.h"
+#include "common.h"
 
 //C++ guarantees that operator delete checks its argument for null-ness
 #ifndef SAFE_DELETE
 #define SAFE_DELETE( p ) delete (p); (p) = NULL;
 #endif
 
-#define INTERNAL_UNIT_TYPE 0             // Internal unit = inch
-
 #ifndef EESCHEMA_INTERNAL_UNIT
 #define EESCHEMA_INTERNAL_UNIT 1000
 #endif
 
 //  Option for dialog boxes
-#define DIALOG_STYLE wxDEFAULT_DIALOG_STYLE | wxFRAME_FLOAT_ON_PARENT | \
-    MAYBE_RESIZE_BORDER
+#define DIALOG_STYLE wxDEFAULT_DIALOG_STYLE | wxFRAME_FLOAT_ON_PARENT | MAYBE_RESIZE_BORDER
 
 #define KICAD_DEFAULT_DRAWFRAME_STYLE wxDEFAULT_FRAME_STYLE | wxWANTS_CHARS
 
-class EDA_BaseStruct;
-class EDA_Rect;
-class WinEDA_DrawPanel;
-class WinEDA_MsgPanel;
+class EDA_ITEM;
+class EDA_RECT;
+class EDA_DRAW_PANEL;
+class EDA_MSG_PANEL;
 class BASE_SCREEN;
-class WinEDA_Toolbar;
-class WinEDAChoiceBox;
+class EDA_TOOLBAR;
 class PARAM_CFG_BASE;
 class Ki_PageDescr;
 class Ki_HotkeyInfo;
@@ -86,51 +84,144 @@ enum id_toolbar {
 /* not directly used: the real frames are derived from this class */
 /******************************************************************/
 
-class WinEDA_BasicFrame : public wxFrame
+class EDA_BASE_FRAME : public wxFrame
 {
 public:
-    int             m_Ident;        // Id Type (pcb, schematic, library..)
-    wxPoint         m_FramePos;
-    wxSize          m_FrameSize;
-    int             m_MsgFrameHeight;
+    int          m_Ident;        // Id Type (pcb, schematic, library..)
+    wxPoint      m_FramePos;
+    wxSize       m_FrameSize;
+    int          m_MsgFrameHeight;
 
-    WinEDA_Toolbar* m_HToolBar;     // Standard horizontal Toolbar
-    bool            m_FrameIsActive;
-    wxString        m_FrameName;    // name used for writing and reading setup
+    EDA_TOOLBAR* m_HToolBar;     // Standard horizontal Toolbar
+    bool         m_FrameIsActive;
+    wxString     m_FrameName;    // name used for writing and reading setup
                                     // It is "SchematicFrame", "PcbFrame" ....
-    wxString        m_AboutTitle;   // Name of program displayed in About.
+    wxString     m_AboutTitle;   // Name of program displayed in About.
 
-    wxAuiManager   m_auimgr;
+    wxAuiManager m_auimgr;
 
 public:
-    WinEDA_BasicFrame( wxWindow* father, int idtype,
-                       const wxString& title,
-                       const wxPoint& pos, const wxSize& size,
-                       long style = KICAD_DEFAULT_DRAWFRAME_STYLE );
-    ~WinEDA_BasicFrame();
+    EDA_BASE_FRAME( wxWindow* father, int idtype,
+                    const wxString& title,
+                    const wxPoint& pos, const wxSize& size,
+                    long style = KICAD_DEFAULT_DRAWFRAME_STYLE );
+    ~EDA_BASE_FRAME();
 
     void         GetKicadHelp( wxCommandEvent& event );
     void         GetKicadAbout( wxCommandEvent& event );
+
+    /**
+     * Copy the version information to the clipboard for bug reporting purposes.
+     */
+    void         CopyVersionInfoToClipboard( wxCommandEvent& event );
     void         PrintMsg( const wxString& text );
+
+    /**
+     * Append the copy version information to clipboard help menu entry to \a aMenu.
+     *
+     * @param aMenu - The menu to append.
+     */
+    void         AddHelpVersionInfoMenuEntry( wxMenu* aMenu );
 
     virtual void LoadSettings();
     virtual void SaveSettings();
 
-    int          WriteHotkeyConfigFile( const wxString&                        Filename,
-                                        struct Ki_HotkeyInfoSectionDescriptor* DescList,
-                                        bool                                   verbose );
-    int          ReadHotkeyConfigFile( const wxString&                        Filename,
-                                       struct Ki_HotkeyInfoSectionDescriptor* DescList,
-                                       bool                                   verbose );
-    /** function SetLanguage
+    /**
+     * Function OnSelectPreferredEditor
+     * Open a dialog to select the editor that will used in Kicad
+     * to edit or display files (reports ... )
+     * The full filename editor is saved in configuration (global params)
+     */
+    virtual void OnSelectPreferredEditor( wxCommandEvent& event );
+
+    // Read/Save and Import/export hotkeys config
+
+    /**
+     * Function ReadHotkeyConfig
+     * Read configuration data and fill the current hotkey list with hotkeys
+     * @param aDescList = current hotkey list descr. to initialise.
+     */
+    int          ReadHotkeyConfig( struct Ki_HotkeyInfoSectionDescriptor* aDescList );
+
+    /**
+     * Function WriteHotkeyConfig
+     * Store the current hotkey list
+     * It is stored using the standard wxConfig mechanism or a file.
+     *
+     * @param aDescList = pointer to the current hotkey list.
+     * @param aFullFileName = a wxString pointer to a fuill file name.
+     *  if NULL, use the standard wxConfig mechanism (default)
+     * the output format is: shortcut  "key"  "function"
+     * lines starting with # are comments
+     */
+    int          WriteHotkeyConfig( struct Ki_HotkeyInfoSectionDescriptor* aDescList,
+                                    wxString * aFullFileName = NULL);
+
+    /**
+     * Function ReadHotkeyConfigFile
+     * Read an old configuration file (&ltfile&gt.key) and fill the current hotkey list
+     * with hotkeys
+     * @param aFilename = file name to read.
+     * @param aDescList = current hotkey list descr. to initialise.
+     */
+    int          ReadHotkeyConfigFile( const wxString& aFilename,
+                                       struct Ki_HotkeyInfoSectionDescriptor* aDescList );
+
+    /**
+     * Function ImportHotkeyConfigFromFile
+     * Prompt the user for an old hotkey file to read, and read it.
+     * @param aDescList = current hotkey list descr. to initialise.
+     */
+    void         ImportHotkeyConfigFromFile( struct Ki_HotkeyInfoSectionDescriptor* aDescList );
+
+    /**
+     * Function ExportHotkeyConfigToFile
+     * Prompt the user for an old hotkey file to read, and read it.
+     * @param aDescList = current hotkey list descr. to initialise.
+     */
+    void         ExportHotkeyConfigToFile( struct Ki_HotkeyInfoSectionDescriptor* aDescList );
+
+    /**
+     * Function SetLanguage
      * called on a language menu selection
      * when using a derived function, do not forget to call this one
      */
     virtual void SetLanguage( wxCommandEvent& event );
 
-    wxString     GetFileFromHistory( int cmdId, const wxString& type );
-    void         SetLastProject( const wxString& FullFileName );
+    /**
+     * Function GetFileFromHistory
+     * fetches the file name from the file history list.
+     * and removes the selected file, if this file does not exists
+     * Note also the menu is updated, if wxFileHistory::UseMenu
+     * was called at init time
+     * @param cmdId The command ID associated with the \a aFileHistory object.
+     * @param type Please document me!
+     * @param aFileHistory The wxFileHistory in use. If null, the main application file
+     *                     history is used
+     * @return a wxString containing the selected filename
+     */
+    wxString     GetFileFromHistory( int cmdId, const wxString& type,
+                                     wxFileHistory* aFileHistory = NULL);
+
+    /**
+     * Function UpdateFileHistory
+     * Updates the list of recently opened files.
+     * Note also the menu is updated, if wxFileHistory::UseMenu
+     * was called at init time
+     * @param FullFileName The full file name including the path.
+     * @param aFileHistory The wxFileHistory in use.
+     * If NULL, the main application file history is used.
+     */
+    void        UpdateFileHistory( const wxString& FullFileName,
+                                    wxFileHistory * aFileHistory = NULL );
+
     void         DisplayActivity( int PerCent, const wxString& Text );
+
+    /**
+     * Function ReCreateMenuBar
+     * Creates recreates the menu bar.
+     * Needed when the language is changed
+     */
     virtual void ReCreateMenuBar();
 };
 
@@ -139,27 +230,25 @@ public:
 /* Basic draw frame for eeschema, pcbnew and gerbview. */
 /*******************************************************/
 
-class WinEDA_DrawFrame : public WinEDA_BasicFrame
+class EDA_DRAW_FRAME : public EDA_BASE_FRAME
 {
-public:
-    WinEDA_DrawPanel* DrawPanel;            // Draw area
-    WinEDA_MsgPanel*  MsgPanel;             // Panel used to display some
-                                            //  info (bottom of the screen)
-    WinEDA_Toolbar*   m_VToolBar;           // Vertical (right side) Toolbar
-    WinEDA_Toolbar*   m_AuxVToolBar;        // Auxiliary Vertical (right side)
-                                            // Toolbar
-    WinEDA_Toolbar*   m_OptionsToolBar;     // Options Toolbar (left side)
-    WinEDA_Toolbar*   m_AuxiliaryToolBar;   // Auxiliay Toolbar used in pcbnew
+    int          m_toolId;             ///< Id of active button on the vertical toolbar.
 
-    WinEDAChoiceBox*  m_SelGridBox;         // Choice box to choose the grid
-                                            // size
-    WinEDAChoiceBox*  m_SelZoomBox;         // Choice box to choose the zoom
-                                            // value
+public:
+    EDA_DRAW_PANEL*   DrawPanel;            // Draw area
+    EDA_MSG_PANEL*    MsgPanel;             // Panel used to display some
+                                            //  info (bottom of the screen)
+    EDA_TOOLBAR*      m_VToolBar;           // Vertical (right side) Toolbar
+    EDA_TOOLBAR*      m_AuxVToolBar;        // Auxiliary Vertical (right side)
+                                            // Toolbar
+    EDA_TOOLBAR*      m_OptionsToolBar;     // Options Toolbar (left side)
+    EDA_TOOLBAR*      m_AuxiliaryToolBar;   // Auxiliary Toolbar used in pcbnew
+
+    wxComboBox*       m_SelGridBox;         // Choice box to choose the grid size
+    wxComboBox*       m_SelZoomBox;         // Choice box to choose the zoom value
 
     int          m_CursorShape;             // shape for cursor (0 = default
                                             // cursor)
-    int          m_ID_current_state;        // Id of active button on the
-                                            // vertical toolbar
     int          m_ID_last_state;           // Id of previous active button
                                             // on the vertical toolbar
     int          m_HTOOL_current_state;     // Id of active button on
@@ -169,8 +258,8 @@ public:
                                             // = 1000 for eeschema, = 10000
                                             // for PCBnew and Gerbview
 
-    int          m_UnitType;                // Internal Unit type (0 = inch)
     bool         m_Draw_Axis;               // TRUE to show X and Y axis
+    bool         m_Draw_Grid_Axis;     /* TRUE to show grid axis. */
     bool         m_Draw_Sheet_Ref;          // TRUE to show frame references
 
     bool         m_Print_Sheet_Ref;         // TRUE to print frame references
@@ -189,21 +278,31 @@ protected:
     int          m_GridColor;               // Grid color
 
 private:
-    BASE_SCREEN* m_CurrentScreen;           ///< current used SCREEN
+    BASE_SCREEN* m_currentScreen;           ///< current used SCREEN
+    bool         m_snapToGrid;              ///< Indicates if cursor should be snapped to grid.
 
 protected:
-    void            SetBaseScreen( BASE_SCREEN* aScreen )
+    void SetScreen( BASE_SCREEN* aScreen )
     {
-        m_CurrentScreen = aScreen;
+        m_currentScreen = aScreen;
     }
 
-public:
-    WinEDA_DrawFrame( wxWindow* father, int idtype,
-                      const wxString& title,
-                      const wxPoint& pos, const wxSize& size,
-                      long style = KICAD_DEFAULT_DRAWFRAME_STYLE );
+    /**
+     * Function unitsChangeRefresh
+     * is called when when the units setting has changed to allow for any derived classes
+     * to handle refreshing and controls that have units based measurements in them.  The
+     * default version only updates the status bar.  Don't forget to call the default
+     * in your derived class or the status bar will not get updated properly.
+     */
+    virtual void unitsChangeRefresh();
 
-    ~WinEDA_DrawFrame();
+public:
+    EDA_DRAW_FRAME( wxWindow* father, int idtype,
+                    const wxString& title,
+                    const wxPoint& pos, const wxSize& size,
+                    long style = KICAD_DEFAULT_DRAWFRAME_STYLE );
+
+    ~EDA_DRAW_FRAME();
 
     virtual wxString GetScreenDesc();
 
@@ -212,25 +311,26 @@ public:
      * is virtual and returns a pointer to a BASE_SCREEN or one of its
      * derivatives.  It may be overloaded by derived classes.
      */
-    virtual BASE_SCREEN* GetBaseScreen() const { return m_CurrentScreen; }
+    virtual BASE_SCREEN* GetScreen() const { return m_currentScreen; }
 
     void             OnMenuOpen( wxMenuEvent& event );
     void             OnMouseEvent( wxMouseEvent& event );
-    virtual void     OnHotKey( wxDC* DC, int hotkey,
-                               EDA_BaseStruct* DrawStruct );
+    virtual void     OnHotKey( wxDC* aDC, int aHotKey, const wxPoint& aPosition,
+                               EDA_ITEM* aItem = NULL );
 
-    /** Function AddMenuZoomAndGrid (virtual)
+    /**
+     * Function AddMenuZoomAndGrid (virtual)
      * Add standard zoom commands and submenu zoom and grid selection to a popup menu
      * uses zoom hotkeys info base to add hotkeys info to menu commands
      * @param aMasterMenu = the menu to populate.
      */
     virtual void     AddMenuZoomAndGrid( wxMenu* aMasterMenu );
 
-    void             Affiche_Message( const wxString& message );
     void             EraseMsgBox();
     void             Process_PageSettings( wxCommandEvent& event );
-    virtual void     SetToolbars();
-    /** function SetLanguage
+
+    /**
+     * Function SetLanguage
      * called on a language menu selection
      * when using a derived function, do not forget to call this one
      */
@@ -240,14 +340,29 @@ public:
     virtual void     ReCreateVToolbar() = 0;
     virtual void     ReCreateMenuBar();
     virtual void     ReCreateAuxiliaryToolbar();
-    virtual void     SetToolID( int id, int new_cursor_id,
-                                const wxString& title );
 
-    /* Thes 4 functions provide a basic way to sho/hide grid
-     * and /get/set grid color.
-     * thes parameters are saved in kicad config for each main frame
+    /**
+     * Function SetToolID
+     * sets the tool command ID to \a aId and sets the cursor to \a aCursor.  The
+     * command ID must be greater or equal ::ID_NO_TOOL_SELECTED.  If the command
+     * ID is less than ::ID_NO_TOOL_SELECTED, the tool command ID is set to
+     * ::ID_NO_TOOL_SELECTED.  On debug builds, an assertion will be raised when
+     * \a aId is invalid.
+     * @param aId New tool command ID if greater than or equal to ::ID_NO_TOOL_SELECTED.
+                  If less than zero, the current tool command ID is retained.
+     * @param aCursor Sets the cursor shape if greater than or equal to zero.
+     * @param aToolMsg The tool message to set in the status bar.
      */
-    /** Function IsGridVisible() , virtual
+    virtual void SetToolID( int aId, int aCursor, const wxString& aToolMsg );
+
+    int GetToolId() const { return m_toolId; }
+
+    /* These 4 functions provide a basic way to show/hide grid
+     * and /get/set grid color.
+     * These parameters are saved in kicad config for each main frame
+     */
+    /**
+     * Function IsGridVisible() , virtual
      * @return true if the grid must be shown
      */
     virtual bool     IsGridVisible()
@@ -255,16 +370,18 @@ public:
         return m_DrawGrid;
     }
 
-    /** Function SetGridVisibility() , virtual
+    /**
+     * Function SetGridVisibility() , virtual
      * It may be overloaded by derived classes
      * @param aVisible = true if the grid must be shown
      */
-    virtual void     SetGridVisibility(bool aVisible)
+    virtual void     SetGridVisibility( bool aVisible )
     {
         m_DrawGrid = aVisible;
     }
 
-    /** Function GetGridColor() , virtual
+    /**
+     * Function GetGridColor() , virtual
      * @return the color of the grid
      */
     virtual int     GetGridColor()
@@ -272,14 +389,24 @@ public:
         return m_GridColor;
     }
 
-    /** Function SetGridColor() , virtual
+    /**
+     * Function SetGridColor() , virtual
      * @param aColor = the new color of the grid
      */
-    virtual void     SetGridColor(int aColor)
+    virtual void     SetGridColor( int aColor )
     {
         m_GridColor = aColor;
     }
 
+    /**
+     * Function GetGridPosition
+     * returns the nearest grid position to \a aPosition if a screen is defined and snap to
+     * grid is enabled.  Otherwise, the origianl positions is returned.
+     * @see m_snapToGrid and m_BaseScreen members.
+     * @param aPosition The position to test.
+     * @return The wxPoint of the appropriate cursor position.
+     */
+    wxPoint GetGridPosition( const wxPoint& aPosition );
 
     /**
      * Command event handler for selecting grid sizes.
@@ -294,21 +421,51 @@ public:
     virtual void     OnSelectGrid( wxCommandEvent& event );
     virtual void     OnSelectZoom( wxCommandEvent& event );
 
-    virtual void     GeneralControle( wxDC* DC, wxPoint Mouse ) { /* dummy */ }
+    // Command event handlers shared by all applications derived from EDA_DRAW_FRAME.
+    void OnToggleGridState( wxCommandEvent& aEvent );
+    void OnSelectUnits( wxCommandEvent& aEvent );
+    void OnToggleCrossHairStyle( wxCommandEvent& aEvent );
+
+    // Update user interface event handlers shared by all applications derived from
+    // EDA_DRAW_FRAME.
+    void OnUpdateUndo( wxUpdateUIEvent& aEvent );
+    void OnUpdateRedo( wxUpdateUIEvent& aEvent );
+    void OnUpdateGrid( wxUpdateUIEvent& aEvent );
+    void OnUpdateUnits( wxUpdateUIEvent& aEvent );
+    void OnUpdateCrossHairStyle( wxUpdateUIEvent& aEvent );
+
+    /**
+     * Function GeneralControl
+     * performs application specific control using \a aDC at \a aPosition in logical units.
+     * <p>
+     * Override this function for application specific control.  This function gets
+     * called on every mouse and key event.
+     *</p>
+     * @param aDC A device context.
+     * @param aPosition The current cursor position in logical (drawing) units.
+     * @param aHotKey A key event used for appication specific control if not zero.
+     */
+    virtual void     GeneralControl( wxDC* aDC, const wxPoint& aPosition, int aHotKey = 0 ) { }
+
     virtual void     OnSize( wxSizeEvent& event );
     void             OnEraseBackground( wxEraseEvent& SizeEvent );
 
-    void             SetToolbarBgColor( int color_num );
     virtual void     OnZoom( wxCommandEvent& event );
     void             OnGrid( int grid_type );
-    void             Recadre_Trace( bool ToMouse );
-    void             PutOnGrid( wxPoint* coord ); /* set the coordinate to
-                                                   * the nearest grid
-                                                   * coordinate */
-    void             Zoom_Automatique( bool move_mouse_cursor );
+
+    /**
+     * Function RedrawScreen
+     * redraws the entire screen area by updating the scroll bars and mouse pointer in
+     * order to have \a aCenterPoint at the center of the screen.
+     * @param aCenterPoint The position in logical units to center the scroll bars.
+     * @param aWarpPointer Moves the mouse cursor to \a aCenterPoint if true.
+     */
+    void             RedrawScreen( const wxPoint& aCenterPoint, bool aWarpPointer );
+
+    void             Zoom_Automatique( bool aWarpPointer );
 
     /* Set the zoom level to show the area Rect */
-    void             Window_Zoom( EDA_Rect& Rect );
+    void             Window_Zoom( EDA_RECT& Rect );
 
     /* Return the zoom level which displays the full page on screen */
     virtual int      BestZoom() = 0;
@@ -316,38 +473,35 @@ public:
     /* Return the current zoom level */
     int              GetZoom( void );
 
-    void             SVG_Print( wxCommandEvent& event );
-
     void             TraceWorkSheet( wxDC* DC, BASE_SCREEN* screen, int line_width );
     void             PlotWorkSheet( PLOTTER *plotter, BASE_SCREEN* screen );
 
-    /** Function GetXYSheetReferences
+    /**
+     * Function GetXYSheetReferences
      * Return the X,Y sheet references where the point position is located
      * @param aScreen = screen to use
      * @param aPosition = position to identify by YX ref
      * @return a wxString containing the message locator like A3 or B6
      *         (or ?? if out of page limits)
      */
-    wxString         GetXYSheetReferences( BASE_SCREEN* aScreen,
-                                           const wxPoint& aPosition );
+    wxString         GetXYSheetReferences( BASE_SCREEN* aScreen, const wxPoint& aPosition );
 
     void             DisplayToolMsg( const wxString& msg );
-    void             Process_Zoom( wxCommandEvent& event );
-    void             Process_Grid( wxCommandEvent& event );
     virtual void     RedrawActiveWindow( wxDC* DC, bool EraseBg ) = 0;
     virtual void     OnLeftClick( wxDC* DC, const wxPoint& MousePos ) = 0;
     virtual void     OnLeftDClick( wxDC* DC, const wxPoint& MousePos );
-    virtual bool     OnRightClick( const wxPoint& MousePos,
-                                   wxMenu* PopMenu ) = 0;
+    virtual bool     OnRightClick( const wxPoint& MousePos, wxMenu* PopMenu ) = 0;
     virtual void     ToolOnRightClick( wxCommandEvent& event );
-    void             AdjustScrollBars();
+    void             AdjustScrollBars( const wxPoint& aCenterPosition );
 
-    /** OnActivate event function (virtual)
-     * called when activating the frame.
-     * in derived classes with a virtual OnActivate function,
-     * do not forget to call the WinEDA_DrawFrame::OnActivate( event )  basic function
+    /**
+     * Function OnActivate (virtual)
+     * is called when activating the frame.
+     * In derived classes with a overriding OnActivate function,
+     * do not forget to call this EDA_DRAW_FRAME::OnActivate( event ) basic function.
      */
     virtual void     OnActivate( wxActivateEvent& event );
+
     /**
      * Function UpdateStatusBar
      * updates the status bar information.
@@ -366,12 +520,39 @@ public:
     void             DisplayUnitsMsg();
 
     /* Handlers for block commands */
-    virtual int      ReturnBlockCommand( int key );
     virtual void     InitBlockPasteInfos();
-    virtual bool     HandleBlockBegin( wxDC* DC, int cmd_type,
-                                       const wxPoint& startpos );
-    virtual void     HandleBlockPlace( wxDC* DC );
-    virtual int      HandleBlockEnd( wxDC* DC );
+    virtual bool     HandleBlockBegin( wxDC* DC, int cmd_type,const wxPoint& startpos );
+
+    /**
+     * Function ReturnBlockCommand
+     * Returns the block command internat code (BLOCK_MOVE, BLOCK_COPY...)
+     * corresponding to the keys pressed (ALT, SHIFT, SHIFT ALT ..) when
+     * block command is started by dragging the mouse.
+     * @param aKey = the key modifiers (Alt, Shift ...)
+     * @return the block command id (BLOCK_MOVE, BLOCK_COPY...)
+     */
+    virtual int  ReturnBlockCommand( int aKey );
+
+    /**
+     * Function HandleBlockPlace( )
+     * Called after HandleBlockEnd, when a block command needs to be
+     * executed after the block is moved to its new place
+     * (bloc move, drag, copy .. )
+     * Parameters must be initialized in GetScreen()->m_BlockLocate
+     */
+    virtual void HandleBlockPlace( wxDC* DC );
+
+    /**
+     * Function HandleBlockEnd( )
+     * Handle the "end"  of a block command,
+     * i.e. is called at the end of the definition of the area of a block.
+     * depending on the current block command, this command is executed
+     * or parameters are initialized to prepare a call to HandleBlockPlace
+     * in GetScreen()->m_BlockLocate
+     * @return false if no item selected, or command finished,
+     * true if some items found and HandleBlockPlace must be called later
+     */
+    virtual bool HandleBlockEnd( wxDC* DC );
 
     void             CopyToClipboard( wxCommandEvent& event );
 
@@ -404,29 +585,37 @@ public:
 
     /** Virtual function PrintPage
      * used to print a page
-     * Print the page pointed by ActiveScreen, set by the calling print function
+     * Print the page pointed by current screen, set by the calling print function
      * @param aDC = wxDC given by the calling print function
-     * @param aPrint_Sheet_Ref = true to print page references
      * @param aPrintMask = not used here
      * @param aPrintMirrorMode = not used here (Set when printing in mirror mode)
      * @param aData = a pointer on an auxiliary data (not always used, NULL if not used)
      */
-    virtual void PrintPage( wxDC* aDC, bool aPrint_Sheet_Ref,
-                    int aPrintMask, bool aPrintMirrorMode,
-                    void * aData = NULL);
+    virtual void PrintPage( wxDC* aDC, int aPrintMask, bool aPrintMirrorMode, void* aData = NULL );
 
-    DECLARE_EVENT_TABLE();
+    /**
+     * Function CoordinateToString
+     * is a helper to convert the integer coordinate \a aValue to a string in inches or mm
+     * according to the current user units setting.
+     * @param aValue The coordinate to convert.
+     * @param aConvertToMils Convert inch values to mils if true.  This setting has no effect if
+     *                       the current user unit is millimeters.
+     * @return The converted string for display in user interface elements.
+     */
+    wxString CoordinateToString( int aValue, bool aConvertToMils = false );
+
+    DECLARE_EVENT_TABLE()
 };
 
 
 /*********************************************************
-*   class WinEDA_MsgPanel : this is a panel to display various infos
+*   class EDA_MSG_PANEL : this is a panel to display various infos
 *   and messages on items in eeschema an pcbnew
 *********************************************************/
 
 /**
  * Struct MsgItem
- * is used privately by WinEDA_MsgPanel as the item type of its vector.
+ * is used privately by EDA_MSG_PANEL as the item type of its vector.
  * These items are the pairs of text strings shown in the MsgPanel.
  */
 struct MsgItem
@@ -458,7 +647,7 @@ struct MsgItem
 };
 
 
-class WinEDA_MsgPanel : public wxPanel
+class EDA_MSG_PANEL : public wxPanel
 {
 protected:
     std::vector<MsgItem>    m_Items;
@@ -482,32 +671,41 @@ protected:
     wxSize computeTextSize( const wxString& text );
 
 public:
-    WinEDA_DrawFrame* m_Parent;
+    EDA_DRAW_FRAME* m_Parent;
     int m_BgColor;
 
 public:
-    WinEDA_MsgPanel( WinEDA_DrawFrame* parent, int id, const wxPoint& pos,
-                     const wxSize& size );
-    ~WinEDA_MsgPanel();
-
+    EDA_MSG_PANEL( EDA_DRAW_FRAME* parent, int id, const wxPoint& pos, const wxSize& size );
+    ~EDA_MSG_PANEL();
 
     /**
      * Function GetRequiredHeight
-     * returns the required height (in pixels) of a WinEDA_MsgPanel.  This takes
+     * returns the required height (in pixels) of a EDA_MSG_PANEL.  This takes
      * into consideration the system gui font, wxSYS_DEFAULT_GUI_FONT.
      */
     static int GetRequiredHeight();
 
     void OnPaint( wxPaintEvent& event );
     void EraseMsgBox();
-    void Affiche_1_Parametre( int pos_X, const wxString& texte_H,
-                              const wxString& texte_L, int color );
+
+    /**
+     * Function SetMessage
+     * sets a message at \a aXPosition to \a aUpperText and \a aLowerText in the message panel.
+     *
+     * @param aXPosition The horizontal position to display the message or less than zero
+     *                   to set the message using the last message position.
+     * @param aUpperText The text to be displayed in top line.
+     * @param aLowerText The text to be displayed in bottom line.
+     * @param aColor Color of the text to display.
+     */
+    void SetMessage( int aXPosition, const wxString& aUpperText,
+                     const wxString& aLowerText, int aColor );
 
     /**
      * Append a message to the message panel.
      *
      * This method automatically adjusts for the width of the text string.
-     * Making consectutive calls to AppendMessage will append each message
+     * Making consecutive calls to AppendMessage will append each message
      * to the right of the last message.  This message is not compatible
      * with Affiche_1_Parametre.
      *
@@ -523,203 +721,19 @@ public:
 };
 
 
-/************************************************/
-/* Class to enter a line, is some dialog frames */
-/************************************************/
-class WinEDA_EnterText
-{
-public:
-    bool          m_Modify;
+/*********************/
+/* class EDA_TOOLBAR */
+/*********************/
 
-private:
-    wxString      m_NewText;
-    wxTextCtrl*   m_FrameText;
-    wxStaticText* m_Title;
-
-public:
-    WinEDA_EnterText( wxWindow* parent, const wxString& Title,
-                      const wxString& TextToEdit, wxBoxSizer* BoxSizer,
-                      const wxSize& Size, bool Multiline = false );
-
-    ~WinEDA_EnterText()
-    {
-    }
-
-
-    wxString GetValue();
-    void     GetValue( char* buffer, int lenmax );
-    void     SetValue( const wxString& new_text );
-    void     Enable( bool enbl );
-
-    void SetFocus() { m_FrameText->SetFocus(); }
-    void SetInsertionPoint( int n ) { m_FrameText->SetInsertionPoint( n ); }
-    void SetSelection( int n, int m )
-    {
-        m_FrameText->SetSelection( n, m );
-    }
-};
-
-
-/************************************************************************/
-/* Class to edit/enter a graphic text and its dimension ( INCHES or MM )*/
-/************************************************************************/
-class WinEDA_GraphicTextCtrl
-{
-public:
-    int           m_Units, m_Internal_Unit;
-
-    wxTextCtrl*   m_FrameText;
-    wxTextCtrl*   m_FrameSize;
-private:
-    wxStaticText* m_Title;
-
-public:
-    WinEDA_GraphicTextCtrl( wxWindow* parent, const wxString& Title,
-                            const wxString& TextToEdit, int textsize,
-                            int units, wxBoxSizer* BoxSizer, int framelen = 200,
-                            int internal_unit = EESCHEMA_INTERNAL_UNIT );
-
-    ~WinEDA_GraphicTextCtrl();
-
-    wxString        GetText();
-    int             GetTextSize();
-    void            Enable( bool state );
-    void            SetTitle( const wxString& title );
-
-    void SetFocus() { m_FrameText->SetFocus(); }
-    void            SetValue( const wxString& value );
-    void            SetValue( int value );
-
-    /**
-     * Function FormatSize
-     * formats a string containing the size in the desired units.
-     */
-    static wxString FormatSize( int internalUnit, int units, int textSize );
-
-    static int      ParseSize( const wxString& sizeText, int internalUnit,
-                               int units );
-};
-
-
-/**************************************************************************/
-/* Class to edit/enter a coordinate (pair of values) ( INCHES or MM ) in  */
-/* dialog boxes,                                                          */
-/**************************************************************************/
-class WinEDA_PositionCtrl
-{
-public:
-    int           m_Units, m_Internal_Unit;
-    wxPoint       m_Pos_To_Edit;
-
-    wxTextCtrl*   m_FramePosX;
-    wxTextCtrl*   m_FramePosY;
-private:
-    wxStaticText* m_TextX, * m_TextY;
-
-public:
-    WinEDA_PositionCtrl( wxWindow* parent, const wxString& title,
-                         const wxPoint& pos_to_edit,
-                         int units, wxBoxSizer* BoxSizer,
-                         int internal_unit = EESCHEMA_INTERNAL_UNIT );
-
-    ~WinEDA_PositionCtrl();
-
-    void    Enable( bool x_win_on, bool y_win_on );
-    void    SetValue( int x_value, int y_value );
-    wxPoint GetValue();
-};
-
-
-/*************************************************************
- *  Class to edit/enter a size (pair of values for X and Y size)
- *  ( INCHES or MM ) in dialog boxes
- ***************************************************************/
-class WinEDA_SizeCtrl : public WinEDA_PositionCtrl
-{
-public:
-    WinEDA_SizeCtrl( wxWindow* parent, const wxString& title,
-                     const wxSize& size_to_edit,
-                     int units, wxBoxSizer* BoxSizer,
-                     int internal_unit = EESCHEMA_INTERNAL_UNIT );
-
-    ~WinEDA_SizeCtrl() { }
-    wxSize GetValue();
-};
-
-
-/****************************************************************/
-/* Class to edit/enter a value ( INCHES or MM ) in dialog boxes */
-/****************************************************************/
-class WinEDA_ValueCtrl
-{
-public:
-    int           m_Units;
-    int           m_Value;
-    wxTextCtrl*   m_ValueCtrl;
-private:
-    int           m_Internal_Unit;
-    wxStaticText* m_Text;
-
-public:
-    WinEDA_ValueCtrl( wxWindow* parent, const wxString& title, int value,
-                      int units, wxBoxSizer* BoxSizer,
-                      int internal_unit = EESCHEMA_INTERNAL_UNIT );
-
-    ~WinEDA_ValueCtrl();
-
-    int  GetValue();
-    void SetValue( int new_value );
-    void Enable( bool enbl );
-
-    void SetToolTip( const wxString& text )
-    {
-        m_ValueCtrl->SetToolTip( text );
-    }
-};
-
-
-/************************************************************************/
-/* Class to edit/enter a  pair of float (double) values in dialog boxes */
-/************************************************************************/
-class WinEDA_DFloatValueCtrl
-{
-public:
-    double        m_Value;
-    wxTextCtrl*   m_ValueCtrl;
-private:
-    wxStaticText* m_Text;
-
-public:
-    WinEDA_DFloatValueCtrl( wxWindow* parent, const wxString& title,
-                            double value, wxBoxSizer* BoxSizer );
-
-    ~WinEDA_DFloatValueCtrl();
-
-    double GetValue();
-    void   SetValue( double new_value );
-    void   Enable( bool enbl );
-
-    void SetToolTip( const wxString& text )
-    {
-        m_ValueCtrl->SetToolTip( text );
-    }
-};
-
-
-/*************************/
-/* class WinEDA_Toolbar */
-/*************************/
-
-class WinEDA_Toolbar : public wxAuiToolBar
+class EDA_TOOLBAR : public wxAuiToolBar
 {
 public:
     wxWindow*       m_Parent;
     id_toolbar      m_Ident;
-    bool            m_Horizontal;       // some auxilary TB are horizontal, others vertical
+    bool            m_Horizontal;       // some auxiliary TB are horizontal, others vertical
 
 public:
-    WinEDA_Toolbar( id_toolbar type, wxWindow* parent,
-                    wxWindowID id, bool horizontal );
+    EDA_TOOLBAR( id_toolbar type, wxWindow* parent, wxWindowID id, bool horizontal );
 
     bool GetToolState( int toolId ) { return GetToolToggled(toolId); };
 
@@ -738,93 +752,12 @@ public:
     void SetToolNormalBitmap( int id, const wxBitmap& bitmap ) {};
     void SetRows( int nRows ) {};
 
-    /** Function GetDimension
+    /**
+     * Function GetDimension
      * @return the dimension of this toolbar (Height if horizontal, Width if vertical.
      */
     int GetDimension( );
 };
 
-
-/***********************/
-/* class WinEDAListBox */
-/***********************/
-
-class WinEDAListBox : public wxDialog
-{
-public:
-    WinEDA_DrawFrame* m_Parent;
-    wxListBox*        m_List;
-    wxTextCtrl*       m_WinMsg;
-    const wxChar**    m_ItemList;
-
-private:
-    void (*m_MoveFct)( wxString& Text );
-
-public:
-    WinEDAListBox( WinEDA_DrawFrame* parent, const wxString& title,
-                   const wxChar** ItemList,
-                   const wxString& RefText,
-                   void(* movefct)(wxString& Text) = NULL,
-                   const wxColour& colour = wxNullColour,
-                   wxPoint dialog_position = wxDefaultPosition );
-    ~WinEDAListBox();
-
-    void     SortList();
-    void     Append( const wxString& item );
-    void     InsertItems( const wxArrayString& itemlist, int position = 0 );
-    void     MoveMouseToOrigin();
-    wxString GetTextSelection();
-
-private:
-    void     OnClose( wxCloseEvent& event );
-    void     OnCancelClick( wxCommandEvent& event );
-    void     OnOkClick( wxCommandEvent& event );
-    void     ClickOnList( wxCommandEvent& event );
-    void     D_ClickOnList( wxCommandEvent& event );
-    void     OnKeyEvent( wxKeyEvent& event );
-
-    DECLARE_EVENT_TABLE()
-};
-
-
-/*************************/
-/* class WinEDAChoiceBox */
-/*************************/
-
-/* class to display a choice list.
- *  This is a wrapper to wxComboBox (or wxChoice)
- *  but because they have some problems, WinEDAChoiceBox uses workarounds:
- *  - in wxGTK 2.6.2 wxGetSelection() does not work properly,
- *  - and wxChoice crashes if compiled in non unicode mode and uses utf8 codes
- */
-
-#define EVT_KICAD_CHOICEBOX EVT_COMBOBOX
-class WinEDAChoiceBox : public wxComboBox
-{
-public:
-    WinEDAChoiceBox( wxWindow* parent, wxWindowID id,
-                     const wxPoint& pos = wxDefaultPosition,
-                     const wxSize& size = wxDefaultSize,
-                     int n = 0, const wxString choices[] = NULL ) :
-        wxComboBox( parent, id, wxEmptyString, pos, size,
-                    n, choices, wxCB_READONLY )
-    {
-    }
-
-
-    WinEDAChoiceBox( wxWindow* parent, wxWindowID id,
-                     const wxPoint& pos, const wxSize& size,
-                     const wxArrayString& choices ) :
-        wxComboBox( parent, id, wxEmptyString, pos, size,
-                    choices, wxCB_READONLY )
-    {
-    }
-
-
-    int GetChoice()
-    {
-        return GetCurrentSelection();
-    }
-};
 
 #endif  /* WXSTRUCT_H */

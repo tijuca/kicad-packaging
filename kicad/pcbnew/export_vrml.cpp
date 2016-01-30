@@ -13,6 +13,11 @@
 #include <vector>
 #include <cmath>
 
+/* helper function:
+ * some characters cannot be used in names,
+ * this function change them to "_"
+ */
+static void ChangeIllegalCharacters( wxString & aFileName, bool aDirSepIsIllegal );
 
 
 /* the dialog to create VRML files, derived from DIALOG_EXPORT_3DFILE_BASE,
@@ -26,7 +31,7 @@
 class DIALOG_EXPORT_3DFILE : public DIALOG_EXPORT_3DFILE_BASE
 {
 private:
-    WinEDA_PcbFrame* m_parent;
+    PCB_EDIT_FRAME* m_parent;
     wxConfig* m_config;
     int m_unitsOpt;          // to remember last option
     int m_3DFilesOpt;        // to remember last option
@@ -34,7 +39,7 @@ private:
     virtual void OnOkClick( wxCommandEvent& event ){ EndModal( wxID_OK ); }
 
 public:
-    DIALOG_EXPORT_3DFILE( WinEDA_PcbFrame* parent ) :
+    DIALOG_EXPORT_3DFILE( PCB_EDIT_FRAME* parent ) :
         DIALOG_EXPORT_3DFILE_BASE( parent )
     {
         m_parent = parent;
@@ -641,12 +646,11 @@ static void vrml_text_callback( int x0, int y0, int xf, int yf )
 }
 
 
-static void export_vrml_pcbtext( TEXTE_PCB* text ) /*{{{*/
-/*************************************************************/
+static void export_vrml_pcbtext( TEXTE_PCB* text )
 {
     /* Coupling by globals! Ewwww... */
     s_text_layer = text->GetLayer();
-    s_text_width = text->m_Width;
+    s_text_width = text->m_Thickness;
     wxSize size = text->m_Size;
     if( text->m_Mirror )
         NEGATE( size.x );
@@ -665,7 +669,7 @@ static void export_vrml_pcbtext( TEXTE_PCB* text ) /*{{{*/
             DrawGraphicText( NULL, NULL, pos, (EDA_Colors) 0,
                              txt, text->m_Orient, size,
                              text->m_HJustify, text->m_VJustify,
-                             text->m_Width, text->m_Italic,
+                             text->m_Thickness, text->m_Italic,
                              true,
                              vrml_text_callback );
             pos += offset;
@@ -678,7 +682,7 @@ static void export_vrml_pcbtext( TEXTE_PCB* text ) /*{{{*/
         DrawGraphicText( NULL, NULL, text->m_Pos, (EDA_Colors) 0,
                          text->m_Text, text->m_Orient, size,
                          text->m_HJustify, text->m_VJustify,
-                         text->m_Width, text->m_Italic,
+                         text->m_Thickness, text->m_Italic,
                          true,
                          vrml_text_callback );
     }
@@ -688,9 +692,7 @@ static void export_vrml_pcbtext( TEXTE_PCB* text ) /*{{{*/
 static void export_vrml_drawings( BOARD* pcb ) /*{{{*/
 {
     /* draw graphic items */
-    for( EDA_BaseStruct* drawing = pcb->m_Drawings;
-        drawing != 0;
-        drawing = drawing->Next() )
+    for( EDA_ITEM* drawing = pcb->m_Drawings;  drawing != 0;  drawing = drawing->Next() )
     {
         switch( drawing->Type() )
         {
@@ -819,11 +821,11 @@ static void export_vrml_text_module( TEXTE_MODULE* module ) /*{{{*/
             NEGATE( size.x ); // Text is mirrored
 
         s_text_layer = module->GetLayer();
-        s_text_width = module->m_Width;
+        s_text_width = module->m_Thickness;
         DrawGraphicText( NULL, NULL, module->m_Pos, (EDA_Colors) 0,
                          module->m_Text, module->GetDrawRotation(), size,
                          module->m_HJustify, module->m_VJustify,
-                         module->m_Width, module->m_Italic,
+                         module->m_Thickness, module->m_Italic,
                          true,
                          vrml_text_callback );
     }
@@ -926,17 +928,17 @@ static void export_vrml_pad( BOARD* pcb, D_PAD* pad ) /*{{{*/
             {
                 int coord[8] =
                 {
-                    -pad_w - pad_dy, +pad_h + pad_dx,
-                    -pad_w + pad_dy, -pad_h - pad_dx,
-                    +pad_w - pad_dy, +pad_h - pad_dx,
-                    +pad_w + pad_dy, -pad_h + pad_dx,
+                    wxRound(-pad_w - pad_dy), wxRound(+pad_h + pad_dx),
+                    wxRound(-pad_w + pad_dy), wxRound(-pad_h - pad_dx),
+                    wxRound(+pad_w - pad_dy), wxRound(+pad_h - pad_dx),
+                    wxRound(+pad_w + pad_dy), wxRound(-pad_h + pad_dx),
                 };
 
                 for( int i = 0; i < 4; i++ )
                 {
                     RotatePoint( &coord[i * 2], &coord[i * 2 + 1], pad->m_Orient );
-                    coord[i * 2]     += pad_x;
-                    coord[i * 2 + 1] += pad_y;
+                    coord[i * 2]     += wxRound( pad_x );
+                    coord[i * 2 + 1] += wxRound( pad_y );
                 }
 
                 bag_flat_quad( layer, coord[0], coord[1],
@@ -995,10 +997,9 @@ static void export_vrml_module( BOARD* aPcb, MODULE* aModule,
     /* Reference and value */
     export_vrml_text_module( aModule->m_Reference );
     export_vrml_text_module( aModule->m_Value );
+
     /* Export module edges */
-    for( EDA_BaseStruct* item = aModule->m_Drawings;
-        item != NULL;
-        item = item->Next() )
+    for( EDA_ITEM* item = aModule->m_Drawings;  item != NULL;  item = item->Next() )
     {
         switch( item->Type() )
         {
@@ -1040,10 +1041,9 @@ static void export_vrml_module( BOARD* aPcb, MODULE* aModule,
 
         fname.Replace(wxT("\\"), wxT("/" ) );
         wxString source_fname = fname;
-        if( aExport3DFiles )
+        if( aExport3DFiles )    // Change illegal characters in short filename
         {
-            fname.Replace(wxT("/"), wxT("_" ) );
-            fname.Replace(wxT(":_"), wxT("_" ) );
+            ChangeIllegalCharacters( fname, true );
             fname = a3D_Subdir + wxT("/") + fname;
             if( !wxFileExists( fname ) )
                 wxCopyFile( source_fname, fname );
@@ -1054,17 +1054,25 @@ static void export_vrml_module( BOARD* aPcb, MODULE* aModule,
          * for footprints that are flipped
          * When flipped, axis rotation is the horizontal axis (X axis)
          */
-        int rotx = vrmlm->m_MatRotation.x;
+        double rotx = - vrmlm->m_MatRotation.x;
+        double roty = - vrmlm->m_MatRotation.y;
+        double rotz = - vrmlm->m_MatRotation.z;
         if ( isFlipped )
-            rotx += 1800;
+        {
+            rotx += 180.0;
+            NEGATE(roty);
+            NEGATE(rotz);
+        }
 
         /* Do some quaternion munching */
         double q1[4], q2[4], rot[4];
-        build_quat( 1, 0, 0, rotx / 1800.0 * M_PI, q1 );
-        build_quat( 0, 1, 0, vrmlm->m_MatRotation.y / 1800.0 * M_PI, q2 );
+        build_quat( 1, 0, 0, rotx / 180.0 * M_PI, q1 );
+        build_quat( 0, 1, 0, roty / 180.0 * M_PI, q2 );
         compose_quat( q1, q2, q1 );
-        build_quat( 0, 0, 1, vrmlm->m_MatRotation.z / 1800.0 * M_PI, q2 );
+        build_quat( 0, 0, 1, rotz / 180.0 * M_PI, q2 );
         compose_quat( q1, q2, q1 );
+        // Note here aModule->m_Orient is in 0.1 degrees,
+        // so module rotation is aModule->m_Orient / 1800.0
         build_quat( 0, 0, 1, aModule->m_Orient / 1800.0 * M_PI, q2 );
         compose_quat( q1, q2, q1 );
         from_quat( q1, rot );
@@ -1080,13 +1088,26 @@ static void export_vrml_module( BOARD* aPcb, MODULE* aModule,
                  vrmlm->m_MatScale.x * aScalingFactor,
                  vrmlm->m_MatScale.y * aScalingFactor,
                  vrmlm->m_MatScale.z * aScalingFactor );
+        /* adjust 3D shape offset position (offset is given inch) */
+        #define UNITS_3D_TO_PCB_UNITS PCB_INTERNAL_UNIT
+        int offsetx = wxRound( vrmlm->m_MatPosition.x * UNITS_3D_TO_PCB_UNITS );
+        int offsety = wxRound( vrmlm->m_MatPosition.y * UNITS_3D_TO_PCB_UNITS );
+        double offsetz = vrmlm->m_MatPosition.z * UNITS_3D_TO_PCB_UNITS;
+
+        if ( isFlipped )
+            NEGATE(offsetz);
+        else    // In normal mode, Y axis is reversed in Pcbnew.
+            NEGATE(offsety);
+
+        RotatePoint(&offsetx, &offsety, aModule->m_Orient);
+
         fprintf( aOutputFile, "  translation %g %g %g\n",
-                 vrmlm->m_MatPosition.x + aModule->m_Pos.x,
-                 -vrmlm->m_MatPosition.y - aModule->m_Pos.y,
-                 vrmlm->m_MatPosition.z + layer_z[aModule->GetLayer()] );
+                 (double) (offsetx + aModule->m_Pos.x),
+                 - (double)(offsety + aModule->m_Pos.y),    // Y axis is reversed in pcbnew
+                 offsetz + layer_z[aModule->GetLayer()] );
         fprintf( aOutputFile,
-                "  children [\n    Inline {\n      url [ \"%s\" ]\n    } ]\n",
-                CONV_TO_UTF8( fname ) );
+                "  children [\n    Inline {\n      url \"%s\"\n    } ]\n",
+                TO_UTF8( fname ) );
         fprintf( aOutputFile, "  }\n" );
 
     }
@@ -1108,7 +1129,7 @@ static void write_and_empty_triangle_bag( FILE* output_file,
  * Function OnExportVRML
  * will export the current BOARD to a VRML file.
  */
-void WinEDA_PcbFrame::OnExportVRML( wxCommandEvent& event )
+void PCB_EDIT_FRAME::OnExportVRML( wxCommandEvent& event )
 {
     wxFileName fn;
     static wxString subDirFor3Dshapes = wxT("shapes3D");
@@ -1116,12 +1137,13 @@ void WinEDA_PcbFrame::OnExportVRML( wxCommandEvent& event )
 
     // Build default file name
     wxString ext = wxT( "wrl" );
-    fn = GetScreen()->m_FileName;
+    fn = GetScreen()->GetFileName();
     fn.SetExt( ext );
 
     DIALOG_EXPORT_3DFILE dlg( this );
     dlg.FilePicker()->SetPath( fn.GetFullPath() );
     dlg.SetSubdir( subDirFor3Dshapes );
+
     if( dlg.ShowModal() != wxID_OK )
         return;
 
@@ -1156,9 +1178,9 @@ wxBusyCursor dummy;
  * the full path name, changing the separators by underscore.
  * this is needed because files with the same shortname can exist in different directories
  */
-bool WinEDA_PcbFrame::ExportVRML_File( const wxString & aFullFileName,
-                    double aScale, bool aExport3DFiles,
-                    const wxString & a3D_Subdir )
+bool PCB_EDIT_FRAME::ExportVRML_File( const wxString & aFullFileName,
+                                      double aScale, bool aExport3DFiles,
+                                      const wxString & a3D_Subdir )
 {
     wxString   msg;
     FILE*      output_file;
@@ -1172,10 +1194,14 @@ bool WinEDA_PcbFrame::ExportVRML_File( const wxString & aFullFileName,
     SetLocaleTo_C_standard();
 
     /* Begin with the usual VRML boilerplate */
+    wxString name = aFullFileName;
+
+    name.Replace(wxT("\\"), wxT("/" ) );
+    ChangeIllegalCharacters( name, false );
     fprintf( output_file, "#VRML V2.0 utf8\n"
                           "WorldInfo {\n"
                           "  title \"%s - Generated by PCBNEW\"\n"
-                          "}\n", CONV_TO_UTF8( aFullFileName ) );
+                          "}\n", TO_UTF8( name ) );
 
     /* The would be in decimils and not in meters, as the standard wants.
      * It is trivial to embed everything in a transform node to
@@ -1195,7 +1221,7 @@ bool WinEDA_PcbFrame::ExportVRML_File( const wxString & aFullFileName,
     /* Define the translation to have the board centre to the 2D axis origin
      * more easy for rotations...
      */
-    pcb->ComputeBoundaryBox();
+    pcb->ComputeBoundingBox();
     double dx = board_scaling_factor * pcb->m_BoundaryBox.Centre().x * aScale;
     double dy = board_scaling_factor * pcb->m_BoundaryBox.Centre().y * aScale;
     fprintf(output_file, "  translation %g %g 0.0\n", -dx, dy );
@@ -1251,4 +1277,16 @@ bool WinEDA_PcbFrame::ExportVRML_File( const wxString & aFullFileName,
     SetLocaleTo_Default();       // revert to the current  locale
 
     return true;
+}
+
+/*
+ * some characters cannot be used in filenames,
+ * this function change them to "_"
+ */
+static void ChangeIllegalCharacters( wxString & aFileName, bool aDirSepIsIllegal )
+{
+    if( aDirSepIsIllegal )
+        aFileName.Replace(wxT("/"), wxT("_" ) );
+    aFileName.Replace(wxT(" "), wxT("_" ) );
+    aFileName.Replace(wxT(":"), wxT("_" ) );
 }

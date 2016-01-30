@@ -2,16 +2,16 @@ project(kicad)
 
 # test the minimum Cmake version requirement (could be different under unix or Windows
 if(WIN32)
-    cmake_minimum_required(VERSION 2.6.4 FATAL_ERROR)
+    cmake_minimum_required(VERSION 2.8.0 FATAL_ERROR)
 else(WIN32)
-    cmake_minimum_required(VERSION 2.6.4 FATAL_ERROR)
+    cmake_minimum_required(VERSION 2.8.0 FATAL_ERROR)
 endif(WIN32)
 
 # Path to local CMake modules.
 set(CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/CMakeModules)
 
 # Command line option to enable or disable building minizip. Minizip
-# building is enabled by default. Use -DKICAD_MINZIP=OFF to disable
+# building is enabled by default. Use -DKICAD_MINIZIP=OFF to disable
 # building minizip.
 option(KICAD_MINIZIP "enable/disable building minizip (default ON)" ON)
 
@@ -19,10 +19,49 @@ option(KICAD_MINIZIP "enable/disable building minizip (default ON)" ON)
 option(wxUSE_UNICODE "enable/disable building unicode (default OFF)")
 option(KICAD_GOST "enable/disable building using GOST notation for multiple gates per package (default OFF)")
 
-option(USE_WX_ZOOM "Use wxDC to perform zooming (default OFF).  Warning, this is experimental" )
+#for those who bored with uppercase
+option(KICAD_KEEPCASE "turn-off automatic component name conversion to uppercase if selected")
 
 option(USE_WX_GRAPHICS_CONTEXT
-       "Use wxGraphicsContext for rendering (default OFF).  Warning, this is experimental")
+       "Use wxGraphicsContext for rendering (default OFF). Warning, this is experimental")
+
+option(USE_WX_OVERLAY
+       "Use wxOverlay: Always ON for MAC (default OFF). Warning, this is experimental")
+
+option(USE_BOOST_POLYGON_LIBRARY
+       "Use boost polygon library instead of Kbool to calculate filled areas in zones (default ON)."
+       ON )
+
+#One of these 2 option *must* be set to ON:
+option(KICAD_STABLE_VERSION
+       "set this option to ON to build the stable version of KICAD. mainly used to set version ID (default OFF)"
+       )
+
+option(KICAD_TESTING_VERSION
+       "set this option to ON to build the stable version of KICAD. mainly used to set version ID (default OFF)"
+       )
+
+#Set version option (stable or testing)
+
+if (KICAD_STABLE_VERSION )
+    if ( KICAD_TESTING_VERSION )
+        message( FATAL_ERROR
+        "Please set to ON only one option KICAD_TESTING_VERSION or KICAD_STABLE_VERSION" )
+    endif( KICAD_TESTING_VERSION )
+    add_definitions(-DKICAD_STABLE_VERSION)
+    message( "Build stable version of Kicad" )
+else (KICAD_STABLE_VERSION )
+    if (KICAD_TESTING_VERSION )
+        add_definitions(-DKICAD_TESTING_VERSION)
+        message( "Build testing (unstable) version of Kicad" )
+    else (KICAD_TESTING_VERSION )
+        message( "Please set to ON one option of KICAD_TESTING_VERSION or KICAD_STABLE_VERSION" )
+        message( "When calling cmake add option -DKICAD_STABLE_VERSION=ON" )
+        message( "or add option -DKICAD_TESTING_VERSION=ON" )
+        message( FATAL_ERROR "one option of KICAD_TESTING_VERSION or KICAD_STABLE_VERSION must be defined" )
+    endif(KICAD_TESTING_VERSION )
+endif(KICAD_STABLE_VERSION )
+
 
 
 #================================================
@@ -31,9 +70,9 @@ option(USE_WX_GRAPHICS_CONTEXT
 
 if(CMAKE_COMPILER_IS_GNUCXX)
     # Set default flags for Release build.
-    set(CMAKE_C_FLAGS_RELEASE "-Wall -O2 -DNDEBUG")
+    set(CMAKE_C_FLAGS_RELEASE "-Wall -O2 -DNDEBUG ")
     set(CMAKE_CXX_FLAGS_RELEASE "-Wall -O2 -DNDEBUG")
-    set(CMAKE_EXE_LINKER_FLAGS_RELEASE "-s")
+    set(CMAKE_EXE_LINKER_FLAGS_RELEASE "-s -static-libgcc")
 
     # Set default flags for Debug build.
     set(CMAKE_C_FLAGS_DEBUG "-Wall -g3 -ggdb3 -DDEBUG")
@@ -48,15 +87,23 @@ if(KICAD_GOST)
     add_definitions(-DKICAD_GOST)
 endif(KICAD_GOST)
 
-if(USE_WX_ZOOM)
-    add_definitions(-DUSE_WX_ZOOM)
-endif(USE_WX_ZOOM)
+if(KICAD_KEEPCASE)
+    add_definitions(-DKICAD_KEEPCASE)
+endif(KICAD_KEEPCASE)
+
+if(USE_WX_OVERLAY OR APPLE)
+    add_definitions(-DUSE_WX_OVERLAY)
+endif(USE_WX_OVERLAY OR APPLE)
+
 
 if(USE_WX_GRAPHICS_CONTEXT)
-    set( USE_WX_ZOOM ON )
-    add_definitions(-DUSE_WX_ZOOM)
     add_definitions(-DUSE_WX_GRAPHICS_CONTEXT)
 endif(USE_WX_GRAPHICS_CONTEXT)
+
+if(USE_BOOST_POLYGON_LIBRARY)
+    set( USE_BOOST_POLYGON_LIBRARY ON )
+    add_definitions(-DUSE_BOOST_POLYGON_LIBRARY)
+endif(USE_BOOST_POLYGON_LIBRARY)
 
 # Locations for install targets.
 set(KICAD_BIN bin
@@ -97,6 +144,7 @@ mark_as_advanced(KICAD_BIN
                  KICAD_DEMOS
                  KICAD_TEMPLATE)
 
+include(Functions)
 
 #================================================
 # Find libraries that are needed to build KiCad.
@@ -127,9 +175,9 @@ check_find_package_result(OPENGL_FOUND "OpenGL")
 
 # On Apple only wxwidgets 2.9 or higher doesn't need to find aui part of base
 if(APPLE)
-    find_package(wxWidgets COMPONENTS gl adv html core net base QUIET)
+    find_package(wxWidgets COMPONENTS gl adv html core net base xml QUIET)
 else(APPLE)
-    find_package(wxWidgets COMPONENTS gl aui adv html core net base QUIET)
+    find_package(wxWidgets COMPONENTS gl aui adv html core net base xml QUIET)
 endif(APPLE)
 check_find_package_result(wxWidgets_FOUND "wxWidgets")
 
@@ -187,12 +235,39 @@ add_subdirectory(kicad)
 add_subdirectory(pcbnew)
 add_subdirectory(polygon)
 add_subdirectory(polygon/kbool/src)
+add_subdirectory(potrace)
+add_subdirectory(bitmap2component)
+#add_subdirectory(new)
 
 #############
 # Resources #
 #############
 add_subdirectory(demos)
 add_subdirectory(template)
+
+#================================================
+# Doxygen Output
+#================================================
+find_package(Doxygen)
+if(DOXYGEN_FOUND)
+    add_custom_target( doxygen-docs ${DOXYGEN_EXECUTABLE}
+        WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+        DEPENDS Doxyfile )
+else(DOXYGEN_FOUND)
+    message( STATUS "WARNING: Doxygen not found - doxygen-docs (Source Docs) target not created" )
+endif()
+
+
+#================================================
+# make uninstall rules
+#================================================
+configure_file(
+  "${CMAKE_MODULE_PATH}/cmake_uninstall.cmake.in"
+  "${CMAKE_CURRENT_BINARY_DIR}/cmake_uninstall.cmake"
+  IMMEDIATE @ONLY)
+
+add_custom_target(uninstall
+  "${CMAKE_COMMAND}" -P "${CMAKE_CURRENT_BINARY_DIR}/cmake_uninstall.cmake")
 
 
 #================================================

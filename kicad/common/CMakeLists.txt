@@ -1,12 +1,26 @@
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}
+                    ${CMAKE_CURRENT_SOURCE_DIR}/dialogs
                     ${Boost_INCLUDE_DIR}
                     ../3d-viewer
                     ../pcbnew
                     ../polygon
                    )
 
+set( COMMON_ABOUT_DLG_SRCS
+    dialog_about/AboutDialog_main.cpp
+    dialog_about/dialog_about.cpp
+    dialog_about/dialog_about_base.cpp
+    dialogs/dialog_display_info_HTML_base.cpp
+    dialogs/dialog_get_component.cpp
+    dialogs/dialog_get_component_base.cpp
+    dialogs/dialog_hotkeys_editor.cpp
+    dialogs/dialog_hotkeys_editor_base.cpp
+    dialogs/dialog_load_error.cpp
+    dialogs/dialog_page_settings_base.cpp
+)
+
 set(COMMON_SRCS
-    about_kicad.cpp
+    ${COMMON_ABOUT_DLG_SRCS}
     base_screen.cpp
     base_struct.cpp
     basicframe.cpp
@@ -25,10 +39,7 @@ set(COMMON_SRCS
     common_plotDXF_functions.cpp
     confirm.cpp
     copy_to_clipboard.cpp
-    dialog_display_info_HTML_base.cpp
-    dialog_load_error.cpp
     dcsvg.cpp
-    dialog_page_settings_base.cpp
     displlst.cpp
     dlist.cpp
     drawframe.cpp
@@ -38,11 +49,13 @@ set(COMMON_SRCS
     edaappl.cpp
     eda_dde.cpp
     eda_doc.cpp
+    filter_reader.cpp
     gestfich.cpp
-    get_component_dialog.cpp
     gr_basic.cpp
     hotkeys_basic.cpp
+    hotkey_grid_table.cpp
     msgpanel.cpp
+    netlist_keywords.cpp
     newstroke_font.cpp
     ../pcbnew/class_drc_item.cpp
     projet_config.cpp
@@ -53,6 +66,7 @@ set(COMMON_SRCS
     trigo.cpp
     worksheet.cpp
     wxwineda.cpp
+    xnode.cpp
     zoom.cpp
 )
 
@@ -60,6 +74,8 @@ add_library(common ${COMMON_SRCS})
 
 set(PCB_COMMON_SRCS
     pcbcommon.cpp
+    footprint_info.cpp
+    class_layer_box_selector.cpp
     ../pcbnew/basepcbframe.cpp
     ../pcbnew/class_board.cpp
     ../pcbnew/class_board_connected_item.cpp
@@ -89,6 +105,14 @@ set(PCB_COMMON_SRCS
 )
 
 add_library(pcbcommon ${PCB_COMMON_SRCS})
+
+# auto-generate netlist_lexer.h and netlist_keywords.cpp
+make_lexer(
+    ${CMAKE_CURRENT_SOURCE_DIR}/netlist.keywords
+    ${PROJECT_SOURCE_DIR}/include/netlist_lexer.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/netlist_keywords.cpp
+    NL_T
+    )
 
 # The dsntest may not build properly using MS Visual Studio.
 if(NOT MSVC)

@@ -1,83 +1,78 @@
 add_definitions(-DEESCHEMA)
 
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}
+                    ${CMAKE_CURRENT_SOURCE_DIR}/dialogs
                     ${CMAKE_SOURCE_DIR}/common
                     ${Boost_INCLUDE_DIR}
                    )
 
 set(EESCHEMA_SRCS
     annotate.cpp
-    annotate_dialog.cpp
     backanno.cpp
     block.cpp
     block_libedit.cpp
     build_BOM.cpp
     busentry.cpp
     bus-wire-junction.cpp
-    class_BodyItem_Text.cpp
-    class_drawsheet.cpp
-    class_drawsheetpath.cpp
     class_drc_erc_item.cpp
-    class_hierarchical_PIN_sheet.cpp
     class_libentry.cpp
-    class_libentry_fields.cpp
     class_library.cpp
-    class_marker_sch.cpp
     class_netlist_object.cpp
-    class_pin.cpp
-    class_sch_cmp_field.cpp
-    class_sch_component.cpp
-    class_schematic_items.cpp
-    class_sch_screen.cpp
-    class_text-label.cpp
-    classes_body_items.cpp
-    cleanup.cpp
+    cmp_library_keywords.cpp
     cmp_library_lexer.cpp
+    component_references_lister.cpp
     controle.cpp
     cross-probing.cpp
     dangling_ends.cpp
     database.cpp
-    delete.cpp
     delsheet.cpp
-    dialog_annotate_base.cpp
-    dialog_bodygraphictext_properties_base.cpp
-    dialog_build_BOM.cpp
-    dialog_build_BOM_base.cpp
-    dialog_edit_component_in_lib.cpp
-    dialog_edit_component_in_lib_base.cpp
-    dialog_edit_component_in_schematic_fbp.cpp
-    dialog_edit_component_in_schematic.cpp
-    dialog_edit_label.cpp
-    dialog_edit_label_base.cpp
-    dialog_edit_libentry_fields_in_lib.cpp
-    dialog_edit_libentry_fields_in_lib_base.cpp
-    dialog_eeschema_config.cpp
-    dialog_eeschema_config_fbp.cpp
-    dialog_eeschema_options_base.cpp
-    dialog_eeschema_options.cpp
-    dialog_erc.cpp
-    dialog_erc_base.cpp
-    dialog_libedit_dimensions.cpp
-    dialog_libedit_dimensions_base.cpp
-    dialog_lib_edit_draw_item.cpp
-    dialog_lib_edit_draw_item_base.cpp
-    dialog_lib_edit_pin.cpp
-    dialog_lib_edit_pin_base.cpp
-    dialog_lib_new_component.cpp
-    dialog_lib_new_component_base.cpp
-    dialog_print_using_printer_base.cpp
-    dialog_print_using_printer.cpp
-    dialog_sch_sheet_props.cpp
-    dialog_sch_sheet_props_base.cpp
-    dialog_schematic_find.cpp
-    dialog_schematic_find_base.cpp
-    dialog_SVG_print.cpp
-    dialog_SVG_print_base.cpp
-    edit_component_in_lib.cpp
+    dialogs/dialog_color_config.cpp
+    dialogs/dialog_plot_schematic_DXF.cpp
+    dialogs/dialog_plot_schematic_DXF_base.cpp
+    dialogs/dialog_plot_schematic_HPGL.cpp
+    dialogs/dialog_plot_schematic_HPGL_base.cpp
+    dialogs/dialog_plot_schematic_PS.cpp
+    dialogs/dialog_plot_schematic_PS_base.cpp
+    dialogs/annotate_dialog.cpp
+    dialogs/dialog_annotate_base.cpp
+    dialogs/dialog_lib_edit_text.cpp
+    dialogs/dialog_lib_edit_text_base.cpp
+    dialogs/dialog_build_BOM.cpp
+    dialogs/dialog_build_BOM_base.cpp
+    dialogs/dialog_edit_component_in_lib.cpp
+    dialogs/dialog_edit_component_in_lib_base.cpp
+    dialogs/dialog_edit_component_in_schematic_fbp.cpp
+    dialogs/dialog_edit_component_in_schematic.cpp
+    dialogs/dialog_edit_label.cpp
+    dialogs/dialog_edit_label_base.cpp
+    dialogs/dialog_edit_libentry_fields_in_lib.cpp
+    dialogs/dialog_edit_libentry_fields_in_lib_base.cpp
+    dialogs/dialog_eeschema_config.cpp
+    dialogs/dialog_eeschema_config_fbp.cpp
+    dialogs/dialog_eeschema_options_base.cpp
+    dialogs/dialog_eeschema_options.cpp
+    dialogs/dialog_erc.cpp
+    dialogs/dialog_erc_base.cpp
+    dialogs/dialog_libedit_dimensions.cpp
+    dialogs/dialog_libedit_dimensions_base.cpp
+    dialogs/dialog_lib_edit_draw_item.cpp
+    dialogs/dialog_lib_edit_draw_item_base.cpp
+    dialogs/dialog_lib_edit_pin.cpp
+    dialogs/dialog_lib_edit_pin_base.cpp
+    dialogs/dialog_lib_new_component.cpp
+    dialogs/dialog_lib_new_component_base.cpp
+    dialogs/dialog_print_using_printer_base.cpp
+    dialogs/dialog_print_using_printer.cpp
+    dialogs/dialog_sch_edit_sheet_pin.cpp
+    dialogs/dialog_sch_edit_sheet_pin_base.cpp
+    dialogs/dialog_sch_sheet_props.cpp
+    dialogs/dialog_sch_sheet_props_base.cpp
+    dialogs/dialog_schematic_find.cpp
+    dialogs/dialog_schematic_find_base.cpp
+    dialogs/dialog_SVG_print.cpp
+    dialogs/dialog_SVG_print_base.cpp
     edit_component_in_schematic.cpp
     edit_label.cpp
-    eelayer.cpp
-    eelibs_draw_components.cpp
     eelibs_read_libraryfiles.cpp
     eeredraw.cpp
     eeschema.cpp
@@ -96,10 +91,19 @@ set(EESCHEMA_SRCS
     libedit_onrightclick.cpp
     libedit_plot_component.cpp
     libedit_undo_redo.cpp
+    lib_arc.cpp
+    lib_bezier.cpp
+    lib_circle.cpp
+    lib_collectors.cpp
+    lib_draw_item.cpp
     lib_export.cpp
+    lib_field.cpp
+    lib_pin.cpp
+    lib_polyline.cpp
+    lib_rectangle.cpp
+    lib_text.cpp
     libfield.cpp
     load_one_schematic_file.cpp
-    locate.cpp
     menubar.cpp
     menubar_libedit.cpp
     netform.cpp
@@ -110,11 +114,20 @@ set(EESCHEMA_SRCS
     operations_on_items_lists.cpp
     pinedit.cpp
     plot.cpp
-    plothpgl.cpp
-    plotps.cpp
-    plotdxf.cpp
-    read_from_file_schematic_items_descriptions.cpp
-    save_schemas.cpp
+    sch_bus_entry.cpp
+    sch_collectors.cpp
+    sch_component.cpp
+    sch_field.cpp
+    sch_junction.cpp
+    sch_line.cpp
+    sch_marker.cpp
+    sch_no_connect.cpp
+    sch_polyline.cpp
+    sch_screen.cpp
+    sch_sheet.cpp
+    sch_sheet_path.cpp
+    sch_sheet_pin.cpp
+    sch_text.cpp
     schedit.cpp
     schematic_undo_redo.cpp
     schframe.cpp
@@ -123,15 +136,17 @@ set(EESCHEMA_SRCS
     sheetlab.cpp
     symbdraw.cpp
     symbedit.cpp
-    edit_graphic_bodyitem_text.cpp
+    template_fieldnames_keywords.cpp
+    template_fieldnames.cpp
     tool_lib.cpp
     tool_sch.cpp
     tool_viewlib.cpp
+    transform.cpp
     viewlib_frame.cpp
     viewlibs.cpp)
 
 set(EESCHEMA_EXTRA_SRCS
-    ../common/dialog_page_settings.cpp
+    ../common/dialogs/dialog_page_settings.cpp
     ../common/sch_item_struct.cpp
 )
 
@@ -152,21 +167,21 @@ if(APPLE)
     set(MACOSX_BUNDLE_GUI_IDENTIFIER org.kicad-eda.eeschema)
 endif(APPLE)
 
-# Generate DSN lexer header and source files for the component library file
-# format.
-add_custom_command(
-    OUTPUT ${CMAKE_CURRENT_SOURCE_DIR}/cmp_library_base.h
-    COMMAND ${CMAKE_COMMAND}
-        -DinputFile=${CMAKE_CURRENT_SOURCE_DIR}/cmp_library.lst
-        -P ${CMAKE_MODULE_PATH}/TokenList2DsnLexer.cmake
-    DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/cmp_library.lst
-    COMMENT "creating ${CMAKE_CURRENT_SOURCE_DIR}/cmp_library_base.h(.cpp)
-       from ${CMAKE_CURRENT_SOURCE_DIR}/cmp_library.lst"
-    )
 
-set_source_files_properties( cmp_library_lexer.cpp
-    PROPERTIES
-        OBJECT_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/cmp_library_base.h
+# auto-generate cmp_library_lexer.h and cmp_library_keywords.cpp for the component
+# library format.
+make_lexer(
+   ${CMAKE_CURRENT_SOURCE_DIR}/cmp_library.keywords
+   ${CMAKE_CURRENT_SOURCE_DIR}/cmp_library_lexer.h
+   ${CMAKE_CURRENT_SOURCE_DIR}/cmp_library_keywords.cpp
+   TLIB_T
+   )
+
+make_lexer(
+    ${CMAKE_CURRENT_SOURCE_DIR}/template_fieldnames.keywords
+    ${CMAKE_CURRENT_SOURCE_DIR}/template_fieldnames_lexer.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/template_fieldnames_keywords.cpp
+    TFIELD_T
     )
 
 add_executable(eeschema WIN32 MACOSX_BUNDLE ${EESCHEMA_SRCS} ${EESCHEMA_EXTRA_SRCS}

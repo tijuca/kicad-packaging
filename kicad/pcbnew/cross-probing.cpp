@@ -34,13 +34,15 @@ void RemoteCommand(  const char* cmdline )
  * $PIN: "pin name"  $PART: "reference" put cursor on the footprint pin
  */
 {
-    char             line[1024];
-    wxString         msg;
-    wxString         modName;
-    char*            idcmd;
-    char*            text;
-    MODULE*          module = 0;
-    WinEDA_PcbFrame* frame  = (WinEDA_PcbFrame*)wxGetApp().GetTopWindow();
+    char            line[1024];
+    wxString        msg;
+    wxString        modName;
+    char*           idcmd;
+    char*           text;
+    MODULE*         module = 0;
+    PCB_EDIT_FRAME* frame  = (PCB_EDIT_FRAME*)wxGetApp().GetTopWindow();
+    BOARD* pcb             = frame->GetBoard();
+    wxPoint         pos;
 
     strncpy( line, cmdline, sizeof(line) - 1 );
 
@@ -52,7 +54,7 @@ void RemoteCommand(  const char* cmdline )
 
     if( strcmp( idcmd, "$PART:" ) == 0 )
     {
-        modName = CONV_FROM_UTF8( text );
+        modName = FROM_UTF8( text );
 
         module = frame->GetBoard()->FindModuleByReference( modName );
 
@@ -61,9 +63,10 @@ void RemoteCommand(  const char* cmdline )
         else
             msg.Printf( _( "%s not found" ), GetChars( modName ) );
 
-        frame->Affiche_Message( msg );
+        frame->SetStatusText( msg );
+
         if( module )
-            frame->GetScreen()->m_Curseur = module->GetPosition();
+            pos = module->GetPosition();
     }
     else if( strcmp( idcmd, "$PIN:" ) == 0 )
     {
@@ -71,15 +74,16 @@ void RemoteCommand(  const char* cmdline )
         D_PAD*   pad     = NULL;
         int      netcode = -1;
 
-        pinName = CONV_FROM_UTF8( text );
+        pinName = FROM_UTF8( text );
 
         text = strtok( NULL, " \n\r" );
         if( text && strcmp( text, "$PART:" ) == 0 )
             text = strtok( NULL, "\n\r" );
 
-        modName = CONV_FROM_UTF8( text );
+        modName = FROM_UTF8( text );
 
-        module = frame->GetBoard()->FindModuleByReference( modName );
+        module = pcb->FindModuleByReference( modName );
+
         if( module )
             pad = module->FindPadByName( pinName );
 
@@ -88,46 +92,47 @@ void RemoteCommand(  const char* cmdline )
             netcode = pad->GetNet();
 
             // put cursor on the pad:
-            frame->GetScreen()->m_Curseur = pad->GetPosition();
+            pos = pad->GetPosition();
         }
 
         if( netcode > 0 )               /* highlight the pad net*/
         {
-            g_HighLight_Status   = 1;
-            g_HighLight_NetCode = netcode;
+            pcb->HightLightON();
+            pcb->SetHightLightNet( netcode );
         }
         else
         {
-            g_HighLight_Status   = 0;
-            g_HighLight_NetCode = 0;
+            pcb->HightLightOFF();
+            pcb->SetHightLightNet( -1 );
         }
 
         if( module == NULL )
             msg.Printf( _( "%s not found" ), GetChars( modName ) );
         else if( pad == NULL )
         {
-            msg.Printf( _( "%s pin %s not found" ),
-                        GetChars( modName ), GetChars( pinName ) );
+            msg.Printf( _( "%s pin %s not found" ), GetChars( modName ), GetChars( pinName ) );
             frame->SetCurItem( module );
         }
         else
         {
-            msg.Printf( _( "%s pin %s found" ),
-                        GetChars( modName ), GetChars( pinName ) );
+            msg.Printf( _( "%s pin %s found" ), GetChars( modName ), GetChars( pinName ) );
             frame->SetCurItem( pad );
         }
 
-        frame->Affiche_Message( msg );
+        frame->SetStatusText( msg );
     }
 
     if( module )  // if found, center the module on screen, and redraw the screen.
-        frame->Recadre_Trace( false );
+    {
+        frame->GetScreen()->SetCrossHairPosition(pos);
+        frame->RedrawScreen( pos, false );
+    }
 }
 
 
 // see wxstruct.h
 /**************************************************************************/
-void WinEDA_PcbFrame::SendMessageToEESCHEMA( BOARD_ITEM* objectToSync )
+void PCB_EDIT_FRAME::SendMessageToEESCHEMA( BOARD_ITEM* objectToSync )
 /**************************************************************************/
 
 /** Send a remote command to eeschema via a socket,
@@ -154,7 +159,7 @@ void WinEDA_PcbFrame::SendMessageToEESCHEMA( BOARD_ITEM* objectToSync )
     case TYPE_MODULE:
         module = (MODULE*) objectToSync;
         sprintf( cmd, "$PART: \"%s\"",
-                 CONV_TO_UTF8( module->m_Reference->m_Text ) );
+                 TO_UTF8( module->m_Reference->m_Text ) );
         break;
 
     case TYPE_PAD:
@@ -162,8 +167,8 @@ void WinEDA_PcbFrame::SendMessageToEESCHEMA( BOARD_ITEM* objectToSync )
         pad    = (D_PAD*) objectToSync;
         msg    = pad->ReturnStringPadName();
         sprintf( cmd, "$PART: \"%s\" $PAD: \"%s\"",
-                 CONV_TO_UTF8( module->m_Reference->m_Text ),
-                 CONV_TO_UTF8( msg ) );
+                 TO_UTF8( module->m_Reference->m_Text ),
+                 TO_UTF8( msg ) );
         break;
 
     case TYPE_TEXTE_MODULE:
@@ -179,9 +184,9 @@ void WinEDA_PcbFrame::SendMessageToEESCHEMA( BOARD_ITEM* objectToSync )
             break;
 
         sprintf( cmd, "$PART: \"%s\" %s \"%s\"",
-                 CONV_TO_UTF8( module->m_Reference->m_Text ),
+                 TO_UTF8( module->m_Reference->m_Text ),
                  text_key,
-                 CONV_TO_UTF8( text_mod->m_Text ) );
+                 TO_UTF8( text_mod->m_Text ) );
         break;
 
     default:

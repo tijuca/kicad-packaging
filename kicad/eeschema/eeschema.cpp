@@ -11,31 +11,23 @@
 #include "bitmaps.h"
 #include "eda_dde.h"
 #include "id.h"
+#include "class_sch_screen.h"
+#include "wxEeschemaStruct.h"
 
-#include "program.h"
 #include "general.h"
 #include "protos.h"
+#include "hotkeys.h"
+
+#include "transform.h"
 
 #include <wx/snglinst.h>
 
 
 // Global variables
-
-int       g_OptNetListUseNames; /* TRUE to use names rather than net
+bool      g_OptNetListUseNames; /* TRUE to use names rather than net
                                  * The numbers (PSPICE netlist only) */
-SCH_ITEM* g_ItemToRepeat;       /* Pointer to the last structure
-                                 * for duplicatation by the repeat command.
-                                 * (NULL if no struct exists) */
 wxSize    g_RepeatStep;
 int       g_RepeatDeltaLabel;
-
-SCH_ITEM* g_ItemToUndoCopy;     /* copy of last modified schematic item
-                                 * before it is modified (used for undo
-                                 * managing to restore old values ) */
-
-/* Block operation (copy, paste) */
-BLOCK_SELECTOR           g_BlockSaveDataList;   // List of items to paste
-                                                // (Created by Block Save)
 
 bool                     g_HVLines = true;      // Bool: force H or V
                                                 // directions (Wires, Bus ..)
@@ -82,7 +74,7 @@ int g_ItemSelectetColor = BROWN;
 // in eeschema
 int g_InvisibleItemColor = DARKGRAY;
 
-int DefaultTransformMatrix[2][2] = { { 1, 0 }, { 0, -1 } };
+TRANSFORM DefaultTransform = TRANSFORM( 1, 0, 0, -1 );
 
 
 /************************************/
@@ -101,10 +93,13 @@ IMPLEMENT_APP( WinEDA_App )
  */
 void WinEDA_App::MacOpenFile( const wxString &fileName )
 {
-    wxFileName    filename = fileName;
-    WinEDA_SchematicFrame * frame = ((WinEDA_SchematicFrame*) GetTopWindow());
+    wxFileName      filename = fileName;
+    SCH_EDIT_FRAME* frame = ((SCH_EDIT_FRAME*) GetTopWindow());
 
-    if(!filename.FileExists())
+    if( !frame )
+        return;
+
+    if( !filename.FileExists() )
         return;
 
     frame->LoadOneEEProject( fileName, false );
@@ -113,17 +108,8 @@ void WinEDA_App::MacOpenFile( const wxString &fileName )
 
 bool WinEDA_App::OnInit()
 {
-    /* WXMAC application specific */
-#ifdef __WXMAC__
-//	wxApp::SetExitOnFrameDelete(false);
-//	wxApp::s_macAboutMenuItemId = ID_KICAD_ABOUT;
-	wxApp::s_macPreferencesMenuItemId = ID_OPTIONS_SETUP;
-#endif /* __WXMAC__ */
-
-    wxFileName             filename;
-    WinEDA_SchematicFrame* frame = NULL;
-
-    g_DebugLevel = 0;   // Debug level */
+    wxFileName      filename;
+    SCH_EDIT_FRAME* frame = NULL;
 
     InitEDA_Appl( wxT( "EESchema" ), APP_TYPE_EESCHEMA );
 
@@ -136,7 +122,7 @@ bool WinEDA_App::OnInit()
     if( argc > 1 )
         filename = argv[1];
 
-    /* init EESCHEMA */
+    // Init EESchema
     SeedLayers();
 
     // read current setup and reopen last directory if no filename to open in
@@ -144,14 +130,12 @@ bool WinEDA_App::OnInit()
     bool reopenLastUsedDirectory = argc == 1;
     GetSettings( reopenLastUsedDirectory );
 
-    Read_Hotkey_Config( frame, false );   /* Must be called before creating
-                                           * the main frame  in order to
-                                           * display the real hotkeys in menus
-                                           * or tool tips */
+   /* Must be called before creating the main frame in order to
+    * display the real hotkeys in menus or tool tips */
+    ReadHotkeyConfig( wxT("SchematicFrame"), s_Eeschema_Hokeys_Descr );
 
     // Create main frame (schematic frame) :
-    frame = new WinEDA_SchematicFrame( NULL, wxT( "EESchema" ),
-                                       wxPoint( 0, 0 ), wxSize( 600, 400 ) );
+    frame = new SCH_EDIT_FRAME( NULL, wxT( "EESchema" ), wxPoint( 0, 0 ), wxSize( 600, 400 ) );
 
     SetTopWindow( frame );
     frame->Show( TRUE );
@@ -163,7 +147,6 @@ bool WinEDA_App::OnInit()
         SetupServerFunction( RemoteCommand );
     }
 
-    ActiveScreen = frame->GetScreen();
     frame->Zoom_Automatique( TRUE );
 
     /* Load file specified in the command line. */
@@ -175,16 +158,14 @@ bool WinEDA_App::OnInit()
             filename.SetExt( SchematicFileExtension );
         wxSetWorkingDirectory( filename.GetPath() );
 
-        if( frame->DrawPanel
-            && frame->LoadOneEEProject( filename.GetFullPath(), false ) )
+        if( frame->LoadOneEEProject( filename.GetFullPath(), false ) )
             frame->DrawPanel->Refresh( true );
     }
     else
     {
         // Read a default config file if no file to load.
         frame->LoadProjectFile( wxEmptyString, TRUE );
-        if( frame->DrawPanel )
-            frame->DrawPanel->Refresh( TRUE );
+        frame->DrawPanel->Refresh( TRUE );
     }
 
     return TRUE;

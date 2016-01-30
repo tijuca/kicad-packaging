@@ -53,7 +53,7 @@ typedef enum {
 } CmdBlockType;
 
 
-class BLOCK_SELECTOR : public EDA_BaseStruct, public EDA_Rect
+class BLOCK_SELECTOR : public EDA_ITEM, public EDA_RECT
 {
 public:
     BlockState        m_State;                    /* State (enum BlockState)
@@ -76,30 +76,34 @@ public:
     BLOCK_SELECTOR();
     ~BLOCK_SELECTOR();
 
-    /** function InitData
-     *  Init the initial values of a BLOCK_SELECTOR, before starting a block
-     *command
+    /**
+     * Function InitData
+     * sets the initial values of a BLOCK_SELECTOR, before starting a block
+     * command
      */
-    void InitData( WinEDA_DrawPanel* Panel, const wxPoint& startpos );
+    void InitData( EDA_DRAW_PANEL* Panel, const wxPoint& startpos );
 
-    /** Function SetMessageBlock
+    /**
+     * Function SetMessageBlock
      * Displays the type of block command in the status bar of the window
      */
-    void SetMessageBlock( WinEDA_DrawFrame* frame );
+    void SetMessageBlock( EDA_DRAW_FRAME* frame );
 
-    void Draw( WinEDA_DrawPanel* aPanel,
+    void Draw( EDA_DRAW_PANEL* aPanel,
                wxDC* aDC, const wxPoint& aOffset,
                int aDrawMode,
                int aColor );
 
-    /** Function PushItem
-     * Add aItem to the list of items
+    /**
+     * Function PushItem
+     * adds aItem to the list of items
      * @param aItem = an ITEM_PICKER to add to the list
      */
     void PushItem( ITEM_PICKER& aItem );
 
-    /** Function ClearListAndDeleteItems
-     * delete only the list of EDA_BaseStruct * pointers, AND the data printed
+    /**
+     * Function ClearListAndDeleteItems
+     * deletes only the list of EDA_ITEM * pointers, AND the data printed
      * by m_Item
      */
     void ClearListAndDeleteItems();
@@ -110,12 +114,41 @@ public:
     {
         return m_ItemsSelection.GetCount();
     }
+
+    /**
+     * Function SetLastCursorPosition
+     * sets m_BlockLastCursorPosition
+     * @param aPosition = new position
+     **/
+    void SetLastCursorPosition( wxPoint aPosition )
+    {
+        m_BlockLastCursorPosition = aPosition;
+    }
+
+    /**
+     * Function IsDragging
+     * returns true if the current block command is a drag operation.
+     */
+    bool IsDragging() const { return m_Command == BLOCK_DRAG; }
+
+    /**
+     * Function IsIdle
+     * returns true if there is currently no block operation in progress.
+     */
+    inline bool IsIdle() const { return m_Command == BLOCK_IDLE; }
+
+    /**
+     * Function Clear
+     * clears the block selector by setting the command to idle, the state to no block,
+     * and clears the selected item list.
+     */
+    void Clear();
 };
 
 
 /* Cancel Current block operation.
  */
-void AbortBlockCurrentCommand( WinEDA_DrawPanel* Panel, wxDC* DC );
+void AbortBlockCurrentCommand( EDA_DRAW_PANEL* Panel, wxDC* DC );
 
 
 /* Redraw the outlines of the block which shows the search area for block
@@ -124,7 +157,8 @@ void AbortBlockCurrentCommand( WinEDA_DrawPanel* Panel, wxDC* DC );
  *  by InitBlockLocateDatas().
  *  The other point of the rectangle is the mouse cursor
  */
-void DrawAndSizingBlockOutlines( WinEDA_DrawPanel* panel, wxDC* DC, bool erase );
+void DrawAndSizingBlockOutlines( EDA_DRAW_PANEL* aPanel, wxDC* aDC, const wxPoint& aPosition,
+                                 bool aErase );
 
 
 #endif /* __INCLUDE__BLOCK_COMMANDE_H__ */

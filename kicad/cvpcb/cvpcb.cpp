@@ -12,9 +12,9 @@
 #include "cvpcb.h"
 #include "zones.h"
 #include "bitmaps.h"
-#include "protos.h"
-#include "cvstruct.h"
+#include "cvpcb_mainframe.h"
 #include "colors_selection.h"
+#include "cvpcb_id.h"
 
 #include "build_version.h"
 
@@ -35,14 +35,16 @@ const wxString FootprintAliasFileWildcard( _( "Kicad footprint alias files (*.eq
 const wxString titleLibLoadError( _( "Library Load Error" ) );
 
 
-/* MacOSX: Needed for file association 
+/*
+ * MacOSX: Needed for file association
  * http://wiki.wxwidgets.org/WxMac-specific_topics
  */
-void WinEDA_App::MacOpenFile(const wxString &fileName) {
+void WinEDA_App::MacOpenFile(const wxString &fileName)
+{
     wxFileName    filename = fileName;
     wxString      oldPath;
-    WinEDA_CvpcbFrame * frame = ((WinEDA_CvpcbFrame*)GetTopWindow());
-    
+    CVPCB_MAINFRAME * frame = ((CVPCB_MAINFRAME*)GetTopWindow());
+
     if(!filename.FileExists())
 	return;
 
@@ -58,8 +60,6 @@ void WinEDA_App::MacOpenFile(const wxString &fileName) {
 
     if( frame->ReadNetList() )
     {
-        frame->SetLastProject( filename.GetFullPath() );
-
         frame->SetTitle( wxGetApp().GetTitle() + wxT( " " ) + GetBuildVersion() +
                   wxT( " " ) + filename.GetFullPath() );
     }
@@ -67,9 +67,6 @@ void WinEDA_App::MacOpenFile(const wxString &fileName) {
     {
         frame->SetTitle( wxGetApp().GetTitle() + wxT( " " ) + GetBuildVersion() );
     }
-
-    frame->ReCreateMenuBar();
-
 }
 
 // Create a new application object
@@ -81,17 +78,9 @@ IMPLEMENT_APP( WinEDA_App )
 
 bool WinEDA_App::OnInit()
 {
-     /* WXMAC application specific */
-#ifdef __WXMAC__
-//	wxApp::SetExitOnFrameDelete(false);
-//	wxApp::s_macAboutMenuItemId = ID_KICAD_ABOUT;
-	wxApp::s_macPreferencesMenuItemId = ID_OPTIONS_SETUP;
-#endif /* __WXMAC__ */
-
-
     wxFileName         filename;
     wxString           message;
-    WinEDA_CvpcbFrame* frame   = NULL;
+    CVPCB_MAINFRAME* frame   = NULL;
 
     InitEDA_Appl( wxT( "CvPCB" ), APP_TYPE_CVPCB );
 
@@ -114,7 +103,7 @@ bool WinEDA_App::OnInit()
     g_DrawBgColor = BLACK;
 
     wxString Title = GetTitle() + wxT( " " ) + GetBuildVersion();
-    frame = new WinEDA_CvpcbFrame( Title );
+    frame = new CVPCB_MAINFRAME( Title );
 
     // Show the frame
     SetTopWindow( frame );
@@ -134,7 +123,7 @@ bool WinEDA_App::OnInit()
         }
     }
 
-    LoadFootprintFiles( frame->m_ModuleLibNames, frame->m_footprints );
+    frame->LoadFootprintFiles();
     frame->m_NetlistFileExtension = wxT( "net" );
     frame->m_NetlistFileName.Clear();
     frame->SetTitle( GetTitle() + wxT( " " ) + GetBuildVersion() +

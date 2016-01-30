@@ -22,17 +22,16 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
  */
 
-#ifndef _DSNLEXER_H
-#define _DSNLEXER_H
+#ifndef DSNLEXER_H_
+#define DSNLEXER_H_
 
-#include <cstdio>
+#include <stdio.h>
 #include <string>
-
-#include "fctsys.h"
+#include <vector>
 
 #include "richio.h"
 
-
+#ifndef SWIG
 /**
  * Struct KEYWORD
  * holds a keyword string and its unique integer token.
@@ -42,6 +41,7 @@ struct KEYWORD
     const char* name;       ///< unique keyword.
     int         token;      ///< a zero based index into an array of KEYWORDs
 };
+#endif
 
 // something like this macro can be used to help initialize a KEYWORD table.
 // see SPECCTRA_DB::keywords[] as an example.
@@ -65,7 +65,7 @@ enum DSN_SYNTAX_T {
     DSN_RIGHT = -4,           // right bracket, ')'
     DSN_LEFT = -3,            // left bracket, '('
     DSN_STRING = -2,          // a quoted string, stripped of the quotes
-    DSN_EOF = -1,             // special case for end of file
+    DSN_EOF = -1              // special case for end of file
 };
 
 
@@ -77,16 +77,30 @@ enum DSN_SYNTAX_T {
  */
 class DSNLEXER
 {
-    char*               next;
-    char*               start;
-    char*               limit;
+#ifndef SWIG
+protected:
+    bool                iOwnReaders;            ///< on readerStack, should I delete them?
+    const char*         start;
+    const char*         next;
+    const char*         limit;
+    char                dummy[1];               ///< when there is no reader.
 
-    LINE_READER*        reader;
-    int                 stringDelimiter;
+    typedef std::vector<LINE_READER*>  READER_STACK;
+
+    READER_STACK        readerStack;            ///< all the LINE_READERs by pointer.
+    LINE_READER*        reader;                 ///< no ownership. ownership is via readerStack, maybe, if iOwnReaders
+
+    bool                specctraMode;           ///< if true, then:
+                                                ///< 1) stringDelimiter can be changed
+                                                ///< 2) Kicad quoting protocol is not in effect
+                                                ///< 3) space_in_quoted_tokens is functional
+                                                ///< else not.
+
+    char                stringDelimiter;
     bool                space_in_quoted_tokens; ///< blank spaces within quoted strings
+
     bool                commentsAreTokens;      ///< true if should return comments as tokens
 
-    wxString            filename;
     int                 prevTok;        ///< curTok from previous NextTok() call.
     int                 curOffset;      ///< offset within current line of the current token
 
@@ -99,14 +113,22 @@ class DSNLEXER
 
     void init();
 
-    int readLine() throw (IOError)
+    int readLine() throw( IO_ERROR )
     {
-        int len = reader->ReadLine();
+        if( reader )
+        {
+            unsigned len = reader->ReadLine();
 
-        next  = start;
-        limit = start + len;
+            // start may have changed in ReadLine(), which can resize and
+            // relocate reader's line buffer.
+            start = reader->Line();
 
-        return len;
+            next  = start;
+            limit = next + len;
+
+            return len;
+        }
+        return 0;
     }
 
 
@@ -143,29 +165,161 @@ class DSNLEXER
 
         return false;
     }
-
+#endif
 
 public:
 
     /**
-     * Constructor DSNLEXER
+     * Constructor ( FILE*, const wxString& )
      * intializes a DSN lexer and prepares to read from aFile which
      * is already open and has aFilename.
      *
      * @param aKeywordTable is an array of KEYWORDS holding \a aKeywordCount.  This
      *  token table need not contain the lexer separators such as '(' ')', etc.
      * @param aKeywordTable is the count of tokens in aKeywordTable.
+     * @param aFile is an open file, which will be closed when this is destructed.
+     * @param aFileName is the name of the file
      */
-    DSNLEXER( FILE* aFile, const wxString& aFilename,
-            const KEYWORD* aKeywordTable, unsigned aKeywordCount );
+    DSNLEXER( const KEYWORD* aKeywordTable, unsigned aKeywordCount,
+              FILE* aFile, const wxString& aFileName );
 
-    DSNLEXER( const std::string& aClipboardTxt,
-        const KEYWORD* aKeywordTable, unsigned aKeywordCount );
+    /**
+     * Constructor ( std::string&*, const wxString& )
+     * intializes a DSN lexer and prepares to read from @a aSExpression.
+     *
+     * @param aKeywordTable is an array of KEYWORDS holding \a aKeywordCount.  This
+     *  token table need not contain the lexer separators such as '(' ')', etc.
+     * @param aKeywordTable is the count of tokens in aKeywordTable.
+     * @param aSExpression is text to feed through a STRING_LINE_READER
+     * @param aSource is a description of aSExpression, used for error reporting.
+     */
+    DSNLEXER( const KEYWORD* aKeywordTable, unsigned aKeywordCount,
+              const std::string& aSExpression, const wxString& aSource = wxEmptyString );
 
-    ~DSNLEXER()
+    /**
+     * Constructor ( LINE_READER* )
+     * intializes a DSN lexer and prepares to read from @a aLineReader which
+     * is already open, and may be in use by other DSNLEXERs also.  No ownership
+     * is taken of @a aLineReader. This enables it to be used by other DSNLEXERs also.
+     *
+     * @param aKeywordTable is an array of KEYWORDS holding \a aKeywordCount.  This
+     *  token table need not contain the lexer separators such as '(' ')', etc.
+     * @param aKeywordTable is the count of tokens in aKeywordTable.
+     * @param aLineReader is any subclassed instance of LINE_READER, such as
+     *  STRING_LINE_READER or FILE_LINE_READER.
+     */
+    DSNLEXER( const KEYWORD* aKeywordTable, unsigned aKeywordCount,
+              LINE_READER* aLineReader );
+
+    virtual ~DSNLEXER();
+
+    /**
+     * Function SetSpecctraMode
+     * changes the behavior of this lexer into or out of "specctra mode".  If
+     * specctra mode, then:
+     * 1) stringDelimiter can be changed
+     * 2) Kicad quoting protocol is not in effect
+     * 3) space_in_quoted_tokens is functional
+     * else none of the above are true.  The default mode is non-specctra mode, meaning:
+     * 1) stringDelimiter cannot be changed
+     * 2) Kicad quoting protocol is in effect
+     * 3) space_in_quoted_tokens is not functional
+     */
+    void SetSpecctraMode( bool aMode );
+
+    /**
+     * Function PushReader
+     * manages a stack of LINE_READERs in order to handle nested file inclusion.
+     * This function pushes aLineReader onto the top of a stack of LINE_READERs and makes
+     * it the current LINE_READER with its own GetSource(), line number and line text.
+     * A grammar must be designed such that the "include" token (whatever its various names),
+     * and any of its parameters are not followed by anything on that same line,
+     * because PopReader always starts reading from a new line upon returning to
+     * the original LINE_READER.
+     */
+    void PushReader( LINE_READER* aLineReader );
+
+    /**
+     * Function PopReader
+     * deletes the top most LINE_READER from an internal stack of LINE_READERs and
+     * in the case of FILE_LINE_READER this means the associated FILE is closed.
+     * The most recently used former LINE_READER on the stack becomes the
+     * current LINE_READER and its previous position in its input stream and the
+     * its latest line number should pertain.  PopReader always starts reading
+     * from a new line upon returning to the previous LINE_READER.  A pop is only
+     * possible if there are at least 2 LINE_READERs on the stack, since popping
+     * the last one is not supported.
+     *
+     * @return LINE_READER* - is the one that was in use before the pop, or NULL
+     *   if there was not at least two readers on the stack and therefore the
+     *   pop failed.
+     */
+    LINE_READER* PopReader();
+
+    // Some functions whose return value is best overloaded to return an enum
+    // in a derived class.
+    //-----<overload return values to tokens>------------------------------
+
+    /**
+     * Function NextTok
+     * returns the next token found in the input file or DSN_EOF when reaching
+     * the end of file.  Users should wrap this function to return an enum
+     * to aid in grammar debugging while running under a debugger, but leave
+     * this lower level function returning an int (so the enum does not collide
+     * with another usage).
+     * @return int - the type of token found next.
+     * @throw IO_ERROR - only if the LINE_READER throws it.
+     */
+    int NextTok() throw( IO_ERROR );
+
+    /**
+     * Function NeedSYMBOL
+     * calls NextTok() and then verifies that the token read in
+     * satisfies bool IsSymbol().
+     * If not, an IO_ERROR is thrown.
+     * @return int - the actual token read in.
+     * @throw IO_ERROR, if the next token does not satisfy IsSymbol()
+     */
+    int NeedSYMBOL() throw( IO_ERROR );
+
+    /**
+     * Function NeedSYMBOLorNUMBER
+     * calls NextTok() and then verifies that the token read in
+     * satisfies bool IsSymbol() or tok==DSN_NUMBER.
+     * If not, an IO_ERROR is thrown.
+     * @return int - the actual token read in.
+     * @throw IO_ERROR, if the next token does not satisfy the above test
+     */
+    int NeedSYMBOLorNUMBER() throw( IO_ERROR );
+
+    /**
+     * Function NeedNUMBER
+     * calls NextTok() and then verifies that the token read is type DSN_NUMBER.
+     * If not, and IO_ERROR is thrown using text from aExpectation.
+     * @return int - the actual token read in.
+     * @throw IO_ERROR, if the next token does not satisfy the above test
+     */
+    int NeedNUMBER( const char* aExpectation ) throw( IO_ERROR );
+
+    /**
+     * Function CurTok
+     * returns whatever NextTok() returned the last time it was called.
+     */
+    int CurTok()
     {
-        delete reader;
+        return curTok;
     }
+
+    /**
+     * Function PrevTok
+     * returns whatever NextTok() returned the 2nd to last time it was called.
+     */
+    int PrevTok()
+    {
+        return prevTok;
+    }
+
+    //-----</overload return values to tokens>-----------------------------
 
 
     /**
@@ -175,10 +329,11 @@ public:
      * @param aStringDelimiter The character in lowest 8 bits.
      * @return int - The old delimiter in the lowest 8 bits.
      */
-    int SetStringDelimiter( int aStringDelimiter )
+    char SetStringDelimiter( char aStringDelimiter )
     {
         int old = stringDelimiter;
-        stringDelimiter = aStringDelimiter;
+        if( specctraMode )
+            stringDelimiter = aStringDelimiter;
         return old;
     }
 
@@ -191,7 +346,8 @@ public:
     bool SetSpaceInQuotedTokens( bool val )
     {
         bool old = space_in_quoted_tokens;
-        space_in_quoted_tokens = val;
+        if( specctraMode )
+            space_in_quoted_tokens = val;
         return old;
     }
 
@@ -208,35 +364,88 @@ public:
         return old;
     }
 
-
     /**
-     * Function NextTok
-     * returns the next token found in the input file or T_EOF when reaching
-     * the end of file.  Users should wrap this function to return an enum
-     * to aid in grammar debugging while running under a debugger, but leave
-     * this lower level function returning an int (so the enum does not collide
-     * with another usage).
-     * @return int - the type of token found next.
-     * @throw IOError - only if the LINE_READER throws it.
+     * Function IsSymbol
+     * tests a token to see if it is a symbol.  This means it cannot be a
+     * special delimiter character such as DSN_LEFT, DSN_RIGHT, DSN_QUOTE, etc.  It may
+     * however, coincidentally match a keyword and still be a symbol.
      */
-    int NextTok() throw (IOError);
-
+    static bool IsSymbol( int aTok );
 
     /**
-     * Function ThrowIOError
-     * encapsulates the formatting of an error message which contains the exact
-     * location within the input file of something the caller is rejecting.
+     * Function Expecting
+     * throws an IO_ERROR exception with an input file specific error message.
+     * @param aTok is the token/keyword type which was expected at the current input location.
+     * @throw IO_ERROR with the location within the input file of the problem.
      */
-    void ThrowIOError( wxString aText, int charOffset ) throw (IOError);
+    void Expecting( int aTok ) throw( IO_ERROR );
 
     /**
-     * Function GetTokenString
+     * Function Expecting
+     * throws an IO_ERROR exception with an input file specific error message.
+     * @param aTokenList is the token/keyword type which was expected at the
+     *         current input location, e.g.  "pin|graphic|property"
+     * @throw IO_ERROR with the location within the input file of the problem.
+     */
+    void Expecting( const char* aTokenList ) throw( IO_ERROR );
+
+    /**
+     * Function Unexpected
+     * throws an IO_ERROR exception with an input file specific error message.
+     * @param aTok is the token/keyword type which was not expected at the
+     *         current input location.
+     * @throw IO_ERROR with the location within the input file of the problem.
+     */
+    void Unexpected( int aTok ) throw( IO_ERROR );
+
+    /**
+     * Function Unexpected
+     * throws an IO_ERROR exception with an input file specific error message.
+     * @param aToken is the token which was not expected at the
+     *         current input location.
+     * @throw IO_ERROR with the location within the input file of the problem.
+     */
+    void Unexpected( const char* aToken ) throw( IO_ERROR );
+
+    /**
+     * Function Duplicate
+     * throws an IO_ERROR exception with a message saying specifically that aTok
+     * is a duplicate of one already seen in current context.
+     * @param aTok is the token/keyword type which was not expected at the
+     *         current input location.
+     * @throw IO_ERROR with the location within the input file of the problem.
+     */
+    void Duplicate( int aTok ) throw( IO_ERROR );
+
+    /**
+     * Function NeedLEFT
+     * calls NextTok() and then verifies that the token read in is a DSN_LEFT.
+     * If it is not, an IO_ERROR is thrown.
+     * @throw IO_ERROR, if the next token is not a DSN_LEFT
+     */
+    void NeedLEFT() throw( IO_ERROR );
+
+    /**
+     * Function NeedRIGHT
+     * calls NextTok() and then verifies that the token read in is a DSN_RIGHT.
+     * If it is not, an IO_ERROR is thrown.
+     * @throw IO_ERROR, if the next token is not a DSN_RIGHT
+     */
+    void NeedRIGHT() throw( IO_ERROR );
+
+    /**
+     * Function GetTokenText
      * returns the C string representation of a DSN_T value.
      */
     const char* GetTokenText( int aTok );
 
-    static const char* Syntax( int aTok );
+    /**
+     * Function GetTokenString
+     * returns a quote wrapped wxString representation of a token value.
+     */
+    wxString GetTokenString( int aTok );
 
+    static const char* Syntax( int aTok );
 
     /**
      * Function CurText
@@ -248,12 +457,13 @@ public:
     }
 
     /**
-     * Function CurTok
-     * returns whatever NextTok() returned the last time it was called.
+     * Function FromUTF8
+     * returns the current token text as a wxString, assuming that the input
+     * byte stream is UTF8 encoded.
      */
-    int CurTok()
+    wxString FromUTF8()
     {
-        return curTok;
+        return wxString::FromUTF8( curText.c_str() );
     }
 
     /**
@@ -266,27 +476,29 @@ public:
     }
 
     /**
-     * Function CurFilename
-     * returns the current input filename.
-     * @return const wxString& - the filename.
+     * Function CurLine
+     * returns the current line of text, from which the CurText() would return
+     * its token.
      */
-    const wxString& CurFilename()
+    const char* CurLine()
     {
-        return filename;
+        return (const char*)(*reader);
     }
 
     /**
-     * Function PrevTok
-     * returns whatever NextTok() returned the 2nd to last time it was called.
+     * Function CurFilename
+     * returns the current LINE_READER source.
+     * @return const wxString& - the source of the lines of text,
+     *   e.g. a filename or "clipboard".
      */
-    int PrevTok()
+    const wxString& CurSource()
     {
-        return prevTok;
+        return reader->GetSource();
     }
 
     /**
      * Function CurOffset
-     * returns the char offset within the current line, using a 1 based index.
+     * returns the byte offset within the current line, using a 1 based index.
      * @return int - a one based index into the current line.
      */
     int CurOffset()
@@ -295,4 +507,4 @@ public:
     }
 };
 
-#endif  // _DSNLEXER_H
+#endif  // DSNLEXER_H_

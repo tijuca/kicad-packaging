@@ -15,7 +15,7 @@
 
 #include "build_version.h"
 
-bool        CreateHeaderInfoData( FILE* file, WinEDA_PcbFrame* frame );
+bool        CreateHeaderInfoData( FILE* file, PCB_EDIT_FRAME* frame );
 static void CreateTracksInfoData( FILE* file, BOARD* pcb );
 static void CreateBoardSection( FILE* file, BOARD* pcb );
 static void CreateComponentsSection( FILE* file, BOARD* pcb );
@@ -65,9 +65,9 @@ static int mapYto( int y )
 /*
  *  Creates an Export file (format GenCAD 1.4) from the current board.
  */
-void WinEDA_PcbFrame::ExportToGenCAD( wxCommandEvent& event )
+void PCB_EDIT_FRAME::ExportToGenCAD( wxCommandEvent& event )
 {
-    wxFileName fn = GetScreen()->m_FileName;
+    wxFileName fn = GetScreen()->GetFileName();
     wxString   msg, ext, wildcard;
     FILE*      file;
 
@@ -89,7 +89,7 @@ void WinEDA_PcbFrame::ExportToGenCAD( wxCommandEvent& event )
     }
 
     /* Update some board data, to ensure a reliable gencad export: */
-    GetBoard()->ComputeBoundaryBox();
+    GetBoard()->ComputeBoundingBox();
 
     offsetX = m_Auxiliary_Axis_Position.x;
     offsetY = m_Auxiliary_Axis_Position.y;
@@ -238,8 +238,8 @@ void CreatePadsShapesSection( FILE* file, BOARD* pcb )
             pad_type = "RECTANGULAR";
             fprintf( file, " %s %d\n", pad_type, pad->m_Drill.x );
             fprintf( file, "RECTANGLE %d %d %d %d\n",
-                     pad->m_Offset.x - dx, -(pad->m_Offset.y - dy),
-                     pad->m_Offset.x + dx, -(pad->m_Offset.y + dy) );
+                     pad->m_Offset.x - dx, -pad->m_Offset.y - dy,
+                     pad->m_Size.x, pad->m_Size.y );
             break;
 
         case PAD_OVAL:     /* Create outline by 2 lines and 2 arcs */
@@ -375,7 +375,7 @@ void CreateShapesSection( FILE* file, BOARD* pcb )
             orient = pad->m_Orient - module->m_Orient;
             NORMALIZE_ANGLE_POS( orient );
             fprintf( file, "PIN %s PAD%d %d %d %s %d %s",
-                     CONV_TO_UTF8( pinname ), pad->GetSubRatsnest(),
+                     TO_UTF8( pinname ), pad->GetSubRatsnest(),
                      pad->m_Pos0.x, -pad->m_Pos0.y,
                      layer, orient / 10, mirror );
             if( orient % 10 )
@@ -422,9 +422,9 @@ void CreateComponentsSection( FILE* file, BOARD* pcb )
         }
 
         fprintf( file, "COMPONENT %s\n",
-                 CONV_TO_UTF8( module->m_Reference->m_Text ) );
+                 TO_UTF8( module->m_Reference->m_Text ) );
         fprintf( file, "DEVICE %s\n",
-                 CONV_TO_UTF8( module->m_Reference->m_Text ) );
+                 TO_UTF8( module->m_Reference->m_Text ) );
         fprintf( file, "PLACE %d %d\n", mapXto( module->m_Pos.x ),
                  mapYto( module->m_Pos.y ) );
         fprintf( file, "LAYER %s\n", (module->flag) ? "BOTTOM" : "TOP" );
@@ -435,7 +435,7 @@ void CreateComponentsSection( FILE* file, BOARD* pcb )
         fputs( "\n", file );
 
         fprintf( file, "SHAPE %s %s %s\n",
-                 CONV_TO_UTF8( module->m_Reference->m_Text ), mirror, flip );
+                 TO_UTF8( module->m_Reference->m_Text ), mirror, flip );
 
         /* creates texts (ref and value) */
         PtTexte = module->m_Reference;
@@ -448,8 +448,8 @@ void CreateComponentsSection( FILE* file, BOARD* pcb )
                      PtTexte->m_Size.x,
                      orient / 10, orient % 10,
                      mirror,
-                     CONV_TO_UTF8( layer ),
-                     CONV_TO_UTF8( PtTexte->m_Text )
+                     TO_UTF8( layer ),
+                     TO_UTF8( PtTexte->m_Text )
                      );
 
             fprintf( file, " 0 0 %d %d\n",
@@ -461,8 +461,8 @@ void CreateComponentsSection( FILE* file, BOARD* pcb )
 
         //put a comment:
         fprintf( file, "SHEET Part %s %s\n",
-                 CONV_TO_UTF8( module->m_Reference->m_Text ),
-                 CONV_TO_UTF8( module->m_Value->m_Text ) );
+                 TO_UTF8( module->m_Reference->m_Text ),
+                 TO_UTF8( module->m_Value->m_Text ) );
     }
 
     fputs( "$ENDCOMPONENTS\n\n", file );
@@ -494,7 +494,7 @@ void CreateSignalsSection( FILE* file, BOARD* pcb )
                                                  // connection)
         {
             wxString msg; msg << wxT( "NoConnection" ) << NbNoConn++;
-            net->SetNetname( msg );;
+            net->SetNetname( msg );
         }
 
         if( net->GetNet() <= 0 )  // dummy netlist (no connection)
@@ -502,7 +502,7 @@ void CreateSignalsSection( FILE* file, BOARD* pcb )
 
         msg = wxT( "SIGNAL " ) + net->GetNetname();
 
-        fputs( CONV_TO_UTF8( msg ), file );
+        fputs( TO_UTF8( msg ), file );
         fputs( "\n", file );
 
         for( module = pcb->m_Modules; module != NULL; module = module->Next() )
@@ -518,7 +518,7 @@ void CreateSignalsSection( FILE* file, BOARD* pcb )
                             GetChars( module->m_Reference->m_Text ),
                             GetChars( padname ) );
 
-                fputs( CONV_TO_UTF8( msg ), file );
+                fputs( TO_UTF8( msg ), file );
                 fputs( "\n", file );
             }
         }
@@ -530,7 +530,7 @@ void CreateSignalsSection( FILE* file, BOARD* pcb )
 
 /* Creates the section $HEADER ... $ENDHEADER
  */
-bool CreateHeaderInfoData( FILE* file, WinEDA_PcbFrame* frame )
+bool CreateHeaderInfoData( FILE* file, PCB_EDIT_FRAME* frame )
 {
     wxString    msg;
     PCB_SCREEN* screen = (PCB_SCREEN*) ( frame->GetScreen() );
@@ -539,18 +539,18 @@ bool CreateHeaderInfoData( FILE* file, WinEDA_PcbFrame* frame )
     fputs( "GENCAD 1.4\n", file );
     msg = wxT( "USER " ) + wxGetApp().GetAppName() + wxT( " " ) +
           GetBuildVersion();
-    fputs( CONV_TO_UTF8( msg ), file ); fputs( "\n", file );
-    msg = wxT( "DRAWING " ) + screen->m_FileName;
-    fputs( CONV_TO_UTF8( msg ), file ); fputs( "\n", file );
+    fputs( TO_UTF8( msg ), file ); fputs( "\n", file );
+    msg = wxT( "DRAWING " ) + screen->GetFileName();
+    fputs( TO_UTF8( msg ), file ); fputs( "\n", file );
     msg = wxT( "REVISION " ) + screen->m_Revision + wxT( " " ) +
           screen->m_Date;
-    fputs( CONV_TO_UTF8( msg ), file ); fputs( "\n", file );
+    fputs( TO_UTF8( msg ), file ); fputs( "\n", file );
     msg.Printf( wxT( "UNITS USER %d" ), PCB_INTERNAL_UNIT );
-    fputs( CONV_TO_UTF8( msg ), file ); fputs( "\n", file );
+    fputs( TO_UTF8( msg ), file ); fputs( "\n", file );
     msg.Printf( wxT( "ORIGIN %d %d" ),
                 mapXto( frame->m_Auxiliary_Axis_Position.x ),
                 mapYto( frame->m_Auxiliary_Axis_Position.y ) );
-    fputs( CONV_TO_UTF8( msg ), file ); fputs( "\n", file );
+    fputs( TO_UTF8( msg ), file ); fputs( "\n", file );
     fputs( "INTERTRACK 0\n", file );
     fputs( "$ENDHEADER\n\n", file );
 
@@ -638,7 +638,7 @@ void CreateRoutesSection( FILE* file, BOARD* pcb )
                 netname = net->GetNetname();
             else
                 netname = wxT( "_noname_" );
-            fprintf( file, "ROUTE %s\n", CONV_TO_UTF8( netname ) );
+            fprintf( file, "ROUTE %s\n", TO_UTF8( netname ) );
         }
 
         if( old_width != track->m_Width )
@@ -653,7 +653,7 @@ void CreateRoutesSection( FILE* file, BOARD* pcb )
             {
                 old_layer = track->GetLayer();
                 fprintf( file, "LAYER %s\n",
-                         CONV_TO_UTF8( GenCAD_Layer_Name[track->GetLayer() &
+                         TO_UTF8( GenCAD_Layer_Name[track->GetLayer() &
                                                          0x1F] ) );
             }
 
@@ -690,8 +690,8 @@ void CreateDevicesSection( FILE* file, BOARD* pcb )
     for( module = pcb->m_Modules; module != NULL; module = module->Next() )
     {
         fprintf( file, "DEVICE %s\n",
-                 CONV_TO_UTF8( module->m_Reference->m_Text ) );
-        fprintf( file, "PART %s\n", CONV_TO_UTF8( module->m_LibRef ) );
+                 TO_UTF8( module->m_Reference->m_Text ) );
+        fprintf( file, "PART %s\n", TO_UTF8( module->m_LibRef ) );
         fprintf( file, "TYPE %s\n", "UNKNOWN" );
         for( pad = module->m_Pads; pad != NULL; pad = pad->Next() )
         {
@@ -703,7 +703,7 @@ void CreateDevicesSection( FILE* file, BOARD* pcb )
         }
 
         fprintf( file, "ATTRIBUTE %s\n",
-                 CONV_TO_UTF8( module->m_Value->m_Text ) );
+                 TO_UTF8( module->m_Value->m_Text ) );
     }
 
     fputs( "$ENDDEVICES\n\n", file );
@@ -818,13 +818,13 @@ void CreateTracksInfoData( FILE* file, BOARD* pcb )
  */
 void FootprintWriteShape( FILE* file, MODULE* module )
 {
-    EDGE_MODULE*    PtEdge;
-    EDA_BaseStruct* PtStruct;
-    int             Yaxis_sign = -1; // Control Y axis change sign (as normal
-                                     // module / mirror axis and conventions)
+    EDGE_MODULE* edge;
+    EDA_ITEM*    item;
+    int          y_axis_sign = -1; // Control Y axis change sign (as normal
+                                   // module / mirror axis and conventions)
 
     /* creates header: */
-    fprintf( file, "SHAPE %s\n", CONV_TO_UTF8( module->m_Reference->m_Text ) );
+    fprintf( file, "SHAPE %s\n", TO_UTF8( module->m_Reference->m_Text ) );
     fprintf( file, "INSERT %s\n",
              (module->m_Attributs & MOD_CMS) ? "SMD" : "TH" );
 
@@ -840,46 +840,53 @@ void FootprintWriteShape( FILE* file, MODULE* module )
     }
 
     /* creates Drawing */
-    PtStruct = module->m_Drawings;
-    for( ; PtStruct != NULL; PtStruct = PtStruct->Next() )
+    item = module->m_Drawings;
+    for( ; item != NULL; item = item->Next() )
     {
-        switch( PtStruct->Type() )
+        switch( item->Type() )
         {
         case TYPE_TEXTE_MODULE:
             break;
 
         case TYPE_EDGE_MODULE:
-            PtEdge = (EDGE_MODULE*) PtStruct;
+            edge = (EDGE_MODULE*) item;
 
-            switch( PtEdge->m_Shape )
+            switch( edge->m_Shape )
             {
             case S_SEGMENT:
                 fprintf( file, "LINE %d %d %d %d\n",
-                         PtEdge->m_Start0.x, Yaxis_sign * PtEdge->m_Start0.y,
-                         PtEdge->m_End0.x, Yaxis_sign * PtEdge->m_End0.y );
+                         edge->m_Start0.x, y_axis_sign * edge->m_Start0.y,
+                         edge->m_End0.x, y_axis_sign * edge->m_End0.y );
                 break;
 
             case S_CIRCLE:
             {
                 int rayon = (int) hypot(
-                    (double) ( PtEdge->m_End0.x - PtEdge->m_Start0.x ),
-                    (double) ( PtEdge->m_End0.y - PtEdge->m_Start0.y ) );
+                    (double) ( edge->m_End0.x - edge->m_Start0.x ),
+                    (double) ( edge->m_End0.y - edge->m_Start0.y ) );
                 fprintf( file, "CIRCLE %d %d %d\n",
-                         PtEdge->m_Start0.x, Yaxis_sign * PtEdge->m_Start0.y,
+                         edge->m_Start0.x, y_axis_sign * edge->m_Start0.y,
                          rayon );
                 break;
             }
 
             case S_ARC:         /* print ARC x,y start x,y end x,y center */
-            {
-                int arcendx, arcendy;
-                arcendx = PtEdge->m_Start0.x;
-                arcendy = PtEdge->m_Start0.y;
-                RotatePoint( &arcendx, &arcendy, PtEdge->m_Angle );
+            {   // Arcs are defined counter clockwise (positive trigonometric)
+                // from the start point to the end point (0 to 360 degrees)
+                wxPoint arcStart, arcEnd;
+                // edge->m_Start0 is the arc center relative to the shape position
+                // edge->m_End0 is the arc start point relative to the shape position
+                arcStart = edge->m_End0;
+                // calculate arcEnd arc end point relative to the shape position, in pcbnew coordinates
+                arcEnd = arcStart;
+                RotatePoint( &arcEnd, edge->m_Start0, -edge->m_Angle );
+                // due to difference between pcbnew and gencad, swap arc start and arc end
+                EXCHG(arcEnd, arcStart);
+                // print arc shape:
                 fprintf( file, "ARC %d %d %d %d %d %d\n",
-                         PtEdge->m_End0.x, Yaxis_sign * PtEdge->m_End0.y,
-                         arcendx, Yaxis_sign * arcendy,
-                         PtEdge->m_Start0.x, Yaxis_sign * PtEdge->m_Start0.y );
+                         arcStart.x, y_axis_sign * arcStart.y,   // Start point
+                         arcEnd.x, y_axis_sign * arcEnd.y,               // End point
+                         edge->m_Start0.x, y_axis_sign * edge->m_Start0.y );
                 break;
             }
 

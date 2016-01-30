@@ -7,33 +7,34 @@
 #include "class_drawpanel.h"
 #include "confirm.h"
 #include "bitmaps.h"
+#include "wxEeschemaStruct.h"
 
-#include "program.h"
 #include "general.h"
 #include "protos.h"
 #include "hotkeys.h"
 #include "eeschema_id.h"
 
+#include "help_common_strings.h"
+
 
 /* Create  the main Horizontal Toolbar for the schematic editor
  */
-void WinEDA_SchematicFrame::ReCreateHToolbar()
+void SCH_EDIT_FRAME::ReCreateHToolbar()
 {
     if( m_HToolBar != NULL )
         return;
 
     wxString msg;
-    m_HToolBar = new WinEDA_Toolbar( TOOLBAR_MAIN, this, ID_H_TOOLBAR, TRUE );
+    m_HToolBar = new EDA_TOOLBAR( TOOLBAR_MAIN, this, ID_H_TOOLBAR, TRUE );
 
     // Set up toolbar
     m_HToolBar->AddTool( ID_NEW_PROJECT, wxEmptyString, wxBitmap( new_xpm ),
                          _( "New schematic project" ) );
 
-    m_HToolBar->AddTool( ID_LOAD_PROJECT, wxEmptyString, wxBitmap( open_xpm ),
+    m_HToolBar->AddTool( ID_LOAD_PROJECT, wxEmptyString, wxBitmap( open_document_xpm ),
                          _( "Open schematic project" ) );
 
-    m_HToolBar->AddTool( ID_SAVE_PROJECT, wxEmptyString,
-                         wxBitmap( save_project_xpm ),
+    m_HToolBar->AddTool( ID_SAVE_PROJECT, wxEmptyString, wxBitmap( save_project_xpm ),
                          _( "Save schematic project" ) );
 
     m_HToolBar->AddSeparator();
@@ -44,13 +45,11 @@ void WinEDA_SchematicFrame::ReCreateHToolbar()
     m_HToolBar->AddTool( ID_TO_LIBRARY, wxEmptyString, wxBitmap( libedit_xpm ),
                          _( "Library editor" ) );
 
-    m_HToolBar->AddTool( ID_TO_LIBVIEW, wxEmptyString,
-                         wxBitmap( library_browse_xpm ),
+    m_HToolBar->AddTool( ID_TO_LIBVIEW, wxEmptyString, wxBitmap( library_browse_xpm ),
                          _( "Library browser" ) );
 
     m_HToolBar->AddSeparator();
-    m_HToolBar->AddTool( ID_HIERARCHY, wxEmptyString,
-                         wxBitmap( hierarchy_nav_xpm ),
+    m_HToolBar->AddTool( ID_HIERARCHY, wxEmptyString, wxBitmap( hierarchy_nav_xpm ),
                          _( "Navigate schematic hierarchy" ) );
 
     m_HToolBar->AddSeparator();
@@ -65,15 +64,11 @@ void WinEDA_SchematicFrame::ReCreateHToolbar()
                          _( "Paste" ) );
 
     m_HToolBar->AddSeparator();
-    msg = AddHotkeyName( _( "Undo last edition" ), s_Schematic_Hokeys_Descr,
-                         HK_UNDO, false );
-    m_HToolBar->AddTool( wxID_UNDO, wxEmptyString,
-                         wxBitmap( undo_xpm ), msg );
+    msg = AddHotkeyName( HELP_UNDO, s_Schematic_Hokeys_Descr, HK_UNDO, false );
+    m_HToolBar->AddTool( wxID_UNDO, wxEmptyString, wxBitmap( undo_xpm ), msg );
 
-    msg = AddHotkeyName( _( "Redo the last undo command" ),
-                         s_Schematic_Hokeys_Descr, HK_REDO, false );
-    m_HToolBar->AddTool( wxID_REDO, wxEmptyString,
-                         wxBitmap( redo_xpm ), msg );
+    msg = AddHotkeyName( HELP_REDO, s_Schematic_Hokeys_Descr, HK_REDO, false );
+    m_HToolBar->AddTool( wxID_REDO, wxEmptyString, wxBitmap( redo_xpm ), msg );
 
     m_HToolBar->AddSeparator();
     m_HToolBar->AddTool( wxID_PRINT, wxEmptyString, wxBitmap( print_button ),
@@ -87,164 +82,127 @@ void WinEDA_SchematicFrame::ReCreateHToolbar()
                          _( "Run pcbnew" ) );
 
     m_HToolBar->AddSeparator();
-    msg = AddHotkeyName( _( "Zoom in" ), s_Schematic_Hokeys_Descr, HK_ZOOM_IN, false );
-    m_HToolBar->AddTool( ID_ZOOM_IN, wxEmptyString, wxBitmap( zoom_in_xpm ),
-                         msg );
+    msg = AddHotkeyName( HELP_ZOOM_IN, s_Schematic_Hokeys_Descr, HK_ZOOM_IN, false );
+    m_HToolBar->AddTool( ID_ZOOM_IN, wxEmptyString, wxBitmap( zoom_in_xpm ), msg );
 
-    msg = AddHotkeyName( _( "Zoom out" ), s_Schematic_Hokeys_Descr,
-                         HK_ZOOM_OUT, false );
-    m_HToolBar->AddTool( ID_ZOOM_OUT, wxEmptyString, wxBitmap( zoom_out_xpm ),
-                         msg );
+    msg = AddHotkeyName( HELP_ZOOM_OUT, s_Schematic_Hokeys_Descr, HK_ZOOM_OUT, false );
+    m_HToolBar->AddTool( ID_ZOOM_OUT, wxEmptyString, wxBitmap( zoom_out_xpm ), msg );
 
-    msg = AddHotkeyName( _( "Redraw view" ), s_Schematic_Hokeys_Descr,
-                         HK_ZOOM_REDRAW, false );
-    m_HToolBar->AddTool( ID_ZOOM_REDRAW, wxEmptyString,
-                         wxBitmap( zoom_redraw_xpm ), msg );
+    msg = AddHotkeyName( HELP_ZOOM_REDRAW, s_Schematic_Hokeys_Descr, HK_ZOOM_REDRAW, false );
+    m_HToolBar->AddTool( ID_ZOOM_REDRAW, wxEmptyString, wxBitmap( zoom_redraw_xpm ), msg );
 
-    msg = AddHotkeyName( _( "Zoom auto" ), s_Schematic_Hokeys_Descr,
-                         HK_ZOOM_AUTO, false );
-    m_HToolBar->AddTool( ID_ZOOM_PAGE, wxEmptyString, wxBitmap( zoom_auto_xpm ),
-                         msg );
+    msg = AddHotkeyName( HELP_ZOOM_FIT, s_Schematic_Hokeys_Descr, HK_ZOOM_AUTO, false );
+    m_HToolBar->AddTool( ID_ZOOM_PAGE, wxEmptyString, wxBitmap( zoom_fit_in_page_xpm ), msg );
 
     m_HToolBar->AddSeparator();
-    msg = AddHotkeyName( _( "Find components and texts" ), s_Schematic_Hokeys_Descr,
-                         HK_FIND_ITEM, false );
-    m_HToolBar->AddTool( ID_FIND_ITEMS, wxEmptyString, wxBitmap( find_xpm ),
-                         msg );
+    msg = AddHotkeyName( HELP_FIND, s_Schematic_Hokeys_Descr, HK_FIND_ITEM, false );
+    m_HToolBar->AddTool( ID_FIND_ITEMS, wxEmptyString, wxBitmap( find_xpm ), msg );
 
     m_HToolBar->AddSeparator();
     m_HToolBar->AddTool( ID_GET_NETLIST, wxEmptyString, wxBitmap( netlist_xpm ),
-                         _( "Netlist generation" ) );
+                         _( "Generate netlist" ) );
 
-    m_HToolBar->AddTool( ID_GET_ANNOTATE, wxEmptyString,
-                         wxBitmap( annotate_xpm ),
+    m_HToolBar->AddTool( ID_GET_ANNOTATE, wxEmptyString, wxBitmap( annotate_xpm ),
                          _( "Annotate schematic" ) );
 
     m_HToolBar->AddTool( ID_GET_ERC, wxEmptyString, wxBitmap( erc_xpm ),
-                         _( "Schematic Electric Rules Check" ) );
+                         _( "Perform electric rules check" ) );
 
     m_HToolBar->AddTool( ID_GET_TOOLS, wxEmptyString, wxBitmap( tools_xpm ),
-                         _( "Bill of material and/or Cross references" ) );
+                         _( "Generate bill of materials and/or cross references" ) );
 
-    m_HToolBar->AddTool( ID_BACKANNO_ITEMS, wxEmptyString,
-                         wxBitmap( backanno_xpm ),
-                         _( "Backannotate footprint" ) );
+    m_HToolBar->AddTool( ID_BACKANNO_ITEMS, wxEmptyString, wxBitmap( import_footprint_names_xpm ),
+                         _( "Back annotate component foot prints" ) );
 
-    // after adding the tools to the toolbar, must call Realize() to
-    // reflect the changes
+    // after adding the tools to the toolbar, must call Realize() to reflect the changes
     m_HToolBar->Realize();
-    SetToolbars();
 }
 
 
 /* Create Vertical Right Toolbar
  */
-void WinEDA_SchematicFrame::ReCreateVToolbar()
+void SCH_EDIT_FRAME::ReCreateVToolbar()
 {
     if( m_VToolBar )
         return;
-    m_VToolBar = new WinEDA_Toolbar( TOOLBAR_TOOL, this, ID_V_TOOLBAR, FALSE );
+
+    m_VToolBar = new EDA_TOOLBAR( TOOLBAR_TOOL, this, ID_V_TOOLBAR, false );
 
     // Set up toolbar
-    m_VToolBar->AddTool( ID_NO_SELECT_BUTT, wxEmptyString,
-                         wxBitmap( cursor_xpm ), wxEmptyString, wxITEM_CHECK );
-    m_VToolBar->ToggleTool( ID_NO_SELECT_BUTT, TRUE );
+    m_VToolBar->AddTool( ID_NO_TOOL_SELECTED, wxEmptyString, wxBitmap( cursor_xpm ),
+                         wxEmptyString, wxITEM_CHECK );
 
     m_VToolBar->AddTool( ID_HIERARCHY_PUSH_POP_BUTT, wxEmptyString,
                          wxBitmap( hierarchy_cursor_xpm ),
-                         _( "Hierarchy Push/Pop" ), wxITEM_CHECK );
+                         _( "Ascend or descend hierarchy" ), wxITEM_CHECK );
 
-    m_VToolBar->AddSeparator();
-    m_VToolBar->AddTool( ID_COMPONENT_BUTT, wxEmptyString,
-                         wxBitmap( add_component_xpm ),
-                         _( "Place a component" ), wxITEM_CHECK );
+    m_VToolBar->AddTool( ID_SCH_PLACE_COMPONENT, wxEmptyString, wxBitmap( add_component_xpm ),
+                         HELP_PLACE_COMPONENTS, wxITEM_CHECK );
 
-    m_VToolBar->AddTool( ID_PLACE_POWER_BUTT, wxEmptyString,
-                         wxBitmap( add_power_xpm ),
-                         _( "Place a power port" ), wxITEM_CHECK );
+    m_VToolBar->AddTool( ID_PLACE_POWER_BUTT, wxEmptyString, wxBitmap( add_power_xpm ),
+                         HELP_PLACE_POWERPORT, wxITEM_CHECK );
 
-    m_VToolBar->AddSeparator();
-    m_VToolBar->AddTool( ID_WIRE_BUTT, wxEmptyString,
-                         wxBitmap( add_line_xpm ),
-                         _( "Place a wire" ), wxITEM_CHECK );
+    m_VToolBar->AddTool( ID_WIRE_BUTT, wxEmptyString, wxBitmap( add_line_xpm ),
+                         HELP_PLACE_WIRE, wxITEM_CHECK );
 
-    m_VToolBar->AddTool( ID_BUS_BUTT, wxEmptyString,
-                         wxBitmap( add_bus_xpm ),
-                         _( "Place a bus" ), wxITEM_CHECK );
+    m_VToolBar->AddTool( ID_BUS_BUTT, wxEmptyString, wxBitmap( add_bus_xpm ),
+                         HELP_PLACE_BUS, wxITEM_CHECK );
 
-    m_VToolBar->AddTool( ID_WIRETOBUS_ENTRY_BUTT, wxEmptyString,
-                         wxBitmap( add_line2bus_xpm ),
-                         _( "Place a wire to bus entry" ), wxITEM_CHECK );
+    m_VToolBar->AddTool( ID_WIRETOBUS_ENTRY_BUTT, wxEmptyString, wxBitmap( add_line2bus_xpm ),
+                         HELP_PLACE_WIRE2BUS_ENTRY, wxITEM_CHECK );
 
-    m_VToolBar->AddTool( ID_BUSTOBUS_ENTRY_BUTT, wxEmptyString,
-                         wxBitmap( add_bus2bus_xpm ),
-                         _( "Place a bus to bus entry" ), wxITEM_CHECK );
+    m_VToolBar->AddTool( ID_BUSTOBUS_ENTRY_BUTT, wxEmptyString, wxBitmap( add_bus2bus_xpm ),
+                         HELP_PLACE_BUS2BUS_ENTRY, wxITEM_CHECK );
 
-    m_VToolBar->AddSeparator();
-    m_VToolBar->AddTool( ID_NOCONN_BUTT, wxEmptyString,
-                         wxBitmap( noconn_button ),
-                         _( "Place no connect flag" ), wxITEM_CHECK );
+    m_VToolBar->AddTool( ID_NOCONN_BUTT, wxEmptyString, wxBitmap( noconn_button ),
+                         HELP_PLACE_NC_FLAG, wxITEM_CHECK );
 
-    m_VToolBar->AddTool( ID_LABEL_BUTT, wxEmptyString,
-                         wxBitmap( add_line_label_xpm ),
-                         _( "Place net name" ), wxITEM_CHECK );
+    m_VToolBar->AddTool( ID_LABEL_BUTT, wxEmptyString, wxBitmap( add_line_label_xpm ),
+                         HELP_PLACE_NETLABEL, wxITEM_CHECK );
 
-    m_VToolBar->AddTool( ID_GLABEL_BUTT, wxEmptyString,
-                         wxBitmap( add_glabel_xpm ),
-                         _( "Place a global label.\nWarning: all global labels with the same name are connected in whole hierarchy" ),
-                         wxITEM_CHECK );
+    m_VToolBar->AddTool( ID_GLABEL_BUTT, wxEmptyString, wxBitmap( add_glabel_xpm ),
+                         HELP_PLACE_GLOBALLABEL, wxITEM_CHECK );
 
-    m_VToolBar->AddTool( ID_JUNCTION_BUTT, wxEmptyString,
-                         wxBitmap( add_junction_xpm ),
-                         _( "Place a junction" ), wxITEM_CHECK );
+    m_VToolBar->AddTool( ID_JUNCTION_BUTT, wxEmptyString, wxBitmap( add_junction_xpm ),
+                         HELP_PLACE_JUNCTION, wxITEM_CHECK );
 
-    m_VToolBar->AddSeparator();
-    m_VToolBar->AddTool( ID_HIERLABEL_BUTT, wxEmptyString,
-                         wxBitmap( add_hierarchical_label_xpm ),
-                         _( "Place a hierarchical label. This label will be seen as a pin sheet in the sheet symbol" ),
-                         wxITEM_CHECK );
+    m_VToolBar->AddTool( ID_HIERLABEL_BUTT, wxEmptyString, wxBitmap( add_hierarchical_label_xpm ),
+                         HELP_PLACE_HIER_LABEL, wxITEM_CHECK );
 
     m_VToolBar->AddTool( ID_SHEET_SYMBOL_BUTT, wxEmptyString,
                          wxBitmap( add_hierarchical_subsheet_xpm ),
-                         _( "Place hierarchical sheet" ), wxITEM_CHECK );
+                         HELP_PLACE_SHEET, wxITEM_CHECK );
 
     m_VToolBar->AddTool( ID_IMPORT_HLABEL_BUTT, wxEmptyString,
                          wxBitmap( import_hierarchical_label_xpm ),
-                         _( "Place a pin sheet, imported from the corresponding hierarchical label in sheet" ),
-                         wxITEM_CHECK );
+                         HELP_IMPORT_SHEETPIN, wxITEM_CHECK );
 
-    m_VToolBar->AddTool( ID_SHEET_LABEL_BUTT, wxEmptyString,
+    m_VToolBar->AddTool( ID_SHEET_PIN_BUTT, wxEmptyString,
                          wxBitmap( add_hierar_pin_xpm ),
-                         _( "Place hierarchical pin to sheet" ), wxITEM_CHECK );
+                         HELP_PLACE_SHEETPIN, wxITEM_CHECK );
 
-    m_VToolBar->AddSeparator();
     m_VToolBar->AddTool( ID_LINE_COMMENT_BUTT, wxEmptyString,
                          wxBitmap( add_dashed_line_xpm ),
-                         _( "Place graphic line or polygon" ), wxITEM_CHECK );
+                         HELP_PLACE_GRAPHICLINES, wxITEM_CHECK );
 
-    m_VToolBar->AddTool( ID_TEXT_COMMENT_BUTT, wxEmptyString,
-                         wxBitmap( add_text_xpm ),
-                         _( "Place graphic text (comment)" ), wxITEM_CHECK );
+    m_VToolBar->AddTool( ID_TEXT_COMMENT_BUTT, wxEmptyString, wxBitmap( add_text_xpm ),
+                         HELP_PLACE_GRAPHICTEXTS, wxITEM_CHECK );
 
-    m_VToolBar->AddSeparator();
-    m_VToolBar->AddTool( ID_SCHEMATIC_DELETE_ITEM_BUTT, wxEmptyString,
-                         wxBitmap( delete_body_xpm ),
-                         _( "Delete items" ), wxITEM_CHECK );
+    m_VToolBar->AddTool( ID_SCHEMATIC_DELETE_ITEM_BUTT, wxEmptyString, wxBitmap( delete_body_xpm ),
+                         HELP_DELETE_ITEMS, wxITEM_CHECK );
 
     m_VToolBar->Realize();
-    SetToolbars();
 }
 
 
 /* Create Vertical Left Toolbar (Option Toolbar)
  */
-void WinEDA_SchematicFrame::ReCreateOptToolbar()
+void SCH_EDIT_FRAME::ReCreateOptToolbar()
 {
     if( m_OptionsToolBar )
         return;
 
-    m_OptionsToolBar = new WinEDA_Toolbar( TOOLBAR_OPTION, this,
-                                           ID_OPT_TOOLBAR, FALSE );
+    m_OptionsToolBar = new EDA_TOOLBAR( TOOLBAR_OPTION, this, ID_OPT_TOOLBAR, false );
 
     m_OptionsToolBar->AddTool( ID_TB_OPTIONS_SHOW_GRID, wxEmptyString,
                                wxBitmap( grid_xpm ),
@@ -274,42 +232,18 @@ void WinEDA_SchematicFrame::ReCreateOptToolbar()
                                wxITEM_CHECK );
 
     m_OptionsToolBar->Realize();
-
-    SetToolbars();
 }
 
 
-void WinEDA_SchematicFrame::OnSelectOptionToolbar( wxCommandEvent& event )
+void SCH_EDIT_FRAME::OnSelectOptionToolbar( wxCommandEvent& event )
 {
     if( DrawPanel == NULL )
         return;
 
-    int        id = event.GetId();
+    int id = event.GetId();
 
     switch( id )
     {
-    case ID_TB_OPTIONS_SHOW_GRID:
-        SetGridVisibility( m_OptionsToolBar->GetToolState( id ) );
-        DrawPanel->Refresh();
-        break;
-
-    case ID_TB_OPTIONS_SELECT_UNIT_MM:
-        g_UnitMetric = MILLIMETRE;
-        UpdateStatusBar();
-        DrawPanel->Refresh();
-        break;
-
-    case ID_TB_OPTIONS_SELECT_UNIT_INCH:
-        g_UnitMetric = INCHES;
-        UpdateStatusBar();
-        DrawPanel->Refresh();
-        break;
-
-    case ID_TB_OPTIONS_SELECT_CURSOR:
-        m_CursorShape = m_OptionsToolBar->GetToolState( id );
-        DrawPanel->Refresh( );
-        break;
-
     case ID_TB_OPTIONS_HIDDEN_PINS:
         m_ShowAllPins = m_OptionsToolBar->GetToolState( id );
         DrawPanel->Refresh( );
@@ -320,9 +254,7 @@ void WinEDA_SchematicFrame::OnSelectOptionToolbar( wxCommandEvent& event )
         break;
 
     default:
-        DisplayError( this, wxT( "OnSelectOptionToolbar() error" ) );
+        wxFAIL_MSG( wxT( "Unexpected select option tool bar ID." ) );
         break;
     }
-
-    SetToolbars();
 }

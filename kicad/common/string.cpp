@@ -8,52 +8,141 @@
 #include "kicad_string.h"
 
 
-/* read a double-quote delimited text from source and put it in in dest,
- *  read NbMaxChar bytes max
- *  return the char count read from source
- */
-int ReadDelimitedText( char* dest, char* source, int NbMaxChar )
+int ReadDelimitedText( wxString* aDest, const char* aSource )
 {
-    int ii, jj, flag = 0;
+    std::string utf8;               // utf8 but without escapes and quotes.
+    bool        inside = false;
+    const char* start = aSource;
+    char        cc;
 
-    for( ii = 0, jj = 0; ii < NbMaxChar - 1; jj++, source++ )
+    while( (cc = *aSource++) != 0  )
     {
-        if( *source == 0 )
-            break;                      /* E.O.L. */
-        if( *source == '"' )            /* delimiter is " */
+        if( cc == '"' )
         {
-            if( flag )
-                break;                  /* End of delimited text */
-            flag = 1;                   /* First delimiter found. */
+            if( inside )
+                break;          // 2nd double quote is end of delimited text
+
+            inside = true;      // first delimiter found, make note, do not copy
         }
-        else if( flag )
+
+        else if( inside )
         {
-            *dest = *source; dest++; ii++;
+            if( cc == '\\' )
+            {
+                cc = *aSource++;
+                if( !cc )
+                    break;
+
+                // do no copy the escape byte if it is followed by \ or "
+                if( cc != '"' && cc != '\\' )
+                    utf8 += '\\';
+
+                utf8 += cc;
+            }
+            else
+                utf8 += cc;
         }
     }
 
-    *dest = 0;  /* Null terminated */
-    return jj;
+    *aDest = FROM_UTF8( utf8.c_str() );
+
+    return aSource - start;
 }
 
 
-/* Remove training spaces in text
- *  return a pointer on the first non space char in text
+int  ReadDelimitedText( char* aDest, const char* aSource, int aDestSize )
+{
+    if( aDestSize <= 0 )
+        return 0;
+
+    bool        inside = false;
+    const char* start = aSource;
+    char*       limit = aDest + aDestSize - 1;
+    char        cc;
+
+    while( (cc = *aSource++) != 0 && aDest < limit )
+    {
+        if( cc == '"' )
+        {
+            if( inside )
+                break;          // 2nd double quote is end of delimited text
+
+            inside = true;      // first delimiter found, make note, do not copy
+        }
+
+        else if( inside )
+        {
+            if( cc == '\\' )
+            {
+                cc = *aSource++;
+                if( !cc )
+                    break;
+
+                // do no copy the escape byte if it is followed by \ or "
+                if( cc != '"' && cc != '\\' )
+                    *aDest++ = '\\';
+
+                if( aDest < limit )
+                    *aDest++ = cc;
+            }
+            else
+                *aDest++ = cc;
+        }
+    }
+
+    *aDest = 0;
+
+    return aSource - start;
+}
+
+
+std::string EscapedUTF8( const wxString& aString )
+{
+    std::string utf8 = TO_UTF8( aString );
+
+    std::string ret;
+
+    ret += '"';
+
+    for( std::string::const_iterator it = utf8.begin();  it!=utf8.end();  ++it )
+    {
+        // this escaping strategy is designed to be compatible with ReadDelimitedText():
+        if( *it == '"' )
+        {
+            ret += '\\';
+            ret += '"';
+        }
+        else if( *it == '\\' )
+        {
+            ret += '\\';    // double it up
+            ret += '\\';
+        }
+        else
+            ret += *it;
+    }
+
+    ret += '"';
+
+    return ret;
+}
+
+
+/* Remove leading and training spaces, tabs and end of line chars in text
+ * return a pointer on the first n char in text
  */
 char* StrPurge( char* text )
 {
-    char* ptspace;
+    static const char whitespace[] = " \t\n\r\f\v";
 
-    if( text == NULL )
-        return NULL;
-
-    while( ( *text <= ' ' ) && *text )
-        text++;
-
-    ptspace = text + strlen( text ) - 1;
-    while( ( *ptspace <= ' ' ) && *ptspace && ( ptspace >= text ) )
+    if( text )
     {
-        *ptspace = 0; ptspace--;
+        while( *text && strchr( whitespace, *text ) )
+            ++text;
+
+        char* cp = text + strlen( text ) - 1;
+
+        while( cp >= text && strchr( whitespace, *cp ) )
+            *cp-- = '\0';
     }
 
     return text;
@@ -88,7 +177,7 @@ char* DateAndTime( char* aBuffer )
     wxString datetime;
 
     datetime = DateAndTime();
-    strcpy( aBuffer, CONV_TO_UTF8( datetime ) );
+    strcpy( aBuffer, TO_UTF8( datetime ) );
 
     return aBuffer;
 }
@@ -319,4 +408,114 @@ char* strupper( char* Text )
     }
 
     return Text;
+}
+
+
+int RefDesStringCompare( const wxString& strFWord, const wxString& strSWord )
+{
+    // The different sections of the first string
+    wxString strFWordBeg, strFWordMid, strFWordEnd;
+
+    // The different sections of the second string
+    wxString strSWordBeg, strSWordMid, strSWordEnd;
+
+    int isEqual = 0;            // The numerical results of a string compare
+    int iReturn = 0;            // The variable that is being returned
+
+    long lFirstDigit  = 0;      /* The converted middle section of the first
+                                 *string */
+    long lSecondDigit = 0;      /* The converted middle section of the second
+                                 *string */
+
+    // Split the two strings into separate parts
+    SplitString( strFWord, &strFWordBeg, &strFWordMid, &strFWordEnd );
+    SplitString( strSWord, &strSWordBeg, &strSWordMid, &strSWordEnd );
+
+    // Compare the Beginning section of the strings
+    isEqual = strFWordBeg.CmpNoCase( strSWordBeg );
+
+    if( isEqual > 0 )
+        iReturn = 1;
+    else if( isEqual < 0 )
+        iReturn = -1;
+    else
+    {
+        // If the first sections are equal compare their digits
+        strFWordMid.ToLong( &lFirstDigit );
+        strSWordMid.ToLong( &lSecondDigit );
+
+        if( lFirstDigit > lSecondDigit )
+            iReturn = 1;
+        else if( lFirstDigit < lSecondDigit )
+            iReturn = -1;
+        else
+        {
+            // If the first two sections are equal compare the endings
+            isEqual = strFWordEnd.CmpNoCase( strSWordEnd );
+
+            if( isEqual > 0 )
+                iReturn = 1;
+            else if( isEqual < 0 )
+                iReturn = -1;
+            else
+                iReturn = 0;
+        }
+    }
+
+    return iReturn;
+}
+
+
+int SplitString( wxString  strToSplit,
+                 wxString* strBeginning,
+                 wxString* strDigits,
+                 wxString* strEnd )
+{
+    // Clear all the return strings
+    strBeginning->Empty();
+    strDigits->Empty();
+    strEnd->Empty();
+
+    // There no need to do anything if the string is empty
+    if( strToSplit.length() == 0 )
+        return 0;
+
+    // Starting at the end of the string look for the first digit
+    int ii;
+    for( ii = (strToSplit.length() - 1); ii >= 0; ii-- )
+    {
+        if( isdigit( strToSplit[ii] ) )
+            break;
+    }
+
+    // If there were no digits then just set the single string
+    if( ii < 0 )
+        *strBeginning = strToSplit;
+    else
+    {
+        // Since there is at least one digit this is the trailing string
+        *strEnd = strToSplit.substr( ii + 1 );
+
+        // Go to the end of the digits
+        int position = ii + 1;
+        for( ; ii >= 0; ii-- )
+        {
+            if( !isdigit( strToSplit[ii] ) )
+                break;
+        }
+
+        // If all that was left was digits, then just set the digits string
+        if( ii < 0 )
+            *strDigits = strToSplit.substr( 0, position );
+
+        /* We were only looking for the last set of digits everything else is
+         *part of the preamble */
+        else
+        {
+            *strDigits    = strToSplit.substr( ii + 1, position - ii - 1 );
+            *strBeginning = strToSplit.substr( 0, ii + 1 );
+        }
+    }
+
+    return 0;
 }

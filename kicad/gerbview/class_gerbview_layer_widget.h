@@ -36,12 +36,12 @@
 /**
  * Class GERBER_LAYER_WIDGET
  * is here to implement the abtract functions of LAYER_WIDGET so they
- * may be tied into the WinEDA_GerberFrame's data and so we can add a popup
+ * may be tied into the GERBVIEW_FRAME's data and so we can add a popup
  * menu which is specific to PCBNEW's needs.
  */
 class GERBER_LAYER_WIDGET : public LAYER_WIDGET
 {
-    WinEDA_GerberFrame*    myframe;
+    GERBVIEW_FRAME*    myframe;
 
     // popup menu ids.
 #define ID_SHOW_ALL_COPPERS     wxID_HIGHEST
@@ -59,17 +59,32 @@ class GERBER_LAYER_WIDGET : public LAYER_WIDGET
     /// on every child control within the layer panel.
     void installRightLayerClickHandler();
 
+    /**
+     * Virtual Function useAlternateBitmap
+     * @return true if bitmaps shown in Render layer list
+     * are alternate bitmaps, or false if they are "normal" bitmaps
+     */
+    virtual bool useAlternateBitmap(int aRow);
+
 public:
 
     /**
      * Constructor
+     * @param aParent : the parent frame
+     * @param aFocusOwner : the window that has the keyboard focus.
      * @param aPointSize is the font point size to use within the widget.  This
      *  effectively sets the overal size of the widget via the row height and bitmap
      *  button sizes.
      */
-    GERBER_LAYER_WIDGET( WinEDA_GerberFrame* aParent, wxWindow* aFocusOwner, int aPointSize = 10 );
+    GERBER_LAYER_WIDGET( GERBVIEW_FRAME* aParent, wxWindow* aFocusOwner, int aPointSize = 10 );
 
     void ReFill();
+
+    /**
+     * Function ReFillRender
+     * Rebuild Render for instance after the config is read
+     */
+    void ReFillRender();
 
     //-----<implement LAYER_WIDGET abstract callback functions>-----------
     void OnLayerColorChange( int aLayer, int aColor );
@@ -77,12 +92,20 @@ public:
     void OnLayerVisible( int aLayer, bool isVisible, bool isFinal );
     void OnRenderColorChange( int aId, int aColor );
     void OnRenderEnable( int aId, bool isEnabled );
-    /** Function SetLayersManagerTabsText
+    /**
+     * Function SetLayersManagerTabsText
      * Update the layer manager tabs labels
      * Useful when changing Language or to set labels to a non default value
      */
     void SetLayersManagerTabsText( );
     //-----</implement LAYER_WIDGET abstract callback functions>----------
+
+    /**
+     * Function UpdateLayerIcons
+     * Update the layer manager icons (layers only)
+     * Useful when loading a file or clearing a layer because they change
+     */
+    void UpdateLayerIcons();
 };
 
 #endif  // _CLASS_GERBER_LAYER_WIDGET_H_

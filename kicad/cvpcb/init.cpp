@@ -10,7 +10,7 @@
 #include "appl_wxstruct.h"
 
 #include "cvpcb.h"
-#include "protos.h"
+#include "cvpcb_mainframe.h"
 #include "cvstruct.h"
 
 #include "build_version.h"
@@ -19,12 +19,12 @@
  * Set the module to the selected component
  * Selects the next component
  */
-void WinEDA_CvpcbFrame::SetNewPkg( const wxString& package )
+void CVPCB_MAINFRAME::SetNewPkg( const wxString& package )
 {
     COMPONENT* Component;
     bool       isUndefined = false;
     int        NumCmp;
-    wxString   Line;
+    wxString   msg;
 
     if( m_components.empty() )
         return;
@@ -45,7 +45,7 @@ void WinEDA_CvpcbFrame::SetNewPkg( const wxString& package )
 
     Component->m_Module = package;
 
-    Line.Printf( CMP_FORMAT, NumCmp + 1,
+    msg.Printf( CMP_FORMAT, NumCmp + 1,
                  GetChars( Component->m_Reference ),
                  GetChars( Component->m_Value ),
                  GetChars( Component->m_Module ) );
@@ -54,7 +54,7 @@ void WinEDA_CvpcbFrame::SetNewPkg( const wxString& package )
     if( isUndefined )
         m_undefinedComponentCnt -= 1;
 
-    m_ListCmp->SetString( NumCmp, Line );
+    m_ListCmp->SetString( NumCmp, msg );
     m_ListCmp->SetSelection( NumCmp, FALSE );
 
     // We activate next component:
@@ -62,16 +62,14 @@ void WinEDA_CvpcbFrame::SetNewPkg( const wxString& package )
         NumCmp++;
     m_ListCmp->SetSelection( NumCmp, TRUE );
 
-    Line.Printf( _( "Components: %d (free: %d)" ),
-                 m_components.size(), m_undefinedComponentCnt );
-    SetStatusText( Line, 1 );
+    DisplayStatus();
 }
 
 
 /*
  * Read the netlist format and file components.
  */
-bool WinEDA_CvpcbFrame::ReadNetList()
+bool CVPCB_MAINFRAME::ReadNetList()
 {
     wxString   msg;
     int        error_level;
@@ -86,13 +84,13 @@ bool WinEDA_CvpcbFrame::ReadNetList()
         return false;
     }
 
-    LoadComponentFile( m_NetlistFileName.GetFullPath(), m_components );
+    LoadComponentFile( m_NetlistFileName.GetFullPath() );
 
     if( m_ListCmp == NULL )
         return false;
 
     LoadProjectFile( m_NetlistFileName.GetFullPath() );
-    LoadFootprintFiles( m_ModuleLibNames, m_footprints );
+    LoadFootprintFiles( );
     BuildFOOTPRINTS_LISTBOX();
 
     m_ListCmp->Clear();
@@ -112,13 +110,14 @@ bool WinEDA_CvpcbFrame::ReadNetList()
     if( !m_components.empty() )
         m_ListCmp->SetSelection( 0, TRUE );
 
-    msg.Printf( _( "Components: %d (free: %d)" ), m_components.size(),
-                m_undefinedComponentCnt );
-    SetStatusText( msg, 1 );
+    DisplayStatus();
 
     /* Update the title of the main window. */
     SetTitle( wxGetApp().GetTitle() + wxT( " " ) + GetBuildVersion() +
               wxT( " " ) + m_NetlistFileName.GetFullPath() );
+
+    UpdateFileHistory( m_NetlistFileName.GetFullPath() );
+
     return true;
 }
 
@@ -128,7 +127,7 @@ bool WinEDA_CvpcbFrame::ReadNetList()
  * The full name of the netlist file must be in FFileName.
  * The file name is deducted in cmp
  */
-int WinEDA_CvpcbFrame::SaveNetList( const wxString& fileName )
+int CVPCB_MAINFRAME::SaveNetList( const wxString& fileName )
 {
     wxFileName fn;
 
@@ -158,8 +157,7 @@ int WinEDA_CvpcbFrame::SaveNetList( const wxString& fileName )
         return 0;
     }
 
-    GenNetlistPcbnew( netlist, m_components, m_isEESchemaNetlist,
-                      m_rightJustify );
+    GenNetlistPcbnew( netlist, m_isEESchemaNetlist );
 
     return 1;
 }

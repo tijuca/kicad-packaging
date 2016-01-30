@@ -5,115 +5,70 @@
 #include "fctsys.h"
 #include "common.h"
 #include "class_drawpanel.h"
-
-#include "pcbnew.h"
 #include "gerbview.h"
-#include "protos.h"
 
 
-BOARD_ITEM* WinEDA_GerberFrame::GerberGeneralLocateAndDisplay()
+void GERBVIEW_FRAME::GeneralControl( wxDC* aDC, const wxPoint& aPosition, int aHotKey )
 {
-    return Locate( CURSEUR_OFF_GRILLE );
-}
+    wxRealPoint gridSize;
+    wxPoint     oldpos;
+    wxPoint     pos = aPosition;
 
+    pos = GetScreen()->GetNearestGridPosition( pos );
 
-void WinEDA_GerberFrame::GeneralControle( wxDC* DC, wxPoint Mouse )
-{
-    wxRealPoint  delta;
-    wxPoint curpos, oldpos;
-    int     hotkey = 0;
+    oldpos = GetScreen()->GetCrossHairPosition();
+    gridSize = GetScreen()->GetGridSize();
 
-    if( GetScreen()->IsRefreshReq() )
-    {
-        DrawPanel->Refresh( );
-        wxSafeYield();
-
-        // We must return here, instead of proceeding.
-        // If we let the cursor move during a refresh request,
-        // the cursor be displayed in the wrong place
-        // during delayed repaint events that occur when
-        // you move the mouse when a message dialog is on
-        // the screen, and then you dismiss the dialog by
-        // typing the Enter key.
-        return;
-    }
-
-    double scalar = GetScreen()->GetScalingFactor();
-
-    curpos = DrawPanel->CursorRealPosition( Mouse );
-    oldpos = GetScreen()->m_Curseur;
-
-    delta = GetScreen()->GetGridSize();
-
-    delta.x *= scalar;
-    delta.y *= scalar;
-
-    if( delta.x == 0 )
-        delta.x = 1;
-    if( delta.y == 0 )
-        delta.y = 1;
-
-    switch( g_KeyPressed )
+    switch( aHotKey )
     {
     case WXK_NUMPAD8:
     case WXK_UP:
-        Mouse.y -= wxRound(delta.y);
-        DrawPanel->MouseTo( Mouse );
+        pos.y -= wxRound( gridSize.y );
+        DrawPanel->MoveCursor( pos );
         break;
 
     case WXK_NUMPAD2:
     case WXK_DOWN:
-        Mouse.y += wxRound(delta.y);
-        DrawPanel->MouseTo( Mouse );
+        pos.y += wxRound( gridSize.y );
+        DrawPanel->MoveCursor( pos );
         break;
 
     case WXK_NUMPAD4:
     case WXK_LEFT:
-        Mouse.x -= wxRound(delta.x);
-        DrawPanel->MouseTo( Mouse );
+        pos.x -= wxRound( gridSize.x );
+        DrawPanel->MoveCursor( pos );
         break;
 
     case WXK_NUMPAD6:
     case WXK_RIGHT:
-        Mouse.x += wxRound(delta.x);
-        DrawPanel->MouseTo( Mouse );
+        pos.x += wxRound( gridSize.x );
+        DrawPanel->MoveCursor( pos );
         break;
 
     default:
-        hotkey = g_KeyPressed;
         break;
     }
 
-    GetScreen()->m_Curseur = curpos;
+    GetScreen()->SetCrossHairPosition( pos );
 
-    PutOnGrid( &GetScreen()->m_Curseur );
-
-    if( oldpos != GetScreen()->m_Curseur )
+    if( oldpos != GetScreen()->GetCrossHairPosition() )
     {
-        curpos = GetScreen()->m_Curseur;
-        GetScreen()->m_Curseur = oldpos;
-        DrawPanel->CursorOff( DC );
+        pos = GetScreen()->GetCrossHairPosition();
+        GetScreen()->SetCrossHairPosition( oldpos );
+        DrawPanel->CrossHairOff( aDC );
+        GetScreen()->SetCrossHairPosition( pos );
+        DrawPanel->CrossHairOn( aDC );
 
-        GetScreen()->m_Curseur = curpos;
-        DrawPanel->CursorOn( DC );
-
-        if( DrawPanel->ManageCurseur )
+        if( DrawPanel->IsMouseCaptured() )
         {
-            DrawPanel->ManageCurseur( DrawPanel, DC, TRUE );
+            DrawPanel->m_mouseCaptureCallback( DrawPanel, aDC, aPosition, true );
         }
     }
 
-    if( hotkey )
+    if( aHotKey )
     {
-        OnHotKey( DC, hotkey, NULL );
+        OnHotKey( aDC, aHotKey, NULL );
     }
 
-    if( GetScreen()->IsRefreshReq() )
-    {
-        DrawPanel->Refresh( );
-        wxSafeYield();
-    }
-
-    SetToolbars();
     UpdateStatusBar();
 }

@@ -5,6 +5,17 @@
 #ifndef _GENERAL_H_
 #define _GENERAL_H_
 
+#include <wx/string.h>
+#include <wx/gdicmn.h>
+
+#include "block_commande.h"
+#include "class_netlist_object.h"
+
+
+class SCH_ITEM;
+class SCH_SHEET;
+class TRANSFORM;
+
 
 #define EESCHEMA_VERSION 2
 
@@ -12,16 +23,20 @@
 #define EESCHEMA_FILE_STAMP   "EESchema"
 #define NULL_STRING           "_NONAME_"
 
+// Define the char buffer size used to read library files
+#define LINE_BUFFER_LEN_LARGE   8000
+#define LINE_BUFFER_LEN   1024
+
 #define MAX_PIN_INFO 10
 
-#define TXTMARGE 10                 /* Offset in mils for placement of labels
-                                     * and pin numbers. */
+#define TXTMARGE 10                 // Offset in mils for placement of labels and pin numbers.
 
 #define HIGHLIGHT_COLOR WHITE
 
-/* Used for EDA_BaseStruct, .m_Select member */
+/* Used for EDA_ITEM, .m_Select member */
 #define IS_SELECTED 1
 
+#define TEXT_NO_VISIBLE 1
 
 //#define GR_DEFAULT_DRAWMODE GR_COPY
 #define GR_DEFAULT_DRAWMODE GR_COPY
@@ -29,29 +44,6 @@
 #define DANGLING_SYMBOL_SIZE 12
 
 extern wxString g_DefaultSchematicFileName;
-
-/* Search mask for locating objects in editor. */
-#define LIBITEM                    1
-#define WIREITEM                   2
-#define BUSITEM                    4
-#define RACCORDITEM                4
-#define JUNCTIONITEM               0x10
-#define DRAWITEM                   0x20
-#define TEXTITEM                   0x40
-#define LABELITEM                  0x80
-#define SHEETITEM                  0x100
-#define MARKERITEM                 0x200
-#define NOCONNECTITEM              0x400
-#define SEARCH_PINITEM             0x800
-#define SHEETLABELITEM             0x1000
-#define FIELDCMPITEM               0x2000
-#define EXCLUDE_WIRE_BUS_ENDPOINTS 0x4000
-#define WIRE_BUS_ENDPOINTS_ONLY    0x8000
-
-#define SEARCHALL ( LIBITEM | WIREITEM | BUSITEM | RACCORDITEM |        \
-                    JUNCTIONITEM | DRAWITEM | TEXTITEM | LABELITEM |    \
-                    SHEETITEM | MARKERITEM | NOCONNECTITEM |            \
-                    SEARCH_PINITEM | SHEETLABELITEM )
 
 typedef enum
 {
@@ -79,6 +71,7 @@ typedef enum
     LAYER_ERC_WARN,
     LAYER_ERC_ERR,
     LAYER_DEVICE_BACKGROUND,
+    LAYER_GRID,
 
     MAX_LAYER                   /* Maximum layers */
 } LayerNumber;
@@ -91,25 +84,36 @@ typedef enum
 } FileSaveType;
 
 
-extern int            g_OptNetListUseNames;  /* TRUE to use names rather than
-                                              * net numbers (PSPICE netlist
-                                              * only) */
-extern SCH_ITEM*      g_ItemToRepeat; /* Pointer to the last structure used
-                                       * by the repeat command.   NULL if no
-                                       * item to repeat */
-extern wxSize         g_RepeatStep;
-extern int            g_RepeatDeltaLabel;
+/* Rotation, mirror of graphic items in components bodies are handled by a
+ * transform matrix.  The default matix is useful to draw lib entries with
+ * a defualt matix ( no rotation, no mirror but Y axis is bottom to top, and
+ * Y draw axis is to to bottom so we must have a default matix that reverses
+ * the Y coordinate and keeps the X coordiate
+ */
+extern TRANSFORM DefaultTransform;
 
-extern SCH_ITEM*      g_ItemToUndoCopy; /* copy of last modified schematic item
-                                         * before it is modified (used for undo
-                                         * managing to restore old values ) */
+#define MIN_BUSLINES_THICKNESS 12   // min bus lines and entries thickness
 
-/* Block operation (copy, paste) */
-extern BLOCK_SELECTOR g_BlockSaveDataList; /* List of items to paste (Created
-                                            * by Block Save) */
+#define MAX_LAYERS 44
+
+class LayerStruct
+{
+public:
+    char LayerNames[MAX_LAYERS + 1][8];
+    int  LayerColor[MAX_LAYERS + 1];
+    char LayerStatus[MAX_LAYERS + 1];
+    int  NumberOfLayers;
+    int  CurrentLayer;
+    int  CurrentWidth;
+    int  CommonColor;
+    int  Flags;
+};
+
+extern wxSize g_RepeatStep;
+extern int g_RepeatDeltaLabel;
 
 // Management options.
-extern bool      g_HVLines;
+extern bool g_HVLines;
 
 // Management variables, option ... to be stored.  Reset to 0 during a
 // project reload.
@@ -165,5 +169,13 @@ extern int g_ItemSelectetColor;
 // Color to draw items flagged invisible, in libedit (they are invisible in
 // eeschema
 extern int g_InvisibleItemColor;
+
+/* Global Variables */
+
+extern NETLIST_OBJECT_LIST g_NetObjectslist;
+
+extern bool g_OptNetListUseNames;   /* TRUE to use names rather than
+                                     * net numbers. SPICE netlist only
+                                     */
 
 #endif   // _GENERAL_H_

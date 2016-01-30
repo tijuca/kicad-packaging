@@ -5,13 +5,14 @@
 #ifndef CLASS_DRAWSEGMENT_H
 #define CLASS_DRAWSEGMENT_H
 #include "PolyLine.h"
+#include "richio.h"
 
 class DRAWSEGMENT : public BOARD_ITEM
 {
 public:
     int     m_Width;            // thickness of lines ...
-    wxPoint m_Start;            // Line start point
-    wxPoint m_End;              // Line end point
+    wxPoint m_Start;            // Line start point or Circle and Arc center
+    wxPoint m_End;              // Line end point or circle and arc start point
 
     int     m_Shape;            // Shape: line, Circle, Arc
     int     m_Type;             // Used in complex associations ( Dimensions.. )
@@ -52,6 +53,17 @@ public:
     wxPoint      GetEnd() const;
 
     /**
+     * Function GetRadius
+     * returns the radius of this item
+     * Has meaning only for arc and circle
+     */
+    int         GetRadius() const
+    {
+        double radius = hypot( (double) (m_End.x - m_Start.x), (double) (m_End.y - m_Start.y) );
+        return wxRound(radius);
+    }
+
+    /**
      * Function Save
      * writes the data structures for this object out to a FILE in "*.brd" format.
      * @param aFile The FILE to write to.
@@ -59,40 +71,40 @@ public:
      */
     bool         Save( FILE* aFile ) const;
 
-    bool         ReadDrawSegmentDescr( FILE* File, int* LineNum );
+    bool         ReadDrawSegmentDescr( LINE_READER* aReader );
 
     void         Copy( DRAWSEGMENT* source );
 
 
-    void         Draw( WinEDA_DrawPanel* panel, wxDC* DC,
-                       int aDrawMode, const wxPoint& offset = ZeroOffset );
+    void         Draw( EDA_DRAW_PANEL* panel, wxDC* DC,
+                       int aDrawMode, const wxPoint& aOffset = ZeroOffset );
 
     /**
      * Function DisplayInfo
      * has knowledge about the frame and how and where to put status information
      * about this object into the frame's message panel.
-     * Is virtual from EDA_BaseStruct.
-     * @param frame A WinEDA_BasePcbFrame in which to print status information.
+     * Is virtual from EDA_ITEM.
+     * @param frame A PCB_BASE_FRAME in which to print status information.
      */
-    virtual void DisplayInfo( WinEDA_DrawFrame* frame );
+    virtual void DisplayInfo( EDA_DRAW_FRAME* frame );
 
 
     /**
      * Function HitTest
      * tests if the given wxPoint is within the bounds of this object.
-     * @param ref_pos A wxPoint to test
+     * @param aRefPos A wxPoint to test
      * @return bool - true if a hit, else false
      */
-    bool         HitTest( const wxPoint& ref_pos );
+    bool         HitTest( const wxPoint& aRefPos );
 
     /**
      * Function HitTest (overlayed)
-     * tests if the given EDA_Rect intersect this object.
+     * tests if the given EDA_RECT intersect this object.
      * For now, an ending point must be inside this rect.
-     * @param refPos the given EDA_Rect to test
+     * @param refArea the given EDA_RECT to test
      * @return bool - true if a hit, else false
      */
-    bool         HitTest( EDA_Rect& refArea );
+    bool         HitTest( EDA_RECT& refArea );
 
     /**
      * Function GetClass
@@ -121,7 +133,7 @@ public:
     /**
      * Function Move
      * move this object.
-     * @param const wxPoint& aMoveVector - the move vector for this object.
+     * @param aMoveVector - the move vector for this object.
      */
     virtual void Move( const wxPoint& aMoveVector )
     {
@@ -133,7 +145,7 @@ public:
     /**
      * Function Rotate
      * Rotate this object.
-     * @param const wxPoint& aRotCentre - the rotation point.
+     * @param aRotCentre - the rotation point.
      * @param aAngle - the rotation angle in 0.1 degree.
      */
     virtual void Rotate( const wxPoint& aRotCentre, int aAngle );
@@ -141,11 +153,12 @@ public:
     /**
      * Function Flip
      * Flip this object, i.e. change the board side for this object
-     * @param const wxPoint& aCentre - the rotation point.
+     * @param aCentre - the rotation point.
      */
     virtual void Flip( const wxPoint& aCentre );
 
-    /** Function TransformShapeWithClearanceToPolygon
+    /**
+     * Function TransformShapeWithClearanceToPolygon
      * Convert the track shape to a closed polygon
      * Used in filling zones calculations
      * Circles and arcs are approximated by segments

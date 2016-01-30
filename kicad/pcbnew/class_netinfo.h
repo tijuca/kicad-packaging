@@ -10,6 +10,7 @@
 #define __CLASSES_NETINFO__
 
 #include "class_netclass.h"
+#include "richio.h"
 
 class NETINFO_ITEM;
 
@@ -57,12 +58,10 @@ public:
     }
 
 
-    /** function Draw
+    /**
+     * Function Draw
      */
-    void Draw( WinEDA_DrawPanel* panel,
-               wxDC*             DC,
-               int               aDrawMode,
-               const wxPoint&    offset );
+    void Draw( EDA_DRAW_PANEL* panel, wxDC* DC, int aDrawMode, const wxPoint& offset );
 };
 
 /***************************************************************/
@@ -85,7 +84,8 @@ public:
 public: NETINFO_LIST( BOARD* aParent );
     ~NETINFO_LIST();
 
-    /** Function GetItem
+    /**
+     * Function GetItem
      * @param aNetcode = netcode to identify a given NETINFO_ITEM
      * @return a NETINFO_ITEM pointer to the selected NETINFO_ITEM by its
      * netcode, or NULL if not found
@@ -105,18 +105,21 @@ public: NETINFO_LIST( BOARD* aParent );
      */
     void AppendNet( NETINFO_ITEM* aNewElement );
 
-    /** Function DeleteData
+    /**
+     * Function DeleteData
      * delete the list of nets (and free memory)
      */
     void DeleteData();
 
-    /** Function BuildListOfNets
+    /**
+     * Function BuildListOfNets
      * Build or rebuild the list of NETINFO_ITEM m_NetBuffer
      * The list is sorted by names.
      */
     void BuildListOfNets();
 
-    /** Function GetPadsCount
+    /**
+     * Function GetPadsCount
      * @return the number of pads in board
      */
     unsigned     GetPadsCount()
@@ -125,7 +128,8 @@ public: NETINFO_LIST( BOARD* aParent );
     }
 
 
-    /** Function GetPad
+    /**
+     * Function GetPad
      * @return the pad idx from m_PadsFullList
      */
     D_PAD* GetPad( unsigned aIdx )
@@ -139,7 +143,8 @@ public: NETINFO_LIST( BOARD* aParent );
 
 private:
 
-    /** Function Build_Pads_Full_List
+    /**
+     * Function Build_Pads_Full_List
      *  Create the pad list
      * initialise:
      *   m_Pads (list of pads)
@@ -310,7 +315,7 @@ public:
 #endif
 
     /* Reading and writing data on files */
-    int  ReadDescr( FILE* File, int* LineNum );
+    int  ReadDescr( LINE_READER* aReader );
 
     /**
      * Function Save
@@ -322,12 +327,12 @@ public:
     bool Save( FILE* aFile ) const;
 
 
-    /** function Draw
+    /**
+     * Function Draw
      * @todo we actually could show a NET, simply show all the tracks and
      *       a pads or net name on pad and vias
      */
-    void Draw( WinEDA_DrawPanel* panel, wxDC* DC, int aDrawMode,
-               const wxPoint& offset );
+    void Draw( EDA_DRAW_PANEL* panel, wxDC* DC, int aDrawMode, const wxPoint& offset );
 
 
     /**
@@ -353,7 +358,7 @@ public:
 
     /**
      * Function SetNetname
-     * @param const wxString : the new netname
+     * @param aNetname : the new netname
      */
     void SetNetname( const wxString& aNetname );
 
@@ -362,10 +367,10 @@ public:
  * Function DisplayInfo
  * has knowledge about the frame and how and where to put status information
  * about this object into the frame's message panel.
- * Is virtual from EDA_BaseStruct.
- * @param frame A WinEDA_DrawFrame in which to print status information.
+ * Is virtual from EDA_ITEM.
+ * @param frame A EDA_DRAW_FRAME in which to print status information.
  */
-    void DisplayInfo( WinEDA_DrawFrame* frame );
+    void DisplayInfo( EDA_DRAW_FRAME* frame );
 };
 
 

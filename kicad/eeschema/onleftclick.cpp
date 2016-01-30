@@ -7,352 +7,350 @@
 #include "eeschema_id.h"
 #include "class_drawpanel.h"
 #include "confirm.h"
+#include "class_sch_screen.h"
+#include "wxEeschemaStruct.h"
 
-#include "program.h"
 #include "general.h"
-#include "class_marker_sch.h"
 #include "protos.h"
+#include "sch_bus_entry.h"
+#include "sch_text.h"
+#include "sch_marker.h"
+#include "sch_junction.h"
+#include "sch_line.h"
+#include "sch_no_connect.h"
+#include "sch_component.h"
+#include "sch_sheet.h"
 
 
 static wxArrayString s_CmpNameList;
 static wxArrayString s_PowerNameList;
 
 
-/* Process the command triggers by the left button of the mouse when a tool
- * is already selected.
- */
-void WinEDA_SchematicFrame::OnLeftClick( wxDC* DC, const wxPoint& MousePos )
+void SCH_EDIT_FRAME::OnLeftClick( wxDC* aDC, const wxPoint& aPosition )
 {
-    SCH_ITEM* DrawStruct = (SCH_ITEM*) GetScreen()->GetCurItem();
+    SCH_ITEM* item = GetScreen()->GetCurItem();
+    wxPoint gridPosition = GetGridPosition( aPosition );
 
-    if( ( m_ID_current_state == 0 ) || ( DrawStruct && DrawStruct->m_Flags ) )
+    if( ( GetToolId() == ID_NO_TOOL_SELECTED ) || ( item && item->GetFlags() ) )
     {
-        DrawPanel->m_AutoPAN_Request = FALSE;
-        g_ItemToRepeat = NULL;
+        DrawPanel->m_AutoPAN_Request = false;
+        m_itemToRepeat = NULL;
 
-        if( DrawStruct && DrawStruct->m_Flags )
+        if( item && item->GetFlags() )
         {
-            switch( DrawStruct->Type() )
+            switch( item->Type() )
             {
-            case TYPE_SCH_LABEL:
-            case TYPE_SCH_GLOBALLABEL:
-            case TYPE_SCH_HIERLABEL:
-            case TYPE_SCH_TEXT:
-            case DRAW_HIERARCHICAL_PIN_SHEET_STRUCT_TYPE:
-            case DRAW_SHEET_STRUCT_TYPE:
-            case DRAW_BUSENTRY_STRUCT_TYPE:
-            case DRAW_JUNCTION_STRUCT_TYPE:
-            case TYPE_SCH_COMPONENT:
-            case DRAW_PART_TEXT_STRUCT_TYPE:
-                DrawStruct->Place( this, DC );
+            case SCH_LABEL_T:
+            case SCH_GLOBAL_LABEL_T:
+            case SCH_HIERARCHICAL_LABEL_T:
+            case SCH_TEXT_T:
+            case SCH_SHEET_PIN_T:
+            case SCH_SHEET_T:
+            case SCH_BUS_ENTRY_T:
+            case SCH_JUNCTION_T:
+            case SCH_COMPONENT_T:
+            case SCH_FIELD_T:
+                item->Place( this, aDC );
                 GetScreen()->SetCurItem( NULL );
-                TestDanglingEnds( GetScreen()->EEDrawList, NULL );
-                DrawPanel->Refresh( TRUE );
+                GetScreen()->TestDanglingEnds();
+                DrawPanel->Refresh( true );
                 return;
 
-            case SCREEN_STRUCT_TYPE:
-                DisplayError( this,
-                              wxT( "OnLeftClick err: unexpected type for Place" ) );
-                DrawStruct->m_Flags = 0;
-                break;
-
-            case DRAW_SEGMENT_STRUCT_TYPE: // May already be drawing segment.
+            case SCH_LINE_T:    // May already be drawing segment.
                 break;
 
             default:
-                DisplayError( this,
-                              wxT( "WinEDA_SchematicFrame::OnLeftClick err: m_Flags != 0" ) );
-                DrawStruct->m_Flags = 0;
-                break;
+                wxFAIL_MSG( wxT( "SCH_EDIT_FRAME::OnLeftClick error.  Item type <" ) +
+                            item->GetClass() + wxT( "> is already being edited." ) );
+                item->ClearFlags();
             }
         }
         else
         {
-            DrawStruct = SchematicGeneralLocateAndDisplay( true );
+            item = LocateAndShowItem( aPosition );
         }
     }
 
-    switch( m_ID_current_state )
+    switch( GetToolId() )
     {
-    case 0:
-        break;
-
-    case ID_NO_SELECT_BUTT:
+    case ID_NO_TOOL_SELECTED:
         break;
 
     case ID_HIERARCHY_PUSH_POP_BUTT:
-        if( DrawStruct && DrawStruct->m_Flags )
+        if( ( item && item->GetFlags() ) || ( g_RootSheet->CountSheets() == 0 ) )
             break;
-        DrawStruct = SchematicGeneralLocateAndDisplay();
-        if( DrawStruct && ( DrawStruct->Type() == DRAW_SHEET_STRUCT_TYPE ) )
+
+        item = LocateAndShowItem( aPosition, SCH_COLLECTOR::SheetsOnly );
+
+        if( item )
         {
-            InstallNextScreen( (SCH_SHEET*) DrawStruct );
+            m_CurrentSheet->Push( (SCH_SHEET*) item );
+            DisplayCurrentSheet();
         }
         else
-            InstallPreviousSheet();
+        {
+            wxCHECK_RET( m_CurrentSheet->Last() != g_RootSheet,
+                         wxT( "Cannot leave root sheet.  Bad Programmer!" ) );
+
+            m_CurrentSheet->Pop();
+            DisplayCurrentSheet();
+        }
+
         break;
 
     case ID_NOCONN_BUTT:
-        if( ( DrawStruct == NULL ) || ( DrawStruct->m_Flags == 0 ) )
+        if( ( item == NULL ) || ( item->GetFlags() == 0 ) )
         {
-            g_ItemToRepeat = CreateNewNoConnectStruct( DC );
-            GetScreen()->SetCurItem( g_ItemToRepeat );
-            DrawPanel->m_AutoPAN_Request = TRUE;
+            m_itemToRepeat = AddNoConnect( aDC, gridPosition );
+            GetScreen()->SetCurItem( m_itemToRepeat );
+            DrawPanel->m_AutoPAN_Request = true;
         }
         else
         {
-            DrawStruct->Place( this, DC );
-            DrawPanel->m_AutoPAN_Request = FALSE;
+            item->Place( this, aDC );
+            DrawPanel->m_AutoPAN_Request = false;
         }
-        TestDanglingEnds( GetScreen()->EEDrawList, NULL );
-        DrawPanel->Refresh( TRUE );
+
+        GetScreen()->TestDanglingEnds();
+        DrawPanel->Refresh( true );
         break;
 
     case ID_JUNCTION_BUTT:
-        if( ( DrawStruct == NULL ) || ( DrawStruct->m_Flags == 0 ) )
+        if( ( item == NULL ) || ( item->GetFlags() == 0 ) )
         {
-            g_ItemToRepeat = CreateNewJunctionStruct( DC,
-                                                      GetScreen()->m_Curseur,
-                                                      TRUE );
-            GetScreen()->SetCurItem( g_ItemToRepeat );
-            DrawPanel->m_AutoPAN_Request = TRUE;
+            m_itemToRepeat = AddJunction( aDC, gridPosition, true );
+            GetScreen()->SetCurItem( m_itemToRepeat );
+            DrawPanel->m_AutoPAN_Request = true;
         }
         else
         {
-            DrawStruct->Place( this, DC );
-            DrawPanel->m_AutoPAN_Request = FALSE;
+            item->Place( this, aDC );
+            DrawPanel->m_AutoPAN_Request = false;
         }
-        TestDanglingEnds( GetScreen()->EEDrawList, NULL );
-        DrawPanel->Refresh( TRUE );
+
+        GetScreen()->TestDanglingEnds();
+        DrawPanel->Refresh( true );
         break;
 
     case ID_WIRETOBUS_ENTRY_BUTT:
     case ID_BUSTOBUS_ENTRY_BUTT:
-        if( ( DrawStruct == NULL ) || ( DrawStruct->m_Flags == 0 ) )
+        if( ( item == NULL ) || ( item->GetFlags() == 0 ) )
         {
-            DrawStruct =
-                CreateBusEntry( DC,
-                                (m_ID_current_state == ID_WIRETOBUS_ENTRY_BUTT) ?
-                                WIRE_TO_BUS : BUS_TO_BUS );
-            GetScreen()->SetCurItem( DrawStruct );
-            DrawPanel->m_AutoPAN_Request = TRUE;
+            item = CreateBusEntry( aDC, ( GetToolId() == ID_WIRETOBUS_ENTRY_BUTT ) ?
+                                   WIRE_TO_BUS : BUS_TO_BUS );
+            GetScreen()->SetCurItem( item );
+            DrawPanel->m_AutoPAN_Request = true;
         }
         else
         {
-            DrawStruct->Place( this, DC );
+            item->Place( this, aDC );
             GetScreen()->SetCurItem( NULL );
-            TestDanglingEnds( GetScreen()->EEDrawList, NULL );
-            DrawPanel->Refresh( TRUE );
-            DrawPanel->m_AutoPAN_Request = FALSE;
+            GetScreen()->TestDanglingEnds();
+            DrawPanel->Refresh( true );
+            DrawPanel->m_AutoPAN_Request = false;
         }
         break;
 
     case ID_SCHEMATIC_DELETE_ITEM_BUTT:
-        LocateAndDeleteItem( this, DC );
-        OnModify( );
+        DeleteItemAtCrossHair( aDC );
+        OnModify();
         GetScreen()->SetCurItem( NULL );
-        TestDanglingEnds( GetScreen()->EEDrawList, NULL );
-        DrawPanel->Refresh( TRUE );
+        GetScreen()->TestDanglingEnds();
+        DrawPanel->Refresh( true );
         break;
 
     case ID_WIRE_BUTT:
-        BeginSegment( DC, LAYER_WIRE );
-        DrawPanel->m_AutoPAN_Request = TRUE;
+        BeginSegment( aDC, LAYER_WIRE );
+        DrawPanel->m_AutoPAN_Request = true;
         break;
 
     case ID_BUS_BUTT:
-        BeginSegment( DC, LAYER_BUS );
-        DrawPanel->m_AutoPAN_Request = TRUE;
+        BeginSegment( aDC, LAYER_BUS );
+        DrawPanel->m_AutoPAN_Request = true;
         break;
 
     case ID_LINE_COMMENT_BUTT:
-        BeginSegment( DC, LAYER_NOTES );
-        DrawPanel->m_AutoPAN_Request = TRUE;
+        BeginSegment( aDC, LAYER_NOTES );
+        DrawPanel->m_AutoPAN_Request = true;
         break;
 
     case ID_TEXT_COMMENT_BUTT:
-        if( ( DrawStruct == NULL ) || ( DrawStruct->m_Flags == 0 ) )
+        if( ( item == NULL ) || ( item->GetFlags() == 0 ) )
         {
-            GetScreen()->SetCurItem( CreateNewText( DC, LAYER_NOTES ) );
-            DrawPanel->m_AutoPAN_Request = TRUE;
+            GetScreen()->SetCurItem( CreateNewText( aDC, LAYER_NOTES ) );
+            DrawPanel->m_AutoPAN_Request = true;
         }
         else
         {
-            DrawStruct->Place( this, DC );
-            DrawPanel->m_AutoPAN_Request = FALSE;
+            item->Place( this, aDC );
+            DrawPanel->m_AutoPAN_Request = false;
         }
         break;
 
     case ID_LABEL_BUTT:
-        if( ( DrawStruct == NULL ) || ( DrawStruct->m_Flags == 0 ) )
+        if( ( item == NULL ) || ( item->GetFlags() == 0 ) )
         {
-            GetScreen()->SetCurItem( CreateNewText( DC, LAYER_LOCLABEL ) );
-            DrawPanel->m_AutoPAN_Request = TRUE;
+            GetScreen()->SetCurItem( CreateNewText( aDC, LAYER_LOCLABEL ) );
+            DrawPanel->m_AutoPAN_Request = true;
         }
         else
         {
-            DrawStruct->Place( this, DC );
-            DrawPanel->m_AutoPAN_Request = FALSE;
-            TestDanglingEnds( GetScreen()->EEDrawList, NULL );
-            DrawPanel->Refresh( TRUE );
+            item->Place( this, aDC );
+            DrawPanel->m_AutoPAN_Request = false;
+            GetScreen()->TestDanglingEnds();
+            DrawPanel->Refresh( true );
         }
         break;
 
     case ID_GLABEL_BUTT:
     case ID_HIERLABEL_BUTT:
-        if( (DrawStruct == NULL) || (DrawStruct->m_Flags == 0) )
+        if( (item == NULL) || (item->GetFlags() == 0) )
         {
-            if(m_ID_current_state == ID_GLABEL_BUTT)
-                GetScreen()->SetCurItem( CreateNewText( DC, LAYER_GLOBLABEL ) );
-            if(m_ID_current_state == ID_HIERLABEL_BUTT)
-                GetScreen()->SetCurItem( CreateNewText( DC, LAYER_HIERLABEL ) );
-            DrawPanel->m_AutoPAN_Request = TRUE;
+            if( GetToolId() == ID_GLABEL_BUTT )
+                GetScreen()->SetCurItem( CreateNewText( aDC, LAYER_GLOBLABEL ) );
+
+            if( GetToolId() == ID_HIERLABEL_BUTT )
+                GetScreen()->SetCurItem( CreateNewText( aDC, LAYER_HIERLABEL ) );
+
+            DrawPanel->m_AutoPAN_Request = true;
         }
         else
         {
-            DrawStruct->Place( this, DC );
-            DrawPanel->m_AutoPAN_Request = FALSE;
-            TestDanglingEnds( GetScreen()->EEDrawList, NULL );
-            DrawPanel->Refresh( TRUE );
+            item->Place( this, aDC );
+            DrawPanel->m_AutoPAN_Request = false;
+            GetScreen()->TestDanglingEnds();
+            DrawPanel->Refresh( true );
         }
         break;
 
     case ID_SHEET_SYMBOL_BUTT:
-        if( ( DrawStruct == NULL ) || ( DrawStruct->m_Flags == 0 ) )
+        if( ( item == NULL ) || ( item->GetFlags() == 0 ) )
         {
-            GetScreen()->SetCurItem( CreateSheet( DC ) );
-            DrawPanel->m_AutoPAN_Request = TRUE;
+            GetScreen()->SetCurItem( CreateSheet( aDC ) );
+            DrawPanel->m_AutoPAN_Request = true;
         }
         else
         {
-            DrawStruct->Place( this, DC );
-            DrawPanel->m_AutoPAN_Request = FALSE;
-            TestDanglingEnds( GetScreen()->EEDrawList, NULL );
-            DrawPanel->Refresh( TRUE );
+            item->Place( this, aDC );
+            DrawPanel->m_AutoPAN_Request = false;
+            GetScreen()->TestDanglingEnds();
+            DrawPanel->Refresh( true );
         }
         break;
 
     case ID_IMPORT_HLABEL_BUTT:
-    case ID_SHEET_LABEL_BUTT:
-        if( ( DrawStruct == NULL ) || ( DrawStruct->m_Flags == 0 ) )
-            DrawStruct = SchematicGeneralLocateAndDisplay();
+    case ID_SHEET_PIN_BUTT:
+        if( ( item == NULL ) || ( item->GetFlags() == 0 ) )
+            item = LocateAndShowItem( aPosition, SCH_COLLECTOR::SheetsAndSheetLabels );
 
-        if( DrawStruct == NULL )
+        if( item == NULL )
             break;
 
-        if( (DrawStruct->Type() == DRAW_SHEET_STRUCT_TYPE)
-           && (DrawStruct->m_Flags == 0) )
+        if( (item->Type() == SCH_SHEET_T) && (item->GetFlags() == 0) )
         {
-            if( m_ID_current_state == ID_IMPORT_HLABEL_BUTT )
-                GetScreen()->SetCurItem(
-                    Import_PinSheet( (SCH_SHEET*) DrawStruct, DC ) );
+            if( GetToolId() == ID_IMPORT_HLABEL_BUTT )
+                GetScreen()->SetCurItem( ImportSheetPin( (SCH_SHEET*) item, aDC ) );
             else
-                GetScreen()->SetCurItem(
-                    Create_PinSheet( (SCH_SHEET*) DrawStruct, DC ) );
+                GetScreen()->SetCurItem( CreateSheetPin( (SCH_SHEET*) item, aDC ) );
         }
-        else if( (DrawStruct->Type() == DRAW_HIERARCHICAL_PIN_SHEET_STRUCT_TYPE)
-                && (DrawStruct->m_Flags != 0) )
+        else if( (item->Type() == SCH_SHEET_PIN_T) && (item->GetFlags() != 0) )
         {
-            DrawStruct->Place( this, DC );
-            TestDanglingEnds( GetScreen()->EEDrawList, NULL );
-            DrawPanel->Refresh( TRUE );
+            item->Place( this, aDC );
+            GetScreen()->TestDanglingEnds();
+            DrawPanel->Refresh( true );
         }
         break;
 
-    case ID_COMPONENT_BUTT:
-        if( (DrawStruct == NULL) || (DrawStruct->m_Flags == 0) )
+    case ID_SCH_PLACE_COMPONENT:
+        if( (item == NULL) || (item->GetFlags() == 0) )
         {
-            GetScreen()->SetCurItem( Load_Component( DC, wxEmptyString,
-                                                     s_CmpNameList, TRUE ) );
-            DrawPanel->m_AutoPAN_Request = TRUE;
+            GetScreen()->SetCurItem( Load_Component( aDC, wxEmptyString, s_CmpNameList, true ) );
+            DrawPanel->m_AutoPAN_Request = true;
         }
         else
         {
-            DrawStruct->Place( this, DC );
-            DrawPanel->m_AutoPAN_Request = FALSE;
-            TestDanglingEnds( GetScreen()->EEDrawList, NULL );
-            DrawPanel->Refresh( TRUE );
+            item->Place( this, aDC );
+            DrawPanel->m_AutoPAN_Request = false;
+            GetScreen()->TestDanglingEnds();
+            DrawPanel->Refresh( true );
         }
         break;
 
     case ID_PLACE_POWER_BUTT:
-        if( ( DrawStruct == NULL ) || ( DrawStruct->m_Flags == 0 ) )
+        if( ( item == NULL ) || ( item->GetFlags() == 0 ) )
         {
-            GetScreen()->SetCurItem(
-                Load_Component( DC, wxT( "power" ), s_PowerNameList, FALSE ) );
-            DrawPanel->m_AutoPAN_Request = TRUE;
+            GetScreen()->SetCurItem( Load_Component( aDC, wxT( "power" ),
+                                                     s_PowerNameList, false ) );
+            DrawPanel->m_AutoPAN_Request = true;
         }
         else
         {
-            DrawStruct->Place( this, DC );
-            DrawPanel->m_AutoPAN_Request = FALSE;
-            TestDanglingEnds( GetScreen()->EEDrawList, NULL );
-            DrawPanel->Refresh( TRUE );
+            item->Place( this, aDC );
+            DrawPanel->m_AutoPAN_Request = false;
+            GetScreen()->TestDanglingEnds();
+            DrawPanel->Refresh( true );
         }
         break;
 
     default:
-    {
-        SetToolID( 0, wxCURSOR_ARROW, wxEmptyString );
-        wxString msg( wxT( "WinEDA_SchematicFrame::OnLeftClick error state " ) );
-
-        msg << m_ID_current_state;
-        DisplayError( this, msg );
-        break;
-    }
+        SetToolID( ID_NO_TOOL_SELECTED, DrawPanel->GetDefaultCursor(), wxEmptyString );
+        wxFAIL_MSG( wxT( "SCH_EDIT_FRAME::OnLeftClick invalid tool ID <" ) +
+                    wxString::Format( wxT( "%d> selected." ), GetToolId() ) );
     }
 }
 
 
-/** Function OnLeftDClick
+/**
+ * Function OnLeftDClick
  * called on a double click event from the drawpanel mouse handler
  *  if an editable item is found (text, component)
  *      Call the suitable dialog editor.
  *  Id a create command is in progress:
  *      validate and finish the command
  */
-void WinEDA_SchematicFrame::OnLeftDClick( wxDC* DC, const wxPoint& MousePos )
+void SCH_EDIT_FRAME::OnLeftDClick( wxDC* aDC, const wxPoint& aPosition )
 
 {
-    EDA_BaseStruct* DrawStruct = GetScreen()->GetCurItem();
-    wxPoint         pos = GetPosition();
+    EDA_ITEM* item = GetScreen()->GetCurItem();
+    wxPoint   pos = aPosition;
 
-    switch( m_ID_current_state )
+    switch( GetToolId() )
     {
-    case 0:
-        if( ( DrawStruct == NULL ) || ( DrawStruct->m_Flags == 0 ) )
+    case ID_NO_TOOL_SELECTED:
+        if( ( item == NULL ) || ( item->GetFlags() == 0 ) )
         {
-            DrawStruct = SchematicGeneralLocateAndDisplay();
+            item = LocateAndShowItem( aPosition );
         }
 
-        if( ( DrawStruct == NULL ) || ( DrawStruct->m_Flags != 0 ) )
+        if( ( item == NULL ) || ( item->GetFlags() != 0 ) )
             break;
 
-        switch( DrawStruct->Type() )
+        switch( item->Type() )
         {
-        case DRAW_SHEET_STRUCT_TYPE:
-            InstallNextScreen( (SCH_SHEET*) DrawStruct );
+        case SCH_SHEET_T:
+            m_CurrentSheet->Push( (SCH_SHEET*) item );
+            DisplayCurrentSheet();
             break;
 
-        case TYPE_SCH_COMPONENT:
-            InstallCmpeditFrame( this, pos, (SCH_COMPONENT*) DrawStruct );
-            DrawPanel->MouseToCursorSchema();
+        case SCH_COMPONENT_T:
+            InstallCmpeditFrame( this, (SCH_COMPONENT*) item );
+            DrawPanel->MoveCursorToCrossHair();
             break;
 
-        case TYPE_SCH_TEXT:
-        case TYPE_SCH_LABEL:
-        case TYPE_SCH_GLOBALLABEL:
-        case TYPE_SCH_HIERLABEL:
-            EditSchematicText( (SCH_TEXT*) DrawStruct );
+        case SCH_TEXT_T:
+        case SCH_LABEL_T:
+        case SCH_GLOBAL_LABEL_T:
+        case SCH_HIERARCHICAL_LABEL_T:
+            EditSchematicText( (SCH_TEXT*) item );
             break;
 
-        case DRAW_PART_TEXT_STRUCT_TYPE:
-            EditCmpFieldText( (SCH_FIELD*) DrawStruct, DC );
-            DrawPanel->MouseToCursorSchema();
+        case SCH_FIELD_T:
+            EditComponentFieldText( (SCH_FIELD*) item, aDC );
+            DrawPanel->MoveCursorToCrossHair();
             break;
 
-        case TYPE_SCH_MARKER:
-            ( (SCH_MARKER*) DrawStruct )->DisplayMarkerInfo( this );
+        case SCH_MARKER_T:
+            ( (SCH_MARKER*) item )->DisplayMarkerInfo( this );
             break;
 
         default:
@@ -364,8 +362,9 @@ void WinEDA_SchematicFrame::OnLeftDClick( wxDC* DC, const wxPoint& MousePos )
     case ID_BUS_BUTT:
     case ID_WIRE_BUTT:
     case ID_LINE_COMMENT_BUTT:
-        if( DrawStruct && ( DrawStruct->m_Flags & IS_NEW ) )
-            EndSegment( DC );
+        if( item && item->IsNew() )
+            EndSegment( aDC );
+
         break;
     }
 }

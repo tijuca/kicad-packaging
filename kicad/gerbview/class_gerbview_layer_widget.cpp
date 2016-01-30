@@ -33,24 +33,61 @@
 #include "class_drawpanel.h"
 #include "pcbstruct.h"
 #include "gerbview.h"
-#include "wxGerberFrame.h"
+#include "class_GERBER.h"
 #include "layer_widget.h"
 #include "class_gerbview_layer_widget.h"
 
 
-/**
+/*
  * Class GERBER_LAYER_WIDGET
  * is here to implement the abtract functions of LAYER_WIDGET so they
- * may be tied into the WinEDA_GerberFrame's data and so we can add a popup
+ * may be tied into the GERBVIEW_FRAME's data and so we can add a popup
  * menu which is specific to PCBNEW's needs.
  */
 
 
-GERBER_LAYER_WIDGET::GERBER_LAYER_WIDGET( WinEDA_GerberFrame* aParent, wxWindow* aFocusOwner, int aPointSize ) :
+GERBER_LAYER_WIDGET::GERBER_LAYER_WIDGET( GERBVIEW_FRAME* aParent, wxWindow* aFocusOwner, int aPointSize ) :
     LAYER_WIDGET( aParent, aFocusOwner, aPointSize ),
     myframe( aParent )
 {
+    ReFillRender();
+
+    // Update default tabs labels for gerbview
+    SetLayersManagerTabsText( );
+
+    //-----<Popup menu>-------------------------------------------------
+    // handle the popup menu over the layer window.
+    m_LayerScrolledWindow->Connect( wxEVT_RIGHT_DOWN,
+        wxMouseEventHandler( GERBER_LAYER_WIDGET::onRightDownLayers ), NULL, this );
+
+    // since Popupmenu() calls this->ProcessEvent() we must call this->Connect()
+    // and not m_LayerScrolledWindow->Connect()
+    Connect( ID_SHOW_ALL_COPPERS, ID_SHOW_NO_COPPERS, wxEVT_COMMAND_MENU_SELECTED,
+        wxCommandEventHandler( GERBER_LAYER_WIDGET::onPopupSelection ), NULL, this );
+
+    // install the right click handler into each control at end of ReFill()
+    // using installRightLayerClickHandler
+}
+
+/**
+ * Function SetLayersManagerTabsText
+ * Update the layer manager tabs labels
+ * Useful when changing Language or to set labels to a non default value
+ */
+void GERBER_LAYER_WIDGET::SetLayersManagerTabsText( )
+{
+    m_notebook->SetPageText(0, _("Layer") );
+    m_notebook->SetPageText(1, _("Render") );
+}
+
+/**
+ * Function ReFillRender
+ * Rebuild Render for instance after the config is read
+ */
+void GERBER_LAYER_WIDGET::ReFillRender()
+{
     BOARD*  board = myframe->GetBoard();
+    ClearRenderRows();
 
     // Fixed "Rendering" tab rows within the LAYER_WIDGET, only the initial color
     // is changed before appending to the LAYER_WIDGET.  This is an automatic variable
@@ -76,34 +113,7 @@ GERBER_LAYER_WIDGET::GERBER_LAYER_WIDGET( WinEDA_GerberFrame* aParent, wxWindow*
     }
 
     AppendRenderRows( renderRows, DIM(renderRows) );
-
-    // Update default tabs labels for gerbview
-    SetLayersManagerTabsText( );
-
-    //-----<Popup menu>-------------------------------------------------
-    // handle the popup menu over the layer window.
-    m_LayerScrolledWindow->Connect( wxEVT_RIGHT_DOWN,
-        wxMouseEventHandler( GERBER_LAYER_WIDGET::onRightDownLayers ), NULL, this );
-
-    // since Popupmenu() calls this->ProcessEvent() we must call this->Connect()
-    // and not m_LayerScrolledWindow->Connect()
-    Connect( ID_SHOW_ALL_COPPERS, ID_SHOW_NO_COPPERS, wxEVT_COMMAND_MENU_SELECTED,
-        wxCommandEventHandler( GERBER_LAYER_WIDGET::onPopupSelection ), NULL, this );
-
-    // install the right click handler into each control at end of ReFill()
-    // using installRightLayerClickHandler
 }
-
-/** Function SetLayersManagerTabsText
- * Update the layer manager tabs labels
- * Useful when changing Language or to set labels to a non default value
- */
-void GERBER_LAYER_WIDGET::SetLayersManagerTabsText( )
-{
-    m_notebook->SetPageText(0, _("Layer") );
-    m_notebook->SetPageText(1, _("Render") );
-}
-
 
 void GERBER_LAYER_WIDGET::installRightLayerClickHandler()
 {
@@ -142,18 +152,13 @@ void GERBER_LAYER_WIDGET::onPopupSelection( wxCommandEvent& event )
 {
     int     rowCount;
     int     menuId = event.GetId();
-    bool    visible;
+    bool    visible = (menuId == ID_SHOW_ALL_COPPERS) ? true : false;;
     int     visibleLayers = 0;
 
     switch( menuId )
     {
     case ID_SHOW_ALL_COPPERS:
-        visible = true;
-        goto L_change_coppers;
-
     case ID_SHOW_NO_COPPERS:
-        visible = false;
-    L_change_coppers:
         rowCount = GetLayerRowCount();
         for( int row=0; row < rowCount; ++row )
         {
@@ -182,7 +187,8 @@ void GERBER_LAYER_WIDGET::ReFill()
     {
         wxString msg;
         msg.Printf( _("Layer %d"), layer+1 );
-        AppendLayerRow( LAYER_WIDGET::ROW( msg, layer, brd->GetLayerColor( layer ), wxEmptyString, true ) );
+        AppendLayerRow( LAYER_WIDGET::ROW( msg, layer,
+                        brd->GetLayerColor( layer ), wxEmptyString, true ) );
     }
 
     installRightLayerClickHandler();
@@ -193,6 +199,7 @@ void GERBER_LAYER_WIDGET::ReFill()
 void GERBER_LAYER_WIDGET::OnLayerColorChange( int aLayer, int aColor )
 {
     myframe->GetBoard()->SetLayerColor( aLayer, aColor );
+    myframe->m_SelLayerBox->ResyncBitmapOnly();
     myframe->DrawPanel->Refresh();
 }
 
@@ -200,9 +207,10 @@ bool GERBER_LAYER_WIDGET::OnLayerSelect( int aLayer )
 {
     // the layer change from the GERBER_LAYER_WIDGET can be denied by returning
     // false from this function.
+    int layer = myframe->getActiveLayer( );
     myframe->setActiveLayer( aLayer, false );
     myframe->syncLayerBox();
-    if(DisplayOpt.ContrastModeDisplay)
+    if( layer != myframe->getActiveLayer( ) )
         myframe->DrawPanel->Refresh();
 
     return true;
@@ -211,7 +219,6 @@ bool GERBER_LAYER_WIDGET::OnLayerSelect( int aLayer )
 void GERBER_LAYER_WIDGET::OnLayerVisible( int aLayer, bool isVisible, bool isFinal )
 {
     BOARD* brd = myframe->GetBoard();
-
     int visibleLayers = brd->GetVisibleLayers();
 
     if( isVisible )
@@ -241,4 +248,37 @@ void GERBER_LAYER_WIDGET::OnRenderEnable( int aId, bool isEnabled )
 
 //-----</LAYER_WIDGET callbacks>------------------------------------------
 
+/*
+ * Virtual Function useAlternateBitmap
+ * return true if bitmaps shown in Render layer list
+ * must be alternate bitmaps, or false to use "normal" bitmaps
+ */
+bool GERBER_LAYER_WIDGET::useAlternateBitmap(int aRow)
+{
+    bool inUse = false;
+    GERBER_IMAGE* gerber = g_GERBER_List[aRow];
+    if( gerber != NULL && gerber->m_InUse )
+        inUse = true;
+    return inUse;
+}
 
+/**
+ * Function UpdateLayerIcons
+ * Update the layer manager icons (layers only)
+ * Useful when loading a file or clearing a layer because they change
+ */
+void GERBER_LAYER_WIDGET::UpdateLayerIcons()
+{
+    int row_count = GetLayerRowCount();
+    for( int row = 0; row < row_count ; row++ )
+    {
+        wxStaticBitmap* bm = (wxStaticBitmap*) getLayerComp( row, 0 );
+        if( bm == NULL)
+            continue;
+
+        if( row == m_CurrentRow )
+            bm->SetBitmap( useAlternateBitmap(row) ? *m_RightArrowAlternateBitmap : *m_RightArrowBitmap );
+        else
+            bm->SetBitmap( useAlternateBitmap(row) ? *m_BlankAlternateBitmap : *m_BlankBitmap );
+    }
+}

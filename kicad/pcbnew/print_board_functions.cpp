@@ -8,6 +8,7 @@
 #include "class_drawpanel.h"
 #include "pcbnew.h"
 #include "wxPcbStruct.h"
+#include "module_editor_frame.h"
 #include "class_board_design_settings.h"
 #include "pcbplot.h"
 #include "printout_controler.h"
@@ -15,21 +16,20 @@
 #include "protos.h"
 
 
-static void Print_Module( WinEDA_DrawPanel* aPanel, wxDC* aDC, MODULE* aModule,
+static void Print_Module( EDA_DRAW_PANEL* aPanel, wxDC* aDC, MODULE* aModule,
                           int aDraw_mode, int aMasklayer,
                           PRINT_PARAMETERS::DrillShapeOptT aDrillShapeOpt );
 
-/** Function WinEDA_ModuleEditFrame::PrintPage
+/**
+ * Function PrintPage
  * Used to print the board (on printer, or when creating SVF files).
  * Print the board, but only layers allowed by aPrintMaskLayer
  * @param aDC = the print device context
- * @param aPrint_Sheet_Ref = true to print frame references
- * @param aPrint_Sheet_Ref = a 32 bits mask: bit n = 1 -> layer n is printed
+ * @param aPrintMaskLayer = a 32 bits mask: bit n = 1 -> layer n is printed
  * @param aPrintMirrorMode = true to plot mirrored
  * @param aData = a pointer to an optional data (NULL if not used)
  */
 void WinEDA_ModuleEditFrame::PrintPage( wxDC* aDC,
-                                  bool  aPrint_Sheet_Ref,
                                   int   aPrintMaskLayer,
                                   bool  aPrintMirrorMode,
                                   void * aData)
@@ -79,14 +79,20 @@ void WinEDA_ModuleEditFrame::PrintPage( wxDC* aDC,
     Module = (MODULE*) Pcb->m_Modules;
     int tmp = D_PAD::m_PadSketchModePenSize;
     D_PAD::m_PadSketchModePenSize = defaultPenSize;
+    wxPoint offset;
+    offset.x = GetScreen()->m_CurrentSheetDesc->m_Size.x / 2;
+    offset.y = GetScreen()->m_CurrentSheetDesc->m_Size.y / 2;
+    // offset is in mils, converts in internal units
+    offset.x *= m_InternalUnits / 1000;
+    offset.y *= m_InternalUnits / 1000;
+
     for( ; Module != NULL; Module = Module->Next() )
     {
+        Module->Move( offset );
         Print_Module( DrawPanel, aDC, Module, drawmode, aPrintMaskLayer, drillShapeOpt );
+        Module->Move( -offset );
     }
     D_PAD::m_PadSketchModePenSize = tmp;
-
-    if( aPrint_Sheet_Ref )
-        TraceWorkSheet( aDC, GetScreen(), defaultPenSize );
 
     DrawPanel->m_PrintIsMirrored = false;
 
@@ -99,20 +105,19 @@ void WinEDA_ModuleEditFrame::PrintPage( wxDC* aDC,
 }
 
 
-/** WinEDA_PcbFrame::Function PrintPage
- * Used to print the board (on printer, or when creating SVF files).
+/**
+ * Function PrintPage
+ * is used to print the board (on printer, or when creating SVF files).
  * Print the board, but only layers allowed by aPrintMaskLayer
  * @param aDC = the print device context
- * @param aPrint_Sheet_Ref = true to print frame references
- * @param aPrint_Sheet_Ref = a 32 bits mask: bit n = 1 -> layer n is printed
+ * @param aPrintMaskLayer = a 32 bits mask: bit n = 1 -> layer n is printed
  * @param aPrintMirrorMode = true to plot mirrored
  * @param aData = a pointer to an optional data (NULL if not used)
  */
-void WinEDA_PcbFrame::PrintPage( wxDC* aDC,
-                                  bool  aPrint_Sheet_Ref,
-                                  int   aPrintMaskLayer,
-                                  bool  aPrintMirrorMode,
-                                  void * aData)
+void PCB_EDIT_FRAME::PrintPage( wxDC* aDC,
+                                int   aPrintMaskLayer,
+                                bool  aPrintMirrorMode,
+                                void* aData)
 {
     MODULE* Module;
     int drawmode = GR_COPY;
@@ -179,8 +184,8 @@ void WinEDA_PcbFrame::PrintPage( wxDC* aDC,
     bool nctmp = GetBoard()->IsElementVisible(NO_CONNECTS_VISIBLE);
     GetBoard()->SetElementVisibility(NO_CONNECTS_VISIBLE, false);
     DisplayOpt.DisplayPadIsol    = false;
-    DisplayOpt.DisplayModEdge    = FILLED;
-    DisplayOpt.DisplayModText    = FILLED;
+    m_DisplayModEdge = DisplayOpt.DisplayModEdge    = FILLED;
+    m_DisplayModText = DisplayOpt.DisplayModText    = FILLED;
     m_DisplayPcbTrackFill = DisplayOpt.DisplayPcbTrackFill = FILLED;
     DisplayOpt.ShowTrackClearanceMode = DO_NOT_SHOW_CLEARANCE;
     DisplayOpt.DisplayDrawItems    = FILLED;
@@ -298,9 +303,6 @@ void WinEDA_PcbFrame::PrintPage( wxDC* aDC,
         GRForceBlackPen( blackpenstate );
     }
 
-    if( aPrint_Sheet_Ref )
-        TraceWorkSheet( aDC, GetScreen(), defaultPenSize );
-
     DrawPanel->m_PrintIsMirrored = false;
 
     DisplayOpt = save_opt;
@@ -309,18 +311,20 @@ void WinEDA_PcbFrame::PrintPage( wxDC* aDC,
     m_DisplayPadFill = DisplayOpt.DisplayPadFill;
     m_DisplayViaFill = DisplayOpt.DisplayViaFill;
     m_DisplayPadNum  = DisplayOpt.DisplayPadNum;
+    m_DisplayModEdge = DisplayOpt.DisplayModEdge;
+    m_DisplayModText = DisplayOpt.DisplayModText;
     GetBoard()->SetElementVisibility(NO_CONNECTS_VISIBLE, nctmp);
 }
 
 
-static void Print_Module( WinEDA_DrawPanel* aPanel, wxDC* aDC, MODULE* aModule,
+static void Print_Module( EDA_DRAW_PANEL* aPanel, wxDC* aDC, MODULE* aModule,
                           int aDraw_mode, int aMasklayer,
                           PRINT_PARAMETERS::DrillShapeOptT aDrillShapeOpt )
 {
-    D_PAD*          pt_pad;
-    EDA_BaseStruct* PtStruct;
-    TEXTE_MODULE*   TextMod;
-    int             mlayer;
+    D_PAD*        pt_pad;
+    EDA_ITEM*     PtStruct;
+    TEXTE_MODULE* TextMod;
+    int           mlayer;
 
     /* Print pads */
     pt_pad = aModule->m_Pads;

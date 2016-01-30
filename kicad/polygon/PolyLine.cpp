@@ -11,6 +11,7 @@
 #include "PolyLine.h"
 #include "gr_basic.h"
 #include "bezier_curves.h"
+#include "polygon_test_point_inside.h"
 
 using namespace std;
 
@@ -36,14 +37,15 @@ CPolyLine::~CPolyLine()
 }
 
 
-/** Function NormalizeWithKbool
+/**
+ * Function NormalizeWithKbool
  * Use the Kbool Library to clip contours: if outlines are crossing, the self-crossing polygon
  * is converted to non self-crossing polygon by adding extra points at the crossing locations
  * and reordering corners
  * if more than one outside contour are found, extra CPolyLines will be created
  * because copper areas have only one outside contour
  * Therefore, if this results in new CPolyLines, return them as std::vector pa
- * @param aExtraPolys: pointer on a std::vector<CPolyLine*> to store extra CPolyLines
+ * @param aExtraPolyList: pointer on a std::vector<CPolyLine*> to store extra CPolyLines
  * @param bRetainArcs == TRUE, try to retain arcs in polys
  * @return number of external contours, or -1 if error
  */
@@ -153,7 +155,7 @@ int CPolyLine::NormalizeWithKbool( std::vector<CPolyLine*> * aExtraPolyList, boo
         {
             // find the polygon that contains this hole
             // testing one corner inside is enought because a hole is entirely inside the polygon
-            // sowe test only the first corner
+            // so we test only the first corner
             int x = (*hole)[0];
             int y = (*hole)[1];
             if( TestPointInside( x, y ) )
@@ -200,7 +202,8 @@ int CPolyLine::NormalizeWithKbool( std::vector<CPolyLine*> * aExtraPolyList, boo
 }
 
 
-/** Function AddPolygonsToBoolEng
+/**
+ * Function AddPolygonsToBoolEng
  * Add a CPolyLine to a kbool engine, preparing a boolean op between polygons
  * @param aStart_contour: starting contour number (-1 = all, 0 is the outlines of zone, > 1 = holes in zone
  * @param aEnd_contour: ending contour number (-1 = all after  aStart_contour)
@@ -247,7 +250,8 @@ int CPolyLine::AddPolygonsToBoolEng( Bool_Engine*        aBooleng,
 }
 
 
-/** Function MakeKboolPoly
+/**
+ * Function MakeKboolPoly
  * fill a kbool engine with a closed polyline contour
  * approximates arcs with multiple straight-line segments
  * @param aStart_contour: starting contour number (-1 = all, 0 is the outlines of zone, > 1 = holes in zone
@@ -514,7 +518,8 @@ int CPolyLine::MakeKboolPoly( int aStart_contour, int aEnd_contour, std::vector<
 }
 
 
-/** Function ArmBoolEng
+/**
+ * Function ArmBoolEng
  * Initialise parameters used in kbool
  * @param aBooleng = pointer to the Bool_Engine to initialise
  * @param aConvertHoles = mode for holes when a boolean operation is made
@@ -565,17 +570,17 @@ void ArmBoolEng( Bool_Engine* aBooleng, bool aConvertHoles )
 
 
    /*
-		Grid makes sure that the integer data used within the algorithm has room for extra intersections
-		smaller than the smallest number within the input data.
-		The input data scaled up with DGrid is related to the accuracy the user has in his input data.
+        Grid makes sure that the integer data used within the algorithm has room for extra intersections
+        smaller than the smallest number within the input data.
+        The input data scaled up with DGrid is related to the accuracy the user has in his input data.
         Another scaling with Grid is applied on top of it to create space in the integer number for
-		even smaller numbers.
+        even smaller numbers.
    */
-    int GRID = (int) 10000/DGRID;       // initial value = 10000 in kbool example
-                                        // But we use 10000/DGRID because the scalling is made
-                                        // by DGRID on integer pcbnew units and
-                                        // the global scalling ( GRID*DGRID) must be < 30000 to avoid
-                                        // overflow in calculations (made in long long in kbool)
+    int GRID = (int) ( 10000.0 / DGRID );  // initial value = 10000 in kbool example but we use
+                                           // 10000/DGRID because the scaling is made by DGRID
+                                           // on integer pcbnew units and the global scaling
+                                           // ( GRID*DGRID) must be < 30000 to avoid overflow
+                                           // in calculations (made in long long in kbool)
     if ( GRID <= 1 )    // Cannot be null!
         GRID = 1;
 
@@ -902,6 +907,203 @@ void CPolyLine::RemoveContour( int icont )
 }
 
 
+CPolyLine* CPolyLine::Chamfer( unsigned int aDistance )
+{
+    CPolyLine* newPoly = new CPolyLine;
+
+    if( !aDistance )
+    {
+        newPoly->Copy( this );
+        return newPoly;
+    }
+
+    for( int contour = 0; contour < GetNumContours(); contour++ )
+    {
+        unsigned int startIndex = GetContourStart( contour );
+        unsigned int endIndex = GetContourEnd( contour );
+
+        for( unsigned int index = startIndex; index <= endIndex; index++ )
+        {
+            int x1, y1, nx, ny;
+            long long xa, ya, xb, yb;
+
+            x1 = corner[index].x;
+            y1 = corner[index].y;
+
+            if( index == startIndex )
+            {
+                xa = corner[endIndex].x - x1;
+                ya = corner[endIndex].y - y1;
+            }
+            else
+            {
+                xa = corner[index-1].x - x1;
+                ya = corner[index-1].y - y1;
+            }
+
+            if( index == endIndex )
+            {
+                xb = corner[startIndex].x - x1;
+                yb = corner[startIndex].y - y1;
+            }
+            else
+            {
+                xb = corner[index+1].x - x1;
+                yb = corner[index+1].y - y1;
+            }
+
+            unsigned int lena = (unsigned int)sqrt( (double)(xa*xa + ya*ya) );
+            unsigned int lenb = (unsigned int)sqrt( (double)(xb*xb + yb*yb) );
+            unsigned int distance = aDistance;
+
+            // Chamfer one half of an edge at most
+            if( 0.5*lena < distance )
+                distance = (unsigned int)(0.5*(double)lena);
+
+            if( 0.5*lenb < distance )
+                distance = (unsigned int)(0.5*(double)lenb);
+
+            nx = (int) ( (double) (distance*xa)/sqrt( (double) (xa*xa + ya*ya) ) );
+            ny = (int) ( (double) (distance*ya)/sqrt( (double) (xa*xa + ya*ya) ) );
+
+            if( index == startIndex )
+                newPoly->Start( GetLayer(), x1 + nx, y1 + ny, GetHatchStyle() );
+            else
+                newPoly->AppendCorner( x1 + nx, y1 + ny );
+
+            nx = (int) ( (double) (distance*xb)/sqrt( (double) (xb*xb + yb*yb) ) );
+            ny = (int) ( (double) (distance*yb)/sqrt( (double) (xb*xb + yb*yb) ) );
+            newPoly->AppendCorner( x1 + nx, y1 + ny );
+        }
+        newPoly->Close();
+    }
+
+    return newPoly;
+}
+
+
+CPolyLine* CPolyLine::Fillet( unsigned int aRadius, unsigned int aSegments )
+{
+    CPolyLine* newPoly = new CPolyLine;
+
+    if( !aRadius )
+    {
+        newPoly->Copy( this );
+        return newPoly;
+    }
+
+    for( int contour = 0; contour < GetNumContours(); contour++ )
+    {
+        unsigned int startIndex = GetContourStart( contour );
+        unsigned int endIndex = GetContourEnd( contour );
+
+        for( unsigned int index = startIndex; index <= endIndex; index++ )
+        {
+
+            int x1, y1; // Current vertex
+            long long xa, ya; // Previous vertex
+            long long xb, yb; // Next vertex
+            double nx, ny;
+
+            x1 = corner[index].x;
+            y1 = corner[index].y;
+
+            if( index == startIndex )
+            {
+                xa = corner[endIndex].x - x1;
+                ya = corner[endIndex].y - y1;
+            }
+            else
+            {
+                xa = corner[index-1].x - x1;
+                ya = corner[index-1].y - y1;
+            }
+
+            if( index == endIndex )
+            {
+                xb = corner[startIndex].x - x1;
+                yb = corner[startIndex].y - y1;
+            }
+            else
+            {
+                xb = corner[index+1].x - x1;
+                yb = corner[index+1].y - y1;
+            }
+
+            double lena = sqrt( (double) (xa*xa + ya*ya) );
+            double lenb = sqrt( (double) (xb*xb + yb*yb) );
+            double cosine = ( xa*xb + ya*yb )/( lena*lenb );
+
+            unsigned int radius = aRadius;
+            double denom = sqrt( 2.0/( 1+cosine )-1 );
+
+            // Limit rounding distance to one half of an edge
+            if( 0.5*lena*denom < radius )
+                radius = (unsigned int)(0.5*lena*denom);
+
+            if( 0.5*lenb*denom < radius )
+                radius = (unsigned int)(0.5*lenb*denom);
+
+            // Calculate fillet arc absolute center point (xc, yx)
+            double k = radius / sqrt( .5*( 1-cosine ) );
+            double lenab = sqrt( ( xa/lena + xb/lenb )*( xa/lena + xb/lenb ) +
+                                 ( ya/lena + yb/lenb )*( ya/lena + yb/lenb ) );
+            double xc = x1 + k*( xa/lena + xb/lenb )/lenab;
+            double yc = y1 + k*( ya/lena + yb/lenb )/lenab;
+
+            // Calculate arc start and end vectors
+            k = radius / sqrt( 2/( 1+cosine )-1 );
+            double xs = x1 + k*xa/lena - xc;
+            double ys = y1 + k*ya/lena - yc;
+            double xe = x1 + k*xb/lenb - xc;
+            double ye = y1 + k*yb/lenb - yc;
+
+            // Cosine of arc angle
+            double argument = ( xs*xe + ys*ye ) / ( radius*radius );
+
+            if( argument < -1 ) // Just in case...
+                argument = -1;
+            else if( argument > 1 )
+                argument = 1;
+
+            double arcAngle = acos( argument );
+
+            // Calculate the number of segments
+            double tempSegments = (double)aSegments * ( arcAngle / ( 2*M_PI ) );
+
+            if( tempSegments - (int)tempSegments > 0 )
+                tempSegments++;
+            unsigned int segments = (unsigned int) tempSegments;
+
+            double deltaAngle = arcAngle / segments;
+            double startAngle = atan2( -ys, xs );
+
+            // Flip arc for inner corners
+            if( xa*yb - ya*xb <= 0 )
+                deltaAngle *= -1;
+
+            nx = xc + xs + 0.5;
+            ny = yc + ys + 0.5;
+            if( index == startIndex )
+                newPoly->Start( GetLayer(), (int)nx, (int)ny, GetHatchStyle() );
+            else
+                newPoly->AppendCorner( (int)nx, (int)ny );
+
+            unsigned int nVertices = 0;
+            for( unsigned int j = 0; j < segments; j++ )
+            {
+                nx = xc + cos( startAngle + (j+1)*deltaAngle )*radius + 0.5;
+                ny = yc - sin( startAngle + (j+1)*deltaAngle )*radius + 0.5;
+                newPoly->AppendCorner( (int)nx, (int)ny );
+                nVertices++;
+            }
+        }
+        newPoly->Close();
+    }
+    return newPoly;
+}
+
+
 /******************************************/
 void CPolyLine::RemoveAllContours( void )
 /******************************************/
@@ -917,7 +1119,8 @@ void CPolyLine::RemoveAllContours( void )
 }
 
 
-/** Function InsertCorner
+/**
+ * Function InsertCorner
  * insert a new corner between two existing corners
  * @param ic = index for the insertion point: the corner is inserted AFTER ic
  * @param x, y = coordinates corner to insert
@@ -1190,169 +1393,167 @@ void CPolyLine::Hatch()
 
     int layer = GetLayer();
 
-    if( GetClosed() )   // If not closed, the poly is beeing created and not finalised. Not not hatch
+    if( !GetClosed() )   // If not closed, the poly is beeing created and not finalised. Not not hatch
+        return;
+
+    enum {
+        MAXPTS = 100
+    };
+    int    xx[MAXPTS], yy[MAXPTS];
+
+    // define range for hatch lines
+    int    min_x = corner[0].x;
+    int    max_x = corner[0].x;
+    int    min_y = corner[0].y;
+    int    max_y = corner[0].y;
+    for( unsigned ic = 1; ic < corner.size(); ic++ )
     {
-        enum {
-            MAXPTS = 100,
-        };
-        int    xx[MAXPTS], yy[MAXPTS];
+        if( corner[ic].x < min_x )
+            min_x = corner[ic].x;
+        if( corner[ic].x > max_x )
+            max_x = corner[ic].x;
+        if( corner[ic].y < min_y )
+            min_y = corner[ic].y;
+        if( corner[ic].y > max_y )
+            max_y = corner[ic].y;
+    }
 
-        // define range for hatch lines
-        int    min_x = corner[0].x;
-        int    max_x = corner[0].x;
-        int    min_y = corner[0].y;
-        int    max_y = corner[0].y;
-        for( unsigned ic = 1; ic < corner.size(); ic++ )
+    int    slope_flag = (layer & 1) ? 1 : -1; // 1 or -1
+    double slope = 0.707106 * slope_flag;
+    int    spacing;
+    if( m_HatchStyle == DIAGONAL_EDGE )
+        spacing = 10 * PCBU_PER_MIL;
+    else
+        spacing = 50 * PCBU_PER_MIL;
+    int max_a, min_a;
+    if( slope_flag == 1 )
+    {
+        max_a = (int) (max_y - slope * min_x);
+        min_a = (int) (min_y - slope * max_x);
+    }
+    else
+    {
+        max_a = (int) (max_y - slope * max_x);
+        min_a = (int) (min_y - slope * min_x);
+    }
+    min_a = (min_a / spacing) * spacing;
+
+    // calculate an offset depending on layer number, for a better display of hatches on a multilayer board
+    int offset = (layer * 7) / 8;
+    min_a += offset;
+
+    // now calculate and draw hatch lines
+    int nc = corner.size();
+
+    // loop through hatch lines
+    for( int a = min_a; a<max_a; a += spacing )
+    {
+        // get intersection points for this hatch line
+        int nloops = 0;
+        int npts;
+
+        // make this a loop in case my homebrew hatching algorithm screws up
+        do
         {
-            if( corner[ic].x < min_x )
-                min_x = corner[ic].x;
-            if( corner[ic].x > max_x )
-                max_x = corner[ic].x;
-            if( corner[ic].y < min_y )
-                min_y = corner[ic].y;
-            if( corner[ic].y > max_y )
-                max_y = corner[ic].y;
-        }
-
-        int    slope_flag = (layer & 1) ? 1 : -1; // 1 or -1
-        double slope = 0.707106 * slope_flag;
-        int    spacing;
-        if( m_HatchStyle == DIAGONAL_EDGE )
-            spacing = 10 * PCBU_PER_MIL;
-        else
-            spacing = 50 * PCBU_PER_MIL;
-        int max_a, min_a;
-        if( slope_flag == 1 )
-        {
-            max_a = (int) (max_y - slope * min_x);
-            min_a = (int) (min_y - slope * max_x);
-        }
-        else
-        {
-            max_a = (int) (max_y - slope * max_x);
-            min_a = (int) (min_y - slope * min_x);
-        }
-        min_a = (min_a / spacing) * spacing;
-
-        // calculate an offset depending on layer number, for a better display of hatches on a multilayer board
-        int offset = (layer * 7) / 8;
-        min_a += offset;
-
-        // now calculate and draw hatch lines
-        int nc = corner.size();
-
-        // loop through hatch lines
-        for( int a = min_a; a<max_a; a += spacing )
-        {
-            // get intersection points for this hatch line
-            int nloops = 0;
-            int npts;
-
-            // make this a loop in case my homebrew hatching algorithm screws up
-            do
+            npts = 0;
+            int i_start_contour = 0;
+            for( int ic = 0; ic<nc; ic++ )
             {
-                npts = 0;
-                int i_start_contour = 0;
-                for( int ic = 0; ic<nc; ic++ )
+                double x, y, x2, y2;
+                int    ok;
+                if( corner[ic].end_contour || ( ic == (int) (corner.size() - 1) ) )
                 {
-                    double x, y, x2, y2;
-                    int    ok;
-                    if( corner[ic].end_contour || ( ic == (int) (corner.size() - 1) ) )
-                    {
-                        ok = FindLineSegmentIntersection( a, slope,
-                            corner[ic].x, corner[ic].y,
-                            corner[i_start_contour].x,
-                            corner[i_start_contour].y,
-                            side_style[ic],
-                            &x, &y, &x2, &y2 );
-                        i_start_contour = ic + 1;
-                    }
-                    else
-                    {
-                        ok = FindLineSegmentIntersection( a, slope,
-                            corner[ic].x, corner[ic].y,
-                            corner[ic + 1].x, corner[ic + 1].y,
-                            side_style[ic],
-                            &x, &y, &x2, &y2 );
-                    }
-                    if( ok )
-                    {
-                        xx[npts] = (int) x;
-                        yy[npts] = (int) y;
-                        npts++;
-                        wxASSERT( npts<MAXPTS );    // overflow
-                    }
-                    if( ok == 2 )
-                    {
-                        xx[npts] = (int) x2;
-                        yy[npts] = (int) y2;
-                        npts++;
-                        wxASSERT( npts<MAXPTS );    // overflow
-                    }
-                }
-
-                nloops++;
-                a += PCBU_PER_MIL / 100;
-            } while( npts % 2 != 0 && nloops < 3 );
-
-/*  DICK 1/22/08: this was firing repeatedly on me, needed to comment out to get
- * my work done:
- *         wxASSERT( npts%2==0 );	// odd number of intersection points, error
- */
-
-            // sort points in order of descending x (if more than 2)
-            if( npts>2 )
-            {
-                for( int istart = 0; istart<(npts - 1); istart++ )
-                {
-                    int max_x = INT_MIN;
-                    int imax  = INT_MIN;
-                    for( int i = istart; i<npts; i++ )
-                    {
-                        if( xx[i] > max_x )
-                        {
-                            max_x = xx[i];
-                            imax  = i;
-                        }
-                    }
-
-                    int temp = xx[istart];
-                    xx[istart] = xx[imax];
-                    xx[imax]   = temp;
-                    temp = yy[istart];
-                    yy[istart] = yy[imax];
-                    yy[imax]   = temp;
-                }
-            }
-
-            // draw lines
-            for( int ip = 0; ip<npts; ip += 2 )
-            {
-                double dx = xx[ip + 1] - xx[ip];
-                if( m_HatchStyle == DIAGONAL_FULL || fabs( dx ) < 40 * NM_PER_MIL )
-                {
-                    m_HatchLines.push_back( CSegment( xx[ip], yy[ip], xx[ip + 1], yy[ip + 1] ) );
+                    ok = FindLineSegmentIntersection( a, slope,
+                        corner[ic].x, corner[ic].y,
+                        corner[i_start_contour].x,
+                        corner[i_start_contour].y,
+                        side_style[ic],
+                        &x, &y, &x2, &y2 );
+                    i_start_contour = ic + 1;
                 }
                 else
                 {
-                    double dy    = yy[ip + 1] - yy[ip];
-                    double slope = dy / dx;
-                    if( dx > 0 )
-                        dx = 20 * NM_PER_MIL;
-                    else
-                        dx = -20 * NM_PER_MIL;
-                    double x1 = xx[ip] + dx;
-                    double x2 = xx[ip + 1] - dx;
-                    double y1 = yy[ip] + dx * slope;
-                    double y2 = yy[ip + 1] - dx * slope;
-                    m_HatchLines.push_back( CSegment( xx[ip], yy[ip], to_int( x1 ), to_int( y1 ) ) );
-                    m_HatchLines.push_back( CSegment( xx[ip + 1], yy[ip + 1], to_int( x2 ),
-                            to_int( y2 ) ) );
+                    ok = FindLineSegmentIntersection( a, slope,
+                        corner[ic].x, corner[ic].y,
+                        corner[ic + 1].x, corner[ic + 1].y,
+                        side_style[ic],
+                        &x, &y, &x2, &y2 );
                 }
+                if( ok )
+                {
+                    xx[npts] = (int) x;
+                    yy[npts] = (int) y;
+                    npts++;
+                    wxASSERT( npts<MAXPTS );    // overflow
+                }
+                if( ok == 2 )
+                {
+                    xx[npts] = (int) x2;
+                    yy[npts] = (int) y2;
+                    npts++;
+                    wxASSERT( npts<MAXPTS );    // overflow
+                }
+            }
+
+            nloops++;
+            a += PCBU_PER_MIL / 100;
+        } while( npts % 2 != 0 && nloops < 3 );
+
+/*  DICK 1/22/08: this was firing repeatedly on me, needed to comment out to get
+* my work done:
+*         wxASSERT( npts%2==0 );	// odd number of intersection points, error
+*/
+
+        // sort points in order of descending x (if more than 2)
+        if( npts>2 )
+        {
+            for( int istart = 0; istart<(npts - 1); istart++ )
+            {
+                int max_x = INT_MIN;
+                int imax  = INT_MIN;
+                for( int i = istart; i<npts; i++ )
+                {
+                    if( xx[i] > max_x )
+                    {
+                        max_x = xx[i];
+                        imax  = i;
+                    }
+                }
+
+                int temp = xx[istart];
+                xx[istart] = xx[imax];
+                xx[imax]   = temp;
+                temp = yy[istart];
+                yy[istart] = yy[imax];
+                yy[imax]   = temp;
             }
         }
 
-        // end for
+        // draw lines
+        for( int ip = 0; ip<npts; ip += 2 )
+        {
+            double dx = xx[ip + 1] - xx[ip];
+            if( m_HatchStyle == DIAGONAL_FULL || fabs( dx ) < 40 * NM_PER_MIL )
+            {
+                m_HatchLines.push_back( CSegment( xx[ip], yy[ip], xx[ip + 1], yy[ip + 1] ) );
+            }
+            else
+            {
+                double dy    = yy[ip + 1] - yy[ip];
+                double slope = dy / dx;
+                if( dx > 0 )
+                    dx = 20 * NM_PER_MIL;
+                else
+                    dx = -20 * NM_PER_MIL;
+                double x1 = xx[ip] + dx;
+                double x2 = xx[ip + 1] - dx;
+                double y1 = yy[ip] + dx * slope;
+                double y2 = yy[ip + 1] - dx * slope;
+                m_HatchLines.push_back( CSegment( xx[ip], yy[ip], to_int( x1 ), to_int( y1 ) ) );
+                m_HatchLines.push_back( CSegment( xx[ip + 1], yy[ip + 1], to_int( x2 ),
+                        to_int( y2 ) ) );
+            }
+        }
     }
 }
 
@@ -1366,149 +1567,24 @@ bool CPolyLine::TestPointInside( int px, int py )
         wxASSERT( 0 );
     }
 
-    // define line passing through (x,y), with slope = 2/3;
-    // get intersection points
-    int    xx, yy;
-    double slope = (double) 2.0 / 3.0;
-    double a      = py - slope * px;
-    int    nloops = 0;
-    int    npts;
-    bool   inside = false;
-
-    // make this a loop so if my homebrew algorithm screws up, we try it again
-    do
+    // Test all polygons.
+    // Since the first is the main outline, and other are hole,
+    // if the tested point is inside only one contour, it is inside the whole polygon
+    // (in fact inside the main outline, and outside all holes).
+    // if inside 2 contours (the main outline + an hole), it is outside the poly.
+    int polycount = GetNumContours();
+    bool inside = false;
+    for( int icont = 0; icont < polycount; icont++ )
     {
-        // now find all intersection points of line with polyline sides
-        npts   = 0;
-        inside = false;
-        for( int icont = 0; icont<GetNumContours(); icont++ )
-        {
-            int istart = GetContourStart( icont );
-            int iend   = GetContourEnd( icont );
-            for( int ic = istart; ic<=iend; ic++ )
-            {
-                double x, y, x2, y2;
-                int    ok;
-                if( ic == istart )
-                    ok = FindLineSegmentIntersection( a, slope,
-                        corner[iend].x, corner[iend].y,
-                        corner[istart].x, corner[istart].y,
-                        side_style[iend],
-                        &x, &y, &x2, &y2 );
-                else
-                    ok = FindLineSegmentIntersection( a, slope,
-                        corner[ic - 1].x, corner[ic - 1].y,
-                        corner[ic].x, corner[ic].y,
-                        side_style[ic - 1],
-                        &x, &y, &x2, &y2 );
-                if( ok )
-                {
-                    xx = (int) x;
-                    yy = (int) y;
-                    if( xx == px && yy == py )
-                        return FALSE; // (x,y) is on a side, call it outside
-                    else if( xx > px )
-                        inside = not inside;
-                    npts++;
-                }
-                if( ok == 2 )
-                {
-                    xx = (int) x2;
-                    yy = (int) y2;
-                    if( xx == px && yy == py )
-                        return FALSE; // (x,y) is on a side, call it outside
-                    else if( xx > px )
-                        inside = not inside;
-                    npts++;
-                }
-            }
-        }
-
-        nloops++;
-        a += PCBU_PER_MIL / 100;
-    } while( npts % 2 != 0 && nloops < 3 );
-
-    wxASSERT( npts % 2==0 );  // odd number of intersection points, error
-
-    return inside;
-}
-
-
-// test to see if a point is inside polyline contour
-//
-bool CPolyLine::TestPointInsideContour( int icont, int px, int py )
-{
-    if( icont >= GetNumContours() )
-        return FALSE;
-    if( !GetClosed() )
-    {
-        wxASSERT( 0 );
-    }
-
-// define line passing through (x,y), with slope = 2/3;
-// get intersection points
-    int    xx, yy;
-    double slope = (double) 2.0 / 3.0;
-    double a      = py - slope * px;
-    int    nloops = 0;
-    int    npts;
-    bool   inside = false;
-
-// make this a loop so if my homebrew algorithm screws up, we try it again
-    do
-    {
-        // now find all intersection points of line with polyline sides
-        npts   = 0;
-        inside = false;
         int istart = GetContourStart( icont );
         int iend   = GetContourEnd( icont );
-        for( int ic = istart; ic<=iend; ic++ )
-        {
-            double x, y, x2, y2;
-            int    ok;
-            if( ic == istart )
-                ok = FindLineSegmentIntersection( a, slope,
-                    corner[iend].x, corner[iend].y,
-                    corner[istart].x, corner[istart].y,
-                    side_style[iend],
-                    &x, &y, &x2, &y2 );
-            else
-                ok = FindLineSegmentIntersection( a, slope,
-                    corner[ic - 1].x, corner[ic - 1].y,
-                    corner[ic].x, corner[ic].y,
-                    side_style[ic - 1],
-                    &x, &y, &x2, &y2 );
-            if( ok )
-            {
-                xx = (int) x;
-                yy = (int) y;
-                npts++;
-                if( xx == px && yy == py )
-                    return FALSE; // (x,y) is on a side, call it outside
-                else if( xx > px )
-                    inside = not inside;
-            }
-            if( ok == 2 )
-            {
-                xx = (int) x2;
-                yy = (int) y2;
-                npts++;
-                if( xx == px && yy == py )
-                    return FALSE; // (x,y) is on a side, call it outside
-                else if( xx > px )
-                    inside = not inside;
-            }
-        }
-
-        nloops++;
-        a += PCBU_PER_MIL / 100;
-    } while( npts % 2 != 0 && nloops < 3 );
-
-    wxASSERT( npts % 2==0 );  // odd number of intersection points, error
+        // Test this polygon:
+        if( TestPointInsidePolygon( corner, istart, iend, px, py) )   // test point inside the current polygon
+            inside = not inside;
+    }
 
     return inside;
 }
-
 
 // copy data from another poly, but don't draw it
 //

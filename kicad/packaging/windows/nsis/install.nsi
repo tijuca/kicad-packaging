@@ -17,7 +17,7 @@
 
 ; General Product Description Definitions
 !define PRODUCT_NAME "KiCad"
-!define PRODUCT_VERSION "2010.05.05"
+!define PRODUCT_VERSION "2011.05.06"
 !define PRODUCT_WEB_SITE "http://iut-tice.ujf-grenoble.fr/kicad/"
 !define SOURCEFORGE_WEB_SITE "http://kicad.sourceforge.net/"
 !define COMPANY_NAME ""
@@ -78,11 +78,15 @@ ShowUnInstDetails hide
 !insertmacro MUI_LANGUAGE "French"
 !insertmacro MUI_LANGUAGE "Polish"
 !insertmacro MUI_LANGUAGE "Dutch"
+!insertmacro MUI_LANGUAGE "Russian"
+!insertmacro MUI_LANGUAGE "Japanese"
 
 !include "English.nsh"
 !include "French.nsh"
 !include "Polish.nsh"
 !include "Dutch.nsh"
+!include "Russian.nsh"
+!include "Japanese.nsh"
 
 ; MUI end ------
 

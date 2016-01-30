@@ -7,105 +7,73 @@
 #include "common.h"
 #include "class_drawpanel.h"
 #include "confirm.h"
+#include "wxEeschemaStruct.h"
+#include "class_sch_screen.h"
 
-#include "program.h"
-#include "classes_body_items.h"
-#include "class_pin.h"
+#include "lib_draw_item.h"
+#include "lib_pin.h"
 #include "general.h"
 #include "protos.h"
+#include "sch_bus_entry.h"
+#include "sch_junction.h"
+#include "sch_line.h"
+#include "sch_no_connect.h"
+#include "sch_polyline.h"
+#include "sch_text.h"
+#include "sch_component.h"
+#include "sch_sheet.h"
 
 
-/* Routines Locales */
-static void Show_Polyline_in_Ghost( WinEDA_DrawPanel* panel,
-                                    wxDC*             DC,
-                                    bool              erase );
-static void Segment_in_Ghost( WinEDA_DrawPanel* panel, wxDC* DC, bool erase );
-static void AbortCreateNewLine( WinEDA_DrawPanel* Panel, wxDC* DC );
-static bool IsTerminalPoint( SCH_SCREEN* screen, const wxPoint& pos, int layer );
-static bool IsJunctionNeeded( WinEDA_SchematicFrame* frame, wxPoint& pos );
+static void AbortCreateNewLine( EDA_DRAW_PANEL* Panel, wxDC* DC );
 static void ComputeBreakPoint( SCH_LINE* segment, const wxPoint& new_pos );
 
 SCH_ITEM* s_OldWiresList;
 wxPoint   s_ConnexionStartPoint;
 
 
-/* Extract the old wires, junctions and buses, an if CreateCopy replace them
- * by a copy.  Old ones must be put in undo list, and the new ones can be
- * modified by clean up safely.
- * If an abort command is made, old wires must be put in EEDrawList, and
- * copies must be deleted.  This is because previously stored undo commands
- * can handle pointers on wires or bus, and we do not delete wires or bus,
- * we must put they in undo list.
- *
- * Because cleanup delete and/or modify bus and wires, the more easy is to put
- * all wires in undo list and use a new copy of wires for cleanup.
+/**
+ * Mouse capture callback for drawing line segments.
  */
-SCH_ITEM* SCH_SCREEN::ExtractWires( bool CreateCopy )
+static void DrawSegment( EDA_DRAW_PANEL* aPanel, wxDC* aDC, const wxPoint& aPosition,
+                         bool aErase )
 {
-    SCH_ITEM* item, * next_item, * new_item, * List = NULL;
+    SCH_LINE* CurrentLine = (SCH_LINE*) aPanel->GetScreen()->GetCurItem();
+    SCH_LINE* segment;
+    int color;
 
-    for( item = EEDrawList; item != NULL; item = next_item )
+    if( CurrentLine == NULL )
+        return;
+
+    color = ReturnLayerColor( CurrentLine->GetLayer() ) ^ HIGHLIGHT_FLAG;
+
+    if( aErase )
     {
-        next_item = item->Next();
+        segment = CurrentLine;
 
-        switch( item->Type() )
+        while( segment )
         {
-        case DRAW_JUNCTION_STRUCT_TYPE:
-        case DRAW_SEGMENT_STRUCT_TYPE:
-            RemoveFromDrawList( item );
-            item->SetNext( List );
-            List = item;
-            if( CreateCopy )
-            {
-                if( item->Type() == DRAW_JUNCTION_STRUCT_TYPE )
-                    new_item = ( (SCH_JUNCTION*) item )->GenCopy();
-                else
-                    new_item = ( (SCH_LINE*) item )->GenCopy();
-                new_item->SetNext( EEDrawList );
-                EEDrawList = new_item;
-            }
-            break;
+            if( !segment->IsNull() )  // Redraw if segment length != 0
+                segment->Draw( aPanel, aDC, wxPoint( 0, 0 ), g_XorMode, color );
 
-        default:
-            break;
+            segment = segment->Next();
         }
     }
 
-    return List;
-}
+    wxPoint endpos = aPanel->GetScreen()->GetCrossHairPosition();
 
+    if( g_HVLines ) /* Coerce the line to vertical or horizontal one: */
+        ComputeBreakPoint( CurrentLine, endpos );
+    else
+        CurrentLine->m_End = endpos;
 
-/* Replace the wires in screen->EEDrawList by s_OldWiresList wires.
- */
-static void RestoreOldWires( SCH_SCREEN* screen )
-{
-    SCH_ITEM* item;
-    SCH_ITEM* next_item;
+    segment = CurrentLine;
 
-    for( item = screen->EEDrawList; item != NULL; item = next_item )
+    while( segment )
     {
-        next_item = item->Next();
+        if( !segment->IsNull() )  // Redraw if segment length != 0
+            segment->Draw( aPanel, aDC, wxPoint( 0, 0 ), g_XorMode, color );
 
-        switch( item->Type() )
-        {
-        case DRAW_JUNCTION_STRUCT_TYPE:
-        case DRAW_SEGMENT_STRUCT_TYPE:
-            screen->RemoveFromDrawList( item );
-            delete item;
-            break;
-
-        default:
-            break;
-        }
-    }
-
-    while( s_OldWiresList )
-    {
-        next_item = s_OldWiresList->Next();
-
-        s_OldWiresList->SetNext( screen->EEDrawList );
-        screen->EEDrawList = s_OldWiresList;
-        s_OldWiresList     = next_item;
+        segment = segment->Next();
     }
 }
 
@@ -117,20 +85,20 @@ static void RestoreOldWires( SCH_SCREEN* screen )
  * If the end of the current segment is on a pin, terminates the command
  * In others cases starts a new segment
  */
-void WinEDA_SchematicFrame::BeginSegment( wxDC* DC, int type )
+void SCH_EDIT_FRAME::BeginSegment( wxDC* DC, int type )
 {
     SCH_LINE* oldsegment, * newsegment, * nextsegment;
-    wxPoint   cursorpos = GetScreen()->m_Curseur;
+    wxPoint   cursorpos = GetScreen()->GetCrossHairPosition();
 
-    if( GetScreen()->GetCurItem() && (GetScreen()->GetCurItem()->m_Flags == 0) )
+    if( GetScreen()->GetCurItem() && (GetScreen()->GetCurItem()->GetFlags() == 0) )
         GetScreen()->SetCurItem( NULL );
 
     if( GetScreen()->GetCurItem() )
     {
         switch( GetScreen()->GetCurItem()->Type() )
         {
-        case DRAW_SEGMENT_STRUCT_TYPE:
-        case DRAW_POLYLINE_STRUCT_TYPE:
+        case SCH_LINE_T:
+        case SCH_POLYLINE_T:
             break;
 
         default:
@@ -143,8 +111,8 @@ void WinEDA_SchematicFrame::BeginSegment( wxDC* DC, int type )
     if( !newsegment )  /* first point : Create first wire or bus */
     {
         s_ConnexionStartPoint = cursorpos;
-        s_OldWiresList = ( (SCH_SCREEN*) GetScreen() )->ExtractWires( TRUE );
-        ( (SCH_SCREEN*) GetScreen() )->SchematicCleanUp( NULL );
+        s_OldWiresList = GetScreen()->ExtractWires( true );
+        GetScreen()->SchematicCleanUp( DrawPanel );
 
         switch( type )
         {
@@ -164,27 +132,27 @@ void WinEDA_SchematicFrame::BeginSegment( wxDC* DC, int type )
             break;
         }
 
-        newsegment->m_Flags = IS_NEW;
-        if( g_HVLines ) // We need 2 segments to go from a given start pint to
-                        // an end point
+        newsegment->SetFlags( IS_NEW );
+
+        if( g_HVLines ) // We need 2 segments to go from a given start pin to an end point
         {
-            nextsegment = newsegment->GenCopy();
-            nextsegment->m_Flags = IS_NEW;
+            nextsegment = new SCH_LINE( *newsegment );
+            nextsegment->SetFlags( IS_NEW );
             newsegment->SetNext( nextsegment );
             nextsegment->SetBack( newsegment );
         }
+
         GetScreen()->SetCurItem( newsegment );
-        DrawPanel->ManageCurseur = Segment_in_Ghost;
-        DrawPanel->ForceCloseManageCurseur = AbortCreateNewLine;
-        g_ItemToRepeat = NULL;
+        DrawPanel->SetMouseCapture( DrawSegment, AbortCreateNewLine );
+        m_itemToRepeat = NULL;
     }
-    else    /* A segment is in progress: terminates the current segment and add
-             * a new segment */
+    else    // A segment is in progress: terminates the current segment and add a new segment.
     {
         nextsegment = oldsegment->Next();
-        if( !g_HVLines ) /* if only one segment is needed and the current is
-                          * has len = 0, do not create a new one */
+
+        if( !g_HVLines )
         {
+            // if only one segment is needed and it has length = 0, do not create a new one.
             if( oldsegment->IsNull() )
                 return;
         }
@@ -196,25 +164,26 @@ void WinEDA_SchematicFrame::BeginSegment( wxDC* DC, int type )
                 return;
         }
 
-        DrawPanel->ManageCurseur( DrawPanel, DC, FALSE );
+        DrawPanel->m_mouseCaptureCallback( DrawPanel, DC, wxDefaultPosition, false );
 
         /* Creates the new segment, or terminates the command
          * if the end point is on a pin, junction or an other wire or bus */
-        if( IsTerminalPoint( GetScreen(), cursorpos, oldsegment->GetLayer() ) )
+        if( GetScreen()->IsTerminalPoint( cursorpos, oldsegment->GetLayer() ) )
         {
-            EndSegment( DC ); return;
+            EndSegment( DC );
+            return;
         }
 
-        oldsegment->SetNext( GetScreen()->EEDrawList );
-        GetScreen()->EEDrawList = oldsegment;
-        DrawPanel->CursorOff( DC );     // Erase schematic cursor
-        RedrawOneStruct( DrawPanel, DC, oldsegment, GR_DEFAULT_DRAWMODE );
-        DrawPanel->CursorOn( DC );      // Display schematic cursor
+        oldsegment->SetNext( GetScreen()->GetDrawItems() );
+        GetScreen()->SetDrawItems( oldsegment );
+        DrawPanel->CrossHairOff( DC );     // Erase schematic cursor
+        oldsegment->Draw( DrawPanel, DC, wxPoint( 0, 0 ), GR_DEFAULT_DRAWMODE );
+        DrawPanel->CrossHairOn( DC );      // Display schematic cursor
 
         /* Create a new segment, and chain it after the current new segment */
         if( nextsegment )
         {
-            newsegment = nextsegment->GenCopy();
+            newsegment = new SCH_LINE( *nextsegment );
             nextsegment->m_Start = newsegment->m_End;
             nextsegment->SetNext( NULL );
             nextsegment->SetBack( newsegment );
@@ -223,14 +192,16 @@ void WinEDA_SchematicFrame::BeginSegment( wxDC* DC, int type )
         }
         else
         {
-            newsegment = oldsegment->GenCopy();
+            newsegment = new SCH_LINE( *oldsegment );
             newsegment->m_Start = oldsegment->m_End;
         }
+
         newsegment->m_End   = cursorpos;
-        oldsegment->m_Flags = SELECTED;
-        newsegment->m_Flags = IS_NEW;
+        oldsegment->ClearFlags( IS_NEW );
+        oldsegment->SetFlags( SELECTED );
+        newsegment->SetFlags( IS_NEW );
         GetScreen()->SetCurItem( newsegment );
-        DrawPanel->ManageCurseur( DrawPanel, DC, FALSE );
+        DrawPanel->m_mouseCaptureCallback( DrawPanel, DC, wxDefaultPosition, false );
 
         /* This is the first segment: Now we know the start segment position.
          * Create a junction if needed. Note: a junction can be needed later,
@@ -238,8 +209,8 @@ void WinEDA_SchematicFrame::BeginSegment( wxDC* DC, int type )
          * (tested when the connection will be finished)*/
         if( oldsegment->m_Start == s_ConnexionStartPoint )
         {
-            if( IsJunctionNeeded( this, s_ConnexionStartPoint ) )
-                CreateNewJunctionStruct( DC, s_ConnexionStartPoint );
+            if( GetScreen()->IsJunctionNeeded( s_ConnexionStartPoint ) )
+                AddJunction( DC, s_ConnexionStartPoint );
         }
     }
 }
@@ -247,7 +218,7 @@ void WinEDA_SchematicFrame::BeginSegment( wxDC* DC, int type )
 
 /* Called to terminate a bus, wire, or line creation
  */
-void WinEDA_SchematicFrame::EndSegment( wxDC* DC )
+void SCH_EDIT_FRAME::EndSegment( wxDC* DC )
 {
     SCH_LINE* firstsegment = (SCH_LINE*) GetScreen()->GetCurItem();
     SCH_LINE* lastsegment = firstsegment;
@@ -255,40 +226,48 @@ void WinEDA_SchematicFrame::EndSegment( wxDC* DC )
 
     if( firstsegment == NULL )
         return;
-    if( ( firstsegment->m_Flags & IS_NEW ) == 0 )
+
+    if( !firstsegment->IsNew() )
         return;
 
     /* Delete Null segments and Put line it in Drawlist */
     lastsegment = firstsegment;
+
     while( lastsegment )
     {
         SCH_LINE* nextsegment = lastsegment->Next();
+
         if( lastsegment->IsNull() )
         {
             SCH_LINE* previous_segment = lastsegment->Back();
+
             if( firstsegment == lastsegment )
                 firstsegment = nextsegment;
+
             if( nextsegment )
                 nextsegment->SetBack( NULL );
+
             if( previous_segment )
                 previous_segment->SetNext( nextsegment );
+
             delete lastsegment;
         }
+
         lastsegment = nextsegment;
     }
 
     /* put the segment list to the main linked list */
     segment = lastsegment = firstsegment;
+
     while( segment )
     {
         lastsegment = segment;
         segment     = segment->Next();
-        lastsegment->SetNext( GetScreen()->EEDrawList );
-        GetScreen()->EEDrawList = lastsegment;
+        lastsegment->SetNext( GetScreen()->GetDrawItems() );
+        GetScreen()->SetDrawItems( lastsegment );
     }
 
-    DrawPanel->ManageCurseur = NULL;
-    DrawPanel->ForceCloseManageCurseur = NULL;
+    DrawPanel->SetMouseCapture( NULL, NULL );
     GetScreen()->SetCurItem( NULL );
 
     wxPoint end_point, alt_end_point;
@@ -304,49 +283,50 @@ void WinEDA_SchematicFrame::EndSegment( wxDC* DC )
         alt_end_point = lastsegment->m_Start;
     }
 
-    ( (SCH_SCREEN*) GetScreen() )->SchematicCleanUp( NULL );
+    GetScreen()->SchematicCleanUp( DrawPanel );
 
     /* clear flags and find last segment entered, for repeat function */
-    segment = (SCH_LINE*) GetScreen()->EEDrawList;
+    segment = (SCH_LINE*) GetScreen()->GetDrawItems();
+
     while( segment )
     {
-        if( segment->m_Flags )
+        if( segment->GetFlags() )
         {
-            if( !g_ItemToRepeat )
-                g_ItemToRepeat = segment;
+            if( !m_itemToRepeat )
+                m_itemToRepeat = segment;
         }
-        segment->m_Flags = 0;
+
+        segment->ClearFlags();
         segment = segment->Next();
     }
 
     // Automatic place of a junction on the end point, if needed
     if( lastsegment )
     {
-        if( IsJunctionNeeded( this, end_point ) )
-            CreateNewJunctionStruct( DC, end_point );
-
-        else if( IsJunctionNeeded( this, alt_end_point ) )
-            CreateNewJunctionStruct( DC, alt_end_point );
+        if( GetScreen()->IsJunctionNeeded( end_point ) )
+            AddJunction( DC, end_point );
+        else if( GetScreen()->IsJunctionNeeded( alt_end_point ) )
+            AddJunction( DC, alt_end_point );
     }
 
     /* Automatic place of a junction on the start point if necessary because
      * the cleanup can suppress intermediate points by merging wire segments */
-    if( IsJunctionNeeded( this, s_ConnexionStartPoint ) )
-        CreateNewJunctionStruct( DC, s_ConnexionStartPoint );
+    if( GetScreen()->IsJunctionNeeded( s_ConnexionStartPoint ) )
+        AddJunction( DC, s_ConnexionStartPoint );
 
-    TestDanglingEnds( GetScreen()->EEDrawList, DC );
-
+    GetScreen()->TestDanglingEnds( DrawPanel, DC );
 
     /* Redraw wires and junctions which can be changed by TestDanglingEnds() */
-    DrawPanel->CursorOff( DC );   // Erase schematic cursor
-    EDA_BaseStruct* item = GetScreen()->EEDrawList;
+    DrawPanel->CrossHairOff( DC );   // Erase schematic cursor
+    EDA_ITEM* item = GetScreen()->GetDrawItems();
+
     while( item )
     {
         switch( item->Type() )
         {
-        case DRAW_JUNCTION_STRUCT_TYPE:
-        case DRAW_SEGMENT_STRUCT_TYPE:
-            DrawPanel->PostDirtyRect( item->GetBoundingBox() );
+        case SCH_JUNCTION_T:
+        case SCH_LINE_T:
+            DrawPanel->RefreshDrawingRect( item->GetBoundingBox() );
             break;
 
         default:
@@ -356,57 +336,12 @@ void WinEDA_SchematicFrame::EndSegment( wxDC* DC )
         item = item->Next();
     }
 
-
-    DrawPanel->CursorOn( DC );    // Display schematic cursor
+    DrawPanel->CrossHairOn( DC );    // Display schematic cursor
 
     SaveCopyInUndoList( s_OldWiresList, UR_WIRE_IMAGE );
     s_OldWiresList = NULL;
 
     OnModify( );
-}
-
-
-/* Redraw the segment (g_HVLines == FALSE ) or the two segments (g_HVLines ==
- * TRUE )
- *  from the start point to the cursor, when moving the mouse
- */
-static void Segment_in_Ghost( WinEDA_DrawPanel* panel, wxDC* DC, bool erase )
-{
-    SCH_LINE* CurrentLine = (SCH_LINE*) panel->GetScreen()->GetCurItem();
-    SCH_LINE* segment;
-    int color;
-
-    if( CurrentLine == NULL )
-        return;
-
-    color = ReturnLayerColor( CurrentLine->GetLayer() ) ^ HIGHT_LIGHT_FLAG;
-
-    if( erase )
-    {
-        segment = CurrentLine;
-        while( segment )
-        {
-            if( !segment->IsNull() )  // Redraw if segment length != 0
-                RedrawOneStruct( panel, DC, segment, g_XorMode, color );
-            segment = segment->Next();
-        }
-    }
-
-    wxPoint endpos = panel->GetScreen()->m_Curseur;
-    if( g_HVLines ) /* Coerce the line to vertical or horizontal one: */
-    {
-        ComputeBreakPoint( CurrentLine, endpos );
-    }
-    else
-        CurrentLine->m_End = endpos;
-
-    segment = CurrentLine;
-    while( segment )
-    {
-        if( !segment->IsNull() )  // Redraw if segment length != 0
-            RedrawOneStruct( panel, DC, segment, g_XorMode, color );
-        segment = segment->Next();
-    }
 }
 
 
@@ -430,13 +365,12 @@ static void ComputeBreakPoint( SCH_LINE* segment, const wxPoint& new_pos )
 #else
     int iDx = segment->m_End.x - segment->m_Start.x;
     int iDy = segment->m_End.y - segment->m_Start.y;
-    if( iDy != 0 )         // keep the first segment orientation (currently
-                           // horizontal)
+
+    if( iDy != 0 )         // keep the first segment orientation (currently horizontal)
     {
         middle_position.x = segment->m_Start.x;
     }
-    else if( iDx != 0 )    // keep the first segment orientation (currently
-                           // vertical)
+    else if( iDx != 0 )    // keep the first segment orientation (currently vertical)
     {
         middle_position.y = segment->m_Start.y;
     }
@@ -457,109 +391,90 @@ static void ComputeBreakPoint( SCH_LINE* segment, const wxPoint& new_pos )
 }
 
 
-/*  Drawing Polyline phantom at the displacement of the cursor
- */
-static void Show_Polyline_in_Ghost( WinEDA_DrawPanel* panel,
-                                    wxDC*             DC,
-                                    bool              erase )
-{
-    SCH_POLYLINE* NewPoly = (SCH_POLYLINE*) panel->GetScreen()->GetCurItem();
-    int           color;
-    wxPoint       endpos;
-
-    endpos = panel->GetScreen()->m_Curseur;
-    color  = ReturnLayerColor( NewPoly->GetLayer() );
-
-    GRSetDrawMode( DC, g_XorMode );
-
-    int idx = NewPoly->GetCornerCount() - 1;
-    if( g_HVLines )
-    {
-        /* Coerce the line to vertical or horizontal one: */
-        if( ABS( endpos.x - NewPoly->m_PolyPoints[idx].x ) <
-           ABS( endpos.y - NewPoly->m_PolyPoints[idx].y ) )
-            endpos.x = NewPoly->m_PolyPoints[idx].x;
-        else
-            endpos.y = NewPoly->m_PolyPoints[idx].y;
-    }
-
-    if( erase )
-        RedrawOneStruct( panel, DC, NewPoly, g_XorMode, color );
-
-    NewPoly->m_PolyPoints[idx] = endpos;
-    RedrawOneStruct( panel, DC, NewPoly, g_XorMode, color );
-}
-
-
 /*
  *  Erase the last trace or the element at the current mouse position.
  */
-void WinEDA_SchematicFrame::DeleteCurrentSegment( wxDC* DC )
+void SCH_EDIT_FRAME::DeleteCurrentSegment( wxDC* DC )
 {
-    g_ItemToRepeat = NULL;
+    SCH_SCREEN* screen = GetScreen();
 
-    if( ( GetScreen()->GetCurItem() == NULL )
-       || ( ( GetScreen()->GetCurItem()->m_Flags & IS_NEW ) == 0 ) )
-    {
+    m_itemToRepeat = NULL;
+
+    if( ( screen->GetCurItem() == NULL ) || !screen->GetCurItem()->IsNew() )
         return;
-    }
 
     /* Cancel trace in progress */
-    if( GetScreen()->GetCurItem()->Type() == DRAW_POLYLINE_STRUCT_TYPE )
+    if( screen->GetCurItem()->Type() == SCH_POLYLINE_T )
     {
-        Show_Polyline_in_Ghost( DrawPanel, DC, FALSE );
+        SCH_POLYLINE* polyLine = (SCH_POLYLINE*) screen->GetCurItem();
+        wxPoint       endpos;
+
+        endpos = screen->GetCrossHairPosition();
+
+        int idx = polyLine->GetCornerCount() - 1;
+
+        if( g_HVLines )
+        {
+            /* Coerce the line to vertical or horizontal one: */
+            if( ABS( endpos.x - polyLine->m_PolyPoints[idx].x ) <
+                ABS( endpos.y - polyLine->m_PolyPoints[idx].y ) )
+                endpos.x = polyLine->m_PolyPoints[idx].x;
+            else
+                endpos.y = polyLine->m_PolyPoints[idx].y;
+        }
+
+        polyLine->m_PolyPoints[idx] = endpos;
+        polyLine->Draw( DrawPanel, DC, wxPoint( 0, 0 ), g_XorMode );
     }
     else
     {
-        Segment_in_Ghost( DrawPanel, DC, FALSE );
+        DrawSegment( DrawPanel, DC, wxDefaultPosition, false );
     }
 
-    EraseStruct( (SCH_ITEM*) GetScreen()->GetCurItem(),
-                (SCH_SCREEN*) GetScreen() );
-    DrawPanel->ManageCurseur = NULL;
-    GetScreen()->SetCurItem( NULL );
+    screen->RemoveFromDrawList( screen->GetCurItem() );
+    DrawPanel->m_mouseCaptureCallback = NULL;
+    screen->SetCurItem( NULL );
 }
 
 
 /* Routine to create new connection struct.
  */
-SCH_JUNCTION* WinEDA_SchematicFrame::CreateNewJunctionStruct(
-    wxDC* DC, const wxPoint& pos, bool PutInUndoList )
+SCH_JUNCTION* SCH_EDIT_FRAME::AddJunction( wxDC* aDC, const wxPoint& aPosition,
+                                           bool aPutInUndoList )
 {
-    SCH_JUNCTION* NewJunction;
+    SCH_JUNCTION* junction = new SCH_JUNCTION( aPosition );
 
-    NewJunction = new SCH_JUNCTION( pos );
+    m_itemToRepeat = junction;
 
-    g_ItemToRepeat = NewJunction;
+    DrawPanel->CrossHairOff( aDC );     // Erase schematic cursor
+    junction->Draw( DrawPanel, aDC, wxPoint( 0, 0 ), GR_DEFAULT_DRAWMODE );
+    DrawPanel->CrossHairOn( aDC );      // Display schematic cursor
 
-    DrawPanel->CursorOff( DC );     // Erase schematic cursor
-    RedrawOneStruct( DrawPanel, DC, NewJunction, GR_DEFAULT_DRAWMODE );
-    DrawPanel->CursorOn( DC );      // Display schematic cursor
+    junction->SetNext( GetScreen()->GetDrawItems() );
+    GetScreen()->SetDrawItems( junction );
+    OnModify();
 
-    NewJunction->SetNext( GetScreen()->EEDrawList );
-    GetScreen()->EEDrawList = NewJunction;
-    OnModify( );
-    if( PutInUndoList )
-        SaveCopyInUndoList( NewJunction, UR_NEW );
-    return NewJunction;
+    if( aPutInUndoList )
+        SaveCopyInUndoList( junction, UR_NEW );
+
+    return junction;
 }
 
 
-/* Routine to create new NoConnect struct. */
-SCH_NO_CONNECT* WinEDA_SchematicFrame::CreateNewNoConnectStruct( wxDC* DC )
+SCH_NO_CONNECT* SCH_EDIT_FRAME::AddNoConnect( wxDC* aDC, const wxPoint& aPosition )
 {
     SCH_NO_CONNECT* NewNoConnect;
 
-    NewNoConnect   = new SCH_NO_CONNECT( GetScreen()->m_Curseur );
-    g_ItemToRepeat = NewNoConnect;
+    NewNoConnect   = new SCH_NO_CONNECT( aPosition );
+    m_itemToRepeat = NewNoConnect;
 
-    DrawPanel->CursorOff( DC );     // Erase schematic cursor
-    RedrawOneStruct( DrawPanel, DC, NewNoConnect, GR_DEFAULT_DRAWMODE );
-    DrawPanel->CursorOn( DC );      // Display schematic cursor
+    DrawPanel->CrossHairOff( aDC );     // Erase schematic cursor
+    NewNoConnect->Draw( DrawPanel, aDC, wxPoint( 0, 0 ), GR_DEFAULT_DRAWMODE );
+    DrawPanel->CrossHairOn( aDC );      // Display schematic cursor
 
-    NewNoConnect->SetNext( GetScreen()->EEDrawList );
-    GetScreen()->EEDrawList = NewNoConnect;
-    OnModify( );
+    NewNoConnect->SetNext( GetScreen()->GetDrawItems() );
+    GetScreen()->SetDrawItems( NewNoConnect );
+    OnModify();
     SaveCopyInUndoList( NewNoConnect, UR_NEW );
     return NewNoConnect;
 }
@@ -567,29 +482,25 @@ SCH_NO_CONNECT* WinEDA_SchematicFrame::CreateNewNoConnectStruct( wxDC* DC )
 
 /* Abort function for wire, bus or line creation
  */
-static void AbortCreateNewLine( WinEDA_DrawPanel* Panel, wxDC* DC )
+static void AbortCreateNewLine( EDA_DRAW_PANEL* Panel, wxDC* DC )
 {
-    SCH_SCREEN* Screen = (SCH_SCREEN*) Panel->GetScreen();
+    SCH_SCREEN* screen = (SCH_SCREEN*) Panel->GetScreen();
 
-    if( Screen->GetCurItem() )
+    if( screen->GetCurItem() )
     {
-        Panel->ManageCurseur = NULL;
-        Panel->ForceCloseManageCurseur = NULL;
-        EraseStruct( (SCH_ITEM*) Screen->GetCurItem(), (SCH_SCREEN*) Screen );
-        Screen->SetCurItem( NULL );
-        RestoreOldWires( Screen );
+        screen->RemoveFromDrawList( (SCH_ITEM*) screen->GetCurItem() );
+        screen->SetCurItem( NULL );
+        screen->ReplaceWires( s_OldWiresList );
         Panel->Refresh();
     }
     else
-        g_ItemToRepeat = NULL;
-
-    /* Clear m_Flags which is used in edit functions: */
-    SCH_ITEM* item = Screen->EEDrawList;
-    while( item )
     {
-        item->m_Flags = 0;
-        item = item->Next();
+        SCH_EDIT_FRAME* parent = ( SCH_EDIT_FRAME* ) Panel->GetParent();
+        parent->SetRepeatItem( NULL );
     }
+
+    // Clear flags used in edit functions.
+    screen->ClearDrawingState();
 }
 
 
@@ -597,126 +508,38 @@ static void AbortCreateNewLine( WinEDA_DrawPanel* Panel, wxDC* DC )
  * Bus lines, text, labels
  * Labels that end with a number will be incremented.
  */
-void WinEDA_SchematicFrame::RepeatDrawItem( wxDC* DC )
+void SCH_EDIT_FRAME::RepeatDrawItem( wxDC* DC )
 {
-    wxPoint new_pos;
-
-    if( g_ItemToRepeat == NULL )
+    if( m_itemToRepeat == NULL )
         return;
 
-    switch( g_ItemToRepeat->Type() )
+    m_itemToRepeat = m_itemToRepeat->Clone();
+
+    if( m_itemToRepeat->Type() == SCH_COMPONENT_T ) // If repeat component then put in move mode
     {
-    case DRAW_JUNCTION_STRUCT_TYPE:
-        #undef STRUCT
-        #define STRUCT ( (SCH_JUNCTION*) g_ItemToRepeat )
-        g_ItemToRepeat = STRUCT->GenCopy();
-        STRUCT->m_Pos += g_RepeatStep;
-        new_pos = STRUCT->m_Pos;
-        break;
-
-    case DRAW_NOCONNECT_STRUCT_TYPE:
-        #undef STRUCT
-        #define STRUCT ( (SCH_NO_CONNECT*) g_ItemToRepeat )
-        g_ItemToRepeat = STRUCT->GenCopy();
-        STRUCT->m_Pos += g_RepeatStep;
-        new_pos = STRUCT->m_Pos;
-        break;
-
-    case TYPE_SCH_TEXT:
-        #undef STRUCT
-        #define STRUCT ( (SCH_TEXT*) g_ItemToRepeat )
-        g_ItemToRepeat = STRUCT->GenCopy();
-        STRUCT->m_Pos += g_RepeatStep;
-        new_pos = STRUCT->m_Pos;
-        IncrementLabelMember( STRUCT->m_Text );
-        break;
-
-
-    case TYPE_SCH_LABEL:
-        #undef STRUCT
-        #define STRUCT ( (SCH_LABEL*) g_ItemToRepeat )
-        g_ItemToRepeat = STRUCT->GenCopy();
-        STRUCT->m_Pos += g_RepeatStep;
-        new_pos = STRUCT->m_Pos;
-        IncrementLabelMember( STRUCT->m_Text );
-        break;
-
-
-    case TYPE_SCH_HIERLABEL:
-        #undef STRUCT
-        #define STRUCT ( (SCH_HIERLABEL*) g_ItemToRepeat )
-        g_ItemToRepeat = STRUCT->GenCopy();
-        STRUCT->m_Pos += g_RepeatStep;
-        new_pos = STRUCT->m_Pos;
-        IncrementLabelMember( STRUCT->m_Text );
-        break;
-
-    case TYPE_SCH_GLOBALLABEL:
-        #undef STRUCT
-        #define STRUCT ( (SCH_GLOBALLABEL*) g_ItemToRepeat )
-        g_ItemToRepeat = STRUCT->GenCopy();
-        STRUCT->m_Pos += g_RepeatStep;
-        new_pos = STRUCT->m_Pos;
-        IncrementLabelMember( STRUCT->m_Text );
-        break;
-
-    case DRAW_SEGMENT_STRUCT_TYPE:
-        #undef STRUCT
-        #define STRUCT ( (SCH_LINE*) g_ItemToRepeat )
-        g_ItemToRepeat   = STRUCT->GenCopy();
-        STRUCT->m_Start += g_RepeatStep;
-        new_pos = STRUCT->m_Start;
-        STRUCT->m_End += g_RepeatStep;
-        break;
-
-    case DRAW_BUSENTRY_STRUCT_TYPE:
-            #undef STRUCT
-            #define STRUCT ( (SCH_BUS_ENTRY*) g_ItemToRepeat )
-        g_ItemToRepeat = STRUCT->GenCopy();
-        STRUCT->m_Pos += g_RepeatStep;
-        new_pos = STRUCT->m_Pos;
-        break;
-
-    case TYPE_SCH_COMPONENT:     // In repeat command the new component is put
-                                 // in move mode
-        #undef STRUCT
-        #define STRUCT ( (SCH_COMPONENT*) g_ItemToRepeat )
-
-        // Create the duplicate component, position = mouse cursor
-        g_ItemToRepeat = STRUCT->GenCopy();
-        new_pos.x = GetScreen()->m_Curseur.x - STRUCT->m_Pos.x;
-        new_pos.y = GetScreen()->m_Curseur.y - STRUCT->m_Pos.y;
-        STRUCT->m_Pos = GetScreen()->m_Curseur;
-        STRUCT->m_Flags     = IS_NEW;
-        STRUCT->m_TimeStamp = GetTimeStamp();
-
-        for( int ii = 0; ii < STRUCT->GetFieldCount(); ii++ )
-        {
-            STRUCT->GetField( ii )->m_Pos += new_pos;
-        }
-
-        RedrawOneStruct( DrawPanel, DC, STRUCT, g_XorMode );
-        StartMovePart( STRUCT, DC );
+        wxPoint pos = GetScreen()->GetCrossHairPosition() -
+            ( (SCH_COMPONENT*) m_itemToRepeat )->m_Pos;
+        m_itemToRepeat->SetFlags( IS_NEW );
+        ( (SCH_COMPONENT*) m_itemToRepeat )->m_TimeStamp = GetTimeStamp();
+        m_itemToRepeat->Move( pos );
+        m_itemToRepeat->Draw( DrawPanel, DC, wxPoint( 0, 0 ), g_XorMode );
+        StartMovePart( (SCH_COMPONENT*) m_itemToRepeat, DC );
         return;
-        break;
-
-    default:
-        g_ItemToRepeat = NULL;
-        DisplayError( this, wxT( "Repeat Type Error" ), 10 );
-        break;
     }
 
-    if( g_ItemToRepeat )
-    {
-        g_ItemToRepeat->SetNext( GetScreen()->EEDrawList );
-        GetScreen()->EEDrawList = g_ItemToRepeat;
-        TestDanglingEnds( GetScreen()->EEDrawList, NULL );
-        RedrawOneStruct( DrawPanel, DC, g_ItemToRepeat, GR_DEFAULT_DRAWMODE );
-        SaveCopyInUndoList( g_ItemToRepeat, UR_NEW );
-        g_ItemToRepeat->m_Flags = 0;
+    m_itemToRepeat->Move( wxPoint( g_RepeatStep.GetWidth(), g_RepeatStep.GetHeight() ) );
 
-//      GetScreen()->Curseur = new_pos;
-//      DrawPanel->MouseTo( DrawPanel->CursorScreenPosition() );
+    if( m_itemToRepeat->CanIncrementLabel() )
+        ( (SCH_TEXT*) m_itemToRepeat )->IncrementLabel();
+
+    if( m_itemToRepeat )
+    {
+        m_itemToRepeat->SetNext( GetScreen()->GetDrawItems() );
+        GetScreen()->SetDrawItems( m_itemToRepeat );
+        GetScreen()->TestDanglingEnds();
+        m_itemToRepeat->Draw( DrawPanel, DC, wxPoint( 0, 0 ), GR_DEFAULT_DRAWMODE );
+        SaveCopyInUndoList( m_itemToRepeat, UR_NEW );
+        m_itemToRepeat->ClearFlags();
     }
 }
 
@@ -730,6 +553,7 @@ void IncrementLabelMember( wxString& name )
     long number = 0;
 
     ii = name.Len() - 1; nn = 0;
+
     if( !isdigit( name.GetChar( ii ) ) )
         return;
 
@@ -740,120 +564,10 @@ void IncrementLabelMember( wxString& name )
 
     ii++;   /* digits are starting at ii position */
     wxString litt_number = name.Right( nn );
+
     if( litt_number.ToLong( &number ) )
     {
         number += g_RepeatDeltaLabel;
         name.Remove( ii ); name << number;
     }
-}
-
-
-/* Return TRUE if pos can be a terminal point for a wire or a bus
- * i.e. :
- *  for a WIRE, if at pos is found:
- *      - a junction
- *      - or a pin
- *      - or an other wire
- *
- *  - for a BUS, if at pos is found:
- *      - a BUS
- */
-static bool IsTerminalPoint( SCH_SCREEN* screen, const wxPoint& pos, int layer )
-{
-    EDA_BaseStruct* item;
-    LIB_PIN*        pin;
-    SCH_COMPONENT*  LibItem = NULL;
-    SCH_SHEET_PIN*  pinsheet;
-    wxPoint         itempos;
-
-    switch( layer )
-    {
-    case LAYER_BUS:
-        item = PickStruct( pos, screen, BUSITEM );
-        if( item )
-            return TRUE;
-        pinsheet = LocateAnyPinSheet( pos, screen->EEDrawList );
-        if( pinsheet && IsBusLabel( pinsheet->m_Text ) )
-        {
-            itempos = pinsheet->m_Pos;
-            if( (itempos.x == pos.x) && (itempos.y == pos.y) )
-                return TRUE;
-        }
-        break;
-
-    case LAYER_NOTES:
-        item = PickStruct( pos, screen, DRAWITEM );
-        if( item )
-            return TRUE;
-        break;
-
-    case LAYER_WIRE:
-        item = PickStruct( pos, screen, RACCORDITEM | JUNCTIONITEM );
-        if( item )
-            return TRUE;
-
-        pin = LocateAnyPin( screen->EEDrawList, pos, &LibItem );
-        if( pin && LibItem )
-        {
-            // Calculate the exact position of the connection point of the pin,
-            // depending on orientation of the component.
-            itempos    = LibItem->GetScreenCoord( pin->m_Pos );
-            itempos.x += LibItem->m_Pos.x;
-            itempos.y += LibItem->m_Pos.y;
-            if( ( itempos.x == pos.x ) && ( itempos.y == pos.y ) )
-                return TRUE;
-        }
-
-        item = PickStruct( pos, screen, WIREITEM );
-        if( item )
-            return TRUE;
-
-        item = PickStruct( pos, screen, LABELITEM );
-        if( item && (item->Type() != TYPE_SCH_TEXT)
-           && ( ( (SCH_GLOBALLABEL*) item )->m_Pos.x == pos.x )
-           && ( ( (SCH_GLOBALLABEL*) item )->m_Pos.y == pos.y ) )
-            return TRUE;
-
-        pinsheet = LocateAnyPinSheet( pos, screen->EEDrawList );
-        if( pinsheet && !IsBusLabel( pinsheet->m_Text ) )
-        {
-            itempos = pinsheet->m_Pos;
-            if( ( itempos.x == pos.x ) && ( itempos.y == pos.y ) )
-                return TRUE;
-        }
-
-        break;
-
-    default:
-        break;
-    }
-
-    return FALSE;
-}
-
-
-/* Return True when a wire is located at pos "pos" if
- *  - there is no junction.
- *  - The wire has no ends at pos "pos",
- *      and therefore it is considered as no connected.
- *  - One (or more) wire has one end at pos "pos"
- *  or
- *  - a pin is on location pos
- */
-bool IsJunctionNeeded( WinEDA_SchematicFrame* frame, wxPoint& pos )
-{
-    if( PickStruct( pos, frame->GetScreen(), JUNCTIONITEM ) )
-        return FALSE;
-
-    if( PickStruct( pos, frame->GetScreen(), WIREITEM |
-                    EXCLUDE_WIRE_BUS_ENDPOINTS ) )
-    {
-        if( PickStruct( pos, frame->GetScreen(), WIREITEM |
-                        WIRE_BUS_ENDPOINTS_ONLY ) )
-            return TRUE;
-        if( frame->LocatePinEnd( frame->GetScreen()->EEDrawList, pos ) )
-            return TRUE;
-    }
-
-    return FALSE;
 }

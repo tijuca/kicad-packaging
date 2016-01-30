@@ -12,9 +12,8 @@
 #include "kicad_string.h"
 
 #include "cvpcb.h"
-#include "protos.h"
+#include "cvpcb_mainframe.h"
 #include "cvstruct.h"
-
 
 #define QUOTE '\''
 
@@ -68,7 +67,7 @@ char * ReadQuotedText(wxString & aTarget, char * aText)
  * format of a line:
  * 'cmp_ref' 'footprint_name'
  */
-void WinEDA_CvpcbFrame::AssocieModule( wxCommandEvent& event )
+void CVPCB_MAINFRAME::AssocieModule( wxCommandEvent& event )
 {
     FOOTPRINT_ALIAS_LIST aliases;
     FOOTPRINT_ALIAS*     alias;
@@ -140,7 +139,7 @@ found in the default search paths." ),
 
     BOOST_FOREACH( COMPONENT& component, m_components )
     {
-        m_ListCmp->SetSelection( ii, true );
+        m_ListCmp->SetSelection( ii++, true );
 
         if( !component.m_Module.IsEmpty() )
             continue;
@@ -150,14 +149,8 @@ found in the default search paths." ),
             if( alias.m_Name.CmpNoCase( component.m_Value ) != 0 )
                 continue;
 
-            BOOST_FOREACH( FOOTPRINT& footprint, m_footprints )
-            {
-                if( alias.m_FootprintName.CmpNoCase( footprint.m_Module ) == 0 )
-                {
-                    SetNewPkg( footprint.m_Module );
-                    break;
-                }
-            }
+            if( m_footprints.GetModuleInfo( alias.m_FootprintName ) )
+                    SetNewPkg( alias.m_FootprintName );
 
             if( component.m_Module.IsEmpty() )
             {
@@ -169,7 +162,5 @@ any of the project footprint libraries." ),
                               this );
             }
         }
-
-        ii += 1;
     }
 }

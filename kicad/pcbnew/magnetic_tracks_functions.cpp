@@ -92,11 +92,16 @@ bool Project( wxPoint* res, wxPoint on_grid, const TRACK* track )
  * tests to see if there are any magnetic items within near reach of the given
  * "curpos".  If yes, then curpos is adjusted appropriately according to that
  * near magnetic item and true is returned.
+ * @param m_Pcb = the current board
+ * @param frame = the current frame
+ * @param aCurrentTool = the current tool id (from vertical right toolbar)
+ * @param grid = the grid size
+ * @param on_grid = TODO
  * @param curpos The initial position, and what to adjust if a change is needed.
  * @return bool - true if the position was adjusted magnetically, else false.
  */
-bool Magnetize( BOARD* m_Pcb, WinEDA_PcbFrame* frame,
-                       int aCurrentTool, wxSize grid, wxPoint on_grid, wxPoint* curpos )
+bool Magnetize( BOARD* m_Pcb, PCB_EDIT_FRAME* frame, int aCurrentTool, wxSize grid,
+                wxPoint on_grid, wxPoint* curpos )
 {
     bool    doCheckNet = g_MagneticPadOption != capture_always && Drc_On;
     bool    doTrack = false;
@@ -105,6 +110,8 @@ bool Magnetize( BOARD* m_Pcb, WinEDA_PcbFrame* frame,
 
     TRACK*      currTrack = g_CurrentTrackSegment;
     BOARD_ITEM* currItem  = frame->GetCurItem();
+    PCB_SCREEN* screen = frame->GetScreen();
+    wxPoint     pos = screen->RefPos( true );
 
     // D( printf( "currTrack=%p currItem=%p currTrack->Type()=%d currItem->Type()=%d\n",  currTrack, currItem, currTrack ? currTrack->Type() : 0, currItem ? currItem->Type() : 0 ); )
 
@@ -145,7 +152,9 @@ bool Magnetize( BOARD* m_Pcb, WinEDA_PcbFrame* frame,
 
     if( doPad )
     {
-        D_PAD* pad = Locate_Any_Pad( m_Pcb, CURSEUR_OFF_GRILLE, TRUE );
+        int layer_mask = g_TabOneLayerMask[screen->m_Active_Layer];
+        D_PAD* pad = Locate_Any_Pad( m_Pcb, pos, layer_mask );
+
         if( pad )
         {
             if( doCheckNet && currTrack && currTrack->GetNet() != pad->GetNet() )
@@ -159,7 +168,7 @@ bool Magnetize( BOARD* m_Pcb, WinEDA_PcbFrame* frame,
     // after pads, only track & via tests remain, skip them if not desired
     if( doTrack )
     {
-        int     layer = ( (PCB_SCREEN*) ActiveScreen )->m_Active_Layer;
+        int layer = screen->m_Active_Layer;
 
         for( TRACK* via = m_Pcb->m_Track;
              via && (via = Locate_Via_Area( via, *curpos, layer )) != NULL;
@@ -184,7 +193,8 @@ bool Magnetize( BOARD* m_Pcb, WinEDA_PcbFrame* frame,
         {
             int layer_mask = g_TabOneLayerMask[layer];
 
-            TRACK* track = Locate_Pistes( m_Pcb, m_Pcb->m_Track, layer_mask, CURSEUR_OFF_GRILLE );
+            TRACK* track = Locate_Pistes( m_Pcb, m_Pcb->m_Track, pos, layer_mask );
+
             if( !track || track->Type() != TYPE_TRACK )
             {
                 // D(printf("!currTrack and track=%p not found, layer_mask=0x%X\n", track, layer_mask );)

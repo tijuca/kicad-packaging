@@ -9,18 +9,15 @@
 #include <boost/ptr_container/ptr_vector.hpp>
 
 
-/* Shapes for segments (graphic segments and tracks) ( .shape member ) */
+/* Shapes for segments (graphic segments and tracks) ( .m_Shape member ) */
 enum Track_Shapes {
     S_SEGMENT = 0,      /* usual segment : line with rounded ends */
     S_RECT,             /* segment with non rounded ends */
     S_ARC,              /* Arcs (with rounded ends)*/
     S_CIRCLE,           /* ring*/
-    S_ARC_RECT,         /* Arcs (with non rounded ends) (GERBER)*/
-    S_SPOT_OVALE,       /* Oblong spot (for GERBER)*/
-    S_SPOT_CIRCLE,      /* rounded spot (for GERBER)*/
-    S_SPOT_RECT,        /* Rectangular spott (for GERBER)*/
-    S_POLYGON,          /* polygonal shape */
-    S_CURVE             /* Bezier Curve*/
+    S_POLYGON,          /* polygonal shape (not yet used for tracks, but could be in microwave apps) */
+    S_CURVE,            /* Bezier Curve*/
+    S_LAST              /* last value for this list */
 };
 
 
@@ -31,13 +28,13 @@ enum Track_Shapes {
  * found in PCBNEW or other programs that use class BOARD and its contents.
  * The corresponding class in EESCHEMA is SCH_ITEM.
  */
-class BOARD_ITEM : public EDA_BaseStruct
+class BOARD_ITEM : public EDA_ITEM
 {
     // These are made private here so they may not be used.
     // Instead everything derived from BOARD_ITEM is handled via DLIST<>'s
     // use of DHEAD's member functions.
-    void SetNext( EDA_BaseStruct* aNext )       { Pnext = aNext; }
-    void SetBack( EDA_BaseStruct* aBack )       { Pback = aBack; }
+    void SetNext( EDA_ITEM* aNext )       { Pnext = aNext; }
+    void SetBack( EDA_ITEM* aBack )       { Pback = aBack; }
 
 
 protected:
@@ -46,14 +43,14 @@ protected:
 public:
 
     BOARD_ITEM( BOARD_ITEM* aParent, KICAD_T idtype ) :
-        EDA_BaseStruct( aParent, idtype )
+        EDA_ITEM( aParent, idtype )
         , m_Layer( 0 )
     {
     }
 
 
     BOARD_ITEM( const BOARD_ITEM& src ) :
-        EDA_BaseStruct( src.m_Parent, src.Type() )
+        EDA_ITEM( src.m_Parent, src.Type() )
         , m_Layer( src.m_Layer )
     {
         m_Flags = src.m_Flags;
@@ -97,8 +94,8 @@ public:
      * Function Draw
      * BOARD_ITEMs have their own color information.
      */
-    virtual void Draw( WinEDA_DrawPanel* panel, wxDC* DC,
-                      int aDrawMode, const wxPoint& offset = ZeroOffset ) = 0;
+    virtual void Draw( EDA_DRAW_PANEL* panel, wxDC* DC,
+                       int aDrawMode, const wxPoint& offset = ZeroOffset ) = 0;
 
 
     /**
@@ -114,6 +111,16 @@ public:
         return m_Layer == aLayer;
     }
 
+    /**
+     * Function IsTrack
+     * tests to see if this object is a track or via (or microvia).
+     * form of testing.
+     * @return bool - true if a track or via, else false.
+     */
+    bool IsTrack( ) const
+    {
+        return (Type() == TYPE_TRACK) || (Type() == TYPE_VIA);
+    }
 
     /**
      * Function IsLocked
@@ -148,11 +155,11 @@ public:
      * Function MenuText
      * returns the text to use in any menu type UI control which must uniquely
      * identify this item.
-     * @param aBoard The PCB in which this item resides, needed for Net lookup.
+     * @param aPcb The PCB in which this item resides, needed for Net lookup.
      * @return wxString
      * @todo: maybe: make this virtual and split into each derived class
      */
-    wxString        MenuText( const BOARD* aBoard ) const;
+    wxString        MenuText( const BOARD* aPcb ) const;
 
 
     /**
@@ -183,7 +190,7 @@ public:
     /**
      * Function Move
      * move this object.
-     * @param const wxPoint& aMoveVector - the move vector for this object.
+     * @param aMoveVector - the move vector for this object.
      */
     virtual void Move(const wxPoint& aMoveVector)
     {
@@ -193,7 +200,7 @@ public:
     /**
      * Function Rotate
      * Rotate this object.
-     * @param const wxPoint& aRotCentre - the rotation point.
+     * @param aRotCentre - the rotation point.
      * @param aAngle - the rotation angle in 0.1 degree.
      */
     virtual void Rotate(const wxPoint& aRotCentre, int aAngle)
@@ -204,7 +211,7 @@ public:
     /**
      * Function Flip
      * Flip this object, i.e. change the board side for this object
-     * @param const wxPoint& aCentre - the rotation point.
+     * @param aCentre - the rotation point.
      */
     virtual void Flip(const wxPoint& aCentre )
     {
@@ -283,7 +290,8 @@ public:
       */
      NETCLASS* GetNetClass() const;
 
-    /** function GetNetClassName
+    /**
+     * Function GetNetClassName
      * @return the Net Class name of this item
      */
     wxString GetNetClassName( ) const;
@@ -319,7 +327,7 @@ public:
         return dummy;
     }
 
-    void Draw( WinEDA_DrawPanel* DrawPanel, wxDC* DC,
+    void Draw( EDA_DRAW_PANEL* DrawPanel, wxDC* DC,
                int aDrawMode, const wxPoint& offset = ZeroOffset )
     {
     }

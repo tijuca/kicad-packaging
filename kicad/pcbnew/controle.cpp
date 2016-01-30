@@ -15,18 +15,17 @@
 #include "collectors.h"
 
 //external funtions used here:
-extern bool Magnetize( BOARD* m_Pcb, WinEDA_PcbFrame* frame,
+extern bool Magnetize( BOARD* m_Pcb, PCB_EDIT_FRAME* frame,
                        int aCurrentTool, wxSize grid, wxPoint on_grid, wxPoint* curpos );
 
-/*************************************************************************************/
-static BOARD_ITEM* AllAreModulesAndReturnSmallestIfSo( GENERAL_COLLECTOR* aCollector )
-/*************************************************************************************/
+
 /**
  * Function AllAreModulesAndReturnSmallestIfSo
  * tests that all items in the collection are MODULEs and if so, returns the
  * smallest MODULE.
  * @return BOARD_ITEM* - The smallest or NULL.
  */
+static BOARD_ITEM* AllAreModulesAndReturnSmallestIfSo( GENERAL_COLLECTOR* aCollector )
 {
     int count = aCollector->GetCount();
 
@@ -61,9 +60,7 @@ static BOARD_ITEM* AllAreModulesAndReturnSmallestIfSo( GENERAL_COLLECTOR* aColle
 }
 
 
-/****************************************************************************/
-BOARD_ITEM* WinEDA_BasePcbFrame::PcbGeneralLocateAndDisplay( int aHotKeyCode )
-/****************************************************************************/
+BOARD_ITEM* PCB_BASE_FRAME::PcbGeneralLocateAndDisplay( int aHotKeyCode )
 {
     BOARD_ITEM* item;
 
@@ -79,11 +76,11 @@ BOARD_ITEM* WinEDA_BasePcbFrame::PcbGeneralLocateAndDisplay( int aHotKeyCode )
         // @todo: add switch here and add calls to PcbGeneralLocateAndDisplay( int aHotKeyCode )
         // when searching is needed from a hotkey handler
     }
-    else if( m_ID_current_state == 0 )
+    else if( GetToolId() == ID_NO_TOOL_SELECTED )
     {
         switch( m_HTOOL_current_state )
         {
-        case ID_TOOLBARH_PCB_AUTOPLACE:
+        case ID_TOOLBARH_PCB_MODE_MODULE:
             scanList = GENERAL_COLLECTOR::ModuleItems;
             break;
 
@@ -96,7 +93,7 @@ BOARD_ITEM* WinEDA_BasePcbFrame::PcbGeneralLocateAndDisplay( int aHotKeyCode )
     }
     else
     {
-        switch( m_ID_current_state )
+        switch( GetToolId() )
         {
         case ID_PCB_SHOW_1_RATSNEST_BUTT:
             scanList = GENERAL_COLLECTOR::PadsOrModules;
@@ -106,7 +103,7 @@ BOARD_ITEM* WinEDA_BasePcbFrame::PcbGeneralLocateAndDisplay( int aHotKeyCode )
             scanList = GENERAL_COLLECTOR::Tracks;
             break;
 
-        case ID_COMPONENT_BUTT:
+        case ID_PCB_MODULE_BUTT:
             scanList = GENERAL_COLLECTOR::ModuleItems;
             break;
 
@@ -133,6 +130,7 @@ BOARD_ITEM* WinEDA_BasePcbFrame::PcbGeneralLocateAndDisplay( int aHotKeyCode )
     for( int ii = 0;  ii < m_Collector->GetCount(); ii++ )
     {
         item = (*m_Collector)[ii];
+
         if( item->Type() != TYPE_ZONE )
             continue;
 
@@ -151,7 +149,9 @@ BOARD_ITEM* WinEDA_BasePcbFrame::PcbGeneralLocateAndDisplay( int aHotKeyCode )
         item = (*m_Collector)[0];
         SetCurItem( item );
     }
-    // If the count is 2, and first item is a pad or moduletext, and the 2nd item is its parent module:
+
+    // If the count is 2, and first item is a pad or moduletext, and the 2nd item is its
+    // parent module:
     else if( m_Collector->GetCount() == 2
              && ( (*m_Collector)[0]->Type() == TYPE_PAD || (*m_Collector)[0]->Type() ==
                  TYPE_TEXTE_MODULE )
@@ -173,12 +173,14 @@ BOARD_ITEM* WinEDA_BasePcbFrame::PcbGeneralLocateAndDisplay( int aHotKeyCode )
 
         /* Give a title to the selection menu. This is also a cancel menu item */
         wxMenuItem * item_title = new wxMenuItem(&itemMenu, -1, _( "Selection Clarification" ) );
+
 #ifdef __WINDOWS__
         wxFont bold_font(*wxNORMAL_FONT);
         bold_font.SetWeight(wxFONTWEIGHT_BOLD);
         bold_font.SetStyle( wxFONTSTYLE_ITALIC);
         item_title->SetFont(bold_font);
 #endif
+
         itemMenu.Append(item_title);
         itemMenu.AppendSeparator();
 
@@ -197,40 +199,39 @@ BOARD_ITEM* WinEDA_BasePcbFrame::PcbGeneralLocateAndDisplay( int aHotKeyCode )
             ADD_MENUITEM( &itemMenu, ID_POPUP_PCB_ITEM_SELECTION_START + i, text, xpm );
         }
 
-        /* @todo: rather than assignment to TRUE, these should be increment and decrement operators throughout _everywhere_.
+        /* @todo: rather than assignment to true, these should be increment and decrement
+         * operators throughout _everywhere_.
          *  That way we can handle nesting.
-         *  But I tried that and found there cases where the assignment to TRUE (converted to a m_IgnoreMouseEvents++ )
-         *  was not balanced with the -- (now m_IgnoreMouseEvents=FALSE), so I had to revert.
+         *  But I tried that and found there cases where the assignment to true (converted to
+         * a m_IgnoreMouseEvents++ )
+         *  was not balanced with the -- (now m_IgnoreMouseEvents=false), so I had to revert.
          *  Somebody should track down these and make them balanced.
-         *  DrawPanel->m_IgnoreMouseEvents = TRUE;
+         *  DrawPanel->m_IgnoreMouseEvents = true;
          */
 
-        // this menu's handler is void WinEDA_BasePcbFrame::ProcessItemSelection()
+        // this menu's handler is void PCB_BASE_FRAME::ProcessItemSelection()
         // and it calls SetCurItem() which in turn calls DisplayInfo() on the item.
-        DrawPanel->m_AbortRequest = true;   // changed in false if an item
-        PopupMenu( &itemMenu ); // m_AbortRequest = false if an item is selected
+        DrawPanel->m_AbortRequest = true;   // changed in false if an item is selected
+        PopupMenu( &itemMenu );
 
-        DrawPanel->MouseToCursorSchema();
-
-//        DrawPanel->m_IgnoreMouseEvents = FALSE;
+        DrawPanel->MoveCursorToCrossHair();
 
         // The function ProcessItemSelection() has set the current item, return it.
-        item = GetCurItem();
+        if( DrawPanel->m_AbortRequest )     // Nothing selected
+            item = NULL;
+        else
+            item = GetCurItem();
     }
 
     return item;
 }
 
 
-/****************************************************************/
-void WinEDA_PcbFrame::GeneralControle( wxDC* DC, wxPoint Mouse )
-/*****************************************************************/
+void PCB_EDIT_FRAME::GeneralControl( wxDC* aDC, const wxPoint& aPosition, int aHotKey )
 {
-    wxRealPoint delta;
-    wxPoint curpos, oldpos;
-    int     hotkey = 0;
-
-    ActiveScreen = GetScreen();
+    wxRealPoint gridSize;
+    wxPoint     oldpos;
+    wxPoint     pos = GetScreen()->GetNearestGridPosition( aPosition );
 
     // Save the board after the time out :
     int CurrentTime = time( NULL );
@@ -243,9 +244,9 @@ void WinEDA_PcbFrame::GeneralControle( wxDC* DC, wxPoint Mouse )
 
     if( (CurrentTime - g_SaveTime) > g_TimeOut )
     {
-        wxString tmpFileName = GetScreen()->m_FileName;
+        wxString tmpFileName = GetScreen()->GetFileName();
         wxFileName fn = wxFileName( wxEmptyString, g_SaveFileName, PcbFileExtension );
-        bool     flgmodify   = GetScreen()->IsModify();
+        bool flgmodify = GetScreen()->IsModify();
 
         SavePcbFile( fn.GetFullPath() );
 
@@ -254,88 +255,76 @@ void WinEDA_PcbFrame::GeneralControle( wxDC* DC, wxPoint Mouse )
             OnModify();
             GetScreen()->SetSave(); // Set the flags m_FlagSave cleared by SetModify()
         }
-        GetScreen()->m_FileName = tmpFileName;
-        SetTitle( GetScreen()->m_FileName );
+
+        GetScreen()->SetFileName( tmpFileName );
+        SetTitle( GetScreen()->GetFileName() );
     }
 
-    double scalar = GetScreen()->GetScalingFactor();
+    oldpos = GetScreen()->GetCrossHairPosition();
 
-    curpos = DrawPanel->CursorRealPosition( Mouse );
-    oldpos = GetScreen()->m_Curseur;
+    gridSize = GetScreen()->GetGridSize();
 
-    delta = GetScreen()->GetGridSize();
-
-    delta.x *= scalar;
-    delta.y *= scalar;
-
-    if( delta.x <= 0 )
-        delta.x = 1;
-
-    if( delta.y <= 0 )
-        delta.y = 1;
-
-    switch( g_KeyPressed )
+    switch( aHotKey )
     {
     case WXK_NUMPAD8:       /* Deplacement curseur vers le haut */
     case WXK_UP:
-        Mouse.y -= wxRound(delta.y);
-        DrawPanel->MouseTo( Mouse );
+        pos.y -= wxRound( gridSize.y );
+        DrawPanel->MoveCursor( pos );
         break;
 
     case WXK_NUMPAD2:       /* Deplacement curseur vers le bas */
     case WXK_DOWN:
-        Mouse.y += wxRound(delta.y);
-        DrawPanel->MouseTo( Mouse );
+        pos.y += wxRound( gridSize.y );
+        DrawPanel->MoveCursor( pos );
         break;
 
     case WXK_NUMPAD4:       /* Deplacement curseur vers la gauche */
     case WXK_LEFT:
-        Mouse.x -= wxRound(delta.x);
-        DrawPanel->MouseTo( Mouse );
+        pos.x -= wxRound( gridSize.x );
+        DrawPanel->MoveCursor( pos );
         break;
 
     case WXK_NUMPAD6:      /* Deplacement curseur vers la droite */
     case WXK_RIGHT:
-        Mouse.x += wxRound(delta.x);
-        DrawPanel->MouseTo( Mouse );
+        pos.x += wxRound( gridSize.x );
+        DrawPanel->MoveCursor( pos );
         break;
 
     default:
-        hotkey = g_KeyPressed;
         break;
     }
 
-    /* Put cursor in new position, according to the zoom keys (if any) */
-    GetScreen()->m_Curseur = curpos;
+    // Put cursor in new position, according to the zoom keys (if any).
+    GetScreen()->SetCrossHairPosition( pos );
 
-    /* Put cursor on grid or a pad centre if requested
-     * But if the tool DELETE is active the cursor is left off grid
-     * this is better to reach items to delete off grid
+    /* Put cursor on grid or a pad centre if requested. If the tool DELETE is active the
+     * cursor is left off grid this is better to reach items to delete off grid,
      */
-    bool   keep_on_grid = TRUE;
-    if( m_ID_current_state == ID_PCB_DELETE_ITEM_BUTT )
-        keep_on_grid = FALSE;
+    bool   keep_on_grid = true;
+
+    if( GetToolId() == ID_PCB_DELETE_ITEM_BUTT )
+        keep_on_grid = false;
 
     /* Cursor is left off grid if no block in progress and no moving object */
     if( GetScreen()->m_BlockLocate.m_State != STATE_NO_BLOCK )
-        keep_on_grid = TRUE;
+        keep_on_grid = true;
 
-    EDA_BaseStruct* DrawStruct = GetScreen()->GetCurItem();
+    EDA_ITEM* DrawStruct = GetScreen()->GetCurItem();
+
     if( DrawStruct && DrawStruct->m_Flags )
-        keep_on_grid = TRUE;
+        keep_on_grid = true;
 
     if( keep_on_grid )
     {
-        wxPoint on_grid = curpos;
+        wxPoint on_grid = GetScreen()->GetNearestGridPosition( pos );
 
-        PutOnGrid( &on_grid );
         wxSize grid;
         grid.x = (int) GetScreen()->GetGridSize().x;
         grid.y = (int) GetScreen()->GetGridSize().y;
-        if( Magnetize(m_Pcb, (WinEDA_PcbFrame *) this, m_ID_current_state,
-                      grid, on_grid, &curpos) )
+
+        if( Magnetize( m_Pcb, this, GetToolId(), grid, on_grid, &pos ) )
         {
-            GetScreen()->m_Curseur = curpos;
+            GetScreen()->SetCrossHairPosition( pos, false );
         }
         else
         {
@@ -343,39 +332,42 @@ void WinEDA_PcbFrame::GeneralControle( wxDC* DC, wxPoint Mouse )
             // "as is", and let ShowNewTrackWhenMovingCursor figure out what to do.
             if( !Drc_On || !g_CurrentTrackSegment
                 || g_CurrentTrackSegment != this->GetCurItem()
-                || !LocateIntrusion( m_Pcb->m_Track, g_CurrentTrackSegment ))
+                || !LocateIntrusion( m_Pcb->m_Track, g_CurrentTrackSegment,
+                                     GetScreen()->m_Active_Layer, GetScreen()->RefPos( true ) ) )
             {
-                GetScreen()->m_Curseur = on_grid;
+                GetScreen()->SetCrossHairPosition( on_grid );
             }
         }
     }
 
-    if( oldpos != GetScreen()->m_Curseur )
+    if( oldpos != GetScreen()->GetCrossHairPosition() )
     {
-        curpos = GetScreen()->m_Curseur;
-        GetScreen()->m_Curseur = oldpos;
-        DrawPanel->CursorOff( DC );
+        pos = GetScreen()->GetCrossHairPosition();
+        GetScreen()->SetCrossHairPosition( oldpos, false );
+        DrawPanel->CrossHairOff( aDC );
+        GetScreen()->SetCrossHairPosition( pos, false );
+        DrawPanel->CrossHairOn( aDC );
 
-        GetScreen()->m_Curseur = curpos;
-        DrawPanel->CursorOn( DC );
-
-        if( DrawPanel->ManageCurseur )
+        if( DrawPanel->IsMouseCaptured() )
         {
-            DrawPanel->ManageCurseur( DrawPanel, DC, TRUE );
+#ifdef USE_WX_OVERLAY
+            wxDCOverlay oDC( DrawPanel->m_overlay, (wxWindowDC*)aDC );
+            oDC.Clear();
+            DrawPanel->m_mouseCaptureCallback( DrawPanel, aDC, aPosition, false );
+#else
+            DrawPanel->m_mouseCaptureCallback( DrawPanel, aDC, aPosition, true );
+#endif
         }
+#ifdef USE_WX_OVERLAY
+        else
+            DrawPanel->m_overlay.Reset();
+#endif
     }
 
-    if( hotkey )
+    if( aHotKey )
     {
-        OnHotKey( DC, hotkey, NULL );
+        OnHotKey( aDC, aHotKey, aPosition );
     }
 
-    if( GetScreen()->IsRefreshReq() )
-    {
-        DrawPanel->Refresh( );
-        wxSafeYield();
-    }
-
-    SetToolbars();
     UpdateStatusBar();    /* Display new cursor coordinates */
 }

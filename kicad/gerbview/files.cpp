@@ -9,115 +9,98 @@
 #include "gestfich.h"
 
 #include "gerbview.h"
-#include "pcbplot.h"
-#include "protos.h"
+#include "gerbview_id.h"
 
 
-static void LoadDCodeFile( WinEDA_GerberFrame* frame,
-                           const wxString&     FullFileName );
-
-
-void WinEDA_GerberFrame::OnFileHistory( wxCommandEvent& event )
+/* Load a Gerber file selected from history list on current layer
+ * Previous data is deleted
+ */
+void GERBVIEW_FRAME::OnGbrFileHistory( wxCommandEvent& event )
 {
     wxString fn;
 
-    fn = GetFileFromHistory( event.GetId(), _( "Printed circuit board" ) );
+    fn = GetFileFromHistory( event.GetId(), _( "Gerber files" ) );
 
-    if( fn != wxEmptyString )
+    if( !fn.IsEmpty() )
     {
         Erase_Current_Layer( false );
-        LoadOneGerberFile( fn, false );
+        LoadGerberFiles( fn );
+    }
+}
+
+/* Load a Drll (Excellon) file selected from history list on current layer
+ * Previous data is deleted
+ */
+void GERBVIEW_FRAME::OnDrlFileHistory( wxCommandEvent& event )
+{
+    wxString fn;
+
+    fn = GetFileFromHistory( event.GetId(), _( "Drill files" ), &m_drillFileHistory );
+
+    if( !fn.IsEmpty() )
+    {
+        Erase_Current_Layer( false );
+        LoadExcellonFiles( fn );
     }
 }
 
 
 /* File commands. */
-void WinEDA_GerberFrame::Files_io( wxCommandEvent& event )
+void GERBVIEW_FRAME::Files_io( wxCommandEvent& event )
 {
     int        id = event.GetId();
 
     switch( id )
     {
     case wxID_FILE:
-    {
-        wxString fileName = GetScreen()->m_FileName;
         Erase_Current_Layer( false );
-        LoadOneGerberFile( fileName, true );
-        break;
-    }
-
-    case ID_MENU_INC_LAYER_AND_APPEND_FILE:
-    case ID_INC_LAYER_AND_APPEND_FILE:
-    {
-        int origLayer = getActiveLayer();
-        if( origLayer < NB_LAYERS )
-        {
-            setActiveLayer(origLayer+1);
-
-            if( !LoadOneGerberFile( wxEmptyString ) )
-                setActiveLayer(origLayer);
-
-            SetToolbars();
-        }
-        else
-        {
-            wxString msg;
-            msg.Printf( _( "GerbView only supports a maximum of %d layers.  You must first \
-delete an existing layer to load any new layers." ), NB_LAYERS );
-            wxMessageBox( msg );
-        }
-    }
-    break;
-
-    case ID_APPEND_FILE:
-        LoadOneGerberFile( wxEmptyString );
+        LoadGerberFiles( wxEmptyString );
         break;
 
-    case ID_NEW_BOARD:
+    case ID_GERBVIEW_ERASE_ALL:
         Clear_Pcb( true );
         Zoom_Automatique( false );
         DrawPanel->Refresh();
+        ClearMsgPanel();
         break;
 
     case ID_GERBVIEW_LOAD_DRILL_FILE:
-        DisplayError( this, _( "Not yet available..." ) );
+        LoadExcellonFiles( wxEmptyString );
+        DrawPanel->Refresh();
         break;
 
     case ID_GERBVIEW_LOAD_DCODE_FILE:
-        LoadDCodeFile( this, wxEmptyString );
-        break;
-
-    case ID_SAVE_BOARD:
-        SaveGerberFile( GetScreen()->m_FileName );
-        break;
-
-    case ID_SAVE_BOARD_AS:
-        SaveGerberFile( wxEmptyString );
+        LoadDCodeFile( wxEmptyString );
+        DrawPanel->Refresh();
         break;
 
     default:
-        DisplayError( this, wxT( "File_io Internal Error" ) );
+        wxFAIL_MSG( wxT( "File_io: unexpected command id" ) );
         break;
     }
 }
 
 
-bool WinEDA_GerberFrame::LoadOneGerberFile( const wxString& aFullFileName, bool aOpenFileDialog )
+bool GERBVIEW_FRAME::LoadGerberFiles( const wxString& aFullFileName )
 {
     wxString   filetypes;
+    wxArrayString filenamesList;
     wxFileName filename = aFullFileName;
+    wxString currentPath;
 
-    ActiveScreen = GetScreen();
-
-    if( !filename.IsOk() || aOpenFileDialog )
+    if( !filename.IsOk() )
     {
         /* Standard gerber filetypes
          * (See http://en.wikipedia.org/wiki/Gerber_File)
          * the .pho extension is the default used in Pcbnew
+         * However there are a lot of other extensions used for gerber files
+         * Because the first letter is usually g, we accept g* as extension
+         * (Mainly internal copper layers do not have specific extention,
+         *  and filenames are like *.g1, *.g2 *.gb1 ...).
          */
-        filetypes = _( "Gerber files (.gb* .gt* .lgr .ger .pho)" );
+        filetypes = _( "Gerber files (.g* .lgr .pho)" );
         filetypes << wxT("|");
-        filetypes += wxT("*.gb*;*.GB*;*.gt*;*.GT*;*.gko;*.GKO;*.GPB;*.gpb;*.lgr;*.LGR;*.ger;*.GER;*.pho;*.PHO" );
+        filetypes += wxT("*.g*;*.G*;*.lgr;*.LGR;*.pho;*.PHO" );
         filetypes << wxT("|");
 
         /* Special gerber filetypes */
@@ -138,34 +121,155 @@ bool WinEDA_GerberFrame::LoadOneGerberFile( const wxString& aFullFileName, bool 
         filetypes += AllFilesWildcard;
 
         /* Use the current working directory if the file name path does not exist. */
-        wxString current_path = wxGetCwd();
-
         if( filename.DirExists() )
-            current_path = filename.GetPath();
+            currentPath = filename.GetPath();
+        else
+            currentPath = wxGetCwd();
 
         wxFileDialog dlg( this,
                           _( "Open Gerber File" ),
-                          current_path,
+                          currentPath,
                           filename.GetFullName(),
                           filetypes,
-                          wxFD_OPEN | wxFD_FILE_MUST_EXIST );
+                          wxFD_OPEN | wxFD_FILE_MUST_EXIST | wxFD_MULTIPLE | wxFD_CHANGE_DIR );
 
         if( dlg.ShowModal() == wxID_CANCEL )
             return false;
 
-        filename = dlg.GetPath();
+        dlg.GetPaths( filenamesList );
+        currentPath = wxGetCwd();
+    }
+    else
+    {
+        wxFileName filename = aFullFileName;
+        filenamesList.Add( aFullFileName );
+        currentPath = filename.GetPath();
     }
 
-    GetScreen()->m_FileName = filename.GetFullPath();
-    wxSetWorkingDirectory( filename.GetPath() );
-    filename.SetExt( g_PenFilenameExt );
+    // Read gerber files: each file is loaded on a new gerbview layer
+    int layer = getActiveLayer();
 
-    if( Read_GERBER_File( GetScreen()->m_FileName, filename.GetFullPath() ) )
-        SetLastProject( GetScreen()->m_FileName );
+    for( unsigned ii = 0; ii < filenamesList.GetCount(); ii++ )
+    {
+        wxFileName filename = filenamesList[ii];
+
+        if( !filename.IsAbsolute() )
+            filename.SetPath( currentPath );
+
+        GetScreen()->SetFileName( filename.GetFullPath() );
+
+        setActiveLayer( layer, false );
+
+        if( Read_GERBER_File( filename.GetFullPath(), filename.GetFullPath() ) )
+        {
+            UpdateFileHistory( GetScreen()->GetFileName() );
+
+            layer = getNextAvailableLayer( layer );
+
+            if( layer == NO_AVAILABLE_LAYERS )
+            {
+                wxString msg = wxT( "No more empty layers are available.  The remaining gerber " );
+                msg += wxT( "files will not be loaded." );
+                wxMessageBox( msg );
+                break;
+            }
+
+            setActiveLayer( layer, false );
+        }
+    }
 
     Zoom_Automatique( false );
-    GetScreen()->SetRefreshReq();
     g_SaveTime = time( NULL );
+
+    // Synchronize layers tools with actual active layer:
+    setActiveLayer( getActiveLayer() );
+    m_LayersManager->UpdateLayerIcons();
+    syncLayerBox();
+    return true;
+}
+
+bool GERBVIEW_FRAME::LoadExcellonFiles( const wxString& aFullFileName )
+{
+    wxString   filetypes;
+    wxArrayString filenamesList;
+    wxFileName filename = aFullFileName;
+    wxString currentPath;
+
+    if( !filename.IsOk() )
+    {
+        filetypes = _( "Drill files (.drl)" );
+        filetypes << wxT("|");
+        filetypes += wxT(";*.drl;*.DRL" );
+        filetypes << wxT("|");
+        /* All filetypes */
+        filetypes += AllFilesWildcard;
+
+        /* Use the current working directory if the file name path does not exist. */
+        if( filename.DirExists() )
+            currentPath = filename.GetPath();
+        else
+            currentPath = wxGetCwd();
+
+        wxFileDialog dlg( this,
+                          _( "Open Drill File" ),
+                          currentPath,
+                          filename.GetFullName(),
+                          filetypes,
+                          wxFD_OPEN | wxFD_FILE_MUST_EXIST | wxFD_MULTIPLE | wxFD_CHANGE_DIR );
+
+        if( dlg.ShowModal() == wxID_CANCEL )
+            return false;
+
+        dlg.GetPaths( filenamesList );
+        currentPath = wxGetCwd();
+    }
+    else
+    {
+        wxFileName filename = aFullFileName;
+        filenamesList.Add( aFullFileName );
+        currentPath = filename.GetPath();
+    }
+
+    // Read gerber files: each file is loaded on a new gerbview layer
+    int layer = getActiveLayer();
+
+    for( unsigned ii = 0; ii < filenamesList.GetCount(); ii++ )
+    {
+        wxFileName filename = filenamesList[ii];
+
+        if( !filename.IsAbsolute() )
+            filename.SetPath( currentPath );
+
+        GetScreen()->SetFileName( filename.GetFullPath() );
+
+        setActiveLayer( layer, false );
+
+        if( Read_EXCELLON_File( filename.GetFullPath() ) )
+        {
+            // Update the list of recentdrill files.
+            UpdateFileHistory( filename.GetFullPath(),  &m_drillFileHistory );
+
+            layer = getNextAvailableLayer( layer );
+
+            if( layer == NO_AVAILABLE_LAYERS )
+            {
+                wxString msg = wxT( "No more empty layers are available.  The remaining gerber " );
+                msg += wxT( "files will not be loaded." );
+                wxMessageBox( msg );
+                break;
+            }
+
+            setActiveLayer( layer, false );
+        }
+    }
+
+    Zoom_Automatique( false );
+    g_SaveTime = time( NULL );
+
+    // Synchronize layers tools with actual active layer:
+    setActiveLayer( getActiveLayer() );
+    m_LayersManager->UpdateLayerIcons();
+    syncLayerBox();
 
     return true;
 }
@@ -173,62 +277,25 @@ bool WinEDA_GerberFrame::LoadOneGerberFile( const wxString& aFullFileName, bool 
 
 /*
  * Read a DCode file (not used with RX274X files , just with RS274D old files).
- * Note: there is no standard for DCode file.
+ * Note: there is no standard for DCode files.
  * Just read a file format created by early versions of Pcbnew.
  * Returns:
- *   0 if file not read (cancellation of order ...)
- *   1 if OK
+ *   false if file not read (cancellation of order ...)
+ *   true if OK
  */
-static void LoadDCodeFile( WinEDA_GerberFrame* frame,
-                           const wxString&     FullFileName )
+bool GERBVIEW_FRAME::LoadDCodeFile( const wxString& aFullFileName )
 {
     wxString   wildcard;
-    wxFileName fn = FullFileName;
-
-    ActiveScreen = frame->GetScreen();
+    wxFileName fn = aFullFileName;
 
     if( !fn.IsOk() )
     {
-        wildcard.Printf( _( "Gerber DCODE files (%s)|*.%s" ),
-                         GetChars( g_PenFilenameExt ),
-                         GetChars( g_PenFilenameExt ) );
-        wildcard += AllFilesWildcard;
-        fn = frame->GetScreen()->m_FileName;
-        fn.SetExt( g_PenFilenameExt );
-        wxFileDialog dlg( (wxWindow*) frame, _( "Load GERBER DCODE File" ),
+        wildcard = _( "Gerber DCODE files" );
+        wildcard += wxT(" ") + AllFilesWildcard;
+        fn = GetScreen()->GetFileName();
+        wxFileDialog dlg( this, _( "Load GERBER DCODE File" ),
                           fn.GetPath(), fn.GetFullName(), wildcard,
                           wxFD_OPEN | wxFD_FILE_MUST_EXIST );
-
-        if( dlg.ShowModal() == wxID_CANCEL )
-            return;
-
-        fn = dlg.GetPath();
-    }
-
-    frame->Read_D_Code_File( fn.GetFullPath() );
-    frame->CopyDCodesSizeToItems();
-    frame->GetScreen()->SetRefreshReq();
-}
-
-
-/* Save the file in ASCII PCB.
- */
-bool WinEDA_GerberFrame::SaveGerberFile( const wxString& FullFileName )
-{
-    wxString   wildcard;
-    wxFileName fn = FullFileName;
-
-    if( !fn.IsOk() )
-    {
-        fn = GetScreen()->m_FileName;
-
-        wildcard.Printf( _( "Gerber DCODE files (%s)|*.%s" ),
-                         GetChars( g_PenFilenameExt ),
-                         GetChars( g_PenFilenameExt ) );
-
-        wxFileDialog dlg( this, _( "Save Gerber File" ), fn.GetPath(),
-                          fn.GetFullName(), wildcard,
-                          wxFD_SAVE | wxFD_OVERWRITE_PROMPT );
 
         if( dlg.ShowModal() == wxID_CANCEL )
             return false;
@@ -236,9 +303,7 @@ bool WinEDA_GerberFrame::SaveGerberFile( const wxString& FullFileName )
         fn = dlg.GetPath();
     }
 
-    GetScreen()->m_FileName = fn.GetFullPath();
-
-// TODO
-
+    ReadDCodeDefinitionFile( fn.GetFullPath() );
+    CopyDCodesSizeToItems();
     return true;
 }

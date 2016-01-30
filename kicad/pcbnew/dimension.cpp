@@ -10,20 +10,22 @@
 #include "wxPcbStruct.h"
 #include "class_board_design_settings.h"
 #include "drawtxt.h"
+#include "dialog_helpers.h"
 
-/* Routines Locales */
-static void Exit_EditDimension( WinEDA_DrawPanel* Panel, wxDC* DC );
-static void Montre_Position_New_Dimension( WinEDA_DrawPanel* panel, wxDC* DC, bool erase );
+/* Loca functions */
+static void Exit_EditDimension( EDA_DRAW_PANEL* Panel, wxDC* DC );
+static void Montre_Position_New_Dimension( EDA_DRAW_PANEL* aPanel, wxDC* aDC,
+                                           const wxPoint& aPosition, bool aErase );
 
-/* Variables "locales" : */
-static int status_dimension; /*  = 0 : pas de dimension en cours
-                             *  = 1 : debut place, fin a placer
-                             *  = 2 : fin placee, texte a ajuster */
+/* Local variables : */
+static int status_dimension; /* Used in cimension creation:
+                              * = 0 : initial value: no dimension in progress
+                              *  = 1 : First point created
+                              *  = 2 : Secont point created, the text must be placed */
 
 /*
- *  Les routines generent une dimension de la forme
- *  - cote usuelle:
- *
+ *  A dimension has this shape:
+ *  It has 2 reference points, and a text
  * |            |
  * |    dist    |
  * |<---------->|
@@ -40,20 +42,19 @@ class DIMENSION_EDITOR_DIALOG : public wxDialog
 {
 private:
 
-    WinEDA_PcbFrame*  m_Parent;
+    PCB_EDIT_FRAME*   m_Parent;
     wxDC*             m_DC;
     DIMENSION*         CurrentDimension;
     WinEDA_EnterText* m_Name;
     WinEDA_SizeCtrl*  m_TxtSizeCtrl;
     WinEDA_ValueCtrl* m_TxtWidthCtrl;
     wxRadioBox*       m_Mirror;
-    WinEDAChoiceBox*  m_SelLayerBox;
+    wxComboBox*  m_SelLayerBox;
 
 public:
 
     // Constructor and destructor
-    DIMENSION_EDITOR_DIALOG( WinEDA_PcbFrame* parent,
-                                    DIMENSION* Dimension, wxDC* DC, const wxPoint& pos );
+    DIMENSION_EDITOR_DIALOG( PCB_EDIT_FRAME* parent, DIMENSION* Dimension, wxDC* DC );
     ~DIMENSION_EDITOR_DIALOG()
     {
     }
@@ -67,16 +68,15 @@ private:
 };
 
 BEGIN_EVENT_TABLE( DIMENSION_EDITOR_DIALOG, wxDialog )
-EVT_BUTTON( wxID_OK, DIMENSION_EDITOR_DIALOG::OnOkClick )
-EVT_BUTTON( wxID_CANCEL, DIMENSION_EDITOR_DIALOG::OnCancelClick )
+    EVT_BUTTON( wxID_OK, DIMENSION_EDITOR_DIALOG::OnOkClick )
+    EVT_BUTTON( wxID_CANCEL, DIMENSION_EDITOR_DIALOG::OnCancelClick )
 END_EVENT_TABLE()
 
 
-DIMENSION_EDITOR_DIALOG::DIMENSION_EDITOR_DIALOG( WinEDA_PcbFrame* parent,
-                                                                DIMENSION* Dimension, wxDC* DC,
-                                                                const wxPoint& framepos ) :
-    wxDialog( parent, -1, _( "Dimension properties" ), framepos, wxSize( 340, 270 ),
-              DIALOG_STYLE )
+DIMENSION_EDITOR_DIALOG::DIMENSION_EDITOR_DIALOG( PCB_EDIT_FRAME* parent,
+                                                  DIMENSION* Dimension, wxDC* DC
+                                                  ) :
+    wxDialog( parent, -1, wxString( _( "Dimension properties" ) ) )
 {
     wxButton* Button;
 
@@ -105,25 +105,26 @@ DIMENSION_EDITOR_DIALOG::DIMENSION_EDITOR_DIALOG( WinEDA_PcbFrame* parent,
                                wxDefaultPosition, wxSize( -1, -1 ), 2, display_msg,
                                1, wxRA_SPECIFY_COLS );
     if( Dimension->m_Text->m_Mirror )
-        m_Mirror->SetSelection( 1 );;
+        m_Mirror->SetSelection( 1 );
     RightBoxSizer->Add( m_Mirror, 0, wxGROW | wxALL, 5 );
 
     m_Name = new WinEDA_EnterText( this, wxT( "Text:" ),
-                                  Dimension->m_Text->m_Text,
-                                  LeftBoxSizer, wxSize( 200, -1 ) );
+                                   Dimension->m_Text->m_Text,
+                                   LeftBoxSizer, wxSize( 200, -1 ) );
 
     m_TxtSizeCtrl = new WinEDA_SizeCtrl( this, _( "Size" ),
                                          Dimension->m_Text->m_Size,
-                                         g_UnitMetric, LeftBoxSizer, m_Parent->m_InternalUnits );
+                                         g_UserUnit, LeftBoxSizer, m_Parent->m_InternalUnits );
 
     m_TxtWidthCtrl = new WinEDA_ValueCtrl( this, _( "Width" ),
                                            Dimension->m_Width,
-                                           g_UnitMetric, LeftBoxSizer, m_Parent->m_InternalUnits );
+                                           g_UserUnit, LeftBoxSizer, m_Parent->m_InternalUnits );
 
     wxStaticText* text = new wxStaticText( this, -1, _( "Layer:" ) );
     LeftBoxSizer->Add( text, 0, wxGROW | wxLEFT | wxRIGHT | wxTOP, 5 );
-    m_SelLayerBox = new WinEDAChoiceBox( this, wxID_ANY,
-                                         wxDefaultPosition, wxDefaultSize );
+    m_SelLayerBox = new wxComboBox( this, wxID_ANY, wxEmptyString,
+                                    wxDefaultPosition, wxDefaultSize,
+                                    0, NULL, wxCB_READONLY );
     LeftBoxSizer->Add( m_SelLayerBox, 0, wxGROW | wxLEFT | wxRIGHT | wxBOTTOM, 5 );
 
     for( int layer = FIRST_NO_COPPER_LAYER;  layer<NB_LAYERS;  layer++ )
@@ -139,7 +140,7 @@ DIMENSION_EDITOR_DIALOG::DIMENSION_EDITOR_DIALOG( WinEDA_PcbFrame* parent,
 
 
 /**********************************************************************/
-void DIMENSION_EDITOR_DIALOG::OnCancelClick( wxCommandEvent& WXUNUSED (event) )
+void DIMENSION_EDITOR_DIALOG::OnCancelClick( wxCommandEvent& event )
 /**********************************************************************/
 {
     EndModal( -1 );
@@ -164,17 +165,18 @@ void DIMENSION_EDITOR_DIALOG::OnOkClick( wxCommandEvent& event )
     CurrentDimension->m_Text->m_Size  = m_TxtSizeCtrl->GetValue();
 
     int width = m_TxtWidthCtrl->GetValue();
-    int maxthickness = Clamp_Text_PenSize(width, CurrentDimension->m_Text->m_Size );
+    int maxthickness = Clamp_Text_PenSize( width, CurrentDimension->m_Text->m_Size );
     if( width > maxthickness )
     {
-        DisplayError(NULL, _("The text thickness is too large for the text size. It will be clamped"));
+        DisplayError( NULL,
+                      _( "The text thickness is too large for the text size. It will be clamped") );
         width = maxthickness;
     }
-    CurrentDimension->m_Text->m_Width = CurrentDimension->m_Width = width ;
+    CurrentDimension->m_Text->m_Thickness = CurrentDimension->m_Width = width ;
 
-    CurrentDimension->m_Text->m_Mirror = (m_Mirror->GetSelection() == 1) ? true : false;
+    CurrentDimension->m_Text->m_Mirror = ( m_Mirror->GetSelection() == 1 ) ? true : false;
 
-    CurrentDimension->SetLayer( m_SelLayerBox->GetChoice() + FIRST_NO_COPPER_LAYER );
+    CurrentDimension->SetLayer( m_SelLayerBox->GetCurrentSelection() + FIRST_NO_COPPER_LAYER );
 
     CurrentDimension->AdjustDimensionDetails( true );
 
@@ -190,14 +192,14 @@ void DIMENSION_EDITOR_DIALOG::OnOkClick( wxCommandEvent& event )
 
 
 /**************************************************************/
-static void Exit_EditDimension( WinEDA_DrawPanel* Panel, wxDC* DC )
+static void Exit_EditDimension( EDA_DRAW_PANEL* Panel, wxDC* DC )
 /**************************************************************/
 {
     DIMENSION* Dimension = (DIMENSION*) Panel->GetScreen()->GetCurItem();
 
     if( Dimension )
     {
-        if( Dimension->m_Flags & IS_NEW )
+        if( Dimension->IsNew() )
         {
             Dimension->Draw( Panel, DC, GR_XOR );
             Dimension->DeleteStructure();
@@ -208,15 +210,13 @@ static void Exit_EditDimension( WinEDA_DrawPanel* Panel, wxDC* DC )
         }
     }
 
-    status_dimension      = 0;
-    Panel->ManageCurseur = NULL;
-    Panel->ForceCloseManageCurseur = NULL;
-    ((WinEDA_PcbFrame*)Panel->GetParent())->SetCurItem(NULL);
+    status_dimension = 0;
+    ((PCB_EDIT_FRAME*)Panel->GetParent())->SetCurItem( NULL );
 }
 
 
 /*************************************************************************/
-DIMENSION* WinEDA_PcbFrame::Begin_Dimension( DIMENSION* Dimension, wxDC* DC )
+DIMENSION* PCB_EDIT_FRAME::Begin_Dimension( DIMENSION* Dimension, wxDC* DC )
 /*************************************************************************/
 {
     wxPoint pos;
@@ -224,7 +224,7 @@ DIMENSION* WinEDA_PcbFrame::Begin_Dimension( DIMENSION* Dimension, wxDC* DC )
     if( Dimension == NULL )       /* debut reel du trace */
     {
         status_dimension = 1;
-        pos = GetScreen()->m_Curseur;
+        pos = GetScreen()->GetCrossHairPosition();
 
         Dimension = new DIMENSION( GetBoard() );
         Dimension->m_Flags = IS_NEW;
@@ -259,14 +259,13 @@ DIMENSION* WinEDA_PcbFrame::Begin_Dimension( DIMENSION* Dimension, wxDC* DC )
         {
             width = maxthickness;
         }
-        Dimension->m_Text->m_Width = Dimension->m_Width = width ;
+        Dimension->m_Text->m_Thickness = Dimension->m_Width = width ;
 
         Dimension->AdjustDimensionDetails( );
 
         Dimension->Draw( DrawPanel, DC, GR_XOR );
 
-        DrawPanel->ManageCurseur = Montre_Position_New_Dimension;
-        DrawPanel->ForceCloseManageCurseur = Exit_EditDimension;
+        DrawPanel->SetMouseCapture( Montre_Position_New_Dimension, Exit_EditDimension );
         return Dimension;
     }
 
@@ -287,32 +286,30 @@ DIMENSION* WinEDA_PcbFrame::Begin_Dimension( DIMENSION* Dimension, wxDC* DC )
     SaveCopyInUndoList( Dimension, UR_NEW );
 
     OnModify();
-    DrawPanel->ManageCurseur = NULL;
-    DrawPanel->ForceCloseManageCurseur = NULL;
+    DrawPanel->SetMouseCapture( NULL, NULL );
 
     return NULL;
 }
 
 
-/************************************************************************************/
-static void Montre_Position_New_Dimension( WinEDA_DrawPanel* panel, wxDC* DC, bool erase )
-/************************************************************************************/
-/* redessin du contour de la piste  lors des deplacements de la souris */
+static void Montre_Position_New_Dimension( EDA_DRAW_PANEL* aPanel, wxDC* aDC,
+                                           const wxPoint& aPosition, bool aErase )
 {
-    PCB_SCREEN* screen   = (PCB_SCREEN*) panel->GetScreen();
-    DIMENSION*   Dimension = (DIMENSION*) screen->GetCurItem();
-    wxPoint     pos = screen->m_Curseur;
+    PCB_SCREEN* screen   = (PCB_SCREEN*) aPanel->GetScreen();
+    DIMENSION*  Dimension = (DIMENSION*) screen->GetCurItem();
+    wxPoint     pos = screen->GetCrossHairPosition();
 
     if( Dimension == NULL )
         return;
 
-    /* efface ancienne position */
-    if( erase )
+    // Erase previous dimension.
+    if( aErase )
     {
-        Dimension->Draw( panel, DC, GR_XOR );
+        Dimension->Draw( aPanel, aDC, GR_XOR );
     }
 
     Dimension->SetLayer( screen->m_Active_Layer );
+
     if( status_dimension == 1 )
     {
         Dimension->TraitD_ox = pos.x;
@@ -345,26 +342,25 @@ static void Montre_Position_New_Dimension( WinEDA_DrawPanel* panel, wxDC* DC, bo
         Dimension->AdjustDimensionDetails( );
     }
 
-    Dimension->Draw( panel, DC, GR_XOR );
+    Dimension->Draw( aPanel, aDC, GR_XOR );
 }
 
 
 /***************************************************************/
-void WinEDA_PcbFrame::Install_Edit_Dimension( DIMENSION* Dimension,
-                                             wxDC* DC, const wxPoint& pos )
+void PCB_EDIT_FRAME::Install_Edit_Dimension( DIMENSION* Dimension, wxDC* DC )
 /***************************************************************/
 {
     if( Dimension == NULL )
         return;
 
-    DIMENSION_EDITOR_DIALOG* frame = new DIMENSION_EDITOR_DIALOG( this, Dimension, DC, pos );
+    DIMENSION_EDITOR_DIALOG* frame = new DIMENSION_EDITOR_DIALOG( this, Dimension, DC );
     frame->ShowModal();
     frame->Destroy();
 }
 
 
 /*******************************************************************/
-void WinEDA_PcbFrame::Delete_Dimension( DIMENSION* Dimension, wxDC* DC )
+void PCB_EDIT_FRAME::Delete_Dimension( DIMENSION* Dimension, wxDC* DC )
 /*******************************************************************/
 {
     if( Dimension == NULL )

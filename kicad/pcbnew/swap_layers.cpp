@@ -33,7 +33,7 @@ enum swap_layer_id {
 class WinEDA_SwapLayerFrame : public wxDialog
 {
 private:
-    WinEDA_BasePcbFrame*    m_Parent;
+    PCB_BASE_FRAME*         m_Parent;
     wxBoxSizer*             OuterBoxSizer;
     wxBoxSizer*             MainBoxSizer;
     wxFlexGridSizer*        FlexColumnBoxSizer;
@@ -45,7 +45,7 @@ private:
 
 public:
 
-    WinEDA_SwapLayerFrame( WinEDA_BasePcbFrame* parent );
+    WinEDA_SwapLayerFrame( PCB_BASE_FRAME* parent );
     ~WinEDA_SwapLayerFrame() { };
 
 private:
@@ -66,7 +66,7 @@ BEGIN_EVENT_TABLE( WinEDA_SwapLayerFrame, wxDialog )
 END_EVENT_TABLE()
 
 
-WinEDA_SwapLayerFrame::WinEDA_SwapLayerFrame( WinEDA_BasePcbFrame* parent ) :
+WinEDA_SwapLayerFrame::WinEDA_SwapLayerFrame( PCB_BASE_FRAME* parent ) :
     wxDialog( parent, -1, _( "Swap Layers:" ), wxPoint( -1, -1 ),
               wxDefaultSize, wxDEFAULT_DIALOG_STYLE | MAYBE_RESIZE_BORDER )
 {
@@ -254,6 +254,7 @@ WinEDA_SwapLayerFrame::WinEDA_SwapLayerFrame( WinEDA_BasePcbFrame* parent ) :
 
     Button = new wxButton( this, wxID_OK, _( "&OK" ), wxDefaultPosition,
                            wxDefaultSize, 0 );
+    Button->SetDefault();
     StdDialogButtonSizer->AddButton( Button );
 
     Button = new wxButton( this, wxID_CANCEL, _( "&Cancel" ),
@@ -335,12 +336,12 @@ void WinEDA_SwapLayerFrame::OnOkClick( wxCommandEvent& event )
 }
 
 
-void WinEDA_PcbFrame::Swap_Layers( wxCommandEvent& event )
+void PCB_EDIT_FRAME::Swap_Layers( wxCommandEvent& event )
 {
-    int             ii, jj;
-    TRACK*          pt_segm;
-    DRAWSEGMENT*    pt_drawsegm;
-    EDA_BaseStruct* PtStruct;
+    int          ii, jj;
+    TRACK*       pt_segm;
+    DRAWSEGMENT* pt_drawsegm;
+    EDA_ITEM*    PtStruct;
 
     /* Init default values */
     for( ii = 0; ii < NB_LAYERS; ii++ )

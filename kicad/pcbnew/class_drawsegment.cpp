@@ -16,6 +16,7 @@
 
 #include "trigo.h"
 #include "protos.h"
+#include "richio.h"
 
 /* DRAWSEGMENT: constructor */
 DRAWSEGMENT::DRAWSEGMENT( BOARD_ITEM* aParent, KICAD_T idtype ) :
@@ -50,7 +51,7 @@ void DRAWSEGMENT::Copy( DRAWSEGMENT* source )
 /**
  * Function Rotate
  * Rotate this object.
- * @param const wxPoint& aRotCentre - the rotation point.
+ * @param aRotCentre - the rotation point.
  * @param aAngle - the rotation angle in 0.1 degree.
  */
 void DRAWSEGMENT::Rotate(const wxPoint& aRotCentre, int aAngle)
@@ -62,7 +63,7 @@ void DRAWSEGMENT::Rotate(const wxPoint& aRotCentre, int aAngle)
 /**
  * Function Flip
  * Flip this object, i.e. change the board side for this object
- * @param const wxPoint& aCentre - the rotation point.
+ * @param aCentre - the rotation point.
  */
 void DRAWSEGMENT::Flip(const wxPoint& aCentre )
 {
@@ -78,9 +79,6 @@ void DRAWSEGMENT::Flip(const wxPoint& aCentre )
 
 bool DRAWSEGMENT::Save( FILE* aFile ) const
 {
-    if( GetState( DELETED ) )
-        return true;
-
     bool rc = false;
 
     if( fprintf( aFile, "$DRAWSEGMENT\n" ) != sizeof("$DRAWSEGMENT\n") - 1 )
@@ -113,16 +111,17 @@ out:
 
 
 /******************************************************************/
-bool DRAWSEGMENT::ReadDrawSegmentDescr( FILE* File, int* LineNum )
+bool DRAWSEGMENT::ReadDrawSegmentDescr( LINE_READER* aReader )
 /******************************************************************/
 
 /* Read a DRAWSEGMENT from a file
  */
 {
-    char Line[2048];
+    char* Line;
 
-    while( GetLine( File, Line, LineNum ) != NULL )
+    while( aReader->ReadLine() )
     {
+        Line = aReader->Line();
         if( strnicmp( Line, "$End", 4 ) == 0 )
             return TRUE; /* End of description */
         if( Line[0] == 'P' )
@@ -205,19 +204,17 @@ wxPoint DRAWSEGMENT::GetStart() const
 
 wxPoint DRAWSEGMENT::GetEnd() const
 {
-    wxPoint center;        // center point of the arc
-    wxPoint start;         // start of arc
+    wxPoint endPoint;         // start of arc
 
     switch( m_Shape )
     {
     case S_ARC:
         // rotate the starting point of the arc, given by m_End, through the
         // angle m_Angle to get the ending point of the arc.
-        center = m_Start;       // center point of the arc
-        start  = m_End;         // start of arc
-        RotatePoint( &start.x, &start.y, center.x, center.y, -m_Angle );
-
-        return start;   // after rotation, the end of the arc.
+        // m_Start is the arc centre
+        endPoint  = m_End;         // m_End = start point of arc
+        RotatePoint( &endPoint, m_Start, -m_Angle );
+        return endPoint;   // after rotation, the end of the arc.
         break;
 
     case S_SEGMENT:
@@ -228,8 +225,7 @@ wxPoint DRAWSEGMENT::GetEnd() const
 
 
 
-void DRAWSEGMENT::Draw( WinEDA_DrawPanel* panel, wxDC* DC,
-                        int draw_mode, const wxPoint& notUsed )
+void DRAWSEGMENT::Draw( EDA_DRAW_PANEL* panel, wxDC* DC, int draw_mode, const wxPoint& aOffset )
 {
     int ux0, uy0, dx, dy;
     int l_piste;
@@ -245,21 +241,19 @@ void DRAWSEGMENT::Draw( WinEDA_DrawPanel* panel, wxDC* DC,
     GRSetDrawMode( DC, draw_mode );
     l_piste = m_Width >> 1;  /* half trace width */
 
-    ux0 = m_Start.x;
-    uy0 = m_Start.y;
+    // Line start point or Circle and Arc center
+    ux0 = m_Start.x + aOffset.x;
+    uy0 = m_Start.y + aOffset.y;
 
-    dx = m_End.x;
-    dy = m_End.y;
+    // Line end point or circle and arc start point
+    dx = m_End.x + aOffset.x;
+    dy = m_End.y + aOffset.y;
 
     mode = DisplayOpt.DisplayDrawItems;
     if( m_Flags & FORCE_SKETCH )
         mode = SKETCH;
 
-#ifdef USE_WX_ZOOM
     if( l_piste < DC->DeviceToLogicalXRel( L_MIN_DESSIN ) )
-#else
-    if( l_piste < panel->GetScreen()->Unscale( L_MIN_DESSIN ) )
-#endif
         mode = FILAIRE;
 
     switch( m_Shape )
@@ -360,7 +354,7 @@ void DRAWSEGMENT::Draw( WinEDA_DrawPanel* panel, wxDC* DC,
 
 
 // see pcbstruct.h
-void DRAWSEGMENT::DisplayInfo( WinEDA_DrawFrame* frame )
+void DRAWSEGMENT::DisplayInfo( EDA_DRAW_FRAME* frame )
 {
     int      itype;
     wxString msg;
@@ -416,38 +410,30 @@ void DRAWSEGMENT::DisplayInfo( WinEDA_DrawFrame* frame )
 /**
  * Function HitTest
  * tests if the given wxPoint is within the bounds of this object.
- * @param ref_pos A wxPoint to test
+ * @param aRefPos A wxPoint to test
  * @return bool - true if a hit, else false
  */
-bool DRAWSEGMENT::HitTest( const wxPoint& ref_pos )
+bool DRAWSEGMENT::HitTest( const wxPoint& aRefPos )
 {
-    int ux0 = m_Start.x;
-    int uy0 = m_Start.y;
+    /* Calculate coordinates to test relative to segment origin. */
+    wxPoint relPos = aRefPos - m_Start;
 
-    /* Calculate coordinates with ux0, uy0 = origin. */
-    int dx = m_End.x - ux0;
-    int dy = m_End.y - uy0;
-
-    int spot_cX = ref_pos.x - ux0;
-    int spot_cY = ref_pos.y - uy0;
-
-    switch(m_Shape){
+    switch(m_Shape)
+    {
         case S_CIRCLE:
         case S_ARC:
-
-            int rayon, dist, stAngle, endAngle, mouseAngle;
-
-            rayon = (int) hypot( (double) (dx), (double) (dy) );
-            dist  = (int) hypot( (double) (spot_cX), (double) (spot_cY) );
+        {
+            int rayon = GetRadius();
+            int dist  = (int) hypot( (double) relPos.x, (double) relPos.y );
 
             if( abs( rayon - dist ) <= ( m_Width / 2 ) )
             {
                  if( m_Shape == S_CIRCLE )
                      return true;
 
-                    mouseAngle = (int) ArcTangente( spot_cY, spot_cX );
-                    stAngle    = (int) ArcTangente( dy, dx );
-                    endAngle   = stAngle + m_Angle;
+                int mouseAngle = ArcTangente( relPos.y, relPos.x );
+                int stAngle    = ArcTangente( m_End.y - m_Start.y, m_End.x - m_Start.x );
+                int endAngle   = stAngle + m_Angle;
 
                 if( endAngle > 3600 )
                 {
@@ -458,18 +444,20 @@ bool DRAWSEGMENT::HitTest( const wxPoint& ref_pos )
                 if( mouseAngle >= stAngle && mouseAngle <= endAngle )
                     return true;
             }
+        }
             break;
 
         case S_CURVE:
             for( unsigned int i= 1; i < m_BezierPoints.size(); i++)
             {
-                if( TestSegmentHit( ref_pos,m_BezierPoints[i-1],
+                if( TestSegmentHit( aRefPos,m_BezierPoints[i-1],
                                     m_BezierPoints[i-1], m_Width / 2 ) )
                     return true;
             }
             break;
+
         default:
-            if( DistanceTest( m_Width / 2, dx, dy, spot_cX, spot_cY ) )
+            if( TestSegmentHit( aRefPos, m_Start, m_End, m_Width / 2 ) )
                 return true;
     }
     return false;
@@ -478,17 +466,34 @@ bool DRAWSEGMENT::HitTest( const wxPoint& ref_pos )
 
 /**
  * Function HitTest (overlayed)
- * tests if the given EDA_Rect intersect this object.
- * For now, an ending point must be inside this rect.
- * @param refArea : the given EDA_Rect
+ * tests if the given EDA_RECT intersect this object.
+ * For now, for arcs and segments, an ending point must be inside this rect.
+ * @param refArea : the given EDA_RECT
  * @return bool - true if a hit, else false
  */
-bool DRAWSEGMENT::HitTest( EDA_Rect& refArea )
+bool DRAWSEGMENT::HitTest( EDA_RECT& refArea )
 {
-    if( refArea.Inside( m_Start ) )
-        return true;
-    if( refArea.Inside( m_End ) )
-        return true;
+    switch(m_Shape)
+    {
+        case S_CIRCLE:
+        {
+            int radius = GetRadius();
+            // Text if area intersects the circle:
+            EDA_RECT area = refArea;
+            area.Inflate(radius);
+            if( area.Contains(m_Start) )
+                return true;
+        }
+            break;
+
+        case S_ARC:
+        case S_SEGMENT:
+            if( refArea.Contains( GetStart() ) )
+                return true;
+            if( refArea.Contains( GetEnd() ) )
+                return true;
+            break;
+    }
     return false;
 }
 

@@ -12,7 +12,6 @@
 #include "confirm.h"
 #include "pcbnew.h"
 #include "protos.h"
-#include "pcbplot.h"
 
 #include "printout_controler.h"
 
@@ -37,7 +36,7 @@ PRINT_PARAMETERS::PRINT_PARAMETERS()
 
 
 BOARD_PRINTOUT_CONTROLER::BOARD_PRINTOUT_CONTROLER( const PRINT_PARAMETERS& print_params,
-                                                    WinEDA_DrawFrame* parent,
+                                                    EDA_DRAW_FRAME* parent,
                                                     const wxString&   title ) :
     wxPrintout( title )
 {
@@ -107,13 +106,10 @@ void BOARD_PRINTOUT_CONTROLER::GetPageInfo( int* minPage, int* maxPage,
 }
 
 
-/****************************************/
-void BOARD_PRINTOUT_CONTROLER::DrawPage()
-/****************************************/
-
 /*
  * This is the real print function: print the active screen
  */
+void BOARD_PRINTOUT_CONTROLER::DrawPage()
 {
     int          tmpzoom;
     wxPoint      tmp_startvisu;
@@ -123,39 +119,47 @@ void BOARD_PRINTOUT_CONTROLER::DrawPage()
     double       userscale;
     double       DrawZoom = 1;
     wxDC*        dc = GetDC();
-
+    PCB_SCREEN*  screen = (PCB_SCREEN*) m_Parent->GetScreen();
     bool         printMirror = m_PrintParams.m_PrintMirror;
 
     wxBusyCursor dummy;
 
     /* Save old draw scale and draw offset */
-    tmp_startvisu = ActiveScreen->m_StartVisu;
-    tmpzoom = ActiveScreen->GetZoom();
-    old_org = ActiveScreen->m_DrawOrg;
+    tmp_startvisu = screen->m_StartVisu;
+    tmpzoom = screen->GetZoom();
+    old_org = screen->m_DrawOrg;
     /* Change draw scale and offset to draw the whole page */
-    ActiveScreen->SetScalingFactor( DrawZoom );
-    ActiveScreen->m_DrawOrg.x   = ActiveScreen->m_DrawOrg.y = 0;
-    ActiveScreen->m_StartVisu.x = ActiveScreen->m_StartVisu.y = 0;
+    screen->SetScalingFactor( DrawZoom );
+    screen->m_DrawOrg.x   = screen->m_DrawOrg.y = 0;
+    screen->m_StartVisu.x = screen->m_StartVisu.y = 0;
 
-    // Gerbview uses a very large sheet (called "World" in gerber language)
-    // to print a sheet, uses A4 is better
-    SheetSize = ActiveScreen->m_CurrentSheetDesc->m_Size;       // size in 1/1000 inch
-    if( m_Parent->m_Ident == GERBER_FRAME )
-    {
-        SheetSize = g_Sheet_A4.m_Size;    // size in 1/1000 inch
-    }
+    SheetSize = screen->m_CurrentSheetDesc->m_Size;       // size in 1/1000 inch
     SheetSize.x *= m_Parent->m_InternalUnits / 1000;
-    SheetSize.y *= m_Parent->m_InternalUnits / 1000;            // size in pixels
+    SheetSize.y *= m_Parent->m_InternalUnits / 1000;            // size in internal units
 
-    WinEDA_BasePcbFrame* pcbframe = (WinEDA_BasePcbFrame*) m_Parent;
-    pcbframe->GetBoard()->ComputeBoundaryBox();
+    PCB_BASE_FRAME* pcbframe = (PCB_BASE_FRAME*) m_Parent;
+    pcbframe->GetBoard()->ComputeBoundingBox();
+    EDA_RECT brd_BBox = pcbframe->GetBoard()->m_BoundaryBox;
+
+    // In module editor, the module is located at 0,0 but for printing
+    // it is moved to SheetSize.x/2, SheetSize.y/2.
+    // So the equivalent board must be moved:
+    if( m_Parent->m_Ident == MODULE_EDITOR_FRAME )
+    {
+        wxPoint mv_offset;
+        mv_offset.x = SheetSize.x / 2;
+        mv_offset.y = SheetSize.y / 2;
+        brd_BBox.Move( mv_offset );
+    }
+
     /* Compute the PCB size in internal units*/
     userscale = m_PrintParams.m_PrintScale;
+
     if( userscale == 0 )            //  fit in page
     {
         int extra_margin = 4000*2;    // Margin = 4000 units pcb = 0.4 inch
-        SheetSize.x = pcbframe->GetBoard()->m_BoundaryBox.GetWidth() + extra_margin;
-        SheetSize.y = pcbframe->GetBoard()->m_BoundaryBox.GetHeight() + extra_margin;
+        SheetSize.x = brd_BBox.GetWidth() + extra_margin;
+        SheetSize.y = brd_BBox.GetHeight() + extra_margin;
         userscale   = 0.99;
     }
 
@@ -163,8 +167,7 @@ void BOARD_PRINTOUT_CONTROLER::DrawPage()
     if( (m_PrintParams.m_PrintScale > 1.0)          //  scale > 1 -> Recadrage
        || (m_PrintParams.m_PrintScale == 0) )       //  fit in page
     {
-        DrawOffset.x += pcbframe->GetBoard()->m_BoundaryBox.Centre().x;
-        DrawOffset.y += pcbframe->GetBoard()->m_BoundaryBox.Centre().y;
+        DrawOffset += brd_BBox.Centre();
     }
 
     if( m_PrintParams.m_PageSetupData )
@@ -225,40 +228,43 @@ void BOARD_PRINTOUT_CONTROLER::DrawPage()
         DrawOffset.y -= PlotAreaSizeInUserUnits.y / 2;
     }
 
-    ActiveScreen->m_DrawOrg = DrawOffset;
+    screen->m_DrawOrg = DrawOffset;
 
     GRResetPenAndBrush( dc );
     if( m_PrintParams.m_Print_Black_and_White )
         GRForceBlackPen( true );
 
 
-    WinEDA_DrawPanel* panel = m_Parent->DrawPanel;
-    EDA_Rect          tmp   = panel->m_ClipBox;
+    EDA_DRAW_PANEL* panel = m_Parent->DrawPanel;
+    EDA_RECT        tmp   = panel->m_ClipBox;
 
+    // Set clip box to the max size
+    #define MAX_VALUE (INT_MAX/2)   // MAX_VALUE is the max we can use in an integer
+                                    // and that allows calculations without overflow
     panel->m_ClipBox.SetOrigin( wxPoint( 0, 0 ) );
-    panel->m_ClipBox.SetSize( wxSize( 0x7FFFFF0, 0x7FFFFF0 ) );
+    panel->m_ClipBox.SetSize( wxSize( MAX_VALUE, MAX_VALUE ) );
 
-    m_Parent->GetBaseScreen()->m_IsPrinting = true;
+    m_Parent->GetScreen()->m_IsPrinting = true;
     int bg_color = g_DrawBgColor;
 
     if( m_PrintParams.m_Print_Sheet_Ref )
-        m_Parent->TraceWorkSheet( dc, ActiveScreen, m_PrintParams.m_PenDefaultSize );
+        m_Parent->TraceWorkSheet( dc, screen, m_PrintParams.m_PenDefaultSize );
 
     if( printMirror )
     {
         // To plot mirror, we reverse the y axis, and modify the plot y origin
-        double sx, sy;
-
-        dc->GetUserScale( &sx, &sy );
         dc->SetAxisOrientation( true, true );
         if( userscale < 1.0 )
-            sy /= userscale;
+            scaley /= userscale;
 
         /* Plot offset y is moved by the y plot area size in order to have
          * the old draw area in the new draw area, because the draw origin has not moved
          * (this is the upper left corner) but the Y axis is reversed, therefore the plotting area
          * is the y coordinate values from  - PlotAreaSize.y to 0 */
-        int ysize = (int) ( PlotAreaSizeInPixels.y / sy );
+        int y_dc_offset = PlotAreaSizeInPixels.y;
+        y_dc_offset = (int) ( ( double ) y_dc_offset * userscale );
+        dc->SetDeviceOrigin( 0, y_dc_offset );
+        int ysize = (int) ( PlotAreaSizeInPixels.y / scaley );
         DrawOffset.y += ysize;
 
         /* in order to keep the board position in the sheet
@@ -268,11 +274,13 @@ void BOARD_PRINTOUT_CONTROLER::DrawPage()
          * for scales > 1, the DrawOffset was already computed to have the board centre
          * to the middle of the page.
          */
-        wxPoint pcb_centre = pcbframe->GetBoard()->m_BoundaryBox.Centre();
+        wxPoint pcb_centre = brd_BBox.Centre();
+
         if( userscale <= 1.0 )
             DrawOffset.y += pcb_centre.y - (ysize / 2);
-        ActiveScreen->m_DrawOrg = DrawOffset;
-        panel->m_ClipBox.SetOrigin( wxPoint( -0x7FFFFF, -0x7FFFFF ) );
+
+        dc->SetLogicalOrigin( screen->m_DrawOrg.x, screen->m_DrawOrg.y );
+        panel->m_ClipBox.SetOrigin( wxPoint( -MAX_VALUE/2, -MAX_VALUE/2 ) );
     }
 
     g_DrawBgColor = WHITE;
@@ -286,19 +294,19 @@ void BOARD_PRINTOUT_CONTROLER::DrawPage()
     if( !m_PrintParams.m_Print_Black_and_White )
     {   // Creates a "local" black background
         GRForceBlackPen( true );
-        m_Parent->PrintPage( dc, 0, m_PrintParams.m_PrintMaskLayer, printMirror, &m_PrintParams );
+        m_Parent->PrintPage( dc, m_PrintParams.m_PrintMaskLayer, printMirror, &m_PrintParams );
         GRForceBlackPen( false );
     }
 
-    m_Parent->PrintPage( dc, 0, m_PrintParams.m_PrintMaskLayer, printMirror, &m_PrintParams );
+    m_Parent->PrintPage( dc, m_PrintParams.m_PrintMaskLayer, printMirror, &m_PrintParams );
 
     g_DrawBgColor = bg_color;
-    m_Parent->GetBaseScreen()->m_IsPrinting = false;
+    m_Parent->GetScreen()->m_IsPrinting = false;
     panel->m_ClipBox = tmp;
 
     GRForceBlackPen( false );
 
-    ActiveScreen->m_StartVisu = tmp_startvisu;
-    ActiveScreen->m_DrawOrg   = old_org;
-    ActiveScreen->SetZoom( tmpzoom );
+    screen->m_StartVisu = tmp_startvisu;
+    screen->m_DrawOrg   = old_org;
+    screen->SetZoom( tmpzoom );
 }

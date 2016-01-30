@@ -25,6 +25,7 @@
 #include "class_drawpanel.h"
 
 #include "id.h"
+#include "hotkeys.h"
 
 #include "build_version.h"
 
@@ -43,23 +44,21 @@ bool           g_Drag_Pistes_On;
 bool           g_Show_Module_Ratsnest;
 bool           g_Show_Pads_Module_in_Move = true;
 bool           g_Raccord_45_Auto = true;
+bool 	       g_Alternate_Track_Posture = false;
 bool           g_Track_45_Only_Allowed = true;  // True to allow horiz, vert. and 45deg only tracks
 bool           Segments_45_Only;                // True to allow horiz, vert. and 45deg only graphic segments
 bool           g_TwoSegmentTrackBuild = true;
-bool           g_HighLight_Status;
 
-int            ModuleSegmentWidth;
-int            ModuleTextWidth;
+wxSize         g_ModuleTextSize;      /* Default footprint texts size */
+int            g_ModuleSegmentWidth;
+int            g_ModuleTextWidth;
 int            Route_Layer_TOP;
 int            Route_Layer_BOTTOM;
 int            g_MaxLinksShowed;
 int            g_MagneticPadOption   = capture_cursor_in_track_tool;
 int            g_MagneticTrackOption = capture_cursor_in_track_tool;
-int            g_HighLight_NetCode   = -1;
 
-wxSize         ModuleTextSize;      /* Default footprint texts size */
 wxPoint        g_Offset_Module;     /* Offset de trace du modul en depl */
-wxString       g_Current_PadName;   // Last used pad name (pad num)
 
 // Wildcard for footprint libraries filesnames
 const wxString g_FootprintLibFileWildcard( wxT( "Kicad footprint library file (*.mod)|*.mod" ) );
@@ -78,8 +77,8 @@ IMPLEMENT_APP( WinEDA_App )
  */
 void WinEDA_App::MacOpenFile( const wxString& fileName )
 {
-    wxFileName       filename = fileName;
-    WinEDA_PcbFrame* frame    = ( (WinEDA_PcbFrame*) GetTopWindow() );
+    wxFileName      filename = fileName;
+    PCB_EDIT_FRAME* frame    = ( (PCB_EDIT_FRAME*) GetTopWindow() );
 
     if( !filename.FileExists() )
         return;
@@ -90,17 +89,8 @@ void WinEDA_App::MacOpenFile( const wxString& fileName )
 
 bool WinEDA_App::OnInit()
 {
-    /* WXMAC application specific */
-#ifdef __WXMAC__
-
-//	wxApp::SetExitOnFrameDelete(false);
-//	wxApp::s_macAboutMenuItemId = ID_KICAD_ABOUT;
-    wxApp::s_macPreferencesMenuItemId = ID_OPTIONS_SETUP;
-#endif /* __WXMAC__ */
-
-
-    wxFileName       fn;
-    WinEDA_PcbFrame* frame = NULL;
+    wxFileName      fn;
+    PCB_EDIT_FRAME* frame = NULL;
 
     InitEDA_Appl( wxT( "PCBnew" ), APP_TYPE_PCBNEW );
 
@@ -132,14 +122,13 @@ Changing extension to .brd." ), GetChars( fn.GetFullPath() ) );
     }
 
     g_DrawBgColor = BLACK;
-    Read_Hotkey_Config( frame, false );  /* Must be called before creating the
-                                          * main frame in order to display the
-                                          * real hotkeys in menus or tool tips */
 
+   /* Must be called before creating the main frame in order to
+    * display the real hotkeys in menus or tool tips */
+    ReadHotkeyConfig( wxT("PcbFrame"), g_Board_Editor_Hokeys_Descr );
 
-    frame = new WinEDA_PcbFrame( NULL, wxT( "PcbNew" ), wxPoint( 0, 0 ), wxSize( 600, 400 ) );
+    frame = new PCB_EDIT_FRAME( NULL, wxT( "PcbNew" ), wxPoint( 0, 0 ), wxSize( 600, 400 ) );
     frame->SetTitle( GetTitle() + wxT( " " ) + GetBuildVersion() );
-    ActiveScreen = ScreenPcb;
 
     SetTopWindow( frame );
     frame->Show( true );
@@ -150,6 +139,7 @@ Changing extension to .brd." ), GetChars( fn.GetFullPath() ) );
     }
 
     frame->Zoom_Automatique( true );
+    frame->GetScreen()->m_FirstRedraw = false;
 
     /* Load file specified in the command line. */
     if( fn.IsOk() )
@@ -163,15 +153,14 @@ Changing extension to .brd." ), GetChars( fn.GetFullPath() ) );
         else
         {   // File does not exists: prepare an empty board
             wxSetWorkingDirectory( fn.GetPath() );
-            frame->GetScreen()->m_FileName = fn.GetFullPath();
-            frame->GetScreen()->m_FileName.Replace( WIN_STRING_DIR_SEP, UNIX_STRING_DIR_SEP );
-            frame->SetTitle( frame->GetScreen()->m_FileName );
-            frame->SetLastProject( frame->GetScreen()->m_FileName );
+            frame->GetScreen()->SetFileName( fn.GetFullPath( wxPATH_UNIX ) );
+            frame->SetTitle( frame->GetScreen()->GetFileName() );
+            frame->UpdateFileHistory( frame->GetScreen()->GetFileName() );
             frame->OnModify();  // Ready to save the new empty board
 
             wxString msg;
-            msg.Printf( _( "File <%s> not existing\nThis is normal for a new project" ),
-                GetChars( frame->GetScreen()->m_FileName ) );
+            msg.Printf( _( "File <%s> does not exist.\nThis is normal for a new project" ),
+                        GetChars( frame->GetScreen()->GetFileName() ) );
             wxMessageBox( msg );
         }
     }

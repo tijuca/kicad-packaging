@@ -22,12 +22,12 @@ static wxPoint Pad_OldPos;
 
 /* Cancel move pad command.
  */
-static void Exit_Move_Pad( WinEDA_DrawPanel* Panel, wxDC* DC )
+static void Abort_Move_Pad( EDA_DRAW_PANEL* Panel, wxDC* DC )
 {
     D_PAD* pad = s_CurrentSelectedPad;
 
-    Panel->ManageCurseur = NULL;
-    Panel->ForceCloseManageCurseur = NULL;
+    Panel->SetMouseCapture( NULL, NULL );
+
     if( pad == NULL )
         return;
 
@@ -39,18 +39,17 @@ static void Exit_Move_Pad( WinEDA_DrawPanel* Panel, wxDC* DC )
     /* Pad move in progress: the restore origin. */
     if( g_Drag_Pistes_On )
     {
-        DRAG_SEGM* pt_drag = g_DragSegmentList;
-        for( ; pt_drag != NULL; pt_drag = pt_drag->Pnext )
+        for( unsigned ii = 0; ii < g_DragSegmentList.size(); ii++ )
         {
-            TRACK* Track = pt_drag->m_Segm;
+            TRACK* Track = g_DragSegmentList[ii].m_Segm;
             Track->Draw( Panel, DC, GR_XOR );
-            Track->SetState( EDIT, OFF );
-            pt_drag->SetInitialValues();
+            Track->SetState( IN_EDIT, OFF );
+            g_DragSegmentList[ii].SetInitialValues();
             Track->Draw( Panel, DC, GR_OR );
         }
     }
 
-    EraseDragListe();
+    EraseDragList();
     s_CurrentSelectedPad = NULL;
     g_Drag_Pistes_On     = FALSE;
 }
@@ -58,44 +57,50 @@ static void Exit_Move_Pad( WinEDA_DrawPanel* Panel, wxDC* DC )
 
 /* Draw in drag mode when moving a pad.
  */
-static void Show_Pad_Move( WinEDA_DrawPanel* panel, wxDC* DC, bool erase )
+static void Show_Pad_Move( EDA_DRAW_PANEL* aPanel, wxDC* aDC, const wxPoint& aPosition,
+                           bool aErase )
 {
     TRACK*       Track;
-    DRAG_SEGM*   pt_drag;
-    BASE_SCREEN* screen = panel->GetScreen();
+    BASE_SCREEN* screen = aPanel->GetScreen();
     D_PAD*       pad    = s_CurrentSelectedPad;
 
-    if( erase )
-        pad->Draw( panel, DC, GR_XOR );
+    if( pad == NULL )       // Should not occur
+        return;
 
-    pad->m_Pos = screen->m_Curseur;
-    pad->Draw( panel, DC, GR_XOR );
+    if( aErase )
+        pad->Draw( aPanel, aDC, GR_XOR );
+
+    pad->m_Pos = screen->GetCrossHairPosition();
+    pad->Draw( aPanel, aDC, GR_XOR );
 
     if( !g_Drag_Pistes_On )
         return;
 
-    pt_drag = g_DragSegmentList;
-    for( ; pt_drag != NULL; pt_drag = pt_drag->Pnext )
+    for( unsigned ii = 0; ii < g_DragSegmentList.size(); ii++ )
     {
-        Track = pt_drag->m_Segm;
-        if( erase )
-            Track->Draw( panel, DC, GR_XOR );
-        if( pt_drag->m_Pad_Start )
+        Track = g_DragSegmentList[ii].m_Segm;
+
+        if( aErase )
+            Track->Draw( aPanel, aDC, GR_XOR );
+
+        if( g_DragSegmentList[ii].m_Pad_Start )
         {
             Track->m_Start = pad->m_Pos;
         }
-        if( pt_drag->m_Pad_End )
+
+        if( g_DragSegmentList[ii].m_Pad_End )
         {
             Track->m_End = pad->m_Pos;
         }
-        Track->Draw( panel, DC, GR_XOR );
+
+        Track->Draw( aPanel, aDC, GR_XOR );
     }
 }
 
 
 /* Load list of features for default pad selection.
  */
-void WinEDA_BasePcbFrame::Export_Pad_Settings( D_PAD* pt_pad )
+void PCB_BASE_FRAME::Export_Pad_Settings( D_PAD* pt_pad )
 {
     MODULE* Module;
 
@@ -113,7 +118,7 @@ void WinEDA_BasePcbFrame::Export_Pad_Settings( D_PAD* pt_pad )
                             ( (MODULE*) pt_pad->GetParent() )->m_Orient;
     g_Pad_Master.m_Size = pt_pad->m_Size;
     g_Pad_Master.m_DeltaSize = pt_pad->m_DeltaSize;
-    pt_pad->ComputeRayon();
+    pt_pad->ComputeShapeMaxRadius();
 
     g_Pad_Master.m_Offset     = pt_pad->m_Offset;
     g_Pad_Master.m_Drill      = pt_pad->m_Drill;
@@ -126,12 +131,12 @@ void WinEDA_BasePcbFrame::Export_Pad_Settings( D_PAD* pt_pad )
  * - Measurements are modified
  * - The position, names, and keys are not.
  */
-void WinEDA_BasePcbFrame::Import_Pad_Settings( D_PAD* aPad, bool aDraw )
+void PCB_BASE_FRAME::Import_Pad_Settings( D_PAD* aPad, bool aDraw )
 {
     if( aDraw )
     {
         aPad->m_Flags |= DO_NOT_DRAW;
-        DrawPanel->PostDirtyRect( aPad->GetBoundingBox() );
+        DrawPanel->RefreshDrawingRect( aPad->GetBoundingBox() );
         aPad->m_Flags &= ~DO_NOT_DRAW;
     }
 
@@ -166,10 +171,10 @@ void WinEDA_BasePcbFrame::Import_Pad_Settings( D_PAD* aPad, bool aDraw )
         aPad->m_Offset.y = 0;
     }
 
-    aPad->ComputeRayon();
+    aPad->ComputeShapeMaxRadius();
 
     if( aDraw )
-        DrawPanel->PostDirtyRect( aPad->GetBoundingBox() );
+        DrawPanel->RefreshDrawingRect( aPad->GetBoundingBox() );
 
     ( (MODULE*) aPad->GetParent() )->m_LastEdit_Time = time( NULL );
 }
@@ -177,15 +182,15 @@ void WinEDA_BasePcbFrame::Import_Pad_Settings( D_PAD* aPad, bool aDraw )
 
 /* Add a pad on the selected module.
  */
-void WinEDA_BasePcbFrame::AddPad( MODULE* Module, bool draw )
+void PCB_BASE_FRAME::AddPad( MODULE* Module, bool draw )
 {
-    D_PAD* Pad;
-    int    rX, rY;
+    wxString lastPadName;   // Last used pad name (pad num)
+    lastPadName = g_Pad_Master.ReturnStringPadName();
 
     m_Pcb->m_Status_Pcb     = 0;
     Module->m_LastEdit_Time = time( NULL );
 
-    Pad = new D_PAD( Module );
+    D_PAD* Pad = new D_PAD( Module );
 
     /* Add the new pad to end of the module pad list. */
     Module->m_Pads.PushBack( Pad );
@@ -194,63 +199,68 @@ void WinEDA_BasePcbFrame::AddPad( MODULE* Module, bool draw )
     Import_Pad_Settings( Pad, false );
     Pad->SetNetname( wxEmptyString );
 
-    Pad->m_Pos = GetScreen()->m_Curseur;
+    Pad->m_Pos = GetScreen()->GetCrossHairPosition();
 
-    rX = Pad->m_Pos.x - Module->m_Pos.x;
-    rY = Pad->m_Pos.y - Module->m_Pos.y;
+    // Set the relative pad position
+    // ( pad position for module orient, 0, and relative to the module position)
+    Pad->m_Pos0 = Pad->m_Pos - Module->m_Pos;
+    RotatePoint( &Pad->m_Pos0, -Module->m_Orient );
 
-    RotatePoint( &rX, &rY, -Module->m_Orient );
-
-    Pad->m_Pos0.x = rX;
-    Pad->m_Pos0.y = rY;
-
-    /* Automatically increment the current pad number and name. */
+    /* Automatically increment the current pad number. */
     long num    = 0;
     int  ponder = 1;
 
-    while( g_Current_PadName.Len() && g_Current_PadName.Last() >= '0'
-           && g_Current_PadName.Last() <= '9' )
+    while( lastPadName.Len() && lastPadName.Last() >= '0'
+           && lastPadName.Last() <= '9' )
     {
-        num += ( g_Current_PadName.Last() - '0' ) * ponder;
-        g_Current_PadName.RemoveLast();
+        num += ( lastPadName.Last() - '0' ) * ponder;
+        lastPadName.RemoveLast();
         ponder *= 10;
     }
 
-    num++;
-    g_Current_PadName << num;
-    Pad->SetPadName( g_Current_PadName );
+    num++;  // Use next number for the new pad
+    lastPadName << num;
+    Pad->SetPadName( lastPadName );
+    g_Pad_Master.SetPadName(lastPadName);
 
     Module->Set_Rectangle_Encadrement();
     Pad->DisplayInfo( this );
     if( draw )
-        DrawPanel->PostDirtyRect( Module->GetBoundingBox() );
+        DrawPanel->RefreshDrawingRect( Module->GetBoundingBox() );
 }
 
 
-/* Function to delete the pad. */
-void WinEDA_BasePcbFrame::DeletePad( D_PAD* Pad )
+/**
+ * Function DeletePad
+ * Delete the pad aPad.
+ * Refresh the modified screen area
+ * Refresh modified parameters of the parent module (bounding box, last date)
+ * @param aPad = the pad to delete
+ * @param aQuery = true to promt for confirmation, false to delete silently
+ */
+void PCB_BASE_FRAME::DeletePad( D_PAD* aPad, bool aQuery )
 {
     MODULE*  Module;
-    wxString line;
 
-    if( Pad == NULL )
+    if( aPad == NULL )
         return;
 
-    Module = (MODULE*) Pad->GetParent();
+    Module = (MODULE*) aPad->GetParent();
     Module->m_LastEdit_Time = time( NULL );
 
-    line.Printf( _( "Delete Pad (module %s %s) " ),
-                 GetChars( Module->m_Reference->m_Text ),
-                 GetChars( Module->m_Value->m_Text ) );
-    if( !IsOK( this, line ) )
-        return;
+    if( aQuery )
+    {
+        wxString msg;
+        msg.Printf( _( "Delete Pad (module %s %s) " ),
+                     GetChars( Module->m_Reference->m_Text ),
+                     GetChars( Module->m_Value->m_Text ) );
+        if( !IsOK( this, msg ) )
+            return;
+    }
 
     m_Pcb->m_Status_Pcb = 0;
-
-    Pad->DeleteStructure();
-
-    DrawPanel->PostDirtyRect( Module->GetBoundingBox() );
-
+    aPad->DeleteStructure();
+    DrawPanel->RefreshDrawingRect( Module->GetBoundingBox() );
     Module->Set_Rectangle_Encadrement();
 
     OnModify();
@@ -258,7 +268,7 @@ void WinEDA_BasePcbFrame::DeletePad( D_PAD* Pad )
 
 
 /* Function to initialize the "move pad" command */
-void WinEDA_BasePcbFrame::StartMovePad( D_PAD* Pad, wxDC* DC )
+void PCB_BASE_FRAME::StartMovePad( D_PAD* Pad, wxDC* DC )
 {
     MODULE* Module;
 
@@ -270,8 +280,7 @@ void WinEDA_BasePcbFrame::StartMovePad( D_PAD* Pad, wxDC* DC )
     s_CurrentSelectedPad = Pad;
     Pad_OldPos = Pad->m_Pos;
     Pad->DisplayInfo( this );
-    DrawPanel->ManageCurseur = Show_Pad_Move;
-    DrawPanel->ForceCloseManageCurseur = Exit_Move_Pad;
+    DrawPanel->SetMouseCapture( Show_Pad_Move, Abort_Move_Pad );
 
     /* Draw the pad  (SKETCH mode) */
     Pad->Draw( DrawPanel, DC, GR_XOR );
@@ -282,12 +291,12 @@ void WinEDA_BasePcbFrame::StartMovePad( D_PAD* Pad, wxDC* DC )
     if( g_Drag_Pistes_On )
         Build_1_Pad_SegmentsToDrag( DrawPanel, DC, Pad );
     else
-        EraseDragListe();
+        EraseDragList();
 }
 
 
 /* Routine to place a moved pad. */
-void WinEDA_BasePcbFrame::PlacePad( D_PAD* Pad, wxDC* DC )
+void PCB_BASE_FRAME::PlacePad( D_PAD* Pad, wxDC* DC )
 {
     int     dX, dY;
     TRACK*  Track;
@@ -302,18 +311,16 @@ void WinEDA_BasePcbFrame::PlacePad( D_PAD* Pad, wxDC* DC )
     PICKED_ITEMS_LIST pickList;
 
     /* Save dragged track segments in undo list */
-    for( DRAG_SEGM* pt_drag = g_DragSegmentList;
-         pt_drag;
-         pt_drag = pt_drag->Pnext )
+    for( unsigned ii = 0; ii < g_DragSegmentList.size(); ii++ )
     {
-        Track = pt_drag->m_Segm;
+        Track = g_DragSegmentList[ii].m_Segm;
 
         // Set the old state
         wxPoint t_start = Track->m_Start;
         wxPoint t_end   = Track->m_End;
-        if( pt_drag->m_Pad_Start )
+        if( g_DragSegmentList[ii].m_Pad_Start )
             Track->m_Start = Pad_OldPos;
-        if( pt_drag->m_Pad_End )
+        if( g_DragSegmentList[ii].m_Pad_End )
             Track->m_End = Pad_OldPos;
 
         picker.m_PickedItem = Track;
@@ -324,35 +331,30 @@ void WinEDA_BasePcbFrame::PlacePad( D_PAD* Pad, wxDC* DC )
     wxPoint pad_curr_position = Pad->m_Pos;
 
     Pad->m_Pos = Pad_OldPos;
-    if( g_DragSegmentList == NULL )
+    if( g_DragSegmentList.size() == 0 )
         SaveCopyInUndoList( Module, UR_CHANGED );
     else
     {
         picker.m_PickedItem = Module;
         pickList.PushItem( picker );
-    }
-
-
-    if( g_DragSegmentList )
         SaveCopyInUndoList( pickList, UR_CHANGED );
+    }
 
     Pad->m_Pos = pad_curr_position;
     Pad->Draw( DrawPanel, DC, GR_XOR );
 
     /* Redraw dragged track segments */
-    for( DRAG_SEGM* pt_drag = g_DragSegmentList;
-         pt_drag;
-         pt_drag = pt_drag->Pnext )
+    for( unsigned ii = 0; ii < g_DragSegmentList.size(); ii++ )
     {
-        Track = pt_drag->m_Segm;
+        Track = g_DragSegmentList[ii].m_Segm;
 
         // Set the new state
-        if( pt_drag->m_Pad_Start )
+        if( g_DragSegmentList[ii].m_Pad_Start )
             Track->m_Start = Pad->m_Pos;
-        if( pt_drag->m_Pad_End )
+        if( g_DragSegmentList[ii].m_Pad_End )
             Track->m_End = Pad->m_Pos;
 
-        Track->SetState( EDIT, OFF );
+        Track->SetState( IN_EDIT, OFF );
         if( DC )
             Track->Draw( DrawPanel, DC, GR_OR );
     }
@@ -374,18 +376,17 @@ void WinEDA_BasePcbFrame::PlacePad( D_PAD* Pad, wxDC* DC )
     Module->Set_Rectangle_Encadrement();
     Module->m_LastEdit_Time = time( NULL );
 
-    EraseDragListe();
+    EraseDragList();
 
     OnModify();
-    DrawPanel->ManageCurseur = NULL;
-    DrawPanel->ForceCloseManageCurseur = NULL;
+    DrawPanel->SetMouseCapture( NULL, NULL );
     m_Pcb->m_Status_Pcb &= ~( LISTE_RATSNEST_ITEM_OK | CONNEXION_OK );
 }
 
 
 /* Rotate selected pad 90 degrees.
  */
-void WinEDA_BasePcbFrame::RotatePad( D_PAD* Pad, wxDC* DC )
+void PCB_BASE_FRAME::RotatePad( D_PAD* Pad, wxDC* DC )
 {
     MODULE* Module;
 

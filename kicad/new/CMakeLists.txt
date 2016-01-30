@@ -1,0 +1,157 @@
+
+set( STAND_ALONE true )
+
+if( STAND_ALONE )
+    project(kicad-new)
+
+    cmake_minimum_required(VERSION 2.6.4 FATAL_ERROR)
+
+    set( PROJECT_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../ )
+
+    # Path to local CMake modules.
+    set( CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/CMakeModules )
+
+    include( CheckFindPackageResult )
+
+    find_package(Doxygen)
+
+    # On Apple only wxwidgets 2.9 or higher doesn't need to find aui part of base
+    if(APPLE)
+        find_package(wxWidgets COMPONENTS gl adv html core net base xml QUIET)
+    else()
+        find_package(wxWidgets COMPONENTS gl aui adv html core net base xml QUIET)
+    endif()
+
+    check_find_package_result( wxWidgets_FOUND "wxWidgets" )
+
+    # make config.h
+    include(PerformFeatureChecks)
+    perform_feature_checks()
+
+    # Include wxWidgets macros.
+    include( ${wxWidgets_USE_FILE} )
+
+    include_directories( ${PROJECT_SOURCE_DIR}/include )
+
+    if(CMAKE_COMPILER_IS_GNUCXX)
+        # Set default flags for Release build.
+        set(CMAKE_C_FLAGS_RELEASE "-Wall -O2 -DNDEBUG ")
+        set(CMAKE_CXX_FLAGS_RELEASE "-Wall -O2 -DNDEBUG")
+        set(CMAKE_EXE_LINKER_FLAGS_RELEASE "-s -static-libgcc")
+
+        # Set default flags for Debug build.
+        set(CMAKE_C_FLAGS_DEBUG "-Wall -g3 -ggdb3 -DDEBUG")
+        set(CMAKE_CXX_FLAGS_DEBUG "-Wall -g3 -ggdb3 -DDEBUG")
+    endif(CMAKE_COMPILER_IS_GNUCXX)
+
+    include(Functions)
+
+endif()
+
+
+
+#================================================
+# Doxygen Output
+#================================================
+if(DOXYGEN_FOUND)
+    add_custom_target( new-docs ${DOXYGEN_EXECUTABLE}
+        WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+        DEPENDS Doxyfile )
+else(DOXYGEN_FOUND)
+    message( STATUS "WARNING: Doxygen not found - new-docs (Source Docs) target not created" )
+endif()
+
+
+include_directories( ${CMAKE_CURRENT_SOURCE_DIR} )
+include_directories( ${CMAKE_BINARY_DIR} )
+
+#=====<on standby for possible C++ unit testing>================================
+if( false )
+
+    add_executable( test_dir_lib_source
+        sch_dir_lib_source.cpp
+        )
+    target_link_libraries( test_dir_lib_source ${wxWidgets_LIBRARIES} )
+
+    add_executable( test_sch_part sch_part.cpp )
+    target_link_libraries( test_sch_part ${wxWidgets_LIBRARIES} )
+
+    add_executable( test_lpid
+        sch_lpid.cpp
+        )
+    target_link_libraries( test_lpid ${wxWidgets_LIBRARIES} )
+
+endif( false )
+
+#=====</on standby for possible C++ unit testing>===============================
+
+
+make_lexer(
+    ${CMAKE_CURRENT_SOURCE_DIR}/sch_lib_table.keywords
+    ${CMAKE_CURRENT_SOURCE_DIR}/sch_lib_table_lexer.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/sch_lib_table_keywords.cpp
+    LT
+    )
+
+make_lexer(
+    ${CMAKE_CURRENT_SOURCE_DIR}/sweet.keywords
+    ${CMAKE_CURRENT_SOURCE_DIR}/sweet_lexer.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/sweet_keywords.cpp
+    PR
+    )
+
+
+add_library( sweet SHARED
+    sch_lib_table.cpp
+    sch_lib_table_keywords.cpp
+    sch_lib.cpp
+    sch_lpid.cpp
+    sch_dir_lib_source.cpp
+    sch_part.cpp
+    sch_sweet_parser.cpp
+    sweet_keywords.cpp
+    ${PROJECT_SOURCE_DIR}/common/richio.cpp
+    ${PROJECT_SOURCE_DIR}/common/dsnlexer.cpp
+    )
+target_link_libraries( sweet ${wxWidgets_LIBRARIES} )
+
+# talk to import_export.h
+set_target_properties( sweet PROPERTIES
+    DEFINE_SYMBOL COMPILING_DLL
+    )
+
+add_executable( test_sch_lib_table test_sch_lib_table.cpp )
+if( MINGW )
+    set_target_properties( test_sch_lib_table PROPERTIES
+        LINK_FLAGS -Wl,--enable-auto-import
+    )
+endif()
+target_link_libraries( test_sch_lib_table sweet )
+
+
+#=====<USE_SWIG>============================================================
+# if you want a Python scripting layer on top for unit testing or driving.
+# reference: http://www.swig.org/Doc1.3/Introduction.html#Introduction_build_system
+
+option( USE_SWIG "Use SWIG to build a python scripting interface (default OFF)." OFF)
+if( USE_SWIG )
+
+    find_package( SWIG REQUIRED )
+    include( ${SWIG_USE_FILE} )
+
+    # first install "python-dev" linux package for this:
+    find_package( PythonLibs )
+    include_directories( ${PYTHON_INCLUDE_PATH} )
+
+    set( CMAKE_SWIG_FLAGS "" )
+
+    set_source_files_properties( sweet.i PROPERTIES CPLUSPLUS ON )
+    #set_source_files_properties( sweet.i PROPERTIES SWIG_FLAGS "-includeall" )
+
+    swig_add_module( sweet python sweet.i )
+    swig_link_libraries( sweet ${PYTHON_LIBRARIES} sweet )
+
+    # @todo need a separate interface for each DSNLEXER
+
+endif()
+

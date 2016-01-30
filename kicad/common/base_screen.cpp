@@ -9,22 +9,16 @@
 #include "fctsys.h"
 #include "common.h"
 #include "base_struct.h"
-#include "sch_item_struct.h"
 #include "class_base_screen.h"
 #include "id.h"
 
-/* Implement wxSize array for grid list implementation. */
-#include <wx/arrimpl.cpp>
-WX_DEFINE_OBJARRAY( GridArray );
-
-BASE_SCREEN* ActiveScreen = NULL;
 
 #define CURSOR_SIZE 12  /* size of the cross cursor. */
 
 
-BASE_SCREEN::BASE_SCREEN( KICAD_T aType ) : EDA_BaseStruct( aType )
+BASE_SCREEN::BASE_SCREEN( KICAD_T aType ) : EDA_ITEM( aType )
 {
-    EEDrawList         = NULL;   /* Schematic items list */
+    m_drawList         = NULL;   /* Draw items list */
     m_UndoRedoCountMax = 10;     /* undo/Redo command Max depth, 10 is a
                                   * reasonable value */
     m_FirstRedraw      = TRUE;
@@ -34,7 +28,6 @@ BASE_SCREEN::BASE_SCREEN( KICAD_T aType ) : EDA_BaseStruct( aType )
     m_Zoom             = 32 * m_ZoomScalar;
     m_Grid.m_Size      = wxRealPoint( 50, 50 );   /* Default grid size */
     m_Grid.m_Id        = ID_POPUP_GRID_LEVEL_50;
-    m_UserGridIsON     = FALSE;
     m_Center           = true;
     m_CurrentSheetDesc = &g_Sheet_A4;
     m_IsPrinting       = false;
@@ -54,25 +47,25 @@ void BASE_SCREEN::InitDatas()
 {
     if( m_Center )
     {
-        m_Curseur.x = m_Curseur.y = 0;
+        m_crossHairPosition.x = m_crossHairPosition.y = 0;
         m_DrawOrg.x = -ReturnPageSize().x / 2;
         m_DrawOrg.y = -ReturnPageSize().y / 2;
     }
     else
     {
         m_DrawOrg.x = m_DrawOrg.y = 0;
-        m_Curseur.x = ReturnPageSize().x / 2;
-        m_Curseur.y = ReturnPageSize().y / 2;
+        m_crossHairPosition.x = ReturnPageSize().x / 2;
+        m_crossHairPosition.y = ReturnPageSize().y / 2;
     }
 
     m_O_Curseur.x = m_O_Curseur.y = 0;
 
     SetCurItem( NULL );
 
-    m_FlagRefreshReq = 0;   /* Redraw screen request flag */
     m_FlagModified   = 0;   // Set when any change is made on broad
     m_FlagSave = 1;         // Used in auto save: set when an auto save is made
 }
+
 
 /**
  * Get screen units scalar.
@@ -107,27 +100,22 @@ void BASE_SCREEN::SetPageSize( wxSize& aPageSize )
 
 
 /**
- * Function CursorRealPosition
- * @return the position in user units of location ScreenPos
- * @param ScreenPos = the screen (in pixel) position co convert
-*/
-wxPoint BASE_SCREEN::CursorRealPosition( const wxPoint& ScreenPos )
+ * Function GetScalingFactor
+ * @return the the current scale used to draw items on screen
+ * draw coordinates are user coordinates * GetScalingFactor( )
+ */
+double BASE_SCREEN::GetScalingFactor() const
 {
-    wxPoint curpos = ScreenPos;
-    Unscale( curpos );
-
-#ifndef USE_WX_ZOOM
-    curpos += m_DrawOrg;
-#endif
-
-    return curpos;
+    double scale = (double) m_ZoomScalar / (double) GetZoom();
+    return scale;
 }
 
-/** Function SetScalingFactor
+/**
+ * Function SetScalingFactor
  * calculates the .m_Zoom member to have a given scaling factor
- * @param the the current scale used to draw items on screen
- * draw coordinates are user coordinates * GetScalingFactor( )
-*/
+ * @param aScale - the the current scale used to draw items on screen
+ * draw coordinates are user coordinates * GetScalingFactor()
+ */
 void BASE_SCREEN::SetScalingFactor(double aScale )
 {
     int zoom = static_cast<int>( ceil(aScale * m_ZoomScalar) );
@@ -135,112 +123,14 @@ void BASE_SCREEN::SetScalingFactor(double aScale )
     // Limit zoom to max and min allowed values:
     if (zoom < m_ZoomList[0])
         zoom = m_ZoomList[0];
+
     int idxmax = m_ZoomList.GetCount() - 1;
+
     if (zoom > m_ZoomList[idxmax])
         zoom = m_ZoomList[idxmax];
 
     SetZoom( zoom );
 }
-
-/**
- * Calculate coordinate value for zooming.
- *
- * Call this method when drawing on the device context.  It scales the
- * coordinate using the current zoom settings.  Zooming in Kicad occurs
- * by actually scaling the entire drawing using the zoom setting.
- *
- * FIXME: We should probably use wxCoord instead of int here but that would
- *        require using wxCoord in all of the other code that makes device
- *        context calls as well.
- */
-int BASE_SCREEN::Scale( int coord )
-{
-#ifdef USE_WX_ZOOM
-    return coord;
-#else
-    if( !m_ZoomScalar || !m_Zoom )
-        return coord;
-
-    return wxRound( (double) ( coord * m_ZoomScalar ) / (double) m_Zoom );
-#endif
-}
-
-
-double BASE_SCREEN::Scale( double coord )
-{
-#ifdef USE_WX_ZOOM
-    return coord;
-#else
-    if( !m_Zoom )
-        return 0;
-
-    if( !m_ZoomScalar || !m_Zoom )
-        return 0;
-
-    return ( coord * (double) m_ZoomScalar ) / (double) m_Zoom;
-#endif
-}
-
-
-void BASE_SCREEN::Scale( wxPoint& pt )
-{
-    pt.x = Scale( pt.x );
-    pt.y = Scale( pt.y );
-}
-
-
-void BASE_SCREEN::Scale( wxRealPoint& pt )
-{
-#ifdef USE_WX_ZOOM
-    // No change
-#else
-    if( !m_ZoomScalar || !m_Zoom )
-        return;
-
-    pt.x = pt.x * m_ZoomScalar / (double) m_Zoom;
-    pt.y = pt.y  * m_ZoomScalar / (double) m_Zoom;
-#endif
-}
-
-
-void BASE_SCREEN::Scale( wxSize& sz )
-{
-    sz.SetHeight( Scale( sz.GetHeight() ) );
-    sz.SetWidth( Scale( sz.GetWidth() ) );
-}
-
-
-/**
- * Calculate the physical (unzoomed) location of a coordinate.
- *
- * Call this method when you want to find the unzoomed (physical) location
- * of a coordinate on the drawing.
- */
-int BASE_SCREEN::Unscale( int coord )
-{
-#ifdef USE_WX_ZOOM
-    return coord;
-#else
-    if( !m_Zoom || !m_ZoomScalar )
-        return 0;
-
-    return wxRound( (double) ( coord * m_Zoom ) / (double) m_ZoomScalar );
-#endif
-}
-
-void BASE_SCREEN::Unscale( wxPoint& pt )
-{
-    pt.x = Unscale( pt.x );
-    pt.y = Unscale( pt.y );
-}
-
-
-void BASE_SCREEN::Unscale( wxSize& sz )
-{
-    sz.SetHeight( Unscale( sz.GetHeight() ) );
-    sz.SetWidth( Unscale( sz.GetWidth() ) );
-}
-
 
 void BASE_SCREEN::SetZoomList( const wxArrayInt& zoomlist )
 {
@@ -341,34 +231,41 @@ bool BASE_SCREEN::SetLastZoom()
 }
 
 
-void BASE_SCREEN::SetGridList( GridArray& gridlist )
+void BASE_SCREEN::SetGridList( GRIDS& gridlist )
 {
-    if( !m_GridList.IsEmpty() )
-        m_GridList.Clear();
+    if( !m_grids.empty() )
+        m_grids.clear();
 
-    m_GridList = gridlist;
+    m_grids = gridlist;
+}
+
+
+void BASE_SCREEN::GetGrids( GRIDS& aList )
+{
+    for( size_t i = 0;  i < m_grids.size();  i++ )
+        aList.push_back( m_grids[ i ] );
 }
 
 
 void BASE_SCREEN::SetGrid( const wxRealPoint& size )
 {
-    wxASSERT( !m_GridList.IsEmpty() );
+    wxASSERT( !m_grids.empty() );
 
     size_t i;
 
-    GRID_TYPE nearest_grid = m_GridList[0];
+    GRID_TYPE nearest_grid = m_grids[0];
 
-    for( i = 0; i < m_GridList.GetCount(); i++ )
+    for( i = 0; i < m_grids.size(); i++ )
     {
-        if( m_GridList[i].m_Size == size )
+        if( m_grids[i].m_Size == size )
         {
-            m_Grid = m_GridList[i];
+            m_Grid = m_grids[i];
             return;
         }
 
         // keep trace of the nearest grill size, if the exact size is not found
-        if ( size.x < m_GridList[i].m_Size.x )
-            nearest_grid = m_GridList[i];
+        if ( size.x < m_grids[i].m_Size.x )
+            nearest_grid = m_grids[i];
     }
 
     m_Grid = nearest_grid;
@@ -382,20 +279,20 @@ void BASE_SCREEN::SetGrid( const wxRealPoint& size )
 /* Set grid size from command ID. */
 void BASE_SCREEN::SetGrid( int id  )
 {
-    wxASSERT( !m_GridList.IsEmpty() );
+    wxASSERT( !m_grids.empty() );
 
     size_t i;
 
-    for( i = 0; i < m_GridList.GetCount(); i++ )
+    for( i = 0; i < m_grids.size(); i++ )
     {
-        if( m_GridList[i].m_Id == id )
+        if( m_grids[i].m_Id == id )
         {
-            m_Grid = m_GridList[i];
+            m_Grid = m_grids[i];
             return;
         }
     }
 
-    m_Grid = m_GridList[0];
+    m_Grid = m_grids[0];
 
     wxLogWarning( wxT( "Grid ID %d not in grid list, falling back to " ) \
                   wxT( "grid size( %g, %g )." ), id, m_Grid.m_Size.x,
@@ -407,29 +304,27 @@ void BASE_SCREEN::AddGrid( const GRID_TYPE& grid )
 {
     size_t i;
 
-    for( i = 0; i < m_GridList.GetCount(); i++ )
+    for( i = 0; i < m_grids.size(); i++ )
     {
-        if( m_GridList[i].m_Size == grid.m_Size
-            && grid.m_Id != ID_POPUP_GRID_USER )
+        if( m_grids[i].m_Size == grid.m_Size && grid.m_Id != ID_POPUP_GRID_USER )
         {
             wxLogDebug( wxT( "Discarding duplicate grid size( %g, %g )." ),
                         grid.m_Size.x, grid.m_Size.y );
             return;
         }
-        if( m_GridList[i].m_Id == grid.m_Id )
+
+        if( m_grids[i].m_Id == grid.m_Id )
         {
             wxLogDebug( wxT( "Changing grid ID %d from size( %g, %g ) to " ) \
                         wxT( "size( %g, %g )." ),
-                        grid.m_Id, m_GridList[i].m_Size.x,
-                        m_GridList[i].m_Size.y, grid.m_Size.x, grid.m_Size.y );
-            m_GridList[i].m_Size = grid.m_Size;
+                        grid.m_Id, m_grids[i].m_Size.x,
+                        m_grids[i].m_Size.y, grid.m_Size.x, grid.m_Size.y );
+            m_grids[i].m_Size = grid.m_Size;
             return;
         }
     }
 
-    // wxLogDebug( wxT( "Adding grid ID %d size( %d, %d ) to grid list." ), grid.m_Id, grid.m_Size.x, grid.m_Size.y );
-
-    m_GridList.Add( grid );
+    m_grids.push_back( grid );
 }
 
 
@@ -443,26 +338,25 @@ void BASE_SCREEN::AddGrid( const wxRealPoint& size, int id )
 }
 
 
-void BASE_SCREEN::AddGrid( const wxRealPoint& size, int units, int id )
+void BASE_SCREEN::AddGrid( const wxRealPoint& size, UserUnitType aUnit, int id )
 {
     double x, y;
     wxRealPoint new_size;
     GRID_TYPE new_grid;
 
-    if( units == MILLIMETRE )
+    switch( aUnit )
     {
+    case MILLIMETRES:
         x = size.x / 25.4;
         y = size.y / 25.4;
-    }
-    else if( units == CENTIMETRE )
-    {
-        x = size.x / 2.54;
-        y = size.y / 2.54;
-    }
-    else
-    {
+        break;
+
+    default:
+    case INCHES:
+    case UNSCALED_UNITS:
         x = size.x;
         y = size.y;
+        break;
     }
 
     new_size.x = x * GetInternalUnits();
@@ -474,9 +368,24 @@ void BASE_SCREEN::AddGrid( const wxRealPoint& size, int units, int id )
 }
 
 
+GRID_TYPE& BASE_SCREEN::GetGrid( size_t aIndex )
+{
+    wxCHECK_MSG( !m_grids.empty() && aIndex < m_grids.size(), m_Grid,
+                 wxT( "Cannot get grid object outside the bounds of the grid list." ) );
+
+    return m_grids[ aIndex ];
+}
+
+
 GRID_TYPE BASE_SCREEN::GetGrid()
 {
     return m_Grid;
+}
+
+
+const wxPoint& BASE_SCREEN::GetGridOrigin()
+{
+    return m_GridOrigin;
 }
 
 
@@ -489,6 +398,59 @@ wxRealPoint BASE_SCREEN::GetGridSize()
 int BASE_SCREEN::GetGridId()
 {
     return m_Grid.m_Id;
+}
+
+
+wxPoint BASE_SCREEN::GetNearestGridPosition( const wxPoint& aPosition, wxRealPoint* aGridSize )
+{
+    wxPoint pt;
+    wxRealPoint gridSize;
+
+    if( aGridSize )
+        gridSize = *aGridSize;
+    else
+        gridSize = GetGridSize();
+
+    wxPoint gridOrigin = m_GridOrigin;
+
+    double offset = fmod( gridOrigin.x, gridSize.x );
+    int x = wxRound( (aPosition.x - offset) / gridSize.x );
+    pt.x = wxRound( x * gridSize.x + offset );
+
+    offset = fmod( gridOrigin.y, gridSize.y );
+    int y = wxRound( (aPosition.y - offset) / gridSize.y );
+    pt.y = wxRound ( y * gridSize.y + offset );
+
+    return pt;
+}
+
+
+wxPoint BASE_SCREEN::GetCursorPosition( bool aOnGrid, wxRealPoint* aGridSize )
+{
+    if( aOnGrid )
+        return GetNearestGridPosition( m_crossHairPosition, aGridSize );
+
+    return m_crossHairPosition;
+}
+
+
+wxPoint BASE_SCREEN::GetCrossHairScreenPosition() const
+{
+    wxPoint pos = m_crossHairPosition - m_DrawOrg;
+    double scalar = GetScalingFactor();
+
+    pos.x = wxRound( (double) pos.x * scalar );
+    pos.y = wxRound( (double) pos.y * scalar );
+
+    return pos;
+}
+
+void BASE_SCREEN::SetCrossHairPosition( const wxPoint& aPosition, bool aSnapToGrid )
+{
+    if( aSnapToGrid )
+        m_crossHairPosition = GetNearestGridPosition( aPosition );
+    else
+        m_crossHairPosition = aPosition;
 }
 
 
@@ -510,6 +472,7 @@ void BASE_SCREEN::PushCommandToUndoList( PICKED_ITEMS_LIST* aNewitem )
 
     /* Delete the extra items, if count max reached */
     int extraitems = GetUndoCommandCount() - m_UndoRedoCountMax;
+
     if( extraitems > 0 ) // Delete the extra items
         ClearUndoORRedoList( m_UndoList, extraitems );
 }
@@ -521,6 +484,7 @@ void BASE_SCREEN::PushCommandToRedoList( PICKED_ITEMS_LIST* aNewitem )
 
     /* Delete the extra items, if count max reached */
     int extraitems = GetRedoCommandCount() - m_UndoRedoCountMax;
+
     if( extraitems > 0 ) // Delete the extra items
         ClearUndoORRedoList( m_RedoList, extraitems );
 }
@@ -538,6 +502,22 @@ PICKED_ITEMS_LIST* BASE_SCREEN::PopCommandFromRedoList( )
 }
 
 
+void BASE_SCREEN::AddItem( EDA_ITEM* aItem )
+{
+    wxCHECK_RET( aItem != NULL, wxT( "Attempt to add NULL item pointer to " ) + GetClass() +
+                 wxT( "item list" ) );
+    m_items.push_back( aItem );
+}
+
+
+void BASE_SCREEN::InsertItem( EDA_ITEMS::iterator aIter, EDA_ITEM* aItem )
+{
+    wxCHECK_RET( aItem != NULL, wxT( "Attempt to insert NULL item pointer to " ) + GetClass() +
+                 wxT( "item list" ) );
+    m_items.insert( aIter, aItem );
+}
+
+
 #if defined(DEBUG)
 /**
  * Function Show
@@ -548,11 +528,10 @@ PICKED_ITEMS_LIST* BASE_SCREEN::PopCommandFromRedoList( )
  */
 void BASE_SCREEN::Show( int nestLevel, std::ostream& os )
 {
-    SCH_ITEM* item = EEDrawList;
+    EDA_ITEM* item = m_drawList;
 
     // for now, make it look like XML, expand on this later.
-    NestedSpace( nestLevel, os ) << '<' << GetClass().Lower().mb_str() <<
-        ">\n";
+    NestedSpace( nestLevel, os ) << '<' << GetClass().Lower().mb_str() << ">\n";
 
     for(  ; item;  item = item->Next() )
     {

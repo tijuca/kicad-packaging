@@ -4,15 +4,23 @@
 
 #include "fctsys.h"
 #include "common.h"
+#include "class_sch_screen.h"
+#include "wxEeschemaStruct.h"
 
-#include "program.h"
 #include "general.h"
 #include "netlist.h"
 #include "protos.h"
 #include "class_library.h"
-#include "class_pin.h"
-
+#include "lib_pin.h"
+#include "sch_junction.h"
+#include "sch_component.h"
+#include "sch_line.h"
+#include "sch_no_connect.h"
+#include "sch_text.h"
+#include "sch_sheet.h"
 #include "algorithm"
+
+#include <boost/foreach.hpp>
 
 
 // Buffer to build the list of items used in netlist and erc calculations
@@ -22,8 +30,8 @@ NETLIST_OBJECT_LIST g_NetObjectslist;
 
 static void PropageNetCode( int OldNetCode, int NewNetCode, int IsBus );
 static void SheetLabelConnect( NETLIST_OBJECT* SheetLabel );
-static void ListeObjetConnection( SCH_SHEET_PATH*      sheetlist,
-                                  NETLIST_OBJECT_LIST& aNetItemBuffer );
+static void AddConnectedObjects( SCH_SHEET_PATH*      sheetlist,
+                                 NETLIST_OBJECT_LIST& aNetItemBuffer );
 static int  ConvertBusToMembers( NETLIST_OBJECT_LIST& aNetItemBuffer, NETLIST_OBJECT& ObjNet );
 static void PointToPointConnect( NETLIST_OBJECT* Ref, int IsBus, int start );
 static void SegmentToPointConnect( NETLIST_OBJECT* Jonction, int IsBus, int start );
@@ -31,10 +39,14 @@ static void LabelConnect( NETLIST_OBJECT* Label );
 static void ConnectBusLabels( NETLIST_OBJECT_LIST& aNetItemBuffer );
 static void SetUnconnectedFlag( NETLIST_OBJECT_LIST& aNetItemBuffer );
 
+static void FindBestNetNameForEachNet( NETLIST_OBJECT_LIST& aNetItemBuffer );
+static NETLIST_OBJECT* FindBestNetName( NETLIST_OBJECT_LIST& aLabelItemBuffer );
+
 // Sort functions used here:
 static bool SortItemsbyNetcode( const NETLIST_OBJECT* Objet1, const NETLIST_OBJECT* Objet2 );
 static bool SortItemsBySheet( const NETLIST_OBJECT* Objet1, const NETLIST_OBJECT* Objet2 );
 
+// Local variables
 static int FirstNumWireBus, LastNumWireBus, RootBusNameLength;
 static int LastNetCode, LastBusNetCode;
 
@@ -71,7 +83,7 @@ void FreeNetObjectsList( NETLIST_OBJECT_LIST& aNetObjectsBuffer )
  * Updates:
  *   g_NetObjectslist
  */
-void WinEDA_SchematicFrame::BuildNetListBase()
+void SCH_EDIT_FRAME::BuildNetListBase()
 {
     int             NetNumber;
     int             NetCode;
@@ -93,7 +105,7 @@ void WinEDA_SchematicFrame::BuildNetListBase()
 
     sheet = SheetListList.GetFirst();
     for( ; sheet != NULL; sheet = SheetListList.GetNext() )
-        ListeObjetConnection( sheet, g_NetObjectslist );
+        AddConnectedObjects( sheet, g_NetObjectslist );
 
     if( g_NetObjectslist.size() == 0 )
         return;  // no objects
@@ -213,7 +225,7 @@ void WinEDA_SchematicFrame::BuildNetListBase()
     /* Updating the Bus Labels Netcode connected by Bus */
     ConnectBusLabels( g_NetObjectslist );
 
-    activity << wxT( ",  " ) << _( "bus labels" ) << wxT( "..." );;
+    activity << wxT( ",  " ) << _( "bus labels" ) << wxT( "..." );
     SetStatusText( activity );
 
     /* Group objects by label. */
@@ -269,7 +281,7 @@ void WinEDA_SchematicFrame::BuildNetListBase()
     sort( g_NetObjectslist.begin(), g_NetObjectslist.end(), SortItemsbyNetcode );
 
 #if defined(NETLIST_DEBUG) && defined(DEBUG)
-    std::cout << "after qsort()\n";
+    std::cout << "\n\nafter qsort()\n";
     dumpNetTable();
 #endif
 
@@ -290,8 +302,160 @@ void WinEDA_SchematicFrame::BuildNetListBase()
 
     /* Assignment of m_FlagOfConnection based connection or not. */
     SetUnconnectedFlag( g_NetObjectslist );
+
+    /* find the best label object to give the best net name to each net */
+    FindBestNetNameForEachNet( g_NetObjectslist );
 }
 
+
+/**
+ * Function FindBestNetNameForEachNet
+ * fill the .m_NetNameCandidate member of each item of aNetItemBuffer
+ * with a reference to the "best" NETLIST_OBJECT usable to give a name to the net
+ * If no suitable object found, .m_NetNameCandidate is filled with 0.
+ * The "best" NETLIST_OBJECT is a NETLIST_OBJECT that have the type label
+ * and by priority order:
+ * the label is global or local
+ * the label is in the first sheet in a hierarchy (the root sheet has the most priority)
+ * alphabetic order.
+ */
+void FindBestNetNameForEachNet( NETLIST_OBJECT_LIST& aNetItemBuffer )
+{
+    if( aNetItemBuffer.size() == 0 )
+        return; // Should not occur: if this function is called, obviously some items exist in list
+
+    NETLIST_OBJECT_LIST candidates;
+    int netcode = 0;            // current netcode for tested items
+    unsigned idxstart = 0;       // index of the first item of this net
+    for( unsigned ii = 0; ii <= aNetItemBuffer.size(); ii++ )
+    {
+        NETLIST_OBJECT* item;
+
+        if( ii == aNetItemBuffer.size() ) // last item already found
+            netcode = -2;
+        else
+            item = aNetItemBuffer[ii];
+        if( netcode != item->GetNet() )      // End of net found
+        {
+            if( candidates.size() )         // One or more labels exists, find the best
+            {
+                NETLIST_OBJECT* bestlabel = FindBestNetName( candidates );
+                for (unsigned jj = idxstart; jj < ii; jj++ )
+                    aNetItemBuffer[jj]->m_NetNameCandidate = bestlabel;
+            }
+            if( netcode == -2 )
+                break;
+            netcode = item->GetNet();
+            candidates.clear();
+            idxstart = ii;
+        }
+        switch( item->m_Type )
+        {
+        case NET_HIERLABEL:
+        case NET_LABEL:
+        case NET_PINLABEL:
+        case NET_GLOBLABEL:
+            candidates.push_back( item );
+            break;
+
+        default:
+            break;
+        }
+    }
+}
+
+/**
+ * Function FindBestNetName
+ * @return a reference to the "best" label that can be used to give a name
+ *  to a net.
+ * @param aLabelItemBuffer = list of NETLIST_OBJECT type labels candidates.
+ *  labels are local labels, hierarchical labels or pin labels
+ *   labels in included sheets have a lower priority than labels in the current sheet.
+ *     so labels inside the root sheet have the higher priority.
+ *   pin labels are global labels and have the higher priority
+ *   local labels have the lower priority
+ *   labels having the same priority are sorted by alphabetic order.
+ *
+ */
+static NETLIST_OBJECT* FindBestNetName( NETLIST_OBJECT_LIST& aLabelItemBuffer )
+{
+    if( aLabelItemBuffer.size() == 0 )
+        return NULL;
+
+    // Define a priority (from low to high) to sort labels:
+    // NET_PINLABEL and NET_GLOBLABEL are global labels
+    // and priority >= NET_PRIO_MAX-1 is for global connections
+    // ( i.e. for labels that are not prefixed by a sheetpath)
+    #define NET_PRIO_MAX 4
+    int priority_order[NET_PRIO_MAX+1] =
+    { NET_ITEM_UNSPECIFIED, NET_LABEL, NET_HIERLABEL, NET_PINLABEL, NET_GLOBLABEL };
+
+    NETLIST_OBJECT*item = aLabelItemBuffer[0];
+
+    // Calculate item priority (initial priority)
+    int item_priority = 0;
+    for( unsigned ii = 0; ii <= NET_PRIO_MAX; ii++ )
+    {
+        if ( item->m_Type == priority_order[ii]  )
+        {
+            item_priority = ii;
+            break;
+        }
+    }
+
+    for( unsigned ii = 1; ii < aLabelItemBuffer.size(); ii++ )
+    {
+        NETLIST_OBJECT* candidate = aLabelItemBuffer[ii];
+        // Calculate candidate priority
+        int candidate_priority = 0;
+        for( unsigned ii = 0; ii <= NET_PRIO_MAX; ii++ )
+        {
+            if ( candidate->m_Type == priority_order[ii]  )
+            {
+                candidate_priority = ii;
+                break;
+            }
+        }
+        if( candidate_priority > item_priority )
+        {
+            item = candidate;
+            item_priority = candidate_priority;
+        }
+        else if( candidate_priority == item_priority )
+        {
+            // for global labels, we select the best candidate by alphabetic order
+            // because they have no sheetpath as prefix name
+            // for other labels, we select them before by sheet deep order
+            // because the actual name is /sheetpath/label
+            // and for a given path length, by alphabetic order
+
+            if( item_priority >= NET_PRIO_MAX-1 )     // global label or pin label
+            {   // selection by alphabetic order:
+                if( candidate->m_Label.Cmp( item->m_Label ) < 0 )
+                    item = candidate;
+            }
+            else    // not global: names are prefixed by their sheetpath
+            {
+                // use name defined in higher hierarchical sheet
+                // (i.e. shorter path because paths are /<timestamp1>/<timestamp2>/...
+                // and timestamp = 8 letters.
+                if( candidate->m_SheetList.Path().Length() < item->m_SheetList.Path().Length() )
+                {
+                    item = candidate;
+                }
+                else if( candidate->m_SheetList.Path().Length() == item->m_SheetList.Path().Length() )
+                {
+                    // For labels on sheets having an equivalent deep in hierarchy, use
+                    // alphabetic label name order:
+                    if( candidate->m_Label.Cmp( item->m_Label ) < 0 )
+                        item = candidate;
+                }
+            }
+        }
+    }
+
+    return item;
+}
 
 /*
  * Connect sheets by sheetLabels
@@ -318,9 +482,7 @@ static void SheetLabelConnect( NETLIST_OBJECT* SheetLabel )
         if( ObjetNet->GetNet() == SheetLabel->GetNet() )
             continue;  //already connected.
 
-        wxASSERT( ObjetNet->m_Label );
-        wxASSERT( SheetLabel->m_Label );
-        if( ObjetNet->m_Label->CmpNoCase( *SheetLabel->m_Label ) != 0 )
+        if( ObjetNet->m_Label.CmpNoCase( SheetLabel->m_Label ) != 0 )
             continue;  //different names.
 
         /* Propagate Netcode having all the objects of the same Netcode. */
@@ -332,7 +494,8 @@ static void SheetLabelConnect( NETLIST_OBJECT* SheetLabel )
 }
 
 
-/** Function ListeObjetConnection
+/**
+ * Function AddConnectedObjects
  * Creates the list of objects related to connections (pins of components,
  * wires, labels, junctions ...)
  *
@@ -340,24 +503,22 @@ static void SheetLabelConnect( NETLIST_OBJECT* SheetLabel )
  * @param aNetItemBuffer: a std::vector to store pointer on NETLIST_OBJECT
  *                        created
  */
-static void ListeObjetConnection( SCH_SHEET_PATH*               sheetlist,
-                                  std::vector<NETLIST_OBJECT*>& aNetItemBuffer )
+static void AddConnectedObjects( SCH_SHEET_PATH*               sheetlist,
+                                 std::vector<NETLIST_OBJECT*>& aNetItemBuffer )
 {
     int             ii;
     SCH_ITEM*       DrawList;
     NETLIST_OBJECT* new_item;
     SCH_COMPONENT*  DrawLibItem;
     LIB_COMPONENT*  Entry;
-    LIB_PIN*        pin;
-    SCH_SHEET_PIN*  SheetLabel;
     SCH_SHEET_PATH  list;
 
-    DrawList = sheetlist->LastScreen()->EEDrawList;
+    DrawList = sheetlist->LastScreen()->GetDrawItems();
     for( ; DrawList; DrawList = DrawList->Next() )
     {
         switch( DrawList->Type() )
         {
-        case DRAW_SEGMENT_STRUCT_TYPE:
+        case SCH_LINE_T:
             #undef STRUCT
             #define STRUCT ( (SCH_LINE*) DrawList )
             if( (STRUCT->GetLayer() != LAYER_BUS)
@@ -382,7 +543,7 @@ static void ListeObjetConnection( SCH_SHEET_PATH*               sheetlist,
             aNetItemBuffer.push_back( new_item );
             break;
 
-        case DRAW_JUNCTION_STRUCT_TYPE:
+        case SCH_JUNCTION_T:
             #undef STRUCT
             #define STRUCT ( (SCH_JUNCTION*) DrawList )
             new_item = new NETLIST_OBJECT();
@@ -396,7 +557,7 @@ static void ListeObjetConnection( SCH_SHEET_PATH*               sheetlist,
             aNetItemBuffer.push_back( new_item );
             break;
 
-        case DRAW_NOCONNECT_STRUCT_TYPE:
+        case SCH_NO_CONNECT_T:
             #undef STRUCT
             #define STRUCT ( (SCH_NO_CONNECT*) DrawList )
             new_item = new NETLIST_OBJECT();
@@ -410,7 +571,7 @@ static void ListeObjetConnection( SCH_SHEET_PATH*               sheetlist,
             aNetItemBuffer.push_back( new_item );
             break;
 
-        case TYPE_SCH_LABEL:
+        case SCH_LABEL_T:
             #undef STRUCT
             #define STRUCT ( (SCH_LABEL*) DrawList )
             ii = IsBusLabel( STRUCT->m_Text );
@@ -421,12 +582,12 @@ static void ListeObjetConnection( SCH_SHEET_PATH*               sheetlist,
             new_item->m_Comp = STRUCT;
             new_item->m_Type = NET_LABEL;
 
-            if( STRUCT->m_Layer ==  LAYER_GLOBLABEL )
+            if( STRUCT->GetLayer() ==  LAYER_GLOBLABEL )
                 new_item->m_Type = NET_GLOBLABEL;
-            if( STRUCT->m_Layer ==  LAYER_HIERLABEL )
+            if( STRUCT->GetLayer() ==  LAYER_HIERLABEL )
                 new_item->m_Type = NET_HIERLABEL;
 
-            new_item->m_Label = &STRUCT->m_Text;
+            new_item->m_Label = STRUCT->m_Text;
             new_item->m_Start = new_item->m_End = STRUCT->m_Pos;
 
             aNetItemBuffer.push_back( new_item );
@@ -437,8 +598,8 @@ static void ListeObjetConnection( SCH_SHEET_PATH*               sheetlist,
 
             break;
 
-        case TYPE_SCH_GLOBALLABEL:
-        case TYPE_SCH_HIERLABEL:
+        case SCH_GLOBAL_LABEL_T:
+        case SCH_HIERARCHICAL_LABEL_T:
             #undef STRUCT
             #define STRUCT ( (SCH_LABEL*) DrawList )
             ii = IsBusLabel( STRUCT->m_Text );
@@ -450,12 +611,12 @@ static void ListeObjetConnection( SCH_SHEET_PATH*               sheetlist,
 
             // this is not the simplest way of doing it
             // (look at the case statement above).
-            if( STRUCT->m_Layer ==  LAYER_GLOBLABEL )
+            if( STRUCT->GetLayer() ==  LAYER_GLOBLABEL )
                 new_item->m_Type = NET_GLOBLABEL;
-            if( STRUCT->m_Layer ==  LAYER_HIERLABEL )
+            if( STRUCT->GetLayer() ==  LAYER_HIERLABEL )
                 new_item->m_Type = NET_HIERLABEL;
 
-            new_item->m_Label = &STRUCT->m_Text;
+            new_item->m_Label = STRUCT->m_Text;
             new_item->m_Start = new_item->m_End = STRUCT->m_Pos;
             aNetItemBuffer.push_back( new_item );
 
@@ -466,32 +627,28 @@ static void ListeObjetConnection( SCH_SHEET_PATH*               sheetlist,
 
             break;
 
-        case TYPE_SCH_COMPONENT:
+        case SCH_COMPONENT_T:
             DrawLibItem = (SCH_COMPONENT*) DrawList;
 
-            Entry =
-                CMP_LIBRARY::FindLibraryComponent( DrawLibItem->m_ChipName );
-
+            Entry = CMP_LIBRARY::FindLibraryComponent( DrawLibItem->GetLibName() );
             if( Entry == NULL )
                 break;
 
-            for( pin = Entry->GetNextPin(); pin != NULL;
-                pin = Entry->GetNextPin( pin ) )
+            for( LIB_PIN* pin = Entry->GetNextPin();  pin;  pin = Entry->GetNextPin( pin ) )
             {
-                wxASSERT( pin->Type() == COMPONENT_PIN_DRAW_TYPE );
+                wxASSERT( pin->Type() == LIB_PIN_T );
 
-                if( pin->m_Unit
-                   && ( pin->m_Unit !=
-                       DrawLibItem->GetUnitSelection( sheetlist ) ) )
+                if( pin->GetUnit() &&
+                    ( pin->GetUnit() != DrawLibItem->GetUnitSelection( sheetlist ) ) )
                     continue;
 
-                if( pin->m_Convert
-                   && ( pin->m_Convert != DrawLibItem->m_Convert ) )
+                if( pin->GetConvert() && ( pin->GetConvert() != DrawLibItem->GetConvert() ) )
                     continue;
 
-                wxPoint pos2 =
-                    TransformCoordinate( DrawLibItem->m_Transform,
-                                         pin->m_Pos ) + DrawLibItem->m_Pos;
+                wxPoint pos2;
+
+                pos2 = DrawLibItem->GetTransform().TransformCoordinate( pin->GetPosition() ) +
+                    DrawLibItem->m_Pos;
 
                 new_item = new NETLIST_OBJECT();
                 new_item->m_SheetListInclude = *sheetlist;
@@ -499,15 +656,14 @@ static void ListeObjetConnection( SCH_SHEET_PATH*               sheetlist,
                 new_item->m_SheetList = *sheetlist;
                 new_item->m_Type = NET_PIN;
                 new_item->m_Link = DrawLibItem;
-                new_item->m_ElectricalType = pin->m_PinType;
-                new_item->m_PinNum = pin->m_PinNum;
-                new_item->m_Label  = &pin->m_PinName;
+                new_item->m_ElectricalType = pin->GetType();
+                new_item->m_PinNum = pin->GetNumber();
+                new_item->m_Label  = pin->GetName();
                 new_item->m_Start  = new_item->m_End = pos2;
 
                 aNetItemBuffer.push_back( new_item );
 
-                if( ( (int) pin->m_PinType == (int) PIN_POWER_IN )
-                   && ( pin->m_Attributs & PINNOTDRAW ) )
+                if( ( (int) pin->GetType() == (int) PIN_POWER_IN ) && !pin->IsVisible() )
                 {
                     /* There is an associated PIN_LABEL. */
                     new_item = new NETLIST_OBJECT();
@@ -515,41 +671,42 @@ static void ListeObjetConnection( SCH_SHEET_PATH*               sheetlist,
                     new_item->m_Comp = NULL;
                     new_item->m_SheetList = *sheetlist;
                     new_item->m_Type  = NET_PINLABEL;
-                    new_item->m_Label = &pin->m_PinName;
+                    new_item->m_Label = pin->GetName();
                     new_item->m_Start = pos2;
                     new_item->m_End   = new_item->m_Start;
 
                     aNetItemBuffer.push_back( new_item );
                 }
             }
-
             break;
 
-        case DRAW_POLYLINE_STRUCT_TYPE:
-        case DRAW_BUSENTRY_STRUCT_TYPE:
-        case TYPE_SCH_MARKER:
-        case TYPE_SCH_TEXT:
+        case SCH_POLYLINE_T:
+        case SCH_BUS_ENTRY_T:
+        case SCH_MARKER_T:
+        case SCH_TEXT_T:
             break;
 
-        case DRAW_SHEET_STRUCT_TYPE:
+        case SCH_SHEET_T:
+        {
             #undef STRUCT
             #define STRUCT ( (SCH_SHEET*) DrawList )
             list = *sheetlist;
             list.Push( STRUCT );
-            SheetLabel = STRUCT->m_Label;
-            for( ; SheetLabel != NULL; SheetLabel = SheetLabel->Next() )
+            SCH_SHEET* sheet = (SCH_SHEET*) DrawList;
+
+            BOOST_FOREACH( SCH_SHEET_PIN pin, sheet->GetPins() )
             {
-                ii = IsBusLabel( SheetLabel->m_Text );
+                ii = IsBusLabel( pin.m_Text );
                 new_item = new NETLIST_OBJECT();
                 new_item->m_SheetListInclude = *sheetlist;
-                new_item->m_Comp = SheetLabel;
+                new_item->m_Comp = &pin;
                 new_item->m_SheetList = *sheetlist;
                 new_item->m_Link = DrawList;
                 new_item->m_Type = NET_SHEETLABEL;
-                new_item->m_ElectricalType = SheetLabel->m_Shape;
-                new_item->m_Label = &SheetLabel->m_Text;
+                new_item->m_ElectricalType = pin.m_Shape;
+                new_item->m_Label = pin.m_Text;
                 new_item->m_SheetListInclude = list;
-                new_item->m_Start = new_item->m_End = SheetLabel->m_Pos;
+                new_item->m_Start = new_item->m_End = pin.m_Pos;
                 aNetItemBuffer.push_back( new_item );
 
                 if( ii )
@@ -557,13 +714,14 @@ static void ListeObjetConnection( SCH_SHEET_PATH*               sheetlist,
             }
 
             break;
+        }
 
-        case DRAW_HIERARCHICAL_PIN_SHEET_STRUCT_TYPE:
+        case SCH_SHEET_PIN_T:
         default:
         {
             wxString msg;
             msg.Printf( wxT( "Netlist: unexpected struct type %d" ),
-                        DrawList->Type() );
+                       DrawList->Type() );
             wxMessageBox( msg );
             break;
         }
@@ -649,7 +807,7 @@ int IsBusLabel( const wxString& LabelDrawList )
     }
 
     if( !BufLine.ToLong( &tmp ) )
-        error = TRUE;
+        error = true;
 
     FirstNumWireBus = tmp;
     while( LabelDrawList[Num] == '.' && Num < LabelDrawList.Len() )
@@ -663,7 +821,7 @@ int IsBusLabel( const wxString& LabelDrawList )
     }
 
     if( !BufLine.ToLong( &tmp ) )
-        error = TRUE; ;
+        error = true;
     LastNumWireBus = tmp;
 
     if( FirstNumWireBus < 0 )
@@ -707,11 +865,11 @@ static int ConvertBusToMembers( NETLIST_OBJECT_LIST& aNetItemBuffer,
         BusLabel.m_Type = NET_BUSLABELMEMBER;
 
     /* Conversion of BusLabel to the root Label name + the member id like mybus0, mybus1 ... */
-    BufLine = BusLabel.m_Label->Left( RootBusNameLength );
+    BufLine = BusLabel.m_Label.Left( RootBusNameLength );
 
     BusMember = FirstNumWireBus;
     BufLine << BusMember;
-    BusLabel.m_Label = new wxString( BufLine );
+    BusLabel.m_Label = BufLine;
 
     BusLabel.m_Member = BusMember;
     NumItem = 1;
@@ -722,9 +880,9 @@ static int ConvertBusToMembers( NETLIST_OBJECT_LIST& aNetItemBuffer,
         NumItem++;
 
         /* Conversion of BusLabel to the root name + the current member id.*/
-        BufLine = BusLabel.m_Label->Left( RootBusNameLength );
+        BufLine = BusLabel.m_Label.Left( RootBusNameLength );
         BufLine << BusMember;
-        new_label->m_Label = new wxString( BufLine );
+        new_label->m_Label = BufLine;
 
         new_label->m_Member = BusMember;
         aNetItemBuffer.push_back( new_label );
@@ -881,25 +1039,24 @@ static void PointToPointConnect( NETLIST_OBJECT* Ref, int IsBus, int start )
 
 
 /*
- * Search if a junction is connected to segments and include the Netcode
- * objects connect to the junction.
+ * Search if a junction is connected to segments and propagate the junction Netcode
+ * to objects connected by the junction.
  * The junction must have a valid Netcode
- * The list of objects is SUPPOSED class by NumSheet ??? Croissants,
- * And research is done from the start element, 1st element
- * Leaf schema
- * (There can be no physical connection between elements of different sheets)
+ * The list of objects is expected sorted by sheets.
+ * Search is done from index aIdxStart to the last element of g_NetObjectslist
  */
-static void SegmentToPointConnect( NETLIST_OBJECT* Jonction,
-                                   int IsBus, int start )
+static void SegmentToPointConnect( NETLIST_OBJECT* aJonction,
+                                   int aIsBus, int aIdxStart )
 {
-    for( unsigned i = start; i < g_NetObjectslist.size(); i++ )
+    for( unsigned i = aIdxStart; i < g_NetObjectslist.size(); i++ )
     {
         NETLIST_OBJECT* Segment = g_NetObjectslist[i];
 
-        if( Segment->m_SheetList != Jonction->m_SheetList )
+        // if different sheets, no physical connection between elements is possible.
+        if( Segment->m_SheetList != aJonction->m_SheetList )
             continue;
 
-        if( IsBus == 0 )
+        if( aIsBus == 0 )
         {
             if( Segment->m_Type != NET_SEGMENT )
                 continue;
@@ -910,26 +1067,24 @@ static void SegmentToPointConnect( NETLIST_OBJECT* Jonction,
                 continue;
         }
 
-        if( SegmentIntersect( Segment->m_Start.x, Segment->m_Start.y,
-                              Segment->m_End.x, Segment->m_End.y,
-                              Jonction->m_Start.x, Jonction->m_Start.y ) )
+        if( SegmentIntersect( Segment->m_Start, Segment->m_End, aJonction->m_Start ) )
         {
             /* Propagation Netcode has all the objects of the same Netcode. */
-            if( IsBus == 0 )
+            if( aIsBus == 0 )
             {
                 if( Segment->GetNet() )
                     PropageNetCode( Segment->GetNet(),
-                                    Jonction->GetNet(), IsBus );
+                                    aJonction->GetNet(), aIsBus );
                 else
-                    Segment->SetNet( Jonction->GetNet() );
+                    Segment->SetNet( aJonction->GetNet() );
             }
             else
             {
                 if( Segment->m_BusNetCode )
                     PropageNetCode( Segment->m_BusNetCode,
-                                    Jonction->m_BusNetCode, IsBus );
+                                    aJonction->m_BusNetCode, aIsBus );
                 else
-                    Segment->m_BusNetCode = Jonction->m_BusNetCode;
+                    Segment->m_BusNetCode = aJonction->m_BusNetCode;
             }
         }
     }
@@ -961,10 +1116,11 @@ void LabelConnect( NETLIST_OBJECT* LabelRef )
                 continue;
         }
 
-        //regular labels are sheet-local;
-        //NET_HIERLABEL are used to connect sheets.
-        //NET_LABEL is sheet-local (***)
-        //NET_GLOBLABEL is global.
+        // regular labels are sheet-local;
+        // NET_HIERLABEL are used to connect sheets.
+        // NET_LABEL is sheet-local (***)
+        // NET_GLOBLABEL is global.
+        // NET_PINLABEL is a kind of global label (generated by a power pin invisible)
         NetObjetType ntype = g_NetObjectslist[i]->m_Type;
         if(  ntype == NET_LABEL
              || ntype == NET_GLOBLABEL
@@ -974,13 +1130,11 @@ void LabelConnect( NETLIST_OBJECT* LabelRef )
              || ntype == NET_HIERBUSLABELMEMBER
              || ntype == NET_PINLABEL )
         {
-            if( g_NetObjectslist[i]->m_Label->CmpNoCase( *LabelRef->m_Label )
-                != 0 )
+            if( g_NetObjectslist[i]->m_Label.CmpNoCase( LabelRef->m_Label ) != 0 )
                 continue;
 
             if( g_NetObjectslist[i]->GetNet() )
-                PropageNetCode(
-                    g_NetObjectslist[i]->GetNet(), LabelRef->GetNet(), 0 );
+                PropageNetCode( g_NetObjectslist[i]->GetNet(), LabelRef->GetNet(), 0 );
             else
                 g_NetObjectslist[i]->SetNet( LabelRef->GetNet() );
         }
@@ -998,8 +1152,7 @@ bool SortItemsbyNetcode( const NETLIST_OBJECT* Objet1,
 }
 
 
-/* Comparison routine for sorting by NumSheet table of elements
- * connected (TabPinSort) by qsort ()
+/* Comparison routine for sorting items by Sheet Number ( used by qsort )
  */
 
 bool SortItemsBySheet( const NETLIST_OBJECT* Objet1,

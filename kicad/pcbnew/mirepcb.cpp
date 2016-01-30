@@ -9,15 +9,17 @@
 #include "pcbnew.h"
 #include "wxPcbStruct.h"
 #include "class_board_design_settings.h"
+#include "dialog_helpers.h"
 
 #include "protos.h"
 
 
 /* Routines Locales */
-static void AbortMoveAndEditTarget( WinEDA_DrawPanel* Panel, wxDC* DC );
-static void ShowTargetShapeWhileMovingMouse( WinEDA_DrawPanel* panel,
-                                             wxDC*             DC,
-                                             bool              erase );
+static void AbortMoveAndEditTarget( EDA_DRAW_PANEL* Panel, wxDC* DC );
+static void ShowTargetShapeWhileMovingMouse( EDA_DRAW_PANEL* aPanel,
+                                             wxDC*           aDC,
+                                             const wxPoint&  aPosition,
+                                             bool            aErase );
 
 /* Local variables : */
 static int     MireDefaultSize = 5000;
@@ -28,25 +30,23 @@ static MIREPCB s_TargetCopy( NULL );    /* Used to store "old" values of the
                                          */
 
 /************************************/
-/* class WinEDA_MirePropertiesFrame */
+/* class TARGET_PROPERTIES_DIALOG_EDITOR */
 /************************************/
 
-class WinEDA_MirePropertiesFrame : public wxDialog
+class TARGET_PROPERTIES_DIALOG_EDITOR : public wxDialog
 {
 private:
 
-    WinEDA_PcbFrame*  m_Parent;
+    PCB_EDIT_FRAME*   m_Parent;
     wxDC*             m_DC;
     MIREPCB*          m_MirePcb;
     WinEDA_ValueCtrl* m_MireWidthCtrl;
     WinEDA_ValueCtrl* m_MireSizeCtrl;
     wxRadioBox*       m_MireShape;
 
-public: WinEDA_MirePropertiesFrame( WinEDA_PcbFrame* parent,
-                                    MIREPCB*         Mire,
-                                    wxDC*            DC,
-                                    const wxPoint&   pos );
-    ~WinEDA_MirePropertiesFrame() { }
+public:
+    TARGET_PROPERTIES_DIALOG_EDITOR( PCB_EDIT_FRAME* parent, MIREPCB* Mire, wxDC* DC );
+    ~TARGET_PROPERTIES_DIALOG_EDITOR() { }
 
 private:
     void OnOkClick( wxCommandEvent& event );
@@ -55,29 +55,26 @@ private:
     DECLARE_EVENT_TABLE()
 };
 
-BEGIN_EVENT_TABLE( WinEDA_MirePropertiesFrame, wxDialog )
-    EVT_BUTTON( wxID_OK, WinEDA_MirePropertiesFrame::OnOkClick )
-    EVT_BUTTON( wxID_CANCEL, WinEDA_MirePropertiesFrame::OnCancelClick )
+BEGIN_EVENT_TABLE( TARGET_PROPERTIES_DIALOG_EDITOR, wxDialog )
+    EVT_BUTTON( wxID_OK, TARGET_PROPERTIES_DIALOG_EDITOR::OnOkClick )
+    EVT_BUTTON( wxID_CANCEL, TARGET_PROPERTIES_DIALOG_EDITOR::OnCancelClick )
 END_EVENT_TABLE()
 
 
-void WinEDA_PcbFrame::InstallMireOptionsFrame( MIREPCB* MirePcb,
-                                               wxDC* DC, const wxPoint& pos )
+void PCB_EDIT_FRAME::InstallMireOptionsFrame( MIREPCB* MirePcb, wxDC* DC )
 {
-    WinEDA_MirePropertiesFrame* frame =
-        new WinEDA_MirePropertiesFrame( this, MirePcb, DC, pos );
+    TARGET_PROPERTIES_DIALOG_EDITOR* frame =
+        new TARGET_PROPERTIES_DIALOG_EDITOR( this, MirePcb, DC );
 
     frame->ShowModal();
     frame->Destroy();
 }
 
 
-WinEDA_MirePropertiesFrame::WinEDA_MirePropertiesFrame(
-    WinEDA_PcbFrame* parent,
-    MIREPCB* Mire, wxDC* DC,
-    const wxPoint& framepos ) :
-    wxDialog( parent, -1, _( "Target Properties" ), framepos, wxSize( 270, 210 ),
-              DIALOG_STYLE )
+TARGET_PROPERTIES_DIALOG_EDITOR::TARGET_PROPERTIES_DIALOG_EDITOR(
+    PCB_EDIT_FRAME* parent,
+    MIREPCB* Mire, wxDC* DC ) :
+    wxDialog( parent, wxID_ANY, wxString( _( "Target Properties" ) ) )
 {
     wxString  number;
     wxButton* Button;
@@ -105,13 +102,13 @@ WinEDA_MirePropertiesFrame::WinEDA_MirePropertiesFrame(
     // Size:
     m_MireSizeCtrl = new WinEDA_ValueCtrl( this, _( "Size" ),
                                            m_MirePcb->m_Size,
-                                           g_UnitMetric, LeftBoxSizer,
+                                           g_UserUnit, LeftBoxSizer,
                                            m_Parent->m_InternalUnits );
 
     // Width:
     m_MireWidthCtrl = new WinEDA_ValueCtrl( this, _( "Width" ),
                                             m_MirePcb->m_Width,
-                                            g_UnitMetric, LeftBoxSizer,
+                                            g_UserUnit, LeftBoxSizer,
                                             m_Parent->m_InternalUnits );
 
     // Shape
@@ -128,8 +125,7 @@ WinEDA_MirePropertiesFrame::WinEDA_MirePropertiesFrame(
 }
 
 
-void WinEDA_MirePropertiesFrame::OnCancelClick( wxCommandEvent& WXUNUSED(
-                                                   event ) )
+void TARGET_PROPERTIES_DIALOG_EDITOR::OnCancelClick( wxCommandEvent& event )
 {
     EndModal( -1 );
 }
@@ -137,7 +133,7 @@ void WinEDA_MirePropertiesFrame::OnCancelClick( wxCommandEvent& WXUNUSED(
 
 /* Updates the different parameters for the component being edited
  */
-void WinEDA_MirePropertiesFrame::OnOkClick( wxCommandEvent& event )
+void TARGET_PROPERTIES_DIALOG_EDITOR::OnOkClick( wxCommandEvent& event )
 {
     m_MirePcb->Draw( m_Parent->DrawPanel, m_DC, GR_XOR );
 
@@ -163,7 +159,7 @@ void WinEDA_MirePropertiesFrame::OnOkClick( wxCommandEvent& event )
 }
 
 
-void WinEDA_PcbFrame::Delete_Mire( MIREPCB* MirePcb, wxDC* DC )
+void PCB_EDIT_FRAME::Delete_Mire( MIREPCB* MirePcb, wxDC* DC )
 {
     if( MirePcb == NULL )
         return;
@@ -174,21 +170,21 @@ void WinEDA_PcbFrame::Delete_Mire( MIREPCB* MirePcb, wxDC* DC )
 }
 
 
-static void AbortMoveAndEditTarget( WinEDA_DrawPanel* Panel, wxDC* DC )
+static void AbortMoveAndEditTarget( EDA_DRAW_PANEL* Panel, wxDC* DC )
 {
     BASE_SCREEN* screen  = Panel->GetScreen();
     MIREPCB*     MirePcb = (MIREPCB*) screen->GetCurItem();
 
-    Panel->ManageCurseur = NULL;
-    Panel->ForceCloseManageCurseur = NULL;
-    ( (WinEDA_PcbFrame*) Panel->GetParent() )->SetCurItem( NULL );
+    ( (PCB_EDIT_FRAME*) Panel->GetParent() )->SetCurItem( NULL );
+
+    Panel->SetMouseCapture( NULL, NULL );
 
     if( MirePcb == NULL )
         return;
 
     MirePcb->Draw( Panel, DC, GR_XOR );
 
-    if( MirePcb->m_Flags & IS_NEW )     // If it is new, delete it
+    if( MirePcb->IsNew() )     // If it is new, delete it
     {
         MirePcb->Draw( Panel, DC, GR_XOR );
         MirePcb->DeleteStructure();
@@ -211,7 +207,7 @@ static void AbortMoveAndEditTarget( WinEDA_DrawPanel* Panel, wxDC* DC )
 
 /* Draw Symbol PCB type MIRE.
  */
-MIREPCB* WinEDA_PcbFrame::Create_Mire( wxDC* DC )
+MIREPCB* PCB_EDIT_FRAME::Create_Mire( wxDC* DC )
 {
     MIREPCB* MirePcb = new MIREPCB( GetBoard() );
 
@@ -222,7 +218,7 @@ MIREPCB* WinEDA_PcbFrame::Create_Mire( wxDC* DC )
     MirePcb->SetLayer( EDGE_N );
     MirePcb->m_Width = GetBoard()->GetBoardDesignSettings()->m_EdgeSegmentWidth;
     MirePcb->m_Size  = MireDefaultSize;
-    MirePcb->m_Pos  = DrawPanel->GetScreen()->m_Curseur;
+    MirePcb->m_Pos  = DrawPanel->GetScreen()->GetCrossHairPosition();
 
     Place_Mire( MirePcb, DC );
 
@@ -232,43 +228,38 @@ MIREPCB* WinEDA_PcbFrame::Create_Mire( wxDC* DC )
 
 /* Routine to initialize the displacement of a focal
  */
-void WinEDA_PcbFrame::StartMove_Mire( MIREPCB* MirePcb, wxDC* DC )
+void PCB_EDIT_FRAME::StartMove_Mire( MIREPCB* MirePcb, wxDC* DC )
 {
     if( MirePcb == NULL )
         return;
 
     s_TargetCopy      = *MirePcb;
     MirePcb->m_Flags |= IS_MOVED;
-    DrawPanel->ManageCurseur = ShowTargetShapeWhileMovingMouse;
-    DrawPanel->ForceCloseManageCurseur = AbortMoveAndEditTarget;
+    DrawPanel->SetMouseCapture( ShowTargetShapeWhileMovingMouse, AbortMoveAndEditTarget );
     SetCurItem( MirePcb );
 }
 
 
-void WinEDA_PcbFrame::Place_Mire( MIREPCB* MirePcb, wxDC* DC )
+void PCB_EDIT_FRAME::Place_Mire( MIREPCB* MirePcb, wxDC* DC )
 {
     if( MirePcb == NULL )
         return;
 
     MirePcb->Draw( DrawPanel, DC, GR_OR );
-    DrawPanel->ManageCurseur = NULL;
-    DrawPanel->ForceCloseManageCurseur = NULL;
+    DrawPanel->SetMouseCapture( NULL, NULL );
     SetCurItem( NULL );
     OnModify();
 
-    if( (MirePcb->m_Flags & IS_NEW) )
+    if( MirePcb->IsNew() )
     {
         SaveCopyInUndoList( MirePcb, UR_NEW );
         MirePcb->m_Flags = 0;
         return;
     }
 
-
     if( MirePcb->m_Flags == IS_MOVED )
     {
-        SaveCopyInUndoList( MirePcb,
-                            UR_MOVED,
-                            MirePcb->m_Pos - s_TargetCopy.m_Pos );
+        SaveCopyInUndoList( MirePcb, UR_MOVED, MirePcb->m_Pos - s_TargetCopy.m_Pos );
         MirePcb->m_Flags = 0;
         return;
     }
@@ -279,25 +270,25 @@ void WinEDA_PcbFrame::Place_Mire( MIREPCB* MirePcb, wxDC* DC )
         SaveCopyInUndoList( MirePcb, UR_CHANGED );
         SwapData( MirePcb, &s_TargetCopy );
     }
+
     MirePcb->m_Flags = 0;
 }
 
 
 /* Redraw the contour of the track while moving the mouse */
-static void ShowTargetShapeWhileMovingMouse( WinEDA_DrawPanel* panel,
-                                             wxDC*             DC,
-                                             bool              erase )
+static void ShowTargetShapeWhileMovingMouse( EDA_DRAW_PANEL* aPanel, wxDC* aDC,
+                                             const wxPoint& aPosition, bool aErase )
 {
-    BASE_SCREEN* screen  = panel->GetScreen();
+    BASE_SCREEN* screen  = aPanel->GetScreen();
     MIREPCB*     MirePcb = (MIREPCB*) screen->GetCurItem();
 
     if( MirePcb == NULL )
         return;
 
-    if( erase )
-        MirePcb->Draw( panel, DC, GR_XOR );
+    if( aErase )
+        MirePcb->Draw( aPanel, aDC, GR_XOR );
 
-    MirePcb->m_Pos = screen->m_Curseur;
+    MirePcb->m_Pos = screen->GetCrossHairPosition();
 
-    MirePcb->Draw( panel, DC, GR_XOR );
+    MirePcb->Draw( aPanel, aDC, GR_XOR );
 }

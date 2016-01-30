@@ -46,58 +46,16 @@
 /**
  * Class PCB_LAYER_WIDGET
  * is here to implement the abtract functions of LAYER_WIDGET so they
- * may be tied into the WinEDA_PcbFrame's data and so we can add a popup
+ * may be tied into the PCB_EDIT_FRAME's data and so we can add a popup
  * menu which is specific to PCBNEW's needs.
  */
 
 
-PCB_LAYER_WIDGET::PCB_LAYER_WIDGET( WinEDA_PcbFrame* aParent, wxWindow* aFocusOwner, int aPointSize ) :
+PCB_LAYER_WIDGET::PCB_LAYER_WIDGET( PCB_EDIT_FRAME* aParent, wxWindow* aFocusOwner, int aPointSize ) :
     LAYER_WIDGET( aParent, aFocusOwner, aPointSize ),
     myframe( aParent )
 {
-    BOARD*  board = myframe->GetBoard();
-
-    // Fixed "Rendering" tab rows within the LAYER_WIDGET, only the initial color
-    // is changed before appending to the LAYER_WIDGET.  This is an automatic variable
-    // not a static variable, change the color & state after copying from code to renderRows
-    // on the stack.
-    LAYER_WIDGET::ROW renderRows[16] = {
-
-#define RR  LAYER_WIDGET::ROW   // Render Row abreviation to reduce source width
-
-             // text                id                      color       tooltip                 checked
-        RR( _( "Through Via" ),     VIA_THROUGH_VISIBLE,    WHITE,      _( "Show through vias" ) ),
-        RR( _( "Bl/Buried Via" ),   VIA_BBLIND_VISIBLE,     WHITE,      _( "Show blind or buried vias" )  ),
-        RR( _( "Micro Via" ),       VIA_MICROVIA_VISIBLE,   WHITE,      _( "Show micro vias") ),
-        RR( _( "Ratsnest" ),        RATSNEST_VISIBLE,       WHITE,      _( "Show unconnected nets as a ratsnest") ),
-
-        RR( _( "Pads Front" ),      PAD_FR_VISIBLE,         WHITE,      _( "Show footprint pads on board's front" ) ),
-        RR( _( "Pads Back" ),       PAD_BK_VISIBLE,         WHITE,      _( "Show footprint pads on board's back" ) ),
-
-        RR( _( "Text Front" ),      MOD_TEXT_FR_VISIBLE,    WHITE,      _( "Show footprint text on board's back" ) ),
-        RR( _( "Text Back" ),       MOD_TEXT_BK_VISIBLE,    WHITE,      _( "Show footprint text on board's back" ) ),
-        RR( _( "Hidden Text" ),     MOD_TEXT_INVISIBLE,     WHITE,      _( "Show footprint text marked as invisible" ) ),
-
-        RR( _( "Anchors" ),         ANCHOR_VISIBLE,         WHITE,      _( "Show footprint and text origins as a cross" ) ),
-        RR( _( "Grid" ),            GRID_VISIBLE,           WHITE,      _( "Show the (x,y) grid dots" ) ),
-        RR( _( "No-Connects" ),     NO_CONNECTS_VISIBLE,    -1,         _( "Show a marker on pads which have no net connected" ) ),
-        RR( _( "Modules Front" ),   MOD_FR_VISIBLE,         -1,         _( "Show footprints that are on board's front") ),
-        RR( _( "Modules Back" ),    MOD_BK_VISIBLE,         -1,         _( "Show footprints that are on board's back") ),
-        RR( _( "Values" ),          MOD_VALUES_VISIBLE,     -1,         _( "Show footprint's values") ),
-        RR( _( "References" ),      MOD_REFERENCES_VISIBLE, -1,         _( "Show footprint's references") ),
-    };
-
-    for( unsigned row=0;  row<DIM(renderRows);  ++row )
-    {
-        if( renderRows[row].color != -1 )       // does this row show a color?
-        {
-            // this window frame must have an established BOARD, i.e. after SetBoard()
-            renderRows[row].color = board->GetVisibleElementColor( renderRows[row].id );
-        }
-        renderRows[row].state = board->IsElementVisible( renderRows[row].id );
-    }
-
-    AppendRenderRows( renderRows, DIM(renderRows) );
+    ReFillRender();
 
     // Update default tabs labels for gerbview
     SetLayersManagerTabsText( );
@@ -140,10 +98,10 @@ void PCB_LAYER_WIDGET::onRightDownLayers( wxMouseEvent& event )
     // menu text is capitalized:
     // http://library.gnome.org/devel/hig-book/2.20/design-text-labels.html.en#layout-capitalization
     menu.Append( new wxMenuItem( &menu, ID_SHOW_ALL_COPPERS,
-        _("Show All Cu") ) );
+        _("Show All Copper Layers") ) );
 
     menu.Append( new wxMenuItem( &menu, ID_SHOW_NO_COPPERS,
-        _( "Hide All Cu" ) ) );
+        _( "Hide All Copper Layers" ) ) );
 
     PopupMenu( &menu );
 
@@ -199,7 +157,8 @@ void PCB_LAYER_WIDGET::onPopupSelection( wxCommandEvent& event )
     }
 }
 
-/** Function SetLayersManagerTabsText
+/**
+ * Function SetLayersManagerTabsText
  * Update the layer manager tabs labels
  * Useful when changing Language or to set labels to a non default value
  */
@@ -209,6 +168,56 @@ void PCB_LAYER_WIDGET::SetLayersManagerTabsText( )
     m_notebook->SetPageText(1, _("Render") );
 }
 
+/**
+ * Function ReFillRender
+ * Rebuild Render for instance after the config is read
+ */
+void PCB_LAYER_WIDGET::ReFillRender()
+{
+    BOARD*  board = myframe->GetBoard();
+    ClearRenderRows();
+    // Fixed "Rendering" tab rows within the LAYER_WIDGET, only the initial color
+    // is changed before appending to the LAYER_WIDGET.  This is an automatic variable
+    // not a static variable, change the color & state after copying from code to renderRows
+    // on the stack.
+    LAYER_WIDGET::ROW renderRows[16] = {
+
+#define RR  LAYER_WIDGET::ROW   // Render Row abreviation to reduce source width
+
+             // text                id                      color       tooltip                 checked
+        RR( _( "Through Via" ),     VIA_THROUGH_VISIBLE,    WHITE,      _( "Show through vias" ) ),
+        RR( _( "Bl/Buried Via" ),   VIA_BBLIND_VISIBLE,     WHITE,      _( "Show blind or buried vias" )  ),
+        RR( _( "Micro Via" ),       VIA_MICROVIA_VISIBLE,   WHITE,      _( "Show micro vias") ),
+        RR( _( "Ratsnest" ),        RATSNEST_VISIBLE,       WHITE,      _( "Show unconnected nets as a ratsnest") ),
+
+        RR( _( "Pads Front" ),      PAD_FR_VISIBLE,         WHITE,      _( "Show footprint pads on board's front" ) ),
+        RR( _( "Pads Back" ),       PAD_BK_VISIBLE,         WHITE,      _( "Show footprint pads on board's back" ) ),
+
+        RR( _( "Text Front" ),      MOD_TEXT_FR_VISIBLE,    WHITE,      _( "Show footprint text on board's back" ) ),
+        RR( _( "Text Back" ),       MOD_TEXT_BK_VISIBLE,    WHITE,      _( "Show footprint text on board's back" ) ),
+        RR( _( "Hidden Text" ),     MOD_TEXT_INVISIBLE,     WHITE,      _( "Show footprint text marked as invisible" ) ),
+
+        RR( _( "Anchors" ),         ANCHOR_VISIBLE,         WHITE,      _( "Show footprint and text origins as a cross" ) ),
+        RR( _( "Grid" ),            GRID_VISIBLE,           WHITE,      _( "Show the (x,y) grid dots" ) ),
+        RR( _( "No-Connects" ),     NO_CONNECTS_VISIBLE,    -1,         _( "Show a marker on pads which have no net connected" ) ),
+        RR( _( "Modules Front" ),   MOD_FR_VISIBLE,         -1,         _( "Show footprints that are on board's front") ),
+        RR( _( "Modules Back" ),    MOD_BK_VISIBLE,         -1,         _( "Show footprints that are on board's back") ),
+        RR( _( "Values" ),          MOD_VALUES_VISIBLE,     -1,         _( "Show footprint's values") ),
+        RR( _( "References" ),      MOD_REFERENCES_VISIBLE, -1,         _( "Show footprint's references") ),
+    };
+
+    for( unsigned row=0;  row<DIM(renderRows);  ++row )
+    {
+        if( renderRows[row].color != -1 )       // does this row show a color?
+        {
+            // this window frame must have an established BOARD, i.e. after SetBoard()
+            renderRows[row].color = board->GetVisibleElementColor( renderRows[row].id );
+        }
+        renderRows[row].state = board->IsElementVisible( renderRows[row].id );
+    }
+
+    AppendRenderRows( renderRows, DIM(renderRows) );
+}
 
 void PCB_LAYER_WIDGET::ReFill()
 {
@@ -288,6 +297,7 @@ void PCB_LAYER_WIDGET::ReFill()
 void PCB_LAYER_WIDGET::OnLayerColorChange( int aLayer, int aColor )
 {
     myframe->GetBoard()->SetLayerColor( aLayer, aColor );
+    myframe->ReCreateLayerBox( NULL );
     myframe->DrawPanel->Refresh();
 }
 
@@ -296,7 +306,7 @@ bool PCB_LAYER_WIDGET::OnLayerSelect( int aLayer )
     // the layer change from the PCB_LAYER_WIDGET can be denied by returning
     // false from this function.
     myframe->setActiveLayer( aLayer, false );
-    myframe->syncLayerBox();
+
     if(DisplayOpt.ContrastModeDisplay)
         myframe->DrawPanel->Refresh();
 

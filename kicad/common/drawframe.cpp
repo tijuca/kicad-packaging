@@ -18,6 +18,7 @@
 #include "wxstruct.h"
 #include "confirm.h"
 #include "kicad_device_context.h"
+#include "dialog_helpers.h"
 
 #include <wx/fontdlg.h>
 
@@ -35,22 +36,33 @@ static const wxString GridColorEntryKeyword( wxT( "GridColor" ) );
 static const wxString LastGridSizeId( wxT( "_LastGridSize" ) );
 
 
-BEGIN_EVENT_TABLE( WinEDA_DrawFrame, WinEDA_BasicFrame )
-    EVT_MOUSEWHEEL( WinEDA_DrawFrame::OnMouseEvent )
-    EVT_MENU_OPEN( WinEDA_DrawFrame::OnMenuOpen )
-    EVT_ACTIVATE( WinEDA_DrawFrame::OnActivate )
+BEGIN_EVENT_TABLE( EDA_DRAW_FRAME, EDA_BASE_FRAME )
+    EVT_MOUSEWHEEL( EDA_DRAW_FRAME::OnMouseEvent )
+    EVT_MENU_OPEN( EDA_DRAW_FRAME::OnMenuOpen )
+    EVT_ACTIVATE( EDA_DRAW_FRAME::OnActivate )
+    EVT_MENU_RANGE( ID_ZOOM_IN, ID_ZOOM_REDRAW, EDA_DRAW_FRAME::OnZoom )
     EVT_MENU_RANGE( ID_POPUP_ZOOM_START_RANGE, ID_POPUP_ZOOM_END_RANGE,
-                    WinEDA_DrawFrame::OnZoom )
+                    EDA_DRAW_FRAME::OnZoom )
     EVT_MENU_RANGE( ID_POPUP_GRID_LEVEL_1000, ID_POPUP_GRID_USER,
-                    WinEDA_DrawFrame::OnSelectGrid )
+                    EDA_DRAW_FRAME::OnSelectGrid )
+
+    EVT_TOOL( ID_TB_OPTIONS_SHOW_GRID, EDA_DRAW_FRAME::OnToggleGridState )
+    EVT_TOOL_RANGE( ID_TB_OPTIONS_SELECT_UNIT_MM, ID_TB_OPTIONS_SELECT_UNIT_INCH,
+                    EDA_DRAW_FRAME::OnSelectUnits )
+    EVT_TOOL( ID_TB_OPTIONS_SELECT_CURSOR, EDA_DRAW_FRAME::OnToggleCrossHairStyle )
+
+    EVT_UPDATE_UI( wxID_UNDO, EDA_DRAW_FRAME::OnUpdateUndo )
+    EVT_UPDATE_UI( wxID_REDO, EDA_DRAW_FRAME::OnUpdateRedo )
+    EVT_UPDATE_UI( ID_TB_OPTIONS_SHOW_GRID, EDA_DRAW_FRAME::OnUpdateGrid )
+    EVT_UPDATE_UI( ID_TB_OPTIONS_SELECT_CURSOR, EDA_DRAW_FRAME::OnUpdateCrossHairStyle )
+    EVT_UPDATE_UI_RANGE( ID_TB_OPTIONS_SELECT_UNIT_MM, ID_TB_OPTIONS_SELECT_UNIT_INCH,
+                         EDA_DRAW_FRAME::OnUpdateUnits )
 END_EVENT_TABLE()
 
 
-WinEDA_DrawFrame::WinEDA_DrawFrame( wxWindow* father, int idtype,
-                                    const wxString& title,
-                                    const wxPoint& pos, const wxSize& size,
-                                    long style ) :
-    WinEDA_BasicFrame( father, idtype, title, pos, size, style )
+EDA_DRAW_FRAME::EDA_DRAW_FRAME( wxWindow* father, int idtype, const wxString& title,
+                                const wxPoint& pos, const wxSize& size, long style ) :
+    EDA_BASE_FRAME( father, idtype, title, pos, size, style )
 {
     wxSize minsize;
 
@@ -64,19 +76,20 @@ WinEDA_DrawFrame::WinEDA_DrawFrame( wxWindow* father, int idtype,
 
     DrawPanel             = NULL;
     MsgPanel              = NULL;
-    m_CurrentScreen       = NULL;
-    m_ID_current_state    = 0;
-    m_ID_last_state       = 0;
+    m_currentScreen       = NULL;
+    m_toolId              = ID_NO_TOOL_SELECTED;
+    m_ID_last_state       = ID_NO_TOOL_SELECTED;
     m_HTOOL_current_state = 0;
     m_Draw_Axis           = FALSE;  // TRUE to draw axis.
     m_Draw_Sheet_Ref      = FALSE;  // TRUE to display reference sheet.
     m_Print_Sheet_Ref     = TRUE;   // TRUE to print reference sheet.
     m_Draw_Auxiliary_Axis = FALSE;  // TRUE draw auxilary axis.
-    m_UnitType            = INTERNAL_UNIT_TYPE;    // Internal unit = inch
+    m_Draw_Grid_Axis      = FALSE;  // TRUE to draw the grid axis
     m_CursorShape         = 0;
     m_LastGridSizeId      = 0;
     m_DrawGrid            = true;   // hide/Show grid. default = show
     m_GridColor           = DARKGRAY;   // Grid color
+    m_snapToGrid          = true;
 
     // Internal units per inch: = 1000 for schema, = 10000 for PCB
     m_InternalUnits       = EESCHEMA_INTERNAL_UNIT;
@@ -107,9 +120,9 @@ WinEDA_DrawFrame::WinEDA_DrawFrame( wxWindow* father, int idtype,
     m_FramePos.x   = m_FramePos.y = 0;
     m_FrameSize.y -= m_MsgFrameHeight;
 
-    DrawPanel = new WinEDA_DrawPanel( this, -1, wxPoint( 0, 0 ), m_FrameSize );
-    MsgPanel  = new WinEDA_MsgPanel( this, -1, wxPoint( 0, m_FrameSize.y ),
-                                     wxSize( m_FrameSize.x, m_MsgFrameHeight ) );
+    DrawPanel = new EDA_DRAW_PANEL( this, -1, wxPoint( 0, 0 ), m_FrameSize );
+    MsgPanel  = new EDA_MSG_PANEL( this, -1, wxPoint( 0, m_FrameSize.y ),
+                                   wxSize( m_FrameSize.x, m_MsgFrameHeight ) );
 
     MsgPanel->SetBackgroundColour( wxColour( ColorRefs[LIGHTGRAY].m_Red,
                                              ColorRefs[LIGHTGRAY].m_Green,
@@ -117,34 +130,36 @@ WinEDA_DrawFrame::WinEDA_DrawFrame( wxWindow* father, int idtype,
 }
 
 
-WinEDA_DrawFrame::~WinEDA_DrawFrame()
+EDA_DRAW_FRAME::~EDA_DRAW_FRAME()
 {
-    if( m_CurrentScreen != NULL )
-        delete m_CurrentScreen;
+    SAFE_DELETE( m_currentScreen );
 
     m_auimgr.UnInit();
 }
 
 
-/*
- *  Display the message in the first pane of the status bar.
- */
-void WinEDA_DrawFrame::Affiche_Message( const wxString& message )
+void EDA_DRAW_FRAME::unitsChangeRefresh()
 {
-    SetStatusText( message, 0 );
+    UpdateStatusBar();
+
+    EDA_ITEM* item = GetScreen()->GetCurItem();
+
+    if( item )
+        item->DisplayInfo( this );
 }
 
 
-void WinEDA_DrawFrame::EraseMsgBox()
+void EDA_DRAW_FRAME::EraseMsgBox()
 {
     if( MsgPanel )
         MsgPanel->EraseMsgBox();
 }
 
 
-void WinEDA_DrawFrame::OnActivate( wxActivateEvent& event )
+void EDA_DRAW_FRAME::OnActivate( wxActivateEvent& event )
 {
     m_FrameIsActive = event.GetActive();
+
     if( DrawPanel )
         DrawPanel->m_CanStartBlock = -1;
 
@@ -152,53 +167,126 @@ void WinEDA_DrawFrame::OnActivate( wxActivateEvent& event )
 }
 
 
-void WinEDA_DrawFrame::OnMenuOpen( wxMenuEvent& event )
+void EDA_DRAW_FRAME::OnMenuOpen( wxMenuEvent& event )
 {
     if( DrawPanel )
         DrawPanel->m_CanStartBlock = -1;
+
     event.Skip();
 }
 
 
+void EDA_DRAW_FRAME::OnToggleGridState( wxCommandEvent& aEvent )
+{
+    SetGridVisibility( !IsGridVisible() );
+    DrawPanel->Refresh();
+}
+
+
+void EDA_DRAW_FRAME::OnSelectUnits( wxCommandEvent& aEvent )
+{
+    if( aEvent.GetId() == ID_TB_OPTIONS_SELECT_UNIT_MM && g_UserUnit != MILLIMETRES )
+    {
+        g_UserUnit = MILLIMETRES;
+        unitsChangeRefresh();
+    }
+    else if( aEvent.GetId() == ID_TB_OPTIONS_SELECT_UNIT_INCH && g_UserUnit != INCHES )
+    {
+        g_UserUnit = INCHES;
+        unitsChangeRefresh();
+    }
+}
+
+
+void EDA_DRAW_FRAME::OnToggleCrossHairStyle( wxCommandEvent& aEvent )
+{
+    INSTALL_UNBUFFERED_DC( dc, DrawPanel );
+    DrawPanel->CrossHairOff( &dc );
+    m_CursorShape = !m_CursorShape;
+    DrawPanel->CrossHairOn( &dc );
+}
+
+
+void EDA_DRAW_FRAME::OnUpdateUndo( wxUpdateUIEvent& aEvent )
+{
+    if( GetScreen() )
+        aEvent.Enable( GetScreen()->GetUndoCommandCount() > 0 );
+}
+
+
+void EDA_DRAW_FRAME::OnUpdateRedo( wxUpdateUIEvent& aEvent )
+{
+    if( GetScreen() )
+        aEvent.Enable( GetScreen()->GetRedoCommandCount() > 0 );
+}
+
+
+void EDA_DRAW_FRAME::OnUpdateUnits( wxUpdateUIEvent& aEvent )
+{
+    bool enable;
+
+    enable = ( ((aEvent.GetId() == ID_TB_OPTIONS_SELECT_UNIT_MM) && (g_UserUnit == MILLIMETRES))
+            || ((aEvent.GetId() == ID_TB_OPTIONS_SELECT_UNIT_INCH) && (g_UserUnit == INCHES)) );
+
+    aEvent.Check( enable );
+    DisplayUnitsMsg();
+}
+
+
+void EDA_DRAW_FRAME::OnUpdateGrid( wxUpdateUIEvent& aEvent )
+{
+    wxString tool_tip = IsGridVisible() ? _( "Hide grid" ) : _( "Show grid" );
+
+    aEvent.Check( IsGridVisible() );
+    m_OptionsToolBar->SetToolShortHelp( ID_TB_OPTIONS_SHOW_GRID, tool_tip );
+}
+
+
+void EDA_DRAW_FRAME::OnUpdateCrossHairStyle( wxUpdateUIEvent& aEvent )
+{
+    aEvent.Check( m_CursorShape );
+}
+
+
 // Virtual function
-void WinEDA_DrawFrame::ReCreateAuxiliaryToolbar()
+void EDA_DRAW_FRAME::ReCreateAuxiliaryToolbar()
 {
 }
 
 
 // Virtual function
-void WinEDA_DrawFrame::ReCreateMenuBar()
+void EDA_DRAW_FRAME::ReCreateMenuBar()
 {
 }
 
 
 // Virtual function
-void WinEDA_DrawFrame::OnHotKey( wxDC* DC, int hotkey,
-                                 EDA_BaseStruct* DrawStruct )
+void EDA_DRAW_FRAME::OnHotKey( wxDC* aDC, int aHotKey, const wxPoint& aPosition, EDA_ITEM* aItem )
 {
 }
 
 
 // Virtual function
-void WinEDA_DrawFrame::ToolOnRightClick( wxCommandEvent& event )
+void EDA_DRAW_FRAME::ToolOnRightClick( wxCommandEvent& event )
 {
 }
 
-/** Virtual function PrintPage
+
+/**
+ * Function PrintPage (virtual)
  * used to print a page
  * this basic function must be derived to be used for printing
- * because WinEDA_DrawFrame does not know how to print a page
+ * because EDA_DRAW_FRAME does not know how to print a page
  * This is the reason it is a virtual function
  */
-void WinEDA_DrawFrame::PrintPage( wxDC* aDC, bool aPrint_Sheet_Ref,
-                int aPrintMask, bool aPrintMirrorMode,
-                void * aData)
+void EDA_DRAW_FRAME::PrintPage( wxDC* aDC,int aPrintMask, bool aPrintMirrorMode, void* aData )
 {
-    wxMessageBox( wxT("WinEDA_DrawFrame::PrintPage() error"));
+    wxMessageBox( wxT("EDA_DRAW_FRAME::PrintPage() error") );
 }
 
+
 // Virtual function
-void WinEDA_DrawFrame::OnSelectGrid( wxCommandEvent& event )
+void EDA_DRAW_FRAME::OnSelectGrid( wxCommandEvent& event )
 {
     int* clientData;
     int  id = ID_POPUP_GRID_LEVEL_100;
@@ -242,7 +330,7 @@ void WinEDA_DrawFrame::OnSelectGrid( wxCommandEvent& event )
         }
     }
 
-    BASE_SCREEN* screen = GetBaseScreen();
+    BASE_SCREEN* screen = GetScreen();
 
     if( screen->GetGridId() == id )
         return;
@@ -253,7 +341,7 @@ void WinEDA_DrawFrame::OnSelectGrid( wxCommandEvent& event )
      * index returned by GetSelection().
      */
     m_LastGridSizeId = id - ID_POPUP_GRID_LEVEL_1000;
-    screen->m_Curseur = DrawPanel->GetScreenCenterRealPosition();
+    screen->SetCrossHairPosition( DrawPanel->GetScreenCenterLogicalPosition() );
     screen->SetGrid( id );
     Refresh();
 }
@@ -267,12 +355,12 @@ void WinEDA_DrawFrame::OnSelectGrid( wxCommandEvent& event )
  *      last position : special zoom
  *      virtual function
  */
-void WinEDA_DrawFrame::OnSelectZoom( wxCommandEvent& event )
+void EDA_DRAW_FRAME::OnSelectZoom( wxCommandEvent& event )
 {
     if( m_SelZoomBox == NULL )
         return;                        // Should not happen!
 
-    int id = m_SelZoomBox->GetChoice();
+    int id = m_SelZoomBox->GetCurrentSelection();
 
     if( id < 0 || !( id < (int)m_SelZoomBox->GetCount() ) )
         return;
@@ -284,45 +372,37 @@ void WinEDA_DrawFrame::OnSelectZoom( wxCommandEvent& event )
     else
     {
         id--;
-        int selectedZoom = GetBaseScreen()->m_ZoomList[id];
-        if( GetBaseScreen()->GetZoom() == selectedZoom )
+        int selectedZoom = GetScreen()->m_ZoomList[id];
+
+        if( GetScreen()->GetZoom() == selectedZoom )
             return;
-        GetBaseScreen()->m_Curseur = DrawPanel->GetScreenCenterRealPosition();
-        GetBaseScreen()->SetZoom( selectedZoom );
-        Recadre_Trace( false );
+
+        GetScreen()->SetZoom( selectedZoom );
+        RedrawScreen( GetScreen()->GetScrollCenterPosition(), false );
     }
 }
 
 
 /* Return the current zoom level */
-int WinEDA_DrawFrame::GetZoom(void)
+int EDA_DRAW_FRAME::GetZoom( void )
 {
-    return GetBaseScreen()->GetZoom();
+    return GetScreen()->GetZoom();
 }
 
 
-void WinEDA_DrawFrame::OnMouseEvent( wxMouseEvent& event )
+void EDA_DRAW_FRAME::OnMouseEvent( wxMouseEvent& event )
 {
     event.Skip();
 }
 
 
 // Virtual
-void WinEDA_DrawFrame::OnLeftDClick( wxDC* DC, const wxPoint& MousePos )
+void EDA_DRAW_FRAME::OnLeftDClick( wxDC* DC, const wxPoint& MousePos )
 {
 }
 
 
-void WinEDA_DrawFrame::SetToolbars()
-{
-    DisplayUnitsMsg();
-
-    if( m_auimgr.GetManagedWindow() )
-        m_auimgr.Update();
-}
-
-
-void WinEDA_DrawFrame::DisplayToolMsg( const wxString& msg )
+void EDA_DRAW_FRAME::DisplayToolMsg( const wxString& msg )
 {
     SetStatusText( msg, 5 );
 }
@@ -330,22 +410,22 @@ void WinEDA_DrawFrame::DisplayToolMsg( const wxString& msg )
 
 /* Display current unit Selection on Statusbar
  */
-void WinEDA_DrawFrame::DisplayUnitsMsg()
+void EDA_DRAW_FRAME::DisplayUnitsMsg()
 {
     wxString msg;
 
-    switch( g_UnitMetric )
+    switch( g_UserUnit )
     {
     case INCHES:
-        msg = _( "Inch" );
+        msg = _( "Inches" );
         break;
 
-    case MILLIMETRE:
+    case MILLIMETRES:
         msg += _( "mm" );
         break;
 
     default:
-        msg += _( "??" );
+        msg += _( "Units" );
         break;
     }
 
@@ -356,7 +436,7 @@ void WinEDA_DrawFrame::DisplayUnitsMsg()
 
 /* Recalculate the size of toolbars and display panel.
  */
-void WinEDA_DrawFrame::OnSize( wxSizeEvent& SizeEv )
+void EDA_DRAW_FRAME::OnSize( wxSizeEvent& SizeEv )
 {
     m_FrameSize = GetClientSize( );
 
@@ -364,65 +444,24 @@ void WinEDA_DrawFrame::OnSize( wxSizeEvent& SizeEv )
 }
 
 
-/*
- * Enables the icon of the selected tool in the vertical toolbar.
- * (Or tool ID_NO_SELECT_BUTT default if no new selection)
- * if (id >= 0)
- * Updates all variables related:
- * Message m_ID_current_state, cursor
- * If (id < 0)
- * Only updates the variables message and cursor
- */
-void WinEDA_DrawFrame::SetToolID( int id, int new_cursor_id,
-                                  const wxString& title )
+void EDA_DRAW_FRAME::SetToolID( int aId, int aCursor, const wxString& aToolMsg )
 {
-    // Change Cursor
-    if( DrawPanel )
-    {
-        DrawPanel->m_PanelDefaultCursor = new_cursor_id;
-        DrawPanel->SetCursor( new_cursor_id );
-    }
-    SetCursor( wxCURSOR_ARROW );
-    DisplayToolMsg( title );
+    // Keep default cursor in toolbars
+    SetCursor( wxNullCursor );
 
-    if( id < 0 )
+    // Change DrawPanel cursor if requested.
+    if( DrawPanel && aCursor >= 0 )
+        DrawPanel->SetCurrentCursor( aCursor );
+
+    DisplayToolMsg( aToolMsg );
+
+    if( aId < 0 )
         return;
 
-    // Old Tool ID_NO_SELECT_BUTT active or inactive if no new tool.
-    if( m_ID_current_state )
-    {
-        if( m_VToolBar )
-            m_VToolBar->ToggleTool( m_ID_current_state, FALSE );
+    wxCHECK2_MSG( aId >= ID_NO_TOOL_SELECTED, aId = ID_NO_TOOL_SELECTED,
+                  wxString::Format( wxT( "Current tool ID cannot be set to %d." ), aId ) );
 
-        if( m_AuxVToolBar )
-            m_AuxVToolBar->ToggleTool( m_ID_current_state, FALSE );
-    }
-    else
-    {
-        if( id )
-        {
-            if( m_VToolBar )
-                m_VToolBar->ToggleTool( ID_NO_SELECT_BUTT, FALSE );
-
-            if( m_AuxVToolBar )
-                m_AuxVToolBar->ToggleTool( m_ID_current_state, FALSE );
-        }
-        else if( m_VToolBar )
-            m_VToolBar->ToggleTool( ID_NO_SELECT_BUTT, TRUE );
-    }
-
-    if( id )
-    {
-        if( m_VToolBar )
-            m_VToolBar->ToggleTool( id, TRUE );
-
-        if( m_AuxVToolBar )
-            m_AuxVToolBar->ToggleTool( id, TRUE );
-    }
-    else if( m_VToolBar )
-        m_VToolBar->ToggleTool( ID_NO_SELECT_BUTT, TRUE );
-
-    m_ID_current_state = id;
+    m_toolId = aId;
 }
 
 
@@ -430,40 +469,51 @@ void WinEDA_DrawFrame::SetToolID( int id, int new_cursor_id,
 /* default virtual functions */
 /*****************************/
 
-void WinEDA_DrawFrame::OnGrid( int grid_type )
+void EDA_DRAW_FRAME::OnGrid( int grid_type )
 {
 }
 
 
-int WinEDA_DrawFrame::ReturnBlockCommand( int key )
+wxPoint EDA_DRAW_FRAME::GetGridPosition( const wxPoint& aPosition )
 {
-    return 0;
+    wxPoint pos = aPosition;
+
+    if( m_currentScreen != NULL && m_snapToGrid )
+        pos = m_currentScreen->GetNearestGridPosition( aPosition );
+
+    return pos;
 }
 
 
-void WinEDA_DrawFrame::InitBlockPasteInfos()
-{
-    GetBaseScreen()->m_BlockLocate.ClearItemsList();
-    DrawPanel->ManageCurseur = NULL;
-}
-
-
-void WinEDA_DrawFrame::HandleBlockPlace( wxDC* DC )
-{
-}
-
-
-int WinEDA_DrawFrame::HandleBlockEnd( wxDC* DC )
+int EDA_DRAW_FRAME::ReturnBlockCommand( int key )
 {
     return 0;
 }
 
 
-void WinEDA_DrawFrame::AdjustScrollBars()
+void EDA_DRAW_FRAME::InitBlockPasteInfos()
+{
+    GetScreen()->m_BlockLocate.ClearItemsList();
+    DrawPanel->m_mouseCaptureCallback = NULL;
+}
+
+
+void EDA_DRAW_FRAME::HandleBlockPlace( wxDC* DC )
+{
+}
+
+
+bool EDA_DRAW_FRAME::HandleBlockEnd( wxDC* DC )
+{
+    return false;
+}
+
+
+void EDA_DRAW_FRAME::AdjustScrollBars( const wxPoint& aCenterPosition )
 {
     int     unitsX, unitsY, posX, posY;
     wxSize  drawingSize, clientSize;
-    BASE_SCREEN* screen = GetBaseScreen();
+    BASE_SCREEN* screen = GetScreen();
     bool noRefresh = true;
 
     if( screen == NULL || DrawPanel == NULL )
@@ -512,14 +562,16 @@ void WinEDA_DrawFrame::AdjustScrollBars()
     unitsY = wxRound( (double) drawingSize.y * scalar );
 
     // Calculate the position, place the cursor at the center of screen.
-    posX = screen->m_Curseur.x - screen->m_DrawOrg.x;
-    posY = screen->m_Curseur.y - screen->m_DrawOrg.y;
+    screen->SetScrollCenterPosition( aCenterPosition );
+    posX = aCenterPosition.x - screen->m_DrawOrg.x;
+    posY = aCenterPosition.y - screen->m_DrawOrg.y;
 
     posX -= wxRound( (double) clientSize.x / 2.0 );
     posY -= wxRound( (double) clientSize.y / 2.0 );
 
     if( posX < 0 )
         posX = 0;
+
     if( posY < 0 )
         posY = 0;
 
@@ -545,14 +597,16 @@ void WinEDA_DrawFrame::AdjustScrollBars()
 }
 
 
-/** function SetLanguage
+/**
+ * Function SetLanguage
  * called on a language menu selection
  * when using a derived function, do not forget to call this one
  */
-void WinEDA_DrawFrame::SetLanguage( wxCommandEvent& event )
+void EDA_DRAW_FRAME::SetLanguage( wxCommandEvent& event )
 {
-    WinEDA_BasicFrame::SetLanguage( event );
+    EDA_BASE_FRAME::SetLanguage( event );
 }
+
 
 /**
  * Round to the nearest precision.
@@ -567,6 +621,7 @@ double RoundTo0( double x, double precision )
     assert( precision != 0 );
 
     long long ix = wxRound( x * precision );
+
     if ( x < 0.0 )
         NEGATE( ix );
 
@@ -583,8 +638,9 @@ double RoundTo0( double x, double precision )
     return (double) ix / precision;
 }
 
+
 /**
- * Function UpdateStatusBar()
+ * Function UpdateStatusBar
  * Displays in the bottom of the main window a stust:
  *  - Absolute Cursor coordinates
  *  - Relative Cursor coordinates (relative to the last coordinate stored
@@ -592,11 +648,11 @@ double RoundTo0( double x, double precision )
  * ( in this status is also displayed the zoom level, but this is not made
  *   by this function )
  */
-void WinEDA_DrawFrame::UpdateStatusBar()
+void EDA_DRAW_FRAME::UpdateStatusBar()
 {
     wxString        Line;
     int             dx, dy;
-    BASE_SCREEN*    screen = GetBaseScreen();
+    BASE_SCREEN*    screen = GetScreen();
 
     if( !screen )
         return;
@@ -605,52 +661,82 @@ void WinEDA_DrawFrame::UpdateStatusBar()
     if ( (screen->GetZoom() % screen->m_ZoomScalar) == 0 )
         Line.Printf( wxT( "Z %d" ), screen->GetZoom() / screen->m_ZoomScalar );
     else
-        Line.Printf( wxT( "Z %.1f" ),
-                     (float)screen->GetZoom() / screen->m_ZoomScalar );
+        Line.Printf( wxT( "Z %.1f" ), (float)screen->GetZoom() / screen->m_ZoomScalar );
+
     SetStatusText( Line, 1 );
 
     /* Display absolute coordinates:  */
-    double dXpos = To_User_Unit( g_UnitMetric, screen->m_Curseur.x,
-                                 m_InternalUnits );
-    double dYpos = To_User_Unit( g_UnitMetric, screen->m_Curseur.y,
-                                 m_InternalUnits );
+    double dXpos = To_User_Unit( g_UserUnit, screen->GetCrossHairPosition().x, m_InternalUnits );
+    double dYpos = To_User_Unit( g_UserUnit, screen->GetCrossHairPosition().y, m_InternalUnits );
+
     /*
      * Converting from inches to mm can give some coordinates due to
      * float point precision rounding errors, like 1.999 or 2.001 so
      * round to the nearest drawing precision required by the application.
     */
-    if ( g_UnitMetric )
+    if ( g_UserUnit == MILLIMETRES )
     {
         dXpos = RoundTo0( dXpos, (double)( m_InternalUnits / 10 ) );
         dYpos = RoundTo0( dYpos, (double)( m_InternalUnits / 10 ) );
     }
-    if( m_InternalUnits == EESCHEMA_INTERNAL_UNIT )
-        Line.Printf( g_UnitMetric ? wxT( "X %.2f  Y %.2f" ) :
-                     wxT( "X %.3f  Y %.3f" ), dXpos, dYpos );
-    else
-        Line.Printf( g_UnitMetric ? wxT( "X %.3f  Y %.3f" ) :
-                     wxT( "X %.4f  Y %.4f" ), dXpos, dYpos );
+
+    /* The following sadly is an if eeschema/if pcbnew */
+    wxString absformatter;
+    wxString locformatter;
+    switch( g_UserUnit )
+    {
+    case INCHES:
+        if( m_InternalUnits == EESCHEMA_INTERNAL_UNIT )
+        {
+            absformatter = wxT( "X %.3f  Y %.3f" );
+            locformatter = wxT( "dx %.3f  dy %.3f" );
+        }
+        else
+        {
+            absformatter = wxT( "X %.4f  Y %.4f" );
+            locformatter = wxT( "dx %.4f  dy %.4f" );
+        }
+        break;
+
+    case MILLIMETRES:
+        if( m_InternalUnits == EESCHEMA_INTERNAL_UNIT )
+        {
+            absformatter = wxT( "X %.2f  Y %.2f" );
+            locformatter = wxT( "dx %.2f  dy %.2f" );
+        }
+        else
+        {
+            absformatter = wxT( "X %.3f  Y %.3f" );
+            locformatter = wxT( "dx %.3f  dy %.3f" );
+        }
+        break;
+
+    case UNSCALED_UNITS:
+        absformatter = wxT( "X %f  Y %f" );
+        locformatter = wxT( "dx %f  dy %f" );
+        break;
+    }
+
+    Line.Printf( absformatter, dXpos, dYpos );
     SetStatusText( Line, 2 );
 
     /* Display relative coordinates:  */
-    dx = screen->m_Curseur.x - screen->m_O_Curseur.x;
-    dy = screen->m_Curseur.y - screen->m_O_Curseur.y;
-    dXpos = To_User_Unit( g_UnitMetric, dx, m_InternalUnits );
-    dYpos = To_User_Unit( g_UnitMetric, dy, m_InternalUnits );
-    if ( g_UnitMetric )
-    {
-        dXpos = RoundTo0( dXpos, (double)( m_InternalUnits / 10 ) );
-        dYpos = RoundTo0( dYpos, (double)( m_InternalUnits / 10 ) );
-    }
-    if( m_InternalUnits == EESCHEMA_INTERNAL_UNIT )
-        Line.Printf( g_UnitMetric ? wxT( "X %.2f  Y %.2f" ) :
-                     wxT( "X %.3f  Y %.3f" ), dXpos, dYpos );
-    else
-        Line.Printf( g_UnitMetric ? wxT( "x %.3f  y %.3f" ) :
-                     wxT( "x %.4f  y %.4f" ), dXpos, dYpos );
+    dx = screen->GetCrossHairPosition().x - screen->m_O_Curseur.x;
+    dy = screen->GetCrossHairPosition().y - screen->m_O_Curseur.y;
+    dXpos = To_User_Unit( g_UserUnit, dx, m_InternalUnits );
+    dYpos = To_User_Unit( g_UserUnit, dy, m_InternalUnits );
 
+    if( g_UserUnit == MILLIMETRES )
+    {
+        dXpos = RoundTo0( dXpos, (double) ( m_InternalUnits / 10 ) );
+        dYpos = RoundTo0( dYpos, (double) ( m_InternalUnits / 10 ) );
+    }
+
+    /* We already decided the formatter above */
+    Line.Printf( locformatter, dXpos, dYpos );
     SetStatusText( Line, 3 );
 }
+
 
 /**
  * Load draw frame specific configuration settings.
@@ -658,20 +744,24 @@ void WinEDA_DrawFrame::UpdateStatusBar()
  * Don't forget to call this base method from any derived classes or the
  * settings will not get loaded.
  */
-void WinEDA_DrawFrame::LoadSettings()
+void EDA_DRAW_FRAME::LoadSettings()
 {
     wxASSERT( wxGetApp().m_EDA_Config != NULL );
 
     wxConfig* cfg = wxGetApp().m_EDA_Config;
 
-    WinEDA_BasicFrame::LoadSettings();
+    EDA_BASE_FRAME::LoadSettings();
     cfg->Read( m_FrameName + CursorShapeEntryKeyword, &m_CursorShape, ( long )0 );
     bool btmp;
+
     if ( cfg->Read( m_FrameName + ShowGridEntryKeyword, &btmp ) )
-        SetGridVisibility( btmp);
+        SetGridVisibility( btmp );
+
     int itmp;
+
     if( cfg->Read( m_FrameName + GridColorEntryKeyword, &itmp ) )
-        SetGridColor(itmp);
+        SetGridColor( itmp );
+
     cfg->Read( m_FrameName + LastGridSizeId, &m_LastGridSizeId, 0L );
 }
 
@@ -682,13 +772,13 @@ void WinEDA_DrawFrame::LoadSettings()
  * Don't forget to call this base method from any derived classes or the
  * settings will not get saved.
  */
-void WinEDA_DrawFrame::SaveSettings()
+void EDA_DRAW_FRAME::SaveSettings()
 {
     wxASSERT( wxGetApp().m_EDA_Config != NULL );
 
     wxConfig* cfg = wxGetApp().m_EDA_Config;
 
-    WinEDA_BasicFrame::SaveSettings();
+    EDA_BASE_FRAME::SaveSettings();
     cfg->Write( m_FrameName + CursorShapeEntryKeyword, m_CursorShape );
     cfg->Write( m_FrameName + ShowGridEntryKeyword, IsGridVisible() );
     cfg->Write( m_FrameName + GridColorEntryKeyword, GetGridColor() );
@@ -696,9 +786,9 @@ void WinEDA_DrawFrame::SaveSettings()
 }
 
 
-void WinEDA_DrawFrame::AppendMsgPanel( const wxString& textUpper,
-                                       const wxString& textLower,
-                                       int color, int pad )
+void EDA_DRAW_FRAME::AppendMsgPanel( const wxString& textUpper,
+                                     const wxString& textLower,
+                                     int color, int pad )
 {
     if( MsgPanel == NULL )
         return;
@@ -707,10 +797,16 @@ void WinEDA_DrawFrame::AppendMsgPanel( const wxString& textUpper,
 }
 
 
-void WinEDA_DrawFrame::ClearMsgPanel( void )
+void EDA_DRAW_FRAME::ClearMsgPanel( void )
 {
     if( MsgPanel == NULL )
         return;
 
     MsgPanel->EraseMsgBox();
+}
+
+
+wxString EDA_DRAW_FRAME::CoordinateToString( int aValue, bool aConvertToMils )
+{
+    return ::CoordinateToString( aValue, m_InternalUnits, aConvertToMils );
 }

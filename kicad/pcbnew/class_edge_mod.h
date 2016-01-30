@@ -2,6 +2,8 @@
 /* class_edge_module.h : EDGE_MODULE class definition. */
 /*******************************************************/
 
+#include "richio.h"
+
 class Pcb3D_GLCanvas;
 
 
@@ -9,17 +11,19 @@ class EDGE_MODULE : public BOARD_ITEM
 {
 public:
     int     m_Width;        // 0 = line, > 0 = tracks, bus ...
-    wxPoint m_Start;        // Line start point
-    wxPoint m_End;          // Line end point
+    wxPoint m_Start;        // Line start point and circle and arc center
+    wxPoint m_End;          // Line end point and circle and arc starting point
 
     int     m_Shape;        // enum Track_Shapes
-    wxPoint m_Start0;       // Start point.
-    wxPoint m_End0;         // End point.
+    wxPoint m_Start0;       // Start point or centre, relative to module origin, orient 0.
+    wxPoint m_End0;         // End point, relative to module origin, orient 0.
 
     int     m_Angle;        // Arcs: angle in 0.1 degrees
 
-    std::vector<wxPoint> m_PolyPoints;   // For polygons: number of points (> 2)
-                            // Coord are relative to Origin, orient 0
+    std::vector<wxPoint> m_PolyPoints;   /* For polygons: number of points (> 2)
+                                          *  Coord are relative to Origin, orient 0
+                                          *  m_Start0 and m_End0 are not used for polygons
+                                          */
 
 public:
     EDGE_MODULE( MODULE* parent );
@@ -40,7 +44,30 @@ public:
         return m_Start;
     }
 
-    void    Copy( EDGE_MODULE* source );    // copy structure
+    /**
+     * Function GetStart
+     * returns the starting point of the graphic
+     */
+    wxPoint      GetStart() const;
+
+    /**
+     * Function GetEnd
+     * returns the ending point of the graphic
+     */
+    wxPoint      GetEnd() const;
+
+    /**
+     * Function GetRadius
+     * returns the radius of this item
+     * Has meaning only for arc and circle
+     */
+    int         GetRadius() const
+    {
+        double radius = hypot( (double) (m_End.x - m_Start.x), (double) (m_End.y - m_Start.y) );
+        return wxRound(radius);
+    }
+
+    void             Copy( EDGE_MODULE* source ); // copy structure
 
     /**
      * Function Save
@@ -48,26 +75,26 @@ public:
      * @param aFile The FILE to write to.
      * @return bool - true if success writing else false.
      */
-    bool Save( FILE* aFile ) const;
+    bool             Save( FILE* aFile ) const;
 
-    int     ReadDescr( char* Line, FILE* File, int* LineNum = NULL );
+    int              ReadDescr( LINE_READER* aReader );
 
-    void    SetDrawCoord();
+    void             SetDrawCoord();
 
     /* drawing functions */
-    void    Draw( WinEDA_DrawPanel* panel, wxDC* DC,
-                  int aDrawMode, const wxPoint& offset = ZeroOffset );
+    void             Draw( EDA_DRAW_PANEL* panel, wxDC* DC,
+                           int aDrawMode, const wxPoint& offset = ZeroOffset );
 
-    void    Draw3D( Pcb3D_GLCanvas* glcanvas );
+    void             Draw3D( Pcb3D_GLCanvas* glcanvas );
 
     /**
      * Function DisplayInfo
      * has knowledge about the frame and how and where to put status information
      * about this object into the frame's message panel.
-     * Is virtual from EDA_BaseStruct.
-     * @param frame A WinEDA_DrawFrame in which to print status information.
+     * Is virtual from EDA_ITEM.
+     * @param frame A EDA_DRAW_FRAME in which to print status information.
      */
-    void    DisplayInfo( WinEDA_DrawFrame* frame );
+    void             DisplayInfo( EDA_DRAW_FRAME* frame );
 
 
     /**
@@ -77,7 +104,7 @@ public:
      * object, and the units should be in the pcb or schematic coordinate system.
      * It is OK to overestimate the size by a few counts.
      */
-    virtual EDA_Rect GetBoundingBox();
+    virtual EDA_RECT GetBoundingBox() const;
 
     /**
      * Function HitTest
@@ -85,7 +112,16 @@ public:
      * @param refPos A wxPoint to test
      * @return bool - true if a hit, else false
      */
-    bool    HitTest( const wxPoint& refPos );
+    bool             HitTest( const wxPoint& refPos );
+
+    /**
+     * Function HitTest (overlayed)
+     * tests if the given EDA_RECT intersect this object.
+     * For now, for segments and arcs, an ending point must be inside this rect.
+     * @param refArea the given EDA_RECT to test
+     * @return bool - true if a hit, else false
+     */
+    bool         HitTest( EDA_RECT& refArea );
 
     /**
      * Function GetClass
@@ -95,10 +131,13 @@ public:
     virtual wxString GetClass() const
     {
         return wxT( "MGRAPHIC" );
+
         // return wxT( "EDGE" );  ?
     }
 
-    /** Function TransformShapeWithClearanceToPolygon
+
+    /**
+     * Function TransformShapeWithClearanceToPolygon
      * Convert the track shape to a closed polygon
      * Used in filling zones calculations
      * Circles and arcs are approximated by segments
@@ -109,7 +148,7 @@ public:
      * clearance when the circle is approxiamted by segment bigger or equal
      * to the real clearance value (usually near from 1.0)
      */
-    void         TransformShapeWithClearanceToPolygon(
+    void TransformShapeWithClearanceToPolygon(
         std::vector <CPolyPt>& aCornerBuffer,
         int                    aClearanceValue,
         int
@@ -117,6 +156,7 @@ public:
         double                 aCorrectionFactor );
 
 #if defined(DEBUG)
+
     /**
      * Function Show
      * is used to output the object tree, currently for debugging only.

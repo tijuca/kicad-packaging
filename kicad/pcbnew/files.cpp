@@ -13,11 +13,13 @@
 #include "protos.h"
 #include "pcbnew_id.h"
 #include "3d_viewer.h"
+#include "richio.h"
+#include "filter_reader.h"
 
 #define BACKUP_FILE_EXT wxT( "000" )
 
 
-void WinEDA_PcbFrame::OnFileHistory( wxCommandEvent& event )
+void PCB_EDIT_FRAME::OnFileHistory( wxCommandEvent& event )
 {
     wxString fn;
 
@@ -25,30 +27,31 @@ void WinEDA_PcbFrame::OnFileHistory( wxCommandEvent& event )
 
     if( fn != wxEmptyString )
     {
-        DrawPanel->UnManageCursor( 0, wxCURSOR_ARROW );
+        DrawPanel->EndMouseCapture( ID_NO_TOOL_SELECTED, DrawPanel->GetDefaultCursor() );
         ::wxSetWorkingDirectory( ::wxPathOnly( fn ) );
         LoadOnePcbFile( fn );
-        ReCreateAuxiliaryToolbar();
-        DrawPanel->MouseToCursorSchema();
     }
 }
 
 
 /* Handle the read/write file commands
  */
-void WinEDA_PcbFrame::Files_io( wxCommandEvent& event )
+void PCB_EDIT_FRAME::Files_io( wxCommandEvent& event )
 {
     int        id = event.GetId();
     wxString   msg;
 
-    // If an edition is in progress, stop it
-    DrawPanel->UnManageCursor( 0, wxCURSOR_ARROW );
+    // If an edition is in progress, stop it.
+    // For something else than save, get rid of current tool.
+    if( id == ID_SAVE_BOARD )
+        DrawPanel->EndMouseCapture( -1, DrawPanel->GetDefaultCursor() );
+    else
+        DrawPanel->EndMouseCapture( ID_NO_TOOL_SELECTED, DrawPanel->GetDefaultCursor() );
 
     switch( id )
     {
     case ID_LOAD_FILE:
-        LoadOnePcbFile( GetScreen()->m_FileName, false, true );
-        ReCreateAuxiliaryToolbar();
+        LoadOnePcbFile( GetScreen()->GetFileName(), false, true );
         break;
 
     case ID_MENU_READ_LAST_SAVED_VERSION_BOARD:
@@ -62,7 +65,7 @@ void WinEDA_PcbFrame::Files_io( wxCommandEvent& event )
         }
         else
         {
-            fn = GetScreen()->m_FileName;
+            fn = GetScreen()->GetFileName();
             fn.SetExt( BACKUP_FILE_EXT );
         }
 
@@ -81,9 +84,8 @@ void WinEDA_PcbFrame::Files_io( wxCommandEvent& event )
 
         LoadOnePcbFile( fn.GetFullPath(), false );
         fn.SetExt( PcbFileExtension );
-        GetScreen()->m_FileName = fn.GetFullPath();
-        SetTitle( GetScreen()->m_FileName );
-        ReCreateAuxiliaryToolbar();
+        GetScreen()->SetFileName( fn.GetFullPath() );
+        SetTitle( GetScreen()->GetFileName() );
         break;
     }
 
@@ -93,15 +95,15 @@ void WinEDA_PcbFrame::Files_io( wxCommandEvent& event )
 
     case ID_NEW_BOARD:
         Clear_Pcb( true );
-        GetScreen()->m_FileName.Printf( wxT( "%s%cnoname%s" ),
-                                        GetChars( wxGetCwd() ), DIR_SEP,
-                                        GetChars( PcbFileExtension ) );
-        SetTitle( GetScreen()->m_FileName );
+        GetScreen()->GetFileName().Printf( wxT( "%s%cnoname%s" ),
+                                           GetChars( wxGetCwd() ), DIR_SEP,
+                                           GetChars( PcbFileExtension ) );
+        SetTitle( GetScreen()->GetFileName() );
         ReCreateLayerBox( NULL );
         break;
 
     case ID_SAVE_BOARD:
-        SavePcbFile( GetScreen()->m_FileName );
+        SavePcbFile( GetScreen()->GetFileName() );
         break;
 
     case ID_SAVE_BOARD_AS:
@@ -114,7 +116,8 @@ void WinEDA_PcbFrame::Files_io( wxCommandEvent& event )
 }
 
 
-/** Function WinEDA_PcbFrame::LoadOnePcbFile
+/**
+ * Function LoadOnePcbFile
  *  Load a Kicad board (.brd) file.
  *
  *  @param aFileName - File name including path. If empty, a file dialog will
@@ -126,28 +129,22 @@ void WinEDA_PcbFrame::Files_io( wxCommandEvent& event )
  *
  *  @return False if file load fails or is cancelled by the user, otherwise true.
  */
-bool WinEDA_PcbFrame::LoadOnePcbFile( const wxString& aFileName, bool Append,
-                                      bool aForceFileDialog )
+bool PCB_EDIT_FRAME::LoadOnePcbFile( const wxString& aFileName, bool aAppend,
+                                     bool aForceFileDialog )
 {
-    int      ii;
     FILE*    source;
     wxString msg;
-    char     cbuf[1024];
 
-    ActiveScreen = GetScreen();
-
-    if( GetScreen()->IsModify() && !Append )
+    if( GetScreen()->IsModify() && !aAppend )
     {
         if( !IsOK( this, _( "The current board has been modified.  Do you wish to discard \
 the changes?" ) ) )
             return false;
     }
 
-    m_TrackAndViasSizesList_Changed = true;
-
-    if( Append )
+    if( aAppend )
     {
-        GetScreen()->m_FileName = wxEmptyString;
+        GetScreen()->SetFileName( wxEmptyString );
         OnModify();
         GetBoard()->m_Status_Pcb = 0;
     }
@@ -177,34 +174,36 @@ the changes?" ) ) )
             fileName.SetExt( PcbFileExtension );
     }
 
-    if( !Append )
+    if( !aAppend )
         Clear_Pcb( false );     // pass false since we prompted above for a modified board
 
-    GetScreen()->m_FileName = fileName.GetFullPath();
+    GetScreen()->SetFileName( fileName.GetFullPath() );
 
     /* Start read PCB file
     */
 
-    source = wxFopen( GetScreen()->m_FileName, wxT( "rt" ) );
+    source = wxFopen( GetScreen()->GetFileName(), wxT( "rt" ) );
     if( source == NULL )
     {
-        msg.Printf( _( "File <%s> not found" ), GetChars( GetScreen()->m_FileName ) );
+        msg.Printf( _( "File <%s> not found" ), GetChars( GetScreen()->GetFileName() ) );
         DisplayError( this, msg );
         return false;
     }
 
+    FILE_LINE_READER fileReader( source, GetScreen()->GetFileName() );
+
+    FILTER_READER reader( fileReader );
 
     /* Read header and TEST if it is a PCB file format */
-    GetLine( source, cbuf, &ii );
-    if( strncmp( cbuf, "PCBNEW-BOARD", 12 ) != 0 )
+    reader.ReadLine();
+    if( strncmp( reader.Line(), "PCBNEW-BOARD", 12 ) != 0 )
     {
-        fclose( source );
         DisplayError( this, wxT( "Unknown file type" ) );
         return false;
     }
 
     int ver;
-    sscanf(cbuf, "PCBNEW-BOARD Version %d date", &ver );
+    sscanf( reader.Line() , "PCBNEW-BOARD Version %d date", &ver );
     if ( ver > g_CurrentVersionPCB )
     {
         DisplayInfoMessage( this, _( "This file was created by a more recent \
@@ -218,9 +217,10 @@ this file again." ) );
     }
 
     // Reload the corresponding configuration file:
-    wxSetWorkingDirectory( wxPathOnly( GetScreen()->m_FileName ) );
-    if( Append )
-        ReadPcbFile( source, true );
+    wxSetWorkingDirectory( wxPathOnly( GetScreen()->GetFileName() ) );
+
+    if( aAppend )
+        ReadPcbFile( &reader, true );
     else
     {
         // Update the option toolbar
@@ -230,31 +230,30 @@ this file again." ) );
         m_DisplayPadFill = DisplayOpt.DisplayPadFill;
         m_DisplayViaFill = DisplayOpt.DisplayViaFill;
 
-        ReadPcbFile( source, false );
-        LoadProjectSettings( GetScreen()->m_FileName );
+        ReadPcbFile( &reader, false );
+        LoadProjectSettings( GetScreen()->GetFileName() );
     }
-
-    fclose( source );
 
     GetScreen()->ClrModify();
 
     /* If append option: change the initial board name to <oldname>-append.brd */
-    if( Append )
+    if( aAppend )
     {
-        wxString new_filename = GetScreen()->m_FileName.BeforeLast( '.' );
+        wxString new_filename = GetScreen()->GetFileName().BeforeLast( '.' );
+
         if ( ! new_filename.EndsWith( wxT( "-append" ) ) )
             new_filename += wxT( "-append" );
 
         new_filename += wxT( "." ) + PcbFileExtension;
 
         OnModify();
-        GetScreen()->m_FileName = new_filename;
+        GetScreen()->SetFileName( new_filename );
     }
 
-    GetScreen()->m_FileName.Replace( WIN_STRING_DIR_SEP, UNIX_STRING_DIR_SEP );
+    GetScreen()->GetFileName().Replace( WIN_STRING_DIR_SEP, UNIX_STRING_DIR_SEP );
 
-    SetTitle( GetScreen()->m_FileName );
-    SetLastProject( GetScreen()->m_FileName );
+    SetTitle( GetScreen()->GetFileName() );
+    UpdateFileHistory( GetScreen()->GetFileName() );
 
     /* Rebuild the new pad list (for drc and ratsnet control ...) */
     GetBoard()->m_Status_Pcb = 0;
@@ -272,19 +271,19 @@ this file again." ) );
 
     // Update info shown by the horizontal toolbars
     GetBoard()->SetCurrentNetClass( NETCLASS::Default );
-    m_TrackAndViasSizesList_Changed = true;
-
     ReFillLayerWidget();
 
     ReCreateLayerBox( NULL );
-    AuxiliaryToolBar_Update_UI();
     syncLayerWidget();
+
+    updateTraceWidthSelectBox();
+    updateViaSizeSelectBox();
 
     // Display the loaded board:
     Zoom_Automatique( false );
-    wxSafeYield();      // Needed if we want to see the board now.
 
     // Compile ratsnest and displays net info
+    wxBusyCursor dummy;    // Displays an Hourglass while building connectivity
     Compile_Ratsnest( NULL, true );
     GetBoard()->DisplayInfo( this );
 
@@ -312,7 +311,7 @@ this file again." ) );
 
 /* Write the board file
  */
-bool WinEDA_PcbFrame::SavePcbFile( const wxString& FileName )
+bool PCB_EDIT_FRAME::SavePcbFile( const wxString& FileName )
 {
     wxFileName  backupFileName;
     wxFileName  pcbFileName;
@@ -326,16 +325,16 @@ bool WinEDA_PcbFrame::SavePcbFile( const wxString& FileName )
     if( FileName == wxEmptyString )
     {
         wxFileDialog dlg( this, _( "Save Board File" ), wxEmptyString,
-                          GetScreen()->m_FileName, PcbFileWildcard,
+                          GetScreen()->GetFileName(), PcbFileWildcard,
                           wxFD_SAVE | wxFD_OVERWRITE_PROMPT );
 
         if( dlg.ShowModal() == wxID_CANCEL )
             return false;
 
-        GetScreen()->m_FileName = dlg.GetPath();
+        GetScreen()->SetFileName( dlg.GetPath() );
     }
     else
-        GetScreen()->m_FileName = FileName;
+        GetScreen()->SetFileName( FileName );
 
     /* If changes are made, update the board date */
     if( GetScreen()->IsModify() )
@@ -343,7 +342,7 @@ bool WinEDA_PcbFrame::SavePcbFile( const wxString& FileName )
         GetScreen()->m_Date = GenDate();
     }
 
-    pcbFileName = GetScreen()->m_FileName;
+    pcbFileName = GetScreen()->GetFileName();
 
     /* Get the backup file name */
     backupFileName = pcbFileName;
@@ -382,8 +381,8 @@ bool WinEDA_PcbFrame::SavePcbFile( const wxString& FileName )
 
     if( dest )
     {
-        GetScreen()->m_FileName = pcbFileName.GetFullPath();
-        SetTitle( GetScreen()->m_FileName );
+        GetScreen()->SetFileName( pcbFileName.GetFullPath() );
+        SetTitle( GetScreen()->GetFileName() );
 
         SavePcbFormatAscii( dest );
         fclose( dest );

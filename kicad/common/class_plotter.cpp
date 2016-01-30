@@ -28,7 +28,7 @@ PLOTTER::PLOTTER( PlotFormat aPlotType )
     default_pen_width = 0;
     current_pen_width = -1;     /* To-be-set marker */
     pen_state = 'Z';            /* End-of-path idle */
-    plot_orient_options = 0;    /* Mirror flag */
+    plotMirror = 0;    /* Mirror flag */
     output_file   = 0;
     color_mode    = false;      /* Start as a BW plot */
     negative_mode = false;
@@ -43,7 +43,7 @@ void PLOTTER::user_to_device_coordinates( wxPoint& pos )
 {
     pos.x = (int) ( (pos.x - plot_offset.x) * plot_scale * device_scale );
 
-    if( plot_orient_options == PLOT_MIROIR )
+    if( plotMirror )
         pos.y = (int) ( ( pos.y - plot_offset.y ) * plot_scale * device_scale );
     else
         pos.y = (int) ( ( paper_size.y - ( pos.y - plot_offset.y )
@@ -100,47 +100,53 @@ double PLOTTER::user_to_device_size( double size )
 void PLOTTER::center_square( const wxPoint& position, int diametre, FILL_T fill )
 {
     int radius     = wxRound( diametre / 2.8284 );
-    int coord[10] =
-    {
-        position.x + radius, position.y + radius,
-        position.x + radius, position.y - radius,
-        position.x - radius, position.y - radius,
-        position.x - radius, position.y + radius,
-        position.x + radius, position.y + radius
-    };
+    static std::vector< wxPoint > corner_list;
+    corner_list.clear();
+    wxPoint corner;
+    corner.x = position.x + radius;
+    corner.y = position.y + radius;
+    corner_list.push_back( corner );
+    corner.x = position.x + radius;
+    corner.y = position.y - radius;
+    corner_list.push_back( corner );
+    corner.x = position.x - radius;
+    corner.y = position.y - radius;
+    corner_list.push_back( corner );
+    corner.x = position.x - radius;
+    corner.y = position.y + radius;
+    corner_list.push_back( corner );
+    corner.x = position.x + radius;
+    corner.y = position.y + radius;
+    corner_list.push_back( corner );
 
-    if( fill )
-    {
-        poly( 4, coord, fill );
-    }
-    else
-    {
-        poly( 5, coord, fill );
-    }
+    PlotPoly( corner_list, fill );
+
 }
 
 
-void PLOTTER::center_lozenge( const wxPoint& position, int diametre,
-                              FILL_T fill )
+void PLOTTER::center_lozenge( const wxPoint& position, int diametre, FILL_T fill )
 {
     int radius     = diametre / 2;
-    int coord[10] =
-    {
-        position.x,         position.y + radius,
-        position.x + radius, position.y,
-        position.x,         position.y - radius,
-        position.x - radius, position.y,
-        position.x,         position.y + radius,
-    };
+    static std::vector< wxPoint > corner_list;
+    corner_list.clear();
+    wxPoint corner;
+    corner.x = position.x;
+    corner.y = position.y + radius;
+    corner_list.push_back( corner );
+    corner.x = position.x + radius;
+    corner.y = position.y,
+    corner_list.push_back( corner );
+    corner.x = position.x;
+    corner.y = position.y - radius;
+    corner_list.push_back( corner );
+    corner.x = position.x - radius;
+    corner.y = position.y;
+    corner_list.push_back( corner );
+    corner.x = position.x;
+    corner.y = position.y + radius;
+    corner_list.push_back( corner );
 
-    if( fill )
-    {
-        poly( 4, coord, fill );
-    }
-    else
-    {
-        poly( 5, coord, fill );
-    }
+    PlotPoly( corner_list, fill );
 }
 
 

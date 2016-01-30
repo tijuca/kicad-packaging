@@ -12,6 +12,7 @@
 #include "wxPcbStruct.h"
 #include "class_board_design_settings.h"
 #include "pcbplot.h"
+#include "plot_common.h"
 #include "worksheet.h"
 #include "pcbnew_id.h"
 #include "hotkeys.h"
@@ -21,43 +22,33 @@
 #include "dialog_general_options.h"
 
 #include "pcbnew_config.h"
+#include "dialog_hotkeys_editor.h"
 
 #define HOTKEY_FILENAME wxT( "pcbnew" )
 
-
-void WinEDA_PcbFrame::Process_Config( wxCommandEvent& event )
+void PCB_EDIT_FRAME::Process_Config( wxCommandEvent& event )
 {
     int        id = event.GetId();
-    wxPoint    pos;
-
     wxFileName fn;
-
-    pos    = GetPosition();
-    pos.x += 20;
-    pos.y += 20;
 
     switch( id )
     {
     case ID_MENU_PCB_SHOW_HIDE_LAYERS_MANAGER_DIALOG:
-        if( m_OptionsToolBar )
-        {   //This command is same as the Options Vertical Toolbar
-            // tool Show/hide layers manager
-            bool state =
-                m_OptionsToolBar->GetToolState( ID_TB_OPTIONS_SHOW_MANAGE_LAYERS_VERTICAL_TOOLBAR );
-            m_OptionsToolBar->ToggleTool( ID_TB_OPTIONS_SHOW_MANAGE_LAYERS_VERTICAL_TOOLBAR,
-                                          !state );
-            wxCommandEvent event( wxEVT_COMMAND_TOOL_CLICKED,
-                                  ID_TB_OPTIONS_SHOW_MANAGE_LAYERS_VERTICAL_TOOLBAR );
-            wxPostEvent( this, event );
-        }
+        m_show_layer_manager_tools = ! m_show_layer_manager_tools;
+        m_auimgr.GetPane( wxT( "m_LayersManagerToolBar" ) ).Show( m_show_layer_manager_tools );
+        m_auimgr.Update();
+
+        GetMenuBar()->SetLabel( ID_MENU_PCB_SHOW_HIDE_LAYERS_MANAGER_DIALOG,
+                                m_show_layer_manager_tools ?
+                                _("Hide &Layers Manager" ) : _("Show &Layers Manager" ));
         break;
 
     case ID_PCB_LAYERS_SETUP:
-        DisplayDialogLayerSetup( this );
+        InstallDialogLayerSetup();
         break;
 
     case ID_CONFIG_REQ:
-        InstallConfigFrame( pos );
+        InstallConfigFrame();
         break;
 
     case ID_PCB_MASK_CLEARANCE:
@@ -67,7 +58,7 @@ void WinEDA_PcbFrame::Process_Config( wxCommandEvent& event )
         }
         break;
 
-    case ID_OPTIONS_SETUP:
+    case wxID_PREFERENCES:
         {
             Dialog_GeneralOptions dlg( this );
             dlg.ShowModal();
@@ -84,7 +75,7 @@ void WinEDA_PcbFrame::Process_Config( wxCommandEvent& event )
 
     case ID_CONFIG_READ:
     {
-        fn = GetScreen()->m_FileName;
+        fn = GetScreen()->GetFileName();
         fn.SetExt( ProjectFileExtension );
 
         wxFileDialog dlg( this, _( "Read Project File" ), fn.GetPath(),
@@ -105,55 +96,28 @@ void WinEDA_PcbFrame::Process_Config( wxCommandEvent& event )
         LoadProjectSettings( dlg.GetPath() );
         break;
     }
-    case ID_PREFERENCES_HOTKEY_CREATE_CONFIG:
-        fn.SetPath( ReturnHotkeyConfigFilePath( g_ConfigFileLocationChoice ) );
-        fn.SetName( HOTKEY_FILENAME );
-        fn.SetExt( DEFAULT_HOTKEY_FILENAME_EXT );
-        WriteHotkeyConfigFile( fn.GetFullPath(), s_Pcbnew_Editor_Hokeys_Descr, true );
+
+   /* Hotkey IDs */
+    case ID_PREFERENCES_HOTKEY_EXPORT_CONFIG:
+        ExportHotkeyConfigToFile( g_Board_Editor_Hokeys_Descr );
         break;
 
-    case ID_PREFERENCES_HOTKEY_READ_CONFIG:
-        Read_Hotkey_Config( this, true );
+    case ID_PREFERENCES_HOTKEY_IMPORT_CONFIG:
+        ImportHotkeyConfigFromFile( g_Board_Editor_Hokeys_Descr );
         break;
 
-    case ID_PREFERENCES_HOTKEY_EDIT_CONFIG:
-    {
-        fn.SetPath( ReturnHotkeyConfigFilePath( g_ConfigFileLocationChoice ) );
-        fn.SetName( HOTKEY_FILENAME );
-        fn.SetExt( DEFAULT_HOTKEY_FILENAME_EXT );
-
-        wxString editorname = wxGetApp().GetEditorName();
-        if( !editorname.IsEmpty() )
-            ExecuteFile( this, editorname, QuoteFullPath( fn ) );
-        break;
-    }
-
-    case ID_PREFERENCES_HOTKEY_PATH_IS_HOME:
-    case ID_PREFERENCES_HOTKEY_PATH_IS_KICAD:
-        HandleHotkeyConfigMenuSelection( this, id );
+    case ID_PREFERENCES_HOTKEY_SHOW_EDITOR:
+        InstallHotkeyFrame( this, g_Board_Editor_Hokeys_Descr );
         break;
 
     case ID_PREFERENCES_HOTKEY_SHOW_CURRENT_LIST:
-        DisplayHotkeyList( this, s_Board_Editor_Hokeys_Descr );
+        // Display current hotkey list for eeschema.
+        DisplayHotkeyList( this, g_Board_Editor_Hokeys_Descr );
         break;
 
     default:
-        DisplayError( this, wxT( "WinEDA_PcbFrame::Process_Config internal error" ) );
+        DisplayError( this, wxT( "PCB_EDIT_FRAME::Process_Config error" ) );
     }
-}
-
-
-/*
- * Read the hotkey files config for pcbnew and module_edit
- */
-bool Read_Hotkey_Config( WinEDA_DrawFrame* frame, bool verbose )
-{
-    wxString FullFileName = ReturnHotkeyConfigFilePath( g_ConfigFileLocationChoice );
-
-    FullFileName += HOTKEY_FILENAME;
-    FullFileName += wxT( "." );
-    FullFileName += DEFAULT_HOTKEY_FILENAME_EXT;
-    return frame->ReadHotkeyConfigFile( FullFileName, s_Pcbnew_Editor_Hokeys_Descr, verbose );
 }
 
 
@@ -165,7 +129,7 @@ bool Read_Hotkey_Config( WinEDA_DrawFrame* frame, bool verbose )
  *                           and initialize setting to their default value.
  * @return Always returns true.
  */
-bool WinEDA_PcbFrame::LoadProjectSettings( const wxString& aProjectFileName )
+bool PCB_EDIT_FRAME::LoadProjectSettings( const wxString& aProjectFileName )
 {
     wxFileName fn = aProjectFileName;
 
@@ -177,7 +141,7 @@ bool WinEDA_PcbFrame::LoadProjectSettings( const wxString& aProjectFileName )
     /* Initialize default values. */
     g_LibName_List.Clear();
 
-    wxGetApp().ReadProjectConfig( fn.GetFullPath(), GROUP, GetProjectFileParameters(), FALSE );
+    wxGetApp().ReadProjectConfig( fn.GetFullPath(), GROUP, GetProjectFileParameters(), false );
 
     /* User library path takes precedent over default library search paths. */
     wxGetApp().InsertLibraryPath( g_UserLibDirBuffer, 1 );
@@ -192,15 +156,15 @@ bool WinEDA_PcbFrame::LoadProjectSettings( const wxString& aProjectFileName )
     SetVisibleAlls();
     SetElementVisibility( GRID_VISIBLE, showGrid );
     SetElementVisibility( RATSNEST_VISIBLE, showRats );
-    return TRUE;
+    return true;
 }
 
 
-void WinEDA_PcbFrame::SaveProjectSettings()
+void PCB_EDIT_FRAME::SaveProjectSettings()
 {
     wxFileName fn;
 
-    fn = GetScreen()->m_FileName;
+    fn = GetScreen()->GetFileName();
     fn.SetExt( ProjectFileExtension );
 
     wxFileDialog dlg( this, _( "Save Project File" ), fn.GetPath(), fn.GetFullName(),
@@ -222,12 +186,12 @@ void WinEDA_PcbFrame::SaveProjectSettings()
  * to define local variables.  The old method of statically building the array
  * at compile time requiring global variable definitions by design.
  */
-PARAM_CFG_ARRAY& WinEDA_PcbFrame::GetProjectFileParameters()
+PARAM_CFG_ARRAY& PCB_EDIT_FRAME::GetProjectFileParameters()
 {
     if( !m_projectFileParams.empty() )
         return m_projectFileParams;
 
-    m_projectFileParams.push_back( new PARAM_CFG_WXSTRING( wxT( "LibDir" ),&g_UserLibDirBuffer,
+    m_projectFileParams.push_back( new PARAM_CFG_FILENAME( wxT( "LibDir" ),&g_UserLibDirBuffer,
                                                            GROUPLIB ) );
     m_projectFileParams.push_back( new PARAM_CFG_LIBNAME_LIST( wxT( "LibName" ), &g_LibName_List,
                                                                GROUPLIB ) );
@@ -240,19 +204,17 @@ PARAM_CFG_ARRAY& WinEDA_PcbFrame::GetProjectFileParameters()
     m_projectFileParams.push_back( new PARAM_CFG_INT( wxT( "BoardThickness" ),
                                                       &boardDesignSettings.m_BoardThickness,
                                                       630, 0, 0xFFFF ) );
-    m_projectFileParams.push_back( new PARAM_CFG_BOOL( wxT( "SgPcb45" ), &Segments_45_Only,
-                                                       TRUE ) );
     m_projectFileParams.push_back( new PARAM_CFG_INT( wxT( "TxtPcbV" ),
                                                       &boardDesignSettings.m_PcbTextSize.y,
                                                       600, TEXTS_MIN_SIZE, TEXTS_MAX_SIZE ) );
     m_projectFileParams.push_back( new PARAM_CFG_INT( wxT( "TxtPcbH" ),
                                                       &boardDesignSettings.m_PcbTextSize.x,
                                                       600, TEXTS_MIN_SIZE, TEXTS_MAX_SIZE ) );
-    m_projectFileParams.push_back( new PARAM_CFG_INT( wxT( "TxtModV" ), &ModuleTextSize.y,
+    m_projectFileParams.push_back( new PARAM_CFG_INT( wxT( "TxtModV" ), &g_ModuleTextSize.y,
                                                       500, TEXTS_MIN_SIZE, TEXTS_MAX_SIZE ) );
-    m_projectFileParams.push_back( new PARAM_CFG_INT( wxT( "TxtModH" ), &ModuleTextSize.x,
+    m_projectFileParams.push_back( new PARAM_CFG_INT( wxT( "TxtModH" ), &g_ModuleTextSize.x,
                                                       500, TEXTS_MIN_SIZE, TEXTS_MAX_SIZE ) );
-    m_projectFileParams.push_back( new PARAM_CFG_INT( wxT( "TxtModW" ), &ModuleTextWidth,
+    m_projectFileParams.push_back( new PARAM_CFG_INT( wxT( "TxtModW" ), &g_ModuleTextWidth,
                                                       100, 1, TEXTS_MAX_WIDTH ) );
     m_projectFileParams.push_back( new PARAM_CFG_INT( wxT( "VEgarde" ),
                                                       &boardDesignSettings.m_SolderMaskMargin,
@@ -266,9 +228,9 @@ PARAM_CFG_ARRAY& WinEDA_PcbFrame::GetProjectFileParameters()
     m_projectFileParams.push_back( new PARAM_CFG_INT( wxT( "TxtLar" ),
                                                       &boardDesignSettings.m_PcbTextWidth,
                                                       120, 0, 0xFFFF ) );
-    m_projectFileParams.push_back( new PARAM_CFG_INT( wxT( "MSegLar" ), &ModuleSegmentWidth,
+    m_projectFileParams.push_back( new PARAM_CFG_INT( wxT( "MSegLar" ), &g_ModuleSegmentWidth,
                                                       120, 0, 0xFFFF ) );
-    m_projectFileParams.push_back( new PARAM_CFG_WXSTRING( wxT( "LastNetListRead" ),
+    m_projectFileParams.push_back( new PARAM_CFG_FILENAME( wxT( "LastNetListRead" ),
                                                            &m_lastNetListRead ) );
     return m_projectFileParams;
 }
@@ -291,37 +253,44 @@ PARAM_CFG_ARRAY& WinEDA_PcbFrame::GetProjectFileParameters()
  *        global variables or move them to the object class where they are
  *        used.
  */
-PARAM_CFG_ARRAY& WinEDA_PcbFrame::GetConfigurationSettings()
+PARAM_CFG_ARRAY& PCB_EDIT_FRAME::GetConfigurationSettings()
 {
     if( !m_configSettings.empty() )
         return m_configSettings;
 
-    m_configSettings.push_back( new PARAM_CFG_INT( true, wxT( "ViaSHole" ),
+    // Units used in dialogs and toolbars
+    m_configSettings.push_back( new PARAM_CFG_INT( true, wxT( "Units" ), (int*)&g_UserUnit, MILLIMETRES ) );
+
+    m_configSettings.push_back( new PARAM_CFG_BOOL( true, wxT( "DisplayPolarCoords" ),
+                                                    &DisplayOpt.DisplayPolarCood, false ) );
+    // Display options and modes:
+    m_configSettings.push_back( new PARAM_CFG_INT( true, wxT( "ViaHoleDisplayMode" ),
                                                    &DisplayOpt.m_DisplayViaMode,
                                                    VIA_SPECIAL_HOLE_SHOW, VIA_HOLE_NOT_SHOW,
                                                    OPT_VIA_HOLE_END - 1 ) );
     m_configSettings.push_back( new PARAM_CFG_INT( true, wxT( "ShowNetNamesMode" ),
                                                    &DisplayOpt.DisplayNetNamesMode, 3, 0, 3 ) );
-    m_configSettings.push_back( new PARAM_CFG_INT( true, wxT( "Unite" ), &g_UnitMetric, FALSE ) );
-    m_configSettings.push_back( new PARAM_CFG_BOOL( true, wxT( "SegFill" ),
-                                                    &DisplayOpt.DisplayPcbTrackFill, TRUE ) );
+    m_configSettings.push_back( new PARAM_CFG_BOOL( true, wxT( "DisplayTrackFilled" ),
+                                                    &DisplayOpt.DisplayPcbTrackFill, true ) );
     m_configSettings.push_back( new PARAM_CFG_INT( true, wxT( "TrackDisplayClearance" ),
                                                    &DisplayOpt.ShowTrackClearanceMode,
                                                    SHOW_CLEARANCE_NEW_TRACKS_AND_VIA_AREAS ) );
     m_configSettings.push_back( new PARAM_CFG_BOOL( true, wxT( "PadFill" ),
-                                                    &DisplayOpt.DisplayPadFill, TRUE ) );
+                                                    &DisplayOpt.DisplayPadFill, true ) );
     m_configSettings.push_back( new PARAM_CFG_BOOL( true, wxT( "ViaFill" ),
-                                                    &DisplayOpt.DisplayViaFill, TRUE ) );
+                                                    &DisplayOpt.DisplayViaFill, true ) );
     m_configSettings.push_back( new PARAM_CFG_BOOL( true, wxT( "PadAffG" ),
-                                                    &DisplayOpt.DisplayPadIsol, TRUE ) );
+                                                    &DisplayOpt.DisplayPadIsol, true ) );
     m_configSettings.push_back( new PARAM_CFG_BOOL( true, wxT( "PadSNum" ),
-                                                    &DisplayOpt.DisplayPadNum, TRUE ) );
+                                                    &DisplayOpt.DisplayPadNum, true ) );
     m_configSettings.push_back( new PARAM_CFG_INT( true, wxT( "ModAffC" ),
                                                    &DisplayOpt.DisplayModEdge, FILLED, 0, 2 ) );
     m_configSettings.push_back( new PARAM_CFG_INT( true, wxT( "ModAffT" ),
                                                    &DisplayOpt.DisplayModText, FILLED, 0, 2 ) );
     m_configSettings.push_back( new PARAM_CFG_INT( true, wxT( "PcbAffT" ),
                                                    &DisplayOpt.DisplayDrawItems, FILLED, 0, 2 ) );
+
+    // Colors:
     m_configSettings.push_back( new PARAM_CFG_SETCOLOR( true, wxT( "ColLay0" ), LOC_COLOR( 0 ),
                                                         GREEN ) );
     m_configSettings.push_back( new PARAM_CFG_SETCOLOR( true, wxT( "ColLay1" ), LOC_COLOR( 1 ),
@@ -413,28 +382,17 @@ PARAM_CFG_ARRAY& WinEDA_PcbFrame::GetConfigurationSettings()
     m_configSettings.push_back( new PARAM_CFG_SETCOLOR( true, wxT( "CoRatsN" ),
                                                         ITEM_COLOR( RATSNEST_VISIBLE ),
                                                         WHITE ) );
-    m_configSettings.push_back( new PARAM_CFG_INT( true, wxT( "HPGLnum" ),
-                                                   &g_pcb_plot_options.HPGL_Pen_Num,
-                                                   1, 1, 16 ) );
-    m_configSettings.push_back( new PARAM_CFG_INT( true, wxT( "HPGdiam" ),
-                                                   &g_pcb_plot_options.HPGL_Pen_Diam,
-                                                   15, 0, 100 ) );
-    m_configSettings.push_back( new PARAM_CFG_INT( true, wxT( "HPGLSpd" ),
-                                                   &g_pcb_plot_options.HPGL_Pen_Speed,
-                                                   20, 0, 1000 ) );
-    m_configSettings.push_back( new PARAM_CFG_INT( true, wxT( "HPGLrec" ),
-                                                   &g_pcb_plot_options.HPGL_Pen_Recouvrement,
-                                                   2, 0, 0x100 ) );
+
+    // Miscellaneous:
     m_configSettings.push_back( new PARAM_CFG_INT( true, wxT( "TimeOut" ), &g_TimeOut,
                                                    600, 0, 60000 ) );
-    m_configSettings.push_back( new PARAM_CFG_BOOL( true, wxT( "DPolair" ),
-                                                    &DisplayOpt.DisplayPolarCood, FALSE ) );
     m_configSettings.push_back( new PARAM_CFG_INT( true, wxT( "MaxLnkS" ), &g_MaxLinksShowed,
                                                    3, 0, 15 ) );
     m_configSettings.push_back( new PARAM_CFG_BOOL( true, wxT( "ShowMRa" ),
-                                                    &g_Show_Module_Ratsnest, TRUE ) );
+                                                    &g_Show_Module_Ratsnest, true ) );
     m_configSettings.push_back( new PARAM_CFG_BOOL( true, wxT( "TwoSegT" ),
-                                                    &g_TwoSegmentTrackBuild, TRUE ) );
-
+                                                    &g_TwoSegmentTrackBuild, true ) );
+    m_configSettings.push_back( new PARAM_CFG_BOOL( true, wxT( "SegmPcb45Only" ), &Segments_45_Only,
+                                                       true ) );
     return m_configSettings;
 }

@@ -23,7 +23,7 @@ static wxString s_OldStringFound;
 static int      s_ItemCount, s_MarkerCount;
 
 
-void WinEDA_PcbFrame::InstallFindFrame( const wxPoint& pos, wxDC* DC )
+void PCB_EDIT_FRAME::InstallFindFrame( const wxPoint& pos, wxDC* DC )
 {
     WinEDA_PcbFindFrame* frame = new WinEDA_PcbFindFrame( this, DC, pos );
 
@@ -113,7 +113,7 @@ void WinEDA_PcbFindFrame::FindItem( wxCommandEvent& event )
         else
             msg.Printf( _( "<%s> Found" ), GetChars( s_OldStringFound ) );
 
-        m_Parent->Affiche_Message( msg );
+        m_Parent->SetStatusText( msg );
 
         m_Parent->CursorGoto( locate_pos );
 
@@ -121,7 +121,7 @@ void WinEDA_PcbFindFrame::FindItem( wxCommandEvent& event )
     }
     else
     {
-        m_Parent->Affiche_Message( wxEmptyString );
+        m_Parent->SetStatusText( wxEmptyString );
 
         if( FindMarker )
             msg = _( "Marker not found" );
@@ -164,13 +164,13 @@ WinEDA_PcbFindFrame::WinEDA_PcbFindFrame()
 }
 
 
-WinEDA_PcbFindFrame::WinEDA_PcbFindFrame( WinEDA_BasePcbFrame* parent,
-                                          wxDC*                DC,
-                                          const wxPoint&       pos,
-                                          wxWindowID           id,
-                                          const wxString&      caption,
-                                          const wxSize&        size,
-                                          long                 style )
+WinEDA_PcbFindFrame::WinEDA_PcbFindFrame( PCB_BASE_FRAME* parent,
+                                          wxDC*           DC,
+                                          const wxPoint&  pos,
+                                          wxWindowID      id,
+                                          const wxString& caption,
+                                          const wxSize&   size,
+                                          long            style )
 {
     m_Parent = parent;
     m_DC     = DC;

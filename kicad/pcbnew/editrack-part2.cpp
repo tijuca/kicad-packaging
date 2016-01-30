@@ -10,6 +10,7 @@
 #include "pcbnew.h"
 #include "wxPcbStruct.h"
 #include "class_board_design_settings.h"
+#include "drc_stuff.h"
 
 #include "protos.h"
 
@@ -20,7 +21,7 @@
  * It is put on another layer of work, if possible
  * (Or DRC = Off).
  */
-void WinEDA_PcbFrame::ExChange_Track_Layer( TRACK* pt_segm, wxDC* DC )
+void PCB_EDIT_FRAME::ExChange_Track_Layer( TRACK* pt_segm, wxDC* DC )
 {
     int    ii;
     TRACK* pt_track;
@@ -90,7 +91,7 @@ void WinEDA_PcbFrame::ExChange_Track_Layer( TRACK* pt_segm, wxDC* DC )
 }
 
 
-bool WinEDA_PcbFrame::Other_Layer_Route( TRACK* aTrack, wxDC* DC )
+bool PCB_EDIT_FRAME::Other_Layer_Route( TRACK* aTrack, wxDC* DC )
 {
     unsigned    itmp;
 
@@ -103,7 +104,6 @@ bool WinEDA_PcbFrame::Other_Layer_Route( TRACK* aTrack, wxDC* DC )
             setActiveLayer(((PCB_SCREEN*)GetScreen())->m_Route_Layer_BOTTOM );
 
         UpdateStatusBar();
-        SetToolbars();
         return true;
     }
 
@@ -141,14 +141,14 @@ bool WinEDA_PcbFrame::Other_Layer_Route( TRACK* aTrack, wxDC* DC )
     itmp = g_CurrentTrackList.GetCount();
     Begin_Route( g_CurrentTrackSegment, DC );
 
-    DrawPanel->ManageCurseur( DrawPanel, DC, FALSE );
+    DrawPanel->m_mouseCaptureCallback( DrawPanel, DC, wxDefaultPosition, FALSE );
 
     /* create the via */
     SEGVIA* via    = new SEGVIA( GetBoard() );
     via->m_Flags   = IS_NEW;
     via->m_Shape   = GetBoard()->GetBoardDesignSettings()->m_CurrentViaType;
     via->m_Width   = GetBoard()->GetCurrentViaSize();
-    via->SetNet( g_HighLight_NetCode );
+    via->SetNet( GetBoard()->GetHightLightNetCode() );
     via->m_Start   = via->m_End = g_CurrentTrackSegment->m_End;
     // Usual via is from copper to component.
     // layer pair is LAYER_N_BACK and LAYER_N_FRONT.
@@ -199,7 +199,7 @@ bool WinEDA_PcbFrame::Other_Layer_Route( TRACK* aTrack, wxDC* DC )
         /* DRC fault: the Via cannot be placed here ... */
         delete via;
 
-        DrawPanel->ManageCurseur( DrawPanel, DC, FALSE );
+        DrawPanel->m_mouseCaptureCallback( DrawPanel, DC, wxDefaultPosition, FALSE );
 
         // delete the track(s) added in Begin_Route()
         while( g_CurrentTrackList.GetCount() > itmp )
@@ -209,7 +209,7 @@ bool WinEDA_PcbFrame::Other_Layer_Route( TRACK* aTrack, wxDC* DC )
 
         // use the form of SetCurItem() which does not write to the msg panel,
         // SCREEN::SetCurItem(), so the DRC error remains on screen.
-        // WinEDA_PcbFrame::SetCurItem() calls DisplayInfo().
+        // PCB_EDIT_FRAME::SetCurItem() calls DisplayInfo().
         GetScreen()->SetCurItem( g_CurrentTrackSegment );
 
         return false;
@@ -252,11 +252,10 @@ bool WinEDA_PcbFrame::Other_Layer_Route( TRACK* aTrack, wxDC* DC )
         g_CurrentTrackList.PushBack( g_CurrentTrackSegment->Copy() );
     }
 
-    DrawPanel->ManageCurseur( DrawPanel, DC, FALSE );
+    DrawPanel->m_mouseCaptureCallback( DrawPanel, DC, wxDefaultPosition, FALSE );
     via->DisplayInfo( this );
 
     UpdateStatusBar();
-    SetToolbars();
 
     return true;
 }
@@ -266,13 +265,14 @@ bool WinEDA_PcbFrame::Other_Layer_Route( TRACK* aTrack, wxDC* DC )
  * The status of the net on top of the screen segment advanced by mouse.
  * PCB status or bottom of screen if no segment peak.
  */
-void WinEDA_PcbFrame::Affiche_Status_Net( wxDC* DC )
+void PCB_EDIT_FRAME::Affiche_Status_Net( wxDC* DC )
 {
     TRACK* pt_segm;
     int    masquelayer = (1 << getActiveLayer());
+    wxPoint pos = GetScreen()->RefPos( true );
 
-    pt_segm = Locate_Pistes( GetBoard(), GetBoard()->m_Track, masquelayer,
-                             CURSEUR_OFF_GRILLE );
+    pt_segm = Locate_Pistes( GetBoard(), GetBoard()->m_Track, pos, masquelayer );
+
     if( pt_segm == NULL )
         GetBoard()->DisplayInfo( this );
     else
@@ -285,7 +285,7 @@ void WinEDA_PcbFrame::Affiche_Status_Net( wxDC* DC )
  * The net edge pad with mouse or module locates the mouse.
  * Delete if the ratsnest if no module or pad is selected.
  */
-void WinEDA_PcbFrame::Show_1_Ratsnest( EDA_BaseStruct* item, wxDC* DC )
+void PCB_EDIT_FRAME::Show_1_Ratsnest( EDA_ITEM* item, wxDC* DC )
 {
     D_PAD*   pt_pad = NULL;
     MODULE*  Module = NULL;
@@ -378,7 +378,7 @@ void WinEDA_PcbFrame::Show_1_Ratsnest( EDA_BaseStruct* item, wxDC* DC )
 
 /* High light the unconnected pads
  */
-void WinEDA_PcbFrame::Affiche_PadsNoConnect( wxDC* DC )
+void PCB_EDIT_FRAME::Affiche_PadsNoConnect( wxDC* DC )
 {
     for( unsigned ii = 0; ii < GetBoard()->GetRatsnestsCount(); ii++ )
     {

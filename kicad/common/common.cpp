@@ -73,15 +73,12 @@ const wxString AllFilesWildcard( _( "All files (*)|*" ) );
 wxString       g_ProductName    = wxT( "KiCad E.D.A.  " );
 bool           g_ShowPageLimits = true;
 wxString       g_UserLibDirBuffer;
-int            g_DebugLevel;
-int            g_MouseOldButtons;
-int            g_KeyPressed;
 
 wxString       g_Prj_Default_Config_FullFilename;
 wxString       g_Prj_Config_LocalFilename;
 
-// Handle the preferred editor for browsing report files:
-int            g_UnitMetric; // display units mm = 1, inches = 0, cm = 2
+/* Current user unit of measure */
+UserUnitType   g_UserUnit;
 
 /* Draw color for moving objects: */
 int            g_GhostColor;
@@ -120,7 +117,8 @@ StructColors ColorRefs[NBCOLOR] =
     {  128, 255, 255, LIGHTYELLOW,  wxT( "LIGHTYELLOW" ),  LIGHTYELLOW           }
 };
 
-/** Function to use local notation or C standard notation for floating point numbers
+/**
+ * Function to use local notation or C standard notation for floating point numbers
  * some countries use 1,5 and others (and C) 1.5
  * so we switch from local to C and C to local when reading or writing files
  * And other problem is a bug when cross compiling under linux:
@@ -131,7 +129,8 @@ StructColors ColorRefs[NBCOLOR] =
 bool g_DisableFloatingPointLocalNotation = false;
 
 
-/** function SetLocaleTo_C_standard
+/**
+ * Function SetLocaleTo_C_standard
  * because kicad is internationalized, switch internalization to "C" standard
  * i.e. uses the . (dot) as separator in print/read float numbers
  * (some countries (France, Germany ..) use , (comma) as separator)
@@ -148,7 +147,8 @@ void SetLocaleTo_C_standard( void )
 }
 
 
-/** function SetLocaleTo_Default
+/**
+ * Function SetLocaleTo_Default
  * because kicad is internationalized, switch internalization to default
  * to use the default separator in print/read float numbers
  * (. (dot) but some countries (France, Germany ..) use , (comma) as separator)
@@ -211,33 +211,32 @@ Ki_PageDescr::Ki_PageDescr( const wxSize&   size,
 
     // Adjust the default value for margins to 400 mils (0,4 inch or 10 mm)
 #if defined(KICAD_GOST)
-    m_LeftMargin   = LEFTMARGIN;
-    m_RightMargin  = RIGHTMARGIN;
-    m_TopMargin    = TOPMARGIN;
-    m_BottomMargin = BOTTOMMARGIN;
+    m_LeftMargin   = GOST_LEFTMARGIN;
+    m_RightMargin  = GOST_RIGHTMARGIN;
+    m_TopMargin    = GOST_TOPMARGIN;
+    m_BottomMargin = GOST_BOTTOMMARGIN;
 #else
     m_LeftMargin = m_RightMargin = m_TopMargin = m_BottomMargin = 400;
 #endif
 }
 
 
-wxString ReturnUnitSymbol( int aUnits, const wxString& formatString )
+wxString ReturnUnitSymbol( UserUnitType aUnit, const wxString& formatString )
 {
     wxString tmp;
     wxString label;
 
-    switch( aUnits )
+    switch( aUnit )
     {
     case INCHES:
         tmp = _( "\"" );
         break;
 
-    case MILLIMETRE:
+    case MILLIMETRES:
         tmp = _( "mm" );
         break;
 
-    default:
-        tmp = _( "??" );
+    case UNSCALED_UNITS:
         break;
     }
 
@@ -250,26 +249,22 @@ wxString ReturnUnitSymbol( int aUnits, const wxString& formatString )
 }
 
 
-wxString GetUnitsLabel( int aUnits )
+wxString GetUnitsLabel( UserUnitType aUnit )
 {
     wxString label;
 
-    switch( aUnits )
+    switch( aUnit )
     {
     case INCHES:
         label = _( "inches" );
         break;
 
-    case MILLIMETRE:
+    case MILLIMETRES:
         label = _( "millimeters" );
         break;
 
-    case CENTIMETRE:
-        label = _( "centimeters" );
-        break;
-
-    default:
-        label = _( "Unknown" );
+    case UNSCALED_UNITS:
+        label = _( "units" );
         break;
     }
 
@@ -277,26 +272,21 @@ wxString GetUnitsLabel( int aUnits )
 }
 
 
-wxString GetAbbreviatedUnitsLabel( int aUnits )
+wxString GetAbbreviatedUnitsLabel( UserUnitType aUnit )
 {
     wxString label;
 
-    switch( aUnits )
+    switch( aUnit )
     {
     case INCHES:
         label = _( "in" );
         break;
 
-    case MILLIMETRE:
+    case MILLIMETRES:
         label = _( "mm" );
         break;
 
-    case CENTIMETRE:
-        label = _( "cm" );
-        break;
-
-    default:
-        label = _( "??" );
+    case UNSCALED_UNITS:
         break;
     }
 
@@ -308,10 +298,11 @@ wxString GetAbbreviatedUnitsLabel( int aUnits )
  * Add string "  (mm):" or " ("):" to the static text Stext.
  *  Used in dialog boxes for entering values depending on selected units
  */
-void AddUnitSymbol( wxStaticText& Stext, int Units )
+void AddUnitSymbol( wxStaticText& Stext, UserUnitType aUnit )
 {
     wxString msg = Stext.GetLabel();
-    msg += ReturnUnitSymbol( Units );
+
+    msg += ReturnUnitSymbol( aUnit );
 
     Stext.SetLabel( msg );
 }
@@ -319,11 +310,11 @@ void AddUnitSymbol( wxStaticText& Stext, int Units )
 
 /*
  * Convert the number Value in a string according to the internal units
- *  and the selected unit (g_UnitMetric) and put it in the wxTextCtrl TextCtrl
+ *  and the selected unit (g_UserUnit) and put it in the wxTextCtrl TextCtrl
  */
 void PutValueInLocalUnits( wxTextCtrl& TextCtr, int Value, int Internal_Unit )
 {
-    wxString msg = ReturnStringFromValue( g_UnitMetric, Value, Internal_Unit );
+    wxString msg = ReturnStringFromValue( g_UserUnit, Value, Internal_Unit );
 
     TextCtr.SetValue( msg );
 }
@@ -331,20 +322,21 @@ void PutValueInLocalUnits( wxTextCtrl& TextCtr, int Value, int Internal_Unit )
 
 /*
  * Convert the Value in the wxTextCtrl TextCtrl in an integer,
- *  according to the internal units and the selected unit (g_UnitMetric)
+ *  according to the internal units and the selected unit (g_UserUnit)
  */
 int ReturnValueFromTextCtrl( const wxTextCtrl& TextCtr, int Internal_Unit )
 {
     int      value;
     wxString msg = TextCtr.GetValue();
 
-    value = ReturnValueFromString( g_UnitMetric, msg, Internal_Unit );
+    value = ReturnValueFromString( g_UserUnit, msg, Internal_Unit );
 
     return value;
 }
 
 
-/** Function ReturnStringFromValue
+/**
+ * Function ReturnStringFromValue
  * Return the string from Value, according to units (inch, mm ...) for display,
  * and the initial unit for value
  * @param aUnit = display units (INCHES, MILLIMETRE ..)
@@ -354,35 +346,30 @@ int ReturnValueFromTextCtrl( const wxTextCtrl& TextCtr, int Internal_Unit )
  * @return a wxString what contains value and optionally the symbol unit
  *         (like 2.000 mm)
  */
-wxString ReturnStringFromValue( int aUnits, int aValue, int aInternal_Unit,
+wxString ReturnStringFromValue( UserUnitType aUnit, int aValue, int aInternal_Unit,
                                 bool aAdd_unit_symbol )
 {
     wxString StringValue;
     double   value_to_print;
 
-    if( aUnits >= CENTIMETRE )
-        StringValue << aValue;
-    else
-    {
-        value_to_print = To_User_Unit( (bool) aUnits, (double) aValue,
-                                       aInternal_Unit );
-        StringValue.Printf( ( aInternal_Unit > 1000 ) ? wxT( "%.4f" ) :
-                            wxT( "%.3f" ),
-                            value_to_print );
-    }
+    value_to_print = To_User_Unit( aUnit, aValue, aInternal_Unit );
+    /* Yet another 'if pcbnew' :( */
+    StringValue.Printf( ( aInternal_Unit > 1000 ) ? wxT( "%.4f" ) :
+                        wxT( "%.3f" ),
+                        value_to_print );
 
     if( aAdd_unit_symbol )
-        switch( aUnits )
+        switch( aUnit )
         {
         case INCHES:
             StringValue += _( " \"" );
             break;
 
-        case MILLIMETRE:
+        case MILLIMETRES:
             StringValue += _( " mm" );
             break;
 
-        default:
+        case UNSCALED_UNITS:
             break;
         }
 
@@ -397,17 +384,56 @@ wxString ReturnStringFromValue( int aUnits, int aValue, int aInternal_Unit,
  *  Value = text
  *  Internal_Unit = units per inch for computed value
  */
-int ReturnValueFromString( int Units, const wxString& TextValue,
+int ReturnValueFromString( UserUnitType aUnit, const wxString& TextValue,
                            int Internal_Unit )
 {
     int    Value;
     double dtmp = 0;
 
-    TextValue.ToDouble( &dtmp );
-    if( Units >= CENTIMETRE )
-        Value = wxRound( dtmp );
-    else
-        Value = From_User_Unit( (bool) Units, dtmp, Internal_Unit );
+    /* Acquire the 'right' decimal point separator */
+    const struct lconv* lc = localeconv();
+    wxChar decimal_point = lc->decimal_point[0];
+    wxString            buf( TextValue.Strip( wxString::both ) );
+
+    /* Convert the period in decimal point */
+    buf.Replace( wxT( "." ), wxString( decimal_point, 1 ) );
+    // An ugly fix needed by WxWidgets 2.9.1 that sometimes
+    // back to a point as separator, although the separator is the comma
+    // TODO: remove this line if WxWidgets 2.9.2 fixes this issue
+    buf.Replace( wxT( "," ), wxString( decimal_point, 1 ) );
+
+    /* Find the end of the numeric part */
+    unsigned brk_point = 0;
+    while( brk_point < buf.Len() )
+    {
+        wxChar ch = buf[brk_point];
+        if( !( (ch >= '0' && ch <='9') || (ch == decimal_point)
+             || (ch == '-') || (ch == '+') ) )
+        {
+            break;
+        }
+        ++brk_point;
+    }
+
+    /* Extract the numeric part */
+    buf.Left( brk_point ).ToDouble( &dtmp );
+
+    /* Check the optional unit designator (2 ch significant) */
+    wxString unit( buf.Mid( brk_point ).Strip( wxString::leading ).Left( 2 ).Lower() );
+    if( unit == wxT( "in" ) || unit == wxT( "\"" ) )
+    {
+        aUnit = INCHES;
+    }
+    else if( unit == wxT( "mm" ) )
+    {
+        aUnit = MILLIMETRES;
+    }
+    else if( unit == wxT( "mi" ) || unit == wxT( "th" ) ) /* Mils or thous */
+    {
+        aUnit = INCHES;
+        dtmp /= 1000;
+    }
+    Value = From_User_Unit( aUnit, dtmp, Internal_Unit );
 
     return Value;
 }
@@ -449,34 +475,47 @@ wxArrayString* wxStringSplit( wxString txt, wxChar splitter )
  * Function To_User_Unit
  * Convert in inch or mm the variable "val" (double)given in internal units
  * @return the converted value, in double
- * @param is_metric : true if the result must be returned in mm , false if inches
+ * @param aUnit : user measure unit
  * @param val : double : the given value
  * @param internal_unit_value = internal units per inch
  */
-double To_User_Unit( bool is_metric, double val, int internal_unit_value )
+double To_User_Unit( UserUnitType aUnit, double val, int internal_unit_value )
 {
-    double value;
+    switch( aUnit )
+    {
+    case MILLIMETRES:
+        return val * 25.4 / internal_unit_value;
 
-    if( is_metric )
-        value = val * 25.4 / internal_unit_value;
-    else
-        value = val / internal_unit_value;
+    case INCHES:
+        return val / internal_unit_value;
 
-    return value;
+    default:
+        return val;
+    }
 }
 
 
 /*
  * Return in internal units the value "val" given in inch or mm
  */
-int From_User_Unit( bool is_metric, double val, int internal_unit_value )
+int From_User_Unit( UserUnitType aUnit, double val, int internal_unit_value )
 {
     double value;
 
-    if( is_metric )
+    switch( aUnit )
+    {
+    case MILLIMETRES:
         value = val * internal_unit_value / 25.4;
-    else
+        break;
+
+    case INCHES:
         value = val * internal_unit_value;
+        break;
+
+    default:
+    case UNSCALED_UNITS:
+        value = val;
+    }
 
     return wxRound( value );
 }
@@ -567,82 +606,18 @@ void MyFree( void* pt_mem )
         free( pt_mem );
 }
 
-enum textbox {
-    ID_TEXTBOX_LIST = 8010
-};
-
-
-BEGIN_EVENT_TABLE( WinEDA_TextFrame, wxDialog )
-    EVT_LISTBOX_DCLICK( ID_TEXTBOX_LIST, WinEDA_TextFrame::D_ClickOnList )
-    EVT_LISTBOX( ID_TEXTBOX_LIST, WinEDA_TextFrame::D_ClickOnList )
-    EVT_CLOSE( WinEDA_TextFrame::OnClose )
-END_EVENT_TABLE()
-
-
-WinEDA_TextFrame::WinEDA_TextFrame( wxWindow*       parent,
-                                    const wxString& title ) :
-    wxDialog( parent,
-              -1, title,
-              wxPoint( -1, -1 ),
-              wxSize( 250, 350 ),
-              wxDEFAULT_DIALOG_STYLE |
-              wxFRAME_FLOAT_ON_PARENT |
-              MAYBE_RESIZE_BORDER )
-{
-    wxSize size;
-
-    m_Parent = parent;
-
-    CentreOnParent();
-
-    size   = GetClientSize();
-    m_List = new wxListBox( this,
-                            ID_TEXTBOX_LIST,
-                            wxPoint( 0, 0 ),
-                            size,
-                            0, NULL,
-                            wxLB_ALWAYS_SB | wxLB_SINGLE );
-
-    SetReturnCode( -1 );
-}
-
-
-void WinEDA_TextFrame::Append( const wxString& text )
-{
-    m_List->Append( text );
-}
-
-
-void WinEDA_TextFrame::D_ClickOnList( wxCommandEvent& event )
-{
-    int ii = m_List->GetSelection();
-
-    EndModal( ii );
-}
-
-
-void WinEDA_TextFrame::OnClose( wxCloseEvent& event )
-{
-    EndModal( -1 );
-}
-
-
-void Affiche_1_Parametre( WinEDA_DrawFrame* frame, int pos_X,
-                          const wxString& texte_H, const wxString& texte_L,
-                          int color )
-{
-    frame->MsgPanel->Affiche_1_Parametre( pos_X, texte_H, texte_L, color );
-}
-
 
 int GetTimeStamp()
 {
     static int OldTimeStamp, NewTimeStamp;
 
     NewTimeStamp = time( NULL );
+
     if( NewTimeStamp <= OldTimeStamp )
         NewTimeStamp = OldTimeStamp + 1;
+
     OldTimeStamp = NewTimeStamp;
+
     return NewTimeStamp;
 }
 
@@ -654,16 +629,63 @@ int GetTimeStamp()
  */
 const wxString& valeur_param( int valeur, wxString& buf_texte )
 {
-    if( g_UnitMetric )
+    switch( g_UserUnit )
     {
+    case MILLIMETRES:
         buf_texte.Printf( wxT( "%3.3f mm" ), valeur * 0.00254 );
-    }
-    else
-    {
+        break;
+
+    case INCHES:
         buf_texte.Printf( wxT( "%2.4f \"" ), valeur * 0.0001 );
+        break;
+
+    case UNSCALED_UNITS:
+        buf_texte.Printf( wxT( "%d" ), valeur );
+        break;
     }
 
     return buf_texte;
+}
+
+
+
+
+wxString CoordinateToString( int aValue, int aInternalUnits, bool aConvertToMils )
+{
+    wxCHECK_MSG( (aInternalUnits == EESCHEMA_INTERNAL_UNIT)
+                 || (aInternalUnits == PCB_INTERNAL_UNIT),
+                 wxString( _( "*** Bad Internal Units ***" ) ),
+                 wxT( "Invalid interanl units value." ) );
+
+    wxString      text;
+    const wxChar* format;
+    double        value = To_User_Unit( g_UserUnit, aValue, aInternalUnits );
+
+    if( g_UserUnit == INCHES )
+    {
+        if( aConvertToMils )
+        {
+            format = ( aInternalUnits == EESCHEMA_INTERNAL_UNIT ) ? wxT( "%.0f" ) : wxT( "%.1f" );
+            value *= 1000;
+        }
+        else
+        {
+            format = ( aInternalUnits == EESCHEMA_INTERNAL_UNIT ) ? wxT( "%.3f" ) : wxT( "%.4f" );
+        }
+    }
+    else
+    {
+        format = ( aInternalUnits == EESCHEMA_INTERNAL_UNIT ) ? wxT( "%.2f" ) : wxT( "%.3f" );
+    }
+
+    text.Printf( format, value );
+
+    if( g_UserUnit == INCHES )
+        text += ( aConvertToMils ) ? _( " mils" ) : _( " in" );
+    else
+        text += _( " mm" );
+
+    return text;
 }
 
 

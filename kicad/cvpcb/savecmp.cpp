@@ -12,8 +12,7 @@
 #include "appl_wxstruct.h"
 
 #include "cvpcb.h"
-#include "protos.h"
-#include "cvstruct.h"
+#include "cvpcb_mainframe.h"
 
 #include "build_version.h"
 
@@ -21,7 +20,7 @@
 /* File header. */
 char EnteteCmpMod[] = { "Cmp-Mod V01" };
 
-const wxString titleComponentLibErr( _( "Component Library Error" ) );
+#define titleComponentLibErr _( "Component Library Error" )
 
 
 /*
@@ -30,7 +29,7 @@ const wxString titleComponentLibErr( _( "Component Library Error" ) );
  * @param NetlistFullFileName - Name of net list file to save.
  * @returns - 1 if OK, 0 if error.
  */
-int WinEDA_CvpcbFrame::SaveComponentList( const wxString& NetlistFullFileName )
+int CVPCB_MAINFRAME::SaveComponentList( const wxString& NetlistFullFileName )
 {
     FILE*       dest;
     wxFileName  fn( NetlistFullFileName );
@@ -44,20 +43,20 @@ int WinEDA_CvpcbFrame::SaveComponentList( const wxString& NetlistFullFileName )
         return 0;
 
     fprintf( dest, "%s", EnteteCmpMod );
-    fprintf( dest, " Created by %s", CONV_TO_UTF8( Title ) );
+    fprintf( dest, " Created by %s", TO_UTF8( Title ) );
     fprintf( dest, " date = %s\n", DateAndTime( Line ) );
 
     BOOST_FOREACH( COMPONENT& component, m_components )
     {
         fprintf( dest, "\nBeginCmp\n" );
         fprintf( dest, "TimeStamp = %s;\n",
-                 CONV_TO_UTF8( component.m_TimeStamp ) );
+                 TO_UTF8( component.m_TimeStamp ) );
         fprintf( dest, "Reference = %s;\n",
-                 CONV_TO_UTF8( component.m_Reference ) );
+                 TO_UTF8( component.m_Reference ) );
         fprintf( dest, "ValeurCmp = %s;\n",
-                 CONV_TO_UTF8( component.m_Value ) );
+                 TO_UTF8( component.m_Value ) );
         fprintf( dest, "IdModule  = %s;\n",
-                 CONV_TO_UTF8( component.m_Module ) );
+                 TO_UTF8( component.m_Module ) );
         fprintf( dest, "EndCmp\n" );
     }
 
@@ -70,7 +69,7 @@ int WinEDA_CvpcbFrame::SaveComponentList( const wxString& NetlistFullFileName )
 /*
  * Load list of associated components and footprints.
  */
-bool LoadComponentFile( const wxString& fileName, COMPONENT_LIST& list )
+bool CVPCB_MAINFRAME::LoadComponentFile( const wxString& fileName )
 {
     wxString    timestamp, valeur, ilib, namecmp, msg;
     bool        read_cmp_data = FALSE, eof = FALSE;
@@ -83,8 +82,9 @@ bool LoadComponentFile( const wxString& fileName, COMPONENT_LIST& list )
     source = wxFopen( fn.GetFullPath(), wxT( "rt" ) );
     if( source == NULL )
     {
-        msg.Printf( _( "Cannot open component library <%s>." ),
+        msg.Printf( _( "Cannot open CvPcb component file <%s>." ),
                     GetChars( fn.GetFullPath() ) );
+        msg << wxT("\n") << _("This is normal if you are opening a new netlist file");
         wxMessageBox( msg, titleComponentLibErr, wxOK | wxICON_ERROR );
         return false;
     }
@@ -140,7 +140,7 @@ bool LoadComponentFile( const wxString& fileName, COMPONENT_LIST& list )
 
             if( strnicmp( ident, "TimeStamp", 9 ) == 0 )
             {
-                timestamp = CONV_FROM_UTF8( data );
+                timestamp = FROM_UTF8( data );
                 timestamp.Trim( TRUE );
                 timestamp.Trim( FALSE );
                 continue;
@@ -148,7 +148,7 @@ bool LoadComponentFile( const wxString& fileName, COMPONENT_LIST& list )
 
             if( strnicmp( ident, "Reference", 9 ) == 0 )
             {
-                namecmp = CONV_FROM_UTF8( data );
+                namecmp = FROM_UTF8( data );
                 namecmp.Trim( TRUE );
                 namecmp.Trim( FALSE );
                 continue;
@@ -156,7 +156,7 @@ bool LoadComponentFile( const wxString& fileName, COMPONENT_LIST& list )
 
             if( strnicmp( ident, "ValeurCmp", 9 ) == 0 )
             {
-                valeur = CONV_FROM_UTF8( data );
+                valeur = FROM_UTF8( data );
                 valeur.Trim( TRUE );
                 valeur.Trim( FALSE );
                 continue;
@@ -164,7 +164,7 @@ bool LoadComponentFile( const wxString& fileName, COMPONENT_LIST& list )
 
             if( strnicmp( ident, "IdModule", 8 ) == 0 )
             {
-                ilib = CONV_FROM_UTF8( data );
+                ilib = FROM_UTF8( data );
                 ilib.Trim( TRUE );
                 ilib.Trim( FALSE );
                 continue;
@@ -173,7 +173,7 @@ bool LoadComponentFile( const wxString& fileName, COMPONENT_LIST& list )
 
         /* Search corresponding component and NetList
          * Update its parameters. */
-        BOOST_FOREACH( COMPONENT& component, list )
+        BOOST_FOREACH( COMPONENT& component, m_components )
         {
             if( namecmp != component.m_Reference )
                 continue;

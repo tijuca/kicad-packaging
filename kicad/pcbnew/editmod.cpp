@@ -9,6 +9,7 @@
 #include "confirm.h"
 #include "pcbnew.h"
 #include "wxPcbStruct.h"
+#include "module_editor_frame.h"
 #include "trigo.h"
 #include "3d_viewer.h"
 
@@ -18,7 +19,7 @@
 /*
  * Show module property dialog.
  */
-void WinEDA_PcbFrame::InstallModuleOptionsFrame( MODULE* Module, wxDC* DC )
+void PCB_EDIT_FRAME::InstallModuleOptionsFrame( MODULE* Module, wxDC* DC )
 {
     if( Module == NULL )
         return;
@@ -58,16 +59,16 @@ void WinEDA_PcbFrame::InstallModuleOptionsFrame( MODULE* Module, wxDC* DC )
  */
 void WinEDA_ModuleEditFrame::Place_Ancre( MODULE* pt_mod )
 {
-    wxPoint         moveVector;
-    EDA_BaseStruct* PtStruct;
-    D_PAD*          pt_pad;
+    wxPoint   moveVector;
+    EDA_ITEM* PtStruct;
+    D_PAD*    pt_pad;
 
     if( pt_mod == NULL )
         return;
 
-    moveVector = pt_mod->m_Pos - GetScreen()->m_Curseur;
+    moveVector = pt_mod->m_Pos - GetScreen()->GetCrossHairPosition();
 
-    pt_mod->m_Pos = GetScreen()->m_Curseur;
+    pt_mod->m_Pos = GetScreen()->GetCrossHairPosition();
 
     /* Update the relative coordinates:
      * The coordinates are relative to the anchor point.
@@ -76,6 +77,7 @@ void WinEDA_ModuleEditFrame::Place_Ancre( MODULE* pt_mod )
 
     /* Update the pad coordinates. */
     pt_pad = (D_PAD*) pt_mod->m_Pads;
+
     for( ; pt_pad != NULL; pt_pad = pt_pad->Next() )
     {
         pt_pad->m_Pos0 += moveVector;
@@ -83,6 +85,7 @@ void WinEDA_ModuleEditFrame::Place_Ancre( MODULE* pt_mod )
 
     /* Update the draw element coordinates. */
     PtStruct = pt_mod->m_Drawings;
+
     for( ; PtStruct != NULL; PtStruct = PtStruct->Next() )
     {
         switch( PtStruct->Type() )
@@ -109,7 +112,7 @@ void WinEDA_ModuleEditFrame::Place_Ancre( MODULE* pt_mod )
 }
 
 
-void WinEDA_ModuleEditFrame::RemoveStruct( EDA_BaseStruct* Item )
+void WinEDA_ModuleEditFrame::RemoveStruct( EDA_ITEM* Item )
 {
     if( Item == NULL )
         return;
@@ -117,7 +120,7 @@ void WinEDA_ModuleEditFrame::RemoveStruct( EDA_BaseStruct* Item )
     switch( Item->Type() )
     {
     case TYPE_PAD:
-        DeletePad( (D_PAD*) Item );
+        DeletePad( (D_PAD*) Item, false );
         break;
 
     case TYPE_TEXTE_MODULE:

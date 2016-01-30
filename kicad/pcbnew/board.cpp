@@ -1,78 +1,58 @@
 /* BOARD.CPP : functions for autorouting */
 
 #include "fctsys.h"
-#include "gr_basic.h"
 #include "common.h"
-#include "confirm.h"
 #include "pcbnew.h"
 #include "autorout.h"
-#include "zones.h"
 #include "cell.h"
-
-#include "protos.h"
-
-
-int         Build_Work( BOARD* Pcb );
-void        PlaceCells( BOARD* Pcb, int net_code, int flag );
-int         InitBoard();
-BoardCell   GetCell( int, int, int );
-void        SetCell( int row, int col, int side, BoardCell x );
-void        OrCell( int, int, int, BoardCell );
-void        AndCell( int, int, int, BoardCell );
-void        AddCell( int, int, int, BoardCell );
-void        XorCell( int, int, int, BoardCell );
-void        AddCell( int, int, int, BoardCell );
-DistCell    GetDist( int, int, int );
-void        SetDist( int, int, int, DistCell );
-int         GetDir( int, int, int );
-void        SetDir( int, int, int, int );
 
 
 /*
  * Calculates nrows and ncols, dimensions of the matrix representation of BOARD
  * for routing and automatic calculation of area.
  */
-bool ComputeMatriceSize( WinEDA_BasePcbFrame* frame, int g_GridRoutingSize )
+bool MATRIX_ROUTING_HEAD::ComputeMatrixSize( BOARD* aPcb )
 {
-    BOARD* pcb = frame->GetBoard();
-
-    pcb->ComputeBoundaryBox();
+    aPcb->ComputeBoundingBox();
 
     /* The boundary box must have its start point on routing grid: */
-    pcb->m_BoundaryBox.m_Pos.x -= pcb->m_BoundaryBox.m_Pos.x % g_GridRoutingSize;
-    pcb->m_BoundaryBox.m_Pos.y -= pcb->m_BoundaryBox.m_Pos.y % g_GridRoutingSize;
+    aPcb->m_BoundaryBox.m_Pos.x -= aPcb->m_BoundaryBox.m_Pos.x % m_GridRouting;
+    aPcb->m_BoundaryBox.m_Pos.y -= aPcb->m_BoundaryBox.m_Pos.y % m_GridRouting;
+    m_BrdBox = aPcb->m_BoundaryBox;
     /* The boundary box must have its end point on routing grid: */
-    wxPoint end = pcb->m_BoundaryBox.GetEnd();
-    end.x -= end.x % g_GridRoutingSize; end.x += g_GridRoutingSize;
-    end.y -= end.y % g_GridRoutingSize; end.y += g_GridRoutingSize;
-    pcb->m_BoundaryBox.SetEnd( end );
+    wxPoint end = m_BrdBox.GetEnd();
+    end.x -= end.x % m_GridRouting;
+    end.x += m_GridRouting;
+    end.y -= end.y % m_GridRouting;
+    end.y += m_GridRouting;
+    aPcb->m_BoundaryBox.SetEnd( end );
+    m_BrdBox.SetEnd(end);
 
-    Nrows = pcb->m_BoundaryBox.m_Size.y / g_GridRoutingSize;
-    Ncols = pcb->m_BoundaryBox.m_Size.x / g_GridRoutingSize;
+    m_Nrows = Nrows = m_BrdBox.m_Size.y / m_GridRouting;
+    m_Ncols = Ncols = m_BrdBox.m_Size.x / m_GridRouting;
+
     /* get a small margin for memory allocation: */
-    Ncols += 2; Nrows += 2;
+    Ncols += 1; Nrows += 1;
 
-    return TRUE;
+    return true;
 }
 
 
-/*******************/
-/* class BOARDHEAD */
-/*******************/
-
-BOARDHEAD::BOARDHEAD()
+/* class MATRIX_ROUTING_HEAD
+ */
+MATRIX_ROUTING_HEAD::MATRIX_ROUTING_HEAD()
 {
     m_BoardSide[0]  = m_BoardSide[1] = NULL;
     m_DistSide[0]   = m_DistSide[1] = NULL;
     m_DirSide[0]    = m_DirSide[1] = NULL;
-    m_InitBoardDone = FALSE;
-    m_Layers  = 2;
+    m_InitBoardDone = false;
+    m_Layers  = MAX_SIDES_COUNT;
     m_Nrows   = m_Ncols = 0;
     m_MemSize = 0;
 }
 
 
-BOARDHEAD::~BOARDHEAD()
+MATRIX_ROUTING_HEAD::~MATRIX_ROUTING_HEAD()
 {
 }
 
@@ -80,7 +60,7 @@ BOARDHEAD::~BOARDHEAD()
 /* initialize the data structures
  *  returns the RAM size used, or -1 if default
  */
-int BOARDHEAD::InitBoard()
+int MATRIX_ROUTING_HEAD::InitBoard()
 {
     int ii, kk;
 
@@ -89,7 +69,7 @@ int BOARDHEAD::InitBoard()
     m_Nrows = Nrows;
     m_Ncols = Ncols;
 
-    m_InitBoardDone = TRUE; /* we have been called */
+    m_InitBoardDone = true; /* we have been called */
 
     ii = (Nrows + 1) * (Ncols + 1);
 
@@ -100,12 +80,12 @@ int BOARDHEAD::InitBoard()
         m_DirSide[kk]   = NULL;
 
         /* allocate Board & initialize everything to empty */
-        m_BoardSide[kk] = (BoardCell*) MyZMalloc( ii * sizeof(BoardCell) );
+        m_BoardSide[kk] = (MATRIX_CELL*) MyZMalloc( ii * sizeof(MATRIX_CELL) );
         if( m_BoardSide[kk] == NULL )
             return -1;
 
         /***** allocate Distances *****/
-        m_DistSide[kk] = (DistCell*) MyZMalloc( ii * sizeof(DistCell) );
+        m_DistSide[kk] = (DIST_CELL*) MyZMalloc( ii * sizeof(DIST_CELL) );
         if( m_DistSide[kk] == NULL )
             return -1;
 
@@ -115,33 +95,33 @@ int BOARDHEAD::InitBoard()
             return -1;
     }
 
-    m_MemSize = m_Layers * ii * ( sizeof(BoardCell) + sizeof(DistCell) + sizeof(char) );
+    m_MemSize = m_Layers * ii * ( sizeof(MATRIX_CELL) + sizeof(DIST_CELL) + sizeof(char) );
 
     return m_MemSize;
 }
 
 
-void BOARDHEAD::UnInitBoard()
+void MATRIX_ROUTING_HEAD::UnInitBoard()
 {
     int ii;
 
-    m_InitBoardDone = FALSE;
+    m_InitBoardDone = false;
 
-    for( ii = 0; ii < 2; ii++ )
+    for( ii = 0; ii < MAX_SIDES_COUNT; ii++ )
     {
-        /***** de-allocate Dir (chars) *****/
+        /***** de-allocate Dir matrix *****/
         if( m_DirSide[ii] )
         {
             MyFree( m_DirSide[ii] ); m_DirSide[ii] = NULL;
         }
 
-        /***** de-allocate Distances *****/
+        /***** de-allocate Distances matrix *****/
         if( m_DistSide[ii] )
         {
             MyFree( m_DistSide[ii] ); m_DistSide[ii] = NULL;
         }
 
-        /**** de-allocate Board *****/
+        /**** de-allocate cells matrix *****/
         if( m_BoardSide[ii] )
         {
             MyFree( m_BoardSide[ii] ); m_BoardSide[ii] = NULL;
@@ -164,27 +144,24 @@ void BOARDHEAD::UnInitBoard()
  */
 void PlaceCells( BOARD* aPcb, int net_code, int flag )
 {
-    int         ux0 = 0, uy0 = 0, ux1, uy1, dx, dy;
-    int         marge, via_marge;
-    int         masque_layer;
+    int       ux0 = 0, uy0 = 0, ux1, uy1, dx, dy;
+    int       marge, via_marge;
+    int       masque_layer;
 
     // use the default NETCLASS?
-    NETCLASS*   nc = aPcb->m_NetClasses.GetDefault();
+    NETCLASS* nc = aPcb->m_NetClasses.GetDefault();
 
-    int         trackWidth = nc->GetTrackWidth();
-    int         clearance  = nc->GetClearance();
-    int         viaSize    = nc->GetViaDiameter();
+    int       trackWidth = nc->GetTrackWidth();
+    int       clearance  = nc->GetClearance();
+    int       viaSize    = nc->GetViaDiameter();
 
     marge     = clearance + (trackWidth / 2);
     via_marge = clearance + (viaSize / 2);
 
-    //////////////////////////
-    // Place PADS on board. //
-    //////////////////////////
-
-    for( unsigned i=0; i < aPcb->GetPadsCount(); ++i )
+    // Place PADS on matrix routing:
+    for( unsigned i = 0; i < aPcb->GetPadsCount(); ++i )
     {
-        D_PAD* pad = aPcb->m_NetInfo->GetPad(i);
+        D_PAD* pad = aPcb->m_NetInfo->GetPad( i );
 
         if( net_code != pad->GetNet() || (flag & FORCE_PADS) )
         {
@@ -193,38 +170,35 @@ void PlaceCells( BOARD* aPcb, int net_code, int flag )
         Place_1_Pad_Board( aPcb, pad, VIA_IMPOSSIBLE, via_marge, WRITE_OR_CELL );
     }
 
-    ////////////////////////////////////////////
-    // Placing the elements of modules on PCB //
-    ////////////////////////////////////////////
-    for( MODULE* module = aPcb->m_Modules;  module;  module = module->Next() )
+    // Place outlines of modules on matrix routing, if they are on a copper layer
+    // or on the edge layer
+    TRACK tmpSegm( NULL );  // A dummy track used to create segments.
+    for( MODULE* module = aPcb->m_Modules; module; module = module->Next() )
     {
-        for( BOARD_ITEM* item = module->m_Drawings;  item;  item = item->Next() )
+        for( BOARD_ITEM* item = module->m_Drawings; item; item = item->Next() )
         {
             switch( item->Type() )
             {
             case TYPE_EDGE_MODULE:
-                {
-                    EDGE_MODULE* edge = (EDGE_MODULE*) item;
+            {
+                EDGE_MODULE* edge = (EDGE_MODULE*) item;
 
-                    TRACK* TmpSegm = new TRACK( NULL );
+                tmpSegm.SetLayer( edge->GetLayer() );
+                if( tmpSegm.GetLayer() == EDGE_N )
+                    tmpSegm.SetLayer( -1 );
 
-                    TmpSegm->SetLayer( edge->GetLayer() );
-                    if( TmpSegm->GetLayer() == EDGE_N )
-                        TmpSegm->SetLayer( -1 );
+                tmpSegm.m_Start = edge->m_Start;
+                tmpSegm.m_End   = edge->m_End;
+                tmpSegm.m_Shape = edge->m_Shape;
+                tmpSegm.m_Width = edge->m_Width;
+                tmpSegm.m_Param = edge->m_Angle;
+                tmpSegm.SetNet( -1 );
 
-                    TmpSegm->m_Start   = edge->m_Start;
-                    TmpSegm->m_End     = edge->m_End;
-                    TmpSegm->m_Shape   = edge->m_Shape;
-                    TmpSegm->m_Width   = edge->m_Width;
-                    TmpSegm->m_Param   = edge->m_Angle;
-                    TmpSegm->SetNet( -1 );
-
-                    TraceSegmentPcb( aPcb, TmpSegm, HOLE, marge, WRITE_CELL );
-                    TraceSegmentPcb( aPcb, TmpSegm, VIA_IMPOSSIBLE, via_marge,
-                                     WRITE_OR_CELL );
-                    delete TmpSegm;
-                }
-                break;
+                TraceSegmentPcb( aPcb, &tmpSegm, HOLE, marge, WRITE_CELL );
+                TraceSegmentPcb( aPcb, &tmpSegm, VIA_IMPOSSIBLE, via_marge,
+                                 WRITE_OR_CELL );
+            }
+            break;
 
             default:
                 break;
@@ -232,53 +206,47 @@ void PlaceCells( BOARD* aPcb, int net_code, int flag )
         }
     }
 
-    ////////////////////////////////////////////
-    // Placement contours and segments on PCB //
-    ////////////////////////////////////////////
+    // Place board outlines and texts on copper layers:
     for( BOARD_ITEM* item = aPcb->m_Drawings; item; item = item->Next() )
     {
         switch( item->Type() )
         {
         case TYPE_DRAWSEGMENT:
+        {
+            DRAWSEGMENT* DrawSegm;
+
+            int          type_cell = HOLE;
+            DrawSegm = (DRAWSEGMENT*) item;
+            tmpSegm.SetLayer( DrawSegm->GetLayer() );
+            if( DrawSegm->GetLayer() == EDGE_N )
             {
-                DRAWSEGMENT*    DrawSegm;
-
-                int    type_cell = HOLE;
-                TRACK* TmpSegm   = new TRACK( NULL );
-                DrawSegm = (DRAWSEGMENT*) item;
-                TmpSegm->SetLayer( DrawSegm->GetLayer() );
-                if( DrawSegm->GetLayer() == EDGE_N )
-                {
-                    TmpSegm->SetLayer( -1 );
-                    type_cell |= CELL_is_EDGE;
-                }
-
-                TmpSegm->m_Start   = DrawSegm->m_Start;
-                TmpSegm->m_End     = DrawSegm->m_End;
-                TmpSegm->m_Shape   = DrawSegm->m_Shape;
-                TmpSegm->m_Width   = DrawSegm->m_Width;
-                TmpSegm->m_Param   = DrawSegm->m_Angle;
-                TmpSegm->SetNet( -1 );
-
-                TraceSegmentPcb( aPcb, TmpSegm, type_cell, marge, WRITE_CELL );
-
- // TraceSegmentPcb(Pcb, TmpSegm, VIA_IMPOSSIBLE, via_marge,WRITE_OR_CELL );
-                delete TmpSegm;
+                tmpSegm.SetLayer( -1 );
+                type_cell |= CELL_is_EDGE;
             }
-            break;
+
+            tmpSegm.m_Start = DrawSegm->m_Start;
+            tmpSegm.m_End   = DrawSegm->m_End;
+            tmpSegm.m_Shape = DrawSegm->m_Shape;
+            tmpSegm.m_Width = DrawSegm->m_Width;
+            tmpSegm.m_Param = DrawSegm->m_Angle;
+            tmpSegm.SetNet( -1 );
+
+            TraceSegmentPcb( aPcb, &tmpSegm, type_cell, marge, WRITE_CELL );
+        }
+        break;
 
         case TYPE_TEXTE:
         {
-            TEXTE_PCB*      PtText;
+            TEXTE_PCB* PtText;
             PtText = (TEXTE_PCB*) item;
 
             if( PtText->GetLength() == 0 )
                 break;
 
-        EDA_Rect textbox = PtText->GetTextBox(-1);
+            EDA_RECT textbox = PtText->GetTextBox( -1 );
             ux0 = textbox.GetX(); uy0 = textbox.GetY();
-            dx = textbox.GetWidth();
-            dy = textbox.GetHeight();
+            dx  = textbox.GetWidth();
+            dy  = textbox.GetHeight();
 
             /* Put bounding box (rectangle) on matrix */
             dx /= 2;
@@ -301,7 +269,7 @@ void PlaceCells( BOARD* aPcb, int net_code, int flag )
                                   (int) (PtText->m_Orient),
                                   masque_layer, VIA_IMPOSSIBLE, WRITE_OR_CELL );
         }
-            break;
+        break;
 
         default:
             break;
@@ -309,7 +277,7 @@ void PlaceCells( BOARD* aPcb, int net_code, int flag )
     }
 
     /* Put tracks and vias on matrix */
-    for( TRACK* track = aPcb->m_Track;  track;  track = track->Next() )
+    for( TRACK* track = aPcb->m_Track; track; track = track->Next() )
     {
         if( net_code == track->GetNet() )
             continue;
@@ -317,37 +285,28 @@ void PlaceCells( BOARD* aPcb, int net_code, int flag )
         TraceSegmentPcb( aPcb, track, HOLE, marge, WRITE_CELL );
         TraceSegmentPcb( aPcb, track, VIA_IMPOSSIBLE, via_marge, WRITE_OR_CELL );
     }
-
-    // Put zone filling on matrix
-    for( SEGZONE* zone = aPcb->m_Zone;  zone;  zone = zone->Next() )
-    {
-        if( net_code == zone->GetNet() )
-            continue;
-
-        TraceSegmentPcb( aPcb, zone, HOLE, marge, WRITE_CELL );
-        TraceSegmentPcb( aPcb, zone, VIA_IMPOSSIBLE, via_marge, WRITE_OR_CELL );
-    }
 }
 
 
 int Build_Work( BOARD* Pcb )
 {
     RATSNEST_ITEM* pt_rats;
-    D_PAD*   pt_pad;
-    int      r1, r2, c1, c2, current_net_code;
+    D_PAD*         pt_pad;
+    int            r1, r2, c1, c2, current_net_code;
     RATSNEST_ITEM* pt_ch;
-    int      demi_pas = g_GridRoutingSize / 2;
-    wxString msg;
+    int            demi_pas = Board.m_GridRouting / 2;
+    wxString       msg;
 
     InitWork(); /* clear work list */
     Ntotal = 0;
     for( unsigned ii = 0; ii < Pcb->GetRatsnestsCount(); ii++ )
     {
         pt_rats = &Pcb->m_FullRatsnest[ii];
+
         /* We consider her only ratsnets that are active ( obviously not yet routed)
          * and routables (that are not yet attempt to be routed and fail
          */
-         if( (pt_rats->m_Status & CH_ACTIF) == 0 )
+        if( (pt_rats->m_Status & CH_ACTIF) == 0 )
             continue;
         if( pt_rats->m_Status & CH_UNROUTABLE )
             continue;
@@ -359,42 +318,42 @@ int Build_Work( BOARD* Pcb )
         pt_ch = pt_rats;
 
         r1 = ( pt_pad->GetPosition().y - Pcb->m_BoundaryBox.m_Pos.y
-               + demi_pas ) / g_GridRoutingSize;
+               + demi_pas ) / Board.m_GridRouting;
         if( r1 < 0 || r1 >= Nrows )
         {
             msg.Printf( wxT( "error : row = %d ( padY %d pcbY %d) " ), r1,
                         pt_pad->GetPosition().y, Pcb->m_BoundaryBox.m_Pos.y );
-            DisplayError( NULL, msg );
+            wxMessageBox( msg );
             return 0;
         }
         c1 = ( pt_pad->GetPosition().x - Pcb->m_BoundaryBox.m_Pos.x
-               + demi_pas ) / g_GridRoutingSize;
+               + demi_pas ) / Board.m_GridRouting;
         if( c1 < 0 || c1 >= Ncols )
         {
             msg.Printf( wxT( "error : col = %d ( padX %d pcbX %d) " ), c1,
                         pt_pad->GetPosition().x, Pcb->m_BoundaryBox.m_Pos.x );
-            DisplayError( NULL, msg );
+            wxMessageBox( msg );
             return 0;
         }
 
         pt_pad = pt_rats->m_PadEnd;
 
         r2 = ( pt_pad->GetPosition().y - Pcb->m_BoundaryBox.m_Pos.y
-               + demi_pas ) / g_GridRoutingSize;
+               + demi_pas ) / Board.m_GridRouting;
         if( r2 < 0 || r2 >= Nrows )
         {
             msg.Printf( wxT( "error : row = %d ( padY %d pcbY %d) " ), r2,
                         pt_pad->GetPosition().y, Pcb->m_BoundaryBox.m_Pos.y );
-            DisplayError( NULL, msg );
+            wxMessageBox( msg );
             return 0;
         }
         c2 = ( pt_pad->GetPosition().x - Pcb->m_BoundaryBox.m_Pos.x
-               + demi_pas ) / g_GridRoutingSize;
+               + demi_pas ) / Board.m_GridRouting;
         if( c2 < 0 || c2 >= Ncols )
         {
             msg.Printf( wxT( "error : col = %d ( padX %d pcbX %d) " ), c2,
                         pt_pad->GetPosition().x, Pcb->m_BoundaryBox.m_Pos.x );
-            DisplayError( NULL, msg );
+            wxMessageBox( msg );
             return 0;
         }
 
@@ -407,132 +366,107 @@ int Build_Work( BOARD* Pcb )
 }
 
 
-BoardCell GetCell( int row, int col, int side )
+/* return the value stored in a cell
+ */
+MATRIX_CELL GetCell( int aRow, int aCol, int aSide )
 {
-    BoardCell* p;
+    MATRIX_CELL* p;
 
-    p = Board.m_BoardSide[side];
-    return p[row * Ncols + col];
+    p = Board.m_BoardSide[aSide];
+    return p[aRow * Ncols + aCol];
 }
 
 
-/************************************************/
-/* void SetCell(int r,int c,int s,BoardCell x ) */
-/************************************************/
-
-/* store board cell */
-void SetCell( int row, int col, int side, BoardCell x )
+/* basic cell operation : WRITE operation
+ */
+void SetCell( int aRow, int aCol, int aSide, MATRIX_CELL x )
 {
-    BoardCell* p;
+    MATRIX_CELL* p;
 
-    p = Board.m_BoardSide[side];
-    p[row * Ncols + col] = x;
+    p = Board.m_BoardSide[aSide];
+    p[aRow * Ncols + aCol] = x;
 }
 
 
-/******************************************/
-/* void OrCell(int r,int c,int s,BoardCell x ) */
-/******************************************/
-
-void OrCell( int r, int c, int s, BoardCell x )
+/* basic cell operation : OR operation
+ */
+void OrCell( int aRow, int aCol, int aSide, MATRIX_CELL x )
 {
-    BoardCell* p;
+    MATRIX_CELL* p;
 
-    p = Board.m_BoardSide[s];
-    p[r * Ncols + c] |= x;
+    p = Board.m_BoardSide[aSide];
+    p[aRow * Ncols + aCol] |= x;
 }
 
 
-/******************************************/
-/* void XorCell(int r,int c,int s,BoardCell x ) */
-/******************************************/
-
-void XorCell( int r, int c, int s, BoardCell x )
+/* basic cell operation : XOR operation
+ */
+void XorCell( int aRow, int aCol, int aSide, MATRIX_CELL x )
 {
-    BoardCell* p;
+    MATRIX_CELL* p;
 
-    p = Board.m_BoardSide[s];
-    p[r * Ncols + c] ^= x;
+    p = Board.m_BoardSide[aSide];
+    p[aRow * Ncols + aCol] ^= x;
 }
 
 
-/************************************************/
-/* void AndCell(int r,int c,int s,BoardCell x ) */
-/************************************************/
-
-void AndCell( int r, int c, int s, BoardCell x )
+/* basic cell operation : AND operation
+ */
+void AndCell( int aRow, int aCol, int aSide, MATRIX_CELL x )
 {
-    BoardCell* p;
+    MATRIX_CELL* p;
 
-    p = Board.m_BoardSide[s];
-    p[r * Ncols + c] &= x;
+    p = Board.m_BoardSide[aSide];
+    p[aRow * Ncols + aCol] &= x;
 }
 
 
-/************************************************/
-/* void AddCell(int r,int c,int s,BoardCell x ) */
-/************************************************/
-
-void AddCell( int r, int c, int s, BoardCell x )
+/* basic cell operation : ADD operation
+ */
+void AddCell( int aRow, int aCol, int aSide, MATRIX_CELL x )
 {
-    BoardCell* p;
+    MATRIX_CELL* p;
 
-    p = Board.m_BoardSide[s];
-    p[r * Ncols + c] += x;
+    p = Board.m_BoardSide[aSide];
+    p[aRow * Ncols + aCol] += x;
 }
 
-
-/****************************************/
-/* DistCell GetDist(int r,int c,int s ) */
-/****************************************/
 
 /* fetch distance cell */
-DistCell GetDist( int r, int c, int s ) /* fetch distance cell */
+DIST_CELL GetDist( int aRow, int aCol, int aSide ) /* fetch distance cell */
 {
-    DistCell* p;
+    DIST_CELL* p;
 
-    p = Board.m_DistSide[s];
-    return p[r * Ncols + c];
+    p = Board.m_DistSide[aSide];
+    return p[aRow * Ncols + aCol];
 }
 
-
-/***********************************************/
-/* void SetDist(int r,int c,int s,DistCell x ) */
-/***********************************************/
 
 /* store distance cell */
-void SetDist( int r, int c, int s, DistCell x )
+void SetDist( int aRow, int aCol, int aSide, DIST_CELL x )
 {
-    DistCell* p;
+    DIST_CELL* p;
 
-    p = Board.m_DistSide[s];
-    p[r * Ncols + c] = x;
+    p = Board.m_DistSide[aSide];
+    p[aRow * Ncols + aCol] = x;
 }
 
-
-/**********************************/
-/* int GetDir(int r,int c,int s ) */
-/**********************************/
 
 /* fetch direction cell */
-int GetDir( int r, int c, int s )
+int GetDir( int aRow, int aCol, int aSide )
 {
-    char* p;
+    DIR_CELL* p;
 
-    p = Board.m_DirSide[s];
-    return (int) (p[r * Ncols + c]);
+    p = Board.m_DirSide[aSide];
+    return (int) (p[aRow * Ncols + aCol]);
 }
 
 
-/*****************************************/
-/* void SetDir(int r,int c,int s,int x ) */
-/*****************************************/
-
 /* store direction cell */
-void SetDir( int r, int c, int s, int x )
+void SetDir( int aRow, int aCol, int aSide, int x )
 {
-    char* p;
+    DIR_CELL* p;
 
-    p = Board.m_DirSide[s];
-    p[r * Ncols + c] = (char) x;
+    p = Board.m_DirSide[aSide];
+    p[aRow * Ncols + aCol] = (char) x;
 }

@@ -2,12 +2,6 @@
 // Name:        3d_read_mesh.cpp
 /////////////////////////////////////////////////////////////////////////////
 
-
-#ifdef __GNUG__
-#pragma implementation
-#pragma interface
-#endif
-
 #include "fctsys.h"
 #include "common.h"
 #include "macros.h"
@@ -103,7 +97,7 @@ int S3D_MASTER:: ReadMaterial( FILE* file, int* LineNum )
 
     command  = strtok( NULL, " \t\n\r" );
     text     = strtok( NULL, " \t\n\r" );
-    mat_name = CONV_FROM_UTF8( text );
+    mat_name = FROM_UTF8( text );
     if( stricmp( command, "USE" ) == 0 )
     {
         for( material = m_Materials; material; material = material->Next() )
@@ -417,7 +411,7 @@ int S3D_MASTER::ReadGeometry( FILE* file, int* LineNum )
             int     coord_number;
             double* buf_points = ReadCoordsList( file, line, &coord_number,
                                                  LineNum );
-            continue;
+            // Do something if needed
             free( buf_points );
             continue;
         }
@@ -445,7 +439,7 @@ int S3D_MASTER::ReadGeometry( FILE* file, int* LineNum )
             int     coord_number;
             double* buf_points = ReadCoordsList( file, line, &coord_number,
                                                  LineNum );
-            continue;
+            // Do something if needed
             free( buf_points );
             continue;
         }
