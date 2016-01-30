@@ -1,92 +1,59 @@
 /********************************************/
-/* Definitions for the EESchema program:	*/
+/* Definitions for the EESchema program:    */
 /********************************************/
 
 #ifndef CLASS_TEXT_LABEL_H
 #define CLASS_TEXT_LABEL_H
 
-#ifndef eda_global
-#define eda_global extern
-#endif
-
 #include "macros.h"
 #include "base_struct.h"
 
-/* Type des labels sur sheet (Labels sur hierarchie) et forme des Global-Labels*/
+/* Type of SCH_HIERLABEL and SCH_GLOBALLABEL
+ * mainly used to handle the graphic associated shape
+ */
 typedef enum {
     NET_INPUT,
     NET_OUTPUT,
     NET_BIDI,
     NET_TRISTATE,
     NET_UNSPECIFIED,
-    NET_TMAX        /* Derniere valeur: fin de tableau */
+    NET_TMAX        /* Last value */
 } TypeSheetLabel;
 
-/* Messages correspondants aux types ou forme des labels */
-#ifdef MAIN
-const char*        SheetLabelType[] =
-{
-    "Input",
-    "Output",
-    "BiDi",
-    "3State",
-    "UnSpc",
-    "?????"
-};
-#else
-extern const char* SheetLabelType[];
-#endif
 
-/* Description du graphisme des icones associes aux types des Global_Labels */
-#ifdef MAIN
-int         TemplateIN_HN[] = { 6, 0, 0, -1, -1, -2, -1, -2, 1, -1, 1, 0, 0 };
-int         TemplateIN_HI[] = { 6, 0, 0, 1, 1, 2, 1, 2, -1, 1, -1, 0, 0 };
-int         TemplateIN_BOTTOM[] = { 6, 0, 0, 1, -1, 1, -2, -1, -2, -1, -1, 0, 0 };
-int         TemplateIN_UP[] = { 6, 0, 0, 1, 1, 1, 2, -1, 2, -1, 1, 0, 0 };
+extern const char* SheetLabelType[];    /* names of types of labels */
 
-int         TemplateOUT_HN[] = { 6, -2, 0, -1, 1, 0, 1, 0, -1, -1, -1, -2, 0 };
-int         TemplateOUT_HI[] = { 6, 2, 0, 1, -1, 0, -1, 0, 1, 1, 1, 2, 0 };
-int         TemplateOUT_BOTTOM[] = { 6, 0, -2, 1, -1, 1, 0, -1, 0, -1, -1, 0, -2 };
-int         TemplateOUT_UP[] = { 6, 0, 2, 1, 1, 1, 0, -1, 0, -1, 1, 0, 2 };
-
-int         TemplateUNSPC_HN[] = { 5, 0, -1, -2, -1, -2, 1, 0, 1, 0, -1 };
-int         TemplateUNSPC_HI[] = { 5, 0, -1, 2, -1, 2, 1, 0, 1, 0, -1 };
-int         TemplateUNSPC_BOTTOM[] = { 5, 1, 0, 1, -2, -1, -2, -1, 0, 1, 0 };
-int         TemplateUNSPC_UP[] = { 5, 1, 0, 1, 2, -1, 2, -1, 0, 1, 0 };
-
-int         TemplateBIDI_HN[] = { 5, 0, 0, -1, -1, -2, 0, -1, 1, 0, 0 };
-int         TemplateBIDI_HI[] = { 5, 0, 0, 1, -1, 2, 0, 1, 1, 0, 0 };
-int         TemplateBIDI_BOTTOM[] = { 5, 0, 0, -1, -1, 0, -2, 1, -1, 0, 0 };
-int         TemplateBIDI_UP[] = { 5, 0, 0, -1, 1, 0, 2, 1, 1, 0, 0 };
-
-int         Template3STATE_HN[] = { 5, 0, 0, -1, -1, -2, 0, -1, 1, 0, 0 };
-int         Template3STATE_HI[] = { 5, 0, 0, 1, -1, 2, 0, 1, 1, 0, 0 };
-int         Template3STATE_BOTTOM[] = { 5, 0, 0, -1, -1, 0, -2, 1, -1, 0, 0 };
-int         Template3STATE_UP[] = { 5, 0, 0, -1, 1, 0, 2, 1, 1, 0, 0 };
-
-int*        TemplateShape[5][4] =
-{
-    { TemplateIN_HN,     TemplateIN_UP,     TemplateIN_HI,     TemplateIN_BOTTOM     },
-    { TemplateOUT_HN,    TemplateOUT_UP,    TemplateOUT_HI,    TemplateOUT_BOTTOM    },
-    { TemplateBIDI_HN,   TemplateBIDI_UP,   TemplateBIDI_HI,   TemplateBIDI_BOTTOM   },
-    { Template3STATE_HN, Template3STATE_UP, Template3STATE_HI, Template3STATE_BOTTOM },
-    { TemplateUNSPC_HN,  TemplateUNSPC_UP,  TemplateUNSPC_HI,  TemplateUNSPC_BOTTOM  }
-};
-#else
-extern int* TemplateShape[5][4];
-#endif
-
-class SCH_TEXT : public SCH_ITEM
-    , public EDA_TextStruct
+class SCH_TEXT : public SCH_ITEM,
+    public EDA_TextStruct
 {
 public:
     int  m_Layer;
     int  m_Shape;
-    bool m_IsDangling;          // TRUE if not connected
+    bool m_IsDangling;          // true if not connected (used to draw the "not
+                                // connected" symbol
+protected:
+    int  m_SchematicOrientation;    /* orientation of texts (comments) and
+                                     * labels in schematic
+                                     *  0 = normal (horizontal, left
+                                     * justified).
+                                     *  1 = up (vertical)
+                                     *  2 =  (horizontal, right justified).
+                                     * This can be seen as the mirrored
+                                     * position of 0
+                                     *  3 = bottom . This can be seen as the
+                                     * mirrored position of up
+                                     *  this is perhaps a duplicate of m_Orient
+                                     * and m_HJustified or m_VJustified,
+                                     *  but is more easy to handle that 3
+                                     * parameters in editions, Reading and
+                                     * Saving file
+                                     */
+
 
 public:
-    SCH_TEXT( const wxPoint& pos = wxPoint( 0, 0 ), const wxString& text = wxEmptyString,
-                    KICAD_T aType = TYPE_SCH_TEXT );
+    SCH_TEXT( const wxPoint& pos = wxPoint( 0, 0 ),
+              const wxString& text = wxEmptyString,
+              KICAD_T aType = TYPE_SCH_TEXT );
     ~SCH_TEXT() { }
 
     virtual wxString GetClass() const
@@ -95,58 +62,154 @@ public:
     }
 
 
+    /** function SetTextOrientAndJustifyParmeters
+     * Set m_SchematicOrientation, and initialize
+     * m_orient,m_HJustified and m_VJustified, according to the value of
+     * m_SchematicOrientation (for a text )
+     * must be called after changing m_SchematicOrientation
+     * @param aSchematicOrientation =
+     *  0 = normal (horizontal, left justified).
+     *  1 = up (vertical)
+     *  2 =  (horizontal, right justified). This can be seen as the mirrored
+     * position of 0
+     *  3 = bottom . This can be seen as the mirrored position of up
+     */
+    virtual void    SetSchematicTextOrientation( int aSchematicOrientation );
+
+    int          GetSchematicTextOrientation() { return m_SchematicOrientation; }
+
+    /** function GetSchematicTextOffset (virtual)
+     * @return the offset between the SCH_TEXT position and the text itself
+     * position
+     * This offset depend on orientation, and the type of text
+     * (room to draw an associated graphic symbol, or put the text above a
+     * wire)
+     */
+    virtual wxPoint GetSchematicTextOffset();
+
     SCH_TEXT*       GenCopy();
-    virtual void    Draw( WinEDA_DrawPanel* panel, wxDC* DC, const wxPoint& offset, int draw_mode,
-                          int Color = -1 );
+    virtual void    Draw( WinEDA_DrawPanel* panel,
+                          wxDC*             DC,
+                          const wxPoint&    offset,
+                          int               draw_mode,
+                          int               Color = -1 );
 
-    void            SwapData( SCH_TEXT* copyitem );
+    void     SwapData( SCH_TEXT* copyitem );
 
-    void            Place( WinEDA_SchematicFrame* frame, wxDC* DC );
+    void     Place( WinEDA_SchematicFrame* frame, wxDC* DC );
 
     /** Function HitTest
      * @return true if the point aPosRef is within item area
      * @param aPosRef = a wxPoint to test
      */
-    bool HitTest( const wxPoint& aPosRef );
+    bool     HitTest( const wxPoint& aPosRef );
 
-    EDA_Rect        GetBoundingBox();
+    /**
+     * Function GetBoundingBox
+     * returns the orthogonal, bounding box of this object for display purposes.
+     * This box should be an enclosing perimeter for visible components of this
+     * object, and the units should be in the pcb or schematic coordinate system.
+     * It is OK to overestimate the size by a few counts.
+     */
+    EDA_Rect GetBoundingBox();
 
     /**
      * Function Save
-     * writes the data structures for this object out to a FILE in "*.brd" format.
+     * writes the data structures for this object out to a FILE in "*.sch"
+     * format.
      * @param aFile The FILE to write to.
      * @return bool - true if success writing else false.
      */
-    bool    Save( FILE* aFile ) const;
+    bool     Save( FILE* aFile ) const;
+
+    /** Function GetPenSize
+     * @return the size of the "pen" that be used to draw or plot this item
+     */
+    int      GetPenSize();
+
+    // Geometric transforms (used in block operations):
+
+    /** virtual function Move
+     * move item to a new position.
+     * @param aMoveVector = the displacement vector
+     */
+    virtual void Move( const wxPoint& aMoveVector )
+    {
+        m_Pos += aMoveVector;
+    }
+
+
+    /** virtual function Mirror_Y
+     * mirror item relative to an Y axis
+     * @param aYaxis_position = the y axis position
+     */
+    virtual void Mirror_Y( int aYaxis_position );
 
 #if defined(DEBUG)
-    void Show( int nestLevel, std::ostream& os );
+    void         Show( int nestLevel, std::ostream& os );
 
 #endif
-
 };
 
 
 class SCH_LABEL : public SCH_TEXT
 {
 public:
-    SCH_LABEL( const wxPoint& pos = wxPoint( 0, 0 ), const wxString& text = wxEmptyString );
+    SCH_LABEL( const wxPoint& pos = wxPoint( 0, 0 ),
+               const wxString& text = wxEmptyString );
     ~SCH_LABEL() { }
-    virtual void    Draw( WinEDA_DrawPanel* panel, wxDC* DC, const wxPoint& offset, int draw_mode,
-                          int Color = -1 );
+    virtual void Draw( WinEDA_DrawPanel* panel,
+                       wxDC*             DC,
+                       const wxPoint&    offset,
+                       int               draw_mode,
+                       int               Color = -1 );
 
     virtual wxString GetClass() const
     {
         return wxT( "SCH_LABEL" );
     }
 
+
+    /** function SetTextOrientAndJustifyParmeters
+     * Set m_SchematicOrientation, and initialize
+     * m_orient,m_HJustified and m_VJustified, according to the value of
+     * m_SchematicOrientation (for a label)
+     * must be called after changing m_SchematicOrientation
+     * @param aSchematicOrientation =
+     *  0 = normal (horizontal, left justified).
+     *  1 = up (vertical)
+     *  2 =  (horizontal, right justified). This can be seen as the mirrored
+     * position of 0
+     *  3 = bottom . This can be seen as the mirrored position of up
+     */
+    virtual void    SetSchematicTextOrientation( int aSchematicOrientation );
+
+    /** function GetSchematicTextOffset (virtual)
+     * @return the offset between the SCH_TEXT position and the text itself
+     * position
+     * This offset depend on orientation, and the type of text
+     * (room to draw an associated graphic symbol, or put the text above a
+     * wire)
+     */
+    virtual wxPoint GetSchematicTextOffset();
+
+    /**
+     * Function GetBoundingBox
+     * returns the orthogonal, bounding box of this object for display purposes.
+     * This box should be an enclosing perimeter for visible components of this
+     * object, and the units should be in the pcb or schematic coordinate system.
+     * It is OK to overestimate the size by a few counts.
+     */
+    EDA_Rect GetBoundingBox();
+
     /**
      * Function Save
-     * writes the data structures for this object out to a FILE in "*.brd" format.
+     * writes the data structures for this object out to a FILE in "*.sch"
+     * format.
      * @param aFile The FILE to write to.
      * @return bool - true if success writing else false.
      */
-    bool    Save( FILE* aFile ) const;
+    bool            Save( FILE* aFile ) const;
 };
 
 
@@ -154,10 +217,13 @@ class SCH_GLOBALLABEL : public SCH_TEXT
 {
 public:
     SCH_GLOBALLABEL( const wxPoint& pos = wxPoint( 0, 0 ),
-                           const wxString& text = wxEmptyString );
+                     const wxString& text = wxEmptyString );
     ~SCH_GLOBALLABEL() { }
-    virtual void    Draw( WinEDA_DrawPanel* panel, wxDC* DC, const wxPoint& offset, int draw_mode,
-                          int Color = -1 );
+    virtual void Draw( WinEDA_DrawPanel* panel,
+                       wxDC*             DC,
+                       const wxPoint&    offset,
+                       int               draw_mode,
+                       int               Color = -1 );
 
     virtual wxString GetClass() const
     {
@@ -165,42 +231,80 @@ public:
     }
 
 
-    /** function CreateGraphicShape
-      * Calculates the graphic shape (a polygon) associated to the text
-      * @param corner_list = coordinates list fill with polygon corners ooordinates (size > 20)
-      * @param Pos = Postion of the shape
-      * format list is
-      * <corner_count>, x0, y0, ... xn, yn
+    /** function SetTextOrientAndJustifyParmeters
+     * Set m_SchematicOrientation, and initialize
+     * m_orient,m_HJustified and m_VJustified, according to the value of
+     * m_SchematicOrientation
+     * must be called after changing m_SchematicOrientation
+     * @param aSchematicOrientation =
+     *  0 = normal (horizontal, left justified).
+     *  1 = up (vertical)
+     *  2 = (horizontal, right justified). This can be seen as the mirrored
+     *      position of 0
+     *  3 = bottom . This can be seen as the mirrored position of up
      */
-    void CreateGraphicShape( int* corner_list, const wxPoint & Pos );
+    virtual void    SetSchematicTextOrientation( int aSchematicOrientation );
+
+    /** function GetSchematicTextOffset (virtual)
+     * @return the offset between the SCH_TEXT position and the text itself
+     * position
+     * This offset depend on orientation, and the type of text
+     * (room to draw an associated graphic symbol, or put the text above a
+     * wire)
+     */
+    virtual wxPoint GetSchematicTextOffset();
 
     /**
      * Function Save
-     * writes the data structures for this object out to a FILE in "*.brd" format.
+     * writes the data structures for this object out to a FILE in "*.sch"
+     * format.
      * @param aFile The FILE to write to.
      * @return bool - true if success writing else false.
      */
-    bool    Save( FILE* aFile ) const;
+    bool            Save( FILE* aFile ) const;
 
     /** Function HitTest
      * @return true if the point aPosRef is within item area
      * @param aPosRef = a wxPoint to test
      */
-    bool HitTest( const wxPoint& aPosRef );
+    bool            HitTest( const wxPoint& aPosRef );
 
+    /**
+     * Function GetBoundingBox
+     * returns the orthogonal, bounding box of this object for display purposes.
+     * This box should be an enclosing perimeter for visible components of this
+     * object, and the units should be in the pcb or schematic coordinate system.
+     * It is OK to overestimate the size by a few counts.
+     */
     EDA_Rect        GetBoundingBox();
-};
 
+    /** function CreateGraphicShape
+     * Calculates the graphic shape (a polygon) associated to the text
+     * @param aCorner_list = a buffer to fill with polygon corners coordinates
+     * @param Pos = Position of the shape
+     */
+    void            CreateGraphicShape( std::vector <wxPoint>& aCorner_list,
+                                        const wxPoint&         Pos );
+
+    /** virtual function Mirror_Y
+     * mirror item relative to an Y axis
+     * @param aYaxis_position = the y axis position
+     */
+    virtual void    Mirror_Y( int aYaxis_position );
+};
 
 
 class SCH_HIERLABEL : public SCH_TEXT
 {
 public:
     SCH_HIERLABEL( const wxPoint& pos = wxPoint( 0, 0 ),
-                         const wxString& text = wxEmptyString );
+                   const wxString& text = wxEmptyString );
     ~SCH_HIERLABEL() { }
-    virtual void    Draw( WinEDA_DrawPanel* panel, wxDC* DC, const wxPoint& offset, int draw_mode,
-                          int Color = -1 );
+    virtual void Draw( WinEDA_DrawPanel* panel,
+                       wxDC*             DC,
+                       const wxPoint&    offset,
+                       int               draw_mode,
+                       int               Color = -1 );
 
     virtual wxString GetClass() const
     {
@@ -208,30 +312,66 @@ public:
     }
 
 
+    /** function SetTextOrientAndJustifyParmeters
+     * Set m_SchematicOrientation, and initialize
+     * m_orient,m_HJustified and m_VJustified, according to the value of
+     * m_SchematicOrientation
+     * must be called after changing m_SchematicOrientation
+     * @param aSchematicOrientation =
+     *  0 = normal (horizontal, left justified).
+     *  1 = up (vertical)
+     *  2 =  (horizontal, right justified). This can be seen as the mirrored
+     * position of 0
+     *  3 = bottom . This can be seen as the mirrored position of up
+     */
+    virtual void    SetSchematicTextOrientation( int aSchematicOrientation );
+
+    /** function GetSchematicTextOffset (virtual)
+     * @return the offset between the SCH_TEXT position and the text itself
+     * position
+     * This offset depend on orientation, and the type of text
+     * (room to draw an associated graphic symbol, or put the text above a
+     * wire)
+     */
+    virtual wxPoint GetSchematicTextOffset();
+
     /** function CreateGraphicShape
-      * Calculates the graphic shape (a polygon) associated to the text
-      * @param corner_list = coordinates list fill with polygon corners ooordinates (size >= 14)
-      * @param Pos = Postion of the shape
-      * format list is
-      * <corner_count>, x0, y0, ... xn, yn
-      */
-    void CreateGraphicShape( int* corner_list, const wxPoint & Pos );
+     * Calculates the graphic shape (a polygon) associated to the text
+     * @param aCorner_list = a buffer to fill with polygon corners coordinates
+     * @param Pos = Postion of the shape
+     */
+    void            CreateGraphicShape( std::vector <wxPoint>& aCorner_list,
+                                        const wxPoint&         Pos );
 
     /**
      * Function Save
-     * writes the data structures for this object out to a FILE in "*.brd" format.
+     * writes the data structures for this object out to a FILE in "*.sch"
+     * format.
      * @param aFile The FILE to write to.
      * @return bool - true if success writing else false.
      */
-    bool    Save( FILE* aFile ) const;
+    bool            Save( FILE* aFile ) const;
 
     /** Function HitTest
      * @return true if the point aPosRef is within item area
      * @param aPosRef = a wxPoint to test
      */
-    bool HitTest( const wxPoint& aPosRef );
+    bool            HitTest( const wxPoint& aPosRef );
 
+    /**
+     * Function GetBoundingBox
+     * returns the orthogonal, bounding box of this object for display purposes.
+     * This box should be an enclosing perimeter for visible components of this
+     * object, and the units should be in the pcb or schematic coordinate system.
+     * It is OK to overestimate the size by a few counts.
+     */
     EDA_Rect        GetBoundingBox();
+
+    /** virtual function Mirror_Y
+     * mirror item relative to an Y axis
+     * @param aYaxis_position = the y axis position
+     */
+    virtual void    Mirror_Y( int aYaxis_position );
 };
 
 #endif /* CLASS_TEXT_LABEL_H */

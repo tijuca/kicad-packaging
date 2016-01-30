@@ -1,14 +1,14 @@
 /////////////////////////////////////////////////////////////////////////////
 
 // Name:        class_hierarchical_PIN_sheet.cpp
-// Purpose:		member functions Hierarchical_PIN_Sheet_Struct
-//				header = class_drawsheet.h
+// Purpose:     member functions SCH_SHEET_PIN
+//              header = class_drawsheet.h
 // Author:      jean-pierre Charras
 // Modified by:
 // Created:     08/02/2006 18:37:02
 // RCS-ID:
 // Copyright:   License GNU
-// Licence:
+// License:
 /////////////////////////////////////////////////////////////////////////////
 
 #include "fctsys.h"
@@ -18,19 +18,18 @@
 #include "drawtxt.h"
 
 #include "program.h"
-#include "libcmp.h"
 #include "general.h"
 #include "protos.h"
 
 
 /*******************************************************************/
-Hierarchical_PIN_Sheet_Struct::Hierarchical_PIN_Sheet_Struct( DrawSheetStruct* parent,
-                                                              const wxPoint&   pos,
-                                                              const wxString&  text ) :
+SCH_SHEET_PIN::SCH_SHEET_PIN( SCH_SHEET* parent,
+                              const wxPoint& pos,
+                              const wxString& text ) :
     SCH_ITEM( parent, DRAW_HIERARCHICAL_PIN_SHEET_STRUCT_TYPE ),
     EDA_TextStruct( text )
-/*******************************************************************/
 {
+/*******************************************************************/
     wxASSERT( parent );
     wxASSERT( Pnext == NULL );
     m_Layer = LAYER_SHEETLABEL;
@@ -43,11 +42,11 @@ Hierarchical_PIN_Sheet_Struct::Hierarchical_PIN_Sheet_Struct( DrawSheetStruct* p
 
 
 /***********************************************************/
-Hierarchical_PIN_Sheet_Struct* Hierarchical_PIN_Sheet_Struct::GenCopy()
-/***********************************************************/
+SCH_SHEET_PIN* SCH_SHEET_PIN::GenCopy()
 {
-    Hierarchical_PIN_Sheet_Struct* newitem =
-        new Hierarchical_PIN_Sheet_Struct( (DrawSheetStruct*) m_Parent, m_Pos, m_Text );
+/***********************************************************/
+    SCH_SHEET_PIN* newitem =
+        new SCH_SHEET_PIN( (SCH_SHEET*) m_Parent, m_Pos, m_Text );
 
     newitem->m_Edge   = m_Edge;
     newitem->m_Shape  = m_Shape;
@@ -57,22 +56,31 @@ Hierarchical_PIN_Sheet_Struct* Hierarchical_PIN_Sheet_Struct::GenCopy()
 }
 
 
-/********************************************************************************************/
-void Hierarchical_PIN_Sheet_Struct::Draw( WinEDA_DrawPanel* panel, wxDC* DC, const wxPoint& offset,
-                                          int DrawMode, int Color )
-/********************************************************************************************/
-/* Routine de dessin des Labels type hierarchie */
+/** Function GetPenSize
+ * @return the size of the "pen" that be used to draw or plot this item
+ */
+int SCH_SHEET_PIN::GetPenSize()
 {
-    GRTextHorizJustifyType side;
-    EDA_Colors             txtcolor;
-    int    posx, tposx, posy, size2;
-    wxSize size;
-    int    NbSegm;
+    return g_DrawDefaultLineThickness;
+}
 
-    // @todo use wxPoints here
-    int    coord[20];
 
-    int    LineWidth = g_DrawMinimunLineWidth;
+/*****************************************************************************/
+void SCH_SHEET_PIN::Draw( WinEDA_DrawPanel* panel,
+                          wxDC*             DC,
+                          const wxPoint&    offset,
+                          int               DrawMode,
+                          int               Color )
+{
+/*****************************************************************************/
+/* Routine to create hierarchical labels */
+    GRTextHorizJustifyType       side;
+    EDA_Colors                   txtcolor;
+    int posx, tposx, posy;
+
+    static std::vector <wxPoint> Poly;
+
+    int LineWidth = GetPenSize();
 
     if( Color >= 0 )
         txtcolor = (EDA_Colors) Color;
@@ -82,7 +90,7 @@ void Hierarchical_PIN_Sheet_Struct::Draw( WinEDA_DrawPanel* panel, wxDC* DC, con
 
     posx = m_Pos.x + offset.x;
     posy = m_Pos.y + offset.y;
-    size = m_Size;
+    wxSize size = m_Size;
 
     if( !m_Text.IsEmpty() )
     {
@@ -97,66 +105,73 @@ void Hierarchical_PIN_Sheet_Struct::Draw( WinEDA_DrawPanel* panel, wxDC* DC, con
             side  = GR_TEXT_HJUSTIFY_LEFT;
         }
         DrawGraphicText( panel, DC, wxPoint( tposx, posy ), txtcolor,
-                         m_Text, TEXT_ORIENT_HORIZ, size,
-                         side, GR_TEXT_VJUSTIFY_CENTER, LineWidth );
+                         m_Text, TEXT_ORIENT_HORIZ, size, side,
+                         GR_TEXT_VJUSTIFY_CENTER, LineWidth, false, false );
     }
-    /* dessin du symbole de connexion */
 
+    /* Draw the graphic symbol */
+    CreateGraphicShape( Poly, m_Pos + offset );
+    int FillShape = false;
+    GRPoly( &panel->m_ClipBox, DC, Poly.size(), &Poly[0],
+            FillShape, LineWidth, txtcolor, txtcolor );
+}
+
+
+/** function CreateGraphicShape
+ * Calculates the graphic shape (a polygon) associated to the text
+ * @param aCorner_list = list to fill with polygon corners coordinates
+ * @param Pos = Position of the shape
+ */
+void SCH_SHEET_PIN::CreateGraphicShape( std::vector <wxPoint>& aCorner_list,
+                                        const wxPoint& Pos )
+{
+    wxSize size = m_Size;
+
+    aCorner_list.clear();
     if( m_Edge )
     {
         size.x = -size.x;
         size.y = -size.y;
     }
 
-    coord[0] = posx;
-    coord[1] = posy;
+    int size2 = size.x / 2;
 
-    size2  = size.x / 2;
-    NbSegm = 0;
-
+    aCorner_list.push_back( Pos );
     switch( m_Shape )
     {
     case 0:         /* input |> */
-        coord[2]  = posx; coord[3] = posy - size2;
-        coord[4]  = posx + size2; coord[5] = posy - size2;
-        coord[6]  = posx + size.x; coord[7] = posy;
-        coord[8]  = posx + size2; coord[9] = posy + size2;
-        coord[10] = posx; coord[11] = posy + size2;
-        coord[12] = coord[0]; coord[13] = coord[1];
-        NbSegm    = 7;
+        aCorner_list.push_back( wxPoint( Pos.x, Pos.y - size2 ) );
+        aCorner_list.push_back( wxPoint( Pos.x + size2, Pos.y - size2 ) );
+        aCorner_list.push_back( wxPoint( Pos.x + size.x, Pos.y ) );
+        aCorner_list.push_back( wxPoint( Pos.x + size2, Pos.y + size2 ) );
+        aCorner_list.push_back( wxPoint( Pos.x, Pos.y + size2 ) );
+        aCorner_list.push_back( Pos );
         break;
 
     case 1:         /* output <| */
-        coord[2]  = posx + size2; coord[3] = posy - size2;
-        coord[4]  = posx + size.x; coord[5] = posy - size2;
-        coord[6]  = posx + size.x; coord[7] = posy + size2;
-        coord[8]  = posx + size2; coord[9] = posy + size2;
-        coord[10] = coord[0]; coord[11] = coord[1];
-        NbSegm    = 6;
+        aCorner_list.push_back( wxPoint( Pos.x + size2, Pos.y - size2 ) );
+        aCorner_list.push_back( wxPoint( Pos.x + size.x, Pos.y - size2 ) );
+        aCorner_list.push_back( wxPoint( Pos.x + size.x, Pos.y + size2 ) );
+        aCorner_list.push_back( wxPoint( Pos.x + size2, Pos.y + size2 ) );
+        aCorner_list.push_back( Pos );
         break;
 
     case 2:         /* bidi <> */
     case 3:         /* TriSt <> */
-        coord[2] = posx + size2; coord[3] = posy - size2;
-        coord[4] = posx + size.x; coord[5] = posy;
-        coord[6] = posx + size2; coord[7] = posy + size2;
-        coord[8] = coord[0];  coord[9] = coord[1];
-        NbSegm   = 5;
+        aCorner_list.push_back( wxPoint( Pos.x + size2, Pos.y - size2 ) );
+        aCorner_list.push_back( wxPoint( Pos.x + size.x, Pos.y ) );
+        aCorner_list.push_back( wxPoint( Pos.x + size2, Pos.y + size2 ) );
+        aCorner_list.push_back( Pos );
         break;
 
     default:         /* unsp []*/
-        coord[2]  = posx; coord[3] = posy - size2;
-        coord[4]  = posx + size.x; coord[5] = posy - size2;
-        coord[6]  = posx + size.x; coord[7] = posy + size2;
-        coord[8]  = posx; coord[9] = posy + size2;
-        coord[10] = coord[0]; coord[11] = coord[1];
-        NbSegm    = 6;
+        aCorner_list.push_back( wxPoint( Pos.x, Pos.y - size2 ) );
+        aCorner_list.push_back( wxPoint( Pos.x + size.x, Pos.y - size2 ) );
+        aCorner_list.push_back( wxPoint( Pos.x + size.x, Pos.y + size2 ) );
+        aCorner_list.push_back( wxPoint( Pos.x, Pos.y + size2 ) );
+        aCorner_list.push_back( Pos );
         break;
     }
-
-    int FillShape = FALSE;
-    GRPoly( &panel->m_ClipBox, DC, NbSegm, (wxPoint*) coord,
-            FillShape, LineWidth, txtcolor, txtcolor );     /* Poly Non rempli */
 }
 
 
@@ -166,7 +181,7 @@ void Hierarchical_PIN_Sheet_Struct::Draw( WinEDA_DrawPanel* panel, wxDC* DC, con
  * @param aFile The FILE to write to.
  * @return bool - true if success writing else false.
  */
-bool Hierarchical_PIN_Sheet_Struct::Save( FILE* aFile ) const
+bool SCH_SHEET_PIN::Save( FILE* aFile ) const
 {
     int type = 'U', side = 'L';
 
@@ -194,8 +209,7 @@ bool Hierarchical_PIN_Sheet_Struct::Save( FILE* aFile ) const
     }
 
     if( fprintf( aFile, "F%d \"%s\" %c %c %-3d %-3d %-3d\n", m_Number,
-                 CONV_TO_UTF8( m_Text ), type, side,
-                 m_Pos.x, m_Pos.y,
+                 CONV_TO_UTF8( m_Text ), type, side, m_Pos.x, m_Pos.y,
                  m_Size.x ) == EOF )
     {
         return false;
@@ -206,15 +220,14 @@ bool Hierarchical_PIN_Sheet_Struct::Save( FILE* aFile ) const
 
 
 #if defined(DEBUG)
-void Hierarchical_PIN_Sheet_Struct::Show( int nestLevel, std::ostream& os )
+void SCH_SHEET_PIN::Show( int nestLevel, std::ostream& os )
 {
     // XML output:
     wxString s = GetClass();
 
     NestedSpace( nestLevel, os ) << '<' << s.Lower().mb_str() << ">"
-                                 << " pin_name=\"" << CONV_TO_UTF8( m_Text ) << '"'
-                                 << "/>\n"
-                                 << std::flush;
+                                 << " pin_name=\"" << CONV_TO_UTF8( m_Text )
+                                 << '"' << "/>\n" << std::flush;
 
 //    NestedSpace( nestLevel, os ) << "</" << s.Lower().mb_str() << ">\n";
 }

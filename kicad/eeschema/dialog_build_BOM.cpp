@@ -9,10 +9,9 @@
 
 #include "fctsys.h"
 #include "appl_wxstruct.h"
-
 #include "common.h"
+
 #include "program.h"
-#include "libcmp.h"
 #include "general.h"
 #include "netlist.h"
 
@@ -81,7 +80,7 @@ DIALOG_BUILD_BOM::DIALOG_BUILD_BOM( WinEDA_DrawFrame* parent ):
     wxASSERT( m_Config != NULL );
 
     m_Parent = parent;
-    
+
     Init( );
 
     if (GetSizer())
@@ -98,8 +97,6 @@ DIALOG_BUILD_BOM::DIALOG_BUILD_BOM( WinEDA_DrawFrame* parent ):
 
 void DIALOG_BUILD_BOM::Init()
 {
-    SetFont( *g_DialogFont );
-    
     SetFocus();
 
     /* Get options */
@@ -152,19 +149,17 @@ void DIALOG_BUILD_BOM::Init()
 
 void DIALOG_BUILD_BOM::OnRadioboxSelectFormatSelected( wxCommandEvent& event )
 {
-    if( m_OutputFormCtrl->GetSelection() == 1 )
-    {
-        m_OutputSeparatorCtrl->Enable( true );
-        m_ListCmpbyValItems->Enable( false );
-        m_GenListLabelsbyVal->Enable( false );
-        m_GenListLabelsbySheet->Enable( false );
-    }
-    else
+    if( m_OutputFormCtrl->GetSelection() == 0 )
     {
         m_OutputSeparatorCtrl->Enable( false );
         m_ListCmpbyValItems->Enable( true );
         m_GenListLabelsbyVal->Enable( true );
         m_GenListLabelsbySheet->Enable( true );
+    } else {
+        m_OutputSeparatorCtrl->Enable( true );
+        m_ListCmpbyValItems->Enable( false );
+        m_GenListLabelsbyVal->Enable( false );
+        m_GenListLabelsbySheet->Enable( false );
     }
 }
 
@@ -179,7 +174,7 @@ void DIALOG_BUILD_BOM::OnOkClick( wxCommandEvent& event )
     if( m_OutputSeparatorCtrl->GetSelection() > 0 )
         ExportSeparatorSymbol = s_ExportSeparator[m_OutputSeparatorCtrl->GetSelection()];
 
-    bool ExportFileType = m_OutputFormCtrl->GetSelection() == 0 ? false : true;
+    int ExportFileType = m_OutputFormCtrl->GetSelection(); 
 
     SavePreferences();
 
@@ -203,6 +198,8 @@ void DIALOG_BUILD_BOM::OnCancelClick( wxCommandEvent& event )
 void DIALOG_BUILD_BOM::SavePreferences()
 /**************************************************/
 {
+    wxASSERT( m_Config != NULL );
+
     // Determine current settings of "List items" and "Options" checkboxes
     // (NOTE: These 6 settings are restored when the dialog box is next
     // invoked, but are *not* still saved after EESchema is next shut down.)

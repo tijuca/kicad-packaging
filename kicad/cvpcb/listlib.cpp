@@ -1,106 +1,110 @@
-/**************/
+/***************/
 /* listlib.cpp */
-/**************/
+/**(************/
+
 
 /*
- *  cherche toutes les ref <chemin lib>*.??? si nom fichier pr‚sent,
- *  ou examine <chemin lib>[MODULE.LIB]
+ * Functions to read footprint libraries and create the list of availlable footprints
+ * and their documentation (comments and keywords)
  */
-
 #include "fctsys.h"
 #include "wxstruct.h"
 #include "common.h"
 #include "confirm.h"
 #include "kicad_string.h"
 #include "gestfich.h"
+#include "macros.h"
+#include "appl_wxstruct.h"
 
 #include "cvpcb.h"
 #include "protos.h"
 
-FILE* name_libmodules;   /* pour lecture librairie */
+#include "dialog_load_error.h"
 
-/* routines locales : */
-static void      ReadDocLib( const wxString& ModLibName );
-static int       LibCompare( void* mod1, void* mod2 );
-static STOREMOD* TriListeModules( STOREMOD* BaseListe, int nbitems );
+/* MDC and MOD file strings */
+static wxString s_files_not_found;
+static wxString s_files_invalid;
 
-/**/
 
-/*********************/
-int listlib()
-/*********************/
+static void ReadDocLib( const wxString& ModLibName, FOOTPRINT_LIST& list );
 
-/* Routine lisant la liste des librairies, et generant la liste chainee
- *  des modules disponibles
+
+/**
+ * Read the list of libraries and generate a list modules.
  *
- *  Module descr format:
- *  $MODULE c64acmd
- *  Li c64acmd
- *  Cd Connecteur DIN Europe 96 Contacts AC male droit
- *  Kw PAD_CONN DIN
- *  $EndMODULE
+ * Module description format:
+ *   $MODULE c64acmd
+ *     Li c64acmd DIN connector
+ *     Cd Europe 96 Contact AC male right
+ *     Kw PAD_CONN DIN
+ *   $Endmodule
  *
  */
+bool LoadFootprintFiles( const wxArrayString& libNames,
+                         FOOTPRINT_LIST& list )
 {
-    char      buffer[1024];
-    wxString  FullLibName;
-    int       errorlevel = 0, end;
-    int       flag_librairie;
-    STOREMOD* ItemLib;
-    unsigned  ii;
-    wxString  msg;
+    FILE*       file;
+    char        buffer[1024];
+    wxFileName  filename;
+    int         end;
+    FOOTPRINT*  ItemLib;
+    unsigned    i;
+    wxString    tmp, msg;
+    char*       result;
 
-    if( g_BaseListePkg )    /* Liste Deja existante, a supprimer */
+    /* Check if footprint list is not empty */
+    if( !list.empty() )
+        list.clear();
+
+    /* Check if there are footprint libraries in project file */
+    if( libNames.GetCount() == 0 )
     {
-        FreeMemoryModules();
-        g_BaseListePkg = NULL;
+        wxMessageBox( _( "No PCB foot print libraries are listed in the current project file." ),
+                      _( "Project File Error" ), wxOK | wxICON_ERROR );
+        return false;
     }
 
-    if( g_LibName_List.GetCount() == 0 )
-        return -4;
-
-    /* init recherche */
-    SetRealLibraryPath( wxT( "modules" ) );
-    nblib = 0;
-
-    /* Lecture des Librairies */
-    for( ii = 0; ii < g_LibName_List.GetCount(); ii++ )
+    /* Parse Libraries Listed */
+    for( i = 0; i < libNames.GetCount(); i++ )
     {
-        /* Calcul du nom complet de la librairie */
-        FullLibName = MakeFileName( g_RealLibDirBuffer,
-                                    g_LibName_List[ii],
-                                    LibExtBuffer );
-        /* acces a une librairie */
-        if( ( name_libmodules = wxFopen( FullLibName, wxT( "rt" ) ) )  == NULL )
+        filename = libNames[i];
+        filename.SetExt( ModuleFileExtension );
+
+        tmp = wxGetApp().FindLibraryPath( filename );
+
+        if( !tmp )
         {
-            msg.Printf( _( "Library file <%s> not found" ),
-                        FullLibName.GetData() );
-            DisplayError( NULL, msg, 20 );
+            s_files_not_found << filename.GetFullName() << wxT("\n");
             continue;
         }
 
-        /* Controle du type de la librairie : */
-        flag_librairie = 0;
-        fgets( buffer, 32, name_libmodules );
+        /* Open library file */
+        file = wxFopen( tmp, wxT( "rt" ) );
+
+        if( file == NULL )
+        {
+            s_files_invalid << tmp <<  _(" (file cannot be opened)") << wxT("\n");
+            continue;
+        }
+
+        /* Check if library type is valid */
+        result = fgets( buffer, 32, file );
         if( strncmp( buffer, ENTETE_LIBRAIRIE, L_ENTETE_LIB ) != 0 )
         {
-            msg.Printf( _( "Library file <%s> is not a module library" ),
-                        FullLibName.GetData() );
-            DisplayError( NULL, msg, 20 );
-            fclose( name_libmodules );
+            s_files_invalid << tmp << _(" (Not a Kicad file)") << wxT("\n");
+            fclose( file );
             continue;
         }
 
-        /* Lecture du nombre de composants */
-        fseek( name_libmodules, 0, 0 );
+        /* TODO: Read the number of components. */
+        fseek( file, 0, 0 );
 
-        /* lecture nom des composants : */
         end = 0;
-        while( !end && fgets( buffer, 255, name_libmodules ) != NULL )
+        while( !end && fgets( buffer, 255, file ) != NULL )
         {
             if( strnicmp( buffer, "$INDEX", 6 ) == 0 )
             {
-                while( fgets( buffer, 255, name_libmodules ) != NULL )
+                while( fgets( buffer, 255, file ) != NULL )
                 {
                     if( strnicmp( buffer, "$EndINDEX", 6 ) == 0 )
                     {
@@ -108,170 +112,129 @@ int listlib()
                         break;
                     }
 
-                    ItemLib = new STOREMOD();
-                    ItemLib->Pnext     = g_BaseListePkg;
-                    g_BaseListePkg     = ItemLib;
-                    ItemLib->m_Module  = CONV_FROM_UTF8( StrPurge( buffer ) );
-                    ItemLib->m_LibName = FullLibName;
-
-                    nblib++;
+                    ItemLib = new FOOTPRINT();
+                    ItemLib->m_Module = CONV_FROM_UTF8( StrPurge( buffer ) );
+                    ItemLib->m_LibName = tmp;
+                    list.push_back( ItemLib );
                 }
 
                 if( !end )
-                    errorlevel = -3;
+                {
+                    s_files_invalid << tmp << _(" (Unexpected end of file)") << wxT("\n");
+                }
             }
         }
 
-        fclose( name_libmodules );
-        ReadDocLib( FullLibName );
+        fclose( file );
+        ReadDocLib( tmp, list );
     }
 
-    /* classement alphabetique: */
-    if( g_BaseListePkg )
-        g_BaseListePkg = TriListeModules( g_BaseListePkg, nblib );
-
-    return errorlevel;
-}
-
-
-/************************************************/
-static int LibCompare( void* mod1, void* mod2 )
-/************************************************/
-
-/*
- *  routine compare() pour qsort() en classement alphabétique des modules
- */
-{
-    int       ii;
-    STOREMOD* pt1, * pt2;
-
-    pt1 = *( (STOREMOD**) mod1 );
-    pt2 = *( (STOREMOD**) mod2 );
-
-    ii = StrNumICmp( pt1->m_Module.GetData(), pt2->m_Module.GetData() );
-    return ii;
-}
-
-
-/********************************************************************/
-static STOREMOD* TriListeModules( STOREMOD* BaseListe, int nbitems )
-/********************************************************************/
-
-/* Tri la liste des Modules par ordre alphabetique et met a jour
- *  le nouveau chainage avant/arriere
- *   retourne un pointeur sur le 1er element de la liste
- */
-{
-    STOREMOD** bufferptr, * Item;
-    int        ii, nb;
-
-    if( nbitems <= 0 )
-        return NULL;
-    if( BaseListe == NULL )
-        return NULL;
-
-    if( nbitems == 1 )
-        return BaseListe;                   // Tri inutile et impossible
-
-    bufferptr = (STOREMOD**) MyZMalloc( (nbitems + 3) * sizeof(STOREMOD*) );
-
-    for( ii = 1, nb = 0, Item = BaseListe;
-         Item != NULL;
-         Item = Item->Pnext, ii++ )
+    /* Display if there are mdc files not found */
+    if( !s_files_not_found.IsEmpty() || !s_files_invalid.IsEmpty() )
     {
-        nb++;
-        bufferptr[ii] = Item;
+        DIALOG_LOAD_ERROR dialog(NULL);
+        if( !s_files_not_found.IsEmpty() )
+        {
+            wxString message = _("Some files could not be found!");
+            dialog.MessageSet(message);
+            dialog.ListSet(s_files_not_found);
+            s_files_not_found.Empty();
+        }
+
+        /* Display if there are mdc files invalid */
+        if( !s_files_invalid.IsEmpty() )
+        {
+            dialog.MessageSet( _("Some files are invalid!"));
+            dialog.ListSet(s_files_invalid);
+            s_files_invalid.Empty();
+        }
+        dialog.ShowModal();
     }
 
-    /* ici bufferptr[0] = NULL et bufferptr[nbitem+1] = NULL et ces 2 valeurs
-     *  representent le chainage arriere du 1er element ( = NULL),
-     *  et le chainage avant du dernier element ( = NULL ) */
+    list.sort();
 
-    qsort( bufferptr + 1, nb, sizeof(STOREMOD*),
-           ( int( * ) ( const void*, const void* ) )LibCompare );
-
-    /* Mise a jour du chainage */
-    for( ii = 1; ii <= nb; ii++ )
-    {
-        Item = bufferptr[ii];
-        Item->m_Num = ii;
-        Item->Pnext = bufferptr[ii + 1];
-        Item->Pback = bufferptr[ii - 1];
-    }
-
-    Item = bufferptr[1];
-    MyFree( bufferptr );
-
-    return Item;
+    return true;
 }
 
 
-/***************************************************/
-static void ReadDocLib( const wxString& ModLibName )
-/***************************************************/
-
-/* Routine de lecture du fichier Doc associe a la librairie ModLibName.
- *   Cree en memoire la chaine liste des docs pointee par MList
- *   ModLibName = full file Name de la librairie Modules
+/**
+ * Read the file Doc combines a library ModLibName.
+ * Create the list of doc strings pointed to by list
+ * ModLibName = full file name of the library modules
  */
+static void ReadDocLib( const wxString& ModLibName, FOOTPRINT_LIST& list )
 {
-    STOREMOD* NewMod;
-    char      Line[1024];
-    wxString  ModuleName;
-    wxString  docfilename;
-    FILE*     LibDoc;
+    FOOTPRINT* NewMod;
+    char       Line[1024];
+    wxString   ModuleName;
+    FILE*      mdc_file;
+    wxFileName mdc_filename = ModLibName;
 
-    docfilename = ModLibName;
-    ChangeFileNameExt( docfilename, EXT_DOC );
+    /* Set mdc filename extension */
+    mdc_filename.SetExt( wxT( "mdc" ) );
 
-    if( ( LibDoc = wxFopen( docfilename, wxT( "rt" ) ) ) == NULL )
+    /* Check if mdc file exists and can be opened */
+    if( ( mdc_file = wxFopen( mdc_filename.GetFullPath(), wxT( "rt" ) ) ) == NULL )
+    {
+        s_files_not_found += mdc_filename.GetFullPath() + wxT("\n");
         return;
+    }
 
-    GetLine( LibDoc, Line, NULL, sizeof(Line) - 1 );
+    /* Check if mdc file is valid */
+    GetLine( mdc_file, Line, NULL, sizeof(Line) - 1 );
     if( strnicmp( Line, ENTETE_LIBDOC, L_ENTETE_LIB ) != 0 )
+    {
+        s_files_invalid += mdc_filename.GetFullPath() + wxT("\n");
         return;
+    }
 
-    /* Lecture de la librairie */
-    while( GetLine( LibDoc, Line, NULL, sizeof(Line) - 1 ) )
+    /* Read the mdc file */
+    while( GetLine( mdc_file, Line, NULL, sizeof(Line) - 1 ) )
     {
         NewMod = NULL;
         if( Line[0] != '$' )
             continue;
         if( Line[1] == 'E' )
-            break;;
-        if( Line[1] == 'M' )    /* Debut decription 1 module */
+            break;
+        if( Line[1] == 'M' )
         {
-            while( GetLine( LibDoc, Line, NULL, sizeof(Line) - 1 ) )
+            /* Parse file line by line */
+            while( GetLine( mdc_file, Line, NULL, sizeof(Line) - 1 ) )
             {
-                if( Line[0] ==  '$' )   /* $EndMODULE */
+                /* $EndMODULE */
+                if( Line[0] == '$' )
                     break;
+
                 switch( Line[0] )
                 {
-                case 'L':       /* LibName */
-                    ModuleName = CONV_FROM_UTF8( StrPurge( Line + 3 ) );
-                    NewMod     = g_BaseListePkg;
-                    while( NewMod )
-                    {
-                        if( ModuleName == NewMod->m_Module )
-                            break;
-                        NewMod = NewMod->Pnext;
-                    }
-
+                    /* LibName */
+                    case 'L':       /* LibName */
+                        ModuleName = CONV_FROM_UTF8( StrPurge( Line + 3 ) );
+                        BOOST_FOREACH( FOOTPRINT& footprint, list )
+                        {
+                            if( ModuleName == footprint.m_Module )
+                            {
+                                NewMod = &footprint;
+                                break;
+                            }
+                        }
                     break;
 
-                case 'K':       /* KeyWords */
-                    if( NewMod && (!NewMod->m_KeyWord) )
+                    /* KeyWords */
+                    case 'K':
+                        if( NewMod && (!NewMod->m_KeyWord) )
                         NewMod->m_KeyWord = CONV_FROM_UTF8( StrPurge( Line + 3 ) );
                     break;
 
-                case 'C':       /* Doc */
-                    if( NewMod && (!NewMod->m_Doc ) )
+                    /* Doc */
+                    case 'C':
+                        if( NewMod && ( !NewMod->m_Doc ) )
                         NewMod->m_Doc = CONV_FROM_UTF8( StrPurge( Line + 3 ) );
                     break;
                 }
             }
-        }       /* lecture 1 descr module */
-    }           /* Fin lecture librairie */
+        } /* Parsed one module documentation */
+    } /* Parsed complete library documentation */
 
-    fclose( LibDoc );
+    fclose( mdc_file );
 }

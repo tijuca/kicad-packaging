@@ -2,34 +2,92 @@
 /* eeschema.cpp - module principal */
 /***********************************/
 
-#ifdef __GNUG__
-#pragma implementation
-#endif
-
-#define eda_global
-#define MAIN
-
 #include "fctsys.h"
 #include "appl_wxstruct.h"
 #include "common.h"
 #include "class_drawpanel.h"
 #include "confirm.h"
 #include "gestfich.h"
-#include "program.h"
-#include "libcmp.h"
-#include "general.h"
-#include "netlist.h"
-#include "worksheet.h"
 #include "bitmaps.h"
 #include "eda_dde.h"
+#include "id.h"
 
+#include "program.h"
+#include "general.h"
 #include "protos.h"
 
 #include <wx/snglinst.h>
 
 
 // Global variables
-wxString g_Main_Title( wxT( "EESchema" ) );
+
+int       g_OptNetListUseNames; /* TRUE to use names rather than net
+                                 * The numbers (PSPICE netlist only) */
+SCH_ITEM* g_ItemToRepeat;       /* Pointer to the last structure
+                                 * for duplicatation by the repeat command.
+                                 * (NULL if no struct exists) */
+wxSize    g_RepeatStep;
+int       g_RepeatDeltaLabel;
+
+SCH_ITEM* g_ItemToUndoCopy;     /* copy of last modified schematic item
+                                 * before it is modified (used for undo
+                                 * managing to restore old values ) */
+
+bool g_LastSearchIsMarker;      /* True if last seach is a marker serach
+                                 * False for a schematic item search
+                                 * Used for hotkey next search */
+
+/* Block operation (copy, paste) */
+BLOCK_SELECTOR           g_BlockSaveDataList;   // List of items to paste
+                                                // (Created by Block Save)
+
+bool                     g_HVLines = true;      // Bool: force H or V
+                                                // directions (Wires, Bus ..)
+
+struct EESchemaVariables g_EESchemaVar;
+
+int g_DefaultTextLabelSize = DEFAULT_SIZE_TEXT;
+
+HPGL_Pen_Descr_Struct g_HPGL_Pen_Descr;
+
+SCH_SHEET*     g_RootSheet = NULL;
+
+wxString       g_NetCmpExtBuffer( wxT( "cmp" ) );
+
+const wxString SymbolFileExtension( wxT( "sym" ) );
+const wxString CompLibFileExtension( wxT( "lib" ) );
+
+const wxString SymbolFileWildcard( wxT( "Kicad drawing symbol file (*.sym)|*.sym" ) );
+const wxString CompLibFileWildcard( wxT( "Kicad component library file (*.lib)|*.lib" ) );
+
+// command line to call the simulator (gnucap, spice..)
+wxString    g_SimulatorCommandLine;
+
+// command line to call the simulator net lister (gnucap, spice..)
+wxString    g_NetListerCommandLine;
+
+LayerStruct g_LayerDescr;            /* layer colors. */
+
+bool        g_EditPinByPinIsOn = false; /* true to do not synchronize pins
+                                         * edition  when they are at the
+                                         * same location */
+
+int         g_DrawDefaultLineThickness = 6; /* Default line thickness in
+                                             * EESCHEMA units used to
+                                             * draw/plot items having a
+                                             * default thickness line value
+                                             * (i.e. = 0 ). 0 = single pixel
+                                             * line width */
+
+// Color to draw selected items
+int g_ItemSelectetColor = BROWN;
+
+// Color to draw items flagged invisible, in libedit (they are insisible
+// in eeschema
+int g_InvisibleItemColor = DARKGRAY;
+
+int DefaultTransformMatrix[2][2] = { { 1, 0 }, { 0, -1 } };
+
 
 /************************************/
 /* Called to initialize the program */
@@ -42,14 +100,35 @@ wxString g_Main_Title( wxT( "EESchema" ) );
 // not wxApp)
 IMPLEMENT_APP( WinEDA_App )
 
+/* MacOSX: Needed for file association
+ * http://wiki.wxwidgets.org/WxMac-specific_topics
+ */
+void WinEDA_App::MacOpenFile(const wxString &fileName) {
+    wxFileName    filename = fileName;
+    WinEDA_SchematicFrame * frame = ((WinEDA_SchematicFrame*) GetTopWindow());
+
+    if(!filename.FileExists())
+        return;
+
+    frame->LoadOneEEProject( fileName, false );
+}
+
+
 bool WinEDA_App::OnInit()
 {
-    wxString FFileName;
+    /* WXMAC application specific */
+#ifdef __WXMAC__
+//	wxApp::SetExitOnFrameDelete(false);
+//	wxApp::s_macAboutMenuItemId = ID_KICAD_ABOUT;
+	wxApp::s_macPreferencesMenuItemId = ID_OPTIONS_SETUP;
+#endif /* __WXMAC__ */
+
+    wxFileName             filename;
     WinEDA_SchematicFrame* frame = NULL;
 
     g_DebugLevel = 0;   // Debug level */
 
-    InitEDA_Appl( wxT( "eeschema" ) );
+    InitEDA_Appl( wxT( "EESchema" ), APP_TYPE_EESCHEMA );
 
     if( m_Checker && m_Checker->IsAnotherRunning() )
     {
@@ -58,11 +137,16 @@ bool WinEDA_App::OnInit()
     }
 
     if( argc > 1 )
-        FFileName = argv[1];
+        filename = argv[1];
 
     /* init EESCHEMA */
-    GetSettings();                                  // read current setup
     SeedLayers();
+
+    // read current setup and reopen last directory if no filename to open in
+    // command line
+    bool reopenLastUsedDirectory = argc == 1;
+    GetSettings( reopenLastUsedDirectory );
+
     Read_Hotkey_Config( frame, false );   /* Must be called before creating
                                            * the main frame  in order to
                                            * display the real hotkeys in menus
@@ -86,17 +170,19 @@ bool WinEDA_App::OnInit()
     frame->Zoom_Automatique( TRUE );
 
     /* Load file specified in the command line. */
-    if( !FFileName.IsEmpty() )
+    if( filename.IsOk() )
     {
-        ChangeFileNameExt( FFileName, g_SchExtBuffer );
-        wxSetWorkingDirectory( wxPathOnly( FFileName ) );
-        if( frame->DrawPanel )
-            if( frame->LoadOneEEProject( FFileName, FALSE ) <= 0 )
-                frame->DrawPanel->Refresh( TRUE ); // File not found or error
+        if( filename.GetExt() != SchematicFileExtension )
+            filename.SetExt( SchematicFileExtension );
+        wxSetWorkingDirectory( filename.GetPath() );
+        if( frame->DrawPanel
+            && frame->LoadOneEEProject( filename.GetFullPath(), false ) <= 0 )
+            frame->DrawPanel->Refresh( true );
     }
     else
     {
-        Read_Config( wxEmptyString, TRUE ); // Read a default config file if no file to load
+        // Read a default config file if no file to load.
+        frame->LoadProjectFile( wxEmptyString, TRUE );
         if( frame->DrawPanel )
             frame->DrawPanel->Refresh( TRUE );
     }

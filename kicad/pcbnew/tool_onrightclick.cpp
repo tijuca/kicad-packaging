@@ -1,22 +1,18 @@
-/********************************************************************************/
-/* tool_onrightclick.cpp: fonctions appel�s par le bouton droit sur un TOOL */
-/********************************************************************************/
+/*************************/
+/* tool_onrightclick.cpp */
+/*************************/
 
 #include "fctsys.h"
-#include "gr_basic.h"
 #include "common.h"
 #include "confirm.h"
 #include "pcbnew.h"
-#include "autorout.h"
+#include "wxPcbStruct.h"
+#include "dialog_design_rules.h"
 
-#include "id.h"
-
-#include "protos.h"
+#include "pcbnew_id.h"
 
 
-/*****************************************************************/
 void WinEDA_PcbFrame::ToolOnRightClick( wxCommandEvent& event )
-/*****************************************************************/
 {
     wxPoint pos;
     int     id = event.GetSelection();
@@ -28,18 +24,21 @@ void WinEDA_PcbFrame::ToolOnRightClick( wxCommandEvent& event )
     switch( id )
     {
     case ID_TRACK_BUTT:
-        InstallPcbOptionsFrame( pos, NULL, ID_PCB_TRACK_SIZE_SETUP );
+    {
+        DIALOG_DESIGN_RULES dlg( this );
+        dlg.ShowModal();
         break;
+    }
 
     case ID_COMPONENT_BUTT:
         break;
 
     case ID_PCB_CIRCLE_BUTT:
     case ID_PCB_ARC_BUTT:
-    case ID_LINE_COMMENT_BUTT:
+    case ID_PCB_ADD_LINE_BUTT:
     case ID_PCB_COTATION_BUTT:
-    case ID_TEXT_COMMENT_BUTT:
-        InstallPcbOptionsFrame( pos, NULL, ID_PCB_DRAWINGS_WIDTHS_SETUP );
+    case ID_PCB_ADD_TEXT_BUTT:
+        InstallPcbOptionsFrame( ID_PCB_DRAWINGS_WIDTHS_SETUP );
         break;
 
     default:
@@ -48,9 +47,7 @@ void WinEDA_PcbFrame::ToolOnRightClick( wxCommandEvent& event )
 }
 
 
-/************************************************************************/
 void WinEDA_ModuleEditFrame::ToolOnRightClick( wxCommandEvent& event )
-/************************************************************************/
 {
     wxPoint pos;
     int     id = event.GetSelection();
@@ -62,14 +59,14 @@ void WinEDA_ModuleEditFrame::ToolOnRightClick( wxCommandEvent& event )
     switch( id )
     {
     case ID_MODEDIT_ADD_PAD:
-        InstallPadOptionsFrame( NULL, NULL, wxPoint( -1, -1 ) );
+        InstallPadOptionsFrame( NULL );
         break;
 
     case ID_PCB_CIRCLE_BUTT:
     case ID_PCB_ARC_BUTT:
-    case ID_LINE_COMMENT_BUTT:
+    case ID_PCB_ADD_LINE_BUTT:
     case ID_PCB_COTATION_BUTT:
-    case ID_TEXT_COMMENT_BUTT:
+    case ID_PCB_ADD_TEXT_BUTT:
         InstallOptionsFrame( pos );
         break;
 

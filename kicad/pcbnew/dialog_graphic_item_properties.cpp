@@ -16,6 +16,8 @@
 #include "confirm.h"
 #include "class_drawpanel.h"
 #include "pcbnew.h"
+#include "wxPcbStruct.h"
+#include "class_board_design_settings.h"
 
 #include "dialog_graphic_item_properties_base.h"
 
@@ -24,37 +26,42 @@
 class DialogGraphicItemProperties: public DialogGraphicItemProperties_base
 {
 private:
-    WinEDA_BasePcbFrame* m_Parent;
+    WinEDA_PcbFrame* m_Parent;
     wxDC* m_DC;
     DRAWSEGMENT* m_Item;
+    BOARD_DESIGN_SETTINGS*  m_BrdSettings;
 
 public:
-    DialogGraphicItemProperties( WinEDA_BasePcbFrame* aParent, DRAWSEGMENT * aItem, wxDC * aDC);
+    DialogGraphicItemProperties( WinEDA_PcbFrame* aParent, DRAWSEGMENT * aItem, wxDC * aDC);
     ~DialogGraphicItemProperties() {};
 
 private:
-    void OnInitDialog( wxInitDialogEvent& event );
+    void Init( );
     void OnOkClick( wxCommandEvent& event );
     void OnCancelClick( wxCommandEvent& event );
     void OnLayerChoice( wxCommandEvent& event );
 };
 
-DialogGraphicItemProperties::DialogGraphicItemProperties( WinEDA_BasePcbFrame* aParent, DRAWSEGMENT * aItem, wxDC * aDC):
+DialogGraphicItemProperties::DialogGraphicItemProperties( WinEDA_PcbFrame* aParent, DRAWSEGMENT * aItem, wxDC * aDC):
     DialogGraphicItemProperties_base( aParent )
 {
     m_Parent = aParent;
     m_DC = aDC;
     m_Item = aItem;
+    m_BrdSettings = m_Parent->GetBoard()->GetBoardDesignSettings();
+    Init();
+    Layout();
+    GetSizer()->SetSizeHints( this );
 }
 
 
 /*******************************************************************************************/
-void WinEDA_BasePcbFrame::InstallGraphicItemPropertiesDialog(DRAWSEGMENT * aItem, wxDC* aDC)
+void WinEDA_PcbFrame::InstallGraphicItemPropertiesDialog(DRAWSEGMENT * aItem, wxDC* aDC)
 /*******************************************************************************************/
 {
     if ( aItem == NULL )
     {
-        DisplayError(this, wxT("nstallGraphicItemPropertiesDialog() error: NULL item"));
+        DisplayError(this, wxT("InstallGraphicItemPropertiesDialog() error: NULL item"));
         return;
     }
     DrawPanel->m_IgnoreMouseEvents = TRUE;
@@ -66,13 +73,12 @@ void WinEDA_BasePcbFrame::InstallGraphicItemPropertiesDialog(DRAWSEGMENT * aItem
 }
 
 /**************************************************************************/
-void DialogGraphicItemProperties::OnInitDialog( wxInitDialogEvent& event )
+void DialogGraphicItemProperties::Init( )
 /**************************************************************************/
 /* Initialize messages and values in text control,
  * according to the item parameters values
 */
 {
-    SetFont( *g_DialogFont );
     SetFocus();
 
     wxString msg;
@@ -103,6 +109,7 @@ void DialogGraphicItemProperties::OnInitDialog( wxInitDialogEvent& event )
             break;
     }
     AddUnitSymbol( *m_Start_Center_XText );
+
     PutValueInLocalUnits( *m_Center_StartXCtrl, m_Item->m_Start.x,
         m_Parent->m_InternalUnits );
 
@@ -125,9 +132,9 @@ void DialogGraphicItemProperties::OnInitDialog( wxInitDialogEvent& event )
     AddUnitSymbol( *m_DefaultThicknessText );
     int thickness;
     if( m_Item->GetLayer() == EDGE_N )
-        thickness = g_DesignSettings.m_EdgeSegmentWidth;
+        thickness =  m_BrdSettings->m_EdgeSegmentWidth;
     else
-        thickness = g_DesignSettings.m_DrawSegmentWidth;
+        thickness =  m_BrdSettings->m_DrawSegmentWidth;
     PutValueInLocalUnits( *m_DefaultThicknessCtrl, thickness,
         m_Parent->m_InternalUnits );
 
@@ -154,9 +161,9 @@ void DialogGraphicItemProperties::OnLayerChoice( wxCommandEvent& event )
 {
     int thickness;
     if( (m_LayerSelection->GetCurrentSelection() + FIRST_NO_COPPER_LAYER) == EDGE_N )
-        thickness = g_DesignSettings.m_EdgeSegmentWidth;
+        thickness =  m_BrdSettings->m_EdgeSegmentWidth;
     else
-        thickness = g_DesignSettings.m_DrawSegmentWidth;
+        thickness =  m_BrdSettings->m_DrawSegmentWidth;
     PutValueInLocalUnits( *m_DefaultThicknessCtrl, thickness,
         m_Parent->m_InternalUnits );
 }
@@ -164,9 +171,11 @@ void DialogGraphicItemProperties::OnLayerChoice( wxCommandEvent& event )
 /*******************************************************************/
 void DialogGraphicItemProperties::OnOkClick( wxCommandEvent& event )
 /*******************************************************************/
-/* Copy values in text contro to the item parameters
+/* Copy values in text control to the item parameters
 */
 {
+    m_Parent->SaveCopyInUndoList( m_Item, UR_CHANGED );
+
     wxString msg;
     if ( m_DC )
         m_Item->Draw( m_Parent->DrawPanel, m_DC, GR_XOR );
@@ -198,9 +207,9 @@ void DialogGraphicItemProperties::OnOkClick( wxCommandEvent& event )
     m_Item->SetLayer( m_LayerSelection->GetCurrentSelection() + FIRST_NO_COPPER_LAYER);
 
     if( m_Item->GetLayer() == EDGE_N )
-        g_DesignSettings.m_EdgeSegmentWidth = thickness;
+         m_BrdSettings->m_EdgeSegmentWidth = thickness;
     else
-        g_DesignSettings.m_DrawSegmentWidth = thickness;
+         m_BrdSettings->m_DrawSegmentWidth = thickness;
 
     if ( m_Item->m_Shape == S_ARC )
     {
@@ -210,10 +219,10 @@ void DialogGraphicItemProperties::OnOkClick( wxCommandEvent& event )
         m_Item->m_Angle = angle;
     }
 
-    m_Parent->GetScreen()->SetModify();
+    m_Parent->OnModify();
     if ( m_DC )
         m_Item->Draw( m_Parent->DrawPanel, m_DC, GR_OR );
-    m_Item->Display_Infos( m_Parent );
+    m_Item->DisplayInfo( m_Parent );
 
     Close( TRUE );
 }

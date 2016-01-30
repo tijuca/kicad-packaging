@@ -8,11 +8,7 @@
 #ifndef  HOTKEYS_BASIC_H
 #define  HOTKEYS_BASIC_H
 
-#ifndef COMMON_GLOBL
-#define COMMON_GLOBL extern
-#endif
-
-#define DEFAULT_HOTKEY_FILENAME_EXT wxT( ".key" )
+#define DEFAULT_HOTKEY_FILENAME_EXT wxT( "key" )
 
 /* keyword idetifier in kicad config use ti store/retrieve path option */
 #define HOTKEY_CFG_PATH_OPT wxT( "HotkeyPathOption" )
@@ -54,51 +50,98 @@ public:
 /* Identifiers (tags) in key code configuration file (or section names)
  *  .m_SectionTag member of a Ki_HotkeyInfoSectionDescriptor
  */
-COMMON_GLOBL wxString g_CommonSectionTag
-#ifdef EDA_BASE
-( wxT( "[common]" ) )
-#endif
-;
-COMMON_GLOBL wxString g_SchematicSectionTag
-#ifdef EDA_BASE
-( wxT( "[eeschema]" ) )
-#endif
-;
-COMMON_GLOBL wxString g_LibEditSectionTag
-#ifdef EDA_BASE
-( wxT( "[libedit]" ) )
-#endif
-;
-COMMON_GLOBL wxString g_BoardEditorSectionTag
-#ifdef EDA_BASE
-( wxT( "[pcbnew]" ) )
-#endif
-;
-COMMON_GLOBL wxString g_ModuleEditSectionTag
-#ifdef EDA_BASE
-( wxT( "[footprinteditor]" ) )
-#endif
-;
+extern wxString g_CommonSectionTag;
+extern wxString g_SchematicSectionTag;
+extern wxString g_LibEditSectionTag;
+extern wxString g_BoardEditorSectionTag;
+extern wxString g_ModuleEditSectionTag;
 
-COMMON_GLOBL int g_ConfigFileLocationChoice;    /* 0 = files are in Home directory (usefull under unix)
-                                                 * 1 = kicad/template ( usefull only under windows )
-                                                 * 2 ... = unused
-                                                 */
+extern int g_ConfigFileLocationChoice;
+
 
 /* Functions:
  */
 wxString        ReturnHotkeyConfigFilePath( int choice );
 void            AddHotkeyConfigMenu( wxMenu* menu );
 void            HandleHotkeyConfigMenuSelection( WinEDA_DrawFrame* frame, int id );
-wxString        ReturnKeyNameFromKeyCode( int keycode );
-wxString        ReturnKeyNameFromCommandId( Ki_HotkeyInfo** List, int CommandId );
-wxString        AddHotkeyName( const wxString& text, Ki_HotkeyInfo** List, int CommandId );
-wxString        AddHotkeyName( const wxString&                        text,
-                               struct Ki_HotkeyInfoSectionDescriptor* DescrList,
-                               int                                    CommandId );
-void            DisplayHotkeyList( WinEDA_DrawFrame*                      frame,
-                                   struct Ki_HotkeyInfoSectionDescriptor* List );
-Ki_HotkeyInfo*  GetDescriptorFromHotkey( int key, Ki_HotkeyInfo** List );
 
+/** function ReturnKeyNameFromKeyCode
+ * return the key name from the key code
+ * Only some wxWidgets key values are handled for function key ( see
+ * s_Hotkey_Name_List[] )
+ * @param aKeycode = key code (ascii value, or wxWidgets value for function keys)
+ * @return the key name in a wxString
+ */
+wxString        ReturnKeyNameFromKeyCode( int aKeycode );
+
+/** function ReturnKeyNameFromCommandId
+ * return the key name from the Command id value ( m_Idcommand member value)
+ * @param aList = pointer to a Ki_HotkeyInfo list of commands
+ * @param aCommandId = Command Id value
+ * @return the key name in a wxString
+ */
+wxString        ReturnKeyNameFromCommandId( Ki_HotkeyInfo** aList, int aCommandId );
+
+/** function AddHotkeyName
+ * Add the key name from the Command id value ( m_Idcommand member value)
+ * @param aText = a wxString. returns aText + key name
+ * @param aList = pointer to a Ki_HotkeyInfo list of commands
+ * @param aCommandId = Command Id value
+ * @param aIsShortCut = true to add <tab><keyname> (active shortcuts in menus)
+ *                    = false to add <spaces><(keyname)>
+ * @return a wxString (aTest + key name) if key found or aText without modification
+ */
+wxString        AddHotkeyName( const wxString& aText, Ki_HotkeyInfo** aList,
+                               int  aCommandId,
+                               bool aIsShortCut = true);
+
+/** function AddHotkeyName
+ * Add the key name from the Command id value ( m_Idcommand member value)
+ * @param aText = a wxString. returns aText + key name
+ * @param aList = pointer to a Ki_HotkeyInfoSectionDescriptor DescrList of commands
+ * @param aCommandId = Command Id value
+ * @param aIsShortCut = true to add <tab><keyname> (active shortcuts in menus)
+ *                    = false to add <spaces><(keyname)>
+ * @return a wxString (aTest + key name) if key found or aText without modification
+ */
+wxString        AddHotkeyName( const wxString&                        aText,
+                               struct Ki_HotkeyInfoSectionDescriptor* aDescrList,
+                               int                                    aCommandId,
+                               bool                                   aIsShortCut = true);
+
+/** function DisplayHotkeyList
+ * Displays the current hotkey list
+ * @param aFrame = current active frame
+ * @param aList = pointer to a Ki_HotkeyInfoSectionDescriptor list
+ *(Null terminated)
+ * @return none
+ */
+void            DisplayHotkeyList( WinEDA_DrawFrame*                      aFrame,
+                                   struct Ki_HotkeyInfoSectionDescriptor* aList );
+
+/** function GetDescriptorFromHotkey
+ * Return a Ki_HotkeyInfo * pointer fron a key code for OnHotKey() function
+ * @param aKey = key code (ascii value, or wxWidgets value for function keys
+ * @param aList = pointer to a Ki_HotkeyInfo list of commands
+ * @return the corresponding Ki_HotkeyInfo pointer from the Ki_HotkeyInfo List
+ */
+Ki_HotkeyInfo*  GetDescriptorFromHotkey( int aKey, Ki_HotkeyInfo** aList );
+
+
+// common hotkeys event id
+// these hotkey ID are used in many files, so they are define here only once.
+enum common_hotkey_id_commnand {
+    HK_NOT_FOUND = 0,
+    HK_RESET_LOCAL_COORD,
+    HK_HELP,
+    HK_ZOOM_IN,
+    HK_ZOOM_OUT,
+    HK_ZOOM_REDRAW,
+    HK_ZOOM_CENTER,
+    HK_ZOOM_AUTO,
+	HK_UNDO,
+	HK_REDO,
+    HK_COMMON_END
+};
 
 #endif // HOTKEYS_BASIC_H

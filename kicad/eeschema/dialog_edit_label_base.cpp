@@ -1,5 +1,5 @@
 ///////////////////////////////////////////////////////////////////////////
-// C++ code generated with wxFormBuilder (version Aug  7 2008)
+// C++ code generated with wxFormBuilder (version Apr 16 2008)
 // http://www.wxformbuilder.org/
 //
 // PLEASE DO "NOT" EDIT THIS FILE!
@@ -14,19 +14,22 @@ DialogLabelEditor_Base::DialogLabelEditor_Base( wxWindow* parent, wxWindowID id,
 	this->SetSizeHints( wxDefaultSize, wxDefaultSize );
 	
 	wxBoxSizer* bMainSizer;
-	bMainSizer = new wxBoxSizer( wxHORIZONTAL );
-	
-	wxBoxSizer* bSizer2;
-	bSizer2 = new wxBoxSizer( wxVERTICAL );
+	bMainSizer = new wxBoxSizer( wxVERTICAL );
 	
 	m_staticText1 = new wxStaticText( this, wxID_ANY, _("Text"), wxDefaultPosition, wxDefaultSize, 0 );
 	m_staticText1->Wrap( -1 );
-	bSizer2->Add( m_staticText1, 0, wxTOP|wxRIGHT|wxLEFT, 5 );
+	bMainSizer->Add( m_staticText1, 0, wxTOP|wxRIGHT|wxLEFT, 5 );
 	
-	m_TextLabel = new wxTextCtrl( this, wxID_VALUE, wxEmptyString, wxDefaultPosition, wxDefaultSize, 0 );
-	m_TextLabel->SetToolTip( _("Enter the text to be used within the schematic") );
+	m_TextLabelSingleline = new wxTextCtrl( this, wxID_VALUE, wxEmptyString, wxDefaultPosition, wxDefaultSize, wxTE_PROCESS_ENTER );
+	m_TextLabelSingleline->SetToolTip( _("Enter the text to be used within the schematic") );
 	
-	bSizer2->Add( m_TextLabel, 0, wxBOTTOM|wxRIGHT|wxLEFT|wxEXPAND, 5 );
+	bMainSizer->Add( m_TextLabelSingleline, 0, wxEXPAND|wxRIGHT|wxLEFT, 5 );
+	
+	m_textCtrlMultiline = new wxTextCtrl( this, wxID_ANY, wxEmptyString, wxDefaultPosition, wxDefaultSize, wxTE_MULTILINE|wxTE_PROCESS_ENTER );
+	m_textCtrlMultiline->SetToolTip( _("Enter the text to be used within the schematic") );
+	m_textCtrlMultiline->SetMinSize( wxSize( -1,60 ) );
+	
+	bMainSizer->Add( m_textCtrlMultiline, 1, wxEXPAND|wxRIGHT|wxLEFT, 5 );
 	
 	wxBoxSizer* m_OptionsSizer;
 	m_OptionsSizer = new wxBoxSizer( wxHORIZONTAL );
@@ -49,10 +52,6 @@ DialogLabelEditor_Base::DialogLabelEditor_Base( wxWindow* parent, wxWindowID id,
 	m_TextShape->SetSelection( 0 );
 	m_OptionsSizer->Add( m_TextShape, 1, wxALL, 5 );
 	
-	bSizer2->Add( m_OptionsSizer, 1, wxEXPAND, 5 );
-	
-	bMainSizer->Add( bSizer2, 5, wxEXPAND, 5 );
-	
 	wxBoxSizer* bSizer4;
 	bSizer4 = new wxBoxSizer( wxVERTICAL );
 	
@@ -64,24 +63,23 @@ DialogLabelEditor_Base::DialogLabelEditor_Base( wxWindow* parent, wxWindowID id,
 	bSizer4->Add( m_TextSize, 0, wxBOTTOM|wxRIGHT|wxLEFT|wxEXPAND, 5 );
 	
 	
-	bSizer4->Add( 8, 8, 0, wxEXPAND|wxALIGN_CENTER_HORIZONTAL, 5 );
+	bSizer4->Add( 8, 8, 0, wxALIGN_CENTER_HORIZONTAL|wxEXPAND, 5 );
 	
 	m_buttonOK = new wxButton( this, wxID_OK, _("OK"), wxDefaultPosition, wxDefaultSize, 0 );
-	m_buttonOK->SetForegroundColour( wxColour( 234, 0, 0 ) );
-	
 	bSizer4->Add( m_buttonOK, 1, wxALL|wxALIGN_CENTER_HORIZONTAL, 5 );
 	
 	m_buttonCANCEL = new wxButton( this, wxID_CANCEL, _("Cancel"), wxDefaultPosition, wxDefaultSize, 0 );
-	m_buttonCANCEL->SetForegroundColour( wxColour( 0, 0, 187 ) );
-	
 	bSizer4->Add( m_buttonCANCEL, 1, wxALL|wxALIGN_CENTER_HORIZONTAL, 5 );
 	
-	bMainSizer->Add( bSizer4, 1, 0, 5 );
+	m_OptionsSizer->Add( bSizer4, 1, 0, 5 );
+	
+	bMainSizer->Add( m_OptionsSizer, 0, wxEXPAND, 5 );
 	
 	this->SetSizer( bMainSizer );
 	this->Layout();
 	
 	// Connect Events
+	m_TextLabelSingleline->Connect( wxEVT_COMMAND_TEXT_ENTER, wxCommandEventHandler( DialogLabelEditor_Base::onEnterKey ), NULL, this );
 	m_buttonOK->Connect( wxEVT_COMMAND_BUTTON_CLICKED, wxCommandEventHandler( DialogLabelEditor_Base::OnButtonOKClick ), NULL, this );
 	m_buttonCANCEL->Connect( wxEVT_COMMAND_BUTTON_CLICKED, wxCommandEventHandler( DialogLabelEditor_Base::OnButtonCANCEL_Click ), NULL, this );
 }
@@ -89,6 +87,7 @@ DialogLabelEditor_Base::DialogLabelEditor_Base( wxWindow* parent, wxWindowID id,
 DialogLabelEditor_Base::~DialogLabelEditor_Base()
 {
 	// Disconnect Events
+	m_TextLabelSingleline->Disconnect( wxEVT_COMMAND_TEXT_ENTER, wxCommandEventHandler( DialogLabelEditor_Base::onEnterKey ), NULL, this );
 	m_buttonOK->Disconnect( wxEVT_COMMAND_BUTTON_CLICKED, wxCommandEventHandler( DialogLabelEditor_Base::OnButtonOKClick ), NULL, this );
 	m_buttonCANCEL->Disconnect( wxEVT_COMMAND_BUTTON_CLICKED, wxCommandEventHandler( DialogLabelEditor_Base::OnButtonCANCEL_Click ), NULL, this );
 }

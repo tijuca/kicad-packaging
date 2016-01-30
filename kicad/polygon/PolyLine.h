@@ -45,7 +45,7 @@ void ArmBoolEng( Bool_Engine* aBooleng, bool aConvertHoles = false );
 #define PCBU_PER_MIL 10
 #define NM_PER_MIL   10 // 25400
 
-#define to_int( x ) (int) round( (x) )
+#define to_int( x ) wxRound( (x) )
 #ifndef MIN
 #define MIN( x1, x2 ) ( (x1) > (x2) ? (x2) : (x1) )
 #endif
@@ -102,6 +102,12 @@ public:
     int  y;
     bool end_contour;
     int  utility;
+
+    bool operator == (const CPolyPt& cpt2 ) const
+    { return (x == cpt2.x) && (y == cpt2.y) && (end_contour == cpt2.end_contour); }
+
+    bool operator != (CPolyPt& cpt2 ) const
+    { return (x != cpt2.x) || (y != cpt2.y) || (end_contour != cpt2.end_contour); }
 };
 
 #include "polygon_test_point_inside.h"
@@ -243,6 +249,11 @@ public:
 private:
     Bool_Engine*           m_Kbool_Poly_Engine; // polygons set in kbool engine data
     bool bDrawn;
+
+    // Bezier Support
+public:
+    void AppendBezier(int x1, int y1, int x2, int y2, int x3, int y3);
+    void AppendBezier(int x1, int y1, int x2, int y2, int x3, int y3, int x4, int y4);
 };
 
 #endif  // #ifndef POLYLINE_H

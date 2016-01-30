@@ -7,11 +7,11 @@
 
 #include "colors.h"
 
-#if defined (DEBUG)
+#if defined(DEBUG)
 #include <iostream>         // needed for Show()
-extern std::ostream& operator   <<( std::ostream& out, const wxSize& size );
+extern std::ostream& operator <<( std::ostream& out, const wxSize& size );
 
-extern std::ostream& operator   <<( std::ostream& out, const wxPoint& pt );
+extern std::ostream& operator <<( std::ostream& out, const wxPoint& pt );
 
 #endif
 
@@ -24,27 +24,25 @@ enum KICAD_T {
 
     TYPE_NOT_INIT = 0,
     TYPE_PCB,
+    TYPE_SCREEN,            // not really an item, used to identify a screen
 
     // Items in pcb
-    TYPE_EQUIPOT,
-    TYPE_MODULE,
-    TYPE_PAD,
-    TYPE_DRAWSEGMENT,
-    TYPE_TEXTE,
-    TYPE_TEXTE_MODULE,
-    TYPE_EDGE_MODULE,
-    TYPE_TRACK,
-    TYPE_ZONE,
-    TYPE_VIA,
-    TYPE_MARKER,
-    TYPE_COTATION,
-    TYPE_MIRE,
-    TYPE_SCREEN,
-    TYPE_BLOCK,
-    TYPE_ZONE_UNUSED,
-    TYPE_ZONE_EDGE_CORNER,
-    TYPE_ZONE_CONTAINER,
-    TYPE_BOARD_ITEM_LIST,
+    TYPE_MODULE,            // a footprint
+    TYPE_PAD,               // a pad in a footprint
+    TYPE_DRAWSEGMENT,       // a segment not on copper layers
+    TYPE_TEXTE,             // a text on a layer
+    TYPE_TEXTE_MODULE,      // a text in a footprint
+    TYPE_EDGE_MODULE,       // a footprint edge
+    TYPE_TRACK,             // a track segment (segment on a copper layer)
+    TYPE_VIA,               // a via (like atrack segment on a copper layer)
+    TYPE_ZONE,              // a segment used to fill a zone area (segment on a
+                            // copper layer)
+    TYPE_MARKER_PCB,        // a marker used to show something
+    TYPE_COTATION,          // a dimension (graphic item)
+    TYPE_MIRE,              // a target (graphic item)
+    TYPE_ZONE_EDGE_CORNER,  // in zone outline: a point to define an outline
+    TYPE_ZONE_CONTAINER,    // a zone area
+    TYPE_BOARD_ITEM_LIST,   // a list of board items
 
     // Draw Items in schematic
     DRAW_POLYLINE_STRUCT_TYPE,
@@ -54,12 +52,11 @@ enum KICAD_T {
     TYPE_SCH_GLOBALLABEL,
     TYPE_SCH_HIERLABEL,
     TYPE_SCH_COMPONENT,
-    DRAW_PICK_ITEM_STRUCT_TYPE,
     DRAW_SEGMENT_STRUCT_TYPE,
     DRAW_BUSENTRY_STRUCT_TYPE,
     DRAW_SHEET_STRUCT_TYPE,
     DRAW_HIERARCHICAL_PIN_SHEET_STRUCT_TYPE,
-    DRAW_MARKER_STRUCT_TYPE,
+    TYPE_SCH_MARKER,
     DRAW_NOCONNECT_STRUCT_TYPE,
     DRAW_PART_TEXT_STRUCT_TYPE,
 
@@ -67,7 +64,14 @@ enum KICAD_T {
     SCREEN_STRUCT_TYPE,
     BLOCK_LOCATE_STRUCT_TYPE,
 
-    // Draw Items in library component
+    /*
+     * Draw items in library component.
+     *
+     * The order of these items effects the sort order for items inside the
+     * "DRAW/ENDDRAW" section of the component definition in a library file.
+     * If you add a new draw item, type, please make sure you add it so the
+     * sort order is logical.
+     */
     LIBCOMPONENT_STRUCT_TYPE,
     COMPONENT_ARC_DRAW_TYPE,
     COMPONENT_CIRCLE_DRAW_TYPE,
@@ -75,7 +79,13 @@ enum KICAD_T {
     COMPONENT_RECT_DRAW_TYPE,
     COMPONENT_POLYLINE_DRAW_TYPE,
     COMPONENT_LINE_DRAW_TYPE,
+    COMPONENT_BEZIER_DRAW_TYPE,
     COMPONENT_PIN_DRAW_TYPE,
+
+    /*
+     * Fields are not saved inside the "DRAW/ENDDRAW".  Add new draw item
+     * types before this line.
+     */
     COMPONENT_FIELD_DRAW_TYPE,
 
     // End value
@@ -114,7 +124,8 @@ public:
     /**
      * Function Inspect
      * is the examining function within the INSPECTOR which is passed to the
-     * Iterate function.  It is used primarily for searching, but not limited to
+     * Iterate function.  It is used primarily for searching, but not limited
+     *to
      * that.  It can also collect or modify the scanned objects.
      *
      * @param testItem An EDA_BaseStruct to examine.
@@ -123,8 +134,8 @@ public:
      * @return SEARCH_RESULT - SEARCH_QUIT if the Iterator is to stop the scan,
      *   else SCAN_CONTINUE;
      */
-    SEARCH_RESULT virtual Inspect( EDA_BaseStruct * testItem,
-                                   const void* testData ) = 0;
+    SEARCH_RESULT virtual Inspect( EDA_BaseStruct* testItem,
+                                   const void*     testData ) = 0;
 };
 
 
@@ -144,40 +155,47 @@ public:
     EDA_Rect() { };
 
     EDA_Rect( const wxPoint& aPos, const wxSize& aSize ) :
-        m_Pos( aPos )
-        , m_Size( aSize )
+        m_Pos( aPos ),
+        m_Size( aSize )
     { }
 
     wxPoint Centre()
     {
-        return wxPoint( m_Pos.x + (m_Size.x >> 1), m_Pos.y + (m_Size.y >> 1) );
+        return wxPoint( m_Pos.x + ( m_Size.x >> 1 ),
+                        m_Pos.y + ( m_Size.y >> 1 ) );
     }
 
+
+    /* Move this by the aMoveVector value (this is a relative move
+     */
+    void Move( const wxPoint& aMoveVector );
 
     void    Normalize();                    // Ensure the height and width are >= 0
     bool    Inside( const wxPoint& point ); // Return TRUE if point is in Rect
 
     bool Inside( int x, int y ) { return Inside( wxPoint( x, y ) ); }
     wxSize GetSize() { return m_Size; }
-    int GetX() { return m_Pos.x; }
-    int GetY() { return m_Pos.y; }
+    int GetX() const { return m_Pos.x; }
+    int GetY() const { return m_Pos.y; }
     wxPoint GetOrigin() { return m_Pos; }
     wxPoint GetPosition() { return m_Pos; }
-    wxPoint GetEnd() { return wxPoint( GetRight(), GetBottom() ); }
-    int GetWidth() { return m_Size.x; }
-    int GetHeight() { return m_Size.y; }
-    int GetRight() { return m_Pos.x + m_Size.x; }
-    int GetBottom() { return m_Pos.y + m_Size.y; }
+    wxPoint GetEnd() const { return wxPoint( GetRight(), GetBottom() ); }
+    int GetWidth() const { return m_Size.x; }
+    int GetHeight() const { return m_Size.y; }
+    int GetRight() const { return m_Pos.x + m_Size.x; }
+    int GetBottom() const { return m_Pos.y + m_Size.y; }
     void SetOrigin( const wxPoint& pos ) { m_Pos = pos; }
     void SetOrigin( int x, int y ) { m_Pos.x = x; m_Pos.y = y; }
     void SetSize( const wxSize& size ) { m_Size = size; }
     void SetSize( int w, int h ) { m_Size.x = w; m_Size.y = h; }
     void Offset( int dx, int dy ) { m_Pos.x += dx; m_Pos.y += dy; }
-    void Offset( const wxPoint& offset ) { m_Pos.x += offset.x; m_Pos.y += offset.y; }
+    void Offset( const wxPoint& offset ) { m_Pos.x += offset.x; m_Pos.y +=
+                                               offset.y; }
     void SetX( int val ) { m_Pos.x = val; }
     void SetY( int val ) { m_Pos.y = val; }
     void SetWidth( int val ) { m_Size.x = val; }
     void SetHeight( int val ) { m_Size.y = val; }
+    void SetEnd( int x, int y ) { SetEnd( wxPoint( x, y ) ); }
     void SetEnd( const wxPoint& pos )
     {
         m_Size.x = pos.x - m_Pos.x; m_Size.y = pos.y - m_Pos.y;
@@ -197,14 +215,28 @@ public:
      */
     operator wxRect() const { return wxRect( m_Pos, m_Size ); }
 
-    EDA_Rect&   Inflate( wxCoord dx, wxCoord dy );
+    /** Inflate
+     * Inflate this object: move each horizontal edge by dx and each vertical
+     * edge by dy toward rect outside
+     * if dx and/or dy is negative, move toward rect inside (deflate)
+     * Works for positive and negative rect size
+     */
+    EDA_Rect& Inflate( wxCoord dx, wxCoord dy );
+
+    /** Inflate
+     * Inflate this object: move each horizontal edge and each vertical edge by
+     * aDelta toward rect outside
+     * if aDelta is negative, move toward rect inside (deflate)
+     * Works for positive and negative rect size
+     */
+    EDA_Rect& Inflate( int aDelta );
 
     /** Function Merge
      * Modify Position and Size of this in order to contain the given rect
      * mainly used to calculate bounding boxes
      * @param aRect = given rect to merge with this
      */
-    void        Merge( const EDA_Rect& aRect );
+    void      Merge( const EDA_Rect& aRect );
 };
 
 
@@ -216,52 +248,70 @@ class DHEAD;
 
 /**
  * Class EDA_BaseStruct
- * is a base class for most all the kicad significant classes, used in schematics and boards.
+ * is a base class for most all the kicad significant classes, used in
+ * schematics and boards.
  */
+
+// These define are used for the .m_Flags and .m_UndoRedoStatus member of the
+// class EDA_BaseStruct
+#define IS_CHANGED    (1 << 0)
+#define IS_LINKED     (1 << 1)
+#define IN_EDIT       (1 << 2)
+#define IS_MOVED      (1 << 3)
+#define IS_NEW        (1 << 4)
+#define IS_RESIZED    (1 << 5)
+#define IS_DRAGGED    (1 << 6)
+#define IS_DELETED    (1 << 7)
+#define IS_WIRE_IMAGE (1 << 8)
+#define STARTPOINT    (1 << 9)
+#define ENDPOINT      (1 << 10)
+#define SELECTED      (1 << 11)
+#define SELECTEDNODE  (1 << 12)         ///< flag indicating that the structure
+                                        // has already selected
+
+#define STRUCT_DELETED (1 << 13)        ///< flag indication structures to be
+                                        // erased
+
+#define CANDIDATE   (1 << 14)           ///< flag indicating that the structure
+                                        // is connected
+#define SKIP_STRUCT (1 << 15)           ///< flag indicating that the structure
+                                        // should be ignored
+
+#define DO_NOT_DRAW  (1 << 16)          ///< Used to disable draw function
+#define DRAW_ERASED  (1 << 17)          ///< draw in background color, used by
+                                        // class TRACK in gerbview
+#define IS_CANCELLED (1 << 18)          ///< flag set when edit dialogs are
+                                        // canceled when editing a new object
+
 class EDA_BaseStruct
 {
 private:
 
     /**
      * Run time identification, _keep private_ so it can never be changed after
-     * a constructor sets it.  See comment near SetType() regarding virtual functions.
+     * a constructor sets it.  See comment near SetType() regarding virtual
+     *functions.
      */
     KICAD_T         m_StructType;
 
 protected:
-    EDA_BaseStruct* Pnext;              /* Linked list: Link (next struct) */
-    EDA_BaseStruct* Pback;              /* Linked list: Link (previous struct) */
-    EDA_BaseStruct* m_Parent;           /* Linked list: Link (parent struct) */
-    EDA_BaseStruct* m_Son;              /* Linked list: Link (son struct) */
-    DHEAD*          m_List;             ///< which DLIST I am on.
+    EDA_BaseStruct* Pnext;          /* Linked list: Link (next struct) */
+    EDA_BaseStruct* Pback;          /* Linked list: Link (previous struct) */
+    EDA_BaseStruct* m_Parent;       /* Linked list: Link (parent struct) */
+    EDA_BaseStruct* m_Son;          /* Linked list: Link (son struct) */
+    DHEAD*          m_List;         ///< which DLIST I am on.
 
 
 public:
-    int m_Flags;            // flags for editing and other misc. uses
-#define IS_CHANGED      (1 << 0)
-#define IS_LINKED       (1 << 1)
-#define IN_EDIT         (1 << 2)
-#define IS_MOVED        (1 << 3)
-#define IS_NEW          (1 << 4)
-#define IS_RESIZED      (1 << 5)
-#define IS_DRAGGED      (1 << 6)
-#define IS_DELETED      (1 << 7)
-#define IS_WIRE_IMAGE   (1 << 8)
-#define STARTPOINT      (1 << 9)
-#define ENDPOINT        (1 << 10)
-#define SELECTED        (1 << 11)
-#define SELECTEDNODE    (1 << 12)           ///< flag indiquant que la structure a deja selectionnee
-#define STRUCT_DELETED  (1 << 13)           ///< Bit flag de Status pour structures effacee
-#define CANDIDATE       (1 << 14)           ///< flag indiquant que la structure est connectee
-#define SKIP_STRUCT     (1 << 15)           ///< flag indiquant que la structure ne doit pas etre traitee
-#define DO_NOT_DRAW     (1 << 16)           ///< Used to disable draw function
-#define DRAW_ERASED     (1 << 17)           ///< draw in background color, used by classs TRACK in gerbview
+    int             m_Flags;        // flags for editing and other uses.
 
+    unsigned long   m_TimeStamp;    // Time stamp used for logical links
+    int             m_Selected;     /* Used by block commands, and selective
+                                     * editing */
 
-    EDA_BaseStruct* m_Image;            /* Link to an image copy for undelete or abort command */
-
-    unsigned long   m_TimeStamp;        // Time stamp used for logical links
-    int             m_Selected;         /* Used by block commands, and selective editing */
+    // member used in undo/redo function
+    EDA_BaseStruct* m_Image;       // Link to an image copy to save a copy of
+                                   // old parameters values
 
 private:
     int             m_Status;
@@ -274,12 +324,13 @@ public:
 
     EDA_BaseStruct( EDA_BaseStruct* parent, KICAD_T idType );
     EDA_BaseStruct( KICAD_T idType );
+    EDA_BaseStruct( const EDA_BaseStruct& base );
     virtual ~EDA_BaseStruct() { };
 
     /**
      * Function Type
-     * returns the type of object.  This attribute should never be changed after
-     * a constructor sets it, so there is no public "setter" method.
+     * returns the type of object.  This attribute should never be changed
+     * after a constructor sets it, so there is no public "setter" method.
      * @return KICAD_T - the type of object.
      */
     KICAD_T Type()  const { return m_StructType; }
@@ -297,7 +348,6 @@ public:
     void SetSon( EDA_BaseStruct* aSon )         { m_Son = aSon; }
     void SetList( DHEAD* aList )                { m_List = aList; }
 
-    /* Gestion de l'etat (status) de la structure (active, deleted..) */
 
     int GetState( int type ) const
     {
@@ -323,12 +373,12 @@ public:
 
 
     /**
-     * Function Display_Infos
-     * has knowledge about the frame and how and where to put status information
-     * about this object into the frame's message panel.
+     * Function DisplayInfo
+     * has knowledge about the frame and how and where to put status
+     * information about this object into the frame's message panel.
      * @param frame A WinEDA_DrawFrame in which to print status information.
      */
-    virtual void    Display_Infos( WinEDA_DrawFrame* frame )
+    virtual void    DisplayInfo( WinEDA_DrawFrame* frame )
     {
         // derived classes may implement this
     }
@@ -347,7 +397,7 @@ public:
 
 
     /**
-     * Function HitTest (overlayed)
+     * Function HitTest (overlaid)
      * tests if the given EDA_Rect intersect this object.
      * For now, an ending point must be inside this rect.
      * @param refArea : the given EDA_Rect
@@ -361,21 +411,24 @@ public:
 
     /**
      * Function GetBoundingBox
-     * returns the orthogonal, bounding box of this object for display purposes.
+     * returns the orthogonal, bounding box of this object for display
+     * purposes.
      * This box should be an enclosing perimeter for visible components of this
-     * object, and the units should be in the pcb or schematic coordinate system.
+     * object, and the units should be in the pcb or schematic coordinate
+     * system.
      * It is OK to overestimate the size by a few counts.
      */
     virtual EDA_Rect GetBoundingBox()
     {
-#if defined (DEBUG)
+#if defined(DEBUG)
         printf( "Missing GetBoundingBox()\n" );
-        Show( 0, std::cout ); // tell me which classes still need GetBoundingBox support
+        Show( 0, std::cout ); // tell me which classes still need
+                              // GetBoundingBox support
 #endif
 
-        // return a zero-sized box per default. derived classes should override this
-        EDA_Rect ret( wxPoint( 0, 0 ), wxSize( 0, 0 ) );
-        return ret;
+        // return a zero-sized box per default. derived classes should override
+        // this
+        return EDA_Rect( wxPoint( 0, 0 ), wxSize( 0, 0 ) );
     }
 
 
@@ -396,17 +449,18 @@ public:
      * @return SEARCH_RESULT - SEARCH_QUIT if the called INSPECTOR returned
      *  SEARCH_QUIT, else SCAN_CONTINUE;
      */
-    static SEARCH_RESULT    IterateForward( EDA_BaseStruct* listStart,
-                                            INSPECTOR*      inspector,
-                                            const void*     testData,
-                                            const KICAD_T   scanTypes[] );
+    static SEARCH_RESULT IterateForward( EDA_BaseStruct* listStart,
+                                         INSPECTOR*      inspector,
+                                         const void*     testData,
+                                         const KICAD_T   scanTypes[] );
 
 
     /**
      * Function Visit
      * may be re-implemented for each derived class in order to handle
      * all the types given by its member data.  Implementations should call
-     * inspector->Inspect() on types in scanTypes[], and may use IterateForward()
+     * inspector->Inspect() on types in scanTypes[], and may use
+     * IterateForward()
      * to do so on lists of such data.
      * @param inspector An INSPECTOR instance to use in the inspection.
      * @param testData Arbitrary data used by the inspector.
@@ -415,8 +469,8 @@ public:
      * @return SEARCH_RESULT - SEARCH_QUIT if the Iterator is to stop the scan,
      *  else SCAN_CONTINUE, and determined by the inspector.
      */
-    virtual SEARCH_RESULT   Visit( INSPECTOR* inspector, const void* testData,
-                                   const KICAD_T scanTypes[] );
+    virtual SEARCH_RESULT Visit( INSPECTOR* inspector, const void* testData,
+                                 const KICAD_T scanTypes[] );
 
 
     /**
@@ -430,7 +484,7 @@ public:
     }
 
 
-#if defined (DEBUG)
+#if defined(DEBUG)
 
     /**
      * Function Show
@@ -439,7 +493,7 @@ public:
      *          of nesting of this object within the overall tree.
      * @param os The ostream& to output to.
      */
-    virtual void            Show( int nestLevel, std::ostream& os );
+    virtual void         Show( int nestLevel, std::ostream& os );
 
 
     /**
@@ -449,7 +503,7 @@ public:
      * @param os The ostream&, where to output
      * @return std::ostream& - for continuation.
      **/
-    static std::ostream&    NestedSpace( int nestLevel, std::ostream& os );
+    static std::ostream& NestedSpace( int nestLevel, std::ostream& os );
 
 #endif
 };
@@ -465,25 +519,41 @@ enum  GRTextHorizJustifyType {
 
 
 enum GRTextVertJustifyType {
-    GR_TEXT_VJUSTIFY_TOP    = -1,
+    GR_TEXT_VJUSTIFY_TOP = -1,
     GR_TEXT_VJUSTIFY_CENTER = 0,
     GR_TEXT_VJUSTIFY_BOTTOM = 1
 };
 
 /* Options to show solid segments (segments, texts...) */
-enum GRFillMode {
+enum GRTraceMode {
     FILAIRE = 0,        // segments are drawn as lines
     FILLED,             // normal mode: segments have thickness
-    SKETCH              // skect mode: segments have thickness, but are not filled
+    SKETCH              // sketcg mode: segments have thickness, but are not
+                        // filled
+};
+
+/**
+ * Enum FILL_T
+ * is the set of fill types used in plotting or drawing enclosed areas.
+ */
+enum FILL_T {
+    NO_FILL,                     // Poly, Square, Circle, Arc = option No Fill
+    FILLED_SHAPE,                /* Poly, Square, Circle, Arc = option Fill
+                                  * with current color ("Solid shape") */
+    FILLED_WITH_BG_BODYCOLOR,    /* Poly, Square, Circle, Arc = option Fill
+                                  * with background body color, translucent
+                                  * (texts inside this shape can be seen)
+                                  * not filled in B&W mode when plotting or
+                                  * printing */
 };
 
 
-#define DEFAULT_SIZE_TEXT 60        /* default text height (in mils or  1/1000") */
+#define DEFAULT_SIZE_TEXT 60    /* default text height (in mils or 1/1000") */
 
 /**
  * Class EDA_TextStruct
- * is a basic class to handle texts (labels, texts on components or footprints ..)
- * not used directly.
+ * is a basic class to handle texts (labels, texts on components or footprints
+ * ..) not used directly.
  * The text classes are derived from EDA_BaseStruct and EDA_TextStruct
  */
 class EDA_TextStruct
@@ -492,13 +562,19 @@ public:
     wxString m_Text;                    /* text! */
     wxPoint  m_Pos;                     /* XY position of anchor text. */
     wxSize   m_Size;                    /* XY size of text */
-    int      m_Width;                   /* text width */
+    int      m_Width;                   /* pen size used to draw this text */
     int      m_Orient;                  /* Orient in 0.1 degrees */
-    bool     m_Mirror;                 // Display Normal / mirror
+    bool     m_Mirror;                  /* Display Normal / mirror */
     int      m_Attributs;               /* flags (visible...) */
-    bool     m_Italic;                  /* true to simulate an italic font... */
-    GRTextHorizJustifyType m_HJustify;  /* Horiz Justify */
-    GRTextVertJustifyType m_VJustify;   /* Vertical and  Vert Justify */
+    bool     m_Italic;                  /* true to simulate (or use if exists)
+                                         * an italic font... */
+    bool     m_Bold;                    /* true to simulate a bold font ... */
+    GRTextHorizJustifyType m_HJustify;  /* Horiz justification */
+    GRTextVertJustifyType m_VJustify;   /* Vertical justification */
+    bool     m_MultilineAllowed;        /* true to use multiline option, false
+                                         * to use only single line text
+                                         * Single line is faster in
+                                         * calculations than multiline */
 
 public:
     EDA_TextStruct( const wxString& text = wxEmptyString );
@@ -506,49 +582,91 @@ public:
 
     int     GetLength() const { return m_Text.Length(); };
 
-    /**
-     * Function Pitch
-     * @return distance between 2 characters
-     * @param aMinTickness = min segments tickness
-     */
-    int     Pitch(int aMinTickness = 0);
-
     /** Function Draw
      *  @param aPanel = the current DrawPanel
      *  @param aDC = the current Device Context
      *  @param aOffset = draw offset (usually (0,0))
      *  @param EDA_Colors aColor = text color
-     *  @param aDraw_mode = GR_OR, GR_XOR.., -1 to use the current mode.
-     *  @param GRFillMode aDisplay_mode = FILAIRE, FILLED or SKETCH
-     *  @param EDA_Colors aAnchor_color = anchor color ( UNSPECIFIED_COLOR = do not draw anchor ).
+     *  @param aDrawMode = GR_OR, GR_XOR.., -1 to use the current mode.
+     *  @param GRTraceMode aDisplay_mode = FILAIRE, FILLED or SKETCH
+     *  @param EDA_Colors aAnchor_color = anchor color ( UNSPECIFIED_COLOR = do
+     *                                    not draw anchor ).
      */
-    void    Draw( WinEDA_DrawPanel* aPanel, wxDC* aDC,
-                  const wxPoint& aOffset, EDA_Colors aColor,
-                  int aDisplayMode, GRFillMode aDisplay_mode = FILAIRE,
-                  EDA_Colors aAnchor_color = UNSPECIFIED_COLOR );
+    void Draw( WinEDA_DrawPanel* aPanel, wxDC* aDC,
+               const wxPoint& aOffset, EDA_Colors aColor,
+               int aDrawMode, GRTraceMode aDisplay_mode = FILAIRE,
+               EDA_Colors aAnchor_color = UNSPECIFIED_COLOR );
+
+private:
+
+    /** Function DrawOneLineOfText
+     * Draw a single text line.
+     * Used to draw each line of this EDA_TextStruct, that can be multiline
+     *  @param aPanel = the current DrawPanel
+     *  @param aDC = the current Device Context
+     *  @param aOffset = draw offset (usually (0,0))
+     *  @param EDA_Colors aColor = text color
+     *  @param aDrawMode = GR_OR, GR_XOR.., -1 to use the current mode.
+     *  @param aFillMode = FILAIRE, FILLED or SKETCH
+     *  @param EDA_Colors aAnchor_color = anchor color ( UNSPECIFIED_COLOR = do
+     *    not draw anchor ).
+     *  @param EDA_Colors aText = the single line of text to draw.
+     *  @param EDA_Colors aPos = the position of this line ).
+     */
+    void DrawOneLineOfText( WinEDA_DrawPanel* aPanel, wxDC* aDC,
+                            const wxPoint& aOffset, EDA_Colors aColor,
+                            int aDrawMode, GRTraceMode aFillMode,
+                            EDA_Colors aAnchor_color, wxString& aText,
+                            wxPoint aPos );
+
+public:
 
     /**
-     * Function HitTest
+     * Function TextHitTest
      * tests if the given wxPoint is within the bounds of this object.
      * @param ref_pos A wxPoint to test
      * @return bool - true if a hit, else false
      */
-    bool    HitTest( const wxPoint& ref_pos );
+    bool     TextHitTest( const wxPoint& ref_pos );
 
     /**
-     * Function HitTest (overlayed)
+     * Function TextHitTest (overloaded)
      * tests if the given EDA_Rect intersect this object.
      * For now, the anchor must be inside this rect.
      * @param refArea : the given EDA_Rect
      * @return bool - true if a hit, else false
      */
-    bool    HitTest( EDA_Rect& refArea );
+    bool     TextHitTest( EDA_Rect& refArea );
 
     /**
-     * Function Len_Size
-     * Return the text lenght in internal units
+     * Function LenSize
+     * @return the text length in internal units
+     * @param aLine : the line of text to consider.
+     * For single line text, this parameter is always m_Text
      */
-    int     Len_Size();
+    int      LenSize( const wxString& aLine ) const;
+
+    /** Function GetTextBox
+     * useful in multiline texts to calculate the full text or a line area (for
+     * zones filling, locate functions....)
+     * @return the rect containing the line of text (i.e. the position and the
+     *  size of one line)
+     * this rectangle is calculated for 0 orient text. if orient is not 0 the
+     * rect must be rotated to match the physical area
+     * @param aLine : the line of text to consider.
+     * for single line text, aLine is unused
+     * If aLine == -1, the full area (considering all lines) is returned
+     */
+    EDA_Rect GetTextBox( int aLine = -1 );
+
+    /** Function GetInterline
+     * return the distance between 2 text lines
+     * has meaning only for multiline texts
+     */
+    int GetInterline()
+    {
+        return (( m_Size.y * 14 ) / 10) + m_Width;
+    }
 };
 
 #endif /* BASE_STRUCT_H */

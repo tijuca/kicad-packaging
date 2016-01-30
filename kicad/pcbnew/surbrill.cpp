@@ -1,6 +1,6 @@
-/****************************/
-/* affichage des empreintes */
-/****************************/
+/*******************/
+/* Highlight nets. */
+/*******************/
 
 #include "fctsys.h"
 #include "gr_basic.h"
@@ -9,90 +9,89 @@
 #include "kicad_string.h"
 
 #include "pcbnew.h"
-#include "protos.h"
+#include "wxPcbStruct.h"
 #include "collectors.h"
+
+#include "kicad_device_context.h"
 
 
 #define Pad_fill (Pad_Fill_Item.State == RUN)
 
 
-/*********************************************************/
-void WinEDA_PcbFrame::Liste_Equipot( wxCommandEvent& event )
-/*********************************************************/
-
-/* Display a filtered list of equipot names
- *  if an equipot is selected the corresponding tracks and pads are highlighted
+/** Function ListNetsAndSelect
+ * called by a command event
+ * displays the sorted list of nets in a dialog frame
+ * If a net is selected, it is highlighted
  */
+void WinEDA_PcbFrame::ListNetsAndSelect( wxCommandEvent& event )
 {
-    EQUIPOT*          Equipot;
-    wxString          msg;
-    WinEDA_TextFrame* List;
-    int ii, jj;
+    NETINFO_ITEM* net;
+    wxString      netFilter;
+    int           selection;
 
-    msg = wxT( "*" );
-    Get_Message( _( "Filter for net names:" ), _("Net Filter"), msg, this );
-    if( msg.IsEmpty() )
+    netFilter = wxT( "*" );
+    Get_Message( _( "Filter for net names:" ), _( "Net Filter" ),
+                 netFilter, this );
+    if( netFilter.IsEmpty() )
         return;
 
-    List = new WinEDA_TextFrame( this, _( "List Nets" ) );
+    WinEDA_TextFrame List( this, _( "List Nets" ) );
 
-    Equipot = (EQUIPOT*) GetBoard()->m_Equipots;
-    for( ; Equipot != NULL; Equipot = (EQUIPOT*) Equipot->Next() )
+    for( unsigned ii = 0; ii < GetBoard()->m_NetInfo->GetCount(); ii++ )
     {
+        net = GetBoard()->m_NetInfo->GetNetItem( ii );
         wxString Line;
-        /* calcul adr relative du nom de la pastille reference de la piste */
-        if( !WildCompareString( msg, Equipot->GetNetname(), FALSE ) )
+        if( !WildCompareString( netFilter, net->GetNetname(), false ) )
             continue;
 
-        Line.Printf( wxT( "net_code = %3.3d  [%.16s] " ), Equipot->GetNet(),
-                    Equipot->GetNetname().GetData() );
-        List->Append( Line );
+        Line.Printf( wxT( "net_code = %3.3d  [%.16s] " ), net->GetNet(),
+                     GetChars( net->GetNetname() ) );
+        List.Append( Line );
     }
 
-    ii = List->ShowModal();
+    selection = List.ShowModal();
 
-    List->Destroy();
-
-    if( ii < 0 )
+    if( selection < 0 )
         return;
 
-    /* Recherche du numero de net rellement selectionn�*/
-    Equipot = (EQUIPOT*) GetBoard()->m_Equipots;
-    for( jj = 0; Equipot != NULL; Equipot = (EQUIPOT*) Equipot->Next() )
+    bool     found   = false;
+    unsigned netcode = (unsigned) selection;
+
+    // Search for the net selected.
+    for( unsigned ii = 0; ii < GetBoard()->m_NetInfo->GetCount(); ii++ )
     {
-        /* calcul adr relative du nom de la pastille reference de la piste */
-        if( !WildCompareString( msg, Equipot->GetNetname(), FALSE ) )
+        net = GetBoard()->m_NetInfo->GetNetItem( ii );
+        if( !WildCompareString( netFilter, net->GetNetname(), false ) )
             continue;
 
-        if( ii == jj )
+        if( ii == netcode )
         {
-            ii = Equipot->GetNet();
+            netcode = net->GetNet();
+            found   = true;
             break;
         }
-        jj++;
     }
 
-    wxClientDC dc( DrawPanel );
+    if( found )
+    {
+        INSTALL_DC( dc, DrawPanel );
 
-    DrawPanel->PrepareGraphicContext( &dc );
+        if( g_HighLight_Status )
+            High_Light( &dc );
 
-    if( g_HightLigt_Status )
-        Hight_Light( &dc );
-
-    g_HightLigth_NetCode = ii;
-    Hight_Light( &dc );
+        g_HighLight_NetCode = netcode;
+        High_Light( &dc );
+    }
 }
 
 
-/**************************************************/
+/* Locate track or pad and highlight the corresponding net
+ * Returns the Netcode, or -1 if no net located.
+ */
 int WinEDA_PcbFrame::Select_High_Light( wxDC* DC )
-/**************************************************/
-
-/* Localise track ou pad et met en surbrillance le net correspondant
- *  Retourne le netcode, ou -1 si pas de net localis�*/
 {
-    if( g_HightLigt_Status )
-        Hight_Light( DC );
+    if( g_HighLight_Status )
+        High_Light( DC );
 
     // use this scheme because a pad is a higher priority than a track in the
     // search, and finding a pad, instead of a track on a pad,
@@ -103,7 +102,7 @@ int WinEDA_PcbFrame::Select_High_Light( wxDC* DC )
     // optionally, modify the "guide" here as needed using its member functions
 
     m_Collector->Collect( GetBoard(), GENERAL_COLLECTOR::PadsTracksOrZones,
-                         GetScreen()->RefPos( true ), guide );
+                          GetScreen()->RefPos( true ), guide );
 
     BOARD_ITEM* item = (*m_Collector)[0];
 
@@ -112,24 +111,25 @@ int WinEDA_PcbFrame::Select_High_Light( wxDC* DC )
         switch( item->Type() )
         {
         case TYPE_PAD:
-            g_HightLigth_NetCode = ((D_PAD*)item)->GetNet();
-            Hight_Light( DC );
+            g_HighLight_NetCode = ( (D_PAD*) item )->GetNet();
+            High_Light( DC );
             SendMessageToEESCHEMA( item );
-            return g_HightLigth_NetCode;
+            return g_HighLight_NetCode;
 
         case TYPE_TRACK:
         case TYPE_VIA:
         case TYPE_ZONE:
+
             // since these classes are all derived from TRACK, use a common
             // GetNet() function:
-            g_HightLigth_NetCode = ((TRACK*)item)->GetNet();
-            Hight_Light( DC );
-            return g_HightLigth_NetCode;
+            g_HighLight_NetCode = ( (TRACK*) item )->GetNet();
+            High_Light( DC );
+            return g_HighLight_NetCode;
 
         case TYPE_ZONE_CONTAINER:
-            g_HightLigth_NetCode = ((ZONE_CONTAINER*)item)->GetNet();
-            Hight_Light( DC );
-            return g_HightLigth_NetCode;
+            g_HighLight_NetCode = ( (ZONE_CONTAINER*) item )->GetNet();
+            High_Light( DC );
+            return g_HighLight_NetCode;
 
         default:
             ;   // until somebody changes GENERAL_COLLECTOR::PadsOrTracks,
@@ -141,17 +141,14 @@ int WinEDA_PcbFrame::Select_High_Light( wxDC* DC )
 }
 
 
-/*******************************************/
-void WinEDA_PcbFrame::Hight_Light( wxDC* DC )
-/*******************************************/
-
 /*
- *  fonction d'appel de Surbrillance a partir du menu
- *  Met ou supprime la surbrillance d'un net pointe par la souris
+ * Highlight command.
+ *
+ * Show or removes the net at the current cursor position.
  */
+void WinEDA_PcbFrame::High_Light( wxDC* DC )
 {
-    g_HightLigt_Status = !g_HightLigt_Status;
+    g_HighLight_Status = !g_HighLight_Status;
 
-    GetBoard()->DrawHighLight( DrawPanel, DC, g_HightLigth_NetCode );
+    GetBoard()->DrawHighLight( DrawPanel, DC, g_HighLight_NetCode );
 }
-

@@ -10,6 +10,8 @@
 #include "common.h"
 #include "class_drawpanel.h"
 #include "pcbnew.h"
+#include "drawtxt.h"
+#include "confirm.h"
 
 #include "dialog_edit_module_text_base.h"
 
@@ -31,28 +33,23 @@ public:
     ~DialogEditModuleText() {};
 
 private:
-    void OnInitDialog( wxInitDialogEvent& event );
+    void Init( );
     void OnOkClick( wxCommandEvent& event );
     void OnCancelClick( wxCommandEvent& event );
 };
 
-/***************************************************************************/
-void WinEDA_BasePcbFrame::InstallTextModOptionsFrame( TEXTE_MODULE* TextMod,
-                                                      wxDC* DC, const wxPoint& pos )
-/***************************************************************************/
+/*************************************************************************************/
+void WinEDA_BasePcbFrame::InstallTextModOptionsFrame( TEXTE_MODULE* TextMod, wxDC* DC )
+/**************************************************************************************/
 {
     DrawPanel->m_IgnoreMouseEvents = TRUE;
-    DialogEditModuleText* frame = new DialogEditModuleText( this,
-        TextMod, DC );
-    frame->ShowModal(); frame->Destroy();
-    DrawPanel->MouseToCursorSchema();
+    DialogEditModuleText dialog( this, TextMod, DC );
+    dialog.ShowModal();
     DrawPanel->m_IgnoreMouseEvents = FALSE;
 }
 
 
-DialogEditModuleText::DialogEditModuleText( WinEDA_BasePcbFrame* parent,
-                                                              TEXTE_MODULE* TextMod,
-                                                              wxDC* DC ) :
+DialogEditModuleText::DialogEditModuleText( WinEDA_BasePcbFrame* parent,  TEXTE_MODULE* TextMod, wxDC* DC ) :
     DialogEditModuleText_base(parent)
 
 {
@@ -61,23 +58,24 @@ DialogEditModuleText::DialogEditModuleText( WinEDA_BasePcbFrame* parent,
     m_Module = NULL;
     m_CurrentTextMod = TextMod;
     if( m_CurrentTextMod )
-    {
         m_Module = (MODULE*) m_CurrentTextMod->GetParent();
-    }
+    Init( );
+
+    GetSizer()->Fit( this );
+    GetSizer()->SetSizeHints( this );
 }
 
 
 void DialogEditModuleText::OnCancelClick( wxCommandEvent& event )
 {
-    event.Skip();
+   EndModal(0);
 }
 
 
 /********************************************************/
-void DialogEditModuleText::OnInitDialog( wxInitDialogEvent& event )
+void DialogEditModuleText::Init( )
 /********************************************************/
 {
-    SetFont( *g_DialogFont );
     SetFocus();
 
     wxString msg;
@@ -86,11 +84,16 @@ void DialogEditModuleText::OnInitDialog( wxInitDialogEvent& event )
     {
         wxString format = m_ModuleInfoText->GetLabel();
         msg.Printf( format,
-            m_Module->m_Reference->m_Text.GetData(),
-            m_Module->m_Value->m_Text.GetData(),
-            (float) (m_Module->m_Orient / 10) );
-        m_ModuleInfoText->SetLabel( msg );
+            GetChars( m_Module->m_Reference->m_Text ),
+            GetChars( m_Module->m_Value->m_Text ),
+            (float) m_Module->m_Orient / 10 );
     }
+
+    else
+        msg.Empty();
+
+    m_ModuleInfoText->SetLabel( msg );
+
 
     if( m_CurrentTextMod->m_Type == TEXT_is_VALUE )
         m_TextDataTitle->SetLabel( _( "Value:" ) );
@@ -131,8 +134,6 @@ void DialogEditModuleText::OnInitDialog( wxInitDialogEvent& event )
     if( m_CurrentTextMod->m_NoShow )
         m_Show->SetSelection( 1 );;
 
-    GetSizer()->Fit( this );
-    GetSizer()->SetSizeHints( this );
 }
 
 
@@ -142,7 +143,8 @@ void DialogEditModuleText::OnOkClick( wxCommandEvent& event )
 {
     wxString msg;
 
-    m_Parent->SaveCopyInUndoList( m_Parent->GetBoard()->m_Modules );
+    if ( m_Module)
+        m_Parent->SaveCopyInUndoList( m_Module, UR_CHANGED );
     if( m_DC )     //Erase old text on screen
     {
         m_CurrentTextMod->Draw( m_Parent->DrawPanel, m_DC, GR_XOR,
@@ -179,9 +181,12 @@ void DialogEditModuleText::OnOkClick( wxCommandEvent& event )
     // Test for a reasonnable width:
     if( width <= 1 )
         width = 1;
-    int minthickness = min(m_CurrentTextMod->m_Size.x, m_CurrentTextMod->m_Size.y) / 4;
-    if( width > minthickness )
-        width = minthickness;
+    int maxthickness = Clamp_Text_PenSize(width, m_CurrentTextMod->m_Size );
+    if( width > maxthickness )
+    {
+        DisplayError(NULL, _("The text thickness is too large for the text size. It will be clamped"));
+        width = maxthickness;
+    }
     m_CurrentTextMod->SetWidth( width );
 
     m_CurrentTextMod->m_NoShow = (m_Show->GetSelection() == 0) ? 0 : 1;
@@ -194,8 +199,9 @@ void DialogEditModuleText::OnOkClick( wxCommandEvent& event )
         m_CurrentTextMod->Draw( m_Parent->DrawPanel, m_DC, GR_XOR,
             (m_CurrentTextMod->m_Flags & IS_MOVED) ? MoveVector : wxPoint( 0, 0 ) );
     }
-    m_Parent->GetScreen()->SetModify();
-    ( (MODULE*) m_CurrentTextMod->GetParent() )->m_LastEdit_Time = time( NULL );
+    m_Parent->OnModify();
+    if( m_Module )
+        m_Module->m_LastEdit_Time = time( NULL );
 
-    Close( TRUE );
+    EndModal(1);
 }

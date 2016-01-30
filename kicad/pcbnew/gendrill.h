@@ -79,16 +79,15 @@ void    Build_Holes_List( BOARD* Pcb, std::vector<HOLE_INFO>& aHoleListBuffer,
 void    GenDrillMapFile( BOARD* aPcb,
                          FILE* aFile,
                          const wxString& aFullFileName,
-                         wxSize aSheetSize,
+                         Ki_PageDescr *aSheet,
                          std::vector<HOLE_INFO> aHoleListBuffer,
                          std::vector<DRILL_TOOL> aToolListBuffer,
                          bool aUnit_Drill_is_Inch,
-                         int format );
+                         int format, const wxPoint& auxoffset );
 
-void    Gen_Drill_PcbMap( BOARD* aPcb, FILE* aFile,
+void    Gen_Drill_PcbMap( BOARD* aPcb, PLOTTER* plotter,
                           std::vector<HOLE_INFO>& aHoleListBuffer,
-                          std::vector<DRILL_TOOL>& aToolListBuffer,
-                          int format );
+                          std::vector<DRILL_TOOL>& aToolListBuffer);
 
 /*
  *  Create a list of drill values and drill count
@@ -96,8 +95,8 @@ void    Gen_Drill_PcbMap( BOARD* aPcb, FILE* aFile,
  */
 void GenDrillReportFile( FILE* aFile, BOARD * aPcb, const wxString& aBoardFilename,
                          bool aUnit_Drill_is_Inch,
-						std::vector<HOLE_INFO> & aHoleListBuffer, 
-						std::vector<DRILL_TOOL>& aToolListBuffer 
+						std::vector<HOLE_INFO> & aHoleListBuffer,
+						std::vector<DRILL_TOOL>& aToolListBuffer
 						);
 
 #endif  //	#ifndef GENDRILL_H

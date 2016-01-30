@@ -1,153 +1,107 @@
-/**********************************************/
-/* CVPCB : declaration des variables globales */
-/**********************************************/
+/*********/
+/* CVPCB */
+/*********/
+
+#ifndef __CVPCB_H__
+#define __CVPCB_H__
+
+#include "pcbcommon.h"
+
+#include <boost/ptr_container/ptr_vector.hpp>
+#include <boost/foreach.hpp>
 
 
-#ifndef eda_global
-#define eda_global extern
-#endif
-
-#include "pcbnew.h"
-
-// config for footprints doc file acces
-#define DOC_FOOTPRINTS_LIST_KEY wxT("footprints_doc_file")
-#define DEFAULT_FOOTPRINTS_LIST_FILENAME wxT("footprints_doc/footprints.pdf")
-
+// config for footprints doc file access
+#define DEFAULT_FOOTPRINTS_LIST_FILENAME wxT( "footprints_doc/footprints.pdf" )
 
 // Define print format to display a schematic component line
 #define CMP_FORMAT wxT( "%3d %8s - %16s : %-.32s" )
 
 #define FILTERFOOTPRINTKEY "FilterFootprint"
 
-enum TypeOfStruct {
-    STRUCT_NOT_INIT,
-    STRUCT_COMPONENT,
-    STRUCT_PIN,
-    STRUCT_MODULE,
-    STRUCT_PSEUDOMODULE
-};
-
-class STOREPIN
-{
-public:
-    int       m_Type;           /* Type de la structure */
-    STOREPIN* Pnext;            /* Chainage avant */
-    int       m_Index;          /* variable utilisee selon types de netlistes */
-    int       m_PinType;        /* code type electrique ( Entree Sortie Passive..) */
-    wxString  m_PinNet;         /* Pointeur sur le texte nom de net */
-    wxString  m_PinNum;
-    wxString  m_PinName;
-    wxString  m_Repere;     /* utilise selon formats de netliste */
-
-    STOREPIN();
-};
-
-class STORECMP
-{
-public:
-    int           m_Type;       /* Type de la structure */
-    STORECMP*     Pnext;        /* Chainage avant */
-    STORECMP*     Pback;        /* Chainage arriere */
-    int           m_Num;        /* Numero d'ordre */
-    int           m_Multi;      /* Nombre d' unites par boitier */
-    STOREPIN*     m_Pins;       /* pointeur sur la liste des Pins */
-    wxString      m_Reference;  /* U3, R5  ... */
-    wxString      m_Valeur;     /* 7400, 47K ... */
-    wxString      m_TimeStamp;  /* Signature temporelle ("00000000" si absente) */
-    wxString      m_Module;     /* Nom du module (Package) corresp */
-    wxString      m_Repere;     /* utilise selon formats de netliste */
-    wxArrayString m_FootprintFilter;    /* List of allowed footprints (wildcart allowed
-                                          * if void: no filtering */
-
-    STORECMP();
-    ~STORECMP();
-};
-
-class STOREMOD
-{
-public:
-    int       m_Type;       /* Type de la structure */
-    STOREMOD* Pnext;        /* Chainage avant */
-    STOREMOD* Pback;        /* Chainage arriere */
-    wxString  m_Module;     /* Nom du module */
-    wxString  m_LibName;    /* Nom de la librairie contenant ce module */
-    int       m_Num;        /* Numero d'ordre pour affichage sur la liste */
-    wxString  m_Doc;        /* Doc associee */
-    wxString  m_KeyWord;    /* Mots cles associes */
-
-    STOREMOD();
-};
-
-
-eda_global STOREMOD* g_BaseListePkg;
-eda_global STORECMP* g_BaseListeCmp;
-
-eda_global FILE*     source;
-eda_global FILE*     dest;
-eda_global FILE*     libcmp;
-eda_global FILE*     lib_module;
-
-/* nom des fichiers a traiter */
-eda_global wxString  FFileName;
-eda_global wxString  NetNameBuffer;
-
-/* Types de netliste: */
+/* Net list types. */
 #define TYPE_NON_SPECIFIE  0
 #define TYPE_ORCADPCB2     1
 #define TYPE_PCAD          2
 #define TYPE_VIEWLOGIC_WIR 3
 #define TYPE_VIEWLOGIC_NET 4
 
-/* Gestion des noms des librairies */
-eda_global wxString g_EquivExtBuffer
-#ifdef MAIN
-( wxT( ".equ" ) )
-#endif
-;
-eda_global wxString g_ExtCmpBuffer
-#ifdef MAIN
-( wxT( ".cmp" ) )
-#endif
-;
 
-eda_global wxString      g_UserNetDirBuffer;    // Netlist path (void = current working directory)
+class PIN
+{
+public:
+    int       m_Index;     /* Type of net list. */
+    int       m_Type;      /* Electrical connection type. */
+    wxString  m_Net;       /* Name of net. */
+    wxString  m_Number;
+    wxString  m_Name;
+    wxString  m_Repere;    /* Formats used by net lister. */
 
-eda_global wxArrayString g_ListName_Equ;        // list of .equ files to load
+    PIN();
+};
 
-eda_global int           g_FlagEESchema;
-eda_global int           Rjustify; /* flag pout troncature des noms de Net:
-                                  * = 0: debut de chaine conservee (->ORCADPCB2)
-                                  * = 1: fin de chaine conservee (->VIEWLOGIC) */
-eda_global int           selection_type;    /* 0 pour sel par U??, 1 pour sel par ref ORCADPCB */
+typedef boost::ptr_vector< PIN > PIN_LIST;
 
-eda_global int           modified;          /* Flag != 0 si modif attribution des modules */
-eda_global int           ListModIsModified; /* Flag != 0 si modif liste des lib modules */
+/* PIN object list sort function. */
+extern bool operator<( const PIN& item1, const PIN& item2 );
 
-eda_global char          alim[1024];
+/* PIN uniqueness test function. */
+extern bool operator==( const PIN& item1, const PIN& item2 );
 
-eda_global int           nbcomp;                    /* nombre de composants trouves */
-eda_global int           nblib;                     /* nombre d'empreintes trouvees */
-eda_global int           composants_non_affectes;   /* nbre de composants non affectes */
-
-eda_global wxString      NameBuffer;
-eda_global wxString      NetInNameBuffer;
-eda_global wxString      NetInExtBuffer;
-eda_global wxString      NetDirBuffer;
-
-eda_global wxString      ExtRetroBuffer
-#ifdef MAIN
-( wxT( ".stf" ) )
-#endif
-;
+extern bool same_pin_number( const PIN* item1, const PIN* item2 );
+extern bool same_pin_net( const PIN* item1, const PIN* item2 );
 
 
-// Variables generales */
-// Unused, for pcbnew compatibility:
-eda_global Ki_PageDescr* SheetList[]
-#ifdef MAIN
-= { NULL }
-#endif
-;
+class COMPONENT
+{
+public:
+    int           m_Num;       /* Component number. */
+    int           m_Multi;     /* Part if component has multiple parts. */
+    PIN_LIST      m_Pins;      /* List of component pins. */
+    wxString      m_Reference; /* Reference designator: U3, R5  ... */
+    wxString      m_Value;     /* Value: 7400, 47K ... */
+    wxString      m_TimeStamp; /* Time stamp ("00000000" if absent) */
+    wxString      m_Module;    /* Footprint (module) name. */
+    wxString      m_Repere;    /* Net list format */
+    wxArrayString m_FootprintFilter;  /* List of allowed footprints (wildcards
+                                       * allowed ). If empty: no filtering */
 
-// Unused, for pcbnew compatibility:
+    COMPONENT();
+    ~COMPONENT();
+};
+
+typedef boost::ptr_vector< COMPONENT > COMPONENT_LIST;
+
+/* COMPONENT object list sort function. */
+extern bool operator<( const COMPONENT& item1, const COMPONENT& item2 );
+
+
+class FOOTPRINT
+{
+public:
+    wxString  m_Module;     /* Module name. */
+    wxString  m_LibName;    /* Name of the library containing this module. */
+    int       m_Num;        /* Order number in the display list. */
+    wxString  m_Doc;        /* Footprint description. */
+    wxString  m_KeyWord;    /* Footprint key words. */
+
+    FOOTPRINT();
+};
+
+typedef boost::ptr_vector< FOOTPRINT > FOOTPRINT_LIST;
+
+/* FOOTPRINT object list sort function. */
+extern bool operator<( const FOOTPRINT& item1, const FOOTPRINT& item2 );
+
+extern const wxString FootprintAliasFileExtension;
+extern const wxString RetroFileExtension;
+extern const wxString ComponentFileExtension;
+
+extern const wxString RetroFileWildcard;
+extern const wxString FootprintAliasFileWildcard;
+
+extern const wxString titleLibLoadError;
+
 void Plume( int state );
+
+#endif /* __CVPCB_H__ */

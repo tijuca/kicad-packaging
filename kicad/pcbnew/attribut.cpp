@@ -1,5 +1,5 @@
 /******************************************/
-/* Track editing: attribute flags edition */
+/* Track editing: attribute flags editing */
 /******************************************/
 
 #include "fctsys.h"
@@ -7,36 +7,32 @@
 #include "class_drawpanel.h"
 
 #include "pcbnew.h"
+#include "wxPcbStruct.h"
 #include "autorout.h"
 #include "protos.h"
 
 
-/*****************************************************************************/
-void WinEDA_PcbFrame::Attribut_Segment( TRACK* track, wxDC* DC, bool Flag_On )
-/*****************************************************************************/
-
 /* Attribute change for 1 track segment.
  *  Attributes are
- *  SEGM_FIXE		protection against global delete
- *  SEGM_AR			AutoRouted segment
+ *  SEGM_FIXE       protection against global delete
+ *  SEGM_AR         AutoRouted segment
  */
+void WinEDA_PcbFrame::Attribut_Segment( TRACK* track, wxDC* DC, bool Flag_On )
 {
     if( track == NULL )
         return;
 
-    GetScreen()->SetModify();
+    OnModify();
     DrawPanel->CursorOff( DC );   // Erase cursor shape
     track->SetState( SEGM_FIXE, Flag_On );
     track->Draw( DrawPanel, DC, GR_OR | GR_SURBRILL );
     DrawPanel->CursorOn( DC );    // Display cursor shape
-    track->Display_Infos( this );
+    track->DisplayInfo( this );
 }
 
 
-/***************************************************************************/
-void WinEDA_PcbFrame::Attribut_Track( TRACK* track, wxDC* DC, bool Flag_On )
-/***************************************************************************/
 /* Attribute change for an entire track */
+void WinEDA_PcbFrame::Attribut_Track( TRACK* track, wxDC* DC, bool Flag_On )
 {
     TRACK* Track;
     int    nb_segm;
@@ -45,7 +41,8 @@ void WinEDA_PcbFrame::Attribut_Track( TRACK* track, wxDC* DC, bool Flag_On )
         return;
 
     DrawPanel->CursorOff( DC );   // Erase cursor shape
-    Track = Marque_Une_Piste( this, DC, track, &nb_segm, GR_OR | GR_SURBRILL );
+    Track = Marque_Une_Piste( GetBoard(), track, &nb_segm, NULL, true );
+    Trace_Une_Piste( DrawPanel, DC, Track, nb_segm, GR_OR | GR_SURBRILL );
 
     for( ; (Track != NULL) && (nb_segm > 0); nb_segm-- )
     {
@@ -56,18 +53,15 @@ void WinEDA_PcbFrame::Attribut_Track( TRACK* track, wxDC* DC, bool Flag_On )
 
     DrawPanel->CursorOn( DC );    // Display cursor shape
 
-    GetScreen()->SetModify();
+    OnModify();
 }
 
-
-/***********************************************************************/
-void WinEDA_PcbFrame::Attribut_net( wxDC* DC, int net_code, bool Flag_On )
-/***********************************************************************/
 
 /* Modify the flag SEGM_FIXE according to Flag_On value,
  *  for all the segments related to net_code.
  *  if net_code < 0 all the segments are modified.
  */
+void WinEDA_PcbFrame::Attribut_net( wxDC* DC, int net_code, bool Flag_On )
 {
     TRACK* Track = GetBoard()->m_Track;
 
@@ -87,12 +81,12 @@ void WinEDA_PcbFrame::Attribut_net( wxDC* DC, int net_code, bool Flag_On )
         if( (net_code >= 0 ) && (net_code != Track->GetNet()) )
             break;
 
-        GetScreen()->SetModify();
+        OnModify();
         Track->SetState( SEGM_FIXE, Flag_On );
         Track->Draw( DrawPanel, DC, GR_OR | GR_SURBRILL );
         Track = Track->Next();
     }
 
     DrawPanel->CursorOn( DC );    // Display cursor shape
-    GetScreen()->SetModify();
+    OnModify();
 }

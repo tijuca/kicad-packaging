@@ -34,11 +34,12 @@
 
 #include "specctra.h"
 #include "collectors.h"
-#include "wxPcbStruct.h"        // Change_Side_Module()
+#include "wxPcbStruct.h"
 #include "pcbstruct.h"          // HISTORY_NUMBER
 #include "confirm.h"            // DisplayError()
 #include "gestfich.h"           // EDA_FileSelector()
 #include "autorout.h"           // NET_CODES_OK
+#include "class_board_design_settings.h"
 
 #include "trigo.h"              // RotatePoint()
 #include <set>                  // std::set
@@ -47,6 +48,17 @@
 #include <boost/utility.hpp>    // boost::addressof()
 
 using namespace DSN;
+
+
+// Add .1 mil to the requested clearances as a safety margin.
+// There has been disagreement about interpretation of clearance in the past
+// between Kicad and Freerouter, so keep this safetyMargin until the
+// disagreement is resolved and stable.  Freerouter seems to be moving
+// (protected) traces upon loading the DSN file, and even though it seems to sometimes
+// add its own 0.1 to the clearances, I believe this is happening after
+// the load process (and moving traces) so I am of the opinion this is
+// still needed.
+static const double  safetyMargin = 0.1;
 
 
 // see wxPcbStruct.h
@@ -93,6 +105,7 @@ void WinEDA_PcbFrame::ExportToSpecctra( wxCommandEvent& event )
 
     try
     {
+        GetBoard()->SynchronizeNetsAndNetClasses();
         db.FromBOARD( GetBoard() );
         db.ExportPCB(  fullFileName, true );
 
@@ -113,7 +126,7 @@ void WinEDA_PcbFrame::ExportToSpecctra( wxCommandEvent& event )
     db.RevertMODULEs( GetBoard() );
 
 
-    // The two calls below to BOARD::Change_Side_Module(), both set the
+    // The two calls below to MODULE::Flip(), both set the
     // modified flag, yet their actions cancel each other out, so it should
     // be ok to clear the modify flag.
     if( !wasModified )
@@ -258,7 +271,6 @@ static PATH* makePath( const POINT& aStart, const POINT& aEnd, const std::string
 /**
  * Struct wxString_less_than
  * is used by std:set<> and std::map<> instantiations which use wxString as their key.
- */
 struct wxString_less_than
 {
     // a "less than" test on two wxStrings
@@ -267,6 +279,7 @@ struct wxString_less_than
         return s1.Cmp( s2 ) < 0;  // case specific wxString compare
     }
 };
+ */
 
 
 /**
@@ -454,7 +467,8 @@ PADSTACK* SPECCTRA_DB::makePADSTACK( BOARD* aBoard, D_PAD* aPad )
 
 
 /// data type used to ensure unique-ness of pin names, holding (wxString and int)
-typedef std::map<wxString, int, wxString_less_than> PINMAP;
+//typedef std::map<wxString, int, wxString_less_than> PINMAP;
+typedef std::map<wxString, int> PINMAP;
 
 
 IMAGE* SPECCTRA_DB::makeIMAGE( BOARD* aBoard, MODULE* aModule )
@@ -654,6 +668,7 @@ PADSTACK* SPECCTRA_DB::makeVia( int aCopperDiameter, int aDrillDiameter,
              // encode the drill value into the name for later import
              scale( aDrillDiameter )
              );
+
     name[ sizeof(name)-1 ] = 0;
     padstack->SetPadstackId( name );
 
@@ -769,16 +784,27 @@ void SPECCTRA_DB::fillBOUNDARY( BOARD* aBoard, BOUNDARY* boundary ) throw( IOErr
                 break;
 
             case S_CIRCLE:
+#if 0
                 // do not output a circle, freerouter does not understand it.
                 // this might be a mounting hole or something, ignore it without error
+                // because some of our demo boards have used the edges pcb layer to
+                // hold islanded circles, rather than simply using holes.
                 break;
+#else
+                // Do not output a circle, freerouter does not understand it.
+                // tell user his board has a problem, this is better than silently
+                // ignoring the error. "edges pcb" layer should not be used
+                // to hold islanded circles which could or should better be done
+                // as simple holes. (Some of our demo boards have this problem.)
+                // fall thru here to report the error.
+#endif
 
             default:
                 {
                     wxString error;
 
                     error.Printf( _("Unsupported DRAWSEGMENT type %s"),
-                      BOARD_ITEM::ShowShape( (Track_Shapes) graphic->m_Shape ).GetData() );
+                        GetChars( BOARD_ITEM::ShowShape( (Track_Shapes) graphic->m_Shape ) ) );
 
                     ThrowIOError( error );
                 }
@@ -868,7 +894,7 @@ void SPECCTRA_DB::FromBOARD( BOARD* aBoard ) throw( IOError )
             if( module->GetReference() == wxEmptyString )
             {
                 ThrowIOError( _("Component with value of \"%s\" has empty reference id."),
-                                module->GetValue().GetData() );
+                                GetChars( module->GetValue() ) );
             }
 
             // if we cannot insert OK, that means the reference has been seen before.
@@ -876,7 +902,7 @@ void SPECCTRA_DB::FromBOARD( BOARD* aBoard ) throw( IOError )
             if( !refpair.second )      // insert failed
             {
                 ThrowIOError( _("Multiple components have identical reference IDs of \"%s\"."),
-                      module->GetReference().GetData() );
+                      GetChars( module->GetReference() ) );
             }
         }
     }
@@ -952,40 +978,35 @@ void SPECCTRA_DB::FromBOARD( BOARD* aBoard ) throw( IOError )
 
     //-----<rules>--------------------------------------------------------
     {
-        // put out these rules, the user can then edit them with a text editor
         char    rule[80];
 
-        int     curTrackWidth = aBoard->m_BoardSettings->m_CurrentTrackWidth;
-        int     curTrackClear = aBoard->m_BoardSettings->m_TrackClearence;
+        int     defaultTrackWidth = aBoard->m_NetClasses.GetDefault()->GetTrackWidth();
+        int     defaultClearance  = aBoard->m_NetClasses.GetDefault()->GetClearance();
 
-        // Add .1 mil to the requested clearances as a safety margin.
-        // There has been disagreement about interpretation of clearance in the past
-        // between Kicad and Freerouter, so keep this safetyMargin until the
-        // disagreement is resolved and stable.  Freerouter seems to be moving
-        // (protected) traces upon loading the DSN file, and even though it seems to sometimes
-        // add its own 0.1 to the clearances, I believe this is happening after
-        // the load process (and moving traces) so I am of the opinion this is
-        // still needed.
-        const double  safetyMargin = 0.1;
-
-        double  clearance = scale(curTrackClear);
+        double  clearance = scale( defaultClearance );
 
         STRINGS& rules = pcb->structure->rules->rules;
 
-        sprintf( rule, "(width %.6g)", scale( curTrackWidth ) );
+        sprintf( rule, "(width %.6g)", scale( defaultTrackWidth ) );
         rules.push_back( rule );
 
         sprintf( rule, "(clearance %.6g)", clearance+safetyMargin );
         rules.push_back( rule );
 
-        // On a high density board, a typical solder mask clearance will be 2-3 mils.
+        // On a high density board (a board with 4 mil tracks, 4 mil spacing)
+        // a typical solder mask clearance will be 2-3 mils.
         // This exposes 2 to 3 mils of bare board around each pad, and would
         // leave only 1 to 2 mils of solder mask between the solder mask's boundary
         // to the edge of any trace within "clearance" of the pad.  So we need at least
         // 2 mils *extra* clearance for traces which would come near a pad on
         // a different net.  So if the baseline trace to trace clearance was say 4 mils, then
-        // the SMD to trace clearance should be at least 6 mils.  Also add our safetyMargin.
-        sprintf( rule, "(clearance %.6g (type default_smd))", clearance + 2.0 + safetyMargin );
+        // the SMD to trace clearance should be at least 6 mils.
+        double default_smd = clearance + safetyMargin;
+        if( default_smd <= 6.0 )
+            default_smd = 6.0;
+
+        sprintf( rule, "(clearance %.6g (type default_smd))", default_smd );
+
         rules.push_back( rule );
 
         /* see: http://www.freerouting.net/usren/viewtopic.php?f=5&t=339#p474
@@ -1017,7 +1038,7 @@ void SPECCTRA_DB::FromBOARD( BOARD* aBoard ) throw( IOError )
         // Pad to pad spacing on a single SMT part can be closer than our
         // clearance, we don't want freerouter complaining about that, so
         // output a significantly smaller pad to pad clearance to freerouter.
-        clearance = scale(curTrackClear)/4;
+        clearance = scale( defaultClearance )/4;
 
         sprintf( rule, "(clearance %.6g (type smd_smd))", clearance );
         rules.push_back( rule );
@@ -1111,10 +1132,7 @@ void SPECCTRA_DB::FromBOARD( BOARD* aBoard ) throw( IOError )
         std::string componentId;
 
         // find the highest numbered netCode within the board.
-        int highestNetCode = -1;
-        for( EQUIPOT* equipot = aBoard->m_Equipots;  equipot;  equipot = equipot->Next() )
-            highestNetCode = MAX( highestNetCode, equipot->GetNet() );
-
+        int highestNetCode = aBoard->m_NetInfo->GetCount() - 1;
         deleteNETs();
 
         // expand the net vector to highestNetCode+1, setting empty to NULL
@@ -1124,11 +1142,12 @@ void SPECCTRA_DB::FromBOARD( BOARD* aBoard ) throw( IOError )
         for( unsigned i=1;  i<nets.size();  ++i )
             nets[i] = new NET( pcb->network );
 
-        for( EQUIPOT* equipot = aBoard->m_Equipots;  equipot;  equipot = equipot->Next() )
+        for( unsigned ii = 0;  ii < aBoard->m_NetInfo->GetCount(); ii++ )
         {
-            int netcode = equipot->GetNet();
+            NETINFO_ITEM* net = aBoard->m_NetInfo->GetNetItem(ii);
+            int netcode = net->GetNet();
             if( netcode > 0 )
-                nets[ netcode ]->net_id = CONV_TO_UTF8( equipot->GetNetname() );
+                nets[ netcode ]->net_id = CONV_TO_UTF8( net->GetNetname() );
         }
 
         items.Collect( aBoard, scanMODULEs );
@@ -1226,40 +1245,55 @@ void SPECCTRA_DB::FromBOARD( BOARD* aBoard ) throw( IOError )
     }
 
 
-    //-----< output the vias >-----------------------------------------------
+    //-----< output vias used in netclasses and as stock >---------------------
     {
-        // ASSUME:  unique pads are now in the padstack list!  i.e. this code
-        // must follow the initial padstack construction code.
-        // Next we add the via's which may be used.
+        NETCLASSES& nclasses = aBoard->m_NetClasses;
 
-        int defaultViaSize = aBoard->m_BoardSettings->m_CurrentViaSize;
+        // Add the via from the Default netclass first.  The via container
+        // in pcb->library preserves the sequence of addition.
 
-        /* I need at least one via for the (class...) scope below
-        if( defaultViaSize )
-        */
+        NETCLASS*   netclass  = nclasses.GetDefault();
+
+        PADSTACK*   via = makeVia( netclass->GetViaDiameter(), netclass->GetViaDrill(),
+                                   0, aBoard->GetCopperLayerCount()-1 );
+
+        // we AppendVia() this first one, there is no way it can be a duplicate,
+        // the pcb->library via container is empty at this point.  After this,
+        // we'll have to use LookupVia().
+        wxASSERT( pcb->library->vias.size() == 0 );
+        pcb->library->AppendVia( via );
+
+        // output the stock vias, but preserve uniqueness in the via container by
+        // using LookupVia().
+        for( unsigned i=0; i < aBoard->m_ViasDimensionsList.size(); ++i )
         {
-            PADSTACK*   padstack = makeVia( defaultViaSize, g_DesignSettings.m_ViaDrill,
-                                           0, aBoard->GetCopperLayerCount()-1 );
-            pcb->library->AddPadstack( padstack );
+            int viaSize  = aBoard->m_ViasDimensionsList[i].m_Diameter;
+            int viaDrill = aBoard->m_ViasDimensionsList[i].m_Drill;
 
-            // remember this index, it is the default via and also the start of the
-            // vias within the padstack list.  Before this index are the pads.
-            // At this index and later are the vias.
-            pcb->library->SetViaStartIndex( pcb->library->padstacks.size()-1 );
+            via = makeVia( viaSize, viaDrill,
+                           0, aBoard->GetCopperLayerCount()-1 );
+
+            // maybe add 'via' to the library, but only if unique.
+            PADSTACK* registered = pcb->library->LookupVia( via );
+            if( registered != via )
+                delete via;
         }
 
-        for( int i=0;  i<HISTORY_NUMBER;  ++i )
+        // set the "spare via" index at the start of the
+        // pcb->library->spareViaIndex = pcb->library->vias.size();
+
+        // output the non-Default netclass vias
+        for( NETCLASSES::iterator nc = nclasses.begin();  nc != nclasses.end();  ++nc )
         {
-            int viaSize = aBoard->m_BoardSettings->m_ViaSizeHistory[i];
-            if( !viaSize )
-                break;
+            netclass = nc->second;
 
-            if( viaSize == defaultViaSize )
-                continue;
+            via = makeVia( netclass->GetViaDiameter(), netclass->GetViaDrill(),
+                           0, aBoard->GetCopperLayerCount()-1 );
 
-            PADSTACK*   padstack = makeVia( viaSize, g_DesignSettings.m_ViaDrill,
-                                           0, aBoard->GetCopperLayerCount()-1 );
-            pcb->library->AddPadstack( padstack );
+            // maybe add 'via' to the library, but only if unique.
+            PADSTACK* registered = pcb->library->LookupVia( via );
+            if( registered != via )
+                delete via;
         }
     }
 
@@ -1303,9 +1337,9 @@ void SPECCTRA_DB::FromBOARD( BOARD* aBoard ) throw( IOError )
                 if( old_netcode != netcode )
                 {
                     old_netcode = netcode;
-                    EQUIPOT* equipot = aBoard->FindNet( netcode );
-                    wxASSERT( equipot );
-                    netname = CONV_TO_UTF8( equipot->GetNetname() );
+                    NETINFO_ITEM* net = aBoard->FindNet( netcode );
+                    wxASSERT( net );
+                    netname = CONV_TO_UTF8( net->GetNetname() );
                 }
 
                 WIRE* wire = new WIRE( wiring );
@@ -1364,10 +1398,10 @@ void SPECCTRA_DB::FromBOARD( BOARD* aBoard ) throw( IOError )
             dsnVia->padstack_id = registered->padstack_id;
             dsnVia->vertexes.push_back( mapPt( via->GetPosition() ) );
 
-            EQUIPOT* equipot = aBoard->FindNet( netcode );
-            wxASSERT( equipot );
+            NETINFO_ITEM* net = aBoard->FindNet( netcode );
+            wxASSERT( net );
 
-            dsnVia->net_id = CONV_TO_UTF8( equipot->GetNetname() );
+            dsnVia->net_id = CONV_TO_UTF8( net->GetNetname() );
 
             dsnVia->via_type = T_protect;     // @todo, this should be configurable
         }
@@ -1377,69 +1411,107 @@ void SPECCTRA_DB::FromBOARD( BOARD* aBoard ) throw( IOError )
 
     //-----<via_descriptor>-------------------------------------------------
     {
-        // Output the vias in the padstack list here, by name.  This must
-        // be done after exporting existing vias as WIRE_VIAs.
-        VIA*        vias = pcb->structure->via;
-        PADSTACKS&  padstacks = pcb->library->padstacks;
-        int         viaNdx = pcb->library->via_start_index;
+        // The pcb->library will output <padstack_descriptors> which is a combined
+        // list of part padstacks and via padstacks.  specctra dsn uses the
+        // <via_descriptors> to say which of those padstacks are vias.
 
-        if( viaNdx != -1 )
+        // Output the vias in the padstack list here, by name only.  This must
+        // be done after exporting existing vias as WIRE_VIAs.
+        VIA*    vias = pcb->structure->via;
+
+        for(  unsigned viaNdx=0; viaNdx < pcb->library->vias.size();  ++viaNdx )
         {
-#if 1
-            for(  ; viaNdx < (int)padstacks.size();  ++viaNdx )
-            {
-                vias->AppendVia( padstacks[viaNdx].padstack_id.c_str() );
-            }
-#else
-            // output only the default via.   Then use class_descriptors to
-            // override the default.  No, this causes free router not to
-            // output the unmentioned vias into the session file.
-            vias->AppendVia( padstacks[viaNdx].padstack_id.c_str() );
-#endif
+            vias->AppendVia( pcb->library->vias[viaNdx].padstack_id.c_str() );
         }
     }
 
 
-    //-----<output a default class with all nets and the via and track size>--
+    //-----<output NETCLASSs>----------------------------------------------------
+    NETCLASSES& nclasses = aBoard->m_NetClasses;
+
+    exportNETCLASS( nclasses.GetDefault(), aBoard );
+
+    for( NETCLASSES::iterator nc = nclasses.begin();  nc != nclasses.end();  ++nc )
     {
-        char        text[80];
-        STRINGSET   netIds;       // sort the net names in here
-
-        CLASS*  clazz = new CLASS( pcb->network );
-        pcb->network->classes.push_back( clazz );
-
-        // freerouter creates a class named 'default' anyway, and if we
-        // try and use that, we end up with two 'default' via rules so use
-        // something else as the name of our default class.   Someday we may support
-        // additional classes.  Until then the user can text edit the exported
-        // DSN file and use this class as a template, copying it and giving the
-        // copy a different class_id and splitting out some of the nets.
-        clazz->class_id = "kicad_default";
-
-        // Insert all the net_ids into the set.  They are unique, but even if
-        // they were not the duplicated name is not our error, but the BOARD's.
-        // A duplicate would be removed here.
-        NETS& nets = pcb->network->nets;
-        for( NETS::iterator i=nets.begin();  i!=nets.end();  ++i )
-            netIds.insert( i->net_id );
-
-        // netIds is now sorted, put them into clazz->net_ids
-        for( STRINGSET::iterator i=netIds.begin();  i!=netIds.end();  ++i )
-            clazz->net_ids.push_back( *i );
-
-        // output the via and track dimensions, the whole reason for this scope.
-        int     curTrackWidth = aBoard->m_BoardSettings->m_CurrentTrackWidth;
-
-        clazz->rules = new RULE( clazz, T_rule );
-
-        sprintf( text, "(width %.6g)", scale( curTrackWidth ) );
-        clazz->rules->rules.push_back( text );
-
-        int         viaNdx = pcb->library->via_start_index;
-
-        sprintf( text, "(use_via %s)", pcb->library->padstacks[viaNdx].padstack_id.c_str() );
-        clazz->circuit.push_back( text );
+        NETCLASS*   netclass = nc->second;
+        exportNETCLASS( netclass, aBoard );
     }
+}
+
+
+void SPECCTRA_DB::exportNETCLASS( NETCLASS* aNetClass, BOARD* aBoard )
+{
+
+/*  From page 11 of specctra spec:
+
+    Routing and Placement Rule Hierarchies
+
+    Routing and placement rules can be defined at multiple levels of design
+    specification. When a routing or placement rule is defined for an object at
+    multiple levels, a predefined routing or placement precedence order
+    automatically determines which rule to apply to the object. The routing rule
+    precedence order is
+
+        pcb < layer < class < class layer < group_set < group_set layer < net <
+        net layer < group < group layer < fromto < fromto layer < class_class <
+        class_class layer < padstack < region < class region < net region <
+        class_class region
+
+    A pcb rule (global rule for the PCB design) has the lowest precedence in the
+    hierarchy. A class-to-class region rule has the highest precedence. Rules
+    set at one level of the hierarchy override conflicting rules set at lower
+    levels. The placement rule precedence order is
+
+        pcb < image_set < image < component < super cluster < room <
+        room_image_set < family_family < image_image
+
+    A pcb rule (global rule for the PCB design) has the lowest precedence in the
+    hierarchy. An image-to-image rule has the highest precedence. Rules set at
+    one level of the hierarchy override conflicting rules set at lower levels.
+*/
+
+    char        text[256];
+
+    CLASS*  clazz = new CLASS( pcb->network );
+    pcb->network->classes.push_back( clazz );
+
+    // freerouter creates a class named 'default' anyway, and if we
+    // try and use that, we end up with two 'default' via rules so use
+    // something else as the name of our default class.
+    clazz->class_id = CONV_TO_UTF8( aNetClass->GetName() );
+
+    for( NETCLASS::iterator net = aNetClass->begin();  net != aNetClass->end();  ++net )
+        clazz->net_ids.push_back( CONV_TO_UTF8( *net ) );
+
+    clazz->rules = new RULE( clazz, T_rule );
+
+    // output the track width.
+    int     trackWidth = aNetClass->GetTrackWidth();
+    sprintf( text, "(width %.6g)", scale( trackWidth ) );
+    clazz->rules->rules.push_back( text );
+
+    // output the clearance.
+    int clearance = aNetClass->GetClearance();
+    sprintf( text, "(clearance %.6g)", scale( clearance ) + safetyMargin );
+    clazz->rules->rules.push_back( text );
+
+    if( aNetClass->GetName() == NETCLASS::Default )
+    {
+        clazz->class_id = "kicad_default";
+    }
+
+    // the easiest way to get the via name is to create a via (which generates
+    // the name internal to the PADSTACK), and then grab the name and then
+    // delete the via.  There are not that many netclasses so
+    // this should never become a performance issue.
+
+    PADSTACK* via = makeVia( aNetClass->GetViaDiameter(), aNetClass->GetViaDrill(),
+                             0, aBoard->GetCopperLayerCount()-1 );
+
+    snprintf( text, sizeof(text), "(use_via %s)", via->GetPadstackId().c_str() );
+    clazz->circuit.push_back( text );
+
+    delete via;
 }
 
 
@@ -1448,9 +1520,9 @@ void SPECCTRA_DB::FlipMODULEs( BOARD* aBoard )
     for( MODULE* module = aBoard->m_Modules;  module;  module = module->Next() )
     {
         module->flag = 0;
-        if( module->GetLayer() == COPPER_LAYER_N )
+        if( module->GetLayer() == LAYER_N_BACK )
         {
-            aBoard->Change_Side_Module( module, NULL );
+            module->Flip( module->m_Pos );
             module->flag = 1;
         }
     }
@@ -1470,7 +1542,7 @@ void SPECCTRA_DB::RevertMODULEs( BOARD* aBoard )
     {
         if( module->flag )
         {
-            aBoard->Change_Side_Module( module, NULL );
+            module->Flip( module->m_Pos );
             module->flag = 0;
         }
     }

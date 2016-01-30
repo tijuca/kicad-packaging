@@ -11,6 +11,7 @@
 #include "class_drawpanel.h"
 
 #include "pcbnew.h"
+#include "wxPcbStruct.h"
 #include "autorout.h"
 #include "protos.h"
 
@@ -22,13 +23,13 @@
 #define POS_AFF_NUMSEGM 70
 
 /* local functions : */
-static int      clean_segments( WinEDA_PcbFrame* frame, wxDC* DC );
+static int      clean_segments( WinEDA_PcbFrame* frame );
 static void     DeleteUnconnectedTracks( WinEDA_PcbFrame* frame, wxDC* DC );
 static TRACK*   AlignSegment( BOARD* Pcb, TRACK* pt_ref, TRACK* pt_segm, int extremite );
 static void     Clean_Pcb_Items( WinEDA_PcbFrame* frame, wxDC* DC );
 
 /* Local Variables: */
-static bool a_color;    /* message color */
+static int  a_color;    /* message color */
 static bool s_CleanVias     = true;
 static bool s_MergeSegments = true;
 static bool s_DeleteUnconnectedSegm = true;
@@ -75,10 +76,12 @@ void Clean_Pcb_Items( WinEDA_PcbFrame* frame, wxDC* DC )
     frame->MsgPanel->EraseMsgBox();
     frame->GetBoard()->GetNumSegmTrack();    // update the count
 
+    // Clear undo and redo lists to avoid inconsistencies between lists
+    frame->GetScreen()->ClearUndoRedoList();
+
     /* Rebuild the pad infos (pad list and netcodes) to ensure an up to date info */
     frame->GetBoard()->m_Status_Pcb = 0;
-    frame->build_liste_pads();
-    frame->recalcule_pad_net_code();
+    frame->GetBoard()->m_NetInfo->BuildListOfNets();
 
     if( s_CleanVias )       // delete redundant vias
     {
@@ -143,7 +146,7 @@ void Clean_Pcb_Items( WinEDA_PcbFrame* frame, wxDC* DC )
 
     /* Remove null segments and intermediate points on aligned segments */
     if( s_MergeSegments )
-        clean_segments( frame, DC );
+        clean_segments( frame );
 
     /* Delete dangling tracks */
     if( s_DeleteUnconnectedSegm )
@@ -151,7 +154,7 @@ void Clean_Pcb_Items( WinEDA_PcbFrame* frame, wxDC* DC )
 
     frame->Compile_Ratsnest( DC, AFFICHE );
 
-    frame->GetScreen()->SetModify();
+    frame->OnModify();
 }
 
 
@@ -389,11 +392,11 @@ static void DeleteUnconnectedTracks( WinEDA_PcbFrame* frame, wxDC* DC )
 
 
 /************************************************************/
-static int clean_segments( WinEDA_PcbFrame* frame, wxDC* DC )
+static int clean_segments( WinEDA_PcbFrame* frame )
 /************************************************************/
 /* Delete null lenght segments, and intermediate points .. */
 {
-    TRACK*          segment;
+    TRACK*          segment, * nextsegment;
     TRACK*          other;
     int             ii, nbpoints_supprimes = 0;
     int             flag, no_inc, percent, oldpercent;
@@ -415,13 +418,13 @@ static int clean_segments( WinEDA_PcbFrame* frame, wxDC* DC )
 
     Affiche_1_Parametre( frame, POS_AFF_VAR, wxT( "NullSeg" ), wxT( "0" ), a_color );
 
-    for( segment = frame->GetBoard()->m_Track;  segment;  segment = segment->Next() )
+    for( segment = frame->GetBoard()->m_Track;  segment;  segment = nextsegment )
     {
+        nextsegment = segment->Next();
         if( !segment->IsNull() )
             continue;
 
         /* Length segment = 0; delete it */
-        segment->Draw( frame->DrawPanel, DC, GR_XOR );
         segment->DeleteStructure();
         nbpoints_supprimes++;
 
@@ -457,8 +460,9 @@ static int clean_segments( WinEDA_PcbFrame* frame, wxDC* DC )
                 return -1;
         }
 
-        for( other = segment->Next();  other;  other = other->Next() )
+        for( other = segment->Next(); other; other = nextsegment )
         {
+            nextsegment = other->Next();
             int erase = 0;
 
             if( segment->Type() != other->Type() )
@@ -486,7 +490,6 @@ static int clean_segments( WinEDA_PcbFrame* frame, wxDC* DC )
             if( erase )
             {
                 ii--;
-                other->Draw( frame->DrawPanel, DC, GR_OR );
                 other->DeleteStructure();
                 nbpoints_supprimes++;
 
@@ -508,14 +511,13 @@ static int clean_segments( WinEDA_PcbFrame* frame, wxDC* DC )
     Affiche_1_Parametre( frame, POS_AFF_VAR, _( "Merge" ), _( "0" ), a_color );
 
     ii = 0;
-    TRACK* next;
-    for( segment = frame->GetBoard()->m_Track;  segment;  segment = next )
+    for( segment = frame->GetBoard()->m_Track;  segment;  segment = nextsegment )
     {
         TRACK*  segStart;
         TRACK*  segEnd;
         TRACK*  segDelete;
 
-        next = segment->Next();
+        nextsegment = segment->Next();
 
         ii++;
         percent = (100 * ii) / frame->GetBoard()->m_Track.GetCount();
@@ -621,11 +623,11 @@ static int clean_segments( WinEDA_PcbFrame* frame, wxDC* DC )
             msg.Printf( wxT( "%d " ), nbpoints_supprimes );
             Affiche_1_Parametre( frame, POS_AFF_VAR, wxEmptyString, msg, a_color );
 
-            next = segment->Next();
+            nextsegment = segment->Next();
         }
     }
 
-    return 0;
+   return 0;
 }
 
 

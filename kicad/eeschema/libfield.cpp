@@ -1,65 +1,62 @@
-/*********************************************************************/
-/*	EESchema - edition des librairies: Edition des champs ( Fields ) */
-/*********************************************************************/
-
-/*	Fichier libfield.cpp	*/
+/*****************************************************/
+/*  Component library edit field manipulation code.  */
+/*****************************************************/
 
 #include "fctsys.h"
 #include "gr_basic.h"
 #include "common.h"
 #include "class_drawpanel.h"
-#include "drawtxt.h"
 #include "confirm.h"
 
 #include "program.h"
-#include "libcmp.h"
 #include "general.h"
-
 #include "protos.h"
+#include "libeditframe.h"
+#include "class_library.h"
 
-#include "wx/spinctrl.h"
 
-/* Routines locales */
 static void ShowMoveField( WinEDA_DrawPanel* panel, wxDC* DC, bool erase );
 
-/* Variables locales */
 
-extern int     CurrentUnit;
+extern int     m_unit;
 static wxPoint StartCursor, LastTextPosition;
 
 
-/***********************************************************/
 static void ExitMoveField( WinEDA_DrawPanel* Panel, wxDC* DC )
-/***********************************************************/
 {
     Panel->ManageCurseur = NULL;
     Panel->ForceCloseManageCurseur = NULL;
-    if( CurrentDrawItem == NULL )
+
+    WinEDA_LibeditFrame* parent = ( WinEDA_LibeditFrame* ) Panel->GetParent();
+
+    if( parent == NULL )
         return;
 
-    wxPoint             curpos;
-    curpos = Panel->GetScreen()->m_Curseur;
+    LIB_DRAW_ITEM* item = parent->GetDrawItem();
+
+    if( item == NULL )
+        return;
+
+    wxPoint curpos = Panel->GetScreen()->m_Curseur;
+
     Panel->GetScreen()->m_Curseur = StartCursor;
     ShowMoveField( Panel, DC, TRUE );
     Panel->GetScreen()->m_Curseur = curpos;
-    CurrentDrawItem->m_Flags = 0;
-
-    CurrentDrawItem = NULL;
+    item->m_Flags = 0;
+    parent->SetDrawItem( NULL );
 }
 
 
-/****************************************************************************/
-void WinEDA_LibeditFrame::StartMoveField( wxDC* DC, LibDrawField* field )
-/****************************************************************************/
-/* Initialise le deplacement d'un champ ( ref ou Name) */
+void WinEDA_LibeditFrame::StartMoveField( wxDC* DC, LIB_FIELD* field )
 {
     wxPoint startPos;
 
-    if( (CurrentLibEntry == NULL) || ( field == NULL ) )
+    if( ( m_component == NULL ) || ( field == NULL ) )
         return;
-    CurrentDrawItem  = field;
+
+    m_drawItem  = field;
     LastTextPosition = field->m_Pos;
-    CurrentDrawItem->m_Flags |= IS_MOVED;
+    m_drawItem->m_Flags |= IS_MOVED;
 
     startPos.x = LastTextPosition.x;
     startPos.y = -LastTextPosition.y;
@@ -76,118 +73,64 @@ void WinEDA_LibeditFrame::StartMoveField( wxDC* DC, LibDrawField* field )
 }
 
 
-/*****************************************************************/
-/* Routine d'affichage du texte 'Field' en cours de deplacement. */
-/*	Routine normalement attachee au curseur						*/
-/*****************************************************************/
+/*
+ * Routine to display text 'Field' on the move.
+ * Normally called by cursor management code.
+ */
 static void ShowMoveField( WinEDA_DrawPanel* panel, wxDC* DC, bool erase )
 {
-    int           color;
-    LibDrawField* Field = (LibDrawField*) CurrentDrawItem;
+    WinEDA_LibeditFrame* parent = (WinEDA_LibeditFrame*) panel->GetParent();
 
-    if( (CurrentLibEntry == NULL) || (Field == NULL) )
+    if( parent == NULL )
         return;
 
-    switch( Field->m_FieldId )
-    {
-    case VALUE:
-        color = ReturnLayerColor( LAYER_VALUEPART );
-        break;
+    LIB_FIELD* Field = (LIB_FIELD*) parent->GetDrawItem();
 
-    case REFERENCE:
-        color = ReturnLayerColor( LAYER_REFERENCEPART );
-        break;
+    if( Field == NULL )
+        return;
 
-    default:
-        color = ReturnLayerColor( LAYER_FIELDS );
-        break;
-    }
+    wxString text = Field->GetFullText( parent->GetUnit() );
 
-    wxString text = Field->m_Text;
-    if( Field->m_FieldId == REFERENCE )
-        text << wxT( "?" );
-
-    int TransMat[2][2];
-    TransMat[0][0] = 1; TransMat[1][1] = -1;
-    TransMat[1][0] = TransMat[0][1] = 0;
-
-    if( Field->m_Attributs & TEXT_NO_VISIBLE )
-        color = DARKGRAY;
     if( erase )
-        Field->Draw( panel, DC, wxPoint( 0, 0 ),
-            color,
-            g_XorMode, &text, TransMat );
-
+        Field->Draw( panel, DC, wxPoint( 0, 0 ), -1, g_XorMode, &text,
+                     DefaultTransformMatrix );
 
     LastTextPosition.x = panel->GetScreen()->m_Curseur.x;
     LastTextPosition.y = -panel->GetScreen()->m_Curseur.y;
 
     Field->m_Pos = LastTextPosition;
-
-    Field->Draw( panel, DC, wxPoint( 0, 0 ),
-        color,
-        g_XorMode, &text, TransMat );
+    Field->Draw( panel, DC, wxPoint( 0, 0 ), -1, g_XorMode, &text,
+                 DefaultTransformMatrix );
 }
 
 
-/*******************************************************************/
-void WinEDA_LibeditFrame::PlaceField( wxDC* DC, LibDrawField* Field )
-/*******************************************************************/
+void WinEDA_LibeditFrame::PlaceField( wxDC* DC, LIB_FIELD* Field )
 {
-    EDA_Colors color;
-
     if( Field == NULL )
         return;
 
-    switch( Field->m_FieldId )
-    {
-    case REFERENCE:
-        color = ReturnLayerColor( LAYER_REFERENCEPART );
-        break;
-
-    case VALUE:
-        color = ReturnLayerColor( LAYER_VALUEPART );
-        break;
-
-    default:
-        color = ReturnLayerColor( LAYER_FIELDS );
-        break;
-    }
-
     Field->m_Flags = 0;
-
-
-    if( (Field->m_Attributs & TEXT_NO_VISIBLE) != 0 )
-        color = DARKGRAY;
     Field->m_Pos.x = GetScreen()->m_Curseur.x;
     Field->m_Pos.y = -GetScreen()->m_Curseur.y;
-    int LineWidth = MAX( Field->m_Width, g_DrawMinimunLineWidth );
     DrawPanel->CursorOff( DC );
 
-    GRSetDrawMode( DC, GR_DEFAULT_DRAWMODE );
-    DrawGraphicText( DrawPanel, DC, wxPoint( Field->m_Pos.x, -Field->m_Pos.y ),
-        color, Field->m_Text,
-        Field->m_Orient ? TEXT_ORIENT_VERT : TEXT_ORIENT_HORIZ,
-        Field->m_Size,
-        Field->m_HJustify, Field->m_VJustify, LineWidth );
+    wxString fieldText = Field->GetFullText( m_unit );
+
+    Field->Draw( DrawPanel, DC, wxPoint( 0, 0 ), -1, GR_DEFAULT_DRAWMODE,
+                 &fieldText, DefaultTransformMatrix );
 
     DrawPanel->CursorOn( DC );
-
-    GetScreen()->SetModify();
+    OnModify( );
     DrawPanel->ManageCurseur = NULL;
     DrawPanel->ForceCloseManageCurseur = NULL;
-    CurrentDrawItem = NULL;
+    m_drawItem = NULL;
 }
 
 
-/******************************************************************/
-void WinEDA_LibeditFrame::EditField( wxDC* DC, LibDrawField* Field )
-/******************************************************************/
+void WinEDA_LibeditFrame::EditField( wxDC* DC, LIB_FIELD* Field )
 {
-    wxString Text;
-    wxString title;
-    EDA_Colors      color;
-    int      LineWidth = MAX( Field->m_Width, g_DrawMinimunLineWidth );
+    wxString   Text;
+    wxString   title;
 
     if( Field == NULL )
         return;
@@ -196,183 +139,143 @@ void WinEDA_LibeditFrame::EditField( wxDC* DC, LibDrawField* Field )
     {
     case REFERENCE:
         title = wxT( "Reference:" );
-        color = ReturnLayerColor( LAYER_REFERENCEPART );
         break;
 
     case VALUE:
-        title = wxT( "Value:" );
-        color = ReturnLayerColor( LAYER_VALUEPART );
+        title = wxT( "Component Name / Value:" );
         break;
 
     default:
-        color = ReturnLayerColor( LAYER_FIELDS );
         break;
     }
 
-    if( Field->m_Attributs & TEXT_NO_VISIBLE )
-        color = DARKGRAY;
-
     Text = Field->m_Text;
+
+    /* FIXME: Use wxTextEntry dialog here and check for cancel button. */
     Get_Message( title, _( "Edit field" ), Text, this );
     Text.Replace( wxT( " " ), wxT( "_" ) );
 
-    GRSetDrawMode( DC, g_XorMode );
-    DrawGraphicText( DrawPanel, DC, wxPoint( Field->m_Pos.x, -Field->m_Pos.y ),
-        color, Field->m_Text,
-        Field->m_Orient ? TEXT_ORIENT_VERT : TEXT_ORIENT_HORIZ,
-        Field->m_Size,
-        Field->m_HJustify, Field->m_VJustify, LineWidth );
+    wxString fieldText = Field->GetFullText( m_unit );
+
+    /* If the value field is changed, this is equivalent to creating a new
+     * component from the old one.  Check for an existing library entry of
+     * this "new" component and change the value only if there is no existing
+     * entry with the same name.
+     */
+    if( Field->m_FieldId == VALUE && Text != Field->m_Text )
+    {
+        wxString msg;
+
+        /* Test for an existing name in the current components alias list. */
+        if( Field->GetParent()->m_AliasList.Index( Text, false ) != wxNOT_FOUND )
+        {
+            msg.Printf( _( "The field name <%s> is an existing alias of the \
+component <%s>.\nPlease choose another name that does not conflict with any \
+names in the alias list." ),
+                        GetChars( Text ),
+                        GetChars( Field->GetParent()->GetName() ) );
+            DisplayError( this, msg );
+            return;
+        }
+
+        /* Test for an existing entry in the library to prevent duplicate
+         * entry names.
+         */
+        if( m_library && m_library->FindEntry( Text ) != NULL )
+        {
+            msg.Printf( _( "The field name <%s> conflicts with an existing \
+entry in the component library <%s>.\nPlease choose another name that does \
+not conflict with any library entries." ),
+                        GetChars( Text ),
+                        GetChars( m_library->GetName() ) );
+            DisplayError( this, msg );
+            return;
+        }
+
+        Field->GetParent()->SetName( Text );
+    }
+
+    Field->Draw( DrawPanel, DC, wxPoint( 0, 0 ), -1, g_XorMode, &fieldText,
+                 DefaultTransformMatrix );
 
     if( !Text.IsEmpty() )
     {
-        SaveCopyInUndoList( CurrentLibEntry );
+        SaveCopyInUndoList( Field->GetParent() );
         Field->m_Text = Text;
     }
     else
+    {
         DisplayError( this, _( "No new text: no change" ) );
+    }
+
+    fieldText = Field->GetFullText( m_unit );
+    int drawMode = g_XorMode;
 
     if( Field->m_Flags == 0 )
-        GRSetDrawMode( DC, GR_DEFAULT_DRAWMODE );
+        drawMode = GR_DEFAULT_DRAWMODE;
 
-    DrawGraphicText( DrawPanel, DC, wxPoint( Field->m_Pos.x, -Field->m_Pos.y ),
-        color, Field->m_Text,
-        Field->m_Orient ? TEXT_ORIENT_VERT : TEXT_ORIENT_HORIZ,
-        Field->m_Size,
-        Field->m_HJustify, Field->m_VJustify, LineWidth );
+    Field->Draw( DrawPanel, DC, wxPoint( 0, 0 ), -1, drawMode, &fieldText,
+                 DefaultTransformMatrix );
 
-    GetScreen()->SetModify();
-
-    if( Field->m_FieldId == VALUE )
-        ReCreateHToolbar();
+    OnModify( );
+    UpdateAliasSelectList();
 }
 
 
-/********************************************************************/
-void WinEDA_LibeditFrame::RotateField( wxDC* DC, LibDrawField* Field )
-/********************************************************************/
-
-/* Routine de modification de l'orientation ( Horiz ou Vert. ) du champ.
-  * si un champ est en cours d'edition, modif de celui ci.
-  * sinon Modif du champ pointe par la souris
+/*
+ * Rotate a field horizontally or vertically.
+ *
+ * If a field is being edited, rotate.
+ * Otherwise rotate the field at the current cursor position.
  */
+void WinEDA_LibeditFrame::RotateField( wxDC* DC, LIB_FIELD* Field )
 {
-    EDA_Colors color;
 
     if( Field == NULL )
         return;
 
-    GetScreen()->SetModify();
-
-    switch( Field->m_FieldId )
-    {
-    case REFERENCE:
-        color = ReturnLayerColor( LAYER_REFERENCEPART );
-        break;
-
-    case VALUE:
-        color = ReturnLayerColor( LAYER_VALUEPART );
-        break;
-
-    default:
-        color = ReturnLayerColor( LAYER_FIELDS );
-        break;
-    }
-
-    if( (Field->m_Attributs & TEXT_NO_VISIBLE) != 0 )
-        color = DARKGRAY;
-
+    OnModify( );
     DrawPanel->CursorOff( DC );
-
     GRSetDrawMode( DC, g_XorMode );
-    int LineWidth = MAX( Field->m_Width, g_DrawMinimunLineWidth );
-    DrawGraphicText( DrawPanel, DC, wxPoint( Field->m_Pos.x, -Field->m_Pos.y ),
-        color, Field->m_Text,
-        Field->m_Orient ? TEXT_ORIENT_VERT : TEXT_ORIENT_HORIZ,
-        Field->m_Size,
-        Field->m_HJustify, Field->m_VJustify, LineWidth );
+
+    wxString fieldText = Field->GetFullText( m_unit );
+
+    Field->Draw( DrawPanel, DC, wxPoint( 0, 0 ), -1, g_XorMode, &fieldText,
+                 DefaultTransformMatrix );
 
     if( Field->m_Orient )
         Field->m_Orient = 0;
     else
-        Field->m_Orient = 1;
+        Field->m_Orient = 900;
+
+    int drawMode = g_XorMode;
 
     if( Field->m_Flags == 0 )
-        GRSetDrawMode( DC, GR_DEFAULT_DRAWMODE );
+        drawMode = GR_DEFAULT_DRAWMODE;
 
-    DrawGraphicText( DrawPanel, DC, wxPoint( Field->m_Pos.x, -Field->m_Pos.y ),
-        color, Field->m_Text,
-        Field->m_Orient ? TEXT_ORIENT_VERT : TEXT_ORIENT_HORIZ,
-        Field->m_Size,
-        Field->m_HJustify, Field->m_VJustify, LineWidth );
+    Field->Draw( DrawPanel, DC, wxPoint( 0, 0 ), -1, drawMode, &fieldText,
+                 DefaultTransformMatrix );
+
     DrawPanel->CursorOn( DC );
 }
 
 
-/****************************************************************************/
-LibDrawField* WinEDA_LibeditFrame::LocateField( EDA_LibComponentStruct* LibEntry )
-/****************************************************************************/
-
-/* Locate the component fiels (ref, name or auxiliary fields) under the mouse cursor
-  * return:
-  *     pointer on the field (or NULL )
- */
+LIB_DRAW_ITEM* WinEDA_LibeditFrame::LocateItemUsingCursor()
 {
-    wxPoint refpos;
-
-    refpos.x = GetScreen()->m_Curseur.x;
-    refpos.y = -GetScreen()->m_Curseur.y;  // Y axis is from bottom to top in library
-    /* Test reference */
-    if( LibEntry->m_Name.HitTest( refpos ) )
-        return &LibEntry->m_Name;
-
-    /* Test Prefix */
-    if( LibEntry->m_Prefix.HitTest( refpos ) )
-        return &LibEntry->m_Prefix;
-
-    /* Localisation des autres fields */
-    for( LibDrawField* field = LibEntry->m_Fields;  field;  field = field->Next() )
-    {
-        if( field->m_Text.IsEmpty() )
-            continue;
-
-        if( field->HitTest( refpos ) )
-            return field;
-    }
-
-    return NULL;
-}
-
-
-/********************************************************************************/
-LibEDA_BaseStruct* WinEDA_LibeditFrame::LocateItemUsingCursor()
-/********************************************************************************/
-{
-    LibEDA_BaseStruct* DrawEntry = CurrentDrawItem;
-
-    if( CurrentLibEntry == NULL )
+    if( m_component == NULL )
         return NULL;
 
-    if( (DrawEntry == NULL) || (DrawEntry->m_Flags == 0) )
-    {   // Simple localisation des elements
-        DrawEntry = LocatePin(
-            GetScreen()->m_Curseur, CurrentLibEntry, CurrentUnit, CurrentConvert );
-        if( DrawEntry == NULL )
-        {
-            DrawEntry = CurrentDrawItem = LocateDrawItem( (SCH_SCREEN*) GetScreen(),
-                GetScreen()->m_MousePosition, CurrentLibEntry, CurrentUnit,
-                CurrentConvert, LOCATE_ALL_DRAW_ITEM );
-        }
-        if( DrawEntry == NULL )
-        {
-            DrawEntry = CurrentDrawItem = LocateDrawItem( (SCH_SCREEN*) GetScreen(),
-                GetScreen()->m_Curseur, CurrentLibEntry, CurrentUnit,
-                CurrentConvert, LOCATE_ALL_DRAW_ITEM );
-        }
-        if( DrawEntry == NULL )
-        {
-            DrawEntry = CurrentDrawItem = (LibEDA_BaseStruct*)
-                                          LocateField( CurrentLibEntry );
-        }
+    if( ( m_drawItem == NULL ) || ( m_drawItem->m_Flags == 0 ) )
+    {
+        m_drawItem = m_component->LocateDrawItem( m_unit, m_convert,
+                                                  TYPE_NOT_INIT,
+                                                  GetScreen()->m_MousePosition );
+
+        if( m_drawItem == NULL )
+            m_drawItem = m_component->LocateDrawItem( m_unit, m_convert,
+                                                      TYPE_NOT_INIT,
+                                                      GetScreen()->m_Curseur );
     }
-    return DrawEntry;
+
+    return m_drawItem;
 }

@@ -35,14 +35,14 @@
 
 ////@begin control identifiers
 #define ID_DIALOG 10000
+#define ID_RADIOBOX 10001
+#define ID_TEXTCTRL 10002
+#define ID_TEXTCTRL1 10003
 #define SYMBOL_WINEDA_PCBGRIDFRAME_STYLE wxCAPTION|wxSYSTEM_MENU|wxCLOSE_BOX|MAYBE_RESIZE_BORDER
 #define SYMBOL_WINEDA_PCBGRIDFRAME_TITLE _("User Grid Size")
 #define SYMBOL_WINEDA_PCBGRIDFRAME_IDNAME ID_DIALOG
 #define SYMBOL_WINEDA_PCBGRIDFRAME_SIZE wxSize(400, 300)
 #define SYMBOL_WINEDA_PCBGRIDFRAME_POSITION wxDefaultPosition
-#define ID_RADIOBOX 10001
-#define ID_TEXTCTRL 10002
-#define ID_TEXTCTRL1 10003
 ////@end control identifiers
 
 /*!
@@ -77,12 +77,6 @@ public:
 
 ////@begin WinEDA_PcbGridFrame event handler declarations
 
-    /// wxEVT_COMMAND_BUTTON_CLICKED event handler for wxID_OK
-    void OnOkClick( wxCommandEvent& event );
-
-    /// wxEVT_COMMAND_BUTTON_CLICKED event handler for wxID_CANCEL
-    void OnCancelClick( wxCommandEvent& event );
-
 ////@end WinEDA_PcbGridFrame event handler declarations
 
 ////@begin WinEDA_PcbGridFrame member function declarations
@@ -96,14 +90,18 @@ public:
 
     /// Should we show tooltips?
     static bool ShowToolTips();
-	void AcceptPcbOptions(wxCommandEvent& event);
 
 ////@begin WinEDA_PcbGridFrame member variables
     wxRadioBox* m_UnitGrid;
     wxTextCtrl* m_OptGridSizeX;
     wxTextCtrl* m_OptGridSizeY;
 ////@end WinEDA_PcbGridFrame member variables
-	WinEDA_BasePcbFrame * m_Parent;
+
+    void SetGridUnits( int units );
+    int GetGridUnits();
+
+    void SetGridSize( const wxRealPoint& grid );
+    wxRealPoint GetGridSize();
 };
 
 #endif

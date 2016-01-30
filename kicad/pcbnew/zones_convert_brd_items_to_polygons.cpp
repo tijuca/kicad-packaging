@@ -19,49 +19,66 @@
  *      - shapes are smoothed.
  */
 
-using namespace std;
-
 #include <math.h>
 #include <vector>
 
 #include "fctsys.h"
 #include "common.h"
 #include "pcbnew.h"
+#include "wxPcbStruct.h"
 #include "trigo.h"
 
 #include "zones.h"
 
-
 #include "PolyLine.h"
 
-extern void Test_For_Copper_Island_And_Remove( BOARD* aPcb, ZONE_CONTAINER* aZone_container );
+// Kbool 1.9 and before had sometimes problemes when calculating thermal shapes as polygons (this is the best solution)
+// Kbool 2.0 has solved some problems, but not all
+// Kbool 2.1 has solved some others problems, but not all
+
+// Used to create data files to debug Kbool
+#include "debug_kbool_key_file_fct.h"
+
+// Also we can create test files for Kbool bebug purposes
+// when CREATE_KBOOL_KEY_FILES is defined
+// See debug_kbool_key_file_fct.h
+
+
+extern void Test_For_Copper_Island_And_Remove( BOARD*          aPcb,
+                                               ZONE_CONTAINER* aZone_container );
+extern void TransformRoundedEndsSegmentToPolygon( std::vector <CPolyPt>& aCornerBuffer,
+                                                  wxPoint aStart, wxPoint aEnd,
+                                                  int aCircleToSegmentsCount,
+                                                  int aWidth );
+
+void        CreateThermalReliefPadPolygon( std::vector<CPolyPt>& aCornerBuffer,
+                                           D_PAD&                aPad,
+                                           int                   aThermalGap,
+                                           int                   aCopperThickness,
+                                           int                   aMinThicknessValue,
+                                           int                   aCircleToSegmentsCount,
+                                           double                aCorrectionFactor,
+                                           int                   aThermalRot );
 
 
 // Local Functions:
-void        AddTrackWithClearancePolygon( Bool_Engine* aBooleng,
-                                          TRACK& aTrack, int aClearanceValue );
-void        AddPadWithClearancePolygon( Bool_Engine* aBooleng, D_PAD& aPad, int aClearanceValue );
-void        AddThermalReliefPadPolygon( Bool_Engine* aBooleng,
-                                        D_PAD& aPad,
-                                        int aThermalGap,
-                                        int aCopperThickness, int aMinThicknessValue );
-void        AddRoundedEndsSegmentPolygon( Bool_Engine* aBooleng,
-                                          wxPoint aStart, wxPoint aEnd,
-                                          int aWidth );
-void        AddTextBoxWithClearancePolygon( Bool_Engine* aBooleng,
-                                            TEXTE_PCB* aText, int aClearanceValue );
-
-static void AddRingPolygon( Bool_Engine* aBooleng,
-                            wxPoint      aCentre,
-                            wxPoint      aStart,
-                            int          aArcAngle,
-                            int          aWidth );
+void AddTrackWithClearancePolygon( Bool_Engine* aBooleng,
+                                   TRACK& aTrack, int aClearanceValue );
+void AddPadWithClearancePolygon( Bool_Engine* aBooleng, D_PAD& aPad, int aClearanceValue );
+int AddThermalReliefPadPolygon( Bool_Engine* aBooleng,
+                                 D_PAD& aPad,
+                                 int aThermalGap,
+                                 int aCopperThickness, int aMinThicknessValue );
+void AddRoundedEndsSegmentPolygon( Bool_Engine* aBooleng,
+                                   wxPoint aStart, wxPoint aEnd,
+                                   int aWidth );
 
 // Local Variables:
 /* how many segments are used to create a polygon from a circle: */
-static int s_CircleToSegmentsCount = 16;   /* default value. the real value will be changed to 32
-                                            * if g_Zone_Arc_Approximation == 1
-                                            */
+static int s_CircleToSegmentsCount = ARC_APPROX_SEGMENTS_COUNT_LOW_DEF;   /* default value. the real value will be changed to
+                                                                           * ARC_APPROX_SEGMENTS_COUNT_HIGHT_DEF
+                                                                           * if m_ArcToSegmentsCount == ARC_APPROX_SEGMENTS_COUNT_HIGHT_DEF
+                                                                           */
 double     s_Correction; /* mult coeff used to enlarge rounded and oval pads (and vias)
                           * because the segment approximation for arcs and circles
                           * create a smaller gap than a true circle
@@ -113,10 +130,10 @@ void ZONE_CONTAINER::AddClearanceAreasPolygonsToPolysList( BOARD* aPcb )
     bool have_poly_to_substract = false;
 
     // Set the number of segments in arc approximations
-    if( m_ArcToSegmentsCount == 32  )
-        s_CircleToSegmentsCount = 32;
+    if( m_ArcToSegmentsCount == ARC_APPROX_SEGMENTS_COUNT_HIGHT_DEF  )
+        s_CircleToSegmentsCount = ARC_APPROX_SEGMENTS_COUNT_HIGHT_DEF;
     else
-        s_CircleToSegmentsCount = 16;
+        s_CircleToSegmentsCount = ARC_APPROX_SEGMENTS_COUNT_LOW_DEF;
 
     /* calculates the coeff to compensate radius reduction of holes clearance
      * due to the segment approx.
@@ -161,56 +178,88 @@ void ZONE_CONTAINER::AddClearanceAreasPolygonsToPolysList( BOARD* aPcb )
     booleng = new Bool_Engine();
     ArmBoolEng( booleng, true );
 
-    /* Add the main corrected polygon (i.e. the filled area using only one outline)
-     * in GroupA in Bool_Engine
+    /* Calculates the clearance value that meet DRC requirements
+     * from m_ZoneClearance and clearance from the corresponding netclass
+     * We have a "local" clearance in zones because most of time
+     * clearance between a zone and others items is bigger than the netclass clearance
+     * this is more true for small clearance values
+     * Note also the "local" clearance is used for clearance between non copper items
+     *    or items like texts on copper layers
      */
-    CopyPolygonsFromFilledPolysListToBoolengine( booleng, GROUP_A );
-
-    // Calculates the clearance value that meet DRC requirements
-    int clearance = max( m_ZoneClearance, g_DesignSettings.m_TrackClearence );
-    clearance += m_ZoneMinThickness / 2;
-
+    int zone_clearance = max( m_ZoneClearance, GetClearance() );
+    zone_clearance += m_ZoneMinThickness / 2;
 
     /* Add holes (i.e. tracks and pads areas as polygons outlines)
      * in GroupB in Bool_Engine
      */
-    /* items ouside the zone bounding box are skipped */
+
+    /* items ouside the zone bounding box are skipped
+     * the bounding box is the zone bounding box + the biggest clearance found in Netclass list
+     */
     EDA_Rect item_boundingbox;
-    EDA_Rect zone_boundingbox = GetBoundingBox();
-    zone_boundingbox.Inflate( m_ZoneClearance, clearance );
+    EDA_Rect zone_boundingbox  = GetBoundingBox();
+    int      biggest_clearance = aPcb->GetBiggestClearanceValue();
+    biggest_clearance = MAX( biggest_clearance, zone_clearance );
+    zone_boundingbox.Inflate( biggest_clearance, biggest_clearance );
+
+#ifdef CREATE_KBOOL_KEY_FILES_FIRST_PASS
+    CreateKeyFile();
+    OpenKeyFileEntity( "Layer_fp" );
+    CopyPolygonsFromFilledPolysListToKeyFile( this, 0 );
+#endif
 
     /*
      * First : Add pads. Note: pads having the same net as zone are left in zone.
      * Thermal shapes will be created later if necessary
      */
+    int item_clearance;
     have_poly_to_substract = false;
+
+    D_PAD dummyPad((MODULE*)NULL);
+
     for( MODULE* module = aPcb->m_Modules;  module;  module = module->Next() )
     {
         for( D_PAD* pad = module->m_Pads; pad != NULL; pad = pad->Next() )
         {
             if( !pad->IsOnLayer( GetLayer() ) )
-                continue;
+            {   /* Test fo pads that are on top or bottom only and have a hole.
+                 * There are curious pads but they can be used for some components that are inside the
+                 * board (in fact inside the hole. Some photo diodes and Leds are like this)
+                 */
+                if( (pad->m_Drill.x == 0) && (pad->m_Drill.y == 0) )
+                    continue;
+
+                // Use a dummy pad to calculate a hole shape that have the same dimension as the pad hole
+                dummyPad.m_Size = pad->m_Drill;
+                dummyPad.m_Orient = pad->m_Orient;
+                dummyPad.m_PadShape = pad->m_DrillShape;
+                dummyPad.m_Pos = pad->m_Pos;
+                pad = &dummyPad;
+            }
 
             if( pad->GetNet() != GetNet() )
             {
+                item_clearance   = pad->GetClearance() + (m_ZoneMinThickness / 2);
                 item_boundingbox = pad->GetBoundingBox();
                 if( item_boundingbox.Intersects( zone_boundingbox ) )
                 {
-                    AddPadWithClearancePolygon( booleng, *pad, clearance );
+                    AddPadWithClearancePolygon( booleng, *pad, MAX( zone_clearance, item_clearance ) );
                     have_poly_to_substract = true;
                 }
                 continue;
             }
 
+            int gap = zone_clearance;
             if( (m_PadOption == PAD_NOT_IN_ZONE)
                || (GetNet() == 0) || pad->m_PadShape == PAD_TRAPEZOID )
-            // PAD_TRAPEZOID shapes are *never* in zones becuase they are used in microwave apps
-            // and the shae *must not* be changed by thermal pads or others
+
+            // PAD_TRAPEZOID shapes are not in zones because they are used in microwave apps
+            // and i think it is good that shapes are not changed by thermal pads or others
             {
                 item_boundingbox = pad->GetBoundingBox();
                 if( item_boundingbox.Intersects( zone_boundingbox ) )
                 {
-                    AddPadWithClearancePolygon( booleng, *pad, clearance );
+                    AddPadWithClearancePolygon( booleng, *pad, gap );
                     have_poly_to_substract = true;
                 }
             }
@@ -227,16 +276,40 @@ void ZONE_CONTAINER::AddClearanceAreasPolygonsToPolysList( BOARD* aPcb )
             continue;
         if( track->GetNet() == GetNet()  && (GetNet() != 0) )
             continue;
+
+        item_clearance   = track->GetClearance() + (m_ZoneMinThickness / 2);
         item_boundingbox = track->GetBoundingBox();
         if( item_boundingbox.Intersects( zone_boundingbox ) )
         {
-            AddTrackWithClearancePolygon( booleng, *track, clearance );
+            AddTrackWithClearancePolygon( booleng, *track, MAX( zone_clearance, item_clearance ) );
             have_poly_to_substract = true;
         }
     }
 
-    // Draw graphic items (copper texts) and board edges
-    // zone clearance is used here regardless of the g_DesignSettings.m_TrackClearence value
+    static std::vector <CPolyPt> cornerBuffer;
+    cornerBuffer.clear();
+    /* Add module edge items that are on copper layers
+     * Pcbnew allows these items to be on copper layers in microwvae applictions
+     * This is a bad thing, but must be handle here, until a better way is found
+     */
+    for( MODULE* module = aPcb->m_Modules;  module;  module = module->Next() )
+    {
+        for( BOARD_ITEM* item = module->m_Drawings;  item;  item = item->Next() )
+        {
+            if( !item->IsOnLayer( GetLayer() ) )
+                continue;
+            if( item->Type( ) != TYPE_EDGE_MODULE)
+                continue;
+            item_boundingbox = item->GetBoundingBox();
+            if( item_boundingbox.Intersects( zone_boundingbox ) )
+            {
+                (( EDGE_MODULE* )item)->TransformShapeWithClearanceToPolygon(
+                cornerBuffer, m_ZoneClearance,
+                s_CircleToSegmentsCount, s_Correction );
+            }
+        }
+    }
+    // Add graphic items (copper texts) and board edges
     for( BOARD_ITEM* item = aPcb->m_Drawings;  item;  item = item->Next() )
     {
         if( item->GetLayer() != GetLayer() && item->GetLayer() != EDGE_N )
@@ -245,52 +318,74 @@ void ZONE_CONTAINER::AddClearanceAreasPolygonsToPolysList( BOARD* aPcb )
         switch( item->Type() )
         {
         case TYPE_DRAWSEGMENT:
-
-            switch( ( (DRAWSEGMENT*) item )->m_Shape )
-            {
-            case S_CIRCLE:
-                AddRingPolygon( booleng, ( (DRAWSEGMENT*) item )->m_Start,  // Circle centre
-                               ( (DRAWSEGMENT*) item )->m_End, 3600,
-                               ( (DRAWSEGMENT*) item )->m_Width + (2 * m_ZoneClearance) );
-                have_poly_to_substract = true;
-                break;
-
-            case S_ARC:
-                AddRingPolygon( booleng, ( (DRAWSEGMENT*) item )->m_Start,  // Arc centre
-                               ( (DRAWSEGMENT*) item )->m_End,
-                               ( (DRAWSEGMENT*) item )->m_Angle,
-                               ( (DRAWSEGMENT*) item )->m_Width + (2 * m_ZoneClearance) );
-                have_poly_to_substract = true;
-                break;
-
-            default:
-
-                AddRoundedEndsSegmentPolygon( booleng,
-                                             ( (DRAWSEGMENT*) item )->m_Start,
-                                             ( (DRAWSEGMENT*) item )->m_End,
-                                             ( (DRAWSEGMENT*) item )->m_Width +
-                                             (2 * m_ZoneClearance) );
-                have_poly_to_substract = true;
-                break;
-            }
-
+            ( (DRAWSEGMENT*) item )->TransformShapeWithClearanceToPolygon(
+                cornerBuffer,
+                m_ZoneClearance,
+                s_CircleToSegmentsCount,
+                s_Correction );
             break;
 
+
         case TYPE_TEXTE:
-            if( ( (TEXTE_PCB*) item )->GetLength() == 0 )
-                break;
-            AddTextBoxWithClearancePolygon( booleng, (TEXTE_PCB*) item, m_ZoneClearance );
-            have_poly_to_substract = true;
+            ( (TEXTE_PCB*) item )->TransformShapeWithClearanceToPolygon(
+                cornerBuffer,
+                m_ZoneClearance,
+                s_CircleToSegmentsCount,
+                s_Correction );
             break;
 
         default:
             break;
         }
+
     }
 
+    // cornerBuffer contains more than one polygon,
+    // so read cornerBuffer and verify if there is a end of polygon corner:
+    for( unsigned icnt = 0; icnt < cornerBuffer.size(); )
+    {
+        booleng->StartPolygonAdd( GROUP_B );
+        {
+            have_poly_to_substract = true;
+            unsigned ii;
+            for( ii = icnt; ii < cornerBuffer.size(); ii++ )
+            {
+                booleng->AddPoint( cornerBuffer[ii].x, cornerBuffer[ii].y );
+                if( cornerBuffer[ii].end_contour )
+                    break;
+            }
+
+            booleng->EndPolygonAdd();
+
+        #ifdef CREATE_KBOOL_KEY_FILES_FIRST_PASS
+            StartKeyFilePolygon( 1 );
+            for( ii = icnt; ii < cornerBuffer.size(); ii++ )
+            {
+                AddKeyFilePointXY( cornerBuffer[ii].x, cornerBuffer[ii].y );
+                if( cornerBuffer[ii].end_contour )
+                    break;
+            }
+
+            EndKeyFilePolygon();
+        #endif
+
+            icnt = ii + 1;
+        }
+    }
+
+#ifdef CREATE_KBOOL_KEY_FILES_FIRST_PASS
+    CloseKeyFileEntity();
+    CloseKeyFile();
+#endif
 /* calculates copper areas */
+
     if( have_poly_to_substract )
     {
+        /* Add the main corrected polygon (i.e. the filled area using only one outline)
+         * in GroupA in Bool_Engine
+         */
+        CopyPolygonsFromFilledPolysListToBoolengine( booleng, GROUP_A );
+
         booleng->Do_Operation( BOOL_A_SUB_B );
 
         /* put these areas in m_FilledPolysList */
@@ -316,6 +411,12 @@ void ZONE_CONTAINER::AddClearanceAreasPolygonsToPolysList( BOARD* aPcb )
         ArmBoolEng( booleng, true );
         have_poly_to_substract = false;
 
+#ifdef CREATE_KBOOL_KEY_FILES
+        CreateKeyFile();
+        OpenKeyFileEntity( "Layer" );
+        CopyPolygonsFromFilledPolysListToKeyFile( this, 0 );
+#endif
+
         for( MODULE* module = aPcb->m_Modules;  module;  module = module->Next() )
         {
             for( D_PAD* pad = module->m_Pads; pad != NULL; pad = pad->Next() )
@@ -329,14 +430,18 @@ void ZONE_CONTAINER::AddClearanceAreasPolygonsToPolysList( BOARD* aPcb )
                 item_boundingbox.Inflate( m_ThermalReliefGapValue, m_ThermalReliefGapValue );
                 if( item_boundingbox.Intersects( zone_boundingbox ) )
                 {
-                    have_poly_to_substract = true;
-                    AddThermalReliefPadPolygon( booleng, *pad,
+                    if( AddThermalReliefPadPolygon( booleng, *pad,
                                                 m_ThermalReliefGapValue,
                                                 m_ThermalReliefCopperBridgeValue,
-                                                m_ZoneMinThickness );
+                                                m_ZoneMinThickness ) )
+                        have_poly_to_substract = true;
                 }
             }
         }
+
+#ifdef CREATE_KBOOL_KEY_FILES
+        CloseKeyFileEntity();
+#endif
 
         if( have_poly_to_substract )
         {
@@ -355,11 +460,14 @@ void ZONE_CONTAINER::AddClearanceAreasPolygonsToPolysList( BOARD* aPcb )
         // Remove insulated islands:
         if( GetNet() > 0 )
             Test_For_Copper_Island_And_Remove_Insulated_Islands( aPcb );
+#ifdef CREATE_KBOOL_KEY_FILES
+        CloseKeyFile();
+#endif
     }
 
 // Now we remove all unused thermal stubs.
-//define REMOVE_UNUSED_THERMAL_STUBS // Can be commented to skip unused thermal stubs calculations
-//#ifdef REMOVE_UNUSED_THERMAL_STUBS
+#define REMOVE_UNUSED_THERMAL_STUBS // Can be commented to skip unused thermal stubs calculations
+#ifdef REMOVE_UNUSED_THERMAL_STUBS
 
 /* Add the main (corrected) polygon (i.e. the filled area using only one outline)
  * in GroupA in Bool_Engine to do a BOOL_A_SUB_B operation
@@ -368,10 +476,6 @@ void ZONE_CONTAINER::AddClearanceAreasPolygonsToPolysList( BOARD* aPcb )
     booleng = new Bool_Engine();
     ArmBoolEng( booleng, true );
 
-/* Add the main corrected polygon (i.e. the filled area using only one outline)
- * in GroupA in Bool_Engine
- */
-    CopyPolygonsFromFilledPolysListToBoolengine( booleng, GROUP_A );
 
 /*
  * Test and add polygons to remove thermal stubs.
@@ -402,9 +506,13 @@ void ZONE_CONTAINER::AddClearanceAreasPolygonsToPolysList( BOARD* aPcb )
             int fAngle = pad->m_Orient;
             if( pad->m_PadShape == PAD_CIRCLE )
             {
-                dx     = (int) ( dx * s_Correction );
-                dy     = dx;
+                dx = (int) ( dx * s_Correction );
+                dy = dx;
+#ifdef CREATE_KBOOL_KEY_FILES_WITH_0_DEG
+                fAngle = 0;
+#else
                 fAngle = 450;
+#endif
             }
 
             // compute north, south, west and east points for zone connection.
@@ -489,6 +597,11 @@ void ZONE_CONTAINER::AddClearanceAreasPolygonsToPolysList( BOARD* aPcb )
 /* compute copper areas */
     if( have_poly_to_substract )
     {
+    /* Add the main corrected polygon (i.e. the filled area using only one outline)
+     * in GroupA in Bool_Engine
+     */
+        CopyPolygonsFromFilledPolysListToBoolengine( booleng, GROUP_A );
+
         booleng->Do_Operation( BOOL_A_SUB_B );
 
         /* put these areas in m_FilledPolysList */
@@ -502,7 +615,7 @@ void ZONE_CONTAINER::AddClearanceAreasPolygonsToPolysList( BOARD* aPcb )
 
     delete booleng;
 
-//#endif
+#endif  // REMOVE_UNUSED_THERMAL_STUBS
 }
 
 
@@ -513,164 +626,29 @@ void ZONE_CONTAINER::AddClearanceAreasPolygonsToPolysList( BOARD* aPcb )
 void AddPadWithClearancePolygon( Bool_Engine* aBooleng,
                                  D_PAD& aPad, int aClearanceValue )
 {
+    static std::vector <CPolyPt> cornerBuffer;
     if( aBooleng->StartPolygonAdd( GROUP_B ) == 0 )
         return;
-    wxPoint corner_position;
-    int     ii, angle;
-    int     dx = (aPad.m_Size.x / 2) + aClearanceValue;
-    int     dy = (aPad.m_Size.y / 2) + aClearanceValue;
+    cornerBuffer.clear();
+    aPad.TransformShapeWithClearanceToPolygon( cornerBuffer,
+                                               aClearanceValue,
+                                               s_CircleToSegmentsCount,
+                                               s_Correction );
 
-    int     delta = 3600 / s_CircleToSegmentsCount; // rot angle in 0.1 degree
-    wxPoint PadShapePos = aPad.ReturnShapePos();    /* Note: for pad having a shape offset,
-                                                     * the pad position is NOT the shape position */
-    wxSize  psize = aPad.m_Size;                    /* pad size unsed in RECT and TRAPEZOIDAL pads
-                                                     *  trapezoidal pads are considered as rect pad shape having they boudary box size
-                                                     */
-
-    switch( aPad.m_PadShape )
-    {
-    case PAD_CIRCLE:
-        dx = (int) ( dx * s_Correction );
-        for( ii = 0; ii < s_CircleToSegmentsCount; ii++ )
-        {
-            corner_position = wxPoint( dx, 0 );
-            RotatePoint( &corner_position, (1800 / s_CircleToSegmentsCount) );    // Half increment offset to get more space between
-            angle = ii * delta;
-            RotatePoint( &corner_position, angle );
-            corner_position += PadShapePos;
-            aBooleng->AddPoint( corner_position.x, corner_position.y );
-        }
-
-        break;
-
-    case PAD_OVAL:
-        angle = aPad.m_Orient;
-        if( dy > dx )                                                   // Oval pad X/Y ratio for choosing translation axles
-        {
-            dy = (int) ( dy * s_Correction );
-            int     angle_pg;                                           // Polygon angle
-            wxPoint shape_offset = wxPoint( 0, (dy - dx) );
-            RotatePoint( &shape_offset, angle );                        // Rotating shape offset vector with component
-
-            for( ii = 0; ii < s_CircleToSegmentsCount / 2 + 1; ii++ )   // Half circle end cap...
-            {
-                corner_position = wxPoint( dx, 0 );                     // Coordinate translation +dx
-                RotatePoint( &corner_position, (1800 / s_CircleToSegmentsCount) );
-                RotatePoint( &corner_position, angle );
-                angle_pg = ii * delta;
-                RotatePoint( &corner_position, angle_pg );
-                corner_position += PadShapePos - shape_offset;
-                aBooleng->AddPoint( corner_position.x, corner_position.y );
-            }
-
-            for( ii = 0; ii < s_CircleToSegmentsCount / 2 + 1; ii++ )   // Second half circle end cap...
-            {
-                corner_position = wxPoint( -dx, 0 );                    // Coordinate translation -dx
-                RotatePoint( &corner_position, (1800 / s_CircleToSegmentsCount) );
-                RotatePoint( &corner_position, angle );
-                angle_pg = ii * delta;
-                RotatePoint( &corner_position, angle_pg );
-                corner_position += PadShapePos + shape_offset;
-                aBooleng->AddPoint( corner_position.x, corner_position.y );
-            }
-
-            break;
-        }
-        else    //if( dy <= dx )
-        {
-            dx = (int) ( dx * s_Correction );
-            int     angle_pg; // Polygon angle
-            wxPoint shape_offset = wxPoint( (dy - dx), 0 );
-            RotatePoint( &shape_offset, angle );
-
-            for( ii = 0; ii < s_CircleToSegmentsCount / 2 + 1; ii++ )
-            {
-                corner_position = wxPoint( 0, dy );
-                RotatePoint( &corner_position, (1800 / s_CircleToSegmentsCount) );
-                RotatePoint( &corner_position, angle );
-                angle_pg = ii * delta;
-                RotatePoint( &corner_position, angle_pg );
-                corner_position += PadShapePos - shape_offset;
-                aBooleng->AddPoint( corner_position.x, corner_position.y );
-            }
-
-            for( ii = 0; ii < s_CircleToSegmentsCount / 2 + 1; ii++ )
-            {
-                corner_position = wxPoint( 0, -dy );
-                RotatePoint( &corner_position, (1800 / s_CircleToSegmentsCount) );
-                RotatePoint( &corner_position, angle );
-                angle_pg = ii * delta;
-                RotatePoint( &corner_position, angle_pg );
-                corner_position += PadShapePos + shape_offset;
-                aBooleng->AddPoint( corner_position.x, corner_position.y );
-            }
-
-            break;
-        }
-
-    default:
-    case PAD_TRAPEZOID:
-        psize.x += ABS(aPad.m_DeltaSize.y);
-        psize.y += ABS(aPad.m_DeltaSize.x);
-        // fall through
-    case PAD_RECT:                                                                  // Easy implementation for rectangular cutouts with rounded corners                                                                  // Easy implementation for rectangular cutouts with rounded corners
-        angle = aPad.m_Orient;
-        int rounding_radius = (int) ( aClearanceValue * s_Correction );             // Corner rounding radius
-        int angle_pg;                                                               // Polygon increment angle
-
-        for( int i = 0; i < s_CircleToSegmentsCount / 4 + 1; i++ )
-        {
-            corner_position = wxPoint( 0, -rounding_radius );
-            RotatePoint( &corner_position, (1800 / s_CircleToSegmentsCount) );      // Start at half increment offset
-            angle_pg = i * delta;
-            RotatePoint( &corner_position, angle_pg );                              // Rounding vector rotation
-            corner_position -= psize / 2;                                     // Rounding vector + Pad corner offset
-            RotatePoint( &corner_position, angle );                                 // Rotate according to module orientation
-            corner_position += PadShapePos;                                         // Shift origin to position
-            aBooleng->AddPoint( corner_position.x, corner_position.y );
-        }
-
-        for( int i = 0; i < s_CircleToSegmentsCount / 4 + 1; i++ )
-        {
-            corner_position = wxPoint( -rounding_radius, 0 );
-            RotatePoint( &corner_position, (1800 / s_CircleToSegmentsCount) );
-            angle_pg = i * delta;
-            RotatePoint( &corner_position, angle_pg );
-            corner_position -= wxPoint( psize.x / 2, -psize.y / 2 );
-            RotatePoint( &corner_position, angle );
-            corner_position += PadShapePos;
-            aBooleng->AddPoint( corner_position.x, corner_position.y );
-        }
-
-        for( int i = 0; i < s_CircleToSegmentsCount / 4 + 1; i++ )
-        {
-            corner_position = wxPoint( 0, rounding_radius );
-            RotatePoint( &corner_position, (1800 / s_CircleToSegmentsCount) );
-            angle_pg = i * delta;
-            RotatePoint( &corner_position, angle_pg );
-            corner_position += psize / 2;
-            RotatePoint( &corner_position, angle );
-            corner_position += PadShapePos;
-            aBooleng->AddPoint( corner_position.x, corner_position.y );
-        }
-
-        for( int i = 0; i < s_CircleToSegmentsCount / 4 + 1; i++ )
-        {
-            corner_position = wxPoint( rounding_radius, 0 );
-            RotatePoint( &corner_position, (1800 / s_CircleToSegmentsCount) );
-            angle_pg = i * delta;
-            RotatePoint( &corner_position, angle_pg );
-            corner_position -= wxPoint( -psize.x / 2, psize.y / 2 );
-            RotatePoint( &corner_position, angle );
-            corner_position += PadShapePos;
-            aBooleng->AddPoint( corner_position.x, corner_position.y );
-        }
-
-        break;
-    }
+    for( unsigned ii = 0; ii < cornerBuffer.size(); ii++ )
+        aBooleng->AddPoint( cornerBuffer[ii].x, cornerBuffer[ii].y );
 
     aBooleng->EndPolygonAdd();
+
+#ifdef CREATE_KBOOL_KEY_FILES_FIRST_PASS
+    StartKeyFilePolygon( 1 );
+    for( unsigned ii = 0; ii < cornerBuffer.size(); ii++ )
+        AddKeyFilePointXY( cornerBuffer[ii].x, cornerBuffer[ii].y );
+
+    EndKeyFilePolygon();
+#endif
 }
+
 
 
 /** function AddThermalReliefPadPolygon
@@ -691,381 +669,60 @@ void AddPadWithClearancePolygon( Bool_Engine* aBooleng,
  * When Kbool calculates the filled areas :
  * i.e when substracting holes (thermal shapes) to the full zone area
  * under certains circumstances kboll drop some holes.
- * These circumstances are:
- * some identical holes (same thermal shape and size) are *exactly* on the same vertical line
- * And
- * nothing else between holes
- * And
- * angles less than 90 deg between 2 consecutive lines in hole outline (sometime occurs without this condition)
- * And
- * a hole above the identical holes
- *
- * In fact, it is easy to find these conditions in pad arrays.
- * So to avoid this, the workaround is do not use holes outlines that include
- * angles less than 90 deg between 2 consecutive lines
- * this is made in round and oblong thermal reliefs
- *
- * Note 1: polygons are drawm using outlines witk a thickness = aMinThicknessValue
- * so shapes must keep in account this outline thickness
- *
- * Note 2:
- *      Trapezoidal pads are not considered here because they are very special case
- *      and are used in microwave applications and they *DO NOT* have a thermal relief that change the shape
- *      by creating stubs and destroy their properties.
+ * see CreateThermalReliefPadPolygon().
  */
-void    AddThermalReliefPadPolygon( Bool_Engine* aBooleng,
-                                    D_PAD& aPad,
-                                    int aThermalGap,
-                                    int aCopperThickness, int aMinThicknessValue )
+int    AddThermalReliefPadPolygon( Bool_Engine* aBooleng,
+                                   D_PAD& aPad,
+                                   int aThermalGap,
+                                   int aCopperThickness, int aMinThicknessValue )
 {
-    wxPoint corner, corner_end;
-    wxPoint PadShapePos = aPad.ReturnShapePos();    /* Note: for pad having a shape offset,
-                                                     * the pad position is NOT the shape position */
-    int     angle = 0;
-    wxSize  copper_thickness;
-    int     dx = aPad.m_Size.x / 2;
-    int     dy = aPad.m_Size.y / 2;
+    static std::vector <CPolyPt> cornerBuffer;
+    cornerBuffer.clear();
 
-    int     delta = 3600 / s_CircleToSegmentsCount; // rot angle in 0.1 degree
+    int polycount  = 0;
+    int thermalRot = 450;
+#ifdef CREATE_KBOOL_KEY_FILES_WITH_0_DEG
+    thermalRot = 0;
+#endif
 
-    /* Keep in account the polygon outline thickness
-     * aThermalGap must be increased by aMinThicknessValue/2 because drawing external outline
-     * with a thickness of aMinThicknessValue will reduce gap by aMinThicknessValue/2
-     */
-    aThermalGap += aMinThicknessValue / 2;
+    CreateThermalReliefPadPolygon( cornerBuffer,
+                                   aPad, aThermalGap, aCopperThickness,
+                                   aMinThicknessValue,
+                                   s_CircleToSegmentsCount,
+                                   s_Correction, thermalRot );
 
-    /* Keep in account the polygon outline thickness
-     * copper_thickness must be decreased by aMinThicknessValue because drawing outlines
-     * with a thickness of aMinThicknessValue will increase real thickness by aMinThicknessValue
-     */
-    aCopperThickness -= aMinThicknessValue;
-    if( aCopperThickness < 0 )
-        aCopperThickness = 0;
-
-    copper_thickness.x = min( dx, aCopperThickness );
-    copper_thickness.y = min( dy, aCopperThickness );
-
-    switch( aPad.m_PadShape )
+    // cornerBuffer can contain more than one polygon,
+    // so read cornerBuffer and verify if there is a end of polygon corner:
+    for( unsigned icnt = 0; icnt < cornerBuffer.size(); )
     {
-    case PAD_CIRCLE:    // Add 4 similar holes
-    {
-        /* we create 4 copper holes and put them in position 1, 2, 3 and 4
-         * here is the area of the rectangular pad + its thermal gap
-         * the 4 copper holes remove the copper in order to create the thermal gap
-         * 4 ------ 1
-         * |        |
-         * |        |
-         * |        |
-         * |        |
-         * 3 ------ 2
-         * holes 2, 3, 4 are the same as hole 1, rotated 90, 180, 270 deg
-         */
-
-        // Build the hole pattern, for the hole in the X >0, Y > 0 plane:
-        // The pattern roughtly is a 90 deg arc pie
-        std::vector <wxPoint> corners_buffer;
-
-        // Radius of outer arcs of the shape:
-        int outer_radius = dx + aThermalGap;     // The radius of the outer arc is pad radius + aThermalGap
-
-        // Crosspoint of thermal spoke sides, the first point of polygon buffer
-        corners_buffer.push_back( wxPoint( copper_thickness.x / 2, copper_thickness.y / 2 ) );
-
-        // Add an intermediate point on spoke sides, to allow a > 90 deg angle between side and first seg of arc approx
-        corner.x = copper_thickness.x / 2;
-        int y = outer_radius - (aThermalGap / 4);
-        corner.y = (int) sqrt( ( ( (double) y * y ) - (double) corner.x * corner.x ) );
-        corners_buffer.push_back( corner );
-
-        // calculate the starting point of the outter arc
-        corner.x = copper_thickness.x / 2;
-        double dtmp =
-            sqrt( ( (double) outer_radius * outer_radius ) - ( (double) corner.x * corner.x ) );
-        corner.y = (int) dtmp;
-        RotatePoint( &corner, 90 );
-
-        // calculate the ending point of the outter arc
-        corner_end.x = corner.y;
-        corner_end.y = corner.x;
-
-        // calculate intermediate points (y coordinate from corner.y to corner_end.y
-        while( (corner.y > corner_end.y)  && (corner.x < corner_end.x) )
+        aBooleng->StartPolygonAdd( GROUP_B );
+        polycount++;
+        unsigned ii;
+        for( ii = icnt; ii < cornerBuffer.size(); ii++ )
         {
-            corners_buffer.push_back( corner );
-            RotatePoint( &corner, delta );
+            aBooleng->AddPoint( cornerBuffer[ii].x, cornerBuffer[ii].y );
+            if( cornerBuffer[ii].end_contour )
+                break;
         }
 
-        corners_buffer.push_back( corner_end );
+        aBooleng->EndPolygonAdd();
 
-        /* add an intermediate point, to avoid angles < 90 deg between last arc approx line and radius line
-         */
-        corner.x = corners_buffer[1].y;
-        corner.y = corners_buffer[1].x;
-        corners_buffer.push_back( corner );
-
-        // Now, add the 4 holes ( each is the pattern, rotated by 0, 90, 180 and 270  deg
-        // WARNING: problems with kbool if angle = 0 (in fact when angle < 200):
-        // bad filled polygon on some cases, when pads are on a same vertical line
-        // this seems a bug in kbool polygon (exists in 1.9 kbool version)
-        // angle = 450 (45.0 degrees orientation) seems work fine.
-        // angle = 0 with thermal shapes without angle < 90 deg has problems in rare circumstances
-        // Note: with the 2 step build ( thermal shpaes after correr areas build), 0 seems work
-        angle = 450;
-        int angle_pad = aPad.m_Orient;              // Pad orientation
-        for( unsigned ihole = 0; ihole < 4; ihole++ )
+#ifdef CREATE_KBOOL_KEY_FILES
+        StartKeyFilePolygon( 1 );
+        for( ii = icnt; ii < cornerBuffer.size(); ii++ )
         {
-            if( aBooleng->StartPolygonAdd( GROUP_B ) )
-            {
-                for( unsigned ii = 0; ii < corners_buffer.size(); ii++ )
-                {
-                    corner = corners_buffer[ii];
-                    RotatePoint( &corner, angle + angle_pad );      // Rotate by segment angle and pad orientation
-                    corner += PadShapePos;
-                    aBooleng->AddPoint( corner.x, corner.y );
-                }
-
-                aBooleng->EndPolygonAdd();
-
-                angle += 900;   // Note: angle in in 0.1 deg.
-            }
+            AddKeyFilePointXY( cornerBuffer[ii].x, cornerBuffer[ii].y );
+            if( cornerBuffer[ii].end_contour )
+                break;
         }
+
+        EndKeyFilePolygon();
+#endif
+
+        icnt = ii + 1;
     }
-    break;
 
-    case PAD_OVAL:
-    {
-        // Oval pad support along the lines of round and rectangular pads
-        std::vector <wxPoint> corners_buffer;               // Polygon buffer as vector
-
-        int     dx = (aPad.m_Size.x / 2) + aThermalGap;     // Cutout radius x
-        int     dy = (aPad.m_Size.y / 2) + aThermalGap;     // Cutout radius y
-
-        wxPoint shape_offset;
-
-        // We want to calculate an oval shape with dx > dy.
-        // if this is not the case, exchange dx and dy, and rotate the shape 90 deg.
-        int supp_angle = 0;
-        if( dx < dy )
-        {
-            EXCHG( dx, dy );
-            supp_angle = 900;
-            EXCHG( copper_thickness.x, copper_thickness.y );
-        }
-        int deltasize = dx - dy;        // = distance between shape position and the 2 demi-circle ends centre
-        // here we have dx > dy
-        // Radius of outer arcs of the shape:
-        int outer_radius = dy;     // The radius of the outer arc is radius end + aThermalGap
-
-        // Some coordinate fiddling, depending on the shape offset direction
-        shape_offset = wxPoint( deltasize, 0 );
-
-        // Crosspoint of thermal spoke sides, the first point of polygon buffer
-        corners_buffer.push_back( wxPoint( copper_thickness.x / 2, copper_thickness.y / 2 ) );
-
-        // Arc start point calculation, the intersecting point of cutout arc and thermal spoke edge
-        if( copper_thickness.x > deltasize )          // If copper thickness is more than shape offset, we need to calculate arc intercept point.
-        {
-            corner.x = copper_thickness.x / 2;
-            corner.y =
-                (int) sqrt( ( (double) outer_radius * outer_radius ) -
-                           ( (double) ( corner.x - delta ) * ( corner.x - deltasize ) ) );
-            corner.x -= deltasize;
-
-            /* creates an intermediate point, to have a > 90 deg angle
-             * between the side and the first segment of arc approximation
-             */
-            wxPoint intpoint = corner;
-            intpoint.y -= aThermalGap / 4;
-            corners_buffer.push_back( intpoint + shape_offset );
-            RotatePoint( &corner, 90 );
-        }
-        else
-        {
-            corner.x = copper_thickness.x / 2;
-            corner.y = outer_radius;
-            corners_buffer.push_back( corner );
-            corner.x = ( deltasize - copper_thickness.x ) / 2;
-        }
-
-        // Add an intermediate point on spoke sides, to allow a > 90 deg angle between side and first seg of arc approx
-        wxPoint last_corner;
-        last_corner.y = copper_thickness.y / 2;
-        int     px = outer_radius - (aThermalGap / 4);
-        last_corner.x =
-            (int) sqrt( ( ( (double) px * px ) - (double) last_corner.y * last_corner.y ) );
-
-        // Arc stop point calculation, the intersecting point of cutout arc and thermal spoke edge
-        corner_end.y = copper_thickness.y / 2;
-        corner_end.x =
-            (int) sqrt( ( (double) outer_radius *
-                         outer_radius ) - ( (double) corner_end.y * corner_end.y ) );
-        RotatePoint( &corner_end, -90 );
-
-        // calculate intermediate arc points till limit is reached
-        while( (corner.y > corner_end.y)  && (corner.x < corner_end.x) )
-        {
-            corners_buffer.push_back( corner + shape_offset );
-            RotatePoint( &corner, delta );
-        }
-
-        //corners_buffer.push_back(corner + shape_offset);		// TODO: about one mil geometry error forms somewhere.
-        corners_buffer.push_back( corner_end + shape_offset );
-        corners_buffer.push_back( last_corner + shape_offset );         // Enabling the line above shows intersection point.
-
-        /* Create 2 holes, rotated by pad rotation.
-         */
-        angle = aPad.m_Orient + supp_angle;
-        for( int irect = 0; irect < 2; irect++ )
-        {
-            if( aBooleng->StartPolygonAdd( GROUP_B ) )
-            {
-                for( unsigned ic = 0; ic < corners_buffer.size(); ic++ )
-                {
-                    wxPoint cpos = corners_buffer[ic];
-                    RotatePoint( &cpos, angle );
-                    cpos += PadShapePos;
-                    aBooleng->AddPoint( cpos.x, cpos.y );
-                }
-
-                aBooleng->EndPolygonAdd();
-                angle += 1800;   // this is calculate hole 3
-                if( angle >= 3600 )
-                    angle -= 3600;
-            }
-        }
-
-        // Create holes, that are the mirrored from the previous holes
-        for( unsigned ic = 0; ic < corners_buffer.size(); ic++ )
-        {
-            wxPoint swap = corners_buffer[ic];
-            swap.x = -swap.x;
-            corners_buffer[ic] = swap;
-        }
-
-        // Now add corner 4 and 2 (2 is the corner 4 rotated by 180 deg
-        angle = aPad.m_Orient + supp_angle;
-        for( int irect = 0; irect < 2; irect++ )
-        {
-            if( aBooleng->StartPolygonAdd( GROUP_B ) )
-            {
-                for( unsigned ic = 0; ic < corners_buffer.size(); ic++ )
-                {
-                    wxPoint cpos = corners_buffer[ic];
-                    RotatePoint( &cpos, angle );
-                    cpos += PadShapePos;
-                    aBooleng->AddPoint( cpos.x, cpos.y );
-                }
-
-                aBooleng->EndPolygonAdd();
-                angle += 1800;
-                if( angle >= 3600 )
-                    angle -= 3600;
-            }
-        }
-    }
-    break;
-
-    case PAD_RECT:       // draw 4 Holes
-    {
-        /* we create 4 copper holes and put them in position 1, 2, 3 and 4
-         * here is the area of the rectangular pad + its thermal gap
-         * the 4 copper holes remove the copper in order to create the thermal gap
-         * 4 ------ 1
-         * |        |
-         * |        |
-         * |        |
-         * |        |
-         * 3 ------ 2
-         * hole 3 is the same as hole 1, rotated 180 deg
-         * hole 4 is the same as hole 2, rotated 180 deg and is the same as hole 1, mirrored
-         */
-
-        // First, create a rectangular hole for position 1 :
-        // 2 ------- 3
-        //  |        |
-        //  |        |
-        //  |        |
-        // 1  -------4
-
-        // Modified rectangles with one corner rounded. TODO: merging with oval thermals and possibly round too.
-
-        std::vector <wxPoint> corners_buffer;               // Polygon buffer as vector
-
-        int dx = (aPad.m_Size.x / 2) + aThermalGap;         // Cutout radius x
-        int dy = (aPad.m_Size.y / 2) + aThermalGap;         // Cutout radius y
-
-        // The first point of polygon buffer is left lower corner, second the crosspoint of thermal spoke sides,
-        // the third is upper right corner and the rest are rounding vertices going anticlockwise. Note the inveted Y-axis in CG.
-        corners_buffer.push_back( wxPoint( -dx, -(aThermalGap / 4 + copper_thickness.y / 2) ) );    // Adds small miters to zone
-        corners_buffer.push_back( wxPoint( -(dx - aThermalGap / 4), -copper_thickness.y / 2 ) );    // fill and spoke corner
-        corners_buffer.push_back( wxPoint( -copper_thickness.x / 2, -copper_thickness.y / 2 ) );
-        corners_buffer.push_back( wxPoint( -copper_thickness.x / 2, -(dy - aThermalGap / 4) ) );
-        corners_buffer.push_back( wxPoint( -(aThermalGap / 4 + copper_thickness.x / 2), -dy ) );
-
-        angle = aPad.m_Orient;
-        int rounding_radius = (int) ( aThermalGap * s_Correction );                 // Corner rounding radius
-        int angle_pg;                                                               // Polygon increment angle
-
-        for( int i = 0; i < s_CircleToSegmentsCount / 4 + 1; i++ )
-        {
-            wxPoint corner_position = wxPoint( 0, -rounding_radius );
-            RotatePoint( &corner_position, (1800 / s_CircleToSegmentsCount) );      // Start at half increment offset
-            angle_pg = i * delta;
-            RotatePoint( &corner_position, angle_pg );                              // Rounding vector rotation
-            corner_position -= aPad.m_Size / 2;                                     // Rounding vector + Pad corner offset
-            corners_buffer.push_back( wxPoint( corner_position.x, corner_position.y ) );
-        }
-
-        for( int irect = 0; irect < 2; irect++ )
-        {
-            if( aBooleng->StartPolygonAdd( GROUP_B ) )
-            {
-                for( unsigned ic = 0; ic < corners_buffer.size(); ic++ )
-                {
-                    wxPoint cpos = corners_buffer[ic];
-                    RotatePoint( &cpos, angle );                                // Rotate according to module orientation
-                    cpos += PadShapePos;                                        // Shift origin to position
-                    aBooleng->AddPoint( cpos.x, cpos.y );
-                }
-
-                aBooleng->EndPolygonAdd();
-                angle += 1800;   // this is calculate hole 3
-                if( angle >= 3600 )
-                    angle -= 3600;
-            }
-        }
-
-        // Create holes, that are the mirrored from the previous holes
-        for( unsigned ic = 0; ic < corners_buffer.size(); ic++ )
-        {
-            wxPoint swap = corners_buffer[ic];
-            swap.x = -swap.x;
-            corners_buffer[ic] = swap;
-        }
-
-        // Now add corner 4 and 2 (2 is the corner 4 rotated by 180 deg
-        for( int irect = 0; irect < 2; irect++ )
-        {
-            if( aBooleng->StartPolygonAdd( GROUP_B ) )
-            {
-                for( unsigned ic = 0; ic < corners_buffer.size(); ic++ )
-                {
-                    wxPoint cpos = corners_buffer[ic];
-                    RotatePoint( &cpos, angle );
-                    cpos += PadShapePos;
-                    aBooleng->AddPoint( cpos.x, cpos.y );
-                }
-
-                aBooleng->EndPolygonAdd();
-                angle += 1800;
-                if( angle >= 3600 )
-                    angle -= 3600;
-            }
-        }
-
-        break;
-    }
-    }
+    return polycount;
 }
 
 
@@ -1076,38 +733,28 @@ void    AddThermalReliefPadPolygon( Bool_Engine* aBooleng,
 void AddTrackWithClearancePolygon( Bool_Engine* aBooleng,
                                    TRACK& aTrack, int aClearanceValue )
 {
-    wxPoint corner_position;
-    int     ii, angle;
-    int     dx = (aTrack.m_Width / 2) + aClearanceValue;
+    static std::vector <CPolyPt> cornerBuffer;
+    cornerBuffer.clear();
+    aTrack.TransformShapeWithClearanceToPolygon( cornerBuffer,
+                                                 aClearanceValue,
+                                                 s_CircleToSegmentsCount,
+                                                 s_Correction );
 
-    int     delta = 3600 / s_CircleToSegmentsCount; // rot angle in 0.1 degree
+    if( !aBooleng->StartPolygonAdd( GROUP_B ) )
+        return;
 
-    switch( aTrack.Type() )
-    {
-    case TYPE_VIA:
-        if( aBooleng->StartPolygonAdd( GROUP_B ) )
-        {
-            dx = (int) ( dx * s_Correction );
-            for( ii = 0; ii < s_CircleToSegmentsCount; ii++ )
-            {
-                corner_position = wxPoint( dx, 0 );
-                RotatePoint( &corner_position, (1800 / s_CircleToSegmentsCount) );
-                angle = ii * delta;
-                RotatePoint( &corner_position, angle );
-                corner_position += aTrack.m_Start;
-                aBooleng->AddPoint( corner_position.x, corner_position.y );
-            }
+    for( unsigned ii = 0; ii < cornerBuffer.size(); ii++ )
+        aBooleng->AddPoint( cornerBuffer[ii].x, cornerBuffer[ii].y );
 
-            aBooleng->EndPolygonAdd();
-        }
-        break;
+    aBooleng->EndPolygonAdd();
 
-    default:
-        AddRoundedEndsSegmentPolygon( aBooleng,
-                                     aTrack.m_Start, aTrack.m_End,
-                                     aTrack.m_Width + (2 * aClearanceValue) );
-        break;
-    }
+#ifdef CREATE_KBOOL_KEY_FILES_FIRST_PASS
+    StartKeyFilePolygon( 1 );
+    for( unsigned ii = 0; ii < cornerBuffer.size(); ii++ )
+        AddKeyFilePointXY( cornerBuffer[ii].x, cornerBuffer[ii].y );
+
+    EndKeyFilePolygon();
+#endif
 }
 
 
@@ -1119,155 +766,28 @@ void AddRoundedEndsSegmentPolygon( Bool_Engine* aBooleng,
                                    wxPoint aStart, wxPoint aEnd,
                                    int aWidth )
 {
-    int     rayon  = aWidth / 2;
-    wxPoint endp   = aEnd - aStart; // end point coordinate for the same segment starting at (0,0)
-    wxPoint startp = aStart;
-    wxPoint corner;
-    int     seg_len;
-
-    // normalize the position in order to have endp.x >= 0;
-    if( endp.x < 0 )
-    {
-        endp   = aStart - aEnd;
-        startp = aEnd;
-    }
-    int delta_angle = ArcTangente( endp.y, endp.x );    // delta_angle is in 0.1 degrees
-    seg_len = (int) sqrt( ( (double) endp.y * endp.y ) + ( (double) endp.x * endp.x ) );
+    static std::vector <CPolyPt> cornerBuffer;
+    cornerBuffer.clear();
+    TransformRoundedEndsSegmentToPolygon( cornerBuffer,
+                                          aStart, aEnd,
+                                          s_CircleToSegmentsCount,
+                                          aWidth );
 
     if( !aBooleng->StartPolygonAdd( GROUP_B ) )
-        return;                                 // error!
+        return;
 
-    int delta = 3600 / s_CircleToSegmentsCount; // rot angle in 0.1 degree
-
-    // Compute the outlines of the segment, and creates a polygon
-    corner = wxPoint( 0, rayon );
-    RotatePoint( &corner, -delta_angle );
-    corner += startp;
-    aBooleng->AddPoint( corner.x, corner.y );
-
-    corner = wxPoint( seg_len, rayon );
-    RotatePoint( &corner, -delta_angle );
-    corner += startp;
-    aBooleng->AddPoint( corner.x, corner.y );
-
-    // add right rounded end:
-    for( int ii = delta; ii < 1800; ii += delta )
-    {
-        corner = wxPoint( 0, rayon );
-        RotatePoint( &corner, ii );
-        corner.x += seg_len;
-        RotatePoint( &corner, -delta_angle );
-        corner += startp;
-        aBooleng->AddPoint( corner.x, corner.y );
-    }
-
-    corner = wxPoint( seg_len, -rayon );
-    RotatePoint( &corner, -delta_angle );
-    corner += startp;
-    aBooleng->AddPoint( corner.x, corner.y );
-
-    corner = wxPoint( 0, -rayon );
-    RotatePoint( &corner, -delta_angle );
-    corner += startp;
-    aBooleng->AddPoint( corner.x, corner.y );
-
-    // add left rounded end:
-    for( int ii = delta; ii < 1800; ii += delta )
-    {
-        corner = wxPoint( 0, -rayon );
-        RotatePoint( &corner, ii );
-        RotatePoint( &corner, -delta_angle );
-        corner += startp;
-        aBooleng->AddPoint( corner.x, corner.y );
-    }
+    for( unsigned ii = 0; ii < cornerBuffer.size(); ii++ )
+        aBooleng->AddPoint( cornerBuffer[ii].x, cornerBuffer[ii].y );
 
     aBooleng->EndPolygonAdd();
-}
 
+#ifdef CREATE_KBOOL_KEY_FILES
+    StartKeyFilePolygon( 1 );
+    for( unsigned ii = 0; ii < cornerBuffer.size(); ii++ )
+        AddKeyFilePointXY( cornerBuffer[ii].x, cornerBuffer[ii].y );
 
-/** Function AddRingPolygon
- * Add a polygon cutout for an Arc in a zone area
- * Convert arcs to multiple straight segments
- * @param aBooleng = the bool engine to use
- * @param aCentre = centre of the arc or circle
- * @param aStart = start point of the arc, or apoint of the circle
- * @param aArcAngle = arc angle in 0.1 degrees. For a circle, aArcAngle = 3600
- * @param aWidth = width of the line
- */
-void AddRingPolygon( Bool_Engine* aBooleng, wxPoint aCentre,
-                     wxPoint aStart, int aArcAngle,
-                     int aWidth )
-{
-    wxPoint arc_start, arc_end;
-    int     delta = 3600 / s_CircleToSegmentsCount;                                                                 // rot angle in 0.1 degree
-
-    arc_end = arc_start = aStart;
-    if( aArcAngle != 3600 )
-    {
-        RotatePoint( &arc_end, aCentre, -aArcAngle );
-    }
-
-    if( aArcAngle < 0 )
-    {
-        EXCHG( arc_start, arc_end );
-        NEGATE( aArcAngle );
-    }
-
-    // Compute the ends of segments and creates poly
-    wxPoint curr_end = arc_start, curr_start = arc_start;
-    for( int ii = delta; ii < aArcAngle; ii += delta )
-    {
-        curr_end = arc_start;
-        RotatePoint( &curr_end, aCentre, -ii );
-        AddRoundedEndsSegmentPolygon( aBooleng, curr_start, curr_end, aWidth );
-        curr_start = curr_end;
-    }
-
-    if( curr_end != arc_end )
-        AddRoundedEndsSegmentPolygon( aBooleng, curr_end, arc_end, aWidth );
-}
-
-
-/** function AddTextBoxWithClearancePolygon
- * creates a polygon containing the text and add it to bool engine
- */
-void    AddTextBoxWithClearancePolygon( Bool_Engine* aBooleng,
-                                        TEXTE_PCB* aText, int aClearanceValue )
-{
-    int corners[8];     // Buffer of coordinates
-    int ii;
-
-    int dx = aText->Pitch() * aText->GetLength();
-    int dy = aText->m_Size.y + aText->m_Width;
-
-    /* Creates bounding box (rectangle) for an horizontal text */
-    dx /= 2; dy /= 2;    /* dx et dy = demi dimensionx X et Y */
-    dx += aClearanceValue;
-    dy += aClearanceValue;
-    corners[0] = aText->m_Pos.x - dx;
-    corners[1] = aText->m_Pos.y - dy;
-    corners[2] = aText->m_Pos.x + dx;
-    corners[3] = aText->m_Pos.y - dy;
-    corners[4] = aText->m_Pos.x + dx;
-    corners[5] = aText->m_Pos.y + dy;
-    corners[6] = aText->m_Pos.x - dx;
-    corners[7] = aText->m_Pos.y + dy;
-
-    // Rotate rectangle
-    RotatePoint( &corners[0], &corners[1], aText->m_Pos.x, aText->m_Pos.y, aText->m_Orient );
-    RotatePoint( &corners[2], &corners[3], aText->m_Pos.x, aText->m_Pos.y, aText->m_Orient );
-    RotatePoint( &corners[4], &corners[5], aText->m_Pos.x, aText->m_Pos.y, aText->m_Orient );
-    RotatePoint( &corners[6], &corners[7], aText->m_Pos.x, aText->m_Pos.y, aText->m_Orient );
-
-    if( aBooleng->StartPolygonAdd( GROUP_B ) )
-    {
-        for( ii = 0; ii < 8; ii += 2 )
-        {
-            aBooleng->AddPoint( corners[ii], corners[ii + 1] );
-        }
-
-        aBooleng->EndPolygonAdd();
-    }
+    EndKeyFilePolygon();
+#endif
 }
 
 
@@ -1334,6 +854,7 @@ int ZONE_CONTAINER::CopyPolygonsFromBoolengineToFilledPolysList( Bool_Engine* aB
             corner.end_contour = false;
 
             // Flag this corner if starting a hole connection segment:
+            // This is used by draw functions to draw only useful segments (and not extra segments)
             corner.utility = (aBoolengine->GetPolygonPointEdgeType() == KB_FALSE_EDGE) ? 1 : 0;
             m_FilledPolysList.push_back( corner );
             count++;

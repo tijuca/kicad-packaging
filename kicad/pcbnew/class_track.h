@@ -6,6 +6,7 @@
 #define CLASS_TRACK_H
 
 #include "base_struct.h"
+#include "PolyLine.h"
 
 
 // Via attributes (m_Shape parmeter)
@@ -61,6 +62,32 @@ public:
 
 
     /**
+     * Function Move
+     * move this object.
+     * @param const wxPoint& aMoveVector - the move vector for this object.
+     */
+    virtual void Move(const wxPoint& aMoveVector)
+    {
+        m_Start += aMoveVector;
+        m_End += aMoveVector;
+    }
+
+    /**
+     * Function Rotate
+     * Rotate this object.
+     * @param const wxPoint& aRotCentre - the rotation point.
+     * @param aAngle - the rotation angle in 0.1 degree.
+     */
+    virtual void Rotate(const wxPoint& aRotCentre, int aAngle);
+
+    /**
+     * Function Flip
+     * Flip this object, i.e. change the board side for this object
+     * @param const wxPoint& aCentre - the rotation point.
+     */
+    virtual void Flip(const wxPoint& aCentre );
+
+    /**
      * Function GetPosition
      * returns the position of this object.
      * @return const wxPoint& - The position of this object.
@@ -69,6 +96,7 @@ public:
     {
         return m_Start;  // it had to be start or end.
     }
+
 
     EDA_Rect GetBoundingBox();
 
@@ -121,6 +149,21 @@ public:
     /* divers */
     int Shape() const { return m_Shape & 0xFF; }
 
+    /** Function TransformShapeWithClearanceToPolygon
+     * Convert the track shape to a closed polygon
+     * Used in filling zones calculations
+     * Circles (vias) and arcs (ends of tracks) are approximated by segments
+     * @param aCornerBuffer = a buffer to store the polygon
+     * @param aClearanceValue = the clearance around the pad
+     * @param aCircleToSegmentsCount = the number of segments to approximate a circle
+     * @param aCorrectionFactor = the correction to apply to circles radius to keep
+     * clearance when the circle is approxiamted by segment bigger or equal
+     * to the real clearance value (usually near from 1.0)
+     */
+    void TransformShapeWithClearanceToPolygon( std::vector <CPolyPt>& aCornerBuffer,
+                                               int                    aClearanceValue,
+                                               int                    aCircleToSegmentsCount,
+                                               double                 aCorrectionFactor );
     /**
      * Function SetDrillValue
      * Set the drill value for vias
@@ -138,7 +181,7 @@ public:
      * Function IsDrillDefault
      * @return true if the drill value is default value (-1)
     */
-    bool IsDrillDefault(void) { return m_Drill < 0; }
+    bool IsDrillDefault(void) { return m_Drill <= 0; }
 
     /**
      * Function GetDrillValue
@@ -151,7 +194,7 @@ public:
      * Function ReturnMaskLayer
      * returns a "layer mask", which is a bitmap of all layers on which the
      * TRACK segment or SEGVIA physically resides.
-     * @return int - a layer mask, see pcbstruct.h's CUIVRE_LAYER, etc.
+     * @return int - a layer mask, see pcbstruct.h's LAYER_BACK, etc.
      */
     int             ReturnMaskLayer();
 
@@ -164,14 +207,23 @@ public:
     bool            IsNull();
 
     /**
-     * Function Display_Infos
+     * Function DisplayInfo
      * has knowledge about the frame and how and where to put status information
      * about this object into the frame's message panel.
      * Is virtual from EDA_BaseStruct.
+     * Display info about the track segment and the full track length
      * @param frame A WinEDA_DrawFrame in which to print status information.
      */
-    void            Display_Infos( WinEDA_DrawFrame* frame );
+    void            DisplayInfo( WinEDA_DrawFrame* frame );
 
+    /**
+     * Function DisplayInfoBase
+     * has knowledge about the frame and how and where to put status information
+     * about this object into the frame's message panel.
+     * Display info about the track segment only, and does not calculate the full track length
+     * @param frame A WinEDA_DrawFrame in which to print status information.
+     */
+    void            DisplayInfoBase( WinEDA_DrawFrame* frame );
 
     /**
      * Function ShowWidth

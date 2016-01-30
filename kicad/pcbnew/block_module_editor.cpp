@@ -1,6 +1,6 @@
 /****************************************************/
-/*	block_module_editor.cpp							*/
-/* Handle block commands for the footprint editor	*/
+/* block_module_editor.cpp                          */
+/* Handle block commands for the footprint editor   */
 /****************************************************/
 
 #include "fctsys.h"
@@ -12,6 +12,7 @@
 #include "block_commande.h"
 
 #include "pcbnew.h"
+#include "wxPcbStruct.h"
 #include "autorout.h"
 #include "pcbplot.h"
 #include "trigo.h"
@@ -22,11 +23,7 @@
 #define BLOCK_COLOR BROWN
 #define IS_SELECTED 1
 
-/* Variables Locales */
 
-/* Fonctions exportees */
-
-/* Fonctions Locales */
 static void DrawMovingBlockOutlines( WinEDA_DrawPanel* panel,
                                      wxDC*             DC,
                                      bool              erase );
@@ -41,14 +38,11 @@ static void RotateMarkedItems( MODULE* module, wxPoint offset );
 static void DeleteMarkedItems( MODULE* module );
 
 
-/*************************************************************************/
-int WinEDA_ModuleEditFrame::ReturnBlockCommand( int key )
-/*************************************************************************/
-
 /* Return the block command (BLOCK_MOVE, BLOCK_COPY...) corresponding to
- *  the key (ALT, SHIFT ALT ..) pressed when dragging mouse and left or middle button
- *  pressed
+ * the key (ALT, SHIFT ALT ..) pressed when dragging mouse and left or
+ * middle button pressed
  */
+int WinEDA_ModuleEditFrame::ReturnBlockCommand( int key )
 {
     int cmd;
 
@@ -91,34 +85,32 @@ int WinEDA_ModuleEditFrame::ReturnBlockCommand( int key )
 }
 
 
-/****************************************************/
-int WinEDA_ModuleEditFrame::HandleBlockEnd( wxDC* DC )
-/****************************************************/
-
 /* Command BLOCK END (end of block sizing)
  *  return :
  *  0 if command finished (zoom, delete ...)
- *  1 if HandleBlockPlace must follow (items found, and a block place command must follow)
+ *  1 if HandleBlockPlace must follow (items found, and a block place command
+ *    must follow)
  */
+int WinEDA_ModuleEditFrame::HandleBlockEnd( wxDC* DC )
 {
     int     ItemsCount    = 0, MustDoPlace = 0;
     MODULE* Currentmodule = GetBoard()->m_Modules;
 
-    if( GetScreen()->BlockLocate.m_BlockDrawStruct )
+    if( GetScreen()->m_BlockLocate.GetCount() )
     {
-        BlockState   state   = GetScreen()->BlockLocate.m_State;
-        CmdBlockType command = GetScreen()->BlockLocate.m_Command;
+        BlockState   state   = GetScreen()->m_BlockLocate.m_State;
+        CmdBlockType command = GetScreen()->m_BlockLocate.m_Command;
         DrawPanel->ForceCloseManageCurseur( DrawPanel, DC );
-        GetScreen()->BlockLocate.m_State   = state;
-        GetScreen()->BlockLocate.m_Command = command;
+        GetScreen()->m_BlockLocate.m_State   = state;
+        GetScreen()->m_BlockLocate.m_Command = command;
         DrawPanel->ManageCurseur = DrawAndSizingBlockOutlines;
         DrawPanel->ForceCloseManageCurseur = AbortBlockCurrentCommand;
-        GetScreen()->m_Curseur.x = GetScreen()->BlockLocate.GetRight();
-        GetScreen()->m_Curseur.y = GetScreen()->BlockLocate.GetBottom();
+        GetScreen()->m_Curseur.x = GetScreen()->m_BlockLocate.GetRight();
+        GetScreen()->m_Curseur.y = GetScreen()->m_BlockLocate.GetBottom();
         DrawPanel->MouseToCursorSchema();
     }
 
-    switch( GetScreen()->BlockLocate.m_Command )
+    switch( GetScreen()->m_BlockLocate.m_Command )
     {
     case  BLOCK_IDLE:
         DisplayError( this, wxT( "Error in HandleBlockPLace" ) );
@@ -127,7 +119,8 @@ int WinEDA_ModuleEditFrame::HandleBlockEnd( wxDC* DC )
     case BLOCK_DRAG:        /* Drag */
     case BLOCK_MOVE:        /* Move */
     case BLOCK_COPY:        /* Copy */
-        ItemsCount = MarkItemsInBloc( Currentmodule, GetScreen()->BlockLocate );
+        ItemsCount = MarkItemsInBloc( Currentmodule,
+                                      GetScreen()->m_BlockLocate );
         if( ItemsCount )
         {
             MustDoPlace = 1;
@@ -137,7 +130,7 @@ int WinEDA_ModuleEditFrame::HandleBlockEnd( wxDC* DC )
                 DrawPanel->ManageCurseur = DrawMovingBlockOutlines;
                 DrawPanel->ManageCurseur( DrawPanel, DC, FALSE );
             }
-            GetScreen()->BlockLocate.m_State = STATE_BLOCK_MOVE;
+            GetScreen()->m_BlockLocate.m_State = STATE_BLOCK_MOVE;
             DrawPanel->Refresh( TRUE );
         }
         break;
@@ -145,13 +138,13 @@ int WinEDA_ModuleEditFrame::HandleBlockEnd( wxDC* DC )
     case BLOCK_PRESELECT_MOVE:     /* Move with preselection list*/
         MustDoPlace = 1;
         DrawPanel->ManageCurseur = DrawMovingBlockOutlines;
-        GetScreen()->BlockLocate.m_State = STATE_BLOCK_MOVE;
+        GetScreen()->m_BlockLocate.m_State = STATE_BLOCK_MOVE;
         break;
 
     case BLOCK_DELETE:     /* Delete */
-        ItemsCount = MarkItemsInBloc( Currentmodule, GetScreen()->BlockLocate );
+        ItemsCount = MarkItemsInBloc( Currentmodule, GetScreen()->m_BlockLocate );
         if( ItemsCount )
-            SaveCopyInUndoList( Currentmodule );
+            SaveCopyInUndoList( Currentmodule, UR_MODEDIT );
         DeleteMarkedItems( Currentmodule );
         break;
 
@@ -160,24 +153,24 @@ int WinEDA_ModuleEditFrame::HandleBlockEnd( wxDC* DC )
         break;
 
     case BLOCK_ROTATE:
-        ItemsCount = MarkItemsInBloc( Currentmodule, GetScreen()->BlockLocate );
+        ItemsCount = MarkItemsInBloc( Currentmodule, GetScreen()->m_BlockLocate );
         if( ItemsCount )
-            SaveCopyInUndoList( Currentmodule );
-        RotateMarkedItems( Currentmodule, GetScreen()->BlockLocate.Centre() );
+            SaveCopyInUndoList( Currentmodule, UR_MODEDIT );
+        RotateMarkedItems( Currentmodule, GetScreen()->m_BlockLocate.Centre() );
         break;
 
 
     case BLOCK_MIRROR_X:
     case BLOCK_MIRROR_Y:
-    case BLOCK_INVERT:     /* mirror */
-        ItemsCount = MarkItemsInBloc( Currentmodule, GetScreen()->BlockLocate );
+    case BLOCK_FLIP:     /* mirror */
+        ItemsCount = MarkItemsInBloc( Currentmodule, GetScreen()->m_BlockLocate );
         if( ItemsCount )
-            SaveCopyInUndoList( Currentmodule );
-        MirrorMarkedItems( Currentmodule, GetScreen()->BlockLocate.Centre() );
+            SaveCopyInUndoList( Currentmodule, UR_MODEDIT );
+        MirrorMarkedItems( Currentmodule, GetScreen()->m_BlockLocate.Centre() );
         break;
 
     case BLOCK_ZOOM:     /* Window Zoom */
-        Window_Zoom( GetScreen()->BlockLocate );
+        Window_Zoom( GetScreen()->m_BlockLocate );
         break;
 
     case BLOCK_ABORT:
@@ -189,18 +182,17 @@ int WinEDA_ModuleEditFrame::HandleBlockEnd( wxDC* DC )
 
     if( MustDoPlace <= 0 )
     {
-        if( GetScreen()->BlockLocate.m_Command  != BLOCK_SELECT_ITEMS_ONLY )
+        if( GetScreen()->m_BlockLocate.m_Command  != BLOCK_SELECT_ITEMS_ONLY )
         {
             ClearMarkItems( Currentmodule );
         }
-        GetScreen()->BlockLocate.m_Flags   = 0;
-        GetScreen()->BlockLocate.m_State   = STATE_NO_BLOCK;
-        GetScreen()->BlockLocate.m_Command = BLOCK_IDLE;
+        GetScreen()->m_BlockLocate.m_Flags   = 0;
+        GetScreen()->m_BlockLocate.m_State   = STATE_NO_BLOCK;
+        GetScreen()->m_BlockLocate.m_Command = BLOCK_IDLE;
         DrawPanel->ManageCurseur = NULL;
         DrawPanel->ForceCloseManageCurseur = NULL;
         SetCurItem( NULL );
-        SetToolID( m_ID_current_state,
-                   DrawPanel->m_PanelDefaultCursor,
+        SetToolID( m_ID_current_state, DrawPanel->m_PanelDefaultCursor,
                    wxEmptyString );
         DrawPanel->Refresh( TRUE );
     }
@@ -214,10 +206,10 @@ int WinEDA_ModuleEditFrame::HandleBlockEnd( wxDC* DC )
 void WinEDA_ModuleEditFrame::HandleBlockPlace( wxDC* DC )
 /******************************************************/
 
-/* Routine to handle the BLOCK PLACE commande
+/* Routine to handle the BLOCK PLACE command
  *  Last routine for block operation for:
  *  - block move & drag
- *  - block copie & paste
+ *  - block copy & paste
  */
 {
     bool    err = FALSE;
@@ -229,9 +221,9 @@ void WinEDA_ModuleEditFrame::HandleBlockPlace( wxDC* DC )
         DisplayError( this, wxT( "HandleBlockPLace : ManageCurseur = NULL" ) );
     }
 
-    GetScreen()->BlockLocate.m_State = STATE_BLOCK_STOP;
+    GetScreen()->m_BlockLocate.m_State = STATE_BLOCK_STOP;
 
-    switch( GetScreen()->BlockLocate.m_Command )
+    switch( GetScreen()->m_BlockLocate.m_Command )
     {
     case  BLOCK_IDLE:
         err = TRUE;
@@ -240,32 +232,32 @@ void WinEDA_ModuleEditFrame::HandleBlockPlace( wxDC* DC )
     case BLOCK_DRAG:                /* Drag */
     case BLOCK_MOVE:                /* Move */
     case BLOCK_PRESELECT_MOVE:      /* Move with preselection list*/
-        GetScreen()->BlockLocate.m_BlockDrawStruct = NULL;
-        SaveCopyInUndoList( Currentmodule );
-        MoveMarkedItems( Currentmodule, GetScreen()->BlockLocate.m_MoveVector );
+        GetScreen()->m_BlockLocate.ClearItemsList();
+        SaveCopyInUndoList( Currentmodule, UR_MODEDIT );
+        MoveMarkedItems( Currentmodule, GetScreen()->m_BlockLocate.m_MoveVector );
         DrawPanel->Refresh( TRUE );
         break;
 
     case BLOCK_COPY:     /* Copy */
-        GetScreen()->BlockLocate.m_BlockDrawStruct = NULL;
-        SaveCopyInUndoList( Currentmodule );
-        CopyMarkedItems( Currentmodule, GetScreen()->BlockLocate.m_MoveVector );
+        GetScreen()->m_BlockLocate.ClearItemsList();
+        SaveCopyInUndoList( Currentmodule, UR_MODEDIT );
+        CopyMarkedItems( Currentmodule, GetScreen()->m_BlockLocate.m_MoveVector );
         break;
 
-    case BLOCK_PASTE:     /* Paste (recopie du dernier bloc sauve */
-        GetScreen()->BlockLocate.m_BlockDrawStruct = NULL;
+    case BLOCK_PASTE:     /* Paste */
+        GetScreen()->m_BlockLocate.ClearItemsList();
         break;
 
     case BLOCK_MIRROR_X:
     case BLOCK_MIRROR_Y:
-    case BLOCK_INVERT:      /* Mirror by popup menu, from block move */
-        SaveCopyInUndoList( Currentmodule );
-        MirrorMarkedItems( Currentmodule, GetScreen()->BlockLocate.Centre() );
+    case BLOCK_FLIP:      /* Mirror by popup menu, from block move */
+        SaveCopyInUndoList( Currentmodule, UR_MODEDIT );
+        MirrorMarkedItems( Currentmodule, GetScreen()->m_BlockLocate.Centre() );
         break;
 
     case BLOCK_ROTATE:
-        SaveCopyInUndoList( Currentmodule );
-        RotateMarkedItems( Currentmodule, GetScreen()->BlockLocate.Centre() );
+        SaveCopyInUndoList( Currentmodule, UR_MODEDIT );
+        RotateMarkedItems( Currentmodule, GetScreen()->m_BlockLocate.Centre() );
         break;
 
     case BLOCK_ZOOM:        // Handled by HandleBlockEnd
@@ -276,13 +268,13 @@ void WinEDA_ModuleEditFrame::HandleBlockPlace( wxDC* DC )
         break;
     }
 
-    GetScreen()->SetModify();
+    OnModify();
 
     DrawPanel->ManageCurseur = NULL;
     DrawPanel->ForceCloseManageCurseur = NULL;
-    GetScreen()->BlockLocate.m_Flags   = 0;
-    GetScreen()->BlockLocate.m_State   = STATE_NO_BLOCK;
-    GetScreen()->BlockLocate.m_Command = BLOCK_IDLE;
+    GetScreen()->m_BlockLocate.m_Flags   = 0;
+    GetScreen()->m_BlockLocate.m_State   = STATE_NO_BLOCK;
+    GetScreen()->m_BlockLocate.m_Command = BLOCK_IDLE;
     SetCurItem( NULL );
     DrawPanel->Refresh( TRUE );
 
@@ -292,31 +284,26 @@ void WinEDA_ModuleEditFrame::HandleBlockPlace( wxDC* DC )
 }
 
 
-/************************************************************************/
+/* Traces the outline of the search block structures
+ * The entire block follows the cursor
+ */
 static void DrawMovingBlockOutlines( WinEDA_DrawPanel* panel, wxDC* DC,
                                      bool erase )
-/************************************************************************/
-
-/* Retrace le contour du block de recherche de structures
- *  L'ensemble du block suit le curseur
- */
 {
-    DrawBlockStruct* PtBlock;
+    BLOCK_SELECTOR*  PtBlock;
     BASE_SCREEN*     screen = panel->GetScreen();
     BOARD_ITEM*      item;
     wxPoint          move_offset;
     MODULE*          Currentmodule =
         ( (WinEDA_BasePcbFrame*) wxGetApp().GetTopWindow() )->m_ModuleEditFrame->GetBoard()->m_Modules;
 
-    PtBlock = &screen->BlockLocate;
+    PtBlock = &screen->m_BlockLocate;
     GRSetDrawMode( DC, g_XorMode );
 
-    /* Effacement ancien cadre */
     if( erase )
     {
-        PtBlock->Offset( PtBlock->m_MoveVector );
-        PtBlock->Draw( panel, DC );
-        PtBlock->Offset( -PtBlock->m_MoveVector.x, -PtBlock->m_MoveVector.y );
+        PtBlock->Draw( panel, DC, PtBlock->m_MoveVector, g_XorMode,
+                       PtBlock->m_Color );
 
         if( Currentmodule )
         {
@@ -350,23 +337,18 @@ static void DrawMovingBlockOutlines( WinEDA_DrawPanel* panel, wxDC* DC,
         }
     }
 
-    /* Redessin nouvel affichage */
-    PtBlock->m_MoveVector.x = screen->m_Curseur.x -
-                              PtBlock->m_BlockLastCursorPosition.x;
-    PtBlock->m_MoveVector.y = screen->m_Curseur.y -
-                              PtBlock->m_BlockLastCursorPosition.y;
+    /* Repaint new view. */
+    PtBlock->m_MoveVector =
+        screen->m_Curseur - PtBlock->m_BlockLastCursorPosition;
 
-    GRSetDrawMode( DC, g_XorMode );
-    PtBlock->Offset( PtBlock->m_MoveVector );
-    PtBlock->Draw( panel, DC );
-    PtBlock->Offset( -PtBlock->m_MoveVector.x, -PtBlock->m_MoveVector.y );
+    PtBlock->Draw( panel, DC, PtBlock->m_MoveVector, g_XorMode,
+                   PtBlock->m_Color );
 
 
     if( Currentmodule )
     {
         item = Currentmodule->m_Drawings;
-        move_offset.x = -PtBlock->m_MoveVector.x;
-        move_offset.y = -PtBlock->m_MoveVector.y;
+        move_offset = - PtBlock->m_MoveVector;
         for( ; item != NULL; item = item->Next() )
         {
             if( item->m_Selected == 0 )
@@ -395,12 +377,9 @@ static void DrawMovingBlockOutlines( WinEDA_DrawPanel* panel, wxDC* DC,
 }
 
 
-/****************************************************************************/
-void CopyMarkedItems( MODULE* module, wxPoint offset )
-/****************************************************************************/
-
 /* Copy marked items, at new position = old position + offset
  */
+void CopyMarkedItems( MODULE* module, wxPoint offset )
 {
     if( module == NULL )
         return;
@@ -442,8 +421,7 @@ void CopyMarkedItems( MODULE* module, wxPoint offset )
             break;
 
         default:
-            DisplayError( NULL,
-                          wxT( "Internal Err: CopyMarkedItems: type indefini" ) );
+            DisplayError( NULL, wxT( "CopyMarkedItems: type undefined" ) );
             break;
         }
     }
@@ -452,12 +430,9 @@ void CopyMarkedItems( MODULE* module, wxPoint offset )
 }
 
 
-/****************************************************/
-void MoveMarkedItems( MODULE* module, wxPoint offset )
-/****************************************************/
-
 /* Move marked items, at new position = old position + offset
  */
+void MoveMarkedItems( MODULE* module, wxPoint offset )
 {
     EDA_BaseStruct* item;
 
@@ -503,12 +478,9 @@ void MoveMarkedItems( MODULE* module, wxPoint offset )
 }
 
 
-/******************************************************/
-void DeleteMarkedItems( MODULE* module )
-/******************************************************/
-
 /* Delete marked items
  */
+void DeleteMarkedItems( MODULE* module )
 {
     BOARD_ITEM* item;
     BOARD_ITEM* next_item;
@@ -538,12 +510,9 @@ void DeleteMarkedItems( MODULE* module )
 }
 
 
-/******************************************************/
-void MirrorMarkedItems( MODULE* module, wxPoint offset )
-/******************************************************/
-
 /* Mirror marked items, refer to a Vertical axis at position offset
  */
+void MirrorMarkedItems( MODULE* module, wxPoint offset )
 {
 #define SETMIRROR( z ) (z) -= offset.x; (z) = -(z); (z) += offset.x;
     EDA_BaseStruct* item;
@@ -558,8 +527,8 @@ void MirrorMarkedItems( MODULE* module, wxPoint offset )
             continue;
         SETMIRROR( pad->GetPosition().x );
         pad->m_Pos0.x = pad->GetPosition().x;
-        pad->m_Offset.x    = -pad->m_Offset.x;
-        pad->m_DeltaSize.x = -pad->m_DeltaSize.x;
+        NEGATE( pad->m_Offset.x );
+        NEGATE( pad->m_DeltaSize.x );
         pad->m_Orient      = 1800 - pad->m_Orient;
         NORMALIZE_ANGLE( pad->m_Orient );
     }
@@ -573,14 +542,13 @@ void MirrorMarkedItems( MODULE* module, wxPoint offset )
         switch( item->Type() )
         {
         case TYPE_EDGE_MODULE:
-            SETMIRROR( ( (EDGE_MODULE*) item )->m_Start.x );
-            ( (EDGE_MODULE*) item )->m_Start0.x =
-                ( (EDGE_MODULE*) item )->m_Start.x;
-            SETMIRROR( ( (EDGE_MODULE*) item )->m_End.x );
-            ( (EDGE_MODULE*) item )->m_End0.x =
-                ( (EDGE_MODULE*) item )->m_End.x;
-            ( (EDGE_MODULE*) item )->m_Angle =
-                -( (EDGE_MODULE*) item )->m_Angle;
+        {  EDGE_MODULE * edge =  (EDGE_MODULE*) item;
+            SETMIRROR( edge->m_Start.x );
+            edge->m_Start0.x = edge->m_Start.x;
+            SETMIRROR( edge->m_End.x );
+            edge->m_End0.x = edge->m_End.x;
+            NEGATE( edge->m_Angle );
+        }
             break;
 
         case TYPE_TEXTE_MODULE:
@@ -590,20 +558,18 @@ void MirrorMarkedItems( MODULE* module, wxPoint offset )
             break;
 
         default:
-            ;
+            break;
         }
 
-        item->m_Flags = item->m_Selected = 0;
+        item->m_Flags = 0;
+        item->m_Selected = 0;
     }
 }
 
 
-/******************************************************/
-void RotateMarkedItems( MODULE* module, wxPoint offset )
-/******************************************************/
-
 /* Rotate marked items, refer to a Vertical axis at position offset
  */
+void RotateMarkedItems( MODULE* module, wxPoint offset )
 {
 #define ROTATE( z ) RotatePoint( (&z), offset, 900 )
     EDA_BaseStruct* item;
@@ -654,9 +620,7 @@ void RotateMarkedItems( MODULE* module, wxPoint offset )
 }
 
 
-/*********************************************************/
 void ClearMarkItems( MODULE* module )
-/*********************************************************/
 {
     EDA_BaseStruct* item;
 
@@ -673,13 +637,10 @@ void ClearMarkItems( MODULE* module )
 }
 
 
-/***************************************************************/
-int MarkItemsInBloc( MODULE* module, EDA_Rect& Rect )
-/***************************************************************/
-
 /* Mark items inside rect.
  *  Items are inside rect when an end point is inside rect
  */
+int MarkItemsInBloc( MODULE* module, EDA_Rect& Rect )
 {
     EDA_BaseStruct* item;
     int             ItemsCount = 0;

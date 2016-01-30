@@ -30,9 +30,9 @@ ZONE_SETTING::ZONE_SETTING( void )
     m_NetcodeSelection   = 0;                                       // Net code selection for the current zone
     m_CurrentZone_Layer  = 0;                                       // Layer used to create the current zone
     m_Zone_HatchingStyle = CPolyLine::DIAGONAL_EDGE;                // Option to show the zone area (outlines only, short hatches or full hatches
-    m_ArcToSegmentsCount = 16;                  /* Option to select number of segments to approximate a circle
-                                                 * 16 or 32 segments */
-    m_Unused = 0;
+    m_ArcToSegmentsCount = ARC_APPROX_SEGMENTS_COUNT_LOW_DEF;      /* Option to select number of segments to approximate a circle
+                                                                    * ARC_APPROX_SEGMENTS_COUNT_LOW_DEF
+                                                                    * or ARC_APPROX_SEGMENTS_COUNT_HIGHT_DEF segments */
     m_ThermalReliefGapValue = 200;                                  // tickness of the gap in thermal reliefs
     m_ThermalReliefCopperBridgeValue = 200;                         // tickness of the copper bridge in thermal reliefs
 
@@ -53,7 +53,6 @@ void ZONE_SETTING::ImportSetting( const ZONE_CONTAINER& aSource )
     m_CurrentZone_Layer  = aSource.GetLayer();
     m_Zone_HatchingStyle = aSource.GetHatchStyle();
     m_ArcToSegmentsCount = aSource.m_ArcToSegmentsCount;
-    m_Unused = aSource.m_Unused;
     m_ThermalReliefGapValue = aSource.m_ThermalReliefGapValue;
     m_ThermalReliefCopperBridgeValue = aSource.m_ThermalReliefCopperBridgeValue;
     m_Zone_Pad_Options = aSource.m_PadOption;
@@ -75,7 +74,6 @@ void ZONE_SETTING::ExportSetting( ZONE_CONTAINER& aTarget, bool aFullExport )
     aTarget.m_ZoneMinThickness = m_ZoneMinThickness;
     aTarget.m_Poly->SetHatch( m_Zone_HatchingStyle );
     aTarget.m_ArcToSegmentsCount = m_ArcToSegmentsCount;
-    aTarget.m_Unused = m_Unused;
     aTarget.m_ThermalReliefGapValue = m_ThermalReliefGapValue;
     aTarget.m_ThermalReliefCopperBridgeValue = m_ThermalReliefCopperBridgeValue;
     aTarget.m_PadOption = m_Zone_Pad_Options;

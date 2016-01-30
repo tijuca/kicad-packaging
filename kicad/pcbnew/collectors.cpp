@@ -36,7 +36,7 @@ const KICAD_T GENERAL_COLLECTOR::AllBoardItems[] = {
     // there are some restrictions on the order of items in the general case.
     // all items in m_Drawings for instance should be contiguous.
     //  *** all items in a same list (shown here) must be contiguous ****
-    TYPE_MARKER,                 // in m_markers
+    TYPE_MARKER_PCB,                 // in m_markers
     TYPE_TEXTE,                  // in m_Drawings
     TYPE_DRAWSEGMENT,            // in m_Drawings
     TYPE_COTATION,               // in m_Drawings
@@ -66,7 +66,7 @@ const KICAD_T GENERAL_COLLECTOR::AllBoardItems[] = {
 
 
 const KICAD_T GENERAL_COLLECTOR::AllButZones[] = {
-    TYPE_MARKER,
+    TYPE_MARKER_PCB,
     TYPE_TEXTE,
     TYPE_DRAWSEGMENT,
     TYPE_COTATION,
@@ -136,6 +136,8 @@ SEARCH_RESULT GENERAL_COLLECTOR::Inspect( EDA_BaseStruct* testItem, const void* 
 {
     BOARD_ITEM* item   = (BOARD_ITEM*) testItem;
     MODULE*     module = NULL;
+    D_PAD*      pad    = NULL;
+    bool        pad_through = false;
 
 #if 0   // debugging
     static int  breakhere = 0;
@@ -207,15 +209,20 @@ SEARCH_RESULT GENERAL_COLLECTOR::Inspect( EDA_BaseStruct* testItem, const void* 
     switch( item->Type() )
     {
     case TYPE_PAD:
-
+        // there are pad specific visibility controls.
+        // Criterias to select a pad is:
+        // for smd pads: the module parent must be seen, and pads on the corresponding board side must be seen 
         // if pad is a thru hole, then it can be visible when its parent module is not.
-        if( ( (D_PAD*) item )->m_Attribut != PAD_SMD )    // a hole is present, so multiple layers
+        // for through pads: pads on Front or Back board sides must be seen 
+        pad = (D_PAD*) item;
+        if( (pad->m_Attribut != PAD_SMD) &&
+            (pad->m_Attribut != PAD_CONN) )    // a hole is present, so multiple layers
         {
-            // there are no pad specific visibility controls at this time.
             // proceed to the common tests below, but without the parent module test,
-            // by leaving module==NULL
+            // by leaving module==NULL, but having pad != null
+            pad_through = true;
         }
-        else  // smd, so use common test below
+        else  // smd, so use pads test after module test
             module = (MODULE*) item->GetParent();
         break;
 
@@ -251,10 +258,10 @@ SEARCH_RESULT GENERAL_COLLECTOR::Inspect( EDA_BaseStruct* testItem, const void* 
 
         if( module )
         {
-            if( m_Guide->IgnoreMTextsOnCopper() && module->GetLayer()==COPPER_LAYER_N )
+            if( m_Guide->IgnoreMTextsOnCopper() && module->GetLayer()==LAYER_N_BACK )
                 goto exit;
 
-            if( m_Guide->IgnoreMTextsOnCmp() && module->GetLayer()==LAYER_CMP_N )
+            if( m_Guide->IgnoreMTextsOnCmp() && module->GetLayer()==LAYER_N_FRONT )
                 goto exit;
         }
         break;
@@ -271,13 +278,28 @@ SEARCH_RESULT GENERAL_COLLECTOR::Inspect( EDA_BaseStruct* testItem, const void* 
 
     if( module )    // true from case TYPE_PAD, TYPE_TEXTE_MODULE, or TYPE_MODULE
     {
-        if( m_Guide->IgnoreModulesOnCu() && module->GetLayer()==COPPER_LAYER_N )
+        if( m_Guide->IgnoreModulesOnCu() && module->GetLayer()==LAYER_N_BACK )
             goto exit;
 
-        if( m_Guide->IgnoreModulesOnCmp() && module->GetLayer()==LAYER_CMP_N )
+        if( m_Guide->IgnoreModulesOnCmp() && module->GetLayer()==LAYER_N_FRONT )
             goto exit;
     }
 
+    // Pads are not sensitive to the layer visibility controls. 
+    // They all have their own separate visibility controls
+    // skip them if not visible
+    if ( pad )
+    {
+        if( m_Guide->IgnorePads() )
+            goto exit;
+        if( ! pad_through )
+        {
+            if( m_Guide->IgnorePadsOnFront() && pad->IsOnLayer(LAYER_N_FRONT ) )
+                goto exit;
+            if( m_Guide->IgnorePadsOnBack() && pad->IsOnLayer(LAYER_N_BACK ) )
+                goto exit;
+        }
+    }
 
     if( item->IsOnLayer( m_Guide->GetPreferredLayer() ) || m_Guide->IgnorePreferredLayer() )
     {
@@ -285,7 +307,7 @@ SEARCH_RESULT GENERAL_COLLECTOR::Inspect( EDA_BaseStruct* testItem, const void* 
 
         // Modules and their subcomponents: text and pads are not sensitive to the layer
         // visibility controls.  They all have their own separate visibility controls
-        if( module || m_Guide->IsLayerVisible( layer ) || !m_Guide->IgnoreNonVisibleLayers() )
+        if( module || pad || m_Guide->IsLayerVisible( layer ) || !m_Guide->IgnoreNonVisibleLayers() )
         {
             if( !m_Guide->IsLayerLocked( layer ) || !m_Guide->IgnoreLockedLayers() )
             {
@@ -312,7 +334,7 @@ SEARCH_RESULT GENERAL_COLLECTOR::Inspect( EDA_BaseStruct* testItem, const void* 
 
         // Modules and their subcomponents: text and pads are not sensitive to the layer
         // visibility controls.  They all have their own separate visibility controls
-        if( module || m_Guide->IsLayerVisible( layer ) || !m_Guide->IgnoreNonVisibleLayers() )
+        if( module || pad || m_Guide->IsLayerVisible( layer ) || !m_Guide->IgnoreNonVisibleLayers() )
         {
             if( !m_Guide->IsLayerLocked( layer ) || !m_Guide->IgnoreLockedLayers() )
             {

@@ -11,38 +11,9 @@
 #include "drawtxt.h"
 
 #include "pcbnew.h"
-
-#ifdef CVPCB
-#include "cvpcb.h"
-#endif
-
+#include "class_board_design_settings.h"
+#include "colors_selection.h"
 #include "protos.h"
-
-
-// #define RATSNET_DEBUG
-
-#ifdef RATSNET_DEBUG
-
-/**************************************/
-void DbgDisplayTrackInfos( TRACK* track )
-/**************************************/
-
-/* Only for ratsnest debug
- */
-{
-    wxString msg;
-
-    msg << wxT( "Netcode " ) << track->GetNet();
-    msg << wxT( " - " ) << track->GetSubNet();
-    msg << wxT( "\nptrS " ) << (unsigned) track->start;
-    msg << wxT( " ptrE " ) << (unsigned) track->end;
-    msg << wxT( " this " ) << (unsigned) track;
-
-    wxMessageBox( msg );
-}
-
-
-#endif
 
 
 /**
@@ -54,7 +25,7 @@ static bool ShowClearance( const TRACK* aTrack )
 {
     // maybe return true for tracks and vias, not for zone segments
     return !(aTrack->m_Flags & DRAW_ERASED)
-           &&  DisplayOpt.DisplayTrackIsol
+           &&  DisplayOpt.ShowTrackClearanceMode == SHOW_CLEARANCE_ALWAYS
            &&  aTrack->GetLayer() <= LAST_COPPER_LAYER
            && ( aTrack->Type() == TYPE_TRACK || aTrack->Type() == TYPE_VIA );
 }
@@ -139,7 +110,7 @@ TRACK* TRACK::Copy() const
 
 /**
  * Function GetDrillValue
- * calculate the drill value for vias (m-Drill if > 0, or default drill value for the board
+ * calculate the drill value for vias (m_Drill if > 0, or default drill value for the Netclass
  * @return real drill_value
  */
 int TRACK::GetDrillValue() const
@@ -147,13 +118,16 @@ int TRACK::GetDrillValue() const
     if( Type() != TYPE_VIA )
         return 0;
 
-    if( m_Drill >= 0 )
+    if( m_Drill > 0 )      // Use the specific value.
         return m_Drill;
 
-    if( m_Shape == VIA_MICROVIA )
-        return g_DesignSettings.m_MicroViaDrill;
+    // Use the default value from the Netclass
+    NETCLASS* netclass = GetNetClass();
 
-    return g_DesignSettings.m_ViaDrill;
+    if( m_Shape == VIA_MICROVIA )
+        return netclass->GetuViaDrill();
+
+    return netclass->GetViaDrill();
 }
 
 
@@ -161,12 +135,12 @@ int TRACK::GetDrillValue() const
 bool TRACK::IsNull()
 /***********************/
 
-// return TRUE if segment length = 0
+// return true if segment length = 0
 {
     if( ( Type() != TYPE_VIA ) && ( m_Start == m_End ) )
-        return TRUE;
+        return true;
     else
-        return FALSE;
+        return false;
 }
 
 
@@ -262,7 +236,7 @@ EDA_Rect TRACK::GetBoundingBox()
     if( ShowClearance( this ) )
     {
         // + 1 is for the clearance line itself.
-        radius += g_DesignSettings.m_TrackClearence + 1;
+        radius += GetClearance() + 1;
     }
 
     ymax += radius;
@@ -278,6 +252,36 @@ EDA_Rect TRACK::GetBoundingBox()
 }
 
 
+/**
+ * Function Rotate
+ * Rotate this object.
+ * @param const wxPoint& aRotCentre - the rotation point.
+ * @param aAngle - the rotation angle in 0.1 degree.
+ */
+void TRACK::Rotate( const wxPoint& aRotCentre, int aAngle )
+{
+    RotatePoint( &m_Start, aRotCentre, aAngle );
+    RotatePoint( &m_End, aRotCentre, aAngle );
+}
+
+
+/**
+ * Function Flip
+ * Flip this object, i.e. change the board side for this object
+ * @param const wxPoint& aCentre - the rotation point.
+ */
+void TRACK::Flip( const wxPoint& aCentre )
+{
+    m_Start.y = aCentre.y - (m_Start.y - aCentre.y);
+    m_End.y   = aCentre.y - (m_End.y - aCentre.y);
+    if( Type() == TYPE_VIA )
+    {
+    }
+    else
+        SetLayer( ChangeSideNumLayer( GetLayer() ) );
+}
+
+
 // see class_track.h
 // SEGVIA and SEGZONE inherit this version
 SEARCH_RESULT TRACK::Visit( INSPECTOR* inspector, const void* testData,
@@ -285,7 +289,7 @@ SEARCH_RESULT TRACK::Visit( INSPECTOR* inspector, const void* testData,
 {
     KICAD_T stype = *scanTypes;
 
-#if 0 && defined (DEBUG)
+#if 0 && defined(DEBUG)
     std::cout << GetClass().mb_str() << ' ';
 #endif
 
@@ -368,12 +372,10 @@ void SEGVIA::SetLayerPair( int top_layer, int bottom_layer )
  * @param bottom_layer = last layer connected by the via
  */
 {
-    int via_type = Shape();
-
-    if( via_type == VIA_THROUGH )
+    if( Shape() == VIA_THROUGH )
     {
-        top_layer    = LAYER_CMP_N;
-        bottom_layer = COPPER_LAYER_N;
+        top_layer    = LAYER_N_FRONT;
+        bottom_layer = LAYER_N_BACK;
     }
 
     if( bottom_layer > top_layer )
@@ -395,11 +397,16 @@ void SEGVIA::ReturnLayerPair( int* top_layer, int* bottom_layer ) const
  *  @param bottom_layer = pointer to the last layer (can be null)
  */
 {
-    int b_layer = (m_Layer >> 4) & 15;
-    int t_layer = m_Layer & 15;
+    int b_layer = LAYER_N_BACK;
+    int t_layer = LAYER_N_FRONT;
 
-    if( b_layer > t_layer )
-        EXCHG( b_layer, t_layer );
+    if( Shape() != VIA_THROUGH )
+    {
+        b_layer = (m_Layer >> 4) & 15;
+        t_layer = m_Layer & 15;
+        if( b_layer > t_layer )
+            EXCHG( b_layer, t_layer );
+    }
 
     if( top_layer )
         *top_layer = t_layer;
@@ -521,11 +528,11 @@ bool TRACK::Save( FILE* aFile ) const
         return true;
 
     fprintf( aFile, "Po %d %d %d %d %d %d %d\n", m_Shape,
-        m_Start.x, m_Start.y, m_End.x, m_End.y, m_Width, m_Drill );
+             m_Start.x, m_Start.y, m_End.x, m_End.y, m_Width, m_Drill );
 
     fprintf( aFile, "De %d %d %d %lX %X\n",
-        m_Layer, type, GetNet(),
-        m_TimeStamp, ReturnStatus() );
+            m_Layer, type, GetNet(),
+            m_TimeStamp, ReturnStatus() );
 
     return true;
 }
@@ -543,6 +550,7 @@ void TRACK::Draw( WinEDA_DrawPanel* panel, wxDC* DC, int draw_mode, const wxPoin
     if( Type() == TYPE_ZONE && DisplayOpt.DisplayZonesMode != 0 )
         return;
 
+    BOARD * brd =  GetBoard( );
     if( m_Flags & DRAW_ERASED )   // draw in background color, used by classs TRACK in gerbview
     {
         color = g_DrawBgColor;
@@ -551,9 +559,10 @@ void TRACK::Draw( WinEDA_DrawPanel* panel, wxDC* DC, int draw_mode, const wxPoin
     }
     else
     {
-        color = g_DesignSettings.m_LayerColor[m_Layer];
+        color = brd->GetLayerColor(m_Layer);
 
-        if( ( color & (ITEM_NOT_SHOW | HIGHT_LIGHT_FLAG) ) == ITEM_NOT_SHOW )
+        if( brd->IsLayerVisible( m_Layer ) == false && ( color & HIGHT_LIGHT_FLAG ) !=
+            HIGHT_LIGHT_FLAG )
             return;
 
         if( DisplayOpt.ContrastModeDisplay )
@@ -587,14 +596,24 @@ void TRACK::Draw( WinEDA_DrawPanel* panel, wxDC* DC, int draw_mode, const wxPoin
     if( m_Shape == S_CIRCLE )
     {
         rayon = (int) hypot( (double) ( m_End.x - m_Start.x ),
-            (double) ( m_End.y - m_Start.y ) );
+                             (double) ( m_End.y - m_Start.y ) );
+
+#ifdef USE_WX_ZOOM
+        if( DC->LogicalToDeviceXRel( l_piste ) < L_MIN_DESSIN )
+#else
         if( panel->GetScreen()->Scale( l_piste ) < L_MIN_DESSIN )
+#endif
         {
             GRCircle( &panel->m_ClipBox, DC, m_Start.x, m_Start.y, rayon, color );
         }
         else
         {
+
+#ifdef USE_WX_ZOOM
+            if( DC->LogicalToDeviceXRel( l_piste ) <= 1 ) /* Sketch mode if l_piste/zoom <= 1 */
+#else
             if( panel->GetScreen()->Scale( l_piste ) <= 1 ) /* Sketch mode if l_piste/zoom <= 1 */
+#endif
             {
                 GRCircle( &panel->m_ClipBox, DC, m_Start.x, m_Start.y, rayon, color );
             }
@@ -606,39 +625,43 @@ void TRACK::Draw( WinEDA_DrawPanel* panel, wxDC* DC, int draw_mode, const wxPoin
             else
             {
                 GRCircle( &panel->m_ClipBox, DC, m_Start.x, m_Start.y, rayon,
-                    m_Width, color );
+                          m_Width, color );
             }
         }
         return;
     }
 
+#ifdef USE_WX_ZOOM
+    if( DC->LogicalToDeviceXRel( l_piste ) < L_MIN_DESSIN )
+#else
     if( panel->GetScreen()->Scale( l_piste ) < L_MIN_DESSIN )
+#endif
     {
         GRLine( &panel->m_ClipBox, DC, m_Start.x, m_Start.y,
-            m_End.x, m_End.y, 0, color );
+                m_End.x, m_End.y, 0, color );
         return;
     }
 
     if( !DisplayOpt.DisplayPcbTrackFill || GetState( FORCE_SKETCH ) )
     {
         GRCSegm( &panel->m_ClipBox, DC, m_Start.x, m_Start.y,
-            m_End.x, m_End.y, m_Width, color );
+                 m_End.x, m_End.y, m_Width, color );
     }
     else
     {
         GRFillCSegm( &panel->m_ClipBox, DC, m_Start.x, m_Start.y,
-            m_End.x, m_End.y, m_Width, color );
+                     m_End.x, m_End.y, m_Width, color );
     }
 
-    if( g_IsPrinting )
+    if( panel->GetScreen()->m_IsPrinting )
         return;
 
     // Show clearance for tracks, not for zone segments
     if( ShowClearance( this ) )
     {
         GRCSegm( &panel->m_ClipBox, DC, m_Start.x, m_Start.y,
-            m_End.x, m_End.y,
-            m_Width + (g_DesignSettings.m_TrackClearence * 2), color );
+                 m_End.x, m_End.y,
+                 m_Width + (GetClearance() * 2), color );
     }
 
     /* Display the short netname for tracks, not for zone segments.
@@ -650,6 +673,9 @@ void TRACK::Draw( WinEDA_DrawPanel* panel, wxDC* DC, int draw_mode, const wxPoin
     if( Type() == TYPE_ZONE )
         return;
 
+    if( DisplayOpt.DisplayNetNamesMode == 0 || DisplayOpt.DisplayNetNamesMode == 1 )
+        return;
+
     #define THRESHOLD 10
     if( (m_End.x - m_Start.x) != 0 &&  (m_End.y - m_Start.y) != 0 )
         return;
@@ -659,12 +685,16 @@ void TRACK::Draw( WinEDA_DrawPanel* panel, wxDC* DC, int draw_mode, const wxPoin
     if( len < THRESHOLD * m_Width )
         return;
 
+#ifdef USE_WX_ZOOM
+    if( DC->LogicalToDeviceXRel( m_Width ) < 6 )     // no room to display a text inside track
+#else
     if( panel->GetScreen()->Scale( m_Width ) < 6 )     // no room to display a text inside track
+#endif
         return;
 
     if( GetNet() == 0 )
         return;
-    EQUIPOT* net = ( (BOARD*) GetParent() )->FindNet( GetNet() );
+    NETINFO_ITEM* net = ( (BOARD*) GetParent() )->FindNet( GetNet() );
     if( net == NULL )
         return;
 
@@ -672,21 +702,30 @@ void TRACK::Draw( WinEDA_DrawPanel* panel, wxDC* DC, int draw_mode, const wxPoin
     if( textlen > 0 )
     {
         // calculate a good size for the text
-        int tsize = MIN( m_Width, len / textlen );
-        wxPoint tpos = m_Start + m_End;
+        int     tsize = MIN( m_Width, len / textlen );
+        wxPoint tpos  = m_Start + m_End;
         tpos.x /= 2;
         tpos.y /= 2;
 
         // Calculate angle: if the track segment is vertical, angle = 90 degrees
         int angle = 0;
-        if ( (m_End.x - m_Start.x) == 0 )   // Vertical segment
-            angle = 900;    // angle is in 0.1 degree
+        if( (m_End.x - m_Start.x) == 0 )    // Vertical segment
+            angle = 900;                    // angle is in 0.1 degree
+
+#ifdef USE_WX_ZOOM
+        if( DC->LogicalToDeviceXRel( tsize ) >= 6 )
+#else
         if( panel->GetScreen()->Scale( tsize ) >= 6 )
+#endif
         {
-            tsize = (tsize * 8) / 10;           // small reduction to give a better look
-            DrawGraphicText( panel, DC, tpos,
-                WHITE, net->GetShortNetname(), angle, wxSize( tsize, tsize ),
-                GR_TEXT_HJUSTIFY_CENTER, GR_TEXT_VJUSTIFY_CENTER, tsize / 7 );
+            if( !(!IsOnLayer( curr_layer )&& DisplayOpt.ContrastModeDisplay) )
+            {
+                tsize = (tsize * 8) / 10;       // small reduction to give a better look
+                DrawGraphicText( panel, DC, tpos,
+                                 WHITE, net->GetShortNetname(), angle, wxSize( tsize, tsize ),
+                                 GR_TEXT_HJUSTIFY_CENTER, GR_TEXT_VJUSTIFY_CENTER, tsize / 7,
+                                 false, false );
+            }
         }
     }
 }
@@ -700,11 +739,20 @@ void SEGVIA::Draw( WinEDA_DrawPanel* panel, wxDC* DC, int draw_mode, const wxPoi
     int rayon;
     int curr_layer = ( (PCB_SCREEN*) panel->GetScreen() )->m_Active_Layer;
 
+    int fillvia = 0;
+    WinEDA_BasePcbFrame* frame  = (WinEDA_BasePcbFrame*) panel->GetParent();
+    PCB_SCREEN*          screen = frame->GetScreen();
+
+    if( frame->m_DisplayViaFill == FILLED )
+        fillvia = 1;
+
     GRSetDrawMode( DC, draw_mode );
 
-    color = g_DesignSettings.m_ViaColor[m_Shape];
+    BOARD * brd =  GetBoard( );
+    color = brd->GetVisibleElementColor(VIAS_VISIBLE + m_Shape);
 
-    if( ( color & (ITEM_NOT_SHOW | HIGHT_LIGHT_FLAG) ) == ITEM_NOT_SHOW )
+    if( brd->IsElementVisible( PCB_VISIBLE(VIAS_VISIBLE + m_Shape) ) == false
+        && ( color & HIGHT_LIGHT_FLAG ) != HIGHT_LIGHT_FLAG )
         return;
 
     if( DisplayOpt.ContrastModeDisplay )
@@ -731,19 +779,42 @@ void SEGVIA::Draw( WinEDA_DrawPanel* panel, wxDC* DC, int draw_mode, const wxPoi
 
 
     rayon = m_Width >> 1;
-    if( panel->GetScreen()->Scale( rayon ) <= 4 )
+    // for small via size on screen (rayon < 4 pixels) draw a simplified shape
+
+#ifdef USE_WX_ZOOM
+    int radius_in_pixels = DC->LogicalToDeviceXRel( rayon );
+#else
+    int radius_in_pixels = panel->GetScreen()->Scale( rayon );
+#endif
+
+    bool fast_draw = false;
+
+    // Vias are drawn as a filled circle or a double circle. The hole will be drawn later
+    int drill_rayon = GetDrillValue() / 2;
+
+#ifdef USE_WX_ZOOM
+    int inner_rayon = rayon - DC->DeviceToLogicalXRel( 2 );
+#else
+    int inner_rayon = rayon - panel->GetScreen()->Unscale( 2 );
+#endif
+
+    if( radius_in_pixels < 3 )
     {
-        GRCircle( &panel->m_ClipBox, DC, m_Start.x, m_Start.y, rayon, color );
-        return;
+        fast_draw = true;
+        fillvia = false;
     }
 
-    GRCircle( &panel->m_ClipBox, DC, m_Start.x, m_Start.y, rayon, color );
+    if( fillvia )
+        GRFilledCircle( &panel->m_ClipBox, DC, m_Start.x, m_Start.y, rayon, 0, color, color );
 
-    int drill_rayon = GetDrillValue() / 2;
-    int inner_rayon = rayon - panel->GetScreen()->Unscale( 2 );
-
-    GRCircle( &panel->m_ClipBox, DC, m_Start.x, m_Start.y,
-              inner_rayon, color );
+    else
+    {
+        GRCircle( &panel->m_ClipBox, DC, m_Start.x, m_Start.y, rayon, color );
+        if ( fast_draw )
+            return;
+        GRCircle( &panel->m_ClipBox, DC, m_Start.x, m_Start.y,
+                  inner_rayon, color );
+    }
 
     // Draw the via hole if the display option allows it
     if( DisplayOpt.m_DisplayViaMode != VIA_HOLE_NOT_SHOW )
@@ -751,17 +822,46 @@ void SEGVIA::Draw( WinEDA_DrawPanel* panel, wxDC* DC, int draw_mode, const wxPoi
         if( (DisplayOpt.m_DisplayViaMode == ALL_VIA_HOLE_SHOW)          // Display all drill holes requested
            || ( (drill_rayon > 0 ) && !IsDrillDefault() ) )             // Or Display non default holes requested
         {
-            if( drill_rayon < inner_rayon )                             // We can show the via hole
+            if( fillvia )
             {
-                GRCircle( &panel->m_ClipBox, DC, m_Start.x, m_Start.y,
-                    drill_rayon, color );
+                bool blackpenstate = false;
+                if( screen->m_IsPrinting )
+                {
+                    blackpenstate = GetGRForceBlackPenState();
+                    GRForceBlackPen( false );
+                    color = g_DrawBgColor;
+                }
+                else
+                    color = BLACK;     // or DARKGRAY;
+
+                if( draw_mode != GR_XOR )
+                    GRSetDrawMode( DC, GR_COPY );
+                else
+                    GRSetDrawMode( DC, GR_XOR );
+
+#ifdef USE_WX_ZOOM
+                if( DC->LogicalToDeviceXRel( drill_rayon ) > 1 )  /* draw hole if its size is enought */
+#else
+                if( screen->Scale( drill_rayon ) > 1 )     /* draw hole if its size is enought */
+#endif
+                    GRFilledCircle( &panel->m_ClipBox, DC, m_Start.x,
+                                    m_Start.y, drill_rayon, 0, color, color );
+
+                if( screen->m_IsPrinting )
+                    GRForceBlackPen( blackpenstate );
+            }
+            else
+            {
+                if( drill_rayon < inner_rayon )         // We can show the via hole
+                    GRCircle( &panel->m_ClipBox, DC, m_Start.x, m_Start.y,
+                              drill_rayon, color );
             }
         }
     }
 
-    if( DisplayOpt.DisplayTrackIsol )
+    if( DisplayOpt.ShowTrackClearanceMode == SHOW_CLEARANCE_ALWAYS )
         GRCircle( &panel->m_ClipBox, DC, m_Start.x, m_Start.y,
-            rayon + g_DesignSettings.m_TrackClearence, color );
+                  rayon + GetClearance(), color );
 
     // for Micro Vias, draw a partial cross :
     // X on component layer, or + on copper layer
@@ -770,7 +870,7 @@ void SEGVIA::Draw( WinEDA_DrawPanel* panel, wxDC* DC, int draw_mode, const wxPoi
     {
         int ax, ay, bx, by;
 
-        if( IsOnLayer( COPPER_LAYER_N ) )
+        if( IsOnLayer( LAYER_N_BACK ) )
         {
             ax = rayon; ay = 0;
             bx = drill_rayon; by = 0;
@@ -783,15 +883,15 @@ void SEGVIA::Draw( WinEDA_DrawPanel* panel, wxDC* DC, int draw_mode, const wxPoi
 
         /* lines | or \ */
         GRLine( &panel->m_ClipBox, DC, m_Start.x - ax, m_Start.y - ay,
-            m_Start.x - bx, m_Start.y - by, 0, color );
+                m_Start.x - bx, m_Start.y - by, 0, color );
         GRLine( &panel->m_ClipBox, DC, m_Start.x + bx, m_Start.y + by,
-            m_Start.x + ax, m_Start.y + ay, 0, color );
+                m_Start.x + ax, m_Start.y + ay, 0, color );
 
         /* lines - or / */
         GRLine( &panel->m_ClipBox, DC, m_Start.x + ay, m_Start.y - ax,
-            m_Start.x + by, m_Start.y - bx, 0, color );
+                m_Start.x + by, m_Start.y - bx, 0, color );
         GRLine( &panel->m_ClipBox, DC, m_Start.x - by, m_Start.y + bx,
-            m_Start.x - ay, m_Start.y + ax, 0, color );
+                m_Start.x - ay, m_Start.y + ax, 0, color );
     }
 
     // for Buried Vias, draw a partial line :
@@ -805,23 +905,25 @@ void SEGVIA::Draw( WinEDA_DrawPanel* panel, wxDC* DC, int draw_mode, const wxPoi
         ( (SEGVIA*) this )->ReturnLayerPair( &layer_top, &layer_bottom );
 
         /* lines for the top layer */
-        RotatePoint( &ax, &ay, layer_top * 3600 / g_DesignSettings.m_CopperLayerCount );
-        RotatePoint( &bx, &by, layer_top * 3600 / g_DesignSettings.m_CopperLayerCount );
+        RotatePoint( &ax, &ay, layer_top * 3600 / brd->GetCopperLayerCount( ) );
+        RotatePoint( &bx, &by, layer_top * 3600 / brd->GetCopperLayerCount( ) );
         GRLine( &panel->m_ClipBox, DC, m_Start.x - ax, m_Start.y - ay,
-            m_Start.x - bx, m_Start.y - by, 0, color );
+                m_Start.x - bx, m_Start.y - by, 0, color );
 
         /* lines for the bottom layer */
         ax = 0; ay = rayon; bx = 0; by = drill_rayon;
-        RotatePoint( &ax, &ay, layer_bottom * 3600 / g_DesignSettings.m_CopperLayerCount );
-        RotatePoint( &bx, &by, layer_bottom * 3600 / g_DesignSettings.m_CopperLayerCount );
+        RotatePoint( &ax, &ay, layer_bottom * 3600 / brd->GetCopperLayerCount( ) );
+        RotatePoint( &bx, &by, layer_bottom * 3600 / brd->GetCopperLayerCount( ) );
         GRLine( &panel->m_ClipBox, DC, m_Start.x - ax, m_Start.y - ay,
-            m_Start.x - bx, m_Start.y - by, 0, color );
+                m_Start.x - bx, m_Start.y - by, 0, color );
     }
 
     // Display the short netname:
     if( GetNet() == 0 )
         return;
-    EQUIPOT* net = ( (BOARD*) GetParent() )->FindNet( GetNet() );
+    if( DisplayOpt.DisplayNetNamesMode == 0 || DisplayOpt.DisplayNetNamesMode == 1 )
+        return;
+    NETINFO_ITEM* net = ( (BOARD*) GetParent() )->FindNet( GetNet() );
     if( net == NULL )
         return;
 
@@ -830,29 +932,56 @@ void SEGVIA::Draw( WinEDA_DrawPanel* panel, wxDC* DC, int draw_mode, const wxPoi
     {
         // calculate a good size for the text
         int tsize = m_Width / len;
+
+#ifdef USE_WX_ZOOM
+        if( DC->LogicalToDeviceXRel( tsize ) >= 6 )
+#else
         if( panel->GetScreen()->Scale( tsize ) >= 6 )
+#endif
         {
             tsize = (tsize * 8) / 10;           // small reduction to give a better look, inside via
             DrawGraphicText( panel, DC, m_Start,
-                WHITE, net->GetShortNetname(), 0, wxSize( tsize, tsize ),
-                GR_TEXT_HJUSTIFY_CENTER, GR_TEXT_VJUSTIFY_CENTER, tsize / 7 );
+                             WHITE, net->GetShortNetname(), 0, wxSize( tsize, tsize ),
+                             GR_TEXT_HJUSTIFY_CENTER, GR_TEXT_VJUSTIFY_CENTER, tsize / 7,
+                             false, false );
         }
     }
 }
 
 
 // see class_track.h
-void TRACK::Display_Infos( WinEDA_DrawFrame* frame )
+void TRACK::DisplayInfo( WinEDA_DrawFrame* frame )
 {
     wxString msg;
-    int      text_pos;
-    BOARD*   board = ( (WinEDA_PcbFrame*) frame )->GetBoard();
+    BOARD*   board = ( (WinEDA_BasePcbFrame*) frame )->GetBoard();
 
-#ifdef RATSNET_DEBUG
-    DbgDisplayTrackInfos( this );
-#endif
+    // Display basic infos
+    DisplayInfoBase( frame );
 
-    frame->MsgPanel->EraseMsgBox();
+    // Display full track length (in pcbnew)
+    if( frame->m_Ident == PCB_FRAME )
+    {
+        int trackLen = 0;
+        Marque_Une_Piste( board, this, NULL, &trackLen, false );
+        valeur_param( trackLen, msg );
+        frame->AppendMsgPanel( _( "Track Length" ), msg, DARKCYAN );
+    }
+}
+
+
+/*
+ * Function DisplayInfoBase
+ * has knowledge about the frame and how and where to put status information
+ * about this object into the frame's message panel.
+ * Display info about the track segment only, and does not calculate the full track length
+ * @param frame A WinEDA_DrawFrame in which to print status information.
+ */
+void TRACK::DisplayInfoBase( WinEDA_DrawFrame* frame )
+{
+    wxString msg;
+    BOARD*   board = ( (WinEDA_BasePcbFrame*) frame )->GetBoard();
+
+    frame->ClearMsgPanel();
 
     switch( Type() )
     {
@@ -871,50 +1000,30 @@ void TRACK::Display_Infos( WinEDA_DrawFrame* frame )
         msg = wxT( "????" ); break;
     }
 
-    text_pos = 1;
+    frame->AppendMsgPanel( _( "Type" ), msg, DARKCYAN );
 
-    Affiche_1_Parametre( frame, text_pos, _( "Type" ), msg, DARKCYAN );
-    text_pos += 10;
-
-
-    if(  Type() == TYPE_TRACK
-         || Type() == TYPE_ZONE
-         || Type() == TYPE_VIA )
+    // Display Net Name (in pcbnew)
+    if( frame->m_Ident == PCB_FRAME )
     {
-        /* Display NetName pour les segments de piste type cuivre */
+        NETINFO_ITEM* net = board->FindNet( GetNet() );
 
-        EQUIPOT* equipot = board->FindNet( GetNet() );
-
-        if( equipot )
-            msg = equipot->GetNetname();
+        if( net )
+            msg = net->GetNetname();
         else
             msg = wxT( "<noname>" );
 
-        Affiche_1_Parametre( frame, text_pos, _( "NetName" ), msg, RED );
-        text_pos += 20;
+        frame->AppendMsgPanel( _( "NetName" ), msg, RED );
 
         /* Display net code : (usefull in test or debug) */
         msg.Printf( wxT( "%d .%d" ), GetNet(), GetSubNet() );
-
-        Affiche_1_Parametre( frame, text_pos, _( "NetCode" ), msg, RED );
-        text_pos += 8;
-    }
-    else
-    {
-        Affiche_1_Parametre( frame, text_pos, _( "Segment" ), wxEmptyString, RED );
-        if( m_Shape == S_CIRCLE )
-            Affiche_1_Parametre( frame, -1, wxEmptyString, _( "Circle" ), RED );
-        else
-            Affiche_1_Parametre( frame, -1, wxEmptyString, _( "Standard" ), RED );
-        text_pos += 8;
+        frame->AppendMsgPanel( _( "NetCode" ), msg, RED );
     }
 
 #if defined(DEBUG)
 
     /* Display the flags */
     msg.Printf( wxT( "0x%08X" ), m_Flags );
-    Affiche_1_Parametre( frame, text_pos, _( "Flags" ), msg, BLUE );
-    text_pos += 8;
+    frame->AppendMsgPanel( _( "Flags" ), msg, BLUE );
 
 #endif
 
@@ -926,8 +1035,7 @@ void TRACK::Display_Infos( WinEDA_DrawFrame* frame )
     if( GetState( SEGM_AR ) )
         msg[2] = 'A';
 
-    Affiche_1_Parametre( frame, text_pos, _( "Stat" ), msg, MAGENTA );
-    text_pos += 6;
+    frame->AppendMsgPanel( _( "Status" ), msg, MAGENTA );
 
     /* Display layer or layer pair) */
     if( Type() == TYPE_VIA )
@@ -942,30 +1050,49 @@ void TRACK::Display_Infos( WinEDA_DrawFrame* frame )
     else
         msg = board->GetLayerName( m_Layer );
 
-    Affiche_1_Parametre( frame, text_pos, _( "Layer" ), msg, BROWN );
-    text_pos += 15;
+    frame->AppendMsgPanel( _( "Layer" ), msg, BROWN );
 
     /* Display width */
     valeur_param( (unsigned) m_Width, msg );
 
     if( Type() == TYPE_VIA )      // Display Diam and Drill values
     {
-        Affiche_1_Parametre( frame, text_pos, _( "Diam" ), msg, DARKCYAN );
-        text_pos += 8;
+        // Display diameter value:
+        frame->AppendMsgPanel( _( "Diam" ), msg, DARKCYAN );
 
+        // Display drill value
         int drill_value = GetDrillValue();
 
         valeur_param( (unsigned) drill_value, msg );
 
         wxString title = _( "Drill" );
+        title += wxT( " " );
 
-        if( g_DesignSettings.m_ViaDrill >= 0 )
-            title += wxT( "*" );
+        if( m_Drill >= 0 )
+            title += _( "(Specific)" );
+        else
+            title += _( "(Default)" );
 
-        Affiche_1_Parametre( frame, text_pos, _( "Drill" ), msg, RED );
+        frame->AppendMsgPanel( title, msg, RED );
     }
     else
-        Affiche_1_Parametre( frame, text_pos, _( "Width" ), msg, DARKCYAN );
+    {
+        frame->AppendMsgPanel( _( "Width" ), msg, DARKCYAN );
+    }
+
+    NETCLASS* netclass = GetNetClass();
+    if( netclass )
+    {
+        msg = netclass->GetName();
+        frame->AppendMsgPanel( _( "Net Class" ), msg, DARKCYAN );
+    }
+
+    // Display segment length
+    if( Type() != TYPE_VIA )      // Display Diam and Drill values
+    {
+        valeur_param( wxRound( GetLength() ), msg );
+        frame->AppendMsgPanel( _( "Segment Length" ), msg, DARKCYAN );
+    }
 }
 
 
@@ -987,7 +1114,7 @@ bool TRACK::HitTest( const wxPoint& ref_pos )
     int spot_cX = ref_pos.x - m_Start.x;
     int spot_cY = ref_pos.y - m_Start.y;
 
-    if( Type() == TYPE_VIA )   /* VIA rencontree */
+    if( Type() == TYPE_VIA )
     {
         return (double) spot_cX * spot_cX + (double) spot_cY * spot_cY <=
                (double) radius * radius;
@@ -1019,7 +1146,7 @@ bool TRACK::HitTest( EDA_Rect& refArea )
 }
 
 
-#if defined (DEBUG)
+#if defined(DEBUG)
 
 /**
  * Function Show

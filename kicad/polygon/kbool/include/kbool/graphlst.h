@@ -5,10 +5,10 @@
  
     Licence: see kboollicense.txt 
  
-    RCS-ID: $Id: graphlst.h,v 1.3 2008/06/04 21:23:21 titato Exp $
+    RCS-ID: $Id: graphlst.h,v 1.4 2009/09/10 17:04:09 titato Exp $
 */
 
-/* @@(#) $Source: /cvsroot/wxart2d/wxArt2D/thirdparty/kbool/include/kbool/graphlst.h,v $ $Revision: 1.3 $ $Date: 2008/06/04 21:23:21 $ */
+/* @@(#) $Source: /cvsroot/wxart2d/wxArt2D/thirdparty/kbool/include/kbool/graphlst.h,v $ $Revision: 1.4 $ $Date: 2009/09/10 17:04:09 $ */
 
 /*
 Program GRAPHLST.H
@@ -28,21 +28,21 @@ Last Update 11-03-1996
 class Debug_driver;
 
 
-class A2DKBOOLDLLEXP GraphList: public DL_List<void*>
+class A2DKBOOLDLLEXP kbGraphList: public DL_List<void*>
 {
 protected:
     Bool_Engine* _GC;
 public:
 
-    GraphList( Bool_Engine* GC );
+    kbGraphList( Bool_Engine* GC );
 
-    GraphList( GraphList* other );
+    kbGraphList( kbGraphList* other );
 
-    ~GraphList();
+    ~kbGraphList();
 
-    void    MakeOneGraph( Graph *total );
+    void    MakeOneGraph( kbGraph *total );
 
-    void    Prepare( Graph *total );
+    void    Prepare( kbGraph *total );
     void     MakeRings();
     void     Correction();
 

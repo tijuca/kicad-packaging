@@ -1,19 +1,19 @@
-/*******************************************************/
-/* delsheet.cpp  Routine d'effacement d'une hierarchie */
-/*******************************************************/
+/****************/
+/* delsheet.cpp */
+/****************/
 
 #include "fctsys.h"
 #include "appl_wxstruct.h"
 #include "common.h"
 #include "confirm.h"
+
 #include "program.h"
-#include "libcmp.h"
 #include "general.h"
 #include "protos.h"
 
 
 /**************************************************************************/
-void DeleteSubHierarchy( DrawSheetStruct* FirstSheet, bool confirm_deletion )
+void DeleteSubHierarchy( SCH_SHEET* FirstSheet, bool confirm_deletion )
 /**************************************************************************/
 
 /*  Free (delete) all schematic data (include the sub hierarchy sheets )
@@ -38,7 +38,6 @@ void DeleteSubHierarchy( DrawSheetStruct* FirstSheet, bool confirm_deletion )
         return;
     }
 
-    /* effacement du sous schema correspondant */
     if( FirstSheet->m_AssociatedScreen->IsModify() && confirm_deletion )
     {
         msg.Printf( _( "Sheet %s (file %s) modified. Save it?" ),
@@ -60,12 +59,11 @@ void DeleteSubHierarchy( DrawSheetStruct* FirstSheet, bool confirm_deletion )
             EEDrawList = EEDrawList->Next();
             if( DrawStruct->Type() == DRAW_SHEET_STRUCT_TYPE )
             {
-                DeleteSubHierarchy( (DrawSheetStruct*) DrawStruct,
+                DeleteSubHierarchy( (SCH_SHEET*) DrawStruct,
                                     confirm_deletion );
             }
         }
 
-        /* Effacement des elements de la feuille courante */
         FirstSheet->m_AssociatedScreen->FreeDrawList();
     }
 }

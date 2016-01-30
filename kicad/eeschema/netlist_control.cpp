@@ -3,12 +3,12 @@
 /**********************************/
 
 /* Functions relatives to the dialog creating the netlist for pcbnew.
- * The dialo is a notebook with 4 fixed netlist format:
+ * The dialog is a notebook with 4 fixed netlist format:
  * PCBNEW ORCADPCB2 CADSTAR and SPICE
  * and up to CUSTOMPANEL_COUNTMAX (see netlist.h) user programmable format
  * calling an external converter with convert an intermediate format to the
  * user specific format.
- * these external converters are refered there as plugins,
+ * these external converters are referred there as plugins,
  * but there are not really plugins, there are only external binaries
  */
 
@@ -17,18 +17,17 @@
 #include "common.h"
 #include "confirm.h"
 #include "gestfich.h"
+
 #include "program.h"
-#include "libcmp.h"
 #include "general.h"
 #include "netlist.h"
 #include "protos.h"
 #include "netlist_control.h"
 
+
 // ID for configuration:
 #define CUSTOM_NETLIST_TITLE   wxT( "CustomNetlistTitle" )
 #define CUSTOM_NETLIST_COMMAND wxT( "CustomNetlistCommand" )
-
-/* Loacl variable */
 
 /****************************************************/
 wxString ReturnUserNetlistTypeName( bool first_item )
@@ -82,7 +81,8 @@ EDA_NoteBookPage::EDA_NoteBookPage( wxNotebook*     parent,
                                     const wxString& title,
                                     int             id_NetType,
                                     int             idCheckBox,
-                                    int             idCreateFile ) :
+                                    int             idCreateFile,
+                                    bool            selected ) :
     wxPanel( parent, -1, wxDefaultPosition, wxDefaultSize, wxTAB_TRAVERSAL |
              wxBORDER_SUNKEN )
 /*****************************************************************************/
@@ -96,14 +96,13 @@ EDA_NoteBookPage::EDA_NoteBookPage( wxNotebook*     parent,
  * @param idCreateFile = event ID attached to the "create netlist" button
  */
 {
-    SetFont( *g_DialogFont );
     m_IdNetType = id_NetType;
     m_CommandStringCtrl = NULL;
     m_TitleStringCtrl   = NULL;
     m_IsCurrentFormat   = NULL;
     m_ButtonCancel = NULL;
 
-    parent->AddPage( this, title, g_NetFormat == m_IdNetType );
+    parent->AddPage( this, title, selected );
 
     wxBoxSizer* MainBoxSizer = new wxBoxSizer( wxVERTICAL );
     SetSizer( MainBoxSizer );
@@ -130,9 +129,7 @@ EDA_NoteBookPage::EDA_NoteBookPage( wxNotebook*     parent,
         m_IsCurrentFormat =
             new wxCheckBox( this, idCheckBox, _( "Default format" ) );
         m_LeftBoxSizer->Add( m_IsCurrentFormat, 0, wxGROW | wxALL, 5 );
-
-        if( g_NetFormat == m_IdNetType )
-            m_IsCurrentFormat->SetValue( TRUE );
+        m_IsCurrentFormat->SetValue( selected );
     }
 
     /* Create the buttons: Create Neltist or browse Plugin and Cancel
@@ -144,12 +141,10 @@ EDA_NoteBookPage::EDA_NoteBookPage( wxNotebook*     parent,
             Button = new wxButton( this, idCreateFile, _( "&Browse Plugin" ) );
         else
             Button = new wxButton( this, idCreateFile, _( "&Netlist" ) );
-        Button->SetForegroundColour( *wxRED );
         m_RightBoxSizer->Add( Button, 0, wxGROW | wxALL, 5 );
 
         m_ButtonCancel =
             Button     = new wxButton( this, wxID_CANCEL, _( "&Cancel" ) );
-        Button->SetForegroundColour( *wxBLUE );
         m_RightBoxSizer->Add( Button, 0, wxGROW | wxALL, 5 );
 
         /* Add special buttons to plugin panels:
@@ -182,7 +177,6 @@ WinEDA_NetlistFrame::WinEDA_NetlistFrame( WinEDA_SchematicFrame* parent ) :
     int ii;
 
     m_Parent = parent;
-    SetFont( *g_DialogFont );
 
     for( ii = 0; ii < PANELCUSTOMBASE + CUSTOMPANEL_COUNTMAX; ii++ )
     {
@@ -196,31 +190,36 @@ WinEDA_NetlistFrame::WinEDA_NetlistFrame( WinEDA_SchematicFrame* parent ) :
 
     m_NoteBook = new wxNotebook( this, ID_NETLIST_NOTEBOOK,
                                  wxDefaultPosition, wxDefaultSize );
-    m_NoteBook->SetFont( *g_DialogFont );
     GeneralBoxSizer->Add( m_NoteBook, 0, wxGROW | wxALL, 5 );
 
     // Add notebook pages:
 
     // Add Panel FORMAT PCBNEW
-    m_PanelNetType[PANELPCBNEW] = new EDA_NoteBookPage( m_NoteBook,
-                                                        wxT( "Pcbnew" ),
-                                                        NET_TYPE_PCBNEW,
-                                                        ID_CURRENT_FORMAT_IS_DEFAULT,
-                                                        ID_CREATE_NETLIST );
+    m_PanelNetType[PANELPCBNEW] =
+        new EDA_NoteBookPage( m_NoteBook,
+                              wxT( "Pcbnew" ),
+                              NET_TYPE_PCBNEW,
+                              ID_CURRENT_FORMAT_IS_DEFAULT,
+                              ID_CREATE_NETLIST,
+                              m_Parent->m_NetlistFormat == NET_TYPE_PCBNEW );
 
     // Add Panel FORMAT ORCADPCB2
-    m_PanelNetType[PANELORCADPCB2] = new EDA_NoteBookPage( m_NoteBook,
-                                                           wxT( "OrcadPCB2" ),
-                                                           NET_TYPE_ORCADPCB2,
-                                                           ID_CURRENT_FORMAT_IS_DEFAULT,
-                                                           ID_CREATE_NETLIST );
+    m_PanelNetType[PANELORCADPCB2] =
+        new EDA_NoteBookPage( m_NoteBook,
+                              wxT( "OrcadPCB2" ),
+                              NET_TYPE_ORCADPCB2,
+                              ID_CURRENT_FORMAT_IS_DEFAULT,
+                              ID_CREATE_NETLIST,
+                              m_Parent->m_NetlistFormat == NET_TYPE_ORCADPCB2 );
 
     // Add Panel FORMAT CADSTAR
-    m_PanelNetType[PANELCADSTAR] = new EDA_NoteBookPage( m_NoteBook,
-                                                         wxT( "CadStar" ),
-                                                         NET_TYPE_CADSTAR,
-                                                         ID_CURRENT_FORMAT_IS_DEFAULT,
-                                                         ID_CREATE_NETLIST );
+    m_PanelNetType[PANELCADSTAR] =
+        new EDA_NoteBookPage( m_NoteBook,
+                              wxT( "CadStar" ),
+                              NET_TYPE_CADSTAR,
+                              ID_CURRENT_FORMAT_IS_DEFAULT,
+                              ID_CREATE_NETLIST,
+                              m_Parent->m_NetlistFormat == NET_TYPE_CADSTAR );
 
     // Add Panel spice
     InstallPageSpice();
@@ -243,15 +242,17 @@ void WinEDA_NetlistFrame::InstallPageSpice()
     wxButton*         Button;
     EDA_NoteBookPage* page;
 
-    page = m_PanelNetType[PANELSPICE] = new EDA_NoteBookPage( m_NoteBook,
-                                                              wxT( "Spice" ),
-                                                              NET_TYPE_SPICE,
-                                                              0, 0 );
+    page = m_PanelNetType[PANELSPICE] =
+        new EDA_NoteBookPage( m_NoteBook,
+                              wxT( "Spice" ),
+                              NET_TYPE_SPICE,
+                              0, 0,
+                              m_Parent->m_NetlistFormat == NET_TYPE_SPICE );
 
     page->m_IsCurrentFormat =
         new wxCheckBox( page, ID_CURRENT_FORMAT_IS_DEFAULT,
                         _( "Default format" ) );
-    page->m_IsCurrentFormat->SetValue( g_NetFormat == NET_TYPE_SPICE );
+    page->m_IsCurrentFormat->SetValue( m_Parent->m_NetlistFormat == NET_TYPE_SPICE );
     page->m_LeftBoxSizer->Add( page->m_IsCurrentFormat, 0, wxGROW | wxALL, 5 );
 
     wxString netlist_opt[2] = { _( "Use Net Names" ), _( "Use Net Numbers" ) };
@@ -271,15 +272,12 @@ void WinEDA_NetlistFrame::InstallPageSpice()
 
     // Add buttons
     Button = new wxButton( page, ID_CREATE_NETLIST, _( "Netlist" ) );
-    Button->SetForegroundColour( *wxRED );
     page->m_RightBoxSizer->Add( Button, 0, wxGROW | wxALL, 5 );
 
     Button = new wxButton( page, ID_RUN_SIMULATOR, _( "&Run Simulator" ) );
-    Button->SetForegroundColour( wxColour( 0, 100, 0 ) );
     page->m_RightBoxSizer->Add( Button, 0, wxGROW | wxALL, 5 );
 
     Button = new wxButton( page, wxID_CANCEL, _( "&Cancel" ) );
-    Button->SetForegroundColour( *wxBLUE );
     page->m_RightBoxSizer->Add( Button, 0, wxGROW | wxALL, 5 );
 }
 
@@ -291,6 +289,7 @@ void WinEDA_NetlistFrame::InstallCustomPages()
 /* create the pages for custom netlist format selection:
  */
 {
+    bool selected;
     int ii, CustomCount;
     wxString          title, previoustitle, msg;
     EDA_NoteBookPage* CurrPage;
@@ -304,8 +303,10 @@ void WinEDA_NetlistFrame::InstallCustomPages()
         if( title.IsEmpty() && previoustitle.IsEmpty() )
             break; // No more panel to install
 
+        selected = m_Parent->m_NetlistFormat == ( NET_TYPE_CUSTOM1 + ii );
+
         /* Install the panel "Add Plugin" after
-         * the last initialised panel */
+         * the last initialized panel */
         previoustitle = title;
         if( title.IsEmpty() )
             CurrPage =
@@ -314,7 +315,8 @@ void WinEDA_NetlistFrame::InstallCustomPages()
                                           _( "Add Plugin" ),
                                           NET_TYPE_CUSTOM1 + ii,
                                           ID_CURRENT_FORMAT_IS_DEFAULT,
-                                          ID_SETUP_PLUGIN );
+                                          ID_SETUP_PLUGIN,
+                                          selected );
         else  /* Install a plugin panel */
             CurrPage =
                 m_PanelNetType[PANELCUSTOMBASE + ii] =
@@ -322,7 +324,8 @@ void WinEDA_NetlistFrame::InstallCustomPages()
                                           title,
                                           NET_TYPE_CUSTOM1 + ii,
                                           ID_CURRENT_FORMAT_IS_DEFAULT,
-                                          ID_CREATE_NETLIST );
+                                          ID_CREATE_NETLIST,
+                                          selected );
 
         msg = CUSTOM_NETLIST_COMMAND;
         msg << ii + 1;
@@ -354,10 +357,10 @@ void WinEDA_NetlistFrame::SetupPluginData( wxCommandEvent& event )
     Mask = wxT( "*" );
     Path = wxGetApp().m_BinDir;
     FullFileName = EDA_FileSelector( _( "Plugin files:" ),
-                                     Path,          /* Chemin par defaut */
-                                     FullFileName,  /* nom fichier par defaut */
-                                     wxEmptyString, /* extension par defaut */
-                                     Mask,          /* Masque d'affichage */
+                                     Path,
+                                     FullFileName,
+                                     wxEmptyString,
+                                     Mask,
                                      this,
                                      wxFD_OPEN,
                                      TRUE
@@ -375,8 +378,9 @@ void WinEDA_NetlistFrame::SetupPluginData( wxCommandEvent& event )
     /* Get a title for this page */
     wxString title = CurrPage->m_TitleStringCtrl->GetValue();
     if( title.IsEmpty() )
-        DisplayInfo( this,
-                    _( "Do not forget to choose a title for this netlist control page" ) );
+        DisplayInfoMessage( this,
+                            _( "Do not forget to choose a title for this \
+netlist control page" ) );
 }
 
 
@@ -398,7 +402,7 @@ void WinEDA_NetlistFrame::SelectNetlistType( wxCommandEvent& event )
     if( CurrPage == NULL )
         return;
 
-    g_NetFormat = CurrPage->m_IdNetType;
+    m_Parent->m_NetlistFormat = CurrPage->m_IdNetType;
     CurrPage->m_IsCurrentFormat->SetValue( TRUE );
 }
 
@@ -411,14 +415,14 @@ void WinEDA_NetlistFrame::NetlistUpdateOpt()
 
     g_SimulatorCommandLine =
         m_PanelNetType[PANELSPICE]->m_CommandStringCtrl->GetValue();
-    g_NetFormat = NET_TYPE_PCBNEW;
+    m_Parent->m_NetlistFormat = NET_TYPE_PCBNEW;
 
     for( ii = 0; ii < PANELCUSTOMBASE + CUSTOMPANEL_COUNTMAX; ii++ )
     {
         if( m_PanelNetType[ii] == NULL )
             break;
         if( m_PanelNetType[ii]->m_IsCurrentFormat->GetValue() == TRUE )
-            g_NetFormat = m_PanelNetType[ii]->m_IdNetType;
+            m_Parent->m_NetlistFormat = m_PanelNetType[ii]->m_IdNetType;
     }
 
     g_OptNetListUseNames = TRUE; // Used for pspice, gnucap
@@ -433,58 +437,56 @@ void WinEDA_NetlistFrame::GenNetlist( wxCommandEvent& event )
 
 /** Function GenNetlist
  * Create the netlist file:
- * calcualte the filename with the suitable extentions
+ * calculate the filename with the suitable extensions
  * and run the netlist creator
  */
 {
-    wxString FullFileName, FileExt, Mask;
+    wxFileName fn;
+    wxString FileWildcard, FileExt;
     wxString msg, Command;
-    int      netformat_tmp = g_NetFormat;
+    int      netformat_tmp = m_Parent->m_NetlistFormat;
 
     NetlistUpdateOpt();
 
     EDA_NoteBookPage* CurrPage;
 
     CurrPage    = (EDA_NoteBookPage*) m_NoteBook->GetCurrentPage();
-    g_NetFormat = CurrPage->m_IdNetType;
+    m_Parent->m_NetlistFormat = CurrPage->m_IdNetType;
 
     /* Calculate the netlist filename */
-    FullFileName = g_RootSheet->m_AssociatedScreen->m_FileName;
+    fn = g_RootSheet->m_AssociatedScreen->m_FileName;
 
-    switch( g_NetFormat )
+    switch( m_Parent->m_NetlistFormat )
     {
     case NET_TYPE_SPICE:
-        FileExt = wxT( ".cir" );
+        FileExt = wxT( "cir" );
+        FileWildcard = _( "SPICE netlist file (.cir)|*.cir" );
         break;
 
     case NET_TYPE_CADSTAR:
-        FileExt = wxT( ".frp" );
+        FileExt = wxT( "frp" );
+        FileWildcard = _( "CadStar netlist file (.frp)|*.frp" );
         break;
 
     default:
-        FileExt = g_NetExtBuffer;
+        FileExt = NetlistFileExtension;
+        FileWildcard = NetlistFileWildcard;
         break;
     }
 
-    Mask = wxT( "*" ) + FileExt;
-    ChangeFileNameExt( FullFileName, FileExt );
-    FullFileName = FullFileName.AfterLast( '/' );
-    FullFileName = EDA_FileSelector( _( "Netlist files:" ),
-                                     wxEmptyString, /* Defaut path */
-                                     FullFileName,  /* Defaut filename */
-                                     FileExt,       /* Defaut extension */
-                                     Mask,          /* Mask for filename selection */
-                                     this,
-                                     wxFD_SAVE,
-                                     TRUE
-                                     );
-    if( FullFileName.IsEmpty() )
+    fn.SetExt( FileExt );
+
+    wxFileDialog dlg( this, _( "Save Netlist Files" ), fn.GetPath(),
+                      fn.GetFullName(), FileWildcard,
+                      wxFD_SAVE /*| wxFD_OVERWRITE_PROMPT*/ );
+
+    if( dlg.ShowModal() == wxID_CANCEL )
         return;
 
-    m_Parent->MsgPanel->EraseMsgBox();
+    m_Parent->ClearMsgPanel();
 
     ReAnnotatePowerSymbolsOnly();
-    if( CheckAnnotate( m_Parent, 0 ) )
+    if( m_Parent->CheckAnnotate( NULL, 0 ) )
     {
         if( !IsOK( this, _( "Must be Annotated, Continue ?" ) ) )
             return;
@@ -511,26 +513,25 @@ void WinEDA_NetlistFrame::GenNetlist( wxCommandEvent& event )
     else
         g_NetListerCommandLine.Empty();
 
-    switch( g_NetFormat )
+    switch( m_Parent->m_NetlistFormat )
     {
     default:
-        WriteNetList( m_Parent, FullFileName, TRUE );
+        WriteNetList( m_Parent, dlg.GetPath(), TRUE );
         break;
 
     case NET_TYPE_CADSTAR:
     case NET_TYPE_ORCADPCB2:
-        WriteNetList( m_Parent, FullFileName, FALSE );
+        WriteNetList( m_Parent, dlg.GetPath(), FALSE );
 
     case NET_TYPE_SPICE:
         g_OptNetListUseNames = TRUE; // Used for pspice, gnucap
         if( m_UseNetNamesInNetlist->GetSelection() == 1 )
             g_OptNetListUseNames = FALSE;
-        WriteNetList( m_Parent, FullFileName, g_OptNetListUseNames );
+        WriteNetList( m_Parent, dlg.GetPath(), g_OptNetListUseNames );
         break;
     }
 
-    FreeTabNetList( g_TabObjNet, g_NbrObjNet );
-    g_NetFormat = netformat_tmp;
+    m_Parent->m_NetlistFormat = netformat_tmp;
 
     WriteCurrentNetlistSetup();
 
@@ -550,7 +551,8 @@ void WinEDA_NetlistFrame::OnCancelClick( wxCommandEvent& event )
 void WinEDA_NetlistFrame::RunSimulator( wxCommandEvent& event )
 /***********************************************************/
 {
-    wxString NetlistFullFileName, ExecFile, CommandLine;
+    wxFileName fn;
+    wxString ExecFile, CommandLine;
 
     g_SimulatorCommandLine =
         m_PanelNetType[PANELSPICE]->m_CommandStringCtrl->GetValue();
@@ -561,10 +563,9 @@ void WinEDA_NetlistFrame::RunSimulator( wxCommandEvent& event )
     CommandLine = g_SimulatorCommandLine.AfterFirst( ' ' );
 
     /* Calculate the netlist filename */
-    NetlistFullFileName = g_RootSheet->m_AssociatedScreen->m_FileName;
-    ChangeFileNameExt( NetlistFullFileName, wxT( ".cir" ) );
-    AddDelimiterString( NetlistFullFileName );
-    CommandLine += wxT( " " ) + NetlistFullFileName;
+    fn = g_RootSheet->m_AssociatedScreen->m_FileName;
+    fn.SetExt( wxT( "cir" ) );
+    CommandLine += wxT( " \"" ) + fn.GetFullPath() + wxT( "\"" );
 
     ExecuteFile( this, ExecFile, CommandLine );
 }

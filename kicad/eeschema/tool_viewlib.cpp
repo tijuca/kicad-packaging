@@ -3,48 +3,30 @@
 /****************************************************************/
 
 #include "fctsys.h"
-
 #include "common.h"
-#include "program.h"
-#include "libcmp.h"
-#include "general.h"
-
-#include "wx/spinctrl.h"
-
-#include "protos.h"
-
 #include "bitmaps.h"
+#include "eeschema_id.h"
 
-#include "id.h"
+#include "program.h"
+#include "general.h"
+#include "protos.h"
+#include "hotkeys.h"
+#include "class_library.h"
+#include "viewlib_frame.h"
 
-/****************************************************/
+
 void WinEDA_ViewlibFrame::ReCreateHToolbar()
-/****************************************************/
 {
-    int  ii;
-    EDA_LibComponentStruct* RootLibEntry = NULL, * CurrentLibEntry = NULL;
-    bool asdeMorgan = FALSE, state;
-
-    if( (g_CurrentViewLibraryName != wxEmptyString)
-        && (g_CurrentViewComponentName != wxEmptyString) )
-    {
-        RootLibEntry = FindLibPart( g_CurrentViewComponentName.GetData(),
-                                    g_CurrentViewLibraryName.GetData(),
-                                    FIND_ROOT );
-        if( RootLibEntry && LookForConvertPart( RootLibEntry ) > 1 )
-            asdeMorgan = TRUE;
-        CurrentLibEntry = FindLibPart( g_CurrentViewComponentName.GetData(),
-                                       g_CurrentViewLibraryName.GetData(),
-                                       FIND_ALIAS );
-    }
+    int  ii; wxString msg;
+    CMP_LIBRARY* lib;
+    LIB_COMPONENT* component = NULL;
+    CMP_LIB_ENTRY* entry = NULL;
+    bool asdeMorgan = false;
 
     if( m_HToolBar  == NULL )
     {
-        m_HToolBar = new WinEDA_Toolbar( TOOLBAR_MAIN,
-                                         this,
-                                         ID_H_TOOLBAR,
-                                         TRUE );
-        SetToolBar( m_HToolBar );
+        m_HToolBar = new WinEDA_Toolbar( TOOLBAR_MAIN, this, ID_H_TOOLBAR,
+                                         true );
 
         // Set up toolbar
         m_HToolBar->AddTool( ID_LIBVIEW_SELECT_LIB, wxEmptyString,
@@ -65,21 +47,25 @@ void WinEDA_ViewlibFrame::ReCreateHToolbar()
                              _( "Display next part" ) );
 
         m_HToolBar->AddSeparator();
+        msg = AddHotkeyName( _( "Zoom in" ), s_Viewlib_Hokeys_Descr,
+                             HK_ZOOM_IN, false );
         m_HToolBar->AddTool( ID_ZOOM_IN, wxEmptyString,
-                             wxBitmap( zoom_in_xpm ),
-                             _( "Zoom in" ) );
+                             wxBitmap( zoom_in_xpm ), msg );
 
+        msg = AddHotkeyName( _( "Zoom out" ), s_Viewlib_Hokeys_Descr,
+                             HK_ZOOM_OUT, false );
         m_HToolBar->AddTool( ID_ZOOM_OUT, wxEmptyString,
-                             wxBitmap( zoom_out_xpm ),
-                             _( "Zoom out" ) );
+                             wxBitmap( zoom_out_xpm ), msg );
 
+        msg = AddHotkeyName( _( "Redraw view" ), s_Viewlib_Hokeys_Descr,
+                             HK_ZOOM_REDRAW, false );
         m_HToolBar->AddTool( ID_ZOOM_REDRAW, wxEmptyString,
-                             wxBitmap( zoom_redraw_xpm ),
-                             _( "Redraw view" ) );
+                             wxBitmap( zoom_redraw_xpm ), msg );
 
+        msg = AddHotkeyName( _( "Zoom auto" ), s_Viewlib_Hokeys_Descr,
+                             HK_ZOOM_AUTO, false );
         m_HToolBar->AddTool( ID_ZOOM_PAGE, wxEmptyString,
-                             wxBitmap( zoom_auto_xpm ),
-                             _( "Best zoom" ) );
+                             wxBitmap( zoom_auto_xpm ), msg );
 
         m_HToolBar->AddSeparator();
         m_HToolBar->AddTool( ID_LIBVIEW_DE_MORGAN_NORMAL_BUTT, wxEmptyString,
@@ -103,56 +89,75 @@ void WinEDA_ViewlibFrame::ReCreateHToolbar()
         m_HToolBar->AddTool( ID_LIBVIEW_VIEWDOC, wxEmptyString,
                              wxBitmap( datasheet_xpm ),
                              _( "View component documents" ) );
-        m_HToolBar->EnableTool( ID_LIBVIEW_VIEWDOC, FALSE );
+        m_HToolBar->EnableTool( ID_LIBVIEW_VIEWDOC, false );
 
-        if( m_Semaphore )   // The lib browser is called from a "load component" command
+        if( m_Semaphore )
         {
+            // The library browser is called from a "load component" command
             m_HToolBar->AddSeparator();
             m_HToolBar->AddTool( ID_LIBVIEW_CMP_EXPORT_TO_SCHEMATIC,
-                                 wxEmptyString,
-                                 wxBitmap( export_xpm ),
+                                 wxEmptyString, wxBitmap( export_xpm ),
                                  _( "Insert component in schematic" ) );
         }
 
-        // after adding the buttons to the toolbar, must call Realize() to reflect
-        // the changes
+        // after adding the buttons to the toolbar, must call Realize() to
+        // reflect the changes
         m_HToolBar->Realize();
     }
 
+    if( (m_libraryName != wxEmptyString)
+        && (m_entryName != wxEmptyString) )
+    {
+        lib = CMP_LIBRARY::FindLibrary( m_libraryName );
+
+        if( lib != NULL )
+        {
+            component = lib->FindComponent( m_entryName );
+
+            if( component && component->HasConversion() )
+                asdeMorgan = true;
+
+            entry = lib->FindEntry( m_entryName );
+        }
+    }
+
     // Must be AFTER Realize():
-    m_HToolBar->ToggleTool( ID_LIBVIEW_DE_MORGAN_NORMAL_BUTT,
-                            (g_ViewConvert <= 1) ? TRUE : FALSE );
-    m_HToolBar->ToggleTool( ID_LIBVIEW_DE_MORGAN_CONVERT_BUTT,
-                            (g_ViewConvert >= 2) ? TRUE : FALSE );
     m_HToolBar->EnableTool( ID_LIBVIEW_DE_MORGAN_CONVERT_BUTT, asdeMorgan );
     m_HToolBar->EnableTool( ID_LIBVIEW_DE_MORGAN_NORMAL_BUTT, asdeMorgan );
+    if( asdeMorgan )
+    {
+        bool normal = m_convert <= 1;
+        m_HToolBar->ToggleTool( ID_LIBVIEW_DE_MORGAN_NORMAL_BUTT,normal );
+        m_HToolBar->ToggleTool( ID_LIBVIEW_DE_MORGAN_CONVERT_BUTT, !normal );
+    }
+    else
+    {
+        m_HToolBar->ToggleTool( ID_LIBVIEW_DE_MORGAN_NORMAL_BUTT, true  );
+        m_HToolBar->ToggleTool( ID_LIBVIEW_DE_MORGAN_CONVERT_BUTT, false );
+     }
 
-    int jj = 1;
-    if( RootLibEntry )
-        jj = MAX( RootLibEntry->m_UnitCount, 1 );
+
+    int parts_count = 1;
+    if( component )
+        parts_count = MAX( component->GetPartCount(), 1 );
     SelpartBox->Clear();
-    for( ii = 0; ii < jj; ii++ )
+    for( ii = 0; ii < parts_count; ii++ )
     {
         wxString msg;
         msg.Printf( _( "Part %c" ), 'A' + ii );
         SelpartBox->Append( msg );
     }
 
-    SelpartBox->SetSelection( 0 );
-    state = FALSE;
-    if( CurrentLibEntry && jj > 1 )
-        state = TRUE;
-    SelpartBox->Enable( state );
+    SelpartBox->SetSelection( (m_unit > 0 ) ? m_unit - 1 : 0 );
+    SelpartBox->Enable( parts_count > 1 );
 
-    state = FALSE;
-    if( CurrentLibEntry && (CurrentLibEntry->m_DocFile != wxEmptyString) )
-        state = TRUE;
-    m_HToolBar->EnableTool( ID_LIBVIEW_VIEWDOC, state );
+    m_HToolBar->EnableTool( ID_LIBVIEW_VIEWDOC,
+                            entry && ( entry->GetDocFileName() != wxEmptyString ) );
+
+    m_HToolBar->Refresh();
 }
 
 
-/****************************************************/
 void WinEDA_ViewlibFrame::ReCreateVToolbar()
-/****************************************************/
 {
 }

@@ -1,5 +1,5 @@
 ///////////////////////////////////////////////////////////////////////////
-// C++ code generated with wxFormBuilder (version Apr 16 2008)
+// C++ code generated with wxFormBuilder (version Apr 21 2008)
 // http://www.wxformbuilder.org/
 //
 // PLEASE DO "NOT" EDIT THIS FILE!
@@ -44,10 +44,10 @@ DIALOG_BUILD_BOM_BASE::DIALOG_BUILD_BOM_BASE( wxWindow* parent, wxWindowID id, c
 	
 	sbOptionsSizer->Add( sbListOptionsSizer, 0, wxEXPAND, 5 );
 	
-	wxString m_OutputFormCtrlChoices[] = { _("List"), _("Text for spreadsheet import") };
+	wxString m_OutputFormCtrlChoices[] = { _("List"), _("Text for spreadsheet import"), _("Single Part per line") };
 	int m_OutputFormCtrlNChoices = sizeof( m_OutputFormCtrlChoices ) / sizeof( wxString );
 	m_OutputFormCtrl = new wxRadioBox( this, ID_RADIOBOX_SELECT_FORMAT, _("Output format:"), wxDefaultPosition, wxDefaultSize, m_OutputFormCtrlNChoices, m_OutputFormCtrlChoices, 1, wxRA_SPECIFY_COLS );
-	m_OutputFormCtrl->SetSelection( 0 );
+	m_OutputFormCtrl->SetSelection( 2 );
 	sbOptionsSizer->Add( m_OutputFormCtrl, 0, wxEXPAND|wxTOP, 5 );
 	
 	wxString m_OutputSeparatorCtrlChoices[] = { _("Tab"), _(";"), _(",") };
@@ -130,13 +130,9 @@ DIALOG_BUILD_BOM_BASE::DIALOG_BUILD_BOM_BASE( wxWindow* parent, wxWindowID id, c
 	
 	m_buttonOK = new wxButton( this, wxID_OK, _("Ok"), wxDefaultPosition, wxDefaultSize, 0 );
 	m_buttonOK->SetDefault(); 
-	m_buttonOK->SetForegroundColour( wxColour( 170, 0, 0 ) );
-	
 	bRightSizer->Add( m_buttonOK, 0, wxALL|wxALIGN_CENTER_VERTICAL|wxALIGN_CENTER_HORIZONTAL, 5 );
 	
 	m_buttonCANCEL = new wxButton( this, wxID_CANCEL, _("Close"), wxDefaultPosition, wxDefaultSize, 0 );
-	m_buttonCANCEL->SetForegroundColour( wxColour( 11, 0, 202 ) );
-	
 	bRightSizer->Add( m_buttonCANCEL, 0, wxALL|wxALIGN_CENTER_VERTICAL|wxALIGN_CENTER_HORIZONTAL, 5 );
 	
 	bMainSizer->Add( bRightSizer, 8, wxALL|wxEXPAND, 5 );

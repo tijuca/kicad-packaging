@@ -5,10 +5,6 @@
 #ifndef _EELAYER_H_
 #define _EELAYER_H_
 
-#if defined(__GNUG__) && !defined(__APPLE__)
-#pragma interface "eelayer.cpp"
-#endif
-
 #include "wx/statline.h"
 
 class wxBoxSizer;
@@ -17,7 +13,7 @@ class wxStdDialogButtonSizer;
 
 
 // Specify how many elements are contained within laytool_list[]
-const int NB_BUTT = 24; // Includes an element associated with the grid
+const int NB_BUTT = 23; // Includes an element associated with the grid
 
 // Specify how many elements are contained within laytool_index[]
 const int BUTTON_GROUPS = 5;
@@ -49,9 +45,9 @@ const int BUTT_SIZE_Y = 20;
 #define ADR( numlayer ) & (g_LayerDescr.LayerColor[numlayer])
 
 
-/**********************************/
-/* Liste des menus de Menu_Layers */
-/**********************************/
+/********************/
+/* Layer menu list. */
+/********************/
 
 struct ColorButton
 {
@@ -209,13 +205,6 @@ static ColorButton Layer_Erc_Error_Item =
 };
 
 
-static ColorButton Layer_Grid_Item =
-{
-    _( "Grid" ),                    // Title
-    &g_GridColor                    // Adr of optional parameter
-};
-
-
 static ColorButton* laytool_list[NB_BUTT] = {
     &Layer_Wire_Item,
     &Layer_Bus_Item,
@@ -239,12 +228,10 @@ static ColorButton* laytool_list[NB_BUTT] = {
     &Layer_SheetFileName_Item,
     &Layer_SheetName_Item,
     &Layer_SheetLabel_Item,
-	&Layer_HierarchicalLabel_Item,
+    &Layer_HierarchicalLabel_Item,
 
     &Layer_Erc_Warning_Item,
     &Layer_Erc_Error_Item,
-
-    &Layer_Grid_Item
 };
 
 
@@ -288,9 +275,9 @@ static ButtonIndex* laytool_index[BUTTON_GROUPS] = {
 };
 
 
-/**************************************************************/
-/* classe derivee pour la frame de Configuration des couleurs */
-/**************************************************************/
+/***********************************************/
+/* Derived class for the frame color settings. */
+/***********************************************/
 
 class WinEDA_SetColorsFrame: public wxDialog
 {
@@ -298,7 +285,7 @@ private:
     DECLARE_DYNAMIC_CLASS( WinEDA_SetColorsFrame )
     DECLARE_EVENT_TABLE()
 
-    WinEDA_DrawFrame*       m_Parent;
+    WinEDA_SchematicFrame*  m_Parent;
     wxBoxSizer*             OuterBoxSizer;
     wxBoxSizer*             MainBoxSizer;
     wxBoxSizer*             ColumnBoxSizer;
@@ -319,7 +306,7 @@ private:
                  const wxSize& size = wxDefaultSize,
                  long style = SYMBOL_WINEDA_SETCOLORSFRAME_STYLE );
 
-    // Initialises member variables
+    // Initializes member variables
     void Init();
 
     // Creates the controls and sizers
@@ -338,9 +325,8 @@ private:
 public:
     // Constructors and destructor
     WinEDA_SetColorsFrame();
-    WinEDA_SetColorsFrame( WinEDA_DrawFrame* parent, const wxPoint& framepos );
+    WinEDA_SetColorsFrame( WinEDA_SchematicFrame* parent, const wxPoint& framepos );
     ~WinEDA_SetColorsFrame();
 };
 
-#endif
-    // _EELAYER_H_
+#endif    // _EELAYER_H_

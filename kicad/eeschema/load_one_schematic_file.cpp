@@ -1,64 +1,58 @@
 /****************************************/
-/*	Module to load/save EESchema files.	*/
+/*  Module to load/save EESchema files. */
 /****************************************/
 
 #include "fctsys.h"
 #include "confirm.h"
 #include "kicad_string.h"
+
 #include "program.h"
-#include "libcmp.h"
 #include "general.h"
 #include "protos.h"
+#include "class_marker_sch.h"
+
 
 /* in read_from_file_schematic_items_description.cpp */
 SCH_ITEM* ReadTextDescr( FILE* aFile, wxString& aMsgDiag, char* aLine,
-                         int aBufsize, int* aLineNum, int aSchematicFileVersion );
-int       ReadSheetDescr( wxWindow*    frame,
-                          char*        Line,
-                          FILE*        f,
-                          wxString&    aMsgDiag,
-                          int*         aLineNum,
+                         int aBufsize, int* aLineNum,
+                         int aSchematicFileVersion );
+
+extern int ReadSheetDescr( wxWindow* frame, char* Line, FILE* f,
+                           wxString& aMsgDiag, int* aLineNum,
+                           BASE_SCREEN* Window );
+
+extern bool ReadSchemaDescr( wxWindow* frame, char* Line, FILE* f,
+                             wxString& aMsgDiag, int* aLineNum,
+                             BASE_SCREEN* Window );
+
+extern int ReadPartDescr( wxWindow* frame, char* Line, FILE* f,
+                          wxString& aMsgDiag, int* aLineNum,
                           BASE_SCREEN* Window );
-int ReadSchemaDescr( wxWindow*    frame,
-                     char*        Line,
-                     FILE*        f,
-                     wxString&    aMsgDiag,
-                     int*         aLineNum,
-                     BASE_SCREEN* Window );
 
-int ReadPartDescr( wxWindow*    frame,
-                   char*        Line,
-                   FILE*        f,
-                   wxString&    aMsgDiag,
-                   int*         aLineNum,
-                   BASE_SCREEN* Window );
-
-/* Fonctions locales */
 static void LoadLayers( FILE* f, int* linecnt );
 
-/************************************************************************************************/
-bool WinEDA_SchematicFrame::LoadOneEEFile( SCH_SCREEN* screen, const wxString& FullFileName )
-/************************************************************************************************/
 
-/* Routine to load an EESchema file.
+/**
+ * Routine to load an EESchema file.
  *  Returns true if file has been loaded (at least partially.)
  */
+bool WinEDA_SchematicFrame::LoadOneEEFile( SCH_SCREEN* screen,
+                                           const wxString& FullFileName )
 {
-    char                 Line[1024], * SLine;
-    char                 Name1[256],
-                         Name2[256];
-    int                  ii, layer;
-    wxPoint              pos;
-    bool                 Failed = FALSE;
-    SCH_ITEM*            Phead, * Pnext;
-    DrawJunctionStruct*  ConnectionStruct;
-    DrawPolylineStruct*  PolylineStruct;
-    EDA_DrawLineStruct*  SegmentStruct;
-    DrawBusEntryStruct*  RaccordStruct;
-    DrawMarkerStruct*    MarkerStruct;
-    DrawNoConnectStruct* NoConnectStruct;
-    int                  LineCount; /* Decompte de num de ligne lue dans eeload() */
-    wxString             MsgDiag;   /* Error and log messages */
+    char            Line[1024], * SLine;
+    char            Name1[256],
+                    Name2[256];
+    int             ii, layer;
+    wxPoint         pos;
+    bool            Failed = FALSE;
+    SCH_ITEM*       Phead, * Pnext;
+    SCH_JUNCTION*   ConnectionStruct;
+    SCH_POLYLINE*   PolylineStruct;
+    SCH_LINE*       SegmentStruct;
+    SCH_BUS_ENTRY*  RaccordStruct;
+    SCH_NO_CONNECT* NoConnectStruct;
+    int             LineCount;
+    wxString        MsgDiag;   /* Error and log messages */
 
     FILE*                f;
 
@@ -82,8 +76,8 @@ bool WinEDA_SchematicFrame::LoadOneEEFile( SCH_SCREEN* screen, const wxString& F
     PrintMsg( MsgDiag );
 
     if( fgets( Line, sizeof(Line), f ) == NULL
-        || strncmp( Line + 9, SCHEMATIC_HEAD_STRING, sizeof(SCHEMATIC_HEAD_STRING) - 1 )
-        != 0 )
+        || strncmp( Line + 9, SCHEMATIC_HEAD_STRING,
+                    sizeof(SCHEMATIC_HEAD_STRING) - 1 ) != 0 )
     {
         MsgDiag = FullFileName + _( " is NOT an EESchema file!" );
         DisplayError( this, MsgDiag );
@@ -96,19 +90,20 @@ bool WinEDA_SchematicFrame::LoadOneEEFile( SCH_SCREEN* screen, const wxString& F
     int  ver     = version - '0';
     if( ver > EESCHEMA_VERSION )
     {
-        MsgDiag = FullFileName + _(
-            " was created by a more recent version of EESchema and may not load correctly. Please consider updating!" );
-        DisplayInfo( this, MsgDiag );
+        MsgDiag = FullFileName + _( " was created by a more recent \
+version of EESchema and may not load correctly. Please consider updating!" );
+        DisplayInfoMessage( this, MsgDiag );
     }
 
 #if 0
-
     // Compile it if the new version is unreadable by previous eeschema versions
     else if( ver < EESCHEMA_VERSION )
     {
-        MsgDiag = FullFileName + _(
-            " was created by an older version of EESchema. It will be stored in the new file format when you save this file again." );
-        DisplayInfo( this, MsgDiag );
+        MsgDiag = FullFileName + _( " was created by an older version of \
+EESchema. It will be stored in the new file format when you save this file \
+again." );
+
+        DisplayInfoMessage( this, MsgDiag );
     }
 #endif
 
@@ -122,7 +117,8 @@ bool WinEDA_SchematicFrame::LoadOneEEFile( SCH_SCREEN* screen, const wxString& F
     }
 
     // Read the rest of a potentially very long line.  fgets() puts a '\n' into
-    // the buffer if the end of line was reached.  Read until end of line if necessary.
+    // the buffer if the end of line was reached.  Read until end of line if
+    // necessary.
     if( Line[ strlen( Line )-1 ] != '\n' )
     {
         int c;
@@ -140,29 +136,45 @@ bool WinEDA_SchematicFrame::LoadOneEEFile( SCH_SCREEN* screen, const wxString& F
 
         switch( Line[0] )
         {
-        case '$':           /* identification de bloc */
+        case '$':           /* identification block */
             if( Line[1] == 'C' )
-                Failed = ReadPartDescr( this, Line, f, MsgDiag, &LineCount, screen );
+                Failed = ReadPartDescr( this, Line, f, MsgDiag, &LineCount,
+                                        screen );
 
             else if( Line[1] == 'S' )
-                Failed = ReadSheetDescr( this, Line, f, MsgDiag, &LineCount, screen );
+                Failed = ReadSheetDescr( this, Line, f, MsgDiag, &LineCount,
+                                         screen );
 
             else if( Line[1] == 'D' )
-                Failed = ReadSchemaDescr( this, Line, f, MsgDiag, &LineCount, screen );
+                Failed = ReadSchemaDescr( this, Line, f, MsgDiag, &LineCount,
+                                          screen );
+        else if( Line[1] == 'T' ) //text part
+        {
+          printf("**** TEXT PART\n");
+          SCH_ITEM* Struct;
+          Struct = ReadTextDescr( f, MsgDiag, Line, sizeof(Line),
+                      &LineCount, version);
+          if( Struct )
+          {
+          Struct->SetNext( screen->EEDrawList );
+          screen->EEDrawList = Struct;
+          }
+          else
+          Failed = true;
+        }
 
             break;
 
-        case 'L':           /* Its a library item. */
+        case 'L':        /* Its a library item. */
             Failed = ReadPartDescr( this, Line, f, MsgDiag, &LineCount, screen );
-            break;          /* Fin lecture 1 composant */
+            break;
 
 
         case 'W':        /* Its a Segment (WIRE or BUS) item. */
             if( sscanf( SLine, "%s %s", Name1, Name2 ) != 2  )
             {
-                MsgDiag.Printf(
-                    wxT( "EESchema file Segment struct error at line %d, aborted" ),
-                    LineCount );
+                MsgDiag.Printf( wxT( "EESchema file segment error at line %d, aborted" ),
+                                LineCount );
                 MsgDiag << wxT( "\n" ) << CONV_FROM_UTF8( Line );
                 Failed = true;
                 break;
@@ -173,17 +185,16 @@ bool WinEDA_SchematicFrame::LoadOneEEFile( SCH_SCREEN* screen, const wxString& F
             if( Name1[0] == 'B' )
                 layer = LAYER_BUS;
 
-            SegmentStruct = new EDA_DrawLineStruct( wxPoint( 0, 0 ), layer );
+            SegmentStruct = new SCH_LINE( wxPoint( 0, 0 ), layer );
 
             LineCount++;
             if( fgets( Line, 256 - 1, f ) == NULL
-                || sscanf( Line, "%d %d %d %d ",
-                    &SegmentStruct->m_Start.x, &SegmentStruct->m_Start.y,
-                    &SegmentStruct->m_End.x, &SegmentStruct->m_End.y ) != 4 )
+                || sscanf( Line, "%d %d %d %d ", &SegmentStruct->m_Start.x,
+                           &SegmentStruct->m_Start.y, &SegmentStruct->m_End.x,
+                           &SegmentStruct->m_End.y ) != 4 )
             {
-                MsgDiag.Printf(
-                    wxT( "EESchema file Segment struct error at line %d, aborted" ),
-                    LineCount );
+                MsgDiag.Printf( wxT( "EESchema file Segment struct error at line %d, aborted" ),
+                                LineCount );
                 MsgDiag << wxT( "\n" ) << CONV_FROM_UTF8( Line );
                 Failed = true;
                 SAFE_DELETE( SegmentStruct );
@@ -198,12 +209,11 @@ bool WinEDA_SchematicFrame::LoadOneEEFile( SCH_SCREEN* screen, const wxString& F
             break;
 
 
-        case 'E':        /* Its a Raccord (WIRE or BUS) item. */
+        case 'E':        /* Its a WIRE or BUS item. */
             if( sscanf( SLine, "%s %s", Name1, Name2 ) != 2  )
             {
-                MsgDiag.Printf(
-                    wxT( "EESchema file record struct error at line %d, aborted" ),
-                    LineCount );
+                MsgDiag.Printf( wxT( "EESchema file record struct error at line %d, aborted" ),
+                                LineCount );
                 MsgDiag << wxT( "\n" ) << CONV_FROM_UTF8( Line );
                 Failed = true;
                 break;
@@ -212,17 +222,16 @@ bool WinEDA_SchematicFrame::LoadOneEEFile( SCH_SCREEN* screen, const wxString& F
             ii = WIRE_TO_BUS;
             if( Name1[0] == 'B' )
                 ii = BUS_TO_BUS;
-            RaccordStruct = new DrawBusEntryStruct( wxPoint( 0, 0 ), '\\', ii );
+            RaccordStruct = new SCH_BUS_ENTRY( wxPoint( 0, 0 ), '\\', ii );
 
             LineCount++;
             if( fgets( Line, 256 - 1, f ) == NULL
-                || sscanf( Line, "%d %d %d %d ",
-                    &RaccordStruct->m_Pos.x, &RaccordStruct->m_Pos.y,
-                    &RaccordStruct->m_Size.x, &RaccordStruct->m_Size.y ) != 4 )
+                || sscanf( Line, "%d %d %d %d ", &RaccordStruct->m_Pos.x,
+                           &RaccordStruct->m_Pos.y, &RaccordStruct->m_Size.x,
+                           &RaccordStruct->m_Size.y ) != 4 )
             {
-                MsgDiag.Printf(
-                    wxT( "EESchema file Bus Entry struct error at line %d, aborted" ),
-                    LineCount );
+                MsgDiag.Printf( wxT( "EESchema file Bus Entry struct error at line %d, aborted" ),
+                                LineCount );
                 MsgDiag << wxT( "\n" ) << CONV_FROM_UTF8( Line );
                 Failed = true;
                 SAFE_DELETE( RaccordStruct );
@@ -241,9 +250,8 @@ bool WinEDA_SchematicFrame::LoadOneEEFile( SCH_SCREEN* screen, const wxString& F
         case 'P':        /* Its a polyline item. */
             if( sscanf( SLine, "%s %s %d", Name1, Name2, &ii ) != 3 )
             {
-                MsgDiag.Printf(
-                    wxT( "EESchema file polyline struct error at line %d, aborted" ),
-                    LineCount );
+                MsgDiag.Printf( wxT( "EESchema file polyline struct error at line %d, aborted" ),
+                                LineCount );
                 MsgDiag << wxT( "\n" ) << CONV_FROM_UTF8( Line );
                 Failed = true;
                 break;
@@ -254,7 +262,7 @@ bool WinEDA_SchematicFrame::LoadOneEEFile( SCH_SCREEN* screen, const wxString& F
             if( Name2[0] == 'B' )
                 layer = LAYER_BUS;
 
-            PolylineStruct = new DrawPolylineStruct( layer );
+            PolylineStruct = new SCH_POLYLINE( layer );
             for( unsigned jj = 0; jj < (unsigned)ii; jj++ )
             {
                 LineCount++;
@@ -262,9 +270,9 @@ bool WinEDA_SchematicFrame::LoadOneEEFile( SCH_SCREEN* screen, const wxString& F
                 if( fgets( Line, 256 - 1, f ) == NULL
                     || sscanf( Line, "%d %d", &point.x, &point.y ) != 2 )
                 {
-                    MsgDiag.Printf(
-                        wxT( "EESchema file polyline struct error at line %d, aborted" ),
-                        LineCount );
+                    MsgDiag.Printf( wxT( "EESchema file polyline struct error \
+at line %d, aborted" ),
+                                    LineCount );
                     MsgDiag << wxT( "\n" ) << CONV_FROM_UTF8( Line );
                     Failed = true;
                     SAFE_DELETE( PolylineStruct );
@@ -282,15 +290,14 @@ bool WinEDA_SchematicFrame::LoadOneEEFile( SCH_SCREEN* screen, const wxString& F
             break;
 
         case 'C':                       /* It is a connection item. */
-            ConnectionStruct = new DrawJunctionStruct( wxPoint( 0, 0 ) );
+            ConnectionStruct = new SCH_JUNCTION( wxPoint( 0, 0 ) );
 
-            if( sscanf( SLine, "%s %d %d", Name1,
-                    &ConnectionStruct->m_Pos.x,
-                    &ConnectionStruct->m_Pos.y ) != 3 )
+            if( sscanf( SLine, "%s %d %d", Name1, &ConnectionStruct->m_Pos.x,
+                        &ConnectionStruct->m_Pos.y ) != 3 )
             {
-                MsgDiag.Printf(
-                    wxT( "EESchema file connection struct error at line %d, aborted" ),
-                    LineCount );
+                MsgDiag.Printf( wxT( "EESchema file connection struct error \
+at line %d, aborted" ),
+                                LineCount );
                 MsgDiag << wxT( "\n" ) << CONV_FROM_UTF8( Line );
                 Failed = true;
                 SAFE_DELETE( ConnectionStruct );
@@ -305,57 +312,29 @@ bool WinEDA_SchematicFrame::LoadOneEEFile( SCH_SCREEN* screen, const wxString& F
         case 'N':                       /* It is a NoConnect item. */
             if( sscanf( SLine, "%s %d %d", Name1, &pos.x, &pos.y ) != 3 )
             {
-                MsgDiag.Printf(
-                    wxT( "EESchema file NoConnect struct error at line %d, aborted" ),
-                    LineCount );
+                MsgDiag.Printf( wxT( "EESchema file NoConnect struct error at line %d, aborted" ),
+                                LineCount );
                 MsgDiag << wxT( "\n" ) << CONV_FROM_UTF8( Line );
                 Failed = true;
             }
             else
             {
-                NoConnectStruct = new DrawNoConnectStruct( pos );
-
+                NoConnectStruct = new SCH_NO_CONNECT( pos );
                 NoConnectStruct->SetNext( screen->EEDrawList );
                 screen->EEDrawList = NoConnectStruct;
             }
             break;
 
         case 'K':                       /* It is a Marker item. */
-            if( sscanf( SLine, "%s %d %d", Name1, &pos.x, &pos.y ) != 3 )
-            {
-                MsgDiag.Printf(
-                    wxT( "EESchema file marker struct error line %d, aborted" ),
-                    LineCount );
-                MsgDiag << wxT( "\n" ) << CONV_FROM_UTF8( Line );
-                Failed = true;
-            }
-            else
-            {
-                char* text;
-                char  BufLine[1024];
-                MarkerStruct = new DrawMarkerStruct( pos, wxEmptyString );
-
-                ii = ReadDelimitedText( BufLine, Line, 256 );
-                MarkerStruct->m_Type = (TypeMarker) ( (Name1[0] & 255) - 'A' );
-                if( MarkerStruct->m_Type < 0 )
-                    MarkerStruct->m_Type = MARQ_UNSPEC;
-                if( ii )
-                    MarkerStruct->m_Comment = CONV_FROM_UTF8( BufLine );
-                text = strstr( Line, " F=" );
-                if( text )
-                {
-                    sscanf( text + 3, "%X", &ii );
-                    MarkerStruct->m_MarkFlags = ii;
-                }
-                MarkerStruct->SetNext( screen->EEDrawList );
-                screen->EEDrawList = MarkerStruct;
-            }
+            // Markers are no more read from file. they are only created on
+            // demand in schematic
             break;
 
         case 'T':                       /* It is a text item. */
         {
             SCH_ITEM* Struct;
-            Struct = ReadTextDescr( f, MsgDiag, Line, sizeof(Line), &LineCount, version);
+            Struct = ReadTextDescr( f, MsgDiag, Line, sizeof(Line),
+                                    &LineCount, version);
             if( Struct )
             {
                 Struct->SetNext( screen->EEDrawList );
@@ -368,9 +347,8 @@ bool WinEDA_SchematicFrame::LoadOneEEFile( SCH_SCREEN* screen, const wxString& F
 
         default:
             Failed = true;
-            MsgDiag.Printf(
-                wxT( "EESchema file undef structdef at line %d, aborted" ),
-                LineCount );
+            MsgDiag.Printf( wxT( "EESchema file undefined object at line %d, aborted" ),
+                            LineCount );
             MsgDiag << wxT( "\n" ) << CONV_FROM_UTF8( Line );
             break;
         }
@@ -409,12 +387,7 @@ bool WinEDA_SchematicFrame::LoadOneEEFile( SCH_SCREEN* screen, const wxString& F
 }
 
 
-/***********************************/
 static void LoadLayers( FILE* f, int* linecnt )
-/***********************************/
-
-/* Load the Layer Struct from a file
- */
 {
     int  Number;
     char Line[1024];
@@ -427,7 +400,7 @@ static void LoadLayers( FILE* f, int* linecnt )
     sscanf( Line, "%s %d %d", Name, &Number, &g_LayerDescr.CurrentLayer );
     if( strcmp( Name, "EELAYER" ) !=0 )
     {
-        /* error : init par defaut */
+        /* error : init par default */
         Number = MAX_LAYER;
     }
 

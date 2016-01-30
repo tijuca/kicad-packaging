@@ -2,9 +2,9 @@
 /* EESchema - lib_export.cpp */
 /*****************************/
 
-/* Routines de maintenanace des librariries:
-  * sauvegarde, modification de librairies.
-  * creation edition suppression de composants
+/* Library maintenance routines.
+ * Backup modified libraries.
+ * Create, edit, and delete components.
  */
 
 #include "fctsys.h"
@@ -13,141 +13,138 @@
 #include "class_drawpanel.h"
 #include "confirm.h"
 #include "gestfich.h"
+#include "eeschema_id.h"
 
 #include "program.h"
-#include "libcmp.h"
 #include "general.h"
-
 #include "protos.h"
+#include "libeditframe.h"
+#include "class_library.h"
 
-#include "id.h"
+#include <wx/filename.h>
 
 
-/*************************************************/
-void WinEDA_LibeditFrame::ImportOnePart()
-/*************************************************/
+extern int ExportPartId;
 
-/* Routine de lecture de 1 description.
- * Le format est celui des librairies, mais on ne charge que 1 composant
- * ou le 1er composant s'il y en a plusieurs.
- * Si le premier composant est un alias, on chargera la racine correspondante
+
+/* Routine to read one part.
+ * The format is that of libraries, but it loads only 1 component.
+ * Or 1 component if there are several.
+ * If the first component is an alias, it will load the corresponding root.
  */
+void WinEDA_LibeditFrame::OnImportPart( wxCommandEvent& event )
 {
-    wxString                Name, mask;
-    LibraryStruct*          LibTmp;
-    EDA_LibComponentStruct* LibEntry;
-    int err = 1;
+    wxString       errMsg;
+    wxFileName     fn;
+    CMP_LIBRARY*   LibTmp;
+    CMP_LIB_ENTRY* LibEntry;
 
-    mask = wxT( "*" ) + g_LibExtBuffer;
-    Name = EDA_FileSelector( _( "Import component:" ),
-        wxEmptyString,                          /* Chemin par defaut */
-        wxEmptyString,                          /* nom fichier par defaut */
-        g_LibExtBuffer,                         /* extension par defaut */
-        mask,                                   /* Masque d'affichage */
-        this,
-        0,
-        TRUE
-        );
-    if( Name == wxEmptyString )
+    m_lastDrawItem = NULL;
+
+    wxFileDialog dlg( this, _( "Import Component" ), m_LastLibImportPath,
+                      wxEmptyString, CompLibFileWildcard,
+                      wxFD_OPEN | wxFD_FILE_MUST_EXIST );
+
+    if( dlg.ShowModal() == wxID_CANCEL )
         return;
 
-    LibTmp = g_LibraryList; g_LibraryList = NULL;
+    fn = dlg.GetPath();
 
-    LoadLibraryName( this, Name, wxT( "$tmplib$" ) );
+    LibTmp = CMP_LIBRARY::LoadLibrary( fn, errMsg );
 
-    if( g_LibraryList )
+    if( LibTmp == NULL )
+        return;
+
+    LibEntry = LibTmp->GetFirstEntry();
+
+    if( LibEntry == NULL )
     {
-        LibEntry = (EDA_LibComponentStruct*) PQFirst( &g_LibraryList->m_Entries, FALSE );
+        wxString msg;
 
-        if( LibEntry )
-            err = LoadOneLibraryPartAux( LibEntry, g_LibraryList, 1 );
-        FreeCmpLibrary( this, g_LibraryList->m_Name );
-
-        if( err == 0 )
-        {
-            ReCreateHToolbar();
-            DisplayLibInfos();
-            DrawPanel->Refresh();
-        }
+        msg.Printf( _( "Component library file <%s> is empty." ),
+                    GetChars( fn.GetFullPath() ) );
+        DisplayError( this,  msg );
+        return;
     }
 
-    g_LibraryList = LibTmp;
-    if( err )
-        DisplayError( this, _( "File is empty" ), 30 );
+    if( LoadOneLibraryPartAux( LibEntry, LibTmp ) )
+    {
+        fn = dlg.GetPath();
+        m_LastLibImportPath = fn.GetPath();
+        DisplayLibInfos();
+        GetScreen()->ClearUndoRedoList();
+        DrawPanel->Refresh();
+    }
+
+    delete LibTmp;
 }
 
 
-/************************************************************/
-void WinEDA_LibeditFrame::ExportOnePart( bool create_lib )
-/************************************************************/
-
-/* Routine de creation d'une nouvelle librairie et de sauvegarde du
-  * composant courant dans cette librarie
-  * si create_lib == TRUE sauvegarde dans le repertoire des libr
-  * sinon: sauvegarde sous le nom demande sans modifications.
+/* Routine to create a new library and backup the current component in this
+ * library or export the component of the current library.
+ * createLib == TRUE if we are creating a new library.
+ * If not: export the library component.
+ * Basically these 2 options do the same thing, but for user's convenience
+ * > When creating a new lib, the user is prompted to add the new lib to
+ * current eeschema config library list
+ * > When exporting there is no message (it is expected the user does not want to add the
+ * new created lib
  *
-  * Le format du fichier cree est dans tous les cas le meme.
+ * The file format is created in all cases the same.
  */
+void WinEDA_LibeditFrame::OnExportPart( wxCommandEvent& event )
 {
-    wxString       Name, mask;
-    LibraryStruct* NewLib, * LibTmp, * CurLibTmp;
+    wxFileName   fn;
+    wxString     msg, title;
+    CMP_LIBRARY* CurLibTmp;
+    bool         createLib = ( event.GetId() == ExportPartId ) ? false : true;
 
-    if( CurrentLibEntry == NULL )
+    if( m_component == NULL )
     {
-        DisplayError( this, _( "No Part to Save" ), 10 ); return;
+        DisplayError( this, _( "There is no component selected to save." ) );
+        return;
     }
 
-    Name = CurrentLibEntry->m_Name.m_Text;
-    Name.MakeLower();
+    fn = m_component->GetName().Lower();
+    fn.SetExt( CompLibFileExtension );
 
-    mask = wxT( "*" ) + g_LibExtBuffer;
-    wxString def_path;
+    title = createLib ? _( "New Library" ) : _( "Export Component" );
 
-    if( create_lib )
-        def_path = g_RealLibDirBuffer;
+    wxFileDialog dlg( this, title, wxGetCwd(), fn.GetFullName(),
+                      CompLibFileWildcard, wxFD_SAVE | wxFD_OVERWRITE_PROMPT );
 
-    Name = EDA_FileSelector( create_lib ? _( "New Library" ) : _( "Export component:" ),
-        def_path,                   /* Chemin par defaut */
-        Name,                       /* nom fichier par defaut */
-        g_LibExtBuffer,             /* extension par defaut */
-        mask,                       /* Masque d'affichage */
-        this,
-        wxFD_SAVE,
-        TRUE
-        );
-
-    if( Name == wxEmptyString )
+    if( dlg.ShowModal() == wxID_CANCEL )
         return;
 
+    fn = dlg.GetPath();
 
-    /* Creation d'une librairie standard pour sauvegarde */
-    ChangeFileNameExt( Name, g_LibExtBuffer );
+    CurLibTmp = m_library;
 
-    LibTmp    = g_LibraryList;
-    CurLibTmp = CurrentLib;
+    m_library = new CMP_LIBRARY( LIBRARY_TYPE_EESCHEMA, fn );
 
-    NewLib = new LibraryStruct( LIBRARY_TYPE_EESCHEMA, wxT( "$libTmp$" ), Name );
-
-    g_LibraryList = NewLib;
-
-    /* Sauvegarde du composant: */
-    CurrentLib = NewLib;
     SaveOnePartInMemory();
-    bool success = NewLib->SaveLibrary( Name );
 
-    /* Suppression de la librarie temporaire */
-    FreeCmpLibrary( this, NewLib->m_Name );
-    g_LibraryList = LibTmp;
-    CurrentLib    = CurLibTmp;
+    bool success = m_library->Save( fn.GetFullPath() );
 
-    wxString msg;
-    if( create_lib && success )
+    if( success )
+        m_LastLibExportPath = fn.GetPath();
+
+    delete m_library;
+    m_library = CurLibTmp;
+
+    if( success )
     {
-        msg = Name + _( "Ok" );
-        DisplayInfo( this,
-            _("Note: this new library will be available only if it is loaded by eeschema.\nModify eeschema config if you want use it.") );
-    }
+        if( createLib )
+        {
+            msg = fn.GetFullPath() + _( " - OK" );
+            DisplayInfoMessage( this, _( "This library will not be available \
+until it is loaded by EESchema.\n\nModify the EESchema library configuration \
+if you want to include it as part of this project." ) );
+        }
+        else
+            msg = fn.GetFullPath() + _( " - Export OK" );
+    }   // Error
     else
-        msg = _( "Error while create " ) + Name;
+        msg = _( "Error creating " ) + fn.GetFullName();
     Affiche_Message( msg );
 }

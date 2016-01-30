@@ -13,6 +13,10 @@
 #include "PolyLine.h"
 #include "pcbnew.h"
 #include "zones.h"
+#include "class_board_design_settings.h"
+#include "colors_selection.h"
+
+#include "protos.h"
 
 
 /************************/
@@ -20,14 +24,15 @@
 /************************/
 
 ZONE_CONTAINER::ZONE_CONTAINER( BOARD* parent ) :
-    BOARD_ITEM( parent, TYPE_ZONE_CONTAINER )
+    BOARD_CONNECTED_ITEM( parent, TYPE_ZONE_CONTAINER )
 
 {
-    m_NetCode = -1;                                                             // Net number for fast comparisons
+    m_NetCode = -1;                           // Net number for fast comparisons
     m_CornerSelection = -1;
-    utility  = 0;                                                               // flags used in polygon calculations
-    utility2 = 0;                                                               // flags used in polygon calculations
-    m_Poly   = new CPolyLine();                                                 // Outlines
+    m_IsFilled = false;                       // fill status : true when the zone is filled
+    utility  = 0;                             // flags used in polygon calculations
+    utility2 = 0;                             // flags used in polygon calculations
+    m_Poly   = new CPolyLine();               // Outlines
     g_Zone_Default_Setting.ExportSetting(*this);
 }
 
@@ -37,6 +42,7 @@ ZONE_CONTAINER::~ZONE_CONTAINER()
     delete m_Poly;
     m_Poly = NULL;
 }
+
 
 
 /** virtual function GetPosition
@@ -68,9 +74,10 @@ void ZONE_CONTAINER::SetNet( int anet_code )
     if( anet_code < 0 )
         return;
 
-    if( m_Parent )
+    BOARD* board = GetBoard();
+    if( board )
     {
-        EQUIPOT* net = ( (BOARD*) m_Parent )->FindNet( anet_code );
+        NETINFO_ITEM* net = board->FindNet( anet_code );
         if( net )
             m_Netname = net->GetNetname();
         else
@@ -155,7 +162,7 @@ bool ZONE_CONTAINER::Save( FILE* aFile ) const
         return false;
 
     ret = fprintf( aFile, "ZOptions %d %d %c %d %d\n", m_FillMode, m_ArcToSegmentsCount,
-        m_Unused ? 'S' : 'F', m_ThermalReliefGapValue, m_ThermalReliefCopperBridgeValue );
+        m_IsFilled ? 'S' : 'F', m_ThermalReliefGapValue, m_ThermalReliefCopperBridgeValue );
     if( ret < 3 )
         return false;
 
@@ -174,17 +181,32 @@ bool ZONE_CONTAINER::Save( FILE* aFile ) const
     if( m_FilledPolysList.size() )
     {
         fprintf( aFile, "$POLYSCORNERS\n" );
-        for( item_pos = 0; item_pos < m_FilledPolysList.size(); item_pos++ )
+        for( unsigned ii = 0; ii < m_FilledPolysList.size(); ii++ )
         {
-            const CPolyPt* corner = &m_FilledPolysList[item_pos];
+            const CPolyPt* corner = &m_FilledPolysList[ii];
             ret = fprintf( aFile, "%d %d %d %d\n", corner->x, corner->y, corner->end_contour,  corner->utility );
-            if( ret < 3 )
+            if( ret < 4 )
                 return false;
         }
 
         fprintf( aFile, "$endPOLYSCORNERS\n" );
     }
 
+    // Save the filling segments list
+    if( m_FillSegmList.size() )
+    {
+        fprintf( aFile, "$FILLSEGMENTS\n" );
+        for( unsigned ii = 0; ii < m_FillSegmList.size(); ii++ )
+        {
+            ret = fprintf( aFile, "%d %d %d %d\n",
+                m_FillSegmList[ii].m_Start.x, m_FillSegmList[ii].m_Start.y,
+                m_FillSegmList[ii].m_End.x, m_FillSegmList[ii].m_End.y );
+            if( ret < 4 )
+                return false;
+        }
+
+        fprintf( aFile, "$endFILLSEGMENTS\n" );
+    }
     fprintf( aFile, "$endCZONE_OUTLINE\n" );
 
     return true;
@@ -297,10 +319,10 @@ int ZONE_CONTAINER::ReadDescr( FILE* aFile, int* aLineNum )
         else if( strnicmp( Line, "ZOptions", 8 ) == 0 )    // Options info found
         {
             int  fillmode = 1;
-            int  arcsegmentcount = 16;
-            char drawopt = 'F';
+            int  arcsegmentcount = ARC_APPROX_SEGMENTS_COUNT_LOW_DEF;
+            char fillstate = 'F';
             text = Line + 8;
-            ret  = sscanf( text, "%d %d %c %d %d", &fillmode, &arcsegmentcount, &drawopt,
+            ret  = sscanf( text, "%d %d %c %d %d", &fillmode, &arcsegmentcount, &fillstate,
                 &m_ThermalReliefGapValue, &m_ThermalReliefCopperBridgeValue );
 
             if( ret < 1 )  // Must find 1 or more args.
@@ -308,10 +330,10 @@ int ZONE_CONTAINER::ReadDescr( FILE* aFile, int* aLineNum )
             else
                 m_FillMode = fillmode ? 1 : 0;
 
-            if( arcsegmentcount >= 32 )
-                m_ArcToSegmentsCount = 32;
+            if( arcsegmentcount >= ARC_APPROX_SEGMENTS_COUNT_HIGHT_DEF )
+                m_ArcToSegmentsCount = ARC_APPROX_SEGMENTS_COUNT_HIGHT_DEF;
 
-            m_Unused = 0;      // Waiting for a better use
+            m_IsFilled = fillstate == 'F' ? true : false;
         }
         else if( strnicmp( Line, "ZClearance", 10 ) == 0 )    // Clearence and pad options info found
         {
@@ -366,7 +388,7 @@ int ZONE_CONTAINER::ReadDescr( FILE* aFile, int* aLineNum )
                 int     end_contour, utility;
                 utility = 0;
                 ret = sscanf( Line, "%d %d %d %d", &corner.x, &corner.y, &end_contour, &utility );
-                if( ret < 3 )
+                if( ret < 4 )
                     return false;
                 corner.end_contour = end_contour ? true : false;
                 corner.utility = utility;
@@ -374,6 +396,19 @@ int ZONE_CONTAINER::ReadDescr( FILE* aFile, int* aLineNum )
             }
         }
 
+        else if( strnicmp( Line, "$FILLSEGMENTS", 13) == 0  )
+        {
+            SEGMENT segm;
+            while( GetLine( aFile, Line, aLineNum, sizeof(Line) - 1 ) != NULL )
+            {
+                if( strnicmp( Line, "$endFILLSEGMENTS", 4 ) == 0  )
+                    break;
+                ret = sscanf( Line, "%d %d %d %d", &segm.m_Start.x, &segm.m_Start.y, &segm.m_End.x, &segm.m_End.y );
+                if( ret < 4 )
+                    return false;
+                m_FillSegmList.push_back( segm );
+            }
+        }
         else if( strnicmp( Line, "$end", 4 ) == 0 )    // end of description
         {
             break;
@@ -409,9 +444,12 @@ void ZONE_CONTAINER::Draw( WinEDA_DrawPanel* panel, wxDC* DC, int draw_mode, con
 
     wxPoint seg_start, seg_end;
     int     curr_layer = ( (PCB_SCREEN*) panel->GetScreen() )->m_Active_Layer;
-    int     color = g_DesignSettings.m_LayerColor[m_Layer];
 
-    if( ( color & (ITEM_NOT_SHOW | HIGHT_LIGHT_FLAG) ) == ITEM_NOT_SHOW )
+    BOARD * brd =  GetBoard( );
+    int     color = brd->GetLayerColor(m_Layer);
+
+    if( brd->IsLayerVisible( m_Layer ) == false &&
+        ( color & HIGHT_LIGHT_FLAG ) != HIGHT_LIGHT_FLAG )
         return;
 
     GRSetDrawMode( DC, draw_mode );
@@ -496,10 +534,11 @@ void ZONE_CONTAINER::DrawFilledArea( WinEDA_DrawPanel* panel,
     if( m_FilledPolysList.size() == 0 )  // Nothing to draw
         return;
 
+    BOARD * brd =  GetBoard( );
     int curr_layer = ( (PCB_SCREEN*) panel->GetScreen() )->m_Active_Layer;
-    int color = g_DesignSettings.m_LayerColor[m_Layer];
+    int color = brd->GetLayerColor(m_Layer);
 
-    if( ( color & (ITEM_NOT_SHOW | HIGHT_LIGHT_FLAG) ) == ITEM_NOT_SHOW )
+    if( brd->IsLayerVisible( m_Layer ) == false && ( color & HIGHT_LIGHT_FLAG ) != HIGHT_LIGHT_FLAG )
         return;
 
     GRSetDrawMode( DC, aDrawMode );
@@ -584,6 +623,19 @@ void ZONE_CONTAINER::DrawFilledArea( WinEDA_DrawPanel* panel,
             CornersBuffer.clear();
         }
     }
+
+    if( m_FillMode == 1  && !outline_mode )     // filled with segments
+    {
+        for( unsigned ic = 0; ic < m_FillSegmList.size(); ic++ )
+        {
+            wxPoint start =  m_FillSegmList[ic].m_Start + offset;
+            wxPoint end =  m_FillSegmList[ic].m_End + offset;
+            if( !DisplayOpt.DisplayPcbTrackFill || GetState( FORCE_SKETCH ) )
+                GRCSegm( &panel->m_ClipBox, DC, start.x, start.y, end.x, end.y, m_ZoneMinThickness, color );
+            else
+                GRFillCSegm( &panel->m_ClipBox, DC, start.x, start.y, end.x, end.y, m_ZoneMinThickness, color );
+        }
+    }
 }
 
 
@@ -638,7 +690,8 @@ void ZONE_CONTAINER::DrawWhileCreateOutline( WinEDA_DrawPanel* panel, wxDC* DC, 
     if( DC == NULL )
         return;
     int     curr_layer = ( (PCB_SCREEN*) panel->GetScreen() )->m_Active_Layer;
-    int     color = g_DesignSettings.m_LayerColor[m_Layer & 31] & MASKCOLOR;
+    BOARD * brd =  GetBoard( );
+    int     color = brd->GetLayerColor(m_Layer) & MASKCOLOR;
 
     if( DisplayOpt.ContrastModeDisplay )
     {
@@ -848,17 +901,16 @@ bool ZONE_CONTAINER::HitTestFilledArea( const wxPoint& aRefPos )
 
 
 /************************************************************/
-void ZONE_CONTAINER::Display_Infos( WinEDA_DrawFrame* frame )
+void ZONE_CONTAINER::DisplayInfo( WinEDA_DrawFrame* frame )
 /************************************************************/
 {
     wxString msg;
-    int      text_pos;
 
     BOARD*   board = (BOARD*) m_Parent;
 
     wxASSERT( board );
 
-    frame->MsgPanel->EraseMsgBox();
+    frame->ClearMsgPanel();
 
     msg = _( "Zone Outline" );
 
@@ -866,16 +918,13 @@ void ZONE_CONTAINER::Display_Infos( WinEDA_DrawFrame* frame )
     if( ncont )
         msg << wxT( " " ) << _( "(Cutout)" );
 
-    text_pos = 1;
-    Affiche_1_Parametre( frame, text_pos, _( "Type" ), msg, DARKCYAN );
-
-    text_pos += 15;
+    frame->AppendMsgPanel( _( "Type" ), msg, DARKCYAN );
 
     if( IsOnCopperLayer() )
     {
         if( GetNet() >= 0 )
         {
-            EQUIPOT* equipot = ( (WinEDA_PcbFrame*) frame )->GetBoard()->FindNet( GetNet() );
+            NETINFO_ITEM* equipot = ( (WinEDA_BasePcbFrame*) frame )->GetBoard()->FindNet( GetNet() );
 
             if( equipot )
                 msg = equipot->GetNetname();
@@ -889,41 +938,35 @@ void ZONE_CONTAINER::Display_Infos( WinEDA_DrawFrame* frame )
             msg << wxT( " <" ) << _( "Not Found" ) << wxT( ">" );
         }
 
-        Affiche_1_Parametre( frame, text_pos, _( "NetName" ), msg, RED );
+        frame->AppendMsgPanel( _( "NetName" ), msg, RED );
     }
     else
-        Affiche_1_Parametre( frame, text_pos, _( "Non Copper Zone" ), wxEmptyString, RED );
+        frame->AppendMsgPanel( _( "Non Copper Zone" ), wxEmptyString, RED );
 
     /* Display net code : (usefull in test or debug) */
-    text_pos += 18;
     msg.Printf( wxT( "%d" ), GetNet() );
-    Affiche_1_Parametre( frame, text_pos, _( "NetCode" ), msg, RED );
+    frame->AppendMsgPanel( _( "NetCode" ), msg, RED );
 
-    text_pos += 6;
     msg = board->GetLayerName( m_Layer );
-    Affiche_1_Parametre( frame, text_pos, _( "Layer" ), msg, BROWN );
+    frame->AppendMsgPanel( _( "Layer" ), msg, BROWN );
 
-    text_pos += 8;
     msg.Printf( wxT( "%d" ), m_Poly->corner.size() );
-    Affiche_1_Parametre( frame, text_pos, _( "Corners" ), msg, BLUE );
+    frame->AppendMsgPanel( _( "Corners" ), msg, BLUE );
 
-    text_pos += 6;
     if( m_FillMode )
         msg.Printf( _( "Segments" ), m_FillMode );
     else
         msg = _( "Polygons" );
-    Affiche_1_Parametre( frame, text_pos, _( "Fill mode" ), msg, BROWN );
+    frame->AppendMsgPanel( _( "Fill mode" ), msg, BROWN );
 
     // Useful for statistics :
-    text_pos += 9;
     msg.Printf( wxT( "%d" ), m_Poly->m_HatchLines.size() );
-    Affiche_1_Parametre( frame, text_pos, _( "Hatch lines" ), msg, BLUE );
+    frame->AppendMsgPanel( _( "Hatch lines" ), msg, BLUE );
 
     if( m_FilledPolysList.size() )
     {
-        text_pos += 9;
         msg.Printf( wxT( "%d" ), m_FilledPolysList.size() );
-        Affiche_1_Parametre( frame, text_pos, _( "Corners in DrawList" ), msg, BLUE );
+        frame->AppendMsgPanel( _( "Corners in DrawList" ), msg, BLUE );
     }
 }
 
@@ -951,6 +994,11 @@ void ZONE_CONTAINER::Move( const wxPoint& offset )
         CPolyPt* corner = &m_FilledPolysList[ic];
         corner->x += offset.x;
         corner->y += offset.y;
+    }
+    for( unsigned ic = 0; ic < m_FillSegmList.size(); ic++ )
+    {
+        m_FillSegmList[ic].m_Start += offset;
+        m_FillSegmList[ic].m_End += offset;
     }
 }
 
@@ -989,9 +1037,9 @@ void ZONE_CONTAINER::MoveEdge( const wxPoint& offset )
  */
 void ZONE_CONTAINER::Rotate( const wxPoint& centre, int angle )
 {
+    wxPoint pos;
     for( unsigned ii = 0; ii < m_Poly->corner.size(); ii++ )
     {
-        wxPoint pos;
         pos.x = m_Poly->corner[ii].x;
         pos.y = m_Poly->corner[ii].y;
         RotatePoint( &pos, centre, angle );
@@ -1000,8 +1048,35 @@ void ZONE_CONTAINER::Rotate( const wxPoint& centre, int angle )
     }
 
     m_Poly->Hatch();
+
+    /* rotate filled areas: */
+    for( unsigned ic = 0; ic < m_FilledPolysList.size(); ic++ )
+    {
+        CPolyPt* corner = &m_FilledPolysList[ic];
+        pos.x = corner->x;
+        pos.y = corner->y;
+        RotatePoint( &pos, centre, angle );
+        corner->x = pos.x;
+        corner->y = pos.y;
+    }
+    for( unsigned ic = 0; ic < m_FillSegmList.size(); ic++ )
+    {
+        RotatePoint( &m_FillSegmList[ic].m_Start, centre, angle );
+        RotatePoint( &m_FillSegmList[ic].m_End, centre, angle );
+    }
 }
 
+/**
+ * Function Flip
+ * Flip this object, i.e. change the board side for this object
+ * (like Mirror() but changes layer)
+ * @param const wxPoint& aCentre - the rotation point.
+ */
+void ZONE_CONTAINER::Flip(const wxPoint& aCentre )
+{
+    Mirror( aCentre );
+    SetLayer( ChangeSideNumLayer( GetLayer() ) );
+}
 
 /**
  * Function Mirror
@@ -1013,11 +1088,29 @@ void ZONE_CONTAINER::Mirror( const wxPoint& mirror_ref )
     for( unsigned ii = 0; ii < m_Poly->corner.size(); ii++ )
     {
         m_Poly->corner[ii].y -= mirror_ref.y;
-        m_Poly->corner[ii].y  = -m_Poly->corner[ii].y;
+        NEGATE(m_Poly->corner[ii].y);
         m_Poly->corner[ii].y += mirror_ref.y;
     }
 
     m_Poly->Hatch();
+
+    /* mirror filled areas: */
+    for( unsigned ic = 0; ic < m_FilledPolysList.size(); ic++ )
+    {
+        CPolyPt* corner = &m_FilledPolysList[ic];
+        corner->y -= mirror_ref.y;
+        NEGATE(corner->y);
+        corner->y += mirror_ref.y;
+    }
+    for( unsigned ic = 0; ic < m_FillSegmList.size(); ic++ )
+    {
+        m_FillSegmList[ic].m_Start.y -= mirror_ref.y;
+        NEGATE(m_FillSegmList[ic].m_Start.y);
+        m_FillSegmList[ic].m_Start.y += mirror_ref.y;
+        m_FillSegmList[ic].m_End.y -= mirror_ref.y;
+        NEGATE(m_FillSegmList[ic].m_End.y);
+        m_FillSegmList[ic].m_End.y += mirror_ref.y;
+    }
 }
 
 
@@ -1031,23 +1124,32 @@ void ZONE_CONTAINER::Copy( ZONE_CONTAINER* src )
     m_Layer  = src->m_Layer;
     SetNet( src->GetNet() );
     m_TimeStamp = src->m_TimeStamp;
+    m_Poly->RemoveAllContours();
     m_Poly->Copy( src->m_Poly );                // copy outlines
     m_CornerSelection = -1;                     // For corner moving, corner index to drag, or -1 if no selection
     m_ZoneClearance   = src->m_ZoneClearance;   // clearance value
-    m_FillMode   = src->m_FillMode;   // Grid used for filling
+    m_FillMode   = src->m_FillMode;             // Filling mode (segments/polygons)
+    m_ArcToSegmentsCount   = src->m_ArcToSegmentsCount;
     m_PadOption = src->m_PadOption;
-    m_Poly->SetHatch( src->m_Poly->GetHatchStyle() );
+    m_ThermalReliefGapValue   = src->m_ThermalReliefGapValue;
+    m_ThermalReliefCopperBridgeValue   = src->m_ThermalReliefCopperBridgeValue;
+    m_Poly->m_HatchStyle = src->m_Poly->GetHatchStyle();
+    m_Poly->m_HatchLines = src->m_Poly->m_HatchLines;   // Copy vector <CSegment>
+    m_FilledPolysList.clear();
+    m_FilledPolysList = src->m_FilledPolysList;
+    m_FillSegmList.clear();
+    m_FillSegmList = src->m_FillSegmList;
 }
 
 /**
  * Function SetNetNameFromNetCode
- * Fin the nat name corresponding to the net code.
- * @param aPcb: the curren board
+ * Find the net name corresponding to the net code.
+ * @param aPcb: the current board
  * @return bool - true if net found, else false
  */
 bool ZONE_CONTAINER::SetNetNameFromNetCode( void )
 {
-    EQUIPOT* net;
+    NETINFO_ITEM* net;
     if ( m_Parent && (net = ((BOARD*)m_Parent)->FindNet( GetNet()) ) )
     {
         m_Netname = net->GetNetname();

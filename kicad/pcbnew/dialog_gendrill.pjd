@@ -20,6 +20,8 @@
     <string name="resource_prefix">""</string>
     <bool name="use_two_step_construction">0</bool>
     <bool name="use_enums">0</bool>
+    <bool name="generate_for_xrced">0</bool>
+    <bool name="generate_virtual_eventhandlers">0</bool>
     <string name="current_platform">"&lt;All platforms&gt;"</string>
     <string name="target_wx_version">"2.8.7"</string>
     <string name="cpp_header_comment">"/////////////////////////////////////////////////////////////////////////////
@@ -106,6 +108,7 @@
     <bool name="archive_all_image_files">0</bool>
     <bool name="xrc_retain_relative_paths">1</bool>
     <bool name="xrc_generate_id_tags">0</bool>
+    <bool name="xrc_use_name_property">0</bool>
   </header>
   <data>
     <document>
@@ -140,6 +143,8 @@
         <string name="Use exceptions">"Yes"</string>
         <string name="Use ODBC">"No"</string>
         <string name="Use OpenGL">"No"</string>
+        <string name="Use wxMediaCtrl">"No"</string>
+        <string name="Use wxRichTextCtrl">"Yes"</string>
         <string name="wxWidgets version">"%WXVERSION%"</string>
         <string name="Executable name">"%EXECUTABLE%"</string>
         <string name="Program arguments">""</string>
@@ -149,6 +154,7 @@
         <string name="Compiler location">"%AUTO%"</string>
         <string name="wxWidgets location">"%AUTO%"</string>
         <string name="C++ command">"%AUTO%"</string>
+        <string name="C command">"%AUTO%"</string>
         <string name="Resource compiler">"%AUTO%"</string>
         <string name="Make command">"%AUTO%"</string>
         <string name="Project makefile">"%AUTO%"</string>
@@ -160,6 +166,7 @@
         <string name="Optimizations">"%AUTO%"</string>
         <string name="Warnings">"%AUTO%"</string>
         <string name="Debug flags">"%AUTO%"</string>
+        <string name="Extra compile flags">"%AUTO%"</string>
         <string name="Libraries">"%AUTO%"</string>
         <string name="Library path">"%AUTO%"</string>
         <string name="Linker flags">"%AUTO%"</string>
@@ -172,6 +179,7 @@
         <string name="PATH variable">"%AUTO%"</string>
         <bool name="Suppress source rules">0</bool>
         <bool name="Enable makefile generation">1</bool>
+        <string name="CFG">""</string>
       </document>
     </document>
   </data>
@@ -623,7 +631,7 @@
                 <string name="proxy-Member variable name">"m_Choice_Drill_Map"</string>
                 <string name="proxy-Label">"Drill Sheet:"</string>
                 <long name="proxy-Major dimension count">1</long>
-                <string name="proxy-Items">"None|drill sheet (HPGL)|drill sheet (PostScript)"</string>
+                <string name="proxy-Items">"None|drill sheet (HPGL)|drill sheet (PostScript)|Drill sheet (Gerber)|Drill sheet (DXF)"</string>
                 <long name="proxy-Initial value">0</long>
                 <string name="proxy-Help text">""</string>
                 <string name="proxy-Tooltip text">"Creates a drill map in PS or HPGL format"</string>
@@ -1876,7 +1884,7 @@
                 <string name="proxy-Data class header filename">""</string>
                 <string name="proxy-Data class manager window">""</string>
                 <string name="proxy-Background colour">""</string>
-                <string name="proxy-Foreground colour">"9C0105"</string>
+                <string name="proxy-Foreground colour">""</string>
                 <string name="proxy-Font">""</string>
                 <bool name="proxy-Hidden">0</bool>
                 <bool name="proxy-Enabled">1</bool>
@@ -1943,7 +1951,7 @@
                 <string name="proxy-Data class header filename">""</string>
                 <string name="proxy-Data class manager window">""</string>
                 <string name="proxy-Background colour">""</string>
-                <string name="proxy-Foreground colour">"1001CD"</string>
+                <string name="proxy-Foreground colour">""</string>
                 <string name="proxy-Font">""</string>
                 <bool name="proxy-Hidden">0</bool>
                 <bool name="proxy-Enabled">1</bool>

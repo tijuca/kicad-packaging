@@ -1,44 +1,37 @@
-/******************************************************/
-/* edit.cpp: fonctions generales de l'edition du PCB */
-/******************************************************/
+/***************************************/
+/* edit.cpp: Gerbview events functions */
+/***************************************/
 
 #include "fctsys.h"
-#include "id.h"
 #include "class_drawpanel.h"
 #include "confirm.h"
+#include "common.h"
 #include "gestfich.h"
+#include "appl_wxstruct.h"
 
 #include "gerbview.h"
 #include "pcbplot.h"
 #include "protos.h"
+#include "kicad_device_context.h"
+#include "gerbview_id.h"
 
-static void Process_Move_Item( WinEDA_GerberFrame* frame,
-                               EDA_BaseStruct* DrawStruct, wxDC* DC );
 
-/************************************************************************/
-void WinEDA_GerberFrame::OnLeftClick( wxDC* DC, const wxPoint& MousePos )
-/************************************************************************/
-
-/* Traite les commandes declench�e par le bouton gauche de la souris,
- *  quand un outil est deja selectionn�
+/* Process the command triggered by the left button of the mouse when a tool
+ * is already selected.
  */
+void WinEDA_GerberFrame::OnLeftClick( wxDC* DC, const wxPoint& MousePos )
 {
-    BOARD_ITEM*     DrawStruct = GetScreen()->GetCurItem();
-    wxString        msg;
+    BOARD_ITEM* DrawStruct = GetScreen()->GetCurItem();
+    wxString    msg;
 
     if( m_ID_current_state == 0 )
     {
-        if( DrawStruct && DrawStruct->m_Flags ) // Commande "POPUP" en cours
+        if( DrawStruct && DrawStruct->m_Flags )
         {
-            switch( DrawStruct->Type() )
-            {
-            default:
-                msg.Printf(
-                    wxT( "WinEDA_GerberFrame::ProcessCommand err: Struct %d, m_Flags = %X" ),
-                    (unsigned) DrawStruct->Type(),
-                    (unsigned) DrawStruct->m_Flags );
-                DisplayError( this, msg );
-            }
+            msg.Printf( wxT( "WinEDA_GerberFrame::ProcessCommand err: Struct %d, m_Flags = %X" ),
+                        (unsigned) DrawStruct->Type(),
+                        (unsigned) DrawStruct->m_Flags );
+            DisplayError( this, msg );
         }
         else
         {
@@ -56,7 +49,7 @@ void WinEDA_GerberFrame::OnLeftClick( wxDC* DC, const wxPoint& MousePos )
         break;
 
 
-    case ID_PCB_DELETE_ITEM_BUTT:
+    case ID_GERBVIEW_DELETE_ITEM_BUTT:
         DrawStruct = GerberGeneralLocateAndDisplay();
         if( DrawStruct == NULL )
             break;
@@ -70,55 +63,45 @@ void WinEDA_GerberFrame::OnLeftClick( wxDC* DC, const wxPoint& MousePos )
 
     default:
         DisplayError( this, wxT( "WinEDA_GerberFrame::ProcessCommand error" ) );
-        SetToolID( 0, wxCURSOR_ARROW, wxEmptyString );
         break;
     }
 }
 
 
-/********************************************************************************/
-void WinEDA_GerberFrame::Process_Special_Functions( wxCommandEvent& event )
-/********************************************************************************/
-
-/* Traite les selections d'outils et les commandes appelees du menu POPUP
+/* Handles the selection of tools, menu, and popup menu commands.
  */
+void WinEDA_GerberFrame::Process_Special_Functions( wxCommandEvent& event )
 {
-    int           id    = event.GetId();
-    int           layer = GetScreen()->m_Active_Layer;
-    GERBER*       gerber_layer = g_GERBER_List[layer];
-    wxPoint       pos;
-    wxClientDC    dc( DrawPanel );
-
-    DrawPanel->PrepareGraphicContext( &dc );
+    int        id    = event.GetId();
+    int        layer = GetScreen()->m_Active_Layer;
+    GERBER*    gerber_layer = g_GERBER_List[layer];
+    wxPoint    pos;
 
     wxGetMousePosition( &pos.x, &pos.y );
 
     pos.y += 20;
 
-    switch( id )   // Arret eventuel de la commande de d�placement en cours
+    switch( id )
     {
     case wxID_CUT:
     case wxID_COPY:
+    case ID_POPUP_MIRROR_X_BLOCK:
     case ID_POPUP_DELETE_BLOCK:
     case ID_POPUP_PLACE_BLOCK:
     case ID_POPUP_ZOOM_BLOCK:
-    case ID_POPUP_INVERT_BLOCK:
+    case ID_POPUP_FLIP_BLOCK:
     case ID_POPUP_ROTATE_BLOCK:
     case ID_POPUP_COPY_BLOCK:
         break;
 
     case ID_POPUP_CANCEL_CURRENT_COMMAND:
-        if( DrawPanel->ManageCurseur
-            && DrawPanel->ForceCloseManageCurseur )
+        DrawPanel->UnManageCursor( );
+        /* Should not be executed, except bug */
+        if( GetScreen()->m_BlockLocate.m_Command != BLOCK_IDLE )
         {
-            DrawPanel->ForceCloseManageCurseur( DrawPanel, &dc );
-        }
-        /* ne devrait pas etre execute, sauf bug */
-        if( GetScreen()->BlockLocate.m_Command != BLOCK_IDLE )
-        {
-            GetScreen()->BlockLocate.m_Command = BLOCK_IDLE;
-            GetScreen()->BlockLocate.m_State   = STATE_NO_BLOCK;
-            GetScreen()->BlockLocate.m_BlockDrawStruct = NULL;
+            GetScreen()->m_BlockLocate.m_Command = BLOCK_IDLE;
+            GetScreen()->m_BlockLocate.m_State   = STATE_NO_BLOCK;
+            GetScreen()->m_BlockLocate.ClearItemsList();
         }
         if( m_ID_current_state == 0 )
             SetToolID( 0, wxCURSOR_ARROW, wxEmptyString );
@@ -126,17 +109,13 @@ void WinEDA_GerberFrame::Process_Special_Functions( wxCommandEvent& event )
             SetCursor( DrawPanel->m_PanelCursor = DrawPanel->m_PanelDefaultCursor );
         break;
 
-    default:        // Arret dea commande de d�placement en cours
-        if( DrawPanel->ManageCurseur
-            && DrawPanel->ForceCloseManageCurseur )
-        {
-            DrawPanel->ForceCloseManageCurseur( DrawPanel, &dc );
-        }
-        SetToolID( 0, wxCURSOR_ARROW, wxEmptyString );
+    default:
+        DrawPanel->UnManageCursor( 0, wxCURSOR_ARROW, wxEmptyString );
         break;
     }
 
-    switch( id )   // Traitement des commandes
+    INSTALL_DC( dc, DrawPanel );
+    switch( id )
     {
     case ID_EXIT:
         Close( TRUE );
@@ -147,23 +126,8 @@ void WinEDA_GerberFrame::Process_Special_Functions( wxCommandEvent& event )
         Files_io( event );
         break;
 
-    case ID_PCB_GLOBAL_DELETE:
+    case ID_GERBVIEW_GLOBAL_DELETE:
         Erase_Current_Layer( TRUE );
-        break;
-
-    case wxID_CUT:
-        break;
-
-    case wxID_COPY:
-        break;
-
-    case wxID_PASTE:
-
-//			HandleBlockBegin(&dc, BLOCK_PASTE);
-        break;
-
-    case ID_UNDO_BUTT:
-        UnDeleteItem( &dc );
         break;
 
     case ID_GET_TOOLS:
@@ -177,18 +141,6 @@ void WinEDA_GerberFrame::Process_Special_Functions( wxCommandEvent& event )
         break;
 
 
-    case ID_BUS_BUTT:
-        SetToolID( id, wxCURSOR_PENCIL, wxT( "Add Tracks" ) );
-        break;
-
-    case ID_LINE_COMMENT_BUTT:
-        SetToolID( id, wxCURSOR_PENCIL, wxT( "Add Drawing" ) );
-        break;
-
-    case ID_TEXT_COMMENT_BUTT:
-        SetToolID( id, wxCURSOR_PENCIL, wxT( "Add Text" ) );
-        break;
-
     case ID_NO_SELECT_BUTT:
         SetToolID( 0, 0, wxEmptyString );
         break;
@@ -200,32 +152,12 @@ void WinEDA_GerberFrame::Process_Special_Functions( wxCommandEvent& event )
     case ID_POPUP_CANCEL_CURRENT_COMMAND:
         break;
 
-    case ID_POPUP_END_LINE:
-        DrawPanel->MouseToCursorSchema();
-
-//			EndSegment(&dc);
-        break;
-
-    case ID_POPUP_PCB_DELETE_TRACKSEG:
-        DrawPanel->MouseToCursorSchema();
-        if( GetScreen()->GetCurItem() == NULL )
-            break;
-        Delete_Segment( &dc, (TRACK*) GetScreen()->GetCurItem() );
-        GetScreen()->SetCurItem( NULL );
-        GetScreen()->SetModify();
-        break;
-
-    case ID_PCB_DELETE_ITEM_BUTT:
+    case ID_GERBVIEW_DELETE_ITEM_BUTT:
         SetToolID( id, wxCURSOR_BULLSEYE, wxT( "Delete item" ) );
         break;
 
-    case ID_POPUP_SCH_MOVE_ITEM_REQUEST:
-        DrawPanel->MouseToCursorSchema();
-        Process_Move_Item( this, GetScreen()->GetCurItem(), &dc );
-        break;
-
-    case ID_TOOLBARH_PCB_SELECT_LAYER:
-        ((PCB_SCREEN*)GetScreen())->m_Active_Layer = m_SelLayerBox->GetChoice();
+    case ID_TOOLBARH_GERBVIEW_SELECT_LAYER:
+        setActiveLayer(m_SelLayerBox->GetChoice());
         DrawPanel->Refresh( TRUE );
         break;
 
@@ -245,47 +177,57 @@ void WinEDA_GerberFrame::Process_Special_Functions( wxCommandEvent& event )
         break;
 
     case ID_GERBVIEW_SHOW_LIST_DCODES:
-        Liste_D_Codes( &dc );
+        Liste_D_Codes( );
         break;
 
     case ID_GERBVIEW_SHOW_SOURCE:
         if( gerber_layer )
         {
-            wxString editorname = GetEditorName();
+            wxString editorname = wxGetApp().GetEditorName();
             if( !editorname.IsEmpty() )
-                ExecuteFile( this, editorname, gerber_layer->m_FileName );
+            {
+                wxFileName fn( gerber_layer->m_FileName );
+                ExecuteFile( this, editorname, QuoteFullPath( fn ) );
+            }
         }
         break;
 
     case ID_POPUP_PLACE_BLOCK:
-        GetScreen()->BlockLocate.m_Command = BLOCK_MOVE;
+        GetScreen()->m_BlockLocate.m_Command = BLOCK_MOVE;
         DrawPanel->m_AutoPAN_Request = FALSE;
         HandleBlockPlace( &dc );
         break;
 
     case ID_POPUP_COPY_BLOCK:
-        GetScreen()->BlockLocate.m_Command = BLOCK_COPY;
-        GetScreen()->BlockLocate.SetMessageBlock( this );
+        GetScreen()->m_BlockLocate.m_Command = BLOCK_COPY;
+        GetScreen()->m_BlockLocate.SetMessageBlock( this );
         DrawPanel->m_AutoPAN_Request = FALSE;
         HandleBlockEnd( &dc );
         break;
 
     case ID_POPUP_ZOOM_BLOCK:
-        GetScreen()->BlockLocate.m_Command = BLOCK_ZOOM;
-        GetScreen()->BlockLocate.SetMessageBlock( this );
-        GetScreen()->BlockLocate.SetMessageBlock( this );
+        GetScreen()->m_BlockLocate.m_Command = BLOCK_ZOOM;
+        GetScreen()->m_BlockLocate.SetMessageBlock( this );
+        GetScreen()->m_BlockLocate.SetMessageBlock( this );
         HandleBlockEnd( &dc );
         break;
 
     case ID_POPUP_DELETE_BLOCK:
-        GetScreen()->BlockLocate.m_Command = BLOCK_DELETE;
-        GetScreen()->BlockLocate.SetMessageBlock( this );
+        GetScreen()->m_BlockLocate.m_Command = BLOCK_DELETE;
+        GetScreen()->m_BlockLocate.SetMessageBlock( this );
+        HandleBlockEnd( &dc );
+        break;
+
+    case ID_POPUP_MIRROR_X_BLOCK:
+        GetScreen()->m_BlockLocate.m_Command = BLOCK_MIRROR_X;
+        GetScreen()->m_BlockLocate.SetMessageBlock( this );
         HandleBlockEnd( &dc );
         break;
 
     case ID_GERBVIEW_POPUP_DELETE_DCODE_ITEMS:
         if( gerber_layer )
-            Delete_DCode_Items( &dc, gerber_layer->m_Selected_Tool, ((PCB_SCREEN*)GetScreen())->m_Active_Layer );
+            Delete_DCode_Items( &dc, gerber_layer->m_Selected_Tool,
+                                ( (PCB_SCREEN*) GetScreen() )->m_Active_Layer );
         break;
 
     default:
@@ -297,44 +239,11 @@ void WinEDA_GerberFrame::Process_Special_Functions( wxCommandEvent& event )
 }
 
 
-/****************************************************************/
-static void Process_Move_Item( WinEDA_GerberFrame* frame,
-                               EDA_BaseStruct* DrawStruct, wxDC* DC )
-/****************************************************************/
-{
-    if( DrawStruct == NULL )
-        return;
-
-    frame->DrawPanel->MouseToCursorSchema();
-
-    switch( DrawStruct->Type() )
-    {
-    default:
-        wxString msg;
-        msg.Printf(
-            wxT( "WinEDA_LibeditFrame::Move_Item Error: Bad DrawType %d" ),
-            DrawStruct->Type() );
-        DisplayError( frame, msg );
-        break;
-    }
-}
-
-
-/**************************************************************************/
-void WinEDA_GerberFrame::OnLeftDClick( wxDC* DC, const wxPoint& MousePos )
-/**************************************************************************/
-
-/* Appel� sur un double click:
- *  pour un �l�ment editable (textes, composant):
- *      appel de l'editeur correspondant.
- *  pour une connexion en cours:
- *      termine la connexion
+/* Called on a double click of left mouse button.
  */
+void WinEDA_GerberFrame::OnLeftDClick( wxDC* DC, const wxPoint& MousePos )
 {
     EDA_BaseStruct* DrawStruct = GetScreen()->GetCurItem();
-    wxClientDC      dc( DrawPanel );
-
-    DrawPanel->PrepareGraphicContext( &dc );
 
     switch( m_ID_current_state )
     {
@@ -344,23 +253,9 @@ void WinEDA_GerberFrame::OnLeftDClick( wxDC* DC, const wxPoint& MousePos )
             DrawStruct = GerberGeneralLocateAndDisplay();
         }
 
-        if( (DrawStruct == NULL) || (DrawStruct->m_Flags != 0) )
-            break;
+        break;
 
-        // Element localis�
-        switch( DrawStruct->Type() )
-        {
-        default:
-            break;
-        }
-
-        break;      // end case 0
-
-    case ID_BUS_BUTT:
-    case ID_WIRE_BUTT:
-
-//			if ( DrawStruct && (DrawStruct->m_Flags & IS_NEW) )
-//				EndSegment(DC);
+    default:
         break;
     }
 }

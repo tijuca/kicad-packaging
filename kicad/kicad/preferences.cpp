@@ -1,6 +1,6 @@
-/******************************************************************/
-/* mdiframe.cpp - fonctions de la classe du type WinEDA_MainFrame */
-/******************************************************************/
+/*******************/
+/* preferences.cpp */
+/*******************/
 
 #ifdef __GNUG__
 #pragma implementation
@@ -11,142 +11,92 @@
 #include "common.h"
 #include "confirm.h"
 #include "gestfich.h"
-
 #include "bitmaps.h"
-#include "protos.h"
-#include "id.h"
 
 #include "kicad.h"
 
 #include <wx/fontdlg.h>
 
-static bool ChoosePdfBrowser( WinEDA_MainFrame* parent_frame )
 
-/* routine to choose the prefered Pdf browser
- */
+void WinEDA_MainFrame::OnUpdateDefaultPdfBrowser( wxUpdateUIEvent& event )
 {
-    wxString mask( wxT( "*" ) );
+    event.Check( wxGetApp().m_PdfBrowserIsDefault );
+}
+
+
+void WinEDA_MainFrame::OnSelectDefaultPdfBrowser( wxCommandEvent& event )
+{
+    wxGetApp().m_PdfBrowserIsDefault = true;
+    wxGetApp().WritePdfBrowserInfos();
+}
+
+
+void WinEDA_MainFrame::OnUpdatePreferredPdfBrowser( wxUpdateUIEvent& event )
+{
+    event.Check( !wxGetApp().m_PdfBrowserIsDefault );
+}
+
+
+void WinEDA_MainFrame::OnSelectPreferredPdfBrowser( wxCommandEvent& event )
+{
+    bool select = event.GetId() == ID_SELECT_PREFERED_PDF_BROWSER_NAME;
+
+    if( !wxGetApp().m_PdfBrowser && !select )
+    {
+        DisplayError( this,
+                      _( "You must choose a PDF viewer before using this option." ) );
+    }
+
+    wxString wildcard( wxT( "*" ) );
 
 #ifdef __WINDOWS__
-    mask += wxT( ".exe" );
+    wildcard += wxT( ".exe" );
 #endif
+
+    wildcard = _( "Executable files (" ) + wildcard + wxT( ")|" ) + wildcard;
 
     wxGetApp().ReadPdfBrowserInfos();
-    wxString FullFileName = wxGetApp().m_PdfBrowser;
-    FullFileName = EDA_FileSelector( _( "Prefered Pdf Browser:" ),
-                                     wxPathOnly( FullFileName ),    /* Default path */
-                                     FullFileName,                  /* default filename */
-                                     wxEmptyString,                 /* default filename extension */
-                                     mask,                          /* filter for filename list */
-                                     parent_frame,                  /* parent frame */
-                                     wxFD_OPEN,                     /* wxFD_SAVE, wxFD_OPEN ..*/
-                                     TRUE                           /* true = keep the current path */
-                                     );
-    if( !FullFileName.IsEmpty() && (wxGetApp().m_PdfBrowser != FullFileName) )
-    {
-        wxGetApp().m_PdfBrowser = FullFileName;
-        wxGetApp().WritePdfBrowserInfos();
-        return TRUE;
-    }
-    return FALSE;
+    wxFileName fn = wxGetApp().m_PdfBrowser;
+    wxFileDialog dlg( this, _( "Select Preferred Pdf Browser" ), fn.GetPath(),
+                      fn.GetFullName(), wildcard,
+                      wxFD_OPEN | wxFD_FILE_MUST_EXIST );
+
+    if( dlg.ShowModal() == wxID_CANCEL )
+        return;
+
+    wxGetApp().m_PdfBrowser = dlg.GetPath();
+    wxGetApp().m_PdfBrowserIsDefault = wxGetApp().m_PdfBrowser.IsEmpty();
+    wxGetApp().WritePdfBrowserInfos();
 }
 
 
-/****************************************************************/
-void WinEDA_MainFrame::Process_Preferences( wxCommandEvent& event )
-/*****************************************************************/
+void WinEDA_MainFrame::OnSelectPreferredEditor( wxCommandEvent& event )
 {
-    int      id = event.GetId();
-    wxString FullFileName;
-    wxString mask( wxT( "*" ) );
+    wxFileName fn = wxGetApp().m_EditorName;
+    wxString wildcard( wxT( "*" ) );
 
 #ifdef __WINDOWS__
-    mask += wxT( ".exe" );
+    wildcard += wxT( ".exe" );
 #endif
 
-    switch( id )
-    {
-    case ID_SELECT_DEFAULT_PDF_BROWSER:
-        wxGetApp().m_PdfBrowserIsDefault = TRUE;
-        GetMenuBar()->Check( ID_SELECT_DEFAULT_PDF_BROWSER,
-                             wxGetApp().m_PdfBrowserIsDefault );
-        GetMenuBar()->Check( ID_SELECT_PREFERED_PDF_BROWSER,
-                             !wxGetApp().m_PdfBrowserIsDefault );
-        wxGetApp().WritePdfBrowserInfos();
-        break;
+    wildcard = _( "Executable file (" ) + wildcard + wxT( ")|" ) + wildcard;
 
-    case ID_SELECT_PREFERED_PDF_BROWSER:
-        if( wxGetApp().m_PdfBrowser.IsEmpty() )
-        {
-            DisplayError( this,
-                          _( "You must choose a PDF viewer before use this option" ) );
-            ChoosePdfBrowser( this );
-        }
-        if( wxGetApp().m_PdfBrowser.IsEmpty() )
-        {
-            wxGetApp().m_PdfBrowserIsDefault = TRUE;
-            GetMenuBar()->Check( ID_SELECT_DEFAULT_PDF_BROWSER, TRUE );
-            GetMenuBar()->Check( ID_SELECT_PREFERED_PDF_BROWSER, FALSE );
-        }
-        else
-        {
-            wxGetApp().m_PdfBrowserIsDefault = FALSE;
-            GetMenuBar()->Check( ID_SELECT_DEFAULT_PDF_BROWSER, FALSE );
-            GetMenuBar()->Check( ID_SELECT_PREFERED_PDF_BROWSER, TRUE );
-        }
-        wxGetApp().WritePdfBrowserInfos();
-        break;
+    wxFileDialog dlg( this, _( "Select Prefered Editor" ), fn.GetPath(),
+                      fn.GetFullName(), wildcard,
+                      wxFD_OPEN | wxFD_FILE_MUST_EXIST );
 
-    case ID_SELECT_PREFERED_PDF_BROWSER_NAME:
-        ChoosePdfBrowser( this );
-        break;
+    if( dlg.ShowModal() == wxID_CANCEL )
+        return;
 
-    case ID_SELECT_PREFERED_EDITOR:
-        FullFileName = EDA_FileSelector( _( "Prefered Editor:" ),
-                                         wxPathOnly( g_EditorName ),    /* Default path */
-                                         g_EditorName,                  /* default filename */
-                                         wxEmptyString,                 /* default filename extension */
-                                         mask,                          /* filter for filename list */
-                                         this,                          /* parent frame */
-                                         wxFD_OPEN,                     /* wxFD_SAVE, wxFD_OPEN ..*/
-                                         TRUE                           /* true = keep the current path */
-                                         );
-        if( ( !FullFileName.IsEmpty() ) && wxGetApp().m_EDA_CommonConfig )
-        {
-            g_EditorName = FullFileName;
-            wxGetApp().m_EDA_CommonConfig->Write( wxT( "Editor" ),
-                                                  g_EditorName );
-        }
-        break;
+    wxASSERT( wxGetApp().m_EDA_CommonConfig );
 
-    case ID_PREFERENCES_FONT_INFOSCREEN:
-    {
-        wxFont font = wxGetFontFromUser( this, *g_StdFont );
-        if( font.Ok() )
-        {
-            int pointsize = font.GetPointSize();
-            *g_StdFont = font;
-            g_StdFontPointSize    = pointsize;
-            g_DialogFontPointSize = pointsize;
-            g_FixedFontPointSize  = pointsize;
-            m_LeftWin->ReCreateTreePrj();
-            m_DialogWin->SetFont( *g_StdFont );
-            m_DialogWin->Refresh();
-        }
-        break;
-    }
-
-    default:
-        DisplayError( this,
-                      wxT( "WinEDA_MainFrame::Process_Preferences Internal Error" ) );
-        break;
-    }
+    wxConfig* cfg = wxGetApp().m_EDA_CommonConfig;
+    wxGetApp().m_EditorName = dlg.GetPath();
+    cfg->Write( wxT( "Editor" ), wxGetApp().m_EditorName );
 }
 
 
-/********************************************************/
 void WinEDA_MainFrame::SetLanguage( wxCommandEvent& event )
-/********************************************************/
 {
     wxGetApp().SetLanguageIdentifier( event.GetId() );
     if ( wxGetApp().SetLanguage() )

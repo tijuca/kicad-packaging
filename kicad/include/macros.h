@@ -9,9 +9,32 @@
 #define CONV_TO_UTF8( wxstring )     ( (const char*) wxConvCurrent->cWX2MB( wxstring ) )
 #define CONV_FROM_UTF8( utf8string ) ( wxConvCurrent->cMB2WC( utf8string ) )
 #else
-#define CONV_TO_UTF8( wxstring )     ( (const char*) ( wxstring.c_str() ) )
+#define CONV_TO_UTF8( wxstring )     ( (const char*) ( (wxstring).c_str() ) )
 #define CONV_FROM_UTF8( utf8string ) (utf8string)
 #endif
+
+
+/**
+ * Function GetChars
+ * returns a pointer to the actual character data, either 8 or
+ * 16 bits wide, depending on how the wxWidgets library was compiled.
+ */
+static inline const wxChar* GetChars( wxString s )
+{
+#if wxCHECK_VERSION( 2, 9, 0 )
+
+/* To be Fixed:
+ *   Currently, access to the actual character data in <wxString::Printf
+ *   is a moving target
+ *   So, with wxWidgets 2.9.0 this line is subject to change:
+ */
+
+//    return (const wxChar*) s.wx_str();
+    return (const wxChar*) s.c_str();
+#else
+    return s.GetData();
+#endif
+}
 
 
 #ifndef MIN
@@ -25,9 +48,10 @@
 #define ABS( y ) ( (y) >= 0 ? (y) : ( -(y) ) )
 #endif
 
-#define NEGATE(x) (x = -x)
+#define NEGATE( x ) (x = -x)
+
 /// # of elements in an arrray
-#define DIM(x)           (sizeof(x)/sizeof((x)[0]))
+#define DIM( x )    unsigned( sizeof(x) / sizeof( (x)[0] ) )    // not size_t
 
 
 #define DEG2RAD( Deg ) ( (Deg) * M_PI / 180.0 )
@@ -37,33 +61,42 @@
 #define NORMALIZE_ANGLE( Angle ) { while( Angle < 0 ) \
                                        Angle += 3600;\
                                    while( Angle > 3600 ) \
-                                       Angle -= 3600; }
+                                       Angle -= 3600;}
 
 /* Normalize angle to be in the 0.0 .. 360.0 range: */
 #define NORMALIZE_ANGLE_POS( Angle ) { while( Angle < 0 ) \
                                            Angle += 3600;while( Angle >= 3600 ) \
-                                           Angle -= 3600; }
+                                           Angle -= 3600;}
 #define NEGATE_AND_NORMALIZE_ANGLE_POS( Angle ) \
     { Angle = -Angle; while( Angle < 0 ) \
           Angle += 3600;while( Angle >= 3600 ) \
-          Angle -= 3600; }
+          Angle -= 3600;}
 
 /* Normalize angle to be in the -90.0 .. 90.0 range */
 #define NORMALIZE_ANGLE_90( Angle ) { while( Angle < -900 ) \
                                           Angle += 1800;\
                                       while( Angle > 900 ) \
-                                          Angle -= 1800; }
+                                          Angle -= 1800;}
 
+/* Normalize angle to be in the -180.0 .. 180.0 range */
+#define NORMALIZE_ANGLE_180( Angle ) { while( Angle <= -1800 ) \
+                                           Angle += 3600;\
+                                       while( Angle > 1800 ) \
+                                           Angle -= 3600;}
 
 /*****************************/
 /* macro to exchange 2 items */
 /*****************************/
 
-/* this macro uses the typeof keyword
- * for compilers that do not know typeof (MSVC )
- * the boost libs have a workaround for the typeof problem
+/*
+ * The EXCHG macro uses BOOST_TYPEOF for compilers that do not have native
+ * typeof support (MSVC).  Please do not attempt to qualify these macros
+ * within #ifdef compiler definitions pragmas.  BOOST_TYPEOF is smart enough
+ * to check for native typeof support and use it instead of it's own
+ * implementation.  These macros effectively compile to nothing on platforms
+ * with native typeof support.
  */
-#ifdef __MSVC__     // MSCV does not know typeof. Others def can be added here
+
 #include "boost/typeof/typeof.hpp"
 
 // we have to register the types used with the typeof keyword with boost
@@ -78,13 +111,11 @@ class D_PAD;
 BOOST_TYPEOF_REGISTER_TYPE( D_PAD* );
 BOOST_TYPEOF_REGISTER_TYPE( const D_PAD* );
 class BOARD_ITEM;
-BOOST_TYPEOF_REGISTER_TYPE( BOARD_ ITEM* );
+BOOST_TYPEOF_REGISTER_TYPE( BOARD_ITEM* );
 
-#define typeof (expr)BOOST_TYPEOF( expr )
-#endif  // #ifdef __MSVC__
-
-// here is the macro:
-#define EXCHG( a, b ) { typeof(a)__temp__ = (a); (a) = (b); (b) = __temp__; }
+#define EXCHG( a, b ) { BOOST_TYPEOF( a ) __temp__ = (a);      \
+                        (a) = (b);                           \
+                        (b) = __temp__; }
 
 
 /*****************************************************/
@@ -118,13 +149,11 @@ static inline void ADD_MENUITEM_WITH_SUBMENU( wxMenu* menu, wxMenu* submenu,
                                               int id, const wxString& text,
                                               const wxBitmap& icon )
 {
-    extern wxFont* g_ItalicFont;
-    wxMenuItem*    l_item;
+    wxMenuItem* l_item;
 
     l_item = new wxMenuItem( menu, id, text );
     l_item->SetSubMenu( submenu );
     l_item->SetBitmap( icon );
-    l_item->SetFont( *g_ItalicFont );
     menu->Append( l_item );
 };
 
@@ -135,13 +164,11 @@ static inline void ADD_MENUITEM_WITH_HELP_AND_SUBMENU( wxMenu*         menu,
                                                        const wxString& help,
                                                        const wxBitmap& icon )
 {
-    extern wxFont* g_ItalicFont;
-    wxMenuItem*    l_item;
+    wxMenuItem* l_item;
 
     l_item = new wxMenuItem( menu, id, text, help );
     l_item->SetSubMenu( submenu );
     l_item->SetBitmap( icon );
-    l_item->SetFont( *g_ItalicFont );
     menu->Append( l_item );
 };
 

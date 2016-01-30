@@ -1,31 +1,24 @@
-/*********************************************/
-/* Edition des pistes: Routines d'effacement */
-/* Effacement de segment, piste, net et zone */
-/*********************************************/
-
+/******************************************/
+/* Edit Track: Erase Routines             */
+/* Delete segments, tracks, and net areas */
+/******************************************/
 #include "fctsys.h"
-#include "gr_basic.h"
+
 #include "common.h"
 #include "class_drawpanel.h"
 #include "confirm.h"
 #include "pcbnew.h"
+#include "wxPcbStruct.h"
+
 #include "protos.h"
 
-/* Routines Locales */
 
-/* Variables locales */
-
-
-/***************************************************************/
-TRACK* WinEDA_PcbFrame::Delete_Segment( wxDC* DC, TRACK* aTrack )
-/***************************************************************/
-
-/* Supprime 1 segment de piste.
- *  2 Cas possibles:
- *  Si On est en trace de nouvelle piste: Effacement du segment en
- *      cours de trace
- *  Sinon : Effacment du segment sous le curseur.
+/* Removes 1 segment of track.
+ * 2 cases:
+ * If There is evidence of new track: delete new segment.
+ * Otherwise, delete segment under the cursor.
  */
+TRACK* WinEDA_PcbFrame::Delete_Segment( wxDC* DC, TRACK* aTrack )
 {
     int current_net_code;
 
@@ -38,15 +31,16 @@ TRACK* WinEDA_PcbFrame::Delete_Segment( wxDC* DC, TRACK* aTrack )
         return NULL;
     }
 
-    if( aTrack->m_Flags & IS_NEW )  // Trace in progress, erase the last segment
+    if( aTrack->m_Flags & IS_NEW )  // Trace in progress, erase the last
+                                    // segment
     {
         if( g_CurrentTrackList.GetCount() > 0 )
         {
-            int previous_layer = ( (PCB_SCREEN*) GetScreen() )->m_Active_Layer;
+            int previous_layer = getActiveLayer();
 
             D( g_CurrentTrackList.VerifyListIntegrity(); )
 
-            // effacement de la piste en cours
+            // Delete the current trace
             ShowNewTrackWhenMovingCursor( DrawPanel, DC, FALSE );
 
             // delete the most recently entered
@@ -54,32 +48,37 @@ TRACK* WinEDA_PcbFrame::Delete_Segment( wxDC* DC, TRACK* aTrack )
 
             if( g_TwoSegmentTrackBuild )
             {
-                // if in 2 track mode, and the next most recent is a segment not a via,
-                // and the one previous to that is a via, then delete up to the via.
+                // if in 2 track mode, and the next most recent is a segment
+                // not a via, and the one previous to that is a via, then
+                // delete up to the via.
                 if( g_CurrentTrackList.GetCount() >= 2
-                   && g_CurrentTrackSegment->Type() != TYPE_VIA
-                   && g_CurrentTrackSegment->Back()->Type() == TYPE_VIA )
+                    && g_CurrentTrackSegment->Type() != TYPE_VIA
+                    && g_CurrentTrackSegment->Back()->Type() == TYPE_VIA )
                 {
                     delete g_CurrentTrackList.PopBack();
                 }
             }
 
-            while( g_CurrentTrackSegment && g_CurrentTrackSegment->Type() == TYPE_VIA )
+            while( g_CurrentTrackSegment && g_CurrentTrackSegment->Type() ==
+                   TYPE_VIA )
             {
                 delete g_CurrentTrackList.PopBack();
 
-                if( g_CurrentTrackSegment && g_CurrentTrackSegment->Type() != TYPE_VIA )
+                if( g_CurrentTrackSegment && g_CurrentTrackSegment->Type() !=
+                    TYPE_VIA )
                     previous_layer = g_CurrentTrackSegment->GetLayer();
             }
 
-            // Rectification couche active qui a pu changer si une via
-            // a ete effacee
-            ( (PCB_SCREEN*) GetScreen() )->m_Active_Layer = previous_layer;
+            // Correct active layer which could change if a via
+            // has been erased
+            setActiveLayer( previous_layer );
 
-            Affiche_Status_Box();
-            if( g_TwoSegmentTrackBuild )   // We must have 2 segments or more, or 0
+            UpdateStatusBar();
+            if( g_TwoSegmentTrackBuild )   // We must have 2 segments or more,
+                                           // or 0
             {
-                if( g_CurrentTrackList.GetCount()==1 && g_CurrentTrackSegment->Type() != TYPE_VIA )
+                if( g_CurrentTrackList.GetCount() == 1
+                    && g_CurrentTrackSegment->Type() != TYPE_VIA )
                 {
                     delete g_CurrentTrackList.PopBack();
                 }
@@ -90,8 +89,8 @@ TRACK* WinEDA_PcbFrame::Delete_Segment( wxDC* DC, TRACK* aTrack )
                 DrawPanel->ManageCurseur = NULL;
                 DrawPanel->ForceCloseManageCurseur = NULL;
 
-                if( g_HightLigt_Status )
-                    Hight_Light( DC );
+                if( g_HighLight_Status )
+                    High_Light( DC );
 
                 SetCurItem( NULL );
                 return NULL;
@@ -109,95 +108,116 @@ TRACK* WinEDA_PcbFrame::Delete_Segment( wxDC* DC, TRACK* aTrack )
 
     current_net_code = aTrack->GetNet();
 
+    DLIST<TRACK>* container = (DLIST<TRACK>*)aTrack->GetList();
+    wxASSERT( container );
+    container->Remove( aTrack );
+
     // redraw the area where the track was
     DrawPanel->PostDirtyRect( aTrack->GetBoundingBox() );
 
-    SaveItemEfface( aTrack, 1 );
-    GetScreen()->SetModify();
+    SaveCopyInUndoList( aTrack, UR_DELETED );
+    OnModify();
 
     test_1_net_connexion( DC, current_net_code );
-    GetBoard()->Display_Infos( this );
+    GetBoard()->DisplayInfo( this );
     return NULL;
 }
 
 
-/**********************************************************/
 void WinEDA_PcbFrame::Delete_Track( wxDC* DC, TRACK* aTrack )
-/**********************************************************/
 {
     if( aTrack != NULL )
     {
         int current_net_code = aTrack->GetNet();
         Remove_One_Track( DC, aTrack );
-        GetScreen()->SetModify();
+        OnModify();
         test_1_net_connexion( DC, current_net_code );
     }
 }
 
 
-/********************************************************/
 void WinEDA_PcbFrame::Delete_net( wxDC* DC, TRACK* aTrack )
-/********************************************************/
 {
     if( aTrack == NULL )
         return;
 
-    if( IsOK( this, _( "Delete NET ?" ) ) )
+    if( !IsOK( this, _( "Delete NET?" ) ) )
+        return;
+
+    PICKED_ITEMS_LIST itemsList;
+    ITEM_PICKER       picker( NULL, UR_DELETED );
+    int    net_code_delete = aTrack->GetNet();
+
+    /* Search the first item for the given net code */
+    TRACK* trackList = GetBoard()->m_Track->GetStartNetCode( net_code_delete );
+
+    /* Remove all segments having the given net code */
+    int    ii = 0;
+    TRACK* next_track;
+    for( TRACK* segm = trackList;  segm; segm = next_track, ++ii )
     {
-        int    net_code_delete = aTrack->GetNet();
+        next_track = segm->Next();
+        if( segm->GetNet() != net_code_delete )
+            break;
 
-        /* Recherche du debut de la zone des pistes du net_code courant */
-        TRACK* trackList = GetBoard()->m_Track->GetStartNetCode( net_code_delete );
+        GetBoard()->m_Track.Remove( segm );
 
-        /* Decompte du nombre de segments de la sous-chaine */
-
-        int    ii = 0;
-        for( TRACK* segm = trackList;  segm; segm = segm->Next(), ++ii )
-        {
-            if( segm->GetNet() != net_code_delete )
-                break;
-
-            DrawPanel->PostDirtyRect( segm->GetBoundingBox() );
-        }
-
-        SaveItemEfface( trackList, ii );
-        GetScreen()->SetModify();
-        test_1_net_connexion( DC, net_code_delete );
-        GetBoard()->Display_Infos( this );
+        // redraw the area where the track was
+        DrawPanel->PostDirtyRect( segm->GetBoundingBox() );
+        picker.m_PickedItem     = segm;
+        picker.m_PickedItemType = segm->Type();
+        itemsList.PushItem( picker );
     }
+
+    SaveCopyInUndoList( itemsList, UR_DELETED );
+    OnModify();
+    test_1_net_connexion( DC, net_code_delete );
+    GetBoard()->DisplayInfo( this );
 }
 
 
-/********************************************************************/
-void WinEDA_PcbFrame::Remove_One_Track( wxDC* DC, TRACK* pt_segm )
-/********************************************************************/
-
-/* Routine de suppression de 1 piste:
- *  le segment pointe est supprime puis les segments adjacents
- *  jusqu'a un pad ou un point de jonction de plus de 2 segments
+/* Remove 1 track:
+ * The leading segment is removed and all adjacent segments
+ * until a pad or a junction point of more than 2 segments is found
  */
+void WinEDA_PcbFrame::Remove_One_Track( wxDC* DC, TRACK* pt_segm )
 {
-    int     nb_segm;
+    int segments_to_delete_count;
 
     if( pt_segm == NULL )
         return;
 
-    TRACK*  trackList = Marque_Une_Piste( this, DC, pt_segm, &nb_segm, 0 );
+    TRACK* trackList = Marque_Une_Piste( GetBoard(), pt_segm,
+                                         &segments_to_delete_count, NULL, true );
+    if( segments_to_delete_count == 0 )
+        return;
 
-    if( nb_segm ) /* Il y a nb_segm segments de piste a effacer */
+    int net_code = pt_segm->GetNet();
+    PICKED_ITEMS_LIST itemsList;
+    ITEM_PICKER       picker( NULL, UR_DELETED );
+
+    int               ii = 0;
+    TRACK*            tracksegment = trackList;
+    TRACK*            next_track;
+    for( ; ii < segments_to_delete_count; ii++, tracksegment = next_track )
     {
-        int ii = 0;
-        for( TRACK* t = trackList;  ii<nb_segm;  ii++, t = t->Next() )
-        {
-            t->SetState( BUSY, OFF );
+        next_track = tracksegment->Next();
+        tracksegment->SetState( BUSY, OFF );
 
-            D(printf("%s: track %p status=\"%s\"\n", __func__, t,
-                     CONV_TO_UTF8( TRACK::ShowState( t->GetState(-1)) )
-                     );)
+        D( printf( "%s: track %p status=\"%s\"\n", __func__, tracksegment,
+                   CONV_TO_UTF8( TRACK::ShowState( tracksegment->GetState( -1 ) ) )
+                   ); )
 
-            DrawPanel->PostDirtyRect( t->GetBoundingBox() );
-        }
+        GetBoard()->m_Track.Remove( tracksegment );
 
-        SaveItemEfface( trackList, nb_segm );
+        // redraw the area where the track was
+        DrawPanel->PostDirtyRect( tracksegment->GetBoundingBox() );
+        picker.m_PickedItem     = tracksegment;
+        picker.m_PickedItemType = tracksegment->Type();
+        itemsList.PushItem( picker );
     }
+
+    SaveCopyInUndoList( itemsList, UR_DELETED );
+    if( net_code > 0 )
+        test_1_net_connexion( DC, net_code );
 }

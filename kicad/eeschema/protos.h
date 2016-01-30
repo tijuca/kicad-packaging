@@ -1,12 +1,22 @@
-//*****************************************/
-/* prototypage des fonctions de EESchema */
-/*****************************************/
-void FreeLibraryEntry(LibCmpEntry * Entry);
 
-LibEDA_BaseStruct * LocatePin(const wxPoint & RefPos,
-            EDA_LibComponentStruct * Entry,
-            int Unit, int Convert, SCH_COMPONENT * DrawItem = NULL);
-        /* Routine de localisation d'une PIN de la PartLib pointee par Entry */
+#ifndef __PROTOS_H__
+#define __PROTOS_H__
+
+
+class EDA_BaseStruct;
+class WinEDA_DrawPanel;
+class WinEDA_SchematicFrame;
+class LIB_COMPONENT;
+class LIB_DRAW_ITEM;
+class SCH_COMPONENT;
+class BASE_SCREEN;
+class SCH_SCREEN;
+class SCH_ITEM;
+class SCH_SHEET_PIN;
+class PLOTTER;
+class SCH_SHEET;
+class LIB_PIN;
+
 
 wxString ReturnDefaultFieldName( int aFieldNdx );
 
@@ -14,382 +24,278 @@ wxString ReturnDefaultFieldName( int aFieldNdx );
 /****************/
 /* DATABASE.CPP */
 /****************/
-void DisplayCmpDoc(wxString & Name);
-bool DataBaseGetName(WinEDA_DrawFrame * frame,
-        wxString & Keys, wxString & BufName);
+void DisplayCmpDoc( wxString& Name );
+wxString DataBaseGetName( WinEDA_DrawFrame* frame, wxString& Keys,
+                          wxString& BufName );
 
 /*********************/
 /* DANGLING_ENDS.CPP */
 /*********************/
-bool SegmentIntersect(int Sx1, int Sy1, int Sx2, int Sy2, int Px1, int Py1);
+bool SegmentIntersect( int Sx1, int Sy1, int Sx2, int Sy2, int Px1, int Py1 );
 
 /****************/
 /* BUS_WIRE_JUNCTION.CPP */
 /****************/
-void IncrementLabelMember(wxString & name);
+void IncrementLabelMember( wxString& name );
 
 /****************/
 /* EDITPART.CPP */
 /****************/
-void InstallCmpeditFrame(WinEDA_SchematicFrame * parent, wxPoint & pos,
-            SCH_COMPONENT * m_Cmp);
+void InstallCmpeditFrame( WinEDA_SchematicFrame* parent, wxPoint& pos,
+                          SCH_COMPONENT* m_Cmp );
 
 
-    /******************************/
-    /* EELIBS_DRAW_COMPONENTS.CPP */
-    /******************************/
-int LibraryEntryCompare(EDA_LibComponentStruct *LE1, EDA_LibComponentStruct *LE2);
-int NumOfLibraries();
-EDA_LibComponentStruct *FindLibPart(const wxChar *Name, const wxString & LibName, int Alias = FIND_ROOT);
+bool MapAngles( int*      Angle1,
+                int*      Angle2,
+                const int TransMat[2][2] );
 
-void DrawingLibInGhost(WinEDA_DrawPanel * panel, wxDC * DC, EDA_LibComponentStruct *LibEntry,
-                        SCH_COMPONENT * DrawLibItem, int PartX, int PartY,
-                        int Multi, int convert,
-                        int Color, bool DrawPinText);
 
-void DrawLibEntry(WinEDA_DrawPanel * panel, wxDC * DC,
-                            EDA_LibComponentStruct *LibEntry, const wxPoint & aOffset,
-                            int Multi, int convert,
-                            int DrawMode, int Color = -1);
-
-void DrawLibraryDrawStruct(WinEDA_DrawPanel * aPanel, wxDC * aDC,
-                            EDA_LibComponentStruct *aLibEntry, wxPoint aPosition,
-                          LibEDA_BaseStruct *aDrawItem,
-                          int aDrawMode, int aColor = -1);
-
-bool MapAngles(int *Angle1, int *Angle2, const int TransMat[2][2]);
-
-EDA_LibComponentStruct * Read_Component_Definition(WinEDA_DrawFrame * frame, char * Line,
-        FILE *f, int *LineNum);
-/* Routine to Read a DEF/ENDDEF part entry from given open file. */
-
-/** Function TransformCoordinate
- * Calculate the wew coordinate from the old one, according to the transform matrix.
+/**
+ * Calculate new coordinate according to the transform matrix.
+ *
  * @param aTransformMatrix = rotation, mirror .. matrix
  * @param aPosition = the position to transform
  * @return the new coordinate
  */
-wxPoint     TransformCoordinate( const int aTransformMatrix[2][2], const wxPoint & aPosition );
+wxPoint        TransformCoordinate( const int      aTransformMatrix[2][2],
+                                    const wxPoint& aPosition );
 
-LibraryStruct *FindLibrary(const wxString & Name);
-int LoadDocLib(WinEDA_DrawFrame * frame, const wxString & FullDocLibName, const wxString & Libname);
-PriorQue *LoadLibraryAux(WinEDA_DrawFrame * frame, LibraryStruct * library,
-            FILE *f, int *NumOfParts);
-LibraryStruct * LoadLibraryName(WinEDA_DrawFrame * frame,
-                const wxString & FullLibName, const wxString & LibName);
-void LoadLibraries(WinEDA_DrawFrame * frame);
-void FreeCmpLibrary(wxWindow * frame, const wxString & LibName);
-const wxChar **GetLibNames();
+void           SnapLibItemPoint( int            OrigX,
+                                 int            OrigY,
+                                 int*           ClosestX,
+                                 int*           ClosestY,
+                                 SCH_COMPONENT* DrawLibItem );
+bool           LibItemInBox( int x1, int y1, int x2, int y2,
+                             SCH_COMPONENT* DrawLibItem );
 
-void SnapLibItemPoint(int OrigX, int OrigY, int *ClosestX, int *ClosestY,
-                         SCH_COMPONENT *DrawLibItem);
-bool LibItemInBox(int x1, int y1, int x2, int y2,
-                    SCH_COMPONENT *DrawLibItem);
-char * StrPurge(char * text);
-                /* Supprime les caracteres Space en debut de la ligne text
-                   retourne un pointeur sur le 1er caractere non Space de text */
+/************/
+/* BLOCK.CPP */
+/************/
+SCH_ITEM* DuplicateStruct( SCH_ITEM* DrawStruct );
+void      DeleteStruct( WinEDA_DrawPanel* panel,
+                        wxDC*             DC,
+                        SCH_ITEM*         DrawStruct );
 
-    /************/
-    /* BLOCK.CPP */
-    /************/
-SCH_ITEM * DuplicateStruct(SCH_ITEM *DrawStruct);
-void MoveOneStruct(SCH_ITEM *DrawStructs, const wxPoint & move_vector);
-                        /* Given a structure move it by move_vector. */
+/*************/
+/* LOCATE.CPP */
+/*************/
 
-bool PlaceStruct(BASE_SCREEN * screen, SCH_ITEM *DrawStruct);
-bool MoveStruct(WinEDA_DrawPanel * panel, wxDC * DC, SCH_ITEM *DrawStruct);
-void DeleteStruct(WinEDA_DrawPanel * panel, wxDC * DC, SCH_ITEM *DrawStruct);
-bool DrawStructInBox(int x1, int y1, int x2, int y2,
-                        SCH_ITEM *DrawStruct);
+SCH_COMPONENT*  LocateSmallestComponent( SCH_SCREEN* Screen );
 
-    /*************/
-    /* LOCATE.CPP */
-    /*************/
-LibDrawPin* LocatePinByNumber( const wxString & ePin_Number,
-                             SCH_COMPONENT* eComponent );
+/* Find the item within block selection. */
+int             PickItemsInBlock( BLOCK_SELECTOR& aBlock,
+                                  BASE_SCREEN*    screen );
 
-SCH_COMPONENT * LocateSmallestComponent( SCH_SCREEN * Screen );
-/* Recherche du plus petit (en surface) composant pointe par la souris */
-
-SCH_ITEM * PickStruct(EDA_Rect & block, BASE_SCREEN* screen, int SearchMask );
-SCH_ITEM * PickStruct(const wxPoint & refpos, BASE_SCREEN* screen, int SearchMask);
-/* 2 functions PickStruct:
-    Search in  block, or Search at location pos
-
-    SearchMask = (bitwise OR):
-    LIBITEM
-    WIREITEM
-    BUSITEM
-    RACCORDITEM
-    JUNCTIONITEM
-    DRAWITEM
-    TEXTITEM
-    LABELITEM
-    SHEETITEM
-    MARKERITEM
-    NOCONNECTITEM
-    SEARCH_PINITEM
-    SHEETLABELITEM
-    FIELDCMPITEM
-
-    if EXCLUDE_WIRE_BUS_ENDPOINTS is set, in wire ou bus search and locate,
-    start and end points are not included in search
-    if WIRE_BUS_ENDPOINTS_ONLY is set, in wire ou bus search and locate,
-    only start and end points are included in search
+/* function PickStruct:
+ *   Search at location pos
+ *
+ *   SearchMask = (bitwise OR):
+ *   LIBITEM
+ *   WIREITEM
+ *   BUSITEM
+ *   RACCORDITEM
+ *   JUNCTIONITEM
+ *   DRAWITEM
+ *   TEXTITEM
+ *   LABELITEM
+ *   SHEETITEM
+ *   MARKERITEM
+ *   NOCONNECTITEM
+ *   SEARCH_PINITEM
+ *   SHEETLABELITEM
+ *   FIELDCMPITEM
+ *
+ *   if EXCLUDE_WIRE_BUS_ENDPOINTS is set, in wire ou bus search and locate,
+ *   start and end points are not included in search
+ *   if WIRE_BUS_ENDPOINTS_ONLY is set, in wire ou bus search and locate,
+ *   only start and end points are included in search
+ *
+ *
+ *   Return:
+ *     Pointer to list of pointers to structures if several items are selected.
+ *     Pointer to the structure if only 1 item is selected.
+ *     NULL if no items are selects.
+ */
+SCH_ITEM*          PickStruct( const wxPoint& refpos,
+                               BASE_SCREEN*   screen,
+                               int            SearchMask );
 
 
-    Return:
-        -Bloc searc:
-            pointeur sur liste de pointeurs de structures si Plusieurs
-                    structures selectionnees.
-            pointeur sur la structure si 1 seule
+SCH_SHEET_PIN* LocateSheetLabel( SCH_SHEET* Sheet, const wxPoint& pos );
+LIB_PIN*                       LocateAnyPin( SCH_ITEM*       DrawList,
+                                             const wxPoint&  RefPos,
+                                             SCH_COMPONENT** libpart = NULL );
 
-        Positon serach:
-            pointeur sur la structure.
-        Si pas de structures selectionnees: retourne NULL */
-
-
-
-LibEDA_BaseStruct * LocateDrawItem(SCH_SCREEN * Screen, const wxPoint & refpoint,
-        EDA_LibComponentStruct * LibEntry, int Unit, int Convert, int masque);
-
-Hierarchical_PIN_Sheet_Struct * LocateSheetLabel(DrawSheetStruct *Sheet, const wxPoint & pos);
-LibDrawPin * LocateAnyPin(SCH_ITEM *DrawList, const wxPoint & RefPos,
-        SCH_COMPONENT ** libpart = NULL );
-
-Hierarchical_PIN_Sheet_Struct * LocateAnyPinSheet(const wxPoint & RefPos,
-                    SCH_ITEM *DrawList);
-
-int distance(int dx, int dy, int spot_cX, int spot_cY, int seuil);
-    /* Calcul de la distance du point spot_cx,spot_cy a un segment de droite,
-        d'origine 0,0 et d'extremite dx, dy;
-        retourne:
-             0 si distance > seuil
-             1 si distance <= seuil
-         Variables utilisees ( sont ramenees au repere centre sur l'origine du segment)
-             dx, dy = coord de l'extremite segment.
-             spot_cX,spot_cY = coord du curseur souris
-         la recherche se fait selon 4 cas:
-             segment horizontal
-             segment vertical
-             segment quelconque */
+SCH_SHEET_PIN* LocateAnyPinSheet( const wxPoint& RefPos,
+                                  SCH_ITEM*      DrawList );
 
 
 /***************/
 /* EEREDRAW.CPP */
 /***************/
-void DrawDanglingSymbol(WinEDA_DrawPanel * panel,wxDC * DC,
-            const wxPoint & pos, int Color);
+void DrawDanglingSymbol( WinEDA_DrawPanel* panel, wxDC* DC,
+                         const wxPoint& pos, int Color );
 
-void Draw_Marqueur(WinEDA_DrawPanel * panel, wxDC * DC,
-            wxPoint pos, char* pt_bitmap, int DrawMode, int Color);
-
-void DrawStructsInGhost(WinEDA_DrawPanel * panel, wxDC * DC,
-                                    SCH_ITEM * DrawStruct, int dx, int dy );
-void SetHighLightStruct(SCH_ITEM *HighLight);
-void RedrawActiveWindow(WinEDA_DrawPanel * panel, wxDC * DC);
-void RedrawStructList(WinEDA_DrawPanel * panel, wxDC * DC, SCH_ITEM *Structs, int DrawMode,
-                                    int Color = -1);
-void RedrawOneStruct(WinEDA_DrawPanel * panel, wxDC * DC, SCH_ITEM *Struct, int DrawMode,
-                                    int Color = -1);
+void DrawStructsInGhost( WinEDA_DrawPanel* aPanel,
+                         wxDC*             aDC,
+                         SCH_ITEM*         aItem,
+                         const wxPoint&    aOffset );
+void SetHighLightStruct( SCH_ITEM* HighLight );
+void RedrawActiveWindow( WinEDA_DrawPanel* panel, wxDC* DC );
+void RedrawStructList( WinEDA_DrawPanel* panel,
+                       wxDC*             DC,
+                       SCH_ITEM*         Structs,
+                       int               DrawMode,
+                       int               Color = -1 );
+void RedrawOneStruct( WinEDA_DrawPanel* panel,
+                      wxDC*             DC,
+                      SCH_ITEM*         Struct,
+                      int               DrawMode,
+                      int               Color = -1 );
 
 /**************/
 /* EELAYER.CPP */
 /**************/
-void SeedLayers();
-EDA_Colors ReturnLayerColor(int Layer);
-void DisplayColorSetupFrame(WinEDA_DrawFrame * parent, const wxPoint & pos);
+void       SeedLayers();
+EDA_Colors ReturnLayerColor( int Layer );
+void       DisplayColorSetupFrame( WinEDA_SchematicFrame* parent,
+                                   const wxPoint&    pos );
 
 /*************/
 /* EELOAD.CPP */
 /*************/
-int CountCmpNumber();
+int  CountCmpNumber();
 
 /***************/
 /* EECONFIG.CPP */
 /***************/
-bool Read_Config( const wxString & CfgFileName, bool ForceRereadConfig );
-bool Read_Hotkey_Config( WinEDA_DrawFrame * frame, bool verbose );
+bool Read_Hotkey_Config( WinEDA_DrawFrame* frame, bool verbose );
 
-
-/**************/
-/* SAVELIB.CPP */
-/**************/
-
-LibEDA_BaseStruct * CopyDrawEntryStruct( wxWindow * frame, LibEDA_BaseStruct * DrawItem);
-    /* Routine de Duplication d'une structure DrawLibItem d'une partlib
-         Parametres d'entree:
-             DrawEntry = pointeur sur la structure a dupliquer
-         La structure nouvelle est creee, mais n'est pas inseree dans le
-         chainage
-         Retourne:
-             Pointeur sur la structure creee (ou NULL si impossible) */
-
-
-EDA_LibComponentStruct * CopyLibEntryStruct (wxWindow * frame, EDA_LibComponentStruct * OldEntry);
-            /* Routine de copie d'une partlib
-                   Parametres d'entree: pointeur sur la structure de depart
-                   Parametres de sortie: pointeur sur la structure creee */
-
-
-/***************/
-/* SYMBEDIT.CPP */
-/***************/
-void SuppressDuplicateDrawItem(EDA_LibComponentStruct * LibEntry);
-        /* Routine de suppression des elements de trace dupliques, situation
-        frequente lorsque l'on charge des symboles predessines plusieurs fois
-        pour definir un composant */
 
 /**************/
 /* NETLIST.CPP */
 /**************/
-int IsBusLabel(const wxString & LabelDrawList);
+int  IsBusLabel( const wxString& LabelDrawList );
 
 /***************/
 /* ANNOTATE.CPP */
 /***************/
 void ReAnnotatePowerSymbolsOnly();
 
-int CheckAnnotate(WinEDA_SchematicFrame * frame, bool OneSheetOnly);
-                /* Retourne le nombre de composants non annotes ou erron�s
-                    Si OneSheetOnly : recherche sur le schema courant
-                    else: recherche sur toute la hierarchie */
-
 
 /************/
 /* PLOT.CPP */
 /************/
-void SetCurrentLineWidth( int width);
-
-void PlotArc(wxPoint centre, int StAngle, int EndAngle, int rayon, int width = -1);
-void PlotCercle(wxPoint centre, int diametre, bool fill, int width = -1);
-void PlotPoly( int nb, int * coord, bool fill, int width = -1);
-
-void PlotNoConnectStruct(DrawNoConnectStruct * Struct);
-void PlotLibPart( SCH_COMPONENT *DrawLibItem );
-                    /* Genere le trace d'un composant */
-void PlotSheetStruct(DrawSheetStruct *Struct);
-                    /* Routine de dessin du bloc type hierarchie */
-void PlotTextStruct(EDA_BaseStruct *Struct);
+void PlotDrawlist( PLOTTER* plotter, SCH_ITEM* drawlist );
 
 /***************/
 /* DELSHEET.CPP */
 /***************/
-void DeleteSubHierarchy(DrawSheetStruct * Sheet, bool confirm_deletion);
-bool ClearProjectDrawList(SCH_SCREEN * FirstWindow, bool confirm_deletion);
+void DeleteSubHierarchy( SCH_SHEET* Sheet, bool confirm_deletion );
+bool ClearProjectDrawList( SCH_SCREEN* FirstWindow, bool confirm_deletion );
+
 /* free the draw list screen->EEDrawList and the subhierarchies
-    clear the screen datas (filenames ..)
-*/
+ *   clear the screen datas (filenames ..)
+ */
 
 /*************/
 /* DELETE.CPP */
 /*************/
 
-bool LocateAndDeleteItem(WinEDA_SchematicFrame * frame, wxDC * DC);
-void EraseStruct(SCH_ITEM *DrawStruct, SCH_SCREEN * Window);
-void DeleteAllMarkers(int type);
-                        /* Effacement des marqueurs du type "type" */
-
-void DeleteOneLibraryDrawStruct(WinEDA_DrawPanel * panel,
-                            wxDC *DC, EDA_LibComponentStruct * LibEntry,
-                            LibEDA_BaseStruct * DrawItem, int Affiche);
-    /* Routine d'effacement d'un "LibraryDrawStruct"
-        (d'un element de dessin d'un composant )
-         Parametres d'entree
-            Pointeur sur le composant comportant la structure
-                 (Si NULL la structure a effacer est supposee non rattachee
-                a un composant)
-            Pointeur sur la structure a effacer
-            Affiche (si != 0 Efface le graphique correspondant de l'ecran) */
-
-
-/**************/
-/* GETPART.CPP */
-/**************/
-
-int LookForConvertPart( EDA_LibComponentStruct * LibEntry );
-    /* Retourne la plus grande valeur trouvee dans la liste des elements
-         "drawings" du composant LibEntry, pour le membre .Convert
-         Si il n'y a pas de representation type "convert", la valeur
-         retournee est 0 ou 1
-         Si il y a une representation type "convert",
-         la valeur retournee est > 1 (typiquement 2) */
+bool LocateAndDeleteItem( WinEDA_SchematicFrame* frame, wxDC* DC );
+void EraseStruct( SCH_ITEM* DrawStruct, SCH_SCREEN* Window );
+void DeleteAllMarkers( int type );
 
 
 /**************/
 /* PINEDIT.CPP */
 /**************/
-void InstallPineditFrame(WinEDA_LibeditFrame * parent, wxDC * DC, const wxPoint & pos);
+void InstallPineditFrame( WinEDA_LibeditFrame* parent,
+                          wxDC*                DC,
+                          const wxPoint&       pos );
 
 
 /**************/
 /* SELPART.CPP */
 /**************/
 
-int DisplayComponentsNamesInLib(WinEDA_DrawFrame * frame,
-                 LibraryStruct *Library, wxString & Buffer, wxString &  OldName);
-LibraryStruct * SelectLibraryFromList(WinEDA_DrawFrame * frame);
-        /* Routine pour selectionner une librairie a partir d'une liste */
+/**
+ * Function DisplayComponentsNamesInLib
+ * Select component from list of components in this library
+ *
+ * If == NULL Library, selection of library REQUESTED
+ * If only in research library
+ *
+ * Returns
+ *   1 if selected component
+ *   0 if canceled order
+ */
+int            DisplayComponentsNamesInLib( WinEDA_DrawFrame* frame,
+                                            CMP_LIBRARY*      Library,
+                                            wxString&         Buffer,
+                                            wxString&         OldName );
 
-int GetNameOfPartToLoad(WinEDA_DrawFrame * frame, LibraryStruct * Lib,
-        wxString & BufName);
-    /* Routine de selection du nom d'un composant en librairie pour chargement,
-    dans la librairie Library.
-    Si Library == NULL, il y aura demande de selection d'une librairie
-    Retourne
-    1 si composant selectionne
-    0 si commande annulee
-    place le nom du composant a charger, selectionne a partir d'une liste dans
-    BufName */
+/**
+ * Function SelectLibraryFromList
+ * displays a list of current loaded libraries, and allows the user to select
+ * a library
+ * This list is sorted, with the library cache always at end of the list
+ */
+CMP_LIBRARY* SelectLibraryFromList( WinEDA_DrawFrame* frame );
 
-    /**************/
-    /* LIBARCH.CPP */
-    /**************/
+/**
+ * Get the name component from a library to load.
+ *
+ * If no library specified, there will be demand for selection of a library.
+ * Returns
+ *   1 if selected component
+ *   0 if canceled order
+ * Place the name of the selected component list in BufName
+ */
+int            GetNameOfPartToLoad( WinEDA_DrawFrame* frame,
+                                    CMP_LIBRARY*      Lib,
+                                    wxString&         BufName );
 
-bool LibArchive(wxWindow * frame, const wxString & ArchFullFileName);
+/**************/
+/* LIBARCH.CPP */
+/**************/
 
-    /**************/
-    /* CLEANUP.CPP */
-    /**************/
+bool LibArchive( wxWindow* frame, const wxString& ArchFullFileName );
 
-void SchematicCleanUp(SCH_SCREEN * screen, wxDC * DC);
-    /* Routine de nettoyage:
-         - regroupe les segments de fils (ou de bus) alignes en 1 seul segment
-         - Detecte les objets identiques superposes
-    */
+/**************/
+/* CLEANUP.CPP */
+/**************/
 
-void BreakSegmentOnJunction( SCH_SCREEN * Screen );
-    /* Routine creant des debuts / fin de segment (BUS ou WIRES) sur les jonctions
-        et les raccords */
-DrawPickedStruct * BreakSegment(SCH_SCREEN * screen, wxPoint breakpoint,
-            bool PutInUndoList = FALSE);
-    /* Coupe un segment ( BUS, WIRE ) en 2 au point breakpoint,
-        - si ce point est sur le segment
-        - extremites non comprises */
+void SchematicCleanUp( SCH_SCREEN* screen, wxDC* DC );
 
-    /**************/
-    /* EECLASS.CPP */
-    /**************/
+/* Routine de nettoyage:
+ *    - regroupe les segments de fils (ou de bus) alignes en 1 seul segment
+ *    - Detecte les objets identiques superposes
+ */
 
-void SetaParent(EDA_BaseStruct * Struct, BASE_SCREEN * Screen);
+void BreakSegmentOnJunction( SCH_SCREEN* Screen );
 
-    /***************/
-    /* LIBALIAS.CPP */
-    /***************/
+/* Break a segment ( BUS, WIRE ) int 2 segments at location aBreakpoint,
+ * if aBreakpoint in on segment segment
+ * ( excluding ends)
+ */
+void BreakSegment(SCH_SCREEN * aScreen, wxPoint aBreakpoint );
 
-bool BuildAliasData(LibraryStruct * Lib, EDA_LibComponentStruct * component);
-    /* Create the alias data for the lib component to edit */
-int LocateAlias( const wxArrayString & AliasData, const wxString & Name);
-    /* Return an index in alias data list ( -1 if not found ) */
+/**************/
+/* EECLASS.CPP */
+/**************/
 
+void SetaParent( EDA_BaseStruct* Struct, BASE_SCREEN* Screen );
 
 /***************/
 /* OPTIONS.CPP */
 /***************/
-void DisplayOptionFrame(WinEDA_DrawFrame * parent, const wxPoint & framepos);
+void DisplayOptionFrame( WinEDA_SchematicFrame* parent,
+                         const wxPoint&         framepos );
 
 /****************/
 /* CONTROLE.CPP */
 /****************/
 void RemoteCommand( const char* cmdline );
 
+#endif  /* __PROTOS_H__ */

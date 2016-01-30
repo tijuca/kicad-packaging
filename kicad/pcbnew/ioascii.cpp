@@ -1,10 +1,7 @@
-
-/********************************************************************/
-/* Routines de lecture et sauvegarde des structures en format ASCii */
-/*  Fichier common a PCBNEW et CVPCB								*/
-/********************************************************************/
-
-/* ioascii.cpp */
+/****************************************************/
+/* Routines for reading and saving of structures in */
+/* ASCII file common to Pcbnew and CVPCB.           */
+/****************************************************/
 
 #include "fctsys.h"
 #include "common.h"
@@ -12,6 +9,8 @@
 #include "kicad_string.h"
 
 #include "pcbnew.h"
+#include "wxPcbStruct.h"
+#include "class_board_design_settings.h"
 
 #ifdef PCBNEW
 #include "autorout.h"
@@ -22,85 +21,83 @@
 #include "cvpcb.h"
 #endif
 
-#include "id.h"
+#include "build_version.h"
+
+#include "pcbnew_id.h"
+
+/* ASCII format of structures:
+ *
+ * Structure PAD:
+ *
+ * $PAD
+ * Sh "name" form DIMVA dimH dV dH East: general form dV, dH = delta size
+ * Dr. diam dV dH: drill: diameter drilling offsets
+ * At Type S / N layers: standard, cms, conn, hole, meca.,
+ *    Stack / Normal, 32-bit hexadecimal: occupation layers
+ * Nm net_code netname
+ * Po posrefX posrefy: reFX position, Y (0 = east position / anchor)
+ * $EndPAD
+ *
+ * Module Structure
+ *
+ * $MODULE namelib
+ * Po ax ay east layer masquelayer m_TimeCode
+ *    ax ay ord = anchor (position module)
+ *    east = east to 0.1 degree
+ *    layer = layer number
+ *    masquelayer = silkscreen layer for
+ *    m_TimeCode internal use (groups)
+ * Li <namelib>
+ *
+ * Cd <text> description of the component (Component Doc)
+ * Kw <text> List of key words
+ *
+ * Sc schematic timestamp, reference schematic
+ *
+ * Op rot90 rot180 placement Options Auto (court rot 90, 180)
+ *    rot90 is about 2x4-bit:
+ *    lsb = cost rot 90, rot court msb = -90;
+ *
+ * Tn px py DIMVA dimh East thickness mirror visible "text"
+ *    n = type (0 = ref, val = 1,> 1 = qcq
+ *    Texts POS x, y / anchor and orient module 0
+ *    DIMVA dimh East
+ *    mirror thickness (Normal / Mirror)
+ *    Visible V / I
+ * DS ox oy fx fy w
+ *    Edge: coord segment ox, oy has fx, fy, on
+ *    was the anchor and orient 0
+ *    thickness w
+ * DC ox oy fx fy w descr circle (center, 1 point, thickness)
+ * $PAD
+ * $EndPAD section pads if available
+ * $Endmodule
+ */
 
 
-/* Format des structures de sauvegarde type ASCII :
-
- Structure PAD:
-
- $PAD
- Sh "name" forme dimv dimH dV dH orient  :forme generale dV, dH = delta dimensions
- Dr diam, dV dH					:drill : diametre offsets de percage
- At type S/N layers				: type standard,cms,conn,hole,meca.,
-                             Stack/Normal,
-                             Hexadecimal 32 bits: occupation des couches
- Nm net_code netname
- Po posrefX posrefy :			position refX,Y (= position orient 0 / ancre)
- $EndPAD
-
-****** Structure module ***********
-
- $MODULE namelib
- Po ax ay orient layer masquelayer m_TimeCode
-                                     ax ay = coord ancre (position module)
-                                     orient = orient en 0.1 degre
-                                     layer = numero de couche
-                                     masquelayer = couche pour serigraphie
-                                     m_TimeCode a usage interne (groupements)
- Li <namelib>
-
- Cd <text>						Description du composant (Composant Doc)
- Kw <text>						Liste des mots cle
-
- Sc schematimestamp						de reference schematique
-
- Op rot90 rot180					Options de placement auto (cout rot 90, 180 )
-                             rot90 est sur 2x4 bits:
-                             lsb = cout rot 90, msb = cout rot -90;
-
- Tn px py dimv dimh orient epaisseur miroir visible "texte"
-                             n = type (0 = ref, 1 = val, > 1 =qcq
-                             Textes POS x,y / ancre et orient module 0
-                             dimv dimh orient
-                             epaisseur miroir (Normal/miroir)
-                             visible V/I
- DS ox oy fx fy w
-                             edge: segment coord ox,oy a fx,fy, relatives
-                             a l'ancre et orient 0
-                             epaisseur w
- DC ox oy fx fy w				descr cercle (centre, 1 point, epaisseur)
- $PAD
- $EndPAD							section pads s'il y en a
- $EndMODULE
-*/
-
-extern Ki_PageDescr* SheetList[];
-
-/* Local Variables */
 int NbDraw, NbTrack, NbZone, NbMod, NbNets;
 
-
-/**********************************************************************/
-int WinEDA_BasePcbFrame::ReadListeSegmentDescr( FILE* File,
-       TRACK* insertBeforeMe, int StructType, int* LineNum, int NumSegm )
-/**********************************************************************/
 
 /** Read a list of segments (Tracks, zones)
  * @return items count or - count if no end block ($End...) found.
  */
+int WinEDA_BasePcbFrame::ReadListeSegmentDescr( FILE*  File,
+                                                TRACK* insertBeforeMe,
+                                                int    StructType,
+                                                int*   LineNum,
+                                                int    NumSegm )
 {
-    int             shape, width, drill, layer, type, flags, net_code;
-    int             ii = 0;
-    char            line1[256];
-    char            line2[256];
+    int    shape, width, drill, layer, type, flags, net_code;
+    int    ii = 0;
+    char   line1[256];
+    char   line2[256];
 
-    TRACK*          newTrack;
+    TRACK* newTrack;
 
     while( GetLine( File, line1, LineNum ) )
     {
-        int             makeType;
-        unsigned long   timeStamp;
+        int           makeType;
+        unsigned long timeStamp;
 
         if( line1[0] == '$' )
         {
@@ -110,7 +107,8 @@ int WinEDA_BasePcbFrame::ReadListeSegmentDescr( FILE* File,
         // Read the 2nd line to determine the exact type, one of:
         // TYPE_TRACK, TYPE_VIA, or TYPE_ZONE.  The type field in 2nd line
         // differentiates between TYPE_TRACK and TYPE_VIA.  With virtual
-        // functions in use, it is critical to instantiate the TYPE_VIA exactly.
+        // functions in use, it is critical to instantiate the TYPE_VIA
+        // exactly.
         if( GetLine( File, line2, LineNum ) == NULL )
             break;
 
@@ -139,9 +137,10 @@ int WinEDA_BasePcbFrame::ReadListeSegmentDescr( FILE* File,
             GetBoard()->m_Track.Insert( newTrack, insertBeforeMe );
             break;
 
-        case TYPE_ZONE:
+        case TYPE_ZONE:     // this is now deprecated, but exits in old boards
             newTrack = new SEGZONE( GetBoard() );
-            GetBoard()->m_Zone.Insert( (SEGZONE*)newTrack, (SEGZONE*)insertBeforeMe );
+            GetBoard()->m_Zone.Insert( (SEGZONE*) newTrack,
+                                       (SEGZONE*) insertBeforeMe );
             break;
         }
 
@@ -158,9 +157,17 @@ int WinEDA_BasePcbFrame::ReadListeSegmentDescr( FILE* File,
         if( arg_count < 7 || drill <= 0 )
             newTrack->SetDrillDefault();
         else
-            newTrack->SetDrillValue(drill);
+            newTrack->SetDrillValue( drill );
 
         newTrack->SetLayer( layer );
+
+        if( makeType == TYPE_VIA ) // Ensure layers are OK when possible:
+        {
+            if( newTrack->Shape() == VIA_THROUGH )
+                ( (SEGVIA*) newTrack )->SetLayerPair( LAYER_N_FRONT,
+                                                      LAYER_N_BACK );
+        }
+
         newTrack->SetNet( net_code );
         newTrack->SetState( flags, ON );
     }
@@ -170,17 +177,27 @@ int WinEDA_BasePcbFrame::ReadListeSegmentDescr( FILE* File,
 }
 
 
-/**********************************************************************************/
 int WinEDA_BasePcbFrame::ReadGeneralDescrPcb( FILE* File, int* LineNum )
-/**********************************************************************************/
 {
-    char         Line[1024], * data;
+    char Line[1024], * data;
 
     while(  GetLine( File, Line, LineNum ) != NULL )
     {
         data = strtok( Line, " =\n\r" );
         if( strnicmp( data, "$EndGENERAL", 10 ) == 0 )
             break;
+
+        if( stricmp( data, "EnabledLayers" ) == 0 )
+        {
+            int EnabledLayers = 0;
+            data = strtok( NULL, " =\n\r" );
+            sscanf( data, "%X", &EnabledLayers );
+
+            // Setup layer visibility
+            GetBoard()->SetEnabledLayers( EnabledLayers );
+
+            continue;
+        }
 
         if( strncmp( data, "Ly", 2 ) == 0 )    // Old format for Layer count
         {
@@ -189,21 +206,28 @@ int WinEDA_BasePcbFrame::ReadGeneralDescrPcb( FILE* File, int* LineNum )
             sscanf( data, "%X", &Masque_Layer );
 
             // Setup layer count
-            GetBoard()->m_BoardSettings->m_CopperLayerCount = 0;
+            int layer_count = 0;
             for( ii = 0; ii < NB_COPPER_LAYERS; ii++ )
             {
                 if( Masque_Layer & 1 )
-                    GetBoard()->m_BoardSettings->m_CopperLayerCount++;
+                    layer_count++;
                 Masque_Layer >>= 1;
             }
 
+            GetBoard()->SetCopperLayerCount( layer_count );
+
+            continue;
+        }
+        if( stricmp( data, "BoardThickness" ) == 0 )
+        {
+            data = strtok( NULL, " =\n\r" );
+            GetBoard()->GetBoardDesignSettings()->m_BoardThickness = atoi( data );;
             continue;
         }
 
         if( strnicmp( data, "Links", 5 ) == 0 )
         {
-            data = strtok( NULL, " =\n\r" );
-            GetBoard()->m_NbLinks = atoi( data );
+            // Info only, do nothing
             continue;
         }
 
@@ -222,13 +246,15 @@ int WinEDA_BasePcbFrame::ReadGeneralDescrPcb( FILE* File, int* LineNum )
             data = strtok( NULL, " =\n\r" );
             GetBoard()->m_BoundaryBox.SetY( atoi( data ) );
             data = strtok( NULL, " =\n\r" );
-            GetBoard()->m_BoundaryBox.SetWidth( atoi( data ) - GetBoard()->m_BoundaryBox.GetX() );
+            GetBoard()->m_BoundaryBox.SetWidth(
+                atoi( data ) - GetBoard()->m_BoundaryBox.GetX() );
             data = strtok( NULL, " =\n\r" );
-            GetBoard()->m_BoundaryBox.SetHeight( atoi( data ) - GetBoard()->m_BoundaryBox.GetY() );
+            GetBoard()->m_BoundaryBox.SetHeight(
+                atoi( data ) - GetBoard()->m_BoundaryBox.GetY() );
             continue;
         }
 
-        /* Lecture du nombre de segments type DRAW , TRACT, ZONE */
+        /* Reading the number of segments of type DRAW, TRACK, ZONE */
         if( stricmp( data, "Ndraw" ) == 0 )
         {
             data   = strtok( NULL, " =\n\r" );
@@ -269,11 +295,12 @@ int WinEDA_BasePcbFrame::ReadGeneralDescrPcb( FILE* File, int* LineNum )
 }
 
 
-/*************************************************************/
 int WinEDA_BasePcbFrame::ReadSetup( FILE* File, int* LineNum )
-/*************************************************************/
 {
-    char Line[1024], * data;
+    char      Line[1024];
+    char*     data;
+
+    NETCLASS* netclass_default = GetBoard()->m_NetClasses.GetDefault();
 
     while(  GetLine( File, Line, LineNum ) != NULL )
     {
@@ -282,6 +309,23 @@ int WinEDA_BasePcbFrame::ReadSetup( FILE* File, int* LineNum )
 
         if( stricmp( Line, "$EndSETUP" ) == 0 )
         {
+            // Until such time as the *.brd file does not have the
+            // global parameters:
+            // "TrackWidth", "TrackMinWidth", "ViaSize", "ViaDrill",
+            // "ViaMinSize", and "TrackClearence", put those same global
+            // values into the default NETCLASS until later board load
+            // code should override them.  *.brd files which have been
+            // saved with knowledge of NETCLASSes will override these
+            // defaults, old boards will not.
+            //
+            // @todo: I expect that at some point we can remove said global
+            //        parameters from the *.brd file since the ones in the
+            //        default netclass serve the same purpose.  If needed
+            //        at all, the global defaults should go into a preferences
+            //        file instead so they are there to start new board
+            //        projects.
+            GetBoard()->m_NetClasses.GetDefault()->SetParams();
+
             return 0;
         }
 
@@ -301,19 +345,19 @@ int WinEDA_BasePcbFrame::ReadSetup( FILE* File, int* LineNum )
         {
             int tmp;
             sscanf( data, "%d", &tmp );
-            GetBoard()->m_BoardSettings->m_CopperLayerCount = tmp;
+            GetBoard()->SetCopperLayerCount( tmp );
             continue;
         }
 
-        const int LAYERKEYZ = sizeof("Layer[")-1;
+        const int LAYERKEYZ = sizeof("Layer[") - 1;
 
         if( strncmp( Line, "Layer[", LAYERKEYZ ) == 0 )
         {
             // parse:
             // Layer[n]  <a_Layer_name_with_no_spaces> <LAYER_T>
 
-            char* cp = Line + LAYERKEYZ;
-            int layer = atoi(cp);
+            char* cp    = Line + LAYERKEYZ;
+            int   layer = atoi( cp );
 
             if( data )
             {
@@ -330,23 +374,27 @@ int WinEDA_BasePcbFrame::ReadSetup( FILE* File, int* LineNum )
             continue;
         }
 
-        if( stricmp( Line, "TrackWidth" ) == 0 )
+        if( stricmp( Line, "TrackWidth" ) == 0 )    // no more used
         {
-            g_DesignSettings.m_CurrentTrackWidth = atoi( data );
-            AddHistory( g_DesignSettings.m_CurrentTrackWidth, TYPE_TRACK );
             continue;
         }
 
-        if( stricmp( Line, "TrackWidthHistory" ) == 0 )
+        if( stricmp( Line, "TrackWidthList" ) == 0 )
         {
             int tmp = atoi( data );
-            AddHistory( tmp, TYPE_TRACK );
+            GetBoard()->m_TrackWidthList.push_back( tmp );
             continue;
         }
 
         if( stricmp( Line, "TrackClearence" ) == 0 )
         {
-            g_DesignSettings.m_TrackClearence = atoi( data );
+            netclass_default->SetClearance( atoi( data ) );
+            continue;
+        }
+
+        if( stricmp( Line, "TrackMinWidth" ) == 0 )
+        {
+            GetBoard()->GetBoardDesignSettings()->m_TrackMinWidth = atoi( data );
             continue;
         }
 
@@ -356,80 +404,99 @@ int WinEDA_BasePcbFrame::ReadSetup( FILE* File, int* LineNum )
             continue;
         }
 
-        if( stricmp( Line, "ZoneGridSize" ) == 0 )
-        {
-            g_GridRoutingSize = atoi( data );
-            continue;
-        }
-
-
         if( stricmp( Line, "DrawSegmWidth" ) == 0 )
         {
-            g_DesignSettings.m_DrawSegmentWidth = atoi( data );
+            GetBoard()->GetBoardDesignSettings()->m_DrawSegmentWidth = atoi( data );
             continue;
         }
 
         if( stricmp( Line, "EdgeSegmWidth" ) == 0 )
         {
-            g_DesignSettings.m_EdgeSegmentWidth = atoi( data );
+            GetBoard()->GetBoardDesignSettings()->m_EdgeSegmentWidth = atoi( data );
             continue;
         }
 
-        if( stricmp( Line, "ViaSize" ) == 0 )
+        if( stricmp( Line, "ViaSize" ) == 0 )    // no more used
         {
-            g_DesignSettings.m_CurrentViaSize = atoi( data );
-            AddHistory( g_DesignSettings.m_CurrentViaSize, TYPE_VIA );
             continue;
         }
 
-        if( stricmp( Line, "MicroViaSize" ) == 0 )
+        if( stricmp( Line, "ViaMinSize" ) == 0 )
         {
-            g_DesignSettings.m_CurrentMicroViaSize = atoi( data );
+            GetBoard()->GetBoardDesignSettings()->m_ViasMinSize = atoi( data );
             continue;
         }
 
-        if( stricmp( Line, "ViaSizeHistory" ) == 0 )
+        if( stricmp( Line, "MicroViaSize" ) == 0 )  // Not used
         {
-            int tmp = atoi( data );
-            AddHistory( tmp, TYPE_VIA );
+            continue;
+        }
+
+        if( stricmp( Line, "MicroViaMinSize" ) == 0 )
+        {
+            GetBoard()->GetBoardDesignSettings()->m_MicroViasMinSize = atoi( data );
+            continue;
+        }
+
+        if( stricmp( Line, "ViaSizeList" ) == 0 )
+        {
+            int           tmp = atoi( data );
+            VIA_DIMENSION via_dim;
+            via_dim.m_Diameter = tmp;
+            data = strtok( NULL, " \n\r" );
+            if( data )
+            {
+                tmp = atoi( data );
+                via_dim.m_Drill = tmp > 0 ? tmp : 0;
+            }
+            GetBoard()->m_ViasDimensionsList.push_back( via_dim );
             continue;
         }
 
         if( stricmp( Line, "ViaDrill" ) == 0 )
         {
-            g_DesignSettings.m_ViaDrill = atoi( data );
+            int diameter = atoi( data );
+            netclass_default->SetViaDrill( diameter );
             continue;
         }
 
-        if( stricmp( Line, "ViaAltDrill" ) == 0 )
+        if( stricmp( Line, "ViaMinDrill" ) == 0 )
         {
-            g_DesignSettings.m_ViaDrillCustomValue = atoi( data );
+            GetBoard()->GetBoardDesignSettings()->m_ViasMinDrill = atoi( data );
             continue;
         }
 
         if( stricmp( Line, "MicroViaDrill" ) == 0 )
         {
-            g_DesignSettings.m_MicroViaDrill = atoi( data );
+            int diameter = atoi( data );
+            netclass_default->SetuViaDrill( diameter );
+            continue;
+        }
+
+        if( stricmp( Line, "MicroViaMinDrill" ) == 0 )
+        {
+            int diameter = atoi( data );
+            GetBoard()->GetBoardDesignSettings()->m_MicroViasMinDrill = diameter;
             continue;
         }
 
         if( stricmp( Line, "MicroViasAllowed" ) == 0 )
         {
-            g_DesignSettings.m_MicroViasAllowed = atoi( data );
+            GetBoard()->GetBoardDesignSettings()->m_MicroViasAllowed = atoi( data );
             continue;
         }
 
         if( stricmp( Line, "TextPcbWidth" ) == 0 )
         {
-            g_DesignSettings.m_PcbTextWidth = atoi( data );
+            GetBoard()->GetBoardDesignSettings()->m_PcbTextWidth = atoi( data );
             continue;
         }
 
         if( stricmp( Line, "TextPcbSize" ) == 0 )
         {
-            g_DesignSettings.m_PcbTextSize.x = atoi( data );
+            GetBoard()->GetBoardDesignSettings()->m_PcbTextSize.x = atoi( data );
             data = strtok( NULL, " =\n\r" );
-            g_DesignSettings.m_PcbTextSize.y = atoi( data );
+            GetBoard()->GetBoardDesignSettings()->m_PcbTextSize.y = atoi( data );
             continue;
         }
 
@@ -467,7 +534,55 @@ int WinEDA_BasePcbFrame::ReadSetup( FILE* File, int* LineNum )
             g_Pad_Master.m_Drill.y = g_Pad_Master.m_Drill.x;
             continue;
         }
+        if( stricmp( Line, "Pad2MaskClearance" ) == 0 )
+        {
+            GetBoard()->GetBoardDesignSettings()->m_SolderMaskMargin = atoi( data );
+            continue;
+        }
+        if( stricmp( Line, "Pad2PasteClearance" ) == 0 )
+        {
+            GetBoard()->GetBoardDesignSettings()->m_SolderPasteMargin = atoi( data );
+            continue;
+        }
+        if( stricmp( Line, "Pad2PasteClearanceRatio" ) == 0 )
+        {
+            GetBoard()->GetBoardDesignSettings()->m_SolderPasteMarginRatio = atof( data );
+            continue;
+        }
+
 #endif
+    }
+
+    /* Ensure tracks and vias sizes lists are ok:
+     * Sort lists by by increasing value and remove duplicates
+     * (the first value is not tested, because it is the netclass value
+     */
+    sort( GetBoard()->m_ViasDimensionsList.begin() + 1,
+         GetBoard()->m_ViasDimensionsList.end() );
+    sort( GetBoard()->m_TrackWidthList.begin() + 1,
+         GetBoard()->m_TrackWidthList.end() );
+    for( unsigned ii = 1;
+         ii < GetBoard()->m_ViasDimensionsList.size() - 1;
+         ii++ )
+    {
+        if( GetBoard()->m_ViasDimensionsList[ii]
+            == GetBoard()->m_ViasDimensionsList[ii + 1] )
+        {
+            GetBoard()->m_ViasDimensionsList.erase(
+                GetBoard()->m_ViasDimensionsList.begin() + ii );
+            ii--;
+        }
+    }
+
+    for( unsigned ii = 1; ii < GetBoard()->m_TrackWidthList.size() - 1; ii++ )
+    {
+        if( GetBoard()->m_TrackWidthList[ii]
+            == GetBoard()->m_TrackWidthList[ii + 1] )
+        {
+            GetBoard()->m_TrackWidthList.erase(
+                GetBoard()->m_TrackWidthList.begin() + ii );
+            ii--;
+        }
     }
 
     return 1;
@@ -475,105 +590,143 @@ int WinEDA_BasePcbFrame::ReadSetup( FILE* File, int* LineNum )
 
 
 #ifdef PCBNEW
-/******************************************************************************/
 static int WriteSetup( FILE* aFile, WinEDA_BasePcbFrame* aFrame, BOARD* aBoard )
-/******************************************************************************/
 {
-    char text[1024];
-    int  ii;
+    NETCLASS* netclass_default = aBoard->m_NetClasses.GetDefault();
+    char      text[1024];
 
     fprintf( aFile, "$SETUP\n" );
     sprintf( text, "InternalUnit %f INCH\n", 1.0 / PCB_INTERNAL_UNIT );
-    fprintf( aFile, text );
+    fprintf( aFile, "%s", text );
 
     fprintf( aFile, "ZoneGridSize %d\n", g_GridRoutingSize );
 
     fprintf( aFile, "Layers %d\n", aBoard->GetCopperLayerCount() );
 
-    unsigned layerMask = g_TabAllCopperLayerMask[aBoard->GetCopperLayerCount()-1];
+    unsigned layerMask =
+        g_TabAllCopperLayerMask[aBoard->GetCopperLayerCount() - 1];
 
-    for( int layer=0;  layerMask;  ++layer, layerMask>>=1 )
+    for( int layer = 0; layerMask; ++layer, layerMask >>= 1 )
     {
         if( layerMask & 1 )
         {
             fprintf( aFile, "Layer[%d] %s %s\n", layer,
-                    CONV_TO_UTF8( aBoard->GetLayerName(layer) ),
-                    LAYER::ShowType( aBoard->GetLayerType( layer ) ) );
+                     CONV_TO_UTF8( aBoard->GetLayerName( layer ) ),
+                     LAYER::ShowType( aBoard->GetLayerType( layer ) ) );
         }
     }
 
-    fprintf( aFile, "TrackWidth %d\n", g_DesignSettings.m_CurrentTrackWidth );
-    for( int ii = 0; ii < HISTORY_NUMBER; ii++ )
-    {
-        if( g_DesignSettings.m_TrackWidthHistory[ii] == 0 )
-            break;
-        fprintf( aFile, "TrackWidthHistory %d\n",
-                 g_DesignSettings.m_TrackWidthHistory[ii] );
-    }
+    // Save current default track width, for compatibility with older
+    // pcbnew version;
+    fprintf( aFile, "TrackWidth %d\n", aBoard->GetCurrentTrackWidth() );
 
-    fprintf( aFile, "TrackClearence %d\n", g_DesignSettings.m_TrackClearence );
-    fprintf( aFile, "ZoneClearence %d\n", g_Zone_Default_Setting.m_ZoneClearance );
+    // Save custom tracks width list (the first is not saved here: this is the
+    // netclass value
+    for( unsigned ii = 1; ii < aBoard->m_TrackWidthList.size(); ii++ )
+        fprintf( aFile, "TrackWidthList %d\n", aBoard->m_TrackWidthList[ii] );
 
-    fprintf( aFile, "DrawSegmWidth %d\n", g_DesignSettings.m_DrawSegmentWidth );
-    fprintf( aFile, "EdgeSegmWidth %d\n", g_DesignSettings.m_EdgeSegmentWidth );
-    fprintf( aFile, "ViaSize %d\n", g_DesignSettings.m_CurrentViaSize );
-    fprintf( aFile, "ViaDrill %d\n", g_DesignSettings.m_ViaDrill );
-    fprintf( aFile, "ViaAltDrill %d\n", g_DesignSettings.m_ViaDrillCustomValue );
 
-    for( ii = 0; ii < HISTORY_NUMBER; ii++ )
-    {
-        if( g_DesignSettings.m_ViaSizeHistory[ii] == 0 )
-            break;
-        fprintf( aFile, "ViaSizeHistory %d\n", g_DesignSettings.m_ViaSizeHistory[ii] );
-    }
+    fprintf( aFile, "TrackClearence %d\n", netclass_default->GetClearance() );
+    fprintf( aFile,
+             "ZoneClearence %d\n",
+             g_Zone_Default_Setting.m_ZoneClearance );
+    fprintf( aFile, "TrackMinWidth %d\n", aBoard->GetBoardDesignSettings()->m_TrackMinWidth );
 
-    fprintf( aFile, "MicroViaSize %d\n", g_DesignSettings.m_CurrentMicroViaSize);
-    fprintf( aFile, "MicroViaDrill %d\n", g_DesignSettings.m_MicroViaDrill);
-    fprintf( aFile, "MicroViasAllowed %d\n", g_DesignSettings.m_MicroViasAllowed);
+    fprintf( aFile, "DrawSegmWidth %d\n", aBoard->GetBoardDesignSettings()->m_DrawSegmentWidth );
+    fprintf( aFile, "EdgeSegmWidth %d\n", aBoard->GetBoardDesignSettings()->m_EdgeSegmentWidth );
 
-    fprintf( aFile, "TextPcbWidth %d\n", g_DesignSettings.m_PcbTextWidth );
-    fprintf( aFile, "TextPcbSize %d %d\n",
-             g_DesignSettings.m_PcbTextSize.x, g_DesignSettings.m_PcbTextSize.y );
+    // Save current default via size, for compatibility with older pcbnew
+    // version;
+    fprintf( aFile, "ViaSize %d\n", netclass_default->GetViaDiameter() );
+    fprintf( aFile, "ViaDrill %d\n", netclass_default->GetViaDrill() );
+    fprintf( aFile, "ViaMinSize %d\n", aBoard->GetBoardDesignSettings()->m_ViasMinSize );
+    fprintf( aFile, "ViaMinDrill %d\n", aBoard->GetBoardDesignSettings()->m_ViasMinDrill );
+
+    // Save custom vias diameters list (the first is not saved here: this is
+    // the netclass value
+    for( unsigned ii = 1; ii < aBoard->m_ViasDimensionsList.size(); ii++ )
+        fprintf( aFile, "ViaSizeList %d %d\n",
+                 aBoard->m_ViasDimensionsList[ii].m_Diameter,
+                 aBoard->m_ViasDimensionsList[ii].m_Drill );
+
+    // for old versions compatibility:
+    fprintf( aFile, "MicroViaSize %d\n", netclass_default->GetuViaDiameter() );
+    fprintf( aFile, "MicroViaDrill %d\n", netclass_default->GetuViaDrill() );
+    fprintf( aFile,
+             "MicroViasAllowed %d\n",
+             aBoard->GetBoardDesignSettings()->m_MicroViasAllowed );
+    fprintf( aFile,
+             "MicroViaMinSize %d\n",
+             aBoard->GetBoardDesignSettings()->m_MicroViasMinSize );
+    fprintf( aFile,
+             "MicroViaMinDrill %d\n",
+             aBoard->GetBoardDesignSettings()->m_MicroViasMinDrill );
+
+    fprintf( aFile, "TextPcbWidth %d\n", aBoard->GetBoardDesignSettings()->m_PcbTextWidth );
+    fprintf( aFile,
+             "TextPcbSize %d %d\n",
+             aBoard->GetBoardDesignSettings()->m_PcbTextSize.x,
+             aBoard->GetBoardDesignSettings()->m_PcbTextSize.y );
 
     fprintf( aFile, "EdgeModWidth %d\n", ModuleSegmentWidth );
     fprintf( aFile, "TextModSize %d %d\n", ModuleTextSize.x, ModuleTextSize.y );
     fprintf( aFile, "TextModWidth %d\n", ModuleTextWidth );
-    fprintf( aFile, "PadSize %d %d\n", g_Pad_Master.m_Size.x, g_Pad_Master.m_Size.y );
+    fprintf( aFile,
+             "PadSize %d %d\n",
+             g_Pad_Master.m_Size.x,
+             g_Pad_Master.m_Size.y );
     fprintf( aFile, "PadDrill %d\n", g_Pad_Master.m_Drill.x );
+    fprintf( aFile,
+             "Pad2MaskClearance %d\n",
+             aBoard->GetBoardDesignSettings()->m_SolderMaskMargin );
+    if( aBoard->GetBoardDesignSettings()->m_SolderPasteMargin != 0 )
+        fprintf( aFile,
+                 "Pad2PasteClearance %d\n",
+                 aBoard->GetBoardDesignSettings()->m_SolderPasteMargin );
+    if( aBoard->GetBoardDesignSettings()->m_SolderPasteMarginRatio != 0 )
+        fprintf( aFile,
+                 "Pad2PasteClearanceRatio %g\n",
+                 aBoard->GetBoardDesignSettings()->m_SolderPasteMarginRatio );
 
-    fprintf( aFile, "AuxiliaryAxisOrg %d %d\n",
-             aFrame->m_Auxiliary_Axis_Position.x, aFrame->m_Auxiliary_Axis_Position.y );
+    fprintf( aFile,
+             "AuxiliaryAxisOrg %d %d\n",
+             aFrame->m_Auxiliary_Axis_Position.x,
+             aFrame->m_Auxiliary_Axis_Position.y );
 
     fprintf( aFile, "$EndSETUP\n\n" );
     return 1;
 }
 
+
 #endif
 
 
-/******************************************************/
 bool WinEDA_PcbFrame::WriteGeneralDescrPcb( FILE* File )
-/******************************************************/
 {
     EDA_BaseStruct* PtStruct = GetBoard()->m_Modules;
     int             NbModules, NbDrawItem, NbLayers;
 
     /* Write copper layer count */
-    NbLayers = GetBoard()->m_BoardSettings->m_CopperLayerCount;
+    NbLayers = GetBoard()->GetCopperLayerCount();
     fprintf( File, "$GENERAL\n" );
     fprintf( File, "LayerCount %d\n", NbLayers );
 
-    // Write old format for Layer count (for compatibility with old versions of pcbnew
-    fprintf( File, "Ly %8X\n", g_TabAllCopperLayerMask[NbLayers - 1] | ALL_NO_CU_LAYERS ); // For compatibility with old version of pcbnew
-    fprintf( File, "Links %d\n", GetBoard()->m_NbLinks );
+    // Write old format for Layer count (for compatibility with old versions of
+    // pcbnew
+    fprintf( File,
+             "Ly %8X\n",
+             g_TabAllCopperLayerMask[NbLayers - 1] | ALL_NO_CU_LAYERS );
+    fprintf( File, "EnabledLayers %08X\n", GetBoard()->GetEnabledLayers() );
+    fprintf( File, "Links %d\n", GetBoard()->GetRatsnestsCount() );
     fprintf( File, "NoConn %d\n", GetBoard()->m_NbNoconnect );
 
     /* Write Bounding box info */
     GetBoard()->ComputeBoundaryBox();
     fprintf( File, "Di %d %d %d %d\n",
-            GetBoard()->m_BoundaryBox.GetX(), GetBoard()->m_BoundaryBox.GetY(),
-            GetBoard()->m_BoundaryBox.GetRight(),
-            GetBoard()->m_BoundaryBox.GetBottom() );
+             GetBoard()->m_BoundaryBox.GetX(),
+             GetBoard()->m_BoundaryBox.GetY(),
+             GetBoard()->m_BoundaryBox.GetRight(),
+             GetBoard()->m_BoundaryBox.GetBottom() );
 
     /* Write segment count for footprints, drawings, track and zones */
     /* Calculate the footprint count */
@@ -587,23 +740,23 @@ bool WinEDA_PcbFrame::WriteGeneralDescrPcb( FILE* File )
     fprintf( File, "Ndraw %d\n", NbDrawItem );
     fprintf( File, "Ntrack %d\n", GetBoard()->GetNumSegmTrack() );
     fprintf( File, "Nzone %d\n", GetBoard()->GetNumSegmZone() );
+    fprintf( File, "BoardThickness %d\n",
+             GetBoard()->GetBoardDesignSettings()->m_BoardThickness );
 
     fprintf( File, "Nmodule %d\n", NbModules );
-    fprintf( File, "Nnets %d\n", GetBoard()->m_Equipots.GetCount() );
+    fprintf( File, "Nnets %d\n", GetBoard()->m_NetInfo->GetCount() );
 
     fprintf( File, "$EndGENERAL\n\n" );
     return TRUE;
 }
 
 
-/******************************************************/
-bool WriteSheetDescr( BASE_SCREEN* screen, FILE* File )
-/******************************************************/
 /** Function WriteSheetDescr
-*  Save the page information (size, texts, date ..)
-* @param screen BASE_SCREEN to save
- * @param File = an openen FILE to write info
-*/
+ * Save the page information (size, texts, date ..)
+ * @param screen BASE_SCREEN to save
+ * @param File = an open FILE to write info
+ */
+bool WriteSheetDescr( BASE_SCREEN* screen, FILE* File )
 {
     Ki_PageDescr* sheet = screen->m_CurrentSheetDesc;
 
@@ -624,9 +777,7 @@ bool WriteSheetDescr( BASE_SCREEN* screen, FILE* File )
 }
 
 
-/***************************************************************************/
 static bool ReadSheetDescr( BASE_SCREEN* screen, FILE* File, int* LineNum )
-/***************************************************************************/
 {
     char Line[1024], buf[1024], * text;
 
@@ -639,9 +790,9 @@ static bool ReadSheetDescr( BASE_SCREEN* screen, FILE* File, int* LineNum )
         {
             text = strtok( Line, " \t\n\r" );
             text = strtok( NULL, " \t\n\r" );
-            Ki_PageDescr* sheet = SheetList[0];
+            Ki_PageDescr* sheet = g_SheetSizeList[0];
             int           ii;
-            for( ii = 0; sheet != NULL; ii++, sheet = SheetList[ii] )
+            for( ii = 0; sheet != NULL; ii++, sheet = g_SheetSizeList[ii] )
             {
                 if( stricmp( CONV_TO_UTF8( sheet->m_Name ), text ) == 0 )
                 {
@@ -723,45 +874,151 @@ static bool ReadSheetDescr( BASE_SCREEN* screen, FILE* File, int* LineNum )
 }
 
 
-/********************************************************************/
 int WinEDA_PcbFrame::ReadPcbFile( FILE* File, bool Append )
-/********************************************************************/
-
-/** ReadPcbFile
- * Read a board file  <file>.brd
- * @param Append if 0: a previoulsy loaded boar is delete before loadin the file.
- *  else all items of the board file are added to the existing board
- */
 {
-    char            Line[1024];
-    int             LineNum = 0;
+    char         Line[1024];
+    int          LineNum = 0;
 
-    wxBusyCursor    dummy;
+    wxBusyCursor dummy;
 
-    // Switch the locale to standard C (needed to read floating point numbers like 1.3)
-    SetLocaleTo_C_standard( );
+    // Switch the locale to standard C (needed to read floating point numbers
+    // like 1.3)
+    SetLocaleTo_C_standard();
+
+    BOARD* board = GetBoard();
 
     NbDraw = NbTrack = NbZone = NbMod = NbNets = -1;
-    GetBoard()->m_Status_Pcb = 0;
+
+    board->m_Status_Pcb = 0;
+    board->m_NetClasses.Clear();
+
+    // Put a dollar sign in front, and test for a specific length of characters
+    // The -1 is to omit the trailing \0 which is included in sizeof() on a
+    // string.
+#define TESTLINE( x ) (strncmp( Line, "$" x, sizeof("$" x) - 1 ) == 0)
 
     while( GetLine( File, Line, &LineNum ) != NULL )
     {
-        if( strnicmp( Line, "$EndPCB", 6 ) == 0 )
-            break;
+        // put the more frequent ones at the top
 
-        if( strnicmp( Line, "$GENERAL", 8 ) == 0 )
+        if( TESTLINE( "MODULE" ) )
+        {
+            MODULE* Module = new MODULE( board );
+
+            if( Module == NULL )
+                continue;
+
+            board->Add( Module, ADD_APPEND );
+            Module->ReadDescr( File, &LineNum );
+            continue;
+        }
+
+        if( TESTLINE( "DRAWSEGMENT" ) )
+        {
+            DRAWSEGMENT* DrawSegm = new DRAWSEGMENT( board );
+            board->Add( DrawSegm, ADD_APPEND );
+            DrawSegm->ReadDrawSegmentDescr( File, &LineNum );
+            continue;
+        }
+
+        if( TESTLINE( "EQUIPOT" ) )
+        {
+            NETINFO_ITEM* net = new NETINFO_ITEM( board );
+            board->m_NetInfo->AppendNet( net );
+            net->ReadDescr( File, &LineNum );
+            continue;
+        }
+
+        if( TESTLINE( "TEXTPCB" ) )
+        {
+            TEXTE_PCB* pcbtxt = new TEXTE_PCB( board );
+            board->Add( pcbtxt, ADD_APPEND );
+            pcbtxt->ReadTextePcbDescr( File, &LineNum );
+            continue;
+        }
+
+        if( TESTLINE( "TRACK" ) )
+        {
+#ifdef PCBNEW
+            TRACK* insertBeforeMe = Append ? NULL : board->m_Track.GetFirst();
+            ReadListeSegmentDescr( File, insertBeforeMe, TYPE_TRACK,
+                                   &LineNum, NbTrack );
+#endif
+            continue;
+        }
+
+        if( TESTLINE( BRD_NETCLASS ) )
+        {
+            // create an empty NETCLASS without a name.
+            NETCLASS* netclass = new NETCLASS( board, wxEmptyString );
+
+            // fill it from the *.brd file, and establish its name.
+            netclass->ReadDescr( File, &LineNum );
+
+            if( !board->m_NetClasses.Add( netclass ) )
+            {
+                // Must have been a name conflict, this is a bad board file.
+                // User may have done a hand edit to the file.
+                // Delete netclass if board could not take ownership of it.
+                delete netclass;
+
+                // @todo: throw an exception here, this is a bad board file.
+            }
+
+            continue;
+        }
+
+        if( TESTLINE( "CZONE_OUTLINE" ) )
+        {
+            ZONE_CONTAINER* zone_descr = new ZONE_CONTAINER( board );
+            zone_descr->ReadDescr( File, &LineNum );
+            if( zone_descr->GetNumCorners() > 2 )       // should always occur
+                board->Add( zone_descr );
+            else
+                delete zone_descr;
+            continue;
+        }
+
+        if( TESTLINE( "COTATION" ) )
+        {
+            COTATION* Cotation = new COTATION( board );
+            board->Add( Cotation, ADD_APPEND );
+            Cotation->ReadCotationDescr( File, &LineNum );
+            continue;
+        }
+
+        if( TESTLINE( "MIREPCB" ) )
+        {
+            MIREPCB* Mire = new MIREPCB( board );
+            board->Add( Mire, ADD_APPEND );
+            Mire->ReadMirePcbDescr( File, &LineNum );
+            continue;
+        }
+
+        if( TESTLINE( "ZONE" ) )
+        {
+#ifdef PCBNEW
+            SEGZONE* insertBeforeMe = Append ? NULL : board->m_Zone.GetFirst();
+
+            ReadListeSegmentDescr( File, insertBeforeMe, TYPE_ZONE,
+                                   &LineNum, NbZone );
+#endif
+            continue;
+        }
+
+        if( TESTLINE( "GENERAL" ) )
         {
             ReadGeneralDescrPcb( File, &LineNum );
             continue;
         }
 
-        if( strnicmp( Line, "$SHEETDESCR", 11 ) == 0 )
+        if( TESTLINE( "SHEETDESCR" ) )
         {
             ReadSheetDescr( GetScreen(), File, &LineNum );
             continue;
         }
 
-        if( strnicmp( Line, "$SETUP", 6 ) == 0 )
+        if( TESTLINE( "SETUP" ) )
         {
             if( !Append )
             {
@@ -770,134 +1027,67 @@ int WinEDA_PcbFrame::ReadPcbFile( FILE* File, bool Append )
             else
             {
                 while( GetLine( File, Line, &LineNum ) != NULL )
-                    if( strnicmp( Line, "$EndSETUP", 6 ) == 0 )
+                    if( TESTLINE( "EndSETUP" ) )
                         break;
             }
             continue;
         }
 
-        if( strnicmp( Line, "$EQUIPOT", 7 ) == 0 )
-        {
-            EQUIPOT* Equipot = new EQUIPOT( GetBoard() );
-            GetBoard()->m_Equipots.PushBack( Equipot );
-            Equipot->ReadDescr( File, &LineNum );
-            continue;
-        }
-
-        if( strnicmp( Line, "$CZONE_OUTLINE", 7 ) == 0 )
-        {
-            ZONE_CONTAINER * zone_descr = new ZONE_CONTAINER(GetBoard());
-            zone_descr->ReadDescr( File, &LineNum );
-            if ( zone_descr->GetNumCorners( ) > 2 )     // should not occur
-                GetBoard()->Add(zone_descr);
-            else delete zone_descr;
-            continue;
-        }
-
-        if( strnicmp( Line, "$MODULE", 7 ) == 0 )
-        {
-            MODULE* Module = new MODULE( GetBoard() );
-
-            if( Module == NULL )
-                continue;
-
-            GetBoard()->Add( Module, ADD_APPEND );
-            Module->ReadDescr( File, &LineNum );
-            continue;
-        }
-
-        if( strnicmp( Line, "$TEXTPCB", 8 ) == 0 )
-        {
-            TEXTE_PCB* pcbtxt = new TEXTE_PCB( GetBoard() );
-            GetBoard()->Add( pcbtxt, ADD_APPEND );
-            pcbtxt->ReadTextePcbDescr( File, &LineNum );
-            continue;
-        }
-
-        if( strnicmp( Line, "$DRAWSEGMENT", 10 ) == 0 )
-        {
-            DRAWSEGMENT* DrawSegm = new DRAWSEGMENT( GetBoard() );
-            GetBoard()->Add( DrawSegm, ADD_APPEND );
-            DrawSegm->ReadDrawSegmentDescr( File, &LineNum );
-            continue;
-        }
-
-        if( strnicmp( Line, "$COTATION", 9 ) == 0 )
-        {
-            COTATION* Cotation = new COTATION( GetBoard() );
-            GetBoard()->Add( Cotation, ADD_APPEND );
-            Cotation->ReadCotationDescr( File, &LineNum );
-            continue;
-        }
-
-        if( strnicmp( Line, "$MIREPCB", 8 ) == 0 )
-        {
-            MIREPCB* Mire = new MIREPCB( GetBoard() );
-            GetBoard()->Add( Mire, ADD_APPEND );
-            Mire->ReadMirePcbDescr( File, &LineNum );
-            continue;
-        }
-
-        if( strnicmp( Line, "$TRACK", 6 ) == 0 )
-        {
-#ifdef PCBNEW
-            TRACK* insertBeforeMe = Append ? NULL : GetBoard()->m_Track.GetFirst();
-            ReadListeSegmentDescr( File, insertBeforeMe, TYPE_TRACK,
-                                            &LineNum, NbTrack );
-#endif
-            continue;
-        }
-
-        if( strnicmp( Line, "$ZONE", 5 ) == 0 )
-        {
-#ifdef PCBNEW
-            SEGZONE* insertBeforeMe = Append ? NULL : GetBoard()->m_Zone.GetFirst();
-
-            ReadListeSegmentDescr( File, insertBeforeMe, TYPE_ZONE,
-                                            &LineNum, NbZone );
-#endif
-            continue;
-        }
+        if( TESTLINE( "EndPCB" ) )
+            break;
     }
 
-    SetLocaleTo_Default( );      // revert to the current  locale
+    SetLocaleTo_Default();       // revert to the current  locale
 
+    GetBoard()->m_Status_Pcb = 0;
+
+    // Build the net info list
+    GetBoard()->m_NetInfo->BuildListOfNets();
+
+    board->SynchronizeNetsAndNetClasses();
+
+    m_TrackAndViasSizesList_Changed = true;
     Affiche_Message( wxEmptyString );
-
     BestZoom();
-
-#ifdef PCBNEW
-    // Build connectivity info
-    Compile_Ratsnest( NULL, TRUE );
-#endif
+    SetToolbars();
     return 1;
 }
 
 
 #ifdef PCBNEW
-/***************************************************/
-int WinEDA_PcbFrame::SavePcbFormatAscii( FILE* aFile )
-/****************************************************/
 
-/* Routine de sauvegarde du PCB courant sous format ASCII
- *  retourne
- *      1 si OK
- *      0 si sauvegarde non faite
+/* Save the current PCB in ASCII format
+ * Returns
+ * 1 if OK
+ * 0 if error occurs saving file.
  */
+int WinEDA_PcbFrame::SavePcbFormatAscii( FILE* aFile )
 {
-    bool    rc;
-    char    line[256];
+    bool rc;
+    char line[256];
 
     GetBoard()->m_Status_Pcb &= ~CONNEXION_OK;
 
     wxBeginBusyCursor();
 
-    // Switch the locale to standard C (needed to print floating point numbers like 1.3)
-    SetLocaleTo_C_standard( );
+    // Switch the locale to standard C (needed to print floating point numbers
+    // like 1.3)
+    SetLocaleTo_C_standard();
 
-    /* Ecriture de l'entete PCB : */
+    /* Writing file header. */
     fprintf( aFile, "PCBNEW-BOARD Version %d date %s\n\n", g_CurrentVersionPCB,
-            DateAndTime( line ) );
+             DateAndTime( line ) );
+    fprintf( aFile, "# Created by Pcbnew%s\n\n",
+             CONV_TO_UTF8( GetBuildVersion() ) );
+
+    GetBoard()->SynchronizeNetsAndNetClasses();
+
+    // Select default Netclass before writing file.
+    // Useful to save default values in headers
+    GetBoard()->SetCurrentNetClass(
+         GetBoard()->m_NetClasses.GetDefault()->GetName() );
+    m_TrackAndViasSizesList_Changed = true;
+    AuxiliaryToolBar_Update_UI();
 
     WriteGeneralDescrPcb( aFile );
     WriteSheetDescr( GetScreen(), aFile );
@@ -905,7 +1095,7 @@ int WinEDA_PcbFrame::SavePcbFormatAscii( FILE* aFile )
 
     rc = GetBoard()->Save( aFile );
 
-    SetLocaleTo_Default( );      // revert to the current locale
+    SetLocaleTo_Default();       // revert to the current locale
     wxEndBusyCursor();
 
     if( !rc )
@@ -915,5 +1105,6 @@ int WinEDA_PcbFrame::SavePcbFormatAscii( FILE* aFile )
 
     return rc;
 }
+
 
 #endif
