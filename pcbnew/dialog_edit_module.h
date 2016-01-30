@@ -5,9 +5,7 @@
 
 enum id_Module_properties
 {
-	ID_ACCEPT_MODULE_PROPERTIES = 1900,
-	ID_CLOSE_MODULE_PROPERTIES,
-	ID_GOTO_MODULE_EDITOR,
+	ID_GOTO_MODULE_EDITOR =1900,
 	ID_MODULE_PROPERTIES_EXCHANGE,
 	ID_MODULE_EDIT_ADD_TEXT,
 	ID_MODULE_EDIT_EDIT_TEXT,
@@ -53,19 +51,19 @@ public:
 	// Constructor and destructor
 	WinEDA_ModulePropertiesFrame(WinEDA_BasePcbFrame *parent,
 							MODULE * Module, wxDC * DC, const wxPoint & pos);
-	~WinEDA_ModulePropertiesFrame(void)
+	~WinEDA_ModulePropertiesFrame()
 		{
 		}
 
 private:
     void CreateControls();
-	void OnQuit(wxCommandEvent& event);
-	void ModulePropertiesAccept(wxCommandEvent& event);
+	void OnCancelClick(wxCommandEvent& event);
+	void OnOkClick(wxCommandEvent& event);
 	void CreateTextModule(wxCommandEvent& event);
 	void EditOrDelTextModule(wxCommandEvent& event);
 	void SelectTextListBox(wxCommandEvent& event);
-	void ReCreateFieldListBox(void);
-	void SetTextListButtons(void);
+	void ReCreateFieldListBox();
+	void SetTextListButtons();
 	void BuildPanelModuleProperties(bool FullOptions);
 	void ModuleOrientEvent(wxCommandEvent& event);
 	void ExchangeModule(wxCommandEvent& event);
@@ -89,7 +87,7 @@ public:
 public:
 	Panel3D_Ctrl(WinEDA_ModulePropertiesFrame * parentframe,
 		wxNotebook * parent, int id, Struct3D_Master * struct3D);
-	~Panel3D_Ctrl(void);
+	~Panel3D_Ctrl();
 	void Browse3DLib(wxCommandEvent& event);
 	void AddOrRemove3DShape(wxCommandEvent& event);
 	DECLARE_EVENT_TABLE()

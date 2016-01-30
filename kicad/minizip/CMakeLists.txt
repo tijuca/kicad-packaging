@@ -1,0 +1,18 @@
+FIND_PACKAGE(ZLIB)
+MESSAGE("-- Check for installed ZLIB:")
+
+IF(ZLIB_FOUND)
+	MESSAGE("      ZLIB found")
+	SET(MINIZIP_SRCS
+		ioapi.c
+		minizip.c
+		zip.c)
+
+	ADD_EXECUTABLE(minizip ${MINIZIP_SRCS} )
+
+	TARGET_LINK_LIBRARIES(minizip ${ZLIB_LIBRARIES})
+
+	INSTALL(TARGETS minizip RUNTIME DESTINATION bin)
+ELSE(ZLIB_FOUND)
+	MESSAGE("      ZLIB not found")
+ENDIF(ZLIB_FOUND)

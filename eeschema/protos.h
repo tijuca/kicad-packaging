@@ -8,7 +8,7 @@ LibEDA_BaseStruct * LocatePin(const wxPoint & RefPos,
 			int Unit, int Convert, EDA_SchComponentStruct * DrawItem = NULL);
 		/* Routine de localisation d'une PIN de la PartLib pointee par Entry */
 
-wxString ReturnDefaultFieldName(int FieldNumber);
+const wxString& ReturnDefaultFieldName( int aFieldNdx );
 
 
 /***************/
@@ -47,7 +47,7 @@ void InstallCmpeditFrame(WinEDA_SchematicFrame * parent, wxPoint & pos,
 
 /* Functions common to all EELibs?.c modules: */
 int LibraryEntryCompare(EDA_LibComponentStruct *LE1, EDA_LibComponentStruct *LE2);
-int NumOfLibraries(void);
+int NumOfLibraries();
 EDA_LibComponentStruct *FindLibPart(const wxChar *Name, const wxString & LibName, int Alias);
 
 void DrawingLibInGhost(WinEDA_DrawPanel * panel, wxDC * DC, EDA_LibComponentStruct *LibEntry,
@@ -83,7 +83,7 @@ LibraryStruct * LoadLibraryName(WinEDA_DrawFrame * frame,
 				const wxString & FullLibName, const wxString & LibName);
 void LoadLibraries(WinEDA_DrawFrame * frame);
 void FreeCmpLibrary(wxWindow * frame, const wxString & LibName);
-const wxChar **GetLibNames(void);
+const wxChar **GetLibNames();
 
 void SnapLibItemPoint(int OrigX, int OrigY, int *ClosestX, int *ClosestY,
 						 EDA_SchComponentStruct *DrawLibItem);
@@ -118,6 +118,8 @@ bool DrawStructInBox(int x1, int y1, int x2, int y2,
 	/*************/
 	/* LOCATE.CPP */
 	/*************/
+LibDrawPin* LocatePinByNumber( const wxString & ePin_Number,
+                             EDA_SchComponentStruct* eComponent );
 
 EDA_SchComponentStruct * LocateSmallestComponent( SCH_SCREEN * Screen );
 /* Recherche du plus petit (en surface) composant pointe par la souris */
@@ -208,14 +210,14 @@ void RedrawOneStruct(WinEDA_DrawPanel * panel, wxDC * DC, EDA_BaseStruct *Struct
 /**************/
 /* EELAYER.CPP */
 /**************/
-void SeedLayers(void);
+void SeedLayers();
 int ReturnLayerColor(int Layer);
 void DisplayColorSetupFrame(WinEDA_DrawFrame * parent, const wxPoint & pos);
 
 /*************/
 /* EELOAD.CPP */
 /*************/
-int CountCmpNumber(void);
+int CountCmpNumber();
 
 
 /***************/
@@ -227,6 +229,7 @@ int CountCmpNumber(void);
 /* EECONFIG.CPP */
 /***************/
 bool Read_Config( const wxString & CfgFileName, bool ForceRereadConfig );
+bool Read_Hotkey_Config( WinEDA_DrawFrame * frame, bool verbose );
 
 
 /**************/
@@ -296,7 +299,7 @@ void InstallNetlistFrame(WinEDA_SchematicFrame *parent, wxPoint &pos);
 /***************/
 /* ANNOTATE.CPP */
 /***************/
-void ReAnnotatePowerSymbolsOnly( void );
+void ReAnnotatePowerSymbolsOnly();
 
 void InstallAnnotateFrame(WinEDA_SchematicFrame * parent, wxPoint &pos);
 int CheckAnnotate(WinEDA_SchematicFrame * frame, bool OneSheetOnly);
@@ -456,4 +459,8 @@ void InstallFindFrame(WinEDA_SchematicFrame *parent, wxPoint &pos);
 /***************/
 void DisplayOptionFrame(WinEDA_DrawFrame * parent, const wxPoint & framepos);
 
+/****************/
+/* CONTROLE.CPP */
+/****************/
+void RemoteCommand( const char* cmdline );
 

@@ -35,11 +35,6 @@ class wxBoxSizer;
 
 ////@begin control identifiers
 #define ID_DIALOG 10000
-#define SYMBOL_KICONFIGCVPCBFRAME_STYLE wxCAPTION|wxRESIZE_BORDER|wxSYSTEM_MENU|wxCLOSE_BOX
-#define SYMBOL_KICONFIGCVPCBFRAME_TITLE _("Dialog")
-#define SYMBOL_KICONFIGCVPCBFRAME_IDNAME ID_DIALOG
-#define SYMBOL_KICONFIGCVPCBFRAME_SIZE wxSize(400, 300)
-#define SYMBOL_KICONFIGCVPCBFRAME_POSITION wxDefaultPosition
 #define SAVE_CFG 10001
 #define ID_READ_OLDCFG 10002
 #define FORMAT_NETLIST 10003
@@ -51,6 +46,11 @@ class wxBoxSizer;
 #define ADD_EQU 10008
 #define INSERT_EQU 10009
 #define ID_LISTBOX1 10011
+#define SYMBOL_KICONFIGCVPCBFRAME_STYLE wxCAPTION|wxRESIZE_BORDER|wxSYSTEM_MENU|wxCLOSE_BOX
+#define SYMBOL_KICONFIGCVPCBFRAME_TITLE _("Cvpcb Configuration")
+#define SYMBOL_KICONFIGCVPCBFRAME_IDNAME ID_DIALOG
+#define SYMBOL_KICONFIGCVPCBFRAME_SIZE wxSize(400, 300)
+#define SYMBOL_KICONFIGCVPCBFRAME_POSITION wxDefaultPosition
 ////@end control identifiers
 
 /*!
@@ -127,7 +127,7 @@ public:
     /// Should we show tooltips?
     static bool ShowToolTips();
 
-	void Update(void);
+	void Update();
 	void AcceptCfg(wxCommandEvent& event);
 	void SaveCfg(wxCommandEvent& event);
 	void ReadOldCfg(wxCommandEvent& event);
@@ -136,7 +136,7 @@ public:
 	void EquDelFct(wxCommandEvent& event);
 	void EquAddFct(wxCommandEvent& event);
 	void ReturnNetFormat(wxCommandEvent& event);
-	void SetDialogDatas(void);
+	void SetDialogDatas();
 
 
 ////@begin KiConfigCvpcbFrame member variables

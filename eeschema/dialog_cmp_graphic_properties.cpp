@@ -71,7 +71,7 @@ LibEDA_BaseStruct * CurrentItem = CurrentDrawItem;
 bool show_fill_option = FALSE;
 int fill_option = 0;
 	if( CurrentItem )
-        switch(CurrentItem->m_StructType)
+        switch(CurrentItem->Type())
  		{
         case COMPONENT_ARC_DRAW_TYPE:
             show_fill_option = TRUE;
@@ -148,7 +148,7 @@ void WinEDA_bodygraphics_PropertiesFrame::CreateControls()
     wxBoxSizer* itemBoxSizer2 = new wxBoxSizer(wxHORIZONTAL);
     itemDialog1->SetSizer(itemBoxSizer2);
 
-    wxStaticBox* itemStaticBoxSizer3Static = new wxStaticBox(itemDialog1, wxID_ANY, _("Options :"));
+    wxStaticBox* itemStaticBoxSizer3Static = new wxStaticBox(itemDialog1, wxID_ANY, _("Options:"));
     wxStaticBoxSizer* itemStaticBoxSizer3 = new wxStaticBoxSizer(itemStaticBoxSizer3Static, wxVERTICAL);
     itemBoxSizer2->Add(itemStaticBoxSizer3, 0, wxALIGN_CENTER_VERTICAL|wxALL, 5);
 

@@ -226,7 +226,7 @@ wxIcon WinEDA_PcbTracksDialog::GetIconResource( const wxString& name )
 }
 
 /*************************************************/
-void WinEDA_PcbTracksDialog::SetDisplayValue(void)
+void WinEDA_PcbTracksDialog::SetDisplayValue()
 /*************************************************/
 {
 	AddUnitSymbol(*m_ViaSizeTitle);
@@ -251,11 +251,11 @@ void WinEDA_PcbTracksDialog::AcceptPcbOptions(wxCommandEvent& event)
 /*******************************************************************/
 {
 	g_DesignSettings.m_CurrentViaType = m_OptViaType->GetSelection() + 1;
-	if ( g_DesignSettings.m_CurrentViaType != VIA_NORMALE )
+	if ( g_DesignSettings.m_CurrentViaType != VIA_THROUGH )
 	{
 		if( ! IsOK(this,
 			_("You have selected VIA Blind or VIA Buried\nWARNING: this feature is EXPERIMENTAL!!! Accept ?") ) )
-			g_DesignSettings.m_CurrentViaType = VIA_NORMALE;
+			g_DesignSettings.m_CurrentViaType = VIA_THROUGH;
 	}
 
 	g_DesignSettings.m_CurrentViaSize =
@@ -281,7 +281,7 @@ void WinEDA_PcbTracksDialog::AcceptPcbOptions(wxCommandEvent& event)
 
 
 /*********************************************************************/
-void WinEDA_BasePcbFrame::AddHistory(int value, DrawStructureType type)
+void WinEDA_BasePcbFrame::AddHistory(int value, KICAD_T type)
 /**********************************************************************/
 // Mise a jour des listes des dernieres epaisseurs de via et track utilisées
 {

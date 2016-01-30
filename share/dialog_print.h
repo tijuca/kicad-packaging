@@ -47,7 +47,7 @@ class wxBoxSizer;
 #define ID_PRINT_SETUP 10001
 #define ID_PRINT_PREVIEW 10002
 #define ID_PRINT_EXECUTE 10003
-#define SYMBOL_WINEDA_PRINTFRAME_STYLE wxCAPTION|wxRESIZE_BORDER|wxSYSTEM_MENU|wxCLOSE_BOX
+#define SYMBOL_WINEDA_PRINTFRAME_STYLE wxCAPTION|wxSYSTEM_MENU|wxCLOSE_BOX|MAYBE_RESIZE_BORDER
 #define SYMBOL_WINEDA_PRINTFRAME_TITLE _("Print")
 #define SYMBOL_WINEDA_PRINTFRAME_IDNAME ID_DIALOG
 #define SYMBOL_WINEDA_PRINTFRAME_SIZE wxSize(400, 300)
@@ -116,16 +116,16 @@ public:
     /// Should we show tooltips?
     static bool ShowToolTips();
 
-	void OnClosePrintDialog(void);
+	void OnClosePrintDialog();
 	void OnPrintSetup(wxCommandEvent& event);
 	void OnPrintPreview(wxCommandEvent& event);
 	void EDA_PrintPage(wxCommandEvent& event);
 	void SetColorOrBlack(wxCommandEvent& event);
 	void SetScale(wxCommandEvent& event);
-	int SetLayerMaskFromListSelection(void);
-	wxString BuildPrintTitle(void);
-	void SetOthersDatas(void);
-	void SetPenWidth(void);
+	int SetLayerMaskFromListSelection();
+	wxString BuildPrintTitle();
+	void SetOthersDatas();
+	void SetPenWidth();
 
 
 ////@begin WinEDA_PrintFrame member variables

@@ -1,0 +1,8 @@
+TODO:
+* Add install targets for binaries, docs, translations, libraries (Windows, Mac).
+  Linux version has a preliminary support.
+* Add DEBUG.
+* Add PYTHON.
+* Add shared/static.
+* Testing under Windows and Mac.
+* More testing ...

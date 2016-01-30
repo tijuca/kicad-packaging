@@ -28,12 +28,12 @@ IMPLEMENT_APP(WinEDA_App)
 	/* Called to initialize the program */
 	/************************************/
 
-bool WinEDA_App::OnInit(void)
+bool WinEDA_App::OnInit()
 {
 wxString msg;
 wxString currCWD = wxGetCwd();
 
-	EDA_Appl = this;
+	g_EDA_Appl = this;
 	InitEDA_Appl( wxT("cvpcb") );
 
     if ( m_Checker && m_Checker->IsAnotherRunning() ) 

@@ -39,7 +39,7 @@ class wxSpinCtrl;
 
 ////@begin control identifiers
 #define ID_DIALOG 10000
-#define SYMBOL_WINEDA_PARTPROPERTIESFRAME_STYLE wxCAPTION|wxRESIZE_BORDER|wxSYSTEM_MENU|wxCLOSE_BOX
+#define SYMBOL_WINEDA_PARTPROPERTIESFRAME_STYLE wxCAPTION|wxSYSTEM_MENU|wxCLOSE_BOX|MAYBE_RESIZE_BORDER
 #define SYMBOL_WINEDA_PARTPROPERTIESFRAME_TITLE _("Lib Component Properties")
 #define SYMBOL_WINEDA_PARTPROPERTIESFRAME_IDNAME ID_DIALOG
 #define SYMBOL_WINEDA_PARTPROPERTIESFRAME_SIZE wxSize(400, 300)
@@ -118,10 +118,10 @@ public:
     /// Should we show tooltips?
     static bool ShowToolTips();
 
-	void InitBuffers(void);
-	void BuildPanelBasic(void);
-	void BuildPanelDoc(void);
-	void BuildPanelAlias(void);
+	void InitBuffers();
+	void BuildPanelBasic();
+	void BuildPanelDoc();
+	void BuildPanelAlias();
 	void BuildPanelEditField();
 	void PartPropertiesAccept(wxCommandEvent& event);
 	void OnQuit(wxCommandEvent& event);
@@ -129,16 +129,16 @@ public:
 	void DeleteAliasOfPart(wxCommandEvent& event);
 	void AddAliasOfPart(wxCommandEvent& event);
 	bool ChangeNbUnitsPerPackage(int newUnit);
-	bool SetUnsetConvert(void);
+	bool SetUnsetConvert();
 	void CopyDocToAlias(wxCommandEvent& event);
 	void BrowseAndSelectDocFile(wxCommandEvent& event);
 	void SelectNewField(wxCommandEvent& event);
 	void CopyFieldDataToBuffer(LibDrawField * Field);
 	void CopyBufferToFieldData(LibDrawField * Field);
-	void CopyDataToPanelField(void);
-	void CopyPanelFieldToData(void);
+	void CopyDataToPanelField();
+	void CopyPanelFieldToData();
 
-	void BuildPanelFootprintFilter(void);
+	void BuildPanelFootprintFilter();
 	void DeleteAllFootprintFilter(wxCommandEvent& event);
 	void DeleteOneFootprintFilter(wxCommandEvent& event);
 	void AddFootprintFilter(wxCommandEvent& event);

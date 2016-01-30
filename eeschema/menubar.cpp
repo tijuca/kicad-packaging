@@ -16,16 +16,18 @@
 #include "bitmaps.h"
 #include "protos.h"
 #include "id.h"
+#include "hotkeys.h"
 
 
 /************************************************/
-void WinEDA_SchematicFrame::ReCreateMenuBar(void)
+void WinEDA_SchematicFrame::ReCreateMenuBar()
 /************************************************/
 /* create or update the menubar for the schematic frame
 */
 {
 int ii;
 wxMenuBar * menuBar = GetMenuBar();
+wxString msg;
 
 	if( menuBar == NULL )
 	{
@@ -115,6 +117,22 @@ wxMenuBar * menuBar = GetMenuBar();
 			m_FilesMenu->Append(item);
 		}
 
+		// Menu Edit:
+		wxMenu * editMenu = new wxMenu;
+		msg = AddHotkeyName( _( "&Undo\t" ), s_Schematic_Hokeys_Descr, HK_UNDO );
+		item = new wxMenuItem(editMenu, ID_SCHEMATIC_UNDO,
+			msg,
+			_("Undo last edition") );
+	    item->SetBitmap(undo_xpm);
+		editMenu->Append(item);
+
+		msg = AddHotkeyName( _( "&Redo\t" ), s_Schematic_Hokeys_Descr, HK_REDO );
+		item = new wxMenuItem(editMenu, ID_SCHEMATIC_REDO,
+			msg,
+			_("Redo the last undo command") );
+	    item->SetBitmap(redo_xpm);
+		editMenu->Append(item);
+
 		// Menu Configuration:
 		wxMenu * configmenu = new wxMenu;
 		item = new wxMenuItem(configmenu, ID_CONFIG_REQ,
@@ -125,11 +143,16 @@ wxMenuBar * menuBar = GetMenuBar();
 
 		item = new wxMenuItem(configmenu, ID_COLORS_SETUP,
 			_("&Colors"),
-			_("Setting colors ...") );
+			_("Setting colors...") );
 	    item->SetBitmap(palette_xpm);
 		configmenu->Append(item);
 
-		ADD_MENUITEM(configmenu, ID_OPTIONS_SETUP, _("&Options"), preference_xpm);
+//		ADD_MENUITEM(configmenu, ID_OPTIONS_SETUP, _("&Options"), preference_xpm);
+		item = new wxMenuItem(configmenu, ID_OPTIONS_SETUP,
+			_("&Options"),
+			_("Select general options...") );
+	    item->SetBitmap(preference_xpm);
+		configmenu->Append(item);
 
 		// Font selection and setup
 		AddFontSelectionMenu(configmenu);
@@ -137,14 +160,17 @@ wxMenuBar * menuBar = GetMenuBar();
 		m_Parent->SetLanguageList(configmenu);
 
 		configmenu->AppendSeparator();
-		item = new wxMenuItem(configmenu, ID_CONFIG_SAVE, _("&Save Eeschema Setup"),
-			_("Save options in <project>.pro") );
+		item = new wxMenuItem(configmenu, ID_CONFIG_SAVE, _("&Save preferences"),
+			_("Save application preferences") );
 	    item->SetBitmap(save_setup_xpm);
 		configmenu->Append(item);
-		item = new wxMenuItem(configmenu, ID_CONFIG_READ, _("&Read Setup"),
-				_("Read options from a selected config file"));
+		item = new wxMenuItem(configmenu, ID_CONFIG_READ, _("&Read preferences"),
+				_("Read application preferences"));
 	    item->SetBitmap(read_setup_xpm);
 		configmenu->Append(item);
+
+		configmenu->AppendSeparator();
+		AddHotkeyConfigMenu( configmenu );
 
 		// Menu Help:
 		wxMenu *helpMenu = new wxMenu;
@@ -160,6 +186,7 @@ wxMenuBar * menuBar = GetMenuBar();
 
 
 		menuBar->Append(m_FilesMenu, _("&File") );
+		menuBar->Append(editMenu, _("&Edit") );
 		menuBar->Append(configmenu, _("&Preferences") );
 		menuBar->Append(helpMenu, _("&Help") );
 
@@ -188,5 +215,4 @@ wxMenuBar * menuBar = GetMenuBar();
 			}
 		}
 }
-
 

@@ -8,9 +8,9 @@
 class DESCR_EDGE;
 
 int reaffect( char *ib, char *net) ;
-int GenNetlistPcbnew(void) ;
-int loadcmp(void) ;
-int listlib(void) ;
+int GenNetlistPcbnew() ;
+int loadcmp() ;
+int listlib() ;
 STOREMOD * GetModuleDescrByName(const wxString & FootprintName);
 
 	/***********/
@@ -34,19 +34,15 @@ void Set_Rectangle_Encadrement(MODULE * PtModule);
 		/* Mise a jour du rectangle d'encadrement du module
 			  Entree : pointeur sur module */
 
-void DeleteStructure( void * GenericStructure );
-	/* Supprime de la liste chainee la stucture pointee par GenericStructure
-	et libere la memoire correspondante */
-
 	/**************/
 	/* MEMOIRE.CC */
 	/**************/
-void FreeMemoryComponants(void);
+void FreeMemoryComponants();
 	/* Routine de liberation memoire de la liste des composants
 		 - remet a NULL BaseListeMod
 		 - remet a 0 NbComp */
 
-void FreeMemoryModules(void);
+void FreeMemoryModules();
 	/* Routine de liberation memoire de la liste des modules
 		 - remet a NULL g_BaseListePkg
 		 - rement a 0 NbLib; */
@@ -91,12 +87,12 @@ int CmpCompare( void * cmp1, void * cmp2); /* routine pour qsort()
 /***************/
 /* viewlogi.cc */
 /***************/
-int ReadViewlogicWirList(void);
+int ReadViewlogicWirList();
 
 /***************/
 /* viewlnet.cc */
 /***************/
-int ReadViewlogicNetList(void);
+int ReadViewlogicNetList();
 
 /***************/
 /* TRACEMOD.CC */
@@ -117,8 +113,8 @@ void Display_1_Texte(WinEDA_DrawPanel * panel, wxDC * DC,
 /**********/
 /* COLORS */
 /**********/
-void BuildPensBrushes(void);
-void FreePensBrushes(void);
+void BuildPensBrushes();
+void FreePensBrushes();
 int GetNewColor(wxWindow * Frame, int OldColor = -1);	/* Routine de selection d'une couleur */
 
 /***********/

@@ -29,6 +29,9 @@
 #include "pcbstruct.h"
 #include "3d_struct.h"
 
+#define KICAD_DEFAULT_3D_DRAWFRAME_STYLE wxDEFAULT_FRAME_STYLE|wxWANTS_CHARS
+	
+
 #define LIB3D_PATH wxT("packages3d/")
 
 class Pcb3D_GLCanvas;
@@ -61,8 +64,8 @@ public:
 								when scaled tey are between -1.0 and +1.0 */
 	float m_LayerZcoord[32];
 public:
-	Info_3D_Visu(void);
-	~Info_3D_Visu(void);
+	Info_3D_Visu();
+	~Info_3D_Visu();
 };
 
 
@@ -78,9 +81,9 @@ private:
 public:
 	Pcb3D_GLCanvas(WinEDA3D_DrawFrame *parent, const wxWindowID id = -1,
 			int* gl_attrib = NULL);
-	~Pcb3D_GLCanvas(void);
+	~Pcb3D_GLCanvas();
 
-	void ClearLists(void);
+	void ClearLists();
 
 	void OnPaint(wxPaintEvent& event);
 	void OnSize(wxSizeEvent& event);
@@ -91,16 +94,16 @@ public:
 	void OnPopUpMenu(wxCommandEvent & event);
 	void TakeScreenshot(wxCommandEvent & event);
 	void SetView3D(int keycode);
-	void DisplayStatus(void);
+	void DisplayStatus();
 	void Redraw(bool finish = false);
-	GLuint DisplayCubeforTest(void);
+	GLuint DisplayCubeforTest();
 
 	void OnEnterWindow( wxMouseEvent& event );
 
-	void Render( void );
-	GLuint CreateDrawGL_List(void);
-	void InitGL(void);
-	void SetLights(void);
+	void Render();
+	GLuint CreateDrawGL_List();
+	void InitGL();
+	void SetLights();
 	void Draw3D_Track(TRACK * track);
 	void Draw3D_Via(SEGVIA * via);
 	void Draw3D_DrawSegment(DRAWSEGMENT * segment);
@@ -124,31 +127,30 @@ public:
 private:
 	wxString m_FrameName;		// name used for writting and reading setup
 								// It is "Frame3D"
-	
 
 public:
 	WinEDA3D_DrawFrame(WinEDA_BasePcbFrame * parent, WinEDA_App *app_parent,
-		const wxString& title );
+		const wxString& title, long style = KICAD_DEFAULT_3D_DRAWFRAME_STYLE );
 
     void Exit3DFrame(wxCommandEvent& event);
 	void OnCloseWindow(wxCloseEvent & Event);
-	void ReCreateMenuBar(void);
-	void ReCreateHToolbar(void);
-	void ReCreateVToolbar(void);
-	void SetToolbars(void);
-	void GetSettings(void);
-	void SaveSettings(void);
+	void ReCreateMenuBar();
+	void ReCreateHToolbar();
+	void ReCreateVToolbar();
+	void SetToolbars();
+	void GetSettings();
+	void SaveSettings();
 
 	void OnLeftClick(wxDC * DC, const wxPoint& MousePos);
 	void OnRightClick(const wxPoint& MousePos, wxMenu * PopMenu);
 	void OnKeyEvent(wxKeyEvent& event);
-	int BestZoom(void);	// Retourne le meilleur zoom
+	int BestZoom();	// Retourne le meilleur zoom
 	void RedrawActiveWindow(wxDC * DC, bool EraseBg);
 	void Process_Special_Functions(wxCommandEvent& event);
 	void Process_Zoom(wxCommandEvent& event);
 
-	void NewDisplay(void);
-	void Set3DBgColor(void);
+	void NewDisplay();
+	void Set3DBgColor();
 
 DECLARE_EVENT_TABLE()
 };

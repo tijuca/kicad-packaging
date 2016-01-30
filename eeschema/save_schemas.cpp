@@ -34,7 +34,7 @@ bool WinEDA_SchematicFrame::SaveEEFile(SCH_SCREEN *screen, int FileSave)
 wxString msg;
 wxString Name, BakName;
 const wxChar **LibNames;
-char * layer, *width;
+const char * layer, *width;
 int ii, shape;
 bool Failed = FALSE;
 EDA_BaseStruct *Phead;
@@ -142,7 +142,7 @@ wxString dirbuf;
 	Phead = screen->EEDrawList;
 	while (Phead)
 		{
-		switch(Phead->m_StructType)
+		switch(Phead->Type())
 			{
 			case DRAW_LIB_ITEM_STRUCT_TYPE:		  /* Its a library item. */
 				SavePartDescr( f, (EDA_SchComponentStruct *) Phead);

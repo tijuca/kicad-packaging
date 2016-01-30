@@ -5,6 +5,7 @@
 	#include "../bitmaps/Cancel.xpm"
 	#include "../bitmaps/cancel_tool.xpm"
 	#include "../bitmaps/Apply.xpm"
+	#include "../bitmaps/Reload.xpm"
 
 	#include "../bitmaps/icon_txt.xpm"
 	#include "../bitmaps/new_txt.xpm"
@@ -20,6 +21,7 @@
 	#include "../bitmaps/Save_NetList.xpm"
 	#include "../bitmaps/Save_SetUp.xpm"
 	#include "../bitmaps/Read_SetUp.xpm"
+	#include "../bitmaps/Editor.xpm"
 
 	#include "../bitmaps/Open_Library.xpm"
 	#include "../bitmaps/New_Library.xpm"
@@ -70,6 +72,7 @@
 	#include "../bitmaps/Options_Segment.xpm"
 	#include "../bitmaps/Options_Rectangle.xpm"
 	#include "../bitmaps/Display_Options.xpm"
+	#include "../bitmaps/opt_show_polygon.xpm"
 
 	#include "../bitmaps/Mirror_V.xpm"
 	#include "../bitmaps/Mirror_H.xpm"
@@ -107,6 +110,7 @@
 	#include "../bitmaps/down.xpm"
 
 	#include "../bitmaps/File_FootPrint.xpm"
+	#include "../bitmaps/Footprint_Text.xpm"
 
 	#include "../bitmaps/Options_Pad.xpm"
 	#include "../bitmaps/Options_New_Pad.xpm"
@@ -178,6 +182,8 @@
 	#include "../bitmaps/library_update.xpm"
 	#include "../bitmaps/transistor.xpm"
 	#include "../bitmaps/kicad_icon_small.xpm"
+	#include "../bitmaps/general_ratsnet.xpm"
+	#include "../bitmaps/fill_zone.xpm"
 
 // Largeur du toolbar vertical
 #define VTOOLBAR_WIDTH 26

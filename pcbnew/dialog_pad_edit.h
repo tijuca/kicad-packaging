@@ -39,11 +39,6 @@ class wxBoxSizer;
 
 ////@begin control identifiers
 #define ID_DIALOG 10000
-#define SYMBOL_WINEDA_PADPROPERTIESFRAME_STYLE wxCAPTION|wxRESIZE_BORDER|wxSYSTEM_MENU|wxCLOSE_BOX
-#define SYMBOL_WINEDA_PADPROPERTIESFRAME_TITLE _("Pad properties")
-#define SYMBOL_WINEDA_PADPROPERTIESFRAME_IDNAME ID_DIALOG
-#define SYMBOL_WINEDA_PADPROPERTIESFRAME_SIZE wxSize(400, 300)
-#define SYMBOL_WINEDA_PADPROPERTIESFRAME_POSITION wxDefaultPosition
 #define ID_TEXTCTRL_PADNUM 10001
 #define ID_TEXTCTRL_NETNAME 10002
 #define ID_RADIOBOX_DRILL_SHAPE 10019
@@ -63,6 +58,11 @@ class wxBoxSizer;
 #define ID_CHECKBOX10 10016
 #define ID_CHECKBOX11 10017
 #define ID_CHECKBOX12 10018
+#define SYMBOL_WINEDA_PADPROPERTIESFRAME_STYLE wxCAPTION|wxSYSTEM_MENU|wxCLOSE_BOX
+#define SYMBOL_WINEDA_PADPROPERTIESFRAME_TITLE _("Pad properties")
+#define SYMBOL_WINEDA_PADPROPERTIESFRAME_IDNAME ID_DIALOG
+#define SYMBOL_WINEDA_PADPROPERTIESFRAME_SIZE wxSize(400, 300)
+#define SYMBOL_WINEDA_PADPROPERTIESFRAME_POSITION wxDefaultPosition
 ////@end control identifiers
 
 /*!
@@ -130,11 +130,11 @@ public:
     static bool ShowToolTips();
 
 	void PadPropertiesAccept(wxCommandEvent& event);
-	void PadTypeSelected(void);
+	void PadTypeSelected();
 	void PadTypeSelectedEvent(wxCommandEvent& event);
 	void PadOrientEvent(wxCommandEvent& event);
 	void SetPadLayersList(long layer_mask);
-	void SetOthersControls(void);
+	void SetOthersControls();
 
 ////@begin WinEDA_PadPropertiesFrame member variables
     wxBoxSizer* m_LeftBoxSizer;

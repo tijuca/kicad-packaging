@@ -1,6 +1,6 @@
 
 MAKEGTK = $(MAKE) -f makefile.gtk
-KICAD_SUBDIRS = common 3d-viewer eeschema eeschema/plugins pcbnew cvpcb kicad gerbview
+KICAD_SUBDIRS = common 3d-viewer pcbnew eeschema eeschema/plugins cvpcb kicad gerbview
 KICAD_SUBDIRS_BIN = eeschema eeschema/plugins pcbnew cvpcb kicad gerbview
 KICAD_SUBDIRS_RES = internat modules template library
 KICAD_SUBDIRS_HELP = help
@@ -8,6 +8,11 @@ KICAD_SUBDIRS_HELP = help
 all:
 	@for dir in $(KICAD_SUBDIRS); do \
 		$(MAKEGTK) -C $$dir; \
+	done
+
+deps:
+	@for dir in $(KICAD_SUBDIRS); do \
+		$(MAKEGTK) -k -C $$dir deps; \
 	done
 
 install-bin:

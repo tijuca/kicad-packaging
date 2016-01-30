@@ -2,15 +2,35 @@
 # Configuration for kicad build & install
 #
 
+# You must comment or uncomment this line to disable/enable python support
+#KICAD_PYTHON = 1
+
 # Locations for install targets. All can be overriden on the make command.
 # Normally you'd only expect to override the PREFIX if you want to install to
 # a non standard install dir (or a temp location for packaging).
 # For packaging you can override and install anywhere, but to run from a
 # non-standard location edit common/gestfich.ccp so it knows where to
 # load help/data/etc. files from.
-# Current supported PREFIXes are /usr, /usr/local & /usr/local/kicad
+# Current supported PREFIXes are /usr and /usr/local (standard install for distributions)
+# and /usr/local/kicad is used when STD_INSTALL = 0 or STD_INSTALL = 2
+# all kicad files will be in /usr/local/kicad
+# STD_INSTALL = 2 is used only to make static link (only useful when kicad run on an other 
+# linux distribution than the distributions used to compil kicad.
 
 STD_INSTALL = 1
+
+#*******************************************
+#*******************************************
+
+ifndef KICAD_PYTHON
+ifeq ($(STD_INSTALL), 2)
+KICAD_STATIC_LINK = 1
+endif
+endif
+
+ifndef KICAD_STATIC_LINK
+KICAD_STATIC_LINK = 0
+endif
 
 ifeq ($(STD_INSTALL), 1)
 PREFIX = /usr
@@ -23,11 +43,12 @@ KICAD_LIBRARY=$(KICAD_DATA)/library
 KICAD_INTERNAT=$(KICAD_DATA)/internat
 KICAD_TEMPLATE=$(KICAD_DATA)/template
 
-# used by myself (JP Charras) to build a staticcaly linked distribution intalled in /usr/local (with STD_INSTALL = 0)
 else
-PREFIX = /usr/local/linux
-KICAD_BIN = $(PREFIX)/bin
-KICAD_PLUGINS = $(PREFIX)/linux/plugins
+# when STD_INSTALL = 0 or STD_INSTALL = 2
+# STD_INSTALL = 2 is used by myself (JP Charras) to build a statically linked distribution intalled in /usr/local (with STD_INSTALL = 0)
+PREFIX = /usr/local/kicad
+KICAD_BIN = $(PREFIX)/linux
+KICAD_PLUGINS = $(KICAD_BIN)/plugins
 KICAD_DOCS=$(PREFIX)/help
 KICAD_DATA=$(PREFIX)
 KICAD_MODULES=$(KICAD_DATA)/modules
@@ -38,7 +59,6 @@ endif
 
 # http://www.gnu.org/software/autoconf/manual/make/Catalogue-of-Rules.html#Catalogue-of-Rules
 CXX = g++
-LD  = g++
 
 
 SRCSUFF = .cpp
@@ -46,37 +66,42 @@ OBJSUFF = .o
 FINAL = 1
 
 
-# turn on debugging for all executables, only tested without KICAD_PYTHON
-DEBUG = 1
+# turn on/OFF debugging for all executables, only tested without KICAD_PYTHON
+DEBUG = 0
 
 
 # common CPPFLAGS to all components, further CPPFLAGS customization in 
 # directory specific makefile.gtk files.
 ifeq ($(DEBUG), 1)
-CPPFLAGS = -Wall -g `wx-config --debug --cxxflags` -fno-strict-aliasing
-LDFLAGS = -g #-v
+WXXFLAGS := $(shell wx-config --debug --cxxflags) 
+CPPFLAGS = -Wall -g3 -ggdb3 ${WXXFLAGS} -fno-strict-aliasing -DDEBUG
+LDFLAGS = -g3 -ggdb3 #-v
 else
-CPPFLAGS = -Wall -O2 `wx-config --cxxflags` -fno-strict-aliasing
+WXXFLAGS := $(shell wx-config --cxxflags) 
+CPPFLAGS = -Wall -O2 ${WXXFLAGS} -fno-strict-aliasing
 LDFLAGS = -s #-v
 endif
 
 
-# You must comment or uncomment this line to disable/enable python support
-#KICAD_PYTHON = 1
+# a command line define which affects pcbnew only, causing it to match current layer 
+ifdef USE_MATCH_LAYER
+CPPFLAGS += -DUSE_MATCH_LAYER
+endif
 
-# You must uncomment these lines for static link (or build with "make -f makefile.gtk KICAD_STATIC_LINK=1")
-# dynamic link is less difficult than static link and is what you would normally want
-# to use if kicad is running only on your system or one with same level of libraries.
-#ifndef KICAD_PYTHON
-#KICAD_STATIC_LINK = 1
-#endif
+
+
+ifeq ($(KICAD_STATIC_LINK), 1)
+LD  = gcc
+else
+LD  = g++
+endif
 
 ifdef KICAD_PYTHON
 PYTHON_VERSION=2.5
 PYLIBS= -L/usr/lib
 PYLIBS+= -L /usr/include/python
 PYLIBS+= -lpython$(PYTHON_VERSION)
-PYLIBS+= -lboost_python
+PYLIBS+= -lboost_python-mt
 EXTRACPPFLAGS+=-I /usr/include/python$(PYTHON_VERSION) -DKICAD_PYTHON -fno-strict-aliasing
 endif
 
@@ -94,7 +119,7 @@ ifeq ($(KICAD_STATIC_LINK), 1)
 LIBSTDC = ../syslibs/libstdc++.a
 else
 # Or Use static link for libsupc++ or libstdc++ (more easy!!)
-LIBSTDC = -lstdc++
+LIBSTDC = #-lstdc++ is implied when using g++ to link
 endif
 
 
@@ -106,12 +131,15 @@ ifeq ($(KICAD_STATIC_LINK), 1)
 LIBS3D = $(WXPATH)/$(PREFIX_WX_LIBS)$(SUFFIX_WX_LIBGL)\
 	 $(MESALIBSPATH)/libGL.a $(MESALIBSPATH)/libGLU.a
 
+AUXLIB = -lXxf86vm
+#AUXLIB = /usr/X11R6/lib/libXinerama.a
+
 WXSYSLIB= $(WXPATH)/$(PREFIX_WX_LIBS)-$(LIBVERSION).a \
 	$(WXPATH)/libwxpng-$(LIBVERSION).a\
 	$(WXPATH)/libwxjpeg-$(LIBVERSION).a\
 	$(WXPATH)/libwxzlib-$(LIBVERSION).a\
 	$(LIBREGEX)\
-        /usr/X11R6/lib/libXinerama.a \
+         $(AUXLIB)\
 		-lgtk-x11-2.0 -lgdk-x11-2.0 \
         -latk-1.0 -lgdk_pixbuf-2.0 -lm -lpangoxft-1.0 -lpangox-1.0 -lgthread-2.0\
         -lpango-1.0 -lgobject-2.0 -lgmodule-2.0 -ldl\
@@ -119,18 +147,8 @@ WXSYSLIB= $(WXPATH)/$(PREFIX_WX_LIBS)-$(LIBVERSION).a \
         -L/usr/lib $(PYLIBS)
 
 
-WXSYSLIB_WITH_GL= $(WXPATH)/$(PREFIX_WX_LIBS)-$(LIBVERSION).a \
-	$(WXPATH)/libwxpng-$(LIBVERSION).a\
-	$(WXPATH)/libwxjpeg-$(LIBVERSION).a\
-	$(WXPATH)/libwxzlib-$(LIBVERSION).a\
-	$(LIBS3D)\
-       /usr/X11R6/lib/libXinerama.a \
-        /usr/X11R6/lib/libXxf86vm.a \
-		-lgtk-x11-2.0 -lgdk-x11-2.0 \
-        -latk-1.0 -lgdk_pixbuf-2.0 -lm -lpangoxft-1.0 -lpangox-1.0 -lgthread-2.0\
-        -lpango-1.0 -lgobject-2.0 -lgmodule-2.0 -ldl\
-        -lglib-2.0 -lpangoft2-1.0 -lSM\
-       -L/usr/lib $(PYLIBS)
+WXSYSLIB_WITH_GL= $(WXSYSLIB) $(LIBS3D)
+
 else
 
 ifeq ($(DEBUG), 1)

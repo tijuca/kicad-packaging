@@ -11,10 +11,12 @@ OBJECTS=	$(TARGET).o classpcb.o\
 		modedit_undo_redo.o\
 		block_module_editor.o\
 		onrightclick.o\
+		onleftclick.o\
 		modedit_onclick.o\
+		cross-probing.o\
 		via_edit.o\
 		wxprint.o \
-		cursors.o\
+		class_marker.o\
 		menubarpcb.o \
 		menubarmodedit.o \
 		tool_onrightclick.o\
@@ -31,6 +33,7 @@ OBJECTS=	$(TARGET).o classpcb.o\
 		class_edge_mod.o \
 		class_text_mod.o\
 		class_pcb_text.o\
+		class_board_item.o\
 		class_board.o\
 		drawframe.o\
 		drawpanel.o\
@@ -84,7 +87,7 @@ OBJECTS=	$(TARGET).o classpcb.o\
 		zones.o undelete.o \
 		copy_track.o\
 		move_or_drag_track.o\
-		ioascii.o struct.o \
+		ioascii.o \
 		mirepcb.o xchgmod.o\
 		plotps.o\
 		dragsegm.o\
@@ -101,7 +104,8 @@ OBJECTS=	$(TARGET).o classpcb.o\
 		gen_modules_placefile.o\
 		modedit.o\
 		export_gencad.o\
-		hotkeys.o
+		hotkeys.o \
+        collectors.o
 
 setpage.o: ../share/setpage.cpp
 	$(CC) -c $(EDACPPFLAGS) -o $@ ../share/$*.cpp
@@ -279,8 +283,6 @@ copy_track.o: copy_track.cpp $(COMMON)
 
 ioascii.o: ioascii.cpp $(COMMON)
 
-struct.o: struct.cpp $(COMMON)
-
 coordbox.o: coordbox.cpp $(COMMON)
 
 mirepcb.o: mirepcb.cpp $(COMMON)
@@ -289,3 +291,4 @@ dragsegm.o: dragsegm.cpp drag.h $(COMMON)
 
 router.o: router.cpp $(COMMON)
 
+collectors.o: collectors.cpp collectors.h $(COMMON)  

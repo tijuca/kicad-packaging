@@ -27,7 +27,7 @@ using namespace boost::python;
 /*                        Common Python Binding                              */
 /*****************************************************************************/
 
-static int GetLastID( void ) { return ID_END_LIST; }
+static int GetLastID() { return ID_END_LIST; }
 
 static object ChooseFile( str objTitle, str objMask, object objOpen )
 {
@@ -55,7 +55,7 @@ static void RegisterCb( str objKey, object callback )
 static void UnRegisterCb( str objKey, object callback )
 { PyHandler::GetInstance()->UnRegisterCallback( PyHandler::MakeStr(objKey), callback ); }
 
-static void init_base_utils(void)
+static void init_base_utils()
 {
     def ( "ChooseFile",         &ChooseFile );
     def ( "RegisterCallback",   &RegisterCb );

@@ -13,7 +13,11 @@ TARGET = eeschema
 
 all: $(TARGET)
 
+deps:
+	$(CXX) $(CPPFLAGS) -E -MMD -MG *.cpp >/dev/null
+
 include makefile.include
+-include *.d
 
 CPPFLAGS += $(EXTRACPPFLAGS)
 EDACPPFLAGS = $(CPPFLAGS)
@@ -26,14 +30,12 @@ netlist_form_pads-pcb: plugins/netlist_form_pads-pcb.cpp makefile.gtk
 
 
 install: $(TARGET)
+	mkdir -p $(KICAD_BIN)
 	cp $(TARGET) $(KICAD_BIN)
 
 
 clean:
-	rm -f *.o
-	rm -f *~
-	rm -f core
-	rm -f *.bak
+	rm -f *.o *.d *~ core *.bak
 	rm -f $(TARGET)
 
 

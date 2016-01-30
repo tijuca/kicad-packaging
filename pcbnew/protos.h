@@ -17,14 +17,7 @@ LISTE_PAD* CreateSortedPadListByXCoord(BOARD * pcb);
 /* PCBCFG.CPP */
 /**************/
 bool Read_Config(const wxString & project_name);
-
-/*********************/
-/* CLASS_EQUIPOT.CPP */
-/*********************/
-
-EQUIPOT * GetEquipot(BOARD * pcb, int netcode);
-		/* retourne un pointeur sur la structure EQUIPOT de numero netcode */
-
+bool Read_Hotkey_Config( WinEDA_DrawFrame * frame, bool verbose );
 
 /***************/
 /* TRACEPCB.CPP */
@@ -198,24 +191,6 @@ D_PAD * Fast_Locate_Pad_Connecte(BOARD * Pcb, const wxPoint & ref_pos, int layer
 			 (bonne position ET bonne couche). */
 
 
-int distance(int seuil);
-	/*
-	 Calcul de la distance du curseur souris a un segment de droite :
-	 ( piste, edge, contour module ..
-	retourne:
-		0 si distance > seuil
-		1 si distance <= seuil
-	Variables utilisees ( externes doivent etre initialisees avant appel , et
-	sont ramenees au repere centre sur l'origine du segment)
-		dx, dy = coord de l'extremite segment.
-		spot_cX,spot_cY = coord du curseur souris
-	la recherche se fait selon 4 cas:
-		segment horizontal
-		segment vertical
-		segment 45
-		segment quelconque
-	*/
-
 TRACK * Locate_Zone(TRACK * start_adresse,int layer, int typeloc);
 TRACK * Locate_Zone(TRACK * start_adresse, const wxPoint & ref_pos,int layer);
 	/*
@@ -228,7 +203,7 @@ TRACK * Locate_Zone(TRACK * start_adresse, const wxPoint & ref_pos,int layer);
 	La recherche commence a l'adresse start_adresse
 	*/
 
-EDA_BaseStruct * Locate_Cotation(BOARD * Pcb, int LayerSearch, int typeloc);
+COTATION* Locate_Cotation(BOARD * Pcb, int LayerSearch, int typeloc);
 	/* Localise un element de cotation, en priorite sur la couche active,
 		et a defaut sur les autres couches
 		 retourne un pointeur sur l'element (TRACK ou TEXTE_PCB) localise
@@ -343,23 +318,6 @@ void Affiche_erreur(int nb_err) ;
 /*****************************************************************/
 /* AFFICHE.CPP: (Fonctions d'affichage de messages, parametres... */
 /*****************************************************************/
-void Affiche_Infos_Segment_Module(WinEDA_BasePcbFrame * frame, MODULE* pt_module,EDGE_MODULE* pt_edge);
-	/* Affiche en bas d'ecran les caract du Segment contour d'un module */
-
-void Affiche_Infos_Piste(WinEDA_BasePcbFrame * frame, TRACK* pt_piste) ;
-	/* Affiche les caract principales d'un segment de piste en bas d'ecran */
-
-void Affiche_Infos_E_Texte(WinEDA_BasePcbFrame * frame, MODULE * adr_empreinte,TEXTE_MODULE *pt_texte) ;
-	/* Affiche en bas d'ecran les caract du texte sur empreinte */
-void Affiche_Infos_PCB_Texte(WinEDA_BasePcbFrame * frame, TEXTE_PCB* pt_texte);
-	/* Affiche en bas d'ecran les caract du texte type PCB */
-
-void Affiche_Infos_Status_Pcb(WinEDA_BasePcbFrame * frame); /* Affiche l'etat du PCB:
-									 nb de pads, nets , connexions.. */
-
-void Affiche_Infos_DrawSegment(WinEDA_BasePcbFrame * frame, DRAWSEGMENT * DrawSegment);
-					/* Affiche les caract principales d'un segment type
-					drawing PCB en bas d'ecran */
 void Affiche_Infos_Equipot(int netcode, WinEDA_BasePcbFrame * frame);
 
 	/************/
@@ -412,19 +370,13 @@ TRACK * CreateLockPoint(int *pX, int *pY, TRACK * ptsegm, TRACK * refsegm);
 /****************/
 /* CONTROLE.CPP */
 /****************/
-void RemoteCommand(char * cmdline);
-
-/*************/
-/* STRUCT.CPP */
-/*************/
-void DeleteStructure(EDA_BaseStruct * Struct);
-void DeleteStructList( EDA_BaseStruct * Struct);
+void RemoteCommand( const char* cmdline );
 
 
 /***************/
 /* AUTOPLACE.CPP */
 /***************/
-int Calcule_Encadrement_EdgeBoard(void);
+int Calcule_Encadrement_EdgeBoard();
 
 /***************/
 /* AUTOROUT.CPP */
@@ -443,13 +395,13 @@ MODULE * ListAndSelectModuleName(COMMAND * Cmd);
 /***************/
 /* LAY2PLOT.CPP */
 /***************/
-int GetLayerNumber(void); /* retourne le nombre de couches a tracer */
 
 /*****************/
-/* SEL_COLOR.CPP */
+/* SET_COLOR.CPP */
 /*****************/
 void DisplayColorSetupFrame(WinEDA_DrawFrame * parent,
 							const wxPoint & framepos);
 
 
 #endif	/* #define PROTO_H */
+

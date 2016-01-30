@@ -48,7 +48,7 @@ class wxNotebook;
 #define ID_CHECKBOX_SHOW_FILED 10010
 #define ID_CHECKBOX_FILED_ORIENT 10011
 #define ID_RESTORE_CMP_DEFAULTS 10006
-#define SYMBOL_WINEDA_COMPONENTPROPERTIESFRAME_STYLE wxCAPTION|wxRESIZE_BORDER|wxSYSTEM_MENU|wxCLOSE_BOX
+#define SYMBOL_WINEDA_COMPONENTPROPERTIESFRAME_STYLE wxDEFAULT_DIALOG_STYLE|MAYBE_RESIZE_BORDER
 #define SYMBOL_WINEDA_COMPONENTPROPERTIESFRAME_TITLE _("Component properties")
 #define SYMBOL_WINEDA_COMPONENTPROPERTIESFRAME_IDNAME ID_DIALOG
 #define SYMBOL_WINEDA_COMPONENTPROPERTIESFRAME_SIZE wxSize(400, 300)
@@ -87,8 +87,8 @@ public:
 
 ////@begin WinEDA_ComponentPropertiesFrame event handler declarations
 
-    /// wxEVT_COMMAND_BUTTON_CLICKED event handler for wxID_CLOSE
-    void OnCloseClick( wxCommandEvent& event );
+    /// wxEVT_COMMAND_BUTTON_CLICKED event handler for wxID_CANCEL
+    void OnCancelClick( wxCommandEvent& event );
 
     /// wxEVT_COMMAND_BUTTON_CLICKED event handler for ID_RESTORE_CMP_DEFAULTS
     void OnRestoreCmpDefaultsClick( wxCommandEvent& event );
@@ -110,13 +110,13 @@ public:
     /// Should we show tooltips?
     static bool ShowToolTips();
 
-	void InitBuffers(void);
-	void BuildPanelBasic(void);
-	void BuildPanelFields(void);
+	void InitBuffers();
+	void BuildPanelBasic();
+	void BuildPanelFields();
 	void ComponentPropertiesAccept(wxCommandEvent& event);
 	void SetInitCmp( wxCommandEvent& event );
-	void CopyDataToPanelField(void);
-	void CopyPanelFieldToData(void);
+	void CopyDataToPanelField();
+	void CopyPanelFieldToData();
 	void SelectNewField(wxCommandEvent& event);
 
 ////@begin WinEDA_ComponentPropertiesFrame member variables

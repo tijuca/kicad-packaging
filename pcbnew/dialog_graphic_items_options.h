@@ -34,7 +34,7 @@
 
 ////@begin control identifiers
 #define ID_DIALOG 10000
-#define SYMBOL_WINEDA_GRAPHICITEMSOPTIONSDIALOG_STYLE wxCAPTION|wxRESIZE_BORDER|wxSYSTEM_MENU|wxCLOSE_BOX
+#define SYMBOL_WINEDA_GRAPHICITEMSOPTIONSDIALOG_STYLE wxCAPTION|wxSYSTEM_MENU|wxCLOSE_BOX|MAYBE_RESIZE_BORDER
 #define SYMBOL_WINEDA_GRAPHICITEMSOPTIONSDIALOG_TITLE _("Texts and Drawings")
 #define SYMBOL_WINEDA_GRAPHICITEMSOPTIONSDIALOG_IDNAME ID_DIALOG
 #define SYMBOL_WINEDA_GRAPHICITEMSOPTIONSDIALOG_SIZE wxSize(400, 300)
@@ -100,7 +100,7 @@ public:
     /// Should we show tooltips?
     static bool ShowToolTips();
 	void AcceptOptions(wxCommandEvent& event);
-	void SetDisplayValue( void );
+	void SetDisplayValue();
 
 ////@begin WinEDA_GraphicItemsOptionsDialog member variables
     wxStaticText* m_GraphicSegmWidthTitle;

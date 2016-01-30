@@ -21,8 +21,8 @@ OBJECTS= \
 		drawframe.o\
 		drawpanel.o\
 		set_color.o \
-		cfg.o \
-		cursors.o \
+		gerbview_config.o \
+		class_marker.o \
 		affiche.o \
 		tracepcb.o \
 		class_pcb_text.o\
@@ -32,6 +32,7 @@ OBJECTS= \
 		options.o \
 		initpcb.o\
 		locate.o\
+		hotkeys.o\
 		deltrack.o\
 		pcbplot.o\
 		readgerb.o\
@@ -40,12 +41,12 @@ OBJECTS= \
 		dcode.o\
 		undelete.o\
 		infospgm.o \
-		struct.o \
 		files.o\
 		block.o\
 		controle.o\
 		basepcbframe.o\
-		export_to_pcbnew.o
+		export_to_pcbnew.o\
+        collectors.o
 
 setpage.o: ../share/setpage.cpp
 	$(CC) -c $(EDACPPFLAGS) -o $@ ../share/$*.cpp
@@ -58,11 +59,13 @@ drawframe.o: ../share/drawframe.cpp
 
 controle.o: controle.cpp $(COMMON)
 
+hotkeys.o: hotkeys.cpp hotkeys.h $(COMMON)
+
 set_color.o: set_color.cpp set_color.h $(COMMON)
 
 files.o: files.cpp $(COMMON)
 
-cursors.o: ../pcbnew/cursors.cpp $(COMMON)
+class_marker.o: ../pcbnew/class_marker.cpp ../pcbnew/class_marker.h $(COMMON)
 	$(CC) -c $(EDACPPFLAGS) -o $@ ../pcbnew/$*.cpp
 
 sel_layer.o: ../pcbnew/sel_layer.cpp $(COMMON)
@@ -85,12 +88,15 @@ class_board.o: ../pcbnew/class_board.cpp $(DEPEND)
 basepcbframe.o: ../pcbnew/basepcbframe.cpp $(COMMON)
 	$(CC) -c $(EDACPPFLAGS) -o $@ ../pcbnew/$*.cpp
 
+collectors.o: ../pcbnew/collectors.cpp $(COMMON)
+	$(CC) -c $(EDACPPFLAGS) -o $@ ../pcbnew/$*.cpp
+    
 class_track.o: ../pcbnew/class_track.cpp $(COMMON)
 	$(CC) -c $(EDACPPFLAGS) -o $@ ../pcbnew/$*.cpp
 
 $(TARGET).o: $(TARGET).cpp $(COMMON)
 
-cfg.o: cfg.cpp cfg.h $(COMMON)
+gerbview_config.o: gerbview_config.cpp gerbview_config.h $(COMMON)
 
 tracepcb.o: tracepcb.cpp $(COMMON)
 
@@ -165,8 +171,6 @@ undelete.o: undelete.cpp $(COMMON)
 ioascii.o: ioascii.cpp $(COMMON)
 
 chrono.o: chrono.cpp pcbnew.h
-
-struct.o: struct.cpp $(COMMON)
 
 coordbox.o: coordbox.cpp $(COMMON)
 

@@ -21,8 +21,8 @@
 	/*******************************************************/
 	/* Constructeur de WinEDA_CvpcbFrame: la fenetre generale */
 	/*******************************************************/
-WinEDA_CvpcbFrame::WinEDA_CvpcbFrame(WinEDA_App *parent, const wxString & title ):
-		WinEDA_BasicFrame(NULL, CVPCB_FRAME, parent, title, wxDefaultPosition, wxDefaultSize )
+WinEDA_CvpcbFrame::WinEDA_CvpcbFrame(WinEDA_App *parent, const wxString & title, long style ):
+		WinEDA_BasicFrame(NULL, CVPCB_FRAME, parent, title, wxDefaultPosition, wxDefaultSize, style )
 {
 	m_FrameName = wxT("CvpcbFrame");
 	m_ListCmp = NULL;
@@ -82,7 +82,7 @@ int dims[3] = { -1, -1, 250};
 
 
 /******************************************/
-WinEDA_CvpcbFrame::~WinEDA_CvpcbFrame(void)
+WinEDA_CvpcbFrame::~WinEDA_CvpcbFrame()
 /******************************************/
 {
 	if( m_Parent->m_EDA_Config )

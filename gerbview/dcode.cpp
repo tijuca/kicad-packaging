@@ -80,7 +80,7 @@ int ii;
 
 
 
-GERBER_Descr::~GERBER_Descr(void)
+GERBER_Descr::~GERBER_Descr()
 {
 int ii;
 
@@ -95,7 +95,7 @@ int ii;
 }
 
 /******************************************/
-void GERBER_Descr::ResetDefaultValues(void)
+void GERBER_Descr::ResetDefaultValues()
 /******************************************/
 {
 	m_Parent = NULL;
@@ -135,7 +135,7 @@ void GERBER_Descr::ResetDefaultValues(void)
 }
 
 /********************************************/
-int GERBER_Descr::ReturnUsedDcodeNumber(void)
+int GERBER_Descr::ReturnUsedDcodeNumber()
 /********************************************/
 {
 int ii, jj;
@@ -155,7 +155,7 @@ int ii, jj;
 
 
 /******************************/
-void GERBER_Descr::InitToolTable(void)
+void GERBER_Descr::InitToolTable()
 /******************************/
 /* Creation du tableau des MAX_TOOLS DCodes utilisables, si il n'existe pas,
 et Init des DCodes à une valeur raisonnable
@@ -188,11 +188,11 @@ D_CODE::D_CODE(int num_dcode)
 	Clear_D_CODE_Data();
 }
 
-D_CODE::~D_CODE(void)
+D_CODE::~D_CODE()
 {
 }
 
-void D_CODE::Clear_D_CODE_Data(void)
+void D_CODE::Clear_D_CODE_Data()
 {
 	m_Size.x = DEFAULT_SIZE;
 	m_Size.y = DEFAULT_SIZE;
@@ -233,7 +233,7 @@ char* ptcar;
 int dimH, dimV, drill, type_outil, dummy;
 float fdimH, fdimV, fdrill;
 char c_type_outil[256];
-char Line[1024];
+char Line[2000];
 wxString msg;
 D_CODE * pt_Dcode;
 FILE * dest;
@@ -266,7 +266,7 @@ D_CODE ** ListeDCode;
 
 	ListeDCode = g_GERBER_Descr_List[layer]->m_Aperture_List;
 
-	while( fgets(Line,255,dest) != NULL)
+	while( fgets(Line, sizeof(Line)-1,dest) != NULL)
 		{
 		if (*Line == ';') continue; /* Commentaire */
 		if (strlen(Line) < 10 ) continue ; /* Probablemant ligne vide */
@@ -329,7 +329,7 @@ D_CODE ** ListeDCode;
 
 
 /***************************************************/
-void WinEDA_GerberFrame::CopyDCodesSizeToItems(void)
+void WinEDA_GerberFrame::CopyDCodesSizeToItems()
 /***************************************************/
 /* Set Size Items (Lines, Flashes) from DCodes List
 */
@@ -340,7 +340,7 @@ D_CODE * pt_Dcode;	/* Pointeur sur le D code*/
 	track = m_Pcb->m_Track;
 	for ( ; track != NULL ; track = (TRACK*) track->Pnext )
 		{
-		pt_Dcode = ReturnToolDescr(track->m_Layer, track->m_NetCode);
+		pt_Dcode = ReturnToolDescr(track->GetLayer(), track->GetNet());
 		pt_Dcode->m_InUse = TRUE;
 
 		if (		// Line Item
@@ -359,8 +359,8 @@ D_CODE * pt_Dcode;	/* Pointeur sur le D code*/
 			int width, len;
 			wxSize size = pt_Dcode->m_Size;
 
-			width = min( size.x, size.y );
-			len = max( size.x, size.y ) - width;
+			width = MIN( size.x, size.y );
+			len = MAX( size.x, size.y ) - width;
 
 			track->m_Width = width;
 
@@ -435,7 +435,7 @@ int layer;
 GERBER_Descr * DcodeList;
 
 	/* Construction de la liste des messages */
-	List = new WinEDA_TextFrame(this, _("List D-Codes"));
+	List = new WinEDA_TextFrame(this, _("List D codes"));
 
 	for (layer = 0; layer < 32; layer++ )
 		{

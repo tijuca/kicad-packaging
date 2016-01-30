@@ -12,6 +12,7 @@ OBJECTS= \
 		common_plot_functions.o\
 		common_plotPS_functions.o\
 		common_plotHPGL_functions.o\
+		hotkeys_basic.o\
 		drawtxt.o \
 		wxwineda.o \
 		string.o \
@@ -43,6 +44,8 @@ gr_basic.o: gr_basic.cpp ../include/gr_basic.h $(DEPEND)
 
 confirm.o: confirm.cpp $(COMMON)
 
+hotkeys_basic.o: hotkeys_basic.cpp ../include/hotkeys_basic.h $(COMMON)
+
 worksheet.o: worksheet.cpp ../include/worksheet.h $(COMMON)
 
 selcolor.o: selcolor.cpp ../include/colors.h $(COMMON)
@@ -54,8 +57,6 @@ common_plotPS_functions.o: common_plotPS_functions.cpp ../include/plot_common.h 
 common_plotHPGL_functions.o: common_plotPS_functions.cpp ../include/plot_common.h $(COMMON)
 
 drawtxt.o: drawtxt.cpp ../include/grfonte.h $(COMMON)
-
-svg_print.o: svg_print.cpp $(COMMON)
 
 gr_basic.o: gr_basic.cpp ../include/gr_basic.h $(COMMON) ../include/plot_common.h
 

@@ -39,8 +39,9 @@ private:
 
 	// Constructor and destructor
 public:
-	WinEDA_CvpcbFrame(WinEDA_App * parent, const wxString & title);
-	~WinEDA_CvpcbFrame(void);
+	WinEDA_CvpcbFrame(WinEDA_App * parent, const wxString & title,
+					  long style = KICAD_DEFAULT_DRAWFRAME_STYLE);
+	~WinEDA_CvpcbFrame();
 
 	void OnLeftClick(wxListEvent & event);
 	void OnLeftDClick(wxListEvent & event);
@@ -51,8 +52,8 @@ public:
 	void OnCloseWindow(wxCloseEvent & Event);
 	void OnSize(wxSizeEvent& SizeEvent);
 	void OnChar(wxKeyEvent& event);
-	void ReCreateHToolbar(void);
-	virtual void ReCreateMenuBar(void);
+	void ReCreateHToolbar();
+	virtual void ReCreateMenuBar();
 	void SetLanguage(wxCommandEvent& event);
 	void AddFontSelectionMenu(wxMenu * main_menu);
 	void ProcessFontPreferences(wxCommandEvent& event);
@@ -69,19 +70,19 @@ public:
 	void DisplayDocFile(wxCommandEvent & event);
 	void OnSelectFilteringFootprint(wxCommandEvent & event);
 	void SetNewPkg(const wxString & package);
-	void BuildCmpListBox(void);
-	void BuildFootprintListBox(void);
-	void CreateScreenCmp(void);
-	void CreateConfigWindow(void);
+	void BuildCmpListBox();
+	void BuildFootprintListBox();
+	void CreateScreenCmp();
+	void CreateConfigWindow();
 	int SaveNetList(const wxString & FullFileName);
 	int SaveComponentList(const wxString & FullFileName);
 	bool ReadInputNetList(const wxString & FullFileName);
-	void ReadNetListe(void);
-	int rdpcad(void);
-	int ReadSchematicNetlist(void);
+	void ReadNetListe();
+	int rdpcad();
+	int ReadSchematicNetlist();
 	int ReadFootprintFilterList( FILE * f);
-	int ReadViewlogicWirList(void);
-	int ReadViewlogicNetList(void);
+	int ReadViewlogicWirList();
+	int ReadViewlogicNetList();
 
 	DECLARE_EVENT_TABLE()
 };
@@ -100,9 +101,9 @@ public:
 	ListBoxBase(WinEDA_CvpcbFrame * parent, wxWindowID id,
 				const wxPoint& loc, const wxSize& size);
 
-	~ListBoxBase(void);
+	~ListBoxBase();
 
-	int GetSelection(void);
+	int GetSelection();
 	void OnSize(wxSizeEvent& event);
 };
 
@@ -123,17 +124,17 @@ public:
 	FootprintListBox(WinEDA_CvpcbFrame * parent,
 				wxWindowID id, const wxPoint& loc, const wxSize& size,
 				int nbitems, wxString choice[]);
-	~FootprintListBox(void);
+	~FootprintListBox();
 
-	int GetCount(void);
+	int GetCount();
 	void SetSelection(unsigned index, bool State = TRUE);
 	void SetString(unsigned linecount, const wxString & text);
 	void AppendLine(const wxString & text);
-	void SetFootprintFullList(void);
+	void SetFootprintFullList();
 	void SetFootprintFilteredList(STORECMP * Component);
 	void SetActiveFootprintList(bool FullList, bool Redraw = FALSE);
 
-	wxString GetSelectedFootprint(void);
+	wxString GetSelectedFootprint();
 	wxString OnGetItemText(long item, long column) const;
 	void OnLeftClick(wxListEvent & event);
 	void OnLeftDClick(wxListEvent & event);
@@ -156,10 +157,10 @@ public:
 				const wxPoint& loc, const wxSize& size,
 				int nbitems, wxString choice[]);
 
-	~ListBoxCmp(void);
+	~ListBoxCmp();
 
-	void Clear(void);
-	int GetCount(void);
+	void Clear();
+	int GetCount();
 	wxString OnGetItemText(long item, long column) const;
 	void SetSelection(unsigned index, bool State = TRUE);
 	void SetString(unsigned linecount, const wxString & text);
@@ -180,20 +181,22 @@ public:
 public:
 	WinEDA_DisplayFrame( wxWindow * father, WinEDA_App *parent,
 					const wxString & title,
-					const wxPoint& pos, const wxSize& size);
+					const wxPoint& pos, const wxSize& size,
+					long style = KICAD_DEFAULT_DRAWFRAME_STYLE);
 
-	~WinEDA_DisplayFrame(void);
+	~WinEDA_DisplayFrame();
 
 	void OnCloseWindow(wxCloseEvent & Event);
 	void Process_Special_Functions(wxCommandEvent& event);
 	void RedrawActiveWindow(wxDC * DC, bool EraseBg);
-	void ReCreateHToolbar(void);
-	void ReCreateVToolbar(void);
-	void RecreateMenuBar(void);
+	void ReCreateHToolbar();
+	void ReCreateVToolbar();
+	void RecreateMenuBar();
 	void OnLeftClick(wxDC * DC, const wxPoint& MousePos);
 	void OnLeftDClick(wxDC * DC, const wxPoint& MousePos);
-	void OnRightClick(const wxPoint& MousePos, wxMenu * PopMenu);
-	void SetToolbars(void);
+	bool OnRightClick(const wxPoint& MousePos, wxMenu * PopMenu);
+	void SetToolbars();
+	void GeneralControle( wxDC* DC, wxPoint Mouse );
 	void InstallOptionsDisplay(wxCommandEvent& event);
 	MODULE * Get_Module(const wxString & CmpName);
 
