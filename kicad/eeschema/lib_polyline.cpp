@@ -177,6 +177,30 @@ void LIB_POLYLINE::DoMirrorHorizontal( const wxPoint& aCenter )
     }
 }
 
+void LIB_POLYLINE::DoMirrorVertical( const wxPoint& aCenter )
+{
+    size_t i, imax = m_PolyPoints.size();
+
+    for( i = 0; i < imax; i++ )
+    {
+        m_PolyPoints[i].y -= aCenter.y;
+        m_PolyPoints[i].y *= -1;
+        m_PolyPoints[i].y += aCenter.y;
+    }
+}
+
+void LIB_POLYLINE::DoRotate( const wxPoint& aCenter, bool aRotateCCW )
+{
+    int rot_angle = aRotateCCW ? -900 : 900;
+
+    size_t i, imax = m_PolyPoints.size();
+
+    for( i = 0; i < imax; i++ )
+    {
+        RotatePoint( &m_PolyPoints[i], aCenter, rot_angle );
+   }
+}
+
 
 void LIB_POLYLINE::DoPlot( PLOTTER* aPlotter, const wxPoint& aOffset, bool aFill,
                            const TRANSFORM& aTransform )
@@ -297,7 +321,7 @@ void LIB_POLYLINE::drawGraphic( EDA_DRAW_PANEL* aPanel, wxDC* aDC, const wxPoint
 
 bool LIB_POLYLINE::HitTest( const wxPoint& aPosition )
 {
-    int mindist = m_Width ? m_Width / 2 : g_DrawDefaultLineThickness / 2;
+    int mindist = GetPenSize() / 2;
 
     // Have a minimal tolerance for hit test
     if( mindist < MINIMUM_SELECTION_DISTANCE )
@@ -309,6 +333,9 @@ bool LIB_POLYLINE::HitTest( const wxPoint& aPosition )
 bool LIB_POLYLINE::HitTest( wxPoint aPosition, int aThreshold, const TRANSFORM& aTransform )
 {
     wxPoint ref, start, end;
+
+    if( aThreshold < 0 )
+        aThreshold = GetPenSize() / 2;
 
     for( unsigned ii = 1; ii < GetCornerCount(); ii++ )
     {

@@ -115,6 +115,7 @@ BEGIN_EVENT_TABLE( LIB_EDIT_FRAME, EDA_DRAW_FRAME )
     EVT_MENU( ID_LIBEDIT_GEN_PNG_FILE, LIB_EDIT_FRAME::OnPlotCurrentComponent )
     EVT_MENU( ID_LIBEDIT_GEN_SVG_FILE, LIB_EDIT_FRAME::OnPlotCurrentComponent )
     EVT_MENU( wxID_HELP, EDA_DRAW_FRAME::GetKicadHelp )
+    EVT_MENU( wxID_ABOUT, EDA_BASE_FRAME::GetKicadAbout )
 
     EVT_MENU( ID_COLORS_SETUP, LIB_EDIT_FRAME::OnColorConfig )
     EVT_MENU( ID_CONFIG_REQ, LIB_EDIT_FRAME::InstallConfigFrame )
@@ -378,7 +379,7 @@ int LIB_EDIT_FRAME::BestZoom()
     double margin_scale_factor = 0.8;
     double zx =(double) dx / ( margin_scale_factor * (double)size.x ) *
                     (double) GetScreen()->m_ZoomScalar;
-    double zy = (double) dx / ( margin_scale_factor * (double)size.y) *
+    double zy = (double) dy / ( margin_scale_factor * (double)size.y) *
                     (double) GetScreen()->m_ZoomScalar;
 
     int bestzoom = wxRound( MAX( zx, zy ) );
@@ -625,7 +626,9 @@ void LIB_EDIT_FRAME::Process_Special_Functions( wxCommandEvent& event )
     case ID_POPUP_DELETE_BLOCK:
     case ID_POPUP_COPY_BLOCK:
     case ID_POPUP_SELECT_ITEMS_BLOCK:
+    case ID_POPUP_MIRROR_X_BLOCK:
     case ID_POPUP_MIRROR_Y_BLOCK:
+    case ID_POPUP_ROTATE_BLOCK:
     case ID_POPUP_PLACE_BLOCK:
     case ID_POPUP_LIBEDIT_DELETE_CURRENT_POLY_SEGMENT:
         break;
@@ -801,6 +804,20 @@ void LIB_EDIT_FRAME::Process_Special_Functions( wxCommandEvent& event )
     case ID_POPUP_MIRROR_Y_BLOCK:
         DrawPanel->m_AutoPAN_Request = false;
         GetScreen()->m_BlockLocate.m_Command = BLOCK_MIRROR_Y;
+        DrawPanel->MoveCursorToCrossHair();
+        HandleBlockPlace( &dc );
+        break;
+
+    case ID_POPUP_MIRROR_X_BLOCK:
+        DrawPanel->m_AutoPAN_Request = false;
+        GetScreen()->m_BlockLocate.m_Command = BLOCK_MIRROR_X;
+        DrawPanel->MoveCursorToCrossHair();
+        HandleBlockPlace( &dc );
+        break;
+
+    case ID_POPUP_ROTATE_BLOCK:
+        DrawPanel->m_AutoPAN_Request = false;
+        GetScreen()->m_BlockLocate.m_Command = BLOCK_ROTATE;
         DrawPanel->MoveCursorToCrossHair();
         HandleBlockPlace( &dc );
         break;

@@ -470,9 +470,9 @@ void LIB_PIN::SetVisible( bool visible )
         return;
 
     if( visible )
-        m_attributes &= ~PINNOTDRAW;
+        m_attributes &= ~PIN_INVISIBLE;
     else
-        m_attributes |= PINNOTDRAW;
+        m_attributes |= PIN_INVISIBLE;
 
     SetModified();
 
@@ -488,9 +488,9 @@ void LIB_PIN::SetVisible( bool visible )
             continue;
 
         if( visible )
-            pinList[i]->m_attributes &= ~PINNOTDRAW;
+            pinList[i]->m_attributes &= ~PIN_INVISIBLE;
         else
-            pinList[i]->m_attributes |= PINNOTDRAW;
+            pinList[i]->m_attributes |= PIN_INVISIBLE;
 
         SetModified();
     }
@@ -531,6 +531,9 @@ bool LIB_PIN::HitTest( const wxPoint& aPosition )
 
 bool LIB_PIN::HitTest( wxPoint aPosition, int aThreshold, const TRANSFORM& aTransform )
 {
+    if( aThreshold < 0 )
+        aThreshold = 0;
+
     TRANSFORM transform = DefaultTransform;
     DefaultTransform = aTransform;
 
@@ -619,13 +622,12 @@ bool LIB_PIN::Save( FILE* ExportFile )
                  m_Unit, m_Convert, Etype ) < 0 )
         return false;
 
-    if( ( m_shape ) || ( m_attributes & PINNOTDRAW ) )
+    if( m_shape || !IsVisible() )
     {
         if( fprintf( ExportFile, " " ) < 0 )
             return false;
     }
-    if( m_attributes & PINNOTDRAW
-        && fprintf( ExportFile, "N" ) < 0 )
+    if( !IsVisible() && fprintf( ExportFile, "N" ) < 0 )
         return false;
     if( m_shape & INVERT
         && fprintf( ExportFile, "I" ) < 0 )
@@ -741,7 +743,7 @@ bool LIB_PIN::Load( char* line, wxString& errorMsg )
                 break;
 
             case 'N':
-                m_attributes |= PINNOTDRAW;
+                m_attributes |= PIN_INVISIBLE;
                 break;
 
             case 'I':
@@ -797,16 +799,21 @@ void LIB_PIN::drawGraphic( EDA_DRAW_PANEL*  aPanel,
                            void*            aData,
                            const TRANSFORM& aTransform )
 {
-    // Invisible pins are only drawn on request.  In libedit they are drawn
-    // in g_InvisibleItemColor because we must see them.
-    SCH_EDIT_FRAME* frame = (SCH_EDIT_FRAME*) wxGetApp().GetTopWindow();
-
-    if( m_attributes & PINNOTDRAW )
+    // Invisible pins are only drawn on request.
+    // They are drawn in g_InvisibleItemColor.
+    // in schematic, they are drawn only if m_ShowAllPins is true.
+    // In other windows, they are always drawn because we must see them.
+    if( ! IsVisible() )
     {
-        if( frame->m_LibeditFrame && frame->m_LibeditFrame->IsActive() )
-            aColor = g_InvisibleItemColor;
-        else if( !frame->m_ShowAllPins )
+        EDA_DRAW_FRAME* frame = NULL;
+        if( aPanel && aPanel->GetParent() )
+            frame = (EDA_DRAW_FRAME*)aPanel->GetParent();
+
+        if( frame && frame->m_Ident == SCHEMATIC_FRAME &&
+            ! ((SCH_EDIT_FRAME*)frame)->m_ShowAllPins )
             return;
+
+        aColor = g_InvisibleItemColor;
     }
 
     LIB_COMPONENT* Entry = GetParent();
@@ -1044,7 +1051,7 @@ void LIB_PIN::DrawPinSymbol( EDA_DRAW_PANEL* aPanel,
     /* Draw the pin end target (active end of the pin)
      */
     BASE_SCREEN* screen = aPanel ? aPanel->GetScreen() : NULL;
-    #define NCSYMB_PIN_DIM TARGET_PIN_DIAM
+    #define NCSYMB_PIN_DIM TARGET_PIN_RADIUS
     if( m_type == PIN_NC )   // Draw a N.C. symbol
     {
         GRLine( clipbox, aDC,
@@ -1060,7 +1067,7 @@ void LIB_PIN::DrawPinSymbol( EDA_DRAW_PANEL* aPanel,
      */
     else if( screen == NULL || !screen->m_IsPrinting )
     {
-        GRCircle( clipbox, aDC, posX, posY, TARGET_PIN_DIAM, 0, color );
+        GRCircle( clipbox, aDC, posX, posY, TARGET_PIN_RADIUS, 0, color );
     }
 }
 
@@ -1500,7 +1507,7 @@ wxPoint LIB_PIN::ReturnPinEndPoint() const
 }
 
 
-int LIB_PIN::ReturnPinDrawOrient( const TRANSFORM& aTransform )
+int LIB_PIN::ReturnPinDrawOrient( const TRANSFORM& aTransform ) const
 {
     int     orient;
     wxPoint end;   // position of pin end starting at 0,0 according to its orientation, length = 1
@@ -1669,11 +1676,71 @@ void LIB_PIN::DoMirrorHorizontal( const wxPoint& center )
         m_orientation = PIN_RIGHT;
 }
 
+void LIB_PIN::DoMirrorVertical( const wxPoint& center )
+{
+    m_position.y -= center.y;
+    m_position.y *= -1;
+    m_position.y += center.y;
+
+    if( m_orientation == PIN_UP )
+        m_orientation = PIN_DOWN;
+    else if( m_orientation == PIN_DOWN )
+        m_orientation = PIN_UP;
+}
+
+void LIB_PIN::DoRotate( const wxPoint& center, bool aRotateCCW )
+{
+    int rot_angle = aRotateCCW ? -900 : 900;
+
+    RotatePoint( &m_position, center, rot_angle );
+
+    if( aRotateCCW )
+    {
+        switch( m_orientation )
+        {
+            case PIN_RIGHT:
+                m_orientation = PIN_UP;
+                break;
+
+            case PIN_UP:
+                m_orientation = PIN_LEFT;
+                break;
+            case PIN_LEFT:
+                m_orientation = PIN_DOWN;
+                break;
+
+            case PIN_DOWN:
+                m_orientation = PIN_RIGHT;
+                break;
+        }
+    }
+    else
+    {
+        switch( m_orientation )
+        {
+            case PIN_RIGHT:
+                m_orientation = PIN_DOWN;
+                break;
+
+            case PIN_UP:
+                m_orientation = PIN_RIGHT;
+                break;
+            case PIN_LEFT:
+                m_orientation = PIN_UP;
+                break;
+
+            case PIN_DOWN:
+                m_orientation = PIN_LEFT;
+                break;
+        }
+    }
+}
+
 
 void LIB_PIN::DoPlot( PLOTTER* plotter, const wxPoint& offset, bool fill,
                       const TRANSFORM& aTransform )
 {
-    if( m_attributes & PINNOTDRAW )
+    if( ! IsVisible() )
         return;
 
     int     orient = ReturnPinDrawOrient( aTransform );
@@ -1752,8 +1819,8 @@ EDA_RECT LIB_PIN::GetBoundingBox() const
     int            nameTextOffset = 0;
     bool           showName = !m_name.IsEmpty() && (m_name != wxT( "~" ));
     bool           showNum = m_number != 0;
-    int            symbolX = TARGET_PIN_DIAM / 2;
-    int            symbolY = TARGET_PIN_DIAM / 2;
+    int            minsizeV = TARGET_PIN_RADIUS;
+
 
     if( entry )
     {
@@ -1768,16 +1835,16 @@ EDA_RECT LIB_PIN::GetBoundingBox() const
     // First, calculate boundary box corners position
     int numberTextLength = showNum ? m_PinNumSize * GetNumberString().Len() : 0;
 
-    // Actual text height are bigger than text size
+    // Actual text height is bigger than text size
     int numberTextHeight  = showNum ? wxRound( m_PinNumSize * 1.1 ) : 0;
 
     if( m_shape & INVERT )
-        symbolX = symbolY = INVERT_PIN_RADIUS;
+        minsizeV = MAX( TARGET_PIN_RADIUS, INVERT_PIN_RADIUS );
 
     // calculate top left corner position
     // for the default pin orientation (PIN_RIGHT)
-    begin.y = numberTextHeight + TXTMARGE;
-    begin.x = MIN( -TARGET_PIN_DIAM / 2, m_length - (numberTextLength / 2) );
+    begin.y = MAX( minsizeV, numberTextHeight + TXTMARGE );
+    begin.x = MIN( -TARGET_PIN_RADIUS, m_length - (numberTextLength / 2) );
 
     // calculate bottom right corner position and adjust top left corner position
     int nameTextLength = 0;
@@ -1793,20 +1860,30 @@ EDA_RECT LIB_PIN::GetBoundingBox() const
 
         nameTextLength = ( m_PinNameSize * length ) + nameTextOffset;
         // Actual text height are bigger than text size
-        nameTextHeight = wxRound( m_PinNameSize * 1.1 );
+        nameTextHeight = wxRound( m_PinNameSize * 1.1 ) + TXTMARGE;
     }
 
-    end.x = m_length + nameTextLength;
-
-    end.y = -nameTextHeight / 2;
-    if( end.y > -symbolY )
-        end.y = -symbolY;
+    if( nameTextOffset )        // for values > 0, pin name is inside the body
+    {
+        end.x = m_length + nameTextLength;
+        end.y = MIN( -minsizeV, -nameTextHeight / 2 );
+    }
+    else        // if value == 0:
+                // pin name is ouside the body, and above the pin line
+                // pin num is below the pin line
+    {
+        end.x = MAX(m_length, nameTextLength);
+        end.y = -begin.y;
+        begin.y = MAX( minsizeV, nameTextHeight );
+    }
 
     // Now, calculate boundary box corners position for the actual pin orientation
-    switch( m_orientation )
+    int orient = ReturnPinDrawOrient( DefaultTransform );
+
+    /* Calculate the pin position */
+    switch( orient )
     {
     case PIN_UP:
-
         // Pin is rotated and texts positions are mirrored
         RotatePoint( &begin, wxPoint( 0, 0 ), -900 );
         RotatePoint( &end, wxPoint( 0, 0 ), -900 );
@@ -1820,8 +1897,6 @@ EDA_RECT LIB_PIN::GetBoundingBox() const
         break;
 
     case PIN_LEFT:
-
-        // Pin is mirrored, not rotated by 180.0 degrees
         NEGATE( begin.x );
         NEGATE( end.x );
         break;
@@ -1830,8 +1905,13 @@ EDA_RECT LIB_PIN::GetBoundingBox() const
         break;
     }
 
-    begin = DefaultTransform.TransformCoordinate( begin + m_position);
-    end = DefaultTransform.TransformCoordinate( end + m_position);
+    // Draw Y axis is reversed in schematic:
+    NEGATE( begin.y );
+    NEGATE( end.y );
+
+    wxPoint pos1 = DefaultTransform.TransformCoordinate( m_position );
+    begin += pos1;
+    end += pos1;
 
     bbox.SetOrigin( begin );
     bbox.SetEnd( end );

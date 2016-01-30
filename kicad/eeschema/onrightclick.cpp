@@ -40,7 +40,6 @@ static void AddMenusForGLabel( wxMenu* PopMenu, SCH_GLOBALLABEL* GLabel );
 static void AddMenusForHLabel( wxMenu* PopMenu, SCH_HIERLABEL* GLabel );
 static void AddMenusForComponent( wxMenu* PopMenu, SCH_COMPONENT* Component );
 static void AddMenusForComponentField( wxMenu* PopMenu, SCH_FIELD* Field );
-static void AddMenusForJunction( wxMenu* PopMenu, SCH_JUNCTION* Junction, SCH_EDIT_FRAME* frame );
 static void AddMenusForMarkers( wxMenu* aPopMenu, SCH_MARKER* aMarker, SCH_EDIT_FRAME* aFrame );
 
 
@@ -118,7 +117,7 @@ bool SCH_EDIT_FRAME::OnRightClick( const wxPoint& aPosition, wxMenu* PopMenu )
         break;
 
     case SCH_JUNCTION_T:
-        AddMenusForJunction( PopMenu, (SCH_JUNCTION*) item, this );
+        addJunctionMenuEntries( PopMenu, (SCH_JUNCTION*) item );
         break;
 
     case SCH_BUS_ENTRY_T:
@@ -249,8 +248,8 @@ void AddMenusForComponent( wxMenu* PopMenu, SCH_COMPONENT* Component )
 
     wxMenu* orientmenu = new wxMenu;
     msg = AddHotkeyName( _( "Rotate +" ), s_Schematic_Hokeys_Descr, HK_ROTATE );
-    ADD_MENUITEM( orientmenu, ID_POPUP_SCH_ROTATE_CMP_COUNTERCLOCKWISE, msg, rotate_pos_xpm );
-    ADD_MENUITEM( orientmenu, ID_POPUP_SCH_ROTATE_CMP_CLOCKWISE, _( "Rotate -" ), rotate_neg_xpm );
+    ADD_MENUITEM( orientmenu, ID_POPUP_SCH_ROTATE_CMP_COUNTERCLOCKWISE, msg, rotate_CCW_xpm );
+    ADD_MENUITEM( orientmenu, ID_POPUP_SCH_ROTATE_CMP_CLOCKWISE, _( "Rotate -" ), rotate_CW_xpm );
     msg = AddHotkeyName( _( "Mirror --" ), s_Schematic_Hokeys_Descr, HK_MIRROR_X_COMPONENT );
     ADD_MENUITEM( orientmenu, ID_POPUP_SCH_MIROR_X_CMP, msg, mirror_V_xpm );
     msg = AddHotkeyName( _( "Mirror ||" ), s_Schematic_Hokeys_Descr, HK_MIRROR_Y_COMPONENT );
@@ -408,7 +407,7 @@ void AddMenusForLabel( wxMenu* PopMenu, SCH_LABEL* Label )
         ADD_MENUITEM( PopMenu, ID_POPUP_SCH_COPY_ITEM, msg, copy_button );
     }
     msg = AddHotkeyName( _( "Rotate Label" ), s_Schematic_Hokeys_Descr, HK_ROTATE );
-    ADD_MENUITEM( PopMenu, ID_POPUP_SCH_ROTATE_TEXT, msg, rotate_pos_xpm );
+    ADD_MENUITEM( PopMenu, ID_POPUP_SCH_ROTATE_TEXT, msg, rotate_CCW_xpm );
     msg = AddHotkeyName( _( "Edit Label" ), s_Schematic_Hokeys_Descr, HK_EDIT );
     ADD_MENUITEM( PopMenu, ID_POPUP_SCH_EDIT_TEXT, msg, edit_text_xpm );
     msg = AddHotkeyName( _( "Delete Label" ), s_Schematic_Hokeys_Descr, HK_DELETE );
@@ -442,7 +441,7 @@ void AddMenusForText( wxMenu* PopMenu, SCH_TEXT* Text )
     }
 
     msg = AddHotkeyName( _( "Rotate Text" ), s_Schematic_Hokeys_Descr, HK_ROTATE );
-    ADD_MENUITEM( PopMenu, ID_POPUP_SCH_ROTATE_TEXT, msg, rotate_pos_xpm );
+    ADD_MENUITEM( PopMenu, ID_POPUP_SCH_ROTATE_TEXT, msg, rotate_CCW_xpm );
     msg = AddHotkeyName( _( "Edit Text" ), s_Schematic_Hokeys_Descr, HK_EDIT );
     ADD_MENUITEM( PopMenu, ID_POPUP_SCH_EDIT_TEXT, msg, edit_text_xpm );
     msg = AddHotkeyName( _( "Delete Text" ), s_Schematic_Hokeys_Descr, HK_DELETE );
@@ -465,25 +464,27 @@ void AddMenusForText( wxMenu* PopMenu, SCH_TEXT* Text )
 }
 
 
-void AddMenusForJunction( wxMenu* PopMenu, SCH_JUNCTION* Junction, SCH_EDIT_FRAME* frame )
+void SCH_EDIT_FRAME::addJunctionMenuEntries( wxMenu* aMenu, SCH_JUNCTION* aJunction )
 {
-    bool     is_new = Junction->IsNew();
-    SCH_SCREEN* screen = frame->GetScreen();
     wxString msg;
-
-    if( !is_new )
-    {
-        if( screen->GetWire( screen->GetCrossHairPosition(), EXCLUDE_END_POINTS_T ) )
-            ADD_MENUITEM( PopMenu, ID_POPUP_SCH_BREAK_WIRE, _( "Break Wire" ), break_line_xpm );
-    }
+    SCH_SCREEN* screen = GetScreen();
 
     msg = AddHotkeyName( _( "Delete Junction" ), s_Schematic_Hokeys_Descr, HK_DELETE );
-    ADD_MENUITEM( PopMenu, ID_POPUP_SCH_DELETE, msg, delete_xpm );
+    ADD_MENUITEM( aMenu, ID_POPUP_SCH_DELETE, msg, delete_xpm );
 
-    if( screen->GetWireOrBus( screen->GetCrossHairPosition() ) )
+    if( !aJunction->IsNew() )
     {
-        ADD_MENUITEM( PopMenu, ID_POPUP_SCH_DELETE_NODE, _( "Delete Node" ), delete_node_xpm );
-        ADD_MENUITEM( PopMenu, ID_POPUP_SCH_DELETE_CONNECTION, _( "Delete Connection" ),
+        if( m_collectedItems.IsDraggableJunction() )
+            ADD_MENUITEM( aMenu, ID_POPUP_SCH_DRAG_WIRE_REQUEST, _( "Drag Junction" ), move_xpm );
+
+        if( screen->GetWire( aJunction->m_Pos, EXCLUDE_END_POINTS_T ) )
+            ADD_MENUITEM( aMenu, ID_POPUP_SCH_BREAK_WIRE, _( "Break Wire" ), break_line_xpm );
+    }
+
+    if( screen->GetWireOrBus( aJunction->m_Pos ) )
+    {
+        ADD_MENUITEM( aMenu, ID_POPUP_SCH_DELETE_NODE, _( "Delete Node" ), delete_node_xpm );
+        ADD_MENUITEM( aMenu, ID_POPUP_SCH_DELETE_CONNECTION, _( "Delete Connection" ),
                       delete_connection_xpm );
     }
 }
@@ -643,7 +644,7 @@ void AddMenusForBlock( wxMenu* PopMenu, SCH_EDIT_FRAME* frame )
         ADD_MENUITEM( PopMenu, ID_POPUP_DELETE_BLOCK, _( "Delete Block" ), delete_xpm );
         ADD_MENUITEM( PopMenu, ID_POPUP_MIRROR_Y_BLOCK, _( "Mirror Block ||" ), mirror_H_xpm );
         ADD_MENUITEM( PopMenu, ID_POPUP_MIRROR_X_BLOCK, _( "Mirror Block --" ), mirror_V_xpm );
-        ADD_MENUITEM( PopMenu, ID_POPUP_ROTATE_BLOCK, _( "Rotate Block ccw" ), rotate_pos_xpm );
+        ADD_MENUITEM( PopMenu, ID_POPUP_ROTATE_BLOCK, _( "Rotate Block ccw" ), rotate_CCW_xpm );
 
 #if 0
   #ifdef __WINDOWS__
