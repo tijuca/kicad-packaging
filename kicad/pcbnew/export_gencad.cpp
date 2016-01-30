@@ -3,8 +3,11 @@
 /***************************************************/
 
 #include "fctsys.h"
-
 #include "common.h"
+#include "class_drawpanel.h"
+#include "confirm.h"
+#include "gestfich.h"
+
 #include "pcbnew.h"
 #include "trigo.h"
 
@@ -23,7 +26,7 @@ static void CreateShapesSection( FILE* file, BOARD* pcb );
 static void CreatePadsShapesSection( FILE* file, BOARD* pcb );
 static void ModuleWriteShape( FILE* File, MODULE* module );
 
-// layer name pour extensions fichiers de tracewxString 
+// layer name pour extensions fichiers de tracewxString
 static const wxString GenCAD_Layer_Name[32] = {
     wxT( "BOTTOM" ),            wxT( "INNER1" ),         wxT( "INNER2" ),             wxT("INNER3" ),
     wxT( "INNER4" ),            wxT( "INNER5" ),         wxT( "INNER6" ),             wxT("INNER7" ),
@@ -85,7 +88,7 @@ void WinEDA_PcbFrame::ExportToGenCAD( wxCommandEvent& event )
     }
 
     /* Mise a jour des infos PCB: */
-    m_Pcb->ComputeBoundaryBox();
+    GetBoard()->ComputeBoundaryBox();
 
     offsetX = m_Auxiliary_Axis_Position.x;
     offsetY = m_Auxiliary_Axis_Position.y;
@@ -98,44 +101,44 @@ void WinEDA_PcbFrame::ExportToGenCAD( wxCommandEvent& event )
      *  (necessaire pour decrire les formes sous GenCAD,
      *  qui sont decrites en vue normale, orientation 0)) */
     MODULE* module;
-    for( module = m_Pcb->m_Modules; module != NULL; module = module->Next() )
+    for( module = GetBoard()->m_Modules; module != NULL; module = module->Next() )
     {
         module->flag = 0;
         if( module->GetLayer() == COPPER_LAYER_N )
         {
-            m_Pcb->Change_Side_Module( module, NULL );
+            GetBoard()->Change_Side_Module( module, NULL );
             module->flag = 1;
         }
     }
 
     // Creation de l'entete:
     CreateHeaderInfoData( file, this );
-    CreateBoardSection( file, m_Pcb );
+    CreateBoardSection( file, GetBoard() );
 
     /* Creation liste des TRACKS
      *  (section $TRACK) id liste des outils de tracage de pistes */
-    CreateTracksInfoData( file, m_Pcb );
+    CreateTracksInfoData( file, GetBoard() );
 
     /* Creation de la liste des formes utilisees
      *  (formes des composants principalement */
-    CreatePadsShapesSection( file, m_Pcb );   // doit etre appele avant CreateShapesSection()
-    CreateShapesSection( file, m_Pcb );
+    CreatePadsShapesSection( file, GetBoard() );   // doit etre appele avant CreateShapesSection()
+    CreateShapesSection( file, GetBoard() );
 
     /* Creation de la liste des equipotentielles: */
-    CreateSignalsSection( file, m_Pcb );
+    CreateSignalsSection( file, GetBoard() );
 
-    CreateDevicesSection( file, m_Pcb );
-    CreateComponentsSection( file, m_Pcb );
-    CreateRoutesSection( file, m_Pcb );
+    CreateDevicesSection( file, GetBoard() );
+    CreateComponentsSection( file, GetBoard() );
+    CreateRoutesSection( file, GetBoard() );
 
     fclose( file );
 
     /* Remise en place des modules vus en miroir */
-    for( module = m_Pcb->m_Modules; module != NULL; module = module->Next() )
+    for( module = GetBoard()->m_Modules; module != NULL; module = module->Next() )
     {
         if( module->flag )
         {
-            m_Pcb->Change_Side_Module( module, NULL );
+            GetBoard()->Change_Side_Module( module, NULL );
             module->flag = 0;
         }
     }
@@ -149,7 +152,7 @@ static int Pad_list_Sort_by_Shapes( const void* refptr, const void* objptr )
     const D_PAD* padref = *(D_PAD**)refptr;
     const D_PAD* padcmp = *(D_PAD**)objptr;
 
-    return D_PAD::Compare( padref, padcmp );     
+    return D_PAD::Compare( padref, padcmp );
 }
 
 
@@ -158,35 +161,29 @@ void CreatePadsShapesSection( FILE* file, BOARD* pcb )
 /*****************************************************/
 
 /* Cree la liste des formes des pads ( 1 forme par pad )
- *  initialise le membre .m_logical_connexion de la struct pad, la valeur 1 ..n
+ *  initialise le membre .GetSubRatsnest de la struct pad, la valeur 1 ..n
  *  pour les formes de pad PAD1 a PADn
  */
 {
-    D_PAD*      pad;
-    D_PAD**     padlist;
-    D_PAD**     pad_list_base = NULL;
-    
+    std::vector<D_PAD*> pads;
+
     const  char*  pad_type;
-    int    memsize, ii, dx, dy;
-    D_PAD* old_pad = NULL;
-    int    pad_name_number;
 
     fputs( "$PADS\n", file );
 
-    if( pcb->m_NbPads > 0 )     // pcb->m_Pads is NULL unless this is true
+    if( pcb->m_Pads.size() > 0 )
     {
-        // Generation de la liste des pads tries par forme et dimensions:
-        memsize = (pcb->m_NbPads + 1) * sizeof(D_PAD *);
-        pad_list_base = (D_PAD**) MyZMalloc( memsize );
-        memcpy( pad_list_base, pcb->m_Pads, memsize );
-        qsort( pad_list_base, pcb->m_NbPads, sizeof(D_PAD *), Pad_list_Sort_by_Shapes );
+        pads.insert( pads.end(), pcb->m_Pads.begin(), pcb->m_Pads.end() );
+        qsort( &pads[0], pcb->m_Pads.size(), sizeof( D_PAD* ), Pad_list_Sort_by_Shapes );
     }
 
-    pad_name_number = 0;
-    for( padlist = pad_list_base, ii = 0; ii < pcb->m_NbPads; padlist++, ii++ )
+    D_PAD*  old_pad = NULL;
+    int     pad_name_number = 0;
+    for( unsigned i=0;  i<pads.size();  ++i )
     {
-        pad = *padlist;
-        pad->m_logical_connexion = pad_name_number;
+        D_PAD* pad = pads[i];
+
+        pad->SetSubRatsnest( pad_name_number );
 
         if( old_pad && 0==D_PAD::Compare( old_pad, pad ) )
             continue; // Forme deja generee
@@ -194,12 +191,12 @@ void CreatePadsShapesSection( FILE* file, BOARD* pcb )
         old_pad = pad;
 
         pad_name_number++;
-        pad->m_logical_connexion = pad_name_number;
+        pad->SetSubRatsnest( pad_name_number );
 
-        fprintf( file, "PAD PAD%d", pad->m_logical_connexion );
+        fprintf( file, "PAD PAD%d", pad->GetSubRatsnest() );
 
-        dx = pad->m_Size.x / 2; 
-        dy = pad->m_Size.y / 2;
+        int dx = pad->m_Size.x / 2;
+        int dy = pad->m_Size.y / 2;
 
         switch( pad->m_PadShape )
         {
@@ -273,8 +270,6 @@ void CreatePadsShapesSection( FILE* file, BOARD* pcb )
     }
 
     fputs( "$ENDPADS\n\n", file );
-    
-    MyFree( pad_list_base );
 }
 
 
@@ -287,13 +282,13 @@ void CreateShapesSection( FILE* file, BOARD* pcb )
  *  une forme est creee par composant
  *  La forme est donnee normalisee, c'est a dire orientation 0, position 0 non miroir
  *  Il y aura donc des formes indentiques redondantes
- * 
+ *
  *  Syntaxe:
  *  $SHAPES
  *  SHAPE <shape_name>
  *  shape_descr (line, arc ..)
  *  PIN <pin_name> <pad_name> <x_y_ref> <layer> <rot> <mirror>
- * 
+ *
  *  SHAPE <shape_name>
  *  ..
  *  $ENDSHAPES
@@ -308,10 +303,10 @@ void CreateShapesSection( FILE* file, BOARD* pcb )
 
     fputs( "$SHAPES\n", file );
 
-    for( module = pcb->m_Modules; module != NULL; module = (MODULE*) module->Pnext )
+    for( module = pcb->m_Modules; module != NULL; module = module->Next() )
     {
         ModuleWriteShape( file, module );
-        for( pad = module->m_Pads; pad != NULL; pad = (D_PAD*) pad->Pnext )
+        for( pad = module->m_Pads; pad != NULL; pad = pad->Next() )
         {
             layer = "ALL";
             if( (pad->m_Masque_Layer & ALL_CU_LAYERS) == CUIVRE_LAYER )
@@ -336,7 +331,7 @@ void CreateShapesSection( FILE* file, BOARD* pcb )
             orient = pad->m_Orient - module->m_Orient;
             NORMALIZE_ANGLE_POS( orient );
             fprintf( file, "PIN %s PAD%d %d %d %s %d %s",
-                     CONV_TO_UTF8( pinname ), pad->m_logical_connexion,
+                     CONV_TO_UTF8( pinname ), pad->GetSubRatsnest(),
                      pad->m_Pos0.x, -pad->m_Pos0.y,
                      layer, orient / 10, mirror );
             if( orient % 10 )
@@ -368,7 +363,7 @@ void CreateComponentsSection( FILE* file, BOARD* pcb )
 
     fputs( "$COMPONENTS\n", file );
 
-    for( ; module != NULL; module = (MODULE*) module->Pnext )
+    for( ; module != NULL; module = module->Next() )
     {
         int orient = module->m_Orient;
         if( module->flag )
@@ -448,34 +443,35 @@ void CreateSignalsSection( FILE* file, BOARD* pcb )
 
     fputs( "$SIGNALS\n", file );
 
-    for( equipot = pcb->m_Equipots; equipot != NULL; equipot = (EQUIPOT*) equipot->Pnext )
+    for( equipot = pcb->m_Equipots; equipot != NULL; equipot = equipot->Next() )
     {
-        if( equipot->m_Netname == wxEmptyString )  // dummy equipot (non connexion)
+        if( equipot->GetNetname() == wxEmptyString )  // dummy equipot (non connexion)
         {
-            equipot->m_Netname << wxT( "NoConnection" ) << NbNoConn++;
+            wxString msg; msg << wxT( "NoConnection" ) << NbNoConn++;
+            equipot->SetNetname(msg); ;
         }
 
         if( equipot->GetNet() <= 0 )  // dummy equipot (non connexion)
             continue;
 
-        msg = wxT( "\nSIGNAL " ) + equipot->m_Netname;
-        
-        fputs( CONV_TO_UTF8( msg ), file ); 
+        msg = wxT( "\nSIGNAL " ) + equipot->GetNetname();
+
+        fputs( CONV_TO_UTF8( msg ), file );
         fputs( "\n", file );
 
-        for( module = pcb->m_Modules; module != NULL; module = (MODULE*) module->Pnext )
+        for( module = pcb->m_Modules; module != NULL; module = module->Next() )
         {
-            for( pad = module->m_Pads; pad != NULL; pad = (D_PAD*) pad->Pnext )
+            for( pad = module->m_Pads; pad != NULL; pad = pad->Next() )
             {
                 wxString padname;
                 if( pad->GetNet() != equipot->GetNet() )
                     continue;
-                
+
                 pad->ReturnStringPadName( padname );
                 msg.Printf( wxT( "NODE %s %.4s" ),
                            module->m_Reference->m_Text.GetData(), padname.GetData() );
-                
-                fputs( CONV_TO_UTF8( msg ), file ); 
+
+                fputs( CONV_TO_UTF8( msg ), file );
                 fputs( "\n", file );
             }
         }
@@ -493,7 +489,7 @@ bool CreateHeaderInfoData( FILE* file, WinEDA_PcbFrame* frame )
  */
 {
     wxString    msg;
-	PCB_SCREEN* screen = (PCB_SCREEN*)(frame->GetScreen());
+    PCB_SCREEN* screen = (PCB_SCREEN*)(frame->GetScreen());
 
     fputs( "$HEADER\n", file );
     fputs( "GENCAD 1.4\n", file );
@@ -559,24 +555,24 @@ void CreateRoutesSection( FILE* file, BOARD* pcb )
 
     // Calcul du nombre de segments a ecrire
     nbitems = 0;
-    for( track = pcb->m_Track; track != NULL; track = (TRACK*) track->Pnext )
+    for( track = pcb->m_Track; track != NULL; track = track->Next() )
         nbitems++;
 
-    for( track = pcb->m_Zone; track != NULL; track = (TRACK*) track->Pnext )
+    for( track = pcb->m_Zone; track != NULL; track = track->Next() )
     {
-        if( track->Type() == TYPEZONE )
+        if( track->Type() == TYPE_ZONE )
             nbitems++;
     }
 
     tracklist = (TRACK**) MyMalloc( (nbitems + 1) * sizeof(TRACK *) );
 
     nbitems = 0;
-    for( track = pcb->m_Track; track != NULL; track = (TRACK*) track->Pnext )
+    for( track = pcb->m_Track; track != NULL; track = track->Next() )
         tracklist[nbitems++] = track;
 
-    for( track = pcb->m_Zone; track != NULL; track = (TRACK*) track->Pnext )
+    for( track = pcb->m_Zone; track != NULL; track = track->Next() )
     {
-        if( track->Type() == TYPEZONE )
+        if( track->Type() == TYPE_ZONE )
             tracklist[nbitems++] = track;
     }
 
@@ -595,8 +591,8 @@ void CreateRoutesSection( FILE* file, BOARD* pcb )
             old_netcode = track->GetNet();
             EQUIPOT* equipot = pcb->FindNet( track->GetNet() );
             wxString netname;
-            if( equipot && (equipot->m_Netname != wxEmptyString) )
-                netname = equipot->m_Netname;
+            if( equipot && (equipot->GetNetname() != wxEmptyString) )
+                netname = equipot->GetNetname();
             else
                 netname = wxT( "_noname_" );
             fprintf( file, "\nROUTE %s\n", CONV_TO_UTF8( netname ) );
@@ -608,7 +604,7 @@ void CreateRoutesSection( FILE* file, BOARD* pcb )
             fprintf( file, "TRACK TRACK%d\n", track->m_Width );
         }
 
-        if( (track->Type() == TYPETRACK) || (track->Type() == TYPEZONE) )
+        if( (track->Type() == TYPE_TRACK) || (track->Type() == TYPE_ZONE) )
         {
             if( old_layer != track->GetLayer() )
             {
@@ -621,7 +617,7 @@ void CreateRoutesSection( FILE* file, BOARD* pcb )
                     mapXto( track->m_Start.x ), mapYto( track->m_Start.y ),
                     mapXto( track->m_End.x ), mapYto( track->m_End.y ) );
         }
-        if( track->Type() == TYPEVIA )
+        if( track->Type() == TYPE_VIA )
         {
             fprintf( file, "VIA viapad%d %d %d ALL %d via%d\n",
                      track->m_Width,
@@ -649,15 +645,15 @@ void CreateDevicesSection( FILE* file, BOARD* pcb )
 
     fputs( "$DEVICES\n", file );
 
-    for( module = pcb->m_Modules; module != NULL; module = (MODULE*) module->Pnext )
+    for( module = pcb->m_Modules; module != NULL; module = module->Next() )
     {
         fprintf( file, "DEVICE %s\n", CONV_TO_UTF8( module->m_Reference->m_Text ) );
         fprintf( file, "PART %s\n", CONV_TO_UTF8( module->m_LibRef ) );
         fprintf( file, "TYPE %s\n", "UNKNOWN" );
-        for( pad = module->m_Pads; pad != NULL; pad = (D_PAD*) pad->Pnext )
+        for( pad = module->m_Pads; pad != NULL; pad = pad->Next() )
         {
             fprintf( file, "PINDESCR %.4s", pad->m_Padname );
-            if( pad->m_Netname == wxEmptyString )
+            if( pad->GetNetname() == wxEmptyString )
                 fputs( " NoConn\n", file );
             else
                 fprintf( file, " %.4s\n", pad->m_Padname );
@@ -706,7 +702,7 @@ int* CreateTracksInfoData( FILE* file, BOARD* pcb )
  *  $TRACK
  *  TRACK <name> <width>
  *  $ENDTRACK
- * 
+ *
  *  on attribut ici comme nom l'epaisseur des traits precede de "TRACK": ex
  *  pour une largeur de 120 : nom = "TRACK120".
  */
@@ -719,7 +715,7 @@ int* CreateTracksInfoData( FILE* file, BOARD* pcb )
     trackinfo  = (int*) adr_lowmem;
     *trackinfo = -1;
 
-    for( track = pcb->m_Track; track != NULL; track = (TRACK*) track->Pnext )
+    for( track = pcb->m_Track; track != NULL; track = track->Next() )
     {
         if( *trackinfo != track->m_Width ) // recherche d'une epaisseur deja utilisee
         {
@@ -741,7 +737,7 @@ int* CreateTracksInfoData( FILE* file, BOARD* pcb )
         }
     }
 
-    for( track = pcb->m_Zone; track != NULL; track = (TRACK*) track->Pnext )
+    for( track = pcb->m_Zone; track != NULL; track = track->Next() )
     {
         if( *trackinfo != track->m_Width ) // recherche d'une epaisseur deja utilisee
         {
@@ -812,14 +808,14 @@ void ModuleWriteShape( FILE* file, MODULE* module )
 
     /* Generation des elements Drawing modules */
     PtStruct = module->m_Drawings;
-    for( ; PtStruct != NULL; PtStruct = PtStruct->Pnext )
+    for( ; PtStruct != NULL; PtStruct = PtStruct->Next() )
     {
         switch( PtStruct->Type() )
         {
-        case TYPETEXTEMODULE:
+        case TYPE_TEXTE_MODULE:
             break;
 
-        case TYPEEDGEMODULE:
+        case TYPE_EDGE_MODULE:
             PtEdge = (EDGE_MODULE*) PtStruct;
 
             switch( PtEdge->m_Shape )

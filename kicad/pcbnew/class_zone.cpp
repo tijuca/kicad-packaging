@@ -4,13 +4,15 @@
 
 #include "fctsys.h"
 #include "wxstruct.h"
-
 #include "gr_basic.h"
-
 #include "common.h"
+#include "trigo.h"
+#include "class_drawpanel.h"
+#include "kicad_string.h"
+
 #include "PolyLine.h"
 #include "pcbnew.h"
-#include "trigo.h"
+#include "zones.h"
 
 
 /************************/
@@ -18,17 +20,15 @@
 /************************/
 
 ZONE_CONTAINER::ZONE_CONTAINER( BOARD* parent ) :
-    BOARD_ITEM( parent, TYPEZONE_CONTAINER )
+    BOARD_ITEM( parent, TYPE_ZONE_CONTAINER )
 
 {
-    m_NetCode = -1;             // Net number for fast comparisons
+    m_NetCode = -1;                                                             // Net number for fast comparisons
     m_CornerSelection = -1;
-    m_ZoneClearance   = 200;    // a reasonnable clerance value
-    m_GridFillValue   = 50;     // a reasonnable grid used for filling
-    m_PadOption = THERMAL_PAD;
-    utility  = 0;               // flags used in polygon calculations
-    utility2 = 0;               // flags used in polygon calculations
-    m_Poly   = new CPolyLine(); // Outlines
+    utility  = 0;                                                               // flags used in polygon calculations
+    utility2 = 0;                                                               // flags used in polygon calculations
+    m_Poly   = new CPolyLine();                                                 // Outlines
+    g_Zone_Default_Setting.ExportSetting(*this);
 }
 
 
@@ -38,6 +38,20 @@ ZONE_CONTAINER::~ZONE_CONTAINER()
     m_Poly = NULL;
 }
 
+
+/** virtual function GetPosition
+* @return a wxPoint, position of the first point of the outline
+*/
+wxPoint& ZONE_CONTAINER::GetPosition()
+{
+    static wxPoint pos;
+    if ( m_Poly )
+    {
+        pos = GetCornerPosition(0);
+    }
+    else pos = wxPoint(0,0);
+    return pos;
+}
 
 /*******************************************/
 void ZONE_CONTAINER::SetNet( int anet_code )
@@ -58,7 +72,7 @@ void ZONE_CONTAINER::SetNet( int anet_code )
     {
         EQUIPOT* net = ( (BOARD*) m_Parent )->FindNet( anet_code );
         if( net )
-            m_Netname = net->m_Netname;
+            m_Netname = net->GetNetname();
         else
             m_Netname.Empty();
     }
@@ -84,8 +98,8 @@ bool ZONE_CONTAINER::Save( FILE* aFile ) const
 
     // Save the outline main info
     ret = fprintf( aFile, "ZInfo %8.8lX %d \"%s\"\n",
-                  m_TimeStamp, m_NetCode,
-                  CONV_TO_UTF8( m_Netname ) );
+        m_TimeStamp, m_NetCode,
+        CONV_TO_UTF8( m_Netname ) );
     if( ret < 3 )
         return false;
 
@@ -122,9 +136,11 @@ bool ZONE_CONTAINER::Save( FILE* aFile ) const
     case PAD_IN_ZONE:
         padoption = 'I';
         break;
+
     case THERMAL_PAD:
         padoption = 'T';
         break;
+
     case PAD_NOT_IN_ZONE:
         padoption = 'X';
         break;
@@ -134,14 +150,39 @@ bool ZONE_CONTAINER::Save( FILE* aFile ) const
     if( ret < 2 )
         return false;
 
+    ret = fprintf( aFile, "ZMinThickness %d\n", m_ZoneMinThickness );
+    if( ret < 1 )
+        return false;
+
+    ret = fprintf( aFile, "ZOptions %d %d %c %d %d\n", m_FillMode, m_ArcToSegmentsCount,
+        m_Unused ? 'S' : 'F', m_ThermalReliefGapValue, m_ThermalReliefCopperBridgeValue );
+    if( ret < 3 )
+        return false;
+
+
     // Save the corner list
     for( item_pos = 0; item_pos < corners_count; item_pos++ )
     {
         ret = fprintf( aFile, "ZCorner %d %d %d\n",
-                       m_Poly->corner[item_pos].x, m_Poly->corner[item_pos].y,
-                       m_Poly->corner[item_pos].end_contour );
+            m_Poly->corner[item_pos].x, m_Poly->corner[item_pos].y,
+            m_Poly->corner[item_pos].end_contour );
         if( ret < 3 )
             return false;
+    }
+
+    // Save the PolysList
+    if( m_FilledPolysList.size() )
+    {
+        fprintf( aFile, "$POLYSCORNERS\n" );
+        for( item_pos = 0; item_pos < m_FilledPolysList.size(); item_pos++ )
+        {
+            const CPolyPt* corner = &m_FilledPolysList[item_pos];
+            ret = fprintf( aFile, "%d %d %d %d\n", corner->x, corner->y, corner->end_contour,  corner->utility );
+            if( ret < 3 )
+                return false;
+        }
+
+        fprintf( aFile, "$endPOLYSCORNERS\n" );
     }
 
     fprintf( aFile, "$endCZONE_OUTLINE\n" );
@@ -157,7 +198,7 @@ int ZONE_CONTAINER::ReadDescr( FILE* aFile, int* aLineNum )
 /** Function ReadDescr
  * @param aFile = opened file
  * @param aLineNum = pointer on a line number counter (can be NULL or missing)
- * @return 0 if ok or NULL
+ * @return 1 if ok or 0
  */
 {
     char Line[1024], * text;
@@ -172,7 +213,10 @@ int ZONE_CONTAINER::ReadDescr( FILE* aFile, int* aLineNum )
     {
         if( strnicmp( Line, "ZCorner", 7 ) == 0 ) // new corner found
         {
-            int x = 0, y = 0, flag = 0;
+            int x;
+            int y;
+            int flag;
+
             text = Line + 7;
             ret  = sscanf( text, "%d %d %d", &x, &y, &flag );
             if( ret < 3 )
@@ -182,15 +226,18 @@ int ZONE_CONTAINER::ReadDescr( FILE* aFile, int* aLineNum )
                 if( !has_corner )
                     m_Poly->Start( m_Layer, x, y, outline_hatch );
                 else
-                    AppendCorner( wxPoint(x, y) );
+                    AppendCorner( wxPoint( x, y ) );
+
                 has_corner = true;
                 if( flag )
                     m_Poly->Close();
             }
         }
-        if( strnicmp( Line, "ZInfo", 5 ) == 0 )   // general info found
+        else if( strnicmp( Line, "ZInfo", 5 ) == 0 )   // general info found
         {
-            int ts = 0, netcode = 0;
+            int ts;
+            int netcode;
+
             text = Line + 5;
             ret  = sscanf( text, "%X %d %s", &ts, &netcode, netname_buffer );
             if( ret < 3 )
@@ -203,9 +250,10 @@ int ZONE_CONTAINER::ReadDescr( FILE* aFile, int* aLineNum )
                 m_Netname = CONV_FROM_UTF8( netname_buffer );
             }
         }
-        if( strnicmp( Line, "ZLayer", 6 ) == 0 )  // layer found
+        else if( strnicmp( Line, "ZLayer", 6 ) == 0 )  // layer found
         {
-            int x = 0;
+            int x;
+
             text = Line + 6;
             ret  = sscanf( text, "%d", &x );
             if( ret < 1 )
@@ -213,10 +261,11 @@ int ZONE_CONTAINER::ReadDescr( FILE* aFile, int* aLineNum )
             else
                 m_Layer = x;
         }
-        if( strnicmp( Line, "ZAux", 4 ) == 0 )    // aux info found
+        else if( strnicmp( Line, "ZAux", 4 ) == 0 )    // aux info found
         {
-            int  x = 0;
+            int  x;
             char hopt[10];
+
             text = Line + 4;
             ret  = sscanf( text, "%d %c", &x, hopt );
             if( ret < 2 )
@@ -243,8 +292,28 @@ int ZONE_CONTAINER::ReadDescr( FILE* aFile, int* aLineNum )
                     break;
                 }
             }
+            /* Set hatch mode later, after reading outlines corners data */
         }
-        if( strnicmp( Line, "ZClearance", 10 ) == 0 )    // aux info found
+        else if( strnicmp( Line, "ZOptions", 8 ) == 0 )    // Options info found
+        {
+            int  fillmode = 1;
+            int  arcsegmentcount = 16;
+            char drawopt = 'F';
+            text = Line + 8;
+            ret  = sscanf( text, "%d %d %c %d %d", &fillmode, &arcsegmentcount, &drawopt,
+                &m_ThermalReliefGapValue, &m_ThermalReliefCopperBridgeValue );
+
+            if( ret < 1 )  // Must find 1 or more args.
+                return false;
+            else
+                m_FillMode = fillmode ? 1 : 0;
+
+            if( arcsegmentcount >= 32 )
+                m_ArcToSegmentsCount = 32;
+
+            m_Unused = 0;      // Waiting for a better use
+        }
+        else if( strnicmp( Line, "ZClearance", 10 ) == 0 )    // Clearence and pad options info found
         {
             int  clearance = 200;
             char padoption;
@@ -275,11 +344,50 @@ int ZONE_CONTAINER::ReadDescr( FILE* aFile, int* aLineNum )
                 }
             }
         }
-        if( strnicmp( Line, "$end", 4 ) == 0 )    // end of description
+
+        else if( strnicmp( Line, "ZMinThickness", 13 ) == 0 )    // Min Thickness info found
+        {
+            int thickness;
+            text = Line + 13;
+            ret  = sscanf( text, "%d", &thickness );
+            if( ret < 1 )
+                error = true;
+            else
+               m_ZoneMinThickness = thickness;
+        }
+
+        else if( strnicmp( Line, "$POLYSCORNERS", 13 ) == 0  )  // Read the PolysList (polygons used for fill areas in the zone)
+        {
+            while( GetLine( aFile, Line, aLineNum, sizeof(Line) - 1 ) != NULL )
+            {
+                if( strnicmp( Line, "$endPOLYSCORNERS", 4 ) == 0  )
+                    break;
+                CPolyPt corner;
+                int     end_contour, utility;
+                utility = 0;
+                ret = sscanf( Line, "%d %d %d %d", &corner.x, &corner.y, &end_contour, &utility );
+                if( ret < 3 )
+                    return false;
+                corner.end_contour = end_contour ? true : false;
+                corner.utility = utility;
+                m_FilledPolysList.push_back( corner );
+            }
+        }
+
+        else if( strnicmp( Line, "$end", 4 ) == 0 )    // end of description
         {
             break;
         }
     }
+
+    if( !IsOnCopperLayer() )
+    {
+        m_FillMode = 0;
+        SetNet( 0 );
+    }
+
+    /* Set hatch here, when outlines corners are read */
+    m_Poly->SetHatch( outline_hatch );
 
     return error ? 0 : 1;
 }
@@ -300,8 +408,8 @@ void ZONE_CONTAINER::Draw( WinEDA_DrawPanel* panel, wxDC* DC, int draw_mode, con
         return;
 
     wxPoint seg_start, seg_end;
-    int curr_layer = ( (PCB_SCREEN*) panel->GetScreen() )->m_Active_Layer;
-    int color = g_DesignSettings.m_LayerColor[m_Layer];
+    int     curr_layer = ( (PCB_SCREEN*) panel->GetScreen() )->m_Active_Layer;
+    int     color = g_DesignSettings.m_LayerColor[m_Layer];
 
     if( ( color & (ITEM_NOT_SHOW | HIGHT_LIGHT_FLAG) ) == ITEM_NOT_SHOW )
         return;
@@ -327,18 +435,20 @@ void ZONE_CONTAINER::Draw( WinEDA_DrawPanel* panel, wxDC* DC, int draw_mode, con
     if( color & HIGHT_LIGHT_FLAG )
         color = ColorRefs[color & MASKCOLOR].m_LightColor;
 
+    SetAlpha( &color, 150 );
+
     // draw the lines
     int i_start_contour = 0;
     for( int ic = 0; ic < GetNumCorners(); ic++ )
     {
-        seg_start = GetCornerPosition(ic) + offset;
+        seg_start = GetCornerPosition( ic ) + offset;
         if( m_Poly->corner[ic].end_contour == FALSE && ic < GetNumCorners() - 1 )
         {
-            seg_end = GetCornerPosition(ic + 1) + offset;
+            seg_end = GetCornerPosition( ic + 1 ) + offset;
         }
         else
         {
-            seg_end = GetCornerPosition(i_start_contour) + offset;
+            seg_end = GetCornerPosition( i_start_contour ) + offset;
             i_start_contour = ic + 1;
         }
         GRLine( &panel->m_ClipBox, DC, seg_start.x, seg_start.y, seg_end.x, seg_end.y, 0, color );
@@ -356,20 +466,143 @@ void ZONE_CONTAINER::Draw( WinEDA_DrawPanel* panel, wxDC* DC, int draw_mode, con
 }
 
 
-EDA_Rect ZONE_CONTAINER::GetBoundingBox()
+/************************************************************************************/
+void ZONE_CONTAINER::DrawFilledArea( WinEDA_DrawPanel* panel,
+                                     wxDC* DC, int aDrawMode, const wxPoint& offset )
+/************************************************************************************/
+
+/**
+ * Function DrawDrawFilledArea
+ * Draws the filled areas for this zone (polygon list .m_FilledPolysList)
+ * @param panel = current Draw Panel
+ * @param DC = current Device Context
+ * @param offset = Draw offset (usually wxPoint(0,0))
+ * @param aDrawMode = GR_OR, GR_XOR, GR_COPY ..
+ */
 {
-    const int PRELOAD = 500000;
+    static vector <char> CornersTypeBuffer;
+    static vector <wxPoint> CornersBuffer;
 
-    int ymax = -PRELOAD;
-    int ymin = PRELOAD;
-    int xmin = PRELOAD;
-    int xmax = -PRELOAD;
+    // outline_mode is false to show filled polys,
+    // and true to show polygons outlines only (test and debug purposes)
+    bool outline_mode = DisplayOpt.DisplayZonesMode == 2 ? true : false;
 
-    int count = GetNumCorners();
+    if( DC == NULL )
+        return;
 
-    for( int i=0; i<count;  ++i )
+    if( DisplayOpt.DisplayZonesMode == 1 )     // Do not show filled areas
+        return;
+
+    if( m_FilledPolysList.size() == 0 )  // Nothing to draw
+        return;
+
+    int curr_layer = ( (PCB_SCREEN*) panel->GetScreen() )->m_Active_Layer;
+    int color = g_DesignSettings.m_LayerColor[m_Layer];
+
+    if( ( color & (ITEM_NOT_SHOW | HIGHT_LIGHT_FLAG) ) == ITEM_NOT_SHOW )
+        return;
+
+    GRSetDrawMode( DC, aDrawMode );
+
+    if( DisplayOpt.ContrastModeDisplay )
     {
-        wxPoint corner = GetCornerPosition(i);
+        if( !IsOnLayer( curr_layer ) )
+        {
+            color &= ~MASKCOLOR;
+            color |= DARKDARKGRAY;
+        }
+    }
+
+    if( aDrawMode & GR_SURBRILL )
+    {
+        if( aDrawMode & GR_AND )
+            color &= ~HIGHT_LIGHT_FLAG;
+        else
+            color |= HIGHT_LIGHT_FLAG;
+    }
+    if( color & HIGHT_LIGHT_FLAG )
+        color = ColorRefs[color & MASKCOLOR].m_LightColor;
+
+    SetAlpha( &color, 150 );
+
+    CornersTypeBuffer.clear();
+    CornersBuffer.clear();
+
+    // Draw all filled areas
+    int imax = m_FilledPolysList.size() - 1;
+    for( int ic = 0; ic <= imax; ic++ )
+    {
+        CPolyPt* corner = &m_FilledPolysList[ic];
+
+        wxPoint coord( corner->x + offset.x, corner->y + offset.y );
+
+        CornersBuffer.push_back(coord);
+
+        CornersTypeBuffer.push_back((char) corner->utility);
+
+        if( (corner->end_contour) || (ic == imax) ) // the last corner of a filled area is found: draw it
+        {
+            /* Draw the current filled area: draw segments ouline first
+             * Curiously, draw segments ouline first and after draw filled polygons
+             * with oulines thickness = 0 is a faster than
+             * just draw filled polygons but with oulines thickness = m_ZoneMinThickness
+             * So DO NOT use draw filled polygons with oulines having a thickness  > 0
+             * Note: Extra segments ( added by kbool to joint holes with external outline) are not drawn
+             */
+            {
+                // Draw outlines:
+                if( (m_ZoneMinThickness > 1) || outline_mode )
+                {
+                    int ilim = CornersBuffer.size()-1;
+                    for(  int is = 0, ie = ilim; is <= ilim; ie = is, is++ )
+                    {
+                        int x0 = CornersBuffer[is].x;
+                        int y0 = CornersBuffer[is].y;
+                        int x1 = CornersBuffer[ie].x;
+                        int y1 = CornersBuffer[ie].y;
+
+                        if( CornersTypeBuffer[ie] == 0 )   // Draw only basic outlines, not extra segments
+                        {
+                            if( !DisplayOpt.DisplayPcbTrackFill || GetState( FORCE_SKETCH ) )
+                                GRCSegm( &panel->m_ClipBox, DC,
+                                        x0, y0, x1 , y1,
+                                        m_ZoneMinThickness, color );
+                            else
+                                GRFillCSegm( &panel->m_ClipBox, DC,
+                                        x0, y0, x1 , y1,
+                                        m_ZoneMinThickness, color );
+                        }
+                    }
+                }
+
+                // Draw areas:
+                if( m_FillMode==0  && !outline_mode )
+                    GRPoly( &panel->m_ClipBox, DC, CornersBuffer.size(), &CornersBuffer[0],
+                        true, 0, color, color );
+            }
+            CornersTypeBuffer.clear();
+            CornersBuffer.clear();
+        }
+    }
+}
+
+
+/****************************************/
+EDA_Rect ZONE_CONTAINER::GetBoundingBox()
+/****************************************/
+{
+    const int PRELOAD = 0x7FFFFFFF;     // Biggest integer (32 bits)
+
+    int       ymax = -PRELOAD;
+    int       ymin = PRELOAD;
+    int       xmin = PRELOAD;
+    int       xmax = -PRELOAD;
+
+    int       count = GetNumCorners();
+
+    for( int i = 0; i<count;  ++i )
+    {
+        wxPoint corner = GetCornerPosition( i );
 
         ymax = MAX( ymax, corner.y );
         xmax = MAX( xmax, corner.x );
@@ -377,7 +610,7 @@ EDA_Rect ZONE_CONTAINER::GetBoundingBox()
         xmin = MIN( xmin, corner.x );
     }
 
-    EDA_Rect ret( wxPoint(xmin,ymin), wxSize( xmax-xmin+1, ymax-ymin+1) );
+    EDA_Rect  ret( wxPoint( xmin, ymin ), wxSize( xmax - xmin + 1, ymax - ymin + 1 ) );
 
     return ret;
 }
@@ -386,6 +619,7 @@ EDA_Rect ZONE_CONTAINER::GetBoundingBox()
 /**********************************************************************************************/
 void ZONE_CONTAINER::DrawWhileCreateOutline( WinEDA_DrawPanel* panel, wxDC* DC, int draw_mode )
 /***********************************************************************************************/
+
 /**
  * Function DrawWhileCreateOutline
  * Draws the zone outline when ir is created.
@@ -397,14 +631,14 @@ void ZONE_CONTAINER::DrawWhileCreateOutline( WinEDA_DrawPanel* panel, wxDC* DC, 
  * @param draw_mode = draw mode: OR, XOR ..
  */
 {
-    int current_gr_mode = draw_mode;
-    bool is_close_segment = false;
+    int     current_gr_mode  = draw_mode;
+    bool    is_close_segment = false;
     wxPoint seg_start, seg_end;
 
     if( DC == NULL )
         return;
-    int curr_layer = ((PCB_SCREEN*)panel->GetScreen())->m_Active_Layer;
-    int color = g_DesignSettings.m_LayerColor[m_Layer] & MASKCOLOR;
+    int     curr_layer = ( (PCB_SCREEN*) panel->GetScreen() )->m_Active_Layer;
+    int     color = g_DesignSettings.m_LayerColor[m_Layer & 31] & MASKCOLOR;
 
     if( DisplayOpt.ContrastModeDisplay )
     {
@@ -417,38 +651,41 @@ void ZONE_CONTAINER::DrawWhileCreateOutline( WinEDA_DrawPanel* panel, wxDC* DC, 
 
 
     // draw the lines
-    wxPoint start_contour_pos = GetCornerPosition(0);
-    for( int ic = 0; ic < GetNumCorners(); ic++ )
+    wxPoint start_contour_pos = GetCornerPosition( 0 );
+    int     icmax = GetNumCorners() - 1;
+    for( int ic = 0; ic <= icmax; ic++ )
     {
-        int xi = GetCornerPosition(ic).x;
-        int yi = GetCornerPosition(ic).y;
+        int xi = GetCornerPosition( ic ).x;
+        int yi = GetCornerPosition( ic ).y;
         int xf, yf;
-        if( m_Poly->corner[ic].end_contour == FALSE && ic < GetNumCorners() - 1 )
+        if( m_Poly->corner[ic].end_contour == FALSE && ic < icmax )
         {
             is_close_segment = false;
-            xf = GetCornerPosition(ic + 1).x;
-            yf = GetCornerPosition(ic + 1).y;
-            if ( (m_Poly->corner[ic + 1].end_contour) || (ic == GetNumCorners() - 2) )
+            xf = GetCornerPosition( ic + 1 ).x;
+            yf = GetCornerPosition( ic + 1 ).y;
+            if( (m_Poly->corner[ic + 1].end_contour) || (ic == icmax - 1) )
                 current_gr_mode = GR_XOR;
             else
                 current_gr_mode = draw_mode;
         }
-        else
+        else    // Draw the line from last corner to the first corner of the current coutour
         {
             is_close_segment = true;
-            current_gr_mode = GR_XOR;
+            current_gr_mode  = GR_XOR;
             xf = start_contour_pos.x;
             yf = start_contour_pos.y;
-            start_contour_pos = GetCornerPosition(ic + 1);
+
+            // Prepare the next contour for drawing, if exists
+            if( ic < icmax )
+                start_contour_pos = GetCornerPosition( ic + 1 );
         }
         GRSetDrawMode( DC, current_gr_mode );
-        if ( is_close_segment )
+        if( is_close_segment )
             GRLine( &panel->m_ClipBox, DC, xi, yi, xf, yf, 0, WHITE );
         else
             GRLine( &panel->m_ClipBox, DC, xi, yi, xf, yf, 0, color );
     }
 }
-
 
 
 /**
@@ -541,11 +778,11 @@ int ZONE_CONTAINER::HitTestForEdge( const wxPoint& refPos )
 
         /* test the dist between segment and ref point */
         dist = (int) GetPointToLineSegmentDistance( refPos.x,
-                                                    refPos.y,
-                                                    m_Poly->corner[item_pos].x,
-                                                    m_Poly->corner[item_pos].y,
-                                                    m_Poly->corner[end_segm].x,
-                                                    m_Poly->corner[end_segm].y );
+            refPos.y,
+            m_Poly->corner[item_pos].x,
+            m_Poly->corner[item_pos].y,
+            m_Poly->corner[end_segm].x,
+            m_Poly->corner[end_segm].y );
         if( dist <= min_dist )
         {
             m_CornerSelection = item_pos;
@@ -584,6 +821,31 @@ bool ZONE_CONTAINER::HitTest( EDA_Rect& refArea )
     return is_out_of_box ? false : true;
 }
 
+/**
+ * Function HitTestFilledArea
+ * tests if the given wxPoint is within the bounds of a filled area of this zone.
+ * @param aRefPos A wxPoint to test
+ * @return bool - true if a hit, else false
+ */
+bool ZONE_CONTAINER::HitTestFilledArea( const wxPoint& aRefPos )
+{
+    unsigned indexstart = 0, indexend;
+    bool     inside  = false;
+    for( indexend = 0; indexend < m_FilledPolysList.size(); indexend++ )
+    {
+        if( m_FilledPolysList[indexend].end_contour )       // end of a filled sub-area found
+        {
+            if( TestPointInsidePolygon( m_FilledPolysList, indexstart, indexend, aRefPos.x, aRefPos.y ) )
+            {
+                inside = true;
+                break;
+            }
+        }
+    }
+    return inside;
+}
+
+
 
 /************************************************************/
 void ZONE_CONTAINER::Display_Infos( WinEDA_DrawFrame* frame )
@@ -609,30 +871,35 @@ void ZONE_CONTAINER::Display_Infos( WinEDA_DrawFrame* frame )
 
     text_pos += 15;
 
-    if( GetNet() >= 0 )
+    if( IsOnCopperLayer() )
     {
-        EQUIPOT* equipot = ( (WinEDA_PcbFrame*) frame )->m_Pcb->FindNet( GetNet() );
+        if( GetNet() >= 0 )
+        {
+            EQUIPOT* equipot = ( (WinEDA_PcbFrame*) frame )->GetBoard()->FindNet( GetNet() );
 
-        if( equipot )
-            msg = equipot->m_Netname;
-        else
-            msg = wxT( "<noname>" );
-    }
-    else    // a netcode < 0 is an error
-    {
-        msg = wxT( " [" );
-        msg << m_Netname + wxT( "]" );
-        msg << wxT( " <" ) << _( "Not Found" ) << wxT( ">" );
-    }
+            if( equipot )
+                msg = equipot->GetNetname();
+            else
+                msg = wxT( "<noname>" );
+        }
+        else // a netcode < 0 is an error
+        {
+            msg = wxT( " [" );
+            msg << m_Netname + wxT( "]" );
+            msg << wxT( " <" ) << _( "Not Found" ) << wxT( ">" );
+        }
 
-    Affiche_1_Parametre( frame, text_pos, _( "NetName" ), msg, RED );
+        Affiche_1_Parametre( frame, text_pos, _( "NetName" ), msg, RED );
+    }
+    else
+        Affiche_1_Parametre( frame, text_pos, _( "Non Copper Zone" ), wxEmptyString, RED );
 
     /* Display net code : (usefull in test or debug) */
     text_pos += 18;
     msg.Printf( wxT( "%d" ), GetNet() );
     Affiche_1_Parametre( frame, text_pos, _( "NetCode" ), msg, RED );
 
-    text_pos += 8;
+    text_pos += 6;
     msg = board->GetLayerName( m_Layer );
     Affiche_1_Parametre( frame, text_pos, _( "Layer" ), msg, BROWN );
 
@@ -640,9 +907,24 @@ void ZONE_CONTAINER::Display_Infos( WinEDA_DrawFrame* frame )
     msg.Printf( wxT( "%d" ), m_Poly->corner.size() );
     Affiche_1_Parametre( frame, text_pos, _( "Corners" ), msg, BLUE );
 
-    text_pos += 8;
+    text_pos += 6;
+    if( m_FillMode )
+        msg.Printf( _( "Segments" ), m_FillMode );
+    else
+        msg = _( "Polygons" );
+    Affiche_1_Parametre( frame, text_pos, _( "Fill mode" ), msg, BROWN );
+
+    // Useful for statistics :
+    text_pos += 9;
     msg.Printf( wxT( "%d" ), m_Poly->m_HatchLines.size() );
     Affiche_1_Parametre( frame, text_pos, _( "Hatch lines" ), msg, BLUE );
+
+    if( m_FilledPolysList.size() )
+    {
+        text_pos += 9;
+        msg.Printf( wxT( "%d" ), m_FilledPolysList.size() );
+        Affiche_1_Parametre( frame, text_pos, _( "Corners in DrawList" ), msg, BLUE );
+    }
 }
 
 
@@ -655,13 +937,23 @@ void ZONE_CONTAINER::Display_Infos( WinEDA_DrawFrame* frame )
  */
 void ZONE_CONTAINER::Move( const wxPoint& offset )
 {
+    /* move outlines */
     for( unsigned ii = 0; ii < m_Poly->corner.size(); ii++ )
     {
-        SetCornerPosition(ii,  GetCornerPosition(ii) + offset);
+        SetCornerPosition( ii, GetCornerPosition( ii ) + offset );
     }
 
     m_Poly->Hatch();
+
+    /* move filled areas: */
+    for( unsigned ic = 0; ic < m_FilledPolysList.size(); ic++ )
+    {
+        CPolyPt* corner = &m_FilledPolysList[ic];
+        corner->x += offset.x;
+        corner->y += offset.y;
+    }
 }
+
 
 /**
  * Function MoveEdge
@@ -673,17 +965,17 @@ void ZONE_CONTAINER::MoveEdge( const wxPoint& offset )
     int ii = m_CornerSelection;
 
     // Move the start point of the selected edge:
-    SetCornerPosition(ii,  GetCornerPosition(ii) + offset);
+    SetCornerPosition( ii, GetCornerPosition( ii ) + offset );
 
     // Move the end point of the selected edge:
-    if ( m_Poly->corner[ii].end_contour || ii == GetNumCorners() - 1)
+    if( m_Poly->corner[ii].end_contour || ii == GetNumCorners() - 1 )
     {
         int icont = m_Poly->GetContour( ii );
         ii = m_Poly->GetContourStart( icont );
     }
     else
         ii++;
-    SetCornerPosition(ii,  GetCornerPosition(ii) + offset);
+    SetCornerPosition( ii, GetCornerPosition( ii ) + offset );
 
     m_Poly->Hatch();
 }
@@ -742,7 +1034,25 @@ void ZONE_CONTAINER::Copy( ZONE_CONTAINER* src )
     m_Poly->Copy( src->m_Poly );                // copy outlines
     m_CornerSelection = -1;                     // For corner moving, corner index to drag, or -1 if no selection
     m_ZoneClearance   = src->m_ZoneClearance;   // clearance value
-    m_GridFillValue   = src->m_GridFillValue;   // Grid used for filling
+    m_FillMode   = src->m_FillMode;   // Grid used for filling
     m_PadOption = src->m_PadOption;
     m_Poly->SetHatch( src->m_Poly->GetHatchStyle() );
+}
+
+/**
+ * Function SetNetNameFromNetCode
+ * Fin the nat name corresponding to the net code.
+ * @param aPcb: the curren board
+ * @return bool - true if net found, else false
+ */
+bool ZONE_CONTAINER::SetNetNameFromNetCode( void )
+{
+    EQUIPOT* net;
+    if ( m_Parent && (net = ((BOARD*)m_Parent)->FindNet( GetNet()) ) )
+    {
+        m_Netname = net->GetNetname();
+        return true;
+    }
+
+    return false;
 }

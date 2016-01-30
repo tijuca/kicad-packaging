@@ -4,10 +4,12 @@
 
 #include "fctsys.h"
 #include "gr_basic.h"
-
 #include "wxstruct.h"
 #include "common.h"
 #include "trigo.h"
+#include "class_drawpanel.h"
+#include "confirm.h"
+#include "kicad_string.h"
 
 #ifdef PCBNEW
 #include "pcbnew.h"
@@ -17,7 +19,6 @@
 
 #ifdef CVPCB
 #include "cvpcb.h"
-
 #endif
 
 #include "protos.h"
@@ -29,23 +30,17 @@
 /******************************************/
 
 EDGE_MODULE::EDGE_MODULE( MODULE* parent ) :
-    BOARD_ITEM( parent, TYPEEDGEMODULE )
+    BOARD_ITEM( parent, TYPE_EDGE_MODULE )
 {
     m_Width     = 0;
     m_Shape     = S_SEGMENT;
     m_Angle     = 0;
     m_Width     = 120;
-    m_PolyCount = 0;        // For polygons : number of points (> 2)
-    m_PolyList  = NULL;     // For polygons: coord list (1 point = 2 coord)
 }
 
 
 EDGE_MODULE::~EDGE_MODULE()
 {
-    if( m_PolyList )
-        free( m_PolyList );
-    m_PolyList  = NULL;
-    m_PolyCount = 0;
 }
 
 
@@ -64,45 +59,9 @@ void EDGE_MODULE:: Copy( EDGE_MODULE* source )       // copy structure
     m_Angle  = source->m_Angle;     // pour les arcs de cercle: longueur de l'arc en 0,1 degres
     m_Layer  = source->m_Layer;
     m_Width  = source->m_Width;
-    if( m_PolyList )
-        free( m_PolyList );
-    m_PolyCount = 0;
-    m_PolyList  = NULL;
-    if( source->m_PolyCount && source->m_PolyList )
-    {
-        int size;
-        m_PolyCount = source->m_PolyCount;      // For polygons : number of points
-        size = m_PolyCount * 2 * sizeof(int);   // For polygons: 1 point = 2 coord
-        m_PolyList = (int*) MyMalloc( size );
-        memcpy( m_PolyList, source->m_PolyList, size );
-    }
+
+    m_PolyPoints = source->m_PolyPoints;    // std::vector copy
 }
-
-
-/********************************/
-void EDGE_MODULE::UnLink()
-/********************************/
-{
-    /* Modification du chainage arriere */
-    if( Pback )
-    {
-        if( Pback->Type() != TYPEMODULE )
-        {
-            Pback->Pnext = Pnext;
-        }
-        else /* Le chainage arriere pointe sur la structure "Pere" */
-        {
-            ( (MODULE*) Pback )->m_Drawings = (BOARD_ITEM*) Pnext;
-        }
-    }
-
-    /* Modification du chainage avant */
-    if( Pnext )
-        Pnext->Pback = Pback;
-
-    Pnext = Pback = NULL;
-}
-
 
 /***********************************/
 void EDGE_MODULE::SetDrawCoord()
@@ -117,10 +76,8 @@ void EDGE_MODULE::SetDrawCoord()
     {
         RotatePoint( &m_Start.x, &m_Start.y, Module->m_Orient );
         RotatePoint( &m_End.x, &m_End.y, Module->m_Orient );
-        m_Start.x += Module->m_Pos.x;
-        m_Start.y += Module->m_Pos.y;
-        m_End.x   += Module->m_Pos.x;
-        m_End.y   += Module->m_Pos.y;
+        m_Start += Module->m_Pos;
+        m_End   += Module->m_Pos;
     }
 }
 
@@ -141,13 +98,12 @@ void EDGE_MODULE::Draw( WinEDA_DrawPanel* panel, wxDC* DC,
 {
     int                  ux0, uy0, dx, dy, rayon, StAngle, EndAngle;
     int                  color, type_trace;
-    int                  zoom;
     int                  typeaff;
     PCB_SCREEN*          screen;
     WinEDA_BasePcbFrame* frame;
     MODULE*              Module = NULL;
 
-    if( m_Parent && (m_Parent->Type() == TYPEMODULE) )
+    if( m_Parent && (m_Parent->Type() == TYPE_MODULE) )
         Module = (MODULE*) m_Parent;
 
     color = g_DesignSettings.m_LayerColor[m_Layer];
@@ -157,8 +113,6 @@ void EDGE_MODULE::Draw( WinEDA_DrawPanel* panel, wxDC* DC,
     frame = (WinEDA_BasePcbFrame*) panel->m_Parent;
 
     screen = frame->GetScreen();
-
-    zoom = screen->GetZoom();
 
     type_trace = m_Shape;
 
@@ -176,7 +130,7 @@ void EDGE_MODULE::Draw( WinEDA_DrawPanel* panel, wxDC* DC,
         if( !typeaff )
             typeaff = SKETCH;
     }
-    if( (m_Width / zoom) < L_MIN_DESSIN )
+    if( panel->GetScreen()->Scale( m_Width ) < L_MIN_DESSIN )
         typeaff = FILAIRE;
 
     switch( type_trace )
@@ -201,12 +155,15 @@ void EDGE_MODULE::Draw( WinEDA_DrawPanel* panel, wxDC* DC,
         {
             if( typeaff == FILLED )
             {
-                GRCircle( &panel->m_ClipBox, DC, ux0, uy0, rayon, m_Width, color );
+                GRCircle( &panel->m_ClipBox, DC, ux0, uy0, rayon,
+                          m_Width, color );
             }
             else        // SKETCH Mode
             {
-                GRCircle( &panel->m_ClipBox, DC, ux0, uy0, rayon + (m_Width / 2), color );
-                GRCircle( &panel->m_ClipBox, DC, ux0, uy0, rayon - (m_Width / 2), color );
+                GRCircle( &panel->m_ClipBox, DC, ux0, uy0,
+                          rayon + (m_Width / 2), color );
+                GRCircle( &panel->m_ClipBox, DC, ux0, uy0,
+                          rayon - (m_Width / 2), color );
             }
         }
         break;
@@ -219,7 +176,8 @@ void EDGE_MODULE::Draw( WinEDA_DrawPanel* panel, wxDC* DC,
             EXCHG( StAngle, EndAngle );
         if( typeaff == FILAIRE )
         {
-            GRArc( &panel->m_ClipBox, DC, ux0, uy0, StAngle, EndAngle, rayon, color );
+            GRArc( &panel->m_ClipBox, DC, ux0, uy0, StAngle, EndAngle,
+                   rayon, color );
         }
         else if( typeaff == FILLED )
         {
@@ -236,32 +194,29 @@ void EDGE_MODULE::Draw( WinEDA_DrawPanel* panel, wxDC* DC,
         break;
 
     case S_POLYGON:
-    {
-        // We must compute true coordinates from m_PolyList
+        // We must compute true coordinates from m_PolyPoints
         // which are relative to module position, orientation 0
-        int ii, * source, * ptr, * ptr_base;
-        ptr    = ptr_base = (int*) MyMalloc( 2 * m_PolyCount * sizeof(int) );
-        source = m_PolyList;
-        for( ii = 0; ii < m_PolyCount; ii++ )
+
+        std::vector<wxPoint>		points = m_PolyPoints;
+
+        for( unsigned ii = 0; ii < points.size(); ii++ )
         {
-            int x, y;
-            x = *source; source++; y = *source; source++;
+            wxPoint& pt = points[ii];
+
             if( Module )
             {
-                RotatePoint( &x, &y, Module->m_Orient );
-                x += Module->m_Pos.x;
-                y += Module->m_Pos.y;
+                RotatePoint( &pt.x, &pt.y, Module->m_Orient );
+                pt.x += Module->m_Pos.x;
+                pt.y += Module->m_Pos.y;
             }
-            x   += m_Start0.x - offset.x;
-            y   += m_Start0.y - offset.y;
-            *ptr = x; ptr++; *ptr = y; ptr++;
+
+            pt.x   += m_Start0.x - offset.x;
+            pt.y   += m_Start0.y - offset.y;
         }
 
-        GRPoly( &panel->m_ClipBox, DC, m_PolyCount, ptr_base,
+        GRPoly( &panel->m_ClipBox, DC, points.size(), &points[0],
                 TRUE, m_Width, color, color );
-        free( ptr_base );
         break;
-    }
     }
 }
 
@@ -275,7 +230,7 @@ void EDGE_MODULE::Display_Infos( WinEDA_DrawFrame* frame )
     if( !module )
         return;
 
-    BOARD* board = (BOARD*) module->m_Parent;
+    BOARD* board = (BOARD*) module->GetParent();
     if( !board )
         return;
 
@@ -332,13 +287,11 @@ bool EDGE_MODULE::Save( FILE* aFile ) const
         ret = fprintf( aFile, "DP %d %d %d %d %d %d %d\n",
                  m_Start0.x, m_Start0.y,
                  m_End0.x, m_End0.y,
-                 m_PolyCount,
+                 m_PolyPoints.size(),
                  m_Width, m_Layer );
 
-        int*    pInt;
-        pInt = m_PolyList;
-        for( int i=0;  i<m_PolyCount;  ++i, pInt+=2 )
-            fprintf( aFile, "Dl %d %d\n",  pInt[0], pInt[1] );
+        for( unsigned i=0;  i<m_PolyPoints.size();  ++i )
+            fprintf( aFile, "Dl %d %d\n",  m_PolyPoints[i].x, m_PolyPoints[i].y );
         break;
 
     default:
@@ -371,10 +324,9 @@ int EDGE_MODULE::ReadDescr( char* Line, FILE* File,
  *
  */
 {
-    int  ii, * ptr;
+    int  ii;
     int  error = 0;
     char Buf[1024];
-
 
     switch( Line[1] )
     {
@@ -420,26 +372,37 @@ int EDGE_MODULE::ReadDescr( char* Line, FILE* File,
         break;
 
     case S_POLYGON:
+        int pointCount;
         sscanf( Line + 3, "%d %d %d %d %d %d %d",
                 &m_Start0.x, &m_Start0.y,
                 &m_End0.x, &m_End0.y,
-                &m_PolyCount, &m_Width, &m_Layer );
+                &pointCount, &m_Width, &m_Layer );
+
         (*LineNum)++;
-        m_PolyList = (int*) MyZMalloc( 2 * m_PolyCount * sizeof(int) );
-        for( ii = 0, ptr = m_PolyList; ii < m_PolyCount; ii++ )
+        m_PolyPoints.clear();
+        m_PolyPoints.reserve( pointCount );
+        for( ii = 0;  ii<pointCount;  ii++ )
         {
             if( GetLine( File, Buf, LineNum, sizeof(Buf) - 1 ) != NULL )
             {
                 if( strncmp( Buf, "Dl", 2 ) != 0 )
                 {
-                    error = 1; break;
+                    error = 1;
+                    break;
                 }
-                sscanf( Buf + 3, "%d %d\n", ptr, ptr + 1 );
-                (*LineNum)++; ptr += 2;
+
+                int x;
+                int y;
+                sscanf( Buf + 3, "%d %d\n", &x, &y );
+
+                m_PolyPoints.push_back( wxPoint(x,y) );
+
+                (*LineNum)++;
             }
             else
             {
-                error = 1; break;
+                error = 1;
+                break;
             }
         }
 

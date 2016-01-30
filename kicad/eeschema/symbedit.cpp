@@ -9,12 +9,15 @@
 
 #include "fctsys.h"
 #include "gr_basic.h"
-
 #include "common.h"
+#include "class_drawpanel.h"
+#include "confirm.h"
+#include "kicad_string.h"
+#include "gestfich.h"
+
 #include "program.h"
 #include "libcmp.h"
 #include "general.h"
-
 #include "protos.h"
 
 
@@ -25,12 +28,13 @@ static bool CompareSymbols( LibEDA_BaseStruct* DEntryRef,
 /* Variables locales */
 
 
-/***************************************************/
-void WinEDA_LibeditFrame::LoadOneSymbol( wxDC* DC )
-/***************************************************/
+/***********************************************/
+void WinEDA_LibeditFrame::LoadOneSymbol( void )
+/***********************************************/
 
-/* Read a component shape file and add data (graphic items) to the current
+/* Read a component shape file (a symbol file *.sym )and add data (graphic items) to the current
  *  component.
+ * a symbol file *.sym has the same format as a library, and contains only one symbol
  */
 {
     int                     NumOfParts;
@@ -41,9 +45,10 @@ void WinEDA_LibeditFrame::LoadOneSymbol( wxDC* DC )
     FILE*                   ImportFile;
     wxString                msg;
 
-    if( CurrentDrawItem )
-        return;
     if( CurrentLibEntry == NULL )
+        return;
+
+    if( CurrentDrawItem && CurrentDrawItem->m_Flags )   // a command is in progress
         return;
 
     DrawPanel->m_IgnoreMouseEvents = TRUE;
@@ -103,9 +108,9 @@ void WinEDA_LibeditFrame::LoadOneSymbol( wxDC* DC )
             DrawEntry->m_Flags    = IS_NEW;
             DrawEntry->m_Selected = IS_SELECTED;
 
-            if( DrawEntry->Pnext == NULL )
+            if( DrawEntry->Next() == NULL )
             {   /* Fin de liste trouvee */
-                DrawEntry->Pnext = CurrentLibEntry->m_Drawings;
+                DrawEntry->SetNext( CurrentLibEntry->m_Drawings );
                 CurrentLibEntry->m_Drawings = LibEntry->m_Drawings;
                 LibEntry->m_Drawings = NULL;
                 break;
@@ -113,13 +118,21 @@ void WinEDA_LibeditFrame::LoadOneSymbol( wxDC* DC )
             DrawEntry = DrawEntry->Next();
         }
 
+        // Remove duplicated drawings:
         SuppressDuplicateDrawItem( CurrentLibEntry );
-		GetScreen()->SetModify();
 
-        // Move (and place ) the new draw items:
-        HandleBlockBegin( DC, -1, GetScreen()->m_Curseur );
-        HandleBlockEnd( DC );
-        RedrawActiveWindow( DC, TRUE );
+        // crear flags
+        DrawEntry = CurrentLibEntry->m_Drawings;
+        while( DrawEntry )
+        {
+            DrawEntry->m_Flags    = 0;
+            DrawEntry->m_Selected = 0;
+            DrawEntry = DrawEntry->Next();
+        }
+
+        GetScreen()->SetModify();
+
+        DrawPanel->Refresh();
     }
 
     PQFreeFunc( Entries, ( void( * ) ( void* ) )FreeLibraryEntry );
@@ -137,7 +150,6 @@ void WinEDA_LibeditFrame::SaveOneSymbol()
 {
     EDA_LibComponentStruct* LibEntry = CurrentLibEntry;
     int Unit = CurrentUnit, convert = CurrentConvert;
-    int SymbUnit, SymbConvert;
     LibEDA_BaseStruct*      DrawEntry;
     wxString FullFileName, mask;
     wxString msg;
@@ -196,8 +208,8 @@ void WinEDA_LibeditFrame::SaveOneSymbol()
              1, 0 /* unused */, 'N' );
 
     /* Position / orientation / visibilite des champs */
-    LibEntry->m_Prefix.WriteDescr( ExportFile );
-    LibEntry->m_Name.WriteDescr( ExportFile );
+    LibEntry->m_Prefix.Save( ExportFile );
+    LibEntry->m_Name.Save( ExportFile );
 
     DrawEntry = LibEntry->m_Drawings;
     if( DrawEntry )
@@ -211,55 +223,7 @@ void WinEDA_LibeditFrame::SaveOneSymbol()
             if( convert && DrawEntry->m_Convert && (DrawEntry->m_Convert != convert) )
                 continue;
 
-            /* .Unit , . Convert est laisse a 0 ou mis a 1 */
-            SymbUnit    = DrawEntry->m_Unit; if( SymbUnit > 1 )
-                SymbUnit = 1;
-            SymbConvert = DrawEntry->m_Convert;
-            if( SymbConvert > 1 )
-                SymbConvert = 1;
-
-            switch( DrawEntry->Type() )
-            {
-            case COMPONENT_ARC_DRAW_TYPE:
-                #define DRAWSTRUCT ( (LibDrawArc*) DrawEntry )
-                DRAWSTRUCT->WriteDescr( ExportFile );
-                break;
-
-            case COMPONENT_CIRCLE_DRAW_TYPE:
-                #undef DRAWSTRUCT
-                #define DRAWSTRUCT ( (LibDrawCircle*) DrawEntry )
-                DRAWSTRUCT->WriteDescr( ExportFile );
-                break;
-
-            case COMPONENT_GRAPHIC_TEXT_DRAW_TYPE:
-                #undef DRAWSTRUCT
-                #define DRAWSTRUCT ( (LibDrawText*) DrawEntry )
-                DRAWSTRUCT->WriteDescr( ExportFile );
-                break;
-
-            case COMPONENT_RECT_DRAW_TYPE:
-                #undef DRAWSTRUCT
-                #define DRAWSTRUCT ( (LibDrawSquare*) DrawEntry )
-                DRAWSTRUCT->WriteDescr( ExportFile );
-                break;
-
-            case COMPONENT_PIN_DRAW_TYPE:
-                #undef DRAWSTRUCT
-                #define DRAWSTRUCT ( (LibDrawPin*) DrawEntry )
-                if( DRAWSTRUCT->m_Attributs & PINNOTDRAW )
-                    break;
-                DRAWSTRUCT->WriteDescr( ExportFile );
-                break;
-
-            case COMPONENT_POLYLINE_DRAW_TYPE:
-                #undef DRAWSTRUCT
-                #define DRAWSTRUCT ( (LibDrawPolyline*) DrawEntry )
-                DRAWSTRUCT->WriteDescr( ExportFile );
-                break;
-
-            default:
-                ;
-            }
+            DrawEntry->Save( ExportFile );
         }
         fprintf( ExportFile, "ENDDRAW\n" );
     }
@@ -284,7 +248,7 @@ void SuppressDuplicateDrawItem( EDA_LibComponentStruct* LibEntry )
     DEntryRef = LibEntry->m_Drawings;
     while( DEntryRef )
     {
-        if( DEntryRef->Pnext == NULL )
+        if( DEntryRef->Next() == NULL )
             return;
         DEntryCompare = DEntryRef->Next();
         if( DEntryCompare == NULL )
@@ -319,9 +283,6 @@ static bool CompareSymbols( LibEDA_BaseStruct* DEntryRef,
  *          TRUE si they are identical, and therefore redundant
  */
 {
-    int ii;
-    int* ptref, * ptcomp;
-
     /* Comparaison des proprietes generales */
     if( DEntryRef->Type() != DEntryCompare->Type() )
         return FALSE;
@@ -398,15 +359,12 @@ static bool CompareSymbols( LibEDA_BaseStruct* DEntryRef,
         #undef CMPSTRUCT
         #define REFSTRUCT ( (LibDrawPolyline*) DEntryRef )
         #define CMPSTRUCT ( (LibDrawPolyline*) DEntryCompare )
-        if( REFSTRUCT->n != CMPSTRUCT->n )
+        if( REFSTRUCT->GetCornerCount() != CMPSTRUCT->GetCornerCount() )
             return FALSE;
-        ptref  = REFSTRUCT->PolyList;
-        ptcomp = CMPSTRUCT->PolyList;
-        for( ii = 2 * REFSTRUCT->n; ii > 0; ii-- )
+        for( unsigned ii = 0; ii < REFSTRUCT->GetCornerCount(); ii++ )
         {
-            if( *ptref != *ptcomp )
-                return FALSE;
-            ptref++; ptcomp++;
+            if( REFSTRUCT->m_PolyPoints[ii] != CMPSTRUCT->m_PolyPoints[ii] )
+                return false;
         }
 
         break;
@@ -429,22 +387,24 @@ static bool CompareSymbols( LibEDA_BaseStruct* DEntryRef,
 
 void WinEDA_LibeditFrame::PlaceAncre()
 {
-    int ii, * ptsegm;
-    int dx, dy;         /* Offsets de deplacement */
     EDA_LibComponentStruct* LibEntry;
-    LibEDA_BaseStruct* DrawEntry;
-
-	dx = -( GetScreen()->m_Curseur.x );
-	dy = GetScreen()->m_Curseur.y;
+    LibEDA_BaseStruct*      DrawEntry;
 
     LibEntry = CurrentLibEntry;
     if( LibEntry == NULL )
         return;
 
-	GetScreen()->SetModify();
+    wxSize  offset( -GetScreen()->m_Curseur.x, GetScreen()->m_Curseur.y );
 
-    LibEntry->m_Name.m_Pos.x   += dx; LibEntry->m_Name.m_Pos.y += dy;
-    LibEntry->m_Prefix.m_Pos.x += dx; LibEntry->m_Prefix.m_Pos.y += dy;
+    GetScreen()->SetModify();
+
+    LibEntry->m_Name.m_Pos   += offset;
+    LibEntry->m_Prefix.m_Pos += offset;
+
+    for( LibDrawField* field = LibEntry->m_Fields;  field;  field = field->Next() )
+    {
+        field->m_Pos += offset;
+    }
 
     DrawEntry = LibEntry->m_Drawings;
     while( DrawEntry )
@@ -454,55 +414,43 @@ void WinEDA_LibeditFrame::PlaceAncre()
         case COMPONENT_ARC_DRAW_TYPE:
             #undef STRUCT
             #define STRUCT ( (LibDrawArc*) DrawEntry )
-            STRUCT->m_Pos.x      += dx;
-            STRUCT->m_Pos.y      += dy;
-            STRUCT->m_ArcStart.x += dx;
-            STRUCT->m_ArcStart.y += dy;
-            STRUCT->m_ArcEnd.x   += dx;
-            STRUCT->m_ArcEnd.y   += dy;
+            STRUCT->m_Pos       += offset;
+            STRUCT->m_ArcStart  += offset;
+            STRUCT->m_ArcEnd    += offset;
             break;
 
         case COMPONENT_CIRCLE_DRAW_TYPE:
             #undef STRUCT
             #define STRUCT ( (LibDrawCircle*) DrawEntry )
-            STRUCT->m_Pos.x += dx;
-            STRUCT->m_Pos.y += dy;
+            STRUCT->m_Pos += offset;
             break;
 
         case COMPONENT_GRAPHIC_TEXT_DRAW_TYPE:
             #undef STRUCT
             #define STRUCT ( (LibDrawText*) DrawEntry )
-            STRUCT->m_Pos.x += dx;
-            STRUCT->m_Pos.y += dy;
+            STRUCT->m_Pos += offset;
             break;
 
         case COMPONENT_RECT_DRAW_TYPE:
             #undef STRUCT
             #define STRUCT ( (LibDrawSquare*) DrawEntry )
-            STRUCT->m_Pos.x += dx;
-            STRUCT->m_Pos.y += dy;
-            STRUCT->m_End.x += dx;
-            STRUCT->m_End.y += dy;
+            STRUCT->m_Pos += offset;
+            STRUCT->m_End += offset;
             break;
 
         case COMPONENT_PIN_DRAW_TYPE:
             #undef STRUCT
             #define STRUCT ( (LibDrawPin*) DrawEntry )
-            STRUCT->m_Pos.x += dx;
-            STRUCT->m_Pos.y += dy;
+            STRUCT->m_Pos += offset;
             break;
 
         case COMPONENT_POLYLINE_DRAW_TYPE:
             #undef STRUCT
             #define STRUCT ( (LibDrawPolyline*) DrawEntry )
-            ptsegm = STRUCT->PolyList;
-            for( ii = STRUCT->n; ii > 0; ii-- )
-            {
-                *ptsegm += dx; ptsegm++;
-                *ptsegm += dy; ptsegm++;
-            }
+            for( unsigned ii = 0; ii < STRUCT->GetCornerCount();  ii ++ )
+                STRUCT->m_PolyPoints[ii] += offset;
             break;
-            
+
         default:
             ;
         }
@@ -510,7 +458,7 @@ void WinEDA_LibeditFrame::PlaceAncre()
     }
 
     /* Redraw the symbol */
-	GetScreen()->m_Curseur.x = GetScreen()->m_Curseur.y = 0;
+    GetScreen()->m_Curseur.x = GetScreen()->m_Curseur.y = 0;
     Recadre_Trace( TRUE );
-	GetScreen()->SetRefreshReq();
+    GetScreen()->SetRefreshReq();
 }

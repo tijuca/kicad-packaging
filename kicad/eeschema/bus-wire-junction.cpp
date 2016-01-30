@@ -4,12 +4,13 @@
 
 #include "fctsys.h"
 #include "gr_basic.h"
-
 #include "common.h"
+#include "class_drawpanel.h"
+#include "confirm.h"
+
 #include "program.h"
 #include "libcmp.h"
 #include "general.h"
-
 #include "protos.h"
 
 
@@ -50,7 +51,7 @@ SCH_ITEM* SCH_SCREEN::ExtractWires( bool CreateCopy )
         case DRAW_JUNCTION_STRUCT_TYPE:
         case DRAW_SEGMENT_STRUCT_TYPE:
             RemoveFromDrawList( item );
-            item->Pnext = List;
+            item->SetNext( List );
             List = item;
             if( CreateCopy )
             {
@@ -58,7 +59,7 @@ SCH_ITEM* SCH_SCREEN::ExtractWires( bool CreateCopy )
                     new_item = ( (DrawJunctionStruct*) item )->GenCopy();
                 else
                     new_item = ( (EDA_DrawLineStruct*) item )->GenCopy();
-                new_item->Pnext = EEDrawList;
+                new_item->SetNext( EEDrawList );
                 EEDrawList = new_item;
             }
             break;
@@ -79,7 +80,8 @@ static void RestoreOldWires( SCH_SCREEN* screen )
 /* Replace the wires in screen->EEDrawList by s_OldWiresList wires.
  */
 {
-    SCH_ITEM* item, * next_item;
+    SCH_ITEM* item;
+    SCH_ITEM* next_item;
 
     for( item = screen->EEDrawList; item != NULL; item = next_item )
     {
@@ -101,7 +103,8 @@ static void RestoreOldWires( SCH_SCREEN* screen )
     while( s_OldWiresList )
     {
         next_item = s_OldWiresList->Next();
-        s_OldWiresList->Pnext = screen->EEDrawList,
+
+        s_OldWiresList->SetNext( screen->EEDrawList );
         screen->EEDrawList    = s_OldWiresList;
         s_OldWiresList = next_item;
     }
@@ -166,8 +169,8 @@ void WinEDA_SchematicFrame::BeginSegment( wxDC* DC, int type )
         {
             nextsegment = newsegment->GenCopy();
             nextsegment->m_Flags = IS_NEW;
-            newsegment->Pnext    = nextsegment;
-            nextsegment->Pback   = newsegment;
+            newsegment->SetNext( nextsegment );
+            nextsegment->SetBack( newsegment );
         }
         GetScreen()->SetCurItem( newsegment );
         DrawPanel->ManageCurseur = Segment_in_Ghost;
@@ -176,7 +179,7 @@ void WinEDA_SchematicFrame::BeginSegment( wxDC* DC, int type )
     }
     else    /* Trace en cours: Placement d'un point supplementaire */
     {
-        nextsegment = (EDA_DrawLineStruct*) oldsegment->Pnext;
+        nextsegment = oldsegment->Next();
         if( !g_HVLines )
         { /* if only one segment is needed and the current is has len = 0, do not create a new one*/
             if( oldsegment->IsNull() )
@@ -198,7 +201,7 @@ void WinEDA_SchematicFrame::BeginSegment( wxDC* DC, int type )
         }
 
         /* Placement en liste generale */
-        oldsegment->Pnext = GetScreen()->EEDrawList;
+        oldsegment->SetNext( GetScreen()->EEDrawList );
         GetScreen()->EEDrawList = oldsegment;
         DrawPanel->CursorOff( DC );     // Erase schematic cursor
         RedrawOneStruct( DrawPanel, DC, oldsegment, GR_DEFAULT_DRAWMODE );
@@ -209,10 +212,10 @@ void WinEDA_SchematicFrame::BeginSegment( wxDC* DC, int type )
         {
             newsegment = nextsegment->GenCopy();
             nextsegment->m_Start = newsegment->m_End;
-            nextsegment->Pnext   = NULL;
-            nextsegment->Pback   = newsegment;
-            newsegment->Pnext    = nextsegment;
-            newsegment->Pback    = NULL;
+            nextsegment->SetNext( NULL );
+            nextsegment->SetBack( newsegment );
+            newsegment->SetNext( nextsegment );
+            newsegment->SetBack( NULL );
         }
         else
         {
@@ -256,16 +259,16 @@ void WinEDA_SchematicFrame::EndSegment( wxDC* DC )
     lastsegment = firstsegment;
     while( lastsegment )
     {
-        EDA_DrawLineStruct* nextsegment = (EDA_DrawLineStruct*) lastsegment->Pnext;
+        EDA_DrawLineStruct* nextsegment = lastsegment->Next();
         if( lastsegment->IsNull() )
         {
-            EDA_DrawLineStruct* previous_segment = (EDA_DrawLineStruct*) lastsegment->Pback;
+            EDA_DrawLineStruct* previous_segment = lastsegment->Back();
             if( firstsegment == lastsegment )
                 firstsegment = nextsegment;
             if( nextsegment )
-                nextsegment->Pback = NULL;
+                nextsegment->SetBack( NULL );
             if( previous_segment )
-                previous_segment->Pnext = nextsegment;
+                previous_segment->SetNext( nextsegment );
             delete lastsegment;
         }
         lastsegment = nextsegment;
@@ -276,8 +279,8 @@ void WinEDA_SchematicFrame::EndSegment( wxDC* DC )
     while( segment )
     {
         lastsegment = segment;
-        segment = (EDA_DrawLineStruct*) segment->Pnext;
-        lastsegment->Pnext      = GetScreen()->EEDrawList;
+        segment = segment->Next();
+        lastsegment->SetNext( GetScreen()->EEDrawList );
         GetScreen()->EEDrawList = lastsegment;
     }
 
@@ -311,7 +314,7 @@ void WinEDA_SchematicFrame::EndSegment( wxDC* DC )
                 g_ItemToRepeat = segment;
         }
         segment->m_Flags = 0;
-        segment = (EDA_DrawLineStruct*) segment->Pnext;
+        segment = segment->Next();
     }
 
     // Automatic place of a junction on the end point, if needed
@@ -348,7 +351,7 @@ void WinEDA_SchematicFrame::EndSegment( wxDC* DC )
             break;
         }
 
-        item = item->Pnext;
+        item = item->Next();
     }
 
 
@@ -386,7 +389,7 @@ static void Segment_in_Ghost( WinEDA_DrawPanel* panel, wxDC* DC, bool erase )
         {
             if( !segment->IsNull() )  // Redraw if segment lengtht != 0
                 RedrawOneStruct( panel, DC, segment, g_XorMode, color );
-            segment = (EDA_DrawLineStruct*) segment->Pnext;
+            segment = segment->Next();
         }
     }
 
@@ -403,7 +406,7 @@ static void Segment_in_Ghost( WinEDA_DrawPanel* panel, wxDC* DC, bool erase )
     {
         if( !segment->IsNull() )  // Redraw if segment lengtht != 0
             RedrawOneStruct( panel, DC, segment, g_XorMode, color );
-        segment = (EDA_DrawLineStruct*) segment->Pnext;
+        segment = segment->Next();
     }
 }
 
@@ -416,7 +419,7 @@ static void ComputeBreakPoint( EDA_DrawLineStruct* segment, const wxPoint& new_p
  *  with the 2 segments kept H or V only
  */
 {
-    EDA_DrawLineStruct* nextsegment     = (EDA_DrawLineStruct*) segment->Pnext;
+    EDA_DrawLineStruct* nextsegment     = segment->Next();
     wxPoint             middle_position = new_pos;
 
     if( nextsegment == NULL )
@@ -472,24 +475,22 @@ static void Show_Polyline_in_Ghost( WinEDA_DrawPanel* panel, wxDC* DC, bool eras
 
     GRSetDrawMode( DC, g_XorMode );
 
+    int idx = NewPoly->GetCornerCount() - 1;
     if( g_HVLines )
     {
         /* Coerce the line to vertical or horizontal one: */
-        if( ABS( endpos.x - NewPoly->m_Points[NewPoly->m_NumOfPoints * 2 - 2] ) <
-           ABS( endpos.y - NewPoly->m_Points[NewPoly->m_NumOfPoints * 2 - 1] ) )
-            endpos.x = NewPoly->m_Points[NewPoly->m_NumOfPoints * 2 - 2];
+        if( ABS( endpos.x - NewPoly->m_PolyPoints[idx].x ) <
+           ABS( endpos.y - NewPoly->m_PolyPoints[idx].y ) )
+            endpos.x = NewPoly->m_PolyPoints[idx].x;
         else
-            endpos.y = NewPoly->m_Points[NewPoly->m_NumOfPoints * 2 - 1];
+            endpos.y = NewPoly->m_PolyPoints[idx].y;
     }
 
-    NewPoly->m_NumOfPoints++;
     if( erase )
         RedrawOneStruct( panel, DC, NewPoly, g_XorMode, color );
 
-    NewPoly->m_Points[NewPoly->m_NumOfPoints * 2 - 2] = endpos.x;
-    NewPoly->m_Points[NewPoly->m_NumOfPoints * 2 - 1] = endpos.y;
+    NewPoly->m_PolyPoints[idx] = endpos;
     RedrawOneStruct( panel, DC, NewPoly, g_XorMode, color );
-    NewPoly->m_NumOfPoints--;
 }
 
 
@@ -543,7 +544,7 @@ DrawJunctionStruct* WinEDA_SchematicFrame::CreateNewJunctionStruct(
     RedrawOneStruct( DrawPanel, DC, NewJunction, GR_DEFAULT_DRAWMODE );
     DrawPanel->CursorOn( DC );      // Display schematic cursor
 
-    NewJunction->Pnext      = GetScreen()->EEDrawList;
+    NewJunction->SetNext( GetScreen()->EEDrawList );
     GetScreen()->EEDrawList = NewJunction;
     GetScreen()->SetModify();
     if( PutInUndoList )
@@ -568,7 +569,7 @@ DrawNoConnectStruct* WinEDA_SchematicFrame::CreateNewNoConnectStruct( wxDC* DC )
     RedrawOneStruct( DrawPanel, DC, NewNoConnect, GR_DEFAULT_DRAWMODE );
     DrawPanel->CursorOn( DC );      // Display schematic cursor
 
-    NewNoConnect->Pnext     = GetScreen()->EEDrawList;
+    NewNoConnect->SetNext( GetScreen()->EEDrawList );
     GetScreen()->EEDrawList = NewNoConnect;
     GetScreen()->SetModify();
     SaveCopyInUndoList( NewNoConnect, IS_NEW );
@@ -625,24 +626,24 @@ void WinEDA_SchematicFrame::RepeatDrawItem( wxDC* DC )
     switch( g_ItemToRepeat->Type() )
     {
     case DRAW_JUNCTION_STRUCT_TYPE:
-            #undef STRUCT
-            #define STRUCT ( (DrawJunctionStruct*) g_ItemToRepeat )
+        #undef STRUCT
+        #define STRUCT ( (DrawJunctionStruct*) g_ItemToRepeat )
         g_ItemToRepeat = STRUCT->GenCopy();
         STRUCT->m_Pos += g_RepeatStep;
         new_pos = STRUCT->m_Pos;
         break;
 
     case DRAW_NOCONNECT_STRUCT_TYPE:
-            #undef STRUCT
-            #define STRUCT ( (DrawNoConnectStruct*) g_ItemToRepeat )
+        #undef STRUCT
+        #define STRUCT ( (DrawNoConnectStruct*) g_ItemToRepeat )
         g_ItemToRepeat = STRUCT->GenCopy();
         STRUCT->m_Pos += g_RepeatStep;
         new_pos = STRUCT->m_Pos;
         break;
 
     case TYPE_SCH_TEXT:
-            #undef STRUCT
-            #define STRUCT ( (SCH_TEXT*) g_ItemToRepeat )
+        #undef STRUCT
+        #define STRUCT ( (SCH_TEXT*) g_ItemToRepeat )
         g_ItemToRepeat = STRUCT->GenCopy();
         STRUCT->m_Pos += g_RepeatStep;
         new_pos = STRUCT->m_Pos;
@@ -652,8 +653,8 @@ void WinEDA_SchematicFrame::RepeatDrawItem( wxDC* DC )
 
 
     case TYPE_SCH_LABEL:
-            #undef STRUCT
-            #define STRUCT ( (SCH_LABEL*) g_ItemToRepeat )
+        #undef STRUCT
+        #define STRUCT ( (SCH_LABEL*) g_ItemToRepeat )
         g_ItemToRepeat = STRUCT->GenCopy();
         STRUCT->m_Pos += g_RepeatStep;
         new_pos = STRUCT->m_Pos;
@@ -663,8 +664,8 @@ void WinEDA_SchematicFrame::RepeatDrawItem( wxDC* DC )
 
 
     case TYPE_SCH_HIERLABEL:
-            #undef STRUCT
-            #define STRUCT ( (SCH_HIERLABEL*) g_ItemToRepeat )
+        #undef STRUCT
+        #define STRUCT ( (SCH_HIERLABEL*) g_ItemToRepeat )
         g_ItemToRepeat = STRUCT->GenCopy();
         STRUCT->m_Pos += g_RepeatStep;
         new_pos = STRUCT->m_Pos;
@@ -673,8 +674,8 @@ void WinEDA_SchematicFrame::RepeatDrawItem( wxDC* DC )
         break;
 
     case TYPE_SCH_GLOBALLABEL:
-            #undef STRUCT
-            #define STRUCT ( (SCH_GLOBALLABEL*) g_ItemToRepeat )
+        #undef STRUCT
+        #define STRUCT ( (SCH_GLOBALLABEL*) g_ItemToRepeat )
         g_ItemToRepeat = STRUCT->GenCopy();
         STRUCT->m_Pos += g_RepeatStep;
         new_pos = STRUCT->m_Pos;
@@ -683,8 +684,8 @@ void WinEDA_SchematicFrame::RepeatDrawItem( wxDC* DC )
         break;
 
     case DRAW_SEGMENT_STRUCT_TYPE:
-            #undef STRUCT
-            #define STRUCT ( (EDA_DrawLineStruct*) g_ItemToRepeat )
+        #undef STRUCT
+        #define STRUCT ( (EDA_DrawLineStruct*) g_ItemToRepeat )
         g_ItemToRepeat   = STRUCT->GenCopy();
         STRUCT->m_Start += g_RepeatStep;
         new_pos = STRUCT->m_Start;
@@ -700,8 +701,8 @@ void WinEDA_SchematicFrame::RepeatDrawItem( wxDC* DC )
         break;
 
     case TYPE_SCH_COMPONENT:     // In repeat command the new component is put in move mode
-            #undef STRUCT
-            #define STRUCT ( (SCH_COMPONENT*) g_ItemToRepeat )
+        #undef STRUCT
+        #define STRUCT ( (SCH_COMPONENT*) g_ItemToRepeat )
 
         // Create the duplicate component, position = mouse cursor
         g_ItemToRepeat = STRUCT->GenCopy();
@@ -710,9 +711,10 @@ void WinEDA_SchematicFrame::RepeatDrawItem( wxDC* DC )
         STRUCT->m_Pos       = GetScreen()->m_Curseur;
         STRUCT->m_Flags     = IS_NEW;
         STRUCT->m_TimeStamp = GetTimeStamp();
-        for( int ii = 0; ii < NUMBER_OF_FIELDS; ii++ )
+
+        for( int ii = 0; ii < STRUCT->GetFieldCount(); ii++ )
         {
-            STRUCT->m_Field[ii].m_Pos += new_pos;
+            STRUCT->GetField(ii)->m_Pos += new_pos;
         }
 
         RedrawOneStruct( DrawPanel, DC, STRUCT, g_XorMode );
@@ -728,7 +730,7 @@ void WinEDA_SchematicFrame::RepeatDrawItem( wxDC* DC )
 
     if( g_ItemToRepeat )
     {
-        g_ItemToRepeat->Pnext   = GetScreen()->EEDrawList;
+        g_ItemToRepeat->SetNext( GetScreen()->EEDrawList );
         GetScreen()->EEDrawList = g_ItemToRepeat;
         TestDanglingEnds( GetScreen()->EEDrawList, NULL );
         RedrawOneStruct( DrawPanel, DC, g_ItemToRepeat, GR_DEFAULT_DRAWMODE );
@@ -736,7 +738,7 @@ void WinEDA_SchematicFrame::RepeatDrawItem( wxDC* DC )
         g_ItemToRepeat->m_Flags = 0;
 
 //		GetScreen()->Curseur = new_pos;
-//		GRMouseWarp(DrawPanel, DrawPanel->CursorScreenPosition() );
+//		DrawPanel->MouseTo( DrawPanel->CursorScreenPosition() );
     }
 }
 

@@ -3,11 +3,11 @@
 /***************************************************/
 
 #include "fctsys.h"
-
 #include "common.h"
+#include "class_drawpanel.h"
+
 #include "gerbview.h"
 #include "trigo.h"
-
 #include "protos.h"
 
 
@@ -49,7 +49,7 @@ BOARD_ITEM* WinEDA_GerberFrame::Locate( int typeloc )
 
     /* Localistion des pistes et vias, avec priorite aux vias */
     layer = GetScreen()->m_Active_Layer;
-    Track = Locate_Pistes( m_Pcb->m_Track, -1, typeloc );
+    Track = Locate_Pistes( GetBoard()->m_Track, -1, typeloc );
     if( Track != NULL )
     {
         TrackLocate = Track;   /* Reperage d'une piste ou via */
@@ -57,9 +57,9 @@ BOARD_ITEM* WinEDA_GerberFrame::Locate( int typeloc )
         while( ( TrackLocate = Locate_Pistes( TrackLocate, layer, typeloc ) ) != NULL )
         {
             Track = TrackLocate;
-            if( TrackLocate->Type() == TYPEVIA )
+            if( TrackLocate->Type() == TYPE_VIA )
                 break;
-            TrackLocate = (TRACK*) TrackLocate->Pnext;
+            TrackLocate = TrackLocate->Next();
         }
 
         Track->Display_Infos( this );
@@ -67,19 +67,19 @@ BOARD_ITEM* WinEDA_GerberFrame::Locate( int typeloc )
     }
 
 
-    pt_texte_pcb = Locate_Texte_Pcb( (TEXTE_PCB*) m_Pcb->m_Drawings, typeloc );
+    pt_texte_pcb = Locate_Texte_Pcb( (TEXTE_PCB*) GetBoard()->m_Drawings.GetFirst(), typeloc );
     if( pt_texte_pcb ) // texte type PCB localise
     {
         pt_texte_pcb->Display_Infos( this );
         return pt_texte_pcb;
     }
 
-    if( ( DrawSegm = Locate_Segment_Pcb( m_Pcb, typeloc ) ) != NULL )
+    if( ( DrawSegm = Locate_Segment_Pcb( GetBoard(), typeloc ) ) != NULL )
     {
         return DrawSegm;
     }
 
-    if( ( TrackLocate = Locate_Zone( (TRACK*) m_Pcb->m_Zone,
+    if( ( TrackLocate = Locate_Zone( GetBoard()->m_Zone,
                                     GetScreen()->m_Active_Layer, typeloc ) ) != NULL )
     {
         TrackLocate->Display_Infos( this );
@@ -112,7 +112,7 @@ DRAWSEGMENT* Locate_Segment_Pcb( BOARD* Pcb, int typeloc )
     PtStruct = Pcb->m_Drawings;
     for( ; PtStruct != NULL; PtStruct = PtStruct->Next() )
     {
-        if( PtStruct->Type() != TYPEDRAWSEGMENT )
+        if( PtStruct->Type() != TYPE_DRAWSEGMENT )
             continue;
         pts = (DRAWSEGMENT*) PtStruct;
         ux0 = pts->m_Start.x; uy0 = pts->m_Start.y;
@@ -185,7 +185,7 @@ TRACK* Locate_Pistes( TRACK* start_adresse, wxPoint ref, int Layer )
     TRACK* Track;               /* pointeur sur les pistes */
     int    l_piste;             /* demi-largeur de la piste */
 
-    for( Track = start_adresse; Track != NULL; Track = (TRACK*) Track->Pnext )
+    for( Track = start_adresse; Track != NULL; Track = Track->Next() )
     {
         if( Track->GetState( BUSY | DELETED ) )
             continue;
@@ -198,7 +198,7 @@ TRACK* Locate_Pistes( TRACK* start_adresse, wxPoint ref, int Layer )
         dx     -= ux0; dy -= uy0;
         spot_cX = ref.x - ux0; spot_cY = ref.y - uy0;
 
-        if( Track->Type() == TYPEVIA ) /* VIA rencontree */
+        if( Track->Type() == TYPE_VIA ) /* VIA rencontree */
         {
             if( (abs( spot_cX ) <= l_piste ) && (abs( spot_cY ) <=l_piste) )
             {
@@ -249,7 +249,7 @@ TRACK* Locate_Zone( TRACK* start_adresse, wxPoint ref, int layer )
     TRACK* Zone;                /* pointeur sur les pistes */
     int    l_segm;              /* demi-largeur de la piste */
 
-    for( Zone = start_adresse; Zone != NULL; Zone = (TRACK*) Zone->Pnext )
+    for( Zone = start_adresse; Zone != NULL; Zone = Zone->Next() )
     {
         /* calcul des coordonnees du segment teste */
         l_segm = Zone->m_Width >> 1;                        /* l_piste = demi largeur piste */
@@ -287,9 +287,9 @@ TEXTE_PCB* Locate_Texte_Pcb( TEXTE_PCB* pt_txt_pcb, int typeloc )
 
     SET_REF_POS( ref );
     PtStruct = (EDA_BaseStruct*) pt_txt_pcb;
-    for( ; PtStruct != NULL; PtStruct = PtStruct->Pnext )
+    for( ; PtStruct != NULL; PtStruct = PtStruct->Next() )
     {
-        if( PtStruct->Type() != TYPETEXTE )
+        if( PtStruct->Type() != TYPE_TEXTE )
             continue;
         pt_txt_pcb = (TEXTE_PCB*) PtStruct;
 
@@ -436,7 +436,7 @@ int distance( int seuil )
          *  de piste soit horizontal dans le nouveau repere */
         int angle;
 
-        angle = (int) ( atan2( (float) segY, (float) segX ) * 1800 / M_PI);
+        angle = (int) ( atan2( (double) segY, (double) segX ) * 1800 / M_PI);
         cXrot = pointX; cYrot = pointY;
         RotatePoint( &cXrot, &cYrot, angle );   /* Rotation du point a tester */
         RotatePoint( &segX, &segY, angle );     /* Rotation du segment */

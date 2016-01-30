@@ -22,6 +22,10 @@
 #include "fctsys.h"
 #include "gr_basic.h"
 #include "common.h"
+#include "class_drawpanel.h"
+#include "confirm.h"
+#include "kicad_string.h"
+#include "gestfich.h"
 #include "pcbnew.h"
 #include "autorout.h"
 
@@ -45,7 +49,8 @@ public:
                   int             timestamp,
                   const wxString& path );
     ~MODULEtoLOAD() { };
-    MODULEtoLOAD* Next() { return (MODULEtoLOAD*) Pnext; }
+
+    MODULEtoLOAD* Next() const { return (MODULEtoLOAD*) Pnext; }
 };
 
 /* Fonctions locales : */
@@ -187,7 +192,7 @@ void ReadPcbNetlist( WinEDA_PcbFrame* aFrame,
         aMessageWindow->AppendText( msg );
 
     aFrame->GetScreen()->SetModify();
-    aFrame->m_Pcb->m_Status_Pcb = 0; State = 0; LineNum = 0; Comment = 0;
+    aFrame->GetBoard()->m_Status_Pcb = 0; State = 0; LineNum = 0; Comment = 0;
     s_NbNewModules = 0;
 
     wxBusyCursor dummy;     // Shows an hourglass while calculating
@@ -293,9 +298,9 @@ void ReadPcbNetlist( WinEDA_PcbFrame* aFrame,
             else /* Raz netnames sur pads */
             {
                 PtPad = Module->m_Pads;
-                for( ; PtPad != NULL; PtPad = (D_PAD*) PtPad->Pnext )
+                for( ; PtPad != NULL; PtPad = (D_PAD*) PtPad->Next() )
                 {
-                    PtPad->m_Netname = wxEmptyString;
+                    PtPad->SetNetname( wxEmptyString );
                 }
             }
             continue;
@@ -322,7 +327,7 @@ void ReadPcbNetlist( WinEDA_PcbFrame* aFrame,
         if( NbModulesNetListe  )
         {
             MODULE * NextModule;
-            Module = aFrame->m_Pcb->m_Modules;
+            Module = aFrame->GetBoard()->m_Modules;
             bool ask_for_confirmation = true;
             for( ; Module != NULL; Module = NextModule )
             {
@@ -356,7 +361,7 @@ void ReadPcbNetlist( WinEDA_PcbFrame* aFrame,
     /* Rebuild the connectivity */
     aFrame->Compile_Ratsnest( NULL, TRUE );
 
-    if( aFrame->m_Pcb->m_Track )
+    if( aFrame->GetBoard()->m_Track )
     {
         if( aDeleteBadTracks )    // Remove erroneous tracks
         {
@@ -366,7 +371,7 @@ void ReadPcbNetlist( WinEDA_PcbFrame* aFrame,
     }
 
     aFrame->DrawPanel->Refresh();
-    aFrame->m_Pcb->Display_Infos( aFrame );
+    aFrame->GetBoard()->Display_Infos( aFrame );
 }
 
 
@@ -441,7 +446,7 @@ MODULE* ReadNetModule( WinEDA_PcbFrame* aFrame,
     LocalTimeStamp.ToULong( &TimeStamp, 16 );
 
     /* Tst si composant deja charge */
-    Module = aFrame->m_Pcb->m_Modules;
+    Module = aFrame->GetBoard()->m_Modules;
     MODULE* NextModule;
     for( Found = FALSE; Module != NULL; Module = NextModule )
     {
@@ -590,15 +595,15 @@ int SetPadNetName( wxWindow* frame, char* Text, MODULE* Module )
 
     /* recherche du pad */
     pad = Module->m_Pads; trouve = FALSE;
-    for( ; pad != NULL; pad = (D_PAD*) pad->Pnext )
+    for( ; pad != NULL; pad = (D_PAD*) pad->Next() )
     {
         if( strnicmp( TextPinName, pad->m_Padname, 4 ) == 0 )
         { /* trouve */
             trouve = TRUE;
             if( *TextNetName != '?' )
-                pad->m_Netname = CONV_FROM_UTF8( TextNetName );
+                pad->SetNetname( CONV_FROM_UTF8( TextNetName ) );
             else
-                pad->m_Netname.Empty();
+                pad->SetNetname( wxEmptyString);
         }
     }
 
@@ -630,19 +635,19 @@ MODULE* WinEDA_PcbFrame::ListAndSelectModuleName( void )
     WinEDAListBox* ListBox;
     const wxChar** ListNames = NULL;
 
-    if( m_Pcb->m_Modules == NULL )
+    if( GetBoard()->m_Modules == NULL )
     {
         DisplayError( this, _( "No Modules" ) ); return 0;
     }
 
     /* Calcul du nombre des modules */
-    nb_empr = 0; Module = (MODULE*) m_Pcb->m_Modules;
-    for( ; Module != NULL; Module = (MODULE*) Module->Pnext )
+    nb_empr = 0; Module = (MODULE*) GetBoard()->m_Modules;
+    for( ; Module != NULL; Module = (MODULE*) Module->Next() )
         nb_empr++;
 
     ListNames = (const wxChar**) MyZMalloc( (nb_empr + 1) * sizeof(wxChar*) );
-    Module    = (MODULE*) m_Pcb->m_Modules;
-    for( ii = 0; Module != NULL; Module = (MODULE*) Module->Pnext, ii++ )
+    Module    = (MODULE*) GetBoard()->m_Modules;
+    for( ii = 0; Module != NULL; Module = (MODULE*) Module->Next(), ii++ )
     {
         ListNames[ii] = Module->m_Reference->m_Text.GetData();
     }
@@ -658,8 +663,8 @@ MODULE* WinEDA_PcbFrame::ListAndSelectModuleName( void )
     }
     else /* Recherche du module selectionne */
     {
-        Module = (MODULE*) m_Pcb->m_Modules;
-        for( jj = 0; Module != NULL; Module = (MODULE*) Module->Pnext, jj++ )
+        Module = (MODULE*) GetBoard()->m_Modules;
+        for( jj = 0; Module != NULL; Module = (MODULE*) Module->Next(), jj++ )
         {
             if( Module->m_Reference->m_Text.Cmp( ListNames[ii] ) == 0 )
                 break;
@@ -984,7 +989,7 @@ void AddToList( const wxString& NameLibCmp, const wxString& CmpName,
     MODULEtoLOAD* NewMod;
 
     NewMod = new MODULEtoLOAD( NameLibCmp, CmpName, TimeStamp, path );
-    NewMod->Pnext = s_ModuleToLoad_List;
+    NewMod->SetNext( s_ModuleToLoad_List );
     s_ModuleToLoad_List = NewMod;
     s_NbNewModules++;
 }
@@ -1014,9 +1019,9 @@ void LoadListeModules( WinEDA_PcbFrame* aPcbFrame, wxDC* DC )
     // Calculate the footprint "best" position:
     if( aPcbFrame->SetBoardBoundaryBoxFromEdgesOnly() )
     {
-        aPcbFrame->GetScreen()->m_Curseur.x = aPcbFrame->m_Pcb->m_BoundaryBox.GetRight() +
+        aPcbFrame->GetScreen()->m_Curseur.x = aPcbFrame->GetBoard()->m_BoundaryBox.GetRight() +
                                                   5000;
-        aPcbFrame->GetScreen()->m_Curseur.y = aPcbFrame->m_Pcb->m_BoundaryBox.GetBottom() +
+        aPcbFrame->GetScreen()->m_Curseur.y = aPcbFrame->GetBoard()->m_BoundaryBox.GetBottom() +
                                                   10000;
     }
     else
@@ -1027,7 +1032,8 @@ void LoadListeModules( WinEDA_PcbFrame* aPcbFrame, wxDC* DC )
     for( ii = 0; ii < s_NbNewModules; ii++, cmp = cmp->Next() )
     {
         if( (ii == 0) || ( ref->m_LibName != cmp->m_LibName) )
-        {   /* New footprint : must be loaded from a library */
+        {
+            /* New footprint : must be loaded from a library */
             Module = aPcbFrame->Get_Librairie_Module( NULL, wxEmptyString, cmp->m_LibName, FALSE );
             ref    = cmp;
             if( Module == NULL )
@@ -1051,9 +1057,12 @@ void LoadListeModules( WinEDA_PcbFrame* aPcbFrame, wxDC* DC )
             MODULE* newmodule;
             if( Module == NULL )
                 continue; /* module non existant en libr */
-            newmodule = new MODULE( aPcbFrame->m_Pcb );
+
+            newmodule = new MODULE( aPcbFrame->GetBoard() );
             newmodule->Copy( Module );
-            newmodule->AddToChain( Module );
+
+            aPcbFrame->GetBoard()->Add( newmodule, ADD_APPEND );
+
             Module = newmodule;
             Module->m_Reference->m_Text = cmp->m_CmpName;
             Module->m_TimeStamp = cmp->m_TimeStamp;
@@ -1101,12 +1110,12 @@ void SortListModulesToLoadByLibname( int NbModules )
     for( ii = 0; ii < NbModules - 1; ii++ )
     {
         item = base_list[ii];
-        item->Pnext = base_list[ii + 1];
+        item->SetNext( base_list[ii + 1] );
     }
 
     // Dernier item: Pnext = NULL:
     item = base_list[ii];
-    item->Pnext = NULL;
+    item->SetNext( NULL );
 
     free( base_list );
 }

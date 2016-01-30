@@ -15,21 +15,10 @@
 #pragma implementation "dialog_create_component.h"
 #endif
 
-// For compilers that support precompilation, includes "wx/wx.h".
-#include "wx/wxprec.h"
-
-#ifdef __BORLANDC__
-#pragma hdrstop
-#endif
-
-#ifndef WX_PRECOMP
-#include "wx/wx.h"
-#endif
-
 #include "fctsys.h"
 #include "gr_basic.h"
-
 #include "common.h"
+#include "confirm.h"
 #include "program.h"
 #include "libcmp.h"
 #include "general.h"
@@ -184,7 +173,7 @@ void WinEDA_CreateCmpDialog::CreateControls()
     m_AsConvert->SetValue(false);
     itemStaticBoxSizer11->Add(m_AsConvert, 0, wxALIGN_LEFT|wxALL, 5);
 
-    m_IsPowerSymbol = new wxCheckBox( itemDialog1, ID_CHECKBOX4, _("Power Symbol"), wxDefaultPosition, wxDefaultSize, wxCHK_2STATE );
+    m_IsPowerSymbol = new wxCheckBox( itemDialog1, ID_CHECKBOX4, _("Power symbol"), wxDefaultPosition, wxDefaultSize, wxCHK_2STATE );
     m_IsPowerSymbol->SetValue(false);
     itemStaticBoxSizer11->Add(m_IsPowerSymbol, 0, wxALIGN_LEFT|wxALL, 5);
 

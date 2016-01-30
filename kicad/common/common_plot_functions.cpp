@@ -11,77 +11,57 @@
 #include "plot_common.h"
 #include "worksheet.h"
 #include "macros.h"
+#include "class_base_screen.h"
+#include "drawtxt.h"
 
 
 // Variables partagees avec Common plot Postscript et HPLG Routines
-wxPoint LastPenPosition;
-wxPoint PlotOffset;
-FILE*   PlotOutputFile;
-double  XScale, YScale;
-int     g_DefaultPenWidth;
-int     g_CurrentPenWidth = -1;
-int     PlotOrientOptions, etat_plume;
-
-
-// Locales
-static Ki_PageDescr* SheetPS;
+wxPoint g_Plot_LastPenPosition;
+wxPoint g_Plot_PlotOffset;
+FILE*   g_Plot_PlotOutputFile;
+double  g_Plot_XScale, g_Plot_YScale;
+int     g_Plot_DefaultPenWidth;
+int     g_Plot_CurrentPenWidth = -1;
+int     g_Plot_PlotOrientOptions, g_Plot_PenState;
 
 /*************************/
 void ForcePenReinit()
 /*************************/
 
-/* set the flag g_CurrentPenWidth to -1 in order to force a pen width redefinition
+/* set the flag g_Plot_CurrentPenWidth to -1 in order to force a pen width redefinition
   * for the next draw command
  */
 {
-    g_CurrentPenWidth = -1;
+    g_Plot_CurrentPenWidth = -1;
 }
 
 
 /**********************************************/
-void SetPlotScale( double xscale, double yscale )
+void SetPlotScale( double aXScale, double aYScale )
 /**********************************************/
 
 /* Set the plot scale for the current plotting)
  */
 {
-    XScale = xscale;
-    YScale = yscale;
+    g_Plot_XScale = aXScale;
+    g_Plot_YScale = aYScale;
 }
 
 
 /*********************************/
-void SetPlotOffset( wxPoint offset )
+void Setg_Plot_PlotOffset( wxPoint offset )
 /*********************************/
 
 /* Set the plot offset for the current plotting)
  */
 {
-    PlotOffset = offset;
+    g_Plot_PlotOffset = offset;
 }
 
 
-/***************************************************************************/
-void InitPlotParametresGERBER( wxPoint offset, double xscale, double yscale )
-/***************************************************************************/
-
-/* Set the plot offset for the current plotting
-  * xscale,yscale = coordinate scale (scale coefficient for coordinates)
- */
-{
-    PlotOrientOptions = 0;
-    PlotOffset = offset;
-    SheetPS    = NULL;
-    XScale = xscale;
-    YScale = yscale;
-    g_DefaultPenWidth = 120;            /* epaisseur du trait standard en 1/1000 pouce */
-    g_CurrentPenWidth = -1;
-}
-
-
-/*******************************************************/
-void PlotWorkSheet( int format_plot, BASE_SCREEN* screen )
-/*******************************************************/
+/**************************************************************************/
+void WinEDA_DrawFrame::PlotWorkSheet( int format_plot, BASE_SCREEN* screen )
+/**************************************************************************/
 
 /* Plot sheet references
   * margin is in mils (1/1000 inch)
@@ -92,7 +72,7 @@ void PlotWorkSheet( int format_plot, BASE_SCREEN* screen )
     int               ii, jj, xg, yg, ipas, gxpas, gypas;
     wxSize            PageSize;
     wxPoint           pos, ref;
-    int               color;
+    EDA_Colors        color;
     Ki_WorkSheetData* WsItem;
     int               conv_unit = screen->GetInternalUnits() / 1000; /* Scale to convert dimension in 1/1000 in into internal units
                                                       * (1/1000 inc for EESchema, 1/10000 for pcbnew */
@@ -100,6 +80,8 @@ void PlotWorkSheet( int format_plot, BASE_SCREEN* screen )
     wxSize            text_size;
     void              (*FctPlume)( wxPoint pos, int state );
     int               UpperLimit = VARIABLE_BLOCK_START_POSITION;
+    bool italic = false;
+    bool thickness = 0; //@todo : use current pen
 
     switch( format_plot )
     {
@@ -112,6 +94,9 @@ void PlotWorkSheet( int format_plot, BASE_SCREEN* screen )
         break;
 
     case PLOT_FORMAT_GERBER:
+		FctPlume = LineTo_GERBER;
+		break;
+
     default:
         return;
     }
@@ -127,6 +112,17 @@ void PlotWorkSheet( int format_plot, BASE_SCREEN* screen )
     xg    = (PageSize.x - Sheet->m_RightMargin) * conv_unit;
     yg    = (PageSize.y - Sheet->m_BottomMargin) * conv_unit;   /* lower right corner */
 
+#if defined(KICAD_GOST)
+    FctPlume(ref,'U');
+    pos.x = xg; pos.y = ref.y;
+    FctPlume(pos,'D');
+    pos.x = xg; pos.y = yg;
+    FctPlume(pos,'D');
+    pos.x = ref.x; pos.y = yg;
+    FctPlume( pos,'D' );
+    FctPlume(ref,'D');
+#else
+
     for( ii = 0; ii < 2; ii++ )
     {
         FctPlume( ref, 'U' );
@@ -140,6 +136,7 @@ void PlotWorkSheet( int format_plot, BASE_SCREEN* screen )
         ref.x += GRID_REF_W * conv_unit; ref.y += GRID_REF_W * conv_unit;
         xg -= GRID_REF_W * conv_unit; yg -= GRID_REF_W * conv_unit;
     }
+#endif
 
     /* trace des reperes */
     text_size.x = WSTEXTSIZE * conv_unit;
@@ -149,6 +146,49 @@ void PlotWorkSheet( int format_plot, BASE_SCREEN* screen )
     ref.y = Sheet->m_TopMargin;                     /* Upper left corner in 1/1000 inch */
     xg    = (PageSize.x - Sheet->m_RightMargin);
     yg    = (PageSize.y - Sheet->m_BottomMargin);   /* lower right corner in 1/1000 inch */
+
+#if defined(KICAD_GOST)
+    for ( WsItem = &WS_Segm1_LU; WsItem != NULL; WsItem = WsItem->Pnext )
+    {
+	pos.x = (ref.x - WsItem->m_Posx) * conv_unit;
+	pos.y = (yg - WsItem->m_Posy) * conv_unit;
+	msg.Empty();
+	switch( WsItem->m_Type )
+	{
+	    case WS_CADRE:
+		break;
+	    case WS_PODPIS_LU:
+		if(WsItem->m_Legende) msg = WsItem->m_Legende;
+		PlotGraphicText(format_plot, pos, color,
+				msg, TEXT_ORIENT_VERT, text_size,
+                        	GR_TEXT_HJUSTIFY_CENTER, GR_TEXT_VJUSTIFY_BOTTOM,
+                            thickness, italic );
+
+        	break;
+    	    case WS_SEGMENT_LU:
+    		FctPlume(pos, 'U');
+    		pos.x = (ref.x - WsItem->m_Endx) * conv_unit;
+    		pos.y = (yg - WsItem->m_Endy) * conv_unit;
+		FctPlume(pos, 'D');
+    		break;
+	}
+    }
+    for ( WsItem = &WS_Segm1_LT; WsItem != NULL; WsItem = WsItem->Pnext )
+    {
+	pos.x = (ref.x + WsItem->m_Posx) * conv_unit;
+	pos.y = (ref.y + WsItem->m_Posy) * conv_unit;
+	msg.Empty();
+	switch( WsItem->m_Type )
+	{
+    	    case WS_SEGMENT_LT:
+    		FctPlume(pos, 'U');
+        	pos.x = (ref.x + WsItem->m_Endx) * conv_unit;
+        	pos.y = (ref.y + WsItem->m_Endy) * conv_unit;
+        	FctPlume(pos, 'D');
+        	break;
+	}
+    }
+#else
 
     /* Trace des reperes selon l'axe X */
     ipas  = (xg - ref.x) / PAS_REF;
@@ -167,7 +207,8 @@ void PlotWorkSheet( int format_plot, BASE_SCREEN* screen )
         pos.y = (ref.y + GRID_REF_W / 2) * conv_unit;
         PlotGraphicText( format_plot, pos, color,
             msg, TEXT_ORIENT_HORIZ, text_size,
-            GR_TEXT_HJUSTIFY_CENTER, GR_TEXT_VJUSTIFY_CENTER );
+            GR_TEXT_HJUSTIFY_CENTER, GR_TEXT_VJUSTIFY_CENTER,
+            thickness, italic );
 
         if( ii < xg - PAS_REF / 2 )
         {
@@ -180,7 +221,8 @@ void PlotWorkSheet( int format_plot, BASE_SCREEN* screen )
         pos.y = (yg - GRID_REF_W / 2) * conv_unit;
         PlotGraphicText( format_plot, pos, color,
             msg, TEXT_ORIENT_HORIZ, text_size,
-            GR_TEXT_HJUSTIFY_CENTER, GR_TEXT_VJUSTIFY_CENTER );
+            GR_TEXT_HJUSTIFY_CENTER, GR_TEXT_VJUSTIFY_CENTER,
+            thickness, italic );
     }
 
     /* Trace des reperes selon l'axe Y */
@@ -200,7 +242,8 @@ void PlotWorkSheet( int format_plot, BASE_SCREEN* screen )
         pos.y = (ii - gypas / 2) * conv_unit;
         PlotGraphicText( format_plot, pos, color,
             msg, TEXT_ORIENT_HORIZ, text_size,
-            GR_TEXT_HJUSTIFY_CENTER, GR_TEXT_VJUSTIFY_CENTER );
+            GR_TEXT_HJUSTIFY_CENTER, GR_TEXT_VJUSTIFY_CENTER,
+            thickness, italic );
 
         if( ii < yg - PAS_REF / 2 )
         {
@@ -212,12 +255,110 @@ void PlotWorkSheet( int format_plot, BASE_SCREEN* screen )
         pos.x = (xg - GRID_REF_W / 2) * conv_unit;
         pos.y = (ii - gypas / 2) * conv_unit;
         PlotGraphicText( format_plot, pos, color, msg, TEXT_ORIENT_HORIZ, text_size,
-            GR_TEXT_HJUSTIFY_CENTER, GR_TEXT_VJUSTIFY_CENTER );
+            GR_TEXT_HJUSTIFY_CENTER, GR_TEXT_VJUSTIFY_CENTER,
+            thickness, italic );
     }
+#endif
 
     /* Trace du cartouche */
     text_size.x = SIZETEXT * conv_unit;
     text_size.y = SIZETEXT * conv_unit;
+#if defined(KICAD_GOST)
+    ref.x = PageSize.x - Sheet->m_RightMargin;
+    ref.y = PageSize.y - Sheet->m_BottomMargin;
+    if (screen->m_ScreenNumber == 1)
+    {
+	for( WsItem = &WS_Date; WsItem != NULL; WsItem = WsItem->Pnext )
+	{
+	    pos.x = (ref.x - WsItem->m_Posx) * conv_unit;
+	    pos.y = (ref.y - WsItem->m_Posy) * conv_unit;
+	    msg.Empty();
+	    switch( WsItem->m_Type )
+	    {
+		case WS_DATE:
+		    break;
+		case WS_REV:
+		    break;
+		case WS_KICAD_VERSION:
+		    break;
+		case WS_PODPIS:
+		    if(WsItem->m_Legende) msg = WsItem->m_Legende;
+		    PlotGraphicText(format_plot, pos, color, msg, TEXT_ORIENT_HORIZ,text_size,
+				    GR_TEXT_HJUSTIFY_LEFT, GR_TEXT_VJUSTIFY_CENTER,
+                    thickness, italic );
+		    break;
+		case WS_SIZESHEET:
+		    break;
+		case WS_IDENTSHEET:
+		    if(WsItem->m_Legende) msg = WsItem->m_Legende;
+		    msg << screen->m_ScreenNumber;
+		    PlotGraphicText(format_plot, pos, color, msg, TEXT_ORIENT_HORIZ,text_size,
+				    GR_TEXT_HJUSTIFY_LEFT, GR_TEXT_VJUSTIFY_CENTER,
+                    thickness, italic );
+		    break;
+		case WS_SHEETS:
+		    if(WsItem->m_Legende) msg = WsItem->m_Legende;
+		    msg << screen->m_NumberOfScreen;
+		    PlotGraphicText(format_plot, pos, color, msg, TEXT_ORIENT_HORIZ,text_size,
+				    GR_TEXT_HJUSTIFY_LEFT, GR_TEXT_VJUSTIFY_CENTER,
+                    thickness, italic );
+		    break;
+		case WS_COMPANY_NAME:
+		    break;
+		case WS_TITLE:
+		    break;
+		case WS_COMMENT1:
+		    break;
+		case WS_COMMENT2:
+		    break;
+		case WS_COMMENT3:
+		    break;
+		case WS_COMMENT4:
+		    break;
+		case WS_UPPER_SEGMENT:
+		case WS_LEFT_SEGMENT:
+		case WS_SEGMENT:
+		    FctPlume(pos, 'U');
+		    pos.x = (ref.x - WsItem->m_Endx) * conv_unit;
+		    pos.y = (ref.y - WsItem->m_Endy)  * conv_unit;
+		    FctPlume(pos, 'D');
+		    break;
+	    }
+	}
+    } else {
+	for( WsItem = &WS_CADRE_D; WsItem != NULL; WsItem = WsItem->Pnext )
+	{
+	    pos.x = (ref.x - WsItem->m_Posx) * conv_unit;
+	    pos.y = (ref.y - WsItem->m_Posy) * conv_unit;
+	    msg.Empty();
+	    switch( WsItem->m_Type )
+	    {
+		case WS_CADRE:
+		/* Begin list number > 1 */
+		case WS_PODPIS_D:
+		    if(WsItem->m_Legende) msg = WsItem->m_Legende;
+		    PlotGraphicText(format_plot, pos, color, msg, TEXT_ORIENT_HORIZ,text_size,
+				    GR_TEXT_HJUSTIFY_LEFT, GR_TEXT_VJUSTIFY_CENTER,
+                    thickness, italic );
+		    break;
+		case WS_IDENTSHEET_D:
+		    if(WsItem->m_Legende) msg = WsItem->m_Legende;
+		    msg << screen->m_ScreenNumber;
+		    PlotGraphicText(format_plot, pos, color, msg, TEXT_ORIENT_HORIZ,text_size,
+				    GR_TEXT_HJUSTIFY_LEFT, GR_TEXT_VJUSTIFY_CENTER,
+                    thickness, italic );
+		    break;
+		case WS_LEFT_SEGMENT_D:
+		case WS_SEGMENT_D:
+		    FctPlume(pos, 'U');
+		    pos.x = (ref.x - WsItem->m_Endx) * conv_unit;
+		    pos.y = (ref.y - WsItem->m_Endy) * conv_unit;
+		    FctPlume(pos, 'D');
+		    break;
+	    }
+	}
+    }
+#else
     ref.x = PageSize.x - GRID_REF_W - Sheet->m_RightMargin;
     ref.y = PageSize.y - GRID_REF_W - Sheet->m_BottomMargin;
 
@@ -261,8 +402,7 @@ void PlotWorkSheet( int format_plot, BASE_SCREEN* screen )
             break;
 
         case WS_FULLSHEETNAME:
-
-//				msg += GetScreenDesc();
+            msg += GetScreenDesc();
             break;
 
         case WS_COMPANY_NAME:
@@ -324,9 +464,11 @@ void PlotWorkSheet( int format_plot, BASE_SCREEN* screen )
         {
             PlotGraphicText( format_plot, pos, color,
                 msg.GetData(), TEXT_ORIENT_HORIZ, text_size,
-                GR_TEXT_HJUSTIFY_LEFT, GR_TEXT_VJUSTIFY_CENTER );
+                GR_TEXT_HJUSTIFY_LEFT, GR_TEXT_VJUSTIFY_CENTER,
+                thickness, italic );
         }
     }
+#endif
 
     switch( format_plot )
     {
@@ -347,17 +489,17 @@ void UserToDeviceCoordinate( wxPoint& pos )
 /* modifie les coord pos.x et pos.y pour le trace selon l'orientation,
   * l'echelle, les offsets de trace */
 {
-    pos.x = (int) (pos.x * XScale);
-    pos.y = (int) (pos.y * YScale);
+    pos.x = (int) (pos.x * g_Plot_XScale);
+    pos.y = (int) (pos.y * g_Plot_YScale);
 
-    switch( PlotOrientOptions ) /* Calcul du cadrage */
+    switch( g_Plot_PlotOrientOptions ) /* Calcul du cadrage */
     {
     default:
-        pos.x -= PlotOffset.x; pos.y = PlotOffset.y - pos.y;
+        pos.x -= g_Plot_PlotOffset.x; pos.y = g_Plot_PlotOffset.y - pos.y;
         break;
 
     case PLOT_MIROIR:
-        pos.x -= PlotOffset.x; pos.y = -PlotOffset.y + pos.y;
+        pos.x -= g_Plot_PlotOffset.x; pos.y = -g_Plot_PlotOffset.y + pos.y;
         break;
     }
 }
@@ -368,6 +510,6 @@ void UserToDeviceSize( wxSize& size )
 /************************************/
 /* modifie les dimension size.x et size.y pour le trace selon l'echelle */
 {
-    size.x = (int) (size.x * XScale);
-    size.y = (int) (size.y * YScale);
+    size.x = (int) (size.x * g_Plot_XScale);
+    size.y = (int) (size.y * g_Plot_YScale);
 }

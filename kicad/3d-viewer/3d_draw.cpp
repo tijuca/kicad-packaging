@@ -17,11 +17,10 @@
 #error Please set wxUSE_GLCANVAS to 1 in setup.h.
 #endif
 
-#include "common.h"
 #include "pcbstruct.h"
 #include "macros.h"
-
-// #include "pcbnew.h"
+#include "drawtxt.h"
+#include "confirm.h"
 
 #include "3d_viewer.h"
 #include "trackball.h"
@@ -94,24 +93,31 @@ GLuint Pcb3D_GLCanvas::CreateDrawGL_List()
  */
 {
     WinEDA_BasePcbFrame* pcbframe = m_Parent->m_Parent;
-    BOARD*       pcb = pcbframe->m_Pcb;
-    TRACK*       track;
-    SEGZONE*     segzone;
-    int          ii;
+    BOARD* pcb = pcbframe->GetBoard();
+    TRACK* track;
+    SEGZONE*             segzone;
+    int ii;
 
-    wxBusyCursor dummy;
+    wxBusyCursor         dummy;
 
     m_gllist = glGenLists( 1 );
 
     pcb->ComputeBoundaryBox();
     g_Parm_3D_Visu.m_BoardSettings = pcb->m_BoardSettings;
-    g_Parm_3D_Visu.m_BoardSize  = pcb->m_BoundaryBox.GetSize();
+    g_Parm_3D_Visu.m_BoardSize     = pcb->m_BoundaryBox.GetSize();
     g_Parm_3D_Visu.m_BoardPos   = pcb->m_BoundaryBox.Centre();
     g_Parm_3D_Visu.m_BoardPos.y = -g_Parm_3D_Visu.m_BoardPos.y;
     g_Parm_3D_Visu.m_Layers     = pcb->m_BoardSettings->m_CopperLayerCount;
+    
+    // Ensure the board has 2 sides for 3D views, because it is hard to find a *really* single side board in the true life...
+    if ( g_Parm_3D_Visu.m_Layers < 2 )
+        g_Parm_3D_Visu.m_Layers = 2;
+
     g_Parm_3D_Visu.m_BoardScale = 2.0 / MAX( g_Parm_3D_Visu.m_BoardSize.x,
-        g_Parm_3D_Visu.m_BoardSize.y );
-    float epoxy_width = 1.6;    // epoxy width in mm
+                                             g_Parm_3D_Visu.m_BoardSize.y );
+    // @TODO: epoxy_width (board thickness) must be set by user,
+    // because all boards thickness no not match with this setup:
+    double epoxy_width = 1.6;    // epoxy width in mm
     g_Parm_3D_Visu.m_Epoxy_Width = epoxy_width / 2.54 * 1000
                                    * g_Parm_3D_Visu.m_BoardScale;
 
@@ -192,14 +198,14 @@ GLuint Pcb3D_GLCanvas::CreateDrawGL_List()
 
     /* move the board in order to draw it with its centre at 0,0 3D coordinates */
     glTranslatef( -g_Parm_3D_Visu.m_BoardPos.x * g_Parm_3D_Visu.m_BoardScale,
-        -g_Parm_3D_Visu.m_BoardPos.y * g_Parm_3D_Visu.m_BoardScale,
-        0.0F );
+                  -g_Parm_3D_Visu.m_BoardPos.y * g_Parm_3D_Visu.m_BoardScale,
+                  0.0F );
 
     glNormal3f( 0.0, 0.0, 1.0 ); // Normal is Z axis
     /* draw tracks and vias : */
     for( track = pcb->m_Track; track != NULL; track = track->Next() )
     {
-        if( track->Type() == TYPEVIA )
+        if( track->Type() == TYPE_VIA )
             Draw3D_Via( (SEGVIA*) track );
         else
             Draw3D_Track( track );
@@ -207,24 +213,71 @@ GLuint Pcb3D_GLCanvas::CreateDrawGL_List()
 
     if( g_Parm_3D_Visu.m_Draw3DZone )
     {
+        // Draw segments used to fill copper areas
         for( segzone = pcb->m_Zone; segzone != NULL; segzone = segzone->Next() )
         {
-            if( segzone->Type() == TYPEZONE )
+            if( segzone->Type() == TYPE_ZONE )
                 Draw3D_Track( segzone );
+        }
+
+        // Draw copper areas outlines
+        for( ii = 0; ii < pcb->GetAreaCount(); ii++ )
+        {
+            ZONE_CONTAINER* zone = pcb->GetArea( ii );
+            if( zone->m_FilledPolysList.size() == 0 )
+                continue;
+            if( zone->m_ZoneMinThickness <= 1 )
+                continue;
+            int      imax = zone->m_FilledPolysList.size() - 1;
+            CPolyPt* firstcorner = &zone->m_FilledPolysList[0];
+            CPolyPt* begincorner = firstcorner;
+            SEGZONE  dummysegment(pcb);
+            dummysegment.SetLayer( zone->GetLayer() );
+            dummysegment.m_Width   = zone->m_ZoneMinThickness;
+            for( int ic = 1; ic <= imax; ic++ )
+            {
+                CPolyPt* endcorner = &zone->m_FilledPolysList[ic];
+                if( begincorner->utility == 0 )                 // Draw only basic outlines, not extra segments
+                {
+                    dummysegment.m_Start.x = begincorner->x;
+                    dummysegment.m_Start.y = begincorner->y;
+                    dummysegment.m_End.x   = endcorner->x;
+                    dummysegment.m_End.y   = endcorner->y;
+                    Draw3D_Track( &dummysegment );
+                }
+                if( (endcorner->end_contour) || (ic == imax) )      // the last corner of a filled area is found: draw it
+                {
+                    if( endcorner->utility == 0 )                   // Draw only basic outlines, not extra segments
+                    {
+                        dummysegment.m_Start.x = endcorner->x;
+                        dummysegment.m_Start.y = endcorner->y;
+                        dummysegment.m_End.x   = firstcorner->x;
+                        dummysegment.m_End.y   = firstcorner->y;
+
+                        Draw3D_Track( &dummysegment );
+                    }
+                    ic++;
+                    if( ic < imax - 1 )
+                        begincorner = firstcorner = &zone->m_FilledPolysList[ic];
+                }
+                else
+                    begincorner = endcorner;
+
+            }
         }
     }
 
     /* draw graphic items */
     EDA_BaseStruct* PtStruct;
-    for( PtStruct = pcb->m_Drawings; PtStruct != NULL; PtStruct = PtStruct->Pnext )
+    for( PtStruct = pcb->m_Drawings; PtStruct != NULL; PtStruct = PtStruct->Next() )
     {
         switch( PtStruct->Type() )
         {
-        case TYPEDRAWSEGMENT:
+        case TYPE_DRAWSEGMENT:
             Draw3D_DrawSegment( (DRAWSEGMENT*) PtStruct );
             break;
 
-        case TYPETEXTE:
+        case TYPE_TEXTE:
             Draw3D_DrawText( (TEXTE_PCB*) PtStruct );
             break;
 
@@ -234,7 +287,7 @@ GLuint Pcb3D_GLCanvas::CreateDrawGL_List()
     }
 
     /* draw footprints */
-    MODULE*         Module = pcb->m_Modules;
+    MODULE* Module = pcb->m_Modules;
     for( ; Module != NULL; Module = Module->Next() )
     {
         Module->Draw3D( this );
@@ -293,8 +346,8 @@ void Pcb3D_GLCanvas::Draw3D_Via( SEGVIA* via )
     r     = via->m_Width * g_Parm_3D_Visu.m_BoardScale / 2;
     hole  = via->GetDrillValue();
     hole *= g_Parm_3D_Visu.m_BoardScale / 2;
-    x = via->m_Start.x * g_Parm_3D_Visu.m_BoardScale;
-    y = via->m_Start.y * g_Parm_3D_Visu.m_BoardScale;
+    x     = via->m_Start.x * g_Parm_3D_Visu.m_BoardScale;
+    y     = via->m_Start.y * g_Parm_3D_Visu.m_BoardScale;
 
     via->ReturnLayerPair( &top_layer, &bottom_layer );
 
@@ -310,6 +363,7 @@ void Pcb3D_GLCanvas::Draw3D_Via( SEGVIA* via )
             continue;
 
         SetGLColor( color );
+
         // SetGLColor( LIGHTGRAY );
         glNormal3f( 0.0, 0.0, (layer == COPPER_LAYER_N) ? -1.0 : 1.0 );
         if( layer == COPPER_LAYER_N )
@@ -397,52 +451,49 @@ void Pcb3D_GLCanvas::Draw3D_DrawSegment( DRAWSEGMENT* segment )
 }
 
 
+/* function to draw 3D segments, called by DrawGraphicText
+ * When DrawGraphicText is called to draw a text to an OpenGL DC
+ * it calls Draw3dTextSegm to each segment to draw.
+ * 2 parameters used by Draw3D_FilledSegment are not handled by DrawGraphicText
+ * but are used in Draw3D_FilledSegment().
+ * they are 2 local variables. This is an ugly, but trivial code.
+ * Using DrawGraphicText to draw all texts ensure texts have the same shape
+ * in all contexts
+ */
+static double s_Text3DWidth, s_Text3DZPos;
+static void Draw3dTextSegm( int x0, int y0, int xf, int yf )
+{
+    double startx = x0 * g_Parm_3D_Visu.m_BoardScale;
+    double starty = y0 * g_Parm_3D_Visu.m_BoardScale;
+    double endx   = xf * g_Parm_3D_Visu.m_BoardScale;
+    double endy   = yf * g_Parm_3D_Visu.m_BoardScale;
+
+    Draw3D_FilledSegment( startx, -starty, endx, -endy,
+                          s_Text3DWidth, s_Text3DZPos );
+}
+
+
 /*************************************************************/
 void Pcb3D_GLCanvas::Draw3D_DrawText( TEXTE_PCB* text )
 /*************************************************************/
 {
-    int    layer = text->GetLayer();
-    double x, y, xf, yf;
-    double zpos, w;
-    int    color = g_Parm_3D_Visu.m_BoardSettings->m_LayerColor[layer];
-    #define BUFFSIZE 50
-    int    coord[(BUFFSIZE+2)*2];
-    int    ii, jj, kk, ll, nbpoints;
+    int layer = text->GetLayer();
+
+    if( !Get3DLayerEnable( layer ) )
+        return;
+
+    int color = g_Parm_3D_Visu.m_BoardSettings->m_LayerColor[layer];
 
 
-    if( Get3DLayerEnable( layer ) )
-    {
-        zpos = g_Parm_3D_Visu.m_LayerZcoord[layer];
-        glNormal3f( 0.0, 0.0, Get3DLayerSide( layer ) );
-
-        jj = 5; ii = jj + 1;
-        while( ii < text->m_TextDrawingsSize )
-        {
-            nbpoints = text->m_TextDrawings[jj];
-            if( nbpoints > BUFFSIZE )
-                nbpoints = BUFFSIZE;
-
-            for( kk = 0, ll = 0; (kk < nbpoints) && (ii < text->m_TextDrawingsSize); kk++ )
-            {
-                coord[ll++] = text->m_TextDrawings[ii++] + text->m_Pos.x;
-                coord[ll++] = text->m_TextDrawings[ii++] + text->m_Pos.y;
-            }
-
-            jj = ii++;
-
-            for( kk = 0, ll = 0; kk < (nbpoints - 1); kk++, ll += 2 )
-            {
-                SetGLColor( color );
-                w  = text->m_Width * g_Parm_3D_Visu.m_BoardScale;
-                x  = coord[ll] * g_Parm_3D_Visu.m_BoardScale;
-                y  = coord[ll + 1] * g_Parm_3D_Visu.m_BoardScale;
-                xf = coord[ll + 2] * g_Parm_3D_Visu.m_BoardScale;
-                yf = coord[ll + 3] * g_Parm_3D_Visu.m_BoardScale;
-
-                Draw3D_FilledSegment( x, -y, xf, -yf, w, zpos );
-            }
-        }
-    }
+    SetGLColor( color );
+    s_Text3DZPos  = g_Parm_3D_Visu.m_LayerZcoord[layer];
+    s_Text3DWidth = text->m_Width * g_Parm_3D_Visu.m_BoardScale;
+    glNormal3f( 0.0, 0.0, Get3DLayerSide( layer ) );
+    DrawGraphicText( NULL, NULL, text->m_Pos, (EDA_Colors) color,
+                     text->m_Text, text->m_Orient, text->m_Size,
+                     text->m_HJustify, text->m_VJustify,
+                     text->m_Width, text->m_Italic,
+                     Draw3dTextSegm );
 }
 
 
@@ -468,20 +519,22 @@ void MODULE::Draw3D( Pcb3D_GLCanvas* glcanvas )
     /* Draw pads */
     glColorMaterial( GL_FRONT_AND_BACK, GL_AMBIENT_AND_DIFFUSE );
     glNormal3f( 0.0, 0.0, 1.0 ); // Normal is Z axis
-    for( ; pad != NULL; pad = (D_PAD*) pad->Pnext )
+    for( ; pad != NULL; pad = pad->Next() )
     {
         pad->Draw3D( glcanvas );
     }
 
     /* Draw module shape: 3D shape if exists (or module edge if not exists) */
-    Struct3D_Master* Struct3D  = m_3D_Drawings;
-    bool             As3dShape = FALSE;
+    S3D_MASTER* Struct3D  = m_3D_Drawings;
+    bool        As3dShape = FALSE;
     if( g_Parm_3D_Visu.m_Draw3DModule )
     {
         glPushMatrix();
+
         glTranslatef( m_Pos.x * g_Parm_3D_Visu.m_BoardScale,
-            -m_Pos.y * g_Parm_3D_Visu.m_BoardScale,
-            g_Parm_3D_Visu.m_LayerZcoord[m_Layer] );
+                      -m_Pos.y * g_Parm_3D_Visu.m_BoardScale,
+                      g_Parm_3D_Visu.m_LayerZcoord[m_Layer] );
+
         if( m_Orient )
         {
             glRotatef( (double) m_Orient / 10, 0.0, 0.0, 1.0 );
@@ -493,7 +546,7 @@ void MODULE::Draw3D( Pcb3D_GLCanvas* glcanvas )
         }
         DataScale3D = g_Parm_3D_Visu.m_BoardScale * UNITS3D_TO_UNITSPCB;
 
-        for( ; Struct3D != NULL; Struct3D = (Struct3D_Master*) Struct3D->Pnext )
+        for( ; Struct3D != NULL; Struct3D = Struct3D->Next() )
         {
             if( !Struct3D->m_Shape3DName.IsEmpty() )
             {
@@ -509,14 +562,14 @@ void MODULE::Draw3D( Pcb3D_GLCanvas* glcanvas )
     {
         EDA_BaseStruct* Struct = m_Drawings;
         glNormal3f( 0.0, 0.0, 1.0 ); // Normal is Z axis
-        for( ; Struct != NULL; Struct = Struct->Pnext )
+        for( ; Struct != NULL; Struct = Struct->Next() )
         {
             switch( Struct->Type() )
             {
-            case TYPETEXTEMODULE:
+            case TYPE_TEXTE_MODULE:
                 break;
 
-            case TYPEEDGEMODULE:
+            case TYPE_EDGE_MODULE:
                 ( (EDGE_MODULE*) Struct )->Draw3D( glcanvas );
                 break;
 
@@ -591,7 +644,7 @@ void D_PAD::Draw3D( Pcb3D_GLCanvas* glcanvas )
     int     angle, delta_angle;
     int     coord[4][2];
     double  fcoord[8][2], f_hole_coord[8][2];
-    float   scale;
+    double  scale;
     double  zpos;
     wxPoint shape_pos;
     double  x, y, r, w, hole, holeX, holeY;
@@ -622,7 +675,8 @@ void D_PAD::Draw3D( Pcb3D_GLCanvas* glcanvas )
     if( holeX && holeY )
     {
         SetGLColor( DARKGRAY );
-        Draw3D_FilledCylinder( drillx, -drilly, hole, g_Parm_3D_Visu.m_LayerZcoord[CMP_N], 0.0 );
+        Draw3D_FilledCylinder( drillx, -drilly, hole,
+                               g_Parm_3D_Visu.m_LayerZcoord[CMP_N], 0.0 );
     }
 
     glNormal3f( 0.0, 0.0, 1.0 ); // Normal is Z axis
@@ -682,10 +736,10 @@ void D_PAD::Draw3D( Pcb3D_GLCanvas* glcanvas )
         RotatePoint( &delta_cx, &delta_cy, angle );
         {
             double ox, oy, fx, fy;
-            ox = (double) (ux0 + delta_cx) * scale;
-            oy = (double) (uy0 + delta_cy) * scale;
-            fx = (double) (ux0 - delta_cx) * scale;
-            fy = (double) (uy0 - delta_cy) * scale;
+            ox = (double) ( ux0 + delta_cx ) * scale;
+            oy = (double) ( uy0 + delta_cy ) * scale;
+            fx = (double) ( ux0 - delta_cx ) * scale;
+            fy = (double) ( uy0 - delta_cy ) * scale;
             for( layer = FIRST_COPPER_LAYER; layer <= LAST_COPPER_LAYER; layer++ )
             {
                 if( layer && (layer == nlmax) )
@@ -738,8 +792,8 @@ void D_PAD::Draw3D( Pcb3D_GLCanvas* glcanvas )
             coord[ii][0] += ux0;
             coord[ii][1] += uy0;
             ll = ii * 2;
-            fcoord[ll][0] = coord[ii][0] * scale;
-            fcoord[ll][1] = coord[ii][1] * scale;
+            fcoord[ll][0] = coord[ii][0] *scale;
+            fcoord[ll][1] = coord[ii][1] *scale;
         }
 
         for( ii = 0; ii < 7; ii += 2 )
@@ -756,7 +810,7 @@ void D_PAD::Draw3D( Pcb3D_GLCanvas* glcanvas )
             f_hole_coord[ii][0] = -hole * 0.707;
             f_hole_coord[ii][1] = hole * 0.707;
             RotatePoint( &f_hole_coord[ii][0], &f_hole_coord[ii][1],
-                angle - (ii * 450) );
+                        angle - (ii * 450) );
             f_hole_coord[ii][0] += drillx;
             f_hole_coord[ii][1] += drilly;
         }
@@ -794,7 +848,7 @@ void D_PAD::Draw3D( Pcb3D_GLCanvas* glcanvas )
             glEnd();
         }
     }
-        break;
+    break;
 
     default:
         break;
@@ -896,8 +950,8 @@ static void Draw3D_FilledSegment( double startx, double starty,
     dy    = endy - starty;
     angle = (int) ( ( atan2( dy, dx ) * 1800 / M_PI ) + 0.5 );
 
-    RotatePoint( &dx, &dy, angle );   // apres rotation: dx = longueur du segment
-                                      // dy = 0;
+    RotatePoint( &dx, &dy, angle );     // apres rotation: dx = longueur du segment
+                                        // dy = 0;
     width /= 2;
 
     glBegin( GL_POLYGON );
@@ -962,8 +1016,8 @@ static void Draw3D_FilledSegmentWithHole( double startx,
     holey -= starty;
     angle  = (int) ( ( atan2( endy, endx ) * 1800 / M_PI ) + 0.5 );
 
-    RotatePoint( &endx, &endy, angle );   // apres rotation: endx = longueur du segment
-                                          // endy = 0;
+    RotatePoint( &endx, &endy, angle );     // apres rotation: endx = longueur du segment
+                                            // endy = 0;
     RotatePoint( &holex, &holey, angle );
     width /= 2;
 
@@ -999,8 +1053,8 @@ static void Draw3D_FilledSegmentWithHole( double startx,
     for( ii = 0; ii <= 8; ii++ )
     {
         theta = -ii * 225;
-        x = 0.0;
-        y = width;
+        x     = 0.0;
+        y     = width;
         RotatePoint( &x, &y, -angle + theta );
         xin = 0.0;
         yin = holeradius;

@@ -6,6 +6,7 @@
 #define PCBSTRUCT_H
 
 #include "base_struct.h"
+#include "class_base_screen.h"
 #include "board_item_struct.h"
 
 // Definitions relatives aux libariries
@@ -18,21 +19,23 @@
 
 
 /* Bits indicateurs du membre .Status, pour pistes, modules... */
-#define FLAG1       0x2000  /* flag libre pour calculs locaux */
-#define FLAG0       0x1000  /* flag libre pour calculs locaux */
-#define BEGIN_ONPAD 0x800   /* flag indiquant un debut de segment sur pad */
-#define END_ONPAD   0x400   /* flag indiquant une fin de segment sur pad */
-#define BUSY        0x0200  /* flag indiquant que la structure a deja
-                             *  ete examinee, dans certaines routines */
-#define DELETED     0x0100  /* Bit flag de Status pour structures effacee
-                             *  et mises en chaine "DELETED" */
-#define NO_TRACE    0x80    /* l'element ne doit pas etre affiche */
-#define SURBRILL    0x20    /* element en surbrillance */
-#define DRAG        0x10    /* segment en mode drag */
-#define EDIT        0x8     /* element en cours d'edition */
-#define SEGM_FIXE   0x04    /* segment FIXE ( pas d'effacement global ) */
-#define SEGM_AR     0x02    /* segment Auto_Route */
-#define CHAIN       0x01    /* segment marque  */
+
+#define FLAG1       (1 << 13)   /* flag libre pour calculs locaux */
+#define FLAG0       (1 << 12)   /* flag libre pour calculs locaux */
+#define BEGIN_ONPAD (1 << 11)   /* flag indiquant un debut de segment sur pad */
+#define END_ONPAD   (1 << 10)   /* flag indiquant une fin de segment sur pad */
+#define BUSY        (1 << 9)    /* flag indiquant que la structure a deja
+                                 *  ete examinee, dans certaines routines */
+#define DELETED     (1 << 8)    /* Bit flag de Status pour structures effacee
+                                 *  et mises en chaine "DELETED" */
+#define NO_TRACE    (1 << 7)    /* l'element ne doit pas etre affiche */
+
+#define SURBRILL    (1 << 5)    /* element en surbrillance */
+#define DRAG        (1 << 4)    /* segment en mode drag */
+#define EDIT        (1 << 3)    /* element en cours d'edition */
+#define SEGM_FIXE   (1 << 2)    /* segment FIXE ( pas d'effacement global ) */
+#define SEGM_AR     (1 << 1)    /* segment Auto_Route */
+#define CHAIN       (1 << 0)    /* segment marque  */
 
 
 /* Layer identification (layer number) */
@@ -158,7 +161,6 @@ public:
     int    m_PcbTextWidth;                      // current Pcb (not module) Text width
     wxSize m_PcbTextSize;                       // current Pcb (not module) Text size
     int    m_TrackClearence;                    // track to track and track to pads clearance
-    int    m_ZoneClearence;                     // zone to track and zone to pads clearance
     int    m_MaskMargin;                        // Solder mask margin
 
     // Color options for screen display of the Printed Board:
@@ -207,7 +209,7 @@ public:
     int m_Route_Layer_BOTTOM;       /* pour placement vias et routage 2 couches */
 
 public:
-    PCB_SCREEN( int idscreen );
+    PCB_SCREEN();
     ~PCB_SCREEN();
 
     PCB_SCREEN* Next() { return (PCB_SCREEN*) Pnext; }
@@ -215,6 +217,8 @@ public:
     void        SetNextZoom();
     void        SetPreviousZoom();
     void        SetLastZoom();
+
+    virtual int GetInternalUnits( void );
 
     /**
      * Function GetCurItem
@@ -282,7 +286,7 @@ public:
                                  * 2 show all via hole */
 
     bool DisplayPolarCood;
-    bool DisplayZones;
+    int  DisplayZonesMode;
     bool Show_Modules_Cmp;
     bool Show_Modules_Cu;
 

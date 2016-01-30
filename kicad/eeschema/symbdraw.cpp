@@ -4,24 +4,25 @@
 /* (lines, arcs ..													 */
 /*********************************************************************/
 
-
 #include "fctsys.h"
 #include "gr_basic.h"
-
+#include "appl_wxstruct.h"
 #include "common.h"
+#include "class_drawpanel.h"
+#include "confirm.h"
 #include "program.h"
 #include "libcmp.h"
 #include "general.h"
 #include "trigo.h"
-
 #include "protos.h"
-
 #include "id.h"
 
 /* Routines locales */
 static void SymbolDisplayDraw( WinEDA_DrawPanel* panel, wxDC* DC, bool erase );
 static void ComputeArc( LibDrawArc* DrawItem, wxPoint ArcCentre );
-static void RedrawWhileMovingCursor( WinEDA_DrawPanel* panel, wxDC* DC, bool erase );
+static void RedrawWhileMovingCursor( WinEDA_DrawPanel* panel,
+                                     wxDC*             DC,
+                                     bool              erase );
 static void MoveLibDrawItemAt( LibEDA_BaseStruct* DrawItem, wxPoint newpos );
 
 /* Variables locales */
@@ -60,8 +61,12 @@ bodygraphics_PropertiesAccept( wxCommandEvent& event )
 
         m_Parent->DrawPanel->PrepareGraphicContext( &dc );
 
-        DrawLibraryDrawStruct( m_Parent->DrawPanel, &dc, CurrentLibEntry, 0, 0,
-                               CurrentDrawItem, CurrentUnit, g_XorMode );
+        DrawLibraryDrawStruct( m_Parent->DrawPanel,
+                               &dc,
+                               CurrentLibEntry,
+                               wxPoint( 0, 0 ),
+                               CurrentDrawItem,
+                               g_XorMode );
 
         if( g_FlDrawSpecificUnit )
             CurrentDrawItem->m_Unit = CurrentUnit;
@@ -77,23 +82,28 @@ bodygraphics_PropertiesAccept( wxCommandEvent& event )
             {
             case COMPONENT_ARC_DRAW_TYPE:
                 ( (LibDrawArc*) CurrentDrawItem )->m_Fill  = FlSymbol_Fill;
-                ( (LibDrawArc*) CurrentDrawItem )->m_Width = m_GraphicShapeWidthCtrl->GetValue();
+                ( (LibDrawArc*) CurrentDrawItem )->m_Width =
+                    m_GraphicShapeWidthCtrl->GetValue();
                 break;
 
             case COMPONENT_CIRCLE_DRAW_TYPE:
                 ( (LibDrawCircle*) CurrentDrawItem )->m_Fill  = FlSymbol_Fill;
-                ( (LibDrawCircle*) CurrentDrawItem )->m_Width = m_GraphicShapeWidthCtrl->GetValue();
+                ( (LibDrawCircle*) CurrentDrawItem )->m_Width =
+                    m_GraphicShapeWidthCtrl->GetValue();
                 break;
 
             case COMPONENT_RECT_DRAW_TYPE:
                 ( (LibDrawSquare*) CurrentDrawItem )->m_Fill  = FlSymbol_Fill;
-                ( (LibDrawSquare*) CurrentDrawItem )->m_Width = m_GraphicShapeWidthCtrl->GetValue();
+                ( (LibDrawSquare*) CurrentDrawItem )->m_Width =
+                    m_GraphicShapeWidthCtrl->GetValue();
                 break;
 
             case  COMPONENT_POLYLINE_DRAW_TYPE:
-                ( (LibDrawPolyline*) CurrentDrawItem )->m_Fill  = FlSymbol_Fill;
-                ( (LibDrawPolyline*) CurrentDrawItem )->m_Width = m_GraphicShapeWidthCtrl->
-                                                                  GetValue();
+                ( (LibDrawPolyline*) CurrentDrawItem )->m_Fill =
+                    FlSymbol_Fill;
+                ( (LibDrawPolyline*) CurrentDrawItem )->m_Width =
+                    m_GraphicShapeWidthCtrl->
+                    GetValue();
                 break;
 
             default:
@@ -104,15 +114,19 @@ bodygraphics_PropertiesAccept( wxCommandEvent& event )
 
         m_Parent->GetScreen()->SetModify();
 
-        DrawLibraryDrawStruct( m_Parent->DrawPanel, &dc, CurrentLibEntry, 0, 0,
-                               CurrentDrawItem, CurrentUnit, g_XorMode );
+        DrawLibraryDrawStruct( m_Parent->DrawPanel,
+                               &dc,
+                               CurrentLibEntry,
+                               wxPoint( 0, 0 ),
+                               CurrentDrawItem,
+                               g_XorMode );
     }
 
     Close();
 
     if( CurrentDrawItem )
         CurrentDrawItem->Display_Infos_DrawEntry( m_Parent );
-    m_Parent->ReDrawPanel();
+    m_Parent->DrawPanel->Refresh();
 }
 
 
@@ -127,7 +141,8 @@ void WinEDA_LibeditFrame::EditGraphicSymbol( wxDC*              DC,
     if( DrawItem == NULL )
         return;
 
-    WinEDA_bodygraphics_PropertiesFrame* frame = new WinEDA_bodygraphics_PropertiesFrame( this );
+    WinEDA_bodygraphics_PropertiesFrame* frame =
+        new WinEDA_bodygraphics_PropertiesFrame( this );
 
     frame->ShowModal(); frame->Destroy();
 }
@@ -150,8 +165,8 @@ static void AbortSymbolTraceOn( WinEDA_DrawPanel* Panel, wxDC* DC )
             Panel->m_Parent->RedrawActiveWindow( DC, TRUE );
         }
         else
-            DrawLibraryDrawStruct( Panel, DC, CurrentLibEntry, 0, 0,
-                                   CurrentDrawItem, CurrentUnit, g_XorMode );
+            DrawLibraryDrawStruct( Panel, DC, CurrentLibEntry, wxPoint( 0, 0 ),
+                                   CurrentDrawItem, g_XorMode );
         SAFE_DELETE( CurrentDrawItem );
     }
     else
@@ -161,8 +176,8 @@ static void AbortSymbolTraceOn( WinEDA_DrawPanel* Panel, wxDC* DC )
         Panel->GetScreen()->m_Curseur = StartCursor;
         RedrawWhileMovingCursor( Panel, DC, TRUE );
         Panel->GetScreen()->m_Curseur = curpos;
-        DrawLibraryDrawStruct( Panel, DC, CurrentLibEntry, 0, 0,
-                               CurrentDrawItem, CurrentUnit, GR_DEFAULT_DRAWMODE );
+        DrawLibraryDrawStruct( Panel, DC, CurrentLibEntry, wxPoint( 0, 0 ),
+                               CurrentDrawItem, GR_DEFAULT_DRAWMODE );
 
         CurrentDrawItem->m_Flags = 0;
     }
@@ -181,7 +196,6 @@ LibEDA_BaseStruct* WinEDA_LibeditFrame::CreateGraphicItem( wxDC* DC )
  */
 {
     int  DrawType;
-    int* ptpoly;
 
     DrawPanel->m_IgnoreMouseEvents = TRUE;
 
@@ -229,7 +243,7 @@ LibEDA_BaseStruct* WinEDA_LibeditFrame::CreateGraphicItem( wxDC* DC )
         Arc->m_Fill  = FlSymbol_Fill;
         Arc->m_Width = g_LibSymbolDefaultLineWidth;
     }
-        break;
+    break;
 
     case COMPONENT_CIRCLE_DRAW_TYPE:
     {
@@ -241,7 +255,7 @@ LibEDA_BaseStruct* WinEDA_LibeditFrame::CreateGraphicItem( wxDC* DC )
         Circle->m_Fill  = FlSymbol_Fill;
         Circle->m_Width = g_LibSymbolDefaultLineWidth;
     }
-        break;
+    break;
 
     case COMPONENT_RECT_DRAW_TYPE:
     {
@@ -254,22 +268,20 @@ LibEDA_BaseStruct* WinEDA_LibeditFrame::CreateGraphicItem( wxDC* DC )
         Square->m_Fill  = FlSymbol_Fill;
         Square->m_Width = g_LibSymbolDefaultLineWidth;
     }
-        break;
+    break;
 
     case COMPONENT_POLYLINE_DRAW_TYPE:
     {
         LibDrawPolyline* polyline = new LibDrawPolyline();
-
         CurrentDrawItem = polyline;
-        polyline->n = 2;
-        ptpoly = (int*) MyZMalloc( 4 * sizeof(int) );
-        polyline->PolyList = ptpoly;
-        ptpoly[0] = ptpoly[2] = GetScreen()->m_Curseur.x;
-        ptpoly[1] = ptpoly[3] = -( GetScreen()->m_Curseur.y );
+        wxPoint point = GetScreen()->m_Curseur;
+        NEGATE( point.y );
+        polyline->AddPoint( point );    // Start point of the current segment
+        polyline->AddPoint( point );    // End point of the current segment
         polyline->m_Fill  = FlSymbol_Fill;
         polyline->m_Width = g_LibSymbolDefaultLineWidth;
     }
-        break;
+    break;
 
     case COMPONENT_LINE_DRAW_TYPE:
     {
@@ -281,7 +293,7 @@ LibEDA_BaseStruct* WinEDA_LibeditFrame::CreateGraphicItem( wxDC* DC )
         Segment->m_End   = Segment->m_Pos;
         Segment->m_Width = g_LibSymbolDefaultLineWidth;
     }
-        break;
+    break;
 
     case COMPONENT_GRAPHIC_TEXT_DRAW_TYPE:
     {
@@ -289,7 +301,7 @@ LibEDA_BaseStruct* WinEDA_LibeditFrame::CreateGraphicItem( wxDC* DC )
 
         CurrentDrawItem = Text;
         Text->m_Size.x  = Text->m_Size.y = g_LastTextSize;
-        Text->m_Horiz   = g_LastTextOrient;
+        Text->m_Orient  = g_LastTextOrient;
         Text->m_Pos.x   = GetScreen()->m_Curseur.x;
         Text->m_Pos.y   = -( GetScreen()->m_Curseur.y );
         EditSymbolText( NULL, Text );
@@ -303,11 +315,12 @@ LibEDA_BaseStruct* WinEDA_LibeditFrame::CreateGraphicItem( wxDC* DC )
         else
         {
             StartMoveDrawSymbol( DC );
-            DrawLibraryDrawStruct( DrawPanel, DC, CurrentLibEntry, 0, 0,
-                                   Text, CurrentUnit, g_XorMode );
+            DrawLibraryDrawStruct( DrawPanel, DC, CurrentLibEntry,
+                                   wxPoint( 0, 0 ),
+                                   Text, g_XorMode );
         }
     }
-        break;
+    break;
     }
 
     if( CurrentDrawItem )
@@ -362,9 +375,10 @@ void WinEDA_LibeditFrame::GraphicItemBeginDraw( wxDC* DC )
     case COMPONENT_POLYLINE_DRAW_TYPE:
     {
         wxPoint pos = GetScreen()->m_Curseur;
+        NEGATE(pos.y);
         ( (LibDrawPolyline*) CurrentDrawItem )->AddPoint( pos );
     }
-        break;
+    break;
 
     case COMPONENT_LINE_DRAW_TYPE:
         break;
@@ -376,30 +390,29 @@ void WinEDA_LibeditFrame::GraphicItemBeginDraw( wxDC* DC )
 
 
 /**************************************************************************/
-static void RedrawWhileMovingCursor( WinEDA_DrawPanel* panel, wxDC* DC, bool erase )
+static void RedrawWhileMovingCursor( WinEDA_DrawPanel* panel,
+                                     wxDC*             DC,
+                                     bool              erase )
 /**************************************************************************/
 
 /* Redraw the graphoc shape while moving
  */
 {
     BASE_SCREEN* Screen = panel->GetScreen();
-    int          mx, my;
+    wxPoint      pos;
 
     /* Erase shape in the old positon*/
     if( erase )
     {
-        mx = ItemPreviousPos.x - StartCursor.x,
-        my = ItemPreviousPos.y - StartCursor.y;
-
-        DrawLibraryDrawStruct( panel, DC, CurrentLibEntry, mx, my,
-                               CurrentDrawItem, CurrentUnit, g_XorMode );
+        pos = ItemPreviousPos - StartCursor,
+        DrawLibraryDrawStruct( panel, DC, CurrentLibEntry, pos,
+                               CurrentDrawItem, g_XorMode );
     }
 
     /* Redraw moved shape */
-    mx = Screen->m_Curseur.x - StartCursor.x,
-    my = Screen->m_Curseur.y - StartCursor.y;
-    DrawLibraryDrawStruct( panel, DC, CurrentLibEntry, mx, my,
-                           CurrentDrawItem, CurrentUnit, g_XorMode );
+    pos = Screen->m_Curseur - StartCursor,
+    DrawLibraryDrawStruct( panel, DC, CurrentLibEntry, pos,
+                           CurrentDrawItem, g_XorMode );
     ItemPreviousPos = Screen->m_Curseur;
 }
 
@@ -408,60 +421,44 @@ static void RedrawWhileMovingCursor( WinEDA_DrawPanel* panel, wxDC* DC, bool era
 void MoveLibDrawItemAt( LibEDA_BaseStruct* DrawItem, wxPoint newpos )
 /*****************************************************************/
 {
-    int    mx = newpos.x, my = newpos.y;
-    wxSize size;
+    NEGATE(newpos.y);
+    wxPoint size;
 
     switch( DrawItem->Type() )
     {
     case COMPONENT_ARC_DRAW_TYPE:
     {
-        int dx = mx - ( (LibDrawArc*) CurrentDrawItem )->m_Pos.x;
-        int dy = -my - ( (LibDrawArc*) CurrentDrawItem )->m_Pos.y;
-        ( (LibDrawArc*) CurrentDrawItem )->m_Pos.x       = mx;
-        ( (LibDrawArc*) CurrentDrawItem )->m_Pos.y       = -my;
-        ( (LibDrawArc*) CurrentDrawItem )->m_ArcStart.x += dx;
-        ( (LibDrawArc*) CurrentDrawItem )->m_ArcStart.y += dy;
-        ( (LibDrawArc*) CurrentDrawItem )->m_ArcEnd.x   += dx;
-        ( (LibDrawArc*) CurrentDrawItem )->m_ArcEnd.y   += dy;
+        wxPoint offset = newpos - ( (LibDrawArc*) CurrentDrawItem )->m_Pos;
+        ( (LibDrawArc*) CurrentDrawItem )->m_Pos = newpos;
+        ( (LibDrawArc*) CurrentDrawItem )->m_ArcStart += offset;
+        ( (LibDrawArc*) CurrentDrawItem )->m_ArcEnd   += offset;
         break;
     }
 
     case COMPONENT_CIRCLE_DRAW_TYPE:
-        ( (LibDrawCircle*) CurrentDrawItem )->m_Pos.x = mx;
-        ( (LibDrawCircle*) CurrentDrawItem )->m_Pos.y = -my;
+        ( (LibDrawCircle*) CurrentDrawItem )->m_Pos = newpos;
         break;
 
     case COMPONENT_RECT_DRAW_TYPE:
-        size.x = ( (LibDrawSquare*) CurrentDrawItem )->m_End.x -
-                 ( (LibDrawSquare*) CurrentDrawItem )->m_Pos.x;
-        size.y = ( (LibDrawSquare*) CurrentDrawItem )->m_End.y -
-                 ( (LibDrawSquare*) CurrentDrawItem )->m_Pos.y;
-        ( (LibDrawSquare*) CurrentDrawItem )->m_Pos.x = mx;
-        ( (LibDrawSquare*) CurrentDrawItem )->m_Pos.y = -my;
-        ( (LibDrawSquare*) CurrentDrawItem )->m_End.x = mx + size.x;
-        ( (LibDrawSquare*) CurrentDrawItem )->m_End.y = -my + size.y;
+        size = ( (LibDrawSquare*) CurrentDrawItem )->m_End - ( (LibDrawSquare*) CurrentDrawItem )->m_Pos;
+        ( (LibDrawSquare*) CurrentDrawItem )->m_Pos = newpos;
+        ( (LibDrawSquare*) CurrentDrawItem )->m_End = newpos + size;
         break;
 
     case COMPONENT_POLYLINE_DRAW_TYPE:
     {
-        int  ii, imax = ( (LibDrawPolyline*) CurrentDrawItem )->n * 2;
-        int* ptpoly = ( (LibDrawPolyline*) CurrentDrawItem )->PolyList;
-        int  dx = mx - ptpoly[0];
-        int  dy = -my - ptpoly[1];
-        for( ii = 0; ii < imax; ii += 2 )
-        {
-            ptpoly[ii]     += dx;
-            ptpoly[ii + 1] += dy;
-        }
+        int  ii, imax = ( (LibDrawPolyline*) CurrentDrawItem )->GetCornerCount();
+        wxPoint offset = newpos - ( (LibDrawPolyline*) CurrentDrawItem )->m_PolyPoints[0];
+        for( ii = 0; ii < imax; ii ++ )
+            ( (LibDrawPolyline*) CurrentDrawItem )->m_PolyPoints[ii] += offset;
     }
-        break;
+    break;
 
     case COMPONENT_LINE_DRAW_TYPE:
         break;
 
     case COMPONENT_GRAPHIC_TEXT_DRAW_TYPE:
-        ( (LibDrawText*) CurrentDrawItem )->m_Pos.x = mx;
-        ( (LibDrawText*) CurrentDrawItem )->m_Pos.y = -my;
+        ( (LibDrawText*) CurrentDrawItem )->m_Pos = newpos;
         break;
 
     default:
@@ -497,8 +494,7 @@ void WinEDA_LibeditFrame::StartMoveDrawSymbol( wxDC* DC )
         break;
 
     case COMPONENT_POLYLINE_DRAW_TYPE:
-        InitPosition.x = *( (LibDrawPolyline*) CurrentDrawItem )->PolyList;
-        InitPosition.y = *( ( (LibDrawPolyline*) CurrentDrawItem )->PolyList + 1 );
+        InitPosition = ( (LibDrawPolyline*) CurrentDrawItem )->m_PolyPoints[0];
         break;
 
     case COMPONENT_LINE_DRAW_TYPE:
@@ -526,11 +522,11 @@ void WinEDA_LibeditFrame::StartMoveDrawSymbol( wxDC* DC )
 static void SymbolDisplayDraw( WinEDA_DrawPanel* panel, wxDC* DC, bool erase )
 {
     int          DrawMode = g_XorMode;
-    int*         ptpoly;
     int          dx, dy;
     BASE_SCREEN* Screen = panel->GetScreen();
-    int          mx = Screen->m_Curseur.x,
-                 my = Screen->m_Curseur.y;
+    wxPoint curr_pos = Screen->m_Curseur;
+
+    NEGATE(curr_pos.y);
 
     GRSetDrawMode( DC, DrawMode );
 
@@ -539,12 +535,19 @@ static void SymbolDisplayDraw( WinEDA_DrawPanel* panel, wxDC* DC, bool erase )
         if( StateDrawArc == 1 )
         {
             int Color = ReturnLayerColor( LAYER_DEVICE );
-            GRLine( &panel->m_ClipBox, DC, ArcStartX, -ArcStartY, ArcEndX, -ArcEndY, 0, Color );
+            GRLine( &panel->m_ClipBox,
+                    DC,
+                    ArcStartX,
+                    -ArcStartY,
+                    ArcEndX,
+                    -ArcEndY,
+                    0,
+                    Color );
         }
         else
         {
-            DrawLibraryDrawStruct( panel, DC, CurrentLibEntry, 0, 0,
-                                   CurrentDrawItem, CurrentUnit, DrawMode );
+            DrawLibraryDrawStruct( panel, DC, CurrentLibEntry, wxPoint( 0, 0 ),
+                                   CurrentDrawItem, DrawMode );
             if( CurrentDrawItem->Type() == COMPONENT_ARC_DRAW_TYPE )
             {
                 int Color = ReturnLayerColor( LAYER_DEVICE );
@@ -565,7 +568,7 @@ static void SymbolDisplayDraw( WinEDA_DrawPanel* panel, wxDC* DC, bool erase )
     case COMPONENT_ARC_DRAW_TYPE:
         if( StateDrawArc == 1 )
         {
-            ArcEndX = mx; ArcEndY = -my;
+            ArcEndX = curr_pos.x; ArcEndY = curr_pos.y;
         }
 
         if( StateDrawArc == 2 )
@@ -576,29 +579,28 @@ static void SymbolDisplayDraw( WinEDA_DrawPanel* panel, wxDC* DC, bool erase )
         break;
 
     case COMPONENT_CIRCLE_DRAW_TYPE:
-        dx = ( (LibDrawCircle*) CurrentDrawItem )->m_Pos.x - mx;
-        dy = ( (LibDrawCircle*) CurrentDrawItem )->m_Pos.y + my;
-        ( (LibDrawCircle*) CurrentDrawItem )->m_Rayon = (int) sqrt( (dx * dx) + (dy * dy) );
-        ( (LibDrawCircle*) CurrentDrawItem )->m_Fill  = FlSymbol_Fill;
+        dx = ( (LibDrawCircle*) CurrentDrawItem )->m_Pos.x - curr_pos.x;
+        dy = ( (LibDrawCircle*) CurrentDrawItem )->m_Pos.y - curr_pos.y;
+        ( (LibDrawCircle*) CurrentDrawItem )->m_Rayon =
+            (int) sqrt( ( (double) dx * dx ) + ( (double) dy * dy ) );
+        ( (LibDrawCircle*) CurrentDrawItem )->m_Fill = FlSymbol_Fill;
         break;
 
     case COMPONENT_RECT_DRAW_TYPE:
-        ( (LibDrawSquare*) CurrentDrawItem )->m_End.x = mx;
-        ( (LibDrawSquare*) CurrentDrawItem )->m_End.y = -my;
+        ( (LibDrawSquare*) CurrentDrawItem )->m_End = curr_pos;
         ( (LibDrawSquare*) CurrentDrawItem )->m_Fill  = FlSymbol_Fill;
         break;
 
     case COMPONENT_POLYLINE_DRAW_TYPE:
-        ptpoly    = ( (LibDrawPolyline*) CurrentDrawItem )->PolyList;
-        ptpoly   += 2 * ( ( (LibDrawPolyline*) CurrentDrawItem )->n - 1 );
-        ptpoly[0] = mx;
-        ptpoly[1] = -my;
+    {
+        unsigned idx = ( (LibDrawPolyline*) CurrentDrawItem )->GetCornerCount() - 1;
+        ( (LibDrawPolyline*) CurrentDrawItem )->m_PolyPoints[idx] = curr_pos;
         ( (LibDrawPolyline*) CurrentDrawItem )->m_Fill = FlSymbol_Fill;
+    }
         break;
 
     case COMPONENT_LINE_DRAW_TYPE:
-        ( (LibDrawSegment*) CurrentDrawItem )->m_End.x = mx;
-        ( (LibDrawSegment*) CurrentDrawItem )->m_End.y = -my;
+        ( (LibDrawSegment*) CurrentDrawItem )->m_End = curr_pos;
         break;
 
     case COMPONENT_GRAPHIC_TEXT_DRAW_TYPE:      /* Traite par des routines specifiques */
@@ -611,12 +613,19 @@ static void SymbolDisplayDraw( WinEDA_DrawPanel* panel, wxDC* DC, bool erase )
     if( StateDrawArc == 1 )
     {
         int Color = ReturnLayerColor( LAYER_DEVICE );
-        GRLine( &panel->m_ClipBox, DC, ArcStartX, -ArcStartY, ArcEndX, -ArcEndY, 0, Color );
+        GRLine( &panel->m_ClipBox,
+                DC,
+                ArcStartX,
+                -ArcStartY,
+                ArcEndX,
+                -ArcEndY,
+                0,
+                Color );
     }
     else
     {
-        DrawLibraryDrawStruct( panel, DC, CurrentLibEntry, 0, 0,
-                               CurrentDrawItem, CurrentUnit, DrawMode );
+        DrawLibraryDrawStruct( panel, DC, CurrentLibEntry, wxPoint( 0, 0 ),
+                               CurrentDrawItem, DrawMode );
         if( CurrentDrawItem->Type() == COMPONENT_ARC_DRAW_TYPE )
         {
             int Color = ReturnLayerColor( LAYER_DEVICE );
@@ -667,7 +676,7 @@ void WinEDA_LibeditFrame::EndDrawGraphicItem( wxDC* DC )
     if( CurrentDrawItem->m_Flags & IS_NEW )
     {
         SaveCopyInUndoList( CurrentLibEntry );
-        CurrentDrawItem->Pnext      = CurrentLibEntry->m_Drawings;
+        CurrentDrawItem->SetNext( CurrentLibEntry->m_Drawings );
         CurrentLibEntry->m_Drawings = CurrentDrawItem;
 
         switch( CurrentDrawItem->Type() )
@@ -713,7 +722,7 @@ void WinEDA_LibeditFrame::EndDrawGraphicItem( wxDC* DC )
         MoveLibDrawItemAt( CurrentDrawItem, pos );
     }
 
-    DrawLibEntry( DrawPanel, DC, CurrentLibEntry, 0, 0, CurrentUnit,
+    DrawLibEntry( DrawPanel, DC, CurrentLibEntry, wxPoint( 0, 0 ), CurrentUnit,
                   CurrentConvert, GR_DEFAULT_DRAWMODE );
 
     CurrentDrawItem->m_Flags = 0;
@@ -748,11 +757,11 @@ static void ComputeArc( LibDrawArc* DrawItem, wxPoint ArcCentre )
     /* calcul de cX et cY pour que l'arc passe par ArcStartX,Y et ArcEndX,Y */
     dx    = ArcEndX - ArcStartX; dy = ArcEndY - ArcStartY;
     cX   -= ArcStartX; cY -= ArcStartY;
-    angle = (int) (atan2( dy, dx ) * 1800 / M_PI);
-    RotatePoint( &dx, &dy, angle );  /* Le segment dx, dy est horizontal */
-                                     /* -> dx = longueur, dy = 0 */
+    angle = (int) ( atan2( (double) dy, (double) dx ) * 1800 / M_PI );
+    RotatePoint( &dx, &dy, angle );     /* Le segment dx, dy est horizontal */
+                                        /* -> dx = longueur, dy = 0 */
     RotatePoint( &cX, &cY, angle );
-    cX = dx / 2;    /* cX, cY est sur la mediane du segment 0,0 a dx,0 */
+    cX = dx / 2;                        /* cX, cY est sur la mediane du segment 0,0 a dx,0 */
 
     RotatePoint( &cX, &cY, -angle );
     cX += ArcStartX; cY += ArcStartY;
@@ -762,14 +771,14 @@ static void ComputeArc( LibDrawArc* DrawItem, wxPoint ArcCentre )
     dx = ArcStartX - DrawItem->m_Pos.x;
     dy = ArcStartY - DrawItem->m_Pos.y;
 
-    DrawItem->m_Rayon = (int) sqrt( (dx * dx) + (dy * dy) );
+    DrawItem->m_Rayon = (int) sqrt( ( (double) dx * dx ) + ( (double) dy * dy ) );
 
-    DrawItem->t1 = (int) (atan2( dy, dx ) * 1800 / M_PI);
+    DrawItem->t1 = (int) ( atan2( (double) dy, (double) dx ) * 1800 / M_PI );
 
     dx = ArcEndX - DrawItem->m_Pos.x;
     dy = ArcEndY - DrawItem->m_Pos.y;
 
-    DrawItem->t2 = (int) (atan2( dy, dx ) * 1800 / M_PI);
+    DrawItem->t2 = (int) ( atan2( (double) dy, (double) dx ) * 1800 / M_PI );
 
     DrawItem->m_ArcStart.x = ArcStartX;
     DrawItem->m_ArcStart.y = ArcStartY;
@@ -790,7 +799,9 @@ static void ComputeArc( LibDrawArc* DrawItem, wxPoint ArcCentre )
     wxString msg;
     angle = DrawItem->t2 - DrawItem->t1;
     msg.Printf( _( "Arc %.1f deg" ), (float) angle / 10 );
-    g_EDA_Appl->m_LibeditFrame->PrintMsg( msg );
+    WinEDA_SchematicFrame* frame =
+        (WinEDA_SchematicFrame*) wxGetApp().GetTopWindow();
+    frame->m_LibeditFrame->PrintMsg( msg );
 
     while( (DrawItem->t2 - DrawItem->t1) >= 1800 )
     {
@@ -821,28 +832,24 @@ void WinEDA_LibeditFrame::DeleteDrawPoly( wxDC* DC )
     if( CurrentDrawItem->Type() != COMPONENT_POLYLINE_DRAW_TYPE )
         return;
 
-    int*             ptpoly;
     LibDrawPolyline* Poly = (LibDrawPolyline*) CurrentDrawItem;
 
-    DrawLibraryDrawStruct( DrawPanel, DC, CurrentLibEntry, 0, 0,
-                           CurrentDrawItem, CurrentUnit, g_XorMode );
+    DrawLibraryDrawStruct( DrawPanel, DC, CurrentLibEntry, wxPoint( 0, 0 ),
+                           CurrentDrawItem, g_XorMode );
 
-    while( Poly->n > 2 )    // First segment is kept, only its end point is changed
+    while ( Poly->GetCornerCount() > 2 )    // First segment is kept, only its end point is changed
     {
-        Poly->n--;
-        ptpoly = Poly->PolyList + ( 2 * (Poly->n - 1) );
-        if( (ptpoly[0] != GetScreen()->m_Curseur.x)
-                   || (ptpoly[1] != -GetScreen()->m_Curseur.y) )
+        Poly->m_PolyPoints.pop_back();
+        unsigned idx =  Poly->GetCornerCount() - 1;
+        wxPoint point = GetScreen()->m_Curseur;
+        NEGATE( point.y );
+        if( Poly->m_PolyPoints[idx] != point )
         {
-            ptpoly[0] = GetScreen()->m_Curseur.x;
-            ptpoly[1] = -( GetScreen()->m_Curseur.y);
+            Poly->m_PolyPoints[idx] = point;
             break;
         }
     }
 
-    int allocsize = 2 * sizeof(int) * Poly->n;
-    Poly->PolyList = (int*) realloc( Poly->PolyList, allocsize );
-
-    DrawLibraryDrawStruct( DrawPanel, DC, CurrentLibEntry, 0, 0,
-                           CurrentDrawItem, CurrentUnit, g_XorMode );
+    DrawLibraryDrawStruct( DrawPanel, DC, CurrentLibEntry, wxPoint( 0, 0 ),
+                           CurrentDrawItem, g_XorMode );
 }

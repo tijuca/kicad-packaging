@@ -9,27 +9,15 @@
 #pragma implementation "eelayer.h"
 #endif
 
-// For compilers that support precompilation, includes "wx/wx.h".
-#include "wx/wxprec.h"
-
-#ifdef __BORLANDC__
-#pragma hdrstop
-#endif
-
-#ifndef WX_PRECOMP
-#include "wx/wx.h"
-#endif
-
 #include "fctsys.h"
 #include "gr_basic.h"
-
 #include "common.h"
+#include "id.h"
+#include "class_drawpanel.h"
+
 #include "program.h"
 #include "libcmp.h"
 #include "general.h"
-
-#include "id.h"
-
 #include "protos.h"
 
 #include "eelayer.h" // Header file associated with this file
@@ -370,7 +358,7 @@ void WinEDA_SetColorsFrame::OnOkClick( wxCommandEvent& WXUNUSED (event) )
 /**********************************************************************/
 {
     UpdateLayerSettings();
-    m_Parent->ReDrawPanel();
+    m_Parent->DrawPanel->Refresh();
     EndModal( 1 );
 }
 
@@ -388,7 +376,7 @@ void  WinEDA_SetColorsFrame::OnApplyClick( wxCommandEvent& WXUNUSED (event) )
 /*******************************************************************/
 {
     UpdateLayerSettings();
-    m_Parent->ReDrawPanel();
+    m_Parent->DrawPanel->Refresh();
 }
 
 
@@ -418,12 +406,12 @@ void SeedLayers()
 }
 
 
-/*******************************/
-int ReturnLayerColor( int Layer )
-/*******************************/
+/***************************************/
+EDA_Colors ReturnLayerColor( int Layer )
+/****************************************/
 {
     if( g_LayerDescr.Flags == 0 )
-        return g_LayerDescr.LayerColor[Layer];
+        return (EDA_Colors) g_LayerDescr.LayerColor[Layer];
     else
-        return g_LayerDescr.CommonColor;
+        return (EDA_Colors) g_LayerDescr.CommonColor;
 }

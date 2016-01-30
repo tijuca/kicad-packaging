@@ -1,6 +1,7 @@
 add_definitions(-DCVPCB)
 
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}
+                    ${Boost_INCLUDE_DIR}
                     ../3d-viewer
                     ../pcbnew
                     ../polygon)
@@ -15,7 +16,6 @@ set(CVPCB_SRCS
     dialog_display_options.cpp
     displayframe.cpp
     genequiv.cpp
-#   genorcad.cpp
     init.cpp
     listboxes.cpp
     listlib.cpp
@@ -29,28 +29,15 @@ set(CVPCB_SRCS
     writenetlistpcbnew.cpp)
 
 set(CVPCB_EXTRA_SRCS
-    ../pcbnew/basepcbframe.cpp
-    ../pcbnew/class_board.cpp
     ../pcbnew/class_board_item.cpp
-    ../pcbnew/class_cotation.cpp
     ../pcbnew/class_drawsegment.cpp
     ../pcbnew/class_edge_mod.cpp
     ../pcbnew/class_equipot.cpp
-    ../pcbnew/class_mire.cpp
     ../pcbnew/class_module.cpp
-    ../pcbnew/class_pad.cpp
-    ../pcbnew/class_pcb_text.cpp
     ../pcbnew/class_text_mod.cpp
     ../pcbnew/class_track.cpp
-    ../pcbnew/class_zone.cpp
-    ../pcbnew/classpcb.cpp
-    ../pcbnew/collectors.cpp
     ../pcbnew/ioascii.cpp
-    ../pcbnew/tracemod.cpp
-
-    ../share/drawframe.cpp
-    ../share/drawpanel.cpp
-    ../share/zoom.cpp)
+    ../pcbnew/tracemod.cpp)
 
 if(WIN32)
     if(MINGW)

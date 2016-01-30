@@ -9,96 +9,114 @@ EXTRALIBS = ../common/common.a ../bitmaps/libbitmaps.a
 # DEPEND = program.h general.h
 
 OBJECTS = eeschema.o\
-		schedit.o\
-		load_one_schematic_file.o\
-		libedit_undo_redo.o\
-		schematic_undo_redo.o\
-		dialog_create_component.o\
-		libedit_onrightclick.o\
-		libedit_onleftclick.o\
-		dangling_ends.o\
-		cross-probing.o\
-		setpage.o\
-		class_schematic_items.o\
-		class_drawsheet.o\
-        class_hierarchical_PIN_sheet.o\
-		class_text-label.o\
-		component_class.o\
-		libclass.o\
-		dialog_options.o\
-		tool_lib.o\
-		tool_sch.o\
-		tool_viewlib.o\
-		drawframe.o\
-		schframe.o\
-		viewlib_frame.o\
-		drawpanel.o\
-		wxprint.o\
-		lib_export.o \
-		busentry.o \
-		bus-wire-junction.o \
-		eelibs_read_libraryfiles.o \
-		eelibs_draw_components.o \
-		block.o\
-		block_libedit.o\
-		eeredraw.o\
-		dialog_eeschema_config.o\
-		eestring.o eelayer.o \
-		priorque.o eeconfig.o \
-		affiche.o \
-		zoom.o \
-		getpart.o\
-		netlist.o\
-		netlist_control.o\
-		edit_label.o\
-		edit_component_in_schematic.o\
-		locate.o \
-		save_schemas.o sheet.o \
-		viewlibs.o \
-		libedit.o \
-		libframe.o \
-		symbedit.o \
-		pinedit.o \
-		libfield.o \
-		edit_component_in_lib.o \
-		menubar.o \
-		savelib.o symbtext.o \
-		symbdraw.o \
-		hierarch.o files-io.o \
-		annotate.o\
-		annotate_dialog.o\
-		plothpgl.o \
-		plot.o libalias.o \
-		plotps.o netform.o \
-		delsheet.o \
-		delete.o\
-        build_BOM.o \
-        dialog_build_BOM.o \
-		erc.o\
-		dialog_erc.o\
-		selpart.o \
-		libarch.o \
-		cleanup.o\
-		sheetlab.o \
-		class_screen.o \
-		database.o\
-		onrightclick.o \
-		onleftclick.o \
-		find.o \
-		backanno.o \
-		controle.o\
-		hotkeys.o\
-		svg_print.o
+	schedit.o\
+	load_one_schematic_file.o\
+	libedit_undo_redo.o\
+	schematic_undo_redo.o\
+	dialog_create_component.o\
+	libedit_onrightclick.o\
+	libedit_onleftclick.o\
+	dangling_ends.o\
+	cross-probing.o\
+	setpage.o\
+    class_libentry.o\
+    class_libentry_fields.o\
+	class_schematic_items.o\
+	class_sch_cmp_field.o\
+	classes_body_items.o\
+	class_drawsheet.o\
+	class_drawsheetpath.o\
+	class_pin.o\
+	class_hierarchical_PIN_sheet.o\
+	class_text-label.o\
+	component_class.o\
+	class_library.o\
+	dialog_options.o\
+    dialog_edit_libentry_fields_in_lib.o\
+    dialog_edit_libentry_fields_in_lib_base.o\
+    dialog_SVG_print.o\
+    dialog_SVG_print_base.o\
+	tool_lib.o\
+	tool_sch.o\
+	tool_viewlib.o\
+	schframe.o\
+	viewlib_frame.o\
+	dialog_print_using_printer_base.o\
+    dialog_print_using_printer.o\
+	lib_export.o \
+	busentry.o \
+	bus-wire-junction.o \
+	eelibs_read_libraryfiles.o \
+	eelibs_draw_components.o \
+	block.o\
+	block_libedit.o\
+	eeredraw.o\
+	dialog_eeschema_config.o\
+	eelayer.o \
+	priorque.o eeconfig.o \
+	affiche.o \
+	getpart.o\
+	netlist.o\
+	netlist_control.o\
+	edit_label.o\
+	dialog_edit_label.o\
+	dialog_edit_label_base.o\
+	edit_component_in_schematic.o\
+	dialog_edit_component_in_schematic_fbp.o \
+	dialog_edit_component_in_schematic.o \
+	dialog_bodygraphictext_properties_base.o\
+	locate.o \
+	save_schemas.o sheet.o \
+    read_from_file_schematic_items_descriptions.o\
+	viewlibs.o \
+	libedit.o \
+	libframe.o \
+	symbedit.o \
+	pinedit.o \
+	libfield.o \
+	edit_component_in_lib.o \
+	menubar.o \
+	savelib.o\
+	edit_graphic_bodyitem_text.o \
+	symbdraw.o \
+	hierarch.o files-io.o \
+	annotate.o\
+	annotate_dialog.o\
+	plothpgl.o \
+	plot.o libalias.o \
+	plotps.o netform.o \
+	delsheet.o \
+	delete.o\
+	build_BOM.o \
+	dialog_build_BOM.o \
+	dialog_build_BOM_base.o \
+	erc.o\
+	dialog_erc.o\
+	selpart.o \
+	libarch.o \
+	cleanup.o\
+	sheetlab.o \
+	class_screen.o \
+	database.o\
+	onrightclick.o \
+	onleftclick.o \
+	find.o \
+	backanno.o \
+	controle.o\
+	hotkeys.o
+
 
 eeschema.o: eeschema.cpp program.h general.h $(DEPEND)
 
-edit_component_in_lib.o: edit_component_in_lib.cpp\
-	dialog_edit_component_in_lib.cpp dialog_edit_component_in_lib.h $(DEPEND)
+read_from_file_schematic_items_descriptions.o: read_from_file_schematic_items_descriptions.cpp
+
 
 edit_component_in_schematic.o: edit_component_in_schematic.cpp\
 	dialog_edit_component_in_schematic.cpp dialog_edit_component_in_schematic.h $(DEPEND)
 
-edit_label.o: edit_label.cpp dialog_edit_label.cpp dialog_edit_label.h $(DEPEND)
+edit_label.o: edit_label.cpp dialog_edit_label.h dialog_edit_label_base.h $(DEPEND)
+
+dialog_edit_label.o: dialog_edit_label.cpp dialog_edit_label.h dialog_edit_label_base.h $(DEPEND)
 
 dialog_create_component.o: dialog_create_component.cpp dialog_create_component.h $(DEPEND)
 
@@ -113,7 +131,7 @@ menubar.o: menubar.cpp $(DEPEND)
 
 find.o:find.cpp dialog_find.cpp dialog_find.h $(DEPEND)
 
-backanno.o:backanno.cpp dialog_backanno.cpp dialog_backanno.h $(DEPEND)
+backanno.o:backanno.cpp $(DEPEND)
 
 eeconfig.o: eeconfig.cpp eeconfig.h $(DEPEND)
 
@@ -135,18 +153,6 @@ setpage.o: ../share/setpage.cpp $(DEPEND)
 	$(CXX) -c $(EDACPPFLAGS) -o $@ ../share/$*.cpp
 
 svg_print.o: ../share/svg_print.cpp ../share/svg_print.h $(DEPEND)
-	$(CXX) -c $(EDACPPFLAGS) -o $@ ../share/$*.cpp
-
-zoom.o: ../share/zoom.cpp $(DEPEND)
-	$(CXX) -c $(EDACPPFLAGS) -o $@ ../share/$*.cpp
-
-treeprj.o: ../share/treeprj.cpp $(DEPEND)
-	$(CXX) -c $(EDACPPFLAGS) -o $@ ../share/$*.cpp
-
-drawpanel.o: ../share/drawpanel.cpp  $(DEPEND)
-	$(CXX) -c $(EDACPPFLAGS) -o $@ ../share/$*.cpp
-
-mdiframe.o: ../share/mdiframe.cpp $(DEPEND)
 	$(CXX) -c $(EDACPPFLAGS) -o $@ ../share/$*.cpp
 
 buildmnu.o: ../share/buildmnu.cpp $(DEPEND)

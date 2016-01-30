@@ -4,9 +4,10 @@
 /************************************************/
 
 #include "fctsys.h"
-#include "gr_basic.h"
-
 #include "common.h"
+#include "class_drawpanel.h"
+#include "confirm.h"
+#include "gestfich.h"
 #include "pcbnew.h"
 #include "autorout.h"
 #include "trigo.h"
@@ -26,35 +27,35 @@ bool GoToEditor = FALSE;
 
 /*******************************************************************/
 void WinEDA_BasePcbFrame::InstallModuleOptionsFrame( MODULE* Module,
-                                                     wxDC* DC, const wxPoint& pos )
+                                                     wxDC* DC,
+                                                     const wxPoint& pos )
 /*******************************************************************/
 
 /* Fonction relai d'installation de la frame d'édition des proprietes
  *  du module*/
 {
-    WinEDA_ModulePropertiesFrame* frame = new WinEDA_ModulePropertiesFrame( this,
-                                                                            Module, DC, pos );
+    WinEDA_ModulePropertiesFrame* frame =
+        new WinEDA_ModulePropertiesFrame( this, Module, DC, pos );
 
     frame->ShowModal(); frame->Destroy();
 
     if( GoToEditor && GetScreen()->GetCurItem() )
     {
-        if( m_Parent->m_ModuleEditFrame == NULL )
+        if( m_ModuleEditFrame == NULL )
         {
-            m_Parent->m_ModuleEditFrame = new WinEDA_ModuleEditFrame( this,
-                                                                     m_Parent, _( "Module Editor" ),
-                                                                     wxPoint( -1,
-                                                                              -1 ),
-                                                                     wxSize( 600, 400 ) );
+            m_ModuleEditFrame = new WinEDA_ModuleEditFrame( this,
+                                                            _( "Module Editor" ),
+                                                            wxPoint( -1, -1 ),
+                                                            wxSize( 600, 400 ) );
         }
 
-        m_Parent->m_ModuleEditFrame->Load_Module_Module_From_BOARD(
+        m_ModuleEditFrame->Load_Module_Module_From_BOARD(
             (MODULE*) GetScreen()->GetCurItem() );
         SetCurItem( NULL );
 
         GoToEditor = FALSE;
-        m_Parent->m_ModuleEditFrame->Show( TRUE );
-        m_Parent->m_ModuleEditFrame->Iconize( FALSE );
+        m_ModuleEditFrame->Show( TRUE );
+        m_ModuleEditFrame->Iconize( FALSE );
     }
 }
 
@@ -75,7 +76,8 @@ void WinEDA_ModuleEditFrame::Place_Ancre( MODULE* pt_mod, wxDC* DC )
     if( pt_mod == NULL )
         return;
 
-    pt_mod->DrawAncre( DrawPanel, DC, wxPoint( 0, 0 ), DIM_ANCRE_MODULE, GR_XOR );
+    pt_mod->DrawAncre( DrawPanel, DC, wxPoint( 0, 0 ),
+                       DIM_ANCRE_MODULE, GR_XOR );
 
     deltaX = pt_mod->m_Pos.x - GetScreen()->m_Curseur.x;
     deltaY = pt_mod->m_Pos.y - GetScreen()->m_Curseur.y;
@@ -89,25 +91,26 @@ void WinEDA_ModuleEditFrame::Place_Ancre( MODULE* pt_mod, wxDC* DC )
 
     /* Mise a jour des coord relatives des pads */
     pt_pad = (D_PAD*) pt_mod->m_Pads;
-    for( ; pt_pad != NULL; pt_pad = (D_PAD*) pt_pad->Pnext )
+    for( ; pt_pad != NULL; pt_pad = pt_pad->Next() )
     {
-        pt_pad->m_Pos0.x += deltaX; pt_pad->m_Pos0.y += deltaY;
+        pt_pad->m_Pos0.x += deltaX;
+        pt_pad->m_Pos0.y += deltaY;
     }
 
     /* Mise a jour des coord relatives contours .. */
     PtStruct = pt_mod->m_Drawings;
-    for( ; PtStruct != NULL; PtStruct = PtStruct->Pnext )
+    for( ; PtStruct != NULL; PtStruct = PtStruct->Next() )
     {
         switch( PtStruct->Type() )
         {
-        case TYPEEDGEMODULE:
+        case TYPE_EDGE_MODULE:
                 #undef STRUCT
                 #define STRUCT ( (EDGE_MODULE*) PtStruct )
             STRUCT->m_Start0.x += deltaX; STRUCT->m_Start0.y += deltaY;
             STRUCT->m_End0.x   += deltaX; STRUCT->m_End0.y += deltaY;
             break;
 
-        case TYPETEXTEMODULE:
+        case TYPE_TEXTE_MODULE:
                 #undef STRUCT
                 #define STRUCT ( (TEXTE_MODULE*) PtStruct )
             STRUCT->m_Pos0.x += deltaX; STRUCT->m_Pos0.y += deltaY;
@@ -132,11 +135,11 @@ void WinEDA_ModuleEditFrame::RemoveStruct( EDA_BaseStruct* Item, wxDC* DC )
 
     switch( Item->Type() )
     {
-    case TYPEPAD:
+    case TYPE_PAD:
         DeletePad( (D_PAD*) Item, DC );
         break;
 
-    case TYPETEXTEMODULE:
+    case TYPE_TEXTE_MODULE:
     {
         TEXTE_MODULE* text = (TEXTE_MODULE*) Item;
         if( text->m_Type == TEXT_is_REFERENCE )
@@ -153,11 +156,11 @@ void WinEDA_ModuleEditFrame::RemoveStruct( EDA_BaseStruct* Item, wxDC* DC )
     }
         break;
 
-    case TYPEEDGEMODULE:
+    case TYPE_EDGE_MODULE:
         Delete_Edge_Module( (EDGE_MODULE*) Item, DC );
         break;
 
-    case TYPEMODULE:
+    case TYPE_MODULE:
         break;
 
     default:

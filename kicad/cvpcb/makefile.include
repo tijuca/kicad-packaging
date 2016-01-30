@@ -1,9 +1,8 @@
 # makefile pour cvpcb (mingw)
 OBJSUFF = o
 
-EXTRACPPFLAGS += -DCVPCB -fno-strict-aliasing\
-	-I./ -I../cvpcb -I../include -Ibitmaps\
-	-I../pcbnew -I../3d-viewer -I ../polygon
+EXTRACPPFLAGS += -DCVPCB -I../include -Ibitmaps\
+	-I../pcbnew -I../cvpcb  -I../share -I../3d-viewer -I ../polygon
 
 EXTRALIBS = ../common/common.a ../bitmaps/libbitmaps.a\
     ../polygon/lib_polygon.a\
@@ -12,20 +11,13 @@ EXTRALIBS = ../common/common.a ../bitmaps/libbitmaps.a\
 
 LIBVIEWER3D = ../3d-viewer/3d-viewer.a
 
-# DEPEND = cvpcb.h ../include/pcbstruct.h
-
 OBJECTS = $(TARGET).o \
 			class_cvpcb.o\
-			class_zone.o\
+            class_board_item.o\
             memoire.o \
 			cvframe.o\
 			listboxes.o\
-			drawframe.o\
-			class_pcb_text.o\
-			class_cotation.o\
-			class_mire.o\
 			displayframe.o\
-			drawpanel.o \
 			init.o\
 			readschematicnetlist.o\
 			loadcmp.o\
@@ -40,115 +32,82 @@ OBJECTS = $(TARGET).o \
 			autosel.o \
 			setvisu.o\
 			dialog_display_options.o\
-			zoom.o \
 			tracemod.o \
- 			classpcb.o \
 			class_drawsegment.o \
-			class_board.o \
 			class_module.o \
-			class_pad.o \
 			class_text_mod.o \
 			class_edge_mod.o \
 			class_equipot.o \
-			class_track.o\
-			basepcbframe.o\
-            collectors.o
+			class_track.o
 
-cvpcb.o: cvpcb.cpp cvpcb.h $(DEPEND)
+cvpcb.o: cvpcb.cpp cvpcb.h
 
-displayframe.o: displayframe.cpp $(DEPEND)
+displayframe.o: displayframe.cpp
 
-listboxes.o: listboxes.cpp $(DEPEND)
+listboxes.o: listboxes.cpp
 
-drawpanel.o: ../share/drawpanel.cpp $(DEPEND)
+drawframe.o: ../share/drawframe.cpp
 	$(CXX) -c $(EDACPPFLAGS) -o $@ ../share/$*.cpp
 
-drawframe.o: ../share/drawframe.cpp $(DEPEND)
-	$(CXX) -c $(EDACPPFLAGS) -o $@ ../share/$*.cpp
+init.o: init.cpp
 
-init.o: init.cpp $(DEPEND)
+memoire.o: memoire.cpp
 
-memoire.o: memoire.cpp $(DEPEND)
+rdpcad.o: rdpcad.cpp
 
-rdpcad.o: rdpcad.cpp $(DEPEND)
-
-classpcb.o: ../pcbnew/classpcb.cpp $(DEPEND)
+class_board_item.o: ../pcbnew/class_board_item.cpp
 	$(CXX) -c $(EDACPPFLAGS) -o $@ ../pcbnew/$*.cpp
 
-class_mire.o: ../pcbnew/class_mire.cpp ../pcbnew/class_mire.h $(COMMON)
+class_board.o: ../pcbnew/class_board.cpp
 	$(CXX) -c $(EDACPPFLAGS) -o $@ ../pcbnew/$*.cpp
 
-class_zone.o: ../pcbnew/class_zone.cpp ../pcbnew/class_zone.h $(COMMON)
+class_drawsegment.o: ../pcbnew/class_drawsegment.cpp ../pcbnew/class_drawsegment.h
 	$(CXX) -c $(EDACPPFLAGS) -o $@ ../pcbnew/$*.cpp
 
-class_cotation.o: ../pcbnew/class_cotation.cpp ../pcbnew/class_cotation.h $(COMMON)
+class_track.o: ../pcbnew/class_track.cpp
 	$(CXX) -c $(EDACPPFLAGS) -o $@ ../pcbnew/$*.cpp
 
-class_pcb_text.o: ../pcbnew/class_pcb_text.cpp ../pcbnew/class_pcb_text.h $(COMMON)
+class_module.o: ../pcbnew/class_module.cpp
 	$(CXX) -c $(EDACPPFLAGS) -o $@ ../pcbnew/$*.cpp
 
-class_board.o: ../pcbnew/class_board.cpp $(DEPEND)
+class_text_mod.o: ../pcbnew/class_text_mod.cpp
 	$(CXX) -c $(EDACPPFLAGS) -o $@ ../pcbnew/$*.cpp
 
-class_drawsegment.o: ../pcbnew/class_drawsegment.cpp ../pcbnew/class_drawsegment.h $(DEPEND)
+class_edge_mod.o: ../pcbnew/class_edge_mod.cpp
 	$(CXX) -c $(EDACPPFLAGS) -o $@ ../pcbnew/$*.cpp
 
-class_track.o: ../pcbnew/class_track.cpp $(DEPEND)
+class_equipot.o: ../pcbnew/class_equipot.cpp
 	$(CXX) -c $(EDACPPFLAGS) -o $@ ../pcbnew/$*.cpp
 
-class_pad.o: ../pcbnew/class_pad.cpp $(DEPEND)
+readschematicnetlist.o: readschematicnetlist.cpp
+
+viewlogi.o: viewlogi.cpp
+
+viewlnet.o: viewlnet.cpp
+
+loadcmp.o: loadcmp.cpp
+
+savecmp.o: savecmp.cpp
+
+writenetlistpcbnew.o: writenetlistpcbnew.cpp
+
+genequiv.o: genequiv.cpp
+
+ioascii.o: ../pcbnew/ioascii.cpp
 	$(CXX) -c $(EDACPPFLAGS) -o $@ ../pcbnew/$*.cpp
 
-class_module.o: ../pcbnew/class_module.cpp $(DEPEND)
+listlib.o: listlib.cpp
+
+cfg.o: cfg.cpp cfg.h
+
+menucfg.o: menucfg.cpp dialog_cvpcb_config.cpp dialog_cvpcb_config.h
+
+autosel.o: autosel.cpp
+
+setvisu.o: setvisu.cpp
+
+tracemod.o: ../pcbnew/tracemod.cpp ../include/gr_basic.h
 	$(CXX) -c $(EDACPPFLAGS) -o $@ ../pcbnew/$*.cpp
 
-class_text_mod.o: ../pcbnew/class_text_mod.cpp $(DEPEND)
-	$(CXX) -c $(EDACPPFLAGS) -o $@ ../pcbnew/$*.cpp
-
-class_edge_mod.o: ../pcbnew/class_edge_mod.cpp $(DEPEND)
-	$(CXX) -c $(EDACPPFLAGS) -o $@ ../pcbnew/$*.cpp
-
-class_equipot.o: ../pcbnew/class_equipot.cpp $(DEPEND)
-	$(CXX) -c $(EDACPPFLAGS) -o $@ ../pcbnew/$*.cpp
-
-basepcbframe.o: ../pcbnew/basepcbframe.cpp $(DEPEND)
-	$(CXX) -c $(EDACPPFLAGS) -o $@ ../pcbnew/$*.cpp
-
-collectors.o: ../pcbnew/collectors.cpp $(COMMON)
-	$(CXX) -c $(EDACPPFLAGS) -o $@ ../pcbnew/$*.cpp
-
-readschematicnetlist.o: readschematicnetlist.cpp $(DEPEND)
-
-viewlogi.o: viewlogi.cpp $(DEPEND)
-
-viewlnet.o: viewlnet.cpp $(DEPEND)
-
-loadcmp.o: loadcmp.cpp $(DEPEND)
-
-savecmp.o: savecmp.cpp $(DEPEND)
-
-writenetlistpcbnew.o: writenetlistpcbnew.cpp $(DEPEND)
-
-genequiv.o: genequiv.cpp $(DEPEND)
-
-ioascii.o: ../pcbnew/ioascii.cpp $(DEPEND)
-	$(CXX) -c $(EDACPPFLAGS) -o $@ ../pcbnew/$*.cpp
-
-listlib.o: listlib.cpp $(DEPEND)
-
-cfg.o: cfg.cpp cfg.h $(DEPEND)
-
-menucfg.o: menucfg.cpp dialog_cvpcb_config.cpp dialog_cvpcb_config.h $(DEPEND)
-
-autosel.o: autosel.cpp $(DEPEND)
-
-setvisu.o: setvisu.cpp $(DEPEND)
-
-zoom.o: ../share/zoom.cpp $(DEPEND)
-	$(CXX) -c $(EDACPPFLAGS) -o $@ ../share/$*.cpp
-
-tracemod.o: ../pcbnew/tracemod.cpp ../include/gr_basic.h $(DEPEND)
-	$(CXX) -c $(EDACPPFLAGS) -o $@ ../pcbnew/$*.cpp
-
-dialog_display_options.o: dialog_display_options.cpp dialog_display_options.h $(DEPEND)
+dialog_display_options.o: dialog_display_options.cpp dialog_display_options.h
 

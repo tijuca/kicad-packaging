@@ -9,8 +9,11 @@
 
 #include "fctsys.h"
 #include "gr_basic.h"
-
 #include "common.h"
+#include "class_drawpanel.h"
+#include "confirm.h"
+#include "gestfich.h"
+
 #include "program.h"
 #include "libcmp.h"
 #include "general.h"
@@ -64,7 +67,7 @@ void WinEDA_LibeditFrame::ImportOnePart()
         {
             ReCreateHToolbar();
             DisplayLibInfos();
-            ReDrawPanel();
+            DrawPanel->Refresh();
         }
     }
 
@@ -88,7 +91,6 @@ void WinEDA_LibeditFrame::ExportOnePart( bool create_lib )
 {
     wxString       Name, mask;
     LibraryStruct* NewLib, * LibTmp, * CurLibTmp;
-    int            err;
 
     if( CurrentLibEntry == NULL )
     {
@@ -131,7 +133,7 @@ void WinEDA_LibeditFrame::ExportOnePart( bool create_lib )
     /* Sauvegarde du composant: */
     CurrentLib = NewLib;
     SaveOnePartInMemory();
-    err = SaveOneLibrary( this, Name, NewLib );
+    bool success = NewLib->SaveLibrary( Name );
 
     /* Suppression de la librarie temporaire */
     FreeCmpLibrary( this, NewLib->m_Name );
@@ -139,9 +141,9 @@ void WinEDA_LibeditFrame::ExportOnePart( bool create_lib )
     CurrentLib    = CurLibTmp;
 
     wxString msg;
-    if( create_lib && (err == 0) )
+    if( create_lib && success )
     {
-        msg = Name + _( "0k" );
+        msg = Name + _( "Ok" );
         DisplayInfo( this,
             _("Note: this new library will be available only if it is loaded by eeschema.\nModify eeschema config if you want use it.") );
     }

@@ -4,15 +4,15 @@
 
 #include "fctsys.h"
 #include "gr_basic.h"
-
 #include "common.h"
 #include "trigo.h"
+#include "id.h"
+#include "class_drawpanel.h"
+#include "drawtxt.h"
+
 #include "program.h"
 #include "libcmp.h"
 #include "general.h"
-
-#include "id.h"
-
 #include "protos.h"
 
 
@@ -33,6 +33,16 @@ SCH_TEXT::SCH_TEXT( const wxPoint& pos, const wxString& text, KICAD_T aType ) :
     m_Pos        = pos;
     m_Shape      = 0;
     m_IsDangling = FALSE;
+}
+
+/** Function HitTest
+ * @return true if the point aPosRef is within item area
+ * @param aPosRef = a wxPoint to test
+ */
+bool SCH_TEXT::HitTest( const wxPoint& aPosRef )
+{
+    EDA_Rect rect = GetBoundingBox();
+    return rect.Inside( aPosRef );
 }
 
 
@@ -123,11 +133,11 @@ void SCH_TEXT::Draw( WinEDA_DrawPanel* panel, wxDC* DC, const wxPoint& offset,
 /* Texts type Comment (text on layer "NOTE") have 4 directions, and the Text origin is the first letter
  */
 {
-    int color;
+    EDA_Colors color;
     int width = MAX( m_Width, g_DrawMinimunLineWidth );
 
     if( Color >= 0 )
-        color = Color;
+        color = (EDA_Colors)Color;
     else
         color = ReturnLayerColor( m_Layer );
     GRSetDrawMode( DC, DrawMode );
@@ -139,7 +149,7 @@ void SCH_TEXT::Draw( WinEDA_DrawPanel* panel, wxDC* DC, const wxPoint& offset,
                          wxPoint( m_Pos.x + offset.x, m_Pos.y - TXTMARGE + offset.y ),
                          color, m_Text, TEXT_ORIENT_HORIZ, m_Size,
                          GR_TEXT_HJUSTIFY_LEFT,
-                         GR_TEXT_VJUSTIFY_BOTTOM, width );
+                         GR_TEXT_VJUSTIFY_BOTTOM, width, m_Italic );
         break;
 
     case 1: /* Vert Orientation UP */
@@ -148,7 +158,7 @@ void SCH_TEXT::Draw( WinEDA_DrawPanel* panel, wxDC* DC, const wxPoint& offset,
                                   m_Pos.y + offset.y ),
                          color, m_Text, TEXT_ORIENT_VERT, m_Size,
                          GR_TEXT_HJUSTIFY_RIGHT,
-                         GR_TEXT_VJUSTIFY_BOTTOM, width );
+                         GR_TEXT_VJUSTIFY_BOTTOM, width, m_Italic );
         break;
 
     case 2: /* Horiz Orientation - Right justified */
@@ -157,7 +167,7 @@ void SCH_TEXT::Draw( WinEDA_DrawPanel* panel, wxDC* DC, const wxPoint& offset,
                                   TXTMARGE + offset.y ),
                          color, m_Text, TEXT_ORIENT_HORIZ, m_Size,
                          GR_TEXT_HJUSTIFY_RIGHT,
-                         GR_TEXT_VJUSTIFY_BOTTOM, width );
+                         GR_TEXT_VJUSTIFY_BOTTOM, width, m_Italic );
         break;
 
     case 3: /*  Vert Orientation BOTTOM */
@@ -166,7 +176,7 @@ void SCH_TEXT::Draw( WinEDA_DrawPanel* panel, wxDC* DC, const wxPoint& offset,
                                   m_Pos.y + offset.y ),
                          color, m_Text, TEXT_ORIENT_VERT, m_Size,
                          GR_TEXT_HJUSTIFY_RIGHT,
-                         GR_TEXT_VJUSTIFY_TOP, width );
+                         GR_TEXT_VJUSTIFY_TOP, width, m_Italic );
         break;
     }
 
@@ -184,9 +194,13 @@ void SCH_TEXT::Draw( WinEDA_DrawPanel* panel, wxDC* DC, const wxPoint& offset,
 bool SCH_TEXT::Save( FILE* aFile ) const
 {
     bool success = true;
-    if( fprintf( aFile, "Text Notes %-4d %-4d %-4d %-4d ~\n%s\n",
+    const char * shape = "~";
+    if (m_Italic )
+        shape = "Italic";
+    if( fprintf( aFile, "Text Notes %-4d %-4d %-4d %-4d %s %d\n%s\n",
             m_Pos.x, m_Pos.y,
             m_Orient, m_Size.x,
+            shape, m_Width,
             CONV_TO_UTF8( m_Text ) ) == EOF )
     {
         success = false;
@@ -234,10 +248,13 @@ SCH_LABEL::SCH_LABEL( const wxPoint& pos, const wxString& text ) :
 bool SCH_LABEL::Save( FILE* aFile ) const
 {
     bool success = true;
-    char shape = '~';
-    if( fprintf( aFile, "Text Label %-4d %-4d %-4d %-4d %c\n%s\n",
+    const char * shape = "~";
+    if (m_Italic )
+        shape = "Italic";
+
+    if( fprintf( aFile, "Text Label %-4d %-4d %-4d %-4d %s %d\n%s\n",
             m_Pos.x, m_Pos.y,
-            m_Orient, m_Size.x, shape,
+            m_Orient, m_Size.x, shape, m_Width,
             CONV_TO_UTF8( m_Text ) ) == EOF )
     {
         success = false;
@@ -267,10 +284,14 @@ SCH_GLOBALLABEL::SCH_GLOBALLABEL( const wxPoint& pos, const wxString& text ) :
 bool SCH_GLOBALLABEL::Save( FILE* aFile ) const
 {
     bool success = true;
-    if( fprintf( aFile, "Text GLabel %-4d %-4d %-4d %-4d %s\n%s\n",
+    const char * shape = "~";
+    if (m_Italic )
+        shape = "Italic";
+    if( fprintf( aFile, "Text GLabel %-4d %-4d %-4d %-4d %s %s %d\n%s\n",
             m_Pos.x, m_Pos.y,
             m_Orient, m_Size.x,
             SheetLabelType[m_Shape],
+            shape, m_Width,
             CONV_TO_UTF8( m_Text ) ) == EOF )
     {
         success = false;
@@ -278,6 +299,19 @@ bool SCH_GLOBALLABEL::Save( FILE* aFile ) const
 
     return success;
 }
+
+/************************************************/
+bool SCH_GLOBALLABEL::HitTest( const wxPoint& aPosRef )
+/************************************************/
+/** Function HitTest
+ * @return true if the point aPosRef is within item area
+ * @param aPosRef = a wxPoint to test
+ */
+{
+    EDA_Rect rect = GetBoundingBox();
+    return rect.Inside( aPosRef );
+}
+
 
 
 /***********************************************************************************/
@@ -300,16 +334,32 @@ SCH_HIERLABEL::SCH_HIERLABEL( const wxPoint& pos, const wxString& text ) :
 bool SCH_HIERLABEL::Save( FILE* aFile ) const
 {
     bool success = true;
-    if( fprintf( aFile, "Text HLabel %-4d %-4d %-4d %-4d %s\n%s\n",
+    const char * shape = "~";
+    if (m_Italic )
+        shape = "Italic";
+    if( fprintf( aFile, "Text HLabel %-4d %-4d %-4d %-4d %s %s %d\n%s\n",
             m_Pos.x, m_Pos.y,
             m_Orient, m_Size.x,
             SheetLabelType[m_Shape],
+            shape, m_Width,
             CONV_TO_UTF8( m_Text ) ) == EOF )
     {
         success = false;
     }
 
     return success;
+}
+
+/************************************************/
+bool SCH_HIERLABEL::HitTest( const wxPoint& aPosRef )
+/************************************************/
+/** Function HitTest
+ * @return true if the point aPosRef is within item area
+ * @param aPosRef = a wxPoint to test
+ */
+{
+    EDA_Rect rect = GetBoundingBox();
+    return rect.Inside( aPosRef );
 }
 
 
@@ -331,13 +381,14 @@ void SCH_HIERLABEL::Draw( WinEDA_DrawPanel* panel, wxDC* DC, const wxPoint& offs
  */
 {
     int     Poly[40];
-    int     ii, color;
+    int     ii;
+    EDA_Colors color;
     wxPoint AnchorPos = m_Pos + offset;;
 
     int     width = MAX( m_Width, g_DrawMinimunLineWidth );
 
     if( Color >= 0 )
-        color = Color;
+        color = (EDA_Colors)Color;
     else
         color = ReturnLayerColor( m_Layer );
 
@@ -351,41 +402,42 @@ void SCH_HIERLABEL::Draw( WinEDA_DrawPanel* panel, wxDC* DC, const wxPoint& offs
         DrawGraphicText( panel, DC,
                          wxPoint( AnchorPos.x - ii, AnchorPos.y ), color,
                          m_Text, TEXT_ORIENT_HORIZ, m_Size,
-                         GR_TEXT_HJUSTIFY_RIGHT, GR_TEXT_VJUSTIFY_CENTER, width );
+                         GR_TEXT_HJUSTIFY_RIGHT, GR_TEXT_VJUSTIFY_CENTER, width, m_Italic );
         break;
 
     case 1:             /* Orientation vert UP */
         DrawGraphicText( panel, DC,
                          wxPoint( AnchorPos.x, AnchorPos.y + ii ), color,
                          m_Text, TEXT_ORIENT_VERT, m_Size,
-                         GR_TEXT_HJUSTIFY_CENTER, GR_TEXT_VJUSTIFY_TOP, width );
+                         GR_TEXT_HJUSTIFY_CENTER, GR_TEXT_VJUSTIFY_TOP, width, m_Italic );
         break;
 
     case 2:             /* Orientation horiz inverse */
         DrawGraphicText( panel, DC,
                          wxPoint( AnchorPos.x + ii, AnchorPos.y ), color,
                          m_Text, TEXT_ORIENT_HORIZ, m_Size,
-                         GR_TEXT_HJUSTIFY_LEFT, GR_TEXT_VJUSTIFY_CENTER, width );
+                         GR_TEXT_HJUSTIFY_LEFT, GR_TEXT_VJUSTIFY_CENTER, width, m_Italic );
         break;
 
     case 3:             /* Orientation vert BOTTOM */
         DrawGraphicText( panel, DC,
                          wxPoint( AnchorPos.x, AnchorPos.y - ii ), color,
                          m_Text, TEXT_ORIENT_VERT, m_Size,
-                         GR_TEXT_HJUSTIFY_CENTER, GR_TEXT_VJUSTIFY_BOTTOM, width );
+                         GR_TEXT_HJUSTIFY_CENTER, GR_TEXT_VJUSTIFY_BOTTOM, width, m_Italic );
         break;
     }
 
     CreateGraphicShape( Poly, AnchorPos );
-    GRPoly( &panel->m_ClipBox, DC, Poly[0], Poly + 1, 0, width, color, color );
+    GRPoly( &panel->m_ClipBox, DC, Poly[0], (wxPoint*)(Poly + 1), 0, width, color, color );
 
     if( m_IsDangling )
         DrawDanglingSymbol( panel, DC, m_Pos + offset, color );
 }
 
 
-/** function CreateGraphicShape
- * Calculates the graphic shape (a polygon) associated to the text
+/**
+ * Function CreateGraphicShape
+ * calculates the graphic shape (a polygon) associated to the text
  * @param corner_list = coordinates list fill with polygon corners ooordinates (size > 20)
  * @param Pos = Postion of the shape
  * format list is
@@ -398,17 +450,20 @@ void SCH_HIERLABEL::CreateGraphicShape( int* corner_list, const wxPoint& Pos )
 
     int  imax = *Template; Template++;
 
-    *corner_list = imax; corner_list++;
+    *corner_list++ = imax;
     for( int ii = 0; ii < imax; ii++ )
     {
-        *corner_list = ( HalfSize * (*Template) ) + Pos.x;
-        corner_list++; Template++;
-        *corner_list = ( HalfSize * (*Template) ) + Pos.y;
-        corner_list++; Template++;
+        *corner_list++ = ( HalfSize * (*Template) ) + Pos.x;
+        Template++;
+
+        *corner_list++ = ( HalfSize * (*Template) ) + Pos.y;
+        Template++;
     }
 }
 
+/****************************************/
 EDA_Rect SCH_HIERLABEL::GetBoundingBox()
+/****************************************/
 {
     int x, y, dx, dy, length, height;
 
@@ -416,8 +471,9 @@ EDA_Rect SCH_HIERLABEL::GetBoundingBox()
     y = m_Pos.y;
     dx = dy = 0;
 
+    int     width = MAX( m_Width, g_DrawMinimunLineWidth );
     height  = m_Size.y + 2*TXTMARGE;
-    length = ( Pitch() * GetLength() ) + height + 2*DANGLING_SYMBOL_SIZE; // add height for triangular shapes
+    length = ( Pitch(width) * GetLength() ) + height + 2*DANGLING_SYMBOL_SIZE; // add height for triangular shapes
 
     switch( m_Orient ) // respect orientation
     {
@@ -464,13 +520,15 @@ void SCH_GLOBALLABEL::Draw( WinEDA_DrawPanel* panel, wxDC* DC, const wxPoint& dr
  */
 {
     int     Poly[20];
-    int     offset, color, HalfSize;
+    int     offset;
+    EDA_Colors color;
+    int HalfSize;
     wxPoint AnchorPos = m_Pos + draw_offset;;
 
     int     width = MAX( m_Width, g_DrawMinimunLineWidth );
 
     if( Color >= 0 )
-        color = Color;
+        color = (EDA_Colors)Color;
     else
         color = ReturnLayerColor( m_Layer );
 
@@ -501,33 +559,33 @@ void SCH_GLOBALLABEL::Draw( WinEDA_DrawPanel* panel, wxDC* DC, const wxPoint& dr
         DrawGraphicText( panel, DC,
                          wxPoint( AnchorPos.x - offset, AnchorPos.y ), color,
                          m_Text, TEXT_ORIENT_HORIZ, m_Size,
-                         GR_TEXT_HJUSTIFY_RIGHT, GR_TEXT_VJUSTIFY_CENTER, width );
+                         GR_TEXT_HJUSTIFY_RIGHT, GR_TEXT_VJUSTIFY_CENTER, width, m_Italic );
         break;
 
     case 1:             /* Orientation vert UP */
         DrawGraphicText( panel, DC,
                          wxPoint( AnchorPos.x, AnchorPos.y + offset ), color,
                          m_Text, TEXT_ORIENT_VERT, m_Size,
-                         GR_TEXT_HJUSTIFY_CENTER, GR_TEXT_VJUSTIFY_TOP, width );
+                         GR_TEXT_HJUSTIFY_CENTER, GR_TEXT_VJUSTIFY_TOP, width, m_Italic );
         break;
 
     case 2:             /* Orientation horiz inverse */
         DrawGraphicText( panel, DC,
                          wxPoint( AnchorPos.x + offset, AnchorPos.y ), color,
                          m_Text, TEXT_ORIENT_HORIZ, m_Size,
-                         GR_TEXT_HJUSTIFY_LEFT, GR_TEXT_VJUSTIFY_CENTER, width );
+                         GR_TEXT_HJUSTIFY_LEFT, GR_TEXT_VJUSTIFY_CENTER, width, m_Italic );
         break;
 
     case 3:             /* Orientation vert BOTTOM */
         DrawGraphicText( panel, DC,
                          wxPoint( AnchorPos.x, AnchorPos.y - offset ), color,
                          m_Text, TEXT_ORIENT_VERT, m_Size,
-                         GR_TEXT_HJUSTIFY_CENTER, GR_TEXT_VJUSTIFY_BOTTOM, width );
+                         GR_TEXT_HJUSTIFY_CENTER, GR_TEXT_VJUSTIFY_BOTTOM, width, m_Italic );
         break;
     }
 
     CreateGraphicShape( Poly, AnchorPos );
-    GRPoly( &panel->m_ClipBox, DC, Poly[0], Poly + 1, 0, width, color, color );
+    GRPoly( &panel->m_ClipBox, DC, Poly[0], (wxPoint*) (Poly + 1), 0, width, color, color );
 
     if( m_IsDangling )
         DrawDanglingSymbol( panel, DC, AnchorPos, color );
@@ -618,7 +676,9 @@ void SCH_GLOBALLABEL::CreateGraphicShape( int* corner_list, const wxPoint& Pos )
 }
 
 
+/******************************************/
 EDA_Rect SCH_GLOBALLABEL::GetBoundingBox()
+/******************************************/
 {
     int x, y, dx, dy, length, height;
 
@@ -626,8 +686,9 @@ EDA_Rect SCH_GLOBALLABEL::GetBoundingBox()
     y = m_Pos.y;
     dx = dy = 0;
 
+    int     width = MAX( m_Width, g_DrawMinimunLineWidth );
     height  = m_Size.y + 2*TXTMARGE;
-    length = ( Pitch() * GetLength() ) + 2* height + 2*DANGLING_SYMBOL_SIZE; // add 2*height for triangular shapes (bidirectional)
+    length = ( Pitch(width) * GetLength() ) + 2* height + 2*DANGLING_SYMBOL_SIZE; // add 2*height for triangular shapes (bidirectional)
 
     switch( m_Orient ) // respect orientation
     {
@@ -666,13 +727,16 @@ EDA_Rect SCH_GLOBALLABEL::GetBoundingBox()
 }
 
 
+/***********************************/
 EDA_Rect SCH_TEXT::GetBoundingBox()
+/***********************************/
 {
     int x, y, dx, dy, length, height;
 
     x = m_Pos.x;
     y = m_Pos.y;
-    length = ( Pitch() * GetLength() );
+    int     width = MAX( m_Width, g_DrawMinimunLineWidth );
+    length = ( Pitch(width) * GetLength() );
     height  = m_Size.y;
     dx = dy = 0;
 
@@ -711,3 +775,4 @@ EDA_Rect SCH_TEXT::GetBoundingBox()
     box.Normalize();
     return box;
 }
+

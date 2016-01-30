@@ -3,12 +3,39 @@
 /***************************************/
 
 #include "fctsys.h"
-
 #include "common.h"
+#include "class_drawpanel.h"
+#include "confirm.h"
+#include "kicad_string.h"
+#include "gestfich.h"
 #include "pcbnew.h"
 #include "protos.h"
 #include "id.h"
 
+
+void WinEDA_PcbFrame::OnFileHistory( wxCommandEvent& event )
+{
+    wxString fn;
+    wxClientDC dc( DrawPanel );
+
+    fn = GetFileFromHistory( event.GetId(), _( "Printed circuit board" ) );
+
+    if( fn != wxEmptyString )
+    {
+        if( DrawPanel->ManageCurseur && DrawPanel->ForceCloseManageCurseur )
+        {
+            DrawPanel->PrepareGraphicContext( &dc );
+            DrawPanel->ForceCloseManageCurseur( DrawPanel, &dc );
+        }
+
+        SetToolID( 0, wxCURSOR_ARROW, wxEmptyString );
+        ::wxSetWorkingDirectory( ::wxPathOnly( fn ) );
+        LoadOnePcbFile( fn, false );
+        ReCreateAuxiliaryToolbar();
+        DrawPanel->MouseToCursorSchema();
+        DrawPanel->CursorOn( &dc );
+    }
+}
 
 /****************************************************/
 void WinEDA_PcbFrame::Files_io( wxCommandEvent& event )
@@ -84,22 +111,6 @@ void WinEDA_PcbFrame::Files_io( wxCommandEvent& event )
         ReCreateLayerBox( NULL );
         break;
 
-    case ID_LOAD_FILE_1:
-    case ID_LOAD_FILE_2:
-    case ID_LOAD_FILE_3:
-    case ID_LOAD_FILE_4:
-    case ID_LOAD_FILE_5:
-    case ID_LOAD_FILE_6:
-    case ID_LOAD_FILE_7:
-    case ID_LOAD_FILE_8:
-    case ID_LOAD_FILE_9:
-    case ID_LOAD_FILE_10:
-        wxSetWorkingDirectory( wxPathOnly( GetLastProject( id - ID_LOAD_FILE_1 ) ) );
-        LoadOnePcbFile( GetLastProject( id - ID_LOAD_FILE_1 ).GetData(),
-                        false );
-        ReCreateAuxiliaryToolbar();
-        break;
-
     case ID_SAVE_BOARD:
     case ID_MENU_SAVE_BOARD:
         SavePcbFile( GetScreen()->m_FileName );
@@ -149,7 +160,7 @@ int WinEDA_PcbFrame::LoadOnePcbFile( const wxString& FullFileName, bool Append )
     {
         GetScreen()->m_FileName = wxEmptyString;
         GetScreen()->SetModify();
-        m_Pcb->m_Status_Pcb = 0;
+        GetBoard()->m_Status_Pcb = 0;
     }
 
     wxString fileName;
@@ -158,7 +169,7 @@ int WinEDA_PcbFrame::LoadOnePcbFile( const wxString& FullFileName, bool Append )
     {
         msg = wxT( "*" ) + PcbExtBuffer;
         fileName =
-            EDA_FileSelector( _( "Load board files:" ),
+            EDA_FileSelector( _( "Open Board File:" ),
                               wxEmptyString,            /* Chemin par defaut */
                               GetScreen()->m_FileName,  /* nom fichier par defaut */
                               PcbExtBuffer,             /* extension par defaut */
@@ -253,7 +264,7 @@ int WinEDA_PcbFrame::LoadOnePcbFile( const wxString& FullFileName, bool Append )
     /* Rebuild the new pad list (for drc and ratsnet control ...) */
     build_liste_pads();
 
-    m_Pcb->Display_Infos( this );
+    GetBoard()->Display_Infos( this );
     DrawPanel->Refresh( true);
 
     /* reset the auto save timer */
@@ -268,7 +279,7 @@ int WinEDA_PcbFrame::LoadOnePcbFile( const wxString& FullFileName, bool Append )
     // the pcbnew program when the pipe it is writing to gets full.
 
     // Output the board object tree to stdout, but please run from command prompt:
-    m_Pcb->Show( 0, std::cout );
+    GetBoard()->Show( 0, std::cout );
 #endif
 
     return 1;

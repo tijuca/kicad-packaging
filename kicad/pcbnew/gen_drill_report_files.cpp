@@ -10,6 +10,11 @@ using namespace std;
 
 #include "common.h"
 #include "plot_common.h"
+#include "base_struct.h"
+#include "colors.h"
+#include "drawtxt.h"
+#include "confirm.h"
+#include "kicad_string.h"
 #include "pcbnew.h"
 #include "pcbplot.h"
 #include "macros.h"
@@ -34,7 +39,7 @@ void GenDrillMapFile( BOARD* aPcb, FILE* aFile, const wxString& aFullFileName, w
 {
     unsigned        ii;
     int             x, y;
-    int             plotX, plotY, TextWidth;
+    int             plotX, plotY, TextWidth, LineWidth;
     int             intervalle = 0, CharSize = 0;
     EDA_BaseStruct* PtStruct;
     int             old_g_PlotOrient = g_PlotOrient;
@@ -127,27 +132,27 @@ void GenDrillMapFile( BOARD* aPcb, FILE* aFile, const wxString& aFullFileName, w
 
     /* Draw items on edge layer */
     PtStruct = aPcb->m_Drawings;
-    for( ; PtStruct != NULL; PtStruct = PtStruct->Pnext )
+    for( ; PtStruct != NULL; PtStruct = PtStruct->Next() )
     {
         switch( PtStruct->Type() )
         {
-        case TYPEDRAWSEGMENT:
+        case TYPE_DRAWSEGMENT:
             PlotDrawSegment( (DRAWSEGMENT*) PtStruct, format, EDGE_LAYER );
             break;
 
-        case TYPETEXTE:
+        case TYPE_TEXTE:
             PlotTextePcb( (TEXTE_PCB*) PtStruct, format, EDGE_LAYER );
             break;
 
-        case TYPECOTATION:
+        case TYPE_COTATION:
             PlotCotation( (COTATION*) PtStruct, format, EDGE_LAYER );
             break;
 
-        case TYPEMIRE:
+        case TYPE_MIRE:
             PlotMirePcb( (MIREPCB*) PtStruct, format, EDGE_LAYER );
             break;
 
-        case TYPEMARKER:     // do not draw
+        case TYPE_MARKER:     // do not draw
             break;
 
         default:
@@ -156,45 +161,26 @@ void GenDrillMapFile( BOARD* aPcb, FILE* aFile, const wxString& aFullFileName, w
         }
     }
 
-    TextWidth = 50;     // Set Drill Symbols width in 1/10000 mils
-
-    if( IsPostScript( format ) )
+    // Set Drill Symbols width in 1/10000 mils
+    LineWidth = 50 / scale_x;        // real scale will be CharScale * scale_x
+    int tmpPlotLineWidth = g_PlotLine_Width;
+    // Plot board outlines and drill map
+    if ( format == PLOT_FORMAT_POST)
     {
-        sprintf( line, "%d setlinewidth\n", TextWidth );
-        fputs( line, aFile );
+        SetDefaultLineWidthPS( LineWidth );
+        SetCurrentLineWidthPS( LineWidth );
+        g_PlotLine_Width = LineWidth;       // Default line width in FILAIRE mode, used to plot drill symbols
     }
-
     Gen_Drill_PcbMap( aPcb, aFile, aHoleListBuffer, aToolListBuffer, format );
+
 
     /* Impression de la liste des symboles utilises */
     CharSize = 800;                             /* text size in 1/10000 mils */
     float CharScale = 1.0 / scale_x;        /* real scale will be CharScale * scale_x,
                                              *  because the global plot scale is scale_x */
-    TextWidth  = (int) (50 * CharScale);        // Set text width
+    TextWidth  = (int) ((CharSize * CharScale) / 10);        // Set text width (thickness)
     intervalle = (int) (CharSize * CharScale) + TextWidth;
 
-    switch( format )
-    {
-    case PLOT_FORMAT_HPGL:
-    {
-        /* generation des dim: commande SI x,y; x et y = dim en cm */
-        char csize[256];
-        sprintf( csize, "%2.3f", (float) CharSize * CharScale * 0.000254 );
-        sprintf( line, "SI %s, %s;\n", csize, csize );
-        break;
-    }
-
-    case PLOT_FORMAT_POST:
-        /* Reglage de l'epaisseur de traits des textes */
-        sprintf( line, "%d setlinewidth\n", TextWidth );
-        break;
-
-    default:
-        *line = 0;
-        break;
-    }
-
-    fputs( line, aFile );
 
     switch( format )
     {
@@ -203,42 +189,26 @@ void GenDrillMapFile( BOARD* aPcb, FILE* aFile, const wxString& aFullFileName, w
         g_PlotOffset.x = 0;
         g_PlotOffset.y = 0;
         InitPlotParametresPS( g_PlotOffset, SheetPS, scale_x, scale_x );
+        SetDefaultLineWidthPS( LineWidth );
+        SetCurrentLineWidthPS( LineWidth );
         break;
 
     case PLOT_FORMAT_HPGL:
-        InitPlotParametresHPGL( g_PlotOffset, scale_x, scale_x );
-        break;
-    }
-
-    /* Trace des informations */
-
-    /* Trace de "Infos" */
-    plotX = marge + 1000;
-    plotY = CharSize + 1000;
-    x = plotX; y = plotY;
-    x = +g_PlotOffset.x + (int) (x * fTextScale);
-    y = g_PlotOffset.y - (int) (y * fTextScale);
-
-    plotY += (int) ( intervalle * 1.2) + 200;
-
-    switch( format )
     {
-    case PLOT_FORMAT_HPGL:
-        sprintf( line, "PU %d, %d; LBInfos\03;\n",
-                x + (int) (intervalle * CharScale * fTextScale),
-                y - (int) (CharSize / 2 * CharScale * fTextScale) );
+        InitPlotParametresHPGL( g_PlotOffset, scale_x, scale_x );
+        /* generation des dim: commande SI x,y; x et y = dim en cm */
+        char csize[256];
+        sprintf( csize, "%2.3f", (float) CharSize * CharScale * 0.000254 );
+        sprintf( line, "SI %s, %s;\n", csize, csize );
         fputs( line, aFile );
         break;
-
-    case PLOT_FORMAT_POST:
-        wxString Text = wxT( "Infos" );
-        Plot_1_texte( format, Text, 0, TextWidth,
-                      x, y,
-                      (int) (CharSize * CharScale), (int) (CharSize * CharScale),
-                      FALSE );
-        break;
+    }
     }
 
+
+    /* Trace des informations */
+    plotX = marge + 1000;
+    plotY = CharSize + 1000;
 
     for( ii = 0; ii < aToolListBuffer.size(); ii++ )
     {
@@ -250,6 +220,9 @@ void GenDrillMapFile( BOARD* aPcb, FILE* aFile, const wxString& aFullFileName, w
         x = plotX; y = plotY;
         x = -g_PlotOffset.x + (int) (x * fTextScale);
         y = g_PlotOffset.y - (int) (y * fTextScale);
+        sprintf( line, "%d setlinewidth\n", LineWidth );
+        SetDefaultLineWidthPS( LineWidth );
+        SetCurrentLineWidthPS( LineWidth );
         PlotDrillSymbol( wxPoint( x, y ), plot_diam, ii, format );
 
         intervalle = (int) (CharSize * CharScale) + TextWidth;
@@ -259,7 +232,8 @@ void GenDrillMapFile( BOARD* aPcb, FILE* aFile, const wxString& aFullFileName, w
             intervalle = plot_diam + 200 + TextWidth;
 
         int rayon = plot_diam / 2;
-        x = plotX + rayon + (int) (CharSize * CharScale); y = plotY;
+        x = plotX + rayon + (int) (CharSize * CharScale);
+        y = plotY;
         x = -g_PlotOffset.x + (int) (x * fTextScale);
         y = g_PlotOffset.y - (int) (y * fTextScale);
 
@@ -335,15 +309,43 @@ void GenDrillMapFile( BOARD* aPcb, FILE* aFile, const wxString& aFullFileName, w
                          aToolListBuffer[ii].m_TotalCount,
                          aToolListBuffer[ii].m_OvalCount );
             msg += CONV_FROM_UTF8( line );
-            Plot_1_texte( format, msg, 0, TextWidth,
-                          x, y,
-                          (int) (CharSize * CharScale),
-                          (int) (CharSize * CharScale),
-                          FALSE );
+            SetDefaultLineWidthPS( TextWidth );
+            SetCurrentLineWidthPS( TextWidth );
+			PlotGraphicText( format, wxPoint(x,y), BLACK,
+                      msg,
+                      0, wxSize((int)(CharSize * CharScale), (int)(CharSize * CharScale)),
+                      GR_TEXT_HJUSTIFY_LEFT, GR_TEXT_VJUSTIFY_CENTER,
+                      TextWidth );
             break;
         }
 
         plotY += intervalle;
+    }
+
+    /* Plot title  "Info" */
+    plotY += (int) ( intervalle * 0.2);     // Add exta line separation
+    x = plotX; y = plotY;
+    x = +g_PlotOffset.x + (int) (x * fTextScale);
+    y = g_PlotOffset.y - (int) (y * fTextScale);
+    switch( format )
+    {
+    case PLOT_FORMAT_HPGL:
+        sprintf( line, "PU %d, %d; LBInfo:\03;\n",
+                x + (int) (intervalle * CharScale * fTextScale),
+                y - (int) (CharSize / 2 * CharScale * fTextScale) );
+        fputs( line, aFile );
+        break;
+
+    case PLOT_FORMAT_POST:
+        SetDefaultLineWidthPS( TextWidth );
+        SetCurrentLineWidthPS( TextWidth );
+        wxString Text = wxT( "Info:" );
+		PlotGraphicText( format, wxPoint(x,y), BLACK,
+                      Text,
+                      0, wxSize((int)(CharSize * CharScale), (int)(CharSize * CharScale)),
+                      GR_TEXT_HJUSTIFY_LEFT, GR_TEXT_VJUSTIFY_CENTER,
+                      TextWidth );
+        break;
     }
 
     switch( format )
@@ -359,7 +361,9 @@ void GenDrillMapFile( BOARD* aPcb, FILE* aFile, const wxString& aFullFileName, w
 
     SetLocaleTo_Default( );    // Revert to local notation for float numbers
 
+    // Retrieve setup values, changed for plotting drill map
     g_PlotOrient = old_g_PlotOrient;
+    g_PlotLine_Width = tmpPlotLineWidth;
 }
 
 

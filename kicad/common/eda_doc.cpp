@@ -2,24 +2,16 @@
 /* eda_doc.cpp */
 /***************/
 
-// For compilers that support precompilation, includes "wx.h".
-#include "wx/wxprec.h"
+#include "fctsys.h"
+#include "appl_wxstruct.h"
+#include "common.h"
+#include "confirm.h"
+#include "gestfich.h"
 
-#ifdef __BORLANDC__
-#pragma hdrstop
-#endif
-
-// for all others, include the necessary headers (this file is usually all you
-// need because it includes almost all "standard" wxWindows headers
-#ifndef WX_PRECOMP
-#include <wx/wx.h>
-#endif
 #include <wx/mimetype.h>
 #include <wx/tokenzr.h>
+#include <wx/filename.h>
 
-#include "fctsys.h"
-#include "wxstruct.h"
-#include "common.h"
 
 /*****************************************/
 void WinEDA_App::ReadPdfBrowserInfos()
@@ -187,7 +179,7 @@ bool GetAssociatedDocument( wxFrame* frame, const wxString& LibPath,
 
     if( !success )
     {
-        Line.Printf( _( "Unknown MIME type for Doc File [%s]" ),
+        Line.Printf( _( "Unknown MIME type for doc file <%s>" ),
             fullfilename.GetData() );
         DisplayError( frame, Line );
     }

@@ -5,8 +5,9 @@
 
 #include "fctsys.h"
 #include "gr_basic.h"
-
 #include "common.h"
+#include "class_drawpanel.h"
+
 #include "pcbnew.h"
 #include "autorout.h"
 
@@ -21,7 +22,8 @@ static void     Exit_Editrack( WinEDA_DrawPanel* panel, wxDC* DC );
 void            ShowNewTrackWhenMovingCursor( WinEDA_DrawPanel* panel,
                                               wxDC* DC, bool erase );
 static void     ComputeBreakPoint( TRACK* track, int n, wxPoint end );
-static TRACK*   DeleteNullTrackSegments( BOARD* pcb, TRACK* track, int* segmcount );
+static void     DeleteNullTrackSegments( BOARD* pcb, DLIST<TRACK>& aTrackList );
+
 static void     EnsureEndTrackOnPad( D_PAD* Pad );
 
 /* variables locales */
@@ -40,7 +42,7 @@ static void Exit_Editrack( WinEDA_DrawPanel* Panel, wxDC* DC )
     WinEDA_PcbFrame* frame = (WinEDA_PcbFrame*) Panel->m_Parent;
     TRACK*           track = (TRACK*) frame->GetCurItem();
 
-    if( track && ( track->Type()==TYPEVIA || track->Type()==TYPETRACK ) )
+    if( track && ( track->Type()==TYPE_VIA || track->Type()==TYPE_TRACK ) )
     {
         /* Erase the current drawing */
         ShowNewTrackWhenMovingCursor( Panel, DC, FALSE );
@@ -54,12 +56,7 @@ static void Exit_Editrack( WinEDA_DrawPanel* Panel, wxDC* DC )
         frame->MsgPanel->EraseMsgBox();
 
         // Delete current (new) track
-        TRACK* previoustrack;
-        for(  ;   track;   track = previoustrack )
-        {
-            previoustrack = (TRACK*) track->Pback;
-            delete track;
-        }
+        g_CurrentTrackList.DeleteAll();
     }
 
     Panel->ManageCurseur = NULL;
@@ -69,7 +66,7 @@ static void Exit_Editrack( WinEDA_DrawPanel* Panel, wxDC* DC )
 
 
 /*************************************************************/
-TRACK* WinEDA_PcbFrame::Begin_Route( TRACK* track, wxDC* DC )
+TRACK* WinEDA_PcbFrame::Begin_Route( TRACK* aTrack, wxDC* DC )
 /*************************************************************/
 
 /*
@@ -87,19 +84,20 @@ TRACK* WinEDA_PcbFrame::Begin_Route( TRACK* track, wxDC* DC )
  */
 {
     D_PAD*          pt_pad = NULL;
-    TRACK*          TrackOnStartPoint = NULL, * Track;
+    TRACK*          TrackOnStartPoint = NULL;
     int             masquelayer = g_TabOneLayerMask[((PCB_SCREEN*)GetScreen())->m_Active_Layer];
     EDA_BaseStruct* LockPoint;
     wxPoint         pos = GetScreen()->m_Curseur;
+
     static int      InitialTrackWidthValue; /* first track segment width.
                                             * used when we are in the auto tack width mode */
 
     DrawPanel->ManageCurseur = ShowNewTrackWhenMovingCursor;
     DrawPanel->ForceCloseManageCurseur = Exit_Editrack;
 
-    if( track == NULL )  /* Starting a new track  */
+    if( aTrack == NULL )  /* Starting a new track  */
     {
-        /* undrw old hightlight */
+        /* erase old highlight */
         OldNetCodeSurbrillance = g_HightLigth_NetCode;
         OldEtatSurbrillance    = g_HightLigt_Status;
 
@@ -107,17 +105,18 @@ TRACK* WinEDA_PcbFrame::Begin_Route( TRACK* track, wxDC* DC )
             Hight_Light( DC );
 
         InitialTrackWidthValue = -1;        // Set to "no value"
-        g_FirstTrackSegment    = g_CurrentTrackSegment = new TRACK( m_Pcb );
+
+        g_CurrentTrackList.PushBack( new TRACK( GetBoard() ) );
         g_CurrentTrackSegment->m_Flags = IS_NEW;
-        g_TrackSegmentCount  = 1;
+
         g_HightLigth_NetCode = 0;
 
-        /* Search for a pad at starting point of the new track: */
-        LockPoint = LocateLockPoint( m_Pcb, pos, masquelayer );
+        // Search for a starting point of the new track, a track or pad
+        LockPoint = LocateLockPoint( GetBoard(), pos, masquelayer );
 
         if( LockPoint ) // An item (pad or track) is found
         {
-            if( LockPoint->Type() == TYPEPAD )
+            if( LockPoint->Type() == TYPE_PAD )
             {
                 pt_pad = (D_PAD*) LockPoint;
 
@@ -133,23 +132,37 @@ TRACK* WinEDA_PcbFrame::Begin_Route( TRACK* track, wxDC* DC )
             }
         }
 
+        else    // no starting point, but a filled zone area can exist. This is also a good starting point.
+        {
+            ZONE_CONTAINER* zone = GetBoard()->HitTestForAnyFilledArea( pos, GetScreen()->m_Active_Layer );
+            if( zone )
+                g_HightLigth_NetCode = zone->GetNet();
+        }
+
+        D( g_CurrentTrackList.VerifyListIntegrity(); );
+
         build_ratsnest_pad( LockPoint, wxPoint( 0, 0 ), TRUE );
+
+        D( g_CurrentTrackList.VerifyListIntegrity(); );
+
         Hight_Light( DC );
 
-        g_CurrentTrackSegment->m_Flags = IS_NEW;
         g_CurrentTrackSegment->SetLayer( ((PCB_SCREEN*)GetScreen())->m_Active_Layer );
         g_CurrentTrackSegment->m_Width = g_DesignSettings.m_CurrentTrackWidth;
+
         if( g_DesignSettings.m_UseConnectedTrackWidth )
         {
-            if( TrackOnStartPoint && TrackOnStartPoint->Type() == TYPETRACK )
+            if( TrackOnStartPoint && TrackOnStartPoint->Type() == TYPE_TRACK )
             {
                 InitialTrackWidthValue = TrackOnStartPoint->m_Width;
                 g_CurrentTrackSegment->m_Width = InitialTrackWidthValue;
             }
         }
+
         g_CurrentTrackSegment->m_Start = pos;
-        g_CurrentTrackSegment->m_End   = g_CurrentTrackSegment->m_Start;
+        g_CurrentTrackSegment->m_End   = pos;
         g_CurrentTrackSegment->SetNet( g_HightLigth_NetCode );
+
         if( pt_pad )
         {
             g_CurrentTrackSegment->start = pt_pad;
@@ -160,22 +173,26 @@ TRACK* WinEDA_PcbFrame::Begin_Route( TRACK* track, wxDC* DC )
 
         if( g_TwoSegmentTrackBuild )
         {
-            // Create 2 segments
-            g_CurrentTrackSegment = g_CurrentTrackSegment->Copy();
-            g_TrackSegmentCount++;
-            g_CurrentTrackSegment->Pback = g_FirstTrackSegment;
-            g_FirstTrackSegment->Pnext   = g_CurrentTrackSegment;
+            // Create 2nd segment
+            g_CurrentTrackList.PushBack( g_CurrentTrackSegment->Copy() );
+
+            D( g_CurrentTrackList.VerifyListIntegrity(); );
+
             g_CurrentTrackSegment->start = g_FirstTrackSegment;
-            g_FirstTrackSegment->end = g_CurrentTrackSegment;
+            g_FirstTrackSegment->end     = g_CurrentTrackSegment;
+
             g_FirstTrackSegment->SetState( BEGIN_ONPAD | END_ONPAD, OFF );
         }
+
+        D( g_CurrentTrackList.VerifyListIntegrity(); );
+
         g_CurrentTrackSegment->Display_Infos( this );
         SetCurItem( g_CurrentTrackSegment );
         DrawPanel->ManageCurseur( DrawPanel, DC, FALSE );
 
         if( Drc_On )
         {
-            if( BAD_DRC == m_drc->Drc( g_CurrentTrackSegment, m_Pcb->m_Track ) )
+            if( BAD_DRC == m_drc->Drc( g_CurrentTrackSegment, GetBoard()->m_Track ) )
             {
                 return g_CurrentTrackSegment;
             }
@@ -186,57 +203,71 @@ TRACK* WinEDA_PcbFrame::Begin_Route( TRACK* track, wxDC* DC )
         /* Tst for a D.R.C. error: */
         if( Drc_On )
         {
-            if( BAD_DRC == m_drc->Drc( g_CurrentTrackSegment, m_Pcb->m_Track ) )
+            if( BAD_DRC == m_drc->Drc( g_CurrentTrackSegment, GetBoard()->m_Track ) )
                 return NULL;
 
-            if( g_TwoSegmentTrackBuild     // We must handle 2 segments
-               && g_CurrentTrackSegment->Back() )
+            // We must handle 2 segments
+            if( g_TwoSegmentTrackBuild && g_CurrentTrackSegment->Back() )
             {
-                if( BAD_DRC == m_drc->Drc( g_CurrentTrackSegment->Back(), m_Pcb->m_Track ) )
+                if( BAD_DRC == m_drc->Drc( g_CurrentTrackSegment->Back(), GetBoard()->m_Track ) )
                     return NULL;
             }
         }
 
         /* Current track is Ok: current segment is kept, and a new one is created
-         *  unless the current segment is null, or 2 last are null if a 2 segments track build
+         * unless the current segment is null, or 2 last are null if a 2 segments track build
          */
         bool CanCreateNewSegment = TRUE;
         if( !g_TwoSegmentTrackBuild && g_CurrentTrackSegment->IsNull() )
             CanCreateNewSegment = FALSE;
+
         if( g_TwoSegmentTrackBuild && g_CurrentTrackSegment->IsNull()
            && g_CurrentTrackSegment->Back() && g_CurrentTrackSegment->Back()->IsNull() )
             CanCreateNewSegment = FALSE;
+
         if( CanCreateNewSegment )
         {
             /* Erase old track on screen */
+            D( g_CurrentTrackList.VerifyListIntegrity(); );
+
             ShowNewTrackWhenMovingCursor( DrawPanel, DC, FALSE );
+
+            D( g_CurrentTrackList.VerifyListIntegrity(); );
 
             if( g_Raccord_45_Auto )
             {
-                if( Add_45_degrees_Segment( DC, g_CurrentTrackSegment ) != 0 )
-                    g_TrackSegmentCount++;
+                Add_45_degrees_Segment( DC );
             }
-            Track = g_CurrentTrackSegment->Copy();
-            Track->Insert( m_Pcb, g_CurrentTrackSegment );
 
-            Track->SetState( BEGIN_ONPAD | END_ONPAD, OFF );
-            g_CurrentTrackSegment->end = Locate_Pad_Connecte( m_Pcb, g_CurrentTrackSegment, END );
-            if( g_CurrentTrackSegment->end )
+            TRACK* oneBeforeLatest = g_CurrentTrackSegment;
+
+            TRACK* newTrack = g_CurrentTrackSegment->Copy();
+            g_CurrentTrackList.PushBack( newTrack );
+            newTrack->m_Flags = IS_NEW;
+
+            newTrack->SetState( BEGIN_ONPAD | END_ONPAD, OFF );
+
+            oneBeforeLatest->end = Locate_Pad_Connecte( GetBoard(), oneBeforeLatest, END );
+            if( oneBeforeLatest->end )
             {
-                g_CurrentTrackSegment->SetState( END_ONPAD, ON );
-                Track->SetState( BEGIN_ONPAD, ON );
+                oneBeforeLatest->SetState( END_ONPAD, ON );
+                newTrack->SetState( BEGIN_ONPAD, ON );
             }
-            Track->start = g_CurrentTrackSegment->end;
+            newTrack->start = oneBeforeLatest->end;
 
-            g_CurrentTrackSegment = Track;
-            g_CurrentTrackSegment->m_Flags = IS_NEW;
-            g_TrackSegmentCount++;
-            g_CurrentTrackSegment->m_Start = g_CurrentTrackSegment->m_End;
-            g_CurrentTrackSegment->SetLayer( ((PCB_SCREEN*)GetScreen())->m_Active_Layer );
+            D( g_CurrentTrackList.VerifyListIntegrity(); );
+
+            newTrack->m_Start = newTrack->m_End;
+
+            newTrack->SetLayer( ((PCB_SCREEN*)GetScreen())->m_Active_Layer );
+
             if( !g_DesignSettings.m_UseConnectedTrackWidth )
             {
-                g_CurrentTrackSegment->m_Width = g_DesignSettings.m_CurrentTrackWidth;
+                newTrack->m_Width = g_DesignSettings.m_CurrentTrackWidth;
             }
+
+            D( g_CurrentTrackList.VerifyListIntegrity(); );
+
             /* Show the new position */
             ShowNewTrackWhenMovingCursor( DrawPanel, DC, FALSE );
         }
@@ -249,7 +280,7 @@ TRACK* WinEDA_PcbFrame::Begin_Route( TRACK* track, wxDC* DC )
 
 
 /**************************************************************************/
-int WinEDA_PcbFrame::Add_45_degrees_Segment( wxDC* DC, TRACK* pt_segm )
+bool WinEDA_PcbFrame::Add_45_degrees_Segment( wxDC* DC )
 /***************************************************************************/
 
 /* rectifie un virage a 90 et le modifie par 2 coudes a 45
@@ -263,57 +294,54 @@ int WinEDA_PcbFrame::Add_45_degrees_Segment( wxDC* DC, TRACK* pt_segm )
  *      0 si impossible
  */
 {
-    TRACK* Previous;
-    TRACK* NewTrack;
     int    pas_45;
     int    dx0, dy0, dx1, dy1;
 
-    if( g_TrackSegmentCount < 2 )
-        return 0;                               /* il faut au moins 2 segments */
+    if( g_CurrentTrackList.GetCount() < 2 )
+        return false;                               /* il faut au moins 2 segments */
 
-    Previous = (TRACK*) pt_segm->Pback;         // pointe le segment precedent
+    TRACK* curTrack  = g_CurrentTrackSegment;
+    TRACK* prevTrack = curTrack->Back();
 
     // Test s'il y a 2 segments consecutifs a raccorder
-    if( (pt_segm->Type() != TYPETRACK )
-       || (Previous->Type() != TYPETRACK) )
+    if( curTrack->Type() != TYPE_TRACK || prevTrack->Type() != TYPE_TRACK )
     {
-        return 0;
+        return false;
     }
 
     pas_45 = GetScreen()->GetGrid().x / 2;
-    if( pas_45 < pt_segm->m_Width )
+    if( pas_45 < curTrack->m_Width )
         pas_45 = GetScreen()->GetGrid().x;
 
-    while( pas_45 < pt_segm->m_Width )
+    while( pas_45 < curTrack->m_Width )
         pas_45 *= 2;
 
     // OK : tst si les segments sont a 90 degre et vertic ou horiz
-    dx0 = Previous->m_End.x - Previous->m_Start.x;
-    dy0 = Previous->m_End.y - Previous->m_Start.y;
-    dx1 = pt_segm->m_End.x - pt_segm->m_Start.x;
-    dy1 = pt_segm->m_End.y - pt_segm->m_Start.y;
+    dx0 = prevTrack->m_End.x - prevTrack->m_Start.x;
+    dy0 = prevTrack->m_End.y - prevTrack->m_Start.y;
+
+    dx1 = curTrack->m_End.x - curTrack->m_Start.x;
+    dy1 = curTrack->m_End.y - curTrack->m_Start.y;
 
     // les segments doivent etre de longueur suffisante:
     if( MAX( abs( dx0 ), abs( dy0 ) ) < (pas_45 * 2) )
-        return 0;
+        return false;
 
     if( MAX( abs( dx1 ), abs( dy1 ) ) < (pas_45 * 2) )
-        return 0;
+        return false;
 
     /* creation du nouveau segment, raccordant des 2 segm: */
-    NewTrack = pt_segm->Copy();
+    TRACK* newTrack = curTrack->Copy();
 
-    NewTrack->m_Start.x = Previous->m_End.x;
-    NewTrack->m_Start.y = Previous->m_End.y;
-    NewTrack->m_End.x   = pt_segm->m_Start.x;
-    NewTrack->m_End.y   = pt_segm->m_Start.y;
+    newTrack->m_Start = prevTrack->m_End;
+    newTrack->m_End   = curTrack->m_Start;
 
     if( dx0 == 0 )          // Segment precedent Vertical
     {
         if( dy1 != 0 )      // les 2 segments ne sont pas a 90 ;
         {
-            delete NewTrack;
-            return 0;
+            delete newTrack;
+            return false;
         }
 
         /* Calcul des coordonnees du point de raccord :
@@ -321,33 +349,34 @@ int WinEDA_PcbFrame::Add_45_degrees_Segment( wxDC* DC, TRACK* pt_segm )
          *  au 2eme segment Horizontal */
 
         if( dy0 > 0 )
-            NewTrack->m_Start.y -= pas_45;
+            newTrack->m_Start.y -= pas_45;
         else
-            NewTrack->m_Start.y += pas_45;
+            newTrack->m_Start.y += pas_45;
 
         if( dx1 > 0 )
-            NewTrack->m_End.x += pas_45;
+            newTrack->m_End.x += pas_45;
         else
-            NewTrack->m_End.x -= pas_45;
+            newTrack->m_End.x -= pas_45;
 
-        if( Drc_On && BAD_DRC==m_drc->Drc( pt_segm, m_Pcb->m_Track ) )
+        if( Drc_On && BAD_DRC==m_drc->Drc( curTrack, GetBoard()->m_Track ) )
         {
-            delete NewTrack;
-            return 0;
+            delete newTrack;
+            return false;
         }
 
-        Previous->m_End  = NewTrack->m_Start;
-        pt_segm->m_Start = NewTrack->m_End;
-        NewTrack->Insert( m_Pcb, Previous );
-        return 1;
+        prevTrack->m_End  = newTrack->m_Start;
+        curTrack->m_Start = newTrack->m_End;
+
+        g_CurrentTrackList.Insert( newTrack, curTrack );
+        return true;
     }
 
     if( dy0 == 0 )      // Segment precedent Horizontal : dy0 = 0
     {
         if( dx1 != 0 )  // les 2 segments ne sont pas a 90 ;
         {
-            delete NewTrack;
-            return 0;
+            delete newTrack;
+            return false;
         }
 
         // Segments a 90
@@ -357,67 +386,69 @@ int WinEDA_PcbFrame::Add_45_degrees_Segment( wxDC* DC, TRACK* pt_segm )
          *  au 2eme segment Vertical */
 
         if( dx0 > 0 )
-            NewTrack->m_Start.x -= pas_45;
+            newTrack->m_Start.x -= pas_45;
         else
-            NewTrack->m_Start.x += pas_45;
+            newTrack->m_Start.x += pas_45;
 
         if( dy1 > 0 )
-            NewTrack->m_End.y += pas_45;
+            newTrack->m_End.y += pas_45;
         else
-            NewTrack->m_End.y -= pas_45;
+            newTrack->m_End.y -= pas_45;
 
-        if( Drc_On && BAD_DRC==m_drc->Drc( NewTrack, m_Pcb->m_Track ) )
+        if( Drc_On && BAD_DRC==m_drc->Drc( newTrack, GetBoard()->m_Track ) )
         {
-            delete NewTrack;
-            return 0;
+            delete newTrack;
+            return false;
         }
 
-        Previous->m_End  = NewTrack->m_Start;
-        pt_segm->m_Start = NewTrack->m_End;
-        NewTrack->Insert( m_Pcb, Previous );
-        return 1;
+        prevTrack->m_End  = newTrack->m_Start;
+        curTrack->m_Start = newTrack->m_End;
+
+        g_CurrentTrackList.Insert( newTrack, curTrack );
+        return true;
     }
 
-    return 0;
+    return false;
 }
 
 
 /**************************************************************/
-void WinEDA_PcbFrame::End_Route( TRACK* track, wxDC* DC )
+void WinEDA_PcbFrame::End_Route( TRACK* aTrack, wxDC* DC )
 /*************************************************************/
 
 /*
  *  Routine de fin de trace d'une piste (succession de segments)
  */
 {
-    int             masquelayer = g_TabOneLayerMask[((PCB_SCREEN*)GetScreen())->m_Active_Layer];
-    wxPoint         pos;
-    EDA_BaseStruct* LockPoint;
-    TRACK*          adr_buf;
+    int masquelayer = g_TabOneLayerMask[((PCB_SCREEN*)GetScreen())->m_Active_Layer];
 
-    if( track == NULL )
+    if( aTrack == NULL )
         return;
 
-    if( Drc_On && BAD_DRC==m_drc->Drc( g_CurrentTrackSegment, m_Pcb->m_Track ) )
+    if( Drc_On && BAD_DRC==m_drc->Drc( g_CurrentTrackSegment, GetBoard()->m_Track ) )
         return;
 
     /* Sauvegarde des coord du point terminal de la piste */
-    pos = g_CurrentTrackSegment->m_End;
+    wxPoint pos = g_CurrentTrackSegment->m_End;
 
-    if( Begin_Route( track, DC ) == NULL )
+    D( g_CurrentTrackList.VerifyListIntegrity(); );
+
+    if( Begin_Route( aTrack, DC ) == NULL )
         return;
 
     ShowNewTrackWhenMovingCursor( DrawPanel, DC, TRUE );    /* mise a jour trace reel */
     ShowNewTrackWhenMovingCursor( DrawPanel, DC, FALSE );   /* efface trace piste*/
     trace_ratsnest_pad( DC );                               /* efface trace chevelu*/
 
-
-    // cleanup
-    if( g_CurrentTrackSegment->Pnext != NULL )
+    /* cleanup
+    if( g_CurrentTrackSegment->Next() != NULL )
     {
-        delete g_CurrentTrackSegment->Pnext;
-        g_CurrentTrackSegment->Pnext = NULL;
+        delete g_CurrentTrackSegment->Next();
+        g_CurrentTrackSegment->SetNext( NULL );
     }
+    */
+
+    D( g_CurrentTrackList.VerifyListIntegrity(); );
 
 
     /* La piste est ici non chainee a la liste des segments de piste.
@@ -426,18 +457,18 @@ void WinEDA_PcbFrame::End_Route( TRACK* track, wxDC* DC )
      *  ceci contribue a la reduction du temps de calcul */
 
     /* Accrochage de la fin de la piste */
-    LockPoint = LocateLockPoint( m_Pcb, pos, masquelayer );
+    EDA_BaseStruct* LockPoint = LocateLockPoint( GetBoard(), pos, masquelayer );
 
     if( LockPoint ) /* La fin de la piste est sur un PAD */
     {
-        if( LockPoint->Type() ==  TYPEPAD )
+        if( LockPoint->Type() ==  TYPE_PAD )
         {
             EnsureEndTrackOnPad( (D_PAD*) LockPoint );
         }
         else    /* la fin de la piste est sur une autre piste: il faudra
                  *  peut-etre creer un point d'ancrage */
         {
-            adr_buf = (TRACK*) LockPoint;
+            TRACK* adr_buf = (TRACK*) LockPoint;
             g_HightLigth_NetCode = adr_buf->GetNet();
 
             /* creation eventuelle d'un point d'accrochage */
@@ -448,42 +479,51 @@ void WinEDA_PcbFrame::End_Route( TRACK* track, wxDC* DC )
         }
     }
 
-
     // Delete Null segments:
-    g_FirstTrackSegment = DeleteNullTrackSegments( m_Pcb,
-                                                   g_FirstTrackSegment,
-                                                   &g_TrackSegmentCount );
-    /* Test if no segment left. Can happend on a double click on the start point */
+    DeleteNullTrackSegments( GetBoard(), g_CurrentTrackList );
+
+    // Insert new segments if they exist.  This can be NULL on a double click on the start point
     if( g_FirstTrackSegment != NULL )
     {
-        // Put new track in board
-        m_Pcb->Add( g_FirstTrackSegment );
+        int     netcode    = g_FirstTrackSegment->GetNet();
+        TRACK*  firstTrack = g_FirstTrackSegment;
+        int     newCount   = g_CurrentTrackList.GetCount();
 
-        trace_ratsnest_pad( DC );
-        Trace_Une_Piste( DrawPanel, DC, g_FirstTrackSegment, g_TrackSegmentCount, GR_OR );
-
-        // Reset flags:
-        TRACK* ptr = g_FirstTrackSegment; int ii;
-        for( ii = 0; (ptr != NULL) && (ii < g_TrackSegmentCount); ii++ )
+        // Put entire new current segment list in BOARD
+        TRACK* track;
+        TRACK* insertBeforeMe = g_CurrentTrackSegment->GetBestInsertPoint( GetBoard() );
+        while( (track = g_CurrentTrackList.PopFront()) != NULL )
         {
-            ptr->m_Flags = 0;
-            ptr = ptr->Next();
+            GetBoard()->m_Track.Insert( track, insertBeforeMe );
         }
 
-        /* Delete the old track, if exists */
+        trace_ratsnest_pad( DC );
+
+        Trace_Une_Piste( DrawPanel, DC, firstTrack, newCount, GR_OR );
+
+        int i = 0;
+        for( track=firstTrack; track && i<newCount;  ++i, track = track->Next() )
+        {
+            track->m_Flags = 0;
+            track->SetState( BUSY, OFF );
+        }
+
+        // erase the old track, if exists
         if( g_AutoDeleteOldTrack )
         {
-            EraseOldTrack( this, m_Pcb, DC, g_FirstTrackSegment, g_TrackSegmentCount );
+            EraseOldTrack( this, GetBoard(), DC, firstTrack, newCount );
         }
 
         /* compute the new rastnest : */
-        test_1_net_connexion( DC, g_FirstTrackSegment->GetNet() );
+        test_1_net_connexion( DC, netcode );
 
         GetScreen()->SetModify();
-        m_Pcb->Display_Infos( this );
+        GetBoard()->Display_Infos( this );
     }
-    /* Finish the work, clear used variables */
-    g_FirstTrackSegment = NULL;
+
+    wxASSERT( g_FirstTrackSegment==NULL );
+    wxASSERT( g_CurrentTrackSegment==NULL );
+    wxASSERT( g_CurrentTrackList.GetCount()==0 );
 
     if( g_HightLigt_Status )
         Hight_Light( DC );
@@ -508,7 +548,7 @@ TRACK* LocateIntrusion( TRACK* start, int net, int width )
 
     for( TRACK* track = start;  track;  track = track->Next() )
     {
-        if( track->Type() == TYPETRACK )    // skip vias
+        if( track->Type() == TYPE_TRACK )    // skip vias
         {
             if( track->GetState( BUSY | DELETED ) )
                 continue;
@@ -559,7 +599,7 @@ TRACK* LocateIntrusion( TRACK* start, int net, int width )
  */
 static void PushTrack( WinEDA_DrawPanel* panel )
 {
-    BOARD*  pcb    = ( (WinEDA_BasePcbFrame*) (panel->m_Parent) )->m_Pcb;
+    BOARD*  pcb    = ( (WinEDA_BasePcbFrame*) (panel->m_Parent) )->GetBoard();
     wxPoint cursor = ActiveScreen->m_Curseur;
     wxPoint cv, vec, n;
     TRACK*  track = g_CurrentTrackSegment;
@@ -624,6 +664,8 @@ void ShowNewTrackWhenMovingCursor( WinEDA_DrawPanel* panel, wxDC* DC, bool erase
  *  est aussi affichee
  */
 {
+    D( g_CurrentTrackList.VerifyListIntegrity(); );
+
     int         IsolTmp, Track_fill_copy;
     PCB_SCREEN* screen = (PCB_SCREEN*) panel->GetScreen();
 
@@ -637,7 +679,7 @@ void ShowNewTrackWhenMovingCursor( WinEDA_DrawPanel* panel, wxDC* DC, bool erase
     /* efface ancienne position si elle a ete deja dessinee */
     if( erase )
     {
-        Trace_Une_Piste( panel, DC, g_FirstTrackSegment, g_TrackSegmentCount, GR_XOR );
+        Trace_Une_Piste( panel, DC, g_FirstTrackSegment, g_CurrentTrackList.GetCount(), GR_XOR );
         ( (WinEDA_BasePcbFrame*) (panel->m_Parent) )->trace_ratsnest_pad( DC );
     }
 
@@ -645,10 +687,11 @@ void ShowNewTrackWhenMovingCursor( WinEDA_DrawPanel* panel, wxDC* DC, bool erase
     g_CurrentTrackSegment->SetLayer( screen->m_Active_Layer );
     if( ! g_DesignSettings.m_UseConnectedTrackWidth )
         g_CurrentTrackSegment->m_Width = g_DesignSettings.m_CurrentTrackWidth;
+
     if( g_TwoSegmentTrackBuild )
     {
-        TRACK* previous_track = (TRACK*) g_CurrentTrackSegment->Pback;
-        if( previous_track && (previous_track->Type() == TYPETRACK) )
+        TRACK* previous_track = g_CurrentTrackSegment->Back();
+        if( previous_track  &&  previous_track->Type()==TYPE_TRACK )
         {
             previous_track->SetLayer( screen->m_Active_Layer );
             if( ! g_DesignSettings.m_UseConnectedTrackWidth )
@@ -658,17 +701,21 @@ void ShowNewTrackWhenMovingCursor( WinEDA_DrawPanel* panel, wxDC* DC, bool erase
 
     if( Track_45_Only )
     {
-        if( g_TwoSegmentTrackBuild ) {
-        g_CurrentTrackSegment->m_End = ActiveScreen->m_Curseur;
-        if (Drc_On)
-        PushTrack(panel);
-            ComputeBreakPoint( g_CurrentTrackSegment, g_TrackSegmentCount,
-           g_CurrentTrackSegment->m_End);
-    }
+        if( g_TwoSegmentTrackBuild )
+        {
+            g_CurrentTrackSegment->m_End = ActiveScreen->m_Curseur;
+
+            if( Drc_On )
+                PushTrack(panel);
+
+            ComputeBreakPoint( g_CurrentTrackSegment, g_CurrentTrackList.GetCount(),
+               g_CurrentTrackSegment->m_End );
+        }
         else
         {
             /* Calcul de l'extremite de la piste pour orientations permises:
-             *                              horiz,vertical ou 45 degre */
+             * horiz,vertical ou 45 degre
+             */
             Calcule_Coord_Extremite_45( g_CurrentTrackSegment->m_Start.x,
                                         g_CurrentTrackSegment->m_Start.y,
                                         &g_CurrentTrackSegment->m_End.x,
@@ -680,7 +727,8 @@ void ShowNewTrackWhenMovingCursor( WinEDA_DrawPanel* panel, wxDC* DC, bool erase
         g_CurrentTrackSegment->m_End = screen->m_Curseur;
     }
 
-    Trace_Une_Piste( panel, DC, g_FirstTrackSegment, g_TrackSegmentCount, GR_XOR );
+    D( g_CurrentTrackList.VerifyListIntegrity(); );
+    Trace_Une_Piste( panel, DC, g_FirstTrackSegment, g_CurrentTrackList.GetCount(), GR_XOR );
 
     DisplayOpt.DisplayTrackIsol    = IsolTmp;
     DisplayOpt.DisplayPcbTrackFill = Track_fill_copy;
@@ -705,8 +753,12 @@ void Calcule_Coord_Extremite_45( int ox, int oy, int* fx, int* fy )
 
     deltax = ActiveScreen->m_Curseur.x - ox;
     deltay = ActiveScreen->m_Curseur.y - oy;
+
     /* calcul de l'angle preferentiel : 0, 45 , 90 degre */
-    deltax = abs( deltax ); deltay = abs( deltay ); angle = 45;
+    deltax = abs( deltax );
+    deltay = abs( deltay );
+    angle = 45;
+
     if( deltax >= deltay )
     {
         if( deltax == 0 )
@@ -717,6 +769,7 @@ void Calcule_Coord_Extremite_45( int ox, int oy, int* fx, int* fy )
     else
     {
         angle = 45;
+
         if( deltay == 0 )
             angle = 90;
         else if( ( (deltax << 6 ) / deltay ) < 26 )
@@ -731,12 +784,15 @@ void Calcule_Coord_Extremite_45( int ox, int oy, int* fx, int* fy )
         break;
 
     case 45:
-        deltax = MIN( deltax, deltay ); deltay = deltax;
+        deltax = MIN( deltax, deltay );
+        deltay = deltax;
+
         /* recalcul des signes de deltax et deltay */
         if( (ActiveScreen->m_Curseur.x - ox) < 0 )
             deltax = -deltax;
         if( (ActiveScreen->m_Curseur.y - oy) < 0 )
             deltay = -deltay;
+
         *fx = ox + deltax;
         *fy = oy + deltay;
         break;
@@ -766,8 +822,8 @@ void ComputeBreakPoint( TRACK* track, int SegmentCount, wxPoint end )
     if( track == NULL )
         return;
 
-    TRACK* NewTrack = track;
-    track = (TRACK*) track->Pback;
+    TRACK* newTrack = track;
+    track = track->Back();
     SegmentCount--;
     if( track )
     {
@@ -778,11 +834,11 @@ void ComputeBreakPoint( TRACK* track, int SegmentCount, wxPoint end )
         iDy = abs( iDy );
     }
 
-    TRACK* LastTrack = track ? (TRACK*) track->Pback : NULL;
-    if( LastTrack )
+    TRACK* lastTrack = track ? track->Back() : NULL;
+    if( lastTrack )
     {
-        if( (LastTrack->m_End.x == LastTrack->m_Start.x)
-           || (LastTrack->m_End.y == LastTrack->m_Start.y) )
+        if( (lastTrack->m_End.x == lastTrack->m_Start.x)
+         || (lastTrack->m_End.y == lastTrack->m_Start.y) )
         {
             iAngle = 45;
         }
@@ -815,11 +871,13 @@ void ComputeBreakPoint( TRACK* track, int SegmentCount, wxPoint end )
     case 45:
         iDx = MIN( iDx, iDy );
         iDy = iDx;
+
         /* recalcul des signes de deltax et deltay */
         if( (end.x - track->m_Start.x) < 0 )
             iDx = -iDx;
         if( (end.y - track->m_Start.y) < 0 )
             iDy = -iDy;
+
         track->m_End.x = track->m_Start.x + iDx;
         track->m_End.y = track->m_Start.y + iDy;
         break;
@@ -829,6 +887,7 @@ void ComputeBreakPoint( TRACK* track, int SegmentCount, wxPoint end )
             track->m_End.y = end.y + iDx;
         else
             track->m_End.y = end.y - iDx;
+
         track->m_End.x = track->m_Start.x;
         break;
     }
@@ -837,51 +896,47 @@ void ComputeBreakPoint( TRACK* track, int SegmentCount, wxPoint end )
     {
         if( track->IsNull() )
             track->m_End = end;
-        NewTrack->m_Start = track->m_End;
+
+        newTrack->m_Start = track->m_End;
     }
-    NewTrack->m_End = end;
+    newTrack->m_End = end;
 }
 
 
 /****************************************************************************/
-TRACK* DeleteNullTrackSegments( BOARD* pcb, TRACK* track, int* segmcount )
+void DeleteNullTrackSegments( BOARD* pcb, DLIST<TRACK>& aTrackList )
 /****************************************************************************/
 
 /* Delete track segments which have len = 0; after creating a new track
  *  return a pointer on the first segment (start of track list)
  */
 {
+    if( aTrackList.GetCount() == 0 )
+        return;
+
+    TRACK*      track = aTrackList.GetFirst();
     TRACK*      firsttrack = track;
     TRACK*      oldtrack;
-    int         nn = 0;
-    BOARD_ITEM* LockPoint;
 
-    if( track == 0 )
-        return NULL;
-    LockPoint = track->start;
+    BOARD_ITEM* LockPoint = track->start;
     while( track != NULL )
     {
         oldtrack = track;
         track    = track->Next();
         if( !oldtrack->IsNull() )
         {
-            nn++;
             continue;
         }
 
         // NULL segment, delete it
         if( firsttrack == oldtrack )
             firsttrack = track;
-        oldtrack->UnLink();
-        delete oldtrack;
+
+        delete aTrackList.Remove( oldtrack );
     }
 
-    if( segmcount )
-        *segmcount = nn;
-
-    if( nn == 0 )
-        return NULL; // all the new track segments have been deleted
-
+    if( aTrackList.GetCount() == 0 )
+        return;         // all the new track segments have been deleted
 
     // we must set the pointers on connected items and the connection status
     oldtrack = track = firsttrack;
@@ -891,13 +946,15 @@ TRACK* DeleteNullTrackSegments( BOARD* pcb, TRACK* track, int* segmcount )
         oldtrack      = track;
         track         = track->Next();
         oldtrack->end = track;
+
         if( track )
             track->start = oldtrack;
+
         oldtrack->SetStatus( 0 );
     }
 
     firsttrack->start = LockPoint;
-    if( LockPoint && (LockPoint->Type() == TYPEPAD ) )
+    if( LockPoint &&  LockPoint->Type()==TYPE_PAD )
         firsttrack->SetState( BEGIN_ONPAD, ON );
 
     track = firsttrack;
@@ -917,8 +974,6 @@ TRACK* DeleteNullTrackSegments( BOARD* pcb, TRACK* track, int* segmcount )
         }
         track = next_track;
     }
-
-    return firsttrack;
 }
 
 
@@ -942,10 +997,8 @@ void EnsureEndTrackOnPad( D_PAD* Pad )
     if( !g_CurrentTrackSegment->IsNull() )
     {
         /* Must create a new segment, from track end to pad center */
-        g_CurrentTrackSegment = lasttrack->Copy();
-        g_TrackSegmentCount++;
-        lasttrack->Pnext = g_CurrentTrackSegment;
-        g_CurrentTrackSegment->Pback = lasttrack;
+        g_CurrentTrackList.PushBack( lasttrack->Copy() );
+
         lasttrack->end = g_CurrentTrackSegment;
     }
 
@@ -955,3 +1008,4 @@ void EnsureEndTrackOnPad( D_PAD* Pad )
     g_CurrentTrackSegment->end = Pad;
     g_CurrentTrackSegment->SetState( END_ONPAD, ON );
 }
+

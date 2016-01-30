@@ -9,11 +9,11 @@
  */
 
 #include "fctsys.h"
-
 #include "common.h"
-#include "gerbview.h"
-
 #include "id.h"
+#include "class_drawpanel.h"
+
+#include "gerbview.h"
 #include "protos.h"
 
 /* Routines Locales : */
@@ -30,7 +30,7 @@ BOARD_ITEM* WinEDA_GerberFrame::GerberGeneralLocateAndDisplay()
 
 
 /****************************************************************/
-void WinEDA_BasePcbFrame::GeneralControle( wxDC* DC, wxPoint Mouse )
+void WinEDA_GerberFrame::GeneralControle( wxDC* DC, wxPoint Mouse )
 /****************************************************************/
 
 /* traitement des touches de fonctions utilisees ds tous les menus
@@ -41,7 +41,7 @@ void WinEDA_BasePcbFrame::GeneralControle( wxDC* DC, wxPoint Mouse )
  *  Remise a 0 de l'origine des coordonnees relatives
  */
 {
-    wxSize  delta;
+    wxRealPoint  delta;
     wxPoint curpos, oldpos;
     int     hotkey = 0;
 
@@ -62,8 +62,9 @@ void WinEDA_BasePcbFrame::GeneralControle( wxDC* DC, wxPoint Mouse )
     curpos = DrawPanel->CursorRealPosition( Mouse );
     oldpos = GetScreen()->m_Curseur;
 
-    delta.x = GetScreen()->GetGrid().x / GetScreen()->GetZoom();
-    delta.y = GetScreen()->GetGrid().y / GetScreen()->GetZoom();
+    delta = GetScreen()->GetGrid();
+    GetScreen()->Scale( delta );
+
     if( delta.x == 0 )
         delta.x = 1;
     if( delta.y == 0 )
@@ -71,62 +72,27 @@ void WinEDA_BasePcbFrame::GeneralControle( wxDC* DC, wxPoint Mouse )
 
     switch( g_KeyPressed )
     {
-    case EDA_PANNING_UP_KEY:
-        OnZoom( ID_ZOOM_PANNING_UP );
-        curpos = GetScreen()->m_Curseur;
-        break;
-
-    case EDA_PANNING_DOWN_KEY:
-        OnZoom( ID_ZOOM_PANNING_DOWN );
-        curpos = GetScreen()->m_Curseur;
-        break;
-
-    case EDA_PANNING_LEFT_KEY:
-        OnZoom( ID_ZOOM_PANNING_LEFT );
-        curpos = GetScreen()->m_Curseur;
-        break;
-
-    case EDA_PANNING_RIGHT_KEY:
-        OnZoom( ID_ZOOM_PANNING_RIGHT );
-        curpos = GetScreen()->m_Curseur;
-        break;
-
-    case EDA_ZOOM_IN_FROM_MOUSE:
-        OnZoom( ID_ZOOM_IN_KEY );
-        curpos = GetScreen()->m_Curseur;
-        break;
-
-    case EDA_ZOOM_OUT_FROM_MOUSE:
-        OnZoom( ID_ZOOM_OUT_KEY );
-        curpos = GetScreen()->m_Curseur;
-        break;
-
-    case EDA_ZOOM_CENTER_FROM_MOUSE:
-        OnZoom( ID_ZOOM_CENTER_KEY );
-        curpos = GetScreen()->m_Curseur;
-        break;
-
     case WXK_NUMPAD8:       /* Deplacement curseur vers le haut */
     case WXK_UP:
-        Mouse.y -= delta.y;
+        Mouse.y -= (int) round(delta.y);
         DrawPanel->MouseTo( Mouse );
         break;
 
     case WXK_NUMPAD2:       /* Deplacement curseur vers le bas */
     case WXK_DOWN:
-        Mouse.y += delta.y;
+        Mouse.y += (int) round(delta.y);
         DrawPanel->MouseTo( Mouse );
         break;
 
     case WXK_NUMPAD4:       /* Deplacement curseur vers la gauche */
     case WXK_LEFT:
-        Mouse.x -= delta.x;
+        Mouse.x -= (int) round(delta.x);
         DrawPanel->MouseTo( Mouse );
         break;
 
     case WXK_NUMPAD6:      /* Deplacement curseur vers la droite */
     case WXK_RIGHT:
-        Mouse.x += delta.x;
+        Mouse.x += (int) round(delta.x);
         DrawPanel->MouseTo( Mouse );
         break;
 
@@ -141,8 +107,7 @@ void WinEDA_BasePcbFrame::GeneralControle( wxDC* DC, wxPoint Mouse )
     /* Placement sur la grille generale */
     PutOnGrid( &GetScreen()->m_Curseur );
 
-    if( (oldpos.x != GetScreen()->m_Curseur.x)
-     || (oldpos.y != GetScreen()->m_Curseur.y) )
+    if( oldpos != GetScreen()->m_Curseur )
     {
         curpos = GetScreen()->m_Curseur;
         GetScreen()->m_Curseur = oldpos;

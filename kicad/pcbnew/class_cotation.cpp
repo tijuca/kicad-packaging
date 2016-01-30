@@ -4,15 +4,16 @@
 
 #include "fctsys.h"
 #include "gr_basic.h"
-
 #include "common.h"
 #include "pcbnew.h"
 #include "trigo.h"
 #include "wxstruct.h"
+#include "class_drawpanel.h"
+#include "kicad_string.h"
 
 
-COTATION::COTATION( BOARD_ITEM* StructFather ) :
-    BOARD_ITEM( StructFather, TYPECOTATION )
+COTATION::COTATION( BOARD_ITEM* aParent ) :
+    BOARD_ITEM( aParent, TYPE_COTATION )
 {
     m_Layer = DRAW_LAYER;
     m_Width = 50;
@@ -27,32 +28,6 @@ COTATION::COTATION( BOARD_ITEM* StructFather ) :
 COTATION::~COTATION()
 {
     delete m_Text;
-}
-
-
-/* supprime du chainage la structure Struct
- *  les structures arrieres et avant sont chainees directement
- */
-void COTATION::UnLink()
-{
-    /* Modification du chainage arriere */
-    if( Pback )
-    {
-        if( Pback->Type() != TYPEPCB )
-        {
-            Pback->Pnext = Pnext;
-        }
-        else /* Le chainage arriere pointe sur la structure "Pere" */
-        {
-            ( (BOARD*) Pback )->m_Drawings = (BOARD_ITEM*) Pnext;
-        }
-    }
-
-    /* Modification du chainage avant */
-    if( Pnext )
-        Pnext->Pback = Pback;
-
-    Pnext = Pback = NULL;
 }
 
 
@@ -146,12 +121,14 @@ bool COTATION::ReadCotationDescr( FILE* File, int* LineNum )
 
         if( Line[0] == 'P' )
         {
+			int normal_display = 1;
             sscanf( Line + 2, " %d %d %d %d %d %d %d",
                     &m_Text->m_Pos.x, &m_Text->m_Pos.y,
                     &m_Text->m_Size.x, &m_Text->m_Size.y,
                     &m_Text->m_Width, &m_Text->m_Orient,
-                    &m_Text->m_Miroir );
+                    &normal_display );
 
+			m_Text->m_Mirror = normal_display ? false : true;
             m_Pos = m_Text->m_Pos;
             continue;
         }
@@ -351,7 +328,7 @@ bool COTATION::Save( FILE* aFile ) const
              m_Text->m_Pos.x, m_Text->m_Pos.y,
              m_Text->m_Size.x, m_Text->m_Size.y,
              m_Text->m_Width, m_Text->m_Orient,
-             m_Text->m_Miroir );
+             m_Text->m_Mirror ? 0 : 1 );
 
     fprintf( aFile, "Sb %d %d %d %d %d %d\n", S_SEGMENT,
              Barre_ox, Barre_oy,
@@ -403,7 +380,6 @@ void COTATION::Draw( WinEDA_DrawPanel* panel, wxDC* DC,
  */
 {
     int ox, oy, typeaff, width, gcolor;
-    int zoom = panel->GetScreen()->GetZoom();
 
     ox = offset.x;
     oy = offset.y;
@@ -416,9 +392,9 @@ void COTATION::Draw( WinEDA_DrawPanel* panel, wxDC* DC,
 
     GRSetDrawMode( DC, mode_color );
     typeaff = DisplayOpt.DisplayDrawItems;
-
     width   = m_Width;
-    if( width / zoom < 2 )
+
+    if( panel->GetScreen()->Scale( width ) < 2 )
         typeaff = FILAIRE;
 
     switch( typeaff )

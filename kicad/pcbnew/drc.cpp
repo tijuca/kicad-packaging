@@ -30,12 +30,12 @@
 /****************************/
 
 #include "fctsys.h"
-#include "gr_basic.h"
-
 #include "common.h"
 #include "pcbnew.h"
+#include "class_drawpanel.h"
 #include "autorout.h"
 #include "trigo.h"
+#include "gestfich.h"
 
 #include "protos.h"
 
@@ -102,7 +102,7 @@ DRC::DRC( WinEDA_PcbFrame* aPcbWindow )
 {
     m_mainWindow = aPcbWindow;
     m_drawPanel  = aPcbWindow->DrawPanel;
-    m_pcb        = aPcbWindow->m_Pcb;
+    m_pcb        = aPcbWindow->GetBoard();
     m_ui         = 0;
 
     // establish initial values for everything:
@@ -145,7 +145,7 @@ int DRC::Drc( TRACK* aRefSegm, TRACK* aList )
 {
     updatePointers();
 
-    if( !doTrackDrc( aRefSegm, aList ) )
+    if( !doTrackDrc( aRefSegm, aList, true ) )
     {
         wxASSERT( m_currentMarker );
 
@@ -187,6 +187,10 @@ int DRC::Drc( ZONE_CONTAINER * aArea, int CornerIndex )
 
 void DRC::RunTests()
 {
+    // Ensure ratsnest is up to date:
+    if( (m_pcb->m_Status_Pcb & LISTE_CHEVELU_OK) == 0 )
+        m_mainWindow->Compile_Ratsnest( NULL, true );
+
     // someone should have cleared the two lists before calling this.
 
     // test pad to pad clearances, nothing to do with tracks, vias or zones.
@@ -195,6 +199,10 @@ void DRC::RunTests()
 
     // test track and via clearances to other tracks, pads, and vias
     testTracks();
+
+    // Before testing segments and unconnected, refill all zones:
+    // this is a good caution, because filled areas can be outdated.
+    m_mainWindow->Fill_All_Zones( false );
 
     // test zone clearances to other zones, pads, tracks, and vias
     testZones( m_doZonesTest );
@@ -224,7 +232,7 @@ void DRC::updatePointers()
 {
     // update my pointers, m_mainWindow is the only unchangable one
     m_drawPanel = m_mainWindow->DrawPanel;
-    m_pcb = m_mainWindow->m_Pcb;
+    m_pcb = m_mainWindow->GetBoard();
 
     if ( m_ui ) // Use diag list boxes only in DRC dialog
     {
@@ -239,7 +247,7 @@ void DRC::testTracks()
 {
     for( TRACK* segm = m_pcb->m_Track;  segm && segm->Next();  segm=segm->Next() )
     {
-        if( !doTrackDrc( segm, segm->Next() ) )
+        if( !doTrackDrc( segm, segm->Next(), true ) )
         {
             wxASSERT( m_currentMarker );
             m_pcb->Add( m_currentMarker );
@@ -311,16 +319,21 @@ void DRC::testUnconnected()
     }
 }
 
-
+/**********************************************/
 void DRC::testZones(bool adoTestFillSegments)
+/**********************************************/
 {
 
     // Test copper areas for valide netcodes
     // if a netcode is < 0 the netname was not found when reading a netlist
+    // if a netcode is == 0 the netname is void, and the zone is not connected.
+    // This is allowed, but i am not sure this is a good idea
     for( int ii = 0; ii < m_pcb->GetAreaCount(); ii++ )
     {
         ZONE_CONTAINER* Area_To_Test = m_pcb->GetArea( ii );
-        if( Area_To_Test->GetNet() <= 0 )
+        if( ! Area_To_Test->IsOnCopperLayer() )
+            continue;
+        if( Area_To_Test->GetNet() < 0 )
         {
             m_currentMarker = fillMarker( Area_To_Test,
                             DRCE_NON_EXISTANT_NET_FOR_ZONE_OUTLINE, m_currentMarker );
@@ -334,29 +347,22 @@ void DRC::testZones(bool adoTestFillSegments)
 
     TRACK* zoneSeg;
 
-    /* this was for display purposes, don't know that we need it anymore
-    m_pcb->m_NbSegmZone = 0;
-    for( zoneSeg = m_pcb->m_Zone;   zoneSeg;   zoneSeg = zoneSeg->Next() )
-        ++m_pcb->m_NbSegmZone;
-    */
-    if ( ! adoTestFillSegments ) return;
-    for( zoneSeg = m_pcb->m_Zone;  zoneSeg && zoneSeg->Next(); zoneSeg=zoneSeg->Next() )
+    if( !adoTestFillSegments )
+        return;
+
+    for( zoneSeg = m_pcb->m_Zone;  zoneSeg && zoneSeg->Next(); zoneSeg = zoneSeg->Next() )
     {
         // Test zoneSeg with other zone segments and with all pads
-        if( !doTrackDrc( zoneSeg, zoneSeg->Next() ) )
+        if( !doTrackDrc( zoneSeg, zoneSeg->Next(), true ) )
         {
             wxASSERT( m_currentMarker );
             m_pcb->Add( m_currentMarker );
             m_currentMarker = 0;
         }
 
-        // Test zoneSeg with all track segments
-        int tmp = m_pcb->m_NbPads;
+        // Pads already tested: disable pad test
 
-        m_pcb->m_NbPads = 0;    // Pads already tested: disable pad test
-        bool rc = doTrackDrc( zoneSeg, m_pcb->m_Track );
-        m_pcb->m_NbPads = tmp;
-
+        bool rc = doTrackDrc( zoneSeg, m_pcb->m_Track, false );
         if( !rc )
         {
             wxASSERT( m_currentMarker );
@@ -380,13 +386,13 @@ MARKER* DRC::fillMarker( TRACK* aTrack, BOARD_ITEM* aItem, int aErrorCode, MARKE
         textB = aItem->MenuText( m_pcb );
         posB  = aItem->GetPosition();
 
-        if( aItem->Type() == TYPEPAD )
+        if( aItem->Type() == TYPE_PAD )
             position = aItem->GetPosition();
 
-        else if( aItem->Type() == TYPEVIA )
+        else if( aItem->Type() == TYPE_VIA )
             position = aItem->GetPosition();
 
-        else if( aItem->Type() == TYPETRACK )
+        else if( aItem->Type() == TYPE_TRACK )
         {
             TRACK*  track  = (TRACK*) aItem;
             wxPoint endPos = track->m_End;
@@ -481,7 +487,7 @@ MARKER* DRC::fillMarker( const ZONE_CONTAINER * aArea, const wxPoint & aPos, int
 
 
 /***********************************************************************/
-bool DRC::doTrackDrc( TRACK* aRefSeg, TRACK* aStart )
+bool DRC::doTrackDrc( TRACK* aRefSeg, TRACK* aStart, bool testPads )
 /***********************************************************************/
 {
     TRACK*  track;
@@ -506,7 +512,7 @@ bool DRC::doTrackDrc( TRACK* aRefSeg, TRACK* aStart )
 
 
     /* Phase 0 : Test vias : */
-    if( aRefSeg->Type() == TYPEVIA )
+    if( aRefSeg->Type() == TYPE_VIA )
     {
         // test if via's hole is bigger than its diameter
         // This test seems necessary since the dialog box that displays the
@@ -568,57 +574,61 @@ bool DRC::doTrackDrc( TRACK* aRefSeg, TRACK* aStart )
 
     // Compute the min distance to pads
     w_dist = aRefSeg->m_Width >> 1;
-    for( int ii=0;  ii<m_pcb->m_NbPads;  ++ii )
-    {
-        D_PAD* pad = m_pcb->m_Pads[ii];
 
-        /* No problem if pads are on an other layer,
-         * But if a drill hole exists	(a pad on a single layer can have a hole!)
-         * we must test the hole
-         */
-        if( (pad->m_Masque_Layer & layerMask ) == 0 )
+    if( testPads )
+    {
+        for( unsigned ii=0;  ii<m_pcb->m_Pads.size();  ++ii )
         {
-            /* We must test the pad hole. In order to use the function "checkClearanceSegmToPad",
-             * a pseudo pad is used, with a shape and a size like the hole
+            D_PAD* pad = m_pcb->m_Pads[ii];
+
+            /* No problem if pads are on an other layer,
+             * But if a drill hole exists	(a pad on a single layer can have a hole!)
+             * we must test the hole
              */
-            if( pad->m_Drill.x == 0 )
+            if( (pad->m_Masque_Layer & layerMask ) == 0 )
+            {
+                /* We must test the pad hole. In order to use the function "checkClearanceSegmToPad",
+                 * a pseudo pad is used, with a shape and a size like the hole
+                 */
+                if( pad->m_Drill.x == 0 )
+                    continue;
+
+                pseudo_pad.m_Size     = pad->m_Drill;
+                pseudo_pad.SetPosition( pad->GetPosition() );
+                pseudo_pad.m_PadShape = pad->m_DrillShape;
+                pseudo_pad.m_Orient   = pad->m_Orient;
+                pseudo_pad.ComputeRayon();      // compute the radius
+
+                m_spotcx = pseudo_pad.GetPosition().x - org_X;
+                m_spotcy = pseudo_pad.GetPosition().y - org_Y;
+
+                if( !checkClearanceSegmToPad( &pseudo_pad, w_dist,
+                                            g_DesignSettings.m_TrackClearence ) )
+                {
+                    m_currentMarker = fillMarker( aRefSeg, pad,
+                                        DRCE_TRACK_NEAR_THROUGH_HOLE, m_currentMarker );
+                    return false;
+                }
+                continue;
+            }
+
+            /* The pad must be in a net (i.e pt_pad->GetNet() != 0 )
+             * but no problem if the pad netcode is the current netcode (same net)
+             */
+            if( pad->GetNet() &&	// the pad must be connected
+                net_code_ref == pad->GetNet() )	// the pad net is the same as current net -> Ok
                 continue;
 
-            pseudo_pad.m_Size     = pad->m_Drill;
-            pseudo_pad.SetPosition( pad->GetPosition() );
-            pseudo_pad.m_PadShape = pad->m_DrillShape;
-            pseudo_pad.m_Orient   = pad->m_Orient;
-            pseudo_pad.ComputeRayon();      // compute the radius
-
-            m_spotcx = pseudo_pad.GetPosition().x - org_X;
-            m_spotcy = pseudo_pad.GetPosition().y - org_Y;
-
-            if( !checkClearanceSegmToPad( &pseudo_pad, w_dist,
-                                        g_DesignSettings.m_TrackClearence ) )
+            // DRC for the pad
+            shape_pos = pad->ReturnShapePos();
+            m_spotcx   = shape_pos.x - org_X;
+            m_spotcy   = shape_pos.y - org_Y;
+            if( !checkClearanceSegmToPad( pad, w_dist, g_DesignSettings.m_TrackClearence ) )
             {
                 m_currentMarker = fillMarker( aRefSeg, pad,
-                                    DRCE_TRACK_NEAR_THROUGH_HOLE, m_currentMarker );
+                                    DRCE_TRACK_NEAR_PAD, m_currentMarker );
                 return false;
             }
-            continue;
-        }
-
-        /* The pad must be in a net (i.e pt_pad->GetNet() != 0 )
-         * but no problem if the pad netcode is the current netcode (same net)
-         */
-        if( pad->GetNet() &&	// the pad must be connected
-            net_code_ref == pad->GetNet() )	// the pad net is the same as current net -> Ok
-            continue;
-
-        // DRC for the pad
-        shape_pos = pad->ReturnShapePos();
-        m_spotcx   = shape_pos.x - org_X;
-        m_spotcy   = shape_pos.y - org_Y;
-        if( !checkClearanceSegmToPad( pad, w_dist, g_DesignSettings.m_TrackClearence ) )
-        {
-            m_currentMarker = fillMarker( aRefSeg, pad,
-                                DRCE_TRACK_NEAR_PAD, m_currentMarker );
-            return false;
         }
     }
 
@@ -652,7 +662,7 @@ bool DRC::doTrackDrc( TRACK* aRefSeg, TRACK* aStart )
         w_dist += g_DesignSettings.m_TrackClearence;
 
         // If the reference segment is a via, we test it here
-        if( aRefSeg->Type() == TYPEVIA )
+        if( aRefSeg->Type() == TYPE_VIA )
         {
             int orgx, orgy; // origine du repere d'axe X = segment a comparer
             int angle = 0;  // angle du segment a tester;
@@ -666,7 +676,7 @@ bool DRC::doTrackDrc( TRACK* aRefSeg, TRACK* aStart )
             x0 = aRefSeg->m_Start.x - orgx;
             y0 = aRefSeg->m_Start.y - orgy;
 
-            if( track->Type() == TYPEVIA )
+            if( track->Type() == TYPE_VIA )
             {
                 // Test distance between two vias
                 if( (int) hypot( x0, y0 ) < w_dist )
@@ -708,7 +718,7 @@ bool DRC::doTrackDrc( TRACK* aRefSeg, TRACK* aStart )
         RotatePoint( &x0, &y0, m_segmAngle );
         RotatePoint( &xf, &yf, m_segmAngle );
 
-        if( track->Type() == TYPEVIA )
+        if( track->Type() == TYPE_VIA )
         {
             if( checkMarginToCircle( x0, y0, w_dist, m_segmLength ) )
                 continue;
@@ -909,7 +919,7 @@ bool DRC::doPadToPadsDrc( D_PAD* aRefPad, LISTE_PAD* aStart, LISTE_PAD* aEnd,
 
         /* No problem if pads are from the same footprint
          *  and have the same pad number ( equivalent pads  )  */
-        if( (pad->m_Parent == aRefPad->m_Parent) && (pad->m_NumPadName == aRefPad->m_NumPadName) )
+        if( (pad->GetParent() == aRefPad->GetParent()) && (pad->m_NumPadName == aRefPad->m_NumPadName) )
             continue;
 
         if( !checkClearancePadToPad( aRefPad, pad, g_DesignSettings.m_TrackClearence ) )

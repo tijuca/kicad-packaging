@@ -3,11 +3,11 @@
 /******************************************/
 
 #include "fctsys.h"
-
 #include "common.h"
+#include "class_drawpanel.h"
+
 #include "pcbnew.h"
 #include "autorout.h"
-
 #include "protos.h"
 
 
@@ -41,7 +41,7 @@ void WinEDA_PcbFrame::Attribut_Track( TRACK* track, wxDC* DC, bool Flag_On )
     TRACK* Track;
     int    nb_segm;
 
-    if( (track == NULL ) || (track->Type() == TYPEZONE) )
+    if( (track == NULL ) || (track->Type() == TYPE_ZONE) )
         return;
 
     DrawPanel->CursorOff( DC );   // Erase cursor shape
@@ -51,7 +51,7 @@ void WinEDA_PcbFrame::Attribut_Track( TRACK* track, wxDC* DC, bool Flag_On )
     {
         Track->SetState( SEGM_FIXE, Flag_On );
         Track->SetState( BUSY, OFF );
-        Track = (TRACK*) Track->Pnext;
+        Track = Track->Next();
     }
 
     DrawPanel->CursorOn( DC );    // Display cursor shape
@@ -69,12 +69,12 @@ void WinEDA_PcbFrame::Attribut_net( wxDC* DC, int net_code, bool Flag_On )
  *  if net_code < 0 all the segments are modified.
  */
 {
-    TRACK* Track = m_Pcb->m_Track;
+    TRACK* Track = GetBoard()->m_Track;
 
     /* search the first segment for the selected net_code */
     if( net_code >= 0 )
     {
-        for( ; Track != NULL; Track = (TRACK*) Track->Pnext )
+        for( ; Track != NULL; Track = Track->Next() )
         {
             if( net_code == Track->GetNet() )
                 break;
@@ -86,6 +86,7 @@ void WinEDA_PcbFrame::Attribut_net( wxDC* DC, int net_code, bool Flag_On )
     {
         if( (net_code >= 0 ) && (net_code != Track->GetNet()) )
             break;
+
         GetScreen()->SetModify();
         Track->SetState( SEGM_FIXE, Flag_On );
         Track->Draw( DrawPanel, DC, GR_OR | GR_SURBRILL );

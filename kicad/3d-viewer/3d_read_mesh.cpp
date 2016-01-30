@@ -10,17 +10,16 @@
 #endif
 
 #include "fctsys.h"
-
 #include "common.h"
 #include "macros.h"
-
+#include "kicad_string.h"
 
 #include "3d_struct.h"
 #include "3d_viewer.h"
 
 
 /***********************************/
-int Struct3D_Master:: ReadData()
+int S3D_MASTER:: ReadData()
 /************************************/
 {
     char     line[1024], * text;
@@ -81,7 +80,7 @@ int Struct3D_Master:: ReadData()
 
 
 /*********************************************************/
-int Struct3D_Master:: ReadMaterial( FILE* file, int* LineNum )
+int S3D_MASTER:: ReadMaterial( FILE* file, int* LineNum )
 /*********************************************************/
 
 /*
@@ -100,7 +99,7 @@ int Struct3D_Master:: ReadMaterial( FILE* file, int* LineNum )
 {
     char          line[512], * text, * command;
     wxString      mat_name;
-    S3D_Material* material = NULL;
+    S3D_MATERIAL* material = NULL;
 
     // Lecture de la commande:
     command  = strtok( NULL, " \t\n\r" );
@@ -108,8 +107,7 @@ int Struct3D_Master:: ReadMaterial( FILE* file, int* LineNum )
     mat_name = CONV_FROM_UTF8( text );
     if( stricmp( command, "USE" ) == 0 )
     {
-        for( material = m_Materials; material != NULL;
-             material = (S3D_Material*) material->Pnext )
+        for( material = m_Materials;  material;  material = material->Next() )
         {
             if( material->m_Name == mat_name )
             {
@@ -124,10 +122,10 @@ int Struct3D_Master:: ReadMaterial( FILE* file, int* LineNum )
 
     if( stricmp( command, "DEF" ) == 0 )
     {
-        material = new S3D_Material( this, mat_name );
+        material = new S3D_MATERIAL( this, mat_name );
 
-        material->Pnext = m_Materials;
-        m_Materials = material;
+        Insert( material );
+
         while( GetLine( file, line, LineNum, 512 ) )
         {
             text = strtok( line, " \t\n\r" );
@@ -187,7 +185,7 @@ int Struct3D_Master:: ReadMaterial( FILE* file, int* LineNum )
 
 
 /**********************************************************/
-int Struct3D_Master::ReadChildren( FILE* file, int* LineNum )
+int S3D_MASTER::ReadChildren( FILE* file, int* LineNum )
 /***********************************************************/
 {
     char line[1024], * text;
@@ -216,7 +214,7 @@ int Struct3D_Master::ReadChildren( FILE* file, int* LineNum )
 
 
 /********************************************************/
-int Struct3D_Master::ReadShape( FILE* file, int* LineNum )
+int S3D_MASTER::ReadShape( FILE* file, int* LineNum )
 /********************************************************/
 {
     char line[1024], * text;
@@ -251,7 +249,7 @@ int Struct3D_Master::ReadShape( FILE* file, int* LineNum )
 
 
 /*************************************************************/
-int Struct3D_Master::ReadAppearance( FILE* file, int* LineNum )
+int S3D_MASTER::ReadAppearance( FILE* file, int* LineNum )
 /*************************************************************/
 {
     char line[1024], * text;
@@ -297,7 +295,7 @@ double* ReadCoordsList( FILE* file, char* text_buffer, int* bufsize, int* LineNu
  *        0.923880 -4.09802e-6 0.382683,
  *        0.707107 -9.38186e-7 0.707107]
  *      }
- * 
+ *
  *  Return the coordinate list
  *  text_buffer contains the first line of this node :
  *     "coord Coordinate { point ["
@@ -382,7 +380,7 @@ double* ReadCoordsList( FILE* file, char* text_buffer, int* bufsize, int* LineNu
 
 
 /***********************************************************/
-int Struct3D_Master::ReadGeometry( FILE* file, int* LineNum )
+int S3D_MASTER::ReadGeometry( FILE* file, int* LineNum )
 /***********************************************************/
 {
     char    line[1024], buffer[1024], * text;

@@ -4,6 +4,7 @@
 /* include in modedit.cpp						*/
 /************************************************/
 
+#include "confirm.h"
 #include "dialog_edit_module.h"
 #include <wx/version.h>
 
@@ -100,9 +101,9 @@ void WinEDA_ModulePropertiesFrame::CreateControls()
 
     /* creation des autres formes 3D */
     Panel3D_Ctrl*    panel3D = m_Panel3D, * nextpanel3D;
-    Struct3D_Master* draw3D  = m_CurrentModule->m_3D_Drawings;
-    draw3D = (Struct3D_Master*) draw3D->Pnext;
-    for( ; draw3D != NULL; draw3D = (Struct3D_Master*) draw3D->Pnext )
+    S3D_MASTER* draw3D  = m_CurrentModule->m_3D_Drawings;
+    draw3D = (S3D_MASTER*) draw3D->Next();
+    for( ; draw3D != NULL; draw3D = (S3D_MASTER*) draw3D->Next() )
     {
         nextpanel3D = new Panel3D_Ctrl( this, m_NoteBook, -1, draw3D );
         m_NoteBook->AddPage( nextpanel3D, _( "3D settings" ), FALSE );
@@ -303,7 +304,7 @@ void WinEDA_ModulePropertiesFrame::BuildPanelModuleProperties( bool FullOptions 
 
         StaticText = new wxStaticText( m_PanelProperties,
                                        wxID_STATIC, _(
-                                           "Orient (0.1 deg)" ), wxDefaultPosition, wxDefaultSize,
+                                           "Orientation (in 0.1 degrees)" ), wxDefaultPosition, wxDefaultSize,
                                        0 );
         PropLeftSizer->Add( StaticText, 0, wxGROW | wxLEFT | wxRIGHT | wxTOP | wxADJUST_MINSIZE, 5 );
         msg << m_CurrentModule->m_Orient;
@@ -357,7 +358,7 @@ void WinEDA_ModulePropertiesFrame::BuildPanelModuleProperties( bool FullOptions 
 #endif
     PropRightSizer->Add( m_AutoPlaceCtrl, 0, wxGROW | wxALL, 5 );
 
-    StaticText = new wxStaticText( m_PanelProperties, -1, _( "Rot 90" ) );
+    StaticText = new wxStaticText( m_PanelProperties, -1, _( "Rotation 90 degree" ) );
     PropRightSizer->Add( StaticText, 0, wxGROW | wxLEFT | wxRIGHT | wxTOP | wxADJUST_MINSIZE, 5 );
     m_CostRot90Ctrl = new wxSlider( m_PanelProperties, -1,
                                     m_CurrentModule->m_CntRot90, 0, 10, wxDefaultPosition,
@@ -365,7 +366,7 @@ void WinEDA_ModulePropertiesFrame::BuildPanelModuleProperties( bool FullOptions 
                                     wxSL_HORIZONTAL + wxSL_AUTOTICKS + wxSL_LABELS );
     PropRightSizer->Add( m_CostRot90Ctrl, 0, wxGROW | wxLEFT | wxRIGHT | wxBOTTOM, 5 );
 
-    StaticText = new wxStaticText( m_PanelProperties, -1, _( "Rot 180" ) );
+    StaticText = new wxStaticText( m_PanelProperties, -1, _( "Rotation 180 degree" ) );
     PropRightSizer->Add( StaticText, 0, wxGROW | wxLEFT | wxRIGHT | wxTOP | wxADJUST_MINSIZE, 5 );
     m_CostRot180Ctrl = new wxSlider( m_PanelProperties,
                                      -1,
@@ -382,7 +383,7 @@ void WinEDA_ModulePropertiesFrame::BuildPanelModuleProperties( bool FullOptions 
 /**************************************************************/
 Panel3D_Ctrl::Panel3D_Ctrl( WinEDA_ModulePropertiesFrame* parentframe,
                             wxNotebook* parent,
-                            int id, Struct3D_Master* struct3D ) :
+                            int id, S3D_MASTER* struct3D ) :
     wxPanel( parent, id )
 /**************************************************************/
 
@@ -427,7 +428,7 @@ Panel3D_Ctrl::Panel3D_Ctrl( WinEDA_ModulePropertiesFrame* parentframe,
     button->SetForegroundColour( *wxRED );
     PropRightSizer->Add( button, 0, wxGROW | wxLEFT | wxRIGHT, 5 );
 
-    if( (struct3D == NULL) || (struct3D->Pback != NULL) )
+    if( (struct3D == NULL) || (struct3D->Back() != NULL) )
     {
         button = new wxButton( this, ID_REMOVE_3D_SHAPE, _( "Remove 3D Shape" ) );
         button->SetForegroundColour( *wxRED );
@@ -562,7 +563,7 @@ void WinEDA_ModulePropertiesFrame::OnOkClick( wxCommandEvent& event )
 
     if( change_layer )
     {
-        m_Parent->m_Pcb->Change_Side_Module( m_CurrentModule, m_DC );
+        m_Parent->GetBoard()->Change_Side_Module( m_CurrentModule, m_DC );
     }
 
     if( m_AutoPlaceCtrl->GetSelection() == 1 )
@@ -594,31 +595,34 @@ void WinEDA_ModulePropertiesFrame::OnOkClick( wxCommandEvent& event )
 
     /* Mise a jour des parametres 3D */
     Panel3D_Ctrl*    panel3D = m_Panel3D;
-    Struct3D_Master* draw3D  = m_CurrentModule->m_3D_Drawings,
-    * nextdraw3D;
+    S3D_MASTER* draw3D  = m_CurrentModule->m_3D_Drawings;
+    S3D_MASTER* nextdraw3D;
     for( ; panel3D != NULL; panel3D = panel3D->m_Pnext )
     {
         draw3D->m_Shape3DName = panel3D->m_3D_ShapeName->GetValue();
         draw3D->m_MatScale    = panel3D->m_3D_Scale->GetValue();
         draw3D->m_MatRotation = panel3D->m_3D_Rotation->GetValue();
         draw3D->m_MatPosition = panel3D->m_3D_Offset->GetValue();
+
         if( ( draw3D->m_Shape3DName.IsEmpty() )
            && (draw3D != m_CurrentModule->m_3D_Drawings) )
             continue;
-        if( (draw3D->Pnext == NULL) && panel3D->m_Pnext )
+
+        if( (draw3D->Next() == NULL) && panel3D->m_Pnext )
         {
-            nextdraw3D = new Struct3D_Master( draw3D );
-            nextdraw3D->Pback = draw3D;
-            draw3D->Pnext = nextdraw3D;
+            nextdraw3D = new S3D_MASTER( draw3D );
+
+            // insert after draw3D, therefore pass ->Next() to insert before the next.
+            m_CurrentModule->m_3D_Drawings.Insert( nextdraw3D, draw3D->Next() );
         }
-        draw3D = (Struct3D_Master*) draw3D->Pnext;
+        draw3D = (S3D_MASTER*) draw3D->Next();
     }
 
     for( ; draw3D != NULL; draw3D = nextdraw3D )
     {
-        nextdraw3D = (Struct3D_Master*) draw3D->Pnext;
-        (draw3D->Pback)->Pnext = NULL;
-        delete draw3D;
+        nextdraw3D = (S3D_MASTER*) draw3D->Next();
+
+        delete m_CurrentModule->m_3D_Drawings.Remove( draw3D );
     }
 
     m_CurrentModule->Set_Rectangle_Encadrement();
@@ -735,9 +739,9 @@ void WinEDA_ModulePropertiesFrame::ReCreateFieldListBox()
     EDA_BaseStruct* item = m_CurrentModule->m_Drawings;
     while( item )
     {
-        if( item->Type() == TYPETEXTEMODULE )
+        if( item->Type() == TYPE_TEXTE_MODULE )
             m_TextListBox->Append( ( (TEXTE_MODULE*) item )->m_Text );
-        item = item->Pnext;
+        item = item->Next();
     }
 
     SetTextListButtons();
@@ -789,7 +793,7 @@ void WinEDA_ModulePropertiesFrame::EditOrDelTextModule( wxCommandEvent& event )
         int             jj   = 2;
         while( item )
         {
-            if( item->Type() == TYPETEXTEMODULE )
+            if( item->Type() == TYPE_TEXTE_MODULE )
             {
                 if( jj == TextType )   // Texte trouvé
                 {
@@ -797,7 +801,7 @@ void WinEDA_ModulePropertiesFrame::EditOrDelTextModule( wxCommandEvent& event )
                     break;
                 }
             }
-            item = item->Pnext; jj++;
+            item = item->Next(); jj++;
         }
     }
 

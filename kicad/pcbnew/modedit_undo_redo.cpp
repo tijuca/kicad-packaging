@@ -20,19 +20,19 @@ void WinEDA_ModuleEditFrame::SaveCopyInUndoList( EDA_BaseStruct* ItemToCopy,
     EDA_BaseStruct* item;
     MODULE*         CopyItem;
 
-    CopyItem = new MODULE( m_Pcb );
+    CopyItem = new MODULE( GetBoard() );
     CopyItem->Copy( (MODULE*) ItemToCopy );
-    CopyItem->m_Parent = m_Pcb;
+    CopyItem->SetParent( GetBoard() );
 
     GetScreen()->AddItemToUndoList( (EDA_BaseStruct*) CopyItem );
     /* Clear current flags (which can be temporary set by a current edit command) */
-    for( item = CopyItem->m_Drawings; item != NULL; item = item->Pnext )
+    for( item = CopyItem->m_Drawings; item != NULL; item = item->Next() )
         item->m_Flags = 0;
 
     /* Clear redo list, because after new save there is no redo to do */
     while( GetScreen()->m_RedoList )
     {
-        item = GetScreen()->m_RedoList->Pnext;
+        item = GetScreen()->m_RedoList->Next();
         delete GetScreen()->m_RedoList;
         GetScreen()->m_RedoList = item;
     }
@@ -51,11 +51,10 @@ void WinEDA_ModuleEditFrame::GetComponentFromRedoList()
     if( GetScreen()->m_RedoList == NULL )
         return;
 
-    GetScreen()->AddItemToUndoList( m_Pcb->m_Modules );
-    m_Pcb->m_Modules =
-        (MODULE*) GetScreen()->GetItemFromRedoList();
-    if( m_Pcb->m_Modules )
-        m_Pcb->m_Modules->Pnext = NULL;
+    GetScreen()->AddItemToUndoList( GetBoard()->m_Modules.PopFront() );
+
+    GetBoard()->Add( (MODULE*) GetScreen()->GetItemFromRedoList() );
+
     SetCurItem( NULL );;
     GetScreen()->SetModify();
     ReCreateHToolbar();
@@ -75,12 +74,17 @@ void WinEDA_ModuleEditFrame::GetComponentFromUndoList()
     if( GetScreen()->m_UndoList == NULL )
         return;
 
-    GetScreen()->AddItemToRedoList( m_Pcb->m_Modules );
-    m_Pcb->m_Modules =
-        (MODULE*) GetScreen()->GetItemFromUndoList();
+    GetScreen()->AddItemToRedoList( GetBoard()->m_Modules.PopFront() );
 
-    if( m_Pcb->m_Modules )
-        m_Pcb->m_Modules->Pnext = NULL;
+    MODULE* module = (MODULE*) GetScreen()->GetItemFromUndoList();
+    if( module )
+        GetBoard()->Add( module, ADD_APPEND );
+
+/*  Add() calls PushBack(), no need for this
+    if( GetBoard()->m_Modules )
+        GetBoard()->m_Modules->SetNext( NULL );
+*/
+
     GetScreen()->SetModify();
     SetCurItem( NULL );;
     ReCreateHToolbar();

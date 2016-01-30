@@ -8,7 +8,7 @@
 class DRAWSEGMENT : public BOARD_ITEM
 {
 public:
-    int     m_Width;            // 0 = line. if > 0 = tracks, bus ...
+    int     m_Width;            // thickness of lines ...
     wxPoint m_Start;            // Line start point
     wxPoint m_End;              // Line end point
 
@@ -17,9 +17,11 @@ public:
     int     m_Angle;            // Used only for Arcs: Arc angle in 1/10 deg
 
 public:
-    DRAWSEGMENT( BOARD_ITEM* StructFather, KICAD_T idtype = TYPEDRAWSEGMENT );
+    DRAWSEGMENT( BOARD_ITEM* aParent, KICAD_T idtype = TYPE_DRAWSEGMENT );
     ~DRAWSEGMENT();
 
+    DRAWSEGMENT* Next() const { return (DRAWSEGMENT*) Pnext; }
+    DRAWSEGMENT* Back() const { return (DRAWSEGMENT*) Pback; }
 
     /**
      * Function GetPosition
@@ -54,9 +56,6 @@ public:
     bool    Save( FILE* aFile ) const;
 
     bool    ReadDrawSegmentDescr( FILE* File, int* LineNum );
-
-    /* remove this from the linked list */
-    void    UnLink();
 
     void    Copy( DRAWSEGMENT* source );
 

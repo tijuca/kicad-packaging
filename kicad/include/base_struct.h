@@ -5,6 +5,7 @@
 #ifndef BASE_STRUCT_H
 #define BASE_STRUCT_H
 
+#include "colors.h"
 
 #if defined (DEBUG)
 #include <iostream>         // needed for Show()
@@ -22,27 +23,28 @@ enum KICAD_T {
     EOT = 0,                // search types array terminator (End Of Types)
 
     TYPE_NOT_INIT = 0,
-    TYPEPCB,
+    TYPE_PCB,
 
     // Items in pcb
-    PCB_EQUIPOT_STRUCT_TYPE,
-    TYPEMODULE,
-    TYPEPAD,
-    TYPEDRAWSEGMENT,
-    TYPETEXTE,
-    TYPETEXTEMODULE,
-    TYPEEDGEMODULE,
-    TYPETRACK,
-    TYPEZONE,
-    TYPEVIA,
-    TYPEMARKER,
-    TYPECOTATION,
-    TYPEMIRE,
-    TYPESCREEN,
-    TYPEBLOCK,
-    TYPEZONE_UNUSED,
-    TYPEZONE_EDGE_CORNER,
-    TYPEZONE_CONTAINER,
+    TYPE_EQUIPOT,
+    TYPE_MODULE,
+    TYPE_PAD,
+    TYPE_DRAWSEGMENT,
+    TYPE_TEXTE,
+    TYPE_TEXTE_MODULE,
+    TYPE_EDGE_MODULE,
+    TYPE_TRACK,
+    TYPE_ZONE,
+    TYPE_VIA,
+    TYPE_MARKER,
+    TYPE_COTATION,
+    TYPE_MIRE,
+    TYPE_SCREEN,
+    TYPE_BLOCK,
+    TYPE_ZONE_UNUSED,
+    TYPE_ZONE_EDGE_CORNER,
+    TYPE_ZONE_CONTAINER,
+    TYPE_BOARD_ITEM_LIST,
 
     // Draw Items in schematic
     DRAW_POLYLINE_STRUCT_TYPE,
@@ -91,6 +93,7 @@ class EDA_BaseStruct;
 class WinEDA_DrawFrame;
 class BOARD;
 class EDA_Rect;
+class WinEDA_DrawPanel;
 
 /**
  * Class INSPECTOR
@@ -125,7 +128,6 @@ public:
 };
 
 
-
 /**
  * Class EDA_Rect
  * handles the component boundary box.
@@ -142,8 +144,9 @@ public:
     EDA_Rect() { };
 
     EDA_Rect( const wxPoint& aPos, const wxSize& aSize ) :
-            m_Pos( aPos ), m_Size( aSize )
-    {}
+        m_Pos( aPos )
+        , m_Size( aSize )
+    { }
 
     wxPoint Centre()
     {
@@ -180,6 +183,7 @@ public:
         m_Size.x = pos.x - m_Pos.x; m_Size.y = pos.y - m_Pos.y;
     }
 
+
     /**
      * Function Intersects
      * @return bool - true if the argument rectangle intersects this rectangle.
@@ -193,15 +197,14 @@ public:
      */
     operator wxRect() const { return wxRect( m_Pos, m_Size ); }
 
-    EDA_Rect& Inflate( wxCoord dx, wxCoord dy );
+    EDA_Rect&   Inflate( wxCoord dx, wxCoord dy );
 
     /** Function Merge
      * Modify Position and Size of this in order to contain the given rect
      * mainly used to calculate bounding boxes
      * @param aRect = given rect to merge with this
-    */
-    void Merge( const EDA_Rect & aRect );
-
+     */
+    void        Merge( const EDA_Rect& aRect );
 };
 
 
@@ -209,9 +212,11 @@ public:
 /* Basic Classes : used classes are derived from them */
 /******************************************************/
 
-/** class EDA_BaseStruct
- * Basic class, not directly used.
- * All the kicad classes used to describe a shematic or a board item are derived from.
+class DHEAD;
+
+/**
+ * Class EDA_BaseStruct
+ * is a base class for most all the kicad significant classes, used in schematics and boards.
  */
 class EDA_BaseStruct
 {
@@ -223,14 +228,16 @@ private:
      */
     KICAD_T         m_StructType;
 
-public:
+protected:
     EDA_BaseStruct* Pnext;              /* Linked list: Link (next struct) */
     EDA_BaseStruct* Pback;              /* Linked list: Link (previous struct) */
     EDA_BaseStruct* m_Parent;           /* Linked list: Link (parent struct) */
     EDA_BaseStruct* m_Son;              /* Linked list: Link (son struct) */
-    EDA_BaseStruct* m_Image;            /* Link to an image copy for undelete or abort command */
+    DHEAD*          m_List;             ///< which DLIST I am on.
 
-    int             m_Flags;            // flags for editing and other misc. uses
+
+public:
+    int m_Flags;            // flags for editing and other misc. uses
 #define IS_CHANGED      (1 << 0)
 #define IS_LINKED       (1 << 1)
 #define IN_EDIT         (1 << 2)
@@ -248,12 +255,16 @@ public:
 #define CANDIDATE       (1 << 14)           ///< flag indiquant que la structure est connectee
 #define SKIP_STRUCT     (1 << 15)           ///< flag indiquant que la structure ne doit pas etre traitee
 #define DO_NOT_DRAW     (1 << 16)           ///< Used to disable draw function
+#define DRAW_ERASED     (1 << 17)           ///< draw in background color, used by classs TRACK in gerbview
 
-    unsigned long m_TimeStamp;          // Time stamp used for logical links
-    int           m_Selected;           /* Used by block commands, and selective editing */
+
+    EDA_BaseStruct* m_Image;            /* Link to an image copy for undelete or abort command */
+
+    unsigned long   m_TimeStamp;        // Time stamp used for logical links
+    int             m_Selected;         /* Used by block commands, and selective editing */
 
 private:
-    int           m_Status;
+    int             m_Status;
 
 private:
     void InitVars();
@@ -276,8 +287,15 @@ public:
 
     EDA_BaseStruct* Next() const { return (EDA_BaseStruct*) Pnext; }
     EDA_BaseStruct* Back() const { return (EDA_BaseStruct*) Pback; }
-    EDA_BaseStruct* GetParent() const { return (EDA_BaseStruct*) m_Parent; }
+    EDA_BaseStruct* GetParent() const { return m_Parent; }
+    EDA_BaseStruct* GetSon() const { return m_Son; }
+    DHEAD* GetList() const { return m_List; }
 
+    void SetNext( EDA_BaseStruct* aNext )       { Pnext = aNext; }
+    void SetBack( EDA_BaseStruct* aBack )       { Pback = aBack; }
+    void SetParent( EDA_BaseStruct* aParent )   { m_Parent = aParent; }
+    void SetSon( EDA_BaseStruct* aSon )         { m_Son = aSon; }
+    void SetList( DHEAD* aList )                { m_List = aList; }
 
     /* Gestion de l'etat (status) de la structure (active, deleted..) */
 
@@ -303,6 +321,7 @@ public:
         m_Status = new_status;
     }
 
+
     /**
      * Function Display_Infos
      * has knowledge about the frame and how and where to put status information
@@ -326,6 +345,7 @@ public:
         return false;   // derived classes should override this function
     }
 
+
     /**
      * Function HitTest (overlayed)
      * tests if the given EDA_Rect intersect this object.
@@ -338,6 +358,7 @@ public:
         return false;   // derived classes should override this function
     }
 
+
     /**
      * Function GetBoundingBox
      * returns the orthogonal, bounding box of this object for display purposes.
@@ -348,13 +369,15 @@ public:
     virtual EDA_Rect GetBoundingBox()
     {
 #if defined (DEBUG)
-        printf("Missing GetBoundingBox()\n");
+        printf( "Missing GetBoundingBox()\n" );
         Show( 0, std::cout ); // tell me which classes still need GetBoundingBox support
 #endif
+
         // return a zero-sized box per default. derived classes should override this
         EDA_Rect ret( wxPoint( 0, 0 ), wxSize( 0, 0 ) );
         return ret;
     }
+
 
     /**
      * Function IterateForward
@@ -407,24 +430,6 @@ public:
     }
 
 
-    /**
-     * Function DeleteStructList
-     * deletes each item in a linked list of EDA_BaseStructs, starting with
-     * "this" object.
-     */
-    void DeleteStructList();
-
-
-    /**
-     * Function AddToChain
-     * adds this item just after laststruct in a linked list established
-     * by the Prev and Back pointers of my base EDA_BaseStruct.
-     * @deprecated
-     * @param laststruct The item to add after
-     */
-    void AddToChain( EDA_BaseStruct* laststruct );
-
-
 #if defined (DEBUG)
 
     /**
@@ -450,34 +455,36 @@ public:
 };
 
 
-// Text justify:
+// Graphic Text justify:
 // Values -1,0,1 are used in computations, do not change them
-typedef enum {
+enum  GRTextHorizJustifyType {
     GR_TEXT_HJUSTIFY_LEFT   = -1,
     GR_TEXT_HJUSTIFY_CENTER = 0,
     GR_TEXT_HJUSTIFY_RIGHT  = 1
-} GRTextHorizJustifyType;
+};
 
 
-typedef enum {
+enum GRTextVertJustifyType {
     GR_TEXT_VJUSTIFY_TOP    = -1,
     GR_TEXT_VJUSTIFY_CENTER = 0,
     GR_TEXT_VJUSTIFY_BOTTOM = 1
-} GRTextVertJustifyType;
+};
 
-
-/* controle des remplissages a l'ecran (Segments textes...)*/
-#define FILAIRE  0
-#define FILLED   1
-#define SKETCH   2
+/* Options to show solid segments (segments, texts...) */
+enum GRFillMode {
+    FILAIRE = 0,        // segments are drawn as lines
+    FILLED,             // normal mode: segments have thickness
+    SKETCH              // skect mode: segments have thickness, but are not filled
+};
 
 
 #define DEFAULT_SIZE_TEXT 60        /* default text height (in mils or  1/1000") */
 
-/** class EDA_TextStruct
- * basic class to handle texts (labels, texts on components or footprints ..)
+/**
+ * Class EDA_TextStruct
+ * is a basic class to handle texts (labels, texts on components or footprints ..)
  * not used directly.
- * the text classes are derived from EDA_BaseStruct and EDA_TextStruct
+ * The text classes are derived from EDA_BaseStruct and EDA_TextStruct
  */
 class EDA_TextStruct
 {
@@ -487,29 +494,38 @@ public:
     wxSize   m_Size;                    /* XY size of text */
     int      m_Width;                   /* text width */
     int      m_Orient;                  /* Orient in 0.1 degrees */
-    int      m_Miroir;                  // Display Normal / mirror
+    bool     m_Mirror;                 // Display Normal / mirror
     int      m_Attributs;               /* flags (visible...) */
-    int      m_CharType;                /* normal, bold, italic ... */
-    int      m_HJustify, m_VJustify;    /* Horiz and  Vert Justifications */
-    int      m_ZoomLevelDrawable;       /* zoom level to draw text.
-                                          * if zoom < m_ZoomLevelDrawable: the text is drawn as a single line */
-    int*     m_TextDrawings;            /* list of segments to draw, for the Draw function */
-    int      m_TextDrawingsSize;        /* segment count */
+    bool     m_Italic;                  /* true to simulate an italic font... */
+    GRTextHorizJustifyType m_HJustify;  /* Horiz Justify */
+    GRTextVertJustifyType m_VJustify;   /* Vertical and  Vert Justify */
 
 public:
     EDA_TextStruct( const wxString& text = wxEmptyString );
     virtual ~EDA_TextStruct();
-    void    CreateDrawData();
 
     int     GetLength() const { return m_Text.Length(); };
 
-    /** Function Pitch()
-     * @return distance between 2 caracteres
+    /**
+     * Function Pitch
+     * @return distance between 2 characters
+     * @param aMinTickness = min segments tickness
      */
-    int     Pitch();
-    void    Draw( WinEDA_DrawPanel* panel, wxDC* DC,
-                  const wxPoint& offset, int color,
-                  int draw_mode, int display_mode = FILAIRE, int anchor_color = -1 );
+    int     Pitch(int aMinTickness = 0);
+
+    /** Function Draw
+     *  @param aPanel = the current DrawPanel
+     *  @param aDC = the current Device Context
+     *  @param aOffset = draw offset (usually (0,0))
+     *  @param EDA_Colors aColor = text color
+     *  @param aDraw_mode = GR_OR, GR_XOR.., -1 to use the current mode.
+     *  @param GRFillMode aDisplay_mode = FILAIRE, FILLED or SKETCH
+     *  @param EDA_Colors aAnchor_color = anchor color ( UNSPECIFIED_COLOR = do not draw anchor ).
+     */
+    void    Draw( WinEDA_DrawPanel* aPanel, wxDC* aDC,
+                  const wxPoint& aOffset, EDA_Colors aColor,
+                  int aDisplayMode, GRFillMode aDisplay_mode = FILAIRE,
+                  EDA_Colors aAnchor_color = UNSPECIFIED_COLOR );
 
     /**
      * Function HitTest

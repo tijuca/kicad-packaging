@@ -3,15 +3,17 @@
 /*********************************************************************/
 
 #include "fctsys.h"
-
-#include "wxstruct.h"
 #include "common.h"
-#include "cvpcb.h"
-#include "3d_viewer.h"
+#include "class_drawpanel.h"
 #include "id.h"
-#include "bitmaps.h"
 
+#include "3d_viewer.h"
+
+#include "bitmaps.h"
+#include "cvpcb.h"
 #include "protos.h"
+#include "cvstruct.h"
+
 
 /*******************************************/
 void WinEDA_CvpcbFrame::CreateScreenCmp()
@@ -28,9 +30,9 @@ void WinEDA_CvpcbFrame::CreateScreenCmp()
 
     if( DrawFrame == NULL )
     {
-        DrawFrame = new WinEDA_DisplayFrame( this, m_Parent, _( "Module" ),
-                                             wxPoint( 0, 0 ), wxSize( 600,
-                                                                      400 ),
+        DrawFrame = new WinEDA_DisplayFrame( this, _( "Module" ),
+                                             wxPoint( 0, 0 ),
+                                             wxSize( 600, 400 ),
                                              KICAD_DEFAULT_DRAWFRAME_STYLE |
                                              wxFRAME_FLOAT_ON_PARENT );
         IsNew = TRUE;
@@ -51,15 +53,13 @@ void WinEDA_CvpcbFrame::CreateScreenCmp()
 
         DrawFrame->SetStatusText( msg, 0 );
 
-        if( DrawFrame->m_Pcb->m_Modules )
+        if( DrawFrame->GetBoard()->m_Modules.GetCount() )
         {
             // there is only one module in the list
-            DrawFrame->m_Pcb->m_Modules->DeleteStructure();
-
-            DrawFrame->m_Pcb->m_Modules = NULL;
+            DrawFrame->GetBoard()->m_Modules.DeleteAll();
         }
 
-        DrawFrame->m_Pcb->m_Modules = DrawFrame->Get_Module( FootprintName );
+        DrawFrame->GetBoard()->m_Modules.PushBack( DrawFrame->Get_Module( FootprintName ) );
 
         DrawFrame->Zoom_Automatique( FALSE );
         if( DrawFrame->m_Draw3DFrame )
@@ -80,10 +80,8 @@ void WinEDA_DisplayFrame::RedrawActiveWindow( wxDC* DC, bool EraseBg )
 /*******************************************************************/
 /* Draws the current highlighted footprint */
 {
-    if( !m_Pcb )
+    if( !GetBoard() )
         return;
-
-    MODULE* Module = m_Pcb->m_Modules;
 
     ActiveScreen = (PCB_SCREEN*) GetScreen();
 
@@ -91,13 +89,24 @@ void WinEDA_DisplayFrame::RedrawActiveWindow( wxDC* DC, bool EraseBg )
         DrawPanel->EraseScreen( DC );
 
     DrawPanel->DrawBackGround( DC );
+    GetBoard()->Draw( DrawPanel, DC, GR_COPY );
 
-    if( Module )
-    {
-        Module->Draw( DrawPanel, DC, GR_COPY );
+    MODULE* Module = GetBoard()->m_Modules;
+    if ( Module )
         Module->Display_Infos( this );
-    }
-
     Affiche_Status_Box();
     DrawPanel->Trace_Curseur( DC );
+}
+
+
+/********************************************************************/
+void BOARD::Draw( WinEDA_DrawPanel* aPanel, wxDC* DC,
+                  int aDrawMode, const wxPoint& offset )
+/********************************************************************/
+/* Redraw the BOARD items but not cursors, axis or grid */
+{
+    if( m_Modules )
+    {
+        m_Modules->Draw( aPanel, DC, GR_COPY );
+   }
 }

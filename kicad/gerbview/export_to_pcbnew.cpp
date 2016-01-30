@@ -5,10 +5,13 @@
  */
 
 #include "fctsys.h"
-
 #include "common.h"
-#include "gerbview.h"
+#include "class_drawpanel.h"
+#include "confirm.h"
+#include "kicad_string.h"
+#include "gestfich.h"
 
+#include "gerbview.h"
 #include "protos.h"
 
 /* Routines Locales : */
@@ -31,7 +34,7 @@ void WinEDA_GerberFrame::ExportDataInPcbnewFormat( wxCommandEvent& event )
     // Check whether any of the Gerber layers are actually currently used
     while( no_used_layers && ii < 32 )
     {
-        if( g_GERBER_Descr_List[ii] != NULL )
+        if( g_GERBER_List[ii] != NULL )
             no_used_layers = false;
         ii++;
     }
@@ -138,7 +141,7 @@ static int SavePcbFormatAscii( WinEDA_GerberFrame* frame, FILE* aFile,
 {
     char            line[256];
     TRACK*          track;
-    BOARD*          gerberPcb = frame->m_Pcb;
+    BOARD*          gerberPcb = frame->GetBoard();
     BOARD*          pcb;
 
     wxBeginBusyCursor();
@@ -152,22 +155,22 @@ static int SavePcbFormatAscii( WinEDA_GerberFrame* frame, FILE* aFile,
         int pcb_layer_number = LayerLookUpTable[layer];
         if( pcb_layer_number < 0 || pcb_layer_number > LAST_NO_COPPER_LAYER )
             continue;
-        
+
         if( pcb_layer_number > LAST_COPPER_LAYER )
         {
-            DRAWSEGMENT* drawitem = new DRAWSEGMENT( pcb, TYPEDRAWSEGMENT );
+            DRAWSEGMENT* drawitem = new DRAWSEGMENT( pcb, TYPE_DRAWSEGMENT );
 
             drawitem->SetLayer( pcb_layer_number );
             drawitem->m_Start = track->m_Start;
             drawitem->m_End   = track->m_End;
             drawitem->m_Width = track->m_Width;
-            drawitem->Pnext   = pcb->m_Drawings;
-            pcb->m_Drawings   = drawitem;
+
+            pcb->Add( drawitem );
         }
         else
         {
             TRACK*  newtrack;
-            
+
             // replace spots with vias when possible
             if( track->m_Shape == S_SPOT_CIRCLE
              || track->m_Shape == S_SPOT_RECT
@@ -178,13 +181,13 @@ static int SavePcbFormatAscii( WinEDA_GerberFrame* frame, FILE* aFile,
                 // A spot is found, and can be a via: change it to via, and delete other
                 // spots at same location
                 newtrack->m_Shape = VIA_THROUGH;
-                
+
                 newtrack->SetLayer( 0x0F );  // Layers are 0 to 15 (Cu/Cmp)
-                
+
                 newtrack->SetDrillDefault();
 
-                // Compute the via position from track position ( Via position is the 
-                // position of the middle of the track segment ) 
+                // Compute the via position from track position ( Via position is the
+                // position of the middle of the track segment )
                 newtrack->m_Start.x = (newtrack->m_Start.x + newtrack->m_End.x) / 2;
                 newtrack->m_Start.y = (newtrack->m_Start.y + newtrack->m_End.y) / 2;
                 newtrack->m_End = newtrack->m_Start;
@@ -194,8 +197,8 @@ static int SavePcbFormatAscii( WinEDA_GerberFrame* frame, FILE* aFile,
                 newtrack = track->Copy();
                 newtrack->SetLayer( pcb_layer_number );
             }
-            
-            newtrack->Insert( pcb, NULL );
+
+            pcb->Add( newtrack );
         }
     }
 
@@ -204,7 +207,7 @@ static int SavePcbFormatAscii( WinEDA_GerberFrame* frame, FILE* aFile,
     {
         if( track->m_Shape != VIA_THROUGH )
             continue;
-        
+
         // Search and delete others vias
         TRACK* next_track;
         TRACK* alt_track = track->Next();
@@ -225,7 +228,7 @@ static int SavePcbFormatAscii( WinEDA_GerberFrame* frame, FILE* aFile,
 
     // Switch the locale to standard C (needed to print floating point numbers like 1.3)
     SetLocaleTo_C_standard( );
-    
+
     // write the PCB heading
     fprintf( aFile, "PCBNEW-BOARD Version %d date %s\n\n", g_CurrentVersionPCB,
             DateAndTime( line ) );

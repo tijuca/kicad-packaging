@@ -3,10 +3,9 @@
 	/*****************************************************/
 
 #include "fctsys.h"
-
-#include "gr_basic.h"
-
 #include "common.h"
+#include "class_drawpanel.h"
+#include "confirm.h"
 #include "pcbnew.h"
 
 #include "id.h"
@@ -82,6 +81,7 @@ wxClientDC dc(DrawPanel);
 void WinEDA_PcbFrame::MuWaveCommand(wxDC * DC, const wxPoint& MousePos)
 /***************************************************************************/
 {
+    MODULE* module = NULL;
 	switch ( m_ID_current_state )
 	{
 		case ID_PCB_MUWAVE_TOOL_SELF_CMD:
@@ -89,19 +89,19 @@ void WinEDA_PcbFrame::MuWaveCommand(wxDC * DC, const wxPoint& MousePos)
 			break;
 
 		case ID_PCB_MUWAVE_TOOL_GAP_CMD:
-			Create_MuWaveComponent(DC, 0);
+			module = Create_MuWaveComponent( 0);
 			break;
 
 		case ID_PCB_MUWAVE_TOOL_STUB_CMD:
-			Create_MuWaveComponent(DC, 1);
+			module = Create_MuWaveComponent( 1);
 			break;
 
 		case ID_PCB_MUWAVE_TOOL_STUB_ARC_CMD:
-			Create_MuWaveComponent(DC, 2);
+			module = Create_MuWaveComponent( 2);
 			break;
 
 		case ID_PCB_MUWAVE_TOOL_FUNCTION_SHAPE_CMD:
-			Create_MuWavePolygonShape(DC);
+			module = Create_MuWavePolygonShape();
 			break;
 
 		default :
@@ -110,5 +110,11 @@ void WinEDA_PcbFrame::MuWaveCommand(wxDC * DC, const wxPoint& MousePos)
 			SetToolID(0, wxCURSOR_ARROW,wxEmptyString);
 			break;
 	}
+
+    if ( module )
+    {
+        StartMove_Module( module, DC );
+    }
+    DrawPanel->MouseToCursorSchema();
 }
 

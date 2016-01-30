@@ -13,29 +13,9 @@
 
 /* variables locales : */
 
-/*********************************************************************************/
-void Trace_Pistes( WinEDA_DrawPanel* panel, BOARD* Pcb, wxDC* DC, int drawmode )
-/********************************************************************************/
-
-/* Draw all tracks and zones.  As long as dark colors are used for the tracks,
- * Then the OR draw mode should show tracks underneath other tracks.  But a white
- * track will cover any other color since it has more bits to OR in.
- */
-{
-    for( TRACK* track = Pcb->m_Track;  track;   track = track->Next() )
-    {
-        track->Draw( panel, DC, drawmode );
-    }
-
-    for( SEGZONE* zone = Pcb->m_Zone;  zone;   zone = zone->Next() )
-    {
-        zone->Draw( panel, DC, drawmode );
-    }
-}
-
 
 /************************************************************************/
-void Trace_Une_Piste( WinEDA_DrawPanel* panel, wxDC* DC, TRACK* Track,
+void Trace_Une_Piste( WinEDA_DrawPanel* panel, wxDC* DC, TRACK* aTrackList,
                       int nbsegment, int draw_mode )
 /************************************************************************/
 
@@ -51,10 +31,10 @@ void Trace_Une_Piste( WinEDA_DrawPanel* panel, wxDC* DC, TRACK* Track,
  *  donc mis a 0 avant appel a la routine si la piste a tracer est la derniere
  */
 {
-    for(  ;   nbsegment > 0  && Track;   nbsegment--, Track = Track->Next() )
+    // preserve the start of the list for debugging.
+    for( TRACK* track = aTrackList; nbsegment > 0  && track;   nbsegment--, track = track->Next() )
     {
-        Track->Draw( panel, DC, draw_mode );
+        track->Draw( panel, DC, draw_mode );
     }
 }
-
 

@@ -34,6 +34,9 @@
 
 #include "specctra.h"
 #include "common.h"             // IsOK() & EDA_FileSelector()
+#include "class_drawpanel.h"    // DrawPanel
+#include "confirm.h"            // DisplayError()
+#include "gestfich.h"           // EDA_FileSelector()
 
 
 
@@ -90,7 +93,7 @@ void WinEDA_PcbFrame::ImportSpecctraSession( wxCommandEvent& event )
     try
     {
         db.LoadSESSION( fullFileName );
-        db.FromSESSION( m_Pcb );
+        db.FromSESSION( GetBoard() );
     }
     catch( IOError ioe )
     {
@@ -111,7 +114,16 @@ void WinEDA_PcbFrame::ImportSpecctraSession( wxCommandEvent& event )
     m_SelViaSizeBox_Changed    = TRUE;
 
     GetScreen()->SetModify();
-    m_Pcb->m_Status_Pcb = 0;
+    GetBoard()->m_Status_Pcb = 0;
+    
+    /* At this point we should call Compile_Ratsnest()
+     * but this could be time consumming.
+     * So if incorrect number of Connecred and No connected pads is accepted
+     * until Compile_Ratsnest() is called (when track tool selected for instance)
+     * leave the next line commented
+     * Otherwise uncomment this line
+    */
+    //Compile_Ratsnest( NULL, true );
 
     Affiche_Message( wxString( _("Session file imported and merged OK.")) );
 
@@ -355,12 +367,8 @@ void SPECCTRA_DB::FromSESSION( BOARD* aBoard ) throw( IOError )
     if( !session->route->library )
         ThrowIOError( _("Session file is missing the \"library_out\" section") );
 
-#if 1
     // delete all the old tracks and vias
-    aBoard->m_Track->DeleteStructList();
-    aBoard->m_Track = NULL;
-    aBoard->m_NbSegmTrack = 0;
-#endif
+    aBoard->m_Track.DeleteAll();
 
     aBoard->DeleteMARKERs();
 

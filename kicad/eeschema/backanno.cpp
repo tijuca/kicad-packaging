@@ -4,21 +4,20 @@
 ****************************************************************/
 
 #include "fctsys.h"
-
 #include "common.h"
 #include "program.h"
+#include "confirm.h"
+#include "kicad_string.h"
+#include "gestfich.h"
 #include "libcmp.h"
 #include "general.h"
 
 /* Variables Locales */
 
-#include "dialog_backanno.cpp"
-
 /*******************************************************************************************/
 bool WinEDA_SchematicFrame::FillFootprintFieldForAllInstancesofComponent(
     const wxString& aReference,
-    const wxString&
-    aFootPrint,
+    const wxString& aFootPrint,
     bool            aSetVisible )
 /********************************************************************************************/
 
@@ -36,7 +35,7 @@ bool WinEDA_SchematicFrame::FillFootprintFieldForAllInstancesofComponent(
 {
     DrawSheetPath* sheet;
     SCH_ITEM*      DrawList = NULL;
-    EDA_SheetList  SheetList( NULL );
+    EDA_SheetList  SheetList;
     SCH_COMPONENT* Cmp;
     bool           found = false;
 
@@ -50,22 +49,23 @@ bool WinEDA_SchematicFrame::FillFootprintFieldForAllInstancesofComponent(
 
             Cmp = (SCH_COMPONENT*) DrawList;
             if( aReference.CmpNoCase( Cmp->GetRef( sheet ) ) == 0 )
-            {    // Found: Init Footprint Field
+            {
+                 // Found: Init Footprint Field
                  /* Give a reasonnable value to the fied position and orientation, if
                   * the text is empty at position 0, because it is probably not yet initialised
                   */
-                if( Cmp->m_Field[FOOTPRINT].m_Text.IsEmpty()
-                   && ( Cmp->m_Field[FOOTPRINT].m_Pos == wxPoint( 0, 0 ) ) )
+                if( Cmp->GetField(FOOTPRINT)->m_Text.IsEmpty()
+                   && ( Cmp->GetField(FOOTPRINT)->m_Pos == wxPoint( 0, 0 ) ) )
                 {
-                    Cmp->m_Field[FOOTPRINT].m_Orient = Cmp->m_Field[VALUE].m_Orient;
-                    Cmp->m_Field[FOOTPRINT].m_Pos    = Cmp->m_Field[VALUE].m_Pos;
-                    Cmp->m_Field[FOOTPRINT].m_Pos.y -= 100;
+                    Cmp->GetField(FOOTPRINT)->m_Orient = Cmp->GetField(VALUE)->m_Orient;
+                    Cmp->GetField(FOOTPRINT)->m_Pos    = Cmp->GetField(VALUE)->m_Pos;
+                    Cmp->GetField(FOOTPRINT)->m_Pos.y -= 100;
                 }
-                Cmp->m_Field[FOOTPRINT].m_Text = aFootPrint;
+                Cmp->GetField(FOOTPRINT)->m_Text = aFootPrint;
                 if( aSetVisible )
-                    Cmp->m_Field[FOOTPRINT].m_Attributs &= ~TEXT_NO_VISIBLE;
+                    Cmp->GetField(FOOTPRINT)->m_Attributs &= ~TEXT_NO_VISIBLE;
                 else
-                    Cmp->m_Field[FOOTPRINT].m_Attributs |= TEXT_NO_VISIBLE;
+                    Cmp->GetField(FOOTPRINT)->m_Attributs |= TEXT_NO_VISIBLE;
                 found = true;
             }
         }

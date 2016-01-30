@@ -57,19 +57,29 @@ wxMenuItem * item;
 		// Menu Help: //
 		////////////////
 		wxMenu *helpMenu = new wxMenu;
-		item = new wxMenuItem(helpMenu , ID_GENERAL_HELP, _("&Contents"), _("Open the pcbnew manual"));
-	    item->SetBitmap(help_xpm);
+
+                // Contents
+		item = new wxMenuItem(helpMenu , 
+                                      ID_GENERAL_HELP,
+                                      _("&Contents"), // Menu entry name
+                                      _("Open the pcbnew manual")); // Statusbar message
+	        item->SetBitmap(help_xpm);
 		helpMenu->Append(item);
 
-		item = new wxMenuItem(helpMenu , ID_KICAD_ABOUT, _("&About"), _("About this application"));
-	    item->SetBitmap(info_xpm);
+
+                // About pcbnew
+		item = new wxMenuItem(helpMenu ,
+                                      ID_KICAD_ABOUT,
+                                      _("&About pcbnew"), // Menu entry name
+                                      _("About pcbnew PCB designer")); // Statusbar message
+	        item->SetBitmap(info_xpm);
 		helpMenu->Append(item);
 
 		//////////////////////
 		// Menu Display 3D: //
 		//////////////////////
 		wxMenu *Display3DMenu = new wxMenu;
-		item = new wxMenuItem(Display3DMenu , ID_MENU_PCB_SHOW_3D_FRAME, _("3D Display"), _("Show Board in 3D Mode"));
+		item = new wxMenuItem(Display3DMenu , ID_MENU_PCB_SHOW_3D_FRAME, _("3D Display"), _("Show board in 3D viewer"));
 	    item->SetBitmap(show_3d_xpm);
 		Display3DMenu->Append(item);
 

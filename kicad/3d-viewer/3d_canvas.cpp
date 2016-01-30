@@ -22,8 +22,8 @@
 #include "wx/clipbrd.h"
 
 #include "fctsys.h"
-#include "common.h"
 #include "id.h"
+#include "gestfich.h"
 
 #include "3d_viewer.h"
 #include "trackball.h"
@@ -230,7 +230,7 @@ void Pcb3D_GLCanvas::OnMouseEvent( wxMouseEvent& event )
 /********************************************************/
 {
     wxSize size( GetClientSize() );
-    float  spin_quat[4];
+    double  spin_quat[4];
 
 
     if( event.RightDown() )
@@ -298,7 +298,7 @@ void Pcb3D_GLCanvas::OnMouseEvent( wxMouseEvent& event )
         {
             /* middle button drag -> pan */
             /* Current zoom and an additional factor are taken into account for the amount of panning. */
-            const float PAN_FACTOR = 8.0 * g_Parm_3D_Visu.m_Zoom;
+            const double PAN_FACTOR = 8.0 * g_Parm_3D_Visu.m_Zoom;
             g_Draw3d_dx -= PAN_FACTOR * ( g_Parm_3D_Visu.m_Beginx - event.GetX() ) / size.x;
             g_Draw3d_dy -= PAN_FACTOR * (event.GetY() - g_Parm_3D_Visu.m_Beginy) / size.y;
         }
@@ -504,7 +504,6 @@ void Pcb3D_GLCanvas::OnSize( wxSizeEvent& event )
     if( GetContext() )
 #endif
     {
-        SetCurrent();
         glViewport( 0, 0, (GLint) w, (GLint) h );
     }
 
@@ -535,8 +534,6 @@ void Pcb3D_GLCanvas::InitGL()
         g_Parm_3D_Visu.m_Zoom = 1.0;
         ZBottom = 1.0; ZTop = 10.0;
     }
-
-    SetCurrent();
 
     /* set viewing projection */
     double ratio_HV = (double) size.x / size.y; // Ratio largeur /hauteur de la fenetre d'affichage
@@ -594,8 +591,6 @@ void Pcb3D_GLCanvas::SetLights()
 {
     double  light;
     GLfloat light_color[4];
-
-    SetCurrent();
 
     /* set viewing projection */
     light_color[3] = 1.0;

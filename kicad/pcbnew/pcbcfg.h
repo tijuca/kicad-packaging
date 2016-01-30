@@ -13,8 +13,6 @@
 #define INSETUP TRUE
 
 
-static int Pcbdiv_grille;   /* memorisation temporaire */
-
 /* Liste des parametres */
 
 static PARAM_CFG_WXSTRING UserLibDirBufCfg
@@ -56,21 +54,6 @@ static PARAM_CFG_INT PadDimVCfg
 );
 
 
-static PARAM_CFG_INT PadFormeCfg
-(
-    wxT( "PadForm" ),               /* Keyword */
-    &g_Pad_Master.m_PadShape,       /* Parameter address */
-    PAD_CIRCLE,                     /* Default value */
-    0, 0x7F                         /* Min and max values*/
-);
-
-static PARAM_CFG_INT PadMasqueLayerCfg
-(
-    wxT( "PadMask" ),                   /* Keyword */
-    &g_Pad_Master.m_Masque_Layer,       /* Parameter address */
-    0x0000FFFF                          /* Default value */
-);
-
 static PARAM_CFG_INT ViaDiametreCfg
 (
     wxT( "ViaDiam" ),                           /* Keyword */
@@ -83,6 +66,14 @@ static PARAM_CFG_INT ViaDrillCfg
 (
     wxT( "ViaDril" ),                           /* Keyword */
     &g_DesignSettings.m_ViaDrill,               /* Parameter address */
+    250,                                        /* Default value */
+    0, 0xFFFF                                   /* Min and max values*/
+);
+
+static PARAM_CFG_INT ViaAltDrillCfg
+(
+    wxT( "ViaAltD" ),                           /* Keyword */
+    &g_DesignSettings.m_ViaDrillCustomValue,    /* Parameter address */
     250,                                        /* Default value */
     0, 0xFFFF                                   /* Min and max values*/
 );
@@ -736,40 +727,9 @@ static PARAM_CFG_INT WTraitSerigraphiePlotCfg
     1, 10000                    /* Min and max values*/
 );
 
-static PARAM_CFG_DOUBLE UserGrilleXCfg
-(
-    wxT( "UserGrX" ),           /* Keyword */
-    &g_UserGrid.x,              /* Parameter address */
-    0.01,                       /* Default value */
-    0.0001, 100.0               /* Min and max values(inches)*/
-);
-
-static PARAM_CFG_DOUBLE UserGrilleYCfg
-(
-    wxT( "UserGrY" ),           /* Keyword */
-    &g_UserGrid.y,              /* Parameter address */
-    0.01,                       /* Default value */
-    0.0001, 100.0               /* Min and max values (inches)*/
-);
-
-static PARAM_CFG_INT UserGrilleUnitCfg
-(
-    wxT( "UserGrU" ),               /* Keyword */
-    &g_UserGrid_Unit,               /* Parameter address */
-    1,                              /* Default value */
-    0, 1                            /* Min and max values*/
-);
-
-static PARAM_CFG_INT DivGrillePcbCfg
-(
-    wxT( "DivGrPc" ),               /* Keyword */
-    &Pcbdiv_grille,                 /* Parameter address */
-    1,                              /* Default value */
-    1, 10                           /* Min and max values*/
-);
-
 static PARAM_CFG_INT TimeOutCfg     //Duree entre Sauvegardes auto en secondes
 (
+    INSETUP,
     wxT( "TimeOut" ),               /* Keyword */
     &g_TimeOut,                     /* Parameter address */
     600,                            /* Default value */
@@ -804,6 +764,7 @@ static PARAM_CFG_INT PrmMaxLinksShowed
 
 static PARAM_CFG_BOOL ShowRatsnestCfg
 (
+    INSETUP,
     wxT( "ShowRat" ),               /* Keyword */
     &g_Show_Ratsnest,               /* Parameter address */
     FALSE                           /* Default value */
@@ -811,6 +772,7 @@ static PARAM_CFG_BOOL ShowRatsnestCfg
 
 static PARAM_CFG_BOOL ShowModuleRatsnestCfg
 (
+    INSETUP,
     wxT( "ShowMRa" ),               /* Keyword */
     &g_Show_Module_Ratsnest,        /* Parameter address */
     TRUE                            /* Default value */
@@ -824,6 +786,9 @@ static PARAM_CFG_BOOL TwoSegmentTrackBuildCfg
     TRUE                            /* Default value */
 );
 
+
+/* parameters in this list will be saved on request (when saving config).
+*/
 PARAM_CFG_BASE* ParamCfgList[] =
 {
     &UserLibDirBufCfg,
@@ -831,10 +796,9 @@ PARAM_CFG_BASE* ParamCfgList[] =
     &PadDrillCfg,
     &PadDimHCfg,
     &PadDimVCfg,
-    &PadFormeCfg,
-    &PadMasqueLayerCfg,
     &ViaDiametreCfg,
     &ViaDrillCfg,
+    &ViaAltDrillCfg,
     &MicroViaDiametreCfg,
     &MicroViaDrillCfg,
     &ViaShowHoleCfg,
@@ -916,10 +880,6 @@ PARAM_CFG_BASE* ParamCfgList[] =
     &TexteSegmLargeurCfg,
     &ModuleSegmWidthCfg,
     &WTraitSerigraphiePlotCfg,
-    &UserGrilleXCfg,
-    &UserGrilleYCfg,
-    &UserGrilleUnitCfg,
-    &DivGrillePcbCfg,
     &TimeOutCfg,
     &DisplPolairCfg,
     &CursorShapeCfg,

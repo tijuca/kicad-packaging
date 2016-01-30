@@ -12,50 +12,52 @@ set(PCBNEW_SRCS
     automove.cpp
     autoplac.cpp
     autorout.cpp
-    basepcbframe.cpp
     block.cpp
     block_module_editor.cpp
     board.cpp
-    class_board.cpp
     class_board_item.cpp
-    class_cotation.cpp
     class_drawsegment.cpp
-    class_drc_item.cpp
     class_edge_mod.cpp
     class_equipot.cpp
-    class_marker.cpp
-    class_mire.cpp
     class_module.cpp
-    class_pad.cpp
-    classpcb.cpp
-    class_pcb_text.cpp
     class_text_mod.cpp
     class_track.cpp
-    class_zone.cpp
     clean.cpp
 #   cleaningoptions_dialog.cpp
-    collectors.cpp
     connect.cpp
     controle.cpp
 #   copy_track.cpp <-- not used
     cotation.cpp
     cross-probing.cpp
     deltrack.cpp
-#   dialog_display_options.cpp
+    dialog_copper_zones.cpp
+    dialog_copper_zones_base.cpp
+    dialog_display_options_base.cpp
 #   dialog_drc.cpp
-    dialog_edit_mod_text.cpp
+    dialog_edit_module_text.cpp
+	dialog_edit_module_text_base.cpp
 #   dialog_edit_module.cpp
     dialog_freeroute_exchange.cpp
 #   dialog_gendrill.cpp
     dialog_general_options.cpp
+	dialog_general_options_BoardEditor_base.cpp
 #   dialog_graphic_items_options.cpp
+	dialog_graphic_item_properties.cpp
+	dialog_graphic_item_properties_base.cpp
 #   dialog_initpcb.cpp
 #   dialog_netlist.cpp
-#   dialog_pad_edit.cpp
+    dialog_pcb_text_properties.cpp
+    zones_non_copper_type_functions.cpp
+    dialog_non_copper_zones_properties_base.cpp
+    dialog_pad_properties.cpp
+    dialog_pad_properties_base.cpp
+    dialog_print_using_printer.cpp
     dialog_setup_libs.cpp
     dialog_orient_footprints.cpp
-#   dialog_track_options.cpp
-#   dialog_zones_by_polygon.cpp
+    dialog_track_options.cpp
+    dialog_track_options_base.cpp
+    dialog_SVG_print.cpp
+    dialog_SVG_print_base.cpp
     dist.cpp
     dragsegm.cpp
     drc.cpp
@@ -65,9 +67,9 @@ set(PCBNEW_SRCS
     edit.cpp
     editedge.cpp
     editmod.cpp
-    editpads.cpp
     editrack.cpp
     editrack-part2.cpp
+	edit_pcb_text.cpp
     edit_track_width.cpp
     edtxtmod.cpp
     export_gencad.cpp
@@ -83,7 +85,7 @@ set(PCBNEW_SRCS
     hotkeys.cpp
     initpcb.cpp
     ioascii.cpp
-    lay2plot.cpp
+    print_board_functions.cpp
     librairi.cpp
     loadcmp.cpp
     locate.cpp
@@ -108,7 +110,6 @@ set(PCBNEW_SRCS
     pcbframe.cpp
     pcbnew.cpp
     pcbplot.cpp
-    pcbtexte.cpp
     plotgerb.cpp
     plothpgl.cpp
     plotps.cpp
@@ -116,7 +117,6 @@ set(PCBNEW_SRCS
     queue.cpp
     ratsnest.cpp
     router.cpp
-    sel_layer.cpp
     set_color.cpp
     set_grid.cpp
     solve.cpp
@@ -137,16 +137,16 @@ set(PCBNEW_SRCS
     via_edit.cpp
     work.cpp
     xchgmod.cpp
-    zone_filling_algorithm.cpp
     zones_by_polygon.cpp
-    zones_test_and_combine_areas.cpp)
+    zones_convert_brd_items_to_polygons.cpp
+    zone_filling_algorithm.cpp
+    zones_polygons_insulated_copper_islands.cpp
+    zones_polygons_test_connections.cpp
+    zones_test_and_combine_areas.cpp
+    )
 
 set(PCBNEW_EXTRA_SRCS
-    ../share/drawframe.cpp
-    ../share/drawpanel.cpp
-    ../share/setpage.cpp
-    ../share/wxprint.cpp
-    ../share/zoom.cpp)
+    ../share/setpage.cpp )
 
 if(WIN32)
     if(MINGW)

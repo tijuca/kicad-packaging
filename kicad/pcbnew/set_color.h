@@ -18,7 +18,7 @@ class wxStdDialogButtonSizer;
 
 
 // Specify how many elements are contained within laytool_list[]
-const int NB_BUTT = 44;
+const int NB_BUTT = 43;
 
 // Specify how many elements are contained within laytool_index[]
 const int BUTTON_GROUPS = 3;
@@ -418,15 +418,6 @@ static ColorButton Grid_Butt =
     &g_ShowGrid                                 // Address of boolean display control parameter to toggle
 };
 
-static ColorButton Show_Zones_Butt =
-{
-    _( "Show Zones" ),                          // Title
-    -1,
-    NULL,                                       // Address of optional parameter
-    FALSE,
-    &DisplayOpt.DisplayZones                    // Address of boolean display control parameter to toggle
-};
-
 static ColorButton Show_Pads_Noconnect_Butt =
 {
     _( "Show Noconnect" ),                      // Title
@@ -502,7 +493,6 @@ static ColorButton* laytool_list[] = {
     &Anchors_Butt,
     &Grid_Butt,
 
-    &Show_Zones_Butt,
     &Show_Pads_Noconnect_Butt,
     &Show_Modules_Cmp_Butt,
     &Show_Modules_Cu_Butt,

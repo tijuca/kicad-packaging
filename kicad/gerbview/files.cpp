@@ -3,8 +3,11 @@
 /******************************************************/
 
 #include "fctsys.h"
-
 #include "common.h"
+#include "class_drawpanel.h"
+#include "confirm.h"
+#include "gestfich.h"
+
 #include "gerbview.h"
 #include "pcbplot.h"
 #include "protos.h"
@@ -15,7 +18,24 @@
 static void LoadDCodeFile( WinEDA_GerberFrame* frame, const wxString& FullFileName, wxDC* DC );
 
 
-/********************************************************/
+void WinEDA_GerberFrame::OnFileHistory( wxCommandEvent& event )
+{
+    wxString fn;
+
+    fn = GetFileFromHistory( event.GetId(), _( "Printed circuit board" ) );
+
+    if( fn != wxEmptyString && Clear_Pcb( true ) )
+    {
+        wxClientDC dc( DrawPanel );
+        DrawPanel->CursorOff( &dc );
+        LoadOneGerberFile( fn, &dc, false );
+        DrawPanel->MouseToCursorSchema();
+        DrawPanel->CursorOn( &dc );
+    }
+}
+
+/***************
+***************************************/
 void WinEDA_GerberFrame::Files_io( wxCommandEvent& event )
 /********************************************************/
 
@@ -62,24 +82,6 @@ void WinEDA_GerberFrame::Files_io( wxCommandEvent& event )
         Clear_Pcb( TRUE );
         Zoom_Automatique( FALSE );
         GetScreen()->SetRefreshReq();
-        break;
-
-    case ID_LOAD_FILE_1:
-    case ID_LOAD_FILE_2:
-    case ID_LOAD_FILE_3:
-    case ID_LOAD_FILE_4:
-    case ID_LOAD_FILE_5:
-    case ID_LOAD_FILE_6:
-    case ID_LOAD_FILE_7:
-    case ID_LOAD_FILE_8:
-    case ID_LOAD_FILE_9:
-    case ID_LOAD_FILE_10:
-        if( Clear_Pcb( TRUE ) )
-        {
-            LoadOneGerberFile(
-                GetLastProject( id - ID_LOAD_FILE_1 ).GetData(),
-                &dc, FALSE );
-        }
         break;
 
     case ID_GERBVIEW_LOAD_DRILL_FILE:
@@ -131,7 +133,7 @@ int WinEDA_GerberFrame::LoadOneGerberFile( const wxString& FullFileName,
 
         mask    += wxT( ";*.gbr;*.gbx;*.lgr;*.ger" );
 
-        filename = EDA_FileSelector( _( "Gerber files:" ),
+        filename = EDA_FileSelector( _( "Open Gerber File:" ),
                                      path,                  /* Chemin par defaut */
                                      wxEmptyString,         /* nom fichier par defaut */
                                      g_PhotoFilenameExt,    /* extension par defaut */
@@ -217,7 +219,7 @@ bool WinEDA_GerberFrame::SaveGerberFile( const wxString& FullFileName, wxDC* DC 
         wxString mask( wxT( "*" ) );
 
         mask    += g_PhotoFilenameExt;
-        filename = EDA_FileSelector( _( "Gerber files:" ),
+        filename = EDA_FileSelector( _( "Save gerber file" ),
                                      wxEmptyString,             /* Chemin par defaut */
                                      GetScreen()->m_FileName,   /* nom fichier par defaut */
                                      g_PhotoFilenameExt,        /* extension par defaut */

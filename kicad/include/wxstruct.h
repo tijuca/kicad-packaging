@@ -11,17 +11,19 @@
 #define eda_global extern
 #endif
 
+#include <vector>
+
+
 #include <wx/socket.h>
 #include "wx/log.h"
 #include "wx/config.h"
 #include <wx/wxhtml.h>
 #include <wx/laywin.h>
-#include <wx/snglinst.h>
 
-#include <vector>
 
+//C++ guarantees that operator delete checks its argument for null-ness
 #ifndef SAFE_DELETE
-#define SAFE_DELETE(p) delete (p); (p) = NULL; //C++ guarantees that operator delete checks its argument for null-ness
+#define SAFE_DELETE(p) delete (p); (p) = NULL;
 #endif
 
 #define INTERNAL_UNIT_TYPE      0        // Internal unit = inch
@@ -32,62 +34,22 @@
 
 //  Option for dialog boxes
 // #define DIALOG_STYLE wxDEFAULT_DIALOG_STYLE|wxFRAME_FLOAT_ON_PARENT|wxSTAY_ON_TOP
-#define DIALOG_STYLE wxDEFAULT_DIALOG_STYLE | wxFRAME_FLOAT_ON_PARENT | MAYBE_RESIZE_BORDER
+#define DIALOG_STYLE wxDEFAULT_DIALOG_STYLE | wxFRAME_FLOAT_ON_PARENT | \
+                     MAYBE_RESIZE_BORDER
 
-#define KICAD_DEFAULT_DRAWFRAME_STYLE wxDEFAULT_FRAME_STYLE|wxWANTS_CHARS
-
-class wxMyDialogModalData;
+#define KICAD_DEFAULT_DRAWFRAME_STYLE wxDEFAULT_FRAME_STYLE | wxWANTS_CHARS
 
 /*  Forward declarations of classes. */
-class WinEDA_DrawPanel;
-class WinEDA_DrawFrame;
-
-#include "base_struct.h"
-
-class WinEDA_App;
-class WinEDA_MsgPanel;
-class COMMAND;
-class WinEDA_MainFrame;
-class BASE_SCREEN;
-class SCH_SCREEN;
-class PCB_SCREEN;
-class WinEDA_SchematicFrame;    // Schematic main frame
-class WinEDA_LibeditFrame;      // Component creation and edition main frame
-class WinEDA_ViewlibFrame;      // Component viewer main frame
-class WinEDA_GerberFrame;       // GERBER viewer main frame
-class WinEDA_Toolbar;
-class WinEDA_CvpcbFrame;
-class WinEDA_PcbFrame;
-class WinEDA_ModuleEditFrame;
-class WinEDAChoiceBox;
-#define WinEDA_MenuBar  wxMenuBar
-#define WinEDA_Menu     wxMenu
-#define WinEDA_MenuItem wxMenuItem
-
-// Used but not defined here:
-class LibraryStruct;
-class EDA_LibComponentStruct;
-class LibEDA_BaseStruct;
 class EDA_BaseStruct;
-class DrawBusEntryStruct;
-class SCH_GLOBALLABEL;
-class SCH_TEXT;
-class EDA_DrawLineStruct;
-class DrawSheetStruct;
-class DrawSheetPath;
-class Hierarchical_PIN_Sheet_Struct;
-class SCH_COMPONENT;
-class LibDrawField;
-class PartTextStruct;
-class LibDrawPin;
-class DrawJunctionStruct;
-class DRAWSEGMENT;
-class WinEDA3D_DrawFrame;
+class EDA_Rect;
+class WinEDA_DrawPanel;
+class WinEDA_MsgPanel;
+class BASE_SCREEN;
+class WinEDA_Toolbar;
+class WinEDAChoiceBox;
 class PARAM_CFG_BASE;
 class Ki_PageDescr;
 class Ki_HotkeyInfo;
-class GENERAL_COLLECTOR;
-class GENERAL_COLLECTORS_GUIDE;
 
 enum id_librarytype {
     LIBRARY_TYPE_EESCHEMA,
@@ -124,11 +86,6 @@ enum id_toolbar {
 
 #define MSG_PANEL_DEFAULT_HEIGHT  ( 28 )    // height of the infos display window
 
-/**********************************************/
-/*  Class representing the entire Application */
-/**********************************************/
-#include "appl_wxstruct.h"
-
 
 /******************************************************************/
 /* Basic frame for kicad, eeschema, pcbnew and gerbview.          */
@@ -139,12 +96,10 @@ class WinEDA_BasicFrame : public wxFrame
 {
 public:
     int             m_Ident;        // Id Type (pcb, schematic, library..)
-    WinEDA_App*     m_Parent;
     wxPoint         m_FramePos;
     wxSize          m_FrameSize;
     int             m_MsgFrameHeight;
 
-    WinEDA_MenuBar* m_MenuBar;      // menu du haut d'ecran
     WinEDA_Toolbar* m_HToolBar;     // Standard horizontal Toolbar
     bool            m_FrameIsActive;
     wxString        m_FrameName;    // name used for writting and reading setup
@@ -154,7 +109,7 @@ public:
 public:
 
     // Constructor and destructor
-    WinEDA_BasicFrame( wxWindow* father, int idtype, WinEDA_App* parent,
+    WinEDA_BasicFrame( wxWindow* father, int idtype,
                        const wxString& title,
                        const wxPoint& pos, const wxSize& size,
                        long style = KICAD_DEFAULT_DRAWFRAME_STYLE);
@@ -178,7 +133,7 @@ public:
     void            SetLanguage( wxCommandEvent& event );
     void            ProcessFontPreferences( int id );
 
-    wxString        GetLastProject( int rang );
+    wxString        GetFileFromHistory( int cmdId, const wxString& type );
     void            SetLastProject( const wxString& FullFileName );
     void            DisplayActivity( int PerCent, const wxString& Text );
     virtual void    ReCreateMenuBar();
@@ -191,8 +146,6 @@ public:
 
 class WinEDA_DrawFrame : public WinEDA_BasicFrame
 {
-
-
 public:
     WinEDA_DrawPanel* DrawPanel;            // Draw area
     WinEDA_MsgPanel*  MsgPanel;             // Zone d'affichage de caracteristiques
@@ -203,7 +156,6 @@ public:
 
     WinEDAChoiceBox*  m_SelGridBox;         // Dialog box to choose the grid size
     WinEDAChoiceBox*  m_SelZoomBox;         // Dialog box to choose the Zoom value
-    int m_ZoomMaxValue;                     // Max zoom value: Draw min scale is 1/m_ZoomMaxValue
 
     int     m_CurrentCursorShape;           // shape for cursor (0 = default cursor)
     int     m_ID_current_state;             // Id of active button on the vertical toolbar
@@ -232,7 +184,7 @@ protected:
 public:
 
     // Constructor and destructor
-    WinEDA_DrawFrame( wxWindow* father, int idtype, WinEDA_App* parent,
+    WinEDA_DrawFrame( wxWindow* father, int idtype,
                       const wxString& title,
                       const wxPoint& pos, const wxSize& size,
                       long style = KICAD_DEFAULT_DRAWFRAME_STYLE );
@@ -265,7 +217,8 @@ public:
     virtual void    ReCreateVToolbar() = 0;
     virtual void    ReCreateMenuBar();
     virtual void    ReCreateAuxiliaryToolbar();
-    void            SetToolID( int id, int new_cursor_id, const wxString& title );
+    virtual void    SetToolID( int id, int new_cursor_id,
+                               const wxString& title );
 
     virtual void    OnSelectGrid( wxCommandEvent& event );
     virtual void    OnSelectZoom( wxCommandEvent& event );
@@ -276,8 +229,7 @@ public:
 
 //  void OnChar(wxKeyEvent& event);
     void            SetToolbarBgColor( int color_num );
-    void            OnZoom( int zoom_type );
-    void            OnPanning( int direction );
+    virtual void    OnZoom( wxCommandEvent& event );
     void            OnGrid( int grid_type );
     void            Recadre_Trace( bool ToMouse );
     void            PutOnGrid( wxPoint* coord ); /* set the coordiante "coord" to the nearest grid coordinate */
@@ -298,6 +250,8 @@ public:
     void            OnActivate( wxActivateEvent& event );
     void            ReDrawPanel();
     void            TraceWorkSheet( wxDC* DC, BASE_SCREEN* screen, int line_width );
+    void            PlotWorkSheet( int format_plot, BASE_SCREEN* screen );
+
     /** Function GetXYSheetReferences
      * Return the X,Y sheet references where the point position is located
      * @param aScreen = screen to use
@@ -306,7 +260,7 @@ public:
      */
     wxString        GetXYSheetReferences( BASE_SCREEN* aScreen, const wxPoint& aPosition );
 
-    void            DisplayToolMsg( const wxString msg );
+    void            DisplayToolMsg( const wxString& msg );
     void            Process_Zoom( wxCommandEvent& event );
     void            Process_Grid( wxCommandEvent& event );
     virtual void    RedrawActiveWindow( wxDC* DC, bool EraseBg ) = 0;
@@ -316,7 +270,7 @@ public:
     virtual bool    OnRightClick( const wxPoint& MousePos, wxMenu* PopMenu ) = 0;
     virtual void    ToolOnRightClick( wxCommandEvent& event );
     void            AdjustScrollBars();
-    void            Affiche_Status_Box(); /* Affichage des coord curseur, zoom .. */
+    virtual void    Affiche_Status_Box(); /* Affichage des coord curseur, zoom .. */
     void            DisplayUnitsMsg();
 
     /* Handlers for block commands */
@@ -331,21 +285,14 @@ public:
     /* interprocess communication */
     void            OnSockRequest( wxSocketEvent& evt );
     void            OnSockRequestServer( wxSocketEvent& evt );
+
+    DECLARE_EVENT_TABLE();
 };
-
-#define COMMON_EVENTS_DRAWFRAME \
-    EVT_MOUSEWHEEL( WinEDA_DrawFrame::OnMouseEvent ) \
-    EVT_MENU_OPEN( WinEDA_DrawFrame::OnMenuOpen ) \
-    EVT_ACTIVATE( WinEDA_DrawFrame::OnActivate )
-
 
 
 /****************************************************/
 /* classe representant un ecran graphique de dessin */
 /****************************************************/
-
-#include "drawpanel_wxstruct.h"
-
 
 /*********************************************************
 class WinEDA_MsgPanel : this is a panel to display various infos
@@ -485,6 +432,14 @@ public:
     void SetFocus() { m_FrameText->SetFocus(); }
     void        SetValue( const wxString& value );
     void        SetValue( int value );
+
+    /**
+     * Function FormatSize
+     * formats a string containing the size in the desired units.
+     */
+    static wxString FormatSize( int internalUnit, int units, int textSize );
+
+    static int ParseSize( const wxString& sizeText, int internalUnit, int units );
 };
 
 

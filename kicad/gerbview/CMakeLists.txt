@@ -1,13 +1,13 @@
 add_definitions(-DGERBVIEW -DPCBNEW)
 
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}
+                    ${Boost_INCLUDE_DIR}
                     ../3d-viewer
                     ../cvpcb
                     ../pcbnew
                     ../polygon)
 
 set(GERBVIEW_SRCS
-    affiche.cpp
     block.cpp
     controle.cpp
     dcode.cpp
@@ -25,38 +25,25 @@ set(GERBVIEW_SRCS
     onrightclick.cpp
     options.cpp
     pcbplot.cpp
-#   pcbtexte.cpp
-#   process_config.cpp
     readgerb.cpp
     reglage.cpp
     rs274d.cpp
     rs274x.cpp
     select_layers_to_pcb.cpp
     set_color.cpp
-#   struct.cpp <-- not used
     tool_gerber.cpp
     tracepcb.cpp
-    trpiste.cpp
-    undelete.cpp)
+    trpiste.cpp )
 
 set(GERBVIEW_EXTRA_SRCS
-    ../pcbnew/basepcbframe.cpp
-    ../pcbnew/class_board.cpp
+    ../pcbnew/class_board_item.cpp
     ../pcbnew/class_drawsegment.cpp
-    ../pcbnew/class_drc_item.cpp
-    ../pcbnew/class_marker.cpp
-    ../pcbnew/class_pcb_text.cpp
     ../pcbnew/class_track.cpp
-    ../pcbnew/class_zone.cpp
-    ../pcbnew/classpcb.cpp
-    ../pcbnew/collectors.cpp
-    ../pcbnew/sel_layer.cpp
+    ../pcbnew/undelete.cpp
 
-    ../share/drawframe.cpp
-    ../share/drawpanel.cpp
     ../share/setpage.cpp
-    ../share/wxprint.cpp
-    ../share/zoom.cpp)
+    ../pcbnew/dialog_print_using_printer.cpp
+)
 
 if(WIN32)
     if(MINGW)

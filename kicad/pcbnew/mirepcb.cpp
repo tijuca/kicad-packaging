@@ -4,10 +4,10 @@
 
 #include "fctsys.h"
 #include "gr_basic.h"
-
 #include "common.h"
-#include "pcbnew.h"
+#include "class_drawpanel.h"
 
+#include "pcbnew.h"
 #include "protos.h"
 
 
@@ -206,13 +206,9 @@ MIREPCB* WinEDA_PcbFrame::Create_Mire( wxDC* DC )
 /* Routine de creation d'un Draw Symbole Pcb type MIRE
  */
 {
-    MIREPCB* MirePcb = new MIREPCB( m_Pcb );
+    MIREPCB* MirePcb = new MIREPCB( GetBoard() );
 
-    MirePcb->Pnext = m_Pcb->m_Drawings;
-    MirePcb->Pback = m_Pcb;
-    if( m_Pcb->m_Drawings )
-        m_Pcb->m_Drawings->Pback = MirePcb;
-    m_Pcb->m_Drawings = MirePcb;
+    GetBoard()->Add( MirePcb );
 
     MirePcb->SetLayer( EDGE_N );
     MirePcb->m_Width = g_DesignSettings.m_EdgeSegmentWidth;

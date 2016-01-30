@@ -3,9 +3,10 @@
 /****************************/
 
 #include "fctsys.h"
-#include "gr_basic.h"
-
 #include "common.h"
+#include "class_drawpanel.h"
+#include "confirm.h"
+#include "gestfich.h"
 #include "program.h"
 #include "libcmp.h"
 #include "general.h"
@@ -47,7 +48,8 @@ void WinEDA_SchematicFrame::Save_File( wxCommandEvent& event )
 
 
 /************************************************************************************/
-int WinEDA_SchematicFrame::LoadOneEEProject( const wxString& FileName, bool IsNew )
+int WinEDA_SchematicFrame::LoadOneEEProject( const wxString& FileName,
+                                             bool IsNew )
 /************************************************************************************/
 {
     /*
@@ -125,7 +127,7 @@ int WinEDA_SchematicFrame::LoadOneEEProject( const wxString& FileName, bool IsNe
         Read_Config( wxEmptyString, TRUE );
         Zoom_Automatique( TRUE );
         SetSheetNumberAndCount();
-        ReDrawPanel();
+        DrawPanel->Refresh();
         return 1;
     }
 
@@ -178,7 +180,7 @@ int WinEDA_SchematicFrame::LoadOneEEProject( const wxString& FileName, bool IsNe
     if( !wxFileExists( g_RootSheet->m_AssociatedScreen->m_FileName ) && !LibCacheExist )   // Nouveau projet prpbablement
     {
         Zoom_Automatique( FALSE );
-        msg.Printf( _( "File %s not found (new project ?)" ),
+        msg.Printf( _( "File <%s> not found." ),
             g_RootSheet->m_AssociatedScreen->m_FileName.GetData() );
         DisplayInfo( this, msg, 20 );
         return -1;
@@ -209,14 +211,14 @@ SCH_SCREEN* WinEDA_SchematicFrame::CreateNewScreen(
 {
     SCH_SCREEN* NewScreen;
 
-    NewScreen = new SCH_SCREEN( SCHEMATIC_FRAME );
+    NewScreen = new SCH_SCREEN();
 
     NewScreen->SetRefreshReq();
     if( OldScreen )
         NewScreen->m_Company = OldScreen->m_Company;
     NewScreen->m_TimeStamp = TimeStamp;
 
-    NewScreen->Pback = OldScreen;
+    NewScreen->SetBack( OldScreen );
 
     return NewScreen;
 }

@@ -2,61 +2,70 @@
 /* viewlib_frame.cpp - fonctions des classes du type WinEDA_ViewlibFrame */
 /*************************************************************************/
 
-#ifdef __GNUG__
-#pragma implementation
-#endif
-
 #include "fctsys.h"
-
+#include "appl_wxstruct.h"
 #include "common.h"
-
+#include "class_drawpanel.h"
 #include "program.h"
 #include "libcmp.h"
 #include "general.h"
 #include "bitmaps.h"
-
 #include "protos.h"
-
 #include "id.h"
 
 /*****************************/
 /* class WinEDA_ViewlibFrame */
 /*****************************/
-BEGIN_EVENT_TABLE( WinEDA_ViewlibFrame, wxFrame )
-COMMON_EVENTS_DRAWFRAME EVT_CLOSE( WinEDA_ViewlibFrame::OnCloseWindow )
-EVT_SIZE( WinEDA_ViewlibFrame::OnSize )
-EVT_ACTIVATE( WinEDA_DrawFrame::OnActivate )
+BEGIN_EVENT_TABLE( WinEDA_ViewlibFrame, WinEDA_DrawFrame )
+    EVT_CLOSE( WinEDA_ViewlibFrame::OnCloseWindow )
+    EVT_SIZE( WinEDA_ViewlibFrame::OnSize )
+    EVT_ACTIVATE( WinEDA_DrawFrame::OnActivate )
 
-EVT_TOOL_RANGE( ID_LIBVIEW_START_H_TOOL, ID_LIBVIEW_END_H_TOOL,
-    WinEDA_ViewlibFrame::Process_Special_Functions )
+    EVT_TOOL_RANGE( ID_LIBVIEW_START_H_TOOL, ID_LIBVIEW_END_H_TOOL,
+                    WinEDA_ViewlibFrame::Process_Special_Functions )
 
-EVT_TOOL_RANGE( ID_ZOOM_IN_BUTT, ID_ZOOM_PAGE_BUTT,
-    WinEDA_DrawFrame::Process_Zoom )
+    EVT_TOOL_RANGE( ID_ZOOM_IN, ID_ZOOM_PAGE, WinEDA_ViewlibFrame::OnZoom )
 
-EVT_TOOL( ID_LIBVIEW_CMP_EXPORT_TO_SCHEMATIC,
-    WinEDA_ViewlibFrame::ExportToSchematicLibraryPart )
+    EVT_TOOL( ID_LIBVIEW_CMP_EXPORT_TO_SCHEMATIC,
+              WinEDA_ViewlibFrame::ExportToSchematicLibraryPart )
 
-EVT_KICAD_CHOICEBOX( ID_LIBVIEW_SELECT_PART_NUMBER,
-    WinEDA_ViewlibFrame::Process_Special_Functions )
+    EVT_KICAD_CHOICEBOX( ID_LIBVIEW_SELECT_PART_NUMBER,
+                         WinEDA_ViewlibFrame::Process_Special_Functions )
 
-EVT_LISTBOX( ID_LIBVIEW_LIB_LIST, WinEDA_ViewlibFrame::ClickOnLibList )
-EVT_LISTBOX( ID_LIBVIEW_CMP_LIST, WinEDA_ViewlibFrame::ClickOnCmpList )
-
+    EVT_LISTBOX( ID_LIBVIEW_LIB_LIST, WinEDA_ViewlibFrame::ClickOnLibList )
+    EVT_LISTBOX( ID_LIBVIEW_CMP_LIST, WinEDA_ViewlibFrame::ClickOnCmpList )
 END_EVENT_TABLE()
 
 
-/****************/
-/* Constructeur */
-/****************/
-WinEDA_ViewlibFrame::WinEDA_ViewlibFrame( wxWindow* father, WinEDA_App* parent,
-                                          LibraryStruct* Library, wxSemaphore* semaphore ) :
-    WinEDA_DrawFrame( father, VIEWER_FRAME, parent, _( "Library browser" ),
+/*
+ * This emulates the zoom menu entries found in the other Kicad applications.
+ * The library viewer does not have any menus so add an accelerator table to
+ * the main frame.
+ */
+static wxAcceleratorEntry accels[] = {
+    wxAcceleratorEntry( wxACCEL_NORMAL, WXK_F1, ID_POPUP_ZOOM_IN ),
+    wxAcceleratorEntry( wxACCEL_NORMAL, WXK_F2, ID_POPUP_ZOOM_OUT ),
+    wxAcceleratorEntry( wxACCEL_NORMAL, WXK_F3, ID_ZOOM_REDRAW ),
+    wxAcceleratorEntry( wxACCEL_NORMAL, WXK_F4, ID_POPUP_ZOOM_CENTER )
+};
+
+#define ACCEL_TABLE_CNT  ( sizeof( accels ) / sizeof( wxAcceleratorEntry ) )
+
+
+/******************************************************************************/
+WinEDA_ViewlibFrame::WinEDA_ViewlibFrame( wxWindow*      father,
+                                          LibraryStruct* Library,
+                                          wxSemaphore*   semaphore ) :
+    WinEDA_DrawFrame( father, VIEWER_FRAME, _( "Library browser" ),
                       wxDefaultPosition, wxDefaultSize )
+/******************************************************************************/
 {
+    wxAcceleratorTable table( ACCEL_TABLE_CNT, accels );
+
     m_FrameName = wxT( "ViewlibFrame" );
 
-    m_Draw_Axis = TRUE;             // TRUE pour avoir les axes dessines
-    m_Draw_Grid = TRUE;             // TRUE pour avoir la axes dessinee
+    m_Draw_Axis = TRUE;             // TRUE to dispaly Axis
+    m_Draw_Grid = TRUE;             // TRUE to display grid
 
     // Give an icon
     SetIcon( wxIcon( library_browse_xpm ) );
@@ -64,32 +73,34 @@ WinEDA_ViewlibFrame::WinEDA_ViewlibFrame( wxWindow* father, WinEDA_App* parent,
     m_CmpList   = NULL;
     m_LibList   = NULL;
     m_Semaphore = semaphore;
+
     if( m_Semaphore )
         SetWindowStyle( GetWindowStyle() | wxSTAY_ON_TOP );
 
-    SetBaseScreen( new SCH_SCREEN( VIEWER_FRAME ) );
-    GetScreen()->SetZoom( 16 );
+    SetBaseScreen( new SCH_SCREEN() );
+    GetScreen()->m_Center = true;       // set to true to have the coordinates origine -0,0) centered on screen
 
     if( Library == NULL )
     {
-        m_LibListSize.x = 90;
+        m_LibListSize.x = 150; // Width of library list
         m_LibListSize.y = -1;
         m_LibList = new wxListBox( this, ID_LIBVIEW_LIB_LIST, wxPoint( 0, 0 ),
-            m_LibListSize, 0, NULL, wxLB_HSCROLL );
+                                   m_LibListSize, 0, NULL, wxLB_HSCROLL );
         m_LibList->SetFont( *g_DialogFont );
-        m_LibList->SetBackgroundColour( wxColour( 150, 255, 255 ) );
-        m_LibList->SetForegroundColour( wxColour( 0, 0, 0 ) );
+        m_LibList->SetBackgroundColour( wxColour( 255, 255, 255 ) );    // Library background listbox color (white)
+        m_LibList->SetForegroundColour( wxColour( 0, 0, 0 ) );          // Library foreground listbox color (black)
     }
     else
         g_CurrentViewLibraryName = Library->m_Name;
 
-    m_CmpListSize.x = 150;
+    m_CmpListSize.x = 150; // Width of component list
     m_CmpListSize.y = -1;
-    m_CmpList = new wxListBox( this, ID_LIBVIEW_CMP_LIST, wxPoint( m_LibListSize.x, 0 ),
+    m_CmpList = new wxListBox( this, ID_LIBVIEW_CMP_LIST,
+                               wxPoint( m_LibListSize.x, 0 ),
         m_CmpListSize, 0, NULL, wxLB_HSCROLL );
     m_CmpList->SetFont( *g_DialogFont );
-    m_CmpList->SetBackgroundColour( wxColour( 255, 255, 200 ) );
-    m_CmpList->SetForegroundColour( wxColour( 0, 0, 0 ) );
+    m_CmpList->SetBackgroundColour( wxColour( 255, 255, 255 ) );    // Component background listbox color (white)
+    m_CmpList->SetForegroundColour( wxColour( 0, 0, 0 ) );          // Component foreground listbox color (black)
 
     GetSettings();
     SetSize( m_FramePos.x, m_FramePos.y, m_FrameSize.x, m_FrameSize.y );
@@ -98,20 +109,23 @@ WinEDA_ViewlibFrame::WinEDA_ViewlibFrame( wxWindow* father, WinEDA_App* parent,
     if( m_LibList )
         ReCreateListLib();
     DisplayLibInfos();
+    if( DrawPanel )
+        DrawPanel->SetAcceleratorTable( table );
+    BestZoom();
     Show( TRUE );
 }
 
 
-/***************/
-/* Destructeur */
-/***************/
-
+/*******************************************/
 WinEDA_ViewlibFrame::~WinEDA_ViewlibFrame()
+/*******************************************/
 {
     delete GetScreen();
     SetBaseScreen( 0 );
 
-    m_Parent->m_ViewlibFrame = NULL;
+    WinEDA_SchematicFrame* frame =
+        (WinEDA_SchematicFrame*) wxGetApp().GetTopWindow();
+    frame->m_ViewlibFrame = NULL;
 }
 
 
@@ -157,8 +171,8 @@ void WinEDA_ViewlibFrame::OnSize( wxSizeEvent& SizeEv )
     if( DrawPanel )
     {
         DrawPanel->SetSize( m_LibListSize.x + m_CmpListSize.x, 0,
-            size.x - Vtoolbar_size.x - m_LibListSize.x - m_CmpListSize.x,
-            size.y );
+                            size.x - Vtoolbar_size.x - m_LibListSize.x - m_CmpListSize.x,
+                            size.y );
     }
 
     if( m_LibList )
@@ -175,9 +189,9 @@ void WinEDA_ViewlibFrame::OnSize( wxSizeEvent& SizeEv )
 }
 
 
-/*******************************************/
+/***********************************/
 int WinEDA_ViewlibFrame::BestZoom()
-/*******************************************/
+/***********************************/
 {
     int    bestzoom, ii, jj;
     wxSize size, itemsize;
@@ -197,28 +211,21 @@ int WinEDA_ViewlibFrame::BestZoom()
     EDA_Rect BoundaryBox = CurrentLibEntry->GetBoundaryBox( g_ViewUnit, g_ViewConvert );
     itemsize = BoundaryBox.GetSize();
 
-    size    = DrawPanel->GetClientSize();
-    size.x -= 60;   // Pour marges haut et bas
-    ii = itemsize.x / size.x;
-    jj = itemsize.y / size.y;
-    ii = MAX( ii, jj );
+    size  = DrawPanel->GetClientSize();
+    size -= wxSize( 100, 100 );  // reserve a 100 mils margin
+    ii    = itemsize.x / size.x;
+    jj    = itemsize.y / size.y;
+    bestzoom  = MAX( ii, jj ) + 1;
 
-    /* determination du zoom existant le plus proche */
-    for( bestzoom = 1;  bestzoom < 512;  bestzoom <<= 1 )
-    {
-        if( bestzoom > ii )
-            break;
-    }
+    GetScreen()->m_Curseur = BoundaryBox.Centre();
 
-    GetScreen()->m_Curseur   = BoundaryBox.Centre();
-
-    return bestzoom;
+    return bestzoom * GetScreen()->m_ZoomScalar;
 }
 
 
-/***************************************************/
+/******************************************/
 void WinEDA_ViewlibFrame::ReCreateListLib()
-/***************************************************/
+/******************************************/
 {
     const wxChar** ListNames, ** names;
     int            ii;
@@ -242,8 +249,8 @@ void WinEDA_ViewlibFrame::ReCreateListLib()
 
     free( ListNames );
 
-    /* Librairie courante peut etre non retrouv�e en liste
-      * (peut etre effac�e lors d'une modification de configuration) */
+    /* Clear current library because it can be deleted after a config change
+     */
     if( !found )
     {
         g_CurrentViewLibraryName.Empty();
@@ -253,7 +260,7 @@ void WinEDA_ViewlibFrame::ReCreateListLib()
     ReCreateListCmp();
     ReCreateHToolbar();
     DisplayLibInfos();
-    ReDrawPanel();
+    DrawPanel->Refresh();
 }
 
 
@@ -268,8 +275,8 @@ void WinEDA_ViewlibFrame::ReCreateListCmp()
     m_CmpList->Clear();
     ii = 0;
     g_CurrentViewComponentName.Empty();
-    g_ViewConvert = 1;                      /* Vue normal / convert */
-    g_ViewUnit    = 1;                      /* unit� a afficher (A, B ..) */
+    g_ViewConvert = 1;                      /* Select normal/"de morgan" shape */
+    g_ViewUnit    = 1;                      /* Selec unit to display for multiple parts per package */
     if( Library )
         LibEntry = (EDA_LibComponentStruct*) PQFirst( &Library->m_Entries, FALSE );
     while( LibEntry )
@@ -294,7 +301,7 @@ void WinEDA_ViewlibFrame::ClickOnLibList( wxCommandEvent& event )
         return;
     g_CurrentViewLibraryName = name;
     ReCreateListCmp();
-    ReDrawPanel();
+    DrawPanel->Refresh();
     DisplayLibInfos();
     ReCreateHToolbar();
 }
@@ -316,7 +323,7 @@ void WinEDA_ViewlibFrame::ClickOnCmpList( wxCommandEvent& event )
     g_ViewConvert = 1;
     Zoom_Automatique( FALSE );
     ReCreateHToolbar();
-    ReDrawPanel();
+    DrawPanel->Refresh();
 }
 
 
@@ -324,7 +331,7 @@ void WinEDA_ViewlibFrame::ClickOnCmpList( wxCommandEvent& event )
 void WinEDA_ViewlibFrame::ExportToSchematicLibraryPart( wxCommandEvent& event )
 /****************************************************************************/
 
-/* Export to schematic the current viewed component, and close the library browser
+/* Export the current component to schematic and close the library browser
  */
 {
     int ii = m_CmpList->GetSelection();

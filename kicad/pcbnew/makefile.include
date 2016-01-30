@@ -3,32 +3,44 @@ EXTRALIBS = ../common/common.a ../bitmaps/libbitmaps.a\
             ../polygon/lib_polygon.a\
             ../polygon/kbool/src/libkbool.a
 
-EXTRACPPFLAGS += -DPCBNEW  -fno-strict-aliasing -I./ -Ibitmaps -I../include -I../share\
-	-I../pcbnew -I../3d-viewer -I../polygon -I/opt/local/include
+EXTRACPPFLAGS += -DPCBNEW  -I../pcbnew -Ibitmaps -I../include\
+	-I../3d-viewer -I../polygon -I/opt/local/include
 
-#COMMON = pcbnew.h struct.h class_pad.h class_module.h class_text_mod.h \
-#		class_edge_mod.h class_equipot.h
 
 LIBVIEWER3D = ../3d-viewer/3d-viewer.a
 
-ZONE_FILES = zones_by_polygon.o zones_test_and_combine_areas.o zone_filling_algorithm.o
+ZONE_FILES = zones_by_polygon.o zones_test_and_combine_areas.o\
+        zone_filling_algorithm.o\
+        dialog_copper_zones_base.o\
+        dialog_copper_zones.o\
+		dialog_non_copper_zones_properties_base.o\
+		zones_non_copper_type_functions.o\
+        zones_convert_brd_items_to_polygons.o\
+        zones_polygons_insulated_copper_islands.o\
+        zones_polygons_test_connections.o
 
 SPECCTRA_TOOLS = specctra.o specctra_export.o dsn.o specctra_import.o
 
-OBJECTS=	$(TARGET).o classpcb.o\
+OBJECTS=	$(TARGET).o\
 		$(ZONE_FILES)\
 		$(SPECCTRA_TOOLS)\
-		lay2plot.o\
+		print_board_functions.o\
 		dialog_freeroute_exchange.o\
 		modedit_undo_redo.o\
 		block_module_editor.o\
+		dialog_graphic_item_properties.o\
+		dialog_graphic_item_properties_base.o\
+        dialog_pad_properties.o\
+        dialog_pad_properties_base.o\
+        dialog_pcb_text_properties.o\
+        dialog_SVG_print.o\
+        dialog_SVG_print_base.o\
+        dialog_print_using_printer.o\
 		onrightclick.o\
 		onleftclick.o\
 		modedit_onclick.o\
 		cross-probing.o\
 		via_edit.o\
-		wxprint.o \
-		class_marker.o\
 		menubarpcb.o \
 		menubarmodedit.o \
 		tool_onrightclick.o\
@@ -38,20 +50,12 @@ OBJECTS=	$(TARGET).o classpcb.o\
 		pcbframe.o \
 		class_drawsegment.o \
 		class_track.o \
-		class_mire.o\
 		class_cotation.o\
-		class_pad.o \
 		class_equipot.o \
 		class_module.o \
 		class_edge_mod.o \
 		class_text_mod.o\
-		class_pcb_text.o\
 		class_board_item.o\
-		class_drc_item.o\
-		class_board.o\
-		class_zone.o\
-		drawframe.o\
-		drawpanel.o\
 		track.o \
 		set_color.o \
 		set_grid.o \
@@ -63,26 +67,29 @@ OBJECTS=	$(TARGET).o classpcb.o\
 		tracemod.o \
 		trpiste.o \
 		surbrill.o \
-		pcbtexte.o \
+		edit_pcb_text.o \
 		locate.o \
 		modules.o \
 		loadcmp.o \
-		zoom.o\
 		dialog_setup_libs.o \
 		dialog_general_options.o \
+		dialog_general_options_BoardEditor_base.o\
+		dialog_display_options_base.o\
         dialog_orient_footprints.o\
+        dialog_track_options.o\
+        dialog_track_options_base.o\
 		muwave_command.o \
 		initpcb.o\
 		editrack.o \
 		editrack-part2.o \
 		deltrack.o edit_track_width.o \
 		editmod.o\
-		editpads.o \
 		move-drag_pads.o\
 		globaleditpad.o \
 		editedge.o\
 		edtxtmod.o \
-		dialog_edit_mod_text.o\
+		dialog_edit_module_text.o\
+		dialog_edit_module_text_base.o\
 		ratsnest.o drc.o \
 		block.o\
 		clean.o \
@@ -95,7 +102,6 @@ OBJECTS=	$(TARGET).o classpcb.o\
 		gendrill.o\
 		gen_holes_and_tools_lists_for_drill.o\
 		gen_drill_report_files.o\
-		sel_layer.o \
 		cotation.o\
 		automove.o\
 		tr_modif.o \
@@ -115,199 +121,175 @@ OBJECTS=	$(TARGET).o classpcb.o\
 		tool_modedit.o\
 		moduleframe.o\
 		find.o\
-		basepcbframe.o\
 		modeditoptions.o\
 		gen_modules_placefile.o\
 		modedit.o\
 		export_gencad.o\
 		hotkeys.o \
-        collectors.o\
-		gpcb_exchange.o
+ 		gpcb_exchange.o
 
-
-PolyLine.o: ../polygon/PolyLine.cpp ../polygon/PolyLine.h $(COMMON)
-	$(CXX) -c $(EDACPPFLAGS) -o $@ ../polygon/$*.cpp
 
 setpage.o: ../share/setpage.cpp
 	$(CXX) -c $(EDACPPFLAGS) -o $@ ../share/$*.cpp
 
-drawpanel.o: ../share/drawpanel.cpp
-	$(CXX) -c $(EDACPPFLAGS) -o $@ ../share/$*.cpp
+menubarpcb.o: menubarpcb.cpp
 
-drawframe.o: ../share/drawframe.cpp
-	$(CXX) -c $(EDACPPFLAGS) -o $@ ../share/$*.cpp
+dialog_general_options.o: dialog_general_options.cpp\
+		dialog_graphic_items_options.cpp dialog_general_options_BoardEditor_base.h dialog_general_options.h
 
-menubarpcb.o: menubarpcb.cpp $(COMMON)
+dialog_generaloptions_BoardEditor_base.o: dialog_general_options_BoardEditor_base.cpp dialog_generaloptions_BoardEditor_base.h
 
-dialog_general_options.o: dialog_general_options.cpp dialog_track_options.cpp dialog_display_options.cpp\
-		dialog_graphic_items_options.cpp $(COMMON)
+menubarmodedit.o: menubarmodedit.cpp
 
-menubarmodedit.o: menubarmodedit.cpp $(COMMON)
+controle.o: controle.cpp
 
-controle.o: controle.cpp $(COMMON)
+cursors.o: cursors.cpp
 
-cursors.o: cursors.cpp $(COMMON)
+tool_onrightclick.o: tool_onrightclick.cpp
 
-tool_onrightclick.o: tool_onrightclick.cpp $(COMMON)
+files.o: files.cpp
 
-files.o: files.cpp $(COMMON)
+export_gencad.o: export_gencad.cpp
 
-export_gencad.o: export_gencad.cpp $(COMMON)
+print_board_functions.o: print_board_functions.cpp
 
-wxprint.o: ../share/wxprint.cpp ../share/dialog_print.cpp ../share/dialog_print.h $(COMMON)
-	$(CXX) -c $(EDACPPFLAGS) -o $@ ../share/$*.cpp
+class_track.o: class_track.cpp class_track.h
 
-lay2plot.o: lay2plot.cpp $(COMMON)
+class_equipot.o: class_equipot.cpp
 
-classpcb.o: classpcb.cpp $(COMMON)
+class_module.o: class_module.cpp
 
-class_track.o: class_track.cpp class_track.h $(COMMON)
+class_edge_mod.o: class_edge_mod.cpp
 
-class_mire.o: class_mire.cpp class_mire.h $(COMMON)
+class_text_mod.o: class_text_mod.cpp
 
-class_cotation.o: class_cotation.cpp class_cotation.h $(COMMON)
-
-class_pad.o: class_pad.cpp $(COMMON)
-
-class_equipot.o: class_equipot.cpp $(COMMON)
-
-class_module.o: class_module.cpp $(COMMON)
-
-class_edge_mod.o: class_edge_mod.cpp $(COMMON)
-
-class_text_mod.o: class_text_mod.cpp $(COMMON)
-
-class_pcb_text.o: class_pcb_text.cpp class_pcb_text.h $(COMMON)
-
-pcbnew.o: pcbnew.cpp pcbnew.h pcbplot.h drag.h $(COMMON) \
+pcbnew.o: pcbnew.cpp pcbnew.h pcbplot.h drag.h \
 				autorout.h ../include/eda_dde.h
 
-pcbcfg.o: pcbcfg.cpp $(COMMON) pcbcfg.h pcbplot.h
+pcbcfg.o: pcbcfg.cpp pcbcfg.h pcbplot.h
 
-netlist.o: netlist.cpp dialog_netlist.cpp dialog_netlist.h $(COMMON)
+netlist.o: netlist.cpp dialog_netlist.cpp dialog_netlist.h
 
-gen_modules_placefile.o: gen_modules_placefile.cpp $(COMMON)
+gen_modules_placefile.o: gen_modules_placefile.cpp
 
-xchgmod.o: xchgmod.cpp $(COMMON)
+xchgmod.o: xchgmod.cpp
 
-swap_layers.o: swap_layers.cpp $(COMMON)
+swap_layers.o: swap_layers.cpp
 
-tracepcb.o: tracepcb.cpp $(COMMON)
+tracepcb.o: tracepcb.cpp
 
-tracemod.o: tracemod.cpp ../include/grfonte.h $(COMMON)
+tracemod.o: tracemod.cpp ../include/grfonte.h
 
-trpiste.o: trpiste.cpp $(COMMON)
+trpiste.o: trpiste.cpp
 
-surbrill.o: surbrill.cpp $(COMMON)
+surbrill.o: surbrill.cpp
 
-pcbtexte.o: pcbtexte.cpp $(COMMON)
+edit_pcb_text.o: edit_pcb_text.cpp
 
-locate.o: locate.cpp $(COMMON)
+locate.o: locate.cpp
 
-modules.o: modules.cpp drag.h $(COMMON)
+modules.o: modules.cpp drag.h
 
-autoplac.o: autoplac.cpp autorout.h $(COMMON)
+autoplac.o: autoplac.cpp autorout.h
 
-automove.o: automove.cpp autorout.h $(COMMON)
+automove.o: automove.cpp autorout.h
 
-loadcmp.o: loadcmp.cpp $(COMMON)
+loadcmp.o: loadcmp.cpp
 
-zoom.o: ../share/zoom.cpp $(COMMON)
-	$(CXX) -c $(EDACPPFLAGS) -o $@ ../share/$*.cpp
+affiche.o: affiche.cpp
 
-affiche.o: affiche.cpp $(COMMON)
+tr_modif.o: tr_modif.cpp
 
-tr_modif.o: tr_modif.cpp $(COMMON)
+dialog_setup_libs.o: dialog_setup_libs.cpp
 
-dialog_setup_libs.o: dialog_setup_libs.cpp $(COMMON)
+initpcb.o: initpcb.cpp dialog_initpcb.cpp dialog_initpcb.h
 
-initpcb.o: initpcb.cpp dialog_initpcb.cpp dialog_initpcb.h $(COMMON)
+editrack.o: editrack.cpp
 
-editrack.o: editrack.cpp $(COMMON)
+attribut.o: attribut.cpp
 
-attribut.o: attribut.cpp $(COMMON)
+deltrack.o: deltrack.cpp
 
-deltrack.o: deltrack.cpp $(COMMON)
+track.o: track.cpp
 
-track.o: track.cpp $(COMMON)
+edit_track_width.o: edit_track_width.cpp
 
-edit_track_width.o: edit_track_width.cpp $(COMMON)
+editmod.o: editmod.cpp dialog_edit_module.cpp dialog_edit_module.h
 
-editmod.o: editmod.cpp dialog_edit_module.cpp dialog_edit_module.h $(COMMON)
+move-drag_pads.o: move-drag_pads.cpp drag.h
 
-editpads.o: editpads.cpp dialog_pad_edit.cpp dialog_pad_edit.h $(COMMON)
+editedge.o: editedge.cpp
 
-move-drag_pads.o: move-drag_pads.cpp drag.h $(COMMON)
+cotation.o: cotation.cpp
 
-editedge.o: editedge.cpp $(COMMON)
+edtxtmod.o: edtxtmod.cpp
 
-cotation.o: cotation.cpp $(COMMON)
+dialog_edit_module_text.o: dialog_edit_module_text.cpp dialog_edit_module_text_base.h
 
-edtxtmod.o: edtxtmod.cpp $(COMMON)
+dialog_edit_module_text_base.o: dialog_edit_module_text_base.cpp dialog_edit_module_text_base.h
 
-dialog_edit_mod_text.o: dialog_edit_mod_text.cpp dialog_edit_mod_text.h $(COMMON)
+ratsnest.o: ratsnest.cpp
 
-ratsnest.o: ratsnest.cpp $(COMMON)
+connect.o: connect.cpp
 
-connect.o: connect.cpp $(COMMON)
+drc.o: drc.cpp dialog_drc.cpp dialog_drc.h autorout.h
 
-drc.o: drc.cpp dialog_drc.cpp dialog_drc.h autorout.h $(COMMON)
+block.o: block.cpp
 
-block.o: block.cpp $(COMMON)
+clean.o: clean.cpp cleaningoptions_dialog.cpp cleaningoptions_dialog.h
 
-clean.o: clean.cpp cleaningoptions_dialog.cpp cleaningoptions_dialog.h $(COMMON)
+pcbplot.o: pcbplot.cpp pcbplot.h
 
-pcbplot.o: pcbplot.cpp pcbplot.h $(COMMON)
+plothpgl.o: plothpgl.cpp
 
-plothpgl.o: plothpgl.cpp $(COMMON)
+plotgerb.o: plotgerb.cpp pcbplot.h
 
-plotgerb.o: plotgerb.cpp pcbplot.h plotgerb.h $(COMMON)
+plotps.o: plotps.cpp pcbplot.h
 
-plotps.o: plotps.cpp pcbplot.h $(COMMON)
+readgerb.o: readgerb.cpp pcbplot.h
 
-readgerb.o: readgerb.cpp pcbplot.h $(COMMON)
+plot_rtn.o: plot_rtn.cpp pcbplot.h
 
-plot_rtn.o: plot_rtn.cpp pcbplot.h $(COMMON)
+gendrill.o: gendrill.cpp dialog_gendrill.cpp dialog_gendrill.h pcbplot.h
 
-gendrill.o: gendrill.cpp dialog_gendrill.cpp dialog_gendrill.h pcbplot.h $(COMMON)
+librairi.o: librairi.cpp
 
-librairi.o: librairi.cpp $(COMMON)
+edgemod.o: edgemod.cpp
 
-edgemod.o: edgemod.cpp $(COMMON)
+muonde.o: muonde.cpp drag.h
 
-muonde.o: muonde.cpp drag.h gen_self.h $(COMMON)
+autorout.o: autorout.cpp cell.h autorout.h
 
-autorout.o: autorout.cpp cell.h autorout.h $(COMMON)
+solve.o: solve.cpp cell.h autorout.h
 
-solve.o: solve.cpp cell.h autorout.h $(COMMON)
+work.o: work.cpp cell.h autorout.h
 
-work.o: work.cpp cell.h autorout.h $(COMMON)
+queue.o: queue.cpp cell.h autorout.h
 
-queue.o: queue.cpp cell.h autorout.h $(COMMON)
+board.o: board.cpp cell.h autorout.h
 
-board.o: board.cpp cell.h autorout.h $(COMMON)
+dist.o: dist.cpp cell.h autorout.h
 
-dist.o: dist.cpp cell.h autorout.h $(COMMON)
+graphpcb.o: graphpcb.cpp cell.h autorout.h
 
-graphpcb.o: graphpcb.cpp cell.h autorout.h $(COMMON)
+zones.o: zones.cpp cell.h
 
-zones.o: zones.cpp cell.h $(COMMON)
 
-zones_by_polygon.o: zones_by_polygon.cpp dialog_zones_by_polygon.cpp dialog_zones_by_polygon.h $(COMMON)
 
+zones_by_polygon.o: zones_by_polygon.cpp
 
-undelete.o: undelete.cpp $(COMMON)
 
-move_or_drag_track.o: move_or_drag_track.cpp $(COMMON)
+undelete.o: undelete.cpp
 
-ioascii.o: ioascii.cpp $(COMMON)
+move_or_drag_track.o: move_or_drag_track.cpp
 
-coordbox.o: coordbox.cpp $(COMMON)
+ioascii.o: ioascii.cpp
 
-mirepcb.o: mirepcb.cpp $(COMMON)
+coordbox.o: coordbox.cpp
 
-dragsegm.o: dragsegm.cpp drag.h $(COMMON)
+mirepcb.o: mirepcb.cpp
 
-router.o: router.cpp $(COMMON)
+dragsegm.o: dragsegm.cpp drag.h
 
-collectors.o: collectors.cpp collectors.h $(COMMON)
+router.o: router.cpp
+

@@ -22,12 +22,14 @@ DEBUG = 0
 #Define the wxWidget path (if not found in environment variables):
 ifndef WXWIN
 ifeq ($(DEBUG), 1)
-WXWIN=f:/wxMSW-2.8.9-debug
+WXWIN=d:/wxMSW-2.8.10/Debug
 else
-WXWIN=f:/wxMSW-2.8.9
+WXWIN=d:/wxMSW-2.8.10/Release
 endif
 endif
 LIBVERSION = 2.8
+
+BOOST_LIB=/f/boost/boost
 
 
 # You must comment or uncomment this line to disable/enable python support
@@ -43,43 +45,28 @@ ALL_LDFLAGS = -s #-v
 FINAL = 1
 endif
 
+CPPFLAGS += -I $(BOOST_LIB)
+
 ALL_CPPFLAGS = `$(WXWIN)/wx-config --cppflags` $(CPPFLAGS)
 EDACPPFLAGS = $(ALL_CPPFLAGS) $(ALL_CXXFLAGS) $(EXTRACPPFLAGS)
 EDALIBS = $(EXTRALIBS)
 
 ifdef KICAD_PYTHON
-BOOST_PATH=/d/boost
 PYTHON_PATH=/c/Python25
 PYLIBS= -L$(PYTHON_PATH)/libs
 PYLIBS+= -L $(PYTHON_PATH)/Lib
 PYLIBS+= -lpython2.5
-EXTRACPPFLAGS+=-I $(PYTHON_PATH)/include -DKICAD_PYTHON -I $(BOOST_PATH) -fno-strict-aliasing -ggdb
+EXTRACPPFLAGS+=-I $(PYTHON_PATH)/include -DKICAD_PYTHON -ggdb
 endif
 
 SYSWXLIB = `$(WXWIN)/wx-config --libs gl`\
 	-lwxpng-$(LIBVERSION) -lwxjpeg-$(LIBVERSION) -lwxzlib-$(LIBVERSION) $(PYLIBS)
 
+
 CC = gcc
 
 .cpp.o:
-	gcc -c -Wall $(ALL_CPPFLAGS) $(ALL_CXXFLAGS) $(EXTRACPPFLAGS) -o $@ $*.cpp
+	g++ -c -Wall $(ALL_CPPFLAGS) $(ALL_CXXFLAGS) $(EXTRACPPFLAGS) -o $@ $*.cpp
 
-# Settings for Cyginw/Mingw32
-# Some versions of windres cannot cope with the --preprocessor
-# option. Uncomment the RCPREPROCESSOR line below if yours can.
-ifndef WINE
-RESCOMP=$(CROSS)windres $(_USE_TEMP_FILE_IF_SUPPORTED)
-else
-RESCOMP=wrc
-endif
-RCINPUTSWITCH=-i
-RCOUTPUTSWITCH=-o
-RCINCSWITCH=--include-dir
-RCDEFSWITCH=--define
-# Note that this can cause windres to fail (Win95/98 problem?)
-# but commenting out RCPREPROCESSOR then does the trick.
-#RCPREPROCESSOR=--preprocessor "$(CXX) -c -E -xc-header -DRC_INVOKED"
-
-# Don't make this too long (e.g. by adding contrib/include/wx) because it will
-# truncate the command line
-RESFLAGS=$(RCPREPROCESSOR) $(RCINCSWITCH) $(WXDIR)/include $(RCEXTRAINC) $(RCDEFSWITCH) __WIN32__ $(RCDEFSWITCH) __WIN95__ $(RCDEFSWITCH) __GNUWIN32__
+# Settings for Mingw32
+RESCOMP=`$(WXWIN)/wx-config --rescomp`

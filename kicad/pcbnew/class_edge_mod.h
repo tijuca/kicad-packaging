@@ -20,14 +20,16 @@ public:
 
     int     m_Angle;        // pour les arcs de cercle: longueur de l'arc en 0,1 degres
 
-    int     m_PolyCount;    // For polygons: number of points (> 2)
-    int*    m_PolyList;     // For polygons: coord list (1 point = 2 coord)
+    std::vector<wxPoint>		m_PolyPoints;   // For polygons: number of points (> 2)
                             // Coord are relative to Origin, orient 0
 
 public:
     EDGE_MODULE( MODULE* parent );
     EDGE_MODULE( EDGE_MODULE* edge );
     ~EDGE_MODULE();
+
+    EDGE_MODULE* Next() const { return (EDGE_MODULE*) Pnext; }
+    EDGE_MODULE* Back() const { return (EDGE_MODULE*) Pback; }
 
 
     /**
@@ -39,10 +41,6 @@ public:
     {
         return m_Start;
     }
-
-
-    /* supprime du chainage la structure Struct */
-    void    UnLink();
 
     void    Copy( EDGE_MODULE* source );    // copy structure
 

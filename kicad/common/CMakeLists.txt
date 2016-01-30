@@ -1,3 +1,9 @@
+include_directories(${CMAKE_CURRENT_SOURCE_DIR}
+                    ${Boost_INCLUDE_DIR}
+                    ../pcbnew
+                    ../polygon
+                   )
+
 set(COMMON_SRCS
     about_kicad.cpp
     base_screen.cpp
@@ -9,10 +15,14 @@ set(COMMON_SRCS
     common_plot_functions.cpp
     common_plotHPGL_functions.cpp
     common_plotPS_functions.cpp
-    confirm.cpp
+	common_plotGERBER_functions.cpp
+	confirm.cpp
     copy_to_clipboard.cpp
     dcsvg.cpp
     displlst.cpp
+    dlist.cpp
+    drawframe.cpp
+    drawpanel.cpp
     drawtxt.cpp
     edaappl.cpp
     eda_dde.cpp
@@ -29,6 +39,25 @@ set(COMMON_SRCS
     toolbars.cpp
     trigo.cpp
     worksheet.cpp
-    wxwineda.cpp)
+    wxwineda.cpp
+    zoom.cpp
+
+    ../pcbnew/basepcbframe.cpp
+    ../pcbnew/class_board.cpp
+    ../pcbnew/class_board_connected_item.cpp
+    ../pcbnew/class_cotation.cpp
+    ../pcbnew/class_drc_item.cpp
+    ../pcbnew/class_marker.cpp
+    ../pcbnew/class_mire.cpp
+    ../pcbnew/class_pad.cpp
+    ../pcbnew/class_pad_draw_functions.cpp
+    ../pcbnew/class_pcb_text.cpp
+    ../pcbnew/class_zone.cpp
+    ../pcbnew/class_zone_setting.cpp
+    ../pcbnew/classpcb.cpp
+    ../pcbnew/collectors.cpp
+    ../pcbnew/sel_layer.cpp
+    ../pcbnew/dialog_print_using_printer_base.cpp
+)
 
 add_library(common ${COMMON_SRCS})

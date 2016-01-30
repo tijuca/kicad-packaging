@@ -4,10 +4,8 @@
 
 #include "fctsys.h"
 #include "wxstruct.h"
-
 #include "gr_basic.h"
-
-#include "common.h"
+#include "kicad_string.h"
 #include "pcbnew.h"
 
 #ifdef CVPCB
@@ -22,11 +20,11 @@
 /*********************************************************/
 
 /* Constructeur de la classe EQUIPOT */
-EQUIPOT::EQUIPOT( BOARD_ITEM* StructFather ) :
-    BOARD_ITEM( StructFather, PCB_EQUIPOT_STRUCT_TYPE )
+EQUIPOT::EQUIPOT( BOARD_ITEM* aParent ) :
+    BOARD_ITEM( aParent, TYPE_EQUIPOT )
 {
     SetNet( 0 );
-    m_NbNodes       = m_NbLink = m_NbNoconn = 0;
+    m_NbNodes = m_NbLink = m_NbNoconn = 0;
     m_Masque_Layer  = 0;
     m_Masque_Plan   = 0;
     m_ForceWidth    = 0;
@@ -44,39 +42,16 @@ EQUIPOT::~EQUIPOT()
 }
 
 
-
 wxPoint& EQUIPOT::GetPosition()
 {
     static wxPoint dummy;
+
     return dummy;
 }
 
 
-void EQUIPOT::UnLink()
-{
-    /* Modification du chainage arriere */
-    if( Pback )
-    {
-        if( Pback->Type() != TYPEPCB )
-        {
-            Pback->Pnext = Pnext;
-        }
-        else /* Le chainage arriere pointe sur la structure "Pere" */
-        {
-            ( (BOARD*) Pback )->m_Equipots = (EQUIPOT*) Pnext;
-        }
-    }
-
-    /* Modification du chainage avant */
-    if( Pnext )
-        Pnext->Pback = Pback;
-
-    Pnext = Pback = NULL;
-}
-
-
 /*********************************************************/
-int EQUIPOT:: ReadEquipotDescr( FILE* File, int* LineNum )
+int EQUIPOT:: ReadDescr( FILE* File, int* LineNum )
 /*********************************************************/
 
 /* Routine de lecture de 1 descr Equipotentielle.
@@ -114,45 +89,66 @@ int EQUIPOT:: ReadEquipotDescr( FILE* File, int* LineNum )
 }
 
 
+/**************************************/
 bool EQUIPOT::Save( FILE* aFile ) const
+/**************************************/
 {
     if( GetState( DELETED ) )
         return true;
 
-    bool rc = false;
-    
+    bool success = false;
+
     fprintf( aFile, "$EQUIPOT\n" );
-    fprintf( aFile, "Na %d \"%.16s\"\n", GetNet(), CONV_TO_UTF8( m_Netname ) );
+    fprintf( aFile, "Na %d \"%s\"\n", GetNet(), CONV_TO_UTF8( m_Netname ) );
     fprintf( aFile, "St %s\n", "~" );
-    
+
     if( m_ForceWidth )
         fprintf( aFile, "Lw %d\n", m_ForceWidth );
-    
-    if( fprintf( aFile, "$EndEQUIPOT\n" ) != sizeof("$EndEQUIPOT\n")-1 )
+
+    if( fprintf( aFile, "$EndEQUIPOT\n" ) != sizeof("$EndEQUIPOT\n") - 1 )
         goto out;
 
-    rc = true;
-    
-out:    
-    return rc;
+    success = true;
+
+out:
+    return success;
+}
+
+/**
+ * Function SetNetname
+ * @param const wxString : the new netname
+ */
+void EQUIPOT::SetNetname( const wxString & aNetname )
+{
+    m_Netname = aNetname;
+    m_ShortNetname = m_Netname.AfterLast( '/' );
+}
+
+
+/** function Draw
+ * we actually could show a NET, simply show all the tracks and pads or net name on pad and vias
+ */
+void EQUIPOT::Draw( WinEDA_DrawPanel* panel, wxDC* DC, int aDrawMode, const wxPoint& offset )
+{
 }
 
 
 #if defined(DEBUG)
+
 /**
  * Function Show
  * is used to output the object tree, currently for debugging only.
- * @param nestLevel An aid to prettier tree indenting, and is the level 
+ * @param nestLevel An aid to prettier tree indenting, and is the level
  *          of nesting of this object within the overall tree.
  * @param os The ostream& to output to.
  */
 void EQUIPOT::Show( int nestLevel, std::ostream& os )
 {
     // for now, make it look like XML:
-    NestedSpace( nestLevel, os ) << '<' << GetClass().Lower().mb_str() << 
-       " name=\"" <<  m_Netname.mb_str() << '"' <<
-       " netcode=\"" << GetNet() << "\"/>\n";
+    NestedSpace( nestLevel, os ) << '<' << GetClass().Lower().mb_str() <<
+    " name=\"" << m_Netname.mb_str() << '"' <<
+    " netcode=\"" << GetNet() << "\"/>\n";
 }
+
+
 #endif
-
-

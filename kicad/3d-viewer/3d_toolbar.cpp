@@ -39,17 +39,17 @@ void WinEDA3D_DrawFrame::ReCreateHToolbar()
 #endif
 
     m_HToolBar->AddSeparator();
-    m_HToolBar->AddTool( ID_ZOOM_IN_BUTT, wxEmptyString, BITMAP( zoom_in_xpm ),
-                        _( "zoom + (F1)" ) );
+    m_HToolBar->AddTool( ID_ZOOM_IN, wxEmptyString, BITMAP( zoom_in_xpm ),
+                        _( "Zoom in" ) );
 
-    m_HToolBar->AddTool( ID_ZOOM_OUT_BUTT, wxEmptyString, BITMAP( zoom_out_xpm ),
-                        _( "zoom - (F2)" ) );
+    m_HToolBar->AddTool( ID_ZOOM_OUT, wxEmptyString, BITMAP( zoom_out_xpm ),
+                        _( "Zoom out" ) );
 
-    m_HToolBar->AddTool( ID_ZOOM_REDRAW_BUTT, wxEmptyString, BITMAP( zoom_redraw_xpm ),
-                        _( "redraw (F3)" ) );
+    m_HToolBar->AddTool( ID_ZOOM_REDRAW, wxEmptyString, BITMAP( zoom_redraw_xpm ),
+                        _( "Redraw view" ) );
 
-    m_HToolBar->AddTool( ID_ZOOM_PAGE_BUTT, wxEmptyString, BITMAP( zoom_auto_xpm ),
-                        _( "auto zoom" ) );
+    m_HToolBar->AddTool( ID_ZOOM_PAGE, wxEmptyString, BITMAP( zoom_auto_xpm ),
+                        _( "Zoom auto" ) );
 
     m_HToolBar->AddSeparator();
     m_HToolBar->AddTool( ID_ROTATE3D_X_NEG, wxEmptyString, BITMAP( rotate_neg_X_xpm ),
@@ -133,11 +133,6 @@ bool full_options = true;
     {
     ADD_MENUITEM( referencesMenu, ID_MENU3D_MODULE_ONOFF,
                   _( "3D Footprints Shapes On/Off" ), shape_3d_xpm );
-
-#if 0
-    ADD_MENUITEM( referencesMenu, ID_MENU3D_PLACE_ONOFF,
-                  _( "PCB place 3D On/off" ), select_w_layer_xpm );
-#endif
 
     ADD_MENUITEM( referencesMenu, ID_MENU3D_ZONE_ONOFF,
                   _( "Zone Filling On/Off" ), add_zone_xpm );

@@ -5,12 +5,6 @@
 /***************************/
 int * InstallDialogLayerPairChoice(WinEDA_GerberFrame * parent);
 
-/****************/
-/* undelete.cpp */
-/****************/
-BOARD_ITEM* SaveItemEfface( BOARD_ITEM* PtItem, int nbitems );
-
-
 /***********************/
 /* gerbview_config.cpp */
 /***********************/
@@ -31,12 +25,6 @@ void Print_PcbItems(BOARD * Pcb, wxDC *DC, int drawmode, int printmasklayer);
 /*****************/
 void DisplayColorSetupFrame(WinEDA_DrawFrame * parent, const wxPoint & framepos);
 
-/***************/
-/* affiche.cpp */
-/***************/
-void valeur_param(int valeur,char * buf_texte);
-void Affiche_Infos_PCB_Texte(WinEDA_BasePcbFrame * frame, TEXTE_PCB* pt_texte);
-void Affiche_Infos_Piste(WinEDA_BasePcbFrame * frame, TRACK * pt_piste);
 
 /* PLOT_RTN.CC */
 void ComputePlotFileName( char * FullFileName, char * Ext );
@@ -44,14 +32,10 @@ void calcule_coord_plot(int * dx, int * dy ) ;
 void calcule_dim_plot(int * dx, int * dy ) ;
 void Trace_Un_TextePcb( TEXTE_PCB * pt_texte,int format_plot,int masque_layer);
         /* Trace 1 Texte type PCB , c.a.d autre que les textes sur modules,
-        prepare les parametres de trace de Plot_1_texte */
+        prepare les parametres de trace de texte */
 void trace_1_arc(int format_plot,int cx,int cy,int start,int end,
                     int rayon,int epaisseur);
 void trace_1_cercle(int format_plot,int epaisseur,int cx, int cy, int rayon);
-void Plot_1_texte( int format_plot,
-                        char * ptr,int t_nbcodes, int t_orient,
-                        int epaisseur, int ox,int oy,int size_h,int size_v);
-            /* Routine de base de trace de 1 chaine de caracteres */
 
 void Trace_Un_DrawSegment( DRAWSEGMENT* PtSegm, int format_plot,int masque_layer );
 
@@ -123,17 +107,4 @@ void Trace_1_texte_pcb(WinEDA_DrawPanel * panel, wxDC * DC,
 
 void Affiche_DCodes_Pistes(WinEDA_DrawPanel * panel, wxDC * DC,
             BOARD * Pcb, int drawmode);
-
-/*************/
-/* dcode.cpp */
-/*************/
-class D_CODE;
-
-D_CODE * ReturnToolDescr(int layer, int Dcode, int * index = NULL);
-
-/**************/
-/* rs274x.cpp */
-/**************/
-bool GetEndOfBlock( char * buff, char * &text, FILE *gerber_file);
-
 

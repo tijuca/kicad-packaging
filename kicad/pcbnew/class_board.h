@@ -5,6 +5,10 @@
 #ifndef CLASS_BOARD_H
 #define CLASS_BOARD_H
 
+
+#include "dlist.h"
+
+
 class ZONE_CONTAINER;
 class EDA_BoardDesignSettings;
 
@@ -80,27 +84,27 @@ public:
     int                     m_Unused;
     int                     m_Status_Pcb;       // Flags used in ratsnet calculation and update
     EDA_BoardDesignSettings* m_BoardSettings;   // Link to current design settings
-    int             m_NbNets;                   // Nets (equipotentielles) count
     int             m_NbNodes;                  // Active pads (pads attached to a net ) count
-    int             m_NbLinks;                  // Ratsnet count
-    int             m_NbLoclinks;               // Rastests to shew while creating a track
+    int             m_NbLinks;                  // Ratsnest count
+    int             m_NbLoclinks;               // Ratsests to show while creating a track
     int             m_NbNoconnect;              // Active ratsnet count (rastnest not alraedy connected by tracks
-    int             m_NbSegmTrack;              // Track items count
-    int             m_NbSegmZone;               // Zone items count
 
-    BOARD_ITEM*     m_Drawings;                 // linked list of lines & texts
-    MODULE*         m_Modules;                  // linked list of MODULEs
-    EQUIPOT*        m_Equipots;                 // linked list of nets
-    TRACK*          m_Track;                    // linked list of TRACKs and SEGVIAs
-    SEGZONE*        m_Zone;                     // linked list of SEGZONEs
-    D_PAD**         m_Pads;                     // Entry for a sorted pad list (used in ratsnest calculations)
-    int             m_NbPads;                   // Pad count
+    DLIST<BOARD_ITEM> m_Drawings;               // linked list of lines & texts
+    DLIST<MODULE>   m_Modules;                  // linked list of MODULEs
+    DLIST<EQUIPOT>  m_Equipots;                 // linked list of nets
+
+    DLIST<TRACK>    m_Track;                    // linked list of TRACKs and SEGVIAs
+
+    DLIST<SEGZONE>  m_Zone;                     // linked list of SEGZONEs
+
+    std::vector<D_PAD*> m_Pads;                 // Entry for a sorted pad list (used in ratsnest calculations)
+
     CHEVELU*        m_Ratsnest;                 // Rastnest list
     CHEVELU*        m_LocalRatsnest;            // Rastnest list used while moving a footprint
 
     ZONE_CONTAINER* m_CurrentZoneContour;     	// zone contour currently in progress
 
-    BOARD( EDA_BaseStruct* StructFather, WinEDA_BasePcbFrame* frame );
+    BOARD( EDA_BaseStruct* aParent, WinEDA_BasePcbFrame* frame );
     ~BOARD();
 
     /**
@@ -111,8 +115,6 @@ public:
      */
     wxPoint& GetPosition();
 
-    /* supprime du chainage la structure Struct */
-    void    UnLink();
 
     /**
      * Function Add
@@ -126,11 +128,26 @@ public:
 
     /**
      * Function Delete
-     * deletes the given single item from this BOARD and deletes its memory.  If you
-     * need the object after deletion, first copy it.
+     * removes the given single item from this BOARD and deletes its memory.
      * @param aBoardItem The item to remove from this board and delete
      */
-    void    Delete( BOARD_ITEM* aBoardItem );
+    void    Delete( BOARD_ITEM* aBoardItem )
+    {
+        wxASSERT( aBoardItem );  // developers should run DEBUG versions and fix such calls with NULL
+        if( aBoardItem )
+            delete Remove( aBoardItem );
+    }
+
+
+    /**
+     * Function Remove
+     * removes \a aBoardItem from this BOARD and returns it to caller without
+     * deleting it.
+     * @param aBoardItem The item to remove from this board.
+     * @return BOARD_ITEM* \a aBoardItem which was passed in.
+     */
+    BOARD_ITEM* Remove( BOARD_ITEM* aBoardItem );
+
 
     /**
      * Function DeleteMARKERs
@@ -146,14 +163,6 @@ public:
 
 
     /**
-     * Function DeleteMARKER
-     * deletes one MARKER from the board.
-     * @param aIndex The index of the marker to delete.
-     */
-    void    DeleteMARKER( int aIndex );
-
-
-    /**
      * Function GetMARKER
      * returns the MARKER at a given index.
      * @param index The array type index into a collection of MARKERS.
@@ -165,7 +174,6 @@ public:
             return m_markers[index];
         return NULL;
     }
-
 
     /**
      * Function GetMARKERCount
@@ -253,12 +261,17 @@ public:
     void    Display_Infos( WinEDA_DrawFrame* frame );
 
     void Draw( WinEDA_DrawPanel* panel, wxDC* DC,
-                      int aDrawMode, const wxPoint& offset = ZeroOffset )
-    {
-        // void WinEDA_PcbFrame::Trace_Pcb( wxDC* DC, int mode )
-        // goes here.
-    }
+                      int aDrawMode, const wxPoint& offset = ZeroOffset );
 
+    /**
+     * Function DrawHighLight
+     * redraws the objects in the board that are associated with the given aNetCode
+     * and turns on or off the brilliance associated with that net according to the
+     * current value of global g_HightLigt_Status
+     * @param aDrawPanel is needed for the clipping support.
+     * @param aNetCode is the net number to highlight or to dim.
+     */
+    void DrawHighLight( WinEDA_DrawPanel* aDrawPanel, wxDC* DC, int aNetCode );
 
     /**
      * Function Visit
@@ -359,12 +372,29 @@ public:
     /*************************/
     /* Copper Areas handling */
     /*************************/
+    /**
+     * Function HitTestForAnyFilledArea
+     * tests if the given wxPoint is within the bounds of a filled area of this zone.
+     * the test is made on zones on layer from aStartLayer to aEndLayer
+     * Note: if a zone has its flag BUSY (in .m_State) is set, it is ignored.
+     * @param refPos A wxPoint to test
+     * @param aStartLayer the first layer to test
+     * @param aEndLayer the last layer (-1 to ignore it) to test
+     * @return ZONE_CONTAINER* return a pointer to the ZONE_CONTAINER found, else NULL
+     */
+    ZONE_CONTAINER*  HitTestForAnyFilledArea( const wxPoint& aRefPos, int aStartLayer, int aEndLayer = -1 );
 
     /**
      * Function RedrawAreasOutlines
      * Redraw all areas outlines on layer aLayer ( redraw all if aLayer < 0 )
      */
     void RedrawAreasOutlines(WinEDA_DrawPanel* panel, wxDC * aDC, int aDrawMode, int aLayer);
+
+    /**
+     * Function RedrawFilledAreas
+     * Redraw all filled areas on layer aLayer ( redraw all if aLayer < 0 )
+     */
+    void RedrawFilledAreas(WinEDA_DrawPanel* panel, wxDC * aDC, int aDrawMode, int aLayer);
 
     /**
      * Function SetAreasNetCodesFromNetNames
@@ -374,6 +404,7 @@ public:
      * or net change
      * Must be called after pad netcodes are calculated
      * @return : error count
+     * For non copper areas, netcode is set to 0
      */
     int SetAreasNetCodesFromNetNames(void);
 
@@ -541,6 +572,16 @@ public:
      * @return errors count
     */
     int Test_Drc_Areas_Outlines_To_Areas_Outlines( ZONE_CONTAINER* aArea_To_Examine,bool aCreate_Markers );
+
+    /****** function relative to ratsnest calculations: */
+
+    /**
+     * Function Test_Connection_To_Copper_Areas
+     * init .m_ZoneSubnet parameter in tracks and pads according to the connections to areas found
+     * @param aNetcode = netcode to analyse. if -1, analyse all nets
+     */
+    void Test_Connections_To_Copper_Areas( int aNetcode = -1 );
+
 };
 
 #endif		// #ifndef CLASS_BOARD_H

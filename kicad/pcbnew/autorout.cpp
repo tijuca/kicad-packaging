@@ -5,9 +5,12 @@
 #include "fctsys.h"
 #include "gr_basic.h"
 #include "common.h"
+#include "class_drawpanel.h"
+#include "confirm.h"
 #include "pcbnew.h"
 #include "autorout.h"
 #include "cell.h"
+#include "zones.h"
 
 #include "protos.h"
 
@@ -45,7 +48,7 @@ void WinEDA_PcbFrame::Autoroute( wxDC* DC, int mode )
         {
             switch( GetScreen()->GetCurItem()->Type() )
             {
-            case TYPEPAD:
+            case TYPE_PAD:
                 Pad = (D_PAD*) GetScreen()->GetCurItem();
                 autoroute_net_code = Pad->GetNet();
                 break;
@@ -62,7 +65,7 @@ void WinEDA_PcbFrame::Autoroute( wxDC* DC, int mode )
 
     case ROUTE_MODULE:
         Module = (MODULE*) GetScreen()->GetCurItem();
-        if( (Module == NULL) || (Module->Type() != TYPEMODULE) )
+        if( (Module == NULL) || (Module->Type() != TYPE_MODULE) )
         {
             DisplayError( this, _( "Module not selected" ) ); return;
         }
@@ -70,19 +73,19 @@ void WinEDA_PcbFrame::Autoroute( wxDC* DC, int mode )
 
     case ROUTE_PAD:
         Pad = (D_PAD*) GetScreen()->GetCurItem();
-        if( (Pad == NULL)  || (Pad->Type() != TYPEPAD) )
+        if( (Pad == NULL)  || (Pad->Type() != TYPE_PAD) )
         {
             DisplayError( this, _( "Pad not selected" ) ); return;
         }
         break;
     }
 
-    if( (m_Pcb->m_Status_Pcb & LISTE_CHEVELU_OK ) == 0 )
+    if( (GetBoard()->m_Status_Pcb & LISTE_CHEVELU_OK ) == 0 )
         Compile_Ratsnest( DC, TRUE );
 
     /* Placement du flag CH_ROUTE_REQ sur les chevelus demandes */
-    ptmp = (CHEVELU*) m_Pcb->m_Ratsnest;
-    for( ii = m_Pcb->GetNumRatsnests(); ii > 0; ii--, ptmp++ )
+    ptmp = (CHEVELU*) GetBoard()->m_Ratsnest;
+    for( ii = GetBoard()->GetNumRatsnests(); ii > 0; ii--, ptmp++ )
     {
         ptmp->status &= ~CH_ROUTE_REQ;
 
@@ -99,7 +102,7 @@ void WinEDA_PcbFrame::Autoroute( wxDC* DC, int mode )
         case ROUTE_MODULE:
         {
             D_PAD* pt_pad = (D_PAD*) Module->m_Pads;
-            for( ; pt_pad != NULL; pt_pad = (D_PAD*) pt_pad->Pnext )
+            for( ; pt_pad != NULL; pt_pad = pt_pad->Next() )
             {
                 if( ptmp->pad_start == pt_pad )
                     ptmp->status |= CH_ROUTE_REQ;
@@ -117,7 +120,7 @@ void WinEDA_PcbFrame::Autoroute( wxDC* DC, int mode )
         }
     }
 
-    ptmp = (CHEVELU*) m_Pcb->m_Ratsnest;
+    ptmp = (CHEVELU*) GetBoard()->m_Ratsnest;
 
     start = time( NULL );
 
@@ -146,10 +149,10 @@ void WinEDA_PcbFrame::Autoroute( wxDC* DC, int mode )
     }
 
     Affiche_Message( _( "Place Cells" ) );
-    PlaceCells( m_Pcb, -1, FORCE_PADS );
+    PlaceCells( GetBoard(), -1, FORCE_PADS );
 
     /* Construction de la liste des pistes a router */
-    Build_Work( m_Pcb, ptmp );
+    Build_Work( GetBoard(), ptmp );
 
     // DisplayBoard(DrawPanel, DC);
 
@@ -180,14 +183,14 @@ void WinEDA_PcbFrame::Reset_Noroutable( wxDC* DC )
     int      ii;
     CHEVELU* pt_rats;
 
-    if( (m_Pcb->m_Status_Pcb & LISTE_CHEVELU_OK )== 0 )
+    if( (GetBoard()->m_Status_Pcb & LISTE_CHEVELU_OK )== 0 )
         Compile_Ratsnest( DC, TRUE );
 
-    pt_rats = (CHEVELU*) m_Pcb->m_Ratsnest;
+    pt_rats = (CHEVELU*) GetBoard()->m_Ratsnest;
     if( pt_rats == NULL )
         return;
 
-    for( ii = m_Pcb->GetNumRatsnests(); ii > 0; ii--, pt_rats++ )
+    for( ii = GetBoard()->GetNumRatsnests(); ii > 0; ii--, pt_rats++ )
     {
         pt_rats->status &= ~CH_UNROUTABLE;
     }
@@ -215,7 +218,7 @@ void DisplayBoard( WinEDA_DrawPanel* panel, wxDC* DC )
         {
             color  = 0;
             dcell0 = GetCell( row, col, BOTTOM );
-			if( dcell0 & HOLE )
+            if( dcell0 & HOLE )
                 color = GREEN;
 //            if( Nb_Sides )
 //                dcell1 = GetCell( row, col, TOP );
@@ -224,20 +227,20 @@ void DisplayBoard( WinEDA_DrawPanel* panel, wxDC* DC )
 //            dcell0 |= dcell1;
             if( !color && (dcell0 & VIA_IMPOSSIBLE) )
                 color = BLUE;
-			if( dcell0 & CELL_is_EDGE )
+            if( dcell0 & CELL_is_EDGE )
                 color = YELLOW;
-			else if( dcell0 & CELL_is_ZONE )
+            else if( dcell0 & CELL_is_ZONE )
                 color = YELLOW;
-			
-			#define DRAW_OFFSET_X -20
-			#define DRAW_OFFSET_Y 20
+
+            #define DRAW_OFFSET_X -20
+            #define DRAW_OFFSET_Y 20
 //            if( color )
             {
                 for( i = 0; i < maxi; i++ )
                     for( j = 0; j < maxi; j++ )
                         GRSPutPixel( &panel->m_ClipBox, DC,
                                      (col * maxi) + i + DRAW_OFFSET_X,
-									 (row * maxi) + j + DRAW_OFFSET_Y, color );
+                                     (row * maxi) + j + DRAW_OFFSET_Y, color );
 
             }
         }

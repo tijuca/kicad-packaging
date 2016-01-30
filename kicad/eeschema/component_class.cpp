@@ -4,29 +4,81 @@
 
 #include "fctsys.h"
 #include "gr_basic.h"
-
 #include "common.h"
+#include "confirm.h"
 #include "program.h"
 #include "libcmp.h"
 #include "general.h"
 #include "macros.h"
-#include "id.h"
 
 #include "protos.h"
-
-#include "macros.h"
 
 #include <wx/arrimpl.cpp>
 #include <wx/tokenzr.h>
 
 WX_DEFINE_OBJARRAY( ArrayOfSheetLists );
 
-/***************************/
-/* class SCH_COMPONENT */
-/***************************/
 
-/** Function AddHierarchicalReference
- * Add a full hierachical reference (path + local reference)
+/*******************************************************************/
+SCH_COMPONENT::SCH_COMPONENT( const wxPoint& aPos, SCH_ITEM* aParent ) :
+    SCH_ITEM( aParent, TYPE_SCH_COMPONENT )
+/*******************************************************************/
+{
+    m_Multi = 0;    /* In multi unit chip - which unit to draw. */
+
+    m_Pos = aPos;
+
+    m_Convert = 0;  /* De Morgan Handling  */
+
+    /* The rotation/mirror transformation matrix. pos normal */
+    m_Transform[0][0] = 1;
+    m_Transform[0][1] = 0;
+    m_Transform[1][0] = 0;
+    m_Transform[1][1] = -1;
+
+    m_Fields.reserve( NUMBER_OF_FIELDS );
+
+    for( int i = 0;  i<NUMBER_OF_FIELDS;  ++i )
+    {
+        SCH_CMP_FIELD field( aPos, i, this, ReturnDefaultFieldName( i ) );
+
+        if( i==REFERENCE )
+            field.SetLayer( LAYER_REFERENCEPART );
+        else if( i==VALUE )
+            field.SetLayer( LAYER_VALUEPART );
+
+        // else keep LAYER_FIELDS from SCH_CMP_FIELD constructor
+
+        // SCH_CMP_FIELD's implicitly created copy constructor is called in here
+        AddField( field );
+    }
+
+    m_PrefixString = wxString( _( "U" ) );
+}
+
+
+SCH_COMPONENT::SCH_COMPONENT( const SCH_COMPONENT& aTemplate ) :
+    SCH_ITEM( NULL, TYPE_SCH_COMPONENT )
+{
+    // assignment of all fields, including field vector elements, and linked list pointers
+    *this = aTemplate;
+
+    // set linked list pointers to null, before this they were copies of aTemplate's
+    Pback = NULL;
+    Pnext = NULL;
+    m_Son = NULL;
+
+    // Re-parent the fields, which before this had aTemplate as parent
+    for( int i=0; i<GetFieldCount();  ++i )
+    {
+        GetField( i )->SetParent( this );
+    }
+}
+
+
+/**
+ * Function AddHierarchicalReference
+ * adds a full hierachical reference (path + local reference)
  * @param aPath = hierarchical path (/<sheet timestamp>/component timestamp> like /05678E50/A23EF560)
  * @param aRef = local reference like C45, R56
  * @param aMulti = part selection, used in multi part per package (0 or 1 for non multi)
@@ -59,51 +111,20 @@ void SCH_COMPONENT::AddHierarchicalReference( const wxString& aPath,
 
 
 /****************************************************************/
-const wxString& ReturnDefaultFieldName( int aFieldNdx )
+wxString SCH_COMPONENT::ReturnFieldName( int aFieldNdx ) const
 /****************************************************************/
-
-/* Return the default field name from its index (REFERENCE, VALUE ..)
- *  FieldDefaultNameList is not static, because we want the text translation
- *  for I18n
- */
 {
-    // avoid unnecessarily copying wxStrings at runtime.
-    static const wxString FieldDefaultNameList[] = {
-        _( "Ref" ),                             /* Reference of part, i.e. "IC21" */
-        _( "Value" ),                           /* Value of part, i.e. "3.3K" */
-        _( "Footprint" ),                       /* Footprint, used by cvpcb or pcbnew, i.e. "16DIP300" */
-        _( "Sheet" ),                           /* for components which are a schematic file, schematic file name, i.e. "cnt16.sch" */
-        wxString( _( "Field" ) ) + wxT( "1" ),
-        wxString( _( "Field" ) ) + wxT( "2" ),
-        wxString( _( "Field" ) ) + wxT( "3" ),
-        wxString( _( "Field" ) ) + wxT( "4" ),
-        wxString( _( "Field" ) ) + wxT( "5" ),
-        wxString( _( "Field" ) ) + wxT( "6" ),
-        wxString( _( "Field" ) ) + wxT( "7" ),
-        wxString( _( "Field" ) ) + wxT( "8" ),
-        wxT( "badFieldNdx!" )               // error, and "sentinel" value
-    };
+    SCH_CMP_FIELD* field = GetField( aFieldNdx );
 
-    if( (unsigned) aFieldNdx > FIELD8 )     // catches < 0 also
-        aFieldNdx = FIELD8 + 1;             // return the sentinel text
+    if( field )
+    {
+        if( !field->m_Name.IsEmpty() )
+            return field->m_Name;
+        else
+            return ReturnDefaultFieldName( aFieldNdx );
+    }
 
-    return FieldDefaultNameList[aFieldNdx];
-}
-
-
-/****************************************************************/
-const wxString& SCH_COMPONENT::ReturnFieldName( int aFieldNdx ) const
-/****************************************************************/
-
-/* Return the Field name from its index (REFERENCE, VALUE ..)
- */
-{
-    // avoid unnecessarily copying wxStrings.
-
-    if( aFieldNdx < FIELD1  ||  m_Field[aFieldNdx].m_Name.IsEmpty() )
-        return ReturnDefaultFieldName( aFieldNdx );
-
-    return m_Field[aFieldNdx].m_Name;
+    return wxEmptyString;
 }
 
 
@@ -140,15 +161,15 @@ const wxString SCH_COMPONENT::GetRef( DrawSheetPath* sheet )
         }
     }
 
-    //if it was not found in m_Paths array, then see if it is in
+    // if it was not found in m_Paths array, then see if it is in
     // m_Field[REFERENCE] -- if so, use this as a default for this path.
     // this will happen if we load a version 1 schematic file.
     // it will also mean that multiple instances of the same sheet by default
     // all have the same component references, but perhaps this is best.
-    if( !m_Field[REFERENCE].m_Text.IsEmpty() )
+    if( !GetField( REFERENCE )->m_Text.IsEmpty() )
     {
-        SetRef( sheet, m_Field[REFERENCE].m_Text );
-        return m_Field[REFERENCE].m_Text;
+        SetRef( sheet, GetField( REFERENCE )->m_Text );
+        return GetField( REFERENCE )->m_Text;
     }
     return m_PrefixString;
 }
@@ -187,16 +208,19 @@ void SCH_COMPONENT::SetRef( DrawSheetPath* sheet, const wxString& ref )
     if( notInArray )
         AddHierarchicalReference( path, ref, m_Multi );
 
-    if( m_Field[REFERENCE].m_Text.IsEmpty()
-       || ( abs( m_Field[REFERENCE].m_Pos.x - m_Pos.x ) +
-            abs( m_Field[REFERENCE].m_Pos.y - m_Pos.y ) > 10000) )
+    SCH_CMP_FIELD* rf = GetField( REFERENCE );
+
+    if( rf->m_Text.IsEmpty()
+       || ( abs( rf->m_Pos.x - m_Pos.x ) +
+            abs( rf->m_Pos.y - m_Pos.y ) > 10000) )
     {
-        //move it to a reasonable position..
-        m_Field[REFERENCE].m_Pos    = m_Pos;
-        m_Field[REFERENCE].m_Pos.x += 50; //a slight offset..
-        m_Field[REFERENCE].m_Pos.y += 50;
+        // move it to a reasonable position
+        rf->m_Pos    = m_Pos;
+        rf->m_Pos.x += 50;         // a slight offset
+        rf->m_Pos.y += 50;
     }
-    m_Field[REFERENCE].m_Text = ref; //for drawing.
+
+    rf->m_Text = ref;  // for drawing.
 }
 
 
@@ -269,51 +293,28 @@ void SCH_COMPONENT::SetUnitSelection( DrawSheetPath* aSheet, int aUnitSelection 
 
 
 /******************************************************************/
-const wxString& SCH_COMPONENT::GetFieldValue( int aFieldNdx ) const
+SCH_CMP_FIELD* SCH_COMPONENT::GetField( int aFieldNdx ) const
 /******************************************************************/
 {
-    // avoid unnecessarily copying wxStrings.
-    static const wxString myEmpty = wxEmptyString;
+    const SCH_CMP_FIELD* field;
 
-    if( (unsigned) aFieldNdx > FIELD8  ||  m_Field[aFieldNdx].m_Text.IsEmpty() )
-        return myEmpty;
+    if( (unsigned) aFieldNdx < m_Fields.size() )
+        field = &m_Fields[aFieldNdx];
+    else
+        field = NULL;
 
-    return m_Field[aFieldNdx].m_Text;
+    wxASSERT( field );
+
+    // use case to remove const-ness
+    return (SCH_CMP_FIELD*) field;
 }
 
 
-/*******************************************************************/
-SCH_COMPONENT::SCH_COMPONENT( const wxPoint& aPos ) :
-    SCH_ITEM( NULL, TYPE_SCH_COMPONENT )
-/*******************************************************************/
+/******************************************************************/
+void SCH_COMPONENT::AddField( const SCH_CMP_FIELD& aField )
+/******************************************************************/
 {
-    int ii;
-
-    m_Multi = 0;    /* In multi unit chip - which unit to draw. */
-
-    m_Pos = aPos;
-
-    m_Convert = 0;  /* De Morgan Handling  */
-
-    /* The rotation/mirror transformation matrix. pos normal*/
-    m_Transform[0][0] = 1;
-    m_Transform[0][1] = 0;
-    m_Transform[1][0] = 0;
-    m_Transform[1][1] = -1;
-
-    /* initialisation des Fields */
-    for( ii = 0; ii < NUMBER_OF_FIELDS; ii++ )
-    {
-        m_Field[ii].m_Pos = m_Pos;
-        m_Field[ii].SetLayer( LAYER_FIELDS );
-        m_Field[ii].m_FieldId = REFERENCE + ii;
-        m_Field[ii].m_Parent  = this;
-    }
-
-    m_Field[VALUE].SetLayer( LAYER_VALUEPART );
-    m_Field[REFERENCE].SetLayer( LAYER_REFERENCEPART );
-
-    m_PrefixString = wxString( _( "U" ) );
+    m_Fields.push_back( aField );
 }
 
 
@@ -352,7 +353,7 @@ EDA_Rect SCH_COMPONENT::GetBoundaryBox() const
 
     int y2 = m_Transform[1][0] * xm + m_Transform[1][1] * ym;
 
-    // H and W must be > 0 for wxRect:
+    // H and W must be > 0:
     if( x2 < x1 )
         EXCHG( x2, x1 );
     if( y2 < y1 )
@@ -364,31 +365,6 @@ EDA_Rect SCH_COMPONENT::GetBoundaryBox() const
 
     BoundaryBox.Offset( m_Pos );
     return BoundaryBox;
-}
-
-
-/**************************************************************************/
-void PartTextStruct::SwapData( PartTextStruct* copyitem )
-/**************************************************************************/
-
-/* Used if undo / redo command:
- *  swap data between this and copyitem
- */
-{
-    EXCHG( m_Text, copyitem->m_Text );
-    EXCHG( m_Layer, copyitem->m_Layer );
-    EXCHG( m_Pos, copyitem->m_Pos );
-    EXCHG( m_Size, copyitem->m_Size );
-    EXCHG( m_Width, copyitem->m_Width );
-    EXCHG( m_Orient, copyitem->m_Orient );
-    EXCHG( m_Miroir, copyitem->m_Miroir );
-    EXCHG( m_Attributs, copyitem->m_Attributs );
-    EXCHG( m_CharType, copyitem->m_CharType );
-    EXCHG( m_HJustify, copyitem->m_HJustify );
-    EXCHG( m_VJustify, copyitem->m_VJustify );
-    EXCHG( m_ZoomLevelDrawable, copyitem->m_ZoomLevelDrawable );
-    EXCHG( m_TextDrawings, copyitem->m_TextDrawings );
-    EXCHG( m_TextDrawingsSize, copyitem->m_TextDrawingsSize );
 }
 
 
@@ -408,10 +384,20 @@ void SCH_COMPONENT::SwapData( SCH_COMPONENT* copyitem )
     EXCHG( m_Transform[0][1], copyitem->m_Transform[0][1] );
     EXCHG( m_Transform[1][0], copyitem->m_Transform[1][0] );
     EXCHG( m_Transform[1][1], copyitem->m_Transform[1][1] );
-    for( int ii = 0; ii < NUMBER_OF_FIELDS; ii++ )
+
+    m_Fields.swap( copyitem->m_Fields );    // std::vector's swap()
+
+    // Reparent items after copying data
+    // (after swap(), m_Parent member does not point to the right parent):
+    for( int ii = 0; ii < copyitem->GetFieldCount();  ++ii )
     {
-        m_Field[ii].SwapData( &copyitem->m_Field[ii] );
+       copyitem->GetField(ii)->SetParent( copyitem );
     }
+    for( int ii = 0; ii < GetFieldCount();  ++ii )
+    {
+       GetField(ii)->SetParent( this );
+    }
+
 }
 
 
@@ -467,8 +453,8 @@ void SCH_COMPONENT::ClearAnnotation( DrawSheetPath* aSheet )
     defRef.Append( wxT( "?" ) );
 
     wxString multi = wxT( "1" );
-    
-    if ( KeepMulti )        // We cannot remove all annotations: part selection must be kept
+
+    if( KeepMulti )        // We cannot remove all annotations: part selection must be kept
     {
         wxString NewHref;
         wxString path;
@@ -499,38 +485,7 @@ void SCH_COMPONENT::ClearAnnotation( DrawSheetPath* aSheet )
     // When a clear annotation is made, the calling function must call a
     // UpdateAllScreenReferences for the active sheet.
     // But this call cannot made here.
-    m_Field[REFERENCE].m_Text = defRef; //for drawing.
-
-}
-
-
-/**************************************************************/
-SCH_COMPONENT* SCH_COMPONENT::GenCopy()
-/**************************************************************/
-{
-    SCH_COMPONENT* new_item = new SCH_COMPONENT( m_Pos );
-
-    int            ii;
-
-    new_item->m_Multi        = m_Multi;
-    new_item->m_ChipName     = m_ChipName;
-    new_item->m_PrefixString = m_PrefixString;
-
-    new_item->m_Convert = m_Convert;
-    new_item->m_Transform[0][0] = m_Transform[0][0];
-    new_item->m_Transform[0][1] = m_Transform[0][1];
-    new_item->m_Transform[1][0] = m_Transform[1][0];
-    new_item->m_Transform[1][1] = m_Transform[1][1];
-    new_item->m_TimeStamp = m_TimeStamp;
-
-
-    /* initialisation des Fields */
-    for( ii = 0; ii < NUMBER_OF_FIELDS; ii++ )
-    {
-        m_Field[ii].PartTextCopy( &new_item->m_Field[ii] );
-    }
-
-    return new_item;
+    m_Fields[REFERENCE].m_Text = defRef; //for drawing.
 }
 
 
@@ -695,7 +650,8 @@ int SCH_COMPONENT::GetRotationMiroir()
     {
         if( memcmp( TempMat, m_Transform, sizeof(MatNormal) ) == 0 )
         {
-            found = TRUE; break;
+            found = TRUE;
+            break;
         }
         SetRotationMiroir( CMP_ROTATE_COUNTERCLOCKWISE );
     }
@@ -709,7 +665,8 @@ int SCH_COMPONENT::GetRotationMiroir()
         {
             if( memcmp( TempMat, m_Transform, sizeof(MatNormal) ) == 0 )
             {
-                found = TRUE; break;
+                found = TRUE;
+                break;
             }
             SetRotationMiroir( CMP_ROTATE_COUNTERCLOCKWISE );
         }
@@ -724,7 +681,8 @@ int SCH_COMPONENT::GetRotationMiroir()
         {
             if( memcmp( TempMat, m_Transform, sizeof(MatNormal) ) == 0 )
             {
-                found = TRUE; break;
+                found = TRUE;
+                break;
             }
             SetRotationMiroir( CMP_ROTATE_COUNTERCLOCKWISE );
         }
@@ -738,7 +696,8 @@ int SCH_COMPONENT::GetRotationMiroir()
     }
     else
     {
-        wxBell(); return CMP_NORMAL;
+        wxBell();
+        return CMP_NORMAL;
     }
 }
 
@@ -780,9 +739,9 @@ void SCH_COMPONENT::Show( int nestLevel, std::ostream& os )
     "/>\n";
 
     // skip the reference, it's been output already.
-    for( int i = 1;  i<NUMBER_OF_FIELDS;  ++i )
+    for( int i = 1;  i<GetFieldCount();  ++i )
     {
-        wxString value = GetFieldValue( i );
+        wxString value = GetField( i )->m_Text;
 
         if( !value.IsEmpty() )
         {
@@ -799,234 +758,14 @@ void SCH_COMPONENT::Show( int nestLevel, std::ostream& os )
 #endif
 
 
-/***************************************************************************/
-PartTextStruct::PartTextStruct( const wxPoint& pos, const wxString& text ) :
-    SCH_ITEM( NULL, DRAW_PART_TEXT_STRUCT_TYPE ),
-    EDA_TextStruct( text )
-/***************************************************************************/
-{
-    m_Pos          = pos;
-    m_FieldId      = 0;
-    m_AddExtraText = false;
-}
-
-
-/************************************/
-PartTextStruct::~PartTextStruct()
-/************************************/
-{
-}
-
-
-/***********************************************************/
-void PartTextStruct::PartTextCopy( PartTextStruct* target )
-/***********************************************************/
-{
-    target->m_Text = m_Text;
-    if( m_FieldId >= FIELD1 )
-        target->m_Name = m_Name;
-    target->m_Layer     = m_Layer;
-    target->m_Pos       = m_Pos;
-    target->m_Size      = m_Size;
-    target->m_Attributs = m_Attributs;
-    target->m_FieldId   = m_FieldId;
-    target->m_Orient    = m_Orient;
-    target->m_HJustify  = m_HJustify;
-    target->m_VJustify  = m_VJustify;
-    target->m_Flags     = m_Flags;
-}
-
-
-/*********************************/
-bool PartTextStruct::IsVoid()
-/*********************************/
-
-/* return True if The field is void, i.e.:
- *  contains wxEmptyString or "~"
- */
-{
-    if( m_Text.IsEmpty() || m_Text == wxT( "~" ) )
-        return TRUE;
-    return FALSE;
-}
-
-
-/********************************************/
-EDA_Rect PartTextStruct::GetBoundaryBox() const
-/********************************************/
-
-/* return
- *  EDA_Rect contains the real (user coordinates) boundary box for a text field,
- *  according to the component position, rotation, mirror ...
- *
- */
-{
-    EDA_Rect       BoundaryBox;
-    int            hjustify, vjustify;
-    int            textlen;
-    int            orient;
-    int            dx, dy, x1, y1, x2, y2;
-
-    SCH_COMPONENT* DrawLibItem = (SCH_COMPONENT*) m_Parent;
-
-    orient = m_Orient;
-    wxPoint        pos = DrawLibItem->m_Pos;
-    x1 = m_Pos.x - pos.x;
-    y1 = m_Pos.y - pos.y;
-
-    textlen = GetLength();
-    if( m_FieldId == REFERENCE )   // Real Text can be U1 or U1A
-    {
-        EDA_LibComponentStruct* Entry =
-            FindLibPart( DrawLibItem->m_ChipName.GetData(), wxEmptyString, FIND_ROOT );
-        if( Entry && (Entry->m_UnitCount > 1) )
-            textlen++; // because U1 is show as U1A or U1B ...
-    }
-    dx = m_Size.x * textlen;
-
-    // Real X Size is 10/9 char size because space between 2 chars is 1/10 X Size
-    dx = (dx * 10) / 9;
-
-    dy = m_Size.y;
-    hjustify = m_HJustify;
-    vjustify = m_VJustify;
-
-    x2 = pos.x + (DrawLibItem->m_Transform[0][0] * x1)
-         + (DrawLibItem->m_Transform[0][1] * y1);
-    y2 = pos.y + (DrawLibItem->m_Transform[1][0] * x1)
-         + (DrawLibItem->m_Transform[1][1] * y1);
-
-    /* If the component orientation is +/- 90 deg, the text orienation must be changed */
-    if( DrawLibItem->m_Transform[0][1] )
-    {
-        if( orient == TEXT_ORIENT_HORIZ )
-            orient = TEXT_ORIENT_VERT;
-        else
-            orient = TEXT_ORIENT_HORIZ;
-        /* is it mirrored (for text justify)*/
-        EXCHG( hjustify, vjustify );
-        if( DrawLibItem->m_Transform[1][0] < 0 )
-            vjustify = -vjustify;
-        if( DrawLibItem->m_Transform[0][1] > 0 )
-            hjustify = -hjustify;
-    }
-    else    /* component horizontal: is it mirrored (for text justify)*/
-    {
-        if( DrawLibItem->m_Transform[0][0] < 0 )
-            hjustify = -hjustify;
-        if( DrawLibItem->m_Transform[1][1] > 0 )
-            vjustify = -vjustify;
-    }
-
-    if( orient == TEXT_ORIENT_VERT )
-        EXCHG( dx, dy );
-
-    switch( hjustify )
-    {
-    case GR_TEXT_HJUSTIFY_CENTER:
-        x1 = x2 - (dx / 2);
-        break;
-
-    case GR_TEXT_HJUSTIFY_RIGHT:
-        x1 = x2 - dx;
-        break;
-
-    default:
-        x1 = x2;
-        break;
-    }
-
-    switch( vjustify )
-    {
-    case GR_TEXT_VJUSTIFY_CENTER:
-        y1 = y2 - (dy / 2);
-        break;
-
-    case GR_TEXT_VJUSTIFY_BOTTOM:
-        y1 = y2 - dy;
-        break;
-
-    default:
-        y1 = y2;
-        break;
-    }
-
-    BoundaryBox.SetX( x1 );
-    BoundaryBox.SetY( y1 );
-    BoundaryBox.SetWidth( dx );
-    BoundaryBox.SetHeight( dy );
-
-    return BoundaryBox;
-}
-
-
-/**
- * Function Save
- * writes the data structures for this object out to a FILE in "*.brd" format.
- * @param aFile The FILE to write to.
- * @return bool - true if success writing else false.
- */
-bool PartTextStruct::Save( FILE* aFile ) const
-{
-    char hjustify = 'C';
-
-    if( m_HJustify == GR_TEXT_HJUSTIFY_LEFT )
-        hjustify = 'L';
-    else if( m_HJustify == GR_TEXT_HJUSTIFY_RIGHT )
-        hjustify = 'R';
-    char vjustify = 'C';
-    if( m_VJustify == GR_TEXT_VJUSTIFY_BOTTOM )
-        vjustify = 'B';
-    else if( m_VJustify == GR_TEXT_VJUSTIFY_TOP )
-        vjustify = 'T';
-    if( fprintf( aFile, "F %d \"%s\" %c %-3d %-3d %-3d %4.4X %c %c", m_FieldId,
-            CONV_TO_UTF8( m_Text ),
-            m_Orient == TEXT_ORIENT_HORIZ ? 'H' : 'V',
-            m_Pos.x, m_Pos.y,
-            m_Size.x,
-            m_Attributs,
-            hjustify, vjustify ) == EOF )
-    {
-        return false;
-    }
-
-
-    // Save field name, if necessary
-    if( m_FieldId >= FIELD1 && !m_Name.IsEmpty() )
-    {
-        wxString fieldname = ReturnDefaultFieldName( m_FieldId );
-        if( fieldname != m_Name )
-        {
-            if( fprintf( aFile, " \"%s\"", CONV_TO_UTF8( m_Name ) ) == EOF )
-            {
-                return false;
-            }
-        }
-    }
-
-    if( fprintf( aFile, "\n" ) == EOF )
-    {
-        return false;
-    }
-
-    return true;
-}
-
-
 /****************************************/
 bool SCH_COMPONENT::Save( FILE* f ) const
 /****************************************/
-
-/**
- * Function Save
- * writes the data structures for this object out to a FILE in "*.brd" format.
- * @param aFile The FILE to write to.
- * @return bool - true if success writing else false.
- */
 {
     int             ii, Success = true;
     char            Name1[256], Name2[256];
     wxArrayString   reference_fields;
+
     static wxString delimiters( wxT( " " ) );
 
     //this is redundant with the AR entries below, but it makes the
@@ -1038,10 +777,10 @@ bool SCH_COMPONENT::Save( FILE* f ) const
     }
     else
     {
-        if( m_Field[REFERENCE].m_Text.IsEmpty() )
+        if( GetField( REFERENCE )->m_Text.IsEmpty() )
             strncpy( Name1, CONV_TO_UTF8( m_PrefixString ), sizeof(Name1) );
         else
-            strncpy( Name1, CONV_TO_UTF8( m_Field[REFERENCE].m_Text ), sizeof(Name1) );
+            strncpy( Name1, CONV_TO_UTF8( GetField( REFERENCE )->m_Text ), sizeof(Name1) );
     }
     for( ii = 0; ii < (int) strlen( Name1 ); ii++ )
     {
@@ -1111,14 +850,21 @@ bool SCH_COMPONENT::Save( FILE* f ) const
         }
     }
 
-    for( ii = 0; ii < NUMBER_OF_FIELDS; ii++ )
+    for( int fieldNdx = 0; fieldNdx<GetFieldCount();  ++fieldNdx )
     {
-        const PartTextStruct* field = &m_Field[ii];
-        if( field->m_Text.IsEmpty() )
+        SCH_CMP_FIELD* field = GetField( fieldNdx );
+
+        wxString       defaultName = ReturnDefaultFieldName( fieldNdx );
+
+        // only save the field if there is a value in the field or if field name
+        // is different than the default field name
+        if( field->m_Text.IsEmpty() && defaultName == field->m_Name )
             continue;
+
         if( !field->Save( f ) )
         {
-            Success = false; break;
+            Success = false;
+            break;
         }
     }
 
@@ -1151,17 +897,17 @@ EDA_Rect SCH_COMPONENT::GetBoundingBox()
 {
     const int PADDING = 40;
 
-    // This gives a reasonable approximation (but some things are missing so...
-    EDA_Rect  ret = GetBoundaryBox();
+    // This gives a reasonable approximation (but some things are missing so...)
+    EDA_Rect  bbox = GetBoundaryBox();
 
     // Include BoundingBoxes of fields
-    for( int i = REFERENCE; i < NUMBER_OF_FIELDS; i++ )
+    for( int ii = 0; ii < GetFieldCount(); ii++ )
     {
-        ret.Merge( m_Field[i].GetBoundaryBox() );
+        bbox.Merge( GetField( ii )->GetBoundaryBox() );
     }
 
     // ... add padding
-    ret.Inflate( PADDING, PADDING );
+    bbox.Inflate( PADDING, PADDING );
 
-    return ret;
+    return bbox;
 }

@@ -16,10 +16,17 @@
 
 /***/
 
-class TRACK : public BOARD_ITEM
+class TRACK : public BOARD_CONNECTED_ITEM
 {
+    // make SetNext() and SetBack() private so that they may not be called from anywhere.
+    // list management is done on TRACKs using DLIST<TRACK> only.
+private:
+    void SetNext( EDA_BaseStruct* aNext )       { Pnext = aNext; }
+    void SetBack( EDA_BaseStruct* aBack )       { Pback = aBack; }
+
+
 public:
-    int         m_Width;            // 0 = line, > 0 = tracks, bus ...
+    int         m_Width;            // Thickness of track, or via diameter
     wxPoint     m_Start;            // Line start point
     wxPoint     m_End;              // Line end point
     int         m_Shape;            // vias: shape and type, Track = shape..
@@ -35,14 +42,10 @@ public:
     int         m_Param;            // Auxiliary variable ( used in some computations )
 
 protected:
-    int         m_NetCode;          // Net number
-    int         m_Sous_Netcode;     /* In rastnest routines : for the current net,
-                                     *  block number (number common to the current connected items found) */
-
     TRACK( const TRACK& track );    // protected so Copy() is used instead.
 
 public:
-    TRACK( BOARD_ITEM* StructFather, KICAD_T idtype = TYPETRACK );
+    TRACK( BOARD_ITEM* aParent, KICAD_T idtype = TYPE_TRACK );
 
     /**
      * Function Copy
@@ -54,8 +57,8 @@ public:
     TRACK* Copy() const;
 
     TRACK* Next() const { return (TRACK*) Pnext; }
-
     TRACK* Back() const { return (TRACK*) Pback; }
+
 
     /**
      * Function GetPosition
@@ -70,10 +73,6 @@ public:
     EDA_Rect GetBoundingBox();
 
 
-    /* supprime du chainage la structure Struct */
-    void    UnLink();
-
-
     /**
      * Function Save
      * writes the data structures for this object out to a FILE in "*.brd" format.
@@ -81,19 +80,6 @@ public:
      * @return bool - true if success writing else false.
      */
     bool    Save( FILE* aFile ) const;
-
-    /**
-     * Function Insert
-     * inserts a single TRACK, SEGVIA or SEGZONE, or a list of such,
-     * into the proper list within a BOARD, either at the
-     * list's front or immediately after the InsertPoint.
-     * If Insertpoint == NULL, then insert at the beginning of the proper list.
-     * If InsertPoint != NULL, then insert immediately after InsertPoint.
-     * TRACKs and SEGVIAs are put on the m_Track list, SEGZONE on the m_Zone list.
-     * @param aPcb The BOARD to insert into.
-     * @param InsertPoint See above
-     */
-    void    Insert( BOARD* aPcb, BOARD_ITEM* InsertPoint );
 
     /**
      * Function GetBestInsertPoint
@@ -114,22 +100,6 @@ public:
      * ( the linked list is always sorted by net codes )
      */
     TRACK*  GetEndNetCode( int NetCode );
-
-    /**
-     * Function GetNet
-     * @return int - the net code.
-     */
-    int GetNet() const { return m_NetCode; }
-    void SetNet( int aNetCode ) { m_NetCode = aNetCode; }
-
-
-    /**
-     * Function GetSubNet
-     * @return int - the sub net code.
-     */
-    int GetSubNet() const { return m_Sous_Netcode; }
-    void SetSubNet( int aSubNetCode ) { m_Sous_Netcode = aSubNetCode; }
-
 
     /**
      * Function GetLength
@@ -187,8 +157,11 @@ public:
 
     int             IsPointOnEnds( const wxPoint& point, int min_dist = 0 );
 
-    bool            IsNull(); // return TRUE if segment lenght = 0
-
+    /**
+     * Function IsNull
+     * returns true if segment length is zero.
+     */
+    bool            IsNull();
 
     /**
      * Function Display_Infos
@@ -262,6 +235,14 @@ public:
      */
     void Show( int nestLevel, std::ostream& os );
 
+
+    /**
+     * Function ShowState
+     * converts a set of state bits to a wxString
+     * @param stateBits Is an OR-ed together set of bits like BUSY, EDIT, etc.
+     */
+    static wxString ShowState( int stateBits );
+
 #endif
 };
 
@@ -269,7 +250,7 @@ public:
 class SEGZONE : public TRACK
 {
 public:
-    SEGZONE( BOARD_ITEM* StructFather );
+    SEGZONE( BOARD_ITEM* aParent );
 
     /**
      * Function GetClass
@@ -289,12 +270,15 @@ public:
 class SEGVIA : public TRACK
 {
 public:
-    SEGVIA( BOARD_ITEM* StructFather );
+    SEGVIA( BOARD_ITEM* aParent );
 
     SEGVIA( const SEGVIA& source ) :
         TRACK( source )
     {
     }
+
+
+    void    Draw( WinEDA_DrawPanel* panel, wxDC* DC, int aDrawMode, const wxPoint& offset = ZeroOffset );
 
 
     /**

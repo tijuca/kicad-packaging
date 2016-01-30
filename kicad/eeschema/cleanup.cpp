@@ -3,9 +3,9 @@
 /*********************************/
 
 #include "fctsys.h"
-#include "gr_basic.h"
-
+#include "appl_wxstruct.h"
 #include "common.h"
+#include "confirm.h"
 #include "program.h"
 #include "libcmp.h"
 #include "general.h"
@@ -15,7 +15,8 @@
 
 
 /* Routines locales */
-static int TstAlignSegment( EDA_DrawLineStruct* RefSegm, EDA_DrawLineStruct* TstSegm );
+static int TstAlignSegment( EDA_DrawLineStruct* RefSegm,
+                            EDA_DrawLineStruct* TstSegm );
 
 /* Variable locales */
 
@@ -30,8 +31,12 @@ bool SCH_SCREEN::SchematicCleanUp( wxDC* DC )
  */
 {
     SCH_ITEM* DrawList, * TstDrawList;
-    int             flag;
-    bool            Modify = FALSE;
+    int       flag;
+    bool      Modify = FALSE;
+
+    WinEDA_SchematicFrame* frame;
+
+    frame = (WinEDA_SchematicFrame*)wxGetApp().GetTopWindow();
 
     DrawList = EEDrawList;
     for( ; DrawList != NULL; DrawList = DrawList->Next() )
@@ -44,7 +49,7 @@ bool SCH_SCREEN::SchematicCleanUp( wxDC* DC )
                 if( TstDrawList->Type() == DRAW_SEGMENT_STRUCT_TYPE )
                 {
                     flag = TstAlignSegment( (EDA_DrawLineStruct*) DrawList,
-                                           (EDA_DrawLineStruct*) TstDrawList );
+                                            (EDA_DrawLineStruct*) TstDrawList );
                     if( flag )  /* Suppression de TstSegm */
                     {
                         /* keep the bits set in .m_Flags, because the deleted segment can be flagged */
@@ -63,7 +68,7 @@ bool SCH_SCREEN::SchematicCleanUp( wxDC* DC )
         }
     }
 
-    g_EDA_Appl->m_SchematicFrame->TestDanglingEnds( EEDrawList, DC );
+    frame->TestDanglingEnds( EEDrawList, DC );
     return Modify;
 }
 
@@ -80,7 +85,8 @@ void BreakSegmentOnJunction( SCH_SCREEN* Screen )
 
     if( Screen == NULL )
     {
-        DisplayError( NULL, wxT( "BreakSegmentOnJunction() error: NULL screen" ) );
+        DisplayError( NULL,
+                      wxT( "BreakSegmentOnJunction() error: NULL screen" ) );
         return;
     }
 
@@ -149,7 +155,8 @@ DrawPickedStruct* BreakSegment( SCH_SCREEN* screen,
             segment = (EDA_DrawLineStruct*) DrawList;
             ox = segment->m_Start.x; oy = segment->m_Start.y;
             fx = segment->m_End.x; fy = segment->m_End.y;
-            if( distance( fx - ox, fy - oy, breakpoint.x - ox, breakpoint.y - oy, 0 ) == 0 )
+            if( distance( fx - ox, fy - oy, breakpoint.x - ox, breakpoint.y -
+                          oy, 0 ) == 0 )
                 break;
 
             /* Segment connecte: doit etre coupe en 2 si px,py n'est
@@ -167,14 +174,14 @@ DrawPickedStruct* BreakSegment( SCH_SCREEN* screen,
                 wrapper->m_PickedStruct = segment->GenCopy();
                 wrapper->m_Image = segment;
                 wrapper->m_PickedStruct->m_Image = segment;
-                wrapper->Pnext = List;
+                wrapper->SetNext( List );
                 List = wrapper;
             }
             NewSegment = segment->GenCopy();
             NewSegment->m_Start = breakpoint;
-            segment->m_End    = NewSegment->m_Start;
-            NewSegment->Pnext = segment->Pnext;
-            segment->Pnext    = NewSegment;
+            segment->m_End = NewSegment->m_Start;
+            NewSegment->SetNext( segment->Next() );
+            segment->SetNext( NewSegment );
             DrawList = NewSegment;
             if( PutInUndoList )
             {
@@ -182,7 +189,7 @@ DrawPickedStruct* BreakSegment( SCH_SCREEN* screen,
 
                 wrapper->m_Flags = IS_NEW;
                 wrapper->m_Image = NewSegment;
-                wrapper->Pnext   = List;
+                wrapper->SetNext( List );
                 List = wrapper;
             }
             break;
@@ -196,7 +203,7 @@ DrawPickedStruct* BreakSegment( SCH_SCREEN* screen,
             break;
         }
 
-        DrawList = DrawList->Pnext;
+        DrawList = DrawList->Next();
     }
 
     return List;
@@ -256,9 +263,10 @@ static int TstAlignSegment( EDA_DrawLineStruct* RefSegm,
     }
     else
     {
-        if( atan2( RefSegm->m_Start.x - RefSegm->m_End.x, RefSegm->m_Start.y -
-                   RefSegm->m_End.y ) ==
-           atan2( TstSegm->m_Start.x - TstSegm->m_End.x, TstSegm->m_Start.y - TstSegm->m_End.y ) )
+        if( atan2( (double) ( RefSegm->m_Start.x - RefSegm->m_End.x ),
+                  (double) ( RefSegm->m_Start.y - RefSegm->m_End.y ) ) ==
+           atan2( (double) ( TstSegm->m_Start.x - TstSegm->m_End.x ),
+                 (double) ( TstSegm->m_Start.y - TstSegm->m_End.y ) ) )
         {
             RefSegm->m_End = TstSegm->m_End;
             return 1;
