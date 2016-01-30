@@ -3,11 +3,15 @@
 	/*************************************************************/
 	
 
+#ifdef KICAD_PYTHON
+#include <pyhandler.h>
+#endif
 #include "fctsys.h"
 #include "common.h"
 #include "kicad.h"
 #include "protos.h"
 #include "prjconfig.h"
+
 
 /* Variables locales */
 
@@ -32,6 +36,9 @@ void WinEDA_MainFrame::Load_Prj_Config(void)
 	wxString msg = _("\nWorking dir: ") + wxGetCwd();
 	msg << _("\nProject: ") << m_PrjFileName << wxT("\n");
 	PrintMsg(msg);
+	#ifdef KICAD_PYTHON
+	PyHandler::GetInstance()->TriggerEvent( wxT("kicad::LoadProject"), PyHandler::Convert(m_PrjFileName) );
+	#endif
 }
 
 
@@ -53,7 +60,7 @@ wxString mask( wxT("*"));
 					g_Prj_Config_Filename_ext,	/* extension par defaut */
 					mask,				/* Masque d'affichage */
 					this,
-					wxSAVE,
+					wxFD_SAVE,
 					TRUE
 					);
 	if ( FullFileName.IsEmpty() ) return;
@@ -62,3 +69,4 @@ wxString mask( wxT("*"));
 	EDA_Appl->WriteProjectConfig(FullFileName, wxT("/general"), CfgParamList);
 }
 
+// vim: set tabstop=4 : noexpandtab :

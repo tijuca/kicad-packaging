@@ -1,13 +1,13 @@
 EESchema Schematic File Version 1
-LIBS:power,device,brooktre,linear,regul,74xx,cmos4000,adc-dac,memory,xilinx,special,analog_switches,.\video.cache
+LIBS:power,device,conn,brooktre,linear,regul,74xx,cmos4000,adc-dac,memory,xilinx,special,analog_switches,philips,.\video.cache
 EELAYER 20  0
 EELAYER END
 $Descr A3 16535 11700
 Sheet 1 8
-Title "Carte VIDEOSEQ"
-Date "19 oct 2004"
-Rev ""
-Comp ""
+Title "Video"
+Date "31 dec 2006"
+Rev "2.0B"
+Comp "Kicad EDA"
 Comment1 "Feuille Principale"
 Comment2 ""
 Comment3 ""
@@ -46,9 +46,9 @@ Connection ~ 14800 3350
 Wire Wire Line
 	14900 3350 14800 3350
 Wire Wire Line
-	14800 3150 14900 3150
+	14900 3150 14800 3150
 Wire Wire Line
-	14800 4050 14800 3150
+	14800 3150 14800 4050
 Text Label 14800 1700 0    60   ~
 Y_OUT
 Text Label 14800 1300 0    60   ~
@@ -228,10 +228,10 @@ Wire Wire Line
 Wire Wire Line
 	8850 2150 9500 2150
 $Comp
-L GND #GND5
+L GND #GND01
 U 1 1 84DFBB6C
 P 14800 4050
-F 0 "#GND5" H 14800 4150 60  0001 C C
+F 0 "#GND01" H 14800 4150 60  0001 C C
 F 1 "GND" H 14800 3950 60  0000 C C
 	1    14800 4050
 	1    0    0    -1  
@@ -257,10 +257,10 @@ Wire Wire Line
 Wire Wire Line
 	14650 1300 15200 1300
 $Comp
-L GND #GND1
+L GND #GND02
 U 1 1 30705D34
 P 15350 2300
-F 0 "#GND1" H 15350 2400 60  0001 C C
+F 0 "#GND02" H 15350 2400 60  0001 C C
 F 1 "GND" H 15350 2200 60  0000 C C
 	1    15350 2300
 	1    0    0    -1  
@@ -367,28 +367,28 @@ GREEN_IN
 Text Label 11450 1200 0    60   ~
 RED_IN
 $Comp
-L GND #GND4
+L GND #GND03
 U 1 1 32FA02CD
 P 12100 2200
-F 0 "#GND4" H 12100 2200 40  0001 C C
+F 0 "#GND03" H 12100 2200 40  0001 C C
 F 1 "GND" H 12100 2130 40  0000 C C
 	1    12100 2200
 	1    0    0    -1  
 $EndComp
 $Comp
-L GND #GND3
+L GND #GND04
 U 1 1 32FA02C6
 P 12100 3000
-F 0 "#GND3" H 12100 3000 40  0001 C C
+F 0 "#GND04" H 12100 3000 40  0001 C C
 F 1 "GND" H 12100 2930 40  0000 C C
 	1    12100 3000
 	1    0    0    -1  
 $EndComp
 $Comp
-L GND #GND2
+L GND #GND05
 U 1 1 32FA02C2
 P 12100 1400
-F 0 "#GND2" H 12100 1400 40  0001 C C
+F 0 "#GND05" H 12100 1400 40  0001 C C
 F 1 "GND" H 12100 1330 40  0000 C C
 	1    12100 1400
 	1    0    0    -1  

@@ -15,6 +15,7 @@
 #define eda_global extern
 #endif
 
+#include "colors.h"
 
 	/****************************************************/
 	/* classe representant un ecran graphique de dessin */
@@ -46,6 +47,12 @@ public:
 	int m_PanelCursor;			// Current mouse cursor shape id for this window
     int m_CursorLevel;			// Index for cursor redraw in XOR mode
 
+	/* Cursor management (used in editing functions) */
+	void (*ManageCurseur)(WinEDA_DrawPanel * panel, wxDC * DC, bool erase); /* Fonction d'affichage sur deplacement souris
+									si erase : effacement ancien affichage */
+	void (*ForceCloseManageCurseur)(WinEDA_DrawPanel * panel, wxDC * DC); /* Fonction de fermeture forcée
+											de la fonction ManageCurseur */
+
 public:
 	// Constructor and destructor
 	WinEDA_DrawPanel(WinEDA_DrawFrame *parent, int id, const wxPoint& pos, const wxSize& size);
@@ -62,7 +69,7 @@ public:
 	void ReDraw(wxDC * DC, bool erasebg = TRUE);
 	void PrintPage(wxDC * DC, bool Print_Sheet_Ref, int PrintMask);
 	void DrawBackGround(wxDC * DC);
-	void m_Draw_Auxiliary_Axe(wxDC * DC, int drawmode);
+	void m_Draw_Auxiliary_Axis(wxDC * DC, int drawmode);
 	void OnEraseBackground(wxEraseEvent& event);
 	void OnActivate(wxActivateEvent& event);
 
@@ -90,6 +97,11 @@ public:
 	wxPoint GetScreenCenterRealPosition(void);
 	void MouseToCursorSchema(void);
 	void MouseTo(const wxPoint & Mouse);
+
+	/* Cursor functions */
+	void Trace_Curseur(wxDC * DC, int color = WHITE);	// Draw the user cursor (grid cursor)
+	void CursorOff(wxDC * DC);	// remove the grid cursor from the display
+	void CursorOn(wxDC * DC);	// display the grid cursor
 
 	DECLARE_EVENT_TABLE()
 };
@@ -153,10 +165,10 @@ class BASE_SCREEN: public EDA_BaseStruct
 {
 public:
 	int m_Type;						/* indicateur: type d'ecran */
-	WinEDA_DrawFrame * m_FrameSource;	// Used to get useful datas (internal units ...)
 	wxPoint m_DrawOrg;				/* offsets pour tracer le circuit sur l'ecran */
 	wxPoint m_Curseur;				/* Screen cursor coordinate (on grid) in user units. */
 	wxPoint m_MousePosition;		/* Mouse cursor coordinate (off grid) in user units. */
+	wxPoint m_MousePositionInPixels;	/* Mouse cursor coordinate (off grid) in pixels. */
 	wxPoint m_O_Curseur;			/* Relative Screen cursor coordinate (on grid) in user units.
 									(coordinates from last reset position)*/
 	wxPoint m_ScrollbarPos;			// Position effective des Curseurs de scroll
@@ -167,16 +179,7 @@ public:
 										Utile pour recadrer les affichages lors de la
 										navigation dans la hierarchie */
 	bool m_Center;					// TRUE: coord algebriques, FALSE: coord >= 0
-	int m_GridColor;
 	bool m_FirstRedraw;
-
-	/* Cursor management (shape, editing functions) */
-	void (*ManageCurseur)(WinEDA_DrawPanel * panel, wxDC * DC, bool erase); /* Fonction d'affichage sur deplacement souris
-									si erase : effacement ancien affichage */
-	void (*ForceCloseManageCurseur)(WinEDA_DrawFrame * frame,wxDC * DC); /* Fonction de fermeture forcée
-											de la fonction ManageCurseur */
-	int m_CurseurShape;				/* indique une option de forme */
-
 
 	/* Gestion des editions */
 	EDA_BaseStruct *EEDrawList;		/* Object list (main data) for schematic */
@@ -220,14 +223,14 @@ public:
 	int m_Zoom ;				/* coeff de ZOOM */
 
 public:
-	BASE_SCREEN(EDA_BaseStruct * parent, WinEDA_DrawFrame * frame_source, int idscreen);
+	BASE_SCREEN(int idscreen);
 	~BASE_SCREEN(void);
-	BASE_SCREEN * Next(void) { return (BASE_SCREEN *) Pnext; }
+
 	void InitDatas(void);		/* Inits completes des variables */
-	void SetParentFrame(WinEDA_DrawFrame * frame_source);
-	WinEDA_DrawFrame * GetParentFrame(void);
 	wxSize ReturnPageSize(void);
 	int GetInternalUnits(void);
+
+	wxPoint CursorRealPosition(const wxPoint & ScreenPos);
 
 	/* general Undo/Redo command control */
 	virtual void ClearUndoRedoList(void);
@@ -264,14 +267,6 @@ public:
 	void SetPreviousGrid(void);			/* ajuste le precedent coeff de grille */
 	void SetFirstGrid(void);			/* ajuste la grille au mini*/
 	void SetLastGrid(void);				/* ajuste la grille au max */
-
-	bool m_IgnoreMouse;
-
-	/* fonctions relatives au curseur*/
-	void Trace_Curseur(WinEDA_DrawPanel * panel, wxDC * DC);	// trace du curseur sur grille
-
-	void CursorOff(WinEDA_DrawPanel * panel, wxDC * DC);	// remove the grid cursor from the display
-	void CursorOn(WinEDA_DrawPanel * panel, wxDC * DC);	// display the grid cursor
 };
 
 

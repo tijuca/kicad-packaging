@@ -1,4 +1,4 @@
-EESchema-DOCLIB  Version 2.0  Date: 30/3/2006-13:51:03
+EESchema-DOCLIB  Version 2.0  Date: 21/9/2006-10:50:20
 #
 $CMP 2130
 D biPort RAM (1Ko)
@@ -6,8 +6,14 @@ K RAM BiPort 1KO
 $ENDCMP
 #
 $CMP 24C16
-D Serial EEPROM
+D I2C Serial EEPROM
 K EEPROM Serial
+$ENDCMP
+#
+$CMP 24C512
+D I2C Serial eprom
+K I2C MEMORY
+F memory/24xx512.pdf
 $ENDCMP
 #
 $CMP 27128

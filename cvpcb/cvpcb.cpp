@@ -48,10 +48,10 @@ wxString currCWD = wxGetCwd();
 	SetRealLibraryPath( wxT("modules") );
 
 	if(argc > 1 )
-		{
+	{
 		NetInNameBuffer = argv[1];
 		NetNameBuffer = argv[1];
-		}
+	}
 
 	if ( ! NetInNameBuffer.IsEmpty() )
 		wxSetWorkingDirectory( wxPathOnly(NetInNameBuffer) );
@@ -71,7 +71,7 @@ wxString currCWD = wxGetCwd();
 	m_CvpcbFrame->Show(TRUE);
 
 	listlib();
-	m_CvpcbFrame->BuildModListBox();
+	m_CvpcbFrame->BuildFootprintListBox();
 
 	if( ! NetInNameBuffer.IsEmpty() ) /* nom de fichier passe a la commande */
 		{

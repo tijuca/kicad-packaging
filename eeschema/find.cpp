@@ -15,7 +15,7 @@
 #include "general.h"
 
 /* Variables Locales */
-static int ItemsCount, MarkerCount;
+static int s_ItemsCount, s_MarkerCount;
 static wxString s_OldStringFound;
 
 #include "dialog_find.cpp"
@@ -54,27 +54,30 @@ int id = event.GetId();
 /*****************************************************************/
 EDA_BaseStruct * WinEDA_SchematicFrame::FindMarker(int SearchType)
 /*****************************************************************/
-/* Search de markers in whole the hierarchy.
+/* Search markers in whole the hierarchy.
 	Mouse cursor is put on the marker
-	SearchType = 0: searche th first marker, else search next marker
+	SearchType = 0: search the first marker, else search next marker
 */
 {
 SCH_SCREEN * Screen, * FirstScreen = NULL;
 EDA_BaseStruct *DrawList, *FirstStruct = NULL, *Struct = NULL;
 DrawMarkerStruct * Marker = NULL;
-int NotFound, StartCount;
+int StartCount;
+bool NotFound;
 wxPoint firstpos, pos;
 wxSize size = DrawPanel->GetClientSize();
-wxPoint curpos;
+wxPoint curpos, old_cursor_position;
 bool force_recadre = FALSE;
 wxString msg, WildText;
 	
 	g_LastSearchIsMarker = TRUE;
-	Screen = ScreenSch;
-	if( SearchType == 0 ) MarkerCount = 0;
+	/* Set s_MarkerCount to 0 if we are look for the first marker */
+	if( SearchType == 0 ) s_MarkerCount = 0;
 
+	EDA_ScreenList ScreenList(NULL);
 	NotFound = TRUE; StartCount = 0;
-	for ( ; Screen != NULL; Screen = Screen->Next() )
+	/* Search for s_MarkerCount markers */
+	for ( Screen = ScreenList.GetFirst(); Screen != NULL; Screen = ScreenList.GetNext() )
 	{
 		DrawList = Screen->EEDrawList;
 		while ( DrawList && NotFound )
@@ -91,27 +94,28 @@ wxString msg, WildText;
 				}
 	
 				StartCount++;
-				if( MarkerCount >= StartCount )
+				if( s_MarkerCount >= StartCount )
 				{
-					NotFound = TRUE;	/* Search for the next item */
+					NotFound = TRUE;	/* Search for other markers */
 				}
-				else
+				else	/* We have found s_MarkerCount markers -> Ok */
 				{
-					Struct = DrawList; MarkerCount++; break ;
+					Struct = DrawList; s_MarkerCount++; break ;
 				}
 			}
 			DrawList = DrawList->Pnext;
 		}
 		if( NotFound == FALSE ) break;
 	}
-
-	if( NotFound && FirstScreen )
-	{
-		NotFound = 0; Screen = FirstScreen; Struct = FirstStruct;
-		pos = firstpos; MarkerCount = 1;
+	
+	if( NotFound && FirstScreen )	// markers are found, but we have reach the last marker */
+	{	// After the last marker, the first marker is used */
+		NotFound = FALSE; Screen = FirstScreen;
+		Struct = FirstStruct;
+		pos = firstpos; s_MarkerCount = 1;
 	}
 
-	if( NotFound == 0)
+	if( NotFound == FALSE)
 	{
 		if ( Screen != GetScreen() )
 		{
@@ -120,6 +124,7 @@ wxString msg, WildText;
 			force_recadre = TRUE;
 		}
 
+		old_cursor_position = Screen->m_Curseur;
 		Screen->m_Curseur = pos;
 		curpos = DrawPanel->CursorScreenPosition();
 		// calcul des coord curseur avec origine = screen
@@ -136,10 +141,16 @@ wxString msg, WildText;
 		}
 		else
 		{
-			GRMouseWarp(DrawPanel, curpos );
-		}
+			wxClientDC dc(DrawPanel);
+			DrawPanel->PrepareGraphicContext(&dc);
+			EXCHG(old_cursor_position, Screen->m_Curseur);
+			DrawPanel->CursorOff(&dc);
+ 			GRMouseWarp(DrawPanel, curpos );
+			EXCHG(old_cursor_position, Screen->m_Curseur);
+			DrawPanel->CursorOn(&dc);
+ 		}
 
-		msg = _("Marker found in ") + Screen->m_FileName;
+		msg.Printf( _("Marker %d found in %s"), s_MarkerCount, Screen->m_FileName.GetData());
 		Affiche_Message(msg);
 	}
 
@@ -147,7 +158,7 @@ wxString msg, WildText;
 	{
 		Affiche_Message(wxEmptyString);
 		msg = _("Marker Not Found");
-		DisplayError(NULL,msg, 10);
+		DisplayError(this,msg, 10);
 	}
 	
 	return Marker;
@@ -186,9 +197,10 @@ EDA_BaseStruct * WinEDA_SchematicFrame::FindSchematicItem(
 {
 SCH_SCREEN * Screen, * FirstScreen = NULL;
 EDA_BaseStruct *DrawList = NULL, *FirstStruct = NULL, *Struct = NULL;
-int NotFound, StartCount, ii, jj;
-wxPoint firstpos, pos;
-static int FindAll;
+int StartCount, ii, jj;
+bool NotFound;
+wxPoint firstpos, pos, old_cursor_position;
+static int Find_in_hierarchy;
 wxSize size = DrawPanel->GetClientSize();
 wxPoint curpos;
 bool force_recadre = FALSE;
@@ -196,25 +208,28 @@ wxString msg, WildText;
 	
 	g_LastSearchIsMarker = FALSE;
 	
-	Screen = ScreenSch;
 	if( SearchType == 0 )
 	{
 		s_OldStringFound = pattern;
-		Screen = (SCH_SCREEN*) m_CurrentScreen; FindAll = FALSE;
+		Find_in_hierarchy = FALSE;
 	}
 	
 	if( SearchType == 1 )
 	{
 		s_OldStringFound = pattern;
-		FindAll = TRUE;
+		Find_in_hierarchy = TRUE;
 	}
 
-	if(  SearchType != 2  ) ItemsCount = 0;
+	if(  SearchType != 2  ) s_ItemsCount = 0;
 
 	WildText = s_OldStringFound;
-	NotFound = 1; StartCount = 0;
+	NotFound = TRUE; StartCount = 0;
 	
-	for ( ; Screen != NULL; Screen = Screen->Next() )
+	EDA_ScreenList ScreenList(NULL);
+	Screen = ScreenList.GetFirst();
+	if ( ! Find_in_hierarchy )  Screen = (SCH_SCREEN*) m_CurrentScreen; 
+
+	for ( ; Screen != NULL; Screen = ScreenList.GetNext() )
 	{
 		DrawList = Screen->EEDrawList;
 		while ( DrawList )
@@ -226,13 +241,13 @@ wxString msg, WildText;
 					#define STRUCT ((EDA_SchComponentStruct*)DrawList)
 					if( WildCompareString( WildText, STRUCT->m_Field[REFERENCE].m_Text, FALSE ) )
 					{
-						NotFound = 0;
+						NotFound = FALSE;
 						pos = STRUCT->m_Field[REFERENCE].m_Pos;
 						break;
 					}
 					if( WildCompareString( WildText, STRUCT->m_Field[VALUE].m_Text, FALSE ) )
 					{
-						NotFound = 0;
+						NotFound = FALSE;
 						pos = STRUCT->m_Field[VALUE].m_Pos;
 					}
 					break;
@@ -244,7 +259,7 @@ wxString msg, WildText;
 					#define STRUCT ((DrawTextStruct*)DrawList)
 					if( WildCompareString( WildText, STRUCT->m_Text, FALSE ) )
 					{
-						NotFound = 0;
+						NotFound = FALSE;
 						pos = STRUCT->m_Pos;
 					}
 					break;
@@ -253,7 +268,7 @@ wxString msg, WildText;
 					break;
 			}
 
-			if(NotFound == 0)	/* Element trouve */
+			if(NotFound == FALSE)	/* Element trouve */
 			{
 				if ( FirstScreen == NULL )	/* 1er element trouve */
 				{
@@ -262,29 +277,29 @@ wxString msg, WildText;
 				}
 
 				StartCount++;
-				if( ItemsCount >= StartCount )
+				if( s_ItemsCount >= StartCount )
 				{
-					NotFound = 1;	/* Continue recherche de l'element suivant */
+					NotFound = TRUE;	/* Continue recherche de l'element suivant */
 				}
 				else
 				{
-					Struct = DrawList; ItemsCount++; break ;
+					Struct = DrawList; s_ItemsCount++; break ;
 				}
 			}
-			if( NotFound == 0 ) break;
+			if( NotFound == FALSE ) break;
 			DrawList = DrawList->Pnext;
 		}
-		if( NotFound == 0 ) break;
-		if( FindAll == FALSE ) break;
+		if( NotFound == FALSE ) break;
+		if( Find_in_hierarchy == FALSE ) break;
 	}
 
 	if( NotFound && FirstScreen )
 	{
-		NotFound = 0; Screen = FirstScreen; Struct = FirstStruct;
-		pos = firstpos; ItemsCount = 1;
+		NotFound = FALSE; Screen = FirstScreen; Struct = FirstStruct;
+		pos = firstpos; s_ItemsCount = 1;
 	}
 
-	if( NotFound == 0)
+	if( NotFound == FALSE)
 	{
 		if ( Screen != GetScreen() )
 		{
@@ -306,6 +321,7 @@ wxString msg, WildText;
 			pos.x = ii + STRUCT->m_Pos.x; pos.y = jj + STRUCT->m_Pos.y;
 		}
 
+		old_cursor_position = Screen->m_Curseur;
 		Screen->m_Curseur = pos;
 		curpos = DrawPanel->CursorScreenPosition();
 		DrawPanel->GetViewStart(&m_CurrentScreen->m_StartVisu.x,
@@ -323,7 +339,13 @@ wxString msg, WildText;
 		}
 		else
 		{
-			GRMouseWarp(DrawPanel, curpos );
+			wxClientDC dc(DrawPanel);
+			DrawPanel->PrepareGraphicContext(&dc);
+			EXCHG(old_cursor_position, Screen->m_Curseur);
+			DrawPanel->CursorOff(&dc);
+ 			GRMouseWarp(DrawPanel, curpos );
+			EXCHG(old_cursor_position, Screen->m_Curseur);
+			DrawPanel->CursorOn(&dc);
 		}
 
 		msg = WildText + _(" Found in ") + Screen->m_FileName;

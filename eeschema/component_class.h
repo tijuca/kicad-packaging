@@ -51,6 +51,7 @@ public:
 
 	EDA_Rect GetBoundaryBox(void);
 	bool IsVoid();
+	void SwapData(PartTextStruct * copyitem);
 };
 
 /* the class DrawPartStruct describes a basic virtual component
@@ -61,7 +62,7 @@ public:
 class DrawPartStruct: public EDA_BaseStruct
 {
 public:
-	wxString m_ChipName;			/* Key to look for in the library, i.e. "74LS00". */
+	wxString m_ChipName;		/* Key to look for in the library, i.e. "74LS00". */
 	PartTextStruct m_Field[NUMBER_OF_FIELDS];
 	wxPoint m_Pos;				/* Exact position of part. */
 
@@ -75,6 +76,7 @@ public:
 class EDA_SchComponentStruct: public DrawPartStruct
 {
 public:
+	int m_RefIdNumber;			/* reference count: for U1, R2 .. it is the 1 or 2 value */
 	int m_Multi;				/* In multi unit chip - which unit to draw. */
 	int m_FlagControlMulti;
 	int m_Convert;				/* Gestion des mutiples representations (ex: conversion De Morgan) */
@@ -92,6 +94,10 @@ public:
 	void ClearAnnotation(void);
 	EDA_Rect GetBoundaryBox( void );
 	wxString ReturnFieldName(int FieldNumber);
+
+	virtual void Draw(WinEDA_DrawPanel * panel, wxDC * DC, const wxPoint & offset, int draw_mode, int Color = -1);
+	void SwapData(EDA_SchComponentStruct * copyitem);
+	virtual void Place(WinEDA_DrawFrame * frame, wxDC * DC);
 };
 
 

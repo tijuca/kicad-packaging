@@ -51,7 +51,7 @@ le toolbar d'options
 int id = event.GetId();
 wxClientDC dc(DrawPanel);
 
-	GetScreen()->CursorOff(DrawPanel, &dc);
+	DrawPanel->CursorOff(&dc);
 	DrawPanel->PrepareGraphicContext(&dc);
 	switch ( id )
 		{
@@ -141,7 +141,7 @@ wxClientDC dc(DrawPanel);
 		}
 
 	SetToolbars();
-	GetScreen()->CursorOn(DrawPanel, &dc);
+	DrawPanel->CursorOn(&dc);
 }
 
 

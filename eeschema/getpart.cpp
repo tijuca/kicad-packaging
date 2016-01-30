@@ -16,7 +16,7 @@
 
 /* Routines Locales */
 static void ShowWhileMoving(WinEDA_DrawPanel * panel, wxDC * DC, bool erase);
-static void ExitPlaceCmp(WinEDA_DrawFrame * frame, wxDC * DC );
+static void ExitPlaceCmp(WinEDA_DrawPanel * Panel, wxDC * DC );
 
 /* Variables locales */
 static int OldTransMat[2][2];
@@ -172,8 +172,8 @@ bool AllowWildSeach = TRUE;
 
 	AddHistoryComponentName(HistoryList, Name);
 
-	m_CurrentScreen->ManageCurseur = ShowWhileMoving ;
-	m_CurrentScreen->ForceCloseManageCurseur = ExitPlaceCmp;
+	DrawPanel->ManageCurseur = ShowWhileMoving ;
+	DrawPanel->ForceCloseManageCurseur = ExitPlaceCmp;
 
 	DrawLibItem = new EDA_SchComponentStruct(m_CurrentScreen->m_Curseur);
 	DrawLibItem->m_Multi = 1;  /* Selection de l'unite 1 dans le boitier */
@@ -242,7 +242,7 @@ bool AllowWildSeach = TRUE;
 /**************************************************************************/
 static void ShowWhileMoving(WinEDA_DrawPanel * panel, wxDC * DC, bool erase)
 {
-int dx, dy;
+wxPoint move_vector;
 
 EDA_SchComponentStruct * DrawLibItem = (EDA_SchComponentStruct * )
 	panel->m_Parent->m_CurrentScreen->m_CurrentItem;
@@ -251,9 +251,9 @@ EDA_SchComponentStruct * DrawLibItem = (EDA_SchComponentStruct * )
 	if( erase )
 		DrawStructsInGhost(panel, DC, DrawLibItem, 0, 0 );
 
-	dx = panel->m_Parent->m_CurrentScreen->m_Curseur.x - DrawLibItem->m_Pos.x;
-	dy = panel->m_Parent->m_CurrentScreen->m_Curseur.y - DrawLibItem->m_Pos.y;
-	MoveOneStruct(DrawLibItem, dx, dy);
+	move_vector.x = panel->m_Parent->m_CurrentScreen->m_Curseur.x - DrawLibItem->m_Pos.x;
+	move_vector.y = panel->m_Parent->m_CurrentScreen->m_Curseur.y - DrawLibItem->m_Pos.y;
+	MoveOneStruct(DrawLibItem, move_vector);
 
 	DrawStructsInGhost(panel, DC, DrawLibItem, 0, 0 );
 }
@@ -271,10 +271,10 @@ void WinEDA_SchematicFrame::CmpRotationMiroir(
 	/* Efface le trace precedent */
 	if ( DC )
 		{
-		m_CurrentScreen->CursorOff(DrawPanel, DC);
+		DrawPanel->CursorOff(DC);
 		if ( DrawComponent->m_Flags )
 			DrawStructsInGhost(DrawPanel, DC, DrawComponent, 0, 0 );
-		else DrawLibPart(DrawPanel, DC, DrawComponent, g_XorMode);
+		else DrawComponent->Draw(DrawPanel, DC, wxPoint(0,0), g_XorMode);
 		}
 
 	DrawComponent->SetRotationMiroir(type_rotate);
@@ -284,48 +284,48 @@ void WinEDA_SchematicFrame::CmpRotationMiroir(
 		{
 		if( DrawComponent->m_Flags )
 			DrawStructsInGhost(DrawPanel, DC, DrawComponent, 0, 0 );
-		else DrawLibPart(DrawPanel, DC, DrawComponent, GR_DEFAULT_DRAWMODE);
-		m_CurrentScreen->CursorOn(DrawPanel, DC);
+		else DrawComponent->Draw(DrawPanel, DC, wxPoint(0,0), GR_DEFAULT_DRAWMODE);
+		DrawPanel->CursorOn(DC);
 		}
 
 	TestDanglingEnds(m_CurrentScreen->EEDrawList, DC);
-	SetFlagModify(GetScreen());
+	GetScreen()->SetModify();
 }
 
 /************************************************************/
-static void ExitPlaceCmp(WinEDA_DrawFrame * frame, wxDC * DC )
+static void ExitPlaceCmp(WinEDA_DrawPanel * Panel, wxDC * DC )
 /************************************************************/
 /* Routine de sortie de la fonction de placement de composant
 */
 {
 
 EDA_SchComponentStruct * DrawLibItem = (EDA_SchComponentStruct * )
-	frame->m_CurrentScreen->m_CurrentItem;
+	Panel->m_Parent->m_CurrentScreen->m_CurrentItem;
 
 	if ( DrawLibItem->m_Flags & IS_NEW )	/* Nouveau Placement en cours, on l'efface */
 		{
-		DrawStructsInGhost(frame->DrawPanel, DC, DrawLibItem, 0, 0 );
+		DrawStructsInGhost(Panel, DC, DrawLibItem, 0, 0 );
 		delete DrawLibItem;
 		}
 
 	else if ( DrawLibItem )	  /* Deplacement ancien composant en cours */
 		{
-		int dx, dy;
-		DrawStructsInGhost(frame->DrawPanel, DC, DrawLibItem, 0, 0 );
+		wxPoint move_vector;
+		DrawStructsInGhost(Panel, DC, DrawLibItem, 0, 0 );
 
-		dx = OldPos.x - DrawLibItem->m_Pos.x;
-		dy = OldPos.y - DrawLibItem->m_Pos.y;
+		move_vector.x = OldPos.x - DrawLibItem->m_Pos.x;
+		move_vector.y = OldPos.y - DrawLibItem->m_Pos.y;
 
-		MoveOneStruct(DrawLibItem, dx, dy);
+		MoveOneStruct(DrawLibItem, move_vector);
 
 		memcpy(DrawLibItem->m_Transform, OldTransMat, sizeof(OldTransMat) );
-		DrawLibPart(frame->DrawPanel, DC, DrawLibItem, GR_DEFAULT_DRAWMODE);
+		DrawLibItem->Draw(Panel, DC, wxPoint(0,0), GR_DEFAULT_DRAWMODE);
 		}
 
 	DrawLibItem->m_Flags = 0;
-	frame->m_CurrentScreen->ManageCurseur = NULL;
-	frame->m_CurrentScreen->ForceCloseManageCurseur = NULL;
-	frame->m_CurrentScreen->m_CurrentItem = NULL;
+	Panel->ManageCurseur = NULL;
+	Panel->ForceCloseManageCurseur = NULL;
+	Panel->m_Parent->m_CurrentScreen->m_CurrentItem = NULL;
 }
 
 
@@ -355,7 +355,7 @@ EDA_LibComponentStruct * LibEntry;
 	/* Efface le trace precedent */
 	if ( DrawComponent->m_Flags )
 		DrawStructsInGhost(DrawPanel, DC, DrawComponent, 0, 0 );
-	else DrawLibPart(DrawPanel, DC, DrawComponent, g_XorMode);
+	else DrawComponent->Draw(DrawPanel, DC, wxPoint(0,0), g_XorMode);
 
 	/* Mise a jour du numero d'unite */
 	DrawComponent->m_Multi = unit;
@@ -363,10 +363,10 @@ EDA_LibComponentStruct * LibEntry;
 	/* Redessine le composant dans la nouvelle position */
 	if( DrawComponent->m_Flags )
 		DrawStructsInGhost(DrawPanel, DC, DrawComponent, 0, 0 );
-	else DrawLibPart(DrawPanel, DC, DrawComponent, GR_DEFAULT_DRAWMODE);
+	else DrawComponent->Draw(DrawPanel, DC, wxPoint(0,0), GR_DEFAULT_DRAWMODE);
 
 	TestDanglingEnds(m_CurrentScreen->EEDrawList, DC);
-	SetFlagModify(GetScreen());
+	GetScreen()->SetModify();
 }
 
 /************************************************************************/
@@ -390,7 +390,7 @@ EDA_LibComponentStruct *LibEntry;
 	/* Efface le trace precedent */
 	if ( DrawComponent->m_Flags )
 		DrawStructsInGhost(DrawPanel, DC, DrawComponent, 0, 0 );
-	else DrawLibPart(DrawPanel, DC, DrawComponent, g_XorMode);
+	else DrawComponent->Draw(DrawPanel, DC, wxPoint(0,0), g_XorMode);
 
 	DrawComponent->m_Convert++;
 	if( DrawComponent->m_Convert > ii ) DrawComponent->m_Convert = 1;
@@ -398,10 +398,10 @@ EDA_LibComponentStruct *LibEntry;
 	/* Redessine le composant dans la nouvelle position */
 	if( DrawComponent->m_Flags & IS_MOVED)
 		DrawStructsInGhost(DrawPanel, DC, DrawComponent, 0, 0 );
-	else DrawLibPart(DrawPanel, DC, DrawComponent, GR_DEFAULT_DRAWMODE);
+	else DrawComponent->Draw(DrawPanel, DC, wxPoint(0,0), GR_DEFAULT_DRAWMODE);
 
 	TestDanglingEnds(m_CurrentScreen->EEDrawList, DC);
-	SetFlagModify(GetScreen());
+	GetScreen()->SetModify();
 }
 
 
@@ -432,30 +432,36 @@ LibEDA_BaseStruct *DrawLibEntry;
 
 
 /***********************************************************************************/
-void WinEDA_SchematicFrame::StartMovePart(EDA_SchComponentStruct * DrawLibItem,
+void WinEDA_SchematicFrame::StartMovePart(EDA_SchComponentStruct * Component,
 		wxDC * DC)
 /***********************************************************************************/
 {
-	if( DrawLibItem == NULL) return;
-	if( DrawLibItem->m_StructType != DRAW_LIB_ITEM_STRUCT_TYPE)
+	if( Component == NULL) return;
+	if( Component->m_StructType != DRAW_LIB_ITEM_STRUCT_TYPE)
 		return;
 
- 	m_CurrentScreen->CursorOff(DrawPanel, DC);
- 	m_CurrentScreen->m_Curseur = DrawLibItem->m_Pos;
+	if ( Component->m_Flags == 0 )
+	{
+		if ( g_ItemToUndoCopy ) delete g_ItemToUndoCopy;
+		g_ItemToUndoCopy = Component->GenCopy();
+	}
+
+ 	DrawPanel->CursorOff(DC);
+ 	m_CurrentScreen->m_Curseur = Component->m_Pos;
  	DrawPanel->MouseToCursorSchema();
  
-	m_CurrentScreen->ManageCurseur = ShowWhileMoving ;
-	m_CurrentScreen->ForceCloseManageCurseur = ExitPlaceCmp;
-	m_CurrentScreen->m_CurrentItem = DrawLibItem;
-	OldPos = DrawLibItem->m_Pos;
-	memcpy(OldTransMat, DrawLibItem->m_Transform, sizeof(OldTransMat) );
+	DrawPanel->ManageCurseur = ShowWhileMoving ;
+	DrawPanel->ForceCloseManageCurseur = ExitPlaceCmp;
+	m_CurrentScreen->m_CurrentItem = Component;
+	OldPos = Component->m_Pos;
+	memcpy(OldTransMat, Component->m_Transform, sizeof(OldTransMat) );
 
-	RedrawOneStruct(DrawPanel, DC, DrawLibItem, g_XorMode);
-	DrawLibItem->m_Flags |= IS_MOVED;
-	m_CurrentScreen->ManageCurseur(DrawPanel, DC,FALSE);
+	RedrawOneStruct(DrawPanel, DC, Component, g_XorMode);
+	Component->m_Flags |= IS_MOVED;
+	DrawPanel->ManageCurseur(DrawPanel, DC,FALSE);
 	DrawPanel->m_AutoPAN_Request = TRUE;
  
- 	m_CurrentScreen->CursorOn(DrawPanel, DC);
+ 	DrawPanel->CursorOn(DC);
 }
 
 

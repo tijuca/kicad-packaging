@@ -9,7 +9,7 @@
 #define eda_global extern
 #endif
 
-#define NETLIST_HEAD_STRING "EESchema Netlist Version 1.0"
+#define NETLIST_HEAD_STRING "EESchema Netlist Version 1.1"
 
 #define ISBUS 1
 
@@ -66,7 +66,7 @@ public:
 	void * m_Link;			/* Pour SheetLabelStruct: Pointeur sur la feuille de hierarchie
 							Pour les Pins: pointeur sur le composant */
 	int m_Flag;				/* flag pour calculs internes */
-	SCH_SCREEN * m_Window;	/* Ecran d'appartenance */
+	SCH_SCREEN * m_Screen;	/* Ecran d'appartenance */
 	NetObjetType m_Type;
 	int m_ElectricalType;	/* Pour Pins et sheet labels: type electrique */
 	int m_NetCode;			/* pour elements simples */
@@ -90,7 +90,7 @@ public:
 	bool m_PartsLocked;			// For multi part components: True if the part cannot be changed
 	int m_Unit;					/* Numero de part */
 	int m_Sheet;				/* Numero de hierarchie */
-	int m_TimeStamp;			/* Signature temporelle */
+	unsigned long m_TimeStamp;			/* Signature temporelle */
 	int m_IsNew;				/* != 0 pour composants non annotes */
 	char m_TextValue[32];		/* Valeur */
 	char m_TextRef[32];			/* Reference ( hors numero ) */
@@ -104,7 +104,7 @@ eda_global int g_NbrObjNet;
 eda_global ObjetNetListStruct *g_TabObjNet;
 
 /* Prototypes: */
-void WriteNetList(WinEDA_DrawFrame * frame, const wxString & FileNameNL, bool use_netnames);
+void WriteNetList(WinEDA_SchematicFrame * frame, const wxString & FileNameNL, bool use_netnames);
 void FreeTabNetList(ObjetNetListStruct * TabNetItems, int NbrNetItems);
 
 

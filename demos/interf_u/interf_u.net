@@ -1,4 +1,5 @@
-( { Netlist by Cvpcb 17-jan-06, date = 17/1/2006-08:49:27 }
+# EESchema Netlist Version 1.1 created  7/12/2006-21:07:14
+(
  ( 322D3011 BUS_PC BUS1 BUSPC
   ( 1 GND )
   ( 2 PC-RST_1 )
@@ -140,23 +141,23 @@
   ( 24 GND )
   ( 25 GND )
  )
- ( 32307EA1 R4 R1 100K
+ ( 32307EA1 R3 R1 100K
   ( 1 N-000004 )
   ( 2 N-000005 )
  )
- ( 32307EAA R4 R2 1K
+ ( 32307EAA R3 R2 1K
   ( 1 8MH-OUT_1 )
   ( 2 N-000004 )
  )
- ( 324002E6 R4 R3 10K
+ ( 324002E6 R3 R3 10K
   ( 1 N-000114 )
   ( 2 VCC )
  )
- ( 322D3295 R4 R4 330
+ ( 322D3295 R3 R4 330
   ( 1 N-000006 )
   ( 2 LED1_1 )
  )
- ( 322D32A0 R4 R5 330
+ ( 322D32A0 R3 R5 330
   ( 1 N-000007 )
   ( 2 LED2_1 )
  )
@@ -422,3 +423,58 @@
  )
 )
 *
+{ Allowed footprints by component:
+$component C1
+ CP*
+ SM*
+$endlist
+$component C2
+ C?
+ SM*
+$endlist
+$component C3
+ C?
+ SM*
+$endlist
+$component C4
+ CP*
+ SM*
+$endlist
+$component C5
+ CP*
+ SM*
+$endlist
+$component C6
+ CP*
+ SM*
+$endlist
+$component P1
+ DB25*
+$endlist
+$component R1
+ R?
+ SM0603
+ SM0805
+$endlist
+$component R2
+ R?
+ SM0603
+ SM0805
+$endlist
+$component R3
+ R?
+ SM0603
+ SM0805
+$endlist
+$component R4
+ R?
+ SM0603
+ SM0805
+$endlist
+$component R5
+ R?
+ SM0603
+ SM0805
+$endlist
+$endfootprintlist
+}

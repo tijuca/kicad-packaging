@@ -1,4 +1,4 @@
-EESchema-DOCLIB  Version 2.0  Date: 11/6/2006-16:42:55
+EESchema-DOCLIB  Version 2.0  Date: 23/5/2007-07:37:51
 #
 $CMP 7SEGM
 D Afficheur Leds 7 segments
@@ -21,6 +21,11 @@ $ENDCMP
 #
 $CMP CAPAPOL
 D Condensateur polarise
+$ENDCMP
+#
+$CMP CERAMIC_FILTER
+D Ceramic filter
+K FILTER
 $ENDCMP
 #
 $CMP CODING_SWITCH
@@ -82,6 +87,11 @@ K switch
 $ENDCMP
 #
 $CMP EMI_FILTER
+D Filtre EMI
+K EMI
+$ENDCMP
+#
+$CMP FILTER
 D Filtre EMI
 K EMI
 $ENDCMP

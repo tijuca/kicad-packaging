@@ -54,18 +54,18 @@ bool on_state;
 	switch ( id )	// Arret eventuel de la commande de déplacement en cours
 		{
 		case ID_POPUP_CANCEL_CURRENT_COMMAND:
-			if( m_CurrentScreen->ManageCurseur &&
-				m_CurrentScreen->ForceCloseManageCurseur )
+			if( DrawPanel->ManageCurseur &&
+				DrawPanel->ForceCloseManageCurseur )
 				{
-				m_CurrentScreen->ForceCloseManageCurseur(this, &dc);
+				DrawPanel->ForceCloseManageCurseur(DrawPanel, &dc);
 				}
 			break;
 
 		default:	// Arret de la commande de déplacement en cours
-			if( m_CurrentScreen->ManageCurseur &&
-				m_CurrentScreen->ForceCloseManageCurseur )
+			if( DrawPanel->ManageCurseur &&
+				DrawPanel->ForceCloseManageCurseur )
 				{
-				m_CurrentScreen->ForceCloseManageCurseur(this, &dc);
+				DrawPanel->ForceCloseManageCurseur(DrawPanel, &dc);
 				}
 			m_ID_current_state = 0;
 			DisplayToolMsg(wxEmptyString);

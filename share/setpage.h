@@ -40,21 +40,21 @@
 
 ////@begin control identifiers
 #define ID_DIALOG 10000
+#define ID_RADIOBOX 10001
+#define ID_TEXTCTRL7 10009
+#define ID_TEXTCTRL8 10010
+#define ID_TEXTCTRL 10002
+#define ID_TEXTCTRL2 10004
+#define ID_TEXTCTRL1 10003
+#define ID_TEXTCTRL3 10005
+#define ID_TEXTCTRL4 10006
+#define ID_TEXTCTRL5 10007
+#define ID_TEXTCTRL6 10008
 #define SYMBOL_WINEDA_SETPAGEFRAME_STYLE wxDEFAULT_DIALOG_STYLE
 #define SYMBOL_WINEDA_SETPAGEFRAME_TITLE _("Page Settings")
 #define SYMBOL_WINEDA_SETPAGEFRAME_IDNAME ID_DIALOG
 #define SYMBOL_WINEDA_SETPAGEFRAME_SIZE wxSize(400, 300)
 #define SYMBOL_WINEDA_SETPAGEFRAME_POSITION wxDefaultPosition
-#define ID_RADIOBOX 10001
-#define ID_TEXTCTRL7 10009
-#define ID_TEXTCTRL8 10010
-#define ID_TEXTCTRL 10002
-#define ID_TEXTCTRL1 10003
-#define ID_TEXTCTRL2 10004
-#define ID_TEXTCTRL3 10005
-#define ID_TEXTCTRL4 10006
-#define ID_TEXTCTRL5 10007
-#define ID_TEXTCTRL6 10008
 ////@end control identifiers
 
 /*!
@@ -115,7 +115,7 @@ public:
     /// Should we show tooltips?
     static bool ShowToolTips();
 
-	void CreateListSizes(void);
+	void SearchPageSizeSelection(void);
 	void SavePageSettings(wxCommandEvent& event);
 	void ReturnSizeSelected(wxCommandEvent& event);
 
@@ -125,21 +125,34 @@ public:
     wxTextCtrl* m_TextUserSizeY;
     wxStaticText* m_TextSheetCount;
     wxStaticText* m_TextSheetNumber;
+    wxStaticBoxSizer* m_RevisionSizer;
     wxTextCtrl* m_TextRevision;
-    wxTextCtrl* m_TextCompany;
+    wxStaticBoxSizer* m_NameSizer;
     wxTextCtrl* m_TextTitle;
+    wxStaticBoxSizer* m_CompanySizer;
+    wxTextCtrl* m_TextCompany;
+    wxStaticBoxSizer* m_Comment1Sizer;
     wxTextCtrl* m_TextComment1;
+    wxStaticBoxSizer* m_Comment2Sizer;
     wxTextCtrl* m_TextComment2;
+    wxStaticBoxSizer* m_Comment3Sizer;
     wxTextCtrl* m_TextComment3;
+    wxStaticBoxSizer* m_Comment4Sizer;
     wxTextCtrl* m_TextComment4;
 ////@end WinEDA_SetPageFrame member variables
+    wxCheckBox * m_RevisionExport;
+   wxCheckBox * m_TitleExport;
+   wxCheckBox * m_CompanyExport;
+   wxCheckBox * m_Comment1Export;
+   wxCheckBox * m_Comment2Export;
+   wxCheckBox * m_Comment3Export;
+   wxCheckBox * m_Comment4Export;
 
 	WinEDA_DrawFrame *m_ParentDrawFrame;
 	BASE_SCREEN * m_Screen;
 	int m_Modified;
 	Ki_PageDescr * m_SelectedSheet;
 	float UserSizeX, UserSizeY;
-	wxArrayString m_PageSizeList;
 	int m_CurrentSelection;
 };
 

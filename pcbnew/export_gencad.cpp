@@ -69,7 +69,7 @@ FILE * file;
 					std_ext,					/* extension par defaut */
 					mask,				/* Masque d'affichage */
 					this,
-					wxOPEN,
+					wxFD_SAVE,
 					FALSE
 					);
 	if ( FullFileName == wxEmptyString ) return;
@@ -83,8 +83,8 @@ FILE * file;
 	/* Mise a jour des infos PCB: */
 	m_Pcb->ComputeBoundaryBox();
 
-	offsetX = m_Auxiliary_Axe_Position.x;
-	offsetY = m_Auxiliary_Axe_Position.y;
+	offsetX = m_Auxiliary_Axis_Position.x;
+	offsetY = m_Auxiliary_Axis_Position.y;
 wxClientDC dc(DrawPanel);
 	DrawPanel->PrepareGraphicContext(&dc);
 	Compile_Ratsnest( &dc, TRUE );
@@ -212,14 +212,14 @@ int pad_name_number;
 			default:
 			case CIRCLE:
 				pad_type = "ROUND";
-				fprintf(file, " %s %d\n", pad_type, pad->m_Drill);
+				fprintf(file, " %s %d\n", pad_type, pad->m_Drill.x);
 				fprintf(file, "CIRCLE %d %d %d\n",
 					pad->m_Offset.x, - pad->m_Offset.y, pad->m_Size.x/2);
 				break;
 			
 			case RECT:
 				pad_type = "RECTANGULAR";
-				fprintf(file, " %s %d\n", pad_type, pad->m_Drill);
+				fprintf(file, " %s %d\n", pad_type, pad->m_Drill.x);
 				fprintf(file, "RECTANGLE %d %d %d %d\n",
 					-dx + pad->m_Offset.x, - dy - pad->m_Offset.y,
 					dx + pad->m_Offset.x, - pad->m_Offset.y + dy );
@@ -228,7 +228,7 @@ int pad_name_number;
 			case OVALE: /* description du contour par 2 linges et 2 arcs */
 			{
 				pad_type = "FINGER";
-				fprintf(file, " %s %d\n", pad_type, pad->m_Drill);
+				fprintf(file, " %s %d\n", pad_type, pad->m_Drill.x);
 				int dr = dx - dy;
 				if ( dr >= 0 )	// ovale horizontal
 				{
@@ -407,8 +407,8 @@ int ii;
 			);
 				
 			fprintf(file, " 0 0 %d %d\n",
-				PtTexte->m_Size.x * PtTexte->m_Text.Len(),
-				PtTexte->m_Size.y );
+				(int) (PtTexte->m_Size.x * PtTexte->m_Text.Len() ),
+				(int) PtTexte->m_Size.y );
 				
 			PtTexte = module->m_Value;
 		}
@@ -492,8 +492,8 @@ PCB_SCREEN * screen = frame->GetScreen();
 	fputs(CONV_TO_UTF8(msg), file); fputs("\n", file);
 	msg.Printf(wxT("UNITS USER %d"), PCB_INTERNAL_UNIT);
 	fputs(CONV_TO_UTF8(msg), file); fputs("\n", file);
-	msg.Printf( wxT("ORIGIN %d %d"), mapXto(frame->m_Auxiliary_Axe_Position.x),
-				mapYto(frame->m_Auxiliary_Axe_Position.y)) ;
+	msg.Printf( wxT("ORIGIN %d %d"), mapXto(frame->m_Auxiliary_Axis_Position.x),
+				mapYto(frame->m_Auxiliary_Axis_Position.y)) ;
 	fputs(CONV_TO_UTF8(msg), file); fputs("\n", file);
 	fputs("INTERTRACK 0\n", file);
 	fputs("$ENDHEADER\n\n", file);
@@ -567,8 +567,11 @@ int nbitems, ii;
 		{
 			old_netcode = track->m_NetCode;
 			EQUIPOT * equipot = GetEquipot( pcb, track->m_NetCode);
-			fprintf(file,"\nROUTE %s\n",
-				(equipot && (equipot->m_Netname != wxEmptyString) ) ? equipot->m_Netname.GetData() : wxT("_noname_" ));
+			wxString netname; 
+			if (equipot && (equipot->m_Netname != wxEmptyString) )
+				netname = equipot->m_Netname;
+			else netname = wxT("_noname_" );
+			fprintf(file,"\nROUTE %s\n",CONV_TO_UTF8(netname));
 		}
 
 		if ( old_width != track->m_Width )
@@ -583,7 +586,7 @@ int nbitems, ii;
 			{
 				old_layer = track->m_Layer;
 				fprintf(file,"LAYER %s\n",
-					GenCAD_Layer_Name[track->m_Layer & 0x1F].GetData());
+					CONV_TO_UTF8(GenCAD_Layer_Name[track->m_Layer & 0x1F]));
 			}
 				
 			fprintf(file, "LINE %d %d %d %d\n",

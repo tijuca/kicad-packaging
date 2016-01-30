@@ -56,9 +56,9 @@ wxClientDC dc(DrawPanel);
 			break;
 
 		case ID_TB_OPTIONS_SELECT_CURSOR:
-			GetScreen()->CursorOff(DrawPanel, &dc);
+			DrawPanel->CursorOff(&dc);
 			g_CursorShape = m_OptionsToolBar->GetToolState(id);
-			GetScreen()->CursorOn(DrawPanel, &dc);
+			DrawPanel->CursorOn(&dc);
 			break;
 
 		case ID_TB_OPTIONS_SHOW_PADS_SKETCH:

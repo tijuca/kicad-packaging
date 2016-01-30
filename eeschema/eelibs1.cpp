@@ -1,4 +1,3 @@
-
 /***********************************************************/
 /*	Module to handle libraries (first part - file and io). */
 /***********************************************************/
@@ -25,6 +24,8 @@ static bool AddAliasNames(EDA_LibComponentStruct *LibEntry, char * line);
 static void InsertAlias(PriorQue ** PQ,
 						EDA_LibComponentStruct *LibEntry, int *NumOfParts);
 static bool ReadLibEntryDateAndTime(EDA_LibComponentStruct * LibEntry, char * Line);
+static int AddFootprintFilterList(EDA_LibComponentStruct *LibEntryLibEntry,
+	FILE * f, char * Line, int *LineNum);
 
 /* pour doc librairies */
 
@@ -422,6 +423,11 @@ wxString Msg;
 			Res = AddAliasNames(LibEntry, p);
 		}
 
+		else if(strncmp(p, "$FPLIST", 5) == 0 )
+		{
+			Res = AddFootprintFilterList(LibEntry, f, Line, LineNum);
+		}
+
 		else
 		{
 			Msg.Printf( wxT("Undefined command \"%s\" in line %d, skipped."), p, * LineNum);
@@ -455,8 +461,8 @@ static LibEDA_BaseStruct *GetDrawEntry(WinEDA_DrawFrame * frame, FILE *f, char *
 int i = 0, jj, ll, Unit, Convert, size1, size2;
 char *p, Buffer[1024], BufName[256],
 		 PinNum[256],
-		 chartmp[256], chartmp1[256],
-		ctmp;
+		 chartmp[256], chartmp1[256];
+int ctmp;
 wxString MsgLine;
 bool Error = FALSE;
 LibEDA_BaseStruct *Tail = NULL,
@@ -935,13 +941,12 @@ wxString msg;
 }
 
 
-/****************************************************************************/
-/* bool ReadLibEntryDateAndTime(EDA_LibComponentStruct * LibEntry, char * Line) */
-/****************************************************************************/
+/*********************************************************************************/
+static bool ReadLibEntryDateAndTime(EDA_LibComponentStruct * LibEntry, char * Line)
+/*********************************************************************************/
 /* lit date et time de modif composant sous le format:
 	"Ti yy/mm/jj hh:mm:ss"
 */
-static bool ReadLibEntryDateAndTime(EDA_LibComponentStruct * LibEntry, char * Line)
 {
 int year,mon,day,hour,min,sec;
 char * text;
@@ -1112,4 +1117,34 @@ int fill_ref = 0, fill_item = 0;
 	if ( fill_ref & fill_item ) return 0;
 	if ( fill_ref ) return BEFORE;
 	return AFTER;
+}
+
+
+/*****************************************************************************/
+int AddFootprintFilterList(EDA_LibComponentStruct *LibEntryLibEntry, FILE * f,
+		char * Line, int *LineNum)
+/******************************************************************************/
+/* read the FootprintFilter List stating with:
+	FPLIST
+	and ending with:
+	ENDFPLIST
+*/
+{
+	for ( ; ; )
+	{
+		if (GetLine(f, Line, LineNum, 1024 ) == NULL)
+		{
+			DisplayError(NULL, wxT("File ended prematurely"));
+			return 0;
+		}
+		
+		if ( stricmp(Line, "$ENDFPLIST") == 0 )
+		{
+			break;	/*normal exit on end of list */
+		}
+		
+		LibEntryLibEntry->m_FootprintList.Add(CONV_FROM_UTF8(Line+1));
+	}
+	
+	return 1;
 }

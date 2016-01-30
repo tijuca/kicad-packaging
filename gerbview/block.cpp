@@ -72,7 +72,7 @@ void WinEDA_GerberFrame::HandleBlockPlace(wxDC * DC)
 {
 bool err = FALSE;
 
-	if(GetScreen()->ManageCurseur == NULL)
+	if(DrawPanel->ManageCurseur == NULL)
 		{
 		err = TRUE;
 		DisplayError(this, wxT("Error in HandleBlockPLace : ManageCurseur = NULL") );
@@ -88,15 +88,15 @@ bool err = FALSE;
 		case BLOCK_DRAG: /* Drag */
 		case BLOCK_MOVE: /* Move */
 		case BLOCK_PRESELECT_MOVE: /* Move with preselection list*/
-			if ( GetScreen()->ManageCurseur )
-				GetScreen()->ManageCurseur(DrawPanel, DC, FALSE);
+			if ( DrawPanel->ManageCurseur )
+				DrawPanel->ManageCurseur(DrawPanel,DC, FALSE);
 			Block_Move(DC);
 			GetScreen()->BlockLocate.m_BlockDrawStruct = NULL;
 			break;
 
 		case BLOCK_COPY: /* Copy */
-			if ( GetScreen()->ManageCurseur )
-				GetScreen()->ManageCurseur(DrawPanel, DC, FALSE);
+			if ( DrawPanel->ManageCurseur )
+				DrawPanel->ManageCurseur(DrawPanel, DC, FALSE);
 			Block_Duplicate(DC);
 			GetScreen()->BlockLocate.m_BlockDrawStruct = NULL;
 			break;
@@ -111,13 +111,15 @@ bool err = FALSE;
 		case BLOCK_SAVE:
 		case BLOCK_ABORT:
 		case BLOCK_SELECT_ITEMS_ONLY:
+		case BLOCK_MIRROR_X:
+		case BLOCK_MIRROR_Y:
 			break;
 		}
 
 	GetScreen()->SetModify();
 
-	GetScreen()->ManageCurseur = NULL;
-	GetScreen()->ForceCloseManageCurseur = NULL;
+	DrawPanel->ManageCurseur = NULL;
+	DrawPanel->ForceCloseManageCurseur = NULL;
 	GetScreen()->BlockLocate.m_Flags = 0;
 	GetScreen()->BlockLocate.m_State = STATE_NO_BLOCK;
 	GetScreen()->BlockLocate.m_Command =  BLOCK_IDLE;
@@ -143,7 +145,7 @@ int WinEDA_GerberFrame::HandleBlockEnd(wxDC * DC)
 int endcommande = TRUE;
 bool zoom_command = FALSE;
 
-if(GetScreen()->ManageCurseur )
+if(DrawPanel->ManageCurseur )
 
 	switch( GetScreen()->BlockLocate.m_Command )
 		{
@@ -157,14 +159,14 @@ if(GetScreen()->ManageCurseur )
 		case BLOCK_PRESELECT_MOVE: /* Move with preselection list*/
 			GetScreen()->BlockLocate.m_State = STATE_BLOCK_MOVE;
 			endcommande = FALSE;
-			GetScreen()->ManageCurseur(DrawPanel, DC, FALSE);
-			GetScreen()->ManageCurseur = DrawMovingBlockOutlines;
-			GetScreen()->ManageCurseur(DrawPanel, DC, FALSE);
+			DrawPanel->ManageCurseur(DrawPanel, DC, FALSE);
+			DrawPanel->ManageCurseur = DrawMovingBlockOutlines;
+			DrawPanel->ManageCurseur(DrawPanel,DC, FALSE);
 			break;
 
 		case BLOCK_DELETE: /* Delete */
 			GetScreen()->BlockLocate.m_State = STATE_BLOCK_STOP;
-			GetScreen()->ManageCurseur(DrawPanel, DC, FALSE);
+			DrawPanel->ManageCurseur(DrawPanel,DC, FALSE);
 			Block_Delete(DC);
 			break;
 
@@ -185,6 +187,8 @@ if(GetScreen()->ManageCurseur )
 
 		case BLOCK_ABORT:
 		case BLOCK_SELECT_ITEMS_ONLY:
+		case BLOCK_MIRROR_X:
+		case BLOCK_MIRROR_Y:
 			break;
 		}
 
@@ -194,8 +198,8 @@ if(GetScreen()->ManageCurseur )
 		GetScreen()->BlockLocate.m_State = STATE_NO_BLOCK;
 		GetScreen()->BlockLocate.m_Command =  BLOCK_IDLE;
 		GetScreen()->BlockLocate.m_BlockDrawStruct = NULL;
-		GetScreen()->ManageCurseur = NULL;
-		GetScreen()->ForceCloseManageCurseur = NULL;
+		DrawPanel->ManageCurseur = NULL;
+		DrawPanel->ForceCloseManageCurseur = NULL;
 		DisplayToolMsg(wxEmptyString);
 	}
 
@@ -299,7 +303,7 @@ int deltaX, deltaY;
 wxPoint oldpos;
 
 	oldpos = GetScreen()->m_Curseur;
-	GetScreen()->ManageCurseur = NULL;
+	DrawPanel->ManageCurseur = NULL;
 
 	GetScreen()->m_Curseur = oldpos;
 	DrawPanel->MouseToCursorSchema();
@@ -357,7 +361,7 @@ int deltaX, deltaY;
 wxPoint oldpos;
 
 	oldpos = GetScreen()->m_Curseur;
-	GetScreen()->ManageCurseur = NULL;
+	DrawPanel->ManageCurseur = NULL;
 
 	GetScreen()->m_Curseur = oldpos;
 	DrawPanel->MouseToCursorSchema();

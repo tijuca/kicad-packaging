@@ -188,10 +188,10 @@ void WinEDA_LibeditFrame::RedrawActiveWindow(wxDC * DC, bool EraseBg)
 	DC->SetBackgroundMode(wxTRANSPARENT);
 	GRResetPenAndBrush(DC);	// reinit de la brosse et plume courante
 
-	m_CurrentScreen->CursorOff(DrawPanel, DC); // effacement curseur
-	if(m_CurrentScreen->ManageCurseur)
+	DrawPanel->CursorOff(DC); // effacement curseur
+	if(DrawPanel->ManageCurseur)
 	{
-		m_CurrentScreen->ManageCurseur(DrawPanel, DC, FALSE); // effacement affichage lie au curseur
+		DrawPanel->ManageCurseur(DrawPanel, DC, FALSE); // effacement affichage lie au curseur
 	}
 
 	if (EraseBg ) DrawPanel->EraseScreen(DC);
@@ -202,11 +202,11 @@ void WinEDA_LibeditFrame::RedrawActiveWindow(wxDC * DC, bool EraseBg)
 		DrawLibEntry(DrawPanel, DC, CurrentLibEntry, 0, 0,
 					CurrentUnit, CurrentConvert, GR_DEFAULT_DRAWMODE);
 
-	m_CurrentScreen->CursorOn(DrawPanel, DC); // reaffichage curseur
+	DrawPanel->CursorOn(DC); // reaffichage curseur
 
-	if(m_CurrentScreen->ManageCurseur)
+	if(DrawPanel->ManageCurseur)
 	{
-		m_CurrentScreen->ManageCurseur(DrawPanel, DC, FALSE); // reaffichage lie au curseur
+		DrawPanel->ManageCurseur(DrawPanel, DC, FALSE); // reaffichage lie au curseur
 	}
 
 	m_CurrentScreen->ClrRefreshReq();

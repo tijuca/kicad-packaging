@@ -50,7 +50,7 @@ MODULE * module = NULL;
 					EXT_CMP,			/* extension par defaut */
 					EXT_CMP_MASK,		/* Masque d'affichage */
 					this,
-					wxOPEN,
+					wxFD_OPEN,
 					TRUE
 					);
 
@@ -127,7 +127,7 @@ wxString msg, path;
 					createlib ? LibExtBuffer : EXT_CMP,			/* extension par defaut */
 					Mask,		/* Masque d'affichage */
 					this,
-					wxSAVE,
+					wxFD_SAVE,
 					TRUE
 					);
 
@@ -351,7 +351,7 @@ wxString FullFileName = LibName;
 					LibExtBuffer,		/* extension par defaut */
 					Mask,				/* Masque d'affichage */
 					this,
-					wxSAVE,
+					wxFD_SAVE,
 					TRUE
 					);
 

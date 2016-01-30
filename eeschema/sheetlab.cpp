@@ -13,7 +13,7 @@
 #include "protos.h"
 
 /* Routines Locales */
-static void ExitPinSheet(WinEDA_DrawFrame * frame, wxDC * DC );
+static void ExitPinSheet(WinEDA_DrawPanel * Panel, wxDC * DC );
 static void Move_PinSheet(WinEDA_DrawPanel * panel, wxDC * DC, bool erase);
 
 /* Variables locales */
@@ -142,29 +142,30 @@ void WinEDA_PinSheetPropertiesFrame::PinSheetPropertiesAccept(wxCommandEvent& ev
 }
 
 /*****************************************************************/
-/*  Routine de sortie du Menu d'Edition Des NETS (Labels) SHEET  */
+static void ExitPinSheet(WinEDA_DrawPanel * Panel, wxDC * DC)
 /*****************************************************************/
-static void ExitPinSheet(WinEDA_DrawFrame * frame, wxDC * DC)
+/*  Routine de sortie du Menu d'Edition Des NETS (Labels) SHEET 
+*/
 {
 DrawSheetLabelStruct * SheetLabel = (DrawSheetLabelStruct *)
-		frame->GetScreen()->m_CurrentItem;
+		Panel->GetScreen()->m_CurrentItem;
 
 	if ( SheetLabel == NULL ) return;
 
 	if ( SheetLabel->m_Flags & IS_NEW )
 		{ /* Nouveau Placement en cours, on l'efface */
-		RedrawOneStruct(frame->DrawPanel, DC, SheetLabel, g_XorMode);
+		RedrawOneStruct(Panel, DC, SheetLabel, g_XorMode);
 		delete SheetLabel;
 		}
 	else
 		{
-		RedrawOneStruct(frame->DrawPanel, DC, SheetLabel, GR_DEFAULT_DRAWMODE);
+		RedrawOneStruct(Panel, DC, SheetLabel, GR_DEFAULT_DRAWMODE);
 		SheetLabel->m_Flags = 0;
 		}
 
-	frame->GetScreen()->m_CurrentItem = NULL;
-	frame->GetScreen()->ManageCurseur = NULL;
-	frame->GetScreen()->ForceCloseManageCurseur = NULL;
+	Panel->GetScreen()->m_CurrentItem = NULL;
+	Panel->ManageCurseur = NULL;
+	Panel->ForceCloseManageCurseur = NULL;
 }
 
 /* Cette routine place un nouveau NetSheet ou place un ancien en cours
@@ -209,8 +210,8 @@ DrawSheetStruct * Sheet = (DrawSheetStruct *) m_Parent;
 
 	RedrawOneStruct(frame->DrawPanel, DC, Sheet, GR_DEFAULT_DRAWMODE);
 
-	frame->GetScreen()->ManageCurseur = NULL;
-	frame->GetScreen()->ForceCloseManageCurseur = NULL;
+	frame->DrawPanel->ManageCurseur = NULL;
+	frame->DrawPanel->ForceCloseManageCurseur = NULL;
 }
 
 
@@ -224,9 +225,9 @@ void WinEDA_SchematicFrame::StartMove_PinSheet(DrawSheetLabelStruct * SheetLabel
 	CurrentTypeLabel = SheetLabel->m_Shape;
 	SheetLabel->m_Flags |= IS_MOVED;
 
-	GetScreen()->ManageCurseur = Move_PinSheet;
-	GetScreen()->ForceCloseManageCurseur = ExitPinSheet;
-	GetScreen()->ManageCurseur(DrawPanel, DC, TRUE);
+	DrawPanel->ManageCurseur = Move_PinSheet;
+	DrawPanel->ForceCloseManageCurseur = ExitPinSheet;
+	DrawPanel->ManageCurseur(DrawPanel, DC, TRUE);
 }
 
 /**********************************************************************/
@@ -317,7 +318,7 @@ DrawSheetLabelStruct * NewSheetLabel;
 	Get_Message(Text,Line, this);
 	if( Line.IsEmpty() ) return NULL;
 
-	SetFlagModify(GetScreen());
+	GetScreen()->SetModify();
 
 	/* Creation en memoire */
 	NewSheetLabel = new DrawSheetLabelStruct(Sheet, wxPoint(0,0), Line);
@@ -327,9 +328,9 @@ DrawSheetLabelStruct * NewSheetLabel;
 
 	GetScreen()->m_CurrentItem = NewSheetLabel;
 
-	GetScreen()->ManageCurseur = Move_PinSheet;
-	GetScreen()->ForceCloseManageCurseur = ExitPinSheet;
-	GetScreen()->ManageCurseur(DrawPanel, DC, TRUE);
+	DrawPanel->ManageCurseur = Move_PinSheet;
+	DrawPanel->ForceCloseManageCurseur = ExitPinSheet;
+	DrawPanel->ManageCurseur(DrawPanel, DC, TRUE);
 
 	return NewSheetLabel;
 }
@@ -343,18 +344,11 @@ DrawSheetLabelStruct *
 de la feuille de sous hierarchie correspondante
 */
 {
-SCH_SCREEN * Window;
 EDA_BaseStruct *DrawStruct;
 DrawSheetLabelStruct * NewSheetLabel, * SheetLabel = NULL;
 DrawGlobalLabelStruct * GLabel = NULL;
 
-	Window = (SCH_SCREEN *) Sheet->m_Son;
-	if ( Window == NULL )
-		{
-		DisplayError(this, wxT("No Subhierarchy"), 10); return NULL;
-		}
-
-	DrawStruct = Window->EEDrawList;
+	DrawStruct = Sheet->EEDrawList;
 	GLabel = NULL;
 	for (; DrawStruct != NULL; DrawStruct = DrawStruct->Pnext )
 	{
@@ -383,7 +377,7 @@ DrawGlobalLabelStruct * GLabel = NULL;
 
 	 /* Ici G-Label n'a pas de SheetLabel corresp, on va le creer */
 
-	SetFlagModify(GetScreen());
+	GetScreen()->SetModify();
 	/* Creation en memoire */
 	NewSheetLabel = new DrawSheetLabelStruct(Sheet, wxPoint(0,0), GLabel->m_Text);
 	NewSheetLabel->m_Flags = IS_NEW;
@@ -391,8 +385,8 @@ DrawGlobalLabelStruct * GLabel = NULL;
 	CurrentTypeLabel = NewSheetLabel->m_Shape = GLabel->m_Shape;
 
 	GetScreen()->m_CurrentItem = NewSheetLabel;
-	GetScreen()->ManageCurseur = Move_PinSheet;
-	GetScreen()->ForceCloseManageCurseur = ExitPinSheet;
+	DrawPanel->ManageCurseur = Move_PinSheet;
+	DrawPanel->ForceCloseManageCurseur = ExitPinSheet;
 	Move_PinSheet(DrawPanel, DC, FALSE);
 
 	return NewSheetLabel;

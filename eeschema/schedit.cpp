@@ -114,10 +114,9 @@ wxPoint defaultpos(-1,-1);
 			if (m_CurrentScreen->BlockLocate.m_Command != BLOCK_IDLE)
 				DrawPanel->SetCursor(wxCursor(DrawPanel->m_PanelCursor = DrawPanel->m_PanelDefaultCursor) );
 
-			if( m_CurrentScreen->ManageCurseur &&
-				m_CurrentScreen->ForceCloseManageCurseur )
+			if( DrawPanel->ManageCurseur && DrawPanel->ForceCloseManageCurseur )
 			{
-				m_CurrentScreen->ForceCloseManageCurseur(this, &dc);
+				DrawPanel->ForceCloseManageCurseur(DrawPanel, &dc);
 			}
 			/* ne devrait pas etre execute, sauf bug: */
 			if (m_CurrentScreen->BlockLocate.m_Command != BLOCK_IDLE)
@@ -130,18 +129,16 @@ wxPoint defaultpos(-1,-1);
 
 		case ID_POPUP_SCH_DELETE_CMP:
 		case ID_POPUP_SCH_DELETE:	// Stop the, current command, keep the current tool
-			if( m_CurrentScreen->ManageCurseur &&
-				m_CurrentScreen->ForceCloseManageCurseur )
+			if( DrawPanel->ManageCurseur && DrawPanel->ForceCloseManageCurseur )
 			{
-				m_CurrentScreen->ForceCloseManageCurseur(this, &dc);
+				DrawPanel->ForceCloseManageCurseur(DrawPanel, &dc);
 			}
 			break;
 
 		default:	// Stop the current command, and deselect the current tool
-			if( m_CurrentScreen->ManageCurseur &&
-				m_CurrentScreen->ForceCloseManageCurseur )
+			if(DrawPanel->ManageCurseur && DrawPanel->ForceCloseManageCurseur )
 			{
-				m_CurrentScreen->ForceCloseManageCurseur(this, &dc);
+				DrawPanel->ForceCloseManageCurseur(DrawPanel, &dc);
 			}
 			DrawPanel->m_PanelCursor = DrawPanel->m_PanelDefaultCursor = wxCURSOR_ARROW;
 			SetToolID(0, DrawPanel->m_PanelCursor, wxEmptyString);
@@ -160,6 +157,10 @@ wxPoint defaultpos(-1,-1);
 
 		case ID_LOAD_PROJECT:
 			LoadOneEEProject( wxEmptyString, FALSE);
+			break;
+
+		case ID_LOAD_ONE_SHEET:
+			LoadOneSheet(GetScreen(), wxEmptyString);
 			break;
 
 		case ID_LOAD_FILE_1:
@@ -250,11 +251,6 @@ wxPoint defaultpos(-1,-1);
 
 		case wxID_PASTE:
 			HandleBlockBegin(&dc, BLOCK_PASTE,m_CurrentScreen->m_Curseur);
-			break;
-
-		case ID_UNDO_BUTT:
-			UnDeleteStruct(&dc);
-			TestDanglingEnds(m_CurrentScreen->EEDrawList, &dc);
 			break;
 
 		case ID_GET_ANNOTATE:
@@ -380,23 +376,20 @@ wxPoint defaultpos(-1,-1);
 
 		case ID_POPUP_SCH_CHANGE_TYPE_TEXT_TO_LABEL:
 			DrawPanel->MouseToCursorSchema();
-			ChangeTypeText( (DrawTextStruct*)m_CurrentScreen->m_CurrentItem,
+			ConvertTextType( (DrawTextStruct*)m_CurrentScreen->m_CurrentItem,
 						&dc, DRAW_LABEL_STRUCT_TYPE);
-			TestDanglingEnds(m_CurrentScreen->EEDrawList, &dc);
 			break;
 
 		case ID_POPUP_SCH_CHANGE_TYPE_TEXT_TO_GLABEL:
 			DrawPanel->MouseToCursorSchema();
-			ChangeTypeText( (DrawTextStruct*)m_CurrentScreen->m_CurrentItem,
+			ConvertTextType( (DrawTextStruct*)m_CurrentScreen->m_CurrentItem,
 						&dc, DRAW_GLOBAL_LABEL_STRUCT_TYPE);
-			TestDanglingEnds(m_CurrentScreen->EEDrawList, &dc);
 			break;
 
 		case ID_POPUP_SCH_CHANGE_TYPE_TEXT_TO_COMMENT:
 			DrawPanel->MouseToCursorSchema();
-			ChangeTypeText( (DrawTextStruct*)m_CurrentScreen->m_CurrentItem,
+			ConvertTextType( (DrawTextStruct*)m_CurrentScreen->m_CurrentItem,
 						&dc, DRAW_TEXT_STRUCT_TYPE);
-			TestDanglingEnds(m_CurrentScreen->EEDrawList, &dc);
 			break;
 
 		case ID_POPUP_SCH_SET_SHAPE_TEXT:
@@ -422,9 +415,14 @@ wxPoint defaultpos(-1,-1);
 			break;
 
 		case ID_POPUP_SCH_BREAK_WIRE:
+			{
+			DrawPickedStruct * ListForUndo;
 			DrawPanel->MouseToCursorSchema();
-			BreakSegment(m_CurrentScreen, m_CurrentScreen->m_Curseur);
+			ListForUndo = BreakSegment((SCH_SCREEN*)m_CurrentScreen,
+					m_CurrentScreen->m_Curseur, TRUE);
+			if ( ListForUndo ) SaveCopyInUndoList(ListForUndo, IS_NEW|IS_CHANGED);
 			TestDanglingEnds(m_CurrentScreen->EEDrawList, &dc);
+			}
 			break;
 
 		case ID_POPUP_SCH_DELETE_CMP:
@@ -434,10 +432,6 @@ wxPoint defaultpos(-1,-1);
 				m_CurrentScreen->m_CurrentItem = LocateSmallestComponent( GetScreen() );
 		case ID_POPUP_SCH_DELETE:
 			if ( m_CurrentScreen->m_CurrentItem == NULL) break;
-			if (m_CurrentScreen->m_CurrentItem->m_StructType == DRAW_SHEET_STRUCT_TYPE)
-				{
-				if ( ! IsOK(this, _("Delete SHEET!!") ) ) break;
-				}
 			DeleteStruct(this->DrawPanel, &dc, m_CurrentScreen->m_CurrentItem);
 			m_CurrentScreen->m_CurrentItem = NULL;
 			g_ItemToRepeat = NULL;
@@ -530,6 +524,8 @@ wxPoint defaultpos(-1,-1);
 					option = CMP_NORMAL; break;
 			}
 			DrawPanel->MouseToCursorSchema();
+			if ( m_CurrentScreen->m_CurrentItem->m_Flags == 0 )
+				SaveCopyInUndoList(m_CurrentScreen->m_CurrentItem, IS_CHANGED);
 			CmpRotationMiroir(
 				(EDA_SchComponentStruct *) m_CurrentScreen->m_CurrentItem,
 				&dc, option );
@@ -700,7 +696,7 @@ wxPoint defaultpos(-1,-1);
 		case ID_POPUP_SCH_ADD_JUNCTION:
 			DrawPanel->MouseToCursorSchema();
 			m_CurrentScreen->m_CurrentItem = 
-				CreateNewJunctionStruct(&dc, m_CurrentScreen->m_Curseur);
+				CreateNewJunctionStruct(&dc, m_CurrentScreen->m_Curseur, TRUE);
 			TestDanglingEnds(m_CurrentScreen->EEDrawList, &dc);
 			m_CurrentScreen->m_CurrentItem = NULL;
 			break;
@@ -715,6 +711,16 @@ wxPoint defaultpos(-1,-1);
 				TestDanglingEnds(m_CurrentScreen->EEDrawList, &dc);
 				m_CurrentScreen->m_CurrentItem = NULL;
 			}
+			break;
+
+		case ID_SCHEMATIC_UNDO:
+			GetSchematicFromUndoList();
+			DrawPanel->Refresh(TRUE);
+			break;
+
+		case ID_SCHEMATIC_REDO:
+			GetSchematicFromRedoList();
+			DrawPanel->Refresh(TRUE);
 			break;
 
 		default:	// Log error:

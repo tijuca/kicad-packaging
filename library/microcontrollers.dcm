@@ -1,4 +1,4 @@
-EESchema-DOCLIB  Version 2.0  Date: 29/3/2006-13:25:22
+EESchema-DOCLIB  Version 2.0  Date: 20/2/2007-08:13:48
 #
 $CMP ADUC816
 F analog-dev/ADuC816.pdf
@@ -7,11 +7,6 @@ $ENDCMP
 $CMP PIC12C508A
 D 8-Bit CMOS Microcontroller
 K 12C508
-$ENDCMP
-#
-$CMP PIC12C509A
-D 8-Bit CMOS Microcontroller
-K 12C509
 $ENDCMP
 #
 $CMP PIC12C671

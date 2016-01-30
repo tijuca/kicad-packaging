@@ -1,4 +1,4 @@
-EXTRACPPFLAGS= -I$(SYSINCLUDE) -I./ -Ibitmaps -I../include
+EXTRACPPFLAGS += -I$(SYSINCLUDE) -I./ -Ibitmaps -I../include
 
 COMMON = ../include/colors.h
 
@@ -32,7 +32,12 @@ OBJECTS= \
 		eda_dde.o\
 		worksheet.o\
 		base_screen.o\
-		svg_print.o dcsvg.o
+		dcsvg.o
+
+ifdef KICAD_PYTHON
+OBJECTS += pyhandler.o
+pyhandler.o: pyhandler.cpp $(COMMON) ../include/pyhandler.h
+endif
 
 gr_basic.o: gr_basic.cpp ../include/gr_basic.h $(DEPEND)
 
@@ -54,8 +59,7 @@ svg_print.o: svg_print.cpp $(COMMON)
 
 gr_basic.o: gr_basic.cpp ../include/gr_basic.h $(COMMON) ../include/plot_common.h
 
-dcsvg.o: wx/dcsvg.cpp $(COMMON) ../include/wx/dcsvg.h
-	$(CC) -c $(EDACPPFLAGS) -o $@ wx/$*.cpp
+dcsvg.o: dcsvg.cpp $(COMMON) ../include/dcsvg.h
 
 projet_config.o: projet_config.cpp $(COMMON)
 
@@ -81,7 +85,7 @@ bitmaps.o: bitmaps.cpp ../include/bitmaps.h
 
 edaappl.o: edaappl.cpp $(COMMON) ../include/worksheet.h\
 	../include/common.h ../include/gr_basic.h\
-	../include/build_version.h 
+	../include/build_version.h
 
 eda_dde.o: eda_dde.cpp $(COMMON) ../include/eda_dde.h
 

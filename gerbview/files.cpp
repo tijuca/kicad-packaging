@@ -24,7 +24,7 @@ void WinEDA_GerberFrame::Files_io(wxCommandEvent& event)
 int id = event.GetId();
 wxClientDC dc(DrawPanel);
 
-	GetScreen()->CursorOff(DrawPanel, &dc);
+	DrawPanel->CursorOff(&dc);
 
 	switch (id)
 		{
@@ -100,7 +100,7 @@ wxClientDC dc(DrawPanel);
 		}
 
 	DrawPanel->MouseToCursorSchema();
-	GetScreen()->CursorOn(DrawPanel, &dc);
+	DrawPanel->CursorOn(&dc);
 }
 
 
@@ -122,8 +122,9 @@ wxString path = wxPathOnly(FullFileName);
 
 	ActiveScreen = GetScreen();
 	if( filename == wxEmptyString)
-		{
+	{
 		wxString mask = wxT("*") + g_PhotoFilenameExt;
+		mask += wxT(";*.gbr;*.lgr;*.ger");
 		filename = EDA_FileSelector(_("GERBER PLOT files:"),
 					path,					/* Chemin par defaut */
 					wxEmptyString,					 	/* nom fichier par defaut */
@@ -134,7 +135,7 @@ wxString path = wxPathOnly(FullFileName);
 					FALSE
 					);
 		if ( filename == wxEmptyString ) return FALSE;
-		}
+	}
 
 	GetScreen()->m_FileName = filename;
 	wxSetWorkingDirectory(path);
@@ -208,7 +209,7 @@ wxString filename = FullFileName;
 					g_PhotoFilenameExt,			/* extension par defaut */
 					mask,					/* Masque d'affichage */
 					this,
-					wxSAVE,
+					wxFD_SAVE,
 					FALSE
 					);
 			if ( filename.IsEmpty() ) return FALSE;

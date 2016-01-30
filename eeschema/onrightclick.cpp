@@ -496,7 +496,7 @@ void AddMenusForHierchicalSheet(wxMenu * PopMenu, DrawSheetStruct * Sheet)
 	{
 		ADD_MENUITEM(PopMenu, ID_POPUP_SCH_EDIT_SHEET, _("Edit Sheet"), edit_sheet_xpm);
 		ADD_MENUITEM(PopMenu, ID_POPUP_SCH_RESIZE_SHEET, _("Resize Sheet"), resize_sheet_xpm);
-		if ( Sheet->m_Son && Sheet->m_Label) // Sheet has data, and can be cleaned
+		if ( Sheet->m_Label ) // Sheet has pin labels, and can be cleaned
 			ADD_MENUITEM(PopMenu, ID_POPUP_SCH_CLEANUP_SHEET,
 				_("Cleanup PinSheets"), options_pinsheet_xpm);
 		ADD_MENUITEM(PopMenu, ID_POPUP_SCH_DELETE, _("Delete Sheet"), delete_sheet_xpm);

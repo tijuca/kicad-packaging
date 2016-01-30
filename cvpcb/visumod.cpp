@@ -38,7 +38,7 @@ MODULE * Module= m_Pcb->m_Modules;
 		}
 
 	Affiche_Status_Box();
-	ActiveScreen->Trace_Curseur(DrawPanel, DC);
+	DrawPanel->Trace_Curseur(DC);
 }
 
 

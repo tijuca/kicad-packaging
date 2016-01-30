@@ -29,7 +29,7 @@ wxSize minsize;
 	SetFont(*g_StdFont);
 	m_MenuBar = NULL;		// menu du haut d'ecran
 	m_HToolBar = NULL;
-	m_FrameIsActive = FALSE;
+	m_FrameIsActive = TRUE;
 	m_MsgFrameHeight = MSG_PANEL_DEFAULT_HEIGHT;
 
 	minsize.x = 470;
@@ -211,14 +211,19 @@ void WinEDA_BasicFrame::GetKicadHelp(wxCommandEvent& event)
 		m_Parent->m_HtmlCtrl->DisplayContents();
 		m_Parent->m_HtmlCtrl->Display(m_Parent->m_HelpFileName);
 	}
-	else DisplayError(this, _("Help files not found"));
+	else
+	{
+		wxString msg;
+		msg.Printf( _("Help file %s not found"), m_Parent->m_HelpFileName.GetData() );
+		DisplayError(this, msg);
+	}
 }
 
 /***********************************************************/
 void WinEDA_BasicFrame::GetKicadAbout(wxCommandEvent& event)
 /**********************************************************/
 {
-	Affiche_InfosLicence(this);
+	Print_Kicad_Infos(this);
 }
 
 /********************************************************************/

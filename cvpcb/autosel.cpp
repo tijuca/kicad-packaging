@@ -108,7 +108,7 @@ int nb_correspondances = 0;
 		frame->SetStatusText(msg, 0);
 		}
 
-	Componant = BaseListeCmp;
+	Componant = g_BaseListeCmp;
 	for ( ii = 0; Componant != NULL; Componant = Componant->Pnext, ii++ )
 		{
 		frame->m_ListCmp->SetSelection(ii,TRUE);
@@ -149,17 +149,16 @@ wxString msg;
 
 		/* Correspondance trouvee, recherche nom module dans la liste des
 		modules disponibles en librairie */
-		Module= BaseListePkg;
+		Module= g_BaseListePkg;
 		for ( ;Module != NULL; Module = Module->Pnext )
-			{
+		{
 
 			if( ItemModule->m_LibName.CmpNoCase(Module->m_Module) == 0 )
-				{ /* empreinte trouv‚e */
-				g_CurrentPkg = Module->m_Module;
-				frame->SetNewPkg();
+			{ /* empreinte trouv‚e */
+				frame->SetNewPkg(Module->m_Module);
 				return(0);
-				}
 			}
+		}
 		msg.Printf(
 				  _("Component %s: Footprint %s not found in libraries"),
 						Cmp->m_Valeur.GetData(), ItemModule->m_LibName.GetData());

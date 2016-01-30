@@ -19,25 +19,23 @@
 
 #define MAX_PIN_INFO	10
 
-#ifndef TRUE
-#define TRUE	((bool)1)
-#define FALSE	((bool)0)
-#endif
-
 #define TXTMARGE 10					/* Decalage (en 1/1000") des textes places
 									sur fils ( labels, num pins ) */
 
 #define HIGHLIGHT_COLOR WHITE
 
 /* Flags used in editing commnands (EDA_BaseStruct, .Flags )*/
-#define IS_LINKED 1
-#define IN_EDIT 2
+#define IS_CHANGED 1
+#define IS_LINKED 2
 #define IS_MOVED 4
 #define IS_NEW 8
-#define IS_RESIZED 0x10
-#define STARTPOINT 0x100
-#define ENDPOINT 0x200
-#define SELECTED 0x400
+#define IS_DELETED 0x10
+#define IS_RESIZED 0x20
+#define IN_EDIT 0x40
+#define IS_WIRE_IMAGE 0x100
+#define STARTPOINT 0x200
+#define ENDPOINT 0x400
+#define SELECTED 0x800
 
 /* Used for EDA_BaseStruct, .m_Select member */
 #define IS_SELECTED 1
@@ -137,14 +135,13 @@ eda_global EDA_BaseStruct * g_ItemToRepeat; /* pointeur sur la derniere structur
 eda_global wxSize g_RepeatStep;
 eda_global int g_RepeatDeltaLabel;
 
+eda_global EDA_BaseStruct * g_ItemToUndoCopy; /* copy of last modified schematic item
+		before it is modified (used for undo managing to restore old values ) */
+
 eda_global bool g_LastSearchIsMarker;	// True if last seach is a marker serach
 										// False for a schematic item search
 										// Used for hotkey next search
 
-/* Block operation (delete, undelete) */
-#define UNDELETE_STACK_SIZE 10		// Undelete max count
-eda_global EDA_BaseStruct *g_UnDeleteStack[UNDELETE_STACK_SIZE]; //Liste des elements supprimes
-eda_global int  g_UnDeleteStackPtr;
 /* Block operation (copy, paste) */
 eda_global EDA_BaseStruct * g_BlockSaveDataList; // List of items to paste (Created by Block Save)
 
@@ -175,13 +172,20 @@ eda_global struct EESchemaVariables g_EESchemaVar;
 eda_global int g_PrintFillMask;	/* pour les options "FILL",
 							l'option reelle est m_Fill & ~PrintFillMask */
 
-/* Variables eda_globales pour Libview */
+/* Variables globales pour Libview */
 eda_global wxString g_CurrentViewLibraryName;			/* nom de la librairie en cours d'examen */
 eda_global wxString g_CurrentViewComponentName;		/* nom du le composant en cours d'examen */
 eda_global int g_ViewConvert;						/* Vue normal / convert */
 eda_global int g_ViewUnit;						/* unité a afficher (A, B ..) */
 
-/* Variables eda_globales pour LibEdit */
+/* Variables globales pour Schematic Edit */
+eda_global int g_DefaultTextLabelSize
+#ifdef MAIN
+= DEFAULT_SIZE_TEXT
+#endif
+;
+
+/* Variables globales pour LibEdit */
 eda_global int g_LastTextSize
 #ifdef MAIN
 = DEFAULT_SIZE_TEXT
@@ -266,4 +270,10 @@ eda_global bool g_EditPinByPinIsOn	/* bool: TRUE si edition des pins pin a pin a
 #endif
 ;
 
+eda_global int g_LibSymbolDefaultLineWidth;	/* default line width  (in EESCHEMA units) used when creating a new graphic item in libedit : 0 = default */
+eda_global int g_DrawMinimunLineWidth;		/* Minimum line (in EESCHEMA units) width used to draw items on screen; 0 = single pixel line width */
+eda_global int g_PlotPSMinimunLineWidth;	/* Minimum line (in EESCHEMA units) width used to Plot items , postscript format */
 
+/* Config keys */
+#define MINI_DRAW_LINE_WIDTH_KEY wxT("MinimunDrawLineWidth")
+#define MINI_PLOTPS_LINE_WIDTH_KEY wxT("MinimunPlotPSLineWidth")

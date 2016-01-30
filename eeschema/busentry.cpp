@@ -17,36 +17,36 @@
 /* Routines Locales */
 
 /* Variables locales */
-static int LastShape = '\\';
+static int s_LastShape = '\\';
 static wxPoint ItemInitialPosition;
 
 /**************************************************************/
-static void ExitBusEntry( WinEDA_DrawFrame * frame, wxDC * DC )
+static void ExitBusEntry( WinEDA_DrawPanel * Panel, wxDC * DC )
 /**************************************************************/
 /* Routine de sortie des menus de trace */
 {
 DrawBusEntryStruct *BusEntry =
-	(DrawBusEntryStruct *)frame->GetScreen()->m_CurrentItem;
+	(DrawBusEntryStruct *)Panel->GetScreen()->m_CurrentItem;
 
 	if( BusEntry)  /* trace en cours */
-		{
-		RedrawOneStruct(frame->DrawPanel, DC, BusEntry, g_XorMode);
+	{
+		RedrawOneStruct(Panel, DC, BusEntry, g_XorMode);
 		if( BusEntry->m_Flags & IS_NEW )
-			{
+		{
 			delete BusEntry;
-			frame->GetScreen()->m_CurrentItem = NULL;
-			}
-		else
-			{
-			BusEntry->m_Pos = ItemInitialPosition;
-			RedrawOneStruct(frame->DrawPanel, DC, BusEntry, GR_DEFAULT_DRAWMODE);
-			BusEntry->m_Flags = 0;
-			}
+			Panel->GetScreen()->m_CurrentItem = NULL;
 		}
+		else
+		{
+			BusEntry->m_Pos = ItemInitialPosition;
+			RedrawOneStruct(Panel, DC, BusEntry, GR_DEFAULT_DRAWMODE);
+			BusEntry->m_Flags = 0;
+		}
+	}
 
 	g_ItemToRepeat = NULL;
-	frame->GetScreen()->ManageCurseur = NULL;
-	frame->GetScreen()->ForceCloseManageCurseur = NULL;
+	Panel->ManageCurseur = NULL;
+	Panel->ForceCloseManageCurseur = NULL;
 }
 
 /************************************************************************/
@@ -76,14 +76,14 @@ DrawBusEntryStruct * WinEDA_SchematicFrame::CreateBusEntry(wxDC * DC, int entry_
 */
 {
 DrawBusEntryStruct * BusEntry = new DrawBusEntryStruct(GetScreen()->m_Curseur,
-									LastShape , entry_type);
+									s_LastShape , entry_type);
 	BusEntry->m_Flags = IS_NEW;
 
-	GetScreen()->CursorOff(DrawPanel, DC);	// Erase schematic cursor
+	DrawPanel->CursorOff(DC);	// Erase schematic cursor
 	RedrawOneStruct(DrawPanel, DC, BusEntry, g_XorMode);
-	GetScreen()->CursorOn(DrawPanel, DC);	// Display schematic cursor
+	DrawPanel->CursorOn(DC);	// Display schematic cursor
 
-	SetFlagModify(GetScreen());
+	GetScreen()->SetModify();
 
 	StartMoveBusEntry(BusEntry, DC);
 	return BusEntry;
@@ -97,19 +97,25 @@ void WinEDA_SchematicFrame::StartMoveBusEntry(DrawBusEntryStruct * BusEntry,
 {
 	if ( BusEntry == NULL ) return;
 
+	if ( (BusEntry->m_Flags & IS_NEW) == 0 )	// => not already in edit, save shape */
+	{
+		delete g_ItemToUndoCopy;
+		g_ItemToUndoCopy = BusEntry->GenCopy();
+	}
+
 	BusEntry->m_Flags |= IS_MOVED;
 
 	ItemInitialPosition = BusEntry->m_Pos;
 
- 	GetScreen()->CursorOff(DrawPanel, DC);
- 	GetScreen()->m_Curseur = ItemInitialPosition;
+ 	DrawPanel->CursorOff(DC);
+ 	GetScreen()->m_Curseur = BusEntry->m_Pos;
  	DrawPanel->MouseToCursorSchema();
  
 	GetScreen()->m_CurrentItem = BusEntry;
-	GetScreen()->ManageCurseur = ShowWhileMoving;
-	GetScreen()->ForceCloseManageCurseur = ExitBusEntry;
+	DrawPanel->ManageCurseur = ShowWhileMoving;
+	DrawPanel->ForceCloseManageCurseur = ExitBusEntry;
  
- 	GetScreen()->CursorOn(DrawPanel, DC);
+ 	DrawPanel->CursorOn(DC);
 }
 
 
@@ -117,33 +123,38 @@ void WinEDA_SchematicFrame::StartMoveBusEntry(DrawBusEntryStruct * BusEntry,
 void WinEDA_SchematicFrame::SetBusEntryShape(wxDC * DC,
 				DrawBusEntryStruct *BusEntry, int entry_shape)
 /************************************************************/
+/* set the shape of BusEntry (shape = / or \ )
+*/
 {
 	if ( BusEntry == NULL ) return;
 
-	if ( GetScreen()->m_CurrentItem->m_StructType != DRAW_BUSENTRY_STRUCT_TYPE )
-		{
+	if ( BusEntry->m_StructType != DRAW_BUSENTRY_STRUCT_TYPE )
+	{
 		DisplayError(this, wxT("SetBusEntryType: Bad StructType") );
 		return;
-		}
+	}
+
+	/* Put old item in undo list if it is not currently in edit */
+	if ( BusEntry->m_Flags == 0 ) SaveCopyInUndoList(BusEntry, IS_CHANGED);
 
 	RedrawOneStruct(DrawPanel, DC, BusEntry, g_XorMode);
 
 	switch( entry_shape )
 		{
 		case '\\' :
-			LastShape = '\\';
+			s_LastShape = '\\';
 			BusEntry->m_Size.y = 100;
 			break;
 
 		case '/' :
-			LastShape = '/';
+			s_LastShape = '/';
 			BusEntry->m_Size.y = -100;
 			break;
 		}
 
 	TestDanglingEnds(GetScreen()->EEDrawList, NULL);
 	RedrawOneStruct(DrawPanel, DC, BusEntry, g_XorMode);
-	SetFlagModify(GetScreen());
+	GetScreen()->SetModify();
 }
 
 

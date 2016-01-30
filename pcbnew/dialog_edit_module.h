@@ -66,7 +66,7 @@ private:
 	void SelectTextListBox(wxCommandEvent& event);
 	void ReCreateFieldListBox(void);
 	void SetTextListButtons(void);
-	void CreatePanelProperties(bool FullOptions);
+	void BuildPanelModuleProperties(bool FullOptions);
 	void ModuleOrientEvent(wxCommandEvent& event);
 	void ExchangeModule(wxCommandEvent& event);
 	void GotoModuleEditor(wxCommandEvent& event);

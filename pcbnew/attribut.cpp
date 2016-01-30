@@ -23,10 +23,10 @@ SEGM_AR			AutoRouted segment
 	if ( track == NULL ) return;
  
 	GetScreen()->SetModify();
-	GetScreen()->CursorOff(DrawPanel, DC);	// Erase cursor shape
+	DrawPanel->CursorOff(DC);	// Erase cursor shape
 	track->SetState(SEGM_FIXE, Flag_On);
 	track->Draw(DrawPanel, DC, GR_OR | GR_SURBRILL) ;
-	GetScreen()->CursorOn(DrawPanel, DC);	// Display cursor shape
+	DrawPanel->CursorOn(DC);	// Display cursor shape
 	Affiche_Infos_Piste(this, track);
 }
 
@@ -41,7 +41,7 @@ int nb_segm;
 
 	if( (track == NULL ) || (track->m_StructType == TYPEZONE) ) return;
 
-	GetScreen()->CursorOff(DrawPanel, DC);	// Erase cursor shape
+	DrawPanel->CursorOff(DC);	// Erase cursor shape
 	Track = Marque_Une_Piste(this, DC, track, & nb_segm, GR_OR | GR_SURBRILL) ;
 
 	for( ; (Track != NULL) && (nb_segm > 0) ; nb_segm-- )
@@ -50,7 +50,7 @@ int nb_segm;
 		Track->SetState(BUSY,OFF);
 		Track = (TRACK*)Track->Pnext;
 	}
-	GetScreen()->CursorOn(DrawPanel, DC);	// Display cursor shape
+	DrawPanel->CursorOn(DC);	// Display cursor shape
 
 	GetScreen()->SetModify();
 }
@@ -74,7 +74,7 @@ TRACK *Track = m_Pcb->m_Track;
 		}
 	}
 
-	GetScreen()->CursorOff(DrawPanel, DC);	// Erase cursor shape
+	DrawPanel->CursorOff(DC);	// Erase cursor shape
 	while ( Track )	/* Flag change */
 	{		
 		if ( (net_code >= 0 ) && (net_code != Track->m_NetCode) ) break;
@@ -83,7 +83,7 @@ TRACK *Track = m_Pcb->m_Track;
 		Track->Draw(DrawPanel, DC, GR_OR | GR_SURBRILL);
 		Track = Track->Next();
 	}
-	GetScreen()->CursorOn(DrawPanel, DC);	// Display cursor shape
+	DrawPanel->CursorOn(DC);	// Display cursor shape
 	GetScreen()->SetModify();
 }
 

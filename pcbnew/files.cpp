@@ -23,9 +23,9 @@ wxString msg;
 	DrawPanel->PrepareGraphicContext(&dc);
 
 	// Arret des commandes en cours
-	if( GetScreen()->ManageCurseur && GetScreen()->ForceCloseManageCurseur )
+	if( DrawPanel->ManageCurseur && DrawPanel->ForceCloseManageCurseur )
 	{
-		GetScreen()->ForceCloseManageCurseur(this, &dc);
+		DrawPanel->ForceCloseManageCurseur(DrawPanel, &dc);
 	}
 	SetToolID(0, wxCURSOR_ARROW,wxEmptyString);
 
@@ -162,7 +162,7 @@ wxString msg;
 					PcbExtBuffer,			/* extension par defaut */
 					msg,					/* Masque d'affichage */
 					this,
-					wxOPEN,
+					wxFD_OPEN,
 					FALSE
 					);
 			if ( FileName == wxEmptyString ) return FALSE;
@@ -254,7 +254,7 @@ FILE * dest;
 					PcbExtBuffer,			/* extension par defaut */
 					msg,					/* Masque d'affichage */
 					this,
-					wxSAVE,
+					wxFD_SAVE,
 					FALSE
 					);
 			if ( FullFileName == wxEmptyString ) return FALSE;

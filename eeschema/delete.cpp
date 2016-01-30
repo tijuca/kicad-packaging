@@ -14,7 +14,7 @@
 #include "protos.h"
 
 #define SELECTEDNODE 1	/* flag indiquant que la structure a deja selectionnee */
-#define DELETED 2		/* Bit flag de Status pour structures effacee */
+#define STRUCT_DELETED 2	/* Bit flag de Status pour structures effacee */
 #define CANDIDATE 4		/* flag indiquant que la structure est connectee */
 #define SKIP_STRUCT 8	/* flag indiquant que la structure ne doit pas etre traitee */
 
@@ -36,7 +36,7 @@ int count = 0;
 
 	for ( Struct = ListStruct; Struct != NULL; Struct = Struct->Pnext)
 	{
-		if ( Struct->m_Flags & DELETED ) continue;
+		if ( Struct->m_Flags & STRUCT_DELETED ) continue;
 		if ( Struct->m_Flags & SKIP_STRUCT ) continue;
 
 			
@@ -130,7 +130,7 @@ DrawPickedStruct * PickedItem, *PickedList = NULL;
 			(DelStruct = PickStruct(GetScreen()->m_Curseur,
 				DelStruct, JUNCTIONITEM|WIREITEM|BUSITEM)) != NULL )
 	{
-		DelStruct->m_Flags = SELECTEDNODE|DELETED;
+		DelStruct->m_Flags = SELECTEDNODE|STRUCT_DELETED;
 		/* Put this structure in the picked list: */
 		PickedItem = new DrawPickedStruct(DelStruct);
 		PickedItem->Pnext = PickedList;
@@ -156,17 +156,17 @@ DrawPickedStruct * PickedItem, *PickedList = NULL;
 		{
 			bool noconnect = FALSE;
 
-			if ( DelStruct->m_Flags & DELETED ) continue;		// Already seen
+			if ( DelStruct->m_Flags & STRUCT_DELETED ) continue;		// Already seen
 			if ( ! (DelStruct->m_Flags & CANDIDATE) ) continue;	// Already seen
 			if ( DelStruct->m_StructType != DRAW_SEGMENT_STRUCT_TYPE ) continue;
 			DelStruct->m_Flags |= SKIP_STRUCT;
 			#define SEGM ((EDA_DrawLineStruct*)DelStruct)
-			/* Test the SEGM->m_Start point: if this point was connected to an DELETED wire,
+			/* Test the SEGM->m_Start point: if this point was connected to an STRUCT_DELETED wire,
 				and now is not connected, the wire can be deleted */
 			EDA_BaseStruct * removed_struct;
 			for ( removed_struct = GetScreen()->EEDrawList; removed_struct != NULL; removed_struct = removed_struct->Pnext)
 			{
-				if( (removed_struct->m_Flags & DELETED) == 0 ) continue;
+				if( (removed_struct->m_Flags & STRUCT_DELETED) == 0 ) continue;
 				if ( removed_struct->m_StructType != DRAW_SEGMENT_STRUCT_TYPE ) continue;
 				#define WIRE ((EDA_DrawLineStruct*)removed_struct)
 				if ( WIRE->IsOneEndPointAt(SEGM->m_Start) ) break;
@@ -174,11 +174,11 @@ DrawPickedStruct * PickedItem, *PickedList = NULL;
 			
 			if ( WIRE && ! CountConnectedItems(this, GetScreen()->EEDrawList, SEGM->m_Start, TRUE) )
 				noconnect = TRUE;
-			/* Test the SEGM->m_End point: if this point was connected to an DELETED wire,
+			/* Test the SEGM->m_End point: if this point was connected to an STRUCT_DELETED wire,
 				and now is not connected, the wire can be deleted */
 			for ( removed_struct = GetScreen()->EEDrawList; removed_struct != NULL; removed_struct = removed_struct->Pnext)
 			{
-				if( (removed_struct->m_Flags & DELETED) == 0 ) continue;
+				if( (removed_struct->m_Flags & STRUCT_DELETED) == 0 ) continue;
 				if ( removed_struct->m_StructType != DRAW_SEGMENT_STRUCT_TYPE ) continue;
 				if ( WIRE->IsOneEndPointAt(SEGM->m_End) ) break;
 			}
@@ -188,7 +188,7 @@ DrawPickedStruct * PickedItem, *PickedList = NULL;
 
 			if ( noconnect )
 			{
-				DelStruct->m_Flags |= DELETED;
+				DelStruct->m_Flags |= STRUCT_DELETED;
 				/* Put this structure in the picked list: */
 				PickedItem = new DrawPickedStruct(DelStruct);
 				PickedItem->Pnext = PickedList;
@@ -202,7 +202,7 @@ DrawPickedStruct * PickedItem, *PickedList = NULL;
 		for ( DelStruct = GetScreen()->EEDrawList; DelStruct != NULL; DelStruct = DelStruct->Pnext)
 		{
 			int count;
-			if ( DelStruct->m_Flags & DELETED ) continue;
+			if ( DelStruct->m_Flags & STRUCT_DELETED ) continue;
 			if ( ! (DelStruct->m_Flags & CANDIDATE) ) continue;
 			if ( DelStruct->m_StructType == DRAW_JUNCTION_STRUCT_TYPE )
 			{
@@ -210,7 +210,7 @@ DrawPickedStruct * PickedItem, *PickedList = NULL;
 				count = CountConnectedItems(this, GetScreen()->EEDrawList, JUNCTION->m_Pos, FALSE);
 				if ( count <= 2 )
 				{
-					DelStruct->m_Flags |= DELETED;
+					DelStruct->m_Flags |= STRUCT_DELETED;
 					/* Put this structure in the picked list: */
 					PickedItem = new DrawPickedStruct(DelStruct);
 					PickedItem->Pnext = PickedList;
@@ -224,14 +224,14 @@ DrawPickedStruct * PickedItem, *PickedList = NULL;
 		wxPoint pos = GetScreen()->m_Curseur;
 		for ( DelStruct = GetScreen()->EEDrawList; DelStruct != NULL; DelStruct = DelStruct->Pnext)
 		{
-			if ( DelStruct->m_Flags & DELETED ) continue;
+			if ( DelStruct->m_Flags & STRUCT_DELETED ) continue;
 			if ( DelStruct->m_StructType != DRAW_LABEL_STRUCT_TYPE ) continue;
 			GetScreen()->m_Curseur = ((DrawTextStruct*)DelStruct)->m_Pos;
 			EDA_BaseStruct * TstStruct =
 				PickStruct(GetScreen()->m_Curseur, GetScreen()->EEDrawList,WIREITEM|BUSITEM);
-			if ( TstStruct && TstStruct->m_Flags & DELETED )
+			if ( TstStruct && TstStruct->m_Flags & STRUCT_DELETED )
 			{
-				DelStruct->m_Flags |= DELETED;
+				DelStruct->m_Flags |= STRUCT_DELETED;
 				/* Put this structure in the picked list: */
 				PickedItem = new DrawPickedStruct(DelStruct);
 				PickedItem->Pnext = PickedList;
@@ -247,18 +247,17 @@ DrawPickedStruct * PickedItem, *PickedList = NULL;
 	if ( PickedList )
 	{
 		DeleteStruct(DrawPanel, DC, PickedList);
-		SetFlagModify(GetScreen());
+		GetScreen()->SetModify();
 	}
 
 }
 
 
 /*****************************************************************/
-void LocateAndDeleteItem(WinEDA_SchematicFrame * frame, wxDC * DC)
+bool LocateAndDeleteItem(WinEDA_SchematicFrame * frame, wxDC * DC)
 /*****************************************************************/
-
-/* Routine d'effacement d'un element de schema ( et placement en "undelete" )
-	si plusieurs elements sont superposes: ordre de priorite:
+/* Locate and delete the item found under the mouse cousor
+	If more than one item found: the priority order is:
 	1 : MARQUEUR
 	2 : JUNCTION
 	2 : NOCONNECT
@@ -267,11 +266,13 @@ void LocateAndDeleteItem(WinEDA_SchematicFrame * frame, wxDC * DC)
 	5 : TEXT
 	6 : COMPOSANT
 	7 : SHEET
-*/
 
+	return TRUE if an item was deleted
+*/
 {
 EDA_BaseStruct * DelStruct;
 SCH_SCREEN * screen = frame->GetScreen();
+bool item_deleted = FALSE;
 	
 	DelStruct = PickStruct(screen->m_Curseur,
 			screen->EEDrawList, MARKERITEM);
@@ -293,29 +294,27 @@ SCH_SCREEN * screen = frame->GetScreen();
 			screen->EEDrawList, SHEETITEM);
 
 	if (DelStruct)
-		{
-		if ( DelStruct->m_StructType == DRAW_SHEET_STRUCT_TYPE)
-			{
-			if( ! IsOK(frame, _("Delete SHEET!!")) )
-				 return;
-			}
+	{
 		g_ItemToRepeat = NULL;
 		DeleteStruct(frame->DrawPanel, DC, DelStruct);
 		frame->TestDanglingEnds(frame->m_CurrentScreen->EEDrawList, DC);
-		SetFlagModify(frame->GetScreen());
-		}
+		frame->GetScreen()->SetModify();
+		item_deleted = TRUE;
+	}
+	
+	return item_deleted;
 }
 
 
 
 
 /***************************************************************/
-void EraseStruct(EDA_BaseStruct *DrawStruct, SCH_SCREEN * Window)
+void EraseStruct(EDA_BaseStruct *DrawStruct, SCH_SCREEN * Screen)
 /***************************************************************/
 /* Suppression definitive d'une structure dans une liste chainee
 	d'elements de dessin
 	DrawStruct = pointeur sur la structure
-	Window = pointeur sur l'ecran d'appartenance
+	Screen = pointeur sur l'ecran d'appartenance
 	Le chainage de la liste est modifie.
 
  Remarque:
@@ -329,14 +328,14 @@ DrawPickedStruct	*PickedList = NULL;
 DrawSheetLabelStruct* SheetLabel, *NextLabel;
 
 	if( DrawStruct == NULL ) return;
-	if( Window == NULL ) return;
+	if( Screen == NULL ) return;
 
-	SetFlagModify(Window);
+		Screen->SetModify();
 
 	if (DrawStruct->m_StructType == DRAW_SHEETLABEL_STRUCT_TYPE)
 	{	/* Cette stucture est rattachee a une feuille, et n'est pas
 		accessible par la liste globale directement */
-		DrawList = Window->EEDrawList;
+		DrawList = Screen->EEDrawList;
 		for ( ; DrawList != NULL; DrawList = DrawList->Pnext )
 		{
 			if(DrawList->m_StructType != DRAW_SHEET_STRUCT_TYPE) continue;
@@ -371,14 +370,14 @@ DrawSheetLabelStruct* SheetLabel, *NextLabel;
 		PickedList = (DrawPickedStruct *) DrawStruct;
 		while (PickedList)
 		{
-			if (PickedList->m_PickedStruct == Window->EEDrawList)
+			if (PickedList->m_PickedStruct == Screen->EEDrawList)
 			{
-				Window->EEDrawList = Window->EEDrawList->Pnext;
+				Screen->EEDrawList = Screen->EEDrawList->Pnext;
 				delete DrawStruct;
 			}
 			else
 			{
-				DrawList = Window->EEDrawList;
+				DrawList = Screen->EEDrawList;
 				while ( DrawList && DrawList->Pnext)
 				{
 					if (DrawList->Pnext == PickedList->m_PickedStruct)
@@ -395,14 +394,14 @@ DrawSheetLabelStruct* SheetLabel, *NextLabel;
 	}
 	else	// structure usuelle */
 	{
-		if (DrawStruct == Window->EEDrawList)
+		if (DrawStruct == Screen->EEDrawList)
 		{
-			Window->EEDrawList = DrawStruct->Pnext;
+			Screen->EEDrawList = DrawStruct->Pnext;
 			delete DrawStruct;
 		}
 		else
 		{
-			DrawList = Window->EEDrawList;
+			DrawList = Screen->EEDrawList;
 			while (DrawList && DrawList->Pnext)
 			{
 				if (DrawList->Pnext == DrawStruct)
@@ -428,10 +427,11 @@ SCH_SCREEN * screen;
 EDA_BaseStruct * DrawStruct, * NextStruct;
 DrawMarkerStruct * Marker;
 
-	for( screen = ScreenSch; screen != NULL; screen = (SCH_SCREEN*)screen->Pnext )
-		{
+	EDA_ScreenList ScreenList(NULL);
+	for ( screen = ScreenList.GetFirst(); screen != NULL; screen = ScreenList.GetNext() )
+	{
 		for ( DrawStruct = screen->EEDrawList; DrawStruct != NULL; DrawStruct = NextStruct)
-			{
+		{
 			NextStruct = DrawStruct->Pnext;
 			if(DrawStruct->m_StructType != DRAW_MARKER_STRUCT_TYPE ) continue;
 			/* Marqueur trouve */
@@ -439,8 +439,8 @@ DrawMarkerStruct * Marker;
 			if( Marker->m_Type != type ) continue;
 			/* Suppression du marqueur */
 			EraseStruct( DrawStruct, screen);
-			}
 		}
+	}
 }
 
 /********************************************************************/

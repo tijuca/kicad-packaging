@@ -47,7 +47,7 @@ wxString FFileName;
 	wxImage::AddHandler( new wxPNGHandler );
 	wxImage::AddHandler( new wxJPEGHandler );
 
-	ScreenPcb = new PCB_SCREEN(NULL, NULL, PCB_FRAME);
+	ScreenPcb = new PCB_SCREEN(PCB_FRAME);
 	GetSettings();
 
 	if(argc > 1)
@@ -74,7 +74,6 @@ wxString FFileName;
 				 wxPoint(0,0), wxSize(600,400) );
 	wxString Title = g_Main_Title + wxT(" ") + GetBuildVersion();
 	m_PcbFrame->SetTitle(Title);
-	ScreenPcb->SetParentFrame(m_PcbFrame);
 	ActiveScreen = ScreenPcb;
 	m_PcbFrame->m_Pcb = new BOARD(NULL, m_PcbFrame);
 

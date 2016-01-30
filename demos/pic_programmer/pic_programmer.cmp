@@ -1,4 +1,4 @@
-Cmp-Mod V01 Created by Cvpcb (2006-06-22) date = 26/6/2006-09:43:54
+Cmp-Mod V01 Created by Cvpcb (2007-05-11) date = 16/5/2007-09:46:07
 
 BeginCmp
 TimeStamp = 442A5056;
@@ -46,6 +46,20 @@ BeginCmp
 TimeStamp = 442AA145;
 Reference = C7;
 ValeurCmp = 100nF;
+IdModule  = C1-1;
+EndCmp
+
+BeginCmp
+TimeStamp = 4639BE2C;
+Reference = C8;
+ValeurCmp = 100nF;
+IdModule  = C1-1;
+EndCmp
+
+BeginCmp
+TimeStamp = 464AD280;
+Reference = C9;
+ValeurCmp = 22OnF;
 IdModule  = C1-1;
 EndCmp
 
@@ -120,10 +134,31 @@ IdModule  = D5;
 EndCmp
 
 BeginCmp
+TimeStamp = 4639BA28;
+Reference = D11;
+ValeurCmp = BAT43;
+IdModule  = D3;
+EndCmp
+
+BeginCmp
+TimeStamp = 4639B9EA;
+Reference = D12;
+ValeurCmp = YELLOW-LED;
+IdModule  = LEDV;
+EndCmp
+
+BeginCmp
 TimeStamp = 442A4C93;
 Reference = J1;
 ValeurCmp = DB9-FEMAL;
 IdModule  = DB9FC;
+EndCmp
+
+BeginCmp
+TimeStamp = 4639BAF8;
+Reference = JP1;
+ValeurCmp = JUMPER;
+IdModule  = PIN_ARRAY_2X1;
 EndCmp
 
 BeginCmp
@@ -158,21 +193,21 @@ BeginCmp
 TimeStamp = 442A4EB9;
 Reference = Q1;
 ValeurCmp = BC237;
-IdModule  = BC237;
+IdModule  = TO92;
 EndCmp
 
 BeginCmp
 TimeStamp = 442A4F30;
 Reference = Q2;
 ValeurCmp = BC307;
-IdModule  = BC237;
+IdModule  = TO92;
 EndCmp
 
 BeginCmp
-TimeStamp = 4469CE6A;
+TimeStamp = 4639B996;
 Reference = Q3;
-ValeurCmp = 2N7000;
-IdModule  = TO92DGS;
+ValeurCmp = BC307;
+IdModule  = TO92;
 EndCmp
 
 BeginCmp
@@ -248,7 +283,7 @@ EndCmp
 BeginCmp
 TimeStamp = 442A4F23;
 Reference = R11;
-ValeurCmp = 2.2K;
+ValeurCmp = 22K;
 IdModule  = R4;
 EndCmp
 
@@ -298,6 +333,27 @@ BeginCmp
 TimeStamp = 44369638;
 Reference = R18;
 ValeurCmp = 220;
+IdModule  = R4;
+EndCmp
+
+BeginCmp
+TimeStamp = 4639B9B0;
+Reference = R19;
+ValeurCmp = 2.2K;
+IdModule  = R4;
+EndCmp
+
+BeginCmp
+TimeStamp = 4639B9B3;
+Reference = R20;
+ValeurCmp = 2.2K;
+IdModule  = R4;
+EndCmp
+
+BeginCmp
+TimeStamp = 4639B9E9;
+Reference = R21;
+ValeurCmp = 470;
 IdModule  = R4;
 EndCmp
 

@@ -105,10 +105,10 @@ wxClientDC dc(DrawPanel);
 			break;
 
 		case ID_POPUP_CANCEL_CURRENT_COMMAND:
-			if( GetScreen()->ManageCurseur &&
-				GetScreen()->ForceCloseManageCurseur )
+			if( DrawPanel->ManageCurseur &&
+				DrawPanel->ForceCloseManageCurseur )
 				{
-				GetScreen()->ForceCloseManageCurseur(this, &dc);
+				DrawPanel->ForceCloseManageCurseur(DrawPanel, &dc);
 				}
 			/* ne devrait pas etre execute, sauf bug */
 			if (m_CurrentScreen->BlockLocate.m_Command != BLOCK_IDLE)
@@ -123,10 +123,10 @@ wxClientDC dc(DrawPanel);
 			break;
 
 		default:	// Arret dea commande de déplacement en cours
-			if( GetScreen()->ManageCurseur &&
-				GetScreen()->ForceCloseManageCurseur )
+			if( DrawPanel->ManageCurseur &&
+				DrawPanel->ForceCloseManageCurseur )
 			{
-				GetScreen()->ForceCloseManageCurseur(this, &dc);
+				DrawPanel->ForceCloseManageCurseur(DrawPanel, &dc);
 			}
 			SetToolID(0, wxCURSOR_ARROW, wxEmptyString);
 			break;
@@ -271,6 +271,11 @@ wxClientDC dc(DrawPanel);
 			GetScreen()->BlockLocate.m_Command = BLOCK_DELETE;
 			m_CurrentScreen->BlockLocate.SetMessageBlock(this);
 			HandleBlockEnd(&dc);
+			break;
+
+		case ID_GERBVIEW_POPUP_DELETE_DCODE_ITEMS:
+			if ( gerber_layer )
+				Delete_DCode_Items(&dc, gerber_layer->m_Selected_Tool, GetScreen()->m_Active_Layer);
 			break;
 
 		default:

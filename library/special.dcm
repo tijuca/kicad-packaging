@@ -1,4 +1,4 @@
-EESchema-DOCLIB  Version 2.0  Date: 29/3/2006-09:43:55
+EESchema-DOCLIB  Version 2.0  Date: 16/5/2007-12:50:15
 #
 $CMP AD725
 D RGB to PAL/NTSC encoder
@@ -20,7 +20,8 @@ F digital-audio/DS1267.pdf
 $ENDCMP
 #
 $CMP DS1302
-D TimeKeeper DALLAS
+D TimeKeeper DALLAS/MAXIM
+F maxim/DS1302.pdf
 $ENDCMP
 #
 $CMP DS1602
@@ -80,6 +81,36 @@ K RS232
 F maxim/MAX220-MAX249.pdf
 $ENDCMP
 #
+$CMP MAX2505
+D 45MHz to 70MHz, Integrated IF VCOs with Differential Output
+K VCO IF
+F maxim/MAX2605-MAX2609.pdf
+$ENDCMP
+#
+$CMP MAX2507
+D 150MHz to 300MHz, Integrated IF VCOs with Differential Output
+K VCO IF
+F maxim/MAX2605-MAX2609.pdf
+$ENDCMP
+#
+$CMP MAX2508
+D 300MHz to 500MHz, Integrated IF VCOs with Differential Output
+K VCO IF
+F maxim/MAX2605-MAX2609.pdf
+$ENDCMP
+#
+$CMP MAX2509
+D 500MHz to 650MHz, Integrated IF VCOs with Differential Output
+K VCO IF
+F maxim/MAX2605-MAX2609.pdf
+$ENDCMP
+#
+$CMP MAX2606
+D 70MHz to 150MHz, Integrated IF VCOs with Differential Output
+K VCO IF
+F maxim/MAX2605-MAX2609.pdf
+$ENDCMP
+#
 $CMP MAX3226
 D Driver de Ligne RS232 micropower
 K RS232
@@ -131,9 +162,19 @@ D Pal
 K PAL
 $ENDCMP
 #
+$CMP PCI9030-PQFP176
+D PCI bus interface (PLX Technologie)
+K PCI
+$ENDCMP
+#
 $CMP S5933_PQ160
 D Controlleur de bus PCI
 K PCI
+$ENDCMP
+#
+$CMP SA605D
+D High performance low power mixer FM IF system
+F philips/SA605.pdf
 $ENDCMP
 #
 $CMP SI9986

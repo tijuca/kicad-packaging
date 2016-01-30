@@ -34,6 +34,9 @@ BEGIN_EVENT_TABLE(WinEDA_SchematicFrame, wxFrame)
 
 	EVT_TOOL(ID_NEW_PROJECT, WinEDA_SchematicFrame::Process_Special_Functions)
 	EVT_TOOL(ID_LOAD_PROJECT, WinEDA_SchematicFrame::Process_Special_Functions)
+	EVT_TOOL_RANGE(ID_SCHEMATIC_MAIN_TOOLBAR_START, ID_SCHEMATIC_MAIN_TOOLBAR_END,
+		WinEDA_SchematicFrame::Process_Special_Functions)
+
 
 	EVT_MENU_RANGE(ID_PREFERENCES_FONT_INFOSCREEN, ID_PREFERENCES_FONT_END,
 		WinEDA_DrawFrame::ProcessFontPreferences)
@@ -116,7 +119,7 @@ WinEDA_SchematicFrame::	WinEDA_SchematicFrame(wxWindow * father, WinEDA_App *par
 					WinEDA_DrawFrame(father, SCHEMATIC_FRAME, parent, title, pos, size)
 {
 	m_FrameName = wxT("SchematicFrame");
-	m_Draw_Axes = FALSE;			// TRUE pour avoir les axes dessines
+	m_Draw_Axis = FALSE;			// TRUE pour avoir les axes dessines
 	m_Draw_Grid = g_ShowGrid;			// TRUE pour avoir la grille dessinee
 	m_Draw_Sheet_Ref = TRUE;		// TRUE pour avoir le cartouche dessiné
 
@@ -129,7 +132,12 @@ WinEDA_SchematicFrame::	WinEDA_SchematicFrame(wxWindow * father, WinEDA_App *par
 
 	m_CurrentScreen = ScreenSch;
 	g_ItemToRepeat = NULL;
+	/* Get config */
 	GetSettings();
+	g_DrawMinimunLineWidth = m_Parent->m_EDA_Config->Read(MINI_DRAW_LINE_WIDTH_KEY, (long)0);
+	g_PlotPSMinimunLineWidth = m_Parent->m_EDA_Config->Read(MINI_PLOTPS_LINE_WIDTH_KEY, (long) 4);
+
+	/****/
 	SetSize(m_FramePos.x, m_FramePos.y, m_FrameSize.x, m_FrameSize.y);
 	if ( DrawPanel ) DrawPanel->m_Block_Enable = TRUE;
 	ReCreateMenuBar();
@@ -199,13 +207,16 @@ SCH_SCREEN * screen;
 	if ( ! ScreenSch->m_FileName.IsEmpty() && (ScreenSch->EEDrawList != NULL) )
 			SetLastProject(ScreenSch->m_FileName);
 
-	ClearProjectDrawList(ScreenSch);
+	ClearProjectDrawList(ScreenSch, TRUE);
 
 	/* Tous les autres SCREEN sont effaces, aussi reselection de
 	 l'ecran de base, pour les evenements de refresh générés par wxWindows */
 	m_CurrentScreen = ActiveScreen = ScreenSch;
 
 	SaveSettings();
+
+	m_Parent->m_EDA_Config->Write(MINI_DRAW_LINE_WIDTH_KEY, (long)g_DrawMinimunLineWidth);
+	m_Parent->m_EDA_Config->Write(MINI_PLOTPS_LINE_WIDTH_KEY, (long) g_PlotPSMinimunLineWidth);
 
 	Destroy();
 }
@@ -219,7 +230,7 @@ en cours
 */
 {
 	if( m_HToolBar )
-		{
+	{
 		if ( m_CurrentScreen->BlockLocate.m_Command == BLOCK_MOVE )
 			{
 			m_HToolBar->EnableTool(wxID_CUT,TRUE);
@@ -234,13 +245,13 @@ en cours
 		if ( g_BlockSaveDataList ) m_HToolBar->EnableTool(wxID_PASTE,TRUE);
 		else m_HToolBar->EnableTool(wxID_PASTE,FALSE);
 
-		if ( g_UnDeleteStackPtr &&
-			(g_UnDeleteStack[g_UnDeleteStackPtr-1]->m_Parent == m_CurrentScreen) )
-			{
-			m_HToolBar->EnableTool(ID_UNDO_BUTT,TRUE);
-			}
-		else m_HToolBar->EnableTool(ID_UNDO_BUTT,FALSE);
-		}
+		if ( GetScreen()->m_RedoList )
+			m_HToolBar->EnableTool(ID_SCHEMATIC_REDO,TRUE);
+		else m_HToolBar->EnableTool(ID_SCHEMATIC_REDO,FALSE);
+		if ( GetScreen()->m_UndoList )
+			m_HToolBar->EnableTool(ID_SCHEMATIC_UNDO,TRUE);
+		else m_HToolBar->EnableTool(ID_SCHEMATIC_UNDO,FALSE);
+	}
 
 	if ( m_OptionsToolBar )
 		{

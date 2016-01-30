@@ -16,15 +16,12 @@
 	/*******************************************************/
 	/* Class BASE_SCREEN: classe de gestion d'un affichage */
 	/*******************************************************/
-BASE_SCREEN::BASE_SCREEN(EDA_BaseStruct * parent, WinEDA_DrawFrame * frame_source, int idscreen):
-		EDA_BaseStruct(SCREEN_STRUCT_TYPE)
+BASE_SCREEN::BASE_SCREEN(int idscreen): EDA_BaseStruct(SCREEN_STRUCT_TYPE)
 {
-	m_Parent = parent;
+	EEDrawList = NULL;	 /* Schematic items list */
 	m_Type = idscreen;
-	SetParentFrame(frame_source);
 	m_ZoomList = NULL;
 	m_GridList = NULL;
-	EEDrawList = NULL;	 /* pointeur sur la liste des objets a tracer*/
 	m_UndoList = NULL;
 	m_RedoList = NULL;
 	m_UndoRedoCountMax = 1;
@@ -49,7 +46,6 @@ void BASE_SCREEN::InitDatas(void)
 	m_SheetNumber = m_NumberOfSheet = 1; /* gestion hierarchie: Root: SheetNumber = 1 */
 	m_Zoom = 32;
 	m_Grid = wxSize(50,50);			/* pas de la grille */
-	m_GridColor = DARKGRAY;
 	m_UserGrid = g_UserGrid;			/* pas de la grille "utilisateur" */
 	m_UserGridIsON = FALSE;
 	m_UserGridUnit = g_UserGrid_Unit;
@@ -68,7 +64,7 @@ void BASE_SCREEN::InitDatas(void)
 		case CVPCB_DISPLAY_FRAME:
 		case MODULE_EDITOR_FRAME:
 		case PCB_FRAME:
-			m_CurrentSheet = &g_Sheet_A3;
+			m_CurrentSheet = &g_Sheet_A4;
 			break;
 
 		case GERBER_FRAME:
@@ -94,11 +90,6 @@ void BASE_SCREEN::InitDatas(void)
 
 	m_O_Curseur = m_Curseur;
 
-	/* gestion du curseur et de la souris */
-	ManageCurseur = NULL;			/* Fonction d'affichage sur deplacement souris */
-	ForceCloseManageCurseur = NULL;
-	m_CurseurShape = 0;				/* indique une option de forme */
-
 	m_CurrentItem = NULL;
 
 	/* indicateurs divers */
@@ -108,27 +99,27 @@ void BASE_SCREEN::InitDatas(void)
 }
 
 
-/*****************************************************************/
-void BASE_SCREEN::SetParentFrame(WinEDA_DrawFrame * frame_source)
-/****************************************************************/
+/******************************************************************/
+wxPoint BASE_SCREEN::CursorRealPosition(const wxPoint & ScreenPos)
+/******************************************************************/
 {
-	m_FrameSource = frame_source;
+wxPoint curpos;
+
+	curpos.x = ScreenPos.x * GetZoom();
+	curpos.y = ScreenPos.y * GetZoom();
+
+	curpos.x += m_DrawOrg.x;
+	curpos.y += m_DrawOrg.y;
+
+	return curpos;
 }
 
-/*********************************************************/
-WinEDA_DrawFrame * BASE_SCREEN::GetParentFrame(void)
-/*********************************************************/
-{
-	return m_FrameSource;
-}
-	
 /***************************************/
 int BASE_SCREEN::GetInternalUnits(void)
 /***************************************/
 {
-	if ( m_FrameSource ) return m_FrameSource->m_InternalUnits;
-	else switch (m_Type )
-		{
+	switch (m_Type )
+	{
 		default:
 		case SCHEMATIC_FRAME :
 			return EESCHEMA_INTERNAL_UNIT;
@@ -139,7 +130,7 @@ int BASE_SCREEN::GetInternalUnits(void)
 		case MODULE_EDITOR_FRAME:
 		case PCB_FRAME:
 			return PCB_INTERNAL_UNIT;
-		}
+	}
 }
 
 /*****************************************/
@@ -390,67 +381,6 @@ void BASE_SCREEN::SetLastGrid(void)
 	if ( m_GridList == NULL ) return;
 	m_Grid = m_GridList[0];
 }
-
-
-/*******************************************************************/
-void BASE_SCREEN::Trace_Curseur(WinEDA_DrawPanel * panel, wxDC * DC)
-/*******************************************************************/
-/*
- Trace Le curseur sur la zone PCB , se deplacant sur la grille
-*/
-{
-int color = WHITE;
-
-	if (panel->m_CursorLevel != 0) {
-		return;
-	}
-	
-	GRSetDrawMode(DC, GR_XOR);
-	if( g_CursorShape == 1 )	/* Trace d'un reticule */
-		{
-		int dx = panel->m_ClipBox.GetWidth() * GetZoom();
-		int dy = panel->m_ClipBox.GetHeight() * GetZoom();
-		GRLine(&panel->m_ClipBox, DC, m_Curseur.x - dx, m_Curseur.y,
-							m_Curseur.x + dx, m_Curseur.y, color); // axe Y
-		GRLine(&panel->m_ClipBox, DC, m_Curseur.x, m_Curseur.y - dx,
-				m_Curseur.x, m_Curseur.y + dy, color);  // axe X
-		}
-
-	else
-		{
-		int len = CURSOR_SIZE * GetZoom();
-		GRLine(&panel->m_ClipBox, DC, m_Curseur.x - len, m_Curseur.y,
-				m_Curseur.x + len, m_Curseur.y, color);
-		GRLine(&panel->m_ClipBox, DC, m_Curseur.x, m_Curseur.y - len,
-				m_Curseur.x, m_Curseur.y + len, color);
-		}
-}
-
-/*******************************************************************/
-void BASE_SCREEN::CursorOff(WinEDA_DrawPanel * panel, wxDC * DC)
-/*******************************************************************/
-/*
- Remove the grid cursor from the display in preparation for other drawing operations
-*/
-{
-	Trace_Curseur(panel, DC);
-	--panel->m_CursorLevel;
-}
-
-/*******************************************************************/
-void BASE_SCREEN::CursorOn(WinEDA_DrawPanel * panel, wxDC * DC)
-/*******************************************************************/
-/*
- Display the grid cursor
-*/
-{
-	++panel->m_CursorLevel;
-	Trace_Curseur(panel, DC);
-
-	if (panel->m_CursorLevel > 0)     // Shouldn't happen, but just in case ..
-		panel->m_CursorLevel = 0;
-}
-
 
 
 /*****************************************/

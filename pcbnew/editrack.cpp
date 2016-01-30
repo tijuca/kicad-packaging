@@ -14,7 +14,7 @@
 
 
 /* Routines Locales */
-static void Exit_Editrack(WinEDA_DrawFrame * frame, wxDC *DC);
+static void Exit_Editrack(WinEDA_DrawPanel * panel, wxDC *DC);
 void ShowNewTrackWhenMovingCursor(WinEDA_DrawPanel * panel,
 				wxDC * DC, bool erase);
 static int Met_Coude_a_45(WinEDA_BasePcbFrame * frame, wxDC * DC,
@@ -29,22 +29,22 @@ static int OldEtatSurbrillance;
 
 
 /************************************************************/
-static void Exit_Editrack(WinEDA_DrawFrame * _frame, wxDC *DC)
+static void Exit_Editrack(WinEDA_DrawPanel * Panel, wxDC *DC)
 /************************************************************/
 /* routine d'annulation de la Commande Begin_Route si une piste est en cours
 	de tracage, ou de sortie de l'application EDITRACK.
  */
 {
-WinEDA_PcbFrame * frame = (WinEDA_PcbFrame *) _frame;
+WinEDA_PcbFrame * frame = (WinEDA_PcbFrame *) Panel->m_Parent;
 TRACK * track = (TRACK * ) frame->GetScreen()->m_CurrentItem;
 
 	if( track != NULL )
 	{
 		/* Erase the current drawing */
-		ShowNewTrackWhenMovingCursor(frame->DrawPanel, DC, FALSE);
-		if(g_HightLigt_Status) ( (WinEDA_PcbFrame *)frame)->Hight_Light(DC);
+		ShowNewTrackWhenMovingCursor(Panel, DC, FALSE);
+		if(g_HightLigt_Status) frame->Hight_Light(DC);
 		g_HightLigth_NetCode = OldNetCodeSurbrillance;
-		if(OldEtatSurbrillance) ( (WinEDA_PcbFrame *)frame)->Hight_Light(DC);
+		if(OldEtatSurbrillance) frame->Hight_Light(DC);
 
 		frame->MsgPanel->EraseMsgBox();
 		TRACK * previoustrack;
@@ -55,8 +55,8 @@ TRACK * track = (TRACK * ) frame->GetScreen()->m_CurrentItem;
 			delete track;
 		}
 	}
-	frame->GetScreen()->ManageCurseur = NULL;
-	frame->GetScreen()->ForceCloseManageCurseur = NULL;
+	Panel->ManageCurseur = NULL;
+	Panel->ForceCloseManageCurseur = NULL;
 	frame->GetScreen()->m_CurrentItem = NULL;
 }
 
@@ -84,8 +84,8 @@ int masquelayer = g_TabOneLayerMask[GetScreen()->m_Active_Layer];
 EDA_BaseStruct * LockPoint;
 wxPoint pos = GetScreen()->m_Curseur;
 
-	GetScreen()->ManageCurseur = ShowNewTrackWhenMovingCursor;
-	GetScreen()->ForceCloseManageCurseur = Exit_Editrack;
+	DrawPanel->ManageCurseur = ShowNewTrackWhenMovingCursor;
+	DrawPanel->ForceCloseManageCurseur = Exit_Editrack;
 
 	if(track == NULL )	/* debut reel du trace */
 	{
@@ -149,7 +149,7 @@ wxPoint pos = GetScreen()->m_Curseur;
 		}
 		Affiche_Infos_Piste(this, g_CurrentTrackSegment) ;
 		GetScreen()->m_CurrentItem = g_CurrentTrackSegment;
-		GetScreen()->ManageCurseur(DrawPanel, DC, FALSE);
+		DrawPanel->ManageCurseur(DrawPanel, DC, FALSE);
 		if( Drc_On && (Drc(this, DC,g_CurrentTrackSegment,m_Pcb->m_Track,1 ) == BAD_DRC) )
 		{
 			return g_CurrentTrackSegment;
@@ -441,8 +441,8 @@ TRACK * adr_buf;
 	g_HightLigth_NetCode = OldNetCodeSurbrillance;
 	if(OldEtatSurbrillance) Hight_Light(DC);
 
-	GetScreen()->ManageCurseur = NULL;
-	GetScreen()->ForceCloseManageCurseur = NULL;
+	DrawPanel->ManageCurseur = NULL;
+	DrawPanel->ForceCloseManageCurseur = NULL;
 	GetScreen()->m_CurrentItem = NULL;
 }
 

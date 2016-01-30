@@ -142,7 +142,7 @@ wxString msg;
 		SetRealLibraryPath( wxT("modules") );
 		listlib();
 		ListModIsModified = 1;
-		m_Parent->BuildModListBox();
+		m_Parent->BuildFootprintListBox();
 	}
 }
 
@@ -173,7 +173,7 @@ wxString FullFileName = NetInNameBuffer.AfterLast('/');
 					g_Prj_Config_Filename_ext,				/* extension par defaut */
 					FullFileName,				/* Masque d'affichage */
 					this,
-					wxOPEN,
+					wxFD_OPEN,
 					TRUE				/* ne change pas de repertoire courant */
 					);
 	if ( FullFileName.IsEmpty() ) return;
@@ -208,7 +208,7 @@ int ii;
 	SetRealLibraryPath( wxT("modules") );
 	listlib();
 
-	m_Parent->BuildModListBox();
+	m_Parent->BuildFootprintListBox();
 
 }
 
@@ -248,7 +248,7 @@ wxString FullFileName, ShortLibName, mask;
 	listlib();
 	ListModIsModified = 1;
 
-	m_Parent->BuildModListBox();
+	m_Parent->BuildFootprintListBox();
 
 	m_ListLibr->Clear();
 	m_ListLibr->InsertItems(g_LibName_List, 0);

@@ -8,6 +8,10 @@
 #define EDA_BASE
 #define COMMON_GLOBL
 
+#ifdef KICAD_PYTHON
+#include <pyhandler.h>
+#endif
+
 #include "fctsys.h"
 #include <wx/image.h>
 #include "wx/html/htmlwin.h"
@@ -95,8 +99,6 @@ WinEDA_App::~WinEDA_App(void)
 	delete g_ItalicFont;
 	delete g_FixedFont;
 	delete g_MsgFont;
-	delete DrawPen;
-	delete DrawBrush;
 	if ( m_Checker ) delete m_Checker;
 	delete m_Locale;
 }
@@ -130,10 +132,6 @@ wxString EnvLang;
 	m_EDA_Config = new wxConfig(name);
 	m_EDA_CommonConfig = new wxConfig(wxT("kicad_common"));
 	
-	/* Creation des outils de trace */
-	DrawPen = new wxPen( wxT("GREEN"), 1, wxSOLID);
-	DrawBrush = new wxBrush(wxT("BLACK"), wxTRANSPARENT);
-
 	/* Creation des fontes utiles */
 	g_StdFontPointSize = FONT_DEFAULT_SIZE;
 	g_MsgFontPointSize = FONT_DEFAULT_SIZE;
@@ -166,6 +164,9 @@ bool succes = SetLanguage(TRUE);
 	if ( atof("0,1") ) g_FloatSeparator = ','; // Nombres flottants = 0,1
 	else  g_FloatSeparator = '.';
 
+#ifdef KICAD_PYTHON
+	PyHandler::GetInstance()->SetAppName( name );
+#endif
 }
 
 
@@ -183,7 +184,7 @@ wxString fullfilename = FindKicadHelpPath();
 		m_HtmlCtrl = new wxHtmlHelpController(wxHF_TOOLBAR |
 				wxHF_CONTENTS | wxHF_PRINT | wxHF_OPEN_FILES
 				/*| wxHF_SEARCH */);
-		m_HtmlCtrl->UseConfig(m_EDA_Config);
+		m_HtmlCtrl->UseConfig(m_EDA_CommonConfig);
 		m_HtmlCtrl->SetTitleFormat( wxT("Kicad Help") );
 		m_HtmlCtrl->AddBook(fullfilename);
 	}
@@ -407,8 +408,8 @@ void WinEDA_App::SetLanguageIdentifier(int menu_id)
 			m_LanguageId = wxLANGUAGE_RUSSIAN;
 			break;
 
-		case ID_LANGUAGE_DUTCH:
-			m_LanguageId = wxLANGUAGE_DUTCH;
+		case ID_LANGUAGE_GERMAN:
+			m_LanguageId = wxLANGUAGE_GERMAN;
 			break;
 
 		case ID_LANGUAGE_SPANISH:
@@ -490,8 +491,8 @@ wxMenuItem * item;
 		SETBITMAPS(lang_it_xpm);
 		m_Language_Menu->Append(item);
 
-		item = new wxMenuItem(m_Language_Menu, ID_LANGUAGE_DUTCH,
-			_("Dutch"), wxEmptyString, wxITEM_CHECK);
+		item = new wxMenuItem(m_Language_Menu, ID_LANGUAGE_GERMAN,
+			_("German"), wxEmptyString, wxITEM_CHECK);
 		SETBITMAPS(lang_de_xpm);
 		m_Language_Menu->Append(item);
 
@@ -528,7 +529,7 @@ wxMenuItem * item;
 	m_Language_Menu->Check(ID_LANGUAGE_SLOVENIAN, FALSE);
 	m_Language_Menu->Check(ID_LANGUAGE_ITALIAN, FALSE);
 	m_Language_Menu->Check(ID_LANGUAGE_PORTUGUESE, FALSE);
-	m_Language_Menu->Check(ID_LANGUAGE_DUTCH, FALSE);
+	m_Language_Menu->Check(ID_LANGUAGE_GERMAN, FALSE);
 	m_Language_Menu->Check(ID_LANGUAGE_SPANISH, FALSE);
 	m_Language_Menu->Check(ID_LANGUAGE_FRENCH, FALSE);
 	m_Language_Menu->Check(ID_LANGUAGE_ENGLISH, FALSE);
@@ -542,8 +543,8 @@ wxMenuItem * item;
 		case wxLANGUAGE_RUSSIAN:
 			m_Language_Menu->Check(ID_LANGUAGE_RUSSIAN, TRUE);
 			break;
-		case wxLANGUAGE_DUTCH:
-			m_Language_Menu->Check(ID_LANGUAGE_DUTCH, TRUE);
+		case wxLANGUAGE_GERMAN:
+			m_Language_Menu->Check(ID_LANGUAGE_GERMAN, TRUE);
 			break;
 		case wxLANGUAGE_FRENCH:
 			m_Language_Menu->Check(ID_LANGUAGE_FRENCH, TRUE);
@@ -567,7 +568,7 @@ wxMenuItem * item;
 			break;
 		
 		case wxLANGUAGE_HUNGARIAN:
-			m_Language_Menu->Check(ID_LANGUAGE_SLOVENIAN, TRUE);
+			m_Language_Menu->Check(ID_LANGUAGE_HUNGARIAN, TRUE);
 			break;
 
 		case wxLANGUAGE_POLISH:
@@ -589,4 +590,13 @@ wxMenuItem * item;
 	return m_Language_Menu;
 }
 
+
+int WinEDA_App::OnRun(void)
+/* Run init scripts */
+{
+	#ifdef KICAD_PYTHON
+	PyHandler::GetInstance()->RunScripts();
+	#endif
+	return wxApp::OnRun();
+}
 

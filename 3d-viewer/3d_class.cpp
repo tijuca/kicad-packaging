@@ -42,10 +42,10 @@ void S3D_Material::SetMaterial(void)
 /***********************************/
 {
     glColorMaterial(GL_FRONT_AND_BACK,GL_AMBIENT_AND_DIFFUSE);
-	glColor3f(m_DiffuseColor.x * m_AmbientIntensity,
+	glColor4f(m_DiffuseColor.x * m_AmbientIntensity,
 		m_DiffuseColor.y * m_AmbientIntensity,
-		m_DiffuseColor.z * m_AmbientIntensity );
-
+		m_DiffuseColor.z * m_AmbientIntensity,
+		1.0 - m_Transparency );
 #if 0
 	glColorMaterial(GL_FRONT_AND_BACK,GL_SPECULAR);
 	glColor3f(m_SpecularColor.x, m_SpecularColor.y,m_SpecularColor.z);

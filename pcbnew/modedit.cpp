@@ -29,10 +29,10 @@ MODULE * Module = m_Pcb->m_Modules;
 
 	DrawStruct = Locate_Edge_Module(Module, CURSEUR_OFF_GRILLE);
 	if ( DrawStruct )
-		{
+	{
 		Affiche_Infos_Segment_Module(this, Module,(EDGE_MODULE*) DrawStruct);
-		}
-	else DrawStruct = Locate( CURSEUR_OFF_GRILLE );
+	}
+	else DrawStruct = Locate( CURSEUR_OFF_GRILLE, -1);
 
 	return DrawStruct;
 }
@@ -48,7 +48,7 @@ int id = event.GetId();
 wxPoint pos;
 wxClientDC dc(DrawPanel);
 
-	GetScreen()->CursorOff(DrawPanel, &dc);
+	DrawPanel->CursorOff(&dc);
 	DrawPanel->PrepareGraphicContext(&dc);
 
 	wxGetMousePosition(&pos.x, &pos.y);
@@ -88,18 +88,18 @@ wxClientDC dc(DrawPanel);
 			break;
 
 		case ID_POPUP_CANCEL_CURRENT_COMMAND:
-			if( GetScreen()->ManageCurseur &&
-				GetScreen()->ForceCloseManageCurseur )
+			if( DrawPanel->ManageCurseur &&
+				DrawPanel->ForceCloseManageCurseur )
 				{
-				GetScreen()->ForceCloseManageCurseur(this, &dc);
+				DrawPanel->ForceCloseManageCurseur(DrawPanel, &dc);
 				}
 			break;
 
 		default:	// Arret dea commande de déplacement en cours
-			if( GetScreen()->ManageCurseur &&
-				GetScreen()->ForceCloseManageCurseur )
+			if( DrawPanel->ManageCurseur &&
+				DrawPanel->ForceCloseManageCurseur )
 				{
-				GetScreen()->ForceCloseManageCurseur(this, &dc);
+				DrawPanel->ForceCloseManageCurseur(DrawPanel, &dc);
 				}
 			SetToolID( 0, wxCURSOR_ARROW, wxEmptyString);
 			break;
@@ -320,20 +320,20 @@ wxClientDC dc(DrawPanel);
 			break;
 
 		case ID_POPUP_PCB_DELETE_PAD:
-			SaveCopyInUndoList();
+			SaveCopyInUndoList(m_Pcb->m_Modules);
 			DeletePad((D_PAD *)GetScreen()->m_CurrentItem, &dc);
 			GetScreen()->m_CurrentItem = NULL;
 			DrawPanel->MouseToCursorSchema();
 			break;
 
 		case ID_POPUP_PCB_IMPORT_PAD_SETTINGS:
-			SaveCopyInUndoList();
+			SaveCopyInUndoList(m_Pcb->m_Modules);
 			DrawPanel->MouseToCursorSchema();
 			Import_Pad_Settings((D_PAD *)GetScreen()->m_CurrentItem, &dc);
 			break;
 
 		case ID_POPUP_PCB_GLOBAL_IMPORT_PAD_SETTINGS:
-			SaveCopyInUndoList();
+			SaveCopyInUndoList(m_Pcb->m_Modules);
 			Global_Import_Pad_Settings((D_PAD *)GetScreen()->m_CurrentItem, &dc);
 			DrawPanel->MouseToCursorSchema();
 			break;
@@ -362,7 +362,7 @@ wxClientDC dc(DrawPanel);
 			break;
 
 		case ID_POPUP_PCB_DELETE_TEXTMODULE:
-			SaveCopyInUndoList();
+			SaveCopyInUndoList(m_Pcb->m_Modules);
 			DeleteTextModule((TEXTE_MODULE *)GetScreen()->m_CurrentItem,
 					&dc);
 			GetScreen()->m_CurrentItem = NULL;
@@ -418,7 +418,7 @@ wxClientDC dc(DrawPanel);
 			break;
 
 		case ID_POPUP_PCB_DELETE_EDGE:
-			SaveCopyInUndoList();
+			SaveCopyInUndoList(m_Pcb->m_Modules);
 			DrawPanel->MouseToCursorSchema();
 			RemoveStruct(GetScreen()->m_CurrentItem, &dc);
 			GetScreen()->m_CurrentItem = NULL;
@@ -429,7 +429,7 @@ wxClientDC dc(DrawPanel);
 		case ID_MODEDIT_MODULE_SCALE:
 		case ID_MODEDIT_MODULE_SCALEX:
 		case ID_MODEDIT_MODULE_SCALEY:
-			SaveCopyInUndoList();
+			SaveCopyInUndoList(m_Pcb->m_Modules);
 			Transform( (MODULE*) GetScreen()->m_CurrentItem, &dc, id);
 			break;
 
@@ -502,7 +502,7 @@ wxClientDC dc(DrawPanel);
 		}
 
 	SetToolbars();
-	GetScreen()->CursorOn(DrawPanel, &dc);
+	DrawPanel->CursorOn(&dc);
 }
 
 

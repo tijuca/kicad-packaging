@@ -27,6 +27,7 @@ extern BASE_SCREEN * ActiveScreen;
 
 static bool s_PlotBlackAndWhite = FALSE;
 static bool Print_Sheet_Ref = TRUE;
+
 static bool DrawPage(WinEDA_DrawPanel * panel);
 
 /************************************************************/
@@ -42,12 +43,11 @@ void WinEDA_DrawFrame::CopyToClipboard(wxCommandEvent& event)
 		if (m_CurrentScreen->BlockLocate.m_Command != BLOCK_IDLE)
 			DrawPanel->SetCursor(wxCursor(DrawPanel->m_PanelCursor = DrawPanel->m_PanelDefaultCursor) );
 
-		if( m_CurrentScreen->ManageCurseur &&
-			m_CurrentScreen->ForceCloseManageCurseur )
+		if( DrawPanel->ManageCurseur && DrawPanel->ForceCloseManageCurseur )
 		{
 		wxClientDC dc(DrawPanel);
 			DrawPanel->PrepareGraphicContext(&dc);
-			m_CurrentScreen->ForceCloseManageCurseur(this, &dc);
+			DrawPanel->ForceCloseManageCurseur(DrawPanel, &dc);
 		}
 	}
 }
@@ -73,7 +73,7 @@ wxRect DrawArea;
 
 	/* scale is the ratio resolution/internal units */
 	float scale = 82.0 / panel->m_Parent->m_InternalUnits;
-	
+
 	if ( ActiveScreen->BlockLocate.m_Command != BLOCK_IDLE )
 	{
 		DrawBlock = TRUE;
@@ -82,7 +82,7 @@ wxRect DrawArea;
 		DrawArea.SetWidth((int)(ActiveScreen->BlockLocate.GetWidth()));
 		DrawArea.SetHeight((int)(ActiveScreen->BlockLocate.GetHeight()));
 	}
-	
+
 	/* modification des cadrages et reglages locaux */
 	tmp_startvisu = ActiveScreen->m_StartVisu;
 	tmpzoom = ActiveScreen->GetZoom();

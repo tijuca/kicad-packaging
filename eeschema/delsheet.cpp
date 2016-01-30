@@ -13,16 +13,15 @@
 #include "protos.h"
 
 
-/*********************************************************/
-void DeleteSubHierarchy(DrawSheetStruct * FirstSheet)
-/*********************************************************/
+/**************************************************************************/
+void DeleteSubHierarchy(DrawSheetStruct * FirstSheet, bool confirm_deletion)
+/**************************************************************************/
 
-/*  Supprime tous les elements de la sous hierarchie correspondante a
-	la feuille FirstSheet
-	FirstSheet n'est pas touche
+/*  Free (delete) all schematic data (include the sub hierarchy sheets )
+	for the hierarchical sheet FirstSheet
+	FirstSheet is not deleted.
 */
 {
-SCH_SCREEN *Screen;
 EDA_BaseStruct *DrawStruct;
 EDA_BaseStruct *EEDrawList;
 WinEDA_SchematicFrame * frame = EDA_Appl->SchematicFrame;
@@ -33,80 +32,72 @@ wxString msg;
 	if( FirstSheet->m_StructType != DRAW_SHEET_STRUCT_TYPE)
 		{
 		DisplayError(NULL,
-				wxT("DeleteSubHierarchy error: NOT a SubSheet"));
+				wxT("DeleteSubHierarchy error(): NOT a Sheet"));
 		return;
 		}
 
 	/* effacement du sous schema correspondant */
-	Screen = (SCH_SCREEN*)FirstSheet->m_Son;
-
-	if(Screen == NULL) return;
-
-	if( Screen->IsModify() )
+	if( FirstSheet->IsModify() && confirm_deletion )
 	{
 		msg.Printf( _("Sheet %s (file %s) modified. Save it?"),
-					FirstSheet->m_Field[VALUE].m_Text.GetData(),
-					Screen->m_FileName.GetData()); 
-		if( IsOK(frame, msg) )
+					FirstSheet->m_SheetName.GetData(),
+					FirstSheet->m_FileName.GetData());
+		if( IsOK(NULL, msg) )
 		{
-			frame->SaveEEFile(Screen, FILE_SAVE_AS);
+			frame->SaveEEFile(FirstSheet, FILE_SAVE_AS);
 		}
 	}
 
-	/* Effacement des sous feuilles */
-	EEDrawList = Screen->EEDrawList;
-	while (EEDrawList != NULL)
-		{
-		DrawStruct = EEDrawList;
-		EEDrawList = EEDrawList->Pnext;
-		if( DrawStruct->m_StructType == DRAW_SHEET_STRUCT_TYPE)
-			{
-			DeleteSubHierarchy((DrawSheetStruct *) DrawStruct);
-			}
-		}
-
-	/* Effacement des elements autres que les sous feuilles */
-	Screen->ClearDrawList();
-
-	/* Modification du chainage des structures ecran
-	et suppression de l'ecran */
-	SCH_SCREEN * Pscreen, * Nscreen;
-	Pscreen = (SCH_SCREEN*) Screen->Pback;
-	Nscreen = Screen->Next();
-	if( Pscreen ) Pscreen->Pnext = Nscreen;
-	if ( Nscreen ) Nscreen->Pback = Pscreen;
-	if ( frame->GetScreen() == Screen ) frame->m_CurrentScreen = ScreenSch;
-	ActiveScreen = frame->GetScreen();
-	if( Screen != ScreenSch ) delete(Screen);
-}
-
-/**************************************************/
-bool ClearProjectDrawList(SCH_SCREEN * screen)
-/**************************************************/
-/* Routine d'effacement d'une liste */
-{
-EDA_BaseStruct *DrawStruct;
-EDA_BaseStruct *EEDrawList ;
-	
-	if ( screen == NULL ) return(TRUE);
-
-	/* Effacement des structures */
-	EEDrawList = screen->EEDrawList;
+	/* free the sub hierarchy */
+	EEDrawList = FirstSheet->EEDrawList;
 	while (EEDrawList != NULL)
 	{
 		DrawStruct = EEDrawList;
 		EEDrawList = EEDrawList->Pnext;
+		if( DrawStruct->m_StructType == DRAW_SHEET_STRUCT_TYPE)
+		{
+			DeleteSubHierarchy((DrawSheetStruct *) DrawStruct, confirm_deletion);
+		}
+	}
+
+	/* Effacement des elements de la feuille courante */
+	FirstSheet->FreeDrawList();
+}
+
+/*********************************************************************/
+void ClearDrawList(EDA_BaseStruct *DrawList, bool confirm_deletion)
+/********************************************************************/
+/* free the draw list DrawList and the subhierarchies */
+{
+EDA_BaseStruct *DrawStruct;
+
+	while (DrawList != NULL)
+	{
+		DrawStruct = DrawList;
+		DrawList = DrawList->Pnext;
 
 		if( DrawStruct->m_StructType == DRAW_SHEET_STRUCT_TYPE)
 		{
-			DeleteSubHierarchy((DrawSheetStruct*) DrawStruct);
+			DeleteSubHierarchy((DrawSheetStruct*) DrawStruct, confirm_deletion);
 		}
 
 		delete DrawStruct;
 	}
+}
+
+/********************************************************************/
+bool ClearProjectDrawList(SCH_SCREEN * screen, bool confirm_deletion)
+/********************************************************************/
+/* free the draw list screen->EEDrawList and the subhierarchies
+	clear the screen datas (filenames ..)
+*/
+{
+	if ( screen == NULL ) return(TRUE);
+
+	ClearDrawList(screen->EEDrawList, confirm_deletion);
 	screen->EEDrawList = NULL;
 
-	/* Init de l'ecran de depart */
+	/* Clear the  screen datas */
 	screen->m_SheetNumber = screen->m_NumberOfSheet = 1;
 	screen->m_Title.Empty();
 	screen->m_Revision.Empty();

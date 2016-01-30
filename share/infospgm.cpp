@@ -7,6 +7,10 @@
 #include "gr_basic.h"
 #include "common.h"
 
+#ifdef KICAD_PYTHON
+#include  <pyhandler.h>
+#endif
+
 // Import:
 extern wxString g_Main_Title;
 
@@ -34,9 +38,9 @@ wxT("** EESCHEMA  (sept 1994 .. 2006) **")
 
 /* Routines Locales */
 
-/******************************************************/
-void Affiche_InfosLicence(wxWindow * frame)
-/******************************************************/
+/*******************************************/
+void Print_Kicad_Infos(wxWindow * frame)
+/*******************************************/
 {
 wxString Msg = MsgInfos;
 	Msg << wxT("\n\n") << _("Build Version:") << wxT("\n") ;
@@ -44,14 +48,26 @@ wxString Msg = MsgInfos;
 	Msg << g_Main_Title << wxT(" ") << GetBuildVersion();
 #if wxUSE_UNICODE
 	Msg << wxT(" - Unicode version");
+#else
+	Msg << wxT(" - Ansi version");
 #endif
+	
+#ifdef KICAD_PYTHON
+	Msg << wxT("\n");
+	Msg << wxT( "python : " );
+	Msg << wxString::FromAscii( PyHandler::GetInstance()->GetVersion() );
+#endif
+
 	Msg << wxT("\n\n") << _("Author:");
 	Msg << wxT("JP CHARRAS\n\n") << _("Based on wxWidgets ");
-	Msg << wxMAJOR_VERSION << wxT(".") << wxMINOR_VERSION << wxT(".") << wxRELEASE_NUMBER;
+	Msg << wxMAJOR_VERSION << wxT(".") <<
+		wxMINOR_VERSION << wxT(".") << wxRELEASE_NUMBER;
+	if ( wxSUBRELEASE_NUMBER )
+		Msg << wxT(".") << wxSUBRELEASE_NUMBER;
 	Msg << _("\n\nGPL License");
 	Msg << _("\n\nWeb sites:\n");
 	Msg << wxT("http://iut-tice.ujf-grenoble.fr/kicad/\n");
-	Msg << wxT("http://www.lis.inpg.fr/realise_au_lis/kicad/");
+	Msg << wxT("http://www.gipsa-lab.inpg.fr/realise_au_lis/kicad/");
 
 	wxMessageBox(Msg, wxEmptyString, wxICON_INFORMATION, frame);
 }

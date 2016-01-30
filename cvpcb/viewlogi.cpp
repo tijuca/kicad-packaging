@@ -47,7 +47,7 @@ wxString msg;
 	Rjustify = 1;
 
 	/* Raz buffer et variable de gestion */
-	if( BaseListeCmp ) FreeMemoryComponants();
+	if( g_BaseListeCmp ) FreeMemoryComponants();
 
 	Cmp = NULL;
 
@@ -124,8 +124,8 @@ wxString msg;
 			case W__ :
 			case M__ :
 				Cmp = new STORECMP();
-				Cmp->Pnext = BaseListeCmp;
-				BaseListeCmp = Cmp;
+				Cmp->Pnext = g_BaseListeCmp;
+				g_BaseListeCmp = Cmp;
 				nbcomp++ ;
 				Type = Header;
 				Text = strtok(NULL, " \t\n\r");
@@ -145,14 +145,14 @@ wxString msg;
 	fclose(source);
 
 	/* reclassement alpab‚tique : */
-	BaseListeCmp = TriListeComposantss( BaseListeCmp, nbcomp);
-	nbcomp -= RegroupeUnitsComposant( BaseListeCmp );
+	g_BaseListeCmp = TriListeComposantss( g_BaseListeCmp, nbcomp);
+	nbcomp -= RegroupeUnitsComposant( g_BaseListeCmp );
 
 	/* Addition des renseignements issus des pseudo composants */
-	MergePseudoCmp( BaseListeCmp, BasePseudoCmp);
+	MergePseudoCmp( g_BaseListeCmp, BasePseudoCmp);
 
 	/* Renumerotation des composants */
-	Cmp = BaseListeCmp;
+	Cmp = g_BaseListeCmp;
 	for( ii = 1; Cmp != NULL; ii++, Cmp = Cmp->Pnext)
 	{
 		Cmp->m_Num = ii;

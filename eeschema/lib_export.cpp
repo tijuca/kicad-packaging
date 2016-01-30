@@ -104,7 +104,7 @@ int err;
 					g_LibExtBuffer,	/* extension par defaut */
 					mask,			/* Masque d'affichage */
 					this,
-					wxSAVE,
+					wxFD_SAVE,
 					TRUE
 					);
 	if ( Name == wxEmptyString ) return;

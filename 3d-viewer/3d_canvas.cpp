@@ -20,6 +20,7 @@
 #include "wx/dataobj.h"
 #include "wx/clipbrd.h"
 
+#include "fctsys.h"
 #include "common.h"
 #include "id.h"
 
@@ -224,16 +225,34 @@ float spin_quat[4];
 
 	if ( event.m_wheelRotation )
 	{
-		if ( event.GetWheelRotation() > 0 )
-		{
-			g_Parm_3D_Visu.m_Zoom /= 1.4;
-			if ( g_Parm_3D_Visu.m_Zoom <= 0.01)
-				g_Parm_3D_Visu.m_Zoom = 0.01;
-		}
-
-		else g_Parm_3D_Visu.m_Zoom *= 1.4;
-		DisplayStatus();
-		Refresh(FALSE);
+        if( event.ShiftDown() ) {
+            if ( event.GetWheelRotation() < 0 ) {
+               /* up */
+               SetView3D(WXK_UP);
+            } else {
+               /* down */
+               SetView3D(WXK_DOWN);
+           }
+        } else if( event.ControlDown() ) {
+            if ( event.GetWheelRotation() > 0 ) {
+                /* right */
+                SetView3D(WXK_RIGHT);
+            } else {
+                /* left */
+                SetView3D(WXK_LEFT);
+            }
+        }
+        else {
+            if ( event.GetWheelRotation() > 0 )
+            {
+                g_Parm_3D_Visu.m_Zoom /= 1.4;
+                if ( g_Parm_3D_Visu.m_Zoom <= 0.01)
+                    g_Parm_3D_Visu.m_Zoom = 0.01;
+            }
+            else g_Parm_3D_Visu.m_Zoom *= 1.4;
+            DisplayStatus();
+            Refresh(FALSE);
+        }
  	}
 
     if (event.Dragging())
@@ -512,6 +531,10 @@ double ratio_HV = (double) size.x / size.y;	// Ratio largeur /hauteur de la fene
 	glShadeModel(GL_SMOOTH);
     glHint(GL_PERSPECTIVE_CORRECTION_HINT, GL_FASTEST);
     glHint(GL_POLYGON_SMOOTH_HINT, GL_FASTEST);
+	
+	/* blend */
+	glEnable(GL_BLEND);
+	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 }
 
 
@@ -572,11 +595,13 @@ bool fmt_is_jpeg = FALSE;
 					file_ext,			/* extension par defaut */
 					mask,				/* Masque d'affichage */
 					this,
-					wxSAVE,
+					wxFD_SAVE,
 					TRUE
 					);
 		if ( FullFileName.IsEmpty() ) return;
 	}
+	
+	wxYield();	// Requested to allow tne window redraw after closing the dialog box
 	wxSize image_size = GetClientSize();
 	wxClientDC dc(this);
 	wxBitmap bitmap(image_size.x, image_size.y );

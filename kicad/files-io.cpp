@@ -70,7 +70,7 @@ bool IsNew = FALSE;
 					g_Prj_Config_Filename_ext,	/* extension par defaut */
 					wxT("*") + g_Prj_Config_Filename_ext, /* Masque d'affichage */
 					this,
-					IsNew ? wxSAVE : wxOPEN,
+					IsNew ? wxFD_SAVE : wxFD_OPEN,
 					FALSE
 					);
 			if ( fullfilename.IsEmpty() ) break;
@@ -157,7 +157,7 @@ wxString old_cwd = wxGetCwd();
 					ZIP_EXT,		/* extension par defaut */
 					ZIP_MASK,		/* Masque d'affichage */
 					this,
-					wxOPEN,
+					wxFD_OPEN,
 					TRUE
 					);
 	if ( filename.IsEmpty() ) return;
@@ -229,7 +229,7 @@ wxString curr_path = wxGetCwd();
 					ZIP_EXT,		/* extension par defaut */
 					ZIP_MASK,		/* Masque d'affichage */
 					this,
-					wxSAVE,
+					wxFD_SAVE,
 					FALSE
 					);
 	}
@@ -242,7 +242,8 @@ wxFileName zip_name(filename);
 
 wxChar * Ext_to_arch[] = {    /* Liste des extensions des fichiers à sauver */
 	wxT("*.sch"), wxT("*.lib"), wxT("*.cmp"), wxT("*.brd"),
-	wxT("*.net"), wxT("*.pro"), wxT("*.pho"),
+	wxT("*.net"), wxT("*.pro"), wxT("*.pho"), wxT("*.py"),
+	wxT("*.pdf"), wxT("*.txt"),
 	NULL};
 int ii = 0;
 wxString zip_cmd = wxT("-O ") + zip_file_fullname;

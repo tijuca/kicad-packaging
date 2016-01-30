@@ -88,13 +88,13 @@ bool ItemIsInOtherPart, ItemIsInOtherConvert;
 		{
 			case COMPONENT_ARC_DRAW_TYPE:
 			{
-				pos = ((LibDrawArc*)item)->m_Start; pos.y = -pos.y;
+				pos = ((LibDrawArc*)item)->m_ArcStart; pos.y = -pos.y;
 				if ( Rect.Inside(pos) )
 				{
 					item->m_Selected = IS_SELECTED;
 					ItemsCount++;
 				}
-				pos = ((LibDrawArc*)item)->m_End; pos.y = -pos.y;
+				pos = ((LibDrawArc*)item)->m_ArcEnd; pos.y = -pos.y;
 				if ( Rect.Inside(pos) )
 				{
 					item->m_Selected = IS_SELECTED;
@@ -113,7 +113,7 @@ bool ItemIsInOtherPart, ItemIsInOtherConvert;
 				break;
 
 			case COMPONENT_RECT_DRAW_TYPE:
-				pos = ((LibDrawSquare*)item)->m_Start; pos.y = -pos.y;
+				pos = ((LibDrawSquare*)item)->m_Pos; pos.y = -pos.y;
 				if ( Rect.Inside(pos) )
 				{
 					item->m_Selected = IS_SELECTED;
@@ -244,11 +244,11 @@ int ItemsCount = 0, MustDoPlace = 0;
 	{
 		BlockState state = GetScreen()->BlockLocate.m_State;
 		CmdBlockType command = GetScreen()->BlockLocate.m_Command;
-		GetScreen()->ForceCloseManageCurseur(this, DC);
+		DrawPanel->ForceCloseManageCurseur(DrawPanel, DC);
 		GetScreen()->BlockLocate.m_State =  state;
 		GetScreen()->BlockLocate.m_Command = command;
-		GetScreen()->ManageCurseur = DrawAndSizingBlockOutlines;
-		GetScreen()->ForceCloseManageCurseur = AbortBlockCurrentCommand;
+		DrawPanel->ManageCurseur = DrawAndSizingBlockOutlines;
+		DrawPanel->ForceCloseManageCurseur = AbortBlockCurrentCommand;
 		GetScreen()->m_Curseur.x = GetScreen()->BlockLocate.GetRight();
 		GetScreen()->m_Curseur.y = GetScreen()->BlockLocate.GetBottom();
 		DrawPanel->MouseToCursorSchema();
@@ -267,11 +267,11 @@ int ItemsCount = 0, MustDoPlace = 0;
 			if ( ItemsCount )
 			{
 				MustDoPlace = 1;
-				if(GetScreen()->ManageCurseur != NULL)
+				if(DrawPanel->ManageCurseur != NULL)
 				{
-					GetScreen()->ManageCurseur(DrawPanel, DC, FALSE);
-					GetScreen()->ManageCurseur = DrawMovingBlockOutlines;
-					GetScreen()->ManageCurseur(DrawPanel, DC, FALSE);
+					DrawPanel->ManageCurseur(DrawPanel, DC, FALSE);
+					DrawPanel->ManageCurseur = DrawMovingBlockOutlines;
+					DrawPanel->ManageCurseur(DrawPanel, DC, FALSE);
 				}
 				GetScreen()->BlockLocate.m_State = STATE_BLOCK_MOVE;
 			DrawPanel->Refresh(TRUE);
@@ -280,13 +280,13 @@ int ItemsCount = 0, MustDoPlace = 0;
 
 		case BLOCK_PRESELECT_MOVE: /* Move with preselection list*/
 			MustDoPlace = 1;
-			GetScreen()->ManageCurseur = DrawMovingBlockOutlines;
+			DrawPanel->ManageCurseur = DrawMovingBlockOutlines;
 			GetScreen()->BlockLocate.m_State = STATE_BLOCK_MOVE;
 			break;
 
 		case BLOCK_DELETE: /* Delete */
 			ItemsCount = MarkItemsInBloc(CurrentLibEntry, GetScreen()->BlockLocate);
-			if ( ItemsCount ) SaveCopyInUndoList();
+			if ( ItemsCount ) SaveCopyInUndoList(CurrentLibEntry);
 			DeleteMarkedItems(CurrentLibEntry);
 			break;
 
@@ -300,7 +300,7 @@ int ItemsCount = 0, MustDoPlace = 0;
 
 		case BLOCK_INVERT:
 			ItemsCount = MarkItemsInBloc(CurrentLibEntry, GetScreen()->BlockLocate);
-			if ( ItemsCount ) SaveCopyInUndoList();
+			if ( ItemsCount ) SaveCopyInUndoList(CurrentLibEntry);
 			MirrorMarkedItems(CurrentLibEntry, GetScreen()->BlockLocate.Centre());
 			break;
 
@@ -324,8 +324,8 @@ int ItemsCount = 0, MustDoPlace = 0;
 		GetScreen()->BlockLocate.m_Flags = 0;
 		GetScreen()->BlockLocate.m_State = STATE_NO_BLOCK;
 		GetScreen()->BlockLocate.m_Command = BLOCK_IDLE;
-		GetScreen()->ManageCurseur = NULL;
-		GetScreen()->ForceCloseManageCurseur = NULL;
+		DrawPanel->ManageCurseur = NULL;
+		DrawPanel->ForceCloseManageCurseur = NULL;
 		GetScreen()->m_CurrentItem = NULL;
 		SetToolID(m_ID_current_state, DrawPanel->m_PanelDefaultCursor, wxEmptyString );
 		DrawPanel->Refresh(TRUE);
@@ -347,7 +347,7 @@ void WinEDA_LibeditFrame::HandleBlockPlace(wxDC * DC)
 {
 bool err = FALSE;
 
-	if(GetScreen()->ManageCurseur == NULL)
+	if(DrawPanel->ManageCurseur == NULL)
 	{
 		err = TRUE;
 		DisplayError(this, wxT("HandleBlockPLace : ManageCurseur = NULL") );
@@ -365,14 +365,14 @@ bool err = FALSE;
 		case BLOCK_MOVE: /* Move */
 		case BLOCK_PRESELECT_MOVE: /* Move with preselection list*/
 			GetScreen()->BlockLocate.m_BlockDrawStruct = NULL;
-			SaveCopyInUndoList();
+			SaveCopyInUndoList(CurrentLibEntry);
 			MoveMarkedItems(CurrentLibEntry, GetScreen()->BlockLocate.m_MoveVector);
 			DrawPanel->Refresh(TRUE);
 			break;
 
 		case BLOCK_COPY: /* Copy */
 			GetScreen()->BlockLocate.m_BlockDrawStruct = NULL;
-			SaveCopyInUndoList();
+			SaveCopyInUndoList(CurrentLibEntry);
 			CopyMarkedItems(CurrentLibEntry, GetScreen()->BlockLocate.m_MoveVector);
 			break;
 
@@ -381,7 +381,7 @@ bool err = FALSE;
 			break;
 
 		case BLOCK_INVERT:	/* Invert by popup menu, from block move */
-			SaveCopyInUndoList();
+			SaveCopyInUndoList(CurrentLibEntry);
 			MirrorMarkedItems(CurrentLibEntry, GetScreen()->BlockLocate.Centre());
 			break;
 
@@ -394,11 +394,11 @@ bool err = FALSE;
 			break;
 	}
 
-	SetFlagModify(GetScreen());
+	GetScreen()->SetModify();
 
 
-	GetScreen()->ManageCurseur = NULL;
-	GetScreen()->ForceCloseManageCurseur = NULL;
+	DrawPanel->ManageCurseur = NULL;
+	DrawPanel->ForceCloseManageCurseur = NULL;
 	GetScreen()->BlockLocate.m_Flags = 0;
 	GetScreen()->BlockLocate.m_State = STATE_NO_BLOCK;
 	GetScreen()->BlockLocate.m_Command =  BLOCK_IDLE;
@@ -529,10 +529,10 @@ LibEDA_BaseStruct * item;
 			{
 				((LibDrawArc*)item)->m_Pos.x += offset.x;
 				((LibDrawArc*)item)->m_Pos.y += offset.y;
-				((LibDrawArc*)item)->m_Start.x += offset.x;
-				((LibDrawArc*)item)->m_Start.y += offset.y;
-				((LibDrawArc*)item)->m_End.x += offset.x;
-				((LibDrawArc*)item)->m_End.y += offset.y;
+				((LibDrawArc*)item)->m_ArcStart.x += offset.x;
+				((LibDrawArc*)item)->m_ArcStart.y += offset.y;
+				((LibDrawArc*)item)->m_ArcEnd.x += offset.x;
+				((LibDrawArc*)item)->m_ArcEnd.y += offset.y;
 				break;
 			}
 
@@ -542,8 +542,8 @@ LibEDA_BaseStruct * item;
 				break;
 
 			case COMPONENT_RECT_DRAW_TYPE:
-				((LibDrawSquare*)item)->m_Start.x += offset.x;
-				((LibDrawSquare*)item)->m_Start.y += offset.y;
+				((LibDrawSquare*)item)->m_Pos.x += offset.x;
+				((LibDrawSquare*)item)->m_Pos.y += offset.y;
 				((LibDrawSquare*)item)->m_End.x += offset.x;
 				((LibDrawSquare*)item)->m_End.y += offset.y;
 				break;
@@ -632,9 +632,9 @@ LibEDA_BaseStruct * item;
 			case COMPONENT_ARC_DRAW_TYPE:
 			{
 				SETMIRROR(((LibDrawArc*)item)->m_Pos.x);
-				SETMIRROR(((LibDrawArc*)item)->m_Start.x);
-				SETMIRROR(((LibDrawArc*)item)->m_End.x);
-				EXCHG(((LibDrawArc*)item)->m_Start,((LibDrawArc*)item)->m_End);
+				SETMIRROR(((LibDrawArc*)item)->m_ArcStart.x);
+				SETMIRROR(((LibDrawArc*)item)->m_ArcEnd.x);
+				EXCHG(((LibDrawArc*)item)->m_ArcStart,((LibDrawArc*)item)->m_ArcEnd);
 				break;
 			}
 
@@ -643,7 +643,7 @@ LibEDA_BaseStruct * item;
 				break;
 
 			case COMPONENT_RECT_DRAW_TYPE:
-				SETMIRROR(((LibDrawSquare*)item)->m_Start.x);
+				SETMIRROR(((LibDrawSquare*)item)->m_Pos.x);
 				SETMIRROR(((LibDrawSquare*)item)->m_End.x);
 				break;
 

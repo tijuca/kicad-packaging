@@ -487,8 +487,8 @@ EDA_LibComponentStruct *Entry;
 			}
 		}
 
-	m_CurrentScreen->ForceCloseManageCurseur = AbortMoveCmpField;
-	m_CurrentScreen->ManageCurseur = MoveCmpField;
+	DrawPanel->ForceCloseManageCurseur = AbortMoveCmpField;
+	DrawPanel->ManageCurseur = MoveCmpField;
 	Field->m_Flags = IS_MOVED;
 }
 
@@ -606,8 +606,8 @@ int FieldNumber;
 static void AbortMoveCmpField(WinEDA_DrawFrame * frame, wxDC * DC)
 /******************************************************************/
 {
-	frame->GetScreen()->ForceCloseManageCurseur = NULL;
-	frame->GetScreen()->ManageCurseur = NULL;
+	frame->DrawPanel->ForceCloseManageCurseur = NULL;
+	frame->DrawPanel->ManageCurseur = NULL;
 	if ( CurrentField )
 		{
 		DrawTextField(frame->DrawPanel, DC, CurrentField,Multiflag, g_XorMode);
@@ -657,8 +657,8 @@ void PartTextStruct::Place( WinEDA_DrawFrame * frame, wxDC * DC)
 int FieldNumber, flag;
 EDA_LibComponentStruct *Entry;
 
-	frame->m_CurrentScreen->ManageCurseur = NULL;
-	frame->m_CurrentScreen->ForceCloseManageCurseur = NULL;
+	frame->DrawPanel->ManageCurseur = NULL;
+	frame->DrawPanel->ForceCloseManageCurseur = NULL;
 
 	FieldNumber = m_FieldId;
 	flag = 0;

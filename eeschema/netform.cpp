@@ -15,12 +15,12 @@
 
 
 /* Routines locales */
-static void Write_GENERIC_NetList(wxWindow * frame, const wxString & FullFileName);
-static void WriteNetListPCBNEW(wxWindow * frame, FILE *f,
+static void Write_GENERIC_NetList(WinEDA_SchematicFrame * frame, const wxString & FullFileName);
+static void WriteNetListPCBNEW(WinEDA_SchematicFrame * frame, FILE *f,
 					bool with_pcbnew);
-static void WriteNetListCADSTAR(wxWindow * frame, FILE *f);
+static void WriteNetListCADSTAR(WinEDA_SchematicFrame * frame, FILE *f);
 static void WriteListOfNetsCADSTAR( FILE * f, ObjetNetListStruct *ObjNet );
-static void WriteNetListPspice(wxWindow * frame, FILE *f, bool use_netnames);
+static void WriteNetListPspice(WinEDA_SchematicFrame * frame, FILE *f, bool use_netnames);
 
 static void WriteGENERICListOfNets( FILE * f, ObjetNetListStruct *ObjNet );
 static void AddPinToComponentPinList(EDA_SchComponentStruct *Component,
@@ -29,7 +29,8 @@ static void FindOthersUnits(EDA_SchComponentStruct *Component );
 static int SortPinsByNum(ObjetNetListStruct **Pin1, ObjetNetListStruct **Pin2);
 static void EraseDuplicatePins(ObjetNetListStruct **TabPin, int NbrPin);
 
-static void ClearUsedFlags(void);
+static void ClearUsedFlags(WinEDA_SchematicFrame * frame);
+
 
 
 /* Variable locales */
@@ -39,10 +40,10 @@ static ObjetNetListStruct **s_SortedComponentPinList;
 
 
 
-/*******************************************************************/
-void WriteNetList(WinEDA_DrawFrame * frame, const wxString & FileNameNL,
+/******************************************************************************/
+void WriteNetList(WinEDA_SchematicFrame * frame, const wxString & FileNameNL,
 				bool use_netnames)
-/*******************************************************************/
+/*******************************************************************************/
 /* Create the netlist file ( Format is given by g_NetFormat )
 	bool use_netnames is used only for Spice netlist
 */
@@ -217,7 +218,8 @@ wxString NetName;
 }
 
 /***********************************************************************/
-void Write_GENERIC_NetList(wxWindow * frame, const wxString & FullFileName)
+void Write_GENERIC_NetList(WinEDA_SchematicFrame * frame,
+		const wxString & FullFileName)
 /***********************************************************************/
 /* Create a generic netlist, and call an external netlister
 	to change the netlist syntax and create the file
@@ -241,7 +243,7 @@ wxString TmpFullFileName = FullFileName;
 		return;
 	}
 	
-	ClearUsedFlags();	/* Reset the flags FlagControlMulti in all schematic files*/
+	ClearUsedFlags(frame);	/* Reset the flags FlagControlMulti in all schematic files*/
 	fprintf( tmpfile, "$BeginNetlist\n" );
 
 	/* Create netlist module section */
@@ -320,17 +322,18 @@ wxString CommandFile;
 }
 
 
-/*******************************/
-static void ClearUsedFlags(void)
-/*******************************/
+/********************************************************/
+static void ClearUsedFlags(WinEDA_SchematicFrame * frame)
+/********************************************************/
 /* Clear flag FlagControlMulti, used in netlist generation */
 {
-BASE_SCREEN *CurrScreen;
+SCH_SCREEN *screen;
 EDA_BaseStruct *DrawList;
 	
-	for(CurrScreen = ScreenSch; CurrScreen != NULL; CurrScreen = CurrScreen->Next() )
+	EDA_ScreenList ScreenList(NULL);
+	for ( screen = ScreenList.GetFirst(); screen != NULL; screen = ScreenList.GetNext() )
 	{
-		DrawList = CurrScreen->EEDrawList;
+		DrawList = screen->EEDrawList;
 		while ( DrawList )
 		{
 			if( DrawList->m_StructType == DRAW_LIB_ITEM_STRUCT_TYPE)
@@ -344,7 +347,7 @@ EDA_BaseStruct *DrawList;
 }
 
 /*************************************************************/
-static void WriteNetListPspice(wxWindow * frame, FILE *f,
+static void WriteNetListPspice(WinEDA_SchematicFrame * frame, FILE *f,
 		 bool use_netnames)
 /*************************************************************/
 /* Routine de generation du fichier netliste ( Format PSPICE )
@@ -359,7 +362,7 @@ static void WriteNetListPspice(wxWindow * frame, FILE *f,
 */
 {
 char Line[1024];
-BASE_SCREEN *CurrScreen;
+SCH_SCREEN *screen;
 EDA_BaseStruct *DrawList;
 EDA_SchComponentStruct *Component;
 int ii, nbitems;
@@ -375,9 +378,10 @@ wxChar bufnum[BUFYPOS_LEN+1];
 	/* Create text list starting by [.-]pspice , or [.-]gnucap (simulator commands) */
 	/* and create text list starting by [+]pspice , or [+]gnucap (simulator commands) */
 	bufnum[BUFYPOS_LEN] = 0;
-	for(CurrScreen = ScreenSch; CurrScreen != NULL; CurrScreen = (BASE_SCREEN*)CurrScreen->Pnext )
+	EDA_ScreenList ScreenList(NULL);
+	for ( screen = ScreenList.GetFirst(); screen != NULL; screen = ScreenList.GetNext() )
 	{
-		for ( DrawList = CurrScreen->EEDrawList; DrawList != NULL; DrawList = DrawList->Pnext )
+		for ( DrawList = screen->EEDrawList; DrawList != NULL; DrawList = DrawList->Pnext )
 		{
 			wxChar ident;
 			if ( DrawList->m_StructType != DRAW_TEXT_STRUCT_TYPE ) continue;
@@ -421,10 +425,10 @@ wxChar bufnum[BUFYPOS_LEN+1];
 
 
 	/* Create component list */
-	ClearUsedFlags();	/* Reset the flags FlagControlMulti in all schematic files*/
-	for(CurrScreen = ScreenSch; CurrScreen != NULL; CurrScreen = (BASE_SCREEN*)CurrScreen->Pnext )
+	ClearUsedFlags(frame);	/* Reset the flags FlagControlMulti in all schematic files*/
+	for ( screen = ScreenList.GetFirst(); screen != NULL; screen = ScreenList.GetNext() )
 	{
-		for( DrawList = CurrScreen->EEDrawList; DrawList != NULL; DrawList = DrawList->Pnext )
+		for( DrawList = screen->EEDrawList; DrawList != NULL; DrawList = DrawList->Pnext )
 		{
 			DrawList = Component = FindNextComponentAndCreatPinList(DrawList);
 			if ( Component == NULL ) break;
@@ -472,9 +476,9 @@ wxChar bufnum[BUFYPOS_LEN+1];
 	fprintf( f, "\n.end\n" );
 }
 
-/*********************************************************************/
-static void WriteNetListPCBNEW(wxWindow * frame, FILE *f, bool with_pcbnew)
-/*********************************************************************/
+/*****************************************************************************************/
+static void WriteNetListPCBNEW(WinEDA_SchematicFrame * frame, FILE *f, bool with_pcbnew)
+/*****************************************************************************************/
 /* Routine de generation du fichier netliste ( Format ORCAD PCB 2 ameliore )
 	si with_pcbnew = FALSE
 		format PCBNEW (OrcadPcb2 + commentaires et liste des nets)
@@ -484,26 +488,48 @@ static void WriteNetListPCBNEW(wxWindow * frame, FILE *f, bool with_pcbnew)
 {
 wxString Line, FootprintName;
 char Buf[256];
-BASE_SCREEN *CurrScreen;
+SCH_SCREEN *CurrScreen;
 EDA_BaseStruct *DrawList;
 EDA_SchComponentStruct *Component;
 int ii;
-
+EDA_SchComponentStruct ** CmpList = NULL;
+int CmpListCount = 0, CmpListSize = 1000;
+	
 	DateAndTime(Buf);
 	if ( with_pcbnew )
-		fprintf( f, "# %s generee le  %s\n(\n", NETLIST_HEAD_STRING, Buf);
-	else fprintf( f, "( { %s generee le  %s }\n", NETLIST_HEAD_STRING, Buf );
+		fprintf( f, "# %s created  %s\n(\n", NETLIST_HEAD_STRING, Buf);
+	else fprintf( f, "( { %s created  %s }\n", NETLIST_HEAD_STRING, Buf );
 
 
 	/* Create netlist module section */
-	ClearUsedFlags();	/* Reset the flags FlagControlMulti in all schematic files*/
-	for(CurrScreen = ScreenSch; CurrScreen != NULL; CurrScreen = (BASE_SCREEN*)CurrScreen->Pnext )
+	ClearUsedFlags(frame);	/* Reset the flags FlagControlMulti in all schematic files*/
+
+	EDA_ScreenList ScreenList(NULL);
+	for ( CurrScreen = ScreenList.GetFirst(); CurrScreen != NULL; CurrScreen = ScreenList.GetNext() )
 	{
 		for ( DrawList = CurrScreen->EEDrawList; DrawList != NULL; DrawList = DrawList->Pnext )
 		{
 			DrawList = Component = FindNextComponentAndCreatPinList(DrawList);
 			if ( Component == NULL ) break;
 
+			/* Get the Component FootprintFilter and put the component in CmpList if filter is not void */
+			EDA_LibComponentStruct *Entry;
+			if( (Entry = FindLibPart(Component->m_ChipName.GetData(),wxEmptyString,FIND_ROOT)) != NULL)
+			{
+				if ( Entry->m_FootprintList.GetCount() != 0 )	/* Put in list */
+				{
+					if ( CmpList == NULL )
+						CmpList = (EDA_SchComponentStruct **) MyZMalloc(sizeof(EDA_SchComponentStruct *) * CmpListSize);
+					if ( CmpListCount >= CmpListSize )
+					{
+						CmpListSize += 1000;
+						CmpList = (EDA_SchComponentStruct **) realloc(CmpList, sizeof(EDA_SchComponentStruct *) * CmpListSize);
+					}
+					CmpList[CmpListCount] = Component;
+					CmpListCount++;
+				}
+			}
+			
 			if( ! Component->m_Field[FOOTPRINT].IsVoid() )
 			{
 				FootprintName = Component->m_Field[FOOTPRINT].m_Text;
@@ -548,6 +574,29 @@ int ii;
 
 	MyFree(s_SortedComponentPinList);
 	s_SortedComponentPinList = NULL;
+
+	/* Write the allowed footprint list for each component */
+	if ( with_pcbnew && CmpList)
+	{
+		fprintf( f, "{ Allowed footprints by component:\n" );
+		EDA_LibComponentStruct *Entry;
+		for ( ii = 0; ii < CmpListCount; ii ++ )
+		{
+			Component = CmpList[ii];
+			Entry = FindLibPart(Component->m_ChipName.GetData(),wxEmptyString,FIND_ROOT);
+			Line = Component->m_Field[REFERENCE].m_Text;
+			Line.Replace( wxT(" "), wxT("_") );
+			fprintf(f, "$component %s\n", CONV_TO_UTF8(Line));
+			/* Write the footprint list */
+			for ( unsigned int jj = 0; jj < Entry->m_FootprintList.GetCount(); jj ++ )
+			{
+				fprintf(f, " %s\n", CONV_TO_UTF8(Entry->m_FootprintList[jj]));
+			}
+		fprintf(f, "$endlist\n");
+		}
+		fprintf(f, "$endfootprintlist\n}\n");
+	}
+	if ( CmpList ) free(CmpList);
 
 	if ( with_pcbnew )
 	{
@@ -628,15 +677,16 @@ EDA_BaseStruct *DrawList;
 EDA_SchComponentStruct *Component2;
 EDA_LibComponentStruct *Entry;
 LibEDA_BaseStruct *DEntry;
-BASE_SCREEN * screen;
+SCH_SCREEN * screen;
 
-	for( screen = ScreenSch; screen != NULL; screen = (BASE_SCREEN*)screen->Pnext )
-		{
+	EDA_ScreenList ScreenList(NULL);
+	for ( screen = ScreenList.GetFirst(); screen != NULL; screen = ScreenList.GetNext() )
+	{
 		DrawList = screen->EEDrawList;
 		while ( DrawList )
-			{
+		{
 			switch( DrawList->m_StructType )
-				{
+			{
 				case DRAW_LIB_ITEM_STRUCT_TYPE :
 					Component2 = (EDA_SchComponentStruct *) DrawList;
 
@@ -651,28 +701,28 @@ BASE_SCREEN * screen;
 					if( Component2->m_Field[REFERENCE].m_Text[0] == '#' ) break;
 
 					if (Entry->m_Drawings != NULL)
-						{
+					{
 						DEntry = Entry->m_Drawings;
 						for ( ;DEntry != NULL; DEntry = DEntry->Next())
-							{
+						{
 							if ( DEntry->m_StructType != COMPONENT_PIN_DRAW_TYPE) continue;
 							if( DEntry->m_Unit &&
 								(DEntry->m_Unit != Component2->m_Multi) ) continue;
 							if( DEntry->m_Convert &&
 								(DEntry->m_Convert != Component2->m_Convert)) continue;
-								{
+							{
 								AddPinToComponentPinList(Component2, (LibDrawPin*)DEntry);
-								}
 							}
 						}
+					}
 					Component2->m_FlagControlMulti = 1;
 					break;
 
 				default: break;
-				}
-			DrawList = DrawList->Pnext;
 			}
+			DrawList = DrawList->Pnext;
 		}
+	}
 }
 
 
@@ -741,7 +791,7 @@ char FirstItemInNet[1024];
 
 		Cmp = (EDA_SchComponentStruct*) ObjNet[ii].m_Link;
 		CmpRef = Cmp->m_Field[REFERENCE].m_Text;
-		if ( CmpRef == '#' ) continue;	// Pseudo component (Like Power symbol)
+		if ( CmpRef.StartsWith( wxT("#") ) ) continue;	// Pseudo component (Like Power symbol)
 
 		// Print the pin list for this net, if  2 or more items are connected:
 		SameNetcodeCount++;
@@ -769,7 +819,7 @@ char FirstItemInNet[1024];
 wxString StartLine( wxT("."));
 
 /*********************************************************/
-static void WriteNetListCADSTAR(wxWindow * frame, FILE *f)
+static void WriteNetListCADSTAR(WinEDA_SchematicFrame * frame, FILE *f)
 /*********************************************************/
 /* Routine de generation du fichier netliste ( Format CADSTAR )
 Entete:
@@ -815,8 +865,9 @@ EDA_SchComponentStruct *Component;
 	fprintf( f, "\n");
 
 	/* Create netlist module section */
-	ClearUsedFlags();	/* Reset the flags FlagControlMulti in all schematic files*/
-	for(CurrScreen = ScreenSch; CurrScreen != NULL; CurrScreen = (BASE_SCREEN*)CurrScreen->Pnext )
+	ClearUsedFlags(frame);	/* Reset the flags FlagControlMulti in all schematic files*/
+	EDA_ScreenList ScreenList(NULL);
+	for ( CurrScreen = ScreenList.GetFirst(); CurrScreen != NULL; CurrScreen = ScreenList.GetNext() )
 	{
 		for ( DrawList = CurrScreen->EEDrawList; DrawList != NULL; DrawList = DrawList->Pnext )
 		{

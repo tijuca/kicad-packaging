@@ -75,7 +75,7 @@ class WinEDA_AnnotateFrame: public wxDialog
 public:
     /// Constructors
     WinEDA_AnnotateFrame( );
-    WinEDA_AnnotateFrame( WinEDA_DrawFrame* parent, wxWindowID id = SYMBOL_WINEDA_ANNOTATEFRAME_IDNAME, const wxString& caption = SYMBOL_WINEDA_ANNOTATEFRAME_TITLE, const wxPoint& pos = SYMBOL_WINEDA_ANNOTATEFRAME_POSITION, const wxSize& size = SYMBOL_WINEDA_ANNOTATEFRAME_SIZE, long style = SYMBOL_WINEDA_ANNOTATEFRAME_STYLE );
+    WinEDA_AnnotateFrame( WinEDA_SchematicFrame* parent, wxWindowID id = SYMBOL_WINEDA_ANNOTATEFRAME_IDNAME, const wxString& caption = SYMBOL_WINEDA_ANNOTATEFRAME_TITLE, const wxPoint& pos = SYMBOL_WINEDA_ANNOTATEFRAME_POSITION, const wxSize& size = SYMBOL_WINEDA_ANNOTATEFRAME_SIZE, long style = SYMBOL_WINEDA_ANNOTATEFRAME_STYLE );
 
     /// Creation
     bool Create( wxWindow* parent, wxWindowID id = SYMBOL_WINEDA_ANNOTATEFRAME_IDNAME, const wxString& caption = SYMBOL_WINEDA_ANNOTATEFRAME_TITLE, const wxPoint& pos = SYMBOL_WINEDA_ANNOTATEFRAME_POSITION, const wxSize& size = SYMBOL_WINEDA_ANNOTATEFRAME_SIZE, long style = SYMBOL_WINEDA_ANNOTATEFRAME_STYLE );
@@ -113,7 +113,7 @@ public:
     wxRadioBox* m_AnnotNewCmpCtrl;
 ////@end WinEDA_AnnotateFrame member variables
 
-	WinEDA_DrawFrame * m_Parent;
+	WinEDA_SchematicFrame * m_Parent;
 	bool m_Abort;
 
 private:

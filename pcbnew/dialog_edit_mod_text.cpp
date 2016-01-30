@@ -349,7 +349,7 @@ void WinEDA_TextModPropertiesFrame::TextModPropertiesAccept(wxCommandEvent& even
 {
 wxString msg;
 
-	m_Parent->SaveCopyInUndoList();
+	m_Parent->SaveCopyInUndoList(m_Parent->m_Pcb->m_Modules);
 	if ( m_DC )		// Effacement ancien texte
 	{
 		m_CurrentTextMod->Draw(m_Parent->DrawPanel, m_DC,

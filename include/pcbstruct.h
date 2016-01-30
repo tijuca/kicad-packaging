@@ -239,10 +239,9 @@ public:
 	int m_Route_Layer_BOTTOM;		/* pour placement vias et routage 2 couches */
 
 public:
-	PCB_SCREEN( EDA_BaseStruct * parent, WinEDA_BasePcbFrame * frame_source, int idscreen);
+	PCB_SCREEN(int idscreen);
 	~PCB_SCREEN(void);
 	PCB_SCREEN * Next(void) { return (PCB_SCREEN *) Pnext;}
-	WinEDA_BasePcbFrame * GetParentPcbFrame(void);
 	void Init(void);
 	void SetNextZoom(void);
 	void SetPreviousZoom(void);

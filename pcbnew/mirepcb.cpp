@@ -12,7 +12,7 @@
 
 
 /* Routines Locales */
-static void Exit_EditMire(WinEDA_DrawFrame * frame, wxDC *DC);
+static void Exit_EditMire(WinEDA_DrawPanel * Panel, wxDC *DC);
 static void Montre_Position_Mire(WinEDA_DrawPanel * panel, wxDC * DC, bool erase);
 
 /* Variables locales : */
@@ -171,33 +171,33 @@ void WinEDA_PcbFrame::Delete_Mire(MIREPCB * MirePcb, wxDC * DC)
 
 
 /**********************************************************/
-static void Exit_EditMire(WinEDA_DrawFrame * frame, wxDC *DC)
+static void Exit_EditMire(WinEDA_DrawPanel * Panel, wxDC *DC)
 /**********************************************************/
 {
-BASE_SCREEN * screen = frame->GetScreen();
+BASE_SCREEN * screen = Panel->GetScreen();
 MIREPCB * MirePcb = (MIREPCB *) screen->m_CurrentItem;
 
-	screen->ManageCurseur = NULL;
-	screen->ForceCloseManageCurseur = NULL;
+	Panel->ManageCurseur = NULL;
+	Panel->ForceCloseManageCurseur = NULL;
 
 	if( MirePcb )
-		{
+	{
 		/* Effacement de la mire */
-		MirePcb->Draw(frame->DrawPanel, DC, wxPoint(0,0), GR_XOR);
+		MirePcb->Draw(Panel, DC, wxPoint(0,0), GR_XOR);
 
 		if( MirePcb->m_Flags & IS_NEW )
-			{
-			MirePcb->Draw(frame->DrawPanel, DC, wxPoint(0,0), GR_XOR);
+		{
+			MirePcb->Draw(Panel, DC, wxPoint(0,0), GR_XOR);
 			DeleteStructure(MirePcb);
 			MirePcb = NULL ;
-			}
+		}
 		else	/* Ancienne mire en deplacement: Remise en ancienne position */
-			{
+		{
 			MirePcb->m_Pos = OldPos;
 			MirePcb->m_Flags = 0;
-			MirePcb->Draw(frame->DrawPanel, DC, wxPoint(0,0),GR_OR);
-			}
+			MirePcb->Draw(Panel, DC, wxPoint(0,0),GR_OR);
 		}
+	}
 }
 
 /*****************************************************/
@@ -235,8 +235,8 @@ void WinEDA_PcbFrame::StartMove_Mire(MIREPCB * MirePcb, wxDC * DC)
 
 	OldPos = MirePcb->m_Pos;
 	MirePcb->m_Flags |= IS_MOVED;
-	GetScreen()->ManageCurseur = Montre_Position_Mire;
-	GetScreen()->ForceCloseManageCurseur = Exit_EditMire;
+	DrawPanel->ManageCurseur = Montre_Position_Mire;
+	DrawPanel->ForceCloseManageCurseur = Exit_EditMire;
 	GetScreen()->m_CurrentItem = MirePcb;
 }
 
@@ -250,8 +250,8 @@ void WinEDA_PcbFrame::Place_Mire(MIREPCB * MirePcb, wxDC * DC)
 	MirePcb->Draw(DrawPanel, DC, wxPoint(0,0),GR_OR);
 
 	MirePcb->m_Flags = 0;
-	GetScreen()->ManageCurseur = NULL;
-	GetScreen()->ForceCloseManageCurseur = NULL;
+	DrawPanel->ManageCurseur = NULL;
+	DrawPanel->ForceCloseManageCurseur = NULL;
 	GetScreen()->m_CurrentItem = NULL;
 	GetScreen()->SetModify();
 }

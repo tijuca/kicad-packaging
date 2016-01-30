@@ -1,4 +1,4 @@
-EESchema-DOCLIB  Version 2.0  Date: 30/7/2004-07:48:44
+EESchema-DOCLIB  Version 2.0  Date: 30/4/2007-14:48:41
 #
 $CMP PCA82C251
 D CAN Transceiver
@@ -29,6 +29,7 @@ $ENDCMP
 $CMP PCF8591
 D ANALOG to DIGITAL Conv. I2C bus
 K I2C
+F philips/pcf8591.pdf
 $ENDCMP
 #
 $CMP TDA8501

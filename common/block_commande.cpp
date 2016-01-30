@@ -112,10 +112,10 @@ void DrawBlockStruct::Draw(WinEDA_DrawPanel * panel, wxDC * DC)
 	int h = GetHeight()/panel->GetZoom();
 	if (  w == 0 || h == 0 )
 		GRLine(&panel->m_ClipBox, DC, GetX(), GetY(),
-				GetRight(), GetBottom(), m_Color);
+				GetRight(), GetBottom(), 0, m_Color);
 	else
 		GRRect(&panel->m_ClipBox, DC,  GetX(), GetY(),
-				GetRight(), GetBottom(), m_Color);
+				GetRight(), GetBottom(), 0, m_Color);
 }
 
 /*************************************************************************/
@@ -152,11 +152,11 @@ DrawBlockStruct * Block = & GetScreen()->BlockLocate;
 		case BLOCK_MIRROR_X:
 		case BLOCK_MIRROR_Y: /* mirror */
 		case BLOCK_PRESELECT_MOVE: /* Move with preselection list*/
-			InitBlockLocateDatas(GetScreen(),startpos);
+			InitBlockLocateDatas(DrawPanel,startpos);
 			break;
 
 		case BLOCK_PASTE:
-			InitBlockLocateDatas(GetScreen(),startpos);
+			InitBlockLocateDatas(DrawPanel,startpos);
 			Block->m_BlockLastCursorPosition.x = 0;
 			Block->m_BlockLastCursorPosition.y = 0;
 			InitBlockPasteInfos();
@@ -164,10 +164,10 @@ DrawBlockStruct * Block = & GetScreen()->BlockLocate;
 			{
 				DisplayError(this, wxT("No Block to paste"), 20);
 				GetScreen()->BlockLocate.m_Command =  BLOCK_IDLE;
-				GetScreen()->ManageCurseur = NULL;
+				DrawPanel->ManageCurseur = NULL;
 				return TRUE;
 			}
-			if ( GetScreen()->ManageCurseur == NULL )
+			if ( DrawPanel->ManageCurseur == NULL )
 			{
 				Block->m_BlockDrawStruct = NULL;
 				DisplayError(this,
@@ -175,12 +175,15 @@ DrawBlockStruct * Block = & GetScreen()->BlockLocate;
 				return TRUE;
 			}
 			Block->m_State = STATE_BLOCK_MOVE;
-			GetScreen()->ManageCurseur(DrawPanel, DC, FALSE);
+			DrawPanel->ManageCurseur(DrawPanel, DC, FALSE);
 			break;
 
 		default:
-			DisplayError(this,
-				wxT("WinEDA_DrawFrame::HandleBlockBegin() error: Unknown command"));
+			{
+			wxString msg;
+			msg << wxT("WinEDA_DrawFrame::HandleBlockBegin() error: Unknown command ") << Block->m_Command;
+			DisplayError( this, msg );
+			}
 			break;
 		}
 
@@ -190,19 +193,19 @@ DrawBlockStruct * Block = & GetScreen()->BlockLocate;
 
 
 /******************************************************************/
-void AbortBlockCurrentCommand(WinEDA_DrawFrame * frame, wxDC * DC)
+void AbortBlockCurrentCommand(WinEDA_DrawPanel * Panel, wxDC * DC)
 /******************************************************************/
 /*
 	Cancel Current block operation.
 */
 {
-BASE_SCREEN * screen = frame->GetScreen();
+BASE_SCREEN * screen = Panel->GetScreen();
 
-	if( screen->ManageCurseur)	/* Erase current drawing on screen */
+	if( Panel->ManageCurseur)	/* Erase current drawing on screen */
 	{
-		screen->ManageCurseur(frame->DrawPanel, DC, FALSE); /* Efface dessin fantome */
-		screen->ManageCurseur = NULL;
-		screen->ForceCloseManageCurseur = NULL;
+		Panel->ManageCurseur(Panel,DC, FALSE); /* Efface dessin fantome */
+		Panel->ManageCurseur = NULL;
+		Panel->ForceCloseManageCurseur = NULL;
 		screen->m_CurrentItem = NULL;
 
 		/* Delete the picked wrapper if this is a picked list. */
@@ -223,26 +226,27 @@ BASE_SCREEN * screen = frame->GetScreen();
 	screen->BlockLocate.m_State = STATE_NO_BLOCK;
 
 	screen->BlockLocate.m_Command = BLOCK_ABORT;
-	frame->HandleBlockEnd(DC);
+	Panel->m_Parent->HandleBlockEnd(DC);
 
 	screen->BlockLocate.m_Command = BLOCK_IDLE;
-	frame->DisplayToolMsg(wxEmptyString);
+	Panel->m_Parent->DisplayToolMsg(wxEmptyString);
 }
 
 /*************************************************************************/
-void InitBlockLocateDatas( BASE_SCREEN * screen,const wxPoint & startpos )
+void InitBlockLocateDatas( WinEDA_DrawPanel * Panel,const wxPoint & startpos )
 /*************************************************************************/
 /*
 	Init the initial values of a BlockLocate, before starting a block command
 */
 {
+BASE_SCREEN * screen = Panel->GetScreen();
 	screen->BlockLocate.m_State = STATE_BLOCK_INIT;
 	screen->BlockLocate.SetOrigin(startpos);
 	screen->BlockLocate.SetSize(wxSize(0,0));
 	screen->BlockLocate.Pnext = NULL;
 	screen->BlockLocate.m_BlockDrawStruct = NULL;
-	screen->ManageCurseur = DrawAndSizingBlockOutlines;
-	screen->ForceCloseManageCurseur = AbortBlockCurrentCommand;
+	Panel->ManageCurseur = DrawAndSizingBlockOutlines;
+	Panel->ForceCloseManageCurseur = AbortBlockCurrentCommand;
 }
 
 /********************************************************************************/

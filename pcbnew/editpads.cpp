@@ -309,13 +309,15 @@ void WinEDA_PadPropertiesFrame::PadPropertiesAccept(wxCommandEvent& event)
 long PadLayerMask;
 bool error = FALSE;
 	
-	if ( m_DC ) m_Parent->GetScreen()->CursorOff(m_Parent->DrawPanel, m_DC);
+	if ( m_DC ) m_Parent->DrawPanel->CursorOff(m_DC);
 
 	g_Pad_Master.m_Attribut = CodeType[m_PadType->GetSelection()];
 	g_Pad_Master.m_PadShape = CodeShape[m_PadShape->GetSelection()];
 	g_Pad_Master.m_Pos = m_PadPositionCtrl->GetValue();
 	g_Pad_Master.m_Pos0 = g_Pad_Master.m_Pos;
 	g_Pad_Master.m_Size = m_PadSizeCtrl->GetValue();
+	if ( g_Pad_Master.m_PadShape == CIRCLE )
+		g_Pad_Master.m_Size.y = g_Pad_Master.m_Size.x;
 	g_Pad_Master.m_DeltaSize = m_PadDeltaSizeCtrl->GetValue();
 	g_Pad_Master.m_Offset = m_PadOffsetCtrl->GetValue();
 	g_Pad_Master.m_Drill = m_PadDrillCtrl->GetValue();
@@ -330,11 +332,11 @@ bool error = FALSE;
 	Current_PadNetName = m_PadNetNameCtrl->GetValue();
 
 	/* Test for incorrect values */
-	if ( (g_Pad_Master.m_Size.x <= g_Pad_Master.m_Drill.x) ||
-		 (g_Pad_Master.m_Size.y <= g_Pad_Master.m_Drill.y) )
+	if ( (g_Pad_Master.m_Size.x < g_Pad_Master.m_Drill.x) ||
+		 (g_Pad_Master.m_Size.y < g_Pad_Master.m_Drill.y) )
 	{
 		error = TRUE;
-		DisplayError(this, _("Incorrect value for pad drill") );
+		DisplayError(this, _("Incorrect value for pad drill: pad drill bigger than pad size") );
 	}
 	if ( (g_Pad_Master.m_Size.x/2 <= ABS(g_Pad_Master.m_Offset.x)) ||
 		 (g_Pad_Master.m_Size.y/2 <= ABS(g_Pad_Master.m_Offset.y)) )
@@ -345,7 +347,7 @@ bool error = FALSE;
 	
 	if ( error )
 	{
-		if ( m_DC ) m_Parent->GetScreen()->CursorOn(m_Parent->DrawPanel, m_DC);
+		if ( m_DC ) m_Parent->DrawPanel->CursorOn(m_DC);
 		return;
 	}
 
@@ -370,7 +372,7 @@ bool error = FALSE;
 
 	if ( CurrentPad )   // Set Pad Name & Num
 	{
-		m_Parent->SaveCopyInUndoList();
+		m_Parent->SaveCopyInUndoList(m_Parent->m_Pcb->m_Modules);
 		MODULE * Module;
 		Module = (MODULE*) CurrentPad->m_Parent;
 		Module->m_LastEdit_Time = time(NULL);
@@ -379,11 +381,13 @@ bool error = FALSE;
 		CurrentPad->m_PadShape = g_Pad_Master.m_PadShape;
 		CurrentPad->m_Attribut = g_Pad_Master.m_Attribut;
 		CurrentPad->m_Pos = g_Pad_Master.m_Pos;
-		/* compute the pos 0 value */
+		/* compute the pos 0 value, i.e. pad position for module orient = 0 i.e.
+			refer to module origin (module position) */
 		CurrentPad->m_Pos0 = CurrentPad->m_Pos;
 		CurrentPad->m_Pos0.x -= Module->m_Pos.x;
 		CurrentPad->m_Pos0.y -= Module->m_Pos.y;
-		RotatePoint( &CurrentPad->m_Pos0.x, &CurrentPad->m_Pos0.y, - CurrentPad->m_Orient );
+		CurrentPad->m_Orient = g_Pad_Master.m_Orient + Module->m_Orient;
+		RotatePoint( &CurrentPad->m_Pos0.x, &CurrentPad->m_Pos0.y, - Module->m_Orient );
 
 		CurrentPad->m_Size = g_Pad_Master.m_Size;
 		CurrentPad->m_DeltaSize = g_Pad_Master.m_DeltaSize;
@@ -391,7 +395,6 @@ bool error = FALSE;
 		CurrentPad->m_DrillShape = g_Pad_Master.m_DrillShape;
 		CurrentPad->m_Offset = g_Pad_Master.m_Offset;
 		CurrentPad->m_Masque_Layer = g_Pad_Master.m_Masque_Layer;
-		CurrentPad->m_Orient = g_Pad_Master.m_Orient + Module->m_Orient;
 		CurrentPad->SetPadName(g_Current_PadName);
 		CurrentPad->m_Netname = Current_PadNetName;
 		if ( Current_PadNetName.IsEmpty() ) CurrentPad->m_NetCode = 0;
@@ -444,6 +447,6 @@ bool error = FALSE;
 
 	Close();
 
-	if ( m_DC ) m_Parent->GetScreen()->CursorOn(m_Parent->DrawPanel, m_DC);
+	if ( m_DC ) m_Parent->DrawPanel->CursorOn(m_DC);
 }
 

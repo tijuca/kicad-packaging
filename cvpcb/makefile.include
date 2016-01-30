@@ -1,7 +1,7 @@
 # makefile pour cvpcb (mingw)
 OBJSUFF = o
 
-EXTRACPPFLAGS = -DCVPCB -I./ -I../cvpcb -I../include -Ibitmaps -I../pcbnew -I../3d-viewer
+EXTRACPPFLAGS += -DCVPCB -fno-strict-aliasing -I./ -I../cvpcb -I../include -Ibitmaps -I../pcbnew -I../3d-viewer
 EXTRALIBS = ../common/common.a
 
 LIBVIEWER3D = ../3d-viewer/3d-viewer.a
@@ -20,11 +20,12 @@ OBJECTS = $(TARGET).o \
 			displayframe.o\
 			drawpanel.o \
 			init.o rdpcad.o \
-			rdorcad.o\
+			readschematicnetlist.o\
 			viewlogi.o viewlnet.o \
 			loadcmp.o savecmp.o \
 			tool_cvpcb.o \
-			genorcad.o genequiv.o \
+			writenetlistpcbnew.o\
+			genequiv.o \
 			ioascii.o \
 			menucfg.o \
 			cfg.o listlib.o \
@@ -98,7 +99,7 @@ class_equipot.o: ../pcbnew/class_equipot.cpp $(DEPEND)
 basepcbframe.o: ../pcbnew/basepcbframe.cpp $(DEPEND)
 	$(CC) -c $(EDACPPFLAGS) -o $@ ../pcbnew/$*.cpp
 
-rdorcad.o: rdorcad.cpp $(DEPEND)
+readschematicnetlist.o: readschematicnetlist.cpp $(DEPEND)
 
 viewlogi.o: viewlogi.cpp $(DEPEND)
 
@@ -108,7 +109,7 @@ loadcmp.o: loadcmp.cpp $(DEPEND)
 
 savecmp.o: savecmp.cpp $(DEPEND)
 
-genorcad.o: genorcad.cpp $(DEPEND)
+writenetlistpcbnew.o: writenetlistpcbnew.cpp $(DEPEND)
 
 genequiv.o: genequiv.cpp $(DEPEND)
 

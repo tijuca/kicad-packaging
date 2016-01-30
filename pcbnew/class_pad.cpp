@@ -218,7 +218,7 @@ WinEDA_BasePcbFrame * frame;
 wxPoint shape_pos;
 
 	screen = panel ? (PCB_SCREEN *) panel->m_Parent->m_CurrentScreen : (PCB_SCREEN *) ActiveScreen;
-	frame = screen->GetParentPcbFrame();
+	frame = ( WinEDA_BasePcbFrame * ) panel->m_Parent;
 
 	/* Calcul de l'aspect du pad */
 	if( frame->m_DisplayPadFill == FILLED) fillpad = 1;
@@ -231,10 +231,55 @@ wxPoint shape_pos;
 	if ( m_Masque_Layer & CMP_LAYER ) color = g_PadCMPColor ;
 	if ( m_Masque_Layer & CUIVRE_LAYER ) color |= g_PadCUColor ;
 
-	if( color == 0)	/* Non cuivre externe */
+	if( color == 0)	/* Not on copper layer */
+	{
+		switch ( m_Masque_Layer & ~ALL_CU_LAYERS )
 		{
-		color = DARKGRAY;
+			case ADHESIVE_LAYER_CU:
+				color = g_DesignSettings.m_LayerColor[ADHESIVE_N_CU];
+				break;
+			case ADHESIVE_LAYER_CMP:
+				color = g_DesignSettings.m_LayerColor[ADHESIVE_N_CMP];
+				break;
+			case SOLDERPASTE_LAYER_CU:
+				color = g_DesignSettings.m_LayerColor[SOLDERPASTE_N_CU];
+				break;
+			case SOLDERPASTE_LAYER_CMP:
+				color = g_DesignSettings.m_LayerColor[SOLDERPASTE_N_CMP];
+				break;
+			case SILKSCREEN_LAYER_CU:
+				color = g_DesignSettings.m_LayerColor[SILKSCREEN_N_CU];
+				break;
+			case SILKSCREEN_LAYER_CMP:
+				color = g_DesignSettings.m_LayerColor[SILKSCREEN_N_CMP];
+				break;
+			case SOLDERMASK_LAYER_CU:
+				color = g_DesignSettings.m_LayerColor[SOLDERMASK_N_CU];
+				break;
+			case SOLDERMASK_LAYER_CMP:
+				color = g_DesignSettings.m_LayerColor[SOLDERMASK_N_CMP];
+				break;
+			case DRAW_LAYER	:
+				color = g_DesignSettings.m_LayerColor[DRAW_N];
+				break;
+			case COMMENT_LAYER:
+				color = g_DesignSettings.m_LayerColor[COMMENT_N];
+				break;
+			case ECO1_LAYER:
+				color = g_DesignSettings.m_LayerColor[ECO1_N];
+				break;
+			case ECO2_LAYER	:
+				color = g_DesignSettings.m_LayerColor[ECO2_N];
+				break;
+			case EDGE_LAYER:
+				color = g_DesignSettings.m_LayerColor[EDGE_N];
+				break;
+		
+			default:
+				color = DARKGRAY;
+				break;
 		}
+	}
 
 	if ( draw_mode & GR_SURBRILL )
 		{
@@ -259,17 +304,19 @@ wxPoint shape_pos;
 	dy = dy0 = m_Size.y >> 1 ; /* demi dim  dx et dy */
 
 	angle = m_Orient;
-
+ bool DisplayIsol = DisplayOpt.DisplayPadIsol;
+	if ( ( m_Masque_Layer & ALL_CU_LAYERS ) == 0 ) DisplayIsol = FALSE;
+		
 	switch (m_PadShape & 0x7F)
 		{
 		case CIRCLE :
 			if ( fillpad)
-				GRFilledCircle(&panel->m_ClipBox, DC, xc, yc, dx, color, color);
-			else GRCircle(&panel->m_ClipBox, DC, xc, yc, dx, color);
+				GRFilledCircle(&panel->m_ClipBox, DC, xc, yc, dx, 0, color, color);
+			else GRCircle(&panel->m_ClipBox, DC, xc, yc, dx, 0, color);
 
-			if(DisplayOpt.DisplayPadIsol)
+			if(DisplayIsol)
 				{
-				GRCircle(&panel->m_ClipBox, DC,  xc, yc, dx + g_DesignSettings.m_TrackClearence, color );
+				GRCircle(&panel->m_ClipBox, DC,  xc, yc, dx + g_DesignSettings.m_TrackClearence, 0, color );
 				}
 			break;
 
@@ -302,7 +349,7 @@ wxPoint shape_pos;
 				}
 
 			/* Trace de la marge d'isolement */
-			if(DisplayOpt.DisplayPadIsol)
+			if(DisplayIsol)
 				{
 				rotdx = rotdx + g_DesignSettings.m_TrackClearence + g_DesignSettings.m_TrackClearence;
 				GRCSegm(&panel->m_ClipBox, DC, ux0 + delta_cx, uy0 + delta_cy,
@@ -340,7 +387,7 @@ wxPoint shape_pos;
 
 			GRClosedPoly(&panel->m_ClipBox, DC,  4, (int*) coord, fillpad, color, color);
 
-			if(DisplayOpt.DisplayPadIsol)
+			if(DisplayIsol)
 				{
 				dx += g_DesignSettings.m_TrackClearence; dy += g_DesignSettings.m_TrackClearence;
 				 coord[0].x = -dx - ddy;
@@ -384,8 +431,8 @@ wxPoint shape_pos;
 		switch ( m_DrillShape )
 		{
 			case CIRCLE:
-				if( (hole/zoom) > 1 )	/* C.a.d si le diametre est suffisant */
-					GRFilledCircle(&panel->m_ClipBox, DC, cx0, cy0, hole, color, color);
+				if( (hole/zoom) > 1 )	/* draw hole if its size is enought */
+					GRFilledCircle(&panel->m_ClipBox, DC, cx0, cy0, hole, 0, color, color);
 				break;
 				
 			case OVALE:
@@ -422,11 +469,11 @@ wxPoint shape_pos;
 		int nc_color = BLUE;
 		if(m_Masque_Layer & CMP_LAYER)	/* Trace forme \ */
 			GRLine(&panel->m_ClipBox, DC, cx0 - dx0, cy0 - dx0,
-				cx0 + dx0, cy0 + dx0, nc_color );
+				cx0 + dx0, cy0 + dx0, 0, nc_color );
 
 		if(m_Masque_Layer & CUIVRE_LAYER)	 /* Trace forme / */
 			GRLine(&panel->m_ClipBox, DC, cx0 + dx0, cy0 - dx0,
-				cx0 - dx0, cy0 + dx0, nc_color );
+				cx0 - dx0, cy0 + dx0, 0, nc_color );
 		}
 	/* Trace de la reference */
 	if( ! frame->m_DisplayPadNum) return;
@@ -462,7 +509,7 @@ $EndPAD
 {
 char Line[1024], BufLine[1024], BufCar[256];
 char * PtLine;
-int nn, ll, dx, dy, drill_shape;
+int nn, ll, dx, dy;
 
 	while( GetLine(File, Line, LineNum ) != NULL )
 		{
@@ -511,14 +558,14 @@ int nn, ll, dx, dy, drill_shape;
 				break;
 
 			case 'D':
-				drill_shape = 0;
-				nn = sscanf(PtLine,"%d %d %d %c %d %d", &m_Drill.x,
-					&m_Offset.x, &m_Offset.y, &drill_shape, &dx, &dy );
+				BufCar[0] = 0;
+				nn = sscanf(PtLine,"%d %d %d %s %d %d", &m_Drill.x,
+					&m_Offset.x, &m_Offset.y, BufCar, &dx, &dy );
 				m_Drill.y = m_Drill.x;
 				m_DrillShape = CIRCLE;
 				if (nn >= 6 )	// Drill shape = OVAL ?
 				{
-					if (drill_shape == 'O' )
+					if (BufCar[0] == 'O' )
 					{
 						m_Drill.x = dx; m_Drill.y = dy;
 						m_DrillShape = OVALE;
@@ -633,9 +680,9 @@ int pos = 1;
 wxString Msg_Pad_Shape[6] =
 	{ wxT("??? "), wxT("Circ"), wxT("Rect"), wxT("Oval"), wxT("trap"), wxT("spec") } ;
 
-wxString Msg_Pad_Layer[8] =
+wxString Msg_Pad_Layer[9] =
 	{ wxT("??? "), wxT("cmp   "), wxT("cu    "), wxT("cmp+cu "), wxT("int    "),
-		 wxT("cmp+int "), wxT("cu+int "), wxT("all    ") } ;
+		 wxT("cmp+int "), wxT("cu+int "), wxT("all    "), wxT("No copp") } ;
 wxString Msg_Pad_Attribut[5] =
 		{ wxT("norm"), wxT("smd "), wxT("conn"), wxT("hole"), wxT("????")} ;
 
@@ -662,12 +709,64 @@ wxString Msg_Pad_Attribut[5] =
 	Affiche_1_Parametre(frame, pos,"L.P",Line,WHITE);
 #endif
 
+	wxString LayerInfo;
 	ii = 0;
 	if(m_Masque_Layer & CUIVRE_LAYER) ii = 2;
 	if(m_Masque_Layer & CMP_LAYER) ii += 1;
 	if((m_Masque_Layer & ALL_CU_LAYERS) == ALL_CU_LAYERS) ii = 7;
+	
+	LayerInfo = Msg_Pad_Layer[ii];
+	if((m_Masque_Layer & ALL_CU_LAYERS) == 0)
+	{
+		if(m_Masque_Layer) LayerInfo = Msg_Pad_Layer[8];
+		switch ( m_Masque_Layer & ~ALL_CU_LAYERS )
+		{
+			case ADHESIVE_LAYER_CU:
+				LayerInfo = ReturnPcbLayerName(ADHESIVE_N_CU);
+				break;
+			case ADHESIVE_LAYER_CMP:
+				LayerInfo = ReturnPcbLayerName(ADHESIVE_N_CMP);
+				break;
+			case SOLDERPASTE_LAYER_CU:
+				LayerInfo = ReturnPcbLayerName(SOLDERPASTE_N_CU);
+				break;
+			case SOLDERPASTE_LAYER_CMP:
+				LayerInfo = ReturnPcbLayerName(SOLDERPASTE_N_CMP);
+				break;
+			case SILKSCREEN_LAYER_CU:
+				LayerInfo = ReturnPcbLayerName(SILKSCREEN_N_CU);
+				break;
+			case SILKSCREEN_LAYER_CMP:
+				LayerInfo = ReturnPcbLayerName(SILKSCREEN_N_CMP);
+				break;
+			case SOLDERMASK_LAYER_CU:
+				LayerInfo = ReturnPcbLayerName(SOLDERMASK_N_CU);
+				break;
+			case SOLDERMASK_LAYER_CMP:
+				LayerInfo = ReturnPcbLayerName(SOLDERMASK_N_CMP);
+				break;
+			case DRAW_LAYER	:
+				LayerInfo = ReturnPcbLayerName(DRAW_N);
+				break;
+			case COMMENT_LAYER:
+				LayerInfo = ReturnPcbLayerName(COMMENT_N);
+				break;
+			case ECO1_LAYER:
+				LayerInfo = ReturnPcbLayerName(ECO1_N);
+				break;
+			case ECO2_LAYER	:
+				LayerInfo = ReturnPcbLayerName(ECO2_N);
+				break;
+			case EDGE_LAYER:
+				LayerInfo = ReturnPcbLayerName(EDGE_N);
+				break;
+		
+			default:
+				break;
+		}
+	}
 	pos += 3;
-	Affiche_1_Parametre(frame, pos,_("Layer"),Msg_Pad_Layer[ii], DARKGREEN) ;
+	Affiche_1_Parametre(frame, pos,_("Layer"),LayerInfo, DARKGREEN) ;
 
 	pos += 6;
 	Affiche_1_Parametre(frame, pos,Msg_Pad_Shape[m_PadShape],wxEmptyString, DARKGREEN);

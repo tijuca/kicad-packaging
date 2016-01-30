@@ -29,7 +29,7 @@ static void SaveLayers(FILE *f);
 * FileSave controls how the file is to be saved - under what name.			 *
 * Returns TRUE if the file has been saved.									 *
 *****************************************************************************/
-bool WinEDA_SchematicFrame::SaveEEFile(BASE_SCREEN *Window, int FileSave)
+bool WinEDA_SchematicFrame::SaveEEFile(SCH_SCREEN *screen, int FileSave)
 {
 wxString msg;
 wxString Name, BakName;
@@ -42,16 +42,16 @@ Ki_PageDescr * PlotSheet;
 FILE *f;
 wxString dirbuf;
 
-	if ( Window == NULL ) Window = ActiveScreen;
+	if ( screen == NULL ) screen = (SCH_SCREEN*) ActiveScreen;
 
 	/* If no name exists in the window yet - save as new. */
-	if( Window->m_FileName.IsEmpty() ) FileSave = FILE_SAVE_NEW;
+	if( screen->m_FileName.IsEmpty() ) FileSave = FILE_SAVE_NEW;
 
 	switch (FileSave)
 	{
 		case FILE_SAVE_AS:
 			dirbuf = wxGetCwd() + STRING_DIR_SEP;
-			Name = MakeFileName(dirbuf, Window->m_FileName, g_SchExtBuffer);
+			Name = MakeFileName(dirbuf, screen->m_FileName, g_SchExtBuffer);
 			/* Rename the old file to a '.bak' one: */
 			BakName = Name;
 			if ( wxFileExists(Name) )
@@ -70,16 +70,16 @@ wxString dirbuf;
 			wxString mask = wxT("*") + g_SchExtBuffer;
 			Name = EDA_FileSelector(_("Schematic files:"),
 					wxEmptyString,					/* Chemin par defaut */
-					Window->m_FileName,				/* nom fichier par defaut, et resultat */
+					screen->m_FileName,				/* nom fichier par defaut, et resultat */
 					g_SchExtBuffer,		/* extension par defaut */
 					mask,				/* Masque d'affichage */
 					this,
-					wxSAVE,
+					wxFD_SAVE,
 					FALSE
 					);
 			if ( Name.IsEmpty() ) return FALSE;
 
-			Window->m_FileName = Name;
+			screen->m_FileName = Name;
 			dirbuf = wxGetCwd() + STRING_DIR_SEP;
 			Name = MakeFileName(dirbuf, Name, g_SchExtBuffer);
 
@@ -117,29 +117,29 @@ wxString dirbuf;
 		return FALSE;
 	}
 
-	Window->ClrModify();
+	screen->ClrModify();
 
 	SaveLayers(f);
 	/* Sauvegarde des dimensions du schema, des textes du cartouche.. */
 	
-	PlotSheet = Window->m_CurrentSheet;
+	PlotSheet = screen->m_CurrentSheet;
 	fprintf(f,"$Descr %s %d %d\n",CONV_TO_UTF8(PlotSheet->m_Name),
 			PlotSheet->m_Size.x, PlotSheet->m_Size.y);
 
-	fprintf(f,"Sheet %d %d\n",Window->m_SheetNumber, Window->m_NumberOfSheet);
-	fprintf(f,"Title \"%s\"\n",CONV_TO_UTF8(Window->m_Title));
-	fprintf(f,"Date \"%s\"\n",CONV_TO_UTF8(Window->m_Date));
-	fprintf(f,"Rev \"%s\"\n",CONV_TO_UTF8(Window->m_Revision));
-	fprintf(f,"Comp \"%s\"\n",CONV_TO_UTF8(Window->m_Company));
-	fprintf(f,"Comment1 \"%s\"\n", CONV_TO_UTF8(Window->m_Commentaire1));
-	fprintf(f,"Comment2 \"%s\"\n", CONV_TO_UTF8(Window->m_Commentaire2));
-	fprintf(f,"Comment3 \"%s\"\n", CONV_TO_UTF8(Window->m_Commentaire3));
-	fprintf(f,"Comment4 \"%s\"\n", CONV_TO_UTF8(Window->m_Commentaire4));
+	fprintf(f,"Sheet %d %d\n",screen->m_SheetNumber, screen->m_NumberOfSheet);
+	fprintf(f,"Title \"%s\"\n",CONV_TO_UTF8(screen->m_Title));
+	fprintf(f,"Date \"%s\"\n",CONV_TO_UTF8(screen->m_Date));
+	fprintf(f,"Rev \"%s\"\n",CONV_TO_UTF8(screen->m_Revision));
+	fprintf(f,"Comp \"%s\"\n",CONV_TO_UTF8(screen->m_Company));
+	fprintf(f,"Comment1 \"%s\"\n", CONV_TO_UTF8(screen->m_Commentaire1));
+	fprintf(f,"Comment2 \"%s\"\n", CONV_TO_UTF8(screen->m_Commentaire2));
+	fprintf(f,"Comment3 \"%s\"\n", CONV_TO_UTF8(screen->m_Commentaire3));
+	fprintf(f,"Comment4 \"%s\"\n", CONV_TO_UTF8(screen->m_Commentaire4));
 
 	fprintf(f,"$EndDescr\n");
 
 	/* Sauvegarde des elements du dessin */
-	Phead = Window->EEDrawList;
+	Phead = screen->EEDrawList;
 	while (Phead)
 		{
 		switch(Phead->m_StructType)
@@ -305,7 +305,7 @@ wxString dirbuf;
 
 	fclose(f);
 
-	if (FileSave == FILE_SAVE_NEW) Window->m_FileName = Name;
+	if (FileSave == FILE_SAVE_NEW) screen->m_FileName = Name;
 
 	return !Failed;
 }
@@ -443,24 +443,24 @@ DrawSheetLabelStruct * SheetLabel;
 		}
 
 	/* Generation de la liste des 2 textes (sheetname et filename) */
-	if ( ! SheetStruct->m_Field[VALUE].m_Text.IsEmpty())
+	if ( ! SheetStruct->m_SheetName.IsEmpty())
 	{
-		if(fprintf(f,"F0 \"%s\" %d\n", CONV_TO_UTF8(SheetStruct->m_Field[VALUE].m_Text),
-					SheetStruct->m_Field[VALUE].m_Size.x) == EOF)
+		if(fprintf(f,"F0 \"%s\" %d\n", CONV_TO_UTF8(SheetStruct->m_SheetName),
+					SheetStruct->m_SheetNameSize) == EOF)
 		{
 			Failed = TRUE; return(Failed);
 		}
 	}
 
-	if( ! SheetStruct->m_Field[SHEET_FILENAME].m_Text.IsEmpty())
-		{
+	if( ! SheetStruct->m_FileName.IsEmpty())
+	{
 		if(fprintf(f,"F1 \"%s\" %d\n",
-				CONV_TO_UTF8(SheetStruct->m_Field[SHEET_FILENAME].m_Text),
-				SheetStruct->m_Field[SHEET_FILENAME].m_Size.x) == EOF)
-			{
+				CONV_TO_UTF8(SheetStruct->m_FileName),
+				SheetStruct->m_FileNameSize) == EOF)
+		{
 			Failed = TRUE; return(Failed);
-			}
 		}
+	}
 
 	/* Generation de la liste des labels (entrees) de la sous feuille */
 	ii = 2;

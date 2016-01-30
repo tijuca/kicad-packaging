@@ -19,22 +19,10 @@ void WinEDA_CvpcbFrame::CreateScreenCmp(void)
 /* Creation de la fenetre d'affichage du composant
 */
 {
-int ii, ModSel;
-wxString msg;
-STOREMOD * Module = NULL;
+wxString msg, FootprintName;
 bool IsNew = FALSE;
 
-	ModSel = m_ListMod->GetSelection();
-
-	if( ModSel >= 0 )
-	{
-		Module = BaseListePkg;
-		for( ii = 0; Module != NULL; Module = Module->Pnext, ii++ )
-		{
-			if (ii == ModSel) break;
-		}
-	}
-
+	FootprintName = m_FootprintList->GetSelectedFootprint();
 
 	if ( DrawFrame == NULL)
 	{
@@ -47,19 +35,24 @@ bool IsNew = FALSE;
 	DrawFrame->SetFocus();	/* Active entree clavier */
 	DrawFrame->Show(TRUE);
 
-	if( Module )
+	if( ! FootprintName.IsEmpty() )
 	{
-		msg = _("Module: ") + Module->m_Module;
+		msg = _("Footprint: ") + FootprintName;
 		DrawFrame->SetTitle(msg);
-		msg = _("Lib: ") + Module->m_LibName;
+		STOREMOD * Module = GetModuleDescrByName(FootprintName);
+		msg = _("Lib: ");
+		if ( Module ) msg += Module->m_LibName;
+		else msg += wxT("???");
 		DrawFrame->SetStatusText(msg, 0);
 		if ( DrawFrame->m_Pcb->m_Modules )
 		{
 			DeleteStructure( DrawFrame->m_Pcb->m_Modules );
 			DrawFrame->m_Pcb->m_Modules = NULL;
 		}
-		DrawFrame->m_Pcb->m_Modules = DrawFrame->Get_Module(Module->m_Module);
+		DrawFrame->m_Pcb->m_Modules = DrawFrame->Get_Module(FootprintName);
 		DrawFrame->Zoom_Automatique(FALSE);
+		if ( DrawFrame->m_Draw3DFrame )
+			DrawFrame->m_Draw3DFrame->NewDisplay();
 	}
 
 	else if ( !IsNew )
@@ -68,11 +61,6 @@ bool IsNew = FALSE;
 		if ( DrawFrame->m_Draw3DFrame )
 			DrawFrame->m_Draw3DFrame->NewDisplay();
 	}
-// XXX The following line appears to be redundant
-	else if ( !IsNew  )DrawFrame->ReDrawPanel();
-
-	if ( !IsNew && DrawFrame->m_Draw3DFrame )
-			DrawFrame->m_Draw3DFrame->NewDisplay();
 }
 
 

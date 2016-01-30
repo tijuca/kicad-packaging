@@ -16,9 +16,9 @@
 /* routines locales : */
 
 
-/**************************************/
-void WinEDA_CvpcbFrame::SetNewPkg(void)
-/**************************************/
+/**********************************************************/
+void WinEDA_CvpcbFrame::SetNewPkg(const wxString & package)
+/*********************************************************/
 /*
 	- Affecte un module au composant selectionne
 	- Selectionne le composant suivant
@@ -28,7 +28,7 @@ STORECMP * Composant;
 int ii, NumCmp, IsNew = 1;
 wxString Line;
 
-	if ( BaseListeCmp == NULL ) return;
+	if ( g_BaseListeCmp == NULL ) return;
 
 	NumCmp = m_ListCmp->GetSelection();
 	if( NumCmp < 0 )
@@ -37,7 +37,7 @@ wxString Line;
 		m_ListCmp->SetSelection(NumCmp, TRUE);
 	}
 
-	Composant = BaseListeCmp;
+	Composant = g_BaseListeCmp;
 	for ( ii = 0; Composant != NULL; Composant = Composant->Pnext, ii++ )
 	{
 		if ( NumCmp == ii ) break;
@@ -46,7 +46,7 @@ wxString Line;
 	if ( Composant == NULL ) return;
 	if ( ! Composant->m_Module.IsEmpty() ) IsNew = 0;
 
-	Composant->m_Module = g_CurrentPkg;
+	Composant->m_Module = package;
 
 	Line.Printf( CMP_FORMAT ,ii+1,
 			Composant->m_Reference.GetData(), Composant->m_Valeur.GetData(),
@@ -81,7 +81,7 @@ int error_level = -1;
 		{
 		case TYPE_NON_SPECIFIE:
 		case TYPE_ORCADPCB2:
-			error_level = rdorcad();
+			error_level = ReadSchematicNetlist();
 			break;
 
 		case TYPE_PCAD:
@@ -114,10 +114,10 @@ int error_level = -1;
 	Read_Config(NetInNameBuffer);	// relecture de la config (elle peut etre modifiée)
 
 	listlib();
-	BuildModListBox();
+	BuildFootprintListBox();
 
 	m_ListCmp->Clear();
-	Composant = BaseListeCmp;
+	Composant = g_BaseListeCmp;
 
 	composants_non_affectes = 0;
 	for ( ii = 1;Composant != NULL; Composant = Composant->Pnext, ii++ )
@@ -128,7 +128,7 @@ int error_level = -1;
 		m_ListCmp->AppendLine(msg);
 		if( Composant->m_Module.IsEmpty() ) composants_non_affectes += 1;
 		}
-	if ( BaseListeCmp )
+	if ( g_BaseListeCmp )
 		m_ListCmp->SetSelection(0, TRUE);
 
 	msg.Printf(_("Componants: %d (free: %d)"), nbcomp, composants_non_affectes);
@@ -167,7 +167,7 @@ wxString NetlistFullFileName = FullFilename;
 						NetExtBuffer,		/* extension par defaut */
 						Mask,				/* Masque d'affichage */
 						this,
-						wxSAVE,
+						wxFD_SAVE,
 						TRUE
 						);
 	}
@@ -188,13 +188,7 @@ wxString NetlistFullFileName = FullFilename;
 		return 0;
 	}
 
-	switch ( output_type )
-	{
-		default:
-		case 0:
-		case 1: genorcad() ;
-			break;
-	}
+	GenNetlistPcbnew() ;
 
 	return 1;
 }

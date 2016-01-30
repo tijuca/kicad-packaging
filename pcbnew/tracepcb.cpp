@@ -42,7 +42,7 @@ PCB_SCREEN * screen = GetScreen();
 	if ( EraseBg ) DrawPanel->EraseScreen(DC);
 
 	DrawPanel->DrawBackGround(DC);
-	TraceWorkSheet(DC, screen);
+	TraceWorkSheet(DC, screen, 0);
 
 	Module = (MODULE*) m_Pcb->m_Modules;
 	for ( ; Module != NULL; Module = (MODULE *) Module->Pnext )
@@ -53,11 +53,11 @@ PCB_SCREEN * screen = GetScreen();
 
 	Affiche_Status_Box();
 
-	if( screen->ManageCurseur )
-		screen->ManageCurseur(DrawPanel, DC, FALSE);
+	if( DrawPanel->ManageCurseur )
+		DrawPanel->ManageCurseur(DrawPanel, DC, FALSE);
 
 	/* Reaffichage du curseur */
-	screen->Trace_Curseur(DrawPanel, DC);
+	DrawPanel->Trace_Curseur(DC);
 
 	screen->ClrRefreshReq();
 }
@@ -81,15 +81,15 @@ PCB_SCREEN * Screen = GetScreen();
 	DrawPanel->DrawBackGround(DC);
 
 	Trace_Pcb(DC, GR_OR);
-	TraceWorkSheet(DC, GetScreen());
+	TraceWorkSheet(DC, GetScreen(), 0);
 	Affiche_Status_Box();
 
 	/* Reaffichage des curseurs */
 	for( Screen = GetScreen(); Screen != NULL; Screen = Screen->Next() )
 	{
-		if( m_CurrentScreen->ManageCurseur )
-			m_CurrentScreen->ManageCurseur(DrawPanel, DC, FALSE);
-		Screen->Trace_Curseur(DrawPanel, DC);
+		if( DrawPanel->ManageCurseur )
+			DrawPanel->ManageCurseur(DrawPanel, DC, FALSE);
+		DrawPanel->Trace_Curseur(DC);
 	}
 }
 

@@ -36,10 +36,10 @@ wxClientDC dc(DrawPanel);
 			break;
 
 		default:	// Arret de la commande de déplacement en cours
-			if( GetScreen()->ManageCurseur &&
-				GetScreen()->ForceCloseManageCurseur )
+			if( DrawPanel->ManageCurseur &&
+				DrawPanel->ForceCloseManageCurseur )
 			{
-				GetScreen()->ForceCloseManageCurseur(this, &dc);
+				DrawPanel->ForceCloseManageCurseur(DrawPanel, &dc);
 			}
 			SetToolID(0, wxCURSOR_ARROW,wxEmptyString);
 			break;

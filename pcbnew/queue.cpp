@@ -13,20 +13,20 @@
 
 #include "cell.h"
 
-struct queue /* search queue structure */
-	{
-	struct queue *Next;
+struct PcbQueue /* search queue structure */
+{
+	struct PcbQueue *Next;
 	int Row;	/* current row					*/
 	int Col;	/* current column				*/
 	int Side;	/* 0=top, 1=bottom				*/
 	int Dist;	/* path distance to this cell so far		*/
 	int ApxDist;	/* approximate distance to target from here	*/
-	};
+};
 
 static long qlen = 0;				/* current queue length */
-static struct queue *Head = NULL;
-static struct queue *Tail = NULL;
-static struct queue *Save = NULL;	/* hold empty queue structs */
+static struct PcbQueue *Head = NULL;
+static struct PcbQueue *Tail = NULL;
+static struct PcbQueue *Save = NULL;	/* hold empty queue structs */
 
 /* Routines definies ici : */
 void InitQueue( void );
@@ -35,14 +35,12 @@ int SetQueue( int, int, int, int, int, int, int );
 void ReSetQueue( int, int, int, int, int, int, int );
 
 
-	/************************/
-	/* void FreeQueue(void) */
-	/************************/
-
-/* Libere la memoire de la queue de recherche */
+/************************/
 void FreeQueue(void)
+/************************/
+/* Free the memory used for storing all the queue */
 {
-struct queue *p;
+struct PcbQueue *p;
 
 	InitQueue();
 	while( (p = Save) != NULL )
@@ -57,7 +55,7 @@ struct queue *p;
 /* initialize the search queue */
 void InitQueue(void)
 {
-struct queue *p;
+struct PcbQueue *p;
 
 	while( (p = Head) != NULL )
 		{
@@ -76,7 +74,7 @@ struct queue *p;
 /* get search queue item from list */
 void GetQueue(int *r, int *c, int *s, int *d, int *a)
 {
-struct queue *p;
+struct PcbQueue *p;
 
 	if( (p = Head) != NULL )  /* return first item in list */
 		{
@@ -98,25 +96,23 @@ struct queue *p;
 
 
 
-	/****************************************************************/
-	/* int SetQueue (int r,int c,int s,int d,int a,int r2,int c2 ) */
-	/****************************************************************/
-
+/****************************************************************/
+int SetQueue (int r,int c,int side,int d,int a,int r2,int c2 )
+/****************************************************************/
 /* add a search node to the list
 	Return:
 		1 si OK
 		0 si defaut allocation Memoire
 */
-int SetQueue (int r,int c,int side,int d,int a,int r2,int c2 )
 {
-struct queue *p, *q, *t;
+struct PcbQueue *p, *q, *t;
 int i, j;
 
 	if( (p = Save) != NULL ) /* try free list first */
 		{
 		Save = p->Next;
 		}
-	else if ((p = (struct queue *) MyMalloc(sizeof(queue))) == NULL)
+	else if ((p = (struct PcbQueue *) MyMalloc(sizeof(PcbQueue))) == NULL)
 		return(0);
 
 	p->Row = r;
@@ -155,14 +151,12 @@ int i, j;
 }
 
 
-	/******************************************************************/
-	/* void ReSetQueue (int r,int c,int s,int d,int a,int r2,int c2 ) */
-	/******************************************************************/
-
-/* reposition node in list */
+/******************************************************************/
 void ReSetQueue (int r,int c,int s,int d,int a,int r2,int c2 )
+/******************************************************************/
+/* reposition node in list */
 {
-struct queue *p, *q;
+struct PcbQueue *p, *q;
 
 	/* first, see if it is already in the list */
 	for (q = NULL, p = Head; p; q = p, p = p->Next) {

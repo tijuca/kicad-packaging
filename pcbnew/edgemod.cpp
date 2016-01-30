@@ -25,7 +25,7 @@
 /* Routines Locales */
 
 static void ShowEdgeModule(WinEDA_DrawPanel * panel, wxDC * DC, bool erase);
-static void Exit_EditEdge_Module(WinEDA_DrawFrame * frame, wxDC * DC);
+static void Exit_EditEdge_Module(WinEDA_DrawPanel * Panel, wxDC * DC);
 static void Move_Segment(WinEDA_DrawPanel * panel, wxDC * DC, bool erase);
 
 /* Variables locales : */
@@ -44,10 +44,10 @@ void WinEDA_ModuleEditFrame::Start_Move_EdgeMod(EDGE_MODULE * Edge, wxDC * DC)
 	Edge->m_Flags |= IS_MOVED;
 	MoveVector.x = MoveVector.y = 0;
 	CursorInitialPosition = GetScreen()->m_Curseur;
-	GetScreen()->ManageCurseur = Move_Segment;
-	GetScreen()->ForceCloseManageCurseur = Exit_EditEdge_Module;
+	DrawPanel->ManageCurseur = Move_Segment;
+	DrawPanel->ForceCloseManageCurseur = Exit_EditEdge_Module;
 	GetScreen()->m_CurrentItem = Edge;
-	GetScreen()->ManageCurseur( DrawPanel, DC, FALSE);
+	DrawPanel->ManageCurseur( DrawPanel, DC, FALSE);
 }
 
 /*********************************************************************/
@@ -70,8 +70,8 @@ void WinEDA_ModuleEditFrame::Place_EdgeMod(EDGE_MODULE * Edge, wxDC * DC)
 
 	Edge->Draw(DrawPanel, DC, wxPoint(0, 0), GR_OR);
 	Edge->m_Flags = 0;
-	GetScreen()->ManageCurseur = NULL;
-	GetScreen()->ForceCloseManageCurseur = NULL;
+	DrawPanel->ManageCurseur = NULL;
+	DrawPanel->ForceCloseManageCurseur = NULL;
 	GetScreen()->m_CurrentItem = NULL;
 	GetScreen()->SetModify();
 MODULE * Module = (MODULE*) Edge->m_Parent;
@@ -145,7 +145,7 @@ void WinEDA_ModuleEditFrame::Edit_Edge_Width(EDGE_MODULE * Edge, wxDC * DC)
 {
 MODULE* Module = m_Pcb->m_Modules;
 
-	SaveCopyInUndoList();
+	SaveCopyInUndoList(Module);
 
 	if ( Edge == NULL )
 	{
@@ -177,7 +177,7 @@ int new_layer = SILKSCREEN_N_CMP;
 	new_layer = SelectLayer(SILKSCREEN_N_CMP, LAYER_CUIVRE_N, LAST_NO_COPPER_LAYER);
 	if ( new_layer < 0 ) return;
 		
-	SaveCopyInUndoList();
+	SaveCopyInUndoList(Module);
 
 	if ( Edge == NULL )
 	{
@@ -253,31 +253,31 @@ MODULE* Module = (MODULE*) Edge->m_Parent;
 
 
 /******************************************************************/
-static void Exit_EditEdge_Module(WinEDA_DrawFrame * frame, wxDC * DC)
+static void Exit_EditEdge_Module(WinEDA_DrawPanel * Panel, wxDC * DC)
 /******************************************************************/
 {
-EDGE_MODULE * Edge = (EDGE_MODULE * ) frame->GetScreen()->m_CurrentItem;
+EDGE_MODULE * Edge = (EDGE_MODULE * ) Panel->GetScreen()->m_CurrentItem;
 
 	if( Edge && (Edge->m_StructType == TYPEEDGEMODULE) )	/* error si non */
 	{
 		if (Edge->m_Flags & IS_NEW)	/* effacement du nouveau contour */
 		{
 			MODULE * Module = (MODULE *) Edge->m_Parent;
-			Edge->Draw(frame->DrawPanel, DC, MoveVector, GR_XOR);
+			Edge->Draw(Panel, DC, MoveVector, GR_XOR);
 			DeleteStructure(Edge);
 			Module->Set_Rectangle_Encadrement();
 		}
 
 		else
 		{
-			Edge->Draw(frame->DrawPanel, DC, MoveVector, GR_XOR);
+			Edge->Draw(Panel, DC, MoveVector, GR_XOR);
 			Edge->m_Flags = 0;
-			Edge->Draw(frame->DrawPanel, DC, wxPoint(0, 0), GR_OR);
+			Edge->Draw(Panel, DC, wxPoint(0, 0), GR_OR);
 		}
 	}
-	frame->GetScreen()->ManageCurseur = NULL;
-	frame->GetScreen()->ForceCloseManageCurseur = NULL;
-	frame->GetScreen()->m_CurrentItem = NULL;
+	Panel->ManageCurseur = NULL;
+	Panel->ForceCloseManageCurseur = NULL;
+	Panel->GetScreen()->m_CurrentItem = NULL;
 }
 
 
@@ -299,7 +299,7 @@ int angle = 0;
 
 	if(Edge == NULL )		/* debut reel du trace */
 	{
-		SaveCopyInUndoList();
+		SaveCopyInUndoList(Module);
 		Edge = new EDGE_MODULE( Module );
 		MoveVector.x = MoveVector.y = 0;
 
@@ -331,8 +331,8 @@ int angle = 0;
 		Edge->m_End0 = Edge->m_Start0;
 		Module->Set_Rectangle_Encadrement();
 
-		GetScreen()->ManageCurseur = ShowEdgeModule;
-		GetScreen()->ForceCloseManageCurseur = Exit_EditEdge_Module;
+		DrawPanel->ManageCurseur = ShowEdgeModule;
+		DrawPanel->ForceCloseManageCurseur = Exit_EditEdge_Module;
 	}
 
 	else	/* trace en cours : les coord du point d'arrivee ont ete mises
@@ -393,8 +393,8 @@ MODULE* Module = m_Pcb->m_Modules;
 	Module->Set_Rectangle_Encadrement();
 	Module->m_LastEdit_Time = time(NULL);
 	GetScreen()->SetModify();
-	GetScreen()->ManageCurseur = NULL;
-	GetScreen()->ForceCloseManageCurseur = NULL;
+	DrawPanel->ManageCurseur = NULL;
+	DrawPanel->ForceCloseManageCurseur = NULL;
 }
 
 

@@ -28,7 +28,16 @@
 #define GR_KB_INSERT		0x8000				/* INSERT state active */
 #define GR_KB_SHIFT			(GR_KB_LEFTSHIFT | GR_KB_RIGHTSHIFT)
 #define GR_KB_SHIFTCTRL		(GR_KB_SHIFT | GR_KB_CTRL)
-#define MOUSE_MIDDLE		0x10000				/* flag indiquant draww par bouton central souris */
+#define MOUSE_MIDDLE		0x10000				/* flag indiquant bouton central souris */
+
+/* Pseudo key codes for commands liske panning */
+
+enum pseudokeys {
+	EDA_PANNING_UP_KEY = 2000,
+	EDA_PANNING_DOWN_KEY,
+	EDA_PANNING_LEFT_KEY,
+	EDA_PANNING_RIGHT_KEY
+};
 
 #define ESC 27
 
@@ -39,10 +48,18 @@
 #define GERBVIEW_EXE wxT("gerbview.exe")
 
 #else
+#ifndef __WXMAC__
 #define CVPCB_EXE wxT("cvpcb")
 #define PCBNEW_EXE wxT("pcbnew")
 #define EESCHEMA_EXE wxT("eeschema")
 #define GERBVIEW_EXE wxT("gerbview")
+#endif
+#ifdef __WXMAC__
+#define CVPCB_EXE wxT("cvpcb.app")
+#define PCBNEW_EXE wxT("pcbnew.app")
+#define EESCHEMA_EXE wxT("eeschema.app")
+#define GERBVIEW_EXE wxT("gerbview.app")
+#endif
 #endif
 
 
@@ -217,13 +234,13 @@ Ki_PageDescr g_Sheet_A3(wxSize(16535,11700),wxPoint(0,0),wxT("A3") );
 Ki_PageDescr g_Sheet_A2(wxSize(23400,16535),wxPoint(0,0),wxT("A2") );
 Ki_PageDescr g_Sheet_A1(wxSize(33070,23400),wxPoint(0,0),wxT("A1") );
 Ki_PageDescr g_Sheet_A0(wxSize(46800,33070),wxPoint(0,0),wxT("A0") );
-Ki_PageDescr g_Sheet_A(wxSize(11000,8000),wxPoint(0,0),wxT("A") );
-Ki_PageDescr g_Sheet_B(wxSize(16000,11000),wxPoint(0,0),wxT("B") );
-Ki_PageDescr g_Sheet_C(wxSize(22000,16000),wxPoint(0,0),wxT("C") );
-Ki_PageDescr g_Sheet_D(wxSize(32000,22000),wxPoint(0,0),wxT("D") );
-Ki_PageDescr g_Sheet_E(wxSize(44000,32000),wxPoint(0,0),wxT("E") );
+Ki_PageDescr g_Sheet_A(wxSize(11000,8500),wxPoint(0,0),wxT("A") );
+Ki_PageDescr g_Sheet_B(wxSize(17000,11000),wxPoint(0,0),wxT("B") );
+Ki_PageDescr g_Sheet_C(wxSize(22000,17000),wxPoint(0,0),wxT("C") );
+Ki_PageDescr g_Sheet_D(wxSize(34000,22000),wxPoint(0,0),wxT("D") );
+Ki_PageDescr g_Sheet_E(wxSize(44000,34000),wxPoint(0,0),wxT("E") );
 Ki_PageDescr g_Sheet_GERBER(wxSize(32000,32000),wxPoint(0,0),wxT("GERBER") );
-Ki_PageDescr g_Sheet_user(wxSize(16000,11000),wxPoint(0,0),wxT("User") );
+Ki_PageDescr g_Sheet_user(wxSize(17000,11000),wxPoint(0,0),wxT("User") );
 #else
 extern Ki_PageDescr g_Sheet_A4 ;
 extern Ki_PageDescr g_Sheet_A3 ;
@@ -313,6 +330,13 @@ COMMON_GLOBL int g_CursorShape;
 /* Draw color for moving objects: */
 COMMON_GLOBL int g_GhostColor;
 
+/* Draw color for grid: */
+COMMON_GLOBL int g_GridColor
+#ifdef EDA_BASE
+	= DARKGRAY
+#endif
+;
+
 /* Current used screen: */
 COMMON_GLOBL BASE_SCREEN * ActiveScreen;
 
@@ -373,6 +397,8 @@ int Get_Message(const wxString & titre, wxString & buffer, wxWindow * frame) ;
 /************************/
 
 wxString GetEditorName(void);	// Return the prefered editor name
+void OpenPDF( const wxString & file );
+void OpenFile( const wxString & file );
 
 
 bool EDA_DirectorySelector(const wxString & Title,		/* Titre de la fenetre */
@@ -500,18 +526,13 @@ bool WildCompareString(const wxString & pattern, const wxString & string_to_tst,
 			retourne TRUE si match FALSE si differences */
 
 char * to_point(char * Text);
-	/* convertit les , en . dans une chaine. utilisé pour compenser un defaut de la fct printf sous linux-mandrake
-	qui genere les flottants avec une virgule au lieu du point */
-
-char * from_point(char * Text);
-	/* convertit les . en , dans une chaine. utilisé pour compenser
-	la francisation imbecile de la fct scanf sous linux-mandrake ou mingw
-	qui lit les flottants avec une virgule au lieu du point */
+	/* convertit les , en . dans une chaine. utilisé pour compenser la fct printf
+	qui genere les flottants avec une virgule au lieu du point en mode international */
 
 /****************/
 /* infospgm.cpp */
 /****************/
-void Affiche_InfosLicence(wxWindow * frame);
+void Print_Kicad_Infos(wxWindow * frame);
 
 /**************/
 /* common.cpp */
@@ -599,9 +620,9 @@ void AddHistoryComponentName(wxArrayString & HistoryList, const wxString & Name)
 /**********************/
 /* block_commande.cpp */
 /**********************/
-void AbortBlockCurrentCommand(WinEDA_DrawFrame * frame, wxDC * DC);
+void AbortBlockCurrentCommand(WinEDA_DrawPanel * Panel, wxDC * DC);
 	/* Cancel Current block operation. */
-void InitBlockLocateDatas( BASE_SCREEN * screen,const wxPoint & startpos );
+void InitBlockLocateDatas( WinEDA_DrawPanel * Panel,const wxPoint & startpos );
 	/* Init the initial values of a BlockLocate, before starting a block command */
 void DrawAndSizingBlockOutlines(WinEDA_DrawPanel * panel, wxDC * DC, bool erase );
 	/* Redraw the outlines of the block which shows the search area for block commands

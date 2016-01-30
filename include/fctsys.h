@@ -44,6 +44,14 @@
 #include "wxstruct.h"
 #include "gr_basic.h"
 
+// Old wxWidget compatibility (prior to wxWidget 2.7):
+#if ( (wxMAJOR_VERSION < 2) || ((wxMAJOR_VERSION == 2)&& (wxMINOR_VERSION < 7)) )
+#define wxFD_OPEN wxOPEN
+#define wxFD_SAVE wxSAVE
+#define WXK_PAGEUP WXK_PRIOR
+#define WXK_PAGEDOWN WXK_NEXT
+#endif
+
 #ifdef __UNIX__
 #define stricmp strcasecmp
 #define strnicmp strncasecmp
@@ -59,6 +67,11 @@
 
 #define UNIX_STRING_DIR_SEP wxT("/")
 #define WIN_STRING_DIR_SEP wxT("\\")
+
+#ifndef TRUE
+#define TRUE	((bool)1)
+#define FALSE	((bool)0)
+#endif
 
 
 #endif /* FCTSYS_H */

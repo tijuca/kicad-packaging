@@ -47,9 +47,9 @@ STOREMOD * ItemLib;
 unsigned ii;
 wxString msg;
 	
-	if( BaseListePkg )	/* Liste Deja existante, a supprimer */
+	if( g_BaseListePkg )	/* Liste Deja existante, a supprimer */
 	{
-		FreeMemoryModules(); BaseListePkg = NULL;
+		FreeMemoryModules(); g_BaseListePkg = NULL;
 	}
 
 	if ( g_LibName_List.GetCount() == 0 ) return -4;
@@ -97,8 +97,8 @@ wxString msg;
 						{ end = 1; break; }
 				
 					ItemLib = new STOREMOD();
-					ItemLib->Pnext = BaseListePkg;
-					BaseListePkg = ItemLib;
+					ItemLib->Pnext = g_BaseListePkg;
+					g_BaseListePkg = ItemLib;
 					ItemLib->m_Module = CONV_FROM_UTF8(StrPurge(buffer));
 					ItemLib->m_LibName = FullLibName;
 
@@ -112,8 +112,8 @@ wxString msg;
 	}
 
 	/* classement alphabetique: */
-	if( BaseListePkg )
-		BaseListePkg = TriListeModules(BaseListePkg, nblib);
+	if( g_BaseListePkg )
+		g_BaseListePkg = TriListeModules(g_BaseListePkg, nblib);
 
 	return(errorlevel) ;
 }
@@ -223,7 +223,7 @@ FILE * LibDoc;
 					{
 					case 'L':	/* LibName */
 						ModuleName = CONV_FROM_UTF8(StrPurge(Line+3));
-						NewMod = BaseListePkg;
+						NewMod = g_BaseListePkg;
 						while ( NewMod )
 						{
 							if( ModuleName == NewMod->m_Module ) break;

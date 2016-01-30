@@ -206,8 +206,7 @@ void MARQUEUR::UnLink( void )
 	/* Class SCREEN: classe de gestion d'un affichage */
 	/***************************************************/
 /* Constructeur de SCREEN */
-PCB_SCREEN::PCB_SCREEN(  EDA_BaseStruct * parent, WinEDA_BasePcbFrame * frame_source, int idscreen):
-		BASE_SCREEN(parent, frame_source, TYPESCREEN)
+PCB_SCREEN::PCB_SCREEN(int idscreen): BASE_SCREEN(TYPESCREEN)
 {
 int zoom_list[] = {1,2,4,8,16,32,64,128,256,512,1024,2048,0};
 	m_Type = idscreen;
@@ -222,12 +221,6 @@ PCB_SCREEN::~PCB_SCREEN(void)
 {
 }
 
-/*********************************************************/
-WinEDA_BasePcbFrame * PCB_SCREEN::GetParentPcbFrame(void)
-/*********************************************************/
-{
-	return (WinEDA_BasePcbFrame*) m_FrameSource;
-}
 
 /*************************/
 void PCB_SCREEN::Init(void)
@@ -238,7 +231,6 @@ void PCB_SCREEN::Init(void)
 	m_Route_Layer_TOP = CMP_N;		/* ref couches par defaut pour vias (Cu.. Cmp) */
 	m_Route_Layer_BOTTOM = CUIVRE_N;
 	m_Zoom = 128;					/* valeur */
-	m_GridColor = DARKGRAY;
 	m_Grid = wxSize(500,500);		/* pas de la grille en 1/10000 "*/
 }
 
