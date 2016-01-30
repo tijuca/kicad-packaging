@@ -1,0 +1,4 @@
+release version:
+25 aug 2008
+files (.zip,.tgz):
+kicad-2008-08-25
