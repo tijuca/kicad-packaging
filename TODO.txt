@@ -1,0 +1,56 @@
+KiCad TODO List
+===============
+
+WXMAC Platform
+--------------
+* Fix hotkey list to match CMD key
+* Fix AddHotkeyName to let wxWidgets handle Ctrl to CMD key
+* Fix toolbar button tooltips.
+
+Common
+------
+* Grep for @TODO or TODO for sourcecode tasks
+* Use doxygen compatible comments on member functions (.h files)
+* Add tooltip text to all non-obvious controls in every dialog window.
+  Use wxFormBuilder.
+* Component and module search displays in which library the
+  module or component lives.
+* List auto up and down scrolling.
+* Push file open semantics down to one of the base frame classes ( likely candidate is
+  WinEDA_BasicFrame ) so that file open behavior is consistent across all applications.
+
+* Look over Brian's python BOM generation scripts, which are now in
+  scripts/python/ky and sort them out, and get something into the installation as well.
+  Code came from Brian in this posting's attachment, which is ky2.zip:
+  https://lists.launchpad.net/kicad-developers/msg06763.html
+  but is now in scripts/python/ky temporarily.
+
+
+CvPCB
+-----
+* Preview of the already assigned footprint.
+
+
+EESchema
+--------
+* Drag and drop between two EESchema windows.
+
+Wayne:
+E2)  Finish adding replace capability to new Find dialog.
+E3)  Hook up perform last library search hot key to replace search libraries for
+     component support removed from find dialog.
+E4)  Change add component dialog search text control to combobox and add component
+     search history save and restore capability.  Also add session save and restore
+     to component history list control.  Add advanced search capability similar to
+     new find dialog.
+E6)  Start initial work for changing component library file format to use Dick's
+     dsnlexer.  See note C2 above.  Come up with a workable library file format to
+     handle the wishes of the library implementation group.  Add initial clipboard
+     support to the library editor.
+
+
+
+PCBNew
+------
+
+
