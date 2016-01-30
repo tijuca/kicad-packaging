@@ -1,7 +1,3 @@
-/**
- * @file netlist.h
- */
-
 /*
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
@@ -28,15 +24,19 @@
  */
 
 
+/**
+ * @file netlist.h
+ */
+
 #ifndef _NETLIST_H_
 #define _NETLIST_H_
 
 
-#include "macros.h"
+#include <macros.h>
 
-#include "class_libentry.h"
-#include "sch_sheet_path.h"
-#include "sch_component.h"
+#include <class_libentry.h>
+#include <sch_sheet_path.h>
+#include <sch_component.h>
 
 
 class SCH_COMPONENT;
@@ -49,6 +49,7 @@ class SCH_REFERENC_LIST;
 
 /* Max pin number per component and footprint */
 #define MAXPIN 5000
+
 
 /**
  * Class SCH_REFERENCE
@@ -72,7 +73,7 @@ private:
     SCH_SHEET_PATH m_SheetPath;         ///< The sheet path for this reference.
     bool           m_IsNew;             ///< True if not yet annotated.
     int            m_SheetNum;          ///< The sheet number for the reference.
-    unsigned long  m_TimeStamp;         ///< The time stamp for the reference.
+    time_t         m_TimeStamp;         ///< The time stamp for the reference.
     wxString*      m_Value;             ///< The component value of the refernce.  It is the
                                         ///< same for all instances.
     int            m_NumRef;            ///< The numeric part of the reference designator.
@@ -218,6 +219,14 @@ public:
     {
         componentFlatList.push_back( aItem );
     }
+
+    /**
+     * Function RemoveItem
+     * removes an item from the list of references.
+     *
+     * @param aIndex is the index of the item to be removed.
+     */
+    void RemoveItem( unsigned int aIndex );
 
     /**
      * Function RemoveSubComponentsFromList
@@ -368,6 +377,26 @@ public:
     }
 
     /**
+     * Function SortByValueAndRef
+     * sorts the list of references by value.
+     * <p>
+     * Components are sorted in the following order:
+     * <ul>
+     * <li>Value of component.</li>
+     * <li>Numeric value of reference designator.</li>
+     * <li>Unit number when component has multiple parts.</li>
+     * <li>Sheet number.</li>
+     * <li>X coordinate position.</li>
+     * <li>Y coordinate position.</li>
+     * </ul>
+     * </p>
+     */
+    void SortByValueAndRef()
+    {
+        sort( componentFlatList.begin(), componentFlatList.end(), sortByValueAndRef );
+    }
+
+    /**
      * Function SortByReferenceOnly
      * sorts the list of references by reference.
      * <p>
@@ -387,13 +416,15 @@ public:
      * Function SortByValueOnly
      * sort the list of references by value.
      * <p>
-     * Components are sorted in the following order:
+     * Components are grouped by type and are sorted in the following order:
      * <ul>
      * <li>Value of component.</li>
      * <li>Numeric value of reference designator.</li>
      * <li>Unit number when component has multiple parts.</li>
      * </ul>
      * </p>
+     * groups are made by the first letter of reference
+     * or the 2 first letters when existing
      */
     void SortByValueOnly()
     {
@@ -445,6 +476,8 @@ private:
 
     static bool sortByRefAndValue( const SCH_REFERENCE& item1, const SCH_REFERENCE& item2 );
 
+    static bool sortByValueAndRef( const SCH_REFERENCE& item1, const SCH_REFERENCE& item2 );
+
     static bool sortByXPosition( const SCH_REFERENCE& item1, const SCH_REFERENCE& item2 );
 
     static bool sortByYPosition( const SCH_REFERENCE& item1, const SCH_REFERENCE& item2 );
@@ -471,26 +504,40 @@ private:
 
 
 /**
- * helper Class LABEL_OBJECT
- * is used in build BOM to handle the list of labels in schematic
- * because in a complex hierarchy, a label is used more than once,
- * and had more than one sheet path, so we must create a flat list of labels
+ * Class BOM_LABEL
+ * is used to build a BOM by handling the list of labels in schematic because in a
+ * complex hierarchy, a label is used more than once and has more than one sheet path
+ * so we must create a flat list of labels.
  */
-class LABEL_OBJECT
+class BOM_LABEL
 {
+    KICAD_T        m_type;
+    SCH_ITEM*      m_label;
+
+    // have to store it here since the object references will be duplicated.
+    SCH_SHEET_PATH m_sheetPath;  //composed of UIDs
+
+    static const SCH_SHEET_PATH emptySheetPath;
+
 public:
-    int            m_LabelType;
-    SCH_ITEM*      m_Label;
-
-    //have to store it here since the object references will be duplicated.
-    SCH_SHEET_PATH m_SheetPath;  //composed of UIDs
-
-public: LABEL_OBJECT()
+    BOM_LABEL( KICAD_T aType = TYPE_NOT_INIT, SCH_ITEM* aLabel = NULL,
+               const SCH_SHEET_PATH& aSheetPath = emptySheetPath )
+        : m_type( aType )
+        , m_label( aLabel )
+        , m_sheetPath( aSheetPath )
     {
-        m_Label     = NULL;
-        m_LabelType = 0;
     }
-};
-typedef std::vector <LABEL_OBJECT> LABEL_OBJECT_LIST;
 
-#endif
+    KICAD_T GetType() const { return m_type; }
+
+    const SCH_ITEM* GetLabel() const { return m_label; }
+
+    const SCH_SHEET_PATH& GetSheetPath() const { return m_sheetPath; }
+
+    wxString GetText() const;
+};
+
+
+typedef std::vector <BOM_LABEL> BOM_LABEL_LIST;
+
+#endif    // _NETLIST_H_

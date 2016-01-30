@@ -1,19 +1,18 @@
 /**
  * Common plot library \n
- * Plot settings, postscript plotting, gerber plotting.
+ * Plot settings, and plotting engines (Postscript, Gerber, HPGL and DXF)
  *
  * @file plot_common.h
  */
 
-#ifndef __INCLUDE__PLOT_COMMON_H__
-#define __INCLUDE__PLOT_COMMON_H__ 1
+#ifndef PLOT_COMMON_H_
+#define PLOT_COMMON_H_
 
 #include <vector>
-#include "drawtxt.h"
-
-
-class Ki_PageDescr;
-
+#include <vector2d.h>
+#include <drawtxt.h>
+#include <common.h>         // PAGE_INFO
+#include <eda_text.h>       // FILL_T
 
 /**
  * Enum PlotFormat
@@ -21,92 +20,181 @@ class Ki_PageDescr;
  * of the radio buttons in the plot panel/windows.
  */
 enum PlotFormat {
-    PLOT_FORMAT_HPGL,
+    PLOT_FIRST_FORMAT = 0,
+    PLOT_FORMAT_HPGL = PLOT_FIRST_FORMAT,
     PLOT_FORMAT_GERBER,
     PLOT_FORMAT_POST,
-    PLOT_FORMAT_DXF
+    PLOT_FORMAT_DXF,
+    PLOT_FORMAT_PDF,
+    PLOT_FORMAT_SVG,
+    PLOT_LAST_FORMAT = PLOT_FORMAT_SVG
 };
 
+/**
+ * Enum for choosing which kind of text to output with the PSLIKE
+ * plotters. You can:
+ * 1) only use the internal vector font
+ * 2) only use native postscript fonts
+ * 3) use the internal vector font and add 'phantom' text to aid
+ *    searching
+ *
+ * This is recognized by the DXF driver too, where NATIVE emits
+ * TEXT entities instead of stroking the text
+ */
+enum PlotTextMode {
+    PLOTTEXTMODE_STROKE,
+    PLOTTEXTMODE_NATIVE,
+    PLOTTEXTMODE_PHANTOM
+};
+
+
+/**
+ * Base plotter engine class. General rule: all the interface with the caller
+ * is done in IU, the IU size is specified with SetViewport. Internal and
+ * output processing is usually done in decimils (or whatever unit the
+ * effective engine class need to use)
+ */
 class PLOTTER
 {
 public:
-    PlotFormat m_PlotType;          // type of plot
-public: PLOTTER( PlotFormat aPlotType );
+    static const int DEFAULT_LINE_WIDTH = -1;
 
-    virtual ~PLOTTER()
-    {
-        // Emergency cleanup
-        if( output_file )
-        {
-            fclose( output_file );
-        }
-    }
+    PLOTTER();
 
+    virtual ~PLOTTER();
 
     /**
-     * Function GetPlotterType
-     * @return the format of the plot file
+     * Returns the effective plot engine in use. It's not very OO but for
+     * now is required since some things are only done with some output devices
+     * (like drill marks, emitted only for postscript
      */
-    PlotFormat GetPlotterType()
-    { return m_PlotType; }
+    virtual PlotFormat GetPlotterType() const = 0;
 
-    virtual bool start_plot( FILE* fout ) = 0;
-    virtual bool end_plot() = 0;
+    virtual bool StartPlot() = 0;
+    virtual bool EndPlot() = 0;
 
-    virtual void set_negative( bool _negative )
+    virtual void SetNegative( bool _negative )
     {
-        negative_mode = _negative;
+        negativeMode = _negative;
     }
 
-
-    virtual void set_color_mode( bool _color_mode )
+    virtual void SetColorMode( bool _color_mode )
     {
-        color_mode = _color_mode;
+        colorMode = _color_mode;
     }
 
-
-    bool get_color_mode() const
+    bool GetColorMode() const
     {
-        return color_mode;
+        return colorMode;
     }
 
+    virtual void SetPageSettings( const PAGE_INFO& aPageSettings );
 
-    virtual void set_paper_size( Ki_PageDescr* sheet );
-    virtual void set_current_line_width( int width ) = 0;
-    virtual void set_default_line_width( int width ) = 0;
-    virtual void set_color( int color )  = 0;
-    virtual void set_dash( bool dashed ) = 0;
+    /**
+     * Set the line width for the next drawing.
+     * @param width is specified in IUs
+     */
+    virtual void SetCurrentLineWidth( int width ) = 0;
 
-    virtual void set_creator( const wxString& _creator )
+    /**
+     * Set the default line width. Used at the beginning and when a width
+     * of -1 (DEFAULT_LINE_WIDTH) is requested.
+     * @param width is specified in IUs
+     */
+    virtual void SetDefaultLineWidth( int width ) = 0;
+
+    virtual int GetCurrentLineWidth() const
+    {
+        return currentPenWidth;
+    }
+
+    virtual void SetColor( EDA_COLOR_T color ) = 0;
+
+    virtual void SetDash( bool dashed ) = 0;
+
+    virtual void SetCreator( const wxString& _creator )
     {
         creator = _creator;
     }
 
+    /**
+     * Set the plot offset and scaling for the current plot
+     * @param aOffset is the plot offset
+     * @param aIusPerDecimil gives the scaling factor from IUs to device units
+     * @param aScale is the user set plot scaling factor (either explicitly
+     * 		or using 'fit to A4')
+     * @param aMirror flips the plot in the Y direction (useful for toner
+     * 		transfers or some kind of film)
+     */
+    virtual void SetViewport( const wxPoint& aOffset, double aIusPerDecimil,
+        double aScale, bool aMirror ) = 0;
 
-    virtual void set_filename( const wxString& _filename )
+    /**
+     * Open or create the plot file aFullFilename
+     * @param aFullFilename = the full file name of the file to create
+     * @return true if success, false if the file cannot be created/opened
+     *
+     * Virtual because some plotters use ascii files, some others binary files (PDF)
+     * The base class open the file in text mode
+     */
+    virtual bool OpenFile( const wxString& aFullFilename );
+
+    /**
+     * The IUs per decimil are an essential scaling factor when
+     * plotting; they are set and saved when establishing the viewport.
+     * Here they can be get back again
+     */
+    double GetIUsPerDecimil() const { return m_IUsPerDecimil; }
+
+    // Low level primitives
+    virtual void Rect( const wxPoint& p1, const wxPoint& p2, FILL_T fill,
+                       int width = DEFAULT_LINE_WIDTH ) = 0;
+    virtual void Circle( const wxPoint& pos, int diametre, FILL_T fill,
+                         int width = DEFAULT_LINE_WIDTH ) = 0;
+    virtual void Arc( const wxPoint& centre, int StAngle, int EndAngle, int rayon,
+                      FILL_T fill, int width = DEFAULT_LINE_WIDTH );
+
+    /**
+     * moveto/lineto primitive, moves the 'pen' to the specified direction
+     * @param pos is the target position
+     * @param plume specifies the kind of motion: 'U' only moves the pen,
+     * 		'D' draw a line from the current position and 'Z' finish
+     *		the drawing and returns the 'pen' to rest (flushes the trace)
+     */
+    virtual void PenTo( const wxPoint& pos, char plume ) = 0;
+
+    // Convenience functions for PenTo
+    void MoveTo( const wxPoint& pos )
     {
-        filename = _filename;
+        PenTo( pos, 'U' );
     }
 
+    void LineTo( const wxPoint& pos )
+    {
+        PenTo( pos, 'D' );
+    }
 
-    virtual void set_viewport( wxPoint aOffset, double aScale, bool aMirror ) = 0;
+    void FinishTo( const wxPoint& pos )
+    {
+        PenTo( pos, 'D' );
+        PenTo( pos, 'Z' );
+    }
 
-    // Standard primitives
-    virtual void rect( wxPoint p1, wxPoint p2, FILL_T fill,
-                       int width = -1 ) = 0;
-    virtual void circle( wxPoint pos, int diametre, FILL_T fill,
-                         int width = -1 ) = 0;
-    virtual void arc( wxPoint centre, int StAngle, int EndAngle, int rayon,
-                      FILL_T fill, int width = -1 );
+    void PenFinish()
+    {
+        // The point is not important with Z motion
+        PenTo( wxPoint( 0, 0 ), 'Z' );
+    }
 
     /**
      * Function PlotPoly
      * @brief Draw a polygon ( filled or not )
      * @param aCornerList = corners list
-     * @param aFill :if true : filled polygon
+     * @param aFill = type of fill
      * @param aWidth = line width
      */
-    virtual void PlotPoly( std::vector< wxPoint >& aCornerList, FILL_T aFill, int aWidth = -1 ) = 0;
+    virtual void PlotPoly( const std::vector< wxPoint >& aCornerList, FILL_T aFill,
+               int aWidth = DEFAULT_LINE_WIDTH ) = 0;
 
     /**
      * Function PlotImage
@@ -118,281 +206,523 @@ public: PLOTTER( PlotFormat aPlotType );
      * @param aScaleFactor = the scale factor to apply to the bitmap size
      *                      (this is not the plot scale factor)
      */
-    virtual void PlotImage( wxImage & aImage, wxPoint aPos, double aScaleFactor ) = 0;
+    virtual void PlotImage( const wxImage & aImage, const wxPoint& aPos,
+                            double aScaleFactor );
 
-    virtual void thick_segment( wxPoint start, wxPoint end, int width,
-                                GRTraceMode tracemode );
-    virtual void thick_arc( wxPoint centre, int StAngle, int EndAngle, int rayon,
-                            int width, GRTraceMode tracemode );
-    virtual void thick_rect( wxPoint p1, wxPoint p2, int width,
-                             GRTraceMode tracemode );
-    virtual void thick_circle( wxPoint pos, int diametre, int width,
-                               GRTraceMode tracemode );
-    virtual void pen_to( wxPoint pos, char plume ) = 0;
+    // Higher level primitives -- can be drawn as line, sketch or 'filled'
+    virtual void ThickSegment( const wxPoint& start, const wxPoint& end, int width,
+                               EDA_DRAW_MODE_T tracemode );
+    virtual void ThickArc( const wxPoint& centre, int StAngle, int EndAngle, int rayon,
+                           int width, EDA_DRAW_MODE_T tracemode );
+    virtual void ThickRect( const wxPoint& p1, const wxPoint& p2, int width,
+                            EDA_DRAW_MODE_T tracemode );
+    virtual void ThickCircle( const wxPoint& pos, int diametre, int width,
+                              EDA_DRAW_MODE_T tracemode );
 
     // Flash primitives
-    virtual void flash_pad_circle( wxPoint pos, int diametre,
-                                   GRTraceMode trace_mode ) = 0;
-    virtual void flash_pad_oval( wxPoint pos, wxSize size, int orient,
-                                 GRTraceMode trace_mode ) = 0;
-    virtual void flash_pad_rect( wxPoint pos, wxSize size,
-                                 int orient, GRTraceMode trace_mode ) = 0;
+    virtual void FlashPadCircle( const wxPoint& pos, int diametre,
+                                 EDA_DRAW_MODE_T trace_mode ) = 0;
+    virtual void FlashPadOval( const wxPoint& pos, const wxSize& size, int orient,
+                               EDA_DRAW_MODE_T trace_mode ) = 0;
+    virtual void FlashPadRect( const wxPoint& pos, const wxSize& size,
+                               int orient, EDA_DRAW_MODE_T trace_mode ) = 0;
 
-    /** virtual function flash_pad_trapez
+    /** virtual function FlashPadTrapez
      * flash a trapezoidal pad
      * @param aPadPos = the position of the shape
-     * @param aCorners = the list of 4 corners positions, relative to the shape position, pad orientation 0
+     * @param aCorners = the list of 4 corners positions,
+     * 		relative to the shape position, pad orientation 0
      * @param aPadOrient = the rotation of the shape
      * @param aTrace_Mode = FILLED or SKETCH
      */
-    virtual void flash_pad_trapez( wxPoint aPadPos, wxPoint aCorners[4],
-                                   int aPadOrient, GRTraceMode aTrace_Mode ) = 0;
-
-    // Convenience functions
-    void move_to( wxPoint pos )
-    {
-        pen_to( pos, 'U' );
-    }
+    virtual void FlashPadTrapez( const wxPoint& aPadPos, const wxPoint *aCorners,
+                                 int aPadOrient, EDA_DRAW_MODE_T aTrace_Mode ) = 0;
 
 
-    void line_to( wxPoint pos )
-    {
-        pen_to( pos, 'D' );
-    }
+    /**
+     * Draws text with the plotter. For convenience it accept the color to use
+     */
+    virtual void Text( const wxPoint&              aPos,
+                       enum EDA_COLOR_T            aColor,
+                       const wxString&             aText,
+                       int                         aOrient,
+                       const wxSize&               aSize,
+                       enum EDA_TEXT_HJUSTIFY_T    aH_justify,
+                       enum EDA_TEXT_VJUSTIFY_T    aV_justify,
+                       int                         aWidth,
+                       bool                        aItalic,
+                       bool                        aBold );
 
-
-    void finish_to( wxPoint pos )
-    {
-        pen_to( pos, 'D' );
-        pen_to( pos, 'Z' );
-    }
-
-
-    void pen_finish()
-    {
-        // Shortcut
-        pen_to( wxPoint( 0, 0 ), 'Z' );
-    }
-
-
-    void text( const wxPoint&              aPos,
-               enum EDA_Colors             aColor,
-               const wxString&             aText,
-               int                         aOrient,
-               const wxSize&               aSize,
-               enum GRTextHorizJustifyType aH_justify,
-               enum GRTextVertJustifyType  aV_justify,
-               int                         aWidth,
-               bool                        aItalic,
-               bool                        aBold );
-    void           marker( const wxPoint& position, int diametre, int aShapeId );
+    /**
+     * Draw a marker (used for the drill map)
+     */
+    static const unsigned MARKER_COUNT = 58;
+    void Marker( const wxPoint& position, int diametre, unsigned aShapeId );
 
     /**
      * Function SetLayerPolarity
      * sets current Gerber layer polarity to positive or negative
      * by writing \%LPD*\% or \%LPC*\% to the Gerber file, respectively.
+     * (obviously starts a new Gerber layer, too)
      * @param aPositive is the layer polarity and true for positive.
+     * It's not useful with most other plotter since they can't 'scratch'
+     * the film like photoplotter imagers do
      */
-    virtual void   SetLayerPolarity( bool aPositive ) = 0;
+    virtual void SetLayerPolarity( bool aPositive )
+    {
+        // NOP for most plotters
+    }
+
+    /**
+     * Change the current text mode. See the PlotTextMode
+     * explanation at the beginning of the file
+     */
+    virtual void SetTextMode( PlotTextMode mode )
+    {
+    // NOP for most plotters
+    }
 
 protected:
     // These are marker subcomponents
-    void           center_square( const wxPoint& position, int diametre, FILL_T fill );
-    void           center_lozenge( const wxPoint& position, int diametre, FILL_T fill );
+    void markerCircle( const wxPoint& pos, int radius );
+    void markerHBar( const wxPoint& pos, int radius );
+    void markerSlash( const wxPoint& pos, int radius );
+    void markerBackSlash( const wxPoint& pos, int radius );
+    void markerVBar( const wxPoint& pos, int radius );
+    void markerSquare( const wxPoint& position, int radius );
+    void markerLozenge( const wxPoint& position, int radius );
 
     // Helper function for sketched filler segment
-    void           segment_as_oval( wxPoint start, wxPoint end, int width,
-                                    GRTraceMode tracemode );
-    void           sketch_oval( wxPoint pos, wxSize size, int orient, int width );
+    void segmentAsOval( const wxPoint& start, const wxPoint& end, int width,
+                          EDA_DRAW_MODE_T tracemode );
+    void sketchOval( const wxPoint& pos, const wxSize& size, int orient,
+                      int width );
 
-    virtual void   user_to_device_coordinates( wxPoint& pos );
-    virtual void   user_to_device_size( wxSize& size );
-    virtual double user_to_device_size( double size );
+    // Coordinate and scaling conversion functions
+    virtual DPOINT userToDeviceCoordinates( const wxPoint& pos );
+    virtual DPOINT userToDeviceSize( const wxSize& size );
+    virtual double userToDeviceSize( double size );
 
-    // Plot scale
-    double        plot_scale;
-    // Device scale (from decimils to device units)
-    double        device_scale;
-    // Plot offset (in decimils)
-    wxPoint       plot_offset;
-    // Output file
-    FILE*         output_file;
+    /// Plot scale - chosen by the user (even implicitly with 'fit in a4')
+    double        plotScale;
+
+    /* Device scale (how many IUs in a decimil - always); it's a double
+     * because in eeschema there are 0.1 IUs in a decimil (eeschema
+     * always works in mils internally) while pcbnew can work in decimil
+     * or nanometers, so this value would be >= 1 */
+    double        m_IUsPerDecimil;
+
+    /// Device scale (from IUs to device units - usually decimils)
+    double        iuPerDeviceUnit;
+
+    /// Plot offset (in IUs)
+    wxPoint       plotOffset;
+
+    /// Output file
+    FILE*         outputFile;
+
     // Pen handling
-    bool          color_mode, negative_mode;
-    int           default_pen_width;
-    int           current_pen_width;
-    char          pen_state;
-    wxPoint       pen_lastpos;
+    bool          colorMode;        /// true to plot in color, false to plot in black and white
+    bool          negativeMode;     /// true to generate a negative image (PS mode mainly)
+    int           defaultPenWidth;
+    int           currentPenWidth;
+    /// Current pen state: 'U', 'D' or 'Z' (see PenTo)
+    char          penState;
+    /// Last pen positions; set to -1,-1 when the pen is at rest
+    wxPoint       penLastpos;
     bool          plotMirror;
     wxString      creator;
     wxString      filename;
-    Ki_PageDescr* sheet;
-    wxSize        paper_size;
+    PAGE_INFO     pageInfo;
+    /// Paper size in IU - not in mils
+    wxSize        paperSize;
 };
+
 
 class HPGL_PLOTTER : public PLOTTER
 {
-public: HPGL_PLOTTER() : PLOTTER( PLOT_FORMAT_HPGL )
+public:
+    HPGL_PLOTTER();
+
+    virtual PlotFormat GetPlotterType() const
     {
+        return PLOT_FORMAT_HPGL;
     }
 
-
-    virtual bool start_plot( FILE* fout );
-    virtual bool end_plot();
-
-    // HPGL doesn't handle line thickness or color
-    virtual void set_current_line_width( int width )
+    static wxString GetDefaultFileExtension()
     {
-        // Handy override
-        current_pen_width = wxRound( pen_diameter );
-    };
-    virtual void set_default_line_width( int width ) {};
-    virtual void set_dash( bool dashed );
-
-    virtual void set_color( int color ) {};
-    virtual void set_pen_speed( int speed )
-    {
-        wxASSERT( output_file == 0 );
-        pen_speed = speed;
+        return wxString( wxT( "plt" ) );
     }
 
+    virtual bool StartPlot();
+    virtual bool EndPlot();
 
-    virtual void set_pen_number( int number )
+    /// HPGL doesn't handle line thickness or color
+    virtual void SetCurrentLineWidth( int width )
     {
-        wxASSERT( output_file == 0 );
-        pen_number = number;
+        // This is the truth
+        currentPenWidth = userToDeviceSize( penDiameter );
     }
 
+    virtual void SetDefaultLineWidth( int width ) {};
+    virtual void SetDash( bool dashed );
 
-    virtual void set_pen_diameter( double diameter )
+    virtual void SetColor( EDA_COLOR_T color ) {};
+
+    virtual void SetPenSpeed( int speed )
     {
-        wxASSERT( output_file == 0 );
-        pen_diameter = diameter;
+        penSpeed = speed;
     }
 
-
-    virtual void set_pen_overlap( double overlap )
+    virtual void SetPenNumber( int number )
     {
-        wxASSERT( output_file == 0 );
-        pen_overlap = overlap;
+        penNumber = number;
     }
 
+    virtual void SetPenDiameter( double diameter )
+    {
+        penDiameter = diameter;
+    }
 
-    virtual void set_viewport( wxPoint aOffset, double aScale, bool aMirror );
-    virtual void rect( wxPoint p1, wxPoint p2, FILL_T fill, int width = -1 );
-    virtual void circle( wxPoint pos, int diametre, FILL_T fill, int width = -1 );
-    /*
-     * Function PlotPoly
-     * Draw a polygon (filled or not) in HPGL format
-     * param aCornerList = corners list
-     * param aFill :if true : filled polygon
-     * param aWidth = line width
-     */
-    virtual void PlotPoly( std::vector< wxPoint >& aCornerList, FILL_T aFill, int aWidth = -1);
+    virtual void SetPenOverlap( double overlap )
+    {
+        penOverlap = overlap;
+    }
 
-    /*
-     * Function PlotImage
-     * Only Postscript plotters can plot bitmaps
-     * for plotters that cannot plot a bitmap, a rectangle is plotted
-     * Draw an image bitmap
-     * param aImage = the bitmap
-     * param aPos = position of the center of the bitmap
-     * param aScaleFactor = the scale factor to apply to the bitmap size
-     *                      (this is not the plot scale factor)
-     */
-    virtual void PlotImage( wxImage & aImage, wxPoint aPos, double aScaleFactor );
+    virtual void SetViewport( const wxPoint& aOffset, double aIusPerDecimil,
+                  double aScale, bool aMirror );
+    virtual void Rect( const wxPoint& p1, const wxPoint& p2, FILL_T fill,
+               int width = DEFAULT_LINE_WIDTH );
+    virtual void Circle( const wxPoint& pos, int diametre, FILL_T fill,
+                         int width = DEFAULT_LINE_WIDTH );
+    virtual void PlotPoly( const std::vector< wxPoint >& aCornerList,
+                           FILL_T aFill, int aWidth = DEFAULT_LINE_WIDTH);
 
-    virtual void thick_segment( wxPoint start, wxPoint end, int width,
-                                GRTraceMode tracemode );
-    virtual void arc( wxPoint centre, int StAngle, int EndAngle, int rayon,
-                      FILL_T fill, int width = -1 );
-    virtual void pen_to( wxPoint pos, char plume );
-    virtual void flash_pad_circle( wxPoint pos, int diametre,
-                                   GRTraceMode trace_mode );
-    virtual void flash_pad_oval( wxPoint pos, wxSize size, int orient,
-                                 GRTraceMode trace_mode );
-    virtual void flash_pad_rect( wxPoint pos, wxSize size,
-                                 int orient, GRTraceMode trace_mode );
-
-    virtual void flash_pad_trapez( wxPoint aPadPos, wxPoint aCorners[4],
-                                   int aPadOrient, GRTraceMode aTrace_Mode );
-
-    virtual void SetLayerPolarity( bool aPositive ) {}
+    virtual void ThickSegment( const wxPoint& start, const wxPoint& end, int width,
+                               EDA_DRAW_MODE_T tracemode );
+    virtual void Arc( const wxPoint& centre, int StAngle, int EndAngle, int rayon,
+                      FILL_T fill, int width = DEFAULT_LINE_WIDTH );
+    virtual void PenTo( const wxPoint& pos, char plume );
+    virtual void FlashPadCircle( const wxPoint& pos, int diametre,
+                                 EDA_DRAW_MODE_T trace_mode );
+    virtual void FlashPadOval( const wxPoint& pos, const wxSize& size, int orient,
+                               EDA_DRAW_MODE_T trace_mode );
+    virtual void FlashPadRect( const wxPoint& pos, const wxSize& size,
+                               int orient, EDA_DRAW_MODE_T trace_mode );
+    virtual void FlashPadTrapez( const wxPoint& aPadPos, const wxPoint *aCorners,
+                                 int aPadOrient, EDA_DRAW_MODE_T aTrace_Mode );
 
 protected:
-    void pen_control( int plume );
+    void penControl( char plume );
 
-    int    pen_speed;
-    int    pen_number;
-    double pen_diameter;
-    double pen_overlap;
+    int    penSpeed;
+    int    penNumber;
+    double penDiameter;
+    double penOverlap;
+};
+
+/**
+ * The PSLIKE_PLOTTER class is an intermediate class to handle common
+ * routines for engines working more or less with the postscript imaging
+ * model
+ */
+class PSLIKE_PLOTTER : public PLOTTER
+{
+public:
+    PSLIKE_PLOTTER() : plotScaleAdjX( 1 ), plotScaleAdjY( 1 ),
+                       m_textMode( PLOTTEXTMODE_PHANTOM )
+    {
+    }
+
+    /**
+     * PS and PDF fully implement native text (for the Latin-1 subset)
+     */
+    virtual void SetTextMode( PlotTextMode mode )
+    {
+        m_textMode = mode;
+    }
+
+    virtual void SetDefaultLineWidth( int width );
+
+    /**
+     * Set the 'fine' scaling for the postscript engine
+     */
+    void SetScaleAdjust( double scaleX, double scaleY )
+    {
+        plotScaleAdjX = scaleX;
+        plotScaleAdjY = scaleY;
+    }
+
+    // Pad routines are handled with lower level primitives
+    virtual void FlashPadCircle( const wxPoint& pos, int diametre,
+                                 EDA_DRAW_MODE_T trace_mode );
+    virtual void FlashPadOval( const wxPoint& pos, const wxSize& size, int orient,
+                               EDA_DRAW_MODE_T trace_mode );
+    virtual void FlashPadRect( const wxPoint& pos, const wxSize& size,
+                               int orient, EDA_DRAW_MODE_T trace_mode );
+    virtual void FlashPadTrapez( const wxPoint& aPadPos, const wxPoint *aCorners,
+                                 int aPadOrient, EDA_DRAW_MODE_T aTrace_Mode );
+
+    /** The SetColor implementation is split with the subclasses:
+     * The PSLIKE computes the rgb values, the subclass emits the
+     * operator to actually do it
+     */
+    virtual void SetColor( EDA_COLOR_T color );
+
+protected:
+    void computeTextParameters( const wxPoint&           aPos,
+                                const wxString&          aText,
+                                int                      aOrient,
+                                const wxSize&            aSize,
+                                enum EDA_TEXT_HJUSTIFY_T aH_justify,
+                                enum EDA_TEXT_VJUSTIFY_T aV_justify,
+                                int                      aWidth,
+                                bool                     aItalic,
+                                bool                     aBold,
+                                double                   *wideningFactor,
+                                double                   *ctm_a,
+                                double                   *ctm_b,
+                                double                   *ctm_c,
+                                double                   *ctm_d,
+                                double                   *ctm_e,
+                                double                   *ctm_f,
+                                double                   *heightFactor );
+    void postscriptOverlinePositions( const wxString& aText, int aXSize,
+                                      bool aItalic, bool aBold,
+                                      std::vector<int> *pos_pairs );
+    void fputsPostscriptString(FILE *fout, const wxString& txt);
+
+    /// Virtual primitive for emitting the setrgbcolor operator
+    virtual void emitSetRGBColor( double r, double g, double b ) = 0;
+
+    /// Height of the postscript font (from the AFM)
+    static const double postscriptTextAscent; // = 0.718;
+
+    int returnPostscriptTextWidth( const wxString& aText, int aXSize,
+                                   bool aItalic, bool aBold );
+
+    /// Fine user scale adjust ( = 1.0 if no correction)
+    double plotScaleAdjX, plotScaleAdjY;
+
+    /// How to draw text
+    PlotTextMode m_textMode;
 };
 
 
-class PS_PLOTTER : public PLOTTER
+class PS_PLOTTER : public PSLIKE_PLOTTER
 {
-public: PS_PLOTTER() : PLOTTER( PLOT_FORMAT_POST )
+public:
+    PS_PLOTTER()
     {
-        plot_scale_adjX = 1;
-        plot_scale_adjY = 1;
     }
 
-
-    virtual bool start_plot( FILE* fout );
-    virtual bool end_plot();
-    virtual void set_current_line_width( int width );
-    virtual void set_default_line_width( int width );
-    virtual void set_dash( bool dashed );
-    virtual void set_color( int color );
-
-    void set_scale_adjust( double scaleX, double scaleY )
+    static wxString GetDefaultFileExtension()
     {
-        plot_scale_adjX = scaleX;
-        plot_scale_adjY = scaleY;
+        return wxString( wxT( "ps" ) );
     }
 
+    virtual PlotFormat GetPlotterType() const
+    {
+        return PLOT_FORMAT_POST;
+    }
 
-    virtual void set_viewport( wxPoint aOffset, double aScale, bool aMirror );
-    virtual void rect( wxPoint p1, wxPoint p2, FILL_T fill, int width = -1 );
-    virtual void circle( wxPoint pos, int diametre, FILL_T fill, int width = -1 );
-    virtual void arc( wxPoint centre, int StAngle, int EndAngle, int rayon,
-                      FILL_T fill, int width = -1 );
-    /*
-     * Function PlotPoly
-     * Draw a polygon (filled or not) in POSTSCRIPT format
-     * param aCornerList = corners list
-     * param aFill :if true : filled polygon
-     * param aWidth = line width
+    virtual bool StartPlot();
+    virtual bool EndPlot();
+    virtual void SetCurrentLineWidth( int width );
+    virtual void SetDash( bool dashed );
+
+    virtual void SetViewport( const wxPoint& aOffset, double aIusPerDecimil,
+                  double aScale, bool aMirror );
+    virtual void Rect( const wxPoint& p1, const wxPoint& p2, FILL_T fill,
+                       int width = DEFAULT_LINE_WIDTH );
+    virtual void Circle( const wxPoint& pos, int diametre, FILL_T fill,
+                         int width = DEFAULT_LINE_WIDTH );
+    virtual void Arc( const wxPoint& centre, int StAngle, int EndAngle,
+              int rayon, FILL_T fill, int width = DEFAULT_LINE_WIDTH );
+
+    virtual void PlotPoly( const std::vector< wxPoint >& aCornerList,
+                           FILL_T aFill, int aWidth = DEFAULT_LINE_WIDTH );
+
+    virtual void PlotImage( const wxImage& aImage, const wxPoint& aPos,
+                            double aScaleFactor );
+
+    virtual void PenTo( const wxPoint& pos, char plume );
+    virtual void Text( const wxPoint&              aPos,
+                       enum EDA_COLOR_T            aColor,
+                       const wxString&             aText,
+                       int                         aOrient,
+                       const wxSize&               aSize,
+                       enum EDA_TEXT_HJUSTIFY_T    aH_justify,
+                       enum EDA_TEXT_VJUSTIFY_T    aV_justify,
+                       int                         aWidth,
+                       bool                        aItalic,
+                       bool                        aBold );
+protected:
+    virtual void emitSetRGBColor( double r, double g, double b );
+};
+
+class PDF_PLOTTER : public PSLIKE_PLOTTER
+{
+public:
+    PDF_PLOTTER() : pageStreamHandle( 0 ), workFile( NULL )
+    {
+    }
+
+    virtual PlotFormat GetPlotterType() const
+    {
+        return PLOT_FORMAT_PDF;
+    }
+
+    static wxString GetDefaultFileExtension()
+    {
+        return wxString( wxT( "pdf" ) );
+    }
+
+    /**
+     * Open or create the plot file aFullFilename
+     * @param aFullFilename = the full file name of the file to create
+     * @return true if success, false if the file cannot be created/opened
+     *
+     * The base class open the file in text mode, so we should have this
+     * function overlaid for PDF files, which are binary files
      */
-    virtual void PlotPoly( std::vector< wxPoint >& aCornerList, FILL_T aFill, int aWidth = -1);
+    virtual bool OpenFile( const wxString& aFullFilename );
 
-    /*
-     * Function PlotImage
-     * Only Postscript plotters can plot bitmaps
-     * for plotters that cannot plot a bitmap, a rectangle is plotted
-     * Draw an image bitmap
-     * param aImage = the bitmap
-     * param aPos = position of the center of the bitmap
-     * param aScaleFactor = the scale factor to apply to the bitmap size
-     *                      (this is not the plot scale factor)
-     */
-    virtual void PlotImage( wxImage & aImage, wxPoint aPos, double aScaleFactor );
+    virtual bool StartPlot();
+    virtual bool EndPlot();
+    virtual void StartPage();
+    virtual void ClosePage();
+    virtual void SetCurrentLineWidth( int width );
+    virtual void SetDash( bool dashed );
 
-    virtual void pen_to( wxPoint pos, char plume );
-    virtual void flash_pad_circle( wxPoint pos, int diametre,
-                                   GRTraceMode trace_mode );
-    virtual void flash_pad_oval( wxPoint pos, wxSize size, int orient,
-                                 GRTraceMode trace_mode );
-    virtual void flash_pad_rect( wxPoint pos, wxSize size,
-                                 int orient, GRTraceMode trace_mode );
+    /** PDF can have multiple pages, so SetPageSettings can be called
+     * with the outputFile open (but not inside a page stream!) */
+    virtual void SetPageSettings( const PAGE_INFO& aPageSettings );
+    virtual void SetViewport( const wxPoint& aOffset, double aIusPerDecimil,
+                  double aScale, bool aMirror );
+    virtual void Rect( const wxPoint& p1, const wxPoint& p2, FILL_T fill,
+                       int width = DEFAULT_LINE_WIDTH );
+    virtual void Circle( const wxPoint& pos, int diametre, FILL_T fill,
+                         int width = DEFAULT_LINE_WIDTH );
+    virtual void Arc( const wxPoint& centre, int StAngle, int EndAngle,
+              int rayon, FILL_T fill, int width = DEFAULT_LINE_WIDTH );
 
-    virtual void flash_pad_trapez( wxPoint aPadPos, wxPoint aCorners[4],
-                                   int aPadOrient, GRTraceMode aTrace_Mode );
+    virtual void PlotPoly( const std::vector< wxPoint >& aCornerList,
+                           FILL_T aFill, int aWidth = DEFAULT_LINE_WIDTH);
 
-    virtual void SetLayerPolarity( bool aPositive ) {}
+    virtual void PenTo( const wxPoint& pos, char plume );
+
+    virtual void Text( const wxPoint&              aPos,
+                       enum EDA_COLOR_T            aColor,
+                       const wxString&             aText,
+                       int                         aOrient,
+                       const wxSize&               aSize,
+                       enum EDA_TEXT_HJUSTIFY_T    aH_justify,
+                       enum EDA_TEXT_VJUSTIFY_T    aV_justify,
+                       int                         aWidth,
+                       bool                        aItalic,
+                       bool                        aBold );
+
+    virtual void PlotImage( const wxImage& aImage, const wxPoint& aPos,
+                            double aScaleFactor );
+
 
 protected:
-    double plot_scale_adjX, plot_scale_adjY;
+    virtual void emitSetRGBColor( double r, double g, double b );
+    int allocPdfObject();
+    int startPdfObject(int handle = -1);
+    void closePdfObject();
+    int startPdfStream(int handle = -1);
+    void closePdfStream();
+    int pageTreeHandle;		 /// Handle to the root of the page tree object
+    int fontResDictHandle;	 /// Font resource dictionary
+    std::vector<int> pageHandles;/// Handles to the page objects
+    int pageStreamHandle;	 /// Handle of the page content object
+    int streamLengthHandle;      /// Handle to the deferred stream length
+    wxString workFilename;
+    FILE* workFile;  	         /// Temporary file to costruct the stream before zipping
+    std::vector<long> xrefTable; /// The PDF xref offset table
+};
+
+class SVG_PLOTTER : public PSLIKE_PLOTTER
+{
+public:
+    SVG_PLOTTER();
+
+    static wxString GetDefaultFileExtension()
+    {
+        return wxString( wxT( "svg" ) );
+    }
+
+    virtual PlotFormat GetPlotterType() const
+    {
+        return PLOT_FORMAT_SVG;
+    }
+
+    virtual void SetColor( EDA_COLOR_T color );
+    virtual bool StartPlot();
+    virtual bool EndPlot();
+    virtual void SetCurrentLineWidth( int width );
+    virtual void SetDash( bool dashed );
+
+    virtual void SetViewport( const wxPoint& aOffset, double aIusPerDecimil,
+                  double aScale, bool aMirror );
+    virtual void Rect( const wxPoint& p1, const wxPoint& p2, FILL_T fill,
+                       int width = DEFAULT_LINE_WIDTH );
+    virtual void Circle( const wxPoint& pos, int diametre, FILL_T fill,
+                         int width = DEFAULT_LINE_WIDTH );
+    virtual void Arc( const wxPoint& centre, int StAngle, int EndAngle,
+              int rayon, FILL_T fill, int width = DEFAULT_LINE_WIDTH );
+
+    virtual void PlotPoly( const std::vector< wxPoint >& aCornerList,
+                           FILL_T aFill, int aWidth = DEFAULT_LINE_WIDTH );
+
+    virtual void PlotImage( const wxImage& aImage, const wxPoint& aPos,
+                            double aScaleFactor );
+
+    virtual void PenTo( const wxPoint& pos, char plume );
+    virtual void Text( const wxPoint&              aPos,
+                       enum EDA_COLOR_T            aColor,
+                       const wxString&             aText,
+                       int                         aOrient,
+                       const wxSize&               aSize,
+                       enum EDA_TEXT_HJUSTIFY_T    aH_justify,
+                       enum EDA_TEXT_VJUSTIFY_T    aV_justify,
+                       int                         aWidth,
+                       bool                        aItalic,
+                       bool                        aBold );
+
+protected:
+    FILL_T m_fillMode;              // true if the current contour
+                                    // rect, arc, circle, polygon must be filled
+    long m_pen_rgb_color;           // current rgb color value: each color has
+                                    // a value 0 ... 255, and the 3 colors are
+                                    // grouped in a 3x8 bits value
+                                    // (written in hex to svg files)
+    long m_brush_rgb_color;         // same as m_pen_rgb_color, used to fill
+                                    // some contours.
+    bool m_graphics_changed;        // true if a pen/brush parameter is modified
+                                    // color, pen size, fil mode ...
+                                    // the new SVG stype must be output on file
+
+    /**
+     * function emitSetRGBColor()
+     * initialize m_pen_rgb_color from reduced values r, g ,b
+     * ( reduced values are 0.0 to 1.0 )
+     */
+    virtual void emitSetRGBColor( double r, double g, double b );
+
+    /**
+     * function setSVGPlotStyle()
+     * output the string which define pen and brush color, shape, transparence
+     */
+    void setSVGPlotStyle();
+
+    /**
+     * function setFillMode()
+     * prepare parameters for setSVGPlotStyle()
+     */
+    void setFillMode( FILL_T fill );
 };
 
 /* Class to handle a D_CODE when plotting a board : */
@@ -400,162 +730,184 @@ protected:
 
 struct APERTURE
 {
-    enum Aperture_Type {
+    enum APERTURE_TYPE {
         Circle   = 1,
         Rect     = 2,
         Plotting = 3,
         Oval     = 4
     };
 
-    wxSize        size;     // horiz and Vert size
-    Aperture_Type type;     // Type ( Line, rect , circulaire , ovale .. )
-    int           D_code;   // code number ( >= 10 );
+    wxSize        Size;     // horiz and Vert size
+    APERTURE_TYPE Type;     // Type ( Line, rect , circulaire , ovale .. )
+    int           DCode;    // code number ( >= 10 );
 
     /* Trivia question: WHY Gerber decided to use D instead of the usual T for
-     *  tool change? */
+     * tool change? */
 };
 
 
 class GERBER_PLOTTER : public PLOTTER
 {
-public: GERBER_PLOTTER() : PLOTTER( PLOT_FORMAT_GERBER )
+public:
+    GERBER_PLOTTER()
     {
-        work_file  = 0;
-        final_file = 0;
-        current_aperture = apertures.end();
+        workFile  = 0;
+        finalFile = 0;
+        currentAperture = apertures.end();
     }
 
-    virtual bool start_plot( FILE* fout );
-    virtual bool end_plot();
-    virtual void set_current_line_width( int width );
-    virtual void set_default_line_width( int width );
+    virtual PlotFormat GetPlotterType() const
+    {
+        return PLOT_FORMAT_GERBER;
+    }
 
-/* RS274X has no dashing, nor colours */
-    virtual void set_dash( bool dashed ) {};
-    virtual void set_color( int color ) {};
-    virtual void set_viewport( wxPoint aOffset, double aScale, bool aMirror );
-    virtual void rect( wxPoint p1, wxPoint p2, FILL_T fill, int width = -1 );
-    virtual void circle( wxPoint pos, int diametre, FILL_T fill, int width = -1 );
-    /*
-     * Function PlotPoly
-     * Draw a polygon (filled or not) in GERBER format
-     * param aCornerList = corners list
-     * param aFill :if true : filled polygon
-     * param aWidth = line width
-     */
-    virtual void PlotPoly( std::vector< wxPoint >& aCornerList, FILL_T aFill, int aWidth = -1);
+    static wxString GetDefaultFileExtension()
+    {
+        return wxString( wxT( "pho" ) );
+    }
 
-    /*
-     * Function PlotImage
-     * Only Postscript plotters can plot bitmaps
-     * for plotters that cannot plot a bitmap, a rectangle is plotted
-     * Draw an image bitmap
-     * param aImage = the bitmap
-     * param aPos = position of the center of the bitmap
-     * param aScaleFactor = the scale factor to apply to the bitmap size
-     *                      (this is not the plot scale factor)
-     */
-    virtual void PlotImage( wxImage & aImage, wxPoint aPos, double aScaleFactor );
+    virtual bool StartPlot();
+    virtual bool EndPlot();
+    virtual void SetCurrentLineWidth( int width );
+    virtual void SetDefaultLineWidth( int width );
 
-    virtual void pen_to( wxPoint pos, char plume );
-    virtual void flash_pad_circle( wxPoint pos, int diametre,
-                                   GRTraceMode trace_mode );
-    virtual void flash_pad_oval( wxPoint pos, wxSize size, int orient,
-                                 GRTraceMode trace_mode );
-    virtual void flash_pad_rect( wxPoint pos, wxSize size,
-                                 int orient, GRTraceMode trace_mode );
+    // RS274X has no dashing, nor colours
+    virtual void SetDash( bool dashed ) {};
+    virtual void SetColor( EDA_COLOR_T color ) {};
+    virtual void SetViewport( const wxPoint& aOffset, double aIusPerDecimil,
+                          double aScale, bool aMirror );
+    virtual void Rect( const wxPoint& p1, const wxPoint& p2, FILL_T fill,
+                       int width = DEFAULT_LINE_WIDTH );
+    virtual void Circle( const wxPoint& pos, int diametre, FILL_T fill,
+                         int width = DEFAULT_LINE_WIDTH );
+    virtual void Arc( const wxPoint& aCenter, int aStAngle, int aEndAngle, int aRadius,
+                      FILL_T aFill, int aWidth = DEFAULT_LINE_WIDTH );
+    virtual void PlotPoly( const std::vector< wxPoint >& aCornerList,
+                           FILL_T aFill, int aWidth = DEFAULT_LINE_WIDTH );
 
-    virtual void flash_pad_trapez( wxPoint aPadPos, wxPoint aCorners[4],
-                                   int aPadOrient, GRTraceMode aTrace_Mode );
+    virtual void PenTo( const wxPoint& pos, char plume );
+    virtual void FlashPadCircle( const wxPoint& pos, int diametre,
+                                 EDA_DRAW_MODE_T trace_mode );
+    virtual void FlashPadOval( const wxPoint& pos, const wxSize& size, int orient,
+                               EDA_DRAW_MODE_T trace_mode );
+    virtual void FlashPadRect( const wxPoint& pos, const wxSize& size,
+                               int orient, EDA_DRAW_MODE_T trace_mode );
 
-    virtual void                    SetLayerPolarity( bool aPositive );
+    virtual void FlashPadTrapez( const wxPoint& aPadPos, const wxPoint *aCorners,
+                                 int aPadOrient, EDA_DRAW_MODE_T aTrace_Mode );
+
+    virtual void SetLayerPolarity( bool aPositive );
 
 protected:
-    void                select_aperture( const wxSize&           size,
-                                                     APERTURE::Aperture_Type type );
+    void selectAperture( const wxSize& size, APERTURE::APERTURE_TYPE type );
+    void emitDcode( const DPOINT& pt, int dcode );
 
     std::vector<APERTURE>::iterator
-                        get_aperture( const wxSize& size, APERTURE::Aperture_Type type );
+    getAperture( const wxSize& size, APERTURE::APERTURE_TYPE type );
 
-    FILE*    work_file, * final_file;
+    FILE* workFile;
+    FILE* finalFile;
     wxString m_workFilename;
 
-    void write_aperture_list();
+    void writeApertureList();
 
     std::vector<APERTURE>           apertures;
-    std::vector<APERTURE>::iterator current_aperture;
+    std::vector<APERTURE>::iterator currentAperture;
 };
+
 
 class DXF_PLOTTER : public PLOTTER
 {
-public: DXF_PLOTTER() : PLOTTER( PLOT_FORMAT_DXF )
+public:
+    DXF_PLOTTER() : textAsLines( false )
     {
     }
 
+    virtual PlotFormat GetPlotterType() const
+    {
+        return PLOT_FORMAT_DXF;
+    }
 
-    virtual bool start_plot( FILE* fout );
-    virtual bool end_plot();
+    static wxString GetDefaultFileExtension()
+    {
+        return wxString( wxT( "dxf" ) );
+    }
+
+    /**
+     * DXF handles NATIVE text emitting TEXT entities
+     */
+    virtual void SetTextMode( PlotTextMode mode )
+    {
+        textAsLines = ( mode != PLOTTEXTMODE_NATIVE );
+    }
+
+    virtual bool StartPlot();
+    virtual bool EndPlot();
 
     // For now we don't use 'thick' primitives, so no line width
-    virtual void set_current_line_width( int width )
+    virtual void SetCurrentLineWidth( int width )
     {
-        // Handy override
-        current_pen_width = 0;
+        currentPenWidth = 0;
     }
 
-    virtual void set_default_line_width( int width )
+    virtual void SetDefaultLineWidth( int width )
     {
         // DXF lines are infinitesimal
-        default_pen_width = 0;
+        defaultPenWidth = 0;
     }
 
-    virtual void set_dash( bool dashed );
+    virtual void SetDash( bool dashed );
 
-    virtual void set_color( int color );
+    virtual void SetColor( EDA_COLOR_T color );
 
-    virtual void set_viewport( wxPoint aOffset, double aScale, bool aMirror );
-    virtual void rect( wxPoint p1, wxPoint p2, FILL_T fill, int width = -1 );
-    virtual void circle( wxPoint pos, int diametre, FILL_T fill, int width = -1 );
-    /*
-     * Function PlotPoly
-     * Draw a polygon (filled or not) in DXF format
-     * param aCornerList = corners list
-     * param aFill :if true : filled polygon
-     * param aWidth = line width
-     */
-    virtual void PlotPoly( std::vector< wxPoint >& aCornerList, FILL_T aFill, int aWidth = -1 );
+    virtual void SetViewport( const wxPoint& aOffset, double aIusPerDecimil,
+                  double aScale, bool aMirror );
+    virtual void Rect( const wxPoint& p1, const wxPoint& p2, FILL_T fill,
+                       int width = DEFAULT_LINE_WIDTH );
+    virtual void Circle( const wxPoint& pos, int diametre, FILL_T fill,
+                         int width = DEFAULT_LINE_WIDTH );
+    virtual void PlotPoly( const std::vector< wxPoint >& aCornerList,
+                           FILL_T aFill, int aWidth = DEFAULT_LINE_WIDTH );
+    virtual void ThickSegment( const wxPoint& start, const wxPoint& end, int width,
+                               EDA_DRAW_MODE_T tracemode );
+    virtual void Arc( const wxPoint& centre, int StAngle, int EndAngle, int rayon,
+                      FILL_T fill, int width = DEFAULT_LINE_WIDTH );
+    virtual void PenTo( const wxPoint& pos, char plume );
+    virtual void FlashPadCircle( const wxPoint& pos, int diametre,
+                                 EDA_DRAW_MODE_T trace_mode );
+    virtual void FlashPadOval( const wxPoint& pos, const wxSize& size, int orient,
+                               EDA_DRAW_MODE_T trace_mode );
+    virtual void FlashPadRect( const wxPoint& pos, const wxSize& size,
+                               int orient, EDA_DRAW_MODE_T trace_mode );
+    virtual void FlashPadTrapez( const wxPoint& aPadPos, const wxPoint *aCorners,
+                                 int aPadOrient, EDA_DRAW_MODE_T aTrace_Mode );
 
-    /*
-     * Function PlotImage
-     * Only Postscript plotters can plot bitmaps
-     * for plotters that cannot plot a bitmap, a rectangle is plotted
-     * Draw an image bitmap
-     * param aImage = the bitmap
-     * param aPos = position of the center of the bitmap
-     * param aScaleFactor = the scale factor to apply to the bitmap size
-     *                      (this is not the plot scale factor)
-     */
-    virtual void PlotImage( wxImage & aImage, wxPoint aPos, double aScaleFactor );
-
-    virtual void thick_segment( wxPoint start, wxPoint end, int width,
-                                GRTraceMode tracemode );
-    virtual void arc( wxPoint centre, int StAngle, int EndAngle, int rayon,
-                      FILL_T fill, int width = -1 );
-    virtual void pen_to( wxPoint pos, char plume );
-    virtual void flash_pad_circle( wxPoint pos, int diametre,
-                                   GRTraceMode trace_mode );
-    virtual void flash_pad_oval( wxPoint pos, wxSize size, int orient,
-                                 GRTraceMode trace_mode );
-    virtual void flash_pad_rect( wxPoint pos, wxSize size,
-                                 int orient, GRTraceMode trace_mode );
-
-    virtual void flash_pad_trapez( wxPoint aPadPos, wxPoint aCorners[4],
-                                   int aPadOrient, GRTraceMode aTrace_Mode );
-
-    virtual void SetLayerPolarity( bool aPositive ) {}
+    virtual void Text( const wxPoint&              aPos,
+                       enum EDA_COLOR_T            aColor,
+                       const wxString&             aText,
+                       int                         aOrient,
+                       const wxSize&               aSize,
+                       enum EDA_TEXT_HJUSTIFY_T    aH_justify,
+                       enum EDA_TEXT_VJUSTIFY_T    aV_justify,
+                       int                         aWidth,
+                       bool                        aItalic,
+                       bool                        aBold );
 
 protected:
-    int current_color;
+    bool textAsLines;
+    int currentColor;
 };
 
-#endif  // __INCLUDE__PLOT_COMMON_H__
+class TITLE_BLOCK;
+void PlotWorkSheet( PLOTTER* plotter, const TITLE_BLOCK& aTitleBlock,
+                    const PAGE_INFO& aPageInfo,
+                    int aSheetNumber, int aNumberOfSheets,
+                    const wxString &aSheetDesc,
+                    const wxString &aFilename );
+
+/** Returns the default plot extension for a format
+  */
+wxString GetDefaultPlotExtension( PlotFormat aFormat );
+
+
+#endif  // PLOT_COMMON_H_

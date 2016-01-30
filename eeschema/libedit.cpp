@@ -1,9 +1,9 @@
 /*
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
- * Copyright (C) 2004 Jean-Pierre Charras, jaen-pierre.charras@gipsa-lab.inpg.com
- * Copyright (C) 2008-2011 Wayne Stambaugh <stambaughw@verizon.net>
- * Copyright (C) 2004-2011 KiCad Developers, see change_log.txt for contributors.
+ * Copyright (C) 2013 Jean-Pierre Charras, jp.charras at wanadoo.fr
+ * Copyright (C) 2008-2013 Wayne Stambaugh <stambaughw@verizon.net>
+ * Copyright (C) 2004-2013 KiCad Developers, see change_log.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -28,25 +28,24 @@
  * @brief Eeschema component library editor.
  */
 
-#include "fctsys.h"
-#include "gr_basic.h"
-#include "macros.h"
-#include "appl_wxstruct.h"
-#include "class_drawpanel.h"
-#include "confirm.h"
-#include "gestfich.h"
-#include "class_sch_screen.h"
+#include <fctsys.h>
+#include <gr_basic.h>
+#include <macros.h>
+#include <appl_wxstruct.h>
+#include <class_drawpanel.h>
+#include <confirm.h>
+#include <gestfich.h>
+#include <class_sch_screen.h>
 
-#include "eeschema_id.h"
-#include "general.h"
-#include "protos.h"
-#include "libeditframe.h"
-#include "class_library.h"
-#include "template_fieldnames.h"
+#include <eeschema_id.h>
+#include <general.h>
+#include <protos.h>
+#include <libeditframe.h>
+#include <class_library.h>
+#include <template_fieldnames.h>
+#include <wildcards_and_files_ext.h>
 
-#include "dialogs/dialog_lib_new_component.h"
-
-#include <wx/wfstream.h>
+#include <dialogs/dialog_lib_new_component.h>
 
 
 void LIB_EDIT_FRAME::DisplayLibInfos()
@@ -113,12 +112,11 @@ bool LIB_EDIT_FRAME::LoadComponentFromCurrentLib( LIB_ALIAS* aLibEntry )
 
 void LIB_EDIT_FRAME::LoadOneLibraryPart( wxCommandEvent& event )
 {
-    int        i;
     wxString   msg;
     wxString   CmpName;
-    LIB_ALIAS* LibEntry = NULL;
+    LIB_ALIAS* libEntry = NULL;
 
-    DrawPanel->EndMouseCapture( ID_NO_TOOL_SELECTED, DrawPanel->GetDefaultCursor() );
+    m_canvas->EndMouseCapture( ID_NO_TOOL_SELECTED, m_canvas->GetDefaultCursor() );
 
     if( GetScreen()->IsModify()
         && !IsOK( this, _( "Current part not saved.\n\nDiscard current changes?" ) ) )
@@ -133,9 +131,10 @@ void LIB_EDIT_FRAME::LoadOneLibraryPart( wxCommandEvent& event )
             return;
     }
 
-    i = GetNameOfPartToLoad( this, m_library, CmpName );
+    wxArrayString historyList;
+    CmpName = SelectComponentFromLibrary( m_library->GetName(), historyList, true, NULL, NULL );
 
-    if( i == 0 )
+    if( CmpName.IsEmpty() )
         return;
 
     GetScreen()->ClrModify();
@@ -149,19 +148,39 @@ void LIB_EDIT_FRAME::LoadOneLibraryPart( wxCommandEvent& event )
     }
 
     /* Load the new library component */
-    LibEntry = m_library->FindEntry( CmpName );
+    libEntry = m_library->FindEntry( CmpName );
+    CMP_LIBRARY* searchLib = m_library;
+    if( libEntry == NULL )
+    {   // Not found in the active library: search inside the full list
+        // (can happen when using Viewlib to load a component)
+        libEntry = CMP_LIBRARY::FindLibraryEntry( CmpName );
+        if( libEntry )
+        {
+            searchLib = libEntry->GetLibrary();
+            // The entry to load is not in the active lib
+            // Ask for a new active lib
+            wxString msg;
+            msg << _("The selected component is not in the active library");
+            msg << wxT("\n\n");
+            msg << _("Do you want to change the active library?");
+            if( IsOK( this, msg ) )
+                SelectActiveLibrary( searchLib );
+        }
+    }
 
-    if( LibEntry == NULL )
+    if( libEntry == NULL )
     {
         msg.Printf( _( "Component name \"%s\" not found in library \"%s\"." ),
                     GetChars( CmpName ),
-                    GetChars( m_library->GetName() ) );
+                    GetChars( searchLib->GetName() ) );
         DisplayError( this, msg );
         return;
     }
 
-    if( ! LoadComponentFromCurrentLib( LibEntry ) )
-        return;
+    EXCHG( searchLib, m_library );
+    LoadComponentFromCurrentLib( libEntry );
+    EXCHG( searchLib, m_library );
+    DisplayLibInfos();
 }
 
 
@@ -230,13 +249,8 @@ bool LIB_EDIT_FRAME::LoadOneLibraryPartAux( LIB_ALIAS* aEntry, CMP_LIBRARY* aLib
 }
 
 
-void LIB_EDIT_FRAME::RedrawActiveWindow( wxDC* DC, bool EraseBg )
+void LIB_EDIT_FRAME::RedrawComponent( wxDC* aDC, wxPoint aOffset  )
 {
-    if( GetScreen() == NULL )
-        return;
-
-    DrawPanel->DrawBackGround( DC );
-
     if( m_component )
     {
         // display reference like in schematic (a reference U is shown U? or U?A)
@@ -246,32 +260,52 @@ void LIB_EDIT_FRAME::RedrawActiveWindow( wxDC* DC, bool EraseBg )
         wxString fieldText = Field->m_Text;
         wxString fieldfullText = Field->GetFullText( m_unit );
         Field->m_Text = fieldfullText;
-        m_component->Draw( DrawPanel, DC, wxPoint( 0, 0 ), m_unit,
+        m_component->Draw( m_canvas, aDC, aOffset, m_unit,
                            m_convert, GR_DEFAULT_DRAWMODE );
         Field->m_Text = fieldText;
     }
+}
 
-    if( DrawPanel->IsMouseCaptured() )
-        DrawPanel->m_mouseCaptureCallback( DrawPanel, DC, wxDefaultPosition, false );
+void LIB_EDIT_FRAME::RedrawActiveWindow( wxDC* DC, bool EraseBg )
+{
+    if( GetScreen() == NULL )
+        return;
 
-    DrawPanel->DrawCrossHair( DC );
+    m_canvas->DrawBackGround( DC );
+
+    RedrawComponent( DC, wxPoint( 0, 0 ) );
+
+    if( m_canvas->IsMouseCaptured() )
+        m_canvas->CallMouseCapture( DC, wxDefaultPosition, false );
+
+    m_canvas->DrawCrossHair( DC );
 
     DisplayLibInfos();
     UpdateStatusBar();
 }
 
 
-void LIB_EDIT_FRAME::SaveActiveLibrary( wxCommandEvent& event )
+void LIB_EDIT_FRAME::OnSaveActiveLibrary( wxCommandEvent& event )
+{
+    bool newFile = false;
+    if( event.GetId() == ID_LIBEDIT_SAVE_CURRENT_LIB_AS )
+        newFile = true;
+
+    this->SaveActiveLibrary( newFile );
+}
+
+
+bool LIB_EDIT_FRAME::SaveActiveLibrary( bool newFile )
 {
     wxFileName fn;
     wxString   msg;
 
-    DrawPanel->EndMouseCapture( ID_NO_TOOL_SELECTED, DrawPanel->GetDefaultCursor() );
+    m_canvas->EndMouseCapture( ID_NO_TOOL_SELECTED, m_canvas->GetDefaultCursor() );
 
     if( m_library == NULL )
     {
         DisplayError( this, _( "No library specified." ) );
-        return;
+        return false;
     }
 
     if( GetScreen()->IsModify() )
@@ -280,22 +314,22 @@ void LIB_EDIT_FRAME::SaveActiveLibrary( wxCommandEvent& event )
             SaveOnePartInMemory();
     }
 
-    if( event.GetId() == ID_LIBEDIT_SAVE_CURRENT_LIB_AS )
+    if( newFile )
     {   // Get a new name for the library
         wxString default_path = wxGetApp().ReturnLastVisitedLibraryPath();
         wxFileDialog dlg( this, _( "Component Library Name:" ), default_path,
-                          wxEmptyString, CompLibFileWildcard,
+                          wxEmptyString, SchematicLibraryFileExtension,
                           wxFD_SAVE | wxFD_OVERWRITE_PROMPT );
 
         if( dlg.ShowModal() == wxID_CANCEL )
-            return;
+            return false;
 
         fn = dlg.GetPath();
 
         /* The GTK file chooser doesn't return the file extension added to
          * file name so add it here. */
         if( fn.GetExt().IsEmpty() )
-            fn.SetExt( CompLibFileExtension );
+            fn.SetExt( SchematicLibraryFileExtension );
 
         wxGetApp().SaveLastVisitedLibraryPath( fn.GetPath() );
     }
@@ -306,12 +340,12 @@ void LIB_EDIT_FRAME::SaveActiveLibrary( wxCommandEvent& event )
         msg = _( "Modify library file \"" ) + fn.GetFullPath() + _( "\"?" );
 
         if( !IsOK( this, msg ) )
-            return;
+            return false;
     }
 
     // Verify the user has write privileges before attempting to save the library file.
     if( !IsWritable( fn ) )
-        return;
+        return false;
 
     ClearMsgPanel();
 
@@ -334,24 +368,24 @@ void LIB_EDIT_FRAME::SaveActiveLibrary( wxCommandEvent& event )
         }
     }
 
-    wxFFileOutputStream libStream( libFileName.GetFullPath(), wxT( "wt" ) );
+    try
+    {
+        FILE_OUTPUTFORMATTER    libFormatter( libFileName.GetFullPath() );
 
-    if( !libStream.IsOk() )
+        if( !m_library->Save( libFormatter ) )
+        {
+            msg = _( "Error occurred while saving library file \"" ) + fn.GetFullPath() + _( "\"." );
+            AppendMsgPanel( _( "*** ERROR: ***" ), msg, RED );
+            DisplayError( this, msg );
+            return false;
+        }
+    }
+    catch( ... /* IO_ERROR ioe */ )
     {
         libFileName.MakeAbsolute();
         msg = wxT( "Failed to create component library file " ) + libFileName.GetFullPath();
         DisplayError( this, msg );
-        return;
-    }
-
-    STREAM_OUTPUTFORMATTER libFormatter( libStream );
-
-    if( !m_library->Save( libFormatter ) )
-    {
-        msg = _( "Error occurred while saving library file \"" ) + fn.GetFullPath() + _( "\"." );
-        AppendMsgPanel( _( "*** ERROR: ***" ), msg, RED );
-        DisplayError( this, msg );
-        return;
+        return false;
     }
 
     wxFileName docFileName = libFileName;
@@ -373,32 +407,34 @@ void LIB_EDIT_FRAME::SaveActiveLibrary( wxCommandEvent& event )
         }
     }
 
-    wxFFileOutputStream docStream( docFileName.GetFullPath(), wxT( "wt" ) );
+    try
+    {
+        FILE_OUTPUTFORMATTER    docFormatter( docFileName.GetFullPath() );
 
-    if( !docStream.IsOk() )
+        if( !m_library->SaveDocs( docFormatter ) )
+        {
+            msg = _( "Error occurred while saving library document file \"" ) +
+                  docFileName.GetFullPath() + _( "\"." );
+            AppendMsgPanel( _( "*** ERROR: ***" ), msg, RED );
+            DisplayError( this, msg );
+            return false;
+        }
+    }
+    catch( ... /* IO_ERROR ioe */ )
     {
         docFileName.MakeAbsolute();
         msg = wxT( "Failed to create component document library file " ) +
               docFileName.GetFullPath();
         DisplayError( this, msg );
-        return;
-    }
-
-    STREAM_OUTPUTFORMATTER docFormatter( docStream );
-
-    if( !m_library->SaveDocs( docFormatter ) )
-    {
-        msg = _( "Error occurred while saving library document file \"" ) +
-              docFileName.GetFullPath() + _( "\"." );
-        AppendMsgPanel( _( "*** ERROR: ***" ), msg, RED );
-        DisplayError( this, msg );
-        return;
+        return false;
     }
 
     msg = _( "Library file \"" ) + fn.GetFullName() + wxT( "\" Ok" );
     fn.SetExt( DOC_EXT );
     wxString msg1 = _( "Document file \"" ) + fn.GetFullPath() + wxT( "\" Ok" );
     AppendMsgPanel( msg, msg1, BLUE );
+
+    return true;
 }
 
 
@@ -458,7 +494,7 @@ void LIB_EDIT_FRAME::DeleteOnePart( wxCommandEvent& event )
     wxArrayString ListNames;
     wxString      msg;
 
-    DrawPanel->EndMouseCapture( ID_NO_TOOL_SELECTED, DrawPanel->GetDefaultCursor() );
+    m_canvas->EndMouseCapture( ID_NO_TOOL_SELECTED, m_canvas->GetDefaultCursor() );
 
     m_lastDrawItem = NULL;
     m_drawItem = NULL;
@@ -538,7 +574,7 @@ All changes will be lost. Discard changes?" ) ) )
         m_aliasName.Empty();
     }
 
-    DrawPanel->Refresh();
+    m_canvas->Refresh();
 }
 
 
@@ -552,7 +588,7 @@ void LIB_EDIT_FRAME::CreateNewLibraryPart( wxCommandEvent& event )
 lost!\n\nClear the current component from the screen?" ) ) )
         return;
 
-    DrawPanel->EndMouseCapture( ID_NO_TOOL_SELECTED, DrawPanel->GetDefaultCursor() );
+    m_canvas->EndMouseCapture( ID_NO_TOOL_SELECTED, m_canvas->GetDefaultCursor() );
 
     m_drawItem = NULL;
 
@@ -636,8 +672,8 @@ lost!\n\nClear the current component from the screen?" ) ) )
     m_lastDrawItem = NULL;
     GetScreen()->ClearUndoRedoList();
     OnModify();
-    DrawPanel->Refresh();
-    m_HToolBar->Refresh();
+    m_canvas->Refresh();
+    m_mainToolBar->Refresh();
 }
 
 

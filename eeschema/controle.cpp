@@ -27,24 +27,26 @@
  * eeschema/controle.cpp
  */
 
-#include "fctsys.h"
-#include "gr_basic.h"
-#include "class_drawpanel.h"
-#include "eda_dde.h"
-#include "wxEeschemaStruct.h"
+#include <fctsys.h>
+#include <gr_basic.h>
+#include <class_drawpanel.h>
+#include <eda_dde.h>
+#include <wxEeschemaStruct.h>
+#include <menus_helpers.h>
+#include <msgpanel.h>
 
-#include "eeschema_id.h"
-#include "general.h"
-#include "hotkeys.h"
-#include "protos.h"
-#include "libeditframe.h"
-#include "viewlib_frame.h"
-#include "lib_draw_item.h"
-#include "lib_pin.h"
-#include "sch_sheet.h"
-#include "sch_sheet_path.h"
-#include "sch_marker.h"
-#include "sch_component.h"
+#include <eeschema_id.h>
+#include <general.h>
+#include <hotkeys.h>
+#include <protos.h>
+#include <libeditframe.h>
+#include <viewlib_frame.h>
+#include <lib_draw_item.h>
+#include <lib_pin.h>
+#include <sch_sheet.h>
+#include <sch_sheet_path.h>
+#include <sch_marker.h>
+#include <sch_component.h>
 
 
 SCH_ITEM* SCH_EDIT_FRAME::LocateAndShowItem( const wxPoint& aPosition, const KICAD_T aFilterList[],
@@ -56,15 +58,15 @@ SCH_ITEM* SCH_EDIT_FRAME::LocateAndShowItem( const wxPoint& aPosition, const KIC
     SCH_COMPONENT* LibItem = NULL;
     wxPoint        gridPosition = GetScreen()->GetNearestGridPosition( aPosition );
 
-    // Check the on grid position first.  There is more likely to be multple items on
+    // Check the on grid position first.  There is more likely to be multiple items on
     // grid than off grid.
     item = LocateItem( gridPosition, aFilterList, aHotKeyCommandId );
 
     // If the user aborted the clarification context menu, don't show it again at the
     // off grid position.
-    if( !item && DrawPanel->m_AbortRequest )
+    if( !item && m_canvas->GetAbortRequest() )
     {
-        DrawPanel->m_AbortRequest = false;
+        m_canvas->SetAbortRequest( false );
         return NULL;
     }
 
@@ -73,7 +75,7 @@ SCH_ITEM* SCH_EDIT_FRAME::LocateAndShowItem( const wxPoint& aPosition, const KIC
 
     if( !item )
     {
-        DrawPanel->m_AbortRequest = false;  // Just in case the user aborted the context menu.
+        m_canvas->SetAbortRequest( false );  // Just in case the user aborted the context menu.
         return NULL;
     }
 
@@ -103,11 +105,14 @@ SCH_ITEM* SCH_EDIT_FRAME::LocateAndShowItem( const wxPoint& aPosition, const KIC
     if( Pin )
     {
         // Force display pin information (the previous display could be a component info)
-        Pin->DisplayInfo( this );
+        MSG_PANEL_ITEMS items;
+        Pin->GetMsgPanelInfo( items );
 
         if( LibItem )
-            AppendMsgPanel( LibItem->GetRef( GetSheet() ),
-                            LibItem->GetField( VALUE )->m_Text, DARKCYAN );
+            items.push_back( MSG_PANEL_ITEM( LibItem->GetRef( m_CurrentSheet ),
+                                             LibItem->GetField( VALUE )->m_Text, DARKCYAN ) );
+
+        SetMsgPanel( items );
 
         // Cross probing:2 - pin found, and send a locate pin command to Pcbnew (highlight net)
         SendMessageToPCBNEW( Pin, LibItem );
@@ -171,9 +176,9 @@ SCH_ITEM* SCH_EDIT_FRAME::LocateItem( const wxPoint& aPosition, const KICAD_T aF
 
             // Set to NULL in case user aborts the clarification context menu.
             GetScreen()->SetCurItem( NULL );
-            DrawPanel->m_AbortRequest = true;   // Changed to false if an item is selected
+            m_canvas->SetAbortRequest( true );   // Changed to false if an item is selected
             PopupMenu( &selectMenu );
-            DrawPanel->MoveCursorToCrossHair();
+            m_canvas->MoveCursorToCrossHair();
             item = GetScreen()->GetCurItem();
         }
     }
@@ -181,9 +186,18 @@ SCH_ITEM* SCH_EDIT_FRAME::LocateItem( const wxPoint& aPosition, const KICAD_T aF
     GetScreen()->SetCurItem( item );
 
     if( item )
-        item->DisplayInfo( this );
+    {
+        if( item->Type() == SCH_COMPONENT_T )
+            ( (SCH_COMPONENT*) item )->SetCurrentSheetPath( &GetCurrentSheet() );
+
+        MSG_PANEL_ITEMS items;
+        item->GetMsgPanelInfo( items );
+        SetMsgPanel( items );
+    }
     else
+    {
         ClearMsgPanel();
+    }
 
     return item;
 }
@@ -196,7 +210,20 @@ void SCH_EDIT_FRAME::GeneralControl( wxDC* aDC, const wxPoint& aPosition, int aH
     wxPoint     oldpos;
     wxPoint     pos = aPosition;
 
-    pos = screen->GetNearestGridPosition( pos );
+    // when moving mouse, use the "magnetic" grid, unless the shift+ctrl keys is pressed
+    // for next cursor position
+    // ( shift or ctrl key down are PAN command with mouse wheel)
+    bool snapToGrid = true;
+    if( !aHotKey && wxGetKeyState( WXK_SHIFT ) && wxGetKeyState( WXK_CONTROL ) )
+        snapToGrid = false;
+
+    // Cursor is left off grid only if no block in progress
+    if( GetScreen()->m_BlockLocate.GetState() != STATE_NO_BLOCK )
+        snapToGrid = true;
+
+    if( snapToGrid )
+        pos = screen->GetNearestGridPosition( pos );
+
     oldpos = screen->GetCrossHairPosition();
     gridSize = screen->GetGridSize();
 
@@ -207,26 +234,26 @@ void SCH_EDIT_FRAME::GeneralControl( wxDC* aDC, const wxPoint& aPosition, int aH
 
     case WXK_NUMPAD8:
     case WXK_UP:
-        pos.y -= wxRound( gridSize.y );
-        DrawPanel->MoveCursor( pos );
+        pos.y -= KiROUND( gridSize.y );
+        m_canvas->MoveCursor( pos );
         break;
 
     case WXK_NUMPAD2:
     case WXK_DOWN:
-        pos.y += wxRound( gridSize.y );
-        DrawPanel->MoveCursor( pos );
+        pos.y += KiROUND( gridSize.y );
+        m_canvas->MoveCursor( pos );
         break;
 
     case WXK_NUMPAD4:
     case WXK_LEFT:
-        pos.x -= wxRound( gridSize.x );
-        DrawPanel->MoveCursor( pos );
+        pos.x -= KiROUND( gridSize.x );
+        m_canvas->MoveCursor( pos );
         break;
 
     case WXK_NUMPAD6:
     case WXK_RIGHT:
-        pos.x += wxRound( gridSize.x );
-        DrawPanel->MoveCursor( pos );
+        pos.x += KiROUND( gridSize.x );
+        m_canvas->MoveCursor( pos );
         break;
 
     default:
@@ -234,29 +261,31 @@ void SCH_EDIT_FRAME::GeneralControl( wxDC* aDC, const wxPoint& aPosition, int aH
     }
 
     // Update cursor position.
-    screen->SetCrossHairPosition( pos );
+    screen->SetCrossHairPosition( pos, snapToGrid );
 
     if( oldpos != screen->GetCrossHairPosition() )
     {
         pos = screen->GetCrossHairPosition();
-        screen->SetCrossHairPosition( oldpos );
-        DrawPanel->CrossHairOff( aDC );
-        screen->SetCrossHairPosition( pos );
-        DrawPanel->CrossHairOn( aDC );
+        screen->SetCrossHairPosition( oldpos, false);
+        m_canvas->CrossHairOff( aDC );
+        screen->SetCrossHairPosition( pos, snapToGrid );
+        m_canvas->CrossHairOn( aDC );
 
-        if( DrawPanel->IsMouseCaptured() )
+        if( m_canvas->IsMouseCaptured() )
         {
 #ifdef USE_WX_OVERLAY
-            wxDCOverlay oDC( DrawPanel->m_overlay, (wxWindowDC*)aDC );
+            wxDCOverlay oDC( m_overlay, (wxWindowDC*)aDC );
             oDC.Clear();
-            DrawPanel->m_mouseCaptureCallback( DrawPanel, aDC, aPosition, false );
+            m_canvas->CallMouseCapture( aDC, aPosition, false );
 #else
-            DrawPanel->m_mouseCaptureCallback( DrawPanel, aDC, aPosition, true );
+            m_canvas->CallMouseCapture( aDC, aPosition, true );
 #endif
         }
 #ifdef USE_WX_OVERLAY
         else
-            DrawPanel->m_overlay.Reset();
+        {
+            m_overlay.Reset();
+        }
 #endif
     }
 
@@ -279,7 +308,20 @@ void LIB_EDIT_FRAME::GeneralControl( wxDC* aDC, const wxPoint& aPosition, int aH
     wxPoint     oldpos;
     wxPoint     pos = aPosition;
 
-    pos = screen->GetNearestGridPosition( pos );
+    // when moving mouse, use the "magnetic" grid, unless the shift+ctrl keys is pressed
+    // for next cursor position
+    // ( shift or ctrl key down are PAN command with mouse wheel)
+    bool snapToGrid = true;
+    if( !aHotKey && wxGetKeyState( WXK_SHIFT ) && wxGetKeyState( WXK_CONTROL ) )
+        snapToGrid = false;
+
+    // Cursor is left off grid only if no block in progress
+    if( GetScreen()->m_BlockLocate.GetState() != STATE_NO_BLOCK )
+        snapToGrid = true;
+
+    if( snapToGrid )
+        pos = screen->GetNearestGridPosition( pos );
+
     oldpos = screen->GetCrossHairPosition();
     gridSize = screen->GetGridSize();
 
@@ -290,26 +332,26 @@ void LIB_EDIT_FRAME::GeneralControl( wxDC* aDC, const wxPoint& aPosition, int aH
 
     case WXK_NUMPAD8:
     case WXK_UP:
-        pos.y -= wxRound( gridSize.y );
-        DrawPanel->MoveCursor( pos );
+        pos.y -= KiROUND( gridSize.y );
+        m_canvas->MoveCursor( pos );
         break;
 
     case WXK_NUMPAD2:
     case WXK_DOWN:
-        pos.y += wxRound( gridSize.y );
-        DrawPanel->MoveCursor( pos );
+        pos.y += KiROUND( gridSize.y );
+        m_canvas->MoveCursor( pos );
         break;
 
     case WXK_NUMPAD4:
     case WXK_LEFT:
-        pos.x -= wxRound( gridSize.x );
-        DrawPanel->MoveCursor( pos );
+        pos.x -= KiROUND( gridSize.x );
+        m_canvas->MoveCursor( pos );
         break;
 
     case WXK_NUMPAD6:
     case WXK_RIGHT:
-        pos.x += wxRound( gridSize.x );
-        DrawPanel->MoveCursor( pos );
+        pos.x += KiROUND( gridSize.x );
+        m_canvas->MoveCursor( pos );
         break;
 
     default:
@@ -317,29 +359,31 @@ void LIB_EDIT_FRAME::GeneralControl( wxDC* aDC, const wxPoint& aPosition, int aH
     }
 
     // Update the cursor position.
-    screen->SetCrossHairPosition( pos );
+    screen->SetCrossHairPosition( pos, snapToGrid );
 
     if( oldpos != screen->GetCrossHairPosition() )
     {
         pos = screen->GetCrossHairPosition();
-        screen->SetCrossHairPosition( oldpos );
-        DrawPanel->CrossHairOff( aDC );
-        screen->SetCrossHairPosition( pos );
-        DrawPanel->CrossHairOn( aDC );
+        screen->SetCrossHairPosition( oldpos, false );
+        m_canvas->CrossHairOff( aDC );
+        screen->SetCrossHairPosition( pos, snapToGrid );
+        m_canvas->CrossHairOn( aDC );
 
-        if( DrawPanel->IsMouseCaptured() )
+        if( m_canvas->IsMouseCaptured() )
         {
 #ifdef USE_WX_OVERLAY
-            wxDCOverlay oDC( DrawPanel->m_overlay, (wxWindowDC*)aDC );
+            wxDCOverlay oDC( m_overlay, (wxWindowDC*)aDC );
             oDC.Clear();
-            DrawPanel->m_mouseCaptureCallback( DrawPanel, aDC, aPosition, false );
+            m_canvas->CallMouseCapture( aDC, aPosition, false );
 #else
-            DrawPanel->m_mouseCaptureCallback( DrawPanel, aDC, aPosition, true );
+            m_canvas->CallMouseCapture( aDC, aPosition, true );
 #endif
         }
 #ifdef USE_WX_OVERLAY
         else
-            DrawPanel->m_overlay.Reset();
+        {
+            m_overlay.Reset();
+        }
 #endif
     }
 
@@ -370,26 +414,26 @@ void LIB_VIEW_FRAME::GeneralControl( wxDC* aDC, const wxPoint& aPosition, int aH
 
     case WXK_NUMPAD8:
     case WXK_UP:
-        pos.y -= wxRound( gridSize.y );
-        DrawPanel->MoveCursor( pos );
+        pos.y -= KiROUND( gridSize.y );
+        m_canvas->MoveCursor( pos );
         break;
 
     case WXK_NUMPAD2:
     case WXK_DOWN:
-        pos.y += wxRound( gridSize.y );
-        DrawPanel->MoveCursor( pos );
+        pos.y += KiROUND( gridSize.y );
+        m_canvas->MoveCursor( pos );
         break;
 
     case WXK_NUMPAD4:
     case WXK_LEFT:
-        pos.x -= wxRound( gridSize.x );
-        DrawPanel->MoveCursor( pos );
+        pos.x -= KiROUND( gridSize.x );
+        m_canvas->MoveCursor( pos );
         break;
 
     case WXK_NUMPAD6:
     case WXK_RIGHT:
-        pos.x += wxRound( gridSize.x );
-        DrawPanel->MoveCursor( pos );
+        pos.x += KiROUND( gridSize.x );
+        m_canvas->MoveCursor( pos );
         break;
 
     default:
@@ -403,13 +447,13 @@ void LIB_VIEW_FRAME::GeneralControl( wxDC* aDC, const wxPoint& aPosition, int aH
     {
         pos = screen->GetCrossHairPosition();
         screen->SetCrossHairPosition( oldpos );
-        DrawPanel->CrossHairOff( aDC );
+        m_canvas->CrossHairOff( aDC );
         screen->SetCrossHairPosition( pos );
-        DrawPanel->CrossHairOn( aDC );
+        m_canvas->CrossHairOn( aDC );
 
-        if( DrawPanel->IsMouseCaptured() )
+        if( m_canvas->IsMouseCaptured() )
         {
-            DrawPanel->m_mouseCaptureCallback( DrawPanel, aDC, aPosition, true );
+            m_canvas->CallMouseCapture( aDC, aPosition, true );
         }
     }
 

@@ -2,7 +2,6 @@
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
  * Copyright (C) 2009 Jean-Pierre Charras, jaen-pierre.charras@gipsa-lab.inpg.com
- * Copyright (C) 2011 Wayne Stambaugh <stambaughw@verizon.net>
  * Copyright (C) 1992-2011 KiCad Developers, see AUTHORS.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
@@ -28,42 +27,34 @@
  * @brief Class SCH_NO_CONNECT implementation.
  */
 
-#include "fctsys.h"
-#include "gr_basic.h"
-#include "macros.h"
-#include "class_drawpanel.h"
-#include "common.h"
-#include "trigo.h"
-#include "richio.h"
-#include "plot_common.h"
+#include <fctsys.h>
+#include <gr_basic.h>
+#include <macros.h>
+#include <class_drawpanel.h>
+#include <common.h>
+#include <trigo.h>
+#include <richio.h>
+#include <plot_common.h>
 
-#include "general.h"
-#include "protos.h"
-#include "sch_no_connect.h"
-#include "class_netlist_object.h"
+#include <general.h>
+#include <protos.h>
+#include <sch_no_connect.h>
+#include <class_netlist_object.h>
 
 
 SCH_NO_CONNECT::SCH_NO_CONNECT( const wxPoint& pos ) :
     SCH_ITEM( NULL, SCH_NO_CONNECT_T )
 {
 #define DRAWNOCONNECT_SIZE 48       /* No symbol connection range. */
-    m_Pos    = pos;
-    m_Size.x = m_Size.y = DRAWNOCONNECT_SIZE;
+    m_pos    = pos;
+    m_size.x = m_size.y = DRAWNOCONNECT_SIZE;
 #undef DRAWNOCONNECT_SIZE
 
     SetLayer( LAYER_NOCONNECT );
 }
 
 
-SCH_NO_CONNECT::SCH_NO_CONNECT( const SCH_NO_CONNECT& aNoConnect ) :
-    SCH_ITEM( aNoConnect )
-{
-    m_Pos = aNoConnect.m_Pos;
-    m_Size = aNoConnect.m_Size;
-}
-
-
-EDA_ITEM* SCH_NO_CONNECT::doClone() const
+EDA_ITEM* SCH_NO_CONNECT::Clone() const
 {
     return new SCH_NO_CONNECT( *this );
 }
@@ -75,17 +66,17 @@ void SCH_NO_CONNECT::SwapData( SCH_ITEM* aItem )
                  wxT( "Cannot swap no connect data with invalid item." ) );
 
     SCH_NO_CONNECT* item = (SCH_NO_CONNECT*)aItem;
-    EXCHG( m_Pos, item->m_Pos );
-    EXCHG( m_Size, item->m_Size );
+    EXCHG( m_pos, item->m_pos );
+    EXCHG( m_size, item->m_size );
 }
 
 
 EDA_RECT SCH_NO_CONNECT::GetBoundingBox() const
 {
-    int      delta = ( GetPenSize() + m_Size.x ) / 2;
+    int      delta = ( GetPenSize() + m_size.x ) / 2;
     EDA_RECT box;
 
-    box.SetOrigin( m_Pos );
+    box.SetOrigin( m_pos );
     box.Inflate( delta );
 
     return box;
@@ -96,7 +87,7 @@ bool SCH_NO_CONNECT::Save( FILE* aFile ) const
 {
     bool success = true;
 
-    if( fprintf( aFile, "NoConn ~ %-4d %-4d\n", m_Pos.x, m_Pos.y ) == EOF )
+    if( fprintf( aFile, "NoConn ~ %-4d %-4d\n", m_pos.x, m_pos.y ) == EOF )
     {
         success = false;
     }
@@ -113,7 +104,7 @@ bool SCH_NO_CONNECT::Load( LINE_READER& aLine, wxString& aErrorMsg )
     while( (*line != ' ' ) && *line )
         line++;
 
-    if( sscanf( line, "%s %d %d", name, &m_Pos.x, &m_Pos.y ) != 3 )
+    if( sscanf( line, "%s %d %d", name, &m_pos.x, &m_pos.y ) != 3 )
     {
         aErrorMsg.Printf( wxT( "Eeschema file No Connect load error at line %d" ),
                           aLine.LineNumber() );
@@ -127,20 +118,21 @@ bool SCH_NO_CONNECT::Load( LINE_READER& aLine, wxString& aErrorMsg )
 
 int SCH_NO_CONNECT::GetPenSize() const
 {
-    return g_DrawDefaultLineThickness;
+    return GetDefaultLineThickness();
 }
 
 
 void SCH_NO_CONNECT::Draw( EDA_DRAW_PANEL* aPanel, wxDC* aDC, const wxPoint& aOffset,
-                           int aDrawMode, int aColor )
+                           GR_DRAWMODE aDrawMode, EDA_COLOR_T aColor )
 {
-    int pX, pY, color;
-    int delta = m_Size.x / 2;
-    int width = g_DrawDefaultLineThickness;
+    int pX, pY;
+    int delta = m_size.x / 2;
+    int width = GetDefaultLineThickness();
 
-    pX = m_Pos.x + aOffset.x;
-    pY = m_Pos.y + aOffset.y;
+    pX = m_pos.x + aOffset.x;
+    pY = m_pos.y + aOffset.y;
 
+    EDA_COLOR_T color;
     if( aColor >= 0 )
         color = aColor;
     else
@@ -148,30 +140,32 @@ void SCH_NO_CONNECT::Draw( EDA_DRAW_PANEL* aPanel, wxDC* aDC, const wxPoint& aOf
 
     GRSetDrawMode( aDC, aDrawMode );
 
-    GRLine( &aPanel->m_ClipBox, aDC, pX - delta, pY - delta, pX + delta, pY + delta, width, color );
-    GRLine( &aPanel->m_ClipBox, aDC, pX + delta, pY - delta, pX - delta, pY + delta, width, color );
+    GRLine( aPanel->GetClipBox(), aDC, pX - delta, pY - delta, pX + delta, pY + delta,
+            width, color );
+    GRLine( aPanel->GetClipBox(), aDC, pX + delta, pY - delta, pX - delta, pY + delta,
+            width, color );
 }
 
 
-void SCH_NO_CONNECT::Mirror_X( int aXaxis_position )
+void SCH_NO_CONNECT::MirrorX( int aXaxis_position )
 {
-    m_Pos.y -= aXaxis_position;
-    NEGATE(  m_Pos.y );
-    m_Pos.y += aXaxis_position;
+    m_pos.y -= aXaxis_position;
+    NEGATE(  m_pos.y );
+    m_pos.y += aXaxis_position;
 }
 
 
-void SCH_NO_CONNECT::Mirror_Y( int aYaxis_position )
+void SCH_NO_CONNECT::MirrorY( int aYaxis_position )
 {
-    m_Pos.x -= aYaxis_position;
-    NEGATE(  m_Pos.x );
-    m_Pos.x += aYaxis_position;
+    m_pos.x -= aYaxis_position;
+    NEGATE(  m_pos.x );
+    m_pos.x += aYaxis_position;
 }
 
 
-void SCH_NO_CONNECT::Rotate( wxPoint rotationPoint )
+void SCH_NO_CONNECT::Rotate( wxPoint aPosition )
 {
-    RotatePoint( &m_Pos, rotationPoint, 900 );
+    RotatePoint( &m_pos, aPosition, 900 );
 }
 
 
@@ -179,7 +173,7 @@ bool SCH_NO_CONNECT::IsSelectStateChanged( const wxRect& aRect )
 {
     bool previousState = IsSelected();
 
-    if( aRect.Contains( m_Pos ) )
+    if( aRect.Contains( m_pos ) )
         m_Flags |= SELECTED;
     else
         m_Flags &= ~SELECTED;
@@ -190,7 +184,7 @@ bool SCH_NO_CONNECT::IsSelectStateChanged( const wxRect& aRect )
 
 void SCH_NO_CONNECT::GetConnectionPoints( vector< wxPoint >& aPoints ) const
 {
-    aPoints.push_back( m_Pos );
+    aPoints.push_back( m_pos );
 }
 
 
@@ -203,7 +197,7 @@ void SCH_NO_CONNECT::GetNetListItem( vector<NETLIST_OBJECT*>& aNetListItems,
     item->m_SheetListInclude = *aSheetPath;
     item->m_Comp = this;
     item->m_Type = NET_NOCONNECT;
-    item->m_Start = item->m_End = m_Pos;
+    item->m_Start = item->m_End = m_pos;
 
     aNetListItems.push_back( item );
 }
@@ -211,23 +205,23 @@ void SCH_NO_CONNECT::GetNetListItem( vector<NETLIST_OBJECT*>& aNetListItems,
 
 bool SCH_NO_CONNECT::doIsConnected( const wxPoint& aPosition ) const
 {
-    return m_Pos == aPosition;
+    return m_pos == aPosition;
 }
 
-bool SCH_NO_CONNECT::doHitTest( const wxPoint& aPoint, int aAccuracy ) const
+bool SCH_NO_CONNECT::HitTest( const wxPoint& aPosition, int aAccuracy ) const
 {
-    int delta = ( ( m_Size.x + g_DrawDefaultLineThickness ) / 2 ) + aAccuracy;
+    int delta = ( ( m_size.x + GetDefaultLineThickness() ) / 2 ) + aAccuracy;
 
-    wxPoint dist = aPoint - m_Pos;
+    wxPoint dist = aPosition - m_pos;
 
-    if( ( ABS( dist.x ) <= delta ) && ( ABS( dist.y ) <= delta ) )
+    if( ( std::abs( dist.x ) <= delta ) && ( std::abs( dist.y ) <= delta ) )
         return true;
 
     return false;
 }
 
 
-bool SCH_NO_CONNECT::doHitTest( const EDA_RECT& aRect, bool aContained, int aAccuracy ) const
+bool SCH_NO_CONNECT::HitTest( const EDA_RECT& aRect, bool aContained, int aAccuracy ) const
 {
     EDA_RECT rect = aRect;
 
@@ -240,18 +234,19 @@ bool SCH_NO_CONNECT::doHitTest( const EDA_RECT& aRect, bool aContained, int aAcc
 }
 
 
-void SCH_NO_CONNECT::doPlot( PLOTTER* aPlotter )
+void SCH_NO_CONNECT::Plot( PLOTTER* aPlotter )
 {
-    int delta = m_Size.x / 2;
+    int delta = m_size.x / 2;
     int pX, pY;
 
-    pX = m_Pos.x;
-    pY = m_Pos.y;
+    pX = m_pos.x;
+    pY = m_pos.y;
 
-    aPlotter->set_current_line_width( GetPenSize() );
-    aPlotter->set_color( ReturnLayerColor( GetLayer() ) );
-    aPlotter->move_to( wxPoint( pX - delta, pY - delta ) );
-    aPlotter->finish_to( wxPoint( pX + delta, pY + delta ) );
-    aPlotter->move_to( wxPoint( pX + delta, pY - delta ) );
-    aPlotter->finish_to( wxPoint( pX - delta, pY + delta ) );
+    aPlotter->SetCurrentLineWidth( GetPenSize() );
+    aPlotter->SetColor( ReturnLayerColor( GetLayer() ) );
+    aPlotter->MoveTo( wxPoint( pX - delta, pY - delta ) );
+    aPlotter->FinishTo( wxPoint( pX + delta, pY + delta ) );
+    aPlotter->MoveTo( wxPoint( pX + delta, pY - delta ) );
+    aPlotter->FinishTo( wxPoint( pX - delta, pY + delta ) );
 }
+

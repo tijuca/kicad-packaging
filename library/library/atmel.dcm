@@ -1,4 +1,4 @@
-EESchema-DOCLIB  Version 2.0  Date: 2012-03-21 21:30:13
+EESchema-DOCLIB  Version 2.0  Date: 2013-04-13 13:28:03
 #
 $CMP AT89C2051-P
 D 89C2051, PDIP20, 2k Flash, 128B SRAM
@@ -222,6 +222,24 @@ K AVR 8bit Microcontroller ClassicAVR
 F http://www.atmel.com/dyn/resources/prod_documents/doc1041.pdf
 $ENDCMP
 #
+$CMP AT90USB162-A
+D AT90USB162, TQFP32, 16k Flash, 512B SRAM, 512B EEPROM, USB 2.0
+K AVR 8bit Microcontroller USB
+F http://www.atmel.com/Images/doc7707.pdf
+$ENDCMP
+#
+$CMP AT90USB162-M
+D AT90USB162, QFN/MLF32, 16k Flash, 512B SRAM, 512B EEPROM, USB 2.0
+K AVR 8bit Microcontroller USB
+F http://www.atmel.com/Images/doc7707.pdf
+$ENDCMP
+#
+$CMP AT90USB82-M
+D AT90USB82, QFN/MLF32, 8k Flash, 512B SRAM, 512B EEPROM, USB 2.0
+K AVR 8bit Microcontroller USB
+F http://www.atmel.com/Images/doc7707.pdf
+$ENDCMP
+#
 $CMP ATMEGA128-A
 D ATMEGA128, TQFP64, 128k Flash, 4k SRAM, 4k EEPROM, JTAG
 K AVR 8bit Microcontroller MegaAVR
@@ -426,6 +444,18 @@ K AVR 8bit Microcontroller MegaAVR
 F http://www.atmel.com/dyn/resources/prod_documents/doc2573.pdf
 $ENDCMP
 #
+$CMP ATMEGA165A-A
+D ATMEGA165A, TQFP64, 16k Flash, 1k SRAM, 512B EEPROM
+K AVR 8bit Microcontroller MegaAVR PicoPower
+F http://www.atmel.com/Images/doc8285.pdf
+$ENDCMP
+#
+$CMP ATMEGA165A-M
+D ATMEGA165A, QFN/MLF64, 16k Flash, 1k SRAM, 512B EEPROM
+K AVR 8bit Microcontroller MegaAVR PicoPower
+F http://www.atmel.com/Images/doc8285.pdf
+$ENDCMP
+#
 $CMP ATMEGA165P-A
 D ATMEGA165P, TQFP64, 16k Flash, 1k SRAM, 512k EEPROM
 K AVR 8bit Microcontroller MegaAVR PicoPower
@@ -439,15 +469,15 @@ F http://www.atmel.com/dyn/resources/prod_documents/doc8019.pdf
 $ENDCMP
 #
 $CMP ATMEGA165PA-A
-D ATMEGA165PA, TQFP64, 16k Flash, 1k SRAM, 512k EEPROM
+D ATMEGA165PA, TQFP64, 16k Flash, 1k SRAM, 512B EEPROM
 K AVR 8bit Microcontroller MegaAVR PicoPower
-F http://www.atmel.com/dyn/resources/prod_documents/doc8298.pdf
+F http://www.atmel.com/Images/doc8285.pdf
 $ENDCMP
 #
 $CMP ATMEGA165PA-M
-D ATMEGA165PA, QFN/MLF64, 16k Flash, 1k SRAM, 512k EEPROM
+D ATMEGA165PA, QFN/MLF64, 16k Flash, 1k SRAM, 512B EEPROM
 K AVR 8bit Microcontroller MegaAVR PicoPower
-F http://www.atmel.com/dyn/resources/prod_documents/doc8298.pdf
+F http://www.atmel.com/Images/doc8285.pdf
 $ENDCMP
 #
 $CMP ATMEGA168-A
@@ -534,6 +564,18 @@ K AVR 8bit Microcontroller MegaAVR LCD
 F http://www.atmel.com/dyn/resources/prod_documents/doc2514.pdf
 $ENDCMP
 #
+$CMP ATMEGA169A-A
+D ATMEGA169A, TQFP64, 16k Flash, 1k SRAM, 512B EEPROM
+K AVR 8bit Microcontroller MegaAVR LCD PicoPower
+F http://www.atmel.com/Images/doc8284.pdf
+$ENDCMP
+#
+$CMP ATMEGA169A-M
+D ATMEGA169A, QFN/MLF64, 16k Flash, 1k SRAM, 512B EEPROM
+K AVR 8bit Microcontroller MegaAVR LCD PicoPower
+F http://www.atmel.com/Images/doc8284.pdf
+$ENDCMP
+#
 $CMP ATMEGA169P-A
 D ATMEGA169P, TQFP64, 16k Flash, 1k SRAM, 512k EEPROM
 K AVR 8bit Microcontroller MegaAVR LCD PicoPower
@@ -547,15 +589,15 @@ F http://www.atmel.com/dyn/resources/prod_documents/doc8018.pdf
 $ENDCMP
 #
 $CMP ATMEGA169PA-A
-D ATMEGA169PA, TQFP64, 16k Flash, 1k SRAM, 512k EEPROM
+D ATMEGA169PA, TQFP64, 16k Flash, 1k SRAM, 512B EEPROM
 K AVR 8bit Microcontroller MegaAVR LCD PicoPower
-F http://www.atmel.com/dyn/resources/prod_documents/doc8171.pdf
+F http://www.atmel.com/Images/doc8284.pdf
 $ENDCMP
 #
 $CMP ATMEGA169PA-M
-D ATMEGA169PA, QFN/MLF64, 16k Flash, 1k SRAM, 512k EEPROM
+D ATMEGA169PA, QFN/MLF64, 16k Flash, 1k SRAM, 512B EEPROM
 K AVR 8bit Microcontroller MegaAVR LCD PicoPower
-F http://www.atmel.com/dyn/resources/prod_documents/doc8171.pdf
+F http://www.atmel.com/Images/doc8284.pdf
 $ENDCMP
 #
 $CMP ATMEGA16A-A
@@ -708,6 +750,30 @@ K AVR 8bit Microcontroller MegaAVR
 F http://www.atmel.com/dyn/resources/prod_documents/doc2570.pdf
 $ENDCMP
 #
+$CMP ATMEGA325A-A
+D ATMEGA325A, TQFP64, 32k Flash, 2k SRAM, 1k EEPROM
+K AVR 8bit Microcontroller MegaAVR PicoPower
+F http://www.atmel.com/Images/doc8285.pdf
+$ENDCMP
+#
+$CMP ATMEGA325A-M
+D ATMEGA325A, QFN/MLF64, 32k Flash, 2k SRAM, 1k EEPROM
+K AVR 8bit Microcontroller MegaAVR PicoPower
+F http://www.atmel.com/Images/doc8285.pdf
+$ENDCMP
+#
+$CMP ATMEGA325PA-A
+D ATMEGA325PA, TQFP64, 32k Flash, 2k SRAM, 1k EEPROM
+K AVR 8bit Microcontroller MegaAVR PicoPower
+F http://www.atmel.com/Images/doc8285.pdf
+$ENDCMP
+#
+$CMP ATMEGA325PA-M
+D ATMEGA325PA, QFN/MLF64, 32k Flash, 2k SRAM, 1k EEPROM
+K AVR 8bit Microcontroller MegaAVR PicoPower
+F http://www.atmel.com/Images/doc8285.pdf
+$ENDCMP
+#
 $CMP ATMEGA328-A
 D ATMEGA328, TQFP32, 32k Flash, 2kB SRAM, 1kB EEPROM
 K AVR 8bit Microcontroller MegaAVR
@@ -716,6 +782,12 @@ $ENDCMP
 #
 $CMP ATMEGA328-M
 D ATMEGA328, QFN/MLF32, 32k Flash, 2kB SRAM, 1kB EEPROM
+K AVR 8bit Microcontroller MegaAVR
+F http://www.atmel.com/dyn/resources/prod_documents/doc8271.pdf
+$ENDCMP
+#
+$CMP ATMEGA328-MM
+D ATMEGA328A, QFN/MLF28, 32k Flash, 2kB SRAM, 1k EEPROM
 K AVR 8bit Microcontroller MegaAVR
 F http://www.atmel.com/dyn/resources/prod_documents/doc8271.pdf
 $ENDCMP
@@ -735,6 +807,12 @@ $ENDCMP
 $CMP ATMEGA328P-M
 D ATMEGA328P, QFN/MLF32, 32k Flash, 2kB SRAM, 1kB EEPROM
 K AVR 8bit Microcontroller MegaAVR PicoPower
+F http://www.atmel.com/dyn/resources/prod_documents/doc8271.pdf
+$ENDCMP
+#
+$CMP ATMEGA328P-MM
+D ATMEGA328P, QFN/MLF28, 32k Flash, 2kB SRAM, 1k EEPROM
+K AVR 8bit Microcontroller MegaAVR
 F http://www.atmel.com/dyn/resources/prod_documents/doc8271.pdf
 $ENDCMP
 #
@@ -760,6 +838,30 @@ $CMP ATMEGA3290-A
 D ATMEGA3290, TQFP100, 32k Flash, 2k SRAM, 1k EEPROM, JTAG
 K AVR 8bit Microcontroller MegaAVR
 F http://www.atmel.com/dyn/resources/prod_documents/doc2552.pdf
+$ENDCMP
+#
+$CMP ATMEGA329A-A
+D ATMEGA329A, TQFP64, 32k Flash, 2k SRAM, 1k EEPROM
+K AVR 8bit Microcontroller MegaAVR LCD PicoPower
+F http://www.atmel.com/Images/doc8284.pdf
+$ENDCMP
+#
+$CMP ATMEGA329A-M
+D ATMEGA329PA, QFN/MLF64, 32k Flash, 2k SRAM, 1k EEPROM
+K AVR 8bit Microcontroller MegaAVR LCD PicoPower
+F http://www.atmel.com/Images/doc8284.pdf
+$ENDCMP
+#
+$CMP ATMEGA329PA-A
+D ATMEGA329PA, TQFP64, 32k Flash, 2k SRAM, 1k EEPROM
+K AVR 8bit Microcontroller MegaAVR LCD PicoPower
+F http://www.atmel.com/Images/doc8284.pdf
+$ENDCMP
+#
+$CMP ATMEGA329PA-M
+D ATMEGA329PA, QFN/MLF64, 32k Flash, 2k SRAM, 1k EEPROM
+K AVR 8bit Microcontroller MegaAVR LCD PicoPower
+F http://www.atmel.com/Images/doc8284.pdf
 $ENDCMP
 #
 $CMP ATMEGA32A-A
@@ -790,6 +892,16 @@ $CMP ATMEGA32M1-M
 D ATMEGA32M1, QFN32, 32k Flash, 2k SRAM, 1kB EEPROM, CAN
 K AVR 8bit Microcontroller MegaAVR
 F http://www.atmel.com/dyn/resources/prod_documents/doc8209.pdf
+$ENDCMP
+#
+$CMP ATMEGA32U4
+D 8-Bit AVR Microcontroller with 32K Bytes of ISP Flash and USB Controller
+K Microcontroller, ATmega32U4
+$ENDCMP
+#
+$CMP ATMEGA32U4-AU
+D 8-Bit AVR Microcontroller with 32K Bytes of ISP Flash and USB Controller
+K Microcontroller, ATmega32U4-AU
 $ENDCMP
 #
 $CMP ATMEGA48-A
@@ -972,6 +1084,30 @@ K AVR 8bit Microcontroller MegaAVR
 F http://www.atmel.com/dyn/resources/prod_documents/doc2570.pdf
 $ENDCMP
 #
+$CMP ATMEGA645A-A
+D ATMEGA645A, TQFP64, 64k Flash, 4k SRAM, 2k EEPROM
+K AVR 8bit Microcontroller MegaAVR PicoPower
+F http://www.atmel.com/Images/doc8285.pdf
+$ENDCMP
+#
+$CMP ATMEGA645A-M
+D ATMEGA645A, QFN/MLF64, 64k Flash, 4k SRAM, 2k EEPROM
+K AVR 8bit Microcontroller MegaAVR PicoPower
+F http://www.atmel.com/Images/doc8285.pdf
+$ENDCMP
+#
+$CMP ATMEGA645P-A
+D ATMEGA645P, TQFP64, 64k Flash, 4k SRAM, 2k EEPROM
+K AVR 8bit Microcontroller MegaAVR PicoPower
+F http://www.atmel.com/Images/doc8285.pdf
+$ENDCMP
+#
+$CMP ATMEGA645P-M
+D ATMEGA645P, QFN/MLF64, 64k Flash, 4k SRAM, 2k EEPROM
+K AVR 8bit Microcontroller MegaAVR PicoPower
+F http://www.atmel.com/Images/doc8285.pdf
+$ENDCMP
+#
 $CMP ATMEGA649-A
 D ATMEGA649, TQFP64, 64k Flash, 4k SRAM, 2k EEPROM, JTAG
 K AVR 8bit Microcontroller MegaAVR
@@ -988,6 +1124,30 @@ $CMP ATMEGA6490-A
 D ATMEGA6490, TQFP100, 64k Flash, 4k SRAM, 2k EEPROM, JTAG
 K AVR 8bit Microcontroller MegaAVR
 F http://www.atmel.com/dyn/resources/prod_documents/doc2552.pdf
+$ENDCMP
+#
+$CMP ATMEGA649A-A
+D ATMEGA649A, TQFP64, 64k Flash, 4k SRAM, 2k EEPROM
+K AVR 8bit Microcontroller MegaAVR LCD PicoPower
+F http://www.atmel.com/Images/doc8284.pdf
+$ENDCMP
+#
+$CMP ATMEGA649A-M
+D ATMEGA649A, QFN/MLF64, 64k Flash, 4k SRAM, 2k EEPROM
+K AVR 8bit Microcontroller MegaAVR LCD PicoPower
+F http://www.atmel.com/Images/doc8284.pdf
+$ENDCMP
+#
+$CMP ATMEGA649P-A
+D ATMEGA649P, TQFP64, 64k Flash, 4k SRAM, 2k EEPROM
+K AVR 8bit Microcontroller MegaAVR LCD PicoPower
+F http://www.atmel.com/Images/doc8284.pdf
+$ENDCMP
+#
+$CMP ATMEGA649P-M
+D ATMEGA649P, QFN/MLF64, 64k Flash, 4k SRAM, 2k EEPROM
+K AVR 8bit Microcontroller MegaAVR LCD PicoPower
+F http://www.atmel.com/Images/doc8284.pdf
 $ENDCMP
 #
 $CMP ATMEGA64A-A
@@ -1284,6 +1444,24 @@ K AVR 8bit Microcontroller tinyAVR
 F http://www.atmel.com/dyn/resources/prod_documents/doc1187.pdf
 $ENDCMP
 #
+$CMP ATTINY1634-M
+D ATTINY1634, QFN/MLF20, 16k Flash, 1k SRAM, 256B EEPROM
+K AVR 8bit Microcontroller TinyAVR
+F http://www.atmel.com/Images/doc8303.pdf
+$ENDCMP
+#
+$CMP ATTINY1634-S
+D ATTINY1634, SO20, 16k Flash, 1k SRAM, 256B EEPROM
+K AVR 8bit Microcontroller TinyAVR
+F http://www.atmel.com/Images/doc8303.pdf
+$ENDCMP
+#
+$CMP ATTINY1634-U
+D ATTINY1634, BGA20 (5x4mm, 0.4mm), 16k Flash, 1k SRAM, 256B EEPROM
+K AVR 8bit Microcontroller TinyAVR
+F http://www.atmel.com/Images/doc8303.pdf
+$ENDCMP
+#
 $CMP ATTINY167-AM
 D ATTINY167, MLF32, 16k Flash, 512B SRAM, 512B EEPROM, Debug Wire
 K AVR 8bit Microcontroller tinyAVR Automotive
@@ -1566,8 +1744,8 @@ K AVR 8bit Microcontroller tinyAVR
 F http://www.atmel.com/dyn/resources/prod_documents/doc8006.pdf
 $ENDCMP
 #
-$CMP ATTINY44-SS
-D ATTINY44, SO14, 4k Flash, 256B SRAM, 256B EEPROM, dW
+$CMP ATTINY44-S
+D ATTINY44, SO14, 4k Flash, 256B SRAM, 128B EEPROM, dW
 K AVR 8bit Microcontroller tinyAVR
 F http://www.atmel.com/dyn/resources/prod_documents/doc8006.pdf
 $ENDCMP
@@ -1698,10 +1876,34 @@ K AVR 8bit Microcontroller tinyAVR
 F http://www.atmel.com/dyn/resources/prod_documents/doc8006.pdf
 $ENDCMP
 #
-$CMP ATTINY84-SS
-D ATTINY84, SO14, 8k Flash, 512B SRAM, 512B EEPROM, dW
+$CMP ATTINY84-S
+D ATTINY84, SO14, 8k Flash, 512B SRAM, 128B EEPROM, dW
 K AVR 8bit Microcontroller tinyAVR
 F http://www.atmel.com/dyn/resources/prod_documents/doc8006.pdf
+$ENDCMP
+#
+$CMP ATTINY84A-M
+D ATTINY84A, QFN/MLF20, 8k Flash, 512B SRAM, 512B EEPROM, dW
+K AVR 8bit Microcontroller tinyAVR
+F http://www.atmel.com/dyn/resources/prod_documents/doc8183.pdf
+$ENDCMP
+#
+$CMP ATTINY84A-MM
+D ATTINY84A, VQFN20, 8k Flash, 512B SRAM, 512B EEPROM, dW
+K AVR 8bit Microcontroller tinyAVR
+F http://www.atmel.com/dyn/resources/prod_documents/doc8183.pdf
+$ENDCMP
+#
+$CMP ATTINY84A-P
+D ATTINY84A, PDIP14, 8k Flash, 512B SRAM, 512B EEPROM, dW
+K AVR 8bit Microcontroller tinyAVR
+F http://www.atmel.com/dyn/resources/prod_documents/doc8183.pdf
+$ENDCMP
+#
+$CMP ATTINY84A-SS
+D ATTINY84A, SO14, 8k Flash, 512B SRAM, 512B EEPROM, dW
+K AVR 8bit Microcontroller tinyAVR
+F http://www.atmel.com/dyn/resources/prod_documents/doc8183.pdf
 $ENDCMP
 #
 $CMP ATTINY85-M
@@ -1824,6 +2026,240 @@ K AVR 8bit Microcontroller tinyAVR
 F http://www.atmel.com/dyn/resources/prod_documents/doc8127.pdf
 $ENDCMP
 #
+$CMP ATXMEGA128A1-A
+D ATXMEGA128A1, TQFP100, 128k Flash, 8k Boot, 8k SRAM, 2k EEPROM, JTAG
+K AVR 8/16bit Microcontroller XMegaAVR
+F http://www.atmel.com/Images/doc8067.pdf
+$ENDCMP
+#
+$CMP ATXMEGA128A1U-A
+D ATXMEGA128A1U, TQFP100, 128k Flash, 8k Boot, 8k SRAM, 2k EEPROM, USB, JTAG
+K AVR 8/16bit Microcontroller XMegaAVR
+F http://www.atmel.com/Images/doc8385.pdf
+$ENDCMP
+#
+$CMP ATXMEGA128A3-A
+D ATXMEGA128A3, TQFP64, 128k Flash, 8k Boot, 8k SRAM, 2k EEPROM, JTAG
+K AVR 8/16bit Microcontroller XMegaAVR
+F http://www.atmel.com/Images/doc8068.pdf
+$ENDCMP
+#
+$CMP ATXMEGA128A3-M
+D ATXMEGA128A3, QFN64, 128k Flash, 8k Boot, 8k SRAM, 2k EEPROM, JTAG
+K AVR 8/16bit Microcontroller XMegaAVR
+F http://www.atmel.com/Images/doc8068.pdf
+$ENDCMP
+#
+$CMP ATXMEGA128A3U-A
+D ATXMEGA128A3U, TQFP64, 128k Flash, 8k Boot, 8k SRAM, 2k EEPROM, JTAG, USB
+K AVR 8/16bit Microcontroller XMegaAVR
+F http://www.atmel.com/Images/doc8386.pdf
+$ENDCMP
+#
+$CMP ATXMEGA128A3U-M
+D ATXMEGA128A3U, QFN64, 128k Flash, 8k Boot, 8k SRAM, 2k EEPROM, JTAG, USB
+K AVR 8/16bit Microcontroller XMegaAVR
+F http://www.atmel.com/Images/doc8386.pdf
+$ENDCMP
+#
+$CMP ATXMEGA128A4-A
+D ATXMEGA128A4, TQFP44, 128k Flash, 8k Boot, 8k SRAM, 2k EEPROM, JTAG
+K AVR 8/16bit Microcontroller XMegaAVR
+F http://www.atmel.com/Images/doc8069.pdf
+$ENDCMP
+#
+$CMP ATXMEGA128A4-M
+D ATXMEGA128A4, VQFN44, 128k Flash, 8k Boot, 8k SRAM, 2k EEPROM, JTAG
+K AVR 8/16bit Microcontroller XMegaAVR
+F http://www.atmel.com/Images/doc8069.pdf
+$ENDCMP
+#
+$CMP ATXMEGA128A4U-A
+D ATXMEGA128A4U, TQFP44, 128k Flash, 8k Boot, 2k SRAM, 1k EEPROM, JTAG, USB
+K AVR 8/16bit Microcontroller XMegaAVR
+F http://www.atmel.com/Images/doc8387.pdf
+$ENDCMP
+#
+$CMP ATXMEGA128A4U-M
+D ATXMEGA128A4U, QFN44, 128k Flash, 8k Boot, 8k SRAM, 2k EEPROM, JTAG, USB
+K AVR 8/16bit Microcontroller XMegaAVR
+F http://www.atmel.com/Images/doc8387.pdf
+$ENDCMP
+#
+$CMP ATXMEGA128B1-A
+D ATXMEGA128B1, TQFP100, 128k Flash, 8k Boot, 8k SRAM, 2k EEPROM, JTAG, USB, LCD
+K AVR 8/16bit Microcontroller XMegaAVR
+F http://www.atmel.com/Images/doc8330.pdf
+$ENDCMP
+#
+$CMP ATXMEGA128B3-A
+D ATXMEGA128B3, TQFP64, 128k Flash, 8k Boot, 8k SRAM, 2k EEPROM, JTAG, USB, LCD
+K AVR 8/16bit Microcontroller XMegaAVR
+F http://www.atmel.com/Images/doc8074.pdf
+$ENDCMP
+#
+$CMP ATXMEGA128B3-M
+D ATXMEGA128B3, QFN64, 128k Flash, 8k Boot, 8k SRAM, 2k EEPROM, JTAG, USB, LCD
+K AVR 8/16bit Microcontroller XMegaAVR
+F http://www.atmel.com/Images/doc8074.pdf
+$ENDCMP
+#
+$CMP ATXMEGA128C3-A
+D ATXMEGA128C3, TQFP64, 128k Flash, 8k Boot, 8k SRAM, 2k EEPROM, JTAG, USB
+K AVR 8/16bit Microcontroller XMegaAVR
+F http://www.atmel.com/Images/doc8492.pdf
+$ENDCMP
+#
+$CMP ATXMEGA128C3-M
+D ATXMEGA128C3, QFN64, 128k Flash, 8k Boot, 8k SRAM, 2k EEPROM, JTAG, USB
+K AVR 8/16bit Microcontroller XMegaAVR
+F http://www.atmel.com/Images/doc8492.pdf
+$ENDCMP
+#
+$CMP ATXMEGA128D3-A
+D ATXMEGA128D3, TQFP64, 128k Flash, 8k Boot, 8k SRAM, 2k EEPROM, JTAG
+K AVR 8/16bit Microcontroller XMegaAVR
+F http://www.atmel.com/Images/doc8134.pdf
+$ENDCMP
+#
+$CMP ATXMEGA128D3-M
+D ATXMEGA128D3, QFN64, 128k Flash, 8k Boot, 8k SRAM, 2k EEPROM, JTAG
+K AVR 8/16bit Microcontroller XMegaAVR
+F http://www.atmel.com/Images/doc8134.pdf
+$ENDCMP
+#
+$CMP ATXMEGA128D4-A
+D ATXMEGA128D4, TQFP44, 128k Flash, 8k Boot, 8k SRAM, 2k EEPROM, JTAG
+K AVR 8/16bit Microcontroller XMegaAVR
+F http://www.atmel.com/Images/doc8135.pdf
+$ENDCMP
+#
+$CMP ATXMEGA128D4-M
+D ATXMEGA128D4, VQFN44, 128k Flash, 8k Boot, 8k SRAM, 2k EEPROM, JTAG
+K AVR 8/16bit Microcontroller XMegaAVR
+F http://www.atmel.com/Images/doc8135.pdf
+$ENDCMP
+#
+$CMP ATXMEGA16A4-A
+D ATXMEGA16A4, TQFP44, 16k Flash, 4k Boot, 2k SRAM, 1k EEPROM, JTAG
+K AVR 8/16bit Microcontroller XMegaAVR
+F http://www.atmel.com/Images/doc8069.pdf
+$ENDCMP
+#
+$CMP ATXMEGA16A4-M
+D ATXMEGA16A4, VQFN44, 16k Flash, 4k Boot, 2k SRAM, 1k EEPROM, JTAG
+K AVR 8/16bit Microcontroller XMegaAVR
+F http://www.atmel.com/Images/doc8069.pdf
+$ENDCMP
+#
+$CMP ATXMEGA16A4U-A
+D ATXMEGA16A4U, TQFP44, 16k Flash, 4k Boot, 2k SRAM, 1k EEPROM, JTAG, USB
+K AVR 8/16bit Microcontroller XMegaAVR
+F http://www.atmel.com/Images/doc8387.pdf
+$ENDCMP
+#
+$CMP ATXMEGA16A4U-M
+D ATXMEGA16A4U, QFN44, 16k Flash, 4k Boot, 2k SRAM, 1k EEPROM, JTAG, USB
+K AVR 8/16bit Microcontroller XMegaAVR
+F http://www.atmel.com/Images/doc8387.pdf
+$ENDCMP
+#
+$CMP ATXMEGA16C4-A
+D ATXMEGA16C4, TQFP44, 16k Flash, 4k Boot, 2k SRAM, 1k EEPROM, JTAG
+K AVR 8/16bit Microcontroller XMegaAVR
+F http://www.atmel.com/Images/doc8493.pdf
+$ENDCMP
+#
+$CMP ATXMEGA16C4-M
+D ATXMEGA16C4, VQFN44, 16k Flash, 4k Boot, 2k SRAM, 1k EEPROM, JTAG
+K AVR 8/16bit Microcontroller XMegaAVR
+F http://www.atmel.com/Images/doc8493.pdf
+$ENDCMP
+#
+$CMP ATXMEGA16D4-A
+D ATXMEGA16D4, TQFP44, 16k Flash, 4k Boot, 2k SRAM, 1k EEPROM, JTAG
+K AVR 8/16bit Microcontroller XMegaAVR
+F http://www.atmel.com/Images/doc8135.pdf
+$ENDCMP
+#
+$CMP ATXMEGA16D4-M
+D ATXMEGA16D4, VQFN44, 16k Flash, 4k Boot, 2k SRAM, 1k EEPROM, JTAG
+K AVR 8/16bit Microcontroller XMegaAVR
+F http://www.atmel.com/Images/doc8135.pdf
+$ENDCMP
+#
+$CMP ATXMEGA192A1-A
+D ATXMEGA192A1, TQFP100, 192k Flash, 8k Boot, 16k SRAM, 2k EEPROM, JTAG
+K AVR 8/16bit Microcontroller XMegaAVR
+F http://www.atmel.com/Images/doc8067.pdf
+$ENDCMP
+#
+$CMP ATXMEGA192A3-A
+D ATXMEGA192A3, TQFP64, 192k Flash, 8k Boot, 16k SRAM, 2k EEPROM, JTAG
+K AVR 8/16bit Microcontroller XMegaAVR
+F http://www.atmel.com/Images/doc8068.pdf
+$ENDCMP
+#
+$CMP ATXMEGA192A3-M
+D ATXMEGA192A3, QFN64, 192k Flash, 8k Boot, 16k SRAM, 2k EEPROM, JTAG
+K AVR 8/16bit Microcontroller XMegaAVR
+F http://www.atmel.com/Images/doc8068.pdf
+$ENDCMP
+#
+$CMP ATXMEGA192A3U-A
+D ATXMEGA192A3U, TQFP64, 192k Flash, 8k Boot, 16k SRAM, 2k EEPROM, JTAG, USB
+K AVR 8/16bit Microcontroller XMegaAVR
+F http://www.atmel.com/Images/doc8386.pdf
+$ENDCMP
+#
+$CMP ATXMEGA192A3U-M
+D ATXMEGA192A3U, QFN64, 192k Flash, 8k Boot, 16k SRAM, 2k EEPROM, JTAG, USB
+K AVR 8/16bit Microcontroller XMegaAVR
+F http://www.atmel.com/Images/doc8386.pdf
+$ENDCMP
+#
+$CMP ATXMEGA192C3-A
+D ATXMEGA192C3, TQFP64, 192k Flash, 8k Boot, 16k SRAM, 2k EEPROM, JTAG, USB
+K AVR 8/16bit Microcontroller XMegaAVR
+F http://www.atmel.com/Images/doc8492.pdf
+$ENDCMP
+#
+$CMP ATXMEGA192C3-M
+D ATXMEGA192C3, QFN64, 192k Flash, 8k Boot, 16k SRAM, 2k EEPROM, JTAG, USB
+K AVR 8/16bit Microcontroller XMegaAVR
+F http://www.atmel.com/Images/doc8492.pdf
+$ENDCMP
+#
+$CMP ATXMEGA192D3-A
+D ATXMEGA192D3, TQFP64, 192k Flash, 8k Boot, 16k SRAM, 2k EEPROM, JTAG
+K AVR 8/16bit Microcontroller XMegaAVR
+F http://www.atmel.com/Images/doc8134.pdf
+$ENDCMP
+#
+$CMP ATXMEGA192D3-M
+D ATXMEGA192D3, QFN64, 192k Flash, 8k Boot, 16k SRAM, 2k EEPROM, JTAG
+K AVR 8/16bit Microcontroller XMegaAVR
+F http://www.atmel.com/Images/doc8134.pdf
+$ENDCMP
+#
+$CMP ATXMEGA256A1-A
+D ATXMEGA256A1, TQFP100, 256k Flash, 8k Boot, 16k SRAM, 4k EEPROM, JTAG
+K AVR 8/16bit Microcontroller XMegaAVR
+F http://www.atmel.com/Images/doc8067.pdf
+$ENDCMP
+#
+$CMP ATXMEGA256A3-A
+D ATXMEGA256A3, TQFP64, 256k Flash, 8k Boot, 16k SRAM, 4k EEPROM, JTAG
+K AVR 8/16bit Microcontroller XMegaAVR
+F http://www.atmel.com/Images/doc8068.pdf
+$ENDCMP
+#
+$CMP ATXMEGA256A3-M
+D ATXMEGA128A3, QFN64, 256k Flash, 8k Boot, 16k SRAM, 4k EEPROM, JTAG
+K AVR 8/16bit Microcontroller XMegaAVR
+F http://www.atmel.com/Images/doc8068.pdf
+$ENDCMP
+#
 $CMP ATXMEGA256A3B-A
 D ATXMEGA256A3B, TQFP64, 256k Flash, 8k Boot, 16k SRAM, 4k EEPROM, JTAG
 K AVR 8/16bit Microcontroller XMegaAVR
@@ -1834,6 +2270,222 @@ $CMP ATXMEGA256A3B-M
 D ATXMEGA256A3B, MLF/QFN64, 256k Flash, 8k Boot, 16k SRAM, 4k EEPROM, JTAG
 K AVR 8/16bit Microcontroller XMegaAVR
 F http://www.atmel.com/dyn/resources/prod_documents/doc8116.pdf
+$ENDCMP
+#
+$CMP ATXMEGA256A3BU-A
+D ATXMEGA256A3B, TQFP64, 256k Flash, 8k Boot, 16k SRAM, 4k EEPROM, JTAG, USB
+K AVR 8/16bit Microcontroller XMegaAVR
+F http://www.atmel.com/Images/doc8362.pdf
+$ENDCMP
+#
+$CMP ATXMEGA256A3BU-M
+D ATXMEGA256A3B, QFN64, 256k Flash, 8k Boot, 16k SRAM, 4k EEPROM, JTAG, USB
+K AVR 8/16bit Microcontroller XMegaAVR
+F http://www.atmel.com/Images/doc8362.pdf
+$ENDCMP
+#
+$CMP ATXMEGA256A3U-A
+D ATXMEGA256A3U, TQFP64, 256k Flash, 8k Boot, 16k SRAM, 4k EEPROM, JTAG, USB
+K AVR 8/16bit Microcontroller XMegaAVR
+F http://www.atmel.com/Images/doc8386.pdf
+$ENDCMP
+#
+$CMP ATXMEGA256A3U-M
+D ATXMEGA256A3U, QFN64, 256k Flash, 8k Boot, 16k SRAM, 4k EEPROM, JTAG, USB
+K AVR 8/16bit Microcontroller XMegaAVR
+F http://www.atmel.com/Images/doc8386.pdf
+$ENDCMP
+#
+$CMP ATXMEGA256C3-A
+D ATXMEGA256C3, TQFP64, 256k Flash, 8k Boot, 16k SRAM, 4k EEPROM, JTAG, USB
+K AVR 8/16bit Microcontroller XMegaAVR
+F http://www.atmel.com/Images/doc8492.pdf
+$ENDCMP
+#
+$CMP ATXMEGA256C3-M
+D ATXMEGA256C3, QFN64, 256k Flash, 8k Boot, 16k SRAM, 4k EEPROM, JTAG, USB
+K AVR 8/16bit Microcontroller XMegaAVR
+F http://www.atmel.com/Images/doc8492.pdf
+$ENDCMP
+#
+$CMP ATXMEGA256D3-A
+D ATXMEGA256D3, TQFP64, 256k Flash, 8k Boot, 16k SRAM, 4k EEPROM, JTAG
+K AVR 8/16bit Microcontroller XMegaAVR
+F http://www.atmel.com/Images/doc8134.pdf
+$ENDCMP
+#
+$CMP ATXMEGA256D3-M
+D ATXMEGA256D3, QFN64, 256k Flash, 8k Boot, 16k SRAM, 4k EEPROM, JTAG
+K AVR 8/16bit Microcontroller XMegaAVR
+F http://www.atmel.com/Images/doc8134.pdf
+$ENDCMP
+#
+$CMP ATXMEGA32A4-A
+D ATXMEGA32A4, TQFP44, 32k Flash, 4k Boot, 4k SRAM, 1k EEPROM, JTAG
+K AVR 8/16bit Microcontroller XMegaAVR
+F http://www.atmel.com/Images/doc8069.pdf
+$ENDCMP
+#
+$CMP ATXMEGA32A4-M
+D ATXMEGA32A4, VQFN44, 32k Flash, 4k Boot, 4k SRAM, 1k EEPROM, JTAG
+K AVR 8/16bit Microcontroller XMegaAVR
+F http://www.atmel.com/Images/doc8069.pdf
+$ENDCMP
+#
+$CMP ATXMEGA32A4U-A
+D ATXMEGA16A4U, TQFP44, 32k Flash, 4k Boot, 4k SRAM, 1k EEPROM, JTAG, USB
+K AVR 8/16bit Microcontroller XMegaAVR
+F http://www.atmel.com/Images/doc8387.pdf
+$ENDCMP
+#
+$CMP ATXMEGA32A4U-M
+D ATXMEGA32A4U, QFN44, 32k Flash, 4k Boot, 4k SRAM, 1k EEPROM, JTAG, USB
+K AVR 8/16bit Microcontroller XMegaAVR
+F http://www.atmel.com/Images/doc8387.pdf
+$ENDCMP
+#
+$CMP ATXMEGA32C4-A
+D ATXMEGA32C4, TQFP44, 32k Flash, 4k Boot, 4k SRAM, 1k EEPROM, JTAG
+K AVR 8/16bit Microcontroller XMegaAVR
+F http://www.atmel.com/Images/doc8493.pdf
+$ENDCMP
+#
+$CMP ATXMEGA32C4-M
+D ATXMEGA32C4, VQFN44, 32k Flash, 4k Boot, 4k SRAM, 1k EEPROM, JTAG
+K AVR 8/16bit Microcontroller XMegaAVR
+F http://www.atmel.com/Images/doc8493.pdf
+$ENDCMP
+#
+$CMP ATXMEGA32D4-A
+D ATXMEGA32D4, TQFP44, 32k Flash, 4k Boot, 4k SRAM, 1k EEPROM, JTAG
+K AVR 8/16bit Microcontroller XMegaAVR
+F http://www.atmel.com/Images/doc8135.pdf
+$ENDCMP
+#
+$CMP ATXMEGA32D4-M
+D ATXMEGA32D4, VQFN44, 32k Flash, 4k Boot, 4k SRAM, 1k EEPROM, JTAG
+K AVR 8/16bit Microcontroller XMegaAVR
+F http://www.atmel.com/Images/doc8135.pdf
+$ENDCMP
+#
+$CMP ATXMEGA384A1-A
+D ATXMEGA128A1, TQFP100, 384k Flash, 8k Boot, 32k SRAM, 4k EEPROM, JTAG
+K AVR 8/16bit Microcontroller XMegaAVR
+F http://www.atmel.com/Images/doc8067.pdf
+$ENDCMP
+#
+$CMP ATXMEGA64A1-A
+D ATXMEGA64A1, TQFP100, 64k Flash, 4k Boot, 4k SRAM, 2k EEPROM, JTAG
+K AVR 8/16bit Microcontroller XMegaAVR
+F http://www.atmel.com/Images/doc8067.pdf
+$ENDCMP
+#
+$CMP ATXMEGA64A1U-A
+D ATXMEGA64A1U, TQFP100, 64k Flash, 4k Boot, 4k SRAM, 2k EEPROM, USB, JTAG
+K AVR 8/16bit Microcontroller XMegaAVR
+F http://www.atmel.com/Images/doc8385.pdf
+$ENDCMP
+#
+$CMP ATXMEGA64A3-A
+D ATXMEGA64A3, TQFP64, 64k Flash, 4k Boot, 4k SRAM, 2k EEPROM, JTAG
+K AVR 8/16bit Microcontroller XMegaAVR
+F http://www.atmel.com/Images/doc8068.pdf
+$ENDCMP
+#
+$CMP ATXMEGA64A3-M
+D ATXMEGA64A3, QFN64, 64k Flash, 4k Boot, 4k SRAM, 2k EEPROM, JTAG
+K AVR 8/16bit Microcontroller XMegaAVR
+F http://www.atmel.com/Images/doc8068.pdf
+$ENDCMP
+#
+$CMP ATXMEGA64A3U-A
+D ATXMEGA64A3U, TQFP64, 64k Flash, 4k Boot, 4k SRAM, 2k EEPROM, JTAG, USB
+K AVR 8/16bit Microcontroller XMegaAVR
+F http://www.atmel.com/Images/doc8386.pdf
+$ENDCMP
+#
+$CMP ATXMEGA64A3U-M
+D ATXMEGA64A3U, QFN64, 64k Flash, 4k Boot, 4k SRAM, 2k EEPROM, JTAG, USB
+K AVR 8/16bit Microcontroller XMegaAVR
+F http://www.atmel.com/Images/doc8386.pdf
+$ENDCMP
+#
+$CMP ATXMEGA64A4-A
+D ATXMEGA64A4, TQFP44, 64k Flash, 4k Boot, 4k SRAM, 2k EEPROM, JTAG
+K AVR 8/16bit Microcontroller XMegaAVR
+F http://www.atmel.com/Images/doc8069.pdf
+$ENDCMP
+#
+$CMP ATXMEGA64A4-M
+D ATXMEGA64A4, VQFN44, 64k Flash, 4k Boot, 4k SRAM, 2k EEPROM, JTAG
+K AVR 8/16bit Microcontroller XMegaAVR
+F http://www.atmel.com/Images/doc8069.pdf
+$ENDCMP
+#
+$CMP ATXMEGA64A4U-A
+D ATXMEGA64A4U, TQFP44, 64k Flash, 4k Boot, 4k SRAM, 2k EEPROM, JTAG, USB
+K AVR 8/16bit Microcontroller XMegaAVR
+F http://www.atmel.com/Images/doc8387.pdf
+$ENDCMP
+#
+$CMP ATXMEGA64A4U-M
+D ATXMEGA64A4U, QFN44, 64k Flash, 4k Boot, 4k SRAM, 2k EEPROM, JTAG, USB
+K AVR 8/16bit Microcontroller XMegaAVR
+F http://www.atmel.com/Images/doc8387.pdf
+$ENDCMP
+#
+$CMP ATXMEGA64B1-A
+D ATXMEGA64B1, TQFP100, 64k Flash, 4k Boot, 4k SRAM, 2k EEPROM, JTAG, USB, LCD
+K AVR 8/16bit Microcontroller XMegaAVR
+F http://www.atmel.com/Images/doc8330.pdf
+$ENDCMP
+#
+$CMP ATXMEGA64B3-A
+D ATXMEGA64B3, TQFP64, 64k Flash, 4k Boot, 4k SRAM, 2k EEPROM, JTAG, USB, LCD
+K AVR 8/16bit Microcontroller XMegaAVR
+F http://www.atmel.com/Images/doc8074.pdf
+$ENDCMP
+#
+$CMP ATXMEGA64B3-M
+D ATXMEGA64B3, QFN64, 64k Flash, 4k Boot, 4k SRAM, 2k EEPROM, JTAG, USB, LCD
+K AVR 8/16bit Microcontroller XMegaAVR
+F http://www.atmel.com/Images/doc8074.pdf
+$ENDCMP
+#
+$CMP ATXMEGA64C3-A
+D ATXMEGA64C3, TQFP64, 64k Flash, 4k Boot, 4k SRAM, 2k EEPROM, JTAG, USB
+K AVR 8/16bit Microcontroller XMegaAVR
+F http://www.atmel.com/Images/doc8492.pdf
+$ENDCMP
+#
+$CMP ATXMEGA64C3-M
+D ATXMEGA64C3, QFN64, 64k Flash, 4k Boot, 4k SRAM, 2k EEPROM, JTAG, USB
+K AVR 8/16bit Microcontroller XMegaAVR
+F http://www.atmel.com/Images/doc8492.pdf
+$ENDCMP
+#
+$CMP ATXMEGA64D3-A
+D ATXMEGA64D3, TQFP64, 64k Flash, 4k Boot, 4k SRAM, 2k EEPROM, JTAG
+K AVR 8/16bit Microcontroller XMegaAVR
+F http://www.atmel.com/Images/doc8134.pdf
+$ENDCMP
+#
+$CMP ATXMEGA64D3-M
+D ATXMEGA64D3, QFN64, 64k Flash, 4k Boot, 4k SRAM, 2k EEPROM, JTAG
+K AVR 8/16bit Microcontroller XMegaAVR
+F http://www.atmel.com/Images/doc8134.pdf
+$ENDCMP
+#
+$CMP ATXMEGA64D4-A
+D ATXMEGA64D4, TQFP44, 64k Flash, 4k Boot, 4k SRAM, 2k EEPROM, JTAG
+K AVR 8/16bit Microcontroller XMegaAVR
+F http://www.atmel.com/Images/doc8135.pdf
+$ENDCMP
+#
+$CMP ATXMEGA64D4-M
+D ATXMEGA64D4, VQFN44, 64k Flash, 4k Boot, 4k SRAM, 2k EEPROM, JTAG
+K AVR 8/16bit Microcontroller XMegaAVR
+F http://www.atmel.com/Images/doc8135.pdf
 $ENDCMP
 #
 $CMP AVR-ISP-10
@@ -1849,6 +2501,16 @@ $ENDCMP
 $CMP AVR-JTAG-10
 D Standard IDC10 Male Connector, ATMEL JTAG ICE mkI/mkII
 K IDC10 Male Connector
+$ENDCMP
+#
+$CMP AVR-PDI-6
+D Standard IDC6 Male Connector, ATMEL PDI 6pin
+K IDC6 Male Connector
+$ENDCMP
+#
+$CMP AVR-TPI-6
+D Standard IDC6 Male Connector, ATMEL TPI 6pin
+K IDC6 Male Connector
 $ENDCMP
 #
 #End Doc Library

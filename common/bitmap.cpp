@@ -27,10 +27,8 @@
 #include <wx/bitmap.h>
 #include <wx/mstream.h>
 
-#include "bitmaps.h"
+#include <bitmaps.h>
 
-
-#if defined(USE_PNG_BITMAPS)
 
 wxBitmap KiBitmap( BITMAP_DEF aBitmap )
 {
@@ -45,20 +43,3 @@ wxBitmap* KiBitmapNew( BITMAP_DEF aBitmap )
 
     return new wxBitmap( wxImage( is, wxBITMAP_TYPE_PNG, -1 ), -1 );
 }
-
-#else
-
-// temporary during migration to PNG.  Soon the argument to these calls becomes the
-// opaque BITMAP_DEF&.
-
-wxBitmap KiBitmap( BITMAP_DEF aBitmap )
-{
-    return wxBitmap( aBitmap );
-}
-
-wxBitmap* KiBitmapNew( BITMAP_DEF aBitmap )
-{
-    return new wxBitmap( aBitmap );
-}
-
-#endif

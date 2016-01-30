@@ -2,26 +2,27 @@
  * @file setvisu.cpp
  */
 
-#include "fctsys.h"
-#include "common.h"
-#include "gr_basic.h"
-#include "class_drawpanel.h"
-#include "bitmaps.h"
+#include <fctsys.h>
+#include <common.h>
+#include <gr_basic.h>
+#include <class_drawpanel.h>
+#include <bitmaps.h>
+#include <msgpanel.h>
 
-#include "class_board.h"
-#include "class_module.h"
+#include <class_board.h>
+#include <class_module.h>
 
-#include "cvpcb.h"
-#include "cvpcb_mainframe.h"
-#include "cvstruct.h"
-#include "class_DisplayFootprintsFrame.h"
+#include <cvpcb.h>
+#include <cvpcb_mainframe.h>
+#include <cvstruct.h>
+#include <class_DisplayFootprintsFrame.h>
 
 /*
  * NOTE: There is something in 3d_viewer.h that causes a compiler error in
  *       <boost/foreach.hpp> in Linux so move it after cvpcb.h where it is
  *       included to prevent the error from occurring.
  */
-#include "3d_viewer.h"
+#include <3d_viewer.h>
 
 
 /*
@@ -30,75 +31,79 @@
  */
 void CVPCB_MAINFRAME::CreateScreenCmp()
 {
-    wxString msg, FootprintName;
-    bool     IsNew = false;
-
-    FootprintName = m_FootprintList->GetSelectedFootprint();
-
     if( m_DisplayFootprintFrame == NULL )
     {
         m_DisplayFootprintFrame = new DISPLAY_FOOTPRINTS_FRAME( this, _( "Module" ),
-                                                  wxPoint( 0, 0 ),
-                                                  wxSize( 600, 400 ),
-                                                  KICAD_DEFAULT_DRAWFRAME_STYLE );
-        IsNew = true;
+                                                                wxPoint( 0, 0 ),
+                                                                wxSize( 600, 400 ),
+                                                                KICAD_DEFAULT_DRAWFRAME_STYLE );
         m_DisplayFootprintFrame->Show( true );
     }
     else
     {
-        // Raising the window does not show the window on Windows if iconized.
-        // This should work on any platform.
         if( m_DisplayFootprintFrame->IsIconized() )
              m_DisplayFootprintFrame->Iconize( false );
-        m_DisplayFootprintFrame->Raise();
-
-        // Raising the window does not set the focus on Linux.  This should work on any platform.
-        if( wxWindow::FindFocus() != m_DisplayFootprintFrame )
-            m_DisplayFootprintFrame->SetFocus();
     }
 
-    if( !FootprintName.IsEmpty() )
+    m_DisplayFootprintFrame->InitDisplay();
+}
+
+/* Refresh the full display for this frame:
+ * Set the title, the status line and redraw the canvas
+ * Must be called after the footprint to display is modifed
+ */
+void DISPLAY_FOOTPRINTS_FRAME::InitDisplay()
+{
+    wxString msg;
+    CVPCB_MAINFRAME * parentframe = (CVPCB_MAINFRAME *) GetParent();
+    wxString footprintName = parentframe->m_FootprintList->GetSelectedFootprint();
+
+    if( !footprintName.IsEmpty() )
     {
-        msg = _( "Footprint: " ) + FootprintName;
-        m_DisplayFootprintFrame->SetTitle( msg );
-        FOOTPRINT_INFO* Module = m_footprints.GetModuleInfo( FootprintName );
+        msg = _( "Footprint: " ) + footprintName;
+        SetTitle( msg );
+        FOOTPRINT_INFO* module_info = parentframe->m_footprints.GetModuleInfo( footprintName );
         msg = _( "Lib: " );
 
-        if( Module )
-            msg += Module->m_LibName;
+        if( module_info )
+            msg += module_info->m_LibName;
         else
             msg += wxT( "???" );
 
-        m_DisplayFootprintFrame->SetStatusText( msg, 0 );
+        SetStatusText( msg, 0 );
 
-        if( m_DisplayFootprintFrame->GetBoard()->m_Modules.GetCount() )
+        if( GetBoard()->m_Modules.GetCount() )
         {
             // there is only one module in the list
-            m_DisplayFootprintFrame->GetBoard()->m_Modules.DeleteAll();
+            GetBoard()->m_Modules.DeleteAll();
         }
 
-        MODULE* mod = m_DisplayFootprintFrame->Get_Module( FootprintName );
+        MODULE* module = Get_Module( footprintName );
 
-        if( mod )
-            m_DisplayFootprintFrame->GetBoard()->m_Modules.PushBack( mod );
+        if( module )
+            GetBoard()->m_Modules.PushBack( module );
 
-        m_DisplayFootprintFrame->Zoom_Automatique( false );
-        m_DisplayFootprintFrame->DrawPanel->Refresh();
-        m_DisplayFootprintFrame->UpdateStatusBar();    /* Display new cursor coordinates and zoom value */
+        Zoom_Automatique( false );
 
-        if( m_DisplayFootprintFrame->m_Draw3DFrame )
-            m_DisplayFootprintFrame->m_Draw3DFrame->NewDisplay();
     }
-    else if( !IsNew )
+    else   // No footprint to display. Erase old footprint, if any
     {
-        m_DisplayFootprintFrame->Refresh();
-
-        if( m_DisplayFootprintFrame->m_Draw3DFrame )
-            m_DisplayFootprintFrame->m_Draw3DFrame->NewDisplay();
+        if( GetBoard()->m_Modules.GetCount() )
+        {
+            GetBoard()->m_Modules.DeleteAll();
+            Zoom_Automatique( false );
+            SetStatusText( wxEmptyString, 0 );
+        }
     }
+
+    // Display new cursor coordinates and zoom value:
+    UpdateStatusBar();
+
+    GetCanvas()->Refresh();
+
+    if( m_Draw3DFrame )
+        m_Draw3DFrame->NewDisplay();
 }
-
-
 
 /*
  * Draws the current highlighted footprint.
@@ -108,15 +113,19 @@ void DISPLAY_FOOTPRINTS_FRAME::RedrawActiveWindow( wxDC* DC, bool EraseBg )
     if( !GetBoard() )
         return;
 
-    DrawPanel->DrawBackGround( DC );
-    GetBoard()->Draw( DrawPanel, DC, GR_COPY );
+    m_canvas->DrawBackGround( DC );
+    GetBoard()->Draw( m_canvas, DC, GR_COPY );
 
     MODULE* Module = GetBoard()->m_Modules;
 
     if ( Module )
-        Module->DisplayInfo( this );
+    {
+        MSG_PANEL_ITEMS items;
+        Module->GetMsgPanelInfo( items );
+        SetMsgPanel( items );
+    }
 
-    DrawPanel->DrawCrossHair( DC );
+    m_canvas->DrawCrossHair( DC );
 }
 
 
@@ -124,28 +133,11 @@ void DISPLAY_FOOTPRINTS_FRAME::RedrawActiveWindow( wxDC* DC, bool EraseBg )
 /*
  * Redraw the BOARD items but not cursors, axis or grid.
  */
-void BOARD::Draw( EDA_DRAW_PANEL* aPanel, wxDC* aDC, int aDrawMode, const wxPoint& aOffset )
+void BOARD::Draw( EDA_DRAW_PANEL* aPanel, wxDC* aDC,
+                  GR_DRAWMODE aDrawMode, const wxPoint& aOffset )
 {
     if( m_Modules )
     {
         m_Modules->Draw( aPanel, aDC, GR_COPY );
     }
-}
-
-/* dummy_functions:
- *
- *  These functions are used in some classes.
- *  they are useful in Pcbnew, but have no meaning or are never used
- *  in CvPcb or GerbView.
- *  but they must exist because they appear in some classes.
- *  Do nothing in CvPcb.
- */
-TRACK* MarkTrace( BOARD* aPcb,
-                  TRACK* aStartSegm,
-                  int*   aSegmCount,
-                  int*   aTrackLen,
-                  int*   aLenDie,
-                  bool   aReorder )
-{
-    return NULL;
 }

@@ -1,5 +1,5 @@
-#ifndef _XATTR_H_
-#define _XATTR_H_
+#ifndef XATTR_H_
+#define XATTR_H_
 
 /*
  * This program source code file is part of KiCad, a free EDA CAD application.
@@ -25,7 +25,7 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
  */
 
-#include "richio.h"
+#include <richio.h>
 
 // quiet the deprecated warnings with 3 lines:
 #include <wx/defs.h>
@@ -34,6 +34,9 @@
 
 #include <wx/xml/xml.h>
 
+#if wxCHECK_VERSION( 2, 9, 0  )
+#define wxXmlProperty wxXmlAttribute
+#endif
 
 /**
  * Class XNODE
@@ -43,6 +46,7 @@
 class XNODE : public wxXmlNode
 {
 public:
+    //-----<overloads>---------------------------------------------------------
     XNODE() :
         wxXmlNode()
     {
@@ -58,6 +62,22 @@ public:
         wxXmlNode( aParent, aType, aName, aContent, aProperties )
     {
     }
+
+    XNODE* GetChildren() const
+    {
+        return (XNODE* )wxXmlNode::GetChildren();
+    }
+
+    XNODE* GetNext() const
+    {
+        return (XNODE* )wxXmlNode::GetNext();
+    }
+
+    XNODE* GetParent() const
+    {
+        return (XNODE* )wxXmlNode::GetParent();
+    }
+    //-----</overloads>--------------------------------------------------------
 
     /**
      * Function Format
@@ -78,6 +98,7 @@ public:
      */
     virtual void FormatContents( OUTPUTFORMATTER* out, int nestLevel ) throw( IO_ERROR );
 
+#if !wxCHECK_VERSION( 2, 9, 0  )
     // The following functions did not appear in the base class until recently.
     // Overload them even if they are present in base class, just to make sure
     // they are present in any older base class implementation.
@@ -101,6 +122,7 @@ public:
     }
 
     //-----</overloads>--------------------------------------------------------
+#endif
 };
 
-#endif  // _XATTR_H_
+#endif  // XATTR_H_

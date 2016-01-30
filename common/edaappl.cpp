@@ -1,14 +1,39 @@
-/***
- * @file edaapl.cpp
+/*
+ * This program source code file is part of KiCad, a free EDA CAD application.
  *
- * @brief  For the main application: init functions, and language selection
- *         (locale handling)
- ***/
+ * Copyright (C) 2004 Jean-Pierre Charras, jaen-pierre.charras@gipsa-lab.inpg.com
+ * Copyright (C) 2008-2011 Wayne Stambaugh <stambaughw@verizon.net>
+ * Copyright (C) 1992-2011 KiCad Developers, see AUTHORS.txt for contributors.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation; either version 2
+ * of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, you may find one here:
+ * http://www.gnu.org/licenses/old-licenses/gpl-2.0.html
+ * or you may search the http://www.gnu.org website for the version 2 license,
+ * or you may write to the Free Software Foundation, Inc.,
+ * 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
+ */
 
-#include "fctsys.h"
-#include "gr_basic.h"
-#include "wx/html/htmlwin.h"
-#include "wx/fs_zip.h"
+/**
+ * @file edaappl.cpp
+ *
+ * @brief For the main application: init functions, and language selection
+ *        (locale handling)
+ */
+
+#include <fctsys.h>
+#include <gr_basic.h>
+#include <wx/html/htmlwin.h>
+#include <wx/fs_zip.h>
 #include <wx/dir.h>
 #include <wx/filename.h>
 #include <wx/stdpaths.h>
@@ -16,16 +41,17 @@
 #include <wx/snglinst.h>
 #include <wx/tokenzr.h>
 
-#include "appl_wxstruct.h"
-#include "wxstruct.h"
-#include "macros.h"
-#include "param_config.h"
-#include "worksheet.h"
-#include "id.h"
-#include "build_version.h"
-#include "hotkeys_basic.h"
-#include "online_help.h"
-#include "gestfich.h"
+#include <appl_wxstruct.h>
+#include <wxstruct.h>
+#include <macros.h>
+#include <param_config.h>
+#include <worksheet.h>
+#include <id.h>
+#include <build_version.h>
+#include <hotkeys_basic.h>
+#include <online_help.h>
+#include <gestfich.h>
+#include <menus_helpers.h>
 
 
 static const wxChar* CommonConfigPath = wxT( "kicad_common" );
@@ -39,8 +65,8 @@ static const wxChar* CommonConfigPath = wxT( "kicad_common" );
  * the size of the array. */
 #define LANGUAGE_DESCR_COUNT ( sizeof( s_Language_List ) / sizeof( struct LANGUAGE_DESCR ) )
 
-/* Default font size */
-#define FONT_DEFAULT_SIZE 10    /* Default font size. */
+// Default font size
+#define FONT_DEFAULT_SIZE 10    // Default font size.
 
 static wxString languageCfgKey( wxT( "LanguageID" ) );
 
@@ -82,7 +108,7 @@ struct LANGUAGE_DESCR
  */
 static struct LANGUAGE_DESCR s_Language_List[] =
 {
-    /* Default language */
+    // Default language
     {
         wxLANGUAGE_DEFAULT,
         ID_LANGUAGE_DEFAULT,
@@ -90,7 +116,7 @@ static struct LANGUAGE_DESCR s_Language_List[] =
         _( "Default" )
     },
 
-    /* English language */
+    // English language
     {
         wxLANGUAGE_ENGLISH,
         ID_LANGUAGE_ENGLISH,
@@ -99,7 +125,7 @@ static struct LANGUAGE_DESCR s_Language_List[] =
         true
     },
 
-    /* French language */
+    // French language
     {
         wxLANGUAGE_FRENCH,
         ID_LANGUAGE_FRENCH,
@@ -107,7 +133,7 @@ static struct LANGUAGE_DESCR s_Language_List[] =
         _( "French" )
     },
 
-    /* Finnish language */
+    // Finnish language
     {
         wxLANGUAGE_FINNISH,
         ID_LANGUAGE_FINNISH,
@@ -115,7 +141,7 @@ static struct LANGUAGE_DESCR s_Language_List[] =
         _( "Finnish" )
     },
 
-    /* Spanish language */
+    // Spanish language
     {
         wxLANGUAGE_SPANISH,
         ID_LANGUAGE_SPANISH,
@@ -123,7 +149,7 @@ static struct LANGUAGE_DESCR s_Language_List[] =
         _( "Spanish" )
     },
 
-    /* Portuguese language */
+    // Portuguese language
     {
         wxLANGUAGE_PORTUGUESE,
         ID_LANGUAGE_PORTUGUESE,
@@ -131,7 +157,7 @@ static struct LANGUAGE_DESCR s_Language_List[] =
         _( "Portuguese" )
     },
 
-    /* Italian language */
+    // Italian language
     {
         wxLANGUAGE_ITALIAN,
         ID_LANGUAGE_ITALIAN,
@@ -139,7 +165,7 @@ static struct LANGUAGE_DESCR s_Language_List[] =
         _( "Italian" )
     },
 
-    /* German language */
+    // German language
     {
         wxLANGUAGE_GERMAN,
         ID_LANGUAGE_GERMAN,
@@ -147,7 +173,7 @@ static struct LANGUAGE_DESCR s_Language_List[] =
         _( "German" )
     },
 
-    /* Greek language */
+    // Greek language
     {
         wxLANGUAGE_GREEK,
         ID_LANGUAGE_GREEK,
@@ -155,7 +181,7 @@ static struct LANGUAGE_DESCR s_Language_List[] =
         _( "Greek" )
     },
 
-    /* Slovenian language */
+    // Slovenian language
     {
         wxLANGUAGE_SLOVENIAN,
         ID_LANGUAGE_SLOVENIAN,
@@ -163,7 +189,7 @@ static struct LANGUAGE_DESCR s_Language_List[] =
         _( "Slovenian" )
     },
 
-    /* Hungarian language */
+    // Hungarian language
     {
         wxLANGUAGE_HUNGARIAN,
         ID_LANGUAGE_HUNGARIAN,
@@ -171,7 +197,7 @@ static struct LANGUAGE_DESCR s_Language_List[] =
         _( "Hungarian" )
     },
 
-    /* Polish language */
+    // Polish language
     {
         wxLANGUAGE_POLISH,
         ID_LANGUAGE_POLISH,
@@ -179,7 +205,7 @@ static struct LANGUAGE_DESCR s_Language_List[] =
         _( "Polish" )
     },
 
-    /* Czech language */
+    // Czech language
     {
         wxLANGUAGE_CZECH,
         ID_LANGUAGE_CZECH,
@@ -187,7 +213,7 @@ static struct LANGUAGE_DESCR s_Language_List[] =
         _( "Czech" )
     },
 
-    /* Russian language */
+    // Russian language
     {
         wxLANGUAGE_RUSSIAN,
         ID_LANGUAGE_RUSSIAN,
@@ -195,7 +221,7 @@ static struct LANGUAGE_DESCR s_Language_List[] =
         _( "Russian" )
     },
 
-    /* Korean language */
+    // Korean language
     {
         wxLANGUAGE_KOREAN,
         ID_LANGUAGE_KOREAN,
@@ -203,7 +229,7 @@ static struct LANGUAGE_DESCR s_Language_List[] =
         _( "Korean" )
     },
 
-    /* Chinese simplified */
+    // Chinese simplified
     {
         wxLANGUAGE_CHINESE_SIMPLIFIED,
         ID_LANGUAGE_CHINESE_SIMPLIFIED,
@@ -211,7 +237,7 @@ static struct LANGUAGE_DESCR s_Language_List[] =
         _( "Chinese simplified" )
     },
 
-    /* Catalan language */
+    // Catalan language
     {
         wxLANGUAGE_CATALAN,
         ID_LANGUAGE_CATALAN,
@@ -233,21 +259,27 @@ static struct LANGUAGE_DESCR s_Language_List[] =
         ID_LANGUAGE_JAPANESE,
         lang_jp_xpm,
         _( "Japanese" )
-     }
+    },
+    // Bulgarian language
+    {
+        wxLANGUAGE_BULGARIAN,
+        ID_LANGUAGE_BULGARIAN,
+        lang_bg_xpm,
+        _( "Bulgarian" )
+    }
 };
 
 
 EDA_APP::EDA_APP()
 {
-    m_Checker     = NULL;
-    m_HtmlCtrl    = NULL;
-    m_EDA_Config  = NULL;
-    m_Env_Defined = false;
-    m_LanguageId  = wxLANGUAGE_DEFAULT;
-    m_PdfBrowserIsDefault = true;
+    m_Checker = NULL;
+    m_oneInstancePerFileChecker = NULL;
+    m_HtmlCtrl = NULL;
+    m_settings = NULL;
+    m_LanguageId = wxLANGUAGE_DEFAULT;
     m_Locale = NULL;
-    m_ProjectConfig    = NULL;
-    m_EDA_CommonConfig = NULL;
+    m_projectSettings = NULL;
+    m_commonSettings = NULL;
 }
 
 
@@ -255,17 +287,20 @@ EDA_APP::~EDA_APP()
 {
     SaveSettings();
 
-    /* delete user datas */
-    if( m_ProjectConfig )
-        delete m_ProjectConfig;
+    // delete user datas
+    if( m_projectSettings )
+        delete m_projectSettings;
 
-    if( m_EDA_CommonConfig )
-        delete m_EDA_CommonConfig;
+    if( m_commonSettings )
+        delete m_commonSettings;
 
-    delete m_EDA_Config;
+    delete m_settings;
 
     if( m_Checker )
         delete m_Checker;
+
+    if( m_oneInstancePerFileChecker )
+        delete m_oneInstancePerFileChecker;
 
     delete m_Locale;
 }
@@ -278,13 +313,12 @@ void EDA_APP::InitEDA_Appl( const wxString& aName, EDA_APP_T aId )
     m_Id = aId;
     m_Checker = new wxSingleInstanceChecker( aName.Lower() + wxT( "-" ) + wxGetUserId() );
 
-    /* Init KiCad environment
-     * the environment variable KICAD (if exists) gives the kicad path:
-     * something like set KICAD=d:\kicad
-     */
-    m_Env_Defined = wxGetEnv( wxT( "KICAD" ), &m_KicadEnv );
+    // Init KiCad environment
+    // the environment variable KICAD (if exists) gives the kicad path:
+    // something like set KICAD=d:\kicad
+    bool isDefined = wxGetEnv( wxT( "KICAD" ), &m_KicadEnv );
 
-    if( m_Env_Defined )    // ensure m_KicadEnv ends by "/"
+    if( isDefined )    // ensure m_KicadEnv ends by "/"
     {
         m_KicadEnv.Replace( WIN_STRING_DIR_SEP, UNIX_STRING_DIR_SEP );
 
@@ -292,8 +326,8 @@ void EDA_APP::InitEDA_Appl( const wxString& aName, EDA_APP_T aId )
             m_KicadEnv += UNIX_STRING_DIR_SEP;
     }
 
-/* Prepare On Line Help. Use only lower case for help file names, in order to
- * avoid problems with upper/lower case file names under windows and unix */
+    // Prepare On Line Help. Use only lower case for help file names, in order to
+    // avoid problems with upper/lower case file names under windows and unix.
 #if defined ONLINE_HELP_FILES_FORMAT_IS_HTML
     m_HelpFileName = aName.Lower() + wxT( ".html" );
 #elif defined ONLINE_HELP_FILES_FORMAT_IS_PDF
@@ -302,16 +336,16 @@ void EDA_APP::InitEDA_Appl( const wxString& aName, EDA_APP_T aId )
     #error Help files format not defined
 #endif
 
-    /* Init parameters for configuration */
+    // Init parameters for configuration
     SetVendorName( wxT( "KiCad" ) );
     SetAppName( aName.Lower() );
     SetTitle( aName );
-    m_EDA_Config = new wxConfig();
-    wxASSERT( m_EDA_Config != NULL );
-    m_EDA_CommonConfig = new wxConfig( CommonConfigPath );
-    wxASSERT( m_EDA_CommonConfig != NULL );
+    m_settings = new wxConfig();
+    wxASSERT( m_settings != NULL );
+    m_commonSettings = new wxConfig( CommonConfigPath );
+    wxASSERT( m_commonSettings != NULL );
 
-    /* Install some image handlers, mainly for help */
+    // Install some image handlers, mainly for help
     wxImage::AddHandler( new wxPNGHandler );
     wxImage::AddHandler( new wxGIFHandler );
     wxImage::AddHandler( new wxJPEGHandler );
@@ -325,7 +359,7 @@ void EDA_APP::InitEDA_Appl( const wxString& aName, EDA_APP_T aId )
 
     // Internationalization: loading the kicad suitable Dictionary
     wxString languageSel;
-    m_EDA_CommonConfig->Read( languageCfgKey, &languageSel);
+    m_commonSettings->Read( languageCfgKey, &languageSel);
     m_LanguageId = wxLANGUAGE_DEFAULT;
 
     // Search for the current selection
@@ -344,8 +378,17 @@ void EDA_APP::InitEDA_Appl( const wxString& aName, EDA_APP_T aId )
     {
     }
 
-    /* Set locale option for separator used in float numbers */
+    // Set locale option for separator used in float numbers
     SetLocaleTo_Default();
+}
+
+
+void EDA_APP::SetHtmlHelpController( wxHtmlHelpController* aController )
+{
+    if( m_HtmlCtrl )
+        delete m_HtmlCtrl;
+
+    m_HtmlCtrl = aController;
 }
 
 
@@ -362,7 +405,7 @@ void EDA_APP::InitOnLineHelp()
         m_HtmlCtrl = new wxHtmlHelpController( wxHF_TOOLBAR | wxHF_CONTENTS |
                                                wxHF_PRINT | wxHF_OPEN_FILES
                                                /*| wxHF_SEARCH */ );
-        m_HtmlCtrl->UseConfig( m_EDA_CommonConfig );
+        m_HtmlCtrl->UseConfig( m_commonSettings );
         m_HtmlCtrl->SetTitleFormat( wxT( "KiCad Help" ) );
         m_HtmlCtrl->AddBook( fullfilename );
     }
@@ -378,10 +421,10 @@ void EDA_APP::InitOnLineHelp()
 
 bool EDA_APP::SetBinDir()
 {
-/* Apple MacOSx */
+// Apple MacOSx
 #ifdef __APPLE__
 
-    /* Derive path from location of the app bundle */
+    // Derive path from location of the app bundle
     CFBundleRef mainBundle = CFBundleGetMainBundle();
 
     if( mainBundle == NULL )
@@ -406,45 +449,12 @@ bool EDA_APP::SetBinDir()
     m_BinDir = FROM_UTF8( native_str );
     delete[] native_str;
 
-/* Linux and Unix */
+    // Linux and Unix
 #elif defined(__UNIX__)
-
-    // Under Linux, if argv[0] doesn't the complete path to the executable,
-    // it's necessary to obtain it using "which <filename>".
-    FILE*    ftmp;
-
-    char     Line[1024];
-    char     FileName[1024];
-    wxString str_arg0;
-
-    FileName[0] = 0;
-    str_arg0    = argv[0];
-
-    if( strchr( (const char*) argv[0], '/' ) == NULL ) // no path
-    {
-        sprintf( FileName, "which %s > %s", TO_UTF8( str_arg0 ), TMP_FILE );
-
-        int ret = system( FileName );
-        (void) ret;
-
-        if( ( ftmp = fopen( TMP_FILE, "rt" ) ) != NULL )
-        {
-            const char* line = fgets( Line, 1000, ftmp );
-            (void) line;
-            fclose( ftmp );
-            remove( TMP_FILE );
-        }
-
-        m_BinDir = FROM_UTF8( Line );
-    }
-    else
-    {
-        m_BinDir = argv[0];
-    }
-
+    m_BinDir = wxStandardPaths().GetExecutablePath();
 #else
     m_BinDir = argv[0];
-#endif /* __UNIX__ */
+#endif // __UNIX__
 
     /* Use unix notation for paths. I am not sure this is a good idea,
      * but it simplify compatibility between Windows and Unices
@@ -486,16 +496,16 @@ void EDA_APP::SetDefaultSearchPaths( void )
     if( ::wxGetEnv( wxT( "KICAD" ), NULL ) )
         m_searchPaths.AddEnvList( wxT( "KICAD" ) );
 
-    /* Add the user's home path. */
+    // Add the user's home path.
     m_searchPaths.Add( GetTraits()->GetStandardPaths().GetUserDataDir() );
 
-    /* Standard application data path if it is different from the binary path. */
+    // Standard application data path if it is different from the binary path.
     if( fn.GetPath() != GetTraits()->GetStandardPaths().GetDataDir() )
     {
         m_searchPaths.Add( GetTraits()->GetStandardPaths().GetDataDir() );
     }
 
-    /* Up one level relative to binary path with "share" appended for Windows. */
+    // Up one level relative to binary path with "share" appended for Windows.
     fn.RemoveLastDir();
     m_searchPaths.Add( fn.GetPath() );
     fn.AppendDir( wxT( "share" ) );
@@ -504,10 +514,11 @@ void EDA_APP::SetDefaultSearchPaths( void )
     m_searchPaths.Add( fn.GetPath() );
 
     /* The normal OS program file install paths allow for binary to be
-    * installed in a different path from the library files.  This is
-    * useful for development purposes so the library and documentation
-    * files do not need to be installed separately.  If someone can
-    * figure out a way to implement this without #ifdef, please do. */
+     * installed in a different path from the library files.  This is
+     * useful for development purposes so the library and documentation
+     * files do not need to be installed separately.  If someone can
+     * figure out a way to implement this without #ifdef, please do.
+     */
 #ifdef __WXMSW__
     tmp.AddEnvList( wxT( "PROGRAMFILES" ) );
 #elif __WXMAC__
@@ -538,7 +549,7 @@ void EDA_APP::SetDefaultSearchPaths( void )
         m_searchPaths.Add( fn.GetPath() );
     }
 
-    /* Remove all non-existent paths from the list. */
+    // Remove all non-existent paths from the list.
     for( i = 0; i < m_searchPaths.GetCount(); i++ )
     {
         if( !wxFileName::IsDirReadable( m_searchPaths[i] ) )
@@ -563,7 +574,7 @@ void EDA_APP::SetDefaultSearchPaths( void )
                      m_libSearchPaths.Add( fn.GetPath() );
                 }
 
-                /* Add schematic doc file path (library/doc)to search path list. */
+                // Add schematic doc file path (library/doc)to search path list.
                 fn.AppendDir( wxT( "doc" ) );
 
                 if( fn.IsDirReadable() )
@@ -575,7 +586,7 @@ void EDA_APP::SetDefaultSearchPaths( void )
                 fn.RemoveLastDir(); // point to <kicad path>
             }
 
-            /* Add PCB library file path to search path list. */
+            // Add PCB library file path to search path list.
             if( ( m_Id == APP_PCBNEW_T ) || ( m_Id == APP_CVPCB_T ) )
             {
                 fn.AppendDir( wxT( "modules" ) );
@@ -585,7 +596,7 @@ void EDA_APP::SetDefaultSearchPaths( void )
                      m_libSearchPaths.Add( fn.GetPath() );
                 }
 
-                /* Add 3D module library file path to search path list. */
+                // Add 3D module library file path to search path list.
                 fn.AppendDir( wxT( "packages3d" ) );
 
                 if( fn.IsDirReadable() )
@@ -597,7 +608,7 @@ void EDA_APP::SetDefaultSearchPaths( void )
                 fn.RemoveLastDir(); // point to <kicad path>
             }
 
-            /* Add KiCad template file path to search path list. */
+            // Add KiCad template file path to search path list.
             fn.AppendDir( wxT( "template" ) );
 
             if( fn.IsDirReadable() )
@@ -613,7 +624,7 @@ void EDA_APP::SetDefaultSearchPaths( void )
 
 void EDA_APP::GetSettings( bool aReopenLastUsedDirectory )
 {
-    wxASSERT( m_EDA_Config != NULL && m_EDA_CommonConfig != NULL );
+    wxASSERT( m_settings != NULL && m_commonSettings != NULL );
 
     wxString Line;
 
@@ -621,7 +632,7 @@ void EDA_APP::GetSettings( bool aReopenLastUsedDirectory )
     m_HelpSize.y = 400;
 
     wxString languageSel;
-    m_EDA_CommonConfig->Read( languageCfgKey, &languageSel );
+    m_commonSettings->Read( languageCfgKey, &languageSel );
     m_LanguageId = wxLANGUAGE_DEFAULT;
 
     // Search for the current selection
@@ -634,31 +645,37 @@ void EDA_APP::GetSettings( bool aReopenLastUsedDirectory )
         }
     }
 
-    m_EditorName = m_EDA_CommonConfig->Read( wxT( "Editor" ) );
+    m_EditorName = m_commonSettings->Read( wxT( "Editor" ) );
 
-    m_fileHistory.Load( *m_EDA_Config );
+    m_fileHistory.Load( *m_settings );
 
-    m_EDA_Config->Read( wxT( "ShowPageLimits" ), &g_ShowPageLimits );
+    m_settings->Read( wxT( "ShowPageLimits" ), &g_ShowPageLimits );
 
     if( aReopenLastUsedDirectory )
     {
-        if( m_EDA_Config->Read( wxT( "WorkingDir" ), &Line ) && wxDirExists( Line ) )
+        if( m_settings->Read( wxT( "WorkingDir" ), &Line ) && wxDirExists( Line ) )
         {
             wxSetWorkingDirectory( Line );
         }
     }
 
-    m_EDA_Config->Read( wxT( "BgColor" ), &g_DrawBgColor );
+    int draw_bg_color;
 
-    /* Load per-user search paths from settings file */
+    // FIXME OSX Mountain Lion (10.8)
+    // Seems that Read doesn't found anything and ColorFromInt Asserts - I'm unable to reproduce on 10.7
+    // In general terms i think is better have a failsafe BLACK default than an uninit variable
+    m_settings->Read( wxT( "BgColor" ), &draw_bg_color , BLACK );
+    g_DrawBgColor = ColorFromInt( draw_bg_color );
+
+    // Load per-user search paths from settings file
 
     wxString   upath;
     int i = 1;
 
     while( 1 )
     {
-        upath = m_EDA_CommonConfig->Read( wxString::Format( wxT( "LibraryPath%d" ), i ),
-                                          wxT( "" ) );
+        upath = m_commonSettings->Read( wxString::Format( wxT( "LibraryPath%d" ), i ),
+                                        wxT( "" ) );
 
         if( upath.IsSameAs( wxT( "" ) ) )
             break;
@@ -671,13 +688,13 @@ void EDA_APP::GetSettings( bool aReopenLastUsedDirectory )
 
 void EDA_APP::SaveSettings()
 {
-    wxASSERT( m_EDA_Config != NULL );
-    m_EDA_Config->Write( wxT( "ShowPageLimits" ), g_ShowPageLimits );
-    m_EDA_Config->Write( wxT( "WorkingDir" ), wxGetCwd() );
-    m_EDA_Config->Write( wxT( "BgColor" ), g_DrawBgColor );
+    wxASSERT( m_settings != NULL );
+    m_settings->Write( wxT( "ShowPageLimits" ), g_ShowPageLimits );
+    m_settings->Write( wxT( "WorkingDir" ), wxGetCwd() );
+    m_settings->Write( wxT( "BgColor" ), (long) g_DrawBgColor );
 
-    /* Save the file history list */
-    m_fileHistory.Save( *m_EDA_Config );
+    // Save the file history list
+    m_fileHistory.Save( *m_settings );
 }
 
 
@@ -727,7 +744,7 @@ bool EDA_APP::SetLanguage( bool first_time )
             }
         }
 
-        m_EDA_CommonConfig->Write( languageCfgKey, languageSel );
+        m_commonSettings->Write( languageCfgKey, languageSel );
     }
 
     // Test if floating point notation is working (bug in cross compilation, using wine)
@@ -759,7 +776,7 @@ bool EDA_APP::SetLanguage( bool first_time )
 
 void EDA_APP::SetLanguageIdentifier( int menu_id )
 {
-    wxLogDebug( wxT( "Select language ID %d from %d possible languages." ),
+    wxLogDebug( wxT( "Select language ID %d from %zd possible languages." ),
                 menu_id, LANGUAGE_DESCR_COUNT );
 
     for( unsigned int ii = 0; ii < LANGUAGE_DESCR_COUNT; ii++ )
@@ -777,7 +794,7 @@ void EDA_APP::SetLanguagePath( void )
 {
     size_t i;
 
-    /* Add defined search paths to locale paths */
+    // Add defined search paths to locale paths
     if( !m_searchPaths.IsEmpty() )
     {
         for( i = 0; i < m_searchPaths.GetCount(); i++ )
@@ -833,12 +850,9 @@ void EDA_APP::AddMenuLanguageList( wxMenu* MasterMenu )
         else
             label = wxGetTranslation( s_Language_List[ii].m_Lang_Label );
 
-        item = new wxMenuItem( menu,
-                               s_Language_List[ii].m_KI_Lang_Identifier,
-                               label, wxEmptyString, wxITEM_CHECK );
-
-        SETBITMAPS( s_Language_List[ii].m_Lang_Icon );
-        menu->Append( item );
+        AddMenuItem( menu, s_Language_List[ii].m_KI_Lang_Identifier,
+                     label, KiBitmap(s_Language_List[ii].m_Lang_Icon ),
+                     wxITEM_CHECK );
     }
 
     AddMenuItem( MasterMenu, menu,
@@ -1113,4 +1127,31 @@ void EDA_APP::InsertLibraryPath( const wxString& aPaths, size_t aIndex )
             aIndex++;
         }
     }
+}
+
+bool EDA_APP::LockFile( const wxString& fileName )
+{
+    // first make absolute and normalize, to avoid that different lock files
+    // for the same file can be created
+    wxFileName fn = fileName;
+    fn.MakeAbsolute();
+
+    // semaphore to protect the edition of the file by more than one instance
+    if( m_oneInstancePerFileChecker != NULL )
+    {
+        // it means that we had an open file and we are opening a different one
+        delete m_oneInstancePerFileChecker;
+    }
+    wxString lockFileName = fn.GetFullPath() + wxT( ".lock" );
+    lockFileName.Replace( wxT( "/" ), wxT( "_" ) );
+    // We can have filenames coming from Windows, so also convert Windows separator
+    lockFileName.Replace( wxT( "\\" ), wxT( "_" ) );
+    m_oneInstancePerFileChecker = new wxSingleInstanceChecker( lockFileName );
+    if( m_oneInstancePerFileChecker &&
+        m_oneInstancePerFileChecker->IsAnotherRunning() )
+    {
+        return false;
+    }
+
+    return true;
 }

@@ -27,23 +27,26 @@
  * @file eeschema/netlist.cpp
  */
 
-#include "fctsys.h"
-#include "wxEeschemaStruct.h"
+#include <fctsys.h>
+#include <wxEeschemaStruct.h>
 
-#include "general.h"
-#include "netlist.h"
-#include "protos.h"
-#include "class_library.h"
-#include "lib_pin.h"
-#include "sch_junction.h"
-#include "sch_component.h"
-#include "sch_line.h"
-#include "sch_no_connect.h"
-#include "sch_text.h"
-#include "sch_sheet.h"
-#include "algorithm"
+#include <general.h>
+#include <netlist.h>
+#include <protos.h>
+#include <class_library.h>
+#include <lib_pin.h>
+#include <sch_junction.h>
+#include <sch_component.h>
+#include <sch_line.h>
+#include <sch_no_connect.h>
+#include <sch_text.h>
+#include <sch_sheet.h>
+#include <algorithm>
 
 #include <boost/foreach.hpp>
+
+
+const SCH_SHEET_PATH BOM_LABEL::emptySheetPath;
 
 
 // Buffer to build the list of items used in netlist and erc calculations
@@ -83,11 +86,19 @@ void dumpNetTable()
 #endif
 
 
+wxString BOM_LABEL::GetText() const
+{
+    const SCH_TEXT* tmp = (SCH_TEXT*) m_label;
+
+    return tmp->GetText();
+}
+
+
 /*
  * Routine to free memory used to calculate the netlist TabNetItems = pointer
  * to the main table (list items)
  */
-void FreeNetObjectsList( NETLIST_OBJECT_LIST& aNetObjectsBuffer )
+static void FreeNetObjectsList( NETLIST_OBJECT_LIST& aNetObjectsBuffer )
 {
     for( unsigned i = 0; i < aNetObjectsBuffer.size(); i++ )
         delete aNetObjectsBuffer[i];
@@ -423,7 +434,7 @@ static NETLIST_OBJECT* FindBestNetName( NETLIST_OBJECT_LIST& aLabelItemBuffer )
     // ( i.e. for labels that are not prefixed by a sheetpath)
     #define NET_PRIO_MAX 4
 
-    int priority_order[NET_PRIO_MAX+1] = {
+    static int priority_order[NET_PRIO_MAX+1] = {
         NET_ITEM_UNSPECIFIED,
         NET_LABEL,
         NET_HIERLABEL,
@@ -451,15 +462,14 @@ static NETLIST_OBJECT* FindBestNetName( NETLIST_OBJECT_LIST& aLabelItemBuffer )
         // Calculate candidate priority
         int candidate_priority = 0;
 
-        for( unsigned ii = 0; ii <= NET_PRIO_MAX; ii++ )
+        for( unsigned prio = 0; prio <= NET_PRIO_MAX; prio++ )
         {
-            if ( candidate->m_Type == priority_order[ii]  )
+            if ( candidate->m_Type == priority_order[prio]  )
             {
-                candidate_priority = ii;
+                candidate_priority = prio;
                 break;
             }
         }
-
         if( candidate_priority > item_priority )
         {
             item = candidate;

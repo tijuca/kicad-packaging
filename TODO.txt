@@ -20,15 +20,97 @@ Common
   WinEDA_BasicFrame ) so that file open behavior is consistent across all applications.
 
 * Look over Brian's python BOM generation scripts, which are now in
-  scripts/python/ky and sort them out, and get something into the installation as well.
+  scripts/python/ky and sort them out.
   Code came from Brian in this posting's attachment, which is ky2.zip:
   https://lists.launchpad.net/kicad-developers/msg06763.html
   but is now in scripts/python/ky temporarily.
 
 
-CvPCB
------
-* Preview of the already assigned footprint.
+FP LIB TABLE
+------------
+
+Dialog:
+- - - -
+
+a) check for duplicate nicknames in a single table, complain, give the user a nice indication of the duplicate(s)
+
+b) in the uri column give a small button popup a window(dialog?) which lets user choose a file or directory local to his system by pointing at it.
+
+c) Active library table load and save functions.  There are two tables active at any time, but
+they look like one table.  Identify a place to keep the access mechanism (pointer).  Modify
+the project specific portion of this RAM table when the board changes.
+
+
+Other:
+- - - -
+
+a) develop a syntax for nickname:footprint combo, i.e. bring to life class FPID
+ with development and testing of parsing and formatting.
+
+
+b) modify cvpcb to handle the nickname:footprint, i.e. textual form of FPID.
+This means having a wider textfield for the FPID than was allocated for the footprint name alone.
+Needed is the ability to pick a footprint from any active library.
+
+
+c) modify the netlist format to handle nickname:footprint, save and load.
+The nickname needs to be optional.  I would say allowed in the grammar in the
+footprint position are:
+
+    footprint | (fp_id FPID)
+
+or just
+
+    FPID   # if it can be parsed when nickname is missing.
+
+
+d) write functions to lookup a footprint from
+ i) FPID
+ ii) footprint alone since most old netlists don't have nicknames in them.
+
+e) Replace MODULE::m_LibRef which is a wxString with FPID.  FPID supports
+   the footprint name only which is backwards compatible with the current
+   design.
+
+f) On the first time an empty global footprint table is encountered, add
+   standard KiCad and user libraries not located in the project directory
+   or any of it's sub-directories to the global footprint library table.
+
+g) When a project is opened and the project footprint library table is
+   empty, add any user library that is located in the project path or any
+   of it's sub-directories to the project footprint library table.
+
+h) When populating the footprint library tables, use the library  file name
+   without the extension as the FPID nickname.  When duplicate names exist,
+   append an incremental integer to the nickname so that the second logic
+   libraries FPID nickname becomes logic1.  Assign FPID library nicknames
+   to each MODULE based on the legacy library search order when loading an
+   existing board that does not have fully defined MODULE FPIDs.
+
+i) Add check for KISYSMOD environment variable, on Pcbnew and CvPcb start up
+   and set it to the known directory of the default KiCad footprint libraries.
+   The code should look something like:
+
+{
+    const char* envar;
+
+    envar = getenv( "KISYSMOD" );
+
+    if( !envar )
+    {
+        envvar = knownDirOfSysMods;
+
+        setenv( "KISYSMOD", envar );
+    }
+}
+
+
+These i) and ii) merge into one if footprint alone is a valid FPID.
+Incorporate any environment variable in the the uri expansion using:
+const wxString FP_LIB_TABLE::ExpandSubtitutions( const wxString aString )
+
+
+
 
 
 EESchema
@@ -36,7 +118,6 @@ EESchema
 * Drag and drop between two EESchema windows.
 
 Wayne:
-E2)  Finish adding replace capability to new Find dialog.
 E3)  Hook up perform last library search hot key to replace search libraries for
      component support removed from find dialog.
 E4)  Change add component dialog search text control to combobox and add component
@@ -52,5 +133,31 @@ E6)  Start initial work for changing component library file format to use Dick's
 
 PCBNew
 ------
+
+*)  Make the zone hit testing be done in screen coordinates, not internal units.
+    See the @todos in class_zone.cpp.  A fixed distance in internal units becomes
+    a variable distance based on zoom factor, leading to inconsistent results at
+    various zoom factors.  I believe that a fixed distance in pixels might make
+    for a friendlier UI.
+
+*)  Check that the new load visibility BOARD settings is properly setting the toolbar
+    buttons like show grid or ratsnest.  Add PCB_EDIT_FRAME::SetVisibleElements() so
+    toolbar crap is not known to a BOARD.
+
+*)  Finish removing global access requirements from PLUGINs, so that:
+    *)  a BOARD is a fully self contained document description.
+    *)  plugin developers do not have to access globals, since a plugin could
+        very well be a dynamically loaded DLL/DSO in the future.
+        One final problem remains is the BASE_SCREEN's grid origin.  An easy
+        solution is to move just that one field into the BOARD.
+
+*)  Add ::Footprint*() functions to EAGLE_PLUGIN, so that Eagle footprint libraries
+    can be used in situ.
+
+*)  Add a library table for Pcbnew like that in the sweet library and get rid of the
+    damn search path strategy.  This will enable concurrent usage of various types
+    of PLUGIN::Footprint*() functions.  At least LEGACY and KICAD are both needed
+    concurrently.
+
 
 

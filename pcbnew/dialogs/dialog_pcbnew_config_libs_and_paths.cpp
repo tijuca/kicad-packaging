@@ -1,29 +1,52 @@
-/////////////////////////////////////////////////////////////////////////////
-// Name:        dialog_pcbnew_config_libs_and_paths.cpp
-// Author:      jean-pierre Charras
-// Created:     2009 apr 18
-// Licence:     GPL
-/////////////////////////////////////////////////////////////////////////////
+/**
+ * @file ^pcbnew/dialogs/dialog_pcbnew_config_libs_and_paths.cpp
+ */
+
+/*
+ * This program source code file is part of KiCad, a free EDA CAD application.
+ *
+ * Copyright (C) 2004-2012 Jean-Pierre Charras, jaen-pierre.charras@gipsa-lab.inpg.com
+ * Copyright (C) 2004-2012 KiCad Developers, see change_log.txt for contributors.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation; either version 2
+ * of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, you may find one here:
+ * http://www.gnu.org/licenses/old-licenses/gpl-2.0.html
+ * or you may search the http://www.gnu.org website for the version 2 license,
+ * or you may write to the Free Software Foundation, Inc.,
+ * 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
+ */
+
+
 
 /* Handle the Pcbnew library config (library list, and default lib path)
  */
 
-#include "fctsys.h"
+#include <fctsys.h>
 #include <wx/tokenzr.h>
-#include "appl_wxstruct.h"
-#include "confirm.h"
-#include "gestfich.h"
-#include "pcbnew.h"
-#include "macros.h"
-#include "wxPcbStruct.h"
-#include "pcbcommon.h"
+#include <appl_wxstruct.h>
+#include <confirm.h>
+#include <gestfich.h>
+#include <pcbnew.h>
+#include <macros.h>
+#include <wxPcbStruct.h>
+#include <pcbcommon.h>
+#include <wildcards_and_files_ext.h>
 
-#include "dialog_pcbnew_config_libs_and_paths.h"
+#include <dialog_pcbnew_config_libs_and_paths.h>
+#include <wildcards_and_files_ext.h>
 
 
-/*****************************************************************/
 void PCB_EDIT_FRAME::InstallConfigFrame( )
-/*****************************************************************/
 {
     DIALOG_PCBNEW_CONFIG_LIBS dialog( this );
     dialog.ShowModal();
@@ -33,11 +56,11 @@ void PCB_EDIT_FRAME::InstallConfigFrame( )
 DIALOG_PCBNEW_CONFIG_LIBS::DIALOG_PCBNEW_CONFIG_LIBS( PCB_EDIT_FRAME* parent ):
     DIALOG_PCBNEW_CONFIG_LIBS_FBP(parent)
 {
-    m_Config = wxGetApp().m_EDA_CommonConfig;
+    m_Config = wxGetApp().GetCommonSettings();
 
     Init( );
 
-    wxString title = _( "from " ) + wxGetApp().m_CurrentOptionFile;
+    wxString title = _( "from " ) + wxGetApp().GetCurrentOptionFile();
     SetTitle( title );
 
     m_sdbSizer1OK->SetDefault();
@@ -167,7 +190,7 @@ void DIALOG_PCBNEW_CONFIG_LIBS::OnButtonUpClick( wxCommandEvent& event )
         m_ListLibr->SetSelection(jj-1);
     }
 
-    m_LibListChanged = TRUE;
+    m_LibListChanged = true;
 }
 
 
@@ -201,7 +224,7 @@ void DIALOG_PCBNEW_CONFIG_LIBS::OnButtonDownClick( wxCommandEvent& event )
         m_ListLibr->SetSelection(jj+1);
     }
 
-    m_LibListChanged = TRUE;
+    m_LibListChanged = true;
 }
 
 
@@ -217,7 +240,7 @@ void DIALOG_PCBNEW_CONFIG_LIBS::OnRemoveLibClick( wxCommandEvent& event )
     for( int ii = selections.GetCount()-1; ii >= 0; ii-- )
     {
         m_ListLibr->Delete( selections[ii] );
-        m_LibListChanged = TRUE;
+        m_LibListChanged = true;
     }
 }
 
@@ -249,7 +272,8 @@ void DIALOG_PCBNEW_CONFIG_LIBS::OnAddOrInsertLibClick( wxCommandEvent& event )
         libpath = wxGetApp().ReturnLastVisitedLibraryPath();
 
     wxFileDialog FilesDialog( this, _( "Footprint library files:" ), libpath,
-                              wxEmptyString, g_FootprintLibFileWildcard,
+                              wxEmptyString,
+                              wxGetTranslation( LegacyFootprintLibPathWildcard ),
                               wxFD_DEFAULT_STYLE | wxFD_MULTIPLE );
 
     if( FilesDialog.ShowModal() != wxID_OK )
@@ -282,7 +306,7 @@ void DIALOG_PCBNEW_CONFIG_LIBS::OnAddOrInsertLibClick( wxCommandEvent& event )
         //Add or insert new library name, if not already in list
         if( m_ListLibr->FindString( libfilename, fn.IsCaseSensitive() ) == wxNOT_FOUND )
         {
-            m_LibListChanged = TRUE;
+            m_LibListChanged = true;
 
             if( event.GetId() == ID_ADD_LIB )
                 m_ListLibr->Append( libfilename );

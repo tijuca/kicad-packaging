@@ -77,6 +77,8 @@ view with pcbnew.
 
 Linux KiCad tree
 ----------------
+KiCad can use the Windows tree or the below tree.
+When Kicad is coming from Linux distribution, the tree is:
 
 /usr/bin                            - Binaries (executable files).
 /usr/share/doc/kicad/               - Various documentation.
@@ -87,9 +89,13 @@ Linux KiCad tree
 /usr/share/kicad/modules            - Module libraries for printed boards.
 /usr/share/kicad/modules/packages3d - 3D component models (.wrl and .wings format).
 
-if not found search kicad in
-/usr/local/
-and if found, kicad uses the same tree as the Windows KiCad tree above
+if KiCad does not found its files in usr/share, the search is made in
+/usr/local/kicad
+and kicad uses the same tree as the Windows KiCad tree above
+
+*** When KiCad comes from .tgz archive from http://iut-tice.ujf-grenoble.fr/cao/,
+it must me installed in /usr/local and uses the Windows tree ***.
+
 
    Files '*.mod' are the libraries, and files '*.brd' are printed boards you can
 view with pcbnew.
@@ -123,8 +129,10 @@ Installation from source code
 -----------------------------
 
    Some dependencies must be satisfied for the correct installation of KiCad:
-
+under Linux:
 wxWidgets           >= 2.8.11        http://www.wxwidgets.org/
+under Windows:MacOSX
+wxWidgets           >= 2.9.3        http://www.wxwidgets.org/
 CMake               >= 2.6.4         http://www.cmake.org/
 Boost C++ Libraries  (files used by kicad are provided in kicad sources) http://www.boost.org/
 OpenGL

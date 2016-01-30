@@ -28,19 +28,18 @@
  * @brief GerbView configuration.
 */
 
-#include "fctsys.h"
-#include "id.h"
-#include "common.h"
-#include "class_drawpanel.h"
-#include "gestfich.h"
-#include "pcbcommon.h"
-#include "param_config.h"
-#include "colors_selection.h"
+#include <fctsys.h>
+#include <macros.h>
+#include <id.h>
+#include <common.h>
+#include <class_drawpanel.h>
+#include <gestfich.h>
+#include <param_config.h>
+#include <colors_selection.h>
 
-#include "gerbview.h"
-#include "hotkeys.h"
-#include "class_board_design_settings.h"
-#include "dialog_hotkeys_editor.h"
+#include <gerbview.h>
+#include <hotkeys.h>
+#include <dialog_hotkeys_editor.h>
 
 
 #define GROUP wxT("/gerbview")
@@ -55,7 +54,7 @@ void GERBVIEW_FRAME::Process_Config( wxCommandEvent& event )
 
     switch( id )
     {
-    /* Hotkey IDs */
+    // Hotkey IDs
     case ID_PREFERENCES_HOTKEY_EXPORT_CONFIG:
         ExportHotkeyConfigToFile( s_Gerbview_Hokeys_Descr );
         break;
@@ -81,7 +80,7 @@ void GERBVIEW_FRAME::Process_Config( wxCommandEvent& event )
 }
 
 
-PARAM_CFG_ARRAY& GERBVIEW_FRAME::GetConfigurationSettings( void )
+PARAM_CFG_ARRAY& GERBVIEW_FRAME::GetConfigurationSettings()
 {
     if( !m_configSettings.empty() )
         return m_configSettings;
@@ -96,15 +95,18 @@ PARAM_CFG_ARRAY& GERBVIEW_FRAME::GetConfigurationSettings( void )
                                                         &g_ColorsSettings.m_ItemsColors[
                                                             DCODES_VISIBLE],
                                                         WHITE ) );
-
+    m_configSettings.push_back( new PARAM_CFG_SETCOLOR( true,
+                                                        wxT( "NegativeObjectsColor" ),
+                                                        &g_ColorsSettings.m_ItemsColors[
+                                                            NEGATIVE_OBJECTS_VISIBLE],
+                                                        DARKGRAY ) );
     m_configSettings.push_back( new PARAM_CFG_BOOL( true,
                                                     wxT( "DisplayPolarCoordinates" ),
-                                                    &DisplayOpt.DisplayPolarCood,
+                                                    &m_DisplayOptions.m_DisplayPolarCood,
                                                     false ) );
 
-    // Color select parameters:
-    static const int color_default[32] = // Default values for color layers 0 to 31
-    {
+    // Default colors for layers 0 to 31
+    static const EDA_COLOR_T color_default[] = {
         GREEN,     BLUE,         LIGHTGRAY, MAGENTA,
         RED,       DARKGREEN,    BROWN,     MAGENTA,
         LIGHTGRAY, BLUE,         GREEN,     CYAN,
@@ -112,26 +114,35 @@ PARAM_CFG_ARRAY& GERBVIEW_FRAME::GetConfigurationSettings( void )
         BLUE,      BROWN,        LIGHTCYAN, RED,
         MAGENTA,   CYAN,         BROWN,     MAGENTA,
         LIGHTGRAY, BLUE,         GREEN,     DARKCYAN,
-        YELLOW,    LIGHTMAGENTA, YELLOW,    LIGHTGRAY
+        YELLOW,    LIGHTMAGENTA, YELLOW,    LIGHTGRAY,
     };
 
-    // List of keywords used as identifiers in config
-    // they *must* be static const and not temporary created,
+    // List of keywords used as identifiers in config.
+    // They *must* be static const and not temporarily created,
     // because the parameter list that use these keywords does not store them,
-    // just points on them
-    static const wxChar * keys[32] =
-    {
-        wxT("ColorLayer0"), wxT("ColorLayer1"), wxT("ColorLayer2"), wxT("ColorLayer3"),
-        wxT("ColorLayer4"), wxT("ColorLayer5"), wxT("ColorLayer6"), wxT("ColorLayer7"),
-        wxT("ColorLayer8"), wxT("ColorLayer9"), wxT("ColorLayer10"), wxT("ColorLayer11"),
-        wxT("ColorLayer12"), wxT("ColorLaye13"), wxT("ColorLayer14"), wxT("ColorLayer15")
+    // just points to them.
+    static const wxChar* keys[] = {
+        wxT("ColorLayer_0"),     wxT("ColorLayer_1"),     wxT("ColorLayer_2"),     wxT("ColorLayer_3"),
+        wxT("ColorLayer_4"),     wxT("ColorLayer_5"),     wxT("ColorLayer_6"),     wxT("ColorLayer_7"),
+        wxT("ColorLayer_8"),     wxT("ColorLayer_9"),     wxT("ColorLayer_10"),    wxT("ColorLayer_11"),
+        wxT("ColorLayer_12"),    wxT("ColorLayer_13"),    wxT("ColorLayer_14"),    wxT("ColorLayer_15"),
+
+        wxT("ColorLayer_16"),    wxT("ColorLayer_17"),    wxT("ColorLayer_18"),    wxT("ColorLayer_19"),
+        wxT("ColorLayer_20"),    wxT("ColorLayer_21"),    wxT("ColorLayer_22"),    wxT("ColorLayer_23"),
+        wxT("ColorLayer_24"),    wxT("ColorLayer_25"),    wxT("ColorLayer_26"),    wxT("ColorLayer_27"),
+        wxT("ColorLayer_28"),    wxT("ColorLayer_29"),    wxT("ColorLayer_30"),    wxT("ColorLayer_31"),
     };
 
-    for( unsigned ii = 0; ii < 32; ii++ )
+    wxASSERT( DIM(keys) == DIM(color_default) );
+    wxASSERT( DIM(keys) <= DIM(g_ColorsSettings.m_LayersColors) && DIM(keys) <= DIM(color_default) );
+
+    for( unsigned i = 0; i < DIM(keys);  ++i )
     {
-        int * prm = &g_ColorsSettings.m_LayersColors[1];
-        PARAM_CFG_SETCOLOR * prm_entry =
-            new PARAM_CFG_SETCOLOR( true, keys[ii], prm, color_default[1] );
+        EDA_COLOR_T* prm = &g_ColorsSettings.m_LayersColors[i];
+
+        PARAM_CFG_SETCOLOR* prm_entry =
+            new PARAM_CFG_SETCOLOR( true, keys[i], prm, color_default[i] );
+
         m_configSettings.push_back( prm_entry );
     }
 

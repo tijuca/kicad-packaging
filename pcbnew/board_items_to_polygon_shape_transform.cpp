@@ -1,91 +1,24 @@
-/**********************************************/
-/* board_items_to_polygon_shape_transform.cpp */
-/**********************************************/
+/***
+ * @file board_items_to_polygon_shape_transform.cpp
+ * @brief function to convert shapes of items ( pads, tracks... ) to polygons
+ */
 
 /* Function to convert pads and tranck shapes to polygons
  * Used to fill zones areas
  */
 #include <vector>
 
-#include "fctsys.h"
-#include "pcbnew.h"
-#include "wxPcbStruct.h"
-#include "trigo.h"
-#include "macros.h"
-
-#include "class_pad.h"
-#include "class_track.h"
-#include "class_drawsegment.h"
-#include "class_pcb_text.h"
-
-
-/* Exported functions */
-
-/**
- * Function TransformRoundedEndsSegmentToPolygon
- * convert a segment with rounded ends to a polygon
- * Convert arcs to multiple straight lines
- * @param aCornerBuffer = a buffer to store the polygon
- * @param aStart = the segment start point coordinate
- * @param aEnd = the segment end point coordinate
- * @param aCircleToSegmentsCount = the number of segments to approximate a circle
- * @param aWidth = the segment width
- */
-void TransformRoundedEndsSegmentToPolygon( std::vector <CPolyPt>& aCornerBuffer,
-                                           wxPoint aStart, wxPoint aEnd,
-                                           int aCircleToSegmentsCount,
-                                           int aWidth );
-
-
-/**
- * Function TransformArcToPolygon
- * Creates a polygon from an Arc
- * Convert arcs to multiple straight segments
- * @param aCornerBuffer = a buffer to store the polygon
- * @param aCentre = centre of the arc or circle
- * @param aStart = start point of the arc, or a point on the circle
- * @param aArcAngle = arc angle in 0.1 degrees. For a circle, aArcAngle = 3600
- * @param aCircleToSegmentsCount = the number of segments to approximate a circle
- * @param aWidth = width (thickness) of the line
- */
-void TransformArcToPolygon( std::vector <CPolyPt>& aCornerBuffer,
-                            wxPoint aCentre, wxPoint aStart, int aArcAngle,
-                            int aCircleToSegmentsCount, int aWidth )
-{
-    wxPoint arc_start, arc_end;
-    int     delta = 3600 / aCircleToSegmentsCount;   // rotate angle in 0.1 degree
-
-    arc_end = arc_start = aStart;
-
-    if( aArcAngle != 3600 )
-    {
-        RotatePoint( &arc_end, aCentre, -aArcAngle );
-    }
-
-    if( aArcAngle < 0 )
-    {
-        EXCHG( arc_start, arc_end );
-        NEGATE( aArcAngle );
-    }
-
-    // Compute the ends of segments and creates poly
-    wxPoint curr_end   = arc_start;
-    wxPoint curr_start = arc_start;
-
-    for( int ii = delta; ii < aArcAngle; ii += delta )
-    {
-        curr_end = arc_start;
-        RotatePoint( &curr_end, aCentre, -ii );
-        TransformRoundedEndsSegmentToPolygon( aCornerBuffer, curr_start, curr_end,
-                                              aCircleToSegmentsCount, aWidth );
-        curr_start = curr_end;
-    }
-
-    if( curr_end != arc_end )
-        TransformRoundedEndsSegmentToPolygon( aCornerBuffer,
-                                              curr_end, arc_end, aCircleToSegmentsCount, aWidth );
-}
-
+#include <fctsys.h>
+#include <polygons_defs.h>
+#include <pcbnew.h>
+#include <wxPcbStruct.h>
+#include <trigo.h>
+#include <class_pad.h>
+#include <class_track.h>
+#include <class_drawsegment.h>
+#include <class_pcb_text.h>
+#include <class_zone.h>
+#include <convert_basic_shapes_to_polygon.h>
 
 /**
  * Function TransformShapeWithClearanceToPolygon
@@ -129,6 +62,90 @@ void TEXTE_PCB::TransformShapeWithClearanceToPolygon( std::vector <CPolyPt>& aCo
 
     aCornerBuffer.back().end_contour = true;
 }
+
+ /* Function TransformShapeWithClearanceToPolygon
+  * Convert the track shape to a closed polygon
+  * Used in filling zones calculations
+  * Circles (vias) and arcs (ends of tracks) are approximated by segments
+  * param aCornerBuffer = a buffer to store the polygon
+  * param aClearanceValue = the clearance around the pad
+  * param aCircleToSegmentsCount = the number of segments to approximate a circle
+  * param aCorrectionFactor = the correction to apply to circles radius to keep
+  * param aAddClearance = true to add a clearance area to the polygon
+  *                      false to create the outline polygon.
+  * clearance when the circle is approximated by segment bigger or equal
+  * to the real clearance value (usually near from 1.0)
+  */
+void ZONE_CONTAINER::TransformShapeWithClearanceToPolygon( std::vector <CPolyPt>& aCornerBuffer,
+                                                      int                    aClearanceValue,
+                                                      int                    aCircleToSegmentsCount,
+                                                      double                 aCorrectionFactor,
+                                                      bool                   aAddClearance )
+{
+
+    /* Creates the main polygon (i.e. the filled area using only one outline)
+     * and reserve a clearance margin around the outlines and holes
+     */
+    std::vector <CPolyPt> zoneOutines;
+    BuildFilledPolysListData( NULL, &zoneOutines );
+    int clearance = 0;
+    if( aAddClearance )
+    {
+        GetClearance();
+        if( aClearanceValue > clearance )
+            clearance = aClearanceValue;
+    }
+
+    // Calculate the polygon with clearance and holes
+    // holes are linked to the main outline, so only one polygon should be created.
+    KI_POLYGON_SET polyset_zone_solid_areas;
+    std::vector<KI_POLY_POINT> cornerslist;
+    unsigned ic = 0;
+    unsigned corners_count = zoneOutines.size();
+    while( ic < corners_count )
+    {
+        cornerslist.clear();
+        KI_POLYGON poly;
+        {
+            for( ; ic < corners_count; ic++ )
+            {
+                CPolyPt* corner = &zoneOutines[ic];
+                cornerslist.push_back( KI_POLY_POINT( corner->x, corner->y ) );
+                if( corner->end_contour )
+                {
+                    ic++;
+                    break;
+                }
+            }
+
+            bpl::set_points( poly, cornerslist.begin(), cornerslist.end() );
+            polyset_zone_solid_areas.push_back( poly );
+        }
+    }
+
+    polyset_zone_solid_areas += clearance;
+
+    // Put the resultng polygon in buffer
+    for( unsigned ii = 0; ii < polyset_zone_solid_areas.size(); ii++ )
+    {
+        KI_POLYGON& poly = polyset_zone_solid_areas[ii];
+        CPolyPt   corner( 0, 0, false );
+
+        for( unsigned jj = 0; jj < poly.size(); jj++ )
+        {
+            KI_POLY_POINT point = *(poly.begin() + jj);
+            corner.x = point.x();
+            corner.y = point.y();
+            corner.end_contour = false;
+            aCornerBuffer.push_back( corner );
+        }
+
+        corner.end_contour = true;
+        aCornerBuffer.pop_back();
+        aCornerBuffer.push_back( corner );
+    }
+}
+
 
 
 /**
@@ -190,29 +207,14 @@ void TRACK:: TransformShapeWithClearanceToPolygon( std:: vector < CPolyPt>& aCor
                                                    int                      aCircleToSegmentsCount,
                                                    double                   aCorrectionFactor )
 {
-    wxPoint corner_position;
-    int     ii, angle;
-    int     dx    = (m_Width / 2) + aClearanceValue;
-    int     delta = 3600 / aCircleToSegmentsCount;           // rot angle in 0.1 degree
-
     switch( Type() )
     {
     case PCB_VIA_T:
-        dx = (int) ( dx * aCorrectionFactor );
-
-        for( ii = 0; ii < aCircleToSegmentsCount; ii++ )
-        {
-            corner_position = wxPoint( dx, 0 );
-            RotatePoint( &corner_position.x, &corner_position.y, (1800 / aCircleToSegmentsCount) );
-            angle = ii * delta;
-            RotatePoint( &corner_position.x, &corner_position.y, angle );
-            corner_position.x += m_Start.x;
-            corner_position.y += m_Start.y;
-            CPolyPt polypoint( corner_position.x, corner_position.y );
-            aCornerBuffer.push_back( polypoint );
-        }
-
-        aCornerBuffer.back().end_contour = true;
+    {
+        int radius = (m_Width / 2) + aClearanceValue;
+        radius = KiROUND( radius * aCorrectionFactor );
+        TransformCircleToPolygon( aCornerBuffer, m_Start, radius, aCircleToSegmentsCount );
+    }
         break;
 
     default:
@@ -222,90 +224,6 @@ void TRACK:: TransformShapeWithClearanceToPolygon( std:: vector < CPolyPt>& aCor
                                               m_Width + ( 2 * aClearanceValue) );
         break;
     }
-}
-
-
-/* Function TransformRoundedEndsSegmentToPolygon
- */
-void TransformRoundedEndsSegmentToPolygon( std::vector <CPolyPt>& aCornerBuffer,
-                                           wxPoint aStart, wxPoint aEnd,
-                                           int aCircleToSegmentsCount,
-                                           int aWidth )
-{
-    int     radius = aWidth / 2;
-    wxPoint endp   = aEnd - aStart; // end point coordinate for the same segment starting at (0,0)
-    wxPoint startp = aStart;
-    wxPoint corner;
-    int     seg_len;
-    CPolyPt polypoint;
-
-    // normalize the position in order to have endp.x >= 0;
-    if( endp.x < 0 )
-    {
-        endp   = aStart - aEnd;
-        startp = aEnd;
-    }
-
-    int delta_angle = ArcTangente( endp.y, endp.x );    // delta_angle is in 0.1 degrees
-    seg_len = (int) sqrt( ( (double) endp.y * endp.y ) + ( (double) endp.x * endp.x ) );
-
-    int delta = 3600 / aCircleToSegmentsCount; // rot angle in 0.1 degree
-
-    // Compute the outlines of the segment, and creates a polygon
-    corner = wxPoint( 0, radius );
-    RotatePoint( &corner, -delta_angle );
-    corner += startp;
-    polypoint.x = corner.x;
-    polypoint.y = corner.y;
-    aCornerBuffer.push_back( polypoint );
-
-    corner = wxPoint( seg_len, radius );
-    RotatePoint( &corner, -delta_angle );
-    corner += startp;
-    polypoint.x = corner.x;
-    polypoint.y = corner.y;
-    aCornerBuffer.push_back( polypoint );
-
-    // add right rounded end:
-    for( int ii = delta; ii < 1800; ii += delta )
-    {
-        corner = wxPoint( 0, radius );
-        RotatePoint( &corner, ii );
-        corner.x += seg_len;
-        RotatePoint( &corner, -delta_angle );
-        corner += startp;
-        polypoint.x = corner.x;
-        polypoint.y = corner.y;
-        aCornerBuffer.push_back( polypoint );
-    }
-
-    corner = wxPoint( seg_len, -radius );
-    RotatePoint( &corner, -delta_angle );
-    corner += startp;
-    polypoint.x = corner.x;
-    polypoint.y = corner.y;
-    aCornerBuffer.push_back( polypoint );
-
-    corner = wxPoint( 0, -radius );
-    RotatePoint( &corner, -delta_angle );
-    corner += startp;
-    polypoint.x = corner.x;
-    polypoint.y = corner.y;
-    aCornerBuffer.push_back( polypoint );
-
-    // add left rounded end:
-    for( int ii = delta; ii < 1800; ii += delta )
-    {
-        corner = wxPoint( 0, -radius );
-        RotatePoint( &corner, ii );
-        RotatePoint( &corner, -delta_angle );
-        corner += startp;
-        polypoint.x = corner.x;
-        polypoint.y = corner.y;
-        aCornerBuffer.push_back( polypoint );
-    }
-
-    aCornerBuffer.back().end_contour = true;
 }
 
 
@@ -327,7 +245,7 @@ void D_PAD:: TransformShapeWithClearanceToPolygon( std:: vector < CPolyPt>& aCor
                                                    double                   aCorrectionFactor )
 {
     wxPoint corner_position;
-    int     ii, angle;
+    int     angle;
     int     dx = (m_Size.x / 2) + aClearanceValue;
     int     dy = (m_Size.y / 2) + aClearanceValue;
 
@@ -342,103 +260,41 @@ void D_PAD:: TransformShapeWithClearanceToPolygon( std:: vector < CPolyPt>& aCor
     {
     case PAD_CIRCLE:
         dx = (int) ( dx * aCorrectionFactor );
-
-        for( ii = 0; ii < aCircleToSegmentsCount; ii++ )
-        {
-            corner_position = wxPoint( dx, 0 );
-            RotatePoint( &corner_position, (1800 / aCircleToSegmentsCount) );
-
-            // Half increment offset to get more space between
-            angle = ii * delta;
-            RotatePoint( &corner_position, angle );
-            corner_position += PadShapePos;
-            CPolyPt polypoint( corner_position.x, corner_position.y );
-            aCornerBuffer.push_back( polypoint );
-        }
-
-        aCornerBuffer.back().end_contour = true;
+        TransformCircleToPolygon( aCornerBuffer, PadShapePos, dx,
+                                  aCircleToSegmentsCount );
         break;
 
     case PAD_OVAL:
+        // An oval pad has the same shape as a segment with rounded ends
         angle = m_Orient;
-        if( dy > dx )   // Oval pad X/Y ratio for choosing translation axles
+        {
+        int width;
+        wxPoint shape_offset;
+        if( dy > dx )   // Oval pad X/Y ratio for choosing translation axis
         {
             dy = (int) ( dy * aCorrectionFactor );
-            int     angle_pg;                                           // Polygon angle
-            wxPoint shape_offset = wxPoint( 0, dy - dx );
-
-            RotatePoint( &shape_offset, angle );    // Rotating shape offset vector with component
-
-            for( ii = 0; ii < aCircleToSegmentsCount / 2 + 1; ii++ )    // Half circle end cap...
-            {
-                corner_position = wxPoint( dx, 0 );
-
-                // Coordinate translation +dx
-                RotatePoint( &corner_position, (1800 / aCircleToSegmentsCount) );
-                RotatePoint( &corner_position, angle );
-                angle_pg = ii * delta;
-                RotatePoint( &corner_position, angle_pg );
-                corner_position += PadShapePos - shape_offset;
-                CPolyPt polypoint( corner_position.x, corner_position.y );
-                aCornerBuffer.push_back( polypoint );
-            }
-
-            for( ii = 0; ii < aCircleToSegmentsCount / 2 + 1; ii++ )  // Second half circle end cap...
-            {
-                corner_position = wxPoint( -dx, 0 );
-
-                // Coordinate translation -dx
-                RotatePoint( &corner_position, (1800 / aCircleToSegmentsCount) );
-                RotatePoint( &corner_position, angle );
-                angle_pg = ii * delta;
-                RotatePoint( &corner_position, angle_pg );
-                corner_position += PadShapePos + shape_offset;
-                CPolyPt polypoint( corner_position.x, corner_position.y );
-                aCornerBuffer.push_back( polypoint );
-            }
-
-            aCornerBuffer.back().end_contour = true;
-            break;
+            shape_offset.y = dy - dx;
+            width = dx * 2;
         }
         else    //if( dy <= dx )
         {
             dx = (int) ( dx * aCorrectionFactor );
-            int     angle_pg;   // Polygon angle
-            wxPoint shape_offset = wxPoint( (dy - dx), 0 );
-            RotatePoint( &shape_offset, angle );
-
-            for( ii = 0; ii < aCircleToSegmentsCount / 2 + 1; ii++ )
-            {
-                corner_position = wxPoint( 0, dy );
-                RotatePoint( &corner_position, (1800 / aCircleToSegmentsCount) );
-                RotatePoint( &corner_position, angle );
-                angle_pg = ii * delta;
-                RotatePoint( &corner_position, angle_pg );
-                corner_position += PadShapePos - shape_offset;
-                CPolyPt polypoint( corner_position.x, corner_position.y );
-                aCornerBuffer.push_back( polypoint );
-            }
-
-            for( ii = 0; ii < aCircleToSegmentsCount / 2 + 1; ii++ )
-            {
-                corner_position = wxPoint( 0, -dy );
-                RotatePoint( &corner_position, (1800 / aCircleToSegmentsCount) );
-                RotatePoint( &corner_position, angle );
-                angle_pg = ii * delta;
-                RotatePoint( &corner_position, angle_pg );
-                corner_position += PadShapePos + shape_offset;
-                CPolyPt polypoint( corner_position.x, corner_position.y );
-                aCornerBuffer.push_back( polypoint );
-            }
-
-            aCornerBuffer.back().end_contour = true;
-            break;
+            shape_offset.x = dy - dx;
+            width = dy * 2;
         }
+
+        RotatePoint( &shape_offset, angle );
+        wxPoint start = PadShapePos - shape_offset;
+        wxPoint end = PadShapePos + shape_offset;
+        TransformRoundedEndsSegmentToPolygon( aCornerBuffer, start, end,
+                                              aCircleToSegmentsCount, width );
+        }
+        break;
 
     default:
     case PAD_TRAPEZOID:
-        psize.x += ABS( m_DeltaSize.y );
-        psize.y += ABS( m_DeltaSize.x );
+        psize.x += std::abs( m_DeltaSize.y );
+        psize.y += std::abs( m_DeltaSize.x );
 
     // fall through
     case PAD_RECT:
@@ -532,27 +388,9 @@ void D_PAD:: TransformShapeWithClearanceToPolygon( std:: vector < CPolyPt>& aCor
  * and then moved and rotated acroding to the pad position and orientation
  */
 
-/* WARNING:
- * When Kbool calculates the filled areas :
- * i.e when substracting holes (thermal shapes) to the full zone area
- * under certains circumstances kboll drop some holes.
- * These circumstances are:
- * some identical holes (same thermal shape and size) are *exactly* on the same vertical line
- * And
- * nothing else between holes
- * And
- * angles less than 90 deg between 2 consecutive lines in hole outline (sometime occurs without
- * this condition)
- * And
- * a hole above the identical holes
- *
- * In fact, it is easy to find these conditions in pad arrays.
- * So to avoid this, the workaround is do not use holes outlines that include
- * angles less than 90 deg between 2 consecutive lines
- * this is made in round and oblong thermal reliefs
- *
+/*
  * Note 1: polygons are drawm using outlines witk a thickness = aMinThicknessValue
- * so shapes must keep in account this outline thickness
+ * so shapes must take in account this outline thickness
  *
  * Note 2:
  *      Trapezoidal pads are not considered here because they are very special case
@@ -572,8 +410,9 @@ void    CreateThermalReliefPadPolygon( std::vector<CPolyPt>& aCornerBuffer,
     wxPoint PadShapePos = aPad.ReturnShapePos();    /* Note: for pad having a shape offset,
                                                      * the pad position is NOT the shape position */
     wxSize  copper_thickness;
-    int     dx = aPad.m_Size.x / 2;
-    int     dy = aPad.m_Size.y / 2;
+
+    int     dx = aPad.GetSize().x / 2;
+    int     dy = aPad.GetSize().y / 2;
 
     int     delta = 3600 / aCircleToSegmentsCount; // rot angle in 0.1 degree
 
@@ -592,323 +431,332 @@ void    CreateThermalReliefPadPolygon( std::vector<CPolyPt>& aCornerBuffer,
     if( aCopperThickness < 0 )
         aCopperThickness = 0;
 
-    copper_thickness.x = min( dx, aCopperThickness );
-    copper_thickness.y = min( dy, aCopperThickness );
+    copper_thickness.x = std::min( dx, aCopperThickness );
+    copper_thickness.y = std::min( dy, aCopperThickness );
 
-    switch( aPad.m_PadShape )
+    switch( aPad.GetShape() )
     {
     case PAD_CIRCLE:    // Add 4 similar holes
-    {
-        /* we create 4 copper holes and put them in position 1, 2, 3 and 4
-         * here is the area of the rectangular pad + its thermal gap
-         * the 4 copper holes remove the copper in order to create the thermal gap
-         * 4 ------ 1
-         * |        |
-         * |        |
-         * |        |
-         * |        |
-         * 3 ------ 2
-         * holes 2, 3, 4 are the same as hole 1, rotated 90, 180, 270 deg
-         */
-
-        // Build the hole pattern, for the hole in the X >0, Y > 0 plane:
-        // The pattern roughtly is a 90 deg arc pie
-        std::vector <wxPoint> corners_buffer;
-
-        // Radius of outer arcs of the shape:
-        int outer_radius = dx + aThermalGap;     // The radius of the outer arc is pad radius + aThermalGap
-
-        // Crosspoint of thermal spoke sides, the first point of polygon buffer
-        corners_buffer.push_back( wxPoint( copper_thickness.x / 2, copper_thickness.y / 2 ) );
-
-        // Add an intermediate point on spoke sides, to allow a > 90 deg angle between side
-        // and first seg of arc approx
-        corner.x = copper_thickness.x / 2;
-        int y = outer_radius - (aThermalGap / 4);
-        corner.y = (int) sqrt( ( ( (double) y * y ) - (double) corner.x * corner.x ) );
-
-        if( aThermalRot != 0 )
-            corners_buffer.push_back( corner );
-
-        // calculate the starting point of the outter arc
-        corner.x = copper_thickness.x / 2;
-
-        double dtmp = sqrt( ( (double) outer_radius * outer_radius ) -
-                            ( (double) corner.x * corner.x ) );
-        corner.y = (int) dtmp;
-        RotatePoint( &corner, 90 );
-
-        // calculate the ending point of the outter arc
-        corner_end.x = corner.y;
-        corner_end.y = corner.x;
-
-        // calculate intermediate points (y coordinate from corner.y to corner_end.y
-        while( (corner.y > corner_end.y)  && (corner.x < corner_end.x) )
         {
-            corners_buffer.push_back( corner );
-            RotatePoint( &corner, delta );
-        }
+            /* we create 4 copper holes and put them in position 1, 2, 3 and 4
+             * here is the area of the rectangular pad + its thermal gap
+             * the 4 copper holes remove the copper in order to create the thermal gap
+             * 4 ------ 1
+             * |        |
+             * |        |
+             * |        |
+             * |        |
+             * 3 ------ 2
+             * holes 2, 3, 4 are the same as hole 1, rotated 90, 180, 270 deg
+             */
 
-        corners_buffer.push_back( corner_end );
+            // Build the hole pattern, for the hole in the X >0, Y > 0 plane:
+            // The pattern roughtly is a 90 deg arc pie
+            std::vector <wxPoint> corners_buffer;
 
-        /* add an intermediate point, to avoid angles < 90 deg between last arc approx line
-         * and radius line
-         */
-        corner.x = corners_buffer[1].y;
-        corner.y = corners_buffer[1].x;
-        corners_buffer.push_back( corner );
+            // Radius of outer arcs of the shape corrected for arc approximation by lines
+            int outer_radius = (int) ( (dx + aThermalGap) * aCorrectionFactor );
 
-        // Now, add the 4 holes ( each is the pattern, rotated by 0, 90, 180 and 270  deg
-        // aThermalRot = 450 (45.0 degrees orientation) work fine.
-        int angle_pad = aPad.m_Orient;              // Pad orientation
-        int th_angle  = aThermalRot;
+            // Crosspoint of thermal spoke sides, the first point of polygon buffer
+            corners_buffer.push_back( wxPoint( copper_thickness.x / 2, copper_thickness.y / 2 ) );
 
-        for( unsigned ihole = 0; ihole < 4; ihole++ )
-        {
-            for( unsigned ii = 0; ii < corners_buffer.size(); ii++ )
+            // Add an intermediate point on spoke sides, to allow a > 90 deg angle between side
+            // and first seg of arc approx
+            corner.x = copper_thickness.x / 2;
+            int y = outer_radius - (aThermalGap / 4);
+            corner.y = (int) sqrt( ( ( (double) y * y ) - (double) corner.x * corner.x ) );
+
+            if( aThermalRot != 0 )
+                corners_buffer.push_back( corner );
+
+            // calculate the starting point of the outter arc
+            corner.x = copper_thickness.x / 2;
+
+            double dtmp = sqrt( ( (double) outer_radius * outer_radius ) -
+                                ( (double) corner.x * corner.x ) );
+            corner.y = (int) dtmp;
+            RotatePoint( &corner, 90 );
+
+            // calculate the ending point of the outter arc
+            corner_end.x = corner.y;
+            corner_end.y = corner.x;
+
+            // calculate intermediate points (y coordinate from corner.y to corner_end.y
+            while( (corner.y > corner_end.y)  && (corner.x < corner_end.x) )
             {
-                corner = corners_buffer[ii];
-                RotatePoint( &corner, th_angle + angle_pad );          // Rotate by segment angle and pad orientation
-                corner += PadShapePos;
-                aCornerBuffer.push_back( CPolyPt( corner.x, corner.y ) );
+                corners_buffer.push_back( corner );
+                RotatePoint( &corner, delta );
             }
 
-            aCornerBuffer.back().end_contour = true;
-            th_angle += 900;       // Note: th_angle in in 0.1 deg.
+            corners_buffer.push_back( corner_end );
+
+            /* add an intermediate point, to avoid angles < 90 deg between last arc approx line
+             * and radius line
+             */
+            corner.x = corners_buffer[1].y;
+            corner.y = corners_buffer[1].x;
+            corners_buffer.push_back( corner );
+
+            // Now, add the 4 holes ( each is the pattern, rotated by 0, 90, 180 and 270  deg
+            // aThermalRot = 450 (45.0 degrees orientation) work fine.
+            int angle_pad = aPad.GetOrientation();              // Pad orientation
+            int th_angle  = aThermalRot;
+
+            for( unsigned ihole = 0; ihole < 4; ihole++ )
+            {
+                for( unsigned ii = 0; ii < corners_buffer.size(); ii++ )
+                {
+                    corner = corners_buffer[ii];
+                    RotatePoint( &corner, th_angle + angle_pad );          // Rotate by segment angle and pad orientation
+                    corner += PadShapePos;
+                    aCornerBuffer.push_back( CPolyPt( corner.x, corner.y ) );
+                }
+
+                aCornerBuffer.back().end_contour = true;
+                th_angle += 900;       // Note: th_angle in in 0.1 deg.
+            }
         }
-    }
-    break;
+        break;
 
     case PAD_OVAL:
-    {
-        // Oval pad support along the lines of round and rectangular pads
-        std::vector <wxPoint> corners_buffer;               // Polygon buffer as vector
-
-        int     dx = (aPad.m_Size.x / 2) + aThermalGap;     // Cutout radius x
-        int     dy = (aPad.m_Size.y / 2) + aThermalGap;     // Cutout radius y
-
-        wxPoint shape_offset;
-
-        // We want to calculate an oval shape with dx > dy.
-        // if this is not the case, exchange dx and dy, and rotate the shape 90 deg.
-        int supp_angle = 0;
-
-        if( dx < dy )
         {
-            EXCHG( dx, dy );
-            supp_angle = 900;
-            EXCHG( copper_thickness.x, copper_thickness.y );
-        }
+            // Oval pad support along the lines of round and rectangular pads
+            std::vector <wxPoint> corners_buffer;               // Polygon buffer as vector
 
-        int deltasize = dx - dy;        // = distance between shape position and the 2 demi-circle ends centre
-        // here we have dx > dy
-        // Radius of outer arcs of the shape:
-        int outer_radius = dy;     // The radius of the outer arc is radius end + aThermalGap
+            int     dx = (aPad.GetSize().x / 2) + aThermalGap;     // Cutout radius x
+            int     dy = (aPad.GetSize().y / 2) + aThermalGap;     // Cutout radius y
 
-        // Some coordinate fiddling, depending on the shape offset direction
-        shape_offset = wxPoint( deltasize, 0 );
+            wxPoint shape_offset;
 
-        // Crosspoint of thermal spoke sides, the first point of polygon buffer
-        corners_buffer.push_back( wxPoint( copper_thickness.x / 2, copper_thickness.y / 2 ) );
+            // We want to calculate an oval shape with dx > dy.
+            // if this is not the case, exchange dx and dy, and rotate the shape 90 deg.
+            int supp_angle = 0;
 
-        // Arc start point calculation, the intersecting point of cutout arc and thermal spoke edge
-        if( copper_thickness.x > deltasize )          // If copper thickness is more than shape offset, we need to calculate arc intercept point.
-        {
+            if( dx < dy )
+            {
+                EXCHG( dx, dy );
+                supp_angle = 900;
+                EXCHG( copper_thickness.x, copper_thickness.y );
+            }
+
+            int deltasize = dx - dy;        // = distance between shape position and the 2 demi-circle ends centre
+            // here we have dx > dy
+            // Radius of outer arcs of the shape:
+            int outer_radius = dy;     // The radius of the outer arc is radius end + aThermalGap
+
+            // Some coordinate fiddling, depending on the shape offset direction
+            shape_offset = wxPoint( deltasize, 0 );
+
+            // Crosspoint of thermal spoke sides, the first point of polygon buffer
             corner.x = copper_thickness.x / 2;
-            corner.y =  (int) sqrt( ( (double) outer_radius * outer_radius ) -
-                                    ( (double) ( corner.x - delta ) * ( corner.x - deltasize ) ) );
-            corner.x -= deltasize;
-
-            /* creates an intermediate point, to have a > 90 deg angle
-             * between the side and the first segment of arc approximation
-             */
-            wxPoint intpoint = corner;
-            intpoint.y -= aThermalGap / 4;
-            corners_buffer.push_back( intpoint + shape_offset );
-            RotatePoint( &corner, 90 );
-        }
-        else
-        {
-            corner.x = copper_thickness.x / 2;
-            corner.y = outer_radius;
+            corner.y = copper_thickness.y / 2;
             corners_buffer.push_back( corner );
-            corner.x = ( deltasize - copper_thickness.x ) / 2;
-        }
 
-        // Add an intermediate point on spoke sides, to allow a > 90 deg angle between side
-        // and first seg of arc approx
-        wxPoint last_corner;
-        last_corner.y = copper_thickness.y / 2;
-        int     px = outer_radius - (aThermalGap / 4);
-        last_corner.x =
-            (int) sqrt( ( ( (double) px * px ) - (double) last_corner.y * last_corner.y ) );
-
-        // Arc stop point calculation, the intersecting point of cutout arc and thermal spoke edge
-        corner_end.y = copper_thickness.y / 2;
-        corner_end.x =
-            (int) sqrt( ( (double) outer_radius *
-                         outer_radius ) - ( (double) corner_end.y * corner_end.y ) );
-        RotatePoint( &corner_end, -90 );
-
-        // calculate intermediate arc points till limit is reached
-        while( (corner.y > corner_end.y)  && (corner.x < corner_end.x) )
-        {
-            corners_buffer.push_back( corner + shape_offset );
-            RotatePoint( &corner, delta );
-        }
-
-        //corners_buffer.push_back(corner + shape_offset);      // TODO: about one mil geometry error forms somewhere.
-        corners_buffer.push_back( corner_end + shape_offset );
-        corners_buffer.push_back( last_corner + shape_offset );         // Enabling the line above shows intersection point.
-
-        /* Create 2 holes, rotated by pad rotation.
-         */
-        int angle = aPad.m_Orient + supp_angle;
-
-        for( int irect = 0; irect < 2; irect++ )
-        {
-            for( unsigned ic = 0; ic < corners_buffer.size(); ic++ )
+            // Arc start point calculation, the intersecting point of cutout arc and thermal spoke edge
+            // If copper thickness is more than shape offset, we need to calculate arc intercept point.
+            if( copper_thickness.x > deltasize )
             {
-                wxPoint cpos = corners_buffer[ic];
-                RotatePoint( &cpos, angle );
-                cpos += PadShapePos;
-                aCornerBuffer.push_back( CPolyPt( cpos.x, cpos.y ) );
+                corner.x = copper_thickness.x / 2;
+                corner.y =  (int) sqrt( ( (double) outer_radius * outer_radius ) -
+                                        ( (double) ( corner.x - delta ) * ( corner.x - deltasize ) ) );
+                corner.x -= deltasize;
+
+                /* creates an intermediate point, to have a > 90 deg angle
+                 * between the side and the first segment of arc approximation
+                 */
+                wxPoint intpoint = corner;
+                intpoint.y -= aThermalGap / 4;
+                corners_buffer.push_back( intpoint + shape_offset );
+                RotatePoint( &corner, 90 );
+            }
+            else
+            {
+                corner.x = copper_thickness.x / 2;
+                corner.y = outer_radius;
+                corners_buffer.push_back( corner );
             }
 
-            aCornerBuffer.back().end_contour = true;
-            angle += 1800;       // this is calculate hole 3
+            // Add an intermediate point on spoke sides, to allow a > 90 deg angle between side
+            // and first seg of arc approx
+            wxPoint last_corner;
+            last_corner.y = copper_thickness.y / 2;
+            int     px = outer_radius - (aThermalGap / 4);
+            last_corner.x =
+                (int) sqrt( ( ( (double) px * px ) - (double) last_corner.y * last_corner.y ) );
 
-            if( angle >= 3600 )
-                angle -= 3600;
-        }
+            // Arc stop point calculation, the intersecting point of cutout arc and thermal spoke edge
+            corner_end.y = copper_thickness.y / 2;
+            corner_end.x =
+                (int) sqrt( ( (double) outer_radius *
+                             outer_radius ) - ( (double) corner_end.y * corner_end.y ) );
+            RotatePoint( &corner_end, -90 );
 
-        // Create holes, that are the mirrored from the previous holes
-        for( unsigned ic = 0; ic < corners_buffer.size(); ic++ )
-        {
-            wxPoint swap = corners_buffer[ic];
-            swap.x = -swap.x;
-            corners_buffer[ic] = swap;
-        }
-
-        // Now add corner 4 and 2 (2 is the corner 4 rotated by 180 deg
-        angle = aPad.m_Orient + supp_angle;
-
-        for( int irect = 0; irect < 2; irect++ )
-        {
-            for( unsigned ic = 0; ic < corners_buffer.size(); ic++ )
+            // calculate intermediate arc points till limit is reached
+            while( (corner.y > corner_end.y)  && (corner.x < corner_end.x) )
             {
-                wxPoint cpos = corners_buffer[ic];
-                RotatePoint( &cpos, angle );
-                cpos += PadShapePos;
-                aCornerBuffer.push_back( CPolyPt( cpos.x, cpos.y ) );
+                corners_buffer.push_back( corner + shape_offset );
+                RotatePoint( &corner, delta );
             }
 
-            aCornerBuffer.back().end_contour = true;
-            angle += 1800;
+            //corners_buffer.push_back(corner + shape_offset);      // TODO: about one mil geometry error forms somewhere.
+            corners_buffer.push_back( corner_end + shape_offset );
+            corners_buffer.push_back( last_corner + shape_offset );         // Enabling the line above shows intersection point.
 
-            if( angle >= 3600 )
-                angle -= 3600;
+            /* Create 2 holes, rotated by pad rotation.
+             */
+            int angle = aPad.GetOrientation() + supp_angle;
+
+            for( int irect = 0; irect < 2; irect++ )
+            {
+                for( unsigned ic = 0; ic < corners_buffer.size(); ic++ )
+                {
+                    wxPoint cpos = corners_buffer[ic];
+                    RotatePoint( &cpos, angle );
+                    cpos += PadShapePos;
+                    aCornerBuffer.push_back( CPolyPt( cpos.x, cpos.y ) );
+                }
+
+                aCornerBuffer.back().end_contour = true;
+                angle += 1800;       // this is calculate hole 3
+
+                if( angle >= 3600 )
+                    angle -= 3600;
+            }
+
+            // Create holes, that are the mirrored from the previous holes
+            for( unsigned ic = 0; ic < corners_buffer.size(); ic++ )
+            {
+                wxPoint swap = corners_buffer[ic];
+                swap.x = -swap.x;
+                corners_buffer[ic] = swap;
+            }
+
+            // Now add corner 4 and 2 (2 is the corner 4 rotated by 180 deg
+            angle = aPad.GetOrientation() + supp_angle;
+
+            for( int irect = 0; irect < 2; irect++ )
+            {
+                for( unsigned ic = 0; ic < corners_buffer.size(); ic++ )
+                {
+                    wxPoint cpos = corners_buffer[ic];
+                    RotatePoint( &cpos, angle );
+                    cpos += PadShapePos;
+                    aCornerBuffer.push_back( CPolyPt( cpos.x, cpos.y ) );
+                }
+
+                aCornerBuffer.back().end_contour = true;
+                angle += 1800;
+
+                if( angle >= 3600 )
+                    angle -= 3600;
+            }
         }
-    }
-    break;
+        break;
 
     case PAD_RECT:       // draw 4 Holes
-    {
-        /* we create 4 copper holes and put them in position 1, 2, 3 and 4
-         * here is the area of the rectangular pad + its thermal gap
-         * the 4 copper holes remove the copper in order to create the thermal gap
-         * 4 ------ 1
-         * |        |
-         * |        |
-         * |        |
-         * |        |
-         * 3 ------ 2
-         * hole 3 is the same as hole 1, rotated 180 deg
-         * hole 4 is the same as hole 2, rotated 180 deg and is the same as hole 1, mirrored
-         */
-
-        // First, create a rectangular hole for position 1 :
-        // 2 ------- 3
-        //  |        |
-        //  |        |
-        //  |        |
-        // 1  -------4
-
-        // Modified rectangles with one corner rounded. TODO: merging with oval thermals
-        // and possibly round too.
-
-        std::vector <wxPoint> corners_buffer;               // Polygon buffer as vector
-
-        int dx = (aPad.m_Size.x / 2) + aThermalGap;         // Cutout radius x
-        int dy = (aPad.m_Size.y / 2) + aThermalGap;         // Cutout radius y
-
-        // The first point of polygon buffer is left lower corner, second the crosspoint of
-        // thermal spoke sides, the third is upper right corner and the rest are rounding
-        // vertices going anticlockwise. Note the inveted Y-axis in CG.
-        corners_buffer.push_back( wxPoint( -dx, -(aThermalGap / 4 + copper_thickness.y / 2) ) );    // Adds small miters to zone
-        corners_buffer.push_back( wxPoint( -(dx - aThermalGap / 4), -copper_thickness.y / 2 ) );    // fill and spoke corner
-        corners_buffer.push_back( wxPoint( -copper_thickness.x / 2, -copper_thickness.y / 2 ) );
-        corners_buffer.push_back( wxPoint( -copper_thickness.x / 2, -(dy - aThermalGap / 4) ) );
-        corners_buffer.push_back( wxPoint( -(aThermalGap / 4 + copper_thickness.x / 2), -dy ) );
-
-        int angle = aPad.m_Orient;
-        int rounding_radius = (int) ( aThermalGap * aCorrectionFactor );            // Corner rounding radius
-        int angle_pg;                                                               // Polygon increment angle
-
-        for( int i = 0; i < aCircleToSegmentsCount / 4 + 1; i++ )
         {
-            wxPoint corner_position = wxPoint( 0, -rounding_radius );
-            RotatePoint( &corner_position, 1800 / aCircleToSegmentsCount );         // Start at half increment offset
-            angle_pg = i * delta;
-            RotatePoint( &corner_position, angle_pg );                              // Rounding vector rotation
-            corner_position -= aPad.m_Size / 2;                                     // Rounding vector + Pad corner offset
-            corners_buffer.push_back( wxPoint( corner_position.x, corner_position.y ) );
-        }
+            /* we create 4 copper holes and put them in position 1, 2, 3 and 4
+             * here is the area of the rectangular pad + its thermal gap
+             * the 4 copper holes remove the copper in order to create the thermal gap
+             * 4 ------ 1
+             * |        |
+             * |        |
+             * |        |
+             * |        |
+             * 3 ------ 2
+             * hole 3 is the same as hole 1, rotated 180 deg
+             * hole 4 is the same as hole 2, rotated 180 deg and is the same as hole 1, mirrored
+             */
 
-        for( int irect = 0; irect < 2; irect++ )
-        {
-            for( unsigned ic = 0; ic < corners_buffer.size(); ic++ )
+            // First, create a rectangular hole for position 1 :
+            // 2 ------- 3
+            //  |        |
+            //  |        |
+            //  |        |
+            // 1  -------4
+
+            // Modified rectangles with one corner rounded. TODO: merging with oval thermals
+            // and possibly round too.
+
+            std::vector <wxPoint> corners_buffer;               // Polygon buffer as vector
+
+            int dx = (aPad.GetSize().x / 2) + aThermalGap;         // Cutout radius x
+            int dy = (aPad.GetSize().y / 2) + aThermalGap;         // Cutout radius y
+
+            // The first point of polygon buffer is left lower corner, second the crosspoint of
+            // thermal spoke sides, the third is upper right corner and the rest are rounding
+            // vertices going anticlockwise. Note the inveted Y-axis in CG.
+            corners_buffer.push_back( wxPoint( -dx, -(aThermalGap / 4 + copper_thickness.y / 2) ) );    // Adds small miters to zone
+            corners_buffer.push_back( wxPoint( -(dx - aThermalGap / 4), -copper_thickness.y / 2 ) );    // fill and spoke corner
+            corners_buffer.push_back( wxPoint( -copper_thickness.x / 2, -copper_thickness.y / 2 ) );
+            corners_buffer.push_back( wxPoint( -copper_thickness.x / 2, -(dy - aThermalGap / 4) ) );
+            corners_buffer.push_back( wxPoint( -(aThermalGap / 4 + copper_thickness.x / 2), -dy ) );
+
+            int angle = aPad.GetOrientation();
+            int rounding_radius = (int) ( aThermalGap * aCorrectionFactor );    // Corner rounding radius
+            int angle_pg;                                                       // Polygon increment angle
+
+            for( int i = 0; i < aCircleToSegmentsCount / 4 + 1; i++ )
             {
-                wxPoint cpos = corners_buffer[ic];
-                RotatePoint( &cpos, angle );            // Rotate according to module orientation
-                cpos += PadShapePos;                    // Shift origin to position
-                aCornerBuffer.push_back( CPolyPt( cpos.x, cpos.y ) );
+                wxPoint corner_position = wxPoint( 0, -rounding_radius );
+
+                // Start at half increment offset
+                RotatePoint( &corner_position, 1800 / aCircleToSegmentsCount );
+                angle_pg = i * delta;
+
+                RotatePoint( &corner_position, angle_pg );          // Rounding vector rotation
+                corner_position -= aPad.GetSize() / 2;              // Rounding vector + Pad corner offset
+
+                corners_buffer.push_back( wxPoint( corner_position.x, corner_position.y ) );
             }
 
-            aCornerBuffer.back().end_contour = true;
-            angle += 1800;       // this is calculate hole 3
-
-            if( angle >= 3600 )
-                angle -= 3600;
-        }
-
-        // Create holes, that are the mirrored from the previous holes
-        for( unsigned ic = 0; ic < corners_buffer.size(); ic++ )
-        {
-            wxPoint swap = corners_buffer[ic];
-            swap.x = -swap.x;
-            corners_buffer[ic] = swap;
-        }
-
-        // Now add corner 4 and 2 (2 is the corner 4 rotated by 180 deg
-        for( int irect = 0; irect < 2; irect++ )
-        {
-            for( unsigned ic = 0; ic < corners_buffer.size(); ic++ )
+            for( int irect = 0; irect < 2; irect++ )
             {
-                wxPoint cpos = corners_buffer[ic];
-                RotatePoint( &cpos, angle );
-                cpos += PadShapePos;
-                aCornerBuffer.push_back( CPolyPt( cpos.x, cpos.y ) );
+                for( unsigned ic = 0; ic < corners_buffer.size(); ic++ )
+                {
+                    wxPoint cpos = corners_buffer[ic];
+                    RotatePoint( &cpos, angle );            // Rotate according to module orientation
+                    cpos += PadShapePos;                    // Shift origin to position
+                    aCornerBuffer.push_back( CPolyPt( cpos.x, cpos.y ) );
+                }
+
+                aCornerBuffer.back().end_contour = true;
+                angle += 1800;       // this is calculate hole 3
+
+                if( angle >= 3600 )
+                    angle -= 3600;
             }
 
-            aCornerBuffer.back().end_contour = true;
-            angle += 1800;
+            // Create holes, that are the mirrored from the previous holes
+            for( unsigned ic = 0; ic < corners_buffer.size(); ic++ )
+            {
+                wxPoint swap = corners_buffer[ic];
+                swap.x = -swap.x;
+                corners_buffer[ic] = swap;
+            }
 
-            if( angle >= 3600 )
-                angle -= 3600;
+            // Now add corner 4 and 2 (2 is the corner 4 rotated by 180 deg
+            for( int irect = 0; irect < 2; irect++ )
+            {
+                for( unsigned ic = 0; ic < corners_buffer.size(); ic++ )
+                {
+                    wxPoint cpos = corners_buffer[ic];
+                    RotatePoint( &cpos, angle );
+                    cpos += PadShapePos;
+                    aCornerBuffer.push_back( CPolyPt( cpos.x, cpos.y ) );
+                }
+
+                aCornerBuffer.back().end_contour = true;
+                angle += 1800;
+
+                if( angle >= 3600 )
+                    angle -= 3600;
+            }
+
         }
-
         break;
-    }
+
+    default:
+        ;
     }
 }

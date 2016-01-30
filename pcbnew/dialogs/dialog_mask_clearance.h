@@ -9,7 +9,7 @@
 #ifndef _DIALOG_MASK_CLEARANCE_H_
 #define _DIALOG_MASK_CLEARANCE_H_
 
-#include "dialog_mask_clearance_base.h"
+#include <dialog_mask_clearance_base.h>
 
 /**
  *  DIALOG_PADS_MASK_CLEARANCE, derived from DIALOG_PADS_MASK_CLEARANCE_BASE
@@ -19,14 +19,14 @@
 class DIALOG_PADS_MASK_CLEARANCE : public DIALOG_PADS_MASK_CLEARANCE_BASE
 {
 private:
-    PCB_EDIT_FRAME*  m_Parent;
-    BOARD_DESIGN_SETTINGS*  m_BrdSettings;
+    PCB_EDIT_FRAME*  m_parent;
+    BOARD_DESIGN_SETTINGS  m_brdSettings;
 
 public:
     DIALOG_PADS_MASK_CLEARANCE( PCB_EDIT_FRAME* parent );
     ~DIALOG_PADS_MASK_CLEARANCE() {};
 private:
-    void         MyInit();
+    void         myInit();
     virtual void OnButtonOkClick( wxCommandEvent& event );
     virtual void OnButtonCancelClick( wxCommandEvent& event );
 };

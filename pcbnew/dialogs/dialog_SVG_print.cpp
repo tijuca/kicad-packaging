@@ -1,305 +1,345 @@
-/////////////////////////////////////////////////////////////////////////////
-// Name:        dialog_svg_print.cpp
-// Author:      jean-pierre Charras
-// Modified by:
-// Licence: GPL
-/////////////////////////////////////////////////////////////////////////////
+/**
+ * @file pcbnew/dialogs/dialog_SVG_print.cpp
+ */
 
-#include "fctsys.h"
-#include "appl_wxstruct.h"
-#include "common.h"
-#include "class_drawpanel.h"
-#include "confirm.h"
-#include "gestfich.h"
-#include "dcsvg.h"
-#include "wxBasePcbFrame.h"
-#include "class_pcb_screen.h"
-#include "macros.h"
+/*
+ * This program source code file is part of KiCad, a free EDA CAD application.
+ *
+ * Copyright (C) 2012 Jean-Pierre Charras, jp.charras at wanadoo.fr
+ * Copyright (C) 2012 KiCad Developers, see change_log.txt for contributors.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation; either version 2
+ * of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, you may find one here:
+ * http://www.gnu.org/licenses/old-licenses/gpl-2.0.html
+ * or you may search the http://www.gnu.org website for the version 2 license,
+ * or you may write to the Free Software Foundation, Inc.,
+ * 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
+ */
 
-#include "pcbnew.h"
-#include "pcbplot.h"
-#include "printout_controler.h"
 
-#include "class_board.h"
-#include "class_edge_mod.h"
-#include "class_mire.h"
-#include "class_pcb_text.h"
-#include "class_dimension.h"
-#include "class_zone.h"
+#include <fctsys.h>
+#include <appl_wxstruct.h>
+#include <common.h>
+#include <class_drawpanel.h>
+#include <wxBasePcbFrame.h>
+#include <class_pcb_screen.h>
+#include <base_units.h>
+#include <convert_from_iu.h>
+#include <wildcards_and_files_ext.h>
 
-#include "dialog_SVG_print.h"
-
+#include <pcbnew.h>
+#include <pcbplot.h>
+#include <printout_controler.h>
+#include <class_board.h>
+#include <dialog_SVG_print.h>
 
 // Keys for configuration
-#define PLOTSVGMODECOLOR_KEY wxT( "PlotSVGModeColor" )
+#define PLOTSVGMODECOLOR_KEY        wxT( "PlotSVGModeColor" )
+#define PLOTSVGPAGESIZEOPT_KEY      wxT( "PlotSVGPageOpt" )
+#define PLOTSVGPLOT_BRD_EDGE_KEY    wxT( "PlotSVGBrdEdge" )
 
-// reasonnable values for default pen width (in 1/10000 inch)
-#define WIDTH_MAX_VALUE 500
-#define WIDTH_MIN_VALUE 1
-
-extern int g_DrawDefaultLineThickness;
+// reasonnable values for default pen width
+#define WIDTH_MAX_VALUE (2 * IU_PER_MM)
+#define WIDTH_MIN_VALUE (0.05 * IU_PER_MM)
 
 // Local variables:
-static PRINT_PARAMETERS  s_Parameters;
-static long s_SelectedLayers    = LAYER_BACK | LAYER_FRONT |
-                                  SILKSCREEN_LAYER_FRONT | SILKSCREEN_LAYER_BACK;
+static long s_SelectedLayers = LAYER_BACK | LAYER_FRONT |
+                               SILKSCREEN_LAYER_FRONT | SILKSCREEN_LAYER_BACK;
 
-
-/*!
+/*
  * DIALOG_SVG_PRINT functions
  */
 DIALOG_SVG_PRINT::DIALOG_SVG_PRINT( EDA_DRAW_FRAME* parent ) :
     DIALOG_SVG_PRINT_base( parent )
 {
-    m_Parent = (PCB_BASE_FRAME*) parent;
-    m_Config = wxGetApp().m_EDA_Config;
-    initDialog( );
+    m_parent    = (PCB_BASE_FRAME*) parent;
+    m_config    = wxGetApp().GetSettings();
+    initDialog();
     GetSizer()->SetSizeHints( this );
     Centre();
-    m_buttonBoard->SetDefault();
 }
+bool DIALOG_SVG_PRINT::m_printMirror = false;
+bool DIALOG_SVG_PRINT::m_oneFileOnly = false;
 
 
-void DIALOG_SVG_PRINT::initDialog( )
+void DIALOG_SVG_PRINT::initDialog()
 {
-    SetFocus();     // Make ESC key working
+    m_board = m_parent->GetBoard();
 
-    if( m_Config )
+    if( m_config )
     {
-        m_Config->Read( PLOTSVGMODECOLOR_KEY, &s_Parameters.m_Print_Black_and_White );
+        m_config->Read( PLOTSVGMODECOLOR_KEY, &m_printBW, false );
+        long ltmp;
+        m_config->Read( PLOTSVGPAGESIZEOPT_KEY, &ltmp, 0 );
+        m_rbSvgPageSizeOpt->SetSelection( ltmp );
+        m_config->Read( PLOTSVGPLOT_BRD_EDGE_KEY, &ltmp, 1 );
+        m_PrintBoardEdgesCtrl->SetValue( ltmp );
     }
 
-    s_Parameters.m_PenDefaultSize = g_DrawDefaultLineThickness;
-    AddUnitSymbol( *m_TextPenWidth, g_UserUnit );
-    m_DialogPenWidth->SetValue(
-        ReturnStringFromValue( g_UserUnit, s_Parameters.m_PenDefaultSize,
-                               m_Parent->m_InternalUnits ) );
+    m_outputDirectory = m_parent->GetPlotSettings().GetOutputDirectory();
+    m_outputDirectoryName->SetValue( m_outputDirectory );
 
-    m_Print_Frame_Ref_Ctrl->SetValue( s_Parameters.m_Print_Sheet_Ref );
+    if( m_printBW )
+        m_ModeColorOption->SetSelection( 1 );
+    else
+        m_ModeColorOption->SetSelection( 0 );
+
+    m_printMirrorOpt->SetValue( m_printMirror );
+    m_rbFileOpt->SetSelection( m_oneFileOnly ? 1 : 0 );
+
+
+    AddUnitSymbol( *m_TextPenWidth, g_UserUnit );
+    m_DialogDefaultPenSize->SetValue(
+        ReturnStringFromValue( g_UserUnit, g_DrawDefaultLineThickness ) );
 
     // Create layers list
-    BOARD* board = m_Parent->GetBoard();
-    int      layer;
+    int     layer;
     for( layer = 0; layer < NB_LAYERS; ++layer )
     {
-        if( !board->IsLayerEnabled( layer ) )
-            m_BoxSelectLayer[layer] = NULL;
+        if( !m_board->IsLayerEnabled( layer ) )
+            m_boxSelectLayer[layer] = NULL;
         else
-            m_BoxSelectLayer[layer] =
-                new wxCheckBox( this, -1, board->GetLayerName( layer ) );
+            m_boxSelectLayer[layer] =
+                new wxCheckBox( this, -1, m_board->GetLayerName( layer ) );
     }
+
     // Add wxCheckBoxes in layers lists dialog
-    //  List layers in same order than in setup layers dialog
+    // List layers in same order than in setup layers dialog
     // (Front or Top to Back or Bottom)
-    DECLARE_LAYERS_ORDER_LIST(layersOrder);
+    DECLARE_LAYERS_ORDER_LIST( layersOrder );
+
     for( int layer_idx = 0; layer_idx < NB_LAYERS; ++layer_idx )
     {
         layer = layersOrder[layer_idx];
 
-        wxASSERT(layer < NB_LAYERS);
+        wxASSERT( layer < NB_LAYERS );
 
-        if( m_BoxSelectLayer[layer] == NULL )
+        if( m_boxSelectLayer[layer] == NULL )
             continue;
 
         long mask = 1 << layer;
+
         if( mask & s_SelectedLayers )
-            m_BoxSelectLayer[layer]->SetValue( true );
+            m_boxSelectLayer[layer]->SetValue( true );
 
         if( layer < 16 )
-            m_CopperLayersBoxSizer->Add(  m_BoxSelectLayer[layer],
+            m_CopperLayersBoxSizer->Add(  m_boxSelectLayer[layer],
                                           0,
                                           wxGROW | wxALL,
                                           1 );
         else
-            m_TechnicalBoxSizer->Add(  m_BoxSelectLayer[layer],
+            m_TechnicalBoxSizer->Add(  m_boxSelectLayer[layer],
                                        0,
                                        wxGROW | wxALL,
                                        1 );
     }
 
-    if( m_Config )
+    if( m_config )
     {
         wxString layerKey;
 
-        for( int layer = 0;  layer<NB_LAYERS;  ++layer )
+        for( int layer = 0; layer<NB_LAYERS; ++layer )
         {
             bool option;
-            if ( m_BoxSelectLayer[layer] == NULL )
+
+            if( m_boxSelectLayer[layer] == NULL )
                 continue;
+
             layerKey.Printf( OPTKEY_LAYERBASE, layer );
 
-            if( m_Config->Read( layerKey, &option ) )
-                m_BoxSelectLayer[layer]->SetValue( option );
+            if( m_config->Read( layerKey, &option ) )
+                m_boxSelectLayer[layer]->SetValue( option );
         }
     }
 }
 
+void DIALOG_SVG_PRINT::OnOutputDirectoryBrowseClicked( wxCommandEvent& event )
+{
+    // Build the absolute path of current output plot directory
+    // to preselect it when opening the dialog.
+    wxFileName  fn( m_outputDirectoryName->GetValue() );
+    wxString    path;
+
+    if( fn.IsRelative() )
+        path = wxGetCwd() + fn.GetPathSeparator() + m_outputDirectoryName->GetValue();
+    else
+        path = m_outputDirectoryName->GetValue();
+
+    wxDirDialog dirDialog( this, _( "Select Output Directory" ), path );
+
+    if( dirDialog.ShowModal() == wxID_CANCEL )
+        return;
+
+    wxFileName      dirName = wxFileName::DirName( dirDialog.GetPath() );
+
+    wxMessageDialog dialog( this, _( "Use a relative path? " ),
+                            _( "Plot Output Directory" ),
+                            wxYES_NO | wxICON_QUESTION | wxYES_DEFAULT );
+
+    if( dialog.ShowModal() == wxID_YES )
+    {
+        wxString boardFilePath = ( (wxFileName) m_board->GetFileName() ).GetPath();
+
+        if( !dirName.MakeRelativeTo( boardFilePath ) )
+            wxMessageBox( _(
+                              "Cannot make path relative (target volume different from board file volume)!" ),
+                          _( "Plot Output Directory" ), wxOK | wxICON_ERROR );
+    }
+
+    m_outputDirectoryName->SetValue( dirName.GetFullPath() );
+    m_outputDirectory = m_outputDirectoryName->GetValue();
+}
 
 void DIALOG_SVG_PRINT::SetPenWidth()
 {
-    s_Parameters.m_PenDefaultSize = ReturnValueFromTextCtrl( *m_DialogPenWidth,
-                                                  m_Parent->m_InternalUnits );
+    int pensize = ReturnValueFromTextCtrl( *m_DialogDefaultPenSize );
 
-    if( s_Parameters.m_PenDefaultSize > WIDTH_MAX_VALUE )
+    if( pensize > WIDTH_MAX_VALUE )
     {
-        s_Parameters.m_PenDefaultSize = WIDTH_MAX_VALUE;
+        pensize = WIDTH_MAX_VALUE;
     }
 
-    if( s_Parameters.m_PenDefaultSize < WIDTH_MIN_VALUE )
+    if( pensize < WIDTH_MIN_VALUE )
     {
-        s_Parameters.m_PenDefaultSize = WIDTH_MIN_VALUE;
+        pensize = WIDTH_MIN_VALUE;
     }
 
-    g_DrawDefaultLineThickness = s_Parameters.m_PenDefaultSize;
-    m_DialogPenWidth->SetValue(
-        ReturnStringFromValue( g_UserUnit, s_Parameters.m_PenDefaultSize,
-                               m_Parent->m_InternalUnits ) );
+    g_DrawDefaultLineThickness = pensize;
+    m_DialogDefaultPenSize->SetValue( ReturnStringFromValue( g_UserUnit, pensize ) );
 }
 
-
-void DIALOG_SVG_PRINT::PrintSVGDoc( bool aPrintAll, bool aPrint_Frame_Ref )
+void DIALOG_SVG_PRINT::ExportSVGFile( bool aOnlyOneFile )
 {
-    wxFileName fn;
-    wxString   msg;
+    m_outputDirectory = m_outputDirectoryName->GetValue();
 
+    // Create output directory if it does not exist (also transform it in
+    // absolute form). Bail if it fails
+    wxFileName outputDir = wxFileName::DirName( m_outputDirectory );
+    wxString boardFilename = m_board->GetFileName();
+
+    if( !EnsureOutputDirectory( &outputDir, boardFilename, m_messagesBox ) )
+        return;
+
+    m_printMirror = m_printMirrorOpt->GetValue();
+    m_printBW = m_ModeColorOption->GetSelection();
     SetPenWidth();
 
-    PCB_SCREEN* screen = m_Parent->GetScreen();
-
-    if( aPrintAll )
-        m_PrintMaskLayer = 0xFFFFFFFF;
-    else
-        m_PrintMaskLayer = 0;
-
-    if( m_PrintBoardEdgesCtrl->IsChecked() )
-            m_PrintMaskLayer |= EDGE_LAYER;
-    else
-            m_PrintMaskLayer &= ~EDGE_LAYER;
+    // Build layers mask
+    int printMaskLayer = 0;
 
     for( int layer = 0; layer<NB_LAYERS; layer++ )
     {
-        if ( m_BoxSelectLayer[layer] == NULL )
+        if( m_boxSelectLayer[layer] && m_boxSelectLayer[layer]->GetValue() )
+            printMaskLayer |= 1 << layer;
+    }
+
+    wxString    msg;
+    for( int layer = 0; layer<NB_LAYERS; layer++ )
+    {
+        int currlayer_mask = 1 << layer;
+        if( (printMaskLayer & currlayer_mask ) == 0 )
             continue;
 
-        if( !aPrintAll && !m_BoxSelectLayer[layer]->GetValue() )
-            continue;
+        wxString suffix = m_board->GetLayerName( layer, false );
 
-        fn = m_FileNameCtrl->GetValue();
-        if( !fn.IsOk() )
+        if( aOnlyOneFile )
         {
-            fn = screen->GetFileName();
-        }
-
-        if( aPrintAll )
-            fn.SetName( fn.GetName() + wxT( "-brd" ) );
+            m_printMaskLayer = printMaskLayer;
+            suffix = wxT( "-brd" );
+         }
         else
         {
-            wxString extraname = m_BoxSelectLayer[layer]->GetLabel();
-            extraname.Trim();    // remove leading and trailing spaces if any
-            extraname.Trim(false);
-            fn.SetName( fn.GetName() + wxT( "-" ) + extraname );
-
-            m_PrintMaskLayer = 1 << layer;
-            if( m_PrintBoardEdgesCtrl->IsChecked() )
-                m_PrintMaskLayer |= EDGE_LAYER;
+            m_printMaskLayer = currlayer_mask;
+            suffix = m_board->GetLayerName( layer, false );
         }
 
-        fn.SetExt( wxT( "svg" ) );
+        wxFileName fn(boardFilename);
+        BuildPlotFileName( &fn, outputDir.GetPath(), suffix, SVGFileExtension );
 
-        bool success = DrawPage( fn.GetFullPath(), screen, aPrint_Frame_Ref );
-        msg = _( "Create file " ) + fn.GetFullPath();
-        if( !success )
-            msg += _( " error" );
-        msg += wxT( "\n" );
-        m_MessagesBox->AppendText( msg );
+        if( m_PrintBoardEdgesCtrl->IsChecked() )
+            m_printMaskLayer |= EDGE_LAYER;
 
-        if( aPrintAll )
+        if( CreateSVGFile( fn.GetFullPath() ) )
+            msg.Printf( _( "Plot: %s OK\n" ), GetChars( fn.GetFullPath() ) );
+        else    // Error
+            msg.Printf( _( "** Unable to create %s **\n" ), GetChars( fn.GetFullPath() ) );
+        m_messagesBox->AppendText( msg );
+
+        if( aOnlyOneFile )
             break;
     }
 }
 
 
-/*
- * Actual print function.
- */
-bool DIALOG_SVG_PRINT::DrawPage( const wxString& FullFileName,
-                                 BASE_SCREEN*    screen,
-                                 bool            aPrint_Frame_Ref )
+// Actual SVG file export  function.
+bool DIALOG_SVG_PRINT::CreateSVGFile( const wxString& aFullFileName )
 {
-    int     tmpzoom;
-    wxPoint tmp_startvisu;
-    wxSize  SheetSize;  // Sheet size in internal units
-    wxPoint old_org;
-    bool    success = true;
+    PCB_PLOT_PARAMS m_plotOpts;
 
-    /* Change frames and local settings */
-    tmp_startvisu = screen->m_StartVisu;
-    tmpzoom = screen->GetZoom();
-    old_org = screen->m_DrawOrg;
-    screen->m_DrawOrg.x   = screen->m_DrawOrg.y = 0;
-    screen->m_StartVisu.x = screen->m_StartVisu.y = 0;
-    SheetSize    = screen->m_CurrentSheetDesc->m_Size;  // size in 1/1000 inch
-    SheetSize.x *= m_Parent->m_InternalUnits / 1000;
-    SheetSize.y *= m_Parent->m_InternalUnits / 1000;    // size in pixels
+    m_plotOpts.SetPlotFrameRef( PrintPageRef() );
 
-    screen->SetScalingFactor( 1.0 );
-    float dpi = (float)m_Parent->m_InternalUnits;
+    // Adding drill marks, for copper layers
+    if( (m_printMaskLayer & ALL_CU_LAYERS) )
+        m_plotOpts.SetDrillMarksType( PCB_PLOT_PARAMS::FULL_DRILL_SHAPE );
+    else
+        m_plotOpts.SetDrillMarksType( PCB_PLOT_PARAMS::NO_DRILL_SHAPE );
 
-    EDA_DRAW_PANEL* panel = m_Parent->DrawPanel;
+    m_plotOpts.SetSkipPlotNPTH_Pads( false );
 
-    SetLocaleTo_C_standard();       // Switch the locale to standard C (needed
-                                    // to print floating point numbers like 1.3)
-    wxSVGFileDC       dc( FullFileName, SheetSize.x, SheetSize.y, dpi );
+    m_plotOpts.SetMirror( m_printMirror );
+    m_plotOpts.SetFormat( PLOT_FORMAT_SVG );
+    EDA_COLOR_T color = UNSPECIFIED_COLOR;      // Used layer color to plot ref and value
+    m_plotOpts.SetReferenceColor( color );
+    m_plotOpts.SetValueColor( color );
 
-    EDA_RECT          tmp = panel->m_ClipBox;
-    GRResetPenAndBrush( &dc );
-    GRForceBlackPen( m_ModeColorOption->GetSelection() == 0 ? false : true );
-    s_Parameters.m_DrillShapeOpt = PRINT_PARAMETERS::FULL_DRILL_SHAPE;
+    PAGE_INFO pageInfo = m_board->GetPageSettings();
+    wxPoint axisorigin = m_board->GetOriginAxisPosition();
 
+    if( PageIsBoardBoundarySize() )
+    {
+        EDA_RECT bbox = m_board->ComputeBoundingBox();
+        PAGE_INFO currpageInfo = m_board->GetPageSettings();
+        currpageInfo.SetWidthMils(  bbox.GetWidth() / IU_PER_MILS );
+        currpageInfo.SetHeightMils( bbox.GetHeight() / IU_PER_MILS );
+        m_board->SetPageSettings( currpageInfo );
+        m_plotOpts.SetUseAuxOrigin( true );
+        wxPoint origin = bbox.GetOrigin();
+        m_board->SetOriginAxisPosition( origin );
+    }
 
-    panel->m_ClipBox.SetX( 0 );
-    panel->m_ClipBox.SetY( 0 );
-    // Set clip box to the max size
-    #define MAX_VALUE (INT_MAX/2)   // MAX_VALUE is the max we can use in an integer
-                                    // and that allows calculations without overflow
-    panel->m_ClipBox.SetWidth( MAX_VALUE );
-    panel->m_ClipBox.SetHeight( MAX_VALUE );
+    LOCALE_IO    toggle;
+    SVG_PLOTTER* plotter = (SVG_PLOTTER*) StartPlotBoard( m_board,
+                                              &m_plotOpts, aFullFileName,
+                                              wxEmptyString );
 
-    screen->m_IsPrinting = true;
+    if( plotter )
+    {
+        plotter->SetColorMode( m_ModeColorOption->GetSelection() == 0 );
+        PlotStandardLayer( m_board, plotter, m_printMaskLayer, m_plotOpts );
+        plotter->EndPlot();
+    }
 
-    int bg_color = g_DrawBgColor;
-    g_DrawBgColor = WHITE;
+    delete plotter;
+    m_board->SetOriginAxisPosition( axisorigin );
+    m_board->SetPageSettings( pageInfo );
 
-    if( aPrint_Frame_Ref )
-        m_Parent->TraceWorkSheet( &dc, screen, s_Parameters.m_PenDefaultSize );
-
-    m_Parent->PrintPage( &dc,  m_PrintMaskLayer, false, &s_Parameters);
-    g_DrawBgColor = bg_color;
-    SetLocaleTo_Default();          // revert to the current locale
-    screen->m_IsPrinting = false;
-    panel->m_ClipBox     = tmp;
-
-    GRForceBlackPen( false );
-
-    screen->m_StartVisu = tmp_startvisu;
-    screen->m_DrawOrg   = old_org;
-    screen->SetZoom( tmpzoom );
-
-    return success;
+    return true;
 }
 
-
-void DIALOG_SVG_PRINT::OnButtonPrintBoardClick( wxCommandEvent& event )
+void DIALOG_SVG_PRINT::OnButtonPlot( wxCommandEvent& event )
 {
-    s_Parameters.m_Print_Sheet_Ref = m_Print_Frame_Ref_Ctrl->IsChecked();
-    PrintSVGDoc( true, s_Parameters.m_Print_Sheet_Ref );
-}
-
-
-void DIALOG_SVG_PRINT::OnButtonPrintSelectedClick( wxCommandEvent& event )
-{
-    s_Parameters.m_Print_Sheet_Ref = m_Print_Frame_Ref_Ctrl->IsChecked();
-    PrintSVGDoc( false, s_Parameters.m_Print_Sheet_Ref );
+    m_oneFileOnly = m_rbFileOpt->GetSelection() == 1;
+    ExportSVGFile( m_oneFileOnly );
 }
 
 
@@ -312,26 +352,40 @@ void DIALOG_SVG_PRINT::OnButtonCancelClick( wxCommandEvent& event )
 void DIALOG_SVG_PRINT::OnCloseWindow( wxCloseEvent& event )
 {
     SetPenWidth();
-    s_Parameters.m_Print_Black_and_White = m_ModeColorOption->GetSelection();
-    if( m_Config )
+    m_printBW = m_ModeColorOption->GetSelection();
+    m_oneFileOnly = m_rbFileOpt->GetSelection() == 1;
+
+    if( m_config )
     {
-        m_Config->Write( PLOTSVGMODECOLOR_KEY, s_Parameters.m_Print_Black_and_White );
+        m_config->Write( PLOTSVGMODECOLOR_KEY, m_printBW );
+        m_config->Write( PLOTSVGPAGESIZEOPT_KEY, m_rbSvgPageSizeOpt->GetSelection() );
+        m_config->Write( PLOTSVGPLOT_BRD_EDGE_KEY, m_PrintBoardEdgesCtrl->GetValue() );
+
         wxString layerKey;
-        for( int layer = 0; layer<NB_LAYERS;  ++layer )
+
+        for( int layer = 0; layer<NB_LAYERS; ++layer )
         {
-            if( m_BoxSelectLayer[layer] == NULL )
+            if( m_boxSelectLayer[layer] == NULL )
                 continue;
+
             layerKey.Printf( OPTKEY_LAYERBASE, layer );
-            m_Config->Write( layerKey, m_BoxSelectLayer[layer]->IsChecked() );
+            m_config->Write( layerKey, m_boxSelectLayer[layer]->IsChecked() );
         }
     }
+
+    // Set output directory and replace backslashes with forward ones
+    wxString dirStr;
+    dirStr = m_outputDirectoryName->GetValue();
+    dirStr.Replace( wxT( "\\" ), wxT( "/" ) );
+
+    if( dirStr != m_parent->GetPlotSettings().GetOutputDirectory() )
+    {
+        PCB_PLOT_PARAMS tempOptions( m_parent->GetPlotSettings() );
+        tempOptions.SetOutputDirectory( dirStr );
+        m_parent->SetPlotSettings( tempOptions );
+        m_parent->OnModify();
+    }
+
+
     EndModal( 0 );
-}
-
-
-/* called on radiobox color/black and white selection
- */
-void DIALOG_SVG_PRINT::OnSetColorModeSelected( wxCommandEvent& event )
-{
-    s_Parameters.m_Print_Black_and_White = m_ModeColorOption->GetSelection();
 }

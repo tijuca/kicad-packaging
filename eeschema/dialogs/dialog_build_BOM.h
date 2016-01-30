@@ -1,26 +1,46 @@
-/////////////////////////////////////////////////////////////////////////////
-// Name:        dialog_build_BOM.h
-// Copyright:   GNU license
-// Licence:
-/////////////////////////////////////////////////////////////////////////////
+/**
+ * @file dialog_build_BOM.h
+ */
+
+/* This program source code file is part of KiCad, a free EDA CAD application.
+ *
+ * Copyright (C) 1992-2012 KiCad Developers, see AUTHORS.txt for contributors.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation; either version 2
+ * of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, you may find one here:
+ * http://www.gnu.org/licenses/old-licenses/gpl-2.0.html
+ * or you may search the http://www.gnu.org website for the version 2 license,
+ * or you may write to the Free Software Foundation, Inc.,
+ * 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
+ */
+
 
 #ifndef _DIALOG_BUILD_BOM_H_
 #define _DIALOG_BUILD_BOM_H_
 
-#include "dialog_build_BOM_base.h"
+#include <dialog_build_BOM_base.h>
 
 
 class EDA_DRAW_FRAME;
 class SCH_COMPONENT;
 class wxConfig;
 
-
 class DIALOG_BUILD_BOM : public DIALOG_BUILD_BOM_BASE
 {
 private:
-    EDA_DRAW_FRAME* m_Parent;
-    wxConfig*       m_Config;
-    wxString        m_ListFileName;
+    EDA_DRAW_FRAME* m_parent;
+    wxConfig*       m_config;
+    wxString        m_listFileName;     // The full filename of the file report.
 
 private:
     void    OnRadioboxSelectFormatSelected( wxCommandEvent& event );
@@ -34,32 +54,34 @@ private:
                               char  aExportSeparatorSymbol,
                               bool  aRunBrowser );
 
-    void    GenereListeOfItems( const wxString& FullFileName, bool aIncludeSubComponents );
-    void    CreateExportList( const wxString& FullFileName, bool aIncludeSubComponents );
+    void    CreatePartsAndLabelsFullList( bool aIncludeSubComponents );
 
     /**
-     * Function CreateParstList
+     * Function CreateSpreadSheetPartsFullList
      * prints a list of components, in a form which can be imported by a
      * spreadsheet.  Form is:
-     *  cmp value; number of components; \<footprint\>; \<field1\>; ...;
-     *  list of references having the same value
+     *  reference; cmp value; \<footprint\>; \<field1\>; ...;
+     * Components are sorted by reference
+     * @param aIncludeSubComponents = true to print sub components
+     * @param aPrintLocation = true to print components location
+     *        (only possible when aIncludeSubComponents == true)
+     * @param aGroupRefs = true to group components references, when other fieds
+     *          have the same value
      */
-    void    CreatePartsList( const wxString& aFullFileName, bool aIncludeSubComponents );
+    void    CreateSpreadSheetPartsFullList( bool aIncludeSubComponents,
+                                            bool aPrintLocation,
+                                            bool aGroupRefs );
 
-    int     PrintComponentsListByRef( FILE* f, SCH_REFERENCE_LIST& aList,
-                                      bool CompactForm, bool aIncludeSubComponents );
-
-    int     PrintComponentsListByVal( FILE* f, SCH_REFERENCE_LIST& aList,
-                                      bool aIncludeSubComponents );
-
-    int     PrintComponentsListByPart( FILE* f, SCH_REFERENCE_LIST& aList,
-                                       bool aIncludeSubComponents );
-
-#if defined(KICAD_GOST)
-	wxString PrintFieldData( SCH_COMPONENT* DrawLibItem, bool CompactForm = FALSE );
-#else
-    void    PrintFieldData( FILE* f, SCH_COMPONENT* DrawLibItem, bool CompactForm = FALSE );
-#endif
+    /**
+     * Function CreateSpreadSheetPartsShortList
+     * prints a list of components, in a form which can be imported by a spreadsheet.
+     * components having the same value and the same footprint
+     * are grouped on the same line
+     * Form is:
+     *  value; number of components; list of references; \<footprint\>; \<field1\>; ...;
+     * list is sorted by values
+     */
+    void    CreateSpreadSheetPartsShortList();
 
     bool    IsFieldChecked( int aFieldId );
 

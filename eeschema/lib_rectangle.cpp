@@ -1,9 +1,8 @@
 /*
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
- * Copyright (C) 2004 Jean-Pierre Charras, jaen-pierre.charras@gipsa-lab.inpg.com
- * Copyright (C) 2008-2011 Wayne Stambaugh <stambaughw@verizon.net>
- * Copyright (C) 2004-2011 KiCad Developers, see change_log.txt for contributors.
+ * Copyright (C) 2012 Jean-Pierre Charras, jp.charras at wanadoo.fr
+ * Copyright (C) 2004-2012 KiCad Developers, see change_log.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -27,19 +26,21 @@
  * @file lib_rectangle.cpp
  */
 
-#include "fctsys.h"
-#include "gr_basic.h"
-#include "macros.h"
-#include "class_drawpanel.h"
-#include "plot_common.h"
-#include "trigo.h"
-#include "wxstruct.h"
-#include "richio.h"
+#include <fctsys.h>
+#include <gr_basic.h>
+#include <macros.h>
+#include <class_drawpanel.h>
+#include <plot_common.h>
+#include <trigo.h>
+#include <wxstruct.h>
+#include <richio.h>
+#include <base_units.h>
+#include <msgpanel.h>
 
-#include "general.h"
-#include "protos.h"
-#include "lib_rectangle.h"
-#include "transform.h"
+#include <general.h>
+#include <protos.h>
+#include <lib_rectangle.h>
+#include <transform.h>
 
 
 LIB_RECTANGLE::LIB_RECTANGLE( LIB_COMPONENT* aParent ) :
@@ -52,16 +53,6 @@ LIB_RECTANGLE::LIB_RECTANGLE( LIB_COMPONENT* aParent ) :
     m_isHeightLocked       = false;
     m_isWidthLocked        = false;
     m_isStartPointSelected = false;
-}
-
-
-LIB_RECTANGLE::LIB_RECTANGLE( const LIB_RECTANGLE& aRect ) :
-    LIB_ITEM( aRect )
-{
-    m_Pos   = aRect.m_Pos;
-    m_End   = aRect.m_End;
-    m_Width = aRect.m_Width;
-    m_Fill  = aRect.m_Fill;
 }
 
 
@@ -99,13 +90,13 @@ bool LIB_RECTANGLE::Load( LINE_READER& aLineReader, wxString& aErrorMsg )
 }
 
 
-EDA_ITEM* LIB_RECTANGLE::doClone() const
+EDA_ITEM* LIB_RECTANGLE::Clone() const
 {
     return new LIB_RECTANGLE( *this );
 }
 
 
-int LIB_RECTANGLE::DoCompare( const LIB_ITEM& aOther ) const
+int LIB_RECTANGLE::compare( const LIB_ITEM& aOther ) const
 {
     wxASSERT( aOther.Type() == LIB_RECTANGLE_T );
 
@@ -127,20 +118,20 @@ int LIB_RECTANGLE::DoCompare( const LIB_ITEM& aOther ) const
 }
 
 
-void LIB_RECTANGLE::DoOffset( const wxPoint& aOffset )
+void LIB_RECTANGLE::SetOffset( const wxPoint& aOffset )
 {
     m_Pos += aOffset;
     m_End += aOffset;
 }
 
 
-bool LIB_RECTANGLE::DoTestInside( EDA_RECT& aRect ) const
+bool LIB_RECTANGLE::Inside( EDA_RECT& aRect ) const
 {
     return aRect.Contains( m_Pos.x, -m_Pos.y ) || aRect.Contains( m_End.x, -m_End.y );
 }
 
 
-void LIB_RECTANGLE::DoMove( const wxPoint& aPosition )
+void LIB_RECTANGLE::Move( const wxPoint& aPosition )
 {
     wxPoint size = m_End - m_Pos;
     m_Pos = aPosition;
@@ -148,7 +139,7 @@ void LIB_RECTANGLE::DoMove( const wxPoint& aPosition )
 }
 
 
-void LIB_RECTANGLE::DoMirrorHorizontal( const wxPoint& aCenter )
+void LIB_RECTANGLE::MirrorHorizontal( const wxPoint& aCenter )
 {
     m_Pos.x -= aCenter.x;
     m_Pos.x *= -1;
@@ -159,7 +150,7 @@ void LIB_RECTANGLE::DoMirrorHorizontal( const wxPoint& aCenter )
 }
 
 
-void LIB_RECTANGLE::DoMirrorVertical( const wxPoint& aCenter )
+void LIB_RECTANGLE::MirrorVertical( const wxPoint& aCenter )
 {
     m_Pos.y -= aCenter.y;
     m_Pos.y *= -1;
@@ -170,7 +161,7 @@ void LIB_RECTANGLE::DoMirrorVertical( const wxPoint& aCenter )
 }
 
 
-void LIB_RECTANGLE::DoRotate( const wxPoint& aCenter, bool aRotateCCW )
+void LIB_RECTANGLE::Rotate( const wxPoint& aCenter, bool aRotateCCW )
 {
     int rot_angle = aRotateCCW ? -900 : 900;
     RotatePoint( &m_Pos, aCenter, rot_angle );
@@ -178,8 +169,8 @@ void LIB_RECTANGLE::DoRotate( const wxPoint& aCenter, bool aRotateCCW )
 }
 
 
-void LIB_RECTANGLE::DoPlot( PLOTTER* aPlotter, const wxPoint& aOffset, bool aFill,
-                            const TRANSFORM& aTransform )
+void LIB_RECTANGLE::Plot( PLOTTER* aPlotter, const wxPoint& aOffset, bool aFill,
+                          const TRANSFORM& aTransform )
 {
     wxASSERT( aPlotter != NULL );
 
@@ -188,34 +179,34 @@ void LIB_RECTANGLE::DoPlot( PLOTTER* aPlotter, const wxPoint& aOffset, bool aFil
 
     if( aFill && m_Fill == FILLED_WITH_BG_BODYCOLOR )
     {
-        aPlotter->set_color( ReturnLayerColor( LAYER_DEVICE_BACKGROUND ) );
-        aPlotter->rect( pos, end, FILLED_WITH_BG_BODYCOLOR, 0 );
+        aPlotter->SetColor( ReturnLayerColor( LAYER_DEVICE_BACKGROUND ) );
+        aPlotter->Rect( pos, end, FILLED_WITH_BG_BODYCOLOR, 0 );
     }
 
     bool already_filled = m_Fill == FILLED_WITH_BG_BODYCOLOR;
-    aPlotter->set_color( ReturnLayerColor( LAYER_DEVICE ) );
-    aPlotter->rect( pos, end, already_filled ? NO_FILL : m_Fill, GetPenSize() );
+    aPlotter->SetColor( ReturnLayerColor( LAYER_DEVICE ) );
+    aPlotter->Rect( pos, end, already_filled ? NO_FILL : m_Fill, GetPenSize() );
 }
 
 
 int LIB_RECTANGLE::GetPenSize() const
 {
-    return ( m_Width == 0 ) ? g_DrawDefaultLineThickness : m_Width;
+    return ( m_Width == 0 ) ? GetDefaultLineThickness() : m_Width;
 }
 
 
 void LIB_RECTANGLE::drawGraphic( EDA_DRAW_PANEL* aPanel, wxDC* aDC,
-                                 const wxPoint& aOffset, int aColor, int aDrawMode,
+                                 const wxPoint& aOffset, EDA_COLOR_T aColor, GR_DRAWMODE aDrawMode,
                                  void* aData, const TRANSFORM& aTransform )
 {
     wxPoint pos1, pos2;
 
-    int     color = ReturnLayerColor( LAYER_DEVICE );
+    EDA_COLOR_T color = ReturnLayerColor( LAYER_DEVICE );
 
     if( aColor < 0 )       // Used normal color or selected color
     {
-        if( m_Selected & IS_SELECTED )
-            color = g_ItemSelectetColor;
+        if( IsSelected() )
+            color = GetItemSelectedColor();
     }
     else
     {
@@ -233,35 +224,35 @@ void LIB_RECTANGLE::drawGraphic( EDA_DRAW_PANEL* aPanel, wxDC* aDC,
     GRSetDrawMode( aDC, aDrawMode );
 
     if( fill == FILLED_WITH_BG_BODYCOLOR && !aData )
-        GRFilledRect( &aPanel->m_ClipBox, aDC, pos1.x, pos1.y, pos2.x, pos2.y, GetPenSize( ),
+        GRFilledRect( aPanel->GetClipBox(), aDC, pos1.x, pos1.y, pos2.x, pos2.y, GetPenSize( ),
                       (m_Flags & IS_MOVED) ? color : ReturnLayerColor( LAYER_DEVICE_BACKGROUND ),
                       ReturnLayerColor( LAYER_DEVICE_BACKGROUND ) );
     else if( m_Fill == FILLED_SHAPE  && !aData )
-        GRFilledRect( &aPanel->m_ClipBox, aDC, pos1.x, pos1.y, pos2.x, pos2.y,
+        GRFilledRect( aPanel->GetClipBox(), aDC, pos1.x, pos1.y, pos2.x, pos2.y,
                       GetPenSize(), color, color );
     else
-        GRRect( &aPanel->m_ClipBox, aDC, pos1.x, pos1.y, pos2.x, pos2.y, GetPenSize(), color );
+        GRRect( aPanel->GetClipBox(), aDC, pos1.x, pos1.y, pos2.x, pos2.y, GetPenSize(), color );
 
     /* Set to one (1) to draw bounding box around rectangle to validate
      * bounding box calculation. */
 #if 0
     EDA_RECT bBox = GetBoundingBox();
     bBox.Inflate( m_Thickness + 1, m_Thickness + 1 );
-    GRRect( &aPanel->m_ClipBox, aDC, bBox.GetOrigin().x, bBox.GetOrigin().y,
+    GRRect( aPanel->GetClipBox(), aDC, bBox.GetOrigin().x, bBox.GetOrigin().y,
             bBox.GetEnd().x, bBox.GetEnd().y, 0, LIGHTMAGENTA );
 #endif
 }
 
 
-void LIB_RECTANGLE::DisplayInfo( EDA_DRAW_FRAME* aFrame )
+void LIB_RECTANGLE::GetMsgPanelInfo( MSG_PANEL_ITEMS& aList )
 {
     wxString msg;
 
-    LIB_ITEM::DisplayInfo( aFrame );
+    LIB_ITEM::GetMsgPanelInfo( aList );
 
-    msg = ReturnStringFromValue( g_UserUnit, m_Width, EESCHEMA_INTERNAL_UNIT, true );
+    msg = ReturnStringFromValue( g_UserUnit, m_Width, true );
 
-    aFrame->AppendMsgPanel( _( "Line width" ), msg, BLUE );
+    aList.push_back( MSG_PANEL_ITEM( _( "Line width" ), msg, BLUE ) );
 }
 
 
@@ -335,10 +326,10 @@ bool LIB_RECTANGLE::HitTest( wxPoint aPosition, int aThreshold, const TRANSFORM&
 wxString LIB_RECTANGLE::GetSelectMenuText() const
 {
     return wxString::Format( _( "Rectangle from (%s, %s) to (%s, %s)" ),
-                             GetChars( CoordinateToString( m_Pos.x, EESCHEMA_INTERNAL_UNIT ) ),
-                             GetChars( CoordinateToString( m_Pos.y, EESCHEMA_INTERNAL_UNIT ) ),
-                             GetChars( CoordinateToString( m_End.x, EESCHEMA_INTERNAL_UNIT ) ),
-                             GetChars( CoordinateToString( m_End.y, EESCHEMA_INTERNAL_UNIT ) ) );
+                             GetChars( CoordinateToString( m_Pos.x ) ),
+                             GetChars( CoordinateToString( m_Pos.y ) ),
+                             GetChars( CoordinateToString( m_End.x ) ),
+                             GetChars( CoordinateToString( m_End.y ) ) );
 }
 
 

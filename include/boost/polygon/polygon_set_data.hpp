@@ -11,7 +11,6 @@
 #include "polygon_45_set_concept.hpp"
 #include "polygon_traits.hpp"
 #include "detail/polygon_arbitrary_formation.hpp"
-#include <iostream>
 
 namespace boost { namespace polygon {
 
@@ -248,7 +247,7 @@ namespace boost { namespace polygon {
         data.push_back(vertex_half_edge((*itr).first.first, (*itr).first.second, (*itr).second));
         data.push_back(vertex_half_edge((*itr).first.second, (*itr).first.first, -1 * (*itr).second));
       }
-      gtlsort(data.begin(), data.end());
+      polygon_sort(data.begin(), data.end());
       pf.scan(container, data.begin(), data.end());
       //std::cout << "DONE FORMING POLYGONS\n";
     }
@@ -271,12 +270,8 @@ namespace boost { namespace polygon {
     }
 
     // equivalence operator
-    inline bool operator==(const polygon_set_data& p) const {
-      clean();
-      p.clean();
-      return data_ == p.data_;
-    }
-
+    inline bool operator==(const polygon_set_data& p) const;
+    
     // inequivalence operator
     inline bool operator!=(const polygon_set_data& p) const {
       return !((*this) == p);
@@ -321,7 +316,7 @@ namespace boost { namespace polygon {
 
     void sort() const{
       if(unsorted_) {
-        gtlsort(data_.begin(), data_.end());
+        polygon_sort(data_.begin(), data_.end());
         unsorted_ = false;
       }
     }
@@ -329,6 +324,7 @@ namespace boost { namespace polygon {
     template <typename input_iterator_type>
     void set(input_iterator_type input_begin, input_iterator_type input_end) {
       clear();
+      reserve(std::distance(input_begin,input_end));
       insert(input_begin, input_end);
       dirty_ = true;
       unsorted_ = true;
@@ -388,8 +384,13 @@ namespace boost { namespace polygon {
     inline polygon_set_data&
     scale_down(typename coordinate_traits<coordinate_type>::unsigned_area_type factor) {
       for(typename value_type::iterator itr = data_.begin(); itr != data_.end(); ++itr) {
+        bool vb = (*itr).first.first.x() == (*itr).first.second.x();
         ::boost::polygon::scale_down((*itr).first.first, factor);
         ::boost::polygon::scale_down((*itr).first.second, factor);
+        bool va = (*itr).first.first.x() == (*itr).first.second.x();
+        if(!vb && va) {
+          (*itr).second *= -1;
+        }
       }
       unsorted_ = true;
       dirty_ = true;
@@ -400,8 +401,13 @@ namespace boost { namespace polygon {
     inline polygon_set_data& scale(polygon_set_data& polygon_set,
                                    const scaling_type& scaling) {
       for(typename value_type::iterator itr = begin(); itr != end(); ++itr) {
+        bool vb = (*itr).first.first.x() == (*itr).first.second.x();
         ::boost::polygon::scale((*itr).first.first, scaling);
         ::boost::polygon::scale((*itr).first.second, scaling);
+        bool va = (*itr).first.first.x() == (*itr).first.second.x();
+        if(!vb && va) {
+          (*itr).second *= -1;
+        }
       }
       unsorted_ = true;
       dirty_ = true;
@@ -439,17 +445,17 @@ namespace boost { namespace polygon {
       he2.second.y((long double)(next_pt.y()));
       compute_offset_edge(he1.first, he1.second, prev_pt, current_pt, distance, multiplier);
       compute_offset_edge(he2.first, he2.second, current_pt, next_pt, distance, multiplier);
-      typename scanline_base<long double>::compute_intersection_pack pack;
+      typedef scanline_base<long double>::compute_intersection_pack pack;
       point_data<long double> rpt;
       point_data<long double> bisectorpt((he1.second.x()+he2.first.x())/2,
                                          (he1.second.y()+he2.first.y())/2);
       point_data<long double> orig_pt((long double)pt.x(), (long double)pt.y());
       if(euclidean_distance(bisectorpt, orig_pt) < distance/2) {
-        if(!pack.compute_lazy_intersection(rpt, he1, he2, true, false)) {
+        if(!pack::compute_lazy_intersection(rpt, he1, he2, true, false)) {
           rpt = he1.second; //colinear offset edges use shared point
         }
       } else {
-        if(!pack.compute_lazy_intersection(rpt, he1, std::pair<point_data<long double>, point_data<long double> >(orig_pt, bisectorpt), true, false)) {
+        if(!pack::compute_lazy_intersection(rpt, he1, std::pair<point_data<long double>, point_data<long double> >(orig_pt, bisectorpt), true, false)) {
           rpt = he1.second; //colinear offset edges use shared point
         }
       }
@@ -637,7 +643,7 @@ namespace boost { namespace polygon {
         point_data<double> v;
         assign(v, normal1);
         double s2 = (v.x()*v.x()+v.y()*v.y());
-        double s = sqrt(s2)/resizing;
+        double s = std::sqrt(s2)/resizing;
         v = point_data<double>(v.x()/s,v.y()/s);
         point_data<T> curr_prev;
         if (prev_concave)
@@ -672,14 +678,14 @@ namespace boost { namespace polygon {
                                          , num_circle_segments, corner_fill_arc))
            {
                if (first_pts.size()) {
-                  for (unsigned int i=0; i<pts.size(); i++) {
+                  for (int i=0; i<pts.size(); i++) {
                     sizingSet.insert_vertex_sequence(pts[i].begin(),pts[i].end(),winding,false);
                   }
 
                } else {
                   first_pts = pts[0];
                   first_wdir = resize_wdir;
-                  for (unsigned int i=1; i<pts.size(); i++) {
+                  for (int i=1; i<pts.size(); i++) {
                     sizingSet.insert_vertex_sequence(pts[i].begin(),pts[i].end(),winding,false);
                   }
                }
@@ -790,7 +796,7 @@ namespace boost { namespace polygon {
         data.push_back(vertex_half_edge((*itr).first.first, (*itr).first.second, (*itr).second));
         data.push_back(vertex_half_edge((*itr).first.second, (*itr).first.first, -1 * (*itr).second));
       }
-      gtlsort(data.begin(), data.end());
+      polygon_sort(data.begin(), data.end());
       pf.scan(container, data.begin(), data.end());
     }
   };
@@ -817,10 +823,10 @@ namespace boost { namespace polygon {
 
       // handle the case of adding an intersection point
       point_data<double> dn1( middle.y()-start.y(), start.x()-middle.x());
-      double size = sizing_distance/sqrt( dn1.x()*dn1.x()+dn1.y()*dn1.y());
+      double size = sizing_distance/std::sqrt( dn1.x()*dn1.x()+dn1.y()*dn1.y());
       dn1 = point_data<double>( dn1.x()*size, dn1.y()* size);
       point_data<double> dn2( end.y()-middle.y(), middle.x()-end.x());
-      size = sizing_distance/sqrt( dn2.x()*dn2.x()+dn2.y()*dn2.y());
+      size = sizing_distance/std::sqrt( dn2.x()*dn2.x()+dn2.y()*dn2.y());
       dn2 = point_data<double>( dn2.x()*size, dn2.y()* size);
       point_data<double> start_offset((start.x()+dn1.x()),(start.y()+dn1.y()));
       point_data<double> mid1_offset((middle.x()+dn1.x()),(middle.y()+dn1.y()));
@@ -997,4 +1003,3 @@ namespace boost { namespace polygon {
 #include "polygon_set_concept.hpp"
 #include "detail/minkowski.hpp"
 #endif
-

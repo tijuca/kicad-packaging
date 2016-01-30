@@ -31,7 +31,7 @@
 #define _BITMAP_BASE_H_
 
 
-#include "sch_item_struct.h"
+#include <sch_item_struct.h>
 
 /**
  * This class handle bitmap images in KiCad.
@@ -191,7 +191,8 @@ public: BITMAP_BASE( const wxPoint& pos = wxPoint( 0, 0 ) );
      * @param aDefaultColor = the color used to plot the rectangle when bitmap is not supported
      * @param aDefaultPensize = the pen size used to plot the rectangle when bitmap is not supported
      */
-    void     PlotImage( PLOTTER* aPlotter, wxPoint aPos, int aDefaultColor, int aDefaultPensize );
+    void     PlotImage( PLOTTER* aPlotter, const wxPoint& aPos, 
+		        EDA_COLOR_T aDefaultColor, int aDefaultPensize );
 };
 
 

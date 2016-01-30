@@ -28,30 +28,32 @@
  * @brief Code to handle manipulation of bus entry objects.
  */
 
-#include "fctsys.h"
-#include "gr_basic.h"
-#include "class_drawpanel.h"
-#include "eeschema_id.h"
-#include "confirm.h"
-#include "wxEeschemaStruct.h"
+#include <fctsys.h>
+#include <gr_basic.h>
+#include <class_drawpanel.h>
+#include <eeschema_id.h>
+#include <confirm.h>
+#include <wxEeschemaStruct.h>
 
-#include "general.h"
-#include "protos.h"
-#include "sch_bus_entry.h"
+#include <general.h>
+#include <protos.h>
+#include <sch_bus_entry.h>
 
 
 static int     s_LastShape = '\\';
 
 
-SCH_BUS_ENTRY* SCH_EDIT_FRAME::CreateBusEntry( wxDC* DC, int entry_type )
+SCH_BUS_ENTRY* SCH_EDIT_FRAME::CreateBusEntry( wxDC* aDC, int aType )
 {
+    SCH_SCREEN* screen = GetScreen();
+
     // Create and place a new bus entry at cursor position
-    SCH_BUS_ENTRY* BusEntry = new SCH_BUS_ENTRY( GetScreen()->GetCrossHairPosition(), s_LastShape,
-                                                 entry_type );
-    BusEntry->m_Flags = IS_NEW;
-    BusEntry->Place( this, DC );
-    OnModify();
-    return BusEntry;
+    SCH_BUS_ENTRY* busEntry = new SCH_BUS_ENTRY( screen->GetCrossHairPosition(), s_LastShape,
+                                                 aType );
+    busEntry->SetFlags( IS_NEW );
+    GetScreen()->SetCurItem( busEntry );
+    addCurrentItemToList( aDC );
+    return busEntry;
 }
 
 
@@ -69,36 +71,15 @@ void SCH_EDIT_FRAME::SetBusEntryShape( wxDC* DC, SCH_BUS_ENTRY* BusEntry, int en
     }
 
     /* Put old item in undo list if it is not currently in edit */
-    if( BusEntry->m_Flags == 0 )
+    if( BusEntry->GetFlags() == 0 )
         SaveCopyInUndoList( BusEntry, UR_CHANGED );
 
-    BusEntry->Draw( DrawPanel, DC, wxPoint( 0, 0 ), g_XorMode );
+    s_LastShape = entry_shape == '/' ? '/' : '\\';
 
-    switch( entry_shape )
-    {
-    case '\\':
-        s_LastShape = '\\';
-        BusEntry->m_Size.y = 100;
-        break;
-
-    case '/':
-        s_LastShape = '/';
-        BusEntry->m_Size.y = -100;
-        break;
-    }
-
+    BusEntry->Draw( m_canvas, DC, wxPoint( 0, 0 ), g_XorMode );
+    BusEntry->SetBusEntryShape( s_LastShape );
     GetScreen()->TestDanglingEnds();
-    BusEntry->Draw( DrawPanel, DC, wxPoint( 0, 0 ), g_XorMode );
+    BusEntry->Draw( m_canvas, DC, wxPoint( 0, 0 ), g_XorMode );
+
     OnModify( );
-}
-
-
-int SCH_EDIT_FRAME::GetBusEntryShape( SCH_BUS_ENTRY* BusEntry )
-{
-    int entry_shape = '\\';
-
-    if( BusEntry->m_Size.y < 0 )
-        entry_shape = '/';
-
-    return entry_shape;
 }

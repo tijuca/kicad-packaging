@@ -1,23 +1,26 @@
 /**
  * @file 3d_canvas.cpp
 */
-#include "fctsys.h"
-#include "trigo.h"
+#include <fctsys.h>
+#include <trigo.h>
 
-#include "wx/image.h"
+#include <wx/image.h>
 
 #if !wxUSE_GLCANVAS
 #error Please set wxUSE_GLCANVAS to 1 in setup.h.
 #endif
 
-#include "wx/dataobj.h"
-#include "wx/clipbrd.h"
+#include <wx/dataobj.h>
+#include <wx/clipbrd.h>
 #include <wx/wupdlock.h>
 
-#include "gestfich.h"
+#include <gestfich.h>
 
-#include "3d_viewer.h"
-#include "trackball.h"
+#include <3d_viewer.h>
+#include <3d_canvas.h>
+#include <info3d_visu.h>
+#include <trackball.h>
+#include <3d_viewer_id.h>
 
 
 // -----------------
@@ -71,24 +74,13 @@ END_EVENT_TABLE()
 
 
 EDA_3D_CANVAS::EDA_3D_CANVAS( EDA_3D_FRAME* parent, int* attribList ) :
-#if wxCHECK_VERSION( 2, 7, 0 )
-    wxGLCanvas( parent, -1, attribList, wxDefaultPosition, wxDefaultSize,
+    wxGLCanvas( parent, wxID_ANY, attribList, wxDefaultPosition, wxDefaultSize,
                 wxFULL_REPAINT_ON_RESIZE )
-#else
-    wxGLCanvas( parent, -1, wxDefaultPosition, wxDefaultSize,
-                wxFULL_REPAINT_ON_RESIZE )
-#endif
 {
     m_init   = false;
     m_gllist = 0;
-    m_Parent = parent;
-    m_ortho  = false;
-
-#if wxCHECK_VERSION( 2, 7, 0 )
-
     // Explicitly create a new rendering context instance for this canvas.
     m_glRC = new wxGLContext( this );
-#endif
 
     DisplayStatus();
 }
@@ -98,10 +90,7 @@ EDA_3D_CANVAS::~EDA_3D_CANVAS()
 {
     ClearLists();
     m_init = false;
-
-#if wxCHECK_VERSION( 2, 7, 0 )
     delete m_glRC;
-#endif
 }
 
 
@@ -129,24 +118,24 @@ void EDA_3D_CANVAS::SetView3D( int keycode )
     switch( keycode )
     {
     case WXK_LEFT:
-        g_Draw3d_dx -= delta_move;
+        m_draw3dOffset.x -= delta_move;
         break;
 
     case WXK_RIGHT:
-        g_Draw3d_dx += delta_move;
+        m_draw3dOffset.x += delta_move;
         break;
 
     case WXK_UP:
-        g_Draw3d_dy += delta_move;
+        m_draw3dOffset.y += delta_move;
         break;
 
     case WXK_DOWN:
-        g_Draw3d_dy -= delta_move;
+        m_draw3dOffset.y -= delta_move;
         break;
 
     case WXK_HOME:
         g_Parm_3D_Visu.m_Zoom = 1.0;
-        g_Draw3d_dx = g_Draw3d_dy = 0;
+        m_draw3dOffset.x = m_draw3dOffset.y = 0;
         trackball( g_Parm_3D_Visu.m_Quat, 0.0, 0.0, 0.0, 0.0 );
         break;
 
@@ -171,7 +160,7 @@ void EDA_3D_CANVAS::SetView3D( int keycode )
 
     case 'r':
     case 'R':
-        g_Draw3d_dx = g_Draw3d_dy = 0;
+        m_draw3dOffset.x = m_draw3dOffset.y = 0;
         for( ii = 0; ii < 4; ii++ )
             g_Parm_3D_Visu.m_Rot[ii] = 0.0;
 
@@ -313,9 +302,9 @@ void EDA_3D_CANVAS::OnMouseMove( wxMouseEvent& event )
             /* Current zoom and an additional factor are taken into account
              * for the amount of panning. */
             const double PAN_FACTOR = 8.0 * g_Parm_3D_Visu.m_Zoom;
-            g_Draw3d_dx -= PAN_FACTOR *
+            m_draw3dOffset.x -= PAN_FACTOR *
                            ( g_Parm_3D_Visu.m_Beginx - event.GetX() ) / size.x;
-            g_Draw3d_dy -= PAN_FACTOR *
+            m_draw3dOffset.y -= PAN_FACTOR *
                            (event.GetY() - g_Parm_3D_Visu.m_Beginy) / size.y;
         }
 
@@ -461,14 +450,14 @@ void EDA_3D_CANVAS::DisplayStatus()
 {
     wxString msg;
 
-    msg.Printf( wxT( "dx %3.2f" ), g_Draw3d_dx );
-    m_Parent->SetStatusText( msg, 1 );
+    msg.Printf( wxT( "dx %3.2f" ), m_draw3dOffset.x );
+    Parent()->SetStatusText( msg, 1 );
 
-    msg.Printf( wxT( "dy %3.2f" ), g_Draw3d_dy );
-    m_Parent->SetStatusText( msg, 2 );
+    msg.Printf( wxT( "dy %3.2f" ), m_draw3dOffset.y );
+    Parent()->SetStatusText( msg, 2 );
 
     msg.Printf( wxT( "View: %3.1f" ), 45 * g_Parm_3D_Visu.m_Zoom );
-    m_Parent->SetStatusText( msg, 3 );
+    Parent()->SetStatusText( msg, 3 );
 }
 
 
@@ -496,7 +485,8 @@ void EDA_3D_CANVAS::InitGL()
     {
         m_init = true;
         g_Parm_3D_Visu.m_Zoom = 1.0;
-        ZBottom = 1.0; ZTop = 10.0;
+        m_ZBottom = 1.0;
+        m_ZTop = 10.0;
 
         glDisable( GL_CULL_FACE );      // show back faces
 
@@ -509,8 +499,9 @@ void EDA_3D_CANVAS::InitGL()
         /* speedups */
         glEnable( GL_DITHER );
         glShadeModel( GL_SMOOTH );
-        glHint( GL_PERSPECTIVE_CORRECTION_HINT, GL_FASTEST );
-        glHint( GL_POLYGON_SMOOTH_HINT, GL_FASTEST );
+        glHint( GL_PERSPECTIVE_CORRECTION_HINT, GL_DONT_CARE );
+        glHint( GL_LINE_SMOOTH_HINT, GL_NICEST );
+        glHint( GL_POLYGON_SMOOTH_HINT, GL_NICEST );    // can be GL_FASTEST
 
         /* blend */
         glEnable( GL_BLEND );
@@ -526,7 +517,7 @@ void EDA_3D_CANVAS::InitGL()
     if( g_Parm_3D_Visu.m_Zoom > MAX_VIEW_ANGLE )
         g_Parm_3D_Visu.m_Zoom = MAX_VIEW_ANGLE;
 
-     if( ModeIsOrtho() )
+     if( Parent()->ModeIsOrtho() )
      {
          // OrthoReductionFactor is chosen so as to provide roughly the same size as
          // Perspective View
@@ -549,7 +540,7 @@ void EDA_3D_CANVAS::InitGL()
     // position viewer
     glMatrixMode( GL_MODELVIEW );
     glLoadIdentity();
-    glTranslatef( 0.0F, 0.0F, -( ZBottom + ZTop) / 2 );
+    glTranslatef( 0.0F, 0.0F, -( m_ZBottom + m_ZTop) / 2 );
 
     // clear color and depth buffers
     glClearColor( g_Parm_3D_Visu.m_BgColor.m_Red,
@@ -595,7 +586,7 @@ void EDA_3D_CANVAS::SetLights()
  */
 void EDA_3D_CANVAS::TakeScreenshot( wxCommandEvent& event )
 {
-    wxFileName fn( m_Parent->m_Parent->GetScreen()->GetFileName() );
+    wxFileName fn( Parent()->GetDefaultFileName() );
     wxString   FullFileName;
     wxString   file_ext, mask;
     bool       fmt_is_jpeg = false;
@@ -607,7 +598,7 @@ void EDA_3D_CANVAS::TakeScreenshot( wxCommandEvent& event )
     {
         file_ext     = fmt_is_jpeg ? wxT( "jpg" ) : wxT( "png" );
         mask         = wxT( "*." ) + file_ext;
-        FullFileName = m_Parent->m_Parent->GetScreen()->GetFileName();
+        FullFileName = Parent()->GetDefaultFileName();
         fn.SetExt( file_ext );
 
         FullFileName = EDA_FileSelector( _( "3D Image filename:" ), wxEmptyString,

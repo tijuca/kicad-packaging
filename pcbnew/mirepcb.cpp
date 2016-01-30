@@ -3,17 +3,17 @@
  * @brief Functions to edit targets (class MIRE).
  */
 
-#include "fctsys.h"
-#include "class_drawpanel.h"
-#include "wxPcbStruct.h"
-#include "dialog_helpers.h"
-#include "gr_basic.h"
+#include <fctsys.h>
+#include <class_drawpanel.h>
+#include <wxPcbStruct.h>
+#include <dialog_helpers.h>
+#include <gr_basic.h>
 
-#include "class_board.h"
-#include "class_mire.h"
+#include <class_board.h>
+#include <class_mire.h>
 
-#include "pcbnew.h"
-#include "protos.h"
+#include <pcbnew.h>
+#include <protos.h>
 
 
 /* Routines Locales */
@@ -102,15 +102,13 @@ TARGET_PROPERTIES_DIALOG_EDITOR::TARGET_PROPERTIES_DIALOG_EDITOR( PCB_EDIT_FRAME
 
     // Size:
     m_MireSizeCtrl = new EDA_VALUE_CTRL( this, _( "Size" ),
-                                         m_Target->m_Size,
-                                         g_UserUnit, LeftBoxSizer,
-                                         m_Parent->m_InternalUnits );
+                                         m_Target->GetSize(),
+                                         g_UserUnit, LeftBoxSizer );
 
     // Width:
     m_MireWidthCtrl = new EDA_VALUE_CTRL( this, _( "Width" ),
-                                          m_Target->m_Width,
-                                          g_UserUnit, LeftBoxSizer,
-                                          m_Parent->m_InternalUnits );
+                                          m_Target->GetWidth(),
+                                          g_UserUnit, LeftBoxSizer );
 
     // Shape
     wxString shape_list[2] = { _( "shape +" ), _( "shape X" ) };
@@ -118,7 +116,7 @@ TARGET_PROPERTIES_DIALOG_EDITOR::TARGET_PROPERTIES_DIALOG_EDITOR( PCB_EDIT_FRAME
                                   _( "Target Shape:" ),
                                   wxDefaultPosition, wxSize( -1, -1 ),
                                   2, shape_list, 1 );
-    m_MireShape->SetSelection( m_Target->m_Shape ? 1 : 0 );
+    m_MireShape->SetSelection( m_Target->GetShape() ? 1 : 0 );
     LeftBoxSizer->Add( m_MireShape, 0, wxGROW | wxALL, 5 );
 
     GetSizer()->Fit( this );
@@ -136,21 +134,22 @@ void TARGET_PROPERTIES_DIALOG_EDITOR::OnCancelClick( wxCommandEvent& event )
  */
 void TARGET_PROPERTIES_DIALOG_EDITOR::OnOkClick( wxCommandEvent& event )
 {
-    m_Target->Draw( m_Parent->DrawPanel, m_DC, GR_XOR );
+    m_Target->Draw( m_Parent->GetCanvas(), m_DC, GR_XOR );
 
     // Save old item in undo list, if is is not currently edited (will be later if so)
-    if( m_Target->m_Flags == 0 )
+    if( m_Target->GetFlags() == 0 )
         m_Parent->SaveCopyInUndoList( m_Target, UR_CHANGED );
 
-    if( m_Target->m_Flags != 0 )           // other edition in progress (MOVE, NEW ..)
-        m_Target->m_Flags |= IN_EDIT;      // set flag in edit to force
-                                           // undo/redo/abort proper operation
+    if( m_Target->GetFlags() != 0 )         // other edition in progress (MOVE, NEW ..)
+        m_Target->SetFlags( IN_EDIT );      // set flag in edit to force
+                                            // undo/redo/abort proper operation
 
-    m_Target->m_Width = m_MireWidthCtrl->GetValue();
-    MireDefaultSize    = m_Target->m_Size = m_MireSizeCtrl->GetValue();
-    m_Target->m_Shape = m_MireShape->GetSelection() ? 1 : 0;
+    m_Target->SetWidth( m_MireWidthCtrl->GetValue() );
+    MireDefaultSize  = m_MireSizeCtrl->GetValue();
+    m_Target->SetSize( m_MireSizeCtrl->GetValue() );
+    m_Target->SetShape( m_MireShape->GetSelection() ? 1 : 0 );
 
-    m_Target->Draw( m_Parent->DrawPanel, m_DC, ( m_Target->m_Flags & IS_MOVED ) ? GR_XOR : GR_OR );
+    m_Target->Draw( m_Parent->GetCanvas(), m_DC, ( m_Target->IsMoving() ) ? GR_XOR : GR_OR );
 
     m_Parent->OnModify();
     EndModal( 1 );
@@ -162,7 +161,7 @@ void PCB_EDIT_FRAME::DeleteTarget( PCB_TARGET* aTarget, wxDC* DC )
     if( aTarget == NULL )
         return;
 
-    aTarget->Draw( DrawPanel, DC, GR_XOR );
+    aTarget->Draw( m_canvas, DC, GR_XOR );
     SaveCopyInUndoList( aTarget, UR_DELETED );
     aTarget->UnLink();
 }
@@ -188,16 +187,16 @@ static void AbortMoveAndEditTarget( EDA_DRAW_PANEL* Panel, wxDC* DC )
         target->DeleteStructure();
         target = NULL;
     }
-    else    /* it is an existing item: retrieve initial values of parameters */
+    else    // it is an existing item: retrieve initial values of parameters
     {
-        if( ( target->m_Flags & (IN_EDIT | IS_MOVED) ) )
+        if( ( target->GetFlags() & (IN_EDIT | IS_MOVED) ) )
         {
-            target->m_Pos   = s_TargetCopy.m_Pos;
-            target->m_Width = s_TargetCopy.m_Width;
-            target->m_Size  = s_TargetCopy.m_Size;
-            target->m_Shape = s_TargetCopy.m_Shape;
+            target->SetPosition( s_TargetCopy.GetPosition() );
+            target->SetWidth(    s_TargetCopy.GetWidth() );
+            target->SetSize(     s_TargetCopy.GetSize() );
+            target->SetShape(    s_TargetCopy.GetShape() );
         }
-        target->m_Flags = 0;
+        target->ClearFlags();
         target->Draw( Panel, DC, GR_OR );
     }
 }
@@ -209,14 +208,14 @@ PCB_TARGET* PCB_EDIT_FRAME::CreateTarget( wxDC* DC )
 {
     PCB_TARGET* target = new PCB_TARGET( GetBoard() );
 
-    target->m_Flags = IS_NEW;
+    target->SetFlags( IS_NEW );
 
     GetBoard()->Add( target );
 
     target->SetLayer( EDGE_N );
-    target->m_Width = GetBoard()->GetBoardDesignSettings()->m_EdgeSegmentWidth;
-    target->m_Size  = MireDefaultSize;
-    target->m_Pos  = DrawPanel->GetScreen()->GetCrossHairPosition();
+    target->SetWidth( GetDesignSettings().m_EdgeSegmentWidth );
+    target->SetSize( MireDefaultSize );
+    target->SetPosition( m_canvas->GetScreen()->GetCrossHairPosition() );
 
     PlaceTarget( target, DC );
 
@@ -232,8 +231,8 @@ void PCB_EDIT_FRAME::BeginMoveTarget( PCB_TARGET* aTarget, wxDC* DC )
         return;
 
     s_TargetCopy      = *aTarget;
-    aTarget->m_Flags |= IS_MOVED;
-    DrawPanel->SetMouseCapture( ShowTargetShapeWhileMovingMouse, AbortMoveAndEditTarget );
+    aTarget->SetFlags( IS_MOVED );
+    m_canvas->SetMouseCapture( ShowTargetShapeWhileMovingMouse, AbortMoveAndEditTarget );
     SetCurItem( aTarget );
 }
 
@@ -243,33 +242,34 @@ void PCB_EDIT_FRAME::PlaceTarget( PCB_TARGET* aTarget, wxDC* DC )
     if( aTarget == NULL )
         return;
 
-    aTarget->Draw( DrawPanel, DC, GR_OR );
-    DrawPanel->SetMouseCapture( NULL, NULL );
+    aTarget->Draw( m_canvas, DC, GR_OR );
+    m_canvas->SetMouseCapture( NULL, NULL );
     SetCurItem( NULL );
     OnModify();
 
     if( aTarget->IsNew() )
     {
         SaveCopyInUndoList( aTarget, UR_NEW );
-        aTarget->m_Flags = 0;
+        aTarget->ClearFlags();
         return;
     }
 
-    if( aTarget->m_Flags == IS_MOVED )
+    if( aTarget->GetFlags() == IS_MOVED )
     {
-        SaveCopyInUndoList( aTarget, UR_MOVED, aTarget->m_Pos - s_TargetCopy.m_Pos );
-        aTarget->m_Flags = 0;
+        SaveCopyInUndoList( aTarget, UR_MOVED,
+                            aTarget->GetPosition() - s_TargetCopy.GetPosition() );
+        aTarget->ClearFlags();
         return;
     }
 
-    if( (aTarget->m_Flags & IN_EDIT) )
+    if( (aTarget->GetFlags() & IN_EDIT) )
     {
         SwapData( aTarget, &s_TargetCopy );
         SaveCopyInUndoList( aTarget, UR_CHANGED );
         SwapData( aTarget, &s_TargetCopy );
     }
 
-    aTarget->m_Flags = 0;
+    aTarget->ClearFlags();
 }
 
 
@@ -286,7 +286,7 @@ static void ShowTargetShapeWhileMovingMouse( EDA_DRAW_PANEL* aPanel, wxDC* aDC,
     if( aErase )
         target->Draw( aPanel, aDC, GR_XOR );
 
-    target->m_Pos = screen->GetCrossHairPosition();
+    target->SetPosition( screen->GetCrossHairPosition() );
 
     target->Draw( aPanel, aDC, GR_XOR );
 }

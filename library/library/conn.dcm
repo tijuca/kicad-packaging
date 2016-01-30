@@ -1,4 +1,8 @@
-EESchema-DOCLIB  Version 2.0  Date: 25/05/2011 21:47:41
+EESchema-DOCLIB  Version 2.0  Date: Dienstag, 02. April 2013 19:17:00
+#
+$CMP BARREL_JACK
+D DC Barrel Jack
+$ENDCMP
 #
 $CMP BUSAT
 D Connecteur BUS ISA 16 bits
@@ -265,14 +269,9 @@ D Prise Peritel
 K CONN
 $ENDCMP
 #
-$CMP USB_1
-D USB Connector
-K USB usb CONNECTOR connector
-$ENDCMP
-#
-$CMP USB_2
-D USB Connector
-K USB usb CONNECTOR connector
+$CMP USB-MINI-B
+D USB Mini B connector
+K USB Mini B, USB
 $ENDCMP
 #
 $CMP XLR3

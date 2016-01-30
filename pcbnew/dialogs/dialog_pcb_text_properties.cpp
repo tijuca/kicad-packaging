@@ -26,19 +26,45 @@
 /* Dialog editor for text on copper and technical layers (TEXTE_PCB class) */
 /***************************************************************************/
 
-#include "fctsys.h"
-#include "gr_basic.h"
-#include "class_drawpanel.h"
-#include "pcbnew.h"
-#include "wxPcbStruct.h"
-#include "drawtxt.h"
-#include "confirm.h"
-#include "dialog_helpers.h"
+#include <fctsys.h>
+#include <gr_basic.h>
+#include <class_drawpanel.h>
+#include <pcbnew.h>
+#include <wxPcbStruct.h>
+#include <drawtxt.h>
+#include <confirm.h>
+#include <base_units.h>
 
-#include "class_board.h"
-#include "class_pcb_text.h"
+#include <class_board.h>
+#include <class_pcb_text.h>
 
-#include "dialog_pcb_text_properties.h"
+#include <vector>
+#include <wx/wx.h>
+#include <dialog_pcb_text_properties_base.h>
+
+
+class PCB_EDIT_FRAME;
+class TEXTE_PCB;
+
+
+class DIALOG_PCB_TEXT_PROPERTIES : public DIALOG_PCB_TEXT_PROPERTIES_BASE
+{
+public:
+    DIALOG_PCB_TEXT_PROPERTIES( PCB_EDIT_FRAME* parent, TEXTE_PCB* passedTextPCB, wxDC* DC );
+
+private:
+    PCB_EDIT_FRAME*     m_Parent;
+    wxDC*               m_DC;
+    TEXTE_PCB*          m_SelectedPCBText;
+    std::vector<int>    layerList;
+
+    void MyInit();
+
+    // Handlers for DIALOG_PCB_TEXT_PROPERTIES_BASE events.
+    void OnClose( wxCloseEvent& event );
+    void OnCancelClick( wxCommandEvent& event );
+    void OnOkClick( wxCommandEvent& event );
+};
 
 
 /**
@@ -68,18 +94,22 @@ DIALOG_PCB_TEXT_PROPERTIES::DIALOG_PCB_TEXT_PROPERTIES( PCB_EDIT_FRAME* parent,
  */
 void PCB_EDIT_FRAME::InstallTextPCBOptionsFrame( TEXTE_PCB* TextPCB, wxDC* DC )
 {
-    DrawPanel->m_IgnoreMouseEvents = TRUE;
+    m_canvas->SetIgnoreMouseEvents( true );
+#ifndef __WXMAC__
     DIALOG_PCB_TEXT_PROPERTIES dlg( this, TextPCB, DC );
+#else
+    // Avoid "writes" in the dialog, creates errors with WxOverlay and NSView
+    // Raising an Exception - Fixes #891347
+    DIALOG_PCB_TEXT_PROPERTIES dlg( this, TextPCB, NULL );
+#endif
     dlg.ShowModal();
-    DrawPanel->MoveCursorToCrossHair();
-    DrawPanel->m_IgnoreMouseEvents = FALSE;
+    m_canvas->MoveCursorToCrossHair();
+    m_canvas->SetIgnoreMouseEvents( false );
 }
 
 
 void DIALOG_PCB_TEXT_PROPERTIES::MyInit()
 {
-    SetFocus();
-
     // Put units symbols to text labels where appropriate
     AddUnitSymbol( *m_SizeXLabel );
     AddUnitSymbol( *m_SizeYLabel );
@@ -90,18 +120,14 @@ void DIALOG_PCB_TEXT_PROPERTIES::MyInit()
     // Fill fields with current values
     *m_TextContentCtrl << m_SelectedPCBText->m_Text;
 
-    PutValueInLocalUnits( *m_SizeXCtrl, m_SelectedPCBText->m_Size.x,
-        m_Parent->m_InternalUnits );
-    PutValueInLocalUnits( *m_SizeYCtrl, m_SelectedPCBText->m_Size.y,
-        m_Parent->m_InternalUnits );
-    PutValueInLocalUnits( *m_ThicknessCtrl, m_SelectedPCBText->m_Thickness,
-        m_Parent->m_InternalUnits );
-    PutValueInLocalUnits( *m_PositionXCtrl, m_SelectedPCBText->m_Pos.x,
-        m_Parent->m_InternalUnits );
-    PutValueInLocalUnits( *m_PositionYCtrl, m_SelectedPCBText->m_Pos.y,
-        m_Parent->m_InternalUnits );
+    PutValueInLocalUnits( *m_SizeXCtrl, m_SelectedPCBText->m_Size.x );
+    PutValueInLocalUnits( *m_SizeYCtrl, m_SelectedPCBText->m_Size.y );
+    PutValueInLocalUnits( *m_ThicknessCtrl, m_SelectedPCBText->m_Thickness );
+    PutValueInLocalUnits( *m_PositionXCtrl, m_SelectedPCBText->m_Pos.x );
+    PutValueInLocalUnits( *m_PositionYCtrl, m_SelectedPCBText->m_Pos.y );
 
     int enabledLayers = m_Parent->GetBoard()->GetEnabledLayers();
+
     for( int layer = 0; layer < NB_LAYERS;  ++layer )
     {
         if( enabledLayers & (1 << layer) )
@@ -109,29 +135,15 @@ void DIALOG_PCB_TEXT_PROPERTIES::MyInit()
             layerList.push_back( layer );
             int itemIndex =
                 m_LayerSelectionCtrl->Append( m_Parent->GetBoard()->GetLayerName( layer ) );
+
             if( m_SelectedPCBText->GetLayer() == layer )
                 m_LayerSelectionCtrl->SetSelection( itemIndex );
         }
     }
 
-    switch( m_SelectedPCBText->m_Orient )
-    {
-        default:
-            m_OrientationCtrl->SetSelection( 0 );
-            break;
-        case 900:
-        case -2700:
-            m_OrientationCtrl->SetSelection( 1 );
-            break;
-        case 1800:
-        case -1800:
-            m_OrientationCtrl->SetSelection( 2 );
-            break;
-        case 2700:
-        case -900:
-            m_OrientationCtrl->SetSelection( 3 );
-            break;
-    }
+    wxString orientationStr;
+    orientationStr << m_SelectedPCBText->GetOrientation();
+    m_OrientationCtrl->SetValue( orientationStr );
 
     if( m_SelectedPCBText->m_Mirror )
         m_DisplayCtrl->SetSelection( 1 );
@@ -144,7 +156,7 @@ void DIALOG_PCB_TEXT_PROPERTIES::MyInit()
         m_StyleCtrl->SetSelection( 0 );
 
     // Set justification
-    GRTextHorizJustifyType hJustify = m_SelectedPCBText->GetHorizJustify();
+    EDA_TEXT_HJUSTIFY_T hJustify = m_SelectedPCBText->GetHorizJustify();
     m_justifyChoice->SetSelection( (int) hJustify + 1 );
 
     // Set focus on most important control
@@ -172,20 +184,20 @@ void DIALOG_PCB_TEXT_PROPERTIES::OnOkClick( wxCommandEvent& event )
 
     // If no other command in progress, prepare undo command
     // (for a command in progress, will be made later, at the completion of command)
-    if( m_SelectedPCBText->m_Flags == 0 )
+    if( m_SelectedPCBText->GetFlags() == 0 )
         m_Parent->SaveCopyInUndoList( m_SelectedPCBText, UR_CHANGED );
 
     /* set flag in edit to force undo/redo/abort proper operation,
      * and avoid new calls to SaveCopyInUndoList for the same text
      * this can occurs when a text is moved, and then rotated, edited ..
     */
-    if( m_SelectedPCBText->m_Flags != 0 )
-        m_SelectedPCBText->m_Flags |= IN_EDIT;
+    if( m_SelectedPCBText->GetFlags() != 0 )
+        m_SelectedPCBText->SetFlags( IN_EDIT );
 
     // Erase old text on screen if context is available
     if( m_DC )
     {
-        m_SelectedPCBText->Draw( m_Parent->DrawPanel, m_DC, GR_XOR );
+        m_SelectedPCBText->Draw( m_Parent->GetCanvas(), m_DC, GR_XOR );
     }
 
     // Set the new text content
@@ -195,32 +207,40 @@ void DIALOG_PCB_TEXT_PROPERTIES::OnOkClick( wxCommandEvent& event )
     }
 
     // Set PCB Text position
-    newPosition.x = ReturnValueFromString( g_UserUnit, m_PositionXCtrl->GetValue(), m_Parent->m_InternalUnits );
-    newPosition.y = ReturnValueFromString( g_UserUnit, m_PositionYCtrl->GetValue(), m_Parent->m_InternalUnits );
+    newPosition.x = ReturnValueFromString( g_UserUnit, m_PositionXCtrl->GetValue() );
+    newPosition.y = ReturnValueFromString( g_UserUnit, m_PositionYCtrl->GetValue() );
     m_SelectedPCBText->m_Pos  = newPosition;
 
     // Check constraints and set PCB Text size
-    newSize.x = ReturnValueFromString( g_UserUnit, m_SizeXCtrl->GetValue(), m_Parent->m_InternalUnits );
-    newSize.y = ReturnValueFromString( g_UserUnit, m_SizeYCtrl->GetValue(), m_Parent->m_InternalUnits );
+    newSize.x = ReturnValueFromString( g_UserUnit, m_SizeXCtrl->GetValue() );
+    newSize.y = ReturnValueFromString( g_UserUnit, m_SizeYCtrl->GetValue() );
 
     if( newSize.x < TEXTS_MIN_SIZE )
         newSize.x = TEXTS_MIN_SIZE;
+
     if( newSize.y < TEXTS_MIN_SIZE )
         newSize.y = TEXTS_MIN_SIZE;
+
     if( newSize.x > TEXTS_MAX_WIDTH )
         newSize.x = TEXTS_MAX_WIDTH;
+
     if( newSize.y > TEXTS_MAX_WIDTH )
         newSize.y = TEXTS_MAX_WIDTH;
+
     m_SelectedPCBText->m_Size = newSize;
 
     // Set the new thickness
-    m_SelectedPCBText->m_Thickness = ReturnValueFromString( g_UserUnit, m_ThicknessCtrl->GetValue(), m_Parent->m_InternalUnits );
+    m_SelectedPCBText->m_Thickness = ReturnValueFromString( g_UserUnit,
+                                                            m_ThicknessCtrl->GetValue() );
 
     // Test for acceptable values for thickness and size and clamp if fails
-    int maxthickness = Clamp_Text_PenSize( m_SelectedPCBText->m_Thickness, m_SelectedPCBText->m_Size  );
+    int maxthickness = Clamp_Text_PenSize( m_SelectedPCBText->m_Thickness,
+                                           m_SelectedPCBText->m_Size  );
+
     if( m_SelectedPCBText->m_Thickness > maxthickness )
     {
-        DisplayError(NULL, _("The text thickness is too large for the text size. It will be clamped"));
+        DisplayError( NULL,
+                      _( "The text thickness is too large for the text size. It will be clamped" ) );
         m_SelectedPCBText->m_Thickness = maxthickness;
     }
 
@@ -231,7 +251,10 @@ void DIALOG_PCB_TEXT_PROPERTIES::OnOkClick( wxCommandEvent& event )
     m_SelectedPCBText->m_Mirror = (m_DisplayCtrl->GetSelection() == 1) ? true : false;
 
     // Set the text orientation
-    m_SelectedPCBText->m_Orient = m_OrientationCtrl->GetSelection() * 900;
+    long orientation;
+    m_OrientationCtrl->GetValue().ToLong( &orientation );
+    orientation = orientation % 3600;
+    m_SelectedPCBText->SetOrientation( orientation );
 
     // Set whether the PCB text is slanted (it is not italics, as italics has additional curves in style)
     m_SelectedPCBText->m_Italic = m_StyleCtrl->GetSelection() ? 1 : 0;
@@ -255,8 +278,9 @@ void DIALOG_PCB_TEXT_PROPERTIES::OnOkClick( wxCommandEvent& event )
     // Finally, display new text if there is a context to do so
     if( m_DC )
     {
-        m_SelectedPCBText->Draw( m_Parent->DrawPanel, m_DC, GR_OR );
+        m_SelectedPCBText->Draw( m_Parent->GetCanvas(), m_DC, GR_OR );
     }
+
     m_Parent->OnModify();
     EndModal( 1 );
 }

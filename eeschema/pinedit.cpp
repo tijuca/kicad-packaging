@@ -28,21 +28,23 @@
  * @brief Eeschema pin edit code.
  */
 
-#include "fctsys.h"
-#include "gr_basic.h"
-#include "class_drawpanel.h"
-#include "confirm.h"
-#include "class_sch_screen.h"
+#include <fctsys.h>
+#include <gr_basic.h>
+#include <class_drawpanel.h>
+#include <confirm.h>
+#include <class_sch_screen.h>
+#include <base_units.h>
+#include <msgpanel.h>
 
-#include "libeditframe.h"
-#include "eeschema_id.h"
-#include "class_libentry.h"
-#include "lib_pin.h"
-#include "general.h"
-#include "protos.h"
+#include <libeditframe.h>
+#include <eeschema_id.h>
+#include <class_libentry.h>
+#include <lib_pin.h>
+#include <general.h>
+#include <protos.h>
 
-#include "../common/dialogs/dialog_display_info_HTML_base.h"
-#include "dialog_lib_edit_pin.h"
+#include <../common/dialogs/dialog_display_info_HTML_base.h>
+#include <dialog_lib_edit_pin.h>
 
 
 extern void IncrementLabelMember( wxString& name );
@@ -70,7 +72,7 @@ void LIB_EDIT_FRAME::OnEditPin( wxCommandEvent& event )
     if( m_drawItem == NULL || m_drawItem->Type() != LIB_PIN_T )
         return;
 
-    int item_flags = m_drawItem->m_Flags;       // save flags to restore them after editing
+    int item_flags = m_drawItem->GetFlags();       // save flags to restore them after editing
     LIB_PIN* pin = (LIB_PIN*) m_drawItem;
 
     DIALOG_LIB_EDIT_PIN dlg( this, pin );
@@ -84,17 +86,13 @@ void LIB_EDIT_FRAME::OnEditPin( wxCommandEvent& event )
                                LIB_PIN::GetElectricalTypeSymbols() );
     dlg.SetElectricalType( pin->GetType() );
     dlg.SetName( pin->GetName() );
-    dlg.SetNameTextSize( ReturnStringFromValue( g_UserUnit,
-                                                pin->m_PinNameSize,
-                                                m_InternalUnits ) );
+    dlg.SetNameTextSize( ReturnStringFromValue( g_UserUnit, pin->GetNameTextSize() ) );
     dlg.SetNameTextSizeUnits( units );
     dlg.SetPadName( pin->GetNumberString() );
-    dlg.SetPadNameTextSize( ReturnStringFromValue( g_UserUnit,
-                                                  pin->m_PinNumSize,
-                                                  m_InternalUnits ) );
+    dlg.SetPadNameTextSize( ReturnStringFromValue( g_UserUnit, pin->GetNumberTextSize() ) );
 
     dlg.SetPadNameTextSizeUnits( units );
-    dlg.SetLength( ReturnStringFromValue( g_UserUnit, pin->GetLength(), m_InternalUnits ) );
+    dlg.SetLength( ReturnStringFromValue( g_UserUnit, pin->GetLength() ) );
     dlg.SetLengthUnits( units );
     dlg.SetAddToAllParts( pin->GetUnit() == 0 );
     dlg.SetAddToAllBodyStyles( pin->GetConvert() == 0 );
@@ -109,23 +107,23 @@ void LIB_EDIT_FRAME::OnEditPin( wxCommandEvent& event )
     dlg.Layout();
     dlg.Fit();
     dlg.SetMinSize( dlg.GetSize() );
-    dlg.SetLastSizeAndPosition();
+    // dlg.SetLastSizeAndPosition();    // done in DIALOG_SHIM::Show()
 
     if( dlg.ShowModal() == wxID_CANCEL )
     {
         if( pin->IsNew() )
         {
-            pin->m_Flags |= IS_CANCELLED;
-            DrawPanel->EndMouseCapture();
+            pin->SetFlags( IS_CANCELLED );
+            m_canvas->EndMouseCapture();
         }
         return;
     }
 
-    /* Save the pin properties to use for the next new pin. */
-    LastPinNameSize = ReturnValueFromString( g_UserUnit, dlg.GetNameTextSize(), m_InternalUnits );
-    LastPinNumSize = ReturnValueFromString( g_UserUnit, dlg.GetPadNameTextSize(), m_InternalUnits );
+    // Save the pin properties to use for the next new pin.
+    LastPinNameSize = ReturnValueFromString( g_UserUnit, dlg.GetNameTextSize() );
+    LastPinNumSize = ReturnValueFromString( g_UserUnit, dlg.GetPadNameTextSize() );
     LastPinOrient = LIB_PIN::GetOrientationCode( dlg.GetOrientation() );
-    LastPinLength = ReturnValueFromString( g_UserUnit, dlg.GetLength(), m_InternalUnits );
+    LastPinLength = ReturnValueFromString( g_UserUnit, dlg.GetLength() );
     LastPinShape = LIB_PIN::GetStyleCode( dlg.GetStyle() );
     LastPinType = dlg.GetElectricalType();
     LastPinCommonConvert = dlg.GetAddToAllBodyStyles();
@@ -151,16 +149,19 @@ void LIB_EDIT_FRAME::OnEditPin( wxCommandEvent& event )
             SaveCopyInUndoList( pin->GetParent() );
 
         OnModify( );
-        pin->DisplayInfo( this );
-        DrawPanel->Refresh();
+
+        MSG_PANEL_ITEMS items;
+        pin->GetMsgPanelInfo( items );
+        SetMsgPanel( items );
+        m_canvas->Refresh();
     }
 
     pin->EnableEditMode( false, m_editPinsPerPartOrConvert );
 
     // Restore pin flags, that can be changed by the dialog editor
-    pin->m_Flags = item_flags;
+    pin->ClearFlags();
+    pin->SetFlags( item_flags );
 }
-
 
 /**
  * Clean up after aborting a move pin command.
@@ -184,7 +185,7 @@ static void AbortPinMove( EDA_DRAW_PANEL* Panel, wxDC* DC )
     else
         parent->RestoreComponent();
 
-    /* clear edit flags */
+    // clear edit flags
     parent->SetDrawItem( NULL );
     parent->SetLastDrawItem( NULL );
     Panel->Refresh( true );
@@ -194,7 +195,7 @@ static void AbortPinMove( EDA_DRAW_PANEL* Panel, wxDC* DC )
 /**
  * Managed cursor callback for placing component pins.
  */
-void LIB_EDIT_FRAME::PlacePin( wxDC* DC )
+void LIB_EDIT_FRAME::PlacePin()
 {
     LIB_PIN* Pin;
     LIB_PIN* CurrentPin  = (LIB_PIN*) m_drawItem;
@@ -214,17 +215,17 @@ void LIB_EDIT_FRAME::PlacePin( wxDC* DC )
     // Test for an other pin in same new position:
     for( Pin = m_component->GetNextPin(); Pin != NULL; Pin = m_component->GetNextPin( Pin ) )
     {
-        if( Pin == CurrentPin || newpos != Pin->GetPosition() || Pin->m_Flags )
+        if( Pin == CurrentPin || newpos != Pin->GetPosition() || Pin->GetFlags() )
             continue;
 
         if( ask_for_pin && SynchronizePins() )
         {
-            DrawPanel->m_IgnoreMouseEvents = true;
+            m_canvas->SetIgnoreMouseEvents( true );
             status =
                 IsOK( this, _( "This position is already occupied by \
 another pin. Continue?" ) );
-            DrawPanel->MoveCursorToCrossHair();
-            DrawPanel->m_IgnoreMouseEvents = false;
+            m_canvas->MoveCursorToCrossHair();
+            m_canvas->SetIgnoreMouseEvents( false );
 
             if( !status )
                 return;
@@ -240,7 +241,7 @@ another pin. Continue?" ) );
     else
         SaveCopyInUndoList( m_component );
 
-    DrawPanel->SetMouseCapture( NULL, NULL );
+    m_canvas->SetMouseCapture( NULL, NULL );
     OnModify();
     CurrentPin->SetPosition( newpos );
 
@@ -257,23 +258,19 @@ another pin. Continue?" ) );
         m_component->AddDrawItem( m_drawItem );
     }
 
-    /* Put linked pins in new position, and clear flags */
+    // Put linked pins in new position, and clear flags
     for( Pin = m_component->GetNextPin(); Pin != NULL; Pin = m_component->GetNextPin( Pin ) )
     {
-        if( Pin->m_Flags == 0 )
+        if( Pin->GetFlags() == 0 )
             continue;
 
         Pin->SetPosition( CurrentPin->GetPosition() );
-        Pin->m_Flags = 0;
+        Pin->ClearFlags();
     }
 
-    DrawPanel->CrossHairOff( DC );
-    bool showPinText = true;
-    CurrentPin->Draw( DrawPanel, DC, wxPoint( 0, 0 ), -1, GR_DEFAULT_DRAWMODE,
-                      &showPinText, DefaultTransform );
-    DrawPanel->CrossHairOn( DC );
-
     m_drawItem = NULL;
+
+    m_canvas->Refresh();
 }
 
 
@@ -285,40 +282,44 @@ another pin. Continue?" ) );
  */
 void LIB_EDIT_FRAME::StartMovePin( wxDC* DC )
 {
-    LIB_PIN* Pin;
-    LIB_PIN* CurrentPin = (LIB_PIN*) m_drawItem;
+    LIB_PIN* currentPin = (LIB_PIN*) m_drawItem;
     wxPoint  startPos;
 
     TempCopyComponent();
 
-    /* Mark pins for moving. */
-    Pin = m_component->GetNextPin();
+    // Mark pins for moving.
+    LIB_PIN* pin = m_component->GetNextPin();
 
-    for( ; Pin != NULL; Pin = m_component->GetNextPin( Pin ) )
+    for( ; pin != NULL; pin = m_component->GetNextPin( pin ) )
     {
-        Pin->m_Flags = 0;
+        pin->ClearFlags();
 
-        if( Pin == CurrentPin )
+        if( pin == currentPin )
             continue;
 
-        if( ( Pin->GetPosition() == CurrentPin->GetPosition() )
-            && ( Pin->GetOrientation() == CurrentPin->GetOrientation() )
+        if( ( pin->GetPosition() == currentPin->GetPosition() )
+            && ( pin->GetOrientation() == currentPin->GetOrientation() )
             && SynchronizePins() )
-            Pin->m_Flags |= IS_LINKED | IS_MOVED;
+            pin->SetFlags( IS_LINKED | IS_MOVED );
     }
 
-    CurrentPin->m_Flags |= IS_LINKED | IS_MOVED;
-    PinPreviousPos = OldPos = CurrentPin->GetPosition();
-
+    currentPin->SetFlags( IS_LINKED | IS_MOVED );
+    PinPreviousPos = OldPos = currentPin->GetPosition();
     startPos.x = OldPos.x;
     startPos.y = -OldPos.y;
-    DrawPanel->CrossHairOff( DC );
+//    m_canvas->CrossHairOff( DC );
     GetScreen()->SetCrossHairPosition( startPos );
-    DrawPanel->MoveCursorToCrossHair();
+    m_canvas->MoveCursorToCrossHair();
 
-    CurrentPin->DisplayInfo( this );
-    DrawPanel->SetMouseCapture( DrawMovePin, AbortPinMove );
-    DrawPanel->CrossHairOn( DC );
+    MSG_PANEL_ITEMS items;
+    currentPin->GetMsgPanelInfo( items );
+    SetMsgPanel( items );
+    m_canvas->SetMouseCapture( DrawMovePin, AbortPinMove );
+//    m_canvas->CrossHairOn( DC );
+
+    // Refresh the screen to avoid color artifacts when drawing
+    // the pin in Edit mode and moving it from its start position
+    m_canvas->Refresh();
 }
 
 
@@ -340,17 +341,18 @@ static void DrawMovePin( EDA_DRAW_PANEL* aPanel, wxDC* aDC, const wxPoint& aPosi
     wxPoint pinpos = CurrentPin->GetPosition();
     bool    showPinText = true;
 
-    /* Erase pin in old position */
+    // Erase pin in old position
     if( aErase )
     {
         CurrentPin->SetPosition( PinPreviousPos );
-        CurrentPin->Draw( aPanel, aDC, wxPoint( 0, 0 ), -1, g_XorMode,
+        CurrentPin->Draw( aPanel, aDC, wxPoint( 0, 0 ), UNSPECIFIED_COLOR, g_XorMode,
                           &showPinText, DefaultTransform );
     }
 
-    /* Redraw pin in new position */
+    // Redraw pin in new position
     CurrentPin->SetPosition( aPanel->GetScreen()->GetCrossHairPosition( true ) );
-    CurrentPin->Draw( aPanel, aDC, wxPoint( 0, 0 ), -1, g_XorMode, &showPinText, DefaultTransform );
+    CurrentPin->Draw( aPanel, aDC, wxPoint( 0, 0 ), UNSPECIFIED_COLOR, g_XorMode,
+                      &showPinText, DefaultTransform );
 
     PinPreviousPos = CurrentPin->GetPosition();
 
@@ -378,43 +380,43 @@ void LIB_EDIT_FRAME::CreatePin( wxDC* DC )
 
     m_drawItem = pin;
 
-    pin->m_Flags = IS_NEW;
+    pin->SetFlags( IS_NEW );
     pin->SetUnit( m_unit );
     pin->SetConvert( m_convert );
 
-    /* Flag pins to consider */
+    // Flag pins to consider
     if( SynchronizePins() )
-        pin->m_Flags |= IS_LINKED;
+        pin->SetFlags( IS_LINKED );
 
     pin->SetPosition( GetScreen()->GetCrossHairPosition( true ) );
     pin->SetLength( LastPinLength );
     pin->SetOrientation( LastPinOrient );
     pin->SetType( LastPinType );
     pin->SetShape( LastPinShape );
-    pin->m_PinNameSize = LastPinNameSize;
-    pin->m_PinNumSize  = LastPinNumSize;
+    pin->SetNameTextSize( LastPinNameSize );
+    pin->SetNumberTextSize( LastPinNumSize );
     pin->SetConvert( LastPinCommonConvert ? 0 : m_convert );
     pin->SetUnit( LastPinCommonUnit ? 0 : m_unit );
     pin->SetVisible( LastPinVisible );
     PinPreviousPos = pin->GetPosition();
-    DrawPanel->m_IgnoreMouseEvents = true;
+    m_canvas->SetIgnoreMouseEvents( true );
     wxCommandEvent cmd( wxEVT_COMMAND_MENU_SELECTED );
     cmd.SetId( ID_LIBEDIT_EDIT_PIN );
     GetEventHandler()->ProcessEvent( cmd );
-    DrawPanel->MoveCursorToCrossHair();
-    DrawPanel->m_IgnoreMouseEvents = false;
+    m_canvas->MoveCursorToCrossHair();
+    m_canvas->SetIgnoreMouseEvents( false );
 
-    if( pin->m_Flags & IS_CANCELLED )
+    if( pin->GetFlags() & IS_CANCELLED )
     {
         deleteItem( DC );
     }
     else
     {
         ClearTempCopyComponent();
-        DrawPanel->SetMouseCapture( DrawMovePin, AbortPinMove );
+        m_canvas->SetMouseCapture( DrawMovePin, AbortPinMove );
 
         if( DC )
-            pin->Draw( DrawPanel, DC, wxPoint( 0, 0 ), -1, wxCOPY, &showPinText,
+            pin->Draw( m_canvas, DC, wxPoint( 0, 0 ), UNSPECIFIED_COLOR, GR_COPY, &showPinText,
                        DefaultTransform );
 
     }
@@ -429,7 +431,7 @@ void LIB_EDIT_FRAME::CreateImagePins( LIB_PIN* aPin, int aUnit, int aConvert, bo
     if( !SynchronizePins() )
         return;
 
-    /* Create "convert" pin at the current position. */
+    // Create "convert" pin at the current position.
     if( aDeMorgan && ( aPin->GetConvert() != 0 ) )
     {
         NewPin = (LIB_PIN*) aPin->Clone();
@@ -445,7 +447,7 @@ void LIB_EDIT_FRAME::CreateImagePins( LIB_PIN* aPin, int aUnit, int aConvert, bo
     for( ii = 1; ii <= aPin->GetParent()->GetPartCount(); ii++ )
     {
         if( ii == aUnit || aPin->GetUnit() == 0 )
-            continue;                       /* Pin common to all units. */
+            continue;                       // Pin common to all units.
 
         NewPin = (LIB_PIN*) aPin->Clone();
 
@@ -469,63 +471,65 @@ void LIB_EDIT_FRAME::CreateImagePins( LIB_PIN* aPin, int aUnit, int aConvert, bo
 }
 
 
-/*  Depending on "id":
- * - Change pin text size (name or num) (range 10 .. 1000 mil)
- * - Change pin length.
+/* aMasterPin is the "template" pin
+ * aId is a param to select what should be mofified:
+ * - aId = ID_POPUP_LIBEDIT_PIN_GLOBAL_CHANGE_PINNAMESIZE_ITEM:
+ *          Change pins text name size
+ * - aId = ID_POPUP_LIBEDIT_PIN_GLOBAL_CHANGE_PINNUMSIZE_ITEM:
+ *          Change pins text num size
+ * - aId = ID_POPUP_LIBEDIT_PIN_GLOBAL_CHANGE_PINSIZE_ITEM:
+ *          Change pins length.
  *
- * If Pin is selected ( .m_flag == IS_SELECTED ) only the other selected
- * pins are modified
+ * If aMasterPin is selected ( .m_flag == IS_SELECTED ),
+ * only the other selected pins are modified
  */
-void LIB_EDIT_FRAME::GlobalSetPins( wxDC* DC, LIB_PIN* MasterPin, int id )
+void LIB_EDIT_FRAME::GlobalSetPins( LIB_PIN* aMasterPin, int aId )
 
 {
-    LIB_PIN* Pin;
-    bool     selected    = ( MasterPin->m_Selected & IS_SELECTED ) != 0;
-    bool     showPinText = true;
+    bool selected = aMasterPin->IsSelected();
 
-    if( ( m_component == NULL ) || ( MasterPin == NULL ) )
+    if( ( m_component == NULL ) || ( aMasterPin == NULL ) )
         return;
 
-    if( MasterPin->Type() != LIB_PIN_T )
+    if( aMasterPin->Type() != LIB_PIN_T )
         return;
 
     OnModify( );
 
-    Pin = m_component->GetNextPin();
+    LIB_PIN* pin = m_component->GetNextPin();
 
-    for( ; Pin != NULL; Pin = m_component->GetNextPin( Pin ) )
+    for( ; pin != NULL; pin = m_component->GetNextPin( pin ) )
     {
-        if( ( Pin->GetConvert() ) && ( Pin->GetConvert() != m_convert ) )
+        if( ( pin->GetConvert() ) && ( pin->GetConvert() != m_convert ) )
             continue;
 
         // Is it the "selected mode" ?
-        if( selected && ( Pin->m_Selected & IS_SELECTED ) == 0 )
+        if( selected && !pin->IsSelected() )
             continue;
 
-        Pin->Draw( DrawPanel, DC, wxPoint( 0, 0 ), -1, g_XorMode, &showPinText, DefaultTransform );
-
-        switch( id )
+        switch( aId )
         {
         case ID_POPUP_LIBEDIT_PIN_GLOBAL_CHANGE_PINNUMSIZE_ITEM:
-            Pin->m_PinNumSize = MasterPin->m_PinNumSize;
+            pin->SetNumberTextSize( aMasterPin->GetNumberTextSize() );
             break;
 
         case ID_POPUP_LIBEDIT_PIN_GLOBAL_CHANGE_PINNAMESIZE_ITEM:
-            Pin->m_PinNameSize = MasterPin->m_PinNameSize;
+            pin->SetNameTextSize( aMasterPin->GetNameTextSize() );
             break;
 
         case ID_POPUP_LIBEDIT_PIN_GLOBAL_CHANGE_PINSIZE_ITEM:
-            Pin->SetLength( MasterPin->GetLength() );
+            pin->SetLength( aMasterPin->GetLength() );
             break;
         }
 
-        Pin->Draw( DrawPanel, DC, wxPoint( 0, 0 ), -1, GR_DEFAULT_DRAWMODE, &showPinText,
-                   DefaultTransform );
+        // Clear the flag IS_CHANGED, which was set by previous changes (if any)
+        // but not used here.
+        pin->ClearFlags( IS_CHANGED );
     }
 }
 
 
-/* Create a new pin based on the previous pin with an incremented pin number. */
+// Create a new pin based on the previous pin with an incremented pin number.
 void LIB_EDIT_FRAME::RepeatPinItem( wxDC* DC, LIB_PIN* SourcePin )
 {
     LIB_PIN* Pin;
@@ -535,7 +539,8 @@ void LIB_EDIT_FRAME::RepeatPinItem( wxDC* DC, LIB_PIN* SourcePin )
         return;
 
     Pin = (LIB_PIN*) SourcePin->Clone();
-    Pin->m_Flags = IS_NEW;
+    Pin->ClearFlags();
+    Pin->SetFlags( IS_NEW );
     Pin->SetPosition( Pin->GetPosition() + wxPoint( g_RepeatStep.x, -g_RepeatStep.y ) );
     wxString nextName = Pin->GetName();
     IncrementLabelMember( nextName );
@@ -548,27 +553,30 @@ void LIB_EDIT_FRAME::RepeatPinItem( wxDC* DC, LIB_PIN* SourcePin )
     m_drawItem = Pin;
 
     if( SynchronizePins() )
-        Pin->m_Flags |= IS_LINKED;
+        Pin->SetFlags( IS_LINKED );
 
     wxPoint savepos = GetScreen()->GetCrossHairPosition();
-    DrawPanel->CrossHairOff( DC );
-    GetScreen()->SetCrossHairPosition( wxPoint( Pin->GetPosition().x, -Pin->GetPosition().y ) );
+    m_canvas->CrossHairOff( DC );
+    GetScreen()->SetCrossHairPosition( wxPoint( Pin->GetPosition().x,
+                                                -Pin->GetPosition().y ) );
 
     // Add this new pin in list, and creates pins for others parts if needed
     m_drawItem = Pin;
     ClearTempCopyComponent();
-    PlacePin( DC );
+    PlacePin();
     m_lastDrawItem = Pin;
 
     GetScreen()->SetCrossHairPosition( savepos );
-    DrawPanel->CrossHairOn( DC );
+    m_canvas->CrossHairOn( DC );
 
-    Pin->DisplayInfo( this );
+    MSG_PANEL_ITEMS items;
+    Pin->GetMsgPanelInfo( items );
+    SetMsgPanel( items );
     OnModify( );
 }
 
 
-/* helper function to sort pins by pin num */
+// helper function to sort pins by pin num
 bool sort_by_pin_number( const LIB_PIN* ref, const LIB_PIN* tst )
 {
     int test = ref->GetNumber() - tst->GetNumber();

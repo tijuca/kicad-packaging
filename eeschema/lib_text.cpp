@@ -1,9 +1,7 @@
 /*
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
- * Copyright (C) 2004 Jean-Pierre Charras, jaen-pierre.charras@gipsa-lab.inpg.com
- * Copyright (C) 2008-2011 Wayne Stambaugh <stambaughw@verizon.net>
- * Copyright (C) 2004-2011 KiCad Developers, see change_log.txt for contributors.
+ * Copyright (C) 2004-2012 KiCad Developers, see change_log.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -27,24 +25,26 @@
  * @file lib_text.cpp
  */
 
-#include "fctsys.h"
-#include "gr_basic.h"
-#include "macros.h"
-#include "class_drawpanel.h"
-#include "plot_common.h"
-#include "drawtxt.h"
-#include "trigo.h"
-#include "wxstruct.h"
-#include "richio.h"
+#include <fctsys.h>
+#include <gr_basic.h>
+#include <macros.h>
+#include <class_drawpanel.h>
+#include <plot_common.h>
+#include <drawtxt.h>
+#include <trigo.h>
+#include <wxstruct.h>
+#include <richio.h>
+#include <base_units.h>
+#include <msgpanel.h>
 
-#include "lib_draw_item.h"
-#include "general.h"
-#include "protos.h"
-#include "transform.h"
-#include "lib_text.h"
+#include <lib_draw_item.h>
+#include <general.h>
+#include <protos.h>
+#include <transform.h>
+#include <lib_text.h>
 
 
-LIB_TEXT::LIB_TEXT(LIB_COMPONENT * aParent) :
+LIB_TEXT::LIB_TEXT( LIB_COMPONENT * aParent ) :
     LIB_ITEM( LIB_TEXT_T, aParent ),
     EDA_TEXT()
 {
@@ -72,7 +72,7 @@ bool LIB_TEXT::Save( OUTPUTFORMATTER& aFormatter )
         text.Replace( wxT( " " ), wxT( "~" ) );
     }
 
-    aFormatter.Print( 0, "T %d %d %d %d %d %d %d %s ", m_Orient, m_Pos.x, m_Pos.y,
+    aFormatter.Print( 0, "T %g %d %d %d %d %d %d %s ", GetOrientation(), m_Pos.x, m_Pos.y,
                       m_Size.x, m_Attributs, m_Unit, m_Convert, TO_UTF8( text ) );
 
     aFormatter.Print( 0, " %s %d", m_Italic ? "Italic" : "Normal", ( m_Bold > 0 ) ? 1 : 0 );
@@ -99,17 +99,18 @@ bool LIB_TEXT::Save( OUTPUTFORMATTER& aFormatter )
 
 bool LIB_TEXT::Load( LINE_READER& aLineReader, wxString& errorMsg )
 {
-    int  cnt, thickness;
-    char hjustify = 'C', vjustify = 'C';
-    char buf[256];
-    char tmp[256];
-    char* line = (char*) aLineReader;
+    int     cnt, thickness;
+    char    hjustify = 'C', vjustify = 'C';
+    char    buf[256];
+    char    tmp[256];
+    char*   line = (char*) aLineReader;
+    double  angle;
 
     buf[0] = 0;
     tmp[0] = 0;         // For italic option, Not in old versions
 
-    cnt = sscanf( line + 2, "%d %d %d %d %d %d %d \"%[^\"]\" %s %d %c %c",
-                  &m_Orient, &m_Pos.x, &m_Pos.y, &m_Size.x, &m_Attributs,
+    cnt = sscanf( line + 2, "%lf %d %d %d %d %d %d \"%[^\"]\" %s %d %c %c",
+                  &angle, &m_Pos.x, &m_Pos.y, &m_Size.x, &m_Attributs,
                   &m_Unit, &m_Convert, buf, tmp, &thickness, &hjustify,
                   &vjustify );
 
@@ -122,8 +123,8 @@ bool LIB_TEXT::Load( LINE_READER& aLineReader, wxString& errorMsg )
     }
     else
     {
-        cnt = sscanf( line + 2, "%d %d %d %d %d %d %d %s %s %d %c %c",
-                      &m_Orient, &m_Pos.x, &m_Pos.y, &m_Size.x, &m_Attributs,
+        cnt = sscanf( line + 2, "%lf %d %d %d %d %d %d %s %s %d %c %c",
+                      &angle, &m_Pos.x, &m_Pos.y, &m_Size.x, &m_Attributs,
                       &m_Unit, &m_Convert, buf, tmp, &thickness, &hjustify,
                       &vjustify );
 
@@ -137,6 +138,8 @@ bool LIB_TEXT::Load( LINE_READER& aLineReader, wxString& errorMsg )
         m_Text = FROM_UTF8( buf );
         m_Text.Replace( wxT( "~" ), wxT( " " ) );
     }
+
+    SetOrientation( angle );
 
     m_Size.y = m_Size.x;
 
@@ -212,7 +215,7 @@ bool LIB_TEXT::HitTest( wxPoint aPosition, int aThreshold, const TRANSFORM& aTra
 }
 
 
-EDA_ITEM* LIB_TEXT::doClone() const
+EDA_ITEM* LIB_TEXT::Clone() const
 {
     LIB_TEXT* newitem = new LIB_TEXT(NULL);
 
@@ -233,7 +236,7 @@ EDA_ITEM* LIB_TEXT::doClone() const
 }
 
 
-int LIB_TEXT::DoCompare( const LIB_ITEM& other ) const
+int LIB_TEXT::compare( const LIB_ITEM& other ) const
 {
     wxASSERT( other.Type() == LIB_TEXT_T );
 
@@ -260,13 +263,13 @@ int LIB_TEXT::DoCompare( const LIB_ITEM& other ) const
 }
 
 
-void LIB_TEXT::DoOffset( const wxPoint& offset )
+void LIB_TEXT::SetOffset( const wxPoint& aOffset )
 {
-    m_Pos += offset;
+    m_Pos += aOffset;
 }
 
 
-bool LIB_TEXT::DoTestInside( EDA_RECT& rect ) const
+bool LIB_TEXT::Inside( EDA_RECT& rect ) const
 {
     /*
      * FIXME: This should calculate the text size and justification and
@@ -276,27 +279,27 @@ bool LIB_TEXT::DoTestInside( EDA_RECT& rect ) const
 }
 
 
-void LIB_TEXT::DoMove( const wxPoint& newPosition )
+void LIB_TEXT::Move( const wxPoint& newPosition )
 {
     m_Pos = newPosition;
 }
 
 
-void LIB_TEXT::DoMirrorHorizontal( const wxPoint& center )
+void LIB_TEXT::MirrorHorizontal( const wxPoint& center )
 {
     m_Pos.x -= center.x;
     m_Pos.x *= -1;
     m_Pos.x += center.x;
 }
 
-void LIB_TEXT::DoMirrorVertical( const wxPoint& center )
+void LIB_TEXT::MirrorVertical( const wxPoint& center )
 {
     m_Pos.y -= center.y;
     m_Pos.y *= -1;
     m_Pos.y += center.y;
 }
 
-void LIB_TEXT::DoRotate( const wxPoint& center, bool aRotateCCW )
+void LIB_TEXT::Rotate( const wxPoint& center, bool aRotateCCW )
 {
     int rot_angle = aRotateCCW ? -900 : 900;
 
@@ -305,8 +308,8 @@ void LIB_TEXT::DoRotate( const wxPoint& center, bool aRotateCCW )
 }
 
 
-void LIB_TEXT::DoPlot( PLOTTER* plotter, const wxPoint& offset, bool fill,
-                       const TRANSFORM& aTransform )
+void LIB_TEXT::Plot( PLOTTER* plotter, const wxPoint& offset, bool fill,
+                     const TRANSFORM& aTransform )
 {
     wxASSERT( plotter != NULL );
 
@@ -315,7 +318,15 @@ void LIB_TEXT::DoPlot( PLOTTER* plotter, const wxPoint& offset, bool fill,
     int t1  = ( aTransform.x1 != 0 ) ^ ( m_Orient != 0 );
     wxPoint pos = aTransform.TransformCoordinate( m_Pos ) + offset;
 
-    plotter->text( pos, UNSPECIFIED_COLOR, m_Text,
+    // Get color
+    EDA_COLOR_T     color;
+
+    if( plotter->GetColorMode() )       // Used normal color or selected color
+        color = IsSelected() ? GetItemSelectedColor() : GetDefaultColor();
+    else
+        color = BLACK;
+
+    plotter->Text( pos, color, m_Text,
                    t1 ? TEXT_ORIENT_HORIZ : TEXT_ORIENT_VERT,
                    m_Size, GR_TEXT_HJUSTIFY_CENTER, GR_TEXT_VJUSTIFY_CENTER,
                    GetPenSize(), m_Italic, m_Bold );
@@ -331,7 +342,7 @@ int LIB_TEXT::GetPenSize() const
         if( m_Bold  )
             pensize = GetPenSizeForBold( m_Size.x );
         else
-            pensize = g_DrawDefaultLineThickness;
+            pensize = GetDefaultLineThickness();
     }
 
     // Clip pen size for small texts:
@@ -341,14 +352,15 @@ int LIB_TEXT::GetPenSize() const
 
 
 void LIB_TEXT::drawGraphic( EDA_DRAW_PANEL* aPanel, wxDC* aDC, const wxPoint& aOffset,
-                            int aColor, int aDrawMode, void* aData, const TRANSFORM& aTransform )
+                            EDA_COLOR_T aColor, GR_DRAWMODE aDrawMode, void* aData,
+                            const TRANSFORM& aTransform )
 {
-    int     color = GetDefaultColor();
+    EDA_COLOR_T     color = GetDefaultColor();
 
     if( aColor < 0 )       // Used normal color or selected color
     {
-        if( ( m_Selected & IS_SELECTED ) )
-            color = g_ItemSelectetColor;
+        if( IsSelected() )
+            color = GetItemSelectedColor();
     }
     else
     {
@@ -387,7 +399,7 @@ void LIB_TEXT::drawGraphic( EDA_DRAW_PANEL* aPanel, wxDC* aDC, const wxPoint& aO
     // Calculate pos accordint to mirror/rotation.
     txtpos = aTransform.TransformCoordinate( txtpos ) + aOffset;
 
-    DrawGraphicText( aPanel, aDC, txtpos, (EDA_Colors) color, m_Text, orient, m_Size,
+    DrawGraphicText( aPanel, aDC, txtpos, (EDA_COLOR_T) color, m_Text, orient, m_Size,
                      GR_TEXT_HJUSTIFY_CENTER, GR_TEXT_VJUSTIFY_CENTER, GetPenSize(),
                      m_Italic, m_Bold );
 
@@ -400,20 +412,20 @@ void LIB_TEXT::drawGraphic( EDA_DRAW_PANEL* aPanel, wxDC* aDC, const wxPoint& aO
     grBox.SetOrigin( aTransform.TransformCoordinate( bBox.GetOrigin() ) );
     grBox.SetEnd( aTransform.TransformCoordinate( bBox.GetEnd() ) );
     grBox.Move( aOffset );
-    GRRect( &aPanel->m_ClipBox, aDC, grBox, 0, LIGHTMAGENTA );
+    GRRect( aPanel->GetClipBox(), aDC, grBox, 0, LIGHTMAGENTA );
 #endif
 }
 
 
-void LIB_TEXT::DisplayInfo( EDA_DRAW_FRAME* frame )
+void LIB_TEXT::GetMsgPanelInfo( MSG_PANEL_ITEMS& aList )
 {
     wxString msg;
 
-    LIB_ITEM::DisplayInfo( frame );
+    LIB_ITEM::GetMsgPanelInfo( aList );
 
-    msg = ReturnStringFromValue( g_UserUnit, m_Thickness, EESCHEMA_INTERNAL_UNIT, true );
+    msg = ReturnStringFromValue( g_UserUnit, m_Thickness, true );
 
-    frame->AppendMsgPanel( _( "Line width" ), msg, BLUE );
+    aList.push_back( MSG_PANEL_ITEM( _( "Line width" ), msg, BLUE ) );
 }
 
 

@@ -21,20 +21,20 @@
  * or you may write to the Free Software Foundation, Inc.,
  * 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
  */
-#include <math.h>
+#include <cmath>
 
 // For some unknown reasons, polygon.hpp shoul be included first
-#include "boost/polygon/polygon.hpp"
+#include <boost/polygon/polygon.hpp>
 
 #include <stdio.h>
 #include <string.h>
 #include <errno.h>
 #include <stdlib.h>
-#include <math.h>
+#include <cmath>
 #include <vector>
 
-#include "potracelib.h"
-#include "auxiliary.h"
+#include <potracelib.h>
+#include <auxiliary.h>
 
 
 #ifndef max

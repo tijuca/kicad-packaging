@@ -3,43 +3,64 @@
  * @brief GERBVIEW main file.
  */
 
-#include "fctsys.h"
-#include "appl_wxstruct.h"
-#include "class_drawpanel.h"
-#include "confirm.h"
-#include "gestfich.h"
-#include "gr_basic.h"
+/*
+ * This program source code file is part of KiCad, a free EDA CAD application.
+ *
+ * Copyright (C) 1992-2012 KiCad Developers, see change_log.txt for contributors.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation; either version 2
+ * of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, you may find one here:
+ * http://www.gnu.org/licenses/old-licenses/gpl-2.0.html
+ * or you may search the http://www.gnu.org website for the version 2 license,
+ * or you may write to the Free Software Foundation, Inc.,
+ * 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
+ */
 
-#include "gerbview.h"
-#include "gerbview_id.h"
-#include "pcbplot.h"
-#include "zones.h"
-#include "class_board_design_settings.h"
-#include "colors_selection.h"
-#include "hotkeys.h"
+ #include <fctsys.h>
+#include <appl_wxstruct.h>
+#include <class_drawpanel.h>
+#include <confirm.h>
+#include <gestfich.h>
+//#include <gr_basic.h>
 
-#include "build_version.h"
+#include <gerbview.h>
+#include <gerbview_id.h>
+#include <hotkeys.h>
+
+#include <build_version.h>
 
 #include <wx/file.h>
 #include <wx/snglinst.h>
 
 // Colors for layers and items
 COLORS_DESIGN_SETTINGS g_ColorsSettings;
+extern EDA_COLOR_T g_DrawBgColor;
+int g_Default_GERBER_Format;
 
-int      g_Default_GERBER_Format;
-int      g_DisplayPolygonsModeSketch;
+
+const wxChar* g_GerberPageSizeList[] = {
+    wxT( "GERBER" ),    // index 0: full size page selection, and do not show page limits
+    wxT( "GERBER" ),    // index 1: full size page selection, and show page limits
+    wxT( "A4" ),
+    wxT( "A3" ),
+    wxT( "A2" ),
+    wxT( "A" ),
+    wxT( "B" ),
+    wxT( "C" ),
+};
+
 
 GERBER_IMAGE*  g_GERBER_List[32];
-
-// List of page sizes
-Ki_PageDescr* g_GerberPageSizeList[] =
-{
-    &g_Sheet_GERBER,    // Full size page selection, and do not show page limits
-    &g_Sheet_GERBER,    // Full size page selection, and show page limits
-    &g_Sheet_A4,   &g_Sheet_A3, &g_Sheet_A2,
-    &g_Sheet_A,    &g_Sheet_B,  &g_Sheet_C,
-    NULL                // End of list
- };
 
 
 IMPLEMENT_APP( EDA_APP )
@@ -88,12 +109,6 @@ bool EDA_APP::OnInit()
     /* Gerbview mainframe title */
     frame->SetTitle( GetTitle() + wxT( " " ) + GetBuildVersion() );
 
-    // Initialize some display options
-    DisplayOpt.DisplayPadIsol = false;      // Pad clearance has no meaning here
-
-    // Track and via clearance has no meaning here.
-    DisplayOpt.ShowTrackClearanceMode = DO_NOT_SHOW_CLEARANCE;
-
     SetTopWindow( frame );                  // Set GerbView mainframe on top
     frame->Show( true );                    // Show GerbView mainframe
     frame->Zoom_Automatique( true );        // Zoom fit in frame
@@ -113,7 +128,7 @@ bool EDA_APP::OnInit()
         // Load all files specified on the command line.
         int jj = 0;
 
-        for( int ii = 1; ii < argc && ii <= LAYER_COUNT; ++ii )
+        for( int ii = 1; ii < argc && ii <= GERBVIEW_LAYER_COUNT; ++ii )
         {
             fn = wxFileName( argv[ii] );
 

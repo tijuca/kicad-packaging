@@ -1,18 +1,41 @@
-/////////////////////////////////////////////////////////////////////////////
-// Name:        dialog_display_options.cpp
-// Licence:     GPL
-/////////////////////////////////////////////////////////////////////////////
-#include "fctsys.h"
+/**
+ * @file  cvpcb/dialogs/dialog_display_options.cpp
+ */
 
-#include "wxstruct.h"
-#include "common.h"
-#include "cvpcb.h"
-#include "class_drawpanel.h"
-#include "footprint_info.h"
-#include "cvstruct.h"
-#include "class_DisplayFootprintsFrame.h"
+/*
+ * This program source code file is part of KiCad, a free EDA CAD application.
+ *
+ * Copyright (C) 1992-2012 KiCad Developers, see AUTHORS.txt for contributors.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation; either version 2
+ * of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, you may find one here:
+ * http://www.gnu.org/licenses/old-licenses/gpl-2.0.html
+ * or you may search the http://www.gnu.org website for the version 2 license,
+ * or you may write to the Free Software Foundation, Inc.,
+ * 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
+ */
 
-#include "dialog_display_options.h"
+#include <fctsys.h>
+
+#include <wxstruct.h>
+#include <common.h>
+#include <cvpcb.h>
+#include <class_drawpanel.h>
+#include <footprint_info.h>
+#include <cvstruct.h>
+#include <class_DisplayFootprintsFrame.h>
+
+#include <dialog_display_options.h>
 
 
 void DISPLAY_FOOTPRINTS_FRAME::InstallOptionsDisplay( wxCommandEvent& event )
@@ -54,6 +77,10 @@ void DIALOG_FOOTPRINTS_DISPLAY_OPTIONS::initDialog()
     m_TextDisplayOption->SetSelection( m_Parent->m_DisplayModText );
     m_IsShowPadFill->SetValue( m_Parent->m_DisplayPadFill );
     m_IsShowPadNum->SetValue( m_Parent->m_DisplayPadNum );
+    m_IsZoomNoCenter->SetValue( m_Parent->GetCanvas()->GetEnableZoomNoCenter() );
+    m_IsMiddleButtonPan->SetValue( m_Parent->GetCanvas()->GetEnableMiddleButtonPan() );
+    m_IsMiddleButtonPanLimited->SetValue( m_Parent->GetCanvas()->GetMiddleButtonPanLimited() );
+    m_IsMiddleButtonPanLimited->Enable( m_IsMiddleButtonPan->GetValue() );
 }
 
 
@@ -68,7 +95,10 @@ void DIALOG_FOOTPRINTS_DISPLAY_OPTIONS::UpdateObjectSettings( void )
     m_Parent->m_DisplayModText = m_TextDisplayOption->GetSelection();
     m_Parent->m_DisplayPadNum  = m_IsShowPadNum->GetValue();
     m_Parent->m_DisplayPadFill = m_IsShowPadFill->GetValue();
-    m_Parent->DrawPanel->Refresh();
+    m_Parent->GetCanvas()->SetEnableZoomNoCenter( m_IsZoomNoCenter->GetValue() );
+    m_Parent->GetCanvas()->SetEnableMiddleButtonPan( m_IsMiddleButtonPan->GetValue() );
+    m_Parent->GetCanvas()->SetMiddleButtonPanLimited( m_IsMiddleButtonPanLimited->GetValue() );
+    m_Parent->GetCanvas()->Refresh();
 }
 
 

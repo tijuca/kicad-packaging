@@ -1,20 +1,47 @@
-/*****************************************************************************/
-/* Functions to handle markers used to show something (usually a drc problem) */
-/*****************************************************************************/
+/**
+ * @file class_marker_pcb.cpp
+ * @brief Functions to handle markers used to show something (usually a drc problem)
+ */
 
-/* file class_marker.cpp */
+/*
+ * This program source code file is part of KiCad, a free EDA CAD application.
+ *
+ * Copyright (C) 2012 Jean-Pierre Charras, jean-pierre.charras@ujf-grenoble.fr
+ * Copyright (C) 2012 SoftPLC Corporation, Dick Hollenbeck <dick@softplc.com>
+ * Copyright (C) 1992-2012 KiCad Developers, see AUTHORS.txt for contributors.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation; either version 2
+ * of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, you may find one here:
+ * http://www.gnu.org/licenses/old-licenses/gpl-2.0.html
+ * or you may search the http://www.gnu.org website for the version 2 license,
+ * or you may write to the Free Software Foundation, Inc.,
+ * 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
+ */
 
-#include "fctsys.h"
-#include "gr_basic.h"
-#include "class_drawpanel.h"
-#include "wxstruct.h"
-#include "trigo.h"
+#include <fctsys.h>
+#include <gr_basic.h>
+#include <class_drawpanel.h>
+#include <wxstruct.h>
+#include <trigo.h>
+#include <msgpanel.h>
 
-#include "pcbnew.h"
-#include "class_marker_pcb.h"
+#include <pcbnew.h>
+#include <class_marker_pcb.h>
+#include <layers_id_colors_and_visibility.h>
 
 
-#define SCALING_FACTOR 30       // Adjust the actual size of markers, when using default shape
+/// Adjust the actual size of markers, when using default shape
+#define SCALING_FACTOR      DMils2iu( 30 )
 
 
 MARKER_PCB::MARKER_PCB( BOARD_ITEM* aParent ) :
@@ -52,21 +79,30 @@ MARKER_PCB::~MARKER_PCB()
 {
 }
 
-
-void MARKER_PCB::DisplayInfo( EDA_DRAW_FRAME* frame )
+/* tests to see if this object is on the given layer.
+ * DRC markers are not really on a copper layer, but
+ * MARKER_PCB::IsOnCopperLayer return true if aLayer is a cooper layer,
+ * because this test is often used to locad a marker
+ * param aLayer The layer to test for.
+ * return bool - true if on given layer, else false.
+ */
+bool MARKER_PCB::IsOnLayer( int aLayer ) const
 {
-    frame->ClearMsgPanel();
+    return IsValidCopperLayerIndex( aLayer );
+}
 
+void MARKER_PCB::GetMsgPanelInfo( std::vector< MSG_PANEL_ITEM >& aList )
+{
     const DRC_ITEM& rpt = m_drc;
 
-    frame->AppendMsgPanel( _( "Type" ), _( "Marker" ), DARKCYAN );
+    aList.push_back( MSG_PANEL_ITEM( _( "Type" ), _( "Marker" ), DARKCYAN ) );
 
     wxString errorTxt;
 
     errorTxt << _( "ErrType" ) << wxT( "(" ) << rpt.GetErrorCode() << wxT( ")-  " )
              << rpt.GetErrorText() << wxT( ":" );
 
-    frame->AppendMsgPanel( errorTxt, wxEmptyString, RED );
+    aList.push_back( MSG_PANEL_ITEM( errorTxt, wxEmptyString, RED ) );
 
     wxString txtA;
     txtA << DRC_ITEM::ShowCoord( rpt.GetPointA() ) << wxT( ": " ) << rpt.GetTextA();
@@ -76,29 +112,16 @@ void MARKER_PCB::DisplayInfo( EDA_DRAW_FRAME* frame )
     if ( rpt.HasSecondItem() )
         txtB << DRC_ITEM::ShowCoord( rpt.GetPointB() ) << wxT( ": " ) << rpt.GetTextB();
 
-    frame->AppendMsgPanel( txtA, txtB, DARKBROWN );
+    aList.push_back( MSG_PANEL_ITEM( txtA, txtB, DARKBROWN ) );
 }
 
 
-/**
- * Function Rotate
- * Rotate this object.
- * @param aRotCentre - the rotation point.
- * @param aAngle - the rotation angle in 0.1 degree.
- */
-void MARKER_PCB::Rotate(const wxPoint& aRotCentre, int aAngle)
+void MARKER_PCB::Rotate(const wxPoint& aRotCentre, double aAngle)
 {
     RotatePoint( &m_Pos, aRotCentre, aAngle );
 }
 
 
-/**
- * Function Flip
- * Flip this object, i.e. change the board side for this object
- * this function has not really sense for a marker.
- * It moves just the marker to keep its position on board, when the board is flipped
- * @param aCentre - the rotation point.
- */
 void MARKER_PCB::Flip(const wxPoint& aCentre )
 {
     m_Pos.y  = aCentre.y - (m_Pos.y - aCentre.y);

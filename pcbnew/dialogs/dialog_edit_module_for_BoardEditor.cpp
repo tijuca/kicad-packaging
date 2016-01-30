@@ -2,21 +2,49 @@
  * Module editor: Dialog box for editing module properties in the pcb editor. *
  ******************************************************************************/
 
-#include "fctsys.h"
-#include "gr_basic.h"
-#include "class_drawpanel.h"
-#include "confirm.h"
-#include "pcbnew.h"
-#include "appl_wxstruct.h"
-#include "gestfich.h"
-#include "3d_struct.h"
-#include "3d_viewer.h"
-#include "wxPcbStruct.h"
+/*
+ * This program source code file is part of KiCad, a free EDA CAD application.
+ *
+ * Copyright (C) 2011 Jean-Pierre Charras
+ * Copyright (C) 2012 Dick Hollenbeck, dick@softplc.com
+ * Copyright (C) 2004-2011 KiCad Developers, see change_log.txt for contributors.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation; either version 2
+ * of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, you may find one here:
+ * http://www.gnu.org/licenses/old-licenses/gpl-2.0.html
+ * or you may search the http://www.gnu.org website for the version 2 license,
+ * or you may write to the Free Software Foundation, Inc.,
+ * 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
+ */
 
-#include "class_module.h"
-#include "class_text_mod.h"
 
-#include "dialog_edit_module_for_BoardEditor.h"
+#include <fctsys.h>
+#include <gr_basic.h>
+#include <class_drawpanel.h>
+#include <confirm.h>
+#include <pcbnew.h>
+#include <appl_wxstruct.h>
+#include <gestfich.h>
+#include <3d_struct.h>
+#include <3d_viewer.h>
+#include <wxPcbStruct.h>
+#include <base_units.h>
+
+#include <class_module.h>
+#include <class_text_mod.h>
+
+#include <dialog_edit_module_for_BoardEditor.h>
+#include <wildcards_and_files_ext.h>
 
 
 DIALOG_MODULE_BOARD_EDITOR::DIALOG_MODULE_BOARD_EDITOR( PCB_EDIT_FRAME*  aParent,
@@ -37,7 +65,6 @@ DIALOG_MODULE_BOARD_EDITOR::DIALOG_MODULE_BOARD_EDITOR( PCB_EDIT_FRAME*  aParent
     InitBoardProperties();
 
     m_sdbSizerStdButtonsOK->SetDefault();
-    GetSizer()->Fit( this );
     GetSizer()->SetSizeHints( this );
     Centre();
 }
@@ -61,19 +88,17 @@ DIALOG_MODULE_BOARD_EDITOR::~DIALOG_MODULE_BOARD_EDITOR()
 /* Creation of the panel properties of the module editor. */
 void DIALOG_MODULE_BOARD_EDITOR::InitBoardProperties()
 {
-    PutValueInLocalUnits( *m_ModPositionX,
-                          m_CurrentModule->GetPosition().x, PCB_INTERNAL_UNIT );
-    AddUnitSymbol( *XPositionStatic, g_UserUnit );
+    PutValueInLocalUnits( *m_ModPositionX, m_CurrentModule->GetPosition().x );
+    m_XPosUnit->SetLabel( GetAbbreviatedUnitsLabel( g_UserUnit ) );
 
-    PutValueInLocalUnits( *m_ModPositionY,
-                          m_CurrentModule->GetPosition().y, PCB_INTERNAL_UNIT );
-    AddUnitSymbol( *YPositionStatic, g_UserUnit );
+    PutValueInLocalUnits( *m_ModPositionY, m_CurrentModule->GetPosition().y );
+    m_YPosUnit->SetLabel( GetAbbreviatedUnitsLabel( g_UserUnit ) );
 
     m_LayerCtrl->SetSelection(
          (m_CurrentModule->GetLayer() == LAYER_N_BACK) ? 1 : 0 );
 
-    bool select = FALSE;
-    switch( m_CurrentModule->m_Orient )
+    bool select = false;
+    switch( (int) m_CurrentModule->GetOrientation() )
     {
     case 0:
         m_OrientCtrl->SetSelection( 0 );
@@ -96,7 +121,7 @@ void DIALOG_MODULE_BOARD_EDITOR::InitBoardProperties()
 
     default:
         m_OrientCtrl->SetSelection( 4 );
-        select = TRUE;
+        select = true;
         break;
     }
 
@@ -106,32 +131,51 @@ void DIALOG_MODULE_BOARD_EDITOR::InitBoardProperties()
     m_OrientValue->Enable( select );
 
     // Initialize dialog relative to masks clearances
-    m_NetClearanceUnits->SetLabel( GetUnitsLabel( g_UserUnit ) );
-    m_SolderMaskMarginUnits->SetLabel( GetUnitsLabel( g_UserUnit ) );
-    m_SolderPasteMarginUnits->SetLabel( GetUnitsLabel( g_UserUnit ) );
+    m_NetClearanceUnits->SetLabel( GetAbbreviatedUnitsLabel( g_UserUnit ) );
+    m_SolderMaskMarginUnits->SetLabel( GetAbbreviatedUnitsLabel( g_UserUnit ) );
+    m_SolderPasteMarginUnits->SetLabel( GetAbbreviatedUnitsLabel( g_UserUnit ) );
 
-    int internalUnit = m_Parent->m_InternalUnits;
-    PutValueInLocalUnits( *m_NetClearanceValueCtrl,
-                          m_CurrentModule->m_LocalClearance, internalUnit );
-    PutValueInLocalUnits( *m_SolderMaskMarginCtrl,
-                          m_CurrentModule->m_LocalSolderMaskMargin,
-                          internalUnit );
+    PutValueInLocalUnits( *m_NetClearanceValueCtrl, m_CurrentModule->GetLocalClearance() );
+    PutValueInLocalUnits( *m_SolderMaskMarginCtrl, m_CurrentModule->GetLocalSolderMaskMargin() );
 
     // These 2 parameters are usually < 0, so prepare entering a negative
     // value, if current is 0
-    PutValueInLocalUnits( *m_SolderPasteMarginCtrl,
-                          m_CurrentModule->m_LocalSolderPasteMargin,
-                          internalUnit );
-    if( m_CurrentModule->m_LocalSolderPasteMargin == 0 )
+    PutValueInLocalUnits( *m_SolderPasteMarginCtrl, m_CurrentModule->GetLocalSolderPasteMargin() );
+
+    if( m_CurrentModule->GetLocalSolderPasteMargin() == 0 )
         m_SolderPasteMarginCtrl->SetValue( wxT( "-" ) +
                                            m_SolderPasteMarginCtrl->GetValue() );
-    msg.Printf( wxT( "%.1f" ),
-                    m_CurrentModule->m_LocalSolderPasteMarginRatio * 100.0 );
-    if( m_CurrentModule->m_LocalSolderPasteMarginRatio == 0.0 &&
-        msg[0] == '0')  // Sometimes Printf add a sign if the value is small
+
+    // Add solder paste margin ration in per cent
+    // for the usual default value 0.0, display -0.0 (or -0,0 in some countries)
+    msg.Printf( wxT( "%f" ),
+                    m_CurrentModule->GetLocalSolderPasteMarginRatio() * 100.0 );
+
+    if( m_CurrentModule->GetLocalSolderPasteMarginRatio() == 0.0 &&
+        msg[0] == '0')  // Sometimes Printf adds a sign if the value is very small (0.0)
         m_SolderPasteMarginRatioCtrl->SetValue( wxT("-") + msg );
     else
         m_SolderPasteMarginRatioCtrl->SetValue( msg );
+
+    switch( m_CurrentModule->GetZoneConnection() )
+    {
+    default:
+    case UNDEFINED_CONNECTION:
+        m_ZoneConnectionChoice->SetSelection( 0 );
+        break;
+
+    case PAD_IN_ZONE:
+        m_ZoneConnectionChoice->SetSelection( 1 );
+        break;
+
+    case THERMAL_PAD:
+        m_ZoneConnectionChoice->SetSelection( 2 );
+        break;
+
+    case PAD_NOT_IN_ZONE:
+        m_ZoneConnectionChoice->SetSelection( 3 );
+        break;
+    }
 }
 
 
@@ -143,10 +187,9 @@ void DIALOG_MODULE_BOARD_EDITOR::OnCancelClick( wxCommandEvent& event )
 
 void DIALOG_MODULE_BOARD_EDITOR::GotoModuleEditor( wxCommandEvent& event )
 {
-    if( m_CurrentModule->m_TimeStamp == 0 )    // Module Editor needs a non
-                                               // null timestamp
+    if( m_CurrentModule->GetTimeStamp() == 0 )    // Module Editor needs a non null timestamp
     {
-        m_CurrentModule->m_TimeStamp = GetTimeStamp();
+        m_CurrentModule->SetTimeStamp( GetNewTimeStamp() );
         m_Parent->OnModify();
     }
 
@@ -169,27 +212,27 @@ void DIALOG_MODULE_BOARD_EDITOR::ModuleOrientEvent( wxCommandEvent& event )
     switch( m_OrientCtrl->GetSelection() )
     {
     case 0:
-        m_OrientValue->Enable( FALSE );
+        m_OrientValue->Enable( false );
         m_OrientValue->SetValue( wxT( "0" ) );
         break;
 
     case 1:
-        m_OrientValue->Enable( FALSE );
+        m_OrientValue->Enable( false );
         m_OrientValue->SetValue( wxT( "900" ) );
         break;
 
     case 2:
-        m_OrientValue->Enable( FALSE );
+        m_OrientValue->Enable( false );
         m_OrientValue->SetValue( wxT( "2700" ) );
         break;
 
     case 3:
-        m_OrientValue->Enable( FALSE );
+        m_OrientValue->Enable( false );
         m_OrientValue->SetValue( wxT( "1800" ) );
         break;
 
     default:
-        m_OrientValue->Enable( TRUE );
+        m_OrientValue->Enable( true );
         break;
     }
 }
@@ -223,15 +266,12 @@ void DIALOG_MODULE_BOARD_EDITOR::InitModeditProperties()
     m_ReferenceCtrl->SetValue( m_ReferenceCopy->m_Text );
     m_ValueCtrl->SetValue( m_ValueCopy->m_Text );
 
-
-#if wxCHECK_VERSION( 2, 8, 0 )
     m_AttributsCtrl->SetItemToolTip( 0,
                                     _( "Use this attribute for most non smd components" ) );
     m_AttributsCtrl->SetItemToolTip( 1,
                                     _( "Use this attribute for smd components.\nOnly components with this option are put in the footprint position list file" ) );
     m_AttributsCtrl->SetItemToolTip( 2,
                                     _( "Use this attribute for \"virtual\" components drawn on board (like a old ISA PC bus connector)" ) );
-#endif
 
     /* Controls on right side of the dialog */
     switch( m_CurrentModule->m_Attributs & 255 )
@@ -255,12 +295,12 @@ void DIALOG_MODULE_BOARD_EDITOR::InitModeditProperties()
 
     m_AutoPlaceCtrl->SetSelection(
         (m_CurrentModule->m_ModuleStatus & MODULE_is_LOCKED) ? 1 : 0 );
-#if wxCHECK_VERSION( 2, 8, 0 )
+
     m_AutoPlaceCtrl->SetItemToolTip( 0,
                                     _( "Enable hotkey move commands and Auto Placement" ) );
     m_AutoPlaceCtrl->SetItemToolTip( 1,
                                     _( "Disable hotkey move commands and Auto Placement" ) );
-#endif
+
     m_CostRot90Ctrl->SetValue( m_CurrentModule->m_CntRot90 );
 
     m_CostRot180Ctrl->SetValue( m_CurrentModule->m_CntRot180 );
@@ -268,18 +308,16 @@ void DIALOG_MODULE_BOARD_EDITOR::InitModeditProperties()
     // Initialize 3D parameters
 
     wxBoxSizer* BoxSizer = new wxBoxSizer( wxVERTICAL );
-    m_3D_Scale = new WinEDA_VertexCtrl( m_Panel3D, _( "Shape Scale:" ),
-                                        BoxSizer, UNSCALED_UNITS, 1 );
+    m_3D_Scale = new VERTEX_VALUE_CTRL( m_Panel3D, _( "Shape Scale:" ), BoxSizer );
     m_Sizer3DValues->Add( BoxSizer, 0, wxGROW | wxALL, 5 );
 
     BoxSizer    = new wxBoxSizer( wxVERTICAL );
-    m_3D_Offset = new WinEDA_VertexCtrl( m_Panel3D, _( "Shape Offset:" ),
-                                         BoxSizer, UNSCALED_UNITS, 1 );
+    m_3D_Offset = new VERTEX_VALUE_CTRL( m_Panel3D, _( "Shape Offset (inch):" ), BoxSizer );
     m_Sizer3DValues->Add( BoxSizer, 0, wxGROW | wxALL, 5 );
 
     BoxSizer = new wxBoxSizer( wxVERTICAL );
-    m_3D_Rotation = new WinEDA_VertexCtrl( m_Panel3D, _( "Shape Rotation:" ),
-                                           BoxSizer, UNSCALED_UNITS, 1 );
+    m_3D_Rotation = new VERTEX_VALUE_CTRL( m_Panel3D,
+                                           _( "Shape Rotation (degrees):" ), BoxSizer );
     m_Sizer3DValues->Add( BoxSizer, 0, wxGROW | wxALL, 5 );
 
     // if m_3D_ShapeNameListBox is not empty, preselect first 3D shape
@@ -289,6 +327,10 @@ void DIALOG_MODULE_BOARD_EDITOR::InitModeditProperties()
         m_3D_ShapeNameListBox->SetSelection( m_LastSelected3DShapeIndex );
         Transfert3DValuesToDisplay( m_Shapes3D_list[m_LastSelected3DShapeIndex] );
     }
+
+    // We have modified the UI, so call Fit() for m_Panel3D
+    // to be sure the m_Panel3D sizers are initiliazed before opening the dialog
+    m_Panel3D->GetSizer()->Fit( m_Panel3D );
 }
 
 
@@ -307,7 +349,7 @@ void DIALOG_MODULE_BOARD_EDITOR::Transfert3DValuesToDisplay(
     }
     else
     {
-        S3D_Vertex dummy_vertex;
+        S3D_VERTEX dummy_vertex;
         dummy_vertex.x = dummy_vertex.y = dummy_vertex.z = 1.0;
         m_3D_Scale->SetValue( dummy_vertex );
     }
@@ -385,21 +427,19 @@ void DIALOG_MODULE_BOARD_EDITOR::Browse3DLib( wxCommandEvent& event )
 {
     wxString fullfilename, shortfilename;
     wxString fullpath;
-    wxString mask = wxT( "*" );
 
     fullpath = wxGetApp().ReturnLastVisitedLibraryPath( LIB3D_PATH );
-    mask    += g_Shapes3DExtBuffer;
 #ifdef __WINDOWS__
     fullpath.Replace( wxT( "/" ), wxT( "\\" ) );
 #endif
     fullfilename = EDA_FileSelector( _( "3D Shape:" ),
                                      fullpath,
                                      wxEmptyString,
-                                     g_Shapes3DExtBuffer,
-                                     mask,
+                                     VrmlFileExtension,
+                                     wxGetTranslation( VrmlFileWildcard ),
                                      this,
                                      wxFD_OPEN,
-                                     TRUE
+                                     true
                                      );
 
     if( fullfilename == wxEmptyString )
@@ -434,6 +474,10 @@ void DIALOG_MODULE_BOARD_EDITOR::Browse3DLib( wxCommandEvent& event )
     }
 
     S3D_MASTER* new3DShape = new S3D_MASTER( NULL );
+#ifdef __WINDOWS__
+    // Store filename in Unix notation
+    shortfilename.Replace( wxT( "\\" ), wxT( "/" ) );
+#endif
     new3DShape->m_Shape3DName = shortfilename;
     m_Shapes3D_list.push_back( new3DShape );
     m_3D_ShapeNameListBox->Append( shortfilename );
@@ -452,40 +496,62 @@ void DIALOG_MODULE_BOARD_EDITOR::OnOkClick( wxCommandEvent& event )
     wxPoint  modpos;
     wxString msg;
 
-    if( m_CurrentModule->m_Flags == 0 )       // this is a simple edition, we
+    if( m_CurrentModule->GetFlags() == 0 )    // this is a simple edition, we
                                               // must create an undo entry
         m_Parent->SaveCopyInUndoList( m_CurrentModule, UR_CHANGED );
 
     if( m_DC )
     {
-        m_Parent->DrawPanel->CrossHairOff( m_DC );
-        m_CurrentModule->Draw( m_Parent->DrawPanel, m_DC, GR_XOR );
+        m_Parent->GetCanvas()->CrossHairOff( m_DC );
+        m_CurrentModule->Draw( m_Parent->GetCanvas(), m_DC, GR_XOR );
     }
 
+    // Init Fields (should be first, because they can be moved or/and flipped later):
+    m_CurrentModule->m_Reference->Copy( m_ReferenceCopy );
+    m_CurrentModule->m_Value->Copy( m_ValueCopy );
+
     // Initialize masks clearances
-    m_CurrentModule->m_LocalClearance =
-        ReturnValueFromTextCtrl( *m_NetClearanceValueCtrl, m_Parent->m_InternalUnits );
-    m_CurrentModule->m_LocalSolderMaskMargin =
-        ReturnValueFromTextCtrl( *m_SolderMaskMarginCtrl, m_Parent->m_InternalUnits );
-    m_CurrentModule->m_LocalSolderPasteMargin =
-        ReturnValueFromTextCtrl( *m_SolderPasteMarginCtrl, m_Parent->m_InternalUnits );
+    m_CurrentModule->SetLocalClearance( ReturnValueFromTextCtrl( *m_NetClearanceValueCtrl ) );
+    m_CurrentModule->SetLocalSolderMaskMargin( ReturnValueFromTextCtrl( *m_SolderMaskMarginCtrl ) );
+    m_CurrentModule->SetLocalSolderPasteMargin( ReturnValueFromTextCtrl( *m_SolderPasteMarginCtrl ) );
 
     double dtmp = 0.0;
     msg = m_SolderPasteMarginRatioCtrl->GetValue();
     msg.ToDouble( &dtmp );
 
-    // A  -50% margin ratio means no paste on a pad, the ratio must be >= -50 %
+    // A -50% margin ratio means no paste on a pad, the ratio must be >= -50%
     if( dtmp < -50.0 )
         dtmp = -50.0;
     // A margin ratio is always <= 0
+    // 0 means use full pad copper area
     if( dtmp > 0.0 )
         dtmp = 0.0;
 
-    m_CurrentModule->m_LocalSolderPasteMarginRatio = dtmp / 100;
+    m_CurrentModule->SetLocalSolderPasteMarginRatio( dtmp / 100 );
+
+    switch( m_ZoneConnectionChoice->GetSelection() )
+    {
+    default:
+    case 0:
+        m_CurrentModule->SetZoneConnection( UNDEFINED_CONNECTION );
+        break;
+
+    case 1:
+        m_CurrentModule->SetZoneConnection( PAD_IN_ZONE );
+        break;
+
+    case 2:
+        m_CurrentModule->SetZoneConnection( THERMAL_PAD );
+        break;
+
+    case 3:
+        m_CurrentModule->SetZoneConnection( PAD_NOT_IN_ZONE );
+        break;
+    }
 
     // Set Module Position
-    modpos.x = ReturnValueFromTextCtrl( *m_ModPositionX, PCB_INTERNAL_UNIT );
-    modpos.y = ReturnValueFromTextCtrl( *m_ModPositionY, PCB_INTERNAL_UNIT );
+    modpos.x = ReturnValueFromTextCtrl( *m_ModPositionX );
+    modpos.y = ReturnValueFromTextCtrl( *m_ModPositionY );
     m_CurrentModule->SetPosition( modpos );
 
     if( m_AutoPlaceCtrl->GetSelection() == 1 )
@@ -511,10 +577,6 @@ void DIALOG_MODULE_BOARD_EDITOR::OnOkClick( wxCommandEvent& event )
     m_CurrentModule->m_CntRot90  = m_CostRot90Ctrl->GetValue();
     m_CurrentModule->m_CntRot180 = m_CostRot180Ctrl->GetValue();
 
-    // Init Fields:
-    m_CurrentModule->m_Reference->Copy( m_ReferenceCopy );
-    m_CurrentModule->m_Value->Copy( m_ValueCopy );
-
     /* Now, set orientation. must be made after others changes,
      * because rotation changes fields positions on board according to the new orientation
      * (relative positions are not modified)
@@ -522,33 +584,39 @@ void DIALOG_MODULE_BOARD_EDITOR::OnOkClick( wxCommandEvent& event )
     long orient = 0;
     msg = m_OrientValue->GetValue();
     msg.ToLong( &orient );
+
     if( m_CurrentModule->m_Orient != orient )
         m_CurrentModule->Rotate( m_CurrentModule->m_Pos,
                                  orient - m_CurrentModule->m_Orient );
 
     // Set component side, that also have effect on the fields positions on board
-    bool change_layer = FALSE;
+    bool change_layer = false;
     if( m_LayerCtrl->GetSelection() == 0 )     // layer req = COMPONENT
     {
         if( m_CurrentModule->GetLayer() == LAYER_N_BACK )
-            change_layer = TRUE;
+            change_layer = true;
     }
     else if( m_CurrentModule->GetLayer() == LAYER_N_FRONT )
-        change_layer = TRUE;
+        change_layer = true;
 
     if( change_layer )
         m_CurrentModule->Flip( m_CurrentModule->m_Pos );
 
     /* Update 3D shape list */
     int         ii = m_3D_ShapeNameListBox->GetSelection();
+
     if( ii >= 0 )
         TransfertDisplayTo3DValues( ii  );
+
     S3D_MASTER* draw3D = m_CurrentModule->m_3D_Drawings;
+
     for( unsigned ii = 0; ii < m_Shapes3D_list.size(); ii++ )
     {
         S3D_MASTER* draw3DCopy = m_Shapes3D_list[ii];
+
         if( draw3DCopy->m_Shape3DName.IsEmpty() )
             continue;
+
         if( draw3D == NULL )
         {
             draw3D = new S3D_MASTER( draw3D );
@@ -565,6 +633,7 @@ void DIALOG_MODULE_BOARD_EDITOR::OnOkClick( wxCommandEvent& event )
 
     // Remove old extra 3D shapes
     S3D_MASTER* nextdraw3D;
+
     for( ; draw3D != NULL; draw3D = nextdraw3D )
     {
         nextdraw3D = (S3D_MASTER*) draw3D->Next();
@@ -584,8 +653,8 @@ void DIALOG_MODULE_BOARD_EDITOR::OnOkClick( wxCommandEvent& event )
 
     if( m_DC )
     {
-        m_CurrentModule->Draw( m_Parent->DrawPanel, m_DC, GR_OR );
-        m_Parent->DrawPanel->CrossHairOn( m_DC );
+        m_CurrentModule->Draw( m_Parent->GetCanvas(), m_DC, GR_OR );
+        m_Parent->GetCanvas()->CrossHairOn( m_DC );
     }
 }
 

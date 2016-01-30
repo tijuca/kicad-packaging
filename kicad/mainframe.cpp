@@ -3,40 +3,64 @@
  * @brief KICAD_MANAGER_FRAME is the KiCad main frame.
  */
 
-#ifdef __GNUG__
-#pragma implementation
-#endif
+/*
+ * This program source code file is part of KiCad, a free EDA CAD application.
+ *
+ * Copyright (C) 2012 Jean-Pierre Charras, jaen-pierre.charras@gipsa-lab.inpg.com
+ * Copyright (C) 2013 CERN (www.cern.ch)
+ * Copyright (C) 2004-2012 KiCad Developers, see change_log.txt for contributors.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation; either version 2
+ * of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, you may find one here:
+ * http://www.gnu.org/licenses/old-licenses/gpl-2.0.html
+ * or you may search the http://www.gnu.org website for the version 2 license,
+ * or you may write to the Free Software Foundation, Inc.,
+ * 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
+ */
 
-#include "fctsys.h"
-#include "appl_wxstruct.h"
-#include "confirm.h"
-#include "gestfich.h"
-#include "macros.h"
+#include <fctsys.h>
+#include <appl_wxstruct.h>
+#include <confirm.h>
+#include <gestfich.h>
 
-#include "kicad.h"
-#include "tree_project_frame.h"
+#include <kicad.h>
+#include <tree_project_frame.h>
+#include <wildcards_and_files_ext.h>
+#include <menus_helpers.h>
 
 
 static const wxString TreeFrameWidthEntry( wxT( "LeftWinWidth" ) );
 
+#define KICAD_MANAGER_FRAME_NAME wxT( "KicadFrame" )
 
 KICAD_MANAGER_FRAME::KICAD_MANAGER_FRAME( wxWindow*       parent,
                                           const wxString& title,
                                           const wxPoint&  pos,
                                           const wxSize&   size ) :
-    EDA_BASE_FRAME( parent, KICAD_MAIN_FRAME, title, pos, size )
+    EDA_BASE_FRAME( parent, KICAD_MAIN_FRAME_TYPE, title, pos, size,
+                    KICAD_DEFAULT_DRAWFRAME_STYLE, KICAD_MANAGER_FRAME_NAME )
 {
     wxString msg;
     wxString line;
     wxSize   clientsize;
 
-    m_FrameName            = wxT( "KicadFrame" );
+    m_FrameName            = KICAD_MANAGER_FRAME_NAME;
     m_VToolBar             = NULL;              // No Vertical tooolbar used here
     m_LeftWin              = NULL;              // A shashwindow that contains the project tree
     m_RightWin             = NULL;              /* A shashwindow that contains the buttons
                                                  *  and the window display text
                                                  */
-    m_LeftWin_Width        = MAX( 60, GetSize().x/3 );
+    m_LeftWin_Width        = std::max( 60, GetSize().x/3 );
 
     LoadSettings();
 
@@ -66,6 +90,7 @@ KICAD_MANAGER_FRAME::KICAD_MANAGER_FRAME( wxWindow*       parent,
     PrintMsg( line );
 
     RecreateBaseHToolbar();
+    ReCreateMenuBar();
 
     m_auimgr.SetManagedWindow( this );
 
@@ -75,9 +100,9 @@ KICAD_MANAGER_FRAME::KICAD_MANAGER_FRAME( wxWindow*       parent,
     EDA_PANEINFO info;
     info.InfoToolbarPane();
 
-    if( m_HToolBar )
-        m_auimgr.AddPane( m_HToolBar,
-                          wxAuiPaneInfo( horiz ).Name( wxT( "m_HToolBar" ) ).Top().Layer( 1 ) );
+    if( m_mainToolBar )
+        m_auimgr.AddPane( m_mainToolBar,
+                          wxAuiPaneInfo( horiz ).Name( wxT( "m_mainToolBar" ) ).Top().Layer( 1 ) );
 
     if( m_RightWin )
         m_auimgr.AddPane( m_RightWin,
@@ -142,12 +167,12 @@ void KICAD_MANAGER_FRAME::OnCloseWindow( wxCloseEvent& Event )
     SaveSettings();
 
     // Close the help frame
-    if( wxGetApp().m_HtmlCtrl )
+    if( wxGetApp().GetHtmlHelpController() )
     {
-        if( wxGetApp().m_HtmlCtrl->GetFrame() )  // returns NULL if no help frame active
-            wxGetApp().m_HtmlCtrl->GetFrame()->Close( true );
+        if( wxGetApp().GetHtmlHelpController()->GetFrame() ) // returns NULL if no help frame active
+            wxGetApp().GetHtmlHelpController()->GetFrame()->Close( true );
 
-        wxGetApp().m_HtmlCtrl = NULL;
+        wxGetApp().SetHtmlHelpController( NULL );
     }
 
     m_LeftWin->Show( false );
@@ -162,24 +187,66 @@ void KICAD_MANAGER_FRAME::OnExit( wxCommandEvent& event )
 }
 
 
+void KICAD_MANAGER_FRAME::PROCESS_TERMINATE_EVENT_HANDLER::
+                        OnTerminate( int pid, int status )
+{
+
+    wxString msg;
+
+    msg.Printf( appName + _( " closed [pid=%d]\n" ), pid );
+    ( (KICAD_MANAGER_FRAME*) wxGetApp().GetTopWindow() )->PrintMsg( msg );
+
+    delete this;
+}
+
+
+void KICAD_MANAGER_FRAME::Execute( wxWindow* frame, const wxString& execFile,
+                                   const wxString& param )
+{
+
+    PROCESS_TERMINATE_EVENT_HANDLER* callback;
+    long pid;
+    wxString msg;
+
+    callback = new PROCESS_TERMINATE_EVENT_HANDLER( execFile );
+    pid = ExecuteFile( frame, execFile, param, callback );
+
+    if( pid > 0 )
+    {
+        msg.Printf( execFile + _( " opened [pid=%ld]\n" ), pid );
+        PrintMsg( msg );
+    }
+    else
+    {
+        delete callback;
+    }
+}
+
+
 void KICAD_MANAGER_FRAME::OnRunBitmapConverter( wxCommandEvent& event )
 {
-    ExecuteFile( this, BITMAPCONVERTER_EXE, wxEmptyString );
+    Execute( this, BITMAPCONVERTER_EXE );
 }
 
 
 void KICAD_MANAGER_FRAME::OnRunPcbCalculator( wxCommandEvent& event )
 {
-    ExecuteFile( this, PCB_CALCULATOR_EXE, wxEmptyString );
+    Execute( this, PCB_CALCULATOR_EXE );
 }
 
 
 void KICAD_MANAGER_FRAME::OnRunPcbNew( wxCommandEvent& event )
 {
-    wxFileName fn( m_ProjectFileName );
+    wxFileName  legacy_board( m_ProjectFileName );
+    wxFileName  kicad_board( m_ProjectFileName );
 
-    fn.SetExt( PcbFileExtension );
-    ExecuteFile( this, PCBNEW_EXE, QuoteFullPath( fn ) );
+    legacy_board.SetExt( LegacyPcbFileExtension );
+    kicad_board.SetExt( KiCadPcbFileExtension );
+
+    if( !legacy_board.FileExists() || kicad_board.FileExists() )
+        Execute( this, PCBNEW_EXE, QuoteFullPath( kicad_board ) );
+    else
+        Execute( this, PCBNEW_EXE, QuoteFullPath( legacy_board ) );
 }
 
 
@@ -188,18 +255,17 @@ void KICAD_MANAGER_FRAME::OnRunCvpcb( wxCommandEvent& event )
     wxFileName fn( m_ProjectFileName );
 
     fn.SetExt( NetlistFileExtension );
-    ExecuteFile( this, CVPCB_EXE, QuoteFullPath( fn ) );
+    Execute( this, CVPCB_EXE, QuoteFullPath( fn ) );
 }
-
 
 void KICAD_MANAGER_FRAME::OnRunEeschema( wxCommandEvent& event )
 {
     wxFileName fn( m_ProjectFileName );
 
     fn.SetExt( SchematicFileExtension );
-    ExecuteFile( this, EESCHEMA_EXE, QuoteFullPath( fn ) );
-}
+    Execute( this, EESCHEMA_EXE, QuoteFullPath( fn ) );
 
+}
 
 void KICAD_MANAGER_FRAME::OnRunGerbview( wxCommandEvent& event )
 {
@@ -207,7 +273,7 @@ void KICAD_MANAGER_FRAME::OnRunGerbview( wxCommandEvent& event )
     wxString path = wxT( "\"" );
     path += fn.GetPath( wxPATH_GET_SEPARATOR | wxPATH_GET_VOLUME ) + wxT( "\"" );
 
-    ExecuteFile( this, GERBVIEW_EXE, path );
+    Execute( this, GERBVIEW_EXE, path );
 }
 
 
@@ -216,7 +282,7 @@ void KICAD_MANAGER_FRAME::OnOpenTextEditor( wxCommandEvent& event )
     wxString editorname = wxGetApp().GetEditorName();
 
     if( !editorname.IsEmpty() )
-        ExecuteFile( this, editorname, wxEmptyString );
+        Execute( this, editorname, wxEmptyString );
 }
 
 
@@ -229,8 +295,9 @@ void KICAD_MANAGER_FRAME::OnOpenFileInTextEditor( wxCommandEvent& event )
 #endif
 
     mask = _( "Text file (" ) + mask + wxT( ")|" ) + mask;
+    wxString default_dir = wxGetCwd();
 
-    wxFileDialog dlg( this, _( "Load File to Edit" ), wxGetCwd(),
+    wxFileDialog dlg( this, _( "Load File to Edit" ), default_dir,
                       wxEmptyString, mask, wxFD_OPEN );
 
     if( dlg.ShowModal() == wxID_CANCEL )
@@ -240,7 +307,7 @@ void KICAD_MANAGER_FRAME::OnOpenFileInTextEditor( wxCommandEvent& event )
     filename += dlg.GetPath() + wxT( "\"" );
 
     if( !dlg.GetPath().IsEmpty() &&  !wxGetApp().GetEditorName().IsEmpty() )
-        ExecuteFile( this, wxGetApp().GetEditorName(), filename );
+        Execute( this, wxGetApp().GetEditorName(), filename );
 }
 
 
@@ -258,9 +325,9 @@ void KICAD_MANAGER_FRAME::ClearMsg()
 
 void KICAD_MANAGER_FRAME::LoadSettings()
 {
-    wxASSERT( wxGetApp().m_EDA_Config != NULL );
+    wxASSERT( wxGetApp().GetSettings() != NULL );
 
-    wxConfig* cfg = wxGetApp().m_EDA_Config;
+    wxConfig* cfg = wxGetApp().GetSettings();
 
     EDA_BASE_FRAME::LoadSettings();
     cfg->Read( TreeFrameWidthEntry, &m_LeftWin_Width );
@@ -269,9 +336,9 @@ void KICAD_MANAGER_FRAME::LoadSettings()
 
 void KICAD_MANAGER_FRAME::SaveSettings()
 {
-    wxASSERT( wxGetApp().m_EDA_Config != NULL );
+    wxASSERT( wxGetApp().GetSettings() != NULL );
 
-    wxConfig* cfg = wxGetApp().m_EDA_Config;
+    wxConfig* cfg = wxGetApp().GetSettings();
 
     EDA_BASE_FRAME::SaveSettings();
 

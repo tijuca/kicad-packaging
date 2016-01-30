@@ -2,15 +2,15 @@
 /* Set up color Layers for Eeschema
  */
 
-#include "fctsys.h"
-#include "gr_basic.h"
-#include "wxstruct.h"
-#include "class_drawpanel.h"
+#include <fctsys.h>
+#include <gr_basic.h>
+#include <wxstruct.h>
+#include <class_drawpanel.h>
 
-#include "general.h"
-#include "protos.h"
+#include <general.h>
+#include <protos.h>
 
-#include "dialog_color_config.h"
+#include <dialog_color_config.h>
 
 
 #define ID_COLOR_SETUP  1800
@@ -66,7 +66,7 @@ static ButtonIndex buttonGroups[] = {
 };
 
 
-static int currentColors[ MAX_LAYER ];
+static EDA_COLOR_T currentColors[ MAX_LAYER ];
 
 
 IMPLEMENT_DYNAMIC_CLASS( DIALOG_COLOR_CONFIG, wxDialog )
@@ -167,7 +167,7 @@ void DIALOG_COLOR_CONFIG::CreateControls()
             wxBitmap   bitmap( BUTT_SIZE_X, BUTT_SIZE_Y );
 
             iconDC.SelectObject( bitmap );
-            color = currentColors[ buttons->m_Layer ] = g_LayerDescr.LayerColor[ buttons->m_Layer ];
+            color = currentColors[ buttons->m_Layer ] = ReturnLayerColor( buttons->m_Layer );
             iconDC.SetPen( *wxBLACK_PEN );
             wxBrush brush;
             brush.SetColour( ColorRefs[ color ].m_Red,
@@ -253,7 +253,7 @@ void DIALOG_COLOR_CONFIG::SetColor( wxCommandEvent& event )
 
     wxCHECK_RET( colorButton != NULL, wxT( "Client data not set for color button." ) );
 
-    int color = DisplayColorFrame( this, colorButton->m_Layer );
+    EDA_COLOR_T color = DisplayColorFrame( this, colorButton->m_Layer );
 
     if( color < 0 || currentColors[ colorButton->m_Layer ] == color )
         return;
@@ -289,15 +289,18 @@ bool DIALOG_COLOR_CONFIG::UpdateColorsSettings()
         g_DrawBgColor = BLACK;
 
     bool warning = false;
+
     for( int ii = 0;  ii < MAX_LAYERS;  ii++ )
     {
-        g_LayerDescr.LayerColor[ ii ] = currentColors[ ii ];
-        if( g_DrawBgColor == g_LayerDescr.LayerColor[ ii ] )
+        SetLayerColor( currentColors[ ii ], ii );
+
+        if( g_DrawBgColor == ReturnLayerColor( ii ) )
             warning = true;
     }
 
-    m_Parent->SetGridColor( g_LayerDescr.LayerColor[LAYER_GRID] );
-    if( g_DrawBgColor == g_LayerDescr.LayerColor[ LAYER_GRID ] )
+    m_Parent->SetGridColor( ReturnLayerColor( LAYER_GRID ) );
+
+    if( g_DrawBgColor == ReturnLayerColor( LAYER_GRID ) )
         warning = true;
 
     return warning;
@@ -311,11 +314,9 @@ void DIALOG_COLOR_CONFIG::OnOkClick( wxCommandEvent& event )
     // Prompt the user if an item has the same color as the background
     // because this item cannot be seen:
     if( warning )
-        wxMessageBox(
-    _("Warning:\nSome items have the same color as the background\nand they will not be seen on screen")
-                    );
+        wxMessageBox( _("Warning:\nSome items have the same color as the background\nand they will not be seen on screen") );
 
-    m_Parent->DrawPanel->Refresh();
+    m_Parent->GetCanvas()->Refresh();
 
     EndModal( 1 );
 }
@@ -330,36 +331,5 @@ void DIALOG_COLOR_CONFIG::OnCancelClick( wxCommandEvent& event )
 void DIALOG_COLOR_CONFIG::OnApplyClick( wxCommandEvent& event )
 {
     UpdateColorsSettings();
-    m_Parent->DrawPanel->Refresh();
-}
-
-
-void SeedLayers()
-{
-    LayerStruct* LayerPointer = &g_LayerDescr;
-    int          pt;
-
-    LayerPointer->CommonColor = WHITE;
-    LayerPointer->Flags = 0;
-    pt = 0;
-    LayerPointer->CurrentWidth = 1;
-
-    /* seed Up the Layer colours, set all user layers off */
-    for( pt = 0; pt < MAX_LAYERS; pt++ )
-    {
-        LayerPointer->LayerStatus[pt] = 0;
-        LayerPointer->LayerColor[pt]  = DARKGRAY;
-    }
-
-    LayerPointer->NumberOfLayers = pt - 1;
-    /* Specific colors: update by reading the config. */
-}
-
-
-EDA_Colors ReturnLayerColor( int Layer )
-{
-    if( g_LayerDescr.Flags == 0 )
-        return (EDA_Colors) g_LayerDescr.LayerColor[Layer];
-    else
-        return (EDA_Colors) g_LayerDescr.CommonColor;
+    m_Parent->GetCanvas()->Refresh();
 }

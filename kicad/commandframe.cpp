@@ -3,10 +3,36 @@
  * @brief Frame showing fast launch buttons and messages box
  */
 
-#include "fctsys.h"
-#include "macros.h"
+/*
+ * This program source code file is part of KiCad, a free EDA CAD application.
+ *
+ * Copyright (C) 2004-2012 Jean-Pierre Charras
+ * Copyright (C) 2004-2012 KiCad Developers, see change_log.txt for contributors.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation; either version 2
+ * of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, you may find one here:
+ * http://www.gnu.org/licenses/old-licenses/gpl-2.0.html
+ * or you may search the http://www.gnu.org website for the version 2 license,
+ * or you may write to the Free Software Foundation, Inc.,
+ * 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
+ */
 
-#include "kicad.h"
+
+#include <fctsys.h>
+#include <macros.h>
+
+#include <kicad.h>
+#include <menus_helpers.h>
 
 
 RIGHT_KM_FRAME::RIGHT_KM_FRAME( KICAD_MANAGER_FRAME* parent ) :
@@ -14,7 +40,6 @@ RIGHT_KM_FRAME::RIGHT_KM_FRAME( KICAD_MANAGER_FRAME* parent ) :
 {
     m_Parent    = parent;
     m_MessagesBox = NULL;
-    m_ButtPanel = new wxPanel( this, wxID_ANY );
     m_bitmapButtons_maxHeigth = 0;
     m_ButtonSeparation = 10;        // control of command buttons position
     m_ButtonsListPosition.x = m_ButtonSeparation;
@@ -22,8 +47,9 @@ RIGHT_KM_FRAME::RIGHT_KM_FRAME( KICAD_MANAGER_FRAME* parent ) :
     m_ButtonLastPosition    = m_ButtonsListPosition;
 
     // Add bitmap buttons to launch KiCad utilities:
+    m_ButtPanel = new wxPanel( this, wxID_ANY );
     CreateCommandToolbar();
-    m_ButtonsPanelHeight    = m_ButtonsListPosition.y + m_bitmapButtons_maxHeigth + 10;
+    m_ButtonsPanelHeight    = m_ButtonsListPosition.y + m_bitmapButtons_maxHeigth + m_ButtonSeparation;
 
     // Add the wxTextCtrl showing all messages from KiCad:
     m_MessagesBox = new wxTextCtrl( this, wxID_ANY, wxEmptyString,
@@ -35,23 +61,17 @@ RIGHT_KM_FRAME::RIGHT_KM_FRAME( KICAD_MANAGER_FRAME* parent ) :
 void RIGHT_KM_FRAME::OnSize( wxSizeEvent& event )
 {
     #define EXTRA_MARGE 4
-    wxSize  wsize = GetClientSize();
-    wsize.x -= EXTRA_MARGE;
-    wsize.y -= m_ButtonsPanelHeight + EXTRA_MARGE;
-    wxPoint wpos;
-    wpos.x = EXTRA_MARGE / 2;
-    wpos.y = m_ButtonsPanelHeight + (EXTRA_MARGE / 2);
-    if( m_MessagesBox )
-    {
-        m_MessagesBox->SetSize( wsize );
-        m_MessagesBox->SetPosition( wpos );
-    }
+    wxSize  wsize;
+    wsize.x = GetClientSize().x;
 
-    wpos.y = EXTRA_MARGE / 2;
-    m_ButtPanel->SetPosition( wpos );
-    wsize.y -= m_ButtonsPanelHeight - EXTRA_MARGE;
+    // Fix size of buttons area
+    wsize.y = m_ButtonsPanelHeight;
     m_ButtPanel->SetSize( wsize );
-    m_ButtPanel->Refresh();
+
+    // Fix position and size of the message area, below the buttons area
+    wsize.y = GetClientSize().y - m_ButtonsPanelHeight;
+    m_MessagesBox->SetSize( wsize );
+    m_MessagesBox->SetPosition( wxPoint( 0, m_ButtonsPanelHeight ) );
 
     event.Skip();
 }
@@ -88,7 +108,7 @@ void RIGHT_KM_FRAME::CreateCommandToolbar( void )
 Creates a component (for Eeschema) or a footprint (for Pcbnew) that shows a B&W picture"                                                                                     ) );
 
     btn = AddBitmapButton( ID_TO_PCB_CALCULATOR, KiBitmap( icon_pcbcalculator_xpm ) );
-    btn->SetToolTip( _( "Pcb calculator, the Suiss army knife..." ) );
+    btn->SetToolTip( _( "Pcb calculator, the Swiss army knife..." ) );
 }
 
 

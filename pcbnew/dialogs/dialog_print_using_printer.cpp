@@ -3,25 +3,26 @@
 /****************************************/
 
 // Set this to 1 if you want to test PostScript printing under MSW.
-#define wxTEST_POSTSCRIPT_IN_MSW 1
+//#define wxTEST_POSTSCRIPT_IN_MSW 1
 
-#include "fctsys.h"
-#include "appl_wxstruct.h"
-#include "class_drawpanel.h"
-#include "confirm.h"
-#include "wxPcbStruct.h"
+#include <fctsys.h>
+#include <appl_wxstruct.h>
+#include <class_drawpanel.h>
+#include <confirm.h>
+#include <wxPcbStruct.h>
+#include <base_units.h>
 
-#include "printout_controler.h"
-#include "pcbnew.h"
-#include "pcbplot.h"
+#include <printout_controler.h>
+#include <pcbnew.h>
+#include <pcbplot.h>
 
-#include "class_board.h"
+#include <class_board.h>
 
-#include "dialog_print_using_printer_base.h"
+#include <dialog_print_using_printer_base.h>
 
 
-#define WIDTH_MAX_VALUE           1000
-#define WIDTH_MIN_VALUE           1
+#define PEN_WIDTH_MAX_VALUE ( (int)(5 * IU_PER_MM) )
+#define PEN_WIDTH_MIN_VALUE ( (int)(0.005 * IU_PER_MM) )
 
 
 extern int g_DrawDefaultLineThickness;
@@ -42,60 +43,48 @@ static wxPageSetupDialogData* s_pageSetupData = (wxPageSetupDialogData*) NULL;
 static PRINT_PARAMETERS  s_Parameters;
 
 
-/* Dialog to print schematic. Class derived from DIALOG_PRINT_USING_PRINTER_base
+/**
+ * Dialog to print schematic. Class derived from DIALOG_PRINT_USING_PRINTER_base
  *  created by wxFormBuilder
  */
 class DIALOG_PRINT_USING_PRINTER : public DIALOG_PRINT_USING_PRINTER_base
 {
-private:
-    PCB_EDIT_FRAME* m_Parent;
-    wxConfig*       m_Config;
-    wxCheckBox*     m_BoxSelectLayer[32];
-    static bool     m_ExcludeEdgeLayer;
-    static wxPoint  s_LastPos;
-    static wxSize   s_LastSize;
-
 public:
     DIALOG_PRINT_USING_PRINTER( PCB_EDIT_FRAME* parent );
-    ~DIALOG_PRINT_USING_PRINTER() {};
+
+    bool IsMirrored() { return m_Print_Mirror->IsChecked(); }
+    bool ExcludeEdges() { return m_Exclude_Edges_Pcb->IsChecked(); }
+    bool PrintUsingSinglePage() { return m_PagesOption->GetSelection(); }
+    int SetLayerMaskFromListSelection();
+
 
 private:
+
+    PCB_EDIT_FRAME* m_parent;
+    wxConfig*       m_config;
+    wxCheckBox*     m_BoxSelectLayer[32];
+    static bool     m_ExcludeEdgeLayer;
+
     void OnCloseWindow( wxCloseEvent& event );
     void OnPageSetup( wxCommandEvent& event );
     void OnPrintPreview( wxCommandEvent& event );
     void OnPrintButtonClick( wxCommandEvent& event );
-	void OnScaleSelectionClick( wxCommandEvent& event );
+    void OnScaleSelectionClick( wxCommandEvent& event );
 
     void OnButtonCancelClick( wxCommandEvent& event ) { Close(); }
     void SetPrintParameters( );
     void SetPenWidth();
     void InitValues( );
-
-    bool Show( bool show );     // overload stock function
-
-public:
-    bool IsMirrored() { return m_Print_Mirror->IsChecked(); }
-    bool ExcludeEdges() { return m_Exclude_Edges_Pcb->IsChecked(); }
-    bool PrintUsingSinglePage() { return m_PagesOption->GetSelection(); }
-    int SetLayerMaskFromListSelection();
 };
 
+
 bool DIALOG_PRINT_USING_PRINTER::m_ExcludeEdgeLayer;
-// We want our dialog to remember its previous screen position
-wxPoint DIALOG_PRINT_USING_PRINTER::s_LastPos( -1, -1 );
-wxSize  DIALOG_PRINT_USING_PRINTER::s_LastSize;
 
 
-
-
-/*******************************************************/
 void PCB_EDIT_FRAME::ToPrinter( wxCommandEvent& event )
-/*******************************************************/
-
-/* Virtual function:
- * Display the print dialog
- */
 {
+    const PAGE_INFO& pageInfo = GetPageSettings();
+
     if( s_PrintData == NULL )  // First print
     {
         s_PrintData = new wxPrintData();
@@ -104,23 +93,38 @@ void PCB_EDIT_FRAME::ToPrinter( wxCommandEvent& event )
         {
             DisplayError( this, _( "Error Init Printer info" ) );
         }
-        s_PrintData->SetQuality( wxPRINT_QUALITY_HIGH );      // Default resolution = HIGHT;
-        s_PrintData->SetOrientation( DEFAULT_ORIENTATION_PAPER );
+        s_PrintData->SetQuality( wxPRINT_QUALITY_HIGH );      // Default resolution = HIGH;
     }
 
-    DIALOG_PRINT_USING_PRINTER* frame = new DIALOG_PRINT_USING_PRINTER( this );
+    if( s_pageSetupData == NULL )
+        s_pageSetupData = new wxPageSetupDialogData( *s_PrintData );
 
-    frame->ShowModal(); frame->Destroy();
+    s_pageSetupData->SetPaperId( pageInfo.GetPaperId() );
+    s_pageSetupData->GetPrintData().SetOrientation( pageInfo.GetWxOrientation() );
+
+    if( pageInfo.IsCustom() )
+    {
+        if( pageInfo.IsPortrait() )
+            s_pageSetupData->SetPaperSize( wxSize( Mils2mm( pageInfo.GetWidthMils() ),
+                                                   Mils2mm( pageInfo.GetHeightMils() ) ) );
+        else
+            s_pageSetupData->SetPaperSize( wxSize( Mils2mm( pageInfo.GetHeightMils() ),
+                                                   Mils2mm( pageInfo.GetWidthMils() ) ) );
+    }
+
+    *s_PrintData = s_pageSetupData->GetPrintData();
+
+    DIALOG_PRINT_USING_PRINTER dlg( this );
+
+    dlg.ShowModal();
 }
 
 
-/*************************************************************************************/
 DIALOG_PRINT_USING_PRINTER::DIALOG_PRINT_USING_PRINTER( PCB_EDIT_FRAME* parent ) :
     DIALOG_PRINT_USING_PRINTER_base( parent )
-/*************************************************************************************/
 {
-    m_Parent = parent;
-    m_Config = wxGetApp().m_EDA_Config;
+    m_parent = parent;
+    m_config = wxGetApp().GetSettings();
 
     InitValues( );
 
@@ -138,22 +142,11 @@ DIALOG_PRINT_USING_PRINTER::DIALOG_PRINT_USING_PRINTER( PCB_EDIT_FRAME* parent )
 }
 
 
-/************************************************************************/
 void DIALOG_PRINT_USING_PRINTER::InitValues( )
-/************************************************************************/
 {
-    SetFocus();
     int      layer_max = NB_LAYERS;
     wxString msg;
-    BOARD*   board = m_Parent->GetBoard();
-    if( s_pageSetupData == NULL )
-    {
-        s_pageSetupData = new wxPageSetupDialogData;
-        // Set initial page margins.
-        // Margins are already set in Pcbnew, so we cans use 0
-        s_pageSetupData->SetMarginTopLeft(wxPoint(0, 0));
-        s_pageSetupData->SetMarginBottomRight(wxPoint(0, 0));
-    }
+    BOARD*   board = m_parent->GetBoard();
 
     s_Parameters.m_PageSetupData = s_pageSetupData;
 
@@ -192,7 +185,7 @@ void DIALOG_PRINT_USING_PRINTER::InitValues( )
 
         layerKey.Printf( OPTKEY_LAYERBASE, layer );
         bool option;
-        if( m_Config->Read( layerKey, &option ) )
+        if( m_config->Read( layerKey, &option ) )
             m_BoxSelectLayer[layer]->SetValue( option );
         else
         {
@@ -202,22 +195,22 @@ void DIALOG_PRINT_USING_PRINTER::InitValues( )
         }
     }
 
-
     // Option for excluding contents of "Edges Pcb" layer
     m_Exclude_Edges_Pcb->Show( true );
 
     // Read the scale adjust option
     int scale_idx = 4; // default selected scale = ScaleList[4] = 1.000
 
-    if( m_Config )
+    if( m_config )
     {
-        m_Config->Read( OPTKEY_PRINT_X_FINESCALE_ADJ, &s_Parameters.m_XScaleAdjust );
-        m_Config->Read( OPTKEY_PRINT_Y_FINESCALE_ADJ, &s_Parameters.m_YScaleAdjust );
-        m_Config->Read( OPTKEY_PRINT_SCALE, &scale_idx );
-        m_Config->Read( OPTKEY_PRINT_PAGE_FRAME, &s_Parameters.m_Print_Sheet_Ref, 1);
-        m_Config->Read( OPTKEY_PRINT_MONOCHROME_MODE, &s_Parameters.m_Print_Black_and_White, 1);
+        m_config->Read( OPTKEY_PRINT_X_FINESCALE_ADJ, &s_Parameters.m_XScaleAdjust );
+        m_config->Read( OPTKEY_PRINT_Y_FINESCALE_ADJ, &s_Parameters.m_YScaleAdjust );
+        m_config->Read( OPTKEY_PRINT_SCALE, &scale_idx );
+        m_config->Read( OPTKEY_PRINT_PAGE_FRAME, &s_Parameters.m_Print_Sheet_Ref, 1);
+        m_config->Read( OPTKEY_PRINT_MONOCHROME_MODE, &s_Parameters.m_Print_Black_and_White, 1);
+        m_config->Read( OPTKEY_PRINT_PAGE_PER_LAYER, &s_Parameters.m_OptionPrintPage, 0);
         int tmp;
-        m_Config->Read( OPTKEY_PRINT_PADS_DRILL,  &tmp, PRINT_PARAMETERS::SMALL_DRILL_SHAPE );
+        m_config->Read( OPTKEY_PRINT_PADS_DRILL,  &tmp, PRINT_PARAMETERS::SMALL_DRILL_SHAPE );
         s_Parameters.m_DrillShapeOpt = (PRINT_PARAMETERS::DrillShapeOptT) tmp;
 
         // Test for a reasonnable scale value. Set to 1 if problem
@@ -239,7 +232,7 @@ void DIALOG_PRINT_USING_PRINTER::InitValues( )
             layerKey.Printf( OPTKEY_LAYERBASE, layer );
 
             option = false;
-            if( m_Config->Read( layerKey, &option ) )
+            if( m_config->Read( layerKey, &option ) )
             {
                 m_BoxSelectLayer[layer]->SetValue( option );
                 if( option )
@@ -263,15 +256,16 @@ void DIALOG_PRINT_USING_PRINTER::InitValues( )
     else
         m_ModeColorOption->SetSelection( 0 );
 
+    m_PagesOption->SetSelection(s_Parameters.m_OptionPrintPage);
     s_Parameters.m_PenDefaultSize = g_DrawDefaultLineThickness;
     AddUnitSymbol( *m_TextPenWidth, g_UserUnit );
     m_DialogPenWidth->SetValue(
-        ReturnStringFromValue( g_UserUnit, s_Parameters.m_PenDefaultSize, m_Parent->m_InternalUnits ) );
-
+        ReturnStringFromValue( g_UserUnit, s_Parameters.m_PenDefaultSize ) );
 
     // Create scale adjust option
     msg.Printf( wxT( "%f" ), s_Parameters.m_XScaleAdjust );
     m_FineAdjustXscaleOpt->SetValue( msg );
+
     msg.Printf( wxT( "%f" ), s_Parameters.m_YScaleAdjust );
     m_FineAdjustYscaleOpt->SetValue( msg );
 
@@ -283,35 +277,7 @@ void DIALOG_PRINT_USING_PRINTER::InitValues( )
 }
 
 
-/*************************************************/
-bool DIALOG_PRINT_USING_PRINTER::Show( bool show )
-/*************************************************/
-{
-    bool ret;
-
-    if( show )
-    {
-        if( s_LastPos.x != -1 )
-        {
-            SetSize( s_LastPos.x, s_LastPos.y, s_LastSize.x, s_LastSize.y, 0 );
-        }
-        ret = DIALOG_PRINT_USING_PRINTER_base::Show( show );
-    }
-    else
-    {
-        // Save the dialog's position before hiding
-        s_LastPos  = GetPosition();
-        s_LastSize = GetSize();
-
-        ret = DIALOG_PRINT_USING_PRINTER_base::Show( show );
-    }
-
-    return ret;
-}
-
-/**************************************************************/
 int DIALOG_PRINT_USING_PRINTER::SetLayerMaskFromListSelection()
-/**************************************************************/
 {
     int page_count;
     int layers_count = NB_LAYERS;
@@ -342,37 +308,38 @@ int DIALOG_PRINT_USING_PRINTER::SetLayerMaskFromListSelection()
 }
 
 
-/********************************************************************/
 void DIALOG_PRINT_USING_PRINTER::OnCloseWindow( wxCloseEvent& event )
-/********************************************************************/
 {
     SetPrintParameters();
 
-    if( m_Config )
+    if( m_config )
     {
-        m_Config->Write( OPTKEY_PRINT_X_FINESCALE_ADJ, s_Parameters.m_XScaleAdjust );
-        m_Config->Write( OPTKEY_PRINT_Y_FINESCALE_ADJ, s_Parameters.m_YScaleAdjust );
-        m_Config->Write( OPTKEY_PRINT_SCALE, m_ScaleOption->GetSelection() );
-        m_Config->Write( OPTKEY_PRINT_PAGE_FRAME, s_Parameters.m_Print_Sheet_Ref);
-        m_Config->Write( OPTKEY_PRINT_MONOCHROME_MODE, s_Parameters.m_Print_Black_and_White);
-        m_Config->Write( OPTKEY_PRINT_PADS_DRILL, (long) s_Parameters.m_DrillShapeOpt );
+        ConfigBaseWriteDouble( m_config, OPTKEY_PRINT_X_FINESCALE_ADJ,
+                               s_Parameters.m_XScaleAdjust );
+        ConfigBaseWriteDouble( m_config, OPTKEY_PRINT_Y_FINESCALE_ADJ,
+                               s_Parameters.m_YScaleAdjust );
+        m_config->Write( OPTKEY_PRINT_SCALE, m_ScaleOption->GetSelection() );
+        m_config->Write( OPTKEY_PRINT_PAGE_FRAME, s_Parameters.m_Print_Sheet_Ref);
+        m_config->Write( OPTKEY_PRINT_MONOCHROME_MODE, s_Parameters.m_Print_Black_and_White);
+        m_config->Write( OPTKEY_PRINT_PAGE_PER_LAYER, s_Parameters.m_OptionPrintPage );
+        m_config->Write( OPTKEY_PRINT_PADS_DRILL, (long) s_Parameters.m_DrillShapeOpt );
         wxString layerKey;
         for( int layer = 0; layer < NB_LAYERS;  ++layer )
         {
             if( m_BoxSelectLayer[layer] == NULL )
                 continue;
             layerKey.Printf( OPTKEY_LAYERBASE, layer );
-            m_Config->Write( layerKey, m_BoxSelectLayer[layer]->IsChecked() );
+            m_config->Write( layerKey, m_BoxSelectLayer[layer]->IsChecked() );
         }
     }
     EndModal( 0 );
 }
 
 
-/******************************************************************/
 void DIALOG_PRINT_USING_PRINTER::SetPrintParameters( )
-/******************************************************************/
 {
+    PCB_PLOT_PARAMS plot_opts = m_parent->GetPlotSettings();
+
     s_Parameters.m_PrintMirror = m_Print_Mirror->GetValue();
     s_Parameters.m_Print_Sheet_Ref = m_Print_Sheet_Ref->GetValue();
     s_Parameters.m_Print_Black_and_White =
@@ -384,12 +351,11 @@ void DIALOG_PRINT_USING_PRINTER::SetPrintParameters( )
     if( m_PagesOption )
         s_Parameters.m_OptionPrintPage = m_PagesOption->GetSelection() != 0;
 
-
     SetLayerMaskFromListSelection();
 
     int idx = m_ScaleOption->GetSelection();
     s_Parameters.m_PrintScale =  s_ScaleList[idx];
-    g_PcbPlotOptions.m_PlotScale =  s_Parameters.m_PrintScale;
+    plot_opts.SetScale( s_Parameters.m_PrintScale );
 
     if( m_FineAdjustXscaleOpt )
     {
@@ -406,42 +372,44 @@ void DIALOG_PRINT_USING_PRINTER::SetPrintParameters( )
             DisplayInfoMessage( NULL, _( "Warning: Scale option set to a very small value" ) );
         m_FineAdjustYscaleOpt->GetValue().ToDouble( &s_Parameters.m_YScaleAdjust );
     }
-    g_PcbPlotOptions.m_FineScaleAdjustX = s_Parameters.m_XScaleAdjust;
-    g_PcbPlotOptions.m_FineScaleAdjustY = s_Parameters.m_YScaleAdjust;
+
+    plot_opts.SetFineScaleAdjustX( s_Parameters.m_XScaleAdjust );
+    plot_opts.SetFineScaleAdjustY( s_Parameters.m_YScaleAdjust );
+
+    m_parent->SetPlotSettings( plot_opts );
+
     SetPenWidth();
 }
 
 
-/**********************************************/
 void DIALOG_PRINT_USING_PRINTER::SetPenWidth()
-/***********************************************/
-
-/* Get the new pen width value, and verify min et max value
- * NOTE: s_Parameters.m_PenDefaultSize is in internal units
- */
 {
-    s_Parameters.m_PenDefaultSize = ReturnValueFromTextCtrl( *m_DialogPenWidth, m_Parent->m_InternalUnits );
+    // Get the new pen width value, and verify min et max value
+    // NOTE: s_Parameters.m_PenDefaultSize is in internal units
 
-    if( s_Parameters.m_PenDefaultSize > WIDTH_MAX_VALUE )
+    s_Parameters.m_PenDefaultSize = ReturnValueFromTextCtrl( *m_DialogPenWidth );
+
+    if( s_Parameters.m_PenDefaultSize > PEN_WIDTH_MAX_VALUE )
     {
-        s_Parameters.m_PenDefaultSize = WIDTH_MAX_VALUE;
+        s_Parameters.m_PenDefaultSize = PEN_WIDTH_MAX_VALUE;
     }
 
-    if( s_Parameters.m_PenDefaultSize < WIDTH_MIN_VALUE )
+    if( s_Parameters.m_PenDefaultSize < PEN_WIDTH_MIN_VALUE )
     {
-        s_Parameters.m_PenDefaultSize = WIDTH_MIN_VALUE;
+        s_Parameters.m_PenDefaultSize = PEN_WIDTH_MIN_VALUE;
     }
 
     g_DrawDefaultLineThickness = s_Parameters.m_PenDefaultSize;
 
     m_DialogPenWidth->SetValue(
-        ReturnStringFromValue( g_UserUnit, s_Parameters.m_PenDefaultSize, m_Parent->m_InternalUnits ) );
+        ReturnStringFromValue( g_UserUnit, s_Parameters.m_PenDefaultSize ) );
 }
 
 void DIALOG_PRINT_USING_PRINTER::OnScaleSelectionClick( wxCommandEvent& event )
 {
     double scale = s_ScaleList[m_ScaleOption->GetSelection()];
     bool enable = (scale == 1.0);
+
     if( m_FineAdjustXscaleOpt )
         m_FineAdjustXscaleOpt->Enable(enable);
     if( m_FineAdjustYscaleOpt )
@@ -449,16 +417,9 @@ void DIALOG_PRINT_USING_PRINTER::OnScaleSelectionClick( wxCommandEvent& event )
 }
 
 
-/**********************************************************/
 void DIALOG_PRINT_USING_PRINTER::OnPageSetup( wxCommandEvent& event )
-/**********************************************************/
-
-/* Open a dialog box for printer setup (printer options, page size ...)
- */
 {
-    *s_pageSetupData = *s_PrintData;
-
-    wxPageSetupDialog pageSetupDialog(this, s_pageSetupData);
+    wxPageSetupDialog pageSetupDialog( this, s_pageSetupData );
     pageSetupDialog.ShowModal();
 
     (*s_PrintData) = pageSetupDialog.GetPageSetupDialogData().GetPrintData();
@@ -466,29 +427,9 @@ void DIALOG_PRINT_USING_PRINTER::OnPageSetup( wxCommandEvent& event )
 }
 
 
-/************************************************************/
 void DIALOG_PRINT_USING_PRINTER::OnPrintPreview( wxCommandEvent& event )
-/************************************************************/
-
-/* Open and display a previewer frame for printing
- */
 {
     SetPrintParameters( );
-
-    // Pass two printout objects: for preview, and possible printing.
-    wxString        title   = _( "Print Preview" );
-    wxPrintPreview* preview =
-        new wxPrintPreview( new BOARD_PRINTOUT_CONTROLER( s_Parameters, m_Parent, title ),
-                            new BOARD_PRINTOUT_CONTROLER( s_Parameters, m_Parent, title ),
-                            s_PrintData );
-
-    if( preview == NULL )
-    {
-        DisplayError( this, wxT( "OnPrintPreview() problem" ) );
-        return;
-    }
-
-    SetLayerMaskFromListSelection();
 
     // If no layer selected, we have no plot. prompt user if it happens
     // because he could think there is a bug in Pcbnew:
@@ -498,25 +439,33 @@ void DIALOG_PRINT_USING_PRINTER::OnPrintPreview( wxCommandEvent& event )
         return;
     }
 
+    // Pass two printout objects: for preview, and possible printing.
+    wxString        title   = _( "Print Preview" );
+    wxPrintPreview* preview =
+        new wxPrintPreview( new BOARD_PRINTOUT_CONTROLLER( s_Parameters, m_parent, title ),
+                            new BOARD_PRINTOUT_CONTROLLER( s_Parameters, m_parent, title ),
+                            s_PrintData );
+
+    if( preview == NULL )
+    {
+        DisplayError( this, wxT( "OnPrintPreview() problem" ) );
+        return;
+    }
 
     // Uses the parent position and size.
-    // @todo uses last position and size ans store them when exit in m_Config
-    wxPoint         WPos  = m_Parent->GetPosition();
-    wxSize          WSize = m_Parent->GetSize();
+    wxPoint         WPos  = m_parent->GetPosition();
+    wxSize          WSize = m_parent->GetSize();
+
+    preview->SetZoom( 100 );
 
     wxPreviewFrame* frame = new wxPreviewFrame( preview, this, title, WPos, WSize );
 
     frame->Initialize();
-    frame->Show( TRUE );
+    frame->Show( true );
 }
 
 
-/***************************************************************************/
 void DIALOG_PRINT_USING_PRINTER::OnPrintButtonClick( wxCommandEvent& event )
-/***************************************************************************/
-
-/* Called on activate Print button
- */
 {
     SetPrintParameters( );
 
@@ -533,14 +482,15 @@ void DIALOG_PRINT_USING_PRINTER::OnPrintButtonClick( wxCommandEvent& event )
     wxPrinter         printer( &printDialogData );
 
     wxString          title = _( "Print" );
-    BOARD_PRINTOUT_CONTROLER      printout( s_Parameters, m_Parent, title );
+    BOARD_PRINTOUT_CONTROLLER      printout( s_Parameters, m_parent, title );
 
-#if !defined(__WINDOWS__) && !wxCHECK_VERSION(2,9,0)
+    // Alexander's patch had this removed altogether, waiting for testing.
+#if 0 && !defined(__WINDOWS__) && !wxCHECK_VERSION(2,9,0)
     wxDC*             dc = printout.GetDC();
     ( (wxPostScriptDC*) dc )->SetResolution( 600 );  // Postscript DC resolution is 600 ppi
 #endif
 
-    if( !printer.Print( this, &printout, TRUE ) )
+    if( !printer.Print( this, &printout, true ) )
     {
         if( wxPrinter::GetLastError() == wxPRINTER_ERROR )
             DisplayError( this, _( "There was a problem printing" ) );

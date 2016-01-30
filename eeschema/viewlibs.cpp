@@ -2,20 +2,20 @@
  * @file viewlibs.cpp
  */
 
-#include "fctsys.h"
-#include "gr_basic.h"
-#include "appl_wxstruct.h"
-#include "class_drawpanel.h"
-#include "confirm.h"
-#include "eda_doc.h"
-#include "class_sch_screen.h"
+#include <fctsys.h>
+#include <gr_basic.h>
+#include <appl_wxstruct.h>
+#include <class_drawpanel.h>
+#include <confirm.h>
+#include <eda_doc.h>
+#include <class_sch_screen.h>
 
-#include "general.h"
-#include "protos.h"
-#include "viewlib_frame.h"
-#include "eeschema_id.h"
-#include "class_library.h"
-#include "dialog_helpers.h"
+#include <general.h>
+#include <protos.h>
+#include <viewlib_frame.h>
+#include <eeschema_id.h>
+#include <class_library.h>
+#include <dialog_helpers.h>
 
 
 #define NEXT_PART      1
@@ -56,17 +56,17 @@ void LIB_VIEW_FRAME::Process_Special_Functions( wxCommandEvent& event )
         break;
 
     case ID_LIBVIEW_DE_MORGAN_NORMAL_BUTT:
-        m_HToolBar->ToggleTool( ID_LIBVIEW_DE_MORGAN_NORMAL_BUTT, true );
-        m_HToolBar->ToggleTool( ID_LIBVIEW_DE_MORGAN_CONVERT_BUTT, FALSE );
+        m_mainToolBar->ToggleTool( ID_LIBVIEW_DE_MORGAN_NORMAL_BUTT, true );
+        m_mainToolBar->ToggleTool( ID_LIBVIEW_DE_MORGAN_CONVERT_BUTT, false );
         m_convert = 1;
-        DrawPanel->Refresh();
+        m_canvas->Refresh();
         break;
 
     case ID_LIBVIEW_DE_MORGAN_CONVERT_BUTT:
-        m_HToolBar->ToggleTool( ID_LIBVIEW_DE_MORGAN_NORMAL_BUTT, FALSE );
-        m_HToolBar->ToggleTool( ID_LIBVIEW_DE_MORGAN_CONVERT_BUTT, true );
+        m_mainToolBar->ToggleTool( ID_LIBVIEW_DE_MORGAN_NORMAL_BUTT, false );
+        m_mainToolBar->ToggleTool( ID_LIBVIEW_DE_MORGAN_CONVERT_BUTT, true );
         m_convert = 2;
-        DrawPanel->Refresh();
+        m_canvas->Refresh();
         break;
 
     case ID_LIBVIEW_SELECT_PART_NUMBER:
@@ -74,7 +74,7 @@ void LIB_VIEW_FRAME::Process_Special_Functions( wxCommandEvent& event )
         if( ii < 0 )
             return;
         m_unit = ii + 1;
-        DrawPanel->Refresh();
+        m_canvas->Refresh();
         break;
 
     default:
@@ -135,7 +135,7 @@ void LIB_VIEW_FRAME::SelectCurrentLibrary()
         if( m_LibList )
         {
             ReCreateListCmp();
-            DrawPanel->Refresh();
+            m_canvas->Refresh();
             DisplayLibInfos();
             ReCreateHToolbar();
             int id = m_LibList->FindString( m_libraryName.GetData() );
@@ -232,7 +232,7 @@ void LIB_VIEW_FRAME::ViewOneLibraryContent( CMP_LIBRARY* Lib, int Flag )
     m_entryName = CmpName;
     DisplayLibInfos();
     Zoom_Automatique( false );
-    DrawPanel->Refresh( );
+    m_canvas->Refresh( );
 
     if( m_CmpList )
     {
@@ -269,7 +269,7 @@ void LIB_VIEW_FRAME::RedrawActiveWindow( wxDC* DC, bool EraseBg )
 
     component = entry->GetComponent();
 
-    DrawPanel->DrawBackGround( DC );
+    m_canvas->DrawBackGround( DC );
 
     if( !entry->IsRoot() )
     {
@@ -283,6 +283,7 @@ void LIB_VIEW_FRAME::RedrawActiveWindow( wxDC* DC, bool EraseBg )
 
         if( m_unit < 1 )
             m_unit = 1;
+
         if( m_convert < 1 )
             m_convert = 1;
     }
@@ -291,10 +292,10 @@ void LIB_VIEW_FRAME::RedrawActiveWindow( wxDC* DC, bool EraseBg )
         msg = _( "None" );
     }
 
-    component->Draw( DrawPanel, DC, wxPoint( 0, 0 ), m_unit, m_convert, GR_DEFAULT_DRAWMODE );
+    component->Draw( m_canvas, DC, wxPoint( 0, 0 ), m_unit, m_convert, GR_DEFAULT_DRAWMODE );
 
     /* Redraw the cursor */
-    DrawPanel->DrawCrossHair( DC );
+    m_canvas->DrawCrossHair( DC );
 
     if( !tmp.IsEmpty() )
         component->SetName( tmp );

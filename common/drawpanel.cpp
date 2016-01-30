@@ -1,7 +1,7 @@
 /*
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
- * Copyright (C) 2009 Jean-Pierre Charras, jaen-pierre.charras@gipsa-lab.inpg.com
+ * Copyright (C) 2009 Jean-Pierre Charras, jean-pierre.charras@gipsa-lab.inpg.fr
  * Copyright (C) 2007-2011 Wayne Stambaugh <stambaughw@verizon.net>
  * Copyright (C) 1992-2011 KiCad Developers, see AUTHORS.txt for contributors.
  *
@@ -27,21 +27,27 @@
  * @file drawpanel.cpp
  */
 
-#include "fctsys.h"
-#include "appl_wxstruct.h"
-#include "gr_basic.h"
-#include "common.h"
-#include "macros.h"
-#include "id.h"
-#include "class_drawpanel.h"
-#include "class_base_screen.h"
-#include "wxstruct.h"
+#include <fctsys.h>
+#include <appl_wxstruct.h>
+#include <gr_basic.h>
+#include <common.h>
+#include <macros.h>
+#include <id.h>
+#include <class_drawpanel.h>
+#include <class_base_screen.h>
+#include <wxstruct.h>
 
-#include "kicad_device_context.h"
+#include <kicad_device_context.h>
 
-#define CURSOR_SIZE 12           // Cursor size in pixels
+static const int CURSOR_SIZE = 12; ///< Cursor size in pixels
 
 #define CLIP_BOX_PADDING 2
+
+// keys to store options in config:
+#define ENBL_ZOOM_NO_CENTER_KEY wxT( "ZoomNoCenter" )
+#define ENBL_MIDDLE_BUTT_PAN_KEY wxT( "MiddleButtonPAN" )
+#define MIDDLE_BUTT_PAN_LIMITED_KEY wxT( "MiddleBtnPANLimited" )
+#define ENBL_AUTO_PAN_KEY wxT( "AutoPAN" )
 
 /* Definitions for enabling and disabling debugging features in drawpanel.cpp.
  * Please don't forget to turn these off before making any commits to Launchpad.
@@ -63,6 +69,7 @@ BEGIN_EVENT_TABLE( EDA_DRAW_PANEL, wxScrolledWindow )
     EVT_MOUSEWHEEL( EDA_DRAW_PANEL::OnMouseWheel )
     EVT_MOUSE_EVENTS( EDA_DRAW_PANEL::OnMouseEvent )
     EVT_CHAR( EDA_DRAW_PANEL::OnKeyEvent )
+    EVT_CHAR_HOOK( EDA_DRAW_PANEL::OnCharHook )
     EVT_PAINT( EDA_DRAW_PANEL::OnPaint )
     EVT_ERASE_BACKGROUND( EDA_DRAW_PANEL::OnEraseBackground )
     EVT_SCROLLWIN( EDA_DRAW_PANEL::OnScroll )
@@ -77,12 +84,12 @@ END_EVENT_TABLE()
 
 EDA_DRAW_PANEL::EDA_DRAW_PANEL( EDA_DRAW_FRAME* parent, int id,
                                 const wxPoint& pos, const wxSize& size ) :
-    wxScrolledWindow( parent, id, pos, size, wxBORDER | wxHSCROLL | wxVSCROLL )
+    wxScrolledWindow( parent, id, pos, size, wxBORDER | wxHSCROLL | wxVSCROLL | wxALWAYS_SHOW_SB )
 {
     wxASSERT( parent );
 
-    m_scrollIncrementX = MIN( size.x / 8, 10 );
-    m_scrollIncrementY = MIN( size.y / 8, 10 );
+    m_scrollIncrementX = std::min( size.x / 8, 10 );
+    m_scrollIncrementY = std::min( size.y / 8, 10 );
 
     SetBackgroundColour( MakeColour( g_DrawBgColor ) );
 
@@ -93,19 +100,29 @@ EDA_DRAW_PANEL::EDA_DRAW_PANEL( EDA_DRAW_FRAME* parent, int id,
     m_ClipBox.SetSize( size );
     m_ClipBox.SetX( 0 );
     m_ClipBox.SetY( 0 );
-    m_CanStartBlock     = -1; // Command block can start if >= 0
-    m_AbortEnable       = m_AbortRequest = false;
-    m_AutoPAN_Enable    = true;
-    m_IgnoreMouseEvents = 0;
+    m_canStartBlock = -1;       // Command block can start if >= 0
+    m_abortRequest = false;
+    m_enableMiddleButtonPan = false;
+    m_enableZoomNoCenter = false;
+    m_panScrollbarLimits = false;
+    m_enableAutoPan = true;
+    m_ignoreMouseEvents = false;
+    m_ignoreNextLeftButtonRelease = false;
 
     m_mouseCaptureCallback = NULL;
     m_endMouseCaptureCallback = NULL;
 
-    if( wxGetApp().m_EDA_Config )
-        wxGetApp().m_EDA_Config->Read( wxT( "AutoPAN" ), &m_AutoPAN_Enable, true );
+    if( wxGetApp().GetSettings() )
+    {
+        wxGetApp().GetSettings()->Read( ENBL_MIDDLE_BUTT_PAN_KEY, &m_enableMiddleButtonPan, false );
+        wxGetApp().GetSettings()->Read( ENBL_ZOOM_NO_CENTER_KEY, &m_enableZoomNoCenter, false );
+        wxGetApp().GetSettings()->Read( MIDDLE_BUTT_PAN_LIMITED_KEY, &m_panScrollbarLimits, false );
+        wxGetApp().GetSettings()->Read( ENBL_AUTO_PAN_KEY, &m_enableAutoPan, true );
+    }
 
-    m_AutoPAN_Request    = false;
-    m_Block_Enable       = false;
+    m_requestAutoPan = false;
+    m_enableBlockCommands = false;
+    m_minDragEventCount = 0;
 
 #ifdef __WXMAC__
     m_defaultCursor = m_currentCursor = wxCURSOR_CROSS;
@@ -115,16 +132,18 @@ EDA_DRAW_PANEL::EDA_DRAW_PANEL( EDA_DRAW_FRAME* parent, int id,
     m_showCrossHair = true;
 #endif
 
-    m_cursorLevel     = 0;
+    m_cursorLevel = 0;
     m_PrintIsMirrored = false;
 }
 
 
 EDA_DRAW_PANEL::~EDA_DRAW_PANEL()
 {
-    wxGetApp().m_EDA_Config->Write( wxT( "AutoPAN" ), m_AutoPAN_Enable );
+    wxGetApp().GetSettings()->Write( ENBL_MIDDLE_BUTT_PAN_KEY, m_enableMiddleButtonPan );
+    wxGetApp().GetSettings()->Write( ENBL_ZOOM_NO_CENTER_KEY, m_enableZoomNoCenter );
+    wxGetApp().GetSettings()->Write( MIDDLE_BUTT_PAN_LIMITED_KEY, m_panScrollbarLimits );
+    wxGetApp().GetSettings()->Write( ENBL_AUTO_PAN_KEY, m_enableAutoPan );
 }
-
 
 EDA_DRAW_FRAME* EDA_DRAW_PANEL::GetParent()
 {
@@ -139,34 +158,57 @@ BASE_SCREEN* EDA_DRAW_PANEL::GetScreen()
     return parentFrame->GetScreen();
 }
 
+wxPoint EDA_DRAW_PANEL::ToDeviceXY( const wxPoint& pos )
+{
+    wxPoint ret;
+    INSTALL_UNBUFFERED_DC( dc, this );
+    ret.x = dc.LogicalToDeviceX( pos.x );
+    ret.y = dc.LogicalToDeviceY( pos.y );
+    return ret;
+}
 
-void EDA_DRAW_PANEL::DrawCrossHair( wxDC* aDC, int aColor )
+wxPoint EDA_DRAW_PANEL::ToLogicalXY( const wxPoint& pos )
+{
+    wxPoint ret;
+    INSTALL_UNBUFFERED_DC( dc, this );
+    ret.x = dc.DeviceToLogicalX( pos.x );
+    ret.y = dc.DeviceToLogicalY( pos.y );
+    return ret;
+}
+
+void EDA_DRAW_PANEL::DrawCrossHair( wxDC* aDC, EDA_COLOR_T aColor )
 {
     if( m_cursorLevel != 0 || aDC == NULL || !m_showCrossHair )
         return;
 
-    wxPoint Cursor = GetScreen()->GetCrossHairPosition();
+    wxPoint cursor = GetScreen()->GetCrossHairPosition();
 
     GRSetDrawMode( aDC, GR_XOR );
 
-    if( GetParent()->m_CursorShape == 1 )    /* Draws a crosshair. */
+    if( GetParent()->m_cursorShape != 0 )    // Draws full screen crosshair.
     {
-        wxSize clientSize = GetClientSize();
-        wxPoint lineStart = wxPoint( Cursor.x, aDC->DeviceToLogicalY( 0 ) );
-        wxPoint lineEnd = wxPoint( Cursor.x, aDC->DeviceToLogicalY( clientSize.y ) );
-        GRLine( &m_ClipBox, aDC, lineStart, lineEnd, 0, aColor );  // Y axis
-        lineStart = wxPoint( aDC->DeviceToLogicalX( 0 ), Cursor.y );
-        lineEnd = wxPoint( aDC->DeviceToLogicalX( clientSize.x ), Cursor.y );
-        GRLine( &m_ClipBox, aDC, lineStart, lineEnd, 0, aColor );  // X axis
+        wxSize  clientSize = GetClientSize();
+
+        // Y axis
+        wxPoint lineStart( cursor.x, aDC->DeviceToLogicalY( 0 ) );
+        wxPoint lineEnd(   cursor.x, aDC->DeviceToLogicalY( clientSize.y ) );
+
+        GRLine( &m_ClipBox, aDC, lineStart, lineEnd, 0, aColor );
+
+        // X axis
+        lineStart = wxPoint( aDC->DeviceToLogicalX( 0 ), cursor.y );
+        lineEnd   = wxPoint( aDC->DeviceToLogicalX( clientSize.x ), cursor.y );
+
+        GRLine( &m_ClipBox, aDC, lineStart, lineEnd, 0, aColor );
     }
     else
     {
         int len = aDC->DeviceToLogicalXRel( CURSOR_SIZE );
 
-        GRLine( &m_ClipBox, aDC, Cursor.x - len, Cursor.y,
-                Cursor.x + len, Cursor.y, 0, aColor );
-        GRLine( &m_ClipBox, aDC, Cursor.x, Cursor.y - len,
-                Cursor.x, Cursor.y + len, 0, aColor );
+        GRLine( &m_ClipBox, aDC, cursor.x - len, cursor.y,
+                cursor.x + len, cursor.y, 0, aColor );
+        GRLine( &m_ClipBox, aDC, cursor.x, cursor.y - len,
+                cursor.x, cursor.y + len, 0, aColor );
     }
 }
 
@@ -188,13 +230,13 @@ void EDA_DRAW_PANEL::CrossHairOn( wxDC* DC )
 }
 
 
-int EDA_DRAW_PANEL::GetZoom()
+double EDA_DRAW_PANEL::GetZoom()
 {
     return GetScreen()->GetZoom();
 }
 
 
-void EDA_DRAW_PANEL::SetZoom( int zoom )
+void EDA_DRAW_PANEL::SetZoom( double zoom )
 {
     GetScreen()->SetZoom( zoom );
 }
@@ -305,7 +347,7 @@ void EDA_DRAW_PANEL::MoveCursor( const wxPoint& aPosition )
 
 void EDA_DRAW_PANEL::OnActivate( wxActivateEvent& event )
 {
-    m_CanStartBlock = -1;   // Block Command can't start
+    m_canStartBlock = -1;   // Block Command can't start
     event.Skip();
 }
 
@@ -316,17 +358,26 @@ void EDA_DRAW_PANEL::OnScroll( wxScrollWinEvent& event )
     int dir;
     int x, y;
     int ppux, ppuy;
+    int csizeX, csizeY;
     int unitsX, unitsY;
     int maxX, maxY;
 
     GetViewStart( &x, &y );
     GetScrollPixelsPerUnit( &ppux, &ppuy );
+    GetClientSize( &csizeX, &csizeY );
     GetVirtualSize( &unitsX, &unitsY );
-    maxX = unitsX;
-    maxY = unitsY;
+
+    int tmpX = x;
+    int tmpY = y;
+
+    csizeX /= ppux;
+    csizeY /= ppuy;
 
     unitsX /= ppux;
     unitsY /= ppuy;
+
+    maxX = unitsX - csizeX;
+    maxY = unitsY - csizeY;
 
     dir = event.GetOrientation();   // wxHORIZONTAL or wxVERTICAL
 
@@ -380,7 +431,14 @@ void EDA_DRAW_PANEL::OnScroll( wxScrollWinEvent& event )
                 wxT( "Setting scroll bars ppuX=%d, ppuY=%d, unitsX=%d, unitsY=%d, posX=%d, posY=%d" ),
                 ppux, ppuy, unitsX, unitsY, x, y );
 
-    Scroll( x/ppux, y/ppuy );
+    double scale = GetParent()->GetScreen()->GetScalingFactor();
+
+    wxPoint center = GetParent()->GetScreen()->GetScrollCenterPosition();
+    center.x += KiROUND( (double) ( x - tmpX ) / scale );
+    center.y += KiROUND( (double) ( y - tmpY ) / scale );
+    GetParent()->GetScreen()->SetScrollCenterPosition( center );
+
+    Scroll( x, y );
     event.Skip();
 }
 
@@ -403,11 +461,11 @@ void EDA_DRAW_PANEL::SetClipBox( wxDC& aDC, const wxRect* aRect )
         int scrollX, scrollY;
 
         double scalar = Screen->GetScalingFactor();
-        scrollX = wxRound( Screen->GetGridSize().x * scalar );
-        scrollY = wxRound( Screen->GetGridSize().y * scalar );
+        scrollX = KiROUND( Screen->GetGridSize().x * scalar );
+        scrollY = KiROUND( Screen->GetGridSize().y * scalar );
 
-        m_scrollIncrementX = MAX( GetClientSize().x / 8, scrollX );
-        m_scrollIncrementY = MAX( GetClientSize().y / 8, scrollY );
+        m_scrollIncrementX = std::max( GetClientSize().x / 8, scrollX );
+        m_scrollIncrementY = std::max( GetClientSize().y / 8, scrollY );
         Screen->m_ScrollbarPos.x = GetScrollPos( wxHORIZONTAL );
         Screen->m_ScrollbarPos.y = GetScrollPos( wxVERTICAL );
     }
@@ -420,15 +478,15 @@ void EDA_DRAW_PANEL::SetClipBox( wxDC& aDC, const wxRect* aRect )
     clipBox.Inflate( CLIP_BOX_PADDING );
 
     // Convert from device units to drawing units.
-    m_ClipBox.m_Pos = wxPoint( aDC.DeviceToLogicalX( clipBox.x ),
-                               aDC.DeviceToLogicalY( clipBox.y ) );
-    m_ClipBox.m_Size = wxSize( aDC.DeviceToLogicalXRel( clipBox.width ),
-                               aDC.DeviceToLogicalYRel( clipBox.height ) );
+    m_ClipBox.SetOrigin( wxPoint( aDC.DeviceToLogicalX( clipBox.x ),
+                                  aDC.DeviceToLogicalY( clipBox.y ) ) );
+    m_ClipBox.SetSize( wxSize( aDC.DeviceToLogicalXRel( clipBox.width ),
+                               aDC.DeviceToLogicalYRel( clipBox.height ) ) );
 
     wxLogTrace( KICAD_TRACE_COORDS,
                 wxT( "Device clip box=(%d, %d, %d, %d), Logical clip box=(%d, %d, %d, %d)" ),
                 clipBox.x, clipBox.y, clipBox.width, clipBox.height,
-                m_ClipBox.m_Pos.x, m_ClipBox.m_Pos.y, m_ClipBox.m_Size.x, m_ClipBox.m_Size.y );
+                m_ClipBox.GetX(), m_ClipBox.GetY(), m_ClipBox.GetWidth(), m_ClipBox.GetHeight() );
 }
 
 
@@ -440,7 +498,7 @@ void EDA_DRAW_PANEL::EraseScreen( wxDC* DC )
                    m_ClipBox.GetRight(), m_ClipBox.GetBottom(),
                    0, g_DrawBgColor, g_DrawBgColor );
 
-    /* Set to one (1) to draw bounding box validate bounding box calculation. */
+    // Set to one (1) to draw bounding box validate bounding box calculation.
 #if DEBUG_SHOW_CLIP_RECT
     EDA_RECT bBox = m_ClipBox;
     GRRect( NULL, DC, bBox.GetOrigin().x, bBox.GetOrigin().y,
@@ -525,30 +583,31 @@ void EDA_DRAW_PANEL::ReDraw( wxDC* DC, bool erasebg )
 
 void EDA_DRAW_PANEL::DrawBackGround( wxDC* DC )
 {
-    int          axis_color = BLUE;
-    BASE_SCREEN* screen     = GetScreen();
+    EDA_COLOR_T axis_color = BLUE;
 
     GRSetDrawMode( DC, GR_COPY );
 
     if( GetParent()->IsGridVisible() )
         DrawGrid( DC );
 
-    /* Draw axis */
-    if( GetParent()->m_Draw_Axis )
+    // Draw axis
+    if( GetParent()->m_showAxis )
     {
-        /* Draw the Y axis */
-        GRDashedLine( &m_ClipBox, DC, 0, -screen->ReturnPageSize().y,
-                      0, screen->ReturnPageSize().y, 0, axis_color );
+        wxSize  pageSize = GetParent()->GetPageSizeIU();
 
-        /* Draw the X axis */
-        GRDashedLine( &m_ClipBox, DC, -screen->ReturnPageSize().x, 0,
-                      screen->ReturnPageSize().x, 0, 0, axis_color );
+        // Draw the Y axis
+        GRDashedLine( &m_ClipBox, DC, 0, -pageSize.y,
+                      0, pageSize.y, 0, axis_color );
+
+        // Draw the X axis
+        GRDashedLine( &m_ClipBox, DC, -pageSize.x, 0,
+                      pageSize.x, 0, 0, axis_color );
     }
 
-    if( GetParent()->m_Draw_Auxiliary_Axis )
+    if( GetParent()->m_showOriginAxis )
         DrawAuxiliaryAxis( DC, GR_COPY );
 
-    if( GetParent()->m_Draw_Grid_Axis )
+    if( GetParent()->m_showGridAxis )
         DrawGridAxis( DC, GR_COPY );
 }
 
@@ -569,10 +628,10 @@ void EDA_DRAW_PANEL::DrawGrid( wxDC* aDC )
     screen->m_StartVisu = CalcUnscrolledPosition( wxPoint( 0, 0 ) );
     screenSize = GetClientSize();
 
-    screenGridSize.x = aDC->LogicalToDeviceXRel( wxRound( gridSize.x ) );
-    screenGridSize.y = aDC->LogicalToDeviceYRel( wxRound( gridSize.y ) );
+    screenGridSize.x = aDC->LogicalToDeviceXRel( KiROUND( gridSize.x ) );
+    screenGridSize.y = aDC->LogicalToDeviceYRel( KiROUND( gridSize.y ) );
 
-    org = m_ClipBox.m_Pos;
+    org = m_ClipBox.GetPosition();
 
     if( screenGridSize.x < MIN_GRID_SIZE || screenGridSize.y < MIN_GRID_SIZE )
     {
@@ -591,16 +650,21 @@ void EDA_DRAW_PANEL::DrawGrid( wxDC* aDC )
     // Incrementing the start point by one grid step should prevent drawing grid points
     // outside the clip box.
     if( org.x < m_ClipBox.GetX() )
-        org.x += wxRound( gridSize.x );
+        org.x += KiROUND( gridSize.x );
 
     if( org.y < m_ClipBox.GetY() )
-        org.y += wxRound( gridSize.y );
+        org.y += KiROUND( gridSize.y );
 
 #if ( defined( __WXMAC__ ) || 1 )
     // Use a pixel based draw to display grid.  There are a lot of calls, so the cost is
     // high and grid is slowly drawn on some platforms.  Please note that this should
     // always be enabled until the bitmap based solution below is fixed.
+#ifndef __WXMAC__
     GRSetColorPen( aDC, GetParent()->GetGridColor() );
+#else
+    // On mac (Cocoa), a point isn't a pixel and being of size 1 don't survive to antialiasing
+    GRSetColorPen( aDC, GetParent()->GetGridColor(), aDC->DeviceToLogicalXRel(2) );
+#endif
 
     int xpos;
     double right = ( double ) m_ClipBox.GetRight();
@@ -608,11 +672,11 @@ void EDA_DRAW_PANEL::DrawGrid( wxDC* aDC )
 
     for( double x = (double) org.x; x <= right; x += gridSize.x )
     {
-        xpos = wxRound( x );
+        xpos = KiROUND( x );
 
         for( double y = (double) org.y; y <= bottom; y += gridSize.y )
         {
-            aDC->DrawPoint( xpos, wxRound( y )  );
+            aDC->DrawPoint( xpos, KiROUND( y )  );
         }
     }
 #else
@@ -649,7 +713,7 @@ void EDA_DRAW_PANEL::DrawGrid( wxDC* aDC )
     // Draw a column of grid points.
     for( double y = (double) org.y; y <= bottom; y += gridSize.y )
     {
-        tmpDC.DrawPoint( 0, scaleDC.LogicalToDeviceY( wxRound( y ) ) );
+        tmpDC.DrawPoint( 0, scaleDC.LogicalToDeviceY( KiROUND( y ) ) );
     }
 
     // Reset the device context scale and origin and restore on exit.
@@ -665,69 +729,72 @@ void EDA_DRAW_PANEL::DrawGrid( wxDC* aDC )
     // Blit the column for each row of the damaged region.
     for( double x = (double) org.x; x <= right; x += gridSize.x )
     {
-        aDC->Blit( scaleDC.LogicalToDeviceX( wxRound( x ) ),
-                   scaleDC.LogicalToDeviceY( m_ClipBox.m_Pos.y ),
+        aDC->Blit( scaleDC.LogicalToDeviceX( KiROUND( x ) ),
+                   scaleDC.LogicalToDeviceY( m_ClipBox.GetY() ),
                    1, tmpBM.GetHeight(), &tmpDC, 0, 0, wxCOPY, true );
     }
 #endif
 }
 
 
-void EDA_DRAW_PANEL::DrawAuxiliaryAxis( wxDC* aDC, int aDrawMode )
+void EDA_DRAW_PANEL::DrawAuxiliaryAxis( wxDC* aDC, GR_DRAWMODE aDrawMode )
 {
-    if( GetParent()->m_Auxiliary_Axis_Position == wxPoint( 0, 0 ) )
+    wxPoint origin = GetParent()->GetOriginAxisPosition();
+
+    if( origin == wxPoint( 0, 0 ) )
         return;
 
-    int          Color  = DARKRED;
-    BASE_SCREEN* screen = GetScreen();
+    EDA_COLOR_T color = DARKRED;
+    wxSize  pageSize = GetParent()->GetPageSizeIU();
 
     GRSetDrawMode( aDC, aDrawMode );
 
-    /* Draw the Y axis */
+    // Draw the Y axis
     GRDashedLine( &m_ClipBox, aDC,
-                  GetParent()->m_Auxiliary_Axis_Position.x,
-                  -screen->ReturnPageSize().y,
-                  GetParent()->m_Auxiliary_Axis_Position.x,
-                  screen->ReturnPageSize().y,
-                  0, Color );
+                  origin.x,
+                  -pageSize.y,
+                  origin.x,
+                  pageSize.y,
+                  0, color );
 
-    /* Draw the X axis */
+    // Draw the X axis
     GRDashedLine( &m_ClipBox, aDC,
-                  -screen->ReturnPageSize().x,
-                  GetParent()->m_Auxiliary_Axis_Position.y,
-                  screen->ReturnPageSize().x,
-                  GetParent()->m_Auxiliary_Axis_Position.y,
-                  0, Color );
+                  -pageSize.x,
+                  origin.y,
+                  pageSize.x,
+                  origin.y,
+                  0, color );
 }
 
 
-void EDA_DRAW_PANEL::DrawGridAxis( wxDC* aDC, int aDrawMode )
+void EDA_DRAW_PANEL::DrawGridAxis( wxDC* aDC, GR_DRAWMODE aDrawMode )
 {
     BASE_SCREEN* screen = GetScreen();
 
-    if( !GetParent()->m_Draw_Grid_Axis
+    if( !GetParent()->m_showGridAxis
         || ( screen->m_GridOrigin.x == 0 && screen->m_GridOrigin.y == 0 ) )
         return;
 
-    int Color  = GetParent()->GetGridColor();
+    EDA_COLOR_T color = GetParent()->GetGridColor();
+    wxSize  pageSize = GetParent()->GetPageSizeIU();
 
     GRSetDrawMode( aDC, aDrawMode );
 
-    /* Draw the Y axis */
+    // Draw the Y axis
     GRDashedLine( &m_ClipBox, aDC,
                   screen->m_GridOrigin.x,
-                  -screen->ReturnPageSize().y,
+                  -pageSize.y,
                   screen->m_GridOrigin.x,
-                  screen->ReturnPageSize().y,
-                  0, Color );
+                  pageSize.y,
+                  0, color );
 
-    /* Draw the X axis */
+    // Draw the X axis
     GRDashedLine( &m_ClipBox, aDC,
-                  -screen->ReturnPageSize().x,
+                  -pageSize.x,
                   screen->m_GridOrigin.y,
-                  screen->ReturnPageSize().x,
+                  pageSize.x,
                   screen->m_GridOrigin.y,
-                  0, Color );
+                  0, color );
 }
 
 
@@ -746,10 +813,10 @@ bool EDA_DRAW_PANEL::OnRightClick( wxMouseEvent& event )
     GetParent()->AddMenuZoomAndGrid( &MasterMenu );
 
     pos = event.GetPosition();
-    m_IgnoreMouseEvents = true;
+    m_ignoreMouseEvents = true;
     PopupMenu( &MasterMenu, pos );
     MoveCursorToCrossHair();
-    m_IgnoreMouseEvents = false;
+    m_ignoreMouseEvents = false;
 
     return true;
 }
@@ -758,9 +825,9 @@ bool EDA_DRAW_PANEL::OnRightClick( wxMouseEvent& event )
 void EDA_DRAW_PANEL::OnMouseLeaving( wxMouseEvent& event )
 {
     if( m_mouseCaptureCallback == NULL )          // No command in progress.
-        m_AutoPAN_Request = false;
+        m_requestAutoPan = false;
 
-    if( !m_AutoPAN_Enable || !m_AutoPAN_Request || m_IgnoreMouseEvents )
+    if( !m_enableAutoPan || !m_requestAutoPan || m_ignoreMouseEvents )
         return;
 
     // Auto pan if mouse is leave working area:
@@ -780,12 +847,12 @@ void EDA_DRAW_PANEL::OnMouseLeaving( wxMouseEvent& event )
 
 void EDA_DRAW_PANEL::OnMouseWheel( wxMouseEvent& event )
 {
-    if( m_IgnoreMouseEvents )
+    if( m_ignoreMouseEvents )
         return;
 
     wxRect rect = wxRect( wxPoint( 0, 0 ), GetClientSize() );
 
-    /* Ignore scroll events if the cursor is outside the drawing area. */
+    // Ignore scroll events if the cursor is outside the drawing area.
     if( event.GetWheelRotation() == 0 || !GetParent()->IsEnabled()
        || !rect.Contains( event.GetPosition() ) )
     {
@@ -810,6 +877,9 @@ void EDA_DRAW_PANEL::OnMouseWheel( wxMouseEvent& event )
             cmd.SetId( ID_PAN_UP );
         else if( event.ControlDown() && !event.ShiftDown() )
             cmd.SetId( ID_PAN_LEFT );
+        else if( (event.ControlDown() && event.ShiftDown() )
+                 || m_enableZoomNoCenter)
+            cmd.SetId( ID_OFFCENTER_ZOOM_IN );
         else
             cmd.SetId( ID_POPUP_ZOOM_IN );
     }
@@ -819,6 +889,8 @@ void EDA_DRAW_PANEL::OnMouseWheel( wxMouseEvent& event )
             cmd.SetId( ID_PAN_DOWN );
         else if( event.ControlDown() && !event.ShiftDown() )
             cmd.SetId( ID_PAN_RIGHT );
+        else if( event.AltDown() || m_enableZoomNoCenter)
+            cmd.SetId( ID_OFFCENTER_ZOOM_OUT );
         else
             cmd.SetId( ID_POPUP_ZOOM_OUT );
     }
@@ -830,16 +902,8 @@ void EDA_DRAW_PANEL::OnMouseWheel( wxMouseEvent& event )
 
 void EDA_DRAW_PANEL::OnMouseEvent( wxMouseEvent& event )
 {
-    /* Used to inhibit a response to a mouse left button release, after a double click
-     * (when releasing the left button at the end of the second click.  Used in Eeschema
-     * to inhibit a mouse left release command when switching between hierarchical sheets
-     * on a double click.
-     */
-    static bool ignoreNextLeftButtonRelease = false;
-    static EDA_DRAW_PANEL* LastPanel = NULL;
-
-    int                    localrealbutt = 0, localbutt = 0;
-    BASE_SCREEN*           screen = GetScreen();
+    int          localrealbutt = 0, localbutt = 0;
+    BASE_SCREEN* screen = GetScreen();
 
     if( !screen )
         return;
@@ -849,21 +913,11 @@ void EDA_DRAW_PANEL::OnMouseEvent( wxMouseEvent& event )
      */
 #define MIN_DRAG_COUNT_FOR_START_BLOCK_COMMAND 5
 
-    /* Count the drag events.  Used to filter mouse moves before starting a
-     * block command.  A block command can be started only if
-     * MinDragEventCount > MIN_DRAG_COUNT_FOR_START_BLOCK_COMMAND
-     * and m_CanStartBlock >= 0
-     * in order to avoid spurious block commands.
-     */
-    static int MinDragEventCount;
-
     if( event.Leaving() )
-    {
-        m_CanStartBlock = -1;
-    }
+        m_canStartBlock = -1;
 
     if( !IsMouseCaptured() )          // No mouse capture in progress.
-        m_AutoPAN_Request = false;
+        m_requestAutoPan = false;
 
     if( GetParent()->IsActive() )
         SetFocus();
@@ -871,9 +925,7 @@ void EDA_DRAW_PANEL::OnMouseEvent( wxMouseEvent& event )
         return;
 
     if( !event.IsButton() && !event.Moving() && !event.Dragging() )
-    {
         return;
-    }
 
     if( event.RightDown() )
     {
@@ -881,7 +933,7 @@ void EDA_DRAW_PANEL::OnMouseEvent( wxMouseEvent& event )
         return;
     }
 
-    if( m_IgnoreMouseEvents )
+    if( m_ignoreMouseEvents )
         return;
 
     if( event.LeftIsDown() )
@@ -899,12 +951,12 @@ void EDA_DRAW_PANEL::OnMouseEvent( wxMouseEvent& event )
     if( event.MiddleDown() )
         localbutt = GR_M_MIDDLE_DOWN;
 
-    localrealbutt |= localbutt;     /* compensation default wxGTK */
+    localrealbutt |= localbutt;     // compensation default wxGTK
 
     INSTALL_UNBUFFERED_DC( DC, this );
     DC.SetBackground( *wxBLACK_BRUSH );
 
-    /* Compute the cursor position in drawing (logical) units. */
+    // Compute the cursor position in drawing (logical) units.
     screen->SetMousePosition( event.GetLogicalPosition( DC ) );
 
     int kbstat = 0;
@@ -926,29 +978,138 @@ void EDA_DRAW_PANEL::OnMouseEvent( wxMouseEvent& event )
         // inhibit a response to the mouse left button release,
         // because we have a double click, and we do not want a new
         // OnLeftClick command at end of this Double Click
-        ignoreNextLeftButtonRelease = true;
+        m_ignoreNextLeftButtonRelease = true;
     }
     else if( event.LeftUp() )
     {
         // A block command is in progress: a left up is the end of block
         // or this is the end of a double click, already seen
-        if( screen->m_BlockLocate.m_State == STATE_NO_BLOCK && !ignoreNextLeftButtonRelease )
+        // Note also m_ignoreNextLeftButtonRelease can be set by
+        // the call to OnLeftClick(), so do not change it after calling OnLeftClick
+        bool ignoreEvt = m_ignoreNextLeftButtonRelease;
+        m_ignoreNextLeftButtonRelease = false;
+
+        if( screen->m_BlockLocate.GetState() == STATE_NO_BLOCK && !ignoreEvt )
             GetParent()->OnLeftClick( &DC, screen->RefPos( true ) );
 
-        ignoreNextLeftButtonRelease = false;
     }
-
-    if( !event.LeftIsDown() )
+    else if( !event.LeftIsDown() )
     {
         /* be sure there is a response to a left button release command
          * even when a LeftUp event is not seen.  This happens when a
          * double click opens a dialog box, and the release mouse button
-         * is made when the dialog box is open.
+         * is made when the dialog box is opened.
          */
-        ignoreNextLeftButtonRelease = false;
+        m_ignoreNextLeftButtonRelease = false;
     }
 
-    if( event.ButtonUp( wxMOUSE_BTN_MIDDLE ) && (screen->m_BlockLocate.m_State == STATE_NO_BLOCK) )
+    if( event.ButtonDown( wxMOUSE_BTN_MIDDLE ) && m_enableMiddleButtonPan )
+    {
+        if( m_panScrollbarLimits )
+        {
+            int ppux, ppuy;
+            GetScrollPixelsPerUnit( &ppux, &ppuy );
+            GetViewStart( &m_PanStartCenter.x, &m_PanStartCenter.y );
+            m_PanStartCenter.x *= ppux;
+            m_PanStartCenter.y *= ppuy;
+        }
+        else
+            m_PanStartCenter = GetParent()->GetScreen()->GetScrollCenterPosition();
+
+        m_PanStartEventPosition = event.GetPosition();
+
+        INSTALL_UNBUFFERED_DC( dc, this );
+        CrossHairOff( &dc );
+    }
+
+    if( event.ButtonUp( wxMOUSE_BTN_MIDDLE ) && m_enableMiddleButtonPan )
+    {
+        INSTALL_UNBUFFERED_DC( dc, this );
+        CrossHairOn( &dc );
+    }
+
+    if( event.MiddleIsDown() && m_enableMiddleButtonPan )
+    {
+        wxPoint currentPosition = event.GetPosition();
+        if( m_panScrollbarLimits )
+        {
+            int x, y;
+            int tmpX, tmpY;
+            int ppux, ppuy;
+            int maxX, maxY;
+            int vsizeX, vsizeY;
+            int csizeX, csizeY;
+
+            GetViewStart( &tmpX, &tmpY );
+            GetScrollPixelsPerUnit( &ppux, &ppuy );
+            GetVirtualSize( &vsizeX, &vsizeY );
+            GetClientSize( &csizeX, &csizeY );
+
+            maxX = vsizeX - csizeX;
+            maxY = vsizeY - csizeY;
+
+            x = m_PanStartCenter.x + m_PanStartEventPosition.x - currentPosition.x;
+            y = m_PanStartCenter.y + m_PanStartEventPosition.y - currentPosition.y;
+
+            bool shouldMoveCursor = false;
+
+            if( x < 0 )
+            {
+                currentPosition.x += x;
+                x = 0;
+                shouldMoveCursor = true;
+            }
+
+            if( y < 0 )
+            {
+                currentPosition.y += y;
+                y = 0;
+                shouldMoveCursor = true;
+            }
+
+            if( x > maxX )
+            {
+                currentPosition.x += ( x - maxX );
+                x = maxX;
+                shouldMoveCursor = true;
+            }
+
+            if( y > maxY )
+            {
+                currentPosition.y += ( y - maxY );
+                y = maxY;
+                shouldMoveCursor = true;
+            }
+
+            if ( shouldMoveCursor )
+                WarpPointer( currentPosition.x, currentPosition.y );
+
+            Scroll( x/ppux, y/ppuy );
+
+            double scale = GetParent()->GetScreen()->GetScalingFactor();
+
+            wxPoint center = GetParent()->GetScreen()->GetScrollCenterPosition();
+            center.x += KiROUND( (double) ( x - tmpX ) / scale ) / ppux;
+            center.y += KiROUND( (double) ( y - tmpY ) / scale ) / ppuy;
+            GetParent()->GetScreen()->SetScrollCenterPosition( center );
+
+            Refresh();
+            Update();
+        }
+        else
+        {
+            double scale = GetParent()->GetScreen()->GetScalingFactor();
+            int x = m_PanStartCenter.x +
+                    KiROUND( (double) ( m_PanStartEventPosition.x - currentPosition.x ) / scale );
+            int y = m_PanStartCenter.y +
+                    KiROUND( (double) ( m_PanStartEventPosition.y - currentPosition.y ) / scale );
+
+            GetParent()->RedrawScreen( wxPoint( x, y ), false );
+        }
+    }
+
+    if( event.ButtonUp( wxMOUSE_BTN_MIDDLE ) && !m_enableMiddleButtonPan &&
+        (screen->m_BlockLocate.GetState() == STATE_NO_BLOCK) )
     {
         // The middle button has been released, with no block command:
         // We use it for a zoom center at cursor position command
@@ -957,7 +1118,7 @@ void EDA_DRAW_PANEL::OnMouseEvent( wxMouseEvent& event )
         GetEventHandler()->ProcessEvent( cmd );
     }
 
-    /* Calling the general function on mouse changes (and pseudo key commands) */
+    // Calling the general function on mouse changes (and pseudo key commands)
     GetParent()->GeneralControl( &DC, event.GetLogicalPosition( DC ), 0 );
 
     /*******************************/
@@ -965,10 +1126,11 @@ void EDA_DRAW_PANEL::OnMouseEvent( wxMouseEvent& event )
     /*******************************/
 
     // Command block can't start if mouse is dragging a new panel
-    if( LastPanel != this )
+    static EDA_DRAW_PANEL* lastPanel;
+    if( lastPanel != this )
     {
-        MinDragEventCount = 0;
-        m_CanStartBlock   = -1;
+        m_minDragEventCount = 0;
+        m_canStartBlock   = -1;
     }
 
     /* A new command block can start after a release buttons
@@ -979,8 +1141,8 @@ void EDA_DRAW_PANEL::OnMouseEvent( wxMouseEvent& event )
      */
     if( !event.LeftIsDown() && !event.MiddleIsDown() )
     {
-        MinDragEventCount = 0;
-        m_CanStartBlock   = 0;
+        m_minDragEventCount = 0;
+        m_canStartBlock   = 0;
 
         /* Remember the last cursor position when a drag mouse starts
          * this is the last position ** before ** clicking a button
@@ -992,59 +1154,59 @@ void EDA_DRAW_PANEL::OnMouseEvent( wxMouseEvent& event )
         m_CursorStartPos = screen->GetCrossHairPosition();
     }
 
-    if( m_Block_Enable && !(localbutt & GR_M_DCLICK) )
+    if( m_enableBlockCommands && !(localbutt & GR_M_DCLICK) )
     {
         if( !screen->IsBlockActive() )
         {
             screen->m_BlockLocate.SetOrigin( m_CursorStartPos );
         }
 
-        if( event.LeftDown() || event.MiddleDown() )
+        if( event.LeftDown() || ( !m_enableMiddleButtonPan && event.MiddleDown() ) )
         {
-            if( screen->m_BlockLocate.m_State == STATE_BLOCK_MOVE )
+            if( screen->m_BlockLocate.GetState() == STATE_BLOCK_MOVE )
             {
-                m_AutoPAN_Request = false;
+                m_requestAutoPan = false;
                 GetParent()->HandleBlockPlace( &DC );
-                ignoreNextLeftButtonRelease = true;
+                m_ignoreNextLeftButtonRelease = true;
             }
         }
-        else if( ( m_CanStartBlock >= 0 )
-                && ( event.LeftIsDown() || event.MiddleIsDown() )
+        else if( ( m_canStartBlock >= 0 )
+                && ( event.LeftIsDown() || ( !m_enableMiddleButtonPan && event.MiddleIsDown() ) )
                 && !IsMouseCaptured() )
         {
             // Mouse is dragging: if no block in progress,  start a block command.
-            if( screen->m_BlockLocate.m_State == STATE_NO_BLOCK )
+            if( screen->m_BlockLocate.GetState() == STATE_NO_BLOCK )
             {
                 //  Start a block command
                 int cmd_type = kbstat;
 
-                if( event.MiddleIsDown() )
+                if( !m_enableMiddleButtonPan && event.MiddleIsDown() )
                     cmd_type |= MOUSE_MIDDLE;
 
-                /* A block command is started if the drag is enough.  A small
-                 * drag is ignored (it is certainly a little mouse move when
-                 * clicking) not really a drag mouse
-                 */
-                if( MinDragEventCount < MIN_DRAG_COUNT_FOR_START_BLOCK_COMMAND )
-                    MinDragEventCount++;
+                // A block command is started if the drag is enough.  A small
+                // drag is ignored (it is certainly a little mouse move when
+                // clicking) not really a drag mouse
+                if( m_minDragEventCount < MIN_DRAG_COUNT_FOR_START_BLOCK_COMMAND )
+                    m_minDragEventCount++;
                 else
                 {
                     if( !GetParent()->HandleBlockBegin( &DC, cmd_type, m_CursorStartPos ) )
                     {
-                        // should not occurs: error
+                        // should not occur: error
                         GetParent()->DisplayToolMsg(
                             wxT( "EDA_DRAW_PANEL::OnMouseEvent() Block Error" ) );
                     }
                     else
                     {
-                        m_AutoPAN_Request = true;
+                        m_requestAutoPan = true;
                         SetCursor( wxCURSOR_SIZING );
                     }
                 }
             }
         }
 
-        if( event.ButtonUp( wxMOUSE_BTN_LEFT ) || event.ButtonUp( wxMOUSE_BTN_MIDDLE ) )
+        if( event.ButtonUp( wxMOUSE_BTN_LEFT ) ||
+            ( !m_enableMiddleButtonPan && event.ButtonUp( wxMOUSE_BTN_MIDDLE ) ) )
         {
             /* Release the mouse button: end of block.
              * The command can finish (DELETE) or have a next command (MOVE,
@@ -1055,27 +1217,27 @@ void EDA_DRAW_PANEL::OnMouseEvent( wxMouseEvent& event )
              */
             #define BLOCK_MINSIZE_LIMIT 1
             bool BlockIsSmall =
-                ( ABS( screen->m_BlockLocate.GetWidth() ) < BLOCK_MINSIZE_LIMIT )
-                && ( ABS( screen->m_BlockLocate.GetHeight() ) < BLOCK_MINSIZE_LIMIT );
+                ( std::abs( screen->m_BlockLocate.GetWidth() ) < BLOCK_MINSIZE_LIMIT )
+                && ( std::abs( screen->m_BlockLocate.GetHeight() ) < BLOCK_MINSIZE_LIMIT );
 
-            if( (screen->m_BlockLocate.m_State != STATE_NO_BLOCK) && BlockIsSmall )
+            if( (screen->m_BlockLocate.GetState() != STATE_NO_BLOCK) && BlockIsSmall )
             {
                 if( m_endMouseCaptureCallback )
                 {
                     m_endMouseCaptureCallback( this, &DC );
-                    m_AutoPAN_Request = false;
+                    m_requestAutoPan = false;
                 }
 
-                SetCursor( m_currentCursor );
+                SetCursor( (wxStockCursor) m_currentCursor );
            }
-            else if( screen->m_BlockLocate.m_State == STATE_BLOCK_END )
+            else if( screen->m_BlockLocate.GetState() == STATE_BLOCK_END )
             {
-                m_AutoPAN_Request = false;
+                m_requestAutoPan = false;
                 GetParent()->HandleBlockEnd( &DC );
-                SetCursor( m_currentCursor );
-                if( screen->m_BlockLocate.m_State == STATE_BLOCK_MOVE )
+                SetCursor( (wxStockCursor) m_currentCursor );
+                if( screen->m_BlockLocate.GetState() == STATE_BLOCK_MOVE )
                 {
-                    m_AutoPAN_Request = true;
+                    m_requestAutoPan = true;
                     SetCursor( wxCURSOR_HAND );
                 }
            }
@@ -1095,14 +1257,20 @@ void EDA_DRAW_PANEL::OnMouseEvent( wxMouseEvent& event )
 #if 0
     wxString msg_debug;
     msg_debug.Printf( " block state %d, cmd %d",
-                      screen->m_BlockLocate.m_State,
-                      screen->m_BlockLocate.m_Command );
+                      screen->m_BlockLocate.GetState(),
+                      screen->m_BlockLocate.GetCommand() );
     GetParent()->PrintMsg( msg_debug );
 #endif
 
-    LastPanel = this;
+    lastPanel = this;
 }
 
+
+
+void EDA_DRAW_PANEL::OnCharHook( wxKeyEvent& event )
+{
+    event.Skip();
+}
 
 void EDA_DRAW_PANEL::OnKeyEvent( wxKeyEvent& event )
 {
@@ -1113,23 +1281,16 @@ void EDA_DRAW_PANEL::OnKeyEvent( wxKeyEvent& event )
 
     switch( localkey )
     {
-    case WXK_CONTROL:
-    case WXK_CAPITAL:
-    case WXK_SHIFT:
-    case WXK_NUMLOCK:
-    case WXK_LBUTTON:
-    case WXK_RBUTTON:
-    case WXK_ALT:
-        return;
+    default:
+        break;
 
     case WXK_ESCAPE:
-        m_AbortRequest = true;
+        m_abortRequest = true;
 
         if( IsMouseCaptured() )
             EndMouseCapture();
         else
             EndMouseCapture( ID_NO_TOOL_SELECTED, m_defaultCursor, wxEmptyString );
-
         break;
     }
 
@@ -1159,6 +1320,7 @@ void EDA_DRAW_PANEL::OnKeyEvent( wxKeyEvent& event )
     Screen->SetMousePosition( pos );
 
     GetParent()->GeneralControl( &DC, pos, localkey );
+
 }
 
 
@@ -1226,11 +1388,29 @@ void EDA_DRAW_PANEL::EndMouseCapture( int id, int cursor, const wxString& title,
 
     m_mouseCaptureCallback = NULL;
     m_endMouseCaptureCallback = NULL;
-    m_AutoPAN_Request = false;
+    m_requestAutoPan = false;
 
     if( id != -1 && cursor != -1 )
     {
         wxASSERT( cursor > wxCURSOR_NONE && cursor < wxCURSOR_MAX );
         GetParent()->SetToolID( id, cursor, title );
     }
+}
+
+
+void EDA_DRAW_PANEL::CallMouseCapture( wxDC* aDC, const wxPoint& aPosition, bool aErase )
+{
+    wxCHECK_RET( aDC != NULL, wxT( "Invalid device context." ) );
+    wxCHECK_RET( m_mouseCaptureCallback != NULL, wxT( "Mouse capture callback not set." ) );
+
+    m_mouseCaptureCallback( this, aDC, aPosition, aErase );
+}
+
+
+void EDA_DRAW_PANEL::CallEndMouseCapture( wxDC* aDC )
+{
+    wxCHECK_RET( aDC != NULL, wxT( "Invalid device context." ) );
+    wxCHECK_RET( m_endMouseCaptureCallback != NULL, wxT( "End mouse capture callback not set." ) );
+
+    m_endMouseCaptureCallback( this, aDC );
 }

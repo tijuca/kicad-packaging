@@ -32,34 +32,47 @@
 #ifndef INCLUDE__COMMON_H_
 #define INCLUDE__COMMON_H_
 
-#include "wx/wx.h"
-#include "wx/confbase.h"
-#include "wx/fileconf.h"
+#include <vector>
+
+#include <wx/wx.h>
+#include <wx/confbase.h>
+#include <wx/fileconf.h>
+
+#include <richio.h>
+#include <convert_to_biu.h>
+#include <colors.h>
+
+#if !wxUSE_PRINTING_ARCHITECTURE && !SWIG
+#   error "You must use '--enable-printarch' in your wx library configuration."
+#endif
+
+#if defined( __WXGTK__ )
+#   if !wxUSE_LIBGNOMEPRINT && !wxUSE_GTKPRINT && !SWIG
+#       error "You must use '--with-gnomeprint' or '--with-gtkprint' in your wx library configuration."
+#   endif
+#endif
+
 
 class wxAboutDialogInfo;
-class BASE_SCREEN;
-class EDA_DRAW_FRAME;
-class EDA_DRAW_PANEL;
 
-/* Flag for special keys */
+// Flag for special keys
 #define GR_KB_RIGHTSHIFT 0x10000000                 /* Keybd states: right
                                                      * shift key depressed */
 #define GR_KB_LEFTSHIFT  0x20000000                 /* left shift key depressed
                                                      */
-#define GR_KB_CTRL       0x40000000                 /* CTRL depressed */
-#define GR_KB_ALT        0x80000000                 /* ALT depressed */
+#define GR_KB_CTRL       0x40000000                 // CTRL depressed
+#define GR_KB_ALT        0x80000000                 // ALT depressed
 #define GR_KB_SHIFT      (GR_KB_LEFTSHIFT | GR_KB_RIGHTSHIFT)
 #define GR_KB_SHIFTCTRL  (GR_KB_SHIFT | GR_KB_CTRL)
 #define MOUSE_MIDDLE     0x08000000                 /* Middle button mouse
                                                      * flag for block commands
                                                      */
 
-// default name for nameless projects
+/// default name for nameless projects
 #define NAMELESS_PROJECT wxT( "noname" )
 
-#define NB_ITEMS 11
 
-/* Pseudo key codes for command panning */
+/// Pseudo key codes for command panning
 enum pseudokeys {
     EDA_PANNING_UP_KEY = 1,
     EDA_PANNING_DOWN_KEY,
@@ -72,7 +85,7 @@ enum pseudokeys {
 
 #define ESC 27
 
-/* TODO Executable names TODO*/
+// TODO Executable names TODO
 #ifdef __WINDOWS__
 #define CVPCB_EXE           wxT( "cvpcb.exe" )
 #define PCBNEW_EXE          wxT( "pcbnew.exe" )
@@ -99,12 +112,74 @@ enum pseudokeys {
 #endif
 
 
-/* Graphic Texts Orientation in 0.1 degree*/
+// Graphic Texts Orientation in 0.1 degree
 #define TEXT_ORIENT_HORIZ 0
 #define TEXT_ORIENT_VERT  900
 
 #define ON  1
 #define OFF 0
+
+
+//-----<KiROUND KIT>------------------------------------------------------------
+
+/**
+ * KiROUND
+ * rounds a floating point number to an int using
+ * "round halfway cases away from zero".
+ * In Debug build an assert fires if will not fit into an int.
+ */
+
+#if !defined( DEBUG )
+
+/// KiROUND: a function so v is not evaluated twice.  Unfortunately, compiler
+/// is unable to pre-compute constants using this.
+static inline int KiROUND( double v )
+{
+    return int( v < 0 ? v - 0.5 : v + 0.5 );
+}
+
+/// KIROUND: a macro so compiler can pre-compute constants.  Use this with compile
+/// time constants rather than the inline function above.
+#define KIROUND( v )    int( (v) < 0 ? (v) - 0.5 : (v) + 0.5 )
+
+#else
+
+// DEBUG: KiROUND() is a macro to capture line and file, then calls this inline
+
+static inline int kiRound_( double v, int line, const char* filename )
+{
+    v = v < 0 ? v - 0.5 : v + 0.5;
+    if( v > INT_MAX + 0.5 )
+    {
+        printf( "%s: in file %s on line %d, val: %.16g too ' > 0 ' for int\n", __FUNCTION__, filename, line, v );
+    }
+    else if( v < INT_MIN - 0.5 )
+    {
+        printf( "%s: in file %s on line %d, val: %.16g too ' < 0 ' for int\n", __FUNCTION__, filename, line, v );
+    }
+    return int( v );
+}
+
+#define KiROUND( v )    kiRound_( v, __LINE__, __FILE__ )
+
+// in Debug build, use the overflow catcher since code size is immaterial
+#define KIROUND( v )    KiROUND( v )
+
+#endif
+
+//-----</KiROUND KIT>-----------------------------------------------------------
+
+
+
+/// Convert mm to mils.
+inline int Mm2mils( double x ) { return KiROUND( x * 1000./25.4 ); }
+
+/// Convert mils to mm.
+inline int Mils2mm( double x ) { return KiROUND( x * 25.4 / 1000. ); }
+
+
+/// Return whether GOST is in play
+bool IsGOST();
 
 
 enum EDA_UNITS_T {
@@ -113,97 +188,282 @@ enum EDA_UNITS_T {
     UNSCALED_UNITS = 2
 };
 
-#if defined(KICAD_GOST)
-#define GOST_LEFTMARGIN   800    /* 20mm */
-#define GOST_RIGHTMARGIN  200    /* 5mm */
-#define GOST_TOPMARGIN    200    /* 5mm */
-#define GOST_BOTTOMMARGIN 200    /* 5mm */
 
-#endif
-/* forward declarations: */
+// forward declarations:
 class LibNameList;
 
 
-/* Class to handle pages sizes:
+/**
+ * Class PAGE_INFO
+ * describes the page size and margins of a paper page on which to
+ * eventually print or plot.  Paper sizes are often described in inches.
+ * Here paper is described in 1/1000th of an inch (mils).  For convenience
+ * there are some read only accessors for internal units (IU), which is a compile
+ * time calculation, not runtime.
+ *
+ * @author Dick Hollenbeck
  */
-class Ki_PageDescr
+class PAGE_INFO
 {
-// All sizes are in 1/1000 inch
 public:
-    wxSize   m_Size;    /* page size in 1/1000 inch */
-    wxPoint  m_Offset;  /* plot offset in 1/1000 inch */
-    wxString m_Name;
-    int      m_LeftMargin;
-    int      m_RightMargin;
-    int      m_TopMargin;
-    int      m_BottomMargin;
 
-public:
-    Ki_PageDescr( const wxSize& size, const wxPoint& offset, const wxString& name );
+    PAGE_INFO( const wxString& aType = PAGE_INFO::A3, bool IsPortrait = false );
+
+    // paper size names which are part of the public API, pass to SetType() or
+    // above constructor.
+
+    static const wxString A4;
+    static const wxString A3;
+    static const wxString A2;
+    static const wxString A1;
+    static const wxString A0;
+    static const wxString A;
+    static const wxString B;
+    static const wxString C;
+    static const wxString D;
+    static const wxString E;
+    static const wxString GERBER;
+    static const wxString USLetter;
+    static const wxString USLegal;
+    static const wxString USLedger;
+    static const wxString Custom;     ///< "User" defined page type
+
+
+    /**
+     * Function SetType
+     * sets the name of the page type and also the sizes and margins
+     * commonly associated with that type name.
+     *
+     * @param aStandardPageDescriptionName is a wxString constant giving one of:
+     * "A4" "A3" "A2" "A1" "A0" "A" "B" "C" "D" "E" "GERBER", "USLetter", "USLegal",
+     * "USLedger", or "User".  If "User" then the width and height are custom,
+     * and will be set according to <b>previous</b> calls to
+     * static PAGE_INFO::SetUserWidthMils() and
+     * static PAGE_INFO::SetUserHeightMils();
+     * @param IsPortrait Set to true to set page orientation to portrait mode.
+     *
+     * @return bool - true if @a aStandarePageDescription was a recognized type.
+     */
+    bool SetType( const wxString& aStandardPageDescriptionName, bool IsPortrait = false );
+    const wxString& GetType() const { return m_type; }
+
+    /**
+     * Function IsDefault
+     * @return True if the object has the default page settings which are A3, landscape.
+     */
+    bool IsDefault() const { return m_type == PAGE_INFO::A3 && !m_portrait; }
+
+    /**
+     * Function IsCustom
+     * returns true if the type is Custom
+     */
+    bool IsCustom() const;
+
+    /**
+     * Function SetPortrait
+     * will rotate the paper page 90 degrees.  This PAGE_INFO may either be in
+     * portrait or landscape mode.  Use this function to change from one to the
+     * other mode.
+     * @param isPortrait if true and not already in portrait mode, will change
+     *  this PAGE_INFO to portrait mode.  Or if false and not already in landscape mode,
+     *  will change this PAGE_INFO to landscape mode.
+     */
+    void SetPortrait( bool isPortrait );
+    bool IsPortrait() const { return m_portrait; }
+
+    /**
+     * Function GetWxOrientation.
+     * @return ws' style printing orientation (wxPORTRAIT or wxLANDSCAPE).
+     */
+#if wxCHECK_VERSION( 2, 9, 0  )
+    wxPrintOrientation  GetWxOrientation() const { return IsPortrait() ? wxPORTRAIT : wxLANDSCAPE; }
+#else
+    int  GetWxOrientation() const { return IsPortrait() ? wxPORTRAIT : wxLANDSCAPE; }
+#endif
+
+    /**
+     * Function GetPaperId
+     * @return wxPaperSize - wxPrintData's style paper id associated with
+     * page type name.
+     */
+    wxPaperSize GetPaperId() const { return m_paper_id; }
+
+    void SetWidthMils(  int aWidthInMils );
+    int GetWidthMils() const { return m_size.x; }
+
+    void SetHeightMils( int aHeightInMils );
+    int GetHeightMils() const { return m_size.y; }
+
+    const wxSize& GetSizeMils() const { return m_size; }
+
+    // Accessors returning "Internal Units (IU)".  IUs are mils in EESCHEMA,
+    // and either deci-mils or nanometers in PCBNew.
+#if defined(PCBNEW) || defined(EESCHEMA) || defined(GERBVIEW)
+    int GetWidthIU() const  { return IU_PER_MILS * GetWidthMils();  }
+    int GetHeightIU() const { return IU_PER_MILS * GetHeightMils(); }
+    const wxSize GetSizeIU() const  { return wxSize( GetWidthIU(), GetHeightIU() ); }
+#endif
+
+    /**
+     * Function GetLeftMarginMils.
+     * @return int - logical page left margin in mils.
+     */
+    int GetLeftMarginMils() const           { return m_left_margin; }
+
+    /**
+     * Function GetLeftMarginMils.
+     * @return int - logical page right margin in mils.
+     */
+    int GetRightMarginMils() const          { return m_right_margin; }
+
+    /**
+     * Function GetLeftMarginMils.
+     * @return int - logical page top margin in mils.
+     */
+    int GetTopMarginMils() const            { return m_top_margin; }
+
+    /**
+     * Function GetBottomMarginMils.
+     * @return int - logical page bottom margin in mils.
+     */
+    int GetBottomMarginMils() const         { return m_bottom_margin; }
+
+    /**
+     * Function SetLeftMarginMils
+     * sets left page margin to @a aMargin in mils.
+     */
+    void SetLeftMarginMils( int aMargin )   { m_left_margin = aMargin; }
+
+    /**
+     * Function SetRightMarginMils
+     * sets right page margin to @a aMargin in mils.
+     */
+    void SetRightMarginMils( int aMargin )  { m_right_margin = aMargin; }
+
+    /**
+     * Function SetTopMarginMils
+     * sets top page margin to @a aMargin in mils.
+     */
+    void SetTopMarginMils( int aMargin )    { m_top_margin = aMargin; }
+
+    /**
+     * Function SetBottomMarginMils
+     * sets bottom page margin to @a aMargin in mils.
+     */
+    void SetBottomMarginMils( int aMargin ) { m_bottom_margin = aMargin; }
+
+    /**
+     * Function SetCustomWidthMils
+     * sets the width of Custom page in mils, for any custom page
+     * constructed or made via SetType() after making this call.
+     */
+    static void SetCustomWidthMils( int aWidthInMils );
+
+    /**
+     * Function SetCustomHeightMils
+     * sets the height of Custom page in mils, for any custom page
+     * constructed or made via SetType() after making this call.
+     */
+    static void SetCustomHeightMils( int aHeightInMils );
+
+    /**
+     * Function GetCustomWidthMils.
+     * @return int - custom paper width in mils.
+     */
+    static int GetCustomWidthMils() { return s_user_width; }
+
+    /**
+     * Function GetCustomHeightMils.
+     * @return int - custom paper height in mils.
+     */
+    static int GetCustomHeightMils() { return s_user_height; }
+
+    /**
+     * Function GetStandardSizes
+     * returns the standard page types, such as "A4", "A3", etc.
+    static wxArrayString GetStandardSizes();
+     */
+
+    /**
+     * Function Format
+     * outputs the page class to \a aFormatter in s-expression form.
+     *
+     * @param aFormatter The #OUTPUTFORMATTER object to write to.
+     * @param aNestLevel The indentation next level.
+     * @param aControlBits The control bit definition for object specific formatting.
+     * @throw IO_ERROR on write error.
+     */
+    void Format( OUTPUTFORMATTER* aFormatter, int aNestLevel, int aControlBits ) const
+        throw( IO_ERROR );
+
+protected:
+    // only the class implementation(s) may use this constructor
+    PAGE_INFO( const wxSize& aSizeMils, const wxString& aName, wxPaperSize aPaperId );
+
+
+private:
+
+    // standard pre-defined sizes
+    static const PAGE_INFO pageA4;
+    static const PAGE_INFO pageA3;
+    static const PAGE_INFO pageA2;
+    static const PAGE_INFO pageA1;
+    static const PAGE_INFO pageA0;
+    static const PAGE_INFO pageA;
+    static const PAGE_INFO pageB;
+    static const PAGE_INFO pageC;
+    static const PAGE_INFO pageD;
+    static const PAGE_INFO pageE;
+    static const PAGE_INFO pageGERBER;
+
+    static const PAGE_INFO pageUSLetter;
+    static const PAGE_INFO pageUSLegal;
+    static const PAGE_INFO pageUSLedger;
+
+    static const PAGE_INFO pageUser;
+
+    // all dimensions here are in mils
+
+    wxString    m_type;             ///< paper type: A4, A3, etc.
+    wxSize      m_size;             ///< mils
+
+/// Min and max page sizes for clamping.
+#define MIN_PAGE_SIZE   4000
+#define MAX_PAGE_SIZE   48000
+
+
+    int         m_left_margin;
+    int         m_right_margin;
+    int         m_top_margin;
+    int         m_bottom_margin;
+
+    bool        m_portrait;         ///< true if portrait, false if landscape
+
+    wxPaperSize m_paper_id;         ///< wx' style paper id.
+
+    static int s_user_height;
+    static int s_user_width;
+
+    void    updatePortrait();
+
+    void    setMargins();
 };
 
 
-extern Ki_PageDescr   g_Sheet_A4;
-extern Ki_PageDescr   g_Sheet_A3;
-extern Ki_PageDescr   g_Sheet_A2;
-extern Ki_PageDescr   g_Sheet_A1;
-extern Ki_PageDescr   g_Sheet_A0;
-extern Ki_PageDescr   g_Sheet_A;
-extern Ki_PageDescr   g_Sheet_B;
-extern Ki_PageDescr   g_Sheet_C;
-extern Ki_PageDescr   g_Sheet_D;
-extern Ki_PageDescr   g_Sheet_E;
-extern Ki_PageDescr   g_Sheet_GERBER;
-extern Ki_PageDescr   g_Sheet_user;
-extern Ki_PageDescr*  g_SheetSizeList[];
+extern wxString     g_ProductName;
 
+/// Default user lib path can be left void, if the standard lib path is used
+extern wxString     g_UserLibDirBuffer;
 
-extern wxString       g_ProductName;
-
-/* Default user lib path can be left void, if the standard lib path is used */
-extern wxString       g_UserLibDirBuffer;
-
-extern bool           g_ShowPageLimits; // true to display the page limits
-
-/**
- * File extension definitions.  Please do not changes these.  If a different
- * file extension is needed, create a new definition in the application.
- * Please note, just because they are defined as const doesn't guarantee
- * that they cannot be changed.
- */
-extern const wxString ProjectFileExtension;
-extern const wxString SchematicFileExtension;
-extern const wxString NetlistFileExtension;
-extern const wxString GerberFileExtension;
-extern const wxString PcbFileExtension;
-extern const wxString PdfFileExtension;
-extern const wxString MacrosFileExtension;
-
-/// Proper wxFileDialog wild card definitions.
-extern const wxString ProjectFileWildcard;
-extern const wxString SchematicFileWildcard;
-extern const wxString BoardFileWildcard;
-extern const wxString NetlistFileWildcard;
-extern const wxString GerberFileWildcard;
-extern const wxString PcbFileWildcard;
-extern const wxString PdfFileWildcard;
-extern const wxString MacrosFileWildcard;
-extern const wxString AllFilesWildcard;
-
-
-// Name of default configuration file. (kicad.pro)
-extern wxString     g_Prj_Default_Config_FullFilename;
-
-// Name of local configuration file. (<curr projet>.pro)
-extern wxString     g_Prj_Config_LocalFilename;
+extern bool         g_ShowPageLimits;       ///< true to display the page limits
 
 extern EDA_UNITS_T  g_UserUnit;     ///< display units
 
 /// Draw color for moving objects.
-extern int          g_GhostColor;
+extern EDA_COLOR_T  g_GhostColor;
 
 
-/* COMMON.CPP */
+// COMMON.CPP
 
 /**
  * Function SetLocaleTo_C_standard
@@ -217,7 +477,7 @@ extern int          g_GhostColor;
  *  This is wrapper to the C setlocale( LC_NUMERIC, "C" ) function,
  *  but could make more easier an optional use of locale in KiCad
  */
-void SetLocaleTo_C_standard( void );
+void SetLocaleTo_C_standard();
 
 /**
  * Function SetLocaleTo_Default
@@ -230,8 +490,42 @@ void SetLocaleTo_C_standard( void );
  *  This is wrapper to the C setlocale( LC_NUMERIC, "" ) function,
  *  but could make more easier an optional use of locale in KiCad
  */
-void SetLocaleTo_Default( void );
+void SetLocaleTo_Default();
 
+
+/**
+ * Class LOCALE_IO
+ * is a class that can be instantiated within a scope in which you are expecting
+ * exceptions to be thrown.  Its constructor calls SetLocaleTo_C_Standard().
+ * Its destructor insures that the default locale is restored if an exception
+ * is thrown, or not.
+ */
+class LOCALE_IO
+{
+public:
+    LOCALE_IO()
+    {
+        if( C_count++ == 0 )
+            SetLocaleTo_C_standard();
+    }
+
+    ~LOCALE_IO()
+    {
+        if( --C_count == 0 )
+            SetLocaleTo_Default();
+    }
+
+private:
+    static int C_count;     // allow for nesting of LOCALE_IO instantiations
+};
+
+
+/**
+ * Function GetTextSize
+ * returns the size of @a aSingleLine of text when it is rendered in @a aWindow
+ * using whatever font is currently set in that window.
+ */
+wxSize GetTextSize( const wxString& aSingleLine, wxWindow* aWindow );
 
 /**
  * Function EnsureTextCtrlWidth
@@ -250,25 +544,18 @@ bool EnsureTextCtrlWidth( wxTextCtrl* aCtrl, const wxString* aString = NULL );
 
 
 /**
- * Operator << overload
- * outputs a point to the argument string in a format resembling
- * "@ (x,y)
- * @param aString Where to put the text describing the point value
- * @param aPoint  The point to output.
- * @return wxString& - the input string
- */
-wxString& operator <<( wxString& aString, const wxPoint& aPoint );
-
-
-/**
  * Function ProcessExecute
  * runs a child process.
  * @param aCommandLine The process and any arguments to it all in a single
  *                     string.
  * @param aFlags The same args as allowed for wxExecute()
- * @return bool - true if success, else false
+ * @param callback wxProcess implementing OnTerminate to be run when the
+                   child process finishes
+ * @return int - pid of process, 0 in case of error (like return values of
+ *               wxExecute())
  */
-bool ProcessExecute( const wxString& aCommandLine, int aFlags = wxEXEC_ASYNC );
+int ProcessExecute( const wxString& aCommandLine, int aFlags = wxEXEC_ASYNC,
+                     wxProcess *callback = NULL );
 
 
 /*******************/
@@ -281,34 +568,15 @@ void InitKiCadAbout( wxAboutDialogInfo& info );
 /* common.cpp */
 /**************/
 
-int GetTimeStamp();
+/**
+ * @return an unique time stamp that changes after each call
+ */
+time_t GetNewTimeStamp();
 
-int DisplayColorFrame( wxWindow* parent, int OldColor );
+EDA_COLOR_T DisplayColorFrame( wxWindow* parent, int OldColor );
 int GetCommandOptions( const int argc, const char** argv,
                        const char* stringtst, const char** optarg,
                        int* optind );
-
-
-/* Returns to display the value of a parameter, by type of units selected
- * Input: value in mils, buffer text
- * Returns to buffer: text: value expressed in inches or millimeters
- * Followed by " or mm
- */
-const wxString& valeur_param( int valeur, wxString& buf_texte );
-
-/**
- * Function CoordinateToString
- * is a helper to convert the integer coordinate \a aValue to a string in inches,
- * millimeters, or unscaled units according to the current user units setting.
- *
- * @param aValue The coordinate to convert.
- * @param aInternalUnits The internal units of the application.  #EESCHEMA_INTERNAL_UNIT
- *                       and #PCB_INTERNAL_UNIT are the only valid value.
- * @param aConvertToMils Convert inch values to mils if true.  This setting has no effect if
- *                       the current user unit is millimeters.
- * @return The converted string for display in user interface elements.
- */
-wxString CoordinateToString( int aValue, int aInternalUnits, bool aConvertToMils = false );
 
 /**
  * Returns the units symbol.
@@ -333,44 +601,17 @@ wxString ReturnUnitSymbol( EDA_UNITS_T aUnits = g_UserUnit,
 wxString GetUnitsLabel( EDA_UNITS_T aUnits );
 wxString GetAbbreviatedUnitsLabel( EDA_UNITS_T aUnit = g_UserUnit );
 
-/**
- * Function ReturnValueFromeString
- * @return The string from Value, according to units (inch, mm ...) for display,
- *  and the initial unit for value
- *  Unit = display units (INCH, MM ..)
- *  Value = text
- *  Internal_Unit = units per inch for computed value
- */
-int ReturnValueFromString( EDA_UNITS_T aUnit, const wxString& TextValue, int Internal_Unit );
+void AddUnitSymbol( wxStaticText& Stext, EDA_UNITS_T aUnit = g_UserUnit );
 
 /**
- * Function ReturnStringFromValue
- * Return the string from Value, according to units (inch, mm ...) for display,
- * and the initial unit for value
- * @param aUnit = display units (INCHES, MILLIMETRE ..)
- * @param aValue = value in Internal_Unit
- * @param aInternal_Unit = units per inch for Value
- * @param aAdd_unit_symbol = true to add symbol unit to the string value
- * @return a wxString what contains value and optionally the symbol unit (like
- *         2.000 mm)
+ * Round to the nearest precision.
+ *
+ * Try to approximate a coordinate using a given precision to prevent
+ * rounding errors when converting from inches to mm.
+ *
+ * ie round the unit value to 0 if unit is 1 or 2, or 8 or 9
  */
-wxString        ReturnStringFromValue( EDA_UNITS_T aUnit,
-                                       int  aValue,
-                                       int  aInternal_Unit,
-                                       bool aAdd_unit_symbol = false );
-
-void            AddUnitSymbol( wxStaticText& Stext, EDA_UNITS_T aUnit = g_UserUnit );
-
-/* Add string "  (mm):" or " ("):" to the static text Stext.
- *  Used in dialog boxes for entering values depending on selected units */
-void            PutValueInLocalUnits( wxTextCtrl& TextCtr, int Value,
-                                      int Internal_Unit );
-
-/* Convert the number Value in a string according to the internal units
- *  and the selected unit (g_UserUnit) and put it in the wxTextCtrl TextCtrl
- **/
-int             ReturnValueFromTextCtrl( const wxTextCtrl& TextCtr,
-                                         int               Internal_Unit );
+double RoundTo0( double x, double precision );
 
 /**
  * Function wxStringSplit
@@ -379,29 +620,21 @@ int             ReturnValueFromTextCtrl( const wxTextCtrl& TextCtr,
  * @param aString is the text to split
  * @param aSplitter is the 'split' character
  */
-wxArrayString*  wxStringSplit( wxString txt, wxChar aSplitter );
-
-/**
- * Function To_User_Unit
- * Convert in inch or mm the variable "val" (double)given in internal units
- * @return the converted value, in double
- * @param aUnit : user unit to be converted to
- * @param val : double : the given value
-
- * @param internal_unit_value = internal units per inch
- */
-double To_User_Unit( EDA_UNITS_T aUnit, double val, int internal_unit_value );
-
-/**
- * Return in internal units the value "val" given in inch or mm
- */
-int From_User_Unit( EDA_UNITS_T aUnit, double val, int internal_unit_value );
+wxArrayString* wxStringSplit( wxString aString, wxChar aSplitter );
 
 /**
  * Function GenDate
- * @return A wsString object containg the date in the format "day month year" like
+ * @return A wxString object containing the date in the format "day month year" like
  *         "23 jun 2005".
  */
 wxString GenDate();
+
+/**
+ * Function GetRunningMicroSecs
+ * returns an ever increasing indication of elapsed microseconds.  Use this
+ * by computing differences between two calls.
+ * @author Dick Hollenbeck
+ */
+unsigned GetRunningMicroSecs();
 
 #endif  // INCLUDE__COMMON_H_

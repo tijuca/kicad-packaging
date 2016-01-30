@@ -24,26 +24,24 @@
  */
 
 
-#include "fctsys.h"
-#include "common.h"
-#include "kicad_string.h"
-#include "pcbnew.h"
-#include "richio.h"
-#include "macros.h"
+#include <fctsys.h>
+#include <common.h>
+#include <kicad_string.h>
+#include <pcbnew.h>
+#include <richio.h>
+#include <macros.h>
 
-#include "class_board.h"
-#include "class_netclass.h"
+#include <class_board.h>
+#include <class_netclass.h>
 
-
-// Current design settings (used also to read configs):
-extern BOARD_DESIGN_SETTINGS boardDesignSettings;
 
 // This will get mapped to "kicad_default" in the specctra_export.
 const wxString NETCLASS::Default = wxT("Default");
+
 // Initial values for netclass initialization
-int NETCLASS::DEFAULT_CLEARANCE = 100;                  // track to track and track to pads clearance
-int NETCLASS::DEFAULT_VIA_DRILL = 250;                  // default via drill
-int NETCLASS::DEFAULT_UVIA_DRILL = 50;                  // micro via drill
+int NETCLASS::DEFAULT_CLEARANCE  = DMils2iu( 100 );  // track to track and track to pads clearance
+int NETCLASS::DEFAULT_VIA_DRILL  = DMils2iu( 250 );  // default via drill
+int NETCLASS::DEFAULT_UVIA_DRILL = DMils2iu( 50 );    // micro via drill
 
 
 NETCLASS::NETCLASS( BOARD* aParent, const wxString& aName, const NETCLASS* initialParameters ) :
@@ -68,16 +66,27 @@ void NETCLASS::SetParams( const NETCLASS* defaults )
         SetuViaDrill( defaults->GetuViaDrill() );
     }
     else
-    {   // We should use m_Parent->GetBoardDesignSettings()
-        // But when the NETCLASSES constructor is called
-        // (it call NETCLASS constructor), the m_Parent constructor (see BOARD::BOARD)
-        // is not run, and GetBoardDesignSettings() return a bad value
-        // TODO: see how change that.
-        const BOARD_DESIGN_SETTINGS& g = boardDesignSettings;
+    {
+
+/* Dick 5-Feb-2012:  I do not believe this comment to be true with current code.
+        It is certainly not a constructor race.  Normally items are initialized
+        within a class according to the order of their appearance.
+
+        // Note:
+        // We use m_Parent->GetDesignSettings() to get some default values
+        // But when this function is called when instantiating a BOARD class,
+        // by the NETCLASSES constructor that calls NETCLASS constructor,
+        // the BOARD constructor (see BOARD::BOARD) is not yet run,
+        // and BOARD::m_designSettings contains not yet initialized values.
+        // So inside the BOARD constructor itself, you SHOULD recall SetParams
+*/
+
+        const BOARD_DESIGN_SETTINGS& g = m_Parent->GetDesignSettings();
 
         SetTrackWidth(  g.m_TrackMinWidth );
         SetViaDiameter( g.m_ViasMinSize );
-        SetuViaDiameter(g.m_MicroViasMinSize );
+        SetuViaDiameter( g.m_MicroViasMinSize );
+
         // Use default values for next parameters:
         SetClearance( DEFAULT_CLEARANCE );
         SetViaDrill( DEFAULT_VIA_DRILL );
@@ -194,7 +203,7 @@ void BOARD::SynchronizeNetsAndNetClasses()
     // set all NETs to the default NETCLASS, then later override some
     // as we go through the NETCLASSes.
 
-    int count = m_NetInfo->GetCount();
+    int count = m_NetInfo.GetNetCount();
     for( int i=0;  i<count;  ++i )
     {
         NETINFO_ITEM* net = FindNet( i );
@@ -260,62 +269,9 @@ void BOARD::SynchronizeNetsAndNetClasses()
 }
 
 
-bool NETCLASSES::Save( FILE* aFile ) const
-{
-    bool result;
-
-    // save the default first.
-    result = m_Default.Save( aFile );
-
-    if( result )
-    {
-        // the rest will be alphabetical in the *.brd file.
-        for( const_iterator i = begin();  i!=end();  ++i )
-        {
-            NETCLASS*   netclass = i->second;
-
-            result = netclass->Save( aFile );
-            if( !result )
-                break;
-        }
-    }
-
-    return result;
-}
-
-
-bool NETCLASS::Save( FILE* aFile ) const
-{
-    bool result = true;
-
-    fprintf( aFile, "$" BRD_NETCLASS "\n" );
-    fprintf( aFile, "Name %s\n",        EscapedUTF8( m_Name ).c_str() );
-    fprintf( aFile, "Desc %s\n",        EscapedUTF8( GetDescription() ).c_str() );
-
-    // Write parameters
-
-    fprintf( aFile, "Clearance %d\n",       GetClearance() );
-    fprintf( aFile, "TrackWidth %d\n",      GetTrackWidth() );
-
-    fprintf( aFile, "ViaDia %d\n",          GetViaDiameter() );
-    fprintf( aFile, "ViaDrill %d\n",        GetViaDrill() );
-
-    fprintf( aFile, "uViaDia %d\n",         GetuViaDiameter() );
-    fprintf( aFile, "uViaDrill %d\n",       GetuViaDrill() );
-
-    // Write members:
-    for( const_iterator i = begin();  i!=end();  ++i )
-        fprintf( aFile, "AddNet %s\n", EscapedUTF8( *i ).c_str() );
-
-    fprintf( aFile, "$End" BRD_NETCLASS "\n" );
-
-    return result;
-}
-
-
 #if defined(DEBUG)
 
-void NETCLASS::Show( int nestLevel, std::ostream& os )
+void NETCLASS::Show( int nestLevel, std::ostream& os ) const
 {
     // for now, make it look like XML:
     //NestedSpace( nestLevel, os )
@@ -335,104 +291,54 @@ void NETCLASS::Show( int nestLevel, std::ostream& os )
 #endif
 
 
-
-bool NETCLASS::ReadDescr( LINE_READER* aReader )
-{
-    bool        result = false;
-    char*       Line;
-    char        Buffer[1024];
-    wxString    netname;
-
-    while( aReader->ReadLine() )
-    {
-        Line = aReader->Line();
-        if( strnicmp( Line, "AddNet", 6 ) == 0 )
-        {
-            ReadDelimitedText( Buffer, Line + 6, sizeof(Buffer) );
-            netname = FROM_UTF8( Buffer );
-            Add( netname );
-            continue;
-        }
-
-        if( strnicmp( Line, "$end" BRD_NETCLASS, sizeof( "$end" BRD_NETCLASS)-1) == 0 )
-        {
-            result = true;
-            break;
-        }
-
-        if( strnicmp( Line, "Clearance", 9 ) == 0 )
-        {
-            SetClearance( atoi( Line + 9 ) );
-            continue;
-        }
-        if( strnicmp( Line, "TrackWidth", 10 ) == 0 )
-        {
-            SetTrackWidth( atoi( Line + 10 ) );
-            continue;
-        }
-        if( strnicmp( Line, "ViaDia", 6 ) == 0 )
-        {
-            SetViaDiameter( atoi( Line + 6 ) );
-            continue;
-        }
-        if( strnicmp( Line, "ViaDrill", 8 ) == 0 )
-        {
-            SetViaDrill( atoi( Line + 8 ) );
-            continue;
-        }
-
-        if( strnicmp( Line, "uViaDia", 7 ) == 0 )
-        {
-            SetuViaDiameter( atoi( Line + 7 ) );
-            continue;
-        }
-        if( strnicmp( Line, "uViaDrill", 9 ) == 0 )
-        {
-            SetuViaDrill( atoi( Line + 9 ) );
-            continue;
-        }
-
-        if( strnicmp( Line, "Name", 4 ) == 0 )
-        {
-            ReadDelimitedText( Buffer, Line + 4, sizeof(Buffer) );
-            m_Name = FROM_UTF8( Buffer );
-            continue;
-        }
-        if( strnicmp( Line, "Desc", 4 ) == 0 )
-        {
-            ReadDelimitedText( Buffer, Line + 4, sizeof(Buffer) );
-            SetDescription( FROM_UTF8( Buffer ) );
-            continue;
-        }
-    }
-
-    return result;
-}
-
-
 int NETCLASS::GetTrackMinWidth() const
 {
-    return m_Parent->GetBoardDesignSettings()->m_TrackMinWidth;
+    return m_Parent->GetDesignSettings().m_TrackMinWidth;
 }
+
 
 int NETCLASS::GetViaMinDiameter() const
 {
-    return m_Parent->GetBoardDesignSettings()->m_ViasMinSize;
+    return m_Parent->GetDesignSettings().m_ViasMinSize;
 }
+
 
 int NETCLASS::GetViaMinDrill() const
 {
-    return m_Parent->GetBoardDesignSettings()->m_ViasMinDrill;
+    return m_Parent->GetDesignSettings().m_ViasMinDrill;
 }
+
 
 int NETCLASS::GetuViaMinDiameter() const
 {
-    return m_Parent->GetBoardDesignSettings()->m_MicroViasMinSize;
+    return m_Parent->GetDesignSettings().m_MicroViasMinSize;
 }
+
 
 int NETCLASS::GetuViaMinDrill() const
 {
-    return m_Parent->GetBoardDesignSettings()->m_MicroViasMinDrill;
+    return m_Parent->GetDesignSettings().m_MicroViasMinDrill;
 }
 
 
+void NETCLASS::Format( OUTPUTFORMATTER* aFormatter, int aNestLevel, int aControlBits ) const
+    throw( IO_ERROR )
+{
+    aFormatter->Print( aNestLevel, "(net_class %s %s\n",
+                       aFormatter->Quotew( GetName() ).c_str(),
+                       aFormatter->Quotew( GetDescription() ).c_str() );
+
+    aFormatter->Print( aNestLevel+1, "(clearance %s)\n", FMT_IU( GetClearance() ).c_str() );
+    aFormatter->Print( aNestLevel+1, "(trace_width %s)\n", FMT_IU( GetTrackWidth() ).c_str() );
+
+    aFormatter->Print( aNestLevel+1, "(via_dia %s)\n", FMT_IU( GetViaDiameter() ).c_str() );
+    aFormatter->Print( aNestLevel+1, "(via_drill %s)\n", FMT_IU( GetViaDrill() ).c_str() );
+
+    aFormatter->Print( aNestLevel+1, "(uvia_dia %s)\n", FMT_IU( GetuViaDiameter() ).c_str() );
+    aFormatter->Print( aNestLevel+1, "(uvia_drill %s)\n", FMT_IU( GetuViaDrill() ).c_str() );
+
+    for( NETCLASS::const_iterator it = begin();  it!= end();  ++it )
+        aFormatter->Print( aNestLevel+1, "(add_net %s)\n", aFormatter->Quotew( *it ).c_str() );
+
+    aFormatter->Print( aNestLevel, ")\n\n" );
+}

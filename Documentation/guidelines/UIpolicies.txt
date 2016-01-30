@@ -5,8 +5,9 @@
 Capitalization:
 
     For any visible text used within KiCad, follow recommendations here:
-    http://library.gnome.org/devel/hig-book/2.20/design-text-labels.html.en#layout-capitalization
-    This applies to all Menus, Titles, Labels, Tooltips, Buttons, etc.
+    http://developer.gnome.org/hig-book/stable/design-text-labels.html.en
+    in the "Capitalization" section.  This applies to all Menus, Titles,
+    Labels, Tooltips, Buttons, etc.
 
     The capitalization for the application names is KiCad, Eeschema, CvPcb,
     GerbView, and Pcbnew.  All strings that have application names that are
@@ -18,13 +19,16 @@ Capitalization:
 Dialogs:
 
     Follow the recommendations here:
-    http://library.gnome.org/devel/hig-book/2.20/windows-dialog.html.en
+
+    http://developer.gnome.org/hig-book/stable/design-window.html.en
     paying particular attention to "initial focus", "sensible default values",
     "default buttons", ESC key termination.  Please note that the escape key
     termination only works properly if there is a dialog button defined with
     an ID of wxID_CANCEL or SetEscapeID( MY_ESCAPE_BUTTON_ID ) is called during
     dialog initialization.  The former is the preferred method for handling
-    escape key dialog termination.
+    escape key dialog termination.  There is a checkbox in wxformbuilder for
+    the "default" control, and this is the one fired when the "enter" key
+    is pressed.
 
     Use wxWidgets "sizers" in all dialogs, no matter how simple they are:
     http://zetcode.com/tutorials/wxwidgetstutorial/layoutmanagement
@@ -41,6 +45,14 @@ Dialogs:
     near the perimeter of the increasingly larger dialog box, not necessarily
     leaving them all bundled tightly together.  The dialog box should look
     nice at any size large enough to show all the components.
+
+    When using wxFormBuilder, please add the following settings to the
+    "Dialog" node:
+        subclass.name   <- DIALOG_SHIM
+        subclass.header <- dialog_shim.h
+
+    This will provide for an override of the Show( bool ) wxWindow() function
+    and provide retentitive size and position for the session.
 
     Use tooltips to explain the functionality of each non-obvious control.
     This is important because the help files and the wiki often lag behind

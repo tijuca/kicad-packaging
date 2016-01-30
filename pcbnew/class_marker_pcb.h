@@ -7,8 +7,11 @@
 #define CLASS_MARKER_PCB_H
 
 
-#include "class_board_item.h"
-#include "class_marker_base.h"
+#include <class_board_item.h>
+#include <class_marker_base.h>
+
+
+class MSG_PANEL_ITEM;
 
 
 class MARKER_PCB : public BOARD_ITEM, public MARKER_BASE
@@ -43,85 +46,40 @@ public:
 
     ~MARKER_PCB();
 
-    /**
-     * Function Move
-     * move this object.
-     * @param aMoveVector - the move vector for this object.
-     */
-    virtual void Move(const wxPoint& aMoveVector)
+    void Move(const wxPoint& aMoveVector)
     {
         m_Pos += aMoveVector;
     }
 
-    /**
-     * Function Rotate
-     * Rotate this object.
-     * @param aRotCentre - the rotation point.
-     * @param aAngle - the rotation angle in 0.1 degree.
-     */
-    virtual void Rotate( const wxPoint& aRotCentre, int aAngle );
+    void Rotate( const wxPoint& aRotCentre, double aAngle );
 
-    /**
-     * Function Flip
-     * Flip this object, i.e. change the board side for this object
-     * @param aCentre - the rotation point.
-     */
-    virtual void Flip( const wxPoint& aCentre );
+    void Flip( const wxPoint& aCentre );
 
-    /**
-     * Function Draw
-     */
-    void    Draw( EDA_DRAW_PANEL* aPanel, wxDC* aDC, int aDrawMode,
-                  const wxPoint& aOffset = ZeroOffset )
+    void Draw( EDA_DRAW_PANEL* aPanel, wxDC* aDC,
+               GR_DRAWMODE aDrawMode, const wxPoint& aOffset = ZeroOffset )
     {
         DrawMarker( aPanel, aDC, aDrawMode, aOffset );
     }
 
-    /**
-     * Function GetPosition
-     * returns the position of this MARKER_PCB.
-     */
-    wxPoint& GetPosition()
+    const wxPoint& GetPosition() const          { return m_Pos; }
+    void SetPosition( const wxPoint& aPos )     { m_Pos = aPos; }
+
+    bool HitTest( const wxPoint& aPosition )
     {
-        return (wxPoint&) m_Pos;
+        return HitTestMarker( aPosition );
     }
 
+    bool IsOnLayer( int aLayer ) const;
 
-    /**
-     * Function HitTest
-     * @return true if the point aPosRef is within item area
-     * @param aPosRef = a wxPoint to test
-     */
-    bool HitTest( const wxPoint& aPosRef )
-    {
-        return HitTestMarker( aPosRef );
-    }
+    void GetMsgPanelInfo( std::vector< MSG_PANEL_ITEM >& aList );
 
-    /**
-     * Function DisplayInfo
-     * has knowledge about the frame and how and where to put status information
-     * about this object into the frame's message panel.
-     * @param frame A EDA_DRAW_FRAME in which to print status information.
-     */
-    void    DisplayInfo( EDA_DRAW_FRAME* frame );
+    wxString GetSelectMenuText() const;
 
-    /**
-     * Function Save
-     * writes the data structures for this object out to a FILE in "*.brd" format.
-     * @param aFile The FILE to write to.
-     * @return bool - true if success writing else false.
-     */
-    bool Save( FILE* aFile ) const
-    {
-        // not implemented, this is here to satisfy BOARD_ITEM::Save()
-        // "pure" virtual-ness
-        return true;
-    }
+    BITMAP_DEF GetMenuImage() const { return  drc_xpm; }
 
-    virtual wxString GetSelectMenuText() const;
-
-    virtual BITMAP_DEF GetMenuImage() const { return  drc_xpm; }
+#if defined(DEBUG)
+    void Show( int nestLevel, std::ostream& os ) const { ShowDummy( os ); } // override
+#endif
 };
-
 
 #endif      //  CLASS_MARKER_PCB_H

@@ -24,17 +24,17 @@
  */
 
 
-#include "fctsys.h"
-#include "class_drawpanel.h"
-#include "macros.h"
+#include <fctsys.h>
+#include <class_drawpanel.h>
+#include <macros.h>
 
-#include "confirm.h"
-#include "pcbnew.h"
-#include "wxPcbStruct.h"
+#include <confirm.h>
+#include <pcbnew.h>
+#include <wxPcbStruct.h>
 
-#include "class_board.h"
+#include <class_board.h>
 
-#include "dialog_layers_setup_base.h"
+#include <dialog_layers_setup_base.h>
 
 
 // some define to choose how copper layers widgets are shown
@@ -73,9 +73,6 @@ struct CTLs
 class DIALOG_LAYERS_SETUP : public DIALOG_LAYERS_SETUP_BASE
 {
 private:
-    static wxPoint      s_LastPos;
-    static wxSize       s_LastSize;
-
     PCB_EDIT_FRAME*     m_Parent;
 
     int                 m_CopperLayerCount;
@@ -158,8 +155,6 @@ public:
     DIALOG_LAYERS_SETUP( PCB_EDIT_FRAME* parent );
     ~DIALOG_LAYERS_SETUP( ) { };
 
-    bool Show( bool show );     // overload stock function
-
     /**
      * Function Layout
      * overrides the standard Layout() function so that the column titles can
@@ -173,11 +168,6 @@ public:
         return ret;
     }
 };
-
-
-// We want our dialog to remember its previous screen position
-wxPoint DIALOG_LAYERS_SETUP::s_LastPos( -1, -1 );
-wxSize  DIALOG_LAYERS_SETUP::s_LastSize;
 
 
 // Layer bit masks for each defined "Preset Layer Grouping"
@@ -312,31 +302,6 @@ DIALOG_LAYERS_SETUP::DIALOG_LAYERS_SETUP( PCB_EDIT_FRAME* parent ) :
 
     m_sdbSizer2OK->SetFocus();
     m_sdbSizer2OK->SetDefault();
-}
-
-
-bool DIALOG_LAYERS_SETUP::Show( bool show )
-{
-    bool ret;
-
-    if( show )
-    {
-        if( s_LastPos.x != -1 )
-        {
-            SetSize( s_LastPos.x, s_LastPos.y, s_LastSize.x, s_LastSize.y, 0 );
-        }
-        ret = DIALOG_LAYERS_SETUP_BASE::Show( show );
-    }
-    else
-    {
-        // Save the dialog's position before hiding
-        s_LastPos  = GetPosition();
-        s_LastSize = GetSize();
-
-        ret = DIALOG_LAYERS_SETUP_BASE::Show( show );
-    }
-
-    return ret;
 }
 
 
@@ -576,6 +541,7 @@ void DIALOG_LAYERS_SETUP::OnOkButtonClick( wxCommandEvent& event )
 
         m_EnabledLayers = getUILayerMask();
         m_Pcb->SetEnabledLayers( m_EnabledLayers );
+
         /* Ensure enabled layers are also visible
          * This is mainly to avoid mistakes if some enabled
          * layers are not visible when exiting this dialog
@@ -659,8 +625,8 @@ bool DIALOG_LAYERS_SETUP::testLayerNames()
         // 3) cannot have " chars
         // 4) cannot be 'signal'
         // 5) must be unique.
-
-        static const wxString badchars( wxT("%$\" ") );
+        // 6) cannot have illegal chars in filenames ( some filenames are built from layer names )
+        static const wxString badchars( wxT("%$\" /\\") );
 
         if( name == wxEmptyString )
         {

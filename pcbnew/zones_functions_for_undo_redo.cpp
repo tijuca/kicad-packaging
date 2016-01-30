@@ -5,7 +5,7 @@
 /*
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
- * Copyright (C) 2009 Jean-Pierre Charras <jean-pierre.charras@gipsa-lab.inpg.fr>
+ * Copyright (C) 2009 Jean-Pierre Charras <jp.charras@wanadoo.fr>
  * Copyright (C) 2007 KiCad Developers, see change_log.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
@@ -42,17 +42,17 @@
  * and ones they are modified (changes, deletion or addition)
  */
 
-#include "fctsys.h"
-#include "appl_wxstruct.h"
-#include "class_drawpanel.h"
-#include "wxPcbStruct.h"
+#include <fctsys.h>
+#include <appl_wxstruct.h>
+#include <class_drawpanel.h>
+#include <wxPcbStruct.h>
 
-#include "class_board.h"
-#include "class_zone.h"
+#include <class_board.h>
+#include <class_zone.h>
 
-#include "pcbnew.h"
-#include "zones.h"
-#include "zones_functions_for_undo_redo.h"
+#include <pcbnew.h>
+#include <zones.h>
+#include <zones_functions_for_undo_redo.h>
 
 /**
  * Function IsSame
@@ -70,33 +70,52 @@ bool ZONE_CONTAINER::IsSame( const ZONE_CONTAINER& aZoneToCompare )
     if( m_Netname != aZoneToCompare.m_Netname )
         return false;
 
-    // Compare zone specfic parameters
-    if(  m_ZoneClearance != aZoneToCompare.m_ZoneClearance )
+    if( GetPriority() != aZoneToCompare.GetPriority() )
         return false;
 
-    if(  m_ZoneMinThickness != aZoneToCompare.m_ZoneMinThickness )
+    // Compare zone specific parameters
+    if( GetIsKeepout() != aZoneToCompare.GetIsKeepout() )
         return false;
 
-    if(  m_FillMode != aZoneToCompare.m_FillMode )
+    if( GetIsKeepout() )
+    {
+        if(  GetDoNotAllowCopperPour() != aZoneToCompare.GetDoNotAllowCopperPour() )
+            return false;
+
+        if(  GetDoNotAllowVias() != aZoneToCompare.GetDoNotAllowVias() )
+            return false;
+
+        if(  GetDoNotAllowTracks() != aZoneToCompare.GetDoNotAllowTracks() )
+            return false;
+    }
+
+    if( m_ArcToSegmentsCount != aZoneToCompare.m_ArcToSegmentsCount )
         return false;
 
-    if(  m_ArcToSegmentsCount != aZoneToCompare.m_ArcToSegmentsCount )
+    if( m_ZoneClearance != aZoneToCompare.m_ZoneClearance )
         return false;
 
-    if(  m_PadOption != aZoneToCompare.m_PadOption )
+    if( m_ZoneMinThickness != aZoneToCompare.m_ZoneMinThickness )
         return false;
 
-    if(  m_ThermalReliefGapValue != aZoneToCompare.m_ThermalReliefGapValue )
+    if( m_FillMode != aZoneToCompare.m_FillMode )
         return false;
 
-    if(  m_ThermalReliefCopperBridgeValue != aZoneToCompare.m_ThermalReliefCopperBridgeValue )
+    if( m_PadConnection != aZoneToCompare.m_PadConnection )
         return false;
+
+    if( m_ThermalReliefGap != aZoneToCompare.m_ThermalReliefGap )
+        return false;
+
+    if( m_ThermalReliefCopperBridge != aZoneToCompare.m_ThermalReliefCopperBridge )
+        return false;
+
 
     // Compare outlines
     wxASSERT( m_Poly );                                      // m_Poly == NULL Should never happen
     wxASSERT( aZoneToCompare.m_Poly );
 
-    if( m_Poly->corner != aZoneToCompare.m_Poly->corner )    // Compare vector
+    if( m_Poly->m_CornersList != aZoneToCompare.m_Poly->m_CornersList )    // Compare vector
         return false;
 
     return true;
@@ -132,11 +151,10 @@ int SaveCopyOfZones( PICKED_ITEMS_LIST& aPickList, BOARD* aPcb, int aNetCode, in
         if( aLayer >= 0 && aLayer != zone->GetLayer() )
             continue;
 
-        ZONE_CONTAINER* zoneDup = new ZONE_CONTAINER( aPcb );
-        zoneDup->Copy( zone );
-        ITEM_PICKER     picker( zone, UR_CHANGED );
-        picker.m_Link = zoneDup;
-        picker.m_PickedItemType = zone->Type();
+        ZONE_CONTAINER* zoneDup = new ZONE_CONTAINER( *zone );
+        zoneDup->SetParent( aPcb );
+        ITEM_PICKER picker( zone, UR_CHANGED );
+        picker.SetLink( zoneDup );
         aPickList.PushItem( picker );
         copyCount++;
     }
@@ -156,21 +174,29 @@ int SaveCopyOfZones( PICKED_ITEMS_LIST& aPickList, BOARD* aPcb, int aNetCode, in
  * @param aPcb = the Board
  *
  * aAuxiliaryList is a list of pickers updated by zone algorithms:
- *  In this list are put zone taht were added or deleted during the zone combine process
- * aPickList :is a list of zone that can be modified (changed or deleted, or not modified)
+ *  This list contains zones which were added or deleted during the zones combine process
+ * aPickList :is a list of zones that can be modified (changed or deleted, or not modified)
+ *  Typically, this is the list of existing zones on the layer of the edited zone,
+ *  before any change.
  *  >> if the picked zone is not changed, it is removed from list
- *  >> if the picked zone was deleted (i.e. not found in boad list), the picker is modified:
- *  - its status becomes UR_DELETED
- *  - the aAuxiliaryList corresponding picker is removed (if not found : set an error)
- *  >> if the picked zone was flagged as UR_NEW, and was deleted (i.e. not found in boad list),
- *  - the picker is removed
- *  - the zone itself if really deleted
- *  - the aAuxiliaryList corresponding picker is removed (if not found : set an error)
+ *  >> if the picked zone was deleted (i.e. not found in board list), the picker is modified:
+ *          its status becomes UR_DELETED
+ *          the aAuxiliaryList corresponding picker is removed (if not found : set an error)
+ *  >> if the picked zone was flagged as UR_NEW, and was after deleted ,
+ *  perhaps combined with an other zone  (i.e. not found in board list):
+ *          the picker is removed
+ *          the zone itself if really deleted
+ *          the aAuxiliaryList corresponding picker is removed (if not found : set an error)
  * After aPickList is cleaned, the aAuxiliaryList is read
  *  All pickers flagged UR_NEW are moved to aPickList
- * (the corresponding zones are zone that were created by the zone combine process, mainly when adding cutaout areas)
- * At the end of the update process the aAuxiliaryList must be void, because all pickers created by the combine process
- * must have been removed (removed for new and deleted zones, or moved in aPickList.)
+ * (the corresponding zones are zone that were created by the zone normalize and combine process,
+ * mainly when adding cutout areas, or creating self intersecting contours)
+ *  All pickers flagged UR_DELETED are removed, and the coresponding zones actually deleted
+ * (the corresponding zones are new zone that were created by the zone normalize process,
+ * when creating self intersecting contours, and after combined with an existing zone.
+ * At the end of the update process the aAuxiliaryList must be void,
+ *  because all pickers created by the combine process
+ *  must have been removed (removed for new and deleted zones, or moved in aPickList.)
  * If not an error is set.
  */
 void UpdateCopyOfZonesList( PICKED_ITEMS_LIST& aPickList,
@@ -211,7 +237,8 @@ void UpdateCopyOfZonesList( PICKED_ITEMS_LIST& aPickList,
                     else
                         wxMessageBox( wxT( "UpdateCopyOfZonesList() error: link = NULL" ) );
 
-                    aPickList.SetPickedItemLink( NULL, kk );    // the copy was deleted; the link does not exists now
+                    // the copy was deleted; the link does not exists now.
+                    aPickList.SetPickedItemLink( NULL, kk );
                     delete zcopy;
                 }
 
@@ -254,15 +281,21 @@ void UpdateCopyOfZonesList( PICKED_ITEMS_LIST& aPickList,
 
 
     // Add new zones in main pick list, and remove pickers from Auxiliary List
-    for( unsigned ii = 0; ii < aAuxiliaryList.GetCount(); ii++ )
+    for( unsigned ii = 0; ii < aAuxiliaryList.GetCount(); )
     {
         if( aAuxiliaryList.GetPickedItemStatus( ii ) == UR_NEW )
         {
             ITEM_PICKER picker = aAuxiliaryList.GetItemWrapper( ii );
             aPickList.PushItem( picker );
             aAuxiliaryList.RemovePicker( ii );
-            ii--;
         }
+        else if( aAuxiliaryList.GetPickedItemStatus( ii ) == UR_DELETED )
+        {
+            delete aAuxiliaryList.GetPickedItemLink( ii );
+            aAuxiliaryList.RemovePicker( ii );
+        }
+        else
+            ii++;
     }
 
     // Should not occur:

@@ -1,24 +1,48 @@
+/*
+ * This program source code file is part of KiCad, a free EDA CAD application.
+ *
+ * Copyright (C) 2012 Jean-Pierre Charras, jean-pierre.charras@ujf-grenoble.fr
+ * Copyright (C) 1992-2012 KiCad Developers, see AUTHORS.txt for contributors.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation; either version 2
+ * of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, you may find one here:
+ * http://www.gnu.org/licenses/old-licenses/gpl-2.0.html
+ * or you may search the http://www.gnu.org website for the version 2 license,
+ * or you may write to the Free Software Foundation, Inc.,
+ * 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
+ */
+
 /**
  * @file edtxtmod.cpp
  * @brief Edit module text.
  */
 
-#include "fctsys.h"
-#include "gr_basic.h"
-#include "common.h"
-#include "class_drawpanel.h"
-#include "drawtxt.h"
-#include "trigo.h"
-#include "wxBasePcbFrame.h"
-#include "macros.h"
+#include <fctsys.h>
+#include <gr_basic.h>
+#include <common.h>
+#include <class_drawpanel.h>
+#include <drawtxt.h>
+#include <trigo.h>
+#include <wxBasePcbFrame.h>
+#include <macros.h>
 
-#include "pcbnew.h"
-#include "protos.h"
+#include <pcbnew.h>
+#include <wxPcbStruct.h>
 
-#include "class_board.h"
-#include "class_module.h"
-#include "class_text_mod.h"
-#include "class_pcb_text.h"
+#include <class_board.h>
+#include <class_module.h>
+#include <class_text_mod.h>
+#include <class_pcb_text.h>
 
 
 static void Show_MoveTexte_Module( EDA_DRAW_PANEL* aPanel, wxDC* aDC, const wxPoint& aPosition,
@@ -36,7 +60,7 @@ static int     TextInitialOrientation;  // module text initial orientation for
 
 /* Add a new graphical text to the active module (footprint)
  *  Note there always are 2 texts: reference and value.
- *  New texts have the member TEXTE_MODULE.m_Type set to TEXT_is_DIVERS
+ *  New texts have the member TEXTE_MODULE.GetType() set to TEXT_is_DIVERS
  */
 TEXTE_MODULE* PCB_BASE_FRAME::CreateTextModule( MODULE* Module, wxDC* DC )
 {
@@ -48,26 +72,26 @@ TEXTE_MODULE* PCB_BASE_FRAME::CreateTextModule( MODULE* Module, wxDC* DC )
     if( Module )
         Module->m_Drawings.PushFront( Text );
 
-    Text->m_Flags = IS_NEW;
+    Text->SetFlags( IS_NEW );
 
     Text->m_Text = wxT( "text" );
 
-    g_ModuleTextWidth = Clamp_Text_PenSize( g_ModuleTextWidth,
-                                            MIN( g_ModuleTextSize.x, g_ModuleTextSize.y ), true );
-    Text->m_Size  = g_ModuleTextSize;
-    Text->m_Thickness = g_ModuleTextWidth;
+    GetDesignSettings().m_ModuleTextWidth = Clamp_Text_PenSize( GetDesignSettings().m_ModuleTextWidth,
+                                            std::min( GetDesignSettings().m_ModuleTextSize.x, GetDesignSettings().m_ModuleTextSize.y ), true );
+    Text->m_Size  = GetDesignSettings().m_ModuleTextSize;
+    Text->m_Thickness = GetDesignSettings().m_ModuleTextWidth;
     Text->m_Pos   = GetScreen()->GetCrossHairPosition();
     Text->SetLocalCoord();
 
     InstallTextModOptionsFrame( Text, NULL );
-    DrawPanel->MoveCursorToCrossHair();
+    m_canvas->MoveCursorToCrossHair();
 
-    Text->m_Flags = 0;
+    Text->ClearFlags();
 
     if( DC )
-        Text->Draw( DrawPanel, DC, GR_OR );
+        Text->Draw( m_canvas, DC, GR_OR );
 
-    Text->DisplayInfo( this );
+    SetMsgPanel( Text );
 
     return Text;
 }
@@ -82,25 +106,25 @@ void PCB_BASE_FRAME::RotateTextModule( TEXTE_MODULE* Text, wxDC* DC )
 
     MODULE* module = (MODULE*) Text->GetParent();
 
-    if( module && module->m_Flags == 0 && Text->m_Flags == 0 ) // prepare undo command
+    if( module && module->GetFlags() == 0 && Text->GetFlags() == 0 ) // prepare undo command
     {
-        if( this->m_Ident == PCB_FRAME )
+        if( IsType( PCB_FRAME_TYPE ) )
             SaveCopyInUndoList( module, UR_CHANGED );
     }
 
     // we expect MoveVector to be (0,0) if there is no move in progress
-    Text->Draw( DrawPanel, DC, GR_XOR, MoveVector );
+    Text->Draw( m_canvas, DC, GR_XOR, MoveVector );
 
     Text->m_Orient += 900;
 
     while( Text->m_Orient >= 1800 )
         Text->m_Orient -= 1800;
 
-    Text->Draw( DrawPanel, DC, GR_XOR, MoveVector );
-    Text->DisplayInfo( this );
+    Text->Draw( m_canvas, DC, GR_XOR, MoveVector );
+    SetMsgPanel( Text );
 
     if( module )
-        module->m_LastEdit_Time = time( NULL );
+        module->SetLastEditTime();
 
     OnModify();
 }
@@ -118,12 +142,12 @@ void PCB_BASE_FRAME::DeleteTextModule( TEXTE_MODULE* Text )
 
     Module = (MODULE*) Text->GetParent();
 
-    if( Text->m_Type == TEXT_is_DIVERS )
+    if( Text->GetType() == TEXT_is_DIVERS )
     {
-        DrawPanel->RefreshDrawingRect( Text->GetBoundingBox() );
+        m_canvas->RefreshDrawingRect( Text->GetBoundingBox() );
         Text->DeleteStructure();
         OnModify();
-        Module->m_LastEdit_Time = time( NULL );
+        Module->SetLastEditTime();
     }
 }
 
@@ -151,7 +175,7 @@ static void AbortMoveTextModule( EDA_DRAW_PANEL* Panel, wxDC* DC )
 
     // If the text was moved (the move does not change internal data)
     // it could be rotated while moving. So set old value for orientation
-    if( (Text->m_Flags & IS_MOVED) )
+    if( Text->IsMoving() )
         Text->m_Orient = TextInitialOrientation;
 
     /* Redraw the text */
@@ -160,8 +184,8 @@ static void AbortMoveTextModule( EDA_DRAW_PANEL* Panel, wxDC* DC )
     // leave it at (0,0) so we can use it Rotate when not moving.
     MoveVector.x = MoveVector.y = 0;
 
-    Text->m_Flags   = 0;
-    Module->m_Flags = 0;
+    Text->ClearFlags();
+    Module->ClearFlags();
 
     screen->SetCurItem( NULL );
 }
@@ -178,8 +202,8 @@ void PCB_BASE_FRAME::StartMoveTexteModule( TEXTE_MODULE* Text, wxDC* DC )
 
     Module = (MODULE*) Text->GetParent();
 
-    Text->m_Flags   |= IS_MOVED;
-    Module->m_Flags |= IN_EDIT;
+    Text->SetFlags( IS_MOVED );
+    Module->SetFlags( IN_EDIT );
 
     MoveVector.x = MoveVector.y = 0;
 
@@ -188,13 +212,12 @@ void PCB_BASE_FRAME::StartMoveTexteModule( TEXTE_MODULE* Text, wxDC* DC )
 
     // Center cursor on initial position of text
     GetScreen()->SetCrossHairPosition( TextInitialPosition );
-    DrawPanel->MoveCursorToCrossHair();
+    m_canvas->MoveCursorToCrossHair();
 
-    Text->DisplayInfo( this );
-
+    SetMsgPanel( Text );
     SetCurItem( Text );
-    DrawPanel->SetMouseCapture( Show_MoveTexte_Module, AbortMoveTextModule );
-    DrawPanel->m_mouseCaptureCallback( DrawPanel, DC, wxDefaultPosition, true );
+    m_canvas->SetMouseCapture( Show_MoveTexte_Module, AbortMoveTextModule );
+    m_canvas->CallMouseCapture( DC, wxDefaultPosition, true );
 }
 
 
@@ -204,8 +227,8 @@ void PCB_BASE_FRAME::PlaceTexteModule( TEXTE_MODULE* Text, wxDC* DC )
 {
     if( Text != NULL )
     {
-        DrawPanel->RefreshDrawingRect( Text->GetBoundingBox() );
-        Text->DrawUmbilical( DrawPanel, DC, GR_XOR, -MoveVector );
+        m_canvas->RefreshDrawingRect( Text->GetBoundingBox() );
+        Text->DrawUmbilical( m_canvas, DC, GR_XOR, -MoveVector );
 
         /* Update the coordinates for anchor. */
         MODULE* Module = (MODULE*) Text->GetParent();
@@ -215,7 +238,7 @@ void PCB_BASE_FRAME::PlaceTexteModule( TEXTE_MODULE* Text, wxDC* DC )
             // Prepare undo command (a rotation can be made while moving)
             EXCHG( Text->m_Orient, TextInitialOrientation );
 
-            if( m_Ident == PCB_FRAME )
+            if( IsType( PCB_FRAME_TYPE ) )
                 SaveCopyInUndoList( Module, UR_CHANGED );
             else
                 SaveCopyInUndoList( Module, UR_MODEDIT );
@@ -226,14 +249,14 @@ void PCB_BASE_FRAME::PlaceTexteModule( TEXTE_MODULE* Text, wxDC* DC )
             Text->m_Pos = GetScreen()->GetCrossHairPosition();
             wxPoint textRelPos = Text->m_Pos - Module->m_Pos;
             RotatePoint( &textRelPos, -Module->m_Orient );
-            Text->m_Pos0    = textRelPos;
-            Text->m_Flags   = 0;
-            Module->m_Flags = 0;
-            Module->m_LastEdit_Time = time( NULL );
+            Text->SetPos0( textRelPos );
+            Text->ClearFlags();
+            Module->ClearFlags();
+            Module->SetLastEditTime();
             OnModify();
 
             /* Redraw text. */
-            DrawPanel->RefreshDrawingRect( Text->GetBoundingBox() );
+            m_canvas->RefreshDrawingRect( Text->GetBoundingBox() );
         }
         else
         {
@@ -244,7 +267,7 @@ void PCB_BASE_FRAME::PlaceTexteModule( TEXTE_MODULE* Text, wxDC* DC )
     // leave it at (0,0) so we can use it Rotate when not moving.
     MoveVector.x = MoveVector.y = 0;
 
-    DrawPanel->SetMouseCapture( NULL, NULL );
+    m_canvas->SetMouseCapture( NULL, NULL );
 }
 
 
@@ -285,15 +308,15 @@ void PCB_BASE_FRAME::ResetTextSize( BOARD_ITEM* aItem, wxDC* aDC )
     switch( aItem->Type() )
     {
     case PCB_TEXT_T:
-        newSize = GetBoard()->GetBoardDesignSettings()->m_PcbTextSize;
-        newThickness = GetBoard()->GetBoardDesignSettings()->m_PcbTextWidth;
+        newSize = GetDesignSettings().m_PcbTextSize;
+        newThickness = GetDesignSettings().m_PcbTextWidth;
         pcbText = (TEXTE_PCB*) aItem;
         text = (EDA_TEXT*) pcbText;
         break;
 
     case PCB_MODULE_TEXT_T:
-        newSize = g_ModuleTextSize;
-        newThickness = g_ModuleTextWidth;
+        newSize = GetDesignSettings().m_ModuleTextSize;
+        newThickness = GetDesignSettings().m_ModuleTextWidth;
         moduleText = (TEXTE_MODULE*) aItem;
         text = (EDA_TEXT*) moduleText;
         break;
@@ -328,112 +351,7 @@ void PCB_BASE_FRAME::ResetTextSize( BOARD_ITEM* aItem, wxDC* aDC )
     text->SetThickness( newThickness );
 
     if( aDC )
-        DrawPanel->Refresh();
-
-    OnModify();
-}
-
-void PCB_BASE_FRAME::ResetModuleTextSizes( int aType, wxDC* aDC )
-{
-    MODULE* module;
-    BOARD_ITEM* boardItem;
-    TEXTE_MODULE* item;
-    ITEM_PICKER itemWrapper( NULL, UR_CHANGED );
-    PICKED_ITEMS_LIST undoItemList;
-    unsigned int ii;
-
-    itemWrapper.m_PickedItemType = PCB_MODULE_T;
-
-    module = GetBoard()->m_Modules;
-
-    // Prepare undo list
-    while( module )
-    {
-        itemWrapper.m_PickedItem = module;
-
-        switch( aType )
-        {
-        case TEXT_is_REFERENCE:
-            item = module->m_Reference;
-
-            if( item->GetSize() != g_ModuleTextSize || item->GetThickness() != g_ModuleTextWidth )
-                undoItemList.PushItem( itemWrapper );
-
-            break;
-
-        case TEXT_is_VALUE:
-            item = module->m_Value;
-
-            if( item->GetSize() != g_ModuleTextSize || item->GetThickness() != g_ModuleTextWidth )
-                undoItemList.PushItem( itemWrapper );
-
-            break;
-
-        case TEXT_is_DIVERS:
-            // Go through all other module text fields
-            for( boardItem = module->m_Drawings; boardItem; boardItem = boardItem->Next() )
-            {
-                if( boardItem->Type() == PCB_MODULE_TEXT_T )
-                {
-                    item = (TEXTE_MODULE*) boardItem;
-
-                    if( item->GetSize() != g_ModuleTextSize
-                        || item->GetThickness() != g_ModuleTextWidth )
-                    {
-                        undoItemList.PushItem( itemWrapper );
-                        break;
-                    }
-                }
-            }
-
-            break;
-
-        default:
-            break;
-        }
-        module = module->Next();
-    }
-
-    // Exit if there's nothing to do
-    if( !undoItemList.GetCount() )
-        return;
-
-    SaveCopyInUndoList( undoItemList, UR_CHANGED );
-
-    // Apply changes to modules in the undo list
-    for( ii = 0; ii < undoItemList.GetCount(); ii++ )
-    {
-        module = (MODULE*) undoItemList.GetPickedItem( ii );
-
-        switch( aType )
-        {
-        case TEXT_is_REFERENCE:
-            module->m_Reference->SetThickness( g_ModuleTextWidth );
-            module->m_Reference->SetSize( g_ModuleTextSize );
-            break;
-
-        case TEXT_is_VALUE:
-            module->m_Value->SetThickness( g_ModuleTextWidth );
-            module->m_Value->SetSize( g_ModuleTextSize );
-            break;
-
-        case TEXT_is_DIVERS:
-            for( boardItem = module->m_Drawings; boardItem; boardItem = boardItem->Next() )
-            {
-                if( boardItem->Type() == PCB_MODULE_TEXT_T )
-                {
-                    item = (TEXTE_MODULE*) boardItem;
-                    item->SetThickness( g_ModuleTextWidth );
-                    item->SetSize( g_ModuleTextSize );
-                }
-            }
-
-            break;
-        }
-    }
-
-    if( aDC )
-        DrawPanel->Refresh();
+        m_canvas->Refresh();
 
     OnModify();
 }

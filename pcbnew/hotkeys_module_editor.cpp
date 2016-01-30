@@ -2,17 +2,17 @@
  * @file hotkeys_module_editor.cpp
  */
 
-#include "fctsys.h"
-#include "pcbnew.h"
-#include "wxPcbStruct.h"
-#include "module_editor_frame.h"
-#include "pcbnew_id.h"
-#include "class_drawpanel.h"
-#include "confirm.h"
-#include "class_board_design_settings.h"
+#include <fctsys.h>
+#include <pcbnew.h>
+#include <wxPcbStruct.h>
+#include <module_editor_frame.h>
+#include <pcbnew_id.h>
+#include <class_drawpanel.h>
+#include <confirm.h>
+#include <class_board_design_settings.h>
 
-#include "hotkeys.h"
-#include "protos.h"
+#include <hotkeys.h>
+#include <protos.h>
 
 /* How to add a new hotkey:
  * See hotkeys.cpp
@@ -25,9 +25,9 @@ void FOOTPRINT_EDIT_FRAME::OnHotKey( wxDC* aDC, int aHotKey, const wxPoint& aPos
     if( aHotKey == 0 )
         return;
 
-    bool           blockActive = GetScreen()->m_BlockLocate.m_Command !=  BLOCK_IDLE;
+    bool           blockActive = GetScreen()->m_BlockLocate.GetCommand() != BLOCK_IDLE;
     BOARD_ITEM*    item     = GetCurItem();
-    bool           ItemFree = (item == 0) || (item->m_Flags == 0);
+    bool           ItemFree = (item == 0) || (item->GetFlags() == 0);
     wxCommandEvent cmd( wxEVT_COMMAND_MENU_SELECTED );
     cmd.SetEventObject( this );
 
@@ -60,7 +60,9 @@ void FOOTPRINT_EDIT_FRAME::OnHotKey( wxDC* aDC, int aHotKey, const wxPoint& aPos
         break;
 
     case HK_SWITCH_UNITS:
-        g_UserUnit = (g_UserUnit == INCHES) ? MILLIMETRES : INCHES;
+        cmd.SetId( (g_UserUnit == INCHES) ?
+                    ID_TB_OPTIONS_SELECT_UNIT_MM : ID_TB_OPTIONS_SELECT_UNIT_INCH );
+        GetEventHandler()->ProcessEvent( cmd );
         break;
 
     case HK_ZOOM_IN:
@@ -119,8 +121,8 @@ void FOOTPRINT_EDIT_FRAME::OnHotKey( wxDC* aDC, int aHotKey, const wxPoint& aPos
 bool FOOTPRINT_EDIT_FRAME::OnHotkeyEditItem( int aIdCommand )
 {
     BOARD_ITEM* item = GetCurItem();
-    bool        itemCurrentlyEdited = item && item->m_Flags;
-    bool        blockActive = GetScreen()->m_BlockLocate.m_Command !=  BLOCK_IDLE;
+    bool        itemCurrentlyEdited = item && item->GetFlags();
+    bool        blockActive = GetScreen()->m_BlockLocate.GetCommand() != BLOCK_IDLE;
 
     if( itemCurrentlyEdited || blockActive )
         return false;
@@ -138,7 +140,7 @@ bool FOOTPRINT_EDIT_FRAME::OnHotkeyEditItem( int aIdCommand )
     {
     case PCB_MODULE_T:
         if( aIdCommand == HK_EDIT_ITEM )
-            evt_type = ID_POPUP_PCB_EDIT_MODULE;
+            evt_type = ID_POPUP_PCB_EDIT_MODULE_PRMS;
 
         break;
 
@@ -174,8 +176,8 @@ bool FOOTPRINT_EDIT_FRAME::OnHotkeyEditItem( int aIdCommand )
 bool FOOTPRINT_EDIT_FRAME::OnHotkeyDeleteItem( int aIdCommand )
 {
     BOARD_ITEM* item = GetCurItem();
-    bool        itemCurrentlyEdited = item && item->m_Flags;
-    bool        blockActive = GetScreen()->m_BlockLocate.m_Command !=  BLOCK_IDLE;
+    bool        itemCurrentlyEdited = item && item->GetFlags();
+    bool        blockActive = GetScreen()->m_BlockLocate.GetCommand() != BLOCK_IDLE;
 
     if( itemCurrentlyEdited || blockActive )
         return false;
@@ -229,8 +231,8 @@ bool FOOTPRINT_EDIT_FRAME::OnHotkeyDeleteItem( int aIdCommand )
 bool FOOTPRINT_EDIT_FRAME::OnHotkeyMoveItem( int aIdCommand )
 {
     BOARD_ITEM* item = GetCurItem();
-    bool        itemCurrentlyEdited = item && item->m_Flags;
-    bool        blockActive = GetScreen()->m_BlockLocate.m_Command !=  BLOCK_IDLE;
+    bool        itemCurrentlyEdited = item && item->GetFlags();
+    bool        blockActive = GetScreen()->m_BlockLocate.GetCommand() != BLOCK_IDLE;
 
     if( itemCurrentlyEdited || blockActive )
         return false;
@@ -284,9 +286,9 @@ bool FOOTPRINT_EDIT_FRAME::OnHotkeyMoveItem( int aIdCommand )
 bool FOOTPRINT_EDIT_FRAME::OnHotkeyRotateItem( int aIdCommand )
 {
     BOARD_ITEM* item = GetCurItem();
-    bool        itemCurrentlyEdited = item && item->m_Flags;
+    bool        itemCurrentlyEdited = item && item->GetFlags();
     int         evt_type    = 0; // Used to post a wxCommandEvent on demand
-    bool        blockActive = GetScreen()->m_BlockLocate.m_Command !=  BLOCK_IDLE;
+    bool        blockActive = GetScreen()->m_BlockLocate.GetCommand() != BLOCK_IDLE;
 
     if( blockActive )
         return false;

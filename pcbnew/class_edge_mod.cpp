@@ -1,39 +1,60 @@
+/*
+ * This program source code file is part of KiCad, a free EDA CAD application.
+ *
+ * Copyright (C) 2012 Jean-Pierre Charras, jean-pierre.charras@ujf-grenoble.fr
+ * Copyright (C) 2012 SoftPLC Corporation, Dick Hollenbeck <dick@softplc.com>
+ * Copyright (C) 2012 Wayne Stambaugh <stambaughw@verizon.net>
+ * Copyright (C) 1992-2012 KiCad Developers, see AUTHORS.txt for contributors.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation; either version 2
+ * of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, you may find one here:
+ * http://www.gnu.org/licenses/old-licenses/gpl-2.0.html
+ * or you may search the http://www.gnu.org website for the version 2 license,
+ * or you may write to the Free Software Foundation, Inc.,
+ * 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
+ */
+
 /**
  * @file class_edge_mod.cpp
  * @brief EDGE_MODULE class definition.
  */
 
-#include "fctsys.h"
-#include "gr_basic.h"
-#include "wxstruct.h"
-#include "trigo.h"
-#include "class_drawpanel.h"
-#include "confirm.h"
-#include "kicad_string.h"
-#include "colors_selection.h"
-#include "richio.h"
-#include "macros.h"
-#include "wxBasePcbFrame.h"
-#include "pcbcommon.h"
+#include <fctsys.h>
+#include <gr_basic.h>
+#include <wxstruct.h>
+#include <trigo.h>
+#include <class_drawpanel.h>
+#include <class_pcb_screen.h>
+#include <confirm.h>
+#include <kicad_string.h>
+#include <colors_selection.h>
+#include <richio.h>
+#include <macros.h>
+#include <wxBasePcbFrame.h>
+#include <pcbcommon.h>
+#include <msgpanel.h>
+#include <base_units.h>
 
-#include "pcbnew.h"
+#include <class_board.h>
+#include <class_module.h>
+#include <class_edge_mod.h>
 
-#include "class_board.h"
-#include "class_module.h"
-#include "class_edge_mod.h"
+#include <stdio.h>
 
-
-#define MAX_WIDTH 10000  /* Thickness (in 1 / 10000 ") of maximum reasonable features, text... */
-
-
-/*********************/
-/* class EDGE_MODULE */
-/*********************/
-
-EDGE_MODULE::EDGE_MODULE( MODULE* parent ) :
+EDGE_MODULE::EDGE_MODULE( MODULE* parent, STROKE_T aShape ) :
     DRAWSEGMENT( parent, PCB_MODULE_EDGE_T )
 {
-    m_Shape = S_SEGMENT;
+    m_Shape = aShape;
     m_Angle = 0;
     m_Width = 120;
 }
@@ -60,46 +81,49 @@ void EDGE_MODULE::Copy( EDGE_MODULE* source )
 
 void EDGE_MODULE::SetDrawCoord()
 {
-    MODULE* Module = (MODULE*) m_Parent;
+    MODULE* module = (MODULE*) m_Parent;
 
     m_Start = m_Start0;
     m_End   = m_End0;
 
-    if( Module )
+    if( module )
     {
-        RotatePoint( &m_Start.x, &m_Start.y, Module->m_Orient );
-        RotatePoint( &m_End.x, &m_End.y, Module->m_Orient );
-        m_Start += Module->m_Pos;
-        m_End   += Module->m_Pos;
+        RotatePoint( &m_Start.x, &m_Start.y, module->GetOrientation() );
+        RotatePoint( &m_End.x,   &m_End.y,   module->GetOrientation() );
+
+        m_Start += module->m_Pos;
+        m_End   += module->m_Pos;
     }
 }
 
 
-/* Draw EDGE_MODULE:
- * Entry: offset = offset trace
- * Draw_mode mode = trace (GR_OR, GR_XOR, GR_AND)
- * The contours are of different types:
- * - Segment
- * - Circles
- * - Arcs
- */
-void EDGE_MODULE::Draw( EDA_DRAW_PANEL* panel, wxDC* DC, int draw_mode, const wxPoint& offset )
+void EDGE_MODULE::Draw( EDA_DRAW_PANEL* panel, wxDC* DC, GR_DRAWMODE draw_mode,
+                        const wxPoint& offset )
 {
     int             ux0, uy0, dx, dy, radius, StAngle, EndAngle;
-    int             color, type_trace;
+    int             type_trace;
     int             typeaff;
+    int curr_layer = ( (PCB_SCREEN*) panel->GetScreen() )->m_Active_Layer;
     PCB_BASE_FRAME* frame;
     MODULE* module = (MODULE*) m_Parent;
 
     if( module == NULL )
         return;
 
+
     BOARD * brd = GetBoard( );
 
     if( brd->IsLayerVisible( m_Layer ) == false )
         return;
 
-    color = brd->GetLayerColor( m_Layer );
+    EDA_COLOR_T color = brd->GetLayerColor( m_Layer );
+
+    if(( draw_mode & GR_ALLOW_HIGHCONTRAST ) && DisplayOpt.ContrastModeDisplay )
+    {
+        if( !IsOnLayer( curr_layer ) )
+            ColorTurnToDarkDarkGray( &color );
+    }
+
 
     frame = (PCB_BASE_FRAME*) panel->GetParent();
 
@@ -123,38 +147,38 @@ void EDGE_MODULE::Draw( EDA_DRAW_PANEL* panel, wxDC* DC, int draw_mode, const wx
     }
 
     if( DC->LogicalToDeviceXRel( m_Width ) < MIN_DRAW_WIDTH )
-        typeaff = FILAIRE;
+        typeaff = LINE;
 
     switch( type_trace )
     {
     case S_SEGMENT:
-        if( typeaff == FILAIRE )
-            GRLine( &panel->m_ClipBox, DC, ux0, uy0, dx, dy, 0, color );
+        if( typeaff == LINE )
+            GRLine( panel->GetClipBox(), DC, ux0, uy0, dx, dy, 0, color );
         else if( typeaff == FILLED )
-            GRLine( &panel->m_ClipBox, DC, ux0, uy0, dx, dy, m_Width, color );
+            GRLine( panel->GetClipBox(), DC, ux0, uy0, dx, dy, m_Width, color );
         else
             // SKETCH Mode
-            GRCSegm( &panel->m_ClipBox, DC, ux0, uy0, dx, dy, m_Width, color );
+            GRCSegm( panel->GetClipBox(), DC, ux0, uy0, dx, dy, m_Width, color );
 
         break;
 
     case S_CIRCLE:
         radius = (int) hypot( (double) (dx - ux0), (double) (dy - uy0) );
 
-        if( typeaff == FILAIRE )
+        if( typeaff == LINE )
         {
-            GRCircle( &panel->m_ClipBox, DC, ux0, uy0, radius, color );
+            GRCircle( panel->GetClipBox(), DC, ux0, uy0, radius, color );
         }
         else
         {
             if( typeaff == FILLED )
             {
-                GRCircle( &panel->m_ClipBox, DC, ux0, uy0, radius, m_Width, color );
+                GRCircle( panel->GetClipBox(), DC, ux0, uy0, radius, m_Width, color );
             }
             else        // SKETCH Mode
             {
-                GRCircle( &panel->m_ClipBox, DC, ux0, uy0, radius + (m_Width / 2), color );
-                GRCircle( &panel->m_ClipBox, DC, ux0, uy0, radius - (m_Width / 2), color );
+                GRCircle( panel->GetClipBox(), DC, ux0, uy0, radius + (m_Width / 2), color );
+                GRCircle( panel->GetClipBox(), DC, ux0, uy0, radius - (m_Width / 2), color );
             }
         }
 
@@ -168,19 +192,19 @@ void EDGE_MODULE::Draw( EDA_DRAW_PANEL* panel, wxDC* DC, int draw_mode, const wx
         if( StAngle > EndAngle )
             EXCHG( StAngle, EndAngle );
 
-        if( typeaff == FILAIRE )
+        if( typeaff == LINE )
         {
-            GRArc( &panel->m_ClipBox, DC, ux0, uy0, StAngle, EndAngle, radius, color );
+            GRArc( panel->GetClipBox(), DC, ux0, uy0, StAngle, EndAngle, radius, color );
         }
         else if( typeaff == FILLED )
         {
-            GRArc( &panel->m_ClipBox, DC, ux0, uy0, StAngle, EndAngle, radius, m_Width, color );
+            GRArc( panel->GetClipBox(), DC, ux0, uy0, StAngle, EndAngle, radius, m_Width, color );
         }
         else        // SKETCH Mode
         {
-            GRArc( &panel->m_ClipBox, DC, ux0, uy0, StAngle, EndAngle,
+            GRArc( panel->GetClipBox(), DC, ux0, uy0, StAngle, EndAngle,
                    radius + (m_Width / 2), color );
-            GRArc( &panel->m_ClipBox, DC, ux0, uy0, StAngle, EndAngle,
+            GRArc( panel->GetClipBox(), DC, ux0, uy0, StAngle, EndAngle,
                    radius - (m_Width / 2), color );
         }
         break;
@@ -196,18 +220,18 @@ void EDGE_MODULE::Draw( EDA_DRAW_PANEL* panel, wxDC* DC, int draw_mode, const wx
         {
             wxPoint& pt = points[ii];
 
-            RotatePoint( &pt.x, &pt.y, module->m_Orient );
+            RotatePoint( &pt.x, &pt.y, module->GetOrientation() );
             pt += module->m_Pos - offset;
         }
 
-        GRPoly( &panel->m_ClipBox, DC, points.size(), &points[0], true, m_Width, color, color );
+        GRPoly( panel->GetClipBox(), DC, points.size(), &points[0], true, m_Width, color, color );
         break;
     }
 }
 
 
 // see class_edge_mod.h
-void EDGE_MODULE::DisplayInfo( EDA_DRAW_FRAME* frame )
+void EDGE_MODULE::GetMsgPanelInfo( std::vector< MSG_PANEL_ITEM >& aList )
 {
     wxString msg;
 
@@ -221,207 +245,25 @@ void EDGE_MODULE::DisplayInfo( EDA_DRAW_FRAME* frame )
     if( !board )
         return;
 
-    frame->ClearMsgPanel();
-
-    frame->AppendMsgPanel( _( "Graphic Item" ), wxEmptyString, DARKCYAN );
-    frame->AppendMsgPanel( _( "Module" ), module->m_Reference->m_Text, DARKCYAN );
-    frame->AppendMsgPanel( _( "Value" ), module->m_Value->m_Text, BLUE );
-
-    msg.Printf( wxT( "%8.8lX" ), module->m_TimeStamp );
-    frame->AppendMsgPanel( _( "TimeStamp" ), msg, BROWN );
-    frame->AppendMsgPanel( _( "Mod Layer" ), board->GetLayerName( module->GetLayer() ), RED );
-    frame->AppendMsgPanel( _( "Seg Layer" ), board->GetLayerName( GetLayer() ), RED );
-
-    valeur_param( m_Width, msg );
-    frame->AppendMsgPanel( _( "Width" ), msg, BLUE );
+    aList.push_back( MSG_PANEL_ITEM( _( "Graphic Item" ), wxEmptyString, DARKCYAN ) );
+    aList.push_back( MSG_PANEL_ITEM( _( "Module" ), module->m_Reference->m_Text, DARKCYAN ) );
+    aList.push_back( MSG_PANEL_ITEM( _( "Value" ), module->m_Value->m_Text, BLUE ) );
+    msg.Printf( wxT( "%8.8lX" ), module->GetTimeStamp() );
+    aList.push_back( MSG_PANEL_ITEM( _( "TimeStamp" ), msg, BROWN ) );
+    aList.push_back( MSG_PANEL_ITEM( _( "Mod Layer" ), board->GetLayerName( module->GetLayer() ),
+                                     RED ) );
+    aList.push_back( MSG_PANEL_ITEM( _( "Seg Layer" ), board->GetLayerName( GetLayer() ), RED ) );
+    msg = ::CoordinateToString( m_Width );
+    aList.push_back( MSG_PANEL_ITEM( _( "Width" ), msg, BLUE ) );
 }
 
-
-bool EDGE_MODULE::Save( FILE* aFile ) const
-{
-    int ret = -1;
-
-    switch( m_Shape )
-    {
-    case S_SEGMENT:
-        ret = fprintf( aFile, "DS %d %d %d %d %d %d\n",
-                       m_Start0.x, m_Start0.y,
-                       m_End0.x, m_End0.y,
-                       m_Width, m_Layer );
-        break;
-
-    case S_CIRCLE:
-        ret = fprintf( aFile, "DC %d %d %d %d %d %d\n",
-                       m_Start0.x, m_Start0.y,
-                       m_End0.x, m_End0.y,
-                       m_Width, m_Layer );
-        break;
-
-    case S_ARC:
-        ret = fprintf( aFile, "DA %d %d %d %d %d %d %d\n",
-                       m_Start0.x, m_Start0.y,
-                       m_End0.x, m_End0.y,
-                       m_Angle,
-                       m_Width, m_Layer );
-        break;
-
-    case S_POLYGON:
-        ret = fprintf( aFile, "DP %d %d %d %d %d %d %d\n",
-                       m_Start0.x, m_Start0.y,
-                       m_End0.x, m_End0.y,
-                       (int) m_PolyPoints.size(),
-                       m_Width, m_Layer );
-
-        for( unsigned i = 0;  i<m_PolyPoints.size();  ++i )
-            fprintf( aFile, "Dl %d %d\n", m_PolyPoints[i].x, m_PolyPoints[i].y );
-
-        break;
-
-    default:
-
-        // future: throw an exception here
-#if defined(DEBUG)
-        printf( "EDGE_MODULE::Save(): unexpected m_Shape: %d\n", m_Shape );
-#endif
-        break;
-    }
-
-    return ret > 5;
-}
-
-
-/* Read a description line like:
- *  DS 2600 0 2600 -600 120 21
- *  this description line is in Line
- *  EDGE_MODULE type can be:
- *  - Circle,
- *  - Segment (line)
- *  - Arc
- *  - Polygon
- *
- */
-int EDGE_MODULE::ReadDescr( LINE_READER* aReader )
-{
-    int  ii;
-    int  error = 0;
-    char* Buf;
-    char* Line;
-
-    Line = aReader->Line();
-
-    switch( Line[1] )
-    {
-    case 'S':
-        m_Shape = S_SEGMENT;
-        break;
-
-    case 'C':
-        m_Shape = S_CIRCLE;
-        break;
-
-    case 'A':
-        m_Shape = S_ARC;
-        break;
-
-    case 'P':
-        m_Shape = S_POLYGON;
-        break;
-
-    default:
-        wxString msg;
-        msg.Printf( wxT( "Unknown EDGE_MODULE type <%s>" ), Line );
-        DisplayError( NULL, msg );
-        error = 1;
-        break;
-    }
-
-    switch( m_Shape )
-    {
-    case S_ARC:
-        sscanf( Line + 3, "%d %d %d %d %d %d %d",
-                &m_Start0.x, &m_Start0.y,
-                &m_End0.x, &m_End0.y,
-                &m_Angle, &m_Width, &m_Layer );
-        NORMALIZE_ANGLE_360( m_Angle );
-        break;
-
-    case S_SEGMENT:
-    case S_CIRCLE:
-        sscanf( Line + 3, "%d %d %d %d %d %d",
-                &m_Start0.x, &m_Start0.y,
-                &m_End0.x, &m_End0.y,
-                &m_Width, &m_Layer );
-        break;
-
-    case S_POLYGON:
-        int pointCount;
-        sscanf( Line + 3, "%d %d %d %d %d %d %d",
-                &m_Start0.x, &m_Start0.y,
-                &m_End0.x, &m_End0.y,
-                &pointCount, &m_Width, &m_Layer );
-
-        m_PolyPoints.clear();
-        m_PolyPoints.reserve( pointCount );
-
-        for( ii = 0;  ii<pointCount;  ii++ )
-        {
-            if( aReader->ReadLine() )
-            {
-                Buf = aReader->Line();
-
-                if( strncmp( Buf, "Dl", 2 ) != 0 )
-                {
-                    error = 1;
-                    break;
-                }
-
-                int x;
-                int y;
-                sscanf( Buf + 3, "%d %d\n", &x, &y );
-
-                m_PolyPoints.push_back( wxPoint( x, y ) );
-            }
-            else
-            {
-                error = 1;
-                break;
-            }
-        }
-
-        break;
-
-    default:
-        sscanf( Line + 3, "%d %d %d %d %d %d",
-                &m_Start0.x, &m_Start0.y,
-                &m_End0.x, &m_End0.y,
-                &m_Width, &m_Layer );
-        break;
-    }
-
-    // Check for a reasonable width:
-    if( m_Width <= 1 )
-        m_Width = 1;
-
-    if( m_Width > MAX_WIDTH )
-        m_Width = MAX_WIDTH;
-
-    // Check for a reasonable layer:
-    // m_Layer must be >= FIRST_NON_COPPER_LAYER, but because microwave footprints
-    // can use the copper layers m_Layer < FIRST_NON_COPPER_LAYER is allowed.
-    // @todo: changes use of EDGE_MODULE these footprints and allows only
-    // m_Layer >= FIRST_NON_COPPER_LAYER
-    if( (m_Layer < 0) || (m_Layer > LAST_NON_COPPER_LAYER) )
-        m_Layer = SILKSCREEN_N_FRONT;
-
-    return error;
-}
 
 
 wxString EDGE_MODULE::GetSelectMenuText() const
 {
     wxString text;
 
-    text << _( "Graphic" ) << wxT( " " ) << ShowShape( (Track_Shapes) m_Shape );
+    text << _( "Graphic" ) << wxT( " " ) << ShowShape( (STROKE_T) m_Shape );
     text << wxT( " (" ) << GetLayerName() << wxT( ")" );
     text << _( " of " ) << ( (MODULE*) GetParent() )->GetReference();
 
@@ -429,18 +271,17 @@ wxString EDGE_MODULE::GetSelectMenuText() const
 }
 
 
+EDA_ITEM* EDGE_MODULE::Clone() const
+{
+    return new EDGE_MODULE( *this );
+}
+
+
 #if defined(DEBUG)
 
-/**
- * Function Show
- * is used to output the object tree, currently for debugging only.
- * @param nestLevel An aid to prettier tree indenting, and is the level
- *          of nesting of this object within the overall tree.
- * @param os The ostream& to output to.
- */
-void EDGE_MODULE::Show( int nestLevel, std::ostream& os )
+void EDGE_MODULE::Show( int nestLevel, std::ostream& os ) const
 {
-    wxString shape = ShowShape( (Track_Shapes) m_Shape );
+    wxString shape = ShowShape( (STROKE_T) m_Shape );
 
     // for now, make it look like XML:
     NestedSpace( nestLevel, os ) << '<' << GetClass().Lower().mb_str() <<

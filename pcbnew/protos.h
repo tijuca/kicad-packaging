@@ -4,19 +4,14 @@
 
 #ifndef PROTO_H
 #define PROTO_H
-
-
-#include <vector>
-
+#include <gr_basic.h>
 
 class wxDC;
 class wxPoint;
 class EDA_DRAW_PANEL;
 class BOARD_ITEM;
-class D_PAD;
 class TRACK;
 class MODULE;
-
 
 /**
  * Function SwapData
@@ -50,14 +45,20 @@ void DrawTraces( EDA_DRAW_PANEL* panel,
                  wxDC*           DC,
                  TRACK*          aStartTrace,
                  int             nbsegment,
-                 int             mode_color );
+                 GR_DRAWMODE     mode_color );
 
 /*************/
 /* MODULES.C */
 /*************/
-int ChangeSideNumLayer( int oldlayer );
+
+/**
+ * Function ChangeSideMaskLayer
+ * calculates the mask layer when flipping a footprint.
+ * BACK and FRONT copper layers , mask, paste, solder layers are swapped.
+ */
+int ChangeSideMaskLayer( int aMask );
+
 void DrawModuleOutlines( EDA_DRAW_PANEL* panel, wxDC* DC, MODULE* module );
-void MoveFootprint( EDA_DRAW_PANEL* aPanel, wxDC* aDC, const wxPoint& aPosition, bool aErase );
 
 
 /****************/
@@ -69,8 +70,9 @@ TRACK* LocateIntrusion( TRACK* listStart, TRACK* aTrack, int aLayer, const wxPoi
 void ShowNewTrackWhenMovingCursor( EDA_DRAW_PANEL* aPanel, wxDC* aDC, const wxPoint& aPosition,
                                    bool aErase );
 
-/* Determine coordinate for a segment direction of 0, 90 or 45 degrees,
- * depending on it's position from the origin (ox, oy) and \a aPosiition..
+/**
+ * Determine coordinate for a segment direction of 0, 90, or 45 degrees
+ * depending on it's position from the origin (ox, oy) and \a aPosiition.
  */
 void CalculateSegmentEndPoint( const wxPoint& aPosition, int ox, int oy, int* fx, int* fy );
 

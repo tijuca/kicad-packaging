@@ -3,13 +3,17 @@ add_definitions(-DCVPCB)
 ###
 # Includes
 ###
-include_directories(${CMAKE_CURRENT_SOURCE_DIR}
-                    ${CMAKE_CURRENT_SOURCE_DIR}/dialogs
-                    ${Boost_INCLUDE_DIR}
-                    ../3d-viewer
-                    ../pcbnew
-                    ../polygon
-                    ${CMAKE_SOURCE_DIR}/common)
+
+include_directories(BEFORE ${INC_BEFORE})
+include_directories(
+    ./dialogs
+    ${Boost_INCLUDE_DIR}
+    ../3d-viewer
+    ../pcbnew
+    ../polygon
+    ../common
+    ${INC_AFTER}
+    )
 
 ###
 # Sources
@@ -22,24 +26,27 @@ set(CVPCB_DIALOGS
     )
 
 set(CVPCB_SRCS
+    ../common/base_units.cpp
+    ../pcbnew/netlist_reader_common.cpp
+    ../pcbnew/netlist_reader_kicad.cpp
+    ../pcbnew/netlist_reader_firstformat.cpp
+    ../pcbnew/class_drc_item.cpp
     autosel.cpp
     cfg.cpp
-    class_cvpcb.cpp
     class_components_listbox.cpp
     class_DisplayFootprintsFrame.cpp
     class_footprints_listbox.cpp
     cvframe.cpp
     cvpcb.cpp
-    genequiv.cpp
-    init.cpp
     listboxes.cpp
     loadcmp.cpp
     menubar.cpp
     readschematicnetlist.cpp
-    savecmp.cpp
+    read_write_cmpfile.cpp
+    readwrite_dlgs.cpp
     setvisu.cpp
     tool_cvpcb.cpp
-    writenetlistpcbnew.cpp)
+    )
 
 ###
 # Windows resource file
@@ -70,9 +77,10 @@ endif(APPLE)
 # Create the cvpcb executable
 ###
 add_executable(cvpcb WIN32 MACOSX_BUNDLE
-               ${CVPCB_SRCS}
-               ${CVPCB_DIALOGS}
-               ${CVPCB_RESOURCES})
+    ${CVPCB_SRCS}
+    ${CVPCB_DIALOGS}
+    ${CVPCB_RESOURCES}
+    )
 
 ###
 # Set properties for APPLE on cvpcb target
@@ -84,11 +92,18 @@ endif(APPLE)
 ###
 # Link executable target cvpcb with correct libraries
 ###
-target_link_libraries(cvpcb 3d-viewer common pcbcommon polygon bitmaps kbool
-                      ${OPENGL_LIBRARIES}
-                      ${wxWidgets_LIBRARIES}
-                      ${GDI_PLUS_LIBRARIES}
-                     )
+target_link_libraries(cvpcb
+    3d-viewer
+    pcbcommon
+    pcad2kicadpcb
+    common
+    bitmaps
+    polygon
+    ${wxWidgets_LIBRARIES}
+    ${OPENGL_LIBRARIES}
+    ${GDI_PLUS_LIBRARIES}
+    )
+
 ###
 # Add cvpcb as install target
 ###

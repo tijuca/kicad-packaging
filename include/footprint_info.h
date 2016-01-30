@@ -2,33 +2,36 @@
  * @file footprint_info.h
  */
 
-#ifndef _FOOTPRINT_INFO_H_
-#define _FOOTPRINT_INFO_H_
+#ifndef FOOTPRINT_INFO_H_
+#define FOOTPRINT_INFO_H_
 
 #include <boost/ptr_container/ptr_vector.hpp>
 #include <boost/foreach.hpp>
 
-#include "kicad_string.h"
+#include <kicad_string.h>
 
 /*
- * class FOOTPRINT_INFO is a helper class to handle the list of footprints
- * available in libraries
- * It stores footprint names, doc and keywords
+ * Class FOOTPRINT_INFO
+ * is a helper class to handle the list of footprints
+ * available in libraries. It stores footprint names, doc and keywords
  */
 class FOOTPRINT_INFO
 {
 public:
-    wxString  m_Module;     /* Module name. */
-    wxString  m_LibName;    /* Name of the library containing this module. */
-    int       m_Num;        /* Order number in the display list. */
-    wxString  m_Doc;        /* Footprint description. */
-    wxString  m_KeyWord;    /* Footprint key words. */
+    wxString  m_Module;     ///< Module name.
+    wxString  m_LibName;    ///< Name of the library containing this module.
+    int       m_Num;        ///< Order number in the display list.
+    wxString  m_Doc;        ///< Footprint description.
+    wxString  m_KeyWord;    ///< Footprint key words.
+    int       m_padCount;   ///< Number of pads
 
     FOOTPRINT_INFO()
     {
         m_Num = 0;
+        m_padCount = 0;
     }
 };
+
 
 class FOOTPRINT_LIST
 {
@@ -43,7 +46,7 @@ public:
      * Function GetCount
      * @return the number of items stored in list
      */
-    unsigned GetCount() { return m_List.size(); }
+    unsigned GetCount() const { return m_List.size(); }
 
     /**
      * Function GetModuleInfo
@@ -102,10 +105,10 @@ public:
     bool ReadFootprintFiles( wxArrayString & aFootprintsLibNames );
 };
 
-/* FOOTPRINT object list sort function. */
+/// FOOTPRINT object list sort function.
 inline bool operator<( const FOOTPRINT_INFO& item1, const FOOTPRINT_INFO& item2 )
 {
     return StrNumCmp( item1.m_Module, item2.m_Module, INT_MAX, true ) < 0;
 }
 
-#endif  // _FOOTPRINT_INFO_H_
+#endif  // FOOTPRINT_INFO_H_

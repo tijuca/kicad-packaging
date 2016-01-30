@@ -3,7 +3,7 @@
     /*  properties and carateristics				*/
     /************************************************/
 
-#include "dialog_edit_module_for_BoardEditor_base.h"
+#include <dialog_edit_module_for_BoardEditor_base.h>
 
     /**************************************/
     /* class DIALOG_MODULE_BOARD_EDITOR */
@@ -20,9 +20,9 @@ private:
     TEXTE_MODULE* m_ValueCopy;
     std::vector <S3D_MASTER*>   m_Shapes3D_list;
     int m_LastSelected3DShapeIndex;
-    WinEDA_VertexCtrl * m_3D_Scale;
-    WinEDA_VertexCtrl * m_3D_Offset;
-    WinEDA_VertexCtrl * m_3D_Rotation;
+    VERTEX_VALUE_CTRL * m_3D_Scale;
+    VERTEX_VALUE_CTRL * m_3D_Offset;
+    VERTEX_VALUE_CTRL * m_3D_Rotation;
 
 public:
 
@@ -38,7 +38,7 @@ private:
     void OnEditValue( wxCommandEvent& event );
     void OnEditReference( wxCommandEvent& event );
     void On3DShapeSelection( wxCommandEvent& event );
-	void On3DShapeNameSelected( wxCommandEvent& event );
+    void On3DShapeNameSelected( wxCommandEvent& event );
     void Browse3DLib( wxCommandEvent& event );
     void Add3DShape( wxCommandEvent& event );
     void Remove3DShape( wxCommandEvent& event );

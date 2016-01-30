@@ -29,40 +29,43 @@
  * @brief PCB editor main window implementation.
  */
 
-#include "fctsys.h"
-#include "appl_wxstruct.h"
-#include "class_drawpanel.h"
-#include "confirm.h"
-#include "wxPcbStruct.h"
-#include "pcbcommon.h"      // enum PCB_VISIBLE
-#include "collectors.h"
-#include "build_version.h"
-#include "macros.h"
-#include "3d_viewer.h"
+#include <fctsys.h>
+#include <appl_wxstruct.h>
+#include <class_drawpanel.h>
+#include <confirm.h>
+#include <wxPcbStruct.h>
+#include <pcbcommon.h>      // enum PCB_VISIBLE
+#include <collectors.h>
+#include <build_version.h>
+#include <macros.h>
+#include <3d_viewer.h>
+#include <msgpanel.h>
 
-#include "pcbnew.h"
-#include "protos.h"
-#include "pcbnew_id.h"
-#include "drc_stuff.h"
-#include "layer_widget.h"
-#include "dialog_design_rules.h"
-#include "class_pcb_layer_widget.h"
-#include "hotkeys.h"
-#include "pcbnew_config.h"
-#include "module_editor_frame.h"
-#include "dialog_SVG_print.h"
-#include "dialog_helpers.h"
+#include <pcbnew.h>
+#include <protos.h>
+#include <pcbnew_id.h>
+#include <drc_stuff.h>
+#include <layer_widget.h>
+#include <dialog_design_rules.h>
+#include <class_pcb_layer_widget.h>
+#include <hotkeys.h>
+#include <pcbnew_config.h>
+#include <module_editor_frame.h>
+#include <dialog_SVG_print.h>
+#include <dialog_helpers.h>
+#include <convert_from_iu.h>
 
-
-extern int g_DrawDefaultLineThickness;
+#if defined(KICAD_SCRIPTING) || defined(KICAD_SCRIPTING_WXPYTHON)
+#include <python_scripting.h>
+#endif
 
 // Keys used in read/write config
-#define OPTKEY_DEFAULT_LINEWIDTH_VALUE  wxT( "PlotLineWidth" )
-#define PCB_SHOW_FULL_RATSNET_OPT   wxT( "PcbFulRatsnest" )
-#define PCB_MAGNETIC_PADS_OPT   wxT( "PcbMagPadOpt" )
-#define PCB_MAGNETIC_TRACKS_OPT wxT( "PcbMagTrackOpt" )
-#define SHOW_MICROWAVE_TOOLS    wxT( "ShowMicrowaveTools" )
-#define SHOW_LAYER_MANAGER_TOOLS    wxT( "ShowLayerManagerTools" )
+#define OPTKEY_DEFAULT_LINEWIDTH_VALUE  wxT( "PlotLineWidth_mm" )
+#define PCB_SHOW_FULL_RATSNET_OPT       wxT( "PcbFullRatsnest" )
+#define PCB_MAGNETIC_PADS_OPT           wxT( "PcbMagPadOpt" )
+#define PCB_MAGNETIC_TRACKS_OPT         wxT( "PcbMagTrackOpt" )
+#define SHOW_MICROWAVE_TOOLS            wxT( "ShowMicrowaveTools" )
+#define SHOW_LAYER_MANAGER_TOOLS        wxT( "ShowLayerManagerTools" )
 
 
 BEGIN_EVENT_TABLE( PCB_EDIT_FRAME, PCB_BASE_FRAME )
@@ -76,11 +79,12 @@ BEGIN_EVENT_TABLE( PCB_EDIT_FRAME, PCB_BASE_FRAME )
     EVT_SIZE( PCB_EDIT_FRAME::OnSize )
 
     EVT_TOOL( ID_LOAD_FILE, PCB_EDIT_FRAME::Files_io )
-    EVT_TOOL( ID_MENU_READ_LAST_SAVED_VERSION_BOARD, PCB_EDIT_FRAME::Files_io )
-    EVT_TOOL( ID_MENU_RECOVER_BOARD, PCB_EDIT_FRAME::Files_io )
+    EVT_TOOL( ID_MENU_READ_BOARD_BACKUP_FILE, PCB_EDIT_FRAME::Files_io )
+    EVT_TOOL( ID_MENU_RECOVER_BOARD_AUTOSAVE, PCB_EDIT_FRAME::Files_io )
     EVT_TOOL( ID_NEW_BOARD, PCB_EDIT_FRAME::Files_io )
     EVT_TOOL( ID_SAVE_BOARD, PCB_EDIT_FRAME::Files_io )
     EVT_TOOL( ID_OPEN_MODULE_EDITOR, PCB_EDIT_FRAME::Process_Special_Functions )
+    EVT_TOOL( ID_OPEN_MODULE_VIEWER, PCB_EDIT_FRAME::Process_Special_Functions )
 
     // Menu Files:
     EVT_MENU( ID_MAIN_MENUBAR, PCB_EDIT_FRAME::Process_Special_Functions )
@@ -93,7 +97,7 @@ BEGIN_EVENT_TABLE( PCB_EDIT_FRAME, PCB_BASE_FRAME )
 
     EVT_MENU( ID_GEN_EXPORT_SPECCTRA, PCB_EDIT_FRAME::ExportToSpecctra )
     EVT_MENU( ID_GEN_EXPORT_FILE_GENCADFORMAT, PCB_EDIT_FRAME::ExportToGenCAD )
-    EVT_MENU( ID_GEN_EXPORT_FILE_MODULE_REPORT, PCB_EDIT_FRAME::GenModuleReport )
+    EVT_MENU( ID_GEN_EXPORT_FILE_MODULE_REPORT, PCB_EDIT_FRAME::GenFootprintsReport )
     EVT_MENU( ID_GEN_EXPORT_FILE_VRML, PCB_EDIT_FRAME::OnExportVRML )
 
     EVT_MENU( ID_GEN_IMPORT_SPECCTRA_SESSION,PCB_EDIT_FRAME::ImportSpecctraSession )
@@ -107,6 +111,7 @@ BEGIN_EVENT_TABLE( PCB_EDIT_FRAME, PCB_BASE_FRAME )
     // menu Config
     EVT_MENU( ID_PCB_DRAWINGS_WIDTHS_SETUP, PCB_EDIT_FRAME::OnConfigurePcbOptions )
     EVT_MENU( ID_CONFIG_REQ, PCB_EDIT_FRAME::Process_Config )
+    EVT_MENU( ID_PCB_LIB_TABLE_EDIT, PCB_EDIT_FRAME::Process_Config )
     EVT_MENU( ID_CONFIG_SAVE, PCB_EDIT_FRAME::Process_Config )
     EVT_MENU( ID_CONFIG_READ, PCB_EDIT_FRAME::Process_Config )
     EVT_MENU_RANGE( ID_PREFERENCES_HOTKEY_START, ID_PREFERENCES_HOTKEY_END,
@@ -126,7 +131,7 @@ BEGIN_EVENT_TABLE( PCB_EDIT_FRAME, PCB_BASE_FRAME )
     EVT_MENU_RANGE( ID_LANGUAGE_CHOICE, ID_LANGUAGE_CHOICE_END, PCB_EDIT_FRAME::SetLanguage )
 
     // menu Postprocess
-    EVT_MENU( ID_PCB_GEN_POS_MODULES_FILE, PCB_EDIT_FRAME::GenModulesPosition )
+    EVT_MENU( ID_PCB_GEN_POS_MODULES_FILE, PCB_EDIT_FRAME::GenFootprintsPositionFile )
     EVT_MENU( ID_PCB_GEN_DRILL_FILE, PCB_EDIT_FRAME::InstallDrillFrame )
     EVT_MENU( ID_PCB_GEN_CMP_FILE, PCB_EDIT_FRAME::RecreateCmpFileFromBoard )
     EVT_MENU( ID_PCB_GEN_BOM_FILE_FROM_BOARD, PCB_EDIT_FRAME::RecreateBOMFileFromBoard )
@@ -136,10 +141,8 @@ BEGIN_EVENT_TABLE( PCB_EDIT_FRAME, PCB_BASE_FRAME )
     EVT_MENU( ID_PCB_GLOBAL_DELETE, PCB_EDIT_FRAME::Process_Special_Functions )
     EVT_MENU( ID_MENU_PCB_CLEAN, PCB_EDIT_FRAME::Process_Special_Functions )
     EVT_MENU( ID_MENU_PCB_SWAP_LAYERS, PCB_EDIT_FRAME::Process_Special_Functions )
-    EVT_MENU( ID_MENU_PCB_RESET_TEXTMODULE_REFERENCE_SIZES,
-              PCB_EDIT_FRAME::Process_Special_Functions )
-    EVT_MENU( ID_MENU_PCB_RESET_TEXTMODULE_VALUE_SIZES,
-              PCB_EDIT_FRAME::Process_Special_Functions )
+    EVT_MENU( ID_MENU_PCB_RESET_TEXTMODULE_FIELDS_SIZES,
+              PCB_EDIT_FRAME::OnResetModuleTextSizes )
 
     // Menu Help
     EVT_MENU( wxID_HELP, EDA_DRAW_FRAME::GetKicadHelp )
@@ -171,10 +174,12 @@ BEGIN_EVENT_TABLE( PCB_EDIT_FRAME, PCB_BASE_FRAME )
     EVT_COMBOBOX( ID_TOOLBARH_PCB_SELECT_LAYER, PCB_EDIT_FRAME::Process_Special_Functions )
     EVT_COMBOBOX( ID_AUX_TOOLBAR_PCB_TRACK_WIDTH, PCB_EDIT_FRAME::Tracks_and_Vias_Size_Event )
     EVT_COMBOBOX( ID_AUX_TOOLBAR_PCB_VIA_SIZE, PCB_EDIT_FRAME::Tracks_and_Vias_Size_Event )
-    EVT_TOOL( ID_TOOLBARH_PCB_MODE_MODULE, PCB_EDIT_FRAME::AutoPlace )
-    EVT_TOOL( ID_TOOLBARH_PCB_MODE_TRACKS, PCB_EDIT_FRAME::AutoPlace )
+    EVT_TOOL( ID_TOOLBARH_PCB_MODE_MODULE, PCB_EDIT_FRAME::OnSelectAutoPlaceMode )
+    EVT_TOOL( ID_TOOLBARH_PCB_MODE_TRACKS, PCB_EDIT_FRAME::OnSelectAutoPlaceMode )
     EVT_TOOL( ID_TOOLBARH_PCB_FREEROUTE_ACCESS, PCB_EDIT_FRAME::Access_to_External_Tool )
-
+#ifdef KICAD_SCRIPTING_WXPYTHON
+    EVT_TOOL( ID_TOOLBARH_PCB_SCRIPTING_CONSOLE, PCB_EDIT_FRAME::ScriptingConsoleEnableDisable )
+#endif
     // Option toolbar
     EVT_TOOL( ID_TB_OPTIONS_DRC_OFF,
                     PCB_EDIT_FRAME::OnSelectOptionToolbar )
@@ -247,6 +252,8 @@ BEGIN_EVENT_TABLE( PCB_EDIT_FRAME, PCB_BASE_FRAME )
                    PCB_EDIT_FRAME::OnUpdateSelectAutoTrackWidth )
     EVT_UPDATE_UI( ID_POPUP_PCB_SELECT_AUTO_WIDTH, PCB_EDIT_FRAME::OnUpdateSelectAutoTrackWidth )
     EVT_UPDATE_UI( ID_AUX_TOOLBAR_PCB_VIA_SIZE, PCB_EDIT_FRAME::OnUpdateSelectViaSize )
+    EVT_UPDATE_UI( ID_TOOLBARH_PCB_MODE_MODULE, PCB_EDIT_FRAME::OnUpdateAutoPlaceModulesMode )
+    EVT_UPDATE_UI( ID_TOOLBARH_PCB_MODE_TRACKS, PCB_EDIT_FRAME::OnUpdateAutoPlaceTracksMode )
     EVT_UPDATE_UI_RANGE( ID_POPUP_PCB_SELECT_WIDTH1, ID_POPUP_PCB_SELECT_WIDTH8,
                          PCB_EDIT_FRAME::OnUpdateSelectTrackWidth )
     EVT_UPDATE_UI_RANGE( ID_POPUP_PCB_SELECT_VIASIZE1, ID_POPUP_PCB_SELECT_VIASIZE8,
@@ -260,30 +267,36 @@ END_EVENT_TABLE()
 
 ///////****************************///////////:
 
+#define PCB_EDIT_FRAME_NAME wxT( "PcbFrame" )
 
 PCB_EDIT_FRAME::PCB_EDIT_FRAME( wxWindow* parent, const wxString& title,
                                 const wxPoint& pos, const wxSize& size,
                                 long style ) :
-    PCB_BASE_FRAME( parent, PCB_FRAME, title, pos, size, style )
+    PCB_BASE_FRAME( parent, PCB_FRAME_TYPE, title, pos, size,
+                    style, PCB_EDIT_FRAME_NAME )
 {
-    m_FrameName = wxT( "PcbFrame" );
-    m_Draw_Sheet_Ref = true;            // true to display sheet references
-    m_Draw_Axis = false;                 // true to display X and Y axis
-    m_Draw_Auxiliary_Axis = true;
-    m_Draw_Grid_Axis = true;
-    m_SelTrackWidthBox    = NULL;
+    m_FrameName = PCB_EDIT_FRAME_NAME;
+    m_showBorderAndTitleBlock = true;   // true to display sheet references
+    m_showAxis = false;                 // true to display X and Y axis
+    m_showOriginAxis = true;
+    m_showGridAxis = true;
+    m_SelTrackWidthBox = NULL;
     m_SelViaSizeBox = NULL;
-    m_SelLayerBox   = NULL;
+    m_SelLayerBox = NULL;
     m_show_microwave_tools = false;
     m_show_layer_manager_tools = true;
     m_HotkeysZoomAndGridList = g_Board_Editor_Hokeys_Descr;
     m_hasAutoSave = true;
     m_RecordingMacros = -1;
-
+    m_microWaveToolBar = NULL;
+    m_useCmpFileForFpNames = true;
+#ifdef KICAD_SCRIPTING_WXPYTHON
+    m_pythonPanel = NULL;
+#endif
     for ( int i = 0; i < 10; i++ )
         m_Macros[i].m_Record.clear();
 
-    SetBoard( new BOARD( NULL, this ) );
+    SetBoard( new BOARD() );
 
     // Create the PCB_LAYER_WIDGET *after* SetBoard():
 
@@ -296,10 +309,24 @@ PCB_EDIT_FRAME::PCB_EDIT_FRAME( wxWindow* parent, const wxString& title,
     if( screenHeight <= 900 )
         pointSize = (pointSize * 8) / 10;
 
-    m_Layers = new PCB_LAYER_WIDGET( this, DrawPanel, pointSize );
+    m_Layers = new PCB_LAYER_WIDGET( this, m_canvas, pointSize );
 
     m_drc = new DRC( this );        // these 2 objects point to each other
 
+    wxIcon  icon;
+    icon.CopyFromBitmap( KiBitmap( icon_pcbnew_xpm ) );
+    SetIcon( icon );
+
+    SetScreen( new PCB_SCREEN( GetPageSettings().GetSizeIU() ) );
+
+    // PCB drawings start in the upper left corner.
+    GetScreen()->m_Center = false;
+
+    // LoadSettings() *after* creating m_LayersManager, because LoadSettings()
+    // initialize parameters in m_LayersManager
+    LoadSettings();
+
+    // Be sure options are updated
     m_DisplayPcbTrackFill = DisplayOpt.DisplayPcbTrackFill;
     m_DisplayPadFill = DisplayOpt.DisplayPadFill;
     m_DisplayViaFill = DisplayOpt.DisplayViaFill;
@@ -308,24 +335,13 @@ PCB_EDIT_FRAME::PCB_EDIT_FRAME( wxWindow* parent, const wxString& title,
     m_DisplayModEdge = DisplayOpt.DisplayModEdge;
     m_DisplayModText = DisplayOpt.DisplayModText;
 
-    wxIcon  icon;
-    icon.CopyFromBitmap( KiBitmap( icon_pcbnew_xpm ) );
-    SetIcon( icon );
-
-    m_InternalUnits = PCB_INTERNAL_UNIT;    // Unites internes = 1/10000 inch
-    SetScreen( new PCB_SCREEN() );
-    GetScreen()->m_Center = false;          // PCB drawings start in the upper left corner.
-
-    // LoadSettings() *after* creating m_LayersManager, because LoadSettings()
-    // initialize parameters in m_LayersManager
-    LoadSettings();
     SetSize( m_FramePos.x, m_FramePos.y, m_FrameSize.x, m_FrameSize.y );
 
     GetScreen()->AddGrid( m_UserGridSize, m_UserGridUnit, ID_POPUP_GRID_USER );
     GetScreen()->SetGrid( ID_POPUP_GRID_LEVEL_1000 + m_LastGridSizeId  );
 
-    if( DrawPanel )
-        DrawPanel->m_Block_Enable = true;
+    if( m_canvas )
+        m_canvas->SetEnableBlockCommands( true );
 
     ReCreateMenuBar();
     ReCreateHToolbar();
@@ -355,51 +371,70 @@ PCB_EDIT_FRAME::PCB_EDIT_FRAME( wxWindow* parent, const wxString& title,
     lyrs.Caption( _( "Visibles" ) );
 
 
-    if( m_HToolBar )    // The main horizontal toolbar
+    if( m_mainToolBar )    // The main horizontal toolbar
     {
-        m_auimgr.AddPane( m_HToolBar,
-                          wxAuiPaneInfo( horiz ).Name( wxT( "m_HToolBar" ) ).Top().Row( 0 ) );
+        m_auimgr.AddPane( m_mainToolBar,
+                          wxAuiPaneInfo( horiz ).Name( wxT( "m_mainToolBar" ) ).Top().Row( 0 ) );
     }
 
-    if( m_AuxiliaryToolBar )    // the auxiliary horizontal toolbar, that shows track and via sizes, zoom ...)
+    if( m_auxiliaryToolBar )    // the auxiliary horizontal toolbar, that shows track and via sizes, zoom ...)
     {
-        m_auimgr.AddPane( m_AuxiliaryToolBar,
-                          wxAuiPaneInfo( horiz ).Name( wxT( "m_AuxiliaryToolBar" ) ).Top().Row( 1 ) );
+        m_auimgr.AddPane( m_auxiliaryToolBar,
+                          wxAuiPaneInfo( horiz ).Name( wxT( "m_auxiliaryToolBar" ) ).Top().Row( 1 ) );
     }
 
-    if( m_AuxVToolBar )    // The auxiliary vertical right toolbar (currently microwave tools)
-        m_auimgr.AddPane( m_AuxVToolBar,
-                          wxAuiPaneInfo( vert ).Name( wxT( "m_AuxVToolBar" ) ).Right().Layer( 1 ).Position(1).Hide() );
+    if( m_microWaveToolBar )    // The auxiliary vertical right toolbar (currently microwave tools)
+        m_auimgr.AddPane( m_microWaveToolBar,
+                          wxAuiPaneInfo( vert ).Name( wxT( "m_microWaveToolBar" ) ).Right().Layer( 1 ).Position(1).Hide() );
 
-    if( m_VToolBar )    // The main right vertical toolbar
-        m_auimgr.AddPane( m_VToolBar,
+    if( m_drawToolBar )    // The main right vertical toolbar
+        m_auimgr.AddPane( m_drawToolBar,
                           wxAuiPaneInfo( vert ).Name( wxT( "m_VToolBar" ) ).Right().Layer( 2 ) );
 
     // Add the layer manager ( most right side of pcbframe )
     m_auimgr.AddPane( m_Layers, lyrs.Name( wxT( "m_LayersManagerToolBar" ) ).Right().Layer( 3 ) );
 
-    if( m_OptionsToolBar )    // The left vertical toolbar (fast acces display options of Pcbnew)
+    if( m_optionsToolBar )    // The left vertical toolbar (fast acces display options of Pcbnew)
     {
-        m_auimgr.AddPane( m_OptionsToolBar,
-                          wxAuiPaneInfo( vert ).Name( wxT( "m_OptionsToolBar" ) ).Left().Layer(1) );
+        m_auimgr.AddPane( m_optionsToolBar,
+                          wxAuiPaneInfo( vert ).Name( wxT( "m_optionsToolBar" ) ).Left().Layer(1) );
 
         m_auimgr.GetPane( wxT( "m_LayersManagerToolBar" ) ).Show( m_show_layer_manager_tools );
-        m_auimgr.GetPane( wxT( "m_AuxVToolBar" ) ).Show( m_show_microwave_tools );
+        m_auimgr.GetPane( wxT( "m_microWaveToolBar" ) ).Show( m_show_microwave_tools );
     }
 
-    if( DrawPanel )
-        m_auimgr.AddPane( DrawPanel,
+    if( m_canvas )
+        m_auimgr.AddPane( m_canvas,
                           wxAuiPaneInfo().Name( wxT( "DrawFrame" ) ).CentrePane() );
 
-    if( MsgPanel )
-        m_auimgr.AddPane( MsgPanel,
+    if( m_messagePanel )
+        m_auimgr.AddPane( m_messagePanel,
                           wxAuiPaneInfo( mesg ).Name( wxT( "MsgPanel" ) ).Bottom().Layer(10) );
 
-    ReFillLayerWidget();        // this is near end because contents establish size
-    m_Layers->ReFillRender();   // Update colors in Render after the config is read
-    syncLayerWidget();
-    m_auimgr.Update();
 
+#ifdef KICAD_SCRIPTING_WXPYTHON
+    // Add the scripting panel
+    EDA_PANEINFO  pythonAuiInfo;
+    pythonAuiInfo.ScriptingToolbarPane();
+    pythonAuiInfo.Caption( wxT( "Python Scripting" ) );
+    pythonAuiInfo.MinSize( wxSize( 200, 100 ) );
+    pythonAuiInfo.BestSize( wxSize( GetClientSize().x/2, 200 ) );
+    pythonAuiInfo.Hide();
+
+    m_pythonPanel = CreatePythonShellWindow( this );
+    m_auimgr.AddPane( m_pythonPanel,
+                          pythonAuiInfo.Name( wxT( "PythonPanel" ) ).Bottom().Layer(9) );
+
+    m_pythonPanelHidden = true;
+#endif
+
+    ReFillLayerWidget();        // this is near end because contents establish size
+
+    m_Layers->ReFillRender();   // Update colors in Render after the config is read
+
+    syncLayerWidgetLayer();
+
+    m_auimgr.Update();
 }
 
 
@@ -447,17 +482,15 @@ void PCB_EDIT_FRAME::OnQuit( wxCommandEvent& event )
 
 void PCB_EDIT_FRAME::OnCloseWindow( wxCloseEvent& Event )
 {
-    DrawPanel->m_AbortRequest = true;
+    m_canvas->SetAbortRequest( true );
 
     if( GetScreen()->IsModify() )
     {
-        unsigned        ii;
-        wxMessageDialog dialog( this, _( "Board modified, Save before exit ?" ),
-                                _( "Confirmation" ),
-                                wxYES_NO | wxCANCEL | wxICON_EXCLAMATION | wxYES_DEFAULT );
+        wxString msg;
+        msg.Printf( _("Save the changes in\n<%s>\nbefore closing?"),
+                    GetChars( GetBoard()->GetFileName() ) );
 
-        ii = dialog.ShowModal();
-
+        int ii = DisplayExitDialog( this, msg );
         switch( ii )
         {
         case wxID_CANCEL:
@@ -469,13 +502,13 @@ void PCB_EDIT_FRAME::OnCloseWindow( wxCloseEvent& Event )
 
         case wxID_OK:
         case wxID_YES:
-            SavePcbFile( GetScreen()->GetFileName() );
+            SavePcbFile( GetBoard()->GetFileName() );
             break;
         }
     }
 
     // Delete the auto save file if it exists.
-    wxFileName fn = GetScreen()->GetFileName();
+    wxFileName fn = GetBoard()->GetFileName();
 
     // Auto save file name is the normal file name prefixed with a '$'.
     fn.SetName( wxT( "$" ) + fn.GetName() );
@@ -519,6 +552,7 @@ void PCB_EDIT_FRAME::Show3D_Frame( wxCommandEvent& event )
     }
 
     m_Draw3DFrame = new EDA_3D_FRAME( this, _( "3D Viewer" ) );
+    m_Draw3DFrame->SetDefaultFileName( GetBoard()->GetFileName() );
     m_Draw3DFrame->Show( true );
 }
 
@@ -540,7 +574,7 @@ void PCB_EDIT_FRAME::ShowDesignRulesEditor( wxCommandEvent& event )
 
 void PCB_EDIT_FRAME::LoadSettings()
 {
-    wxConfig* config = wxGetApp().m_EDA_Config;
+    wxConfig* config = wxGetApp().GetSettings();
 
     if( config == NULL )
         return;
@@ -550,10 +584,17 @@ void PCB_EDIT_FRAME::LoadSettings()
 
     PCB_BASE_FRAME::LoadSettings();
 
+    double dtmp;
+    config->Read( OPTKEY_DEFAULT_LINEWIDTH_VALUE, &dtmp, 0.1 ); // stored in mm
+    if( dtmp < 0.01 )
+        dtmp = 0.01;
+    if( dtmp > 5.0 )
+        dtmp = 5.0;
+    g_DrawDefaultLineThickness = Millimeter2iu( dtmp );
     long tmp;
-    config->Read( OPTKEY_DEFAULT_LINEWIDTH_VALUE, &g_DrawDefaultLineThickness );
     config->Read( PCB_SHOW_FULL_RATSNET_OPT, &tmp );
     GetBoard()->SetElementVisibility(RATSNEST_VISIBLE, tmp);
+
     config->Read( PCB_MAGNETIC_PADS_OPT, &g_MagneticPadOption );
     config->Read( PCB_MAGNETIC_TRACKS_OPT, &g_MagneticTrackOption );
     config->Read( SHOW_MICROWAVE_TOOLS, &m_show_microwave_tools );
@@ -568,7 +609,7 @@ void PCB_EDIT_FRAME::LoadSettings()
 
 void PCB_EDIT_FRAME::SaveSettings()
 {
-    wxConfig* config = wxGetApp().m_EDA_Config;
+    wxConfig* config = wxGetApp().GetSettings();
 
     if( config == NULL )
         return;
@@ -578,7 +619,9 @@ void PCB_EDIT_FRAME::SaveSettings()
 
     PCB_BASE_FRAME::SaveSettings();
 
-    config->Write( OPTKEY_DEFAULT_LINEWIDTH_VALUE, g_DrawDefaultLineThickness );
+    // This value is stored in mm )
+    config->Write( OPTKEY_DEFAULT_LINEWIDTH_VALUE,
+                   MM_PER_IU * g_DrawDefaultLineThickness );
     long tmp = GetBoard()->IsElementVisible(RATSNEST_VISIBLE);
     config->Write( PCB_SHOW_FULL_RATSNET_OPT, tmp );
     config->Write( PCB_MAGNETIC_PADS_OPT, (long) g_MagneticPadOption );
@@ -588,7 +631,7 @@ void PCB_EDIT_FRAME::SaveSettings()
 }
 
 
-bool PCB_EDIT_FRAME::IsGridVisible()
+bool PCB_EDIT_FRAME::IsGridVisible() const
 {
     return IsElementVisible( GRID_VISIBLE );
 }
@@ -600,13 +643,13 @@ void PCB_EDIT_FRAME::SetGridVisibility(bool aVisible)
 }
 
 
-int PCB_EDIT_FRAME::GetGridColor()
+EDA_COLOR_T PCB_EDIT_FRAME::GetGridColor() const
 {
     return GetBoard()->GetVisibleElementColor( GRID_VISIBLE );
 }
 
 
-void PCB_EDIT_FRAME::SetGridColor(int aColor)
+void PCB_EDIT_FRAME::SetGridColor(EDA_COLOR_T aColor)
 {
     GetBoard()->SetVisibleElementColor( GRID_VISIBLE, aColor );
 }
@@ -617,7 +660,7 @@ bool PCB_EDIT_FRAME::IsMicroViaAcceptable( void )
     int copperlayercnt = GetBoard()->GetCopperLayerCount( );
     int currLayer = getActiveLayer();
 
-    if( !GetBoard()->GetBoardDesignSettings()->m_MicroViasAllowed )
+    if( !GetDesignSettings().m_MicroViasAllowed )
         return false;   // Obvious..
 
     if( copperlayercnt < 4 )
@@ -633,9 +676,21 @@ bool PCB_EDIT_FRAME::IsMicroViaAcceptable( void )
 }
 
 
-void PCB_EDIT_FRAME::syncLayerWidget( )
+void PCB_EDIT_FRAME::syncLayerWidgetLayer()
 {
     m_Layers->SelectLayer( getActiveLayer() );
+}
+
+
+void PCB_EDIT_FRAME::syncRenderStates()
+{
+    m_Layers->SyncRenderStates();
+}
+
+
+void PCB_EDIT_FRAME::syncLayerVisibilities()
+{
+    m_Layers->SyncLayerVisibilities();
 }
 
 
@@ -648,7 +703,7 @@ void PCB_EDIT_FRAME::unitsChangeRefresh()
 }
 
 
-bool PCB_EDIT_FRAME::IsElementVisible( int aElement )
+bool PCB_EDIT_FRAME::IsElementVisible( int aElement ) const
 {
     return GetBoard()->IsElementVisible( aElement );
 }
@@ -661,9 +716,9 @@ void PCB_EDIT_FRAME::SetElementVisibility( int aElement, bool aNewState )
 }
 
 
-void PCB_EDIT_FRAME::SetVisibleAlls( )
+void PCB_EDIT_FRAME::SetVisibleAlls()
 {
-    GetBoard()->SetVisibleAlls(  );
+    GetBoard()->SetVisibleAlls();
 
     for( int ii = 0; ii < PCB_VISIBLE( END_PCB_VISIBLE_LIST ); ii++ )
         m_Layers->SetRenderState( ii, true );
@@ -679,15 +734,16 @@ void PCB_EDIT_FRAME::SetLanguage( wxCommandEvent& event )
     m_auimgr.Update();
     ReFillLayerWidget();
 
-    if( m_ModuleEditFrame )
-        m_ModuleEditFrame->EDA_DRAW_FRAME::SetLanguage( event );
+    FOOTPRINT_EDIT_FRAME * moduleEditFrame = FOOTPRINT_EDIT_FRAME::GetActiveFootprintEditor();
+    if( moduleEditFrame )
+        moduleEditFrame->EDA_DRAW_FRAME::SetLanguage( event );
 }
 
 
 wxString PCB_EDIT_FRAME::GetLastNetListRead()
 {
     wxFileName absoluteFileName = m_lastNetListRead;
-    wxFileName pcbFileName = GetScreen()->GetFileName();
+    wxFileName pcbFileName = GetBoard()->GetFileName();
 
     if( !absoluteFileName.MakeAbsolute( pcbFileName.GetPath() ) || !absoluteFileName.FileExists() )
     {
@@ -702,7 +758,7 @@ wxString PCB_EDIT_FRAME::GetLastNetListRead()
 void PCB_EDIT_FRAME::SetLastNetListRead( const wxString& aLastNetListRead )
 {
     wxFileName relativeFileName = aLastNetListRead;
-    wxFileName pcbFileName = GetScreen()->GetFileName();
+    wxFileName pcbFileName = GetBoard()->GetFileName();
 
     if( relativeFileName.MakeRelativeTo( pcbFileName.GetPath() )
         && relativeFileName.GetFullPath() != aLastNetListRead )
@@ -732,21 +788,67 @@ void PCB_EDIT_FRAME::SVG_Print( wxCommandEvent& event )
 void PCB_EDIT_FRAME::UpdateTitle()
 {
     wxString title;
-    wxFileName fileName = GetScreen()->GetFileName();
+    wxFileName fileName = GetBoard()->GetFileName();
+
+    title.Printf( wxT( "Pcbnew %s " ), GetChars( GetBuildVersion() ) );
 
     if( fileName.IsOk() && fileName.FileExists() )
     {
-        title = wxGetApp().GetTitle() + wxT( " " ) + GetBuildVersion() +
-                wxT( " " ) + fileName.GetFullPath();
+        title << fileName.GetFullPath();
 
         if( !fileName.IsFileWritable() )
-            title += _( " [Read Only]" );
+            title << _( " [Read Only]" );
     }
     else
     {
-        title = wxGetApp().GetTitle() + wxT( " " ) + GetBuildVersion() +
-                wxT( " " ) + _( " [no file]" );
+        title << _( " [new file]" ) << wxT(" ") << fileName.GetFullPath();
     }
 
     SetTitle( title );
 }
+
+#ifdef KICAD_SCRIPTING_WXPYTHON
+void PCB_EDIT_FRAME::ScriptingConsoleEnableDisable( wxCommandEvent& aEvent )
+{
+    if ( m_pythonPanelHidden )
+    {
+        m_auimgr.GetPane( m_pythonPanel ).Show();
+        m_pythonPanelHidden = false;
+    }
+    else
+    {
+        m_auimgr.GetPane( m_pythonPanel ).Hide();
+        m_pythonPanelHidden = true;
+    }
+
+    m_auimgr.Update();
+
+}
+#endif
+
+void PCB_EDIT_FRAME::OnSelectAutoPlaceMode( wxCommandEvent& aEvent )
+{
+    // Automatic placement of modules and tracks is a mutually exclusive operation so
+    // clear the other tool if one of the two is selected.
+    // Be careful: this event function is called both by the
+    // ID_TOOLBARH_PCB_MODE_MODULE and the ID_TOOLBARH_PCB_MODE_TRACKS tool
+    // Therefore we should avoid a race condition when deselecting one of these tools
+    // inside this function (seems happen on some Linux/wxWidgets versions)
+    // when the other tool is selected
+
+    switch( aEvent.GetId() )
+    {
+        case ID_TOOLBARH_PCB_MODE_MODULE:
+            if( aEvent.IsChecked() &&
+                m_mainToolBar->GetToolToggled( ID_TOOLBARH_PCB_MODE_TRACKS ) )
+                m_mainToolBar->ToggleTool( ID_TOOLBARH_PCB_MODE_TRACKS, false );
+            break;
+
+        case ID_TOOLBARH_PCB_MODE_TRACKS:
+            if( aEvent.IsChecked() &&
+                m_mainToolBar->GetToolToggled( ID_TOOLBARH_PCB_MODE_MODULE ) )
+                m_mainToolBar->ToggleTool( ID_TOOLBARH_PCB_MODE_MODULE, false );
+            break;
+        }
+}
+

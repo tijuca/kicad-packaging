@@ -5,9 +5,9 @@
 #ifndef __dialog_design_rules_h_
 #define __dialog_design_rules_h_
 
-#include "../class_board.h"
+#include <../class_board.h>
 
-#include "dialog_design_rules_base.h"
+#include <dialog_design_rules_base.h>
 
 
 class PCB_EDIT_FRAME;
@@ -40,12 +40,9 @@ private:
 
     PCB_EDIT_FRAME*         m_Parent;
     BOARD*                  m_Pcb;
-    BOARD_DESIGN_SETTINGS*  m_BrdSettings;
+    BOARD_DESIGN_SETTINGS   m_BrdSettings;
 
     static int              s_LastTabSelection;     ///< which tab user had open last
-
-    static wxSize		    s_LastSize;		        ///< last position and size
-    static wxPoint		    s_LastPos;
 
     /**
      * A two column table which gets filled once and never loses any elements, so it is

@@ -2,12 +2,12 @@
  * @file class_pcb_screen.h
  */
 
-#ifndef __CLASSPCB_SCREEN_H__
-#define __CLASSPCB_SCREEN_H__
+#ifndef CLASS_PCB_SCREEN_H_
+#define CLASS_PCB_SCREEN_H_
 
 
-#include "class_base_screen.h"
-#include "class_board_item.h"
+#include <class_base_screen.h>
+#include <class_board_item.h>
 
 
 class UNDO_REDO_CONTAINER;
@@ -22,21 +22,27 @@ public:
     int m_Route_Layer_BOTTOM;
 
 public:
-    PCB_SCREEN();
+
+    /**
+     * Constructor
+     * @param aPageSizeIU is the size of the initial paper page in internal units.
+     */
+    PCB_SCREEN( const wxSize& aPageSizeIU );
+
     ~PCB_SCREEN();
 
     PCB_SCREEN* Next() { return (PCB_SCREEN*) Pnext; }
-    void        Init();
+
     void        SetNextZoom();
     void        SetPreviousZoom();
     void        SetLastZoom();
 
-    virtual int GetInternalUnits( void );
+    virtual int MilsToIuScalar();
 
     /**
      * Function GetCurItem
      * returns the currently selected BOARD_ITEM, overriding
-     *BASE_SCREEN::GetCurItem().
+     * BASE_SCREEN::GetCurItem().
      * @return BOARD_ITEM* - the one selected, or NULL.
      */
     BOARD_ITEM* GetCurItem() const
@@ -50,7 +56,6 @@ public:
      * @param aItem Any object derived from BOARD_ITEM
      */
     void SetCurItem( BOARD_ITEM* aItem ) { BASE_SCREEN::SetCurItem( (EDA_ITEM*)aItem ); }
-
 
     /* full undo redo management : */
 
@@ -73,5 +78,4 @@ public:
     void ClearUndoORRedoList( UNDO_REDO_CONTAINER& aList, int aItemCount = -1 );
 };
 
-
-#endif /* __CLASSPCB_SCREEN_H__ */
+#endif  // CLASS_PCB_SCREEN_H_

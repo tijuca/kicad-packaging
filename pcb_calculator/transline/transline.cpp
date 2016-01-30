@@ -22,8 +22,11 @@
  */
 
 #include <limits>
-#include "transline.h"
-#include "units.h"
+#include <transline.h>
+#include <units.h>
+
+using namespace std;
+
 
 #ifndef INFINITY
 #define INFINITY std::numeric_limits<double>::infinity()
@@ -34,32 +37,10 @@
 #define M_PI_2 (M_PI/2)
 #endif
 
-#ifdef _MSC_VER
+#ifndef HAVE_CMATH_ISINF
 inline bool isinf(double x)
 {
-	return x == INFINITY; // return true if x is infinity
-}
-
-inline double asinh(double x)
-{
-  return log(x+sqrt(x*x+1));
-}
-
-inline double acosh(double x)
-{
-  // must be x>=1, if not return Nan (Not a Number)
-  if(!(x>=1.0)) return sqrt(-1.0);
-
-  // return only the positive result (as sqrt does).
-  return log(x+sqrt(x*x-1.0));
-}
-
-inline double atanh(double x)
-{
-  // must be x>-1, x<1, if not return Nan (Not a Number)
-  if(!(x>-1.0 && x<1.0)) return sqrt(-1.0);
-
-  return log((1.0+x)/(1.0-x))/2.0;
+    return x == INFINITY; // return true if x is infinity
 }
 #endif
 

@@ -3,14 +3,14 @@
  * @brief Implementation of class for displaying footprint list and component lists.
  */
 
-#include "fctsys.h"
-#include "wxstruct.h"
-#include "macros.h"
+#include <fctsys.h>
+#include <wxstruct.h>
+#include <macros.h>
 
-#include "cvpcb.h"
-#include "cvpcb_mainframe.h"
-#include "cvstruct.h"
-#include "cvpcb_id.h"
+#include <cvpcb.h>
+#include <cvpcb_mainframe.h>
+#include <cvstruct.h>
+#include <cvpcb_id.h>
 
 
 /******************************************************************************
@@ -18,12 +18,10 @@
 * Not directly used: the 2 list boxes actually used are derived from it
 ******************************************************************************/
 
-#define LISTB_STYLE wxSUNKEN_BORDER | wxLC_NO_HEADER | \
-    wxLC_SINGLE_SEL | wxLC_REPORT | wxLC_VIRTUAL
-
 ITEMS_LISTBOX_BASE::ITEMS_LISTBOX_BASE( CVPCB_MAINFRAME* aParent, wxWindowID aId,
-                                        const wxPoint& aLocation, const wxSize& aSize ) :
-    wxListView( aParent, aId, aLocation, aSize, LISTB_STYLE )
+                                        const wxPoint& aLocation, const wxSize& aSize,
+                                        long aStyle) :
+    wxListView( aParent, aId, aLocation, aSize, LISTB_STYLE | aStyle )
 {
     InsertColumn( 0, wxEmptyString );
     SetColumnWidth( 0, wxLIST_AUTOSIZE );
@@ -43,7 +41,7 @@ void ITEMS_LISTBOX_BASE::OnSize( wxSizeEvent& event )
     wxSize size  = GetClientSize();
     int    width = 0;
 
-    SetColumnWidth( 0, MAX( width, size.x ) );
+    SetColumnWidth( 0, std::max( width, size.x ) );
 
     event.Skip();
 }
@@ -88,16 +86,16 @@ void CVPCB_MAINFRAME::BuildCmpListBox()
 
     m_ListCmp->m_ComponentList.Clear();
 
-    BOOST_FOREACH( COMPONENT & component, m_components ) {
+    BOOST_FOREACH( COMPONENT_INFO & component, m_components ) {
         msg.Printf( CMP_FORMAT, m_ListCmp->GetCount() + 1,
                    GetChars(component.m_Reference),
                    GetChars(component.m_Value),
-                   GetChars(component.m_Module) );
+                   GetChars(component.m_Footprint) );
         m_ListCmp->m_ComponentList.Add( msg );
     }
 
     m_ListCmp->SetItemCount( m_ListCmp->m_ComponentList.Count() );
-    m_ListCmp->SetSelection( 0, TRUE );
+    m_ListCmp->SetSelection( 0, true );
 }
 
 

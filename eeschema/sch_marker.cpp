@@ -1,15 +1,41 @@
-/*******************************************/
-/* Schematic marker object implementation. */
-/*******************************************/
+/*
+ * This program source code file is part of KiCad, a free EDA CAD application.
+ *
+ * Copyright (C) 2009 Jean-Pierre Charras, jaen-pierre.charras@gipsa-lab.inpg.com
+ * Copyright (C) 1992-2011 KiCad Developers, see AUTHORS.txt for contributors.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation; either version 2
+ * of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, you may find one here:
+ * http://www.gnu.org/licenses/old-licenses/gpl-2.0.html
+ * or you may search the http://www.gnu.org website for the version 2 license,
+ * or you may write to the Free Software Foundation, Inc.,
+ * 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
+ */
 
-#include "fctsys.h"
-#include "wxstruct.h"
-#include "class_drawpanel.h"
-#include "trigo.h"
+/**
+ * @file sch_marker.cpp
+ * @brief Class SCH_MARKER implementation
+ */
 
-#include "general.h"
-#include "sch_marker.h"
-#include "erc.h"
+#include <fctsys.h>
+#include <wxstruct.h>
+#include <class_drawpanel.h>
+#include <trigo.h>
+#include <msgpanel.h>
+
+#include <general.h>
+#include <sch_marker.h>
+#include <erc.h>
 
 
 /* Marker are mainly used to show an ERC error
@@ -27,9 +53,9 @@ const wxChar* NameMarqueurType[] =
 };
 
 
-/**************************/
+/********************/
 /* class SCH_MARKER */
-/**************************/
+/********************/
 
 SCH_MARKER::SCH_MARKER() : SCH_ITEM( NULL, SCH_MARKER_T ), MARKER_BASE()
 {
@@ -43,19 +69,12 @@ SCH_MARKER::SCH_MARKER( const wxPoint& pos, const wxString& text ) :
 }
 
 
-SCH_MARKER::SCH_MARKER( const SCH_MARKER& aMarker ) :
-    SCH_ITEM( aMarker ),
-    MARKER_BASE( aMarker )
-{
-}
-
-
 SCH_MARKER::~SCH_MARKER()
 {
 }
 
 
-EDA_ITEM* SCH_MARKER::doClone() const
+EDA_ITEM* SCH_MARKER::Clone() const
 {
     return new SCH_MARKER( *this );
 }
@@ -63,14 +82,7 @@ EDA_ITEM* SCH_MARKER::doClone() const
 
 #if defined(DEBUG)
 
-/**
- * Function Show
- * is used to output the object tree, currently for debugging only.
- * @param nestLevel An aid to prettier tree indenting, and is the level
- *          of nesting of this object within the overall tree.
- * @param os The ostream& to output to.
- */
-void SCH_MARKER::Show( int nestLevel, std::ostream& os )
+void SCH_MARKER::Show( int nestLevel, std::ostream& os ) const
 {
     // for now, make it look like XML:
     NestedSpace( nestLevel, os ) << '<' << GetClass().Lower().mb_str()
@@ -92,22 +104,21 @@ bool SCH_MARKER::Save( FILE* aFile ) const
 
 
 void SCH_MARKER::Draw( EDA_DRAW_PANEL* aPanel, wxDC* aDC,
-                       const wxPoint& aOffset, int aDrawMode, int aColor )
+                       const wxPoint& aOffset, GR_DRAWMODE aDrawMode, EDA_COLOR_T aColor )
 {
-    EDA_Colors color = (EDA_Colors) m_Color;
-    EDA_Colors tmp   = color;
+    EDA_COLOR_T color = m_Color;
+    EDA_COLOR_T tmp   = color;
 
     if( GetMarkerType() == MARK_ERC )
     {
-        color = ( GetErrorLevel() == WAR ) ?
-                (EDA_Colors) g_LayerDescr.LayerColor[LAYER_ERC_WARN] :
-                (EDA_Colors) g_LayerDescr.LayerColor[LAYER_ERC_ERR];
+        color = ( GetErrorLevel() == WAR ) ? ReturnLayerColor( LAYER_ERC_WARN ) :
+                                             ReturnLayerColor( LAYER_ERC_ERR );
     }
 
     if( aColor < 0 )
         m_Color = color;
     else
-        m_Color = (EDA_Colors) aColor;
+        m_Color = aColor;
 
     DrawMarker( aPanel, aDC, aDrawMode, aOffset );
     m_Color = tmp;
@@ -146,26 +157,22 @@ EDA_RECT SCH_MARKER::GetBoundingBox() const
 }
 
 
-void SCH_MARKER::DisplayInfo( EDA_DRAW_FRAME* aFrame )
+void SCH_MARKER::GetMsgPanelInfo( MSG_PANEL_ITEMS& aList )
 {
-    if( aFrame == NULL )
-        return;
-
     wxString msg;
 
-    aFrame->ClearMsgPanel();
-    aFrame->AppendMsgPanel( _( "Electronics rule check error" ),
-                            GetReporter().GetErrorText(), DARKRED );
+    aList.push_back( MSG_PANEL_ITEM( _( "Electronics rule check error" ),
+                                     GetReporter().GetErrorText(), DARKRED ) );
 }
 
 
-void SCH_MARKER::Rotate( wxPoint rotationPoint )
+void SCH_MARKER::Rotate( wxPoint aPosition )
 {
-    RotatePoint( &m_Pos, rotationPoint, 900 );
+    RotatePoint( &m_Pos, aPosition, 900 );
 }
 
 
-void SCH_MARKER::Mirror_X( int aXaxis_position )
+void SCH_MARKER::MirrorX( int aXaxis_position )
 {
     m_Pos.y -= aXaxis_position;
     m_Pos.y  = -m_Pos.y;
@@ -173,7 +180,7 @@ void SCH_MARKER::Mirror_X( int aXaxis_position )
 }
 
 
-void SCH_MARKER::Mirror_Y( int aYaxis_position )
+void SCH_MARKER::MirrorY( int aYaxis_position )
 {
     m_Pos.x -= aYaxis_position;
     m_Pos.x  = -m_Pos.x;
@@ -194,8 +201,8 @@ bool SCH_MARKER::IsSelectStateChanged( const wxRect& aRect )
 }
 
 
-bool SCH_MARKER::doHitTest( const wxPoint& aPoint, int aAccuracy ) const
+bool SCH_MARKER::HitTest( const wxPoint& aPosition, int aAccuracy ) const
 {
-    return HitTestMarker( aPoint );
+    return HitTestMarker( aPosition );
 }
 

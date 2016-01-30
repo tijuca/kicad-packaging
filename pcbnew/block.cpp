@@ -1,7 +1,8 @@
 /*
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
- * Copyright (C) 2004 Jean-Pierre Charras, jaen-pierre.charras@gipsa-lab.inpg.com
+ * Copyright (C) 2012 Jean-Pierre Charras, jean-pierre.charras@ujf-grenoble.fr
+ * Copyright (C) 2012 SoftPLC Corporation, Dick Hollenbeck <dick@softplc.com>
  * Copyright (C) 2011 Wayne Stambaugh <stambaughw@verizon.net>
  * Copyright (C) 1992-2011 KiCad Developers, see AUTHORS.txt for contributors.
  *
@@ -24,31 +25,31 @@
  */
 
 /**
- * @file block.cpp
+ * @file pcbnew/block.cpp
  */
 
 
-#include "fctsys.h"
-#include "class_drawpanel.h"
-#include "confirm.h"
-#include "block_commande.h"
-#include "pcbcommon.h"
-#include "wxPcbStruct.h"
-#include "trigo.h"
+#include <fctsys.h>
+#include <class_drawpanel.h>
+#include <confirm.h>
+#include <block_commande.h>
+#include <pcbcommon.h>
+#include <wxPcbStruct.h>
+#include <trigo.h>
 
-#include "class_board.h"
-#include "class_track.h"
-#include "class_drawsegment.h"
-#include "class_pcb_text.h"
-#include "class_mire.h"
-#include "class_module.h"
-#include "class_dimension.h"
-#include "class_zone.h"
+#include <class_board.h>
+#include <class_track.h>
+#include <class_drawsegment.h>
+#include <class_pcb_text.h>
+#include <class_mire.h>
+#include <class_module.h>
+#include <class_dimension.h>
+#include <class_zone.h>
 
-#include "dialog_block_options_base.h"
+#include <dialog_block_options_base.h>
 
-#include "pcbnew.h"
-#include "protos.h"
+#include <pcbnew.h>
+#include <protos.h>
 
 #define BLOCK_OUTLINE_COLOR YELLOW
 
@@ -121,15 +122,15 @@ static bool InstallBlockCmdFrame( PCB_BASE_FRAME* parent, const wxString& title 
 {
     wxPoint oldpos = parent->GetScreen()->GetCrossHairPosition();
 
-    parent->DrawPanel->m_IgnoreMouseEvents = true;
+    parent->GetCanvas()->SetIgnoreMouseEvents( true );
     DIALOG_BLOCK_OPTIONS * dlg = new DIALOG_BLOCK_OPTIONS( parent, title );
 
     int cmd = dlg->ShowModal();
     dlg->Destroy();
 
     parent->GetScreen()->SetCrossHairPosition( oldpos );
-    parent->DrawPanel->MoveCursorToCrossHair();
-    parent->DrawPanel->m_IgnoreMouseEvents = false;
+    parent->GetCanvas()->MoveCursorToCrossHair();
+    parent->GetCanvas()->SetIgnoreMouseEvents( false );
 
     return cmd == wxID_OK;
 }
@@ -219,14 +220,14 @@ int PCB_EDIT_FRAME::ReturnBlockCommand( int aKey )
 
 void PCB_EDIT_FRAME::HandleBlockPlace( wxDC* DC )
 {
-    if( !DrawPanel->IsMouseCaptured() )
+    if( !m_canvas->IsMouseCaptured() )
     {
         DisplayError( this, wxT( "Error in HandleBlockPLace : m_mouseCaptureCallback = NULL" ) );
     }
 
-    GetScreen()->m_BlockLocate.m_State = STATE_BLOCK_STOP;
+    GetScreen()->m_BlockLocate.SetState( STATE_BLOCK_STOP );
 
-    switch( GetScreen()->m_BlockLocate.m_Command )
+    switch( GetScreen()->m_BlockLocate.GetCommand() )
     {
     case BLOCK_IDLE:
         break;
@@ -234,16 +235,16 @@ void PCB_EDIT_FRAME::HandleBlockPlace( wxDC* DC )
     case BLOCK_DRAG:                /* Drag */
     case BLOCK_MOVE:                /* Move */
     case BLOCK_PRESELECT_MOVE:      /* Move with preselection list*/
-        if( DrawPanel->IsMouseCaptured() )
-            DrawPanel->m_mouseCaptureCallback( DrawPanel, DC, wxDefaultPosition, false );
+        if( m_canvas->IsMouseCaptured() )
+            m_canvas->CallMouseCapture( DC, wxDefaultPosition, false );
 
         Block_Move();
         GetScreen()->m_BlockLocate.ClearItemsList();
         break;
 
     case BLOCK_COPY:     /* Copy */
-        if( DrawPanel->IsMouseCaptured() )
-            DrawPanel->m_mouseCaptureCallback( DrawPanel, DC, wxDefaultPosition, false );
+        if( m_canvas->IsMouseCaptured() )
+            m_canvas->CallMouseCapture( DC, wxDefaultPosition, false );
 
         Block_Duplicate();
         GetScreen()->m_BlockLocate.ClearItemsList();
@@ -259,7 +260,7 @@ void PCB_EDIT_FRAME::HandleBlockPlace( wxDC* DC )
 
     OnModify();
 
-    DrawPanel->EndMouseCapture( GetToolId(), DrawPanel->GetCurrentCursor(), wxEmptyString, false );
+    m_canvas->EndMouseCapture( GetToolId(), m_canvas->GetCurrentCursor(), wxEmptyString, false );
     GetScreen()->ClearBlockCommand();
 
     if( GetScreen()->m_BlockLocate.GetCount() )
@@ -276,28 +277,28 @@ bool PCB_EDIT_FRAME::HandleBlockEnd( wxDC* DC )
     bool cancelCmd = false;
 
     // If coming here after cancel block, clean up and exit
-    if( GetScreen()->m_BlockLocate.m_State == STATE_NO_BLOCK )
+    if( GetScreen()->m_BlockLocate.GetState() == STATE_NO_BLOCK )
     {
-        DrawPanel->EndMouseCapture( GetToolId(), DrawPanel->GetCurrentCursor(), wxEmptyString,
-                                    false );
+        m_canvas->EndMouseCapture( GetToolId(), m_canvas->GetCurrentCursor(), wxEmptyString,
+                                   false );
         GetScreen()->ClearBlockCommand();
         return false;
     }
 
     // Show dialog if there are no selected items and we're not zooming
     if( !GetScreen()->m_BlockLocate.GetCount()
-        && GetScreen()->m_BlockLocate.m_Command != BLOCK_ZOOM )
+      && GetScreen()->m_BlockLocate.GetCommand() != BLOCK_ZOOM )
     {
         if( InstallBlockCmdFrame( this, _( "Block Operation" ) ) == false )
         {
             cancelCmd = true;
 
             // undraw block outline
-            DrawPanel->m_mouseCaptureCallback( DrawPanel, DC, wxDefaultPosition, false );
+            m_canvas->CallMouseCapture( DC, wxDefaultPosition, false );
         }
         else
         {
-            DrawAndSizingBlockOutlines( DrawPanel, DC, wxDefaultPosition, false );
+            DrawAndSizingBlockOutlines( m_canvas, DC, wxDefaultPosition, false );
             Block_SelectItems();
 
             // Exit if no items found
@@ -306,9 +307,9 @@ bool PCB_EDIT_FRAME::HandleBlockEnd( wxDC* DC )
         }
     }
 
-    if( !cancelCmd && DrawPanel->IsMouseCaptured() )
+    if( !cancelCmd && m_canvas->IsMouseCaptured() )
     {
-        switch( GetScreen()->m_BlockLocate.m_Command )
+        switch( GetScreen()->m_BlockLocate.GetCommand() )
         {
         case BLOCK_IDLE:
             DisplayError( this, wxT( "Error in HandleBlockPLace" ) );
@@ -318,32 +319,33 @@ bool PCB_EDIT_FRAME::HandleBlockEnd( wxDC* DC )
         case BLOCK_MOVE:            /* Move */
         case BLOCK_COPY:            /* Copy */
         case BLOCK_PRESELECT_MOVE:  /* Move with preselection list*/
-            GetScreen()->m_BlockLocate.m_State = STATE_BLOCK_MOVE;
+            GetScreen()->m_BlockLocate.SetState( STATE_BLOCK_MOVE );
             nextcmd = true;
-            DrawPanel->m_mouseCaptureCallback = drawMovingBlock;
-            DrawPanel->m_mouseCaptureCallback( DrawPanel, DC, wxDefaultPosition, false );
+            m_canvas->SetMouseCaptureCallback( drawMovingBlock );
+            m_canvas->CallMouseCapture( DC, wxDefaultPosition, false );
             break;
 
         case BLOCK_DELETE: /* Delete */
-            DrawPanel->m_mouseCaptureCallback = NULL;
-            GetScreen()->m_BlockLocate.m_State = STATE_BLOCK_STOP;
+            m_canvas->SetMouseCaptureCallback( NULL );
+            GetScreen()->m_BlockLocate.SetState( STATE_BLOCK_STOP );
             Block_Delete();
             break;
 
         case BLOCK_ROTATE: /* Rotation */
-            DrawPanel->m_mouseCaptureCallback = NULL;
-            GetScreen()->m_BlockLocate.m_State = STATE_BLOCK_STOP;
+            m_canvas->SetMouseCaptureCallback( NULL );
+            GetScreen()->m_BlockLocate.SetState( STATE_BLOCK_STOP );
             Block_Rotate();
             break;
 
         case BLOCK_FLIP: /* Flip */
-            DrawPanel->m_mouseCaptureCallback = NULL;
-            GetScreen()->m_BlockLocate.m_State = STATE_BLOCK_STOP;
+            m_canvas->SetMouseCaptureCallback( NULL );
+            GetScreen()->m_BlockLocate.SetState( STATE_BLOCK_STOP );
             Block_Flip();
             break;
 
         case BLOCK_SAVE: /* Save (not used, for future enhancements)*/
-            GetScreen()->m_BlockLocate.m_State = STATE_BLOCK_STOP;
+            GetScreen()->m_BlockLocate.SetState( STATE_BLOCK_STOP );
+
             if( GetScreen()->m_BlockLocate.GetCount() )
             {
                 // @todo (if useful)         Save_Block( );
@@ -357,7 +359,7 @@ bool PCB_EDIT_FRAME::HandleBlockEnd( wxDC* DC )
 
             // Turn off the redraw block routine now so it is not displayed
             // with one corner at the new center of the screen
-            DrawPanel->m_mouseCaptureCallback = NULL;
+            m_canvas->SetMouseCaptureCallback( NULL );
             Window_Zoom( GetScreen()->m_BlockLocate );
             break;
 
@@ -369,8 +371,8 @@ bool PCB_EDIT_FRAME::HandleBlockEnd( wxDC* DC )
     if( ! nextcmd )
     {
         GetScreen()->ClearBlockCommand();
-        DrawPanel->EndMouseCapture( GetToolId(), DrawPanel->GetCurrentCursor(), wxEmptyString,
-                                    false );
+        m_canvas->EndMouseCapture( GetToolId(), m_canvas->GetCurrentCursor(), wxEmptyString,
+                                   false );
     }
 
     return nextcmd;
@@ -383,7 +385,7 @@ void PCB_EDIT_FRAME::Block_SelectItems()
 
     GetScreen()->m_BlockLocate.Normalize();
 
-    PICKED_ITEMS_LIST* itemsList = &GetScreen()->m_BlockLocate.m_ItemsSelection;
+    PICKED_ITEMS_LIST* itemsList = &GetScreen()->m_BlockLocate.GetItems();
     ITEM_PICKER        picker( NULL, UR_UNSPECIFIED );
 
     // Add modules
@@ -398,8 +400,7 @@ void PCB_EDIT_FRAME::Block_SelectItems()
             {
                 if( blockIncludeItemsOnInvisibleLayers || m_Pcb->IsModuleLayerVisible( layer ) )
                 {
-                    picker.m_PickedItem     = module;
-                    picker.m_PickedItemType = module->Type();
+                    picker.SetItem ( module );
                     itemsList->PushItem( picker );
                 }
             }
@@ -416,8 +417,7 @@ void PCB_EDIT_FRAME::Block_SelectItems()
                 if( blockIncludeItemsOnInvisibleLayers
                   || m_Pcb->IsLayerVisible( pt_segm->GetLayer() ) )
                 {
-                    picker.m_PickedItem     = pt_segm;
-                    picker.m_PickedItemType = pt_segm->Type();
+                    picker.SetItem ( pt_segm );
                     itemsList->PushItem( picker );
                 }
             }
@@ -437,11 +437,13 @@ void PCB_EDIT_FRAME::Block_SelectItems()
     {
         if( !m_Pcb->IsLayerVisible( PtStruct->GetLayer() ) && ! blockIncludeItemsOnInvisibleLayers)
             continue;
+
         bool select_me = false;
+
         switch( PtStruct->Type() )
         {
         case PCB_LINE_T:
-            if( (g_TabOneLayerMask[PtStruct->GetLayer()] & layerMask) == 0  )
+            if( (GetLayerMask( PtStruct->GetLayer() ) & layerMask) == 0  )
                 break;
 
             if( !PtStruct->HitTest( GetScreen()->m_BlockLocate ) )
@@ -461,7 +463,7 @@ void PCB_EDIT_FRAME::Block_SelectItems()
             break;
 
         case PCB_TARGET_T:
-            if( ( g_TabOneLayerMask[PtStruct->GetLayer()] & layerMask ) == 0  )
+            if( ( GetLayerMask( PtStruct->GetLayer() ) & layerMask ) == 0  )
                 break;
 
             if( !PtStruct->HitTest( GetScreen()->m_BlockLocate ) )
@@ -471,7 +473,7 @@ void PCB_EDIT_FRAME::Block_SelectItems()
             break;
 
         case PCB_DIMENSION_T:
-            if( ( g_TabOneLayerMask[PtStruct->GetLayer()] & layerMask ) == 0 )
+            if( ( GetLayerMask( PtStruct->GetLayer() ) & layerMask ) == 0 )
                 break;
 
             if( !PtStruct->HitTest( GetScreen()->m_BlockLocate ) )
@@ -486,8 +488,7 @@ void PCB_EDIT_FRAME::Block_SelectItems()
 
         if( select_me )
         {
-            picker.m_PickedItem     = PtStruct;
-            picker.m_PickedItemType = PtStruct->Type();
+            picker.SetItem ( PtStruct );
             itemsList->PushItem( picker );
         }
     }
@@ -505,8 +506,7 @@ void PCB_EDIT_FRAME::Block_SelectItems()
                   || m_Pcb->IsLayerVisible( area->GetLayer() ) )
                 {
                     BOARD_ITEM* zone_c = (BOARD_ITEM*) area;
-                    picker.m_PickedItem     = zone_c;
-                    picker.m_PickedItemType = zone_c->Type();
+                    picker.SetItem ( zone_c );
                     itemsList->PushItem( picker );
                 }
             }
@@ -517,7 +517,7 @@ void PCB_EDIT_FRAME::Block_SelectItems()
 
 static void drawPickedItems( EDA_DRAW_PANEL* aPanel, wxDC* aDC, wxPoint aOffset )
 {
-    PICKED_ITEMS_LIST* itemsList = &aPanel->GetScreen()->m_BlockLocate.m_ItemsSelection;
+    PICKED_ITEMS_LIST* itemsList = &aPanel->GetScreen()->m_BlockLocate.GetItems();
     PCB_BASE_FRAME* frame = (PCB_BASE_FRAME*) aPanel->GetParent();
 
     g_Offset_Module = -aOffset;
@@ -564,29 +564,30 @@ static void drawMovingBlock( EDA_DRAW_PANEL* aPanel, wxDC* aDC, const wxPoint& a
 
     if( aErase )
     {
-        if( screen->m_BlockLocate.m_MoveVector.x || screen->m_BlockLocate.m_MoveVector.y )
+        if( screen->m_BlockLocate.GetMoveVector().x || screen->m_BlockLocate.GetMoveVector().y )
         {
-            screen->m_BlockLocate.Draw( aPanel, aDC, screen->m_BlockLocate.m_MoveVector,
+            screen->m_BlockLocate.Draw( aPanel, aDC, screen->m_BlockLocate.GetMoveVector(),
                                         GR_XOR, BLOCK_OUTLINE_COLOR );
 
             if( blockDrawItems )
-                drawPickedItems( aPanel, aDC, screen->m_BlockLocate.m_MoveVector );
+                drawPickedItems( aPanel, aDC, screen->m_BlockLocate.GetMoveVector() );
         }
     }
 
-    if( screen->m_BlockLocate.m_State != STATE_BLOCK_STOP )
+
+    if( screen->m_BlockLocate.GetState() != STATE_BLOCK_STOP )
     {
-        screen->m_BlockLocate.m_MoveVector = screen->GetCrossHairPosition() -
-                                             screen->m_BlockLocate.m_BlockLastCursorPosition;
+        screen->m_BlockLocate.SetMoveVector( screen->GetCrossHairPosition() -
+                                             screen->m_BlockLocate.GetLastCursorPosition() );
     }
 
-    if( screen->m_BlockLocate.m_MoveVector.x || screen->m_BlockLocate.m_MoveVector.y )
+    if( screen->m_BlockLocate.GetMoveVector().x || screen->m_BlockLocate.GetMoveVector().y )
     {
-        screen->m_BlockLocate.Draw( aPanel, aDC, screen->m_BlockLocate.m_MoveVector,
+        screen->m_BlockLocate.Draw( aPanel, aDC, screen->m_BlockLocate.GetMoveVector(),
                                     GR_XOR, BLOCK_OUTLINE_COLOR );
 
         if( blockDrawItems )
-            drawPickedItems( aPanel, aDC, screen->m_BlockLocate.m_MoveVector );
+            drawPickedItems( aPanel, aDC, screen->m_BlockLocate.GetMoveVector() );
     }
 }
 
@@ -596,7 +597,7 @@ void PCB_EDIT_FRAME::Block_Delete()
     OnModify();
     SetCurItem( NULL );
 
-    PICKED_ITEMS_LIST* itemsList = &GetScreen()->m_BlockLocate.m_ItemsSelection;
+    PICKED_ITEMS_LIST* itemsList = &GetScreen()->m_BlockLocate.GetItems();
     itemsList->m_Status = UR_DELETED;
 
     /* unlink items and clear flags */
@@ -610,7 +611,7 @@ void PCB_EDIT_FRAME::Block_Delete()
         case PCB_MODULE_T:
         {
             MODULE* module = (MODULE*) item;
-            module->m_Flags = 0;
+            module->ClearFlags();
             module->UnLink();
             m_Pcb->m_Status_Pcb = 0;
         }
@@ -647,7 +648,7 @@ void PCB_EDIT_FRAME::Block_Delete()
     SaveCopyInUndoList( *itemsList, UR_DELETED );
 
     Compile_Ratsnest( NULL, true );
-    DrawPanel->Refresh( true );
+    m_canvas->Refresh( true );
 }
 
 
@@ -662,7 +663,7 @@ void PCB_EDIT_FRAME::Block_Rotate()
 
     OnModify();
 
-    PICKED_ITEMS_LIST* itemsList = &GetScreen()->m_BlockLocate.m_ItemsSelection;
+    PICKED_ITEMS_LIST* itemsList = &GetScreen()->m_BlockLocate.GetItems();
     itemsList->m_Status = UR_ROTATED;
 
     for( unsigned ii = 0; ii < itemsList->GetCount(); ii++ )
@@ -675,7 +676,7 @@ void PCB_EDIT_FRAME::Block_Rotate()
         switch( item->Type() )
         {
         case PCB_MODULE_T:
-            ( (MODULE*) item )->m_Flags = 0;
+            ( (MODULE*) item )->ClearFlags();
             m_Pcb->m_Status_Pcb = 0;
             break;
 
@@ -707,7 +708,7 @@ void PCB_EDIT_FRAME::Block_Rotate()
     SaveCopyInUndoList( *itemsList, UR_ROTATED, centre );
 
     Compile_Ratsnest( NULL, true );
-    DrawPanel->Refresh( true );
+    m_canvas->Refresh( true );
 }
 
 
@@ -719,7 +720,7 @@ void PCB_EDIT_FRAME::Block_Flip()
 
     OnModify();
 
-    PICKED_ITEMS_LIST* itemsList = &GetScreen()->m_BlockLocate.m_ItemsSelection;
+    PICKED_ITEMS_LIST* itemsList = &GetScreen()->m_BlockLocate.GetItems();
     itemsList->m_Status = UR_FLIPPED;
 
     memo = GetScreen()->GetCrossHairPosition();
@@ -736,7 +737,7 @@ void PCB_EDIT_FRAME::Block_Flip()
         switch( item->Type() )
         {
         case PCB_MODULE_T:
-            item->m_Flags = 0;
+            item->ClearFlags();
             m_Pcb->m_Status_Pcb = 0;
             break;
 
@@ -768,7 +769,7 @@ void PCB_EDIT_FRAME::Block_Flip()
 
     SaveCopyInUndoList( *itemsList, UR_FLIPPED, center );
     Compile_Ratsnest( NULL, true );
-    DrawPanel->Refresh( true );
+    m_canvas->Refresh( true );
 }
 
 
@@ -776,9 +777,9 @@ void PCB_EDIT_FRAME::Block_Move()
 {
     OnModify();
 
-    wxPoint            MoveVector = GetScreen()->m_BlockLocate.m_MoveVector;
+    wxPoint            MoveVector = GetScreen()->m_BlockLocate.GetMoveVector();
 
-    PICKED_ITEMS_LIST* itemsList = &GetScreen()->m_BlockLocate.m_ItemsSelection;
+    PICKED_ITEMS_LIST* itemsList = &GetScreen()->m_BlockLocate.GetItems();
     itemsList->m_Status = UR_MOVED;
 
     for( unsigned ii = 0; ii < itemsList->GetCount(); ii++ )
@@ -791,7 +792,7 @@ void PCB_EDIT_FRAME::Block_Move()
         {
         case PCB_MODULE_T:
             m_Pcb->m_Status_Pcb = 0;
-            item->m_Flags = 0;
+            item->ClearFlags();
             break;
 
         /* Move track segments */
@@ -822,113 +823,39 @@ void PCB_EDIT_FRAME::Block_Move()
     SaveCopyInUndoList( *itemsList, UR_MOVED, MoveVector );
 
     Compile_Ratsnest( NULL, true );
-    DrawPanel->Refresh( true );
+    m_canvas->Refresh( true );
 }
 
 
 void PCB_EDIT_FRAME::Block_Duplicate()
 {
-    wxPoint MoveVector = GetScreen()->m_BlockLocate.m_MoveVector;
+    wxPoint MoveVector = GetScreen()->m_BlockLocate.GetMoveVector();
 
     OnModify();
 
-    PICKED_ITEMS_LIST* itemsList = &GetScreen()->m_BlockLocate.m_ItemsSelection;
+    PICKED_ITEMS_LIST* itemsList = &GetScreen()->m_BlockLocate.GetItems();
 
-    PICKED_ITEMS_LIST  newList;
+    PICKED_ITEMS_LIST newList;
     newList.m_Status = UR_NEW;
 
-    ITEM_PICKER        picker( NULL, UR_NEW );
-    BOARD_ITEM*        newitem;
+    ITEM_PICKER picker( NULL, UR_NEW );
+    BOARD_ITEM* newitem;
 
     for( unsigned ii = 0; ii < itemsList->GetCount(); ii++ )
     {
         BOARD_ITEM* item = (BOARD_ITEM*) itemsList->GetPickedItem( ii );
-        newitem = NULL;
-        switch( item->Type() )
-        {
-        case PCB_MODULE_T:
-            {
-                MODULE* module = (MODULE*) item;
-                MODULE* new_module;
-                m_Pcb->m_Status_Pcb = 0;
-                module->m_Flags     = 0;
-                newitem = new_module = new MODULE( m_Pcb );
-                new_module->Copy( module );
-                new_module->m_TimeStamp = GetTimeStamp();
-                m_Pcb->m_Modules.PushFront( new_module );
-            }
-            break;
 
-        case PCB_TRACE_T:
-        case PCB_VIA_T:
-            {
-                TRACK* track = (TRACK*) item;
-                m_Pcb->m_Status_Pcb = 0;
-                TRACK* new_track = track->Copy();
-                newitem = new_track;
-                m_Pcb->m_Track.PushFront( new_track );
-            }
-            break;
+        newitem = (BOARD_ITEM*)item->Clone();
 
-        case PCB_ZONE_T:                  // SEG_ZONE items are now deprecated
-            break;
+        if( item->Type() == PCB_MODULE_T )
+            m_Pcb->m_Status_Pcb = 0;
 
-        case PCB_ZONE_AREA_T:
-            {
-                ZONE_CONTAINER* new_zone = new ZONE_CONTAINER( (BOARD*) item->GetParent() );
-                new_zone->Copy( (ZONE_CONTAINER*) item );
-                new_zone->m_TimeStamp = GetTimeStamp();
-                newitem = new_zone;
-                m_Pcb->Add( new_zone );
-            }
-            break;
-
-        case PCB_LINE_T:
-            {
-                DRAWSEGMENT* new_drawsegment = new DRAWSEGMENT( m_Pcb );
-                new_drawsegment->Copy( (DRAWSEGMENT*) item );
-                m_Pcb->Add( new_drawsegment );
-                newitem = new_drawsegment;
-            }
-            break;
-
-        case PCB_TEXT_T:
-        {
-            TEXTE_PCB* new_pcbtext = new TEXTE_PCB( m_Pcb );
-            new_pcbtext->Copy( (TEXTE_PCB*) item );
-            m_Pcb->Add( new_pcbtext );
-            newitem = new_pcbtext;
-        }
-        break;
-
-        case PCB_TARGET_T:
-            {
-                PCB_TARGET* target = new PCB_TARGET( m_Pcb );
-                target->Copy( (PCB_TARGET*) item );
-                m_Pcb->Add( target );
-                newitem = target;
-            }
-            break;
-
-        case PCB_DIMENSION_T:
-            {
-                DIMENSION* new_cotation = new DIMENSION( m_Pcb );
-                new_cotation->Copy( (DIMENSION*) item );
-                m_Pcb->Add( new_cotation );
-                newitem = new_cotation;
-            }
-            break;
-
-        default:
-            wxMessageBox( wxT( "PCB_EDIT_FRAME::Block_Duplicate( ) error: unexpected type" ) );
-            break;
-        }
+        m_Pcb->Add( newitem );
 
         if( newitem )
         {
             newitem->Move( MoveVector );
-            picker.m_PickedItem     = newitem;
-            picker.m_PickedItemType = newitem->Type();
+            picker.SetItem ( newitem );
             newList.PushItem( picker );
         }
     }
@@ -937,5 +864,5 @@ void PCB_EDIT_FRAME::Block_Duplicate()
         SaveCopyInUndoList( newList, UR_NEW );
 
     Compile_Ratsnest( NULL, true );
-    DrawPanel->Refresh( true );
+    m_canvas->Refresh( true );
 }

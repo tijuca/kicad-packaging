@@ -27,15 +27,15 @@
  * @file block_libedit.cpp
  */
 
-#include "fctsys.h"
-#include "gr_basic.h"
-#include "class_drawpanel.h"
-#include "confirm.h"
+#include <fctsys.h>
+#include <gr_basic.h>
+#include <class_drawpanel.h>
+#include <confirm.h>
 
-#include "general.h"
-#include "class_library.h"
-#include "protos.h"
-#include "libeditframe.h"
+#include <general.h>
+#include <class_library.h>
+#include <protos.h>
+#include <libeditframe.h>
 
 
 static void DrawMovingBlockOutlines( EDA_DRAW_PANEL* aPanel, wxDC* aDC, const wxPoint& aPosition,
@@ -93,18 +93,18 @@ bool LIB_EDIT_FRAME::HandleBlockEnd( wxDC* DC )
 
     if( GetScreen()->m_BlockLocate.GetCount() )
     {
-        BlockState state     = GetScreen()->m_BlockLocate.m_State;
-        CmdBlockType command = GetScreen()->m_BlockLocate.m_Command;
-        DrawPanel->m_endMouseCaptureCallback( DrawPanel, DC );
-        GetScreen()->m_BlockLocate.m_State   = state;
-        GetScreen()->m_BlockLocate.m_Command = command;
-        DrawPanel->SetMouseCapture( DrawAndSizingBlockOutlines, AbortBlockCurrentCommand );
+        BLOCK_STATE_T state     = GetScreen()->m_BlockLocate.GetState();
+        BLOCK_COMMAND_T command = GetScreen()->m_BlockLocate.GetCommand();
+        m_canvas->CallEndMouseCapture( DC );
+        GetScreen()->m_BlockLocate.SetState( state );
+        GetScreen()->m_BlockLocate.SetCommand( command );
+        m_canvas->SetMouseCapture( DrawAndSizingBlockOutlines, AbortBlockCurrentCommand );
         GetScreen()->SetCrossHairPosition( wxPoint( GetScreen()->m_BlockLocate.GetRight(),
                                                     GetScreen()->m_BlockLocate.GetBottom() ) );
-        DrawPanel->MoveCursorToCrossHair();
+        m_canvas->MoveCursorToCrossHair();
     }
 
-    switch( GetScreen()->m_BlockLocate.m_Command )
+    switch( GetScreen()->m_BlockLocate.GetCommand() )
     {
     case  BLOCK_IDLE:
         DisplayError( this, wxT( "Error in HandleBlockPLace" ) );
@@ -121,22 +121,22 @@ bool LIB_EDIT_FRAME::HandleBlockEnd( wxDC* DC )
         {
             nextCmd = true;
 
-            if( DrawPanel->IsMouseCaptured() )
+            if( m_canvas->IsMouseCaptured() )
             {
-                DrawPanel->m_mouseCaptureCallback( DrawPanel, DC, wxDefaultPosition, false );
-                DrawPanel->m_mouseCaptureCallback = DrawMovingBlockOutlines;
-                DrawPanel->m_mouseCaptureCallback( DrawPanel, DC, wxDefaultPosition, false );
+                m_canvas->CallMouseCapture( DC, wxDefaultPosition, false );
+                m_canvas->SetMouseCaptureCallback( DrawMovingBlockOutlines );
+                m_canvas->CallMouseCapture( DC, wxDefaultPosition, false );
             }
 
-            GetScreen()->m_BlockLocate.m_State = STATE_BLOCK_MOVE;
-            DrawPanel->Refresh( true );
+            GetScreen()->m_BlockLocate.SetState( STATE_BLOCK_MOVE );
+            m_canvas->Refresh( true );
         }
         break;
 
     case BLOCK_PRESELECT_MOVE:     /* Move with preselection list*/
         nextCmd = true;
-        DrawPanel->m_mouseCaptureCallback = DrawMovingBlockOutlines;
-        GetScreen()->m_BlockLocate.m_State = STATE_BLOCK_MOVE;
+        m_canvas->SetMouseCaptureCallback( DrawMovingBlockOutlines );
+        GetScreen()->m_BlockLocate.SetState( STATE_BLOCK_MOVE );
         break;
 
     case BLOCK_DELETE:     /* Delete */
@@ -177,7 +177,7 @@ bool LIB_EDIT_FRAME::HandleBlockEnd( wxDC* DC )
         if ( m_component )
         {
             OnModify();
-            int block_cmd = GetScreen()->m_BlockLocate.m_Command;
+            int block_cmd = GetScreen()->m_BlockLocate.GetCommand();
 
             if( block_cmd == BLOCK_MIRROR_Y)
                 m_component->MirrorSelectedItemsH( pt );
@@ -202,16 +202,15 @@ bool LIB_EDIT_FRAME::HandleBlockEnd( wxDC* DC )
 
     if( ! nextCmd )
     {
-        if( GetScreen()->m_BlockLocate.m_Command != BLOCK_SELECT_ITEMS_ONLY &&  m_component )
+        if( GetScreen()->m_BlockLocate.GetCommand() != BLOCK_SELECT_ITEMS_ONLY &&  m_component )
             m_component->ClearSelectedItems();
 
-        GetScreen()->m_BlockLocate.m_Flags   = 0;
-        GetScreen()->m_BlockLocate.m_State   = STATE_NO_BLOCK;
-        GetScreen()->m_BlockLocate.m_Command = BLOCK_IDLE;
+        GetScreen()->m_BlockLocate.SetState( STATE_NO_BLOCK );
+        GetScreen()->m_BlockLocate.SetCommand( BLOCK_IDLE );
         GetScreen()->SetCurItem( NULL );
-        DrawPanel->EndMouseCapture( GetToolId(), DrawPanel->GetCurrentCursor(), wxEmptyString,
-                                    false );
-        DrawPanel->Refresh( true );
+        m_canvas->EndMouseCapture( GetToolId(), m_canvas->GetCurrentCursor(), wxEmptyString,
+                                   false );
+        m_canvas->Refresh( true );
     }
 
     return nextCmd;
@@ -222,14 +221,14 @@ void LIB_EDIT_FRAME::HandleBlockPlace( wxDC* DC )
 {
     wxPoint pt;
 
-    if( !DrawPanel->IsMouseCaptured() )
+    if( !m_canvas->IsMouseCaptured() )
     {
         DisplayError( this, wxT( "HandleBlockPLace : m_mouseCaptureCallback = NULL" ) );
     }
 
-    GetScreen()->m_BlockLocate.m_State = STATE_BLOCK_STOP;
+    GetScreen()->m_BlockLocate.SetState( STATE_BLOCK_STOP );
 
-    switch( GetScreen()->m_BlockLocate.m_Command )
+    switch( GetScreen()->m_BlockLocate.GetCommand() )
     {
     case  BLOCK_IDLE:
         break;
@@ -242,13 +241,13 @@ void LIB_EDIT_FRAME::HandleBlockPlace( wxDC* DC )
         if ( m_component )
             SaveCopyInUndoList( m_component );
 
-        pt = GetScreen()->m_BlockLocate.m_MoveVector;
+        pt = GetScreen()->m_BlockLocate.GetMoveVector();
         pt.y *= -1;
 
         if ( m_component )
             m_component->MoveSelectedItems( pt );
 
-        DrawPanel->Refresh( true );
+        m_canvas->Refresh( true );
         break;
 
     case BLOCK_COPY:     /* Copy */
@@ -257,8 +256,8 @@ void LIB_EDIT_FRAME::HandleBlockPlace( wxDC* DC )
         if ( m_component )
             SaveCopyInUndoList( m_component );
 
-        pt = GetScreen()->m_BlockLocate.m_MoveVector;
-        pt.y *= -1;
+        pt = GetScreen()->m_BlockLocate.GetMoveVector();
+        NEGATE( pt.y );
 
         if ( m_component )
             m_component->CopySelectedItems( pt );
@@ -281,7 +280,7 @@ void LIB_EDIT_FRAME::HandleBlockPlace( wxDC* DC )
 
         if ( m_component )
         {
-            int block_cmd = GetScreen()->m_BlockLocate.m_Command;
+            int block_cmd = GetScreen()->m_BlockLocate.GetCommand();
 
             if( block_cmd == BLOCK_MIRROR_Y)
                 m_component->MirrorSelectedItemsH( pt );
@@ -303,12 +302,11 @@ void LIB_EDIT_FRAME::HandleBlockPlace( wxDC* DC )
 
     OnModify();
 
-    GetScreen()->m_BlockLocate.m_Flags   = 0;
-    GetScreen()->m_BlockLocate.m_State   = STATE_NO_BLOCK;
-    GetScreen()->m_BlockLocate.m_Command = BLOCK_IDLE;
+    GetScreen()->m_BlockLocate.SetState( STATE_NO_BLOCK );
+    GetScreen()->m_BlockLocate.SetCommand( BLOCK_IDLE );
     GetScreen()->SetCurItem( NULL );
-    DrawPanel->EndMouseCapture( GetToolId(), DrawPanel->GetCurrentCursor(), wxEmptyString, false );
-    DrawPanel->Refresh( true );
+    m_canvas->EndMouseCapture( GetToolId(), m_canvas->GetCurrentCursor(), wxEmptyString, false );
+    m_canvas->Refresh( true );
 }
 
 
@@ -319,10 +317,10 @@ void LIB_EDIT_FRAME::HandleBlockPlace( wxDC* DC )
 void DrawMovingBlockOutlines( EDA_DRAW_PANEL* aPanel, wxDC* aDC, const wxPoint& aPosition,
                               bool aErase )
 {
-    BLOCK_SELECTOR* PtBlock;
+    BLOCK_SELECTOR* block;
     BASE_SCREEN* screen = aPanel->GetScreen();
     wxPoint move_offset;
-    PtBlock = &screen->m_BlockLocate;
+    block = &screen->m_BlockLocate;
 
     LIB_EDIT_FRAME* parent = ( LIB_EDIT_FRAME* ) aPanel->GetParent();
     wxASSERT( parent != NULL );
@@ -337,18 +335,18 @@ void DrawMovingBlockOutlines( EDA_DRAW_PANEL* aPanel, wxDC* aDC, const wxPoint& 
 
     if( aErase )
     {
-        PtBlock->Draw( aPanel, aDC, PtBlock->m_MoveVector, g_XorMode, PtBlock->m_Color );
+        block->Draw( aPanel, aDC, block->GetMoveVector(), g_XorMode, block->GetColor() );
 
-        component->Draw( aPanel, aDC, PtBlock->m_MoveVector, unit, convert,
-                         g_XorMode, -1, DefaultTransform, true, true, true );
+        component->Draw( aPanel, aDC, block->GetMoveVector(), unit, convert,
+                         g_XorMode, UNSPECIFIED_COLOR, DefaultTransform, true, true, true );
     }
 
-    /* Repaint new view */
-    PtBlock->m_MoveVector = screen->GetCrossHairPosition() - PtBlock->m_BlockLastCursorPosition;
+    // Repaint new view
+    block->SetMoveVector( screen->GetCrossHairPosition() - block->GetLastCursorPosition() );
 
     GRSetDrawMode( aDC, g_XorMode );
-    PtBlock->Draw( aPanel, aDC, PtBlock->m_MoveVector, g_XorMode, PtBlock->m_Color );
+    block->Draw( aPanel, aDC, block->GetMoveVector(), g_XorMode, block->GetColor() );
 
-    component->Draw( aPanel, aDC, PtBlock->m_MoveVector, unit, convert,
-                     g_XorMode, -1, DefaultTransform, true, true, true );
+    component->Draw( aPanel, aDC, block->GetMoveVector(), unit, convert,
+                     g_XorMode, UNSPECIFIED_COLOR, DefaultTransform, true, true, true );
 }

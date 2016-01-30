@@ -1,21 +1,48 @@
+/*
+ * This program source code file is part of KiCad, a free EDA CAD application.
+ *
+ * Copyright (C) 2012 Jean-Pierre Charras, jean-pierre.charras@ujf-grenoble.fr
+ * Copyright (C) 2012 SoftPLC Corporation, Dick Hollenbeck <dick@softplc.com>
+ * Copyright (C) 2012 Wayne Stambaugh <stambaughw@verizon.net>
+ * Copyright (C) 1992-2012 KiCad Developers, see AUTHORS.txt for contributors.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation; either version 2
+ * of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, you may find one here:
+ * http://www.gnu.org/licenses/old-licenses/gpl-2.0.html
+ * or you may search the http://www.gnu.org website for the version 2 license,
+ * or you may write to the Free Software Foundation, Inc.,
+ * 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
+ */
+
 /**
  * @file toolbars_update_user_interface.cpp
  * @brief Function to update toolbars UI after changing parameters.
  */
 
-#include "fctsys.h"
-#include "appl_wxstruct.h"
-#include "class_drawpanel.h"
-#include "wxPcbStruct.h"
-#include "3d_viewer.h"
-#include "dialog_helpers.h"
-#include "pcbcommon.h"
+#include <fctsys.h>
+#include <appl_wxstruct.h>
+#include <class_drawpanel.h>
+#include <wxPcbStruct.h>
+#include <3d_viewer.h>
+#include <dialog_helpers.h>
+#include <pcbcommon.h>
 
-#include "class_board.h"
+#include <class_board.h>
 
-#include "pcbnew.h"
-#include "pcbnew_id.h"
-#include "drc_stuff.h"
+#include <pcbnew.h>
+#include <pcbnew_id.h>
+#include <drc_stuff.h>
+#include <class_pcb_layer_box_selector.h>
 
 
 void PCB_EDIT_FRAME::OnUpdateLayerPair( wxUpdateUIEvent& aEvent )
@@ -28,14 +55,14 @@ void PCB_EDIT_FRAME::OnUpdateSelectTrackWidth( wxUpdateUIEvent& aEvent )
 {
     if( aEvent.GetId() == ID_AUX_TOOLBAR_PCB_TRACK_WIDTH )
     {
-        if( m_SelTrackWidthBox->GetSelection() != (int) GetBoard()->m_TrackWidthSelector )
-            m_SelTrackWidthBox->SetSelection( GetBoard()->m_TrackWidthSelector );
+        if( m_SelTrackWidthBox->GetSelection() != (int) GetBoard()->GetTrackWidthIndex() )
+            m_SelTrackWidthBox->SetSelection( GetBoard()->GetTrackWidthIndex() );
     }
     else
     {
         bool check = ( ( ( ID_POPUP_PCB_SELECT_WIDTH1 +
-                           (int) GetBoard()->m_TrackWidthSelector ) == aEvent.GetId() ) &&
-                       !GetBoard()->GetBoardDesignSettings()->m_UseConnectedTrackWidth );
+                           (int) GetBoard()->GetTrackWidthIndex() ) == aEvent.GetId() ) &&
+                       !GetDesignSettings().m_UseConnectedTrackWidth );
         aEvent.Check( check );
     }
 }
@@ -43,7 +70,7 @@ void PCB_EDIT_FRAME::OnUpdateSelectTrackWidth( wxUpdateUIEvent& aEvent )
 
 void PCB_EDIT_FRAME::OnUpdateSelectAutoTrackWidth( wxUpdateUIEvent& aEvent )
 {
-    aEvent.Check( GetBoard()->GetBoardDesignSettings()->m_UseConnectedTrackWidth );
+    aEvent.Check( GetDesignSettings().m_UseConnectedTrackWidth );
 }
 
 
@@ -53,14 +80,14 @@ void PCB_EDIT_FRAME::OnUpdateSelectViaSize( wxUpdateUIEvent& aEvent )
 
     if( aEvent.GetId() == ID_AUX_TOOLBAR_PCB_VIA_SIZE )
     {
-        if( m_SelViaSizeBox->GetSelection() != (int) GetBoard()->m_ViaSizeSelector )
-            m_SelViaSizeBox->SetSelection( GetBoard()->m_ViaSizeSelector );
+        if( m_SelViaSizeBox->GetSelection() != (int) GetBoard()->GetViaSizeIndex() )
+            m_SelViaSizeBox->SetSelection( GetBoard()->GetViaSizeIndex() );
     }
     else
     {
         bool check = ( ( ( ID_POPUP_PCB_SELECT_VIASIZE1 +
-                           (int) GetBoard()->m_ViaSizeSelector ) == aEvent.GetId() ) &&
-                       !GetBoard()->GetBoardDesignSettings()->m_UseConnectedTrackWidth );
+                           (int) GetBoard()->GetViaSizeIndex() ) == aEvent.GetId() ) &&
+                       !GetDesignSettings().m_UseConnectedTrackWidth );
 
         aEvent.Check( check );
     }
@@ -86,8 +113,9 @@ void PCB_EDIT_FRAME::OnUpdateZoneDisplayStyle( wxUpdateUIEvent& aEvent )
 
 void PCB_EDIT_FRAME::OnUpdateDrcEnable( wxUpdateUIEvent& aEvent )
 {
-    aEvent.Check( !Drc_On );
-    m_OptionsToolBar->SetToolShortHelp( ID_TB_OPTIONS_DRC_OFF,
+    bool state = !Drc_On;
+    aEvent.Check( state );
+    m_optionsToolBar->SetToolShortHelp( ID_TB_OPTIONS_DRC_OFF,
                                         Drc_On ?
                                         _( "Disable design rule checking" ) :
                                         _( "Enable design rule checking" ) );
@@ -96,7 +124,7 @@ void PCB_EDIT_FRAME::OnUpdateDrcEnable( wxUpdateUIEvent& aEvent )
 void PCB_EDIT_FRAME::OnUpdateShowBoardRatsnest( wxUpdateUIEvent& aEvent )
 {
     aEvent.Check( GetBoard()->IsElementVisible( RATSNEST_VISIBLE ) );
-    m_OptionsToolBar->SetToolShortHelp( ID_TB_OPTIONS_SHOW_RATSNEST,
+    m_optionsToolBar->SetToolShortHelp( ID_TB_OPTIONS_SHOW_RATSNEST,
                                         GetBoard()->IsElementVisible( RATSNEST_VISIBLE ) ?
                                         _( "Hide board ratsnest" ) :
                                         _( "Show board ratsnest" ) );
@@ -106,7 +134,7 @@ void PCB_EDIT_FRAME::OnUpdateShowBoardRatsnest( wxUpdateUIEvent& aEvent )
 void PCB_EDIT_FRAME::OnUpdateShowModuleRatsnest( wxUpdateUIEvent& aEvent )
 {
     aEvent.Check( g_Show_Module_Ratsnest );
-    m_OptionsToolBar->SetToolShortHelp( ID_TB_OPTIONS_SHOW_MODULE_RATSNEST,
+    m_optionsToolBar->SetToolShortHelp( ID_TB_OPTIONS_SHOW_MODULE_RATSNEST,
                                         g_Show_Module_Ratsnest ?
                                         _( "Hide module ratsnest" ) :
                                         _( "Show module ratsnest" ) );
@@ -116,7 +144,7 @@ void PCB_EDIT_FRAME::OnUpdateShowModuleRatsnest( wxUpdateUIEvent& aEvent )
 void PCB_EDIT_FRAME::OnUpdateAutoDeleteTrack( wxUpdateUIEvent& aEvent )
 {
     aEvent.Check( g_AutoDeleteOldTrack );
-    m_OptionsToolBar->SetToolShortHelp( ID_TB_OPTIONS_AUTO_DEL_TRACK,
+    m_optionsToolBar->SetToolShortHelp( ID_TB_OPTIONS_AUTO_DEL_TRACK,
                                         g_AutoDeleteOldTrack ?
                                         _( "Disable auto delete old track" ) :
                                         _( "Enable auto delete old track" ) );
@@ -126,7 +154,7 @@ void PCB_EDIT_FRAME::OnUpdateAutoDeleteTrack( wxUpdateUIEvent& aEvent )
 void PCB_EDIT_FRAME::OnUpdateViaDrawMode( wxUpdateUIEvent& aEvent )
 {
     aEvent.Check( !m_DisplayViaFill );
-    m_OptionsToolBar->SetToolShortHelp( ID_TB_OPTIONS_SHOW_VIAS_SKETCH,
+    m_optionsToolBar->SetToolShortHelp( ID_TB_OPTIONS_SHOW_VIAS_SKETCH,
                                         m_DisplayViaFill ?
                                         _( "Show vias in outline mode" ) :
                                         _( "Show vias in fill mode" ) );
@@ -136,7 +164,7 @@ void PCB_EDIT_FRAME::OnUpdateViaDrawMode( wxUpdateUIEvent& aEvent )
 void PCB_EDIT_FRAME::OnUpdateTraceDrawMode( wxUpdateUIEvent& aEvent )
 {
     aEvent.Check( !m_DisplayPcbTrackFill );
-    m_OptionsToolBar->SetToolShortHelp( ID_TB_OPTIONS_SHOW_TRACKS_SKETCH,
+    m_optionsToolBar->SetToolShortHelp( ID_TB_OPTIONS_SHOW_TRACKS_SKETCH,
                                         m_DisplayPcbTrackFill ?
                                         _( "Show tracks in outline mode" ) :
                                         _( "Show tracks in fill mode" ) );
@@ -146,7 +174,7 @@ void PCB_EDIT_FRAME::OnUpdateTraceDrawMode( wxUpdateUIEvent& aEvent )
 void PCB_EDIT_FRAME::OnUpdateHighContrastDisplayMode( wxUpdateUIEvent& aEvent )
 {
     aEvent.Check( DisplayOpt.ContrastModeDisplay );
-    m_OptionsToolBar->SetToolShortHelp( ID_TB_OPTIONS_SHOW_HIGH_CONTRAST_MODE,
+    m_optionsToolBar->SetToolShortHelp( ID_TB_OPTIONS_SHOW_HIGH_CONTRAST_MODE,
                                         DisplayOpt.ContrastModeDisplay ?
                                         _( "Normal contrast display mode" ) :
                                         _( "High contrast display mode" ) );
@@ -160,7 +188,7 @@ void PCB_EDIT_FRAME::OnUpdateShowLayerManager( wxUpdateUIEvent& aEvent )
 
 void PCB_EDIT_FRAME::OnUpdateShowMicrowaveToolbar( wxUpdateUIEvent& aEvent )
 {
-    aEvent.Check( m_auimgr.GetPane( wxT( "m_AuxVToolBar" ) ).IsShown() );
+    aEvent.Check( m_auimgr.GetPane( wxT( "m_microWaveToolBar" ) ).IsShown() );
 }
 
 
@@ -172,6 +200,18 @@ void PCB_EDIT_FRAME::OnUpdateSave( wxUpdateUIEvent& aEvent )
 
 void PCB_EDIT_FRAME::OnUpdateVerticalToolbar( wxUpdateUIEvent& aEvent )
 {
-    if( aEvent.GetEventObject() == m_VToolBar )
+    if( aEvent.GetEventObject() == m_drawToolBar )
         aEvent.Check( GetToolId() == aEvent.GetId() );
+}
+
+
+void PCB_EDIT_FRAME::OnUpdateAutoPlaceTracksMode( wxUpdateUIEvent& aEvent )
+{
+    //Nothing to do.
+}
+
+
+void PCB_EDIT_FRAME::OnUpdateAutoPlaceModulesMode( wxUpdateUIEvent& aEvent )
+{
+    //Nothing to do.
 }

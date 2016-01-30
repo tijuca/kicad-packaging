@@ -1,25 +1,52 @@
+/*
+ * This program source code file is part of KiCad, a free EDA CAD application.
+ *
+ * Copyright (C) 2006 Jean-Pierre Charras, jaen-pierre.charras@gipsa-lab.inpg.com
+ * Copyright (C) 2009-2011 Wayne Stambaugh <stambaughw@verizon.net>
+ * Copyright (C) 2004-2011 KiCad Developers, see change_log.txt for contributors.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation; either version 2
+ * of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, you may find one here:
+ * http://www.gnu.org/licenses/old-licenses/gpl-2.0.html
+ * or you may search the http://www.gnu.org website for the version 2 license,
+ * or you may write to the Free Software Foundation, Inc.,
+ * 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
+ */
+
 /**
  * @file symbdraw.cpp
  * @brief Create, move .. graphic shapes used to build and draw a component (lines, arcs ..)
  */
 
-#include "fctsys.h"
-#include "gr_basic.h"
-#include "class_drawpanel.h"
-#include "confirm.h"
-#include "class_sch_screen.h"
+#include <fctsys.h>
+#include <gr_basic.h>
+#include <class_drawpanel.h>
+#include <confirm.h>
+#include <class_sch_screen.h>
+#include <base_units.h>
+#include <msgpanel.h>
 
-#include "eeschema_id.h"
-#include "general.h"
-#include "libeditframe.h"
-#include "class_libentry.h"
-#include "lib_arc.h"
-#include "lib_circle.h"
-#include "lib_polyline.h"
-#include "lib_rectangle.h"
-#include "lib_text.h"
+#include <eeschema_id.h>
+#include <general.h>
+#include <libeditframe.h>
+#include <class_libentry.h>
+#include <lib_arc.h>
+#include <lib_circle.h>
+#include <lib_polyline.h>
+#include <lib_rectangle.h>
+#include <lib_text.h>
 
-#include "dialogs/dialog_lib_edit_draw_item.h"
+#include <dialogs/dialog_lib_edit_draw_item.h>
 
 
 static void SymbolDisplayDraw( EDA_DRAW_PANEL* aPanel, wxDC* aDC, const wxPoint& aPosition,
@@ -42,21 +69,21 @@ void LIB_EDIT_FRAME::EditGraphicSymbol( wxDC* DC, LIB_ITEM* DrawItem )
 
     dialog.SetWidthUnits( ReturnUnitSymbol( g_UserUnit ) );
 
-    wxString val = ReturnStringFromValue( g_UserUnit, m_drawLineWidth, m_InternalUnits );
+    wxString val = ReturnStringFromValue( g_UserUnit, DrawItem->GetWidth() );
     dialog.SetWidth( val );
-    dialog.SetApplyToAllUnits( !m_drawSpecificUnit );
+    dialog.SetApplyToAllUnits( DrawItem->GetUnit() == 0 );
     dialog.EnableApplyToAllUnits( component && component->GetPartCount() > 1 );
-    dialog.SetApplyToAllConversions( !m_drawSpecificConvert );
+    dialog.SetApplyToAllConversions( DrawItem->GetConvert() == 0 );
     dialog.EnableApplyToAllConversions( component && component->HasConversion() );
-//    dialog.SetFillStyle( m_drawFillStyle );   // could better to show the current setting
     dialog.SetFillStyle( DrawItem->GetFillMode() );
     dialog.EnableFillStyle( DrawItem->IsFillable() );
 
     if( dialog.ShowModal() == wxID_CANCEL )
         return;
 
+    // Init default values (used to create a new draw item)
     val = dialog.GetWidth();
-    m_drawLineWidth = ReturnValueFromString( g_UserUnit, val, m_InternalUnits );
+    m_drawLineWidth = ReturnValueFromString( g_UserUnit, val );
     m_drawSpecificConvert = !dialog.GetApplyToAllConversions();
     m_drawSpecificUnit    = !dialog.GetApplyToAllUnits();
 
@@ -93,8 +120,10 @@ void LIB_EDIT_FRAME::EditGraphicSymbol( wxDC* DC, LIB_ITEM* DrawItem )
         component->GetDrawItemList().sort();
     OnModify( );
 
-    DrawItem->DisplayInfo( this );
-    DrawPanel->Refresh();
+    MSG_PANEL_ITEMS items;
+    DrawItem->GetMsgPanelInfo( items );
+    SetMsgPanel( items );
+    m_canvas->Refresh();
 }
 
 
@@ -123,7 +152,7 @@ static void AbortSymbolTraceOn( EDA_DRAW_PANEL* Panel, wxDC* DC )
 
 LIB_ITEM* LIB_EDIT_FRAME::CreateGraphicItem( LIB_COMPONENT* LibEntry, wxDC* DC )
 {
-    DrawPanel->SetMouseCapture( SymbolDisplayDraw, AbortSymbolTraceOn );
+    m_canvas->SetMouseCapture( SymbolDisplayDraw, AbortSymbolTraceOn );
     wxPoint drawPos = GetScreen()->GetCrossHairPosition( true );
 
     // no temp copy -> the current version of component will be used for Undo
@@ -155,10 +184,10 @@ LIB_ITEM* LIB_EDIT_FRAME::CreateGraphicItem( LIB_COMPONENT* LibEntry, wxDC* DC )
         Text->m_Orient = m_textOrientation;
 
         // Enter the graphic text info
-        DrawPanel->m_IgnoreMouseEvents = true;
+        m_canvas->SetIgnoreMouseEvents( true );
         EditSymbolText( NULL, Text );
-        DrawPanel->m_IgnoreMouseEvents = false;
-        DrawPanel->MoveCursorToCrossHair();
+        m_canvas->SetIgnoreMouseEvents( false );
+        m_canvas->MoveCursorToCrossHair();
 
         if( Text->m_Text.IsEmpty() )
         {
@@ -188,16 +217,16 @@ LIB_ITEM* LIB_EDIT_FRAME::CreateGraphicItem( LIB_COMPONENT* LibEntry, wxDC* DC )
             m_drawItem->SetConvert( m_convert );
 
         // Draw initial symbol:
-        DrawPanel->m_mouseCaptureCallback( DrawPanel, DC, wxDefaultPosition, false );
+        m_canvas->CallMouseCapture( DC, wxDefaultPosition, false );
     }
     else
     {
-        DrawPanel->EndMouseCapture();
+        m_canvas->EndMouseCapture();
         return NULL;
     }
 
-    DrawPanel->MoveCursorToCrossHair();
-    DrawPanel->m_IgnoreMouseEvents = FALSE;
+    m_canvas->MoveCursorToCrossHair();
+    m_canvas->SetIgnoreMouseEvents( false );
 
     return m_drawItem;
 }
@@ -214,7 +243,7 @@ void LIB_EDIT_FRAME::GraphicItemBeginDraw( wxDC* DC )
 
     if( m_drawItem->ContinueEdit( pos ) )
     {
-        m_drawItem->Draw( DrawPanel, DC, pos, -1, g_XorMode, NULL, DefaultTransform );
+        m_drawItem->Draw( m_canvas, DC, pos, UNSPECIFIED_COLOR, g_XorMode, NULL, DefaultTransform );
         return;
     }
 
@@ -244,11 +273,11 @@ static void RedrawWhileMovingCursor( EDA_DRAW_PANEL* aPanel, wxDC* aDC, const wx
     {
         int unit = ((LIB_EDIT_FRAME*)aPanel->GetParent())->GetUnit();
         wxString text = ((LIB_FIELD*)item)->GetFullText( unit );
-        item->Draw( aPanel, aDC, Screen->GetCrossHairPosition( true ), -1, g_XorMode, &text,
+        item->Draw( aPanel, aDC, Screen->GetCrossHairPosition( true ), UNSPECIFIED_COLOR, g_XorMode, &text,
                     DefaultTransform );
     }
     else
-        item->Draw( aPanel, aDC, Screen->GetCrossHairPosition( true ), -1, g_XorMode, NULL,
+        item->Draw( aPanel, aDC, Screen->GetCrossHairPosition( true ), UNSPECIFIED_COLOR, g_XorMode, NULL,
                     DefaultTransform );
 }
 
@@ -261,9 +290,16 @@ void LIB_EDIT_FRAME::StartMoveDrawSymbol( wxDC* DC )
     SetCursor( wxCURSOR_HAND );
 
     TempCopyComponent();
-    m_drawItem->BeginEdit( IS_MOVED, GetScreen()->GetCrossHairPosition( true ) );
-    DrawPanel->SetMouseCapture( RedrawWhileMovingCursor, AbortSymbolTraceOn );
-    DrawPanel->m_mouseCaptureCallback( DrawPanel, DC, wxDefaultPosition, true );
+
+    // For fields only, move the anchor point of the field
+    // to the cursor position to allow user to see the text justification
+    if( m_drawItem->Type() == LIB_FIELD_T )
+        m_drawItem->BeginEdit( IS_MOVED, m_drawItem->GetPosition() );
+    else
+        m_drawItem->BeginEdit( IS_MOVED, GetScreen()->GetCrossHairPosition( true ) );
+
+    m_canvas->SetMouseCapture( RedrawWhileMovingCursor, AbortSymbolTraceOn );
+    m_canvas->CallMouseCapture( DC, wxDefaultPosition, true );
 }
 
 
@@ -275,8 +311,8 @@ void LIB_EDIT_FRAME::StartModifyDrawSymbol( wxDC* DC )
 
     TempCopyComponent();
     m_drawItem->BeginEdit( IS_RESIZED, GetScreen()->GetCrossHairPosition( true ) );
-    DrawPanel->SetMouseCapture( SymbolDisplayDraw, AbortSymbolTraceOn );
-    DrawPanel->m_mouseCaptureCallback( DrawPanel, DC, wxDefaultPosition, true );
+    m_canvas->SetMouseCapture( SymbolDisplayDraw, AbortSymbolTraceOn );
+    m_canvas->CallMouseCapture( DC, wxDefaultPosition, true );
 }
 
 
@@ -291,7 +327,7 @@ static void SymbolDisplayDraw( EDA_DRAW_PANEL* aPanel, wxDC* aDC, const wxPoint&
         return;
 
     item->SetEraseLastDrawItem( aErase );
-    item->Draw( aPanel, aDC, Screen->GetCrossHairPosition( true ), -1, g_XorMode, NULL,
+    item->Draw( aPanel, aDC, Screen->GetCrossHairPosition( true ), UNSPECIFIED_COLOR, g_XorMode, NULL,
                 DefaultTransform );
 }
 
@@ -308,7 +344,7 @@ void LIB_EDIT_FRAME::EndDrawGraphicItem( wxDC* DC )
     if( GetToolId() != ID_NO_TOOL_SELECTED )
         SetCursor( wxCURSOR_PENCIL );
     else
-        SetCursor( DrawPanel->GetDefaultCursor() );
+        SetCursor( (wxStockCursor) m_canvas->GetDefaultCursor() );
 
     if( GetTempCopyComponent() )    // used when editing an existing item
         SaveCopyInUndoList( GetTempCopyComponent() );
@@ -325,6 +361,6 @@ void LIB_EDIT_FRAME::EndDrawGraphicItem( wxDC* DC )
 
     OnModify();
 
-    DrawPanel->SetMouseCapture( NULL, NULL );
-    DrawPanel->Refresh();
+    m_canvas->SetMouseCapture( NULL, NULL );
+    m_canvas->Refresh();
 }

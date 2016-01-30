@@ -28,12 +28,12 @@
  * @brief Class NETLIST_OBJECT to handle 1 item connected (in netlist and erc calculations)
  */
 
-#include "fctsys.h"
-#include "macros.h"
-#include "wxEeschemaStruct.h"
+#include <fctsys.h>
+#include <macros.h>
+#include <wxEeschemaStruct.h>
 
-#include "general.h"
-#include "sch_component.h"
+#include <general.h>
+#include <sch_component.h>
 
 #if defined(DEBUG)
 
@@ -94,7 +94,7 @@ const char* ShowType( NETLIST_ITEM_T aType )
 }
 
 
-void NETLIST_OBJECT::Show( std::ostream& out, int ndx )
+void NETLIST_OBJECT::Show( std::ostream& out, int ndx ) const
 {
     wxString path = m_SheetList.PathHumanReadable();
 
@@ -114,8 +114,10 @@ void NETLIST_OBJECT::Show( std::ostream& out, int ndx )
     switch( m_Type )
     {
     case NET_PIN:
+        /* GetRef() needs to be const
         out << " <refOfComp>" << ((SCH_COMPONENT*)m_Link)->GetRef(&m_SheetList).mb_str()
             << "</refOfComp>\n";
+        */
 
         if( m_Comp )
             m_Comp->Show( 1, out );

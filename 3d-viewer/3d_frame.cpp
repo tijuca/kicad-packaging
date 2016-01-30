@@ -1,58 +1,95 @@
-/////////////////////////////////////////////////////////////////////////////
-// Name:        3d_frame.cpp
-/////////////////////////////////////////////////////////////////////////////
+/**
+ * @file 3d_frame.cpp
+ */
 
-#include "fctsys.h"
-#include "appl_wxstruct.h"
+/*
+ * This program source code file is part of KiCad, a free EDA CAD application.
+ *
+ * Copyright (C) 1992-2012 KiCad Developers, see AUTHORS.txt for contributors.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation; either version 2
+ * of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, you may find one here:
+ * http://www.gnu.org/licenses/old-licenses/gpl-2.0.html
+ * or you may search the http://www.gnu.org website for the version 2 license,
+ * or you may write to the Free Software Foundation, Inc.,
+ * 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
+ */
 
-#if !wxUSE_GLCANVAS
-#error Please set wxUSE_GLCANVAS to 1 in setup.h.
-#endif
+#include <fctsys.h>
+#include <appl_wxstruct.h>
 
-#include "3d_viewer.h"
-#include "trackball.h"
+#include <3d_viewer.h>
+#include <3d_canvas.h>
+#include <info3d_visu.h>
+#include <trackball.h>
 
 #include <wx/colordlg.h>
 #include <wxstruct.h>
+#include <3d_viewer_id.h>
 
-Info_3D_Visu g_Parm_3D_Visu;
-double       g_Draw3d_dx;
-double       g_Draw3d_dy;
-double       ZBottom;
-double       ZTop;
-double       DataScale3D; // 3D conversion units.
+INFO3D_VISU             g_Parm_3D_Visu;
 
+// Key to store 3D Viewer config:
+static const wxString   keyPosx( wxT( "Pos_x" ) );
+static const wxString   keyPosy( wxT( "Pos_y" ) );
+static const wxString   keySizex( wxT( "Size_x" ) );
+static const wxString   keySizey( wxT( "Size_y" ) );
+static const wxString   keyBgColor_Red( wxT( "BgColor_Red" ) );
+static const wxString   keyBgColor_Green( wxT( "BgColor_Green" ) );
+static const wxString   keyBgColor_Blue( wxT( "BgColor_Blue" ) );
+static const wxString   keyShowAxis( wxT( "ShowAxis" ) );
+static const wxString   keyShowZones( wxT( "ShowZones" ) );
+static const wxString   keyShowFootprints( wxT( "ShowFootprints" ) );
+static const wxString   keyShowCopperThickness( wxT( "ShowCopperThickness" ) );
+static const wxString   keyShowCommetsLayer( wxT( "ShowCommetsLayer" ) );
+static const wxString   keyShowDrawingsLayer( wxT( "ShowDrawingsLayer" ) );
+static const wxString   keyShowEco1Layer( wxT( "ShowEco1Layer" ) );
+static const wxString   keyShowEco2Layer( wxT( "ShowEco2Layer" ) );
 
 BEGIN_EVENT_TABLE( EDA_3D_FRAME, wxFrame )
-    EVT_ACTIVATE( EDA_3D_FRAME::OnActivate )
-    EVT_TOOL_RANGE( ID_ZOOM_IN, ID_ZOOM_PAGE, EDA_3D_FRAME::Process_Zoom )
-    EVT_TOOL_RANGE( ID_START_COMMAND_3D, ID_END_COMMAND_3D,
-                    EDA_3D_FRAME::Process_Special_Functions )
-    EVT_MENU( wxID_EXIT, EDA_3D_FRAME::Exit3DFrame )
-    EVT_MENU( ID_MENU_SCREENCOPY_PNG, EDA_3D_FRAME::Process_Special_Functions )
-    EVT_MENU( ID_MENU_SCREENCOPY_JPEG, EDA_3D_FRAME::Process_Special_Functions )
-    EVT_CLOSE( EDA_3D_FRAME::OnCloseWindow )
-END_EVENT_TABLE()
+EVT_ACTIVATE( EDA_3D_FRAME::OnActivate )
 
+EVT_TOOL_RANGE( ID_ZOOM_IN, ID_ZOOM_PAGE, EDA_3D_FRAME::Process_Zoom )
+EVT_TOOL_RANGE( ID_START_COMMAND_3D, ID_END_COMMAND_3D,
+                EDA_3D_FRAME::Process_Special_Functions )
+EVT_MENU( wxID_EXIT, EDA_3D_FRAME::Exit3DFrame )
+EVT_MENU( ID_MENU_SCREENCOPY_PNG, EDA_3D_FRAME::Process_Special_Functions )
+EVT_MENU( ID_MENU_SCREENCOPY_JPEG, EDA_3D_FRAME::Process_Special_Functions )
 
-EDA_3D_FRAME::EDA_3D_FRAME( PCB_BASE_FRAME* parent, const wxString& title, long style ) :
-    wxFrame( parent, DISPLAY3D_FRAME, title, wxPoint( -1, -1 ), wxSize( -1, -1 ), style )
+EVT_MENU_RANGE( ID_MENU3D_GRID, ID_MENU3D_GRID_END,
+                EDA_3D_FRAME::On3DGridSelection )
+
+EVT_CLOSE( EDA_3D_FRAME::OnCloseWindow )
+
+END_EVENT_TABLE() EDA_3D_FRAME::EDA_3D_FRAME( PCB_BASE_FRAME*   parent,
+                                              const wxString&   title,
+                                              long              style ) :
+    wxFrame( parent, DISPLAY3D_FRAME_TYPE, title, wxDefaultPosition, wxDefaultSize, style )
 {
-    m_FrameName     = wxT( "Frame3D" );
-    m_Canvas        = NULL;
-    m_Parent        = parent;
+    m_frameName     = wxT( "Frame3D" );
+    m_canvas        = NULL;
     m_HToolBar      = NULL;
     m_VToolBar      = NULL;
-    m_InternalUnits = 10000;    // Internal units = 1/10000 inch
     m_reloadRequest = false;
+    m_ortho         = false;
 
     // Give it an icon
-    wxIcon  icon;
+    wxIcon icon;
     icon.CopyFromBitmap( KiBitmap( icon_3d_xpm ) );
     SetIcon( icon );
 
     GetSettings();
-    SetSize( m_FramePos.x, m_FramePos.y, m_FrameSize.x, m_FrameSize.y );
+    SetSize( m_framePos.x, m_framePos.y, m_frameSize.x, m_frameSize.y );
 
     // Create the status line
     static const int dims[5] = { -1, 100, 100, 100, 140 };
@@ -63,12 +100,12 @@ EDA_3D_FRAME::EDA_3D_FRAME( PCB_BASE_FRAME* parent, const wxString& title, long 
     ReCreateMenuBar();
     ReCreateHToolbar();
 
-    //	ReCreateAuxiliaryToolbar();
+    // ReCreateAuxiliaryToolbar();
     ReCreateVToolbar();
 
     // Make a EDA_3D_CANVAS
     int attrs[] = { WX_GL_RGBA, WX_GL_DOUBLEBUFFER, WX_GL_DEPTH_SIZE, 16, 0 };
-    m_Canvas = new EDA_3D_CANVAS( this, attrs );
+    m_canvas = new EDA_3D_CANVAS( this, attrs );
 
     m_auimgr.SetManagedWindow( this );
 
@@ -79,7 +116,7 @@ EDA_3D_FRAME::EDA_3D_FRAME( PCB_BASE_FRAME* parent, const wxString& title, long 
     m_auimgr.AddPane( m_HToolBar,
                       wxAuiPaneInfo( horiz ).Name( wxT( "m_HToolBar" ) ).Top() );
 
-    m_auimgr.AddPane( m_Canvas,
+    m_auimgr.AddPane( m_canvas,
                       wxAuiPaneInfo().Name( wxT( "DrawFrame" ) ).CentrePane() );
 
     m_auimgr.Update();
@@ -87,7 +124,7 @@ EDA_3D_FRAME::EDA_3D_FRAME( PCB_BASE_FRAME* parent, const wxString& title, long 
     // Fixes bug in Windows (XP and possibly others) where the canvas requires the focus
     // in order to receive mouse events.  Otherwise, the user has to click somewhere on
     // the canvas before it will respond to mouse wheel events.
-    m_Canvas->SetFocus();
+    m_canvas->SetFocus();
 }
 
 
@@ -101,10 +138,8 @@ void EDA_3D_FRAME::OnCloseWindow( wxCloseEvent& Event )
 {
     SaveSettings();
 
-    if( m_Parent )
-    {
-        m_Parent->m_Draw3DFrame = NULL;
-    }
+    if( Parent() )
+        Parent()->m_Draw3DFrame = NULL;
 
     Destroy();
 }
@@ -112,57 +147,73 @@ void EDA_3D_FRAME::OnCloseWindow( wxCloseEvent& Event )
 
 void EDA_3D_FRAME::GetSettings()
 {
-    wxString  text;
-    wxConfig* config = wxGetApp().m_EDA_Config;  // Current config used by application
+    wxString    text;
+    wxConfig*   config = wxGetApp().GetSettings(); // Current config used by application
 
     if( config )
     {
-        text = m_FrameName + wxT( "Pos_x" );
-        config->Read( text, &m_FramePos.x );
-        text = m_FrameName + wxT( "Pos_y" );
-        config->Read( text, &m_FramePos.y );
-        text = m_FrameName + wxT( "Size_x" );
-        config->Read( text, &m_FrameSize.x, 600 );
-        text = m_FrameName + wxT( "Size_y" );
-        config->Read( text, &m_FrameSize.y, 400 );
-        config->Read( wxT( "BgColor_Red" ), &g_Parm_3D_Visu.m_BgColor.m_Red, 0.0 );
-        config->Read( wxT( "BgColor_Green" ), &g_Parm_3D_Visu.m_BgColor.m_Green, 0.0 );
-        config->Read( wxT( "BgColor_Blue" ), &g_Parm_3D_Visu.m_BgColor.m_Blue, 0.0 );
+        text = m_frameName + keyPosx;
+        config->Read( text, &m_framePos.x );
+        text = m_frameName + keyPosy;
+        config->Read( text, &m_framePos.y );
+        text = m_frameName + keySizex;
+        config->Read( text, &m_frameSize.x, 600 );
+        text = m_frameName + keySizey;
+        config->Read( text, &m_frameSize.y, 400 );
+        config->Read( keyBgColor_Red, &g_Parm_3D_Visu.m_BgColor.m_Red, 0.0 );
+        config->Read( keyBgColor_Green, &g_Parm_3D_Visu.m_BgColor.m_Green, 0.0 );
+        config->Read( keyBgColor_Blue, &g_Parm_3D_Visu.m_BgColor.m_Blue, 0.0 );
+        class INFO3D_VISU& prms = g_Parm_3D_Visu;
+        config->Read( keyShowAxis, &prms.m_DrawFlags[prms.FL_AXIS], true );
+        config->Read( keyShowFootprints, &prms.m_DrawFlags[prms.FL_MODULE], true );
+        config->Read( keyShowCopperThickness,
+                      &prms.m_DrawFlags[prms.FL_USE_COPPER_THICKNESS],
+                      false );
+        config->Read( keyShowZones, &prms.m_DrawFlags[prms.FL_ZONE], true );
+        config->Read( keyShowCommetsLayer, &prms.m_DrawFlags[prms.FL_COMMENTS], true );
+        config->Read( keyShowDrawingsLayer, &prms.m_DrawFlags[prms.FL_DRAWINGS], true );
+        config->Read( keyShowEco1Layer, &prms.m_DrawFlags[prms.FL_ECO1], true );
+        config->Read( keyShowEco2Layer, &prms.m_DrawFlags[prms.FL_ECO2], true );
     }
-#if defined( __WXMAC__ )
-    // for macOSX, the window must be below system (macOSX) toolbar
-    if( m_FramePos.y < 20 )
-        m_FramePos.y = 20;
-#endif
+
 }
 
 
 void EDA_3D_FRAME::SaveSettings()
 {
-    wxString  text;
-    wxConfig* Config = wxGetApp().m_EDA_Config;  //  Current config used by application
+    wxString    text;
+    wxConfig*   config = wxGetApp().GetSettings(); // Current config used by application
 
-    if( !Config )
+    if( !config )
         return;
 
-    Config->Write( wxT( "BgColor_Red" ), g_Parm_3D_Visu.m_BgColor.m_Red );
-    Config->Write( wxT( "BgColor_Green" ), g_Parm_3D_Visu.m_BgColor.m_Green );
-    Config->Write( wxT( "BgColor_Blue" ), g_Parm_3D_Visu.m_BgColor.m_Blue );
+    config->Write( keyBgColor_Red, g_Parm_3D_Visu.m_BgColor.m_Red );
+    config->Write( keyBgColor_Green, g_Parm_3D_Visu.m_BgColor.m_Green );
+    config->Write( keyBgColor_Blue, g_Parm_3D_Visu.m_BgColor.m_Blue );
+    class INFO3D_VISU& prms = g_Parm_3D_Visu;
+    config->Write( keyShowAxis, prms.m_DrawFlags[prms.FL_AXIS] );
+    config->Write( keyShowFootprints, prms.m_DrawFlags[prms.FL_MODULE] );
+    config->Write( keyShowCopperThickness, prms.m_DrawFlags[prms.FL_USE_COPPER_THICKNESS] );
+    config->Write( keyShowZones, prms.m_DrawFlags[prms.FL_ZONE] );
+    config->Write( keyShowCommetsLayer, prms.m_DrawFlags[prms.FL_COMMENTS] );
+    config->Write( keyShowDrawingsLayer, prms.m_DrawFlags[prms.FL_DRAWINGS] );
+    config->Write( keyShowEco1Layer, prms.m_DrawFlags[prms.FL_ECO1] );
+    config->Write( keyShowEco2Layer, prms.m_DrawFlags[prms.FL_ECO2] );
 
     if( IsIconized() )
         return;
 
-    m_FrameSize = GetSize();
-    m_FramePos  = GetPosition();
+    m_frameSize = GetSize();
+    m_framePos  = GetPosition();
 
-    text = m_FrameName + wxT( "Pos_x" );
-    Config->Write( text, (long) m_FramePos.x );
-    text = m_FrameName + wxT( "Pos_y" );
-    Config->Write( text, (long) m_FramePos.y );
-    text = m_FrameName + wxT( "Size_x" );
-    Config->Write( text, (long) m_FrameSize.x );
-    text = m_FrameName + wxT( "Size_y" );
-    Config->Write( text, (long) m_FrameSize.y );
+    text = m_frameName + keyPosx;
+    config->Write( text, (long) m_framePos.x );
+    text = m_frameName + keyPosy;
+    config->Write( text, (long) m_framePos.y );
+    text = m_frameName + keySizex;
+    config->Write( text, (long) m_frameSize.x );
+    text = m_frameName + keySizey;
+    config->Write( text, (long) m_frameSize.y );
 }
 
 
@@ -173,18 +224,21 @@ void EDA_3D_FRAME::Process_Zoom( wxCommandEvent& event )
     switch( event.GetId() )
     {
     case ID_ZOOM_PAGE:
+
         for( ii = 0; ii < 4; ii++ )
             g_Parm_3D_Visu.m_Rot[ii] = 0.0;
 
         g_Parm_3D_Visu.m_Zoom = 1.0;
-        g_Draw3d_dx = g_Draw3d_dy = 0;
+        m_canvas->SetOffset( 0.0, 0.0 );
         trackball( g_Parm_3D_Visu.m_Quat, 0.0, 0.0, 0.0, 0.0 );
         break;
 
     case ID_ZOOM_IN:
         g_Parm_3D_Visu.m_Zoom /= 1.2;
+
         if( g_Parm_3D_Visu.m_Zoom <= 0.01 )
             g_Parm_3D_Visu.m_Zoom = 0.01;
+
         break;
 
     case ID_ZOOM_OUT:
@@ -198,8 +252,8 @@ void EDA_3D_FRAME::Process_Zoom( wxCommandEvent& event )
         return;
     }
 
-    m_Canvas->Refresh( false );
-    m_Canvas->DisplayStatus();
+    m_canvas->Refresh( false );
+    m_canvas->DisplayStatus();
 }
 
 
@@ -227,8 +281,10 @@ void EDA_3D_FRAME::RedrawActiveWindow( wxDC* DC, bool EraseBg )
 void EDA_3D_FRAME::Process_Special_Functions( wxCommandEvent& event )
 {
 #define ROT_ANGLE 10.0
+    int     id = event.GetId();
+    bool    isChecked = event.IsChecked();
 
-    switch( event.GetId() )
+    switch( id )
     {
     case ID_RELOAD3D_BOARD:
         NewDisplay();
@@ -260,29 +316,29 @@ void EDA_3D_FRAME::Process_Special_Functions( wxCommandEvent& event )
         break;
 
     case ID_MOVE3D_LEFT:
-        m_Canvas->SetView3D( WXK_LEFT );
+        m_canvas->SetView3D( WXK_LEFT );
         return;
 
     case ID_MOVE3D_RIGHT:
-        m_Canvas->SetView3D( WXK_RIGHT );
+        m_canvas->SetView3D( WXK_RIGHT );
         return;
 
     case ID_MOVE3D_UP:
-        m_Canvas->SetView3D( WXK_UP );
+        m_canvas->SetView3D( WXK_UP );
         return;
 
     case ID_MOVE3D_DOWN:
-        m_Canvas->SetView3D( WXK_DOWN );
+        m_canvas->SetView3D( WXK_DOWN );
         return;
 
     case ID_ORTHO:
-        m_Canvas->ToggleOrtho();
+        ToggleOrtho();
         return;
 
     case ID_TOOL_SCREENCOPY_TOCLIBBOARD:
     case ID_MENU_SCREENCOPY_PNG:
     case ID_MENU_SCREENCOPY_JPEG:
-        m_Canvas->TakeScreenshot( event );
+        m_canvas->TakeScreenshot( event );
         break;
 
     case ID_MENU3D_BGCOLOR_SELECTION:
@@ -290,40 +346,100 @@ void EDA_3D_FRAME::Process_Special_Functions( wxCommandEvent& event )
         return;
 
     case ID_MENU3D_AXIS_ONOFF:
-        Set3DAxisOnOff();
+        g_Parm_3D_Visu.m_DrawFlags[g_Parm_3D_Visu.FL_AXIS] = isChecked;
+        NewDisplay();
         return;
 
     case ID_MENU3D_MODULE_ONOFF:
-        Set3DModuleOnOff();
+        g_Parm_3D_Visu.m_DrawFlags[g_Parm_3D_Visu.FL_MODULE] = isChecked;
+        NewDisplay();
+        return;
+
+    case ID_MENU3D_USE_COPPER_THICKNESS:
+        g_Parm_3D_Visu.m_DrawFlags[g_Parm_3D_Visu.FL_USE_COPPER_THICKNESS] = isChecked;
+        NewDisplay();
         return;
 
     case ID_MENU3D_ZONE_ONOFF:
-        Set3DZoneOnOff();
+        g_Parm_3D_Visu.m_DrawFlags[g_Parm_3D_Visu.FL_ZONE] = isChecked;
+        NewDisplay();
         return;
 
     case ID_MENU3D_COMMENTS_ONOFF:
-        Set3DCommentsOnOff();
+        g_Parm_3D_Visu.m_DrawFlags[g_Parm_3D_Visu.FL_COMMENTS] = isChecked;
+        NewDisplay();
         return;
 
     case ID_MENU3D_DRAWINGS_ONOFF:
-        Set3DDrawingsOnOff();
+        g_Parm_3D_Visu.m_DrawFlags[g_Parm_3D_Visu.FL_DRAWINGS] = isChecked;
+        NewDisplay();
         return;
 
     case ID_MENU3D_ECO1_ONOFF:
-        Set3DEco1OnOff();
+        g_Parm_3D_Visu.m_DrawFlags[g_Parm_3D_Visu.FL_ECO1] = isChecked;
+        NewDisplay();
         return;
 
     case ID_MENU3D_ECO2_ONOFF:
-        Set3DEco2OnOff();
+        g_Parm_3D_Visu.m_DrawFlags[g_Parm_3D_Visu.FL_ECO2] = isChecked;
+        NewDisplay();
         return;
 
     default:
-        wxMessageBox( wxT( "EDA_3D_FRAME::Process_Special_Functions() error: unknown command" ) );
+        wxLogMessage( wxT( "EDA_3D_FRAME::Process_Special_Functions() error: unknown command" ) );
         return;
     }
 
-    m_Canvas->Refresh( true );
-    m_Canvas->DisplayStatus();
+    m_canvas->Refresh( true );
+    m_canvas->DisplayStatus();
+}
+
+
+void EDA_3D_FRAME::On3DGridSelection( wxCommandEvent& event )
+{
+    int id = event.GetId();
+
+    for( int ii = ID_MENU3D_GRID; ii < ID_MENU3D_GRID_END; ii++ )
+    {
+        if( event.GetId() == ii )
+            continue;
+
+        GetMenuBar()->Check( ii, false );
+    }
+
+
+    switch( id )
+    {
+    case ID_MENU3D_GRID_NOGRID:
+        g_Parm_3D_Visu.m_DrawFlags[g_Parm_3D_Visu.FL_GRID] = false;
+        break;
+
+    case ID_MENU3D_GRID_10_MM:
+        g_Parm_3D_Visu.m_DrawFlags[g_Parm_3D_Visu.FL_GRID] = true;
+        g_Parm_3D_Visu.m_3D_Grid = 10.0;
+        break;
+
+    case ID_MENU3D_GRID_5_MM:
+        g_Parm_3D_Visu.m_DrawFlags[g_Parm_3D_Visu.FL_GRID] = true;
+        g_Parm_3D_Visu.m_3D_Grid = 5.0;
+        break;
+
+    case ID_MENU3D_GRID_2P5_MM:
+        g_Parm_3D_Visu.m_DrawFlags[g_Parm_3D_Visu.FL_GRID] = true;
+        g_Parm_3D_Visu.m_3D_Grid = 2.5;
+        break;
+
+    case ID_MENU3D_GRID_1_MM:
+        g_Parm_3D_Visu.m_DrawFlags[g_Parm_3D_Visu.FL_GRID] = true;
+        g_Parm_3D_Visu.m_3D_Grid = 1.0;
+        break;
+
+    default:
+        wxLogMessage( wxT( "EDA_3D_FRAME::On3DGridSelection() error: unknown command" ) );
+        return;
+    }
+
+    NewDisplay();
 }
 
 
@@ -331,12 +447,12 @@ void EDA_3D_FRAME::NewDisplay()
 {
     m_reloadRequest = false;
 
-    m_Canvas->ClearLists();
-    m_Canvas->CreateDrawGL_List();
+    m_canvas->ClearLists();
+    m_canvas->CreateDrawGL_List();
 
-//    m_Canvas->InitGL();
-    m_Canvas->Refresh( true );
-    m_Canvas->DisplayStatus();
+// m_canvas->InitGL();
+    m_canvas->Refresh( true );
+    m_canvas->DisplayStatus();
 }
 
 
@@ -347,7 +463,7 @@ void EDA_3D_FRAME::OnActivate( wxActivateEvent& event )
     if( m_reloadRequest )
         NewDisplay();
 
-    event.Skip();   // required under wxMAC
+    event.Skip();    // required under wxMAC
 }
 
 
@@ -355,96 +471,20 @@ void EDA_3D_FRAME::OnActivate( wxActivateEvent& event )
  */
 void EDA_3D_FRAME::Set3DBgColor()
 {
-    S3D_Color color;
-    wxColour  newcolor, oldcolor;
+    S3D_COLOR   color;
+    wxColour    newcolor, oldcolor;
 
-    oldcolor.Set( wxRound( g_Parm_3D_Visu.m_BgColor.m_Red * 255 ),
-                  wxRound( g_Parm_3D_Visu.m_BgColor.m_Green * 255 ),
-                  wxRound( g_Parm_3D_Visu.m_BgColor.m_Blue * 255 ) );
+    oldcolor.Set( KiROUND( g_Parm_3D_Visu.m_BgColor.m_Red * 255 ),
+                  KiROUND( g_Parm_3D_Visu.m_BgColor.m_Green * 255 ),
+                  KiROUND( g_Parm_3D_Visu.m_BgColor.m_Blue * 255 ) );
 
     newcolor = wxGetColourFromUser( this, oldcolor );
 
     if( newcolor != oldcolor )
     {
-        g_Parm_3D_Visu.m_BgColor.m_Red   = (double) newcolor.Red() / 255.0;
-        g_Parm_3D_Visu.m_BgColor.m_Green = (double) newcolor.Green() / 255.0;
-        g_Parm_3D_Visu.m_BgColor.m_Blue  = (double) newcolor.Blue() / 255.0;
+        g_Parm_3D_Visu.m_BgColor.m_Red = (double) newcolor.Red() / 255.0;
+        g_Parm_3D_Visu.m_BgColor.m_Green    = (double) newcolor.Green() / 255.0;
+        g_Parm_3D_Visu.m_BgColor.m_Blue     = (double) newcolor.Blue() / 255.0;
         NewDisplay();
     }
-}
-
-
-void EDA_3D_FRAME::Set3DAxisOnOff()
-{
-    if( g_Parm_3D_Visu.m_Draw3DAxis )
-        g_Parm_3D_Visu.m_Draw3DAxis = false;
-    else
-        g_Parm_3D_Visu.m_Draw3DAxis = true;
-
-    NewDisplay();
-}
-
-
-void EDA_3D_FRAME::Set3DModuleOnOff()
-{
-    if( g_Parm_3D_Visu.m_Draw3DModule )
-        g_Parm_3D_Visu.m_Draw3DModule = false;
-    else
-        g_Parm_3D_Visu.m_Draw3DModule = true;
-
-    NewDisplay();
-}
-
-
-void EDA_3D_FRAME::Set3DZoneOnOff()
-{
-    if( g_Parm_3D_Visu.m_Draw3DZone )
-        g_Parm_3D_Visu.m_Draw3DZone = false;
-    else
-        g_Parm_3D_Visu.m_Draw3DZone = true;
-    NewDisplay();
-}
-
-
-void EDA_3D_FRAME::Set3DCommentsOnOff()
-{
-    if( g_Parm_3D_Visu.m_Draw3DComments )
-        g_Parm_3D_Visu.m_Draw3DComments = false;
-    else
-        g_Parm_3D_Visu.m_Draw3DComments = true;
-
-    NewDisplay();
-}
-
-
-void EDA_3D_FRAME::Set3DDrawingsOnOff()
-{
-    if( g_Parm_3D_Visu.m_Draw3DDrawings )
-        g_Parm_3D_Visu.m_Draw3DDrawings = false;
-    else
-        g_Parm_3D_Visu.m_Draw3DDrawings = true;
-
-    NewDisplay();
-}
-
-
-void EDA_3D_FRAME::Set3DEco1OnOff()
-{
-    if( g_Parm_3D_Visu.m_Draw3DEco1 )
-        g_Parm_3D_Visu.m_Draw3DEco1 = false;
-    else
-        g_Parm_3D_Visu.m_Draw3DEco1 = true;
-
-    NewDisplay();
-}
-
-
-void EDA_3D_FRAME::Set3DEco2OnOff()
-{
-    if( g_Parm_3D_Visu.m_Draw3DEco2 )
-        g_Parm_3D_Visu.m_Draw3DEco2 = false;
-    else
-        g_Parm_3D_Visu.m_Draw3DEco2 = true;
-
-    NewDisplay();
 }

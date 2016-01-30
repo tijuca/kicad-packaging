@@ -2,7 +2,6 @@
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
  * Copyright (C) 2004 Jean-Pierre Charras, jaen-pierre.charras@gipsa-lab.inpg.com
- * Copyright (C) 2008-2011 Wayne Stambaugh <stambaughw@verizon.net>
  * Copyright (C) 2004-2011 KiCad Developers, see change_log.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
@@ -28,19 +27,19 @@
  * @brief Label, global label and text creation and editing.
  */
 
-#include "fctsys.h"
-#include "gr_basic.h"
-#include "base_struct.h"
-#include "drawtxt.h"
-#include "class_drawpanel.h"
-#include "confirm.h"
-#include "wxEeschemaStruct.h"
-#include "kicad_device_context.h"
+#include <fctsys.h>
+#include <gr_basic.h>
+#include <base_struct.h>
+#include <drawtxt.h>
+#include <class_drawpanel.h>
+#include <confirm.h>
+#include <wxEeschemaStruct.h>
+#include <kicad_device_context.h>
 
-#include "general.h"
-#include "protos.h"
-#include "sch_text.h"
-#include "eeschema_id.h"
+#include <general.h>
+#include <protos.h>
+#include <sch_text.h>
+#include <eeschema_id.h>
 
 
 static int       lastGlobalLabelShape = (int) NET_INPUT;
@@ -60,12 +59,12 @@ void SCH_EDIT_FRAME::ChangeTextOrient( SCH_TEXT* aTextItem, wxDC* aDC )
     if( aTextItem->GetFlags() == 0 )
         SaveCopyInUndoList( aTextItem, UR_CHANGED );
 
-    DrawPanel->CrossHairOff( aDC );
-    aTextItem->Draw( DrawPanel, aDC, wxPoint( 0, 0 ), g_XorMode );
+    m_canvas->CrossHairOff( aDC );
+    aTextItem->Draw( m_canvas, aDC, wxPoint( 0, 0 ), g_XorMode );
     aTextItem->SetOrientation( orient );
     OnModify();
-    aTextItem->Draw( DrawPanel, aDC, wxPoint( 0, 0 ), g_XorMode );
-    DrawPanel->CrossHairOn( aDC );
+    aTextItem->Draw( m_canvas, aDC, wxPoint( 0, 0 ), g_XorMode );
+    m_canvas->CrossHairOn( aDC );
 }
 
 
@@ -87,12 +86,12 @@ SCH_TEXT* SCH_EDIT_FRAME::CreateNewText( wxDC* aDC, int aType )
 
     case LAYER_HIERLABEL:
         textItem = new SCH_HIERLABEL( GetScreen()->GetCrossHairPosition() );
-        textItem->m_Shape = lastGlobalLabelShape;
+        textItem->SetShape( lastGlobalLabelShape );
         break;
 
     case LAYER_GLOBLABEL:
         textItem = new SCH_GLOBALLABEL( GetScreen()->GetCrossHairPosition() );
-        textItem->m_Shape = lastGlobalLabelShape;
+        textItem->SetShape( lastGlobalLabelShape );
         break;
 
     default:
@@ -103,10 +102,10 @@ SCH_TEXT* SCH_EDIT_FRAME::CreateNewText( wxDC* aDC, int aType )
     textItem->m_Bold = lastTextBold;
     textItem->m_Italic = lastTextItalic;
     textItem->SetOrientation( lastTextOrientation );
-    textItem->m_Size.x = textItem->m_Size.y = g_DefaultTextLabelSize;
+    textItem->m_Size.x = textItem->m_Size.y = GetDefaultLabelSize();
     textItem->SetFlags( IS_NEW | IS_MOVED );
 
-    textItem->Draw( DrawPanel, aDC, wxPoint( 0, 0 ), g_XorMode );
+    textItem->Draw( m_canvas, aDC, wxPoint( 0, 0 ), g_XorMode );
     EditSchematicText( textItem );
 
     if( textItem->m_Text.IsEmpty() )
@@ -121,10 +120,10 @@ SCH_TEXT* SCH_EDIT_FRAME::CreateNewText( wxDC* aDC, int aType )
 
     if( (aType == SCH_GLOBAL_LABEL_T) || (aType == SCH_HIERARCHICAL_LABEL_T) )
     {
-        lastGlobalLabelShape = textItem->m_Shape;
+        lastGlobalLabelShape = textItem->GetShape();
     }
 
-    textItem->Draw( DrawPanel, aDC, wxPoint( 0, 0 ), GR_DEFAULT_DRAWMODE );
+    textItem->Draw( m_canvas, aDC, wxPoint( 0, 0 ), GR_DEFAULT_DRAWMODE );
     MoveItem( (SCH_ITEM*) textItem, aDC );
 
     return textItem;
@@ -207,7 +206,7 @@ void SCH_EDIT_FRAME::OnConvertTextType( wxCommandEvent& aEvent )
      * text item type.
      */
     newtext->SetFlags( text->GetFlags() );
-    newtext->m_Shape = text->m_Shape;
+    newtext->SetShape( text->GetShape() );
     newtext->SetOrientation( text->GetOrientation() );
     newtext->m_Size = text->m_Size;
     newtext->m_Thickness = text->m_Thickness;
@@ -220,17 +219,30 @@ void SCH_EDIT_FRAME::OnConvertTextType( wxCommandEvent& aEvent )
      * put in undo list later, at the end of the current command (if not aborted)
      */
 
-    INSTALL_UNBUFFERED_DC( dc, DrawPanel );
-    DrawPanel->CrossHairOff( &dc );   // Erase schematic cursor
-    text->Draw( DrawPanel, &dc, wxPoint( 0, 0 ), g_XorMode );
+    INSTALL_UNBUFFERED_DC( dc, m_canvas );
+    m_canvas->CrossHairOff( &dc );   // Erase schematic cursor
+    text->Draw( m_canvas, &dc, wxPoint( 0, 0 ), g_XorMode );
 
-    screen->RemoveFromDrawList( text );
-    screen->AddToDrawList( newtext );
-    GetScreen()->SetCurItem( newtext );
+    // For an exiting item (i.e. already in list):
+    // replace the existing item by the new text in list
+    for( SCH_ITEM* item = screen->GetDrawItems(); item != NULL; item = item->Next() )
+    {
+        if( item == text )
+        {
+            screen->Remove( text );
+            screen->Append( newtext );
+            break;
+        }
+    }
+
     m_itemToRepeat = NULL;
     OnModify();
-    newtext->Draw( DrawPanel, &dc, wxPoint( 0, 0 ), GR_DEFAULT_DRAWMODE );
-    DrawPanel->CrossHairOn( &dc );    // redraw schematic cursor
+    newtext->Draw( m_canvas, &dc, wxPoint( 0, 0 ), GR_DEFAULT_DRAWMODE );
+    m_canvas->CrossHairOn( &dc );    // redraw schematic cursor
+
+    // if the old item is the current schematic item, replace it by the new text:
+    if( screen->GetCurItem() == text )
+        screen->SetCurItem( newtext );
 
     if( text->IsNew() )
     {
@@ -244,7 +256,7 @@ void SCH_EDIT_FRAME::OnConvertTextType( wxCommandEvent& aEvent )
     // So this is equivalent to delete text and add newtext
     // If text if being currently edited (i.e. moved)
     // we also save the initial copy of text, and prepare undo command for new text modifications.
-    // we must save it as modified text (if currently beeing edited), then deleted text,
+    // we must save it as modified text,if it is currently edited, then save as deleted text,
     // and replace text with newtext
     PICKED_ITEMS_LIST pickList;
     ITEM_PICKER picker( text, UR_CHANGED );
@@ -263,12 +275,12 @@ void SCH_EDIT_FRAME::OnConvertTextType( wxCommandEvent& aEvent )
     }
 
     // Prepare undo command for delete old text
-    picker.m_UndoRedoStatus = UR_DELETED;
+    picker.SetStatus( UR_DELETED );
     picker.SetLink( NULL );
     pickList.PushItem( picker );
 
     // Prepare undo command for new text
-    picker.m_UndoRedoStatus = UR_NEW;
+    picker.SetStatus( UR_NEW );
     picker.SetItem(newtext);
     pickList.PushItem( picker );
 

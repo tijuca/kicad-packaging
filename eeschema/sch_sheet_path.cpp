@@ -28,24 +28,21 @@
  * @brief SCH_SHEET_PATH class implementation.
  */
 
-#include "fctsys.h"
+#include <fctsys.h>
 
-#include "general.h"
-#include "dlist.h"
-#include "class_sch_screen.h"
-#include "sch_item_struct.h"
+#include <general.h>
+#include <dlist.h>
+#include <class_sch_screen.h>
+#include <sch_item_struct.h>
 
-#include "netlist.h"
-#include "class_library.h"
-#include "sch_sheet.h"
-#include "sch_sheet_path.h"
-#include "sch_component.h"
-#include "template_fieldnames.h"
+#include <netlist.h>
+#include <class_library.h>
+#include <sch_sheet.h>
+#include <sch_sheet_path.h>
+#include <sch_component.h>
+#include <template_fieldnames.h>
 
-#include "dialogs/dialog_schematic_find.h"
-
-
-static const wxString traceFindReplace( wxT( "KicadFindReplace" ) );
+#include <dialogs/dialog_schematic_find.h>
 
 
 SCH_SHEET_PATH::SCH_SHEET_PATH()
@@ -62,7 +59,7 @@ bool SCH_SHEET_PATH::BuildSheetPathInfoFromSheetPathValue( const wxString& aPath
     if( aFound )
         return true;
 
-    if(  GetSheetsCount() == 0 )
+    if( GetSheetsCount() == 0 )
         Push( g_RootSheet );
 
     if( aPath == Path() )
@@ -85,6 +82,7 @@ bool SCH_SHEET_PATH::BuildSheetPathInfoFromSheetPathValue( const wxString& aPath
 
             Pop();
         }
+
         schitem = schitem->Next();
     }
 
@@ -103,10 +101,10 @@ int SCH_SHEET_PATH::Cmp( const SCH_SHEET_PATH& aSheetPathToTest ) const
     //otherwise, same number of sheets.
     for( unsigned i = 0; i<m_numSheets; i++ )
     {
-        if( m_sheets[i]->m_TimeStamp > aSheetPathToTest.m_sheets[i]->m_TimeStamp )
+        if( m_sheets[i]->GetTimeStamp() > aSheetPathToTest.m_sheets[i]->GetTimeStamp() )
             return 1;
 
-        if( m_sheets[i]->m_TimeStamp < aSheetPathToTest.m_sheets[i]->m_TimeStamp )
+        if( m_sheets[i]->GetTimeStamp() < aSheetPathToTest.m_sheets[i]->GetTimeStamp() )
             return -1;
     }
 
@@ -202,7 +200,7 @@ wxString SCH_SHEET_PATH::Path() const
     // it's timestamp changes anyway.
     for( unsigned i = 1; i < m_numSheets; i++ )
     {
-        t.Printf( _( "%8.8lX/" ), m_sheets[i]->m_TimeStamp );
+        t.Printf( _( "%8.8lX/" ), m_sheets[i]->GetTimeStamp() );
         s = s + t;
     }
 
@@ -219,7 +217,7 @@ wxString SCH_SHEET_PATH::PathHumanReadable() const
     // start at 1 to avoid the root sheet, as above.
     for( unsigned i = 1; i< m_numSheets; i++ )
     {
-        s = s + m_sheets[i]->m_SheetName + wxT( "/" );
+        s = s + m_sheets[i]->GetName() + wxT( "/" );
     }
 
     return s;
@@ -236,7 +234,7 @@ void SCH_SHEET_PATH::UpdateAllScreenReferences()
         {
             SCH_COMPONENT* component = (SCH_COMPONENT*) t;
             component->GetField( REFERENCE )->m_Text = component->GetRef( this );
-            component->SetUnit( component->GetUnitSelection( this ) );
+            component->UpdateUnit( component->GetUnitSelection( this ) );
         }
 
         t = t->Next();
@@ -377,45 +375,6 @@ SCH_ITEM* SCH_SHEET_PATH::FindPreviousItem( KICAD_T aType, SCH_ITEM* aLastItem, 
         {
             hasWrapped = true;
             drawItem = FirstDrawList();
-        }
-    }
-
-    return NULL;
-}
-
-
-SCH_ITEM* SCH_SHEET_PATH::MatchNextItem( wxFindReplaceData& aSearchData,
-                                         SCH_ITEM*          aLastItem,
-                                         wxPoint*           aFindLocation )
-{
-    bool hasWrapped = false;
-    bool firstItemFound = false;
-    bool wrap = ( aSearchData.GetFlags() & FR_SEARCH_WRAP ) != 0;
-    SCH_ITEM* drawItem = LastDrawList();
-
-    while( drawItem != NULL )
-    {
-        if( aLastItem && !firstItemFound )
-        {
-            firstItemFound = ( drawItem == aLastItem );
-        }
-        else
-        {
-            if( drawItem->Matches( aSearchData, this, aFindLocation ) )
-                return drawItem;
-        }
-
-        drawItem = drawItem->Next();
-
-        if( drawItem == NULL && aLastItem && firstItemFound && wrap && !hasWrapped )
-        {
-            hasWrapped = true;
-            drawItem = LastDrawList();
-        }
-        else if( hasWrapped && aLastItem && firstItemFound && (drawItem == aLastItem) )
-        {
-            // Exit when wrapped around to the first item found.
-            drawItem = NULL;
         }
     }
 
@@ -726,83 +685,6 @@ SCH_ITEM* SCH_SHEET_LIST::FindPreviousItem( KICAD_T aType, SCH_SHEET_PATH** aShe
         {
             hasWrapped = true;
             sheet = GetLast();
-        }
-    }
-
-    return NULL;
-}
-
-
-SCH_ITEM* SCH_SHEET_LIST::MatchNextItem( wxFindReplaceData& aSearchData,
-                                         wxString&          aSheetFoundIn,
-                                         SCH_ITEM*          aLastItem,
-                                         wxPoint*           aFindLocation )
-{
-    bool firstItemFound = false;
-    bool hasWrapped = false;
-    bool wrap = ( aSearchData.GetFlags() & FR_SEARCH_WRAP ) != 0;
-    SCH_ITEM* drawItem = NULL;
-    SCH_SHEET_PATH* sheet = GetFirst();
-    SCH_SHEET_PATH* sheetFirstItemFoundIn = NULL;
-
-    wxLogTrace( traceFindReplace, wxT( "Searching schematic for " ) + aSearchData.GetFindString() );
-
-    while( sheet != NULL )
-    {
-        wxLogTrace( traceFindReplace, wxT( "Searching sheet " + sheet->PathHumanReadable() ) );
-
-        drawItem = sheet->LastDrawList();
-
-        while( drawItem != NULL )
-        {
-            if( aLastItem && !firstItemFound )
-            {
-                if( aSheetFoundIn.IsEmpty() )
-                    firstItemFound = (drawItem == aLastItem);
-                else
-                    firstItemFound = ( (drawItem == aLastItem) &&
-                                       (sheet->PathHumanReadable() == aSheetFoundIn) );
-
-                if( firstItemFound )
-                {
-                    sheetFirstItemFoundIn = sheet;
-
-                    wxLogTrace( traceFindReplace, wxT( "First item %p found in sheet %s" ),
-                                sheetFirstItemFoundIn,
-                                GetChars( sheetFirstItemFoundIn->PathHumanReadable() ) );
-                }
-            }
-            else
-            {
-                // Search has wrapped all the way around to the first item found so stop.
-                if( hasWrapped && aLastItem && (aLastItem == drawItem)
-                    && (sheet == sheetFirstItemFoundIn ) )
-                {
-                    wxLogTrace( traceFindReplace,
-                                wxT( "Wrapped around to item %p in sheet %s" ),
-                                sheetFirstItemFoundIn,
-                                GetChars( sheetFirstItemFoundIn->PathHumanReadable() ) );
-
-                    return NULL;
-                }
-
-                if( drawItem->Matches( aSearchData, sheet, aFindLocation ) )
-                {
-                    aSheetFoundIn = sheet->PathHumanReadable();
-
-                    return drawItem;
-                }
-            }
-
-            drawItem = drawItem->Next();
-        }
-
-        sheet = GetNext();
-
-        if( sheet == NULL && aLastItem && firstItemFound && wrap && !hasWrapped )
-        {
-            hasWrapped = true;
-            sheet = GetFirst();
         }
     }
 

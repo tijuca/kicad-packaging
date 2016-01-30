@@ -4,57 +4,64 @@
  * @note Due to use of wxFormBuilder to create dialogs many of them should be removed.
  */
 
-#ifndef  _DIALOG_HELPERS_H_
-#define  _DIALOG_HELPERS_H_
+#ifndef  DIALOG_HELPERS_H_
+#define  DIALOG_HELPERS_H_
 
 
-#include "common.h"             // EDA_UNITS_T
+#include <common.h>             // EDA_UNITS_T
+#include <dialog_shim.h>
+#include <../common/dialogs/dialog_list_selector_base.h>
 
+
+class EDA_DRAW_FRAME;
+
+#define SORT_LIST true
 
 /**
  * class EDA_LIST_DIALOG
  *
- * Used to display a list of elements for selection, and an help of info line
- * about the selected item.
+ * A dialog which shows:
+ *   a list of elements for selection,
+ *   a text control to display help or info about the selected item.
+ *   2 buttons (OK and Cancel)
+ *
  */
-class EDA_LIST_DIALOG : public wxDialog
+class EDA_LIST_DIALOG : public EDA_LIST_DIALOG_BASE
 {
 private:
-    wxListBox*           m_listBox;
-    wxTextCtrl*          m_messages;
+    bool m_sortList;
     void (*m_callBackFct)( wxString& Text );
+    const wxArrayString* m_itemsListCp;
 
 public:
     /**
      * Constructor:
      * @param aParent Pointer to the parent window.
-     * @param aTitle The title shown on top.
-     * @param aItemList A wxArrayString of the list of elements.
-     * @param aRefText An item name if an item must be preselected.
-     * @param aCallBackFunction callback function to display comments
-     * @param aPos The position of the dialog.
+     * @param aTitle = The title shown on top.
+     * @param aItemList = A wxArrayString of the list of elements.
+     * @param aRefText = An item name if an item must be preselected.
+     * @param aCallBackFunction = callback function to display comments
+     * @param aSortList = true to sort list items by alphabetic order.
      */
     EDA_LIST_DIALOG( EDA_DRAW_FRAME* aParent, const wxString& aTitle,
                      const wxArrayString& aItemList, const wxString& aRefText,
                      void(* aCallBackFunction)(wxString& Text) = NULL,
-                     wxPoint aPos = wxDefaultPosition );
+                     bool aSortList = false );
     ~EDA_LIST_DIALOG();
 
-    void     SortList();
     void     Append( const wxString& aItemStr );
     void     InsertItems( const wxArrayString& aItemList, int aPosition = 0 );
-    void     MoveMouseToOrigin();
     wxString GetTextSelection();
 
 private:
-    void     OnClose( wxCloseEvent& event );
-    void     OnCancelClick( wxCommandEvent& event );
-    void     OnOkClick( wxCommandEvent& event );
-    void     ClickOnList( wxCommandEvent& event );
-    void     D_ClickOnList( wxCommandEvent& event );
-    void     OnKeyEvent( wxKeyEvent& event );
+    void     onClose( wxCloseEvent& event );
+    void     onCancelClick( wxCommandEvent& event );
+    void     onOkClick( wxCommandEvent& event );
+    void     onClickOnList( wxCommandEvent& event );
+    void     onDClickOnList( wxCommandEvent& event );
+    void     textChangeInFilterBox(wxCommandEvent& event);
 
-    DECLARE_EVENT_TABLE()
+    void     sortList();
 };
 
 
@@ -66,7 +73,6 @@ class EDA_GRAPHIC_TEXT_CTRL
 {
 public:
     EDA_UNITS_T   m_UserUnit;
-    int           m_Internal_Unit;
 
     wxTextCtrl*   m_FrameText;
     wxTextCtrl*   m_FrameSize;
@@ -76,17 +82,16 @@ private:
 public:
     EDA_GRAPHIC_TEXT_CTRL( wxWindow* parent, const wxString& Title,
                            const wxString& TextToEdit, int textsize,
-                           EDA_UNITS_T user_unit, wxBoxSizer* BoxSizer, int framelen = 200,
-                           int internal_unit = EESCHEMA_INTERNAL_UNIT );
+                           EDA_UNITS_T user_unit, wxBoxSizer* BoxSizer, int framelen = 200 );
 
     ~EDA_GRAPHIC_TEXT_CTRL();
 
-    wxString        GetText();
+    const wxString  GetText() const;
     int             GetTextSize();
     void            Enable( bool state );
     void            SetTitle( const wxString& title );
 
-    void SetFocus() { m_FrameText->SetFocus(); }
+    void            SetFocus() { m_FrameText->SetFocus(); }
     void            SetValue( const wxString& value );
     void            SetValue( int value );
 
@@ -94,10 +99,9 @@ public:
      * Function FormatSize
      * formats a string containing the size in the desired units.
      */
-    static wxString FormatSize( int internalUnit, EDA_UNITS_T user_unit, int textSize );
+    static wxString FormatSize( EDA_UNITS_T user_unit, int textSize );
 
-    static int      ParseSize( const wxString& sizeText, int internalUnit,
-                               EDA_UNITS_T user_unit );
+    static int      ParseSize( const wxString& sizeText, EDA_UNITS_T user_unit );
 };
 
 
@@ -109,7 +113,6 @@ class EDA_POSITION_CTRL
 {
 public:
     EDA_UNITS_T   m_UserUnit;
-    int           m_Internal_Unit;
     wxPoint       m_Pos_To_Edit;
 
     wxTextCtrl*   m_FramePosX;
@@ -119,9 +122,7 @@ private:
 
 public:
     EDA_POSITION_CTRL( wxWindow* parent, const wxString& title,
-                         const wxPoint& pos_to_edit,
-                         EDA_UNITS_T user_unit, wxBoxSizer* BoxSizer,
-                         int internal_unit = EESCHEMA_INTERNAL_UNIT );
+                       const wxPoint& pos_to_edit, EDA_UNITS_T user_unit, wxBoxSizer* BoxSizer );
 
     ~EDA_POSITION_CTRL();
 
@@ -139,9 +140,7 @@ class EDA_SIZE_CTRL : public EDA_POSITION_CTRL
 {
 public:
     EDA_SIZE_CTRL( wxWindow* parent, const wxString& title,
-                   const wxSize& size_to_edit,
-                   EDA_UNITS_T user_unit, wxBoxSizer* BoxSizer,
-                   int internal_unit = EESCHEMA_INTERNAL_UNIT );
+                   const wxSize& size_to_edit, EDA_UNITS_T user_unit, wxBoxSizer* BoxSizer );
 
     ~EDA_SIZE_CTRL() { }
     wxSize GetValue();
@@ -158,13 +157,11 @@ public:
     int           m_Value;
     wxTextCtrl*   m_ValueCtrl;
 private:
-    int           m_Internal_Unit;
     wxStaticText* m_Text;
 
 public:
     EDA_VALUE_CTRL( wxWindow* parent, const wxString& title, int value,
-                    EDA_UNITS_T user_unit, wxBoxSizer* BoxSizer,
-                    int internal_unit = EESCHEMA_INTERNAL_UNIT );
+                    EDA_UNITS_T user_unit, wxBoxSizer* BoxSizer );
 
     ~EDA_VALUE_CTRL();
 
@@ -178,5 +175,4 @@ public:
     }
 };
 
-
-#endif    // _DIALOG_HELPERS_H_
+#endif    // DIALOG_HELPERS_H_

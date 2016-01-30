@@ -3,22 +3,51 @@
  * @brief  BOARD class functions.
  */
 
+/*
+ * This program source code file is part of KiCad, a free EDA CAD application.
+ *
+ * Copyright (C) 2012 Jean-Pierre Charras, jean-pierre.charras@ujf-grenoble.fr
+ * Copyright (C) 2012 SoftPLC Corporation, Dick Hollenbeck <dick@softplc.com>
+ * Copyright (C) 2011 Wayne Stambaugh <stambaughw@verizon.net>
+ *
+ * Copyright (C) 1992-2012 KiCad Developers, see AUTHORS.txt for contributors.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation; either version 2
+ * of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, you may find one here:
+ * http://www.gnu.org/licenses/old-licenses/gpl-2.0.html
+ * or you may search the http://www.gnu.org website for the version 2 license,
+ * or you may write to the Free Software Foundation, Inc.,
+ * 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
+ */
+
 #include <limits.h>
 #include <algorithm>
 
-#include "fctsys.h"
-#include "common.h"
-#include "pcbcommon.h"
-#include "wxBasePcbFrame.h"
+#include <fctsys.h>
+#include <common.h>
+#include <kicad_string.h>
+#include <pcbcommon.h>
+#include <wxBasePcbFrame.h>
+#include <msgpanel.h>
 
-#include "pcbnew.h"
-#include "colors_selection.h"
+#include <pcbnew.h>
+#include <colors_selection.h>
 
-#include "class_board.h"
-#include "class_module.h"
-#include "class_track.h"
-#include "class_zone.h"
-#include "class_marker_pcb.h"
+#include <class_board.h>
+#include <class_module.h>
+#include <class_track.h>
+#include <class_zone.h>
+#include <class_marker_pcb.h>
 
 
 /* This is an odd place for this, but CvPcb won't link if it is
@@ -27,51 +56,53 @@
 wxPoint BOARD_ITEM::ZeroOffset( 0, 0 );
 
 
-// Current design settings (used also to read configs):
-BOARD_DESIGN_SETTINGS boardDesignSettings;
-
-
-
-BOARD::BOARD( EDA_ITEM* parent, PCB_BASE_FRAME* frame ) :
-    BOARD_ITEM( (BOARD_ITEM*)parent, PCB_T ),
+BOARD::BOARD() :
+    BOARD_ITEM( (BOARD_ITEM*) NULL, PCB_T ),
+    m_NetInfo( this ),
+    m_paper( IsGOST() ? PAGE_INFO::A4 : PAGE_INFO::A3, IsGOST() ),
     m_NetClasses( this )
 {
-    m_PcbFrame = frame;
+    // we have not loaded a board yet, assume latest until then.
+    m_fileFormatVersionAtLoad = LEGACY_BOARD_FILE_VERSION;
+
     m_Status_Pcb    = 0;                    // Status word: bit 1 = calculate.
-    SetBoardDesignSettings(&boardDesignSettings);
-    SetColorsSettings(&g_ColorsSettings);
-    m_NbNodes     = 0;                      // Number of connected pads.
-    m_NbNoconnect = 0;                      // Number of unconnected nets.
+    SetColorsSettings( &g_ColorsSettings );
+    m_nodeCount     = 0;                    // Number of connected pads.
+    m_unconnectedNetCount   = 0;            // Number of unconnected nets.
 
     m_CurrentZoneContour = NULL;            // This ZONE_CONTAINER handle the
                                             // zone contour currently in progress
-    m_NetInfo = new NETINFO_LIST( this );   // handle nets info list (name, design constraints ..
-    m_NetInfo->BuildListOfNets();           // prepare pads and nets lists containers.
 
-    for( int layer = 0; layer < NB_COPPER_LAYERS; ++layer )
+    BuildListOfNets();                      // prepare pad and netlist containers.
+
+    for( int layer = 0; layer < LAYER_COUNT; ++layer )
     {
-        m_Layer[layer].m_Name = GetDefaultLayerName( layer );
-        m_Layer[layer].m_Type = LT_SIGNAL;
+        m_Layer[layer].m_Name = GetDefaultLayerName( layer, true );
+
+        if( layer <= LAST_COPPER_LAYER )
+            m_Layer[layer].m_Type = LT_SIGNAL;
+        else
+            m_Layer[layer].m_Type = LT_UNDEFINED;
     }
 
-    // Initial parameters for the default NETCLASS come from the global
-    // preferences within g_DesignSettings via the NETCLASS() constructor.
-    // Should user eventually load a board from a disk file, then these
-    // defaults will get overwritten during load.
     m_NetClasses.GetDefault()->SetDescription( _( "This is the default net class." ) );
-    m_ViaSizeSelector    = 0;
-    m_TrackWidthSelector = 0;
 
-    // Initialize default values.
+    m_viaSizeIndex    = 0;
+    m_trackWidthIndex = 0;
+
+    /*  Dick 5-Feb-2012: this seems unnecessary.  I don't believe the comment
+        near line 70 of class_netclass.cpp.  I stepped through with debugger.
+        Perhaps something else is at work, it is not a constructor race.
+    // Initialize default values in default netclass.
+    */
+    m_NetClasses.GetDefault()->SetParams();
+
     SetCurrentNetClass( m_NetClasses.GetDefault()->GetName() );
 }
 
 
 BOARD::~BOARD()
 {
-    if( m_PcbFrame->GetScreen() )
-        m_PcbFrame->GetScreen()->ClearUndoRedoList();
-
     while( m_ZoneDescriptorList.size() )
     {
         ZONE_CONTAINER* area_to_remove = m_ZoneDescriptorList[0];
@@ -87,8 +118,12 @@ BOARD::~BOARD()
 
     delete m_CurrentZoneContour;
     m_CurrentZoneContour = NULL;
+}
 
-    delete m_NetInfo;
+
+void BOARD::Move( const wxPoint& aMoveVector )        // overload
+{
+
 }
 
 
@@ -179,13 +214,13 @@ void BOARD::chainMarkedSegments( wxPoint aPosition, int aLayerMask, TRACK_PTRS* 
              */
             aLayerMask = candidate->ReturnMaskLayer();
 
-            if( aPosition == candidate->m_Start )
+            if( aPosition == candidate->GetStart() )
             {
-                aPosition = candidate->m_End;
+                aPosition = candidate->GetEnd();
             }
             else
             {
-                aPosition = candidate->m_Start;
+                aPosition = candidate->GetStart();
             }
 
             segment = m_Track; /* restart list of tracks to analyze */
@@ -204,14 +239,14 @@ void BOARD::chainMarkedSegments( wxPoint aPosition, int aLayerMask, TRACK_PTRS* 
 
 void BOARD::PushHighLight()
 {
-    m_hightLightPrevious = m_hightLight;
+    m_highLightPrevious = m_highLight;
 }
 
 
 void BOARD::PopHighLight()
 {
-    m_hightLight = m_hightLightPrevious;
-    m_hightLightPrevious.Clear();
+    m_highLight = m_highLightPrevious;
+    m_highLightPrevious.Clear();
 }
 
 
@@ -224,7 +259,7 @@ bool BOARD::SetCurrentNetClass( const wxString& aNetClassName )
     if( netClass == NULL )
         netClass = m_NetClasses.GetDefault();
 
-    m_CurrentNetClassName = netClass->GetName();
+    m_currentNetClassName = netClass->GetName();
 
     // Initialize others values:
     if( m_ViasDimensionsList.size() == 0 )
@@ -253,11 +288,11 @@ bool BOARD::SetCurrentNetClass( const wxString& aNetClassName )
 
     m_TrackWidthList[0] = netClass->GetTrackWidth();
 
-    if( m_ViaSizeSelector >= m_ViasDimensionsList.size() )
-        m_ViaSizeSelector = m_ViasDimensionsList.size();
+    if( m_viaSizeIndex >= m_ViasDimensionsList.size() )
+        m_viaSizeIndex = m_ViasDimensionsList.size();
 
-    if( m_TrackWidthSelector >= m_TrackWidthList.size() )
-        m_TrackWidthSelector = m_TrackWidthList.size();
+    if( m_trackWidthIndex >= m_TrackWidthList.size() )
+        m_trackWidthIndex = m_TrackWidthList.size();
 
     return lists_sizes_modified;
 }
@@ -271,7 +306,22 @@ int BOARD::GetBiggestClearanceValue()
     for( NETCLASSES::const_iterator nc = m_NetClasses.begin(); nc != m_NetClasses.end(); nc++ )
     {
         NETCLASS* netclass = nc->second;
-        clearance = MAX( clearance, netclass->GetClearance() );
+        clearance = std::max( clearance, netclass->GetClearance() );
+    }
+
+    return clearance;
+}
+
+
+int BOARD::GetSmallestClearanceValue()
+{
+    int clearance = m_NetClasses.GetDefault()->GetClearance();
+
+    //Read list of Net Classes
+    for( NETCLASSES::const_iterator nc = m_NetClasses.begin(); nc != m_NetClasses.end(); nc++ )
+    {
+        NETCLASS* netclass = nc->second;
+        clearance = std::min( clearance, netclass->GetClearance() );
     }
 
     return clearance;
@@ -280,7 +330,7 @@ int BOARD::GetBiggestClearanceValue()
 
 int BOARD::GetCurrentMicroViaSize()
 {
-    NETCLASS* netclass = m_NetClasses.Find( m_CurrentNetClassName );
+    NETCLASS* netclass = m_NetClasses.Find( m_currentNetClassName );
 
     return netclass->GetuViaDiameter();
 }
@@ -288,30 +338,84 @@ int BOARD::GetCurrentMicroViaSize()
 
 int BOARD::GetCurrentMicroViaDrill()
 {
-    NETCLASS* netclass = m_NetClasses.Find( m_CurrentNetClassName );
+    NETCLASS* netclass = m_NetClasses.Find( m_currentNetClassName );
 
     return netclass->GetuViaDrill();
 }
 
 
-wxString BOARD::GetLayerName( int aLayerIndex ) const
+bool BOARD::SetLayer( int aIndex, const LAYER& aLayer )
+{
+    if( aIndex < NB_COPPER_LAYERS )
+    {
+        m_Layer[ aIndex ] = aLayer;
+        return true;
+    }
+
+    return false;
+}
+
+
+wxString BOARD::GetLayerName( int aLayerIndex, bool aTranslate ) const
 {
     if( !IsValidLayerIndex( aLayerIndex ) )
         return wxEmptyString;
 
-    // copper layer names are stored in the BOARD.
-    if( IsValidCopperLayerIndex( aLayerIndex ) && IsLayerEnabled( aLayerIndex ) )
+    // All layer names are stored in the BOARD.
+    if( IsLayerEnabled( aLayerIndex ) )
     {
         // default names were set in BOARD::BOARD() but they may be
         // over-ridden by BOARD::SetLayerName()
-        return m_Layer[aLayerIndex].m_Name;
+        // For non translated name, return the actual copper layer names,
+        // otherwise, return the native layer names
+        if( aTranslate || aLayerIndex < FIRST_NO_COPPER_LAYER )
+        {
+            wxString name = m_Layer[aLayerIndex].m_Name;
+            name.Trim( true );
+            name.Trim( false );
+            return name;
+        }
     }
 
-    return GetDefaultLayerName( aLayerIndex );
+    return GetDefaultLayerName( aLayerIndex, aTranslate );
 }
 
 
-wxString BOARD::GetDefaultLayerName( int aLayerNumber )
+// Default layer names are statically initialized,
+// because we want the English name and the translation.
+// The English name is stored here, and to get the translation
+// wxGetTranslation must be called explicitly.
+static const wxChar* layer_FRONT_name  = _( "F.Cu" );
+static const wxChar* layer_INNER1_name = _( "Inner1.Cu" );
+static const wxChar* layer_INNER2_name = _( "Inner2.Cu" );
+static const wxChar* layer_INNER3_name = _( "Inner3.Cu" );
+static const wxChar* layer_INNER4_name = _( "Inner4.Cu" );
+static const wxChar* layer_INNER5_name = _( "Inner5.Cu" );
+static const wxChar* layer_INNER6_name = _( "Inner6.Cu" );
+static const wxChar* layer_INNER7_name = _( "Inner7.Cu" );
+static const wxChar* layer_INNER8_name = _( "Inner8.Cu" );
+static const wxChar* layer_INNER9_name = _( "Inner9.Cu" );
+static const wxChar* layer_INNER10_name = _( "Inner10.Cu" );
+static const wxChar* layer_INNER11_name = _( "Inner11.Cu" );
+static const wxChar* layer_INNER12_name = _( "Inner12.Cu" );
+static const wxChar* layer_INNER13_name = _( "Inner13.Cu" );
+static const wxChar* layer_INNER14_name = _( "Inner14.Cu" );
+static const wxChar* layer_BACK_name    = _( "B.Cu" );
+static const wxChar* layer_ADHESIVE_BACK_name     = _( "B.Adhes" );
+static const wxChar* layer_ADHESIVE_FRONT_name    = _( "F.Adhes" );
+static const wxChar* layer_SOLDERPASTE_BACK_name  = _( "B.Paste" );
+static const wxChar* layer_SOLDERPASTE_FRONT_name = _( "F.Paste" );
+static const wxChar* layer_SILKSCREEN_BACK_name   = _( "B.SilkS" );
+static const wxChar* layer_SILKSCREEN_FRONT_name  = _( "F.SilkS" );
+static const wxChar* layer_SOLDERMASK_BACK_name   = _( "B.Mask" );
+static const wxChar* layer_SOLDERMASK_FRONT_name  = _( "F.Mask" );
+static const wxChar* layer_DRAW_name = _( "Dwgs.User" );
+static const wxChar* layer_COMMENT_name = _( "Cmts.User" );
+static const wxChar* layer_ECO1_name = _( "Eco1.User" );
+static const wxChar* layer_ECO2_name = _( "Eco2.User" );
+static const wxChar* layer_EDGE_name = _( "Edge.Cuts" );
+
+wxString BOARD::GetDefaultLayerName( int aLayerNumber, bool aTranslate )
 {
     const wxChar* txt;
 
@@ -321,39 +425,51 @@ wxString BOARD::GetDefaultLayerName( int aLayerNumber )
     // Use a switch to explicitly show the mapping more clearly
     switch( aLayerNumber )
     {
-    case LAYER_N_FRONT:         txt = _( "Front" );         break;
-    case LAYER_N_2:             txt = _( "Inner2" );        break;
-    case LAYER_N_3:             txt = _( "Inner3" );        break;
-    case LAYER_N_4:             txt = _( "Inner4" );        break;
-    case LAYER_N_5:             txt = _( "Inner5" );        break;
-    case LAYER_N_6:             txt = _( "Inner6" );        break;
-    case LAYER_N_7:             txt = _( "Inner7" );        break;
-    case LAYER_N_8:             txt = _( "Inner8" );        break;
-    case LAYER_N_9:             txt = _( "Inner9" );        break;
-    case LAYER_N_10:            txt = _( "Inner10" );       break;
-    case LAYER_N_11:            txt = _( "Inner11" );       break;
-    case LAYER_N_12:            txt = _( "Inner12" );       break;
-    case LAYER_N_13:            txt = _( "Inner13" );       break;
-    case LAYER_N_14:            txt = _( "Inner14" );       break;
-    case LAYER_N_15:            txt = _( "Inner15" );       break;
-    case LAYER_N_BACK:          txt = _( "Back" );          break;
-    case ADHESIVE_N_BACK:       txt = _( "Adhes_Back" );    break;
-    case ADHESIVE_N_FRONT:      txt = _( "Adhes_Front" );   break;
-    case SOLDERPASTE_N_BACK:    txt = _( "SoldP_Back" );    break;
-    case SOLDERPASTE_N_FRONT:   txt = _( "SoldP_Front" );   break;
-    case SILKSCREEN_N_BACK:     txt = _( "SilkS_Back" );    break;
-    case SILKSCREEN_N_FRONT:    txt = _( "SilkS_Front" );   break;
-    case SOLDERMASK_N_BACK:     txt = _( "Mask_Back" );     break;
-    case SOLDERMASK_N_FRONT:    txt = _( "Mask_Front" );    break;
-    case DRAW_N:                txt = _( "Drawings" );      break;
-    case COMMENT_N:             txt = _( "Comments" );      break;
-    case ECO1_N:                txt = _( "Eco1" );          break;
-    case ECO2_N:                txt = _( "Eco2" );          break;
-    case EDGE_N:                txt = _( "PCB_Edges" );     break;
-    default:                    txt = _( "BAD INDEX" );     break;
+    case LAYER_N_FRONT:         txt = layer_FRONT_name;         break;
+    case LAYER_N_2:             txt = layer_INNER1_name;        break;
+    case LAYER_N_3:             txt = layer_INNER2_name;        break;
+    case LAYER_N_4:             txt = layer_INNER3_name;        break;
+    case LAYER_N_5:             txt = layer_INNER4_name;        break;
+    case LAYER_N_6:             txt = layer_INNER5_name;        break;
+    case LAYER_N_7:             txt = layer_INNER6_name;        break;
+    case LAYER_N_8:             txt = layer_INNER7_name;        break;
+    case LAYER_N_9:             txt = layer_INNER8_name;        break;
+    case LAYER_N_10:            txt = layer_INNER9_name;        break;
+    case LAYER_N_11:            txt = layer_INNER10_name;       break;
+    case LAYER_N_12:            txt = layer_INNER11_name;       break;
+    case LAYER_N_13:            txt = layer_INNER12_name;       break;
+    case LAYER_N_14:            txt = layer_INNER13_name;       break;
+    case LAYER_N_15:            txt = layer_INNER14_name;       break;
+    case LAYER_N_BACK:          txt = layer_BACK_name;          break;
+    case ADHESIVE_N_BACK:       txt = layer_ADHESIVE_BACK_name;         break;
+    case ADHESIVE_N_FRONT:      txt = layer_ADHESIVE_FRONT_name;        break;
+    case SOLDERPASTE_N_BACK:    txt = layer_SOLDERPASTE_BACK_name;      break;
+    case SOLDERPASTE_N_FRONT:   txt = layer_SOLDERPASTE_FRONT_name;     break;
+    case SILKSCREEN_N_BACK:     txt = layer_SILKSCREEN_BACK_name;       break;
+    case SILKSCREEN_N_FRONT:    txt = layer_SILKSCREEN_FRONT_name;      break;
+    case SOLDERMASK_N_BACK:     txt = layer_SOLDERMASK_BACK_name;       break;
+    case SOLDERMASK_N_FRONT:    txt = layer_SOLDERMASK_FRONT_name;      break;
+    case DRAW_N:                txt = layer_DRAW_name;          break;
+    case COMMENT_N:             txt = layer_COMMENT_name;       break;
+    case ECO1_N:                txt = layer_ECO1_name;          break;
+    case ECO2_N:                txt = layer_ECO2_name;          break;
+    case EDGE_N:                txt = layer_EDGE_name;          break;
+    default:                    txt = wxT( "BAD_INDEX" );       break;
     }
 
-    return wxString( txt );
+    if( aTranslate )
+    {
+        wxString name = wxGetTranslation( txt );
+
+        /* would someone translate into a name with leading or trailing spaces?
+        name.Trim( true );
+        name.Trim( false );
+        */
+
+        return name;
+    }
+    else
+        return txt;
 }
 
 
@@ -362,7 +478,7 @@ bool BOARD::SetLayerName( int aLayerIndex, const wxString& aLayerName )
     if( !IsValidCopperLayerIndex( aLayerIndex ) )
         return false;
 
-    if( aLayerName == wxEmptyString  || aLayerName.Len() > 20 )
+    if( aLayerName == wxEmptyString || aLayerName.Len() > 20 )
         return false;
 
     // no quote chars in the name allowed
@@ -461,67 +577,65 @@ LAYER_T LAYER::ParseType( const char* aType )
     else if( strcmp( aType, "jumper" ) == 0 )
         return LT_JUMPER;
     else
-        return LAYER_T( -1 );
+        return LT_UNDEFINED;
 }
+
 
 int BOARD::GetCopperLayerCount() const
 {
-    return GetBoardDesignSettings()->GetCopperLayerCount();
+    return m_designSettings.GetCopperLayerCount();
 }
+
 
 void BOARD::SetCopperLayerCount( int aCount )
 {
-    GetBoardDesignSettings()->SetCopperLayerCount( aCount );
+    m_designSettings.SetCopperLayerCount( aCount );
 }
 
 
 int BOARD::GetEnabledLayers() const
 {
-    return GetBoardDesignSettings()->GetEnabledLayers();
+    return m_designSettings.GetEnabledLayers();
 }
 
 
 int BOARD::GetVisibleLayers() const
 {
-    return GetBoardDesignSettings()->GetVisibleLayers();
+    return m_designSettings.GetVisibleLayers();
 }
 
 
 void BOARD::SetEnabledLayers( int aLayerMask )
 {
-    GetBoardDesignSettings()->SetEnabledLayers( aLayerMask );
+    m_designSettings.SetEnabledLayers( aLayerMask );
 }
 
 
 void BOARD::SetVisibleLayers( int aLayerMask )
 {
-    GetBoardDesignSettings()->SetVisibleLayers( aLayerMask );
+    m_designSettings.SetVisibleLayers( aLayerMask );
 }
 
-
-// these are not tidy, since there are PCB_VISIBLEs that are not stored in the bitmap.
 
 void BOARD::SetVisibleElements( int aMask )
 {
-    /* Call SetElementVisibility for each item,
-     * to ensure specific calculations that can be needed by some items
-     * just change the visibility flags could be not sufficient
-     */
+    // Call SetElementVisibility for each item
+    // to ensure specific calculations that can be needed by some items,
+    // just changing the visibility flags could be not sufficient.
     for( int ii = 0; ii < PCB_VISIBLE( END_PCB_VISIBLE_LIST ); ii++ )
     {
         int item_mask = 1 << ii;
-        SetElementVisibility( ii, aMask & item_mask );
+        SetElementVisibility( ii, bool( aMask & item_mask ) );
     }
 }
 
-// these are not tidy, since there are PCB_VISIBLEs that are not stored in the bitmap.
-void BOARD::SetVisibleAlls(  )
+
+void BOARD::SetVisibleAlls()
 {
     SetVisibleLayers( FULL_LAYERS );
 
-    /* Call SetElementVisibility for each item,
-     * to ensure specific calculations that can be needed by some items
-     */
+    // Call SetElementVisibility for each item,
+    // to ensure specific calculations that can be needed by some items
     for( int ii = 0; ii < PCB_VISIBLE(END_PCB_VISIBLE_LIST); ii++ )
         SetElementVisibility( ii, true );
 }
@@ -529,26 +643,28 @@ void BOARD::SetVisibleAlls(  )
 
 int BOARD::GetVisibleElements() const
 {
-    return GetBoardDesignSettings()->GetVisibleElements();
+    return m_designSettings.GetVisibleElements();
 }
 
 
 bool BOARD::IsElementVisible( int aPCB_VISIBLE ) const
 {
-    return GetBoardDesignSettings()->IsElementVisible( aPCB_VISIBLE );
+    return m_designSettings.IsElementVisible( aPCB_VISIBLE );
 }
 
 
 void BOARD::SetElementVisibility( int aPCB_VISIBLE, bool isEnabled )
 {
+    m_designSettings.SetElementVisibility( aPCB_VISIBLE, isEnabled );
+
     switch( aPCB_VISIBLE )
     {
     case RATSNEST_VISIBLE:
-        GetBoardDesignSettings()->SetElementVisibility( aPCB_VISIBLE, isEnabled );
-        // we must clear or set the CH_VISIBLE flags to hide/show ratsnet
-        // because we have a tool to show hide ratsnest relative to a pad or a module
+
+        // we must clear or set the CH_VISIBLE flags to hide/show ratsnest
+        // because we have a tool to show/hide ratsnest relative to a pad or a module
         // so the hide/show option is a per item selection
-        if( IsElementVisible(RATSNEST_VISIBLE) )
+        if( IsElementVisible( RATSNEST_VISIBLE ) )
         {
             for( unsigned ii = 0; ii < GetRatsnestsCount(); ii++ )
                 m_FullRatsnest[ii].m_Status |= CH_VISIBLE;
@@ -558,19 +674,17 @@ void BOARD::SetElementVisibility( int aPCB_VISIBLE, bool isEnabled )
             for( unsigned ii = 0; ii < GetRatsnestsCount(); ii++ )
                 m_FullRatsnest[ii].m_Status &= ~CH_VISIBLE;
         }
-
         break;
 
-
     default:
-        GetBoardDesignSettings()->SetElementVisibility( aPCB_VISIBLE, isEnabled );
+        ;
     }
 }
 
 
-int BOARD::GetVisibleElementColor( int aPCB_VISIBLE )
+EDA_COLOR_T BOARD::GetVisibleElementColor( int aPCB_VISIBLE )
 {
-    int color = -1;
+    EDA_COLOR_T color = UNSPECIFIED_COLOR;
 
     switch( aPCB_VISIBLE )
     {
@@ -596,7 +710,7 @@ int BOARD::GetVisibleElementColor( int aPCB_VISIBLE )
 }
 
 
-void BOARD::SetVisibleElementColor( int aPCB_VISIBLE, int aColor )
+void BOARD::SetVisibleElementColor( int aPCB_VISIBLE, EDA_COLOR_T aColor )
 {
     switch( aPCB_VISIBLE )
     {
@@ -620,13 +734,13 @@ void BOARD::SetVisibleElementColor( int aPCB_VISIBLE, int aColor )
 }
 
 
-void BOARD::SetLayerColor( int aLayer, int aColor )
+void BOARD::SetLayerColor( int aLayer, EDA_COLOR_T aColor )
 {
     GetColorsSettings()->SetLayerColor( aLayer, aColor );
 }
 
 
-int BOARD::GetLayerColor( int aLayer )
+EDA_COLOR_T BOARD::GetLayerColor( int aLayer ) const
 {
     return GetColorsSettings()->GetLayerColor( aLayer );
 }
@@ -640,15 +754,6 @@ bool BOARD::IsModuleLayerVisible( int layer )
         return IsElementVisible( PCB_VISIBLE(MOD_BK_VISIBLE) );
     else
         return true;
-}
-
-
-
-wxPoint& BOARD::GetPosition()
-{
-    static wxPoint dummy( 0, 0 );
-
-    return dummy;   // a reference
 }
 
 
@@ -814,37 +919,31 @@ void BOARD::DeleteZONEOutlines()
 }
 
 
-int BOARD::GetNumSegmTrack()
+int BOARD::GetNumSegmTrack() const
 {
     return m_Track.GetCount();
 }
 
 
-int BOARD::GetNumSegmZone()
+int BOARD::GetNumSegmZone() const
 {
     return m_Zone.GetCount();
 }
 
 
-unsigned BOARD::GetNoconnectCount()
+unsigned BOARD::GetNodesCount() const
 {
-    return m_NbNoconnect;
+    return m_nodeCount;
 }
 
 
-unsigned BOARD::GetNodesCount()
-{
-    return m_NbNodes;
-}
-
-
-bool BOARD::ComputeBoundingBox( bool aBoardEdgesOnly )
+EDA_RECT BOARD::ComputeBoundingBox( bool aBoardEdgesOnly )
 {
     bool hasItems = false;
     EDA_RECT area;
 
     // Check segments, dimensions, texts, and fiducials
-    for( BOARD_ITEM* item = m_Drawings; item != NULL; item = item->Next() )
+    for( BOARD_ITEM* item = m_Drawings;  item;  item = item->Next() )
     {
         if( aBoardEdgesOnly && (item->Type() != PCB_LINE_T || item->GetLayer() != EDGE_N ) )
             continue;
@@ -907,38 +1006,18 @@ bool BOARD::ComputeBoundingBox( bool aBoardEdgesOnly )
         }
     }
 
-    if( !hasItems && m_PcbFrame )
-    {
-        if( m_PcbFrame->m_Draw_Sheet_Ref )
-        {
-            area.SetOrigin( 0, 0 );
-            area.SetEnd( m_PcbFrame->GetScreen()->ReturnPageSize().x,
-                         m_PcbFrame->GetScreen()->ReturnPageSize().y );
-        }
-        else
-        {
-            area.SetOrigin( -m_PcbFrame->GetScreen()->ReturnPageSize().x / 2,
-                            -m_PcbFrame->GetScreen()->ReturnPageSize().y / 2 );
-            area.SetEnd( m_PcbFrame->GetScreen()->ReturnPageSize().x / 2,
-                         m_PcbFrame->GetScreen()->ReturnPageSize().y / 2 );
-        }
-    }
+    m_BoundingBox = area;   // save for BOARD::GetBoundingBox()
 
-    m_BoundaryBox = area;
-
-    return hasItems;
+    return area;
 }
 
 
 // virtual, see pcbstruct.h
-void BOARD::DisplayInfo( EDA_DRAW_FRAME* frame )
+void BOARD::GetMsgPanelInfo( std::vector< MSG_PANEL_ITEM >& aList )
 {
     wxString txt;
-
-    frame->ClearMsgPanel();
-
-    int viasCount = 0;
-    int trackSegmentsCount = 0;
+    int      viasCount = 0;
+    int      trackSegmentsCount = 0;
 
     for( BOARD_ITEM* item = m_Track; item; item = item->Next() )
     {
@@ -948,20 +1027,20 @@ void BOARD::DisplayInfo( EDA_DRAW_FRAME* frame )
             trackSegmentsCount++;
     }
 
-    txt.Printf( wxT( "%d" ), GetPadsCount() );
-    frame->AppendMsgPanel( _( "Pads" ), txt, DARKGREEN );
+    txt.Printf( wxT( "%d" ), GetPadCount() );
+    aList.push_back( MSG_PANEL_ITEM( _( "Pads" ), txt, DARKGREEN ) );
 
     txt.Printf( wxT( "%d" ), viasCount );
-    frame->AppendMsgPanel( _( "Vias" ), txt, DARKGREEN );
+    aList.push_back( MSG_PANEL_ITEM( _( "Vias" ), txt, DARKGREEN ) );
 
     txt.Printf( wxT( "%d" ), trackSegmentsCount );
-    frame->AppendMsgPanel( _( "trackSegm" ), txt, DARKGREEN );
+    aList.push_back( MSG_PANEL_ITEM( _( "trackSegm" ), txt, DARKGREEN ) );
 
     txt.Printf( wxT( "%d" ), GetNodesCount() );
-    frame->AppendMsgPanel( _( "Nodes" ), txt, DARKCYAN );
+    aList.push_back( MSG_PANEL_ITEM( _( "Nodes" ), txt, DARKCYAN ) );
 
-    txt.Printf( wxT( "%d" ), m_NetInfo->GetCount() );
-    frame->AppendMsgPanel( _( "Nets" ), txt, RED );
+    txt.Printf( wxT( "%d" ), m_NetInfo.GetNetCount() );
+    aList.push_back( MSG_PANEL_ITEM( _( "Nets" ), txt, RED ) );
 
     /* These parameters are known only if the full ratsnest is available,
      *  so, display them only if this is the case
@@ -969,13 +1048,13 @@ void BOARD::DisplayInfo( EDA_DRAW_FRAME* frame )
     if( (m_Status_Pcb & NET_CODES_OK) )
     {
         txt.Printf( wxT( "%d" ), GetRatsnestsCount() );
-        frame->AppendMsgPanel( _( "Links" ), txt, DARKGREEN );
+        aList.push_back( MSG_PANEL_ITEM( _( "Links" ), txt, DARKGREEN ) );
 
-        txt.Printf( wxT( "%d" ), GetRatsnestsCount() - GetNoconnectCount() );
-        frame->AppendMsgPanel( _( "Connect" ), txt, DARKGREEN );
+        txt.Printf( wxT( "%d" ), GetRatsnestsCount() - GetUnconnectedNetCount() );
+        aList.push_back( MSG_PANEL_ITEM( _( "Connect" ), txt, DARKGREEN ) );
 
-        txt.Printf( wxT( "%d" ), GetNoconnectCount() );
-        frame->AppendMsgPanel( _( "Unconnected" ), txt, BLUE );
+        txt.Printf( wxT( "%d" ), GetUnconnectedNetCount() );
+        aList.push_back( MSG_PANEL_ITEM( _( "Unconnected" ), txt, BLUE ) );
     }
 }
 
@@ -1077,7 +1156,7 @@ SEARCH_RESULT BOARD::Visit( INSPECTOR* inspector, const void* testData,
         // So usually, connected tracks or vias are grouped in this list
         // So the algorithm (used in ratsnest computations) which computes the
         // track connectivity is faster (more than 100 time regarding to
-        // a non ordered list) because when it searches for a connexion, first
+        // a non ordered list) because when it searches for a connection, first
         // it tests the near (near in term of linked list) 50 items
         // from the current item (track or via) in test.
         // Usually, because of this sort, a connected item (if exists) is
@@ -1191,7 +1270,7 @@ SEARCH_RESULT BOARD::Visit( INSPECTOR* inspector, const void* testData,
  *               D_PAD*  pad = (D_PAD*) item;
  *               if( pad->HitTest( refPos ) )
  *               {
- *                   if( layer_mask & pad->m_layerMask )
+ *                   if( layer_mask & pad->GetLayerMask() )
  *                   {
  *                       found = item;
  *                       return SEARCH_QUIT;
@@ -1246,19 +1325,16 @@ SEARCH_RESULT BOARD::Visit( INSPECTOR* inspector, const void* testData,
 
 NETINFO_ITEM* BOARD::FindNet( int aNetcode ) const
 {
-    // the first valid netcode is 1 and the last is m_NetInfo->GetCount()-1.
+    // the first valid netcode is 1 and the last is m_NetInfo.GetCount()-1.
     // zero is reserved for "no connection" and is not used.
     // NULL is returned for non valid netcodes
-    NETINFO_ITEM* net = m_NetInfo->GetNetItem( aNetcode );
+    NETINFO_ITEM* net = m_NetInfo.GetNetItem( aNetcode );
 
 #if defined(DEBUG)
-    if( net )     // item can be NULL if anetcode is not valid
+    if( net && aNetcode != net->GetNet())     // item can be NULL if anetcode is not valid
     {
-        if( aNetcode != net->GetNet() )
-        {
-            printf( "FindNet() anetcode %d != GetNet() %d (net: %s)\n",
-                    aNetcode, net->GetNet(), TO_UTF8( net->GetNetname() ) );
-        }
+        wxLogError( wxT( "FindNet() anetcode %d != GetNet() %d (net: %s)\n" ),
+                      aNetcode, net->GetNet(), TO_UTF8( net->GetNetname() ) );
     }
 #endif
 
@@ -1273,7 +1349,7 @@ NETINFO_ITEM* BOARD::FindNet( const wxString& aNetname ) const
     if( aNetname.IsEmpty() )
         return NULL;
 
-    int ncount = m_NetInfo->GetCount();
+    int ncount = m_NetInfo.GetNetCount();
 
     // Search for a netname = aNetname
 #if 0
@@ -1281,7 +1357,7 @@ NETINFO_ITEM* BOARD::FindNet( const wxString& aNetname ) const
     // Use a sequential search: easy to understand, but slow
     for( int ii = 1; ii < ncount; ii++ )
     {
-        NETINFO_ITEM* item = m_NetInfo->GetNetItem( ii );
+        NETINFO_ITEM* item = m_NetInfo.GetNetItem( ii );
 
         if( item && item->GetNetname() == aNetname )
         {
@@ -1306,12 +1382,12 @@ NETINFO_ITEM* BOARD::FindNet( const wxString& aNetname ) const
         if( (ii & 1) && ( ii > 1 ) )
             ncount++;
 
-        NETINFO_ITEM* item = m_NetInfo->GetNetItem( index );
+        NETINFO_ITEM* item = m_NetInfo.GetNetItem( index );
 
         if( item == NULL )
             return NULL;
 
-        int           icmp = item->GetNetname().Cmp( aNetname );
+        int icmp = item->GetNetname().Cmp( aNetname );
 
         if( icmp == 0 ) // found !
         {
@@ -1387,18 +1463,18 @@ static bool s_SortByNodes( const NETINFO_ITEM* a, const NETINFO_ITEM* b )
 
 int BOARD::ReturnSortedNetnamesList( wxArrayString& aNames, bool aSortbyPadsCount )
 {
-    if( m_NetInfo->GetCount() == 0 )
+    if( m_NetInfo.GetNetCount() == 0 )
         return 0;
 
     // Build the list
     std::vector <NETINFO_ITEM*> netBuffer;
 
-    netBuffer.reserve( m_NetInfo->GetCount() );
+    netBuffer.reserve( m_NetInfo.GetNetCount() );
 
-    for( unsigned ii = 1; ii < m_NetInfo->GetCount(); ii++ )
+    for( unsigned ii = 1; ii < m_NetInfo.GetNetCount(); ii++ )
     {
-        if( m_NetInfo->GetNetItem( ii )->GetNet() > 0 )
-            netBuffer.push_back( m_NetInfo->GetNetItem( ii ) );
+        if( m_NetInfo.GetNetItem( ii )->GetNet() > 0 )
+            netBuffer.push_back( m_NetInfo.GetNetItem( ii ) );
     }
 
     // sort the list
@@ -1412,90 +1488,7 @@ int BOARD::ReturnSortedNetnamesList( wxArrayString& aNames, bool aSortbyPadsCoun
 }
 
 
-bool BOARD::Save( FILE* aFile ) const
-{
-    bool        rc = false;
-    BOARD_ITEM* item;
-
-    // save the nets
-    for( unsigned ii = 0; ii < m_NetInfo->GetCount(); ii++ )
-        if( !m_NetInfo->GetNetItem( ii )->Save( aFile ) )
-            goto out;
-
-    // Saved nets do not include netclass names, so save netclasses after nets.
-    m_NetClasses.Save( aFile );
-
-    // save the modules
-    for( item = m_Modules; item; item = item->Next() )
-        if( !item->Save( aFile ) )
-            goto out;
-
-    for( item = m_Drawings; item; item = item->Next() )
-    {
-        switch( item->Type() )
-        {
-        case PCB_TEXT_T:
-        case PCB_LINE_T:
-        case PCB_TARGET_T:
-        case PCB_DIMENSION_T:
-            if( !item->Save( aFile ) )
-                goto out;
-
-            break;
-
-        default:
-
-            // future: throw exception here
-#if defined(DEBUG)
-            printf( "BOARD::Save() ignoring m_Drawings type %d\n", item->Type() );
-#endif
-            break;
-        }
-    }
-
-    // do not save MARKER_PCBs, they can be regenerated easily
-
-    // save the tracks & vias
-    fprintf( aFile, "$TRACK\n" );
-
-    for( item = m_Track; item; item = item->Next() )
-    {
-        if( !item->Save( aFile ) )
-            goto out;
-    }
-
-    fprintf( aFile, "$EndTRACK\n" );
-
-    // save the zones
-    fprintf( aFile, "$ZONE\n" );
-
-    for( item = m_Zone; item; item = item->Next() )
-    {
-        if( !item->Save( aFile ) )
-            goto out;
-    }
-
-    fprintf( aFile, "$EndZONE\n" );
-
-    // save the zone edges
-    for( unsigned ii = 0; ii < m_ZoneDescriptorList.size(); ii++ )
-    {
-        ZONE_CONTAINER* edge_zone = m_ZoneDescriptorList[ii];
-        edge_zone->Save( aFile );
-    }
-
-
-    if( fprintf( aFile, "$EndBOARD\n" ) != sizeof("$EndBOARD\n") - 1 )
-        goto out;
-
-    rc = true;  // wrote all OK
-
-out:
-    return rc;
-}
-
-
-void BOARD::RedrawAreasOutlines( EDA_DRAW_PANEL* panel, wxDC* aDC, int aDrawMode, int aLayer )
+void BOARD::RedrawAreasOutlines( EDA_DRAW_PANEL* panel, wxDC* aDC, GR_DRAWMODE aDrawMode, int aLayer )
 {
     if( !aDC )
         return;
@@ -1510,7 +1503,7 @@ void BOARD::RedrawAreasOutlines( EDA_DRAW_PANEL* panel, wxDC* aDC, int aDrawMode
 }
 
 
-void BOARD::RedrawFilledAreas( EDA_DRAW_PANEL* panel, wxDC* aDC, int aDrawMode, int aLayer )
+void BOARD::RedrawFilledAreas( EDA_DRAW_PANEL* panel, wxDC* aDC, GR_DRAWMODE aDrawMode, int aLayer )
 {
     if( !aDC )
         return;
@@ -1569,7 +1562,7 @@ int BOARD::SetAreasNetCodesFromNetNames( void )
 
         if( GetArea( ii )->GetNet() != 0 )      // i.e. if this zone is connected to a net
         {
-            const NETINFO_ITEM* net = FindNet( GetArea( ii )->m_Netname );
+            const NETINFO_ITEM* net = FindNet( GetArea( ii )->GetNetName() );
 
             if( net )
             {
@@ -1598,7 +1591,7 @@ TRACK* BOARD::GetViaByPosition( const wxPoint& aPosition, int aLayerMask )
         if( track->Type() != PCB_VIA_T )
             continue;
 
-        if( track->m_Start != aPosition )
+        if( track->GetStart() != aPosition )
             continue;
 
         if( track->GetState( BUSY | IS_DELETED ) )
@@ -1636,15 +1629,15 @@ D_PAD* BOARD::GetPad( TRACK* aTrace, int aEndPoint )
     D_PAD*  pad = NULL;
     wxPoint aPosition;
 
-    int     aLayerMask = g_TabOneLayerMask[aTrace->GetLayer()];
+    int     aLayerMask = GetLayerMask( aTrace->GetLayer() );
 
-    if( aEndPoint == START )
+    if( aEndPoint == FLG_START )
     {
-        aPosition = aTrace->m_Start;
+        aPosition = aTrace->GetStart();
     }
     else
     {
-        aPosition = aTrace->m_End;
+        aPosition = aTrace->GetEnd();
     }
 
     for( MODULE* module = m_Modules;  module;  module = module->Next() )
@@ -1661,15 +1654,15 @@ D_PAD* BOARD::GetPad( TRACK* aTrace, int aEndPoint )
 
 D_PAD* BOARD::GetPadFast( const wxPoint& aPosition, int aLayerMask )
 {
-    for( unsigned i=0; i<GetPadsCount();  ++i )
+    for( unsigned i=0; i<GetPadCount();  ++i )
     {
-        D_PAD* pad = m_NetInfo->GetPad(i);
+        D_PAD* pad = m_NetInfo.GetPad(i);
 
-        if( pad->m_Pos != aPosition )
+        if( pad->GetPosition() != aPosition )
             continue;
 
         /* Pad found, it must be on the correct layer */
-        if( pad->m_layerMask & aLayerMask )
+        if( pad->GetLayerMask() & aLayerMask )
             return pad;
     }
 
@@ -1696,10 +1689,10 @@ D_PAD* BOARD::GetPad( std::vector<D_PAD*>& aPadList, const wxPoint& aPosition, i
 
         D_PAD* pad = aPadList[idx];
 
-        if( pad->m_Pos == aPosition )       // candidate found
+        if( pad->GetPosition() == aPosition )       // candidate found
         {
             // The pad must match the layer mask:
-            if( (aLayerMask & pad->m_layerMask) != 0 )
+            if( (aLayerMask & pad->GetLayerMask()) != 0 )
                 return pad;
 
             // More than one pad can be at aPosition
@@ -1709,18 +1702,18 @@ D_PAD* BOARD::GetPad( std::vector<D_PAD*>& aPadList, const wxPoint& aPosition, i
             for( int ii = idx+1; ii <= idxmax; ii++ )
             {
                 pad = aPadList[ii];
-                if( pad->m_Pos != aPosition )
+                if( pad->GetPosition() != aPosition )
                     break;
-                if( (aLayerMask & pad->m_layerMask) != 0 )
+                if( (aLayerMask & pad->GetLayerMask()) != 0 )
                     return pad;
             }
             // search previous
             for(  int ii = idx-1 ;ii >=0; ii-- )
             {
                 pad = aPadList[ii];
-                if( pad->m_Pos != aPosition )
+                if( pad->GetPosition() != aPosition )
                     break;
-                if( (aLayerMask & pad->m_layerMask) != 0 )
+                if( (aLayerMask & pad->GetLayerMask()) != 0 )
                     return pad;
             }
 
@@ -1728,9 +1721,9 @@ D_PAD* BOARD::GetPad( std::vector<D_PAD*>& aPadList, const wxPoint& aPosition, i
             return 0;
         }
 
-        if( pad->m_Pos.x == aPosition.x )   // Must search considering Y coordinate
+        if( pad->GetPosition().x == aPosition.x )   // Must search considering Y coordinate
         {
-            if(pad->m_Pos.y < aPosition.y)  // Must search after this item
+            if(pad->GetPosition().y < aPosition.y)  // Must search after this item
             {
                 idx += delta;
                 if( idx > idxmax )
@@ -1743,7 +1736,7 @@ D_PAD* BOARD::GetPad( std::vector<D_PAD*>& aPadList, const wxPoint& aPosition, i
                     idx = 0;
             }
         }
-        else if( pad->m_Pos.x < aPosition.x ) // Must search after this item
+        else if( pad->GetPosition().x < aPosition.x ) // Must search after this item
         {
             idx += delta;
             if( idx > idxmax )
@@ -1764,19 +1757,32 @@ D_PAD* BOARD::GetPad( std::vector<D_PAD*>& aPadList, const wxPoint& aPosition, i
 /**
  * Function SortPadsByXCoord
  * is used by GetSortedPadListByXCoord to Sort a pad list by x coordinate value.
+ * This function is used to build ordered pads lists
  */
-static bool sortPadsByXthenYCoord( D_PAD* const & ref, D_PAD* const & comp )
+bool sortPadsByXthenYCoord( D_PAD* const & ref, D_PAD* const & comp )
 {
-    if( ref->m_Pos.x == comp->m_Pos.x )
-        return ref->m_Pos.y < comp->m_Pos.y;
-    return ref->m_Pos.x < comp->m_Pos.x;
+    if( ref->GetPosition().x == comp->GetPosition().x )
+        return ref->GetPosition().y < comp->GetPosition().y;
+    return ref->GetPosition().x < comp->GetPosition().x;
 }
 
 
-void BOARD::GetSortedPadListByXthenYCoord( std::vector<D_PAD*>& aVector )
+void BOARD::GetSortedPadListByXthenYCoord( std::vector<D_PAD*>& aVector, int aNetCode )
 {
-    aVector.insert( aVector.end(), m_NetInfo->m_PadsFullList.begin(),
-                    m_NetInfo->m_PadsFullList.end() );
+    if( aNetCode < 0 )
+    {
+        aVector.insert( aVector.end(), m_NetInfo.m_PadsFullList.begin(),
+                        m_NetInfo.m_PadsFullList.end() );
+    }
+    else
+    {
+        const NETINFO_ITEM* net = m_NetInfo.GetNetItem( aNetCode );
+        if( net )
+        {
+            aVector.insert( aVector.end(), net->m_PadInNetList.begin(),
+                            net->m_PadInNetList.end() );
+        }
+    }
 
     sort( aVector.begin(), aVector.end(), sortPadsByXthenYCoord );
 }
@@ -1791,7 +1797,7 @@ TRACK* BOARD::GetTrace( TRACK* aTrace, const wxPoint& aPosition, int aLayerMask 
         if( track->GetState( BUSY | IS_DELETED ) )
             continue;
 
-        if( GetBoardDesignSettings()->IsLayerVisible( layer ) == false )
+        if( m_designSettings.IsLayerVisible( layer ) == false )
             continue;
 
         if( track->Type() == PCB_VIA_T )    /* VIA encountered. */
@@ -1801,7 +1807,7 @@ TRACK* BOARD::GetTrace( TRACK* aTrace, const wxPoint& aPosition, int aLayerMask 
         }
         else
         {
-            if( (g_TabOneLayerMask[layer] & aLayerMask) == 0 )
+            if( (GetLayerMask( layer ) & aLayerMask) == 0 )
                 continue;   /* Segments on different layers. */
 
             if( track->HitTest( aPosition ) )
@@ -1813,11 +1819,9 @@ TRACK* BOARD::GetTrace( TRACK* aTrace, const wxPoint& aPosition, int aLayerMask 
 }
 
 
-TRACK* BOARD::MarkTrace( TRACK* aTrace,
-                         int*   aCount,
-                         int*   aTraceLength,
-                         int*   aDieLength,
-                         bool   aReorder )
+TRACK* BOARD::MarkTrace( TRACK*  aTrace, int* aCount,
+                         double* aTraceLength, double* aPadToDieLength,
+                         bool    aReorder )
 {
     int        NbSegmBusy;
 
@@ -1853,16 +1857,16 @@ TRACK* BOARD::MarkTrace( TRACK* aTrace,
     if( aTrace->Type() == PCB_VIA_T )
     {
         TRACK* Segm1, * Segm2 = NULL, * Segm3 = NULL;
-        Segm1 = ::GetTrace( m_Track, NULL, aTrace->m_Start, layerMask );
+        Segm1 = ::GetTrace( m_Track, NULL, aTrace->GetStart(), layerMask );
 
         if( Segm1 )
         {
-            Segm2 = ::GetTrace( Segm1->Next(), NULL, aTrace->m_Start, layerMask );
+            Segm2 = ::GetTrace( Segm1->Next(), NULL, aTrace->GetStart(), layerMask );
         }
 
         if( Segm2 )
         {
-            Segm3 = ::GetTrace( Segm2->Next(), NULL, aTrace->m_Start, layerMask );
+            Segm3 = ::GetTrace( Segm2->Next(), NULL, aTrace->GetStart(), layerMask );
         }
 
         if( Segm3 ) // More than 2 segments are connected to this via. the track" is only this via
@@ -1876,19 +1880,19 @@ TRACK* BOARD::MarkTrace( TRACK* aTrace,
         if( Segm1 ) // search for others segments connected to the initial segment start point
         {
             layerMask = Segm1->ReturnMaskLayer();
-            chainMarkedSegments( aTrace->m_Start, layerMask, &trackList );
+            chainMarkedSegments( aTrace->GetStart(), layerMask, &trackList );
         }
 
         if( Segm2 ) // search for others segments connected to the initial segment end point
         {
             layerMask = Segm2->ReturnMaskLayer();
-            chainMarkedSegments( aTrace->m_Start, layerMask, &trackList );
+            chainMarkedSegments( aTrace->GetStart(), layerMask, &trackList );
         }
     }
     else    // mark the chain using both ends of the initial segment
     {
-        chainMarkedSegments( aTrace->m_Start, layerMask, &trackList );
-        chainMarkedSegments( aTrace->m_End, layerMask, &trackList );
+        chainMarkedSegments( aTrace->GetStart(), layerMask, &trackList );
+        chainMarkedSegments( aTrace->GetEnd(), layerMask, &trackList );
     }
 
     // Now examine selected vias and flag them if they are on the track
@@ -1910,7 +1914,7 @@ TRACK* BOARD::MarkTrace( TRACK* aTrace,
 
         layerMask = via->ReturnMaskLayer();
 
-        TRACK* track = ::GetTrace( m_Track, NULL, via->m_Start, layerMask );
+        TRACK* track = ::GetTrace( m_Track, NULL, via->GetStart(), layerMask );
 
         // GetTrace does not consider tracks flagged BUSY.
         // So if no connected track found, this via is on the current track
@@ -1932,7 +1936,7 @@ TRACK* BOARD::MarkTrace( TRACK* aTrace,
          */
         int layer = track->GetLayer();
 
-        while( ( track = ::GetTrace( track->Next(), NULL, via->m_Start, layerMask ) ) != NULL )
+        while( ( track = ::GetTrace( track->Next(), NULL, via->GetStart(), layerMask ) ) != NULL )
         {
             if( layer != track->GetLayer() )
             {
@@ -1967,7 +1971,7 @@ TRACK* BOARD::MarkTrace( TRACK* aTrace,
         return NULL;
 
     double full_len = 0;
-    double lenDie = 0;
+    double lenPadToDie = 0;
 
     if( aReorder )
     {
@@ -1993,20 +1997,20 @@ TRACK* BOARD::MarkTrace( TRACK* aTrace,
                 if( aTraceLength )
                     full_len += track->GetLength();
 
-                if( aDieLength ) // Add now length die.
+                if( aPadToDieLength ) // Add now length die.
                 {
                     // In fact only 2 pads (maximum) will be taken in account:
                     // that are on each end of the track, if any
                     if( track->GetState( BEGIN_ONPAD ) )
                     {
                         D_PAD * pad = (D_PAD *) track->start;
-                        lenDie += (double) pad->m_LengthDie;
+                        lenPadToDie += (double) pad->GetPadToDieLength();
                     }
 
                     if( track->GetState( END_ONPAD ) )
                     {
                         D_PAD * pad = (D_PAD *) track->end;
-                        lenDie += (double) pad->m_LengthDie;
+                        lenPadToDie += (double) pad->GetPadToDieLength();
                     }
                 }
             }
@@ -2030,23 +2034,23 @@ TRACK* BOARD::MarkTrace( TRACK* aTrace,
                 if( track->GetState( BEGIN_ONPAD ) )
                 {
                     D_PAD * pad = (D_PAD *) track->start;
-                    lenDie += (double) pad->m_LengthDie;
+                    lenPadToDie += (double) pad->GetPadToDieLength();
                 }
 
                 if( track->GetState( END_ONPAD ) )
                 {
                     D_PAD * pad = (D_PAD *) track->end;
-                    lenDie += (double) pad->m_LengthDie;
+                    lenPadToDie += (double) pad->GetPadToDieLength();
                 }
             }
         }
     }
 
     if( aTraceLength )
-        *aTraceLength = wxRound( full_len );
+        *aTraceLength = KiROUND( full_len );
 
-    if( aDieLength )
-        *aDieLength = wxRound( lenDie );
+    if( aPadToDieLength )
+        *aPadToDieLength = KiROUND( lenPadToDie );
 
     if( aCount )
         *aCount = NbSegmBusy;
@@ -2096,7 +2100,7 @@ MODULE* BOARD::GetFootprint( const wxPoint& aPosition, int aActiveLayer,
         //off x & offy point to the middle of the box.
         int dist = abs( aPosition.x - offx ) + abs( aPosition.y - offy );
 
-        //int dist = MIN(lx, ly);  // to pick the smallest module (kinda
+        //int dist = std::min(lx, ly);  // to pick the smallest module (kinda
         // screwy with same-sized modules -- this is bad!)
 
         if( aActiveLayer == layer )
@@ -2155,56 +2159,44 @@ BOARD_CONNECTED_ITEM* BOARD::GetLockPoint( const wxPoint& aPosition, int aLayerM
 
 TRACK* BOARD::CreateLockPoint( wxPoint& aPosition, TRACK* aSegment, PICKED_ITEMS_LIST* aList )
 {
-    if( aSegment->m_Start == aPosition || aSegment->m_End == aPosition )
+    /* creates an intermediate point on aSegment and break it into two segments
+     * at aPosition.
+     * The new segment starts from aPosition and ends at the end point of
+     * aSegment. The original segment now ends at aPosition.
+     */
+    if( aSegment->GetStart() == aPosition || aSegment->GetEnd() == aPosition )
         return NULL;
 
     /* A via is a good lock point */
     if( aSegment->Type() == PCB_VIA_T )
     {
-        aPosition = aSegment->m_Start;
+        aPosition = aSegment->GetStart();
         return aSegment;
     }
 
     // Calculation coordinate of intermediate point relative to the start point of aSegment
-     wxPoint delta = aSegment->m_End - aSegment->m_Start;
+     wxPoint delta = aSegment->GetEnd() - aSegment->GetStart();
 
-    // Not yet in use:
-#if 0
-    int ox, oy, fx, fy;
+    // calculate coordinates of aPosition relative to aSegment->GetStart()
+    wxPoint lockPoint = aPosition - aSegment->GetStart();
 
-    if( aRefSegm )
-    {
-        ox = aRefSegm->m_Start.x - aSegment->m_Start.x;
-        oy = aRefSegm->m_Start.y - aSegment->m_Start.y;
-        fx = aRefSegm->m_End.x - aSegment->m_Start.x;
-        fy = aRefSegm->m_End.y - aSegment->m_Start.y;
-    }
-#endif
-
-    // calculate coordinates of aPosition relative to aSegment->m_Start
-    wxPoint newPoint = aPosition - aSegment->m_Start;
-
-    // newPoint must be on aSegment:
-    // Ensure newPoint.y/newPoint.y = delta.y/delta.x
+    // lockPoint must be on aSegment:
+    // Ensure lockPoint.y/lockPoint.y = delta.y/delta.x
     if( delta.x == 0 )
-        newPoint.x = 0;         /* horizontal segment*/
+        lockPoint.x = 0;         /* horizontal segment*/
     else
-        newPoint.y = wxRound( ( (double)newPoint.x * delta.y ) / delta.x );
+        lockPoint.y = KiROUND( ( (double)lockPoint.x * delta.y ) / delta.x );
 
     /* Create the intermediate point (that is to say creation of a new
      * segment, beginning at the intermediate point.
      */
-    newPoint.x += aSegment->m_Start.x;
-    newPoint.y += aSegment->m_Start.y;
+    lockPoint += aSegment->GetStart();
 
-    TRACK* newTrack = aSegment->Copy();
-
-    if( aList )
-    {
-        ITEM_PICKER picker( newTrack, UR_NEW );
-        aList->PushItem( picker );
-    }
-
+    TRACK* newTrack = (TRACK*)aSegment->Clone();
+    // The new segment begins at the new point,
+    newTrack->SetStart(lockPoint);
+    newTrack->start = aSegment;
+    newTrack->SetState( BEGIN_ONPAD, OFF );
 
     DLIST<TRACK>* list = (DLIST<TRACK>*)aSegment->GetList();
     wxASSERT( list );
@@ -2212,29 +2204,23 @@ TRACK* BOARD::CreateLockPoint( wxPoint& aPosition, TRACK* aSegment, PICKED_ITEMS
 
     if( aList )
     {
-        ITEM_PICKER picker( aSegment, UR_CHANGED );
-        picker.m_Link = aSegment->Copy();
+        // Prepare the undo command for the now track segment
+        ITEM_PICKER picker( newTrack, UR_NEW );
+        aList->PushItem( picker );
+        // Prepare the undo command for the old track segment
+        // before modifications
+        picker.SetItem( aSegment );
+        picker.SetStatus( UR_CHANGED );
+        picker.SetLink( aSegment->Clone() );
         aList->PushItem( picker );
     }
 
-    /* Correct pointer at the end of the new segment. */
-    newTrack->end = aSegment->end;
-    newTrack->SetState( END_ONPAD, aSegment->GetState( END_ONPAD ) );
-
-    /* Set connections info relative to the new point
-    */
-
-    /* Old segment now ends at new point. */
-    aSegment->m_End = newPoint;
+    // Old track segment now ends at new point.
+    aSegment->SetEnd(lockPoint);
     aSegment->end = newTrack;
     aSegment->SetState( END_ONPAD, OFF );
 
-    /* The new segment begins at the new point. */
-    newTrack->m_Start = newPoint;
-    newTrack->start = aSegment;
-    newTrack->SetState( BEGIN_ONPAD, OFF );
-
-    D_PAD * pad = GetPad( newTrack, START );
+    D_PAD * pad = GetPad( newTrack, FLG_START );
 
     if ( pad )
     {
@@ -2244,64 +2230,71 @@ TRACK* BOARD::CreateLockPoint( wxPoint& aPosition, TRACK* aSegment, PICKED_ITEMS
         aSegment->SetState( END_ONPAD, ON );
     }
 
-    aPosition = newPoint;
+    aPosition = lockPoint;
     return newTrack;
+}
+
+
+void BOARD::SetViaSizeIndex( unsigned aIndex )
+{
+    if( aIndex >= m_ViasDimensionsList.size() )
+        m_viaSizeIndex = m_ViasDimensionsList.size();
+    else
+        m_viaSizeIndex = aIndex;
+}
+
+
+void BOARD::SetTrackWidthIndex( unsigned aIndex )
+{
+    if( m_trackWidthIndex >= m_TrackWidthList.size() )
+        m_trackWidthIndex = m_TrackWidthList.size();
+    else
+        m_trackWidthIndex = aIndex;
 }
 
 
 #if defined(DEBUG)
 
-void BOARD::Show( int nestLevel, std::ostream& os )
+void BOARD::Show( int nestLevel, std::ostream& os ) const
 {
     BOARD_ITEM* p;
 
     // for now, make it look like XML:
-    NestedSpace( nestLevel,
-                 os ) << '<' << GetClass().Lower().mb_str() << ">\n";
+    NestedSpace( nestLevel, os ) << '<' << GetClass().Lower().mb_str() << ">\n";
 
     // specialization of the output:
     NestedSpace( nestLevel + 1, os ) << "<modules>\n";
     p = m_Modules;
-
     for( ; p; p = p->Next() )
         p->Show( nestLevel + 2, os );
-
     NestedSpace( nestLevel + 1, os ) << "</modules>\n";
 
     NestedSpace( nestLevel + 1, os ) << "<pdrawings>\n";
     p = m_Drawings;
-
     for( ; p; p = p->Next() )
         p->Show( nestLevel + 2, os );
-
     NestedSpace( nestLevel + 1, os ) << "</pdrawings>\n";
 
     NestedSpace( nestLevel + 1, os ) << "<tracks>\n";
     p = m_Track;
-
     for( ; p; p = p->Next() )
         p->Show( nestLevel + 2, os );
-
     NestedSpace( nestLevel + 1, os ) << "</tracks>\n";
 
     NestedSpace( nestLevel + 1, os ) << "<zones>\n";
     p = m_Zone;
-
     for( ; p; p = p->Next() )
         p->Show( nestLevel + 2, os );
-
     NestedSpace( nestLevel + 1, os ) << "</zones>\n";
 
-    /*
-     *  NestedSpace( nestLevel+1, os ) << "<zone_container>\n";
-     *  for( ZONE_CONTAINERS::iterator i=m_ZoneDescriptorList.begin();
-     *  i!=m_ZoneDescriptorList.end();  ++i )
-     *   (*i)->Show( nestLevel+2, os );
-     *  NestedSpace( nestLevel+1, os ) << "</zone_container>\n";
-     */
+    NestedSpace( nestLevel+1, os ) << "<zone_containers>\n";
+    for( ZONE_CONTAINERS::const_iterator it = m_ZoneDescriptorList.begin();
+                it != m_ZoneDescriptorList.end();  ++it )
+        (*it)->Show( nestLevel+2, os );
+
+    NestedSpace( nestLevel+1, os ) << "</zone_containers>\n";
 
     p = (BOARD_ITEM*) m_Son;
-
     for( ; p; p = p->Next() )
     {
         p->Show( nestLevel + 1, os );

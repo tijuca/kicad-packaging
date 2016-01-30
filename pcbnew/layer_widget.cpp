@@ -33,11 +33,11 @@
 //#define STAND_ALONE     1   // define to enable test program for LAYER_WIDGET
 
 
-#include "layer_widget.h"
+#include <layer_widget.h>
 
-#include "macros.h"
-#include "common.h"
-#include "colors.h"
+#include <macros.h>
+#include <common.h>
+#include <colors.h>
 #include <wx/colour.h>
 
 #define BUTT_SIZE_X             20
@@ -45,7 +45,7 @@
 #define BUTT_VOID               4
 
 /* XPM
- * This bitmap  is used for not selected layers
+ * This bitmap is used for not selected layers
  */
 static const char * clear_xpm[] = {
 "10 14 1 1",
@@ -147,7 +147,7 @@ static const char * rightarrow_alternate_xpm[] = {
  * returns a string containing the numeric value of the color.
  * in a form like 0x00000000.  (Color is currently an index, not RGB).
  */
-static wxString makeColorTxt( int aColor )
+static wxString makeColorTxt( EDA_COLOR_T aColor )
 {
     wxString txt;
     txt.Printf( wxT("0x%08x"), aColor );
@@ -181,7 +181,7 @@ int LAYER_WIDGET::getDecodedId( int aControlId )
 }
 
 
-wxBitmap LAYER_WIDGET::makeBitmap( int aColor )
+wxBitmap LAYER_WIDGET::makeBitmap( EDA_COLOR_T aColor )
 {
     // the bitmap will be BUTT_VOID*2 pixels smaller than the button, leaving a
     // border of BUTT_VOID pixels on each side.
@@ -200,7 +200,8 @@ wxBitmap LAYER_WIDGET::makeBitmap( int aColor )
     return bitmap;
 }
 
-wxBitmapButton* LAYER_WIDGET::makeColorButton( wxWindow* aParent, int aColor, int aID )
+
+wxBitmapButton* LAYER_WIDGET::makeColorButton( wxWindow* aParent, EDA_COLOR_T aColor, int aID )
 {
     // dynamically make a wxBitMap and brush it with the appropriate color,
     // then create a wxBitmapButton from it.
@@ -217,6 +218,7 @@ wxBitmapButton* LAYER_WIDGET::makeColorButton( wxWindow* aParent, int aColor, in
     ret->SetName( makeColorTxt( aColor ) );
     return ret;
 }
+
 
 void LAYER_WIDGET::OnLeftDownLayers( wxMouseEvent& event )
 {
@@ -272,8 +274,8 @@ void LAYER_WIDGET::OnMiddleDownLayerColor( wxMouseEvent& event )
 
     wxString colorTxt = eventSource->GetName();
 
-    int oldColor = strtoul( TO_UTF8(colorTxt), NULL, 0 );
-    int newColor = DisplayColorFrame( this, oldColor );
+    EDA_COLOR_T oldColor = ColorFromInt( strtoul( TO_UTF8(colorTxt), NULL, 0 ) );
+    EDA_COLOR_T newColor = DisplayColorFrame( this, oldColor );
 
     if( newColor >= 0 )
     {
@@ -307,8 +309,8 @@ void LAYER_WIDGET::OnMiddleDownRenderColor( wxMouseEvent& event )
 
     wxString colorTxt = eventSource->GetName();
 
-    int oldColor = strtoul( TO_UTF8(colorTxt), NULL, 0 );
-    int newColor = DisplayColorFrame( this, oldColor );
+    EDA_COLOR_T oldColor = ColorFromInt( strtoul( TO_UTF8(colorTxt), NULL, 0 ) );
+    EDA_COLOR_T newColor = DisplayColorFrame( this, oldColor );
 
     if( newColor >= 0 )
     {
@@ -324,6 +326,7 @@ void LAYER_WIDGET::OnMiddleDownRenderColor( wxMouseEvent& event )
     }
     passOnFocus();
 }
+
 
 void LAYER_WIDGET::OnRenderCheckBox( wxCommandEvent& event )
 {
@@ -343,7 +346,7 @@ void LAYER_WIDGET::OnTabChange( wxNotebookEvent& event )
 }
 
 
-wxWindow* LAYER_WIDGET::getLayerComp( int aRow, int aColumn )
+wxWindow* LAYER_WIDGET::getLayerComp( int aRow, int aColumn ) const
 {
     int ndx = aRow * LYR_COLUMN_COUNT + aColumn;
     if( (unsigned) ndx < m_LayersFlexGridSizer->GetChildren().GetCount() )
@@ -352,7 +355,7 @@ wxWindow* LAYER_WIDGET::getLayerComp( int aRow, int aColumn )
 }
 
 
-int LAYER_WIDGET::findLayerRow( int aLayer )
+int LAYER_WIDGET::findLayerRow( int aLayer ) const
 {
     int count = GetLayerRowCount();
     for( int row=0;  row<count;  ++row )
@@ -368,7 +371,7 @@ int LAYER_WIDGET::findLayerRow( int aLayer )
 }
 
 
-wxWindow* LAYER_WIDGET::getRenderComp( int aRow, int aColumn )
+wxWindow* LAYER_WIDGET::getRenderComp( int aRow, int aColumn ) const
 {
     int ndx = aRow * RND_COLUMN_COUNT + aColumn;
     if( (unsigned) ndx < m_RenderFlexGridSizer->GetChildren().GetCount() )
@@ -377,7 +380,7 @@ wxWindow* LAYER_WIDGET::getRenderComp( int aRow, int aColumn )
 }
 
 
-int LAYER_WIDGET::findRenderRow( int aId )
+int LAYER_WIDGET::findRenderRow( int aId ) const
 {
     int count = GetRenderRowCount();
     for( int row=0;  row<count;  ++row )
@@ -457,7 +460,7 @@ void LAYER_WIDGET::insertRenderRow( int aRow, const ROW& aSpec )
     else    // == -1, no color selection wanted
     {
         // need a place holder within the sizer to keep grid full.
-        wxPanel* invisible = new wxPanel( m_RenderScrolledWindow );
+        wxPanel* invisible = new wxPanel( m_RenderScrolledWindow, encodeId( col, aSpec.id ) );
         m_RenderFlexGridSizer->wxSizer::Insert( index+col, invisible, 0, flags );
     }
 
@@ -578,7 +581,7 @@ wxSize LAYER_WIDGET::GetBestSize() const
     wxSize layerz  = m_LayersFlexGridSizer->GetMinSize();
     wxSize renderz = m_RenderFlexGridSizer->GetMinSize();
 
-    wxSize  clientz( MAX(renderz.x,layerz.x), MAX(renderz.y,layerz.y) );
+    wxSize  clientz( std::max(renderz.x,layerz.x), std::max(renderz.y,layerz.y) );
 
     return ClientToWindowSize( clientz );
 
@@ -653,7 +656,7 @@ wxSize LAYER_WIDGET::GetBestSize() const
 
     renderz += m_RenderingPanel->GetWindowBorderSize();
 
-    wxSize clientz( MAX(renderz.x,layerz.x), MAX(renderz.y,layerz.y) );
+    wxSize clientz( std::max(renderz.x,layerz.x), std::max(renderz.y,layerz.y) );
 
 //    wxSize diffz( GetSize() - GetClientSize() );
 //    clientz += diffz;
@@ -778,7 +781,7 @@ bool LAYER_WIDGET::IsLayerVisible( int aLayer )
 }
 
 
-void LAYER_WIDGET::SetLayerColor( int aLayer, int aColor )
+void LAYER_WIDGET::SetLayerColor( int aLayer, EDA_COLOR_T aColor )
 {
     int row = findLayerRow( aLayer );
     if( row >= 0 )
@@ -795,7 +798,7 @@ void LAYER_WIDGET::SetLayerColor( int aLayer, int aColor )
 }
 
 
-int LAYER_WIDGET::GetLayerColor( int aLayer )
+EDA_COLOR_T LAYER_WIDGET::GetLayerColor( int aLayer ) const
 {
     int row = findLayerRow( aLayer );
     if( row >= 0 )
@@ -805,11 +808,10 @@ int LAYER_WIDGET::GetLayerColor( int aLayer )
         wxASSERT( bmb );
 
         wxString colorTxt = bmb->GetName();
-        int color = strtoul( TO_UTF8(colorTxt), NULL, 0 );
-        return color;
+        return ColorFromInt( strtoul( TO_UTF8(colorTxt), NULL, 0 ) );
     }
 
-    return 0;   // it's caller fault, gave me a bad layer
+    return UNSPECIFIED_COLOR;   // it's caller fault, gave me a bad layer
 }
 
 
@@ -873,7 +875,7 @@ class MYFRAME : public wxFrame
         {
         }
 
-        void OnLayerColorChange( int aLayer, int aColor )
+        void OnLayerColorChange( int aLayer, EDA_COLOR_T aColor )
         {
             printf( "OnLayerColorChange( aLayer:%d, aColor:%d )\n", aLayer, aColor );
 
@@ -897,7 +899,7 @@ class MYFRAME : public wxFrame
             printf( "OnLayerVisible( aLayer:%d, isVisible:%d isFinal:%d)\n", aLayer, isVisible, isFinal );
         }
 
-        void OnRenderColorChange( int aId, int aColor )
+        void OnRenderColorChange( int aId, EDA_COLOR_T aColor )
         {
             printf( "OnRenderColorChange( aId:%d, aColor:%d )\n", aId, aColor );
         }

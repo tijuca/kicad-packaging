@@ -1,26 +1,55 @@
+/*
+ * This program source code file is part of KiCad, a free EDA CAD application.
+ *
+ * Copyright (C) 2004 Jean-Pierre Charras, jean-pierre.charras@gipsa-lab.inpg.fr
+ * Copyright (C) 2012 SoftPLC Corporation, Dick Hollenbeck <dick@softplc.com>
+ * Copyright (C) 2011 Wayne Stambaugh <stambaughw@verizon.net>
+ * Copyright (C) 1992-2011 KiCad Developers, see AUTHORS.txt for contributors.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation; either version 2
+ * of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, you may find one here:
+ * http://www.gnu.org/licenses/old-licenses/gpl-2.0.html
+ * or you may search the http://www.gnu.org website for the version 2 license,
+ * or you may write to the Free Software Foundation, Inc.,
+ * 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
+ */
+
 /**
  * @file class_drawsegment.cpp
  * @brief Class and functions to handle a graphic segments.
  */
 
-#include "fctsys.h"
-#include "macros.h"
-#include "wxstruct.h"
-#include "gr_basic.h"
-#include "bezier_curves.h"
-#include "class_drawpanel.h"
-#include "kicad_string.h"
-#include "colors_selection.h"
-#include "trigo.h"
-#include "richio.h"
-#include "pcbcommon.h"
+#include <fctsys.h>
+#include <macros.h>
+#include <wxstruct.h>
+#include <gr_basic.h>
+#include <bezier_curves.h>
+#include <class_drawpanel.h>
+#include <class_pcb_screen.h>
+#include <kicad_string.h>
+#include <colors_selection.h>
+#include <trigo.h>
+#include <richio.h>
+#include <pcbcommon.h>
+#include <msgpanel.h>
 
-#include "pcbnew.h"
-#include "protos.h"
+#include <pcbnew.h>
+#include <protos.h>
 
-#include "class_board.h"
-#include "class_module.h"
-#include "class_drawsegment.h"
+#include <class_board.h>
+#include <class_module.h>
+#include <class_drawsegment.h>
+#include <base_units.h>
 
 
 DRAWSEGMENT::DRAWSEGMENT( BOARD_ITEM* aParent, KICAD_T idtype ) :
@@ -31,31 +60,40 @@ DRAWSEGMENT::DRAWSEGMENT( BOARD_ITEM* aParent, KICAD_T idtype ) :
 }
 
 
-DRAWSEGMENT:: ~DRAWSEGMENT()
+DRAWSEGMENT::~DRAWSEGMENT()
 {
+}
+
+
+const DRAWSEGMENT& DRAWSEGMENT::operator = ( const DRAWSEGMENT& rhs )
+{
+    // skip the linked list stuff, and parent
+
+    m_Type         = rhs.m_Type;
+    m_Layer        = rhs.m_Layer;
+    m_Width        = rhs.m_Width;
+    m_Start        = rhs.m_Start;
+    m_End          = rhs.m_End;
+    m_Shape        = rhs.m_Shape;
+    m_Angle        = rhs.m_Angle;
+    m_TimeStamp    = rhs.m_TimeStamp;
+    m_BezierC1     = rhs.m_BezierC1;
+    m_BezierC2     = rhs.m_BezierC1;
+    m_BezierPoints = rhs.m_BezierPoints;
+
+    return *this;
 }
 
 
 void DRAWSEGMENT::Copy( DRAWSEGMENT* source )
 {
-    if( source == NULL )
+    if( source == NULL )    // who would do this?
         return;
 
-    m_Type         = source->m_Type;
-    m_Layer        = source->m_Layer;
-    m_Width        = source->m_Width;
-    m_Start        = source->m_Start;
-    m_End          = source->m_End;
-    m_Shape        = source->m_Shape;
-    m_Angle        = source->m_Angle;
-    m_TimeStamp    = source->m_TimeStamp;
-    m_BezierC1     = source->m_BezierC1;
-    m_BezierC2     = source->m_BezierC1;
-    m_BezierPoints = source->m_BezierPoints;
+    *this = *source;    // operator = ()
 }
 
-
-void DRAWSEGMENT::Rotate( const wxPoint& aRotCentre, int aAngle )
+void DRAWSEGMENT::Rotate( const wxPoint& aRotCentre, double aAngle )
 {
     RotatePoint( &m_Start, aRotCentre, aAngle );
     RotatePoint( &m_End, aRotCentre, aAngle );
@@ -66,140 +104,16 @@ void DRAWSEGMENT::Flip( const wxPoint& aCentre )
 {
     m_Start.y  = aCentre.y - (m_Start.y - aCentre.y);
     m_End.y  = aCentre.y - (m_End.y - aCentre.y);
+
     if( m_Shape == S_ARC )
     {
         NEGATE( m_Angle );
     }
-    SetLayer( ChangeSideNumLayer( GetLayer() ) );
+
+    SetLayer( BOARD::ReturnFlippedLayerNumber( GetLayer() ) );
 }
 
-
-bool DRAWSEGMENT::Save( FILE* aFile ) const
-{
-    if( fprintf( aFile, "$DRAWSEGMENT\n" ) != sizeof("$DRAWSEGMENT\n") - 1 )
-        return false;
-
-    fprintf( aFile, "Po %d %d %d %d %d %d\n",
-             m_Shape,
-             m_Start.x, m_Start.y,
-             m_End.x, m_End.y, m_Width );
-
-    if( m_Type != S_CURVE )
-    {
-        fprintf( aFile, "De %d %d %d %lX %X\n",
-                 m_Layer, m_Type, m_Angle,
-                 m_TimeStamp, ReturnStatus() );
-    }
-    else
-    {
-        fprintf( aFile, "De %d %d %d %lX %X %d %d %d %d\n",
-                 m_Layer, m_Type, m_Angle,
-                 m_TimeStamp, ReturnStatus(),
-                 m_BezierC1.x,m_BezierC1.y,
-                 m_BezierC2.x,m_BezierC2.y);
-    }
-
-    if( fprintf( aFile, "$EndDRAWSEGMENT\n" ) != sizeof("$EndDRAWSEGMENT\n") - 1 )
-        return false;
-
-    return true;
-}
-
-
-bool DRAWSEGMENT::ReadDrawSegmentDescr( LINE_READER* aReader )
-{
-    char* Line;
-
-    while( aReader->ReadLine() )
-    {
-        Line = aReader->Line();
-
-        if( strnicmp( Line, "$End", 4 ) == 0 )
-            return true; /* End of description */
-
-        if( Line[0] == 'P' )
-        {
-            sscanf( Line + 2, " %d %d %d %d %d %d",
-                    &m_Shape, &m_Start.x, &m_Start.y,
-                    &m_End.x, &m_End.y, &m_Width );
-
-            if( m_Width < 0 )
-                m_Width = 0;
-        }
-
-        if( Line[0] == 'D' )
-        {
-            int status;
-            char* token = 0;
-
-            token = strtok( Line," " );
-
-            for( int i = 0; (token = strtok( NULL," " )) != NULL; i++ )
-            {
-                switch( i )
-                {
-                case 0:
-                    sscanf( token,"%d",&m_Layer );
-                    break;
-                case 1:
-                    sscanf( token,"%d",&m_Type );
-                    break;
-                case 2:
-                    sscanf( token,"%d",&m_Angle );
-                    break;
-                case 3:
-                    sscanf( token,"%lX",&m_TimeStamp );
-                    break;
-                case 4:
-                    sscanf( token,"%X",&status );
-                    break;
-                    /* Bezier Control Points*/
-                case 5:
-                    sscanf( token,"%d",&m_BezierC1.x );
-                    break;
-                case 6:
-                    sscanf( token,"%d",&m_BezierC1.y );
-                    break;
-                case 7:
-                    sscanf( token,"%d",&m_BezierC2.x );
-                    break;
-                case 8:
-                    sscanf( token,"%d",&m_BezierC2.y );
-                    break;
-                default:
-                    break;
-                }
-            }
-
-            if( m_Layer < FIRST_NO_COPPER_LAYER )
-                m_Layer = FIRST_NO_COPPER_LAYER;
-
-            if( m_Layer > LAST_NO_COPPER_LAYER )
-                m_Layer = LAST_NO_COPPER_LAYER;
-
-            SetState( status, ON );
-        }
-    }
-
-    return false;
-}
-
-
-wxPoint DRAWSEGMENT::GetStart() const
-{
-    switch( m_Shape )
-    {
-    case S_ARC:
-        return m_End;  // the start of the arc is held in field m_End, center point is in m_Start.
-
-    case S_SEGMENT:
-    default:
-        return m_Start;
-    }
-}
-
-
-wxPoint DRAWSEGMENT::GetEnd() const
+const wxPoint DRAWSEGMENT::GetArcEnd() const
 {
     wxPoint endPoint;         // start of arc
 
@@ -211,13 +125,37 @@ wxPoint DRAWSEGMENT::GetEnd() const
         // m_Start is the arc centre
         endPoint  = m_End;         // m_End = start point of arc
         RotatePoint( &endPoint, m_Start, -m_Angle );
-        return endPoint;   // after rotation, the end of the arc.
         break;
 
-    case S_SEGMENT:
     default:
-        return m_End;
+        ;
     }
+
+    return endPoint;   // after rotation, the end of the arc.
+}
+
+const double DRAWSEGMENT::GetArcAngleStart() const
+{
+    // due to the Y axis orient atan2 needs - y value
+    double angleStart = atan2( (double)(GetArcStart().y - GetCenter().y),
+                               (double)(GetArcStart().x - GetCenter().x) );
+    // angleStart is in radians, convert it in 1/10 degrees
+    angleStart = angleStart / M_PI * 1800.0;
+
+    // Normalize it to 0 ... 360 deg, to avoid discontinuity for angles near 180 deg
+    // because 180 deg and -180 are very near angles when ampping betewwen -180 ... 180 deg.
+    // and this is not easy to handle in calculations
+    if( angleStart < 0 )
+        angleStart += 3600.0;
+
+    return angleStart;
+}
+
+void DRAWSEGMENT::SetAngle( double aAngle )
+{
+    NORMALIZE_ANGLE_360( aAngle );
+
+    m_Angle = (int) aAngle;
 }
 
 
@@ -230,12 +168,15 @@ MODULE* DRAWSEGMENT::GetParentModule() const
 }
 
 
-void DRAWSEGMENT::Draw( EDA_DRAW_PANEL* panel, wxDC* DC, int draw_mode, const wxPoint& aOffset )
+void DRAWSEGMENT::Draw( EDA_DRAW_PANEL* panel, wxDC* DC, GR_DRAWMODE draw_mode,
+                        const wxPoint& aOffset )
 {
     int ux0, uy0, dx, dy;
     int l_trace;
-    int color, mode;
+    int mode;
     int radius;
+    int curr_layer = ( (PCB_SCREEN*) panel->GetScreen() )->m_Active_Layer;
+    EDA_COLOR_T color;
 
     BOARD * brd =  GetBoard( );
 
@@ -243,6 +184,13 @@ void DRAWSEGMENT::Draw( EDA_DRAW_PANEL* panel, wxDC* DC, int draw_mode, const wx
         return;
 
     color = brd->GetLayerColor( GetLayer() );
+
+    if( ( draw_mode & GR_ALLOW_HIGHCONTRAST ) &&  DisplayOpt.ContrastModeDisplay )
+    {
+        if( !IsOnLayer( curr_layer ) && !IsOnLayer( EDGE_N ) )
+            ColorTurnToDarkDarkGray( &color );
+    }
+
 
     GRSetDrawMode( DC, draw_mode );
     l_trace = m_Width >> 1;  /* half trace width */
@@ -261,25 +209,25 @@ void DRAWSEGMENT::Draw( EDA_DRAW_PANEL* panel, wxDC* DC, int draw_mode, const wx
         mode = SKETCH;
 
     if( l_trace < DC->DeviceToLogicalXRel( MIN_DRAW_WIDTH ) )
-        mode = FILAIRE;
+        mode = LINE;
 
     switch( m_Shape )
     {
     case S_CIRCLE:
         radius = (int) hypot( (double) (dx - ux0), (double) (dy - uy0) );
 
-        if( mode == FILAIRE )
+        if( mode == LINE )
         {
-            GRCircle( &panel->m_ClipBox, DC, ux0, uy0, radius, color );
+            GRCircle( panel->GetClipBox(), DC, ux0, uy0, radius, color );
         }
         else if( mode == SKETCH )
         {
-            GRCircle( &panel->m_ClipBox, DC, ux0, uy0, radius - l_trace, color );
-            GRCircle( &panel->m_ClipBox, DC, ux0, uy0, radius + l_trace, color );
+            GRCircle( panel->GetClipBox(), DC, ux0, uy0, radius - l_trace, color );
+            GRCircle( panel->GetClipBox(), DC, ux0, uy0, radius + l_trace, color );
         }
         else
         {
-            GRCircle( &panel->m_ClipBox, DC, ux0, uy0, radius, m_Width, color );
+            GRCircle( panel->GetClipBox(), DC, ux0, uy0, radius, m_Width, color );
         }
 
         break;
@@ -290,7 +238,7 @@ void DRAWSEGMENT::Draw( EDA_DRAW_PANEL* panel, wxDC* DC, int draw_mode, const wx
         StAngle  = (int) ArcTangente( dy - uy0, dx - ux0 );
         EndAngle = StAngle + m_Angle;
 
-        if( !panel->m_PrintIsMirrored )
+        if( !panel->GetPrintMirrored() )
         {
             if( StAngle > EndAngle )
                 EXCHG( StAngle, EndAngle );
@@ -302,62 +250,62 @@ void DRAWSEGMENT::Draw( EDA_DRAW_PANEL* panel, wxDC* DC, int draw_mode, const wx
         }
 
 
-        if( mode == FILAIRE )
-            GRArc( &panel->m_ClipBox, DC, ux0, uy0, StAngle, EndAngle,
-                   radius, color );
+        if( mode == LINE )
+            GRArc( panel->GetClipBox(), DC, ux0, uy0, StAngle, EndAngle, radius, color );
 
         else if( mode == SKETCH )
         {
-            GRArc( &panel->m_ClipBox, DC, ux0, uy0, StAngle, EndAngle,
+            GRArc( panel->GetClipBox(), DC, ux0, uy0, StAngle, EndAngle,
                    radius - l_trace, color );
-            GRArc( &panel->m_ClipBox, DC, ux0, uy0, StAngle, EndAngle,
+            GRArc( panel->GetClipBox(), DC, ux0, uy0, StAngle, EndAngle,
                    radius + l_trace, color );
         }
         else
         {
-            GRArc( &panel->m_ClipBox, DC, ux0, uy0, StAngle, EndAngle,
+            GRArc( panel->GetClipBox(), DC, ux0, uy0, StAngle, EndAngle,
                    radius, m_Width, color );
         }
         break;
-    case S_CURVE:
-            m_BezierPoints = Bezier2Poly(m_Start,m_BezierC1, m_BezierC2, m_End);
 
-            for (unsigned int i=1; i < m_BezierPoints.size(); i++) {
-                if( mode == FILAIRE )
-                    GRLine( &panel->m_ClipBox, DC,
-                            m_BezierPoints[i].x, m_BezierPoints[i].y,
-                            m_BezierPoints[i-1].x, m_BezierPoints[i-1].y, 0,
-                            color );
-                else if( mode == SKETCH )
-                {
-                    GRCSegm( &panel->m_ClipBox, DC,
-                            m_BezierPoints[i].x, m_BezierPoints[i].y,
-                            m_BezierPoints[i-1].x, m_BezierPoints[i-1].y,
-                             m_Width, color );
-                }
-                else
-                {
-                    GRFillCSegm( &panel->m_ClipBox, DC,
-                                 m_BezierPoints[i].x, m_BezierPoints[i].y,
-                                 m_BezierPoints[i-1].x, m_BezierPoints[i-1].y,
-                                 m_Width, color );
-                }
+    case S_CURVE:
+        m_BezierPoints = Bezier2Poly(m_Start, m_BezierC1, m_BezierC2, m_End);
+
+        for (unsigned int i=1; i < m_BezierPoints.size(); i++) {
+            if( mode == LINE )
+                GRLine( panel->GetClipBox(), DC,
+                        m_BezierPoints[i].x, m_BezierPoints[i].y,
+                        m_BezierPoints[i-1].x, m_BezierPoints[i-1].y, 0,
+                        color );
+            else if( mode == SKETCH )
+            {
+                GRCSegm( panel->GetClipBox(), DC,
+                         m_BezierPoints[i].x, m_BezierPoints[i].y,
+                         m_BezierPoints[i-1].x, m_BezierPoints[i-1].y,
+                         m_Width, color );
             }
-         break;
+            else
+            {
+                GRFillCSegm( panel->GetClipBox(), DC,
+                             m_BezierPoints[i].x, m_BezierPoints[i].y,
+                             m_BezierPoints[i-1].x, m_BezierPoints[i-1].y,
+                             m_Width, color );
+            }
+        }
+
+        break;
+
     default:
-        if( mode == FILAIRE )
+        if( mode == LINE )
         {
-            GRLine( &panel->m_ClipBox, DC, ux0, uy0, dx, dy, 0, color );
+            GRLine( panel->GetClipBox(), DC, ux0, uy0, dx, dy, 0, color );
         }
         else if( mode == SKETCH )
         {
-            GRCSegm( &panel->m_ClipBox, DC, ux0, uy0, dx, dy,
-                     m_Width, color );
+            GRCSegm( panel->GetClipBox(), DC, ux0, uy0, dx, dy, m_Width, color );
         }
         else
         {
-            GRFillCSegm( &panel->m_ClipBox, DC, ux0, uy0, dx, dy,
-                         m_Width, color );
+            GRFillCSegm( panel->GetClipBox(), DC, ux0, uy0, dx, dy, m_Width, color );
         }
 
         break;
@@ -366,7 +314,7 @@ void DRAWSEGMENT::Draw( EDA_DRAW_PANEL* panel, wxDC* DC, int draw_mode, const wx
 
 
 // see pcbstruct.h
-void DRAWSEGMENT::DisplayInfo( EDA_DRAW_FRAME* frame )
+void DRAWSEGMENT::GetMsgPanelInfo( std::vector< MSG_PANEL_ITEM >& aList )
 {
     wxString msg;
     wxString coords;
@@ -374,31 +322,30 @@ void DRAWSEGMENT::DisplayInfo( EDA_DRAW_FRAME* frame )
     BOARD*   board = (BOARD*) m_Parent;
     wxASSERT( board );
 
-    frame->ClearMsgPanel();
-
     msg = wxT( "DRAWING" );
 
-    frame->AppendMsgPanel( _( "Type" ), msg, DARKCYAN );
+    aList.push_back( MSG_PANEL_ITEM( _( "Type" ), msg, DARKCYAN ) );
 
     wxString    shape = _( "Shape" );
 
-    switch( m_Shape ) {
-        case S_CIRCLE:
-            frame->AppendMsgPanel( shape, _( "Circle" ), RED );
-            break;
+    switch( m_Shape )
+    {
+    case S_CIRCLE:
+        aList.push_back( MSG_PANEL_ITEM( shape, _( "Circle" ), RED ) );
+        break;
 
-        case S_ARC:
-            frame->AppendMsgPanel( shape, _( "Arc" ), RED );
+    case S_ARC:
+        aList.push_back( MSG_PANEL_ITEM( shape, _( "Arc" ), RED ) );
+        msg.Printf( wxT( "%.1f" ), (double)m_Angle/10 );
+        aList.push_back( MSG_PANEL_ITEM( _("Angle"), msg, RED ) );
+        break;
 
-            msg.Printf( wxT( "%.1f" ), (double)m_Angle/10 );
-            frame->AppendMsgPanel( _("Angle"), msg, RED );
-            break;
-        case S_CURVE:
-            frame->AppendMsgPanel( shape, _( "Curve" ), RED );
-            break;
+    case S_CURVE:
+        aList.push_back( MSG_PANEL_ITEM( shape, _( "Curve" ), RED ) );
+        break;
 
-        default:
-            frame->AppendMsgPanel( shape, _( "Segment" ), RED );
+    default:
+        aList.push_back( MSG_PANEL_ITEM( shape, _( "Segment" ), RED ) );
     }
 
     wxString start;
@@ -407,12 +354,10 @@ void DRAWSEGMENT::DisplayInfo( EDA_DRAW_FRAME* frame )
     wxString end;
     end << GetEnd();
 
-    frame->AppendMsgPanel( start, end, DARKGREEN );
-
-    frame->AppendMsgPanel( _( "Layer" ), board->GetLayerName( m_Layer ), DARKBROWN );
-
-    valeur_param( (unsigned) m_Width, msg );
-    frame->AppendMsgPanel( _( "Width" ), msg, DARKCYAN );
+    aList.push_back( MSG_PANEL_ITEM( start, end, DARKGREEN ) );
+    aList.push_back( MSG_PANEL_ITEM( _( "Layer" ), board->GetLayerName( m_Layer ), DARKBROWN ) );
+    msg = ::CoordinateToString( m_Width );
+    aList.push_back( MSG_PANEL_ITEM( _( "Width" ), msg, DARKCYAN ) );
 }
 
 
@@ -426,101 +371,119 @@ EDA_RECT DRAWSEGMENT::GetBoundingBox() const
     {
     case S_SEGMENT:
         bbox.SetEnd( m_End );
-        bbox.Inflate( (m_Width / 2) + 1 );
         break;
 
     case S_CIRCLE:
-        bbox.Inflate( GetRadius() + 1 );
+        bbox.Inflate( GetRadius() );
         break;
 
     case S_ARC:
-    {
-        bbox.Merge( m_End );
-        wxPoint end = m_End;
-        RotatePoint( &end, m_Start, -m_Angle );
-        bbox.Merge( end );
-    }
-    break;
+        {
+            bbox.Merge( m_End );
+            wxPoint end = m_End;
+            RotatePoint( &end, m_Start, -m_Angle );
+            bbox.Merge( end );
+        }
+        break;
 
     case S_POLYGON:
-    {
-        wxPoint p_end;
-        MODULE* module = GetParentModule();
-
-        for( unsigned ii = 0; ii < m_PolyPoints.size(); ii++ )
         {
-            wxPoint pt = m_PolyPoints[ii];
+            wxPoint p_end;
+            MODULE* module = GetParentModule();
 
-            if( module ) // Transform, if we belong to a module
+            for( unsigned ii = 0; ii < m_PolyPoints.size(); ii++ )
             {
-                RotatePoint( &pt, module->m_Orient );
-                pt += module->m_Pos;
+                wxPoint pt = m_PolyPoints[ii];
+
+                if( module ) // Transform, if we belong to a module
+                {
+                    RotatePoint( &pt, module->GetOrientation() );
+                    pt += module->m_Pos;
+                }
+
+                if( ii == 0 )
+                    p_end = pt;
+
+                bbox.SetX( std::min( bbox.GetX(), pt.x ) );
+                bbox.SetY( std::min( bbox.GetY(), pt.y ) );
+                p_end.x   = std::max( p_end.x, pt.x );
+                p_end.y   = std::max( p_end.y, pt.y );
             }
 
-            if( ii == 0 )
-                p_end = pt;
-
-            bbox.m_Pos.x = MIN( bbox.m_Pos.x, pt.x );
-            bbox.m_Pos.y = MIN( bbox.m_Pos.y, pt.y );
-            p_end.x   = MAX( p_end.x, pt.x );
-            p_end.y   = MAX( p_end.y, pt.y );
+            bbox.SetEnd( p_end );
         }
-
-        bbox.SetEnd( p_end );
-        bbox.Inflate( 1 );
         break;
-    }
+
+    default:
+        ;
     }
 
-    bbox.Inflate( (m_Width+1) / 2 );
+    bbox.Inflate( ((m_Width+1) / 2) + 1 );
+    bbox.Normalize();
+
     return bbox;
 }
 
 
-bool DRAWSEGMENT::HitTest( const wxPoint& aRefPos )
+bool DRAWSEGMENT::HitTest( const wxPoint& aPosition )
 {
-    /* Calculate coordinates to test relative to segment origin. */
-    wxPoint relPos = aRefPos - m_Start;
-
     switch( m_Shape )
     {
     case S_CIRCLE:
     case S_ARC:
-    {
-        int radius = GetRadius();
-        int dist  = (int) hypot( (double) relPos.x, (double) relPos.y );
-
-        if( abs( radius - dist ) <= ( m_Width / 2 ) )
         {
-            if( m_Shape == S_CIRCLE )
-                return true;
+            wxPoint relPos = aPosition - GetCenter();
+            int radius = GetRadius();
+            int dist  = (int) hypot( (double) relPos.x, (double) relPos.y );
 
-            wxPoint startVec = wxPoint( m_End.x - m_Start.x, m_End.y - m_Start.y );
-            wxPoint endVec = m_End - m_Start;
-            RotatePoint( &endVec, -m_Angle );
+            if( abs( radius - dist ) <= ( m_Width / 2 ) )
+            {
+                if( m_Shape == S_CIRCLE )
+                    return true;
 
-            // Check dot products
-            if( (long long)relPos.x*startVec.x + (long long)relPos.y*startVec.y < 0 )
-                return false;
+                // For arcs, the test point angle must be >= arc angle start
+                // and <= arc angle end
+                // However angle values > 360 deg are not easy to handle
+                // so we calculate the relative angle between arc start point and teast point
+                // this relative arc should be < arc angle if arc angle > 0 (CW arc)
+                // and > arc angle if arc angle < 0 (CCW arc)
+                double arc_angle_start = GetArcAngleStart();    // Always 0.0 ... 360 deg, in 0.1 deg
 
-            if( (long long)relPos.x*endVec.x + (long long)relPos.y*endVec.y < 0 )
-                return false;
+                double arc_hittest = atan2( (double) relPos.y, (double) relPos.x );
+                arc_hittest = arc_hittest / M_PI * 1800;    // angles are in 1/10 deg
 
-            return true;
+                // Calculate relative angle between the starting point of the arc, and the test point
+                arc_hittest -= arc_angle_start;
+
+                // Normalise arc_hittest between 0 ... 360 deg
+                NORMALIZE_ANGLE_POS( arc_hittest );
+
+                // Check angle: inside the arc angle when it is > 0
+                // and outside the not drawn arc when it is < 0
+                if( GetAngle() >= 0.0 )
+                {
+                    if( arc_hittest <= GetAngle() )
+                        return true;
+                }
+                else
+                {
+                    if( arc_hittest >= (3600.0 + GetAngle()) )
+                        return true;
+                }
+            }
         }
-    }
-    break;
+        break;
 
     case S_CURVE:
         for( unsigned int i= 1; i < m_BezierPoints.size(); i++)
         {
-            if( TestSegmentHit( aRefPos,m_BezierPoints[i-1], m_BezierPoints[i-1], m_Width / 2 ) )
+            if( TestSegmentHit( aPosition, m_BezierPoints[i-1], m_BezierPoints[i-1], m_Width / 2 ) )
                 return true;
         }
         break;
 
     case S_SEGMENT:
-        if( TestSegmentHit( aRefPos, m_Start, m_End, m_Width / 2 ) )
+        if( TestSegmentHit( aPosition, m_Start, m_End, m_Width / 2 ) )
             return true;
         break;
 
@@ -532,15 +495,16 @@ bool DRAWSEGMENT::HitTest( const wxPoint& aRefPos )
 }
 
 
-bool DRAWSEGMENT::HitTest( EDA_RECT& refArea )
+bool DRAWSEGMENT::HitTest( const EDA_RECT& aRect ) const
 {
     switch( m_Shape )
     {
-        case S_CIRCLE:
+    case S_CIRCLE:
         {
             int radius = GetRadius();
+
             // Text if area intersects the circle:
-            EDA_RECT area = refArea;
+            EDA_RECT area = aRect;
             area.Inflate( radius );
 
             if( area.Contains( m_Start ) )
@@ -548,13 +512,17 @@ bool DRAWSEGMENT::HitTest( EDA_RECT& refArea )
         }
         break;
 
-        case S_ARC:
-        case S_SEGMENT:
-            if( refArea.Contains( GetStart() ) )
-                return true;
-            if( refArea.Contains( GetEnd() ) )
-                return true;
-            break;
+    case S_ARC:
+    case S_SEGMENT:
+        if( aRect.Contains( GetStart() ) )
+            return true;
+
+        if( aRect.Contains( GetEnd() ) )
+            return true;
+        break;
+
+    default:
+        ;
     }
     return false;
 }
@@ -563,26 +531,24 @@ bool DRAWSEGMENT::HitTest( EDA_RECT& refArea )
 wxString DRAWSEGMENT::GetSelectMenuText() const
 {
     wxString text;
-    wxString temp;
+    wxString temp = ::LengthDoubleToString( GetLength() );
 
     text.Printf( _( "Pcb Graphic: %s length: %s on %s" ),
-                 GetChars( ShowShape( (Track_Shapes)m_Shape ) ),
-                 GetChars( valeur_param( GetLength(), temp ) ),
-                 GetChars( GetLayerName() ) );
+                 GetChars( ShowShape( (STROKE_T) m_Shape ) ),
+                 GetChars( temp ), GetChars( GetLayerName() ) );
 
     return text;
 }
 
 
+EDA_ITEM* DRAWSEGMENT::Clone() const
+{
+    return new DRAWSEGMENT( *this );
+}
+
+
 #if defined(DEBUG)
-/**
- * Function Show
- * is used to output the object tree, currently for debugging only.
- * @param nestLevel An aid to prettier tree indenting, and is the level
- *          of nesting of this object within the overall tree.
- * @param os The ostream& to output to.
- */
-void DRAWSEGMENT::Show( int nestLevel, std::ostream& os )
+void DRAWSEGMENT::Show( int nestLevel, std::ostream& os ) const
 {
     NestedSpace( nestLevel, os ) << '<' << GetClass().Lower().mb_str() <<
 

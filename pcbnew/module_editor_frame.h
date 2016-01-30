@@ -3,22 +3,38 @@
  * @brief Definition of class FOOTPRINT_EDIT_FRAME.
  */
 
-#ifndef _MODULE_EDITOR_FRAME_H_
-#define _MODULE_EDITOR_FRAME_H_
+#ifndef MODULE_EDITOR_FRAME_H_
+#define MODULE_EDITOR_FRAME_H_
 
+#include <wxBasePcbFrame.h>
+#include <io_mgr.h>
 
 class FOOTPRINT_EDIT_FRAME : public PCB_BASE_FRAME
 {
 public:
-    MODULE*  CurrentModule;
-
-public:
-    FOOTPRINT_EDIT_FRAME( wxWindow* father,
-                          const wxString& title,
-                          const wxPoint& pos, const wxSize& size,
-                          long style = KICAD_DEFAULT_DRAWFRAME_STYLE );
+    FOOTPRINT_EDIT_FRAME( PCB_EDIT_FRAME* aParent );
 
     ~FOOTPRINT_EDIT_FRAME();
+
+    /**
+     * Function GetFootprintEditorFrameName (static)
+     * @return the frame name used when creating the frame
+     * used to get a reference to this frame, if exists
+     */
+    static const wxChar* GetFootprintEditorFrameName();
+
+    /**
+     * Function GetActiveFootprintEditor (static)
+     * @return a reference to the current opened Footprint editor
+     * or NULL if no Footprint editor currently opened
+     */
+    static FOOTPRINT_EDIT_FRAME* GetActiveFootprintEditor();
+
+    BOARD_DESIGN_SETTINGS& GetDesignSettings() const;           // overload PCB_BASE_FRAME, get parent's
+    void SetDesignSettings( const BOARD_DESIGN_SETTINGS& aSettings );  // overload
+
+    const PCB_PLOT_PARAMS& GetPlotSettings() const;             // overload PCB_BASE_FRAME, get parent's
+    void SetPlotSettings( const PCB_PLOT_PARAMS& aSettings );   // overload
 
     void InstallOptionsFrame( const wxPoint& pos );
 
@@ -66,6 +82,15 @@ public:
 
     void ToolOnRightClick( wxCommandEvent& event );
     void OnSelectOptionToolbar( wxCommandEvent& event );
+
+    /**
+     * Function OnSaveLibraryAs
+     * saves the current library to a new name and/or library type.
+     *
+     * @note Saving as a new library type requires the plug-in to support saving libraris.
+     * @see PLUGIN::FootprintSave and PLUGIN::FootprintLibCreate
+     */
+    void OnSaveLibraryAs( wxCommandEvent& aEvent );
 
     /**
      * Function OnHotKey
@@ -121,9 +146,9 @@ public:
     void ToPrinter( wxCommandEvent& event );
 
     /**
-     * Virtual function PrintPage
-     * used to print a page
-     * Print the page pointed by ActiveScreen, set by the calling print function
+     * Function PrintPage
+     * is used to print a page. Prints the page pointed by ActiveScreen,
+     * set by the calling print function.
      * @param aDC = wxDC given by the calling print function
      * @param aPrintMaskLayer = not used here
      * @param aPrintMirrorMode = not used here (Set when printing in mirror mode)
@@ -196,32 +221,8 @@ public:
                                      UNDO_REDO_T aTypeCommand,
                                      const wxPoint& aTransformPoint = wxPoint( 0, 0 ) );
 
-private:
-    static wxString m_CurrentLib;
+    wxString GetCurrentLib() const { return getLibNickName(); };
 
-    /**
-     * Function GetComponentFromUndoList
-     * performs an undo operation on the last edition:
-     *  - Place the current edited library component in Redo list
-     *  - Get old version of the current edited library component
-     */
-    void GetComponentFromUndoList( wxCommandEvent& event );
-
-    /**
-     * Fucntion GetComponentFromRedoList
-     * performs a redo operation on the the last edition:
-     *  - Place the current edited library component in undo list
-     *  - Get old version of the current edited library component
-     */
-    void GetComponentFromRedoList( wxCommandEvent& event );
-
-    /**
-     * Function UpdateTitle
-     * updates window title according to m_CurrentLib.
-     */
-    void UpdateTitle();
-
-public:
 
     // Footprint edition
     void Place_Ancre( MODULE* module );
@@ -243,10 +244,8 @@ public:
      * So Create a new lib (which will contains one module) and export a footprint
      * is basically the same thing
      * @param aModule = the module to export
-     * @param aCreateSysLib : true = use default lib path to create lib
-     *                    false = use current path or last used path to export the footprint
      */
-    void Export_Module( MODULE* aModule, bool aCreateSysLib );
+    void Export_Module( MODULE* aModule );
 
     /**
      * Function Import_Module
@@ -257,7 +256,26 @@ public:
      * The import function can also read gpcb footprint file, in Newlib format
      * (One footprint per file, Newlib files have no special ext.)
      */
-    MODULE* Import_Module( );
+    MODULE* Import_Module();
+
+    /**
+     * Function CreateNewLibrary
+     * prompts user for a library path, then creates a new footprint library at that
+     * location.  If library exists, user is warned about that, and is given a chance
+     * to abort the new creation, and in that case existing library is first deleted.
+     *
+     * @return wxString - the newly created library path if library was successfully
+     *   created, else wxEmptyString because user aborted or error.
+     */
+    wxString CreateNewLibrary();
+
+    /**
+     * Function SaveCurrentModule
+     * saves the module which is currently being edited into aLibPath or into the
+     * currently selected library if aLibPath is NULL.
+     * @return bool - true if successfully saved, else false because abort or error.
+     */
+    bool SaveCurrentModule( const wxString* aLibPath = NULL );
 
     /**
      * Function Load_Module_From_BOARD
@@ -310,7 +328,7 @@ public:
      * @param type_edge = S_SEGMENT,S_ARC ..
      * @return the new created edge.
      */
-    EDGE_MODULE* Begin_Edge_Module( EDGE_MODULE* Edge, wxDC* DC, int type_edge );
+    EDGE_MODULE* Begin_Edge_Module( EDGE_MODULE* Edge, wxDC* DC, STROKE_T type_edge );
 
     /**
      * Function End_Edge_Module
@@ -328,22 +346,76 @@ public:
      */
     void Enter_Edge_Width( EDGE_MODULE* aEdge );
 
-    /* Function to initialize the move function params of a graphic item type DRAWSEGMENT */
+    /// Function to initialize the move function params of a graphic item type DRAWSEGMENT
     void Start_Move_EdgeMod( EDGE_MODULE* drawitem, wxDC* DC );
 
-    /* Function to place a graphic item type EDGE_MODULE currently moved */
+    /// Function to place a graphic item type EDGE_MODULE currently moved
     void Place_EdgeMod( EDGE_MODULE* drawitem );
 
-    // handlers for libraries:
-    void Delete_Module_In_Library( const wxString& libname );
+    /**
+     * Function InstallFootprintBodyItemPropertiesDlg
+     * Install a dialog to edit a graphic item of a footprint body.
+     * @param aItem = a pointer to the graphic item to edit
+     */
+    void InstallFootprintBodyItemPropertiesDlg(EDGE_MODULE * aItem);
 
-    int CreateLibrary( const wxString& LibName );
+    /**
+     * Function DlgGlobalChange_PadSettings
+     * changes pad caracteristics for the given footprint
+     * or all footprints which look like the given footprint.
+     * Options are set by the opened dialog.
+     * @param aPad is the pattern. The given footprint is the parent of this pad
+     */
+    void DlgGlobalChange_PadSettings( D_PAD* aPad );
+
+    /**
+     * Function DeleteModuleFromCurrentLibrary
+     * prompts user for footprint name, then deletes it from current library.
+     */
+    bool DeleteModuleFromCurrentLibrary();
 
     void Select_Active_Library();
 
-    wxString GetCurrentLib() const { return m_CurrentLib; };
-
     DECLARE_EVENT_TABLE()
+
+protected:
+    static BOARD*   s_Pcb;      ///< retain board accross invocations of module editor
+
+    /**
+     * Function GetComponentFromUndoList
+     * performs an undo operation on the last edition:
+     *  - Place the current edited library component in Redo list
+     *  - Get old version of the current edited library component
+     */
+    void GetComponentFromUndoList( wxCommandEvent& event );
+
+    /**
+     * Function GetComponentFromRedoList
+     * performs a redo operation on the the last edition:
+     *  - Place the current edited library component in undo list
+     *  - Get old version of the current edited library component
+     */
+    void GetComponentFromRedoList( wxCommandEvent& event );
+
+    /**
+     * Function UpdateTitle
+     * updates window title according to getLibNickName().
+     */
+    void updateTitle();
+
+    // @todo these will eventually have to be made instance variables.
+    static wxString m_lib_nick_name;
+    static wxString m_lib_path;
+
+    /// The library nickName is a short string, for now the same as the library path
+    /// but without path and without extension.  After library table support it becomes
+    /// a lookup key.
+    wxString getLibNickName() const                     { return m_lib_nick_name; }
+    void setLibNickName( const wxString& aLibNickName ) { m_lib_nick_name = aLibNickName; }
+
+    /// The libPath is the full string used in the PLUGIN::Footprint*() calls.
+    wxString getLibPath() const                         { return m_lib_path; }
+    void setLibPath( const wxString& aLibPath )         { m_lib_path = aLibPath;  }
 };
 
-#endif      // #define _MODULE_EDITOR_FRAME_H_
+#endif      // MODULE_EDITOR_FRAME_H_

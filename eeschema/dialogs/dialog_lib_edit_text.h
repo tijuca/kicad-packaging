@@ -3,7 +3,7 @@
 #define _DIALOG_LIB_EDIT_TEXT_H_
 
 
-#include "dialog_lib_edit_text_base.h"
+#include <dialog_lib_edit_text_base.h>
 
 
 class LIB_EDIT_FRAME;
@@ -13,8 +13,8 @@ class LIB_TEXT;
 class DIALOG_LIB_EDIT_TEXT : public DIALOG_LIB_EDIT_TEXT_BASE
 {
 private:
-    LIB_EDIT_FRAME* m_Parent;
-    LIB_TEXT* m_GraphicText;
+    LIB_EDIT_FRAME* m_parent;
+    LIB_TEXT* m_graphicText;
 
 public:
     DIALOG_LIB_EDIT_TEXT( LIB_EDIT_FRAME* aParent, LIB_TEXT* aText );

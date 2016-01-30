@@ -33,28 +33,29 @@
  *  search a component in libraries, a marker ...,
  *  in current sheet or whole the project
  */
-#include "fctsys.h"
-#include "appl_wxstruct.h"
-#include "class_drawpanel.h"
-#include "confirm.h"
-#include "kicad_string.h"
-#include "gestfich.h"
-#include "wxEeschemaStruct.h"
+#include <fctsys.h>
+#include <appl_wxstruct.h>
+#include <class_drawpanel.h>
+#include <confirm.h>
+#include <kicad_string.h>
+#include <gestfich.h>
+#include <wxEeschemaStruct.h>
+#include <base_units.h>
 
-#include "general.h"
-#include "protos.h"
-#include "class_library.h"
-#include "lib_pin.h"
-#include "sch_marker.h"
-#include "sch_component.h"
-#include "sch_sheet.h"
-#include "sch_sheet_path.h"
+#include <general.h>
+#include <protos.h>
+#include <class_library.h>
+#include <lib_pin.h>
+#include <sch_marker.h>
+#include <sch_component.h>
+#include <sch_sheet.h>
+#include <sch_sheet_path.h>
 
-#include "kicad_device_context.h"
+#include <kicad_device_context.h>
 
 #include <boost/foreach.hpp>
 
-#include "dialogs/dialog_schematic_find.h"
+#include <dialogs/dialog_schematic_find.h>
 
 
 void SCH_EDIT_FRAME::OnFindDrcMarker( wxFindDialogEvent& event )
@@ -82,7 +83,7 @@ void SCH_EDIT_FRAME::OnFindDrcMarker( wxFindDialogEvent& event )
 
     if( lastMarker != NULL )
     {
-        if( sheetFoundIn != GetSheet() )
+        if( *sheetFoundIn != *m_CurrentSheet )
         {
             sheetFoundIn->LastScreen()->SetZoom( GetScreen()->GetZoom() );
             *m_CurrentSheet = *sheetFoundIn;
@@ -95,10 +96,8 @@ void SCH_EDIT_FRAME::OnFindDrcMarker( wxFindDialogEvent& event )
 
         wxString path = sheetFoundIn->Path();
         wxString units = GetAbbreviatedUnitsLabel();
-        double x = To_User_Unit( g_UserUnit, (double) lastMarker->GetPosition().x,
-                                 m_InternalUnits );
-        double y = To_User_Unit( g_UserUnit, (double) lastMarker->GetPosition().y,
-                                 m_InternalUnits );
+        double x = To_User_Unit( g_UserUnit, (double) lastMarker->GetPosition().x );
+        double y = To_User_Unit( g_UserUnit, (double) lastMarker->GetPosition().y );
         msg.Printf( _( "Design rule check marker found in sheet %s at %0.3f%s, %0.3f%s" ),
                     GetChars( path ), x, GetChars( units ), y, GetChars( units) );
         SetStatusText( msg );
@@ -193,7 +192,7 @@ SCH_ITEM* SCH_EDIT_FRAME::FindComponentAndItem( const wxString& aReference,
     {
         sheet = sheetWithComponentFound;
 
-        if( *sheet != *GetSheet() )
+        if( *sheet != *m_CurrentSheet )
         {
             sheet->LastScreen()->SetZoom( GetScreen()->GetZoom() );
             *m_CurrentSheet = *sheet;
@@ -208,7 +207,7 @@ SCH_ITEM* SCH_EDIT_FRAME::FindComponentAndItem( const wxString& aReference,
 
 
         /* There may be need to reframe the drawing */
-        if( ! DrawPanel->IsPointOnDisplay( pos ) )
+        if( ! m_canvas->IsPointOnDisplay( pos ) )
         {
             centerAndRedraw = true;
         }
@@ -221,16 +220,16 @@ SCH_ITEM* SCH_EDIT_FRAME::FindComponentAndItem( const wxString& aReference,
 
         else
         {
-            INSTALL_UNBUFFERED_DC( dc, DrawPanel );
+            INSTALL_UNBUFFERED_DC( dc, m_canvas );
 
-            DrawPanel->CrossHairOff( &dc );
+            m_canvas->CrossHairOff( &dc );
 
             if( aWarpMouse )
-                DrawPanel->MoveCursor( pos );
+                m_canvas->MoveCursor( pos );
 
             GetScreen()->SetCrossHairPosition(pos);
 
-            DrawPanel->CrossHairOn( &dc );
+            m_canvas->CrossHairOn( &dc );
         }
     }
 
@@ -297,17 +296,13 @@ SCH_ITEM* SCH_EDIT_FRAME::FindComponentAndItem( const wxString& aReference,
 
 void SCH_EDIT_FRAME::OnFindSchematicItem( wxFindDialogEvent& aEvent )
 {
-    static SCH_ITEM*  lastItem = NULL;  /* last item found when searching a match
-                                         * note: the actual matched item can be a
-                                         * part of lastItem (for instance a field in a component
-                                         */
-    static wxString   sheetFoundIn;
-    static wxPoint    lastItemPosition; // the actual position of the matched sub item
+    static wxPoint itemPosition;  // the actual position of the matched item.
 
-    SCH_SHEET_LIST    schematic;
-    wxString          msg;
-    wxFindReplaceData searchCriteria;
-    bool              warpCursor = !( aEvent.GetFlags() & FR_NO_WARP_CURSOR );
+    SCH_SHEET_LIST schematic;
+    wxString msg;
+    SCH_FIND_REPLACE_DATA searchCriteria;
+    bool warpCursor = !( aEvent.GetFlags() & FR_NO_WARP_CURSOR );
+    SCH_FIND_COLLECTOR_DATA data;
 
     searchCriteria.SetFlags( aEvent.GetFlags() );
     searchCriteria.SetFindString( aEvent.GetFindString() );
@@ -315,42 +310,69 @@ void SCH_EDIT_FRAME::OnFindSchematicItem( wxFindDialogEvent& aEvent )
 
     if( aEvent.GetEventType() == wxEVT_COMMAND_FIND_CLOSE )
     {
-        sheetFoundIn = m_CurrentSheet->PathHumanReadable();
-        warpCursor = true;
+        if( m_foundItems.GetCount() == 0 )
+            return;
     }
-    else if( aEvent.GetFlags() & FR_CURRENT_SHEET_ONLY && g_RootSheet->CountSheets() > 1 )
+    else if( m_foundItems.IsSearchRequired( searchCriteria ) )
     {
-        sheetFoundIn = m_CurrentSheet->PathHumanReadable();
-        lastItem = m_CurrentSheet->MatchNextItem( searchCriteria, lastItem, &lastItemPosition );
+        if( aEvent.GetFlags() & FR_CURRENT_SHEET_ONLY && g_RootSheet->CountSheets() > 1 )
+        {
+            m_foundItems.Collect( searchCriteria, m_CurrentSheet );
+        }
+        else
+        {
+            m_foundItems.Collect( searchCriteria );
+        }
     }
     else
     {
-        lastItem = schematic.MatchNextItem( searchCriteria, sheetFoundIn, lastItem,
-                                            &lastItemPosition );
+        EDA_ITEM* currentItem = m_foundItems.GetItem( data );
+
+        if( currentItem != NULL )
+            currentItem->SetForceVisible( false );
+
+        m_foundItems.UpdateIndex();
     }
 
-    if( lastItem != NULL )
+    if( m_foundItems.GetItem( data ) != NULL )
     {
-        SCH_SHEET_PATH* sheet = schematic.GetSheet( sheetFoundIn );
+        wxLogTrace( traceFindReplace, wxT( "Found " ) + m_foundItems.GetText() );
 
-        wxCHECK_RET( sheet != NULL, wxT( "Could not find sheet path " + sheetFoundIn ) );
+        SCH_SHEET_PATH* sheet = schematic.GetSheet( data.GetSheetPath() );
 
-        if( sheet != GetSheet() )
+        wxCHECK_RET( sheet != NULL, wxT( "Could not find sheet path " ) +
+                     data.GetSheetPath() );
+
+        // Make the item temporarily visible just in case it's hide flag is set.  This
+        // has no effect on objects that don't support hiding.  If this is a close find
+        // dialog event, clear the temporary visibility flag.
+        if( aEvent.GetEventType() == wxEVT_COMMAND_FIND_CLOSE )
+            m_foundItems.GetItem( data )->SetForceVisible( false );
+        else
+            m_foundItems.GetItem( data )->SetForceVisible( true );
+
+        if( sheet->PathHumanReadable() != m_CurrentSheet->PathHumanReadable() )
         {
             sheet->LastScreen()->SetZoom( GetScreen()->GetZoom() );
             *m_CurrentSheet = *sheet;
             m_CurrentSheet->UpdateAllScreenReferences();
+            SetScreen( sheet->LastScreen() );
         }
 
-        sheet->LastScreen()->SetCrossHairPosition( lastItemPosition );
+        sheet->LastScreen()->SetCrossHairPosition( data.GetPosition() );
 
-        RedrawScreen( lastItemPosition, warpCursor );
+        RedrawScreen( data.GetPosition(), warpCursor );
 
-        msg = lastItem->GetSelectMenuText() + _( " found in sheet " ) + sheetFoundIn;
+        msg = m_foundItems.GetText();
+
+        if( aEvent.GetFlags() & FR_SEARCH_REPLACE )
+            aEvent.SetFlags( aEvent.GetFlags() | FR_REPLACE_ITEM_FOUND );
     }
     else
     {
-        sheetFoundIn = wxEmptyString;
+        if( aEvent.GetFlags() & FR_SEARCH_REPLACE )
+            aEvent.SetFlags( aEvent.GetFlags() & ~FR_REPLACE_ITEM_FOUND );
+
         msg.Printf( _( "No item found matching %s." ), GetChars( aEvent.GetFindString() ) );
     }
 
@@ -360,4 +382,57 @@ void SCH_EDIT_FRAME::OnFindSchematicItem( wxFindDialogEvent& aEvent )
 
 void SCH_EDIT_FRAME::OnFindReplace( wxFindDialogEvent& aEvent )
 {
+    SCH_FIND_COLLECTOR_DATA data;
+
+    bool warpCursor = !( aEvent.GetFlags() & FR_NO_WARP_CURSOR );
+    SCH_ITEM* item = (SCH_ITEM*) m_foundItems.GetItem( data );
+
+    wxCHECK_RET( item != NULL, wxT( "Invalid replace item in find collector list." ) );
+
+    wxLogTrace( traceFindReplace, wxT( "Replacing %s with %s in item %s" ),
+                GetChars( aEvent.GetFindString() ), GetChars( aEvent.GetReplaceString() ),
+                GetChars( m_foundItems.GetText() ) );
+
+    SCH_ITEM* undoItem = data.GetParent();
+
+    if( undoItem == NULL )
+        undoItem = item;
+
+    SetUndoItem( undoItem );
+
+    if( m_foundItems.ReplaceItem() )
+    {
+        OnModify();
+        SaveUndoItemInUndoList( undoItem );
+        RedrawScreen( data.GetPosition(), warpCursor );
+    }
+
+    OnFindSchematicItem( aEvent );
+
+    if( aEvent.GetEventType() == wxEVT_COMMAND_FIND_REPLACE_ALL )
+    {
+        while( ( item = (SCH_ITEM*) m_foundItems.GetItem( data ) ) != NULL )
+        {
+            wxLogTrace( traceFindReplace, wxT( "Replacing %s with %s in item %s" ),
+                        GetChars( aEvent.GetFindString() ), GetChars( aEvent.GetReplaceString() ),
+                        GetChars( m_foundItems.GetText() ) );
+
+            SCH_ITEM* undoItem = data.GetParent();
+
+            // Don't save child items in undo list.
+            if( undoItem == NULL )
+                undoItem = item;
+
+            SetUndoItem( undoItem );
+
+            if( m_foundItems.ReplaceItem() )
+            {
+                OnModify();
+                SaveUndoItemInUndoList( undoItem );
+                RedrawScreen( data.GetPosition(), warpCursor );
+            }
+
+            OnFindSchematicItem( aEvent );
+        }
+    }
 }

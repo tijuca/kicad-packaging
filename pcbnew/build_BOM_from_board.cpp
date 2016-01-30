@@ -1,16 +1,16 @@
 /* build_BOM_from_board.cpp */
 
 
-#include "fctsys.h"
-#include "confirm.h"
-#include "kicad_string.h"
-#include "gestfich.h"
-#include "pcbnew.h"
-#include "wxPcbStruct.h"
-#include "macros.h"
+#include <fctsys.h>
+#include <confirm.h>
+#include <kicad_string.h>
+#include <gestfich.h>
+#include <pcbnew.h>
+#include <wxPcbStruct.h>
+#include <macros.h>
 
-#include "class_board.h"
-#include "class_module.h"
+#include <class_board.h>
+#include <class_module.h>
 
 #include <wx/listimpl.cpp>
 
@@ -64,7 +64,7 @@ void PCB_EDIT_FRAME::RecreateBOMFileFromBoard( wxCommandEvent& aEvent )
     }
 
     /* Set the file extension: */
-    fn = GetScreen()->GetFileName();
+    fn = GetBoard()->GetFileName();
     fn.SetExt( CsvFileExtension );
 
     wxFileDialog dlg( this, _( "Save Bill of Materials" ), wxGetCwd(),

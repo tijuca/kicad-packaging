@@ -1,48 +1,11 @@
-install(DIRECTORY de
-        DESTINATION ${KICAD_DOCS}
-        COMPONENT doc-de
-        PATTERN ".svn" EXCLUDE
-        PATTERN "*.odt" EXCLUDE
-        PATTERN "*.sxw" EXCLUDE)
+set(TutorialLangs de en es fr hu it ja pl ru zh_CN)
 
-install(DIRECTORY en
-        DESTINATION ${KICAD_DOCS}
-        COMPONENT doc-en
-        PATTERN ".svn" EXCLUDE
-        PATTERN "*.odt" EXCLUDE
-        PATTERN "*.sxw" EXCLUDE)
+foreach(TutorialLang ${TutorialLangs})
+	install(DIRECTORY ${TutorialLang}
+		DESTINATION ${KICAD_HELP}
+		COMPONENT doc-${TutorialLang}
+		PATTERN ".svn" EXCLUDE
+		PATTERN "*.odt" EXCLUDE
+		PATTERN "*.sxw" EXCLUDE)
+endforeach(TutorialLang)
 
-install(DIRECTORY es
-        DESTINATION ${KICAD_DOCS}
-        COMPONENT doc-es
-        PATTERN ".svn" EXCLUDE
-        PATTERN "*.odt" EXCLUDE
-        PATTERN "*.sxw" EXCLUDE)
-
-install(DIRECTORY fr
-        DESTINATION ${KICAD_DOCS}
-        COMPONENT doc-fr
-        PATTERN ".svn" EXCLUDE
-        PATTERN "*.odt" EXCLUDE
-        PATTERN "*.sxw" EXCLUDE)
-
-install(DIRECTORY hu
-        DESTINATION ${KICAD_DOCS}
-        COMPONENT doc-hu
-        PATTERN ".svn" EXCLUDE
-        PATTERN "*.odt" EXCLUDE
-        PATTERN "*.sxw" EXCLUDE)
-
-install(DIRECTORY ru
-        DESTINATION ${KICAD_DOCS}
-        COMPONENT doc-ru
-        PATTERN ".svn" EXCLUDE
-        PATTERN "*.odt" EXCLUDE
-        PATTERN "*.sxw" EXCLUDE)
-
-install(DIRECTORY zh_CN
-        DESTINATION ${KICAD_DOCS}
-        COMPONENT doc-zh_CN
-        PATTERN ".svn" EXCLUDE
-        PATTERN "*.odt" EXCLUDE
-        PATTERN "*.sxw" EXCLUDE)

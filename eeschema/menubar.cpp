@@ -31,16 +31,16 @@
 #pragma implementation
 #endif
 
-#include "fctsys.h"
-#include "appl_wxstruct.h"
-#include "wxEeschemaStruct.h"
+#include <fctsys.h>
+#include <appl_wxstruct.h>
+#include <wxEeschemaStruct.h>
 
-#include "general.h"
-#include "protos.h"
-#include "eeschema_id.h"
-#include "hotkeys.h"
+#include <general.h>
+#include <eeschema_id.h>
+#include <hotkeys.h>
+#include <menus_helpers.h>
 
-#include "help_common_strings.h"
+#include <help_common_strings.h>
 
 /**
  * @brief (Re)Create the menubar for the schematic frame
@@ -69,14 +69,14 @@ void SCH_EDIT_FRAME::ReCreateMenuBar()
     // New
     AddMenuItem( fileMenu,
                  ID_NEW_PROJECT,
-                 _( "&New\tCtrl+N" ),
+                 _( "&New" ),
                  _( "New schematic project" ),
                  KiBitmap( new_xpm ) );
 
     // Open
+    text = AddHotkeyName( _( "&Open" ), s_Schematic_Hokeys_Descr, HK_LOAD_SCH );
     AddMenuItem( fileMenu,
-                 ID_LOAD_PROJECT,
-                 _( "&Open\tCtrl+O" ),
+                 ID_LOAD_PROJECT, text,
                  _( "Open an existing schematic project" ),
                  KiBitmap( open_document_xpm ) );
 
@@ -86,36 +86,43 @@ void SCH_EDIT_FRAME::ReCreateMenuBar()
     // Add this menu to list menu managed by m_fileHistory
     // (the file history will be updated when adding/removing files in history
     if( openRecentMenu )
-        wxGetApp().m_fileHistory.RemoveMenu( openRecentMenu );
+        wxGetApp().GetFileHistory().RemoveMenu( openRecentMenu );
 
     openRecentMenu = new wxMenu();
-    wxGetApp().m_fileHistory.UseMenu( openRecentMenu );
-    wxGetApp().m_fileHistory.AddFilesToMenu( openRecentMenu );
+    wxGetApp().GetFileHistory().UseMenu( openRecentMenu );
+    wxGetApp().GetFileHistory().AddFilesToMenu( openRecentMenu );
     AddMenuItem( fileMenu, openRecentMenu,
                  wxID_ANY, _( "Open &Recent" ),
                  _( "Open a recent opened schematic project" ),
                  KiBitmap( open_project_xpm ) );
 
+    // Import
+    AddMenuItem( fileMenu,
+                 ID_APPEND_PROJECT, _( "&Append Schematic" ),
+                 _( "Append another schematic project to the current loaded schematic" ),
+                 KiBitmap( open_document_xpm ) );
+
     // Separator
     fileMenu->AppendSeparator();
 
     // Save schematic project
+    text = AddHotkeyName( _( "&Save Whole Schematic Project" ),
+                          s_Schematic_Hokeys_Descr, HK_SAVE_SCH );
     AddMenuItem( fileMenu,
-                 ID_SAVE_PROJECT,
-                 _( "&Save Whole Schematic Project\tCtrl+S" ),
+                 ID_SAVE_PROJECT, text,
                  _( "Save all sheets in the schematic project" ),
                  KiBitmap( save_project_xpm ) );
 
     // Save current sheet
     AddMenuItem( fileMenu,
-                 ID_SAVE_ONE_SHEET,
+                 ID_UPDATE_ONE_SHEET,
                  _( "Save &Current Sheet Only" ),
                  _( "Save only current schematic sheet" ),
                  KiBitmap( save_xpm ) );
 
     // Save current sheet as
     AddMenuItem( fileMenu,
-                 ID_SAVE_ONE_SHEET_AS,
+                 ID_SAVE_ONE_SHEET_UNDER_NEW_NAME,
                  _( "Save Current Sheet &As" ),
                  _( "Save current schematic sheet as..." ),
                  KiBitmap( save_as_xpm ) );
@@ -137,51 +144,39 @@ void SCH_EDIT_FRAME::ReCreateMenuBar()
                  _( "Print schematic" ),
                  KiBitmap( print_button_xpm ) );
 
+#ifdef __WINDOWS__ // __WINDOWS__
+
     // Plot submenu
     wxMenu* choice_plot_fmt = new wxMenu;
-
-    // Plot PostScript
-    AddMenuItem( choice_plot_fmt, ID_GEN_PLOT_PS,
-                 _( "Plot &PostScript" ),
-                 _( "Plot schematic sheet in PostScript format" ),
-                 KiBitmap( plot_ps_xpm ) );
-
-    // Plot HPGL
-    AddMenuItem( choice_plot_fmt,
-                 ID_GEN_PLOT_HPGL,
-                 _( "Plot &HPGL" ),
-                 _( "Plot schematic sheet in HPGL format" ),
-                 KiBitmap( plot_hpg_xpm ) );
-
-    // Plot SVG
-    AddMenuItem( choice_plot_fmt,
-                 ID_GEN_PLOT_SVG,
-                 _( "Plot &SVG" ),
-                 _( "Plot schematic sheet in SVG format" ),
-                 KiBitmap( plot_xpm ) );
-
-    // Plot DXF
-    AddMenuItem( choice_plot_fmt,
-                 ID_GEN_PLOT_DXF,
-                 _( "Plot &DXF" ),
-                 _( "Plot schematic sheet in DXF format" ),
+    AddMenuItem( choice_plot_fmt, ID_GEN_PLOT_SCHEMATIC,
+                 _( "&Plot" ),
+                 _( "Plot schematic sheet in PostScript, PDF, SVG, DXF or HPGL format" ),
                  KiBitmap( plot_xpm ) );
 
     // Plot to Clipboard (Windows only)
-#ifdef __WINDOWS__
+
 
     AddMenuItem( choice_plot_fmt, ID_GEN_COPY_SHEET_TO_CLIPBOARD,
                  _( "Plot to &Clipboard" ),
                  _( "Export drawings to clipboard" ),
                  KiBitmap( copy_button_xpm ) );
 
-#endif // __WINDOWS__
-
-    // Plot submenu
+    // Plot
     AddMenuItem( fileMenu, choice_plot_fmt,
                  ID_GEN_PLOT, _( "&Plot" ),
                  _( "Plot schematic sheet in HPGL, PostScript or SVG format" ),
                  KiBitmap( plot_xpm ) );
+
+#else   // Other
+
+    // Plot
+    AddMenuItem( fileMenu,
+                 ID_GEN_PLOT_SCHEMATIC,
+                 _( "&Plot" ),
+                 _( "Plot schematic sheet in HPGL, PostScript or SVG format" ),
+                 KiBitmap( plot_xpm ) );
+
+#endif
 
     // Separator
     fileMenu->AppendSeparator();
@@ -210,19 +205,22 @@ void SCH_EDIT_FRAME::ReCreateMenuBar()
     editMenu->AppendSeparator();
     AddMenuItem( editMenu, ID_SCHEMATIC_DELETE_ITEM_BUTT,
                  _( "&Delete" ), HELP_DELETE_ITEMS,
-                 KiBitmap( delete_body_xpm ) );
+                 KiBitmap( delete_xpm ) );
 
     // Find
     editMenu->AppendSeparator();
     text = AddHotkeyName( _( "&Find" ), s_Schematic_Hokeys_Descr, HK_FIND_ITEM );
     AddMenuItem( editMenu, ID_FIND_ITEMS, text, HELP_FIND, KiBitmap( find_xpm ) );
 
-    // Backannotate
+    // Find/Replace
+    AddMenuItem( editMenu, wxID_REPLACE, _( "Find and Re&place\tCtrl+Shift+F" ), HELP_REPLACE,
+                 KiBitmap( find_replace_xpm ) );
+
+    // Import footprint association from the CvPcb cmp file:
     editMenu->AppendSeparator();
-    AddMenuItem( editMenu,
-                 ID_BACKANNO_ITEMS,
-                 _( "&Backannotate" ),
-                 _( "Back annotate the footprint fields" ),
+    AddMenuItem( editMenu, ID_BACKANNO_ITEMS,
+                 _( "Import Footprint Selection" ),
+                 HELP_IMPORT_FOOTPRINTS,
                  KiBitmap( import_footprint_names_xpm ) );
 
     // Menu View:
@@ -306,7 +304,7 @@ void SCH_EDIT_FRAME::ReCreateMenuBar()
 
     // Wire to Bus entry
     text = AddHotkeyName( _( "Wire to Bus &Entry" ), s_Schematic_Hokeys_Descr,
-                          HK_ADD_WIRE_ENTRY, IS_ACCELERATOR );    // addan accelerator, not a shortcut
+                          HK_ADD_WIRE_ENTRY, IS_ACCELERATOR );    // add an accelerator, not a shortcut
     AddMenuItem( placeMenu, ID_WIRETOBUS_ENTRY_BUTT, text,
                  HELP_PLACE_WIRE2BUS_ENTRY,
                  KiBitmap( add_line2bus_xpm ) );
@@ -454,20 +452,17 @@ void SCH_EDIT_FRAME::ReCreateMenuBar()
     // Menu Tools:
     wxMenu* toolsMenu = new wxMenu;
 
-    // Library viewer
-    AddMenuItem( toolsMenu,
-                 ID_TO_LIBRARY,
-                 _( "Library &Browser" ),
-                 _( "Library browser" ),
-                 KiBitmap( library_browse_xpm ) );
-
-
     // Library editor
     AddMenuItem( toolsMenu,
                  ID_TO_LIBRARY,
-                 _( "Library &Editor" ),
-                 _( "Library editor" ),
+                 _( "Library &Editor" ), HELP_RUN_LIB_EDITOR,
                  KiBitmap( libedit_xpm ) );
+
+    // Library viewer
+    AddMenuItem( toolsMenu,
+                 ID_TO_LIBVIEW,
+                 _( "Library &Browser" ),  HELP_RUN_LIB_VIEWER,
+                 KiBitmap( library_browse_xpm ) );
 
     // Separator
     toolsMenu->AppendSeparator();
@@ -475,8 +470,7 @@ void SCH_EDIT_FRAME::ReCreateMenuBar()
     // Annotate
     AddMenuItem( toolsMenu,
                  ID_GET_ANNOTATE,
-                 _( "&Annotate" ),
-                 _( "Annotate the components in the schematic" ),
+                 _( "&Annotate" ), HELP_ANNOTATE,
                  KiBitmap( annotate_xpm ) );
 
     // ERC
@@ -497,8 +491,8 @@ void SCH_EDIT_FRAME::ReCreateMenuBar()
     AddMenuItem( toolsMenu,
                  ID_GET_TOOLS,
                  _( "Generate Bill of &Materials" ),
-                 _( "Generate bill of materials" ),
-                 KiBitmap( tools_xpm ) );
+                 HELP_GENERATE_BOM,
+                 KiBitmap( bom_xpm ) );
 
     // Separator
     toolsMenu->AppendSeparator();
@@ -516,7 +510,6 @@ void SCH_EDIT_FRAME::ReCreateMenuBar()
                  _( "&Layout Printed Circuit Board" ),
                  _( "Run Pcbnew" ),
                  KiBitmap( pcbnew_xpm ) );
-
 
     // Help Menu:
     wxMenu* helpMenu = new wxMenu;

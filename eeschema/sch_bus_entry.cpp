@@ -1,29 +1,55 @@
-/***********************/
-/* class SCH_BUS_ENTRY */
-/***********************/
+/*
+ * This program source code file is part of KiCad, a free EDA CAD application.
+ *
+ * Copyright (C) 2004 Jean-Pierre Charras, jaen-pierre.charras@gipsa-lab.inpg.com
+ * Copyright (C) 2004-2011 KiCad Developers, see change_log.txt for contributors.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation; either version 2
+ * of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, you may find one here:
+ * http://www.gnu.org/licenses/old-licenses/gpl-2.0.html
+ * or you may search the http://www.gnu.org website for the version 2 license,
+ * or you may write to the Free Software Foundation, Inc.,
+ * 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
+ */
 
-#include "fctsys.h"
-#include "gr_basic.h"
-#include "macros.h"
-#include "class_drawpanel.h"
-#include "trigo.h"
-#include "common.h"
-#include "richio.h"
-#include "plot_common.h"
+/**
+ * @file sch_bus_entry.cpp
+ *
+ */
 
-#include "general.h"
-#include "protos.h"
-#include "sch_bus_entry.h"
+#include <fctsys.h>
+#include <gr_basic.h>
+#include <macros.h>
+#include <class_drawpanel.h>
+#include <trigo.h>
+#include <common.h>
+#include <richio.h>
+#include <plot_common.h>
+
+#include <eeschema_config.h>
+#include <general.h>
+#include <protos.h>
+#include <sch_bus_entry.h>
 
 
 SCH_BUS_ENTRY::SCH_BUS_ENTRY( const wxPoint& pos, int shape, int id ) :
     SCH_ITEM( NULL, SCH_BUS_ENTRY_T )
 {
-    m_Pos    = pos;
-    m_Size.x = 100;
-    m_Size.y = 100;
+    m_pos    = pos;
+    m_size.x = 100;
+    m_size.y = 100;
     m_Layer  = LAYER_WIRE;
-    m_Width  = 0;
+    m_width  = 0;
 
     if( id == BUS_TO_BUS )
     {
@@ -31,20 +57,11 @@ SCH_BUS_ENTRY::SCH_BUS_ENTRY( const wxPoint& pos, int shape, int id ) :
     }
 
     if( shape == '/' )
-        m_Size.y = -100;
+        m_size.y = -100;
 }
 
 
-SCH_BUS_ENTRY::SCH_BUS_ENTRY( const SCH_BUS_ENTRY& aBusEntry ) :
-    SCH_ITEM( aBusEntry )
-{
-    m_Pos = aBusEntry.m_Pos;
-    m_Size = aBusEntry.m_Size;
-    m_Width = aBusEntry.m_Width;
-}
-
-
-EDA_ITEM* SCH_BUS_ENTRY::doClone() const
+EDA_ITEM* SCH_BUS_ENTRY::Clone() const
 {
     return new SCH_BUS_ENTRY( *this );
 }
@@ -52,7 +69,7 @@ EDA_ITEM* SCH_BUS_ENTRY::doClone() const
 
 wxPoint SCH_BUS_ENTRY::m_End() const
 {
-    return wxPoint( m_Pos.x + m_Size.x, m_Pos.y + m_Size.y );
+    return wxPoint( m_pos.x + m_size.x, m_pos.y + m_size.y );
 }
 
 
@@ -62,9 +79,9 @@ void SCH_BUS_ENTRY::SwapData( SCH_ITEM* aItem )
                  wxT( "Cannot swap bus entry data with invalid item." ) );
 
     SCH_BUS_ENTRY* item = (SCH_BUS_ENTRY*)aItem;
-    EXCHG( m_Pos, item->m_Pos );
-    EXCHG( m_Size, item->m_Size );
-    EXCHG( m_Width, item->m_Width );
+    EXCHG( m_pos, item->m_pos );
+    EXCHG( m_size, item->m_size );
+    EXCHG( m_width, item->m_width );
 }
 
 
@@ -85,7 +102,7 @@ bool SCH_BUS_ENTRY::Save( FILE* aFile ) const
         success = false;
     }
     if( fprintf( aFile, "\t%-4d %-4d %-4d %-4d\n",
-                 m_Pos.x, m_Pos.y, m_End().x, m_End().y ) == EOF )
+                 m_pos.x, m_pos.y, m_End().x, m_End().y ) == EOF )
     {
         success = false;
     }
@@ -116,8 +133,8 @@ bool SCH_BUS_ENTRY::Load( LINE_READER& aLine, wxString& aErrorMsg )
     if( Name1[0] == 'B' )
         m_Layer = LAYER_BUS;
 
-    if( !aLine.ReadLine() || sscanf( (char*) aLine, "%d %d %d %d ", &m_Pos.x, &m_Pos.y,
-                                      &m_Size.x, &m_Size.y ) != 4 )
+    if( !aLine.ReadLine() || sscanf( (char*) aLine, "%d %d %d %d ", &m_pos.x, &m_pos.y,
+                                      &m_size.x, &m_size.y ) != 4 )
     {
         aErrorMsg.Printf( wxT( "Eeschema file bus entry load error at line %d" ),
                           aLine.LineNumber() );
@@ -125,8 +142,8 @@ bool SCH_BUS_ENTRY::Load( LINE_READER& aLine, wxString& aErrorMsg )
         return false;
     }
 
-    m_Size.x -= m_Pos.x;
-    m_Size.y -= m_Pos.y;
+    m_size.x -= m_pos.x;
+    m_size.y -= m_pos.y;
 
     return true;
 }
@@ -136,11 +153,11 @@ EDA_RECT SCH_BUS_ENTRY::GetBoundingBox() const
 {
     EDA_RECT box;
 
-    box.SetOrigin( m_Pos );
+    box.SetOrigin( m_pos );
     box.SetEnd( m_End() );
 
     box.Normalize();
-    int width = ( m_Width == 0 ) ? g_DrawDefaultLineThickness : m_Width;
+    int width = ( m_width == 0 ) ? GetDefaultLineThickness() : m_width;
     box.Inflate( width / 2 );
 
     return box;
@@ -149,12 +166,11 @@ EDA_RECT SCH_BUS_ENTRY::GetBoundingBox() const
 
 int SCH_BUS_ENTRY::GetPenSize() const
 {
-    int pensize = ( m_Width == 0 ) ? g_DrawDefaultLineThickness : m_Width;
+    int pensize = ( m_width == 0 ) ? GetDefaultLineThickness() : m_width;
 
-    if( m_Layer == LAYER_BUS && m_Width == 0 )
+    if( m_Layer == LAYER_BUS )
     {
-        pensize = wxRound( g_DrawDefaultLineThickness * BUS_WIDTH_EXPAND );
-        pensize = MAX( pensize, 3 );
+        pensize = ( m_width == 0 ) ? GetDefaultBusThickness() : m_width;
     }
 
     return pensize;
@@ -162,9 +178,9 @@ int SCH_BUS_ENTRY::GetPenSize() const
 
 
 void SCH_BUS_ENTRY::Draw( EDA_DRAW_PANEL* aPanel, wxDC* aDC, const wxPoint& aOffset,
-                          int aDrawMode, int aColor )
+                          GR_DRAWMODE aDrawMode, EDA_COLOR_T aColor )
 {
-    int color;
+    EDA_COLOR_T color;
 
     if( aColor >= 0 )
         color = aColor;
@@ -173,44 +189,42 @@ void SCH_BUS_ENTRY::Draw( EDA_DRAW_PANEL* aPanel, wxDC* aDC, const wxPoint& aOff
 
     GRSetDrawMode( aDC, aDrawMode );
 
-    GRLine( &aPanel->m_ClipBox, aDC, m_Pos.x + aOffset.x, m_Pos.y + aOffset.y,
+    GRLine( aPanel->GetClipBox(), aDC, m_pos.x + aOffset.x, m_pos.y + aOffset.y,
             m_End().x + aOffset.x, m_End().y + aOffset.y, GetPenSize(), color );
 }
 
 
-void SCH_BUS_ENTRY::Mirror_X( int aXaxis_position )
+void SCH_BUS_ENTRY::MirrorX( int aXaxis_position )
 {
-    m_Pos.y -= aXaxis_position;
-    NEGATE(  m_Pos.y );
-    m_Pos.y += aXaxis_position;
-    NEGATE(  m_Size.y );
+    m_pos.y -= aXaxis_position;
+    NEGATE(  m_pos.y );
+    m_pos.y += aXaxis_position;
+    NEGATE(  m_size.y );
 }
 
 
-void SCH_BUS_ENTRY::Mirror_Y( int aYaxis_position )
+void SCH_BUS_ENTRY::MirrorY( int aYaxis_position )
 {
-    m_Pos.x -= aYaxis_position;
-    NEGATE(  m_Pos.x );
-    m_Pos.x += aYaxis_position;
-    NEGATE(  m_Size.x );
+    m_pos.x -= aYaxis_position;
+    NEGATE(  m_pos.x );
+    m_pos.x += aYaxis_position;
+    NEGATE(  m_size.x );
 }
 
 
-void SCH_BUS_ENTRY::Rotate( wxPoint rotationPoint )
+void SCH_BUS_ENTRY::Rotate( wxPoint aPosition )
 {
-    RotatePoint( &m_Pos, rotationPoint, 900 );
-    RotatePoint( &m_Size.x, &m_Size.y, 900 );
+    RotatePoint( &m_pos, aPosition, 900 );
+    RotatePoint( &m_size.x, &m_size.y, 900 );
 }
 
 
 void SCH_BUS_ENTRY::GetEndPoints( std::vector< DANGLING_END_ITEM >& aItemList )
 {
-    DANGLING_END_ITEM item( ENTRY_END, this );
-    item.m_Pos = m_Pos;
-
-    DANGLING_END_ITEM item1( ENTRY_END, this );
-    item1.m_Pos = m_End();
+    DANGLING_END_ITEM item( ENTRY_END, this, m_pos );
     aItemList.push_back( item );
+
+    DANGLING_END_ITEM item1( ENTRY_END, this, m_End() );
     aItemList.push_back( item1 );
 }
 
@@ -221,7 +235,7 @@ bool SCH_BUS_ENTRY::IsSelectStateChanged( const wxRect& aRect )
 
     // If either end of the bus entry is inside the selection rectangle, the entire
     // bus entry is selected.  Bus entries have a fixed length and angle.
-    if( aRect.Contains( m_Pos ) || aRect.Contains( m_End() ) )
+    if( aRect.Contains( m_pos ) || aRect.Contains( m_End() ) )
         m_Flags |= SELECTED;
     else
         m_Flags &= ~SELECTED;
@@ -232,7 +246,7 @@ bool SCH_BUS_ENTRY::IsSelectStateChanged( const wxRect& aRect )
 
 void SCH_BUS_ENTRY::GetConnectionPoints( vector< wxPoint >& aPoints ) const
 {
-    aPoints.push_back( m_Pos );
+    aPoints.push_back( m_pos );
     aPoints.push_back( m_End() );
 }
 
@@ -246,13 +260,13 @@ wxString SCH_BUS_ENTRY::GetSelectMenuText() const
 }
 
 
-bool SCH_BUS_ENTRY::doHitTest( const wxPoint& aPoint, int aAccuracy ) const
+bool SCH_BUS_ENTRY::HitTest( const wxPoint& aPosition, int aAccuracy ) const
 {
-    return TestSegmentHit( aPoint, m_Pos, m_End(), aAccuracy );
+    return TestSegmentHit( aPosition, m_pos, m_End(), aAccuracy );
 }
 
 
-bool SCH_BUS_ENTRY::doHitTest( const EDA_RECT& aRect, bool aContained, int aAccuracy ) const
+bool SCH_BUS_ENTRY::HitTest( const EDA_RECT& aRect, bool aContained, int aAccuracy ) const
 {
     EDA_RECT rect = aRect;
 
@@ -265,10 +279,44 @@ bool SCH_BUS_ENTRY::doHitTest( const EDA_RECT& aRect, bool aContained, int aAccu
 }
 
 
-void SCH_BUS_ENTRY::doPlot( PLOTTER* aPlotter )
+void SCH_BUS_ENTRY::Plot( PLOTTER* aPlotter )
 {
-    aPlotter->set_current_line_width( GetPenSize() );
-    aPlotter->set_color( ReturnLayerColor( GetLayer() ) );
-    aPlotter->move_to( m_Pos );
-    aPlotter->finish_to( m_End() );
+    aPlotter->SetCurrentLineWidth( GetPenSize() );
+    aPlotter->SetColor( ReturnLayerColor( GetLayer() ) );
+    aPlotter->MoveTo( m_pos );
+    aPlotter->FinishTo( m_End() );
+}
+
+/* SetBusEntryShape:
+ * Set the shape of the bus entry.
+ * aShape = ascii code '/' or '\'
+ */
+void SCH_BUS_ENTRY::SetBusEntryShape( int aShape )
+{
+    switch( aShape )
+    {
+    case '\\':
+        if( m_size.y < 0 )
+            m_size.y = -m_size.y;
+        break;
+
+    case '/':
+        if( m_size.y > 0 )
+            m_size.y = -m_size.y;
+        break;
+    }
+}
+
+
+/* GetBusEntryShape:
+ * return the shape of the bus entry, as an ascii code '/' or '\'
+ */
+int SCH_BUS_ENTRY::GetBusEntryShape() const
+{
+    int shape = '\\';
+
+    if( GetSize().y < 0 )
+        shape = '/';
+
+    return shape;
 }

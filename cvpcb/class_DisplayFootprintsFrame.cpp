@@ -1,28 +1,54 @@
-/**********************/
-/** displayframe.cpp **/
-/**********************/
+/*
+ * This program source code file is part of KiCad, a free EDA CAD application.
+ *
+ * Copyright (C) 2007 Jean-Pierre Charras, jaen-pierre.charras@gipsa-lab.inpg.com
+ * Copyright (C) 2011 Wayne Stambaugh <stambaughw@verizon.net>
+ * Copyright (C) 2007-2011 KiCad Developers, see AUTHORS.txt for contributors.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation; either version 2
+ * of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, you may find one here:
+ * http://www.gnu.org/licenses/old-licenses/gpl-2.0.html
+ * or you may search the http://www.gnu.org website for the version 2 license,
+ * or you may write to the Free Software Foundation, Inc.,
+ * 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
+ */
 
-#include "fctsys.h"
-#include "appl_wxstruct.h"
-#include "common.h"
-#include "class_drawpanel.h"
-#include "confirm.h"
-#include "macros.h"
-#include "bitmaps.h"
+/**
+ * @file class_DisplayFootprintsFrame.cpp
+ */
 
-#include "class_board.h"
+#include <fctsys.h>
+#include <appl_wxstruct.h>
+#include <common.h>
+#include <class_drawpanel.h>
+#include <confirm.h>
+#include <macros.h>
+#include <bitmaps.h>
+#include <msgpanel.h>
 
-#include "cvpcb.h"
-#include "cvpcb_mainframe.h"
-#include "class_DisplayFootprintsFrame.h"
-#include "cvpcb_id.h"
+#include <class_board.h>
+
+#include <cvpcb.h>
+#include <cvpcb_mainframe.h>
+#include <class_DisplayFootprintsFrame.h>
+#include <cvpcb_id.h>
 
 /*
  * NOTE: There is something in 3d_viewer.h that causes a compiler error in
  *       <boost/foreach.hpp> in Linux so move it after cvpcb.h where it is
  *       included to prevent the error from occurring.
  */
-#include "3d_viewer.h"
+#include <3d_viewer.h>
 
 
 
@@ -42,27 +68,29 @@ BEGIN_EVENT_TABLE( DISPLAY_FOOTPRINTS_FRAME, PCB_BASE_FRAME )
                    DISPLAY_FOOTPRINTS_FRAME::OnUpdateLineDrawMode )
 END_EVENT_TABLE()
 
+#define DISPLAY_FOOTPRINTS_FRAME_NAME wxT( "CmpFrame" )
 
 /***************************************************************************/
 /* DISPLAY_FOOTPRINTS_FRAME: the frame to display the current focused footprint */
 /***************************************************************************/
 
-DISPLAY_FOOTPRINTS_FRAME::DISPLAY_FOOTPRINTS_FRAME( CVPCB_MAINFRAME* father,
+DISPLAY_FOOTPRINTS_FRAME::DISPLAY_FOOTPRINTS_FRAME( CVPCB_MAINFRAME* parent,
                                                     const wxString& title,
                                                     const wxPoint& pos,
                                                     const wxSize& size, long style ) :
-    PCB_BASE_FRAME( father, CVPCB_DISPLAY_FRAME, title, pos, size, style )
+    PCB_BASE_FRAME( parent, CVPCB_DISPLAY_FRAME_TYPE, title, pos, size,
+                    style, DISPLAY_FOOTPRINTS_FRAME_NAME )
 {
-    m_FrameName = wxT( "CmpFrame" );
-    m_Draw_Axis = true;         // true to draw axis.
+    m_FrameName = DISPLAY_FOOTPRINTS_FRAME_NAME;
+    m_showAxis = true;         // true to draw axis.
 
     // Give an icon
     wxIcon  icon;
     icon.CopyFromBitmap( KiBitmap( icon_cvpcb_xpm ) );
     SetIcon( icon );
 
-    SetBoard( new BOARD( NULL, this ) );
-    SetScreen( new PCB_SCREEN() );
+    SetBoard( new BOARD() );
+    SetScreen( new PCB_SCREEN( GetPageSizeIU() ) );
 
     LoadSettings();
 
@@ -96,21 +124,21 @@ DISPLAY_FOOTPRINTS_FRAME::DISPLAY_FOOTPRINTS_FRAME( CVPCB_MAINFRAME* father,
 
 
 
-    m_auimgr.AddPane( m_HToolBar,
-                      wxAuiPaneInfo( horiz ).Name( wxT( "m_HToolBar" ) ).Top(). Row( 0 ) );
+    m_auimgr.AddPane( m_mainToolBar,
+                      wxAuiPaneInfo( horiz ).Name( wxT( "m_mainToolBar" ) ).Top(). Row( 0 ) );
 
-    if( m_VToolBar )    // Currently, no vertical right toolbar.
-        m_auimgr.AddPane( m_VToolBar,
-                          wxAuiPaneInfo( vert ).Name( wxT( "m_VToolBar" ) ).Right() );
+    if( m_drawToolBar )    // Currently, no vertical right toolbar.
+        m_auimgr.AddPane( m_drawToolBar,
+                          wxAuiPaneInfo( vert ).Name( wxT( "m_drawToolBar" ) ).Right() );
 
-    m_auimgr.AddPane( DrawPanel,
+    m_auimgr.AddPane( m_canvas,
                       wxAuiPaneInfo().Name( wxT( "DisplayFrame" ) ).CentrePane() );
 
-    m_auimgr.AddPane( MsgPanel,
+    m_auimgr.AddPane( m_messagePanel,
                       wxAuiPaneInfo( mesg ).Name( wxT( "MsgPanel" ) ).Bottom().Layer(10) );
 
-    m_auimgr.AddPane( m_OptionsToolBar,
-                      wxAuiPaneInfo( vert ).Name( wxT( "m_OptionsToolBar" ) ).Left() );
+    m_auimgr.AddPane( m_optionsToolBar,
+                      wxAuiPaneInfo( vert ).Name( wxT( "m_optionsToolBar" ) ).Left() );
 
     m_auimgr.Update();
 
@@ -120,12 +148,12 @@ DISPLAY_FOOTPRINTS_FRAME::DISPLAY_FOOTPRINTS_FRAME( CVPCB_MAINFRAME* father,
 
 DISPLAY_FOOTPRINTS_FRAME::~DISPLAY_FOOTPRINTS_FRAME()
 {
-    delete GetBoard();
     delete GetScreen();
-    SetScreen( NULL );
+    SetScreen( NULL );      // Be sure there is no double deletion
 
     ( (CVPCB_MAINFRAME*) wxGetApp().GetTopWindow() )->m_DisplayFootprintFrame = NULL;
 }
+
 
 /* Called when the frame is closed
  *  Save current settings (frame position and size
@@ -133,7 +161,8 @@ DISPLAY_FOOTPRINTS_FRAME::~DISPLAY_FOOTPRINTS_FRAME()
 void DISPLAY_FOOTPRINTS_FRAME::OnCloseWindow( wxCloseEvent& event )
 {
     if( m_Draw3DFrame )
-        m_Draw3DFrame->Close(true);
+        m_Draw3DFrame->Close( true );
+
     SaveSettings();
     Destroy();
 }
@@ -148,79 +177,81 @@ void DISPLAY_FOOTPRINTS_FRAME::ReCreateVToolbar()
 
 void DISPLAY_FOOTPRINTS_FRAME::ReCreateOptToolbar()
 {
-    if( m_OptionsToolBar )
+    if( m_optionsToolBar )
         return;
 
     // Create options tool bar.
-    m_OptionsToolBar = new EDA_TOOLBAR( TOOLBAR_OPTION, this, ID_OPT_TOOLBAR, false );
+    m_optionsToolBar = new wxAuiToolBar( this, ID_OPT_TOOLBAR, wxDefaultPosition, wxDefaultSize,
+                                         wxAUI_TB_DEFAULT_STYLE | wxAUI_TB_VERTICAL );
 
-    m_OptionsToolBar->AddTool( ID_TB_OPTIONS_SHOW_GRID, wxEmptyString, KiBitmap( grid_xpm ),
+    m_optionsToolBar->AddTool( ID_TB_OPTIONS_SHOW_GRID, wxEmptyString, KiBitmap( grid_xpm ),
                                _( "Hide grid" ), wxITEM_CHECK );
 
-    m_OptionsToolBar->AddTool( ID_TB_OPTIONS_SHOW_POLAR_COORD, wxEmptyString,
+    m_optionsToolBar->AddTool( ID_TB_OPTIONS_SHOW_POLAR_COORD, wxEmptyString,
                                KiBitmap( polar_coord_xpm ),
                                _( "Display polar coordinates" ), wxITEM_CHECK );
 
-    m_OptionsToolBar->AddTool( ID_TB_OPTIONS_SELECT_UNIT_INCH, wxEmptyString,
+    m_optionsToolBar->AddTool( ID_TB_OPTIONS_SELECT_UNIT_INCH, wxEmptyString,
                                KiBitmap( unit_inch_xpm ),
                                _( "Units in inches" ), wxITEM_CHECK );
 
-    m_OptionsToolBar->AddTool( ID_TB_OPTIONS_SELECT_UNIT_MM, wxEmptyString,
+    m_optionsToolBar->AddTool( ID_TB_OPTIONS_SELECT_UNIT_MM, wxEmptyString,
                                KiBitmap( unit_mm_xpm ),
                                _( "Units in millimeters" ), wxITEM_CHECK );
 
-    m_OptionsToolBar->AddTool( ID_TB_OPTIONS_SELECT_CURSOR, wxEmptyString,
+    m_optionsToolBar->AddTool( ID_TB_OPTIONS_SELECT_CURSOR, wxEmptyString,
                                KiBitmap( cursor_shape_xpm ),
                                _( "Change cursor shape" ), wxITEM_CHECK  );
 
-    m_OptionsToolBar->AddSeparator();
-    m_OptionsToolBar->AddTool( ID_TB_OPTIONS_SHOW_PADS_SKETCH, wxEmptyString,
+    m_optionsToolBar->AddSeparator();
+    m_optionsToolBar->AddTool( ID_TB_OPTIONS_SHOW_PADS_SKETCH, wxEmptyString,
                                KiBitmap( pad_sketch_xpm ),
                                _( "Show pads in outline mode" ), wxITEM_CHECK  );
 
-    m_OptionsToolBar->AddTool( ID_TB_OPTIONS_SHOW_MODULE_TEXT_SKETCH, wxEmptyString,
+    m_optionsToolBar->AddTool( ID_TB_OPTIONS_SHOW_MODULE_TEXT_SKETCH, wxEmptyString,
                                KiBitmap( text_sketch_xpm ),
                                _( "Show texts in line mode" ), wxITEM_CHECK  );
 
-    m_OptionsToolBar->AddTool( ID_TB_OPTIONS_SHOW_MODULE_EDGE_SKETCH, wxEmptyString,
+    m_optionsToolBar->AddTool( ID_TB_OPTIONS_SHOW_MODULE_EDGE_SKETCH, wxEmptyString,
                                KiBitmap( show_mod_edge_xpm ),
                                _( "Show outlines in line mode" ), wxITEM_CHECK  );
 
-    m_OptionsToolBar->Realize();
+    m_optionsToolBar->Realize();
 }
 
 
 void DISPLAY_FOOTPRINTS_FRAME::ReCreateHToolbar()
 {
-    if( m_HToolBar != NULL )
+    if( m_mainToolBar != NULL )
         return;
 
-    m_HToolBar = new EDA_TOOLBAR( TOOLBAR_MAIN, this, ID_H_TOOLBAR, true );
+    m_mainToolBar = new wxAuiToolBar( this, ID_H_TOOLBAR, wxDefaultPosition, wxDefaultSize,
+                                      wxAUI_TB_DEFAULT_STYLE | wxAUI_TB_HORZ_LAYOUT );
 
-    m_HToolBar->AddTool( ID_OPTIONS_SETUP, wxEmptyString, KiBitmap( display_options_xpm ),
-                         _( "Display options" ) );
+    m_mainToolBar->AddTool( ID_OPTIONS_SETUP, wxEmptyString, KiBitmap( display_options_xpm ),
+                            _( "Display options" ) );
 
-    m_HToolBar->AddSeparator();
+    m_mainToolBar->AddSeparator();
 
-    m_HToolBar->AddTool( ID_ZOOM_IN, wxEmptyString, KiBitmap( zoom_in_xpm ),
-                         _( "Zoom in (F1)" ) );
+    m_mainToolBar->AddTool( ID_ZOOM_IN, wxEmptyString, KiBitmap( zoom_in_xpm ),
+                            _( "Zoom in (F1)" ) );
 
-    m_HToolBar->AddTool( ID_ZOOM_OUT, wxEmptyString, KiBitmap( zoom_out_xpm ),
-                         _( "Zoom out (F2)" ) );
+    m_mainToolBar->AddTool( ID_ZOOM_OUT, wxEmptyString, KiBitmap( zoom_out_xpm ),
+                            _( "Zoom out (F2)" ) );
 
-    m_HToolBar->AddTool( ID_ZOOM_REDRAW, wxEmptyString, KiBitmap( zoom_redraw_xpm ),
-                         _( "Redraw view (F3)" ) );
+    m_mainToolBar->AddTool( ID_ZOOM_REDRAW, wxEmptyString, KiBitmap( zoom_redraw_xpm ),
+                            _( "Redraw view (F3)" ) );
 
-    m_HToolBar->AddTool( ID_ZOOM_PAGE, wxEmptyString, KiBitmap( zoom_fit_in_page_xpm ),
-                         _( "Zoom auto (Home)" ) );
+    m_mainToolBar->AddTool( ID_ZOOM_PAGE, wxEmptyString, KiBitmap( zoom_fit_in_page_xpm ),
+                            _( "Zoom auto (Home)" ) );
 
-    m_HToolBar->AddSeparator();
-    m_HToolBar->AddTool( ID_CVPCB_SHOW3D_FRAME, wxEmptyString, KiBitmap( three_d_xpm ),
-                         _( "3D Display" ) );
+    m_mainToolBar->AddSeparator();
+    m_mainToolBar->AddTool( ID_CVPCB_SHOW3D_FRAME, wxEmptyString, KiBitmap( three_d_xpm ),
+                            _( "3D Display" ) );
 
     // after adding the buttons to the toolbar, must call Realize() to reflect
     // the changes
-    m_HToolBar->Realize();
+    m_mainToolBar->Realize();
 }
 
 
@@ -236,7 +267,7 @@ void DISPLAY_FOOTPRINTS_FRAME::OnUpdateTextDrawMode( wxUpdateUIEvent& aEvent )
         i = 0;
 
     aEvent.Check( m_DisplayModText == 0 );
-    m_OptionsToolBar->SetToolShortHelp( ID_TB_OPTIONS_SHOW_MODULE_TEXT_SKETCH, msgTextsFill[i] );
+    m_optionsToolBar->SetToolShortHelp( ID_TB_OPTIONS_SHOW_MODULE_TEXT_SKETCH, msgTextsFill[i] );
 
 }
 
@@ -253,7 +284,7 @@ void DISPLAY_FOOTPRINTS_FRAME::OnUpdateLineDrawMode( wxUpdateUIEvent& aEvent )
         i = 0;
 
     aEvent.Check( m_DisplayModEdge == 0 );
-    m_OptionsToolBar->SetToolShortHelp( ID_TB_OPTIONS_SHOW_MODULE_EDGE_SKETCH, msgEdgesFill[i] );
+    m_optionsToolBar->SetToolShortHelp( ID_TB_OPTIONS_SHOW_MODULE_EDGE_SKETCH, msgEdgesFill[i] );
 }
 
 
@@ -285,7 +316,7 @@ void DISPLAY_FOOTPRINTS_FRAME::OnSelectOptionToolbar( wxCommandEvent& event )
         if( m_DisplayModText > 2 )
             m_DisplayModText = 0;
 
-        DrawPanel->Refresh( );
+        m_canvas->Refresh( );
         break;
 
     case ID_TB_OPTIONS_SHOW_MODULE_EDGE_SKETCH:
@@ -294,7 +325,7 @@ void DISPLAY_FOOTPRINTS_FRAME::OnSelectOptionToolbar( wxCommandEvent& event )
         if( m_DisplayModEdge > 2 )
             m_DisplayModEdge = 0;
 
-        DrawPanel->Refresh();
+        m_canvas->Refresh();
         break;
 
     default:
@@ -352,26 +383,26 @@ void DISPLAY_FOOTPRINTS_FRAME::GeneralControl( wxDC* aDC, const wxPoint& aPositi
 
     case WXK_NUMPAD8:       /* cursor moved up */
     case WXK_UP:
-        pos.y -= wxRound( gridSize.y );
-        DrawPanel->MoveCursor( pos );
+        pos.y -= KiROUND( gridSize.y );
+        m_canvas->MoveCursor( pos );
         break;
 
     case WXK_NUMPAD2:       /* cursor moved down */
     case WXK_DOWN:
-        pos.y += wxRound( gridSize.y );
-        DrawPanel->MoveCursor( pos );
+        pos.y += KiROUND( gridSize.y );
+        m_canvas->MoveCursor( pos );
         break;
 
     case WXK_NUMPAD4:       /*  cursor moved left */
     case WXK_LEFT:
-        pos.x -= wxRound( gridSize.x );
-        DrawPanel->MoveCursor( pos );
+        pos.x -= KiROUND( gridSize.x );
+        m_canvas->MoveCursor( pos );
         break;
 
     case WXK_NUMPAD6:      /*  cursor moved right */
     case WXK_RIGHT:
-        pos.x += wxRound( gridSize.x );
-        DrawPanel->MoveCursor( pos );
+        pos.x += KiROUND( gridSize.x );
+        m_canvas->MoveCursor( pos );
         break;
     }
 
@@ -381,13 +412,13 @@ void DISPLAY_FOOTPRINTS_FRAME::GeneralControl( wxDC* aDC, const wxPoint& aPositi
     {
         pos = screen->GetCrossHairPosition();
         screen->SetCrossHairPosition( oldpos );
-        DrawPanel->CrossHairOff( aDC );
+        m_canvas->CrossHairOff( aDC );
         screen->SetCrossHairPosition( pos );
-        DrawPanel->CrossHairOn( aDC );
+        m_canvas->CrossHairOn( aDC );
 
-        if( DrawPanel->IsMouseCaptured() )
+        if( m_canvas->IsMouseCaptured() )
         {
-            DrawPanel->m_mouseCaptureCallback( DrawPanel, aDC, aPosition, 0 );
+            m_canvas->CallMouseCapture( aDC, aPosition, 0 );
         }
     }
 
@@ -406,6 +437,7 @@ void DISPLAY_FOOTPRINTS_FRAME::Show3D_Frame( wxCommandEvent& event )
         // This should work on any platform.
         if( m_Draw3DFrame->IsIconized() )
              m_Draw3DFrame->Iconize( false );
+
         m_Draw3DFrame->Raise();
 
         // Raising the window does not set the focus on Linux.  This should work on any platform.
@@ -435,7 +467,7 @@ void PCB_SCREEN::ClearUndoORRedoList( UNDO_REDO_CONTAINER&, int )
  * Function IsGridVisible() , virtual
  * @return true if the grid must be shown
  */
-bool DISPLAY_FOOTPRINTS_FRAME::IsGridVisible()
+bool DISPLAY_FOOTPRINTS_FRAME::IsGridVisible() const
 {
     return m_DrawGrid;
 }
@@ -457,7 +489,7 @@ void DISPLAY_FOOTPRINTS_FRAME::SetGridVisibility(bool aVisible)
  * Function GetGridColor() , virtual
  * @return the color of the grid
  */
-int DISPLAY_FOOTPRINTS_FRAME::GetGridColor()
+EDA_COLOR_T DISPLAY_FOOTPRINTS_FRAME::GetGridColor() const
 {
     return DARKGRAY;
 }

@@ -56,21 +56,22 @@
  *  T0
  *  M30
  */
-#include "fctsys.h"
-#include "common.h"
-#include "confirm.h"
+#include <fctsys.h>
+#include <common.h>
+#include <confirm.h>
 
-#include "gerbview.h"
-#include "trigo.h"
-#include "macros.h"
-#include "class_gerber_draw_item.h"
-#include "class_GERBER.h"
-#include "class_excellon.h"
-#include "kicad_string.h"
+#include <gerbview.h>
+#include <trigo.h>
+#include <macros.h>
+#include <base_units.h>
+#include <class_gerber_draw_item.h>
+#include <class_GERBER.h>
+#include <class_excellon.h>
+#include <kicad_string.h>
 
-#include <math.h>
+#include <cmath>
 
-#include "html_messagebox.h"
+#include <html_messagebox.h>
 
 extern int    ReadInt( char*& text, bool aSkipSeparator = true );
 extern double ReadDouble( char*& text, bool aSkipSeparator = true );
@@ -389,7 +390,19 @@ bool EXCELLON_IMAGE::Execute_HEADER_Command( char*& text )
         break;
 
     case DRILL_INCREMENTALHEADER:
-        m_Relative = true;
+        if( *text != ',' )
+        {
+            ReportMessage( _( "ICI command has no parameter" ) );
+            break;
+        }
+        text++;     // skip separator
+        // Parameter should be ON or OFF
+        if( strnicmp( text, "OFF", 3 ) == 0 )
+            m_Relative = false;
+        else if( strnicmp( text, "ON", 2 ) == 0 )
+            m_Relative = true;
+        else
+            ReportMessage( _( "ICI command has incorrect parameter" ) );
         break;
 
     case DRILL_TOOL_CHANGE_STOP:
@@ -430,8 +443,12 @@ bool EXCELLON_IMAGE::Execute_HEADER_Command( char*& text )
         dcode = GetDCODE( iprm + FIRST_DCODE );     // Remember: dcodes are >= FIRST_DCODE
         if( dcode == NULL )
             break;
-        double conv_scale = m_GerbMetric ? PCB_INTERNAL_UNIT / 25.4 : PCB_INTERNAL_UNIT;
-        dcode->m_Size.x = dcode->m_Size.y = wxRound( dprm * conv_scale );
+        // conv_scale = scaling factor from inch to Internal Unit
+        double conv_scale = IU_PER_MILS * 1000;
+        if( m_GerbMetric )
+            conv_scale /= 25.4;
+
+        dcode->m_Size.x = dcode->m_Size.y = KiROUND( dprm * conv_scale );
         dcode->m_Shape  = APT_CIRCLE;
         break;
     }
@@ -470,8 +487,8 @@ bool EXCELLON_IMAGE::Execute_Drill_Command( char*& text )
                     ReportMessage( msg );
                     return false;
                 }
-                gbritem = new GERBER_DRAW_ITEM( GetParent()->GetBoard(), this );
-                GetParent()->GetBoard()->m_Drawings.Append( gbritem );
+                gbritem = new GERBER_DRAW_ITEM( GetParent()->GetLayout(), this );
+                GetParent()->GetLayout()->m_Drawings.Append( gbritem );
                 if( m_SlotOn )  // Oval hole
                 {
                     fillLineGBRITEM( gbritem,

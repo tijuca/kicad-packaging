@@ -6,12 +6,12 @@
 
 #include <stdio.h>
 #include <stdlib.h>
-#include <math.h>
+#include <cmath>
 #include <string.h>
 
-#include "render.h"
-#include "greymap.h"
-#include "auxiliary.h"
+#include <render.h>
+#include <greymap.h>
+#include <auxiliary.h>
 
 /* ---------------------------------------------------------------------- */
 /* routines for anti-aliased rendering of curves */

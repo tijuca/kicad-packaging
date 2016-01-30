@@ -2,7 +2,6 @@
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
  * Copyright (C) 2004 Jean-Pierre Charras, jaen-pierre.charras@gipsa-lab.inpg.com
- * Copyright (C) 2008-2011 Wayne Stambaugh <stambaughw@verizon.net>
  * Copyright (C) 2004-2011 KiCad Developers, see change_log.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
@@ -51,14 +50,16 @@ typedef SCH_ITEMS::iterator SCH_ITEMS_ITR;
 typedef vector< SCH_ITEMS_ITR > SCH_ITEMS_ITRS;
 
 
-/* used to calculate the pen size from default value
- * the actual pen size is default value * BUS_WIDTH_EXPAND
- */
-#if defined(KICAD_GOST)
-#define BUS_WIDTH_EXPAND 3.6
-#else
-#define BUS_WIDTH_EXPAND 1.4
-#endif
+#define FMT_IU          SCH_ITEM::FormatInternalUnits
+#define FMT_ANGLE       SCH_ITEM::FormatAngle
+
+
+/// Flag to enable find and replace tracing using the WXTRACE environment variable.
+extern const wxString traceFindReplace;
+
+/// Flag to enable find item tracing using the WXTRACE environment variable.  This
+/// flag generates a lot of debug output.
+extern const wxString traceFindItem;
 
 
 enum DANGLING_END_T {
@@ -74,19 +75,34 @@ enum DANGLING_END_T {
     SHEET_LABEL_END
 };
 
-// A helper class to store a list of items that can be connected to something:
+
+/**
+ * Class DANGLING_END_ITEM
+ * is a helper class used to store the state of schematic  items that can be connected to
+ * other schematic items.
+ */
 class DANGLING_END_ITEM
 {
-public:
-    const void*    m_Item;         // a pointer to the parent
-    wxPoint        m_Pos;          // the position of the connecting point
-    DANGLING_END_T m_Type;         // type of parent
+    /// A pointer to the connectable object.
+    const void*    m_item;
 
-    DANGLING_END_ITEM( DANGLING_END_T type, const void* aItem )
+    /// The position of the connection point.
+    wxPoint        m_pos;
+
+    /// The type of connection of #m_item.
+    DANGLING_END_T m_type;
+
+public:
+    DANGLING_END_ITEM( DANGLING_END_T aType, const void* aItem, const wxPoint& aPosition )
     {
-        m_Item = aItem;
-        m_Type = type;
+        m_item = aItem;
+        m_type = aType;
+        m_pos = aPosition;
     }
+
+    wxPoint GetPosition() const { return m_pos; }
+    const void* GetItem() const { return m_item; }
+    DANGLING_END_T GetType() const { return m_type; }
 };
 
 
@@ -115,10 +131,8 @@ public:
         return wxT( "SCH_ITEM" );
     }
 
-    SCH_ITEM* Clone() const { return ( SCH_ITEM* ) EDA_ITEM::Clone(); }
-
     /**
-     * Function SwapDate
+     * Function SwapData
      * swap the internal data structures \a aItem with the schematic item.
      * Obviously, aItem must have the same type than me
      * @param aItem The item to swap the data structures with.
@@ -153,17 +167,8 @@ public:
     virtual void Draw( EDA_DRAW_PANEL* aPanel,
                        wxDC*           aDC,
                        const wxPoint&  aOffset,
-                       int             aDrawMode,
-                       int             aColor = -1 ) = 0;
-
-    /**
-     * Function Place
-     * place the schematic item into the draw list.
-     * <p>
-     * If the schematic item is a new item or is modified, it is added to undo list.
-     * </p>
-     */
-    virtual void Place( SCH_EDIT_FRAME* aFrame, wxDC* aDC );
+                       GR_DRAWMODE     aDrawMode,
+                       EDA_COLOR_T     aColor = UNSPECIFIED_COLOR ) = 0;
 
     /**
      * Function Move
@@ -173,15 +178,26 @@ public:
     virtual void Move( const wxPoint& aMoveVector ) = 0;
 
     /**
-     * Function Mirror_Y
-     * mirrors item relative to an Y axis about \a aYaxis_position.
+     * Function MirrorY
+     * mirrors item relative to the Y axis about \a aYaxis_position.
      * @param aYaxis_position The Y axis position to mirror around.
      */
-    virtual void Mirror_Y( int aYaxis_position ) = 0;
+    virtual void MirrorY( int aYaxis_position ) = 0;
 
-    virtual void Mirror_X( int aXaxis_position ) = 0;
+    /**
+     * Function MirrorX
+     * mirrors item relative to the X axis about \a aXaxis_position.
+     * @param aXaxis_position The X axis position to mirror around.
+     */
+    virtual void MirrorX( int aXaxis_position ) = 0;
 
-    virtual void Rotate( wxPoint rotationPoint ) = 0;
+    /**
+     * Function Rotate
+     * rotates the item around \a aPosition 90 degrees in the clockwise direction.
+     * @param aPosition A reference to a wxPoint object containing the coordinates to
+     *                  rotate around.
+     */
+    virtual void Rotate( wxPoint aPosition ) = 0;
 
     /**
      * Function Save
@@ -272,43 +288,47 @@ public:
      * Function IsConnected
      * tests the item to see if it is connected to \a aPoint.
      *
-     * @param aPoint - Position to test for connection.
+     * @param aPoint A reference to a wxPoint object containing the coordinates to test.
      * @return True if connection to \a aPoint exists.
      */
     bool IsConnected( const wxPoint& aPoint ) const;
 
+    /** @copydoc EDA_ITEM::HitTest(const wxPoint&) */
     virtual bool HitTest( const wxPoint& aPosition ) { return HitTest( aPosition, 0 ); }
 
     /**
      * Function HitTest
-     * tests if \a aPoint is contained within or on the bounding box of an item.
+     * tests if \a aPosition is contained within or on the bounding box of an item.
      *
-     * @param aPoint - Point to test.
-     * @param aAccuracy - Increase the item bounding box by this amount.
-     * @return True if \a aPoint is within the item bounding box.
+     * @param aPosition A reference to a wxPoint object containing the coordinates to test.
+     * @param aAccuracy Increase the item bounding box by this amount.
+     * @return True if \a aPosition is within the item bounding box.
      */
-    bool HitTest( const wxPoint& aPoint, int aAccuracy = 0 ) const
-    {
-        return doHitTest( aPoint, aAccuracy );
-    }
+    virtual bool HitTest( const wxPoint& aPosition, int aAccuracy ) const { return false; }
 
     /**
      * Function HitTest
      * tests if \a aRect intersects or is contained within the bounding box of an item.
      *
-     * @param aRect - Rectangle to test.
-     * @param aContained - Set to true to test for containment instead of an intersection.
-     * @param aAccuracy - Increase aRect by this amount.
+     * @param aRect A reference to a EDA_RECT object containing the rectangle to test.
+     * @param aContained Set to true to test for containment instead of an intersection.
+     * @param aAccuracy Increase \a aRect by this amount.
      * @return True if \a aRect contains or intersects the item bounding box.
      */
-    bool HitTest( const EDA_RECT& aRect, bool aContained = false, int aAccuracy = 0 ) const
+    virtual bool HitTest( const EDA_RECT& aRect, bool aContained = false, int aAccuracy = 0 ) const
     {
-        return doHitTest( aRect, aContained, aAccuracy );
+        return false;
     }
 
     virtual bool CanIncrementLabel() const { return false; }
 
-    void Plot( PLOTTER* aPlotter ) { doPlot( aPlotter ); }
+    /**
+     * Function Plot
+     * plots the schematic item to \a aPlotter.
+     *
+     * @param aPlotter A pointer to a #PLOTTER object.
+     */
+    virtual void Plot( PLOTTER* aPlotter );
 
     /**
      * Function GetNetListItem
@@ -318,15 +338,16 @@ public:
      * Not all schematic objects have net list items associated with them.  This
      * method only needs to be overridden for those schematic objects that have
      * net list objects associated with them.
+     * </p>
      */
     virtual void GetNetListItem( vector<NETLIST_OBJECT*>& aNetListItems,
                                  SCH_SHEET_PATH*          aSheetPath ) { }
 
     /**
      * Function GetPosition
-     * @return the schematic item position.
+     * @return A wxPoint object containing the schematic item position.
      */
-    wxPoint GetPosition() const { return doGetPosition(); }
+    virtual wxPoint GetPosition() const = 0;
 
     /**
      * Function SetPosition
@@ -334,34 +355,51 @@ public:
      *
      * @param aPosition A reference to a wxPoint object containing the new position.
      */
-    void SetPosition( const wxPoint& aPosition ) { doSetPosition( aPosition ); }
+    virtual void SetPosition( const wxPoint& aPosition ) = 0;
 
     virtual bool operator <( const SCH_ITEM& aItem ) const;
 
     /**
-     * @note - The DoXXX() functions below are used to enforce the interface while retaining
-     *         the ability of change the implementation behavior of derived classes.  See
-     *         Herb Sutters explanation of virtuality as to why you might want to do this at:
-     *         http://www.gotw.ca/publications/mill18.htm.
+     * Function FormatInternalUnits
+     * converts \a aValue from schematic internal units to a string appropriate for writing
+     * to file.
+     *
+     * @param aValue A coordinate value to convert.
+     * @return A std::string object containing the converted value.
      */
+    static std::string FormatInternalUnits( int aValue );
+
+    /**
+     * Function FormatAngle
+     * converts \a aAngle from board units to a string appropriate for writing to file.
+     *
+     * @note Internal angles for board items can be either degrees or tenths of degree
+     *       on how KiCad is built.
+     * @param aAngle A angle value to convert.
+     * @return A std::string object containing the converted angle.
+     */
+    static std::string FormatAngle( double aAngle );
+
+    static std::string FormatInternalUnits( const wxPoint& aPoint );
+
+    static std::string FormatInternalUnits( const wxSize& aSize );
+
 private:
-    virtual bool doHitTest( const wxPoint& aPoint, int aAccuracy ) const
-    {
-        return false;
-    }
-
-    virtual bool doHitTest( const EDA_RECT& aRect, bool aContained, int aAccuracy ) const
-    {
-        return false;
-    }
-
+    /**
+     * Function doIsConnected
+     * provides the object specific test to see if it is connected to \a aPosition.
+     *
+     * @note Override this function if the derived object can be connect to another
+     *       object such as a wire, bus, or junction.  Do not override this function
+     *       for objects that cannot have connections.  The default will always return
+     *       false.  This functions is call through the public function IsConnected()
+     *       which performs tests common to all schematic items before calling the
+     *       item specific connection testing.
+     *
+     * @param aPosition A reference to a wxPoint object containing the test position.
+     * @return True if connection to \a aPosition exists.
+     */
     virtual bool doIsConnected( const wxPoint& aPosition ) const { return false; }
-
-    virtual void doPlot( PLOTTER* aPlotter );
-
-    virtual wxPoint doGetPosition() const = 0;
-
-    virtual void doSetPosition( const wxPoint& aPosition ) = 0;
 };
 
 

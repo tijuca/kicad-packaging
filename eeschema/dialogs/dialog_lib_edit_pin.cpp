@@ -1,16 +1,13 @@
-#include "fctsys.h"
-#include "macros.h"
-#include "gr_basic.h"
-#include "libeditframe.h"
-#include "class_libentry.h"
-#include "lib_pin.h"
+#include <fctsys.h>
+#include <macros.h>
+#include <gr_basic.h>
+#include <base_units.h>
 
-#include "dialog_lib_edit_pin.h"
+#include <libeditframe.h>
+#include <class_libentry.h>
+#include <lib_pin.h>
 
-// dialog should remember its previous screen position and size
-// Not also if the defaut size is > s_LastSize, default size is used
-wxPoint DIALOG_LIB_EDIT_PIN::s_LastPos( -1, -1 );
-wxSize  DIALOG_LIB_EDIT_PIN::s_LastSize;
+#include <dialog_lib_edit_pin.h>
 
 DIALOG_LIB_EDIT_PIN::DIALOG_LIB_EDIT_PIN( wxWindow* parent, LIB_PIN* aPin ) :
     DIALOG_LIB_EDIT_PIN_BASE( parent )
@@ -25,31 +22,17 @@ DIALOG_LIB_EDIT_PIN::DIALOG_LIB_EDIT_PIN( wxWindow* parent, LIB_PIN* aPin ) :
 
     m_panelShowPin->SetBackgroundColour( MakeColour( g_DrawBgColor ) );
 
-    /* Required to make escape key work correctly in wxGTK. */
-    SetFocus();
     // Set tab order
-    m_textPadName-> MoveAfterInTabOrder(m_textPinName);
+    m_textPadName->MoveAfterInTabOrder(m_textPinName);
     m_sdbSizerButtonsOK->SetDefault();
 }
+
 
 DIALOG_LIB_EDIT_PIN::~DIALOG_LIB_EDIT_PIN()
 {
     delete m_dummyPin;
 }
 
-void DIALOG_LIB_EDIT_PIN::SetLastSizeAndPosition()
-{
-    if( s_LastPos.x != -1 )
-    {
-        wxSize defaultSize = GetSize();
-        if(  s_LastSize.x < defaultSize.x )
-            s_LastSize.x = defaultSize.x;
-        SetSize( s_LastSize );
-        SetPosition( s_LastPos );
-    }
-    else
-        Center();
-}
 
 /*
  * Draw (on m_panelShowPin) the pin currently edited
@@ -71,7 +54,7 @@ void DIALOG_LIB_EDIT_PIN::OnPaintShowPanel( wxPaintEvent& event )
     EDA_RECT bBox = m_dummyPin->GetBoundingBox();
     double xscale    = (double) dc_size.x / bBox.GetWidth();
     double yscale = (double) dc_size.y / bBox.GetHeight();
-    double scale = MIN( xscale, yscale );
+    double scale = std::min( xscale, yscale );
 
     // Give a 10% margin
     scale *= 0.9;
@@ -82,7 +65,7 @@ void DIALOG_LIB_EDIT_PIN::OnPaintShowPanel( wxPaintEvent& event )
     NEGATE( offset.y );
 
     GRResetPenAndBrush( &dc );
-    m_dummyPin->Draw( NULL, &dc, offset, -1, wxCOPY,
+    m_dummyPin->Draw( NULL, &dc, offset, UNSPECIFIED_COLOR, GR_COPY,
                       NULL, DefaultTransform );
 
     m_dummyPin->SetParent(NULL);
@@ -92,25 +75,16 @@ void DIALOG_LIB_EDIT_PIN::OnPaintShowPanel( wxPaintEvent& event )
 
 void DIALOG_LIB_EDIT_PIN::OnCloseDialog( wxCloseEvent& event )
 {
-    // Save the dialog's position
-    s_LastPos  = GetPosition();
-    s_LastSize = GetSize();
     EndModal( wxID_CANCEL );
 }
 
 void DIALOG_LIB_EDIT_PIN::OnCancelButtonClick( wxCommandEvent& event )
 {
-    // Save the dialog's position
-    s_LastPos  = GetPosition();
-    s_LastSize = GetSize();
     EndModal( wxID_CANCEL );
 }
 
 void DIALOG_LIB_EDIT_PIN::OnOKButtonClick( wxCommandEvent& event )
 {
-    // Save the dialog's position
-    s_LastPos  = GetPosition();
-    s_LastSize = GetSize();
     EndModal( wxID_OK );
 }
 
@@ -119,11 +93,11 @@ void DIALOG_LIB_EDIT_PIN::OnPropertiesChange( wxCommandEvent& event )
 {
     if( ! IsShown() )   // do nothing at init time
         return;
-    int units = ((LIB_EDIT_FRAME*)GetParent())->m_InternalUnits;
-    int pinNameSize = ReturnValueFromString( g_UserUnit, GetNameTextSize(), units );
-    int pinNumSize = ReturnValueFromString( g_UserUnit, GetPadNameTextSize(), units);
+
+    int pinNameSize = ReturnValueFromString( g_UserUnit, GetNameTextSize() );
+    int pinNumSize = ReturnValueFromString( g_UserUnit, GetPadNameTextSize());
     int pinOrient = LIB_PIN::GetOrientationCode( GetOrientation() );
-    int pinLength = ReturnValueFromString( g_UserUnit, GetLength(), units );
+    int pinLength = ReturnValueFromString( g_UserUnit, GetLength() );
     int pinShape = LIB_PIN::GetStyleCode( GetStyle() );
     int pinType = GetElectricalType();
 

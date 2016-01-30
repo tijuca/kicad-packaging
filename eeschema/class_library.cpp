@@ -27,25 +27,23 @@
  * @file class_library.cpp
  */
 
-#include "fctsys.h"
-#include "gr_basic.h"
-#include "macros.h"
-#include "kicad_string.h"
-#include "gestfich.h"
-#include "eda_doc.h"
-#include "wxstruct.h"
-#include "richio.h"
+#include <fctsys.h>
+#include <gr_basic.h>
+#include <macros.h>
+#include <kicad_string.h>
+#include <gestfich.h>
+#include <eda_doc.h>
+#include <wxstruct.h>
+#include <richio.h>
 
-#include "general.h"
-#include "protos.h"
-#include "class_library.h"
+#include <general.h>
+#include <protos.h>
+#include <class_library.h>
 
 #include <boost/foreach.hpp>
 
 #include <wx/tokenzr.h>
 #include <wx/regex.h>
-#include <wx/wfstream.h>
-
 
 static const wxChar* duplicate_name_msg =
 _( "Library <%s> has duplicate entry name <%s>.\n\
@@ -588,7 +586,7 @@ bool CMP_LIBRARY::LoadHeader( LINE_READER& aLineReader )
 bool CMP_LIBRARY::LoadDocs( wxString& aErrorMsg )
 {
     int        lineNumber = 0;
-    char       line[LINE_BUFFER_LEN_LARGE], * name, * text;
+    char       line[8000], * name, * text;
     LIB_ALIAS* entry;
     FILE*      file;
     wxString   msg;
@@ -673,7 +671,7 @@ bool CMP_LIBRARY::Save( OUTPUTFORMATTER& aFormatter )
 {
     if( isModified )
     {
-        timeStamp = GetTimeStamp();
+        timeStamp = GetNewTimeStamp();
         isModified = false;
     }
 
@@ -862,13 +860,13 @@ CMP_LIBRARY* CMP_LIBRARY::FindLibrary( const wxString& aName )
 
 wxArrayString CMP_LIBRARY::GetLibraryNames( bool aSorted )
 {
-    wxString cacheName;
+    wxArrayString cacheNames;
     wxArrayString names;
 
     BOOST_FOREACH( CMP_LIBRARY& lib, CMP_LIBRARY::libraryList )
     {
         if( lib.isCache && aSorted )
-            cacheName = lib.GetName();
+            cacheNames.Add( lib.GetName() );
         else
             names.Add( lib.GetName() );
     }
@@ -877,8 +875,8 @@ wxArrayString CMP_LIBRARY::GetLibraryNames( bool aSorted )
     if( aSorted )
         names.Sort();
 
-    if( !cacheName.IsEmpty() )
-        names.Add( cacheName );
+    for( unsigned int i = 0; i<cacheNames.Count(); i++ )
+        names.Add( cacheNames.Item( i ) );
 
     return names;
 }

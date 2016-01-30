@@ -34,15 +34,17 @@
 #include <wx/statline.h>
 #include <wx/platinfo.h>
 
-#include "build_version.h"
-#include "fctsys.h"
-#include "appl_wxstruct.h"
-#include "online_help.h"
-#include "id.h"
-#include "confirm.h"
-#include "eda_doc.h"
-#include "wxstruct.h"
-#include "macros.h"
+#include <build_version.h>
+#include <fctsys.h>
+#include <appl_wxstruct.h>
+#include <online_help.h>
+#include <id.h>
+#include <eda_doc.h>
+#include <wxstruct.h>
+#include <macros.h>
+#include <menus_helpers.h>
+
+#include <boost/version.hpp>
 
 
 /// The default auto save interval is 10 minutes.
@@ -55,39 +57,37 @@ const wxChar* traceAutoSave = wxT( "KicadAutoSave" );
 static const wxChar* entryAutoSaveInterval = wxT( "AutoSaveInterval" );
 
 
-EDA_BASE_FRAME::EDA_BASE_FRAME( wxWindow* father,
-                                int idtype,
-                                const wxString& title,
-                                const wxPoint& pos,
-                                const wxSize& size,
-                                long style ) :
-    wxFrame( father, -1, title, pos, size, style )
+EDA_BASE_FRAME::EDA_BASE_FRAME( wxWindow* aParent,
+                                ID_DRAWFRAME_TYPE aFrameType,
+                                const wxString& aTitle,
+                                const wxPoint& aPos, const wxSize& aSize,
+                                long aStyle, const wxString & aFrameName ) :
+    wxFrame( aParent, wxID_ANY, aTitle, aPos, aSize, aStyle, aFrameName )
 {
     wxSize minsize;
 
-    m_Ident = idtype;
-    m_HToolBar = NULL;
+    m_Ident = aFrameType;
+    m_mainToolBar = NULL;
     m_FrameIsActive = true;
     m_hasAutoSave = false;
     m_autoSaveState = false;
     m_autoSaveInterval = -1;
     m_autoSaveTimer = new wxTimer( this, ID_AUTO_SAVE_TIMER );
 
-    m_MsgFrameHeight = EDA_MSG_PANEL::GetRequiredHeight();
-
     minsize.x = 470;
-    minsize.y = 350 + m_MsgFrameHeight;
+    minsize.y = 350;
 
     SetSizeHints( minsize.x, minsize.y, -1, -1, -1, -1 );
 
-    if( ( size.x < minsize.x ) || ( size.y < minsize.y ) )
+    if( ( aSize.x < minsize.x ) || ( aSize.y < minsize.y ) )
         SetSize( 0, 0, minsize.x, minsize.y );
 
     // Create child subwindows.
-    GetClientSize( &m_FrameSize.x, &m_FrameSize.y ); /* dimensions of the user area of the main
-                                                      * window */
+
+    // Dimensions of the user area of the main window.
+    GetClientSize( &m_FrameSize.x, &m_FrameSize.y );
+
     m_FramePos.x = m_FramePos.y = 0;
-    m_FrameSize.y -= m_MsgFrameHeight;
 
     Connect( ID_HELP_COPY_VERSION_STRING,
              wxEVT_COMMAND_MENU_SELECTED,
@@ -100,10 +100,8 @@ EDA_BASE_FRAME::EDA_BASE_FRAME( wxWindow* father,
 
 EDA_BASE_FRAME::~EDA_BASE_FRAME()
 {
-    if( wxGetApp().m_HtmlCtrl )
-        delete wxGetApp().m_HtmlCtrl;
-
-    wxGetApp().m_HtmlCtrl = NULL;
+    if( wxGetApp().GetHtmlHelpController() )
+        wxGetApp().SetHtmlHelpController( NULL );
 
     delete m_autoSaveTimer;
 
@@ -174,7 +172,7 @@ void EDA_BASE_FRAME::LoadSettings()
     int       Ypos_min;
     wxConfig* config;
 
-    config = wxGetApp().m_EDA_Config;
+    config = wxGetApp().GetSettings();
 
     int maximized = 0;
 
@@ -182,12 +180,16 @@ void EDA_BASE_FRAME::LoadSettings()
     {
         text = m_FrameName + wxT( "Pos_x" );
         config->Read( text, &m_FramePos.x );
+
         text = m_FrameName + wxT( "Pos_y" );
         config->Read( text, &m_FramePos.y );
+
         text = m_FrameName + wxT( "Size_x" );
         config->Read( text, &m_FrameSize.x, 600 );
+
         text = m_FrameName + wxT( "Size_y" );
         config->Read( text, &m_FrameSize.y, 400 );
+
         text = m_FrameName + wxT( "Maximized" );
         config->Read( text, &maximized, 0 );
 
@@ -216,10 +218,8 @@ void EDA_BASE_FRAME::LoadSettings()
 
 void EDA_BASE_FRAME::SaveSettings()
 {
-    wxString text;
-    wxConfig* config;
-
-    config = wxGetApp().m_EDA_Config;
+    wxString    text;
+    wxConfig*   config = wxGetApp().GetSettings();
 
     if( ( config == NULL ) || IsIconized() )
         return;
@@ -229,12 +229,16 @@ void EDA_BASE_FRAME::SaveSettings()
 
     text = m_FrameName + wxT( "Pos_x" );
     config->Write( text, (long) m_FramePos.x );
+
     text = m_FrameName + wxT( "Pos_y" );
     config->Write( text, (long) m_FramePos.y );
+
     text = m_FrameName + wxT( "Size_x" );
     config->Write( text, (long) m_FrameSize.x );
+
     text = m_FrameName + wxT( "Size_y" );
     config->Write( text, (long) m_FrameSize.y );
+
     text = m_FrameName + wxT( "Maximized" );
     config->Write( text, IsMaximized() );
 
@@ -251,31 +255,13 @@ void EDA_BASE_FRAME::PrintMsg( const wxString& text )
     SetStatusText( text );
 }
 
-
-void EDA_BASE_FRAME::DisplayActivity( int PerCent, const wxString& Text )
-{
-    wxString Line;
-
-    Line = Text;
-
-    PerCent  = (PerCent < 0) ? 0 : PerCent;
-    PerCent  = (PerCent > 100) ? 100 : PerCent;
-    PerCent /= 2;   // Bargraph is 0 .. 50 points from 0% to 100%
-
-    if( PerCent )
-        Line.Pad( PerCent, '*' );
-
-    SetStatusText( Line );
-}
-
-
 void EDA_BASE_FRAME::UpdateFileHistory( const wxString& FullFileName,
                                         wxFileHistory * aFileHistory )
 {
-    wxFileHistory * fileHistory = aFileHistory;
+    wxFileHistory* fileHistory = aFileHistory;
 
     if( fileHistory == NULL )
-        fileHistory = & wxGetApp().m_fileHistory;
+        fileHistory = & wxGetApp().GetFileHistory();
 
     fileHistory->AddFileToHistory( FullFileName );
 }
@@ -286,10 +272,10 @@ wxString EDA_BASE_FRAME::GetFileFromHistory( int cmdId, const wxString& type,
 {
     wxString fn, msg;
     size_t   i;
-    wxFileHistory * fileHistory = aFileHistory;
+    wxFileHistory* fileHistory = aFileHistory;
 
     if( fileHistory == NULL )
-        fileHistory = & wxGetApp().m_fileHistory;
+        fileHistory = & wxGetApp().GetFileHistory();
 
     int baseId = fileHistory->GetBaseId();
 
@@ -304,7 +290,7 @@ wxString EDA_BASE_FRAME::GetFileFromHistory( int cmdId, const wxString& type,
         if( !wxFileName::FileExists( fn ) )
         {
             msg = type + _( " file <" ) + fn + _( "> was not found." );
-            DisplayError( this, msg );
+            wxMessageBox( msg );
             fileHistory->RemoveFileFromHistory( i );
             fn = wxEmptyString;
         }
@@ -321,56 +307,56 @@ void EDA_BASE_FRAME::GetKicadHelp( wxCommandEvent& event )
     /* We have to get document for beginners,
      * or the the full specific doc
      * if event id is wxID_INDEX, we want the document for beginners.
-     * else the specific doc file (its name is in wxGetApp().m_HelpFileName)
+     * else the specific doc file (its name is in wxGetApp().GetHelpFileName())
      * The document for beginners is the same for all KiCad utilities
      */
     if( event.GetId() == wxID_INDEX )
     {
         // Temporary change the help filename
-        wxString tmp = wxGetApp().m_HelpFileName;
+        wxString tmp = wxGetApp().GetHelpFileName();
 
         // Search for "getting_started_in_kicad.pdf" or "Getting_Started_in_KiCad.pdf"
-        wxGetApp().m_HelpFileName = wxT( "getting_started_in_kicad.pdf" );
+        wxGetApp().SetHelpFileName( wxT( "getting_started_in_kicad.pdf" ) );
         wxString helpFile = wxGetApp().GetHelpFile();
 
         if( !helpFile )
         {   // Try to find "Getting_Started_in_KiCad.pdf"
-            wxGetApp().m_HelpFileName = wxT( "Getting_Started_in_KiCad.pdf" );
+            wxGetApp().SetHelpFileName( wxT( "Getting_Started_in_KiCad.pdf" ) );
             helpFile = wxGetApp().GetHelpFile();
         }
 
         if( !helpFile )
         {
             msg.Printf( _( "Help file %s could not be found." ),
-                        GetChars( wxGetApp().m_HelpFileName ) );
-            DisplayError( this, msg );
+                        GetChars( wxGetApp().GetHelpFileName() ) );
+            wxMessageBox( msg );
         }
         else
         {
             GetAssociatedDocument( this, helpFile );
         }
 
-        wxGetApp().m_HelpFileName = tmp;
+        wxGetApp().SetHelpFileName( tmp );
         return;
     }
 
 #if defined ONLINE_HELP_FILES_FORMAT_IS_HTML
 
-    if( wxGetApp().m_HtmlCtrl == NULL )
+    if( wxGetApp().GetHtmlHelpController() == NULL )
     {
         wxGetApp().InitOnLineHelp();
     }
 
 
-    if( wxGetApp().m_HtmlCtrl )
+    if( wxGetApp().GetHtmlHelpController() )
     {
-        wxGetApp().m_HtmlCtrl->DisplayContents();
-        wxGetApp().m_HtmlCtrl->Display( wxGetApp().m_HelpFileName );
+        wxGetApp().GetHtmlHelpController()->DisplayContents();
+        wxGetApp().GetHtmlHelpController()->Display( wxGetApp().GetHelpFileName() );
     }
     else
     {
-        msg.Printf( _( "Help file %s not found." ), GetChars( wxGetApp().m_HelpFileName ) );
-        DisplayError( this, msg );
+        msg.Printf( _( "Help file %s could not be found." ), GetChars( wxGetApp().GetHelpFileName() ) );
+        wxMessageBox( msg );
     }
 
 #elif defined ONLINE_HELP_FILES_FORMAT_IS_PDF
@@ -379,8 +365,8 @@ void EDA_BASE_FRAME::GetKicadHelp( wxCommandEvent& event )
     if( !helpFile )
     {
         msg.Printf( _( "Help file %s could not be found." ),
-                    GetChars( wxGetApp().m_HelpFileName ) );
-        DisplayError( this, msg );
+                    GetChars( wxGetApp().GetHelpFileName() ) );
+        wxMessageBox( msg );
     }
     else
     {
@@ -395,7 +381,7 @@ void EDA_BASE_FRAME::GetKicadHelp( wxCommandEvent& event )
 
 void EDA_BASE_FRAME::OnSelectPreferredEditor( wxCommandEvent& event )
 {
-    wxFileName fn = wxGetApp().m_EditorName;
+    wxFileName fn = wxGetApp().GetEditorName();
     wxString wildcard( wxT( "*" ) );
 
 #ifdef __WINDOWS__
@@ -411,11 +397,11 @@ void EDA_BASE_FRAME::OnSelectPreferredEditor( wxCommandEvent& event )
     if( dlg.ShowModal() == wxID_CANCEL )
         return;
 
-    wxASSERT( wxGetApp().m_EDA_CommonConfig );
+    wxASSERT( wxGetApp().GetCommonSettings() );
 
-    wxConfig* cfg = wxGetApp().m_EDA_CommonConfig;
-    wxGetApp().m_EditorName = dlg.GetPath();
-    cfg->Write( wxT( "Editor" ), wxGetApp().m_EditorName );
+    wxConfig* cfg = wxGetApp().GetCommonSettings();
+    wxGetApp().SetEditorName( dlg.GetPath() );
+    cfg->Write( wxT( "Editor" ), wxGetApp().GetEditorName() );
 }
 
 
@@ -510,10 +496,13 @@ void EDA_BASE_FRAME::CopyVersionInfoToClipboard( wxCommandEvent&  event )
         << info.GetArchName() << wxT( ", " ) << info.GetEndiannessName() << wxT( ", " )
         << info.GetPortIdName() << wxT( "\n" );
 
-    tmp << wxT( "Options: " );
+    // Just in case someone builds KiCad with the platform native of Boost instead of
+    // the version included with the KiCad source.
+    tmp << wxT( "Boost version: " ) << ( BOOST_VERSION / 100000 ) << wxT( "." )
+        << ( BOOST_VERSION / 100 % 1000 ) << wxT( "." ) << ( BOOST_VERSION % 100 ) << wxT( "\n" );
 
-    tmp << wxT( "USE_PNG_BITMAPS=" );
-#ifdef USE_PNG_BITMAPS
+    tmp << wxT( "Options: USE_PCBNEW_NANOMETRES=" );
+#ifdef USE_PCBNEW_NANOMETRES
     tmp << wxT( "ON\n" );
 #else
     tmp << wxT( "OFF\n" );
@@ -540,7 +529,26 @@ void EDA_BASE_FRAME::CopyVersionInfoToClipboard( wxCommandEvent&  event )
     tmp << wxT( "OFF\n" );
 #endif
 
-    tmp << wxT( "         USE_BOOST_POLYGON_LIBRARY" );
+    tmp << wxT( "         KICAD_SCRIPTING=" );
+#ifdef KICAD_SCRIPTING
+    tmp << wxT( "ON\n" );
+#else
+    tmp << wxT( "OFF\n" );
+#endif
+
+    tmp << wxT( "         KICAD_SCRIPTING_MODULES=" );
+#ifdef KICAD_SCRIPTING_MODULES
+    tmp << wxT( "ON\n" );
+#else
+    tmp << wxT( "OFF\n" );
+#endif
+
+    tmp << wxT( "         KICAD_SCRIPTING_WXPYTHON=" );
+#ifdef KICAD_SCRIPTING_WXPYTHON
+    tmp << wxT( "ON\n" );
+#else
+    tmp << wxT( "OFF\n" );
+#endif
 
     wxTheClipboard->SetData( new wxTextDataObject( tmp ) );
     wxTheClipboard->Close();
@@ -583,7 +591,7 @@ bool EDA_BASE_FRAME::IsWritable( const wxFileName& aFileName )
 
     if( !msg.IsEmpty() )
     {
-        DisplayError( this, msg );
+        wxMessageBox( msg );
         return false;
     }
 
@@ -637,7 +645,7 @@ edits you made?" ),
             if( !wxRenameFile( aFileName.GetFullPath(), backupFileName.GetFullPath() ) )
             {
                 msg = _( "Could not create backup file " ) + backupFileName.GetFullPath();
-                DisplayError( this, msg );
+                wxMessageBox( msg );
             }
         }
 
@@ -655,4 +663,37 @@ edits you made?" ),
         // Remove the auto save file when using the previous file as is.
         wxRemoveFile( autoSaveFileName.GetFullPath() );
     }
+}
+
+/**
+ * Function SetModalMode
+ * Disable or enable all other windows, to emulate a dialog behavior
+ * Useful when the frame is used to show and selec items
+ * (see FOOTPRINT_VIEWER_FRAME and LIB_VIEW_FRAME)
+ *
+ * @param aModal = true to disable all other opened windows (i.e.
+ * this windows is in dialog mode
+ *               = false to enable other windows
+ * This function is analog to MakeModal( aModal ), deprecated since wxWidgets 2.9.4
+ */
+void EDA_BASE_FRAME::SetModalMode( bool aModal )
+{
+    // Disable all other windows
+#if wxCHECK_VERSION(2, 9, 4)
+    if ( IsTopLevel() )
+    {
+        wxWindowList::compatibility_iterator node = wxTopLevelWindows.GetFirst();
+        while (node)
+        {
+            wxWindow *win = node->GetData();
+            if (win != this)
+                win->Enable(!aModal);
+
+            node = node->GetNext();
+        }
+    }
+#else
+    // Deprecated since wxWidgets 2.9.4
+    MakeModal( aModal );
+#endif
 }

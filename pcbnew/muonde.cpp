@@ -1,9 +1,10 @@
 /*
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
- * Copyright (C) 2009 Jean-Pierre Charras, jaen-pierre.charras@gipsa-lab.inpg.com
- * Copyright (C) 2011 Wayne Stambaugh <stambaughw@verizon.net>
- * Copyright (C) 1992-2011 KiCad Developers, see AUTHORS.txt for contributors.
+ * Copyright (C) 2012 Jean-Pierre Charras, jean-pierre.charras@ujf-grenoble.fr
+ * Copyright (C) 2012 SoftPLC Corporation, Dick Hollenbeck <dick@softplc.com>
+ * Copyright (C) 2012 Wayne Stambaugh <stambaughw@verizon.net>
+ * Copyright (C) 1992-2012 KiCad Developers, see AUTHORS.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -28,26 +29,27 @@
  * @brief Microwave pcb layout code.
  */
 
-#include "fctsys.h"
-#include "class_drawpanel.h"
-#include "confirm.h"
-#include "trigo.h"
-#include "kicad_string.h"
-#include "gestfich.h"
-#include "wxPcbStruct.h"
-#include "dialog_helpers.h"
-#include "richio.h"
-#include "filter_reader.h"
-#include "gr_basic.h"
-#include "pcbcommon.h"
-#include "macros.h"
+#include <fctsys.h>
+#include <class_drawpanel.h>
+#include <confirm.h>
+#include <trigo.h>
+#include <kicad_string.h>
+#include <gestfich.h>
+#include <wxPcbStruct.h>
+#include <dialog_helpers.h>
+#include <richio.h>
+#include <filter_reader.h>
+#include <gr_basic.h>
+#include <pcbcommon.h>
+#include <macros.h>
+#include <base_units.h>
 
-#include "class_board.h"
-#include "class_module.h"
-#include "class_edge_mod.h"
+#include <class_board.h>
+#include <class_module.h>
+#include <class_edge_mod.h>
 
-#include "protos.h"
-#include "pcbnew.h"
+#include <protos.h>
+#include <pcbnew.h>
 
 
 #define COEFF_COUNT 6
@@ -102,8 +104,8 @@ static void ShowBoundingBoxMicroWaveInductor( EDA_DRAW_PANEL* aPanel, wxDC* aDC,
 
     wxPoint poly[5];
     wxPoint pt    = Mself.m_End - Mself.m_Start;
-    int     angle = -wxRound( atan2( (double) pt.y, (double) pt.x ) * 1800.0 / M_PI );
-    int     len   = wxRound( sqrt( (double) pt.x * pt.x + (double) pt.y * pt.y ) );
+    int     angle = -KiROUND( atan2( (double) pt.y, (double) pt.x ) * 1800.0 / M_PI );
+    int     len   = KiROUND( sqrt( (double) pt.x * pt.x + (double) pt.y * pt.y ) );
 
     // calculate corners
     pt.x = 0; pt.y = len / 4;
@@ -118,13 +120,13 @@ static void ShowBoundingBoxMicroWaveInductor( EDA_DRAW_PANEL* aPanel, wxDC* aDC,
 
     if( aErase )
     {
-        GRPoly( &aPanel->m_ClipBox, aDC, 5, poly, false, 0, YELLOW, YELLOW );
+        GRPoly( aPanel->GetClipBox(), aDC, 5, poly, false, 0, YELLOW, YELLOW );
     }
 
     Mself.m_End = aPanel->GetScreen()->GetCrossHairPosition();
     pt    = Mself.m_End - Mself.m_Start;
-    angle = -wxRound( atan2( (double) pt.y, (double) pt.x ) * 1800.0 / M_PI );
-    len   = wxRound( sqrt( (double) pt.x * pt.x + (double) pt.y * pt.y ) );
+    angle = -KiROUND( atan2( (double) pt.y, (double) pt.x ) * 1800.0 / M_PI );
+    len   = KiROUND( sqrt( (double) pt.x * pt.x + (double) pt.y * pt.y ) );
 
     // calculate new corners
     pt.x = 0; pt.y = len / 4;
@@ -137,7 +139,7 @@ static void ShowBoundingBoxMicroWaveInductor( EDA_DRAW_PANEL* aPanel, wxDC* aDC,
     poly[3] = Mself.m_Start + pt;
     poly[4] = poly[0];
 
-    GRPoly( &aPanel->m_ClipBox, aDC, 5, poly, false, 0, YELLOW, YELLOW );
+    GRPoly( aPanel->GetClipBox(), aDC, 5, poly, false, 0, YELLOW, YELLOW );
 }
 
 
@@ -146,7 +148,7 @@ void Exit_Self( EDA_DRAW_PANEL* Panel, wxDC* DC )
     if( Self_On )
     {
         Self_On = 0;
-        Panel->m_mouseCaptureCallback( Panel, DC, wxDefaultPosition, 0 );
+        Panel->CallMouseCapture( DC, wxDefaultPosition, 0 );
     }
 }
 
@@ -164,23 +166,23 @@ void PCB_EDIT_FRAME::Begin_Self( wxDC* DC )
 
     Self_On = 1;
 
-    /* Update the initial coordinates. */
+    // Update the initial coordinates.
     GetScreen()->m_O_Curseur = GetScreen()->GetCrossHairPosition();
     UpdateStatusBar();
 
-    DrawPanel->SetMouseCapture( ShowBoundingBoxMicroWaveInductor, Exit_Self );
-    DrawPanel->m_mouseCaptureCallback( DrawPanel, DC, wxDefaultPosition, false );
+    m_canvas->SetMouseCapture( ShowBoundingBoxMicroWaveInductor, Exit_Self );
+    m_canvas->CallMouseCapture( DC, wxDefaultPosition, false );
 }
 
 
 MODULE* PCB_EDIT_FRAME::Genere_Self( wxDC* DC )
 {
-    D_PAD*   PtPad;
+    D_PAD*   pad;
     int      ll;
     wxString msg;
 
-    DrawPanel->m_mouseCaptureCallback( DrawPanel, DC, wxDefaultPosition, false );
-    DrawPanel->SetMouseCapture( NULL, NULL );
+    m_canvas->CallMouseCapture( DC, wxDefaultPosition, false );
+    m_canvas->SetMouseCapture( NULL, NULL );
 
     if( Self_On == 0 )
     {
@@ -193,27 +195,27 @@ MODULE* PCB_EDIT_FRAME::Genere_Self( wxDC* DC )
     Mself.m_End = GetScreen()->GetCrossHairPosition();
 
     wxPoint pt = Mself.m_End - Mself.m_Start;
-    int     min_len = wxRound( sqrt( (double) pt.x * pt.x + (double) pt.y * pt.y ) );
+    int     min_len = KiROUND( sqrt( (double) pt.x * pt.x + (double) pt.y * pt.y ) );
     Mself.lng = min_len;
 
-    /* Enter the desired length. */
-    msg = ReturnStringFromValue( g_UserUnit, Mself.lng, GetScreen()->GetInternalUnits() );
+    // Enter the desired length.
+    msg = ReturnStringFromValue( g_UserUnit, Mself.lng );
     wxTextEntryDialog dlg( this, _( "Length:" ), _( "Length" ), msg );
 
     if( dlg.ShowModal() != wxID_OK )
         return NULL; // canceled by user
 
     msg = dlg.GetValue();
-    Mself.lng = ReturnValueFromString( g_UserUnit, msg, GetScreen()->GetInternalUnits() );
+    Mself.lng = ReturnValueFromString( g_UserUnit, msg );
 
-    /* Control values (ii = minimum length) */
+    // Control values (ii = minimum length)
     if( Mself.lng < min_len )
     {
         DisplayError( this, _( "Requested length < minimum length" ) );
         return NULL;
     }
 
-    /* Calculate the elements. */
+    // Calculate the elements.
     Mself.m_Width = GetBoard()->GetCurrentTrackWidth();
 
     std::vector <wxPoint> buffer;
@@ -225,75 +227,74 @@ MODULE* PCB_EDIT_FRAME::Genere_Self( wxDC* DC )
         return NULL;
     }
 
+    // Generate module.
+    MODULE* module;
+    module = Create_1_Module( wxEmptyString );
 
-    /* Generate module. */
-    MODULE* Module;
-    Module = Create_1_Module( wxEmptyString );
-
-    if( Module == NULL )
+    if( module == NULL )
         return NULL;
 
-    // here the Module is already in the BOARD, Create_1_Module() does that.
-    Module->m_LibRef    = wxT( "MuSelf" );
-    Module->m_Attributs = MOD_VIRTUAL | MOD_CMS;
-    Module->m_Flags     = 0;
-    Module->m_Pos = Mself.m_End;
+    // here the module is already in the BOARD, Create_1_Module() does that.
+    module->m_LibRef    = wxT( "MuSelf" );
+    module->m_Attributs = MOD_VIRTUAL | MOD_CMS;
+    module->ClearFlags();
+    module->m_Pos = Mself.m_End;
 
-    /* Generate segments. */
+    // Generate segments
     for( unsigned jj = 1; jj < buffer.size(); jj++ )
     {
         EDGE_MODULE* PtSegm;
-        PtSegm = new EDGE_MODULE( Module );
-        PtSegm->m_Start = buffer[jj - 1];
-        PtSegm->m_End   = buffer[jj];
-        PtSegm->m_Width = Mself.m_Width;
-        PtSegm->SetLayer( Module->GetLayer() );
-        PtSegm->m_Shape  = S_SEGMENT;
-        PtSegm->m_Start0 = PtSegm->m_Start - Module->m_Pos;
-        PtSegm->m_End0   = PtSegm->m_End - Module->m_Pos;
-        Module->m_Drawings.PushBack( PtSegm );
+        PtSegm = new EDGE_MODULE( module );
+        PtSegm->SetStart( buffer[jj - 1] );
+        PtSegm->SetEnd( buffer[jj] );
+        PtSegm->SetWidth( Mself.m_Width );
+        PtSegm->SetLayer( module->GetLayer() );
+        PtSegm->SetShape( S_SEGMENT );
+        PtSegm->SetStart0( PtSegm->GetStart() - module->GetPosition() );
+        PtSegm->SetEnd0(   PtSegm->GetEnd()   - module->GetPosition() );
+        module->m_Drawings.PushBack( PtSegm );
     }
 
-    /* Place a pad on each end of coil. */
-    PtPad = new D_PAD( Module );
+    // Place a pad on each end of coil.
+    pad = new D_PAD( module );
 
-    Module->m_Pads.PushFront( PtPad );
+    module->m_Pads.PushFront( pad );
 
-    PtPad->SetPadName( wxT( "1" ) );
-    PtPad->m_Pos    = Mself.m_End;
-    PtPad->m_Pos0   = PtPad->m_Pos - Module->m_Pos;
-    PtPad->m_Size.x = PtPad->m_Size.y = Mself.m_Width;
-    PtPad->m_layerMask = g_TabOneLayerMask[Module->GetLayer()];
-    PtPad->m_Attribut     = PAD_SMD;
-    PtPad->m_PadShape     = PAD_CIRCLE;
-    PtPad->ComputeShapeMaxRadius();
+    pad->SetPadName( wxT( "1" ) );
+    pad->SetPosition( Mself.m_End );
+    pad->SetPos0( pad->GetPosition() - module->GetPosition() );
 
-    D_PAD* newpad = new D_PAD( Module );
-    newpad->Copy( PtPad );
+    pad->SetSize( wxSize( Mself.m_Width, Mself.m_Width ) );
 
-    Module->m_Pads.Insert( newpad, PtPad->Next() );
+    pad->SetLayerMask( GetLayerMask( module->GetLayer() ) );
+    pad->SetAttribute( PAD_SMD );
+    pad->SetShape( PAD_CIRCLE );
 
-    PtPad = newpad;
-    PtPad->SetPadName( wxT( "2" ) );
-    PtPad->m_Pos  = Mself.m_Start;
-    PtPad->m_Pos0 = PtPad->m_Pos - Module->m_Pos;
+    D_PAD* newpad = new D_PAD( *pad );
 
-    /* Modify text positions. */
-    Module->DisplayInfo( this );
-    Module->m_Value->m_Pos.x = Module->m_Reference->m_Pos.x =
+    module->m_Pads.Insert( newpad, pad->Next() );
+
+    pad = newpad;
+    pad->SetPadName( wxT( "2" ) );
+    pad->SetPosition( Mself.m_Start );
+    pad->SetPos0( pad->GetPosition() - module->GetPosition() );
+
+    // Modify text positions.
+    SetMsgPanel( module );
+    module->m_Value->m_Pos.x = module->m_Reference->m_Pos.x =
                                ( Mself.m_Start.x + Mself.m_End.x ) / 2;
-    Module->m_Value->m_Pos.y = Module->m_Reference->m_Pos.y =
+    module->m_Value->m_Pos.y = module->m_Reference->m_Pos.y =
                                ( Mself.m_Start.y + Mself.m_End.y ) / 2;
 
-    Module->m_Reference->m_Pos.y -= Module->m_Reference->m_Size.y;
-    Module->m_Value->m_Pos.y     += Module->m_Value->m_Size.y;
-    Module->m_Reference->m_Pos0   = Module->m_Reference->m_Pos - Module->m_Pos;
-    Module->m_Value->m_Pos0 = Module->m_Value->m_Pos - Module->m_Pos;
+    module->m_Reference->m_Pos.y -= module->m_Reference->m_Size.y;
+    module->m_Value->m_Pos.y     += module->m_Value->m_Size.y;
+    module->m_Reference->SetPos0( module->m_Reference->m_Pos - module->m_Pos );
+    module->m_Value->SetPos0( module->m_Value->m_Pos - module->m_Pos );
 
-    Module->CalculateBoundingBox();
-    Module->Draw( DrawPanel, DC, GR_OR );
+    module->CalculateBoundingBox();
+    module->Draw( m_canvas, DC, GR_OR );
 
-    return Module;
+    return module;
 }
 
 
@@ -319,7 +320,7 @@ static void gen_arc( std::vector <wxPoint>& aBuffer,
     if( seg_count == 0 )
         seg_count = 1;
 
-    double increment_angle = (double) a_ArcAngle * 3.14159 / 1800 / seg_count;
+    double increment_angle = (double) a_ArcAngle * M_PI / 1800 / seg_count;
 
     // Creates nb_seg point to approximate arc by segments:
     for( int ii = 1; ii <= seg_count; ii++ )
@@ -330,8 +331,8 @@ static void gen_arc( std::vector <wxPoint>& aBuffer,
         wxPoint currpt;
 
         // Rotate current point:
-        currpt.x = wxRound( ( first_point.x * fcos + first_point.y * fsin ) );
-        currpt.y = wxRound( ( first_point.y * fcos - first_point.x * fsin ) );
+        currpt.x = KiROUND( ( first_point.x * fcos + first_point.y * fsin ) );
+        currpt.y = KiROUND( ( first_point.y * fcos - first_point.x * fsin ) );
 
         wxPoint corner = aCenter + currpt;
         aBuffer.push_back( corner );
@@ -383,7 +384,7 @@ int BuildCornersList_S_Shape( std::vector <wxPoint>& aBuffer,
  */
     wxSize size;
 
-    // This scale factor adjust the arc lenght to handle
+    // This scale factor adjusts the arc length to handle
     // the arc to segment approximation.
     // because we use SEGM_COUNT_PER_360DEG segment to approximate a circle,
     // the trace len must be corrected when calculated using arcs
@@ -394,8 +395,8 @@ int BuildCornersList_S_Shape( std::vector <wxPoint>& aBuffer,
     #define ADJUST_SIZE 0.988
 
     wxPoint pt       = aEndPoint - aStartPoint;
-    int     angle    = -wxRound( atan2( (double) pt.y, (double) pt.x ) * 1800.0 / M_PI );
-    int     min_len  = wxRound( sqrt( (double) pt.x * pt.x + (double) pt.y * pt.y ) );
+    int     angle    = -KiROUND( atan2( (double) pt.y, (double) pt.x ) * 1800.0 / M_PI );
+    int     min_len  = KiROUND( sqrt( (double) pt.x * pt.x + (double) pt.y * pt.y ) );
     int     segm_len = 0;           // length of segments
     int     full_len;               // full len of shape (sum of lenght of all segments + arcs)
 
@@ -412,7 +413,7 @@ int BuildCornersList_S_Shape( std::vector <wxPoint>& aBuffer,
     size.y = min_len;
 
     // Choose a reasonable starting value for the radius of the arcs.
-    int radius = MIN( aWidth * 5, size.x / 4 );
+    int radius = std::min( aWidth * 5, size.x / 4 );
 
     int segm_count;     // number of full len segments
                         // the half size segments (first and last segment) are not counted here
@@ -437,7 +438,7 @@ int BuildCornersList_S_Shape( std::vector <wxPoint>& aBuffer,
         segm_len  = size.x - ( radius * 2 );
         full_len  = 2 * stubs_len;               // Length of coil connections.
         full_len += segm_len * segm_count;       // Length of full length segments.
-        full_len += wxRound( ( segm_count + 2 ) * M_PI * ADJUST_SIZE * radius );    // Ard arcs len
+        full_len += KiROUND( ( segm_count + 2 ) * M_PI * ADJUST_SIZE * radius );    // Ard arcs len
         full_len += segm_len - (2 * radius);     // Length of first and last segments
                                                  // (half size segments len = segm_len/2 - radius).
 
@@ -470,7 +471,7 @@ int BuildCornersList_S_Shape( std::vector <wxPoint>& aBuffer,
         aBuffer.push_back( pt );
     }
 
-    /* Create shape. */
+    // Create shape.
     int ii;
     int sign = 1;
     segm_count += 1;    // increase segm_count to create the last half_size segment
@@ -479,7 +480,7 @@ int BuildCornersList_S_Shape( std::vector <wxPoint>& aBuffer,
     {
         int arc_angle;
 
-        if( ii & 1 ) /* odd order arcs are greater than 0 */
+        if( ii & 1 ) // odd order arcs are greater than 0
             sign = -1;
         else
             sign = 1;
@@ -522,47 +523,56 @@ int BuildCornersList_S_Shape( std::vector <wxPoint>& aBuffer,
 
 MODULE* PCB_EDIT_FRAME::Create_MuWaveBasicShape( const wxString& name, int pad_count )
 {
-    MODULE*  Module;
+    MODULE*  module;
     int      pad_num = 1;
     wxString Line;
 
-    Module = Create_1_Module( name );
+    module = Create_1_Module( name );
 
-    if( Module == NULL )
+    if( module == NULL )
         return NULL;
 
     #define DEFAULT_SIZE 30
-    Module->m_TimeStamp           = GetTimeStamp();
-    Module->m_Value->m_Size       = wxSize( DEFAULT_SIZE, DEFAULT_SIZE );
-    Module->m_Value->m_Pos0.y     = -DEFAULT_SIZE;
-    Module->m_Value->m_Pos.y     += Module->m_Value->m_Pos0.y;
-    Module->m_Value->m_Thickness      = DEFAULT_SIZE / 4;
-    Module->m_Reference->m_Size   = wxSize( DEFAULT_SIZE, DEFAULT_SIZE );
-    Module->m_Reference->m_Pos0.y = DEFAULT_SIZE;
-    Module->m_Reference->m_Pos.y += Module->m_Reference->m_Pos0.y;
-    Module->m_Reference->m_Thickness  = DEFAULT_SIZE / 4;
+    module->SetTimeStamp( GetNewTimeStamp() );
 
-    /* Create 2 pads used in gaps and stubs.
-     *  The gap is between these 2 pads
-     * the stub is the pad 2
-     */
+    module->m_Value->m_Size       = wxSize( DEFAULT_SIZE, DEFAULT_SIZE );
+
+    module->m_Value->SetPos0( wxPoint( 0, -DEFAULT_SIZE ) );
+
+    module->m_Value->m_Pos.y     += module->m_Value->GetPos0().y;
+
+    module->m_Value->m_Thickness  = DEFAULT_SIZE / 4;
+
+    module->m_Reference->m_Size   = wxSize( DEFAULT_SIZE, DEFAULT_SIZE );
+
+    module->m_Reference->SetPos0( wxPoint( 0, DEFAULT_SIZE ) );
+
+    module->m_Reference->m_Pos.y += module->m_Reference->GetPos0().y;
+
+    module->m_Reference->m_Thickness  = DEFAULT_SIZE / 4;
+
+    // Create 2 pads used in gaps and stubs.  The gap is between these 2 pads
+    // the stub is the pad 2
     while( pad_count-- )
     {
-        D_PAD* pad = new D_PAD( Module );
+        D_PAD* pad = new D_PAD( module );
 
-        Module->m_Pads.PushFront( pad );
+        module->m_Pads.PushFront( pad );
 
-        pad->m_Size.x    = pad->m_Size.y = GetBoard()->GetCurrentTrackWidth();
-        pad->m_Pos       = Module->m_Pos;
-        pad->m_PadShape  = PAD_RECT;
-        pad->m_Attribut  = PAD_SMD;
-        pad->m_layerMask = LAYER_FRONT;
+        int tw = GetBoard()->GetCurrentTrackWidth();
+        pad->SetSize( wxSize( tw, tw ) );
+
+        pad->SetPosition( module->GetPosition() );
+        pad->SetShape( PAD_RECT );
+        pad->SetAttribute( PAD_SMD );
+        pad->SetLayerMask( LAYER_FRONT );
+
         Line.Printf( wxT( "%d" ), pad_num );
         pad->SetPadName( Line );
         pad_num++;
     }
 
-    return Module;
+    return module;
 }
 
 
@@ -570,12 +580,12 @@ MODULE* PCB_EDIT_FRAME::Create_MuWaveComponent( int shape_type )
 {
     int      oX;
     D_PAD*   pad;
-    MODULE*  Module;
+    MODULE*  module;
     wxString msg, cmp_name;
     int      pad_count = 2;
     int      angle     = 0;
 
-    /* Enter the size of the gap or stub*/
+    // Enter the size of the gap or stub
     int      gap_size = GetBoard()->GetCurrentTrackWidth();
 
     switch( shape_type )
@@ -602,18 +612,17 @@ MODULE* PCB_EDIT_FRAME::Create_MuWaveComponent( int shape_type )
         break;
     }
 
-    wxString          value = ReturnStringFromValue( g_UserUnit, gap_size,
-                                                     GetScreen()->GetInternalUnits() );
+    wxString          value = ReturnStringFromValue( g_UserUnit, gap_size );
     wxTextEntryDialog dlg( this, msg, _( "Create microwave module" ), value );
 
     if( dlg.ShowModal() != wxID_OK )
     {
-        DrawPanel->MoveCursorToCrossHair();
+        m_canvas->MoveCursorToCrossHair();
         return NULL; // cancelled by user
     }
 
     value    = dlg.GetValue();
-    gap_size = ReturnValueFromString( g_UserUnit, value, GetScreen()->GetInternalUnits() );
+    gap_size = ReturnValueFromString( g_UserUnit, value );
 
     bool abort = false;
 
@@ -626,7 +635,7 @@ MODULE* PCB_EDIT_FRAME::Create_MuWaveComponent( int shape_type )
 
         if( angledlg.ShowModal() != wxID_OK )
         {
-            DrawPanel->MoveCursorToCrossHair();
+            m_canvas->MoveCursorToCrossHair();
             return NULL; // cancelled by user
         }
 
@@ -638,7 +647,7 @@ MODULE* PCB_EDIT_FRAME::Create_MuWaveComponent( int shape_type )
             abort = true;
         }
 
-        angle = ABS( wxRound( fval * fcoeff ) );
+        angle = std::abs( KiROUND( fval * fcoeff ) );
 
         if( angle > 1800 )
             angle = 1800;
@@ -646,76 +655,80 @@ MODULE* PCB_EDIT_FRAME::Create_MuWaveComponent( int shape_type )
 
     if( abort )
     {
-        DrawPanel->MoveCursorToCrossHair();
+        m_canvas->MoveCursorToCrossHair();
         return NULL;
     }
 
-    Module = Create_MuWaveBasicShape( cmp_name, pad_count );
-    pad    = Module->m_Pads;
+    module = Create_MuWaveBasicShape( cmp_name, pad_count );
+    pad    = module->m_Pads;
 
     switch( shape_type )
     {
     case 0:     //Gap :
-        oX = pad->m_Pos0.x = -( gap_size + pad->m_Size.x ) / 2;
-        pad->m_Pos.x += pad->m_Pos0.x;
+        oX = -( gap_size + pad->GetSize().x ) / 2;
+        pad->SetX0( oX );
+
+        pad->SetX( pad->GetPos0().x + pad->GetPosition().x );
+
         pad = pad->Next();
-        pad->m_Pos0.x = oX + gap_size + pad->m_Size.x;
-        pad->m_Pos.x += pad->m_Pos0.x;
+
+        pad->SetX0( oX + gap_size + pad->GetSize().x );
+        pad->SetX( pad->GetPos0().x + pad->GetPosition().x );
         break;
 
     case 1:     //Stub :
         pad->SetPadName( wxT( "1" ) );
         pad = pad->Next();
-        pad->m_Pos0.y = -( gap_size + pad->m_Size.y ) / 2;
-        pad->m_Size.y = gap_size;
-        pad->m_Pos.y += pad->m_Pos0.y;
+        pad->SetY0( -( gap_size + pad->GetSize().y ) / 2 );
+        pad->SetSize( wxSize( pad->GetSize().x, gap_size ) );
+        pad->SetY( pad->GetPos0().y + pad->GetPosition().y );
         break;
 
     case 2:     // Arc Stub created by a polygonal approach:
-    {
-        EDGE_MODULE* edge = new EDGE_MODULE( Module );
-        Module->m_Drawings.PushFront( edge );
-
-        edge->m_Shape = S_POLYGON;
-        edge->SetLayer( LAYER_N_FRONT );
-
-        int numPoints = angle / 50 + 3;     // Note: angles are in 0.1 degrees
-        std::vector<wxPoint> polyPoints = edge->GetPolyPoints();
-        polyPoints.reserve( numPoints );
-
-        edge->m_Start0.y = -pad->m_Size.y / 2;
-
-        polyPoints.push_back( wxPoint( 0, 0 ) );
-
-        int theta = -angle / 2;
-
-        for( int ii = 1; ii<numPoints - 1; ii++ )
         {
-            wxPoint pt( 0, -gap_size );
+            EDGE_MODULE* edge = new EDGE_MODULE( module );
+            module->m_Drawings.PushFront( edge );
 
-            RotatePoint( &pt.x, &pt.y, theta );
+            edge->SetShape( S_POLYGON );
+            edge->SetLayer( LAYER_N_FRONT );
 
-            polyPoints.push_back( pt );
+            int numPoints = angle / 50 + 3;     // Note: angles are in 0.1 degrees
+            std::vector<wxPoint> polyPoints = edge->GetPolyPoints();
+            polyPoints.reserve( numPoints );
 
-            theta += 50;
+            edge->m_Start0.y = -pad->GetSize().y / 2;
 
-            if( theta > angle / 2 )
-                theta = angle / 2;
+            polyPoints.push_back( wxPoint( 0, 0 ) );
+
+            int theta = -angle / 2;
+
+            for( int ii = 1; ii<numPoints - 1; ii++ )
+            {
+                wxPoint pt( 0, -gap_size );
+
+                RotatePoint( &pt.x, &pt.y, theta );
+
+                polyPoints.push_back( pt );
+
+                theta += 50;
+
+                if( theta > angle / 2 )
+                    theta = angle / 2;
+            }
+
+            // Close the polygon:
+            polyPoints.push_back( polyPoints[0] );
         }
-
-        // Close the polygon:
-        polyPoints.push_back( polyPoints[0] );
-    }
-    break;
+        break;
 
     default:
         break;
     }
 
-    Module->CalculateBoundingBox();
+    module->CalculateBoundingBox();
     GetBoard()->m_Status_Pcb = 0;
     OnModify();
-    return Module;
+    return module;
 }
 
 
@@ -809,9 +822,7 @@ WinEDA_SetParamShapeFrame::WinEDA_SetParamShapeFrame( PCB_EDIT_FRAME* parent,
                                         wxRA_SPECIFY_COLS );
     LeftBoxSizer->Add( m_ShapeOptionCtrl, 0, wxGROW | wxALL, 5 );
 
-    m_SizeCtrl = new EDA_SIZE_CTRL( this, _( "Size" ), ShapeSize,
-                                    g_UserUnit, LeftBoxSizer,
-                                    PCB_INTERNAL_UNIT );
+    m_SizeCtrl = new EDA_SIZE_CTRL( this, _( "Size" ), ShapeSize, g_UserUnit, LeftBoxSizer );
 
     GetSizer()->Fit( this );
     GetSizer()->SetSizeHints( this );
@@ -867,7 +878,7 @@ void WinEDA_SetParamShapeFrame::ReadDataShapeDescr( wxCommandEvent& event )
 
     FILTER_READER reader( fileReader );
 
-    SetLocaleTo_C_standard();
+    LOCALE_IO   toggle;
 
     while( reader.ReadLine() )
     {
@@ -914,8 +925,6 @@ void WinEDA_SetParamShapeFrame::ReadDataShapeDescr( wxCommandEvent& event )
         }
     }
 
-    SetLocaleTo_Default();       // revert to the current locale
-
     ShapeScaleX *= unitconv;
     ShapeScaleY *= unitconv;
 
@@ -926,11 +935,10 @@ void WinEDA_SetParamShapeFrame::ReadDataShapeDescr( wxCommandEvent& event )
 MODULE* PCB_EDIT_FRAME::Create_MuWavePolygonShape()
 {
     D_PAD*       pad1, * pad2;
-    MODULE*      Module;
+    MODULE*      module;
     wxString     cmp_name;
     int          pad_count = 2;
     EDGE_MODULE* edge;
-    int          npoints;
 
     WinEDA_SetParamShapeFrame* frame = new WinEDA_SetParamShapeFrame( this, wxPoint( -1, -1 ) );
 
@@ -938,7 +946,7 @@ MODULE* PCB_EDIT_FRAME::Create_MuWavePolygonShape()
 
     frame->Destroy();
 
-    DrawPanel->MoveCursorToCrossHair();
+    m_canvas->MoveCursorToCrossHair();
 
     if( ok != 1 )
     {
@@ -948,8 +956,8 @@ MODULE* PCB_EDIT_FRAME::Create_MuWavePolygonShape()
     if( PolyShapeType == 2 )  // mirrored
         ShapeScaleY = -ShapeScaleY;
 
-    ShapeSize.x = wxRound( ShapeScaleX );
-    ShapeSize.y = wxRound( ShapeScaleY );
+    ShapeSize.x = KiROUND( ShapeScaleX );
+    ShapeSize.y = KiROUND( ShapeScaleY );
 
     if( ( ShapeSize.x ) == 0 || ( ShapeSize.y == 0 ) )
     {
@@ -965,36 +973,35 @@ MODULE* PCB_EDIT_FRAME::Create_MuWavePolygonShape()
 
     cmp_name = wxT( "POLY" );
 
-    Module = Create_MuWaveBasicShape( cmp_name, pad_count );
-    pad1   = Module->m_Pads;
+    module = Create_MuWaveBasicShape( cmp_name, pad_count );
+    pad1   = module->m_Pads;
 
-    pad1->m_Pos0.x = -ShapeSize.x / 2;
-    pad1->m_Pos.x += pad1->m_Pos0.x;
+    pad1->SetX0( -ShapeSize.x / 2 );
+    pad1->SetX( pad1->GetPos0().x + pad1->GetPosition().x );
 
     pad2 = (D_PAD*) pad1->Next();
-    pad2->m_Pos0.x = pad1->m_Pos0.x + ShapeSize.x;
-    pad2->m_Pos.x += pad2->m_Pos0.x;
+    pad2->SetX0( pad1->GetPos0().x + ShapeSize.x );
+    pad2->SetX( pad2->GetPos0().x + pad2->GetPosition().x );
 
-    edge = new EDGE_MODULE( Module );
+    edge = new EDGE_MODULE( module );
 
-    Module->m_Drawings.PushFront( edge );
+    module->m_Drawings.PushFront( edge );
 
-    edge->m_Shape = S_POLYGON;
+    edge->SetShape( S_POLYGON );
     edge->SetLayer( LAYER_N_FRONT );
-    npoints = PolyEdges.size();
 
     std::vector<wxPoint> polyPoints = edge->GetPolyPoints();
     polyPoints.reserve( 2 * PolyEdges.size() + 2 );
 
     // Init start point coord:
-    polyPoints.push_back( wxPoint( pad1->m_Pos0.x, 0 ) );
+    polyPoints.push_back( wxPoint( pad1->GetPos0().x, 0 ) );
 
     wxPoint first_coordinate, last_coordinate;
 
     for( unsigned ii = 0; ii < PolyEdges.size(); ii++ )  // Copy points
     {
-        last_coordinate.x = wxRound( PolyEdges[ii] * ShapeScaleX ) + pad1->m_Pos0.x;
-        last_coordinate.y = -wxRound( PolyEdges[ii] * ShapeScaleY );
+        last_coordinate.x = KiROUND( PolyEdges[ii] * ShapeScaleX ) + pad1->GetPos0().x;
+        last_coordinate.y = -KiROUND( PolyEdges[ii] * ShapeScaleY );
         polyPoints.push_back( last_coordinate );
     }
 
@@ -1004,16 +1011,21 @@ MODULE* PCB_EDIT_FRAME::Create_MuWavePolygonShape()
     {
     case 0:     // Single
     case 2:     // Single mirrored
+
         // Init end point coord:
-        pad2->m_Pos0.x = last_coordinate.x;
+        pad2->SetX0( last_coordinate.x );
         polyPoints.push_back( wxPoint( last_coordinate.x, 0 ) );
 
-        pad1->m_Size.x = pad1->m_Size.y = ABS( first_coordinate.y );
-        pad2->m_Size.x = pad2->m_Size.y = ABS( last_coordinate.y );
-        pad1->m_Pos0.y = first_coordinate.y / 2;
-        pad2->m_Pos0.y = last_coordinate.y / 2;
-        pad1->m_Pos.y  = pad1->m_Pos0.y + Module->m_Pos.y;
-        pad2->m_Pos.y  = pad2->m_Pos0.y + Module->m_Pos.y;
+        pad1->SetSize( wxSize( std::abs( first_coordinate.y ),
+                       std::abs( first_coordinate.y ) ) );
+        pad2->SetSize( wxSize( std::abs( last_coordinate.y ),
+                       std::abs( last_coordinate.y ) ) );
+
+        pad1->SetY0( first_coordinate.y / 2 );
+        pad2->SetY0( last_coordinate.y / 2 );
+
+        pad1->SetY( pad1->GetPos0().y + module->GetPosition().y );
+        pad2->SetY( pad2->GetPos0().y + module->GetPosition().y );
         break;
 
     case 1:     // Symmetric
@@ -1026,35 +1038,37 @@ MODULE* PCB_EDIT_FRAME::Create_MuWavePolygonShape()
             polyPoints.push_back( pt );
         }
 
-        pad1->m_Size.x = pad1->m_Size.y = 2 * ABS( first_coordinate.y );
-        pad2->m_Size.x = pad2->m_Size.y = 2 * ABS( last_coordinate.y );
+        pad1->SetSize( wxSize( 2 * std::abs( first_coordinate.y ),
+                       2 * std::abs( first_coordinate.y ) ) );
+        pad2->SetSize( wxSize( 2 * std::abs( last_coordinate.y ),
+                       2 * std::abs( last_coordinate.y ) ) );
         break;
     }
 
     PolyEdges.clear();
-    Module->CalculateBoundingBox();
+    module->CalculateBoundingBox();
     GetBoard()->m_Status_Pcb = 0;
     OnModify();
-    return Module;
+    return module;
 }
 
 
-void PCB_EDIT_FRAME::Edit_Gap( wxDC* DC, MODULE* Module )
+void PCB_EDIT_FRAME::Edit_Gap( wxDC* DC, MODULE* aModule )
 {
     int      gap_size, oX;
     D_PAD*   pad, * next_pad;
     wxString msg;
 
-    if( Module == NULL )
+    if( aModule == NULL )
         return;
 
-    /* Test if module is a gap type (name begins with GAP, and has 2 pads). */
-    msg = Module->m_Reference->m_Text.Left( 3 );
+    // Test if module is a gap type (name begins with GAP, and has 2 pads).
+    msg = aModule->m_Reference->m_Text.Left( 3 );
 
     if( msg != wxT( "GAP" ) )
         return;
 
-    pad = Module->m_Pads;
+    pad = aModule->m_Pads;
 
     if( pad == NULL )
     {
@@ -1070,37 +1084,48 @@ void PCB_EDIT_FRAME::Edit_Gap( wxDC* DC, MODULE* Module )
         return;
     }
 
-    Module->Draw( DrawPanel, DC, GR_XOR );
+    aModule->Draw( m_canvas, DC, GR_XOR );
 
-    /* Calculate the current dimension. */
-    gap_size = next_pad->m_Pos0.x - pad->m_Pos0.x - pad->m_Size.x;
+    // Calculate the current dimension.
+    gap_size = next_pad->GetPos0().x - pad->GetPos0().x - pad->GetSize().x;
 
-    /* Entrer the desired length of the gap. */
-    msg = ReturnStringFromValue( g_UserUnit, gap_size, GetScreen()->GetInternalUnits() );
+    // Entrer the desired length of the gap.
+    msg = ReturnStringFromValue( g_UserUnit, gap_size );
     wxTextEntryDialog dlg( this, _( "Gap:" ), _( "Create Microwave Gap" ), msg );
 
     if( dlg.ShowModal() != wxID_OK )
         return; // cancelled by user
 
     msg = dlg.GetValue();
-    gap_size = ReturnValueFromString( g_UserUnit, msg, GetScreen()->GetInternalUnits() );
+    gap_size = ReturnValueFromString( g_UserUnit, msg );
 
-    /* Updating sizes of pads forming the gap. */
-    pad->m_Size.x = pad->m_Size.y = GetBoard()->GetCurrentTrackWidth();
-    pad->m_Pos0.y = 0;
-    oX = pad->m_Pos0.x = -( (gap_size + pad->m_Size.x) / 2 );
-    pad->m_Pos.x = pad->m_Pos0.x + Module->m_Pos.x;
-    pad->m_Pos.y = pad->m_Pos0.y + Module->m_Pos.y;
-    RotatePoint( &pad->m_Pos.x, &pad->m_Pos.y,
-                 Module->m_Pos.x, Module->m_Pos.y, Module->m_Orient );
+    // Updating sizes of pads forming the gap.
+    int tw = GetBoard()->GetCurrentTrackWidth();
+    pad->SetSize( wxSize( tw, tw ) );
 
-    next_pad->m_Size.x = next_pad->m_Size.y = GetBoard()->GetCurrentTrackWidth();
-    next_pad->m_Pos0.y = 0;
-    next_pad->m_Pos0.x = oX + gap_size + next_pad->m_Size.x;
-    next_pad->m_Pos.x  = next_pad->m_Pos0.x + Module->m_Pos.x;
-    next_pad->m_Pos.y  = next_pad->m_Pos0.y + Module->m_Pos.y;
-    RotatePoint( &next_pad->m_Pos.x, &next_pad->m_Pos.y,
-                 Module->m_Pos.x, Module->m_Pos.y, Module->m_Orient );
+    pad->SetY0( 0 );
+    oX = -( gap_size + pad->GetSize().x ) / 2;
+    pad->SetX0( oX );
 
-    Module->Draw( DrawPanel, DC, GR_OR );
+    wxPoint padpos = pad->GetPos0() + aModule->GetPosition();
+
+    RotatePoint( &padpos.x, &padpos.y,
+                 aModule->m_Pos.x, aModule->m_Pos.y, aModule->GetOrientation() );
+
+    pad->SetPosition( padpos );
+
+    tw = GetBoard()->GetCurrentTrackWidth();
+    next_pad->SetSize( wxSize( tw, tw ) );
+
+    next_pad->SetY0( 0 );
+    next_pad->SetX0( oX + gap_size + next_pad->GetSize().x );
+
+    padpos = next_pad->GetPos0() + aModule->GetPosition();
+
+    RotatePoint( &padpos.x, &padpos.y,
+                 aModule->m_Pos.x, aModule->m_Pos.y, aModule->GetOrientation() );
+
+    next_pad->SetPosition( padpos );
+
+    aModule->Draw( m_canvas, DC, GR_OR );
 }

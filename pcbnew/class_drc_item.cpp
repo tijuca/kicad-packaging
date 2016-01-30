@@ -26,12 +26,13 @@
 /*************************************************/
 /* class_drc_item.cpp - DRC_ITEM class functions */
 /*************************************************/
-#include "fctsys.h"
-#include "common.h"
+#include <fctsys.h>
+#include <common.h>
 
-#include "pcbnew.h"
-#include "drc_stuff.h"
-#include "class_drc_item.h"
+#include <pcbnew.h>
+#include <drc_stuff.h>
+#include <class_drc_item.h>
+#include <base_units.h>
 
 
 wxString DRC_ITEM::GetErrorText() const
@@ -101,8 +102,21 @@ wxString DRC_ITEM::GetErrorText() const
     case DRCE_NETCLASS_uVIADRILLSIZE:
         return wxString( _("NetClass uVia Drill &lt; global limit"));
 
+    case DRCE_VIA_INSIDE_KEEPOUT:
+        return wxString( _("Via inside a keepout area"));
+
+    case DRCE_TRACK_INSIDE_KEEPOUT:
+        return wxString( _("Track inside a keepout area"));
+
+    case DRCE_PAD_INSIDE_KEEPOUT:
+        return wxString( _("Pad inside a keepout area"));
+
     default:
-        return wxString( wxT("PROGRAM BUG, PLEASE LEAVE THE ROOM.") );
+        {
+            wxString msg;
+            msg.Printf( wxT( "Unknown DRC error code %d" ), m_ErrorCode );
+            return ( msg );
+        }
     }
 }
 

@@ -1,7 +1,7 @@
 /*
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
- * Copyright (C) 2009 Jean-Pierre Charras, jaen-pierre.charras@gipsa-lab.inpg.com
+ * Copyright (C) 2009 Jean-Pierre Charras, jean-pierre.charras@gipsa-lab.inpg.fr
  * Copyright (C) 2011 Wayne Stambaugh <stambaughw@verizon.net>
  * Copyright (C) 1992-2011 KiCad Developers, see AUTHORS.txt for contributors.
  *
@@ -28,17 +28,18 @@
  * @brief D_CODE class implementation
  */
 
-#include "fctsys.h"
-#include "common.h"
-#include "class_drawpanel.h"
-#include "confirm.h"
-#include "macros.h"
-#include "trigo.h"
-#include "gr_basic.h"
+#include <fctsys.h>
+#include <common.h>
+#include <class_drawpanel.h>
+#include <confirm.h>
+#include <macros.h>
+#include <trigo.h>
+#include <gr_basic.h>
+#include <base_units.h>
 
-#include "gerbview.h"
-#include "class_gerber_draw_item.h"
-#include "class_GERBER.h"
+#include <gerbview.h>
+#include <class_gerber_draw_item.h>
+#include <class_GERBER.h>
 
 #define DEFAULT_SIZE 100
 
@@ -85,8 +86,8 @@ void D_CODE::Clear_D_CODE_Data()
     m_Shape      = APT_CIRCLE;
     m_Drill.x    = m_Drill.y = 0;
     m_DrillShape = APT_DEF_NO_HOLE;
-    m_InUse      = FALSE;
-    m_Defined    = FALSE;
+    m_InUse      = false;
+    m_Defined    = false;
     m_Macro      = NULL;
     m_Rotation   = 0.0;
     m_EdgesCount = 0;
@@ -133,11 +134,11 @@ int D_CODE::GetShapeDim( GERBER_DRAW_ITEM* aParent )
 
     case APT_RECT:
     case APT_OVAL:
-        dim = MIN( m_Size.x, m_Size.y );
+        dim = std::min( m_Size.x, m_Size.y );
         break;
 
     case APT_POLYGON:
-        dim = MIN( m_Size.x, m_Size.y );
+        dim = std::min( m_Size.x, m_Size.y );
         break;
 
     case APT_MACRO:
@@ -155,7 +156,7 @@ int D_CODE::GetShapeDim( GERBER_DRAW_ITEM* aParent )
 
 int GERBVIEW_FRAME::ReadDCodeDefinitionFile( const wxString& D_Code_FullFileName )
 {
-    int      current_Dcode, ii, dcode_scale;
+    int      current_Dcode, ii;
     char*    ptcar;
     int      dimH, dimV, drill, dummy;
     float    fdimH, fdimV, fdrill;
@@ -174,8 +175,8 @@ int GERBVIEW_FRAME::ReadDCodeDefinitionFile( const wxString& D_Code_FullFileName
 
 
     /* Updating gerber scale: */
-    dcode_scale   = 10; /* By uniting dCode = mil, internal unit = 0.1 mil
-                         * -> 1 unite dcode = 10 unit PCB */
+    double dcode_scale = IU_PER_MILS; // By uniting dCode = mil,
+                                                    // internal unit = IU_PER_MILS
     current_Dcode = 0;
 
     if( D_Code_FullFileName.IsEmpty() )
@@ -215,9 +216,9 @@ int GERBVIEW_FRAME::ReadDCodeDefinitionFile( const wxString& D_Code_FullFileName
             sscanf( line, "%d,%d,%d,%d,%d,%d,%d", &ii,
                     &dimH, &dimV, &drill, &dummy, &dummy, &type_outil );
 
-            dimH  = wxRound( dimH * dcode_scale );
-            dimV  = wxRound( dimV * dcode_scale );
-            drill = wxRound( drill * dcode_scale );
+            dimH  = KiROUND( dimH * dcode_scale );
+            dimV  = KiROUND( dimV * dcode_scale );
+            drill = KiROUND( drill * dcode_scale );
 
             if( ii < 1 )
                 ii = 1;
@@ -245,9 +246,9 @@ int GERBVIEW_FRAME::ReadDCodeDefinitionFile( const wxString& D_Code_FullFileName
                 }
             }
 
-            dimH  = wxRound( fdimH * dcode_scale * 1000 );
-            dimV  = wxRound( fdimV * dcode_scale * 1000 );
-            drill = wxRound( fdrill * dcode_scale * 1000 );
+            dimH  = KiROUND( fdimH * dcode_scale * 1000 );
+            dimV  = KiROUND( fdimV * dcode_scale * 1000 );
+            drill = KiROUND( fdrill * dcode_scale * 1000 );
 
             if( strchr( "CLROP", c_type_outil[0] ) )
             {
@@ -285,11 +286,9 @@ void GERBVIEW_FRAME::CopyDCodesSizeToItems()
 {
     static D_CODE dummy( 999 );   //Used if D_CODE not found in list
 
-    BOARD_ITEM*   item = GetBoard()->m_Drawings;
-
-    for( ; item; item = item->Next() )
+    GERBER_DRAW_ITEM* gerb_item = GetItemsList();
+    for( ; gerb_item; gerb_item = gerb_item->Next() )
     {
-        GERBER_DRAW_ITEM* gerb_item = (GERBER_DRAW_ITEM*) item;
         D_CODE*           dcode     = gerb_item->GetDcodeDescr();
         wxASSERT( dcode );
         if( dcode == NULL )
@@ -340,7 +339,8 @@ void GERBVIEW_FRAME::CopyDCodesSizeToItems()
 
 
 void D_CODE::DrawFlashedShape(  GERBER_DRAW_ITEM* aParent,
-                                EDA_RECT* aClipBox, wxDC* aDC, int aColor, int aAltColor,
+                                EDA_RECT* aClipBox, wxDC* aDC, EDA_COLOR_T aColor,
+                                EDA_COLOR_T aAltColor,
                                 wxPoint aShapePos, bool aFilledShape )
 {
     int radius;
@@ -457,7 +457,7 @@ void D_CODE::DrawFlashedShape(  GERBER_DRAW_ITEM* aParent,
 
 void D_CODE::DrawFlashedPolygon( GERBER_DRAW_ITEM* aParent,
                                  EDA_RECT* aClipBox, wxDC* aDC,
-                                 int aColor, bool aFilled,
+                                 EDA_COLOR_T aColor, bool aFilled,
                                  const wxPoint& aPosition )
 {
     if( m_PolyCorners.size() == 0 )
@@ -600,7 +600,7 @@ void D_CODE::ConvertShapeToPolygon()
 
         if( m_Rotation )                   // vertical oval, rotate polygon.
         {
-            int angle = wxRound( m_Rotation * 10 );
+            int angle = KiROUND( m_Rotation * 10 );
 
             for( unsigned jj = 0; jj < m_PolyCorners.size(); jj++ )
             {

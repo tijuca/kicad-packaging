@@ -4,21 +4,21 @@
  *        lists of schematic items.
  */
 
-#include "fctsys.h"
-#include "appl_wxstruct.h"
-#include "class_drawpanel.h"
-#include "wxEeschemaStruct.h"
+#include <fctsys.h>
+#include <appl_wxstruct.h>
+#include <class_drawpanel.h>
+#include <wxEeschemaStruct.h>
 
-#include "general.h"
-#include "protos.h"
-#include "sch_bus_entry.h"
-#include "sch_marker.h"
-#include "sch_line.h"
-#include "sch_no_connect.h"
-#include "sch_polyline.h"
-#include "sch_sheet.h"
-#include "sch_component.h"
-#include "sch_junction.h"
+#include <general.h>
+#include <protos.h>
+#include <sch_bus_entry.h>
+#include <sch_marker.h>
+#include <sch_line.h>
+#include <sch_no_connect.h>
+#include <sch_polyline.h>
+#include <sch_sheet.h>
+#include <sch_component.h>
+#include <sch_junction.h>
 
 
 void SetSchItemParent( SCH_ITEM* Struct, SCH_SCREEN* Screen )
@@ -65,23 +65,23 @@ void DuplicateItemsInList( SCH_SCREEN* screen, PICKED_ITEMS_LIST& aItemsList,
                            const wxPoint aMoveVector  );
 
 
-void MirrorListOfItems( PICKED_ITEMS_LIST& aItemsList, wxPoint& aMirrorPoint )
+void MirrorY( PICKED_ITEMS_LIST& aItemsList, wxPoint& aMirrorPoint )
 {
     for( unsigned ii = 0; ii < aItemsList.GetCount(); ii++ )
     {
         SCH_ITEM* item = (SCH_ITEM*) aItemsList.GetPickedItem( ii );
-        item->Mirror_Y( aMirrorPoint.x );      // Place it in its new position.
+        item->MirrorY( aMirrorPoint.x );      // Place it in its new position.
         item->ClearFlags();
     }
 }
 
 
-void Mirror_X_ListOfItems( PICKED_ITEMS_LIST& aItemsList, wxPoint& aMirrorPoint )
+void MirrorX( PICKED_ITEMS_LIST& aItemsList, wxPoint& aMirrorPoint )
 {
     for( unsigned ii = 0; ii < aItemsList.GetCount(); ii++ )
     {
         SCH_ITEM* item = (SCH_ITEM*) aItemsList.GetPickedItem( ii );
-        item->Mirror_X( aMirrorPoint.y );      // Place it in its new position.
+        item->MirrorX( aMirrorPoint.y );      // Place it in its new position.
         item->ClearFlags();
     }
 }
@@ -126,11 +126,9 @@ void DeleteItemsInList( EDA_DRAW_PANEL* panel, PICKED_ITEMS_LIST& aItemsList )
         }
         else
         {
-            screen->RemoveFromDrawList( item );
+            screen->Remove( item );
 
             /* Unlink the structure */
-            item->SetNext( 0 );
-            item->SetBack( 0 );
             itemsList.PushItem( itemWrapper );
         }
     }
@@ -142,6 +140,7 @@ void DeleteItemsInList( EDA_DRAW_PANEL* panel, PICKED_ITEMS_LIST& aItemsList )
 void SCH_EDIT_FRAME::DeleteItem( SCH_ITEM* aItem )
 {
     wxCHECK_RET( aItem != NULL, wxT( "Cannot delete invalid item." ) );
+
     if( aItem == NULL )
         return;
 
@@ -155,17 +154,13 @@ void SCH_EDIT_FRAME::DeleteItem( SCH_ITEM* aItem )
                      wxT( "Sheet label has invalid parent item." ) );
         SaveCopyInUndoList( (SCH_ITEM*) sheet, UR_CHANGED );
         sheet->RemovePin( (SCH_SHEET_PIN*) aItem );
-        DrawPanel->RefreshDrawingRect( sheet->GetBoundingBox() );
+        m_canvas->RefreshDrawingRect( sheet->GetBoundingBox() );
     }
     else
     {
-        screen->RemoveFromDrawList( aItem );
-
-        aItem->SetNext( NULL );
-        aItem->SetBack( NULL );  // Only one struct -> no link
-
+        screen->Remove( aItem );
         SaveCopyInUndoList( aItem, UR_DELETED );
-        DrawPanel->RefreshDrawingRect( aItem->GetBoundingBox() );
+        m_canvas->RefreshDrawingRect( aItem->GetBoundingBox() );
     }
 }
 
@@ -207,20 +202,19 @@ void DuplicateItemsInList( SCH_SCREEN* screen, PICKED_ITEMS_LIST& aItemsList,
             case SCH_SHEET_T:
             {
                 SCH_SHEET* sheet = (SCH_SHEET*) newitem;
-                sheet->m_TimeStamp = GetTimeStamp();
+                sheet->SetTimeStamp( GetNewTimeStamp() );
                 sheet->SetSon( NULL );
                 break;
             }
 
             case SCH_COMPONENT_T:
-                ( (SCH_COMPONENT*) newitem )->m_TimeStamp = GetTimeStamp();
+                ( (SCH_COMPONENT*) newitem )->SetTimeStamp( GetNewTimeStamp() );
                 ( (SCH_COMPONENT*) newitem )->ClearAnnotation( NULL );
                 break;
             }
 
             SetSchItemParent( newitem, screen );
-            newitem->SetNext( screen->GetDrawItems() );
-            screen->SetDrawItems( newitem );
+            screen->Append( newitem );
         }
     }
 
@@ -243,12 +237,12 @@ SCH_ITEM* DuplicateStruct( SCH_ITEM* aDrawStruct, bool aClone )
     wxCHECK_MSG( aDrawStruct != NULL, NULL,
                  wxT( "Cannot duplicate NULL schematic item!  Bad programmer." ) );
 
-    SCH_ITEM* NewDrawStruct = aDrawStruct->Clone();
+    SCH_ITEM* NewDrawStruct = (SCH_ITEM*) aDrawStruct->Clone();
 
     if( aClone )
-        NewDrawStruct->m_TimeStamp = aDrawStruct->m_TimeStamp;
+        NewDrawStruct->SetTimeStamp( aDrawStruct->GetTimeStamp() );
 
-    NewDrawStruct->m_Image = aDrawStruct;
+    NewDrawStruct->SetImage( aDrawStruct );
 
     return NewDrawStruct;
 }

@@ -32,16 +32,16 @@
  * according to items and error ode
 */
 
-#include "fctsys.h"
-#include "common.h"
-#include "pcbnew.h"
-#include "class_board_design_settings.h"
+#include <fctsys.h>
+#include <common.h>
+#include <pcbnew.h>
+#include <class_board_design_settings.h>
 
-#include "drc_stuff.h"
-#include "class_pad.h"
-#include "class_track.h"
-#include "class_zone.h"
-#include "class_marker_pcb.h"
+#include <drc_stuff.h>
+#include <class_pad.h>
+#include <class_track.h>
+#include <class_zone.h>
+#include <class_marker_pcb.h>
 
 
 MARKER_PCB* DRC::fillMarker( TRACK* aTrack, BOARD_ITEM* aItem, int aErrorCode, MARKER_PCB* fillMe )
@@ -55,30 +55,32 @@ MARKER_PCB* DRC::fillMarker( TRACK* aTrack, BOARD_ITEM* aItem, int aErrorCode, M
     if( aItem )     // aItem might be NULL
     {
         textB = aItem->GetSelectMenuText();
-        posB  = aItem->GetPosition();
 
         if( aItem->Type() == PCB_PAD_T )
         {
-            position = aItem->GetPosition();
+            posB = position = ((D_PAD*)aItem)->GetPosition();
         }
         else if( aItem->Type() == PCB_VIA_T )
         {
-            position = aItem->GetPosition();
+            posB = position = ((SEGVIA*)aItem)->GetPosition();
         }
         else if( aItem->Type() == PCB_TRACE_T )
         {
             TRACK*  track  = (TRACK*) aItem;
-            wxPoint endPos = track->m_End;
+
+            posB = track->GetPosition();
+
+            wxPoint endPos = track->GetEnd();
 
             // either of aItem's start or end will be used for the marker position
             // first assume start, then switch at end if needed.  decision made on
             // distance from end of aTrack.
-            position = track->m_Start;
+            position = track->GetStart();
 
-            double dToEnd = hypot( endPos.x - aTrack->m_End.x,
-                                   endPos.y - aTrack->m_End.y );
-            double dToStart = hypot( position.x - aTrack->m_End.x,
-                                     position.y - aTrack->m_End.y );
+            double dToEnd = hypot( endPos.x - aTrack->GetEnd().x,
+                                   endPos.y - aTrack->GetEnd().y );
+            double dToStart = hypot( position.x - aTrack->GetEnd().x,
+                                     position.y - aTrack->GetEnd().y );
 
             if( dToEnd < dToStart )
                 position = endPos;
@@ -95,7 +97,7 @@ MARKER_PCB* DRC::fillMarker( TRACK* aTrack, BOARD_ITEM* aItem, int aErrorCode, M
                              textB, posB );
         else
             fillMe->SetData( aErrorCode, position,
-                            textA, aTrack->GetPosition() );
+                             textA, aTrack->GetPosition() );
     }
     else
     {
@@ -105,7 +107,7 @@ MARKER_PCB* DRC::fillMarker( TRACK* aTrack, BOARD_ITEM* aItem, int aErrorCode, M
                                      textB, posB );
         else
             fillMe = new MARKER_PCB( aErrorCode, position,
-                                    textA, aTrack->GetPosition() );
+                                     textA, aTrack->GetPosition() );
     }
 
     return fillMe;

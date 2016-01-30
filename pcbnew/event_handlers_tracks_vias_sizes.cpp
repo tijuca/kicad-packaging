@@ -4,17 +4,17 @@
  */
 
 
-#include "fctsys.h"
-#include "class_drawpanel.h"
-#include "confirm.h"
-#include "wxPcbStruct.h"
-#include "dialog_helpers.h"
+#include <fctsys.h>
+#include <class_drawpanel.h>
+#include <confirm.h>
+#include <wxPcbStruct.h>
+#include <dialog_helpers.h>
 
-#include "pcbnew_id.h"
-#include "pcbnew.h"
+#include <pcbnew_id.h>
+#include <pcbnew.h>
 
-#include "class_board.h"
-#include "class_module.h"
+#include <class_board.h>
+#include <class_module.h>
 
 
 /**
@@ -30,24 +30,24 @@ void PCB_EDIT_FRAME::Tracks_and_Vias_Size_Event( wxCommandEvent& event )
 /* Note: none of these events require aborting the current command (if any)
  * (like move, edit or block command)
  * so we do not test for a current command in progress and call
- *  DrawPanel->m_endMouseCaptureCallback( DrawPanel, &dc );
+ *  m_canvas->m_endMouseCaptureCallback( m_canvas, &dc );
  */
     switch( id )
     {
     case ID_AUX_TOOLBAR_PCB_SELECT_AUTO_WIDTH:
-        GetBoard()->GetBoardDesignSettings()->m_UseConnectedTrackWidth =
-            not GetBoard()->GetBoardDesignSettings()->m_UseConnectedTrackWidth;
+        GetDesignSettings().m_UseConnectedTrackWidth =
+            not GetDesignSettings().m_UseConnectedTrackWidth;
         break;
 
     case ID_POPUP_PCB_SELECT_USE_NETCLASS_VALUES:
-        GetBoard()->GetBoardDesignSettings()->m_UseConnectedTrackWidth = false;
-        GetBoard()->m_TrackWidthSelector = 0;
-        GetBoard()->m_ViaSizeSelector = 0;
+        GetDesignSettings().m_UseConnectedTrackWidth = false;
+        GetBoard()->SetTrackWidthIndex( 0 );
+        GetBoard()->SetViaSizeIndex( 0 );
         break;
 
     case ID_POPUP_PCB_SELECT_AUTO_WIDTH:
-        DrawPanel->MoveCursorToCrossHair();
-        GetBoard()->GetBoardDesignSettings()->m_UseConnectedTrackWidth = true;
+        m_canvas->MoveCursorToCrossHair();
+        GetDesignSettings().m_UseConnectedTrackWidth = true;
         break;
 
     case ID_POPUP_PCB_SELECT_WIDTH1:      // this is the default Netclass selection
@@ -58,10 +58,18 @@ void PCB_EDIT_FRAME::Tracks_and_Vias_Size_Event( wxCommandEvent& event )
     case ID_POPUP_PCB_SELECT_WIDTH6:
     case ID_POPUP_PCB_SELECT_WIDTH7:
     case ID_POPUP_PCB_SELECT_WIDTH8:
-        DrawPanel->MoveCursorToCrossHair();
-        GetBoard()->GetBoardDesignSettings()->m_UseConnectedTrackWidth = false;
+    case ID_POPUP_PCB_SELECT_WIDTH9:
+    case ID_POPUP_PCB_SELECT_WIDTH10:
+    case ID_POPUP_PCB_SELECT_WIDTH11:
+    case ID_POPUP_PCB_SELECT_WIDTH12:
+    case ID_POPUP_PCB_SELECT_WIDTH13:
+    case ID_POPUP_PCB_SELECT_WIDTH14:
+    case ID_POPUP_PCB_SELECT_WIDTH15:
+    case ID_POPUP_PCB_SELECT_WIDTH16:
+        m_canvas->MoveCursorToCrossHair();
+        GetDesignSettings().m_UseConnectedTrackWidth = false;
         ii = id - ID_POPUP_PCB_SELECT_WIDTH1;
-        GetBoard()->m_TrackWidthSelector = ii;
+        GetBoard()->SetTrackWidthIndex( ii );
         break;
 
     case ID_POPUP_PCB_SELECT_VIASIZE1:   // this is the default Netclass selection
@@ -71,24 +79,44 @@ void PCB_EDIT_FRAME::Tracks_and_Vias_Size_Event( wxCommandEvent& event )
     case ID_POPUP_PCB_SELECT_VIASIZE5:
     case ID_POPUP_PCB_SELECT_VIASIZE6:
     case ID_POPUP_PCB_SELECT_VIASIZE7:
-    case ID_POPUP_PCB_SELECT_VIASIZE8:   // select the new current value for via size (via diameter)
-        DrawPanel->MoveCursorToCrossHair();
+    case ID_POPUP_PCB_SELECT_VIASIZE8:
+    case ID_POPUP_PCB_SELECT_VIASIZE9:
+    case ID_POPUP_PCB_SELECT_VIASIZE10:
+    case ID_POPUP_PCB_SELECT_VIASIZE11:
+    case ID_POPUP_PCB_SELECT_VIASIZE12:
+    case ID_POPUP_PCB_SELECT_VIASIZE13:
+    case ID_POPUP_PCB_SELECT_VIASIZE14:
+    case ID_POPUP_PCB_SELECT_VIASIZE15:
+    case ID_POPUP_PCB_SELECT_VIASIZE16:
+        // select the new current value for via size (via diameter)
+        m_canvas->MoveCursorToCrossHair();
         ii = id - ID_POPUP_PCB_SELECT_VIASIZE1;
-        GetBoard()->m_ViaSizeSelector = ii;
+        GetBoard()->SetViaSizeIndex( ii );
         break;
 
     case ID_AUX_TOOLBAR_PCB_TRACK_WIDTH:
         ii = m_SelTrackWidthBox->GetCurrentSelection();
-        GetBoard()->m_TrackWidthSelector = ii;
+        GetBoard()->SetTrackWidthIndex( ii );
         break;
 
     case ID_AUX_TOOLBAR_PCB_VIA_SIZE:
         ii = m_SelViaSizeBox->GetCurrentSelection();
-        GetBoard()->m_ViaSizeSelector = ii;
+        GetBoard()->SetViaSizeIndex( ii );
         break;
 
     default:
         wxMessageBox( wxT( "PCB_EDIT_FRAME::Tracks_and_Vias_Size_Event() error") );
         break;
     }
+
+    // Refresh track in progress, if any, by forcing a mouse event,
+    // to call the current function attached to the mouse
+    /*if( m_canvas->IsMouseCaptured() )
+    {
+        wxMouseEvent event(wxEVT_MOTION);
+        wxPostEvent( m_canvas, event );
+    }*/
+    //+hp
+    //Refresh canvas, that we can see changes instantly. I use this because it dont,t throw  mouse up-left corner.
+    m_canvas->Refresh();
 }

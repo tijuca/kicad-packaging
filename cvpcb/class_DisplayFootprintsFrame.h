@@ -3,7 +3,7 @@
  */
 
 
-#include "wxBasePcbFrame.h"
+#include <wxBasePcbFrame.h>
 
 
 class CVPCB_MAINFRAME;
@@ -35,10 +35,18 @@ public:
     void OnUpdateLineDrawMode( wxUpdateUIEvent& aEvent );
 
     /**
+     * Function InitDisplay
+     * Refresh the full display for this frame:
+     * Set the title, the status line and redraw the canvas
+     * Must be called after the footprint to display is modifed
+     */
+    void InitDisplay();
+
+    /**
      * Function IsGridVisible() , virtual
      * @return true if the grid must be shown
      */
-    virtual bool IsGridVisible();
+    virtual bool IsGridVisible() const;
 
     /**
      * Function SetGridVisibility() , virtual
@@ -51,7 +59,7 @@ public:
      * Function GetGridColor() , virtual
      * @return the color of the grid
      */
-    virtual int GetGridColor();
+    virtual EDA_COLOR_T GetGridColor() const;
 
     void    OnLeftClick( wxDC* DC, const wxPoint& MousePos );
     void    OnLeftDClick( wxDC* DC, const wxPoint& MousePos );

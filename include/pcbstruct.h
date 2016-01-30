@@ -3,16 +3,11 @@
  * @brief Classes and definitions used in Pcbnew.
  */
 
-#ifndef PCBSTRUCT_H
-#define PCBSTRUCT_H
+#ifndef PCBSTRUCT_H_
+#define PCBSTRUCT_H_
 
 
-// Definitions relatives aux libraries
-#define FOOTPRINT_LIBRARY_HEADER       "PCBNEW-LibModule-V1"
-#define FOOTPRINT_LIBRARY_HEADER_CNT   18
-
-
-// Values for m_DisplayViaMode member:
+/// Values for m_DisplayViaMode member:
 enum VIA_DISPLAY_MODE_T {
     VIA_HOLE_NOT_SHOW = 0,
     VIA_SPECIAL_HOLE_SHOW,
@@ -21,8 +16,10 @@ enum VIA_DISPLAY_MODE_T {
 };
 
 
-/* Values for DISPLAY_OPTIONS.ShowTrackClearanceMode parameter option
- * This parameter controls how to show tracks and vias clearance area
+/**
+ * Enum TRACE_CLEARANCE_DISPLAY_MODE_T
+ * is the set of values for DISPLAY_OPTIONS.ShowTrackClearanceMode parameter option.
+ * This parameter controls how to show tracks and vias clearance area.
  */
 enum TRACE_CLEARANCE_DISPLAY_MODE_T {
     DO_NOT_SHOW_CLEARANCE = 0,                // Do not show clearance areas
@@ -43,6 +40,10 @@ enum TRACE_CLEARANCE_DISPLAY_MODE_T {
 };
 
 
+/**
+ * Class DISPLAY_OPTIONS
+ * handles display options like enable/disable some optional drawings.
+ */
 class DISPLAY_OPTIONS
 {
 public:
@@ -77,5 +78,4 @@ public:
     DISPLAY_OPTIONS();
 };
 
-
-#endif // PCBSTRUCT_H
+#endif // PCBSTRUCT_H_

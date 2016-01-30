@@ -26,10 +26,43 @@
 
 #include <cstdarg>
 
-#include "richio.h"
+#include <richio.h>
+
+
+// Fall back to getc() when getc_unlocked() is not available on the target platform.
+#if !defined( HAVE_FGETC_NOLOCK )
+#define getc_unlocked getc
+#endif
+
 
 // This file defines 3 classes useful for working with DSN text files and is named
 // "richio" after its author, Richard Hollenbeck, aka Dick Hollenbeck.
+
+
+
+void IO_ERROR::init( const char* aThrowersFile, const char* aThrowersLoc, const wxString& aMsg )
+{
+    errorText.Printf( IO_FORMAT, aMsg.GetData(),
+        wxString::FromUTF8( aThrowersFile ).GetData(),
+        wxString::FromUTF8( aThrowersLoc ).GetData() );
+}
+
+
+void PARSE_ERROR::init( const char* aThrowersFile, const char* aThrowersLoc,
+           const wxString& aMsg, const wxString& aSource,
+           const char* aInputLine,
+           int aLineNumber, int aByteIndex )
+{
+    // save inpuLine, lineNumber, and offset for UI (.e.g. Sweet text editor)
+    inputLine  = aInputLine;
+    lineNumber = aLineNumber;
+    byteIndex  = aByteIndex;
+
+    errorText.Printf( PARSE_FORMAT, aMsg.GetData(), aSource.GetData(),
+        aLineNumber, aByteIndex,
+        wxString::FromUTF8( aThrowersFile ).GetData(),
+        wxString::FromUTF8( aThrowersLoc ).GetData() );
+}
 
 
 //-----<LINE_READER>------------------------------------------------------
@@ -38,22 +71,33 @@ LINE_READER::LINE_READER( unsigned aMaxLineLength )
 {
     lineNum = 0;
 
-    if( aMaxLineLength == 0 )       // caller is goofed up.
-        aMaxLineLength = LINE_READER_LINE_DEFAULT_MAX;
+    if( aMaxLineLength == 0 )
+    {
+        line = 0;
+    }
+    else
+    {
+        maxLineLength = aMaxLineLength;
 
-    maxLineLength = aMaxLineLength;
+        // start at the INITIAL size, expand as needed up to the MAX size in maxLineLength
+        capacity = LINE_READER_LINE_INITIAL_SIZE;
 
-    // start at the INITIAL size, expand as needed up to the MAX size in maxLineLength
-    capacity = LINE_READER_LINE_INITIAL_SIZE;
+        // but never go above user's aMaxLineLength, and leave space for trailing nul
+        if( capacity > aMaxLineLength+1 )
+            capacity = aMaxLineLength+1;
 
-    // but never go above user's aMaxLineLength, and leave space for trailing nul
-    if( capacity > aMaxLineLength+1 )
-        capacity = aMaxLineLength+1;
+        line = new char[capacity];
 
-    line = new char[capacity];
+        line[0] = '\0';
+    }
 
-    line[0] = '\0';
     length  = 0;
+}
+
+
+LINE_READER::~LINE_READER()
+{
+    delete[] line;
 }
 
 
@@ -82,6 +126,27 @@ void LINE_READER::expandCapacity( unsigned newsize )
 }
 
 
+FILE_LINE_READER::FILE_LINE_READER( const wxString& aFileName,
+            unsigned aStartingLineNumber,
+            unsigned aMaxLineLength ) throw( IO_ERROR ) :
+    LINE_READER( aMaxLineLength ),
+    iOwn( true )
+{
+    fp = wxFopen( aFileName, wxT( "rt" ) );
+    if( !fp )
+    {
+        wxString msg = wxString::Format(
+            _( "Unable to open filename '%s' for reading" ), aFileName.GetData() );
+        THROW_IO_ERROR( msg );
+    }
+
+    setvbuf( fp, NULL, _IOFBF, BUFSIZ * 8 );
+
+    source  = aFileName;
+    lineNum = aStartingLineNumber;
+}
+
+
 FILE_LINE_READER::FILE_LINE_READER( FILE* aFile, const wxString& aFileName,
                     bool doOwn,
                     unsigned aStartingLineNumber,
@@ -90,6 +155,12 @@ FILE_LINE_READER::FILE_LINE_READER( FILE* aFile, const wxString& aFileName,
     iOwn( doOwn ),
     fp( aFile )
 {
+    if( doOwn && ftell( aFile ) == 0L )
+    {
+#ifndef __WXMAC__
+        setvbuf( fp, NULL, _IOFBF, BUFSIZ * 8 );
+#endif
+    }
     source  = aFileName;
     lineNum = aStartingLineNumber;
 }
@@ -102,31 +173,36 @@ FILE_LINE_READER::~FILE_LINE_READER()
 }
 
 
-unsigned FILE_LINE_READER::ReadLine() throw( IO_ERROR )
+char* FILE_LINE_READER::ReadLine() throw( IO_ERROR )
 {
-    length  = 0;
-    line[0] = 0;
+    length = 0;
 
-    // fgets always puts a terminating nul at end of its read.
-    while( fgets( line + length, capacity - length, fp ) )
+    for(;;)
     {
-        length += strlen( line + length );
-
         if( length >= maxLineLength )
-            THROW_IO_ERROR( _("Line length exceeded") );
+            THROW_IO_ERROR( _( "Maximum line length exceeded" ) );
 
-        // a normal line breaks here, once through while loop
-        if( length+1 < capacity || line[length-1] == '\n' )
+        if( length >= capacity )
+            expandCapacity( capacity * 2 );
+
+        // faster, POSIX compatible fgetc(), no locking.
+        int cc = getc_unlocked( fp );
+        if( cc == EOF )
             break;
 
-        expandCapacity( capacity * 2 );
+        line[ length++ ] = (char) cc;
+
+        if( cc == '\n' )
+            break;
     }
+
+    line[ length ] = 0;
 
     // lineNum is incremented even if there was no line read, because this
     // leads to better error reporting when we hit an end of file.
     ++lineNum;
 
-    return length;
+    return length ? line : NULL;
 }
 
 
@@ -153,7 +229,8 @@ STRING_LINE_READER::STRING_LINE_READER( const STRING_LINE_READER& aStartingPoint
     lineNum = aStartingPoint.lineNum;
 }
 
-unsigned STRING_LINE_READER::ReadLine() throw( IO_ERROR )
+
+char* STRING_LINE_READER::ReadLine() throw( IO_ERROR )
 {
     size_t  nlOffset = lines.find( '\n', ndx );
 
@@ -181,7 +258,48 @@ unsigned STRING_LINE_READER::ReadLine() throw( IO_ERROR )
 
     line[length] = 0;
 
-    return length;
+    return length ? line : NULL;
+}
+
+
+INPUTSTREAM_LINE_READER::INPUTSTREAM_LINE_READER( wxInputStream* aStream ) :
+    LINE_READER( LINE_READER_LINE_DEFAULT_MAX ),
+    m_stream( aStream )
+{
+}
+
+
+char* INPUTSTREAM_LINE_READER::ReadLine() throw( IO_ERROR )
+{
+    length  = 0;
+
+    for(;;)
+    {
+        if( length >= maxLineLength )
+            THROW_IO_ERROR( _( "Maximum line length exceeded" ) );
+
+        if( length + 1 > capacity )
+            expandCapacity( capacity * 2 );
+
+        // this read may fail, docs say to test LastRead() before trusting cc.
+        char cc = m_stream->GetC();
+
+        if( !m_stream->LastRead() )
+            break;
+
+        line[ length++ ] = cc;
+
+        if( cc == '\n' )
+            break;
+    }
+
+    line[ length ] = 0;
+
+    // lineNum is incremented even if there was no line read, because this
+    // leads to better error reporting when we hit an end of file.
+    ++lineNum;
+
+    return length ? line : NULL;
 }
 
 
@@ -198,12 +316,12 @@ const char* OUTPUTFORMATTER::GetQuoteChar( const char* wrapee, const char* quote
     if( *wrapee == '#' )
         return quote_char;
 
-    if( strlen(wrapee)==0 )
+    if( strlen( wrapee ) == 0 )
         return quote_char;
 
     bool isFirst = true;
 
-    for(  ; *wrapee;  ++wrapee, isFirst=false )
+    for(  ; *wrapee;  ++wrapee, isFirst = false )
     {
         static const char quoteThese[] = "\t ()"
             "%"     // per Alfons of freerouting.net, he does not like this unquoted as of 1-Feb-2008
@@ -223,12 +341,17 @@ const char* OUTPUTFORMATTER::GetQuoteChar( const char* wrapee, const char* quote
 }
 
 
+const char* OUTPUTFORMATTER::GetQuoteChar( const char* wrapee )
+{
+    return GetQuoteChar( wrapee, quoteChar );
+}
+
 int OUTPUTFORMATTER::vprint( const char* fmt,  va_list ap )  throw( IO_ERROR )
 {
     int ret = vsnprintf( &buffer[0], buffer.size(), fmt, ap );
     if( ret >= (int) buffer.size() )
     {
-        buffer.resize( ret+2000 );
+        buffer.resize( ret + 2000 );
         ret = vsnprintf( &buffer[0], buffer.size(), fmt, ap );
     }
 
@@ -331,7 +454,7 @@ std::string OUTPUTFORMATTER::Quotes( const std::string& aWrapee ) throw( IO_ERRO
 
 std::string OUTPUTFORMATTER::Quotew( const wxString& aWrapee ) throw( IO_ERROR )
 {
-    // s-expressions atoms are always encoded as UTF-8.
+    // wxStrings are always encoded as UTF-8 as we convert to a byte sequence.
     // The non-virutal function calls the virtual workhorse function, and if
     // a different quoting or escaping strategy is desired from the standard,
     // a derived class can overload Quotes() above, but
@@ -362,14 +485,45 @@ void STRING_FORMATTER::StripUseless()
     }
 }
 
+//-----<FILE_OUTPUTFORMATTER>----------------------------------------
 
-//-----<STREAM_OUTPUTFORMATTER>--------------------------------------
-
-const char* STREAM_OUTPUTFORMATTER::GetQuoteChar( const char* wrapee )
+FILE_OUTPUTFORMATTER::FILE_OUTPUTFORMATTER( const wxString& aFileName,
+        const wxChar* aMode,  char aQuoteChar ) throw( IO_ERROR ) :
+    OUTPUTFORMATTER( OUTPUTFMTBUFZ, aQuoteChar ),
+    m_filename( aFileName )
 {
-    return OUTPUTFORMATTER::GetQuoteChar( wrapee, quoteChar );
+    m_fp = wxFopen( aFileName, aMode );
+
+    if( !m_fp )
+    {
+        wxString msg = wxString::Format(
+                            _( "cannot open or save file '%s'" ),
+                            m_filename.GetData() );
+        THROW_IO_ERROR( msg );
+    }
 }
 
+
+FILE_OUTPUTFORMATTER::~FILE_OUTPUTFORMATTER()
+{
+    if( m_fp )
+        fclose( m_fp );
+}
+
+
+void FILE_OUTPUTFORMATTER::write( const char* aOutBuf, int aCount ) throw( IO_ERROR )
+{
+    if( 1 != fwrite( aOutBuf, aCount, 1, m_fp ) )
+    {
+        wxString msg = wxString::Format(
+                            _( "error writing to file '%s'" ),
+                            m_filename.GetData() );
+        THROW_IO_ERROR( msg );
+    }
+}
+
+
+//-----<STREAM_OUTPUTFORMATTER>--------------------------------------
 
 void STREAM_OUTPUTFORMATTER::write( const char* aOutBuf, int aCount ) throw( IO_ERROR )
 {

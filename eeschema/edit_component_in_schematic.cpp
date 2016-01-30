@@ -1,9 +1,9 @@
 /*
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
- * Copyright (C) 2004 Jean-Pierre Charras, jaen-pierre.charras@gipsa-lab.inpg.com
- * Copyright (C) 2008-2011 Wayne Stambaugh <stambaughw@verizon.net>
- * Copyright (C) 2004-2011 KiCad Developers, see change_log.txt for contributors.
+ * Copyright (C) 2013 Jean-Pierre Charras, jp.charras at wanadoo.fr
+ * Copyright (C) 2008-2013 Wayne Stambaugh <stambaughw@verizon.net>
+ * Copyright (C) 2004-2013 KiCad Developers, see change_log.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -28,19 +28,21 @@
  * @brief Schematic component editing code.
  */
 
-#include "fctsys.h"
-#include "gr_basic.h"
-#include "class_drawpanel.h"
-#include "confirm.h"
-#include "wxEeschemaStruct.h"
+#include <fctsys.h>
+#include <gr_basic.h>
+#include <class_drawpanel.h>
+#include <confirm.h>
+#include <wxEeschemaStruct.h>
+#include <msgpanel.h>
 
-#include "general.h"
-#include "protos.h"
-#include "class_library.h"
-#include "sch_component.h"
+#include <general.h>
+#include <class_library.h>
+#include <sch_component.h>
+
+#include <dialog_edit_one_field.h>
 
 
-void SCH_EDIT_FRAME::EditComponentFieldText( SCH_FIELD* aField, wxDC* aDC )
+void SCH_EDIT_FRAME::EditComponentFieldText( SCH_FIELD* aField )
 {
     wxCHECK_RET( aField != NULL && aField->Type() == SCH_FIELD_T,
                  wxT( "Cannot edit invalid schematic field." ) );
@@ -74,49 +76,38 @@ create a new power component with the new value." ), GetChars( entry->GetName() 
     // Don't use GetText() here.  If the field is the reference designator and it's parent
     // component has multiple parts, we don't want the part suffix added to the field.
     wxString newtext = aField->m_Text;
-    DrawPanel->m_IgnoreMouseEvents = true;
+    m_canvas->SetIgnoreMouseEvents( true );
 
     wxString title;
-    title.Printf( _( "Edit %s Field" ), GetChars( aField->m_Name ) );
+    title.Printf( _( "Edit %s Field" ), GetChars( aField->GetName() ) );
 
-    wxTextEntryDialog dlg( this, wxEmptyString , title, newtext );
+    DIALOG_SCH_EDIT_ONE_FIELD dlg( this, title, aField );
+
     int response = dlg.ShowModal();
 
-    DrawPanel->MoveCursorToCrossHair();
-    DrawPanel->m_IgnoreMouseEvents = false;
-    newtext = dlg.GetValue( );
-    newtext.Trim( true );
-    newtext.Trim( false );
+    m_canvas->MoveCursorToCrossHair();
+    m_canvas->SetIgnoreMouseEvents( false );
+    newtext = dlg.GetTextField( );
 
-    if ( response != wxID_OK || newtext == aField->GetText() )
+    if ( response != wxID_OK )
         return;  // canceled by user
 
-    aField->Draw( DrawPanel, aDC, wxPoint( 0, 0 ), g_XorMode );
-
+    // make some tests
+    bool can_update = true;
     if( !newtext.IsEmpty() )
     {
-        if( aField->m_Text.IsEmpty() )  // Means the field was not already in use
-        {
-            aField->m_Pos = component->GetPosition();
-            aField->m_Size.x = aField->m_Size.y = m_TextFieldSize;
-        }
-
         if( fieldNdx == REFERENCE )
         {
-            // Test is reference is acceptable:
+            // Test if the reference string is valid:
             if( SCH_COMPONENT::IsReferenceStringValid( newtext ) )
             {
-                component->SetRef( GetSheet(), newtext );
-                aField->m_Text = newtext;
+                component->SetRef( m_CurrentSheet, newtext );
             }
             else
             {
                 DisplayError( this, _( "Illegal reference string!  No change" ) );
+                can_update = false;
             }
-        }
-        else
-        {
-            aField->m_Text = newtext;
         }
     }
     else
@@ -124,20 +115,30 @@ create a new power component with the new value." ), GetChars( entry->GetName() 
         if( fieldNdx == REFERENCE )
         {
             DisplayError( this, _( "The reference field cannot be empty!  No change" ) );
+            can_update = false;
         }
         else if( fieldNdx == VALUE )
         {
             DisplayError( this, _( "The value field cannot be empty!  No change" ) );
+            can_update = false;
         }
         else
         {
-            aField->m_Text = wxT( "~" );
+            dlg.SetTextField( wxT( "~" ) );
         }
     }
 
-    aField->Draw( DrawPanel, aDC, wxPoint( 0, 0 ), g_XorMode );
-    component->DisplayInfo( this );
-    OnModify();
+    if( can_update )
+    {
+        dlg.TransfertDataToField();
+        OnModify();
+        m_canvas->Refresh();
+    }
+
+    MSG_PANEL_ITEMS items;
+    component->SetCurrentSheetPath( &GetCurrentSheet() );
+    component->GetMsgPanelInfo( items );
+    SetMsgPanel( items );
 }
 
 
@@ -152,14 +153,14 @@ void SCH_EDIT_FRAME::RotateField( SCH_FIELD* aField, wxDC* aDC )
     if( aField->GetFlags() == 0 )
         SaveCopyInUndoList( component, UR_CHANGED );
 
-    aField->Draw( DrawPanel, aDC, wxPoint( 0, 0 ), g_XorMode );
+    aField->Draw( m_canvas, aDC, wxPoint( 0, 0 ), g_XorMode );
 
     if( aField->m_Orient == TEXT_ORIENT_HORIZ )
         aField->m_Orient = TEXT_ORIENT_VERT;
     else
         aField->m_Orient = TEXT_ORIENT_HORIZ;
 
-    aField->Draw( DrawPanel, aDC, wxPoint( 0, 0 ), g_XorMode );
+    aField->Draw( m_canvas, aDC, wxPoint( 0, 0 ), g_XorMode );
 
     OnModify();
 }

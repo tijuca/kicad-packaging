@@ -5,20 +5,21 @@
 /////////////////////////////////////////////////////////////////////////////
 
 
-#include "fctsys.h"
-#include "macros.h"
-#include "gr_basic.h"
-#include "common.h"
-#include "class_drawpanel.h"
-#include "pcbnew.h"
-#include "drawtxt.h"
-#include "confirm.h"
-#include "wxBasePcbFrame.h"
+#include <fctsys.h>
+#include <macros.h>
+#include <gr_basic.h>
+#include <common.h>
+#include <class_drawpanel.h>
+#include <pcbnew.h>
+#include <drawtxt.h>
+#include <confirm.h>
+#include <wxBasePcbFrame.h>
+#include <base_units.h>
 
-#include "class_module.h"
-#include "class_text_mod.h"
+#include <class_module.h>
+#include <class_text_mod.h>
 
-#include "dialog_edit_module_text_base.h"
+#include <dialog_edit_module_text_base.h>
 
 
 extern wxPoint MoveVector;  // Move vector for move edge, imported from edtxtmod.cpp
@@ -45,14 +46,13 @@ private:
     void OnCancelClick( wxCommandEvent& event );
 };
 
-/*************************************************************************************/
+
 void PCB_BASE_FRAME::InstallTextModOptionsFrame( TEXTE_MODULE* TextMod, wxDC* DC )
-/**************************************************************************************/
 {
-    DrawPanel->m_IgnoreMouseEvents = TRUE;
+    m_canvas->SetIgnoreMouseEvents( true );
     DialogEditModuleText dialog( this, TextMod, DC );
     dialog.ShowModal();
-    DrawPanel->m_IgnoreMouseEvents = FALSE;
+    m_canvas->SetIgnoreMouseEvents( false );
 }
 
 
@@ -85,9 +85,7 @@ void DialogEditModuleText::OnCancelClick( wxCommandEvent& event )
 }
 
 
-/********************************************************/
 void DialogEditModuleText::initDlg( )
-/********************************************************/
 {
     SetFocus();
 
@@ -97,22 +95,23 @@ void DialogEditModuleText::initDlg( )
     {
         wxString format = m_ModuleInfoText->GetLabel();
         msg.Printf( format,
-            GetChars( m_module->m_Reference->m_Text ),
-            GetChars( m_module->m_Value->m_Text ),
-            (float) m_module->m_Orient / 10 );
+                    GetChars( m_module->m_Reference->m_Text ),
+                    GetChars( m_module->m_Value->m_Text ),
+                    (float) m_module->m_Orient / 10 );
     }
-
     else
+    {
         msg.Empty();
+    }
 
     m_ModuleInfoText->SetLabel( msg );
 
 
-    if( m_currentText->m_Type == TEXT_is_VALUE )
+    if( m_currentText->GetType() == TEXT_is_VALUE )
         m_TextDataTitle->SetLabel( _( "Value:" ) );
-    else if( m_currentText->m_Type == TEXT_is_DIVERS )
+    else if( m_currentText->GetType() == TEXT_is_DIVERS )
         m_TextDataTitle->SetLabel( _( "Text:" ) );
-    else if( m_currentText->m_Type != TEXT_is_REFERENCE )
+    else if( m_currentText->GetType() != TEXT_is_REFERENCE )
         m_TextDataTitle->SetLabel( wxT( "???" ) );
 
     m_Name->SetValue( m_currentText->m_Text );
@@ -120,67 +119,61 @@ void DialogEditModuleText::initDlg( )
     m_Style->SetSelection( m_currentText->m_Italic ? 1 : 0 );
 
     AddUnitSymbol( *m_SizeXTitle );
-    PutValueInLocalUnits( *m_TxtSizeCtrlX, m_currentText->m_Size.x,
-        m_parent->m_InternalUnits );
+    PutValueInLocalUnits( *m_TxtSizeCtrlX, m_currentText->m_Size.x );
 
     AddUnitSymbol( *m_SizeYTitle );
-    PutValueInLocalUnits( *m_TxtSizeCtrlY, m_currentText->m_Size.y,
-        m_parent->m_InternalUnits );
+    PutValueInLocalUnits( *m_TxtSizeCtrlY, m_currentText->m_Size.y );
 
     AddUnitSymbol( *m_PosXTitle );
-    PutValueInLocalUnits( *m_TxtPosCtrlX, m_currentText->m_Pos0.x,
-        m_parent->m_InternalUnits );
+    PutValueInLocalUnits( *m_TxtPosCtrlX, m_currentText->GetPos0().x );
 
     AddUnitSymbol( *m_PosYTitle );
-    PutValueInLocalUnits( *m_TxtPosCtrlY, m_currentText->m_Pos0.y,
-        m_parent->m_InternalUnits );
+    PutValueInLocalUnits( *m_TxtPosCtrlY, m_currentText->GetPos0().y );
 
     AddUnitSymbol( *m_WidthTitle );
-    PutValueInLocalUnits( *m_TxtWidthCtlr, m_currentText->m_Thickness,
-        m_parent->m_InternalUnits );
+    PutValueInLocalUnits( *m_TxtWidthCtlr, m_currentText->m_Thickness );
 
     int text_orient = m_currentText->m_Orient;
     NORMALIZE_ANGLE_90(text_orient)
+
     if( (text_orient != 0) )
         m_Orient->SetSelection( 1 );
 
-    if( m_currentText->m_NoShow )
+    if( !m_currentText->IsVisible() )
         m_Show->SetSelection( 1 );;
-
 }
 
 
-/*********************************************************************************/
 void DialogEditModuleText::OnOkClick( wxCommandEvent& event )
-/*********************************************************************************/
 {
     wxString msg;
 
     if ( m_module)
         m_parent->SaveCopyInUndoList( m_module, UR_CHANGED );
+
     if( m_dc )     //Erase old text on screen
     {
-        m_currentText->Draw( m_parent->DrawPanel, m_dc, GR_XOR,
-            (m_currentText->m_Flags & IS_MOVED) ? MoveVector : wxPoint( 0, 0 ) );
+        m_currentText->Draw( m_parent->GetCanvas(), m_dc, GR_XOR,
+                             (m_currentText->IsMoving()) ? MoveVector : wxPoint( 0, 0 ) );
     }
     m_currentText->m_Text = m_Name->GetValue();
 
     m_currentText->m_Italic = m_Style->GetSelection() == 1 ? true : false;
 
+    wxPoint tmp;
 
     msg = m_TxtPosCtrlX->GetValue();
-    m_currentText->m_Pos0.x = ReturnValueFromString( g_UserUnit, msg,
-        m_parent->m_InternalUnits );
+    tmp.x = ReturnValueFromString( g_UserUnit, msg );
+
     msg = m_TxtPosCtrlY->GetValue();
-    m_currentText->m_Pos0.y = ReturnValueFromString( g_UserUnit, msg,
-        m_parent->m_InternalUnits );
+    tmp.y = ReturnValueFromString( g_UserUnit, msg );
+
+    m_currentText->SetPos0( tmp );
 
     msg = m_TxtSizeCtrlX->GetValue();
-    m_currentText->m_Size.x = ReturnValueFromString( g_UserUnit, msg,
-        m_parent->m_InternalUnits );
+    m_currentText->m_Size.x = ReturnValueFromString( g_UserUnit, msg );
     msg = m_TxtSizeCtrlY->GetValue();
-    m_currentText->m_Size.y = ReturnValueFromString( g_UserUnit, msg,
-        m_parent->m_InternalUnits );
+    m_currentText->m_Size.y = ReturnValueFromString( g_UserUnit, msg );
 
     // Test for a reasonnable size:
     if( m_currentText->m_Size.x< TEXTS_MIN_SIZE )
@@ -189,32 +182,40 @@ void DialogEditModuleText::OnOkClick( wxCommandEvent& event )
         m_currentText->m_Size.y = TEXTS_MIN_SIZE;
 
     msg = m_TxtWidthCtlr->GetValue();
-    int width = ReturnValueFromString( g_UserUnit, msg, m_parent->m_InternalUnits );
+    int width = ReturnValueFromString( g_UserUnit, msg );
 
     // Test for a reasonnable width:
     if( width <= 1 )
         width = 1;
+
     int maxthickness = Clamp_Text_PenSize(width, m_currentText->m_Size );
+
     if( width > maxthickness )
     {
-        DisplayError(NULL, _("The text thickness is too large for the text size. It will be clamped"));
+        DisplayError( NULL,
+                      _( "The text thickness is too large for the text size. It will be clamped" ) );
         width = maxthickness;
     }
+
     m_currentText->SetThickness( width );
 
-    m_currentText->m_NoShow = (m_Show->GetSelection() == 0) ? 0 : 1;
+    m_currentText->SetVisible( m_Show->GetSelection() == 0 );
+
     int text_orient = (m_Orient->GetSelection() == 0) ? 0 : 900;
     m_currentText->m_Orient = text_orient;
 
     m_currentText->SetDrawCoord();
+
     if( m_dc )     // Display new text
     {
-        m_currentText->Draw( m_parent->DrawPanel, m_dc, GR_XOR,
-            (m_currentText->m_Flags & IS_MOVED) ? MoveVector : wxPoint( 0, 0 ) );
+        m_currentText->Draw( m_parent->GetCanvas(), m_dc, GR_XOR,
+                             (m_currentText->IsMoving()) ? MoveVector : wxPoint( 0, 0 ) );
     }
+
     m_parent->OnModify();
+
     if( m_module )
-        m_module->m_LastEdit_Time = time( NULL );
+        m_module->SetLastEditTime();
 
     EndModal(1);
 }

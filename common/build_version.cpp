@@ -1,15 +1,15 @@
 /* Date for KiCad build version */
-#include "fctsys.h"
+#include <fctsys.h>
 
 #ifdef HAVE_SVN_VERSION
-#include "version.h"    // define the KICAD_BUILD_VERSION
+#include <version.h>    // define the KICAD_BUILD_VERSION
 #endif
 
 #ifndef KICAD_BUILD_VERSION
 #if defined KICAD_GOST
-#   define KICAD_BUILD_VERSION "(2012-apr-16 GOST)"
+#   define KICAD_BUILD_VERSION "(2013-jul-07 GOST)"
 #else
-#   define KICAD_BUILD_VERSION "(2012-apr-16-27)"
+#   define KICAD_BUILD_VERSION "(2013-jul-07)"
 #endif
 #endif
 

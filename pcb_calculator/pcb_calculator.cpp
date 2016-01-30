@@ -21,21 +21,25 @@
  * or you may write to the Free Software Foundation, Inc.,
  * 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
  */
-#include "fctsys.h"
-#include "appl_wxstruct.h"
-#include "wxstruct.h"
-#include "confirm.h"
-#include "gestfich.h"
+#include <fctsys.h>
+#include <appl_wxstruct.h>
+#include <wxstruct.h>
+#include <confirm.h>
+#include <gestfich.h>
 
-#include "wx/wx.h"
-#include "wx/config.h"
+#include <wx/wx.h>
+#include <wx/config.h>
 
-#include "pcb_calculator_frame_base.h"
-#include "pcb_calculator.h"
+#include <pcb_calculator_frame_base.h>
+#include <pcb_calculator.h>
 
-#include "bitmaps.h"
-#include "colors_selection.h"
-#include "build_version.h"
+#include <bitmaps.h>
+#include <colors_selection.h>
+#include <build_version.h>
+
+// Pcb_calculator data file extension:
+const wxString PcbCalcDataFileExt( wxT("pcbcalc") );
+
 
 // PCB_CALCULATOR_APP
 
@@ -53,7 +57,7 @@ IMPLEMENT_APP( EDA_APP )
 bool EDA_APP::OnInit()
 {
 
-    InitEDA_Appl( wxT( "PCBcalc" ) );
+    InitEDA_Appl( wxT( "pcb_calculator" ) );
 
     wxFrame* frame = new PCB_CALCULATOR_FRAME( NULL );
     SetTopWindow( frame );

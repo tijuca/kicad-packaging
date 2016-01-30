@@ -1,7 +1,7 @@
 /*
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
- * Copyright (C) 2004 Jean-Pierre Charras, jaen-pierre.charras@gipsa-lab.inpg.com
+ * Copyright (C) 2012 Jean-Pierre Charras, jp.charras at wanadoo.fr
  * Copyright (C) 2008-2011 Wayne Stambaugh <stambaughw@verizon.net>
  * Copyright (C) 1992-2011 KiCad Developers, see AUTHORS.txt for contributors.
  *
@@ -28,25 +28,22 @@
  * @brief Classes used in Pcbnew, CvPcb and GerbView.
  */
 
-#ifndef  WX_BASE_PCB_FRAME_H
-#define  WX_BASE_PCB_FRAME_H
+#ifndef  WX_BASE_PCB_FRAME_H_
+#define  WX_BASE_PCB_FRAME_H_
 
 
 #include <vector>
 
-#include "wxstruct.h"
-#include "base_struct.h"
-#include "richio.h"
-#include "class_pcb_screen.h"
-
-#ifndef PCB_INTERNAL_UNIT
-#define PCB_INTERNAL_UNIT 10000
-#endif
+#include <wxstruct.h>
+#include <base_struct.h>
+#include <eda_text.h>                // EDA_DRAW_MODE_T
+#include <richio.h>
+#include <class_pcb_screen.h>
 
 
 /* Forward declarations of classes. */
-class FOOTPRINT_EDIT_FRAME;
 class BOARD;
+class BOARD_CONNECTED_ITEM;
 class MODULE;
 class TRACK;
 class D_PAD;
@@ -54,6 +51,9 @@ class TEXTE_MODULE;
 class EDA_3D_FRAME;
 class GENERAL_COLLECTOR;
 class GENERAL_COLLECTORS_GUIDE;
+class BOARD_DESIGN_SETTINGS;
+class ZONE_SETTINGS;
+class PCB_PLOT_PARAMS;
 
 
 /**
@@ -77,22 +77,64 @@ public:
     int m_FastGrid2;
 
     EDA_3D_FRAME* m_Draw3DFrame;
-    FOOTPRINT_EDIT_FRAME* m_ModuleEditFrame;
+
 
 protected:
-    BOARD* m_Pcb;
-    GENERAL_COLLECTOR* m_Collector;
+    BOARD*              m_Pcb;
+    GENERAL_COLLECTOR*  m_Collector;
+
+    /// Auxiliary tool bar typically shown below the main tool bar at the top of the
+    /// main window.
+    wxAuiToolBar* m_auxiliaryToolBar;
 
     void updateGridSelectBox();
     void updateZoomSelectBox();
     virtual void unitsChangeRefresh();
 
 public:
-    PCB_BASE_FRAME( wxWindow* father, int idtype, const wxString& title,
-                    const wxPoint& pos, const wxSize& size,
-                    long style = KICAD_DEFAULT_DRAWFRAME_STYLE );
+    PCB_BASE_FRAME( wxWindow* aParent, ID_DRAWFRAME_TYPE aFrameType,
+                    const wxString& aTitle,
+                    const wxPoint& aPos, const wxSize& aSize,
+                    long aStyle, const wxString & aFrameName );
 
     ~PCB_BASE_FRAME();
+
+    /**
+     * Function GetBoardBoundingBox
+     * calculates the bounding box containing all board items (or board edge segments).
+     * @param aBoardEdgesOnly is true if we are interested in board edge segments only.
+     * @return EDA_RECT - the board's bounding box
+     */
+    EDA_RECT    GetBoardBoundingBox( bool aBoardEdgesOnly = false ) const;
+
+    void SetPageSettings( const PAGE_INFO& aPageSettings );     // overload
+    const PAGE_INFO& GetPageSettings() const;                   // overload
+    const wxSize GetPageSizeIU() const;                         // overload
+
+    const wxPoint& GetOriginAxisPosition() const;               // overload
+    void SetOriginAxisPosition( const wxPoint& aPosition );     // overload
+
+    const TITLE_BLOCK& GetTitleBlock() const;                   // overload
+    void SetTitleBlock( const TITLE_BLOCK& aTitleBlock );       // overload
+
+    /**
+     * Function GetDesignSettings
+     * returns the BOARD_DESIGN_SETTINGS for the BOARD owned by this frame.
+     * Overloaded in FOOTPRINT_EDIT_FRAME.
+     */
+    virtual BOARD_DESIGN_SETTINGS& GetDesignSettings() const;
+    virtual void SetDesignSettings( const BOARD_DESIGN_SETTINGS& aSettings );
+
+    const ZONE_SETTINGS& GetZoneSettings() const;
+    void SetZoneSettings( const ZONE_SETTINGS& aSettings );
+
+    /**
+     * Function GetPlotSettings
+     * returns the PCB_PLOT_PARAMS for the BOARD owned by this frame.
+     * Overloaded in FOOTPRINT_EDIT_FRAME.
+     */
+    virtual const PCB_PLOT_PARAMS& GetPlotSettings() const;
+    virtual void SetPlotSettings( const PCB_PLOT_PARAMS& aSettings );
 
     /**
      * Function SetBoard
@@ -102,9 +144,9 @@ public:
      */
     void SetBoard( BOARD* aBoard );
 
-    BOARD* GetBoard()
+    BOARD* GetBoard() const
     {
-        wxASSERT( m_Pcb );  // phasing out m_Pcb for GerbView
+        wxASSERT( m_Pcb );
         return m_Pcb;
     }
 
@@ -120,10 +162,7 @@ public:
     virtual void SetToolID( int aId, int aCursor, const wxString& aToolMsg );
     virtual void UpdateStatusBar();
 
-    virtual PCB_SCREEN* GetScreen() const
-    {
-        return (PCB_SCREEN*) EDA_DRAW_FRAME::GetScreen();
-    }
+    PCB_SCREEN* GetScreen() const { return (PCB_SCREEN*) EDA_DRAW_FRAME::GetScreen(); }
 
     /**
      * Function BestZoom
@@ -191,9 +230,10 @@ public:
      * Function CursorGoto
      * positions the cursor at a given coordinate and reframes the drawing if the
      * requested point is out of view.
-     * @param aPos The point to go to.
+     * @param aPos is the point to go to.
+     * @param aWarp is true if the pointer should be warped to the new position.
      */
-    void CursorGoto( const wxPoint& aPos );
+    void CursorGoto( const wxPoint& aPos, bool aWarp = true );
 
     /**
      * Function Save_Module_In_Library
@@ -210,14 +250,6 @@ public:
                                  MODULE*         aModule,
                                  bool            aOverwrite,
                                  bool            aDisplayDialog );
-
-    /**
-     * Function Archive_Modules
-     * Save in the library:
-     * All new modules (ie modules not found in this lib) (if NewModulesOnly == true)
-     * all modules (if NewModulesOnly == false)
-     */
-    void Archive_Modules( const wxString& LibName, bool NewModulesOnly );
 
     MODULE* GetModuleByName();
 
@@ -280,10 +312,14 @@ public:
      * Function ResetModuleTextSizes
      * resets text size and width of all module text fields of given field
      * type to current settings in Preferences->Dimensions->Texts and Drawings.
-     * @param aType is the field type (TEXT_is_REFERENCE, TEXT_is_VALUE, or TEXT_is_DIVERS).
-     * @param aDC is the drawing context.
+     * @param aFilter is a filter: footprint names must match this filter.
+     *        an empty filter, or "*" do not filter anything.
+     * @param aRef = true to modify the reference of footprints.
+     * @param aValue = true to modify the value of footprints.
+     * @param aOthers = true to modify the other fields of footprints.
      */
-    void ResetModuleTextSizes( int aType, wxDC* aDC );
+    void ResetModuleTextSizes( const wxString & aFilter, bool aRef,
+                               bool aValue, bool aOthers );
 
     void InstallPadOptionsFrame( D_PAD*         pad );
     void InstallTextModOptionsFrame( TEXTE_MODULE* TextMod, wxDC* DC );
@@ -300,30 +336,87 @@ public:
      */
     void DeletePad( D_PAD* aPad, bool aQuery = true );
 
-    void StartMovePad( D_PAD* Pad, wxDC* DC );
+    /**
+     * Function StartMovePad
+     * Initialize a drag or move pad command
+     * @param aPad = the pad to move or drag
+     * @param aDC = the current device context
+     * @param aDragConnectedTracks = true to drag connected tracks,
+     *                               false to just move the pad
+     */
+    void StartMovePad( D_PAD* aPad, wxDC* aDC, bool aDragConnectedTracks );
+
     void RotatePad( D_PAD* Pad, wxDC* DC );
     void PlacePad( D_PAD* Pad, wxDC* DC );
     void Export_Pad_Settings( D_PAD* aPad );
     void Import_Pad_Settings( D_PAD* aPad, bool aDraw );
-    void Global_Import_Pad_Settings( D_PAD* aPad, bool aDraw );
+
+    /**
+     * Function GlobalChange_PadSettings
+     * Function to change pad caracteristics for the given footprint
+     * or all footprints which look like the given footprint
+     * @param aPad is the pattern. The given footprint is the parent of this pad
+     * @param aSameFootprints: if true, make changes on all identical footprints
+     * @param aPadShapeFilter: if true, make changes only on pads having the same shape as aPad
+     * @param aPadOrientFilter: if true, make changes only on pads having the same orientation as aPad
+     * @param aPadLayerFilter: if true, make changes only on pads having the same layers as aPad
+     * @param aRedraw: if true: redraws the footprint
+     * @param aSaveForUndo: if true: create an entry in the Undo/Redo list
+     *        (usually: true in Schematic editor, false in Module editor)
+     */
+    void GlobalChange_PadSettings( D_PAD* aPad,
+                                   bool   aSameFootprints,
+                                   bool   aPadShapeFilter,
+                                   bool   aPadOrientFilter,
+                                   bool   aPadLayerFilter,
+                                   bool   aRedraw,
+                                   bool   aSaveForUndo );
 
     // loading footprints
 
     /**
-     * Function GetModuleLibrary
+     * Function loadFootprintFromLibrary
+     * loads @a aFootprintName from @a aLibraryPath.
      *
-     *  Read active libraries or one library to find and load a given module
-     *  If found the module is linked to the tail of linked list of modules
-     *  @param aLibraryFullFilename - the full filename of the library to read. If empty,
-     *                   all active libraries are read
-     *  @param aModuleName = module name to load
-     *  @param aDisplayMessageError = true to display an error message if any.
-     *  @return a pointer to the new module, or NULL
+     * @param aLibraryPath - the full filename or the short name of the library to read.
+     *      if it is a short name, the file is searched in all library valid paths
+     * @param aFootprintName is the footprint to load
+     * @param aDisplayError = true to display an error message if any.
+     * @param aAddToBoard Set to true to add the footprint to the board if found.
      *
+     * @return MODULE* - new module, or NULL
      */
-    MODULE* GetModuleLibrary( const wxString& aLibraryFullFilename,
-                              const wxString& aModuleName,
-                              bool            aDisplayMessageError );
+    MODULE* loadFootprintFromLibrary( const wxString& aLibraryPath, const wxString& aFootprintName,
+                                      bool aDisplayError, bool aAddToBoard = true );
+
+    /**
+     * Function loadFootprintFromLibraries
+     * Explore the libraries list and
+     * loads @a aFootprintName from the first library it is found
+     * If found the module is added to the BOARD, just for good measure.
+     *
+     *  @param aFootprintName is the footprint to load
+     *  @param aDisplayError = true to display an error message if any.
+     *
+     *  @return MODULE* - new module, or NULL
+     */
+    MODULE* loadFootprintFromLibraries( const wxString& aFootprintName,
+                                        bool            aDisplayError );
+
+    /**
+     * Function GetModuleLibrary
+     * scans active libraries to find and load @a aFootprintName.
+     * If found  the module is added to the BOARD, just for good measure.
+     *
+     *  @param aLibraryPath is the full/short name of the library.
+     *                      if empty, search in all libraries
+     *  @param aFootprintName is the footprint to load
+     *  @param aDisplayError = true to display an error message if any.
+     *
+     *  @return a pointer to the new module, or NULL
+     */
+    MODULE* GetModuleLibrary( const wxString& aLibraryPath, const wxString& aFootprintName,
+                              bool aDisplayError );
 
     /**
      * Function Select_1_Module_From_List
@@ -344,7 +437,26 @@ public:
                                         const wxString& aMask,
                                         const wxString& aKeyWord );
 
-    MODULE* Load_Module_From_Library( const wxString& library, wxDC* DC );
+    /**
+     * Function Load_Module_From_Library
+     * opens a dialog to select a footprint, and loads it into current board.
+     *
+     * @param aLibrary = the library name to use, or empty string to search
+     * in all loaded libraries
+     * @param aUseFootprintViewer = true to show the option
+     * allowing the footprint selection by the footprint viewer
+     * @param aDC (can be NULL ) = the current Device Context, to draw the new footprint
+     */
+    MODULE* Load_Module_From_Library( const wxString& aLibrary,
+                                      bool aUseFootprintViewer = true,
+                                      wxDC* aDC = NULL );
+
+    /**
+     * SelectFootprintFromLibBrowser
+     * Launch the footprint viewer to select the name of a footprint to load.
+     * @return the selected footprint name
+     */
+    wxString SelectFootprintFromLibBrowser( void );
 
     //  ratsnest functions
     /**
@@ -452,73 +564,6 @@ public:
      */
     void RecalculateAllTracksNetcode();
 
-    /* Plotting functions:
-     * Return true if OK, false if the file is not created (or has a problem)
-     */
-
-    /**
-     * Function ExportToGerberFile
-     * create one output files one per board layer in the RS274X format.
-     * <p>
-     * The units are in inches and in the format 3.4 with the leading zeros omitted.
-     * Coordinates are absolute value.  The 3.4 format is used because the native Pcbnew
-     * units are 1/10000 inch.
-     * </p>
-     */
-    bool ExportToGerberFile( const wxString& aFullFileName,
-                             int             aLayer,
-                             bool            aPlotOriginIsAuxAxis,
-                             GRTraceMode     aTraceMode );
-
-    bool ExportToHpglFile( const wxString& aFullFileName,
-                           int             aLayer,
-                           GRTraceMode     aTraceMode );
-
-    bool ExportToPostScriptFile( const wxString& aFullFileName,
-                                 int             aLayer,
-                                 bool            aUseA4,
-                                 GRTraceMode     aTraceMode );
-
-    bool ExportToDxfFile( const wxString& aFullFileName,
-                          int             aLayer,
-                          GRTraceMode     aTraceMode );
-
-    void Plot_Layer( PLOTTER*    plotter,
-                     int         Layer,
-                     GRTraceMode trace_mode );
-
-    /**
-     * Function Plot_Standard_Layer
-     * plot copper or technical layers.
-     * not used for silk screen layers, because these layers have specific
-     * requirements, mainly for pads
-     * @param aPlotter = the plotter to use
-     * @param aLayerMask = the mask to define the layers to plot
-     * @param aPlotVia = true to plot vias, false to skip vias (has meaning
-     *                  only for solder mask layers).
-     * @param aPlotMode = the plot mode (files, sketch). Has meaning for some formats only
-     * @param aSkipNPTH_Pads = true to skip NPTH Pads, when the pad size and the pad hole
-     *                      have the same size. Used in GERBER format only.
-     */
-    void Plot_Standard_Layer( PLOTTER* aPlotter, int aLayerMask,
-                              bool aPlotVia, GRTraceMode aPlotMode,
-                              bool aSkipNPTH_Pads = false );
-
-    void PlotSilkScreen( PLOTTER* plotter, int masque_layer, GRTraceMode trace_mode );
-
-    /**
-     * Function PlotDrillMark
-     * Draw a drill mark for pads and vias.
-     * Must be called after all drawings, because it
-     * redraw the drill mark on a pad or via, as a negative (i.e. white) shape
-     * in FILLED plot mode
-     * @param aPlotter = the PLOTTER
-     * @param aTraceMode = the mode of plot (FILLED, SKETCH)
-     * @param aSmallDrillShape = true to plot a small drill shape, false to
-     *                           plot the actual drill shape
-     */
-    void PlotDrillMark( PLOTTER* aPlotter, GRTraceMode aTraceMode, bool aSmallDrillShape );
-
     /* Functions relative to Undo/redo commands:
      */
 
@@ -594,4 +639,4 @@ public:
     DECLARE_EVENT_TABLE()
 };
 
-#endif  /* WX_BASE_PCB_FRAME_H */
+#endif  // WX_BASE_PCB_FRAME_H_

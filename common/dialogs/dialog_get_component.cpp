@@ -2,12 +2,11 @@
 /*  dialog_get_component.cpp     */
 /*********************************/
 
-#include "fctsys.h"
-//#include "gr_basic.h"
-#include "common.h"
-#include "macros.h"
-#include "wxstruct.h"
-#include "dialog_get_component.h"
+#include <fctsys.h>
+#include <common.h>
+#include <macros.h>
+#include <wxstruct.h>
+#include <dialog_get_component.h>
 
 
 /****************************************************************************/
@@ -23,11 +22,10 @@ static unsigned s_HistoryMaxCount = 8;  // Max number of items displayed in hist
  *   This dialog shows an history of last selected items
  */
 DIALOG_GET_COMPONENT::DIALOG_GET_COMPONENT( EDA_DRAW_FRAME* parent,
-                                            const wxPoint&  framepos,
-                                            wxArrayString&  HistoryList,
+                                           wxArrayString&  HistoryList,
                                             const wxString& Title,
                                             bool            show_extra_tool ) :
-    DIALOG_GET_COMPONENT_BASE( parent, -1, Title, framepos )
+    DIALOG_GET_COMPONENT_BASE( parent, -1, Title )
 {
 
 #ifdef __WXMAC__
@@ -46,6 +44,7 @@ void DIALOG_GET_COMPONENT::initDialog( wxArrayString& aHistoryList )
 {
     SetFocus();
     m_GetExtraFunction = false;
+    m_selectionIsKeyword = false;
     m_historyList->Append( aHistoryList );
     if( !m_auxToolSelector )
     {
@@ -63,6 +62,7 @@ void DIALOG_GET_COMPONENT::OnCancel( wxCommandEvent& event )
 
 void DIALOG_GET_COMPONENT::Accept( wxCommandEvent& event )
 {
+    m_selectionIsKeyword = false;
     switch( event.GetId() )
     {
     case ID_SEL_BY_LISTBOX:
@@ -74,7 +74,8 @@ void DIALOG_GET_COMPONENT::Accept( wxCommandEvent& event )
         break;
 
     case ID_ACCEPT_KEYWORD:
-        m_Text = wxT( "= " ) + m_textCmpNameCtrl->GetValue();
+        m_selectionIsKeyword = true;
+        m_Text = m_textCmpNameCtrl->GetValue();
         break;
 
     case ID_LIST_ALL:
@@ -113,31 +114,6 @@ void DIALOG_GET_COMPONENT::SetComponentName( const wxString& name )
         m_textCmpNameCtrl->SetValue( name );
         m_textCmpNameCtrl->SetSelection(-1, -1);
     }
-}
-
-
-wxPoint GetComponentDialogPosition( void )
-{
-    wxPoint pos;
-    int     x, y, w, h;
-
-    pos = wxGetMousePosition();
-    wxClientDisplayRect( &x, &y, &w, &h );
-    pos.x -= 100;
-    pos.y -= 50;
-    if( pos.x < x )
-        pos.x = x;
-    if( pos.y < y )
-        pos.y = y;
-    if( pos.x < x )
-        pos.x = x;
-    x += w - 350;
-    if( pos.x > x )
-        pos.x = x;
-    if( pos.y < y )
-        pos.y = y;
-
-    return pos;
 }
 
 

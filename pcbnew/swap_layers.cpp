@@ -3,19 +3,20 @@
  * @brief Dialog to swap layers.
  */
 
-#include "fctsys.h"
-#include "class_drawpanel.h"
-#include "confirm.h"
-#include "wxPcbStruct.h"
+#include <fctsys.h>
+#include <class_drawpanel.h>
+#include <confirm.h>
+#include <wxPcbStruct.h>
+#include <dialog_shim.h>
 
-#include "class_board.h"
-#include "class_track.h"
-#include "class_drawsegment.h"
+#include <class_board.h>
+#include <class_track.h>
+#include <class_drawsegment.h>
 
-#include "pcbnew.h"
-#include "protos.h"
+#include <pcbnew.h>
+#include <protos.h>
 
-#include "wx/statline.h"
+#include <wx/statline.h>
 
 
 #define LAYER_NO_CHANGE NB_LAYERS
@@ -30,7 +31,7 @@ enum swap_layer_id {
 };
 
 
-class WinEDA_SwapLayerFrame : public wxDialog
+class WinEDA_SwapLayerFrame : public DIALOG_SHIM
 {
 private:
     PCB_BASE_FRAME*         m_Parent;
@@ -67,8 +68,8 @@ END_EVENT_TABLE()
 
 
 WinEDA_SwapLayerFrame::WinEDA_SwapLayerFrame( PCB_BASE_FRAME* parent ) :
-    wxDialog( parent, -1, _( "Swap Layers:" ), wxPoint( -1, -1 ),
-              wxDefaultSize, wxDEFAULT_DIALOG_STYLE | MAYBE_RESIZE_BORDER )
+    DIALOG_SHIM( parent, -1, _( "Swap Layers:" ), wxPoint( -1, -1 ),
+                 wxDefaultSize, wxDEFAULT_DIALOG_STYLE | MAYBE_RESIZE_BORDER )
 {
     BOARD* board = parent->GetBoard();
 
@@ -371,7 +372,7 @@ void PCB_EDIT_FRAME::Swap_Layers( wxCommandEvent& event )
         {
             SEGVIA* Via = (SEGVIA*) pt_segm;
 
-            if( Via->Shape() == VIA_THROUGH )
+            if( Via->GetShape() == VIA_THROUGH )
                 continue;
 
             int     top_layer, bottom_layer;
@@ -421,5 +422,5 @@ void PCB_EDIT_FRAME::Swap_Layers( wxCommandEvent& event )
         }
     }
 
-    DrawPanel->Refresh( true );
+    m_canvas->Refresh( true );
 }

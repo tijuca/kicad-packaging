@@ -2,16 +2,16 @@
 /* muwave_command.cpp: micro wave functions commands */
 /*****************************************************/
 
-#include "fctsys.h"
-#include "class_drawpanel.h"
-#include "confirm.h"
-#include "pcbnew.h"
-#include "wxPcbStruct.h"
+#include <fctsys.h>
+#include <class_drawpanel.h>
+#include <confirm.h>
+#include <pcbnew.h>
+#include <wxPcbStruct.h>
 
-#include "pcbnew_id.h"
-#include "kicad_device_context.h"
+#include <pcbnew_id.h>
+#include <kicad_device_context.h>
 
-#include "protos.h"
+#include <protos.h>
 
 
 /* Handle microwave commands.
@@ -20,7 +20,7 @@ void PCB_EDIT_FRAME::ProcessMuWaveFunctions( wxCommandEvent& event )
 {
     int        id = event.GetId();
     wxPoint    pos;
-    INSTALL_UNBUFFERED_DC( dc, DrawPanel );
+    INSTALL_UNBUFFERED_DC( dc, m_canvas );
 
     wxGetMousePosition( &pos.x, &pos.y );
 
@@ -32,7 +32,7 @@ void PCB_EDIT_FRAME::ProcessMuWaveFunctions( wxCommandEvent& event )
         break;
 
     default:        // End block command in progress.
-        DrawPanel->EndMouseCapture( );
+        m_canvas->EndMouseCapture( );
         break;
     }
 
@@ -93,16 +93,16 @@ void PCB_EDIT_FRAME::MuWaveCommand( wxDC* DC, const wxPoint& MousePos )
         break;
 
     default:
-        DrawPanel->SetCursor( wxCURSOR_ARROW );
+        m_canvas->SetCursor( wxCURSOR_ARROW );
         DisplayError( this, wxT( "PCB_EDIT_FRAME::MuWaveCommand() id error" ) );
-        SetToolID( ID_NO_TOOL_SELECTED, DrawPanel->GetDefaultCursor(), wxEmptyString );
+        SetToolID( ID_NO_TOOL_SELECTED, m_canvas->GetDefaultCursor(), wxEmptyString );
         break;
     }
 
     if( module )
     {
-        StartMove_Module( module, DC );
+        StartMoveModule( module, DC, false );
     }
 
-    DrawPanel->MoveCursorToCrossHair();
+    m_canvas->MoveCursorToCrossHair();
 }

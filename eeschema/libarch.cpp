@@ -28,20 +28,36 @@
  * @brief Module for generation of component archive files.
  */
 
-#include "fctsys.h"
-#include "confirm.h"
-#include "class_sch_screen.h"
-#include "wxstruct.h"
-#include "sch_item_struct.h"
-#include "wxEeschemaStruct.h"
+#include <fctsys.h>
+#include <confirm.h>
+#include <class_sch_screen.h>
+#include <wxstruct.h>
+#include <sch_item_struct.h>
+#include <wxEeschemaStruct.h>
 
-#include "general.h"
-#include "netlist.h"
-#include "protos.h"
-#include "class_library.h"
-#include "sch_component.h"
+#include <general.h>
+#include <netlist.h>
+#include <protos.h>
+#include <class_library.h>
+#include <sch_component.h>
+#include <sch_sheet.h>
+#include <wildcards_and_files_ext.h>
 
-#include <wx/wfstream.h>
+
+bool SCH_EDIT_FRAME::CreateArchiveLibraryCacheFile( bool aUseCurrentSheetFilename )
+{
+    wxFileName fn;
+
+    if( aUseCurrentSheetFilename )
+        fn = GetScreen()->GetFileName();
+    else
+        fn = g_RootSheet->GetScreen()->GetFileName();
+
+    fn.SetName( fn.GetName() + wxT( "-cache" ) );
+    fn.SetExt( SchematicLibraryFileExtension );
+
+    return CreateArchiveLibrary( fn.GetFullPath() );
+}
 
 
 bool SCH_EDIT_FRAME::CreateArchiveLibrary( const wxString& aFileName )
@@ -78,21 +94,21 @@ bool SCH_EDIT_FRAME::CreateArchiveLibrary( const wxString& aFileName )
         }
     }
 
-    wxFFileOutputStream os( aFileName, wxT( "wt" ) );
+    try
+    {
+        FILE_OUTPUTFORMATTER    formatter( aFileName );
 
-    if( !os.IsOk() )
+        if( !libCache->Save( formatter ) )
+        {
+            msg.Printf( _( "An error occurred attempting to save component library <%s>." ),
+                        GetChars( aFileName ) );
+            DisplayError( this, msg );
+            return false;
+        }
+    }
+    catch( ... /* IO_ERROR ioe */ )
     {
         msg = wxT( "Failed to create component library file " ) + aFileName;
-        DisplayError( this, msg );
-        return false;
-    }
-
-    STREAM_OUTPUTFORMATTER formatter( os );
-
-    if( !libCache->Save( formatter ) )
-    {
-        msg.Printf( _( "An error occurred attempting to save component \
-library <%s>." ), GetChars( aFileName ) );
         DisplayError( this, msg );
         return false;
     }

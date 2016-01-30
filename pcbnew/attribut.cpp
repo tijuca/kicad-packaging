@@ -1,7 +1,8 @@
 /*
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
- * Copyright (C) 2006 Jean-Pierre Charras, jaen-pierre.charras@gipsa-lab.inpg.com
+ * Copyright (C) 2012 Jean-Pierre Charras, jean-pierre.charras@ujf-grenoble.fr
+ * Copyright (C) 2012 SoftPLC Corporation, Dick Hollenbeck <dick@softplc.com>
  * Copyright (C) 2011 Wayne Stambaugh <stambaughw@verizon.net>
  * Copyright (C) 1992-2011 KiCad Developers, see AUTHORS.txt for contributors.
  *
@@ -28,16 +29,17 @@
  * @brief Track attribute flags editing.
  */
 
-#include "fctsys.h"
-#include "class_drawpanel.h"
-#include "gr_basic.h"
-#include "wxPcbStruct.h"
+#include <fctsys.h>
+#include <class_drawpanel.h>
+#include <gr_basic.h>
+#include <wxPcbStruct.h>
+#include <msgpanel.h>
 
-#include "pcbnew.h"
-#include "protos.h"
+#include <pcbnew.h>
+#include <protos.h>
 
-#include "class_track.h"
-#include "class_board.h"
+#include <class_track.h>
+#include <class_board.h>
 
 
 /* Attribute change for 1 track segment.
@@ -51,11 +53,14 @@ void PCB_EDIT_FRAME::Attribut_Segment( TRACK* track, wxDC* DC, bool Flag_On )
         return;
 
     OnModify();
-    DrawPanel->CrossHairOff( DC );   // Erase cursor shape
+    m_canvas->CrossHairOff( DC );   // Erase cursor shape
     track->SetState( TRACK_LOCKED, Flag_On );
-    track->Draw( DrawPanel, DC, GR_OR | GR_HIGHLIGHT );
-    DrawPanel->CrossHairOn( DC );    // Display cursor shape
-    track->DisplayInfo( this );
+    track->Draw( m_canvas, DC, GR_OR | GR_HIGHLIGHT );
+    m_canvas->CrossHairOn( DC );    // Display cursor shape
+
+    MSG_PANEL_ITEMS items;
+    track->GetMsgPanelInfo( items );
+    SetMsgPanel( items );
 }
 
 
@@ -68,9 +73,9 @@ void PCB_EDIT_FRAME::Attribut_Track( TRACK* track, wxDC* DC, bool Flag_On )
     if( (track == NULL ) || (track->Type() == PCB_ZONE_T) )
         return;
 
-    DrawPanel->CrossHairOff( DC );   // Erase cursor shape
+    m_canvas->CrossHairOff( DC );   // Erase cursor shape
     Track = GetBoard()->MarkTrace( track, &nb_segm, NULL, NULL, true );
-    DrawTraces( DrawPanel, DC, Track, nb_segm, GR_OR | GR_HIGHLIGHT );
+    DrawTraces( m_canvas, DC, Track, nb_segm, GR_OR | GR_HIGHLIGHT );
 
     for( ; (Track != NULL) && (nb_segm > 0); nb_segm-- )
     {
@@ -79,7 +84,7 @@ void PCB_EDIT_FRAME::Attribut_Track( TRACK* track, wxDC* DC, bool Flag_On )
         Track = Track->Next();
     }
 
-    DrawPanel->CrossHairOn( DC );    // Display cursor shape
+    m_canvas->CrossHairOn( DC );    // Display cursor shape
 
     OnModify();
 }
@@ -103,7 +108,7 @@ void PCB_EDIT_FRAME::Attribut_net( wxDC* DC, int net_code, bool Flag_On )
         }
     }
 
-    DrawPanel->CrossHairOff( DC );     // Erase cursor shape
+    m_canvas->CrossHairOff( DC );     // Erase cursor shape
 
     while( Track )                  /* Flag change */
     {
@@ -112,10 +117,10 @@ void PCB_EDIT_FRAME::Attribut_net( wxDC* DC, int net_code, bool Flag_On )
 
         OnModify();
         Track->SetState( TRACK_LOCKED, Flag_On );
-        Track->Draw( DrawPanel, DC, GR_OR | GR_HIGHLIGHT );
+        Track->Draw( m_canvas, DC, GR_OR | GR_HIGHLIGHT );
         Track = Track->Next();
     }
 
-    DrawPanel->CrossHairOn( DC );    // Display cursor shape
+    m_canvas->CrossHairOn( DC );    // Display cursor shape
     OnModify();
 }

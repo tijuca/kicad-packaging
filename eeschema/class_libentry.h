@@ -30,9 +30,9 @@
 #ifndef CLASS_LIBENTRY_H
 #define CLASS_LIBENTRY_H
 
-#include "general.h"
-#include "lib_draw_item.h"
-#include "lib_field.h"
+#include <general.h>
+#include <lib_draw_item.h>
+#include <lib_field.h>
 
 #include <map>
 
@@ -167,6 +167,10 @@ public:
     }
 
     bool operator==( const LIB_ALIAS* aAlias ) const { return this == aAlias; }
+
+#if defined(DEBUG)
+    void Show( int nestLevel, std::ostream& os ) const { ShowDummy( os ); } // override
+#endif
 };
 
 extern bool operator<( const LIB_ALIAS& aItem1, const LIB_ALIAS& aItem2 );
@@ -393,7 +397,8 @@ public:
      *                        Used for block move redraws.
      */
     void Draw( EDA_DRAW_PANEL* aPanel, wxDC* aDc, const wxPoint& aOffset,
-               int aMulti, int aConvert, int aDrawMode, int aColor = -1,
+               int aMulti, int aConvert, GR_DRAWMODE aDrawMode,
+               EDA_COLOR_T aColor = UNSPECIFIED_COLOR,
                const TRANSFORM& aTransform = DefaultTransform,
                bool aShowPinText = true, bool aDrawFields = true,
                bool aOnlySelected = false );
@@ -672,7 +677,10 @@ public:
     bool ShowPinNumbers() { return m_showPinNumbers; }
 
     bool operator==( const LIB_COMPONENT* aComponent ) const { return this == aComponent; }
-};
 
+#if defined(DEBUG)
+    void Show( int nestLevel, std::ostream& os ) const { ShowDummy( os ); } // override
+#endif
+};
 
 #endif  //  CLASS_LIBENTRY_H

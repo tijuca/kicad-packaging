@@ -11,8 +11,8 @@
 
 
 #include <vector>
-
-#include "class_netclass.h"
+#include <gr_basic.h>
+#include <class_netclass.h>
 
 
 class wxDC;
@@ -24,9 +24,8 @@ class NETINFO_ITEM;
 class D_PAD;
 class BOARD;
 class BOARD_ITEM;
+class MSG_PANEL_ITEM;
 
-
-/* Class RATSNEST_ITEM: describes a ratsnest line: a straight line connecting 2 pads */
 
 /*****************************/
 /* flags for a RATSNEST_ITEM */
@@ -37,6 +36,11 @@ class BOARD_ITEM;
 #define CH_ACTIF            8        /* Not routed. */
 #define LOCAL_RATSNEST_ITEM 0x8000   /* Line between two pads of a single module. */
 
+
+/**
+ * Class RATSNEST_ITEM
+ * describes a ratsnest line: a straight line connecting 2 pads
+ */
 class RATSNEST_ITEM
 {
 private:
@@ -58,7 +62,6 @@ public:
     {
         return m_NetCode;
     }
-
 
     void SetNet( int aNetCode )
     {
@@ -83,41 +86,43 @@ public:
     /**
      * Function Draw
      */
-    void Draw( EDA_DRAW_PANEL* panel, wxDC* DC, int aDrawMode, const wxPoint& offset );
+    void Draw( EDA_DRAW_PANEL* panel, wxDC* DC, GR_DRAWMODE aDrawMode,
+               const wxPoint& offset );
 };
 
 
-/***************************************************************/
-/******************* class NETINFO *****************************/
-/***************************************************************/
 
+/**
+ * Class NETINFO
+ * is a container class for NETINFO_ITEM elements, which are the nets.  That makes
+ * this class a container for the nets.
+ */
 class NETINFO_LIST
 {
-private:
-    BOARD* m_Parent;
-    std::vector<NETINFO_ITEM*> m_NetBuffer;     // nets buffer list (name, design constraints ..
+    friend class BOARD;
 
 public:
-    std::vector<D_PAD*>        m_PadsFullList;  // Entry for a sorted pad list (used in ratsnest
-                                                // calculations)
-
-public: NETINFO_LIST( BOARD* aParent );
+    NETINFO_LIST( BOARD* aParent );
     ~NETINFO_LIST();
 
     /**
      * Function GetItem
      * @param aNetcode = netcode to identify a given NETINFO_ITEM
-     * @return a NETINFO_ITEM pointer to the selected NETINFO_ITEM by its
-     *         netcode, or NULL if not found
+     * @return NETINFO_ITEM* - by \a aNetcode, or NULL if not found
      */
-    NETINFO_ITEM* GetNetItem( int aNetcode );
+    NETINFO_ITEM* GetNetItem( int aNetcode ) const
+    {
+        if( unsigned( aNetcode ) >= GetNetCount() )     // catches < 0 too
+            return NULL;
+        return m_NetBuffer[aNetcode];
+    }
 
     /**
-     * Function GetCount
+     * Function GetNetCount
      * @return the number of nets ( always >= 1 )
-     * becuse the first net is the "not connected" net and always exists
+     * because the first net is the "not connected" net and always exists
      */
-    unsigned GetCount() { return m_NetBuffer.size(); }
+    unsigned GetNetCount() const { return m_NetBuffer.size(); }
 
     /**
      * Function Append
@@ -126,33 +131,28 @@ public: NETINFO_LIST( BOARD* aParent );
     void AppendNet( NETINFO_ITEM* aNewElement );
 
     /**
-     * Function DeleteData
-     * delete the list of nets (and free memory)
-     */
-    void DeleteData();
-
-    /**
-     * Function BuildListOfNets
-     * Build or rebuild the list of NETINFO_ITEM m_NetBuffer
-     * The list is sorted by names.
-     */
-    void BuildListOfNets();
-
-    /**
-     * Function GetPadsCount
+     * Function GetPadCount
      * @return the number of pads in board
      */
-    unsigned GetPadsCount()
-    {
-        return m_PadsFullList.size();
-    }
+    unsigned GetPadCount() const  { return m_PadsFullList.size(); }
 
+    /**
+     * Function GetPads
+     * returns a list of all the pads.  The returned list is not
+     * sorted and contains pointers to PADS, but those pointers do not convey
+     * ownership of the respective PADs.
+     * @return std::vector<D_PAD*>& - a full list of pads
+    std::vector<D_PAD*>& GetPads()
+    {
+        return m_PadsFullList;
+    }
+     */
 
     /**
      * Function GetPad
      * @return the pad idx from m_PadsFullList
      */
-    D_PAD* GetPad( unsigned aIdx )
+    D_PAD* GetPad( unsigned aIdx ) const
     {
         if( aIdx < m_PadsFullList.size() )
             return m_PadsFullList[aIdx];
@@ -160,19 +160,36 @@ public: NETINFO_LIST( BOARD* aParent );
             return NULL;
     }
 
-
 private:
 
     /**
-     * Function Build_Pads_Full_List
-     *  Create the pad list
-     * initialise:
+     * Function DeleteData
+     * deletes the list of nets (and free memory)
+     */
+    void clear();
+
+    /**
+     * Function BuildListOfNets
+     * builds or rebuilds the list of NETINFO_ITEMs
+     * The list is sorted by names.
+     */
+    void buildListOfNets();
+
+    /**
+     * Function buildPadsFullList
+     * creates the pad list, and initializes:
      *   m_Pads (list of pads)
      * set m_Status_Pcb = LISTE_PAD_OK;
      * and clear for all pads in list the m_SubRatsnest member;
      * clear m_Pcb->m_FullRatsnest
      */
-    void Build_Pads_Full_List();
+    void buildPadsFullList();
+
+    BOARD*                      m_Parent;
+    std::vector<NETINFO_ITEM*>  m_NetBuffer;    ///< net list (name, design constraints ..)
+
+    std::vector<D_PAD*>         m_PadsFullList; ///< contains all pads, sorted by pad's netname.
+                                                ///< can be used in ratsnest calculations.
 };
 
 
@@ -183,11 +200,11 @@ private:
 class NETINFO_ITEM
 {
 private:
-    int       m_NetCode;        // this is a number equivalent to the net name
-    // Used for fast comparisons in ratsnest and DRC computations.
+    int       m_NetCode;        ///< A number equivalent to the net name.
+                                ///< Used for fast comparisons in ratsnest and DRC computations.
 
-    wxString  m_Netname;        // Full net name like /mysheet/mysubsheet/vout
-                                // used by Eeschema
+    wxString  m_Netname;        ///< Full net name like /mysheet/mysubsheet/vout
+                                ///< used by Eeschema
 
     wxString  m_ShortNetname;   // short net name, like vout from
                                 // /mysheet/mysubsheet/vout
@@ -198,6 +215,7 @@ private:
 
     NETCLASS* m_NetClass;
 
+    BOARD_ITEM* m_parent;       ///< The parent board item object the net belongs to.
 
 public:
     int m_NbNodes;                     // Pads count for this net
@@ -206,7 +224,7 @@ public:
     int m_Flag;                        // used in some calculations. Had no
                                        // special meaning
 
-    std::vector <D_PAD*> m_ListPad;    // List of pads connected to this net
+    std::vector <D_PAD*> m_PadInNetList;    // List of pads connected to this net
 
     unsigned m_RatsnestStartIdx;       /* Starting point of ratsnests of this
                                         * net (included) in a general buffer of
@@ -216,7 +234,7 @@ public:
     unsigned m_RatsnestEndIdx;         // Ending point of ratsnests of this net
                                        // (excluded) in this buffer
 
-    NETINFO_ITEM( BOARD_ITEM* aParent );
+    NETINFO_ITEM( BOARD_ITEM* aParent, const wxString& aNetName = wxEmptyString, int aNetCode = 0 );
     ~NETINFO_ITEM();
 
     /**
@@ -233,12 +251,10 @@ public:
             m_NetClassName = NETCLASS::Default;
     }
 
-
     NETCLASS* GetNetClass()
     {
         return m_NetClass;
     }
-
 
     /**
      * Function GetClassName
@@ -248,7 +264,6 @@ public:
     {
         return m_NetClassName;
     }
-
 
 #if 1
 
@@ -272,7 +287,6 @@ public:
         return m_NetClass->GetViaDiameter();
     }
 
-
     /**
      * Function GetMicroViaSize
      * returns the size of vias used to route this net
@@ -283,7 +297,6 @@ public:
         return m_NetClass->GetuViaDiameter();
     }
 
-
     /**
      * Function GetViaDrillSize
      * returns the size of via drills used to route this net
@@ -293,7 +306,6 @@ public:
         wxASSERT( m_NetClass );
         return m_NetClass->GetViaDrill();
     }
-
 
     /**
      * Function GetViaDrillSize
@@ -318,7 +330,6 @@ public:
         return m_NetClass->GetViaMinSize();
     }
 
-
 #endif
 
     /**
@@ -331,29 +342,15 @@ public:
         return m_NetClass->GetClearance();
     }
 
-
 #endif
-
-    /* Reading and writing data on files */
-    int  ReadDescr( LINE_READER* aReader );
-
-    /**
-     * Function Save
-     * writes the data structures for this object out to a FILE in "*.brd"
-     * format.
-     * @param aFile The FILE to write to.
-     * @return bool - true if success writing else false.
-     */
-    bool Save( FILE* aFile ) const;
-
 
     /**
      * Function Draw
      * @todo we actually could show a NET, simply show all the tracks and
      *       a pads or net name on pad and vias
      */
-    void Draw( EDA_DRAW_PANEL* panel, wxDC* DC, int aDrawMode, const wxPoint& offset );
-
+    void Draw( EDA_DRAW_PANEL* panel, wxDC* DC, GR_DRAWMODE aDrawMode,
+               const wxPoint& offset );
 
     /**
      * Function GetNet
@@ -363,7 +360,7 @@ public:
 
     void SetNet( int aNetCode ) { m_NetCode = aNetCode; }
 
-    int GetNodesCount() const { return m_ListPad.size(); }
+    int GetNodesCount() const { return m_PadInNetList.size(); }
 
     /**
      * Function GetNetname
@@ -383,15 +380,7 @@ public:
      */
     void SetNetname( const wxString& aNetname );
 
-
-/**
- * Function DisplayInfo
- * has knowledge about the frame and how and where to put status information
- * about this object into the frame's message panel.
- * Is virtual from EDA_ITEM.
- * @param frame A EDA_DRAW_FRAME in which to print status information.
- */
-    void DisplayInfo( EDA_DRAW_FRAME* frame );
+    void GetMsgPanelInfo( std::vector< MSG_PANEL_ITEM >& aList );
 };
 
 
