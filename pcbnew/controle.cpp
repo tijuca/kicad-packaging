@@ -2,7 +2,7 @@
 		/* Routines generales de gestion des commandes usuelles */
 		/********************************************************/
 
-	/* fichier controle.cpp */
+/* fichier controle.cpp */
 /*
  Routines d'affichage grille, Boite de coordonnees, Curseurs, marqueurs ...
 */
@@ -134,7 +134,13 @@ int CurrentTime = time(NULL);
 	{
 		wxString tmpFileName = GetScreen()->m_FileName;
 		wxString filename = g_SaveFileName + PcbExtBuffer;
+		bool flgmodify = GetScreen()->IsModify();
 		((WinEDA_PcbFrame*)this)->SavePcbFile(filename);
+		if( flgmodify )	// Set the flags m_Modify cleared by SavePcbFile()
+		{
+			GetScreen()->SetModify();
+			GetScreen()->SetSave();// Set the flags m_FlagSave cleared by SetModify()
+		}
 		GetScreen()->m_FileName = tmpFileName;
 		SetTitle(GetScreen()->m_FileName);
 	}
@@ -179,24 +185,14 @@ int CurrentTime = time(NULL);
 			break ;
 		case WXK_NUMPAD0 :
 		case WXK_PAGEUP :
-			if ( GetScreen()->m_Active_Layer != CMP_N )
-			{
-				GetScreen()->m_Active_Layer = CMP_N;
-				if ( DisplayOpt.ContrastModeDisplay )
-					GetScreen()->SetRefreshReq();
-			}
+			SwitchLayer(DC, CMP_N); 
 			break ;
 
 		case WXK_NUMPAD9 :
 		case WXK_PAGEDOWN :
-			if ( GetScreen()->m_Active_Layer != CUIVRE_N )
-			{
-				GetScreen()->m_Active_Layer = CUIVRE_N;
-				if ( DisplayOpt.ContrastModeDisplay )
-					GetScreen()->SetRefreshReq();
-			}
+			SwitchLayer(DC, CUIVRE_N); 
 			break ;
-
+			
 		case 'F' | GR_KB_CTRL :
 		case 'f' | GR_KB_CTRL:
 			DisplayOpt.DisplayPcbTrackFill ^= 1; DisplayOpt.DisplayPcbTrackFill &= 1 ;
@@ -252,9 +248,30 @@ int CurrentTime = time(NULL);
 			oldpos = curpos = GetScreen()->m_Curseur;
 			break;
 
-		case WXK_F5 :	/* unused */
+		case WXK_F5 :
+			SwitchLayer(DC, LAYER_N_2); 
 			break;
-
+		
+		case WXK_F6 :
+			SwitchLayer(DC, LAYER_N_3); 
+			break;
+			
+		case WXK_F7 :
+			SwitchLayer(DC, LAYER_N_4); 
+			break;
+			
+		case WXK_F8 :
+			SwitchLayer(DC, LAYER_N_5); 
+			break;
+			
+		case WXK_F9 :
+			SwitchLayer(DC, LAYER_N_6); 
+			break;
+			
+		case WXK_F10 :
+			SwitchLayer(DC, LAYER_N_7); 
+			break;
+			
 		case WXK_NUMPAD8  :	/* Deplacement curseur vers le haut */
 		case WXK_UP	:
 			Mouse.y -= delta.y;
@@ -352,5 +369,3 @@ int CurrentTime = time(NULL);
 		OnHotKey(DC, hotkey, NULL);
 	}
 }
-
-

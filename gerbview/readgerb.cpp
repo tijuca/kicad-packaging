@@ -109,7 +109,6 @@ bool WinEDA_GerberFrame::Read_GERBER_File(wxDC * DC,
 /* Lecture de 1 fichier gerber.
 	Format
 		Imperial
-		2.3
 		Absolu
 		fin de bloc = *
 		CrLf apres chaque commande
@@ -148,6 +147,7 @@ int error = 0;
 	wxSetWorkingDirectory(wxPathOnly(GERBER_FullFileName));
 
 wxBusyCursor show_wait;
+	setlocale(LC_NUMERIC, "C");
 
 	while( TRUE )
 	{
@@ -231,11 +231,13 @@ wxBusyCursor show_wait;
 
 	if ( error )
 	{
-		msg.Printf( _("%d errors while reading gerber file [%s]"),
+		msg.Printf( _("%d errors while reading Gerber file [%s]"),
 					error, GERBER_FullFileName.GetData());
 		DisplayError(this, msg);
 	}
 	fclose(gerber_layer->m_Current_File) ;
+
+	setlocale(LC_NUMERIC, "");
 
 	/* Init tableau des DCodes et Lecture fichier DCODES */
 	if ( !gerber_layer->m_As_DCode )
@@ -265,7 +267,6 @@ wxBusyCursor show_wait;
 			CopyDCodesSizeToItems();
 		}
 	}
-
 
 	return TRUE;
 }

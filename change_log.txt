@@ -1,0 +1,115 @@
+Change Log for Kicad
+Started 2007-June-11
+
+Please add newer entries at the top, list the date and your name with 
+email address.
+
+2007-June-21 UPDATE Tim Hanson <tim@hardcarve.com>
+================================================================================
++ pcbnew
+	1. added button to 'update' as well as 'insert' modules into main PCB 
+		from within the module editor.  Made them functional, of course. 
+	2. added control-o, control-s & control-f to pcbnew, 
+		though I'm not perfectly happy with the implementation -- wxwidgets puts
+		the control-characters in alphabetical order!
+
+2007-June-25 UPDATE   Jean-Pierre Charras <jean-pierre.charras@inpg.fr>
+================================================================================
++ pcbnew
+	minor enhancement in Edit footprint dialog (more help tool tips).
+	better hotkey.cpp (code cleaning and info messages)
+
+
+
+2007-June-19 UPDATE   Dick Hollenbeck <dickelbeck@yahoo.com>
+================================================================================
++ pcbnew
+    After locking a module with 'L', update the status window with the locked
+    status.  Side step some asserts from wxWidgets which were happening when
+    running compiled for debug.
+
+
+2007-June-16 UPDATE   Richard A Burton <richardaburton@gmail.com>
+================================================================================
++ pcbnew
+	fix debug assert starting pcbnew with wx2.6
++ build
+	add install targets for resources and docs
+
+2007-June-15 UPDATE   Dick Hollenbeck <dickelbeck@yahoo.com>
+================================================================================
++ pcbnew
+    **  only modules on the present layer are subject to individual module
+        moves, rotations, or layer swaps, with the 'M', 'G', 'R' or 'S' hotkeys.
+    **  only unlocked modules are subject to the individual module moves,
+        rotations, or layer swaps, with the 'M', 'G', 'R' or 'S' hotkeys.
+    **  implemented the 'L' hotkey to quickly lock or unlock a module,
+        just by hovering over it and hitting the 'L' or 'l' key. The lock is
+        toggled.
+    **  Enhanced locate.cpp's Locate_Prefered_Module(BOARD * Pcb, int typeloc)
+        significantly, it now has a widely ranging behavior based on the 
+        typeloc argument.
+    
+
+2007-June-14 UPDATE Igor Plyatov <plyatov@mail.ru>
+================================================================================
++ eeschema
+    Added sorting by value or position in to the annotation window (Thanks for patch to Andrey Fedorushkov).
+
+2007-June-13 RELEASE  Jean-Pierre Charras <jean-pierre.charras@inpg.fr>
+================================================================================
++All:
+	merging my development with svn version
+
++ pcbnew:
+	bug fix (problem in postscript generation due to the internationalization
+		of floating point number notation )
+	added tool to select layer pair and monitor active layer
+	
++ eeschema
+	bug fix:
+		crash libedit when loading certain components (linux only)
+		incomplete generation of erc file list
+	
+
+
+2007-June-13 UPDATE   Richard A Burton <richardaburton@gmail.com>
+================================================================================
++ build:
+	dynamic linking by default, use make -f makefile.gtk KICAD_STATIC_LINK=1
+	  or uncomment the bit in libs.linux for static
+
+
+2007-June-11 UPDATE   Richard A Burton <richardaburton@gmail.com>
+================================================================================
++ build:
+	removed several 2 line scripts for configuring wx builds and put them in
+	  how-to-build-kicad.txt
+	improved KICAD_STATIC_LINK handling so it can be overridden on the command
+	  line e.g. "make -f makefile.gtk KICAD_STATIC_LINK=0"
+
+
+2007-June-11 UPDATE   Dick Hollenbeck <dickelbeck@yahoo.com>
+================================================================================
++ Started this change log file.
+
+
+2007-June-5 UPDATE    Richard A Burton <richardaburton@gmail.com>
+================================================================================
++ pcbnew:
+	fixed 3d-display image export (blank box in image)
++ build:
+	fixed makefile clean targets so they don't fail if already clean
+	fixed wx2.6 compatibility
+
+
+2007-May-25 RELEASE  Jean-Pierre Charras <jean-pierre.charras@inpg.fr>
+================================================================================
++ pcbnew:
+	bug: problem with 3D shapes. 
++ Gerbview:
+	Better (but crude...) support to export gerber files to pcbnew.
+
+================================================================================
+End Of File
+

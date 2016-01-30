@@ -46,6 +46,142 @@
 #include "general_ratsnet.xpm"
 #include "add_cotation.xpm"
 
+#define SEL_LAYER_HELP _("Show active layer selections\nand select layer pair for route and place via")
+
+/* Data to build the layer pair indicator button */
+static wxBitmap * LayerPairBitmap = NULL;
+static char s_BitmapLayerIcon[16][16] = {
+	// 0 = draw pixel with active layer color
+	// 1 = draw pixel with top layer color (top/bottom layer used in autoroute and place via)
+	// 2 = draw pixel with bottom layer color
+	// 3 = draw pixel with via color
+	{0,0,0,0,0,0,0,3,3,3,1,1,1,1,0,0},
+	{0,0,0,0,0,0,3,3,3,3,3,1,1,0,0,0},
+	{0,0,0,0,0,3,3,0,1,1,3,3,0,0,0,0},
+	{2,2,2,2,3,3,0,1,1,1,1,3,3,2,2,2},
+	{2,2,2,2,3,3,1,1,1,0,0,3,3,2,2,2},
+	{2,2,2,2,3,3,1,1,1,1,0,3,3,2,2,2},
+	{0,0,0,0,0,3,3,1,1,0,3,3,0,0,0,0},
+	{0,0,0,0,0,1,3,3,3,3,3,0,0,0,0,0},
+	{0,0,0,0,0,1,1,3,3,3,0,0,0,0,0,0},
+	{0,0,0,0,0,1,1,1,1,0,0,0,0,0,0,0},
+	{0,0,0,0,0,1,1,1,1,0,0,0,0,0,0,0},
+	{0,0,0,0,0,1,1,1,1,0,0,0,0,0,0,0},
+	{0,0,0,0,0,1,1,1,1,0,0,0,0,0,0,0},
+	{0,0,0,0,0,1,1,1,1,0,0,0,0,0,0,0},
+	{0,0,0,0,0,1,1,1,1,0,0,0,0,0,0,0},
+	{0,0,0,0,0,1,1,1,1,0,0,0,0,0,0,0}
+};
+/************************************************************/
+void WinEDA_PcbFrame::PrepareLayerIndicator(void)
+/************************************************************/
+/* Draw the icon for the "Select layet pair" bitmap tool
+*/
+{
+int ii, jj;
+static int previous_active_layer_color, previous_Route_Layer_TOP_color,
+	previous_Route_Layer_BOTTOM_color, previous_via_color;
+int active_layer_color, Route_Layer_TOP_color,
+	Route_Layer_BOTTOM_color, via_color;
+bool change = false;	
+	
+	/* get colors, and redraw bitmap button only on changes */
+	active_layer_color = g_DesignSettings.m_LayerColor[GetScreen()->m_Active_Layer];
+	if ( previous_active_layer_color != active_layer_color )
+	{
+		previous_active_layer_color = active_layer_color;
+		change = TRUE;
+	}
+	Route_Layer_TOP_color = g_DesignSettings.m_LayerColor[GetScreen()->m_Route_Layer_TOP];
+	if ( previous_Route_Layer_TOP_color != Route_Layer_TOP_color )
+	{
+		previous_Route_Layer_TOP_color = Route_Layer_TOP_color;
+		change = TRUE;
+	}
+	Route_Layer_BOTTOM_color = g_DesignSettings.m_LayerColor[GetScreen()->m_Route_Layer_BOTTOM];
+	if ( previous_Route_Layer_BOTTOM_color != Route_Layer_BOTTOM_color )
+	{
+		previous_Route_Layer_BOTTOM_color = Route_Layer_BOTTOM_color;
+		change = TRUE;
+	}
+	via_color = g_DesignSettings.m_ViaColor[g_DesignSettings.m_CurrentViaType ];
+	if ( previous_via_color != via_color )
+	{
+		previous_via_color = via_color;
+		change = TRUE;
+	}
+	
+	if ( ! change && (LayerPairBitmap != NULL) ) return;
+
+
+	/* Creat the bitmap too and its Memory DC, if not already made */
+	if ( LayerPairBitmap == NULL )
+	{
+		LayerPairBitmap = new wxBitmap(16, 16);
+	}
+
+	/* Draw the icon, with colors according to the active layer and layer pairs for
+	via command (change layer) */
+wxMemoryDC iconDC;
+	iconDC.SelectObject( *LayerPairBitmap );
+	int buttcolor = -1;
+	wxPen pen;
+	for ( ii = 0; ii < 16; ii++ )
+	{
+		for ( jj = 0; jj < 16; jj++ )
+		{
+			if ( s_BitmapLayerIcon[ii][jj] != buttcolor )
+			{
+				buttcolor = s_BitmapLayerIcon[ii][jj];
+				int color;
+				switch ( buttcolor )
+				{
+					default:
+					case 0:
+						color = active_layer_color;
+						break;
+					case 1:
+						color = Route_Layer_TOP_color;
+						break;
+					case 2:
+						color = Route_Layer_BOTTOM_color;
+						break;
+					case 3:
+						color = via_color;
+						break;
+				}
+				color &= MASKCOLOR;
+				pen.SetColour(
+							ColorRefs[color].m_Red,
+							ColorRefs[color].m_Green,
+							ColorRefs[color].m_Blue
+							);
+				iconDC.SetPen(pen);
+			}
+			iconDC.DrawPoint(jj,ii);
+		}
+	}
+	/* Deselect the Tool Bitmap from DC,
+	in order to delete the MemoryDC safely without deleting the bitmap */
+	iconDC.SelectObject( wxNullBitmap );
+	
+	if (m_HToolBar) {
+#if wxCHECK_VERSION(2,8,3)
+		m_HToolBar->SetToolNormalBitmap(ID_AUX_TOOLBAR_PCB_SELECT_LAYER_PAIR, *LayerPairBitmap);
+#else
+		int pos = m_HToolBar->GetToolPos(ID_AUX_TOOLBAR_PCB_SELECT_LAYER_PAIR);
+		if (pos != wxNOT_FOUND) {
+			m_HToolBar->DeleteTool(ID_AUX_TOOLBAR_PCB_SELECT_LAYER_PAIR);
+			m_HToolBar->InsertTool(pos, ID_AUX_TOOLBAR_PCB_SELECT_LAYER_PAIR, *LayerPairBitmap,
+				wxNullBitmap, false, NULL, SEL_LAYER_HELP);
+			m_HToolBar->Realize();
+		}
+#endif
+	}
+
+}
+
+
 /******************************************/
 void WinEDA_PcbFrame::ReCreateHToolbar(void)
 /******************************************/
@@ -104,7 +240,7 @@ int ii;
 
 	m_HToolBar->AddSeparator();
 	m_HToolBar->AddTool(ID_GEN_PRINT, wxEmptyString, BITMAP(print_button), _("Print Board"));
-	m_HToolBar->AddTool(ID_GEN_PLOT, wxEmptyString, BITMAP(plot_xpm), _("Plot (Hplg, Postscript, or Gerber format)"));
+	m_HToolBar->AddTool(ID_GEN_PLOT, wxEmptyString, BITMAP(plot_xpm), _("Plot (HPGL, PostScript, or GERBER format)"));
 
 	m_HToolBar->AddSeparator();
 	m_HToolBar->AddTool(ID_ZOOM_PLUS_BUTT, wxEmptyString, BITMAP(zoom_in_xpm), _("zoom + (F1)"));
@@ -114,7 +250,7 @@ int ii;
 	m_HToolBar->AddTool(ID_ZOOM_PAGE_BUTT, wxEmptyString, BITMAP(zoom_optimal_xpm), _("auto zoom"));
 
 	m_HToolBar->AddSeparator();
-	m_HToolBar->AddTool(ID_FIND_ITEMS, wxEmptyString, BITMAP(find_xpm), _("Find components and texts"));
+	m_HToolBar->AddTool(ID_FIND_ITEMS, wxEmptyString, BITMAP(find_xpm), _("Find components and texts (Ctrl-F)"));
 
 	m_HToolBar->AddSeparator();
 	m_HToolBar->AddTool(ID_GET_NETLIST, wxEmptyString, BITMAP(netlist_xpm), _("Read Netlist"));
@@ -122,6 +258,9 @@ int ii;
 
 	m_HToolBar->AddSeparator();
     ReCreateLayerBox(m_HToolBar);
+	PrepareLayerIndicator();	// Initialise the bitmap with current active layer colors for the next tool
+	m_HToolBar->AddTool(ID_AUX_TOOLBAR_PCB_SELECT_LAYER_PAIR, wxEmptyString, * LayerPairBitmap,
+			SEL_LAYER_HELP);
 
 	m_HToolBar->AddSeparator();
 	m_HToolBar->AddTool(ID_TOOLBARH_PCB_AUTOPLACE, wxEmptyString, BITMAP(mode_module_xpm),
@@ -409,9 +548,9 @@ wxString msg;
 }
 
 
-/**********************************************************************/
+/**************************************************************************/
 WinEDAChoiceBox * WinEDA_PcbFrame::ReCreateLayerBox(WinEDA_Toolbar * parent)
-/**********************************************************************/
+/**************************************************************************/
 {
 int ii, jj, ll;
 bool rebuild = FALSE;
@@ -425,7 +564,7 @@ long current_mask_layer;
 		parent->AddControl(m_SelLayerBox);
 	}
 
-    // Test si reconstruction de la liste nécessaire
+    // Test si reconstruction de la liste necessaire
     current_mask_layer = 0;
 	int Masque_Layer = g_TabAllCopperLayerMask[g_DesignSettings.m_CopperLayerCount-1];
 	Masque_Layer |= ALL_NO_CU_LAYERS;
@@ -444,11 +583,12 @@ long current_mask_layer;
 		{
 		    if ( (g_TabOneLayerMask[ii] & Masque_Layer) )
 			{
-           	    m_SelLayerBox->Append(ReturnPcbLayerName(ii));
+           	    m_SelLayerBox->Append(ReturnPcbLayerName(ii,false,true));
            	    m_SelLayerBox->SetClientData(jj, (void*)ii);
       		    jj++;
 			}
 		}
+		m_SelLayerBox->SetToolTip(_("+/- to switch")); 
 	}
 
     // Activation de l'affichage sur la bonne couche

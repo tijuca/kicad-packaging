@@ -1,15 +1,33 @@
-KICAD_SUBDIRS =  common 3d-viewer eeschema eeschema/plugins pcbnew cvpcb kicad gerbview
-KICAD_SUBDIRS_BIN =  eeschema eeschema/plugins pcbnew cvpcb kicad gerbview
-# How to invoke make:
-MAKE = make -k -f makefile.gtk
-MAKE_INSTALL = make -f makefile.gtk install
-MAKE_CLEAN = make -f makefile.gtk clean
+
+MAKEGTK = $(MAKE) -f makefile.gtk
+KICAD_SUBDIRS = common 3d-viewer eeschema eeschema/plugins pcbnew cvpcb kicad gerbview
+KICAD_SUBDIRS_BIN = eeschema eeschema/plugins pcbnew cvpcb kicad gerbview
+KICAD_SUBDIRS_RES = internat modules template library
+KICAD_SUBDIRS_HELP = help
 
 all:
-	@for d in $(KICAD_SUBDIRS); do (cd $$d && $(MAKE)); done
+	@for dir in $(KICAD_SUBDIRS); do \
+		$(MAKEGTK) -C $$dir; \
+	done
 
-install:
-	@for d in $(KICAD_SUBDIRS_BIN); do (cd $$d && $(MAKE_INSTALL)); done
-	
+install-bin:
+	@for dir in $(KICAD_SUBDIRS_BIN); do \
+		$(MAKEGTK) -C $$dir install; \
+	done
+
+install-res:
+	@for dir in $(KICAD_SUBDIRS_RES); do \
+		$(MAKE) -C $$dir install; \
+	done
+
+install-help:
+	@for dir in $(KICAD_SUBDIRS_HELP); do \
+		$(MAKE) -C $$dir install; \
+	done
+
+install: install-bin install-res install-help
+
 clean:
-	@for d in $(KICAD_SUBDIRS); do (cd $$d && $(MAKE_CLEAN)); done
+	@for dir in $(KICAD_SUBDIRS); do \
+		$(MAKEGTK) -C $$dir clean; \
+	done
