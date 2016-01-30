@@ -539,7 +539,7 @@ void PCB_EDIT_FRAME::PutDataInPreviousState( PICKED_ITEMS_LIST* aList, bool aRed
     // Undo in the reverse order of list creation: (this can allow stacked changes
     // like the same item can be changes and deleted in the same complex command
 
-    TestForExistingItem( GetBoard(), NULL ); // Build list of existing items, for integrity test
+    bool build_item_list = true;    // if true the list of esiting items must be rebuilt
     for( int ii = aList->GetCount()-1; ii >= 0 ; ii--  )
     {
         item = (BOARD_ITEM*) aList->GetPickedItem( ii );
@@ -550,9 +550,16 @@ void PCB_EDIT_FRAME::PutDataInPreviousState( PICKED_ITEMS_LIST* aList, bool aRed
          *   - if a call to SaveCopyInUndoList was forgotten in Pcbnew
          *   - in zones outlines, when a change in one zone merges this zone with an other
          * This test avoids a Pcbnew crash
+         * Obviouly, this test is not made for deleted items
          */
-        if( aList->GetPickedItemStatus( ii ) != UR_DELETED )
+        UNDO_REDO_T status = aList->GetPickedItemStatus( ii );
+        if( status != UR_DELETED )
         {
+            if( build_item_list )
+                // Build list of existing items, for integrity test
+                TestForExistingItem( GetBoard(), NULL );
+            build_item_list = false;
+
             if( !TestForExistingItem( GetBoard(), item ) )
             {
                 // Remove this non existant item
@@ -597,6 +604,7 @@ void PCB_EDIT_FRAME::PutDataInPreviousState( PICKED_ITEMS_LIST* aList, bool aRed
         case UR_DELETED:    /* deleted items are put in List, as new items */
             aList->SetPickedItemStatus( UR_NEW, ii );
             GetBoard()->Add( item );
+            build_item_list = true;
             break;
 
         case UR_MOVED:

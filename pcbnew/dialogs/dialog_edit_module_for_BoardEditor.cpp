@@ -469,15 +469,18 @@ void DIALOG_MODULE_BOARD_EDITOR::OnOkClick( wxCommandEvent& event )
         ReturnValueFromTextCtrl( *m_SolderMaskMarginCtrl, m_Parent->m_InternalUnits );
     m_CurrentModule->m_LocalSolderPasteMargin =
         ReturnValueFromTextCtrl( *m_SolderPasteMarginCtrl, m_Parent->m_InternalUnits );
+
     double dtmp = 0.0;
     msg = m_SolderPasteMarginRatioCtrl->GetValue();
     msg.ToDouble( &dtmp );
 
-    // A margin ratio de -50% means no paste on a pad, the ratio must be >= 50%
-    if( dtmp < -50 )
-        dtmp = -50;
-    if( dtmp > +100 )
-        dtmp = +100;
+    // A  -50% margin ratio means no paste on a pad, the ratio must be >= -50 %
+    if( dtmp < -50.0 )
+        dtmp = -50.0;
+    // A margin ratio is always <= 0
+    if( dtmp > 0.0 )
+        dtmp = 0.0;
+
     m_CurrentModule->m_LocalSolderPasteMarginRatio = dtmp / 100;
 
     // Set Module Position

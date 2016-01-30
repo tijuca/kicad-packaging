@@ -705,11 +705,13 @@ bool DIALOG_PAD_PROPERTIES::TransfertDataToPad( D_PAD* aPad, bool aPromptOnError
     msg = m_SolderPasteMarginRatioCtrl->GetValue();
     msg.ToDouble( &dtmp );
 
-    // A margin ratio de -50% means no paste on a pad, the ratio must be >= 50 %
-    if( dtmp < -50 )
-        dtmp = -50;
-    if( dtmp > +100 )
-        dtmp = +100;
+     // A  -50% margin ratio means no paste on a pad, the ratio must be >= -50 %
+    if( dtmp < -50.0 )
+        dtmp = -50.0;
+    // A margin ratio is always <= 0
+    if( dtmp > 0.0 )
+        dtmp = 0.0;
+
     aPad->m_LocalSolderPasteMarginRatio = dtmp / 100;
 
     // Read pad position:

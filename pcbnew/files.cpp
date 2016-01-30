@@ -253,8 +253,10 @@ this file again." ) );
         m_DisplayPadFill = DisplayOpt.DisplayPadFill;
         m_DisplayViaFill = DisplayOpt.DisplayViaFill;
 
-        ReadPcbFile( &reader, false );
+        // load project settings before BOARD, in case BOARD file has overrides.
         LoadProjectSettings( GetScreen()->GetFileName() );
+
+        ReadPcbFile( &reader, false );
     }
 
     GetScreen()->ClrModify();

@@ -157,11 +157,17 @@ void DIALOG_MODULE_MODULE_EDITOR::InitModeditProperties()
                           m_CurrentModule->m_LocalSolderPasteMargin, internalUnit );
     if( m_CurrentModule->m_LocalSolderPasteMargin == 0 )
         m_SolderPasteMarginCtrl->SetValue( wxT("-") + m_SolderPasteMarginCtrl->GetValue() );
-    if( m_CurrentModule->m_LocalSolderPasteMarginRatio == 0.0 )
-        msg.Printf( wxT( "-%.1f" ), m_CurrentModule->m_LocalSolderPasteMarginRatio * 100.0 );
+
+    // Add solder paste margin ration in per cent
+    // for the usual default value 0.0, display -0.0 (or -0,0 in some countries)
+    msg.Printf( wxT( "%.1f" ),
+                    m_CurrentModule->m_LocalSolderPasteMarginRatio * 100.0 );
+
+    if( m_CurrentModule->m_LocalSolderPasteMarginRatio == 0.0 &&
+        msg[0] == '0')  // Sometimes Printf adds a sign if the value is very small (0.0)
+        m_SolderPasteMarginRatioCtrl->SetValue( wxT("-") + msg );
     else
-        msg.Printf( wxT( "%.1f" ), m_CurrentModule->m_LocalSolderPasteMarginRatio * 100.0 );
-    m_SolderPasteMarginRatioCtrl->SetValue( msg );
+        m_SolderPasteMarginRatioCtrl->SetValue( msg );
 
     // if m_3D_ShapeNameListBox is not empty, preselect first 3D shape
     if( m_3D_ShapeNameListBox->GetCount() > 0 )
@@ -378,9 +384,13 @@ void DIALOG_MODULE_MODULE_EDITOR::OnOkClick( wxCommandEvent& event )
     double   dtmp;
     wxString msg = m_SolderPasteMarginRatioCtrl->GetValue();
     msg.ToDouble( &dtmp );
-    // A margin ratio de -50% means no paste on a pad, the ratio must be >= 50 %
-    if( dtmp < -50 )
-        dtmp = -50;
+    // A  -50% margin ratio means no paste on a pad, the ratio must be >= -50 %
+    if( dtmp < -50.0 )
+        dtmp = -50.0;
+    // A margin ratio is always <= 0
+    if( dtmp > 0.0 )
+        dtmp = 0.0;
+
     m_CurrentModule->m_LocalSolderPasteMarginRatio = dtmp / 100;
 
     /* Update 3D shape list */
