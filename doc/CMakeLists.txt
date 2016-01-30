@@ -49,3 +49,16 @@ mark_as_advanced(KICAD_DOCS
 add_subdirectory(doc/tutorials)
 add_subdirectory(doc/help)
 add_subdirectory(internat)
+
+
+#================================================
+# "make uninstall" rules
+#================================================
+configure_file(
+    "${PROJECT_SOURCE_DIR}/CMakeModules/cmake_uninstall.cmake.in"
+    "${CMAKE_CURRENT_BINARY_DIR}/cmake_uninstall.cmake"
+    IMMEDIATE @ONLY )
+
+add_custom_target( uninstall
+    "${CMAKE_COMMAND}" -P "${CMAKE_CURRENT_BINARY_DIR}/cmake_uninstall.cmake" )
+

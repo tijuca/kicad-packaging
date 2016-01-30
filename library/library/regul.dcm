@@ -1,4 +1,4 @@
-EESchema-DOCLIB  Version 2.0  Date: 2013-04-06 10:33:17
+EESchema-DOCLIB  Version 2.0
 #
 $CMP 7805
 D Linear Regulator +5V
@@ -39,6 +39,24 @@ $ENDCMP
 $CMP BQ2003
 D Controleur de chargeur de batteries
 F regulator\bq2003.pdf
+$ENDCMP
+#
+$CMP KA378R05
+D KA378R05, Positive 3A 35V Linear Regulator with Disable Pin, LDO, Fixed Output 5V, TO-220F-4L
+K Voltage Regulator 3A Positive LDO Disable Pin
+F http://www.fairchildsemi.com/ds/KA/KA378R05.pdf
+$ENDCMP
+#
+$CMP KA378R12C
+D KA378R12C, Positive 3A 35V Linear Regulator with Disable Pin, LDO, Fixed Output 12V, TO-220F-4L
+K Voltage Regulator 3A Positive LDO Disable Pin
+F http://www.fairchildsemi.com/ds/KA/KA378R12CTU.pdf
+$ENDCMP
+#
+$CMP KA378R33
+D KA378R33, Positive 3A 35V Linear Regulator with Disable Pin, LDO, Fixed Output 3.3V, TO-220F-4L
+K Voltage Regulator 3A Positive LDO Disable Pin
+F http://www.fairchildsemi.com/ds/KA/KA378R33.pdf
 $ENDCMP
 #
 $CMP LD3985G
@@ -728,6 +746,144 @@ K REGUL POWER
 F linear-tec/lt1129.pdf
 $ENDCMP
 #
+$CMP LT1129CQ
+D LT1129CQ, 700 mA Low Dropout Voltage Regulator, Adjustable 3.75V-30V, TO263
+K 700mA LDO Regulator Adjustable Positive
+F http://cds.linear.com/docs/en/datasheet/112935ff.pdf
+$ENDCMP
+#
+$CMP LT1129CQ-3.3
+D LT1129CQ-3.3, 700 mA Low Dropout Voltage Regulator, Fixed 3.3V, TO263
+K 700mA LDO Regulator 3.3V Positive
+F http://cds.linear.com/docs/en/datasheet/112935ff.pdf
+$ENDCMP
+#
+$CMP LT1129CQ-5
+D LT1129CQ-5, 700 mA Low Dropout Voltage Regulator, Fixed 5V, TO263
+K 700mA LDO Regulator 5V Positive
+F http://cds.linear.com/docs/en/datasheet/112935ff.pdf
+$ENDCMP
+#
+$CMP LT1129CS8
+D LT1129CS8, 700 mA Low Dropout Voltage Regulator, Adjustable 3.75V-30V, SO8
+K 700mA LDO Regulator Adjustable Positive
+F http://cds.linear.com/docs/en/datasheet/112935ff.pdf
+$ENDCMP
+#
+$CMP LT1129CS8-3.3
+D LT1129CS8-3.3, 700 mA Low Dropout Voltage Regulator, Fixed 3.3V, SO8
+K 700mA LDO Regulator 3.3V Positive
+F http://cds.linear.com/docs/en/datasheet/112935ff.pdf
+$ENDCMP
+#
+$CMP LT1129CS8-5
+D LT1129CS8-5, 700 mA Low Dropout Voltage Regulator, Fixed 5V, SO8
+K 700mA LDO Regulator 5V Positive
+F http://cds.linear.com/docs/en/datasheet/112935ff.pdf
+$ENDCMP
+#
+$CMP LT1129CST-3.3
+D LT1129CST-3.3, 700 mA Low Dropout Voltage Regulator, Fixed 3.3V, SOT-223
+K 700mA LDO Regulator 3.3V Positive
+F http://cds.linear.com/docs/en/datasheet/112935ff.pdf
+$ENDCMP
+#
+$CMP LT1129CST-5
+D LT1129CST-5, 700 mA Low Dropout Voltage Regulator, Fixed 5V, SOT-223
+K 700mA LDO Regulator 5V Positive
+F http://cds.linear.com/docs/en/datasheet/112935ff.pdf
+$ENDCMP
+#
+$CMP LT1129CT
+D LT1129CT, 700 mA Low Dropout Voltage Regulator, Adjustable 3.75V-30V, TO220
+K 700mA LDO Regulator Adjustable Positive
+F http://cds.linear.com/docs/en/datasheet/112935ff.pdf
+$ENDCMP
+#
+$CMP LT1129CT-3.3
+D LT1129CT-3.3, 700 mA Low Dropout Voltage Regulator, Fixed 3.3V, TO220
+K 700mA LDO Regulator 3.3V Positive
+F http://cds.linear.com/docs/en/datasheet/112935ff.pdf
+$ENDCMP
+#
+$CMP LT1129CT-5
+D LT1129CT-5, 700 mA Low Dropout Voltage Regulator, Fixed 5V, TO220
+K 700mA LDO Regulator 5V Positive
+F http://cds.linear.com/docs/en/datasheet/112935ff.pdf
+$ENDCMP
+#
+$CMP LT1129IQ
+D LT1129IQ, 700 mA Low Dropout Voltage Regulator, Adjustable 3.75V-30V, TO263
+K 700mA LDO Regulator Adjustable Positive
+F http://cds.linear.com/docs/en/datasheet/112935ff.pdf
+$ENDCMP
+#
+$CMP LT1129IQ-3.3
+D LT1129IQ-3.3, 700 mA Low Dropout Voltage Regulator, Fixed 3.3V, TO263
+K 700mA LDO Regulator 3.3V Positive
+F http://cds.linear.com/docs/en/datasheet/112935ff.pdf
+$ENDCMP
+#
+$CMP LT1129IQ-5
+D LT1129IQ-5, 700 mA Low Dropout Voltage Regulator, Fixed 5V, TO263
+K 700mA LDO Regulator 5V Positive
+F http://cds.linear.com/docs/en/datasheet/112935ff.pdf
+$ENDCMP
+#
+$CMP LT1129IS8
+D LT1129IS8, 700 mA Low Dropout Voltage Regulator, Adjustable 3.75V-30V, SO8
+K 700mA LDO Regulator Adjustable Positive
+F http://cds.linear.com/docs/en/datasheet/112935ff.pdf
+$ENDCMP
+#
+$CMP LT1129IS8-3.3
+D LT1129IS8-3.3, 700 mA Low Dropout Voltage Regulator, Fixed 3.3V, SO8
+K 700mA LDO Regulator 3.3V Positive
+F http://cds.linear.com/docs/en/datasheet/112935ff.pdf
+$ENDCMP
+#
+$CMP LT1129IS8-5
+D LT1129IS8-5, 700 mA Low Dropout Voltage Regulator, Fixed 5V, SO8
+K 700mA LDO Regulator 5V Positive
+F http://cds.linear.com/docs/en/datasheet/112935ff.pdf
+$ENDCMP
+#
+$CMP LT1129IST-3.3
+D LT1129IST-3.3, 700 mA Low Dropout Voltage Regulator, Fixed 3.3V, SOT-223
+K 700mA LDO Regulator 3.3V Positive
+F http://cds.linear.com/docs/en/datasheet/112935ff.pdf
+$ENDCMP
+#
+$CMP LT1129IST-5
+D LT1129IST-5, 700 mA Low Dropout Voltage Regulator, Fixed 5V, SOT-223
+K 700mA LDO Regulator 5V Positive
+F http://cds.linear.com/docs/en/datasheet/112935ff.pdf
+$ENDCMP
+#
+$CMP LT1129IT
+D LT1129IT, 700 mA Low Dropout Voltage Regulator, Adjustable 3.75V-30V, TO220
+K 700mA LDO Regulator Adjustable Positive
+F http://cds.linear.com/docs/en/datasheet/112935ff.pdf
+$ENDCMP
+#
+$CMP LT1129IT-3.3
+D LT1129IT-3.3, 700 mA Low Dropout Voltage Regulator, Fixed 3.3V, TO220
+K 700mA LDO Regulator 3.3V Positive
+F http://cds.linear.com/docs/en/datasheet/112935ff.pdf
+$ENDCMP
+#
+$CMP LT1129IT-5
+D LT1129IT-5, 700 mA Low Dropout Voltage Regulator, Fixed 5V, TO220
+K 700mA LDO Regulator 5V Positive
+F http://cds.linear.com/docs/en/datasheet/112935ff.pdf
+$ENDCMP
+#
+$CMP LT1129MPST-3.3
+D LT1129MSPT-3.3, 700 mA Low Dropout Voltage Regulator, Fixed 3.3V, SOT-223
+K 700mA LDO Regulator 3.3V Positive
+F http://cds.linear.com/docs/en/datasheet/112935ff.pdf
+$ENDCMP
+#
 $CMP LT1175_QP
 D REGULATOR (Negative voltage)
 F linear-tec/lt1175.pdf
@@ -827,6 +983,66 @@ $ENDCMP
 $CMP MAX1648
 D Battery Charger
 F maxim\MAX1647-MAX1648.pdf
+$ENDCMP
+#
+$CMP MAX1658ESA
+D MAX1658ESA, 350mA Linear LDO Regulator, Fixed Output 3.3V, SO-8
+K Linear LDO Regulator 350mA 3.3V
+F http://datasheets.maximintegrated.com/en/ds/MAX1658-MAX1659.pdf
+$ENDCMP
+#
+$CMP MAX1659ESA
+D MAX1659ESA, 350mA Linear LDO Regulator, Fixed Output 5V, SO-8
+K Linear LDO Regulator 350mA 5V
+F http://datasheets.maximintegrated.com/en/ds/MAX1658-MAX1659.pdf
+$ENDCMP
+#
+$CMP MAX5092AATE
+D MAX5092AATE, 4V to 72V Input LDOs with Boost Preregulator, 250mA Output, 3.3V Preset Vout, TQFN-16
+K High Voltage 72V Input LDO Boost Preregulator 250mA 3.3V
+F http://datasheets.maximintegrated.com/en/ds/MAX5092-MAX5093.pdf
+$ENDCMP
+#
+$CMP MAX5092BATE
+D MAX5092BATE, 4V to 72V Input LDOs with Boost Preregulator, 250mA Output, 5V Preset Vout, TQFN-16
+K High Voltage 72V Input LDO Boost Preregulator 250mA 5V
+F http://datasheets.maximintegrated.com/en/ds/MAX5092-MAX5093.pdf
+$ENDCMP
+#
+$CMP MAX5093AATE
+D MAX5093AATE, 4V to 72V Input LDOs with Boost Preregulator, 250mA Output, 3.3V Preset Vout, TQFN-16
+K High Voltage 72V Input LDO Boost Preregulator 250mA 3.3V
+F http://datasheets.maximintegrated.com/en/ds/MAX5092-MAX5093.pdf
+$ENDCMP
+#
+$CMP MAX5093BATE
+D MAX5093BATE, 4V to 72V Input LDOs with Boost Preregulator, 250mA Output, 5V Preset Vout, TQFN-16
+K High Voltage 72V Input LDO Boost Preregulator 250mA 5V
+F http://datasheets.maximintegrated.com/en/ds/MAX5092-MAX5093.pdf
+$ENDCMP
+#
+$CMP MAX603CPA
+D MAX603CPA, 500mA Linear LDO Regulator, Fixed Output 5V, PDIP-8
+K Linear LDO Regulator 500mA 5V
+F http://datasheets.maximintegrated.com/en/ds/MAX603-MAX604.pdf
+$ENDCMP
+#
+$CMP MAX603CSA
+D MAX603CSA, 500mA Linear LDO Regulator, Fixed Output 5V, SO-8
+K Linear LDO Regulator 500mA 5V
+F http://datasheets.maximintegrated.com/en/ds/MAX603-MAX604.pdf
+$ENDCMP
+#
+$CMP MAX604CPA
+D MAX604CPA, 500mA Linear LDO Regulator, Fixed Output 3.3V, PDIP-8
+K Linear LDO Regulator 500mA 3.3V
+F http://datasheets.maximintegrated.com/en/ds/MAX603-MAX604.pdf
+$ENDCMP
+#
+$CMP MAX604CSA
+D MAX604CSA, 500mA Linear LDO Regulator, Fixed Output 3.3V, SO-8
+K Linear LDO Regulator 500mA 3.3V
+F http://datasheets.maximintegrated.com/en/ds/MAX603-MAX604.pdf
 $ENDCMP
 #
 $CMP MAX874
@@ -1146,7 +1362,9 @@ F http://www.ti.com/lit/ds/symlink/tps75005.pdf
 $ENDCMP
 #
 $CMP TPS769XX
-D Low drop regulator 1.2 .. 5V SOT23 package
+D TPS769xx-Q1, Ultra Low Power 100mA Low Drop Out Regulator 1.2...5V, SOT23-5
+K Ultra Low Power Fixed Adjustable LDO 100mA
+F http://www.ti.com/lit/ds/symlink/tps76950-q1.pdf
 $ENDCMP
 #
 #End Doc Library
