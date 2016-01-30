@@ -1,8 +1,8 @@
 /*
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
- * Copyright (C) 2009 Jean-Pierre Charras, jaen-pierre.charras@gipsa-lab.inpg.com
- * Copyright (C) 1992-2011 KiCad Developers, see AUTHORS.txt for contributors.
+ * Copyright (C) 2015 Jean-Pierre Charras, jp.charras at wanadoo.fr
+ * Copyright (C) 1992-2015 KiCad Developers, see AUTHORS.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -42,6 +42,7 @@ class SCH_SHEET_PIN;
 class SCH_SHEET_PATH;
 class DANGLING_END_ITEM;
 class SCH_EDIT_FRAME;
+class NETLIST_OBJECT_LIST;
 
 
 #define MIN_SHEET_WIDTH  500
@@ -69,14 +70,22 @@ private:
 
     /**
      * Defines the edge of the sheet that the sheet pin is positioned
-     * 0: pin on left side
-     * 1: pin on right side
-     * 2: pin on top side
-     * 3: pin on bottom side
+     * SHEET_LEFT_SIDE = 0: pin on left side
+     * SHEET_RIGHT_SIDE = 1: pin on right side
+     * SHEET_TOP_SIDE = 2: pin on top side
+     * SHEET_BOTTOM_SIDE =3: pin on bottom side
      *
      * For compatibility reasons, this does not follow same values as text orientation.
      */
-    int m_edge;
+    enum SHEET_SIDE
+    {
+        SHEET_LEFT_SIDE = 0,
+        SHEET_RIGHT_SIDE,
+        SHEET_TOP_SIDE,
+        SHEET_BOTTOM_SIDE,
+        SHEET_UNDEFINED_SIDE
+    };
+    SHEET_SIDE m_edge;
 
 public:
     SCH_SHEET_PIN( SCH_SHEET* parent,
@@ -94,11 +103,16 @@ public:
 
     bool operator ==( const SCH_SHEET_PIN* aPin ) const;
 
-    void Draw( EDA_DRAW_PANEL* aPanel,
-               wxDC*           aDC,
-               const wxPoint&  aOffset,
-               GR_DRAWMODE     aDraw_mode,
-               EDA_COLOR_T     aColor = UNSPECIFIED_COLOR );
+    /**
+     * Virtual function IsMovableFromAnchorPoint
+     * Return true for items which are moved with the anchor point at mouse cursor
+     * and false for items moved with no reference to anchor (usually large items)
+     * @return true for a hierarchical sheet pin
+     */
+    bool IsMovableFromAnchorPoint() { return true; }
+
+    void Draw( EDA_DRAW_PANEL* aPanel, wxDC* aDC, const wxPoint& aOffset,
+               GR_DRAWMODE aDrawMode, EDA_COLOR_T aColor = UNSPECIFIED_COLOR );
 
     /**
      * Function CreateGraphicShape (virtual)
@@ -126,9 +140,9 @@ public:
      */
     void SetNumber( int aNumber );
 
-    void SetEdge( int aEdge );
+    void SetEdge( SHEET_SIDE aEdge );
 
-    int GetEdge() const;
+    SHEET_SIDE GetEdge() const;
 
     /**
      * Function ConstrainOnEdge
@@ -246,6 +260,15 @@ public:
         return wxT( "SCH_SHEET" );
     }
 
+    /**
+     * Virtual function IsMovableFromAnchorPoint
+     * Return true for items which are moved with the anchor point at mouse cursor
+     *  and false for items moved with no reference to anchor
+     * Usually return true for small items (labels, junctions) and false for
+     * items which can be large (hierarchical sheets, compoments)
+     * @return false for a hierarchical sheet
+     */
+    bool IsMovableFromAnchorPoint() { return false; }
 
     wxString GetName() const { return m_name; }
 
@@ -391,13 +414,10 @@ public:
 
     int GetPenSize() const;
 
-    void Draw( EDA_DRAW_PANEL* aPanel,
-               wxDC*           aDC,
-               const wxPoint&  aOffset,
-               GR_DRAWMODE     aDrawMode,
-               EDA_COLOR_T     aColor = UNSPECIFIED_COLOR );
+    void Draw( EDA_DRAW_PANEL* aPanel, wxDC* aDC, const wxPoint& aOffset,
+               GR_DRAWMODE aDrawMode, EDA_COLOR_T aColor = UNSPECIFIED_COLOR );
 
-    EDA_RECT GetBoundingBox() const;
+    EDA_RECT const GetBoundingBox() const;
 
     /**
      * Function GetResizePos
@@ -532,7 +552,7 @@ public:
 
     bool IsConnectable() const { return true; }
 
-    void GetConnectionPoints( vector< wxPoint >& aPoints ) const;
+    void GetConnectionPoints( std::vector< wxPoint >& aPoints ) const;
 
     SEARCH_RESULT Visit( INSPECTOR* inspector, const void* testData,
                                  const KICAD_T scanTypes[] );
@@ -541,14 +561,14 @@ public:
 
     BITMAP_DEF GetMenuImage() const { return add_hierarchical_subsheet_xpm; }
 
-    void GetNetListItem( vector<NETLIST_OBJECT*>& aNetListItems,
-                                 SCH_SHEET_PATH*          aSheetPath );
+    void GetNetListItem( NETLIST_OBJECT_LIST& aNetListItems,
+                         SCH_SHEET_PATH*      aSheetPath );
 
     SCH_ITEM& operator=( const SCH_ITEM& aSheet );
 
     wxPoint GetPosition() const { return m_pos; }
 
-    void SetPosition( const wxPoint& aPosition ) { m_pos = aPosition; }
+    void SetPosition( const wxPoint& aPosition );
 
     bool HitTest( const wxPoint& aPosition, int aAccuracy ) const;
 

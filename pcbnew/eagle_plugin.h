@@ -5,8 +5,7 @@
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
  * Copyright (C) 2012 SoftPLC Corporation, Dick Hollenbeck <dick@softplc.com>
- * Copyright (C) 2012 KiCad Developers, see change_log.txt for contributors.
-
+ * Copyright (C) 2012-2015 KiCad Developers, see change_log.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -27,6 +26,7 @@
  */
 
 #include <io_mgr.h>
+#include <layers_id_colors_and_visibility.h>
 
 
 // forward declaration on ptree template so we can confine use of big boost
@@ -79,32 +79,33 @@ class EAGLE_PLUGIN : public PLUGIN
 public:
 
     //-----<PUBLIC PLUGIN API>--------------------------------------------------
-    const wxString& PluginName() const;
+    const wxString PluginName() const;
 
-    BOARD* Load( const wxString& aFileName, BOARD* aAppendToMe,  PROPERTIES* aProperties = NULL );
+    BOARD* Load( const wxString& aFileName, BOARD* aAppendToMe,  const PROPERTIES* aProperties = NULL );
 
-    const wxString& GetFileExtension() const;
+    const wxString GetFileExtension() const;
 
-    wxArrayString FootprintEnumerate( const wxString& aLibraryPath, PROPERTIES* aProperties = NULL);
+    wxArrayString FootprintEnumerate( const wxString& aLibraryPath, const PROPERTIES* aProperties = NULL);
 
-    MODULE* FootprintLoad( const wxString& aLibraryPath, const wxString& aFootprintName, PROPERTIES* aProperties = NULL );
+    MODULE* FootprintLoad( const wxString& aLibraryPath, const wxString& aFootprintName, const PROPERTIES* aProperties = NULL );
 
     bool IsFootprintLibWritable( const wxString& aLibraryPath )
     {
         return false;   // until someone writes others like FootprintSave(), etc.
     }
 
+    void FootprintLibOptions( PROPERTIES* aProperties ) const;
+
 /*
-    void Save( const wxString& aFileName, BOARD* aBoard, PROPERTIES* aProperties = NULL );
+    void Save( const wxString& aFileName, BOARD* aBoard, const PROPERTIES* aProperties = NULL );
 
-    void FootprintSave( const wxString& aLibraryPath, const MODULE* aFootprint, PROPERTIES* aProperties = NULL );
+    void FootprintSave( const wxString& aLibraryPath, const MODULE* aFootprint, const PROPERTIES* aProperties = NULL );
 
-    void FootprintDelete( const wxString& aLibraryPath, const wxString& aFootprintName );
+    void FootprintDelete( const wxString& aLibraryPath, const wxString& aFootprintName, const PROPERTIES* aProperties = NULL );
 
-    void FootprintLibCreate( const wxString& aLibraryPath, PROPERTIES* aProperties = NULL );
+    void FootprintLibCreate( const wxString& aLibraryPath, const PROPERTIES* aProperties = NULL );
 
-    bool FootprintLibDelete( const wxString& aLibraryPath, PROPERTIES* aProperties = NULL );
-
+    bool FootprintLibDelete( const wxString& aLibraryPath, const PROPERTIES* aProperties = NULL );
 */
 
     //-----</PUBLIC PLUGIN API>-------------------------------------------------
@@ -131,8 +132,13 @@ private:
                                     ///< lookup key is either libname.packagename or simply
                                     ///< packagename if FootprintLoad() or FootprintEnumberate()
 
-    PROPERTIES* m_props;            ///< passed via Save() or Load(), no ownership, may be NULL.
+    const PROPERTIES* m_props;            ///< passed via Save() or Load(), no ownership, may be NULL.
     BOARD*      m_board;            ///< which BOARD is being worked on, no ownership here
+
+    int         m_min_trace;        ///< smallest trace we find on Load(), in BIU.
+    int         m_min_via;          ///< smallest via we find on Load(), in BIU.
+    int         m_min_via_hole;     ///< smallest via diameter hole we find on Load(), in BIU.
+
     double      mm_per_biu;         ///< how many mm in each BIU
     double      biu_per_mm;         ///< how many bius in a mm
 
@@ -140,7 +146,7 @@ private:
     wxDateTime  m_mod_time;
 
     /// initialize PLUGIN like a constructor would, and futz with fresh BOARD if needed.
-    void    init( PROPERTIES* aProperties );
+    void    init( const PROPERTIES* aProperties );
 
     void    clear_cu_map();
 
@@ -153,7 +159,7 @@ private:
     wxSize  kicad_fontz( double d ) const;
 
     /// Convert an Eagle layer to a KiCad layer.
-    int     kicad_layer( int aLayer ) const;
+    LAYER_ID kicad_layer( int aLayer ) const;
 
     /// Convert a KiCad distance to an Eagle distance.
     double  eagle( BIU d ) const            { return mm_per_biu * d; }

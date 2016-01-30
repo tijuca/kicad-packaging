@@ -76,10 +76,7 @@ void PCB_TEXT::Parse( XNODE*        aNode,
         m_rotation = StrToInt1Units( str );
     }
 
-    lNode = FindNode( aNode, wxT( "value" ) );
-
-    if( lNode )
-        m_name.text = lNode->GetNodeContent();
+    aNode->GetAttribute( wxT( "Name" ), &m_name.text );
 
     str = FindNodeGetContent( aNode, wxT( "isFlipped" ) );
 
@@ -116,7 +113,7 @@ void PCB_TEXT::AddToBoard()
     pcbtxt->SetThickness( m_name.textstrokeWidth );
     pcbtxt->SetOrientation( m_rotation );
 
-    pcbtxt->SetPosition( wxPoint( m_name.correctedPositionX, m_name.correctedPositionY ) );
+    pcbtxt->SetTextPosition( wxPoint( m_name.correctedPositionX, m_name.correctedPositionY ) );
 
     pcbtxt->SetMirrored( m_name.mirror );
     pcbtxt->SetTimeStamp( 0 );

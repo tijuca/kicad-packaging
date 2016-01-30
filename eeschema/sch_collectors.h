@@ -2,7 +2,7 @@
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
  * Copyright (C) 2011 Wayne Stambaugh <stambaughw@verizon.net>
- * Copyright (C) 20011 KiCad Developers, see change_log.txt for contributors.
+ * Copyright (C) 2011-2015 KiCad Developers, see change_log.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -135,9 +135,6 @@ public:
         return NULL;
     }
 
-    /**
-     * @copydoc INSPECTOR::Inspect()
-     */
     SEARCH_RESULT Inspect( EDA_ITEM* aItem, const void* aTestData = NULL );
 
     /**
@@ -213,7 +210,7 @@ public:
 
     wxString GetSheetPath() const { return m_sheetPath; }
 
-    SCH_ITEM* GetParent() { return m_parent; }
+    SCH_ITEM* GetParent() const { return m_parent; }
 };
 
 
@@ -234,20 +231,15 @@ class SCH_FIND_COLLECTOR : public COLLECTOR
     SCH_SHEET_PATH* m_sheetPath;
 
     /// The current found item list index.
-    int m_foundIndex;
+    int     m_foundIndex;
 
     /// A flag to indicate that the schemtic has been modified and a new search must be
     /// performed even if the search criteria hasn't changed.
-    bool m_forceSearch;
+    bool    m_forceSearch;
 
-    /**
-     * Function PassedEnd
-     * tests if #m_foundIndex is beyond the end of the list give the current
-     * find/replace criterial in #m_findReplaceData.
-     *
-     * @return True if #m_foundIndex has crossed the end of the found item list.
-     */
-    bool PassedEnd() const;
+    /// last known library change hash, used to detect library changes which
+    /// should trigger cache obsolescence.
+    int     m_lib_hash;
 
     /**
      * Function dump
@@ -266,10 +258,31 @@ public:
     {
         SetScanTypes( aScanTypes );
         m_foundIndex = 0;
-        m_forceSearch = false;
+        SetForceSearch( false );
+        m_sheetPath = NULL;
+        m_lib_hash = 0;
     }
 
-    void SetForceSearch() { m_forceSearch = true; }
+    void Empty()
+    {
+        m_foundIndex = 0;
+        COLLECTOR::Empty();
+        m_data.clear();
+    }
+
+    void SetForceSearch( bool doSearch = true ) { m_forceSearch = doSearch; }
+
+    int GetLibHash() const          { return m_lib_hash; }
+    void SetLibHash( int aHash )    { m_lib_hash = aHash; }
+
+    /**
+     * Function PassedEnd
+     * tests if #m_foundIndex is beyond the end of the list give the current
+     * find/replace criterial in #m_findReplaceData.
+     *
+     * @return True if #m_foundIndex has crossed the end of the found item list.
+     */
+    bool PassedEnd() const;
 
     /**
      * Function UpdateIndex
@@ -289,7 +302,7 @@ public:
 
     /**
      * Function IsSearchRequired
-     * checks the current collector state agaianst \a aFindReplaceData to see if a new search
+     * checks the current collector state against \a aFindReplaceData to see if a new search
      * needs to be performed to update the collector.
      *
      * @param aFindReplaceData A #SCH_FIND_REPLACE_DATA object containing the search criteria
@@ -297,7 +310,7 @@ public:
      * @return True if \a aFindReplaceData would require a new search to be performaed or
      *         the force search flag is true.  Otherwise, false is returned.
      */
-    bool IsSearchRequired( SCH_FIND_REPLACE_DATA& aFindReplaceData )
+    bool IsSearchRequired( const SCH_FIND_REPLACE_DATA& aFindReplaceData )
     {
         return m_findReplaceData.ChangesCompare( aFindReplaceData ) || m_forceSearch ||
                (m_findReplaceData.IsWrapping() != aFindReplaceData.IsWrapping());
@@ -329,11 +342,8 @@ public:
      *
      * @return True if the text replace occurred otherwise false.
      */
-    bool ReplaceItem();
+    bool ReplaceItem( SCH_SHEET_PATH* aSheetPath = NULL );
 
-    /**
-     * @copydoc INSPECTOR::Inspect()
-     */
     SEARCH_RESULT Inspect( EDA_ITEM* aItem, const void* aTestData = NULL );
 
     /**
@@ -346,6 +356,41 @@ public:
      *                   value searches the entire schematic hierarchy.
      */
     void Collect( SCH_FIND_REPLACE_DATA& aFindReplaceData, SCH_SHEET_PATH* aSheetPath = NULL );
+
+    void IncrementIndex() { m_foundIndex += 1; }
+};
+
+
+/**
+ * Class TYPE_COLLECTOR
+ * merely gathers up all SCH_ITEMs of a given set of KICAD_T type(s).  It does
+ * no hit-testing.
+ *
+ * @see class COLLECTOR
+ */
+class SCH_TYPE_COLLECTOR : public SCH_COLLECTOR
+{
+public:
+    /**
+     * Function Inspect
+     * is the examining function within the INSPECTOR which is passed to the
+     * Iterate function.
+     *
+     * @param testItem An EDA_ITEM to examine.
+     * @param testData is not used in this class.
+     * @return SEARCH_RESULT - SEARCH_QUIT if the Iterator is to stop the scan,
+     *   else SCAN_CONTINUE;
+     */
+    SEARCH_RESULT Inspect( EDA_ITEM* testItem, const void* testData );
+
+    /**
+     * Function Collect
+     * scans a BOARD_ITEM using this class's Inspector method, which does
+     * the collection.
+     * @param aBoard The BOARD_ITEM to scan.
+     * @param aScanList The KICAD_Ts to gather up.
+     */
+    void Collect( SCH_ITEM* aBoard, const KICAD_T aScanList[] );
 };
 
 

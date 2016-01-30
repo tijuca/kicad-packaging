@@ -1,8 +1,8 @@
 /*
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
- * Copyright (C) 2006 Jean-Pierre Charras, jaen-pierre.charras@gipsa-lab.inpg.com
- * Copyright (C) 2004-2011 KiCad Developers, see change_log.txt for contributors.
+ * Copyright (C) 2015 Jean-Pierre Charras, jp.charras at wanadoo.fr
+ * Copyright (C) 2004-2015 KiCad Developers, see change_log.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -27,44 +27,51 @@
  */
 
 #include <fctsys.h>
-#include <gr_basic.h>
 #include <class_drawpanel.h>
 #include <confirm.h>
-#include <wxEeschemaStruct.h>
+#include <schframe.h>
 #include <base_units.h>
+#include <kiface_i.h>
 
-#include <general.h>
 #include <sch_sheet.h>
+#include <sch_sheet_path.h>
 
 #include <dialogs/dialog_sch_sheet_props.h>
 #include <wildcards_and_files_ext.h>
+#include <project.h>
 
 
-bool SCH_EDIT_FRAME::EditSheet( SCH_SHEET* aSheet, wxDC* aDC )
+bool SCH_EDIT_FRAME::EditSheet( SCH_SHEET* aSheet, SCH_SHEET_PATH* aHierarchy )
 {
-    if( aSheet == NULL )
+    if( aSheet == NULL || aHierarchy == NULL )
         return false;
 
-    /* Get the new texts */
+    SCH_SHEET_LIST hierarchy;       // This is the schematic sheet hierarchy.
+
+    // Get the new texts
     DIALOG_SCH_SHEET_PROPS dlg( this );
 
     wxString units = GetUnitsLabel( g_UserUnit );
     dlg.SetFileName( aSheet->GetFileName() );
-    dlg.SetFileNameTextSize( ReturnStringFromValue( g_UserUnit, aSheet->GetFileNameSize() ) );
+    dlg.SetFileNameTextSize( StringFromValue( g_UserUnit, aSheet->GetFileNameSize() ) );
     dlg.SetFileNameTextSizeUnits( units );
     dlg.SetSheetName( aSheet->GetName() );
-    dlg.SetSheetNameTextSize( ReturnStringFromValue( g_UserUnit, aSheet->GetSheetNameSize() ) );
+    dlg.SetSheetNameTextSize( StringFromValue( g_UserUnit, aSheet->GetSheetNameSize() ) );
     dlg.SetSheetNameTextSizeUnits( units );
+    dlg.SetSheetTimeStamp( wxString::Format( wxT("%8.8lX"),
+                           (unsigned long) aSheet->GetTimeStamp() ) );
 
     /* This ugly hack fixes a bug in wxWidgets 2.8.7 and likely earlier
      * versions for the flex grid sizer in wxGTK that prevents the last
      * column from being sized correctly.  It doesn't cause any problems
      * on win32 so it doesn't need to wrapped in ugly #ifdef __WXGTK__
      * #endif.
+     * Still presen in wxWidgets 3.0.2
      */
     dlg.Layout();
     dlg.Fit();
     dlg.SetMinSize( dlg.GetSize() );
+    dlg.GetSizer()->Fit( &dlg );
 
     if( dlg.ShowModal() == wxID_CANCEL )
         return false;
@@ -79,9 +86,9 @@ bool SCH_EDIT_FRAME::EditSheet( SCH_SHEET* aSheet, wxDC* aDC )
     }
 
     // Duplicate sheet names are not valid.
-    const SCH_SHEET* sheet = GetScreen()->GetSheet( dlg.GetSheetName() );
+    const SCH_SHEET* sheet = hierarchy.FindSheetByName( dlg.GetSheetName() );
 
-    if( (sheet != NULL) && (sheet != aSheet) )
+    if( sheet && (sheet != aSheet) )
     {
         DisplayError( this, wxString::Format( _( "A sheet named \"%s\" already exists." ),
                                               GetChars( dlg.GetSheetName() ) ) );
@@ -93,35 +100,49 @@ bool SCH_EDIT_FRAME::EditSheet( SCH_SHEET* aSheet, wxDC* aDC )
     bool loadFromFile = false;
     SCH_SCREEN* useScreen = NULL;
 
-    wxString newFullFilename = fileName.GetFullPath();
-    // Inside Eeschema, filenames are stored using unix notation
-    newFullFilename.Replace( wxT("\\"), wxT("/") );
+    wxString newFilename = fileName.GetFullPath();
 
-    // Search for a schematic file having the same filename exists,
-    // already in use in the hierarchy, or on disk,
-    // in order to reuse it
-    if( !g_RootSheet->SearchHierarchy( newFullFilename, &useScreen ) )
-        loadFromFile = fileName.FileExists();
-
-    if( aSheet->GetScreen() == NULL )                          // New sheet.
+    // Search for a schematic file having the same filename
+    // already in use in the hierarchy or on disk, in order to reuse it.
+    if( !g_RootSheet->SearchHierarchy( newFilename, &useScreen ) )
     {
-        if( ( useScreen != NULL ) || loadFromFile )            // Load from existing file.
+        // if user entered a relative path, allow that to stay, but do the
+        // file existence test with an absolute (full) path.  This transformation
+        // is local to this scope, but is the same one used at load time later.
+        wxString absolute = Prj().AbsolutePath( newFilename );
+
+        loadFromFile = wxFileExists( absolute );
+    }
+
+    // Inside Eeschema, filenames are stored using unix notation
+    newFilename.Replace( wxT( "\\" ), wxT( "/" ) );
+
+    if( aSheet->GetScreen() == NULL )              // New sheet.
+    {
+        if( useScreen || loadFromFile )            // Load from existing file.
         {
-            msg.Printf( _( "A file named \"%s\" already exists" ),
-                        GetChars( newFullFilename ) );
-
             if( useScreen != NULL )
-                msg += _( " in the current schematic hierarchy" );
+            {
+                msg.Printf( _( "A file named '%s' already exists in the current schematic "
+                               "hierarchy." ), GetChars( newFilename ) );
+            }
+            else
+            {
+                msg.Printf( _( "A file named '%s' already exists." ), GetChars( newFilename ) );
+            }
 
-            msg += _(".\n\nDo you want to create a sheet with the contents of this file?" );
+            msg += _( "\n\nDo you want to create a sheet with the contents of this file?" );
 
             if( !IsOK( this, msg ) )
+            {
                 return false;
+            }
         }
         else                                                   // New file.
         {
-            aSheet->SetScreen( new SCH_SCREEN() );
-            aSheet->GetScreen()->SetFileName( newFullFilename );
+            aSheet->SetScreen( new SCH_SCREEN( &Kiway() ) );
+            aSheet->GetScreen()->SetMaxUndoItems( m_UndoRedoCountMax );
+            aSheet->GetScreen()->SetFileName( newFilename );
         }
     }
     else                                                       // Existing sheet.
@@ -133,22 +154,29 @@ bool SCH_EDIT_FRAME::EditSheet( SCH_SHEET* aSheet, wxDC* aDC )
         // to avoid issues under Windows, although under Unix
         // filenames are case sensitive.
         // But many users create schematic under both Unix and Windows
-        if( newFullFilename.CmpNoCase( aSheet->GetFileName() ) != 0 )
+        if( newFilename.CmpNoCase( aSheet->GetFileName() ) != 0 )
         {
             // Sheet file name changes cannot be undone.
             isUndoable = false;
             msg = _( "Changing the sheet file name cannot be undone.  " );
 
-            if( ( useScreen != NULL ) || loadFromFile )        // Load from existing file.
+            if( useScreen || loadFromFile )                    // Load from existing file.
             {
-                tmp.Printf( _( "A file named \"%s\" already exists" ),
-                            GetChars( newFullFilename ) );
-                msg += tmp;
+                wxString tmp;
 
                 if( useScreen != NULL )
-                    msg += _( " in the current schematic hierarchy" );
+                {
+                    tmp.Printf( _( "A file named <%s> already exists in the current schematic "
+                                   "hierarchy." ), GetChars( newFilename ) );
+                }
+                else
+                {
+                    tmp.Printf( _( "A file named <%s> already exists." ),
+                                GetChars( newFilename ) );
+                }
 
-                msg += _(".\n\nDo you want to replace the sheet with the contents of this file?" );
+                msg += tmp;
+                msg += _( "\n\nDo you want to replace the sheet with the contents of this file?" );
 
                 if( !IsOK( this, msg ) )
                     return false;
@@ -171,7 +199,6 @@ bool SCH_EDIT_FRAME::EditSheet( SCH_SHEET* aSheet, wxDC* aDC )
             }
         }
 
-        aSheet->Draw( m_canvas, aDC, wxPoint( 0, 0 ), g_XorMode );
         m_canvas->SetIgnoreMouseEvents( true );
 
         if( isUndoable )
@@ -179,7 +206,7 @@ bool SCH_EDIT_FRAME::EditSheet( SCH_SHEET* aSheet, wxDC* aDC )
 
         if( renameFile )
         {
-            aSheet->GetScreen()->SetFileName( newFullFilename );
+            aSheet->GetScreen()->SetFileName( newFilename );
             SaveEEFile( aSheet->GetScreen() );
 
             // If the the associated screen is shared by more than one sheet, remove the
@@ -193,23 +220,42 @@ bool SCH_EDIT_FRAME::EditSheet( SCH_SHEET* aSheet, wxDC* aDC )
         }
     }
 
-    aSheet->SetFileName( newFullFilename );
+    aSheet->SetFileName( newFilename );
 
     if( useScreen )
         aSheet->SetScreen( useScreen );
     else if( loadFromFile )
         aSheet->Load( this );
 
-    aSheet->SetFileNameSize( ReturnValueFromString( g_UserUnit, dlg.GetFileNameTextSize() ) );
+    aSheet->SetFileNameSize( ValueFromString( g_UserUnit, dlg.GetFileNameTextSize() ) );
     aSheet->SetName( dlg.GetSheetName() );
-    aSheet->SetSheetNameSize( ReturnValueFromString( g_UserUnit, dlg.GetSheetNameTextSize() ) );
+    aSheet->SetSheetNameSize( ValueFromString( g_UserUnit, dlg.GetSheetNameTextSize() ) );
 
     if( aSheet->GetName().IsEmpty() )
-        aSheet->SetName( wxString::Format( wxT( "Sheet%8.8lX" ), aSheet->GetTimeStamp() ) );
+        aSheet->SetName( wxString::Format( wxT( "Sheet%8.8lX" ),
+                                           (long unsigned) aSheet->GetTimeStamp() ) );
+
+    // Make sure the sheet changes do not cause any recursion.
+    SCH_SHEET_LIST sheetHierarchy( aSheet );
+
+    // Make sure files have fully qualified path and file name.
+    wxFileName destFn = aHierarchy->Last()->GetFileName();
+
+    if( destFn.IsRelative() )
+        destFn.MakeAbsolute( Prj().GetProjectPath() );
+
+    if( hierarchy.TestForRecursion( sheetHierarchy, destFn.GetFullPath( wxPATH_UNIX ) ) )
+    {
+        msg.Printf( _( "The sheet changes cannot be made because the destination sheet already "
+                       "has the sheet <%s> or one of it's subsheets as a parent somewhere in "
+                       "the schematic hierarchy." ),
+                    GetChars( newFilename ) );
+        DisplayError( this, msg );
+        return false;
+    }
 
     m_canvas->MoveCursorToCrossHair();
     m_canvas->SetIgnoreMouseEvents( false );
-    aSheet->Draw( m_canvas, aDC, wxPoint( 0, 0 ), GR_DEFAULT_DRAWMODE );
     OnModify();
 
     return true;
@@ -217,10 +263,12 @@ bool SCH_EDIT_FRAME::EditSheet( SCH_SHEET* aSheet, wxDC* aDC )
 
 
 /* Move selected sheet with the cursor.
- * Callback function use by m_mouseCaptureCallback.
+ * Callback function used by m_mouseCaptureCallback.
+ * Note also now this function is aclled only when resizing the sheet
+ * But the (very small code) relative to sheet move is still present here
  */
-static void MoveOrResizeSheet( EDA_DRAW_PANEL* aPanel, wxDC* aDC, const wxPoint& aPosition,
-                               bool aErase )
+static void resizeSheetWithMouseCursor( EDA_DRAW_PANEL* aPanel, wxDC* aDC, const wxPoint& aPosition,
+                                        bool aErase )
 {
     wxPoint        moveVector;
     BASE_SCREEN*   screen = aPanel->GetScreen();
@@ -231,46 +279,40 @@ static void MoveOrResizeSheet( EDA_DRAW_PANEL* aPanel, wxDC* aDC, const wxPoint&
 
     wxPoint pos = sheet->GetPosition();
 
-    if( sheet->IsResized() )
+    int width  = aPanel->GetParent()->GetCrossHairPosition().x - sheet->GetPosition().x;
+    int height = aPanel->GetParent()->GetCrossHairPosition().y - sheet->GetPosition().y;
+
+    // If the sheet doesn't have any pins, clamp the minimum size to the default values.
+    width = ( width < MIN_SHEET_WIDTH ) ? MIN_SHEET_WIDTH : width;
+    height = ( height < MIN_SHEET_HEIGHT ) ? MIN_SHEET_HEIGHT : height;
+
+    if( sheet->HasPins() )
     {
-        int width = screen->GetCrossHairPosition().x - sheet->GetPosition().x;
-        int height = screen->GetCrossHairPosition().y - sheet->GetPosition().y;
+        int gridSizeX = KiROUND( screen->GetGridSize().x );
+        int gridSizeY = KiROUND( screen->GetGridSize().y );
 
-        // If the sheet doesn't have any pins, clamp the minimum size to the default values.
-        width = ( width < MIN_SHEET_WIDTH ) ? MIN_SHEET_WIDTH : width;
-        height = ( height < MIN_SHEET_HEIGHT ) ? MIN_SHEET_HEIGHT : height;
-
-        if( sheet->HasPins() )
-        {
-            int gridSizeX = KiROUND( screen->GetGridSize().x );
-            int gridSizeY = KiROUND( screen->GetGridSize().y );
-
-            // If the sheet has pins, use the pin positions to clamp the minimum height.
-            height = ( height < sheet->GetMinHeight() + gridSizeY ) ?
-                     sheet->GetMinHeight() + gridSizeY : height;
-            width = ( width < sheet->GetMinWidth() + gridSizeX ) ?
-                    sheet->GetMinWidth() + gridSizeX : width;
-        }
-
-        wxPoint grid = screen->GetNearestGridPosition( wxPoint( pos.x + width, pos.y + height ) );
-        sheet->Resize( wxSize( grid.x - pos.x, grid.y - pos.y ) );
+        // If the sheet has pins, use the pin positions to clamp the minimum height.
+        height = ( height < sheet->GetMinHeight() + gridSizeY ) ?
+                 sheet->GetMinHeight() + gridSizeY : height;
+        width = ( width < sheet->GetMinWidth() + gridSizeX ) ?
+                sheet->GetMinWidth() + gridSizeX : width;
     }
-    else if( sheet->IsMoving() )
-    {
-        moveVector = screen->GetCrossHairPosition() - pos;
-        sheet->Move( moveVector );
-    }
+
+    wxPoint grid = aPanel->GetParent()->GetNearestGridPosition(
+                    wxPoint( pos.x + width, pos.y + height ) );
+    sheet->Resize( wxSize( grid.x - pos.x, grid.y - pos.y ) );
 
     sheet->Draw( aPanel, aDC, wxPoint( 0, 0 ), g_XorMode );
 }
 
 
-/*  Complete sheet move.  */
+//  Complete sheet move.
 static void ExitSheet( EDA_DRAW_PANEL* aPanel, wxDC* aDC )
 {
     SCH_SCREEN* screen = (SCH_SCREEN*) aPanel->GetScreen();
-    SCH_ITEM* item = screen->GetCurItem();
-    SCH_EDIT_FRAME* parent = ( SCH_EDIT_FRAME* ) aPanel->GetParent();
+    SCH_ITEM*   item = screen->GetCurItem();
+
+    SCH_EDIT_FRAME* parent = (SCH_EDIT_FRAME*) aPanel->GetParent();
 
     if( (item == NULL) || (item->Type() != SCH_SHEET_T) || (parent == NULL) )
         return;
@@ -281,7 +323,7 @@ static void ExitSheet( EDA_DRAW_PANEL* aPanel, wxDC* aDC )
 
     if( item->IsNew() )
     {
-        SAFE_DELETE( item );
+        delete item;
     }
     else if( item->IsMoving() || item->IsResized() )
     {
@@ -308,12 +350,12 @@ static void ExitSheet( EDA_DRAW_PANEL* aPanel, wxDC* aDC )
 }
 
 
-/* Create hierarchy sheet.  */
+// Create hierarchy sheet.
 SCH_SHEET* SCH_EDIT_FRAME::CreateSheet( wxDC* aDC )
 {
-    m_itemToRepeat = NULL;
+    SetRepeatItem( NULL );
 
-    SCH_SHEET* sheet = new SCH_SHEET( GetScreen()->GetCrossHairPosition() );
+    SCH_SHEET* sheet = new SCH_SHEET( GetCrossHairPosition() );
 
     sheet->SetFlags( IS_NEW | IS_RESIZED );
     sheet->SetTimeStamp( GetNewTimeStamp() );
@@ -324,10 +366,12 @@ SCH_SHEET* SCH_EDIT_FRAME::CreateSheet( wxDC* aDC )
     // also need to update the hierarchy, if we are adding
     // a sheet to a screen that already has multiple instances (!)
     GetScreen()->SetCurItem( sheet );
-    m_canvas->SetMouseCapture( MoveOrResizeSheet, ExitSheet );
+    m_canvas->SetMouseCapture( resizeSheetWithMouseCursor, ExitSheet );
     m_canvas->CallMouseCapture( aDC, wxDefaultPosition, false );
     m_canvas->CrossHairOff( aDC );
-    GetScreen()->SetCrossHairPosition( sheet->GetResizePosition() );
+
+    SetCrossHairPosition( sheet->GetResizePosition() );
+
     m_canvas->MoveCursorToCrossHair();
     m_canvas->CrossHairOn( aDC );
 
@@ -345,14 +389,14 @@ void SCH_EDIT_FRAME::ReSizeSheet( SCH_SHEET* aSheet, wxDC* aDC )
                                    GetChars( aSheet->GetClass() ) ) );
 
     m_canvas->CrossHairOff( aDC );
-    GetScreen()->SetCrossHairPosition( aSheet->GetResizePosition() );
+    SetCrossHairPosition( aSheet->GetResizePosition() );
     m_canvas->MoveCursorToCrossHair();
     m_canvas->CrossHairOn( aDC );
 
     SetUndoItem( aSheet );
     aSheet->SetFlags( IS_RESIZED );
 
-    m_canvas->SetMouseCapture( MoveOrResizeSheet, ExitSheet );
+    m_canvas->SetMouseCapture( resizeSheetWithMouseCursor, ExitSheet );
     m_canvas->CallMouseCapture( aDC, wxDefaultPosition, true );
 
     if( aSheet->IsNew() )    // not already in edit, save a copy for undo/redo
@@ -360,20 +404,51 @@ void SCH_EDIT_FRAME::ReSizeSheet( SCH_SHEET* aSheet, wxDC* aDC )
 }
 
 
-void SCH_EDIT_FRAME::StartMoveSheet( SCH_SHEET* aSheet, wxDC* aDC )
+void SCH_EDIT_FRAME::RotateHierarchicalSheet( SCH_SHEET* aSheet, bool aRotCCW )
 {
-    if( ( aSheet == NULL ) || ( aSheet->Type() != SCH_SHEET_T ) )
+    if( aSheet == NULL )
         return;
 
-    m_canvas->CrossHairOff( aDC );
-    GetScreen()->SetCrossHairPosition( aSheet->GetPosition() );
-    m_canvas->MoveCursorToCrossHair();
+    // Save old sheet in undo list if not already in edit, or moving.
+    if( aSheet->GetFlags() == 0 )
+        SaveCopyInUndoList( aSheet, UR_CHANGED );
 
-    if( !aSheet->IsNew() )
-        SetUndoItem( aSheet );
+    // Rotate the sheet on itself. Sheets do not have a anchor point.
+    // Rotation is made around it center
+    wxPoint rotPoint = aSheet->GetBoundingBox().Centre();
 
-    aSheet->SetFlags( IS_MOVED );
-    m_canvas->SetMouseCapture( MoveOrResizeSheet, ExitSheet );
-    m_canvas->CallMouseCapture( aDC, wxDefaultPosition, true );
-    m_canvas->CrossHairOn( aDC );
+    // rotate CCW, or CW. to rotate CW, rotate 3 times
+    aSheet->Rotate( rotPoint );
+
+    if( !aRotCCW )
+    {
+        aSheet->Rotate( rotPoint );
+        aSheet->Rotate( rotPoint );
+    }
+
+    GetCanvas()->Refresh();
+    OnModify();
+}
+
+
+void SCH_EDIT_FRAME::MirrorSheet( SCH_SHEET* aSheet, bool aFromXaxis )
+{
+    if( aSheet == NULL )
+        return;
+
+    // Save old sheet in undo list if not already in edit, or moving.
+    if( aSheet->GetFlags() == 0 )
+        SaveCopyInUndoList( aSheet, UR_CHANGED );
+
+    // Mirror the sheet on itself. Sheets do not have a anchor point.
+    // Mirroring is made around it center
+    wxPoint mirrorPoint = aSheet->GetBoundingBox().Centre();
+
+    if( aFromXaxis )    // mirror relative to Horizontal axis
+        aSheet->MirrorX( mirrorPoint.y );
+    else                // Mirror relative to vertical axis
+        aSheet->MirrorY( mirrorPoint.x );
+
+    GetCanvas()->Refresh();
+    OnModify();
 }

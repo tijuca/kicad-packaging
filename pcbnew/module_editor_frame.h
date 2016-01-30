@@ -1,3 +1,26 @@
+/*
+ * This program source code file is part of KiCad, a free EDA CAD application.
+ *
+ * Copyright (C) 1992-2015 KiCad Developers, see AUTHORS.txt for contributors.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation; either version 2
+ * of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, you may find one here:
+ * http://www.gnu.org/licenses/old-licenses/gpl-2.0.html
+ * or you may search the http://www.gnu.org website for the version 2 license,
+ * or you may write to the Free Software Foundation, Inc.,
+ * 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
+ */
+
 /**
  * @file module_editor_frame.h
  * @brief Definition of class FOOTPRINT_EDIT_FRAME.
@@ -7,12 +30,20 @@
 #define MODULE_EDITOR_FRAME_H_
 
 #include <wxBasePcbFrame.h>
+#include <pcb_base_edit_frame.h>
 #include <io_mgr.h>
 
-class FOOTPRINT_EDIT_FRAME : public PCB_BASE_FRAME
+class PCB_LAYER_WIDGET;
+class FP_LIB_TABLE;
+
+namespace PCB { struct IFACE; }     // A KIFACE_I coded in pcbnew.c
+
+
+class FOOTPRINT_EDIT_FRAME : public PCB_BASE_EDIT_FRAME
 {
+    friend struct PCB::IFACE;
+
 public:
-    FOOTPRINT_EDIT_FRAME( PCB_EDIT_FRAME* aParent );
 
     ~FOOTPRINT_EDIT_FRAME();
 
@@ -23,18 +54,28 @@ public:
      */
     static const wxChar* GetFootprintEditorFrameName();
 
-    /**
-     * Function GetActiveFootprintEditor (static)
-     * @return a reference to the current opened Footprint editor
-     * or NULL if no Footprint editor currently opened
-     */
-    static FOOTPRINT_EDIT_FRAME* GetActiveFootprintEditor();
-
     BOARD_DESIGN_SETTINGS& GetDesignSettings() const;           // overload PCB_BASE_FRAME, get parent's
     void SetDesignSettings( const BOARD_DESIGN_SETTINGS& aSettings );  // overload
 
     const PCB_PLOT_PARAMS& GetPlotSettings() const;             // overload PCB_BASE_FRAME, get parent's
     void SetPlotSettings( const PCB_PLOT_PARAMS& aSettings );   // overload
+
+    void LoadSettings( wxConfigBase* aCfg );         // Virtual
+    void SaveSettings( wxConfigBase* aCfg );         // Virtual
+
+    /**
+     * Function GetConfigurationSettings
+     * returns the footpr�int editor settings list.
+     *
+     * Currently, only the settings that are needed at start
+     * up by the main window are defined here.  There are other locally used
+     * settings that are scattered throughout the Pcbnew source code.  If you need
+     * to define a configuration setting that needs to be loaded at run time,
+     * this is the place to define it.
+     *
+     * @return - Reference to the list of applications settings.
+     */
+    PARAM_CFG_ARRAY& GetConfigurationSettings();
 
     void InstallOptionsFrame( const wxPoint& pos );
 
@@ -42,6 +83,8 @@ public:
     void CloseModuleEditor( wxCommandEvent& Event );
 
     void Process_Special_Functions( wxCommandEvent& event );
+
+    void ProcessPreferences( wxCommandEvent& event );
 
     /**
      * Function RedrawActiveWindoow
@@ -80,32 +123,43 @@ public:
      */
     void ReCreateMenuBar();
 
+    // The Tool Framework initalization, for GAL mode
+    void setupTools();
+
     void ToolOnRightClick( wxCommandEvent& event );
     void OnSelectOptionToolbar( wxCommandEvent& event );
+    void OnConfigurePaths( wxCommandEvent& aEvent );
 
     /**
      * Function OnSaveLibraryAs
      * saves the current library to a new name and/or library type.
      *
-     * @note Saving as a new library type requires the plug-in to support saving libraris.
+     * @note Saving as a new library type requires the plug-in to support saving libraries
      * @see PLUGIN::FootprintSave and PLUGIN::FootprintLibCreate
      */
     void OnSaveLibraryAs( wxCommandEvent& aEvent );
 
+    ///> @copydoc EDA_DRAW_FRAME::GetHotKeyDescription()
+    EDA_HOTKEY* GetHotKeyDescription( int aCommand ) const;
+
     /**
      * Function OnHotKey
      * handle hot key events.
-     * <p?
+     * <p>
      * Some commands are relative to the item under the mouse cursor.  Commands are
      * case insensitive
      * </p>
      */
-    void OnHotKey( wxDC* aDC, int aHotKey, const wxPoint& aPosition, EDA_ITEM* aItem = NULL );
+    bool OnHotKey( wxDC* aDC, int aHotKey, const wxPoint& aPosition, EDA_ITEM* aItem = NULL );
+
+    BOARD_ITEM* PrepareItemForHotkey( bool failIfCurrentlyEdited );
 
     bool OnHotkeyEditItem( int aIdCommand );
     bool OnHotkeyDeleteItem( int aIdCommand );
     bool OnHotkeyMoveItem( int aIdCommand );
+    bool OnHotkeyMoveItemExact();
     bool OnHotkeyRotateItem( int aIdCommand );
+    bool OnHotkeyDuplicateItem( int aIdCommand );
 
     /**
      * Function Show3D_Frame
@@ -113,16 +167,21 @@ public:
      */
     void Show3D_Frame( wxCommandEvent& event );
 
-    void GeneralControl( wxDC* aDC, const wxPoint& aPosition, int aHotKey = 0 );
+    bool GeneralControl( wxDC* aDC, const wxPoint& aPosition, int aHotKey = 0 );
     void OnVerticalToolbar( wxCommandEvent& aEvent );
 
     void OnUpdateVerticalToolbar( wxUpdateUIEvent& aEvent );
+    void OnUpdateOptionsToolbar( wxUpdateUIEvent& aEvent );
     void OnUpdateLibSelected( wxUpdateUIEvent& aEvent );
     void OnUpdateModuleSelected( wxUpdateUIEvent& aEvent );
     void OnUpdateLibAndModuleSelected( wxUpdateUIEvent& aEvent );
     void OnUpdateLoadModuleFromBoard( wxUpdateUIEvent& aEvent );
     void OnUpdateInsertModuleInBoard( wxUpdateUIEvent& aEvent );
     void OnUpdateReplaceModuleInBoard( wxUpdateUIEvent& aEvent );
+    void OnUpdateSelectCurrentLib( wxUpdateUIEvent& aEvent );
+
+    ///> @copydoc PCB_BASE_EDIT_FRAME::OnEditItemRequest()
+    void OnEditItemRequest( wxDC* aDC, BOARD_ITEM* aItem );
 
     /**
      * Function LoadModuleFromBoard
@@ -131,13 +190,29 @@ public:
     void LoadModuleFromBoard( wxCommandEvent& event );
 
     /**
+     * Function SaveFootprintInLibrary
+     * Save in an existing library a given footprint
+     * @param aLibName = name of the library to use
+     * @param aModule = the given footprint
+     * @param aOverwrite = true to overwrite an existing footprint, false to
+     *                     abort if an existing footprint with same name is found
+     * @param aDisplayDialog = true to display a dialog to enter or confirm the
+     *                         footprint name
+     * @return : true if OK, false if abort
+     */
+    bool SaveFootprintInLibrary( const wxString& aLibName,
+                                 MODULE*         aModule,
+                                 bool            aOverwrite,
+                                 bool            aDisplayDialog );
+
+    /**
      * Virtual Function OnModify()
      * Must be called after a footprint change
      * in order to set the "modify" flag of the current screen
      * and prepare, if needed the refresh of the 3D frame showing the footprint
      * do not forget to call the basic OnModify function to update auxiliary info
      */
-    virtual void OnModify( );
+    virtual void OnModify();
 
     /**
      * Function ToPrinter
@@ -154,7 +229,7 @@ public:
      * @param aPrintMirrorMode = not used here (Set when printing in mirror mode)
      * @param aData = a pointer on an auxiliary data (NULL if not used)
      */
-    virtual void PrintPage( wxDC* aDC, int aPrintMaskLayer, bool aPrintMirrorMode,
+    virtual void PrintPage( wxDC* aDC, LSET aPrintMaskLayer, bool aPrintMirrorMode,
                             void * aData = NULL);
 
     // BOARD handling
@@ -167,7 +242,7 @@ public:
     bool Clear_Pcb( bool aQuery );
 
     /* handlers for block commands */
-    virtual int ReturnBlockCommand( int key );
+    virtual int BlockCommand( int key );
 
     /**
      * Function HandleBlockPlace
@@ -193,7 +268,6 @@ public:
     BOARD_ITEM* ModeditLocateAndDisplay( int aHotKeyCode = 0 );
 
     /* Undo and redo functions */
-public:
 
     /**
      * Function SaveCopyInUndoList.
@@ -217,15 +291,30 @@ public:
      * @param aTransformPoint = the reference point of the transformation, for
      *                          commands like move
      */
-    virtual void SaveCopyInUndoList( PICKED_ITEMS_LIST& aItemsList,
+    virtual void SaveCopyInUndoList( const PICKED_ITEMS_LIST& aItemsList,
                                      UNDO_REDO_T aTypeCommand,
                                      const wxPoint& aTransformPoint = wxPoint( 0, 0 ) );
 
-    wxString GetCurrentLib() const { return getLibNickName(); };
+    /**
+     * Function RestoreCopyFromUndoList
+     * performs an undo operation on the last edition:
+     *  - Place the current edited library component in Redo list
+     *  - Get old version of the current edited library component
+     */
+    void RestoreCopyFromUndoList( wxCommandEvent& aEvent );
 
+    /**
+     * Function RestoreCopyFromRedoList
+     * performs a redo operation on the the last edition:
+     *  - Place the current edited library component in undo list
+     *  - Get old version of the current edited library component
+     */
+    void RestoreCopyFromRedoList( wxCommandEvent& aEvent );
+
+    /// Return the current library nickname.
+    const wxString GetCurrentLib() const;
 
     // Footprint edition
-    void Place_Ancre( MODULE* module );
     void RemoveStruct( EDA_ITEM* Item );
 
     /**
@@ -286,12 +375,12 @@ public:
     bool Load_Module_From_BOARD( MODULE* Module );
 
     /**
-     * Function Select_1_Module_From_BOARD
+     * Function SelectFootprint
      * Display the list of modules currently existing on the BOARD
      * @return a pointer to a module if this module is selected or NULL otherwise
      * @param aPcb = the board from modules can be loaded
      */
-    MODULE* Select_1_Module_From_BOARD( BOARD* aPcb );
+    MODULE* SelectFootprint( BOARD* aPcb );
 
     // functions to edit footprint edges
 
@@ -357,11 +446,11 @@ public:
      * Install a dialog to edit a graphic item of a footprint body.
      * @param aItem = a pointer to the graphic item to edit
      */
-    void InstallFootprintBodyItemPropertiesDlg(EDGE_MODULE * aItem);
+    void InstallFootprintBodyItemPropertiesDlg( EDGE_MODULE* aItem );
 
     /**
      * Function DlgGlobalChange_PadSettings
-     * changes pad caracteristics for the given footprint
+     * changes pad characteristics for the given footprint
      * or all footprints which look like the given footprint.
      * Options are set by the opened dialog.
      * @param aPad is the pattern. The given footprint is the parent of this pad
@@ -374,28 +463,61 @@ public:
      */
     bool DeleteModuleFromCurrentLibrary();
 
-    void Select_Active_Library();
+    /**
+     * Function IsElementVisible
+     * tests whether a given element category is visible. Keep this as an
+     * inline function.
+     * @param aElement is from the enum by the same name
+     * @return bool - true if the element is visible.
+     * @see enum PCB_VISIBLE
+     */
+    bool IsElementVisible( int aElement ) const;
+
+    /**
+     * Function SetElementVisibility
+     * changes the visibility of an element category
+     * @param aElement is from the enum by the same name
+     * @param aNewState = The new visibility state of the element category
+     * @see enum PCB_VISIBLE
+     */
+    void SetElementVisibility( int aElement, bool aNewState );
+
+    /**
+     * Function IsGridVisible() , virtual
+     * @return true if the grid must be shown
+     */
+    virtual bool IsGridVisible() const;
+
+    /**
+     * Function SetGridVisibility() , virtual
+     * It may be overloaded by derived classes
+     * if you want to store/retrieve the grid visibility in configuration.
+     * @param aVisible = true if the grid must be shown
+     */
+    virtual void SetGridVisibility( bool aVisible );
+
+    /**
+     * Function GetGridColor() , virtual
+     * @return the color of the grid
+     */
+    virtual EDA_COLOR_T GetGridColor() const;
+
+    ///> @copydoc PCB_BASE_FRAME::SetActiveLayer()
+    void SetActiveLayer( LAYER_ID aLayer );
+
+    ///> @copydoc EDA_DRAW_FRAME::UseGalCanvas()
+    virtual void UseGalCanvas( bool aEnable );
 
     DECLARE_EVENT_TABLE()
 
 protected:
-    static BOARD*   s_Pcb;      ///< retain board accross invocations of module editor
 
-    /**
-     * Function GetComponentFromUndoList
-     * performs an undo operation on the last edition:
-     *  - Place the current edited library component in Redo list
-     *  - Get old version of the current edited library component
-     */
-    void GetComponentFromUndoList( wxCommandEvent& event );
+    /// protected so only friend PCB::IFACE::CreateWindow() can act as sole factory.
+    FOOTPRINT_EDIT_FRAME( KIWAY* aKiway, wxWindow* aParent );
 
-    /**
-     * Function GetComponentFromRedoList
-     * performs a redo operation on the the last edition:
-     *  - Place the current edited library component in undo list
-     *  - Get old version of the current edited library component
-     */
-    void GetComponentFromRedoList( wxCommandEvent& event );
+    PCB_LAYER_WIDGET* m_Layers;
+
+    PARAM_CFG_ARRAY   m_configSettings;         ///< List of footprint editor configuration settings.
 
     /**
      * Function UpdateTitle
@@ -403,19 +525,38 @@ protected:
      */
     void updateTitle();
 
-    // @todo these will eventually have to be made instance variables.
-    static wxString m_lib_nick_name;
-    static wxString m_lib_path;
+    /// Reloads displayed items and sets view.
+    void updateView();
 
-    /// The library nickName is a short string, for now the same as the library path
-    /// but without path and without extension.  After library table support it becomes
-    /// a lookup key.
-    wxString getLibNickName() const                     { return m_lib_nick_name; }
-    void setLibNickName( const wxString& aLibNickName ) { m_lib_nick_name = aLibNickName; }
+    /// The libPath is not publicly visible, grab it from the FP_LIB_TABLE if we must.
+    const wxString getLibPath();
 
-    /// The libPath is the full string used in the PLUGIN::Footprint*() calls.
-    wxString getLibPath() const                         { return m_lib_path; }
-    void setLibPath( const wxString& aLibPath )         { m_lib_path = aLibPath;  }
+    void restoreLastFootprint();
+    void retainLastFootprint();
+
+    /**
+     * Creates a new text for the footprint
+     * @param aModule is the owner of the text
+     * @param aDC is the current DC (can be NULL )
+     * @return a pointer to the new text, or NULL if aborted
+     */
+    TEXTE_MODULE* CreateTextModule( MODULE* aModule, wxDC* aDC );
+
+private:
+
+    /**
+     * Function moveExact
+     * Move the selected item exactly, popping up a dialog to allow the
+     * user the enter the move delta
+     */
+    void moveExact();
+
+    /**
+     * Function duplicateItems
+     * Duplicate the item under the cursor
+     * @param aIncrement increment the number of pad (if that is what is selected)
+     */
+    void duplicateItems( bool aIncrement ); //override
 };
 
 #endif      // MODULE_EDITOR_FRAME_H_

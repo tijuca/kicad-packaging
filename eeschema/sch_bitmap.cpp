@@ -29,7 +29,7 @@
 #include <fctsys.h>
 #include <class_drawpanel.h>
 #include <trigo.h>
-#include <wxEeschemaStruct.h>
+#include <macros.h>
 #include <sch_bitmap.h>
 
 #include <wx/mstream.h>
@@ -127,8 +127,8 @@ void SCH_BITMAP::SwapData( SCH_ITEM* aItem )
                                    GetChars( aItem->GetClass() ) ) );
 
     SCH_BITMAP* item = (SCH_BITMAP*) aItem;
-    EXCHG( m_Pos, item->m_Pos );
-    EXCHG( m_Image, item->m_Image );
+    std::swap( m_Pos, item->m_Pos );
+    std::swap( m_Image, item->m_Image );
 }
 
 
@@ -176,7 +176,7 @@ bool SCH_BITMAP::Load( LINE_READER& aLine, wxString& aErrorMsg )
 }
 
 
-EDA_RECT SCH_BITMAP::GetBoundingBox() const
+const EDA_RECT SCH_BITMAP::GetBoundingBox() const
 {
     EDA_RECT rect = m_Image->GetBoundingBox();
 
@@ -223,10 +223,7 @@ wxSize SCH_BITMAP::GetSize() const
  */
 void SCH_BITMAP::MirrorX( int aXaxis_position )
 {
-    m_Pos.y -= aXaxis_position;
-    NEGATE( m_Pos.y );
-    m_Pos.y += aXaxis_position;
-
+    MIRROR( m_Pos.y, aXaxis_position );
     m_Image->Mirror( true );
 }
 
@@ -236,9 +233,7 @@ void SCH_BITMAP::MirrorX( int aXaxis_position )
  */
 void SCH_BITMAP::MirrorY( int aYaxis_position )
 {
-    m_Pos.x -= aYaxis_position;
-    NEGATE( m_Pos.x );
-    m_Pos.x += aYaxis_position;
+    MIRROR( m_Pos.x, aYaxis_position );
     m_Image->Mirror( false );
 }
 
@@ -255,9 +250,9 @@ bool SCH_BITMAP::IsSelectStateChanged( const wxRect& aRect )
     bool previousState = IsSelected();
 
     if( aRect.Contains( m_Pos ) )
-        m_Flags |= SELECTED;
+        SetFlags( SELECTED );
     else
-        m_Flags &= ~SELECTED;
+        ClearFlags( SELECTED );
 
     return previousState != IsSelected();
 }
@@ -301,5 +296,5 @@ bool SCH_BITMAP::HitTest( const EDA_RECT& aRect, bool aContained, int aAccuracy 
 
 void SCH_BITMAP::Plot( PLOTTER* aPlotter )
 {
-    m_Image->PlotImage( aPlotter, m_Pos, ReturnLayerColor( GetLayer() ), GetPenSize() );
+    m_Image->PlotImage( aPlotter, m_Pos, GetLayerColor( GetLayer() ), GetPenSize() );
 }

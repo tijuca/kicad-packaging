@@ -1,3 +1,4 @@
+
 /**
  * @file pcbnew/dialogs/dialog_netlist.cpp
  */
@@ -5,7 +6,7 @@
 /*
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
- * Copyright (C) 1992-2012 KiCad Developers, see change_log.txt for contributors.
+ * Copyright (C) 1992-2013 KiCad Developers, see change_log.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -26,59 +27,70 @@
  */
 
 #include <fctsys.h>
-#include <appl_wxstruct.h>
+#include <project.h>
+#include <kiface_i.h>
 #include <confirm.h>
+#include <macros.h>
 #include <dialog_helpers.h>
 #include <html_messagebox.h>
 #include <base_units.h>
 #include <wxPcbStruct.h>
-#include <pcbcommon.h>
+#include <pcb_netlist.h>
+#include <netlist_reader.h>
+#include <reporter.h>
 
 #include <pcbnew_config.h>
 #include <class_board_design_settings.h>
 #include <class_board.h>
 #include <class_module.h>
+#include <ratsnest_data.h>
 #include <wildcards_and_files_ext.h>
 
 #include <dialog_netlist.h>
+#include <wx_html_report_panel.h>
 
+#define NETLIST_SILENTMODE_KEY wxT("SilentMode")
+#define NETLIST_FILTER_MESSAGES_KEY wxT("NetlistReportFilterMsg")
+#define NETLIST_DELETESINGLEPADNETS_KEY wxT("NetlistDeleteSinglePadNets")
 
 void PCB_EDIT_FRAME::InstallNetlistFrame( wxDC* DC )
 {
     /* Setup the netlist file name to the last netlist file read,
      * or the board file name if the last filename is empty or last file not existing.
      */
-    wxFileName fn = GetLastNetListRead();
-    wxString lastNetlistName = GetLastNetListRead();
+    wxString netlistName = GetLastNetListRead();
 
-    if( !fn.FileExists() )
+    wxFileName fn = netlistName;
+
+    if( !fn.IsOk() || !fn.FileExists() )
     {
         fn = GetBoard()->GetFileName();
         fn.SetExt( NetlistFileExtension );
-        lastNetlistName = fn.GetFullPath();
+
+        if( fn.GetName().IsEmpty() )
+            netlistName.Clear();
+        else
+            netlistName = fn.GetFullPath();
     }
 
-    DIALOG_NETLIST dlg( this, DC, lastNetlistName );
+    DIALOG_NETLIST dlg( this, DC, netlistName );
 
     dlg.ShowModal();
 
     // Save project settings if needed.
     // Project settings are saved in the corresponding <board name>.pro file
-    bool configChanged = lastNetlistName != GetLastNetListRead();
-    if( dlg.UseCmpFileForFpNames() != GetUseCmpFileForFpNames() )
-    {
-        SetUseCmpFileForFpNames( dlg.UseCmpFileForFpNames() );
-        configChanged = true;
-    }
+    bool configChanged = !GetLastNetListRead().IsEmpty() && ( netlistName != GetLastNetListRead() );
 
-    if( configChanged &&
-        !GetBoard()->GetFileName().IsEmpty() &&
-        IsOK(NULL, _("Project config has changed. Save it ?") ) )
+    if( configChanged && !GetBoard()->GetFileName().IsEmpty()
+      && IsOK( NULL, _( "The project configuration has changed.  Do you want to save it?" ) ) )
     {
-        wxFileName fn = GetBoard()->GetFileName();
+        wxFileName fn = Prj().AbsolutePath( GetBoard()->GetFileName() );
         fn.SetExt( ProjectFileExtension );
-        wxGetApp().WriteProjectConfig( fn.GetFullPath(), GROUP,
-                                       GetProjectFileParameters() );
+
+        wxString pro_name = fn.GetFullPath();
+
+        Prj().ConfigSave( Kiface().KifaceSearch(), GROUP_PCB,
+                GetProjectFileParameters(), pro_name );
     }
 }
 
@@ -89,15 +101,34 @@ DIALOG_NETLIST::DIALOG_NETLIST( PCB_EDIT_FRAME* aParent, wxDC * aDC,
 {
     m_parent = aParent;
     m_dc = aDC;
+    m_config = Kiface().KifaceSettings();
+
+    m_silentMode = m_config->Read( NETLIST_SILENTMODE_KEY, 0l );
+    bool tmp = m_config->Read( NETLIST_DELETESINGLEPADNETS_KEY, 0l );
+    m_rbSingleNets->SetSelection( tmp == 0 ? 0 : 1);
     m_NetlistFilenameCtrl->SetValue( aNetlistFullFilename );
-    m_cmpNameSourceOpt->SetSelection( m_parent->GetUseCmpFileForFpNames() ? 1 : 0 );
+    m_checkBoxSilentMode->SetValue( m_silentMode );
+
+    int severities = m_config->Read( NETLIST_FILTER_MESSAGES_KEY, -1l );
+    m_MessageWindow->SetVisibleSeverities( severities );
 
     GetSizer()->SetSizeHints( this );
 }
 
+DIALOG_NETLIST::~DIALOG_NETLIST()
+{
+    m_config->Write( NETLIST_SILENTMODE_KEY, (long) m_silentMode );
+    m_config->Write( NETLIST_DELETESINGLEPADNETS_KEY,
+                    (long) m_rbSingleNets->GetSelection() );
+    m_config->Write( NETLIST_FILTER_MESSAGES_KEY,
+                    (long) m_MessageWindow->GetVisibleSeverities() );
+}
+
+
 void DIALOG_NETLIST::OnOpenNetlistClick( wxCommandEvent& event )
 {
-    wxString lastPath = wxFileName::GetCwd();
+    wxString lastPath = wxFileName( Prj().GetProjectFullName() ).GetPath();
+
     wxString lastNetlistRead = m_parent->GetLastNetListRead();
 
     if( !lastNetlistRead.IsEmpty() && !wxFileName::FileExists( lastNetlistRead ) )
@@ -111,7 +142,7 @@ void DIALOG_NETLIST::OnOpenNetlistClick( wxCommandEvent& event )
         lastNetlistRead = fn.GetFullName();
     }
 
-    wxLogDebug( wxT( "Last net list read path <%s>, file name <%s>." ),
+    wxLogDebug( wxT( "Last net list read path '%s', file name '%s'." ),
                 GetChars( lastPath ), GetChars( lastNetlistRead ) );
 
     wxFileDialog FilesDialog( this, _( "Select Netlist" ), lastPath, lastNetlistRead,
@@ -123,23 +154,58 @@ void DIALOG_NETLIST::OnOpenNetlistClick( wxCommandEvent& event )
     m_NetlistFilenameCtrl->SetValue( FilesDialog.GetPath() );
 }
 
-
 void DIALOG_NETLIST::OnReadNetlistFileClick( wxCommandEvent& event )
 {
-    wxString fullNetfileName = m_NetlistFilenameCtrl->GetValue();
-    wxString cmpFilename;
-    if( UseCmpFileForFpNames() )
+    wxString netlistFileName = m_NetlistFilenameCtrl->GetValue();
+    wxFileName fn = netlistFileName;
+
+    if( !fn.IsOk() )
     {
-        wxFileName fn = m_NetlistFilenameCtrl->GetValue();
-        fn.SetExt( ComponentFileExtension );
-        cmpFilename = fn.GetFullPath();
+        wxMessageBox( _("Please, choose a valid netlist file") );
+        return;
     }
 
-    m_parent->ReadPcbNetlist( fullNetfileName, cmpFilename, m_MessageWindow,
-                              m_ChangeExistingFootprintCtrl->GetSelection() == 1 ? true : false,
-                              m_DeleteBadTracks->GetSelection() == 1 ? true : false,
-                              m_RemoveExtraFootprintsCtrl->GetSelection() == 1 ? true : false,
-                              m_Select_By_Timestamp->GetSelection() == 1 ? true : false );
+    if( !fn.FileExists() )
+    {
+        wxMessageBox( _("The netlist file does not exist") );
+        return;
+    }
+
+    // Give the user a chance to bail out when making changes from a netlist.
+    if( !m_checkDryRun->GetValue() && !m_silentMode
+      && !m_parent->GetBoard()->IsEmpty()
+      && !IsOK( NULL, _( "The changes made by reading the netlist cannot be undone.  Are you "
+                         "sure you want to read the netlist?" ) ) )
+        return;
+
+    m_MessageWindow->Clear();
+    REPORTER& reporter = m_MessageWindow->Reporter();
+
+    wxBusyCursor busy;
+
+    wxString msg;
+    msg.Printf( _( "Reading netlist file \"%s\".\n" ), GetChars( netlistFileName ) );
+    reporter.Report( msg, REPORTER::RPT_INFO );
+
+    if( m_Select_By_Timestamp->GetSelection() == 1 )
+        msg = _( "Using time stamps to match components and footprints.\n" );
+    else
+        msg = _( "Using references to match components and footprints.\n" );
+
+    reporter.Report( msg, REPORTER::RPT_INFO );
+    m_MessageWindow->SetLazyUpdate( true ); // use a "lazy" update to speed up the creation of the report
+                                            // (The window is not updated for each message)
+
+    m_parent->ReadPcbNetlist( netlistFileName, wxEmptyString, &reporter,
+                              m_ChangeExistingFootprintCtrl->GetSelection() == 1,
+                              m_DeleteBadTracks->GetSelection() == 1,
+                              m_RemoveExtraFootprintsCtrl->GetSelection() == 1,
+                              m_Select_By_Timestamp->GetSelection() == 1,
+                              m_rbSingleNets->GetSelection() == 1,
+                              m_checkDryRun->GetValue() );
+    // The creation of the report was made without window update:
+    // the full page must be displayed
+    m_MessageWindow->Flush();
 }
 
 
@@ -147,7 +213,7 @@ void DIALOG_NETLIST::OnTestFootprintsClick( wxCommandEvent& event )
 {
     if( m_parent->GetBoard()->m_Modules == NULL )
     {
-        DisplayInfoMessage( this, _( "No modules" ) );
+        DisplayInfoMessage( this, _( "No footprints" ) );
         return;
     }
 
@@ -157,12 +223,8 @@ void DIALOG_NETLIST::OnTestFootprintsClick( wxCommandEvent& event )
     std::vector <MODULE*> notInNetlist;
     wxString netlistFilename = m_NetlistFilenameCtrl->GetValue();
 
-    if( ! m_parent->Test_Duplicate_Missing_And_Extra_Footprints(
-                netlistFilename, duplicate, missing, notInNetlist ) )
-    {
-        wxMessageBox( _("Netlist file not found!") );
+    if( !verifyFootprints( netlistFilename, wxEmptyString, duplicate, missing, notInNetlist ) )
         return;
-    }
 
     #define ERR_CNT_MAX 100 // Max number of errors to output in dialog
                             // to avoid a too long message list
@@ -184,12 +246,12 @@ void DIALOG_NETLIST::OnTestFootprintsClick( wxCommandEvent& event )
         {
             MODULE* module = duplicate[ii];
 
-            if( module->m_Reference->m_Text.IsEmpty() )
+            if( module->GetReference().IsEmpty() )
                 list << wxT("<br>") << wxT("[noref)");
             else
-                list << wxT("<br>") << module->m_Reference->m_Text;
+                list << wxT("<br>") << module->GetReference();
 
-            list << wxT("  (<i>") << module->m_Value->m_Text << wxT("</i>)");
+            list << wxT("  (<i>") << module->GetValue() << wxT("</i>)");
             list << wxT(" @ ");
             list << CoordinateToString( module->GetPosition().x ),
             list << wxT(", ") << CoordinateToString( module->GetPosition().y ),
@@ -202,7 +264,7 @@ void DIALOG_NETLIST::OnTestFootprintsClick( wxCommandEvent& event )
 
     // Search for missing modules on board.
     if( missing.size() == 0 )
-        list << wxT("<p><b>") <<  _( "No missing modules." ) << wxT("</b></p>");
+        list << wxT("<p><b>") <<  _( "No missing footprints." ) << wxT("</b></p>");
     else
     {
         list << wxT("<p><b>") << _( "Missing:" ) << wxT("</b></p>");
@@ -221,23 +283,24 @@ void DIALOG_NETLIST::OnTestFootprintsClick( wxCommandEvent& event )
 
     // Search for modules found on board but not in net list.
     if( notInNetlist.size() == 0 )
-        list << wxT("<p><b>") << _( "No extra modules." ) << wxT("</b></p>");
+        list << wxT( "<p><b>" ) << _( "No extra footprints." ) << wxT( "</b></p>" );
     else
     {
-        list << wxT("<p><b>") << _( "Not in Netlist:" ) << wxT("</b></p>");
+        list << wxT( "<p><b>" ) << _( "Not in Netlist:" ) << wxT( "</b></p>" );
 
         for( unsigned ii = 0; ii < notInNetlist.size(); ii++ )
         {
             MODULE* module = notInNetlist[ii];
 
-            if( module->m_Reference->m_Text.IsEmpty() )
-                list << wxT("<br>") << wxT("[noref)");
+            if( module->GetReference().IsEmpty() )
+                list << wxT( "<br>" ) << wxT( "[noref)" );
             else
-                list << wxT("<br>") << module->m_Reference->m_Text ;
-            list << wxT(" (<i>") << module->m_Value->m_Text << wxT("</i>)");
-            list << wxT(" @ ");
+                list << wxT( "<br>" ) << module->GetReference() ;
+
+            list << wxT( " (<i>" ) << module->GetValue() << wxT( "</i>)" );
+            list << wxT( " @ " );
             list << CoordinateToString( module->GetPosition().x ),
-            list << wxT(", ") << CoordinateToString( module->GetPosition().y ),
+            list << wxT( ", " ) << CoordinateToString( module->GetPosition().y ),
             err_cnt++;
 
             if( ERR_CNT_MAX < err_cnt )
@@ -247,13 +310,13 @@ void DIALOG_NETLIST::OnTestFootprintsClick( wxCommandEvent& event )
 
     if( ERR_CNT_MAX < err_cnt )
     {
-        list << wxT("<p><b>")
+        list << wxT( "<p><b>" )
              << _( "Too many errors: some are skipped" )
-             << wxT("</b></p>");
+             << wxT( "</b></p>" );
     }
 
-    HTML_MESSAGE_BOX dlg( this, _( "Check Modules" ) );
-    dlg.AddHTML_Text(list);
+    HTML_MESSAGE_BOX dlg( this, _( "Check footprints" ) );
+    dlg.AddHTML_Text( list );
     dlg.ShowModal();
 }
 
@@ -264,6 +327,10 @@ void DIALOG_NETLIST::OnTestFootprintsClick( wxCommandEvent& event )
 
 void DIALOG_NETLIST::OnCompileRatsnestClick( wxCommandEvent& event )
 {
+    // Rebuild the board connectivity:
+    if( m_parent->IsGalCanvasActive() )
+        m_parent->GetBoard()->GetRatsnest()->ProcessBoard();
+
     m_parent->Compile_Ratsnest( m_dc, true );
 }
 
@@ -275,4 +342,140 @@ void DIALOG_NETLIST::OnCompileRatsnestClick( wxCommandEvent& event )
 void DIALOG_NETLIST::OnCancelClick( wxCommandEvent& event )
 {
     EndModal( wxID_CANCEL );
+}
+
+
+void DIALOG_NETLIST::OnSaveMessagesToFile( wxCommandEvent& aEvent )
+{
+    wxFileName fn;
+
+    if( !m_parent->GetLastNetListRead().IsEmpty() )
+    {
+        fn = m_parent->GetLastNetListRead();
+        fn.SetExt( wxT( "txt" ) );
+    }
+    else
+    {
+        fn = wxPathOnly( Prj().GetProjectFullName() );
+    }
+
+    wxFileDialog dlg( this, _( "Save contents of message window" ), fn.GetPath(), fn.GetName(),
+                      TextWildcard, wxFD_SAVE | wxFD_OVERWRITE_PROMPT );
+
+    if( dlg.ShowModal() != wxID_OK )
+        return;
+
+    fn = dlg.GetPath();
+
+    if( fn.GetExt().IsEmpty() )
+        fn.SetExt( wxT( "txt" ) );
+
+    wxFile f( fn.GetFullPath(), wxFile::write );
+
+    if( !f.IsOpened() )
+    {
+        wxString msg;
+
+        msg.Printf( _( "Cannot write message contents to file \"%s\"." ),
+                    GetChars( fn.GetFullPath() ) );
+        wxMessageBox( msg, _( "File Write Error" ), wxOK | wxICON_ERROR, this );
+        return;
+    }
+}
+
+
+void DIALOG_NETLIST::OnUpdateUISaveMessagesToFile( wxUpdateUIEvent& aEvent )
+{
+    //aEvent.Enable( !m_MessageWindow->IsEmpty() );
+}
+
+
+void DIALOG_NETLIST::OnUpdateUIValidNetlistFile( wxUpdateUIEvent& aEvent )
+{
+    aEvent.Enable( !m_NetlistFilenameCtrl->GetValue().IsEmpty() );
+}
+
+
+bool DIALOG_NETLIST::verifyFootprints( const wxString&         aNetlistFilename,
+                                       const wxString &        aCmpFilename,
+                                       std::vector< MODULE* >& aDuplicates,
+                                       wxArrayString&          aMissing,
+                                       std::vector< MODULE* >& aNotInNetlist )
+{
+    wxString        msg;
+    MODULE*         module;
+    MODULE*         nextModule;
+    NETLIST         netlist;
+    wxBusyCursor    dummy;           // Shows an hourglass while calculating.
+    NETLIST_READER* netlistReader;
+    COMPONENT*      component;
+
+    try
+    {
+        netlistReader = NETLIST_READER::GetNetlistReader( &netlist, aNetlistFilename,
+                                                          aCmpFilename );
+
+        if( netlistReader == NULL )
+        {
+            msg.Printf( _( "Cannot open netlist file \"%s\"." ), GetChars( aNetlistFilename ) );
+            wxMessageBox( msg, _( "Netlist Load Error." ), wxOK | wxICON_ERROR );
+            return false;
+        }
+
+        std::auto_ptr< NETLIST_READER > nlr( netlistReader );
+        netlistReader->LoadNetlist();
+    }
+    catch( const IO_ERROR& ioe )
+    {
+        msg.Printf( _( "Error loading netlist file:\n%s" ), ioe.errorText.GetData() );
+        wxMessageBox( msg, _( "Netlist Load Error" ), wxOK | wxICON_ERROR );
+        return false;
+    }
+
+    BOARD* pcb = m_parent->GetBoard();
+
+    // Search for duplicate footprints.
+    module = pcb->m_Modules;
+
+    for( ; module != NULL; module = module->Next() )
+    {
+        nextModule = module->Next();
+
+        for( ; nextModule != NULL; nextModule = nextModule->Next() )
+        {
+            if( module->GetReference().CmpNoCase( nextModule->GetReference() ) == 0 )
+            {
+                aDuplicates.push_back( module );
+                break;
+            }
+        }
+    }
+
+    // Search for component footprints in the netlist but not on the board.
+    for( unsigned ii = 0; ii < netlist.GetCount(); ii++ )
+    {
+        component = netlist.GetComponent( ii );
+
+        module = pcb->FindModuleByReference( component->GetReference() );
+
+        if( module == NULL )
+        {
+            aMissing.Add( component->GetReference() );
+            aMissing.Add( component->GetValue() );
+        }
+    }
+
+    // Search for component footprints found on board but not in netlist.
+    module = pcb->m_Modules;
+
+    for( ; module != NULL; module = module->Next() )
+    {
+
+        component = netlist.GetComponentByReference( module->GetReference() );
+
+        if( component == NULL )
+            aNotInNetlist.push_back( module );
+    }
+
+    return true;
 }

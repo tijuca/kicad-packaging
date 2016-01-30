@@ -1,14 +1,9 @@
-/**
- * @file class_board_connected_item.cpp
- * @brief BOARD_CONNECTED_ITEM class functions.
- */
-
 /*
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
- * Copyright (C) 2012 Jean-Pierre Charras, jean-pierre.charras@ujf-grenoble.fr
+ * Copyright (C) 2015 Jean-Pierre Charras, jp.charras at wanadoo.fr
  * Copyright (C) 2012 SoftPLC Corporation, Dick Hollenbeck <dick@softplc.com>
- * Copyright (C) 1992-2012 KiCad Developers, see AUTHORS.txt for contributors.
+ * Copyright (C) 1992-2015 KiCad Developers, see AUTHORS.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -28,82 +23,53 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
  */
 
+/**
+ * @file class_board_connected_item.cpp
+ * @brief BOARD_CONNECTED_ITEM class functions.
+ */
+
 #include <fctsys.h>
 #include <pcbnew.h>
 
 #include <class_board.h>
 #include <class_board_item.h>
 
-
 BOARD_CONNECTED_ITEM::BOARD_CONNECTED_ITEM( BOARD_ITEM* aParent, KICAD_T idtype ) :
-    BOARD_ITEM( aParent, idtype )
+    BOARD_ITEM( aParent, idtype ), m_netinfo( &NETINFO_LIST::ORPHANED ),
+    m_Subnet( 0 ), m_ZoneSubnet( 0 )
 {
-    m_NetCode    = 0;
-    m_Subnet     = 0;
-    m_ZoneSubnet = 0;
 }
 
 
 BOARD_CONNECTED_ITEM::BOARD_CONNECTED_ITEM( const BOARD_CONNECTED_ITEM& aItem ) :
-    BOARD_ITEM( aItem )
+    BOARD_ITEM( aItem ), m_netinfo( aItem.m_netinfo ), m_Subnet( aItem.m_Subnet ),
+    m_ZoneSubnet( aItem.m_ZoneSubnet )
 {
-    m_NetCode = aItem.m_NetCode;
-    m_Subnet = aItem.m_Subnet;
-    m_ZoneSubnet = aItem.m_ZoneSubnet;
 }
 
 
-/**
- * Function GetNet
- * @return int - the net code.
- */
-int BOARD_CONNECTED_ITEM::GetNet() const
+bool BOARD_CONNECTED_ITEM::SetNetCode( int aNetCode, bool aNoAssert )
 {
-    return m_NetCode;
-}
+    // if aNetCode < 0 ( typically NETINFO_LIST::FORCE_ORPHANED )
+    // or no parent board,
+    // set the m_netinfo to the dummy NETINFO_LIST::ORPHANED
 
+    BOARD* board = GetBoard();
 
-void BOARD_CONNECTED_ITEM::SetNet( int aNetCode )
-{
-    m_NetCode = aNetCode;
-}
+    if( ( aNetCode >= 0 ) && board )
+        m_netinfo = board->FindNet( aNetCode );
+    else
+        m_netinfo = &NETINFO_LIST::ORPHANED;
 
-
-/**
- * Function GetSubNet
- * @return int - the sub net code.
- */
-int BOARD_CONNECTED_ITEM::GetSubNet() const
-{
-    return m_Subnet;
-}
-
-
-void BOARD_CONNECTED_ITEM::SetSubNet( int aSubNetCode )
-{
-    m_Subnet = aSubNetCode;
-}
-
-
-/**
- * Function GetZoneSubNet
- * @return int - the sub net code in zone connections.
- */
-int BOARD_CONNECTED_ITEM::GetZoneSubNet() const
-{
-    return m_ZoneSubnet;
-}
-
-
-void BOARD_CONNECTED_ITEM::SetZoneSubNet( int aSubNetCode )
-{
-    m_ZoneSubnet = aSubNetCode;
+    if( !aNoAssert )
+        assert( m_netinfo );
+    return m_netinfo;
 }
 
 
 int BOARD_CONNECTED_ITEM::GetClearance( BOARD_CONNECTED_ITEM* aItem ) const
 {
-    NETCLASS*   myclass  = GetNetClass();
+    NETCLASSPTR myclass = GetNetClass();
 
     // DO NOT use wxASSERT, because GetClearance is called inside an OnPaint event
     // and a call to wxASSERT can crash the application.
@@ -123,21 +89,14 @@ int BOARD_CONNECTED_ITEM::GetClearance( BOARD_CONNECTED_ITEM* aItem ) const
     }
     else
     {
-#ifdef __WXDEBUG__
-        wxLogWarning(wxT("BOARD_CONNECTED_ITEM::GetClearance():NULL netclass,type %d"), Type() );
-#endif
+        DBG(printf( "%s: NULL netclass,type %d", __func__, Type() );)
     }
 
     return 0;
 }
 
 
-/** return a pointer to the netclass of the zone
- * if the net is not found (can happen when a netlist is reread,
- * and the net name is not existant, return the default net class
- * So should not return a null pointer
- */
-NETCLASS* BOARD_CONNECTED_ITEM::GetNetClass() const
+NETCLASSPTR BOARD_CONNECTED_ITEM::GetNetClass() const
 {
     // It is important that this be implemented without any sequential searching.
     // Simple array lookups should be fine, performance-wise.
@@ -148,50 +107,37 @@ NETCLASS* BOARD_CONNECTED_ITEM::GetNetClass() const
 
     if( board == NULL )     // Should not occur
     {
-#ifdef __WXDEBUG__
-        wxLogWarning( wxT("BOARD_CONNECTED_ITEM::GetNetClass():NULL board,type %d"), Type() );
-#endif
-        return NULL;
+        DBG(printf( "%s: NULL board,type %d", __func__, Type() );)
+
+        return NETCLASSPTR();
     }
 
-    NETCLASS*       netclass = NULL;
-    int             netcode  = GetNet();
-    NETINFO_ITEM*   net = board->FindNet( netcode );
+    NETCLASSPTR     netclass;
+    NETINFO_ITEM*   net = board->FindNet( GetNetCode() );
 
     if( net )
     {
         netclass = net->GetNetClass();
 
-#ifdef __WXDEBUG__
-        if( netclass == NULL )
-        {
-            wxLogWarning( wxT("BOARD_CONNECTED_ITEM::GetNetClass():NULL netclass,type %d"), Type() );
-        }
-#endif
+        //DBG( if(!netclass) printf( "%s: NULL netclass,type %d", __func__, Type() );)
     }
 
     if( netclass )
         return netclass;
     else
-        return board->m_NetClasses.GetDefault();
+        return board->GetDesignSettings().GetDefault();
 }
 
-/**
- * Function GetNetClassName
- * @return the Net Class name of this item
- */
+
 wxString BOARD_CONNECTED_ITEM::GetNetClassName() const
 {
     wxString    name;
-    NETCLASS*   myclass = GetNetClass();
+    NETCLASSPTR myclass = GetNetClass();
 
     if( myclass )
         name = myclass->GetName();
     else
-    {
-        BOARD*  board = GetBoard();
-        name = board->m_NetClasses.GetDefault()->GetName();
-    }
+        name = NETCLASS::Default;
 
     return name;
 }

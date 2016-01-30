@@ -23,7 +23,10 @@
 
 
 # Function make_lexer
-# is a standard way to invoke TokenList2DsnLexer.cmake
+# is a standard way to invoke TokenList2DsnLexer.cmake.
+# Extra arguments are treated as source files which depend on the generated
+# outHeaderFile
+
 function( make_lexer inputFile outHeaderFile outCppFile enum )
     add_custom_command(
         OUTPUT  ${outHeaderFile}
@@ -41,5 +44,28 @@ function( make_lexer inputFile outHeaderFile outCppFile enum )
            ${outCppFile} from
            ${inputFile}"
         )
+
+    # extra_args, if any, are treated as source files (typically headers) which
+    # are known to depend on the generated outHeader.
+    foreach( extra_arg ${ARGN} )
+        set_source_files_properties( ${extra_arg}
+            PROPERTIES OBJECT_DEPENDS ${outHeaderFile}
+            )
+    endforeach()
+
 endfunction()
 
+
+# Is a macro instead of function so there's a higher probability that the
+# scope of CPACK_DEBIAN_PACKAGE_CONTROL_EXTRA is global
+macro( add_conffiles )
+    if( ${ARGC} STREQUAL "0" )
+        # remove the file when user passes no arguments, which he should do exactly once at top
+        file( REMOVE ${CMAKE_CURRENT_BINARY_DIR}/conffiles )
+    else()
+        foreach( filename ${ARGV} )
+            file( APPEND ${CMAKE_CURRENT_BINARY_DIR}/conffiles "${filename}\n" )
+        endforeach()
+        set( CPACK_DEBIAN_PACKAGE_CONTROL_EXTRA ${CMAKE_CURRENT_BINARY_DIR}/conffiles )
+    endif()
+endmacro( add_conffiles )

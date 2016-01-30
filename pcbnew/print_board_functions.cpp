@@ -30,8 +30,6 @@
 #include <wxPcbStruct.h>
 #include <printout_controler.h>
 #include <colors_selection.h>
-#include <pcbcommon.h>
-
 #include <class_board.h>
 #include <class_module.h>
 #include <class_edge_mod.h>
@@ -39,22 +37,22 @@
 #include <class_zone.h>
 
 #include <pcbnew.h>
-#include <protos.h>
 #include <pcbplot.h>
 #include <module_editor_frame.h>
 
 
 static void Print_Module( EDA_DRAW_PANEL* aPanel, wxDC* aDC, MODULE* aModule,
-                          GR_DRAWMODE aDraw_mode, int aMasklayer,
+                          GR_DRAWMODE aDraw_mode, LSET aMasklayer,
                           PRINT_PARAMETERS::DrillShapeOptT aDrillShapeOpt );
 
 void FOOTPRINT_EDIT_FRAME::PrintPage( wxDC* aDC,
-                                      int   aPrintMaskLayer,
+                                      LSET aPrintMaskLayer,
                                       bool  aPrintMirrorMode,
                                       void * aData)
 {
-    GR_DRAWMODE drawmode = GR_COPY;
+    const GR_DRAWMODE drawmode = (GR_DRAWMODE) 0;
     int     defaultPenSize = Millimeter2iu( 0.2 );
+    DISPLAY_OPTIONS* displ_opts = (DISPLAY_OPTIONS*)GetDisplayOptions();
 
     DISPLAY_OPTIONS save_opt;
 
@@ -64,37 +62,27 @@ void FOOTPRINT_EDIT_FRAME::PrintPage( wxDC* aDC,
     if( printParameters )
          defaultPenSize = printParameters->m_PenDefaultSize;
 
-    save_opt = DisplayOpt;
+    save_opt = *displ_opts;
 
-    DisplayOpt.ContrastModeDisplay = false;
-    DisplayOpt.DisplayPadFill = true;
-    DisplayOpt.DisplayViaFill = true;
-
-    m_DisplayPadFill = DisplayOpt.DisplayPadFill;
-    m_DisplayViaFill = DisplayOpt.DisplayViaFill;
-    m_DisplayPadNum = DisplayOpt.DisplayPadNum = false;
+    displ_opts->m_ContrastModeDisplay = false;
+    displ_opts->m_DisplayPadFill = true;
+    displ_opts->m_DisplayViaFill = true;
+    displ_opts->m_DisplayPadNum = false;
     bool nctmp = GetBoard()->IsElementVisible(NO_CONNECTS_VISIBLE);
     GetBoard()->SetElementVisibility(NO_CONNECTS_VISIBLE, false);
-    DisplayOpt.DisplayPadIsol    = false;
-    DisplayOpt.DisplayModEdge    = FILLED;
-    DisplayOpt.DisplayModText    = FILLED;
-    m_DisplayPcbTrackFill = DisplayOpt.DisplayPcbTrackFill = true;
-    DisplayOpt.ShowTrackClearanceMode = DO_NOT_SHOW_CLEARANCE;
-    DisplayOpt.DisplayDrawItems    = FILLED;
-    DisplayOpt.DisplayZonesMode    = 0;
-    DisplayOpt.DisplayNetNamesMode = 0;
+    displ_opts->m_DisplayPadIsol    = false;
+    displ_opts->m_DisplayModEdgeFill    = FILLED;
+    displ_opts->m_DisplayModTextFill    = FILLED;
+    displ_opts->m_DisplayPcbTrackFill = true;
+    displ_opts->m_ShowTrackClearanceMode = DO_NOT_SHOW_CLEARANCE;
+    displ_opts->m_DisplayDrawItemsFill    = FILLED;
+    displ_opts->m_DisplayZonesMode    = 0;
+    displ_opts->m_DisplayNetNamesMode = 0;
 
     m_canvas->SetPrintMirrored( aPrintMirrorMode );
 
-    // The OR mode is used in color mode, but be aware the background *must be
-    // BLACK.  In the print page dialog, we first print in BLACK, and after
-    // reprint in color, on the black "local" background, in OR mode the black
-    // print is not made before, only a white page is printed
-    if( GetGRForceBlackPenState() == false )
-        drawmode = GR_OR;
-
     // Draw footprints, this is done at last in order to print the pad holes in
-    // white (or g_DrawBgColor) after the tracks and zones
+    // white after the tracks and zones
     int tmp = D_PAD::m_PadSketchModePenSize;
     D_PAD::m_PadSketchModePenSize = defaultPenSize;
 
@@ -112,37 +100,24 @@ void FOOTPRINT_EDIT_FRAME::PrintPage( wxDC* aDC,
 
     m_canvas->SetPrintMirrored( false );
 
-    DisplayOpt = save_opt;
-    m_DisplayPcbTrackFill = DisplayOpt.DisplayPcbTrackFill;
-    m_DisplayPadFill = DisplayOpt.DisplayPadFill;
-    m_DisplayViaFill = DisplayOpt.DisplayViaFill;
-    m_DisplayPadNum  = DisplayOpt.DisplayPadNum;
+    *displ_opts = save_opt;
     GetBoard()->SetElementVisibility( NO_CONNECTS_VISIBLE, nctmp );
 }
 
 
-/**
- * Function PrintPage
- * is used to print the board (on printer, or when creating SVF files).
- * Print the board, but only layers allowed by aPrintMaskLayer
- * @param aDC = the print device context
- * @param aPrintMaskLayer = a 32 bits mask: bit n = 1 -> layer n is printed
- * @param aPrintMirrorMode = true to plot mirrored
- * @param aData = a pointer to an optional data (NULL if not used)
- */
 void PCB_EDIT_FRAME::PrintPage( wxDC* aDC,
-                                int   aPrintMaskLayer,
+                                LSET  aPrintMask,
                                 bool  aPrintMirrorMode,
                                 void* aData)
 {
-    MODULE* Module;
-    GR_DRAWMODE     drawmode = GR_COPY;
+    const GR_DRAWMODE drawmode = (GR_DRAWMODE) 0;
     DISPLAY_OPTIONS save_opt;
     BOARD*          Pcb   = GetBoard();
     int             defaultPenSize = Millimeter2iu( 0.2 );
     bool            onePagePerLayer = false;
 
-    PRINT_PARAMETERS * printParameters = (PRINT_PARAMETERS*) aData; // can be null
+    PRINT_PARAMETERS* printParameters = (PRINT_PARAMETERS*) aData; // can be null
+    DISPLAY_OPTIONS* displ_opts = (DISPLAY_OPTIONS*)GetDisplayOptions();
 
     if( printParameters && printParameters->m_OptionPrintPage == 0 )
         onePagePerLayer = true;
@@ -155,74 +130,69 @@ void PCB_EDIT_FRAME::PrintPage( wxDC* aDC,
         defaultPenSize = printParameters->m_PenDefaultSize;
     }
 
-    save_opt = DisplayOpt;
-    int activeLayer = GetScreen()->m_Active_Layer;
+    save_opt = *displ_opts;
 
-    DisplayOpt.ContrastModeDisplay = false;
-    DisplayOpt.DisplayPadFill = true;
-    DisplayOpt.DisplayViaFill = true;
+    LAYER_ID activeLayer = GetScreen()->m_Active_Layer;
 
-    if( (aPrintMaskLayer & ALL_CU_LAYERS) == 0 )
+    displ_opts->m_ContrastModeDisplay = false;
+    displ_opts->m_DisplayPadFill = true;
+    displ_opts->m_DisplayViaFill = true;
+
+    if( !( aPrintMask & LSET::AllCuMask() ).any() )
     {
         if( onePagePerLayer )
-        {   // We can print mask layers (solder mask and solder paste) with the actual
+        {
+            // We can print mask layers (solder mask and solder paste) with the actual
             // pad sizes.  To do that, we must set ContrastModeDisplay to true and set
-            //the GetScreen()->m_Active_Layer to the current printed layer
-            DisplayOpt.ContrastModeDisplay = true;
-            DisplayOpt.DisplayPadFill = true;
+            // the GetScreen()->m_Active_Layer to the current printed layer
+            displ_opts->m_ContrastModeDisplay = true;
+            displ_opts->m_DisplayPadFill = true;
 
             // Calculate the active layer number to print from its mask layer:
-            GetScreen()->m_Active_Layer = 0;
+            GetScreen()->m_Active_Layer = B_Cu;
 
-            for(int kk = 0; kk < 32; kk ++ )
+            for( LAYER_NUM id = LAYER_ID_COUNT-1; id >= 0; --id )
             {
-                if( ((1 << kk) & aPrintMaskLayer) != 0 )
+                if( aPrintMask[id] )
                 {
-                    GetScreen()->m_Active_Layer = kk;
+                    GetScreen()->m_Active_Layer = LAYER_ID( id );
                     break;
                 }
             }
 
             // pads on Silkscreen layer are usually plot in sketch mode:
-            if( (GetScreen()->m_Active_Layer == SILKSCREEN_N_BACK)
-                || (GetScreen()->m_Active_Layer == SILKSCREEN_N_FRONT) )
-                DisplayOpt.DisplayPadFill = false;
-
+            if( GetScreen()->m_Active_Layer == B_SilkS ||
+                GetScreen()->m_Active_Layer == F_SilkS )
+            {
+                displ_opts->m_DisplayPadFill = false;
+            }
         }
         else
         {
-            DisplayOpt.DisplayPadFill = false;
+            displ_opts->m_DisplayPadFill = false;
         }
     }
 
+    displ_opts->m_DisplayPadNum = false;
 
-    m_DisplayPadFill = DisplayOpt.DisplayPadFill;
-    m_DisplayViaFill = DisplayOpt.DisplayViaFill;
-    m_DisplayPadNum = DisplayOpt.DisplayPadNum = false;
     bool nctmp = GetBoard()->IsElementVisible( NO_CONNECTS_VISIBLE );
+
     GetBoard()->SetElementVisibility( NO_CONNECTS_VISIBLE, false );
+
     bool anchorsTmp = GetBoard()->IsElementVisible( ANCHOR_VISIBLE );
+
     GetBoard()->SetElementVisibility( ANCHOR_VISIBLE, false );
-    DisplayOpt.DisplayPadIsol = false;
-    m_DisplayModEdge = DisplayOpt.DisplayModEdge    = FILLED;
-    m_DisplayModText = DisplayOpt.DisplayModText    = FILLED;
-    m_DisplayPcbTrackFill = DisplayOpt.DisplayPcbTrackFill = true;
-    DisplayOpt.ShowTrackClearanceMode = DO_NOT_SHOW_CLEARANCE;
-    DisplayOpt.DisplayDrawItems    = FILLED;
-    DisplayOpt.DisplayZonesMode    = 0;
-    DisplayOpt.DisplayNetNamesMode = 0;
+
+    displ_opts->m_DisplayPadIsol = false;
+    displ_opts->m_DisplayModEdgeFill = FILLED;
+    displ_opts->m_DisplayModTextFill = FILLED;
+    displ_opts->m_DisplayPcbTrackFill = true;
+    displ_opts->m_ShowTrackClearanceMode = DO_NOT_SHOW_CLEARANCE;
+    displ_opts->m_DisplayDrawItemsFill    = FILLED;
+    displ_opts->m_DisplayZonesMode    = 0;
+    displ_opts->m_DisplayNetNamesMode = 0;
 
     m_canvas->SetPrintMirrored( aPrintMirrorMode );
-
-    // The OR mode is used in color mode, but be aware the background *must be
-    // BLACK.  In the print page dialog, we first print in BLACK, and after
-    // reprint in color, on the black "local" background, in OR mode the black
-    // print is not made before, only a white page is printed
-    if( GetGRForceBlackPenState() == false )
-        drawmode = GR_OR;
-
-    // Print the pcb graphic items (texts, ...)
-    GRSetDrawMode( aDC, drawmode );
 
     for( BOARD_ITEM* item = Pcb->m_Drawings; item; item = item->Next() )
     {
@@ -232,10 +202,8 @@ void PCB_EDIT_FRAME::PrintPage( wxDC* aDC,
         case PCB_DIMENSION_T:
         case PCB_TEXT_T:
         case PCB_TARGET_T:
-            if( ( ( 1 << item->GetLayer() ) & aPrintMaskLayer ) == 0 )
-                break;
-
-            item->Draw( m_canvas, aDC, drawmode );
+            if( aPrintMask[item->GetLayer()] )
+                item->Draw( m_canvas, aDC, drawmode );
             break;
 
         case PCB_MARKER_T:
@@ -245,19 +213,21 @@ void PCB_EDIT_FRAME::PrintPage( wxDC* aDC,
     }
 
     // Print tracks
-    for( TRACK * track = Pcb->m_Track; track; track = track->Next() )
+    for( TRACK* track = Pcb->m_Track; track; track = track->Next() )
     {
-        if( ( aPrintMaskLayer & track->ReturnMaskLayer() ) == 0 )
+        if( !( aPrintMask & track->GetLayerSet() ).any() )
             continue;
 
         if( track->Type() == PCB_VIA_T ) // VIA encountered.
         {
-            int radius = track->GetWidth() >> 1;
-            EDA_COLOR_T color = g_ColorsSettings.GetItemColor( VIAS_VISIBLE + track->GetShape() );
-            GRSetDrawMode( aDC, drawmode );
+            int         radius = track->GetWidth() / 2;
+            const VIA*  via = static_cast<const VIA*>( track );
+
+            EDA_COLOR_T color = g_ColorsSettings.GetItemColor( VIAS_VISIBLE + via->GetViaType() );
+
             GRFilledCircle( m_canvas->GetClipBox(), aDC,
-                            track->GetStart().x,
-                            track->GetStart().y,
+                            via->GetStart().x,
+                            via->GetStart().y,
                             radius,
                             0, color, color );
         }
@@ -268,9 +238,9 @@ void PCB_EDIT_FRAME::PrintPage( wxDC* aDC,
     }
 
     // Outdated: only for compatibility to old boards
-    for( TRACK * track = Pcb->m_Zone; track != NULL; track = track->Next() )
+    for( TRACK* track = Pcb->m_Zone; track; track = track->Next() )
     {
-        if( ( aPrintMaskLayer & track->ReturnMaskLayer() ) == 0 )
+        if( !( aPrintMask & track->GetLayerSet() ).any() )
             continue;
 
         track->Draw( m_canvas, aDC, drawmode );
@@ -281,21 +251,18 @@ void PCB_EDIT_FRAME::PrintPage( wxDC* aDC,
     {
         ZONE_CONTAINER* zone = Pcb->GetArea( ii );
 
-        if( ( aPrintMaskLayer & ( 1 << zone->GetLayer() ) ) == 0 )
-            continue;
-
-        zone->DrawFilledArea( m_canvas, aDC, drawmode );
+        if( aPrintMask[zone->GetLayer()] )
+            zone->DrawFilledArea( m_canvas, aDC, drawmode );
     }
 
     // Draw footprints, this is done at last in order to print the pad holes in
-    // white (or g_DrawBgColor) after the tracks and zones
-    Module = (MODULE*) Pcb->m_Modules;
+    // white after the tracks and zones
     int tmp = D_PAD::m_PadSketchModePenSize;
     D_PAD::m_PadSketchModePenSize = defaultPenSize;
 
-    for( ; Module != NULL; Module = Module->Next() )
+    for( MODULE* module = (MODULE*) Pcb->m_Modules; module;  module = module->Next() )
     {
-        Print_Module( m_canvas, aDC, Module, drawmode, aPrintMaskLayer, drillShapeOpt );
+        Print_Module( m_canvas, aDC, module, drawmode, aPrintMask, drillShapeOpt );
     }
 
     D_PAD::m_PadSketchModePenSize = tmp;
@@ -304,25 +271,27 @@ void PCB_EDIT_FRAME::PrintPage( wxDC* aDC,
      * vias */
     if( drillShapeOpt != PRINT_PARAMETERS::NO_DRILL_SHAPE )
     {
-        TRACK * track = Pcb->m_Track;
-        EDA_COLOR_T color = g_DrawBgColor;
-        bool blackpenstate = GetGRForceBlackPenState();
-        GRForceBlackPen( false );
-        GRSetDrawMode( aDC, GR_COPY );
+        TRACK*      track = Pcb->m_Track;
+        EDA_COLOR_T color = WHITE;
 
-        for( ; track != NULL; track = track->Next() )
+        bool blackpenstate = GetGRForceBlackPenState();
+
+        GRForceBlackPen( false );
+
+        for( ; track; track = track->Next() )
         {
-            if( ( aPrintMaskLayer & track->ReturnMaskLayer() ) == 0 )
+            if( !( aPrintMask & track->GetLayerSet() ).any() )
                 continue;
 
             if( track->Type() == PCB_VIA_T ) // VIA encountered.
             {
                 int diameter;
+                const VIA *via = static_cast<const VIA*>( track );
 
                 if( drillShapeOpt == PRINT_PARAMETERS::SMALL_DRILL_SHAPE )
-                    diameter = std::min( SMALL_DRILL, track->GetDrillValue() );
+                    diameter = std::min( SMALL_DRILL, via->GetDrillValue() );
                 else
-                    diameter = track->GetDrillValue();
+                    diameter = via->GetDrillValue();
 
                 GRFilledCircle( m_canvas->GetClipBox(), aDC,
                                 track->GetStart().x, track->GetStart().y,
@@ -336,27 +305,22 @@ void PCB_EDIT_FRAME::PrintPage( wxDC* aDC,
 
     m_canvas->SetPrintMirrored( false );
 
-    DisplayOpt = save_opt;
+    *displ_opts = save_opt;
     GetScreen()->m_Active_Layer = activeLayer;
-    m_DisplayPcbTrackFill = DisplayOpt.DisplayPcbTrackFill;
-    m_DisplayPadFill = DisplayOpt.DisplayPadFill;
-    m_DisplayViaFill = DisplayOpt.DisplayViaFill;
-    m_DisplayPadNum  = DisplayOpt.DisplayPadNum;
-    m_DisplayModEdge = DisplayOpt.DisplayModEdge;
-    m_DisplayModText = DisplayOpt.DisplayModText;
-    GetBoard()->SetElementVisibility(NO_CONNECTS_VISIBLE, nctmp);
-    GetBoard()->SetElementVisibility(ANCHOR_VISIBLE, anchorsTmp);
+
+    GetBoard()->SetElementVisibility( NO_CONNECTS_VISIBLE, nctmp );
+    GetBoard()->SetElementVisibility( ANCHOR_VISIBLE, anchorsTmp );
 }
 
 
 static void Print_Module( EDA_DRAW_PANEL* aPanel, wxDC* aDC, MODULE* aModule,
-                          GR_DRAWMODE aDraw_mode, int aMasklayer,
+                          GR_DRAWMODE aDraw_mode, LSET aMask,
                           PRINT_PARAMETERS::DrillShapeOptT aDrillShapeOpt )
 {
     // Print pads
-    for( D_PAD* pad = aModule->m_Pads;  pad;  pad = pad->Next() )
+    for( D_PAD* pad = aModule->Pads();  pad;  pad = pad->Next() )
     {
-        if( (pad->GetLayerMask() & aMasklayer ) == 0 )
+        if( !( pad->GetLayerSet() & aMask ).any() )
             continue;
 
         // Manage hole according to the print drill option
@@ -386,41 +350,32 @@ static void Print_Module( EDA_DRAW_PANEL* aPanel, wxDC* aDC, MODULE* aModule,
         pad->SetDrillSize( drill_tmp );
     }
 
-    // Print footprint graphic shapes
-    int mlayer   = GetLayerMask( aModule->GetLayer() );
+    if( aModule->Reference().IsVisible() && aMask[aModule->Reference().GetLayer()] )
+        aModule->Reference().Draw( aPanel, aDC, aDraw_mode );
 
-    if( aModule->GetLayer() == LAYER_N_BACK )
-        mlayer = SILKSCREEN_LAYER_BACK;
-    else if( aModule->GetLayer() == LAYER_N_FRONT )
-        mlayer = SILKSCREEN_LAYER_FRONT;
+    if( aModule->Value().IsVisible() && aMask[aModule->Value().GetLayer()] )
+        aModule->Value().Draw( aPanel, aDC, aDraw_mode );
 
-    if( mlayer & aMasklayer )
-    {
-        if( aModule->m_Reference->IsVisible() )
-            aModule->m_Reference->Draw( aPanel, aDC, aDraw_mode );
-
-        if( aModule->m_Value->IsVisible() )
-            aModule->m_Value->Draw( aPanel, aDC, aDraw_mode );
-    }
-
-    for( EDA_ITEM* item = aModule->m_Drawings;  item;  item = item->Next() )
+    for( EDA_ITEM* item = aModule->GraphicalItems();  item;  item = item->Next() )
     {
         switch( item->Type() )
         {
         case PCB_MODULE_TEXT_T:
-            if( ( mlayer & aMasklayer ) == 0 )
-                break;
+            {
+                TEXTE_MODULE* textMod = static_cast<TEXTE_MODULE*>( item );
 
-            TEXTE_MODULE* textMod;
-            textMod = (TEXTE_MODULE*) item;
-            textMod->Draw( aPanel, aDC, aDraw_mode );
-            break;
+                if( !aMask[textMod->GetLayer()] )
+                    break;
+
+                textMod->Draw( aPanel, aDC, aDraw_mode );
+                break;
+            }
 
         case PCB_MODULE_EDGE_T:
             {
-                EDGE_MODULE* edge = (EDGE_MODULE*) item;
+                EDGE_MODULE* edge = static_cast<EDGE_MODULE*>( item );
 
-                if( ( GetLayerMask( edge->GetLayer() ) & aMasklayer ) == 0 )
+                if( !aMask[edge->GetLayer()] )
                     break;
 
                 edge->Draw( aPanel, aDC, aDraw_mode );

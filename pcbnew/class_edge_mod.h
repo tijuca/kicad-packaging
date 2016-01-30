@@ -1,9 +1,9 @@
 /*
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
- * Copyright (C) 2004 Jean-Pierre Charras, jaen-pierre.charras@gipsa-lab.inpg.com
- * Copyright (C) 2011 Wayne Stambaugh <stambaughw@verizon.net>
- * Copyright (C) 1992-2011 KiCad Developers, see AUTHORS.txt for contributors.
+ * Copyright (C) 2015 Jean-Pierre Charras, jp.charras at wanadoo.fr
+ * Copyright (C) 2013 Wayne Stambaugh <stambaughw@verizon.net>
+ * Copyright (C) 1992-2015 KiCad Developers, see AUTHORS.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -32,11 +32,12 @@
 #define CLASS_EDGE_MOD_H_
 
 
+#include <wx/gdicmn.h>
+
 #include <class_drawsegment.h>
 
 
 class LINE_READER;
-class EDA_3D_CANVAS;
 class MSG_PANEL_ITEM;
 
 
@@ -50,10 +51,47 @@ public:
 
     ~EDGE_MODULE();
 
-    EDGE_MODULE* Next() const { return (EDGE_MODULE*) Pnext; }
-    EDGE_MODULE* Back() const { return (EDGE_MODULE*) Pback; }
+    /// skip the linked list stuff, and parent
+    const EDGE_MODULE& operator = ( const EDGE_MODULE& rhs );
+
+    static inline bool ClassOf( const EDA_ITEM* aItem )
+    {
+        return aItem && PCB_MODULE_EDGE_T == aItem->Type();
+    }
 
     void Copy( EDGE_MODULE* source );           // copy structure
+
+    /**
+     * Move an edge of the footprint.
+     * This is a footprint shape modification.
+     * (should be only called by a footprint editing function)
+     */
+    void Move( const wxPoint& aMoveVector );
+
+    /**
+     * Mirror an edge of the footprint.
+     * Do not change the layer
+     * This is a footprint shape modification.
+     * (should be only called by a footprint editing function)
+     */
+    void Mirror( const wxPoint aCentre, bool aMirrorAroundXAxis );
+
+    /**
+     * Rotate an edge of the footprint.
+     * This is a footprint shape modification.
+     * (should be only called by a footprint editing function )
+     */
+    void Rotate( const wxPoint& aRotCentre, double aAngle );
+
+    /**
+     * Flip entity relative to aCentre.
+     * The item is mirrored, and layer changed to the paired corresponding layer
+     * if it is on a paired layer
+     * This function should be called only from MODULE::Flip because there is
+     * not usual to flip an item alone, without flipping the parent footprint.
+     * (consider Mirror for a mirror transform).
+     */
+    void Flip( const wxPoint& aCentre );
 
     void SetStart0( const wxPoint& aPoint )     { m_Start0 = aPoint; }
     const wxPoint& GetStart0() const            { return m_Start0; }
@@ -61,21 +99,30 @@ public:
     void SetEnd0( const wxPoint& aPoint )       { m_End0 = aPoint; }
     const wxPoint& GetEnd0() const              { return m_End0; }
 
+    /**
+     * Set relative coordinates from draw coordinates.
+     * Call in only when the geometry ov the footprint is modified
+     * and therefore the relative coordinates have to be updated from
+     * the draw coordinates
+     */
+    void SetLocalCoord();
+
+    /**
+     * Set draw coordinates (absolute values ) from relative coordinates.
+     * Must be called when a relative coordinate has changed, in order
+     * to see the changes on screen
+     */
     void SetDrawCoord();
 
     /* drawing functions */
     void Draw( EDA_DRAW_PANEL* panel, wxDC* DC,
                GR_DRAWMODE aDrawMode, const wxPoint& offset = ZeroOffset );
 
-    void Draw3D( EDA_3D_CANVAS* glcanvas );
-
     void GetMsgPanelInfo( std::vector< MSG_PANEL_ITEM >& aList );
 
     wxString GetClass() const
     {
         return wxT( "MGRAPHIC" );
-
-        // return wxT( "EDGE" );  ?
     }
 
     wxString GetSelectMenuText() const;
@@ -84,8 +131,9 @@ public:
 
     EDA_ITEM* Clone() const;
 
+
 #if defined(DEBUG)
-    void Show( int nestLevel, std::ostream& os ) const;     // overload
+    void Show( int nestLevel, std::ostream& os ) const { ShowDummy( os ); } // override
 #endif
 
 //protected:  @todo: is it just me?

@@ -34,8 +34,8 @@
 
 #include <wx/xml/xml.h>
 
-#if wxCHECK_VERSION( 2, 9, 0  )
-#define wxXmlProperty wxXmlAttribute
+#if !wxCHECK_VERSION( 2, 9, 0  )
+#define wxXmlAttribute wxXmlProperty
 #endif
 
 /**
@@ -58,7 +58,7 @@ public:
     }
 
     XNODE( XNODE* aParent, wxXmlNodeType aType, const wxString& aName,
-           const wxString& aContent = wxEmptyString, wxXmlProperty* aProperties = NULL ) :
+           const wxString& aContent = wxEmptyString, wxXmlAttribute* aProperties = NULL ) :
         wxXmlNode( aParent, aType, aName, aContent, aProperties )
     {
     }
@@ -106,17 +106,21 @@ public:
 
     wxString GetAttribute( const wxString& attrName, const wxString& defaultVal ) const
     {
-        return GetPropVal(attrName, defaultVal);
+        return GetPropVal( attrName, defaultVal );
     }
     bool GetAttribute( const wxString& attrName, wxString *value ) const
     {
-        return GetPropVal(attrName, value);
+        return GetPropVal( attrName, value );
     }
     void AddAttribute( const wxString& attrName, const wxString& value )
     {
-        AddProperty(attrName, value);
+        AddProperty( attrName, value );
     }
-    wxXmlProperty* GetAttributes() const
+    bool DeleteAttribute( const wxString& attrName )
+    {
+        return DeleteProperty( attrName );
+    }
+    wxXmlAttribute* GetAttributes() const
     {
         return GetProperties();
     }

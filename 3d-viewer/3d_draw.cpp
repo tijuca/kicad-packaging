@@ -1,7 +1,8 @@
 /*
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
- * Copyright (C) 1992-2012 KiCad Developers, see AUTHORS.txt for contributors.
+ * Copyright (C) 2014-2015 Mario Luzeiro <mrluzeiro@gmail.com>
+ * Copyright (C) 1992-2015 KiCad Developers, see AUTHORS.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -23,7 +24,8 @@
 
 /**
  * @file 3d_draw.cpp
-*/
+ *
+ */
 
 #include <fctsys.h>
 #include <common.h>
@@ -32,6 +34,7 @@
 #include <drawtxt.h>
 #include <layers_id_colors_and_visibility.h>
 
+#include <wxBasePcbFrame.h>
 #include <class_board.h>
 #include <class_module.h>
 #include <class_track.h>
@@ -41,6 +44,12 @@
 #include <class_pcb_text.h>
 #include <colors_selection.h>
 #include <convert_basic_shapes_to_polygon.h>
+#define GLM_FORCE_RADIANS
+#include <gal/opengl/glm/gtc/matrix_transform.hpp>
+#include <gal/opengl/opengl_compositor.h>
+#ifdef __WINDOWS__
+#include <GL/glew.h>        // must be included before gl.h
+#endif
 
 #include <3d_viewer.h>
 #include <3d_canvas.h>
@@ -48,28 +57,248 @@
 #include <trackball.h>
 #include <3d_draw_basic_functions.h>
 
-// Imported function:
-extern void SetGLColor( int color );
-extern void Set_Object_Data( std::vector< S3D_VERTEX >& aVertices, double aBiuTo3DUnits );
-extern void CheckGLError();
+#include <CImage.h>
+#include <reporter.h>
 
 
- /* returns true if aLayer should be displayed, false otherwise
-  */
-static bool    Is3DLayerEnabled( int aLayer );
+extern bool useFastModeForPolygons;
 
- /* returns the Z orientation parmeter 1.0 or -1.0 for aLayer
-  * Z orientation is 1.0 for all layers but "back" layers:
-  *  LAYER_N_BACK , ADHESIVE_N_BACK, SOLDERPASTE_N_BACK ), SILKSCREEN_N_BACK
-  * used to calculate the Z orientation parmeter for glNormal3f
-  */
-static GLfloat  Get3DLayer_Z_Orientation( int aLayer );
+/* returns the Z orientation parameter 1.0 or -1.0 for aLayer
+ * Z orientation is 1.0 for all layers but "back" layers:
+ *  B_Cu , B_Adhes, B_Paste ), B_SilkS
+ * used to calculate the Z orientation parameter for glNormal3f
+ */
+GLfloat  Get3DLayer_Z_Orientation( LAYER_NUM aLayer );
 
-void EDA_3D_CANVAS::Redraw( bool finish )
+
+/**
+ * Class STATUS_TEXT_REPORTER
+ * is a wrapper for reporting to a wxString in a wxFrame status text.
+ */
+class STATUS_TEXT_REPORTER : public REPORTER
+{
+    wxFrame * m_frame;
+    int m_position;
+    bool m_hasMessage;
+
+
+public:
+    STATUS_TEXT_REPORTER( wxFrame* aFrame, int aPosition = 0 ) :
+        REPORTER(),
+        m_frame( aFrame ), m_position( aPosition )
+    {
+        m_hasMessage = false;
+    }
+
+    REPORTER& Report( const wxString& aText, SEVERITY aSeverity = RPT_UNDEFINED )
+    {
+        if( !aText.IsEmpty() )
+            m_hasMessage = true;
+
+        m_frame->SetStatusText( aText, m_position );
+        return *this;
+    }
+
+    bool HasMessage() const { return m_hasMessage; }
+};
+
+
+void EDA_3D_CANVAS::create_and_render_shadow_buffer( GLuint *aDst_gl_texture,
+        GLuint aTexture_size, bool aDraw_body, int aBlurPasses )
+{
+    glDisable( GL_TEXTURE_2D );
+
+    glViewport( 0, 0, aTexture_size, aTexture_size);
+
+    glClearColor( 1.0f, 1.0f, 1.0f, 1.0f );
+    glClear( GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT );
+
+    // Render body and shapes
+
+    if( aDraw_body && m_glLists[GL_ID_BODY] )
+        glCallList( m_glLists[GL_ID_BODY] );
+
+    if( m_glLists[GL_ID_3DSHAPES_SOLID_FRONT] )
+        glCallList( m_glLists[GL_ID_3DSHAPES_SOLID_FRONT] );
+
+    // Create and Initialize the float depth buffer
+
+    float *depthbufferFloat = (float*) malloc( aTexture_size * aTexture_size * sizeof(float) );
+
+    for( unsigned int i = 0; i < (aTexture_size * aTexture_size); i++ )
+        depthbufferFloat[i] = 1.0f;
+
+    glPixelStorei( GL_PACK_ALIGNMENT, 4 );
+    glPixelStorei( GL_UNPACK_ALIGNMENT, 4 );
+    glReadBuffer( GL_BACK_LEFT );
+    glReadPixels( 0, 0,
+                  aTexture_size, aTexture_size,
+                  GL_DEPTH_COMPONENT, GL_FLOAT, depthbufferFloat );
+
+    CheckGLError( __FILE__, __LINE__ );
+
+    glEnable( GL_TEXTURE_2D );
+    glGenTextures( 1, aDst_gl_texture );
+    glBindTexture( GL_TEXTURE_2D, *aDst_gl_texture );
+
+    CIMAGE imgDepthBuffer( aTexture_size, aTexture_size );
+    CIMAGE imgDepthBufferAux( aTexture_size, aTexture_size );
+
+    imgDepthBuffer.SetPixelsFromNormalizedFloat( depthbufferFloat );
+
+    free( depthbufferFloat );
+
+    // Debug texture image
+    //wxString filename;
+    //filename.Printf( "imgDepthBuffer_%04d", *aDst_gl_texture );
+    //imgDepthBuffer.SaveAsPNG( filename );
+
+    while( aBlurPasses > 0 )
+    {
+        aBlurPasses--;
+        imgDepthBufferAux.EfxFilter( &imgDepthBuffer, FILTER_GAUSSIAN_BLUR );
+        imgDepthBuffer.EfxFilter( &imgDepthBufferAux, FILTER_GAUSSIAN_BLUR );
+    }
+
+    // Debug texture image
+    //filename.Printf( "imgDepthBuffer_blur%04d", *aDst_gl_texture );
+    //imgDepthBuffer.SaveAsPNG( filename );
+
+    unsigned char *depthbufferRGBA = (unsigned char*) malloc( aTexture_size * aTexture_size * 4 );
+    unsigned char *pPixels = imgDepthBuffer.GetBuffer();
+
+    // Convert it to a RGBA buffer
+    for( unsigned int i = 0; i < (aTexture_size * aTexture_size); i++ )
+    {
+        depthbufferRGBA[i * 4 + 0] = 0;
+        depthbufferRGBA[i * 4 + 1] = 0;
+        depthbufferRGBA[i * 4 + 2] = 0;
+        depthbufferRGBA[i * 4 + 3] = 255 - pPixels[i];                  // Store in alpha channel the inversion of the image
+    }
+
+    glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE );
+    glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE );
+    glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR );
+    glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR );
+
+    glTexImage2D( GL_TEXTURE_2D, 0, GL_RGBA, aTexture_size, aTexture_size, 0, GL_RGBA, GL_UNSIGNED_BYTE, depthbufferRGBA );
+
+    free( depthbufferRGBA );
+
+    CheckGLError( __FILE__, __LINE__ );
+}
+
+/// Scale factor to make a bigger BBox in order to blur the texture and dont have artifacts in the edges
+#define SHADOW_BOUNDING_BOX_SCALE 1.25f
+
+void EDA_3D_CANVAS::generateFakeShadowsTextures( REPORTER* aErrorMessages, REPORTER* aActivity )
+{
+    if( m_shadow_init == true )
+    {
+        return;
+    }
+
+    // Init info 3d parameters and create gl lists:
+    CreateDrawGL_List( aErrorMessages, aActivity );
+
+    DBG( unsigned strtime = GetRunningMicroSecs() );
+
+    m_shadow_init = true;
+
+    glClearColor( 0, 0, 0, 1 );
+
+    glMatrixMode( GL_PROJECTION );
+    glLoadIdentity();
+
+    const float zDistMax = Millimeter2iu( 3.5 ) * GetPrm3DVisu().m_BiuTo3Dunits;
+
+    glOrtho( -GetPrm3DVisu().m_BoardSize.x * GetPrm3DVisu().m_BiuTo3Dunits / 2.0f,
+             GetPrm3DVisu().m_BoardSize.x * GetPrm3DVisu().m_BiuTo3Dunits / 2.0f,
+             -GetPrm3DVisu().m_BoardSize.y * GetPrm3DVisu().m_BiuTo3Dunits / 2.0f,
+             GetPrm3DVisu().m_BoardSize.y * GetPrm3DVisu().m_BiuTo3Dunits / 2.0f,
+             0.0, zDistMax );
+
+    float zpos = GetPrm3DVisu().GetLayerZcoordBIU( F_Paste ) * GetPrm3DVisu().m_BiuTo3Dunits;
+
+    // Render FRONT shadow
+    glMatrixMode( GL_MODELVIEW );
+    glLoadIdentity();
+    glTranslatef( 0.0f, 0.0f, zpos );
+    glRotatef( 180.0f, 0.0f, 1.0f, 0.0f );
+
+    // move the board in order to draw it with its center at 0,0 3D coordinates
+    glTranslatef( -GetPrm3DVisu().m_BoardPos.x * GetPrm3DVisu().m_BiuTo3Dunits,
+                  -GetPrm3DVisu().m_BoardPos.y * GetPrm3DVisu().m_BiuTo3Dunits,
+                  0.0f );
+
+    create_and_render_shadow_buffer( &m_text_fake_shadow_front, 512, false, 1 );
+
+    zpos = GetPrm3DVisu().GetLayerZcoordBIU( B_Paste ) * GetPrm3DVisu().m_BiuTo3Dunits;
+
+    // Render BACK shadow
+    glMatrixMode( GL_MODELVIEW );
+    glLoadIdentity();
+    glTranslatef( 0.0f, 0.0f, fabs( zpos ) );
+
+
+    // move the board in order to draw it with its center at 0,0 3D coordinates
+    glTranslatef( -GetPrm3DVisu().m_BoardPos.x * GetPrm3DVisu().m_BiuTo3Dunits,
+                  -GetPrm3DVisu().m_BoardPos.y * GetPrm3DVisu().m_BiuTo3Dunits,
+                  0.0f );
+
+    create_and_render_shadow_buffer( &m_text_fake_shadow_back, 512, false, 1 );
+
+
+    // Render ALL BOARD shadow
+    glMatrixMode( GL_PROJECTION );
+    glLoadIdentity();
+
+    // Normalization scale to convert bouding box
+    // to normalize 3D units between -1.0 and +1.0
+
+    S3D_VERTEX v = m_fastAABBox_Shadow.Max() - m_fastAABBox_Shadow.Min();
+    float BoundingBoxBoardiuTo3Dunits = 2.0f / glm::max( v.x, v.y );
+
+    //float zDistance = (m_lightPos.z * zDistMax) / sqrt( (m_lightPos.z - m_fastAABBox_Shadow.Min().z) );
+    float zDistance = (m_lightPos.z - m_fastAABBox_Shadow.Min().z) / 3.0f;
+
+    glOrtho( -v.x * BoundingBoxBoardiuTo3Dunits / 2.0f,
+              v.x * BoundingBoxBoardiuTo3Dunits / 2.0f,
+             -v.y * BoundingBoxBoardiuTo3Dunits / 2.0f,
+              v.y * BoundingBoxBoardiuTo3Dunits / 2.0f,
+             0.0f, zDistance );
+
+    glMatrixMode( GL_MODELVIEW );
+    glLoadIdentity();
+
+    // fits the bouding box to scale this size
+    glScalef( BoundingBoxBoardiuTo3Dunits, BoundingBoxBoardiuTo3Dunits, 1.0f );
+
+    // Place the eye in the lowerpoint of boudingbox and turn arround and look up to the model
+    glTranslatef( 0.0f, 0.0f, m_fastAABBox_Shadow.Min().z );
+    glRotatef( 180.0, 0.0f, 1.0f, 0.0f );
+
+    // move the bouding box in order to draw it with its center at 0,0 3D coordinates
+    glTranslatef( -(m_fastAABBox_Shadow.Min().x + v.x / 2.0f), -(m_fastAABBox_Shadow.Min().y + v.y / 2.0f), 0.0f );
+
+    create_and_render_shadow_buffer( &m_text_fake_shadow_board, 512, true, 10 );
+
+    DBG( printf( "  generateFakeShadowsTextures total time %f ms\n", (double) (GetRunningMicroSecs() - strtime) / 1000.0 ) );
+}
+
+
+void EDA_3D_CANVAS::Redraw()
 {
     // SwapBuffer requires the window to be shown before calling
     if( !IsShown() )
         return;
+
+    wxString err_messages;
+    WX_STRING_REPORTER errorReporter( &err_messages );
+    STATUS_TEXT_REPORTER activityReporter( Parent(), 0 );
+
+    // Display build time at the end of build
+    unsigned strtime = GetRunningMicroSecs();
 
     SetCurrent( *m_glRC );
 
@@ -79,1015 +308,908 @@ void EDA_3D_CANVAS::Redraw( bool finish )
     // multiple canvases: If we updated the viewport in the wxSizeEvent
     // handler, changing the size of one canvas causes a viewport setting that
     // is wrong when next another canvas is repainted.
-    const wxSize ClientSize = GetClientSize();
-
-    // *MUST* be called *after*  SetCurrent( ):
-    glViewport( 0, 0, ClientSize.x, ClientSize.y );
+    wxSize size = GetClientSize();
 
     InitGL();
 
+    if( isRealisticMode() && isEnabled( FL_RENDER_SHADOWS ) )
+    {
+        generateFakeShadowsTextures( &errorReporter, &activityReporter );
+    }
+
+    // *MUST* be called *after*  SetCurrent( ):
+    glViewport( 0, 0, size.x, size.y );
+
+    // clear color and depth buffers
+    glClearColor( 0.95, 0.95, 1.0, 1.0 );
+    glClearStencil( 0 );
+    glClearDepth( 1.0 );
+    glClear( GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT );
+
+    glShadeModel( GL_SMOOTH );
+
+    // Draw background
+    glMatrixMode( GL_PROJECTION );
+    glLoadIdentity();
+
+    glMatrixMode( GL_MODELVIEW );
+    glLoadIdentity();
+
+    glDisable( GL_LIGHTING );
+    glDisable( GL_COLOR_MATERIAL );
+    glDisable( GL_DEPTH_TEST );
+    glDisable( GL_TEXTURE_2D );
+
+    // Draw the background ( rectangle with color gradient)
+    glBegin( GL_QUADS );
+    SetGLColor( GetPrm3DVisu().m_BgColor_Top, 1.0 );
+    glVertex2f( -1.0, 1.0 );    // Top left corner
+
+    SetGLColor( GetPrm3DVisu().m_BgColor, 1.0 );
+    glVertex2f( -1.0,-1.0 );    // bottom left corner
+    glVertex2f( 1.0,-1.0 );     // bottom right corner
+
+    SetGLColor( GetPrm3DVisu().m_BgColor_Top, 1.0 );
+    glVertex2f( 1.0, 1.0 );     // top right corner
+
+    glEnd();
+    glEnable( GL_DEPTH_TEST );
+
+
+    // set viewing projection
+    glMatrixMode( GL_PROJECTION );
+    glLoadIdentity();
+
+#define MAX_VIEW_ANGLE 160.0 / 45.0
+
+    if( GetPrm3DVisu().m_Zoom > MAX_VIEW_ANGLE )
+        GetPrm3DVisu().m_Zoom = MAX_VIEW_ANGLE;
+
+     if( Parent()->ModeIsOrtho() )
+     {
+         // OrthoReductionFactor is chosen to provide roughly the same size as
+         // Perspective View
+         const double orthoReductionFactor = 400 / GetPrm3DVisu().m_Zoom;
+
+         // Initialize Projection Matrix for Ortographic View
+         glOrtho( -size.x / orthoReductionFactor, size.x / orthoReductionFactor,
+                  -size.y / orthoReductionFactor, size.y / orthoReductionFactor, 1, 100 );
+     }
+     else
+     {
+         // Ratio width / height of the window display
+         double ratio_HV = (double) size.x / size.y;
+
+         // Initialize Projection Matrix for Perspective View
+         gluPerspective( 45.0f * GetPrm3DVisu().m_Zoom, ratio_HV, 1, 100 );
+     }
+
+    // position viewer
+    glMatrixMode( GL_MODELVIEW );
+    glLoadIdentity();
+
+    glTranslatef( 0.0f, 0.0f, -(m_ZBottom + m_ZTop) / 2.0f );
+
+    // Setup light sources:
+    SetLights();
+
+    CheckGLError( __FILE__, __LINE__ );
+
     glMatrixMode( GL_MODELVIEW );    // position viewer
+
     // transformations
     GLfloat mat[4][4];
 
     // Translate motion first, so rotations don't mess up the orientation...
     glTranslatef( m_draw3dOffset.x, m_draw3dOffset.y, 0.0F );
 
-    build_rotmatrix( mat, g_Parm_3D_Visu.m_Quat );
+    build_rotmatrix( mat, GetPrm3DVisu().m_Quat );
     glMultMatrixf( &mat[0][0] );
 
-    glRotatef( g_Parm_3D_Visu.m_Rot[0], 1.0, 0.0, 0.0 );
-    glRotatef( g_Parm_3D_Visu.m_Rot[1], 0.0, 1.0, 0.0 );
-    glRotatef( g_Parm_3D_Visu.m_Rot[2], 0.0, 0.0, 1.0 );
+    glRotatef( GetPrm3DVisu().m_Rot[0], 1.0, 0.0, 0.0 );
+    glRotatef( GetPrm3DVisu().m_Rot[1], 0.0, 1.0, 0.0 );
+    glRotatef( GetPrm3DVisu().m_Rot[2], 0.0, 0.0, 1.0 );
 
-    if( m_gllist )
+
+    if( ! m_glLists[GL_ID_BOARD] || ! m_glLists[GL_ID_TECH_LAYERS] )
+        CreateDrawGL_List( &errorReporter, &activityReporter );
+
+    if( isEnabled( FL_AXIS ) && m_glLists[GL_ID_AXIS] )
+        glCallList( m_glLists[GL_ID_AXIS] );
+
+    // move the board in order to draw it with its center at 0,0 3D coordinates
+    glTranslatef( -GetPrm3DVisu().m_BoardPos.x * GetPrm3DVisu().m_BiuTo3Dunits,
+                  -GetPrm3DVisu().m_BoardPos.y * GetPrm3DVisu().m_BiuTo3Dunits,
+                  0.0f );
+
+    if( isEnabled( FL_MODULE ) )
     {
-        glCallList( m_gllist );
+        if( ! m_glLists[GL_ID_3DSHAPES_SOLID_FRONT] )
+            CreateDrawGL_List( &errorReporter, &activityReporter );
     }
+
+    glEnable( GL_LIGHTING );
+
+    glEnable( GL_BLEND );
+    glBlendFunc( GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA );
+
+    if( isRealisticMode() && isEnabled( FL_RENDER_TEXTURES ) )
+        glEnable( GL_TEXTURE_2D );
     else
+        glDisable( GL_TEXTURE_2D );
+
+    // Set material for the board
+    glEnable( GL_COLOR_MATERIAL );
+    SetOpenGlDefaultMaterial();
+
+    //glLightModeli( GL_LIGHT_MODEL_TWO_SIDE, FALSE );
+
+    // Board Body
+
+    GLint shininess_value = 32;
+    glMateriali ( GL_FRONT_AND_BACK, GL_SHININESS, shininess_value );
+
+    if( isEnabled( FL_SHOW_BOARD_BODY ) )
     {
-        CreateDrawGL_List();
+        if( m_glLists[GL_ID_BODY] )
+        {
+            glCallList( m_glLists[GL_ID_BODY] );
+        }
     }
 
-    glFlush();
-    if( finish )
-        glFinish();
+
+    // Board
+
+    shininess_value = 52;
+    glMateriali ( GL_FRONT_AND_BACK, GL_SHININESS, shininess_value );
+
+    glm::vec4 specular( GetPrm3DVisu().m_CopperColor.m_Red   * 0.20f,
+                        GetPrm3DVisu().m_CopperColor.m_Green * 0.20f,
+                        GetPrm3DVisu().m_CopperColor.m_Blue  * 0.20f, 1.0f );
+    glMaterialfv( GL_FRONT_AND_BACK, GL_SPECULAR, &specular.x );
+
+    if( m_glLists[GL_ID_BOARD] )
+    {
+        glCallList( m_glLists[GL_ID_BOARD] );
+    }
+
+
+    // Tech layers
+
+    shininess_value = 32;
+    glMateriali ( GL_FRONT_AND_BACK, GL_SHININESS, shininess_value );
+
+    glm::vec4 specularTech( 0.0f, 0.0f, 0.0f, 1.0f );
+    glMaterialfv( GL_FRONT_AND_BACK, GL_SPECULAR, &specularTech.x );
+
+    if( m_glLists[GL_ID_TECH_LAYERS] )
+    {
+        glCallList( m_glLists[GL_ID_TECH_LAYERS] );
+    }
+
+    if( isEnabled( FL_COMMENTS ) || isEnabled( FL_ECO )  )
+    {
+        if( ! m_glLists[GL_ID_AUX_LAYERS] )
+            CreateDrawGL_List( &errorReporter, &activityReporter );
+
+        glCallList( m_glLists[GL_ID_AUX_LAYERS] );
+    }
+
+    //glLightModeli( GL_LIGHT_MODEL_TWO_SIDE, TRUE );
+
+    // Draw Component Shadow
+
+    if( isEnabled( FL_MODULE )  && isRealisticMode() &&
+        isEnabled( FL_RENDER_SHADOWS ) )
+    {
+        glEnable( GL_CULL_FACE );
+        glDisable( GL_DEPTH_TEST );
+
+        glEnable( GL_COLOR_MATERIAL ) ;
+        SetOpenGlDefaultMaterial();
+        glColor4f( 1.0f, 1.0f, 1.0f, 1.0f );
+
+        glEnable( GL_TEXTURE_2D );
+
+        glEnable( GL_BLEND );
+        glBlendFunc( GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA );
+
+        if( m_glLists[GL_ID_SHADOW_FRONT] )
+        {
+            glBindTexture( GL_TEXTURE_2D, m_text_fake_shadow_front );
+            glCallList( m_glLists[GL_ID_SHADOW_FRONT] );
+        }
+
+        if( m_glLists[GL_ID_SHADOW_BACK] )
+        {
+            glBindTexture( GL_TEXTURE_2D, m_text_fake_shadow_back );
+            glCallList( m_glLists[GL_ID_SHADOW_BACK] );
+        }
+        glColor4f( 1.0f, 1.0f, 1.0f, 1.0f );
+
+        glEnable( GL_DEPTH_TEST );
+        glDisable( GL_TEXTURE_2D );
+        glDisable( GL_CULL_FACE );
+    }
+
+    glEnable( GL_COLOR_MATERIAL );
+    SetOpenGlDefaultMaterial();
+
+    glDisable( GL_BLEND );
+
+
+    // Draw Solid Shapes
+
+    if( isEnabled( FL_MODULE ) )
+    {
+        if( ! m_glLists[GL_ID_3DSHAPES_SOLID_FRONT] )
+            CreateDrawGL_List( &errorReporter, &activityReporter );
+
+        glCallList( m_glLists[GL_ID_3DSHAPES_SOLID_FRONT] );
+    }
+
+    glEnable( GL_BLEND );
+    glBlendFunc( GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA );
+
+
+    // Grid uses transparency: draw it after all objects
+
+    if( isEnabled( FL_GRID ) )
+    {
+        if( ! m_glLists[GL_ID_GRID] )
+            CreateDrawGL_List( &errorReporter, &activityReporter );
+
+        glCallList( m_glLists[GL_ID_GRID] );
+    }
+
+
+    // Draw Board Shadow
+
+    if( isRealisticMode() && isEnabled( FL_RENDER_SHADOWS ) )
+    {
+        if( m_glLists[GL_ID_SHADOW_BOARD] )
+        {
+            glEnable( GL_BLEND );
+            glBlendFunc( GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA );
+            glColor4f( 1.0, 1.0, 1.0, 0.75f );
+            glEnable( GL_CULL_FACE );
+            glDisable( GL_COLOR_MATERIAL );
+            glEnable( GL_TEXTURE_2D );
+            glBindTexture( GL_TEXTURE_2D, m_text_fake_shadow_board );
+            glCallList( m_glLists[GL_ID_SHADOW_BOARD] );
+            glDisable( GL_CULL_FACE );
+            glDisable( GL_TEXTURE_2D );
+        }
+    }
+
+    // This list must be drawn last, because it contains the
+    // transparent gl objects, which should be drawn after all
+    // non transparent objects
+    if(  isEnabled( FL_MODULE ) && m_glLists[GL_ID_3DSHAPES_TRANSP_FRONT] )
+    {
+        glEnable( GL_COLOR_MATERIAL );
+        SetOpenGlDefaultMaterial();
+        glEnable( GL_BLEND );
+        glBlendFunc( GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA );
+        glCallList( m_glLists[GL_ID_3DSHAPES_TRANSP_FRONT] );
+    }
+
+    // Debug bounding boxes
+    /*
+    glDisable( GL_BLEND );
+    glDisable( GL_COLOR_MATERIAL );
+    glDisable( GL_LIGHTING );
+    glColor4f( 1.0f, 0.0f, 1.0f, 1.0f );
+    m_fastAABBox_Shadow.GLdebug();
+
+    glColor4f( 0.0f, 1.0f, 1.0f, 1.0f );
+    m_boardAABBox.GLdebug();
+    */
 
     SwapBuffers();
+
+    // Show calculation time if some activity was reported
+    if( activityReporter.HasMessage() )
+    {
+        // Calculation time in seconds
+        double calculation_time = (double)( GetRunningMicroSecs() - strtime) / 1e6;
+
+        activityReporter.Report( wxString::Format( _( "Build time %.3f s" ),
+                                 calculation_time ) );
+    }
+    else
+        activityReporter.Report( wxEmptyString );
+
+    if( !err_messages.IsEmpty() )
+        wxLogMessage( err_messages );
+
 }
 
 
-GLuint EDA_3D_CANVAS::CreateDrawGL_List()
+/**
+ * Function buildBoard3DAuxLayers
+ * Called by CreateDrawGL_List()
+ * Fills the OpenGL GL_ID_BOARD draw list with items
+ * on aux layers only
+ */
+void EDA_3D_CANVAS::buildBoard3DAuxLayers( REPORTER* aErrorMessages, REPORTER* aActivity )
 {
-    PCB_BASE_FRAME* pcbframe = Parent()->Parent();
-    BOARD* pcb = pcbframe->GetBoard();
+    const int   segcountforcircle   = 18;
+    double      correctionFactor    = 1.0 / cos( M_PI / (segcountforcircle * 2) );
+    BOARD*      pcb = GetBoard();
 
-    wxBusyCursor         dummy;
+    SHAPE_POLY_SET  bufferPolys;
 
-    m_gllist = glGenLists( 1 );
+    static const LAYER_ID sequence[] = {
+        Dwgs_User,
+        Cmts_User,
+        Eco1_User,
+        Eco2_User,
+        Edge_Cuts,
+        Margin
+    };
 
-    // Build 3D board parameters:
-    g_Parm_3D_Visu.InitSettings( pcb );
-
-    glNewList( m_gllist, GL_COMPILE_AND_EXECUTE );
-
-    glColorMaterial( GL_FRONT_AND_BACK, GL_AMBIENT_AND_DIFFUSE );
-
-    // draw axis
-    if (g_Parm_3D_Visu.m_DrawFlags[g_Parm_3D_Visu.FL_AXIS])
+    for( LSEQ aux( sequence, sequence+DIM(sequence) );  aux;  ++aux )
     {
-        glEnable( GL_COLOR_MATERIAL );
-        SetGLColor( WHITE );
-        glBegin( GL_LINES );
-        glNormal3f( 0.0f, 0.0f, 1.0f );     // Normal is Z axis
-        glVertex3f( 0.0f, 0.0f, 0.0f );
-        glVertex3f( 1.0f, 0.0f, 0.0f );     // X axis
-        glVertex3f( 0.0f, 0.0f, 0.0f );
-        glVertex3f( 0.0f, -1.0f, 0.0f );    // Y axis
-        glNormal3f( 1.0f, 0.0f, 0.0f );     // Normal is Y axis
-        glVertex3f( 0.0f, 0.0f, 0.0f );
-        glVertex3f( 0.0f, 0.0f, 0.3f );     // Z axis
-        glEnd();
-    }
+        LAYER_ID layer = *aux;
 
-    // move the board in order to draw it with its center at 0,0 3D coordinates
-    glTranslatef( -g_Parm_3D_Visu.m_BoardPos.x * g_Parm_3D_Visu.m_BiuTo3Dunits,
-                  -g_Parm_3D_Visu.m_BoardPos.y * g_Parm_3D_Visu.m_BiuTo3Dunits,
-                  0.0F );
+        if( !is3DLayerEnabled( layer ) )
+            continue;
 
-    // draw tracks and vias :
-    for( TRACK* track = pcb->m_Track; track != NULL; track = track->Next() )
-    {
-        if( track->Type() == PCB_VIA_T )
-            Draw3D_Via( (SEGVIA*) track );
+        if( aActivity )
+            aActivity->Report( wxString::Format( _( "Build layer %s" ), LSET::Name( layer ) ) );
+
+        bufferPolys.RemoveAllContours();
+
+        for( BOARD_ITEM* item = pcb->m_Drawings; item; item = item->Next() )
+        {
+            if( !item->IsOnLayer( layer ) )
+                continue;
+
+            switch( item->Type() )
+            {
+            case PCB_LINE_T:
+                ( (DRAWSEGMENT*) item )->TransformShapeWithClearanceToPolygon(
+                    bufferPolys, 0, segcountforcircle, correctionFactor );
+                break;
+
+            case PCB_TEXT_T:
+                ( (TEXTE_PCB*) item )->TransformShapeWithClearanceToPolygonSet(
+                    bufferPolys, 0, segcountforcircle, correctionFactor );
+                break;
+
+            default:
+                break;
+            }
+        }
+
+        for( MODULE* module = pcb->m_Modules; module; module = module->Next() )
+        {
+            module->TransformPadsShapesWithClearanceToPolygon( layer,
+                                                               bufferPolys,
+                                                               0,
+                                                               segcountforcircle,
+                                                               correctionFactor );
+
+            module->TransformGraphicShapesWithClearanceToPolygonSet( layer,
+                                                                     bufferPolys,
+                                                                     0,
+                                                                     segcountforcircle,
+                                                                     correctionFactor );
+        }
+
+        // bufferPolys contains polygons to merge. Many overlaps .
+        // Calculate merged polygons and remove pads and vias holes
+        if( bufferPolys.IsEmpty() )
+            continue;
+
+        bufferPolys.Simplify( useFastModeForPolygons );
+
+        int         thickness = GetPrm3DVisu().GetLayerObjectThicknessBIU( layer );
+        int         zpos = GetPrm3DVisu().GetLayerZcoordBIU( layer );
+        // for Draw3D_SolidHorizontalPolyPolygons,
+        // zpos it the middle between bottom and top sides.
+        // However for top layers, zpos should be the bottom layer pos,
+        // and for bottom layers, zpos should be the top layer pos.
+        if( Get3DLayer_Z_Orientation( layer ) > 0 )
+            zpos += thickness/2;
         else
-        {
-            int    layer = track->GetLayer();
+            zpos -= thickness/2 ;
 
-            if( g_Parm_3D_Visu.m_BoardSettings->IsLayerVisible( layer ) )
-                Draw3D_Track( track );
-        }
+        float zNormal = 1.0f; // When using thickness it will draw first the top and then botton (with z inverted)
+
+        // If we are not using thickness, then the znormal must face the layer direction
+        // because it will draw just one plane
+        if( !thickness )
+            zNormal = Get3DLayer_Z_Orientation( layer );
+
+        setGLTechLayersColor( layer );
+        Draw3D_SolidHorizontalPolyPolygons( bufferPolys, zpos,
+                                            thickness, GetPrm3DVisu().m_BiuTo3Dunits, false,
+                                            zNormal );
     }
+}
 
-    if (g_Parm_3D_Visu.m_DrawFlags[g_Parm_3D_Visu.FL_ZONE])
-    {
-        for( int ii = 0; ii < pcb->GetAreaCount(); ii++ )
-        {
-            int layer = pcb->GetArea( ii )->GetLayer();
+void EDA_3D_CANVAS::buildShadowList( GLuint aFrontList, GLuint aBacklist, GLuint aBoardList )
+{
+    // Board shadows are based on board dimension.
 
-            if( g_Parm_3D_Visu.m_BoardSettings->IsLayerVisible( layer )  )
-                Draw3D_Zone( pcb->GetArea( ii ) );
-        }
-    }
+    float xmin    = m_boardAABBox.Min().x;
+    float xmax    = m_boardAABBox.Max().x;
+    float ymin    = m_boardAABBox.Min().y;
+    float ymax    = m_boardAABBox.Max().y;
 
+    float zpos = GetPrm3DVisu().GetLayerZcoordBIU( F_Paste ) * GetPrm3DVisu().m_BiuTo3Dunits;
 
-    // Draw epoxy limits: TODO
+    // Shadow FRONT
+    glNewList( aFrontList, GL_COMPILE );
 
-    // draw graphic items
-    EDA_ITEM* PtStruct;
+    glNormal3f( 0.0, 0.0, Get3DLayer_Z_Orientation( F_Paste ) );
 
-    for( PtStruct = pcb->m_Drawings;  PtStruct != NULL;  PtStruct = PtStruct->Next() )
-    {
-        switch( PtStruct->Type() )
-        {
-        case PCB_LINE_T:
-        {
-            DRAWSEGMENT* segment = (DRAWSEGMENT*) PtStruct;
-            if( g_Parm_3D_Visu.m_BoardSettings->IsLayerVisible( segment->GetLayer() ) )
-                Draw3D_DrawSegment( segment );
-        }
-            break;
-
-        case PCB_TEXT_T:
-        {
-            TEXTE_PCB* text = (TEXTE_PCB*) PtStruct;
-            if( Is3DLayerEnabled( text->GetLayer() ) )
-                Draw3D_DrawText( text );
-        }
-            break;
-
-        default:
-            break;
-        }
-    }
-
-    // draw footprints
-    MODULE* Module = pcb->m_Modules;
-
-    for( ; Module != NULL; Module = Module->Next() )
-        Module->Draw3D( this );
-
-    // Draw grid
-    if( g_Parm_3D_Visu.m_DrawFlags[g_Parm_3D_Visu.FL_GRID] )
-    DrawGrid( g_Parm_3D_Visu.m_3D_Grid );
+    glBegin (GL_QUADS);
+    glTexCoord2f( 1.0, 0.0 ); glVertex3f( xmin, ymin, zpos );
+    glTexCoord2f( 0.0, 0.0 ); glVertex3f( xmax, ymin, zpos );
+    glTexCoord2f( 0.0, 1.0 ); glVertex3f( xmax, ymax, zpos );
+    glTexCoord2f( 1.0, 1.0 ); glVertex3f( xmin, ymax, zpos );
+    glEnd();
 
     glEndList();
 
-    // Test for errors
-    CheckGLError();
 
-    return m_gllist;
+    // Shadow BACK
+    zpos = GetPrm3DVisu().GetLayerZcoordBIU( B_Paste ) * GetPrm3DVisu().m_BiuTo3Dunits;
+
+    glNewList( aBacklist, GL_COMPILE );
+
+    glNormal3f( 0.0, 0.0, Get3DLayer_Z_Orientation( B_Paste ) );
+
+    glBegin (GL_QUADS);
+    glTexCoord2f( 0.0, 0.0 ); glVertex3f( xmin, ymin, zpos );
+    glTexCoord2f( 0.0, 1.0 ); glVertex3f( xmin, ymax, zpos );
+    glTexCoord2f( 1.0, 1.0 ); glVertex3f( xmax, ymax, zpos );
+    glTexCoord2f( 1.0, 0.0 ); glVertex3f( xmax, ymin, zpos );
+    glEnd();
+
+    glEndList();
+
+    // Shadow BOARD
+
+    // Floor shadow is based on axis alighned bounding box dimension
+    xmin = m_fastAABBox_Shadow.Min().x;
+    xmax = m_fastAABBox_Shadow.Max().x;
+    ymin = m_fastAABBox_Shadow.Min().y;
+    ymax = m_fastAABBox_Shadow.Max().y;
+
+    glNewList( aBoardList, GL_COMPILE );
+    glNormal3f( 0.0, 0.0, Get3DLayer_Z_Orientation( F_Paste ) );
+
+    glBegin (GL_QUADS);
+    glTexCoord2f( 1.0, 0.0 ); glVertex3f( xmin, ymin, m_fastAABBox_Shadow.Min().z );
+    glTexCoord2f( 0.0, 0.0 ); glVertex3f( xmax, ymin, m_fastAABBox_Shadow.Min().z );
+    glTexCoord2f( 0.0, 1.0 ); glVertex3f( xmax, ymax, m_fastAABBox_Shadow.Min().z );
+    glTexCoord2f( 1.0, 1.0 ); glVertex3f( xmin, ymax, m_fastAABBox_Shadow.Min().z );
+    glEnd();
+
+    glEndList();
 }
 
-/* Draw a zone (solid copper areas in aZone)
- */
-void EDA_3D_CANVAS::Draw3D_Zone( ZONE_CONTAINER* aZone )
+
+void EDA_3D_CANVAS::CreateDrawGL_List( REPORTER* aErrorMessages, REPORTER* aActivity )
 {
-    int layer = aZone->GetLayer();
-    int color = g_ColorsSettings.GetLayerColor( layer );
-    int thickness = g_Parm_3D_Visu.GetLayerObjectThicknessBIU( layer );
+    BOARD* pcb = GetBoard();
 
-    if( layer == LAST_COPPER_LAYER )
-        layer = g_Parm_3D_Visu.m_CopperLayersCount - 1;
+    wxBusyCursor    dummy;
 
-    int zpos = g_Parm_3D_Visu.GetLayerZcoordBIU( layer );
+    // Build 3D board parameters:
+    GetPrm3DVisu().InitSettings( pcb );
 
-    SetGLColor( color );
-    glNormal3f( 0.0, 0.0, Get3DLayer_Z_Orientation( layer ) );
+    glColorMaterial( GL_FRONT_AND_BACK, GL_AMBIENT_AND_DIFFUSE );
 
-    if( aZone->m_FillMode == 0 )
+    // Create axis gl list (if it is not shown, the list will be not called
+    draw3DAxis();
+
+    // Create Board full gl lists:
+
+    if( ! m_glLists[GL_ID_BOARD] )
     {
-        // solid polygons only are used to fill areas
-        if( aZone->GetFilledPolysList().size() > 3 )
+        DBG( unsigned strtime = GetRunningMicroSecs() );
+
+        m_glLists[GL_ID_BOARD] = glGenLists( 1 );
+        m_glLists[GL_ID_BODY] = glGenLists( 1 );
+        buildBoard3DView(m_glLists[GL_ID_BOARD], m_glLists[GL_ID_BODY], aErrorMessages, aActivity );
+        CheckGLError( __FILE__, __LINE__ );
+
+        DBG( printf( "  buildBoard3DView total time %f ms\n", (double) (GetRunningMicroSecs() - strtime) / 1000.0 ) );
+    }
+
+    if( ! m_glLists[GL_ID_TECH_LAYERS] )
+    {
+        DBG( unsigned strtime = GetRunningMicroSecs() );
+
+        m_glLists[GL_ID_TECH_LAYERS] = glGenLists( 1 );
+        glNewList( m_glLists[GL_ID_TECH_LAYERS], GL_COMPILE );
+        // when calling BuildTechLayers3DView,
+        // do not show warnings, which are the same as buildBoard3DView
+        buildTechLayers3DView( aErrorMessages, aActivity );
+        glEndList();
+        CheckGLError( __FILE__, __LINE__ );
+
+        DBG( printf( "  buildTechLayers3DView total time %f ms\n", (double) (GetRunningMicroSecs() - strtime) / 1000.0 ) );
+    }
+
+    if( ! m_glLists[GL_ID_AUX_LAYERS] )
+    {
+        DBG( unsigned strtime = GetRunningMicroSecs() );
+
+        m_glLists[GL_ID_AUX_LAYERS] = glGenLists( 1 );
+        glNewList( m_glLists[GL_ID_AUX_LAYERS], GL_COMPILE );
+        buildBoard3DAuxLayers( aErrorMessages, aActivity );
+        glEndList();
+        CheckGLError( __FILE__, __LINE__ );
+
+        DBG( printf( "  buildBoard3DAuxLayers total time %f ms\n", (double) (GetRunningMicroSecs() - strtime) / 1000.0 ) );
+    }
+
+    // draw modules 3D shapes
+    if( ! m_glLists[GL_ID_3DSHAPES_SOLID_FRONT] && isEnabled( FL_MODULE ) )
+    {
+        m_glLists[GL_ID_3DSHAPES_SOLID_FRONT] = glGenLists( 1 );
+
+        // GL_ID_3DSHAPES_TRANSP_FRONT is an auxiliary list for 3D shapes;
+        // Ensure it is cleared before rebuilding it
+        if( m_glLists[GL_ID_3DSHAPES_TRANSP_FRONT] )
+            glDeleteLists( m_glLists[GL_ID_3DSHAPES_TRANSP_FRONT], 1 );
+
+        bool useMaterial = g_Parm_3D_Visu.GetFlag( FL_RENDER_MATERIAL );
+
+        if( useMaterial )
+            m_glLists[GL_ID_3DSHAPES_TRANSP_FRONT] = glGenLists( 1 );
+        else
+            m_glLists[GL_ID_3DSHAPES_TRANSP_FRONT] = 0;
+
+        buildFootprintShape3DList( m_glLists[GL_ID_3DSHAPES_SOLID_FRONT],
+                                   m_glLists[GL_ID_3DSHAPES_TRANSP_FRONT],
+                                   aErrorMessages, aActivity );
+
+        CheckGLError( __FILE__, __LINE__ );
+    }
+
+    calcBBox();
+
+    // Create grid gl list
+    if( ! m_glLists[GL_ID_GRID] )
+    {
+        m_glLists[GL_ID_GRID] = glGenLists( 1 );
+        glNewList( m_glLists[GL_ID_GRID], GL_COMPILE );
+
+        draw3DGrid( GetPrm3DVisu().m_3D_Grid );
+
+        glEndList();
+    }
+
+    if( !m_glLists[GL_ID_SHADOW_FRONT] )
+        m_glLists[GL_ID_SHADOW_FRONT] = glGenLists( 1 );
+
+    if( !m_glLists[GL_ID_SHADOW_BACK] )
+        m_glLists[GL_ID_SHADOW_BACK]  = glGenLists( 1 );
+
+    if( !m_glLists[GL_ID_SHADOW_BOARD] )
+        m_glLists[GL_ID_SHADOW_BOARD] = glGenLists( 1 );
+
+    buildShadowList( m_glLists[GL_ID_SHADOW_FRONT],
+                     m_glLists[GL_ID_SHADOW_BACK],
+                     m_glLists[GL_ID_SHADOW_BOARD] );
+
+    CheckGLError( __FILE__, __LINE__ );
+}
+
+
+void EDA_3D_CANVAS::calcBBox()
+{
+    BOARD* pcb = GetBoard();
+
+    m_fastAABBox.Reset();
+
+    for( MODULE* module = pcb->m_Modules; module; module = module->Next() )
+    {
+        CBBOX tmpFastAABBox;
+
+        // Compute the transformation matrix for this module based on translation, rotation and orientation.
+        float  zpos = GetPrm3DVisu().GetModulesZcoord3DIU( module->IsFlipped() );
+        wxPoint pos = module->GetPosition();
+
+        glm::mat4 fullTransformMatrix;
+        fullTransformMatrix = glm::translate( glm::mat4(),  S3D_VERTEX( (float)(pos.x * GetPrm3DVisu().m_BiuTo3Dunits),
+                                                                        (float)(-pos.y * GetPrm3DVisu().m_BiuTo3Dunits),
+                                                                        zpos ) );
+
+        if( module->GetOrientation() )
+            fullTransformMatrix = glm::rotate( fullTransformMatrix,
+                                               glm::radians( (float)(module->GetOrientation() / 10.0f) ),
+                                               S3D_VERTEX( 0.0f, 0.0f, 1.0f ) );
+
+        if( module->IsFlipped() )
         {
-            Draw3D_SolidHorizontalPolyPolygons( aZone->GetFilledPolysList(),
-                                  g_Parm_3D_Visu.GetLayerZcoordBIU( layer ),
-                                  thickness, g_Parm_3D_Visu.m_BiuTo3Dunits );
+            fullTransformMatrix = glm::rotate( fullTransformMatrix, glm::radians( 180.0f ), S3D_VERTEX( 0.0f, 1.0f, 0.0f ) );
+            fullTransformMatrix = glm::rotate( fullTransformMatrix, glm::radians( 180.0f ), S3D_VERTEX( 0.0f, 0.0f, 1.0f ) );
         }
+
+        // Compute a union bounding box for all the shapes of the model
+
+        S3D_MASTER* shape3D = module->Models();
+
+        for( ; shape3D; shape3D = shape3D->Next() )
+        {
+            if( shape3D->Is3DType( S3D_MASTER::FILE3D_VRML ) )
+                tmpFastAABBox.Union( shape3D->getFastAABBox() );
+        }
+
+        tmpFastAABBox.ApplyTransformationAA( fullTransformMatrix );
+
+        m_fastAABBox.Union( tmpFastAABBox );
+    }
+
+    // Create a board bounding box based on board size
+    wxSize  brd_size = getBoardSize();
+    wxPoint brd_center_pos = getBoardCenter();
+
+    float xsize   = brd_size.x;
+    float ysize   = brd_size.y;
+
+    float scale   = GetPrm3DVisu().m_BiuTo3Dunits;
+    float xmin    = (brd_center_pos.x - xsize / 2.0) * scale;
+    float xmax    = (brd_center_pos.x + xsize / 2.0) * scale;
+    float ymin    = (brd_center_pos.y - ysize / 2.0) * scale;
+    float ymax    = (brd_center_pos.y + ysize / 2.0) * scale;
+
+    float zmin = GetPrm3DVisu().GetLayerZcoordBIU( B_Adhes ) * scale;
+    float zmax = GetPrm3DVisu().GetLayerZcoordBIU( F_Adhes ) * scale;
+
+    m_boardAABBox = CBBOX(  S3D_VERTEX(xmin, ymin, zmin),
+                            S3D_VERTEX(xmax, ymax, zmax) );
+
+    // Add BB board with BB models and scale it a bit
+    m_fastAABBox.Union( m_boardAABBox );
+    m_fastAABBox_Shadow = m_fastAABBox;
+    m_fastAABBox_Shadow.Scale( SHADOW_BOUNDING_BOX_SCALE );
+}
+
+
+void EDA_3D_CANVAS::buildFootprintShape3DList( GLuint aOpaqueList,
+                                               GLuint aTransparentList,
+                                               REPORTER* aErrorMessages,
+                                               REPORTER* aActivity )
+{
+    DBG( unsigned strtime = GetRunningMicroSecs() );
+
+    if( aActivity )
+        aActivity->Report( _( "Load 3D Shapes" ) );
+
+    // clean the parser list if it have any already loaded files
+    m_model_parsers_list.clear();
+    m_model_filename_list.clear();
+
+    BOARD* pcb = GetBoard();
+
+    for( MODULE* module = pcb->m_Modules; module; module = module->Next() )
+        read3DComponentShape( module );
+
+    DBG( printf( "  read3DComponentShape total time %f ms\n", (double) (GetRunningMicroSecs() - strtime) / 1000.0 ) );
+
+    DBG( strtime = GetRunningMicroSecs() );
+
+    bool useMaterial = g_Parm_3D_Visu.GetFlag( FL_RENDER_MATERIAL );
+
+    if( useMaterial )
+    {
+        // aOpaqueList is the gl list for non transparent items
+        // aTransparentList is the gl list for non transparent items,
+        // which need to be drawn after all other items
+
+        glNewList( aOpaqueList, GL_COMPILE );
+        bool loadOpaqueObjects = true;
+
+        for( MODULE* module = pcb->m_Modules; module; module = module->Next() )
+            render3DComponentShape( module,  loadOpaqueObjects,
+                                             !loadOpaqueObjects );
+
+        glEndList();
+
+
+        glNewList( aTransparentList, GL_COMPILE );
+        bool loadTransparentObjects = true;
+
+        for( MODULE* module = pcb->m_Modules; module; module = module->Next() )
+            render3DComponentShape( module, !loadTransparentObjects,
+                                            loadTransparentObjects );
+
+        glEndList();
     }
     else
     {
-        // segments are used to fill areas
-        for( unsigned iseg = 0; iseg < aZone->m_FillSegmList.size(); iseg++ )
-            Draw3D_SolidSegment( aZone->m_FillSegmList[iseg].m_Start,
-                                 aZone->m_FillSegmList[iseg].m_End,
-                                 aZone->m_ZoneMinThickness, thickness, zpos,
-                                 g_Parm_3D_Visu.m_BiuTo3Dunits );
+        // Just create one list
+        glNewList( aOpaqueList, GL_COMPILE );
+
+        for( MODULE* module = pcb->m_Modules; module; module = module->Next() )
+            render3DComponentShape( module, false, false );
+        glEndList();
     }
 
-    // Draw copper area outlines
-    std::vector<CPolyPt> polysList = aZone->GetFilledPolysList();
-
-    if( polysList.size() == 0 )
-        return;
-
-    if( aZone->m_ZoneMinThickness <= 1 )
-        return;
-
-    int      imax = polysList.size() - 1;
-    CPolyPt* firstcorner = &polysList[0];
-    CPolyPt* begincorner = firstcorner;
-
-    for( int ic = 1; ic <= imax; ic++ )
-    {
-        CPolyPt* endcorner = &polysList[ic];
-
-        if( begincorner->m_utility == 0 )
-        {
-            // Draw only basic outlines, not extra segments
-            wxPoint start( begincorner->x, begincorner->y  );
-            wxPoint end( endcorner->x, endcorner->y );
-            Draw3D_SolidSegment( start, end,
-                                 aZone->m_ZoneMinThickness, thickness, zpos,
-                                 g_Parm_3D_Visu.m_BiuTo3Dunits );
-        }
-
-        if( (endcorner->end_contour) || (ic == imax) )
-        {
-            // the last corner of a filled area is found: draw it
-            if( endcorner->m_utility == 0 )
-            {
-                // Draw only basic outlines, not extra segments
-                wxPoint start( endcorner->x, endcorner->y );
-                wxPoint end( firstcorner->x, firstcorner->y );
-                Draw3D_SolidSegment( start, end,
-                                     aZone->m_ZoneMinThickness, thickness, zpos,
-                                     g_Parm_3D_Visu.m_BiuTo3Dunits );
-            }
-
-            ic++;
-
-            if( ic < imax - 1 )
-                begincorner = firstcorner = &polysList[ic];
-        }
-        else
-        {
-            begincorner = endcorner;
-        }
-    }
+    DBG( printf( "  render3DComponentShape total time %f ms\n", (double) (GetRunningMicroSecs() - strtime) / 1000.0 ) );
 }
 
 
-// draw a 3D grid: an horizontal grid (XY plane and Z = 0,
-// and a vertical grid (XZ plane and Y = 0)
-void EDA_3D_CANVAS::DrawGrid( double aGriSizeMM )
+bool EDA_3D_CANVAS::read3DComponentShape( MODULE* module )
 {
-    double zpos = 0.0;
-    int gridcolor = DARKGRAY;           // Color of grid lines
-    int gridcolor_marker = LIGHTGRAY;   // Color of grid lines every 5 lines
-    double scale = g_Parm_3D_Visu.m_BiuTo3Dunits;
-
-    glNormal3f( 0.0, 0.0, 1.0 );
-
-    wxSize brd_size = g_Parm_3D_Visu.m_BoardSize;
-    wxPoint brd_center_pos = g_Parm_3D_Visu.m_BoardPos;
-    NEGATE( brd_center_pos.y );
-
-    int xsize  = std::max( brd_size.x, Millimeter2iu( 100 ) );
-    int ysize  = std::max( brd_size.y, Millimeter2iu( 100 ) );
-
-    // Grid limits, in 3D units
-    double xmin = (brd_center_pos.x - xsize/2) * scale;
-    double xmax = (brd_center_pos.x + xsize/2) * scale;
-    double ymin = (brd_center_pos.y - ysize/2) * scale;
-    double ymax = (brd_center_pos.y + ysize/2) * scale;
-    double zmin = Millimeter2iu( -50 ) * scale;
-    double zmax = Millimeter2iu( 100 ) * scale;
-
-    // Draw horizontal grid centered on 3D origin (center of the board)
-    for( int ii = 0; ; ii++ )
+    if( module )
     {
-        if( (ii % 5) )
-            SetGLColor( gridcolor );
-        else
-            SetGLColor( gridcolor_marker );
+        S3D_MASTER* shape3D = module->Models();
 
-        int delta = KiROUND( ii * aGriSizeMM * IU_PER_MM );
-
-        if( delta <= xsize/2 )    // Draw grid lines parallel to X axis
+        for( ; shape3D; shape3D = shape3D->Next() )
         {
-            glBegin(GL_LINES);
-            glVertex3f( (brd_center_pos.x + delta) * scale, -ymin, zpos );
-            glVertex3f( (brd_center_pos.x + delta) * scale, -ymax, zpos );
-            glEnd();
-
-            if( ii != 0 )
+            if( shape3D->Is3DType( S3D_MASTER::FILE3D_VRML ) )
             {
-                glBegin(GL_LINES);
-                glVertex3f( (brd_center_pos.x - delta) * scale, -ymin, zpos );
-                glVertex3f( (brd_center_pos.x - delta) * scale, -ymax, zpos );
-                glEnd();
-            }
-        }
+                bool found = false;
 
-        if( delta <= ysize/2 )    // Draw grid lines parallel to Y axis
-        {
-            glBegin(GL_LINES);
-            glVertex3f( xmin, -(brd_center_pos.y + delta) * scale, zpos );
-            glVertex3f( xmax, -(brd_center_pos.y + delta) * scale, zpos );
-            glEnd();
-            if( ii != 0 )
-            {
-                glBegin(GL_LINES);
-                glVertex3f( xmin, -(brd_center_pos.y - delta) * scale, zpos );
-                glVertex3f( xmax, -(brd_center_pos.y - delta) * scale, zpos );
-                glEnd();
-            }
-        }
+                unsigned int i;
+                wxString shape_filename = shape3D->GetShape3DFullFilename();
 
-        if( ( delta > ysize/2 ) && ( delta > xsize/2 ) )
-            break;
-    }
-
-    // Draw vertical grid n Z axis
-    glNormal3f( 0.0, -1.0, 0.0 );
-
-    // Draw vertical grid lines (parallel to Z axis)
-    for( int ii = 0; ; ii++ )
-    {
-        if( (ii % 5) )
-            SetGLColor( gridcolor );
-        else
-            SetGLColor( gridcolor_marker );
-
-        double delta = ii * aGriSizeMM * IU_PER_MM;
-
-        glBegin(GL_LINES);
-        glVertex3f( (brd_center_pos.x + delta) * scale, -brd_center_pos.y * scale, zmin );
-        glVertex3f( (brd_center_pos.x + delta) * scale, -brd_center_pos.y * scale, zmax );
-        glEnd();
-
-        if( ii != 0 )
-        {
-            glBegin(GL_LINES);
-            glVertex3f( (brd_center_pos.x - delta) * scale, -brd_center_pos.y * scale, zmin );
-            glVertex3f( (brd_center_pos.x - delta) * scale, -brd_center_pos.y * scale, zmax );
-            glEnd();
-        }
-
-        if( delta > xsize/2 )
-            break;
-    }
-
-    // Draw horizontal grid lines on Z axis
-    for( int ii = 0; ; ii++ )
-    {
-        if( (ii % 5) )
-            SetGLColor( gridcolor );
-        else
-            SetGLColor( gridcolor_marker );
-        double delta = ii * aGriSizeMM * IU_PER_MM  * scale;
-
-        if( delta <= zmax )
-        {   // Draw grid lines on Z axis (positive Z axis coordinates)
-            glBegin(GL_LINES);
-            glVertex3f(xmin, -brd_center_pos.y * scale, delta);
-            glVertex3f(xmax, -brd_center_pos.y * scale, delta);
-            glEnd();
-        }
-
-        if( delta <= -zmin && ( ii != 0 ) )
-        {   // Draw grid lines on Z axis (negative Z axis coordinates)
-            glBegin(GL_LINES);
-            glVertex3f(xmin, -brd_center_pos.y * scale, -delta);
-            glVertex3f(xmax, -brd_center_pos.y * scale, -delta);
-            glEnd();
-        }
-
-        if( ( delta > zmax ) && ( delta > -zmin ) )
-            break;
-    }
-
-}
-
-void EDA_3D_CANVAS::Draw3D_Track( TRACK* aTrack )
-{
-    int layer = aTrack->GetLayer();
-    int color = g_ColorsSettings.GetLayerColor( layer );
-    int thickness = g_Parm_3D_Visu.GetCopperThicknessBIU();
-
-    if( layer == LAST_COPPER_LAYER )
-        layer = g_Parm_3D_Visu.m_CopperLayersCount - 1;
-
-    int zpos = g_Parm_3D_Visu.GetLayerZcoordBIU( layer );
-
-    SetGLColor( color );
-    glNormal3f( 0.0, 0.0, Get3DLayer_Z_Orientation( layer ) );
-
-    Draw3D_SolidSegment( aTrack->GetStart(), aTrack->GetEnd(),
-                         aTrack->GetWidth(), thickness, zpos,
-                         g_Parm_3D_Visu.m_BiuTo3Dunits );
-}
-
-void EDA_3D_CANVAS::Draw3D_Via( SEGVIA* via )
-{
-    int    layer, top_layer, bottom_layer;
-    int    color;
-    double biu_to_3Dunits = g_Parm_3D_Visu.m_BiuTo3Dunits ;
-
-    int outer_radius = via->GetWidth() / 2;
-    int inner_radius = via->GetDrillValue() / 2;
-    int thickness = g_Parm_3D_Visu.GetCopperThicknessBIU();
-
-    via->ReturnLayerPair( &top_layer, &bottom_layer );
-
-    // Drawing horizontal thick rings:
-    for( layer = bottom_layer; layer < g_Parm_3D_Visu.m_CopperLayersCount; layer++ )
-    {
-        int zpos = g_Parm_3D_Visu.GetLayerZcoordBIU( layer );
-
-        if( layer < g_Parm_3D_Visu.m_CopperLayersCount - 1 )
-        {
-            if( g_Parm_3D_Visu.m_BoardSettings->IsLayerVisible( layer ) == false )
-                continue;
-
-            color = g_ColorsSettings.GetLayerColor( layer );
-        }
-        else
-        {
-            if( g_Parm_3D_Visu.m_BoardSettings->IsLayerVisible( LAYER_N_FRONT ) == false )
-                continue;
-
-            color = g_ColorsSettings.GetLayerColor( LAYER_N_FRONT );
-        }
-
-        SetGLColor( color );
-        glNormal3f( 0.0, 0.0, Get3DLayer_Z_Orientation( layer ) );
-
-        Draw3D_ZaxisCylinder( via->GetStart(), (outer_radius + inner_radius)/2,
-                                  thickness, outer_radius - inner_radius,
-                                  zpos - (thickness/2), biu_to_3Dunits );
-        if( layer >= top_layer )
-            break;
-    }
-
-    // Drawing via hole:
-    color = g_ColorsSettings.GetItemColor( VIAS_VISIBLE + via->GetShape() );
-    SetGLColor( color );
-    int height = g_Parm_3D_Visu.GetLayerZcoordBIU(top_layer) -
-                 g_Parm_3D_Visu.GetLayerZcoordBIU( bottom_layer ) - thickness;
-    int zpos = g_Parm_3D_Visu.GetLayerZcoordBIU(bottom_layer) + thickness/2;
-
-    Draw3D_ZaxisCylinder( via->GetStart(), inner_radius + thickness/2, height,
-                          thickness, zpos, biu_to_3Dunits );
-}
-
-
-void EDA_3D_CANVAS::Draw3D_DrawSegment( DRAWSEGMENT* segment )
-{
-    int layer = segment->GetLayer();
-    int color = g_ColorsSettings.GetLayerColor( layer );
-    int thickness = g_Parm_3D_Visu.GetLayerObjectThicknessBIU( layer );
-
-    SetGLColor( color );
-
-    if( layer == EDGE_N )
-    {
-        for( layer = 0; layer < g_Parm_3D_Visu.m_CopperLayersCount; layer++ )
-        {
-            glNormal3f( 0.0, 0.0, Get3DLayer_Z_Orientation( layer ) );
-            int zpos = g_Parm_3D_Visu.GetLayerZcoordBIU(layer);
-
-            switch( segment->GetShape() )
-            {
-            case S_ARC:
-                Draw3D_ArcSegment( segment->GetCenter(), segment->GetArcStart(),
-                                   segment->GetAngle(), segment->GetWidth(), thickness,
-                                   zpos, g_Parm_3D_Visu.m_BiuTo3Dunits );
-                break;
-
-            case S_CIRCLE:
+                // Search for already loaded files
+                for( i = 0; i < m_model_filename_list.size(); i++ )
                 {
-                int radius = KiROUND( hypot( double(segment->GetStart().x - segment->GetEnd().x),
-                                             double(segment->GetStart().y - segment->GetEnd().y) )
-                                    );
-                Draw3D_ZaxisCylinder( segment->GetStart(), radius,
-                                      thickness, segment->GetWidth(),
-                                      zpos, g_Parm_3D_Visu.m_BiuTo3Dunits );
+                    if( shape_filename.Cmp(m_model_filename_list[i]) == 0 )
+                    {
+                        found = true;
+                        break;
+                    }
                 }
-                break;
 
-            default:
-                Draw3D_SolidSegment( segment->GetStart(), segment->GetEnd(),
-                                    segment->GetWidth(), thickness,
-                                    zpos, g_Parm_3D_Visu.m_BiuTo3Dunits );
-                break;
+                if( found == false )
+                {
+                    // Create a new parser
+                    S3D_MODEL_PARSER *newParser = S3D_MODEL_PARSER::Create( shape3D, shape3D->GetShape3DExtension() );
+
+                    if( newParser )
+                    {
+                        // Read file
+                        if( shape3D->ReadData( newParser ) == 0 )
+                        {
+                            // Store this couple filename / parsed file
+                            m_model_filename_list.push_back( shape_filename );
+                            m_model_parsers_list.push_back( newParser );
+                        }
+                    }
+                }
+                else
+                {
+                    // Reusing file
+                    shape3D->m_parser = m_model_parsers_list[i];
+                }
             }
         }
     }
-    else
-    {
-        glNormal3f( 0.0, 0.0, Get3DLayer_Z_Orientation( layer ) );
-        int zpos = g_Parm_3D_Visu.GetLayerZcoordBIU(layer);
 
-        if( Is3DLayerEnabled( layer ) )
-        {
-            switch( segment->GetShape() )
-            {
-            case S_ARC:
-                Draw3D_ArcSegment( segment->GetCenter(), segment->GetArcStart(),
-                                   segment->GetAngle(), segment->GetWidth(), thickness,
-                                   zpos, g_Parm_3D_Visu.m_BiuTo3Dunits );
-                break;
-
-            case S_CIRCLE:
-            {
-                int radius = KiROUND( hypot( double(segment->GetStart().x - segment->GetEnd().x),
-                                             double(segment->GetStart().y - segment->GetEnd().y) )
-                                    );
-                Draw3D_ZaxisCylinder( segment->GetStart(), radius,
-                                      thickness, segment->GetWidth(),
-                                      zpos, g_Parm_3D_Visu.m_BiuTo3Dunits );
-            }
-                break;
-
-            default:
-                Draw3D_SolidSegment( segment->GetStart(), segment->GetEnd(),
-                                    segment->GetWidth(), thickness,
-                                    zpos, g_Parm_3D_Visu.m_BiuTo3Dunits );
-                break;
-            }
-        }
-    }
+    return true;
 }
 
 
-// These variables are used in Draw3dTextSegm.
-// But Draw3dTextSegm is a call back function, so we cannot send them as arguments,
-// so they are static.
-int s_Text3DWidth, s_Text3DZPos, s_thickness;
-
-// This is a call back function, used by DrawGraphicText to draw the 3D text shape:
-static void Draw3dTextSegm( int x0, int y0, int xf, int yf )
+void EDA_3D_CANVAS::render3DComponentShape( MODULE* module,
+                                            bool aIsRenderingJustNonTransparentObjects,
+                                            bool aIsRenderingJustTransparentObjects )
 {
-    Draw3D_SolidSegment( wxPoint( x0, y0), wxPoint( xf, yf ),
-                        s_Text3DWidth, s_thickness, s_Text3DZPos,
-                        g_Parm_3D_Visu.m_BiuTo3Dunits );
+    double zpos = GetPrm3DVisu().GetModulesZcoord3DIU( module->IsFlipped() );
+
+    glPushMatrix();
+
+    wxPoint pos = module->GetPosition();
+
+    glTranslatef(  pos.x * GetPrm3DVisu().m_BiuTo3Dunits,
+                  -pos.y * GetPrm3DVisu().m_BiuTo3Dunits,
+                   zpos );
+
+    if( module->GetOrientation() )
+        glRotatef( (double) module->GetOrientation() / 10.0, 0.0f, 0.0f, 1.0f );
+
+    if( module->IsFlipped() )
+    {
+        glRotatef( 180.0f, 0.0f, 1.0f, 0.0f );
+        glRotatef( 180.0f, 0.0f, 0.0f, 1.0f );
+    }
+
+    S3D_MASTER* shape3D = module->Models();
+
+    for( ; shape3D; shape3D = shape3D->Next() )
+    {
+        if( shape3D->Is3DType( S3D_MASTER::FILE3D_VRML ) )
+        {
+            glPushMatrix();
+
+            shape3D->Render( aIsRenderingJustNonTransparentObjects,
+                             aIsRenderingJustTransparentObjects );
+
+            if( isEnabled( FL_RENDER_SHOW_MODEL_BBOX ) )
+            {
+                // Set the alpha current color to opaque
+                float currentColor[4];
+                glGetFloatv( GL_CURRENT_COLOR,currentColor );
+                currentColor[3] = 1.0f;
+                glColor4fv( currentColor );
+
+                CBBOX thisBBox = shape3D->getBBox();
+                thisBBox.GLdebug();
+            }
+
+            glPopMatrix();
+
+            // Debug AABBox
+            //thisBBox = shape3D->getfastAABBox();
+            //thisBBox.GLdebug();
+        }
+    }
+
+    glPopMatrix();
 }
 
 
-void EDA_3D_CANVAS::Draw3D_DrawText( TEXTE_PCB* text )
+bool EDA_3D_CANVAS::is3DLayerEnabled( LAYER_ID aLayer ) const
 {
-    int layer = text->GetLayer();
-    int color = g_ColorsSettings.GetLayerColor( layer );
+    DISPLAY3D_FLG flg;
 
-    SetGLColor( color );
-    s_Text3DZPos  = g_Parm_3D_Visu.GetLayerZcoordBIU( layer );
-    s_Text3DWidth = text->GetThickness();
-    glNormal3f( 0.0, 0.0, Get3DLayer_Z_Orientation( layer ) );
-    wxSize size = text->m_Size;
-    s_thickness = g_Parm_3D_Visu.GetLayerObjectThicknessBIU( layer );
-
-    if( text->m_Mirror )
-        NEGATE( size.x );
-
-    if( text->m_MultilineAllowed )
-    {
-        wxPoint        pos  = text->m_Pos;
-        wxArrayString* list = wxStringSplit( text->GetText(), '\n' );
-        wxPoint        offset;
-
-        offset.y = text->GetInterline();
-
-        RotatePoint( &offset, text->GetOrientation() );
-
-        for( unsigned i = 0; i<list->Count(); i++ )
-        {
-            wxString txt = list->Item( i );
-            DrawGraphicText( NULL, NULL, pos, (EDA_COLOR_T) color,
-                             txt, text->GetOrientation(), size,
-                             text->m_HJustify, text->m_VJustify,
-                             text->GetThickness(), text->m_Italic,
-                             true, Draw3dTextSegm );
-            pos += offset;
-        }
-
-        delete list;
-    }
-    else
-    {
-        DrawGraphicText( NULL, NULL, text->m_Pos, (EDA_COLOR_T) color,
-                         text->GetText(), text->GetOrientation(), size,
-                         text->m_HJustify, text->m_VJustify,
-                         text->GetThickness(), text->m_Italic,
-                         true,
-                         Draw3dTextSegm );
-    }
-}
-
-
-void MODULE::Draw3D( EDA_3D_CANVAS* glcanvas )
-{
-    D_PAD* pad = m_Pads;
-
-    // Draw pads
-    for( ; pad != NULL; pad = pad->Next() )
-        pad->Draw3D( glcanvas );
-
-    // Draw module shape: 3D shape if exists (or module outlines if not exists)
-    S3D_MASTER* Struct3D  = m_3D_Drawings;
-    bool        As3dShape = false;
-
-    if( g_Parm_3D_Visu.m_DrawFlags[g_Parm_3D_Visu.FL_MODULE] )
-    {
-        double zpos;
-        if( IsFlipped() )
-            zpos = g_Parm_3D_Visu.GetModulesZcoord3DIU( true );
-        else
-            zpos = g_Parm_3D_Visu.GetModulesZcoord3DIU( false );
-
-        glPushMatrix();
-
-        glTranslatef( m_Pos.x * g_Parm_3D_Visu.m_BiuTo3Dunits,
-                      -m_Pos.y * g_Parm_3D_Visu.m_BiuTo3Dunits,
-                      zpos );
-
-        if( m_Orient )
-        {
-            glRotatef( (double) m_Orient / 10, 0.0, 0.0, 1.0 );
-        }
-
-        if( IsFlipped() )
-        {
-            glRotatef( 180.0, 0.0, 1.0, 0.0 );
-            glRotatef( 180.0, 0.0, 0.0, 1.0 );
-        }
-
-        for( ; Struct3D != NULL; Struct3D = Struct3D->Next() )
-        {
-            if( !Struct3D->m_Shape3DName.IsEmpty() )
-            {
-                As3dShape = true;
-                Struct3D->ReadData();
-            }
-        }
-
-        glPopMatrix();
-    }
-
-    EDA_ITEM* Struct = m_Drawings;
-    for( ; Struct != NULL; Struct = Struct->Next() )
-    {
-        switch( Struct->Type() )
-        {
-        case PCB_MODULE_TEXT_T:
-            break;
-
-        case PCB_MODULE_EDGE_T:
-        {
-            EDGE_MODULE* edge = (EDGE_MODULE*) Struct;
-
-            // Draw module edges when no 3d shape exists.
-            // Always draw pcb edges.
-            if( !As3dShape || edge->GetLayer() == EDGE_N )
-                edge->Draw3D( glcanvas );
-        }
-        break;
-
-        default:
-            break;
-        }
-    }
-}
-
-
-void EDGE_MODULE::Draw3D( EDA_3D_CANVAS* glcanvas )
-{
-    if( g_Parm_3D_Visu.m_BoardSettings->IsLayerVisible( m_Layer ) == false )
-        return;
-
-    int color = g_ColorsSettings.GetLayerColor( m_Layer );
-    SetGLColor( color );
-
-    // for outline shape = S_POLYGON:
-    // We must compute true coordinates from m_PolyPoints
-    // which are relative to module position and module orientation = 0
-    std::vector<CPolyPt> polycorners;
-
-    if( m_Shape == S_POLYGON )
-    {
-        polycorners.reserve( m_PolyPoints.size() );
-        MODULE* module = (MODULE*) m_Parent;
-
-        CPolyPt corner;
-        for( unsigned ii = 0; ii < m_PolyPoints.size(); ii++ )
-        {
-            corner.x = m_PolyPoints[ii].x;
-            corner.y = m_PolyPoints[ii].y;
-
-            RotatePoint( &corner.x, &corner.y, module->GetOrientation() );
-
-            if( module )
-            {
-                corner.x += module->GetPosition().x;
-                corner.y += module->GetPosition().y;
-            }
-
-            polycorners.push_back( corner );
-        }
-
-        polycorners.back().end_contour = true;
-    }
-
-    if( m_Layer == EDGE_N )
-    {
-        for( int layer = 0; layer < g_Parm_3D_Visu.m_CopperLayersCount; layer++ )
-        {
-            glNormal3f( 0.0, 0.0, Get3DLayer_Z_Orientation( layer ) );
-            int zpos = g_Parm_3D_Visu.GetLayerZcoordBIU( layer );
-            int thickness = g_Parm_3D_Visu.GetLayerObjectThicknessBIU( m_Layer );
-
-            switch( m_Shape )
-            {
-            case S_SEGMENT:
-                Draw3D_SolidSegment( m_Start, m_End, m_Width,
-                                     thickness, zpos,
-                                     g_Parm_3D_Visu.m_BiuTo3Dunits );
-                break;
-
-            case S_CIRCLE:
-            {
-               int radius = KiROUND( hypot( double(m_Start.x - m_End.x),
-                                             double(m_Start.y - m_End.y) )
-                                    );
-                Draw3D_ZaxisCylinder( m_Start, radius,
-                                      thickness, GetWidth(),
-                                      zpos, g_Parm_3D_Visu.m_BiuTo3Dunits );
-            }
-                break;
-
-            case S_ARC:
-                Draw3D_ArcSegment( GetCenter(), GetArcStart(),
-                                   GetAngle(), GetWidth(), thickness,
-                                   zpos, g_Parm_3D_Visu.m_BiuTo3Dunits );
-                break;
-
-            case S_POLYGON:
-                Draw3D_SolidHorizontalPolyPolygons( polycorners, zpos, thickness,
-                                                    g_Parm_3D_Visu.m_BiuTo3Dunits);
-                break;
-
-            default:
-                D( printf( "Error: Shape nr %d not implemented!\n", m_Shape ); )
-                break;
-            }
-        }
-    }
-    else
-    {
-        int thickness = g_Parm_3D_Visu.GetLayerObjectThicknessBIU( m_Layer );
-        glNormal3f( 0.0, 0.0, Get3DLayer_Z_Orientation( m_Layer ) );
-        int zpos = g_Parm_3D_Visu.GetLayerZcoordBIU(m_Layer);
-
-        switch( m_Shape )
-        {
-        case S_SEGMENT:
-                Draw3D_SolidSegment( m_Start, m_End, m_Width,
-                                     thickness, zpos,
-                                     g_Parm_3D_Visu.m_BiuTo3Dunits );
-            break;
-
-        case S_CIRCLE:
-        {
-            int radius = KiROUND( hypot( double(m_Start.x - m_End.x),
-                                         double(m_Start.y - m_End.y) )
-                                );
-            Draw3D_ZaxisCylinder( m_Start, radius,
-                                  thickness, GetWidth(),
-                                  zpos, g_Parm_3D_Visu.m_BiuTo3Dunits );
-        }
-            break;
-
-        case S_ARC:
-            Draw3D_ArcSegment( GetCenter(), GetArcStart(),
-                               GetAngle(), GetWidth(), thickness,
-                               zpos, g_Parm_3D_Visu.m_BiuTo3Dunits );
-            break;
-
-        case S_POLYGON:
-            Draw3D_SolidHorizontalPolyPolygons( polycorners, zpos, thickness,
-                                                g_Parm_3D_Visu.m_BiuTo3Dunits );
-            break;
-
-        default:
-            D( printf( "Error: Shape nr %d not implemented!\n", m_Shape ); )
-            break;
-        }
-    }
-}
-
-
-// Draw 3D pads.
-void D_PAD::Draw3D( EDA_3D_CANVAS* glcanvas )
-{
-    double scale = g_Parm_3D_Visu.m_BiuTo3Dunits;
-
-    // Calculate the center of the pad shape.
-    wxPoint shape_pos = ReturnShapePos();
-
-    int height = g_Parm_3D_Visu.GetLayerZcoordBIU(LAYER_N_FRONT) -
-                    g_Parm_3D_Visu.GetLayerZcoordBIU(LAYER_N_BACK);
-    int thickness = g_Parm_3D_Visu.GetCopperThicknessBIU();
-
-    // Store here the points to approximate hole by segments
-    std::vector <CPolyPt> holecornersBuffer;
-    const int slice = 12;   // number of segments to approximate a circle
-
-    // Draw the pad hole
-    bool hasHole = m_Drill.x && m_Drill.y;
-
-    if( hasHole )
-    {
-        SetGLColor( DARKGRAY );
-        int holeZpoz = g_Parm_3D_Visu.GetLayerZcoordBIU(LAYER_N_BACK) + thickness/2;
-        int holeHeight = height - thickness;
-
-        if( m_Drill.x == m_Drill.y )    // usual round hole
-        {
-            Draw3D_ZaxisCylinder( m_Pos,  (m_Drill.x + thickness) / 2, holeHeight,
-                                  thickness, holeZpoz, scale );
-            TransformCircleToPolygon( holecornersBuffer, m_Pos, m_Drill.x/2, slice );
-        }
-        else    // Oblong hole
-        {
-            wxPoint ends_offset;
-            int width;
-
-            if( m_Drill.x > m_Drill.y )    // Horizontal oval
-            {
-                ends_offset.x = ( m_Drill.x - m_Drill.y ) / 2;
-                width = m_Drill.y;
-            }
-            else    // Vertical oval
-            {
-                ends_offset.y = ( m_Drill.y - m_Drill.x ) / 2;
-                width = m_Drill.x;
-            }
-
-            RotatePoint( &ends_offset, m_Orient );
-
-            wxPoint start  = m_Pos + ends_offset;
-            wxPoint end  = m_Pos - ends_offset;
-            int hole_radius = ( width + thickness ) / 2;
-
-            // Prepare the shape creation
-            TransformRoundedEndsSegmentToPolygon( holecornersBuffer, start, end, slice, width );
-
-            // Draw the hole
-            Draw3D_ZaxisOblongCylinder( start, end, hole_radius, holeHeight,
-                                        thickness, holeZpoz, scale );
-        }
-    }
-
-    glNormal3f( 0.0, 0.0, 1.0 ); // Normal is Z axis
-
-    int nlmax = g_Parm_3D_Visu.m_CopperLayersCount - 1;
-
-    // Store here the points to approximate pad shape by segments
-    std::vector<CPolyPt> polyPadShape;
-
-    switch( GetShape() )
-    {
-    case PAD_CIRCLE:
-        for( int layer = FIRST_COPPER_LAYER; layer <= LAST_COPPER_LAYER; layer++ )
-        {
-            if( layer && (layer == nlmax) )
-                layer = LAYER_N_FRONT;
-
-            if( !IsOnLayer( layer ) )
-                continue;
-
-            if( g_Parm_3D_Visu.m_BoardSettings->IsLayerVisible( layer ) == false )
-                continue;
-
-            SetGLColor( g_ColorsSettings.GetLayerColor( layer ) );
-            int zpos = g_Parm_3D_Visu.GetLayerZcoordBIU( layer );
-            int ring_radius = (m_Size.x + m_Drill.x) / 4;
-            if( thickness == 0 )
-                glNormal3f( 0.0, 0.0, Get3DLayer_Z_Orientation( layer ) );
-
-            Draw3D_ZaxisCylinder(shape_pos, ring_radius,
-                                  thickness, ( m_Size.x - m_Drill.x) / 2,
-                                  zpos - (thickness/2), scale );
-            }
-
-        break;
-
-    case PAD_OVAL:
-        {
-        wxPoint ends_offset;
-        int width;
-        if( m_Size.x > m_Size.y ) // Horizontal ellipse
-        {
-            ends_offset.x = ( m_Size.x - m_Size.y ) / 2;
-            width = m_Size.y;
-        }
-        else // Vertical ellipse
-        {
-            ends_offset.y = ( m_Size.y - m_Size.x ) / 2;
-            width = m_Size.x;
-        }
-
-        RotatePoint( &ends_offset, m_Orient );
-        wxPoint start  = shape_pos + ends_offset;
-        wxPoint end  = shape_pos - ends_offset;
-        TransformRoundedEndsSegmentToPolygon( polyPadShape, start, end, slice, width );
-        if( hasHole )
-            polyPadShape.insert( polyPadShape.end(), holecornersBuffer.begin(), holecornersBuffer.end() );
-        }
-        break;
-
-    case PAD_RECT:
-    case PAD_TRAPEZOID:
-        {
-        wxPoint coord[5];
-        BuildPadPolygon( coord, wxSize(0,0), m_Orient );
-        for( int ii = 0; ii < 4; ii ++ )
-        {
-            CPolyPt pt( coord[ii].x + shape_pos.x, coord[ii].y+ shape_pos.y );
-            polyPadShape.push_back( pt );
-        }
-        polyPadShape.back().end_contour = true;
-
-        if( hasHole )
-            polyPadShape.insert( polyPadShape.end(), holecornersBuffer.begin(), holecornersBuffer.end() );
-        }
-    break;
-
-    default:
-        break;
-    }
-
-    if( polyPadShape.size() )
-    {
-        for( int layer = FIRST_COPPER_LAYER; layer <= LAST_COPPER_LAYER; layer++ )
-        {
-            if( layer && (layer == nlmax) )
-                layer = LAYER_N_FRONT;
-
-            if( !IsOnLayer( layer ) )
-                continue;
-
-            if( g_Parm_3D_Visu.m_BoardSettings->IsLayerVisible( layer ) == false )
-                continue;
-
-            SetGLColor( g_ColorsSettings.GetLayerColor( layer ) );
-
-            if( thickness == 0 )
-                glNormal3f( 0.0, 0.0, Get3DLayer_Z_Orientation( layer ) );
-
-            // If not hole: draw a single polygon
-            int zpos = g_Parm_3D_Visu.GetLayerZcoordBIU( layer );
-            if( hasHole )
-            {
-                Draw3D_SolidHorizontalPolygonWithHoles( polyPadShape, zpos,
-                                thickness, g_Parm_3D_Visu.m_BiuTo3Dunits );
-            }
-
-            else
-            {
-                Draw3D_SolidHorizontalPolyPolygons( polyPadShape, zpos,
-                                          thickness, g_Parm_3D_Visu.m_BiuTo3Dunits );
-            }
-        }
-    }
-
-}
-
-bool Is3DLayerEnabled( int aLayer )
-{
-    int flg = -1;
     // see if layer needs to be shown
     // check the flags
-    switch (aLayer)
+    switch( aLayer )
     {
-        case DRAW_N:
-            flg=g_Parm_3D_Visu.FL_DRAWINGS;
-            break;
+    case B_Adhes:
+    case F_Adhes:
+        flg = FL_ADHESIVE;
+        break;
 
-        case COMMENT_N:
-            flg=g_Parm_3D_Visu.FL_COMMENTS;
-            break;
+    case B_Paste:
+    case F_Paste:
+        flg = FL_SOLDERPASTE;
+        break;
 
-        case ECO1_N:
-            flg=g_Parm_3D_Visu.FL_ECO1;
-            break;
+    case B_SilkS:
+    case F_SilkS:
+        flg = FL_SILKSCREEN;
+        break;
 
-        case ECO2_N:
-            flg=g_Parm_3D_Visu.FL_ECO2;
-            break;
+    case B_Mask:
+    case F_Mask:
+        flg = FL_SOLDERMASK;
+        break;
+
+    case Dwgs_User:
+    case Cmts_User:
+        if( isRealisticMode() )
+            return false;
+
+        flg = FL_COMMENTS;
+        break;
+
+    case Eco1_User:
+    case Eco2_User:
+        if( isRealisticMode() )
+            return false;
+
+        flg = FL_ECO;
+        break;
+
+    case B_Cu:
+    case F_Cu:
+        return GetPrm3DVisu().m_BoardSettings->IsLayerVisible( aLayer )
+               || isRealisticMode();
+        break;
+
+    default:
+        // the layer is an internal copper layer, used the visibility
+        //
+        if( isRealisticMode() )
+            return false;
+
+        return GetPrm3DVisu().m_BoardSettings->IsLayerVisible( aLayer );
     }
-    // the layer was not a layer with a flag, so show it
-    if( flg < 0 )
-        return true;
 
-    // if the layer has a flag, return the flag
-    return g_Parm_3D_Visu.m_DrawFlags[flg];
-}
-
-
-GLfloat Get3DLayer_Z_Orientation( int aLayer )
-{
-    double nZ;
-
-    nZ = 1.0;
-
-    if( ( aLayer == LAYER_N_BACK )
-       || ( aLayer == ADHESIVE_N_BACK )
-       || ( aLayer == SOLDERPASTE_N_BACK )
-       || ( aLayer == SILKSCREEN_N_BACK )
-       || ( aLayer == SOLDERMASK_N_BACK ) )
-        nZ = -1.0;
-
-    return nZ;
+    // The layer has a flag, return the flag
+    return isEnabled( flg );
 }

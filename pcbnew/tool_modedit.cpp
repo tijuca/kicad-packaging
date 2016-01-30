@@ -1,10 +1,10 @@
 /*
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
- * Copyright (C) 2012 Jean-Pierre Charras, jean-pierre.charras@ujf-grenoble.fr
+ * Copyright (C) 2015 Jean-Pierre Charras, jp.charras at wanadoo.fr
  * Copyright (C) 2012 SoftPLC Corporation, Dick Hollenbeck <dick@softplc.com>
  * Copyright (C) 2012 Wayne Stambaugh <stambaughw@verizon.net>
- * Copyright (C) 1992-2012 KiCad Developers, see AUTHORS.txt for contributors.
+ * Copyright (C) 1992-2015 KiCad Developers, see AUTHORS.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -38,12 +38,6 @@
 #include <pcbnew_id.h>
 #include <hotkeys.h>
 
-#ifdef __UNIX__
-#define LISTBOX_WIDTH 140
-#else
-#define LISTBOX_WIDTH 120
-#endif
-
 
 void FOOTPRINT_EDIT_FRAME::ReCreateHToolbar()
 {
@@ -61,14 +55,14 @@ void FOOTPRINT_EDIT_FRAME::ReCreateHToolbar()
                             _( "Select active library" ) );
 
     m_mainToolBar->AddTool( ID_MODEDIT_SAVE_LIBMODULE, wxEmptyString, KiBitmap( save_library_xpm ),
-                            _( "Save module in active library" ) );
+                            _( "Save footprint in active library" ) );
 
     m_mainToolBar->AddTool( ID_MODEDIT_CREATE_NEW_LIB_AND_SAVE_CURRENT_PART, wxEmptyString,
                             KiBitmap( new_library_xpm ),
-                            _( "Create new library and save current module" ) );
+                            _( "Create new library and save current footprint" ) );
 
     m_mainToolBar->AddTool( ID_OPEN_MODULE_VIEWER, wxEmptyString, KiBitmap( modview_icon_xpm ),
-                            _( "Open module viewer" ) );
+                            _( "Open footprint viewer" ) );
 
     m_mainToolBar->AddSeparator();
     m_mainToolBar->AddTool( ID_MODEDIT_DELETE_PART, wxEmptyString, KiBitmap( delete_xpm ),
@@ -76,38 +70,38 @@ void FOOTPRINT_EDIT_FRAME::ReCreateHToolbar()
 
     m_mainToolBar->AddSeparator();
     m_mainToolBar->AddTool( ID_MODEDIT_NEW_MODULE, wxEmptyString, KiBitmap( new_footprint_xpm ),
-                            _( "New module" ) );
+                            _( "New footprint" ) );
 
 #ifdef KICAD_SCRIPTING
     m_mainToolBar->AddTool( ID_MODEDIT_NEW_MODULE_FROM_WIZARD, wxEmptyString,
                             KiBitmap( module_wizard_xpm ),
-                            _( "New module from footprint wizard" ) );
+                            _( "New footprint using the footprint wizard" ) );
 #endif
 
 
     m_mainToolBar->AddTool( ID_MODEDIT_LOAD_MODULE, wxEmptyString,
                             KiBitmap( load_module_lib_xpm ),
-                            _( "Load module from library" ) );
+                            _( "Load footprint from library" ) );
 
     m_mainToolBar->AddSeparator();
     m_mainToolBar->AddTool( ID_MODEDIT_LOAD_MODULE_FROM_BOARD, wxEmptyString,
                             KiBitmap( load_module_board_xpm ),
-                            _( "Load module from current board" ) );
+                            _( "Load footprint from current board" ) );
 
     m_mainToolBar->AddTool( ID_MODEDIT_UPDATE_MODULE_IN_BOARD, wxEmptyString,
                             KiBitmap( update_module_board_xpm ),
-                            _( "Update module in current board" ) );
+                            _( "Update footprint in current board" ) );
 
     m_mainToolBar->AddTool( ID_MODEDIT_INSERT_MODULE_IN_BOARD, wxEmptyString,
                             KiBitmap( insert_module_board_xpm ),
-                            _( "Insert module into current board" ) );
+                            _( "Insert footprint into current board" ) );
 
     m_mainToolBar->AddSeparator();
     m_mainToolBar->AddTool( ID_MODEDIT_IMPORT_PART, wxEmptyString, KiBitmap( import_module_xpm ),
-                            _( "Import module" ) );
+                            _( "Import footprint" ) );
 
     m_mainToolBar->AddTool( ID_MODEDIT_EXPORT_PART, wxEmptyString, KiBitmap( export_module_xpm ),
-                            _( "Export module" ) );
+                            _( "Export footprint" ) );
 
 
     m_mainToolBar->AddSeparator();
@@ -119,11 +113,11 @@ void FOOTPRINT_EDIT_FRAME::ReCreateHToolbar()
     m_mainToolBar->AddSeparator();
     m_mainToolBar->AddTool( ID_MODEDIT_EDIT_MODULE_PROPERTIES, wxEmptyString,
                             KiBitmap( module_options_xpm ),
-                            _( "Module properties" ) );
+                            _( "Footprint properties" ) );
 
     m_mainToolBar->AddSeparator();
     m_mainToolBar->AddTool( wxID_PRINT, wxEmptyString, KiBitmap( print_button_xpm ),
-                            _( "Print module" ) );
+                            _( "Print footprint" ) );
 
     m_mainToolBar->AddSeparator();
     msg = AddHotkeyName( _( "Zoom in" ), g_Module_Editor_Hokeys_Descr, HK_ZOOM_IN, IS_COMMENT );
@@ -143,10 +137,12 @@ void FOOTPRINT_EDIT_FRAME::ReCreateHToolbar()
     m_mainToolBar->AddTool( ID_MODEDIT_PAD_SETTINGS, wxEmptyString, KiBitmap( options_pad_xpm ),
                             _( "Pad settings" ) );
 
+#if 0       // Currently there is no check footprint function defined, so do not show this tool
     m_mainToolBar->AddSeparator();
     m_mainToolBar->AddTool( ID_MODEDIT_CHECK, wxEmptyString,
                             KiBitmap( module_check_xpm ),
-                            _( "Check module" ) );
+                            _( "Check footprint" ) );
+#endif
 
     // after adding the buttons to the toolbar, must call Realize() to reflect the changes
     m_mainToolBar->Realize();
@@ -184,7 +180,7 @@ void FOOTPRINT_EDIT_FRAME::ReCreateVToolbar()
 
     m_drawToolBar->AddSeparator();
     m_drawToolBar->AddTool( ID_MODEDIT_ANCHOR_TOOL, wxEmptyString, KiBitmap( anchor_xpm ),
-                            _( "Place the footprint module reference anchor" ),
+                            _( "Place the footprint reference anchor" ),
                             wxITEM_CHECK );
 
     m_drawToolBar->AddSeparator();
@@ -240,14 +236,17 @@ void FOOTPRINT_EDIT_FRAME::ReCreateOptToolbar()
                                KiBitmap( show_mod_edge_xpm ),
                                _( "Show Edges Sketch" ), wxITEM_CHECK  );
 
+    m_optionsToolBar->AddTool( ID_TB_OPTIONS_SHOW_HIGH_CONTRAST_MODE, wxEmptyString,
+                               KiBitmap( contrast_mode_xpm ),
+                               _( "Enable high contrast display mode" ),
+                               wxITEM_CHECK );
+
     m_optionsToolBar->Realize();
 }
 
 
 void FOOTPRINT_EDIT_FRAME::ReCreateAuxiliaryToolbar()
 {
-    wxString msg;
-
     if( m_auxiliaryToolBar )
         return;
 
@@ -258,27 +257,22 @@ void FOOTPRINT_EDIT_FRAME::ReCreateAuxiliaryToolbar()
     m_auxiliaryToolBar->AddSeparator();
 
     // Grid selection choice box.
-    m_gridSelectBox = new wxComboBox( m_auxiliaryToolBar,
+    m_gridSelectBox = new wxChoice( m_auxiliaryToolBar,
                                       ID_ON_GRID_SELECT,
-                                      wxEmptyString,
-                                      wxPoint( -1, -1 ),
-                                      wxSize( LISTBOX_WIDTH, -1 ),
-                                      0, NULL, wxCB_READONLY );
+                                      wxDefaultPosition, wxDefaultSize,
+                                      0, NULL );
+    // Update tool bar to reflect setting.
+    updateGridSelectBox();
     m_auxiliaryToolBar->AddControl( m_gridSelectBox );
 
     // Zoom selection choice box.
     m_auxiliaryToolBar->AddSeparator();
-    m_zoomSelectBox = new wxComboBox( m_auxiliaryToolBar,
+    m_zoomSelectBox = new wxChoice( m_auxiliaryToolBar,
                                       ID_ON_ZOOM_SELECT,
-                                      wxEmptyString,
-                                      wxPoint( -1, -1 ),
-                                      wxSize( LISTBOX_WIDTH, -1 ),
-                                      0, NULL, wxCB_READONLY );
-    m_auxiliaryToolBar->AddControl( m_zoomSelectBox );
-
-    // Update tool bar to reflect setting.
-    updateGridSelectBox();
+                                      wxDefaultPosition, wxDefaultSize,
+                                      0, NULL );
     updateZoomSelectBox();
+    m_auxiliaryToolBar->AddControl( m_zoomSelectBox );
 
     // after adding the buttons to the toolbar, must call Realize() to reflect the changes
     m_auxiliaryToolBar->Realize();

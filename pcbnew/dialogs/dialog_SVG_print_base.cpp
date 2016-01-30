@@ -1,9 +1,11 @@
 ///////////////////////////////////////////////////////////////////////////
-// C++ code generated with wxFormBuilder (version Apr 10 2012)
+// C++ code generated with wxFormBuilder (version Jun  6 2014)
 // http://www.wxformbuilder.org/
 //
 // PLEASE DO "NOT" EDIT THIS FILE!
 ///////////////////////////////////////////////////////////////////////////
+
+#include "wx_html_report_panel.h"
 
 #include "dialog_SVG_print_base.h"
 
@@ -24,6 +26,7 @@ DIALOG_SVG_PRINT_base::DIALOG_SVG_PRINT_base( wxWindow* parent, wxWindowID id, c
 	bSizer4 = new wxBoxSizer( wxHORIZONTAL );
 	
 	m_outputDirectoryName = new wxTextCtrl( this, wxID_ANY, wxEmptyString, wxDefaultPosition, wxDefaultSize, 0 );
+	m_outputDirectoryName->SetMaxLength( 0 ); 
 	m_outputDirectoryName->SetToolTip( _("Enter a filename if you do not want to use default file names\nCan be used only when printing the current sheet") );
 	m_outputDirectoryName->SetMinSize( wxSize( 450,-1 ) );
 	
@@ -64,6 +67,7 @@ DIALOG_SVG_PRINT_base::DIALOG_SVG_PRINT_base( wxWindow* parent, wxWindowID id, c
 	sbOptionsSizer->Add( m_TextPenWidth, 0, wxRIGHT|wxLEFT, 5 );
 	
 	m_DialogDefaultPenSize = new wxTextCtrl( this, wxID_ANY, wxEmptyString, wxDefaultPosition, wxDefaultSize, 0 );
+	m_DialogDefaultPenSize->SetMaxLength( 0 ); 
 	sbOptionsSizer->Add( m_DialogDefaultPenSize, 0, wxBOTTOM|wxRIGHT|wxLEFT|wxEXPAND, 5 );
 	
 	wxString m_ModeColorOptionChoices[] = { _("Color"), _("Black and white") };
@@ -87,6 +91,8 @@ DIALOG_SVG_PRINT_base::DIALOG_SVG_PRINT_base( wxWindow* parent, wxWindowID id, c
 	sbOptionsSizer->Add( m_PrintBoardEdgesCtrl, 0, wxBOTTOM|wxRIGHT|wxLEFT, 5 );
 	
 	m_printMirrorOpt = new wxCheckBox( this, wxID_ANY, _("Print mirrored"), wxDefaultPosition, wxDefaultSize, 0 );
+	m_printMirrorOpt->SetToolTip( _("Print the layer(s) horizontally mirrored") );
+	
 	sbOptionsSizer->Add( m_printMirrorOpt, 0, wxRIGHT|wxLEFT, 5 );
 	
 	
@@ -102,10 +108,10 @@ DIALOG_SVG_PRINT_base::DIALOG_SVG_PRINT_base( wxWindow* parent, wxWindowID id, c
 	bButtonsSizer->Add( m_rbFileOpt, 0, wxALL, 5 );
 	
 	m_buttonCreateFile = new wxButton( this, wxID_PRINT_BOARD, _("Plot"), wxDefaultPosition, wxDefaultSize, 0 );
-	bButtonsSizer->Add( m_buttonCreateFile, 0, wxALL|wxALIGN_CENTER_HORIZONTAL|wxEXPAND, 5 );
+	bButtonsSizer->Add( m_buttonCreateFile, 0, wxALL|wxEXPAND, 5 );
 	
 	m_buttonQuit = new wxButton( this, wxID_CANCEL, _("Close"), wxDefaultPosition, wxDefaultSize, 0 );
-	bButtonsSizer->Add( m_buttonQuit, 0, wxALL|wxALIGN_CENTER_HORIZONTAL|wxEXPAND, 5 );
+	bButtonsSizer->Add( m_buttonQuit, 0, wxALL|wxEXPAND, 5 );
 	
 	
 	bUpperSizer->Add( bButtonsSizer, 0, wxEXPAND, 5 );
@@ -113,14 +119,16 @@ DIALOG_SVG_PRINT_base::DIALOG_SVG_PRINT_base( wxWindow* parent, wxWindowID id, c
 	
 	bMainSizer->Add( bUpperSizer, 0, wxEXPAND, 5 );
 	
-	m_staticText2 = new wxStaticText( this, wxID_ANY, _("Messages:"), wxDefaultPosition, wxDefaultSize, 0 );
-	m_staticText2->Wrap( -1 );
-	bMainSizer->Add( m_staticText2, 0, wxTOP|wxRIGHT|wxLEFT, 5 );
+	wxBoxSizer* bSizer5;
+	bSizer5 = new wxBoxSizer( wxVERTICAL );
 	
-	m_messagesBox = new wxTextCtrl( this, wxID_ANY, wxEmptyString, wxDefaultPosition, wxDefaultSize, wxTE_MULTILINE );
-	m_messagesBox->SetMinSize( wxSize( -1,100 ) );
+	m_messagesPanel = new WX_HTML_REPORT_PANEL( this, wxID_ANY, wxDefaultPosition, wxDefaultSize, wxTAB_TRAVERSAL );
+	m_messagesPanel->SetMinSize( wxSize( 300,150 ) );
 	
-	bMainSizer->Add( m_messagesBox, 1, wxBOTTOM|wxRIGHT|wxLEFT|wxEXPAND, 5 );
+	bSizer5->Add( m_messagesPanel, 1, wxEXPAND | wxALL, 5 );
+	
+	
+	bMainSizer->Add( bSizer5, 1, wxEXPAND, 5 );
 	
 	
 	this->SetSizer( bMainSizer );
@@ -130,7 +138,7 @@ DIALOG_SVG_PRINT_base::DIALOG_SVG_PRINT_base( wxWindow* parent, wxWindowID id, c
 	this->Connect( wxEVT_CLOSE_WINDOW, wxCloseEventHandler( DIALOG_SVG_PRINT_base::OnCloseWindow ) );
 	m_browseButton->Connect( wxEVT_COMMAND_BUTTON_CLICKED, wxCommandEventHandler( DIALOG_SVG_PRINT_base::OnOutputDirectoryBrowseClicked ), NULL, this );
 	m_buttonCreateFile->Connect( wxEVT_COMMAND_BUTTON_CLICKED, wxCommandEventHandler( DIALOG_SVG_PRINT_base::OnButtonPlot ), NULL, this );
-	m_buttonQuit->Connect( wxEVT_COMMAND_BUTTON_CLICKED, wxCommandEventHandler( DIALOG_SVG_PRINT_base::OnButtonCancelClick ), NULL, this );
+	m_buttonQuit->Connect( wxEVT_COMMAND_BUTTON_CLICKED, wxCommandEventHandler( DIALOG_SVG_PRINT_base::OnButtonCloseClick ), NULL, this );
 }
 
 DIALOG_SVG_PRINT_base::~DIALOG_SVG_PRINT_base()
@@ -139,6 +147,6 @@ DIALOG_SVG_PRINT_base::~DIALOG_SVG_PRINT_base()
 	this->Disconnect( wxEVT_CLOSE_WINDOW, wxCloseEventHandler( DIALOG_SVG_PRINT_base::OnCloseWindow ) );
 	m_browseButton->Disconnect( wxEVT_COMMAND_BUTTON_CLICKED, wxCommandEventHandler( DIALOG_SVG_PRINT_base::OnOutputDirectoryBrowseClicked ), NULL, this );
 	m_buttonCreateFile->Disconnect( wxEVT_COMMAND_BUTTON_CLICKED, wxCommandEventHandler( DIALOG_SVG_PRINT_base::OnButtonPlot ), NULL, this );
-	m_buttonQuit->Disconnect( wxEVT_COMMAND_BUTTON_CLICKED, wxCommandEventHandler( DIALOG_SVG_PRINT_base::OnButtonCancelClick ), NULL, this );
+	m_buttonQuit->Disconnect( wxEVT_COMMAND_BUTTON_CLICKED, wxCommandEventHandler( DIALOG_SVG_PRINT_base::OnButtonCloseClick ), NULL, this );
 	
 }

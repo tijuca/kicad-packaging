@@ -1,3 +1,27 @@
+/*
+ * This program source code file is part of KiCad, a free EDA CAD application.
+ *
+ * Copyright (C) 2007 Jean-Pierre Charras, jaen-pierre.charras@gipsa-lab.inpg.com
+ * Copyright (C) 2007-2011 KiCad Developers, see AUTHORS.txt for contributors.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation; either version 2
+ * of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, you may find one here:
+ * http://www.gnu.org/licenses/old-licenses/gpl-2.0.html
+ * or you may search the http://www.gnu.org website for the version 2 license,
+ * or you may write to the Free Software Foundation, Inc.,
+ * 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
+ */
+
 /**
  * @file class_DisplayFootprintsFrame.h
  */
@@ -5,6 +29,8 @@
 
 #include <wxBasePcbFrame.h>
 
+// The name (for wxWidgets) of the footprint viewer frame
+#define FOOTPRINTVIEWER_FRAME_NAME wxT( "FootprintViewerFrame" )
 
 class CVPCB_MAINFRAME;
 
@@ -16,14 +42,16 @@ class CVPCB_MAINFRAME;
 class DISPLAY_FOOTPRINTS_FRAME : public PCB_BASE_FRAME
 {
 public:
-    DISPLAY_FOOTPRINTS_FRAME( CVPCB_MAINFRAME* father, const wxString& title,
-                              const wxPoint& pos, const wxSize& size,
-                              long style = KICAD_DEFAULT_DRAWFRAME_STYLE );
-
+    DISPLAY_FOOTPRINTS_FRAME( KIWAY* aKiway, CVPCB_MAINFRAME* aParent );
     ~DISPLAY_FOOTPRINTS_FRAME();
 
     void    OnCloseWindow( wxCloseEvent& Event );
+
+    /*
+     * Draws the current highlighted footprint.
+     */
     void    RedrawActiveWindow( wxDC* DC, bool EraseBg );
+
     void    ReCreateHToolbar();
     void    ReCreateVToolbar();
     void    ReCreateOptToolbar();
@@ -64,11 +92,18 @@ public:
     void    OnLeftClick( wxDC* DC, const wxPoint& MousePos );
     void    OnLeftDClick( wxDC* DC, const wxPoint& MousePos );
     bool    OnRightClick( const wxPoint& MousePos, wxMenu* PopMenu );
-    void    GeneralControl( wxDC* DC, const wxPoint& aPosition, int aHotKey = 0 );
+    bool    GeneralControl( wxDC* DC, const wxPoint& aPosition, int aHotKey = 0 );
     void    InstallOptionsDisplay( wxCommandEvent& event );
     MODULE* Get_Module( const wxString& CmpName );
 
+    ///> @copydoc EDA_DRAW_FRAME::GetHotKeyDescription()
+    EDA_HOTKEY* GetHotKeyDescription( int aCommand ) const { return NULL; }
+
     void    Process_Settings( wxCommandEvent& event );
+
+    /**
+     * Display 3D frame of current footprint selection.
+     */
     void    Show3D_Frame( wxCommandEvent& event );
 
     /* SaveCopyInUndoList() virtual
@@ -91,7 +126,7 @@ public:
      * @param aTransformPoint = the reference point of the transformation,
      *                          for commands like move
      */
-    virtual void SaveCopyInUndoList( PICKED_ITEMS_LIST& aItemsList,
+    virtual void SaveCopyInUndoList( const PICKED_ITEMS_LIST& aItemsList,
                                      UNDO_REDO_T aTypeCommand,
                                      const wxPoint& aTransformPoint = wxPoint( 0, 0 ) )
     {

@@ -51,7 +51,7 @@ PCB_MODULE::PCB_MODULE( PCB_CALLBACKS* aCallbacks, BOARD* aBoard ) : PCB_COMPONE
     InitTTextValue( &m_value );
     m_mirror = 0;
     m_objType = wxT( 'M' );    // MODULE
-    m_KiCadLayer = SILKSCREEN_N_FRONT;  // default
+    m_KiCadLayer = F_SilkS;  // default
 }
 
 
@@ -430,8 +430,11 @@ void PCB_MODULE::Parse( XNODE*   aNode, wxStatusBar* aStatusBar,
         }
     }
 
-    lNode   = lNode->GetParent();
-    lNode   = FindNode( lNode, wxT( "layerContents" ) );
+    if( lNode )
+        lNode   = lNode->GetParent();
+
+    if( lNode )
+        lNode = FindNode( lNode, wxT( "layerContents" ) );
 
     while( lNode )
     {
@@ -506,20 +509,20 @@ void PCB_MODULE::AddToBoard()
     m_board->Add( module, ADD_APPEND );
 
     module->SetPosition( wxPoint( m_positionX, m_positionY ) );
-    module->SetLayer( m_mirror ? LAYER_N_BACK : LAYER_N_FRONT );
+    module->SetLayer( m_mirror ? B_Cu : F_Cu );
     module->SetOrientation( m_rotation );
     module->SetTimeStamp( 0 );
     module->SetLastEditTime( 0 );
 
-    module->SetLibRef( m_compRef );
+    module->SetFPID( FPID( m_compRef ) );
 
     module->SetAttributes( MOD_DEFAULT | MOD_CMS );
 
     // reference text
-    TEXTE_MODULE* ref_text = module->m_Reference;
+    TEXTE_MODULE* ref_text = &module->Reference();
 
     ref_text->SetText( m_name.text );
-    ref_text->SetType( TEXT_is_REFERENCE );
+    ref_text->SetType( TEXTE_MODULE::TEXT_is_REFERENCE );
 
     ref_text->SetPos0( wxPoint( m_name.correctedPositionX, m_name.correctedPositionY ) );
     ref_text->SetSize( wxSize( KiROUND( m_name.textHeight / 2 ),
@@ -537,10 +540,10 @@ void PCB_MODULE::AddToBoard()
     ref_text->SetDrawCoord();
 
     // value text
-    TEXTE_MODULE* val_text = module->m_Value;
+    TEXTE_MODULE* val_text = &module->Value();
 
     val_text->SetText( m_value.text );
-    val_text->SetType( TEXT_is_REFERENCE );
+    val_text->SetType( TEXTE_MODULE::TEXT_is_VALUE );
 
     val_text->SetPos0( wxPoint( m_value.correctedPositionX, m_value.correctedPositionY ) );
     val_text->SetSize( wxSize( KiROUND( m_value.textHeight / 2 ),
@@ -606,7 +609,7 @@ void PCB_MODULE::Flip()
     if( m_mirror == 1 )
     {
         // Flipped
-        m_KiCadLayer    = FlipLayers( m_KiCadLayer );
+        m_KiCadLayer    = FlipLayer( m_KiCadLayer );
         m_rotation      = -m_rotation;
         m_name.textPositionX = -m_name.textPositionX;
         m_name.mirror = m_mirror;

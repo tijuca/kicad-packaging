@@ -26,30 +26,54 @@
 
 #include <io_mgr.h>
 #include <string>
+#include <layers_id_colors_and_visibility.h>
 
 class BOARD;
 class BOARD_ITEM;
 class FP_CACHE;
 class PCB_PARSER;
+class NETINFO_MAPPING;
 
 
 /// Current s-expression file format version.  2 was the last legacy format version.
-#define SEXPR_BOARD_FILE_VERSION    3
 
-/// Use English default layer names
-#define CTL_UNTRANSLATED_LAYERS     (1 << 0)
+//#define SEXPR_BOARD_FILE_VERSION    3     // first s-expression format, used legacy cu stack
+#define SEXPR_BOARD_FILE_VERSION    4       // reversed cu stack, changed Inner* to In* in reverse order
+                                            // went to 32 Cu layers from 16.
 
-#define CTL_OMIT_NETS               (1 << 1)
+#define CTL_STD_LAYER_NAMES         (1 << 0)    ///< Use English Standard layer names
+#define CTL_OMIT_NETS               (1 << 1)    ///< Omit pads net names (useless in library)
+#define CTL_OMIT_TSTAMPS            (1 << 2)    ///< Omit component time stamp (useless in library)
+#define CTL_OMIT_INITIAL_COMMENTS   (1 << 3)    ///< omit MODULE initial comments
+#define CTL_OMIT_PATH               (1 << 4)    ///< Omit component sheet time stamp (useless in library)
+#define CTL_OMIT_AT                 (1 << 5)    ///< Omit position and rotation
+                                                // (always saved with potion 0,0 and rotation = 0 in library)
 
-#define CTL_OMIT_TSTAMPS            (1 << 2)
 
 // common combinations of the above:
 
 /// Format output for the clipboard instead of footprint library or BOARD
-#define CTL_FOR_CLIPBOARD           (CTL_UNTRANSLATED_LAYERS|CTL_OMIT_NETS)
+#define CTL_FOR_CLIPBOARD           (CTL_STD_LAYER_NAMES|CTL_OMIT_NETS)
 
 /// Format output for a footprint library instead of clipboard or BOARD
-#define CTL_FOR_LIBRARY             (CTL_UNTRANSLATED_LAYERS|CTL_OMIT_NETS|CTL_OMIT_TSTAMPS)
+#define CTL_FOR_LIBRARY             (CTL_STD_LAYER_NAMES|CTL_OMIT_NETS|CTL_OMIT_TSTAMPS|CTL_OMIT_PATH|CTL_OMIT_AT)
+
+/// The zero arg constructor when PCB_IO is used for PLUGIN::Load() and PLUGIN::Save()ing
+/// a BOARD file underneath IO_MGR.
+#define CTL_FOR_BOARD               (CTL_OMIT_INITIAL_COMMENTS)
+
+
+class DIMENSION;
+class EDGE_MODULE;
+class DRAWSEGMENT;
+class PCB_TARGET;
+class D_PAD;
+class TEXTE_MODULE;
+class TRACK;
+class ZONE_CONTAINER;
+class TEXTE_PCB;
+
+
 
 /**
  * Class PCB_IO
@@ -65,48 +89,44 @@ public:
 
     //-----<PLUGIN API>---------------------------------------------------------
 
-    const wxString& PluginName() const
+    const wxString PluginName() const
     {
-        static const wxString name = wxT( "KiCad" );
-        return name;
+        return wxT( "KiCad" );
     }
 
-    const wxString& GetFileExtension() const
+    const wxString GetFileExtension() const
     {
         // Would have used wildcards_and_files_ext.cpp's KiCadPcbFileExtension,
         // but to be pure, a plugin should not assume that it will always be linked
         // with the core of the pcbnew code. (Might someday be a DLL/DSO.)  Besides,
         // file extension policy should be controlled by the plugin.
-        static const wxString extension = wxT( "kicad_pcb" );
-        return extension;
+        return wxT( "kicad_pcb" );
     }
 
     void Save( const wxString& aFileName, BOARD* aBoard,
-               PROPERTIES* aProperties = NULL );          // overload
+               const PROPERTIES* aProperties = NULL );          // overload
 
-    BOARD* Load( const wxString& aFileName, BOARD* aAppendToMe, PROPERTIES* aProperties = NULL );
+    BOARD* Load( const wxString& aFileName, BOARD* aAppendToMe, const PROPERTIES* aProperties = NULL );
 
-    wxArrayString FootprintEnumerate( const wxString& aLibraryPath, PROPERTIES* aProperties = NULL);
+    wxArrayString FootprintEnumerate( const wxString& aLibraryPath, const PROPERTIES* aProperties = NULL);
 
     MODULE* FootprintLoad( const wxString& aLibraryPath, const wxString& aFootprintName,
-                           PROPERTIES* aProperties = NULL );
+                           const PROPERTIES* aProperties = NULL );
 
     void FootprintSave( const wxString& aLibraryPath, const MODULE* aFootprint,
-                        PROPERTIES* aProperties = NULL );
+                        const PROPERTIES* aProperties = NULL );
 
-    void FootprintDelete( const wxString& aLibraryPath, const wxString& aFootprintName );
+    void FootprintDelete( const wxString& aLibraryPath, const wxString& aFootprintName, const PROPERTIES* aProperties = NULL );
 
-    void FootprintLibCreate( const wxString& aLibraryPath, PROPERTIES* aProperties = NULL);
+    void FootprintLibCreate( const wxString& aLibraryPath, const PROPERTIES* aProperties = NULL);
 
-    bool FootprintLibDelete( const wxString& aLibraryPath, PROPERTIES* aProperties = NULL );
+    bool FootprintLibDelete( const wxString& aLibraryPath, const PROPERTIES* aProperties = NULL );
 
     bool IsFootprintLibWritable( const wxString& aLibraryPath );
 
     //-----</PLUGIN API>--------------------------------------------------------
 
-    PCB_IO();
-
-    PCB_IO( int aControlFlags );
+    PCB_IO( int aControlFlags = CTL_FOR_BOARD );
 
     ~PCB_IO();
 
@@ -139,6 +159,8 @@ protected:
 
     wxString        m_error;        ///< for throwing exceptions
     BOARD*          m_board;        ///< which BOARD, no ownership here
+
+    const
     PROPERTIES*     m_props;        ///< passed via Save() or Load(), no ownership, may be NULL.
     FP_CACHE*       m_cache;        ///< Footprint library cache.
 
@@ -151,7 +173,13 @@ protected:
     OUTPUTFORMATTER*    m_out;      ///< output any Format()s to this, no ownership
     int                 m_ctl;
     PCB_PARSER*         m_parser;
+    NETINFO_MAPPING*    m_mapping;  ///< mapping for net codes, so only not empty net codes
+                                    ///< are stored with consecutive integers as net codes
 
+    /// we only cache one footprint library, this determines which one.
+    void cacheLib( const wxString& aLibraryPath, const wxString& aFootprintName = wxEmptyString );
+
+    void init( const PROPERTIES* aProperties );
 
 private:
     void format( BOARD* aBoard, int aNestLevel = 0 ) const
@@ -189,13 +217,8 @@ private:
 
     void formatLayer( const BOARD_ITEM* aItem ) const;
 
-    void formatLayers( int aLayerMask, int aNestLevel = 0 ) const
+    void formatLayers( LSET aLayerMask, int aNestLevel = 0 ) const
         throw( IO_ERROR );
-
-    /// we only cache one footprint library for now, this determines which one.
-    void cacheLib( const wxString& aLibraryPath );
-
-    void init( PROPERTIES* aProperties );
 };
 
 #endif  // KICAD_PLUGIN_H_

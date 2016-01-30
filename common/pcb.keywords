@@ -39,6 +39,7 @@ autoplace_cost90
 autoplace_cost180
 aux_axis_origin
 blind
+blind_buried_vias_allowed
 bold
 bottom
 center
@@ -76,6 +77,7 @@ fp_poly
 fp_text
 full
 general
+grid_origin
 gr_arc
 gr_circle
 gr_curve

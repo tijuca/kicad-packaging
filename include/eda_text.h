@@ -1,8 +1,8 @@
 /*
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
- * Copyright (C) 2004 Jean-Pierre Charras, jean-pierre.charras@gipsa-lab.inpg.com
- * Copyright (C) 2004-2011 KiCad Developers, see change_log.txt for contributors.
+ * Copyright (C) 2013 Jean-Pierre Charras, jpe.charras at wanadoo.fr
+ * Copyright (C) 2004-2013 KiCad Developers, see change_log.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -30,7 +30,7 @@
 #ifndef EDA_TEXT_H_
 #define EDA_TEXT_H_
 
-#include <macros.h>                 // NORMALIZE_ANGLE_POS( angle );
+#include <trigo.h>                  // NORMALIZE_ANGLE_POS( angle );
 #include <common.h>                 // wxStringSplit
 #include <gr_basic.h>               // EDA_DRAW_MODE_T
 #include <base_struct.h>            // EDA_RECT
@@ -52,16 +52,22 @@ enum EDA_TEXT_VJUSTIFY_T {
 };
 
 
-/* Options to show solid segments (segments, texts...) */
+/* Options to draw items with thickness ( segments, arcs, circles, texts...) */
 enum EDA_DRAW_MODE_T {
-    LINE = 0,           // segments are drawn as lines
-    FILLED,             // normal mode: segments have thickness
-    SKETCH              // sketch mode: segments have thickness, but are not filled
+    FILLED = true,      // normal mode: solid segments
+    SKETCH = false      // sketch mode: draw segments outlines only
 };
 
 
-#define DEFAULT_SIZE_TEXT 60    /* default text height (in mils or 1/1000") */
+/** This is the "default-of-the-default" hardcoded text size; individual
+ * application define their own default policy starting with this
+ * (usually with a user option or project). DO NOT change this value if
+ * you do not fully realize the effect it has on sexp serialization
+ * (text size equal to this is not explicitly wrote, so it would change
+ * subsequent reads) */
+#define DEFAULT_SIZE_TEXT 60    // default text height (in mils, i.e. 1/1000")
 #define TEXT_NO_VISIBLE   1     //< EDA_TEXT::m_Attribut(e?) visibility flag.
+#define DIM_ANCRE_TEXTE  2      // Anchor size for text
 
 
 /**
@@ -72,28 +78,46 @@ enum EDA_DRAW_MODE_T {
  */
 class EDA_TEXT
 {
-public:
-    wxString m_Text;
-    int      m_Thickness;               ///< pen size used to draw this text
-    double   m_Orient;                  ///< Orient in 0.1 degrees
-    wxPoint  m_Pos;                     ///< XY position of anchor text.
-    wxSize   m_Size;                    ///< XY size of text
-    bool     m_Mirror;                  ///< true if mirrored
-    int      m_Attributs;               ///< bit flags such as visible, etc.
-    bool     m_Italic;                  ///< should be italic font (if available)
-    bool     m_Bold;                    ///< should be bold font (if available)
-    EDA_TEXT_HJUSTIFY_T m_HJustify;     ///< horizontal justification
-    EDA_TEXT_VJUSTIFY_T m_VJustify;     ///< vertical justification
-
-    bool     m_MultilineAllowed;        /**< true to use multiline option, false
-                                         * to use only single line text
-                                         * Single line is faster in
-                                         * calculations than multiline */
+protected:
+    wxString            m_Text;             ///< The 'base' text, maybe later processed for display
+    int                 m_Thickness;        ///< pen size used to draw this text
+    double              m_Orient;           ///< Orient in 0.1 degrees
+    wxPoint             m_Pos;              ///< XY position of anchor text.
+    wxSize              m_Size;             ///< XY size of text
+    bool                m_Mirror;           ///< true if mirrored
+    int                 m_Attributs;        ///< bit flags such as visible, etc.
+    bool                m_Italic;           ///< should be italic font (if available)
+    bool                m_Bold;             ///< should be bold font (if available)
+    EDA_TEXT_HJUSTIFY_T m_HJustify;         ///< horizontal justification
+    EDA_TEXT_VJUSTIFY_T m_VJustify;         ///< vertical justification
+    bool                m_MultilineAllowed; /**< true to use multiline option, false
+                                             * to use only single line text
+                                             * Single line is faster in
+                                             * calculations than multiline */
 
 public:
     EDA_TEXT( const wxString& text = wxEmptyString );
     EDA_TEXT( const EDA_TEXT& aText );
     virtual ~EDA_TEXT();
+
+    /**
+     * Function GetText
+     * returns the string associated with the text object.
+     *
+     * @return a const wxString reference containing the string of the item.
+     */
+    const wxString& GetText() const { return m_Text; }
+
+    /**
+     * Returns the string actually shown after processing of the base
+     * text. Default is no processing */
+    virtual wxString GetShownText() const { return m_Text; }
+
+    /**
+     * Returns a shortened version (max 15 characters) of the shown text */
+    wxString ShortenedShownText() const;
+
+    virtual void SetText( const wxString& aText ) { m_Text = aText; }
 
     /**
      * Function SetThickness
@@ -107,29 +131,32 @@ public:
      * returns text thickness.
      * @return int - text thickness.
      */
-    int GetThickness() const            { return m_Thickness; };
+    int GetThickness() const               { return m_Thickness; };
 
     void SetOrientation( double aOrientation )
     {
         NORMALIZE_ANGLE_POS( aOrientation );
         m_Orient = aOrientation;
     }
-    double GetOrientation() const       { return m_Orient; }
+    double GetOrientation() const          { return m_Orient; }
 
-    void SetItalic( bool isItalic )     { m_Italic = isItalic; }
-    bool IsItalic() const               { return m_Italic; }
+    void SetItalic( bool isItalic )        { m_Italic = isItalic; }
+    bool IsItalic() const                  { return m_Italic; }
 
-    void SetBold( bool aBold )          { m_Bold = aBold; }
-    bool IsBold() const                 { return m_Bold; }
+    void SetBold( bool aBold )             { m_Bold = aBold; }
+    bool IsBold() const                    { return m_Bold; }
 
     void SetVisible( bool aVisible )
     {
         ( aVisible ) ? m_Attributs &= ~TEXT_NO_VISIBLE : m_Attributs |= TEXT_NO_VISIBLE;
     }
-    bool IsVisible() const              { return !( m_Attributs & TEXT_NO_VISIBLE ); }
+    bool IsVisible() const                 { return !( m_Attributs & TEXT_NO_VISIBLE ); }
 
-    void SetMirrored( bool isMirrored ) { m_Mirror = isMirrored; }
-    bool IsMirrored() const             { return m_Mirror; }
+    void SetMirrored( bool isMirrored )    { m_Mirror = isMirrored; }
+    bool IsMirrored() const                { return m_Mirror; }
+
+    void SetAttributes( int aAttributes )  { m_Attributs = aAttributes; }
+    int GetAttributes() const              { return m_Attributs; }
 
     bool IsDefaultFormatting() const;
 
@@ -145,52 +172,47 @@ public:
      * returns text size.
      * @return wxSize - text size.
      */
-    const wxSize GetSize() const        { return m_Size; };
+    const wxSize& GetSize() const          { return m_Size; };
+
+    void SetWidth( int aWidth ) { m_Size.x = aWidth; }
+    int GetWidth() const { return m_Size.x; }
+
+    void SetHeight( int aHeight ) { m_Size.y = aHeight; }
+    int GetHeight() const { return m_Size.y; }
 
     /// named differently than the ones using multiple inheritance and including this class
-    void SetPos( const wxPoint& aPoint ) { m_Pos = aPoint; }
-    const wxPoint GetPos() const { return m_Pos; }
+    void SetTextPosition( const wxPoint& aPoint ) { m_Pos = aPoint; }
+    const wxPoint& GetTextPosition() const { return m_Pos; }
 
-    int GetLength() const { return m_Text.Length(); };
+    void SetMultilineAllowed( bool aAllow )  { m_MultilineAllowed = aAllow; }
+    bool IsMultilineAllowed() const          { return m_MultilineAllowed; }
+
+    void Offset( const wxPoint& aOffset ) { m_Pos += aOffset; }
+
+    void Empty() { m_Text.Empty(); }
 
     /**
      * Function Draw
-     * @param aPanel = the current DrawPanel
+     * @param aClipBox = the clipping rect, or NULL if no clipping
      * @param aDC = the current Device Context
      * @param aOffset = draw offset (usually (0,0))
      * @param aColor = text color
      * @param aDrawMode = GR_OR, GR_XOR.., -1 to use the current mode.
-     * @param aDisplay_mode = LINE, FILLED or SKETCH
-     * @param aAnchor_color = anchor color ( UNSPECIFIED = do not draw anchor ).
+     * @param aDisplay_mode = FILLED or SKETCH
+     * @param aAnchor_color = anchor color ( UNSPECIFIED_COLOR = do not draw anchor ).
      */
-    void Draw( EDA_DRAW_PANEL* aPanel, wxDC* aDC,
+    void Draw( EDA_RECT* aClipBox, wxDC* aDC,
                const wxPoint& aOffset, EDA_COLOR_T aColor,
-               GR_DRAWMODE aDrawMode, EDA_DRAW_MODE_T aDisplay_mode = LINE,
-               EDA_COLOR_T aAnchor_color = UNSPECIFIED_COLOR );
-
-private:
+               GR_DRAWMODE aDrawMode, EDA_DRAW_MODE_T aDisplay_mode = FILLED,
+               EDA_COLOR_T aAnchor_color = EDA_COLOR_T(UNSPECIFIED_COLOR) );
 
     /**
-     * Function DrawOneLineOfText
-     * Draw a single text line.
-     * Used to draw each line of this EDA_TEXT, that can be multiline
-     * @param aPanel = the current DrawPanel
-     * @param aDC = the current Device Context
-     * @param aOffset = draw offset (usually (0,0))
-     * @param aColor = text color
-     * @param aDrawMode = GR_OR, GR_XOR.., -1 to use the current mode.
-     * @param aFillMode = LINE, FILLED or SKETCH
-     * @param aAnchor_color = anchor color ( UNSPECIFIED_COLOR = do not draw anchor ).
-     * @param aText = the single line of text to draw.
-     * @param aPos = the position of this line ).
+     * Convert the text shape to a list of segment
+     * each segment is stored as 2 wxPoints: the starting point and the ending point
+     * there are therefore 2*n points
+     * @param aCornerBuffer = a buffer to store the polygon
      */
-    void DrawOneLineOfText( EDA_DRAW_PANEL* aPanel, wxDC* aDC,
-                            const wxPoint& aOffset, EDA_COLOR_T aColor,
-                            GR_DRAWMODE aDrawMode, EDA_DRAW_MODE_T aFillMode,
-                            EDA_COLOR_T aAnchor_color, wxString& aText,
-                            wxPoint aPos );
-
-public:
+    void TransformTextShapeToSegmentList( std::vector<wxPoint>& aCornerBuffer ) const;
 
     /**
      * Function TextHitTest
@@ -225,13 +247,16 @@ public:
      * useful in multiline texts to calculate the full text or a line area (for
      * zones filling, locate functions....)
      * @return the rect containing the line of text (i.e. the position and the
-     *         size of one line) this rectangle is calculated for 0 orient text.
+     *         size of one line)
+     *         this rectangle is calculated for 0 orient text.
      *         If orientation is not 0 the rect must be rotated to match the
      *         physical area
      * @param aLine The line of text to consider.
      * for single line text, aLine is unused
      * If aLine == -1, the full area (considering all lines) is returned
      * @param aThickness Overrides the current thickness when greater than 0.
+     * this is needed when the current m_Thickness is 0 and a default line thickness
+     * is used
      * @param aInvertY Invert the Y axis when calculating bounding box.
      */
     EDA_RECT GetTextBox( int aLine = -1, int aThickness = -1, bool aInvertY = false ) const;
@@ -240,11 +265,11 @@ public:
      * Function GetInterline
      * return the distance between 2 text lines
      * has meaning only for multiline texts
+     * @param aTextThickness Overrides the current thickness when greater than 0.
+     * this is needed when the current m_Thickness is 0 and a default line thickness
+     * is used
      */
-    int GetInterline() const
-    {
-        return (( m_Size.y * 14 ) / 10) + m_Thickness;
-    }
+    int GetInterline( int aTextThickness = -1 ) const;
 
     /**
      * Function GetTextStyleName
@@ -252,26 +277,23 @@ public:
      */
     wxString GetTextStyleName();
 
-    void SetText( const wxString& aText ) { m_Text = aText; }
-
-    /**
-     * Function GetText
-     * returns the string associated with the text object.
-     * <p>
-     * This function is virtual to allow derived classes to override getting the
-     * string to provide a way for modifying the base string by adding a suffix or
-     * prefix to the base string.
-     * </p>
-     * @return a const wxString object containing the string of the item.
-     */
-    virtual const wxString GetText() const { return m_Text; }
-
     EDA_TEXT_HJUSTIFY_T GetHorizJustify() const         { return m_HJustify; };
     EDA_TEXT_VJUSTIFY_T GetVertJustify() const          { return m_VJustify; };
 
     void SetHorizJustify( EDA_TEXT_HJUSTIFY_T aType )   { m_HJustify = aType; };
     void SetVertJustify( EDA_TEXT_VJUSTIFY_T aType )    { m_VJustify = aType; };
 
+    /**
+     * Function GetPositionsOfLinesOfMultilineText
+     * Populates aPositions with the position of each line of
+     * a multiline text, according to the vertical justification and the
+     * rotation of the whole text
+     * @param aPositions is the list to populate by the wxPoint positions
+     * @param aLineCount is the number of lines (not recalculated here
+     * for efficiency reasons
+     */
+    void GetPositionsOfLinesOfMultilineText(
+                std::vector<wxPoint>& aPositions, int aLineCount ) const;
     /**
      * Function Format
      * outputs the object to \a aFormatter in s-expression form.
@@ -284,6 +306,25 @@ public:
     virtual void Format( OUTPUTFORMATTER* aFormatter, int aNestLevel, int aControlBits ) const
         throw( IO_ERROR );
 
+private:
+
+    /**
+     * Function drawOneLineOfText
+     * Draw a single text line.
+     * Used to draw each line of this EDA_TEXT, that can be multiline
+     * @param aClipBox = the clipping rect, or NULL if no clipping
+     * @param aDC = the current Device Context
+     * @param aOffset = draw offset (usually (0,0))
+     * @param aColor = text color
+     * @param aDrawMode = GR_OR, GR_XOR.., -1 to use the current mode.
+     * @param aFillMode = FILLED or SKETCH
+     * @param aText = the single line of text to draw.
+     * @param aPos = the position of this line ).
+     */
+    void drawOneLineOfText( EDA_RECT* aClipBox, wxDC* aDC,
+                            const wxPoint& aOffset, EDA_COLOR_T aColor,
+                            GR_DRAWMODE aDrawMode, EDA_DRAW_MODE_T aFillMode,
+                            const wxString& aText, const wxPoint &aPos );
 };
 
 

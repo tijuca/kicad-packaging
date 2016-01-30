@@ -37,6 +37,16 @@
 #include <common.h>
 #include <convert_to_biu.h>
 
+/** Helper function Double2Str to print a float number without
+ * using scientific notation and no trailing 0
+ * We want to avoid scientific notation in S-expr files (not easy to read)
+ * for floating numbers.
+ * So we cannot always just use the %g or the %f format to print a fp number
+ * this helper function uses the %f format when needed, or %g when %f is
+ * not well working and then removes trailing 0
+ */
+std::string Double2Str( double aValue );
+
 /**
  * Function StripTrailingZeros
  * Remove trailing 0 from a string containing a converted float number.
@@ -74,6 +84,13 @@ double To_User_Unit( EDA_UNITS_T aUnit, double aValue );
 wxString CoordinateToString( int aValue, bool aConvertToMils = false );
 
 /**
+ * Function AngleToStringDegrees
+ * is a helper to convert the \a double \a aAngle (in internal unit)
+ * to a string in degrees
+ */
+wxString AngleToStringDegrees( double aAngle );
+
+/**
  * Function LenghtDoubleToString
  * is a helper to convert the \a double length \a aValue to a string in inches,
  * millimeters, or unscaled units according to the current user units setting.
@@ -91,7 +108,7 @@ wxString CoordinateToString( int aValue, bool aConvertToMils = false );
 wxString LengthDoubleToString( double aValue, bool aConvertToMils = false );
 
 /**
- * Function ReturnStringFromValue
+ * Function StringFromValue
  * returns the string from \a aValue according to units (inch, mm ...) for display,
  * and the initial unit for value.
  *
@@ -109,7 +126,7 @@ wxString LengthDoubleToString( double aValue, bool aConvertToMils = false );
  * @param aAddUnitSymbol = true to add symbol unit to the string value
  * @return A wxString object containing value and optionally the symbol unit (like 2.000 mm)
  */
-wxString ReturnStringFromValue( EDA_UNITS_T aUnit, int aValue, bool aAddUnitSymbol = false );
+wxString StringFromValue( EDA_UNITS_T aUnit, int aValue, bool aAddUnitSymbol = false );
 
 /**
  * Operator << overload
@@ -131,22 +148,33 @@ wxString& operator <<( wxString& aString, const wxPoint& aPoint );
 void PutValueInLocalUnits( wxTextCtrl& aTextCtr, int aValue );
 
 /**
- * Return in internal units the value "val" given in inch or mm
+ * Return in internal units the value "val" given in a real unit
+ * such as "in", "mm" or "deg"
  */
 double From_User_Unit( EDA_UNITS_T aUnit, double aValue );
 
+
 /**
- * Function ReturnValueFromString
+ * Function DoubleValueFromString
+ * converts \a aTextValue to a double
+ * @param aUnits The units of \a aTextValue.
+ * @param aTextValue A reference to a wxString object containing the string to convert.
+ * @return A double representing that value in internal units
+ */
+double DoubleValueFromString( EDA_UNITS_T aUnits, const wxString& aTextValue );
+
+/**
+ * Function ValueFromString
  * converts \a aTextValue in \a aUnits to internal units used by the application.
  *
  * @param aUnits The units of \a aTextValue.
  * @param aTextValue A reference to a wxString object containing the string to convert.
  * @return The string from Value, according to units (inch, mm ...) for display,
  */
-int ReturnValueFromString( EDA_UNITS_T aUnits, const wxString& aTextValue );
+int ValueFromString( EDA_UNITS_T aUnits, const wxString& aTextValue );
 
 /**
- * Function ReturnValueFromString
+ * Function ValueFromString
 
  * converts \a aTextValue in \a aUnits to internal units used by the application,
  * unit type will be obtained from g_UserUnit.
@@ -155,12 +183,12 @@ int ReturnValueFromString( EDA_UNITS_T aUnits, const wxString& aTextValue );
  * @return The string from Value, according to units (inch, mm ...) for display,
  */
 
-int ReturnValueFromString( const wxString& aTextValue );
+int ValueFromString( const wxString& aTextValue );
 
 /**
  * Convert the number Value in a string according to the internal units
  *  and the selected unit (g_UserUnit) and put it in the wxTextCtrl TextCtrl
  */
-int ReturnValueFromTextCtrl( const wxTextCtrl& aTextCtr );
+int ValueFromTextCtrl( const wxTextCtrl& aTextCtr );
 
 #endif   // _BASE_UNITS_H_

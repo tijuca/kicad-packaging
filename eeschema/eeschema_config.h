@@ -2,13 +2,12 @@
  * @file eeschema_config.h
  */
 
-#include <param_config.h>
+#ifndef EESCHEMA_CONFIG_H
+#define EESCHEMA_CONFIG_H
 
-#define GROUP       wxT( "/eeschema" )
-#define GROUPCOMMON wxT( "/common" )
-#define GROUPLIB    wxT( "libraries" )
+#include <config_params.h>
 
-/* saving parameters option : */
-#define INSETUP true    /* used when the parameter is saved in general config
-                         * if not used, the parameter is saved in the local
-                         * config (project config) */
+// a key to read write in user config the visibility of the rescue library dialog
+#define RESCUE_NEVER_SHOW_KEY wxT("RescueNeverShow")
+
+#endif      // EESCHEMA_CONFIG_H

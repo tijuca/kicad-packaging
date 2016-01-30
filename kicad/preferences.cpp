@@ -1,9 +1,9 @@
 /*
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
- * Copyright (C) 2004 Jean-Pierre Charras, jaen-pierre.charras@gipsa-lab.inpg.com
- * Copyright (C) 2008-2011 Wayne Stambaugh <stambaughw@verizon.net>
- * Copyright (C) 1992-2011 KiCad Developers, see AUTHORS.txt for contributors.
+ * Copyright (C) 2014 Jean-Pierre Charras, jp.charras at wanadoo.fr
+ * Copyright (C) 2008-2014 Wayne Stambaugh <stambaughw@verizon.net>
+ * Copyright (C) 1992-2014 KiCad Developers, see AUTHORS.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -27,12 +27,8 @@
  * @file preferences.cpp
  */
 
-#ifdef __GNUG__
-#pragma implementation
-#endif
-
 #include <fctsys.h>
-#include <appl_wxstruct.h>
+#include <pgm_kicad.h>
 #include <confirm.h>
 #include <gestfich.h>
 
@@ -43,55 +39,58 @@
 
 void KICAD_MANAGER_FRAME::OnUpdateDefaultPdfBrowser( wxUpdateUIEvent& event )
 {
-    event.Check( wxGetApp().UseSystemPdfBrowser() );
+    event.Check( Pgm().UseSystemPdfBrowser() );
 }
 
 
 void KICAD_MANAGER_FRAME::OnSelectDefaultPdfBrowser( wxCommandEvent& event )
 {
-    wxGetApp().WritePdfBrowserInfos();
+    Pgm().ForceSystemPdfBrowser( true );
+    Pgm().WritePdfBrowserInfos();
 }
 
 
 void KICAD_MANAGER_FRAME::OnUpdatePreferredPdfBrowser( wxUpdateUIEvent& event )
 {
-    event.Check( !wxGetApp().UseSystemPdfBrowser() );
+    event.Check( !Pgm().UseSystemPdfBrowser() );
 }
 
 
 void KICAD_MANAGER_FRAME::OnSelectPreferredPdfBrowser( wxCommandEvent& event )
 {
-    bool select = event.GetId() == ID_SELECT_PREFERED_PDF_BROWSER_NAME;
+    bool setPdfBrowserName = event.GetId() == ID_SELECT_PREFERED_PDF_BROWSER_NAME;
 
-    if( !wxGetApp().GetPdfBrowserFileName() && !select )
+    if( !Pgm().GetPdfBrowserName() && !setPdfBrowserName )
     {
         DisplayError( this,
                       _( "You must choose a PDF viewer before using this option." ) );
+        setPdfBrowserName = true;
     }
 
-    wxString wildcard( wxT( "*" ) );
+    if( setPdfBrowserName )
+    {
+        wxString mask( wxT( "*" ) );
 
-#ifdef __WINDOWS__
-    wildcard += wxT( ".exe" );
-#endif
+    #ifdef __WINDOWS__
+        mask += wxT( ".exe" );
+    #endif
 
-    wildcard = _( "Executable files (" ) + wildcard + wxT( ")|" ) + wildcard;
+        wxString wildcard = _( "Executable files (" ) + mask + wxT( ")|" ) + mask;
 
-    wxGetApp().ReadPdfBrowserInfos();
-    wxFileName fn = wxGetApp().GetPdfBrowserFileName();
-    wxFileDialog dlg( this, _( "Select Preferred Pdf Browser" ), fn.GetPath(),
-                      fn.GetFullName(), wildcard,
-                      wxFD_OPEN | wxFD_FILE_MUST_EXIST );
+        Pgm().ReadPdfBrowserInfos();
+        wxFileName fn = Pgm().GetPdfBrowserName();
 
-    if( dlg.ShowModal() == wxID_CANCEL )
-        return;
+        wxFileDialog dlg( this, _( "Select Preferred Pdf Browser" ), fn.GetPath(),
+                          fn.GetFullPath(), wildcard,
+                          wxFD_OPEN | wxFD_FILE_MUST_EXIST );
 
-    wxGetApp().SetPdfBrowserFileName( dlg.GetPath() );
-    wxGetApp().WritePdfBrowserInfos();
+        if( dlg.ShowModal() == wxID_CANCEL )
+            return;
+
+        Pgm().SetPdfBrowserName( dlg.GetPath() );
+    }
+
+    Pgm().ForceSystemPdfBrowser( false );
+    Pgm().WritePdfBrowserInfos();
 }
 
-
-void KICAD_MANAGER_FRAME::SetLanguage( wxCommandEvent& event )
-{
-    EDA_BASE_FRAME::SetLanguage( event );
-}

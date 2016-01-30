@@ -31,29 +31,73 @@
 #include <gr_basic.h>
 #include <class_drawpanel.h>
 #include <confirm.h>
-#include <wxEeschemaStruct.h>
+#include <schframe.h>
 
 #include <lib_draw_item.h>
 #include <lib_pin.h>
 #include <general.h>
-#include <protos.h>
 #include <sch_bus_entry.h>
 #include <sch_junction.h>
 #include <sch_line.h>
 #include <sch_no_connect.h>
-#include <sch_polyline.h>
 #include <sch_text.h>
 #include <sch_component.h>
 #include <sch_sheet.h>
+#include <trigo.h>
 
 
-static void AbortCreateNewLine( EDA_DRAW_PANEL* Panel, wxDC* DC );
+static void AbortCreateNewLine( EDA_DRAW_PANEL* aPanel, wxDC* aDC );
 static void ComputeBreakPoint( SCH_LINE* segment, const wxPoint& new_pos );
 
 static DLIST< SCH_ITEM > s_wires;       // when creating a new set of wires,
                                         // stores here the new wires.
-static DLIST< SCH_ITEM > s_oldWires;    // when creating a new set of wires,
-                                        // stores here the old wires (for undo command)
+
+
+/**
+ * In a contiguous list of wires, remove wires that backtrack over the previous
+ * wire. Example:
+ *
+ * Wire is added:
+ * ---------------------------------------->
+ *
+ * A second wire backtracks over it:
+ * -------------------<====================>
+ *
+ * RemoveBacktracks is called:
+ * ------------------->
+ */
+static void RemoveBacktracks( DLIST<SCH_ITEM>& aWires )
+{
+    SCH_LINE* last_line = NULL;
+
+    EDA_ITEM* first = aWires.GetFirst();
+    for( EDA_ITEM* p = first; p; )
+    {
+        SCH_LINE *line = dynamic_cast<SCH_LINE*>( p );
+        if( !line )
+        {
+            wxFAIL_MSG( "RemoveBacktracks() requires SCH_LINE items" );
+            break;
+        }
+        p = line->Next();
+
+        if( last_line )
+        {
+            wxASSERT_MSG( last_line->GetEndPoint() == line->GetStartPoint(),
+                    "RemoveBacktracks() requires contiguous lines" );
+            if( IsPointOnSegment( last_line->GetStartPoint(), line->GetStartPoint(),
+                        line->GetEndPoint() ) )
+            {
+                last_line->SetEndPoint( line->GetEndPoint() );
+                delete s_wires.Remove( line );
+            }
+            else
+                last_line = line;
+        }
+        else
+            last_line = line;
+    }
+}
 
 
 /**
@@ -68,7 +112,7 @@ static void DrawSegment( EDA_DRAW_PANEL* aPanel, wxDC* aDC, const wxPoint& aPosi
         return;
 
     segment = (SCH_LINE*) s_wires.begin();
-    EDA_COLOR_T color = ReturnLayerColor( segment->GetLayer() );
+    EDA_COLOR_T color = GetLayerColor( segment->GetLayer() );
     ColorChangeHighlightFlag( &color, !(color & HIGHLIGHT_FLAG) );
 
     if( aErase )
@@ -82,8 +126,9 @@ static void DrawSegment( EDA_DRAW_PANEL* aPanel, wxDC* aDC, const wxPoint& aPosi
         }
     }
 
-    wxPoint endpos = aPanel->GetScreen()->GetCrossHairPosition();
-    SCH_EDIT_FRAME * frame = ( SCH_EDIT_FRAME * ) aPanel->GetParent();
+    SCH_EDIT_FRAME* frame = (SCH_EDIT_FRAME*) aPanel->GetParent();
+
+    wxPoint endpos = frame->GetCrossHairPosition();
 
     if( frame->GetForceHVLines() ) /* Coerce the line to vertical or horizontal one: */
         ComputeBreakPoint( (SCH_LINE*) s_wires.GetLast()->Back(), endpos );
@@ -106,7 +151,7 @@ void SCH_EDIT_FRAME::BeginSegment( wxDC* DC, int type )
 {
     SCH_LINE* segment;
     SCH_LINE* nextSegment;
-    wxPoint   cursorpos = GetScreen()->GetCrossHairPosition();
+    wxPoint   cursorpos = GetCrossHairPosition();
 
     // We should know if a segment is currently in progress
     segment = (SCH_LINE*) GetScreen()->GetCurItem();
@@ -124,11 +169,8 @@ void SCH_EDIT_FRAME::BeginSegment( wxDC* DC, int type )
         }
     }
 
-    if( !segment )  /* first point : Create first wire or bus */
+    if( !segment )      // first point : Create the first wire or bus segment
     {
-        GetScreen()->ExtractWires( s_oldWires, true );
-        GetScreen()->SchematicCleanUp( m_canvas );
-
         switch( type )
         {
         default:
@@ -162,7 +204,7 @@ void SCH_EDIT_FRAME::BeginSegment( wxDC* DC, int type )
         }
 
         m_canvas->SetMouseCapture( DrawSegment, AbortCreateNewLine );
-        m_itemToRepeat = NULL;
+        SetRepeatItem( NULL );
     }
     else    // A segment is in progress: terminates the current segment and add a new segment.
     {
@@ -239,7 +281,8 @@ void SCH_EDIT_FRAME::EndSegment( wxDC* DC )
         return;
 
     // Get the last non-null wire (this is the last created segment).
-    m_itemToRepeat = segment = (SCH_LINE*) s_wires.GetLast();
+    SetRepeatItem( segment = (SCH_LINE*) s_wires.GetLast() );
+
     screen->SetCurItem( NULL );
     m_canvas->EndMouseCapture( -1, -1, wxEmptyString, false );
 
@@ -251,6 +294,25 @@ void SCH_EDIT_FRAME::EndSegment( wxDC* DC )
     SCH_LINE* firstsegment = (SCH_LINE*) s_wires.GetFirst();
     wxPoint startPoint = firstsegment->GetStartPoint();
 
+    // Save the old wires for the undo command
+    DLIST< SCH_ITEM > oldWires;                     // stores here the old wires
+    GetScreen()->ExtractWires( oldWires, true );    // Save them in oldWires list
+    // Put the snap shot of the previous wire, buses, and junctions in the undo/redo list.
+    PICKED_ITEMS_LIST oldItems;
+    oldItems.m_Status = UR_WIRE_IMAGE;
+
+    while( oldWires.GetCount() != 0 )
+    {
+        ITEM_PICKER picker = ITEM_PICKER( oldWires.PopFront(), UR_WIRE_IMAGE );
+        oldItems.PushItem( picker );
+    }
+
+    SaveCopyInUndoList( oldItems, UR_WIRE_IMAGE );
+
+    // Remove segments backtracking over others
+    RemoveBacktracks( s_wires );
+
+    // Add the new wires
     screen->Append( s_wires );
 
     // Correct and remove segments that need to be merged.
@@ -265,19 +327,6 @@ void SCH_EDIT_FRAME::EndSegment( wxDC* DC )
         screen->Append( AddJunction( DC, startPoint ) );
 
     m_canvas->Refresh();
-
-    // Put the snap shot of the previous wire, buses, and junctions in the undo/redo list.
-    PICKED_ITEMS_LIST oldItems;
-
-    oldItems.m_Status = UR_WIRE_IMAGE;
-
-    while( s_oldWires.GetCount() != 0 )
-    {
-        ITEM_PICKER picker = ITEM_PICKER( s_oldWires.PopFront(), UR_WIRE_IMAGE );
-        oldItems.PushItem( picker );
-    }
-
-    SaveCopyInUndoList( oldItems, UR_WIRE_IMAGE );
 
     OnModify();
 }
@@ -341,38 +390,12 @@ void SCH_EDIT_FRAME::DeleteCurrentSegment( wxDC* DC )
 {
     SCH_SCREEN* screen = GetScreen();
 
-    m_itemToRepeat = NULL;
+    SetRepeatItem( NULL );
 
     if( ( screen->GetCurItem() == NULL ) || !screen->GetCurItem()->IsNew() )
         return;
 
-    /* Cancel trace in progress */
-    if( screen->GetCurItem()->Type() == SCH_POLYLINE_T )
-    {
-        SCH_POLYLINE* polyLine = (SCH_POLYLINE*) screen->GetCurItem();
-        wxPoint       endpos;
-
-        endpos = screen->GetCrossHairPosition();
-
-        int idx = polyLine->GetCornerCount() - 1;
-        wxPoint pt = (*polyLine)[idx];
-
-        if( GetForceHVLines() )
-        {
-            /* Coerce the line to vertical or horizontal one: */
-            if( std::abs( endpos.x - pt.x ) < std::abs( endpos.y - pt.y ) )
-                endpos.x = pt.x;
-            else
-                endpos.y = pt.y;
-        }
-
-        polyLine->SetPoint( idx, endpos );
-        polyLine->Draw( m_canvas, DC, wxPoint( 0, 0 ), g_XorMode );
-    }
-    else
-    {
-        DrawSegment( m_canvas, DC, wxDefaultPosition, false );
-    }
+    DrawSegment( m_canvas, DC, wxDefaultPosition, false );
 
     screen->Remove( screen->GetCurItem() );
     m_canvas->SetMouseCaptureCallback( NULL );
@@ -385,7 +408,7 @@ SCH_JUNCTION* SCH_EDIT_FRAME::AddJunction( wxDC* aDC, const wxPoint& aPosition,
 {
     SCH_JUNCTION* junction = new SCH_JUNCTION( aPosition );
 
-    m_itemToRepeat = junction;
+    SetRepeatItem( junction );
 
     m_canvas->CrossHairOff( aDC );     // Erase schematic cursor
     junction->Draw( m_canvas, aDC, wxPoint( 0, 0 ), GR_DEFAULT_DRAWMODE );
@@ -404,38 +427,33 @@ SCH_JUNCTION* SCH_EDIT_FRAME::AddJunction( wxDC* aDC, const wxPoint& aPosition,
 
 SCH_NO_CONNECT* SCH_EDIT_FRAME::AddNoConnect( wxDC* aDC, const wxPoint& aPosition )
 {
-    SCH_NO_CONNECT* NewNoConnect;
+    SCH_NO_CONNECT* no_connect = new SCH_NO_CONNECT( aPosition );
 
-    NewNoConnect   = new SCH_NO_CONNECT( aPosition );
-    m_itemToRepeat = NewNoConnect;
-
-    m_canvas->CrossHairOff( aDC );     // Erase schematic cursor
-    NewNoConnect->Draw( m_canvas, aDC, wxPoint( 0, 0 ), GR_DEFAULT_DRAWMODE );
-    m_canvas->CrossHairOn( aDC );      // Display schematic cursor
-
-    GetScreen()->Append( NewNoConnect );
+    SetRepeatItem( no_connect );
+    GetScreen()->Append( no_connect );
+    GetScreen()->SchematicCleanUp( m_canvas, aDC );
     OnModify();
-    SaveCopyInUndoList( NewNoConnect, UR_NEW );
-    return NewNoConnect;
+    m_canvas->Refresh();
+    SaveCopyInUndoList( no_connect, UR_NEW );
+    return no_connect;
 }
 
 
 /* Abort function for wire, bus or line creation
  */
-static void AbortCreateNewLine( EDA_DRAW_PANEL* Panel, wxDC* DC )
+static void AbortCreateNewLine( EDA_DRAW_PANEL* aPanel, wxDC* aDC )
 {
-    SCH_SCREEN* screen = (SCH_SCREEN*) Panel->GetScreen();
+    SCH_SCREEN* screen = (SCH_SCREEN*) aPanel->GetScreen();
 
     if( screen->GetCurItem() )
     {
-        s_wires.DeleteAll();
-        s_oldWires.DeleteAll();
+        s_wires.DeleteAll();    // Free the list, for a future usage
         screen->SetCurItem( NULL );
-        Panel->Refresh();
+        aPanel->Refresh();
     }
     else
     {
-        SCH_EDIT_FRAME* parent = ( SCH_EDIT_FRAME* ) Panel->GetParent();
+        SCH_EDIT_FRAME* parent = ( SCH_EDIT_FRAME* ) aPanel->GetParent();
         parent->SetRepeatItem( NULL );
     }
 
@@ -446,34 +464,44 @@ static void AbortCreateNewLine( EDA_DRAW_PANEL* Panel, wxDC* DC )
 
 void SCH_EDIT_FRAME::RepeatDrawItem( wxDC* DC )
 {
-    if( m_itemToRepeat == NULL )
+    SCH_ITEM*   repeater = GetRepeatItem();
+
+    if( !repeater )
         return;
 
-    m_itemToRepeat = (SCH_ITEM*) m_itemToRepeat->Clone();
+    //D( repeater>Show( 0, std::cout ); )
 
-    if( m_itemToRepeat->Type() == SCH_COMPONENT_T ) // If repeat component then put in move mode
+    // clone the repeater, move it, insert into display list, then save a copy
+    // via SetRepeatItem();
+
+    SCH_ITEM* my_clone = (SCH_ITEM*) repeater->Clone();
+
+    // If cloning a component then put into 'move' mode.
+    if( my_clone->Type() == SCH_COMPONENT_T )
     {
-        wxPoint pos = GetScreen()->GetCrossHairPosition() -
-                      ( (SCH_COMPONENT*) m_itemToRepeat )->GetPosition();
-        m_itemToRepeat->SetFlags( IS_NEW );
-        ( (SCH_COMPONENT*) m_itemToRepeat )->SetTimeStamp( GetNewTimeStamp() );
-        m_itemToRepeat->Move( pos );
-        m_itemToRepeat->Draw( m_canvas, DC, wxPoint( 0, 0 ), g_XorMode );
-        MoveItem( m_itemToRepeat, DC );
-        return;
+        wxPoint pos = GetCrossHairPosition() -
+                      ( (SCH_COMPONENT*) my_clone )->GetPosition();
+
+        my_clone->SetFlags( IS_NEW );
+        ( (SCH_COMPONENT*) my_clone )->SetTimeStamp( GetNewTimeStamp() );
+        my_clone->Move( pos );
+        my_clone->Draw( m_canvas, DC, wxPoint( 0, 0 ), g_XorMode );
+        PrepareMoveItem( my_clone, DC );
     }
-
-    m_itemToRepeat->Move( wxPoint( g_RepeatStep.GetWidth(), g_RepeatStep.GetHeight() ) );
-
-    if( m_itemToRepeat->CanIncrementLabel() )
-        ( (SCH_TEXT*) m_itemToRepeat )->IncrementLabel();
-
-    if( m_itemToRepeat )
+    else
     {
-        GetScreen()->Append( m_itemToRepeat );
+        my_clone->Move( GetRepeatStep() );
+
+        if( my_clone->CanIncrementLabel() )
+            ( (SCH_TEXT*) my_clone )->IncrementLabel( GetRepeatDeltaLabel() );
+
+        GetScreen()->Append( my_clone );
         GetScreen()->TestDanglingEnds();
-        m_itemToRepeat->Draw( m_canvas, DC, wxPoint( 0, 0 ), GR_DEFAULT_DRAWMODE );
-        SaveCopyInUndoList( m_itemToRepeat, UR_NEW );
-        m_itemToRepeat->ClearFlags();
+        my_clone->Draw( m_canvas, DC, wxPoint( 0, 0 ), GR_DEFAULT_DRAWMODE );
+        SaveCopyInUndoList( my_clone, UR_NEW );
+        my_clone->ClearFlags();
     }
+
+    // clone my_clone, now that it has been moved, thus saving new position.
+    SetRepeatItem( my_clone );
 }

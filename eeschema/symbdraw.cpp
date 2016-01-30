@@ -55,24 +55,21 @@ static void RedrawWhileMovingCursor( EDA_DRAW_PANEL* aPanel, wxDC* aDC, const wx
                                      bool aErase );
 
 
-/*
- * Show the dialog box for editing a graphical item properties
- */
 void LIB_EDIT_FRAME::EditGraphicSymbol( wxDC* DC, LIB_ITEM* DrawItem )
 {
     if( DrawItem == NULL )
         return;
 
-    LIB_COMPONENT* component = DrawItem->GetParent();
+    LIB_PART*      component = DrawItem->GetParent();
 
     DIALOG_LIB_EDIT_DRAW_ITEM dialog( this, DrawItem->GetTypeName() );
 
     dialog.SetWidthUnits( ReturnUnitSymbol( g_UserUnit ) );
 
-    wxString val = ReturnStringFromValue( g_UserUnit, DrawItem->GetWidth() );
+    wxString val = StringFromValue( g_UserUnit, DrawItem->GetWidth() );
     dialog.SetWidth( val );
     dialog.SetApplyToAllUnits( DrawItem->GetUnit() == 0 );
-    dialog.EnableApplyToAllUnits( component && component->GetPartCount() > 1 );
+    dialog.EnableApplyToAllUnits( component && component->GetUnitCount() > 1 );
     dialog.SetApplyToAllConversions( DrawItem->GetConvert() == 0 );
     dialog.EnableApplyToAllConversions( component && component->HasConversion() );
     dialog.SetFillStyle( DrawItem->GetFillMode() );
@@ -83,7 +80,7 @@ void LIB_EDIT_FRAME::EditGraphicSymbol( wxDC* DC, LIB_ITEM* DrawItem )
 
     // Init default values (used to create a new draw item)
     val = dialog.GetWidth();
-    m_drawLineWidth = ReturnValueFromString( g_UserUnit, val );
+    m_drawLineWidth = ValueFromString( g_UserUnit, val );
     m_drawSpecificConvert = !dialog.GetApplyToAllConversions();
     m_drawSpecificUnit    = !dialog.GetApplyToAllUnits();
 
@@ -136,7 +133,7 @@ static void AbortSymbolTraceOn( EDA_DRAW_PANEL* Panel, wxDC* DC )
         return;
 
     bool newItem = item->IsNew();
-    item->EndEdit( parent->GetScreen()->GetCrossHairPosition( true ), true );
+    item->EndEdit( parent->GetCrossHairPosition( true ), true );
 
     if( newItem )
     {
@@ -150,10 +147,10 @@ static void AbortSymbolTraceOn( EDA_DRAW_PANEL* Panel, wxDC* DC )
 }
 
 
-LIB_ITEM* LIB_EDIT_FRAME::CreateGraphicItem( LIB_COMPONENT* LibEntry, wxDC* DC )
+LIB_ITEM* LIB_EDIT_FRAME::CreateGraphicItem( LIB_PART*      LibEntry, wxDC* DC )
 {
     m_canvas->SetMouseCapture( SymbolDisplayDraw, AbortSymbolTraceOn );
-    wxPoint drawPos = GetScreen()->GetCrossHairPosition( true );
+    wxPoint drawPos = GetCrossHairPosition( true );
 
     // no temp copy -> the current version of component will be used for Undo
     // This is normal when adding new items to the current component
@@ -178,28 +175,29 @@ LIB_ITEM* LIB_EDIT_FRAME::CreateGraphicItem( LIB_COMPONENT* LibEntry, wxDC* DC )
         break;
 
     case ID_LIBEDIT_BODY_TEXT_BUTT:
-    {
-        LIB_TEXT* Text = new LIB_TEXT( LibEntry );
-        Text->m_Size.x = Text->m_Size.y = m_textSize;
-        Text->m_Orient = m_textOrientation;
-
-        // Enter the graphic text info
-        m_canvas->SetIgnoreMouseEvents( true );
-        EditSymbolText( NULL, Text );
-        m_canvas->SetIgnoreMouseEvents( false );
-        m_canvas->MoveCursorToCrossHair();
-
-        if( Text->m_Text.IsEmpty() )
         {
-            delete Text;
-            m_drawItem = NULL;
-        }
-        else
-        {
-            m_drawItem = Text;
+            LIB_TEXT* Text = new LIB_TEXT( LibEntry );
+            Text->SetSize( wxSize( m_textSize, m_textSize ) );
+            Text->SetOrientation( m_textOrientation );
+
+            // Enter the graphic text info
+            m_canvas->SetIgnoreMouseEvents( true );
+            EditSymbolText( NULL, Text );
+            m_canvas->SetIgnoreMouseEvents( false );
+            m_canvas->MoveCursorToCrossHair();
+
+            if( Text->GetText().IsEmpty() )
+            {
+                delete Text;
+                m_drawItem = NULL;
+            }
+            else
+            {
+                m_drawItem = Text;
+            }
         }
         break;
-    }
+
     default:
         DisplayError( this, wxT( "LIB_EDIT_FRAME::CreateGraphicItem() error" ) );
         return NULL;
@@ -232,14 +230,12 @@ LIB_ITEM* LIB_EDIT_FRAME::CreateGraphicItem( LIB_COMPONENT* LibEntry, wxDC* DC )
 }
 
 
-/* Create new library component graphic object.
- */
 void LIB_EDIT_FRAME::GraphicItemBeginDraw( wxDC* DC )
 {
     if( m_drawItem == NULL )
         return;
 
-    wxPoint pos = GetScreen()->GetCrossHairPosition( true );
+    wxPoint pos = GetCrossHairPosition( true );
 
     if( m_drawItem->ContinueEdit( pos ) )
     {
@@ -264,20 +260,21 @@ static void RedrawWhileMovingCursor( EDA_DRAW_PANEL* aPanel, wxDC* aDC, const wx
     if( item == NULL )
         return;
 
-    BASE_SCREEN* Screen = aPanel->GetScreen();
-
     item->SetEraseLastDrawItem( aErase );
 
     // if item is the reference field, we must add the current unit id
     if( item->Type() == LIB_FIELD_T )
     {
-        int unit = ((LIB_EDIT_FRAME*)aPanel->GetParent())->GetUnit();
-        wxString text = ((LIB_FIELD*)item)->GetFullText( unit );
-        item->Draw( aPanel, aDC, Screen->GetCrossHairPosition( true ), UNSPECIFIED_COLOR, g_XorMode, &text,
+        int         unit = ((LIB_EDIT_FRAME*)aPanel->GetParent())->GetUnit();
+        wxString    text = ((LIB_FIELD*)item)->GetFullText( unit );
+
+        item->Draw( aPanel, aDC, aPanel->GetParent()->GetCrossHairPosition( true ),
+                    UNSPECIFIED_COLOR, g_XorMode, &text,
                     DefaultTransform );
     }
     else
-        item->Draw( aPanel, aDC, Screen->GetCrossHairPosition( true ), UNSPECIFIED_COLOR, g_XorMode, NULL,
+        item->Draw( aPanel, aDC, aPanel->GetParent()->GetCrossHairPosition( true ),
+                    UNSPECIFIED_COLOR, g_XorMode, NULL,
                     DefaultTransform );
 }
 
@@ -296,21 +293,20 @@ void LIB_EDIT_FRAME::StartMoveDrawSymbol( wxDC* DC )
     if( m_drawItem->Type() == LIB_FIELD_T )
         m_drawItem->BeginEdit( IS_MOVED, m_drawItem->GetPosition() );
     else
-        m_drawItem->BeginEdit( IS_MOVED, GetScreen()->GetCrossHairPosition( true ) );
+        m_drawItem->BeginEdit( IS_MOVED, GetCrossHairPosition( true ) );
 
     m_canvas->SetMouseCapture( RedrawWhileMovingCursor, AbortSymbolTraceOn );
     m_canvas->CallMouseCapture( DC, wxDefaultPosition, true );
 }
 
 
-// @brief Modify a graphic symbol (drag edges etc.)
 void LIB_EDIT_FRAME::StartModifyDrawSymbol( wxDC* DC )
 {
     if( m_drawItem == NULL )
         return;
 
     TempCopyComponent();
-    m_drawItem->BeginEdit( IS_RESIZED, GetScreen()->GetCrossHairPosition( true ) );
+    m_drawItem->BeginEdit( IS_RESIZED, GetCrossHairPosition( true ) );
     m_canvas->SetMouseCapture( SymbolDisplayDraw, AbortSymbolTraceOn );
     m_canvas->CallMouseCapture( DC, wxDefaultPosition, true );
 }
@@ -320,47 +316,48 @@ void LIB_EDIT_FRAME::StartModifyDrawSymbol( wxDC* DC )
 static void SymbolDisplayDraw( EDA_DRAW_PANEL* aPanel, wxDC* aDC, const wxPoint& aPosition,
                                bool aErase )
 {
-    BASE_SCREEN*   Screen   = aPanel->GetScreen();
     LIB_ITEM* item = ( (LIB_EDIT_FRAME*) aPanel->GetParent() )->GetDrawItem();
 
     if( item == NULL )
         return;
 
     item->SetEraseLastDrawItem( aErase );
-    item->Draw( aPanel, aDC, Screen->GetCrossHairPosition( true ), UNSPECIFIED_COLOR, g_XorMode, NULL,
+    item->Draw( aPanel, aDC, aPanel->GetParent()->GetCrossHairPosition( true ), UNSPECIFIED_COLOR, g_XorMode, NULL,
                 DefaultTransform );
 }
 
 
-/*
- * Place the new graphic object in the list of component drawing objects,
- * or terminate a draw item edition
- */
 void LIB_EDIT_FRAME::EndDrawGraphicItem( wxDC* DC )
 {
-    if( m_component == NULL || m_drawItem == NULL )
-        return;
+    if( LIB_PART*      part = GetCurPart() )
+    {
+        if( !m_drawItem )
+            return;
 
-    if( GetToolId() != ID_NO_TOOL_SELECTED )
-        SetCursor( wxCURSOR_PENCIL );
-    else
-        SetCursor( (wxStockCursor) m_canvas->GetDefaultCursor() );
+        if( GetToolId() != ID_NO_TOOL_SELECTED )
+            SetCursor( wxCURSOR_PENCIL );
+        else
+            SetCursor( (wxStockCursor) m_canvas->GetDefaultCursor() );
 
-    if( GetTempCopyComponent() )    // used when editing an existing item
-        SaveCopyInUndoList( GetTempCopyComponent() );
-    else    // When creating a new item, there is still no change for the current component
-            // So save it.
-        SaveCopyInUndoList( m_component );
+        if( GetTempCopyComponent() )    // used when editing an existing item
+            SaveCopyInUndoList( GetTempCopyComponent() );
+        else
+        {
+            // When creating a new item, there is still no change for the
+            // current component. So save it.
+            SaveCopyInUndoList( part );
+        }
 
-    if( m_drawItem->IsNew() )
-        m_component->AddDrawItem( m_drawItem );
+        if( m_drawItem->IsNew() )
+            part->AddDrawItem( m_drawItem );
 
-    m_drawItem->EndEdit( GetScreen()->GetCrossHairPosition( true ) );
+        m_drawItem->EndEdit( GetCrossHairPosition( true ) );
 
-    m_drawItem = NULL;
+        m_drawItem = NULL;
 
-    OnModify();
+        OnModify();
 
-    m_canvas->SetMouseCapture( NULL, NULL );
-    m_canvas->Refresh();
+        m_canvas->SetMouseCapture( NULL, NULL );
+        m_canvas->Refresh();
+    }
 }

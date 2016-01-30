@@ -37,6 +37,12 @@ ATTENUATOR::ATTENUATOR( ATTENUATORS_TYPE aTopology )
     m_MinimumATT    = 0.0;          // dB
     m_SchBitMap     = NULL;
     m_FormulaBitMap = NULL;
+
+    // Initialize these variables mainly to avoid warnings from a static analyzer
+    m_R1 = 0.0;
+    m_R2 = 0.0;
+    m_R3 = 0.0;
+    Lmin = L = A = 0.0;     // internal variable for temporary use
 }
 
 
@@ -52,7 +58,7 @@ ATTENUATOR::~ATTENUATOR()
 #define KEYWORD_ATTENUATOR_ZOUT wxT( "Zout" )
 #define KEYWORD_ATTENUATORS     wxT( "Attenuators/" )
 
-void ATTENUATOR::ReadConfig( wxConfig* aConfig )
+void ATTENUATOR::ReadConfig( wxConfigBase* aConfig )
 {
     aConfig->SetPath( KEYWORD_ATTENUATORS + m_Name );
     if( m_Attenuation_Enable )
@@ -63,7 +69,7 @@ void ATTENUATOR::ReadConfig( wxConfig* aConfig )
 }
 
 
-void ATTENUATOR::WriteConfig( wxConfig* aConfig )
+void ATTENUATOR::WriteConfig( wxConfigBase* aConfig )
 {
     aConfig->SetPath( KEYWORD_ATTENUATORS + m_Name );
     aConfig->Write( KEYWORD_ATTENUATOR_ATT, m_Attenuation );

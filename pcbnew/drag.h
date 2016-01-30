@@ -7,7 +7,7 @@
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
  * Copyright (C) 2004-2012 Jean-Pierre Charras, jp.charras at wanadoo.fr
- * Copyright (C) 1992-2012 KiCad Developers, see change_log.txt for contributors.
+ * Copyright (C) 1992-2015 KiCad Developers, see change_log.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -49,10 +49,10 @@ class CONNECTIONS;
 
  /*
   * a DRAG_LIST manages the list of track segments to modify
-  * when the pad or the module is moving
+  * when the pad or the module is moving in drag mode
   */
 
-/*
+/**
   * a DRAG_SEGM_PICKER manage one track segment or a via
   */
 class DRAG_SEGM_PICKER
@@ -65,7 +65,7 @@ public:
     D_PAD*  m_Pad_End;          // pointer to the moving pad
                                 // if the end point should follow this pad
                                 // or NULL
-    bool    m_Flag;             // flag used in drag vias and drag track segment functions
+    int     m_TempFlags;        // flag used in drag vias and drag track segment functions
 
 private:
     double  m_RotationOffset;   // initial orientation of the parent module
@@ -121,7 +121,9 @@ public:
 public:
     DRAG_LIST( BOARD* aPcb )
     {
-        m_Brd = aPcb;
+        m_Brd    = aPcb;
+        m_Module = NULL;
+        m_Pad    = NULL;
     }
 
     /**
@@ -183,7 +185,7 @@ void EraseDragList();
  * @param aNetCode = the net code to consider
  * @param aMaxDist = max distance from aRefPos to a track end candidate to collect the track
  */
-void Collect_TrackSegmentsToDrag( BOARD* aPcb, const wxPoint& aRefPos, int aLayerMask,
+void Collect_TrackSegmentsToDrag( BOARD* aPcb, const wxPoint& aRefPos, LSET aLayerMask,
                                   int aNetCode, int aMaxDist );
 
 /* Add aTrack to the drag list

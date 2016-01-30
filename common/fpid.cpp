@@ -27,7 +27,9 @@
 #include <memory>
 #include <wx/wx.h>      // _()
 
+#include <macros.h>     // TO_UTF8()
 #include <fpid.h>
+#include <kicad_string.h>
 
 
 static inline bool isDigit( char c )
@@ -61,6 +63,7 @@ const char* EndsWithRev( const char* start, const char* tail, char separator )
 }
 
 
+#if 0   // Not used
 int RevCmp( const char* s1, const char* s2 )
 {
     int r = strncmp( s1, s2, 3 );
@@ -75,6 +78,7 @@ int RevCmp( const char* s1, const char* s2 )
 
     return -(rnum1 - rnum2);    // swap the sign, higher revs first
 }
+#endif
 
 //----<Policy and field test functions>-------------------------------------
 
@@ -94,7 +98,7 @@ static int okRevision( const std::string& aField )
     if( aField.size() >= 4 )
     {
         strcpy( rev, "x/" );
-        strcat( rev, aField.c_str() );
+        strncat( rev, aField.c_str(), sizeof(rev)-strlen(rev)-1 );
 
         if( EndsWithRev( rev, rev + strlen(rev), '/' ) == rev+2 )
             return -1;    // success
@@ -115,24 +119,21 @@ void FPID::clear()
 }
 
 
-int FPID::Parse( const std::string& aId )
+int FPID::Parse( const UTF8& aId )
 {
     clear();
 
-    size_t      cnt = aId.length() + 1;
-    char        tmp[cnt];  // C string for speed
-
-    std::strcpy( tmp, aId.c_str() );
-
-    const char* rev = EndsWithRev( tmp, tmp+aId.length(), '/' );
+    const char* buffer = aId.c_str();
+    const char* rev = EndsWithRev( buffer, buffer+aId.length(), '/' );
     size_t      revNdx;
     size_t      partNdx;
     int         offset;
 
     //=====<revision>=========================================
+    // in a FPID like discret:R3/rev4
     if( rev )
     {
-        revNdx = rev - aId.c_str();
+        revNdx = rev - buffer;
 
         // no need to check revision, EndsWithRev did that.
         revision = aId.substr( revNdx );
@@ -162,9 +163,14 @@ int FPID::Parse( const std::string& aId )
 
     //=====<footprint name>====================================
     if( partNdx >= revNdx )
-        return partNdx;
+        return partNdx;     // Error: no footprint name.
 
-    SetFootprintName( aId.substr( partNdx, revNdx ) );
+    // Be sure the footprint name is valid.
+    // Some chars can be found in board file (in old board files
+    // or converted files from an other EDA tool
+    std::string fpname = aId.substr( partNdx, revNdx-partNdx );
+    ReplaceIllegalFileNameChars( &fpname, '_' );
+    SetFootprintName( UTF8( fpname ) );
 
     return -1;
 }
@@ -185,7 +191,24 @@ FPID::FPID( const std::string& aId ) throw( PARSE_ERROR )
 }
 
 
-int FPID::SetLibNickname( const std::string& aLogical )
+FPID::FPID( const wxString& aId ) throw( PARSE_ERROR )
+{
+    UTF8 id = aId;
+
+    int offset = Parse( id );
+
+    if( offset != -1 )
+    {
+        THROW_PARSE_ERROR( _( "Illegal character found in FPID string" ),
+                           aId,
+                           id.c_str(),
+                           0,
+                           offset );
+    }
+}
+
+
+int FPID::SetLibNickname( const UTF8& aLogical )
 {
     int offset = okLogical( aLogical );
 
@@ -198,14 +221,14 @@ int FPID::SetLibNickname( const std::string& aLogical )
 }
 
 
-int FPID::SetFootprintName( const std::string& aFootprintName )
+int FPID::SetFootprintName( const UTF8& aFootprintName )
 {
-    int          separation = int( aFootprintName.find_first_of( "/" ) );
+    int separation = int( aFootprintName.find_first_of( "/" ) );
 
     if( separation != -1 )
     {
-        nickname = aFootprintName.substr( separation+1 );
-        return separation + (int) nickname.size() + 1;
+        footprint = aFootprintName.substr( 0, separation-1 );
+        return separation;
     }
     else
     {
@@ -216,7 +239,7 @@ int FPID::SetFootprintName( const std::string& aFootprintName )
 }
 
 
-int FPID::SetRevision( const std::string& aRevision )
+int FPID::SetRevision( const UTF8& aRevision )
 {
     int offset = okRevision( aRevision );
 
@@ -229,9 +252,9 @@ int FPID::SetRevision( const std::string& aRevision )
 }
 
 
-std::string FPID::Format() const
+UTF8 FPID::Format() const
 {
-    std::string  ret;
+    UTF8    ret;
 
     if( nickname.size() )
     {
@@ -251,9 +274,9 @@ std::string FPID::Format() const
 }
 
 
-std::string FPID::GetFootprintNameAndRev() const
+UTF8 FPID::GetFootprintNameAndRev() const
 {
-    std::string ret;
+    UTF8 ret;
 
     if( revision.size() )
     {
@@ -265,11 +288,13 @@ std::string FPID::GetFootprintNameAndRev() const
 }
 
 
-std::string FPID::Format( const std::string& aLogicalLib, const std::string& aFootprintName,
-                          const std::string& aRevision )
+#if 0   // this is broken, it does not output aFootprintName for some reason
+
+UTF8 FPID::Format( const UTF8& aLogicalLib, const UTF8& aFootprintName,
+                          const UTF8& aRevision )
     throw( PARSE_ERROR )
 {
-    std::string  ret;
+    UTF8    ret;
     int     offset;
 
     if( aLogicalLib.size() )
@@ -307,6 +332,27 @@ std::string FPID::Format( const std::string& aLogicalLib, const std::string& aFo
     }
 
     return ret;
+}
+#endif
+
+
+int FPID::compare( const FPID& aFPID ) const
+{
+    // Don't bother comparing the same object.
+    if( this == &aFPID )
+        return 0;
+
+    int retv = nickname.compare( aFPID.nickname );
+
+    if( retv != 0 )
+        return retv;
+
+    retv = footprint.compare( aFPID.footprint );
+
+    if( retv != 0 )
+        return retv;
+
+    return revision.compare( aFPID.revision );
 }
 
 

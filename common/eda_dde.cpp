@@ -1,10 +1,34 @@
+/*
+ * This program source code file is part of KiCad, a free EDA CAD application.
+ *
+ * Copyright (C) 2014 Jean-Pierre Charras, jp.charras at wanadoo.fr
+ * Copyright (C) 2014 KiCad Developers, see CHANGELOG.TXT for contributors.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation; either version 2
+ * of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, you may find one here:
+ * http://www.gnu.org/licenses/old-licenses/gpl-2.0.html
+ * or you may search the http://www.gnu.org website for the version 2 license,
+ * or you may write to the Free Software Foundation, Inc.,
+ * 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
+ */
+
 /**
  * @file eda_dde.cpp
  */
 
 #include <fctsys.h>
 #include <eda_dde.h>
-#include <wxstruct.h>
+#include <draw_frame.h>
 #include <id.h>
 #include <common.h>
 #include <macros.h>
@@ -13,18 +37,9 @@ static const wxString HOSTNAME( wxT( "localhost" ) );
 
 // buffer for read and write data in socket connections
 #define IPC_BUF_SIZE 4096
-
 static char client_ipc_buffer[IPC_BUF_SIZE];
 
 static wxSocketServer* server;
-
-void      (*RemoteFct)(const char* cmd);
-
-
-void SetupServerFunction( void (*remotefct)(const char* remotecmd) )
-{
-    RemoteFct = remotefct;
-}
 
 
 /**********************************/
@@ -75,10 +90,7 @@ void EDA_DRAW_FRAME::OnSockRequest( wxSocketEvent& evt )
         sock->Read( client_ipc_buffer + 1, IPC_BUF_SIZE - 2 );
         len = 1 + sock->LastCount();
         client_ipc_buffer[len] = 0;
-
-        if( RemoteFct )
-            RemoteFct( client_ipc_buffer );
-
+        ExecuteRemoteCommand( client_ipc_buffer );
         break;
 
     case wxSOCKET_LOST:

@@ -1,3 +1,27 @@
+/*
+ * This program source code file is part of KiCad, a free EDA CAD application.
+ *
+ * Copyright (C) 2010-2014 Jean-Pierre Charras, jp.charras at wanadoo.fr
+ * Copyright (C) 1992-2012 KiCad Developers, see AUTHORS.txt for contributors.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation; either version 2
+ * of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, you may find one here:
+ * http://www.gnu.org/licenses/old-licenses/gpl-2.0.html
+ * or you may search the http://www.gnu.org website for the version 2 license,
+ * or you may write to the Free Software Foundation, Inc.,
+ * 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
+ */
+
 /**
  * @file hotkeys_module_editor.cpp
  */
@@ -12,18 +36,27 @@
 #include <class_board_design_settings.h>
 
 #include <hotkeys.h>
-#include <protos.h>
 
 /* How to add a new hotkey:
  * See hotkeys.cpp
  */
 
+EDA_HOTKEY* FOOTPRINT_EDIT_FRAME::GetHotKeyDescription( int aCommand ) const
+{
+    EDA_HOTKEY* HK_Descr = GetDescriptorFromCommand( aCommand, common_Hotkey_List );
 
-void FOOTPRINT_EDIT_FRAME::OnHotKey( wxDC* aDC, int aHotKey, const wxPoint& aPosition,
+    if( HK_Descr == NULL )
+        HK_Descr = GetDescriptorFromCommand( aCommand, module_edit_Hotkey_List );
+
+    return HK_Descr;
+}
+
+
+bool FOOTPRINT_EDIT_FRAME::OnHotKey( wxDC* aDC, int aHotKey, const wxPoint& aPosition,
                                      EDA_ITEM* aItem )
 {
     if( aHotKey == 0 )
-        return;
+        return false;
 
     bool           blockActive = GetScreen()->m_BlockLocate.GetCommand() != BLOCK_IDLE;
     BOARD_ITEM*    item     = GetCurItem();
@@ -42,21 +75,39 @@ void FOOTPRINT_EDIT_FRAME::OnHotKey( wxDC* aDC, int aHotKey, const wxPoint& aPos
         HK_Descr = GetDescriptorFromHotkey( aHotKey, module_edit_Hotkey_List );
 
     if( HK_Descr == NULL )
-        return;
+        return false;
 
     switch( HK_Descr->m_Idcommand )
     {
     default:
     case HK_NOT_FOUND:
-        return;
-        break;
+        return false;
 
-    case HK_HELP: // Display Current hotkey list
+    case HK_HELP:                   // Display Current hotkey list
         DisplayHotkeyList( this, g_Module_Editor_Hokeys_Descr );
         break;
 
-    case HK_RESET_LOCAL_COORD: /*Reset the relative coord  */
-        GetScreen()->m_O_Curseur = GetScreen()->GetCrossHairPosition();
+    case HK_RESET_LOCAL_COORD:      // set local (relative) coordinate origin
+        GetScreen()->m_O_Curseur = GetCrossHairPosition();
+        break;
+
+    case HK_LEFT_CLICK:
+        OnLeftClick( aDC, aPosition );
+        break;
+
+    case HK_LEFT_DCLICK:    // Simulate a double left click: generate 2 events
+        OnLeftClick( aDC, aPosition );
+        OnLeftDClick( aDC, aPosition );
+        break;
+
+    case HK_SET_GRID_ORIGIN:
+        SetGridOrigin( GetCrossHairPosition() );
+        m_canvas->Refresh();
+        break;
+
+    case HK_RESET_GRID_ORIGIN:
+        SetGridOrigin( wxPoint(0,0) );
+        m_canvas->Refresh();
         break;
 
     case HK_SWITCH_UNITS:
@@ -111,28 +162,71 @@ void FOOTPRINT_EDIT_FRAME::OnHotKey( wxDC* aDC, int aHotKey, const wxPoint& aPos
         OnHotkeyMoveItem( HK_MOVE_ITEM );
         break;
 
+    case HK_MOVE_ITEM_EXACT:
+        if( blockActive )
+        {
+            cmd.SetId( ID_POPUP_MOVE_BLOCK_EXACT );
+            GetEventHandler()->ProcessEvent( cmd );
+        }
+        else
+        {
+            OnHotkeyMoveItemExact();
+        }
+        break;
+
     case HK_ROTATE_ITEM:
         OnHotkeyRotateItem( HK_ROTATE_ITEM );
         break;
+
+    case HK_DUPLICATE_ITEM:
+    case HK_DUPLICATE_ITEM_AND_INCREMENT:
+        OnHotkeyDuplicateItem( HK_Descr->m_Idcommand );
+        break;
+
+    case HK_CREATE_ARRAY:
+        PostCommandMenuEvent( ID_POPUP_PCB_CREATE_ARRAY );
     }
+
+    return true;
 }
 
 
-bool FOOTPRINT_EDIT_FRAME::OnHotkeyEditItem( int aIdCommand )
+BOARD_ITEM* FOOTPRINT_EDIT_FRAME::PrepareItemForHotkey( bool aFailIfCurrentlyEdited )
 {
     BOARD_ITEM* item = GetCurItem();
     bool        itemCurrentlyEdited = item && item->GetFlags();
     bool        blockActive = GetScreen()->m_BlockLocate.GetCommand() != BLOCK_IDLE;
 
-    if( itemCurrentlyEdited || blockActive )
-        return false;
+    if( aFailIfCurrentlyEdited )
+    {
+        if( itemCurrentlyEdited || blockActive )
+            return NULL;
 
-    item = ModeditLocateAndDisplay();
+        item = ModeditLocateAndDisplay();
+    }
+    else
+    {
+        if( blockActive )
+            return NULL;
+
+        if( !itemCurrentlyEdited )
+            item = ModeditLocateAndDisplay();
+    }
+
+    // set item if we can, but don't clear if not
+    if( item )
+        SetCurItem( item );
+
+    return item;
+}
+
+
+bool FOOTPRINT_EDIT_FRAME::OnHotkeyEditItem( int aIdCommand )
+{
+    BOARD_ITEM* item = PrepareItemForHotkey( true );
 
     if( item == NULL )
         return false;
-
-    SetCurItem( item );
 
     int evt_type = 0;       // Used to post a wxCommandEvent on demand
 
@@ -156,38 +250,26 @@ bool FOOTPRINT_EDIT_FRAME::OnHotkeyEditItem( int aIdCommand )
 
         break;
 
+    case PCB_MODULE_EDGE_T:
+        if( aIdCommand == HK_EDIT_ITEM )
+            evt_type = ID_POPUP_MODEDIT_EDIT_BODY_ITEM;
+
+        break;
+
     default:
         break;
     }
 
-    if( evt_type != 0 )
-    {
-        wxCommandEvent evt( wxEVT_COMMAND_MENU_SELECTED );
-        evt.SetEventObject( this );
-        evt.SetId( evt_type );
-        wxPostEvent( this, evt );
-        return true;
-    }
-
-    return false;
+    return PostCommandMenuEvent( evt_type );
 }
 
 
 bool FOOTPRINT_EDIT_FRAME::OnHotkeyDeleteItem( int aIdCommand )
 {
-    BOARD_ITEM* item = GetCurItem();
-    bool        itemCurrentlyEdited = item && item->GetFlags();
-    bool        blockActive = GetScreen()->m_BlockLocate.GetCommand() != BLOCK_IDLE;
-
-    if( itemCurrentlyEdited || blockActive )
-        return false;
-
-    item = ModeditLocateAndDisplay();
+    BOARD_ITEM* item = PrepareItemForHotkey( true );
 
     if( item == NULL )
         return false;
-
-    SetCurItem( item );
 
     int evt_type = 0;       // Used to post a wxCommandEvent on demand
 
@@ -215,34 +297,16 @@ bool FOOTPRINT_EDIT_FRAME::OnHotkeyDeleteItem( int aIdCommand )
         break;
     }
 
-    if( evt_type != 0 )
-    {
-        wxCommandEvent evt( wxEVT_COMMAND_MENU_SELECTED );
-        evt.SetEventObject( this );
-        evt.SetId( evt_type );
-        wxPostEvent( this, evt );
-        return true;
-    }
-
-    return false;
+    return PostCommandMenuEvent( evt_type );
 }
 
 
 bool FOOTPRINT_EDIT_FRAME::OnHotkeyMoveItem( int aIdCommand )
 {
-    BOARD_ITEM* item = GetCurItem();
-    bool        itemCurrentlyEdited = item && item->GetFlags();
-    bool        blockActive = GetScreen()->m_BlockLocate.GetCommand() != BLOCK_IDLE;
-
-    if( itemCurrentlyEdited || blockActive )
-        return false;
-
-    item = ModeditLocateAndDisplay();
+    BOARD_ITEM* item = PrepareItemForHotkey( true );
 
     if( item == NULL )
         return false;
-
-    SetCurItem( item );
 
     int evt_type = 0;       // Used to post a wxCommandEvent on demand
 
@@ -270,36 +334,71 @@ bool FOOTPRINT_EDIT_FRAME::OnHotkeyMoveItem( int aIdCommand )
         break;
     }
 
-    if( evt_type != 0 )
+    return PostCommandMenuEvent( evt_type );
+}
+
+
+bool FOOTPRINT_EDIT_FRAME::OnHotkeyMoveItemExact()
+{
+    BOARD_ITEM* item = PrepareItemForHotkey( false );
+
+    if( item == NULL )
+        return false;
+
+    int evt_type = 0;       // Used to post a wxCommandEvent on demand
+
+    switch( item->Type() )
     {
-        wxCommandEvent evt( wxEVT_COMMAND_MENU_SELECTED );
-        evt.SetEventObject( this );
-        evt.SetId( evt_type );
-        wxPostEvent( this, evt );
-        return true;
+    case PCB_PAD_T:
+    case PCB_MODULE_EDGE_T:
+    case PCB_MODULE_TEXT_T:
+        evt_type = ID_POPUP_PCB_MOVE_EXACT;
+        break;
+    default:
+        break;
     }
 
-    return false;
+    return PostCommandMenuEvent( evt_type );
+}
+
+
+bool FOOTPRINT_EDIT_FRAME::OnHotkeyDuplicateItem( int aIdCommand )
+{
+    BOARD_ITEM* item = PrepareItemForHotkey( true );
+
+    if( item == NULL )
+        return false;
+
+    int evt_type = 0;       // Used to post a wxCommandEvent on demand
+
+    switch( item->Type() )
+    {
+    case PCB_PAD_T:
+    case PCB_MODULE_EDGE_T:
+    case PCB_MODULE_TEXT_T:
+        if( aIdCommand == HK_DUPLICATE_ITEM )
+            evt_type = ID_POPUP_PCB_DUPLICATE_ITEM;
+        else
+            evt_type = ID_POPUP_PCB_DUPLICATE_ITEM_AND_INCREMENT;
+
+        break;
+
+    default:
+        break;
+    }
+
+    return PostCommandMenuEvent( evt_type );
 }
 
 
 bool FOOTPRINT_EDIT_FRAME::OnHotkeyRotateItem( int aIdCommand )
 {
-    BOARD_ITEM* item = GetCurItem();
-    bool        itemCurrentlyEdited = item && item->GetFlags();
-    int         evt_type    = 0; // Used to post a wxCommandEvent on demand
-    bool        blockActive = GetScreen()->m_BlockLocate.GetCommand() != BLOCK_IDLE;
-
-    if( blockActive )
-        return false;
-
-    if( !itemCurrentlyEdited )
-        item = ModeditLocateAndDisplay();
+    BOARD_ITEM* item = PrepareItemForHotkey( false );
 
     if( item == NULL )
         return false;
 
-    SetCurItem( item );
+    int evt_type = 0;       // Used to post a wxCommandEvent on demand
 
     switch( item->Type() )
     {
@@ -313,14 +412,5 @@ bool FOOTPRINT_EDIT_FRAME::OnHotkeyRotateItem( int aIdCommand )
         break;
     }
 
-    if( evt_type != 0 )
-    {
-        wxCommandEvent evt( wxEVT_COMMAND_MENU_SELECTED );
-        evt.SetEventObject( this );
-        evt.SetId( evt_type );
-        wxPostEvent( this, evt );
-        return true;
-    }
-
-    return false;
+    return PostCommandMenuEvent( evt_type );
 }

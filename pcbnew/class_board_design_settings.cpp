@@ -1,7 +1,7 @@
 /*
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
- * Copyright (C) 1992-2012 KiCad Developers, see AUTHORS.txt for contributors.
+ * Copyright (C) 1992-2015 KiCad Developers, see AUTHORS.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -36,33 +36,20 @@
 #include <class_track.h>
 #include <convert_from_iu.h>
 
-// Board thickness, mainly for 3D view:
-#define DEFAULT_BOARD_THICKNESS_MM   1.6
-
-// Default values for some board items
-#define DEFAULT_TEXT_PCB_SIZE  Millimeter2iu( 1.5 )
-#define DEFAULT_TEXT_PCB_THICKNESS  Millimeter2iu( 0.3 )
-#define DEFAULT_PCB_EDGE_THICKNESS  Millimeter2iu( 0.15 )
-#define DEFAULT_GRAPHIC_THICKNESS   Millimeter2iu( 0.2 )
-#define DEFAULT_TEXT_MODULE_SIZE    Millimeter2iu( 1.5 )
-#define DEFAULT_GR_MODULE_THICKNESS Millimeter2iu( 0.15 )
-
-#define DEFAULT_SOLDERMASK_CLEARANCE Millimeter2iu( 0.2 )
-#define DEFAULT_SOLDERMASK_MIN_WIDTH Millimeter2iu( 0.0 )
-
 
 BOARD_DESIGN_SETTINGS::BOARD_DESIGN_SETTINGS() :
-    m_Pad_Master( 0 )
+    m_Pad_Master( NULL )
 {
-    m_EnabledLayers = ALL_LAYERS;               // All layers enabled at first.
-                                                // SetCopperLayerCount() will adjust this.
+    LSET    all_set = LSET().set();
 
-    SetVisibleLayers( FULL_LAYERS );
+    m_enabledLayers = all_set;              // All layers enabled at first.
+                                            // SetCopperLayerCount() will adjust this.
+    SetVisibleLayers( all_set );
 
     // set all but hidden text as visible.
-    m_VisibleElements = ~( 1 << MOD_TEXT_INVISIBLE );
+    m_visibleElements = ~( 1 << MOD_TEXT_INVISIBLE );
 
-    SetCopperLayerCount( 2 );                   // Default design is a double sided board
+    SetCopperLayerCount( 2 );               // Default design is a double sided board
 
     // via type (VIA_BLIND_BURIED, VIA_THROUGH VIA_MICROVIA).
     m_CurrentViaType = VIA_THROUGH;
@@ -70,37 +57,58 @@ BOARD_DESIGN_SETTINGS::BOARD_DESIGN_SETTINGS() :
     // if true, when creating a new track starting on an existing track, use this track width
     m_UseConnectedTrackWidth = false;
 
+    m_BlindBuriedViaAllowed = false;            // true to allow blind/buried vias
     m_MicroViasAllowed = false;                 // true to allow micro vias
 
-    m_DrawSegmentWidth = DEFAULT_GRAPHIC_THICKNESS;     // current graphic line width (not EDGE layer)
+    m_DrawSegmentWidth = Millimeter2iu( DEFAULT_GRAPHIC_THICKNESS );     // current graphic line width (not EDGE layer)
 
-    m_EdgeSegmentWidth = DEFAULT_PCB_EDGE_THICKNESS;    // current graphic line width (EDGE layer only)
-    m_PcbTextWidth     = DEFAULT_TEXT_PCB_THICKNESS;    // current Pcb (not module) Text width
+    m_EdgeSegmentWidth = Millimeter2iu( DEFAULT_PCB_EDGE_THICKNESS );    // current graphic line width (EDGE layer only)
+    m_PcbTextWidth     = Millimeter2iu( DEFAULT_TEXT_PCB_THICKNESS );    // current Pcb (not module) Text width
 
-    m_PcbTextSize       = wxSize( DEFAULT_TEXT_PCB_SIZE,
-                                  DEFAULT_TEXT_PCB_SIZE );  // current Pcb (not module) Text size
+    m_PcbTextSize       = wxSize( Millimeter2iu( DEFAULT_TEXT_PCB_SIZE  ),
+                                  Millimeter2iu( DEFAULT_TEXT_PCB_SIZE  ) );  // current Pcb (not module) Text size
 
-    m_TrackMinWidth     = DMils2iu( 100 );      // track min value for width ((min copper size value
-    m_ViasMinSize       = DMils2iu( 350 );      // vias (not micro vias) min diameter
-    m_ViasMinDrill      = DMils2iu( 200 );      // vias (not micro vias) min drill diameter
-    m_MicroViasMinSize  = DMils2iu( 200 );      // micro vias (not vias) min diameter
-    m_MicroViasMinDrill = DMils2iu( 50 );       // micro vias (not vias) min drill diameter
+    m_useCustomTrackVia = false;
+    m_customTrackWidth  = Millimeter2iu( DEFAULT_CUSTOMTRACKWIDTH );
+    m_customViaSize.m_Diameter = Millimeter2iu( DEFAULT_VIASMINSIZE );
+    m_customViaSize.m_Drill = Millimeter2iu( DEFAULT_VIASMINDRILL );
+
+    m_TrackMinWidth     = Millimeter2iu( DEFAULT_TRACKMINWIDTH );   // track min width
+    m_ViasMinSize       = Millimeter2iu( DEFAULT_VIASMINSIZE );     // via (not uvia) min diam
+    m_ViasMinDrill      = Millimeter2iu( DEFAULT_VIASMINDRILL );    // via (not uvia) min drill diam
+    m_MicroViasMinSize  = Millimeter2iu( DEFAULT_MICROVIASMINSIZE );// uvia (not via) min diam
+    m_MicroViasMinDrill = Millimeter2iu( DEFAULT_MICROVIASMINDRILL );// uvia (not via) min drill diam
 
     // Global mask margins:
-    m_SolderMaskMargin  = DEFAULT_SOLDERMASK_CLEARANCE; // Solder mask margin
-    m_SolderMaskMinWidth = DEFAULT_SOLDERMASK_MIN_WIDTH;   // Solder mask min width
+    m_SolderMaskMargin  = Millimeter2iu( DEFAULT_SOLDERMASK_CLEARANCE ); // Solder mask margin
+    m_SolderMaskMinWidth = Millimeter2iu( DEFAULT_SOLDERMASK_MIN_WIDTH );   // Solder mask min width
     m_SolderPasteMargin = 0;                    // Solder paste margin absolute value
     m_SolderPasteMarginRatio = 0.0;             // Solder pask margin ratio value of pad size
                                                 // The final margin is the sum of these 2 values
                                                 // Usually < 0 because the mask is smaller than pad
 
-    m_ModuleTextSize = wxSize( DEFAULT_TEXT_MODULE_SIZE,
-                               DEFAULT_TEXT_MODULE_SIZE );
-    m_ModuleTextWidth = DEFAULT_GR_MODULE_THICKNESS;
-    m_ModuleSegmentWidth = DEFAULT_GR_MODULE_THICKNESS;
-
     // Layer thickness for 3D viewer
     m_boardThickness = Millimeter2iu( DEFAULT_BOARD_THICKNESS_MM );
+
+    m_viaSizeIndex = 0;
+    m_trackWidthIndex = 0;
+
+    // Default values for the footprint editor and fp creation
+    // (also covers footprints created on the fly by micor-waves tools)
+    m_ModuleTextSize = wxSize( Millimeter2iu( DEFAULT_TEXT_MODULE_SIZE ),
+                               Millimeter2iu( DEFAULT_TEXT_MODULE_SIZE ) );
+    m_ModuleTextWidth = Millimeter2iu( DEFAULT_GR_MODULE_THICKNESS );
+    m_ModuleSegmentWidth = Millimeter2iu( DEFAULT_GR_MODULE_THICKNESS );
+
+    // These values will be overriden by config values after reading the config
+    // Default ref text on fp creation. if empty, use footprint name as default
+    m_RefDefaultText = wxT( "REF**" );
+    m_RefDefaultVisibility = true;          // Default ref text visibility on fp creation
+    m_RefDefaultlayer = int( F_SilkS );     // Default ref text layer on fp creation
+    // Default value text on fp creation. if empty, use footprint name as default
+    m_ValueDefaultText = wxEmptyString;
+    m_ValueDefaultVisibility = true;
+    m_ValueDefaultlayer = int( F_Fab );
 }
 
 // Add parameters to save in project config.
@@ -111,17 +119,17 @@ void BOARD_DESIGN_SETTINGS::AppendConfigs( PARAM_CFG_ARRAY* aResult )
 
     aResult->push_back( new PARAM_CFG_INT_WITH_SCALE( wxT( "PcbTextSizeV" ),
                     &m_PcbTextSize.y,
-                    DEFAULT_TEXT_PCB_SIZE, TEXTS_MIN_SIZE, TEXTS_MAX_SIZE,
+                    Millimeter2iu( DEFAULT_TEXT_PCB_SIZE  ), TEXTS_MIN_SIZE, TEXTS_MAX_SIZE,
                     NULL, MM_PER_IU ) );
 
     aResult->push_back( new PARAM_CFG_INT_WITH_SCALE( wxT( "PcbTextSizeH" ),
                     &m_PcbTextSize.x,
-                    DEFAULT_TEXT_PCB_SIZE, TEXTS_MIN_SIZE, TEXTS_MAX_SIZE,
+                    Millimeter2iu( DEFAULT_TEXT_PCB_SIZE  ), TEXTS_MIN_SIZE, TEXTS_MAX_SIZE,
                     NULL, MM_PER_IU ) );
 
     aResult->push_back( new PARAM_CFG_INT_WITH_SCALE( wxT( "PcbTextThickness" ),
                     &m_PcbTextWidth,
-                    DEFAULT_TEXT_PCB_THICKNESS,
+                    Millimeter2iu(DEFAULT_TEXT_PCB_THICKNESS ),
                     Millimeter2iu( 0.01 ), Millimeter2iu( 5.0 ),
                     NULL, MM_PER_IU ) );
 
@@ -137,70 +145,189 @@ void BOARD_DESIGN_SETTINGS::AppendConfigs( PARAM_CFG_ARRAY* aResult )
 
     aResult->push_back( new PARAM_CFG_INT_WITH_SCALE( wxT( "ModuleTextSizeThickness" ),
                     &m_ModuleTextWidth,
-                    DEFAULT_GR_MODULE_THICKNESS, 1, TEXTS_MAX_WIDTH,
+                    Millimeter2iu( DEFAULT_GR_MODULE_THICKNESS ), 1, TEXTS_MAX_WIDTH,
                     NULL, MM_PER_IU ) );
 
     aResult->push_back( new PARAM_CFG_INT_WITH_SCALE( wxT( "SolderMaskClearance" ),
                     &m_SolderMaskMargin,
-                    DEFAULT_SOLDERMASK_CLEARANCE, 0, Millimeter2iu( 1.0 ),
+                    Millimeter2iu( DEFAULT_SOLDERMASK_CLEARANCE ), 0, Millimeter2iu( 1.0 ),
                     NULL, MM_PER_IU ) );
 
     aResult->push_back( new PARAM_CFG_INT_WITH_SCALE( wxT( "SolderMaskMinWidth" ),
                     &m_SolderMaskMinWidth,
-                    DEFAULT_SOLDERMASK_MIN_WIDTH, 0, Millimeter2iu( 0.5 ),
+                    Millimeter2iu( DEFAULT_SOLDERMASK_MIN_WIDTH ), 0, Millimeter2iu( 0.5 ),
                     NULL, MM_PER_IU ) );
 
     aResult->push_back( new PARAM_CFG_INT_WITH_SCALE( wxT( "DrawSegmentWidth" ),
                     &m_DrawSegmentWidth,
-                    DEFAULT_GRAPHIC_THICKNESS,
+                    Millimeter2iu( DEFAULT_GRAPHIC_THICKNESS ),
                     Millimeter2iu( 0.01 ), Millimeter2iu( 5.0 ),
                     NULL, MM_PER_IU ) );
 
     aResult->push_back( new PARAM_CFG_INT_WITH_SCALE( wxT( "BoardOutlineThickness" ),
                     &m_EdgeSegmentWidth,
-                    DEFAULT_PCB_EDGE_THICKNESS,
+                    Millimeter2iu( DEFAULT_PCB_EDGE_THICKNESS ),
                     Millimeter2iu( 0.01 ), Millimeter2iu( 5.0 ),
                     NULL, MM_PER_IU ) );
 
     aResult->push_back( new PARAM_CFG_INT_WITH_SCALE( wxT( "ModuleOutlineThickness" ),
                     &m_ModuleSegmentWidth,
-                    DEFAULT_GR_MODULE_THICKNESS,
+                    Millimeter2iu( DEFAULT_GR_MODULE_THICKNESS ),
                     Millimeter2iu( 0.01 ), Millimeter2iu( 5.0 ),
                     NULL, MM_PER_IU ) );
 }
 
 
-// see pcbstruct.h
-int BOARD_DESIGN_SETTINGS::GetVisibleLayers() const
+bool BOARD_DESIGN_SETTINGS::SetCurrentNetClass( const wxString& aNetClassName )
 {
-    return m_VisibleLayers;
+    NETCLASSPTR netClass = m_NetClasses.Find( aNetClassName );
+    bool        lists_sizes_modified = false;
+
+    // if not found (should not happen) use the default
+    if( netClass == NULL )
+        netClass = m_NetClasses.GetDefault();
+
+    m_currentNetClassName = netClass->GetName();
+
+    // Initialize others values:
+    if( m_ViasDimensionsList.size() == 0 )
+    {
+        VIA_DIMENSION viadim;
+        lists_sizes_modified = true;
+        m_ViasDimensionsList.push_back( viadim );
+    }
+
+    if( m_TrackWidthList.size() == 0 )
+    {
+        lists_sizes_modified = true;
+        m_TrackWidthList.push_back( 0 );
+    }
+
+    /* note the m_ViasDimensionsList[0] and m_TrackWidthList[0] values
+     * are always the Netclass values
+     */
+    if( m_ViasDimensionsList[0].m_Diameter != netClass->GetViaDiameter() )
+    {
+        lists_sizes_modified = true;
+        m_ViasDimensionsList[0].m_Diameter = netClass->GetViaDiameter();
+    }
+
+    if( m_ViasDimensionsList[0].m_Drill != netClass->GetViaDrill() )
+    {
+        lists_sizes_modified = true;
+        m_ViasDimensionsList[0].m_Drill = netClass->GetViaDrill();
+    }
+
+    if( m_TrackWidthList[0] != netClass->GetTrackWidth() )
+    {
+        lists_sizes_modified = true;
+        m_TrackWidthList[0] = netClass->GetTrackWidth();
+    }
+
+    if( GetViaSizeIndex() >= m_ViasDimensionsList.size() )
+        SetViaSizeIndex( m_ViasDimensionsList.size() );
+
+    if( GetTrackWidthIndex() >= m_TrackWidthList.size() )
+        SetTrackWidthIndex( m_TrackWidthList.size() );
+
+    return lists_sizes_modified;
+}
+
+
+int BOARD_DESIGN_SETTINGS::GetBiggestClearanceValue()
+{
+    int clearance = m_NetClasses.GetDefault()->GetClearance();
+
+    //Read list of Net Classes
+    for( NETCLASSES::const_iterator nc = m_NetClasses.begin(); nc != m_NetClasses.end(); ++nc )
+    {
+        NETCLASSPTR netclass = nc->second;
+        clearance = std::max( clearance, netclass->GetClearance() );
+    }
+
+    return clearance;
+}
+
+
+int BOARD_DESIGN_SETTINGS::GetSmallestClearanceValue()
+{
+    int clearance = m_NetClasses.GetDefault()->GetClearance();
+
+    //Read list of Net Classes
+    for( NETCLASSES::const_iterator nc = m_NetClasses.begin(); nc != m_NetClasses.end(); ++nc )
+    {
+        NETCLASSPTR netclass = nc->second;
+        clearance = std::min( clearance, netclass->GetClearance() );
+    }
+
+    return clearance;
+}
+
+
+int BOARD_DESIGN_SETTINGS::GetCurrentMicroViaSize()
+{
+    NETCLASSPTR netclass = m_NetClasses.Find( m_currentNetClassName );
+
+    return netclass->GetuViaDiameter();
+}
+
+
+int BOARD_DESIGN_SETTINGS::GetCurrentMicroViaDrill()
+{
+    NETCLASSPTR netclass = m_NetClasses.Find( m_currentNetClassName );
+
+    return netclass->GetuViaDrill();
+}
+
+
+void BOARD_DESIGN_SETTINGS::SetViaSizeIndex( unsigned aIndex )
+{
+    if( aIndex >= m_ViasDimensionsList.size() )
+        m_viaSizeIndex = m_ViasDimensionsList.size();
+    else
+        m_viaSizeIndex = aIndex;
+
+    m_useCustomTrackVia = false;
+}
+
+
+int BOARD_DESIGN_SETTINGS::GetCurrentViaDrill() const
+{
+    int drill;
+
+    if( m_useCustomTrackVia )
+        drill = m_customViaSize.m_Drill;
+    else
+        drill = m_ViasDimensionsList[m_viaSizeIndex].m_Drill;
+
+    return drill > 0 ? drill : -1;
+}
+
+
+void BOARD_DESIGN_SETTINGS::SetTrackWidthIndex( unsigned aIndex )
+{
+    if( aIndex >= m_TrackWidthList.size() )
+        m_trackWidthIndex = m_TrackWidthList.size();
+    else
+        m_trackWidthIndex = aIndex;
+
+    m_useCustomTrackVia = false;
 }
 
 
 void BOARD_DESIGN_SETTINGS::SetVisibleAlls()
 {
-    SetVisibleLayers( FULL_LAYERS );
-    m_VisibleElements = -1;
+    SetVisibleLayers( LSET().set() );
+    m_visibleElements = -1;
 }
 
 
-void BOARD_DESIGN_SETTINGS::SetVisibleLayers( int aMask )
+void BOARD_DESIGN_SETTINGS::SetLayerVisibility( LAYER_ID aLayer, bool aNewState )
 {
-    // Although Pcbnew uses only 29, GerbView uses all 32 layers
-    m_VisibleLayers = aMask & m_EnabledLayers & FULL_LAYERS;
-}
-
-
-void BOARD_DESIGN_SETTINGS::SetLayerVisibility( int aLayerIndex, bool aNewState )
-{
-    // Altough Pcbnew uses only 29, GerbView uses all 32 layers
-    if( aLayerIndex < 0 || aLayerIndex >= 32 )
-        return;
-
-    if( aNewState && IsLayerEnabled( aLayerIndex ) )
-        m_VisibleLayers |= 1 << aLayerIndex;
+    if( aNewState && IsLayerEnabled( aLayer ) )
+        m_visibleLayers.set( aLayer, true );
     else
-        m_VisibleLayers &= ~( 1 << aLayerIndex );
+        m_visibleLayers.set( aLayer, false );
 }
 
 
@@ -210,9 +337,9 @@ void BOARD_DESIGN_SETTINGS::SetElementVisibility( int aElementCategory, bool aNe
         return;
 
     if( aNewState )
-        m_VisibleElements |= 1 << aElementCategory;
+        m_visibleElements |= 1 << aElementCategory;
     else
-        m_VisibleElements &= ~( 1 << aElementCategory );
+        m_visibleElements &= ~( 1 << aElementCategory );
 }
 
 
@@ -220,36 +347,50 @@ void BOARD_DESIGN_SETTINGS::SetCopperLayerCount( int aNewLayerCount )
 {
     // if( aNewLayerCount < 2 ) aNewLayerCount = 2;
 
-    m_CopperLayerCount = aNewLayerCount;
+    m_copperLayerCount = aNewLayerCount;
 
     // ensure consistency with the m_EnabledLayers member
-    m_EnabledLayers &= ~ALL_CU_LAYERS;
-    m_EnabledLayers |= LAYER_BACK;
+#if 0
+    // was:
+    m_enabledLayers &= ~ALL_CU_LAYERS;
+    m_enabledLayers |= LAYER_BACK;
 
-    if( m_CopperLayerCount > 1 )
-        m_EnabledLayers |= LAYER_FRONT;
+    if( m_copperLayerCount > 1 )
+        m_enabledLayers |= LAYER_FRONT;
 
-    for( int ii = 1; ii < aNewLayerCount - 1; ii++ )
-        m_EnabledLayers |= 1 << ii;
+    for( LAYER_NUM ii = LAYER_N_2; ii < aNewLayerCount - 1; ++ii )
+        m_enabledLayers |= GetLayerSet( ii );
+#else
+    // Update only enabled copper layers mask
+    m_enabledLayers &= ~LSET::AllCuMask();
+    m_enabledLayers |= LSET::AllCuMask( aNewLayerCount );
+#endif
 }
 
 
-void BOARD_DESIGN_SETTINGS::SetEnabledLayers( int aMask )
+void BOARD_DESIGN_SETTINGS::SetEnabledLayers( LSET aMask )
 {
     // Back and front layers are always enabled.
-    aMask |= LAYER_BACK | LAYER_FRONT;
+    aMask.set( B_Cu ).set( F_Cu );
 
-    m_EnabledLayers = aMask;
+    m_enabledLayers = aMask;
 
     // A disabled layer cannot be visible
-    m_VisibleLayers &= aMask;
+    m_visibleLayers &= aMask;
 
     // update m_CopperLayerCount to ensure its consistency with m_EnabledLayers
-    m_CopperLayerCount = 0;
-
-    for( int ii = 0;  aMask && ii < NB_COPPER_LAYERS;  ii++, aMask >>= 1 )
-    {
-        if( aMask & 1 )
-            m_CopperLayerCount++;
-    }
+    m_copperLayerCount = ( aMask & LSET::AllCuMask() ).count();
 }
+
+
+#ifndef NDEBUG
+struct list_size_check {
+   list_size_check()
+   {
+       // Int (the type used for saving visibility settings) is only 32 bits guaranteed,
+       // be sure that we do not cross the limit
+       assert( END_PCB_VISIBLE_LIST <= 32 );
+   };
+};
+static list_size_check check;
+#endif

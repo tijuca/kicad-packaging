@@ -34,13 +34,14 @@
  *       depending on the application.
  */
 
+#include <macros.h>
 #include <base_struct.h>
 #include <class_title_block.h>
 #include <common.h>
 #include <base_units.h>
 
 
-#if defined( PCBNEW ) || defined( CVPCB ) || defined( EESCHEMA ) || defined( GERBVIEW )
+#if defined( PCBNEW ) || defined( CVPCB ) || defined( EESCHEMA ) || defined( GERBVIEW ) || defined( PL_EDITOR )
 #define IU_TO_MM( x )       ( x / IU_PER_MM )
 #define IU_TO_IN( x )       ( x / IU_PER_MILS / 1000 )
 #define MM_TO_IU( x )       ( x * IU_PER_MM )
@@ -48,6 +49,42 @@
 #else
 #error "Cannot resolve internal units due to no definition of EESCHEMA, CVPCB or PCBNEW."
 #endif
+
+
+// Helper function to print a float number without using scientific notation
+// and no trailing 0
+// So we cannot always just use the %g or the %f format to print a fp number
+// this helper function uses the %f format when needed, or %g when %f is
+// not well working and then removes trailing 0
+
+std::string Double2Str( double aValue )
+{
+    char    buf[50];
+    int     len;
+
+    if( aValue != 0.0 && fabs( aValue ) <= 0.0001 )
+    {
+        // For these small values, %f works fine,
+        // and %g gives an exponent
+        len = sprintf( buf,  "%.16f", aValue );
+
+        while( --len > 0 && buf[len] == '0' )
+            buf[len] = '\0';
+
+        if( buf[len] == '.' )
+            buf[len] = '\0';
+        else
+            ++len;
+    }
+    else
+    {
+        // For these values, %g works fine, and sometimes %f
+        // gives a bad value (try aValue = 1.222222222222, with %.16f format!)
+        len = sprintf( buf, "%.16g", aValue );
+    }
+
+    return std::string( buf, len );
+}
 
 
 double To_User_Unit( EDA_UNITS_T aUnit, double aValue )
@@ -59,6 +96,9 @@ double To_User_Unit( EDA_UNITS_T aUnit, double aValue )
 
     case INCHES:
         return IU_TO_IN( aValue );
+
+    case DEGREES:
+        return aValue / 10.0f;
 
     default:
         return aValue;
@@ -151,7 +191,7 @@ void StripTrailingZeros( wxString& aStringValue, unsigned aTrailingZeroAllowed )
 
 
 /* Convert a value to a string using double notation.
- * For readability, the mantissa has 3 or more digits (max 8 digits),
+ * For readability, the mantissa has 3 or more digits,
  * the trailing 0 are removed if the mantissa has more than 3 digits
  * and some trailing 0
  * This function should be used to display values in dialogs because a value
@@ -160,25 +200,41 @@ void StripTrailingZeros( wxString& aStringValue, unsigned aTrailingZeroAllowed )
  * otherwise the actual value is rounded when read from dialog and converted
  * in internal units, and therefore modified.
  */
-wxString ReturnStringFromValue( EDA_UNITS_T aUnit, int aValue, bool aAddUnitSymbol )
+wxString StringFromValue( EDA_UNITS_T aUnit, int aValue, bool aAddUnitSymbol )
 {
-    wxString stringValue;
-    double   value_to_print;
-
-    value_to_print = To_User_Unit( aUnit, aValue );
+    double  value_to_print = To_User_Unit( aUnit, aValue );
 
 #if defined( EESCHEMA )
-    stringValue.Printf( wxT( "%.3f" ), value_to_print );
-#else
- #if defined( USE_PCBNEW_NANOMETRES )
-    stringValue.Printf( wxT( "%.8f" ), value_to_print );
- #else
-    stringValue.Printf( wxT( "%.4f" ), value_to_print );
- #endif
+    wxString    stringValue = wxString::Format( wxT( "%.3f" ), value_to_print );
 
     // Strip trailing zeros. However, keep at least 3 digits in mantissa
     // For readability
     StripTrailingZeros( stringValue, 3 );
+
+#else
+
+    char    buf[50];
+    int     len;
+
+    if( value_to_print != 0.0 && fabs( value_to_print ) <= 0.0001 )
+    {
+        len = sprintf( buf, "%.10f", value_to_print );
+
+        while( --len > 0 && buf[len] == '0' )
+            buf[len] = '\0';
+
+        if( buf[len]=='.' || buf[len]==',' )
+            buf[len] = '\0';
+        else
+            ++len;
+    }
+    else
+    {
+        len = sprintf( buf, "%.10g", value_to_print );
+    }
+
+    wxString    stringValue( buf, wxConvUTF8 );
+
 #endif
 
     if( aAddUnitSymbol )
@@ -193,6 +249,10 @@ wxString ReturnStringFromValue( EDA_UNITS_T aUnit, int aValue, bool aAddUnitSymb
             stringValue += _( " mm" );
             break;
 
+        case DEGREES:
+            stringValue += _( " deg" );
+            break;
+
         case UNSCALED_UNITS:
             break;
         }
@@ -204,7 +264,7 @@ wxString ReturnStringFromValue( EDA_UNITS_T aUnit, int aValue, bool aAddUnitSymb
 
 void PutValueInLocalUnits( wxTextCtrl& aTextCtr, int aValue )
 {
-    wxString msg = ReturnStringFromValue( g_UserUnit, aValue );
+    wxString msg = StringFromValue( g_UserUnit, aValue );
 
     aTextCtr.SetValue( msg );
 }
@@ -224,9 +284,13 @@ double From_User_Unit( EDA_UNITS_T aUnit, double aValue )
         value = IN_TO_IU( aValue );
         break;
 
+    case DEGREES:
+        // Convert to "decidegrees"
+        value = aValue * 10;
+        break;
+
     default:
     case UNSCALED_UNITS:
-
         value = aValue;
     }
 
@@ -234,17 +298,16 @@ double From_User_Unit( EDA_UNITS_T aUnit, double aValue )
 }
 
 
-
-
-int ReturnValueFromString( EDA_UNITS_T aUnits, const wxString& aTextValue )
+double DoubleValueFromString( EDA_UNITS_T aUnits, const wxString& aTextValue )
 {
     double value;
     double dtmp = 0;
 
     // Acquire the 'right' decimal point separator
     const struct lconv* lc = localeconv();
-    wxChar decimal_point = lc->decimal_point[0];
-    wxString            buf( aTextValue.Strip( wxString::both ) );
+
+    wxChar      decimal_point = lc->decimal_point[0];
+    wxString    buf( aTextValue.Strip( wxString::both ) );
 
     // Convert the period in decimal point
     buf.Replace( wxT( "." ), wxString( decimal_point, 1 ) );
@@ -270,46 +333,65 @@ int ReturnValueFromString( EDA_UNITS_T aUnits, const wxString& aTextValue )
     }
 
     // Extract the numeric part
-    buf.Left( brk_point ).ToDouble( &dtmp );
+    buf.Left( brk_point );
+
+    buf.ToDouble( &dtmp );
 
     // Check the optional unit designator (2 ch significant)
     wxString unit( buf.Mid( brk_point ).Strip( wxString::leading ).Left( 2 ).Lower() );
 
-    if( unit == wxT( "in" ) || unit == wxT( "\"" ) )
+    if( aUnits == INCHES || aUnits == MILLIMETRES )
     {
-        aUnits = INCHES;
+        if( unit == wxT( "in" ) || unit == wxT( "\"" ) )
+        {
+            aUnits = INCHES;
+        }
+        else if( unit == wxT( "mm" ) )
+        {
+            aUnits = MILLIMETRES;
+        }
+        else if( unit == wxT( "mi" ) || unit == wxT( "th" ) ) // Mils or thous
+        {
+            aUnits = INCHES;
+            dtmp /= 1000;
+        }
     }
-    else if( unit == wxT( "mm" ) )
+    else if( aUnits == DEGREES )
     {
-        aUnits = MILLIMETRES;
-    }
-    else if( unit == wxT( "mi" ) || unit == wxT( "th" ) ) // Mils or thous
-    {
-        aUnits = INCHES;
-        dtmp /= 1000;
+        if( unit == wxT( "ra" ) ) // Radians
+        {
+            dtmp *= 180.0f / M_PI;
+        }
     }
 
     value = From_User_Unit( aUnits, dtmp );
 
+    return value;
+}
+
+
+int ValueFromString( EDA_UNITS_T aUnits, const wxString& aTextValue )
+{
+    double value = DoubleValueFromString( aUnits, aTextValue );
     return KiROUND( value );
 }
 
 
-int ReturnValueFromString( const wxString& aTextValue )
+int ValueFromString( const wxString& aTextValue )
 {
     int      value;
 
-    value = ReturnValueFromString( g_UserUnit, aTextValue);
+    value = ValueFromString( g_UserUnit, aTextValue);
 
     return value;
 }
 
-int ReturnValueFromTextCtrl( const wxTextCtrl& aTextCtr )
+int ValueFromTextCtrl( const wxTextCtrl& aTextCtr )
 {
     int      value;
     wxString msg = aTextCtr.GetValue();
 
-    value = ReturnValueFromString( g_UserUnit, msg );
+    value = ValueFromString( g_UserUnit, msg );
 
     return value;
 }
@@ -322,5 +404,20 @@ wxString& operator <<( wxString& aString, const wxPoint& aPos )
     aString << wxT( ")" );
 
     return aString;
+}
+
+/**
+ * Function AngleToStringDegrees
+ * is a helper to convert the \a double \a aAngle (in internal unit)
+ * to a string in degrees
+ */
+wxString AngleToStringDegrees( double aAngle )
+{
+    wxString text;
+
+    text.Printf( wxT( "%.3f" ), aAngle/10.0 );
+    StripTrailingZeros( text, 1 );
+
+    return text;
 }
 

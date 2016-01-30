@@ -32,6 +32,7 @@
 
 #include <sch_item_struct.h>
 
+class NETLIST_OBJECT_LIST;
 
 class SCH_NO_CONNECT : public SCH_ITEM
 {
@@ -61,7 +62,9 @@ public:
 
     bool Load( LINE_READER& aLine, wxString& aErrorMsg );
 
-    EDA_RECT GetBoundingBox() const;
+    void GetEndPoints( std::vector< DANGLING_END_ITEM >& aItemList );
+
+    const EDA_RECT GetBoundingBox() const;  // Virtual
 
     // Geometric transforms (used in block operations):
 
@@ -80,13 +83,13 @@ public:
 
     bool IsConnectable() const { return true; }
 
-    void GetConnectionPoints( vector< wxPoint >& aPoints ) const;
+    void GetConnectionPoints( std::vector< wxPoint >& aPoints ) const;
 
     wxString GetSelectMenuText() const { return wxString( _( "No Connect" ) ); }
 
     BITMAP_DEF GetMenuImage() const { return noconn_xpm; }
 
-    void GetNetListItem( vector<NETLIST_OBJECT*>& aNetListItems, SCH_SHEET_PATH* aSheetPath );
+    void GetNetListItem( NETLIST_OBJECT_LIST& aNetListItems, SCH_SHEET_PATH* aSheetPath );
 
     wxPoint GetPosition() const { return m_pos; }
 

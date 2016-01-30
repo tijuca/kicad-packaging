@@ -51,10 +51,12 @@ extern const wxString ProjectFileExtension;
 extern const wxString SchematicFileExtension;
 extern const wxString NetlistFileExtension;
 extern const wxString GerberFileExtension;
+extern const wxString HtmlFileExtension;
 
 extern const wxString LegacyPcbFileExtension;
 extern const wxString KiCadPcbFileExtension;
 #define PcbFileExtension    KiCadPcbFileExtension       // symlink choice
+extern const wxString PageLayoutDescrFileExtension;
 
 extern const wxString LegacyFootprintLibPathExtension;
 extern const wxString PdfFileExtension;
@@ -69,6 +71,8 @@ extern const wxString KiCadFootprintLibPathExtension;
 extern const wxString GedaPcbFootprintLibFileExtension;
 extern const wxString EagleFootprintLibPathExtension;
 extern const wxString ComponentFileExtensionWildcard;
+extern const wxString PageLayoutDescrFileWildcard;
+extern const wxString KiCadLib3DShapesPathExtension;
 
 /// Proper wxFileDialog wild card definitions.
 extern const wxString SchematicSymbolFileWildcard;
@@ -78,6 +82,7 @@ extern const wxString SchematicFileWildcard;
 extern const wxString BoardFileWildcard;
 extern const wxString NetlistFileWildcard;
 extern const wxString GerberFileWildcard;
+extern const wxString HtmlFileWildcard;
 extern const wxString LegacyPcbFileWildcard;
 extern const wxString PcbFileWildcard;
 extern const wxString EaglePcbFileWildcard;
@@ -91,13 +96,15 @@ extern const wxString DrillFileWildcard;
 extern const wxString SVGFileWildcard;
 extern const wxString ReportFileWildcard;
 extern const wxString FootprintPlaceFileWildcard;
-extern const wxString VrmlFileWildcard;
+extern const wxString Shapes3DFileWildcard;
+extern const wxString IDF3DFileWildcard;
 extern const wxString DocModulesFileName;
 extern const wxString LegacyFootprintLibPathWildcard;
 extern const wxString KiCadFootprintLibFileWildcard;
 extern const wxString KiCadFootprintLibPathWildcard;
 extern const wxString GedaPcbFootprintLibFileWildcard;
 extern const wxString EagleFootprintLibPathWildcard;
+extern const wxString TextWildcard;
 
 
 #endif  // INCLUDE_WILDCARDS_AND_FILES_EXT_H_

@@ -1,11 +1,7 @@
-/**
- * @file 3d_class.cpp
- */
-
 /*
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
- * Copyright (C) 1992-2012 KiCad Developers, see AUTHORS.txt for contributors.
+ * Copyright (C) 1992-2015 KiCad Developers, see AUTHORS.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -25,41 +21,27 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
  */
 
+/**
+ * @file 3d_class.cpp
+ */
 
 #include <fctsys.h>
 
-#include <3d_viewer.h>
+#include "3d_viewer.h"
+#include "3d_struct.h"
+#include "modelparsers.h"
 
-S3D_MATERIAL::S3D_MATERIAL( S3D_MASTER* father, const wxString& name ) :
-    EDA_ITEM( father, NOT_USED )
+
+void S3D_MASTER::Insert( S3D_MATERIAL* aMaterial )
 {
-    m_DiffuseColor.x   = m_DiffuseColor.y = m_DiffuseColor.z = 1.0;
-    m_SpecularColor.x  = m_SpecularColor.y = m_SpecularColor.z = 1.0;
-    m_AmbientIntensity = 1.0;
-    m_Transparency     = 0.0;
-    m_Shininess = 1.0;
-    m_Name = name;
-}
-
-
-void S3D_MATERIAL::SetMaterial()
-{
-    glColorMaterial( GL_FRONT_AND_BACK, GL_AMBIENT_AND_DIFFUSE );
-    glColor4f( m_DiffuseColor.x * m_AmbientIntensity,
-               m_DiffuseColor.y * m_AmbientIntensity,
-               m_DiffuseColor.z * m_AmbientIntensity,
-               1.0 - m_Transparency );
-#if 0
-    glColorMaterial( GL_FRONT_AND_BACK, GL_SPECULAR );
-    glColor3f( m_SpecularColor.x, m_SpecularColor.y, m_SpecularColor.z );
-#endif
-    glColorMaterial( GL_FRONT_AND_BACK, GL_AMBIENT_AND_DIFFUSE );
+    aMaterial->SetNext( m_Materials );
+    m_Materials = aMaterial;
 }
 
 
 void S3D_MASTER::Copy( S3D_MASTER* pattern )
 {
-    m_Shape3DName = pattern->m_Shape3DName;
+    SetShape3DName( pattern->GetShape3DName() );
     m_MatScale    = pattern->m_MatScale;
     m_MatRotation = pattern->m_MatRotation;
     m_MatPosition = pattern->m_MatPosition;
@@ -72,8 +54,18 @@ S3D_MASTER::S3D_MASTER( EDA_ITEM* aParent ) :
     EDA_ITEM( aParent, NOT_USED )
 {
     m_MatScale.x  = m_MatScale.y = m_MatScale.z = 1.0;
+
     m_3D_Drawings = NULL;
     m_Materials   = NULL;
+    m_parser      = NULL;
+    m_ShapeType   = FILE3D_NONE;
+
+    m_use_modelfile_diffuseColor = true;
+    m_use_modelfile_emissiveColor = true;
+    m_use_modelfile_specularColor = true;
+    m_use_modelfile_ambientIntensity = true;
+    m_use_modelfile_transparency = true;
+    m_use_modelfile_shininess = true;
 }
 
 
@@ -86,13 +78,94 @@ S3D_MASTER:: ~S3D_MASTER()
     {
         next = m_3D_Drawings->Next();
         delete m_3D_Drawings;
+        m_3D_Drawings = 0;
     }
 
     for( ; m_Materials != NULL; m_Materials = nextmat )
     {
         nextmat = m_Materials->Next();
         delete m_Materials;
+        m_Materials = NULL;
     }
+}
+
+
+bool S3D_MASTER::Is3DType( enum FILE3D_TYPE aShapeType )
+{
+    // type 'none' is not valid and will always return false
+    if( aShapeType == FILE3D_NONE )
+        return false;
+
+    // no one is interested if we have no file
+    if( m_Shape3DName.empty() )
+        return false;
+
+    if( aShapeType == m_ShapeType )
+        return true;
+
+    return false;
+}
+
+
+void S3D_MASTER::SetShape3DName( const wxString& aShapeName )
+{
+    m_ShapeType = FILE3D_NONE;
+    m_Shape3DName = aShapeName;
+
+    if( m_Shape3DName.empty() )
+        return;
+
+    wxFileName fn = m_Shape3DName;
+    m_Shape3DNameExtension  = fn.GetExt();
+
+    if( m_Shape3DNameExtension == wxT( "wrl" ) ||
+        m_Shape3DNameExtension == wxT( "x3d" ) )
+        m_ShapeType = FILE3D_VRML;
+    else if( m_Shape3DNameExtension == wxT( "idf" ) )
+        m_ShapeType = FILE3D_IDF;
+    else
+        m_ShapeType = FILE3D_UNKNOWN;
+
+    // Expand any environment variables embedded in footprint's m_Shape3DName field.
+    // To ensure compatibility with most of footprint's m_Shape3DName field,
+    // if the m_Shape3DName is not an absolute path the default path
+    // given by the environment variable KISYS3DMOD will be used
+
+    if( m_Shape3DName.StartsWith( wxT("${") ) )
+        m_Shape3DFullFilename = wxExpandEnvVars( m_Shape3DName );
+    else
+        m_Shape3DFullFilename = m_Shape3DName;
+
+    wxFileName fnFull( m_Shape3DFullFilename );
+
+    if( !( fnFull.IsAbsolute() || m_Shape3DFullFilename.StartsWith( wxT(".") ) ) )
+    {
+        wxString default_path;
+        wxGetEnv( KISYS3DMOD, &default_path );
+
+        if( !( default_path.IsEmpty() ) )
+        {
+
+            if( !default_path.EndsWith( wxT("/") ) && !default_path.EndsWith( wxT("\\") ) )
+                default_path += wxT("/");
+
+            m_Shape3DFullFilename = default_path + m_Shape3DFullFilename;
+        }
+    }
+
+    return;
+}
+
+
+const wxString S3D_MASTER::GetShape3DFullFilename()
+{
+    return m_Shape3DFullFilename;
+}
+
+
+const wxString S3D_MASTER::GetShape3DExtension()
+{
+    return m_Shape3DNameExtension;
 }
 
 

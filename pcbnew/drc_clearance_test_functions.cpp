@@ -5,9 +5,9 @@
 /*
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
- * Copyright (C) 2004-2007 Jean-Pierre Charras, jean-pierre.charras@gipsa-lab.inpg.fr
+ * Copyright (C) 2004-2015 Jean-Pierre Charras, jean-pierre.charras@gipsa-lab.inpg.fr
  * Copyright (C) 2007 Dick Hollenbeck, dick@softplc.com
- * Copyright (C) 2007 KiCad Developers, see change_log.txt for contributors.
+ * Copyright (C) 2015 KiCad Developers, see change_log.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -36,7 +36,6 @@
 #include <trigo.h>
 
 #include <pcbnew.h>
-#include <protos.h>
 #include <drc_stuff.h>
 
 #include <class_board.h>
@@ -146,15 +145,17 @@ bool trapezoid2pointDRC( wxPoint aTref[4], wxPoint aPcompare, int aDist )
     return true;
 }
 
+
 bool DRC::doTrackDrc( TRACK* aRefSeg, TRACK* aStart, bool testPads )
 {
     TRACK*    track;
     wxPoint   delta;           // lenght on X and Y axis of segments
-    int       layerMask;
+    LSET layerMask;
     int       net_code_ref;
     wxPoint   shape_pos;
 
-    NETCLASS* netclass = aRefSeg->GetNetClass();
+    NETCLASSPTR netclass = aRefSeg->GetNetClass();
+    BOARD_DESIGN_SETTINGS& dsnSettings = m_pcb->GetDesignSettings();
 
     /* In order to make some calculations more easier or faster,
      * pads and tracks coordinates will be made relative to the reference segment origin
@@ -164,27 +165,28 @@ bool DRC::doTrackDrc( TRACK* aRefSeg, TRACK* aStart, bool testPads )
     m_segmEnd   = delta = aRefSeg->GetEnd() - origin;
     m_segmAngle = 0;
 
-    layerMask    = aRefSeg->ReturnMaskLayer();
-    net_code_ref = aRefSeg->GetNet();
+    layerMask    = aRefSeg->GetLayerSet();
+    net_code_ref = aRefSeg->GetNetCode();
 
     // Phase 0 : Test vias
     if( aRefSeg->Type() == PCB_VIA_T )
     {
+        const VIA *refvia = static_cast<const VIA*>( aRefSeg );
         // test if the via size is smaller than minimum
-        if( aRefSeg->GetShape() == VIA_MICROVIA )
+        if( refvia->GetViaType() == VIA_MICROVIA )
         {
-            if( aRefSeg->GetWidth() < netclass->GetuViaMinDiameter() )
+            if( refvia->GetWidth() < dsnSettings.m_MicroViasMinSize )
             {
-                m_currentMarker = fillMarker( aRefSeg, NULL,
+                m_currentMarker = fillMarker( refvia, NULL,
                                               DRCE_TOO_SMALL_MICROVIA, m_currentMarker );
                 return false;
             }
         }
         else
         {
-            if( aRefSeg->GetWidth() < netclass->GetViaMinDiameter() )
+            if( refvia->GetWidth() < dsnSettings.m_ViasMinSize )
             {
-                m_currentMarker = fillMarker( aRefSeg, NULL,
+                m_currentMarker = fillMarker( refvia, NULL,
                                               DRCE_TOO_SMALL_VIA, m_currentMarker );
                 return false;
             }
@@ -193,9 +195,9 @@ bool DRC::doTrackDrc( TRACK* aRefSeg, TRACK* aStart, bool testPads )
         // test if via's hole is bigger than its diameter
         // This test is necessary since the via hole size and width can be modified
         // and a default via hole can be bigger than some vias sizes
-        if( aRefSeg->GetDrillValue() > aRefSeg->GetWidth() )
+        if( refvia->GetDrillValue() > refvia->GetWidth() )
         {
-            m_currentMarker = fillMarker( aRefSeg, NULL,
+            m_currentMarker = fillMarker( refvia, NULL,
                                           DRCE_VIA_HOLE_BIGGER, m_currentMarker );
             return false;
         }
@@ -203,27 +205,24 @@ bool DRC::doTrackDrc( TRACK* aRefSeg, TRACK* aStart, bool testPads )
         // For microvias: test if they are blind vias and only between 2 layers
         // because they are used for very small drill size and are drill by laser
         // and **only one layer** can be drilled
-        if( aRefSeg->GetShape() == VIA_MICROVIA )
+        if( refvia->GetViaType() == VIA_MICROVIA )
         {
-            int  layer1, layer2;
-            bool err = true;
+            LAYER_ID    layer1, layer2;
+            bool        err = true;
 
-            ( (SEGVIA*) aRefSeg )->ReturnLayerPair( &layer1, &layer2 );
+            refvia->LayerPair( &layer1, &layer2 );
 
             if( layer1 > layer2 )
-                EXCHG( layer1, layer2 );
+                std::swap( layer1, layer2 );
 
-            // test:
-            if( layer1 == LAYER_N_BACK && layer2 == LAYER_N_2 )
+            if( layer2 == B_Cu && layer1 == m_pcb->GetDesignSettings().GetCopperLayerCount() - 2 )
                 err = false;
-
-            if( layer1 == (m_pcb->GetDesignSettings().GetCopperLayerCount() - 2 )
-                && layer2 == LAYER_N_FRONT )
+            else if( layer1 == F_Cu  &&  layer2 == In1_Cu  )
                 err = false;
 
             if( err )
             {
-                m_currentMarker = fillMarker( aRefSeg, NULL,
+                m_currentMarker = fillMarker( refvia, NULL,
                                               DRCE_MICRO_VIA_INCORRECT_LAYER_PAIR, m_currentMarker );
                 return false;
             }
@@ -231,7 +230,7 @@ bool DRC::doTrackDrc( TRACK* aRefSeg, TRACK* aStart, bool testPads )
     }
     else    // This is a track segment
     {
-        if( aRefSeg->GetWidth() < netclass->GetTrackMinWidth() )
+        if( aRefSeg->GetWidth() < dsnSettings.m_TrackMinWidth )
         {
             m_currentMarker = fillMarker( aRefSeg, NULL,
                                           DRCE_TOO_SMALL_TRACK_WIDTH, m_currentMarker );
@@ -265,10 +264,10 @@ bool DRC::doTrackDrc( TRACK* aRefSeg, TRACK* aStart, bool testPads )
      * A pad must have a parent because some functions expect a non null parent
      * to find the parent board, and some other data
      */
-    MODULE dummymodule( m_pcb );    // Creates a dummy parent
-    D_PAD dummypad( &dummymodule );
+    MODULE  dummymodule( m_pcb );    // Creates a dummy parent
+    D_PAD   dummypad( &dummymodule );
 
-    dummypad.SetLayerMask( ALL_CU_LAYERS );     // Ensure the hole is on all layers
+    dummypad.SetLayerSet( LSET::AllCuMask() );     // Ensure the hole is on all layers
 
     // Compute the min distance to pads
     if( testPads )
@@ -281,7 +280,7 @@ bool DRC::doTrackDrc( TRACK* aRefSeg, TRACK* aStart, bool testPads )
              * But if a drill hole exists	(a pad on a single layer can have a hole!)
              * we must test the hole
              */
-            if( (pad->GetLayerMask() & layerMask ) == 0 )
+            if( !( pad->GetLayerSet() & layerMask ).any() )
             {
                 /* We must test the pad hole. In order to use the function
                  * checkClearanceSegmToPad(),a pseudo pad is used, with a shape and a
@@ -292,7 +291,8 @@ bool DRC::doTrackDrc( TRACK* aRefSeg, TRACK* aStart, bool testPads )
 
                 dummypad.SetSize( pad->GetDrillSize() );
                 dummypad.SetPosition( pad->GetPosition() );
-                dummypad.SetShape( pad->GetDrillShape() );
+                dummypad.SetShape( pad->GetDrillShape()  == PAD_DRILL_SHAPE_OBLONG ?
+                                   PAD_SHAPE_OVAL : PAD_SHAPE_CIRCLE );
                 dummypad.SetOrientation( pad->GetOrientation() );
 
                 m_padToTestPos = dummypad.GetPosition() - origin;
@@ -310,12 +310,12 @@ bool DRC::doTrackDrc( TRACK* aRefSeg, TRACK* aStart, bool testPads )
 
             // The pad must be in a net (i.e pt_pad->GetNet() != 0 )
             // but no problem if the pad netcode is the current netcode (same net)
-            if( pad->GetNet()                       // the pad must be connected
-               && net_code_ref == pad->GetNet() )   // the pad net is the same as current net -> Ok
+            if( pad->GetNetCode()                       // the pad must be connected
+               && net_code_ref == pad->GetNetCode() )   // the pad net is the same as current net -> Ok
                 continue;
 
             // DRC for the pad
-            shape_pos = pad->ReturnShapePos();
+            shape_pos = pad->ShapePos();
             m_padToTestPos = shape_pos - origin;
 
             if( !checkClearanceSegmToPad( pad, aRefSeg->GetWidth(), aRefSeg->GetClearance( pad ) ) )
@@ -339,11 +339,11 @@ bool DRC::doTrackDrc( TRACK* aRefSeg, TRACK* aStart, bool testPads )
     for( track = aStart; track; track = track->Next() )
     {
         // No problem if segments have the same net code:
-        if( net_code_ref == track->GetNet() )
+        if( net_code_ref == track->GetNetCode() )
             continue;
 
         // No problem if segment are on different layers :
-        if( ( layerMask & track->ReturnMaskLayer() ) == 0 )
+        if( !( layerMask & track->GetLayerSet() ).any() )
             continue;
 
         // the minimum distance = clearance plus half the reference track
@@ -354,15 +354,13 @@ bool DRC::doTrackDrc( TRACK* aRefSeg, TRACK* aStart, bool testPads )
         // If the reference segment is a via, we test it here
         if( aRefSeg->Type() == PCB_VIA_T )
         {
-            int angle = 0;  // angle du segment a tester;
-
             delta = track->GetEnd() - track->GetStart();
             segStartPoint = aRefSeg->GetStart() - track->GetStart();
 
             if( track->Type() == PCB_VIA_T )
             {
                 // Test distance between two vias, i.e. two circles, trivial case
-                if( (int) hypot( segStartPoint.x, segStartPoint.y ) < w_dist )
+                if( EuclideanNorm( segStartPoint ) < w_dist )
                 {
                     m_currentMarker = fillMarker( aRefSeg, track,
                                                   DRCE_VIA_NEAR_VIA, m_currentMarker );
@@ -371,8 +369,8 @@ bool DRC::doTrackDrc( TRACK* aRefSeg, TRACK* aStart, bool testPads )
             }
             else    // test via to segment
             {
-                // Compute l'angle
-                angle = ArcTangente( delta.y, delta.x );
+                // Compute l'angle du segment a tester;
+                double angle = ArcTangente( delta.y, delta.x );
 
                 // Compute new coordinates ( the segment become horizontal)
                 RotatePoint( &delta, angle );
@@ -418,10 +416,14 @@ bool DRC::doTrackDrc( TRACK* aRefSeg, TRACK* aStart, bool testPads )
 
             // Ensure segStartPoint.x <= segEndPoint.x
             if( segStartPoint.x > segEndPoint.x )
-                EXCHG( segStartPoint.x, segEndPoint.x );
+                std::swap( segStartPoint.x, segEndPoint.x );
 
             if( segStartPoint.x > (-w_dist) && segStartPoint.x < (m_segmLength + w_dist) )    /* possible error drc */
             {
+                // the start point is inside the reference range
+                //      X........
+                //    O--REF--+
+
                 // Fine test : we consider the rounded shape of each end of the track segment:
                 if( segStartPoint.x >= 0 && segStartPoint.x <= m_segmLength )
                 {
@@ -440,7 +442,10 @@ bool DRC::doTrackDrc( TRACK* aRefSeg, TRACK* aStart, bool testPads )
 
             if( segEndPoint.x > (-w_dist) && segEndPoint.x < (m_segmLength + w_dist) )
             {
-                /* Fine test : we consider the rounded shape of the ends */
+                // the end point is inside the reference range
+                //  .....X
+                //    O--REF--+
+                // Fine test : we consider the rounded shape of the ends
                 if( segEndPoint.x >= 0 && segEndPoint.x <= m_segmLength )
                 {
                     m_currentMarker = fillMarker( aRefSeg, track,
@@ -458,8 +463,13 @@ bool DRC::doTrackDrc( TRACK* aRefSeg, TRACK* aStart, bool testPads )
 
             if( segStartPoint.x <=0 && segEndPoint.x >= 0 )
             {
+            // the segment straddles the reference range (this actually only
+            // checks if it straddles the origin, because the other cases where already
+            // handled)
+            //  X.............X
+            //    O--REF--+
                 m_currentMarker = fillMarker( aRefSeg, track,
-                                              DRCE_TRACK_UNKNOWN1, m_currentMarker );
+                                              DRCE_TRACK_SEGMENTS_TOO_CLOSE, m_currentMarker );
                 return false;
             }
         }
@@ -470,7 +480,7 @@ bool DRC::doTrackDrc( TRACK* aRefSeg, TRACK* aStart, bool testPads )
 
             // Test if segments are crossing
             if( segStartPoint.y > segEndPoint.y )
-                EXCHG( segStartPoint.y, segEndPoint.y );
+                std::swap( segStartPoint.y, segEndPoint.y );
 
             if( (segStartPoint.y < 0) && (segEndPoint.y > 0) )
             {
@@ -527,8 +537,8 @@ bool DRC::doTrackDrc( TRACK* aRefSeg, TRACK* aStart, bool testPads )
                     segEndPoint   = track->GetEnd();
                     delta = segEndPoint - segStartPoint;
 
-                    /* Compute the segment orientation (angle) en 0,1 degre */
-                    int angle = ArcTangente( delta.y, delta.x );
+                    // Compute the segment orientation (angle) en 0,1 degre
+                    double angle = ArcTangente( delta.y, delta.x );
 
                     // Compute the segment lenght: delta.x = lenght after rotation
                     RotatePoint( &delta, angle );
@@ -572,15 +582,15 @@ bool DRC::checkClearancePadToPad( D_PAD* aRefPad, D_PAD* aPad )
 {
     int     dist;
 
-    int     pad_angle;
+    double  pad_angle;
 
-    // Get the clerance between the 2 pads. this is the min distance between aRefPad and aPad
+    // Get the clearance between the 2 pads. this is the min distance between aRefPad and aPad
     int     dist_min = aRefPad->GetClearance( aPad );
 
     // relativePadPos is the aPad shape position relative to the aRefPad shape position
-    wxPoint relativePadPos = aPad->ReturnShapePos() - aRefPad->ReturnShapePos();
+    wxPoint relativePadPos = aPad->ShapePos() - aRefPad->ShapePos();
 
-    dist = (int) hypot( relativePadPos.x, relativePadPos.y );
+    dist = KiROUND( EuclideanNorm( relativePadPos ) );
 
     // Quick test: Clearance is OK if the bounding circles are further away than "dist_min"
     if( (dist - aRefPad->GetBoundingRadius() - aPad->GetBoundingRadius()) >= dist_min )
@@ -589,7 +599,7 @@ bool DRC::checkClearancePadToPad( D_PAD* aRefPad, D_PAD* aPad )
     /* Here, pads are near and DRC depend on the pad shapes
      * We must compare distance using a fine shape analysis
      * Because a circle or oval shape is the easier shape to test, try to have
-     * aRefPad shape type = PAD_CIRCLE or PAD_OVAL.
+     * aRefPad shape type = PAD_SHAPE_CIRCLE or PAD_SHAPE_OVAL.
      * if aRefPad = TRAP. and aPad = RECT, also swap pads
      * Swap aRefPad and aPad if needed
      */
@@ -598,21 +608,21 @@ bool DRC::checkClearancePadToPad( D_PAD* aRefPad, D_PAD* aPad )
 
     // swap pads to make comparisons easier
     // priority is aRefPad = ROUND then OVAL then RECT then other
-    if( aRefPad->GetShape() != aPad->GetShape() && aRefPad->GetShape() != PAD_CIRCLE )
+    if( aRefPad->GetShape() != aPad->GetShape() && aRefPad->GetShape() != PAD_SHAPE_CIRCLE )
     {
         // pad ref shape is here oval, rect or trapezoid
         switch( aPad->GetShape() )
         {
-            case PAD_CIRCLE:
+            case PAD_SHAPE_CIRCLE:
                 swap_pads = true;
                 break;
 
-            case PAD_OVAL:
+            case PAD_SHAPE_OVAL:
                 swap_pads = true;
                 break;
 
-            case PAD_RECT:
-                if( aRefPad->GetShape() != PAD_OVAL )
+            case PAD_SHAPE_RECT:
+                if( aRefPad->GetShape() != PAD_SHAPE_OVAL )
                     swap_pads = true;
                 break;
 
@@ -623,20 +633,20 @@ bool DRC::checkClearancePadToPad( D_PAD* aRefPad, D_PAD* aPad )
 
     if( swap_pads )
     {
-        EXCHG( aRefPad, aPad );
+        std::swap( aRefPad, aPad );
         relativePadPos = -relativePadPos;
     }
 
-    /* Because pad exchange, aRefPad shape is PAD_CIRCLE or PAD_OVAL,
-     * if one of the 2 pads was a PAD_CIRCLE or PAD_OVAL.
-     * Therefore, if aRefPad is a PAD_RECT or a PAD_TRAPEZOID,
-     * aPad is also a PAD_RECT or a PAD_TRAPEZOID
+    /* Because pad exchange, aRefPad shape is PAD_SHAPE_CIRCLE or PAD_SHAPE_OVAL,
+     * if one of the 2 pads was a PAD_SHAPE_CIRCLE or PAD_SHAPE_OVAL.
+     * Therefore, if aRefPad is a PAD_SHAPE_SHAPE_RECT or a PAD_SHAPE_TRAPEZOID,
+     * aPad is also a PAD_SHAPE_RECT or a PAD_SHAPE_TRAPEZOID
      */
     bool diag = true;
 
     switch( aRefPad->GetShape() )
     {
-    case PAD_CIRCLE:
+    case PAD_SHAPE_CIRCLE:
 
         /* One can use checkClearanceSegmToPad to test clearance
          * aRefPad is like a track segment with a null length and a witdth = GetSize().x
@@ -650,12 +660,12 @@ bool DRC::checkClearancePadToPad( D_PAD* aRefPad, D_PAD* aPad )
         diag = checkClearanceSegmToPad( aPad, aRefPad->GetSize().x, dist_min );
         break;
 
-    case PAD_RECT:
+    case PAD_SHAPE_RECT:
         // pad_angle = pad orient relative to the aRefPad orient
         pad_angle = aRefPad->GetOrientation() + aPad->GetOrientation();
         NORMALIZE_ANGLE_POS( pad_angle );
 
-        if( aPad->GetShape() == PAD_RECT )
+        if( aPad->GetShape() == PAD_SHAPE_RECT )
         {
             wxSize size = aPad->GetSize();
 
@@ -668,7 +678,7 @@ bool DRC::checkClearancePadToPad( D_PAD* aRefPad, D_PAD* aPad )
             {
                 if( (pad_angle == 900) || (pad_angle == 2700) )
                 {
-                    EXCHG( size.x, size.y );
+                    std::swap( size.x, size.y );
                 }
 
                 // Test DRC:
@@ -699,7 +709,7 @@ bool DRC::checkClearancePadToPad( D_PAD* aRefPad, D_PAD* aPad )
                     diag = false;
             }
         }
-        else if( aPad->GetShape() == PAD_TRAPEZOID )
+        else if( aPad->GetShape() == PAD_SHAPE_TRAPEZOID )
         {
             wxPoint polyref[4];         // Shape of aRefPad
             wxPoint polycompare[4];     // Shape of aPad
@@ -724,7 +734,7 @@ bool DRC::checkClearancePadToPad( D_PAD* aRefPad, D_PAD* aPad )
         }
         break;
 
-    case PAD_OVAL:     /* an oval pad is like a track segment */
+    case PAD_SHAPE_OVAL:     /* an oval pad is like a track segment */
     {
         /* Create a track segment with same dimensions as the oval aRefPad
          * and use checkClearanceSegmToPad function to test aPad to aRefPad clearance
@@ -766,11 +776,11 @@ bool DRC::checkClearancePadToPad( D_PAD* aRefPad, D_PAD* aPad )
         break;
     }
 
-    case PAD_TRAPEZOID:
+    case PAD_SHAPE_TRAPEZOID:
 
         // at this point, aPad is also a trapezoid, because all other shapes
         // have priority, and are already tested
-        wxASSERT( aPad->GetShape() == PAD_TRAPEZOID );
+        wxASSERT( aPad->GetShape() == PAD_SHAPE_TRAPEZOID );
         {
             wxPoint polyref[4];         // Shape of aRefPad
             wxPoint polycompare[4];     // Shape of aPad
@@ -803,31 +813,28 @@ bool DRC::checkClearancePadToPad( D_PAD* aRefPad, D_PAD* aPad )
  */
 bool DRC::checkClearanceSegmToPad( const D_PAD* aPad, int aSegmentWidth, int aMinDist )
 {
-    wxSize  padHalfsize;        // half the dimension of the pad
-    int     orient;
+    wxSize  padHalfsize;            // half dimension of the pad
     wxPoint startPoint, endPoint;
-    int     seuil;
-    int     deltay;
 
-    int     segmHalfWidth = aSegmentWidth / 2;
+    int segmHalfWidth = aSegmentWidth / 2;
+    int distToLine = segmHalfWidth + aMinDist;
 
-    seuil = segmHalfWidth + aMinDist;
     padHalfsize.x = aPad->GetSize().x >> 1;
     padHalfsize.y = aPad->GetSize().y >> 1;
 
-    if( aPad->GetShape() == PAD_TRAPEZOID ) // The size is bigger, due to GetDelta() extra size
+    if( aPad->GetShape() == PAD_SHAPE_TRAPEZOID )     // The size is bigger, due to GetDelta() extra size
     {
         padHalfsize.x += std::abs(aPad->GetDelta().y) / 2;   // Remember: GetDelta().y is the GetSize().x change
         padHalfsize.y += std::abs(aPad->GetDelta().x) / 2;   // Remember: GetDelta().x is the GetSize().y change
     }
 
-    if( aPad->GetShape() == PAD_CIRCLE )
+    if( aPad->GetShape() == PAD_SHAPE_CIRCLE )
     {
         /* Easy case: just test the distance between segment and pad centre
          * calculate pad coordinates in the X,Y axis with X axis = segment to test
          */
         RotatePoint( &m_padToTestPos, m_segmAngle );
-        return checkMarginToCircle( m_padToTestPos, seuil + padHalfsize.x, m_segmLength );
+        return checkMarginToCircle( m_padToTestPos, distToLine + padHalfsize.x, m_segmLength );
     }
 
     /* calculate the bounding box of the pad, including the clearance and the segment width
@@ -835,15 +842,15 @@ bool DRC::checkClearanceSegmToPad( const D_PAD* aPad, int aSegmentWidth, int aMi
      * the clearance is always OK
      * But if intersect, a better analysis of the pad shape must be done.
      */
-    m_xcliplo = m_padToTestPos.x - seuil - padHalfsize.x;
-    m_ycliplo = m_padToTestPos.y - seuil - padHalfsize.y;
-    m_xcliphi = m_padToTestPos.x + seuil + padHalfsize.x;
-    m_ycliphi = m_padToTestPos.y + seuil + padHalfsize.y;
+    m_xcliplo = m_padToTestPos.x - distToLine - padHalfsize.x;
+    m_ycliplo = m_padToTestPos.y - distToLine - padHalfsize.y;
+    m_xcliphi = m_padToTestPos.x + distToLine + padHalfsize.x;
+    m_ycliphi = m_padToTestPos.y + distToLine + padHalfsize.y;
 
     startPoint.x = startPoint.y = 0;
     endPoint     = m_segmEnd;
 
-    orient = aPad->GetOrientation();
+    double orient = aPad->GetOrientation();
 
     RotatePoint( &startPoint, m_padToTestPos, -orient );
     RotatePoint( &endPoint, m_padToTestPos, -orient );
@@ -859,30 +866,32 @@ bool DRC::checkClearanceSegmToPad( const D_PAD* aPad, int aSegmentWidth, int aMi
     default:
         return false;
 
-    case PAD_OVAL:
-
+    case PAD_SHAPE_OVAL:
+    {
         /* an oval is a complex shape, but is a rectangle and 2 circles
          * these 3 basic shapes are more easy to test.
+         *
+         * In calculations we are using a vertical oval shape
+         * (i.e. a vertical rounded segment)
+         * for horizontal oval shapes, swap x and y size and rotate the shape
          */
-        /* We use a vertical oval shape. for horizontal ovals, swap x and y size and rotate the shape*/
         if( padHalfsize.x > padHalfsize.y )
         {
-            EXCHG( padHalfsize.x, padHalfsize.y );
-            orient += 900;
-
-            if( orient >= 3600 )
-                orient -= 3600;
+            std::swap( padHalfsize.x, padHalfsize.y );
+            orient = AddAngles( orient, 900 );
         }
 
-        deltay = padHalfsize.y - padHalfsize.x;
+        // here, padHalfsize.x is the radius of rounded ends.
 
-        // here: padHalfsize.x = radius, delta = dist centre cercles a centre pad
+        int deltay = padHalfsize.y - padHalfsize.x;
+        // here: padHalfsize.x = radius,
+        // deltay = dist between the centre pad and the centre of a rounded end
 
-        // Test the rectangle area between the two circles
-        m_xcliplo = m_padToTestPos.x - seuil - padHalfsize.x;
-        m_ycliplo = m_padToTestPos.y - segmHalfWidth - deltay;
-        m_xcliphi = m_padToTestPos.x + seuil + padHalfsize.x;
-        m_ycliphi = m_padToTestPos.y + segmHalfWidth + deltay;
+        // Test the rectangular area between the two circles (the rounded ends)
+        m_xcliplo = m_padToTestPos.x - distToLine - padHalfsize.x;
+        m_ycliplo = m_padToTestPos.y - deltay;
+        m_xcliphi = m_padToTestPos.x + distToLine + padHalfsize.x;
+        m_ycliphi = m_padToTestPos.y + deltay;
 
         if( !checkLine( startPoint, endPoint ) )
         {
@@ -899,7 +908,7 @@ bool DRC::checkClearanceSegmToPad( const D_PAD* aPad, int aSegmentWidth, int aMi
         // Calculate the actual position of the circle in the new X,Y axis:
         RotatePoint( &startPoint, m_segmAngle );
 
-        if( !checkMarginToCircle( startPoint, padHalfsize.x + seuil, m_segmLength ) )
+        if( !checkMarginToCircle( startPoint, padHalfsize.x + distToLine, m_segmLength ) )
         {
             return false;
         }
@@ -910,72 +919,76 @@ bool DRC::checkClearanceSegmToPad( const D_PAD* aPad, int aSegmentWidth, int aMi
         RotatePoint( &startPoint, m_padToTestPos, orient );
         RotatePoint( &startPoint, m_segmAngle );
 
-        if( !checkMarginToCircle( startPoint, padHalfsize.x + seuil, m_segmLength ) )
+        if( !checkMarginToCircle( startPoint, padHalfsize.x + distToLine, m_segmLength ) )
         {
             return false;
         }
-
+    }
         break;
 
-    case PAD_RECT:          /* 2 rectangle + 4 1/4 cercles a tester */
-        /* Test du rectangle dimx + seuil, dimy */
-        m_xcliplo = m_padToTestPos.x - padHalfsize.x - seuil;
+    case PAD_SHAPE_RECT:
+        // the area to test is a rounded rectangle.
+        // this can be done by testing 2 rectangles and 4 circles (the corners)
+
+        // Testing the first rectangle dimx + distToLine, dimy:
+        m_xcliplo = m_padToTestPos.x - padHalfsize.x - distToLine;
         m_ycliplo = m_padToTestPos.y - padHalfsize.y;
-        m_xcliphi = m_padToTestPos.x + padHalfsize.x + seuil;
+        m_xcliphi = m_padToTestPos.x + padHalfsize.x + distToLine;
         m_ycliphi = m_padToTestPos.y + padHalfsize.y;
 
         if( !checkLine( startPoint, endPoint ) )
             return false;
 
-        /* Test du rectangle dimx , dimy + seuil */
+        // Testing the second rectangle dimx , dimy + distToLine
         m_xcliplo = m_padToTestPos.x - padHalfsize.x;
-        m_ycliplo = m_padToTestPos.y - padHalfsize.y - seuil;
+        m_ycliplo = m_padToTestPos.y - padHalfsize.y - distToLine;
         m_xcliphi = m_padToTestPos.x + padHalfsize.x;
-        m_ycliphi = m_padToTestPos.y + padHalfsize.y + seuil;
+        m_ycliphi = m_padToTestPos.y + padHalfsize.y + distToLine;
 
         if( !checkLine( startPoint, endPoint ) )
             return false;
 
-        /* test des 4 cercles ( surface d'solation autour des sommets */
-        /* test du coin sup. gauche du pad */
+        // testing the 4 circles which are the clearance area of each corner:
+
+        // testing the left top corner of the rectangle
         startPoint.x = m_padToTestPos.x - padHalfsize.x;
         startPoint.y = m_padToTestPos.y - padHalfsize.y;
         RotatePoint( &startPoint, m_padToTestPos, orient );
         RotatePoint( &startPoint, m_segmAngle );
 
-        if( !checkMarginToCircle( startPoint, seuil, m_segmLength ) )
+        if( !checkMarginToCircle( startPoint, distToLine, m_segmLength ) )
             return false;
 
-        /* test du coin sup. droit du pad */
+        // testing the right top corner of the rectangle
         startPoint.x = m_padToTestPos.x + padHalfsize.x;
         startPoint.y = m_padToTestPos.y - padHalfsize.y;
         RotatePoint( &startPoint, m_padToTestPos, orient );
         RotatePoint( &startPoint, m_segmAngle );
 
-        if( !checkMarginToCircle( startPoint, seuil, m_segmLength ) )
+        if( !checkMarginToCircle( startPoint, distToLine, m_segmLength ) )
             return false;
 
-        /* test du coin inf. gauche du pad */
+        // testing the left bottom corner of the rectangle
         startPoint.x = m_padToTestPos.x - padHalfsize.x;
         startPoint.y = m_padToTestPos.y + padHalfsize.y;
         RotatePoint( &startPoint, m_padToTestPos, orient );
         RotatePoint( &startPoint, m_segmAngle );
 
-        if( !checkMarginToCircle( startPoint, seuil, m_segmLength ) )
+        if( !checkMarginToCircle( startPoint, distToLine, m_segmLength ) )
             return false;
 
-        /* test du coin inf. droit du pad */
+        // testing the right bottom corner of the rectangle
         startPoint.x = m_padToTestPos.x + padHalfsize.x;
         startPoint.y = m_padToTestPos.y + padHalfsize.y;
         RotatePoint( &startPoint, m_padToTestPos, orient );
         RotatePoint( &startPoint, m_segmAngle );
 
-        if( !checkMarginToCircle( startPoint, seuil, m_segmLength ) )
+        if( !checkMarginToCircle( startPoint, distToLine, m_segmLength ) )
             return false;
 
         break;
 
-    case PAD_TRAPEZOID:
+    case PAD_SHAPE_TRAPEZOID:
     {
         wxPoint poly[4];
         aPad->BuildPadPolygon( poly, wxSize( 0, 0 ), orient );
@@ -987,7 +1000,7 @@ bool DRC::checkClearanceSegmToPad( const D_PAD* aPad, int aSegmentWidth, int aMi
             RotatePoint( &poly[ii], m_segmAngle );
         }
 
-        if( !trapezoid2segmentDRC( poly, wxPoint( 0, 0 ), wxPoint(m_segmLength,0), seuil ) )
+        if( !trapezoid2segmentDRC( poly, wxPoint( 0, 0 ), wxPoint(m_segmLength,0), distToLine ) )
             return false;
     }
     break;
@@ -1017,7 +1030,7 @@ bool DRC::checkMarginToCircle( wxPoint aCentre, int aRadius, int aLength )
         if( aCentre.x > aLength )   // aCentre is after the ending point
             aCentre.x -= aLength;   // move aCentre to the starting point of the segment
 
-        if( hypot( aCentre.x, aCentre.y ) < aRadius )
+        if( EuclideanNorm( aCentre ) < aRadius )
             // distance between aCentre and the starting point or the ending point is < aRadius
             return false;
     }
@@ -1031,7 +1044,7 @@ static inline int USCALE( unsigned arg, unsigned num, unsigned den )
 {
     int ii;
 
-    ii = (int) ( ( (double) arg * num ) / den );
+    ii = KiROUND( ( (double) arg * num ) / den );
     return ii;
 }
 
@@ -1048,7 +1061,7 @@ bool DRC::checkLine( wxPoint aSegStart, wxPoint aSegEnd )
     int temp;
 
     if( aSegStart.x > aSegEnd.x )
-        EXCHG( aSegStart, aSegEnd );
+        std::swap( aSegStart, aSegEnd );
 
     if( (aSegEnd.x < m_xcliplo) || (aSegStart.x > m_xcliphi) )
     {

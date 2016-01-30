@@ -48,7 +48,7 @@
  */
 enum SchematicFindReplaceFlags
 {
-    // The last wxFindReplaceFlag enum is wxFR_MATCHCASE.
+    // The last wxFindReplaceFlag enum is wxFR_MATCHCASE = 0x4.
 
     /// Search the current sheet only.
     FR_CURRENT_SHEET_ONLY    = wxFR_MATCHCASE << 1,
@@ -131,7 +131,7 @@ public:
      * @return True if \a aFindReplaceData would result in a search and/or replace change,
      *         otherwise false.
      */
-    bool ChangesCompare( SCH_FIND_REPLACE_DATA& aFindReplaceData )
+    bool ChangesCompare( const SCH_FIND_REPLACE_DATA& aFindReplaceData )
     {
         return ( (GetFindString() != aFindReplaceData.GetFindString())
               || (GetCompareFlags() != aFindReplaceData.GetCompareFlags()) );

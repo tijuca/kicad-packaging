@@ -23,6 +23,7 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
  */
 
+#include <boost/make_shared.hpp>
 
 #include <fctsys.h>
 #include <common.h>
@@ -36,62 +37,40 @@
 
 
 // This will get mapped to "kicad_default" in the specctra_export.
-const wxString NETCLASS::Default = wxT("Default");
+const wxChar NETCLASS::Default[] = wxT( "Default" );
 
 // Initial values for netclass initialization
-int NETCLASS::DEFAULT_CLEARANCE  = DMils2iu( 100 );  // track to track and track to pads clearance
-int NETCLASS::DEFAULT_VIA_DRILL  = DMils2iu( 250 );  // default via drill
-int NETCLASS::DEFAULT_UVIA_DRILL = DMils2iu( 50 );    // micro via drill
+const int NETCLASS::DEFAULT_CLEARANCE  = Millimeter2iu( 0.2 ); // track to track and track to pads clearance
+const int NETCLASS::DEFAULT_VIA_DIAMETER  = Millimeter2iu( 0.6 );
+const int NETCLASS::DEFAULT_VIA_DRILL  = Millimeter2iu( 0.4 );
+const int NETCLASS::DEFAULT_UVIA_DIAMETER = Millimeter2iu( 0.3 );
+const int NETCLASS::DEFAULT_UVIA_DRILL = Millimeter2iu( 0.1 );
+const int NETCLASS::DEFAULT_TRACK_WIDTH = Millimeter2iu( 0.25 );
 
 
-NETCLASS::NETCLASS( BOARD* aParent, const wxString& aName, const NETCLASS* initialParameters ) :
-    m_Parent( aParent ),
+NETCLASS::NETCLASS( const wxString& aName ) :
     m_Name( aName )
 {
-    // use initialParameters if not NULL, else set the initial
-    // parameters from boardDesignSettings (try to change this)
-    SetParams( initialParameters );
+    // Default settings
+    SetClearance( DEFAULT_CLEARANCE );
+    SetViaDrill( DEFAULT_VIA_DRILL );
+    SetuViaDrill( DEFAULT_UVIA_DRILL );
+    // These defaults will be overwritten by SetParams,
+    // from the board design parameters, later
+    SetTrackWidth( DEFAULT_TRACK_WIDTH );
+    SetViaDiameter( DEFAULT_VIA_DIAMETER );
+    SetuViaDiameter( DEFAULT_UVIA_DIAMETER );
 }
 
 
-void NETCLASS::SetParams( const NETCLASS* defaults )
+void NETCLASS::SetParams( const NETCLASS& aDefaults )
 {
-    if( defaults )
-    {
-        SetClearance( defaults->GetClearance() );
-        SetTrackWidth( defaults->GetTrackWidth() );
-        SetViaDiameter( defaults->GetViaDiameter() );
-        SetViaDrill( defaults->GetViaDrill() );
-        SetuViaDiameter( defaults->GetuViaDiameter() );
-        SetuViaDrill( defaults->GetuViaDrill() );
-    }
-    else
-    {
-
-/* Dick 5-Feb-2012:  I do not believe this comment to be true with current code.
-        It is certainly not a constructor race.  Normally items are initialized
-        within a class according to the order of their appearance.
-
-        // Note:
-        // We use m_Parent->GetDesignSettings() to get some default values
-        // But when this function is called when instantiating a BOARD class,
-        // by the NETCLASSES constructor that calls NETCLASS constructor,
-        // the BOARD constructor (see BOARD::BOARD) is not yet run,
-        // and BOARD::m_designSettings contains not yet initialized values.
-        // So inside the BOARD constructor itself, you SHOULD recall SetParams
-*/
-
-        const BOARD_DESIGN_SETTINGS& g = m_Parent->GetDesignSettings();
-
-        SetTrackWidth(  g.m_TrackMinWidth );
-        SetViaDiameter( g.m_ViasMinSize );
-        SetuViaDiameter( g.m_MicroViasMinSize );
-
-        // Use default values for next parameters:
-        SetClearance( DEFAULT_CLEARANCE );
-        SetViaDrill( DEFAULT_VIA_DRILL );
-        SetuViaDrill( DEFAULT_UVIA_DRILL );
-    }
+    SetClearance( aDefaults.GetClearance() );
+    SetTrackWidth( aDefaults.GetTrackWidth() );
+    SetViaDiameter( aDefaults.GetViaDiameter() );
+    SetViaDrill( aDefaults.GetViaDrill() );
+    SetuViaDiameter( aDefaults.GetuViaDiameter() );
+    SetuViaDrill( aDefaults.GetuViaDrill() );
 }
 
 
@@ -100,53 +79,25 @@ NETCLASS::~NETCLASS()
 }
 
 
-NETCLASSES::NETCLASSES( BOARD* aParent ) :
-    m_Parent( aParent ),
-    m_Default( aParent, NETCLASS::Default )
+NETCLASSES::NETCLASSES()
 {
+    m_Default = boost::make_shared<NETCLASS>( NETCLASS::Default );
 }
 
 
 NETCLASSES::~NETCLASSES()
 {
-    Clear();
 }
 
 
-void NETCLASSES::Clear()
-{
-    // Although std::map<> will destroy the items that it contains, in this
-    // case we have NETCLASS* (pointers) and "destroying" a pointer does not
-    // delete the object that the pointer points to.
-
-    // this NETCLASSES is owner of its NETCLASS pointers,
-    // so delete NETCLASSes pointed to by them.
-    for( iterator i = begin();  i!=end();  )
-    {
-        // http://www.sgi.com/tech/stl/Map.html says:
-        // "Erasing an element from a map also does not invalidate any iterators,
-        // except, of course, for iterators that actually point to the element that
-        // is being erased."
-
-        iterator e = i++;       // copy, then advance.
-
-        delete e->second;       // delete the NETCLASS, which 'second' points to.
-
-        m_NetClasses.erase( e );
-    }
-}
-
-
-bool NETCLASSES::Add( NETCLASS* aNetClass )
+bool NETCLASSES::Add( NETCLASSPTR aNetClass )
 {
     const wxString& name = aNetClass->GetName();
 
     if( name == NETCLASS::Default )
     {
         // invoke operator=(), which is currently generated by compiler.
-        m_Default = *aNetClass;
-
-        delete aNetClass;   // we own aNetClass, must delete it since we copied it.
+        m_Default = aNetClass;
 
         return true;
     }
@@ -156,6 +107,7 @@ bool NETCLASSES::Add( NETCLASS* aNetClass )
     {
         // name not found, take ownership
         m_NetClasses[name] = aNetClass;
+
         return true;
     }
     else
@@ -167,30 +119,30 @@ bool NETCLASSES::Add( NETCLASS* aNetClass )
 }
 
 
-NETCLASS* NETCLASSES::Remove( const wxString& aNetName )
+NETCLASSPTR NETCLASSES::Remove( const wxString& aNetName )
 {
     NETCLASSMAP::iterator found = m_NetClasses.find( aNetName );
 
     if( found != m_NetClasses.end() )
     {
-        NETCLASS*   netclass = found->second;
+        boost::shared_ptr<NETCLASS> netclass = found->second;
         m_NetClasses.erase( found );
         return netclass;
     }
 
-    return NULL;
+    return NETCLASSPTR();
 }
 
 
-NETCLASS* NETCLASSES::Find( const wxString& aName ) const
+NETCLASSPTR NETCLASSES::Find( const wxString& aName ) const
 {
     if( aName == NETCLASS::Default )
-        return (NETCLASS*) &m_Default;
+        return m_Default;
 
     NETCLASSMAP::const_iterator found = m_NetClasses.find( aName );
 
     if( found == m_NetClasses.end() )
-        return NULL;
+        return NETCLASSPTR();
     else
         return found->second;
 }
@@ -198,29 +150,28 @@ NETCLASS* NETCLASSES::Find( const wxString& aName ) const
 
 void BOARD::SynchronizeNetsAndNetClasses()
 {
-    // D(printf("start\n");)       // simple performance/timing indicator.
+    NETCLASSES& netClasses = m_designSettings.m_NetClasses;
+    NETCLASSPTR defaultNetClass = netClasses.GetDefault();
 
     // set all NETs to the default NETCLASS, then later override some
     // as we go through the NETCLASSes.
 
-    int count = m_NetInfo.GetNetCount();
-    for( int i=0;  i<count;  ++i )
+    for( NETINFO_LIST::iterator net( m_NetInfo.begin() ), netEnd( m_NetInfo.end() );
+                net != netEnd; ++net )
     {
-        NETINFO_ITEM* net = FindNet( i );
-        if( net )
-            net->SetClass( m_NetClasses.GetDefault() );
+        net->SetClass( defaultNetClass );
     }
 
     // Add netclass name and pointer to nets.  If a net is in more than one netclass,
     // set the net's name and pointer to only the first netclass.  Subsequent
     // and therefore bogus netclass memberships will be deleted in logic below this loop.
-    for( NETCLASSES::iterator clazz=m_NetClasses.begin();  clazz!=m_NetClasses.end();  ++clazz )
+    for( NETCLASSES::iterator clazz = netClasses.begin(); clazz != netClasses.end(); ++clazz )
     {
-        NETCLASS* netclass = clazz->second;
+        NETCLASSPTR netclass = clazz->second;
 
-        for( NETCLASS::iterator member = netclass->begin();  member!=netclass->end();  ++member )
+        for( NETCLASS::const_iterator member = netclass->begin(); member != netclass->end(); ++member )
         {
-            const wxString&  netname = *member;
+            const wxString& netname = *member;
 
             // although this overall function seems to be adequately fast,
             // FindNet( wxString ) uses now a fast binary search and is fast
@@ -239,33 +190,34 @@ void BOARD::SynchronizeNetsAndNetClasses()
     // contain netnames that do not exist, by deleting all netnames from
     // every netclass and re-adding them.
 
-    for( NETCLASSES::iterator clazz=m_NetClasses.begin();  clazz!=m_NetClasses.end();  ++clazz )
+    for( NETCLASSES::iterator clazz = netClasses.begin(); clazz != netClasses.end(); ++clazz )
     {
-        NETCLASS* netclass = clazz->second;
+        NETCLASSPTR netclass = clazz->second;
 
         netclass->Clear();
     }
 
-    m_NetClasses.GetDefault()->Clear();
+    defaultNetClass->Clear();
 
-    for( int i=0;  i<count;  ++i )
+    for( NETINFO_LIST::iterator net( m_NetInfo.begin() ), netEnd( m_NetInfo.end() );
+            net != netEnd; ++net )
     {
-        NETINFO_ITEM* net = FindNet( i );
-        if( net )
-        {
-            const wxString& classname = net->GetClassName();
+        const wxString& classname = net->GetClassName();
 
-            // because of the std:map<> this should be fast, and because of
-            // prior logic, netclass should not be NULL.
-            NETCLASS* netclass = m_NetClasses.Find( classname );
+        // because of the std:map<> this should be fast, and because of
+        // prior logic, netclass should not be NULL.
+        NETCLASSPTR netclass = netClasses.Find( classname );
 
-            wxASSERT( netclass );
+        wxASSERT( netclass );
 
-            netclass->Add( net->GetNetname() );
-        }
+        netclass->Add( net->GetNetname() );
     }
 
-    // D(printf("stop\n");)
+    // Set initial values for custom track width & via size to match the default netclass settings
+    m_designSettings.UseCustomTrackViaSize( false );
+    m_designSettings.SetCustomTrackWidth( defaultNetClass->GetTrackWidth() );
+    m_designSettings.SetCustomViaSize( defaultNetClass->GetViaDiameter() );
+    m_designSettings.SetCustomViaDrill( defaultNetClass->GetViaDrill() );
 }
 
 
@@ -291,36 +243,6 @@ void NETCLASS::Show( int nestLevel, std::ostream& os ) const
 #endif
 
 
-int NETCLASS::GetTrackMinWidth() const
-{
-    return m_Parent->GetDesignSettings().m_TrackMinWidth;
-}
-
-
-int NETCLASS::GetViaMinDiameter() const
-{
-    return m_Parent->GetDesignSettings().m_ViasMinSize;
-}
-
-
-int NETCLASS::GetViaMinDrill() const
-{
-    return m_Parent->GetDesignSettings().m_ViasMinDrill;
-}
-
-
-int NETCLASS::GetuViaMinDiameter() const
-{
-    return m_Parent->GetDesignSettings().m_MicroViasMinSize;
-}
-
-
-int NETCLASS::GetuViaMinDrill() const
-{
-    return m_Parent->GetDesignSettings().m_MicroViasMinDrill;
-}
-
-
 void NETCLASS::Format( OUTPUTFORMATTER* aFormatter, int aNestLevel, int aControlBits ) const
     throw( IO_ERROR )
 {
@@ -337,7 +259,7 @@ void NETCLASS::Format( OUTPUTFORMATTER* aFormatter, int aNestLevel, int aControl
     aFormatter->Print( aNestLevel+1, "(uvia_dia %s)\n", FMT_IU( GetuViaDiameter() ).c_str() );
     aFormatter->Print( aNestLevel+1, "(uvia_drill %s)\n", FMT_IU( GetuViaDrill() ).c_str() );
 
-    for( NETCLASS::const_iterator it = begin();  it!= end();  ++it )
+    for( NETCLASS::const_iterator it = begin(); it != end(); ++it )
         aFormatter->Print( aNestLevel+1, "(add_net %s)\n", aFormatter->Quotew( *it ).c_str() );
 
     aFormatter->Print( aNestLevel, ")\n\n" );

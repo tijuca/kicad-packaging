@@ -38,12 +38,11 @@
 #include <msgpanel.h>
 
 #include <general.h>
-#include <protos.h>
 #include <lib_bezier.h>
 #include <transform.h>
 
 
-LIB_BEZIER::LIB_BEZIER( LIB_COMPONENT* aParent ) :
+LIB_BEZIER::LIB_BEZIER( LIB_PART*      aParent ) :
     LIB_ITEM( LIB_BEZIER_T, aParent )
 {
     m_Fill       = NO_FILL;
@@ -91,9 +90,9 @@ bool LIB_BEZIER::Load( LINE_READER& aLineReader, wxString& aErrorMsg )
         return false;
     }
 
-    p = strtok( line + 2, " \t\n" );
-    p = strtok( NULL, " \t\n" );
-    p = strtok( NULL, " \t\n" );
+    strtok( line + 2, " \t\n" );     // Skip field
+    strtok( NULL, " \t\n" );         // Skip field
+    strtok( NULL, " \t\n" );         // Skip field
     p = strtok( NULL, " \t\n" );
 
     for( i = 0; i < ccount; i++ )
@@ -270,12 +269,12 @@ void LIB_BEZIER::Plot( PLOTTER* aPlotter, const wxPoint& aOffset, bool aFill,
 
     if( aFill && m_Fill == FILLED_WITH_BG_BODYCOLOR )
     {
-        aPlotter->SetColor( ReturnLayerColor( LAYER_DEVICE_BACKGROUND ) );
+        aPlotter->SetColor( GetLayerColor( LAYER_DEVICE_BACKGROUND ) );
         aPlotter->PlotPoly( cornerList, FILLED_WITH_BG_BODYCOLOR, 0 );
     }
 
     bool already_filled = m_Fill == FILLED_WITH_BG_BODYCOLOR;
-    aPlotter->SetColor( ReturnLayerColor( LAYER_DEVICE ) );
+    aPlotter->SetColor( GetLayerColor( LAYER_DEVICE ) );
     aPlotter->PlotPoly( cornerList, already_filled ? NO_FILL : m_Fill, GetPenSize() );
 }
 
@@ -293,7 +292,7 @@ void LIB_BEZIER::drawGraphic( EDA_DRAW_PANEL* aPanel, wxDC* aDC, const wxPoint& 
     wxPoint              pos1;
     std::vector<wxPoint> PolyPointsTraslated;
 
-    EDA_COLOR_T color = ReturnLayerColor( LAYER_DEVICE );
+    EDA_COLOR_T color = GetLayerColor( LAYER_DEVICE );
 
     m_PolyPoints = Bezier2Poly( m_BezierPoints[0],
                                 m_BezierPoints[1],
@@ -326,8 +325,8 @@ void LIB_BEZIER::drawGraphic( EDA_DRAW_PANEL* aPanel, wxDC* aDC, const wxPoint& 
     if( fill == FILLED_WITH_BG_BODYCOLOR )
         GRPoly( aPanel->GetClipBox(), aDC, m_PolyPoints.size(),
                 &PolyPointsTraslated[0], 1, GetPenSize(),
-                (m_Flags & IS_MOVED) ? color : ReturnLayerColor( LAYER_DEVICE_BACKGROUND ),
-                ReturnLayerColor( LAYER_DEVICE_BACKGROUND ) );
+                (m_Flags & IS_MOVED) ? color : GetLayerColor( LAYER_DEVICE_BACKGROUND ),
+                GetLayerColor( LAYER_DEVICE_BACKGROUND ) );
     else if( fill == FILLED_SHAPE  )
         GRPoly( aPanel->GetClipBox(), aDC, m_PolyPoints.size(),
                 &PolyPointsTraslated[0], 1, GetPenSize(), color, color );
@@ -339,14 +338,13 @@ void LIB_BEZIER::drawGraphic( EDA_DRAW_PANEL* aPanel, wxDC* aDC, const wxPoint& 
      * bounding box calculation. */
 #if 0
     EDA_RECT bBox = GetBoundingBox();
-    bBox.Inflate( m_Thickness + 1, m_Thickness + 1 );
     GRRect( aPanel->GetClipBox(), aDC, bBox.GetOrigin().x, bBox.GetOrigin().y,
             bBox.GetEnd().x, bBox.GetEnd().y, 0, LIGHTMAGENTA );
 #endif
 }
 
 
-bool LIB_BEZIER::HitTest( const wxPoint& aRefPos )
+bool LIB_BEZIER::HitTest( const wxPoint& aRefPos ) const
 {
     int mindist = GetPenSize() / 2;
 
@@ -358,7 +356,7 @@ bool LIB_BEZIER::HitTest( const wxPoint& aRefPos )
 }
 
 
-bool LIB_BEZIER::HitTest( wxPoint aPosRef, int aThreshold, const TRANSFORM& aTransform )
+bool LIB_BEZIER::HitTest( const wxPoint &aPosRef, int aThreshold, const TRANSFORM& aTransform ) const
 {
     wxPoint ref, start, end;
 
@@ -378,7 +376,7 @@ bool LIB_BEZIER::HitTest( wxPoint aPosRef, int aThreshold, const TRANSFORM& aTra
 }
 
 
-EDA_RECT LIB_BEZIER::GetBoundingBox() const
+const EDA_RECT LIB_BEZIER::GetBoundingBox() const
 {
     EDA_RECT rect;
     int      xmin, xmax, ymin, ymax;
@@ -397,9 +395,11 @@ EDA_RECT LIB_BEZIER::GetBoundingBox() const
         ymax = std::max( ymax, m_PolyPoints[ii].y );
     }
 
-    rect.SetOrigin( xmin, - ymin );
-    rect.SetEnd( xmax, - ymax );
-    rect.Inflate( m_Width / 2 );
+    rect.SetOrigin( xmin, ymin );
+    rect.SetEnd( xmax, ymax );
+    rect.Inflate( ( GetPenSize()+1 ) / 2 );
+
+    rect.RevertYAxis();
 
     return rect;
 }
@@ -412,12 +412,12 @@ void LIB_BEZIER::GetMsgPanelInfo( std::vector< MSG_PANEL_ITEM >& aList )
 
     LIB_ITEM::GetMsgPanelInfo( aList );
 
-    msg = ReturnStringFromValue( g_UserUnit, m_Width, true );
+    msg = StringFromValue( g_UserUnit, m_Width, true );
 
-    aList.push_back( MSG_PANEL_ITEM( _( "Line width" ), msg, BLUE ) );
+    aList.push_back( MSG_PANEL_ITEM( _( "Line Width" ), msg, BLUE ) );
 
     msg.Printf( wxT( "(%d, %d, %d, %d)" ), bBox.GetOrigin().x,
                 bBox.GetOrigin().y, bBox.GetEnd().x, bBox.GetEnd().y );
 
-    aList.push_back( MSG_PANEL_ITEM( _( "Bounding box" ), msg, BROWN ) );
+    aList.push_back( MSG_PANEL_ITEM( _( "Bounding Box" ), msg, BROWN ) );
 }

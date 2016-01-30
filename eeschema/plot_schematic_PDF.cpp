@@ -26,13 +26,17 @@
  */
 
 #include <fctsys.h>
-#include <worksheet.h>
 #include <plot_common.h>
 #include <class_sch_screen.h>
-#include <wxEeschemaStruct.h>
+#include <schframe.h>
 #include <base_units.h>
 #include <sch_sheet_path.h>
+#include <project.h>
+
+#include <reporter.h>
+
 #include <dialog_plot_schematic.h>
+#include <wx_html_report_panel.h>
 
 void DIALOG_PLOT_SCHEMATIC::createPDFFile( bool aPlotAll, bool aPlotFrameRef )
 {
@@ -59,7 +63,8 @@ void DIALOG_PLOT_SCHEMATIC::createPDFFile( bool aPlotAll, bool aPlotFrameRef )
     plotter->SetCreator( wxT( "Eeschema-PDF" ) );
 
     wxString msg;
-    wxString plotFileName;
+    wxFileName plotFileName;
+    REPORTER& reporter = m_MessagesBox->Reporter();
 
     // First page handling is different
     bool first_page = true;
@@ -85,22 +90,39 @@ void DIALOG_PLOT_SCHEMATIC::createPDFFile( bool aPlotAll, bool aPlotFrameRef )
 
         if( first_page )
         {
-            plotFileName = m_parent->GetUniqueFilenameForCurrentSheet() + wxT( "." )
-                           + PDF_PLOTTER::GetDefaultFileExtension();
 
-            if( ! plotter->OpenFile( plotFileName ) )
+            try
             {
-                msg.Printf( _( "** Unable to create %s **\n" ), GetChars( plotFileName ) );
-                m_MessagesBox->AppendText( msg );
-                delete plotter;
+                wxString fname = m_parent->GetUniqueFilenameForCurrentSheet();
+                wxString ext = PDF_PLOTTER::GetDefaultFileExtension();
+                plotFileName = createPlotFileName( m_outputDirectoryName,
+                                                   fname, ext, &reporter );
+
+                if( !plotter->OpenFile( plotFileName.GetFullPath() ) )
+                {
+                    msg.Printf( _( "Unable to create file '%s'.\n" ), GetChars( plotFileName.GetFullPath() ) );
+                    reporter.Report( msg, REPORTER::RPT_ERROR );
+                    delete plotter;
+                    return;
+                }
+
+                // Open the plotter and do the first page
+                SetLocaleTo_C_standard();
+                setupPlotPagePDF( plotter, screen );
+                plotter->StartPlot();
+                first_page = false;
+
+            }
+            catch( const IO_ERROR& e )
+            {
+                // Cannot plot PDF file
+                msg.Printf( wxT( "PDF Plotter exception: %s" ), GetChars( e.errorText ) );
+                reporter.Report( msg, REPORTER::RPT_ERROR );
+
+                restoreEnvironment( plotter, oldsheetpath );
                 return;
             }
 
-            // Open the plotter and do the first page
-            SetLocaleTo_C_standard();
-            setupPlotPagePDF( plotter, screen );
-            plotter->StartPlot();
-            first_page = false;
         }
         else
         {
@@ -115,17 +137,26 @@ void DIALOG_PLOT_SCHEMATIC::createPDFFile( bool aPlotAll, bool aPlotFrameRef )
     } while( aPlotAll && sheetpath );
 
     // Everything done, close the plot and restore the environment
-    plotter->EndPlot();
-    delete plotter;
+    msg.Printf( _( "Plot: '%s' OK.\n" ), GetChars( plotFileName.GetFullPath() ) );
+    reporter.Report( msg, REPORTER::RPT_ACTION );
+
+
+    restoreEnvironment(plotter, oldsheetpath );
+
+}
+
+
+void DIALOG_PLOT_SCHEMATIC::restoreEnvironment( PDF_PLOTTER* aPlotter,
+                            SCH_SHEET_PATH& aOldsheetpath )
+{
+    aPlotter->EndPlot();
+    delete aPlotter;
     SetLocaleTo_Default();
 
     // Restore the previous sheet
-    m_parent->SetCurrentSheet( oldsheetpath );
+    m_parent->SetCurrentSheet( aOldsheetpath );
     m_parent->GetCurrentSheet().UpdateAllScreenReferences();
     m_parent->SetSheetNumberAndCount();
-
-    msg.Printf( _( "Plot: %s OK\n" ), GetChars( plotFileName ) );
-    m_MessagesBox->AppendText( msg );
 }
 
 

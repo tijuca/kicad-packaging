@@ -1,5 +1,5 @@
 ///////////////////////////////////////////////////////////////////////////
-// C++ code generated with wxFormBuilder (version Apr 10 2012)
+// C++ code generated with wxFormBuilder (version Mar  9 2015)
 // http://www.wxformbuilder.org/
 //
 // PLEASE DO "NOT" EDIT THIS FILE!
@@ -23,6 +23,7 @@ DIALOG_GENDRILL_BASE::DIALOG_GENDRILL_BASE( wxWindow* parent, wxWindowID id, con
 	bdirnameSizer = new wxStaticBoxSizer( new wxStaticBox( this, wxID_ANY, _("Output directory:") ), wxHORIZONTAL );
 	
 	m_outputDirectoryName = new wxTextCtrl( this, wxID_ANY, wxEmptyString, wxDefaultPosition, wxDefaultSize, 0 );
+	m_outputDirectoryName->SetMaxLength( 0 ); 
 	bdirnameSizer->Add( m_outputDirectoryName, 1, wxBOTTOM|wxRIGHT|wxLEFT, 5 );
 	
 	m_buttonBrowse = new wxButton( this, wxID_ANY, _("Browse"), wxDefaultPosition, wxDefaultSize, 0 );
@@ -79,13 +80,16 @@ DIALOG_GENDRILL_BASE::DIALOG_GENDRILL_BASE( wxWindow* parent, wxWindowID id, con
 	bMiddleBoxSizer->Add( m_Choice_Drill_Map, 0, wxALL|wxEXPAND, 5 );
 	
 	wxStaticBoxSizer* sbOptSizer;
-	sbOptSizer = new wxStaticBoxSizer( new wxStaticBox( this, wxID_ANY, _("Options:") ), wxVERTICAL );
+	sbOptSizer = new wxStaticBoxSizer( new wxStaticBox( this, wxID_ANY, _("Drill File Options:") ), wxVERTICAL );
 	
 	m_Check_Mirror = new wxCheckBox( this, wxID_ANY, _("Mirror y axis"), wxDefaultPosition, wxDefaultSize, 0 );
 	sbOptSizer->Add( m_Check_Mirror, 0, wxRIGHT|wxLEFT, 5 );
 	
 	m_Check_Minimal = new wxCheckBox( this, wxID_ANY, _("Minimal header"), wxDefaultPosition, wxDefaultSize, 0 );
 	sbOptSizer->Add( m_Check_Minimal, 0, wxTOP|wxRIGHT|wxLEFT, 5 );
+	
+	m_Check_Merge_PTH_NPTH = new wxCheckBox( this, wxID_ANY, _("Merge PTH and NPTH holes into one file"), wxDefaultPosition, wxDefaultSize, 0 );
+	sbOptSizer->Add( m_Check_Merge_PTH_NPTH, 0, wxALL, 5 );
 	
 	
 	bMiddleBoxSizer->Add( sbOptSizer, 0, wxEXPAND|wxRIGHT|wxLEFT, 5 );
@@ -163,9 +167,9 @@ DIALOG_GENDRILL_BASE::DIALOG_GENDRILL_BASE( wxWindow* parent, wxWindowID id, con
 	
 	bSizerButtons->Add( 10, 20, 0, 0, 5 );
 	
-	m_buttonDrill = new wxButton( this, ID_GEN_DRILL_FILE, _("Drill Fille"), wxDefaultPosition, wxDefaultSize, 0 );
+	m_buttonDrill = new wxButton( this, ID_GEN_DRILL_FILE, _("Drill File"), wxDefaultPosition, wxDefaultSize, 0 );
 	m_buttonDrill->SetDefault(); 
-	bSizerButtons->Add( m_buttonDrill, 0, wxALL|wxALIGN_CENTER_HORIZONTAL|wxEXPAND, 5 );
+	bSizerButtons->Add( m_buttonDrill, 0, wxALL|wxEXPAND, 5 );
 	
 	m_buttonMap = new wxButton( this, wxID_ANY, _("Map File"), wxDefaultPosition, wxDefaultSize, 0 );
 	bSizerButtons->Add( m_buttonMap, 0, wxALL|wxEXPAND, 5 );
@@ -174,7 +178,7 @@ DIALOG_GENDRILL_BASE::DIALOG_GENDRILL_BASE( wxWindow* parent, wxWindowID id, con
 	bSizerButtons->Add( m_buttonReport, 0, wxALL|wxEXPAND, 5 );
 	
 	m_CancelButton = new wxButton( this, wxID_CANCEL, _("Close"), wxDefaultPosition, wxDefaultSize, 0 );
-	bSizerButtons->Add( m_CancelButton, 0, wxALL|wxALIGN_CENTER_HORIZONTAL|wxEXPAND, 5 );
+	bSizerButtons->Add( m_CancelButton, 0, wxALL|wxEXPAND, 5 );
 	
 	
 	bmiddlerSizer->Add( bSizerButtons, 1, wxEXPAND, 5 );

@@ -26,11 +26,35 @@
  */
 
 #include <richio.h>
-#include <hashtables.h>
+#include <map>
+
 
 class BOARD;
 class PLUGIN;
 class MODULE;
+
+/**
+ * Class PROPERTIES
+ * is a name/value tuple with unique names and optional values.  The names
+ * may be iterated alphabetically.
+ */
+class PROPERTIES : public std::map< std::string, UTF8 >
+{
+    // alphabetical tuple of name and value hereby defined.
+
+public:
+
+    /**
+     * Function Value
+     * fetches a property by aName and returns true if that property was found, else false.
+     * If not found, aFetchedValue is not touched.
+     * @param aName is the property or option to look for.
+     * @param aFetchedValue is where to put the value of the property if it
+     *  exists and aFetchedValue is not NULL.
+     * @return bool - true if property is found, else false.
+     */
+    bool Value( const char* aName, UTF8* aFetchedValue = NULL ) const;
+};
 
 
 /**
@@ -48,11 +72,12 @@ public:
      */
     enum PCB_FILE_T
     {
-        LEGACY,             //< Legacy Pcbnew file formats prior to s-expression.
-        KICAD,              //< S-expression Pcbnew file format.
+        LEGACY,         ///< Legacy Pcbnew file formats prior to s-expression.
+        KICAD,          ///< S-expression Pcbnew file format.
         EAGLE,
         PCAD,
-        GEDA_PCB,           //< Geda PCB file formats.
+        GEDA_PCB,       ///< Geda PCB file formats.
+        GITHUB,         ///< Read only http://github.com repo holding pretty footprints
 
         // add your type here.
 
@@ -133,7 +158,7 @@ public:
      *  or file cannot be loaded.
      */
     static BOARD* Load( PCB_FILE_T aFileType, const wxString& aFileName,
-                        BOARD* aAppendToMe = NULL, PROPERTIES* aProperties = NULL );
+                        BOARD* aAppendToMe = NULL, const PROPERTIES* aProperties = NULL );
 
     /**
      * Function Save
@@ -159,7 +184,7 @@ public:
      * @throw IO_ERROR if there is a problem saving or exporting.
      */
     static void Save( PCB_FILE_T aFileType, const wxString& aFileName,
-                      BOARD* aBoard, PROPERTIES* aProperties = NULL );
+                      BOARD* aBoard, const PROPERTIES* aProperties = NULL );
 };
 
 
@@ -179,7 +204,7 @@ public:
  *   or
  *        IO_MGR::Save(...);
  *   }
- *   catch( IO_ERROR ioe )
+ *   catch( const IO_ERROR& ioe )
  *   {
  *        // grab text from ioe, show in error window.
  *   }
@@ -195,13 +220,13 @@ public:
      * Function PluginName
      * returns a brief hard coded name for this PLUGIN.
      */
-    virtual const wxString& PluginName() const = 0;
+    virtual const wxString PluginName() const = 0;
 
     /**
      * Function GetFileExtension
      * returns the file extension for the PLUGIN.
      */
-    virtual const wxString& GetFileExtension() const = 0;
+    virtual const wxString GetFileExtension() const = 0;
 
     /**
      * Function Load
@@ -230,7 +255,7 @@ public:
      *  input file if possible.
      */
     virtual BOARD* Load( const wxString& aFileName, BOARD* aAppendToMe,
-                         PROPERTIES* aProperties = NULL );
+                         const PROPERTIES* aProperties = NULL );
 
     /**
      * Function Save
@@ -253,7 +278,7 @@ public:
      * @throw IO_ERROR if there is a problem saving or exporting.
      */
     virtual void Save( const wxString& aFileName, BOARD* aBoard,
-                       PROPERTIES* aProperties = NULL );
+                       const PROPERTIES* aProperties = NULL );
 
     //-----<Footprint Stuff>-----------------------------
 
@@ -261,11 +286,11 @@ public:
      * Function FootprintEnumerate
      * returns a list of footprint names contained within the library at @a aLibraryPath.
      *
-     * @param aLibraryPath is a locator for the "library", usually a directory
-     *   or file containing several footprints.
+     * @param aLibraryPath is a locator for the "library", usually a directory, file,
+     *   or URL containing several footprints.
      *
      * @param aProperties is an associative array that can be used to tell the
-     *  plugin how to access the library.
+     *  plugin anything needed about how to perform with respect to @a aLibraryPath.
      *  The caller continues to own this object (plugin may not delete it), and
      *  plugins should expect it to be optionally NULL.
      *
@@ -275,15 +300,15 @@ public:
      * @throw IO_ERROR if the library cannot be found, or footprint cannot be loaded.
      */
     virtual wxArrayString FootprintEnumerate( const wxString& aLibraryPath,
-                                              PROPERTIES*     aProperties = NULL);
+            const PROPERTIES* aProperties = NULL );
 
     /**
      * Function FootprintLoad
      * loads a footprint having @a aFootprintName from the @a aLibraryPath containing
      * a library format that this PLUGIN knows about.
      *
-     * @param aLibraryPath is a locator for the "library", usually a directory
-     *   or file containing several footprints.
+     * @param aLibraryPath is a locator for the "library", usually a directory, file,
+     *   or URL containing several footprints.
      *
      * @param aFootprintName is the name of the footprint to load.
      *
@@ -299,16 +324,15 @@ public:
      *          is thrown in the case where aFootprintName cannot be found.
      */
     virtual MODULE* FootprintLoad( const wxString& aLibraryPath, const wxString& aFootprintName,
-                                    PROPERTIES* aProperties = NULL );
+            const PROPERTIES* aProperties = NULL );
 
     /**
      * Function FootprintSave
      * will write @a aModule to an existing library located at @a aLibraryPath.
      * If a footprint by the same name already exists, it is replaced.
      *
-     * @param aLibraryPath is a locator for the "library", usually a directory
-     *      or file containing several footprints. This is where the footprint is
-     *      to be stored.
+     * @param aLibraryPath is a locator for the "library", usually a directory, file,
+     *   or URL containing several footprints.
      *
      * @param aFootprint is what to store in the library. The caller continues
      *    to own the footprint after this call.
@@ -322,20 +346,27 @@ public:
      * @throw IO_ERROR if there is a problem saving.
      */
     virtual void FootprintSave( const wxString& aLibraryPath, const MODULE* aFootprint,
-                                    PROPERTIES* aProperties = NULL );
+            const PROPERTIES* aProperties = NULL );
 
     /**
      * Function FootprintDelete
-     * deletes the @a aFootprintName from the library at @a aLibraryPath.
+     * deletes @a aFootprintName from the library at @a aLibraryPath.
      *
-     * @param aLibraryPath is a locator for the "library", usually a directory
-     *   or file containing several footprints.
+     * @param aLibraryPath is a locator for the "library", usually a directory, file,
+     *   or URL containing several footprints.
      *
      * @param aFootprintName is the name of a footprint to delete from the specified library.
      *
+     * @param aProperties is an associative array that can be used to tell the
+     *  library delete function anything special, because it can take any number of
+     *  additional named tuning arguments that the plugin is known to support.
+     *  The caller continues to own this object (plugin may not delete it), and
+     *  plugins should expect it to be optionally NULL.
+     *
      * @throw IO_ERROR if there is a problem finding the footprint or the library, or deleting it.
      */
-    virtual void FootprintDelete( const wxString& aLibraryPath, const wxString& aFootprintName );
+    virtual void FootprintDelete( const wxString& aLibraryPath,
+            const wxString& aFootprintName, const PROPERTIES* aProperties = NULL );
 
     /**
      * Function FootprintLibCreate
@@ -343,8 +374,8 @@ public:
      * error to attempt to create an existing library or to attempt to create
      * on a "read only" location.
      *
-     * @param aLibraryPath is a locator for the "library", usually a directory
-     *   or file which will contain footprints.
+     * @param aLibraryPath is a locator for the "library", usually a directory, file,
+     *   or URL containing several footprints.
      *
      * @param aProperties is an associative array that can be used to tell the
      *  library create function anything special, because it can take any number of
@@ -354,7 +385,7 @@ public:
      *
      * @throw IO_ERROR if there is a problem finding the library, or creating it.
      */
-    virtual void FootprintLibCreate( const wxString& aLibraryPath, PROPERTIES* aProperties = NULL );
+    virtual void FootprintLibCreate( const wxString& aLibraryPath, const PROPERTIES* aProperties = NULL );
 
     /**
      * Function FootprintLibDelete
@@ -375,16 +406,47 @@ public:
      *
      * @throw IO_ERROR if there is a problem deleting an existing library.
      */
-    virtual bool FootprintLibDelete( const wxString& aLibraryPath, PROPERTIES* aProperties = NULL );
+    virtual bool FootprintLibDelete( const wxString& aLibraryPath, const PROPERTIES* aProperties = NULL );
 
     /**
      * Function IsFootprintLibWritable
      * returns true iff the library at @a aLibraryPath is writable.  (Often
      * system libraries are read only because of where they are installed.)
      *
+     * @param aLibraryPath is a locator for the "library", usually a directory, file,
+     *   or URL containing several footprints.
+     *
      * @throw IO_ERROR if no library at aLibraryPath exists.
      */
     virtual bool IsFootprintLibWritable( const wxString& aLibraryPath );
+
+    /**
+     * Function FootprintLibOptions
+     * appends supported PLUGIN options to @a aListToAppenTo along with
+     * internationalized descriptions.  Options are typically appended so
+     * that a derived PLUGIN can call its base class
+     * function by the same name first, thus inheriting options declared there.
+     * (Some base class options could pertain to all Footprint*() functions
+     * in all derived PLUGINs.)  Note that since aListToAppendTo is a PROPERTIES
+     * object, all options will be unique and last guy wins.
+     *
+     * @param aListToAppendTo holds a tuple of
+     * <dl>
+        <dt>option</dt>
+        <dd>This eventually is what shows up into the fp-lib-table "options"
+            field, possibly combined with others.</dd>
+        <dt>internationalized description</dt>
+        <dd>The internationalized description is displayed in DIALOG_FP_PLUGIN_OPTIONS.
+     *      It may be multi-line and be quite explanatory of the option.</dd>
+       </dl>
+     * <br>
+     *  In the future perhaps @a aListToAppendTo evolves to something capable of also
+     *  holding a wxValidator for the cells in said dialog:
+     *  http://forums.wxwidgets.org/viewtopic.php?t=23277&p=104180.
+        This would require a 3 column list, and introducing wx GUI knowledge to
+        PLUGIN, which has been avoided to date.
+     */
+    virtual void FootprintLibOptions( PROPERTIES* aListToAppendTo ) const;
 
     //-----</PUBLIC PLUGIN API>------------------------------------------------
 
@@ -397,7 +459,11 @@ public:
         API functions which take one.
     */
 
-    virtual ~PLUGIN() {}
+    virtual ~PLUGIN()
+    {
+        //printf( "~%s", __func__ );
+    };
+
 
     /**
      * Class RELEASER
@@ -408,6 +474,12 @@ public:
     {
         PLUGIN* plugin;
 
+        // private assignment operator so it's illegal
+        RELEASER& operator=( RELEASER& aOther ) { return *this; }
+
+        // private copy constructor so it's illegal
+        RELEASER( const RELEASER& aOther ) {}
+
     public:
         RELEASER( PLUGIN* aPlugin = NULL ) :
             plugin( aPlugin )
@@ -417,15 +489,28 @@ public:
         ~RELEASER()
         {
             if( plugin )
-                IO_MGR::PluginRelease( plugin );
+                release();
         }
 
-        operator PLUGIN* ()
+        void release()
+        {
+            IO_MGR::PluginRelease( plugin );
+            plugin = NULL;
+        }
+
+        void set( PLUGIN* aPlugin )
+        {
+            if( plugin )
+                release();
+            plugin = aPlugin;
+        }
+
+        operator PLUGIN* () const
         {
             return plugin;
         }
 
-        PLUGIN* operator -> ()
+        PLUGIN* operator -> () const
         {
             return plugin;
         }

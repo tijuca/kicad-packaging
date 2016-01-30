@@ -44,6 +44,8 @@
 #define BUTT_SIZE_Y             18
 #define BUTT_VOID               4
 
+const wxEventType LAYER_WIDGET::EVT_LAYER_COLOR_CHANGE = wxNewEventType();
+
 /* XPM
  * This bitmap is used for not selected layers
  */
@@ -174,7 +176,7 @@ int LAYER_WIDGET::encodeId( int aColumn, int aId )
 }
 
 
-int LAYER_WIDGET::getDecodedId( int aControlId )
+LAYER_NUM LAYER_WIDGET::getDecodedId( int aControlId )
 {
     int id = aControlId / LYR_COLUMN_COUNT;    // rounding is OK.
     return id;
@@ -192,7 +194,8 @@ wxBitmap LAYER_WIDGET::makeBitmap( EDA_COLOR_T aColor )
     iconDC.SelectObject( bitmap );
 
     brush.SetColour( MakeColour( aColor ) );
-    brush.SetStyle( wxSOLID );
+    brush.SetStyle( wxBRUSHSTYLE_SOLID );
+
     iconDC.SetBrush( brush );
 
     iconDC.DrawRectangle( 0, 0, BUTT_SIZE_X - 2 * BUTT_VOID, BUTT_SIZE_Y - 2 * BUTT_VOID );
@@ -223,7 +226,7 @@ wxBitmapButton* LAYER_WIDGET::makeColorButton( wxWindow* aParent, EDA_COLOR_T aC
 void LAYER_WIDGET::OnLeftDownLayers( wxMouseEvent& event )
 {
     int row;
-    int layer;
+    LAYER_NUM layer;
 
     wxWindow* eventSource = (wxWindow*) event.GetEventObject();
 
@@ -284,10 +287,14 @@ void LAYER_WIDGET::OnMiddleDownLayerColor( wxMouseEvent& event )
         wxBitmap bm = makeBitmap( newColor );
         eventSource->SetBitmapLabel( bm );
 
-        int layer = getDecodedId( eventSource->GetId() );
+        LAYER_NUM layer = getDecodedId( eventSource->GetId() );
 
         // tell the client code.
         OnLayerColorChange( layer, newColor );
+
+        // notify others
+        wxCommandEvent event( EVT_LAYER_COLOR_CHANGE );
+        wxPostEvent( this, event );
     }
 
     passOnFocus();
@@ -297,7 +304,7 @@ void LAYER_WIDGET::OnMiddleDownLayerColor( wxMouseEvent& event )
 void LAYER_WIDGET::OnLayerCheckBox( wxCommandEvent& event )
 {
     wxCheckBox* eventSource = (wxCheckBox*) event.GetEventObject();
-    int layer = getDecodedId( eventSource->GetId() );
+    LAYER_NUM layer = getDecodedId( eventSource->GetId() );
     OnLayerVisible( layer, eventSource->IsChecked() );
     passOnFocus();
 }
@@ -319,7 +326,7 @@ void LAYER_WIDGET::OnMiddleDownRenderColor( wxMouseEvent& event )
         wxBitmap bm = makeBitmap( newColor );
         eventSource->SetBitmapLabel( bm );
 
-        int id = getDecodedId( eventSource->GetId() );
+        LAYER_NUM id = getDecodedId( eventSource->GetId() );
 
         // tell the client code.
         OnRenderColorChange( id, newColor );
@@ -331,7 +338,7 @@ void LAYER_WIDGET::OnMiddleDownRenderColor( wxMouseEvent& event )
 void LAYER_WIDGET::OnRenderCheckBox( wxCommandEvent& event )
 {
     wxCheckBox* eventSource = (wxCheckBox*) event.GetEventObject();
-    int id = getDecodedId( eventSource->GetId() );
+    LAYER_NUM id = getDecodedId( eventSource->GetId() );
     OnRenderEnable( id, eventSource->IsChecked() );
     passOnFocus();
 }
@@ -348,14 +355,14 @@ void LAYER_WIDGET::OnTabChange( wxNotebookEvent& event )
 
 wxWindow* LAYER_WIDGET::getLayerComp( int aRow, int aColumn ) const
 {
-    int ndx = aRow * LYR_COLUMN_COUNT + aColumn;
-    if( (unsigned) ndx < m_LayersFlexGridSizer->GetChildren().GetCount() )
+    unsigned ndx = aRow * LYR_COLUMN_COUNT + aColumn;
+    if( ndx < m_LayersFlexGridSizer->GetChildren().GetCount() )
         return m_LayersFlexGridSizer->GetChildren()[ndx]->GetWindow();
     return NULL;
 }
 
 
-int LAYER_WIDGET::findLayerRow( int aLayer ) const
+int LAYER_WIDGET::findLayerRow( LAYER_NUM aLayer ) const
 {
     int count = GetLayerRowCount();
     for( int row=0;  row<count;  ++row )
@@ -398,7 +405,7 @@ int LAYER_WIDGET::findRenderRow( int aId ) const
 
 void LAYER_WIDGET::insertLayerRow( int aRow, const ROW& aSpec )
 {
-    wxASSERT( aRow >= 0 && aRow < MAX_LAYER_ROWS );
+    wxASSERT( aRow >= 0 );
 
     int         col;
     int         index = aRow * LYR_COLUMN_COUNT;
@@ -412,35 +419,35 @@ void LAYER_WIDGET::insertLayerRow( int aRow, const ROW& aSpec )
     sbm->Connect( wxEVT_LEFT_DOWN, wxMouseEventHandler( LAYER_WIDGET::OnLeftDownLayers ), NULL, this );
     m_LayersFlexGridSizer->wxSizer::Insert( index+col, sbm, 0, flags );
 
-    // column 1
-    col = 1;
+    // column 1 (COLUMN_COLORBM)
+    col = COLUMN_COLORBM;
     wxBitmapButton* bmb = makeColorButton( m_LayerScrolledWindow, aSpec.color, encodeId( col, aSpec.id ) );
     bmb->Connect( wxEVT_LEFT_DOWN, wxMouseEventHandler( LAYER_WIDGET::OnLeftDownLayers ), NULL, this );
     bmb->Connect( wxEVT_MIDDLE_DOWN, wxMouseEventHandler( LAYER_WIDGET::OnMiddleDownLayerColor ), NULL, this );
     bmb->SetToolTip( _("Left click to select, middle click for color change, right click for menu" ) );
     m_LayersFlexGridSizer->wxSizer::Insert( index+col, bmb, 0, flags );
 
-    // column 2
-    col = 2;
-    wxStaticText* st = new wxStaticText( m_LayerScrolledWindow, encodeId( col, aSpec.id ), aSpec.rowName );
-    shrinkFont( st, m_PointSize );
-    st->Connect( wxEVT_LEFT_DOWN, wxMouseEventHandler( LAYER_WIDGET::OnLeftDownLayers ), NULL, this );
-    st->SetToolTip( aSpec.tooltip );
-    m_LayersFlexGridSizer->wxSizer::Insert( index+col, st, 0, flags );
-
-    // column 3
-    col = 3;
+    // column 2 (COLUMN_COLOR_LYR_CB)
+    col = COLUMN_COLOR_LYR_CB;
     wxCheckBox* cb = new wxCheckBox( m_LayerScrolledWindow, encodeId( col, aSpec.id ), wxEmptyString );
     cb->SetValue( aSpec.state );
     cb->Connect( wxEVT_COMMAND_CHECKBOX_CLICKED, wxCommandEventHandler( LAYER_WIDGET::OnLayerCheckBox ), NULL, this );
     cb->SetToolTip( _( "Enable this for visibility" ) );
     m_LayersFlexGridSizer->wxSizer::Insert( index+col, cb, 0, flags );
+
+    // column 3 (COLUMN_COLOR_LYRNAME)
+    col = COLUMN_COLOR_LYRNAME;
+    wxStaticText* st = new wxStaticText( m_LayerScrolledWindow, encodeId( col, aSpec.id ), aSpec.rowName );
+    shrinkFont( st, m_PointSize );
+    st->Connect( wxEVT_LEFT_DOWN, wxMouseEventHandler( LAYER_WIDGET::OnLeftDownLayers ), NULL, this );
+    st->SetToolTip( aSpec.tooltip );
+    m_LayersFlexGridSizer->wxSizer::Insert( index+col, st, 0, flags );
 }
 
 
 void LAYER_WIDGET::insertRenderRow( int aRow, const ROW& aSpec )
 {
-    wxASSERT( aRow >= 0 && aRow < MAX_LAYER_ROWS );
+    wxASSERT( aRow >= 0 );
 
     int         col;
     int         index = aRow * RND_COLUMN_COUNT;
@@ -452,7 +459,7 @@ void LAYER_WIDGET::insertRenderRow( int aRow, const ROW& aSpec )
     {
         wxBitmapButton* bmb = makeColorButton( m_RenderScrolledWindow, aSpec.color, encodeId( col, aSpec.id ) );
         bmb->Connect( wxEVT_MIDDLE_DOWN, wxMouseEventHandler( LAYER_WIDGET::OnMiddleDownRenderColor ), NULL, this );
-        bmb->SetToolTip( _("Middle click for color change" ) );
+        bmb->SetToolTip( _( "Middle click for color change" ) );
         m_RenderFlexGridSizer->wxSizer::Insert( index+col, bmb, 0, flags );
 
         // could add a left click handler on the color button that toggles checkbox.
@@ -520,7 +527,7 @@ LAYER_WIDGET::LAYER_WIDGET( wxWindow* aParent, wxWindow* aFocusOwner, int aPoint
     m_LayerScrolledWindow->SetScrollRate( 5, 5 );
     m_LayersFlexGridSizer = new wxFlexGridSizer( 0, 4, 0, 1 );
     m_LayersFlexGridSizer->SetFlexibleDirection( wxHORIZONTAL );
-    m_LayersFlexGridSizer->SetNonFlexibleGrowMode( wxFLEX_GROWMODE_SPECIFIED );
+    m_LayersFlexGridSizer->SetNonFlexibleGrowMode( wxFLEX_GROWMODE_NONE );
 
     m_LayerScrolledWindow->SetSizer( m_LayersFlexGridSizer );
     m_LayerScrolledWindow->Layout();
@@ -530,7 +537,7 @@ LAYER_WIDGET::LAYER_WIDGET( wxWindow* aParent, wxWindow* aFocusOwner, int aPoint
     m_LayerPanel->SetSizer( bSizer3 );
     m_LayerPanel->Layout();
     bSizer3->Fit( m_LayerPanel );
-    m_notebook->AddPage( m_LayerPanel, _("Layer"), true );
+    m_notebook->AddPage( m_LayerPanel, _( "Layer" ), true );
     m_RenderingPanel = new wxPanel( m_notebook, wxID_ANY, wxDefaultPosition, wxDefaultSize, wxTAB_TRAVERSAL );
 
     wxBoxSizer* bSizer4;
@@ -550,7 +557,7 @@ LAYER_WIDGET::LAYER_WIDGET( wxWindow* aParent, wxWindow* aFocusOwner, int aPoint
     m_RenderingPanel->SetSizer( bSizer4 );
     m_RenderingPanel->Layout();
     bSizer4->Fit( m_RenderingPanel );
-    m_notebook->AddPage( m_RenderingPanel, _("Render"), false );
+    m_notebook->AddPage( m_RenderingPanel, _( "Render" ), false );
 
     boxSizer->Add( m_notebook, 1, wxEXPAND | wxALL, 5 );
 
@@ -575,18 +582,17 @@ LAYER_WIDGET::LAYER_WIDGET( wxWindow* aParent, wxWindow* aFocusOwner, int aPoint
 }
 
 
+LAYER_WIDGET::~LAYER_WIDGET()
+{
+    delete m_BlankBitmap;
+    delete m_BlankAlternateBitmap;
+    delete m_RightArrowBitmap;
+    delete m_RightArrowAlternateBitmap;
+}
+
+
 wxSize LAYER_WIDGET::GetBestSize() const
 {
-#if 0
-    wxSize layerz  = m_LayersFlexGridSizer->GetMinSize();
-    wxSize renderz = m_RenderFlexGridSizer->GetMinSize();
-
-    wxSize  clientz( std::max(renderz.x,layerz.x), std::max(renderz.y,layerz.y) );
-
-    return ClientToWindowSize( clientz );
-
-#else
-
     // size of m_LayerScrolledWindow --------------
     wxArrayInt widths = m_LayersFlexGridSizer->GetColWidths();
     int totWidth = 0;
@@ -602,20 +608,10 @@ wxSize LAYER_WIDGET::GetBestSize() const
     totWidth += 10;
 
 
-    wxArrayInt heights = m_LayersFlexGridSizer->GetRowHeights();
-    int totHeight = 0;
-    if( heights.GetCount() )
-    {
-        int rowCount = GetLayerRowCount();
-        for( int i=0; i<rowCount;  ++i )
-        {
-            totHeight += heights[i] + m_LayersFlexGridSizer->GetVGap();
-            // printf("heights[%d]:%d\n", i, heights[i] );
-        }
-        totHeight += 2 * heights[0]; // use 2 row heights to approximate tab height
-    }
-    else
-        totHeight += 20;        // not used except before adding rows.
+    /* The minimum height is a small size to properly force computation
+     * of the panel's scrollbars (otherwise it will assume it *has* all
+     * this space) */
+    unsigned totHeight = 32;
 
     wxSize layerz( totWidth, totHeight );
 
@@ -636,35 +632,14 @@ wxSize LAYER_WIDGET::GetBestSize() const
     // account for the parent's frame, this one has void space of 10 PLUS a border:
     totWidth += 20;
 
-
-    heights = m_RenderFlexGridSizer->GetRowHeights();
-    totHeight = 0;
-    if( heights.GetCount() )
-    {
-        int rowCount = GetRenderRowCount();
-        for( int i=0; i<rowCount && i<(int)heights.GetCount();  ++i )
-        {
-            totHeight += heights[i] + m_RenderFlexGridSizer->GetVGap();
-            // printf("heights[%d]:%d\n", i, heights[i] );
-        }
-        totHeight += 2 * heights[0]; // use 2 row heights to approximate tab height
-    }
-    else
-        totHeight += 20;    // not used except before adding rows
-
+    // For totHeight re-use the previous small one
     wxSize renderz( totWidth, totHeight );
 
     renderz += m_RenderingPanel->GetWindowBorderSize();
 
     wxSize clientz( std::max(renderz.x,layerz.x), std::max(renderz.y,layerz.y) );
 
-//    wxSize diffz( GetSize() - GetClientSize() );
-//    clientz += diffz;
-
     return clientz;
-
-#endif
-
 }
 
 
@@ -739,41 +714,41 @@ void LAYER_WIDGET::SelectLayerRow( int aRow )
 }
 
 
-void LAYER_WIDGET::SelectLayer( int aLayer )
+void LAYER_WIDGET::SelectLayer( LAYER_NUM aLayer )
 {
     int row = findLayerRow( aLayer );
     SelectLayerRow( row );
 }
 
 
-int LAYER_WIDGET::GetSelectedLayer()
+LAYER_NUM LAYER_WIDGET::GetSelectedLayer()
 {
     wxWindow* w = getLayerComp( m_CurrentRow, 0 );
     if( w )
         return getDecodedId( w->GetId() );
 
-    return -1;
+    return UNDEFINED_LAYER;
 }
 
 
-void LAYER_WIDGET::SetLayerVisible( int aLayer, bool isVisible )
+void LAYER_WIDGET::SetLayerVisible( LAYER_NUM aLayer, bool isVisible )
 {
     int row = findLayerRow( aLayer );
     if( row >= 0 )
     {
-        wxCheckBox* cb = (wxCheckBox*) getLayerComp( row, 3 );
+        wxCheckBox* cb = (wxCheckBox*) getLayerComp( row, COLUMN_COLOR_LYR_CB );
         wxASSERT( cb );
         cb->SetValue( isVisible );      // does not fire an event
     }
 }
 
 
-bool LAYER_WIDGET::IsLayerVisible( int aLayer )
+bool LAYER_WIDGET::IsLayerVisible( LAYER_NUM aLayer )
 {
     int row = findLayerRow( aLayer );
     if( row >= 0 )
     {
-        wxCheckBox* cb = (wxCheckBox*) getLayerComp( row, 3 );
+        wxCheckBox* cb = (wxCheckBox*) getLayerComp( row, COLUMN_COLOR_LYR_CB );
         wxASSERT( cb );
         return cb->GetValue();
     }
@@ -781,7 +756,7 @@ bool LAYER_WIDGET::IsLayerVisible( int aLayer )
 }
 
 
-void LAYER_WIDGET::SetLayerColor( int aLayer, EDA_COLOR_T aColor )
+void LAYER_WIDGET::SetLayerColor( LAYER_NUM aLayer, EDA_COLOR_T aColor )
 {
     int row = findLayerRow( aLayer );
     if( row >= 0 )
@@ -798,7 +773,7 @@ void LAYER_WIDGET::SetLayerColor( int aLayer, EDA_COLOR_T aColor )
 }
 
 
-EDA_COLOR_T LAYER_WIDGET::GetLayerColor( int aLayer ) const
+EDA_COLOR_T LAYER_WIDGET::GetLayerColor( LAYER_NUM aLayer ) const
 {
     int row = findLayerRow( aLayer );
     if( row >= 0 )
@@ -846,6 +821,8 @@ void LAYER_WIDGET::UpdateLayouts()
 {
     m_LayersFlexGridSizer->Layout();
     m_RenderFlexGridSizer->Layout();
+    m_LayerPanel->Layout();
+    m_RenderingPanel->Layout();
     FitInside();
 }
 
@@ -888,13 +865,13 @@ class MYFRAME : public wxFrame
             */
         }
 
-        bool OnLayerSelect( int aLayer )
+        bool OnLayerSelect( LAYER aLayer )
         {
             printf( "OnLayerSelect( aLayer:%d )\n", aLayer );
             return true;
         }
 
-        void OnLayerVisible( int aLayer, bool isVisible, bool isFinal )
+        void OnLayerVisible( LAYER aLayer, bool isVisible, bool isFinal )
         {
             printf( "OnLayerVisible( aLayer:%d, isVisible:%d isFinal:%d)\n", aLayer, isVisible, isFinal );
         }

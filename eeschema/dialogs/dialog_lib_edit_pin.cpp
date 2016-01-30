@@ -1,3 +1,27 @@
+/*
+ * This program source code file is part of KiCad, a free EDA CAD application.
+ *
+ * Copyright (C) 2010 Jean-Pierre Charras, jp.charras at wanadoo.fr
+ * Copyright (C) 2014 KiCad Developers, see CHANGELOG.TXT for contributors.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation; either version 2
+ * of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, you may find one here:
+ * http://www.gnu.org/licenses/old-licenses/gpl-2.0.html
+ * or you may search the http://www.gnu.org website for the version 2 license,
+ * or you may write to the Free Software Foundation, Inc.,
+ * 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
+ */
+
 #include <fctsys.h>
 #include <macros.h>
 #include <gr_basic.h>
@@ -9,7 +33,7 @@
 
 #include <dialog_lib_edit_pin.h>
 
-DIALOG_LIB_EDIT_PIN::DIALOG_LIB_EDIT_PIN( wxWindow* parent, LIB_PIN* aPin ) :
+DIALOG_LIB_EDIT_PIN::DIALOG_LIB_EDIT_PIN( EDA_DRAW_FRAME* parent, LIB_PIN* aPin ) :
     DIALOG_LIB_EDIT_PIN_BASE( parent )
 {
     // Creates a dummy pin to show on a panel, inside this dialog:
@@ -20,11 +44,18 @@ DIALOG_LIB_EDIT_PIN::DIALOG_LIB_EDIT_PIN( wxWindow* parent, LIB_PIN* aPin ) :
     m_dummyPin->SetParent( NULL );
     m_dummyPin->ClearFlags();
 
-    m_panelShowPin->SetBackgroundColour( MakeColour( g_DrawBgColor ) );
+    m_panelShowPin->SetBackgroundColour( MakeColour( parent->GetDrawBgColor() ) );
 
     // Set tab order
     m_textPadName->MoveAfterInTabOrder(m_textPinName);
     m_sdbSizerButtonsOK->SetDefault();
+
+    GetSizer()->SetSizeHints( this );
+
+    // On some windows manager (Unity, XFCE), this dialog is
+    // not always raised, depending on this dialog is run.
+    // Force it to be raised
+    Raise();
 }
 
 
@@ -48,7 +79,7 @@ void DIALOG_LIB_EDIT_PIN::OnPaintShowPanel( wxPaintEvent& event )
     // In fact m_dummyPin should not have a parent, but draw functions need a parent
     // to know some options, about pin texts
     LIB_EDIT_FRAME* libframe = (LIB_EDIT_FRAME*) GetParent();
-    m_dummyPin->SetParent( libframe->GetComponent() );
+    m_dummyPin->SetParent( libframe->GetCurPart() );
 
     // Calculate a suitable scale to fit the available draw area
     EDA_RECT bBox = m_dummyPin->GetBoundingBox();
@@ -60,13 +91,13 @@ void DIALOG_LIB_EDIT_PIN::OnPaintShowPanel( wxPaintEvent& event )
     scale *= 0.9;
     dc.SetUserScale( scale, scale );
 
-    wxPoint offset =  bBox.Centre();
-    NEGATE( offset.x );
-    NEGATE( offset.y );
+    wxPoint offset = -bBox.Centre();
 
     GRResetPenAndBrush( &dc );
+    bool drawpinTexts = true;   // this is a dummy param. We use its reference
+                                // as non null value for m_dummyPin->Draw
     m_dummyPin->Draw( NULL, &dc, offset, UNSPECIFIED_COLOR, GR_COPY,
-                      NULL, DefaultTransform );
+                      &drawpinTexts, DefaultTransform );
 
     m_dummyPin->SetParent(NULL);
 
@@ -94,14 +125,14 @@ void DIALOG_LIB_EDIT_PIN::OnPropertiesChange( wxCommandEvent& event )
     if( ! IsShown() )   // do nothing at init time
         return;
 
-    int pinNameSize = ReturnValueFromString( g_UserUnit, GetNameTextSize() );
-    int pinNumSize = ReturnValueFromString( g_UserUnit, GetPadNameTextSize());
+    int pinNameSize = ValueFromString( g_UserUnit, GetPinNameTextSize() );
+    int pinNumSize = ValueFromString( g_UserUnit, GetPadNameTextSize());
     int pinOrient = LIB_PIN::GetOrientationCode( GetOrientation() );
-    int pinLength = ReturnValueFromString( g_UserUnit, GetLength() );
+    int pinLength = ValueFromString( g_UserUnit, GetLength() );
     int pinShape = LIB_PIN::GetStyleCode( GetStyle() );
     int pinType = GetElectricalType();
 
-    m_dummyPin->SetName( GetName() );
+    m_dummyPin->SetName( GetPinName() );
     m_dummyPin->SetNameTextSize( pinNameSize );
     m_dummyPin->SetNumber( GetPadName() );
     m_dummyPin->SetNumberTextSize( pinNumSize );

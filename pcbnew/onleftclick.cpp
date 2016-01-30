@@ -35,8 +35,14 @@
 #include <msgpanel.h>
 
 #include <class_board.h>
+#include <class_drawsegment.h>
+#include <class_dimension.h>
 #include <class_zone.h>
 #include <class_pcb_text.h>
+#include <class_text_mod.h>
+#include <class_module.h>
+#include <class_mire.h>
+#include <project.h>
 
 #include <pcbnew.h>
 #include <pcbnew_id.h>
@@ -70,7 +76,7 @@ void PCB_EDIT_FRAME::OnLeftClick( wxDC* aDC, const wxPoint& aPosition )
                 }
                 else
                 {
-                    End_Move_Zone_Corner_Or_Outlines( aDC, (ZONE_CONTAINER*) DrawStruct );
+                    End_Move_Zone_Corner_Or_Outlines( aDC, static_cast<ZONE_CONTAINER*>( DrawStruct ) );
                 }
 
                 exit = true;
@@ -80,41 +86,41 @@ void PCB_EDIT_FRAME::OnLeftClick( wxDC* aDC, const wxPoint& aPosition )
             case PCB_VIA_T:
                 if( DrawStruct->IsDragging() )
                 {
-                    PlaceDraggedOrMovedTrackSegment( (TRACK*) DrawStruct, aDC );
+                    PlaceDraggedOrMovedTrackSegment( static_cast<TRACK*>( DrawStruct ), aDC );
                     exit = true;
                 }
 
                 break;
 
             case PCB_TEXT_T:
-                Place_Texte_Pcb( (TEXTE_PCB*) DrawStruct, aDC );
+                Place_Texte_Pcb( static_cast<TEXTE_PCB*>( DrawStruct ), aDC );
                 exit = true;
                 break;
 
             case PCB_MODULE_TEXT_T:
-                PlaceTexteModule( (TEXTE_MODULE*) DrawStruct, aDC );
+                PlaceTexteModule( static_cast<TEXTE_MODULE*>( DrawStruct ), aDC );
                 exit = true;
                 break;
 
             case PCB_PAD_T:
-                PlacePad( (D_PAD*) DrawStruct, aDC );
+                PlacePad( static_cast<D_PAD*>( DrawStruct ), aDC );
                 exit = true;
                 break;
 
             case PCB_MODULE_T:
-                PlaceModule( (MODULE*) DrawStruct, aDC );
+                PlaceModule( static_cast<MODULE*>( DrawStruct ), aDC );
                 exit = true;
                 break;
 
             case PCB_TARGET_T:
-                PlaceTarget( (PCB_TARGET*) DrawStruct, aDC );
+                PlaceTarget( static_cast<PCB_TARGET*>( DrawStruct ), aDC );
                 exit = true;
                 break;
 
             case PCB_LINE_T:
                 if( no_tool )   // when no tools: existing item moving.
                 {
-                    Place_DrawItem( (DRAWSEGMENT*) DrawStruct, aDC );
+                    Place_DrawItem( static_cast<DRAWSEGMENT*>( DrawStruct ), aDC );
                     exit = true;
                 }
 
@@ -123,7 +129,7 @@ void PCB_EDIT_FRAME::OnLeftClick( wxDC* aDC, const wxPoint& aPosition )
             case PCB_DIMENSION_T:
                 if( ! DrawStruct->IsNew() )
                 {   // We are moving the text of an existing dimension. Place it
-                    PlaceDimensionText( (DIMENSION*) DrawStruct, aDC );
+                    PlaceDimensionText( static_cast<DIMENSION*>( DrawStruct ), aDC );
                     exit = true;
                 }
                 break;
@@ -160,10 +166,8 @@ void PCB_EDIT_FRAME::OnLeftClick( wxDC* aDC, const wxPoint& aPosition )
         case PCB_TRACE_T:
         case PCB_VIA_T:
         case PCB_PAD_T:
-            GetBoard()->SetCurrentNetClass(
+            SetCurrentNetClass(
                 ((BOARD_CONNECTED_ITEM*)DrawStruct)->GetNetClassName() );
-            updateTraceWidthSelectBox();
-            updateViaSizeSelectBox();
             break;
 
         default:
@@ -243,9 +247,9 @@ void PCB_EDIT_FRAME::OnLeftClick( wxDC* aDC, const wxPoint& aPosition )
             if( GetToolId() == ID_PCB_ARC_BUTT )
                 shape = S_ARC;
 
-            if( getActiveLayer() <= LAST_COPPER_LAYER )
+            if( IsCopperLayer( GetActiveLayer() ) )
             {
-                DisplayError( this, _( "Graphic not authorized on Copper layers" ) );
+                DisplayError( this, _( "Graphic not allowed on Copper layers" ) );
                 break;
             }
 
@@ -267,7 +271,7 @@ void PCB_EDIT_FRAME::OnLeftClick( wxDC* aDC, const wxPoint& aPosition )
         break;
 
     case ID_TRACK_BUTT:
-        if( getActiveLayer() > LAST_COPPER_LAYER )
+        if( !IsCopperLayer( GetActiveLayer() ) )
         {
             DisplayError( this, _( "Tracks on Copper layers only " ) );
             break;
@@ -325,6 +329,13 @@ void PCB_EDIT_FRAME::OnLeftClick( wxDC* aDC, const wxPoint& aPosition )
         break;
 
     case ID_PCB_ADD_TEXT_BUTT:
+        if( Edge_Cuts == GetActiveLayer() )
+        {
+            DisplayError( this,
+                          _( "Texts not allowed on Edge Cut layer" ) );
+            break;
+        }
+
         if( (DrawStruct == NULL) || (DrawStruct->GetFlags() == 0) )
         {
             SetCurItem( CreateTextePcb( aDC ) );
@@ -347,7 +358,9 @@ void PCB_EDIT_FRAME::OnLeftClick( wxDC* aDC, const wxPoint& aPosition )
         if( (DrawStruct == NULL) || (DrawStruct->GetFlags() == 0) )
         {
             m_canvas->MoveCursorToCrossHair();
-            DrawStruct = (BOARD_ITEM*) Load_Module_From_Library( wxEmptyString, true, aDC );
+            DrawStruct = (BOARD_ITEM*) LoadModuleFromLibrary(
+                    wxEmptyString, Prj().PcbFootprintLibs(), true, aDC );
+
             SetCurItem( DrawStruct );
 
             if( DrawStruct )
@@ -366,13 +379,13 @@ void PCB_EDIT_FRAME::OnLeftClick( wxDC* aDC, const wxPoint& aPosition )
         break;
 
     case ID_PCB_DIMENSION_BUTT:
-        if( getActiveLayer() <= LAST_COPPER_LAYER )
+        if( IsCopperLayer( GetActiveLayer() ) || GetActiveLayer() == Edge_Cuts )
         {
-            DisplayError( this, _( "Dimension not authorized on Copper layers" ) );
+            DisplayError( this, _( "Dimension not allowed on Copper or Edge Cut layers" ) );
             break;
         }
 
-        if( (DrawStruct == NULL) || (DrawStruct->GetFlags() == 0) )
+        if( !DrawStruct || !DrawStruct->GetFlags() )
         {
             DrawStruct = (BOARD_ITEM*) EditDimension( NULL, aDC );
             SetCurItem( DrawStruct );
@@ -393,7 +406,7 @@ void PCB_EDIT_FRAME::OnLeftClick( wxDC* aDC, const wxPoint& aPosition )
         break;
 
     case ID_PCB_DELETE_ITEM_BUTT:
-        if( !DrawStruct || (DrawStruct->GetFlags() == 0) )
+        if( !DrawStruct || !DrawStruct->GetFlags() )
         {
             DrawStruct = PcbGeneralLocateAndDisplay();
 
@@ -408,15 +421,15 @@ void PCB_EDIT_FRAME::OnLeftClick( wxDC* aDC, const wxPoint& aPosition )
 
     case ID_PCB_PLACE_OFFSET_COORD_BUTT:
         m_canvas->DrawAuxiliaryAxis( aDC, GR_XOR );
-        SetOriginAxisPosition( GetScreen()->GetCrossHairPosition() );
+        SetAuxOrigin( GetCrossHairPosition() );
         m_canvas->DrawAuxiliaryAxis( aDC, GR_COPY );
         OnModify();
         break;
 
     case ID_PCB_PLACE_GRID_COORD_BUTT:
-        m_canvas->DrawGridAxis( aDC, GR_XOR );
-        GetScreen()->m_GridOrigin = GetScreen()->GetCrossHairPosition();
-        m_canvas->DrawGridAxis( aDC, GR_COPY );
+        m_canvas->DrawGridAxis( aDC, GR_XOR, GetBoard()->GetGridOrigin() );
+        SetGridOrigin( GetCrossHairPosition() );
+        m_canvas->DrawGridAxis( aDC, GR_COPY, GetBoard()->GetGridOrigin() );
         break;
 
     default:
@@ -542,39 +555,39 @@ void PCB_EDIT_FRAME::OnEditItemRequest( wxDC* aDC, BOARD_ITEM* aItem )
     {
     case PCB_TRACE_T:
     case PCB_VIA_T:
-        Edit_TrackSegm_Width( aDC, (TRACK*) aItem );
+        Edit_TrackSegm_Width( aDC, static_cast<TRACK*>( aItem ) );
         break;
 
     case PCB_TEXT_T:
-        InstallTextPCBOptionsFrame( (TEXTE_PCB*) aItem, aDC );
+        InstallTextPCBOptionsFrame( static_cast<TEXTE_PCB*>( aItem ), aDC );
         break;
 
     case PCB_PAD_T:
-        InstallPadOptionsFrame( (D_PAD*) aItem );
+        InstallPadOptionsFrame( static_cast<D_PAD*>( aItem ) );
         break;
 
     case PCB_MODULE_T:
-        InstallModuleOptionsFrame( (MODULE*) aItem, aDC );
+        InstallModuleOptionsFrame( static_cast<MODULE*>( aItem ), aDC );
         break;
 
     case PCB_TARGET_T:
-        ShowTargetOptionsDialog( (PCB_TARGET*) aItem, aDC );
+        ShowTargetOptionsDialog( static_cast<PCB_TARGET*>( aItem ), aDC );
         break;
 
     case PCB_DIMENSION_T:
-        ShowDimensionPropertyDialog( (DIMENSION*) aItem, aDC );
+        ShowDimensionPropertyDialog( static_cast<DIMENSION*>( aItem ), aDC );
         break;
 
     case PCB_MODULE_TEXT_T:
-        InstallTextModOptionsFrame( (TEXTE_MODULE*) aItem, aDC );
+        InstallTextModOptionsFrame( static_cast<TEXTE_MODULE*>( aItem ), aDC );
         break;
 
     case PCB_LINE_T:
-        InstallGraphicItemPropertiesDialog( (DRAWSEGMENT*) aItem, aDC );
+        InstallGraphicItemPropertiesDialog( static_cast<DRAWSEGMENT*>( aItem ), aDC );
         break;
 
     case PCB_ZONE_AREA_T:
-        Edit_Zone_Params( aDC, (ZONE_CONTAINER*) aItem );
+        Edit_Zone_Params( aDC, static_cast<ZONE_CONTAINER*>( aItem ) );
         break;
 
     default:

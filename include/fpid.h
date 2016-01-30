@@ -27,7 +27,7 @@
 #define _FPID_H_
 
 #include <richio.h>
-
+#include <utf8.h>
 
 /**
  * Class FPID
@@ -53,7 +53,7 @@
  *
  * @author Dick Hollenbeck
  */
-class FPID  // aka GUID
+class FPID
 {
 public:
 
@@ -70,6 +70,8 @@ public:
      */
     FPID( const std::string& aId ) throw( PARSE_ERROR );
 
+    FPID( const wxString& aId ) throw( PARSE_ERROR );
+
     /**
      * Function Parse
      * [re-]stuffs this FPID with the information from @a aId.
@@ -78,13 +80,14 @@ public:
      * @return int - minus 1 (i.e. -1) means success, >= 0 indicates the character offset into
      *               aId at which an error was detected.
      */
-    int Parse( const std::string& aId );
+    int Parse( const UTF8& aId );
+
 
     /**
      * Function GetLibNickname
      * returns the logical library name  portion of a FPID.
      */
-    const std::string& GetLibNickname() const
+    const UTF8& GetLibNickname() const
     {
         return nickname;
     }
@@ -96,31 +99,34 @@ public:
      *               into the parameter at which an error was detected, usually because it
      *               contained '/' or ':'.
      */
-    int SetLibNickname( const std::string& aNickname );
+    int SetLibNickname( const UTF8& aNickname );
 
     /**
      * Function GetFootprintName
      * returns the footprint name, i.e. footprintName.
      */
-    const std::string& GetFootprintName() const;
+    const UTF8& GetFootprintName() const { return footprint; }
 
     /**
      * Function SetFootprintName
      * overrides the footprint name portion of the FPID to @a aFootprintName
+     * @return int - minus 1 (i.e. -1) means success, >= 0 indicates the  character offset
+     *               into the parameter at which an error was detected, usually because it
+     *               contained '/'.
      */
-    int SetFootprintName( const std::string& aFootprintName );
+    int SetFootprintName( const UTF8& aFootprintName );
 
-    int SetRevision( const std::string& aRevision );
+    int SetRevision( const UTF8& aRevision );
 
-    const std::string& GetRevision() const { return revision; }
+    const UTF8& GetRevision() const { return revision; }
 
-    std::string GetFootprintNameAndRev() const;
+    UTF8 GetFootprintNameAndRev() const;
 
     /**
      * Function Format
      * returns the fully formatted text of the FPID.
      */
-    std::string Format() const;
+    UTF8 Format() const;
 
     /**
      * Function Format
@@ -128,21 +134,64 @@ public:
      * aLibNickname, aFootprintName, and aRevision.
      *
      * @throw PARSE_ERROR if any of the pieces are illegal.
-     */
-    static std::string Format( const std::string& aLibNickname, const std::string& aFootprintName,
-                               const std::string& aRevision )
+    static UTF8 Format( const UTF8& aLibNickname, const UTF8& aFootprintName,
+                               const UTF8& aRevision = "" )
         throw( PARSE_ERROR );
+     */
 
+    /**
+     * Function IsValid
+     * @return true is the #FPID is valid.
+     *
+     * A valid #FPID must have both the footprint library nickname and the footprint name
+     * defined.  The revision field is optional.
+     *
+     * @note A return value of true does not indicated that the #FPID is a valid #FP_LIB_TABLE
+     *       entry.
+     */
+    bool IsValid() const { return !nickname.empty() && !footprint.empty(); }
+
+    /**
+     * Function IsLegacy
+     * @return true if the #FPID only has the #footprint name defined.
+     */
+    bool IsLegacy() const { return nickname.empty() && !footprint.empty() && revision.empty(); }
+
+    /**
+     * Function clear
+     * clears the contents of the library nickname, footprint name, and revision strings.
+     */
     void clear();
+
+    /**
+     * Function empty
+     * @return a boolean true value if the FPID is empty.  Otherwise return false.
+     */
+    bool empty() const { return nickname.empty() && footprint.empty() && revision.empty(); }
+
+    /**
+     * Function Compare
+     * compares the contents of FPID objects by performing a std::string comparison of the
+     * library nickname, footprint name, and revision strings respectively.
+     *
+     * @param aFPID is the FPID to compare against.
+     * @return -1 if less than \a aFPID, 1 if greater than \a aFPID, and 0 if equal to \a aFPID.
+     */
+    int compare( const FPID& aFPID ) const;
+
+    bool operator < ( const FPID& aFPID ) const { return this->compare( aFPID ) < 0; }
+    bool operator > ( const FPID& aFPID ) const { return this->compare( aFPID ) > 0; }
+    bool operator ==( const FPID& aFPID ) const { return this->compare( aFPID ) == 0; }
+    bool operator !=( const FPID& aFPID ) const { return !(*this == aFPID); }
 
 #if defined(DEBUG)
     static void Test();
 #endif
 
 protected:
-    std::string    nickname;       ///< The nickname of the footprint library or empty.
-    std::string    footprint;      ///< The name of the footprint in the logical library.
-    std::string    revision;       ///< The footprint revision.
+    UTF8    nickname;       ///< The nickname of the footprint library or empty.
+    UTF8    footprint;      ///< The name of the footprint in the logical library.
+    UTF8    revision;       ///< The footprint revision.
 };
 
 

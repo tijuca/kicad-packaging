@@ -1,15 +1,41 @@
-/********************/
-/**** rs274d.cpp ****/
-/********************/
+/**
+ * @file rs274d.cpp
+ * @brief functions to read the rs274d commands from a rs274d/rs274x file
+ */
+
+/*
+ * This program source code file is part of KiCad, a free EDA CAD application.
+ *
+ * Copyright (C) 1992-2013 KiCad Developers, see AUTHORS.txt for contributors.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation; either version 2
+ * of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, you may find one here:
+ * http://www.gnu.org/licenses/old-licenses/gpl-2.0.html
+ * or you may search the http://www.gnu.org website for the version 2 license,
+ * or you may write to the Free Software Foundation, Inc.,
+ * 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
+ */
 
 #include <fctsys.h>
 #include <common.h>
 
 #include <gerbview.h>
+#include <gerbview_frame.h>
 #include <trigo.h>
 #include <macros.h>
 #include <class_gerber_draw_item.h>
 #include <class_GERBER.h>
+#include <class_X2_gerber_attributes.h>
 
 #include <cmath>
 
@@ -18,7 +44,8 @@
  * G01 linear interpolation (right trace)
  * G02, G20, G21 Circular interpolation, meaning trig <0 (clockwise)
  * G03, G30, G31 Circular interpolation, meaning trigo> 0 (counterclockwise)
- * G04 = comment
+ * G04 = comment. Since Sept 2014, file attributes can be found here
+ *       if the line starts by G04 #@!
  * G06 parabolic interpolation
  * G07 Cubic Interpolation
  * G10 linear interpolation (scale x10)
@@ -62,11 +89,6 @@
  * D10 ... D999 = Identification Tool: tool selection
  */
 
-// Photoplot actions:
-#define GERB_ACTIVE_DRAW 1      // Activate light (lower pen)
-#define GERB_STOP_DRAW   2      // Extinguish light (lift pen)
-#define GERB_FLASH       3      // Flash
-
 
 /* Local Functions (are lower case since they are private to this source file)
 **/
@@ -88,7 +110,7 @@
 void fillFlashedGBRITEM(  GERBER_DRAW_ITEM* aGbrItem,
                                  APERTURE_T        aAperture,
                                  int               Dcode_index,
-                                 int               aLayer,
+                                 int         aLayer,
                                  const wxPoint&    aPos,
                                  wxSize            aSize,
                                  bool              aLayerNegative )
@@ -140,7 +162,7 @@ void fillFlashedGBRITEM(  GERBER_DRAW_ITEM* aGbrItem,
  */
 void fillLineGBRITEM(  GERBER_DRAW_ITEM* aGbrItem,
                               int               Dcode_index,
-                              int               aLayer,
+                              int         aLayer,
                               const wxPoint&    aStart,
                               const wxPoint&    aEnd,
                               wxSize            aPenSize,
@@ -202,7 +224,6 @@ static void fillArcGBRITEM(  GERBER_DRAW_ITEM* aGbrItem, int Dcode_index, int aL
     aGbrItem->m_Size  = aPenSize;
     aGbrItem->m_Flashed = false;
 
-
     if( aMultiquadrant )
         center = aStart + aRelCenter;
     else
@@ -231,7 +252,7 @@ static void fillArcGBRITEM(  GERBER_DRAW_ITEM* aGbrItem, int Dcode_index, int aL
          * ---S---
          *  3 | 4
          */
-            NEGATE( center.x);
+            center.x = -center.x;
         }
         else if( (delta.x >= 0) && (delta.y < 0) )
         {
@@ -249,8 +270,8 @@ static void fillArcGBRITEM(  GERBER_DRAW_ITEM* aGbrItem, int Dcode_index, int aL
          * ---S---
          *  C | 4
          */
-            NEGATE( center.x);
-            NEGATE( center.y);
+            center.x = -center.x;
+            center.y = -center.y;
         }
         else
         {
@@ -259,7 +280,7 @@ static void fillArcGBRITEM(  GERBER_DRAW_ITEM* aGbrItem, int Dcode_index, int aL
          * ---S---
          *  E | C
          */
-            NEGATE( center.y);
+            center.y = -center.y;
         }
 
         // Due to your draw arc function, we need this:
@@ -325,10 +346,11 @@ static void fillArcPOLY(  GERBER_DRAW_ITEM* aGbrItem,
      * so we muse create a dummy track and use its geometric parameters
      */
     static GERBER_DRAW_ITEM dummyGbrItem( NULL, NULL );
+    static const int drawlayer = 0;
 
     aGbrItem->SetLayerPolarity( aLayerNegative );
 
-    fillArcGBRITEM(  &dummyGbrItem, 0, 0,
+    fillArcGBRITEM(  &dummyGbrItem, 0, drawlayer,
                      aStart, aEnd, rel_center, wxSize(0, 0),
                      aClockwise, aMultiquadrant, aLayerNegative );
 
@@ -344,8 +366,8 @@ static void fillArcPOLY(  GERBER_DRAW_ITEM* aGbrItem,
      * angle is trigonometrical (counter-clockwise),
      * and axis is the X,Y gerber coordinates
      */
-    int start_angle = KiROUND(atan2( (double) start.y, (double) start.x ) * 1800 / M_PI);
-    int end_angle = KiROUND(atan2( (double) end.y, (double) end.x ) * 1800 / M_PI);
+    double start_angle = ArcTangente( start.y, start.x );
+    double end_angle   = ArcTangente( end.y, end.x );
 
     // dummyTrack has right geometric parameters, but
     // fillArcGBRITEM calculates arc parameters for a draw function that expects
@@ -355,7 +377,7 @@ static void fillArcPOLY(  GERBER_DRAW_ITEM* aGbrItem,
     if( start_angle > end_angle )
         end_angle += 3600;
 
-    int arc_angle = start_angle - end_angle;
+    double arc_angle = start_angle - end_angle;
     // Approximate arc by 36 segments per 360 degree
     const int increment_angle = 3600 / 36;
     int count = std::abs( arc_angle / increment_angle );
@@ -366,7 +388,7 @@ static void fillArcPOLY(  GERBER_DRAW_ITEM* aGbrItem,
     wxPoint start_arc = start;
     for( int ii = 0; ii <= count; ii++ )
     {
-        int rot;
+        double rot;
         wxPoint end_arc = start;
         if( aClockwise )
             rot = ii * increment_angle; // rot is in 0.1 deg
@@ -387,7 +409,7 @@ static void fillArcPOLY(  GERBER_DRAW_ITEM* aGbrItem,
 
 /* Read the Gnn sequence and returns the value nn.
  */
-int GERBER_IMAGE::ReturnGCodeNumber( char*& Text )
+int GERBER_IMAGE::GCodeNumber( char*& Text )
 {
     int   ii = 0;
     char* text;
@@ -410,7 +432,7 @@ int GERBER_IMAGE::ReturnGCodeNumber( char*& Text )
 
 /* Get the sequence Dnn and returns the value nn
  */
-int GERBER_IMAGE::ReturnDCodeNumber( char*& Text )
+int GERBER_IMAGE::DCodeNumber( char*& Text )
 {
     int   ii = 0;
     char* text;
@@ -453,9 +475,22 @@ bool GERBER_IMAGE::Execute_G_Command( char*& text, int G_command )
         break;
 
     case GC_COMMENT:
-        // Skip comment
+        // Skip comment, but only if the line does not start by "G04 #@! TF"
+        // which is a metadata
+        if( strncmp( text, " #@! TF", 7 ) == 0 )
+        {
+            text += 7;
+            X2_ATTRIBUTE dummy;
+            dummy.ParseAttribCmd( m_Current_File, NULL, 0, text );
+            if( dummy.IsFileFunction() )
+            {
+                delete m_FileFunction;
+                m_FileFunction = new X2_ATTRIBUTE_FILEFUNCTION( dummy );
+            }
+        }
+
         while ( *text && (*text != '*') )
-            text++;
+                    text++;
         break;
 
     case GC_LINEAR_INTERPOL_10X:
@@ -472,7 +507,7 @@ bool GERBER_IMAGE::Execute_G_Command( char*& text, int G_command )
 
     case GC_SELECT_TOOL:
     {
-        int D_commande = ReturnDCodeNumber( text );
+        int D_commande = DCodeNumber( text );
         if( D_commande < FIRST_DCODE )
             return false;
         if( D_commande > (TOOLS_MAX_COUNT - 1) )
@@ -516,9 +551,9 @@ bool GERBER_IMAGE::Execute_G_Command( char*& text, int G_command )
         break;
 
     case GC_TURN_OFF_POLY_FILL:
-        if( m_Exposure && m_Parent->GetLayout()->m_Drawings )    // End of polygon
+        if( m_Exposure && m_Parent->GetGerberLayout()->m_Drawings )    // End of polygon
         {
-            GERBER_DRAW_ITEM * gbritem = m_Parent->GetLayout()->m_Drawings.GetLast();
+            GERBER_DRAW_ITEM * gbritem = m_Parent->GetGerberLayout()->m_Drawings.GetLast();
             StepAndRepeatItem( *gbritem );
         }
         m_Exposure = false;
@@ -547,9 +582,9 @@ bool GERBER_IMAGE::Execute_DCODE_Command( char*& text, int D_commande )
 
     APERTURE_T        aperture = APT_CIRCLE;
     GERBER_DRAW_ITEM* gbritem;
-    GBR_LAYOUT*       layout = m_Parent->GetLayout();
+    GBR_LAYOUT*       layout = m_Parent->GetGerberLayout();
 
-    int      activeLayer = m_Parent->getActiveLayer();
+    int activeLayer = m_Parent->getActiveLayer();
 
     int      dcode = 0;
     D_CODE*  tool  = NULL;

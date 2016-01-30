@@ -1,8 +1,33 @@
+/*
+ * This program source code file is part of KiCad, a free EDA CAD application.
+ *
+ * Copyright (C) 1992-2014 KiCad Developers, see AUTHORS.txt for contributors.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation; either version 2
+ * of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, you may find one here:
+ * http://www.gnu.org/licenses/old-licenses/gpl-2.0.html
+ * or you may search the http://www.gnu.org website for the version 2 license,
+ * or you may write to the Free Software Foundation, Inc.,
+ * 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
+ */
+
 /**
  * @file 3d_canvas.cpp
 */
 #include <fctsys.h>
 #include <trigo.h>
+#include <project.h>
+#include <gestfich.h>
 
 #include <wx/image.h>
 
@@ -14,7 +39,9 @@
 #include <wx/clipbrd.h>
 #include <wx/wupdlock.h>
 
-#include <gestfich.h>
+#ifdef __WINDOWS__
+#include <GL/glew.h>        // must be included before gl.h
+#endif
 
 #include <3d_viewer.h>
 #include <3d_canvas.h>
@@ -22,34 +49,8 @@
 #include <trackball.h>
 #include <3d_viewer_id.h>
 
-
-// -----------------
-// helper function (from wxWidgets, opengl/cube.cpp sample
-// -----------------
-void CheckGLError()
-{
-    GLenum errLast = GL_NO_ERROR;
-
-    for ( ; ; )
-    {
-        GLenum err = glGetError();
-        if ( err == GL_NO_ERROR )
-            return;
-
-        // normally the error is reset by the call to glGetError() but if
-        // glGetError() itself returns an error, we risk looping forever here
-        // so check that we get a different error than the last time
-        if ( err == errLast )
-        {
-            wxLogError(wxT("OpenGL error state couldn't be reset."));
-            return;
-        }
-
-        errLast = err;
-
-        wxLogError(wxT("OpenGL error %d"), err);
-    }
-}
+#include <textures/text_silk.h>
+#include <textures/text_pcb.h>
 
 
 /*
@@ -65,6 +66,9 @@ BEGIN_EVENT_TABLE( EDA_3D_CANVAS, wxGLCanvas )
     // mouse events
     EVT_RIGHT_DOWN( EDA_3D_CANVAS::OnRightClick )
     EVT_MOUSEWHEEL( EDA_3D_CANVAS::OnMouseWheel )
+#ifdef USE_OSX_MAGNIFY_EVENT
+    EVT_MAGNIFY( EDA_3D_CANVAS::OnMagnify )
+#endif
     EVT_MOTION( EDA_3D_CANVAS::OnMouseMove )
 
     // other events
@@ -72,13 +76,34 @@ BEGIN_EVENT_TABLE( EDA_3D_CANVAS, wxGLCanvas )
     EVT_MENU_RANGE( ID_POPUP_3D_VIEW_START, ID_POPUP_3D_VIEW_END, EDA_3D_CANVAS::OnPopUpMenu )
 END_EVENT_TABLE()
 
+// Define an invalid value for some unsigned int indexes
+#define INVALID_INDEX GL_INVALID_VALUE
 
 EDA_3D_CANVAS::EDA_3D_CANVAS( EDA_3D_FRAME* parent, int* attribList ) :
     wxGLCanvas( parent, wxID_ANY, attribList, wxDefaultPosition, wxDefaultSize,
                 wxFULL_REPAINT_ON_RESIZE )
 {
     m_init   = false;
-    m_gllist = 0;
+    m_reportWarnings = true;
+    m_shadow_init = false;
+    // set an invalide value to not yet initialized indexes managing
+    // textures created to enhance 3D rendering
+    m_text_pcb = m_text_silk = INVALID_INDEX;
+    m_text_fake_shadow_front = INVALID_INDEX;
+    m_text_fake_shadow_back = INVALID_INDEX;
+    m_text_fake_shadow_board = INVALID_INDEX;
+
+    // position of the front and back layers
+    // (will be initialized to a better value later)
+    m_ZBottom = 0.0;
+    m_ZTop = 0.0;
+
+    m_lightPos = S3D_VERTEX(0.0f, 0.0f, 30.0f);
+
+    // Clear all gl list identifiers:
+    for( int ii = GL_ID_BEGIN; ii < GL_ID_END; ii++ )
+        m_glLists[ii] = 0;
+
     // Explicitly create a new rendering context instance for this canvas.
     m_glRC = new wxGLContext( this );
 
@@ -91,15 +116,47 @@ EDA_3D_CANVAS::~EDA_3D_CANVAS()
     ClearLists();
     m_init = false;
     delete m_glRC;
+
+    // Free the list of parsers list
+    for( unsigned int i = 0; i < m_model_parsers_list.size(); i++ )
+        if( m_model_parsers_list[i] )
+            delete m_model_parsers_list[i];
+
 }
 
 
-void EDA_3D_CANVAS::ClearLists()
+void EDA_3D_CANVAS::ClearLists( int aGlList )
 {
-    if( m_gllist > 0 )
-        glDeleteLists( m_gllist, 1 );
+    if( aGlList )
+    {
+        if( m_glLists[aGlList] > 0 )
+            glDeleteLists( m_glLists[aGlList], 1 );
 
-    m_gllist = 0;
+        m_glLists[aGlList] = 0;
+
+        return;
+    }
+
+    for( int ii = GL_ID_BEGIN; ii < GL_ID_END; ii++ )
+    {
+        if( m_glLists[ii] > 0 )
+            glDeleteLists( m_glLists[ii], 1 );
+
+        m_glLists[ii] = 0;
+    }
+
+    // When m_text_fake_shadow_??? is set to INVALID_INDEX, textures are no yet
+    // created.
+    if( m_text_fake_shadow_front != INVALID_INDEX )
+        glDeleteTextures( 1, &m_text_fake_shadow_front );
+
+    if( m_text_fake_shadow_back != INVALID_INDEX )
+        glDeleteTextures( 1, &m_text_fake_shadow_back );
+
+    if( m_text_fake_shadow_board != INVALID_INDEX )
+        glDeleteTextures( 1, &m_text_fake_shadow_board );
+
+    m_shadow_init = false;
 }
 
 
@@ -113,7 +170,7 @@ void EDA_3D_CANVAS::OnChar( wxKeyEvent& event )
 void EDA_3D_CANVAS::SetView3D( int keycode )
 {
     int    ii;
-    double delta_move = 0.7 * g_Parm_3D_Visu.m_Zoom;
+    double delta_move = 0.7 * GetPrm3DVisu().m_Zoom;
 
     switch( keycode )
     {
@@ -134,22 +191,22 @@ void EDA_3D_CANVAS::SetView3D( int keycode )
         break;
 
     case WXK_HOME:
-        g_Parm_3D_Visu.m_Zoom = 1.0;
+        GetPrm3DVisu().m_Zoom = 1.0;
         m_draw3dOffset.x = m_draw3dOffset.y = 0;
-        trackball( g_Parm_3D_Visu.m_Quat, 0.0, 0.0, 0.0, 0.0 );
+        trackball( GetPrm3DVisu().m_Quat, 0.0, 0.0, 0.0, 0.0 );
         break;
 
     case WXK_END:
         break;
 
     case WXK_F1:
-        g_Parm_3D_Visu.m_Zoom /= 1.4;
-        if( g_Parm_3D_Visu.m_Zoom <= 0.01 )
-            g_Parm_3D_Visu.m_Zoom = 0.01;
+        GetPrm3DVisu().m_Zoom /= 1.4;
+        if( GetPrm3DVisu().m_Zoom <= 0.01 )
+            GetPrm3DVisu().m_Zoom = 0.01;
         break;
 
     case WXK_F2:
-        g_Parm_3D_Visu.m_Zoom *= 1.4;
+        GetPrm3DVisu().m_Zoom *= 1.4;
         break;
 
     case '+':
@@ -162,59 +219,59 @@ void EDA_3D_CANVAS::SetView3D( int keycode )
     case 'R':
         m_draw3dOffset.x = m_draw3dOffset.y = 0;
         for( ii = 0; ii < 4; ii++ )
-            g_Parm_3D_Visu.m_Rot[ii] = 0.0;
+            GetPrm3DVisu().m_Rot[ii] = 0.0;
 
-        trackball( g_Parm_3D_Visu.m_Quat, 0.0, 0.0, 0.0, 0.0 );
+        trackball( GetPrm3DVisu().m_Quat, 0.0, 0.0, 0.0, 0.0 );
         break;
 
     case 'x':
         for( ii = 0; ii < 4; ii++ )
-            g_Parm_3D_Visu.m_Rot[ii] = 0.0;
+            GetPrm3DVisu().m_Rot[ii] = 0.0;
 
-        trackball( g_Parm_3D_Visu.m_Quat, 0.0, 0.0, 0.0, 0.0 );
-        g_Parm_3D_Visu.m_ROTZ = -90;
-        g_Parm_3D_Visu.m_ROTX = -90;
+        trackball( GetPrm3DVisu().m_Quat, 0.0, 0.0, 0.0, 0.0 );
+        GetPrm3DVisu().m_ROTZ = -90;
+        GetPrm3DVisu().m_ROTX = -90;
         break;
 
     case 'X':
         for( ii = 0; ii < 4; ii++ )
-            g_Parm_3D_Visu.m_Rot[ii] = 0.0;
+            GetPrm3DVisu().m_Rot[ii] = 0.0;
 
-        trackball( g_Parm_3D_Visu.m_Quat, 0.0, 0.0, 0.0, 0.0 );
-        g_Parm_3D_Visu.m_ROTZ = 90;
-        g_Parm_3D_Visu.m_ROTX = -90;
+        trackball( GetPrm3DVisu().m_Quat, 0.0, 0.0, 0.0, 0.0 );
+        GetPrm3DVisu().m_ROTZ = 90;
+        GetPrm3DVisu().m_ROTX = -90;
         break;
 
     case 'y':
         for( ii = 0; ii < 4; ii++ )
-            g_Parm_3D_Visu.m_Rot[ii] = 0.0;
+            GetPrm3DVisu().m_Rot[ii] = 0.0;
 
-        trackball( g_Parm_3D_Visu.m_Quat, 0.0, 0.0, 0.0, 0.0 );
-        g_Parm_3D_Visu.m_ROTX = -90;
+        trackball( GetPrm3DVisu().m_Quat, 0.0, 0.0, 0.0, 0.0 );
+        GetPrm3DVisu().m_ROTX = -90;
         break;
 
     case 'Y':
         for( ii = 0; ii < 4; ii++ )
-            g_Parm_3D_Visu.m_Rot[ii] = 0.0;
+            GetPrm3DVisu().m_Rot[ii] = 0.0;
 
-        trackball( g_Parm_3D_Visu.m_Quat, 0.0, 0.0, 0.0, 0.0 );
-        g_Parm_3D_Visu.m_ROTX = -90;
-        g_Parm_3D_Visu.m_ROTZ = -180;
+        trackball( GetPrm3DVisu().m_Quat, 0.0, 0.0, 0.0, 0.0 );
+        GetPrm3DVisu().m_ROTX = -90;
+        GetPrm3DVisu().m_ROTZ = -180;
         break;
 
     case 'z':
         for( ii = 0; ii < 4; ii++ )
-            g_Parm_3D_Visu.m_Rot[ii] = 0.0;
+            GetPrm3DVisu().m_Rot[ii] = 0.0;
 
-        trackball( g_Parm_3D_Visu.m_Quat, 0.0, 0.0, 0.0, 0.0 );
+        trackball( GetPrm3DVisu().m_Quat, 0.0, 0.0, 0.0, 0.0 );
         break;
 
     case 'Z':
         for( ii = 0; ii < 4; ii++ )
-            g_Parm_3D_Visu.m_Rot[ii] = 0.0;
+            GetPrm3DVisu().m_Rot[ii] = 0.0;
 
-        trackball( g_Parm_3D_Visu.m_Quat, 0.0, 0.0, 0.0, 0.0 );
-        g_Parm_3D_Visu.m_ROTX = -180;
+        trackball( GetPrm3DVisu().m_Quat, 0.0, 0.0, 0.0, 0.0 );
+        GetPrm3DVisu().m_ROTX = -180;
         break;
 
     default:
@@ -228,53 +285,55 @@ void EDA_3D_CANVAS::SetView3D( int keycode )
 
 void EDA_3D_CANVAS::OnMouseWheel( wxMouseEvent& event )
 {
-    wxSize size( GetClientSize() );
-
     if( event.ShiftDown() )
     {
         if( event.GetWheelRotation() < 0 )
-        {
-            /* up */
-            SetView3D( WXK_UP );
-        }
+            SetView3D( WXK_UP );    // move up
         else
-        {
-            /* down */
-            SetView3D( WXK_DOWN );
-        }
+            SetView3D( WXK_DOWN );  // move down
     }
     else if( event.ControlDown() )
     {
         if( event.GetWheelRotation() > 0 )
-        {
-            /* right */
-            SetView3D( WXK_RIGHT );
-        }
+            SetView3D( WXK_RIGHT ); // move right
         else
-        {
-            /* left */
-            SetView3D( WXK_LEFT );
-        }
+            SetView3D( WXK_LEFT );  // move left
     }
     else
     {
         if( event.GetWheelRotation() > 0 )
         {
-            g_Parm_3D_Visu.m_Zoom /= 1.4;
+            GetPrm3DVisu().m_Zoom /= 1.4;
 
-            if( g_Parm_3D_Visu.m_Zoom <= 0.01 )
-                g_Parm_3D_Visu.m_Zoom = 0.01;
+            if( GetPrm3DVisu().m_Zoom <= 0.01 )
+                GetPrm3DVisu().m_Zoom = 0.01;
         }
         else
-            g_Parm_3D_Visu.m_Zoom *= 1.4;
+            GetPrm3DVisu().m_Zoom *= 1.4;
 
         DisplayStatus();
         Refresh( false );
     }
 
-    g_Parm_3D_Visu.m_Beginx = event.GetX();
-    g_Parm_3D_Visu.m_Beginy = event.GetY();
+    GetPrm3DVisu().m_Beginx = event.GetX();
+    GetPrm3DVisu().m_Beginy = event.GetY();
 }
+
+
+#ifdef USE_OSX_MAGNIFY_EVENT
+void EDA_3D_CANVAS::OnMagnify( wxMouseEvent& event )
+{
+    double magnification = ( event.GetMagnification() + 1.0f );
+
+    GetPrm3DVisu().m_Zoom /= magnification;
+
+    if( GetPrm3DVisu().m_Zoom <= 0.01 )
+        GetPrm3DVisu().m_Zoom = 0.01;
+
+    DisplayStatus();
+    Refresh( false );
+}
+#endif
 
 
 void EDA_3D_CANVAS::OnMouseMove( wxMouseEvent& event )
@@ -288,12 +347,12 @@ void EDA_3D_CANVAS::OnMouseMove( wxMouseEvent& event )
         {
             /* drag in progress, simulate trackball */
             trackball( spin_quat,
-                       (2.0 * g_Parm_3D_Visu.m_Beginx - size.x) / size.x,
-                       (size.y - 2.0 * g_Parm_3D_Visu.m_Beginy) / size.y,
+                       (2.0 * GetPrm3DVisu().m_Beginx - size.x) / size.x,
+                       (size.y - 2.0 * GetPrm3DVisu().m_Beginy) / size.y,
                        (     2.0 * event.GetX() - size.x) / size.x,
                        ( size.y - 2.0 * event.GetY() ) / size.y );
 
-            add_quats( spin_quat, g_Parm_3D_Visu.m_Quat, g_Parm_3D_Visu.m_Quat );
+            add_quats( spin_quat, GetPrm3DVisu().m_Quat, GetPrm3DVisu().m_Quat );
         }
         else if( event.MiddleIsDown() )
         {
@@ -301,11 +360,11 @@ void EDA_3D_CANVAS::OnMouseMove( wxMouseEvent& event )
 
             /* Current zoom and an additional factor are taken into account
              * for the amount of panning. */
-            const double PAN_FACTOR = 8.0 * g_Parm_3D_Visu.m_Zoom;
+            const double PAN_FACTOR = 8.0 * GetPrm3DVisu().m_Zoom;
             m_draw3dOffset.x -= PAN_FACTOR *
-                           ( g_Parm_3D_Visu.m_Beginx - event.GetX() ) / size.x;
+                           ( GetPrm3DVisu().m_Beginx - event.GetX() ) / size.x;
             m_draw3dOffset.y -= PAN_FACTOR *
-                           (event.GetY() - g_Parm_3D_Visu.m_Beginy) / size.y;
+                           (event.GetY() - GetPrm3DVisu().m_Beginy) / size.y;
         }
 
         /* orientation has changed, redraw mesh */
@@ -313,8 +372,8 @@ void EDA_3D_CANVAS::OnMouseMove( wxMouseEvent& event )
         Refresh( false );
     }
 
-    g_Parm_3D_Visu.m_Beginx = event.GetX();
-    g_Parm_3D_Visu.m_Beginy = event.GetY();
+    GetPrm3DVisu().m_Beginx = event.GetX();
+    GetPrm3DVisu().m_Beginy = event.GetY();
 }
 
 
@@ -456,7 +515,7 @@ void EDA_3D_CANVAS::DisplayStatus()
     msg.Printf( wxT( "dy %3.2f" ), m_draw3dOffset.y );
     Parent()->SetStatusText( msg, 2 );
 
-    msg.Printf( wxT( "View: %3.1f" ), 45 * g_Parm_3D_Visu.m_Zoom );
+    msg.Printf( _( "Zoom: %3.1f" ), 45 * GetPrm3DVisu().m_Zoom );
     Parent()->SetStatusText( msg, 3 );
 }
 
@@ -475,121 +534,113 @@ void EDA_3D_CANVAS::OnEraseBackground( wxEraseEvent& event )
     // Do nothing, to avoid flashing.
 }
 
+typedef struct s_sImage
+{
+  unsigned int   width;
+  unsigned int   height;
+  unsigned int   bytes_per_pixel; /* 2:RGB16, 3:RGB, 4:RGBA */
+  unsigned char  pixel_data[64 * 64 * 4 + 1];
+}tsImage;
+
+
+GLuint load_and_generate_texture( tsImage *image )
+{
+
+    GLuint texture;
+    glPixelStorei (GL_UNPACK_ALIGNMENT, 1);
+    glPixelStorei (GL_PACK_ALIGNMENT, 1);
+
+    glGenTextures( 1, &texture );
+    glBindTexture( GL_TEXTURE_2D, texture );
+    gluBuild2DMipmaps( GL_TEXTURE_2D, GL_RGBA, image->width, image->height,
+                       GL_RGBA, GL_UNSIGNED_BYTE, image->pixel_data );
+
+    glTexParameterf( GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR );
+    glTexParameterf( GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR );
+    glTexParameterf( GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+    glTexParameterf( GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+
+    glTexEnvf( GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE );
+    return texture;
+}
 
 /* Initialize broad parameters for OpenGL */
 void EDA_3D_CANVAS::InitGL()
 {
-    wxSize size = GetClientSize();
-
     if( !m_init )
     {
         m_init = true;
-        g_Parm_3D_Visu.m_Zoom = 1.0;
+
+
+        m_text_pcb = load_and_generate_texture( (tsImage *)&text_pcb  );
+        m_text_silk = load_and_generate_texture( (tsImage *)&text_silk );
+
+        GetPrm3DVisu().m_Zoom = 1.0;
         m_ZBottom = 1.0;
         m_ZTop = 10.0;
 
         glDisable( GL_CULL_FACE );      // show back faces
-
         glEnable( GL_DEPTH_TEST );      // Enable z-buferring
-
+        glEnable( GL_ALPHA_TEST );
         glEnable( GL_LINE_SMOOTH );
+//        glEnable(GL_POLYGON_SMOOTH);  // creates issues with some graphic cards
+        glEnable( GL_NORMALIZE );
         glEnable( GL_COLOR_MATERIAL );
         glColorMaterial( GL_FRONT_AND_BACK, GL_AMBIENT_AND_DIFFUSE );
 
-        /* speedups */
-        glEnable( GL_DITHER );
-        glShadeModel( GL_SMOOTH );
+        // speedups
+        //glEnable( GL_DITHER );
         glHint( GL_PERSPECTIVE_CORRECTION_HINT, GL_DONT_CARE );
         glHint( GL_LINE_SMOOTH_HINT, GL_NICEST );
-        glHint( GL_POLYGON_SMOOTH_HINT, GL_NICEST );    // can be GL_FASTEST
+        glHint( GL_POLYGON_SMOOTH_HINT, GL_NICEST );
 
-        /* blend */
+        // Initialize alpha blending function.
         glEnable( GL_BLEND );
         glBlendFunc( GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA );
     }
-
-    // set viewing projection
-
-    glMatrixMode( GL_PROJECTION );
-    glLoadIdentity();
-
-#define MAX_VIEW_ANGLE 160.0 / 45.0
-    if( g_Parm_3D_Visu.m_Zoom > MAX_VIEW_ANGLE )
-        g_Parm_3D_Visu.m_Zoom = MAX_VIEW_ANGLE;
-
-     if( Parent()->ModeIsOrtho() )
-     {
-         // OrthoReductionFactor is chosen so as to provide roughly the same size as
-         // Perspective View
-         const double orthoReductionFactor = 400 / g_Parm_3D_Visu.m_Zoom;
-
-         // Initialize Projection Matrix for Ortographic View
-         glOrtho( -size.x / orthoReductionFactor, size.x / orthoReductionFactor,
-                  -size.y / orthoReductionFactor, size.y / orthoReductionFactor, 1, 10 );
-     }
-     else
-     {
-         // Ratio width / height of the window display
-         double ratio_HV = (double) size.x / size.y;
-
-         // Initialize Projection Matrix for Perspective View
-         gluPerspective( 45.0 * g_Parm_3D_Visu.m_Zoom, ratio_HV, 1, 10 );
-     }
-
-
-    // position viewer
-    glMatrixMode( GL_MODELVIEW );
-    glLoadIdentity();
-    glTranslatef( 0.0F, 0.0F, -( m_ZBottom + m_ZTop) / 2 );
-
-    // clear color and depth buffers
-    glClearColor( g_Parm_3D_Visu.m_BgColor.m_Red,
-                  g_Parm_3D_Visu.m_BgColor.m_Green,
-                  g_Parm_3D_Visu.m_BgColor.m_Blue, 1 );
-    glClear( GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT );
-
-    // Setup light sources:
-    SetLights();
-
-    CheckGLError();
 }
 
 
 /* Initialize OpenGL light sources. */
 void EDA_3D_CANVAS::SetLights()
 {
-    double  light;
-    GLfloat light_color[4];
-
-    /* set viewing projection */
+    // activate light. the source is above the xy plane, at source_pos
+    GLfloat source_pos[4]    = { m_lightPos.x, m_lightPos.y, m_lightPos.z, 0.0f };
+    GLfloat light_color[4];     // color of lights (RGBA values)
     light_color[3] = 1.0;
-    GLfloat Z_axis_pos[4]    = { 0.0, 0.0, 3.0, 0.0 };
-    GLfloat lowZ_axis_pos[4] = { 0.0, 0.0, -3.0, 0.5 };
 
-    /* activate light */
-    light = 1.0;
-    light_color[0] = light_color[1] = light_color[2] = light;
-    glLightfv( GL_LIGHT0, GL_POSITION, Z_axis_pos );
+    // Light above the xy plane
+    light_color[0] = light_color[1] = light_color[2] = 0.0;
+    glLightfv( GL_LIGHT0, GL_AMBIENT, light_color );
+
+    light_color[0] = light_color[1] = light_color[2] = 1.0;
     glLightfv( GL_LIGHT0, GL_DIFFUSE, light_color );
-    light = 0.3;
-    light_color[0] = light_color[1] = light_color[2] = light;
-    glLightfv( GL_LIGHT1, GL_POSITION, lowZ_axis_pos );
-    glLightfv( GL_LIGHT1, GL_DIFFUSE, light_color );
-    glEnable( GL_LIGHT0 );      // White spot on Z axis
-    glEnable( GL_LIGHT1 );      // White spot on Z axis ( bottom)
+
+    light_color[0] = light_color[1] = light_color[2] = 1.0;
+    glLightfv( GL_LIGHT0, GL_SPECULAR, light_color );
+
+    glLightfv( GL_LIGHT0, GL_POSITION, source_pos );
+
+    light_color[0] = light_color[1] = light_color[2] = 0.2;
+    glLightModelfv( GL_LIGHT_MODEL_AMBIENT, light_color );
+
+    glLightModeli( GL_LIGHT_MODEL_TWO_SIDE, GL_FALSE );
+
+    glEnable( GL_LIGHT0 );      // White spot on Z axis ( top )
     glEnable( GL_LIGHTING );
 }
 
 
-/* Create a Screenshot of the current 3D view.
- *  Output file format is png or jpeg, or image is copied to the clipboard
- */
 void EDA_3D_CANVAS::TakeScreenshot( wxCommandEvent& event )
 {
-    wxFileName fn( Parent()->GetDefaultFileName() );
-    wxString   FullFileName;
-    wxString   file_ext, mask;
-    bool       fmt_is_jpeg = false;
+    static wxFileName fn;                 // Remember path between saves during this session only.
+    wxString          FullFileName;
+    wxString          file_ext, mask;
+    bool              fmt_is_jpeg = false;
+
+    // First time path is set to the project path.
+    if( !fn.IsOk() )
+        fn = Parent()->Prj().GetProjectFullName();
 
     if( event.GetId() == ID_MENU_SCREENCOPY_JPEG )
         fmt_is_jpeg = true;
@@ -598,15 +649,16 @@ void EDA_3D_CANVAS::TakeScreenshot( wxCommandEvent& event )
     {
         file_ext     = fmt_is_jpeg ? wxT( "jpg" ) : wxT( "png" );
         mask         = wxT( "*." ) + file_ext;
-        FullFileName = Parent()->GetDefaultFileName();
         fn.SetExt( file_ext );
 
-        FullFileName = EDA_FileSelector( _( "3D Image filename:" ), wxEmptyString,
+        FullFileName = EDA_FileSelector( _( "3D Image File Name:" ), fn.GetPath(),
                                          fn.GetFullName(), file_ext, mask, this,
-                                         wxFD_SAVE, true );
+                                         wxFD_SAVE | wxFD_OVERWRITE_PROMPT, true );
 
         if( FullFileName.IsEmpty() )
             return;
+
+        fn = FullFileName;
 
         // Be sure the screen area destroyed by the file dialog is redrawn before making
         // a screen copy.
@@ -614,13 +666,17 @@ void EDA_3D_CANVAS::TakeScreenshot( wxCommandEvent& event )
         wxYield();
     }
 
-    struct vieport_params
+    struct viewport_params
     {
         GLint originx;
         GLint originy;
         GLint x;
         GLint y;
     } viewport;
+
+    // Be sure we have the latest 3D view (remember 3D view is buffered)
+    Refresh();
+    wxYield();
 
     // Build image from the 3D buffer
     wxWindowUpdateLocker noUpdates( this );
@@ -639,7 +695,6 @@ void EDA_3D_CANVAS::TakeScreenshot( wxCommandEvent& event )
                   viewport.x, viewport.y,
                   GL_ALPHA, GL_UNSIGNED_BYTE, alphabuffer );
 
-
     image.SetData( pixelbuffer );
     image.SetAlpha( alphabuffer );
     image = image.Mirror( false );
@@ -647,17 +702,15 @@ void EDA_3D_CANVAS::TakeScreenshot( wxCommandEvent& event )
 
     if( event.GetId() == ID_TOOL_SCREENCOPY_TOCLIBBOARD )
     {
-        wxBitmapDataObject* dobjBmp = new wxBitmapDataObject;
-        dobjBmp->SetBitmap( bitmap );
-
         if( wxTheClipboard->Open() )
         {
+            wxBitmapDataObject* dobjBmp = new wxBitmapDataObject( bitmap );
+
             if( !wxTheClipboard->SetData( dobjBmp ) )
                 wxMessageBox( _( "Failed to copy image to clipboard" ) );
 
             wxTheClipboard->Flush();    /* the data in clipboard will stay
-                                         * available after the
-                                         * application exits */
+                                         * available after the application exits */
             wxTheClipboard->Close();
         }
     }

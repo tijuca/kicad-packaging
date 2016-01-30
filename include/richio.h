@@ -29,13 +29,43 @@
 // "richio" after its author, Richard Hollenbeck, aka Dick Hollenbeck.
 
 
-#include <string>
 #include <vector>
+#include <utf8.h>
 
 // I really did not want to be dependent on wxWidgets in richio
 // but the errorText needs to be wide char so wxString rules.
 #include <wx/wx.h>
 #include <stdio.h>
+
+
+/**
+ * Function StrPrintf
+ * is like sprintf() but the output is appended to a std::string instead of to a
+ * character array.
+ * @param aResult is the string to append to, previous text is not clear()ed.
+ * @param aFormat is a printf() style format string.
+ * @return int - the count of bytes appended to the result string, no terminating
+ *           nul is included.
+ */
+int
+#if defined(__GNUG__)
+    __attribute__ ((format (printf, 2, 3)))
+#endif
+    StrPrintf( std::string* aResult, const char* aFormat, ... );
+
+
+/**
+ * Function StrPrintf
+ * is like sprintf() but the output is returned in a std::string instead of to a
+ * character array.
+ * @param format is a printf() style format string.
+ * @return std::string - the result of the sprintf().
+ */
+std::string
+#if defined(__GNUG__)
+    __attribute__ ((format (printf, 1, 2)))
+#endif
+    StrPrintf( const char* format, ... );
 
 
 /**
@@ -45,7 +75,7 @@
 
 
 #define IO_FORMAT       _( "IO_ERROR: %s\nfrom %s : %s" )
-#define PARSE_FORMAT    _( "PARSE_ERROR: %s in input/source \"%s\", line %d, offset %d\nfrom %s : %s" )
+#define PARSE_FORMAT    _( "PARSE_ERROR: %s in input/source\n'%s'\nline %d\noffset %d\nfrom %s : %s" )
 
 // references:
 // http://stackoverflow.com/questions/2670816/how-can-i-use-the-compile-time-constant-line-in-a-string
@@ -62,7 +92,7 @@
 
 /**
  * Struct IO_ERROR
- * is a class used to hold an error message and may be used to throw exceptions
+ * is a class used to hold an error message and may be used when throwing exceptions
  * containing meaningful error messages.
  * @author Dick Hollenbeck
  */
@@ -84,31 +114,29 @@ struct IO_ERROR // : std::exception
      * @param aMsg is error text that will be streamed through wxString.Printf()
      *  using the format string IO_FORMAT above.
      */
-    IO_ERROR( const char* aThrowersFile,
+    explicit IO_ERROR( const char* aThrowersFile,
               const char* aThrowersLoc,
               const wxString& aMsg )
     {
         init( aThrowersFile, aThrowersLoc, aMsg );
     }
 
-#if !wxCHECK_VERSION(2, 9, 0)
-    // 2.9.0 and greater provide a wxString() constructor taking "const char*" whereas
-    // 2.8 did not.  In 2.9.x this IO_ERROR() constructor uses that wxString( const char* )
-    // constructor making this here constructor ambiguous with the IO_ERROR()
-    // taking the wxString.
-
-    IO_ERROR( const char* aThrowersFile,
+    explicit IO_ERROR( const char* aThrowersFile,
               const char* aThrowersLoc,
               const std::string& aMsg )
     {
         init( aThrowersFile, aThrowersLoc, wxString::FromUTF8( aMsg.c_str() ) );
     }
-#endif
 
-    /**
-     * handles the case where _() is passed as aMsg.
-     */
-    IO_ERROR( const char* aThrowersFile,
+    explicit IO_ERROR( const char* aThrowersFile,
+              const char* aThrowersLoc,
+              const char* aMsg )
+    {
+        init( aThrowersFile, aThrowersLoc, wxString::FromUTF8( aMsg ) );
+    }
+
+    /// handle the case where _() is passed as aMsg.
+    explicit IO_ERROR( const char* aThrowersFile,
               const char* aThrowersLoc,
               const wxChar* aMsg )
     {
@@ -119,12 +147,14 @@ struct IO_ERROR // : std::exception
 
     IO_ERROR() {}
 
-    ~IO_ERROR() throw ( /*none*/ ){}
+    // Destructor is virtual because PARSE_ERROR is derived from it and
+    // boost::ptr_vector lists consisting of both will need a virtual destructor.
+    virtual ~IO_ERROR() throw ( /*none*/ ){}
 };
 
 
 /**
- * Class PARSE_ERROR
+ * Struct PARSE_ERROR
  * contains a filename or source description, a problem input line, a line number,
  * a byte offset, and an error message which contains the the caller's report and his
  * call site information: CPP source file, function, and line number.
@@ -401,8 +431,9 @@ public:
      * Constructor WXINPUTSTREAM_LINE_READER
      *
      * @param aStream A pointer to a wxInputStream object to read.
+     * @param aSource The name of the stream source, for error reporting purposes.
      */
-    INPUTSTREAM_LINE_READER( wxInputStream* aStream );
+    INPUTSTREAM_LINE_READER( wxInputStream* aStream, const wxString& aSource );
 
     char* ReadLine() throw( IO_ERROR );    // see LINE_READER::ReadLine() description
 };
@@ -574,7 +605,7 @@ public:
      */
     void StripUseless();
 
-    std::string GetString()
+    const std::string& GetString()
     {
         return mystring;
     }
@@ -647,6 +678,5 @@ protected:
     void write( const char* aOutBuf, int aCount ) throw( IO_ERROR );
     //-----</OUTPUTFORMATTER>-----------------------------------------------
 };
-
 
 #endif // RICHIO_H_

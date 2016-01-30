@@ -1,5 +1,5 @@
 ///////////////////////////////////////////////////////////////////////////
-// C++ code generated with wxFormBuilder (version Oct  8 2012)
+// C++ code generated with wxFormBuilder (version Jun 17 2015)
 // http://www.wxformbuilder.org/
 //
 // PLEASE DO "NOT" EDIT THIS FILE!
@@ -12,6 +12,7 @@
 #include <wx/xrc/xmlres.h>
 #include <wx/intl.h>
 class DIALOG_SHIM;
+class WX_HTML_REPORT_PANEL;
 
 #include "dialog_shim.h"
 #include <wx/string.h>
@@ -23,8 +24,10 @@ class DIALOG_SHIM;
 #include <wx/sizer.h>
 #include <wx/button.h>
 #include <wx/statline.h>
+#include <wx/checkbox.h>
 #include <wx/stattext.h>
 #include <wx/textctrl.h>
+#include <wx/panel.h>
 #include <wx/dialog.h>
 
 ///////////////////////////////////////////////////////////////////////////
@@ -39,34 +42,41 @@ class DIALOG_NETLIST_FBP : public DIALOG_SHIM
 	protected:
 		enum
 		{
-			ID_OPEN_NELIST = 1000,
-			ID_READ_NETLIST_FILE,
+			ID_READ_NETLIST_FILE = 1000,
 			ID_TEST_NETLIST,
-			ID_COMPILE_RATSNEST
+			ID_COMPILE_RATSNEST,
+			ID_OPEN_NELIST
 		};
 		
 		wxRadioBox* m_Select_By_Timestamp;
-		wxRadioBox* m_cmpNameSourceOpt;
 		wxRadioBox* m_ChangeExistingFootprintCtrl;
 		wxRadioBox* m_DeleteBadTracks;
 		wxRadioBox* m_RemoveExtraFootprintsCtrl;
-		wxButton* m_buttonBrowse;
+		wxRadioBox* m_rbSingleNets;
 		wxButton* m_buttonRead;
+		wxButton* m_buttonClose;
 		wxButton* m_buttonFPTest;
 		wxButton* m_buttonRebild;
-		wxButton* m_buttonClose;
+		wxButton* m_buttonSaveMessages;
+		wxStaticLine* m_staticline11;
+		wxCheckBox* m_checkDryRun;
+		wxCheckBox* m_checkBoxSilentMode;
 		wxStaticLine* m_staticline1;
 		wxStaticText* m_staticTextNetfilename;
 		wxTextCtrl* m_NetlistFilenameCtrl;
-		wxStaticText* m_staticText1;
-		wxTextCtrl* m_MessageWindow;
+		wxButton* m_buttonBrowse;
+		WX_HTML_REPORT_PANEL* m_MessageWindow;
 		
 		// Virtual event handlers, overide them in your derived class
-		virtual void OnOpenNetlistClick( wxCommandEvent& event ) { event.Skip(); }
 		virtual void OnReadNetlistFileClick( wxCommandEvent& event ) { event.Skip(); }
+		virtual void OnUpdateUIValidNetlistFile( wxUpdateUIEvent& event ) { event.Skip(); }
+		virtual void OnCancelClick( wxCommandEvent& event ) { event.Skip(); }
 		virtual void OnTestFootprintsClick( wxCommandEvent& event ) { event.Skip(); }
 		virtual void OnCompileRatsnestClick( wxCommandEvent& event ) { event.Skip(); }
-		virtual void OnCancelClick( wxCommandEvent& event ) { event.Skip(); }
+		virtual void OnSaveMessagesToFile( wxCommandEvent& event ) { event.Skip(); }
+		virtual void OnUpdateUISaveMessagesToFile( wxUpdateUIEvent& event ) { event.Skip(); }
+		virtual void OnClickSilentMode( wxCommandEvent& event ) { event.Skip(); }
+		virtual void OnOpenNetlistClick( wxCommandEvent& event ) { event.Skip(); }
 		
 	
 	public:

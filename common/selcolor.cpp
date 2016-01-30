@@ -1,12 +1,32 @@
-/****************/
-/* SELCOLOR.CPP */
-/****************/
+/*
+ * This program source code file is part of KiCad, a free EDA CAD application.
+ *
+ * Copyright (C) 2014 Jean-Pierre Charras, jp.charras at wanadoo.fr
+ * Copyright (C) 2014 KiCad Developers, see CHANGELOG.TXT for contributors.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation; either version 2
+ * of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, you may find one here:
+ * http://www.gnu.org/licenses/old-licenses/gpl-2.0.html
+ * or you may search the http://www.gnu.org website for the version 2 license,
+ * or you may write to the Free Software Foundation, Inc.,
+ * 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
+ */
+
 
 /* Dialog for selecting color from the palette of available colors.
  */
 
 #include <fctsys.h>
-#include <gr_basic.h>
 #include <common.h>
 #include <colors.h>
 
@@ -20,7 +40,6 @@ enum colors_id {
 
 class WinEDA_SelColorFrame : public wxDialog
 {
-private:
 public:
     WinEDA_SelColorFrame( wxWindow* parent,
                           const wxPoint& framepos, int OldColor );
@@ -54,7 +73,7 @@ EDA_COLOR_T DisplayColorFrame( wxWindow* parent, int OldColor )
                                                             framepos, OldColor );
     color = static_cast<EDA_COLOR_T>( frame->ShowModal() );
     frame->Destroy();
-    if( color > NBCOLOR )
+    if( color > NBCOLORS )
         color = UNSPECIFIED_COLOR;
     return color;
 }
@@ -64,7 +83,7 @@ WinEDA_SelColorFrame::WinEDA_SelColorFrame( wxWindow*      parent,
                                             const wxPoint& framepos,
                                             int            OldColor ) :
     wxDialog( parent, -1, _( "Colors" ), framepos, wxDefaultSize,
-              wxDEFAULT_DIALOG_STYLE | MAYBE_RESIZE_BORDER )
+              wxDEFAULT_DIALOG_STYLE | wxRESIZE_BORDER )
 {
 
     Init_Dialog( OldColor );
@@ -94,19 +113,24 @@ WinEDA_SelColorFrame::WinEDA_SelColorFrame( wxWindow*      parent,
 
     windowPosition = GetPosition();
     wxRect freeScreenArea( wxGetClientDisplayRect( ) );
+
     if( freeScreenArea.GetRight() < endCornerPosition.x )
     {
         windowPosition.x += freeScreenArea.GetRight() - endCornerPosition.x;
+
         if( windowPosition.x < freeScreenArea.x )
             windowPosition.x = freeScreenArea.x;
+
         // Sligly modify the vertical position to avoid the mouse to be
         // exactly on the upper side of the window
         windowPosition.y +=5;
         endCornerPosition.y += 5;
     }
+
     if( freeScreenArea.GetBottom() < endCornerPosition.y )
     {
         windowPosition.y += freeScreenArea.GetBottom() - endCornerPosition.y;
+
         if( windowPosition.y < freeScreenArea.y )
             windowPosition.y = freeScreenArea.y;
     }
@@ -125,7 +149,7 @@ void WinEDA_SelColorFrame::Init_Dialog( int aOldColor )
     wxStdDialogButtonSizer* StdDialogButtonSizer = NULL;
     wxButton* Button = NULL;
 
-    int       ii, butt_ID, buttcolor;
+    int       ii, butt_ID;
     int       w = 20, h = 20;
     bool      ColorFound = false;
 
@@ -137,17 +161,17 @@ void WinEDA_SelColorFrame::Init_Dialog( int aOldColor )
     MainBoxSizer = new wxBoxSizer( wxHORIZONTAL );
     OuterBoxSizer->Add( MainBoxSizer, 1, wxGROW | wxLEFT | wxRIGHT | wxTOP, 5 );
 
-    for( ii = 0; ColorRefs[ii].m_Name != NULL && ii < NBCOLOR; ii++ )
+    for( ii = 0; ii < NBCOLORS; ++ii )
     {
-        // Provide a separate column for every eight buttons (and their
+        // Provide a separate column for every six buttons (and their
         // associated text strings), so provide a FlexGrid Sizer with
         // eight rows and two columns.
-        if( ii % 8 == 0 )
+        if( ii % 6 == 0 )
         {
-            FlexColumnBoxSizer = new wxFlexGridSizer( 8, 2, 0, 0 );
+            FlexColumnBoxSizer = new wxFlexGridSizer( 6, 2, 0, 0 );
 
             // Specify that all of the rows can be expanded.
-            for( int ii = 0; ii < 8; ii++ )
+            for( int ii = 0; ii < 6; ii++ )
             {
                 FlexColumnBoxSizer->AddGrowableRow( ii );
             }
@@ -161,16 +185,17 @@ void WinEDA_SelColorFrame::Init_Dialog( int aOldColor )
         butt_ID = ID_COLOR_BLACK + ii;
         wxMemoryDC iconDC;
         wxBitmap   ButtBitmap( w, h );
-        wxBrush    Brush;
-        iconDC.SelectObject( ButtBitmap );
-        buttcolor = ColorRefs[ii].m_Numcolor;
-        iconDC.SetPen( *wxBLACK_PEN );
-        Brush.SetColour( ColorRefs[buttcolor].m_Red,
-                         ColorRefs[buttcolor].m_Green,
-                         ColorRefs[buttcolor].m_Blue );
-        Brush.SetStyle( wxSOLID );
+        wxBrush    brush;
 
-        iconDC.SetBrush( Brush );
+        iconDC.SelectObject( ButtBitmap );
+
+        EDA_COLOR_T buttcolor = g_ColorRefs[ii].m_Numcolor;
+
+        iconDC.SetPen( *wxBLACK_PEN );
+        ColorSetBrush( &brush, buttcolor );
+        brush.SetStyle( wxBRUSHSTYLE_SOLID );
+
+        iconDC.SetBrush( brush );
         iconDC.SetBackground( *wxGREY_BRUSH );
         iconDC.Clear();
         iconDC.DrawRoundedRectangle( 0, 0, w, h, (double) h / 3 );
@@ -190,7 +215,7 @@ void WinEDA_SelColorFrame::Init_Dialog( int aOldColor )
             BitmapButton->SetFocus();
         }
 
-        Label = new wxStaticText( this, -1, ColorRefs[ii].m_Name,
+        Label = new wxStaticText( this, -1, ColorGetName( buttcolor ),
                                   wxDefaultPosition, wxDefaultSize, 0 );
         FlexColumnBoxSizer->Add( Label, 1,
                                  wxALIGN_LEFT | wxALIGN_CENTER_VERTICAL |

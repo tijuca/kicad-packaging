@@ -32,6 +32,21 @@
 RECTWAVEGUIDE::RECTWAVEGUIDE() : TRANSLINE()
 {
     m_name = "RectWaveGuide";
+
+    // Initialize these here variables mainly to avoid warnings from a static analyzer
+    mur = 0.0;                  // magnetic permeability of substrate
+    tanm = 0.0;                 // Magnetic Loss Tangent
+    a = 0.0;                    // width of waveguide
+    b = 0.0;                    // height of waveguide
+    l = 0.0;                    // length of waveguide
+    Z0 = 0.0;                   // characteristic impedance
+    Z0EH = 0.0;                 // characteristic impedance of field quantities*/
+    ang_l = 0.0;                // Electrical length in angle
+    er_eff = 0.0;               // Effective dielectric constant
+    mur_eff = 0.0;              // Effective mag. permeability
+    atten_dielectric = 0.0;     // Loss in dielectric (dB)
+    atten_cond = 0.0;           // Loss in conductors (dB)
+    fc10 = 0.0;                 // Cutoff frequency for TE10 mode
 }
 
 
@@ -358,7 +373,7 @@ void RECTWAVEGUIDE::show_results()
                     continue;
                 if( f >= ( fc( m, n ) ) )
                 {
-                    sprintf( txt, "H(%u,%u) ", m, n );
+                    sprintf( txt, "H(%d,%d) ", m, n );
                     if( (strlen( text ) + strlen( txt ) + 5) < MAXSTRLEN )
                         strcat( text, txt );
                     else
@@ -384,7 +399,7 @@ void RECTWAVEGUIDE::show_results()
             {
                 if( f >= fc( m, n ) )
                 {
-                    sprintf( txt, "E(%u,%u) ", m, n );
+                    sprintf( txt, "E(%d,%d) ", m, n );
                     if( (strlen( text ) + strlen( txt ) + 5) < MAXSTRLEN )
                         strcat( text, txt );
                     else

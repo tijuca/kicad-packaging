@@ -1,9 +1,9 @@
 /*
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
- * Copyright (C) 2009 Jean-Pierre Charras, jaen-pierre.charras@gipsa-lab.inpg.com
- * Copyright (C) 2011 Wayne Stambaugh <stambaughw@verizon.net>
- * Copyright (C) 1992-2011 KiCad Developers, see AUTHORS.txt for contributors.
+ * Copyright (C) 2015 Jean-Pierre Charras, jp.charras at wanadoo.fr
+ * Copyright (C) 2013-2015 Wayne Stambaugh <stambaughw@verizon.net>
+ * Copyright (C) 1992-2015 KiCad Developers, see AUTHORS.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -36,39 +36,42 @@
 
 #include <build_version.h>
 #include <fctsys.h>
-#include <appl_wxstruct.h>
+#include <pgm_base.h>
+#include <kiface_i.h>
 #include <online_help.h>
 #include <id.h>
 #include <eda_doc.h>
 #include <wxstruct.h>
 #include <macros.h>
 #include <menus_helpers.h>
+#include <dialog_shim.h>
 
 #include <boost/version.hpp>
-
+#include <typeinfo>
 
 /// The default auto save interval is 10 minutes.
 #define DEFAULT_AUTO_SAVE_INTERVAL 600
 
 
-const wxChar* traceAutoSave = wxT( "KicadAutoSave" );
+const wxChar traceAutoSave[] = wxT( "KicadAutoSave" );
 
 /// Configuration file entry name for auto save interval.
-static const wxChar* entryAutoSaveInterval = wxT( "AutoSaveInterval" );
+static const wxChar entryAutoSaveInterval[] = wxT( "AutoSaveInterval" );
+
+/// Configuration file entry for wxAuiManger perspective.
+static const wxChar entryPerspective[] = wxT( "Perspective" );
 
 
-EDA_BASE_FRAME::EDA_BASE_FRAME( wxWindow* aParent,
-                                ID_DRAWFRAME_TYPE aFrameType,
-                                const wxString& aTitle,
-                                const wxPoint& aPos, const wxSize& aSize,
-                                long aStyle, const wxString & aFrameName ) :
+
+EDA_BASE_FRAME::EDA_BASE_FRAME( wxWindow* aParent, FRAME_T aFrameType,
+        const wxString& aTitle, const wxPoint& aPos, const wxSize& aSize,
+        long aStyle, const wxString& aFrameName ) :
     wxFrame( aParent, wxID_ANY, aTitle, aPos, aSize, aStyle, aFrameName )
 {
     wxSize minsize;
 
     m_Ident = aFrameType;
     m_mainToolBar = NULL;
-    m_FrameIsActive = true;
     m_hasAutoSave = false;
     m_autoSaveState = false;
     m_autoSaveInterval = -1;
@@ -95,19 +98,63 @@ EDA_BASE_FRAME::EDA_BASE_FRAME( wxWindow* aParent,
 
     Connect( ID_AUTO_SAVE_TIMER, wxEVT_TIMER,
              wxTimerEventHandler( EDA_BASE_FRAME::onAutoSaveTimer ) );
+
+    // hook wxEVT_CLOSE_WINDOW so we can call SaveSettings().  This function seems
+    // to be called before any other hook for wxCloseEvent, which is necessary.
+    Connect( wxEVT_CLOSE_WINDOW, wxCloseEventHandler( EDA_BASE_FRAME::windowClosing ) );
+}
+
+
+void EDA_BASE_FRAME::windowClosing( wxCloseEvent& event )
+{
+    DIALOG_SHIM* dlg  = NULL;
+    wxWindowList list = GetChildren();
+
+    // Quasi modal dialogs create issues (crashes) when closing Kicad.
+    // I am guessing they are delete too late, when deleting main frames.
+    // AFAIK, only these DIALOG_SHIM dialogs create such issues.
+    // The policy is do not allow closing Kicad if a Quasi modal dialog is open.
+    // (Anyway, closing without prompting the user is certainly bad,
+    // because an edit is in preogress)
+    // Therefore, iterate through the child list to find at least
+    // a DIALOG_SHIM opened in quasi modal mode
+    for( wxWindowList::iterator iter = list.begin(); iter != list.end(); ++iter )
+    {
+        if( (dlg = dynamic_cast<DIALOG_SHIM*> (*iter) ) != NULL )
+        {
+            if( dlg->IsQuasiModal() )
+                break;
+            else
+                dlg = NULL;
+        }
+    }
+
+    if( dlg )
+    {
+        // Happens when a quasi modal dialog is currently open.
+        // For example: if the Kicad manager try to close Kicad.
+        wxMessageBox( _(
+                "The program cannot be closed\n"
+                "A quasi-modal dialog window is currently open, please close it first." ) );
+        event.Veto();
+        return;
+    }
+
+    wxConfigBase* cfg = config();
+
+    if( cfg )
+        SaveSettings( cfg );       // virtual, wxFrame specific
+
+    event.Skip();       // we did not "handle" the event, only eavesdropped on it.
 }
 
 
 EDA_BASE_FRAME::~EDA_BASE_FRAME()
 {
-    if( wxGetApp().GetHtmlHelpController() )
-        wxGetApp().SetHtmlHelpController( NULL );
-
     delete m_autoSaveTimer;
 
-    /* This needed for OSX: avoids further OnDraw processing after this
-     * destructor and before the native window is destroyed
-     */
+    // This is needed for OSX: avoids further OnDraw processing after this
+    // destructor and before the native window is destroyed
     this->Freeze();
 }
 
@@ -117,7 +164,8 @@ bool EDA_BASE_FRAME::ProcessEvent( wxEvent& aEvent )
     if( !wxFrame::ProcessEvent( aEvent ) )
         return false;
 
-    if( m_hasAutoSave && (m_autoSaveState != isAutoSaveRequired()) && (m_autoSaveInterval > 0) )
+    if( IsShown() && m_hasAutoSave &&
+        (m_autoSaveState != isAutoSaveRequired()) && (m_autoSaveInterval > 0) )
     {
         if( !m_autoSaveState )
         {
@@ -134,6 +182,19 @@ bool EDA_BASE_FRAME::ProcessEvent( wxEvent& aEvent )
     }
 
     return true;
+}
+
+
+bool EDA_BASE_FRAME::Enable( bool enable )
+{
+    // so we can do logging of this state change:
+
+#if defined(DEBUG)
+    const char* type_id = typeid( *this ).name();
+    printf( "wxFrame %-28s: %s\n", type_id, enable ? "enabled" : "disabled" );
+#endif
+
+    return wxFrame::Enable( enable );
 }
 
 
@@ -155,98 +216,120 @@ void EDA_BASE_FRAME::ReCreateMenuBar()
 }
 
 
-void EDA_BASE_FRAME::SetLanguage( wxCommandEvent& event )
+void EDA_BASE_FRAME::ShowChangedLanguage()
 {
-    int id = event.GetId();
-
-    wxGetApp().SetLanguageIdentifier( id );
-    wxGetApp().SetLanguage();
     ReCreateMenuBar();
     GetMenuBar()->Refresh();
 }
 
 
-void EDA_BASE_FRAME::LoadSettings()
+void EDA_BASE_FRAME::LoadSettings( wxConfigBase* aCfg )
 {
-    wxString  text;
-    int       Ypos_min;
-    wxConfig* config;
-
-    config = wxGetApp().GetSettings();
-
     int maximized = 0;
 
-    if( config )
+    wxString baseCfgName = ConfigBaseName();
+
+    wxString text = baseCfgName + wxT( "Pos_x" );
+    aCfg->Read( text, &m_FramePos.x );
+
+    text = baseCfgName + wxT( "Pos_y" );
+    aCfg->Read( text, &m_FramePos.y );
+
+    text = baseCfgName + wxT( "Size_x" );
+    aCfg->Read( text, &m_FrameSize.x, 600 );
+
+    text = baseCfgName + wxT( "Size_y" );
+    aCfg->Read( text, &m_FrameSize.y, 400 );
+
+    text = baseCfgName + wxT( "Maximized" );
+    aCfg->Read( text, &maximized, 0 );
+
+    if( m_hasAutoSave )
     {
-        text = m_FrameName + wxT( "Pos_x" );
-        config->Read( text, &m_FramePos.x );
-
-        text = m_FrameName + wxT( "Pos_y" );
-        config->Read( text, &m_FramePos.y );
-
-        text = m_FrameName + wxT( "Size_x" );
-        config->Read( text, &m_FrameSize.x, 600 );
-
-        text = m_FrameName + wxT( "Size_y" );
-        config->Read( text, &m_FrameSize.y, 400 );
-
-        text = m_FrameName + wxT( "Maximized" );
-        config->Read( text, &maximized, 0 );
-
-        if( m_hasAutoSave )
-        {
-            text = m_FrameName + entryAutoSaveInterval;
-            config->Read( text, &m_autoSaveInterval, DEFAULT_AUTO_SAVE_INTERVAL );
-        }
+        text = baseCfgName + entryAutoSaveInterval;
+        aCfg->Read( text, &m_autoSaveInterval, DEFAULT_AUTO_SAVE_INTERVAL );
     }
 
     // Ensure Window title bar is visible
 #if defined( __WXMAC__ )
     // for macOSX, the window must be below system (macOSX) toolbar
-//    Ypos_min = GetMBarHeight(); seems no more exist in new API (subject to change)
-    Ypos_min = 20;
+    // Ypos_min = GetMBarHeight(); seems no more exist in new API (subject to change)
+    int Ypos_min = 20;
 #else
-    Ypos_min = 0;
+    int Ypos_min = 0;
 #endif
     if( m_FramePos.y < Ypos_min )
         m_FramePos.y = Ypos_min;
 
     if( maximized )
         Maximize();
+
+    aCfg->Read( baseCfgName + entryPerspective, &m_perspective );
 }
 
 
-void EDA_BASE_FRAME::SaveSettings()
+void EDA_BASE_FRAME::SaveSettings( wxConfigBase* aCfg )
 {
-    wxString    text;
-    wxConfig*   config = wxGetApp().GetSettings();
+    wxString        text;
 
-    if( ( config == NULL ) || IsIconized() )
+    if( IsIconized() )
         return;
+
+    wxString baseCfgName = ConfigBaseName();
 
     m_FrameSize = GetSize();
     m_FramePos  = GetPosition();
 
-    text = m_FrameName + wxT( "Pos_x" );
-    config->Write( text, (long) m_FramePos.x );
+    text = baseCfgName + wxT( "Pos_x" );
+    aCfg->Write( text, (long) m_FramePos.x );
 
-    text = m_FrameName + wxT( "Pos_y" );
-    config->Write( text, (long) m_FramePos.y );
+    text = baseCfgName + wxT( "Pos_y" );
+    aCfg->Write( text, (long) m_FramePos.y );
 
-    text = m_FrameName + wxT( "Size_x" );
-    config->Write( text, (long) m_FrameSize.x );
+    text = baseCfgName + wxT( "Size_x" );
+    aCfg->Write( text, (long) m_FrameSize.x );
 
-    text = m_FrameName + wxT( "Size_y" );
-    config->Write( text, (long) m_FrameSize.y );
+    text = baseCfgName + wxT( "Size_y" );
+    aCfg->Write( text, (long) m_FrameSize.y );
 
-    text = m_FrameName + wxT( "Maximized" );
-    config->Write( text, IsMaximized() );
+    text = baseCfgName + wxT( "Maximized" );
+    aCfg->Write( text, IsMaximized() );
 
     if( m_hasAutoSave )
     {
-        text = m_FrameName + entryAutoSaveInterval;
-        config->Write( text, m_autoSaveInterval );
+        text = baseCfgName + entryAutoSaveInterval;
+        aCfg->Write( text, m_autoSaveInterval );
     }
+
+    // Once this is fully implemented, wxAuiManager will be used to maintain
+    // the persistance of the main frame and all it's managed windows and
+    // all of the legacy frame persistence position code can be removed.
+    wxString perspective = m_auimgr.SavePerspective();
+
+    // printf( "perspective(%s): %s\n",
+    //    TO_UTF8( m_FrameName + entryPerspective ), TO_UTF8( perspective ) );
+    aCfg->Write( baseCfgName + entryPerspective, perspective );
+}
+
+
+wxConfigBase* EDA_BASE_FRAME::config()
+{
+    // KICAD_MANAGER_FRAME overrides this
+    wxConfigBase* ret = Kiface().KifaceSettings();
+    //wxASSERT( ret );
+    return ret;
+}
+
+
+const SEARCH_STACK& EDA_BASE_FRAME::sys_search()
+{
+    return Kiface().KifaceSearch();
+}
+
+
+wxString EDA_BASE_FRAME::help_name()
+{
+    return Kiface().GetHelpFileName();
 }
 
 
@@ -255,80 +338,88 @@ void EDA_BASE_FRAME::PrintMsg( const wxString& text )
     SetStatusText( text );
 }
 
+
 void EDA_BASE_FRAME::UpdateFileHistory( const wxString& FullFileName,
-                                        wxFileHistory * aFileHistory )
+                                        wxFileHistory* aFileHistory )
 {
     wxFileHistory* fileHistory = aFileHistory;
 
-    if( fileHistory == NULL )
-        fileHistory = & wxGetApp().GetFileHistory();
+    if( !fileHistory )
+        fileHistory = &Kiface().GetFileHistory();
 
     fileHistory->AddFileToHistory( FullFileName );
 }
 
 
 wxString EDA_BASE_FRAME::GetFileFromHistory( int cmdId, const wxString& type,
-                                             wxFileHistory * aFileHistory )
+                                             wxFileHistory* aFileHistory )
 {
-    wxString fn, msg;
-    size_t   i;
     wxFileHistory* fileHistory = aFileHistory;
 
-    if( fileHistory == NULL )
-        fileHistory = & wxGetApp().GetFileHistory();
+    if( !fileHistory )
+        fileHistory = &Kiface().GetFileHistory();
 
     int baseId = fileHistory->GetBaseId();
 
-    wxASSERT( cmdId >= baseId && cmdId < baseId + ( int )fileHistory->GetCount() );
+    wxASSERT( cmdId >= baseId && cmdId < baseId + (int) fileHistory->GetCount() );
 
-    i = ( size_t )( cmdId - baseId );
+    unsigned i = cmdId - baseId;
 
     if( i < fileHistory->GetCount() )
     {
-        fn = fileHistory->GetHistoryFile( i );
+        wxString fn = fileHistory->GetHistoryFile( i );
 
-        if( !wxFileName::FileExists( fn ) )
+        if( wxFileName::FileExists( fn ) )
+            return fn;
+        else
         {
-            msg = type + _( " file <" ) + fn + _( "> was not found." );
+            wxString msg = wxString::Format(
+                        wxT( "file '%s' was not found." ),
+                        GetChars( fn ) );
+
             wxMessageBox( msg );
+
             fileHistory->RemoveFileFromHistory( i );
-            fn = wxEmptyString;
         }
     }
 
-    return fn;
+    return wxEmptyString;
 }
 
 
 void EDA_BASE_FRAME::GetKicadHelp( wxCommandEvent& event )
 {
-    wxString msg;
+    const SEARCH_STACK& search = sys_search();
 
     /* We have to get document for beginners,
-     * or the the full specific doc
+     * or the full specific doc
      * if event id is wxID_INDEX, we want the document for beginners.
-     * else the specific doc file (its name is in wxGetApp().GetHelpFileName())
+     * else the specific doc file (its name is in Kiface().GetHelpFileName())
      * The document for beginners is the same for all KiCad utilities
      */
     if( event.GetId() == wxID_INDEX )
     {
-        // Temporary change the help filename
-        wxString tmp = wxGetApp().GetHelpFileName();
+        // List of possible names for Getting Started in KiCad
+        const wxChar* names[2] = {
+            wxT( "getting_started_in_kicad" ),
+            wxT( "Getting_Started_in_KiCad" )
+            };
 
-        // Search for "getting_started_in_kicad.pdf" or "Getting_Started_in_KiCad.pdf"
-        wxGetApp().SetHelpFileName( wxT( "getting_started_in_kicad.pdf" ) );
-        wxString helpFile = wxGetApp().GetHelpFile();
+        wxString helpFile;
+        // Search for "getting_started_in_kicad.html" or "getting_started_in_kicad.pdf"
+        // or "Getting_Started_in_KiCad.html" or "Getting_Started_in_KiCad.pdf"
+        for( unsigned ii = 0; ii < DIM( names ); ii++ )
+        {
+            helpFile = SearchHelpFileFullPath( search, names[ii] );
 
-        if( !helpFile )
-        {   // Try to find "Getting_Started_in_KiCad.pdf"
-            wxGetApp().SetHelpFileName( wxT( "Getting_Started_in_KiCad.pdf" ) );
-            helpFile = wxGetApp().GetHelpFile();
+            if( !helpFile.IsEmpty() )
+               break;
         }
 
         if( !helpFile )
         {
-            msg.Printf( _( "Help file %s could not be found." ),
-                        GetChars( wxGetApp().GetHelpFileName() ) );
+            wxString msg = wxString::Format( _(
+                "Html or pdf help file \n'%s'\n or\n'%s' could not be found." ), names[0], names[1] );
             wxMessageBox( msg );
         }
         else
@@ -336,59 +427,38 @@ void EDA_BASE_FRAME::GetKicadHelp( wxCommandEvent& event )
             GetAssociatedDocument( this, helpFile );
         }
 
-        wxGetApp().SetHelpFileName( tmp );
         return;
     }
 
-#if defined ONLINE_HELP_FILES_FORMAT_IS_HTML
-
-    if( wxGetApp().GetHtmlHelpController() == NULL )
-    {
-        wxGetApp().InitOnLineHelp();
-    }
-
-
-    if( wxGetApp().GetHtmlHelpController() )
-    {
-        wxGetApp().GetHtmlHelpController()->DisplayContents();
-        wxGetApp().GetHtmlHelpController()->Display( wxGetApp().GetHelpFileName() );
-    }
-    else
-    {
-        msg.Printf( _( "Help file %s could not be found." ), GetChars( wxGetApp().GetHelpFileName() ) );
-        wxMessageBox( msg );
-    }
-
-#elif defined ONLINE_HELP_FILES_FORMAT_IS_PDF
-    wxString helpFile = wxGetApp().GetHelpFile();
+    wxString base_name = help_name();
+    wxString helpFile = SearchHelpFileFullPath( search, base_name );
 
     if( !helpFile )
     {
-        msg.Printf( _( "Help file %s could not be found." ),
-                    GetChars( wxGetApp().GetHelpFileName() ) );
+        wxString msg = wxString::Format( _(
+            "Help file '%s' could not be found." ),
+            GetChars( base_name )
+            );
         wxMessageBox( msg );
     }
     else
     {
         GetAssociatedDocument( this, helpFile );
     }
-
-#else
-#   error Help files format not defined
-#endif
 }
 
 
 void EDA_BASE_FRAME::OnSelectPreferredEditor( wxCommandEvent& event )
 {
-    wxFileName fn = wxGetApp().GetEditorName();
-    wxString wildcard( wxT( "*" ) );
+    wxFileName  fn = Pgm().GetEditorName();
+    wxString    wildcard( wxT( "*" ) );
 
 #ifdef __WINDOWS__
     wildcard += wxT( ".exe" );
 #endif
 
-    wildcard = _( "Executable file (" ) + wildcard + wxT( ")|" ) + wildcard;
+    wildcard.Printf( _( "Executable file (%s)|%s" ),
+                     GetChars( wildcard ), GetChars( wildcard ) );
 
     wxFileDialog dlg( this, _( "Select Preferred Editor" ), fn.GetPath(),
                       fn.GetFullName(), wildcard,
@@ -397,18 +467,16 @@ void EDA_BASE_FRAME::OnSelectPreferredEditor( wxCommandEvent& event )
     if( dlg.ShowModal() == wxID_CANCEL )
         return;
 
-    wxASSERT( wxGetApp().GetCommonSettings() );
+    wxString editor = dlg.GetPath();
 
-    wxConfig* cfg = wxGetApp().GetCommonSettings();
-    wxGetApp().SetEditorName( dlg.GetPath() );
-    cfg->Write( wxT( "Editor" ), wxGetApp().GetEditorName() );
+    Pgm().SetEditorName( editor );
 }
 
 
 void EDA_BASE_FRAME::GetKicadAbout( wxCommandEvent& event )
 {
     bool ShowAboutDialog(wxWindow * parent);
-    ShowAboutDialog(this);
+    ShowAboutDialog( this );
 }
 
 
@@ -453,7 +521,6 @@ void EDA_BASE_FRAME::AddHelpVersionInfoMenuEntry( wxMenu* aMenu )
     #define __BO_COMPILER ",unknown"
 #endif
 
-#if wxCHECK_VERSION( 2, 9, 0 )
 
 static inline const char* KICAD_BUILD_OPTIONS_SIGNATURE()
 {
@@ -464,31 +531,10 @@ static inline const char* KICAD_BUILD_OPTIONS_SIGNATURE()
     " (release,"
 #endif
     __WX_BO_UNICODE __ABI_VERSION __BO_COMPILER __WX_BO_STL
-
-#if !wxCHECK_VERSION( 3, 0, 0 )
-    __WX_BO_WXWIN_COMPAT_2_6
-#endif
-
     __WX_BO_WXWIN_COMPAT_2_8 ")"
     ;
 }
 
-#else
-
-static inline const char* KICAD_BUILD_OPTIONS_SIGNATURE()
-{
-    return
-#ifdef __WXDEBUG__
-    " (debug,"
-#else
-    " (release,"
-#endif
-    __WX_BO_UNICODE __ABI_VERSION __BO_COMPILER __WX_BO_STL
-    __WX_BO_WXWIN_COMPAT_2_4 __WX_BO_WXWIN_COMPAT_2_6 ")"
-    ;
-}
-
-#endif
 
 void EDA_BASE_FRAME::CopyVersionInfoToClipboard( wxCommandEvent&  event )
 {
@@ -499,73 +545,77 @@ void EDA_BASE_FRAME::CopyVersionInfoToClipboard( wxCommandEvent&  event )
         return;
     }
 
-    wxString tmp;
+    wxString msg_version;
     wxPlatformInfo info;
 
-    tmp = wxT( "Application: " ) + wxGetApp().GetTitle() + wxT( "\n" );
-    tmp += wxT( "Version: " ) + GetBuildVersion() + wxT( "\n" );
-    tmp << wxT( "Build: " ) << wxVERSION_STRING
-        << FROM_UTF8( KICAD_BUILD_OPTIONS_SIGNATURE() ) << wxT( "\n" )
-        << wxT( "Platform: " ) << wxGetOsDescription() << wxT( ", " )
-        << info.GetArchName() << wxT( ", " ) << info.GetEndiannessName() << wxT( ", " )
-        << info.GetPortIdName() << wxT( "\n" );
+    msg_version = wxT( "Application: " ) + Pgm().App().GetAppName() + wxT( "\n" );
+    msg_version << wxT( "Version: " ) << GetBuildVersion()
+#ifdef DEBUG
+                << wxT( " debug" )
+#else
+                << wxT( " release" )
+#endif
+                << wxT( " build\n" );
+    msg_version << wxT( "wxWidgets: Version " ) << FROM_UTF8( wxVERSION_NUM_DOT_STRING )
+                << FROM_UTF8( KICAD_BUILD_OPTIONS_SIGNATURE() ) << wxT( "\n" )
+                << wxT( "Platform: " ) << wxGetOsDescription() << wxT( ", " )
+                << info.GetArchName() << wxT( ", " ) << info.GetEndiannessName()
+                << wxT( ", " ) << info.GetPortIdName() << wxT( "\n" );
 
     // Just in case someone builds KiCad with the platform native of Boost instead of
     // the version included with the KiCad source.
-    tmp << wxT( "Boost version: " ) << ( BOOST_VERSION / 100000 ) << wxT( "." )
-        << ( BOOST_VERSION / 100 % 1000 ) << wxT( "." ) << ( BOOST_VERSION % 100 ) << wxT( "\n" );
+    msg_version << wxT( "Boost version: " ) << ( BOOST_VERSION / 100000 ) << wxT( "." )
+                << ( BOOST_VERSION / 100 % 1000 ) << wxT( "." )
+                << ( BOOST_VERSION % 100 ) << wxT( "\n" );
 
-    tmp << wxT( "Options: USE_PCBNEW_NANOMETRES=" );
-#ifdef USE_PCBNEW_NANOMETRES
-    tmp << wxT( "ON\n" );
-#else
-    tmp << wxT( "OFF\n" );
-#endif
-
-    tmp << wxT( "         KICAD_GOST=" );
-#ifdef KICAD_GOST
-    tmp << wxT( "ON\n" );
-#else
-    tmp << wxT( "OFF\n" );
-#endif
-
-    tmp << wxT( "         USE_WX_GRAPHICS_CONTEXT=" );
+    msg_version << wxT( "         USE_WX_GRAPHICS_CONTEXT=" );
 #ifdef USE_WX_GRAPHICS_CONTEXT
-    tmp << wxT( "ON\n" );
+    msg_version << wxT( "ON\n" );
 #else
-    tmp << wxT( "OFF\n" );
+    msg_version << wxT( "OFF\n" );
 #endif
 
-    tmp << wxT( "         USE_WX_OVERLAY=" );
+    msg_version << wxT( "         USE_WX_OVERLAY=" );
 #ifdef USE_WX_OVERLAY
-    tmp << wxT( "ON\n" );
+    msg_version << wxT( "ON\n" );
 #else
-    tmp << wxT( "OFF\n" );
+    msg_version << wxT( "OFF\n" );
 #endif
 
-    tmp << wxT( "         KICAD_SCRIPTING=" );
+    msg_version << wxT( "         KICAD_SCRIPTING=" );
 #ifdef KICAD_SCRIPTING
-    tmp << wxT( "ON\n" );
+    msg_version << wxT( "ON\n" );
 #else
-    tmp << wxT( "OFF\n" );
+    msg_version << wxT( "OFF\n" );
 #endif
 
-    tmp << wxT( "         KICAD_SCRIPTING_MODULES=" );
+    msg_version << wxT( "         KICAD_SCRIPTING_MODULES=" );
 #ifdef KICAD_SCRIPTING_MODULES
-    tmp << wxT( "ON\n" );
+    msg_version << wxT( "ON\n" );
 #else
-    tmp << wxT( "OFF\n" );
+    msg_version << wxT( "OFF\n" );
 #endif
 
-    tmp << wxT( "         KICAD_SCRIPTING_WXPYTHON=" );
+    msg_version << wxT( "         KICAD_SCRIPTING_WXPYTHON=" );
 #ifdef KICAD_SCRIPTING_WXPYTHON
-    tmp << wxT( "ON\n" );
+    msg_version << wxT( "ON\n" );
 #else
-    tmp << wxT( "OFF\n" );
+    msg_version << wxT( "OFF\n" );
 #endif
 
-    wxTheClipboard->SetData( new wxTextDataObject( tmp ) );
+    msg_version << wxT( "         USE_FP_LIB_TABLE=HARD_CODED_ON\n" );
+
+    msg_version << wxT( "         BUILD_GITHUB_PLUGIN=" );
+#ifdef BUILD_GITHUB_PLUGIN
+    msg_version << wxT( "ON\n" );
+#else
+    msg_version << wxT( "OFF\n" );
+#endif
+
+    wxTheClipboard->SetData( new wxTextDataObject( msg_version ) );
     wxTheClipboard->Close();
+
+    wxMessageBox( msg_version, _( "Version Information (copied to the clipboard)" ) );
 }
 
 
@@ -622,7 +672,7 @@ void EDA_BASE_FRAME::CheckForAutoSaveFile( const wxFileName& aFileName,
     wxFileName autoSaveFileName = aFileName;
 
     // Check for auto save file.
-    autoSaveFileName.SetName( wxT( "$" ) + aFileName.GetName() );
+    autoSaveFileName.SetName( AUTOSAVE_PREFIX_FILENAME + aFileName.GetName() );
 
     wxLogTrace( traceAutoSave,
                 wxT( "Checking for auto save file " ) + autoSaveFileName.GetFullPath() );
@@ -630,14 +680,15 @@ void EDA_BASE_FRAME::CheckForAutoSaveFile( const wxFileName& aFileName,
     if( !autoSaveFileName.FileExists() )
         return;
 
-    wxString msg;
+    wxString msg = wxString::Format( _(
+            "Well this is potentially embarrassing!\n"
+            "It appears that the last time you were editing the file\n"
+            "'%s'\n"
+            "it was not saved properly.  Do you wish to restore the last saved edits you made?" ),
+            GetChars( aFileName.GetFullName() )
+        );
 
-    msg.Printf( _( "Well this is potentially embarrassing!  It appears that the last time \
-you were editing the file <%s> it was not saved properly.  Do you wish to restore the last \
-edits you made?" ),
-                GetChars( aFileName.GetFullName() ) );
-
-    int response = wxMessageBox( msg, wxGetApp().GetAppName(), wxYES_NO | wxICON_QUESTION, this );
+    int response = wxMessageBox( msg, Pgm().App().GetAppName(), wxYES_NO | wxICON_QUESTION, this );
 
     // Make a backup of the current file, delete the file, and rename the auto save file to
     // the file name.
@@ -658,7 +709,8 @@ edits you made?" ),
             // Rename the old file to the backup file name.
             if( !wxRenameFile( aFileName.GetFullPath(), backupFileName.GetFullPath() ) )
             {
-                msg = _( "Could not create backup file " ) + backupFileName.GetFullPath();
+                msg.Printf( _( "Could not create backup file <%s>" ),
+                            GetChars( backupFileName.GetFullPath() ) );
                 wxMessageBox( msg );
             }
         }
@@ -666,7 +718,7 @@ edits you made?" ),
         if( !wxRenameFile( autoSaveFileName.GetFullPath(), aFileName.GetFullPath() ) )
         {
             wxMessageBox( _( "The auto save file could not be renamed to the board file name." ),
-                          wxGetApp().GetAppName(), wxOK | wxICON_EXCLAMATION, this );
+                          Pgm().App().GetAppName(), wxOK | wxICON_EXCLAMATION, this );
         }
     }
     else
@@ -679,35 +731,3 @@ edits you made?" ),
     }
 }
 
-/**
- * Function SetModalMode
- * Disable or enable all other windows, to emulate a dialog behavior
- * Useful when the frame is used to show and selec items
- * (see FOOTPRINT_VIEWER_FRAME and LIB_VIEW_FRAME)
- *
- * @param aModal = true to disable all other opened windows (i.e.
- * this windows is in dialog mode
- *               = false to enable other windows
- * This function is analog to MakeModal( aModal ), deprecated since wxWidgets 2.9.4
- */
-void EDA_BASE_FRAME::SetModalMode( bool aModal )
-{
-    // Disable all other windows
-#if wxCHECK_VERSION(2, 9, 4)
-    if ( IsTopLevel() )
-    {
-        wxWindowList::compatibility_iterator node = wxTopLevelWindows.GetFirst();
-        while (node)
-        {
-            wxWindow *win = node->GetData();
-            if (win != this)
-                win->Enable(!aModal);
-
-            node = node->GetNext();
-        }
-    }
-#else
-    // Deprecated since wxWidgets 2.9.4
-    MakeModal( aModal );
-#endif
-}

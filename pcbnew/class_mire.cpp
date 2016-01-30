@@ -34,11 +34,9 @@
 #include <common.h>
 #include <class_drawpanel.h>
 #include <kicad_string.h>
-#include <pcbcommon.h>
 #include <colors_selection.h>
 #include <trigo.h>
 #include <macros.h>
-#include <protos.h>
 #include <richio.h>
 
 #include <class_board.h>
@@ -50,11 +48,13 @@ PCB_TARGET::PCB_TARGET( BOARD_ITEM* aParent ) :
     BOARD_ITEM( aParent, PCB_TARGET_T )
 {
     m_Shape = 0;
-    m_Size  = Millimeter2iu( 5.0 );
+    m_Size  = Millimeter2iu( 5 );       // Gives a decent size
+    m_Width = Millimeter2iu( 0.15 );    // Gives a decent width
+    m_Layer = Edge_Cuts;                   // a target is on all layers
 }
 
-PCB_TARGET::PCB_TARGET( BOARD_ITEM* aParent, int aShape, int aLayer,
-    const wxPoint& aPos, int aSize, int aWidth ) :
+PCB_TARGET::PCB_TARGET( BOARD_ITEM* aParent, int aShape, LAYER_ID aLayer,
+        const wxPoint& aPos, int aSize, int aWidth ) :
     BOARD_ITEM( aParent, PCB_TARGET_T )
 {
     m_Shape = aShape;
@@ -68,16 +68,6 @@ PCB_TARGET::PCB_TARGET( BOARD_ITEM* aParent, int aShape, int aLayer,
 PCB_TARGET::~PCB_TARGET()
 {
 }
-
-
-void PCB_TARGET::Exchg( PCB_TARGET* source )
-{
-    EXCHG( m_Pos,   source->m_Pos );
-    EXCHG( m_Width, source->m_Width );
-    EXCHG( m_Size,  source->m_Size );
-    EXCHG( m_Shape, source->m_Shape );
-}
-
 
 void PCB_TARGET::Copy( PCB_TARGET* source )
 {
@@ -99,7 +89,6 @@ void PCB_TARGET::Draw( EDA_DRAW_PANEL* panel, wxDC* DC, GR_DRAWMODE mode_color,
 {
     int radius, ox, oy, width;
     int dx1, dx2, dy1, dy2;
-    int typeaff;
 
     ox = m_Pos.x + offset.x;
     oy = m_Pos.y + offset.y;
@@ -112,29 +101,21 @@ void PCB_TARGET::Draw( EDA_DRAW_PANEL* panel, wxDC* DC, GR_DRAWMODE mode_color,
     EDA_COLOR_T gcolor = brd->GetLayerColor( m_Layer );
 
     GRSetDrawMode( DC, mode_color );
-    typeaff = DisplayOpt.DisplayDrawItems;
+    DISPLAY_OPTIONS* displ_opts = (DISPLAY_OPTIONS*)panel->GetDisplayOptions();
+    bool filled = displ_opts ? displ_opts->m_DisplayDrawItemsFill : FILLED;
     width   = m_Width;
 
-    if( DC->LogicalToDeviceXRel( width ) < 2 )
-        typeaff = LINE;
-
     radius = m_Size / 3;
+
     if( GetShape() )   // shape X
         radius = m_Size / 2;
 
-    switch( typeaff )
-    {
-    case LINE:
-        width = 0;
-
-    case FILLED:
+    if( filled )
         GRCircle( panel->GetClipBox(), DC, ox, oy, radius, width, gcolor );
-        break;
-
-    case SKETCH:
+    else
+    {
         GRCircle( panel->GetClipBox(), DC, ox, oy, radius + (width / 2), gcolor );
         GRCircle( panel->GetClipBox(), DC, ox, oy, radius - (width / 2), gcolor );
-        break;
     }
 
 
@@ -151,23 +132,20 @@ void PCB_TARGET::Draw( EDA_DRAW_PANEL* panel, wxDC* DC, GR_DRAWMODE mode_color,
         dy2 = -dy1;
     }
 
-    switch( typeaff )
+    if( filled )
     {
-    case LINE:
-    case FILLED:
         GRLine( panel->GetClipBox(), DC, ox - dx1, oy - dy1, ox + dx1, oy + dy1, width, gcolor );
         GRLine( panel->GetClipBox(), DC, ox - dx2, oy - dy2, ox + dx2, oy + dy2, width, gcolor );
-        break;
-
-    case SKETCH:
+    }
+    else
+    {
         GRCSegm( panel->GetClipBox(), DC, ox - dx1, oy - dy1, ox + dx1, oy + dy1, width, gcolor );
         GRCSegm( panel->GetClipBox(), DC, ox - dx2, oy - dy2, ox + dx2, oy + dy2, width, gcolor );
-        break;
     }
 }
 
 
-bool PCB_TARGET::HitTest( const wxPoint& aPosition )
+bool PCB_TARGET::HitTest( const wxPoint& aPosition ) const
 {
     int dX = aPosition.x - m_Pos.x;
     int dY = aPosition.y - m_Pos.y;
@@ -176,10 +154,15 @@ bool PCB_TARGET::HitTest( const wxPoint& aPosition )
 }
 
 
-bool PCB_TARGET::HitTest( const EDA_RECT& aRect ) const
+bool PCB_TARGET::HitTest( const EDA_RECT& aRect, bool aContained, int aAccuracy ) const
 {
-    if( aRect.Contains( m_Pos ) )
-        return true;
+    EDA_RECT arect = aRect;
+    arect.Inflate( aAccuracy );
+
+    if( aContained )
+        return arect.Contains( GetBoundingBox() );
+    else
+        return GetBoundingBox().Intersects( arect );
 
     return false;
 }
@@ -194,11 +177,11 @@ void PCB_TARGET::Rotate(const wxPoint& aRotCentre, double aAngle)
 void PCB_TARGET::Flip(const wxPoint& aCentre )
 {
     m_Pos.y  = aCentre.y - ( m_Pos.y - aCentre.y );
-    SetLayer( BOARD::ReturnFlippedLayerNumber( GetLayer() ) );
+    SetLayer( FlipLayer( GetLayer() ) );
 }
 
 
-EDA_RECT PCB_TARGET::GetBoundingBox() const
+const EDA_RECT PCB_TARGET::GetBoundingBox() const
 {
     EDA_RECT bBox;
     bBox.SetX( m_Pos.x - m_Size/2 );
@@ -217,8 +200,8 @@ wxString PCB_TARGET::GetSelectMenuText() const
 
     msg = ::CoordinateToString( m_Size );
 
-    text.Printf( _( "Target on %s size %s" ),
-                 GetChars( GetLayerName() ), GetChars( msg ) );
+    // Targets are on *every* layer by definition
+    text.Printf( _( "Target size %s" ), GetChars( msg ) );
 
     return text;
 }

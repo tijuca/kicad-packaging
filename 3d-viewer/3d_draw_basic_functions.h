@@ -36,27 +36,17 @@
  * @param aZpos = z position in board internal units
  * @param aThickness = thickness in board internal units
  * @param aBiuTo3DUnits = board internal units to 3D units scaling value
- * If aThickness = 0, a polygon area is drawn in a XY plane at Z position = aZpos.
- * If aThickness 1 0, a solid object is drawn.
- *  The top side is located at aZpos + aThickness / 2
- *  The bottom side is located at aZpos - aThickness / 2
- */
-void    Draw3D_SolidHorizontalPolyPolygons( const std::vector<CPolyPt>& aPolysList,
-                                            int aZpos, int aThickness, double aBiuTo3DUnits );
-
-/** draw the solid polygon found in aPolysList
- * The first polygonj is the main polygon, others are holes
- * @param aPolysList = the polygon with holes to draw
- * @param aZpos = z position in board internal units
- * @param aThickness = thickness in board internal units
- * @param aBiuTo3DUnits = board internal units to 3D units scaling value
+ * @param aUseTextures = true to use textxures for the polygons
+ * @param aNormal_Z_Orientation = the normal Z orientation to apply
  * If aThickness = 0, a polygon area is drawn in a XY plane at Z position = aZpos.
  * If aThickness > 0, a solid object is drawn.
  *  The top side is located at aZpos + aThickness / 2
  *  The bottom side is located at aZpos - aThickness / 2
  */
-void    Draw3D_SolidHorizontalPolygonWithHoles( const std::vector<CPolyPt>& aPolysList,
-                                                int aZpos, int aThickness, double aBiuTo3DUnits );
+void    Draw3D_SolidHorizontalPolyPolygons( const SHAPE_POLY_SET& aPolysList,
+                                            int aZpos, int aThickness, double aBiuTo3DUnits,
+                                            bool aUseTextures,
+                                            float aNormal_Z_Orientation );
 
 /** draw a thick segment using 3D primitives, in a XY plane
  * @param aStart = YX position of start point in board units
@@ -85,7 +75,7 @@ void    Draw3D_SolidSegment( const wxPoint& aStart, const wxPoint& aEnd,
  * @param aBiuTo3DUnits = board internal units to 3D units scaling value
  */
 void Draw3D_ArcSegment( const wxPoint&  aCenterPos, const wxPoint& aStartPoint,
-                        int aArcAngle, int aWidth, int aThickness,
+                        double aArcAngle, int aWidth, int aThickness,
                         int aZpos, double aBiuTo3DUnits );
 
 
@@ -118,5 +108,27 @@ void    Draw3D_ZaxisCylinder( wxPoint aCenterPos, int aRadius,
 void    Draw3D_ZaxisOblongCylinder( wxPoint aAxis1Pos, wxPoint aAxis2Pos,
                                     int aRadius, int aHeight, int aThickness,
                                     int aZpos, double aBiuTo3DUnits  );
+/**
+ * Set the current 3D color from a Kicad  color, with optional transparency
+ * @param aColor = a EDA_COLOR_T kicad color index
+ * @param aTransparency = the color transparency (default = 1.0 = no transparency)
+ */
+void SetGLColor( EDA_COLOR_T aColor, double aTransparency = 1.0 );
+
+/**
+ * Set the current 3D color from a S3D_COLOR color, with optional transparency
+ * @param aColor = a S3D_COLOR RGB color index
+ * @param aTransparency = the color transparency (default = 1.0 = no transparency)
+ */
+void SetGLColor( S3D_COLOR& aColor, float aTransparency );
+
+
+/**
+ * Set a texture id and a scale to apply when rendering the polygons
+ * @param text_id = texture ID created by glGenTextures
+ * @param scale = scale to apply to texture coords
+ */
+void SetGLTexture( GLuint text_id, float scale );
+
 
 #endif      // _3D_DRAW_BASIC_FUNCTIONS_H_

@@ -70,19 +70,14 @@ protected:
     /// The time at which the collection was made.
     time_t m_TimeAtCollection;
 
-
 public:
-
     COLLECTOR()
     {
         m_ScanTypes = 0;
+        m_TimeAtCollection = 0;
     }
 
-
-    virtual ~COLLECTOR()
-    {
-    }
-
+    virtual ~COLLECTOR() {}
 
     /**
      * Function IsValidIndex
@@ -97,7 +92,6 @@ public:
         return ( (unsigned) aIndex < m_List.size() );
     }
 
-
     /**
      * Function GetCount
      * returns the number of objects in the list
@@ -107,7 +101,6 @@ public:
         return (int) m_List.size();
     }
 
-
     /**
      * Function Empty
      * sets the list to empty
@@ -116,7 +109,6 @@ public:
     {
         m_List.clear();
     }
-
 
     /**
      * Function Append
@@ -128,7 +120,6 @@ public:
         m_List.push_back( item );
     }
 
-
     /**
      * Function Remove
      * removes the item at \a aIndex (first position is 0);
@@ -139,6 +130,22 @@ public:
         m_List.erase( m_List.begin() + aIndex );
     }
 
+    /**
+     * Function Remove
+     * removes the item aItem (if exists in the collector).
+     * @param aItem the item to be removed.
+     */
+    void Remove( const EDA_ITEM* aItem )
+    {
+        for( size_t i = 0;  i < m_List.size();  i++ )
+        {
+            if( m_List[i] == aItem )
+            {
+                m_List.erase( m_List.begin() + i);
+                return;
+            }
+        }
+    }
 
     /**
      * Function operator[int]
@@ -154,7 +161,6 @@ public:
         return NULL;
     }
 
-
     /**
      * Function BasePtr
      * returns the address of the first element in the array.  Only call this
@@ -165,7 +171,6 @@ public:
     {
         return &m_List[0];
     }
-
 
     /**
      * Function HasItem
@@ -185,7 +190,6 @@ public:
         return false;
     }
 
-
     /**
      * Function SetScanTypes
      * records the list of KICAD_T types to consider for collection by
@@ -198,12 +202,10 @@ public:
         m_ScanTypes = scanTypes;
     }
 
-
     void SetTimeNow()
     {
         m_TimeAtCollection = GetNewTimeStamp();
     }
-
 
     time_t GetTime()
     {
@@ -215,7 +217,6 @@ public:
 
     void SetBoundingBox( const EDA_RECT& aRefBox ) { m_RefBox = aRefBox;  }
     const EDA_RECT& GetBoundingBox() const {  return m_RefBox; }
-
 
     /**
      * Function IsSimilarPointAndTime
@@ -240,7 +241,22 @@ public:
         else
             return false;
     }
-
+    /**
+     * Function CountType
+     * counts the number of items matching aType
+     * @param aType type we are interested in
+     * @return number of occurences
+     */
+    int CountType( KICAD_T aType )
+    {
+        int cnt = 0;
+        for( size_t i = 0;  i < m_List.size();  i++ )
+        {
+            if( m_List[i]->Type() == aType )
+                cnt++;
+        }
+        return cnt;
+    }
 
     /**
      * Function Collect
@@ -251,7 +267,7 @@ public:
      *
      * example implementation, in derived class:
      *
-    virtual void Collect( EDA_ITEM* container, const wxPoint& aRefPos )
+    void Collect( EDA_ITEM* container, const wxPoint& aRefPos )
     {
         example implementation:
 
@@ -266,7 +282,6 @@ public:
         SetTimeNow();                   // when it was taken
     }
     */
-
 };
 
 #endif  // COLLECTOR_H

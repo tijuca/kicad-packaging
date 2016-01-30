@@ -2,7 +2,7 @@
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
  * Copyright (C) 2004 Jean-Pierre Charras, jaen-pierre.charras@gipsa-lab.inpg.com
- * Copyright (C) 2004-2011 KiCad Developers, see change_log.txt for contributors.
+ * Copyright (C) 2004-2015 KiCad Developers, see change_log.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -38,12 +38,11 @@
 #include <msgpanel.h>
 
 #include <general.h>
-#include <protos.h>
 #include <lib_arc.h>
 #include <transform.h>
 
 // Helper function
-static inline wxPoint twoPointVector( wxPoint startPoint, wxPoint endPoint )
+static inline wxPoint twoPointVector( const wxPoint &startPoint, const wxPoint &endPoint )
 {
     return endPoint - startPoint;
 }
@@ -85,7 +84,7 @@ static wxPoint calcCenter( const wxPoint& A, const wxPoint& B, const wxPoint& C 
 }
 
 
-LIB_ARC::LIB_ARC( LIB_COMPONENT* aParent ) : LIB_ITEM( LIB_ARC_T, aParent )
+LIB_ARC::LIB_ARC( LIB_PART*      aParent ) : LIB_ITEM( LIB_ARC_T, aParent )
 {
     m_Radius        = 0;
     m_t1            = 0;
@@ -96,6 +95,9 @@ LIB_ARC::LIB_ARC( LIB_COMPONENT* aParent ) : LIB_ITEM( LIB_ARC_T, aParent )
     m_typeName      = _( "Arc" );
     m_editState     = 0;
     m_lastEditState = 0;
+    m_editCenterDistance = 0.0;
+    m_editSelectPoint = ARC_STATUS_START;
+    m_editDirection = 0;
 }
 
 
@@ -123,15 +125,15 @@ bool LIB_ARC::Save( OUTPUTFORMATTER& aFormatter )
 bool LIB_ARC::Load( LINE_READER& aLineReader, wxString& aErrorMsg )
 {
     int startx, starty, endx, endy, cnt;
-    char tmp[256];
+    char tmp[256] = "";
     char* line = (char*) aLineReader;
 
-    cnt = sscanf( line + 2, "%d %d %d %d %d %d %d %d %s %d %d %d %d",
+    cnt = sscanf( line + 2, "%d %d %d %d %d %d %d %d %255s %d %d %d %d",
                   &m_Pos.x, &m_Pos.y, &m_Radius, &m_t1, &m_t2, &m_Unit,
                   &m_Convert, &m_Width, tmp, &startx, &starty, &endx, &endy );
     if( cnt < 8 )
     {
-        aErrorMsg.Printf( _( "arc only had %d parameters of the required 8" ), cnt );
+        aErrorMsg.Printf( _( "Arc only had %d parameters of the required 8" ), cnt );
         return false;
     }
 
@@ -172,7 +174,7 @@ bool LIB_ARC::Load( LINE_READER& aLineReader, wxString& aErrorMsg )
 }
 
 
-bool LIB_ARC::HitTest( const wxPoint& aRefPoint )
+bool LIB_ARC::HitTest( const wxPoint& aRefPoint ) const
 {
     int mindist = GetPenSize() / 2;
 
@@ -184,7 +186,7 @@ bool LIB_ARC::HitTest( const wxPoint& aRefPoint )
 }
 
 
-bool LIB_ARC::HitTest( wxPoint aPosition, int aThreshold, const TRANSFORM& aTransform )
+bool LIB_ARC::HitTest( const wxPoint &aPosition, int aThreshold, const TRANSFORM& aTransform ) const
 {
 
     if( aThreshold < 0 )
@@ -193,9 +195,9 @@ bool LIB_ARC::HitTest( wxPoint aPosition, int aThreshold, const TRANSFORM& aTran
     // TODO: use aTransMat to calculates parameters
     wxPoint relativePosition = aPosition;
 
-    NEGATE( relativePosition.y );       // reverse Y axis
+    relativePosition.y = -relativePosition.y; // reverse Y axis
 
-    int distance = KiROUND( EuclideanNorm( twoPointVector( m_Pos, relativePosition ) ) );
+    int distance = KiROUND( GetLineLength( m_Pos, relativePosition ) );
 
     if( abs( distance - m_Radius ) > aThreshold )
         return false;
@@ -218,7 +220,7 @@ bool LIB_ARC::HitTest( wxPoint aPosition, int aThreshold, const TRANSFORM& aTran
     // relative to the start point to end point vector lies
     if( CrossProduct( startEndVector, startRelativePositionVector ) < 0 )
     {
-        EXCHG( crossProductStart, crossProductEnd );
+        std::swap( crossProductStart, crossProductEnd );
     }
 
     // When the cross products have a different sign, the point lies in sector
@@ -292,8 +294,8 @@ void LIB_ARC::MirrorHorizontal( const wxPoint& aCenter )
     m_ArcEnd.x -= aCenter.x;
     m_ArcEnd.x *= -1;
     m_ArcEnd.x += aCenter.x;
-    EXCHG( m_ArcStart, m_ArcEnd );
-    EXCHG( m_t1, m_t2 );
+    std::swap( m_ArcStart, m_ArcEnd );
+    std::swap( m_t1, m_t2 );
     m_t1 = 1800 - m_t1;
     m_t2 = 1800 - m_t2;
     if( m_t1 > 3600 || m_t2 > 3600 )
@@ -319,8 +321,8 @@ void LIB_ARC::MirrorVertical( const wxPoint& aCenter )
     m_ArcEnd.y -= aCenter.y;
     m_ArcEnd.y *= -1;
     m_ArcEnd.y += aCenter.y;
-    EXCHG( m_ArcStart, m_ArcEnd );
-    EXCHG( m_t1, m_t2 );
+    std::swap( m_ArcStart, m_ArcEnd );
+    std::swap( m_t1, m_t2 );
     m_t1 = - m_t1;
     m_t2 = - m_t2;
     if( m_t1 > 3600 || m_t2 > 3600 )
@@ -370,12 +372,12 @@ void LIB_ARC::Plot( PLOTTER* aPlotter, const wxPoint& aOffset, bool aFill,
 
     if( aFill && m_Fill == FILLED_WITH_BG_BODYCOLOR )
     {
-        aPlotter->SetColor( ReturnLayerColor( LAYER_DEVICE_BACKGROUND ) );
+        aPlotter->SetColor( GetLayerColor( LAYER_DEVICE_BACKGROUND ) );
         aPlotter->Arc( pos, -t2, -t1, m_Radius, FILLED_SHAPE, 0 );
     }
 
     bool already_filled = m_Fill == FILLED_WITH_BG_BODYCOLOR;
-    aPlotter->SetColor( ReturnLayerColor( LAYER_DEVICE ) );
+    aPlotter->SetColor( GetLayerColor( LAYER_DEVICE ) );
     aPlotter->Arc( pos, -t2, -t1, m_Radius, already_filled ? NO_FILL : m_Fill, GetPenSize() );
 }
 
@@ -416,7 +418,7 @@ void LIB_ARC::drawGraphic( EDA_DRAW_PANEL* aPanel, wxDC* aDC, const wxPoint& aOf
         return;
 
     wxPoint pos1, pos2, posc;
-    EDA_COLOR_T color = ReturnLayerColor( LAYER_DEVICE );
+    EDA_COLOR_T color = GetLayerColor( LAYER_DEVICE );
 
     if( aColor < 0 )       // Used normal color or selected color
     {
@@ -437,8 +439,8 @@ void LIB_ARC::drawGraphic( EDA_DRAW_PANEL* aPanel, wxDC* aDC, const wxPoint& aOf
 
     if( swap )
     {
-        EXCHG( pos1.x, pos2.x );
-        EXCHG( pos1.y, pos2.y );
+        std::swap( pos1.x, pos2.x );
+        std::swap( pos1.y, pos2.y );
     }
 
     GRSetDrawMode( aDC, aDrawMode );
@@ -448,16 +450,18 @@ void LIB_ARC::drawGraphic( EDA_DRAW_PANEL* aPanel, wxDC* aDC, const wxPoint& aOf
     if( aColor >= 0 )
         fill = NO_FILL;
 
+    EDA_RECT* const clipbox  = aPanel? aPanel->GetClipBox() : NULL;
+
     if( fill == FILLED_WITH_BG_BODYCOLOR )
     {
-        GRFilledArc( aPanel->GetClipBox(), aDC, posc.x, posc.y, pt1, pt2,
+        GRFilledArc( clipbox, aDC, posc.x, posc.y, pt1, pt2,
                      m_Radius, GetPenSize( ),
-                     (m_Flags & IS_MOVED) ? color : ReturnLayerColor( LAYER_DEVICE_BACKGROUND ),
-                     ReturnLayerColor( LAYER_DEVICE_BACKGROUND ) );
+                     (m_Flags & IS_MOVED) ? color : GetLayerColor( LAYER_DEVICE_BACKGROUND ),
+                     GetLayerColor( LAYER_DEVICE_BACKGROUND ) );
     }
     else if( fill == FILLED_SHAPE && !aData )
     {
-        GRFilledArc( aPanel->GetClipBox(), aDC, posc.x, posc.y, pt1, pt2, m_Radius,
+        GRFilledArc( clipbox, aDC, posc.x, posc.y, pt1, pt2, m_Radius,
                      color, color );
     }
     else
@@ -465,11 +469,11 @@ void LIB_ARC::drawGraphic( EDA_DRAW_PANEL* aPanel, wxDC* aDC, const wxPoint& aOf
 
 #ifdef DRAW_ARC_WITH_ANGLE
 
-        GRArc( aPanel->GetClipBox(), aDC, posc.x, posc.y, pt1, pt2, m_Radius,
+        GRArc( clipbox, aDC, posc.x, posc.y, pt1, pt2, m_Radius,
                GetPenSize(), color );
 #else
 
-        GRArc1( aPanel->GetClipBox(), aDC, pos1.x, pos1.y, pos2.x, pos2.y,
+        GRArc1( clipbox, aDC, pos1.x, pos1.y, pos2.x, pos2.y,
                 posc.x, posc.y, GetPenSize(), color );
 #endif
     }
@@ -478,13 +482,15 @@ void LIB_ARC::drawGraphic( EDA_DRAW_PANEL* aPanel, wxDC* aDC, const wxPoint& aOf
      * calculation. */
 #if 0
     EDA_RECT bBox = GetBoundingBox();
-    GRRect( aPanel->GetClipBox(), aDC, bBox.GetOrigin().x, bBox.GetOrigin().y,
-            bBox.GetEnd().x, bBox.GetEnd().y, 0, LIGHTMAGENTA );
+    bBox.RevertYAxis();
+    bBox = aTransform.TransformCoordinate( bBox );
+    bBox.Move( aOffset );
+    GRRect( clipbox, aDC, bBox, 0, LIGHTMAGENTA );
 #endif
 }
 
 
-EDA_RECT LIB_ARC::GetBoundingBox() const
+const EDA_RECT LIB_ARC::GetBoundingBox() const
 {
     int      minX, minY, maxX, maxY, angleStart, angleEnd;
     EDA_RECT rect;
@@ -509,8 +515,8 @@ start(%d, %d), end(%d, %d), radius %d" ),
 
     if( DefaultTransform.MapAngles( &angleStart, &angleEnd ) )
     {
-        EXCHG( endPos.x, startPos.x );
-        EXCHG( endPos.y, startPos.y );
+        std::swap( endPos.x, startPos.x );
+        std::swap( endPos.y, startPos.y );
     }
 
     /* Start with the start and end point of the arc. */
@@ -541,7 +547,7 @@ start(%d, %d), end(%d, %d), radius %d" ),
 
     rect.SetOrigin( minX, minY );
     rect.SetEnd( maxX, maxY );
-    rect.Inflate( m_Width / 2, m_Width / 2 );
+    rect.Inflate( ( GetPenSize()+1 ) / 2 );
 
     return rect;
 }
@@ -554,14 +560,14 @@ void LIB_ARC::GetMsgPanelInfo( std::vector< MSG_PANEL_ITEM >& aList )
 
     LIB_ITEM::GetMsgPanelInfo( aList );
 
-    msg = ReturnStringFromValue( g_UserUnit, m_Width, true );
+    msg = StringFromValue( g_UserUnit, m_Width, true );
 
-    aList.push_back( MSG_PANEL_ITEM( _( "Line width" ), msg, BLUE ) );
+    aList.push_back( MSG_PANEL_ITEM( _( "Line Width" ), msg, BLUE ) );
 
     msg.Printf( wxT( "(%d, %d, %d, %d)" ), bBox.GetOrigin().x,
                 bBox.GetOrigin().y, bBox.GetEnd().x, bBox.GetEnd().y );
 
-    aList.push_back( MSG_PANEL_ITEM( _( "Bounding box" ), msg, BROWN ) );
+    aList.push_back( MSG_PANEL_ITEM( _( "Bounding Box" ), msg, BROWN ) );
 }
 
 
@@ -574,7 +580,7 @@ wxString LIB_ARC::GetSelectMenuText() const
 }
 
 
-void LIB_ARC::BeginEdit( int aEditMode, const wxPoint aPosition )
+void LIB_ARC::BeginEdit( STATUS_FLAGS aEditMode, const wxPoint aPosition )
 {
     wxCHECK_RET( ( aEditMode & ( IS_NEW | IS_MOVED | IS_RESIZED ) ) != 0,
                  wxT( "Invalid edit mode for LIB_ARC object." ) );
@@ -748,7 +754,7 @@ void LIB_ARC::calcEdit( const wxPoint& aPosition )
         // artifacts left behind from the initial draw.
         int dx, dy;
         int cX, cY;
-        int angle;
+        double angle;
 
         cX = aPosition.x;
         cY = aPosition.y;
@@ -757,7 +763,7 @@ void LIB_ARC::calcEdit( const wxPoint& aPosition )
         dy = m_ArcEnd.y - m_ArcStart.y;
         cX -= m_ArcStart.x;
         cY -= m_ArcStart.y;
-        angle = (int) ( atan2( (double) dy, (double) dx ) * 1800 / M_PI );
+        angle = ArcTangente( dy, dx );
         RotatePoint( &dx, &dy, angle );     /* The segment dx, dy is horizontal
                                              * -> Length = dx, dy = 0 */
         RotatePoint( &cX, &cY, angle );
@@ -786,11 +792,9 @@ void LIB_ARC::calcRadiusAngles()
 
     m_Radius = KiROUND( EuclideanNorm( centerStartVector ) );
 
-    m_t1 = (int) ( atan2( (double) centerStartVector.y,
-                          (double) centerStartVector.x ) * 1800 / M_PI );
-
-    m_t2 = (int) ( atan2( (double) centerEndVector.y,
-                          (double) centerEndVector.x ) * 1800 / M_PI );
+    // Angles in eeschema are still integers
+    m_t1 = KiROUND( ArcTangente( centerStartVector.y, centerStartVector.x ) );
+    m_t2 = KiROUND( ArcTangente( centerEndVector.y, centerEndVector.x ) );
 
     NORMALIZE_ANGLE_POS( m_t1 );
     NORMALIZE_ANGLE_POS( m_t2 );  // angles = 0 .. 3600

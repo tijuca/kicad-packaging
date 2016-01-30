@@ -6,8 +6,8 @@
 /*
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
- * Copyright (C) 2012 Jean-Pierre Charras, jp.charras at wanadoo.fr
- * Copyright (C) 1992-2012 KiCad Developers, see AUTHORS.txt for contributors.
+ * Copyright (C) 2015 Jean-Pierre Charras, jp.charras at wanadoo.fr
+ * Copyright (C) 1992-2015 KiCad Developers, see AUTHORS.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -165,6 +165,7 @@ SVG_PLOTTER::SVG_PLOTTER()
     m_fillMode = NO_FILL;               // or FILLED_SHAPE or FILLED_WITH_BG_BODYCOLOR
     m_pen_rgb_color = 0;                // current color value (black)
     m_brush_rgb_color = 0;              // current color value (black)
+    m_dashed = false;
 }
 
 
@@ -172,7 +173,8 @@ void SVG_PLOTTER::SetViewport( const wxPoint& aOffset, double aIusPerDecimil,
                                double aScale, bool aMirror )
 {
     wxASSERT( !outputFile );
-    plotMirror  = not aMirror;      // unlike other plotters, SVG has Y axis reversed
+    m_plotMirror = aMirror;
+    m_yaxisReversed = true;     // unlike other plotters, SVG has Y axis reversed
     plotOffset  = aOffset;
     plotScale   = aScale;
     m_IUsPerDecimil = aIusPerDecimil;
@@ -188,6 +190,9 @@ void SVG_PLOTTER::SetViewport( const wxPoint& aOffset, double aIusPerDecimil,
 void SVG_PLOTTER::SetColor( EDA_COLOR_T color )
 {
     PSLIKE_PLOTTER::SetColor( color );
+
+    if( m_graphics_changed )
+        setSVGPlotStyle();
 }
 
 
@@ -226,7 +231,13 @@ void SVG_PLOTTER::setSVGPlotStyle()
     double pen_w = userToDeviceSize( GetCurrentLineWidth() );
     fprintf( outputFile, "\nstroke:#%6.6lX; stroke-width:%g; stroke-opacity:1; \n",
              m_pen_rgb_color, pen_w  );
-    fputs( "stroke-linecap:round; stroke-linejoin:round;\">\n", outputFile );
+    fputs( "stroke-linecap:round; stroke-linejoin:round;", outputFile );
+
+    if( m_dashed )
+        fprintf( outputFile, "stroke-dasharray:%g,%g;",
+                 GetDashMarkLenIU(), GetDashGapLenIU() );
+
+    fputs( "\">\n", outputFile );
 
     m_graphics_changed = false;
 }
@@ -280,6 +291,14 @@ void SVG_PLOTTER::emitSetRGBColor( double r, double g, double b )
  */
 void SVG_PLOTTER::SetDash( bool dashed )
 {
+    if( m_dashed != dashed )
+    {
+        m_graphics_changed = true;
+        m_dashed = dashed;
+    }
+
+    if( m_graphics_changed )
+        setSVGPlotStyle();
 }
 
 
@@ -291,19 +310,30 @@ void SVG_PLOTTER::Rect( const wxPoint& p1, const wxPoint& p2, FILL_T fill, int w
     DPOINT  end_dev = userToDeviceCoordinates( rect.GetEnd() );
     DSIZE  size_dev = end_dev - org_dev;
     // Ensure size of rect in device coordinates is > 0
-    // Inkscape has problems with negative values for width and/or height
+    // I don't know if this is a SVG issue or a Inkscape issue, but
+    // Inkscape has problems with negative or null values for width and/or height, so avoid them
     DBOX rect_dev( org_dev, size_dev);
     rect_dev.Normalize();
 
     setFillMode( fill );
     SetCurrentLineWidth( width );
 
-    fprintf( outputFile,
-             "<rect x=\"%g\" y=\"%g\" width=\"%g\" height=\"%g\" rx=\"%g\" />\n",
-             rect_dev.GetPosition().x,  rect_dev.GetPosition().y,
-             rect_dev.GetSize().x, rect_dev.GetSize().y,
-             0.0   // radius of rounded corners
-             );
+    // Rectangles having a 0 size value for height or width are just not drawn on Inscape,
+    // so use a line when happens.
+    if( rect_dev.GetSize().x == 0.0 || rect_dev.GetSize().y == 0.0 )    // Draw a line
+        fprintf( outputFile,
+                 "<line x1=\"%g\" y1=\"%g\" x2=\"%g\" y2=\"%g\" />\n",
+                 rect_dev.GetPosition().x, rect_dev.GetPosition().y,
+                 rect_dev.GetEnd().x, rect_dev.GetEnd().y
+                 );
+
+    else
+        fprintf( outputFile,
+                 "<rect x=\"%g\" y=\"%g\" width=\"%g\" height=\"%g\" rx=\"%g\" />\n",
+                 rect_dev.GetPosition().x, rect_dev.GetPosition().y,
+                 rect_dev.GetSize().x, rect_dev.GetSize().y,
+                 0.0   // radius of rounded corners
+                 );
 }
 
 
@@ -321,7 +351,7 @@ void SVG_PLOTTER::Circle( const wxPoint& pos, int diametre, FILL_T fill, int wid
 }
 
 
-void SVG_PLOTTER::Arc( const wxPoint& centre, int StAngle, int EndAngle, int radius,
+void SVG_PLOTTER::Arc( const wxPoint& centre, double StAngle, double EndAngle, int radius,
                        FILL_T fill, int width )
 {
     /* Draws an arc of a circle, centred on (xc,yc), with starting point
@@ -336,7 +366,7 @@ void SVG_PLOTTER::Arc( const wxPoint& centre, int StAngle, int EndAngle, int rad
         return;
 
     if( StAngle > EndAngle )
-        EXCHG( StAngle, EndAngle );
+        std::swap( StAngle, EndAngle );
 
     setFillMode( fill );
     SetCurrentLineWidth( width );
@@ -345,11 +375,26 @@ void SVG_PLOTTER::Arc( const wxPoint& centre, int StAngle, int EndAngle, int rad
     DPOINT  centre_dev  = userToDeviceCoordinates( centre );
     double  radius_dev  = userToDeviceSize( radius );
 
-    if( !plotMirror )
+    if( !m_yaxisReversed )   // Should be never the case
     {
-        int tmp = StAngle;
+        double tmp  = StAngle;
         StAngle     = -EndAngle;
         EndAngle    = -tmp;
+    }
+
+    if( m_plotMirror )
+    {
+        if( m_mirrorIsHorizontal )
+        {
+            StAngle = 1800.0 -StAngle;
+            EndAngle = 1800.0 -EndAngle;
+            std::swap( StAngle, EndAngle );
+        }
+        else
+        {
+            StAngle = -StAngle;
+            EndAngle = -EndAngle;
+        }
     }
 
     DPOINT  start;
@@ -361,12 +406,12 @@ void SVG_PLOTTER::Arc( const wxPoint& centre, int StAngle, int EndAngle, int rad
     start += centre_dev;
     end += centre_dev;
 
-    double theta1 = StAngle * M_PI / 1800.0;
+    double theta1 = DECIDEG2RAD( StAngle );
 
     if( theta1 < 0 )
         theta1 = theta1 + M_PI * 2;
 
-    double theta2 = EndAngle * M_PI / 1800.0;
+    double theta2 = DECIDEG2RAD( EndAngle );
 
     if( theta2 < 0 )
         theta2 = theta2 + M_PI * 2;
@@ -404,14 +449,14 @@ void SVG_PLOTTER::PlotPoly( const std::vector<wxPoint>& aCornerList,
 
     switch( aFill )
     {
-        case NO_FILL:
-            fprintf( outputFile, "<polyline fill=\"none;\"\n" );
-            break;
+    case NO_FILL:
+        fprintf( outputFile, "<polyline fill=\"none;\"\n" );
+        break;
 
-        case FILLED_WITH_BG_BODYCOLOR:
-        case FILLED_SHAPE:
-            fprintf( outputFile, "<polyline style=\"fill-rule:evenodd;\"\n" );
-            break;
+    case FILLED_WITH_BG_BODYCOLOR:
+    case FILLED_SHAPE:
+        fprintf( outputFile, "<polyline style=\"fill-rule:evenodd;\"\n" );
+        break;
     }
 
     DPOINT pos = userToDeviceCoordinates( aCornerList[0] );
@@ -462,6 +507,15 @@ void SVG_PLOTTER::PenTo( const wxPoint& pos, char plume )
     if( penState == 'Z' )    // here plume = 'D' or 'U'
     {
         DPOINT pos_dev = userToDeviceCoordinates( pos );
+
+        // Ensure we do not use a fill mode when moving tne pen,
+        // in SVG mode (i;e. we are plotting only basic lines, not a filled area
+        if( m_fillMode != NO_FILL )
+        {
+            setFillMode( NO_FILL );
+            setSVGPlotStyle();
+        }
+
         fprintf( outputFile, "<path d=\"M%d %d\n",
                  (int) pos_dev.x, (int) pos_dev.y );
     }
@@ -550,13 +604,14 @@ bool SVG_PLOTTER::EndPlot()
 void SVG_PLOTTER::Text( const wxPoint&              aPos,
                         enum EDA_COLOR_T            aColor,
                         const wxString&             aText,
-                        int                         aOrient,
+                        double                      aOrient,
                         const wxSize&               aSize,
                         enum EDA_TEXT_HJUSTIFY_T    aH_justify,
                         enum EDA_TEXT_VJUSTIFY_T    aV_justify,
                         int                         aWidth,
                         bool                        aItalic,
-                        bool                        aBold )
+                        bool                        aBold,
+                        bool                        aMultilineAllowed )
 {
     setFillMode( NO_FILL );
     SetColor( aColor );
@@ -565,5 +620,5 @@ void SVG_PLOTTER::Text( const wxPoint&              aPos,
     // TODO: see if the postscript native text code can be used in SVG plotter
 
     PLOTTER::Text( aPos, aColor, aText, aOrient, aSize, aH_justify, aV_justify,
-                   aWidth, aItalic, aBold );
+                   aWidth, aItalic, aBold, aMultilineAllowed );
 }

@@ -27,40 +27,182 @@
  */
 
 #include <fctsys.h>
-#include <appl_wxstruct.h>
+#include <kiface_i.h>
+#include <pgm_base.h>
 #include <gr_basic.h>
 #include <class_drawpanel.h>
 #include <gestfich.h>
 #include <confirm.h>
 #include <base_units.h>
 #include <msgpanel.h>
+#include <html_messagebox.h>
 
 #include <general.h>
 #include <eeschema_id.h>
 #include <netlist.h>
 #include <lib_pin.h>
 #include <class_library.h>
-#include <wxEeschemaStruct.h>
+#include <schframe.h>
 #include <sch_component.h>
 
 #include <dialog_helpers.h>
-#include <dialog_netlist.h>
 #include <libeditframe.h>
 #include <viewlib_frame.h>
 #include <hotkeys.h>
 #include <eeschema_config.h>
 #include <sch_sheet.h>
+#include <sch_sheet_path.h>
 
-#include <dialogs/annotate_dialog.h>
-#include <dialogs/dialog_build_BOM.h>
-#include <dialogs/dialog_erc.h>
-#include <dialogs/dialog_print_using_printer.h>
+#include <invoke_sch_dialog.h>
 #include <dialogs/dialog_schematic_find.h>
 
 #include <wx/display.h>
 #include <build_version.h>
 #include <wildcards_and_files_ext.h>
 
+
+// non-member so it can be moved easily, and kept REALLY private.
+// Do NOT Clear() in here.
+static void add_search_paths( SEARCH_STACK* aDst, const SEARCH_STACK& aSrc, int aIndex )
+{
+    for( unsigned i=0; i<aSrc.GetCount();  ++i )
+        aDst->AddPaths( aSrc[i], aIndex );
+}
+
+
+// non-member so it can be moved easily, and kept REALLY private.
+// Do NOT Clear() in here.
+static void add_search_paths( SEARCH_STACK* aDst, wxConfigBase* aCfg, int aIndex )
+{
+    for( int i=1;  true;  ++i )
+    {
+        wxString key   = wxString::Format( wxT( "LibraryPath%d" ), i );
+        wxString upath = aCfg->Read( key, wxEmptyString );
+
+        if( !upath )
+            break;
+
+        aDst->AddPaths( upath, aIndex );
+    }
+}
+
+//-----<SCH "data on demand" functions>-------------------------------------------
+
+SEARCH_STACK* PROJECT::SchSearchS()
+{
+    SEARCH_STACK* ss = (SEARCH_STACK*) GetElem( PROJECT::ELEM_SCH_SEARCH_STACK );
+
+    wxASSERT( !ss || dynamic_cast<SEARCH_STACK*>( GetElem( PROJECT::ELEM_SCH_SEARCH_STACK ) ) );
+
+    if( !ss )
+    {
+        ss = new SEARCH_STACK();
+
+        // Make PROJECT the new SEARCH_STACK owner.
+        SetElem( PROJECT::ELEM_SCH_SEARCH_STACK, ss );
+
+        // to the empty SEARCH_STACK for SchSearchS(), add project dir as first
+        ss->AddPaths( m_project_name.GetPath() );
+
+        // next add the paths found in *.pro, variable "LibDir"
+        wxString        libDir;
+
+        try
+        {
+            PART_LIBS::LibNamesAndPaths( this, false, &libDir );
+        }
+        catch( const IO_ERROR& ioe )
+        {
+            DBG(printf( "%s: %s\n", __func__, TO_UTF8( ioe.errorText ) );)
+        }
+
+        if( !!libDir )
+        {
+            wxArrayString   paths;
+
+            SEARCH_STACK::Split( &paths, libDir );
+
+            for( unsigned i =0; i<paths.GetCount();  ++i )
+            {
+                wxString path = AbsolutePath( paths[i] );
+
+                ss->AddPaths( path );     // at the end
+            }
+        }
+
+        // append all paths from aSList
+        add_search_paths( ss, Kiface().KifaceSearch(), -1 );
+
+        // addLibrarySearchPaths( SEARCH_STACK* aSP, wxConfigBase* aCfg )
+        // This is undocumented, but somebody wanted to store !schematic!
+        // library search paths in the .kicad_common file?
+        add_search_paths( ss, Pgm().CommonSettings(), -1 );
+    }
+
+    return ss;
+}
+
+
+PART_LIBS* PROJECT::SchLibs()
+{
+    PART_LIBS* libs = (PART_LIBS*)  GetElem( PROJECT::ELEM_SCH_PART_LIBS );
+
+    wxASSERT( !libs || dynamic_cast<PART_LIBS*>( libs ) );
+
+    if( !libs )
+    {
+        libs = new PART_LIBS();
+
+        // Make PROJECT the new PART_LIBS owner.
+        SetElem( PROJECT::ELEM_SCH_PART_LIBS, libs );
+
+        try
+        {
+            libs->LoadAllLibraries( this );
+        }
+        catch( const PARSE_ERROR& pe )
+        {
+            wxString    lib_list = UTF8( pe.inputLine );
+            wxWindow*   parent = 0; // Pgm().App().GetTopWindow();
+
+            // parent of this dialog cannot be NULL since that breaks the Kiway() chain.
+            HTML_MESSAGE_BOX dlg( parent, _( "Not Found" ) );
+
+            dlg.MessageSet( _( "The following libraries were not found:" ) );
+
+            dlg.ListSet( lib_list );
+
+            dlg.Layout();
+
+            dlg.ShowModal();
+        }
+        catch( const IO_ERROR& ioe )
+        {
+            DisplayError( NULL, ioe.errorText );
+        }
+    }
+
+    return libs;
+}
+
+/*
+NETLIST_OBJECT_LIST* PROJECT::Netlist()
+{
+    NETLIST_OBJECT_LIST* netlist = (NETLIST_OBJECT_LIST*)  GetElem( PROJECT::ELEM_SCH_NETLIST );
+
+    wxASSERT( !libs || dynamic_cast<NETLIST_OBJECT_LIST*>( netlist ) );
+
+    if( !netlist )
+    {
+        netlist = new NETLIST_OBJECT_LIST();
+
+        // Make PROJECT the new NETLIST_OBJECT_LIST owner.
+        SetElem( PROJECT::ELEM_SCH_NETLIST, netlist );
+    }
+}
+*/
+
+//-----</SCH "data on demand" functions>------------------------------------------
 
 
 BEGIN_EVENT_TABLE( SCH_EDIT_FRAME, EDA_DRAW_FRAME )
@@ -96,16 +238,17 @@ BEGIN_EVENT_TABLE( SCH_EDIT_FRAME, EDA_DRAW_FRAME )
                     SCH_EDIT_FRAME::Process_Config )
 
     EVT_MENU( ID_COLORS_SETUP, SCH_EDIT_FRAME::OnColorConfig )
-    EVT_TOOL( wxID_PREFERENCES, SCH_EDIT_FRAME::OnSetOptions )
+    EVT_TOOL( wxID_PREFERENCES, SCH_EDIT_FRAME::OnPreferencesOptions )
 
-    EVT_MENU_RANGE( ID_LANGUAGE_CHOICE, ID_LANGUAGE_CHOICE_END, SCH_EDIT_FRAME::SetLanguage )
-
-    EVT_TOOL( ID_TO_LIBRARY, SCH_EDIT_FRAME::OnOpenLibraryEditor )
+    EVT_TOOL( ID_RUN_LIBRARY, SCH_EDIT_FRAME::OnOpenLibraryEditor )
     EVT_TOOL( ID_POPUP_SCH_CALL_LIBEDIT_AND_LOAD_CMP, SCH_EDIT_FRAME::OnOpenLibraryEditor )
     EVT_TOOL( ID_TO_LIBVIEW, SCH_EDIT_FRAME::OnOpenLibraryViewer )
+    EVT_TOOL( ID_RESCUE_CACHED, SCH_EDIT_FRAME::OnRescueProject )
 
-    EVT_TOOL( ID_TO_PCB, SCH_EDIT_FRAME::OnOpenPcbnew )
-    EVT_TOOL( ID_TO_CVPCB, SCH_EDIT_FRAME::OnOpenCvpcb )
+    EVT_TOOL( ID_RUN_PCB, SCH_EDIT_FRAME::OnOpenPcbnew )
+    EVT_TOOL( ID_RUN_PCB_MODULE_EDITOR, SCH_EDIT_FRAME::OnOpenPcbModuleEditor )
+
+    EVT_TOOL( ID_RUN_CVPCB, SCH_EDIT_FRAME::OnOpenCvpcb )
 
     EVT_TOOL( ID_SHEET_SET, EDA_DRAW_FRAME::Process_PageSettings )
     EVT_TOOL( ID_HIERARCHY, SCH_EDIT_FRAME::Process_Special_Functions )
@@ -148,7 +291,7 @@ BEGIN_EVENT_TABLE( SCH_EDIT_FRAME, EDA_DRAW_FRAME )
 
     EVT_MENU_RANGE( ID_POPUP_GENERAL_START_RANGE, ID_POPUP_GENERAL_END_RANGE,
                     SCH_EDIT_FRAME::Process_Special_Functions )
-    EVT_MENU_RANGE( ID_POPUP_SCH_SELECT_UNIT1, ID_POPUP_SCH_SELECT_UNIT26,
+    EVT_MENU_RANGE( ID_POPUP_SCH_SELECT_UNIT1, ID_POPUP_SCH_SELECT_UNIT_CMP_MAX,
                     SCH_EDIT_FRAME::OnSelectUnit )
     EVT_MENU_RANGE( ID_POPUP_SCH_CHANGE_TYPE_TEXT, ID_POPUP_SCH_CHANGE_TYPE_TEXT_TO_COMMENT,
                     SCH_EDIT_FRAME::OnConvertTextType )
@@ -165,6 +308,9 @@ BEGIN_EVENT_TABLE( SCH_EDIT_FRAME, EDA_DRAW_FRAME )
     EVT_UPDATE_UI( ID_NO_TOOL_SELECTED, SCH_EDIT_FRAME::OnUpdateSelectTool )
     EVT_UPDATE_UI_RANGE( ID_SCHEMATIC_VERTICAL_TOOLBAR_START, ID_SCHEMATIC_VERTICAL_TOOLBAR_END,
                          SCH_EDIT_FRAME::OnUpdateSelectTool )
+    EVT_UPDATE_UI( ID_SAVE_PROJECT, SCH_EDIT_FRAME::OnUpdateSave )
+    EVT_UPDATE_UI( ID_UPDATE_ONE_SHEET, SCH_EDIT_FRAME::OnUpdateSaveSheet )
+    EVT_UPDATE_UI( ID_POPUP_SCH_LEAVE_SHEET, SCH_EDIT_FRAME::OnUpdateHierarchySheet )
 
     /* Search dialog events. */
     EVT_FIND_CLOSE( wxID_ANY, SCH_EDIT_FRAME::OnFindDialogClose )
@@ -175,19 +321,15 @@ BEGIN_EVENT_TABLE( SCH_EDIT_FRAME, EDA_DRAW_FRAME )
 
 END_EVENT_TABLE()
 
-#define SCH_EDIT_FRAME_NAME wxT( "SchematicFrame" )
 
-SCH_EDIT_FRAME::SCH_EDIT_FRAME( wxWindow* aParent, const wxString& aTitle,
-                    const wxPoint& aPosition, const wxSize& aSize,
-                    long aStyle ) :
-    SCH_BASE_FRAME( aParent, SCHEMATIC_FRAME_TYPE, aTitle, aPosition, aSize,
-                    aStyle, SCH_EDIT_FRAME_NAME )
+SCH_EDIT_FRAME::SCH_EDIT_FRAME( KIWAY* aKiway, wxWindow* aParent ):
+    SCH_BASE_FRAME( aKiway, aParent, FRAME_SCH, wxT( "Eeschema" ),
+        wxDefaultPosition, wxDefaultSize, KICAD_DEFAULT_DRAWFRAME_STYLE, SCH_EDIT_FRAME_NAME ),
+    m_item_to_repeat( 0 )
 {
-    m_FrameName = SCH_EDIT_FRAME_NAME;
     m_showAxis = false;                 // true to show axis
     m_showBorderAndTitleBlock = true;   // true to show sheet references
-    m_CurrentSheet = new SCH_SHEET_PATH();
-    m_TextFieldSize = DEFAULT_SIZE_TEXT;
+    m_CurrentSheet = new SCH_SHEET_PATH;
     m_DefaultSchematicFileName = NAMELESS_PROJECT;
     m_DefaultSchematicFileName += wxT( ".sch" );
     m_showAllPins = false;
@@ -195,28 +337,34 @@ SCH_EDIT_FRAME::SCH_EDIT_FRAME( wxWindow* aParent, const wxString& aTitle,
     m_previewSize = wxDefaultSize;
     m_printMonochrome = true;
     m_printSheetReference = true;
-    m_HotkeysZoomAndGridList = s_Schematic_Hokeys_Descr;
+    SetShowPageLimits( true );
+    m_hotkeysDescrList = g_Schematic_Hokeys_Descr;
     m_dlgFindReplace = NULL;
     m_findReplaceData = new wxFindReplaceData( wxFR_DOWN );
     m_undoItem = NULL;
     m_hasAutoSave = true;
-    SetForceHVLines( true );
-    SetDefaultLabelSize( DEFAULT_SIZE_TEXT );
 
-    CreateScreens();
+    SetForceHVLines( true );
+    SetSpiceAddReferencePrefix( false );
+    SetSpiceUseNetcodeAsNetname( false );
 
     // Give an icon
     wxIcon icon;
     icon.CopyFromBitmap( KiBitmap( icon_eeschema_xpm ) );
     SetIcon( icon );
 
-    m_itemToRepeat = NULL;
-
-    /* Get config */
-    LoadSettings();
-
     // Initialize grid id to the default value (50 mils):
-    m_LastGridSizeId = ID_POPUP_GRID_LEVEL_50 - ID_POPUP_GRID_LEVEL_1000;
+    const int default_grid = ID_POPUP_GRID_LEVEL_50 - ID_POPUP_GRID_LEVEL_1000;
+    m_LastGridSizeId = default_grid;
+
+    LoadSettings( config() );
+
+    CreateScreens();
+
+    // Ensure m_LastGridSizeId is an offset inside the allowed schematic grid range
+    if( !GetScreen()->GridExists( m_LastGridSizeId + ID_POPUP_GRID_LEVEL_1000 ) )
+        m_LastGridSizeId = default_grid;
+
     SetSize( m_FramePos.x, m_FramePos.y, m_FrameSize.x, m_FrameSize.y );
 
     if( m_canvas )
@@ -244,8 +392,6 @@ SCH_EDIT_FRAME::SCH_EDIT_FRAME( wxWindow* aParent, const wxString& aTitle,
     EDA_PANEINFO mesg;
     mesg.MessageToolbarPane();
 
-
-
     if( m_mainToolBar )
         m_auimgr.AddPane( m_mainToolBar,
                           wxAuiPaneInfo( horiz ).Name( wxT( "m_mainToolBar" ) ).Top().Row( 0 ) );
@@ -268,17 +414,52 @@ SCH_EDIT_FRAME::SCH_EDIT_FRAME( wxWindow* aParent, const wxString& aTitle,
 
     // Now Drawpanel is sized, we can use BestZoom to show the component (if any)
     GetScreen()->SetZoom( BestZoom() );
+
+    Zoom_Automatique( false );
 }
 
 
 SCH_EDIT_FRAME::~SCH_EDIT_FRAME()
 {
+    delete m_item_to_repeat;        // we own the cloned object, see this->SetRepeatItem()
+
     SetScreen( NULL );
-    SAFE_DELETE( m_CurrentSheet );     // a SCH_SHEET_PATH, on the heap.
-    SAFE_DELETE( m_undoItem );
-    SAFE_DELETE( g_RootSheet );
-    SAFE_DELETE( m_findReplaceData );
-    CMP_LIBRARY::RemoveAllLibraries();
+
+    delete m_CurrentSheet;          // a SCH_SHEET_PATH, on the heap.
+    delete m_undoItem;
+    delete g_RootSheet;
+    delete m_findReplaceData;
+
+    m_CurrentSheet = NULL;
+    m_undoItem = NULL;
+    g_RootSheet = NULL;
+    m_findReplaceData = NULL;
+}
+
+
+void SCH_EDIT_FRAME::SetRepeatItem( SCH_ITEM* aItem )
+{
+    // we cannot store a pointer to an item in the display list here since
+    // that item may be deleted, such as part of a line concatonation or other.
+    // So simply always keep a copy of the object which is to be repeated.
+
+    SCH_ITEM*   old = m_item_to_repeat;
+    SCH_ITEM*   cur = aItem;
+
+    if( cur != old )
+    {
+        if( cur )
+        {
+            aItem = (SCH_ITEM*) cur->Clone();
+
+            // Clone() preserves the flags, we want 'em cleared.
+            aItem->ClearFlags();
+        }
+
+        m_item_to_repeat = aItem;
+
+        delete old;
+    }
 }
 
 
@@ -292,13 +473,13 @@ void SCH_EDIT_FRAME::SetSheetNumberAndCount()
     int            sheet_count = g_RootSheet->CountSheets();
     int            SheetNumber = 1;
     wxString       current_sheetpath = m_CurrentSheet->Path();
-    SCH_SHEET_LIST SheetList;
+    SCH_SHEET_LIST sheetList;
 
     // Examine all sheets path to find the current sheets path,
     // and count them from root to the current sheet path:
     SCH_SHEET_PATH* sheet;
 
-    for( sheet = SheetList.GetFirst(); sheet != NULL; sheet = SheetList.GetNext() )
+    for( sheet = sheetList.GetFirst(); sheet != NULL; sheet = sheetList.GetNext() )
     {
         wxString sheetpath = sheet->Path();
 
@@ -325,7 +506,7 @@ SCH_SCREEN* SCH_EDIT_FRAME::GetScreen() const
 }
 
 
-wxString SCH_EDIT_FRAME::GetScreenDesc()
+wxString SCH_EDIT_FRAME::GetScreenDesc() const
 {
     wxString s = m_CurrentSheet->PathHumanReadable();
 
@@ -342,24 +523,25 @@ void SCH_EDIT_FRAME::CreateScreens()
 
     if( g_RootSheet->GetScreen() == NULL )
     {
-        g_RootSheet->SetScreen( new SCH_SCREEN() );
+        SCH_SCREEN* screen = new SCH_SCREEN( &Kiway() );
+        screen->SetMaxUndoItems( m_UndoRedoCountMax );
+        g_RootSheet->SetScreen( screen );
         SetScreen( g_RootSheet->GetScreen() );
     }
 
     g_RootSheet->GetScreen()->SetFileName( m_DefaultSchematicFileName );
 
-    TITLE_BLOCK tb = g_RootSheet->GetScreen()->GetTitleBlock();
-    tb.SetDate();
-    g_RootSheet->GetScreen()->SetTitleBlock( tb );
-
     m_CurrentSheet->Clear();
     m_CurrentSheet->Push( g_RootSheet );
 
     if( GetScreen() == NULL )
-        SetScreen( new SCH_SCREEN() );
+    {
+        SCH_SCREEN* screen = new SCH_SCREEN( &Kiway() );
+        screen->SetMaxUndoItems( m_UndoRedoCountMax );
+        SetScreen( screen );
+    }
 
     GetScreen()->SetZoom( 32.0 );
-    GetScreen()->m_UndoRedoCountMax = 10;
 }
 
 
@@ -413,21 +595,30 @@ void SCH_EDIT_FRAME::SaveUndoItemInUndoList( SCH_ITEM* aItem )
 
 void SCH_EDIT_FRAME::OnCloseWindow( wxCloseEvent& aEvent )
 {
-    LIB_EDIT_FRAME * libeditFrame = LIB_EDIT_FRAME::GetActiveLibraryEditor();;
-    if( libeditFrame && !libeditFrame->Close() )   // Can close component editor?
-        return;
-
-    LIB_VIEW_FRAME * viewlibFrame = LIB_VIEW_FRAME::GetActiveLibraryViewer();;
-    if( viewlibFrame && !viewlibFrame->Close() )   // Can close component viewer?
-        return;
-
-    SCH_SHEET_LIST SheetList;
-
-    if( SheetList.IsModified() )
+    if( Kiface().IsSingle() )
     {
-        wxString msg;
-        msg.Printf( _("Save the changes in\n<%s>\nbefore closing?"),
-                    GetChars( g_RootSheet->GetScreen()->GetFileName() ) );
+        LIB_EDIT_FRAME* libeditFrame = (LIB_EDIT_FRAME*) Kiway().Player( FRAME_SCH_LIB_EDITOR, false );
+        if( libeditFrame && !libeditFrame->Close() )   // Can close component editor?
+            return;
+
+        LIB_VIEW_FRAME* viewlibFrame = (LIB_VIEW_FRAME*) Kiway().Player( FRAME_SCH_VIEWER, false );
+        if( viewlibFrame && !viewlibFrame->Close() )   // Can close component viewer?
+            return;
+
+        viewlibFrame = (LIB_VIEW_FRAME*) Kiway().Player( FRAME_SCH_VIEWER_MODAL, false );
+        if( viewlibFrame && !viewlibFrame->Close() )   // Can close modal component viewer?
+            return;
+    }
+
+    SCH_SHEET_LIST sheetList;
+
+    if( sheetList.IsModified() )
+    {
+        wxString fileName = Prj().AbsolutePath( g_RootSheet->GetScreen()->GetFileName() );
+        wxString msg = wxString::Format( _(
+                "Save the changes in\n'%s'\nbefore closing?"),
+                GetChars( fileName )
+                );
 
         int ii = DisplayExitDialog( this, msg );
 
@@ -440,7 +631,6 @@ void SCH_EDIT_FRAME::OnCloseWindow( wxCloseEvent& aEvent )
         case wxID_NO:
             break;
 
-        case wxID_OK:
         case wxID_YES:
             wxCommandEvent tmp( ID_SAVE_PROJECT );
             OnSaveProject( tmp );
@@ -448,7 +638,7 @@ void SCH_EDIT_FRAME::OnCloseWindow( wxCloseEvent& aEvent )
         }
     }
 
-    // Close the find dialog and perserve it's setting if it is displayed.
+    // Close the find dialog and preserve it's setting if it is displayed.
     if( m_dlgFindReplace )
     {
         m_findDialogPosition = m_dlgFindReplace->GetPosition();
@@ -464,26 +654,30 @@ void SCH_EDIT_FRAME::OnCloseWindow( wxCloseEvent& aEvent )
 
     for( SCH_SCREEN* screen = screens.GetFirst(); screen != NULL; screen = screens.GetNext() )
     {
-        fn = screen->GetFileName();
+        fn = Prj().AbsolutePath( screen->GetFileName() );
 
-        // Auto save file name is the normal file name prepended with $.
-        fn.SetName( wxT( "$" ) + fn.GetName() );
+        // Auto save file name is the normal file name prepended with AUTOSAVE_PREFIX_FILENAME.
+        fn.SetName( AUTOSAVE_PREFIX_FILENAME + fn.GetName() );
 
         if( fn.FileExists() && fn.IsFileWritable() )
             wxRemoveFile( fn.GetFullPath() );
     }
 
-    SheetList.ClearModifyStatus();
+    sheetList.ClearModifyStatus();
 
-    if( !g_RootSheet->GetScreen()->GetFileName().IsEmpty()
-       && (g_RootSheet->GetScreen()->GetDrawItems() != NULL) )
-        UpdateFileHistory( g_RootSheet->GetScreen()->GetFileName() );
+    wxString fileName = Prj().AbsolutePath( g_RootSheet->GetScreen()->GetFileName() );
+
+    if( !g_RootSheet->GetScreen()->GetFileName().IsEmpty() &&
+        g_RootSheet->GetScreen()->GetDrawItems() != NULL )
+    {
+        UpdateFileHistory( fileName );
+    }
 
     g_RootSheet->GetScreen()->Clear();
 
-    /* all sub sheets are deleted, only the main sheet is usable */
+    // all sub sheets are deleted, only the main sheet is usable
     m_CurrentSheet->Clear();
-    SaveSettings();
+
     Destroy();
 }
 
@@ -506,7 +700,7 @@ double SCH_EDIT_FRAME::BestZoom()
 
     double bestzoom = std::max( zx, zy );
 
-    GetScreen()->SetScrollCenterPosition( wxPoint( dx / 2, dy / 2 ) );
+    SetScrollCenterPosition( wxPoint( dx / 2, dy / 2 ) );
 
     return bestzoom;
 }
@@ -516,31 +710,28 @@ wxString SCH_EDIT_FRAME::GetUniqueFilenameForCurrentSheet()
 {
     wxFileName fn = GetScreen()->GetFileName();
 
-#ifndef KICAD_GOST
-    wxString filename = fn.GetName();
-    if( ( filename.Len() + m_CurrentSheet->PathHumanReadable().Len() ) < 50 )
-#else
-    fn.ClearExt();
-    wxString filename = fn.GetFullPath();
-    if( ( filename.Len() + m_CurrentSheet->PathHumanReadable().Len() ) < 80 )
-#endif
+    // Name is <root sheet filename>-<sheet path> and has no extension.
+    // However if filename is too long name is <sheet filename>-<sheet number>
 
-    {
-        filename += m_CurrentSheet->PathHumanReadable();
-        filename.Replace( wxT( "/" ), wxT( "-" ) );
-        filename.RemoveLast();
-#if defined(KICAD_GOST)
-#ifndef __WINDOWS__
-        wxString newfn;
-        if( filename.StartsWith( wxT( "-" ), &newfn ) )
-            filename = newfn;
-#endif
-#endif
-    }
+    #define FN_LEN_MAX 80   // A reasonable value for the short filename len
+
+    wxString filename = fn.GetName();
+    wxString sheetFullName =  m_CurrentSheet->PathHumanReadable();
+
+    // Remove the last '/' of the path human readable
+    // (and for the root sheet, make sheetFullName empty):
+    sheetFullName.RemoveLast();
+
+    sheetFullName.Trim( true );
+    sheetFullName.Trim( false );
+
+    // Convert path human readable separator to '-'
+    sheetFullName.Replace( wxT( "/" ), wxT( "-" ) );
+
+    if( ( filename.Len() + sheetFullName.Len() ) < FN_LEN_MAX )
+        filename += sheetFullName;
     else
-    {
         filename << wxT( "-" ) << GetScreen()->m_ScreenNumber;
-    }
 
     return filename;
 }
@@ -551,24 +742,9 @@ void SCH_EDIT_FRAME::OnModify()
     GetScreen()->SetModify();
     GetScreen()->SetSave();
 
-    if( m_dlgFindReplace == NULL )
-        m_foundItems.SetForceSearch();
-
-    SCH_SCREENS s_list;
-
-    // Set the date for each sheet
-    // There are 2 possibilities:
-    // >> change only the current sheet
-    // >> change all sheets.
-    // I believe all sheets in a project must have the same date
-    s_list.SetDate();
+    m_foundItems.SetForceSearch();
 }
 
-
-/*****************************************************************************
-* Enable or disable menu entry and toolbar buttons according to current
-* conditions.
-*****************************************************************************/
 
 void SCH_EDIT_FRAME::OnUpdateBlockSelected( wxUpdateUIEvent& event )
 {
@@ -605,45 +781,63 @@ void SCH_EDIT_FRAME::OnUpdateHiddenPins( wxUpdateUIEvent& aEvent )
 }
 
 
+void SCH_EDIT_FRAME::OnUpdateSave( wxUpdateUIEvent& aEvent )
+{
+    SCH_SHEET_LIST sheetList;
+
+    aEvent.Enable( sheetList.IsModified() );
+}
+
+
+void SCH_EDIT_FRAME::OnUpdateSaveSheet( wxUpdateUIEvent& aEvent )
+{
+    aEvent.Enable( GetScreen()->IsModify() );
+
+}
+
+
+void SCH_EDIT_FRAME::OnUpdateHierarchySheet( wxUpdateUIEvent& aEvent )
+{
+    aEvent.Enable( m_CurrentSheet->Last() != g_RootSheet );
+}
+
+
 void SCH_EDIT_FRAME::OnAnnotate( wxCommandEvent& event )
 {
-    DIALOG_ANNOTATE* dlg = new DIALOG_ANNOTATE( this );
-
-    dlg->ShowModal();
-    dlg->Destroy();
+    InvokeDialogAnnotate( this );
 }
 
 
 void SCH_EDIT_FRAME::OnErc( wxCommandEvent& event )
 {
-    DIALOG_ERC* dlg = new DIALOG_ERC( this );
+    // See if it's already open...
+    wxWindow* erc = FindWindowById( ID_DIALOG_ERC, this );
 
-    dlg->Show( true );
-//    dlg->Destroy();
+    if( erc )
+        // Bring it to the top if already open.  Dual monitor users need this.
+        erc->Raise();
+    else
+        InvokeDialogERC( this );
 }
 
 
 void SCH_EDIT_FRAME::OnCreateNetlist( wxCommandEvent& event )
 {
-    int i;
+    int result;
 
     do
     {
-        NETLIST_DIALOG* dlg = new NETLIST_DIALOG( this );
-        i = dlg->ShowModal();
-        dlg->Destroy();
-    } while( i == NET_PLUGIN_CHANGE );
+        result = InvokeDialogNetList( this );
 
-    // If a plugin is removed or added, rebuild and reopen the new dialog
+        // If a plugin is removed or added, rebuild and reopen the new dialog
+
+    } while( result == NET_PLUGIN_CHANGE );
 }
 
 
 void SCH_EDIT_FRAME::OnCreateBillOfMaterials( wxCommandEvent& )
 {
-    DIALOG_BUILD_BOM* dlg = new DIALOG_BUILD_BOM( this );
-
-    dlg->ShowModal();
-    dlg->Destroy();
+    InvokeDialogCreateBOM( this );
 }
 
 
@@ -705,12 +899,10 @@ void SCH_EDIT_FRAME::OnFindDialogClose( wxFindDialogEvent& event )
 
 void SCH_EDIT_FRAME::OnLoadFile( wxCommandEvent& event )
 {
-    wxString fn;
+    wxString fn = GetFileFromHistory( event.GetId(), _( "Schematic" ) );
 
-    fn = GetFileFromHistory( event.GetId(), _( "Schematic" ) );
-
-    if( fn != wxEmptyString )
-        LoadOneEEProject( fn, false );
+    if( fn.size() )
+        OpenProjectFiles( std::vector<wxString>( 1, fn ) );
 }
 
 
@@ -723,27 +915,89 @@ void SCH_EDIT_FRAME::OnLoadCmpToFootprintLinkFile( wxCommandEvent& event )
 
 void SCH_EDIT_FRAME::OnNewProject( wxCommandEvent& event )
 {
-    LoadOneEEProject( wxEmptyString, true );
+//  wxString pro_dir = wxPathOnly( Prj().GetProjectFullName() );
+    wxString pro_dir = wxGetCwd();
+
+    wxFileDialog dlg( this, _( "New Schematic" ), pro_dir,
+                      wxEmptyString, SchematicFileWildcard,
+                      wxFD_SAVE );
+
+    if( dlg.ShowModal() != wxID_CANCEL )
+    {
+        // Enforce the extension, wxFileDialog is inept.
+        wxFileName create_me = dlg.GetPath();
+        create_me.SetExt( SchematicFileExtension );
+
+        if( create_me.FileExists() )
+        {
+            wxString msg = wxString::Format( _(
+                    "Schematic file '%s' already exists, use Open instead" ),
+                    GetChars( create_me.GetFullName() )
+                    );
+            DisplayError( this, msg );
+            return ;
+        }
+
+        // OpenProjectFiles() requires absolute
+        wxASSERT_MSG( create_me.IsAbsolute(), wxT( "wxFileDialog returned non-absolute" ) );
+
+        OpenProjectFiles( std::vector<wxString>( 1, create_me.GetFullPath() ), KICTL_CREATE );
+    }
 }
 
 
 void SCH_EDIT_FRAME::OnLoadProject( wxCommandEvent& event )
 {
-    LoadOneEEProject( wxEmptyString, false );
+//  wxString pro_dir = wxPathOnly( Prj().GetProjectFullName() );
+    wxString pro_dir = wxGetCwd();
+
+    wxFileDialog dlg( this, _( "Open Schematic" ), pro_dir,
+                      wxEmptyString, SchematicFileWildcard,
+                      wxFD_OPEN | wxFD_FILE_MUST_EXIST );
+
+    if( dlg.ShowModal() != wxID_CANCEL )
+    {
+        OpenProjectFiles( std::vector<wxString>( 1, dlg.GetPath() ) );
+    }
 }
 
 
 void SCH_EDIT_FRAME::OnOpenPcbnew( wxCommandEvent& event )
 {
-    wxFileName fn = g_RootSheet->GetScreen()->GetFileName();
+    wxFileName kicad_board = Prj().AbsolutePath( g_RootSheet->GetScreen()->GetFileName() );
 
-    if( fn.IsOk() )
+    if( kicad_board.IsOk() )
     {
-        fn.SetExt( PcbFileExtension );
+        kicad_board.SetExt( PcbFileExtension );
+        wxFileName legacy_board( kicad_board );
+        legacy_board.SetExt( LegacyPcbFileExtension );
+        wxFileName& boardfn = ( !legacy_board.FileExists() || kicad_board.FileExists() ) ?
+                                    kicad_board : legacy_board;
 
-        wxString filename = QuoteFullPath( fn );
+        if( Kiface().IsSingle() )
+        {
+            wxString filename = QuoteFullPath( boardfn );
+            ExecuteFile( this, PCBNEW_EXE, filename );
+        }
+        else
+        {
+            KIWAY_PLAYER* frame = Kiway().Player( FRAME_PCB, true );
 
-        ExecuteFile( this, PCBNEW_EXE, filename );
+            // a pcb frame can be already existing, but not yet used.
+            // this is the case when running the footprint editor, or the footprint viewer first
+            // if the frame is not visible, the board is not yet loaded
+             if( !frame->IsVisible() )
+            {
+                frame->OpenProjectFiles( std::vector<wxString>( 1, boardfn.GetFullPath() ) );
+                frame->Show( true );
+            }
+
+            // On Windows, Raise() does not bring the window on screen, when iconized
+            if( frame->IsIconized() )
+                frame->Iconize( false );
+
+            frame->Raise();
+        }
     }
     else
     {
@@ -752,107 +1006,154 @@ void SCH_EDIT_FRAME::OnOpenPcbnew( wxCommandEvent& event )
 }
 
 
+void SCH_EDIT_FRAME::OnOpenPcbModuleEditor( wxCommandEvent& event )
+{
+    wxFileName fn = Prj().AbsolutePath( g_RootSheet->GetScreen()->GetFileName() );
+
+    if( fn.IsOk() )
+    {
+        KIWAY_PLAYER* fp_editor = Kiway().Player( FRAME_PCB_MODULE_EDITOR );
+
+        // On Windows, Raise() does not bring the window on screen, when iconized
+        if( fp_editor->IsIconized() )
+            fp_editor->Iconize( false );
+
+        fp_editor->Show( true );
+        fp_editor->Raise();
+    }
+}
+
+
 void SCH_EDIT_FRAME::OnOpenCvpcb( wxCommandEvent& event )
 {
-    wxFileName fn = g_RootSheet->GetScreen()->GetFileName();
+    wxFileName fn = Prj().AbsolutePath( g_RootSheet->GetScreen()->GetFileName() );
 
     fn.SetExt( NetlistFileExtension );
 
-    if( fn.IsOk() && fn.FileExists() )
+    if( prepareForNetlist() )
     {
-        ExecuteFile( this, CVPCB_EXE, QuoteFullPath( fn ) );
-    }
-    else
-    {
-        ExecuteFile( this, CVPCB_EXE );
+        KIWAY_PLAYER* player = Kiway().Player( FRAME_CVPCB, false );  // test open already.
+
+        if( !player )
+        {
+            player = Kiway().Player( FRAME_CVPCB, true );
+            player->Show( true );
+            // player->OpenProjectFiles( std::vector<wxString>( 1, fn.GetFullPath() ) );
+        }
+
+        sendNetlist();
+
+        player->Raise();
     }
 }
+
 
 void SCH_EDIT_FRAME::OnOpenLibraryEditor( wxCommandEvent& event )
 {
     SCH_COMPONENT* component = NULL;
+
     if( event.GetId() == ID_POPUP_SCH_CALL_LIBEDIT_AND_LOAD_CMP )
     {
+        // We want to edit a component with Libedit.
+        // we are here by a hot key, or by a popup menu
         SCH_ITEM* item = GetScreen()->GetCurItem();
 
-        if( (item == NULL) || (item->GetFlags() != 0) || ( item->Type() != SCH_COMPONENT_T ) )
+        if( !item )
         {
-            wxMessageBox( _("Error: not a component or no component" ) );
+            // If we didn't get here by a hot key, then something has gone wrong.
+            if( event.GetInt() == 0 )
+                return;
+
+            EDA_HOTKEY_CLIENT_DATA* data = (EDA_HOTKEY_CLIENT_DATA*) event.GetClientObject();
+
+            wxCHECK_RET( data != NULL, wxT( "Invalid hot key client object." ) );
+
+            // Set the locat filter, according to the edit command
+            const KICAD_T* filterList = SCH_COLLECTOR::ComponentsOnly;
+            item = LocateAndShowItem( data->GetPosition(), filterList, event.GetInt() );
+
+            // Exit if no item found at the current location or the item is already being edited.
+            if( (item == NULL) || (item->GetFlags() != 0) )
+                return;
+        }
+
+
+        if( !item || (item->GetFlags() != 0) || ( item->Type() != SCH_COMPONENT_T ) )
+        {
+            wxMessageBox( _( "Error: not a component or no component" ) );
             return;
         }
 
         component = (SCH_COMPONENT*) item;
     }
 
-    LIB_EDIT_FRAME * libeditFrame = LIB_EDIT_FRAME::GetActiveLibraryEditor();;
-    if( libeditFrame )
-    {
-        if( libeditFrame->IsIconized() )
-             libeditFrame->Iconize( false );
+    LIB_EDIT_FRAME* libeditFrame = (LIB_EDIT_FRAME*) Kiway().Player( FRAME_SCH_LIB_EDITOR, false );
 
-        libeditFrame->Raise();
-    }
-    else
+    if( !libeditFrame )
     {
-        libeditFrame = new LIB_EDIT_FRAME( this,
-                                           wxT( "Library Editor" ),
-                                           wxPoint( -1, -1 ),
-                                           wxSize( 600, 400 ) );
+        libeditFrame = (LIB_EDIT_FRAME*) Kiway().Player( FRAME_SCH_LIB_EDITOR, true );
+        libeditFrame->Show( true );
     }
+
+    libeditFrame->PushPreferences( m_canvas );
+
+    // On Windows, Raise() does not bring the window on screen, when iconized
+    if( libeditFrame->IsIconized() )
+        libeditFrame->Iconize( false );
+
+    libeditFrame->Raise();
 
     if( component )
     {
-        LIB_ALIAS* entry = CMP_LIBRARY::FindLibraryEntry( component->GetLibName() );
+        if( PART_LIBS* libs = Prj().SchLibs() )
+        {
+            LIB_ALIAS* entry = libs->FindLibraryEntry( component->GetPartName() );
 
-        if( entry == NULL )     // Should not occur
-            return;
+            if( !entry )     // Should not occur
+                return;
 
-        CMP_LIBRARY* library = entry->GetLibrary();
-        libeditFrame->LoadComponentAndSelectLib( entry, library );
+            PART_LIB* library = entry->GetLib();
+
+            libeditFrame->LoadComponentAndSelectLib( entry, library );
+        }
     }
+}
+
+
+void SCH_EDIT_FRAME::OnRescueProject( wxCommandEvent& event )
+{
+    RescueProject( true );
 }
 
 
 void SCH_EDIT_FRAME::OnExit( wxCommandEvent& event )
 {
-    Close( true );
-}
-
-
-void SCH_EDIT_FRAME::SetLanguage( wxCommandEvent& event )
-{
-    EDA_BASE_FRAME::SetLanguage( event );
-
-    LIB_EDIT_FRAME * libeditFrame = LIB_EDIT_FRAME::GetActiveLibraryEditor();;
-    if( libeditFrame )
-        libeditFrame->EDA_BASE_FRAME::SetLanguage( event );
+    Close( false );
 }
 
 
 void SCH_EDIT_FRAME::OnPrint( wxCommandEvent& event )
 {
-    wxFileName fn;
-    DIALOG_PRINT_USING_PRINTER dlg( this );
+    InvokeDialogPrintUsingPrinter( this );
 
-    dlg.ShowModal();
+    wxFileName fn = Prj().AbsolutePath( g_RootSheet->GetScreen()->GetFileName() );
 
-    fn = g_RootSheet->GetScreen()->GetFileName();
-
-    wxString default_name = NAMELESS_PROJECT;
-    default_name += wxT( ".sch" );
-
-    if( fn.GetFullName() != default_name )
+    if( fn.GetName() != NAMELESS_PROJECT )
     {
-        fn.SetExt( ProjectFileExtension );
-        wxGetApp().WriteProjectConfig( fn.GetFullPath(), GROUP, GetProjectFileParameters() );
+        // was: wxGetApp().WriteProjectConfig( fn.GetFullPath(), GROUP, GetProjectFileParametersList() );
+        Prj().ConfigSave( Kiface().KifaceSearch(), GROUP_SCH_EDITOR,
+                          GetProjectFileParametersList() );
     }
 }
 
-void SCH_EDIT_FRAME::PrintPage( wxDC* aDC, int aPrintMask, bool aPrintMirrorMode, void* aData )
+
+void SCH_EDIT_FRAME::PrintPage( wxDC* aDC, LSET aPrintMask, bool aPrintMirrorMode,
+                                void* aData )
 {
+    wxString fileName = Prj().AbsolutePath( GetScreen()->GetFileName() );
+
     GetScreen()->Draw( m_canvas, aDC, GR_DEFAULT_DRAWMODE );
-    TraceWorkSheet( aDC, GetScreen(), GetDefaultLineThickness(), IU_PER_MILS,
-                    GetScreen()->GetFileName() );
+    DrawWorkSheet( aDC, GetScreen(), GetDefaultLineThickness(), IU_PER_MILS, fileName );
 }
 
 
@@ -873,16 +1174,24 @@ void SCH_EDIT_FRAME::OnSelectItem( wxCommandEvent& aEvent )
 
 bool SCH_EDIT_FRAME::isAutoSaveRequired() const
 {
-    SCH_SHEET_LIST SheetList;
+    // In case this event happens before g_RootSheet is initialized which does happen
+    // on mingw64 builds.
 
-    return SheetList.IsAutoSaveRequired();
+    if( g_RootSheet != NULL )
+    {
+        SCH_SHEET_LIST sheetList;
+
+        return sheetList.IsAutoSaveRequired();
+    }
+
+    return false;
 }
 
 
-void SCH_EDIT_FRAME::addCurrentItemToList( wxDC* aDC )
+void SCH_EDIT_FRAME::addCurrentItemToList( bool aRedraw )
 {
     SCH_SCREEN* screen = GetScreen();
-    SCH_ITEM* item = screen->GetCurItem();
+    SCH_ITEM*   item = screen->GetCurItem();
 
     wxCHECK_RET( item != NULL, wxT( "Cannot add current item to list." ) );
 
@@ -918,11 +1227,14 @@ void SCH_EDIT_FRAME::addCurrentItemToList( wxDC* aDC )
             // the m_mouseCaptureCallback function.
             m_canvas->SetMouseCapture( NULL, NULL );
 
-            if( !EditSheet( (SCH_SHEET*)item, aDC ) )
+            if( !EditSheet( (SCH_SHEET*)item, m_CurrentSheet ) )
             {
                 screen->SetCurItem( NULL );
-                item->Draw( m_canvas, aDC, wxPoint( 0, 0 ), g_XorMode );
                 delete item;
+
+                if( aRedraw )
+                    GetCanvas()->Refresh();
+
                 return;
             }
 
@@ -950,8 +1262,8 @@ void SCH_EDIT_FRAME::addCurrentItemToList( wxDC* aDC )
             if( item->Type() == SCH_SHEET_PIN_T )
                 ( (SCH_SHEET*)undoItem )->AddPin( (SCH_SHEET_PIN*) item );
             else
-                wxLogMessage(wxT( "addCurrentItemToList: expected type = SCH_SHEET_PIN_T, actual type = %d" ),
-                            item->Type() );
+                wxLogMessage( wxT( "addCurrentItemToList: expected type = SCH_SHEET_PIN_T, actual type = %d" ),
+                              item->Type() );
         }
     }
     else
@@ -968,20 +1280,11 @@ void SCH_EDIT_FRAME::addCurrentItemToList( wxDC* aDC )
     if( item->IsConnectable() )
         screen->TestDanglingEnds();
 
-    if( aDC )
-    {
-        EDA_CROSS_HAIR_MANAGER( m_canvas, aDC );  // Erase schematic cursor
-        undoItem->Draw( m_canvas, aDC, wxPoint( 0, 0 ), GR_DEFAULT_DRAWMODE );
-    }
+    if( aRedraw )
+        GetCanvas()->Refresh();
 }
 
-/* sets the main window title bar text.
- * If file name defined by SCH_SCREEN::m_FileName is not set, the title is set to the
- * application name appended with no file.
- * Otherwise, the title is set to the hierarchical sheet path and the full file name,
- * and read only is appended to the title if the user does not have write
- * access to the file.
- */
+
 void SCH_EDIT_FRAME::UpdateTitle()
 {
     wxString title;
@@ -993,12 +1296,9 @@ void SCH_EDIT_FRAME::UpdateTitle()
     }
     else
     {
-        wxFileName fn( GetScreen()->GetFileName() );
+        wxString    fileName = Prj().AbsolutePath( GetScreen()->GetFileName() );
+        wxFileName  fn = fileName;
 
-        // Often the /path/to/filedir is blank because of the FullFileName argument
-        // passed to LoadOneEEFile() which omits the path on non-root schematics.
-        // Making the path absolute solves this problem.
-        fn.MakeAbsolute();
         title.Printf( wxT( "[ %s %s] (%s)" ),
                       GetChars( fn.GetName() ),
                       GetChars( m_CurrentSheet->PathHumanReadable() ),
@@ -1007,12 +1307,12 @@ void SCH_EDIT_FRAME::UpdateTitle()
         if( fn.FileExists() )
         {
             if( !fn.IsFileWritable() )
-                title << _( " [Read Only]" );
+                title += _( " [Read Only]" );
         }
         else
-            title << _( " [no file]" );
-
+            title += _( " [no file]" );
     }
 
     SetTitle( title );
 }
+

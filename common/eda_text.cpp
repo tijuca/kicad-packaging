@@ -29,25 +29,28 @@
 
 #include <eda_text.h>
 #include <drawtxt.h>
+#include <macros.h>
 #include <trigo.h>               // RotatePoint
 #include <class_drawpanel.h>     // EDA_DRAW_PANEL
 
-
 // Conversion to application internal units defined at build time.
 #if defined( PCBNEW )
-#include <class_board_item.h>
-#define MILS_TO_IU( x )     ( x * IU_PER_MILS );
+    #include <class_board_item.h>       // for FMT_IU
 #elif defined( EESCHEMA )
-#include <sch_item_struct.h>
-#define MILS_TO_IU( x )     ( x )
+    #include <sch_item_struct.h>        // for FMT_IU
+#elif defined( GERBVIEW )
+#elif defined( PL_EDITOR )
+    #include <base_units.h>
+    #define FMT_IU Double2Str
 #else
 #error "Cannot resolve units formatting due to no definition of EESCHEMA or PCBNEW."
 #endif
 
+#include <convert_to_biu.h>
 
 EDA_TEXT::EDA_TEXT( const wxString& text )
 {
-    m_Size.x    = m_Size.y = MILS_TO_IU( DEFAULT_SIZE_TEXT );  // Width and height of font.
+    m_Size.x    = m_Size.y = Mils2iu( DEFAULT_SIZE_TEXT );  // Width and height of font.
     m_Orient    = 0;                             // Rotation angle in 0.1 degrees.
     m_Attributs = 0;
     m_Mirror    = false;                         // display mirror if true
@@ -85,36 +88,64 @@ EDA_TEXT::~EDA_TEXT()
 
 int EDA_TEXT::LenSize( const wxString& aLine ) const
 {
-    return ReturnGraphicTextWidth( aLine, m_Size.x, m_Italic, m_Bold );
+    return GraphicTextWidth( aLine, m_Size.x, m_Italic, m_Bold );
 }
 
+
+wxString EDA_TEXT::ShortenedShownText() const
+{
+    wxString tmp = GetShownText();
+    tmp.Replace( wxT( "\n" ), wxT( " " ) );
+    tmp.Replace( wxT( "\r" ), wxT( " " ) );
+    tmp.Replace( wxT( "\t" ), wxT( " " ) );
+
+    if( tmp.Length() > 15 )
+        tmp = tmp.Left( 12 ) + wxT( "..." );
+
+    return tmp;
+}
+
+
+/**
+ * Function GetInterline
+ * return the distance between 2 text lines
+ * has meaning only for multiline texts
+ */
+int EDA_TEXT::GetInterline( int aTextThickness ) const
+{
+    int thickness = aTextThickness <= 0 ? m_Thickness : aTextThickness;
+    return (( m_Size.y * 14 ) / 10) + thickness;
+}
 
 EDA_RECT EDA_TEXT::GetTextBox( int aLine, int aThickness, bool aInvertY ) const
 {
     EDA_RECT       rect;
     wxPoint        pos;
-    wxArrayString* list = NULL;
-    wxString       text = m_Text;
+    wxArrayString  strings;
+    wxString       text = GetShownText();
     int            thickness = ( aThickness < 0 ) ? m_Thickness : aThickness;
+    int            linecount = 1;
 
     if( m_MultilineAllowed )
     {
-        list = wxStringSplit( m_Text, '\n' );
+        wxStringSplit( text, strings, '\n' );
 
-        if ( list->GetCount() )     // GetCount() == 0 for void strings
+        if ( strings.GetCount() )     // GetCount() == 0 for void strings
         {
-            if( aLine >= 0 && (aLine < (int)list->GetCount()) )
-                text = list->Item( aLine );
+            if( aLine >= 0 && (aLine < (int)strings.GetCount()) )
+                text = strings.Item( aLine );
             else
-                text = list->Item( 0 );
+                text = strings.Item( 0 );
+
+            linecount = strings.GetCount();
         }
     }
 
     // calculate the H and V size
     int    dx = LenSize( text );
-    int    dy = GetInterline();
+    int    dy = GetInterline( aThickness );
 
-    /* Creates bounding box (rectangle) for an horizontal text */
+    // Creates bounding box (rectangle) for an horizontal text
     wxSize textsize = wxSize( dx, dy );
 
     if( aInvertY )
@@ -127,18 +158,16 @@ EDA_RECT EDA_TEXT::GetTextBox( int aLine, int aThickness, bool aInvertY ) const
     rect.Move( wxPoint( 0, -extra_dy / 2 ) ); // move origin by the half extra interval
 
     // for multiline texts and aLine < 0, merge all rectangles
-    if( m_MultilineAllowed && list && aLine < 0 )
+    if( m_MultilineAllowed && aLine < 0 )
     {
-        for( unsigned ii = 1; ii < list->GetCount(); ii++ )
+        for( unsigned ii = 1; ii < strings.GetCount(); ii++ )
         {
-            text = list->Item( ii );
+            text = strings.Item( ii );
             dx   = LenSize( text );
             textsize.x  = std::max( textsize.x, dx );
             textsize.y += dy;
         }
     }
-
-    delete list;
 
     rect.SetSize( textsize );
 
@@ -173,12 +202,34 @@ EDA_RECT EDA_TEXT::GetTextBox( int aLine, int aThickness, bool aInvertY ) const
         break;
 
     case GR_TEXT_VJUSTIFY_CENTER:
-        rect.SetY( rect.GetY() - (dy / 2) );
+        rect.SetY( rect.GetY() - ( dy / 2) );
         break;
 
     case GR_TEXT_VJUSTIFY_BOTTOM:
         rect.SetY( rect.GetY() - dy );
         break;
+    }
+
+    if( linecount > 1 )
+    {
+        int yoffset;
+        linecount -= 1;
+
+        switch( m_VJustify )
+        {
+        case GR_TEXT_VJUSTIFY_TOP:
+            break;
+
+        case GR_TEXT_VJUSTIFY_CENTER:
+            yoffset = linecount * GetInterline() / 2;
+            rect.SetY( rect.GetY() - yoffset );
+            break;
+
+        case GR_TEXT_VJUSTIFY_BOTTOM:
+            yoffset = linecount * GetInterline( aThickness );
+            rect.SetY( rect.GetY() - yoffset );
+            break;
+        }
     }
 
     rect.Inflate( thickness / 2 );
@@ -213,81 +264,91 @@ bool EDA_TEXT::TextHitTest( const EDA_RECT& aRect, bool aContains, int aAccuracy
 }
 
 
-void EDA_TEXT::Draw( EDA_DRAW_PANEL* aPanel, wxDC* aDC, const wxPoint& aOffset,
+void EDA_TEXT::Draw( EDA_RECT* aClipBox, wxDC* aDC, const wxPoint& aOffset,
                      EDA_COLOR_T aColor, GR_DRAWMODE aDrawMode,
                      EDA_DRAW_MODE_T aFillMode, EDA_COLOR_T aAnchor_color )
 {
     if( m_MultilineAllowed )
     {
-        wxPoint        pos  = m_Pos;
-        wxArrayString* list = wxStringSplit( m_Text, '\n' );
-        wxPoint        offset;
+        std::vector<wxPoint> positions;
+        wxArrayString  strings;
+        wxStringSplit( GetShownText(), strings, '\n' );
+        positions.reserve( strings.Count() );
 
-        offset.y = GetInterline();
+        GetPositionsOfLinesOfMultilineText(positions, strings.Count() );
 
-        RotatePoint( &offset, m_Orient );
-
-        for( unsigned i = 0; i<list->Count(); i++ )
+        for( unsigned ii = 0; ii < strings.Count(); ii++ )
         {
-            wxString txt = list->Item( i );
-            DrawOneLineOfText( aPanel,
-                               aDC,
-                               aOffset,
-                               aColor,
-                               aDrawMode,
-                               aFillMode,
-                               i ?  UNSPECIFIED_COLOR : aAnchor_color,
-                               txt,
-                               pos );
-            pos += offset;
+            wxString& txt = strings.Item( ii );
+            drawOneLineOfText( aClipBox, aDC, aOffset, aColor,
+                               aDrawMode, aFillMode, txt, positions[ii] );
         }
-
-        delete (list);
     }
     else
-        DrawOneLineOfText( aPanel,
-                           aDC,
-                           aOffset,
-                           aColor,
-                           aDrawMode,
-                           aFillMode,
-                           aAnchor_color,
-                           m_Text,
-                           m_Pos );
+        drawOneLineOfText( aClipBox, aDC, aOffset, aColor,
+                           aDrawMode, aFillMode, GetShownText(), m_Pos );
+
+    // Draw text anchor, if requested
+    if( aAnchor_color != UNSPECIFIED_COLOR )
+    {
+        GRDrawAnchor( aClipBox, aDC,
+                      m_Pos.x + aOffset.x, m_Pos.y + aOffset.y,
+                      DIM_ANCRE_TEXTE, aAnchor_color );
+    }
 }
 
 
-void EDA_TEXT::DrawOneLineOfText( EDA_DRAW_PANEL* aPanel, wxDC* aDC,
+void EDA_TEXT::GetPositionsOfLinesOfMultilineText(
+        std::vector<wxPoint>& aPositions, int aLineCount ) const
+{
+    wxPoint        pos  = m_Pos;  // Position of first line of the
+                                  // multiline text according to
+                                  // the center of the multiline text block
+
+    wxPoint        offset;        // Offset to next line.
+
+    offset.y = GetInterline();
+
+    if( aLineCount > 1 )
+    {
+        switch( m_VJustify )
+        {
+        case GR_TEXT_VJUSTIFY_TOP:
+            break;
+
+        case GR_TEXT_VJUSTIFY_CENTER:
+            pos.y -= ( aLineCount - 1 ) * offset.y / 2;
+            break;
+
+        case GR_TEXT_VJUSTIFY_BOTTOM:
+            pos.y -= ( aLineCount - 1 ) * offset.y;
+            break;
+        }
+    }
+
+    // Rotate the position of the first line
+    // around the center of the multiline text block
+    RotatePoint( &pos, m_Pos, m_Orient );
+
+    // Rotate the offset lines to increase happened in the right direction
+    RotatePoint( &offset, m_Orient );
+
+    for( int ii = 0; ii < aLineCount; ii++ )
+    {
+        aPositions.push_back( pos );
+        pos += offset;
+    }
+}
+
+void EDA_TEXT::drawOneLineOfText( EDA_RECT* aClipBox, wxDC* aDC,
                                   const wxPoint& aOffset, EDA_COLOR_T aColor,
                                   GR_DRAWMODE aDrawMode, EDA_DRAW_MODE_T aFillMode,
-                                  EDA_COLOR_T aAnchor_color,
-                                  wxString& aText, wxPoint aPos )
+                                  const wxString& aText, const wxPoint &aPos )
 {
     int width = m_Thickness;
 
-    if( aFillMode == LINE )
-        width = 0;
-
-    if( aDrawMode != -1 )
+    if( aDrawMode != UNSPECIFIED_DRAWMODE )
         GRSetDrawMode( aDC, aDrawMode );
-
-    /* Draw text anchor, if allowed */
-    if( aAnchor_color != UNSPECIFIED_COLOR )
-    {
-
-        int anchor_size = aDC->DeviceToLogicalXRel( 2 );
-
-        aAnchor_color = (EDA_COLOR_T) ( aAnchor_color & MASKCOLOR );
-
-        int cX = aPos.x + aOffset.x;
-        int cY = aPos.y + aOffset.y;
-
-        GRLine( aPanel->GetClipBox(), aDC, cX - anchor_size, cY,
-                cX + anchor_size, cY, 0, aAnchor_color );
-
-        GRLine( aPanel->GetClipBox(), aDC, cX, cY - anchor_size,
-                cX, cY + anchor_size, 0, aAnchor_color );
-    }
 
     if( aFillMode == SKETCH )
         width = -width;
@@ -297,7 +358,7 @@ void EDA_TEXT::DrawOneLineOfText( EDA_DRAW_PANEL* aPanel, wxDC* aDC,
     if( m_Mirror )
         size.x = -size.x;
 
-    DrawGraphicText( aPanel, aDC, aOffset + aPos, aColor, aText, m_Orient, size,
+    DrawGraphicText( aClipBox, aDC, aOffset + aPos, aColor, aText, m_Orient, size,
                      m_HJustify, m_VJustify, width, m_Italic, m_Bold );
 }
 
@@ -325,8 +386,8 @@ wxString EDA_TEXT::GetTextStyleName()
 
 bool EDA_TEXT::IsDefaultFormatting() const
 {
-    return (  ( m_Size.x == DEFAULT_SIZE_TEXT )
-           && ( m_Size.y == DEFAULT_SIZE_TEXT )
+    return (  ( m_Size.x == Mils2iu( DEFAULT_SIZE_TEXT ) )
+           && ( m_Size.y == Mils2iu( DEFAULT_SIZE_TEXT ) )
            && ( m_Attributs == 0 )
            && ( m_Mirror == false )
            && ( m_HJustify == GR_TEXT_HJUSTIFY_CENTER )
@@ -337,22 +398,26 @@ bool EDA_TEXT::IsDefaultFormatting() const
            && ( m_MultilineAllowed == false ) );
 }
 
-
 void EDA_TEXT::Format( OUTPUTFORMATTER* aFormatter, int aNestLevel, int aControlBits ) const
     throw( IO_ERROR )
 {
+#ifndef GERBVIEW        // Gerbview does not use EDA_TEXT::Format
+                        // and does not define FMT_IU, used here
+                        // however this function should exist
     if( !IsDefaultFormatting() )
     {
         aFormatter->Print( aNestLevel+1, "(effects" );
 
-        if( ( m_Size.x != DEFAULT_SIZE_TEXT ) || ( m_Size.y != DEFAULT_SIZE_TEXT ) || m_Bold
-          || m_Italic )
+        if( ( m_Size.x != Mils2iu( DEFAULT_SIZE_TEXT ) )
+          || ( m_Size.y != Mils2iu( DEFAULT_SIZE_TEXT ) )
+          || ( m_Thickness != 0 ) || m_Bold || m_Italic )
         {
             aFormatter->Print( 0, " (font" );
 
             // Add font support here at some point in the future.
 
-            if( ( m_Size.x != DEFAULT_SIZE_TEXT ) || ( m_Size.y != DEFAULT_SIZE_TEXT ) )
+            if( ( m_Size.x != Mils2iu( DEFAULT_SIZE_TEXT ) )
+              || ( m_Size.y != Mils2iu( DEFAULT_SIZE_TEXT ) ) )
                 aFormatter->Print( 0, " (size %s %s)", FMT_IU( m_Size.GetHeight() ).c_str(),
                                    FMT_IU( m_Size.GetWidth() ).c_str() );
 
@@ -390,5 +455,57 @@ void EDA_TEXT::Format( OUTPUTFORMATTER* aFormatter, int aNestLevel, int aControl
             aFormatter->Print( 0, " hide" );
 
         aFormatter->Print( 0, ")\n" );
+    }
+#endif
+}
+
+// Convert the text shape to a list of segment
+// each segment is stored as 2 wxPoints: its starting point and its ending point
+// we are using DrawGraphicText to create the segments.
+// and therefore a call-back function is needed
+static std::vector<wxPoint>* s_cornerBuffer;
+
+// This is a call back function, used by DrawGraphicText to put each segment in buffer
+static void addTextSegmToBuffer( int x0, int y0, int xf, int yf )
+{
+    s_cornerBuffer->push_back( wxPoint( x0, y0 ) );
+    s_cornerBuffer->push_back( wxPoint( xf, yf ) );
+}
+
+void EDA_TEXT::TransformTextShapeToSegmentList( std::vector<wxPoint>& aCornerBuffer ) const
+{
+    wxSize size = GetSize();
+
+    if( IsMirrored() )
+        size.x = -size.x;
+
+    s_cornerBuffer = &aCornerBuffer;
+    EDA_COLOR_T color = BLACK;  // not actually used, but needed by DrawGraphicText
+
+    if( IsMultilineAllowed() )
+    {
+        wxArrayString strings_list;
+        wxStringSplit( GetShownText(), strings_list, wxChar('\n') );
+        std::vector<wxPoint> positions;
+        positions.reserve( strings_list.Count() );
+        GetPositionsOfLinesOfMultilineText( positions,strings_list.Count() );
+
+        for( unsigned ii = 0; ii < strings_list.Count(); ii++ )
+        {
+            wxString txt = strings_list.Item( ii );
+            DrawGraphicText( NULL, NULL, positions[ii], color,
+                             txt, GetOrientation(), size,
+                             GetHorizJustify(), GetVertJustify(),
+                             GetThickness(), IsItalic(),
+                             true, addTextSegmToBuffer );
+        }
+    }
+    else
+    {
+        DrawGraphicText( NULL, NULL, GetTextPosition(), color,
+                         GetText(), GetOrientation(), size,
+                         GetHorizJustify(), GetVertJustify(),
+                         GetThickness(), IsItalic(),
+                         true, addTextSegmToBuffer );
     }
 }

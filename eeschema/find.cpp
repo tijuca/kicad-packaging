@@ -34,16 +34,15 @@
  *  in current sheet or whole the project
  */
 #include <fctsys.h>
-#include <appl_wxstruct.h>
+#include <pgm_base.h>
 #include <class_drawpanel.h>
 #include <confirm.h>
 #include <kicad_string.h>
 #include <gestfich.h>
-#include <wxEeschemaStruct.h>
+#include <schframe.h>
 #include <base_units.h>
 
 #include <general.h>
-#include <protos.h>
 #include <class_library.h>
 #include <lib_pin.h>
 #include <sch_marker.h>
@@ -90,7 +89,7 @@ void SCH_EDIT_FRAME::OnFindDrcMarker( wxFindDialogEvent& event )
             m_CurrentSheet->UpdateAllScreenReferences();
         }
 
-        sheetFoundIn->LastScreen()->SetCrossHairPosition( lastMarker->GetPosition() );
+        SetCrossHairPosition( lastMarker->GetPosition() );
 
         RedrawScreen( lastMarker->GetPosition(), warpCursor );
 
@@ -122,7 +121,6 @@ SCH_ITEM* SCH_EDIT_FRAME::FindComponentAndItem( const wxString& aReference,
     wxPoint         pos, curpos;
     bool            centerAndRedraw = false;
     bool            notFound = true;
-    wxString        msg;
     LIB_PIN*        pin;
     SCH_SHEET_LIST  sheetList;
 
@@ -174,7 +172,7 @@ SCH_ITEM* SCH_EDIT_FRAME::FindComponentAndItem( const wxString& aReference,
                 case FIND_VALUE:             // find value
                     pos = pSch->GetPosition();
 
-                    if( aSearchText.CmpNoCase( pSch->GetField( VALUE )->m_Text ) != 0 )
+                    if( aSearchText.CmpNoCase( pSch->GetField( VALUE )->GetShownText() ) != 0 )
                         break;
 
                     notFound = false;
@@ -214,7 +212,7 @@ SCH_ITEM* SCH_EDIT_FRAME::FindComponentAndItem( const wxString& aReference,
 
         if( centerAndRedraw )
         {
-            GetScreen()->SetCrossHairPosition(pos);
+            SetCrossHairPosition( pos );
             RedrawScreen( pos, aWarpMouse );
         }
 
@@ -227,7 +225,7 @@ SCH_ITEM* SCH_EDIT_FRAME::FindComponentAndItem( const wxString& aReference,
             if( aWarpMouse )
                 m_canvas->MoveCursor( pos );
 
-            GetScreen()->SetCrossHairPosition(pos);
+            SetCrossHairPosition( pos );
 
             m_canvas->CrossHairOn( &dc );
         }
@@ -236,28 +234,29 @@ SCH_ITEM* SCH_EDIT_FRAME::FindComponentAndItem( const wxString& aReference,
 
     /* Print diag */
     wxString msg_item;
-    msg = aReference;
+    wxString msg;
 
     switch( aSearchType )
     {
     default:
     case FIND_COMPONENT_ONLY:      // Find component only
+        msg_item = _( "component" );
         break;
 
     case FIND_PIN:                 // find a pin
-        msg_item = _( "Pin " ) + aSearchText;
+        msg_item.Printf( _( "pin %s" ), GetChars( aSearchText ) );
         break;
 
     case FIND_REFERENCE:           // find reference
-        msg_item = _( "Ref " ) + aSearchText;
+        msg_item.Printf( _( "reference %s" ), GetChars( aSearchText ) );
         break;
 
     case FIND_VALUE:               // find value
-        msg_item = _( "Value " ) + aSearchText;
+        msg_item.Printf( _( "value" ), GetChars( aSearchText ) );
         break;
 
     case FIND_FIELD:               // find field. todo
-        msg_item = _( "Field " ) + aSearchText;
+        msg_item.Printf( _( "field" ), GetChars( aSearchText ) );
         break;
     }
 
@@ -265,27 +264,19 @@ SCH_ITEM* SCH_EDIT_FRAME::FindComponentAndItem( const wxString& aReference,
     {
         if( !notFound )
         {
-            if( !msg_item.IsEmpty() )
-                msg += wxT( " " ) + msg_item;
-
-            msg += _( " found" );
+            msg.Printf( _( "%s %s found" ),
+                        GetChars( aReference ), GetChars( msg_item ) );
         }
         else
         {
-            msg += _( " found" );
-
-            if( !msg_item.IsEmpty() )
-            {
-                msg += wxT( " but " ) + msg_item + _( " not found" );
-            }
+            msg.Printf( _( "%s found but %s not found" ),
+                        GetChars( aReference ), GetChars( msg_item ) );
         }
     }
     else
     {
-        if( !msg_item.IsEmpty() )
-            msg += wxT( " " ) + msg_item;
-
-        msg += _( " not found" );
+        msg.Printf( _( "Component %s not found" ),
+                    GetChars( aReference ) );
     }
 
     SetStatusText( msg );
@@ -294,14 +285,32 @@ SCH_ITEM* SCH_EDIT_FRAME::FindComponentAndItem( const wxString& aReference,
 }
 
 
+bool SCH_EDIT_FRAME::IsSearchCacheObsolete( const SCH_FIND_REPLACE_DATA& aSearchCriteria )
+{
+    PART_LIBS*  libs = Prj().SchLibs();
+    int         mod_hash = libs->GetModifyHash();
+
+    // the cache is obsolete whenever any library changes.
+    if( mod_hash != m_foundItems.GetLibHash() )
+    {
+        m_foundItems.SetForceSearch();
+        m_foundItems.SetLibHash( mod_hash );
+        return true;
+    }
+    else if( m_foundItems.IsSearchRequired( aSearchCriteria ) )
+        return true;
+    else
+        return false;
+}
+
+
 void SCH_EDIT_FRAME::OnFindSchematicItem( wxFindDialogEvent& aEvent )
 {
-    static wxPoint itemPosition;  // the actual position of the matched item.
+    static wxPoint          itemPosition;  // the actual position of the matched item.
 
-    SCH_SHEET_LIST schematic;
-    wxString msg;
-    SCH_FIND_REPLACE_DATA searchCriteria;
-    bool warpCursor = !( aEvent.GetFlags() & FR_NO_WARP_CURSOR );
+    SCH_SHEET_LIST          schematic;
+    wxString                msg;
+    SCH_FIND_REPLACE_DATA   searchCriteria;
     SCH_FIND_COLLECTOR_DATA data;
 
     searchCriteria.SetFlags( aEvent.GetFlags() );
@@ -313,7 +322,7 @@ void SCH_EDIT_FRAME::OnFindSchematicItem( wxFindDialogEvent& aEvent )
         if( m_foundItems.GetCount() == 0 )
             return;
     }
-    else if( m_foundItems.IsSearchRequired( searchCriteria ) )
+    else if( IsSearchCacheObsolete( searchCriteria ) )
     {
         if( aEvent.GetFlags() & FR_CURRENT_SHEET_ONLY && g_RootSheet->CountSheets() > 1 )
         {
@@ -334,22 +343,109 @@ void SCH_EDIT_FRAME::OnFindSchematicItem( wxFindDialogEvent& aEvent )
         m_foundItems.UpdateIndex();
     }
 
+    updateFindReplaceView( aEvent );
+}
+
+
+void SCH_EDIT_FRAME::OnFindReplace( wxFindDialogEvent& aEvent )
+{
+    SCH_ITEM*               item;
+    SCH_SHEET_PATH*         sheet;
+    SCH_SHEET_LIST          schematic;
+    SCH_FIND_COLLECTOR_DATA data;
+
+    if( aEvent.GetEventType() == wxEVT_COMMAND_FIND_REPLACE_ALL )
+    {
+        while( ( item = (SCH_ITEM*) m_foundItems.GetItem( data ) ) != NULL )
+        {
+            SCH_ITEM* undoItem = data.GetParent();
+
+            // Don't save child items in undo list.
+            if( undoItem == NULL )
+                undoItem = item;
+
+            SetUndoItem( undoItem );
+
+            sheet = schematic.GetSheetByPath( data.GetSheetPath() );
+
+            wxCHECK_RET( sheet != NULL, wxT( "Could not find sheet path " ) + data.GetSheetPath() );
+
+            if( m_foundItems.ReplaceItem( sheet ) )
+            {
+                OnModify();
+                SaveUndoItemInUndoList( undoItem );
+                updateFindReplaceView( aEvent );
+            }
+
+            m_foundItems.IncrementIndex();
+
+            if( m_foundItems.PassedEnd() )
+                break;
+        }
+    }
+    else
+    {
+        SCH_ITEM* item = (SCH_ITEM*) m_foundItems.GetItem( data );
+
+        wxCHECK_RET( item != NULL, wxT( "Invalid replace item in find collector list." ) );
+
+        SCH_ITEM* undoItem = data.GetParent();
+
+        if( undoItem == NULL )
+            undoItem = item;
+
+        SetUndoItem( undoItem );
+
+        sheet = schematic.GetSheetByPath( data.GetSheetPath() );
+
+        wxCHECK_RET( sheet != NULL, wxT( "Could not find sheet path " ) + data.GetSheetPath() );
+
+        if( m_foundItems.ReplaceItem( sheet ) )
+        {
+            OnModify();
+            SaveUndoItemInUndoList( undoItem );
+            updateFindReplaceView( aEvent );
+        }
+
+        m_foundItems.IncrementIndex();
+    }
+
+    // End the replace if we are at the end if the list.  This prevents an infinite loop if
+    // wrap search is selected and all of the items have been replaced with a value that
+    // still satisfies the search criteria.
+    if( m_foundItems.PassedEnd() )
+        aEvent.SetFlags( aEvent.GetFlags() & ~FR_REPLACE_ITEM_FOUND );
+}
+
+
+void SCH_EDIT_FRAME::updateFindReplaceView( wxFindDialogEvent& aEvent )
+{
+    wxString                msg;
+    SCH_SHEET_LIST          schematic;
+    SCH_FIND_COLLECTOR_DATA data;
+    bool                    warpCursor = !( aEvent.GetFlags() & FR_NO_WARP_CURSOR );
+
     if( m_foundItems.GetItem( data ) != NULL )
     {
         wxLogTrace( traceFindReplace, wxT( "Found " ) + m_foundItems.GetText() );
 
-        SCH_SHEET_PATH* sheet = schematic.GetSheet( data.GetSheetPath() );
+        SCH_SHEET_PATH* sheet = schematic.GetSheetByPath( data.GetSheetPath() );
 
         wxCHECK_RET( sheet != NULL, wxT( "Could not find sheet path " ) +
                      data.GetSheetPath() );
 
+        SCH_ITEM* item = (SCH_ITEM*)m_foundItems.GetItem( data );
+
         // Make the item temporarily visible just in case it's hide flag is set.  This
         // has no effect on objects that don't support hiding.  If this is a close find
         // dialog event, clear the temporary visibility flag.
-        if( aEvent.GetEventType() == wxEVT_COMMAND_FIND_CLOSE )
-            m_foundItems.GetItem( data )->SetForceVisible( false );
-        else
-            m_foundItems.GetItem( data )->SetForceVisible( true );
+        if( item )
+        {
+            if( aEvent.GetEventType() == wxEVT_COMMAND_FIND_CLOSE )
+                item->SetForceVisible( false );
+            else if( item->Type() == SCH_FIELD_T && !( (SCH_FIELD*) item )->IsVisible() )
+                item->SetForceVisible( true );
+        }
 
         if( sheet->PathHumanReadable() != m_CurrentSheet->PathHumanReadable() )
         {
@@ -359,7 +455,8 @@ void SCH_EDIT_FRAME::OnFindSchematicItem( wxFindDialogEvent& aEvent )
             SetScreen( sheet->LastScreen() );
         }
 
-        sheet->LastScreen()->SetCrossHairPosition( data.GetPosition() );
+        // careful here
+        SetCrossHairPosition( data.GetPosition() );
 
         RedrawScreen( data.GetPosition(), warpCursor );
 
@@ -377,62 +474,4 @@ void SCH_EDIT_FRAME::OnFindSchematicItem( wxFindDialogEvent& aEvent )
     }
 
     SetStatusText( msg );
-}
-
-
-void SCH_EDIT_FRAME::OnFindReplace( wxFindDialogEvent& aEvent )
-{
-    SCH_FIND_COLLECTOR_DATA data;
-
-    bool warpCursor = !( aEvent.GetFlags() & FR_NO_WARP_CURSOR );
-    SCH_ITEM* item = (SCH_ITEM*) m_foundItems.GetItem( data );
-
-    wxCHECK_RET( item != NULL, wxT( "Invalid replace item in find collector list." ) );
-
-    wxLogTrace( traceFindReplace, wxT( "Replacing %s with %s in item %s" ),
-                GetChars( aEvent.GetFindString() ), GetChars( aEvent.GetReplaceString() ),
-                GetChars( m_foundItems.GetText() ) );
-
-    SCH_ITEM* undoItem = data.GetParent();
-
-    if( undoItem == NULL )
-        undoItem = item;
-
-    SetUndoItem( undoItem );
-
-    if( m_foundItems.ReplaceItem() )
-    {
-        OnModify();
-        SaveUndoItemInUndoList( undoItem );
-        RedrawScreen( data.GetPosition(), warpCursor );
-    }
-
-    OnFindSchematicItem( aEvent );
-
-    if( aEvent.GetEventType() == wxEVT_COMMAND_FIND_REPLACE_ALL )
-    {
-        while( ( item = (SCH_ITEM*) m_foundItems.GetItem( data ) ) != NULL )
-        {
-            wxLogTrace( traceFindReplace, wxT( "Replacing %s with %s in item %s" ),
-                        GetChars( aEvent.GetFindString() ), GetChars( aEvent.GetReplaceString() ),
-                        GetChars( m_foundItems.GetText() ) );
-
-            SCH_ITEM* undoItem = data.GetParent();
-
-            // Don't save child items in undo list.
-            if( undoItem == NULL )
-                undoItem = item;
-
-            SetUndoItem( undoItem );
-
-            if( m_foundItems.ReplaceItem() )
-            {
-                OnModify();
-                SaveUndoItemInUndoList( undoItem );
-                RedrawScreen( data.GetPosition(), warpCursor );
-            }
-
-            OnFindSchematicItem( aEvent );
-        }
-    }
 }

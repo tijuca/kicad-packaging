@@ -7,9 +7,9 @@
 /*
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
- * Copyright (C) 1992-2012 Jean-Pierre Charras <jean-pierre.charras@ujf-grenoble.fr>
+ * Copyright (C) 1992-2015 Jean-Pierre Charras <jean-pierre.charras@ujf-grenoble.fr>
  * Copyright (C) 2012 SoftPLC Corporation, Dick Hollenbeck <dick@softplc.com>
- * Copyright (C) 1992-2012 KiCad Developers, see change_log.txt for contributors.
+ * Copyright (C) 1992-2015 KiCad Developers, see change_log.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -38,78 +38,131 @@
 #include <class_board.h>
 #include <hotkeys.h>
 
-#include <wx/ownerdrw.h>
-#include <wx/menuitem.h>
-#include <wx/bmpcbox.h>
-#include <wx/wx.h>
-
 #include <class_pcb_layer_box_selector.h>
 
-/* class to display a layer list.
- *
- */
+// translate aLayer to its hotkey
+static int layer2hotkey_id( LAYER_ID aLayer )
+{
+    switch( aLayer )
+    {
+    case F_Cu:      return HK_SWITCH_LAYER_TO_COMPONENT;
 
+    case B_Cu:      return HK_SWITCH_LAYER_TO_COPPER;
+
+    case In1_Cu:    return HK_SWITCH_LAYER_TO_INNER1;
+    case In2_Cu:    return HK_SWITCH_LAYER_TO_INNER2;
+    case In3_Cu:    return HK_SWITCH_LAYER_TO_INNER3;
+    case In4_Cu:    return HK_SWITCH_LAYER_TO_INNER4;
+    case In5_Cu:    return HK_SWITCH_LAYER_TO_INNER5;
+    case In6_Cu:    return HK_SWITCH_LAYER_TO_INNER6;
+    case In7_Cu:    return HK_SWITCH_LAYER_TO_INNER7;
+    case In8_Cu:    return HK_SWITCH_LAYER_TO_INNER8;
+    case In9_Cu:    return HK_SWITCH_LAYER_TO_INNER9;
+    case In10_Cu:   return HK_SWITCH_LAYER_TO_INNER10;
+    case In11_Cu:   return HK_SWITCH_LAYER_TO_INNER11;
+    case In12_Cu:   return HK_SWITCH_LAYER_TO_INNER12;
+    case In13_Cu:   return HK_SWITCH_LAYER_TO_INNER13;
+    case In14_Cu:   return HK_SWITCH_LAYER_TO_INNER14;
+
+    default:
+        return -1;
+    }
+}
+
+
+// class to display a layer list in a wxBitmapComboBox.
 
 // Reload the Layers
 void PCB_LAYER_BOX_SELECTOR::Resync()
 {
     Clear();
 
-    static DECLARE_LAYERS_ORDER_LIST( layertranscode );
-    static DECLARE_LAYERS_HOTKEY( layerhk );
+    // Tray to fix a minimum width fot the BitmapComboBox
+    int minwidth = 80;
 
-    for( int i = 0; i < LAYER_COUNT; i++ )
+    wxClientDC dc( GetParent() );   // The DC for "this" is not always initialized
+
+    const int BM_SIZE = 14;
+
+    LSET show = LSET::AllLayersMask() & ~m_layerMaskDisable;
+    LSET activated = getEnabledLayers() & ~m_layerMaskDisable;
+    wxString layerstatus;
+
+    for( LSEQ seq = show.UIOrder();  seq;  ++seq )
     {
-        wxBitmap   layerbmp( 14, 14 );
-        wxString   layername;
-        int        layerid = i;
+        LAYER_ID   layerid = *seq;
 
-        if( m_layerorder )
-            layerid = layertranscode[i];
-
-        if( ! IsLayerEnabled( layerid ) )
+        if( !m_showNotEnabledBrdlayers && !activated[layerid] )
             continue;
+        else if( !activated[layerid] )
+            layerstatus = wxT( " " ) + _( "(not activated)" );
+        else
+            layerstatus.Empty();
 
+        wxBitmap   layerbmp( BM_SIZE, BM_SIZE );
         SetBitmapLayer( layerbmp, layerid );
 
-        layername = GetLayerName( layerid );
+        wxString layername = GetLayerName( layerid ) + layerstatus;
 
-        if( m_layerhotkeys && m_hotkeys != NULL )
-            layername = AddHotkeyName( layername, m_hotkeys, layerhk[layerid], IS_COMMENT );
+        if( m_layerhotkeys && m_hotkeys )
+        {
+            int id = layer2hotkey_id( layerid );
+
+            if( id != -1 )
+                layername = AddHotkeyName( layername, m_hotkeys, id, IS_COMMENT );
+        }
 
         Append( layername, layerbmp, (void*)(intptr_t) layerid );
+
+        int w, h;
+        dc.GetTextExtent ( layername, &w, &h );
+        minwidth = std::max( minwidth, w );
     }
+
+    minwidth += BM_SIZE + 35;    // Take in account the bitmap size and margins
+    SetMinSize( wxSize( minwidth, -1 ) );
 }
 
 
 // Returns true if the layer id is enabled (i.e. is it should be displayed)
-bool PCB_LAYER_BOX_SELECTOR::IsLayerEnabled( int aLayerIndex ) const
+bool PCB_LAYER_BOX_SELECTOR::IsLayerEnabled( LAYER_NUM aLayer ) const
 {
-    PCB_BASE_FRAME* pcbFrame = (PCB_BASE_FRAME*) GetParent()->GetParent();
-    BOARD* board = pcbFrame->GetBoard();
+    wxASSERT( m_boardFrame != NULL );
+    BOARD* board = m_boardFrame->GetBoard();
     wxASSERT( board != NULL );
 
-    return board->IsLayerEnabled( aLayerIndex );
+    return board->IsLayerEnabled( ToLAYER_ID( aLayer ) );
+}
+
+
+LSET PCB_LAYER_BOX_SELECTOR::getEnabledLayers() const
+{
+    wxASSERT( m_boardFrame != NULL );
+    BOARD* board = m_boardFrame->GetBoard();
+    wxASSERT( board != NULL );
+
+    return board->GetEnabledLayers();
 }
 
 
 // Returns a color index from the layer id
-EDA_COLOR_T PCB_LAYER_BOX_SELECTOR::GetLayerColor( int aLayerIndex ) const
+EDA_COLOR_T PCB_LAYER_BOX_SELECTOR::GetLayerColor( LAYER_NUM aLayer ) const
 {
-    PCB_BASE_FRAME* pcbFrame = (PCB_BASE_FRAME*) GetParent()->GetParent();
-    BOARD* board = pcbFrame->GetBoard();
-    wxASSERT( board != NULL );
+    wxASSERT( m_boardFrame );
+    BOARD* board = m_boardFrame->GetBoard();
+    wxASSERT( board );
 
-    return board->GetLayerColor( aLayerIndex );
+    return board->GetLayerColor( ToLAYER_ID( aLayer ) );
 }
 
 
 // Returns the name of the layer id
-wxString PCB_LAYER_BOX_SELECTOR::GetLayerName( int aLayerIndex ) const
+wxString PCB_LAYER_BOX_SELECTOR::GetLayerName( LAYER_NUM aLayer ) const
 {
-    PCB_BASE_FRAME* pcbFrame = (PCB_BASE_FRAME*) GetParent()->GetParent();
-    BOARD* board = pcbFrame->GetBoard();
-    wxASSERT( board != NULL );
+    wxASSERT( m_boardFrame );
+    BOARD* board = m_boardFrame->GetBoard();
+    wxASSERT( board );
 
-    return board->GetLayerName( aLayerIndex );
+    return board->GetLayerName( ToLAYER_ID( aLayer ) );
 }
+

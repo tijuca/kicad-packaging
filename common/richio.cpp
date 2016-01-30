@@ -3,7 +3,7 @@
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
  * Copyright (C) 2007-2011 SoftPLC Corporation, Dick Hollenbeck <dick@softplc.com>
- * Copyright (C) 2007 KiCad Developers, see change_log.txt for contributors.
+ * Copyright (C) 2015 KiCad Developers, see change_log.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -35,9 +35,72 @@
 #endif
 
 
-// This file defines 3 classes useful for working with DSN text files and is named
-// "richio" after its author, Richard Hollenbeck, aka Dick Hollenbeck.
+// This file defines 3 classes and some functions useful for working with text files
+// and is named "richio" after its author, Richard Hollenbeck, aka Dick Hollenbeck.
 
+
+
+static int vprint( std::string* result, const char* format, va_list ap )
+{
+    char    msg[512];
+    // This function can call vsnprintf twice.
+    // But internally, vsnprintf retrieves arguments from the va_list identified by arg as if
+    // va_arg was used on it, and thus the state of the va_list is likely to be altered by the call.
+    // see: www.cplusplus.com/reference/cstdio/vsnprintf
+    // we make a copy of va_list ap for the second call, if happens
+    va_list tmp;
+    va_copy( tmp, ap );
+
+    size_t  len = vsnprintf( msg, sizeof(msg), format, ap );
+
+    if( len < sizeof(msg) )     // the output fit into msg
+    {
+        result->append( msg, msg + len );
+    }
+    else
+    {
+        // output was too big, so now incur the expense of allocating
+        // a buf for holding suffient characters.
+
+        std::vector<char>   buf;
+
+        buf.reserve( len+1 );   // reserve(), not resize() which writes. +1 for trailing nul.
+
+        len = vsnprintf( &buf[0], len+1, format, tmp );
+
+        result->append( &buf[0], &buf[0] + len );
+    }
+
+    va_end( tmp );      // Release the temporary va_list, initialised from ap
+
+    return len;
+}
+
+
+int StrPrintf( std::string* result, const char* format, ... )
+{
+    va_list     args;
+
+    va_start( args, format );
+    int ret = vprint( result, format, args );
+    va_end( args );
+
+    return ret;
+}
+
+
+std::string StrPrintf( const char* format, ... )
+{
+    std::string ret;
+    va_list     args;
+
+    va_start( args, format );
+    int ignore = vprint( &ret, format, args );
+    (void) ignore;
+    va_end( args );
+
+    return ret;
+}
 
 
 void IO_ERROR::init( const char* aThrowersFile, const char* aThrowersLoc, const wxString& aMsg )
@@ -67,18 +130,15 @@ void PARSE_ERROR::init( const char* aThrowersFile, const char* aThrowersLoc,
 
 //-----<LINE_READER>------------------------------------------------------
 
-LINE_READER::LINE_READER( unsigned aMaxLineLength )
+LINE_READER::LINE_READER( unsigned aMaxLineLength ) :
+    length( 0 ),
+    lineNum( 0 ),
+    line( NULL ),
+    capacity( 0 ),
+    maxLineLength( aMaxLineLength )
 {
-    lineNum = 0;
-
-    if( aMaxLineLength == 0 )
+    if( aMaxLineLength != 0 )
     {
-        line = 0;
-    }
-    else
-    {
-        maxLineLength = aMaxLineLength;
-
         // start at the INITIAL size, expand as needed up to the MAX size in maxLineLength
         capacity = LINE_READER_LINE_INITIAL_SIZE;
 
@@ -90,8 +150,6 @@ LINE_READER::LINE_READER( unsigned aMaxLineLength )
 
         line[0] = '\0';
     }
-
-    length  = 0;
 }
 
 
@@ -262,10 +320,11 @@ char* STRING_LINE_READER::ReadLine() throw( IO_ERROR )
 }
 
 
-INPUTSTREAM_LINE_READER::INPUTSTREAM_LINE_READER( wxInputStream* aStream ) :
+INPUTSTREAM_LINE_READER::INPUTSTREAM_LINE_READER( wxInputStream* aStream, const wxString& aSource ) :
     LINE_READER( LINE_READER_LINE_DEFAULT_MAX ),
     m_stream( aStream )
 {
+    source = aSource;
 }
 
 
@@ -348,12 +407,22 @@ const char* OUTPUTFORMATTER::GetQuoteChar( const char* wrapee )
 
 int OUTPUTFORMATTER::vprint( const char* fmt,  va_list ap )  throw( IO_ERROR )
 {
+    // This function can call vsnprintf twice.
+    // But internally, vsnprintf retrieves arguments from the va_list identified by arg as if
+    // va_arg was used on it, and thus the state of the va_list is likely to be altered by the call.
+    // see: www.cplusplus.com/reference/cstdio/vsnprintf
+    // we make a copy of va_list ap for the second call, if happens
+    va_list tmp;
+    va_copy( tmp, ap );
     int ret = vsnprintf( &buffer[0], buffer.size(), fmt, ap );
+
     if( ret >= (int) buffer.size() )
     {
-        buffer.resize( ret + 2000 );
-        ret = vsnprintf( &buffer[0], buffer.size(), fmt, ap );
+        buffer.resize( ret + 1000 );
+        ret = vsnprintf( &buffer[0], buffer.size(), fmt, tmp );
     }
+
+    va_end( tmp );      // Release the temporary va_list, initialised from ap
 
     if( ret > 0 )
         write( &buffer[0], ret );

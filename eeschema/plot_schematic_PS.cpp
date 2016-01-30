@@ -27,18 +27,20 @@
 #include <fctsys.h>
 #include <plot_common.h>
 #include <class_sch_screen.h>
-#include <wxEeschemaStruct.h>
+#include <schframe.h>
 #include <base_units.h>
 #include <sch_sheet_path.h>
-#include <dialog_plot_schematic.h>
+#include <project.h>
+#include <reporter.h>
 
+#include <dialog_plot_schematic.h>
+#include <wx_html_report_panel.h>
 
 void DIALOG_PLOT_SCHEMATIC::createPSFile( bool aPlotAll, bool aPlotFrameRef )
 {
     SCH_SCREEN*     screen = m_parent->GetScreen();
     SCH_SHEET_PATH* sheetpath;
     SCH_SHEET_PATH  oldsheetpath = m_parent->GetCurrentSheet();     // sheetpath is saved here
-    wxString        plotFileName;
     PAGE_INFO       actualPage;                                     // page size selected in schematic
     PAGE_INFO       plotPage;                                       // page size selected to plot
 
@@ -101,19 +103,39 @@ void DIALOG_PLOT_SCHEMATIC::createPSFile( bool aPlotAll, bool aPlotFrameRef )
         double  scale = std::min( scalex, scaley );
 
         wxPoint plot_offset;
-        plotFileName = m_parent->GetUniqueFilenameForCurrentSheet() + wxT( "." )
-                       + PS_PLOTTER::GetDefaultFileExtension();
+
+        wxString outputDirName = m_outputDirectoryName->GetValue();
+        wxFileName outputDir = wxFileName::DirName( outputDirName );
 
         wxString msg;
+        REPORTER& reporter = m_MessagesBox->Reporter();
 
-        if( plotOneSheetPS( plotFileName, screen, plotPage, plot_offset,
-                            scale, aPlotFrameRef ) )
-            msg.Printf( _( "Plot: %s OK\n" ), GetChars( plotFileName ) );
-        else    // Error
-             msg.Printf( _( "** Unable to create %s **\n" ), GetChars( plotFileName ) );
+        try
+        {
+            wxString fname = m_parent->GetUniqueFilenameForCurrentSheet();
+            wxString ext = PS_PLOTTER::GetDefaultFileExtension();
+            wxFileName plotFileName = createPlotFileName( m_outputDirectoryName,
+                                                          fname, ext, &reporter );
 
-        m_MessagesBox->AppendText( msg );
+            if( plotOneSheetPS( plotFileName.GetFullPath(), screen, plotPage, plot_offset,
+                                scale, aPlotFrameRef ) )
+            {
+                msg.Printf( _( "Plot: '%s' OK.\n" ), GetChars( plotFileName.GetFullPath() ) );
+                reporter.Report( msg, REPORTER::RPT_ACTION );
+            }
+            else
+            {
+                // Error
+                msg.Printf( _( "Unable to create file '%s'.\n" ), GetChars( plotFileName.GetFullPath() ) );
+                reporter.Report( msg, REPORTER::RPT_ERROR );
+            }
 
+        }
+        catch( IO_ERROR& e )
+        {
+            msg.Printf( wxT( "PS Plotter exception: %s"), GetChars( e.errorText ) );
+            reporter.Report( msg, REPORTER::RPT_ERROR );
+        }
 
         if( !aPlotAll )
             break;

@@ -1,8 +1,8 @@
 /*
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
- * Copyright (C) 2009 Jean-Pierre Charras, jaen-pierre.charras@gipsa-lab.inpg.com
- * Copyright (C) 1992-2011 KiCad Developers, see AUTHORS.txt for contributors.
+ * Copyright (C) 2015 Jean-Pierre Charras, jaen-pierre.charras@gipsa-lab.inpg.com
+ * Copyright (C) 1992-2015 KiCad Developers, see AUTHORS.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -31,8 +31,6 @@
 #include <gr_basic.h>
 #include <macros.h>
 #include <class_drawpanel.h>
-#include <trigo.h>
-#include <richio.h>
 #include <plot_common.h>
 #include <base_units.h>
 #include <eeschema_config.h>
@@ -49,7 +47,6 @@ SCH_LINE::SCH_LINE( const wxPoint& pos, int layer ) :
 {
     m_start = pos;
     m_end   = pos;
-    m_width = 0;        // Default thickness used
     m_startIsDangling = m_endIsDangling = false;
 
     switch( layer )
@@ -74,7 +71,6 @@ SCH_LINE::SCH_LINE( const SCH_LINE& aLine ) :
 {
     m_start = aLine.m_start;
     m_end = aLine.m_end;
-    m_width = aLine.m_width;
     m_startIsDangling = m_endIsDangling = false;
 }
 
@@ -107,7 +103,6 @@ void SCH_LINE::Show( int nestLevel, std::ostream& os ) const
 {
     NestedSpace( nestLevel, os ) << '<' << GetClass().Lower().mb_str()
                                  << " layer=\"" << m_Layer << '"'
-                                 << " width=\"" << m_width << '"'
                                  << " startIsDangling=\"" << m_startIsDangling
                                  << '"' << " endIsDangling=\""
                                  << m_endIsDangling << '"' << ">"
@@ -119,7 +114,7 @@ void SCH_LINE::Show( int nestLevel, std::ostream& os ) const
 #endif
 
 
-EDA_RECT SCH_LINE::GetBoundingBox() const
+const EDA_RECT SCH_LINE::GetBoundingBox() const
 {
     int      width = 25;
 
@@ -179,7 +174,7 @@ bool SCH_LINE::Load( LINE_READER& aLine, wxString& aErrorMsg )
     while( (*line != ' ' ) && *line )
         line++;
 
-    if( sscanf( line, "%s %s", Name1, Name2 ) != 2  )
+    if( sscanf( line, "%255s %255s", Name1, Name2 ) != 2  )
     {
         aErrorMsg.Printf( wxT( "Eeschema file segment error at line %d, aborted" ),
                           aLine.LineNumber() );
@@ -210,14 +205,11 @@ bool SCH_LINE::Load( LINE_READER& aLine, wxString& aErrorMsg )
 
 int SCH_LINE::GetPenSize() const
 {
-    int pensize = ( m_width == 0 ) ? GetDefaultLineThickness() : m_width;
 
     if( m_Layer == LAYER_BUS )
-    {
-        pensize = ( m_width == 0 ) ? GetDefaultBusThickness() : m_width;
-    }
+        return GetDefaultBusThickness();
 
-    return pensize;
+    return GetDefaultLineThickness();
 }
 
 
@@ -230,7 +222,7 @@ void SCH_LINE::Draw( EDA_DRAW_PANEL* panel, wxDC* DC, const wxPoint& offset,
     if( Color >= 0 )
         color = Color;
     else
-        color = ReturnLayerColor( m_Layer );
+        color = GetLayerColor( m_Layer );
 
     GRSetDrawMode( DC, DrawMode );
 
@@ -258,23 +250,15 @@ void SCH_LINE::Draw( EDA_DRAW_PANEL* panel, wxDC* DC, const wxPoint& offset,
 
 void SCH_LINE::MirrorX( int aXaxis_position )
 {
-    m_start.y -= aXaxis_position;
-    NEGATE(  m_start.y );
-    m_start.y += aXaxis_position;
-    m_end.y   -= aXaxis_position;
-    NEGATE(  m_end.y );
-    m_end.y += aXaxis_position;
+    MIRROR( m_start.y, aXaxis_position );
+    MIRROR( m_end.y,   aXaxis_position );
 }
 
 
 void SCH_LINE::MirrorY( int aYaxis_position )
 {
-    m_start.x -= aYaxis_position;
-    NEGATE(  m_start.x );
-    m_start.x += aYaxis_position;
-    m_end.x   -= aYaxis_position;
-    NEGATE(  m_end.x );
-    m_end.x += aYaxis_position;
+    MIRROR( m_start.x, aYaxis_position );
+    MIRROR( m_end.x,   aYaxis_position );
 }
 
 
@@ -321,7 +305,7 @@ bool SCH_LINE::MergeOverlap( SCH_LINE* aLine )
     }
     else if( m_end == aLine->m_end )
     {
-        EXCHG( aLine->m_start, aLine->m_end );
+        std::swap( aLine->m_start, aLine->m_end );
     }
     else if( m_end != aLine->m_start )
     {
@@ -410,6 +394,9 @@ bool SCH_LINE::IsDanglingStateChanged( std::vector< DANGLING_END_ITEM >& aItemLi
             if( item.GetItem() == this )
                 continue;
 
+            if( item.GetType() == NO_CONNECT_END )
+                continue;
+
             if( m_start == item.GetPosition() )
                 m_startIsDangling = false;
 
@@ -436,22 +423,22 @@ bool SCH_LINE::IsSelectStateChanged( const wxRect& aRect )
 
     if( aRect.Contains( m_start ) && aRect.Contains( m_end ) )
     {
-        m_Flags |= SELECTED;
-        m_Flags &= ~(STARTPOINT | ENDPOINT);
+        SetFlags( SELECTED );
+        ClearFlags( STARTPOINT | ENDPOINT );
     }
     else if( aRect.Contains( m_start ) )
     {
-        m_Flags &= ~STARTPOINT;
-        m_Flags |= ( SELECTED | ENDPOINT );
+        ClearFlags( STARTPOINT );
+        SetFlags( SELECTED | ENDPOINT );
     }
     else if( aRect.Contains( m_end ) )
     {
-        m_Flags &= ~ENDPOINT;
-        m_Flags |= ( SELECTED | STARTPOINT );
+        ClearFlags( ENDPOINT );
+        SetFlags( SELECTED | STARTPOINT );
     }
     else
     {
-        m_Flags &= ~( SELECTED | STARTPOINT | ENDPOINT );
+        ClearFlags( SELECTED | STARTPOINT | ENDPOINT );
     }
 
     return previousState != IsSelected();
@@ -467,7 +454,7 @@ bool SCH_LINE::IsConnectable() const
 }
 
 
-void SCH_LINE::GetConnectionPoints( vector< wxPoint >& aPoints ) const
+void SCH_LINE::GetConnectionPoints( std::vector< wxPoint >& aPoints ) const
 {
     aPoints.push_back( m_start );
     aPoints.push_back( m_end );
@@ -522,16 +509,16 @@ BITMAP_DEF SCH_LINE::GetMenuImage() const
 }
 
 
-void SCH_LINE::GetNetListItem( vector<NETLIST_OBJECT*>& aNetListItems,
-                               SCH_SHEET_PATH*          aSheetPath )
+void SCH_LINE::GetNetListItem( NETLIST_OBJECT_LIST& aNetListItems,
+                               SCH_SHEET_PATH*      aSheetPath )
 {
     // Net list item not required for graphic lines.
     if( (GetLayer() != LAYER_BUS) && (GetLayer() != LAYER_WIRE) )
         return;
 
     NETLIST_OBJECT* item = new NETLIST_OBJECT();
-    item->m_SheetList = *aSheetPath;
-    item->m_SheetListInclude = *aSheetPath;
+    item->m_SheetPath = *aSheetPath;
+    item->m_SheetPathInclude = *aSheetPath;
     item->m_Comp = (SCH_ITEM*) this;
     item->m_Start = m_start;
     item->m_End = m_end;
@@ -577,17 +564,18 @@ bool SCH_LINE::HitTest( const wxPoint& aPosition, int aAccuracy ) const
 
 bool SCH_LINE::HitTest( const EDA_RECT& aRect, bool aContained, int aAccuracy ) const
 {
-    if( m_Flags & STRUCT_DELETED || m_Flags & SKIP_STRUCT )
+    if( m_Flags & ( STRUCT_DELETED | SKIP_STRUCT ) )
         return false;
 
     EDA_RECT rect = aRect;
 
-    rect.Inflate( aAccuracy );
+    if ( aAccuracy )
+    	rect.Inflate( aAccuracy );
 
     if( aContained )
-        return rect.Contains( GetBoundingBox() );
+        return rect.Contains( m_start ) && rect.Contains( m_end );
 
-    return rect.Intersects( GetBoundingBox() );
+    return rect.Intersects( m_start, m_end );
 }
 
 
@@ -602,7 +590,7 @@ bool SCH_LINE::doIsConnected( const wxPoint& aPosition ) const
 
 void SCH_LINE::Plot( PLOTTER* aPlotter )
 {
-    aPlotter->SetColor( ReturnLayerColor( GetLayer() ) );
+    aPlotter->SetColor( GetLayerColor( GetLayer() ) );
     aPlotter->SetCurrentLineWidth( GetPenSize() );
 
     if( m_Layer == LAYER_NOTES )

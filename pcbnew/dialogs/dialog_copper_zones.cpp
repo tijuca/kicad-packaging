@@ -29,7 +29,7 @@
 
 #include <wx/wx.h>
 #include <fctsys.h>
-#include <appl_wxstruct.h>
+#include <kiface_i.h>
 #include <confirm.h>
 #include <PolyLine.h>
 #include <pcbnew.h>
@@ -43,7 +43,7 @@
 
 #include <wx/imaglist.h>    // needed for wx/listctrl.h, in wxGTK 2.8.12
 #include <wx/listctrl.h>
-
+#include <layers_id_colors_and_visibility.h>
 
 
 /**
@@ -57,7 +57,7 @@ public:
 
 private:
     PCB_BASE_FRAME* m_Parent;
-    wxConfig*       m_Config;               ///< Current config
+    wxConfigBase*       m_Config;               ///< Current config
 
     ZONE_EDIT_T     m_OnExitCode;           ///< exit code: ZONE_ABORT if no change,
                                             ///< ZONE_OK if new values accepted
@@ -70,7 +70,8 @@ private:
                                             ///< true = pad count sort.
 
     long            m_NetFiltering;
-    std::vector<int> m_LayerId;             ///< Handle the real layer number from layer
+
+    std::vector<LAYER_ID> m_LayerId;        ///< Handle the real layer number from layer
                                             ///< name position in m_LayerSelectionCtrl
 
     static wxString m_netNameShowFilter;    ///< the filter to show nets (default * "*").
@@ -139,7 +140,7 @@ DIALOG_COPPER_ZONE::DIALOG_COPPER_ZONE( PCB_BASE_FRAME* aParent, ZONE_SETTINGS* 
     DIALOG_COPPER_ZONE_BASE( aParent )
 {
     m_Parent = aParent;
-    m_Config = wxGetApp().GetSettings();
+    m_Config = Kiface().KifaceSettings();
 
     m_ptr = aSettings;
     m_settings = *aSettings;
@@ -173,36 +174,36 @@ void DIALOG_COPPER_ZONE::initDialog()
     m_FillModeCtrl->SetSelection( m_settings.m_FillMode ? 1 : 0 );
 
     AddUnitSymbol( *m_ClearanceValueTitle, g_UserUnit );
-    msg = ReturnStringFromValue( g_UserUnit, m_settings.m_ZoneClearance );
+    msg = StringFromValue( g_UserUnit, m_settings.m_ZoneClearance );
     m_ZoneClearanceCtrl->SetValue( msg );
 
     AddUnitSymbol( *m_MinThicknessValueTitle, g_UserUnit );
-    msg = ReturnStringFromValue( g_UserUnit, m_settings.m_ZoneMinThickness );
+    msg = StringFromValue( g_UserUnit, m_settings.m_ZoneMinThickness );
     m_ZoneMinThicknessCtrl->SetValue( msg );
 
     switch( m_settings.GetPadConnection() )
     {
-    case THT_THERMAL:               // Thermals only for THT pads
+    case PAD_ZONE_CONN_THT_THERMAL:   // Thermals only for THT pads
         m_PadInZoneOpt->SetSelection( 2 );
         break;
 
-    case PAD_NOT_IN_ZONE:           // Pads are not covered
+    case PAD_ZONE_CONN_NONE:        // Pads are not covered
         m_PadInZoneOpt->SetSelection( 3 );
         break;
 
     default:
-    case THERMAL_PAD:               // Use thermal relief for pads
+    case PAD_ZONE_CONN_THERMAL:     // Use thermal relief for pads
         m_PadInZoneOpt->SetSelection( 1 );
         break;
 
-    case PAD_IN_ZONE:               // pads are covered by copper
+    case PAD_ZONE_CONN_FULL:        // pads are covered by copper
         m_PadInZoneOpt->SetSelection( 0 );
         break;
     }
 
     // Antipad and spokes are significant only for thermals
-    if( m_settings.GetPadConnection() != THERMAL_PAD &&
-        m_settings.GetPadConnection() != THT_THERMAL )
+    if( m_settings.GetPadConnection() != PAD_ZONE_CONN_THERMAL &&
+        m_settings.GetPadConnection() != PAD_ZONE_CONN_THT_THERMAL )
     {
         m_AntipadSizeValue->Enable( false );
         m_CopperWidthValue->Enable( false );
@@ -246,33 +247,51 @@ void DIALOG_COPPER_ZONE::initDialog()
     wxListItem column0;
     column0.SetId( 0 );
     m_LayerSelectionCtrl->InsertColumn( 0, column0 );
-    // Build copper layer list and append to layer widget
-    int layerCount = board->GetCopperLayerCount();
+
     wxImageList* imageList = new wxImageList( LAYER_BITMAP_SIZE_X, LAYER_BITMAP_SIZE_Y );
     m_LayerSelectionCtrl->AssignImageList( imageList, wxIMAGE_LIST_SMALL );
-    for( int ii = 0; ii < layerCount; ii++ )
+
+    int ctrlWidth = 0;  // Min width for m_LayerSelectionCtrl to show the layers names
+    int imgIdx = 0;
+
+    LSET cu_set = LSET::AllCuMask( board->GetCopperLayerCount() );
+
+    for( LSEQ cu_stack = cu_set.UIOrder();  cu_stack;  ++cu_stack, imgIdx++ )
     {
-        int layerNumber = LAYER_N_BACK;
+        LAYER_ID layer = *cu_stack;
 
-        if( layerCount <= 1 || ii < layerCount - 1 )
-            layerNumber = ii;
-        else if( ii == layerCount - 1 )
-            layerNumber = LAYER_N_FRONT;
+        m_LayerId.push_back( layer );
 
-        m_LayerId.insert( m_LayerId.begin(), layerNumber );
+        msg = board->GetLayerName( layer );
 
-        msg = board->GetLayerName( layerNumber ).Trim();
-        EDA_COLOR_T layerColor = board->GetLayerColor( layerNumber );
+        msg.Trim();
+
+        EDA_COLOR_T layerColor = board->GetLayerColor( layer );
+
         imageList->Add( makeLayerBitmap( layerColor ) );
-        int itemIndex = m_LayerSelectionCtrl->InsertItem( 0, msg, ii );
 
-        if( m_settings.m_CurrentZone_Layer == layerNumber )
+        int itemIndex = m_LayerSelectionCtrl->InsertItem(
+                m_LayerSelectionCtrl->GetItemCount(), msg, imgIdx );
+
+        if( m_settings.m_CurrentZone_Layer == layer )
             m_LayerSelectionCtrl->Select( itemIndex );
+
+        wxSize tsize( GetTextSize( msg, m_LayerSelectionCtrl ) );
+        ctrlWidth = std::max( ctrlWidth, tsize.x );
     }
 
-    m_LayerSelectionCtrl->SetColumnWidth( 0, wxLIST_AUTOSIZE);
+    // The most easy way to ensure the right size is to use wxLIST_AUTOSIZE
+    // unfortunately this option does not work well both on
+    // wxWidgets 2.8 ( column witdth too small), and
+    // wxWidgets 2.9 ( column witdth too large)
+    ctrlWidth += LAYER_BITMAP_SIZE_X + 25;      // Add bitmap width + margin between bitmap and text
+    m_LayerSelectionCtrl->SetColumnWidth( 0, ctrlWidth );
 
-    wxString netNameDoNotShowFilter = wxT( "N-*" );
+    ctrlWidth += 25;        // add small margin between text and window borders
+                            // and room for vertical scroll bar
+    m_LayerSelectionCtrl->SetMinSize( wxSize( ctrlWidth, -1 ) );
+
+    wxString netNameDoNotShowFilter = wxT( "Net-*" );
     if( m_Config )
     {
         int opt = m_Config->Read( ZONE_NET_SORT_OPTION_KEY, 1l );
@@ -327,22 +346,22 @@ bool DIALOG_COPPER_ZONE::AcceptOptions( bool aPromptForErrors, bool aUseExportab
     {
     case 3:
         // Pads are not covered
-        m_settings.SetPadConnection( PAD_NOT_IN_ZONE );
+        m_settings.SetPadConnection( PAD_ZONE_CONN_NONE );
         break;
 
     case 2:
         // Use thermal relief for THT pads
-        m_settings.SetPadConnection( THT_THERMAL );
+        m_settings.SetPadConnection( PAD_ZONE_CONN_THT_THERMAL );
         break;
 
     case 1:
         // Use thermal relief for pads
-        m_settings.SetPadConnection( THERMAL_PAD );
+        m_settings.SetPadConnection( PAD_ZONE_CONN_THERMAL );
         break;
 
     case 0:
         // pads are covered by copper
-        m_settings.SetPadConnection( PAD_IN_ZONE );
+        m_settings.SetPadConnection( PAD_ZONE_CONN_FULL );
         break;
     }
 
@@ -377,7 +396,7 @@ bool DIALOG_COPPER_ZONE::AcceptOptions( bool aPromptForErrors, bool aUseExportab
     m_settings.m_FillMode = (m_FillModeCtrl->GetSelection() == 0) ? 0 : 1;
 
     wxString txtvalue = m_ZoneClearanceCtrl->GetValue();
-    m_settings.m_ZoneClearance = ReturnValueFromString( g_UserUnit, txtvalue );
+    m_settings.m_ZoneClearance = ValueFromString( g_UserUnit, txtvalue );
 
     // Test if this is a reasonable value for this parameter
     // A too large value can hang Pcbnew
@@ -392,7 +411,7 @@ bool DIALOG_COPPER_ZONE::AcceptOptions( bool aPromptForErrors, bool aUseExportab
     }
 
     txtvalue = m_ZoneMinThicknessCtrl->GetValue();
-    m_settings.m_ZoneMinThickness = ReturnValueFromString( g_UserUnit, txtvalue );
+    m_settings.m_ZoneMinThickness = ValueFromString( g_UserUnit, txtvalue );
 
     if( m_settings.m_ZoneMinThickness < (ZONE_THICKNESS_MIN_VALUE_MIL*IU_PER_MILS) )
     {
@@ -405,7 +424,7 @@ bool DIALOG_COPPER_ZONE::AcceptOptions( bool aPromptForErrors, bool aUseExportab
 
     m_settings.SetCornerSmoothingType( m_cornerSmoothingChoice->GetSelection() );
     txtvalue = m_cornerSmoothingCtrl->GetValue();
-    m_settings.SetCornerRadius( ReturnValueFromString( g_UserUnit, txtvalue ) );
+    m_settings.SetCornerRadius( ValueFromString( g_UserUnit, txtvalue ) );
 
     m_settings.m_ZonePriority = m_PriorityLevelCtrl->GetValue();
 
@@ -414,8 +433,8 @@ bool DIALOG_COPPER_ZONE::AcceptOptions( bool aPromptForErrors, bool aUseExportab
     else
         m_settings.m_Zone_45_Only = true;
 
-    m_settings.m_ThermalReliefGap = ReturnValueFromTextCtrl( *m_AntipadSizeValue );
-    m_settings.m_ThermalReliefCopperBridge = ReturnValueFromTextCtrl( *m_CopperWidthValue );
+    m_settings.m_ThermalReliefGap = ValueFromTextCtrl( *m_AntipadSizeValue );
+    m_settings.m_ThermalReliefCopperBridge = ValueFromTextCtrl( *m_CopperWidthValue );
 
     if( m_Config )
     {
@@ -435,7 +454,7 @@ bool DIALOG_COPPER_ZONE::AcceptOptions( bool aPromptForErrors, bool aUseExportab
     if( m_settings.m_ThermalReliefCopperBridge <= m_settings.m_ZoneMinThickness )
     {
         DisplayError( this,
-                     _( "Thermal relief spoke width is smaller than the minimum width." ) );
+                     _( "Thermal relief spoke must be greater than the minimum width." ) );
         return false;
     }
 
@@ -452,7 +471,7 @@ bool DIALOG_COPPER_ZONE::AcceptOptions( bool aPromptForErrors, bool aUseExportab
         return false;
     }
 
-    m_settings.m_CurrentZone_Layer = m_LayerId[ii];
+    m_settings.m_CurrentZone_Layer = ToLAYER_ID( m_LayerId[ii] );
 
     // Get the net name selection for this zone
     ii = m_ListNetNameSelection->GetSelection();
@@ -613,7 +632,7 @@ void DIALOG_COPPER_ZONE::buildAvailableListOfNets()
 {
     wxArrayString   listNetName;
 
-    m_Parent->GetBoard()->ReturnSortedNetnamesList( listNetName, m_NetSortingByPadCount );
+    m_Parent->GetBoard()->SortedNetnamesList( listNetName, m_NetSortingByPadCount );
 
     if( m_NetFiltering )
     {
@@ -683,7 +702,13 @@ wxBitmap DIALOG_COPPER_ZONE::makeLayerBitmap( EDA_COLOR_T aColor )
 
     iconDC.SelectObject( bitmap );
     brush.SetColour( MakeColour( aColor ) );
+
+#if wxCHECK_VERSION( 3, 0, 0 )
+    brush.SetStyle( wxBRUSHSTYLE_SOLID );
+#else
     brush.SetStyle( wxSOLID );
+#endif
+
     iconDC.SetBrush( brush );
     iconDC.DrawRectangle( 0, 0, LAYER_BITMAP_SIZE_X, LAYER_BITMAP_SIZE_Y );
 

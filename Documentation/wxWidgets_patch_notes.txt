@@ -1,59 +1,20 @@
 --== notes about wxWidgets problems ==--
-Last Revised: 28-Feb-2010
+Last Revised: 02-jul-2015
 
+Kicad needs wxWidgets, the multi platform G.U.I toolkit.
 
-Kicad needs wxWidgets, the multi platform G.U.I.
-Known problems:
-wxMSW:
-*DO NOT* use wxMSW.2.8.1
-in fact: use wxWidgets >= 2.9.3
+use *only* wxWidgets
+>= 3.0.1 On Windows
+>= 3.0.2 on Linux (prevision versions have bugs which crash Kicad)
+>= 3.0.2 on OSX (which need patches: see patches/wxwidgets-3.0.0_macosx_xxx)
 
-wxGTK
-Use wxWidgets 2.8.10 or later
+Known bug on Windows:
+Postscript printers print tracks like thin line.
+It happens only for PS drivers, and PDF printer.
+Other drivers (PCL for instance) work fine,
+so it is unlikely a bug inside Kicad/wxWidgets
 
-Linux and macOSX
-- Printing problems (all version).
-Note old versions of wxWidgets give *very ugly results*
-(poor printing resolution set to 72ppi)
-
-So use a very recent version (>= 2.8.10 (that also solve other bugs)
-
-wxWidgets patch:
-
-
-wxMSW, version 2.8.x
-Some zoom values smaller than 3 to 5 create artifacts on screen, mainly values < 1.
-(corresponding to draw scale factor > 1 )
-
-See http://trac.wxwidgets.org/ticket/9554 (and 11669).
-
-This is fixed in version 2.9.3
-
-
-wxWidgets 2.9.1 (all platforms)
-Has a problem when using the built in string to double conversion:
-In countries using a comm instead of a point as floating number separator
-after calling this conversion function, the comma is changed in point.
-(Happens after reading a parameter stored in a wxConfig structure, if this
-parameter is a double)
-Workaround:
-Use a version >= 2.9.3
-
-
-*************************************************************************************
-wxGTK version: All
-*************************************************************************************
-Patch for printing wide traces that were shown with missing rounded end caps.
-Without this patch, printing boards and schematics under Linux, and perhaps OSX
-gives ugly drawings.
-
-wxGTK-2.8.11/src/generic/dcpsg.cpp
-search for:
-line 1636
-    PsPrint( "%%EndProlog\n" );
-
-Add after this line:
-    PsPrint("%%BeginSetup\n");
-    PsPrint( "1 setlinecap\n" );
-    PsPrint("%%EndSetup\n");
-
+On 3.0.2 Window version 64 bits:
+The mirror mode gives a blank sheet.
+This is a bug in wxWidgets 3.0.2
+wxWidgets 3.0.2 must be patched (see patches/wxWidgets-3.0.2-msw-dc-orientation-fix.patch) and rebuilt.

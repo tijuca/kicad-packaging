@@ -31,10 +31,10 @@
 #include <fctsys.h>
 #include <class_drawpanel.h>
 #include <wxPcbStruct.h>
-#include <pcbcommon.h>
 #include <pcbnew_id.h>
 #include <class_board.h>
 #include <class_module.h>
+#include <class_zone.h>
 
 #include <pcbnew.h>
 #include <protos.h>
@@ -54,8 +54,19 @@ extern bool Magnetize( PCB_EDIT_FRAME* frame, int aCurrentTool,
  */
 static BOARD_ITEM* AllAreModulesAndReturnSmallestIfSo( GENERAL_COLLECTOR* aCollector )
 {
+#if 0   // Dick: this is not consistent with name of this function, and does not
+        // work correctly using 'M' (move hotkey) when another module's (2nd module) reference
+        // is under a module (first module) and you want to move the reference.
+        // Another way to fix this would be to
+        // treat module text as copper layer content, and put the module text into
+        // the primary list.  I like the coded behavior best.  If it breaks something
+        // perhaps you need a different test before calling this function, which should
+        // do what its name says it does.
     int count = aCollector->GetPrimaryCount();     // try to use preferred layer
     if( 0 == count ) count = aCollector->GetCount();
+#else
+    int count = aCollector->GetCount();
+#endif
 
     for( int i = 0; i<count;  ++i )
     {
@@ -72,8 +83,8 @@ static BOARD_ITEM* AllAreModulesAndReturnSmallestIfSo( GENERAL_COLLECTOR* aColle
     {
         MODULE* module = (MODULE*) (*aCollector)[i];
 
-        int     lx = module->m_BoundaryBox.GetWidth();
-        int     ly = module->m_BoundaryBox.GetHeight();
+        int     lx = module->GetBoundingBox().GetWidth();
+        int     ly = module->GetBoundingBox().GetHeight();
 
         int     lmin = std::min( lx, ly );
 
@@ -93,6 +104,7 @@ BOARD_ITEM* PCB_BASE_FRAME::PcbGeneralLocateAndDisplay( int aHotKeyCode )
     BOARD_ITEM* item;
 
     GENERAL_COLLECTORS_GUIDE guide = GetCollectorsGuide();
+    DISPLAY_OPTIONS* displ_opts = (DISPLAY_OPTIONS*)GetDisplayOptions();
 
     // Assign to scanList the proper item types desired based on tool type
     // or hotkey that is in play.
@@ -107,9 +119,9 @@ BOARD_ITEM* PCB_BASE_FRAME::PcbGeneralLocateAndDisplay( int aHotKeyCode )
     else if( GetToolId() == ID_NO_TOOL_SELECTED )
     {
         if( m_mainToolBar->GetToolToggled( ID_TOOLBARH_PCB_MODE_MODULE ) )
-            scanList = GENERAL_COLLECTOR::ModuleItems;
+            scanList = GENERAL_COLLECTOR::Modules;
         else
-            scanList = (DisplayOpt.DisplayZonesMode == 0) ?
+            scanList = (displ_opts->m_DisplayZonesMode == 0) ?
                        GENERAL_COLLECTOR::AllBoardItems :
                        GENERAL_COLLECTOR::AllButZones;
     }
@@ -126,7 +138,7 @@ BOARD_ITEM* PCB_BASE_FRAME::PcbGeneralLocateAndDisplay( int aHotKeyCode )
             break;
 
         case ID_PCB_MODULE_BUTT:
-            scanList = GENERAL_COLLECTOR::ModuleItems;
+            scanList = GENERAL_COLLECTOR::Modules;
             break;
 
         case ID_PCB_ZONES_BUTT:
@@ -135,13 +147,13 @@ BOARD_ITEM* PCB_BASE_FRAME::PcbGeneralLocateAndDisplay( int aHotKeyCode )
             break;
 
         default:
-            scanList = DisplayOpt.DisplayZonesMode == 0 ?
+            scanList = displ_opts->m_DisplayZonesMode == 0 ?
                        GENERAL_COLLECTOR::AllBoardItems :
                        GENERAL_COLLECTOR::AllButZones;
         }
     }
 
-    m_Collector->Collect( m_Pcb, scanList, GetScreen()->RefPos( true ), guide );
+    m_Collector->Collect( m_Pcb, scanList, RefPos( true ), guide );
 
 #if 0
     // debugging: print out the collected items, showing their priority order too.
@@ -149,8 +161,9 @@ BOARD_ITEM* PCB_BASE_FRAME::PcbGeneralLocateAndDisplay( int aHotKeyCode )
         (*m_Collector)[i]->Show( 0, std::cout );
 #endif
 
-    /* Remove redundancies: sometime, zones are found twice,
+    /* Remove redundancies: sometime, legacy zones are found twice,
      * because zones can be filled by overlapping segments (this is a fill option)
+     * Trigger the selection of the current edge for new-style zones
      */
     time_t timestampzone = 0;
 
@@ -158,18 +171,32 @@ BOARD_ITEM* PCB_BASE_FRAME::PcbGeneralLocateAndDisplay( int aHotKeyCode )
     {
         item = (*m_Collector)[ii];
 
-        if( item->Type() != PCB_ZONE_T )
-            continue;
+        switch( item->Type() )
+        {
+        case PCB_ZONE_T:
+            // Found a TYPE ZONE
+            if( item->GetTimeStamp() == timestampzone )    // Remove it, redundant, zone already found
+            {
+                m_Collector->Remove( ii );
+                ii--;
+            }
+            else
+            {
+                timestampzone = item->GetTimeStamp();
+            }
+            break;
 
-        /* Found a TYPE ZONE */
-        if( item->GetTimeStamp() == timestampzone )    // Remove it, redundant, zone already found
-        {
-            m_Collector->Remove( ii );
-            ii--;
-        }
-        else
-        {
-            timestampzone = item->GetTimeStamp();
+        case PCB_ZONE_AREA_T:
+            {
+                /* We need to do the selection now because the menu text
+                 * depends on it */
+                ZONE_CONTAINER *zone = static_cast<ZONE_CONTAINER*>( item );
+                zone->SetSelectedCorner( RefPos( true ) );
+            }
+            break;
+
+        default:
+            break;
         }
     }
 
@@ -200,7 +227,7 @@ BOARD_ITEM* PCB_BASE_FRAME::PcbGeneralLocateAndDisplay( int aHotKeyCode )
     {
         wxMenu itemMenu;
 
-        /* Give a title to the selection menu. This is also a cancel menu item */
+        // Give a title to the selection menu. This is also a cancel menu item
         wxMenuItem * item_title = new wxMenuItem( &itemMenu, -1, _( "Selection Clarification" ) );
 
 #ifdef __WINDOWS__
@@ -255,58 +282,31 @@ BOARD_ITEM* PCB_BASE_FRAME::PcbGeneralLocateAndDisplay( int aHotKeyCode )
 }
 
 
-void PCB_EDIT_FRAME::GeneralControl( wxDC* aDC, const wxPoint& aPosition, int aHotKey )
+bool PCB_EDIT_FRAME::GeneralControl( wxDC* aDC, const wxPoint& aPosition, int aHotKey )
 {
-    wxRealPoint gridSize;
-    wxPoint     oldpos;
-    wxPoint     pos = aPosition;
+    bool eventHandled = true;
+
+    // Filter out the 'fake' mouse motion after a keyboard movement
+    if( !aHotKey && m_movingCursorWithKeyboard )
+    {
+        m_movingCursorWithKeyboard = false;
+        return false;
+    }
 
     // when moving mouse, use the "magnetic" grid, unless the shift+ctrl keys is pressed
     // for next cursor position
     // ( shift or ctrl key down are PAN command with mouse wheel)
     bool snapToGrid = true;
+
     if( !aHotKey && wxGetKeyState( WXK_SHIFT ) && wxGetKeyState( WXK_CONTROL ) )
         snapToGrid = false;
 
-    if( snapToGrid )
-        pos = GetScreen()->GetNearestGridPosition( pos );
-
-    oldpos = GetScreen()->GetCrossHairPosition();
-
-    gridSize = GetScreen()->GetGridSize();
-
-    switch( aHotKey )
-    {
-    case WXK_NUMPAD8:
-    case WXK_UP:
-        pos.y -= KiROUND( gridSize.y );
-        m_canvas->MoveCursor( pos );
-        break;
-
-    case WXK_NUMPAD2:
-    case WXK_DOWN:
-        pos.y += KiROUND( gridSize.y );
-        m_canvas->MoveCursor( pos );
-        break;
-
-    case WXK_NUMPAD4:
-    case WXK_LEFT:
-        pos.x -= KiROUND( gridSize.x );
-        m_canvas->MoveCursor( pos );
-        break;
-
-    case WXK_NUMPAD6:
-    case WXK_RIGHT:
-        pos.x += KiROUND( gridSize.x );
-        m_canvas->MoveCursor( pos );
-        break;
-
-    default:
-        break;
-    }
+    wxPoint oldpos = GetCrossHairPosition();
+    wxPoint pos = aPosition;
+    GeneralControlKeyMovement( aHotKey, &pos, snapToGrid );
 
     // Put cursor in new position, according to the zoom keys (if any).
-    GetScreen()->SetCrossHairPosition( pos, snapToGrid );
+    SetCrossHairPosition( pos, snapToGrid );
 
     /* Put cursor on grid or a pad centre if requested. If the tool DELETE is active the
      * cursor is left off grid this is better to reach items to delete off grid,
@@ -320,58 +320,36 @@ void PCB_EDIT_FRAME::GeneralControl( wxDC* aDC, const wxPoint& aPosition, int aH
 
     wxPoint curs_pos = pos;
 
+    wxRealPoint gridSize = GetScreen()->GetGridSize();
     wxSize igridsize;
     igridsize.x = KiROUND( gridSize.x );
     igridsize.y = KiROUND( gridSize.y );
 
     if( Magnetize( this, GetToolId(), igridsize, curs_pos, &pos ) )
     {
-        GetScreen()->SetCrossHairPosition( pos, false );
+        SetCrossHairPosition( pos, false );
     }
     else
     {
         // If there's no intrusion and DRC is active, we pass the cursor
         // "as is", and let ShowNewTrackWhenMovingCursor figure out what to do.
-        if( !Drc_On || !g_CurrentTrackSegment ||
+        if( !g_Drc_On || !g_CurrentTrackSegment ||
             (BOARD_ITEM*)g_CurrentTrackSegment != this->GetCurItem() ||
             !LocateIntrusion( m_Pcb->m_Track, g_CurrentTrackSegment,
-                              GetScreen()->m_Active_Layer, GetScreen()->RefPos( true ) ) )
+                              GetScreen()->m_Active_Layer, RefPos( true ) ) )
         {
-            GetScreen()->SetCrossHairPosition( curs_pos, snapToGrid );
+            SetCrossHairPosition( curs_pos, snapToGrid );
         }
     }
 
-
-    if( oldpos != GetScreen()->GetCrossHairPosition() )
-    {
-        pos = GetScreen()->GetCrossHairPosition();
-        GetScreen()->SetCrossHairPosition( oldpos, false );
-        m_canvas->CrossHairOff( aDC );
-        GetScreen()->SetCrossHairPosition( pos, false );
-        m_canvas->CrossHairOn( aDC );
-
-        if( m_canvas->IsMouseCaptured() )
-        {
-#ifdef USE_WX_OVERLAY
-            wxDCOverlay oDC( m_overlay, (wxWindowDC*)aDC );
-            oDC.Clear();
-            m_canvas->CallMouseCapture( aDC, aPosition, false );
-#else
-            m_canvas->CallMouseCapture( aDC, aPosition, true );
-#endif
-        }
-#ifdef USE_WX_OVERLAY
-        else
-        {
-            m_overlay.Reset();
-        }
-#endif
-    }
+    RefreshCrossHair( oldpos, aPosition, aDC );
 
     if( aHotKey )
     {
-        OnHotKey( aDC, aHotKey, aPosition );
+        eventHandled = OnHotKey( aDC, aHotKey, aPosition );
     }
 
-    UpdateStatusBar();    /* Display new cursor coordinates */
+    UpdateStatusBar();    // Display new cursor coordinates
+
+    return eventHandled;
 }

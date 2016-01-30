@@ -1,8 +1,8 @@
 /*
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
- * Copyright (C) 2009 Jean-Pierre Charras, jaen-pierre.charras@gipsa-lab.inpg.com
- * Copyright (C) 1992-2011 KiCad Developers, see AUTHORS.txt for contributors.
+ * Copyright (C) 2015 Jean-Pierre Charras, jp.charras at wanadoo.fr
+ * Copyright (C) 1992-2015 KiCad Developers, see AUTHORS.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -37,6 +37,7 @@
 
 
 class LINE_READER;
+class NETLIST_OBJECT_LIST;
 
 
 /* Type of SCH_HIERLABEL and SCH_GLOBALLABEL
@@ -97,9 +98,11 @@ public:
 
     /**
      * Function IncrementLabel
-     * increments the label text.
+     * increments the label text, if it ends with a number.
+     * @param aIncrement = the increment value to add to the number
+     * ending the text
      */
-    void IncrementLabel();
+    void IncrementLabel( int aIncrement );
 
     /**
      * Function SetOrientation
@@ -130,11 +133,8 @@ public:
      */
     virtual wxPoint GetSchematicTextOffset() const;
 
-    virtual void Draw( EDA_DRAW_PANEL* panel,
-                       wxDC*           DC,
-                       const wxPoint&  offset,
-                       GR_DRAWMODE     draw_mode,
-                       EDA_COLOR_T     Color = UNSPECIFIED_COLOR );
+    virtual void Draw( EDA_DRAW_PANEL* panel, wxDC* DC, const wxPoint& offset,
+                       GR_DRAWMODE draw_mode, EDA_COLOR_T Color = UNSPECIFIED_COLOR );
 
     /**
      * Function CreateGraphicShape
@@ -150,7 +150,7 @@ public:
 
     virtual void SwapData( SCH_ITEM* aItem );
 
-    virtual EDA_RECT GetBoundingBox() const;
+    virtual const EDA_RECT GetBoundingBox() const;
 
     virtual bool Save( FILE* aFile ) const;
 
@@ -188,7 +188,7 @@ public:
 
     virtual bool IsSelectStateChanged( const wxRect& aRect );
 
-    virtual void GetConnectionPoints( vector< wxPoint >& aPoints ) const;
+    virtual void GetConnectionPoints( std::vector< wxPoint >& aPoints ) const;
 
     virtual bool CanIncrementLabel() const { return true; }
 
@@ -196,8 +196,8 @@ public:
 
     virtual BITMAP_DEF GetMenuImage() const { return  add_text_xpm; }
 
-    virtual void GetNetListItem( vector<NETLIST_OBJECT*>& aNetListItems,
-                                 SCH_SHEET_PATH*          aSheetPath );
+    virtual void GetNetListItem( NETLIST_OBJECT_LIST& aNetListItems,
+                                 SCH_SHEET_PATH*      aSheetPath );
 
     virtual wxPoint GetPosition() const { return m_Pos; }
 
@@ -229,11 +229,8 @@ public:
 
     ~SCH_LABEL() { }
 
-    void Draw( EDA_DRAW_PANEL* panel,
-               wxDC*           DC,
-               const wxPoint&  offset,
-               GR_DRAWMODE     draw_mode,
-               EDA_COLOR_T     Color = UNSPECIFIED_COLOR );
+    void Draw( EDA_DRAW_PANEL* panel, wxDC* DC, const wxPoint& offset,
+               GR_DRAWMODE draw_mode, EDA_COLOR_T Color = UNSPECIFIED_COLOR );
 
     wxString GetClass() const
     {
@@ -248,7 +245,7 @@ public:
 
     void Rotate( wxPoint aPosition );
 
-    EDA_RECT GetBoundingBox() const;
+    const EDA_RECT GetBoundingBox() const;  // Virtual
 
     bool Save( FILE* aFile ) const;
 
@@ -261,8 +258,6 @@ public:
     BITMAP_DEF GetMenuImage() const { return  add_line_label_xpm; }
 
     bool IsReplaceable() const { return true; }
-
-    bool HitTest( const wxPoint& aPosition, int aAccuracy ) const;
 
     EDA_ITEM* Clone() const;
 
@@ -280,11 +275,8 @@ public:
 
     ~SCH_GLOBALLABEL() { }
 
-    void Draw( EDA_DRAW_PANEL* panel,
-               wxDC*           DC,
-               const wxPoint&  offset,
-               GR_DRAWMODE     draw_mode,
-               EDA_COLOR_T     Color = UNSPECIFIED_COLOR );
+    void Draw( EDA_DRAW_PANEL* panel, wxDC* DC, const wxPoint& offset,
+               GR_DRAWMODE draw_mode, EDA_COLOR_T Color = UNSPECIFIED_COLOR );
 
     wxString GetClass() const
     {
@@ -299,7 +291,7 @@ public:
 
     bool Load( LINE_READER& aLine, wxString& aErrorMsg );
 
-    EDA_RECT GetBoundingBox() const;
+    const EDA_RECT GetBoundingBox() const;  // Virtual
 
     void CreateGraphicShape( std::vector <wxPoint>& aPoints, const wxPoint& aPos );
 
@@ -314,8 +306,6 @@ public:
     wxString GetSelectMenuText() const;
 
     BITMAP_DEF GetMenuImage() const { return  add_glabel_xpm; }
-
-    bool HitTest( const wxPoint& aPosition, int aAccuracy ) const;
 
     EDA_ITEM* Clone() const;
 
@@ -335,11 +325,8 @@ public:
 
     ~SCH_HIERLABEL() { }
 
-    void Draw( EDA_DRAW_PANEL* panel,
-               wxDC*           DC,
-               const wxPoint&  offset,
-               GR_DRAWMODE     draw_mode,
-               EDA_COLOR_T     Color = UNSPECIFIED_COLOR );
+    void Draw( EDA_DRAW_PANEL* panel, wxDC* DC, const wxPoint& offset,
+               GR_DRAWMODE draw_mode, EDA_COLOR_T Color = UNSPECIFIED_COLOR );
 
     wxString GetClass() const
     {
@@ -356,7 +343,7 @@ public:
 
     bool Load( LINE_READER& aLine, wxString& aErrorMsg );
 
-    EDA_RECT GetBoundingBox() const;
+    const EDA_RECT GetBoundingBox() const;      // Virtual
 
     void MirrorY( int aYaxis_position );
 
@@ -369,8 +356,6 @@ public:
     wxString GetSelectMenuText() const;
 
     BITMAP_DEF GetMenuImage() const { return  add_hierarchical_label_xpm; }
-
-    bool HitTest( const wxPoint& aPosition, int aAccuracy ) const;
 
     EDA_ITEM* Clone() const;
 

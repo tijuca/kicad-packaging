@@ -29,7 +29,7 @@
 
 
 /* Methods of class DRC to initialize drc markers with messages
- * according to items and error ode
+ * according to items and error code
 */
 
 #include <fctsys.h>
@@ -41,10 +41,13 @@
 #include <class_pad.h>
 #include <class_track.h>
 #include <class_zone.h>
+#include <class_zone.h>
 #include <class_marker_pcb.h>
+#include <class_pcb_text.h>
 
 
-MARKER_PCB* DRC::fillMarker( TRACK* aTrack, BOARD_ITEM* aItem, int aErrorCode, MARKER_PCB* fillMe )
+MARKER_PCB* DRC::fillMarker( const TRACK* aTrack, BOARD_ITEM* aItem, int aErrorCode,
+                             MARKER_PCB* fillMe )
 {
     wxString textA = aTrack->GetSelectMenuText();
     wxString textB;
@@ -62,7 +65,7 @@ MARKER_PCB* DRC::fillMarker( TRACK* aTrack, BOARD_ITEM* aItem, int aErrorCode, M
         }
         else if( aItem->Type() == PCB_VIA_T )
         {
-            posB = position = ((SEGVIA*)aItem)->GetPosition();
+            posB = position = ((VIA*)aItem)->GetPosition();
         }
         else if( aItem->Type() == PCB_TRACE_T )
         {
@@ -77,13 +80,16 @@ MARKER_PCB* DRC::fillMarker( TRACK* aTrack, BOARD_ITEM* aItem, int aErrorCode, M
             // distance from end of aTrack.
             position = track->GetStart();
 
-            double dToEnd = hypot( endPos.x - aTrack->GetEnd().x,
-                                   endPos.y - aTrack->GetEnd().y );
-            double dToStart = hypot( position.x - aTrack->GetEnd().x,
-                                     position.y - aTrack->GetEnd().y );
+            double dToEnd = GetLineLength( endPos, aTrack->GetEnd() );
+            double dToStart = GetLineLength( position, aTrack->GetEnd() );
 
             if( dToEnd < dToStart )
                 position = endPos;
+        }
+        else if( aItem->Type() == PCB_TEXT_T )
+        {
+            position = aTrack->GetPosition();
+            posB = ((TEXTE_PCB*) aItem)->GetPosition();
         }
     }
     else
@@ -102,30 +108,60 @@ MARKER_PCB* DRC::fillMarker( TRACK* aTrack, BOARD_ITEM* aItem, int aErrorCode, M
     else
     {
         if( aItem )
+        {
             fillMe = new MARKER_PCB( aErrorCode, position,
                                      textA, aTrack->GetPosition(),
                                      textB, posB );
+            fillMe->SetItem( aItem );
+        }
         else
+        {
             fillMe = new MARKER_PCB( aErrorCode, position,
                                      textA, aTrack->GetPosition() );
+        }
     }
 
     return fillMe;
 }
 
 
-MARKER_PCB* DRC::fillMarker( D_PAD* aPad, D_PAD* bPad, int aErrorCode, MARKER_PCB* fillMe )
+MARKER_PCB* DRC::fillMarker( D_PAD* aPad, BOARD_ITEM* aItem, int aErrorCode, MARKER_PCB* fillMe )
 {
     wxString textA = aPad->GetSelectMenuText();
-    wxString textB = bPad->GetSelectMenuText();
+    wxString textB;
 
     wxPoint  posA = aPad->GetPosition();
-    wxPoint  posB = bPad->GetPosition();
+    wxPoint  posB;
+
+    if( aItem )
+    {
+        textB = aItem->GetSelectMenuText();
+
+        switch( aItem->Type() )
+        {
+        case PCB_PAD_T:
+            posB = ((D_PAD*)aItem)->GetPosition();
+            break;
+
+        case PCB_TEXT_T:
+            posB = ((TEXTE_PCB*)aItem)->GetPosition();
+            break;
+
+        default:
+            wxLogDebug( wxT("fillMarker: unsupported item") );
+            break;
+        }
+    }
 
     if( fillMe )
+    {
         fillMe->SetData( aErrorCode, posA, textA, posA, textB, posB );
+    }
     else
+    {
         fillMe = new MARKER_PCB( aErrorCode, posA, textA, posA, textB, posB );
+        fillMe->SetItem( aPad );    // TODO it has to be checked
+    }
 
     return fillMe;
 }
@@ -138,9 +174,14 @@ MARKER_PCB* DRC::fillMarker( ZONE_CONTAINER* aArea, int aErrorCode, MARKER_PCB* 
     wxPoint  posA = aArea->GetPosition();
 
     if( fillMe )
+    {
         fillMe->SetData( aErrorCode, posA, textA, posA );
+    }
     else
+    {
         fillMe = new MARKER_PCB( aErrorCode, posA, textA, posA );
+        fillMe->SetItem( aArea );
+    }
 
     return fillMe;
 }
@@ -156,9 +197,14 @@ MARKER_PCB* DRC::fillMarker( const ZONE_CONTAINER* aArea,
     wxPoint  posA = aPos;
 
     if( fillMe )
+    {
         fillMe->SetData( aErrorCode, posA, textA, posA );
+    }
     else
+    {
         fillMe = new MARKER_PCB( aErrorCode, posA, textA, posA );
+        fillMe->SetItem( aArea );
+    }
 
     return fillMe;
 }

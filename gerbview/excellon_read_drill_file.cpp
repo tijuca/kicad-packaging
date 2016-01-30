@@ -8,8 +8,8 @@
 /*
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
- * Copyright (C) 1992-2011 Jean-Pierre Charras <jean-pierre.charras@gipsa-lab.inpg.fr>
- * Copyright (C) 1992-2011 KiCad Developers, see change_log.txt for contributors.
+ * Copyright (C) 1992-2014 Jean-Pierre Charras <jp.charras at wanadoo.fr>
+ * Copyright (C) 1992-2014 KiCad Developers, see change_log.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -56,11 +56,18 @@
  *  T0
  *  M30
  */
+ /*
+  * Note there are some variant of tool definition:
+  * T1F00S00C0.2 or T1C0.02F00S00 ... Feed Rate and Spindle Speed of Tool 1
+  * Feed Rate and Spindle Speed are just skipped because they are not used in a viewer
+  */
+
 #include <fctsys.h>
 #include <common.h>
 #include <confirm.h>
 
 #include <gerbview.h>
+#include <gerbview_frame.h>
 #include <trigo.h>
 #include <macros.h>
 #include <base_units.h>
@@ -68,10 +75,19 @@
 #include <class_GERBER.h>
 #include <class_excellon.h>
 #include <kicad_string.h>
+#include <class_X2_gerber_attributes.h>
 
 #include <cmath>
 
 #include <html_messagebox.h>
+
+// Default format for dimensions
+// number of digits in mantissa:
+static int fmtMantissaMM = 3;
+static int fmtMantissaInch = 4;
+// number of digits, integer part:
+static int fmtIntegerMM = 3;
+static int fmtIntegerInch = 2;
 
 extern int    ReadInt( char*& text, bool aSkipSeparator = true );
 extern double ReadDouble( char*& text, bool aSkipSeparator = true );
@@ -89,6 +105,12 @@ void fillLineGBRITEM(  GERBER_DRAW_ITEM* aGbrItem,
                               const wxPoint&    aEnd,
                               wxSize            aPenSize,
                               bool              aLayerNegative  );
+
+// Getber X2 files have a file attribute which specify the type of image
+// (copper, solder paste ... and sides tpo, bottom or inner copper layers)
+// Excellon drill files do not have attributes, so, just to identify the image
+// In gerbview, we add this attribute, like a Gerber drill file
+static const char file_attribute[] = ".FileFunction,Other,Drill*";
 
 static EXCELLON_CMD excellonHeaderCmdList[] =
 {
@@ -153,14 +175,21 @@ static EXCELLON_CMD excellon_G_CmdList[] =
 bool GERBVIEW_FRAME::Read_EXCELLON_File( const wxString& aFullFileName )
 {
     wxString msg;
-    int      layer = getActiveLayer();      // current layer used in GerbView
+    int layerId = getActiveLayer();      // current layer used in GerbView
+    EXCELLON_IMAGE* drill_Layer = (EXCELLON_IMAGE*) g_GERBER_List.GetGbrImage( layerId );
 
-    if( g_GERBER_List[layer] == NULL )
+    if( drill_Layer == NULL )
     {
-        g_GERBER_List[layer] = new EXCELLON_IMAGE( this, layer );
+        drill_Layer = new EXCELLON_IMAGE( this, layerId );
+        layerId = g_GERBER_List.AddGbrImage( drill_Layer, layerId );
     }
 
-    EXCELLON_IMAGE* drill_Layer = (EXCELLON_IMAGE*) g_GERBER_List[layer];
+    if( layerId < 0 )
+    {
+        DisplayError( this, _( "No room to load file" ) );
+        return false;
+    }
+
     ClearMessageList();
 
     /* Read the gerber file */
@@ -168,11 +197,12 @@ bool GERBVIEW_FRAME::Read_EXCELLON_File( const wxString& aFullFileName )
     if( file == NULL )
     {
         msg.Printf( _( "File %s not found" ), GetChars( aFullFileName ) );
-        DisplayError( this, msg, 10 );
+        DisplayError( this, msg );
         return false;
     }
 
     wxString path = wxPathOnly( aFullFileName );
+
     if( path != wxEmptyString )
         wxSetWorkingDirectory( path );
 
@@ -181,7 +211,7 @@ bool GERBVIEW_FRAME::Read_EXCELLON_File( const wxString& aFullFileName )
     // Display errors list
     if( m_Messages.size() > 0 )
     {
-        HTML_MESSAGE_BOX dlg( this, _("Files not found") );
+        HTML_MESSAGE_BOX dlg( this, _( "Files not found" ) );
         dlg.ListSet( m_Messages );
         dlg.ShowModal();
     }
@@ -197,7 +227,7 @@ bool EXCELLON_IMAGE::Read_EXCELLON_File( FILE * aFile,
     m_FileName = aFullFileName;
     m_Current_File = aFile;
 
-    SetLocaleTo_C_standard();
+    LOCALE_IO toggleIo;
 
     // FILE_LINE_READER will close the file.
     if( m_Current_File == NULL )
@@ -266,7 +296,16 @@ bool EXCELLON_IMAGE::Read_EXCELLON_File( FILE * aFile,
             }   // End switch
         }
     }
-    SetLocaleTo_Default();
+
+    // Add our file attribute, to identify the drill file
+    X2_ATTRIBUTE dummy;
+    char* text = (char*)file_attribute;
+    dummy.ParseAttribCmd( m_Current_File, NULL, 0, text );
+    delete m_FileFunction;
+    m_FileFunction = new X2_ATTRIBUTE_FILEFUNCTION( dummy );
+
+    m_InUse = true;
+
     return true;
 }
 
@@ -334,7 +373,7 @@ bool EXCELLON_IMAGE::Execute_HEADER_Command( char*& text )
         m_State = READ_PROGRAM_STATE;
         break;
 
-    case DRILL_REWIND_STOP:         // TODO: what this command really is ?
+    case DRILL_REWIND_STOP:         // End of header. No action in a viewer
         m_State = READ_PROGRAM_STATE;
         break;
 
@@ -426,12 +465,21 @@ bool EXCELLON_IMAGE::Execute_HEADER_Command( char*& text )
     case DRILL_TOOL_INFORMATION:
 
         // Read a tool definition like T1C0.02:
+        // or T1F00S00C0.02 or T1C0.02F00S00
         // Read tool number:
         iprm = ReadInt( text, false );
 
+        // Skip Feed rate and Spindle speed, if any here
+        while( *text && ( *text == 'F' || *text == 'S' ) )
+        {
+            text++;
+            ReadInt( text, false );
+        }
+
         // Read tool shape
         if( *text != 'C' )
-            ReportMessage( _( "Tool definition <%c> not supported" ) );
+            ReportMessage( wxString:: Format(
+                           _( "Tool definition <%c> not supported" ), *text ) );
         if( *text )
             text++;
 
@@ -487,8 +535,8 @@ bool EXCELLON_IMAGE::Execute_Drill_Command( char*& text )
                     ReportMessage( msg );
                     return false;
                 }
-                gbritem = new GERBER_DRAW_ITEM( GetParent()->GetLayout(), this );
-                GetParent()->GetLayout()->m_Drawings.Append( gbritem );
+                gbritem = new GERBER_DRAW_ITEM( GetParent()->GetGerberLayout(), this );
+                GetParent()->GetGerberLayout()->m_Drawings.Append( gbritem );
                 if( m_SlotOn )  // Oval hole
                 {
                     fillLineGBRITEM( gbritem,
@@ -520,7 +568,7 @@ bool EXCELLON_IMAGE::Execute_Drill_Command( char*& text )
 
 bool EXCELLON_IMAGE::Select_Tool( char*& text )
 {
-    int tool_id = ReturnTCodeNumber( text );
+    int tool_id = TCodeNumber( text );
 
     if( tool_id >= 0 )
     {
@@ -622,19 +670,30 @@ bool EXCELLON_IMAGE::Execute_EXCELLON_G_Command( char*& text )
 
 void EXCELLON_IMAGE::SelectUnits( bool aMetric )
 {
-    /* Inches: Default fmt = 2.4 for X and Y axis: 6 digits with  0.0001 resolution (00.0000)
-     * metric: Default fmt = 3.2 for X and Y axis: 5 digits, 1 micron resolution (00.000)
+    /* Coordinates are measured either in inch or metric (millimeters).
+     * Inch coordinates are in six digits (00.0000) with increments
+     * as small as 0.0001 (1/10,000).
+     * Metric coordinates can be measured in microns (thousandths of a millimeter)
+     * in one of the following three ways:
+     *  Five digit 10 micron resolution (000.00)
+     *  Six digit 10 micron resolution (0000.00)
+     *  Six digit micron resolution (000.000)
+     */
+    /* Inches: Default fmt = 2.4 for X and Y axis: 6 digits with  0.0001 resolution
+     * metric: Default fmt = 3.3 for X and Y axis: 6 digits, 1 micron resolution
      */
     if( aMetric )
     {
         m_GerbMetric = true;
-        m_FmtScale.x = m_FmtScale.y = 3;    // number of digits in mantissa: here 2
-        m_FmtLen.x = m_FmtLen.y = 5;        // number of digits: here 3+2
+        // number of digits in mantissa
+        m_FmtScale.x = m_FmtScale.y = fmtMantissaMM;
+        // number of digits (mantissa+interger)
+        m_FmtLen.x = m_FmtLen.y = fmtIntegerMM+fmtMantissaMM;
     }
     else
     {
         m_GerbMetric = false;
-        m_FmtScale.x = m_FmtScale.y = 4;    // number of digits in mantissa: here 4
-        m_FmtLen.x = m_FmtLen.y = 6;        // number of digits: here 2+4
+        m_FmtScale.x = m_FmtScale.y = fmtMantissaInch;
+        m_FmtLen.x = m_FmtLen.y = fmtIntegerInch+fmtMantissaInch;
     }
 }

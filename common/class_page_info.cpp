@@ -24,6 +24,7 @@
 
 
 #include <common.h>
+#include <class_page_info.h>
 #include <macros.h>
 
 
@@ -38,21 +39,22 @@
 
 
 // Standard paper sizes nicknames.
-const wxString PAGE_INFO::A4( wxT( "A4" ) );
-const wxString PAGE_INFO::A3( wxT( "A3" ) );
-const wxString PAGE_INFO::A2( wxT( "A2" ) );
-const wxString PAGE_INFO::A1( wxT( "A1" ) );
-const wxString PAGE_INFO::A0( wxT( "A0" ) );
-const wxString PAGE_INFO::A( wxT( "A" ) );
-const wxString PAGE_INFO::B( wxT( "B" ) );
-const wxString PAGE_INFO::C( wxT( "C" ) );
-const wxString PAGE_INFO::D( wxT( "D" ) );
-const wxString PAGE_INFO::E( wxT( "E" ) );
-const wxString PAGE_INFO::GERBER( wxT( "GERBER" ) );
-const wxString PAGE_INFO::USLetter( wxT( "USLetter" ) );
-const wxString PAGE_INFO::USLegal( wxT( "USLegal" ) );
-const wxString PAGE_INFO::USLedger( wxT( "USLedger" ) );
-const wxString PAGE_INFO::Custom( wxT( "User" ) );
+const wxChar PAGE_INFO::A4[] = wxT( "A4" );
+const wxChar PAGE_INFO::A3[] = wxT( "A3" );
+const wxChar PAGE_INFO::A2[] = wxT( "A2" );
+const wxChar PAGE_INFO::A1[] = wxT( "A1" );
+const wxChar PAGE_INFO::A0[] = wxT( "A0" );
+const wxChar PAGE_INFO::A[]  = wxT( "A" );
+const wxChar PAGE_INFO::B[]  = wxT( "B" ) ;
+const wxChar PAGE_INFO::C[]  = wxT( "C" );
+const wxChar PAGE_INFO::D[]  = wxT( "D" );
+const wxChar PAGE_INFO::E[]  = wxT( "E" );
+
+const wxChar PAGE_INFO::GERBER[]   = wxT( "GERBER" );
+const wxChar PAGE_INFO::USLetter[] = wxT( "USLetter" );
+const wxChar PAGE_INFO::USLegal[]  = wxT( "USLegal" );
+const wxChar PAGE_INFO::USLedger[] = wxT( "USLedger" );
+const wxChar PAGE_INFO::Custom[]   = wxT( "User" );
 
 
 // Standard page sizes in mils, all constants
@@ -62,7 +64,7 @@ const wxString PAGE_INFO::Custom( wxT( "User" ) );
 // local readability macro for millimeter wxSize
 #define MMsize( x, y )  wxSize( Mm2mils( x ), Mm2mils( y ) )
 
-// All MUST be defined as landscape.  If IsGOST() is true, A4 is dynamically rotated later.
+// All MUST be defined as landscape.
 const PAGE_INFO  PAGE_INFO::pageA4(     MMsize( 297,   210 ),   wxT( "A4" ),    wxPAPER_A4 );
 const PAGE_INFO  PAGE_INFO::pageA3(     MMsize( 420,   297 ),   wxT( "A3" ),    wxPAPER_A3 );
 const PAGE_INFO  PAGE_INFO::pageA2(     MMsize( 594,   420 ),   wxT( "A2" ),    wxPAPER_A2 );
@@ -125,38 +127,14 @@ inline void PAGE_INFO::updatePortrait()
 }
 
 
-void PAGE_INFO::setMargins()
-{
-    if( IsGOST() )
-    {
-        m_left_margin   = Mm2mils( 20 );    // 20mm
-        m_right_margin  =                   // 5mm
-        m_top_margin    =                   // 5mm
-        m_bottom_margin = Mm2mils( 5 );     // 5mm
-    }
-    else
-    {
-        m_left_margin   =
-        m_right_margin  =
-        m_top_margin    =
-        m_bottom_margin = 400;              // Units = mils
-    }
-}
-
-
 PAGE_INFO::PAGE_INFO( const wxSize& aSizeMils, const wxString& aType, wxPaperSize aPaperId ) :
-    m_type( aType ),
-    m_size( aSizeMils ),
-    m_paper_id( aPaperId )
+    m_type( aType ), m_size( aSizeMils ), m_paper_id( aPaperId )
 {
     updatePortrait();
 
-    setMargins();
-
     // This constructor is protected, and only used by const PAGE_INFO's known
     // only to class implementation, so no further changes to "this" object are
-    // expected.  Therefore we should also setMargin() again when copying this
-    // object in SetType() so that a runtime IsGOST() change does not break.
+    // expected.
 }
 
 
@@ -220,8 +198,6 @@ bool PAGE_INFO::SetType( const wxString& aType, bool IsPortrait )
         m_size = wxSize( m_size.y, m_size.x );
         updatePortrait();
     }
-
-    setMargins();
 
     return rc;
 }

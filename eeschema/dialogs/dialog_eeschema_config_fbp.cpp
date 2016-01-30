@@ -1,5 +1,5 @@
 ///////////////////////////////////////////////////////////////////////////
-// C++ code generated with wxFormBuilder (version Oct  8 2012)
+// C++ code generated with wxFormBuilder (version Jun  5 2014)
 // http://www.wxformbuilder.org/
 //
 // PLEASE DO "NOT" EDIT THIS FILE!
@@ -9,7 +9,7 @@
 
 ///////////////////////////////////////////////////////////////////////////
 
-DIALOG_EESCHEMA_CONFIG_FBP::DIALOG_EESCHEMA_CONFIG_FBP( wxWindow* parent, wxWindowID id, const wxString& title, const wxPoint& pos, const wxSize& size, long style ) : wxDialog( parent, id, title, pos, size, style )
+DIALOG_EESCHEMA_CONFIG_FBP::DIALOG_EESCHEMA_CONFIG_FBP( wxWindow* parent, wxWindowID id, const wxString& title, const wxPoint& pos, const wxSize& size, long style ) : DIALOG_SHIM( parent, id, title, pos, size, style )
 {
 	this->SetSizeHints( wxDefaultSize, wxDefaultSize );
 	
@@ -38,23 +38,23 @@ DIALOG_EESCHEMA_CONFIG_FBP::DIALOG_EESCHEMA_CONFIG_FBP( wxWindow* parent, wxWind
 	m_buttonAddLib = new wxButton( this, ID_ADD_LIB, _("Add"), wxDefaultPosition, wxDefaultSize, 0 );
 	m_buttonAddLib->SetToolTip( _("Add a new library after the selected library, and load it") );
 	
-	bRightSizer->Add( m_buttonAddLib, 0, wxALIGN_CENTER_HORIZONTAL|wxLEFT|wxRIGHT|wxTOP|wxEXPAND, 5 );
+	bRightSizer->Add( m_buttonAddLib, 0, wxLEFT|wxRIGHT|wxTOP|wxEXPAND, 5 );
 	
 	m_buttonIns = new wxButton( this, wxID_ANY, _("Insert"), wxDefaultPosition, wxDefaultSize, 0 );
 	m_buttonIns->SetToolTip( _("Add a new library before the selected library, and load it") );
 	
-	bRightSizer->Add( m_buttonIns, 0, wxALIGN_CENTER_HORIZONTAL|wxLEFT|wxRIGHT|wxTOP|wxEXPAND, 5 );
+	bRightSizer->Add( m_buttonIns, 0, wxLEFT|wxRIGHT|wxTOP|wxEXPAND, 5 );
 	
 	m_buttonRemoveLib = new wxButton( this, ID_REMOVE_LIB, _("Remove"), wxDefaultPosition, wxDefaultSize, 0 );
 	m_buttonRemoveLib->SetToolTip( _("Unload the selected library") );
 	
-	bRightSizer->Add( m_buttonRemoveLib, 0, wxALL|wxALIGN_CENTER_HORIZONTAL|wxEXPAND, 5 );
+	bRightSizer->Add( m_buttonRemoveLib, 0, wxALL|wxEXPAND, 5 );
 	
 	m_buttonUp = new wxButton( this, wxID_ANY, _("Up"), wxDefaultPosition, wxDefaultSize, 0 );
-	bRightSizer->Add( m_buttonUp, 0, wxEXPAND|wxTOP|wxRIGHT|wxLEFT, 5 );
+	bRightSizer->Add( m_buttonUp, 0, wxBOTTOM|wxEXPAND|wxLEFT|wxRIGHT, 5 );
 	
 	m_buttonDown = new wxButton( this, wxID_ANY, _("Down"), wxDefaultPosition, wxDefaultSize, 0 );
-	bRightSizer->Add( m_buttonDown, 0, wxALL|wxEXPAND, 5 );
+	bRightSizer->Add( m_buttonDown, 0, wxBOTTOM|wxEXPAND|wxLEFT|wxRIGHT, 5 );
 	
 	
 	bSizerLibsChoice->Add( bRightSizer, 0, wxALIGN_CENTER_VERTICAL|wxALL, 5 );
@@ -116,6 +116,9 @@ DIALOG_EESCHEMA_CONFIG_FBP::DIALOG_EESCHEMA_CONFIG_FBP( wxWindow* parent, wxWind
 	
 	
 	bMainSizer->Add( bSizerLower, 1, wxEXPAND, 5 );
+	
+	m_cbRescue = new wxCheckBox( this, wxID_ANY, _("Check for cache/library conflicts when loading schematic"), wxDefaultPosition, wxDefaultSize, 0 );
+	bMainSizer->Add( m_cbRescue, 0, wxALL, 5 );
 	
 	m_staticline3 = new wxStaticLine( this, wxID_ANY, wxDefaultPosition, wxDefaultSize, wxLI_HORIZONTAL );
 	bMainSizer->Add( m_staticline3, 0, wxEXPAND|wxRIGHT|wxLEFT, 5 );

@@ -1,7 +1,7 @@
 /*
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
- * Copyright (C) 2004-2010 Jean-Pierre Charras, jean-pierre.charras@gpisa-lab.inpg.fr
+ * Copyright (C) 2004-2015 Jean-Pierre Charras, jean-pierre.charras@gpisa-lab.inpg.fr
  * Copyright (C) 2010-2012 SoftPLC Corporation, Dick Hollenbeck <dick@softplc.com>
  * Copyright (C) 2010 KiCad Developers, see change_log.txt for contributors.
  *
@@ -29,14 +29,17 @@
 /******************************************************/
 
 #include <fctsys.h>
-#include <appl_wxstruct.h>
+#include <pgm_base.h>
 #include <class_drawpanel.h>
+#include <class_draw_panel_gal.h>
+#include <view/view.h>
+#include <painter.h>
+
 #include <confirm.h>
 #include <wxPcbStruct.h>
 #include <pcbstruct.h>      // enum PCB_VISIBLE
 #include <layer_widget.h>
 #include <macros.h>
-#include <pcbcommon.h>
 
 #include <class_board.h>
 #include <class_pcb_layer_widget.h>
@@ -44,6 +47,8 @@
 #include <pcbnew.h>
 #include <collectors.h>
 #include <pcbnew_id.h>
+
+#include <gal/graphics_abstraction_layer.h>
 
 
 /// This is a read only template that is copied and modified before adding to LAYER_WIDGET
@@ -55,32 +60,41 @@ const LAYER_WIDGET::ROW PCB_LAYER_WIDGET::s_render_rows[] = {
     RR( _( "Through Via" ),     VIA_THROUGH_VISIBLE,    WHITE,      _( "Show through vias" ) ),
     RR( _( "Bl/Buried Via" ),   VIA_BBLIND_VISIBLE,     WHITE,      _( "Show blind or buried vias" )  ),
     RR( _( "Micro Via" ),       VIA_MICROVIA_VISIBLE,   WHITE,      _( "Show micro vias") ),
+    RR( _( "Non Plated" ),      NON_PLATED_VISIBLE,     WHITE,      _( "Show non plated holes") ),
     RR( _( "Ratsnest" ),        RATSNEST_VISIBLE,       WHITE,      _( "Show unconnected nets as a ratsnest") ),
 
     RR( _( "Pads Front" ),      PAD_FR_VISIBLE,         WHITE,      _( "Show footprint pads on board's front" ) ),
     RR( _( "Pads Back" ),       PAD_BK_VISIBLE,         WHITE,      _( "Show footprint pads on board's back" ) ),
 
-    RR( _( "Text Front" ),      MOD_TEXT_FR_VISIBLE,    WHITE,      _( "Show footprint text on board's back" ) ),
-    RR( _( "Text Back" ),       MOD_TEXT_BK_VISIBLE,    WHITE,      _( "Show footprint text on board's back" ) ),
+    RR( _( "Text Front" ),      MOD_TEXT_FR_VISIBLE,    UNSPECIFIED_COLOR,  _( "Show footprint text on board's front" ) ),
+    RR( _( "Text Back" ),       MOD_TEXT_BK_VISIBLE,    UNSPECIFIED_COLOR,  _( "Show footprint text on board's back" ) ),
     RR( _( "Hidden Text" ),     MOD_TEXT_INVISIBLE,     WHITE,      _( "Show footprint text marked as invisible" ) ),
 
     RR( _( "Anchors" ),         ANCHOR_VISIBLE,         WHITE,      _( "Show footprint and text origins as a cross" ) ),
     RR( _( "Grid" ),            GRID_VISIBLE,           WHITE,      _( "Show the (x,y) grid dots" ) ),
-    RR( _( "No-Connects" ),     NO_CONNECTS_VISIBLE,    UNSPECIFIED_COLOR,         _( "Show a marker on pads which have no net connected" ) ),
-    RR( _( "Modules Front" ),   MOD_FR_VISIBLE,         UNSPECIFIED_COLOR,         _( "Show footprints that are on board's front") ),
-    RR( _( "Modules Back" ),    MOD_BK_VISIBLE,         UNSPECIFIED_COLOR,         _( "Show footprints that are on board's back") ),
-    RR( _( "Values" ),          MOD_VALUES_VISIBLE,     UNSPECIFIED_COLOR,         _( "Show footprint's values") ),
-    RR( _( "References" ),      MOD_REFERENCES_VISIBLE, UNSPECIFIED_COLOR,         _( "Show footprint's references") ),
+    RR( _( "No-Connects" ),     NO_CONNECTS_VISIBLE,    UNSPECIFIED_COLOR,  _( "Show a marker on pads which have no net connected" ) ),
+    RR( _( "Footprints Front" ),   MOD_FR_VISIBLE,         UNSPECIFIED_COLOR,  _( "Show footprints that are on board's front") ),
+    RR( _( "Footprints Back" ),    MOD_BK_VISIBLE,         UNSPECIFIED_COLOR,  _( "Show footprints that are on board's back") ),
+    RR( _( "Values" ),          MOD_VALUES_VISIBLE,     UNSPECIFIED_COLOR,  _( "Show footprint's values") ),
+    RR( _( "References" ),      MOD_REFERENCES_VISIBLE, UNSPECIFIED_COLOR,  _( "Show footprint's references") ),
 };
 
-
-PCB_LAYER_WIDGET::PCB_LAYER_WIDGET( PCB_EDIT_FRAME* aParent, wxWindow* aFocusOwner, int aPointSize ) :
-    LAYER_WIDGET( aParent, aFocusOwner, aPointSize ),
-    myframe( aParent )
+static int s_allowed_in_FpEditor[] =
 {
+    MOD_TEXT_INVISIBLE, PAD_FR_VISIBLE, PAD_BK_VISIBLE,
+    GRID_VISIBLE, MOD_VALUES_VISIBLE, MOD_REFERENCES_VISIBLE
+};
+
+PCB_LAYER_WIDGET::PCB_LAYER_WIDGET( PCB_BASE_FRAME* aParent, wxWindow* aFocusOwner,
+                                    int aPointSize, bool aFpEditorMode ) :
+        LAYER_WIDGET( aParent, aFocusOwner, aPointSize ),
+        myframe( aParent )
+{
+    m_alwaysShowActiveCopperLayer = false;
+    m_fp_editor_mode = aFpEditorMode;
     ReFillRender();
 
-    // Update default tabs labels for GerbView
+    // Update default tabs labels
     SetLayersManagerTabsText();
 
     //-----<Popup menu>-------------------------------------------------
@@ -90,7 +104,8 @@ PCB_LAYER_WIDGET::PCB_LAYER_WIDGET( PCB_EDIT_FRAME* aParent, wxWindow* aFocusOwn
 
     // since Popupmenu() calls this->ProcessEvent() we must call this->Connect()
     // and not m_LayerScrolledWindow->Connect()
-    Connect( ID_SHOW_ALL_COPPERS, ID_SHOW_NO_COPPERS_BUT_ACTIVE, wxEVT_COMMAND_MENU_SELECTED,
+    Connect( ID_SHOW_ALL_COPPERS, ID_ALWAYS_SHOW_NO_COPPERS_BUT_ACTIVE,
+        wxEVT_COMMAND_MENU_SELECTED,
         wxCommandEventHandler( PCB_LAYER_WIDGET::onPopupSelection ), NULL, this );
 
     // install the right click handler into each control at end of ReFill()
@@ -98,12 +113,39 @@ PCB_LAYER_WIDGET::PCB_LAYER_WIDGET( PCB_EDIT_FRAME* aParent, wxWindow* aFocusOwn
 }
 
 
+/* return true if item aId has meaning in footprint editor mode,
+ * i.e. is in s_allowed_in_FpEditor and therefore is shown in render panel
+ */
+bool PCB_LAYER_WIDGET::isAllowedInFpMode( int aId )
+{
+    for( unsigned ii = 0; ii < DIM( s_allowed_in_FpEditor ); ii++ )
+        if( s_allowed_in_FpEditor[ii] == aId )
+            return true;
+
+    return false;
+}
+
+/* return true if item aId has meaning in footprint editor mode,
+ * i.e. is in s_allowed_in_FpEditor and therefore is shown in render panel
+ * Note: User layers, which are not paired, are not shown in layers manager.
+ * However a not listed layer can be reachable in the graphic item proprerties
+ * dialog.
+ */
+bool PCB_LAYER_WIDGET::isLayerAllowedInFpMode( LAYER_ID aLayer )
+{
+    static LSET allowed = LSET::AllTechMask();
+    // Currently not in use because putting a graphic item on a copper layer
+    // is not currently supported by DRC.
+    // allowed.set( F_Cu ).set( B_Cu );
+    return allowed.test( aLayer );
+}
+
 void PCB_LAYER_WIDGET::installRightLayerClickHandler()
 {
     int rowCount = GetLayerRowCount();
-    for( int row=0;  row<rowCount;  ++row )
+    for( int row=0; row < rowCount; ++row )
     {
-        for( int col=0; col<LYR_COLUMN_COUNT;  ++col )
+        for( int col=0; col<LYR_COLUMN_COUNT; ++col )
         {
             wxWindow* w = getLayerComp( row, col );
 
@@ -120,9 +162,14 @@ void PCB_LAYER_WIDGET::onRightDownLayers( wxMouseEvent& event )
 
     // menu text is capitalized:
     // http://library.gnome.org/devel/hig-book/2.20/design-text-labels.html.en#layout-capitalization
-    menu.Append( new wxMenuItem( &menu, ID_SHOW_ALL_COPPERS, _( "Show All Copper Layers" ) ) );
-    menu.Append( new wxMenuItem( &menu, ID_SHOW_NO_COPPERS_BUT_ACTIVE,  _( "Hide All Copper Layers But Active" ) ) );
-    menu.Append( new wxMenuItem( &menu, ID_SHOW_NO_COPPERS,  _( "Hide All Copper Layers" ) ) );
+    menu.Append( new wxMenuItem( &menu, ID_SHOW_ALL_COPPERS,
+                                 _( "Show All Copper Layers" ) ) );
+    menu.Append( new wxMenuItem( &menu, ID_SHOW_NO_COPPERS_BUT_ACTIVE,
+                                 _( "Hide All Copper Layers But Active" ) ) );
+    menu.Append( new wxMenuItem( &menu, ID_ALWAYS_SHOW_NO_COPPERS_BUT_ACTIVE,
+                                 _( "Always Hide All Copper Layers But Active" ) ) );
+    menu.Append( new wxMenuItem( &menu, ID_SHOW_NO_COPPERS,
+                                 _( "Hide All Copper Layers" ) ) );
 
     PopupMenu( &menu );
 
@@ -135,46 +182,50 @@ void PCB_LAYER_WIDGET::onPopupSelection( wxCommandEvent& event )
     int     rowCount;
     int     menuId = event.GetId();
     bool    visible;
+    bool    force_active_layer_visible;
+
+    visible = menuId == ID_SHOW_ALL_COPPERS;
+    m_alwaysShowActiveCopperLayer = ( menuId == ID_ALWAYS_SHOW_NO_COPPERS_BUT_ACTIVE );
+    force_active_layer_visible = ( menuId == ID_SHOW_NO_COPPERS_BUT_ACTIVE ||
+                                   menuId == ID_ALWAYS_SHOW_NO_COPPERS_BUT_ACTIVE );
 
     switch( menuId )
     {
     case ID_SHOW_ALL_COPPERS:
-        visible = true;
-        goto L_change_coppers;
-
+    case ID_ALWAYS_SHOW_NO_COPPERS_BUT_ACTIVE:
     case ID_SHOW_NO_COPPERS_BUT_ACTIVE:
     case ID_SHOW_NO_COPPERS:
-        visible = false;
-    L_change_coppers:
+        // Search the last copper layer row index:
         int lastCu = -1;
         rowCount = GetLayerRowCount();
-        for( int row=rowCount-1;  row>=0;  --row )
+        for( int row = rowCount-1; row>=0; --row )
         {
-            wxCheckBox* cb = (wxCheckBox*) getLayerComp( row, 3 );
-            int layer = getDecodedId( cb->GetId() );
-            if( IsValidCopperLayerIndex( layer ) )
+            wxCheckBox* cb = (wxCheckBox*) getLayerComp( row, COLUMN_COLOR_LYR_CB );
+            LAYER_ID    layer = ToLAYER_ID( getDecodedId( cb->GetId() ) );
+
+            if( IsCopperLayer( layer ) )
             {
                 lastCu = row;
                 break;
             }
         }
 
+        // Enable/disable the copper layers visibility:
         for( int row=0;  row<rowCount;  ++row )
         {
-            wxCheckBox* cb = (wxCheckBox*) getLayerComp( row, 3 );
-            int layer = getDecodedId( cb->GetId() );
+            wxCheckBox* cb = (wxCheckBox*) getLayerComp( row, COLUMN_COLOR_LYR_CB );
+            LAYER_ID    layer = ToLAYER_ID( getDecodedId( cb->GetId() ) );
 
-            if( IsValidCopperLayerIndex( layer ) )
+            if( IsCopperLayer( layer ) )
             {
                 bool loc_visible = visible;
-                if( (menuId == ID_SHOW_NO_COPPERS_BUT_ACTIVE ) &&
-                    (layer == myframe->getActiveLayer() ) )
+
+                if( force_active_layer_visible && (layer == myframe->GetActiveLayer() ) )
                     loc_visible = true;
 
                 cb->SetValue( loc_visible );
 
                 bool isLastCopperLayer = (row==lastCu);
-
                 OnLayerVisible( layer, loc_visible, isLastCopperLayer );
 
                 if( isLastCopperLayer )
@@ -195,19 +246,29 @@ void PCB_LAYER_WIDGET::SetLayersManagerTabsText()
 
 void PCB_LAYER_WIDGET::ReFillRender()
 {
-    BOARD*  board = myframe->GetBoard();
+    BOARD* board = myframe->GetBoard();
     ClearRenderRows();
 
     // Add "Render" tab rows to LAYER_WIDGET, after setting color and checkbox state.
+    // Because s_render_rows is created static, we must explicitely call
+    // wxGetTranslation for texts which are internationalized (tool tips
+    // and item names)
     for( unsigned row=0;  row<DIM(s_render_rows);  ++row )
     {
         LAYER_WIDGET::ROW renderRow = s_render_rows[row];
+
+        if( m_fp_editor_mode && !isAllowedInFpMode( renderRow.id ) )
+            continue;
+
+        renderRow.tooltip = wxGetTranslation( s_render_rows[row].tooltip );
+        renderRow.rowName = wxGetTranslation( s_render_rows[row].rowName );
 
         if( renderRow.color != -1 )       // does this row show a color?
         {
             // this window frame must have an established BOARD, i.e. after SetBoard()
             renderRow.color = board->GetVisibleElementColor( renderRow.id );
         }
+
         renderRow.state = board->IsElementVisible( renderRow.id );
 
         AppendRenderRow( renderRow );
@@ -222,6 +283,9 @@ void PCB_LAYER_WIDGET::SyncRenderStates()
     for( unsigned row=0;  row<DIM(s_render_rows);  ++row )
     {
         int rowId = s_render_rows[row].id;
+
+        if( m_fp_editor_mode && !isAllowedInFpMode( rowId ) )
+            continue;
 
         // this does not fire a UI event
         SetRenderState( rowId, board->IsElementVisible( rowId ) );
@@ -239,9 +303,9 @@ void PCB_LAYER_WIDGET::SyncLayerVisibilities()
         // this utilizes more implementation knowledge than ideal, eventually
         // add member ROW getRow() or similar to base LAYER_WIDGET.
 
-        wxWindow* w = getLayerComp( row, 0 );
+        wxWindow* w = getLayerComp( row, COLUMN_ICON_ACTIVE );
 
-        int layerId = getDecodedId( w->GetId() );
+        LAYER_ID layerId = ToLAYER_ID( getDecodedId( w->GetId() ) );
 
         // this does not fire a UI event
         SetLayerVisible( layerId, board->IsLayerVisible( layerId ) );
@@ -252,82 +316,107 @@ void PCB_LAYER_WIDGET::SyncLayerVisibilities()
 void PCB_LAYER_WIDGET::ReFill()
 {
     BOARD*  brd = myframe->GetBoard();
-    int     layer;
-
-    int enabledLayers = brd->GetEnabledLayers();
-
-//    m_Layers->Freeze();     // no screen updates until done modifying
+    LSET    enabled = brd->GetEnabledLayers();
 
     ClearLayerRows();
 
+    wxString dsc;
+
     // show all coppers first, with front on top, back on bottom, then technical layers
-
-    layer = LAYER_N_FRONT;
-    if( enabledLayers & (1 << layer) )
+    for( LSEQ cu_stack = enabled.CuStack(); cu_stack; ++cu_stack )
     {
-        AppendLayerRow( LAYER_WIDGET::ROW(
-            brd->GetLayerName( layer ), layer, brd->GetLayerColor( layer ), _("Front copper layer"), true ) );
-    }
+        LAYER_ID layer = *cu_stack;
 
-    for( layer = LAYER_N_FRONT-1;  layer >= 1;  --layer )
-    {
-        if( enabledLayers & (1 << layer) )
+        switch( layer )
         {
-            AppendLayerRow( LAYER_WIDGET::ROW(
-                brd->GetLayerName( layer ), layer, brd->GetLayerColor( layer ), _("An innner copper layer"), true ) );
+        case F_Cu:
+            dsc = _("Front copper layer");
+            break;
+
+        case B_Cu:
+            dsc = _("Back copper layer");
+            break;
+
+        default:
+            dsc = _("Inner copper layer");
+            break;
+        }
+
+        AppendLayerRow( LAYER_WIDGET::ROW(
+            brd->GetLayerName( layer ), layer, brd->GetLayerColor( layer ),
+            dsc, true ) );
+
+        if( m_fp_editor_mode && !isLayerAllowedInFpMode( layer ) )
+        {
+            getLayerComp( GetLayerRowCount()-1, COLUMN_COLOR_LYRNAME )->Enable( false );
+            getLayerComp( GetLayerRowCount()-1,
+                          COLUMN_COLORBM )->SetToolTip( wxEmptyString );
         }
     }
 
-    layer = LAYER_N_BACK;
-    if( enabledLayers & (1 << layer) )
-    {
-        AppendLayerRow( LAYER_WIDGET::ROW(
-            brd->GetLayerName( layer ), layer, brd->GetLayerColor( layer ), _("Back copper layer"), true ) );
-    }
 
     // technical layers are shown in this order:
+    // Because they are static, wxGetTranslation must be explicitely
+    // called for tooltips.
     static const struct {
-        int         layerId;
+        LAYER_ID    layerId;
         wxString    tooltip;
-    } techLayerSeq[] = {
-        { ADHESIVE_N_FRONT,     _( "Adhesive on board's front" )    },
-        { ADHESIVE_N_BACK,      _( "Adhesive on board's back" )     },
-        { SOLDERPASTE_N_FRONT,  _( "Solder paste on board's front" )},
-        { SOLDERPASTE_N_BACK,   _( "Solder paste on board's back" ) },
-        { SILKSCREEN_N_FRONT,   _( "Silkscreen on board's front" )  },
-        { SILKSCREEN_N_BACK,    _( "Silkscreen on board's back" )   },
-        { SOLDERMASK_N_FRONT,   _( "Solder mask on board's front" ) },
-        { SOLDERMASK_N_BACK,    _( "Solder mask on board's back" )  },
-        { DRAW_N,               _( "Explanatory drawings" )         },
-        { COMMENT_N,            _( "Explanatory comments" )         },
-        { ECO1_N,               _( "TDB" )                          },
-        { ECO2_N,               _( "TBD" )                          },
-        { EDGE_N,               _( "Board's perimeter definition" ) },
+    } non_cu_seq[] = {
+        { F_Adhes,          _( "Adhesive on board's front" ) },
+        { B_Adhes,          _( "Adhesive on board's back" ) },
+        { F_Paste,          _( "Solder paste on board's front" )  },
+        { B_Paste,          _( "Solder paste on board's back" ) },
+        { F_SilkS,          _( "Silkscreen on board's front" ) },
+        { B_SilkS,          _( "Silkscreen on board's back" )  },
+        { F_Mask,           _( "Solder mask on board's front" ) },
+        { B_Mask,           _( "Solder mask on board's back" )  },
+        { Dwgs_User,        _( "Explanatory drawings" )      },
+        { Cmts_User,        _( "Explanatory comments" )         },
+        { Eco1_User,        _( "User defined meaning" )         },
+        { Eco2_User,        _( "User defined meaning" )         },
+        { Edge_Cuts,        _( "Board's perimeter definition" ) },
+        { Margin,           _( "Board's edge setback outline" ) },
+        { F_CrtYd,          _( "Footprint courtyards on board's front" ) },
+        { B_CrtYd,          _( "Footprint courtyards on board's back" ) },
+        { F_Fab,            _( "Footprint assembly on board's front" ) },
+        { B_Fab,            _( "Footprint assembly on board's back" ) }
     };
 
-    for( unsigned i=0;  i<DIM(techLayerSeq);  ++i )
+    for( unsigned i=0;  i<DIM(non_cu_seq);  ++i )
     {
-        layer = techLayerSeq[i].layerId;
+        LAYER_ID layer = non_cu_seq[i].layerId;
 
-        if( !(enabledLayers & (1 << layer)) )
+        if( !enabled[layer] )
             continue;
 
         AppendLayerRow( LAYER_WIDGET::ROW(
             brd->GetLayerName( layer ), layer, brd->GetLayerColor( layer ),
-            techLayerSeq[i].tooltip, true ) );
+            wxGetTranslation( non_cu_seq[i].tooltip ), true ) );
+
+        if( m_fp_editor_mode && !isLayerAllowedInFpMode( layer ) )
+        {
+            getLayerComp( GetLayerRowCount()-1, COLUMN_COLOR_LYRNAME )->Enable( false );
+            getLayerComp( GetLayerRowCount()-1,
+                          COLUMN_COLORBM )->SetToolTip( wxEmptyString );
+        }
     }
 
     installRightLayerClickHandler();
-
-//    m_Layers->Thaw();
 }
 
 //-----<LAYER_WIDGET callbacks>-------------------------------------------
 
 void PCB_LAYER_WIDGET::OnLayerColorChange( int aLayer, EDA_COLOR_T aColor )
 {
-    myframe->GetBoard()->SetLayerColor( aLayer, aColor );
-    myframe->ReCreateLayerBox( NULL );
+    myframe->GetBoard()->SetLayerColor( ToLAYER_ID( aLayer ), aColor );
+
+    if( myframe->IsGalCanvasActive() )
+    {
+        KIGFX::VIEW* view = myframe->GetGalCanvas()->GetView();
+        view->GetPainter()->GetSettings()->ImportLegacyColors( myframe->GetBoard()->GetColorsSettings() );
+        view->UpdateLayerColor( aLayer );
+    }
+
     myframe->GetCanvas()->Refresh();
 }
 
@@ -336,10 +425,33 @@ bool PCB_LAYER_WIDGET::OnLayerSelect( int aLayer )
 {
     // the layer change from the PCB_LAYER_WIDGET can be denied by returning
     // false from this function.
-    myframe->setActiveLayer( aLayer, false );
+    LAYER_ID layer = ToLAYER_ID( aLayer );
 
-    if(DisplayOpt.ContrastModeDisplay)
+    if( m_fp_editor_mode && !isLayerAllowedInFpMode( layer ) )
+        return false;
+
+    myframe->SetActiveLayer( layer );
+    DISPLAY_OPTIONS* displ_opts = (DISPLAY_OPTIONS*)myframe->GetDisplayOptions();
+
+    if( m_alwaysShowActiveCopperLayer )
+        OnLayerSelected();
+    else if( displ_opts->m_ContrastModeDisplay )
         myframe->GetCanvas()->Refresh();
+
+    return true;
+}
+
+
+bool PCB_LAYER_WIDGET::OnLayerSelected()
+{
+    if( !m_alwaysShowActiveCopperLayer )
+        return false;
+
+    // postprocess after an active layer selection
+    // ensure active layer visible
+    wxCommandEvent event;
+    event.SetId( ID_ALWAYS_SHOW_NO_COPPERS_BUT_ACTIVE );
+    onPopupSelection( event );
 
     return true;
 }
@@ -349,18 +461,24 @@ void PCB_LAYER_WIDGET::OnLayerVisible( int aLayer, bool isVisible, bool isFinal 
 {
     BOARD* brd = myframe->GetBoard();
 
-    int visibleLayers = brd->GetVisibleLayers();
+    LSET visibleLayers = brd->GetVisibleLayers();
 
-    if( isVisible )
-        visibleLayers |= (1 << aLayer);
-    else
-        visibleLayers &= ~(1 << aLayer);
+    visibleLayers.set( aLayer, isVisible );
 
     brd->SetVisibleLayers( visibleLayers );
+
+    EDA_DRAW_PANEL_GAL* galCanvas = myframe->GetGalCanvas();
+    if( galCanvas )
+    {
+        KIGFX::VIEW* view = galCanvas->GetView();
+        view->SetLayerVisible( aLayer, isVisible );
+        view->RecacheAllItems( true );
+    }
 
     if( isFinal )
         myframe->GetCanvas()->Refresh();
 }
+
 
 void PCB_LAYER_WIDGET::OnRenderColorChange( int aId, EDA_COLOR_T aColor )
 {
@@ -368,33 +486,30 @@ void PCB_LAYER_WIDGET::OnRenderColorChange( int aId, EDA_COLOR_T aColor )
     myframe->GetCanvas()->Refresh();
 }
 
+
 void PCB_LAYER_WIDGET::OnRenderEnable( int aId, bool isEnabled )
 {
     BOARD*  brd = myframe->GetBoard();
 
-    /* @todo:
+    brd->SetElementVisibility( aId, isEnabled );
 
-        move:
+    EDA_DRAW_PANEL_GAL* galCanvas = myframe->GetGalCanvas();
 
-        GRID_VISIBLE,   ? maybe not this one
-        into m_VisibleElements and get rid of globals.
-   */
-
-    switch( aId )
+    if( galCanvas )
     {
-        // see todo above, don't really want anything except IsElementVisible() here.
-
-    case GRID_VISIBLE:
-        // @todo, make read/write accessors for grid control so the write accessor can fire updates to
-        // grid state listeners.  I think the grid state should be kept in the BOARD.
-        brd->SetElementVisibility( aId, isEnabled );    // set visibilty flag also in list, and myframe->m_Draw_Grid
-        break;
-
-    default:
-        brd->SetElementVisibility( aId, isEnabled );
+        if( aId == GRID_VISIBLE )
+        {
+            galCanvas->GetGAL()->SetGridVisibility( myframe->IsGridVisible() );
+            galCanvas->GetView()->MarkTargetDirty( KIGFX::TARGET_NONCACHED );
+        }
+        else
+            galCanvas->GetView()->SetLayerVisible( ITEM_GAL_LAYER( aId ), isEnabled );
     }
 
-    myframe->GetCanvas()->Refresh();
+    if( galCanvas && myframe->IsGalCanvasActive() )
+        galCanvas->Refresh();
+    else
+        myframe->GetCanvas()->Refresh();
 }
 
 //-----</LAYER_WIDGET callbacks>------------------------------------------

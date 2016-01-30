@@ -33,12 +33,15 @@
 
 
 #include <vector>
+#include <boost/interprocess/exceptions.hpp>
 
-#include <wxstruct.h>
+#include <draw_frame.h>
 #include <base_struct.h>
 #include <eda_text.h>                // EDA_DRAW_MODE_T
 #include <richio.h>
 #include <class_pcb_screen.h>
+#include <pcbstruct.h>
+#include <class_draw_panel_gal.h>
 
 
 /* Forward declarations of classes. */
@@ -54,7 +57,10 @@ class GENERAL_COLLECTORS_GUIDE;
 class BOARD_DESIGN_SETTINGS;
 class ZONE_SETTINGS;
 class PCB_PLOT_PARAMS;
-
+class FP_LIB_TABLE;
+class FPID;
+class TOOL_MANAGER;
+class TOOL_DISPATCHER;
 
 /**
  * class PCB_BASE_FRAME
@@ -63,18 +69,12 @@ class PCB_PLOT_PARAMS;
 class PCB_BASE_FRAME : public EDA_DRAW_FRAME
 {
 public:
-    bool m_DisplayPadFill;          // How show pads
-    bool m_DisplayViaFill;          // How show vias
-    bool m_DisplayPadNum;           // show pads numbers
-
-    int  m_DisplayModEdge;          // How to display module drawings (line/ filled / sketch)
-    int  m_DisplayModText;          // How to display module texts (line/ filled / sketch)
-    bool m_DisplayPcbTrackFill;     // false : tracks are show in sketch mode, true = filled.
+    DISPLAY_OPTIONS m_DisplayOptions;
     EDA_UNITS_T m_UserGridUnit;
     wxRealPoint m_UserGridSize;
 
-    int m_FastGrid1;
-    int m_FastGrid2;
+    int m_FastGrid1;                // 1st fast grid setting (index in EDA_DRAW_FRAME::m_gridSelectBox)
+    int m_FastGrid2;                // 2nd fast grid setting (index in EDA_DRAW_FRAME::m_gridSelectBox)
 
     EDA_3D_FRAME* m_Draw3DFrame;
 
@@ -85,19 +85,41 @@ protected:
 
     /// Auxiliary tool bar typically shown below the main tool bar at the top of the
     /// main window.
-    wxAuiToolBar* m_auxiliaryToolBar;
+    wxAuiToolBar*       m_auxiliaryToolBar;
 
     void updateGridSelectBox();
     void updateZoomSelectBox();
     virtual void unitsChangeRefresh();
 
+    /**
+     * Function loadFootprint
+     * attempts to load \a aFootprintId from the footprint library table.
+     *
+     * @param aFootprintId is the #FPID of component footprint to load.
+     * @return the #MODULE if found or NULL if \a aFootprintId not found in any of the
+     *         libraries in the table returned from #Prj().PcbFootprintLibs().
+     * @throw IO_ERROR if an I/O error occurs or a #PARSE_ERROR if a file parsing error
+     *                 occurs while reading footprint library files.
+     */
+    MODULE* loadFootprint( const FPID& aFootprintId )
+        throw( IO_ERROR, PARSE_ERROR, boost::interprocess::lock_exception );
+
 public:
-    PCB_BASE_FRAME( wxWindow* aParent, ID_DRAWFRAME_TYPE aFrameType,
-                    const wxString& aTitle,
-                    const wxPoint& aPos, const wxSize& aSize,
-                    long aStyle, const wxString & aFrameName );
+    PCB_BASE_FRAME( KIWAY* aKiway, wxWindow* aParent, FRAME_T aFrameType,
+            const wxString& aTitle, const wxPoint& aPos, const wxSize& aSize,
+            long aStyle, const wxString& aFrameName );
 
     ~PCB_BASE_FRAME();
+
+    /**
+     * Function LoadFootprint
+     * attempts to load \a aFootprintId from the footprint library table.
+     *
+     * @param aFootprintId is the #FPID of component footprint to load.
+     * @return the #MODULE if found or NULL if \a aFootprintId not found in any of the
+     *         libraries in table returned from #Prj().PcbFootprintLibs().
+     */
+    MODULE* LoadFootprint( const FPID& aFootprintId );
 
     /**
      * Function GetBoardBoundingBox
@@ -107,12 +129,15 @@ public:
      */
     EDA_RECT    GetBoardBoundingBox( bool aBoardEdgesOnly = false ) const;
 
-    void SetPageSettings( const PAGE_INFO& aPageSettings );     // overload
+    virtual void SetPageSettings( const PAGE_INFO& aPageSettings ); // overload
     const PAGE_INFO& GetPageSettings() const;                   // overload
     const wxSize GetPageSizeIU() const;                         // overload
 
-    const wxPoint& GetOriginAxisPosition() const;               // overload
-    void SetOriginAxisPosition( const wxPoint& aPosition );     // overload
+    const wxPoint& GetAuxOrigin() const;                        // overload
+    void SetAuxOrigin( const wxPoint& aPoint );                 // overload
+
+    const wxPoint& GetGridOrigin() const;                       // overload
+    void SetGridOrigin( const wxPoint& aPoint );                // overload
 
     const TITLE_BLOCK& GetTitleBlock() const;                   // overload
     void SetTitleBlock( const TITLE_BLOCK& aTitleBlock );       // overload
@@ -124,6 +149,16 @@ public:
      */
     virtual BOARD_DESIGN_SETTINGS& GetDesignSettings() const;
     virtual void SetDesignSettings( const BOARD_DESIGN_SETTINGS& aSettings );
+
+    /**
+     * Function GetDisplayOptions
+     * returns the display options current in use
+     * Display options are relative to the way tracks, vias, outlines
+     * and other things are shown (for instance solid or sketch mode)
+     * Must be overloaded in frames which have display options
+     * (board editor and footprint editor)
+     */
+    void* GetDisplayOptions() { return &m_DisplayOptions; }
 
     const ZONE_SETTINGS& GetZoneSettings() const;
     void SetZoneSettings( const ZONE_SETTINGS& aSettings );
@@ -142,7 +177,7 @@ public:
      * BOARD.
      * @param aBoard The BOARD to put into the frame.
      */
-    void SetBoard( BOARD* aBoard );
+    virtual void SetBoard( BOARD* aBoard );
 
     BOARD* GetBoard() const
     {
@@ -168,12 +203,17 @@ public:
      * Function BestZoom
      * @return the "best" zoom to show the entire board or footprint on the screen.
      */
-
     virtual double BestZoom();
 
-    virtual void Show3D_Frame( wxCommandEvent& event );
+    /**
+     * Function GetZoomLevelIndicator
+     * returns a human readable value which can be displayed as zoom
+     * level indicator in dialogs.
+     * Virtual from the base class
+     */
+    const wxString GetZoomLevelIndicator() const;
 
-public:
+    virtual void Show3D_Frame( wxCommandEvent& event );
 
     // Read/write functions:
     EDA_ITEM* ReadDrawSegmentDescr( LINE_READER* aReader );
@@ -219,6 +259,9 @@ public:
 
     BOARD_ITEM* GetCurItem();
 
+    ///> @copydoc EDA_DRAW_FRAME::UpdateMsgPanel()
+    void UpdateMsgPanel();
+
     /**
      * Function GetCollectorsGuide
      * @return GENERAL_COLLECTORS_GUIDE - that considers the global
@@ -236,20 +279,14 @@ public:
     void CursorGoto( const wxPoint& aPos, bool aWarp = true );
 
     /**
-     * Function Save_Module_In_Library
-     *  Save in an existing library a given footprint
-     * @param aLibName = name of the library to use
-     * @param aModule = the given footprint
-     * @param aOverwrite = true to overwrite an existing footprint, false to
-     *                     abort an existing footprint is found
-     * @param aDisplayDialog = true to display a dialog to enter or confirm the
-     *                         footprint name
-     * @return : true if OK, false if abort
+     * Function SelectLibrary
+     * puts up a dialog and allows the user to pick a library, for unspecified use.
+     *
+     * @param aNicknameExisting is the current choice to highlight
+     *
+     * @return wxString - the library or wxEmptyString on abort.
      */
-    bool Save_Module_In_Library( const wxString& aLibName,
-                                 MODULE*         aModule,
-                                 bool            aOverwrite,
-                                 bool            aDisplayDialog );
+    wxString SelectLibrary( const wxString& aNicknameExisting );
 
     MODULE* GetModuleByName();
 
@@ -265,20 +302,22 @@ public:
     virtual void OnModify();
 
     // Modules (footprints)
+
     /**
-     * Function Create_1_Module
-     * Creates a new module or footprint : A new module contains 2 texts :
-     *  First = REFERENCE
-     *  Second = VALUE: "VAL**"
-     * the new module is added to the board module list
-     * @param aModuleName = name of the new footprint
-     *                  (will be the component reference in board)
-     * @return a pointer to the new module
+     * Function CreateNewModule
+     * Creates a new module or footprint, at position 0,0
+     * The new module contains only 2 texts: a reference and a value:
+     *  Reference = REF**
+     *  Value = "VAL**" or Footprint name in lib
+     * Note: they are dummy texts, which will be replaced by the actual texts
+     * when the fooprint is placed on a board and a netlist is read
+     * @param aModuleName = name of the new footprint in library
+     * @return a reference to the new module
      */
-    MODULE* Create_1_Module( const wxString& aModuleName );
+    MODULE* CreateNewModule( const wxString& aModuleName );
 
     void Edit_Module( MODULE* module, wxDC* DC );
-    void Rotate_Module( wxDC* DC, MODULE* module, int angle, bool incremental );
+    void Rotate_Module( wxDC* DC, MODULE* module, double angle, bool incremental );
 
     /**
      * Function PlaceModule
@@ -297,7 +336,6 @@ public:
     void DeleteTextModule( TEXTE_MODULE* Text );
     void PlaceTexteModule( TEXTE_MODULE* Text, wxDC* DC );
     void StartMoveTexteModule( TEXTE_MODULE* Text, wxDC* DC );
-    TEXTE_MODULE* CreateTextModule( MODULE* Module, wxDC* DC );
 
     /**
      * Function ResetTextSize
@@ -372,91 +410,54 @@ public:
                                    bool   aRedraw,
                                    bool   aSaveForUndo );
 
-    // loading footprints
-
     /**
-     * Function loadFootprintFromLibrary
-     * loads @a aFootprintName from @a aLibraryPath.
+     * Function SelectFootprint
+     * displays a list of modules found in all libraries or a given library
      *
-     * @param aLibraryPath - the full filename or the short name of the library to read.
-     *      if it is a short name, the file is searched in all library valid paths
-     * @param aFootprintName is the footprint to load
-     * @param aDisplayError = true to display an error message if any.
-     * @param aAddToBoard Set to true to add the footprint to the board if found.
-     *
-     * @return MODULE* - new module, or NULL
-     */
-    MODULE* loadFootprintFromLibrary( const wxString& aLibraryPath, const wxString& aFootprintName,
-                                      bool aDisplayError, bool aAddToBoard = true );
-
-    /**
-     * Function loadFootprintFromLibraries
-     * Explore the libraries list and
-     * loads @a aFootprintName from the first library it is found
-     * If found the module is added to the BOARD, just for good measure.
-     *
-     *  @param aFootprintName is the footprint to load
-     *  @param aDisplayError = true to display an error message if any.
-     *
-     *  @return MODULE* - new module, or NULL
-     */
-    MODULE* loadFootprintFromLibraries( const wxString& aFootprintName,
-                                        bool            aDisplayError );
-
-    /**
-     * Function GetModuleLibrary
-     * scans active libraries to find and load @a aFootprintName.
-     * If found  the module is added to the BOARD, just for good measure.
-     *
-     *  @param aLibraryPath is the full/short name of the library.
-     *                      if empty, search in all libraries
-     *  @param aFootprintName is the footprint to load
-     *  @param aDisplayError = true to display an error message if any.
-     *
-     *  @return a pointer to the new module, or NULL
-     */
-    MODULE* GetModuleLibrary( const wxString& aLibraryPath, const wxString& aFootprintName,
-                              bool aDisplayError );
-
-    /**
-     * Function Select_1_Module_From_List
-     *  Display a list of modules found in active libraries or a given library
      *  @param aWindow = the current window ( parent window )
-     *  @param aLibraryFullFilename = library to list (if aLibraryFullFilename
-     *                                == void, list all modules)
-     *  @param aMask = Display filter (wildcart)( Mask = wxEmptyString if not
-     *                  used )
+     *
+     *  @param aLibraryName = library to list (if aLibraryFullFilename is empty, then list all modules).
+     *           This is a nickname for the FP_LIB_TABLE build.
+     *
+     *  @param aMask = Display filter (wildcart)( Mask = wxEmptyString if not used )
+     *
      *  @param aKeyWord = keyword list, to display a filtered list of module
      *                    having one (or more) of these keywords in their
      *                    keyword list ( aKeyWord = wxEmptyString if not used )
      *
+     *  @param aTable is the #FP_LIB_TABLE to search.
+     *
      *  @return wxEmptyString if abort or fails, or the selected module name if Ok
      */
-    wxString Select_1_Module_From_List( EDA_DRAW_FRAME* aWindow,
-                                        const wxString& aLibraryFullFilename,
-                                        const wxString& aMask,
-                                        const wxString& aKeyWord );
+    wxString SelectFootprint( EDA_DRAW_FRAME* aWindow,
+                              const wxString& aLibraryName,
+                              const wxString& aMask,
+                              const wxString& aKeyWord,
+                              FP_LIB_TABLE*   aTable );
 
     /**
-     * Function Load_Module_From_Library
+     * Function LoadModuleFromLibrary
      * opens a dialog to select a footprint, and loads it into current board.
      *
      * @param aLibrary = the library name to use, or empty string to search
      * in all loaded libraries
+     * @param aTable is the #FP_LIB_TABLE containing the avaiable footprint libraries.
      * @param aUseFootprintViewer = true to show the option
      * allowing the footprint selection by the footprint viewer
      * @param aDC (can be NULL ) = the current Device Context, to draw the new footprint
      */
-    MODULE* Load_Module_From_Library( const wxString& aLibrary,
-                                      bool aUseFootprintViewer = true,
-                                      wxDC* aDC = NULL );
+    MODULE* LoadModuleFromLibrary( const wxString& aLibrary,
+                                   FP_LIB_TABLE*   aTable,
+                                   bool            aUseFootprintViewer = true,
+                                   wxDC*           aDC = NULL );
 
     /**
-     * SelectFootprintFromLibBrowser
-     * Launch the footprint viewer to select the name of a footprint to load.
-     * @return the selected footprint name
+     * Function SelectFootprintFromLibBrowser
+     * launches the footprint viewer to select the name of a footprint to load.
+     *
+     * @return the selected footprint name or an empty string if no selection was made.
      */
-    wxString SelectFootprintFromLibBrowser( void );
+    wxString SelectFootprintFromLibBrowser();
 
     //  ratsnest functions
     /**
@@ -589,52 +590,112 @@ public:
      * @param aTransformPoint = the reference point of the transformation,
      *                          for commands like move
      */
-    virtual void SaveCopyInUndoList( PICKED_ITEMS_LIST& aItemsList,
+    virtual void SaveCopyInUndoList( const PICKED_ITEMS_LIST& aItemsList,
                                      UNDO_REDO_T aTypeCommand,
                                      const wxPoint& aTransformPoint = wxPoint( 0, 0 ) ) = 0;
 
 
-    // layerhandling:
-    // (See pcbnew/sel_layer.cpp for description of why null_layer parameter
-    // is provided)
-    int SelectLayer( int default_layer, int min_layer, int max_layer, bool null_layer = false );
-    void SelectLayerPair();
-    virtual void SwitchLayer( wxDC* DC, int layer );
+    /** Install the dialog box for layer selection
+     * @param aDefaultLayer = Preselection (NB_PCB_LAYERS for "(Deselect)" layer)
+     * @param aNotAllowedLayersMask = a layer mask for not allowed layers
+     *                            (= 0 to show all layers in use)
+     * @param aDlgPosition = position of dialog ( defualt = centered)
+     * @return the selected layer id
+     */
+    LAYER_ID SelectLayer( LAYER_ID aDefaultLayer,
+                          LSET aNotAllowedLayersMask = LSET(),
+                          wxPoint aDlgPosition = wxDefaultPosition );
 
-    void InstallGridFrame( const wxPoint& pos );
+    /* Display a list of two copper layers to choose a pair of copper layers
+     * the layer pair is used to fast switch between copper layers when placing vias
+     */
+    void SelectCopperLayerPair();
+
+    virtual void SwitchLayer( wxDC* DC, LAYER_ID layer );
 
     /**
-     * Load applications settings common to PCB draw frame objects.
-     *
-     * This overrides the base class EDA_DRAW_FRAME::LoadSettings() to
-     * handle settings common to the PCB layout application and footprint
-     * editor main windows.  It calls down to the base class to load
-     * settings common to all drawing frames.  Please put your application
-     * settings common to all pcb drawing frames here to avoid having
-     * application settings loaded all over the place.
+     * Function SetActiveLayer
+     * will change the currently active layer to \a aLayer.
      */
-    virtual void LoadSettings();
+    virtual void SetActiveLayer( LAYER_ID aLayer )
+    {
+        GetScreen()->m_Active_Layer = aLayer;
+    }
 
     /**
-     * Save applications settings common to PCB draw frame objects.
-     *
-     * This overrides the base class EDA_DRAW_FRAME::SaveSettings() to
-     * save settings common to the PCB layout application and footprint
-     * editor main windows.  It calls down to the base class to save
-     * settings common to all drawing frames.  Please put your application
-     * settings common to all pcb drawing frames here to avoid having
-     * application settings saved all over the place.
+     * Function GetActiveLayer
+     * returns the active layer
      */
-    virtual void SaveSettings();
+    virtual LAYER_ID GetActiveLayer() const
+    {
+        return GetScreen()->m_Active_Layer;
+    }
+
+    void LoadSettings( wxConfigBase* aCfg );    // override virtual
+    void SaveSettings( wxConfigBase* aCfg );    // override virtual
+
+    bool InvokeDialogGrid();
 
     void OnTogglePolarCoords( wxCommandEvent& aEvent );
     void OnTogglePadDrawMode( wxCommandEvent& aEvent );
 
-    /* User interface update event handlers. */
+    // User interface update event handlers.
     void OnUpdateCoordType( wxUpdateUIEvent& aEvent );
     void OnUpdatePadDrawMode( wxUpdateUIEvent& aEvent );
     void OnUpdateSelectGrid( wxUpdateUIEvent& aEvent );
     void OnUpdateSelectZoom( wxUpdateUIEvent& aEvent );
+
+    /**
+     * Function SetFastGrid1()
+     *
+     * Switches grid settings to the 1st "fast" setting predefined by user.
+     */
+    void SetFastGrid1();
+
+    /**
+     * Function SetFastGrid2()
+     *
+     * Switches grid settings to the 1st "fast" setting predefined by user.
+     */
+    void SetFastGrid2();
+
+    /**
+     * Virtual function SetNextGrid()
+     * changes the grid size settings to the next one available.
+     */
+    void SetNextGrid();
+
+    /**
+     * Virtual function SetPrevGrid()
+     * changes the grid size settings to the previous one available.
+     */
+    void SetPrevGrid();
+
+    void ClearSelection();
+
+    ///> @copydoc EDA_DRAW_FRAME::UseGalCanvas
+    virtual void UseGalCanvas( bool aEnable );
+
+    /**
+     * Function SwitchCanvas
+     * switches currently used canvas (default / Cairo / OpenGL).
+     */
+    void SwitchCanvas( wxCommandEvent& aEvent );
+
+    /**
+     * Function LoadCanvasTypeSetting()
+     * Returns the canvas type stored in the application settings.
+     */
+    EDA_DRAW_PANEL_GAL::GAL_TYPE LoadCanvasTypeSetting() const;
+
+    /**
+     * Function SaveCanvasTypeSetting()
+     * Stores the canvas type in the application settings.
+     */
+    bool SaveCanvasTypeSetting( EDA_DRAW_PANEL_GAL::GAL_TYPE aCanvasType );
+
+    ///> Key in KifaceSettings to store the canvas type.
+    static const wxChar CANVAS_TYPE_KEY[];
 
     DECLARE_EVENT_TABLE()
 };

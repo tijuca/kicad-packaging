@@ -59,7 +59,7 @@
         ~~~~~~~~~~~~~~
 
         /info.html  - Contains html formatted information about the template which is used by the
-                      user to determine if the template is what they are after. The <title> tag
+                      user to determine if the template is what they are after. The &lt;title&gt; tag
                       determines the actual name of the template that is exposed to the user for
                       template selection. Using html to format this document means that images can
                       be in-lined without having to invent a new scheme. Only HTML supported by
@@ -109,9 +109,6 @@
 #include <wx/wx.h>
 #include <wx/image.h>
 #include <wx/filename.h>
-
-using namespace std;
-
 
 /**
  * @brief A directory which contains information about the project template and does not get
@@ -168,10 +165,11 @@ public:
     ~PROJECT_TEMPLATE();
 
     /**
-     * @brief Get the system name of the project template
-     * @return the system name of the template
+     * @brief Get the dir name of the project template
+     * (i.e. the name of the last folder containing the template files)
+     * @return the dir name of the template
      */
-    wxString GetName();
+    wxString GetPrjDirName();
 
     /**
      * @brief Get the full Html filename for the project template
@@ -200,7 +198,7 @@ public:
      * @brief Get a vector list of filenames for the template. The files are the source files,
      * and have not yet been through any renaming
      */
-    vector<wxFileName> GetFileList();
+    std::vector<wxFileName> GetFileList();
 };
 
 #endif

@@ -38,12 +38,11 @@
 #include <msgpanel.h>
 
 #include <general.h>
-#include <protos.h>
 #include <lib_rectangle.h>
 #include <transform.h>
 
 
-LIB_RECTANGLE::LIB_RECTANGLE( LIB_COMPONENT* aParent ) :
+LIB_RECTANGLE::LIB_RECTANGLE( LIB_PART*      aParent ) :
     LIB_ITEM( LIB_RECTANGLE_T, aParent )
 {
     m_Width                = 0;
@@ -68,15 +67,15 @@ bool LIB_RECTANGLE::Save( OUTPUTFORMATTER& aFormatter )
 bool LIB_RECTANGLE::Load( LINE_READER& aLineReader, wxString& aErrorMsg )
 {
     int  cnt;
-    char tmp[256];
+    char tmp[256] = "";
     char* line = (char*)aLineReader;
 
-    cnt = sscanf( line + 2, "%d %d %d %d %d %d %d %s", &m_Pos.x, &m_Pos.y,
+    cnt = sscanf( line + 2, "%d %d %d %d %d %d %d %255s", &m_Pos.x, &m_Pos.y,
                   &m_End.x, &m_End.y, &m_Unit, &m_Convert, &m_Width, tmp );
 
     if( cnt < 7 )
     {
-        aErrorMsg.Printf( _( "rectangle only had %d parameters of the required 7" ), cnt );
+        aErrorMsg.Printf( _( "Rectangle only had %d parameters of the required 7" ), cnt );
         return false;
     }
 
@@ -179,12 +178,12 @@ void LIB_RECTANGLE::Plot( PLOTTER* aPlotter, const wxPoint& aOffset, bool aFill,
 
     if( aFill && m_Fill == FILLED_WITH_BG_BODYCOLOR )
     {
-        aPlotter->SetColor( ReturnLayerColor( LAYER_DEVICE_BACKGROUND ) );
+        aPlotter->SetColor( GetLayerColor( LAYER_DEVICE_BACKGROUND ) );
         aPlotter->Rect( pos, end, FILLED_WITH_BG_BODYCOLOR, 0 );
     }
 
     bool already_filled = m_Fill == FILLED_WITH_BG_BODYCOLOR;
-    aPlotter->SetColor( ReturnLayerColor( LAYER_DEVICE ) );
+    aPlotter->SetColor( GetLayerColor( LAYER_DEVICE ) );
     aPlotter->Rect( pos, end, already_filled ? NO_FILL : m_Fill, GetPenSize() );
 }
 
@@ -201,7 +200,7 @@ void LIB_RECTANGLE::drawGraphic( EDA_DRAW_PANEL* aPanel, wxDC* aDC,
 {
     wxPoint pos1, pos2;
 
-    EDA_COLOR_T color = ReturnLayerColor( LAYER_DEVICE );
+    EDA_COLOR_T color = GetLayerColor( LAYER_DEVICE );
 
     if( aColor < 0 )       // Used normal color or selected color
     {
@@ -223,23 +222,25 @@ void LIB_RECTANGLE::drawGraphic( EDA_DRAW_PANEL* aPanel, wxDC* aDC,
 
     GRSetDrawMode( aDC, aDrawMode );
 
+    EDA_RECT* const clipbox  = aPanel? aPanel->GetClipBox() : NULL;
     if( fill == FILLED_WITH_BG_BODYCOLOR && !aData )
-        GRFilledRect( aPanel->GetClipBox(), aDC, pos1.x, pos1.y, pos2.x, pos2.y, GetPenSize( ),
-                      (m_Flags & IS_MOVED) ? color : ReturnLayerColor( LAYER_DEVICE_BACKGROUND ),
-                      ReturnLayerColor( LAYER_DEVICE_BACKGROUND ) );
+        GRFilledRect( clipbox, aDC, pos1.x, pos1.y, pos2.x, pos2.y, GetPenSize( ),
+                      (m_Flags & IS_MOVED) ? color : GetLayerColor( LAYER_DEVICE_BACKGROUND ),
+                      GetLayerColor( LAYER_DEVICE_BACKGROUND ) );
     else if( m_Fill == FILLED_SHAPE  && !aData )
-        GRFilledRect( aPanel->GetClipBox(), aDC, pos1.x, pos1.y, pos2.x, pos2.y,
+        GRFilledRect( clipbox, aDC, pos1.x, pos1.y, pos2.x, pos2.y,
                       GetPenSize(), color, color );
     else
-        GRRect( aPanel->GetClipBox(), aDC, pos1.x, pos1.y, pos2.x, pos2.y, GetPenSize(), color );
+        GRRect( clipbox, aDC, pos1.x, pos1.y, pos2.x, pos2.y, GetPenSize(), color );
 
     /* Set to one (1) to draw bounding box around rectangle to validate
      * bounding box calculation. */
 #if 0
     EDA_RECT bBox = GetBoundingBox();
-    bBox.Inflate( m_Thickness + 1, m_Thickness + 1 );
-    GRRect( aPanel->GetClipBox(), aDC, bBox.GetOrigin().x, bBox.GetOrigin().y,
-            bBox.GetEnd().x, bBox.GetEnd().y, 0, LIGHTMAGENTA );
+    bBox.RevertYAxis();
+    bBox = aTransform.TransformCoordinate( bBox );
+    bBox.Move( aOffset );
+    GRRect( clipbox, aDC, bBox, 0, LIGHTMAGENTA );
 #endif
 }
 
@@ -250,24 +251,27 @@ void LIB_RECTANGLE::GetMsgPanelInfo( MSG_PANEL_ITEMS& aList )
 
     LIB_ITEM::GetMsgPanelInfo( aList );
 
-    msg = ReturnStringFromValue( g_UserUnit, m_Width, true );
+    msg = StringFromValue( g_UserUnit, m_Width, true );
 
-    aList.push_back( MSG_PANEL_ITEM( _( "Line width" ), msg, BLUE ) );
+    aList.push_back( MSG_PANEL_ITEM( _( "Line Width" ), msg, BLUE ) );
 }
 
 
-EDA_RECT LIB_RECTANGLE::GetBoundingBox() const
+const EDA_RECT LIB_RECTANGLE::GetBoundingBox() const
 {
     EDA_RECT rect;
 
-    rect.SetOrigin( m_Pos.x, m_Pos.y * -1 );
-    rect.SetEnd( m_End.x, m_End.y * -1 );
-    rect.Inflate( (GetPenSize() / 2) + 1 );
+    rect.SetOrigin( m_Pos );
+    rect.SetEnd( m_End );
+    rect.Inflate( ( GetPenSize()+1 ) / 2 );
+
+    rect.RevertYAxis();
+
     return rect;
 }
 
 
-bool LIB_RECTANGLE::HitTest( const wxPoint& aPosition )
+bool LIB_RECTANGLE::HitTest( const wxPoint& aPosition ) const
 {
     int mindist = ( GetPenSize() / 2 ) + 1;
 
@@ -279,7 +283,7 @@ bool LIB_RECTANGLE::HitTest( const wxPoint& aPosition )
 }
 
 
-bool LIB_RECTANGLE::HitTest( wxPoint aPosition, int aThreshold, const TRANSFORM& aTransform )
+bool LIB_RECTANGLE::HitTest( const wxPoint &aPosition, int aThreshold, const TRANSFORM& aTransform ) const
 {
     if( aThreshold < 0 )
         aThreshold = GetPenSize() / 2;
@@ -333,7 +337,7 @@ wxString LIB_RECTANGLE::GetSelectMenuText() const
 }
 
 
-void LIB_RECTANGLE::BeginEdit( int aEditMode, const wxPoint aPosition )
+void LIB_RECTANGLE::BeginEdit( STATUS_FLAGS aEditMode, const wxPoint aPosition )
 {
     wxCHECK_RET( ( aEditMode & ( IS_NEW | IS_MOVED | IS_RESIZED ) ) != 0,
                  wxT( "Invalid edit mode for LIB_RECTANGLE object." ) );

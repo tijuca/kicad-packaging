@@ -55,23 +55,19 @@ PCAD_PLUGIN::~PCAD_PLUGIN()
 }
 
 
-const wxString& PCAD_PLUGIN::PluginName() const
+const wxString PCAD_PLUGIN::PluginName() const
 {
-    static const wxString name = wxT( "P-Cad" );
-
-    return name;
+    return wxT( "P-Cad" );
 }
 
 
-const wxString& PCAD_PLUGIN::GetFileExtension() const
+const wxString PCAD_PLUGIN::GetFileExtension() const
 {
-    static const wxString extension = wxT( "pcb" );
-
-    return extension;
+    return wxT( "pcb" );
 }
 
 
-BOARD* PCAD_PLUGIN::Load( const wxString& aFileName, BOARD* aAppendToMe, PROPERTIES* aProperties )
+BOARD* PCAD_PLUGIN::Load( const wxString& aFileName, BOARD* aAppendToMe, const PROPERTIES* aProperties )
 {
     wxXmlDocument   xmlDoc;
 

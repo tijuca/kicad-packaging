@@ -1,8 +1,8 @@
 /*
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
- * Copyright (C) 2009 Jean-Pierre Charras, jaen-pierre.charras@gipsa-lab.inpg.com
- * Copyright (C) 1992-2011 KiCad Developers, see AUTHORS.txt for contributors.
+ * Copyright (C) 2015 Jean-Pierre Charras, jaen-pierre.charras@gipsa-lab.inpg.com
+ * Copyright (C) 1992-2015 KiCad Developers, see AUTHORS.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -32,12 +32,9 @@
 #include <macros.h>
 #include <class_drawpanel.h>
 #include <common.h>
-#include <trigo.h>
-#include <richio.h>
 #include <plot_common.h>
 
 #include <general.h>
-#include <protos.h>
 #include <sch_no_connect.h>
 #include <class_netlist_object.h>
 
@@ -66,12 +63,12 @@ void SCH_NO_CONNECT::SwapData( SCH_ITEM* aItem )
                  wxT( "Cannot swap no connect data with invalid item." ) );
 
     SCH_NO_CONNECT* item = (SCH_NO_CONNECT*)aItem;
-    EXCHG( m_pos, item->m_pos );
-    EXCHG( m_size, item->m_size );
+    std::swap( m_pos, item->m_pos );
+    std::swap( m_size, item->m_size );
 }
 
 
-EDA_RECT SCH_NO_CONNECT::GetBoundingBox() const
+const EDA_RECT SCH_NO_CONNECT::GetBoundingBox() const
 {
     int      delta = ( GetPenSize() + m_size.x ) / 2;
     EDA_RECT box;
@@ -104,7 +101,7 @@ bool SCH_NO_CONNECT::Load( LINE_READER& aLine, wxString& aErrorMsg )
     while( (*line != ' ' ) && *line )
         line++;
 
-    if( sscanf( line, "%s %d %d", name, &m_pos.x, &m_pos.y ) != 3 )
+    if( sscanf( line, "%255s %d %d", name, &m_pos.x, &m_pos.y ) != 3 )
     {
         aErrorMsg.Printf( wxT( "Eeschema file No Connect load error at line %d" ),
                           aLine.LineNumber() );
@@ -113,6 +110,13 @@ bool SCH_NO_CONNECT::Load( LINE_READER& aLine, wxString& aErrorMsg )
     }
 
     return true;
+}
+
+
+void SCH_NO_CONNECT::GetEndPoints( std::vector< DANGLING_END_ITEM >& aItemList )
+{
+    DANGLING_END_ITEM item( NO_CONNECT_END, this, m_pos );
+    aItemList.push_back( item );
 }
 
 
@@ -136,7 +140,7 @@ void SCH_NO_CONNECT::Draw( EDA_DRAW_PANEL* aPanel, wxDC* aDC, const wxPoint& aOf
     if( aColor >= 0 )
         color = aColor;
     else
-        color = ReturnLayerColor( LAYER_NOCONNECT );
+        color = GetLayerColor( LAYER_NOCONNECT );
 
     GRSetDrawMode( aDC, aDrawMode );
 
@@ -149,17 +153,13 @@ void SCH_NO_CONNECT::Draw( EDA_DRAW_PANEL* aPanel, wxDC* aDC, const wxPoint& aOf
 
 void SCH_NO_CONNECT::MirrorX( int aXaxis_position )
 {
-    m_pos.y -= aXaxis_position;
-    NEGATE(  m_pos.y );
-    m_pos.y += aXaxis_position;
+    MIRROR( m_pos.y, aXaxis_position );
 }
 
 
 void SCH_NO_CONNECT::MirrorY( int aYaxis_position )
 {
-    m_pos.x -= aYaxis_position;
-    NEGATE(  m_pos.x );
-    m_pos.x += aYaxis_position;
+    MIRROR( m_pos.x, aYaxis_position );
 }
 
 
@@ -174,27 +174,27 @@ bool SCH_NO_CONNECT::IsSelectStateChanged( const wxRect& aRect )
     bool previousState = IsSelected();
 
     if( aRect.Contains( m_pos ) )
-        m_Flags |= SELECTED;
+        SetFlags( SELECTED );
     else
-        m_Flags &= ~SELECTED;
+        ClearFlags( SELECTED );
 
     return previousState != IsSelected();
 }
 
 
-void SCH_NO_CONNECT::GetConnectionPoints( vector< wxPoint >& aPoints ) const
+void SCH_NO_CONNECT::GetConnectionPoints( std::vector< wxPoint >& aPoints ) const
 {
     aPoints.push_back( m_pos );
 }
 
 
-void SCH_NO_CONNECT::GetNetListItem( vector<NETLIST_OBJECT*>& aNetListItems,
-                                     SCH_SHEET_PATH*          aSheetPath )
+void SCH_NO_CONNECT::GetNetListItem( NETLIST_OBJECT_LIST& aNetListItems,
+                                     SCH_SHEET_PATH*      aSheetPath )
 {
     NETLIST_OBJECT* item = new NETLIST_OBJECT();
 
-    item->m_SheetList = *aSheetPath;
-    item->m_SheetListInclude = *aSheetPath;
+    item->m_SheetPath = *aSheetPath;
+    item->m_SheetPathInclude = *aSheetPath;
     item->m_Comp = this;
     item->m_Type = NET_NOCONNECT;
     item->m_Start = item->m_End = m_pos;
@@ -243,7 +243,7 @@ void SCH_NO_CONNECT::Plot( PLOTTER* aPlotter )
     pY = m_pos.y;
 
     aPlotter->SetCurrentLineWidth( GetPenSize() );
-    aPlotter->SetColor( ReturnLayerColor( GetLayer() ) );
+    aPlotter->SetColor( GetLayerColor( GetLayer() ) );
     aPlotter->MoveTo( wxPoint( pX - delta, pY - delta ) );
     aPlotter->FinishTo( wxPoint( pX + delta, pY + delta ) );
     aPlotter->MoveTo( wxPoint( pX + delta, pY - delta ) );

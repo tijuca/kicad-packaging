@@ -1,7 +1,3 @@
-/*************************************************************/
-/*  board editor: undo and redo functions for board editor  */
-/*************************************************************/
-
 /*
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
@@ -27,8 +23,10 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
  */
 
+#include <boost/bind.hpp>
 #include <fctsys.h>
 #include <class_drawpanel.h>
+#include <class_draw_panel_gal.h>
 #include <macros.h>
 
 #include <pcbnew.h>
@@ -42,11 +40,16 @@
 #include <class_module.h>
 #include <class_dimension.h>
 #include <class_zone.h>
+#include <class_edge_mod.h>
 
+#include <ratsnest_data.h>
+
+#include <tools/selection_tool.h>
+#include <tool/tool_manager.h>
 
 /* Functions to undo and redo edit commands.
- *  commmands to undo are stored in CurrentScreen->m_UndoList
- *  commmands to redo are stored in CurrentScreen->m_RedoList
+ *  commands to undo are stored in CurrentScreen->m_UndoList
+ *  commands to redo are stored in CurrentScreen->m_RedoList
  *
  *  m_UndoList and m_RedoList handle a std::vector of PICKED_ITEMS_LIST
  *  Each PICKED_ITEMS_LIST handle a std::vector of pickers (class ITEM_PICKER),
@@ -89,8 +92,8 @@
  *      => The list of item(s) is used to create a deleted list in undo list(same as a delete
  *         command)
  *
- *   Some block operations that change items can be undoed without memorise items, just the
- *   coordiantes of the transform:
+ *   Some block operations that change items can be undone without memorize items, just the
+ *   coordinates of the transform:
  *      move list of items (undo/redo is made by moving with the opposite move vector)
  *      mirror (Y) and flip list of items (undo/redo is made by mirror or flip items)
  *      so they are handled specifically.
@@ -101,7 +104,7 @@
 /**
  * Function TestForExistingItem
  * test if aItem exists somewhere in lists of items
- * This is a function unsed by PutDataInPreviousState to be sure an item was not deleted
+ * This is a function used by PutDataInPreviousState to be sure an item was not deleted
  * since an undo or redo.
  * This could be possible:
  *   - if a call to SaveCopyInUndoList was forgotten in Pcbnew
@@ -177,163 +180,142 @@ static bool TestForExistingItem( BOARD* aPcb, BOARD_ITEM* aItem )
 }
 
 
-/**
- * Function SwapData
- * Used in undo / redo command:
- *  swap data between Item and a copy
- *  swapped data is data modified by edition, mainly sizes and texts
- * so ONLY FEW values are swapped
- * @param aItem = the item
- * @param aImage = a copy of the item
- */
-void SwapData( BOARD_ITEM* aItem, BOARD_ITEM* aImage )
+void BOARD_ITEM::SwapData( BOARD_ITEM* aImage )
 {
-    if( aItem == NULL || aImage == NULL )
-    {
-        wxMessageBox( wxT( "SwapData error: NULL pointer" ) );
+    if( aImage == NULL )
         return;
-    }
 
-    // Swap layers:
-    if( aItem->Type() != PCB_MODULE_T && aItem->Type() != PCB_ZONE_AREA_T )
-    {
-        // These items have a global swap function.
-        int layer, layerimg;
-        layer    = aItem->GetLayer();
-        layerimg = aImage->GetLayer();
-        aItem->SetLayer( layerimg );
-        aImage->SetLayer( layer );
-    }
+    // Remark: to create images of edited items to undo, we are using Clone method
+    // which can duplication of items foe copy, but does not clone all members
+    // mainly pointers in chain and time stamp, which is set to new, unique value.
+    // So we have to use the current values of these parameters.
 
-    switch( aItem->Type() )
+    EDA_ITEM * pnext = Next();
+    EDA_ITEM * pback = Back();
+    DHEAD* mylist    = m_List;
+    time_t timestamp = GetTimeStamp();
+
+    switch( Type() )
     {
     case PCB_MODULE_T:
-        {
-            MODULE* tmp = (MODULE*) aImage->Clone();
-            ( (MODULE*) aImage )->Copy( (MODULE*) aItem );
-            ( (MODULE*) aItem )->Copy( tmp );
-            delete tmp;
-        }
+    {
+        MODULE* tmp = (MODULE*) aImage->Clone();
+        ( (MODULE*) aImage )->Copy( (MODULE*) this );
+        ( (MODULE*) this )->Copy( tmp );
+        delete tmp;
+    }
         break;
 
     case PCB_ZONE_AREA_T:
-        {
-            ZONE_CONTAINER* tmp = (ZONE_CONTAINER*) aImage->Clone();
-            ( (ZONE_CONTAINER*) aImage )->Copy( (ZONE_CONTAINER*) aItem );
-            ( (ZONE_CONTAINER*) aItem )->Copy( tmp );
-            delete tmp;
-        }
+    {
+        ZONE_CONTAINER* tmp = (ZONE_CONTAINER*) aImage->Clone();
+        ( (ZONE_CONTAINER*) aImage )->Copy( (ZONE_CONTAINER*) this );
+        ( (ZONE_CONTAINER*) this )->Copy( tmp );
+        delete tmp;
+    }
         break;
 
     case PCB_LINE_T:
-#if 0
-        EXCHG( ( (DRAWSEGMENT*) aItem )->m_Start, ( (DRAWSEGMENT*) aImage )->m_Start );
-        EXCHG( ( (DRAWSEGMENT*) aItem )->m_End, ( (DRAWSEGMENT*) aImage )->m_End );
-        EXCHG( ( (DRAWSEGMENT*) aItem )->m_Width, ( (DRAWSEGMENT*) aImage )->m_Width );
-        EXCHG( ( (DRAWSEGMENT*) aItem )->m_Shape, ( (DRAWSEGMENT*) aImage )->m_Shape );
-#else
-        {
-            DRAWSEGMENT tmp = *(DRAWSEGMENT*) aImage;
-            *aImage = *aItem;
-            *aItem  = tmp;
-        }
-#endif
+        std::swap( *((DRAWSEGMENT*)this), *((DRAWSEGMENT*)aImage) );
         break;
 
     case PCB_TRACE_T:
     case PCB_VIA_T:
+    {
+        TRACK* track = (TRACK*) this;
+        TRACK* image = (TRACK*) aImage;
+
+        std::swap(track->m_Layer, image->m_Layer );
+
+        // swap start, end, width and shape for track and image.
+        wxPoint exchp = track->GetStart();
+        track->SetStart( image->GetStart() );
+        image->SetStart( exchp );
+        exchp = track->GetEnd();
+        track->SetEnd( image->GetEnd() );
+        image->SetEnd( exchp );
+
+        int atmp = track->GetWidth();
+        track->SetWidth( image->GetWidth() );
+        image->SetWidth( atmp );
+
+        if( Type() == PCB_VIA_T )
         {
-            TRACK* track = (TRACK*) aItem;
-            TRACK* image = (TRACK*) aImage;
+            VIA *via = static_cast<VIA*>( this );
+            VIA *viaimage = static_cast<VIA*>( aImage );
 
-            // swap start, end, width and shape for track and image.
-            wxPoint exchp = track->GetStart(); track->SetStart( image->GetStart() ); image->SetStart( exchp );
-            exchp = track->GetEnd(); track->SetEnd( image->GetEnd() ); image->SetEnd( exchp );
-            int atmp = track->GetWidth(); track->SetWidth( image->GetWidth() ); image->SetWidth( atmp );
-            atmp = track->GetShape(); track->SetShape( image->GetShape() ); image->SetShape( atmp );
+            VIATYPE_T viatmp = via->GetViaType();
+            via->SetViaType( viaimage->GetViaType() );
+            viaimage->SetViaType( viatmp );
 
-            atmp = track->GetDrillValue();
+            int drilltmp = via->GetDrillValue();
 
-            if( track->IsDrillDefault() )
-                atmp = -1;
+            if( via->IsDrillDefault() )
+                drilltmp = -1;
 
-            int itmp = image->GetDrillValue();
+            int itmp = viaimage->GetDrillValue();
 
-            if( image->IsDrillDefault() )
+            if( viaimage->IsDrillDefault() )
                 itmp = -1;
 
-            EXCHG(itmp, atmp );
+            std::swap(itmp, drilltmp );
 
-            if( atmp > 0 )
-                track->SetDrill( atmp );
+            if( drilltmp > 0 )
+                via->SetDrill( drilltmp );
             else
-                track->SetDrillDefault();
+                via->SetDrillDefault();
 
             if( itmp > 0 )
-                image->SetDrill( itmp );
+                viaimage->SetDrill( itmp );
             else
-                image->SetDrillDefault();
+                viaimage->SetDrillDefault();
         }
+    }
         break;
 
     case PCB_TEXT_T:
-        EXCHG( ( (TEXTE_PCB*) aItem )->m_Mirror, ( (TEXTE_PCB*) aImage )->m_Mirror );
-        EXCHG( ( (TEXTE_PCB*) aItem )->m_Size, ( (TEXTE_PCB*) aImage )->m_Size );
-        EXCHG( ( (TEXTE_PCB*) aItem )->m_Pos, ( (TEXTE_PCB*) aImage )->m_Pos );
-        EXCHG( ( (TEXTE_PCB*) aItem )->m_Thickness, ( (TEXTE_PCB*) aImage )->m_Thickness );
-        EXCHG( ( (TEXTE_PCB*) aItem )->m_Orient, ( (TEXTE_PCB*) aImage )->m_Orient );
-        EXCHG( ( (TEXTE_PCB*) aItem )->m_Text, ( (TEXTE_PCB*) aImage )->m_Text );
-        EXCHG( ( (TEXTE_PCB*) aItem )->m_Italic, ( (TEXTE_PCB*) aImage )->m_Italic );
-        EXCHG( ( (TEXTE_PCB*) aItem )->m_Bold, ( (TEXTE_PCB*) aImage )->m_Bold );
-        EXCHG( ( (TEXTE_PCB*) aItem )->m_HJustify, ( (TEXTE_PCB*) aImage )->m_HJustify );
-        EXCHG( ( (TEXTE_PCB*) aItem )->m_VJustify, ( (TEXTE_PCB*) aImage )->m_VJustify );
+        std::swap( *((TEXTE_PCB*)this), *((TEXTE_PCB*)aImage) );
         break;
 
     case PCB_TARGET_T:
-        ( (PCB_TARGET*) aItem )->Exchg( (PCB_TARGET*) aImage );
+        std::swap( *((PCB_TARGET*)this), *((PCB_TARGET*)aImage) );
         break;
 
     case PCB_DIMENSION_T:
-        {
-            wxString txt = ( (DIMENSION*) aItem )->GetText();
-            ( (DIMENSION*) aItem )->SetText( ( (DIMENSION*) aImage )->GetText() );
-            ( (DIMENSION*) aImage )->SetText( txt );
-            EXCHG( ( (DIMENSION*) aItem )->m_Width, ( (DIMENSION*) aImage )->m_Width );
-            EXCHG( ( (DIMENSION*) aItem )->m_Text.m_Size, ( (DIMENSION*) aImage )->m_Text.m_Size );
-            EXCHG( ( (DIMENSION*) aItem )->m_Text.m_Pos, ( (DIMENSION*) aImage )->m_Text.m_Pos );
-            EXCHG( ( (DIMENSION*) aItem )->m_Text.m_Thickness,
-                   ( (DIMENSION*) aImage )->m_Text.m_Thickness );
-            EXCHG( ( (DIMENSION*) aItem )->m_Text.m_Mirror,
-                   ( (DIMENSION*) aImage )->m_Text.m_Mirror );
-        }
+        std::swap( *((DIMENSION*)this), *((DIMENSION*)aImage) );
         break;
 
     case PCB_ZONE_T:
     default:
-        wxMessageBox( wxT( "SwapData() error: unexpected type" ) );
+        wxLogMessage( wxT( "SwapData() error: unexpected type %d" ), Type() );
         break;
     }
+
+    // Restore pointers and time stamp, to be sure they are not broken
+    Pnext = pnext;
+    Pback = pback;
+    m_List = mylist;
+    SetTimeStamp( timestamp );
 }
 
 
-/*
- * Function SaveCopyInUndoList
- * Create a copy of the current board item, and put it in the undo list.
- *
- *  aCommandType =
- *      UR_CHANGED
- *      UR_NEW
- *      UR_DELETED
- *      UR_MOVED
- *      UR_FLIPPED
- *      UR_ROTATED
- */
 void PCB_EDIT_FRAME::SaveCopyInUndoList( BOARD_ITEM*    aItem,
                                          UNDO_REDO_T    aCommandType,
                                          const wxPoint& aTransformPoint )
 {
     if( aItem == NULL )     // Nothing to save
         return;
+
+    // For texts belonging to modules, we need to save state of the parent module
+    if( aItem->Type() == PCB_MODULE_TEXT_T )
+    {
+        aItem = aItem->GetParent();
+        wxASSERT( aItem->Type() == PCB_MODULE_T );
+        aCommandType = UR_CHANGED;
+
+        if( aItem == NULL )
+            return;
+    }
 
     PICKED_ITEMS_LIST* commandToUndo = new PICKED_ITEMS_LIST();
 
@@ -353,7 +335,7 @@ void PCB_EDIT_FRAME::SaveCopyInUndoList( BOARD_ITEM*    aItem,
     case UR_DELETED:
 #ifdef USE_WX_OVERLAY
     // Avoid to redraw when autoplacing
-    if( aItem->Type() == PCB_MODULE_T )    
+    if( aItem->Type() == PCB_MODULE_T )
         if( ((MODULE*)aItem)->GetFlags() & MODULE_to_PLACE )
             break;
         m_canvas->Refresh();
@@ -389,13 +371,7 @@ void PCB_EDIT_FRAME::SaveCopyInUndoList( BOARD_ITEM*    aItem,
 }
 
 
-/**
- * Function SaveCopyInUndoList
- * @param aItemsList = a PICKED_ITEMS_LIST of items to save
- * @param aTypeCommand = type of comand ( UR_CHANGED, UR_NEW, UR_DELETED ...
- * @param aTransformPoint - Transform items around this point.
- */
-void PCB_EDIT_FRAME::SaveCopyInUndoList( PICKED_ITEMS_LIST& aItemsList,
+void PCB_EDIT_FRAME::SaveCopyInUndoList( const PICKED_ITEMS_LIST& aItemsList,
                                          UNDO_REDO_T        aTypeCommand,
                                          const wxPoint&     aTransformPoint )
 {
@@ -410,6 +386,20 @@ void PCB_EDIT_FRAME::SaveCopyInUndoList( PICKED_ITEMS_LIST& aItemsList,
     for( unsigned ii = 0; ii < commandToUndo->GetCount(); ii++ )
     {
         BOARD_ITEM* item    = (BOARD_ITEM*) commandToUndo->GetPickedItem( ii );
+
+        // For texts belonging to modules, we need to save state of the parent module
+        if( item->Type() == PCB_MODULE_TEXT_T  || item->Type() == PCB_PAD_T )
+        {
+            item = item->GetParent();
+            wxASSERT( item->Type() == PCB_MODULE_T );
+
+            if( item == NULL )
+                continue;
+
+            commandToUndo->SetPickedItem( item, ii );
+            commandToUndo->SetPickedItemStatus( UR_CHANGED, ii );
+        }
+
         UNDO_REDO_T command = commandToUndo->GetPickedItemStatus( ii );
 
         if( command == UR_UNSPECIFIED )
@@ -467,27 +457,21 @@ void PCB_EDIT_FRAME::SaveCopyInUndoList( PICKED_ITEMS_LIST& aItemsList,
 }
 
 
-/**
- * Function PutDataInPreviousState
- * Used in undo or redo command.
- * Put data pointed by List in the previous state, i.e. the state memorised by List
- * @param aList = a PICKED_ITEMS_LIST pointer to the list of items to undo/redo
- * @param aRedoCommand = a bool: true for redo, false for undo
- * @param aRebuildRatsnet = a bool: true to rebuid ratsnet (normal use, and default), false
- * to just retrieve las state (used in abort commands that do not need to rebuild ratsnest)
- */
 void PCB_EDIT_FRAME::PutDataInPreviousState( PICKED_ITEMS_LIST* aList, bool aRedoCommand,
                                              bool aRebuildRatsnet )
 {
     BOARD_ITEM* item;
     bool        not_found = false;
     bool        reBuild_ratsnest = false;
+    KIGFX::VIEW* view = GetGalCanvas()->GetView();
+    RN_DATA* ratsnest = GetBoard()->GetRatsnest();
 
     // Undo in the reverse order of list creation: (this can allow stacked changes
     // like the same item can be changes and deleted in the same complex command
 
-    bool build_item_list = true;    // if true the list of esiting items must be rebuilt
-    for( int ii = aList->GetCount()-1; ii >= 0 ; ii--  )
+    bool build_item_list = true;    // if true the list of existing items must be rebuilt
+
+    for( int ii = aList->GetCount() - 1; ii >= 0 ; ii-- )
     {
         item = (BOARD_ITEM*) aList->GetPickedItem( ii );
         wxASSERT( item );
@@ -497,19 +481,21 @@ void PCB_EDIT_FRAME::PutDataInPreviousState( PICKED_ITEMS_LIST* aList, bool aRed
          *   - if a call to SaveCopyInUndoList was forgotten in Pcbnew
          *   - in zones outlines, when a change in one zone merges this zone with an other
          * This test avoids a Pcbnew crash
-         * Obviouly, this test is not made for deleted items
+         * Obviously, this test is not made for deleted items
          */
         UNDO_REDO_T status = aList->GetPickedItemStatus( ii );
+
         if( status != UR_DELETED )
         {
             if( build_item_list )
                 // Build list of existing items, for integrity test
                 TestForExistingItem( GetBoard(), NULL );
+
             build_item_list = false;
 
             if( !TestForExistingItem( GetBoard(), item ) )
             {
-                // Remove this non existant item
+                // Remove this non existent item
                 aList->RemovePicker( ii );
                 ii++;       // the current item was removed, ii points now the next item
                             // decrement it because it will be incremented later
@@ -539,35 +525,87 @@ void PCB_EDIT_FRAME::PutDataInPreviousState( PICKED_ITEMS_LIST* aList, bool aRed
         case UR_CHANGED:    /* Exchange old and new data for each item */
         {
             BOARD_ITEM* image = (BOARD_ITEM*) aList->GetPickedItemLink( ii );
-            SwapData( item, image );
+
+            // Remove all pads/drawings/texts, as they become invalid
+            // for the VIEW after SwapData() called for modules
+            if( item->Type() == PCB_MODULE_T )
+            {
+                MODULE* oldModule = static_cast<MODULE*>( item );
+                oldModule->RunOnChildren( boost::bind( &KIGFX::VIEW::Remove, view, _1 ) );
+            }
+            view->Remove( item );
+            ratsnest->Remove( item );
+
+            item->SwapData( image );
+
+            // Update all pads/drawings/texts, as they become invalid
+            // for the VIEW after SwapData() called for modules
+            if( item->Type() == PCB_MODULE_T )
+            {
+                MODULE* newModule = static_cast<MODULE*>( item );
+                newModule->RunOnChildren( boost::bind( &KIGFX::VIEW::Add, view, _1 ) );
+            }
+            view->Add( item );
+            ratsnest->Add( item );
+
+            item->ClearFlags( SELECTED );
+            item->ViewUpdate( KIGFX::VIEW_ITEM::LAYERS );
         }
         break;
 
         case UR_NEW:        /* new items are deleted */
             aList->SetPickedItemStatus( UR_DELETED, ii );
             GetBoard()->Remove( item );
+
+            if( item->Type() == PCB_MODULE_T )
+            {
+                MODULE* module = static_cast<MODULE*>( item );
+                module->RunOnChildren( boost::bind( &KIGFX::VIEW::Remove, view, _1 ) );
+            }
+            view->Remove( item );
+
+            item->ViewUpdate( KIGFX::VIEW_ITEM::GEOMETRY );
             break;
 
         case UR_DELETED:    /* deleted items are put in List, as new items */
             aList->SetPickedItemStatus( UR_NEW, ii );
             GetBoard()->Add( item );
+
+            if( item->Type() == PCB_MODULE_T )
+            {
+                MODULE* module = static_cast<MODULE*>( item );
+                module->RunOnChildren( boost::bind( &KIGFX::VIEW::Add, view, _1) );
+            }
+            view->Add( item );
+
+            item->ViewUpdate( KIGFX::VIEW_ITEM::GEOMETRY );
             build_item_list = true;
             break;
 
         case UR_MOVED:
             item->Move( aRedoCommand ? aList->m_TransformPoint : -aList->m_TransformPoint );
+            item->ViewUpdate( KIGFX::VIEW_ITEM::GEOMETRY );
+            ratsnest->Update( item );
             break;
 
         case UR_ROTATED:
-            item->Rotate( aList->m_TransformPoint, aRedoCommand ? 900 : -900 );
+            item->Rotate( aList->m_TransformPoint,
+                          aRedoCommand ? m_rotationAngle : -m_rotationAngle );
+            item->ViewUpdate( KIGFX::VIEW_ITEM::GEOMETRY );
+            ratsnest->Update( item );
             break;
 
         case UR_ROTATED_CLOCKWISE:
-            item->Rotate( aList->m_TransformPoint, aRedoCommand ? -900 : 900 );
+            item->Rotate( aList->m_TransformPoint,
+                          aRedoCommand ? -m_rotationAngle : m_rotationAngle );
+            item->ViewUpdate( KIGFX::VIEW_ITEM::GEOMETRY );
+            ratsnest->Update( item );
             break;
 
         case UR_FLIPPED:
             item->Flip( aList->m_TransformPoint );
+            item->ViewUpdate( KIGFX::VIEW_ITEM::LAYERS );
+            ratsnest->Update( item );
             break;
 
         default:
@@ -584,25 +622,32 @@ void PCB_EDIT_FRAME::PutDataInPreviousState( PICKED_ITEMS_LIST* aList, bool aRed
     if( not_found )
         wxMessageBox( wxT( "Incomplete undo/redo operation: some items not found" ) );
 
-    // Rebuild pointers and rastnest that can be changed.
+    // Rebuild pointers and ratsnest that can be changed.
     if( reBuild_ratsnest && aRebuildRatsnet )
-        Compile_Ratsnest( NULL, true );
+    {
+        if( IsGalCanvasActive() )
+            ratsnest->Recalculate();
+        else
+            Compile_Ratsnest( NULL, true );
+    }
 }
 
 
-/**
- * Function GetBoardFromUndoList
- * Undo the last edition:
- *     - Save the current board state in Redo list
- *     - Get an old version of the board state from Undo list
- */
-void PCB_EDIT_FRAME::GetBoardFromUndoList( wxCommandEvent& event )
+void PCB_EDIT_FRAME::RestoreCopyFromUndoList( wxCommandEvent& aEvent )
 {
+    if( UndoRedoBlocked() )
+        return;
+
     if( GetScreen()->GetUndoCommandCount() <= 0 )
         return;
 
+    // Inform tools that undo command was issued
+    TOOL_EVENT event( TC_MESSAGE, TA_UNDO_REDO, AS_GLOBAL );
+    m_toolManager->ProcessEvent( event );
+
     /* Get the old list */
     PICKED_ITEMS_LIST* List = GetScreen()->PopCommandFromUndoList();
+
     /* Undo the command */
     PutDataInPreviousState( List, false );
 
@@ -615,18 +660,17 @@ void PCB_EDIT_FRAME::GetBoardFromUndoList( wxCommandEvent& event )
 }
 
 
-/**
- * Function GetBoardFromRedoList
- *  Redo the last edition:
- *  - Save the current board in Undo list
- *  - Get an old version of the board from Redo list
- *  @return none
- */
-void PCB_EDIT_FRAME::GetBoardFromRedoList( wxCommandEvent& event )
+void PCB_EDIT_FRAME::RestoreCopyFromRedoList( wxCommandEvent& aEvent )
 {
+    if( UndoRedoBlocked() )
+        return;
+
     if( GetScreen()->GetRedoCommandCount() == 0 )
         return;
 
+    // Inform tools that redo command was issued
+    TOOL_EVENT event( TC_MESSAGE, TA_UNDO_REDO, AS_GLOBAL );
+    m_toolManager->ProcessEvent( event );
 
     /* Get the old list */
     PICKED_ITEMS_LIST* List = GetScreen()->PopCommandFromRedoList();
@@ -643,17 +687,6 @@ void PCB_EDIT_FRAME::GetBoardFromRedoList( wxCommandEvent& event )
 }
 
 
-/**
- * Function ClearUndoORRedoList
- * free the undo or redo list from List element
- *  Wrappers are deleted.
- *  datas pointed by wrappers are deleted if not in use in schematic
- *  i.e. when they are copy of a schematic item or they are no more in use (DELETED)
- * @param aList = the UNDO_REDO_CONTAINER to clear
- * @param aItemCount = the count of items to remove. < 0 for all items
- * items (commands stored in list) are removed from the beginning of the list.
- * So this function can be called to remove old commands
- */
 void PCB_SCREEN::ClearUndoORRedoList( UNDO_REDO_CONTAINER& aList, int aItemCount )
 {
     if( aItemCount == 0 )

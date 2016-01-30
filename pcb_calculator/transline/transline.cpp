@@ -25,8 +25,6 @@
 #include <transline.h>
 #include <units.h>
 
-using namespace std;
-
 
 #ifndef INFINITY
 #define INFINITY std::numeric_limits<double>::infinity()
@@ -35,13 +33,6 @@ using namespace std;
 
 #ifndef M_PI_2
 #define M_PI_2 (M_PI/2)
-#endif
-
-#ifndef HAVE_CMATH_ISINF
-inline bool isinf(double x)
-{
-    return x == INFINITY; // return true if x is infinity
-}
 #endif
 
 
@@ -71,6 +62,13 @@ TRANSLINE::TRANSLINE()
 {
     murC = 1.0;
     m_name = (const char*) 0;
+
+    // Initialize these variables mainly to avoid warnings from a static analyzer
+    f = 0.0;            // Frequency of operation
+    er = 0.0;           // dielectric constant
+    tand = 0.0;         // Dielectric Loss Tangent
+    sigma = 0.0;        // Conductivity of the metal
+    skindepth = 0.0;    // Skin depth
 }
 
 
@@ -148,7 +146,7 @@ void TRANSLINE::ellipke( double arg, double& k, double& e )
         k = INFINITY; // infinite
         e = 0;
     }
-    else if( isinf( arg ) && arg < 0 )
+    else if( std::isinf( arg ) && arg < 0 )
     {
         k = 0;
         e = INFINITY; // infinite

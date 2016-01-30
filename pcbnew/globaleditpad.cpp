@@ -1,3 +1,27 @@
+/*
+ * This program source code file is part of KiCad, a free EDA CAD application.
+ *
+ * Copyright (C) 2009-2007 Jean-Pierre Charras, jp.charras at wanadoo.fr
+ * Copyright (C) 1992-2012 KiCad Developers, see AUTHORS.txt for contributors.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation; either version 2
+ * of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, you may find one here:
+ * http://www.gnu.org/licenses/old-licenses/gpl-2.0.html
+ * or you may search the http://www.gnu.org website for the version 2 license,
+ * or you may write to the Free Software Foundation, Inc.,
+ * 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
+ */
+
 /**
  * @file globaleditpad.cpp
  */
@@ -7,7 +31,6 @@
 #include <class_drawpanel.h>
 #include <confirm.h>
 #include <wxPcbStruct.h>
-#include <pcbcommon.h>
 #include <module_editor_frame.h>
 
 #include <class_board.h>
@@ -229,7 +252,7 @@ void PCB_BASE_FRAME::GlobalChange_PadSettings( D_PAD* aPad,
 
     // Search and copy the name of library reference.
     MODULE* Module_Ref = module;
-    int pad_orient = aPad->GetOrientation() - Module_Ref->GetOrientation();
+    double pad_orient = aPad->GetOrientation() - Module_Ref->GetOrientation();
 
     // Prepare an undo list:
     if( aSaveForUndo )
@@ -241,23 +264,23 @@ void PCB_BASE_FRAME::GlobalChange_PadSettings( D_PAD* aPad,
             if( !aSameFootprints && (module != Module_Ref) )
                 continue;
 
-            if( module->m_LibRef != Module_Ref->m_LibRef )
+            if( module->GetFPID() != Module_Ref->GetFPID() )
                 continue;
 
             bool   saveMe = false;
 
-            for( D_PAD* pad = module->m_Pads;  pad;  pad = pad->Next() )
+            for( D_PAD* pad = module->Pads();  pad;  pad = pad->Next() )
             {
                 // Filters changes prohibited.
                 if( aPadShapeFilter && ( pad->GetShape() != aPad->GetShape() ) )
                     continue;
 
-                int currpad_orient = pad->GetOrientation() - module->GetOrientation();
+                double currpad_orient = pad->GetOrientation() - module->GetOrientation();
 
                 if( aPadOrientFilter && ( currpad_orient != pad_orient ) )
                     continue;
 
-                if( aPadLayerFilter  &&  pad->GetLayerMask() != aPad->GetLayerMask() )
+                if( aPadLayerFilter  &&  pad->GetLayerSet() != aPad->GetLayerSet() )
                     continue;
 
                 saveMe = true;
@@ -280,7 +303,7 @@ void PCB_BASE_FRAME::GlobalChange_PadSettings( D_PAD* aPad,
         if( !aSameFootprints && (module != Module_Ref) )
             continue;
 
-        if( module->m_LibRef != Module_Ref->m_LibRef )
+        if( module->GetFPID() != Module_Ref->GetFPID() )
             continue;
 
         // Erase module on screen
@@ -291,7 +314,7 @@ void PCB_BASE_FRAME::GlobalChange_PadSettings( D_PAD* aPad,
             module->ClearFlags( DO_NOT_DRAW );
         }
 
-        for( D_PAD* pad = module->m_Pads;  pad;  pad = pad->Next() )
+        for( D_PAD* pad = module->Pads();  pad;  pad = pad->Next() )
         {
             // Filters changes prohibited.
             if( aPadShapeFilter && ( pad->GetShape() != aPad->GetShape() ) )
@@ -302,7 +325,7 @@ void PCB_BASE_FRAME::GlobalChange_PadSettings( D_PAD* aPad,
 
             if( aPadLayerFilter )
             {
-                if( pad->GetLayerMask() != aPad->GetLayerMask() )
+                if( pad->GetLayerSet() != aPad->GetLayerSet() )
                     continue;
                 else
                     m_Pcb->m_Status_Pcb &= ~( LISTE_RATSNEST_ITEM_OK | CONNEXION_OK);
@@ -312,7 +335,7 @@ void PCB_BASE_FRAME::GlobalChange_PadSettings( D_PAD* aPad,
             pad->SetAttribute( aPad->GetAttribute() );
             pad->SetShape( aPad->GetShape() );
 
-            pad->SetLayerMask( aPad->GetLayerMask() );
+            pad->SetLayerSet( aPad->GetLayerSet() );
 
             pad->SetSize( aPad->GetSize() );
             pad->SetDelta( aPad->GetDelta() );
@@ -329,12 +352,12 @@ void PCB_BASE_FRAME::GlobalChange_PadSettings( D_PAD* aPad,
             pad->SetLocalSolderPasteMargin( aPad->GetLocalSolderPasteMargin() );
             pad->SetLocalSolderPasteMarginRatio( aPad->GetLocalSolderPasteMarginRatio() );
 
-            if( pad->GetShape() != PAD_TRAPEZOID )
+            if( pad->GetShape() != PAD_SHAPE_TRAPEZOID )
             {
                 pad->SetDelta( wxSize( 0, 0 ) );
             }
 
-            if( pad->GetShape() == PAD_CIRCLE )
+            if( pad->GetShape() == PAD_SHAPE_CIRCLE )
             {
                 // Ensure pad size.y = pad size.x
                 int size = pad->GetSize().x;
@@ -343,8 +366,8 @@ void PCB_BASE_FRAME::GlobalChange_PadSettings( D_PAD* aPad,
 
             switch( pad->GetAttribute() )
             {
-            case PAD_SMD:
-            case PAD_CONN:
+            case PAD_ATTRIB_SMD:
+            case PAD_ATTRIB_CONN:
                 pad->SetDrillSize( wxSize( 0, 0 ) );
                 pad->SetOffset( wxPoint( 0, 0 ) );
                 break;

@@ -28,7 +28,9 @@
  */
 
 %include <std_vector.i>
+%include <std_basic_string.i>
 %include <std_string.i>
+%include <std_map.i>
 
 /* ignore some constructors of EDA_ITEM that will make the build fail */
 
@@ -48,30 +50,30 @@
 %ignore InitKiCadAbout;
 %ignore GetCommandOptions;
 
-%rename(getWxRect) operator wxRect; 
+%rename(getWxRect) operator wxRect;
 %ignore operator <<;
 %ignore operator=;
+
 
 /* headers/imports that must be included in the _wrapper.cpp at top */
 
 %{
     #include <cstddef>
-	#include <dlist.h>
-	#include <base_struct.h>
-	#include <common.h>
-	#include <wx_python_helpers.h>
-	#include <cstddef>
-  	#include <vector>
-	
-	using namespace std;
-	
-	#include <class_title_block.h>
-	#include <class_colors_design_settings.h>
-	#include <class_marker_base.h>
-    	#include <eda_text.h>
-	#include <convert_from_iu.h>
-	#include <convert_to_biu.h>
+    #include <dlist.h>
+    #include <base_struct.h>
+    #include <class_eda_rect.h>
+    #include <common.h>
+    #include <wx_python_helpers.h>
+    #include <cstddef>
+    #include <vector>
+    #include <bitset>
 
+    #include <class_title_block.h>
+    #include <class_colors_design_settings.h>
+    #include <class_marker_base.h>
+    #include <eda_text.h>
+    #include <convert_from_iu.h>
+    #include <convert_to_biu.h>
 %}
 
 /* all the wx wrappers for wxString, wxPoint, wxRect, wxChar .. */
@@ -97,6 +99,7 @@
 
 %include <dlist.h>
 %include <base_struct.h>
+%include <class_eda_rect.h>
 %include <common.h>
 %include <class_title_block.h>
 %include <class_colors_design_settings.h>
@@ -104,13 +107,54 @@
 %include <eda_text.h>
 %include <convert_from_iu.h>
 %include <convert_to_biu.h>
+%include <fpid.h>
 
 /* special iteration wrapper for DLIST objects */
 %include "dlist.i"
 
 /* std template mappings */
 %template(intVector) std::vector<int>;
+%template(str_utf8_Map) std::map< std::string,UTF8 >;
+
+// wrapper of BASE_SEQ (see typedef std::vector<LAYER_ID> BASE_SEQ;)
+%template(base_seqVect) std::vector<enum LAYER_ID>;
+
+// TODO: wrapper of BASE_SET (see std::bitset<LAYER_ID_COUNT> BASE_SET;)
+
 
 /* KiCad plugin handling */
 %include "kicadplugins.i"
+
+// map CPolyLine and classes used in CPolyLine:
+#include <../polygon/PolyLine.h>
+%include <../polygon/PolyLine.h>
+
+// ignore warning relative to operator = and operator ++:
+#pragma SWIG nowarn=362,383
+
+// Rename operators defined in utf8.h
+%rename(utf8_to_charptr) operator char* () const;
+%rename(utf8_to_wxstring) operator wxString () const;
+
+#include <utf8.h>
+%include <utf8.h>
+
+%extend UTF8
+{
+    const char*   Cast_to_CChar()    { return (self->c_str()); }
+
+    %pythoncode
+    %{
+
+    # Get the char buffer of the UTF8 string
+    def GetChars(self):
+        return self.Cast_to_CChar()
+
+    # Convert the UTF8 string to a python string
+    # Same as GetChars(), but more easy to use in print command
+    def __str__(self):
+        return self.GetChars()
+
+    %}
+}
 

@@ -1,7 +1,7 @@
 /*
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
- * Copyright (C) 20012 Jean-Pierre Charras, jaen-pierre.charras@gipsa-lab.inpg.com
+ * Copyright (C) 2012 Jean-Pierre Charras, jaen-pierre.charras@gipsa-lab.inpg.com
  * Copyright (C) 2008-2012 Wayne Stambaugh <stambaughw@verizon.net>
  * Copyright (C) 1992-2012 KiCad Developers, see AUTHORS.txt for contributors.
  *
@@ -42,10 +42,12 @@ const wxString ProjectFileExtension( wxT( "pro" ) );
 const wxString SchematicFileExtension( wxT( "sch" ) );
 const wxString NetlistFileExtension( wxT( "net" ) );
 const wxString ComponentFileExtension( wxT( "cmp" ) );
-const wxString GerberFileExtension( wxT( "pho" ) );
+const wxString GerberFileExtension( wxT( ".((gbr|(gb|gt)[alops])|pho)" ) );
+const wxString HtmlFileExtension( wxT( "html" ) );
 
 const wxString LegacyPcbFileExtension( wxT( "brd" ) );
 const wxString KiCadPcbFileExtension( wxT( "kicad_pcb" ) );
+const wxString PageLayoutDescrFileExtension( wxT( "kicad_wks" ) );
 
 const wxString PdfFileExtension( wxT( "pdf" ) );
 const wxString MacrosFileExtension( wxT( "mcr" ) );
@@ -53,8 +55,9 @@ const wxString DrillFileExtension( wxT( "drl" ) );
 const wxString SVGFileExtension( wxT( "svg" ) );
 const wxString ReportFileExtension( wxT( "rpt" ) );
 const wxString FootprintPlaceFileExtension( wxT( "pos" ) );
+const wxString KiCadLib3DShapesPathExtension( wxT( "3dshapes" ) );  ///< 3D shapes default libpath
 
-const wxString KiCadFootprintLibPathExtension( wxT( "pretty" ) );    ///< KICAD PLUGIN libpath
+const wxString KiCadFootprintLibPathExtension( wxT( "pretty" ) );   ///< KICAD PLUGIN libpath
 const wxString LegacyFootprintLibPathExtension( wxT( "mod" ) );
 const wxString EagleFootprintLibPathExtension( wxT( "lbr" ) );
 
@@ -72,16 +75,16 @@ const wxString NetlistFileWildcard( _( "KiCad netlist files (*.net)|*.net" ) );
 const wxString GerberFileWildcard( _( "Gerber files (*.pho)|*.pho" ) );
 const wxString LegacyPcbFileWildcard( _( "KiCad printed circuit board files (*.brd)|*.brd" ) );
 const wxString EaglePcbFileWildcard( _( "Eagle ver. 6.x XML PCB files (*.brd)|*.brd" ) );
-const wxString PCadPcbFileWildcard( _( "P-Cad 2002/2004 ASCII PCB files (*.pcb)|*.pcb" ) );
+const wxString PCadPcbFileWildcard( _( "P-Cad 200x ASCII PCB files (*.pcb)|*.pcb" ) );
 const wxString PcbFileWildcard( _( "KiCad s-expr printed circuit board files (*.kicad_pcb)|*.kicad_pcb" ) );
-const wxString KiCadFootprintLibFileWildcard( _( "KiCad footprint s-expre library file (*.kicad_mod)|*.kicad_mod" ) );
+const wxString KiCadFootprintLibFileWildcard( _( "KiCad footprint s-expre file (*.kicad_mod)|*.kicad_mod" ) );
 const wxString KiCadFootprintLibPathWildcard( _( "KiCad footprint s-expre library path (*.pretty)|*.pretty" ) );
 const wxString LegacyFootprintLibPathWildcard( _( "Legacy footprint library file (*.mod)|*.mod" ) );
 const wxString EagleFootprintLibPathWildcard( _( "Eagle ver. 6.x XML library files (*.lbr)|*.lbr" ) );
 const wxString GedaPcbFootprintLibFileWildcard( _( "Geda PCB footprint library file (*.fp)|*.fp" ) );
 const wxString MacrosFileWildcard( _( "KiCad recorded macros (*.mcr)|*.mcr" ) );
 const wxString ComponentFileExtensionWildcard( _( "Component-footprint link file (*.cmp)|*cmp" ) );
-
+const wxString PageLayoutDescrFileWildcard( _( "Page layout descr file (*.kicad_wks)|*kicad_wks" ) );
 // generic:
 const wxString AllFilesWildcard( _( "All files (*)|*" ) );
 
@@ -91,8 +94,11 @@ const wxString ComponentFileWildcard( _( "KiCad cmp/footprint link files (*.cmp)
 // Wildcard for reports and fabrication documents
 const wxString DrillFileWildcard( _( "Drill files (*.drl)|*.drl;*.DRL" ) );
 const wxString SVGFileWildcard( _( "SVG files (*.svg)|*.svg;*.SVG" ) );
+const wxString HtmlFileWildcard( _( "HTML files (*.html)|*.htm;*.html" ) );
 const wxString PdfFileWildcard( _( "Portable document format files (*.pdf)|*.pdf" ) );
 const wxString PSFileWildcard( _( "PostScript files (.ps)|*.ps" ) );
 const wxString ReportFileWildcard = _( "Report files (*.rpt)|*.rpt" );
 const wxString FootprintPlaceFileWildcard = _( "Footprint place files (*.pos)|*.pos" );
-const wxString VrmlFileWildcard( _( "Vrml files (*.wrl)|*.wrl" ) );
+const wxString Shapes3DFileWildcard( _( "Vrml and x3d files (*.wrl *.x3d)|*.wrl;*.x3d" ) );
+const wxString IDF3DFileWildcard( _( "IDFv3 component files (*.idf)|*.idf" ) );
+const wxString TextWildcard( _( "Text files (*.txt)|*.txt" ) );

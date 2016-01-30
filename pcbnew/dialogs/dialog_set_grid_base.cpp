@@ -1,5 +1,5 @@
 ///////////////////////////////////////////////////////////////////////////
-// C++ code generated with wxFormBuilder (version Oct  8 2012)
+// C++ code generated with wxFormBuilder (version Mar  9 2015)
 // http://www.wxformbuilder.org/
 //
 // PLEASE DO "NOT" EDIT THIS FILE!
@@ -30,6 +30,7 @@ DIALOG_SET_GRID_BASE::DIALOG_SET_GRID_BASE( wxWindow* parent, wxWindowID id, con
 	
 	wxFlexGridSizer* fgSizer31;
 	fgSizer31 = new wxFlexGridSizer( 2, 2, 0, 0 );
+	fgSizer31->AddGrowableCol( 1 );
 	fgSizer31->SetFlexibleDirection( wxBOTH );
 	fgSizer31->SetNonFlexibleGrowMode( wxFLEX_GROWMODE_SPECIFIED );
 	
@@ -73,7 +74,7 @@ DIALOG_SET_GRID_BASE::DIALOG_SET_GRID_BASE( wxWindow* parent, wxWindowID id, con
 	
 	m_GridOriginXCtrl = new wxTextCtrl( this, wxID_ANY, wxEmptyString, wxDefaultPosition, wxDefaultSize, 0 );
 	m_GridOriginXCtrl->SetMaxLength( 0 ); 
-	fgSizerGridOrigin->Add( m_GridOriginXCtrl, 0, wxALIGN_CENTER_VERTICAL|wxEXPAND|wxLEFT|wxTOP, 5 );
+	fgSizerGridOrigin->Add( m_GridOriginXCtrl, 0, wxEXPAND|wxLEFT|wxTOP, 5 );
 	
 	m_TextPosXUnits = new wxStaticText( this, wxID_ANY, _("Inches"), wxDefaultPosition, wxDefaultSize, 0 );
 	m_TextPosXUnits->Wrap( -1 );
@@ -85,7 +86,7 @@ DIALOG_SET_GRID_BASE::DIALOG_SET_GRID_BASE( wxWindow* parent, wxWindowID id, con
 	
 	m_GridOriginYCtrl = new wxTextCtrl( this, wxID_ANY, wxEmptyString, wxDefaultPosition, wxDefaultSize, 0 );
 	m_GridOriginYCtrl->SetMaxLength( 0 ); 
-	fgSizerGridOrigin->Add( m_GridOriginYCtrl, 0, wxALIGN_CENTER_VERTICAL|wxBOTTOM|wxEXPAND|wxLEFT|wxTOP, 5 );
+	fgSizerGridOrigin->Add( m_GridOriginYCtrl, 0, wxBOTTOM|wxEXPAND|wxLEFT|wxTOP, 5 );
 	
 	m_TextPosYUnits = new wxStaticText( this, wxID_ANY, _("Inches"), wxDefaultPosition, wxDefaultSize, 0 );
 	m_TextPosYUnits->Wrap( -1 );
@@ -113,15 +114,15 @@ DIALOG_SET_GRID_BASE::DIALOG_SET_GRID_BASE( wxWindow* parent, wxWindowID id, con
 	m_staticTextGrid1->Wrap( -1 );
 	fgSizer3->Add( m_staticTextGrid1, 0, wxALIGN_CENTER_VERTICAL|wxALIGN_RIGHT|wxLEFT|wxTOP, 5 );
 	
-	m_comboBoxGrid1 = new wxComboBox( this, wxID_ANY, _("Combo!"), wxDefaultPosition, wxDefaultSize, 0, NULL, 0 ); 
-	fgSizer3->Add( m_comboBoxGrid1, 0, wxALIGN_CENTER_VERTICAL|wxEXPAND|wxLEFT|wxRIGHT|wxTOP, 5 );
+	m_comboBoxGrid1 = new wxComboBox( this, wxID_ANY, wxEmptyString, wxDefaultPosition, wxDefaultSize, 0, NULL, wxCB_READONLY ); 
+	fgSizer3->Add( m_comboBoxGrid1, 1, wxEXPAND|wxLEFT|wxRIGHT|wxTOP, 5 );
 	
 	m_staticTextGrid2 = new wxStaticText( this, wxID_ANY, _("Grid 2:"), wxDefaultPosition, wxDefaultSize, 0 );
 	m_staticTextGrid2->Wrap( -1 );
 	fgSizer3->Add( m_staticTextGrid2, 0, wxALIGN_CENTER_VERTICAL|wxALIGN_RIGHT|wxBOTTOM|wxLEFT|wxTOP, 5 );
 	
-	m_comboBoxGrid2 = new wxComboBox( this, wxID_ANY, _("Combo!"), wxDefaultPosition, wxDefaultSize, 0, NULL, 0 ); 
-	fgSizer3->Add( m_comboBoxGrid2, 0, wxALIGN_CENTER_VERTICAL|wxALL|wxEXPAND, 5 );
+	m_comboBoxGrid2 = new wxComboBox( this, wxID_ANY, wxEmptyString, wxDefaultPosition, wxDefaultSize, 0, NULL, wxCB_READONLY ); 
+	fgSizer3->Add( m_comboBoxGrid2, 1, wxALL|wxEXPAND, 5 );
 	
 	
 	sbSizer4->Add( fgSizer3, 1, wxALL|wxEXPAND, 5 );

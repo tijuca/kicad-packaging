@@ -27,7 +27,8 @@
  * @brief (Re)Create the menubar for CvPcb
  */
 #include <fctsys.h>
-#include <appl_wxstruct.h>
+#include <pgm_base.h>
+#include <kiface_i.h>
 #include <confirm.h>
 #include <gestfich.h>
 #include <menus_helpers.h>
@@ -63,65 +64,44 @@ void CVPCB_MAINFRAME::ReCreateMenuBar()
     // Menu File:
     wxMenu* filesMenu = new wxMenu;
 
-    // Open
-    AddMenuItem( filesMenu,
-                 ID_LOAD_PROJECT,
-                 _( "&Open" ), LOAD_FILE_HELP, KiBitmap( open_document_xpm ) );
-
-    // Open Recent submenu
-    static wxMenu* openRecentMenu;
-
-    // Add this menu to list menu managed by m_fileHistory
-    // (the file history will be updated when adding/removing files in history
-    if( openRecentMenu )
-        wxGetApp().GetFileHistory().RemoveMenu( openRecentMenu );
-
-    openRecentMenu = new wxMenu();
-    wxGetApp().GetFileHistory().UseMenu( openRecentMenu );
-    wxGetApp().GetFileHistory().AddFilesToMenu();
-    AddMenuItem( filesMenu, openRecentMenu, -1,
-                 _( "Open &Recent" ),
-                 _( "Open a recent opened netlist document" ),
-                 KiBitmap( open_project_xpm ) );
-
-    // Separator
-    filesMenu->AppendSeparator();
-
-    // Save the .cmp file
-    AddMenuItem( filesMenu,
-                 wxID_SAVE,
-                 _( "&Save\tCtrl+S" ), SAVE_HLP_MSG, KiBitmap( save_xpm ) );
-
-    // Save as the .cmp file
-    AddMenuItem( filesMenu,
-                 wxID_SAVEAS,
-                 _( "Save &As..." ), SAVE_AS_HLP_MSG, KiBitmap( save_xpm ) );
+    // Save the footprints back into eeschema
+    AddMenuItem( filesMenu, wxID_SAVE,
+                 _( "&Save Edits\tCtrl+S" ), SAVE_HLP_MSG, KiBitmap( save_xpm ) );
 
     // Separator
     filesMenu->AppendSeparator();
 
     // Quit
-    AddMenuItem( filesMenu,
-                 wxID_EXIT,
-                 _( "&Quit" ),
-                 _( "Quit CvPcb" ),
+    AddMenuItem( filesMenu, wxID_EXIT,
+                 _( "&Close" ), _( "Close CvPcb" ),
                  KiBitmap( exit_xpm ) );
 
     // Menu Preferences:
     wxMenu* preferencesMenu = new wxMenu;
 
-    // Libraries to load
-    AddMenuItem( preferencesMenu, wxID_PREFERENCES,
-                 _( "&Libraries" ),
-                 _( "Set footprint libraries to load and library search paths" ),
-                 KiBitmap( config_xpm ) );
+    AddMenuItem( preferencesMenu, ID_CVPCB_LIB_TABLE_EDIT,
+                 _( "Footprint Li&braries" ), _( "Configure footprint libraries" ),
+                 KiBitmap( library_table_xpm ) );
+
+    // Path configuration edit dialog.
+    AddMenuItem( preferencesMenu,
+                 ID_PREFERENCES_CONFIGURE_PATHS,
+                 _( "Configure Pa&ths" ),
+                 _( "Edit path configuration environment variables" ),
+                 KiBitmap( editor_xpm ) );
+
+    AddMenuItem( preferencesMenu, ID_CVPCB_EQUFILES_LIST_EDIT,
+                 _( "Edit &Equ Files List" ),
+                 _( "Setup equ files list (.equ files)\n"
+                    "They are files which give the footprint name from the component value"),
+                 KiBitmap( library_table_xpm ) );
 
     // Language submenu
-    wxGetApp().AddMenuLanguageList( preferencesMenu );
+    Pgm().AddMenuLanguageList( preferencesMenu );
 
     // Keep open on save
     item = new wxMenuItem( preferencesMenu, ID_CVPCB_CONFIG_KEEP_OPEN_ON_SAVE,
-                           _( "Keep Open On Save" ),
+                           _( "&Keep Open On Save" ),
                            _( "Prevent CvPcb from exiting after saving netlist file" ),
                            wxITEM_CHECK );
     preferencesMenu->Append( item );
@@ -134,23 +114,18 @@ void CVPCB_MAINFRAME::ReCreateMenuBar()
                  _( "Save changes to the project configuration file" ),
                  KiBitmap( save_setup_xpm ) );
 
-    AddMenuItem( preferencesMenu, ID_SAVE_PROJECT_AS,
-                 _( "&Save Project File As" ),
-                 _( "Save changes to the project configuration to a new file" ),
-                 KiBitmap( save_setup_xpm ) );
-
     // Menu Help:
     wxMenu* helpMenu = new wxMenu;
 
     // Version info
     AddHelpVersionInfoMenuEntry( helpMenu );
 
-    // Contents
-    AddMenuItem( helpMenu, wxID_HELP, _( "&Contents" ),
-                 _( "Open the CvPcb handbook" ),
+    // Manual Contents
+    AddMenuItem( helpMenu, wxID_HELP, _( "&CvPcb Manual" ),
+                 _( "Open CvPcb manual" ),
                  KiBitmap( online_help_xpm ) );
 
-    // About
+    // About CvPcb
     AddMenuItem( helpMenu, wxID_ABOUT,
                  _( "&About CvPcb" ),
                  _( "About CvPcb footprint selector" ),

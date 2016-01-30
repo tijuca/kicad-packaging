@@ -33,42 +33,43 @@
 #include <class_drawpanel.h>
 #include <eeschema_id.h>
 #include <confirm.h>
-#include <wxEeschemaStruct.h>
+#include <schframe.h>
 
 #include <general.h>
-#include <protos.h>
 #include <sch_bus_entry.h>
 
 
 static int     s_LastShape = '\\';
 
 
-SCH_BUS_ENTRY* SCH_EDIT_FRAME::CreateBusEntry( wxDC* aDC, int aType )
+SCH_BUS_BUS_ENTRY* SCH_EDIT_FRAME::CreateBusBusEntry()
 {
-    SCH_SCREEN* screen = GetScreen();
-
     // Create and place a new bus entry at cursor position
-    SCH_BUS_ENTRY* busEntry = new SCH_BUS_ENTRY( screen->GetCrossHairPosition(), s_LastShape,
-                                                 aType );
+    SCH_BUS_BUS_ENTRY* busEntry = new SCH_BUS_BUS_ENTRY( GetCrossHairPosition(), s_LastShape );
+
     busEntry->SetFlags( IS_NEW );
     GetScreen()->SetCurItem( busEntry );
-    addCurrentItemToList( aDC );
+    addCurrentItemToList();
     return busEntry;
 }
 
+SCH_BUS_WIRE_ENTRY* SCH_EDIT_FRAME::CreateBusWireEntry()
+{
+    // Create and place a new bus entry at cursor position
+    SCH_BUS_WIRE_ENTRY* busEntry = new SCH_BUS_WIRE_ENTRY( GetCrossHairPosition(), s_LastShape );
+
+    busEntry->SetFlags( IS_NEW );
+    GetScreen()->SetCurItem( busEntry );
+    addCurrentItemToList();
+    return busEntry;
+}
 
 /* set the shape of BusEntry (shape = / or \ )
  */
-void SCH_EDIT_FRAME::SetBusEntryShape( wxDC* DC, SCH_BUS_ENTRY* BusEntry, int entry_shape )
+void SCH_EDIT_FRAME::SetBusEntryShape( wxDC* DC, SCH_BUS_ENTRY_BASE* BusEntry, char entry_shape )
 {
     if( BusEntry == NULL )
         return;
-
-    if( BusEntry->Type() != SCH_BUS_ENTRY_T )
-    {
-        DisplayError( this, wxT( "SetBusEntryType: Bad StructType" ) );
-        return;
-    }
 
     /* Put old item in undo list if it is not currently in edit */
     if( BusEntry->GetFlags() == 0 )

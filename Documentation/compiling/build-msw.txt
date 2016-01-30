@@ -26,10 +26,12 @@ languages.  Only C is installed by default and C++ is required to build KiCad.
 
 Bazaar
 ------
-KiCad uses the Bazaar version control system to track source code changes.
+KiCad uses the Bazaar version control system to track source code changes,
+and download the boost libraries needed by Kicad.
 The easiest way to get a copy of the KiCad source is to use Bazaar.  Bazaar
-can be download from http://http://wiki.bazaar.canonical.com/WindowsDownloads.
-Your best bet is to use the stand alone version of Bazaar rather than one of
+can be download from http://wiki.bazaar.canonical.com/WindowsDownloads.
+Your best bet is to use the stand alone version of Bazaar
+(which includes bzrtools, needed Kicad) rather than one of
 the Python specific versions.
 
 CMake
@@ -87,7 +89,7 @@ MinGW linker.
 Build and Install the wxWidgets Library
 ---------------------------------------
 The wxWidgets library is the base that KiCad is built upon.  Version 2.9.4
-or later of wxWidgets should be used on Windows.  You may be able to build
+or later of wxWidgets *should be* used on Windows.  You may be able to build
 KiCad with older versions of wxWidgets but it is not recommended.  wxWidgets
 can be downloaded from http://http://www.wxwidgets.org/downloads/
 
@@ -101,22 +103,16 @@ install the wxWidgets library into MinGW then enter the following commands:
 
 #mkdir Release
 #cd Release
-#../configure --with-opengl
+#../configure --enable-monolithic=no --enable-shared=yes --with-opengl
 #make
 
 If you want to install wxWidgets in MinGW then enter the following commands:
 #mkdir Release
 #cd Release
-#../configure --prefix=/mingw --with-opengl
+#../configure --prefix=/mingw --enable-monolithic=no --enable-shared=yes --with-opengl
 #make && make install
-#move /mingw/lib/wxmsw*.dll /mingw/bin
 
-The last command is critical so that the libraries are in the MinGW PATH
-and can be found at run time.  If you want to build a full debugging version
-of wxWidgets, add --enable-debug to the configure command.  If you are going
-to use the GNU debugger, you may also want to build the debugging libraries
-with the extra GDB debugging information by adding --enable-debug_gdb to the
-configure command.
+wxWidgets cannot be statically linked to Kicad.
 
 Download the KiCad Source Code
 ------------------------------
@@ -130,16 +126,19 @@ Launchpad repository has two branches for KiCad sources:
   near a stable state)
 
 To download the testing branch:
-#bzr branch lp:kicad kicad_testing
+#bzr branch https://code.launchpad.net/~kicad-product-committers/kicad kicad_testing
 
 To download the stable branch:
-#bzr branch lp:kicad/stable kicad_stable
+#bzr branch https://code.launchpad.net/~kicad-product-committers/kicad/stable kicad_stable
 
-To download the component and footprint libraries
-#bzr branch lp:~kicad-lib-committers/kicad/library kicad_libraries
+To download the component and footprint libraries:
+(This branch is a bzr/launchpad import of the Git repository
+at https://github.com/KiCad/kicad-library.git.
+It has schematic parts and 3D models in it.)
+#bzr branch https://code.launchpad.net/~kicad-product-committers/kicad/library kicad_libraries
 
 To download the documentation and translation files:
-#bzr branch lp:~kicad-developers/kicad/doc kicad_doc
+#bzr branch https://code.launchpad.net/~kicad-developers/kicad/doc kicad_doc
 
 Create Makefiles with CMake
 ---------------------------
@@ -153,8 +152,7 @@ command line enter the following commands:
 To create a release build of KiCad, run the following command:
 #cd build
 #cmake -G "MSYS Makefiles"                  \  # Back slashes are not required
-       -DCMAKE_BUILD_TYPE=Release           \  # and are for formatting only.
-       -DKICAD_TESTING_VERSION=ON ../../
+       -DCMAKE_BUILD_TYPE=Release ../../    \  # and are for formatting only.
 
 If the configuration fails, you have failed to install the required software
 on you system.  The error message should give you a good indication of what is
@@ -191,8 +189,7 @@ To create a debug version of KiCad, enter the following commands:
 
 #cd <kicadSource>/build/debug
 #cmake -G "MSYS Makefiles"                       \
-       -DCMAKE_BUILD_TYPE=Debug                  \
-       -DKICAD_TESTING_VERSION=ON ../../
+       -DCMAKE_BUILD_TYPE=Debug ../../
 #make
 
 Generally speaking you do not install debug binaries.  They can be debugged in
@@ -213,8 +210,7 @@ compile the source as described above.
 #cmake -G "MSYS Makefiles"                       \
        -DCMAKE_BUILD_TYPE=Release                \
        -DKICAD_PYTHON_SCRIPTING=ON               \
-       -DKICAD_PYTHON_MODULES=ON                 \
-       -DKICAD_TESTING_VERSION=ON ../../
+       -DKICAD_PYTHON_MODULES=ON ../../
 
 You only need to include the KICAD_PYTHON_MODULES option if you want to
 install the python modules that ship with KiCad.  Also note that the wxPython
@@ -226,8 +222,8 @@ Building the Developer Documentation
 ------------------------------------
 To build the HTML developer documentation, run the following commands:
 
-#cd <kicadSource>/build/debug
+#cd <kicadSource>/build/release
 #make doxygen-docs
 
-The documentation will be created in the <kicadSouce>/Documenation/html
+The documentation will be created in the <kicadSouce>/Documentation/html
 directory.

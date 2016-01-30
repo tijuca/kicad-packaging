@@ -1,22 +1,45 @@
-/////////////////////////////////////////////////////////////////////////////
-// Name:        dialog_edit_component_in_lib.cpp
-// Author:      jean-pierre Charras
-// Licence:     GPL
-/////////////////////////////////////////////////////////////////////////////
+/**
+ * @file dialog_edit_component_in_lib.cpp
+ */
+
+/*
+ * This program source code file is part of KiCad, a free EDA CAD application.
+ *
+ * Copyright (C) 1992-2013 KiCad Developers, see AUTHORS.txt for contributors.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation; either version 2
+ * of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, you may find one here:
+ * http://www.gnu.org/licenses/old-licenses/gpl-2.0.html
+ * or you may search the http://www.gnu.org website for the version 2 license,
+ * or you may write to the Free Software Foundation, Inc.,
+ * 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
+ */
 
 #include <fctsys.h>
+#include <kiway.h>
 #include <common.h>
 #include <confirm.h>
 #include <gestfich.h>
-#include <appl_wxstruct.h>
+#include <pgm_base.h>
 
 #include <general.h>
-#include <protos.h>
 #include <libeditframe.h>
 #include <class_library.h>
+#include <eeschema_id.h>    // for ID_POPUP_SCH_SELECT_UNIT_CMP_MAX and ID_POPUP_SCH_SELECT_UNIT1
 
 #include <dialog_edit_component_in_lib.h>
 
+int DIALOG_EDIT_COMPONENT_IN_LIBRARY::m_lastOpenedPage = 0;
 
 DIALOG_EDIT_COMPONENT_IN_LIBRARY::DIALOG_EDIT_COMPONENT_IN_LIBRARY( LIB_EDIT_FRAME* aParent ):
     DIALOG_EDIT_COMPONENT_IN_LIBRARY_BASE( aParent )
@@ -33,6 +56,7 @@ DIALOG_EDIT_COMPONENT_IN_LIBRARY::DIALOG_EDIT_COMPONENT_IN_LIBRARY( LIB_EDIT_FRA
 
 DIALOG_EDIT_COMPONENT_IN_LIBRARY::~DIALOG_EDIT_COMPONENT_IN_LIBRARY()
 {
+    m_lastOpenedPage = m_NoteBook->GetSelection( );
 }
 
 /* Initialize state of check boxes and texts
@@ -41,7 +65,7 @@ void DIALOG_EDIT_COMPONENT_IN_LIBRARY::initDlg()
 {
     m_AliasLocation = -1;
 
-    LIB_COMPONENT* component = m_Parent->GetComponent();
+    LIB_PART*      component = m_Parent->GetCurPart();
 
     if( component == NULL )
     {
@@ -49,18 +73,17 @@ void DIALOG_EDIT_COMPONENT_IN_LIBRARY::initDlg()
         return;
     }
 
-    wxString title = _( "Properties for " );
-
+    wxString title;
     bool isRoot = m_Parent->GetAliasName().CmpNoCase( component->GetName() ) == 0;
 
     if( !isRoot )
     {
-        title += m_Parent->GetAliasName() + _( " (alias of " ) + component->GetName() + wxT( ")" );
+        title.Printf( _( "Properties for %s (alias of %s)" ),
+                      GetChars( m_Parent->GetAliasName() ),
+                      GetChars( component->GetName() ) );
     }
     else
-    {
-        title += component->GetName();
-    }
+        title.Printf( _( "Properties for %s" ), GetChars( component->GetName() ) );
 
     SetTitle( title );
     InitPanelDoc();
@@ -85,7 +108,10 @@ void DIALOG_EDIT_COMPONENT_IN_LIBRARY::initDlg()
     {
         m_ButtonDeleteAllFootprintFilter->Enable( false );
         m_ButtonDeleteOneFootprintFilter->Enable( false );
+        m_buttonEditOneFootprintFilter->Enable( false );
     }
+
+    m_NoteBook->SetSelection( m_lastOpenedPage );
 
     m_stdSizerButtonOK->SetDefault();
 }
@@ -101,7 +127,7 @@ void DIALOG_EDIT_COMPONENT_IN_LIBRARY::OnCancelClick( wxCommandEvent& event )
 void DIALOG_EDIT_COMPONENT_IN_LIBRARY::InitPanelDoc()
 {
     LIB_ALIAS* alias;
-    LIB_COMPONENT* component = m_Parent->GetComponent();
+    LIB_PART*      component = m_Parent->GetCurPart();
 
     if( component == NULL )
         return;
@@ -127,10 +153,17 @@ void DIALOG_EDIT_COMPONENT_IN_LIBRARY::InitPanelDoc()
  */
 void DIALOG_EDIT_COMPONENT_IN_LIBRARY::InitBasicPanel()
 {
-    LIB_COMPONENT* component = m_Parent->GetComponent();
+    LIB_PART*      component = m_Parent->GetCurPart();
 
     if( m_Parent->GetShowDeMorgan() )
         m_AsConvertButt->SetValue( true );
+
+    int maxUnits = ID_POPUP_SCH_SELECT_UNIT_CMP_MAX - ID_POPUP_SCH_SELECT_UNIT1;
+    m_SelNumberOfUnits->SetRange (1, maxUnits );
+
+    m_staticTextNbUnits->SetLabel( wxString::Format(
+                            _( "Number of Units (max allowed %d)" ), maxUnits ) );
+
 
     /* Default values for a new component. */
     if( component == NULL )
@@ -148,20 +181,18 @@ void DIALOG_EDIT_COMPONENT_IN_LIBRARY::InitBasicPanel()
     m_ShowPinNumButt->SetValue( component->ShowPinNumbers() );
     m_ShowPinNameButt->SetValue( component->ShowPinNames() );
     m_PinsNameInsideButt->SetValue( component->GetPinNameOffset() != 0 );
-    m_SelNumberOfUnits->SetValue( component->GetPartCount() );
+    m_SelNumberOfUnits->SetValue( component->GetUnitCount() );
     m_SetSkew->SetValue( component->GetPinNameOffset() );
     m_OptionPower->SetValue( component->IsPower() );
-    m_OptionPartsLocked->SetValue( component->UnitsLocked() && component->GetPartCount() > 1 );
+    m_OptionPartsLocked->SetValue( component->UnitsLocked() && component->GetUnitCount() > 1 );
 }
 
 
 void DIALOG_EDIT_COMPONENT_IN_LIBRARY::OnOkClick( wxCommandEvent& event )
 {
-
     /* Update the doc, keyword and doc filename strings */
-    int index;
     LIB_ALIAS* alias;
-    LIB_COMPONENT* component = m_Parent->GetComponent();
+    LIB_PART*      component = m_Parent->GetCurPart();
 
     if( component == NULL )
     {
@@ -183,8 +214,8 @@ void DIALOG_EDIT_COMPONENT_IN_LIBRARY::OnOkClick( wxCommandEvent& event )
 
     component->SetAliases( m_PartAliasListCtrl->GetStrings() );
 
-    index = m_SelNumberOfUnits->GetValue();
-    ChangeNbUnitsPerPackage( index );
+    int unitCount = m_SelNumberOfUnits->GetValue();
+    ChangeNbUnitsPerPackage( unitCount );
 
     if( m_AsConvertButt->GetValue() )
     {
@@ -225,7 +256,7 @@ void DIALOG_EDIT_COMPONENT_IN_LIBRARY::OnOkClick( wxCommandEvent& event )
      *  Obviously, cannot be true if there is only one part */
     component->LockUnits( m_OptionPartsLocked->GetValue() );
 
-    if( component->GetPartCount() <= 1 )
+    if( component->GetUnitCount() <= 1 )
         component->LockUnits( false );
 
     /* Update the footprint filter list */
@@ -242,7 +273,7 @@ void DIALOG_EDIT_COMPONENT_IN_LIBRARY::CopyDocFromRootToAlias( wxCommandEvent& e
         return;
 
     LIB_ALIAS* parent_alias;
-    LIB_COMPONENT* component = m_Parent->GetComponent();
+    LIB_PART*      component = m_Parent->GetCurPart();
 
     if( component == NULL )
         return;
@@ -286,8 +317,8 @@ void DIALOG_EDIT_COMPONENT_IN_LIBRARY::DeleteAllAliasOfPart( wxCommandEvent& eve
 void DIALOG_EDIT_COMPONENT_IN_LIBRARY::AddAliasOfPart( wxCommandEvent& event )
 {
     wxString aliasname;
-    LIB_COMPONENT* component = m_Parent->GetComponent();
-    CMP_LIBRARY* library = m_Parent->GetLibrary();
+    LIB_PART*      component = m_Parent->GetCurPart();
+    PART_LIB* library = m_Parent->GetCurLib();
 
     if( component == NULL )
         return;
@@ -348,7 +379,7 @@ void DIALOG_EDIT_COMPONENT_IN_LIBRARY::DeleteAliasOfPart( wxCommandEvent& event 
     }
 
     m_PartAliasListCtrl->Delete( m_PartAliasListCtrl->GetSelection() );
-    LIB_COMPONENT* component = m_Parent->GetComponent();
+    LIB_PART*      component = m_Parent->GetCurPart();
 
     if( component )
         component->RemoveAlias( aliasname );
@@ -366,16 +397,16 @@ void DIALOG_EDIT_COMPONENT_IN_LIBRARY::DeleteAliasOfPart( wxCommandEvent& event 
  */
 bool DIALOG_EDIT_COMPONENT_IN_LIBRARY::ChangeNbUnitsPerPackage( int MaxUnit )
 {
-    LIB_COMPONENT* component = m_Parent->GetComponent();
+    LIB_PART*      part = m_Parent->GetCurPart();
 
-    if( component == NULL || component->GetPartCount() == MaxUnit || MaxUnit < 1 )
+    if( !part || part->GetUnitCount() == MaxUnit || MaxUnit < 1 )
         return false;
 
-    if( MaxUnit < component->GetPartCount()
+    if( MaxUnit < part->GetUnitCount()
         && !IsOK( this, _( "Delete extra parts from component?" ) ) )
         return false;
 
-    component->SetPartCount( MaxUnit );
+    part->SetUnitCount( MaxUnit );
     return true;
 }
 
@@ -385,7 +416,7 @@ bool DIALOG_EDIT_COMPONENT_IN_LIBRARY::ChangeNbUnitsPerPackage( int MaxUnit )
  */
 bool DIALOG_EDIT_COMPONENT_IN_LIBRARY::SetUnsetConvert()
 {
-    LIB_COMPONENT* component = m_Parent->GetComponent();
+    LIB_PART*      component = m_Parent->GetCurPart();
 
     if( component == NULL || ( m_Parent->GetShowDeMorgan() == component->HasConversion() ) )
         return false;
@@ -413,22 +444,25 @@ bool DIALOG_EDIT_COMPONENT_IN_LIBRARY::SetUnsetConvert()
 
 void DIALOG_EDIT_COMPONENT_IN_LIBRARY::BrowseAndSelectDocFile( wxCommandEvent& event )
 {
-    wxString FullFileName, mask;
-    wxString docpath, filename;
+    PROJECT&        prj = Prj();
+    SEARCH_STACK*   search = prj.SchSearchS();
 
-    docpath = wxGetApp().ReturnLastVisitedLibraryPath( wxT( "doc" ) );
+    wxString    mask = wxT( "*" );
+    wxString    docpath = prj.GetRString( PROJECT::DOC_PATH );
 
-    mask = wxT( "*" );
-    FullFileName = EDA_FileSelector( _( "Doc Files" ),
-                                     docpath,       /* Chemin par defaut */
-                                     wxEmptyString, /* nom fichier par defaut */
-                                     wxEmptyString, /* extension par defaut */
-                                     mask,          /* Masque d'affichage */
+    if( !docpath )
+        docpath = search->LastVisitedPath( wxT( "doc" ) );
+
+    wxString    fullFileName = EDA_FileSelector( _( "Doc Files" ),
+                                     docpath,
+                                     wxEmptyString,
+                                     wxEmptyString,
+                                     mask,
                                      this,
                                      wxFD_OPEN,
                                      true
                                      );
-    if( FullFileName.IsEmpty() )
+    if( fullFileName.IsEmpty() )
         return;
 
     /* If the path is already in the library search paths
@@ -438,10 +472,13 @@ void DIALOG_EDIT_COMPONENT_IN_LIBRARY::BrowseAndSelectDocFile( wxCommandEvent& e
      * because it preserve use of default libraries paths, when the path is a sub path of
      * these default paths
      */
-    wxFileName fn = FullFileName;
-    wxGetApp().SaveLastVisitedLibraryPath( fn.GetPath() );
+    wxFileName fn = fullFileName;
 
-    filename = wxGetApp().ReturnFilenameWithRelativePathInLibPath( FullFileName );
+    prj.SetRString( PROJECT::DOC_PATH, fn.GetPath() );
+
+    wxString filename = search->FilenameWithRelativePathInSearchList(
+            fullFileName, wxPathOnly( Prj().GetProjectFullName() ) );
+
     // Filenames are always stored in unix like mode, ie separator "\" is stored as "/"
     // to ensure files are identical under unices and windows
 #ifdef __WINDOWS__
@@ -453,11 +490,12 @@ void DIALOG_EDIT_COMPONENT_IN_LIBRARY::BrowseAndSelectDocFile( wxCommandEvent& e
 
 void DIALOG_EDIT_COMPONENT_IN_LIBRARY::DeleteAllFootprintFilter( wxCommandEvent& event )
 {
-    if( IsOK( this, _( "Ok to Delete FootprintFilter LIST" ) ) )
+    if( IsOK( this, _( "OK to delete the footprint filter list ?" ) ) )
     {
         m_FootprintFilterListBox->Clear();
         m_ButtonDeleteAllFootprintFilter->Enable( false );
         m_ButtonDeleteOneFootprintFilter->Enable( false );
+        m_buttonEditOneFootprintFilter->Enable( false );
     }
 }
 
@@ -468,7 +506,7 @@ void DIALOG_EDIT_COMPONENT_IN_LIBRARY::DeleteAllFootprintFilter( wxCommandEvent&
 void DIALOG_EDIT_COMPONENT_IN_LIBRARY::AddFootprintFilter( wxCommandEvent& event )
 {
     wxString Line;
-    LIB_COMPONENT* component = m_Parent->GetComponent();
+    LIB_PART*      component = m_Parent->GetCurPart();
 
     if( component == NULL )
         return;
@@ -498,12 +536,13 @@ void DIALOG_EDIT_COMPONENT_IN_LIBRARY::AddFootprintFilter( wxCommandEvent& event
     m_FootprintFilterListBox->Append( Line );
     m_ButtonDeleteAllFootprintFilter->Enable( true );
     m_ButtonDeleteOneFootprintFilter->Enable( true );
+    m_buttonEditOneFootprintFilter->Enable( true );
 }
 
 
 void DIALOG_EDIT_COMPONENT_IN_LIBRARY::DeleteOneFootprintFilter( wxCommandEvent& event )
 {
-    LIB_COMPONENT* component = m_Parent->GetComponent();
+    LIB_PART*      component = m_Parent->GetCurPart();
     int ii = m_FootprintFilterListBox->GetSelection();
 
     m_FootprintFilterListBox->Delete( ii );
@@ -512,5 +551,28 @@ void DIALOG_EDIT_COMPONENT_IN_LIBRARY::DeleteOneFootprintFilter( wxCommandEvent&
     {
         m_ButtonDeleteAllFootprintFilter->Enable( false );
         m_ButtonDeleteOneFootprintFilter->Enable( false );
+        m_buttonEditOneFootprintFilter->Enable( false );
     }
+}
+
+void DIALOG_EDIT_COMPONENT_IN_LIBRARY::EditOneFootprintFilter( wxCommandEvent& event )
+{
+    int idx = m_FootprintFilterListBox->GetSelection();
+
+    if( idx < 0 )
+        return;
+
+    wxString filter = m_FootprintFilterListBox->GetStringSelection();
+
+    wxTextEntryDialog dlg( this, wxEmptyString, _( "Edit footprint filter" ), filter );
+
+    if( dlg.ShowModal() != wxID_OK )
+        return;    // Aborted by user
+
+    filter = dlg.GetValue();
+
+    if( filter.IsEmpty() )
+        return;    // do not accept blank filter.
+
+    m_FootprintFilterListBox->SetString( idx, filter );
 }

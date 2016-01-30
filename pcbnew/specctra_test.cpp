@@ -51,7 +51,7 @@ int main( int argc, char** argv )
     SPECCTRA_DB     db;
     bool            failed = false;
 
-    SetLocaleTo_C_standard( );    // Switch the locale to standard C
+    LOCALE_IO toggle;   // Temporary switch the locale to standard C to r/w floats
 
     if( argc == 2 )
     {
@@ -63,7 +63,7 @@ int main( int argc, char** argv )
 //        db.LoadPCB( filename );
         db.LoadSESSION( filename );
     }
-    catch( IO_ERROR ioe )
+    catch( const IO_ERROR& ioe )
     {
         fprintf( stderr, "%s\n", TO_UTF8(ioe.errorText) );
         failed = true;
@@ -87,8 +87,6 @@ int main( int argc, char** argv )
     DSN::SESSION* ses = db.GetSESSION();
     ses->Format( &db, 0 );
 #endif
-
-    SetLocaleTo_Default( );      // revert to the current locale
 }
 
 //-----<dummy code>---------------------------------------------------
@@ -100,7 +98,7 @@ int BOARD::GetCopperLayerCount() const
 }
 
 // a dummy to satisfy link of specctra_test without pulling in BOARD stuff.
-wxString BOARD::GetLayerName( int aLayer ) const
+wxString BOARD::GetLayerName( LAYER_NUM aLayer ) const
 {
     return wxEmptyString;
 }

@@ -34,52 +34,52 @@
 #include <common.h>
 #include <macros.h>
 #include <trigo.h>
-#include <pcbcommon.h>
-
+#include <math_for_graphics.h>
 #include <class_board.h>
 #include <class_track.h>
+#include <class_drawsegment.h>
 
 #include <pcbnew.h>
 #include <autorout.h>
 #include <cell.h>
 
-void TracePcbLine( int x0, int y0, int x1, int y1, int layer, int color );
+void TracePcbLine( int x0, int y0, int x1, int y1, LAYER_NUM layer, int color );
 
 void TraceArc( int ux0, int uy0,
                int ux1, int uy1,
-               int ArcAngle,
-               int lg, int layer, int color,
+               double ArcAngle,
+               int lg, LAYER_NUM layer, int color,
                int op_logic );
 
 
 static void DrawSegmentQcq( int ux0, int uy0,
                             int ux1, int uy1,
-                            int lg, int layer, int color,
+                            int lg, LAYER_NUM layer, int color,
                             int op_logic );
 
 static void TraceFilledCircle( int    cx, int cy, int radius,
-                               int    aLayerMask,
+                               LSET aLayerMask,
                                int    color,
                                int    op_logic );
 
-static void TraceCircle( int ux0, int uy0, int ux1, int uy1, int lg, int layer,
+static void TraceCircle( int ux0, int uy0, int ux1, int uy1, int lg, LAYER_NUM layer,
                          int color, int op_logic );
 
 // Macro call to update cell.
 #define OP_CELL( layer, dy, dx )                                        \
     {                                                                   \
-        if( layer < 0 )                                                 \
+        if( layer == UNDEFINED_LAYER )                                  \
         {                                                               \
             RoutingMatrix.WriteCell( dy, dx, BOTTOM, color );           \
-            if( RoutingMatrix.m_RoutingLayersCount > 1 )                                              \
-                RoutingMatrix.WriteCell( dy, dx, TOP, color );                        \
+            if( RoutingMatrix.m_RoutingLayersCount > 1 )                \
+                RoutingMatrix.WriteCell( dy, dx, TOP, color );          \
         }                                                               \
         else                                                            \
         {                                                               \
-            if( layer == Route_Layer_BOTTOM )                           \
+            if( layer == g_Route_Layer_BOTTOM )                         \
                 RoutingMatrix.WriteCell( dy, dx, BOTTOM, color );       \
-            if( RoutingMatrix.m_RoutingLayersCount > 1 )                                              \
-                if( layer == Route_Layer_TOP )                          \
+            if( RoutingMatrix.m_RoutingLayersCount > 1 )                \
+                if( layer == g_Route_Layer_TOP )                        \
                     RoutingMatrix.WriteCell( dy, dx, TOP, color );      \
         }                                                               \
     }
@@ -87,22 +87,22 @@ static void TraceCircle( int ux0, int uy0, int ux1, int uy1, int lg, int layer,
 void PlacePad( D_PAD* aPad, int color, int marge, int op_logic )
 {
     int     dx, dy;
-    wxPoint shape_pos = aPad->ReturnShapePos();
+    wxPoint shape_pos = aPad->ShapePos();
 
     dx = aPad->GetSize().x / 2;
     dx += marge;
 
-    if( aPad->GetShape() == PAD_CIRCLE )
+    if( aPad->GetShape() == PAD_SHAPE_CIRCLE )
     {
         TraceFilledCircle( shape_pos.x, shape_pos.y, dx,
-                           aPad->GetLayerMask(), color, op_logic );
+                           aPad->GetLayerSet(), color, op_logic );
         return;
     }
 
     dy = aPad->GetSize().y / 2;
     dy += marge;
 
-    if( aPad->GetShape() == PAD_TRAPEZOID )
+    if( aPad->GetShape() == PAD_SHAPE_TRAPEZOID )
     {
         dx += abs( aPad->GetDelta().y ) / 2;
         dy += abs( aPad->GetDelta().x ) / 2;
@@ -114,19 +114,19 @@ void PlacePad( D_PAD* aPad, int color, int marge, int op_logic )
         // Orientation turned 90 deg.
         if( aPad->GetOrientation() == 900  ||  aPad->GetOrientation() == 2700 )
         {
-            EXCHG( dx, dy );
+            std::swap( dx, dy );
         }
 
         TraceFilledRectangle( shape_pos.x - dx, shape_pos.y - dy,
                               shape_pos.x + dx, shape_pos.y + dy,
-                              aPad->GetLayerMask(), color, op_logic );
+                              aPad->GetLayerSet(), color, op_logic );
     }
     else
     {
         TraceFilledRectangle( shape_pos.x - dx, shape_pos.y - dy,
                               shape_pos.x + dx, shape_pos.y + dy,
-                              (int) aPad->GetOrientation(),
-                              aPad->GetLayerMask(), color, op_logic );
+                              aPad->GetOrientation(),
+                              aPad->GetLayerSet(), color, op_logic );
     }
 }
 
@@ -139,10 +139,8 @@ void PlacePad( D_PAD* aPad, int color, int marge, int op_logic )
  * color: mask write in cells
  * op_logic: type of writing in the cell (WRITE, OR)
  */
-void TraceFilledCircle( int    cx, int cy, int radius,
-                        int    aLayerMask,
-                        int    color,
-                        int    op_logic )
+void TraceFilledCircle( int cx, int cy, int radius,
+        LSET aLayerMask,  int color,  int op_logic )
 {
     int   row, col;
     int   ux0, uy0, ux1, uy1;
@@ -152,10 +150,10 @@ void TraceFilledCircle( int    cx, int cy, int radius,
     int   tstwrite = 0;
     int   distmin;
 
-    if( aLayerMask & GetLayerMask( Route_Layer_BOTTOM ) )
+    if( aLayerMask[g_Route_Layer_BOTTOM] )
         trace = 1;       // Trace on BOTTOM
 
-    if( aLayerMask & GetLayerMask( Route_Layer_TOP ) )
+    if( aLayerMask[g_Route_Layer_TOP] )
         if( RoutingMatrix.m_RoutingLayersCount > 1 )
             trace |= 2;  // Trace on TOP
 
@@ -256,79 +254,88 @@ void TraceFilledCircle( int    cx, int cy, int radius,
     }
 }
 
-
-void TraceSegmentPcb( TRACK* pt_segm, int color, int marge, int op_logic )
+void TraceSegmentPcb( DRAWSEGMENT* pt_segm, int color, int marge, int op_logic )
 {
-    int half_width;
-    int ux0, uy0, ux1, uy1;
-
-    half_width = ( pt_segm->GetWidth() / 2 ) + marge;
+    int half_width = ( pt_segm->GetWidth() / 2 ) + marge;
 
     // Calculate the bounding rectangle of the segment (if H, V or Via)
-    ux0 = pt_segm->GetStart().x - RoutingMatrix.GetBrdCoordOrigin().x;
-    uy0 = pt_segm->GetStart().y - RoutingMatrix.GetBrdCoordOrigin().y;
-    ux1 = pt_segm->GetEnd().x - RoutingMatrix.GetBrdCoordOrigin().x;
-    uy1 = pt_segm->GetEnd().y - RoutingMatrix.GetBrdCoordOrigin().y;
+    int ux0 = pt_segm->GetStart().x - RoutingMatrix.GetBrdCoordOrigin().x;
+    int uy0 = pt_segm->GetStart().y - RoutingMatrix.GetBrdCoordOrigin().y;
+    int ux1 = pt_segm->GetEnd().x - RoutingMatrix.GetBrdCoordOrigin().x;
+    int uy1 = pt_segm->GetEnd().y - RoutingMatrix.GetBrdCoordOrigin().y;
 
-    // Test if VIA (filled circle was drawn)
-    if( pt_segm->Type() == PCB_VIA_T )
+    LAYER_NUM layer = pt_segm->GetLayer();
+
+    if( color == VIA_IMPOSSIBLE )
+        layer = UNDEFINED_LAYER;
+
+    switch( pt_segm->GetShape() )
     {
-        int mask_layer = 0;
+    // The segment is here a straight line or a circle or an arc.:
+    case S_CIRCLE:
+        TraceCircle( ux0, uy0, ux1, uy1, half_width, layer, color, op_logic );
+        break;
 
-        if( pt_segm->IsOnLayer( Route_Layer_BOTTOM ) )
-            mask_layer = 1 << Route_Layer_BOTTOM;
+    case S_ARC:
+        TraceArc( ux0, uy0, ux1, uy1, pt_segm->GetAngle(), half_width, layer, color, op_logic );
+        break;
 
-        if( pt_segm->IsOnLayer( Route_Layer_TOP ) )
+    // The segment is here a line segment.
+    default:
+        DrawSegmentQcq( ux0, uy0, ux1, uy1, half_width, layer, color, op_logic );
+        break;
+    }
+}
+
+void TraceSegmentPcb( TRACK* aTrack, int color, int marge, int op_logic )
+{
+    int half_width = ( aTrack->GetWidth() / 2 ) + marge;
+
+    // Test if VIA (filled circle need to be drawn)
+    if( aTrack->Type() == PCB_VIA_T )
+    {
+        LSET layer_mask;
+
+        if( aTrack->IsOnLayer( g_Route_Layer_BOTTOM ) )
+            layer_mask.set( g_Route_Layer_BOTTOM );
+
+        if( aTrack->IsOnLayer( g_Route_Layer_TOP ) )
         {
-            if( mask_layer == 0 )
-                mask_layer = 1 << Route_Layer_TOP;
+            if( !layer_mask.any() )
+                layer_mask = LSET( g_Route_Layer_TOP );
             else
-                mask_layer = -1;
+                layer_mask.set();
         }
 
         if( color == VIA_IMPOSSIBLE )
-            mask_layer = -1;
+            layer_mask.set();
 
-        if( mask_layer )
-            TraceFilledCircle( pt_segm->GetStart().x, pt_segm->GetStart().y,
-                               half_width, mask_layer, color, op_logic );
-        return;
+        if( layer_mask.any() )
+            TraceFilledCircle( aTrack->GetStart().x, aTrack->GetStart().y,
+                               half_width, layer_mask, color, op_logic );
     }
-
-    int layer = pt_segm->GetLayer();
-
-    if( color == VIA_IMPOSSIBLE )
-        layer = -1;
-
-    // The segment is here a straight line or a circle or an arc.:
-    if( pt_segm->GetShape() == S_CIRCLE )
+    else
     {
-        TraceCircle( ux0, uy0, ux1, uy1, half_width, layer, color, op_logic );
-        return;
-    }
+        // Calculate the bounding rectangle of the segment
+        int ux0 = aTrack->GetStart().x - RoutingMatrix.GetBrdCoordOrigin().x;
+        int uy0 = aTrack->GetStart().y - RoutingMatrix.GetBrdCoordOrigin().y;
+        int ux1 = aTrack->GetEnd().x - RoutingMatrix.GetBrdCoordOrigin().x;
+        int uy1 = aTrack->GetEnd().y - RoutingMatrix.GetBrdCoordOrigin().y;
 
-    if( pt_segm->GetShape() == S_ARC )
-    {
-        TraceArc( ux0, uy0, ux1, uy1, pt_segm->m_Param, half_width, layer, color, op_logic );
-        return;
-    }
+        // Ordinary track
+        LAYER_ID layer = aTrack->GetLayer();
 
-    // The segment is here a line segment.
-    if( ( ux0 != ux1 ) && ( uy0 != uy1 ) ) // Segment tilts.
-    {
+        if( color == VIA_IMPOSSIBLE )
+            layer = UNDEFINED_LAYER;
+
         DrawSegmentQcq( ux0, uy0, ux1, uy1, half_width, layer, color, op_logic );
-        return;
     }
-
-    // The segment is horizontal or vertical.
-    // F4EXB 051018-01
-    DrawSegmentQcq( ux0, uy0, ux1, uy1, half_width, layer, color, op_logic );
 }
 
 
 /* Draws a line, if layer = -1 on all layers
  */
-void TracePcbLine( int x0, int y0, int x1, int y1, int layer, int color, int op_logic  )
+void TracePcbLine( int x0, int y0, int x1, int y1, LAYER_NUM layer, int color, int op_logic  )
 {
     int  dx, dy, lim;
     int  cumul, inc, il, delta;
@@ -338,7 +345,7 @@ void TracePcbLine( int x0, int y0, int x1, int y1, int layer, int color, int op_
     if( x0 == x1 )  // Vertical.
     {
         if( y1 < y0 )
-            EXCHG( y0, y1 );
+            std::swap( y0, y1 );
 
         dy  = y0 / RoutingMatrix.m_GridRouting;
         lim = y1 / RoutingMatrix.m_GridRouting;
@@ -365,7 +372,7 @@ void TracePcbLine( int x0, int y0, int x1, int y1, int layer, int color, int op_
     if( y0 == y1 )  // Horizontal
     {
         if( x1 < x0 )
-            EXCHG( x0, x1 );
+            std::swap( x0, x1 );
 
         dx  = x0 / RoutingMatrix.m_GridRouting;
         lim = x1 / RoutingMatrix.m_GridRouting;
@@ -394,7 +401,8 @@ void TracePcbLine( int x0, int y0, int x1, int y1, int layer, int color, int op_
     {
         if( x1 < x0 )
         {
-            EXCHG( x1, x0 ); EXCHG( y1, y0 );
+            std::swap( x1, x0 );
+            std::swap( y1, y0 );
         }
 
         dx  = x0 / RoutingMatrix.m_GridRouting;
@@ -431,8 +439,8 @@ void TracePcbLine( int x0, int y0, int x1, int y1, int layer, int color, int op_
     {
         if( y1 < y0 )
         {
-            EXCHG( x1, x0 );
-            EXCHG( y1, y0 );
+            std::swap( x1, x0 );
+            std::swap( y1, y0 );
         }
 
         dy  = y0 / RoutingMatrix.m_GridRouting;
@@ -468,17 +476,16 @@ void TracePcbLine( int x0, int y0, int x1, int y1, int layer, int color, int op_
 
 
 void TraceFilledRectangle( int ux0, int uy0, int ux1, int uy1,
-                           int aLayerMask, int color, int op_logic )
+                           LSET aLayerMask, int color, int op_logic )
 {
     int  row, col;
     int  row_min, row_max, col_min, col_max;
     int  trace = 0;
 
-    if( ( aLayerMask & GetLayerMask( Route_Layer_BOTTOM ) ) )
+    if( aLayerMask[g_Route_Layer_BOTTOM] )
         trace = 1;     // Trace on BOTTOM
 
-    if( ( aLayerMask & GetLayerMask( Route_Layer_TOP ) ) &&
-        RoutingMatrix.m_RoutingLayersCount > 1 )
+    if( aLayerMask[g_Route_Layer_TOP] && RoutingMatrix.m_RoutingLayersCount > 1 )
         trace |= 2;    // Trace on TOP
 
     if( trace == 0 )
@@ -531,7 +538,7 @@ void TraceFilledRectangle( int ux0, int uy0, int ux1, int uy1,
 
 
 void TraceFilledRectangle( int ux0, int uy0, int ux1, int uy1,
-                           int angle, int aLayerMask, int color, int op_logic )
+                           double angle, LSET aLayerMask, int color, int op_logic )
 {
     int  row, col;
     int  cx, cy;    // Center of rectangle
@@ -540,10 +547,10 @@ void TraceFilledRectangle( int ux0, int uy0, int ux1, int uy1,
     int  rotrow, rotcol;
     int  trace = 0;
 
-    if( aLayerMask & GetLayerMask( Route_Layer_BOTTOM ) )
+    if( aLayerMask[g_Route_Layer_BOTTOM] )
         trace = 1;     // Trace on BOTTOM
 
-    if( aLayerMask & GetLayerMask( Route_Layer_TOP ) )
+    if( aLayerMask[g_Route_Layer_TOP] )
     {
         if( RoutingMatrix.m_RoutingLayersCount > 1 )
             trace |= 2;  // Trace on TOP
@@ -561,8 +568,7 @@ void TraceFilledRectangle( int ux0, int uy0, int ux1, int uy1,
 
     cx    = (ux0 + ux1) / 2;
     cy    = (uy0 + uy1) / 2;
-    radius = (int) sqrt( (double) ( cx - ux0 ) * ( cx - ux0 )
-                       + (double) ( cy - uy0 ) * ( cy - uy0 ) );
+    radius = KiROUND( Distance( ux0, uy0, cx, cy ) );
 
     // Calculating coordinate limits belonging to the rectangle.
     row_max = ( cy + radius ) / RoutingMatrix.m_GridRouting;
@@ -623,7 +629,7 @@ void TraceFilledRectangle( int ux0, int uy0, int ux1, int uy1,
  * half-width = lg, org = ux0,uy0 end = ux1,uy1
  * coordinates are in PCB units
  */
-void DrawSegmentQcq( int ux0, int uy0, int ux1, int uy1, int lg, int layer,
+void DrawSegmentQcq( int ux0, int uy0, int ux1, int uy1, int lg, LAYER_NUM layer,
                      int color, int op_logic )
 {
     int  row, col;
@@ -631,7 +637,6 @@ void DrawSegmentQcq( int ux0, int uy0, int ux1, int uy1, int lg, int layer,
     int  row_max, col_max, row_min, col_min;
     int  demi_pas;
 
-    int  angle;
     int  cx, cy, dx, dy;
 
     RoutingMatrix.SetCellOperation( op_logic );
@@ -639,8 +644,8 @@ void DrawSegmentQcq( int ux0, int uy0, int ux1, int uy1, int lg, int layer,
     // Make coordinate ux1 tj > ux0 to simplify calculations
     if( ux1 < ux0 )
     {
-        EXCHG( ux1, ux0 );
-        EXCHG( uy1, uy0 );
+        std::swap( ux1, ux0 );
+        std::swap( uy1, uy0 );
     }
 
     // Calculating the incrementing the Y axis
@@ -687,9 +692,10 @@ void DrawSegmentQcq( int ux0, int uy0, int ux1, int uy1, int lg, int layer,
     dx = ux1 - ux0;
     dy = uy1 - uy0;
 
+    double angle;
     if( dx )
     {
-        angle = (int) ( atan2( (double) dy, (double) dx ) * 1800 / M_PI );
+        angle = ArcTangente( dy, dx );
     }
     else
     {
@@ -749,7 +755,7 @@ void DrawSegmentQcq( int ux0, int uy0, int ux1, int uy1, int lg, int layer,
  * half-width = lg, center = ux0, uy0, ux1,uy1 is a point on the circle.
  * coord are in PCB units.
  */
-void TraceCircle( int ux0, int uy0, int ux1, int uy1, int lg, int layer,
+void TraceCircle( int ux0, int uy0, int ux1, int uy1, int lg, LAYER_NUM layer,
                   int color, int op_logic )
 {
     int radius, nb_segm;
@@ -758,7 +764,7 @@ void TraceCircle( int ux0, int uy0, int ux1, int uy1, int lg, int layer,
     int ii;
     int angle;
 
-    radius = (int) hypot( (double) (ux1 - ux0), (double) (uy1 - uy0) );
+    radius = KiROUND( Distance( ux0, uy0, ux1, uy1 ) );
 
     x0 = x1 = radius;
     y0 = y1 = 0;
@@ -777,8 +783,8 @@ void TraceCircle( int ux0, int uy0, int ux1, int uy1, int lg, int layer,
     for( ii = 1; ii < nb_segm; ii++ )
     {
         angle = (3600 * ii) / nb_segm;
-        x1    = (int) ( radius * cos( DEG2RAD( (double)angle / 10.0 ) ) );
-        y1    = (int) ( radius * sin( DEG2RAD( (double)angle / 10.0 ) ) );
+        x1    = KiROUND( cosdecideg( radius, angle ) );
+        y1    = KiROUND( sindecideg( radius, angle ) );
         DrawSegmentQcq( x0 + ux0, y0 + uy0, x1 + ux0, y1 + uy0, lg, layer, color, op_logic );
         x0 = x1;
         y0 = y1;
@@ -793,17 +799,17 @@ void TraceCircle( int ux0, int uy0, int ux1, int uy1, int lg, int layer,
  * center = ux0,uy0, starting at ux1, uy1.  Coordinates are in
  * PCB units.
  */
-void TraceArc( int ux0, int uy0, int ux1, int uy1, int ArcAngle, int lg,
-               int layer, int color, int op_logic )
+void TraceArc( int ux0, int uy0, int ux1, int uy1, double ArcAngle, int lg,
+               LAYER_NUM layer, int color, int op_logic )
 {
     int radius, nb_segm;
     int x0, y0,             // Starting point of the current segment trace
         x1, y1;             // End point
     int ii;
-    int angle, StAngle;
+    double angle, StAngle;
 
 
-    radius = (int) hypot( (double) (ux1 - ux0), (double) (uy1 - uy0) );
+    radius = KiROUND( Distance( ux0, uy0, ux1, uy1 ) );
 
     x0 = ux1 - ux0;
     y0 = uy1 - uy0;
@@ -813,7 +819,7 @@ void TraceArc( int ux0, int uy0, int ux1, int uy1, int ArcAngle, int lg,
         lg = 1;
 
     nb_segm = ( 2 * radius ) / lg;
-    nb_segm = ( nb_segm * abs( ArcAngle ) ) / 3600;
+    nb_segm = ( nb_segm * std::abs( ArcAngle ) ) / 3600;
 
     if( nb_segm < 5 )
         nb_segm = 5;
@@ -826,14 +832,10 @@ void TraceArc( int ux0, int uy0, int ux1, int uy1, int ArcAngle, int lg,
         angle  = ( ArcAngle * ii ) / nb_segm;
         angle += StAngle;
 
-        while( angle >= 3600 )
-            angle -= 3600;
+        NORMALIZE_ANGLE_POS( angle );
 
-        while( angle < 0 )
-            angle += 3600;
-
-        x1 = (int) ( radius * cos( DEG2RAD( (double)angle / 10.0 ) ) );
-        y1 = (int) ( radius * sin( DEG2RAD( (double)angle / 10.0 ) ) );
+        x1 = KiROUND( cosdecideg( radius, angle ) );
+        y1 = KiROUND( cosdecideg( radius, angle ) );
         DrawSegmentQcq( x0 + ux0, y0 + uy0, x1 + ux0, y1 + uy0, lg, layer, color, op_logic );
         x0 = x1;
         y0 = y1;

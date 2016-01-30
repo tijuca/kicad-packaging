@@ -3,7 +3,7 @@
  *
  * Copyright (C) 2013 Jean-Pierre Charras, jp.charras at wanadoo.fr
  * Copyright (C) 2008-2013 Wayne Stambaugh <stambaughw@verizon.net>
- * Copyright (C) 2004-2011 KiCad Developers, see change_log.txt for contributors.
+ * Copyright (C) 2004-2015 KiCad Developers, see change_log.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -32,28 +32,115 @@
 #include <confirm.h>
 #include <kicad_string.h>
 #include <gestfich.h>
-#include <appl_wxstruct.h>
-#include <wxEeschemaStruct.h>
+#include <kiface_i.h>
+#include <schframe.h>
 #include <build_version.h>
 #include <wildcards_and_files_ext.h>
 
 #include <general.h>
 #include <sch_sheet_path.h>
 #include <sch_component.h>
-#include <netlist.h>
+#include <sch_reference_list.h>
+
+#include <dsnlexer.h>
+#include <ptree.h>
+#include <boost/property_tree/ptree.hpp>
+#include <wx/choicdlg.h>
 
 
-
-bool SCH_EDIT_FRAME::ProcessCmpToFootprintLinkFile( wxString& aFullFilename,
-                                                    bool aForceFieldsVisibleAttribute,
-                                                    bool aFieldsVisibleAttributeState )
+void SCH_EDIT_FRAME::backAnnotateFootprints( const std::string& aChangedSetOfReferences )
+    throw( IO_ERROR, boost::bad_pointer )
 {
     // Build a flat list of components in schematic:
-    SCH_REFERENCE_LIST referencesList;
-    SCH_SHEET_LIST SheetList;
-    SheetList.GetComponents( referencesList, false );
+    SCH_REFERENCE_LIST  refs;
+    SCH_SHEET_LIST      sheets;
+    bool                isChanged = false;
+
+    sheets.GetComponents( Prj().SchLibs(), refs, false );
+
+    DSNLEXER    lexer( aChangedSetOfReferences, FROM_UTF8( __func__ ) );
+    PTREE       doc;
+
+    try
+    {
+        Scan( &doc, &lexer );
+
+#if defined(DEBUG) && 0
+        STRING_FORMATTER sf;
+        Format( &sf, 0, 0, doc );
+        printf( "%s: '%s'\n", __func__, sf.GetString().c_str() );
+#endif
+
+        CPTREE& back_anno = doc.get_child( "back_annotation" );
+        wxString footprint;
+
+        for( PTREE::const_iterator ref = back_anno.begin();  ref != back_anno.end();  ++ref )
+        {
+            wxASSERT( ref->first == "ref" );
+
+            wxString reference = (UTF8&) ref->second.front().first;
+
+            // Ensure the "fpid" node contains a footprint name,
+            // and get it if exists
+            if( ref->second.get_child( "fpid" ).size() )
+            {
+                wxString tmp = (UTF8&) ref->second.get_child( "fpid" ).front().first;
+                footprint = tmp;
+            }
+            else
+                footprint.Empty();
+
+            // DBG( printf( "%s: ref:%s  fpid:%s\n", __func__, TO_UTF8( reference ), TO_UTF8( footprint ) ); )
+
+            // Search the component in the flat list
+            for( unsigned ii = 0;  ii < refs.GetCount();  ++ii )
+            {
+                if( Cmp_KEEPCASE( reference, refs[ii].GetRef() ) == 0 )
+                {
+                    // We have found a candidate.
+                    // Note: it can be not unique (multiple parts per package)
+                    // So we *do not* stop the search here
+                    SCH_COMPONENT*  component = refs[ii].GetComp();
+                    SCH_FIELD*      fpfield   = component->GetField( FOOTPRINT );
+                    const wxString& oldfp = fpfield->GetText();
+
+                    if( !oldfp && fpfield->IsVisible() )
+                    {
+                        fpfield->SetVisible( false );
+                    }
+
+                    // DBG( printf("%s: ref:%s  fpid:%s\n", __func__, TO_UTF8( refs[ii].GetRef() ), TO_UTF8( footprint ) );)
+                    if( oldfp != footprint )
+                        isChanged = true;
+
+                    fpfield->SetText( footprint );
+                }
+            }
+        }
+    }
+    catch( const PTREE_ERROR& ex )
+    {
+        // remap the exception to something the caller is likely to understand.
+        THROW_IO_ERROR( ex.what() );
+    }
+
+    if( isChanged )
+        OnModify();
+}
+
+
+bool SCH_EDIT_FRAME::ProcessCmpToFootprintLinkFile( const wxString& aFullFilename,
+                                                    bool aForceVisibilityState,
+                                                    bool aVisibilityState )
+{
+    // Build a flat list of components in schematic:
+    SCH_REFERENCE_LIST  referencesList;
+    SCH_SHEET_LIST      sheetList;
+
+    sheetList.GetComponents( Prj().SchLibs(), referencesList, false );
 
     FILE* cmpFile = wxFopen( aFullFilename, wxT( "rt" ) );
+
     if( cmpFile == NULL )
         return false;
 
@@ -71,7 +158,7 @@ bool SCH_EDIT_FRAME::ProcessCmpToFootprintLinkFile( wxString& aFullFilename,
     {
         buffer = FROM_UTF8( cmpFileReader.Line() );
 
-        if( ! buffer.StartsWith( wxT("BeginCmp") ) )
+        if( !buffer.StartsWith( wxT( "BeginCmp" ) ) )
             continue;
 
         // Begin component description.
@@ -82,63 +169,60 @@ bool SCH_EDIT_FRAME::ProcessCmpToFootprintLinkFile( wxString& aFullFilename,
         {
             buffer = FROM_UTF8( cmpFileReader.Line() );
 
-            if( buffer.StartsWith( wxT("EndCmp") ) )
+            if( buffer.StartsWith( wxT( "EndCmp" ) ) )
                 break;
 
             // store string value, stored between '=' and ';' delimiters.
             value = buffer.AfterFirst( '=' );
-            value = value.BeforeLast( ';');
+            value = value.BeforeLast( ';' );
             value.Trim(true);
             value.Trim(false);
 
-            if( buffer.StartsWith( wxT("Reference") ) )
+            if( buffer.StartsWith( wxT( "Reference" ) ) )
             {
                 reference = value;
-                continue;
             }
-
-            if( buffer.StartsWith( wxT("IdModule  =" ) ) )
+            else if( buffer.StartsWith( wxT( "IdModule  =" ) ) )
             {
                 footprint = value;
-                continue;
             }
         }
 
-        // A block is read: initialize the footprint field of the correponding component
+        // A block is read: initialize the footprint field of the corresponding component
         // if the footprint name is not empty
         if( reference.IsEmpty() )
             continue;
+
         // Search the component in the flat list
-        for( unsigned ii = 0; ii < referencesList.GetCount(); ii++ )
+        for( unsigned ii = 0;  ii < referencesList.GetCount();  ii++ )
         {
-            if( reference.CmpNoCase( referencesList[ii].GetRef() ) == 0 )
+            if( Cmp_KEEPCASE( reference, referencesList[ii].GetRef() ) == 0 )
             {
                 // We have found a candidate.
-                // Note: it can be not unique (multiple parts per package)
+                // Note: it can be not unique (multiple units per part)
                 // So we *do not* stop the search here
-                SCH_COMPONENT* component = referencesList[ii].GetComponent();
-                SCH_FIELD * fpfield = component->GetField( FOOTPRINT );
-                fpfield->m_Text = footprint;
+                SCH_COMPONENT*  component = referencesList[ii].GetComp();
+                SCH_FIELD*      fpfield = component->GetField( FOOTPRINT );
 
-                if( aForceFieldsVisibleAttribute )
+                fpfield->SetText( footprint );
+
+                if( aForceVisibilityState )
                 {
-                    if( aFieldsVisibleAttributeState )
-                        component->GetField( FOOTPRINT )->m_Attributs &= ~TEXT_NO_VISIBLE;
-                    else
-                        component->GetField( FOOTPRINT )->m_Attributs |= TEXT_NO_VISIBLE;
+                    component->GetField( FOOTPRINT )->SetVisible( aVisibilityState );
                 }
             }
         }
     }
+
     return true;
 }
 
 
 bool SCH_EDIT_FRAME::LoadCmpToFootprintLinkFile()
 {
-    wxString path = wxGetCwd();
+    wxString path = wxPathOnly( Prj().GetProjectFullName() );
 
-    wxFileDialog dlg( this, _( "Load Component-Footprint Link File" ),
+    wxFileDialog dlg( this, _( "Load Component Footprint Link File" ),
                       path, wxEmptyString,
                       ComponentFileExtensionWildcard,
                       wxFD_OPEN | wxFD_FILE_MUST_EXIST );
@@ -147,35 +231,30 @@ bool SCH_EDIT_FRAME::LoadCmpToFootprintLinkFile()
         return false;
 
     wxString filename = dlg.GetPath();
-    wxString title  = wxGetApp().GetAppName() + wxT( " " ) + GetBuildVersion();
-    title += wxT( " " ) + filename;
+    wxString title    = wxT( "Eeschema " ) + GetBuildVersion() + wxT( ' ' ) + filename;
+
     SetTitle( title );
 
-    int response = wxMessageBox( _( "Do you want to force all the footprint fields visibility?" ),
-                                 _( "Field Visibility Change" ),
-                                 wxYES_NO | wxICON_QUESTION | wxCANCEL, this );
+    wxArrayString choices;
+    choices.Add( _( "Keep existing footprint field visibility" ) );
+    choices.Add( _( "Show all footprint fields" ) );
+    choices.Add( _( "Hide all footprint fields" ) );
 
-    if( response == wxCANCEL )
+    wxSingleChoiceDialog choiceDlg( this, _( "Select the footprint field visibility setting." ),
+                                    _( "Change Visibility" ), choices );
+
+
+    if( choiceDlg.ShowModal() == wxID_CANCEL )
         return false;
 
-    bool changevisibility = response == wxYES;
-    bool visible = false;
+    bool forceVisibility = (choiceDlg.GetSelection() != 0 );
+    bool visibilityState = (choiceDlg.GetSelection() == 1 );
 
-    if( changevisibility )
+    if( !ProcessCmpToFootprintLinkFile( filename, forceVisibility, visibilityState ) )
     {
-        response = wxMessageBox( _( "Do you want to make all the footprint fields visible?" ),
-                                     _( "Field Visibility Option" ),
-                                     wxYES_NO | wxICON_QUESTION | wxCANCEL, this );
-        if( response == wxCANCEL )
-            return false;
+        wxString msg = wxString::Format( _( "Failed to open component-footprint link file '%s'" ),
+                                         filename.GetData() );
 
-        visible = response == wxYES;
-    }
-
-    if( ! ProcessCmpToFootprintLinkFile( filename, changevisibility, visible ) )
-    {
-        wxString msg;
-        msg.Printf( _( "Failed to open component-footprint link file <%s>" ), filename.GetData() );
         DisplayError( this, msg );
         return false;
     }

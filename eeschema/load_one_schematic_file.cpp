@@ -31,8 +31,9 @@
 #include <fctsys.h>
 #include <confirm.h>
 #include <kicad_string.h>
-#include <wxEeschemaStruct.h>
+#include <schframe.h>
 #include <richio.h>
+#include <project.h>
 
 #include <general.h>
 #include <sch_bus_entry.h>
@@ -41,7 +42,6 @@
 #include <sch_line.h>
 #include <sch_no_connect.h>
 #include <sch_component.h>
-#include <sch_polyline.h>
 #include <sch_text.h>
 #include <sch_sheet.h>
 #include <sch_bitmap.h>
@@ -49,8 +49,6 @@
 
 
 bool ReadSchemaDescr( LINE_READER* aLine, wxString& aMsgDiag, SCH_SCREEN* Window );
-
-static void LoadLayers( LINE_READER* aLine );
 
 
 bool SCH_EDIT_FRAME::LoadOneEEFile( SCH_SCREEN* aScreen, const wxString& aFullFileName, bool append )
@@ -68,7 +66,19 @@ bool SCH_EDIT_FRAME::LoadOneEEFile( SCH_SCREEN* aScreen, const wxString& aFullFi
     if( aFullFileName.IsEmpty() )
         return false;
 
-    fn = aFullFileName;
+    // Place the undo limit into the screen
+    aScreen->SetMaxUndoItems( m_UndoRedoCountMax );
+
+    // If path is relative, this expands it from the project directory.
+    wxString fname = Prj().AbsolutePath( aFullFileName );
+
+#ifdef __WINDOWS__
+    fname.Replace( wxT("/"), wxT("\\") );
+#else
+    fname.Replace( wxT("\\"), wxT("/") );
+#endif
+
+    fn = fname;
     CheckForAutoSaveFile( fn, SchematicBackupFileExtension );
 
     wxLogTrace( traceAutoSave, wxT( "Loading schematic file " ) + aFullFileName );
@@ -77,17 +87,11 @@ bool SCH_EDIT_FRAME::LoadOneEEFile( SCH_SCREEN* aScreen, const wxString& aFullFi
     if( !append )
         aScreen->SetFileName( aFullFileName );
 
-    FILE* f;
-    wxString fname = aFullFileName;
-#ifdef __WINDOWS__
-    fname.Replace( wxT("/"), wxT("\\") );
-#else
-    fname.Replace( wxT("\\"), wxT("/") );
-#endif
+    FILE* f = wxFopen( fname, wxT( "rt" ) );
 
-    if( ( f = wxFopen( fname, wxT( "rt" ) ) ) == NULL )
+    if( !f )
     {
-        msgDiag = _( "Failed to open " ) + aFullFileName;
+        msgDiag.Printf( _( "Failed to open '%s'" ), GetChars( aFullFileName ) );
         DisplayError( this, msgDiag );
         return false;
     }
@@ -95,14 +99,14 @@ bool SCH_EDIT_FRAME::LoadOneEEFile( SCH_SCREEN* aScreen, const wxString& aFullFi
     // reader now owns the open FILE.
     FILE_LINE_READER    reader( f, aFullFileName );
 
-    msgDiag = _( "Loading " ) + aScreen->GetFileName();
+    msgDiag.Printf( _( "Loading '%s'" ), GetChars( aScreen->GetFileName() ) );
     PrintMsg( msgDiag );
 
     if( !reader.ReadLine()
         || strncmp( (char*)reader + 9, SCHEMATIC_HEAD_STRING,
                     sizeof( SCHEMATIC_HEAD_STRING ) - 1 ) != 0 )
     {
-        msgDiag = aFullFileName + _( " is NOT an Eeschema file!" );
+        msgDiag.Printf( _( "'%s' is NOT an Eeschema file!" ), GetChars( aFullFileName ) );
         DisplayError( this, msgDiag );
         return false;
     }
@@ -120,8 +124,11 @@ bool SCH_EDIT_FRAME::LoadOneEEFile( SCH_SCREEN* aScreen, const wxString& aFullFi
 
     if( version > EESCHEMA_VERSION )
     {
-        msgDiag = aFullFileName + _( " was created by a more recent \
-version of Eeschema and may not load correctly. Please consider updating!" );
+        msgDiag.Printf( _(
+            "'%s' was created by a more recent version of Eeschema and may not"
+            " load correctly. Please consider updating!" ),
+                GetChars( aFullFileName )
+                );
         DisplayInfoMessage( this, msgDiag );
     }
 
@@ -137,17 +144,29 @@ again." );
     }
 #endif
 
-    if( !reader.ReadLine() || strncmp( reader, "LIBS:", 5 ) != 0 )
+    // The next lines are the lib list section, and are mainly comments, like:
+    // LIBS:power
+    // the lib list is not used, but is in schematic file just in case.
+    // It is usually not empty, but we accept empty list.
+    // If empty, there is a legacy section, not used
+    // EELAYER i j
+    // and the last line is
+    // EELAYER END
+    // Skip all lines until the end of header "EELAYER END" is found
+    while( reader.ReadLine() )
     {
-        msgDiag = aFullFileName + _( " is NOT an Eeschema file!" );
-        DisplayError( this, msgDiag );
-        return false;
-    }
+        line = reader.Line();
 
-    LoadLayers( &reader );
+        while( *line == ' ' )
+            line++;
+
+        if( strnicmp( line, "EELAYER END", 11 ) == 0 )
+            break;  // end of not used header found
+    }
 
     while( reader.ReadLine() )
     {
+        itemLoaded = false;
         line = reader.Line();
 
         item = NULL;
@@ -168,6 +187,8 @@ again." );
                 itemLoaded = ReadSchemaDescr( &reader, msgDiag, aScreen );
             else if( line[1] == 'B' )
                 item = new SCH_BITMAP();
+            else if( line[1] == 'E' )
+                itemLoaded = true; // The EOF marker
             break;
 
         case 'L':        // Its a library item.
@@ -179,11 +200,9 @@ again." );
             break;
 
         case 'E':        // Its a WIRE or BUS item.
-            item = new SCH_BUS_ENTRY();
-            break;
-
-        case 'P':        // Its a polyline item.
-            item = new SCH_POLYLINE();
+            /* The bus entry can be represented by two different
+             * classes, so we need a factory function */
+            itemLoaded = SCH_BUS_ENTRY_BASE::Load( reader, msgDiag, &item );
             break;
 
         case 'C':        // It is a connection item.
@@ -193,6 +212,7 @@ again." );
         case 'K':                       // It is a Marker item.
             // Markers are no more read from file. they are only created on
             // demand in schematic
+            itemLoaded = true;          // Just skip descr and disable err message
             break;
 
         case 'N':                       // It is a NoConnect item.
@@ -200,7 +220,7 @@ again." );
             break;
 
         case 'T':                       // It is a text item.
-            if( sscanf( sline, "%s", name1 ) != 1 )
+            if( sscanf( sline, "%255s", name1 ) != 1 )
             {
                 msgDiag.Printf( _( "Eeschema file text load error at line %d" ),
                                 reader.LineNumber() );
@@ -225,11 +245,13 @@ again." );
 
         if( item )
         {
-            itemLoaded = item->Load( reader, msgDiag );
+            // Load it if it wasn't by a factory
+            if( !itemLoaded )
+                itemLoaded = item->Load( reader, msgDiag );
 
             if( !itemLoaded )
             {
-                SAFE_DELETE( item );
+                delete item;
             }
             else
             {
@@ -239,6 +261,9 @@ again." );
 
         if( !itemLoaded )
         {
+            msgDiag.Printf( _( "Eeschema file object not loaded at line %d, aborted" ),
+                            reader.LineNumber() );
+            msgDiag << wxT( "\n" ) << FROM_UTF8( line );
             DisplayError( this, msgDiag );
             break;
         }
@@ -248,30 +273,17 @@ again." );
     aScreen->Show( 0, std::cout );
 #endif
 
+    // Build links between each components and its part lib LIB_PART
+    aScreen->CheckComponentsToPartsLinks();
+
     aScreen->TestDanglingEnds();
 
-    msgDiag = _( "Done Loading " ) + aScreen->GetFileName();
+    msgDiag.Printf( _( "Done Loading <%s>" ), GetChars( aScreen->GetFileName() ) );
     PrintMsg( msgDiag );
 
     return true;    // Although it may be that file is only partially loaded.
 }
 
-
-static void LoadLayers( LINE_READER* aLine )
-{
-    /* read the layer descr
-     * legacy code, not actually used, so this section is just skipped
-     * read lines like
-     * EELAYER 25  0
-     * EELAYER END
-     */
-
-    while( aLine->ReadLine() )
-    {
-        if( strnicmp( *aLine, "EELAYER END", 11 ) == 0 )
-            break;
-    }
-}
 
 /// Get the length of a string constant, at compile time
 #define SZ( x )         (sizeof(x)-1)
@@ -295,8 +307,8 @@ bool ReadSchemaDescr( LINE_READER* aLine, wxString& aMsgDiag, SCH_SCREEN* aScree
 
     if( !pageInfo.SetType( pagename ) )
     {
-        aMsgDiag.Printf( _( "Eeschema file dimension definition error \
-line %d,\nAbort reading file.\n" ),
+        aMsgDiag.Printf( _( "Eeschema file dimension definition error line %d,"
+                            "\nAbort reading file.\n" ),
                          aLine->LineNumber() );
         aMsgDiag << FROM_UTF8( line );
     }

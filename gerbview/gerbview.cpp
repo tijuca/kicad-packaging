@@ -26,16 +26,17 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
  */
 
- #include <fctsys.h>
-#include <appl_wxstruct.h>
+#include <fctsys.h>
+#include <kiface_i.h>
+#include <pgm_base.h>
 #include <class_drawpanel.h>
 #include <confirm.h>
 #include <gestfich.h>
-//#include <gr_basic.h>
 
 #include <gerbview.h>
 #include <gerbview_id.h>
 #include <hotkeys.h>
+#include <gerbview_frame.h>
 
 #include <build_version.h>
 
@@ -44,8 +45,6 @@
 
 // Colors for layers and items
 COLORS_DESIGN_SETTINGS g_ColorsSettings;
-extern EDA_COLOR_T g_DrawBgColor;
-int g_Default_GERBER_Format;
 
 
 const wxChar* g_GerberPageSizeList[] = {
@@ -60,85 +59,94 @@ const wxChar* g_GerberPageSizeList[] = {
 };
 
 
-GERBER_IMAGE*  g_GERBER_List[32];
+namespace GERBV {
 
-
-IMPLEMENT_APP( EDA_APP )
-
-/* MacOSX: Needed for file association
- * http://wiki.wxwidgets.org/WxMac-specific_topics
- */
-void EDA_APP::MacOpenFile(const wxString &fileName)
+static struct IFACE : public KIFACE_I
 {
-    wxFileName           filename = fileName;
-    GERBVIEW_FRAME * frame = ((GERBVIEW_FRAME*)GetTopWindow());
+    // Of course all are virtual overloads, implementations of the KIFACE.
 
-    if( !filename.FileExists() )
-        return;
+    IFACE( const char* aName, KIWAY::FACE_T aType ) :
+        KIFACE_I( aName, aType )
+    {}
 
-    frame->LoadGerberFiles( fileName );
+    bool OnKifaceStart( PGM_BASE* aProgram, int aCtlBits );
+
+    void OnKifaceEnd();
+
+    wxWindow* CreateWindow( wxWindow* aParent, int aClassId, KIWAY* aKiway, int aCtlBits = 0 )
+    {
+        switch( aClassId )
+        {
+        case FRAME_GERBER:
+            {
+                GERBVIEW_FRAME* frame = new GERBVIEW_FRAME( aKiway, aParent );
+                return frame;
+            }
+            break;
+
+        default:
+            ;
+        }
+
+        return NULL;
+    }
+
+    /**
+     * Function IfaceOrAddress
+     * return a pointer to the requested object.  The safest way to use this
+     * is to retrieve a pointer to a static instance of an interface, similar to
+     * how the KIFACE interface is exported.  But if you know what you are doing
+     * use it to retrieve anything you want.
+     *
+     * @param aDataId identifies which object you want the address of.
+     *
+     * @return void* - and must be cast into the know type.
+     */
+    void* IfaceOrAddress( int aDataId )
+    {
+        return NULL;
+    }
+
+} kiface( "gerbview", KIWAY::FACE_GERBVIEW );
+
+} // namespace
+
+using namespace GERBV;
+
+static PGM_BASE* process;
+
+KIFACE_I& Kiface() { return kiface; }
+
+
+// KIFACE_GETTER's actual spelling is a substitution macro found in kiway.h.
+// KIFACE_GETTER will not have name mangling due to declaration in kiway.h.
+MY_API( KIFACE* ) KIFACE_GETTER(  int* aKIFACEversion, int aKiwayVersion, PGM_BASE* aProgram )
+{
+    process = (PGM_BASE*) aProgram;
+    return &kiface;
 }
 
 
-bool EDA_APP::OnInit()
+PGM_BASE& Pgm()
 {
-    wxFileName          fn;
-    GERBVIEW_FRAME* frame = NULL;
-
-    InitEDA_Appl( wxT( "GerbView" ), APP_GERBVIEW_T );
-
-    if( m_Checker && m_Checker->IsAnotherRunning() )
-    {
-        if( !IsOK( NULL, _( "GerbView is already running. Continue?" ) ) )
-            return false;
-    }
-
-    // read current setup and reopen last directory if no filename to open in
-    // command line
-    bool reopenLastUsedDirectory = argc == 1;
-    GetSettings( reopenLastUsedDirectory );
-
-    g_DrawBgColor = BLACK;
-
-   /* Must be called before creating the main frame in order to
-    * display the real hotkeys in menus or tool tips */
-    ReadHotkeyConfig( wxT("GerberFrame"), s_Gerbview_Hokeys_Descr );
-
-    frame = new  GERBVIEW_FRAME( NULL, wxT( "GerbView" ), wxPoint( 0, 0 ), wxSize( 600, 400 ) );
-
-    /* Gerbview mainframe title */
-    frame->SetTitle( GetTitle() + wxT( " " ) + GetBuildVersion() );
-
-    SetTopWindow( frame );                  // Set GerbView mainframe on top
-    frame->Show( true );                    // Show GerbView mainframe
-    frame->Zoom_Automatique( true );        // Zoom fit in frame
-    frame->GetScreen()->m_FirstRedraw = false;
+    wxASSERT( process );    // KIFACE_GETTER has already been called.
+    return *process;
+}
 
 
-    if( argc <= 1 )
-        return true;
+bool IFACE::OnKifaceStart( PGM_BASE* aProgram, int aCtlBits )
+{
+    start_common( aCtlBits );
 
-    fn = argv[1];
-
-    if( fn.IsOk() )
-    {
-        if( fn.DirExists() )
-            wxSetWorkingDirectory( fn.GetPath() );
-
-        // Load all files specified on the command line.
-        int jj = 0;
-
-        for( int ii = 1; ii < argc && ii <= GERBVIEW_LAYER_COUNT; ++ii )
-        {
-            fn = wxFileName( argv[ii] );
-
-            if( fn.FileExists() )
-            {
-                frame->setActiveLayer( jj++ );
-                frame->LoadGerberFiles( fn.GetFullPath() );
-            }
-        }
-    }
+    // Must be called before creating the main frame in order to
+    // display the real hotkeys in menus or tool tips
+    ReadHotkeyConfig( GERBVIEW_FRAME_NAME, GerbviewHokeysDescr );
 
     return true;
+}
+
+
+void IFACE::OnKifaceEnd()
+{
+    end_common();
 }

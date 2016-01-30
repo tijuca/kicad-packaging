@@ -28,20 +28,21 @@
 
 #include <macros.h>
 
-#include <general.h>
+#include <sch_sheet_path.h>
 #include <transform.h>
 #include <sch_collectors.h>
 #include <sch_component.h>
 #include <sch_line.h>
+#include <sch_bus_entry.h>
 
 
 const KICAD_T SCH_COLLECTOR::AllItems[] = {
     SCH_MARKER_T,
     SCH_JUNCTION_T,
     SCH_NO_CONNECT_T,
-    SCH_BUS_ENTRY_T,
+    SCH_BUS_BUS_ENTRY_T,
+    SCH_BUS_WIRE_ENTRY_T,
     SCH_LINE_T,
-    SCH_POLYLINE_T,
     SCH_BITMAP_T,
     SCH_TEXT_T,
     SCH_LABEL_T,
@@ -60,9 +61,9 @@ const KICAD_T SCH_COLLECTOR::AllItemsButPins[] = {
     SCH_MARKER_T,
     SCH_JUNCTION_T,
     SCH_NO_CONNECT_T,
-    SCH_BUS_ENTRY_T,
+    SCH_BUS_BUS_ENTRY_T,
+    SCH_BUS_WIRE_ENTRY_T,
     SCH_LINE_T,
-    SCH_POLYLINE_T,
     SCH_BITMAP_T,
     SCH_TEXT_T,
     SCH_LABEL_T,
@@ -109,9 +110,9 @@ const KICAD_T SCH_COLLECTOR::MovableItems[] = {
     SCH_MARKER_T,
     SCH_JUNCTION_T,
     SCH_NO_CONNECT_T,
-    SCH_BUS_ENTRY_T,
+    SCH_BUS_BUS_ENTRY_T,
+    SCH_BUS_WIRE_ENTRY_T,
 //    SCH_LINE_T,
-    SCH_POLYLINE_T,
     SCH_BITMAP_T,
     SCH_TEXT_T,
     SCH_LABEL_T,
@@ -127,9 +128,9 @@ const KICAD_T SCH_COLLECTOR::MovableItems[] = {
 
 const KICAD_T SCH_COLLECTOR::DraggableItems[] = {
     SCH_JUNCTION_T,
-    SCH_BUS_ENTRY_T,
+    SCH_BUS_BUS_ENTRY_T,
+    SCH_BUS_WIRE_ENTRY_T,
     SCH_LINE_T,
-    SCH_POLYLINE_T,
     SCH_LABEL_T,
     SCH_GLOBAL_LABEL_T,
     SCH_HIERARCHICAL_LABEL_T,
@@ -156,9 +157,9 @@ const KICAD_T SCH_COLLECTOR::ParentItems[] = {
     SCH_MARKER_T,
     SCH_JUNCTION_T,
     SCH_NO_CONNECT_T,
-    SCH_BUS_ENTRY_T,
+    SCH_BUS_BUS_ENTRY_T,
+    SCH_BUS_WIRE_ENTRY_T,
     SCH_LINE_T,
-    SCH_POLYLINE_T,
     SCH_TEXT_T,
     SCH_LABEL_T,
     SCH_GLOBAL_LABEL_T,
@@ -193,6 +194,7 @@ const KICAD_T SCH_COLLECTOR::SheetsAndSheetLabels[] = {
 const KICAD_T SCH_COLLECTOR::OrientableItems[] = {
     SCH_COMPONENT_T,
     SCH_BITMAP_T,
+    SCH_SHEET_T,
     EOT
 };
 
@@ -246,13 +248,16 @@ bool SCH_COLLECTOR::IsCorner() const
     if( GetCount() != 2 )
         return false;
 
+    bool is_busentry0 = dynamic_cast<SCH_BUS_ENTRY_BASE*>( m_List[0] );
+    bool is_busentry1 = dynamic_cast<SCH_BUS_ENTRY_BASE*>( m_List[1] );
+
     if( (m_List[0]->Type() == SCH_LINE_T) && (m_List[1]->Type() == SCH_LINE_T) )
         return true;
 
-    if( (m_List[0]->Type() == SCH_LINE_T) && (m_List[1]->Type() == SCH_BUS_ENTRY_T) )
+    if( (m_List[0]->Type() == SCH_LINE_T) && is_busentry1 )
         return true;
 
-    if( (m_List[0]->Type() == SCH_BUS_ENTRY_T) && (m_List[1]->Type() == SCH_LINE_T) )
+    if( is_busentry0 && (m_List[1]->Type() == SCH_LINE_T) )
         return true;
 
     return false;
@@ -343,7 +348,7 @@ bool SCH_FIND_COLLECTOR::PassedEnd() const
     if( GetCount() == 0 )
         return true;
 
-    if( !(flags & FR_SEARCH_WRAP) )
+    if( !(flags & FR_SEARCH_WRAP) || (flags & FR_SEARCH_REPLACE) )
     {
         if( flags & wxFR_DOWN )
         {
@@ -450,7 +455,7 @@ EDA_ITEM* SCH_FIND_COLLECTOR::GetItem( SCH_FIND_COLLECTOR_DATA& aData )
 }
 
 
-bool SCH_FIND_COLLECTOR::ReplaceItem()
+bool SCH_FIND_COLLECTOR::ReplaceItem( SCH_SHEET_PATH* aSheetPath )
 {
     if( PassedEnd() )
         return false;
@@ -460,15 +465,10 @@ bool SCH_FIND_COLLECTOR::ReplaceItem()
 
     EDA_ITEM* item = m_List[ m_foundIndex ];
 
-    bool replaced = item->Replace( m_findReplaceData );
+    bool replaced = item->Replace( m_findReplaceData, aSheetPath );
 
-    // If the replace was successful, remove the item from the find list to prevent
-    // iterating back over it again.
     if( replaced )
-    {
-        Remove( m_foundIndex );
-        m_data.erase( m_data.begin() + m_foundIndex );
-    }
+        SetForceSearch();
 
     return replaced;
 }
@@ -513,7 +513,7 @@ void SCH_FIND_COLLECTOR::Collect( SCH_FIND_REPLACE_DATA& aFindReplaceData,
     Empty();                 // empty the collection just in case
     m_data.clear();
     m_foundIndex = 0;
-    m_forceSearch = false;
+    SetForceSearch( false );
 
     if( aSheetPath )
     {
@@ -542,4 +542,24 @@ void SCH_FIND_COLLECTOR::Collect( SCH_FIND_REPLACE_DATA& aFindReplaceData,
         m_List.clear();
         m_data.clear();
     }
+}
+
+
+SEARCH_RESULT SCH_TYPE_COLLECTOR::Inspect( EDA_ITEM* aItem, const void* aTestData )
+{
+    // The Vist() function only visits the testItem if its type was in the
+    // the scanList, so therefore we can collect anything given to us here.
+    Append( aItem );
+
+    return SEARCH_CONTINUE;
+}
+
+
+void SCH_TYPE_COLLECTOR::Collect( SCH_ITEM* aItem, const KICAD_T aFilterList[] )
+{
+    Empty();        // empty the collection
+
+    SetScanTypes( aFilterList );
+
+    EDA_ITEM::IterateForward( aItem, this, NULL, m_ScanTypes );
 }

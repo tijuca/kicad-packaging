@@ -45,33 +45,45 @@
 #include <info3d_visu.h>
 #include <trackball.h>
 
-// Exported function:
-void Set_Object_Data( std::vector< S3D_VERTEX >& aVertices, double aBiuTo3DUnits );
 
-
-void S3D_MASTER::Set_Object_Coords( std::vector< S3D_VERTEX >& aVertices )
+void S3D_MASTER::ObjectCoordsTo3DUnits( std::vector< S3D_VERTEX >& aVertices )
 {
-    unsigned ii;
-
     /* adjust object scale, rotation and offset position */
-    for( ii = 0; ii < aVertices.size(); ii++ )
+    for( unsigned ii = 0; ii < aVertices.size(); ii++ )
     {
         aVertices[ii].x *= m_MatScale.x;
         aVertices[ii].y *= m_MatScale.y;
         aVertices[ii].z *= m_MatScale.z;
 
-        /* adjust rotation */
+        // adjust rotation
         if( m_MatRotation.x )
-            RotatePoint( &aVertices[ii].y, &aVertices[ii].z, (int) (m_MatRotation.x * 10) );
+        {
+            double a = aVertices[ii].y;
+            double b = aVertices[ii].z;
+            RotatePoint( &a, &b, m_MatRotation.x * 10 );
+            aVertices[ii].y = (float)a;
+            aVertices[ii].z = (float)b;
+        }
 
         if( m_MatRotation.y )
-            RotatePoint( &aVertices[ii].z, &aVertices[ii].x, (int) (m_MatRotation.y * 10) );
+        {
+            double a = aVertices[ii].z;
+            double b = aVertices[ii].x;
+            RotatePoint( &a, &b, m_MatRotation.x * 10 );
+            aVertices[ii].z = (float)a;
+            aVertices[ii].x = (float)b;
+        }
 
         if( m_MatRotation.z )
-            RotatePoint( &aVertices[ii].x, &aVertices[ii].y, (int) (m_MatRotation.z * 10) );
+        {
+            double a = aVertices[ii].x;
+            double b = aVertices[ii].y;
+            RotatePoint( &a, &b, m_MatRotation.x * 10 );
+            aVertices[ii].x = (float)a;
+            aVertices[ii].y = (float)b;
+        }
 
         /* adjust offset position (offset is given in UNIT 3D (0.1 inch) */
-#define SCALE_3D_CONV ((IU_PER_MILS * 1000) / UNITS3D_TO_UNITSPCB)
         aVertices[ii].x += m_MatPosition.x * SCALE_3D_CONV;
         aVertices[ii].y += m_MatPosition.y * SCALE_3D_CONV;
         aVertices[ii].z += m_MatPosition.z * SCALE_3D_CONV;
@@ -79,7 +91,7 @@ void S3D_MASTER::Set_Object_Coords( std::vector< S3D_VERTEX >& aVertices )
 }
 
 
-void Set_Object_Data( std::vector< S3D_VERTEX >& aVertices, double aBiuTo3DUnits )
+void TransfertToGLlist( std::vector< S3D_VERTEX >& aVertices, double aBiuTo3DUnits )
 {
     unsigned ii;
     GLfloat ax, ay, az, bx, by, bz, nx, ny, nz, r;
@@ -93,9 +105,9 @@ void Set_Object_Data( std::vector< S3D_VERTEX >& aVertices, double aBiuTo3DUnits
     ay = aVertices[1].y - aVertices[0].y;
     az = aVertices[1].z - aVertices[0].z;
 
-    bx = aVertices[aVertices.size() - 1].x - aVertices[0].x;
-    by = aVertices[aVertices.size() - 1].y - aVertices[0].y;
-    bz = aVertices[aVertices.size() - 1].z - aVertices[0].z;
+    bx = aVertices[2].x - aVertices[0].x;
+    by = aVertices[2].y - aVertices[0].y;
+    bz = aVertices[2].z - aVertices[0].z;
 
     nx = ay * bz - az * by;
     ny = az * bx - ax * bz;
@@ -138,114 +150,52 @@ void Set_Object_Data( std::vector< S3D_VERTEX >& aVertices, double aBiuTo3DUnits
     glEnd();
 }
 
-
-GLuint EDA_3D_CANVAS::DisplayCubeforTest()
+S3DPOINT_VALUE_CTRL::S3DPOINT_VALUE_CTRL( wxWindow* aParent, wxBoxSizer* aBoxSizer )
 {
-    GLuint gllist = glGenLists( 1 );
+    wxString text;
 
-    glNewList( gllist, GL_COMPILE_AND_EXECUTE );
-    /* draw six faces of a cube */
-    glBegin( GL_QUADS );
-    glNormal3f( 0.0F, 0.0F, 1.0F );
-    glVertex3f( 0.5F, 0.5F, 0.5F ); glVertex3f( -0.5F, 0.5F, 0.5F );
-    glVertex3f( -0.5F, -0.5F, 0.5F ); glVertex3f( 0.5F, -0.5F, 0.5F );
+    wxFlexGridSizer* gridSizer = new wxFlexGridSizer( 0, 2, 0, 0 );
+    gridSizer->AddGrowableCol( 1 );
+    gridSizer->SetFlexibleDirection( wxHORIZONTAL );
+    gridSizer->SetNonFlexibleGrowMode( wxFLEX_GROWMODE_SPECIFIED );
 
-    glNormal3f( 0.0F, 0.0F, -1.0F );
-    glVertex3f( -0.5F, -0.5F, -0.5F ); glVertex3f( -0.5F, 0.5F, -0.5F );
-    glVertex3f( 0.5F, 0.5F, -0.5F ); glVertex3f( 0.5F, -0.5F, -0.5F );
+    aBoxSizer->Add( gridSizer, 0, wxEXPAND, 5 );
 
-    glNormal3f( 0.0F, 1.0F, 0.0F );
-    glVertex3f( 0.5F, 0.5F, 0.5F ); glVertex3f( 0.5F, 0.5F, -0.5F );
-    glVertex3f( -0.5F, 0.5F, -0.5F ); glVertex3f( -0.5F, 0.5F, 0.5F );
+    wxStaticText* msgtitle = new wxStaticText( aParent, wxID_ANY, wxT( "X:" ) );
+    gridSizer->Add( msgtitle, 0, wxALL , 5 );
 
-    glNormal3f( 0.0F, -1.0F, 0.0F );
-    glVertex3f( -0.5F, -0.5F, -0.5F ); glVertex3f( 0.5F, -0.5F, -0.5F );
-    glVertex3f( 0.5F, -0.5F, 0.5F ); glVertex3f( -0.5F, -0.5F, 0.5F );
+    m_XValueCtrl = new wxTextCtrl( aParent, wxID_ANY, wxEmptyString,
+                                   wxDefaultPosition,wxDefaultSize, 0 );
+    gridSizer->Add( m_XValueCtrl, 0, wxALL|wxEXPAND, 5 );
 
-    glNormal3f( 1.0F, 0.0F, 0.0F );
-    glVertex3f( 0.5F, 0.5F, 0.5F ); glVertex3f( 0.5F, -0.5F, 0.5F );
-    glVertex3f( 0.5F, -0.5F, -0.5F ); glVertex3f( 0.5F, 0.5F, -0.5F );
+    msgtitle = new wxStaticText( aParent, wxID_ANY, wxT( "Y:" ), wxDefaultPosition,
+                                 wxDefaultSize, 0 );
+    gridSizer->Add( msgtitle, 0, wxALL, 5 );
 
-    glNormal3f( -1.0F, 0.0F, 0.0F );
-    glVertex3f( -0.5F, -0.5F, -0.5F ); glVertex3f( -0.5F, -0.5F, 0.5F );
-    glVertex3f( -0.5F, 0.5F, 0.5F ); glVertex3f( -0.5F, 0.5F, -0.5F );
-    glEnd();
+    m_YValueCtrl = new wxTextCtrl( aParent, wxID_ANY, wxEmptyString,
+                                   wxDefaultPosition, wxDefaultSize, 0 );
+    gridSizer->Add( m_YValueCtrl, 0, wxALL|wxEXPAND, 5 );
 
-    glEndList();
+    msgtitle = new wxStaticText( aParent, wxID_ANY, wxT( "Z:" ), wxDefaultPosition,
+                                 wxDefaultSize, 0 );
+    gridSizer->Add( msgtitle, 0, wxALL, 5 );
 
-    return gllist;
-}
-
-VERTEX_VALUE_CTRL::VERTEX_VALUE_CTRL( wxWindow* parent, const wxString& title,
-                                      wxBoxSizer* BoxSizer )
-{
-    wxString      text;
-    wxStaticText* msgtitle;
-
-    if( title.IsEmpty() )
-        text = _( "Vertex " );
-    else
-        text = title;
-
-    msgtitle = new wxStaticText( parent, -1, text, wxDefaultPosition, wxSize( -1, -1 ), 0 );
-
-    BoxSizer->Add( msgtitle, wxGROW | wxLEFT | wxRIGHT | wxTOP | wxBOTTOM );
-
-    wxFlexGridSizer* GridSizer = new wxFlexGridSizer( 3, 2, 0, 0 );
-
-    BoxSizer->Add( GridSizer, 0, wxGROW | wxALL, 5 );
-
-    msgtitle = new wxStaticText( parent, -1, wxT( "X:" ) );
-
-    GridSizer->Add( msgtitle, 0,
-                    wxALIGN_CENTER_HORIZONTAL | wxALIGN_CENTER_VERTICAL |
-                    wxLEFT | wxRIGHT , 5 );
-    m_XValueCtrl = new wxTextCtrl( parent, -1, wxEmptyString,
-                                   wxDefaultPosition, wxSize( -1, -1 ), 0 );
-
-    GridSizer->Add( m_XValueCtrl,
-                    0,
-                    wxALIGN_CENTER_HORIZONTAL | wxALIGN_CENTER_VERTICAL |
-                    wxLEFT | wxRIGHT, 5 );
-
-    msgtitle = new wxStaticText( parent, -1, wxT( "Y:" ), wxDefaultPosition,
-                                 wxSize( -1, -1 ), 0 );
-
-    GridSizer->Add( msgtitle,
-                    0,
-                    wxALIGN_CENTER_HORIZONTAL | wxALIGN_CENTER_VERTICAL |
-                    wxLEFT | wxRIGHT, 5 );
-    m_YValueCtrl = new wxTextCtrl( parent, -1, wxEmptyString,
-                                   wxDefaultPosition, wxSize( -1, -1 ), 0 );
-
-    GridSizer->Add( m_YValueCtrl, 0,
-                    wxALIGN_CENTER_HORIZONTAL | wxALIGN_CENTER_VERTICAL |
-                    wxLEFT | wxRIGHT, 5 );
-
-    msgtitle = new wxStaticText( parent, -1, wxT( "Z:" ), wxDefaultPosition,
-                                 wxSize( -1, -1 ), 0 );
-
-    GridSizer->Add( msgtitle, 0,
-                    wxALIGN_CENTER_HORIZONTAL | wxALIGN_CENTER_VERTICAL |
-                    wxLEFT | wxRIGHT, 5 );
-    m_ZValueCtrl = new wxTextCtrl( parent, -1, wxEmptyString,
-                                   wxDefaultPosition, wxSize( -1, -1 ), 0 );
-
-    GridSizer->Add( m_ZValueCtrl, 0,
-                    wxALIGN_CENTER_HORIZONTAL | wxALIGN_CENTER_VERTICAL |
-                    wxLEFT | wxRIGHT, 5 );
+    m_ZValueCtrl = new wxTextCtrl( aParent, wxID_ANY, wxEmptyString,
+                                   wxDefaultPosition, wxDefaultSize, 0 );
+    gridSizer->Add( m_ZValueCtrl, 0, wxALL|wxEXPAND, 5 );
 }
 
 
-VERTEX_VALUE_CTRL::~VERTEX_VALUE_CTRL()
+S3DPOINT_VALUE_CTRL::~S3DPOINT_VALUE_CTRL()
 {
+    // Nothing to delete: all items are managed by the parent window.
 }
 
 
-S3D_VERTEX VERTEX_VALUE_CTRL::GetValue()
+S3DPOINT S3DPOINT_VALUE_CTRL::GetValue()
 {
-    S3D_VERTEX value;
-    double     dtmp;
+    S3DPOINT value;
+    double   dtmp;
 
     m_XValueCtrl->GetValue().ToDouble( &dtmp );
     value.x = dtmp;
@@ -257,7 +207,7 @@ S3D_VERTEX VERTEX_VALUE_CTRL::GetValue()
 }
 
 
-void VERTEX_VALUE_CTRL::SetValue( S3D_VERTEX vertex )
+void S3DPOINT_VALUE_CTRL::SetValue( S3DPOINT vertex )
 {
     wxString text;
 
@@ -275,7 +225,7 @@ void VERTEX_VALUE_CTRL::SetValue( S3D_VERTEX vertex )
 }
 
 
-void VERTEX_VALUE_CTRL::Enable( bool onoff )
+void S3DPOINT_VALUE_CTRL::Enable( bool onoff )
 {
     m_XValueCtrl->Enable( onoff );
     m_YValueCtrl->Enable( onoff );

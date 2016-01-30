@@ -1,3 +1,27 @@
+/*
+ * This program source code file is part of KiCad, a free EDA CAD application.
+ *
+ * Copyright (C) 2007-2014 Jean-Pierre Charras, jean-pierre.charras@ujf-grenoble.fr
+ * Copyright (C) 1992-2012 KiCad Developers, see AUTHORS.txt for contributors.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation; either version 2
+ * of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, you may find one here:
+ * http://www.gnu.org/licenses/old-licenses/gpl-2.0.html
+ * or you may search the http://www.gnu.org website for the version 2 license,
+ * or you may write to the Free Software Foundation, Inc.,
+ * 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
+ */
+
 /**
  * @file edit_track_width.cpp
  * @brief Functions to modify sizes of segment, track, net, all vias and/or all tracks.
@@ -36,36 +60,59 @@ bool PCB_EDIT_FRAME::SetTrackSegmentWidth( TRACK*             aTrackItem,
     NETINFO_ITEM* net = NULL;
 
     if( aUseNetclassValue )
-        net = GetBoard()->FindNet( aTrackItem->GetNet() );
+        net = aTrackItem->GetNet();
 
     initial_width = aTrackItem->GetWidth();
 
     if( net )
         new_width = net->GetTrackWidth();
     else
-        new_width = GetBoard()->GetCurrentTrackWidth();
+        new_width = GetDesignSettings().GetCurrentTrackWidth();
 
     if( aTrackItem->Type() == PCB_VIA_T )
     {
-        if( !aTrackItem->IsDrillDefault() )
-            initial_drill = aTrackItem->GetDrillValue();
+        const VIA *via = static_cast<const VIA *>( aTrackItem );
+
+        // Micro vias have a size only defined in their netclass
+        // (no specific values defined by a table of specific value)
+        // Ensure the netclass is accessible:
+        if( via->GetViaType() == VIA_MICROVIA && net == NULL )
+            net = aTrackItem->GetNet();
+
+        // Get the draill value, regardless it is default or specific
+        initial_drill = via->GetDrillValue();
 
         if( net )
         {
             new_width = net->GetViaSize();
+            new_drill = net->GetViaDrillSize();
         }
         else
         {
-            new_width = GetBoard()->GetCurrentViaSize();
-            new_drill = GetBoard()->GetCurrentViaDrill();
+            new_width = GetDesignSettings().GetCurrentViaSize();
+            new_drill = GetDesignSettings().GetCurrentViaDrill();
         }
 
-        if( aTrackItem->GetShape() == VIA_MICROVIA )
+        if( via->GetViaType() == VIA_MICROVIA )
         {
             if( net )
-                new_width = net->GetViaSize();
-            else
+            {
                 new_width = net->GetMicroViaSize();
+                new_drill = net->GetMicroViaDrillSize();
+            }
+            else
+            {
+                // Should not occur
+            }
+        }
+
+        // Old versions set a drill value <= 0, when the default netclass it used
+        // but it could be better to set the drill value to the actual value
+        // to avoid issues for existing vias, if the default drill value is modified
+        // in the netclass, and not in current vias.
+        if( via->GetDrill() <= 0 )      // means default netclass drill value used
+        {
+            initial_drill  = -1;        // Force drill vias re-initialization
         }
     }
 
@@ -76,7 +123,7 @@ bool PCB_EDIT_FRAME::SetTrackSegmentWidth( TRACK*             aTrackItem,
     {
         int diagdrc = OK_DRC;
 
-        if( Drc_On )
+        if( g_Drc_On )
             diagdrc = m_drc->Drc( aTrackItem, GetBoard()->m_Track );
 
         if( diagdrc == OK_DRC )
@@ -86,10 +133,11 @@ bool PCB_EDIT_FRAME::SetTrackSegmentWidth( TRACK*             aTrackItem,
     {
         change_ok = true;
     }
-    else if( (aTrackItem->Type() == PCB_VIA_T) && (initial_drill != new_drill) )
+    else if( (aTrackItem->Type() == PCB_VIA_T) )
     {
-        // if new width == initial_width: do nothing, unless a via has its drill value changed
-        change_ok = true;
+        // if a via has its drill value changed, force change
+        if( initial_drill != new_drill )
+            change_ok = true;
     }
 
     if( change_ok )
@@ -107,10 +155,11 @@ bool PCB_EDIT_FRAME::SetTrackSegmentWidth( TRACK*             aTrackItem,
             if( aTrackItem->Type() == PCB_VIA_T )
             {
                 // Set new drill value. Note: currently microvias have only a default drill value
+                VIA *via = static_cast<VIA *>( aTrackItem );
                 if( new_drill > 0 )
-                    aTrackItem->SetDrill( new_drill );
+                    via->SetDrill( new_drill );
                 else
-                    aTrackItem->SetDrillDefault();
+                    via->SetDrillDefault();
             }
         }
     }
@@ -175,7 +224,7 @@ void PCB_EDIT_FRAME::Edit_Track_Width( wxDC* aDC, TRACK* aTrackSegment )
 
     for( int ii = 0; ii < nb_segm; ii++, pt_track = pt_track->Next() )
     {
-        pt_track->SetState( BUSY, OFF );
+        pt_track->SetState( BUSY, false );
 
         if( SetTrackSegmentWidth( pt_track, &itemsListPicker, false ) )
             change = true;
@@ -224,7 +273,7 @@ bool PCB_EDIT_FRAME::Change_Net_Tracks_And_Vias_Sizes( int aNetcode, bool aUseNe
 
     for( pt_segm = GetBoard()->m_Track; pt_segm != NULL; pt_segm = pt_segm->Next() )
     {
-        if( aNetcode != pt_segm->GetNet() )         // not in net
+        if( aNetcode != pt_segm->GetNetCode() )         // not in net
             continue;
 
         // we have found a item member of the net

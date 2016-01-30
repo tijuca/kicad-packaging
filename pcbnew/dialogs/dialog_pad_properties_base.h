@@ -1,5 +1,5 @@
 ///////////////////////////////////////////////////////////////////////////
-// C++ code generated with wxFormBuilder (version Oct  8 2012)
+// C++ code generated with wxFormBuilder (version Jun  5 2014)
 // http://www.wxformbuilder.org/
 //
 // PLEASE DO "NOT" EDIT THIS FILE!
@@ -30,6 +30,7 @@ class DIALOG_SHIM;
 #include <wx/image.h>
 #include <wx/icon.h>
 #include <wx/notebook.h>
+#include <pcb_draw_panel_gal.h>
 #include <wx/button.h>
 #include <wx/dialog.h>
 
@@ -93,7 +94,6 @@ class DIALOG_PAD_PROPERTIES_BASE : public DIALOG_SHIM
 		wxStaticText* m_staticText23;
 		wxChoice* m_trapDeltaDirChoice;
 		wxStaticText* m_staticText521;
-		wxBoxSizer* m_DrillShapeBoxSizer;
 		wxStaticText* m_staticTitleModuleRot;
 		wxStaticText* m_staticModuleRotValue;
 		wxStaticText* m_staticTitleModuleSide;
@@ -144,6 +144,7 @@ class DIALOG_PAD_PROPERTIES_BASE : public DIALOG_SHIM
 		wxStaticText* m_ThermalGapUnits;
 		wxStaticText* m_staticTextWarning;
 		wxPanel* m_panelShowPad;
+		PCB_DRAW_PANEL_GAL* m_panelShowPadGal;
 		wxStaticText* m_staticTextWarningPadFlipped;
 		wxStdDialogButtonSizer* m_sdbSizer1;
 		wxButton* m_sdbSizer1OK;

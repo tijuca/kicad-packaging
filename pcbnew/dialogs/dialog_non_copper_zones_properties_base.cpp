@@ -1,5 +1,5 @@
 ///////////////////////////////////////////////////////////////////////////
-// C++ code generated with wxFormBuilder (version Apr 10 2012)
+// C++ code generated with wxFormBuilder (version Mar  9 2015)
 // http://www.wxformbuilder.org/
 //
 // PLEASE DO "NOT" EDIT THIS FILE!
@@ -9,12 +9,12 @@
 
 ///////////////////////////////////////////////////////////////////////////
 
-BEGIN_EVENT_TABLE( DialogNonCopperZonesPropertiesBase, DIALOG_SHIM )
-	EVT_BUTTON( wxID_CANCEL, DialogNonCopperZonesPropertiesBase::_wxFB_OnCancelClick )
-	EVT_BUTTON( wxID_OK, DialogNonCopperZonesPropertiesBase::_wxFB_OnOkClick )
+BEGIN_EVENT_TABLE( DIALOG_NONCOPPER_ZONES_PROPERTIES_BASE, DIALOG_SHIM )
+	EVT_BUTTON( wxID_CANCEL, DIALOG_NONCOPPER_ZONES_PROPERTIES_BASE::_wxFB_OnCancelClick )
+	EVT_BUTTON( wxID_OK, DIALOG_NONCOPPER_ZONES_PROPERTIES_BASE::_wxFB_OnOkClick )
 END_EVENT_TABLE()
 
-DialogNonCopperZonesPropertiesBase::DialogNonCopperZonesPropertiesBase( wxWindow* parent, wxWindowID id, const wxString& title, const wxPoint& pos, const wxSize& size, long style ) : DIALOG_SHIM( parent, id, title, pos, size, style )
+DIALOG_NONCOPPER_ZONES_PROPERTIES_BASE::DIALOG_NONCOPPER_ZONES_PROPERTIES_BASE( wxWindow* parent, wxWindowID id, const wxString& title, const wxPoint& pos, const wxSize& size, long style ) : DIALOG_SHIM( parent, id, title, pos, size, style )
 {
 	this->SetSizeHints( wxDefaultSize, wxDefaultSize );
 	
@@ -31,8 +31,8 @@ DialogNonCopperZonesPropertiesBase::DialogNonCopperZonesPropertiesBase( wxWindow
 	m_staticTextLayerSelection->Wrap( -1 );
 	bSizerLeft->Add( m_staticTextLayerSelection, 0, wxTOP|wxRIGHT|wxLEFT, 5 );
 	
-	m_LayerSelectionCtrl = new wxListBox( this, wxID_ANY, wxDefaultPosition, wxDefaultSize, 0, NULL, 0 ); 
-	bSizerLeft->Add( m_LayerSelectionCtrl, 1, wxEXPAND|wxBOTTOM|wxRIGHT|wxLEFT, 5 );
+	m_LayerSelectionCtrl = new wxListView( this, wxID_ANY, wxDefaultPosition, wxDefaultSize, wxLC_ALIGN_LEFT|wxLC_NO_HEADER|wxLC_REPORT|wxLC_SINGLE_SEL );
+	bSizerLeft->Add( m_LayerSelectionCtrl, 1, wxALL|wxEXPAND, 5 );
 	
 	
 	m_UpperSizer->Add( bSizerLeft, 1, wxEXPAND, 5 );
@@ -47,13 +47,13 @@ DialogNonCopperZonesPropertiesBase::DialogNonCopperZonesPropertiesBase( wxWindow
 	int m_OrientEdgesOptNChoices = sizeof( m_OrientEdgesOptChoices ) / sizeof( wxString );
 	m_OrientEdgesOpt = new wxRadioBox( this, wxID_ANY, _("Zone Edges Orient"), wxDefaultPosition, wxDefaultSize, m_OrientEdgesOptNChoices, m_OrientEdgesOptChoices, 1, wxRA_SPECIFY_COLS );
 	m_OrientEdgesOpt->SetSelection( 0 );
-	m_OutilinesBoxOpt->Add( m_OrientEdgesOpt, 0, wxALL|wxALIGN_CENTER_VERTICAL|wxEXPAND, 5 );
+	m_OutilinesBoxOpt->Add( m_OrientEdgesOpt, 0, wxALL|wxEXPAND, 5 );
 	
 	wxString m_OutlineAppearanceCtrlChoices[] = { _("Line"), _("Hatched Outline"), _("Full Hatched") };
 	int m_OutlineAppearanceCtrlNChoices = sizeof( m_OutlineAppearanceCtrlChoices ) / sizeof( wxString );
 	m_OutlineAppearanceCtrl = new wxRadioBox( this, wxID_ANY, _("Outlines Appearence"), wxDefaultPosition, wxDefaultSize, m_OutlineAppearanceCtrlNChoices, m_OutlineAppearanceCtrlChoices, 1, wxRA_SPECIFY_COLS );
 	m_OutlineAppearanceCtrl->SetSelection( 1 );
-	m_OutilinesBoxOpt->Add( m_OutlineAppearanceCtrl, 0, wxALL|wxALIGN_CENTER_VERTICAL|wxEXPAND, 5 );
+	m_OutilinesBoxOpt->Add( m_OutlineAppearanceCtrl, 0, wxALL|wxEXPAND, 5 );
 	
 	
 	bSizerRight->Add( m_OutilinesBoxOpt, 0, wxEXPAND|wxALL, 5 );
@@ -63,13 +63,14 @@ DialogNonCopperZonesPropertiesBase::DialogNonCopperZonesPropertiesBase( wxWindow
 	bSizerRight->Add( m_MinThicknessValueTitle, 0, wxTOP|wxRIGHT|wxLEFT, 5 );
 	
 	m_ZoneMinThicknessCtrl = new wxTextCtrl( this, wxID_ANY, wxEmptyString, wxDefaultPosition, wxDefaultSize, 0 );
+	m_ZoneMinThicknessCtrl->SetMaxLength( 0 ); 
 	bSizerRight->Add( m_ZoneMinThicknessCtrl, 0, wxEXPAND|wxBOTTOM|wxRIGHT|wxLEFT, 5 );
 	
 	
 	m_UpperSizer->Add( bSizerRight, 0, wxEXPAND, 5 );
 	
 	
-	m_MainSizer->Add( m_UpperSizer, 1, wxEXPAND|wxALIGN_CENTER_HORIZONTAL, 5 );
+	m_MainSizer->Add( m_UpperSizer, 1, wxEXPAND, 5 );
 	
 	m_staticline1 = new wxStaticLine( this, wxID_ANY, wxDefaultPosition, wxDefaultSize, wxLI_HORIZONTAL );
 	m_MainSizer->Add( m_staticline1, 0, wxEXPAND | wxALL, 5 );
@@ -90,6 +91,6 @@ DialogNonCopperZonesPropertiesBase::DialogNonCopperZonesPropertiesBase( wxWindow
 	this->Centre( wxBOTH );
 }
 
-DialogNonCopperZonesPropertiesBase::~DialogNonCopperZonesPropertiesBase()
+DIALOG_NONCOPPER_ZONES_PROPERTIES_BASE::~DIALOG_NONCOPPER_ZONES_PROPERTIES_BASE()
 {
 }

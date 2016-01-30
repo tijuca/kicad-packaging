@@ -1,8 +1,8 @@
 /*
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
- * Copyright (C) 2007-2008 SoftPLC Corporation, Dick Hollenbeck <dick@softplc.com>
- * Copyright (C) 2007 KiCad Developers, see change_log.txt for contributors.
+ * Copyright (C) 2007-2013 SoftPLC Corporation, Dick Hollenbeck <dick@softplc.com>
+ * Copyright (C) 2007-2015 KiCad Developers, see change_log.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -31,21 +31,21 @@
 
 //  see http://www.boost.org/libs/ptr_container/doc/ptr_set.html
 #include <boost/ptr_container/ptr_set.hpp>
+#include <boost/shared_ptr.hpp>
 
 #include <fctsys.h>
 #include <specctra_lexer.h>
 #include <pcbnew.h>
 
-
-class TYPE_COLLECTOR;           // outside the DSN namespace
+// all outside the DSN namespace:
 class BOARD;
 class TRACK;
-class SEGVIA;
+class VIA;
 class NETCLASS;
 class MODULE;
+class SHAPE_POLY_SET;
 
-typedef DSN::T            DSN_T;
-using namespace DSN;
+typedef DSN::T  DSN_T;
 
 
 /**
@@ -465,6 +465,9 @@ public:
         point1.FixNegativeZero();
     }
 
+    POINT GetOrigin() { return point0; }
+    POINT GetEnd() { return point1; }
+
     void Format( OUTPUTFORMATTER* out, int nestLevel ) throw( IO_ERROR )
     {
         const char* newline = nestLevel ? "\n" : "";
@@ -593,6 +596,8 @@ public:
         points.push_back( aPoint );
     }
 
+    POINTS& GetPoints() {return points; }
+
     void SetLayerId( const char* aLayerId )
     {
         layer_id = aLayerId;
@@ -661,6 +666,40 @@ public:
     {
         delete rectangle;
     }
+
+    /**
+     * GetCorners fills aBuffer with a list of coordinates (x,y) of corners
+     */
+    void GetCorners( std::vector<double>& aBuffer )
+    {
+        if( rectangle )
+        {
+            aBuffer.push_back( rectangle->GetOrigin().x );
+            aBuffer.push_back( rectangle->GetOrigin().y );
+
+            aBuffer.push_back( rectangle->GetOrigin().x );
+            aBuffer.push_back( rectangle->GetEnd().y );
+
+            aBuffer.push_back( rectangle->GetEnd().x );
+            aBuffer.push_back( rectangle->GetEnd().y );
+
+            aBuffer.push_back( rectangle->GetEnd().x );
+            aBuffer.push_back( rectangle->GetOrigin().y );
+        }
+        else
+        {
+            for( PATHS::iterator i=paths.begin();  i!=paths.end();  ++i )
+            {
+                POINTS& plist = i->GetPoints();
+                for( unsigned jj = 0; jj < plist.size(); jj++ )
+                {
+                    aBuffer.push_back( plist[jj].x );
+                    aBuffer.push_back( plist[jj].y );
+                }
+            }
+        }
+    }
+
 
     void Format( OUTPUTFORMATTER* out, int nestLevel ) throw( IO_ERROR )
     {
@@ -1307,6 +1346,8 @@ public:
     TOKPROP( ELEM* aParent, DSN_T aType ) :
         ELEM( aType, aParent )
     {
+        // Do not leave uninitialized members
+        value = T_NONE;
     }
 
     void Format( OUTPUTFORMATTER* out, int nestLevel ) throw( IO_ERROR )
@@ -3577,10 +3618,10 @@ class SPECCTRA_DB : public SPECCTRA_LEXER
     STRINGS         layerIds;       ///< indexed by PCB layer number
 
     /// maps BOARD layer number to PCB layer numbers
-    std::vector<int>    kicadLayer2pcb;
+    std::vector<int> kicadLayer2pcb;
 
     /// maps PCB layer number to BOARD layer numbers
-    std::vector<int>    pcbLayer2kicad;
+    std::vector<LAYER_ID>   pcbLayer2kicad;
 
     /// used during FromSESSION() only, memory for it is not owned here.
     UNIT_RES*       routeResolution;
@@ -3595,6 +3636,10 @@ class SPECCTRA_DB : public SPECCTRA_LEXER
     /// we don't want ownership here permanently, so we don't use boost::ptr_vector
     std::vector<NET*>   nets;
 
+    /// specctra cu layers, 0 based index:
+    int     m_top_via_layer;
+    int     m_bot_via_layer;
+
 
     /**
      * Function buildLayerMaps
@@ -3606,7 +3651,11 @@ class SPECCTRA_DB : public SPECCTRA_LEXER
 
     /**
      * Function findLayerName
-     * returns the PCB layer index for a given layer name
+     * returns the PCB layer index for a given layer name, within the specctra session
+     * file.
+     *
+     * @return int - the layer index within the specctra session file, or -1 if
+     *  aLayerName is not found.
      */
     int findLayerName( const std::string& aLayerName ) const;
 
@@ -3644,69 +3693,69 @@ class SPECCTRA_DB : public SPECCTRA_LEXER
      */
     void readTIME( time_t* time_stamp ) throw( IO_ERROR );
 
-    void doPCB( PCB* growth ) throw( IO_ERROR );
+    void doPCB( PCB* growth ) throw( IO_ERROR, boost::bad_pointer );
     void doPARSER( PARSER* growth ) throw( IO_ERROR );
     void doRESOLUTION( UNIT_RES* growth ) throw( IO_ERROR );
     void doUNIT( UNIT_RES* growth ) throw( IO_ERROR );
-    void doSTRUCTURE( STRUCTURE* growth ) throw( IO_ERROR );
-    void doSTRUCTURE_OUT( STRUCTURE_OUT* growth ) throw( IO_ERROR );
-    void doLAYER_NOISE_WEIGHT( LAYER_NOISE_WEIGHT* growth ) throw( IO_ERROR );
+    void doSTRUCTURE( STRUCTURE* growth ) throw( IO_ERROR, boost::bad_pointer );
+    void doSTRUCTURE_OUT( STRUCTURE_OUT* growth ) throw( IO_ERROR, boost::bad_pointer );
+    void doLAYER_NOISE_WEIGHT( LAYER_NOISE_WEIGHT* growth ) throw( IO_ERROR, boost::bad_pointer );
     void doLAYER_PAIR( LAYER_PAIR* growth ) throw( IO_ERROR );
-    void doBOUNDARY( BOUNDARY* growth ) throw( IO_ERROR );
+    void doBOUNDARY( BOUNDARY* growth ) throw( IO_ERROR, boost::bad_pointer );
     void doRECTANGLE( RECTANGLE* growth ) throw( IO_ERROR );
     void doPATH( PATH* growth ) throw( IO_ERROR );
     void doSTRINGPROP( STRINGPROP* growth ) throw( IO_ERROR );
     void doTOKPROP( TOKPROP* growth ) throw( IO_ERROR );
     void doVIA( VIA* growth ) throw( IO_ERROR );
-    void doCONTROL( CONTROL* growth ) throw( IO_ERROR );
+    void doCONTROL( CONTROL* growth ) throw( IO_ERROR, boost::bad_pointer );
     void doLAYER( LAYER* growth ) throw( IO_ERROR );
     void doRULE( RULE* growth ) throw( IO_ERROR );
-    void doKEEPOUT( KEEPOUT* growth ) throw( IO_ERROR );
+    void doKEEPOUT( KEEPOUT* growth ) throw( IO_ERROR, boost::bad_pointer );
     void doCIRCLE( CIRCLE* growth ) throw( IO_ERROR );
     void doQARC( QARC* growth ) throw( IO_ERROR );
     void doWINDOW( WINDOW* growth ) throw( IO_ERROR );
     void doCONNECT( CONNECT* growth ) throw( IO_ERROR );
-    void doREGION( REGION* growth ) throw( IO_ERROR );
-    void doCLASS_CLASS( CLASS_CLASS* growth ) throw( IO_ERROR );
+    void doREGION( REGION* growth ) throw( IO_ERROR, boost::bad_pointer );
+    void doCLASS_CLASS( CLASS_CLASS* growth ) throw( IO_ERROR, boost::bad_pointer );
     void doLAYER_RULE( LAYER_RULE* growth ) throw( IO_ERROR );
     void doCLASSES( CLASSES* growth ) throw( IO_ERROR );
     void doGRID( GRID* growth ) throw( IO_ERROR );
-    void doPLACE( PLACE* growth ) throw( IO_ERROR );
-    void doCOMPONENT( COMPONENT* growth ) throw( IO_ERROR );
-    void doPLACEMENT( PLACEMENT* growth ) throw( IO_ERROR );
+    void doPLACE( PLACE* growth ) throw( IO_ERROR, boost::bad_pointer );
+    void doCOMPONENT( COMPONENT* growth ) throw( IO_ERROR, boost::bad_pointer );
+    void doPLACEMENT( PLACEMENT* growth ) throw( IO_ERROR, boost::bad_pointer );
     void doPROPERTIES( PROPERTIES* growth ) throw( IO_ERROR );
-    void doPADSTACK( PADSTACK* growth ) throw( IO_ERROR );
-    void doSHAPE( SHAPE* growth ) throw( IO_ERROR );
-    void doIMAGE( IMAGE* growth ) throw( IO_ERROR );
-    void doLIBRARY( LIBRARY* growth ) throw( IO_ERROR );
+    void doPADSTACK( PADSTACK* growth ) throw( IO_ERROR, boost::bad_pointer );
+    void doSHAPE( SHAPE* growth ) throw( IO_ERROR, boost::bad_pointer );
+    void doIMAGE( IMAGE* growth ) throw( IO_ERROR, boost::bad_pointer );
+    void doLIBRARY( LIBRARY* growth ) throw( IO_ERROR, boost::bad_pointer );
     void doPIN( PIN* growth ) throw( IO_ERROR );
-    void doNET( NET* growth ) throw( IO_ERROR );
-    void doNETWORK( NETWORK* growth ) throw( IO_ERROR );
-    void doCLASS( CLASS* growth ) throw( IO_ERROR );
-    void doTOPOLOGY( TOPOLOGY* growth ) throw( IO_ERROR );
-    void doFROMTO( FROMTO* growth ) throw( IO_ERROR );
+    void doNET( NET* growth ) throw( IO_ERROR, boost::bad_pointer );
+    void doNETWORK( NETWORK* growth ) throw( IO_ERROR, boost::bad_pointer );
+    void doCLASS( CLASS* growth ) throw( IO_ERROR, boost::bad_pointer );
+    void doTOPOLOGY( TOPOLOGY* growth ) throw( IO_ERROR, boost::bad_pointer );
+    void doFROMTO( FROMTO* growth ) throw( IO_ERROR, boost::bad_pointer );
     void doCOMP_ORDER( COMP_ORDER* growth ) throw( IO_ERROR );
-    void doWIRE( WIRE* growth ) throw( IO_ERROR );
+    void doWIRE( WIRE* growth ) throw( IO_ERROR, boost::bad_pointer );
     void doWIRE_VIA( WIRE_VIA* growth ) throw( IO_ERROR );
-    void doWIRING( WIRING* growth ) throw( IO_ERROR );
-    void doSESSION( SESSION* growth ) throw( IO_ERROR );
+    void doWIRING( WIRING* growth ) throw( IO_ERROR, boost::bad_pointer );
+    void doSESSION( SESSION* growth ) throw( IO_ERROR, boost::bad_pointer );
     void doANCESTOR( ANCESTOR* growth ) throw( IO_ERROR );
-    void doHISTORY( HISTORY* growth ) throw( IO_ERROR );
-    void doROUTE( ROUTE* growth ) throw( IO_ERROR );
+    void doHISTORY( HISTORY* growth ) throw( IO_ERROR, boost::bad_pointer );
+    void doROUTE( ROUTE* growth ) throw( IO_ERROR, boost::bad_pointer );
     void doWAS_IS( WAS_IS* growth ) throw( IO_ERROR );
-    void doNET_OUT( NET_OUT* growth ) throw( IO_ERROR );
+    void doNET_OUT( NET_OUT* growth ) throw( IO_ERROR, boost::bad_pointer );
     void doSUPPLY_PIN( SUPPLY_PIN* growth ) throw( IO_ERROR );
 
     //-----<FromBOARD>-------------------------------------------------------
 
     /**
-     * Function makeBOUNDARY
-     * makes the board perimeter for the DSN file.
+     * Function fillBOUNDARY
+     * makes the board perimeter for the DSN file by filling the BOUNDARY element
+     * in the specctra element tree.
      * @param aBoard The BOARD to get information from in order to make the BOUNDARY.
      * @param aBoundary The empty BOUNDARY to fill in.
      */
-    void fillBOUNDARY( BOARD* aBoard, BOUNDARY* aBoundary ) throw( IO_ERROR );
-
+    void fillBOUNDARY( BOARD* aBoard, BOUNDARY* aBoundary ) throw( IO_ERROR, boost::bad_pointer );
 
     /**
      * Function makeIMAGE
@@ -3717,7 +3766,6 @@ class SPECCTRA_DB : public SPECCTRA_LEXER
      * @return IMAGE* - not tested for duplication yet.
      */
     IMAGE* makeIMAGE( BOARD* aBoard, MODULE* aModule );
-
 
     /**
      * Function makePADSTACK
@@ -3740,17 +3788,16 @@ class SPECCTRA_DB : public SPECCTRA_LEXER
      *  or delete it.
      */
     PADSTACK* makeVia( int aCopperDiameter, int aDrillDiameter,
-                               int aTopLayer, int aBotLayer );
+                       int aTopLayer, int aBotLayer );
 
     /**
      * Function makeVia
-     * makes any kind of PADSTACK using the given KiCad SEGVIA.
-     * @param aVia The SEGVIA to build the padstack from.
+     * makes any kind of PADSTACK using the given KiCad VIA.
+     * @param aVia The VIA to build the padstack from.
      * @return PADSTACK* - The padstack, which is on the heap only, user must save
      *  or delete it.
      */
-    PADSTACK* makeVia( const SEGVIA* aVia );
-
+    PADSTACK* makeVia( const ::VIA* aVia );
 
     /**
      * Function deleteNETs
@@ -3764,13 +3811,11 @@ class SPECCTRA_DB : public SPECCTRA_LEXER
         nets.clear();
     }
 
-
     /**
      * Function exportNETCLASS
      * exports \a aNetClass to the DSN file.
      */
-    void exportNETCLASS( NETCLASS* aNetClass, BOARD* aBoard );
-
+    void exportNETCLASS( boost::shared_ptr<NETCLASS> aNetClass, BOARD* aBoard );
 
     //-----</FromBOARD>------------------------------------------------------
 
@@ -3782,13 +3827,13 @@ class SPECCTRA_DB : public SPECCTRA_LEXER
      */
     TRACK* makeTRACK( PATH* aPath, int aPointIndex, int aNetcode ) throw( IO_ERROR );
 
-
     /**
      * Function makeVIA
-     * instantiates a KiCad SEGVIA on the heap and initializes it with internal
+     * instantiates a KiCad VIA on the heap and initializes it with internal
      * values consistent with the given PADSTACK, POINT, and netcode.
      */
-    SEGVIA* makeVIA( PADSTACK* aPadstack, const POINT& aPoint, int aNetCode ) throw( IO_ERROR );
+    ::VIA* makeVIA( PADSTACK* aPadstack, const POINT& aPoint, int aNetCode, int aViaDrillDefault )
+        throw( IO_ERROR );
 
     //-----</FromSESSION>----------------------------------------------------
 
@@ -3797,7 +3842,9 @@ public:
     SPECCTRA_DB() :
         SPECCTRA_LEXER( 0 )         // LINE_READER* == NULL, no DSNLEXER::PushReader()
     {
-        iOwnReaders = true;         // if an exception is thrown, close file.
+        // The LINE_READER will be pushed from an automatic instantiation,
+        // we don't own it:
+        wxASSERT( !iOwnReaders );
 
         pcb   = 0;
         session = 0;
@@ -3805,6 +3852,12 @@ public:
         modulesAreFlipped = false;
 
         SetSpecctraMode( true );
+
+        // Avoid not initialized members:
+        routeResolution = NULL;
+        sessionBoard = NULL;
+        m_top_via_layer = 0;
+        m_bot_via_layer = 0;
     }
 
     virtual ~SPECCTRA_DB()
@@ -3843,7 +3896,6 @@ public:
     }
     SESSION* GetSESSION() { return session; }
 
-
     /**
      * Function LoadPCB
      * is a recursive descent parser for a SPECCTRA DSN "design" file.
@@ -3853,8 +3905,7 @@ public:
      * @param filename The name of the dsn file to load.
      * @throw IO_ERROR if there is a lexer or parser error.
      */
-    void LoadPCB( const wxString& filename ) throw( IO_ERROR );
-
+    void LoadPCB( const wxString& filename ) throw( IO_ERROR, boost::bad_pointer );
 
     /**
      * Function LoadSESSION
@@ -3866,11 +3917,9 @@ public:
      * @param filename The name of the dsn file to load.
      * @throw IO_ERROR if there is a lexer or parser error.
      */
-    void LoadSESSION( const wxString& filename ) throw( IO_ERROR );
+    void LoadSESSION( const wxString& filename ) throw( IO_ERROR, boost::bad_pointer );
 
-
-    void ThrowIOError( const wxChar* fmt, ... ) throw( IO_ERROR );
-
+    void ThrowIOError( const wxString& fmt, ... ) throw( IO_ERROR );
 
     /**
      * Function ExportPCB
@@ -3883,7 +3932,6 @@ public:
      */
     void ExportPCB( wxString aFilename,  bool aNameChange=false ) throw( IO_ERROR );
 
-
     /**
      * Function FromBOARD
      * adds the entire BOARD to the PCB but does not write it out.  Note that
@@ -3895,7 +3943,7 @@ public:
      *
      * @param aBoard The BOARD to convert to a PCB.
      */
-    void FromBOARD( BOARD* aBoard ) throw( IO_ERROR );
+    void FromBOARD( BOARD* aBoard ) throw( IO_ERROR, boost::bad_ptr_container_operation );
 
     /**
      * Function FromSESSION
@@ -3926,6 +3974,26 @@ public:
      * flips the modules which were on the back side of the board back to the back.
      */
     void RevertMODULEs( BOARD* aBoard );
+
+    /**
+     * Function GetBoardPolygonOutlines
+     * Is not used in SPECCTRA export, but uses a lot of functions from it
+     * and is used to extract a board outlines (3D view, automatic zones build ...)
+     * makes the board perimeter by filling the BOUNDARY element
+     * any closed outline inside the main outline is a hole
+     * All contours should be closed, i.e. have valid vertices to build a closed polygon
+     * @param aBoard The BOARD to get information from in order to make the outlines.
+     * @param aOutlines The SHAPE_POLY_SET to fill in with main outlines.
+     * @param aHoles The empty SHAPE_POLY_SET to fill in with holes, if any.
+     * @param aErrorText = a wxString reference to display an error message
+     *          with the coordinate of the point which creates the error
+     *          (default = NULL , no message returned on error)
+     * @return true if success, false if a contour is not valid
+     */
+    bool GetBoardPolygonOutlines( BOARD* aBoard,
+                                  SHAPE_POLY_SET& aOutlines,
+                                  SHAPE_POLY_SET& aHoles,
+                                  wxString* aErrorText = NULL );
 };
 
 

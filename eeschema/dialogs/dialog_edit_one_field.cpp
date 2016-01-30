@@ -30,6 +30,7 @@
 #include <fctsys.h>
 #include <common.h>
 #include <base_units.h>
+#include <kiway.h>
 
 #include <general.h>
 #include <sch_base_frame.h>
@@ -50,10 +51,10 @@ void DIALOG_EDIT_ONE_FIELD::initDlg_base()
     m_TextValue->SetFocus();
 
     // Disable options for graphic text edition, not existing in fields
-    m_CommonConvert->Show(false);
-    m_CommonUnit->Show(false);
+    m_CommonConvert->Show( false );
+    m_CommonUnit->Show( false );
 
-    msg = ReturnStringFromValue( g_UserUnit, m_textsize );
+    msg = StringFromValue( g_UserUnit, m_textsize );
     m_TextSize->SetValue( msg );
 
     if( m_textorient == TEXT_ORIENT_VERT )
@@ -61,6 +62,7 @@ void DIALOG_EDIT_ONE_FIELD::initDlg_base()
 
     m_Invisible->SetValue( m_text_invisible );
     m_TextShapeOpt->SetSelection( m_textshape );
+    SetPowerWarning( false );
 
     switch ( m_textHjustify )
     {
@@ -96,43 +98,101 @@ void DIALOG_EDIT_ONE_FIELD::initDlg_base()
     m_TextSizeText->SetLabel( msg );
 
     m_sdbSizerButtonsOK->SetDefault();
+
+}
+
+void DIALOG_EDIT_ONE_FIELD::SetPowerWarning( bool aWarn )
+{
+    m_PowerComponentValues->Show( aWarn );
+    m_TextValue->Enable( ! aWarn );
+    Fit();
+}
+
+void DIALOG_EDIT_ONE_FIELD::OnTextValueSelectButtonClick( wxCommandEvent& aEvent )
+{
+    // pick a footprint using the footprint picker.
+    wxString fpid;
+
+    KIWAY_PLAYER* frame = Kiway().Player( FRAME_PCB_MODULE_VIEWER_MODAL, true );
+
+    if( frame->ShowModal( &fpid, this ) )
+    {
+        // DBG( printf( "%s: %s\n", __func__, TO_UTF8( fpid ) ); )
+        m_TextValue->SetValue( fpid );
+    }
+
+    frame->Destroy();
 }
 
 
 void DIALOG_LIB_EDIT_ONE_FIELD::initDlg()
 {
-    m_textsize = m_field->m_Size.x;
-    m_TextValue->SetValue( m_field->m_Text );
-
+    m_textsize = m_field->GetSize().x;
+    m_TextValue->SetValue( m_field->GetText() );
     m_textorient = m_field->GetOrientation();
-
     m_text_invisible = m_field->IsVisible() ? false : true;
 
     m_textshape = 0;
-    if( m_field->m_Italic )
+
+    if( m_field->IsItalic() )
         m_textshape = 1;
-    if( m_field->m_Bold )
+
+    if( m_field->IsBold() )
         m_textshape |= 2;
 
-    m_textHjustify = m_field->m_HJustify;
-    m_textVjustify =  m_field->m_VJustify;
+    m_textHjustify = m_field->GetHorizJustify();
+    m_textVjustify = m_field->GetVertJustify();
+
+    if( m_field->GetId() == FOOTPRINT )
+    {
+        m_TextValueSelectButton->Show();
+        m_TextValueSelectButton->Enable();
+    }
+    else
+    {
+        m_TextValueSelectButton->Hide();
+        m_TextValueSelectButton->Disable();
+    }
 
     initDlg_base();
 }
 
+
 wxString DIALOG_LIB_EDIT_ONE_FIELD::GetTextField()
 {
     wxString line = m_TextValue->GetValue();
-    // Spaces are not allowed in fields, so replace them by '_'
-    line.Replace( wxT( " " ), wxT( "_" ) );
-    return line;
-};
 
-void DIALOG_EDIT_ONE_FIELD::TransfertDataToField()
+    // Spaces are not allowed in reference or value
+    if( m_field->GetId() == REFERENCE || m_field->GetId() == VALUE )
+    {
+        if( line.Replace( wxT( " " ), wxT( "_" ) ) )
+        {
+            wxString msg;
+            msg.Printf( _(
+                "Whitespace is not permitted inside references or values (symbol names in lib).\n"
+                "The text you entered has been converted to use underscores: %s" ),
+                line
+                );
+            wxMessageDialog dlg( this, msg );
+            dlg.ShowModal();
+        }
+    }
+
+    // Prevent the message from appearing twice by restuffing the text box.
+    m_TextValue->SetValue( line );
+
+    return line;
+}
+
+
+void DIALOG_EDIT_ONE_FIELD::TransfertDataToField( bool aIncludeText )
 {
+    // This method doesn't transfer text anyway.
+    (void) aIncludeText;
+
     m_textorient = m_Orient->GetValue() ? TEXT_ORIENT_VERT : TEXT_ORIENT_HORIZ;
     wxString msg = m_TextSize->GetValue();
-    m_textsize = ReturnValueFromString( g_UserUnit, msg );
+    m_textsize = ValueFromString( g_UserUnit, msg );
 
     switch( m_TextHJustificationOpt->GetSelection() )
     {
@@ -165,50 +225,52 @@ void DIALOG_EDIT_ONE_FIELD::TransfertDataToField()
     }
 }
 
-void DIALOG_LIB_EDIT_ONE_FIELD::TransfertDataToField()
+
+void DIALOG_LIB_EDIT_ONE_FIELD::TransfertDataToField( bool aIncludeText )
 {
-    DIALOG_EDIT_ONE_FIELD::TransfertDataToField();
+    DIALOG_EDIT_ONE_FIELD::TransfertDataToField( aIncludeText );
 
-    m_field->SetText( GetTextField() );
+    if( aIncludeText )
+        m_field->SetText( GetTextField() );
 
-    m_field->m_Size.x = m_field->m_Size.y = m_textsize;
-    m_field->m_Orient = m_textorient;
-
-    if( m_Invisible->GetValue() )
-        m_field->m_Attributs |= TEXT_NO_VISIBLE;
-    else
-        m_field->m_Attributs &= ~TEXT_NO_VISIBLE;
-
-    if( ( m_TextShapeOpt->GetSelection() & 1 ) != 0 )
-        m_field->m_Italic = true;
-    else
-        m_field->m_Italic = false;
-
-    if( ( m_TextShapeOpt->GetSelection() & 2 ) != 0 )
-        m_field->m_Bold = true;
-    else
-        m_field->m_Bold = false;
-
-    m_field->m_HJustify = m_textHjustify;
-    m_field->m_VJustify = m_textVjustify;
+    m_field->SetSize( wxSize( m_textsize, m_textsize ) );
+    m_field->SetOrientation( m_textorient );
+    m_field->SetVisible( !m_Invisible->GetValue() );
+    m_field->SetItalic( ( m_TextShapeOpt->GetSelection() & 1 ) != 0 );
+    m_field->SetBold( ( m_TextShapeOpt->GetSelection() & 2 ) != 0 );
+    m_field->SetHorizJustify( m_textHjustify );
+    m_field->SetVertJustify( m_textVjustify );
 }
 
 
 void DIALOG_SCH_EDIT_ONE_FIELD::initDlg()
 {
-    m_textsize = m_field->m_Size.x;
-    m_TextValue->SetValue( m_field->m_Text );
+    m_textsize = m_field->GetSize().x;
+    m_TextValue->SetValue( m_field->GetText() );
     m_textorient = m_field->GetOrientation();
     m_text_invisible = m_field->IsVisible() ? false : true;
 
     m_textshape = 0;
-    if( m_field->m_Italic )
+
+    if( m_field->IsItalic() )
         m_textshape = 1;
-    if( m_field->m_Bold )
+
+    if( m_field->IsBold() )
         m_textshape |= 2;
 
-    m_textHjustify = m_field->m_HJustify;
-    m_textVjustify =  m_field->m_VJustify;
+    m_textHjustify = m_field->GetHorizJustify();
+    m_textVjustify = m_field->GetVertJustify();
+
+    if( m_field->GetId() == FOOTPRINT )
+    {
+        m_TextValueSelectButton->Show();
+        m_TextValueSelectButton->Enable();
+    }
+    else
+    {
+        m_TextValueSelectButton->Hide();
+        m_TextValueSelectButton->Disable();
+    }
 
     initDlg_base();
 }
@@ -222,30 +284,20 @@ wxString DIALOG_SCH_EDIT_ONE_FIELD::GetTextField()
     return line;
 };
 
-void DIALOG_SCH_EDIT_ONE_FIELD::TransfertDataToField()
+
+void DIALOG_SCH_EDIT_ONE_FIELD::TransfertDataToField( bool aIncludeText )
 {
-    DIALOG_EDIT_ONE_FIELD::TransfertDataToField();
+    DIALOG_EDIT_ONE_FIELD::TransfertDataToField( aIncludeText );
 
-    m_field->SetText( GetTextField() );
+    if( aIncludeText )
+        m_field->SetText( GetTextField() );
 
-    m_field->m_Size.x = m_field->m_Size.y = m_textsize;
-    m_field->m_Orient = m_textorient;
+    m_field->SetSize( wxSize( m_textsize, m_textsize ) );
+    m_field->SetOrientation( m_textorient );
+    m_field->SetVisible( !m_Invisible->GetValue() );
 
-    if( m_Invisible->GetValue() )
-        m_field->m_Attributs |= TEXT_NO_VISIBLE;
-    else
-        m_field->m_Attributs &= ~TEXT_NO_VISIBLE;
-
-    if( ( m_TextShapeOpt->GetSelection() & 1 ) != 0 )
-        m_field->m_Italic = true;
-    else
-        m_field->m_Italic = false;
-
-    if( ( m_TextShapeOpt->GetSelection() & 2 ) != 0 )
-        m_field->m_Bold = true;
-    else
-        m_field->m_Bold = false;
-
-    m_field->m_HJustify = m_textHjustify;
-    m_field->m_VJustify = m_textVjustify;
+    m_field->SetItalic( ( m_TextShapeOpt->GetSelection() & 1 ) != 0 );
+    m_field->SetBold( ( m_TextShapeOpt->GetSelection() & 2 ) != 0 );
+    m_field->SetHorizJustify( m_textHjustify );
+    m_field->SetVertJustify( m_textVjustify );
 }

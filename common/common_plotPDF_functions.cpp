@@ -28,7 +28,7 @@
  */
 
 #include <fctsys.h>
-#include <appl_wxstruct.h>
+#include <pgm_base.h>
 #include <trigo.h>
 #include <wxstruct.h>
 #include <base_struct.h>
@@ -71,13 +71,15 @@ void PDF_PLOTTER::SetViewport( const wxPoint& aOffset, double aIusPerDecimil,
                               double aScale, bool aMirror )
 {
     wxASSERT( !workFile );
-    plotMirror = aMirror;
+    m_plotMirror = aMirror;
     plotOffset = aOffset;
     plotScale = aScale;
     m_IUsPerDecimil = aIusPerDecimil;
 
     // The CTM is set to 1 user unit per decimil
     iuPerDeviceUnit = 1.0 / aIusPerDecimil;
+
+    SetDefaultLineWidth( 100 / iuPerDeviceUnit );  // arbitrary default
 
     /* The paper size in this engined is handled page by page
        Look in the StartPage function */
@@ -87,7 +89,10 @@ void PDF_PLOTTER::SetViewport( const wxPoint& aOffset, double aIusPerDecimil,
 /**
  * Pen width setting for PDF. Since the specs *explicitly* says that a 0
  * width is a bad thing to use (since it results in 1 pixel traces), we
- * convert such requests to the default width (like -1)
+ * convert such requests to the minimal width (like 1)
+ * Note pen width = 0 is used in plot polygons to plot filled polygons with
+ * no outline thickness
+ * use in this case pen width = 1 does not actally change the polygon
  */
 void PDF_PLOTTER::SetCurrentLineWidth( int width )
 {
@@ -96,6 +101,8 @@ void PDF_PLOTTER::SetCurrentLineWidth( int width )
 
     if( width > 0 )
         pen_width = width;
+    else if( width == 0 )
+        pen_width = 1;
     else
         pen_width = defaultPenWidth;
 
@@ -130,7 +137,8 @@ void PDF_PLOTTER::SetDash( bool dashed )
 {
     wxASSERT( workFile );
     if( dashed )
-        fputs( "[200] 100 d\n", workFile );
+        fprintf( workFile, "[%d %d] 0 d\n",
+                 (int) GetDashMarkLenIU(), (int) GetDashGapLenIU() );
     else
         fputs( "[] 0 d\n", workFile );
 }
@@ -164,7 +172,8 @@ void PDF_PLOTTER::Circle( const wxPoint& pos, int diametre, FILL_T aFill, int wi
     /* OK. Here's a trick. PDF doesn't support circles or circular angles, that's
        a fact. You'll have to do with cubic beziers. These *can't* represent
        circular arcs (NURBS can, beziers don't). But there is a widely known
-       approximation which is really good */
+       approximation which is really good
+    */
 
     SetCurrentLineWidth( width );
     double magic = radius * 0.551784; // You don't want to know where this come from
@@ -201,7 +210,7 @@ void PDF_PLOTTER::Circle( const wxPoint& pos, int diametre, FILL_T aFill, int wi
  * The PDF engine can't directly plot arcs, it uses the base emulation.
  * So no filled arcs (not a great loss... )
  */
-void PDF_PLOTTER::Arc( const wxPoint& centre, int StAngle, int EndAngle, int radius,
+void PDF_PLOTTER::Arc( const wxPoint& centre, double StAngle, double EndAngle, int radius,
                       FILL_T fill, int width )
 {
     wxASSERT( workFile );
@@ -214,28 +223,25 @@ void PDF_PLOTTER::Arc( const wxPoint& centre, int StAngle, int EndAngle, int rad
     const int delta = 50;   // increment (in 0.1 degrees) to draw circles
 
     if( StAngle > EndAngle )
-        EXCHG( StAngle, EndAngle );
+        std::swap( StAngle, EndAngle );
 
     SetCurrentLineWidth( width );
 
     // Usual trig arc plotting routine...
-    double alpha = DEG2RAD( StAngle / 10.0 );
-    start.x = centre.x + (int) ( radius * cos( -alpha ) );
-    start.y = centre.y + (int) ( radius * sin( -alpha ) );
+    start.x = centre.x + KiROUND( cosdecideg( radius, -StAngle ) );
+    start.y = centre.y + KiROUND( sindecideg( radius, -StAngle ) );
     DPOINT pos_dev = userToDeviceCoordinates( start );
     fprintf( workFile, "%g %g m ", pos_dev.x, pos_dev.y );
     for( int ii = StAngle + delta; ii < EndAngle; ii += delta )
     {
-        alpha = DEG2RAD( ii / 10.0 );
-        end.x = centre.x + (int) ( radius * cos( -alpha ) );
-        end.y = centre.y + (int) ( radius * sin( -alpha ) );
+        end.x = centre.x + KiROUND( cosdecideg( radius, -ii ) );
+        end.y = centre.y + KiROUND( sindecideg( radius, -ii ) );
         pos_dev = userToDeviceCoordinates( end );
         fprintf( workFile, "%g %g l ", pos_dev.x, pos_dev.y );
     }
 
-    alpha = DEG2RAD( EndAngle / 10.0 );
-    end.x = centre.x + (int) ( radius * cos( -alpha ) );
-    end.y = centre.y + (int) ( radius * sin( -alpha ) );
+    end.x = centre.x + KiROUND( cosdecideg( radius, -EndAngle ) );
+    end.y = centre.y + KiROUND( sindecideg( radius, -EndAngle ) );
     pos_dev = userToDeviceCoordinates( end );
     fprintf( workFile, "%g %g l ", pos_dev.x, pos_dev.y );
 
@@ -453,7 +459,13 @@ void PDF_PLOTTER::closePdfStream()
 {
     wxASSERT( workFile );
 
-    int stream_len = ftell( workFile );
+    long stream_len = ftell( workFile );
+
+    if( stream_len < 0 )
+    {
+        wxASSERT( false );
+        return;
+    }
 
     // Rewind the file, read in the page stream and DEFLATE it
     fseek( workFile, 0, SEEK_SET );
@@ -469,15 +481,15 @@ void PDF_PLOTTER::closePdfStream()
     ::wxRemoveFile( workFilename );
 
     // NULL means memos owns the memory, but provide a hint on optimum size needed.
-    wxMemoryOutputStream    memos( NULL, std::max( 2000, stream_len ) ) ;
+    wxMemoryOutputStream    memos( NULL, std::max( 2000l, stream_len ) ) ;
 
     {
         /* Somewhat standard parameters to compress in DEFLATE. The PDF spec is
-           misleading, it says it wants a DEFLATE stream but it really want a ZLIB
-           stream! (a DEFLATE stream would be generated with -15 instead of 15)
-        rc = deflateInit2( &zstrm, Z_BEST_COMPRESSION, Z_DEFLATED, 15,
-                               8, Z_DEFAULT_STRATEGY );
-        */
+         * misleading, it says it wants a DEFLATE stream but it really want a ZLIB
+         * stream! (a DEFLATE stream would be generated with -15 instead of 15)
+         * rc = deflateInit2( &zstrm, Z_BEST_COMPRESSION, Z_DEFLATED, 15,
+         *                    8, Z_DEFAULT_STRATEGY );
+         */
 
         wxZlibOutputStream      zos( memos, wxZ_BEST_COMPRESSION, wxZLIB_ZLIB );
 
@@ -514,7 +526,6 @@ void PDF_PLOTTER::StartPage()
     paperSize = pageInfo.GetSizeMils();
     paperSize.x *= 10.0 / iuPerDeviceUnit;
     paperSize.y *= 10.0 / iuPerDeviceUnit;
-    SetDefaultLineWidth( 100 / iuPerDeviceUnit );  // arbitrary default
 
     // Open the content stream; the page object will go later
     pageStreamHandle = startPdfStream();
@@ -726,7 +737,7 @@ bool PDF_PLOTTER::EndPlot()
              "<< /Size %lu /Root %d 0 R /Info %d 0 R >>\n"
              "startxref\n"
              "%ld\n" // The offset we saved before
-             "%%EOF\n",
+             "%%%%EOF\n",
              (unsigned long) xrefTable.size(), catalogHandle, infoDictHandle, xref_start );
 
     fclose( outputFile );
@@ -738,16 +749,25 @@ bool PDF_PLOTTER::EndPlot()
 void PDF_PLOTTER::Text( const wxPoint&              aPos,
                         enum EDA_COLOR_T            aColor,
                         const wxString&             aText,
-                        int                         aOrient,
+                        double                      aOrient,
                         const wxSize&               aSize,
                         enum EDA_TEXT_HJUSTIFY_T    aH_justify,
                         enum EDA_TEXT_VJUSTIFY_T    aV_justify,
                         int                         aWidth,
                         bool                        aItalic,
-                        bool                        aBold )
+                        bool                        aBold,
+                        bool                        aMultilineAllowed )
 {
+    // PDF files do not like 0 sized texts which create broken files.
+    if( aSize.x == 0 || aSize.y == 0 )
+        return;
+
+    // Fix me: see how to use PDF text mode for multiline texts
+    if( aMultilineAllowed && !aText.Contains( wxT( "\n" ) ) )
+        aMultilineAllowed = false;  // the text has only one line.
+
     // Emit native PDF text (if requested)
-    if( m_textMode != PLOTTEXTMODE_STROKE )
+    if( m_textMode != PLOTTEXTMODE_STROKE && !aMultilineAllowed )
     {
         const char *fontname = aItalic ? (aBold ? "/KicadFontBI" : "/KicadFontI")
             : (aBold ? "/KicadFontB" : "/KicadFont");
@@ -803,10 +823,10 @@ void PDF_PLOTTER::Text( const wxPoint&              aPos,
     }
 
     // Plot the stroked text (if requested)
-    if( m_textMode != PLOTTEXTMODE_NATIVE )
+    if( m_textMode != PLOTTEXTMODE_NATIVE || aMultilineAllowed )
     {
         PLOTTER::Text( aPos, aColor, aText, aOrient, aSize, aH_justify, aV_justify,
-                aWidth, aItalic, aBold );
+                aWidth, aItalic, aBold, aMultilineAllowed );
     }
 }
 

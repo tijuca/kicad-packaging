@@ -1,3 +1,27 @@
+/*
+ * This program source code file is part of KiCad, a free EDA CAD application.
+ *
+ * Copyright (C) 2007-2014 Jean-Pierre Charras, jp.charras at wanadoo.fr
+ * Copyright (C) 1992-2012 KiCad Developers, see AUTHORS.txt for contributors.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation; either version 2
+ * of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, you may find one here:
+ * http://www.gnu.org/licenses/old-licenses/gpl-2.0.html
+ * or you may search the http://www.gnu.org website for the version 2 license,
+ * or you may write to the Free Software Foundation, Inc.,
+ * 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
+ */
+
 /**
  * @file modedit_onclick.cpp
  */
@@ -14,7 +38,6 @@
 #include <class_edge_mod.h>
 
 #include <pcbnew.h>
-//#include <protos.h>
 #include <pcbnew_id.h>
 #include <hotkeys.h>
 #include <module_editor_frame.h>
@@ -35,16 +58,16 @@ void FOOTPRINT_EDIT_FRAME::OnLeftClick( wxDC* DC, const wxPoint& MousePos )
             switch( item->Type() )
             {
             case PCB_MODULE_TEXT_T:
-                PlaceTexteModule( (TEXTE_MODULE*) item, DC );
+                PlaceTexteModule( static_cast<TEXTE_MODULE*>( item ), DC );
                 break;
 
             case PCB_MODULE_EDGE_T:
                 SaveCopyInUndoList( GetBoard()->m_Modules, UR_MODEDIT );
-                Place_EdgeMod( (EDGE_MODULE*) item );
+                Place_EdgeMod( static_cast<EDGE_MODULE*>( item ) );
                 break;
 
             case PCB_PAD_T:
-                PlacePad( (D_PAD*) item, DC );
+                PlacePad( static_cast<D_PAD*>( item ), DC );
                 break;
 
             default:
@@ -112,7 +135,7 @@ void FOOTPRINT_EDIT_FRAME::OnLeftClick( wxDC* DC, const wxPoint& MousePos )
             }
             else
             {
-                DisplayError( this, wxT( "ProcessCommand error: item flags error" ) );
+                wxMessageBox( wxT( "ProcessCommand error: unknown shape" ) );
             }
         }
         break;
@@ -133,30 +156,31 @@ void FOOTPRINT_EDIT_FRAME::OnLeftClick( wxDC* DC, const wxPoint& MousePos )
         break;
 
     case ID_MODEDIT_ANCHOR_TOOL:
-    {
-        MODULE* module = GetBoard()->m_Modules;
+        {
+            MODULE* module = GetBoard()->m_Modules;
 
-        if( module == NULL    // No module loaded
-            || (module->GetFlags() != 0) )
-            break;
+            if( module == NULL    // No module loaded
+                || (module->GetFlags() != 0) )
+                break;
 
-        module->ClearFlags();
-        SaveCopyInUndoList( module, UR_MODEDIT );
-        Place_Ancre( module );      // set the new relatives internal coordinates of items
-        RedrawScreen( wxPoint( 0, 0 ), true );
+            SaveCopyInUndoList( module, UR_MODEDIT );
 
-        // Replace the module in position 0, to recalculate absolutes coordinates of items
-        module->SetPosition( wxPoint( 0, 0 ) );
-        SetToolID( ID_NO_TOOL_SELECTED, m_canvas->GetDefaultCursor(), wxEmptyString );
-        SetCurItem( NULL );
-        m_canvas->Refresh();
-    }
-    break;
+            // set the new relative internal local coordinates of footprint items
+            wxPoint moveVector = module->GetPosition() - GetCrossHairPosition();
+            module->MoveAnchorPosition( moveVector );
+
+            // Usually, we do not need to change twice the anchor position,
+            // so deselect the active tool
+            SetToolID( ID_NO_TOOL_SELECTED, m_canvas->GetDefaultCursor(), wxEmptyString );
+            SetCurItem( NULL );
+            m_canvas->Refresh();
+        }
+        break;
 
     case ID_MODEDIT_PLACE_GRID_COORD:
-        m_canvas->DrawGridAxis( DC, GR_XOR );
-        GetScreen()->m_GridOrigin = GetScreen()->GetCrossHairPosition();
-        m_canvas->DrawGridAxis( DC, GR_COPY );
+        m_canvas->DrawGridAxis( DC, GR_XOR, GetBoard()->GetGridOrigin() );
+        SetGridOrigin( GetCrossHairPosition() );
+        m_canvas->DrawGridAxis( DC, GR_COPY, GetBoard()->GetGridOrigin() );
         GetScreen()->SetModify();
         break;
 
@@ -223,7 +247,7 @@ bool FOOTPRINT_EDIT_FRAME::OnRightClick( const wxPoint& MousePos, wxMenu* PopMen
                              KiBitmap( zoom_area_xpm ) );
                 PopMenu->AppendSeparator();
                 AddMenuItem( PopMenu, ID_POPUP_PLACE_BLOCK,
-                             _( "Place Block" ), KiBitmap( apply_xpm ) );
+                             _( "Place Block" ), KiBitmap( checked_ok_xpm ) );
                 AddMenuItem( PopMenu, ID_POPUP_COPY_BLOCK,
                              _( "Copy Block (shift + drag mouse)" ),
                              KiBitmap( copyblock_xpm ) );
@@ -236,6 +260,11 @@ bool FOOTPRINT_EDIT_FRAME::OnRightClick( const wxPoint& MousePos, wxMenu* PopMen
                 AddMenuItem( PopMenu, ID_POPUP_DELETE_BLOCK,
                              _( "Delete Block (shift+ctrl + drag mouse)" ),
                              KiBitmap( delete_xpm ) );
+
+                msg = AddHotkeyName( _("Move Block Exactly" ),
+                        g_Module_Editor_Hokeys_Descr, HK_MOVE_ITEM_EXACT );
+                AddMenuItem( PopMenu, ID_POPUP_MOVE_BLOCK_EXACT,
+                             msg, KiBitmap( move_xpm ) );
             }
             else
             {
@@ -252,20 +281,24 @@ bool FOOTPRINT_EDIT_FRAME::OnRightClick( const wxPoint& MousePos, wxMenu* PopMen
 
     if( item  )
     {
-        int flags = item->GetFlags();
+        STATUS_FLAGS flags = item->GetFlags();
         switch( item->Type() )
         {
         case PCB_MODULE_T:
             {
             wxMenu* transform_choice = new wxMenu;
             AddMenuItem( transform_choice, ID_MODEDIT_MODULE_ROTATE, _( "Rotate" ),
-                         KiBitmap( rotate_module_pos_xpm ) );
+                         KiBitmap( rotate_module_ccw_xpm ) );
             AddMenuItem( transform_choice, ID_MODEDIT_MODULE_MIRROR, _( "Mirror" ),
-                         KiBitmap( mirror_h_xpm ) );
-            msg = AddHotkeyName( _( "Edit Module" ), g_Module_Editor_Hokeys_Descr, HK_EDIT_ITEM );
+                         KiBitmap( mirror_footprint_axisY_xpm ) );
+            AddMenuItem( transform_choice, ID_MODEDIT_MODULE_MOVE_EXACT, _( "Move Exactly" ),
+                         KiBitmap( move_module_xpm ) );
+
+            msg = AddHotkeyName( _( "Edit Footprint" ), g_Module_Editor_Hokeys_Descr, HK_EDIT_ITEM );
             AddMenuItem( PopMenu, ID_POPUP_PCB_EDIT_MODULE_PRMS, msg, KiBitmap( edit_module_xpm ) );
             AddMenuItem( PopMenu, transform_choice, ID_MODEDIT_TRANSFORM_MODULE,
-                         _( "Transform Module" ), KiBitmap( edit_xpm ) );
+                         _( "Transform Footprint" ), KiBitmap( edit_xpm ) );
+
             break;
             }
 
@@ -285,6 +318,16 @@ bool FOOTPRINT_EDIT_FRAME::OnRightClick( const wxPoint& MousePos, wxMenu* PopMen
             msg = AddHotkeyName( _("Delete Pad" ), g_Module_Editor_Hokeys_Descr, HK_DELETE );
             AddMenuItem( PopMenu, ID_POPUP_PCB_DELETE_PAD, msg, KiBitmap( delete_pad_xpm ) );
 
+            msg = AddHotkeyName( _( "Duplicate Pad" ), g_Module_Editor_Hokeys_Descr, HK_DUPLICATE_ITEM );
+            AddMenuItem( PopMenu, ID_POPUP_PCB_DUPLICATE_ITEM, msg, KiBitmap( duplicate_pad_xpm ) );
+
+            msg = AddHotkeyName( _("Move Pad Exactly" ), g_Module_Editor_Hokeys_Descr, HK_MOVE_ITEM_EXACT );
+            AddMenuItem( PopMenu, ID_POPUP_PCB_MOVE_EXACT, msg, KiBitmap( move_pad_xpm ) );
+
+            msg = AddHotkeyName( _("Create Pad Array" ), g_Module_Editor_Hokeys_Descr, HK_CREATE_ARRAY );
+            AddMenuItem( PopMenu, ID_POPUP_PCB_CREATE_ARRAY, msg, KiBitmap( array_pad_xpm ) );
+
+
             if( !flags )
             {
                 PopMenu->AppendSeparator();
@@ -297,25 +340,49 @@ bool FOOTPRINT_EDIT_FRAME::OnRightClick( const wxPoint& MousePos, wxMenu* PopMen
         case PCB_MODULE_TEXT_T:
             if( !flags )
             {
-                msg = AddHotkeyName( _("Move Text Mod." ), g_Module_Editor_Hokeys_Descr,
+                msg = AddHotkeyName( _("Move Text" ), g_Module_Editor_Hokeys_Descr,
                                      HK_MOVE_ITEM );
                 AddMenuItem( PopMenu, ID_POPUP_PCB_MOVE_TEXTMODULE_REQUEST, msg,
                              KiBitmap( move_field_xpm ) );
             }
 
-            msg = AddHotkeyName( _("Rotate Text Mod." ), g_Module_Editor_Hokeys_Descr,
+            msg = AddHotkeyName( _("Rotate Text" ), g_Module_Editor_Hokeys_Descr,
                                  HK_ROTATE_ITEM );
             AddMenuItem( PopMenu, ID_POPUP_PCB_ROTATE_TEXTMODULE, msg, KiBitmap( rotate_field_xpm ) );
 
+            {
+                // Do not show option to replicate value or reference fields
+                // (there can only be one of each)
+
+                const MODULE* module = static_cast<MODULE*>( item->GetParent() );
+                const TEXTE_MODULE* text = static_cast<TEXTE_MODULE*>( item );
+
+                if( &module->Reference() != text && &module->Value() != text )
+                {
+                    msg = AddHotkeyName( _( "Duplicate Text" ),
+                                         g_Module_Editor_Hokeys_Descr, HK_DUPLICATE_ITEM );
+                    AddMenuItem( PopMenu, ID_POPUP_PCB_DUPLICATE_ITEM,
+                                 msg, KiBitmap( duplicate_text_xpm ) );
+
+                    msg = AddHotkeyName( _("Create Text Array" ),
+                                         g_Module_Editor_Hokeys_Descr, HK_CREATE_ARRAY );
+                    AddMenuItem( PopMenu, ID_POPUP_PCB_CREATE_ARRAY,
+                                 msg, KiBitmap( array_text_xpm ) );
+                }
+            }
+
+            msg = AddHotkeyName( _("Move Text Exactly" ), g_Module_Editor_Hokeys_Descr, HK_MOVE_ITEM_EXACT );
+            AddMenuItem( PopMenu, ID_POPUP_PCB_MOVE_EXACT, msg, KiBitmap( move_field_xpm ) );
+
             if( !flags )
             {
-                msg = AddHotkeyName( _("Edit Text Mod." ), g_Module_Editor_Hokeys_Descr,
+                msg = AddHotkeyName( _("Edit Text" ), g_Module_Editor_Hokeys_Descr,
                                      HK_EDIT_ITEM );
                 AddMenuItem( PopMenu, ID_POPUP_PCB_EDIT_TEXTMODULE, msg, KiBitmap( edit_text_xpm ) );
 
-                if( ( (TEXTE_MODULE*) item )->GetType() == TEXT_is_DIVERS )
+                if( ( static_cast<TEXTE_MODULE*>( item ) )->GetType() == TEXTE_MODULE::TEXT_is_DIVERS )
                 {
-                    msg = AddHotkeyName( _("Delete Text Mod." ), g_Module_Editor_Hokeys_Descr,
+                    msg = AddHotkeyName( _("Delete Text" ), g_Module_Editor_Hokeys_Descr,
                                          HK_DELETE );
                     AddMenuItem( PopMenu, ID_POPUP_PCB_DELETE_TEXTMODULE, msg,
                                  KiBitmap( delete_text_xpm ) );
@@ -327,33 +394,41 @@ bool FOOTPRINT_EDIT_FRAME::OnRightClick( const wxPoint& MousePos, wxMenu* PopMen
         {
             if( (flags & IS_NEW) )
                 AddMenuItem( PopMenu, ID_POPUP_PCB_STOP_CURRENT_DRAWING, _( "End edge" ),
-                             KiBitmap( apply_xpm ) );
+                             KiBitmap( checked_ok_xpm ) );
 
             if( !flags )
             {
-                msg = AddHotkeyName( _("Move edge" ), g_Module_Editor_Hokeys_Descr, HK_MOVE_ITEM );
+                msg = AddHotkeyName( _("Move Edge" ), g_Module_Editor_Hokeys_Descr, HK_MOVE_ITEM );
                 AddMenuItem( PopMenu, ID_POPUP_PCB_MOVE_EDGE, msg, KiBitmap( move_line_xpm ) );
             }
 
+            msg = AddHotkeyName( _( "Duplicate Edge" ), g_Module_Editor_Hokeys_Descr, HK_DUPLICATE_ITEM );
+            AddMenuItem( PopMenu, ID_POPUP_PCB_DUPLICATE_ITEM, msg, KiBitmap( duplicate_line_xpm ) );
+
+            msg = AddHotkeyName( _("Move Edge Exactly" ), g_Module_Editor_Hokeys_Descr, HK_MOVE_ITEM_EXACT );
+            AddMenuItem( PopMenu, ID_POPUP_PCB_MOVE_EXACT, msg, KiBitmap( move_line_xpm ) );
+
+            msg = AddHotkeyName( _("Create Edge Array" ), g_Module_Editor_Hokeys_Descr, HK_CREATE_ARRAY );
+            AddMenuItem( PopMenu, ID_POPUP_PCB_CREATE_ARRAY, msg, KiBitmap( array_line_xpm ) );
+
             if( ( flags & (IS_NEW | IS_MOVED) ) == IS_MOVED )
                 AddMenuItem( PopMenu, ID_POPUP_PCB_PLACE_EDGE, _( "Place edge" ),
-                             KiBitmap( apply_xpm ) );
+                             KiBitmap( checked_ok_xpm ) );
 
-            wxMenu* edit_mnu = new wxMenu;
-            AddMenuItem( PopMenu, edit_mnu, ID_POPUP_MODEDIT_EDIT_EDGE, _( "Edit" ), KiBitmap( edit_xpm ) );
-            AddMenuItem( edit_mnu, ID_POPUP_MODEDIT_EDIT_BODY_ITEM,
-                         _( "Edit Body Item" ), KiBitmap( options_segment_xpm  ) );
-            AddMenuItem( edit_mnu, ID_POPUP_MODEDIT_EDIT_WIDTH_CURRENT_EDGE,
-                         _( "Change Body Item Width (Current)" ), KiBitmap( width_segment_xpm ) );
-            AddMenuItem( edit_mnu, ID_POPUP_MODEDIT_EDIT_WIDTH_ALL_EDGE,
-                         _( "Change Body Items Width (All)" ), KiBitmap( width_segment_xpm ) );
-            AddMenuItem( edit_mnu, ID_POPUP_MODEDIT_EDIT_LAYER_CURRENT_EDGE,
-                         _( "Change Body Item Layer (Current)" ), KiBitmap( select_layer_pair_xpm ) );
-            AddMenuItem( edit_mnu, ID_POPUP_MODEDIT_EDIT_LAYER_ALL_EDGE,
-                         _( "Change Body Items Layer (All)" ), KiBitmap( select_layer_pair_xpm ) );
-            msg = AddHotkeyName( _("Delete edge" ), g_Module_Editor_Hokeys_Descr, HK_DELETE );
+            msg = AddHotkeyName( _("Edit" ), g_Module_Editor_Hokeys_Descr, HK_EDIT_ITEM );
+            AddMenuItem( PopMenu, ID_POPUP_MODEDIT_EDIT_BODY_ITEM,
+                         msg, KiBitmap( options_segment_xpm  ) );
 
+            msg = AddHotkeyName( _("Delete Edge" ), g_Module_Editor_Hokeys_Descr, HK_DELETE );
             AddMenuItem( PopMenu, ID_POPUP_PCB_DELETE_EDGE, msg, KiBitmap( delete_xpm ) );
+
+            wxMenu* edit_global_mnu = new wxMenu;
+            AddMenuItem( PopMenu, edit_global_mnu, ID_POPUP_MODEDIT_GLOBAL_EDIT_EDGE,
+                         _( "Global Changes" ), KiBitmap( edit_xpm ) );
+            AddMenuItem( edit_global_mnu, ID_POPUP_MODEDIT_EDIT_WIDTH_ALL_EDGE,
+                         _( "Change Body Items Width" ), KiBitmap( width_segment_xpm ) );
+            AddMenuItem( edit_global_mnu, ID_POPUP_MODEDIT_EDIT_LAYER_ALL_EDGE,
+                         _( "Change Body Items Layer" ), KiBitmap( select_layer_pair_xpm ) );
         }
         break;
 
@@ -419,41 +494,7 @@ void FOOTPRINT_EDIT_FRAME::OnLeftDClick( wxDC* DC, const wxPoint& MousePos )
 
         // Item found
         SetCurItem( item );
-
-        switch( item->Type() )
-        {
-        case PCB_PAD_T:
-            InstallPadOptionsFrame( (D_PAD*) item );
-            m_canvas->MoveCursorToCrossHair();
-            break;
-
-        case PCB_MODULE_T:
-            {
-            DIALOG_MODULE_MODULE_EDITOR dialog( this, (MODULE*) item );
-            int ret = dialog.ShowModal();
-            GetScreen()->GetCurItem()->ClearFlags();
-            m_canvas->MoveCursorToCrossHair();
-
-            if( ret > 0 )
-                m_canvas->Refresh();
-            }
-            break;
-
-        case PCB_MODULE_TEXT_T:
-            InstallTextModOptionsFrame( (TEXTE_MODULE*) item, DC );
-            m_canvas->MoveCursorToCrossHair();
-            break;
-
-        case  PCB_MODULE_EDGE_T :
-            m_canvas->MoveCursorToCrossHair();
-            InstallFootprintBodyItemPropertiesDlg( (EDGE_MODULE*) item );
-            m_canvas->Refresh();
-            break;
-
-        default:
-            break;
-        }
-
+        OnEditItemRequest( DC, item );
         break;      // end case 0
 
     case ID_PCB_ADD_LINE_BUTT:
@@ -467,6 +508,44 @@ void FOOTPRINT_EDIT_FRAME::OnLeftDClick( wxDC* DC, const wxPoint& MousePos )
 
         break;
     }
+
+    default:
+        break;
+    }
+}
+
+
+void FOOTPRINT_EDIT_FRAME::OnEditItemRequest( wxDC* aDC, BOARD_ITEM* aItem )
+{
+    switch( aItem->Type() )
+    {
+    case PCB_PAD_T:
+        InstallPadOptionsFrame( static_cast<D_PAD*>( aItem ) );
+        m_canvas->MoveCursorToCrossHair();
+        break;
+
+    case PCB_MODULE_T:
+        {
+        DIALOG_MODULE_MODULE_EDITOR dialog( this, static_cast<MODULE*>( aItem ) );
+        int ret = dialog.ShowModal();
+        GetScreen()->GetCurItem()->ClearFlags();
+        m_canvas->MoveCursorToCrossHair();
+
+        if( ret > 0 )
+            m_canvas->Refresh();
+        }
+        break;
+
+    case PCB_MODULE_TEXT_T:
+        InstallTextModOptionsFrame( static_cast<TEXTE_MODULE*>( aItem ), aDC );
+        m_canvas->MoveCursorToCrossHair();
+        break;
+
+    case PCB_MODULE_EDGE_T :
+        m_canvas->MoveCursorToCrossHair();
+        InstallFootprintBodyItemPropertiesDlg( static_cast<EDGE_MODULE*>( aItem ) );
+        m_canvas->Refresh();
+        break;
 
     default:
         break;

@@ -33,18 +33,20 @@
 #include <3d_viewer.h>
 #include <info3d_visu.h>
 #include <3d_draw_basic_functions.h>
-
-
-// Imported function:
-extern void Set_Object_Data( std::vector<S3D_VERTEX>& aVertices, double aBiuTo3DUnits );
-extern void CheckGLError();
+#include <modelparsers.h>
 
 // Number of segments to approximate a circle by segments
-#define SEGM_PER_CIRCLE 16
+#define SEGM_PER_CIRCLE 24
 
 #ifndef CALLBACK
 #define CALLBACK
 #endif
+
+// Variables used to pass a value to call back openGL functions
+static float s_textureScale;
+static double s_currentZpos;
+static double s_biuTo3Dunits;
+bool s_useTextures;
 
 // CALLBACK functions for GLU_TESS
 static void CALLBACK    tessBeginCB( GLenum which );
@@ -52,17 +54,7 @@ static void CALLBACK    tessEndCB();
 static void CALLBACK    tessErrorCB( GLenum errorCode );
 static void CALLBACK    tessCPolyPt2Vertex( const GLvoid* data );
 
-// 2 helper functions to set the current normal vector for gle items
-static inline void SetNormalZpos()
-{
-    glNormal3f( 0.0, 0.0, 1.0 );
-}
-
-static inline void SetNormalZneg()
-{
-    glNormal3f( 0.0, 0.0, -1.0 );
-}
-
+void TransfertToGLlist( std::vector< S3D_VERTEX >& aVertices, double aBiuTo3DUnits );
 
 /* Draw3D_VerticalPolygonalCylinder is a helper function.
  *
@@ -70,7 +62,7 @@ static inline void SetNormalZneg()
  * from Z position = aZpos to aZpos + aHeight
  * Used to create the vertical sides of 3D horizontal shapes with thickness.
  */
-static void Draw3D_VerticalPolygonalCylinder( const std::vector<CPolyPt>& aPolysList,
+static void Draw3D_VerticalPolygonalCylinder( const SHAPE_POLY_SET& aPolysList,
                                               int aHeight, int aZpos,
                                               bool aInside, double aBiuTo3DUnits )
 {
@@ -95,42 +87,61 @@ static void Draw3D_VerticalPolygonalCylinder( const std::vector<CPolyPt>& aPolys
     coords[3].z = coords[0].z;
 
     // Draw the vertical polygonal side
-    int startContour = 0;
-    for( unsigned ii = 0; ii < aPolysList.size(); ii++ )
+    for( int idx = 0; idx < aPolysList.OutlineCount(); idx++ )
     {
-        unsigned jj = ii + 1;
+        // Each polygon in aPolysList is a polygon with holes
+        const SHAPE_POLY_SET::POLYGON& curr_polywithholes = aPolysList.CPolygon( idx );
 
-        if( aPolysList[ii].end_contour || jj >= aPolysList.size() )
+        // Draw the outline of each simple polygon inside the polygon with holes:
+        for( unsigned ipoly = 0; ipoly < curr_polywithholes.size(); ipoly++ )
         {
-            jj = startContour;
-            startContour = ii + 1;
+            const SHAPE_LINE_CHAIN& path = curr_polywithholes[ipoly];   // a simple polygon
+
+            for( int jj = 0; jj < path.PointCount(); jj++ )
+            {
+                const VECTOR2I& a = path.CPoint( jj );
+                const VECTOR2I& b = path.CPoint( jj + 1 );
+
+                // Build the 4 vertices of each GL_QUAD
+                coords[0].x = a.x;
+                coords[0].y = -a.y;
+                coords[1].x = coords[0].x;
+                coords[1].y = coords[0].y;              // only z change
+                coords[2].x = b.x;
+                coords[2].y = -b.y;
+                coords[3].x = coords[2].x;
+                coords[3].y = coords[2].y;              // only z change
+
+                // Creates the GL_QUAD
+                TransfertToGLlist( coords, aBiuTo3DUnits );
+            }
         }
-
-        // Build the 4 vertices of each GL_QUAD
-        coords[0].x = aPolysList[ii].x;
-        coords[0].y = -aPolysList[ii].y;
-        coords[1].x = coords[0].x;
-        coords[1].y = coords[0].y;              // only z change
-        coords[2].x = aPolysList[jj].x;
-        coords[2].y = -aPolysList[jj].y;
-        coords[3].x = coords[2].x;
-        coords[3].y = coords[2].y;              // only z change
-
-        // Creates the GL_QUAD
-        Set_Object_Data( coords, aBiuTo3DUnits );
     }
 }
 
 
-void SetGLColor( int color )
+void SetGLColor( EDA_COLOR_T color, double alpha )
 {
-    double          red, green, blue;
-    StructColors    colordata = ColorRefs[color & MASKCOLOR];
+    const StructColors &colordata = g_ColorRefs[ColorGetBase( color )];
 
-    red     = colordata.m_Red / 255.0;
-    blue    = colordata.m_Blue / 255.0;
-    green   = colordata.m_Green / 255.0;
-    glColor3f( red, green, blue );
+    float red     = colordata.m_Red / 255.0;
+    float blue    = colordata.m_Blue / 255.0;
+    float green   = colordata.m_Green / 255.0;
+    glColor4f( red, green, blue, (float)alpha );
+}
+
+
+void SetGLColor( S3D_COLOR& aColor, float aTransparency )
+{
+    glColor4f( aColor.m_Red, aColor.m_Green, aColor.m_Blue, aTransparency );
+}
+
+
+void SetGLTexture( GLuint text_id, float scale )
+{
+    glEnable( GL_TEXTURE_2D );
+    glBindTexture( GL_TEXTURE_2D, text_id );
+    s_textureScale = scale;     // for Tess callback functions
 }
 
 
@@ -142,9 +153,15 @@ void SetGLColor( int color )
  *  The top side is located at aZpos + aThickness / 2
  *  The bottom side is located at aZpos - aThickness / 2
  */
-void Draw3D_SolidHorizontalPolyPolygons( const std::vector<CPolyPt>& aPolysList,
-                                         int aZpos, int aThickness, double aBiuTo3DUnits )
+void Draw3D_SolidHorizontalPolyPolygons( const SHAPE_POLY_SET& aPolysList,
+                                         int aZpos, int aThickness, double aBiuTo3DUnits,
+                                         bool aUseTextures,
+                                         float aNormal_Z_Orientation )
 {
+    // for Tess callback functions:
+    s_biuTo3Dunits = aBiuTo3DUnits;
+    s_useTextures = aUseTextures;
+
     GLUtesselator* tess = gluNewTess();
 
     gluTessCallback( tess, GLU_TESS_BEGIN, ( void (CALLBACK*) () )tessBeginCB );
@@ -152,58 +169,63 @@ void Draw3D_SolidHorizontalPolyPolygons( const std::vector<CPolyPt>& aPolysList,
     gluTessCallback( tess, GLU_TESS_ERROR, ( void (CALLBACK*) () )tessErrorCB );
     gluTessCallback( tess, GLU_TESS_VERTEX, ( void (CALLBACK*) () )tessCPolyPt2Vertex );
 
-    GLdouble    v_data[3];
-    double      zpos = ( aZpos + (aThickness / 2) ) * aBiuTo3DUnits;
-    g_Parm_3D_Visu.m_CurrentZpos = zpos;
-    v_data[2] = aZpos + (aThickness / 2);
+    GLdouble v_data[3];
+    double   zpos = ( aZpos + (aThickness / 2.0) ) * aBiuTo3DUnits;
+    s_currentZpos = zpos;     // for Tess callback functions
+    v_data[2]     = zpos;
 
-    // Set normal to toward positive Z axis, for a solid object only (to draw the top side)
-    if( aThickness )
-        SetNormalZpos();
+    // Set normal toward positive Z axis, for a solid object on the top side
 
-    // gluTessProperty(tess, GLU_TESS_WINDING_RULE, GLU_TESS_WINDING_ODD);
+    //gluTessProperty( tess, GLU_TESS_BOUNDARY_ONLY, GL_FALSE );
+    gluTessProperty( tess, GLU_TESS_WINDING_RULE, GLU_TESS_WINDING_ODD );
+
+    glNormal3f( 0.0, 0.0, aNormal_Z_Orientation );
 
     // Draw solid areas contained in this list
-    std::vector<CPolyPt> polylist = aPolysList;    // temporary copy for gluTessVertex
+    SHAPE_POLY_SET polylist = aPolysList;    // temporary copy for gluTessVertex
 
     for( int side = 0; side < 2; side++ )
     {
-        int startContour = 1;
 
-        for( unsigned ii = 0; ii < polylist.size(); ii++ )
+        for ( int idx = 0; idx < polylist.OutlineCount(); ++idx )
         {
-            if( startContour == 1 )
+            gluTessBeginPolygon( tess, NULL );
+
+            SHAPE_POLY_SET::POLYGON& curr_polywithholes = polylist.Polygon( idx );  // a polygon with holes
+
+            for( unsigned ipoly = 0; ipoly < curr_polywithholes.size(); ipoly++ )
             {
-                gluTessBeginPolygon( tess, NULL );
+                SHAPE_LINE_CHAIN& curr_poly = curr_polywithholes[ipoly];     // a simple polygon
+
                 gluTessBeginContour( tess );
-                startContour = 0;
-            }
 
-            v_data[0]   = polylist[ii].x * aBiuTo3DUnits;
-            v_data[1]   = -polylist[ii].y * aBiuTo3DUnits;
-            // gluTessVertex store pointers on data, not data, so do not store
-            // different corners values in a temporary variable
-            // but send pointer on each CPolyPt value in polylist
-            // before calling gluDeleteTess
-            gluTessVertex( tess, v_data, &polylist[ii] );
+                for( int ipt = 0; ipt < curr_poly.PointCount(); ipt++ )
+                {
+                    v_data[0]   = curr_poly.Point( ipt ).x * aBiuTo3DUnits;
+                    v_data[1]   = -curr_poly.Point( ipt ).y * aBiuTo3DUnits;
+                    // gluTessVertex store pointers on data, not data, so do not store
+                    // different corners values in a temporary variable
+                    // but send pointer on each CPolyPt value in polylist
+                    // before calling gluDeleteTess
+                    gluTessVertex( tess, v_data, &curr_poly.Point( ipt ) );
+                }
 
-            if( polylist[ii].end_contour == 1 )
-            {
                 gluTessEndContour( tess );
-                gluTessEndPolygon( tess );
-                startContour = 1;
             }
+
+            gluTessEndPolygon( tess );
         }
+
 
         if( aThickness == 0 )
             break;
 
         // Prepare the bottom side of solid areas
-        zpos = ( aZpos - (aThickness / 2) ) * aBiuTo3DUnits;
-        g_Parm_3D_Visu.m_CurrentZpos = zpos;
+        zpos = ( aZpos - (aThickness / 2.0) ) * aBiuTo3DUnits;
+        s_currentZpos = zpos;     // for Tess callback functions
         v_data[2] = zpos;
-        // Now;, set normal to toward negative Z axis, for the solid object bottom side
-        SetNormalZneg();
+
+        glNormal3f( 0.0, 0.0, -aNormal_Z_Orientation );
     }
 
     gluDeleteTess( tess );
@@ -212,22 +234,8 @@ void Draw3D_SolidHorizontalPolyPolygons( const std::vector<CPolyPt>& aPolysList,
         return;
 
     // Build the 3D data : vertical side
-    Draw3D_VerticalPolygonalCylinder( polylist, aThickness, aZpos - (aThickness / 2), false, aBiuTo3DUnits );
-}
-
-
-/* draw the solid polygon found in aPolysList
- * The first polygonj is the main polygon, others are holes
- * See Draw3D_SolidHorizontalPolyPolygons for more info
- */
-void Draw3D_SolidHorizontalPolygonWithHoles( const std::vector<CPolyPt>& aPolysList,
-                                             int aZpos, int aThickness,
-                                             double aBiuTo3DUnits )
-{
-    std::vector<CPolyPt> polygon;
-
-    ConvertPolysListWithHolesToOnePolygon( aPolysList, polygon );
-    Draw3D_SolidHorizontalPolyPolygons( polygon, aZpos, aThickness, aBiuTo3DUnits );
+    Draw3D_VerticalPolygonalCylinder( polylist, aThickness, aZpos - (aThickness / 2.0),
+                                      true, aBiuTo3DUnits );
 }
 
 
@@ -241,7 +249,7 @@ void Draw3D_ZaxisCylinder( wxPoint aCenterPos, int aRadius,
                            int aZpos, double aBiuTo3DUnits )
 {
     const int slice = SEGM_PER_CIRCLE;
-    std::vector <CPolyPt> outer_cornerBuffer;
+    SHAPE_POLY_SET outer_cornerBuffer;
 
     TransformCircleToPolygon( outer_cornerBuffer, aCenterPos,
                               aRadius + (aThickness / 2), slice );
@@ -249,43 +257,41 @@ void Draw3D_ZaxisCylinder( wxPoint aCenterPos, int aRadius,
     std::vector<S3D_VERTEX> coords;
     coords.resize( 4 );
 
-    std::vector <CPolyPt> inner_cornerBuffer;
+    SHAPE_POLY_SET inner_cornerBuffer;
+
     if( aThickness )    // build the the vertical inner polygon (hole)
         TransformCircleToPolygon( inner_cornerBuffer, aCenterPos,
                                   aRadius - (aThickness / 2), slice );
 
     if( aHeight )
     {
+
         // Draw the vertical outer side
         Draw3D_VerticalPolygonalCylinder( outer_cornerBuffer,
-                                      aHeight, aZpos, false, aBiuTo3DUnits );
+                                    aHeight, aZpos, false, aBiuTo3DUnits );
+
         if( aThickness )
             // Draws the vertical inner side (hole)
             Draw3D_VerticalPolygonalCylinder( inner_cornerBuffer,
-                                          aHeight, aZpos, true, aBiuTo3DUnits );
+                                    aHeight, aZpos, true, aBiuTo3DUnits );
     }
 
     if( aThickness )
     {
         // draw top (front) and bottom (back) horizontal sides (rings)
-        SetNormalZpos();
-        outer_cornerBuffer.insert( outer_cornerBuffer.end(),
-                             inner_cornerBuffer.begin(), inner_cornerBuffer.end() );
-        std::vector<CPolyPt> polygon;
+        outer_cornerBuffer.AddHole( inner_cornerBuffer.COutline( 0 ) );
 
-        ConvertPolysListWithHolesToOnePolygon( outer_cornerBuffer, polygon );
         // draw top (front) horizontal ring
-        Draw3D_SolidHorizontalPolyPolygons( polygon, aZpos + aHeight, 0, aBiuTo3DUnits );
+        Draw3D_SolidHorizontalPolyPolygons( outer_cornerBuffer, aZpos + aHeight,
+                                            0, aBiuTo3DUnits, false, 1.0f );
 
         if( aHeight )
         {
             // draw bottom (back) horizontal ring
-            SetNormalZneg();
-            Draw3D_SolidHorizontalPolyPolygons( polygon, aZpos, 0, aBiuTo3DUnits );
+            Draw3D_SolidHorizontalPolyPolygons( outer_cornerBuffer, aZpos,
+                                                0, aBiuTo3DUnits, false, -1.0f );
         }
     }
-
-    SetNormalZpos();
 }
 
 
@@ -303,20 +309,20 @@ void Draw3D_ZaxisOblongCylinder( wxPoint aAxis1Pos, wxPoint aAxis2Pos,
     const int slice = SEGM_PER_CIRCLE;
 
     // Build the points to approximate oblong cylinder by segments
-    std::vector <CPolyPt> outer_cornerBuffer;
+    SHAPE_POLY_SET cornerBuffer;
 
     int segm_width = (aRadius * 2) + aThickness;
-    TransformRoundedEndsSegmentToPolygon( outer_cornerBuffer, aAxis1Pos,
+    TransformRoundedEndsSegmentToPolygon( cornerBuffer, aAxis1Pos,
                                           aAxis2Pos, slice, segm_width );
 
     // Draw the oblong outer cylinder
     if( aHeight )
-        Draw3D_VerticalPolygonalCylinder( outer_cornerBuffer, aHeight, aZpos,
+        Draw3D_VerticalPolygonalCylinder( cornerBuffer, aHeight, aZpos,
                                           false, aBiuTo3DUnits );
 
     if( aThickness )
     {
-        std::vector <CPolyPt> inner_cornerBuffer;
+        SHAPE_POLY_SET inner_cornerBuffer;
         segm_width = aRadius * 2;
         TransformRoundedEndsSegmentToPolygon( inner_cornerBuffer, aAxis1Pos,
                                               aAxis2Pos, slice, segm_width );
@@ -328,26 +334,19 @@ void Draw3D_ZaxisOblongCylinder( wxPoint aAxis1Pos, wxPoint aAxis2Pos,
 
         // Build the horizontal full polygon shape
         // (outer polygon shape - inner polygon shape)
-        outer_cornerBuffer.insert( outer_cornerBuffer.end(),
-                                   inner_cornerBuffer.begin(),
-                                   inner_cornerBuffer.end() );
-
-        std::vector<CPolyPt> polygon;
-        ConvertPolysListWithHolesToOnePolygon( outer_cornerBuffer, polygon );
+        cornerBuffer.AddHole( inner_cornerBuffer.COutline( 0 ) );
 
         // draw top (front) horizontal side (ring)
-        SetNormalZpos();
-        Draw3D_SolidHorizontalPolyPolygons( polygon, aZpos + aHeight, 0, aBiuTo3DUnits );
+        Draw3D_SolidHorizontalPolyPolygons( cornerBuffer, aZpos + aHeight, 0, aBiuTo3DUnits, false,
+                                            1.0f );
 
         if( aHeight )
         {
             // draw bottom (back) horizontal side (ring)
-            SetNormalZneg();
-            Draw3D_SolidHorizontalPolyPolygons( polygon, aZpos, 0, aBiuTo3DUnits );
+            Draw3D_SolidHorizontalPolyPolygons( cornerBuffer, aZpos, 0, aBiuTo3DUnits, false,
+                                                -1.0f );
         }
     }
-
-    SetNormalZpos();
 }
 
 
@@ -360,27 +359,26 @@ void Draw3D_ZaxisOblongCylinder( wxPoint aAxis1Pos, wxPoint aAxis2Pos,
 void Draw3D_SolidSegment( const wxPoint& aStart, const wxPoint& aEnd,
                           int aWidth, int aThickness, int aZpos, double aBiuTo3DUnits )
 {
-    std::vector <CPolyPt>   cornerBuffer;
-    const int               slice = SEGM_PER_CIRCLE;
+    SHAPE_POLY_SET   cornerBuffer;
+    const int       slice = SEGM_PER_CIRCLE;
 
     TransformRoundedEndsSegmentToPolygon( cornerBuffer, aStart, aEnd, slice, aWidth );
 
-    Draw3D_SolidHorizontalPolyPolygons( cornerBuffer, aZpos, aThickness, aBiuTo3DUnits );
+    Draw3D_SolidHorizontalPolyPolygons( cornerBuffer, aZpos, aThickness, aBiuTo3DUnits, false, 1.0f );
 }
 
 
 void Draw3D_ArcSegment( const wxPoint&  aCenterPos, const wxPoint& aStartPoint,
-                        int aArcAngle, int aWidth, int aThickness,
+                        double aArcAngle, int aWidth, int aThickness,
                         int aZpos, double aBiuTo3DUnits )
 {
     const int   slice = SEGM_PER_CIRCLE;
 
-    std::vector <CPolyPt> cornerBuffer;
+    SHAPE_POLY_SET cornerBuffer;
     TransformArcToPolygon( cornerBuffer, aCenterPos, aStartPoint, aArcAngle,
-                            slice, aWidth );
+                           slice, aWidth );
 
-    Draw3D_SolidHorizontalPolyPolygons( cornerBuffer, aZpos, aThickness, aBiuTo3DUnits );
-
+    Draw3D_SolidHorizontalPolyPolygons( cornerBuffer, aZpos, aThickness, aBiuTo3DUnits, false, 1.0f );
 }
 
 
@@ -403,11 +401,15 @@ void CALLBACK tessEndCB()
 void CALLBACK tessCPolyPt2Vertex( const GLvoid* data )
 {
     // cast back to double type
-    const CPolyPt* ptr = (const CPolyPt*) data;
+    const VECTOR2I* ptr = (const VECTOR2I*) data;
 
-    glVertex3d( ptr->x * g_Parm_3D_Visu.m_BiuTo3Dunits,
-                -ptr->y * g_Parm_3D_Visu.m_BiuTo3Dunits,
-                g_Parm_3D_Visu.m_CurrentZpos );
+    if( s_useTextures )
+    {
+        glTexCoord2f( ptr->x * s_biuTo3Dunits * s_textureScale,
+                      -ptr->y * s_biuTo3Dunits * s_textureScale);
+    }
+
+    glVertex3d( ptr->x * s_biuTo3Dunits, -ptr->y * s_biuTo3Dunits, s_currentZpos );
 }
 
 
@@ -419,6 +421,6 @@ void CALLBACK tessErrorCB( GLenum errorCode )
     errorStr = gluErrorString( errorCode );
 
     // DEBUG //
-    D( printf( "Tess ERROR: %s\n", errorStr ); )
+    DBG( printf( "Tess ERROR: %s\n", errorStr ); )
 #endif
 }

@@ -1,5 +1,5 @@
 ///////////////////////////////////////////////////////////////////////////
-// C++ code generated with wxFormBuilder (version Apr 10 2012)
+// C++ code generated with wxFormBuilder (version Jun 20 2015)
 // http://www.wxformbuilder.org/
 //
 // PLEASE DO "NOT" EDIT THIS FILE!
@@ -11,6 +11,8 @@
 #include <wx/artprov.h>
 #include <wx/xrc/xmlres.h>
 #include <wx/intl.h>
+class DIALOG_SHIM;
+
 #include "dialog_shim.h"
 #include <wx/string.h>
 #include <wx/stattext.h>
@@ -35,9 +37,10 @@
 #define ID_CURRENT_PAGE 1001
 #define ID_KEEP_ANNOTATION 1002
 #define ID_RESET_ANNOTATION 1003
-#define ID_SORT_BY_X_POSITION 1004
-#define ID_SORT_BY_Y_POSITION 1005
-#define ID_CLEAR_ANNOTATION_CMP 1006
+#define ID_RESET_BUT_LOCK 1004
+#define ID_SORT_BY_X_POSITION 1005
+#define ID_SORT_BY_Y_POSITION 1006
+#define ID_CLEAR_ANNOTATION_CMP 1007
 
 ///////////////////////////////////////////////////////////////////////////////
 /// Class DIALOG_ANNOTATE_BASE
@@ -47,12 +50,14 @@ class DIALOG_ANNOTATE_BASE : public DIALOG_SHIM
 	private:
 	
 	protected:
+		wxStaticText* m_userMessage;
 		wxStaticText* m_staticTextScope;
 		wxRadioButton* m_rbEntireSchematic;
 		wxRadioButton* m_rbCurrPage;
 		wxStaticLine* m_staticline1;
 		wxRadioButton* m_rbKeepAnnotation;
 		wxRadioButton* m_rbResetAnnotation;
+		wxRadioButton* m_rbResetButLock;
 		wxStaticLine* m_staticline2;
 		wxStaticText* m_staticTextOrder;
 		wxRadioButton* m_rbSortBy_X_Position;
@@ -66,8 +71,8 @@ class DIALOG_ANNOTATE_BASE : public DIALOG_SHIM
 		wxRadioButton* m_rbStartSheetNumLarge;
 		wxStaticLine* m_staticline4;
 		wxStaticText* m_staticTextDlgOpts;
-		wxCheckBox* m_cbAutoCloseDlg;
-		wxCheckBox* m_cbUseSilentMode;
+		wxCheckBox* m_cbKeepDlgOpen;
+		wxCheckBox* m_cbAskForConfirmation;
 		wxStaticLine* m_staticline41;
 		wxButton* m_btnClose;
 		wxButton* m_btnClear;
@@ -81,7 +86,7 @@ class DIALOG_ANNOTATE_BASE : public DIALOG_SHIM
 	
 	public:
 		
-		DIALOG_ANNOTATE_BASE( wxWindow* parent, wxWindowID id = wxID_ANY, const wxString& title = _("Annotate Schematic"), const wxPoint& pos = wxDefaultPosition, const wxSize& size = wxSize( 432,454 ), long style = wxDEFAULT_DIALOG_STYLE|wxRESIZE_BORDER ); 
+		DIALOG_ANNOTATE_BASE( wxWindow* parent, wxWindowID id = wxID_ANY, const wxString& title = _("Annotate Schematic"), const wxPoint& pos = wxDefaultPosition, const wxSize& size = wxSize( -1,-1 ), long style = wxDEFAULT_DIALOG_STYLE|wxRESIZE_BORDER ); 
 		~DIALOG_ANNOTATE_BASE();
 	
 };

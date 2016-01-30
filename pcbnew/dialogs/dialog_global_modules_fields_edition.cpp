@@ -33,6 +33,7 @@
 #include <wxBasePcbFrame.h>
 #include <base_units.h>
 #include <kicad_string.h>
+#include <macros.h>
 
 #include <pcbnew.h>
 #include <wxPcbStruct.h>
@@ -96,11 +97,11 @@ void DIALOG_GLOBAL_MODULES_FIELDS_EDITION::initDialog()
     m_SizeYunit->SetLabel( GetAbbreviatedUnitsLabel() );
     m_Ticknessunit->SetLabel( GetAbbreviatedUnitsLabel() );
     m_SizeX_Value->SetValue(
-        ReturnStringFromValue( g_UserUnit, m_brdSettings->m_ModuleTextSize.x ) );
+        StringFromValue( g_UserUnit, m_brdSettings->m_ModuleTextSize.x ) );
     m_SizeY_Value->SetValue(
-        ReturnStringFromValue( g_UserUnit, m_brdSettings->m_ModuleTextSize.y ) );
+        StringFromValue( g_UserUnit, m_brdSettings->m_ModuleTextSize.y ) );
     m_TicknessValue->SetValue(
-        ReturnStringFromValue( g_UserUnit, m_brdSettings->m_ModuleTextWidth) );
+        StringFromValue( g_UserUnit, m_brdSettings->m_ModuleTextWidth) );
 
     Layout();
     GetSizer()->SetSizeHints( this );
@@ -115,9 +116,9 @@ void DIALOG_GLOBAL_MODULES_FIELDS_EDITION::OnOKClick( wxCommandEvent& event )
     m_othersSelection = m_OtherFields->GetValue();
     m_filterString = m_ModuleFilter->GetValue();
 
-    m_brdSettings->m_ModuleTextSize.x = ReturnValueFromTextCtrl( *m_SizeX_Value );
-    m_brdSettings->m_ModuleTextSize.y = ReturnValueFromTextCtrl( *m_SizeY_Value );
-    m_brdSettings->m_ModuleTextWidth = ReturnValueFromTextCtrl( *m_TicknessValue );
+    m_brdSettings->m_ModuleTextSize.x = ValueFromTextCtrl( *m_SizeX_Value );
+    m_brdSettings->m_ModuleTextSize.y = ValueFromTextCtrl( *m_SizeY_Value );
+    m_brdSettings->m_ModuleTextWidth = ValueFromTextCtrl( *m_TicknessValue );
 
     // clip m_ModuleTextWidth to the 1/4 of min size, to keep it always readable
     int minsize = std::min( m_brdSettings->m_ModuleTextSize.x,
@@ -136,6 +137,15 @@ void PCB_EDIT_FRAME::OnResetModuleTextSizes( wxCommandEvent& event )
     DIALOG_GLOBAL_MODULES_FIELDS_EDITION dlg(this);
     dlg.ShowModal();
 
+    if( IsGalCanvasActive() )
+    {
+        for( MODULE* module = GetBoard()->m_Modules; module; module = module->Next() )
+        {
+            module->Value().ViewUpdate();
+            module->Reference().ViewUpdate();
+        }
+    }
+
     m_canvas->Refresh();
 }
 
@@ -144,7 +154,6 @@ void PCB_BASE_FRAME::ResetModuleTextSizes( const wxString & aFilter, bool aRef,
 {
     MODULE* module;
     BOARD_ITEM* boardItem;
-    TEXTE_MODULE* item;
     ITEM_PICKER itemWrapper( NULL, UR_CHANGED );
     PICKED_ITEMS_LIST undoItemList;
     unsigned int ii;
@@ -156,14 +165,15 @@ void PCB_BASE_FRAME::ResetModuleTextSizes( const wxString & aFilter, bool aRef,
 
         if( ! aFilter.IsEmpty() )
         {
-            if( ! WildCompareString( aFilter, module->GetLibRef(), false ) )
+            if( ! WildCompareString( aFilter, FROM_UTF8( module->GetFPID().Format().c_str() ),
+                                     false ) )
                 continue;
         }
 
 
         if( aRef )
         {
-            item = module->m_Reference;
+            TEXTE_MODULE *item = &module->Reference();
 
             if( item->GetSize() != GetDesignSettings().m_ModuleTextSize ||
                 item->GetThickness() != GetDesignSettings().m_ModuleTextWidth )
@@ -174,7 +184,7 @@ void PCB_BASE_FRAME::ResetModuleTextSizes( const wxString & aFilter, bool aRef,
 
         if( aValue )
         {
-            item = module->m_Value;
+            TEXTE_MODULE *item = &module->Value();
 
             if( item->GetSize() != GetDesignSettings().m_ModuleTextSize ||
                 item->GetThickness() != GetDesignSettings().m_ModuleTextWidth )
@@ -186,11 +196,11 @@ void PCB_BASE_FRAME::ResetModuleTextSizes( const wxString & aFilter, bool aRef,
         if( aOthers )
         {
             // Go through all other module text fields
-            for( boardItem = module->m_Drawings; boardItem; boardItem = boardItem->Next() )
+            for( boardItem = module->GraphicalItems(); boardItem; boardItem = boardItem->Next() )
             {
                 if( boardItem->Type() == PCB_MODULE_TEXT_T )
                 {
-                    item = (TEXTE_MODULE*) boardItem;
+                    TEXTE_MODULE *item = static_cast<TEXTE_MODULE*>( boardItem );
 
                     if( item->GetSize() != GetDesignSettings().m_ModuleTextSize
                         || item->GetThickness() != GetDesignSettings().m_ModuleTextWidth )
@@ -215,23 +225,23 @@ void PCB_BASE_FRAME::ResetModuleTextSizes( const wxString & aFilter, bool aRef,
 
         if( aRef )
         {
-            module->m_Reference->SetThickness( GetDesignSettings().m_ModuleTextWidth );
-            module->m_Reference->SetSize( GetDesignSettings().m_ModuleTextSize );
+            module->Reference().SetThickness( GetDesignSettings().m_ModuleTextWidth );
+            module->Reference().SetSize( GetDesignSettings().m_ModuleTextSize );
         }
 
         if( aValue )
         {
-            module->m_Value->SetThickness( GetDesignSettings().m_ModuleTextWidth );
-            module->m_Value->SetSize( GetDesignSettings().m_ModuleTextSize );
+            module->Value().SetThickness( GetDesignSettings().m_ModuleTextWidth );
+            module->Value().SetSize( GetDesignSettings().m_ModuleTextSize );
         }
 
         if( aOthers )
         {
-            for( boardItem = module->m_Drawings; boardItem; boardItem = boardItem->Next() )
+            for( boardItem = module->GraphicalItems(); boardItem; boardItem = boardItem->Next() )
             {
                 if( boardItem->Type() == PCB_MODULE_TEXT_T )
                 {
-                    item = (TEXTE_MODULE*) boardItem;
+                    TEXTE_MODULE *item = static_cast<TEXTE_MODULE*>( boardItem );
                     item->SetThickness( GetDesignSettings().m_ModuleTextWidth );
                     item->SetSize( GetDesignSettings().m_ModuleTextSize );
                 }

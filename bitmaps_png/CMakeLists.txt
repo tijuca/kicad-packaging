@@ -43,9 +43,6 @@
 #
 # 1) inkscape - command line mode is used, must be on your PATH
 # 2) pngcrush - this program must be on your PATH
-# 3) Under Windows only:
-#           dos2unix - to convert End Of Lines to unix EOL (CRLF to LF)
-#           this program must be on your PATH
 #
 
 # lower case is used for local variables, uppercase for global variables
@@ -71,21 +68,8 @@ option( MAINTAIN_PNGS
         "Set to true if you are a PNG maintainer and have the required tools given in the bitmaps_png/CMakeLists.txt file (default OFF)."
         OFF)
 
-
 # Used Only to maintain PNG files (and therefore to recreate .cpp files)
 # The png2cpp creates files with native End of Line format.
-# To avoid mixed EOF formats in these .cpp files, it is good to
-# convert them in Unix EOL format (LF)
-# Under Windows, the well known dos2unix.exe does the conversion
-# It is installed with MinGW and MSYS.
-# It is very easy to install (just an executable to copy in a known path) if it is missing
-
-if( WIN32 )
-    set( CONVERT_EOL true )
-    set( eol2unix_converter dos2unix )
-else()
-    set( CONVERT_EOL false )
-endif( WIN32 )
 
 include_directories(BEFORE ${INC_BEFORE})
 include_directories(
@@ -167,7 +151,12 @@ set( BMAPS_MID
     annotate_down_right
     annotate_right_down
     annotate
-    apply
+    array_line
+    array_module
+    array_pad
+    array_text
+    array_target
+    array_zone
     auto_associe
     auto_delete_track
     auto_track_width
@@ -185,6 +174,7 @@ set( BMAPS_MID
     browse_files
     cancel
     change_entry_orient
+    contrast_mode
     create_cmp_file
     checked_ok
     component_select_unit
@@ -193,6 +183,7 @@ set( BMAPS_MID
     copyblock
     copycomponent
     copy_button
+    copy_library
     copper_layers_setup
     cursor_shape
     cursor
@@ -232,6 +223,12 @@ set( BMAPS_MID
     drag_track_segment
     drc_off
     drc
+    duplicate_line
+    duplicate_module
+    duplicate_pad
+    duplicate_target
+    duplicate_text
+    duplicate_zone
     edges_sketch
     edit_comp_footprint
     edit_component
@@ -250,6 +247,8 @@ set( BMAPS_MID
     ercwarn
     erc
     exit
+    export_dsn
+    export_idf
     export_footprint_names
     export_module
     export_options_pad
@@ -267,11 +266,9 @@ set( BMAPS_MID
     gbr_select_mode2
     gerber_file
     gerber_recent_files
-    gerber_open_dcode_file
     gerbview_show_negative_objects
     gerbview_drill_file
     gerbview_clear_layers
-    gerber_open_dcode_file
     gerbview_open_recent_drill_files
     general_deletions
     general_ratsnest
@@ -289,6 +286,7 @@ set( BMAPS_MID
     hierarchy_cursor
     hierarchy_nav
     hotkeys
+    html
     icon_cvpcb_small
     icon_gerbview_small
     icon_txt
@@ -301,7 +299,6 @@ set( BMAPS_MID
     import
     info
     insert_module_board
-    invert_module
     invisible_text
     kicad_icon_small
     label2glabel
@@ -341,6 +338,7 @@ set( BMAPS_MID
     library_table
     libview
     lines90
+    list_nets
     load_module_board
     load_module_lib
     local_ratsnest
@@ -349,6 +347,8 @@ set( BMAPS_MID
     mirepcb
     mirror_h
     mirror_v
+    mirror_footprint_axisX
+    mirror_footprint_axisY
     mode_module
     mode_track
     modratsnest
@@ -359,6 +359,7 @@ set( BMAPS_MID
     module_full_list
     module_options
     module_pin_filtered_list
+    module_library_list
     module_ratsnest
     module
     modview_icon
@@ -376,9 +377,11 @@ set( BMAPS_MID
     move_polygon
     move_rectangle
     move_sheet
+    move_target
     move_text
     move_track_segment
     move_track
+    move_zone
     move
     mw_add_gap
     mw_add_line
@@ -398,8 +401,6 @@ set( BMAPS_MID
     new_project
     new_project_with_template
     new_sch
-    new_txt
-    new
     noconn
     normal
     online_help
@@ -429,7 +430,14 @@ set( BMAPS_MID
     pad_sketch
     pad
     pad_dimensions
+    pad_enumerate
     pads_mask_layers
+    pagelayout_load
+    pagelayout_load_default
+    pagelayout_new
+    pagelayout_recent
+    pagelayout_normal_view_mode
+    pagelayout_special_view_mode
     palette
     part_properties
     paste
@@ -439,6 +447,7 @@ set( BMAPS_MID
     pin_name_to
     pin_number_to
     pin_size_to
+    pin_table
     pin_to
     pin
     plot
@@ -453,6 +462,14 @@ set( BMAPS_MID
     post_module
     preference
     print_button
+    ps_router
+    ps_diff_pair
+    ps_diff_pair_gap
+    ps_diff_pair_tune_length
+    ps_diff_pair_tune_phase
+    ps_diff_pair_via_gap
+    ps_tune_length
+    py_script
     ratsnest
     read_setup
     redo
@@ -461,11 +478,13 @@ set( BMAPS_MID
     reload
     reset_text
     resize_sheet
+    rescue_pcbnew
+    revert_pcbnew
     right
     rotate_field
     rotate_glabel
-    rotate_module_neg
-    rotate_module_pos
+    rotate_module_cw
+    rotate_module_ccw
     rotate_pin
     rotate_ccw
     rotate_cw
@@ -488,6 +507,12 @@ set( BMAPS_MID
     select_w_layer
     shape_3d
     sheetset
+    setcolor_3d_bg
+    setcolor_silkscreen
+    setcolor_soldermask
+    setcolor_solderpaste
+    setcolor_copper
+    setcolor_board_body
     show_dcodenumber
     show_footprint
     show_mod_edge
@@ -516,6 +541,8 @@ set( BMAPS_MID
     up
     use_3D_copper_thickness
     via
+    via_buried
+    via_microvia
     via_sketch
     warning
     web_support
@@ -525,6 +552,7 @@ set( BMAPS_MID
     width_track
     width_vias
     window_close
+    wizard_add_fplib_small
     zip_tool
     zip
     zone_duplicate
@@ -554,6 +582,14 @@ set( BMAPS_BIG
     icon_pcbcalculator
     libedit_icon
     viewlibs_icon
+    icon_pagelayout_editor
+    wizard_add_fplib_icon
+    )
+
+set( BMAPS_OTHER
+    tune_diff_pair_length_legend
+    tune_diff_pair_skew_legend
+    tune_single_track_length_legend
     )
 
 
@@ -595,25 +631,6 @@ endfunction()
 
 # Function png2cpp
 # converts a single *.png to *.cpp
-if( CONVERT_EOL )
-function( png2cpp inputFile outFile )
-    add_custom_command(
-        OUTPUT  ${outFile}
-
-        COMMAND rm -f ${outFile}.tmp
-        COMMAND ${CMAKE_COMMAND} -DinputFile=${inputFile} -DoutCppFile=${outFile}
-            -P ${CMAKE_MODULE_PATH}/PNG2cpp.cmake
-
-        DEPENDS ${inputFile} ${CMAKE_MODULE_PATH}/PNG2cpp.cmake
-
-        POST_BUILD
-        COMMAND ${eol2unix_EXECUTABLE} ${outFile}
-
-        COMMENT "Creating (with unix eol) ${outFile}"
-    )
-endfunction()
-
-else( CONVERT_EOL )
 function( png2cpp inputFile outFile )
     add_custom_command(
         OUTPUT  ${outFile}
@@ -625,8 +642,6 @@ function( png2cpp inputFile outFile )
         COMMENT "Creating ${outFile}"
         )
 endfunction()
-
-endif(CONVERT_EOL)
 
 
 # Function bitmap_dir
@@ -750,6 +765,10 @@ foreach( bmn ${BMAPS_BIG} )
     list( APPEND CPP_LIST cpp_48/${bmn}.cpp )
 endforeach()
 
+foreach( bmn ${BMAPS_OTHER} )
+    #message( "library add cpp_other/${bmn}.cpp" )
+    list( APPEND CPP_LIST cpp_other/${bmn}.cpp )
+endforeach()
+
 #add_library( bitmaps SHARED ${CPP_LIST} )
 add_library( bitmaps STATIC ${CPP_LIST} )
-

@@ -5,9 +5,9 @@
 /*
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
- * Copyright (C) 2011 Jean-Pierre Charras, jean-pierre.charras@ujf-grenoble.fr
+ * Copyright (C) 2015 Jean-Pierre Charras, jean-pierre.charras@ujf-grenoble.fr
  * Copyright (C) 2009 Dick Hollenbeck, dick@softplc.com
- * Copyright (C) 2004-2011 KiCad Developers, see change_log.txt for contributors.
+ * Copyright (C) 2004-2015 KiCad Developers, see change_log.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -32,7 +32,7 @@
 #include <wxPcbStruct.h>
 #include <base_units.h>
 #include <class_board_design_settings.h>
-
+#include <class_draw_panel_gal.h>
 
 /* class DIALOG_DRC_CONTROL: a dialog to set DRC parameters (clearance, min cooper size)
  * and run DRC tests
@@ -77,10 +77,6 @@ void DIALOG_DRC_CONTROL::InitValues()
 
     m_DeleteCurrentMarkerButton->Enable( false );
 
-    /* this looks terrible! does not fit into text field, do it in wxformbuilder instead
-    m_SetClearance->SetValue( _("Netclasses values"));
-    */
-
     Layout();      // adding the units above expanded Clearance text, now resize.
 
     // Set the initial "enabled" status of the browse button and the text
@@ -89,27 +85,19 @@ void DIALOG_DRC_CONTROL::InitValues()
     OnReportCheckBoxClicked( junk );
 
     SetFocus();
-
-    // deselect the existing text, seems SetFocus() wants to emulate
-    // Microsoft and select all text, which is not desireable here.
-//    m_SetClearance->SetSelection(0,0);
 }
 
 /* accept DRC parameters (min clearance value and min sizes
 */
 void DIALOG_DRC_CONTROL::SetDrcParmeters( )
 {
-     m_BrdSettings.m_TrackMinWidth = ReturnValueFromTextCtrl( *m_SetTrackMinWidthCtrl );
-     m_BrdSettings.m_ViasMinSize = ReturnValueFromTextCtrl( *m_SetViaMinSizeCtrl );
-     m_BrdSettings.m_MicroViasMinSize = ReturnValueFromTextCtrl( *m_SetMicroViakMinSizeCtrl );
+     m_BrdSettings.m_TrackMinWidth = ValueFromTextCtrl( *m_SetTrackMinWidthCtrl );
+     m_BrdSettings.m_ViasMinSize = ValueFromTextCtrl( *m_SetViaMinSizeCtrl );
+     m_BrdSettings.m_MicroViasMinSize = ValueFromTextCtrl( *m_SetMicroViakMinSizeCtrl );
 
      m_Parent->GetBoard()->SetDesignSettings( m_BrdSettings );
 }
 
-
-/*!
- * wxEVT_COMMAND_BUTTON_CLICKED event handler for ID_DRC_RUN
- */
 
 void DIALOG_DRC_CONTROL::OnStartdrcClick( wxCommandEvent& event )
 {
@@ -146,11 +134,7 @@ void DIALOG_DRC_CONTROL::OnStartdrcClick( wxCommandEvent& event )
     m_tester->m_pcb->m_Status_Pcb = 0;      // Force full connectivity and ratsnest recalculations
     m_tester->RunTests(m_Messages);
 
-#if wxCHECK_VERSION( 2, 8, 0 )
     m_Notebook->ChangeSelection( 0 );       // display the 1at tab "...Markers ..."
-#else
-    m_Notebook->SetSelection( 0 );          // display the 1at tab "... Markers..."
-#endif
 
 
     // Generate the report
@@ -175,20 +159,12 @@ void DIALOG_DRC_CONTROL::OnStartdrcClick( wxCommandEvent& event )
 }
 
 
-/*!
- * wxEVT_COMMAND_BUTTON_CLICKED event handler for ID_ERASE_DRC_MARKERS
- */
-
 void DIALOG_DRC_CONTROL::OnDeleteAllClick( wxCommandEvent& event )
 {
     DelDRCMarkers();
     RedrawDrawPanel();
 }
 
-
-/*!
- * wxEVT_COMMAND_BUTTON_CLICKED event handler for ID_LIST_UNCONNECTED_PADS
- */
 
 void DIALOG_DRC_CONTROL::OnListUnconnectedClick( wxCommandEvent& event )
 {
@@ -222,11 +198,7 @@ void DIALOG_DRC_CONTROL::OnListUnconnectedClick( wxCommandEvent& event )
     m_Messages->Clear();
     m_tester->ListUnconnectedPads();
 
-#if wxCHECK_VERSION( 2, 8, 0 )
     m_Notebook->ChangeSelection( 1 );       // display the 2nd tab "Unconnected..."
-#else
-    m_Notebook->SetSelection( 1 );          // display the 2nd tab "Unconnected..."
-#endif
 
     // Generate the report
     if( !reportName.IsEmpty() )
@@ -274,10 +246,6 @@ void DIALOG_DRC_CONTROL::OnButtonBrowseRptFileClick( wxCommandEvent& event )
 }
 
 
-/*!
- * wxEVT_COMMAND_BUTTON_CLICKED event handler for wxID_OK
- */
-
 void DIALOG_DRC_CONTROL::OnOkClick( wxCommandEvent& event )
 {
     SetReturnCode( wxID_OK );
@@ -286,10 +254,6 @@ void DIALOG_DRC_CONTROL::OnOkClick( wxCommandEvent& event )
     m_tester->DestroyDialog( wxID_OK );
 }
 
-
-/*!
- * wxEVT_COMMAND_BUTTON_CLICKED event handler for wxID_CANCEL
- */
 
 void DIALOG_DRC_CONTROL::OnCancelClick( wxCommandEvent& event )
 {
@@ -318,10 +282,6 @@ void DIALOG_DRC_CONTROL::OnReportCheckBoxClicked( wxCommandEvent& event )
 }
 
 
-/*!
- * wxEVT_LEFT_DCLICK event handler for ID_CLEARANCE_LIST
- */
-
 void DIALOG_DRC_CONTROL::OnLeftDClickClearance( wxMouseEvent& event )
 {
     event.Skip();
@@ -344,6 +304,7 @@ void DIALOG_DRC_CONTROL::OnLeftDClickClearance( wxMouseEvent& event )
              */
 
             m_Parent->CursorGoto( item->GetPointA() );
+            m_Parent->GetGalCanvas()->GetView()->SetCenter( VECTOR2D( item->GetPointA() ) );
 
             // turn control over to m_Parent, hide this DIALOG_DRC_CONTROL window,
             // no destruction so we can preserve listbox cursor
@@ -396,14 +357,12 @@ void DIALOG_DRC_CONTROL::OnPopupMenu( wxCommandEvent& event )
     if( item )
     {
         m_Parent->CursorGoto( pos );
+        m_Parent->GetGalCanvas()->GetView()->SetCenter( VECTOR2D( item->GetPointA() ) );
+
         Show( false );
     }
 }
 
-
-/*!
- * wxEVT_RIGHT_UP event handler for ID_CLEARANCE_LIST
- */
 
 void DIALOG_DRC_CONTROL::OnRightUpUnconnected( wxMouseEvent& event )
 {
@@ -433,10 +392,6 @@ void DIALOG_DRC_CONTROL::OnRightUpUnconnected( wxMouseEvent& event )
 }
 
 
-/*!
- * wxEVT_RIGHT_UP event handler for ID_CLEARANCE_LIST
- */
-
 void DIALOG_DRC_CONTROL::OnRightUpClearance( wxMouseEvent& event )
 {
     event.Skip();
@@ -465,10 +420,6 @@ void DIALOG_DRC_CONTROL::OnRightUpClearance( wxMouseEvent& event )
 }
 
 
-/*!
- * wxEVT_LEFT_DCLICK event handler for ID_UNCONNECTED_LIST
- */
-
 void DIALOG_DRC_CONTROL::OnLeftDClickUnconnected( wxMouseEvent& event )
 {
     event.Skip();
@@ -486,6 +437,7 @@ void DIALOG_DRC_CONTROL::OnLeftDClickUnconnected( wxMouseEvent& event )
         if( item )
         {
             m_Parent->CursorGoto( item->GetPointA() );
+            m_Parent->GetGalCanvas()->GetView()->SetCenter( VECTOR2D( item->GetPointA() ) );
 
             Show( false );
 
@@ -519,7 +471,10 @@ void DIALOG_DRC_CONTROL::OnMarkerSelectionEvent( wxCommandEvent& event )
         // at the first of the two pads.
         const DRC_ITEM* item = m_ClearanceListBox->GetItem( selection );
         if( item )
+        {
             m_Parent->CursorGoto( item->GetPointA(), false );
+            m_Parent->GetGalCanvas()->GetView()->SetCenter( VECTOR2D( item->GetPointA() ) );
+        }
     }
 
     event.Skip();
@@ -539,7 +494,10 @@ void DIALOG_DRC_CONTROL::OnUnconnectedSelectionEvent( wxCommandEvent& event )
         // at the first of the two pads.
         const DRC_ITEM* item = m_UnconnectedListBox->GetItem( selection );
         if( item )
+        {
             m_Parent->CursorGoto( item->GetPointA(), false );
+            m_Parent->GetGalCanvas()->GetView()->SetCenter( VECTOR2D( item->GetPointA() ) );
+        }
     }
 
     event.Skip();
@@ -589,10 +547,6 @@ void DIALOG_DRC_CONTROL::writeReport( FILE* fp )
     fprintf( fp, "\n** End of Report **\n" );
 }
 
-
-/*!
- * wxEVT_COMMAND_BUTTON_CLICKED event handler for ID_DELETE_ONE
- */
 
 void DIALOG_DRC_CONTROL::OnDeleteOneClick( wxCommandEvent& event )
 {

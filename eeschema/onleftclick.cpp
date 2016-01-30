@@ -1,9 +1,9 @@
 /*
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
- * Copyright (C) 2009 Jean-Pierre Charras, jaen-pierre.charras@gipsa-lab.inpg.com
+ * Copyright (C) 2015 Jean-Pierre Charras, jaen-pierre.charras@gipsa-lab.inpg.com
  * Copyright (C) 2011 Wayne Stambaugh <stambaughw@verizon.net>
- * Copyright (C) 1992-2011 KiCad Developers, see AUTHORS.txt for contributors.
+ * Copyright (C) 1992-2015 KiCad Developers, see AUTHORS.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -31,10 +31,9 @@
 #include <eeschema_id.h>
 #include <class_drawpanel.h>
 #include <confirm.h>
-#include <wxEeschemaStruct.h>
+#include <schframe.h>
 #include <menus_helpers.h>
 
-#include <general.h>
 #include <sch_bus_entry.h>
 #include <sch_text.h>
 #include <sch_marker.h>
@@ -43,22 +42,29 @@
 #include <sch_no_connect.h>
 #include <sch_component.h>
 #include <sch_sheet.h>
+#include <sch_sheet_path.h>
 #include <sch_bitmap.h>
+#include <class_library.h>      // fo class SCHLIB_FILTER to filter power parts
 
 
+// TODO(hzeller): These pairs of elmenets should be represented by an object, but don't want
+// to refactor too much right now to not get in the way with other code changes.
 static wxArrayString s_CmpNameList;
+static int s_CmpLastUnit;
+
 static wxArrayString s_PowerNameList;
+static int s_LastPowerUnit;
 
 
 void SCH_EDIT_FRAME::OnLeftClick( wxDC* aDC, const wxPoint& aPosition )
 {
-    SCH_ITEM* item = GetScreen()->GetCurItem();
-    wxPoint gridPosition = GetGridPosition( aPosition );
+    SCH_ITEM*   item = GetScreen()->GetCurItem();
+    wxPoint     gridPosition = GetGridPosition( aPosition );
 
     if( ( GetToolId() == ID_NO_TOOL_SELECTED ) || ( item && item->GetFlags() ) )
     {
         m_canvas->SetAutoPanRequest( false );
-        m_itemToRepeat = NULL;
+        SetRepeatItem( NULL );
 
         if( item && item->GetFlags() )
         {
@@ -70,13 +76,14 @@ void SCH_EDIT_FRAME::OnLeftClick( wxDC* aDC, const wxPoint& aPosition )
             case SCH_TEXT_T:
             case SCH_SHEET_PIN_T:
             case SCH_SHEET_T:
-            case SCH_BUS_ENTRY_T:
+            case SCH_BUS_WIRE_ENTRY_T:
+            case SCH_BUS_BUS_ENTRY_T:
             case SCH_JUNCTION_T:
             case SCH_COMPONENT_T:
             case SCH_FIELD_T:
             case SCH_BITMAP_T:
             case SCH_NO_CONNECT_T:
-                addCurrentItemToList( aDC );
+                addCurrentItemToList();
                 return;
 
             case SCH_LINE_T:    // May already be drawing segment.
@@ -106,67 +113,73 @@ void SCH_EDIT_FRAME::OnLeftClick( wxDC* aDC, const wxPoint& aPosition )
 
         item = LocateAndShowItem( aPosition, SCH_COLLECTOR::SheetsOnly );
 
-        if( item )
+        if( item )  // The user has clicked on a sheet: this is an enter sheet command
         {
             m_CurrentSheet->Push( (SCH_SHEET*) item );
             DisplayCurrentSheet();
         }
-        else
-        {
-            wxCHECK_RET( m_CurrentSheet->Last() != g_RootSheet,
-                         wxT( "Cannot leave root sheet.  Bad Programmer!" ) );
-
+        else if( m_CurrentSheet->Last() != g_RootSheet )
+        {   // The user has clicked ouside a sheet:this is an leave sheet command
             m_CurrentSheet->Pop();
             DisplayCurrentSheet();
         }
-
         break;
 
     case ID_NOCONN_BUTT:
         if( ( item == NULL ) || ( item->GetFlags() == 0 ) )
         {
-            if( false == GetScreen()->GetItem( gridPosition, 0, SCH_NO_CONNECT_T ) )
+            if( GetScreen()->GetItem( gridPosition, 0, SCH_NO_CONNECT_T ) == NULL )
             {
-                m_itemToRepeat = AddNoConnect( aDC, gridPosition );
-                GetScreen()->SetCurItem( m_itemToRepeat );
+                SCH_NO_CONNECT*  no_connect = AddNoConnect( aDC, gridPosition );
+                SetRepeatItem( no_connect );
+                GetScreen()->SetCurItem( no_connect );
                 m_canvas->SetAutoPanRequest( true );
             }
         }
         else
         {
-            addCurrentItemToList( aDC );
+            addCurrentItemToList();
         }
-
         break;
 
     case ID_JUNCTION_BUTT:
         if( ( item == NULL ) || ( item->GetFlags() == 0 ) )
         {
-            if( false == GetScreen()->GetItem( gridPosition, 0, SCH_JUNCTION_T ) )
+            if( GetScreen()->GetItem( gridPosition, 0, SCH_JUNCTION_T ) == NULL )
             {
-                m_itemToRepeat = AddJunction( aDC, gridPosition, true );
-                GetScreen()->SetCurItem( m_itemToRepeat );
+                SCH_JUNCTION* junction = AddJunction( aDC, gridPosition, true );
+                SetRepeatItem( junction );
+                GetScreen()->SetCurItem( junction );
                 m_canvas->SetAutoPanRequest( true );
             }
         }
         else
         {
-            addCurrentItemToList( aDC );
+            addCurrentItemToList();
         }
-
         break;
 
     case ID_WIRETOBUS_ENTRY_BUTT:
-    case ID_BUSTOBUS_ENTRY_BUTT:
         if( ( item == NULL ) || ( item->GetFlags() == 0 ) )
         {
-            CreateBusEntry( aDC, ( GetToolId() == ID_WIRETOBUS_ENTRY_BUTT ) ?
-                            WIRE_TO_BUS : BUS_TO_BUS );
+            CreateBusWireEntry();
             m_canvas->SetAutoPanRequest( true );
         }
         else
         {
-            addCurrentItemToList( aDC );
+            addCurrentItemToList();
+        }
+        break;
+
+    case ID_BUSTOBUS_ENTRY_BUTT:
+        if( ( item == NULL ) || ( item->GetFlags() == 0 ) )
+        {
+            CreateBusBusEntry();
+            m_canvas->SetAutoPanRequest( true );
+        }
+        else
+        {
+            addCurrentItemToList();
         }
         break;
 
@@ -197,9 +210,8 @@ void SCH_EDIT_FRAME::OnLeftClick( wxDC* aDC, const wxPoint& aPosition )
         }
         else
         {
-            addCurrentItemToList( aDC );
+            addCurrentItemToList();
         }
-
         break;
 
     case ID_ADD_IMAGE_BUTT:
@@ -210,9 +222,8 @@ void SCH_EDIT_FRAME::OnLeftClick( wxDC* aDC, const wxPoint& aPosition )
         }
         else
         {
-            addCurrentItemToList( aDC );
+            addCurrentItemToList();
         }
-
         break;
 
     case ID_LABEL_BUTT:
@@ -223,9 +234,8 @@ void SCH_EDIT_FRAME::OnLeftClick( wxDC* aDC, const wxPoint& aPosition )
         }
         else
         {
-            addCurrentItemToList( aDC );
+            addCurrentItemToList();
         }
-
         break;
 
     case ID_GLABEL_BUTT:
@@ -242,9 +252,8 @@ void SCH_EDIT_FRAME::OnLeftClick( wxDC* aDC, const wxPoint& aPosition )
         }
         else
         {
-            addCurrentItemToList( aDC );
+            addCurrentItemToList();
         }
-
         break;
 
     case ID_SHEET_SYMBOL_BUTT:
@@ -260,9 +269,8 @@ void SCH_EDIT_FRAME::OnLeftClick( wxDC* aDC, const wxPoint& aPosition )
         }
         else
         {
-            addCurrentItemToList( aDC );
+            addCurrentItemToList();
         }
-
         break;
 
     case ID_IMPORT_HLABEL_BUTT:
@@ -282,36 +290,36 @@ void SCH_EDIT_FRAME::OnLeftClick( wxDC* aDC, const wxPoint& aPosition )
         }
         else if( (item->Type() == SCH_SHEET_PIN_T) && (item->GetFlags() != 0) )
         {
-            addCurrentItemToList( aDC );
+            addCurrentItemToList();
         }
-
         break;
 
     case ID_SCH_PLACE_COMPONENT:
         if( (item == NULL) || (item->GetFlags() == 0) )
         {
-            GetScreen()->SetCurItem( Load_Component( aDC, wxEmptyString, s_CmpNameList, true ) );
+            GetScreen()->SetCurItem( Load_Component( aDC, NULL,
+                                                     s_CmpNameList, s_CmpLastUnit, true ) );
             m_canvas->SetAutoPanRequest( true );
         }
         else
         {
-            addCurrentItemToList( aDC );
+            addCurrentItemToList();
         }
-
         break;
 
     case ID_PLACE_POWER_BUTT:
         if( ( item == NULL ) || ( item->GetFlags() == 0 ) )
         {
-            GetScreen()->SetCurItem( Load_Component( aDC, wxT( "power" ),
-                                                     s_PowerNameList, false ) );
+            SCHLIB_FILTER filter;
+            filter.FilterPowerParts( true );
+            GetScreen()->SetCurItem( Load_Component( aDC, &filter,
+                                                     s_PowerNameList, s_LastPowerUnit, false ) );
             m_canvas->SetAutoPanRequest( true );
         }
         else
         {
-            addCurrentItemToList( aDC );
+            addCurrentItemToList();
         }
-
         break;
 
     default:
@@ -355,7 +363,12 @@ void SCH_EDIT_FRAME::OnLeftDClick( wxDC* aDC, const wxPoint& aPosition )
 
         case SCH_COMPONENT_T:
             EditComponent( (SCH_COMPONENT*) item );
-            m_canvas->MoveCursorToCrossHair();
+            GetCanvas()->MoveCursorToCrossHair();
+
+            if( item->GetFlags() == 0 )
+                GetScreen()->SetCurItem( NULL );
+
+            GetCanvas()->Refresh();
             break;
 
         case SCH_TEXT_T:
@@ -371,7 +384,7 @@ void SCH_EDIT_FRAME::OnLeftDClick( wxDC* aDC, const wxPoint& aPosition )
 
         case SCH_FIELD_T:
             EditComponentFieldText( (SCH_FIELD*) item );
-            m_canvas->MoveCursorToCrossHair();
+            GetCanvas()->MoveCursorToCrossHair();
             break;
 
         case SCH_MARKER_T:

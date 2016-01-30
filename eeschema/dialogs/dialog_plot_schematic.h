@@ -4,7 +4,7 @@
 /*
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
- * Copyright (C) 1992-2012 Jean-Pierre Charras <jean-pierre.charras@gipsa-lab.inpg.fr
+ * Copyright (C) 1992-2014 Jean-Pierre Charras <jp.charras at wanadoo.fr
  * Copyright (C) 1992-2010 Lorenzo Marcantonio
  * Copyright (C) 2011 Wayne Stambaugh <stambaughw@verizon.net>
  *
@@ -31,8 +31,9 @@
 #include <fctsys.h>
 #include <plot_common.h>
 #include <class_sch_screen.h>
-#include <wxEeschemaStruct.h>
+#include <schframe.h>
 #include <dialog_plot_schematic_base.h>
+#include <reporter.h>
 
 
 enum PageFormatReq {
@@ -46,7 +47,8 @@ class DIALOG_PLOT_SCHEMATIC : public DIALOG_PLOT_SCHEMATIC_BASE
 {
 private:
     SCH_EDIT_FRAME* m_parent;
-    wxConfig*       m_config;
+    wxConfigBase*   m_config;
+    bool            m_configChanged;        // true if a project config param has changed
     static int      m_pageSizeSelect;       // Static to keep last option for some format:
                                             // Static to keep last option:
                                             // use default size or force A or A4 size
@@ -57,11 +59,14 @@ public:
     // / Constructors
     DIALOG_PLOT_SCHEMATIC( SCH_EDIT_FRAME* parent );
 
+    bool PrjConfigChanged() { return m_configChanged; } // return true if the prj config was modified
+                                                        // and therefore should be saved
+
 private:
-	void OnPlotFormatSelection( wxCommandEvent& event );
-	void OnButtonPlotCurrentClick( wxCommandEvent& event );
-	void OnButtonPlotAllClick( wxCommandEvent& event );
-	void OnButtonCancelClick( wxCommandEvent& event );
+    void OnPlotFormatSelection( wxCommandEvent& event );
+    void OnButtonPlotCurrentClick( wxCommandEvent& event );
+    void OnButtonPlotAllClick( wxCommandEvent& event );
+    void OnButtonCancelClick( wxCommandEvent& event );
 
     void    initDlg();
 
@@ -73,6 +78,11 @@ private:
 
     void setModeColor( bool aColor )
     { m_ModeColorOption->SetSelection( aColor ? 0 : 1 ); }
+
+    /**
+     * Set the m_outputDirectoryName variable to the selected directory from directory dialog.
+     */
+    void OnOutputDirectoryBrowseClicked( wxCommandEvent& event );
 
     PlotFormat GetPlotFileFormat();
 
@@ -86,6 +96,13 @@ private:
     void    plotOneSheetPDF( PLOTTER* aPlotter, SCH_SCREEN* aScreen, bool aPlotFrameRef);
     void    setupPlotPagePDF( PLOTTER* aPlotter, SCH_SCREEN* aScreen );
 
+    /**
+    * Everything done, close the plot and restore the environment
+    * @param aPlotter the plotter to close and destroy
+    * @param aOldsheetpath the stored old sheet path for the current sheet before the plot started
+    */
+    void    restoreEnvironment( PDF_PLOTTER* aPlotter, SCH_SHEET_PATH& aOldsheetpath );
+
     // DXF
     void    CreateDXFFile( bool aPlotAll, bool aPlotFrameRef );
     bool    PlotOneSheetDXF( const wxString& aFileName, SCH_SCREEN* aScreen,
@@ -96,10 +113,12 @@ private:
     {
         return m_plotOriginOpt->GetSelection() == 1;
     }
+
     void    SetPlotOriginCenter( bool aCenter )
     {
         m_plotOriginOpt->SetSelection( aCenter ? 1 : 0 );
     }
+
     void    createHPGLFile( bool aPlotAll, bool aPlotFrameRef );
     void    SetHPGLPenWidth();
     bool    Plot_1_Page_HPGL( const wxString& aFileName, SCH_SCREEN* aScreen,
@@ -114,6 +133,20 @@ private:
 
     // SVG
     void    createSVGFile( bool aPlotAll, bool aPlotFrameRef );
+
+    /**
+     * Create a file name with an absolute path name
+     * @param aOutputDirectoryName the diretory name to plot,
+     *      this can be a relative name of the current project diretory or an absolute directory name.
+     * @param aPlotFileName the name for the file to plot without a path
+     * @param aExtension the extension for the file to plot
+     * @param aReporter a point to a REPORTER object use to show messages (can be NULL)
+     * @return the created file name
+     * @throw IO_ERROR on file I/O errors
+     */
+    wxFileName createPlotFileName( wxTextCtrl* aOutputDirectoryName,
+                                   wxString& aPlotFileName,
+                                   wxString& aExtension, REPORTER* aReporter = NULL );
 
 public:
     // This function is static because it is called by libedit

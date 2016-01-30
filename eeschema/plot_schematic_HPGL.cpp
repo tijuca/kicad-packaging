@@ -27,14 +27,14 @@
 
 #include <fctsys.h>
 #include <plot_common.h>
-#include <worksheet.h>
 #include <class_sch_screen.h>
-#include <wxEeschemaStruct.h>
+#include <schframe.h>
 #include <base_units.h>
 #include <sch_sheet_path.h>
+#include <project.h>
 
 #include <dialog_plot_schematic.h>
-
+#include <wx_html_report_panel.h>
 
 enum HPGL_PAGEZ_T {
     PAGE_DEFAULT = 0,
@@ -98,7 +98,7 @@ static const wxChar* plot_sheet_list( int aSize )
 
 void DIALOG_PLOT_SCHEMATIC::SetHPGLPenWidth()
 {
-    m_HPGLPenSize = ReturnValueFromTextCtrl( *m_penHPGLWidthCtrl );
+    m_HPGLPenSize = ValueFromTextCtrl( *m_penHPGLWidthCtrl );
 
     if( m_HPGLPenSize > Millimeter2iu( 2 ) )
         m_HPGLPenSize = Millimeter2iu( 2 );
@@ -110,7 +110,6 @@ void DIALOG_PLOT_SCHEMATIC::SetHPGLPenWidth()
 
 void DIALOG_PLOT_SCHEMATIC::createHPGLFile( bool aPlotAll, bool aPlotFrameRef )
 {
-    wxString        plotFileName;
     SCH_SCREEN*     screen = m_parent->GetScreen();
     SCH_SHEET_PATH* sheetpath;
     SCH_SHEET_PATH  oldsheetpath = m_parent->GetCurrentSheet();
@@ -125,6 +124,7 @@ void DIALOG_PLOT_SCHEMATIC::createHPGLFile( bool aPlotAll, bool aPlotFrameRef )
 
     sheetpath = SheetList.GetFirst();
     SCH_SHEET_PATH  list;
+    REPORTER& reporter = m_MessagesBox->Reporter();
 
     SetHPGLPenWidth();
 
@@ -167,6 +167,7 @@ void DIALOG_PLOT_SCHEMATIC::createHPGLFile( bool aPlotAll, bool aPlotFrameRef )
 
         // Calculate offsets
         wxPoint plotOffset;
+        wxString msg;
 
         if( GetPlotOriginCenter() )
         {
@@ -174,22 +175,36 @@ void DIALOG_PLOT_SCHEMATIC::createHPGLFile( bool aPlotAll, bool aPlotFrameRef )
             plotOffset.y    = -plotPage.GetHeightIU() / 2;
         }
 
-        plotFileName = m_parent->GetUniqueFilenameForCurrentSheet() + wxT( "." )
-                       + HPGL_PLOTTER::GetDefaultFileExtension();
+        try
+        {
+            wxString fname = m_parent->GetUniqueFilenameForCurrentSheet();
+            wxString ext = HPGL_PLOTTER::GetDefaultFileExtension();
+            wxFileName plotFileName = createPlotFileName( m_outputDirectoryName, fname,
+                                                          ext, &reporter );
 
-        LOCALE_IO toggle;
+            LOCALE_IO toggle;
 
-        wxString msg;
-        if( Plot_1_Page_HPGL( plotFileName, screen, plotPage, plotOffset,
-                              plot_scale, aPlotFrameRef ) )
-            msg.Printf( _( "Plot: %s OK\n" ), GetChars( plotFileName ) );
-        else    // Error
-             msg.Printf( _( "** Unable to create %s **\n" ), GetChars( plotFileName ) );
+            if( Plot_1_Page_HPGL( plotFileName.GetFullPath(), screen, plotPage, plotOffset,
+                                plot_scale, aPlotFrameRef ) )
+            {
+                msg.Printf( _( "Plot: '%s' OK.\n" ), GetChars( plotFileName.GetFullPath() ) );
+                reporter.Report( msg, REPORTER::RPT_ACTION );
+            }
+            else
+            {
+                msg.Printf( _( "Unable to create file '%s'.\n" ), GetChars( plotFileName.GetFullPath() ) );
+                reporter.Report( msg, REPORTER::RPT_ERROR );
+            }
 
-        m_MessagesBox->AppendText( msg );
+            if( !aPlotAll )
+                break;
+        }
+        catch( IO_ERROR& e )
+        {
+            msg.Printf( wxT( "HPGL Plotter exception: %s"), GetChars( e.errorText ) );
+            reporter.Report( msg, REPORTER::RPT_ERROR );
+        }
 
-        if( !aPlotAll )
-            break;
     }
 
     m_parent->SetCurrentSheet( oldsheetpath );

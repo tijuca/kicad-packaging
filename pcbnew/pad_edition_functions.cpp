@@ -32,6 +32,7 @@
 #include <class_drawpanel.h>
 #include <confirm.h>
 #include <trigo.h>
+#include <macros.h>
 #include <wxBasePcbFrame.h>
 
 #include <pcbnew.h>
@@ -53,7 +54,7 @@ void PCB_BASE_FRAME::Export_Pad_Settings( D_PAD* aPad )
 
     mp.SetShape( aPad->GetShape() );
     mp.SetAttribute( aPad->GetAttribute() );
-    mp.SetLayerMask( aPad->GetLayerMask() );
+    mp.SetLayerSet( aPad->GetLayerSet() );
 
     mp.SetOrientation( aPad->GetOrientation() - aPad->GetParent()->GetOrientation() );
 
@@ -81,7 +82,7 @@ void PCB_BASE_FRAME::Import_Pad_Settings( D_PAD* aPad, bool aDraw )
     D_PAD& mp = GetDesignSettings().m_Pad_Master;
 
     aPad->SetShape( mp.GetShape() );
-    aPad->SetLayerMask( mp.GetLayerMask() );
+    aPad->SetLayerSet( mp.GetLayerSet() );
     aPad->SetAttribute( mp.GetAttribute() );
     aPad->SetOrientation( mp.GetOrientation() + aPad->GetParent()->GetOrientation() );
     aPad->SetSize( mp.GetSize() );
@@ -92,11 +93,11 @@ void PCB_BASE_FRAME::Import_Pad_Settings( D_PAD* aPad, bool aDraw )
 
     switch( mp.GetShape() )
     {
-    case PAD_TRAPEZOID:
+    case PAD_SHAPE_TRAPEZOID:
         aPad->SetDelta( mp.GetDelta() );
         break;
 
-    case PAD_CIRCLE:
+    case PAD_SHAPE_CIRCLE:
         // ensure size.y == size.x
         aPad->SetSize( wxSize( aPad->GetSize().x, aPad->GetSize().x ) );
         break;
@@ -107,8 +108,8 @@ void PCB_BASE_FRAME::Import_Pad_Settings( D_PAD* aPad, bool aDraw )
 
     switch( mp.GetAttribute() )
     {
-    case PAD_SMD:
-    case PAD_CONN:
+    case PAD_ATTRIB_SMD:
+    case PAD_ATTRIB_CONN:
         aPad->SetDrillSize( wxSize( 0, 0 ) );
         aPad->SetOffset( wxPoint( 0, 0 ) );
         break;
@@ -120,29 +121,52 @@ void PCB_BASE_FRAME::Import_Pad_Settings( D_PAD* aPad, bool aDraw )
         m_canvas->RefreshDrawingRect( aPad->GetBoundingBox() );
 
     aPad->GetParent()->SetLastEditTime();
+
+    OnModify();
 }
 
+/** Compute the 'next' pad number for autoincrement
+ * aPadName is the last pad name used */
+static wxString GetNextPadName( wxString aPadName )
+{
+    // Automatically increment the current pad number.
+    int num    = 0;
+    int ponder = 1;
+
+    // Trim and extract the trailing numeric part
+    while( aPadName.Len()
+            && aPadName.Last() >= '0'
+            && aPadName.Last() <= '9' )
+    {
+        num += ( aPadName.Last() - '0' ) * ponder;
+        aPadName.RemoveLast();
+        ponder *= 10;
+    }
+
+    num++;  // Use next number for the new pad
+    aPadName << num;
+
+    return aPadName;
+}
 
 /* Add a new pad to aModule.
  */
 void PCB_BASE_FRAME::AddPad( MODULE* aModule, bool draw )
 {
-    // Last used pad name (pad num)
-    wxString lastPadName = GetDesignSettings().m_Pad_Master.GetPadName();
-
     m_Pcb->m_Status_Pcb     = 0;
     aModule->SetLastEditTime();
 
     D_PAD* pad = new D_PAD( aModule );
 
     // Add the new pad to end of the module pad list.
-    aModule->m_Pads.PushBack( pad );
+    aModule->Pads().PushBack( pad );
 
-    // Update the pad properties.
+    // Update the pad properties,
+    // and keep NETINFO_LIST::ORPHANED as net info
+    // which is the default when nets cannot be handled.
     Import_Pad_Settings( pad, false );
-    pad->SetNetname( wxEmptyString );
 
-    pad->SetPosition( GetScreen()->GetCrossHairPosition() );
+    pad->SetPosition( GetCrossHairPosition() );
 
     // Set the relative pad position
     // ( pad position for module orient, 0, and relative to the module position)
@@ -151,22 +175,18 @@ void PCB_BASE_FRAME::AddPad( MODULE* aModule, bool draw )
     RotatePoint( &pos0, -aModule->GetOrientation() );
     pad->SetPos0( pos0 );
 
-    // Automatically increment the current pad number.
-    long num    = 0;
-    int  ponder = 1;
+    /* NPTH pads take empty pad number (since they can't be connected),
+     * other pads get incremented from the last one edited */
+    wxString padName;
 
-    while( lastPadName.Len() && lastPadName.Last() >= '0' && lastPadName.Last() <= '9' )
+    if( pad->GetAttribute() != PAD_ATTRIB_HOLE_NOT_PLATED )
     {
-        num += ( lastPadName.Last() - '0' ) * ponder;
-        lastPadName.RemoveLast();
-        ponder *= 10;
+        padName = GetNextPadName( GetDesignSettings()
+                .m_Pad_Master.GetPadName() );
     }
 
-    num++;  // Use next number for the new pad
-    lastPadName << num;
-    pad->SetPadName( lastPadName );
-
-    GetDesignSettings().m_Pad_Master.SetPadName(lastPadName);
+    pad->SetPadName( padName );
+    GetDesignSettings().m_Pad_Master.SetPadName( padName );
 
     aModule->CalculateBoundingBox();
     SetMsgPanel( pad );
@@ -176,39 +196,37 @@ void PCB_BASE_FRAME::AddPad( MODULE* aModule, bool draw )
 }
 
 
-/**
- * Function DeletePad
- * Delete the pad aPad.
- * Refresh the modified screen area
- * Refresh modified parameters of the parent module (bounding box, last date)
- * @param aPad = the pad to delete
- * @param aQuery = true to promt for confirmation, false to delete silently
- */
 void PCB_BASE_FRAME::DeletePad( D_PAD* aPad, bool aQuery )
 {
-    MODULE*  module;
-
     if( aPad == NULL )
         return;
 
-    module = (MODULE*) aPad->GetParent();
+    MODULE* module = (MODULE*) aPad->GetParent();
     module->SetLastEditTime();
 
+    // aQuery = true to prompt for confirmation, false to delete silently
     if( aQuery )
     {
         wxString msg;
-        msg.Printf( _( "Delete Pad (module %s %s) " ),
-                    GetChars( module->m_Reference->m_Text ),
-                    GetChars( module->m_Value->m_Text ) );
+        msg.Printf( _( "Delete Pad (footprint %s %s) ?" ),
+                    GetChars( module->GetReference() ),
+                    GetChars( module->GetValue() ) );
 
         if( !IsOK( this, msg ) )
             return;
     }
 
+    // Stores the initial bounding box to refresh the old area
+    EDA_RECT bbox = module->GetBoundingBox();
+
     m_Pcb->m_Status_Pcb = 0;
     aPad->DeleteStructure();
-    m_canvas->RefreshDrawingRect( module->GetBoundingBox() );
+    // Update the bounding box
     module->CalculateBoundingBox();
+
+    // Refresh the modified screen area, using the initial bounding box
+    // which is perhaps larger than the new bounding box
+    m_canvas->RefreshDrawingRect( bbox );
 
     OnModify();
 }
@@ -230,21 +248,21 @@ void PCB_BASE_FRAME::RotatePad( D_PAD* aPad, wxDC* DC )
         module->Draw( m_canvas, DC, GR_XOR );
 
     wxSize  sz = aPad->GetSize();
-    EXCHG( sz.x, sz.y );
+    std::swap( sz.x, sz.y );
     aPad->SetSize( sz );
 
     sz = aPad->GetDrillSize();
-    EXCHG( sz.x, sz.y );
+    std::swap( sz.x, sz.y );
     aPad->SetDrillSize( sz );
 
     wxPoint pt = aPad->GetOffset();
-    EXCHG( pt.x, pt.y );
+    std::swap( pt.x, pt.y );
     aPad->SetOffset( pt );
 
     aPad->SetOffset( wxPoint( aPad->GetOffset().x, -aPad->GetOffset().y ) );
 
     sz = aPad->GetDelta();
-    EXCHG( sz.x, sz.y );
+    std::swap( sz.x, sz.y );
     sz.x = -sz.x;
     aPad->SetDelta( sz );
 

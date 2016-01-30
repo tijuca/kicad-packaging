@@ -1,3 +1,26 @@
+/*
+ * This program source code file is part of KiCad, a free EDA CAD application.
+ *
+ * Copyright (C) 1992-2014 KiCad Developers, see AUTHORS.txt for contributors.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation; either version 2
+ * of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, you may find one here:
+ * http://www.gnu.org/licenses/old-licenses/gpl-2.0.html
+ * or you may search the http://www.gnu.org website for the version 2 license,
+ * or you may write to the Free Software Foundation, Inc.,
+ * 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
+ */
+
 /**
  * @file pcbcommon.h
  */
@@ -5,42 +28,15 @@
 #ifndef PCBCOMMON_H_
 #define PCBCOMMON_H_
 
-
-#include <dlist.h>
-#include <layers_id_colors_and_visibility.h>  // LAYER_COUNT and NB_COPPER_LAYERS definitions.
+class PGM_BASE;
 
 
-#define MIN_DRAW_WIDTH      1               ///< Minimum trace drawing width.
-
-
-class D_PAD;
-class TRACK;
-class BOARD;
-class DISPLAY_OPTIONS;
-
-
-/**
- * Function GetLayerMask
- * @return a one bit layer mask from a layer number
- * @param aLayerNumber = the layer number to convert (0 .. LAYER_COUNT-1)
- */
-int GetLayerMask( int aLayerNumber );
-
-/// Look up Table for conversion copper layer count -> general copper layer mask:
-extern int g_TabAllCopperLayerMask[NB_COPPER_LAYERS];
-
-extern DISPLAY_OPTIONS DisplayOpt;
-
-extern int g_CurrentVersionPCB;
-
-extern int g_RotationAngle;
-
-/// List of segments of the trace currently being drawn.
-extern DLIST<TRACK> g_CurrentTrackList;
-
-#define g_CurrentTrackSegment g_CurrentTrackList.GetLast()    ///< most recently created segment
-
-#define g_FirstTrackSegment   g_CurrentTrackList.GetFirst()   ///< first segment created
-
+/// Utility for comma separated lists
+inline void AccumulateDescription( wxString &aDesc, const wxString &aItem )
+{
+    if( !aDesc.IsEmpty() )
+        aDesc << wxT(", ");
+    aDesc << aItem;
+}
 
 #endif  // PCBCOMMON_H_

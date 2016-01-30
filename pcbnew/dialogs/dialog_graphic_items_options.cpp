@@ -1,7 +1,26 @@
-/************************************/
-/* dialog_graphic_items_options.cpp */
-/************************************/
-
+/*
+ * This program source code file is part of KiCad, a free EDA CAD application.
+ *
+ * Copyright (C) 2010-2014 Jean-Pierre Charras, jean-pierre.charras at wanadoo.fr
+ * Copyright (C) 1992-2014 KiCad Developers, see AUTHORS.txt for contributors.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation; either version 2
+ * of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, you may find one here:
+ * http://www.gnu.org/licenses/old-licenses/gpl-2.0.html
+ * or you may search the http://www.gnu.org website for the version 2 license,
+ * or you may write to the Free Software Foundation, Inc.,
+ * 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
+ */
 
 #include <fctsys.h>
 
@@ -97,20 +116,20 @@ void DIALOG_GRAPHIC_ITEMS_OPTIONS::initValues()
 
 void DIALOG_GRAPHIC_ITEMS_OPTIONS::OnOkClick( wxCommandEvent& event )
 {
-    m_brdSettings.m_DrawSegmentWidth = ReturnValueFromTextCtrl( *m_OptPcbSegmWidth );
-    m_brdSettings.m_EdgeSegmentWidth = ReturnValueFromTextCtrl( *m_OptPcbEdgesWidth );
-    m_brdSettings.m_PcbTextWidth = ReturnValueFromTextCtrl( *m_OptPcbTextWidth );
-    m_brdSettings.m_PcbTextSize.y = ReturnValueFromTextCtrl( *m_OptPcbTextVSize );
-    m_brdSettings.m_PcbTextSize.x = ReturnValueFromTextCtrl( *m_OptPcbTextHSize );
+    m_brdSettings.m_DrawSegmentWidth = ValueFromTextCtrl( *m_OptPcbSegmWidth );
+    m_brdSettings.m_EdgeSegmentWidth = ValueFromTextCtrl( *m_OptPcbEdgesWidth );
+    m_brdSettings.m_PcbTextWidth = ValueFromTextCtrl( *m_OptPcbTextWidth );
+    m_brdSettings.m_PcbTextSize.y = ValueFromTextCtrl( *m_OptPcbTextVSize );
+    m_brdSettings.m_PcbTextSize.x = ValueFromTextCtrl( *m_OptPcbTextHSize );
 
     m_parent->GetBoard()->SetDesignSettings( m_brdSettings );
 
-    m_brdSettings.m_ModuleSegmentWidth = ReturnValueFromTextCtrl( *m_OptModuleEdgesWidth );
-    m_brdSettings.m_ModuleTextWidth = ReturnValueFromTextCtrl( *m_OptModuleTextWidth );
-    m_brdSettings.m_ModuleTextSize.y = ReturnValueFromTextCtrl( *m_OptModuleTextVSize );
-    m_brdSettings.m_ModuleTextSize.x = ReturnValueFromTextCtrl( *m_OptModuleTextHSize );
+    m_brdSettings.m_ModuleSegmentWidth = ValueFromTextCtrl( *m_OptModuleEdgesWidth );
+    m_brdSettings.m_ModuleTextWidth = ValueFromTextCtrl( *m_OptModuleTextWidth );
+    m_brdSettings.m_ModuleTextSize.y = ValueFromTextCtrl( *m_OptModuleTextVSize );
+    m_brdSettings.m_ModuleTextSize.x = ValueFromTextCtrl( *m_OptModuleTextHSize );
 
-    g_DrawDefaultLineThickness = ReturnValueFromTextCtrl( *m_DefaultPenSizeCtrl );
+    g_DrawDefaultLineThickness = ValueFromTextCtrl( *m_DefaultPenSizeCtrl );
 
     if( g_DrawDefaultLineThickness < 0 )
         g_DrawDefaultLineThickness = 0;

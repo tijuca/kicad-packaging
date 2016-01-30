@@ -1,5 +1,5 @@
 ///////////////////////////////////////////////////////////////////////////
-// C++ code generated with wxFormBuilder (version Oct  8 2012)
+// C++ code generated with wxFormBuilder (version Jun 17 2015)
 // http://www.wxformbuilder.org/
 //
 // PLEASE DO "NOT" EDIT THIS FILE!
@@ -23,7 +23,7 @@ class DIALOG_SHIM;
 #include <wx/sizer.h>
 #include <wx/stattext.h>
 #include <wx/spinctrl.h>
-#include <wx/choice.h>
+#include <wx/textctrl.h>
 #include <wx/checkbox.h>
 #include <wx/statbox.h>
 #include <wx/statline.h>
@@ -63,8 +63,10 @@ class DIALOG_GENERALOPTIONS_BOARDEDITOR_BASE : public DIALOG_SHIM
 		wxSpinCtrl* m_MaxShowLinks;
 		wxStaticText* m_staticTextautosave;
 		wxSpinCtrl* m_SaveTime;
+		wxStaticText* m_stMaxUndoItems;
+		wxSpinCtrl* m_spinMaxUndoItems;
 		wxStaticText* m_staticTextRotationAngle;
-		wxChoice* m_RotationAngle;
+		wxTextCtrl* m_RotationAngle;
 		wxCheckBox* m_DrcOn;
 		wxCheckBox* m_ShowGlobalRatsnest;
 		wxCheckBox* m_ShowModuleRatsnest;
@@ -74,10 +76,11 @@ class DIALOG_GENERALOPTIONS_BOARDEDITOR_BASE : public DIALOG_SHIM
 		wxCheckBox* m_Track_DoubleSegm_Ctrl;
 		wxRadioBox* m_MagneticPadOptCtrl;
 		wxRadioBox* m_MagneticTrackOptCtrl;
-		wxCheckBox* m_ZoomNoCenterOpt;
+		wxCheckBox* m_ZoomCenterOpt;
 		wxCheckBox* m_MiddleButtonPANOpt;
 		wxCheckBox* m_OptMiddleButtonPanLimited;
 		wxCheckBox* m_AutoPANOpt;
+		wxCheckBox* m_DumpZonesWhenFilling;
 		wxStaticLine* m_staticline1;
 		wxStdDialogButtonSizer* m_sdbSizer;
 		wxButton* m_sdbSizerOK;

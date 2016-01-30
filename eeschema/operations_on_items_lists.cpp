@@ -1,3 +1,27 @@
+/*
+ * This program source code file is part of KiCad, a free EDA CAD application.
+ *
+ * Copyright (C) 2009 Jean-Pierre Charras, jp.charras at wanadoo.fr
+ * Copyright (C) 2014 KiCad Developers, see CHANGELOG.TXT for contributors.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation; either version 2
+ * of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, you may find one here:
+ * http://www.gnu.org/licenses/old-licenses/gpl-2.0.html
+ * or you may search the http://www.gnu.org website for the version 2 license,
+ * or you may write to the Free Software Foundation, Inc.,
+ * 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
+ */
+
 /**
  * @file operations_on_items_lists.cpp
  * @brief Functions used in block commands, or undo/redo, to move, mirror, delete, copy ...
@@ -5,9 +29,9 @@
  */
 
 #include <fctsys.h>
-#include <appl_wxstruct.h>
+#include <pgm_base.h>
 #include <class_drawpanel.h>
-#include <wxEeschemaStruct.h>
+#include <schframe.h>
 
 #include <general.h>
 #include <protos.h>
@@ -15,7 +39,6 @@
 #include <sch_marker.h>
 #include <sch_line.h>
 #include <sch_no_connect.h>
-#include <sch_polyline.h>
 #include <sch_sheet.h>
 #include <sch_component.h>
 #include <sch_junction.h>
@@ -25,7 +48,6 @@ void SetSchItemParent( SCH_ITEM* Struct, SCH_SCREEN* Screen )
 {
     switch( Struct->Type() )
     {
-    case SCH_POLYLINE_T:
     case SCH_JUNCTION_T:
     case SCH_TEXT_T:
     case SCH_LABEL_T:
@@ -33,7 +55,8 @@ void SetSchItemParent( SCH_ITEM* Struct, SCH_SCREEN* Screen )
     case SCH_HIERARCHICAL_LABEL_T:
     case SCH_COMPONENT_T:
     case SCH_LINE_T:
-    case SCH_BUS_ENTRY_T:
+    case SCH_BUS_BUS_ENTRY_T:
+    case SCH_BUS_WIRE_ENTRY_T:
     case SCH_SHEET_T:
     case SCH_MARKER_T:
     case SCH_NO_CONNECT_T:
@@ -58,11 +81,6 @@ void RotateListOfItems( PICKED_ITEMS_LIST& aItemsList, wxPoint& rotationPoint )
         item->ClearFlags();
     }
 }
-
-
-void DeleteItemsInList( EDA_DRAW_PANEL* panel, PICKED_ITEMS_LIST& aItemsList );
-void DuplicateItemsInList( SCH_SCREEN* screen, PICKED_ITEMS_LIST& aItemsList,
-                           const wxPoint aMoveVector  );
 
 
 void MirrorY( PICKED_ITEMS_LIST& aItemsList, wxPoint& aMirrorPoint )
@@ -141,8 +159,7 @@ void SCH_EDIT_FRAME::DeleteItem( SCH_ITEM* aItem )
 {
     wxCHECK_RET( aItem != NULL, wxT( "Cannot delete invalid item." ) );
 
-    if( aItem == NULL )
-        return;
+    // Here, aItem is not null.
 
     SCH_SCREEN* screen = GetScreen();
 
@@ -185,10 +202,10 @@ void DuplicateItemsInList( SCH_SCREEN* screen, PICKED_ITEMS_LIST& aItemsList,
         {
             switch( newitem->Type() )
             {
-            case SCH_POLYLINE_T:
             case SCH_JUNCTION_T:
             case SCH_LINE_T:
-            case SCH_BUS_ENTRY_T:
+            case SCH_BUS_BUS_ENTRY_T:
+            case SCH_BUS_WIRE_ENTRY_T:
             case SCH_TEXT_T:
             case SCH_LABEL_T:
             case SCH_GLOBAL_LABEL_T:
@@ -203,7 +220,6 @@ void DuplicateItemsInList( SCH_SCREEN* screen, PICKED_ITEMS_LIST& aItemsList,
             {
                 SCH_SHEET* sheet = (SCH_SHEET*) newitem;
                 sheet->SetTimeStamp( GetNewTimeStamp() );
-                sheet->SetSon( NULL );
                 break;
             }
 

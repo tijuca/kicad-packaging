@@ -1,5 +1,5 @@
 ///////////////////////////////////////////////////////////////////////////
-// C++ code generated with wxFormBuilder (version Apr 10 2012)
+// C++ code generated with wxFormBuilder (version Mar  9 2015)
 // http://www.wxformbuilder.org/
 //
 // PLEASE DO "NOT" EDIT THIS FILE!
@@ -18,6 +18,12 @@ DIALOG_ANNOTATE_BASE::DIALOG_ANNOTATE_BASE( wxWindow* parent, wxWindowID id, con
 	
 	wxBoxSizer* bupperSizer;
 	bupperSizer = new wxBoxSizer( wxVERTICAL );
+	
+	m_userMessage = new wxStaticText( this, wxID_ANY, wxEmptyString, wxDefaultPosition, wxDefaultSize, 0 );
+	m_userMessage->Wrap( 1 );
+	m_userMessage->SetFont( wxFont( wxNORMAL_FONT->GetPointSize(), 70, 90, 92, false, wxEmptyString ) );
+	
+	bupperSizer->Add( m_userMessage, 0, wxALL, 5 );
 	
 	m_staticTextScope = new wxStaticText( this, wxID_ANY, _("Scope"), wxDefaultPosition, wxDefaultSize, 0 );
 	m_staticTextScope->Wrap( -1 );
@@ -43,8 +49,11 @@ DIALOG_ANNOTATE_BASE::DIALOG_ANNOTATE_BASE( wxWindow* parent, wxWindowID id, con
 	m_rbResetAnnotation = new wxRadioButton( this, ID_RESET_ANNOTATION, _("&Reset existing annotation"), wxDefaultPosition, wxDefaultSize, 0 );
 	bscopeOptSizer->Add( m_rbResetAnnotation, 0, wxALL, 3 );
 	
+	m_rbResetButLock = new wxRadioButton( this, ID_RESET_BUT_LOCK, _("R&eset, but do not swap any annotated multi-unit parts"), wxDefaultPosition, wxDefaultSize, 0 );
+	bscopeOptSizer->Add( m_rbResetButLock, 0, wxALL, 3 );
 	
-	bupperSizer->Add( bscopeOptSizer, 0, wxEXPAND|wxLEFT|wxALIGN_RIGHT, 25 );
+	
+	bupperSizer->Add( bscopeOptSizer, 0, wxEXPAND|wxLEFT, 25 );
 	
 	m_staticline2 = new wxStaticLine( this, wxID_ANY, wxDefaultPosition, wxDefaultSize, wxLI_HORIZONTAL );
 	bupperSizer->Add( m_staticline2, 0, wxEXPAND | wxALL, 5 );
@@ -68,7 +77,7 @@ DIALOG_ANNOTATE_BASE::DIALOG_ANNOTATE_BASE( wxWindow* parent, wxWindowID id, con
 	bSizerXpos->Add( 0, 0, 1, wxEXPAND, 5 );
 	
 	annotate_down_right_bitmap = new wxStaticBitmap( this, wxID_ANY, wxNullBitmap, wxDefaultPosition, wxDefaultSize, 0 );
-	bSizerXpos->Add( annotate_down_right_bitmap, 0, wxALIGN_CENTER_VERTICAL|wxALIGN_RIGHT|wxRIGHT, 12 );
+	bSizerXpos->Add( annotate_down_right_bitmap, 0, wxALIGN_CENTER_VERTICAL|wxRIGHT, 12 );
 	
 	
 	b_orderOptSizer->Add( bSizerXpos, 0, wxEXPAND|wxRIGHT, 5 );
@@ -166,8 +175,8 @@ DIALOG_ANNOTATE_BASE::DIALOG_ANNOTATE_BASE( wxWindow* parent, wxWindowID id, con
 	wxBoxSizer* bSizerChoiceClose;
 	bSizerChoiceClose = new wxBoxSizer( wxHORIZONTAL );
 	
-	m_cbAutoCloseDlg = new wxCheckBox( this, wxID_ANY, _("Automatically close this dialog"), wxDefaultPosition, wxDefaultSize, 0 );
-	bSizerChoiceClose->Add( m_cbAutoCloseDlg, 0, wxALL, 5 );
+	m_cbKeepDlgOpen = new wxCheckBox( this, wxID_ANY, _("Keep this dialog open"), wxDefaultPosition, wxDefaultSize, 0 );
+	bSizerChoiceClose->Add( m_cbKeepDlgOpen, 0, wxALL, 5 );
 	
 	
 	bSizerChoiceClose->Add( 0, 0, 1, wxEXPAND, 5 );
@@ -178,8 +187,9 @@ DIALOG_ANNOTATE_BASE::DIALOG_ANNOTATE_BASE( wxWindow* parent, wxWindowID id, con
 	wxBoxSizer* bSizerChoiceSilentMode;
 	bSizerChoiceSilentMode = new wxBoxSizer( wxHORIZONTAL );
 	
-	m_cbUseSilentMode = new wxCheckBox( this, wxID_ANY, _("Silent mode"), wxDefaultPosition, wxDefaultSize, 0 );
-	bSizerChoiceSilentMode->Add( m_cbUseSilentMode, 0, wxALL, 5 );
+	m_cbAskForConfirmation = new wxCheckBox( this, wxID_ANY, _("Always ask for confirmation"), wxDefaultPosition, wxDefaultSize, 0 );
+	m_cbAskForConfirmation->SetValue(true); 
+	bSizerChoiceSilentMode->Add( m_cbAskForConfirmation, 0, wxALL, 5 );
 	
 	
 	bSizerChoiceSilentMode->Add( 0, 0, 1, wxEXPAND, 5 );
@@ -205,7 +215,7 @@ DIALOG_ANNOTATE_BASE::DIALOG_ANNOTATE_BASE( wxWindow* parent, wxWindowID id, con
 	m_btnClear = new wxButton( this, ID_CLEAR_ANNOTATION_CMP, _("Clear Annotation"), wxDefaultPosition, wxDefaultSize, 0 );
 	bButtonsSizer->Add( m_btnClear, 0, wxALL|wxEXPAND, 5 );
 	
-	m_btnApply = new wxButton( this, wxID_APPLY, _("Annotation"), wxDefaultPosition, wxDefaultSize, 0 );
+	m_btnApply = new wxButton( this, wxID_APPLY, _("Annotate"), wxDefaultPosition, wxDefaultSize, 0 );
 	bButtonsSizer->Add( m_btnApply, 0, wxALL|wxEXPAND, 5 );
 	
 	
@@ -217,6 +227,7 @@ DIALOG_ANNOTATE_BASE::DIALOG_ANNOTATE_BASE( wxWindow* parent, wxWindowID id, con
 	
 	this->SetSizer( bmainSizer );
 	this->Layout();
+	bmainSizer->Fit( this );
 	
 	// Connect Events
 	m_btnClose->Connect( wxEVT_COMMAND_BUTTON_CLICKED, wxCommandEventHandler( DIALOG_ANNOTATE_BASE::OnCancelClick ), NULL, this );

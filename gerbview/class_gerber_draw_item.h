@@ -31,6 +31,7 @@
 
 #include <base_struct.h>
 #include <dlist.h>
+#include <layers_id_colors_and_visibility.h>
 #include <gr_basic.h>
 
 class GERBER_IMAGE;
@@ -115,8 +116,8 @@ public:
      */
     GERBER_DRAW_ITEM* Copy() const;
 
-    GERBER_DRAW_ITEM* Next() const { return (GERBER_DRAW_ITEM*) Pnext; }
-    GERBER_DRAW_ITEM* Back() const { return (GERBER_DRAW_ITEM*) Pback; }
+    GERBER_DRAW_ITEM* Next() const { return static_cast<GERBER_DRAW_ITEM*>( Pnext ); }
+    GERBER_DRAW_ITEM* Back() const { return static_cast<GERBER_DRAW_ITEM*>( Pback ); }
 
     /**
      * Function GetLayer
@@ -132,11 +133,6 @@ public:
      * have a slightly different initialization
      */
     void SetLayer( int aLayer )  { m_Layer = aLayer; }
-
-    int ReturnMaskLayer()
-    {
-        return 1 << m_Layer;
-    }
 
     bool GetLayerPolarity()
     {
@@ -208,7 +204,7 @@ public:
      * @param aABPosition = position in A,B plotter axis
      * @return const wxPoint - The given position in X,Y axis.
      */
-    wxPoint GetXYPosition( const wxPoint& aABPosition );
+    wxPoint GetXYPosition( const wxPoint& aABPosition ) const;
 
     /**
      * Function GetDcodeDescr
@@ -217,7 +213,7 @@ public:
      */
     D_CODE* GetDcodeDescr();
 
-    EDA_RECT GetBoundingBox() const;
+    const EDA_RECT GetBoundingBox() const;  // Virtual
 
     /* Display on screen: */
     void Draw( EDA_DRAW_PANEL*         aPanel,
@@ -254,7 +250,7 @@ public:
      * @param aRefPos a wxPoint to test
      * @return bool - true if a hit, else false
      */
-    bool HitTest( const wxPoint& aRefPos );
+    bool HitTest( const wxPoint& aRefPos ) const;
 
     /**
      * Function HitTest (overloaded)
@@ -263,7 +259,7 @@ public:
      * @param aRefArea a wxPoint to test
      * @return bool - true if a hit, else false
      */
-    bool HitTest( EDA_RECT& aRefArea );
+    bool HitTest( const EDA_RECT& aRefArea ) const;
 
     /**
      * Function GetClass

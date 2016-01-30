@@ -1,3 +1,27 @@
+/*
+ * This program source code file is part of KiCad, a free EDA CAD application.
+ *
+ * Copyright (C) 2007-2014 Jean-Pierre Charras  jp.charras at wanadoo.fr
+ * Copyright (C) 1992-2014 KiCad Developers, see change_log.txt for contributors.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation; either version 2
+ * of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, you may find one here:
+ * http://www.gnu.org/licenses/old-licenses/gpl-2.0.html
+ * or you may search the http://www.gnu.org website for the version 2 license,
+ * or you may write to the Free Software Foundation, Inc.,
+ * 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
+ */
+
 /**
  * @file rs274x.cpp
  */
@@ -9,9 +33,11 @@
 
 #include <gerbview.h>
 #include <class_GERBER.h>
+#include <class_X2_gerber_attributes.h>
 
 extern int ReadInt( char*& text, bool aSkipSeparator = true );
 extern double ReadDouble( char*& text, bool aSkipSeparator = true );
+extern bool GetEndOfBlock( char buff[GERBER_BUFZ], char*& text, FILE* gerber_file );
 
 
 #define CODE( x, y ) ( ( (x) << 8 ) + (y) )
@@ -52,6 +78,13 @@ enum RS274X_PARAMETERS {
     // Usually for the whole file
     AP_DEFINITION   = CODE( 'A', 'D' ),
     AP_MACRO = CODE( 'A', 'M' ),
+
+    // X2 extention attribute commands
+    // Mainly are found standard attributes and user attributes
+    // standard attributes commands are:
+    // TF (file attribute)
+    // TA (aperture attribute) and TD (delete aperture attribute)
+    FILE_ATTRIBUTE   = CODE( 'T', 'F' ),
 
     // Layer specific parameters
     // May be used singly or may be layer specfic
@@ -167,7 +200,7 @@ bool GERBER_IMAGE::ExecuteRS274XCommand( int       command,
     if( m_GerbMetric )
         conv_scale /= 25.4;
 
-//    D( printf( "%22s: Command <%c%c>\n", __func__, (command >> 8) & 0xFF, command & 0xFF ); )
+//    DBG( printf( "%22s: Command <%c%c>\n", __func__, (command >> 8) & 0xFF, command & 0xFF ); )
 
     switch( command )
     {
@@ -234,15 +267,16 @@ bool GERBER_IMAGE::ExecuteRS274XCommand( int       command,
                 if( code == 'X' )
                 {
                     x_fmt_known = true;
-                    // number of digits after the decimal point (0 to 6 allowed)
+                    // number of digits after the decimal point (0 to 7 allowed)
                     m_FmtScale.x = *text - '0';
                     m_FmtLen.x   = ctmp + m_FmtScale.x;
 
-                    // m_FmtScale is 0 to 6
+                    // m_FmtScale is 0 to 7
+                    // (Old Gerber specification was 0 to 6)
                     if( m_FmtScale.x < 0 )
                         m_FmtScale.x = 0;
-                    if( m_FmtScale.x > 6 )
-                        m_FmtScale.x = 6;
+                    if( m_FmtScale.x > 7 )
+                        m_FmtScale.x = 7;
                 }
                 else
                 {
@@ -251,8 +285,8 @@ bool GERBER_IMAGE::ExecuteRS274XCommand( int       command,
                     m_FmtLen.y   = ctmp + m_FmtScale.y;
                     if( m_FmtScale.y < 0 )
                         m_FmtScale.y = 0;
-                    if( m_FmtScale.y > 6 )
-                        m_FmtScale.y = 6;
+                    if( m_FmtScale.y > 7 )
+                        m_FmtScale.y = 7;
                 }
                 text++;
             }
@@ -281,7 +315,7 @@ bool GERBER_IMAGE::ExecuteRS274XCommand( int       command,
             m_SwapAxis = true;
         break;
 
-    case MIRROR_IMAGE:      // commanf %MIA0B0*%, %MIA0B1*%, %MIA1B0*%, %MIA1B1*%
+    case MIRROR_IMAGE:      // command %MIA0B0*%, %MIA0B1*%, %MIA1B0*%, %MIA1B1*%
         m_MirrorA = m_MirrorB = 0;
         while( *text && *text != '*' )
         {
@@ -313,6 +347,27 @@ bool GERBER_IMAGE::ExecuteRS274XCommand( int       command,
         else if( code == MILLIMETER )
             m_GerbMetric = true;
         conv_scale = m_GerbMetric ? IU_PER_MILS / 25.4 : IU_PER_MILS;
+        break;
+
+    case FILE_ATTRIBUTE:    // Command %TF ...
+        m_IsX2_file = true;
+    {
+        X2_ATTRIBUTE dummy;
+        dummy.ParseAttribCmd( m_Current_File, buff, GERBER_BUFZ, text );
+        if( dummy.IsFileFunction() )
+        {
+            delete m_FileFunction;
+            m_FileFunction = new X2_ATTRIBUTE_FILEFUNCTION( dummy );
+        }
+        else if( dummy.IsFileMD5() )
+        {
+            m_MD5_value = dummy.GetPrm( 1 );
+        }
+        else if( dummy.IsFilePart() )
+        {
+            m_PartString = dummy.GetPrm( 1 );
+        }
+     }
         break;
 
     case OFFSET:        // command: OFAnnBnn (nn = float number) = layer Offset
@@ -379,11 +434,11 @@ bool GERBER_IMAGE::ExecuteRS274XCommand( int       command,
     case IMAGE_ROTATION:    // command IR0* or IR90* or IR180* or IR270*
         if( strnicmp( text, "0*", 2 ) == 0 )
             m_ImageRotation = 0;
-        if( strnicmp( text, "90*", 2 ) == 0 )
+        else if( strnicmp( text, "90*", 3 ) == 0 )
             m_ImageRotation = 90;
-        if( strnicmp( text, "180*", 2 ) == 0 )
+        else if( strnicmp( text, "180*", 4 ) == 0 )
             m_ImageRotation = 180;
-        if( strnicmp( text, "270*", 2 ) == 0 )
+        else if( strnicmp( text, "270*", 4 ) == 0 )
             m_ImageRotation = 270;
         else
             ReportMessage( _( "RS274X: Command \"IR\" rotation value not allowed" ) );
@@ -521,7 +576,7 @@ bool GERBER_IMAGE::ExecuteRS274XCommand( int       command,
             m_ImageNegative = true;
         else
             m_ImageNegative = false;
-        D( printf( "%22s: IMAGE_POLARITY m_ImageNegative=%s\n", __func__,
+        DBG( printf( "%22s: IMAGE_POLARITY m_ImageNegative=%s\n", __func__,
                    m_ImageNegative ? "true" : "false" ); )
         break;
 
@@ -531,7 +586,7 @@ bool GERBER_IMAGE::ExecuteRS274XCommand( int       command,
 
         else
             GetLayerParams().m_LayerNegative = false;
-        D( printf( "%22s: LAYER_POLARITY m_LayerNegative=%s\n", __func__,
+        DBG( printf( "%22s: LAYER_POLARITY m_LayerNegative=%s\n", __func__,
                    GetLayerParams().m_LayerNegative ? "true" : "false" ); )
         break;
 
@@ -542,7 +597,10 @@ bool GERBER_IMAGE::ExecuteRS274XCommand( int       command,
             ReportMessage( _( "Too many include files!!" ) );
             break;
         }
-        strcpy( line, text );
+
+        strncpy( line, text, sizeof(line)-1 );
+        line[sizeof(line)-1] = '\0';
+
         strtok( line, "*%%\n\r" );
         m_FilesList[m_FilesPtr] = m_Current_File;
 
@@ -561,7 +619,7 @@ bool GERBER_IMAGE::ExecuteRS274XCommand( int       command,
     case AP_MACRO:  // lines like %AMMYMACRO*
                     // 5,1,8,0,0,1.08239X$1,22.5*
                     // %
-        ok = ReadApertureMacro( buff, text, m_Current_File );
+        /*ok = */ReadApertureMacro( buff, text, m_Current_File );
         break;
 
     case AP_DEFINITION:
@@ -758,6 +816,8 @@ bool GERBER_IMAGE::ExecuteRS274XCommand( int       command,
         break;
     }
 
+    (void) seq_len;     // quiet g++, or delete the unused variable.
+
     ok = GetEndOfBlock( buff, text, m_Current_File );
 
     return ok;
@@ -787,6 +847,7 @@ bool GetEndOfBlock( char buff[GERBER_BUFZ], char*& text, FILE* gerber_file )
 
     return false;
 }
+
 
 /**
  * Function GetNextLine

@@ -1,5 +1,5 @@
 ///////////////////////////////////////////////////////////////////////////
-// C++ code generated with wxFormBuilder (version Apr 10 2012)
+// C++ code generated with wxFormBuilder (version Mar  9 2015)
 // http://www.wxformbuilder.org/
 //
 // PLEASE DO "NOT" EDIT THIS FILE!
@@ -11,6 +11,9 @@
 #include <wx/artprov.h>
 #include <wx/xrc/xmlres.h>
 #include <wx/intl.h>
+class DIALOG_SHIM;
+class WX_HTML_REPORT_PANEL;
+
 #include "dialog_shim.h"
 #include <wx/string.h>
 #include <wx/stattext.h>
@@ -22,7 +25,7 @@
 #include <wx/button.h>
 #include <wx/sizer.h>
 #include <wx/radiobox.h>
-#include <wx/statbox.h>
+#include <wx/panel.h>
 #include <wx/dialog.h>
 
 ///////////////////////////////////////////////////////////////////////////
@@ -42,7 +45,7 @@ class DIALOG_GEN_MODULE_POSITION_BASE : public DIALOG_SHIM
 		wxRadioBox* m_radioBoxUnits;
 		wxRadioBox* m_radioBoxFilesCount;
 		wxRadioBox* m_radioBoxForceSmd;
-		wxTextCtrl* m_messagesBox;
+		WX_HTML_REPORT_PANEL* m_messagesPanel;
 		wxStdDialogButtonSizer* m_sdbSizerButtons;
 		wxButton* m_sdbSizerButtonsOK;
 		wxButton* m_sdbSizerButtonsCancel;
@@ -51,13 +54,12 @@ class DIALOG_GEN_MODULE_POSITION_BASE : public DIALOG_SHIM
 		virtual void OnClose( wxCloseEvent& event ) { event.Skip(); }
 		virtual void OnInitDialog( wxInitDialogEvent& event ) { event.Skip(); }
 		virtual void OnOutputDirectoryBrowseClicked( wxCommandEvent& event ) { event.Skip(); }
-		virtual void OnCancelButton( wxCommandEvent& event ) { event.Skip(); }
 		virtual void OnOKButton( wxCommandEvent& event ) { event.Skip(); }
 		
 	
 	public:
 		
-		DIALOG_GEN_MODULE_POSITION_BASE( wxWindow* parent, wxWindowID id = wxID_ANY, const wxString& title = _("Position Files:"), const wxPoint& pos = wxDefaultPosition, const wxSize& size = wxSize( 510,351 ), long style = wxDEFAULT_DIALOG_STYLE|wxRESIZE_BORDER ); 
+		DIALOG_GEN_MODULE_POSITION_BASE( wxWindow* parent, wxWindowID id = wxID_ANY, const wxString& title = _("Generate Component Position Files"), const wxPoint& pos = wxDefaultPosition, const wxSize& size = wxSize( 510,351 ), long style = wxDEFAULT_DIALOG_STYLE|wxRESIZE_BORDER ); 
 		~DIALOG_GEN_MODULE_POSITION_BASE();
 	
 };

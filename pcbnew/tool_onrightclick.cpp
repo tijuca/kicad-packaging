@@ -33,7 +33,6 @@
 #include <wxPcbStruct.h>
 #include <module_editor_frame.h>
 #include <dialog_design_rules.h>
-
 #include <pcbnew_id.h>
 
 
@@ -52,8 +51,7 @@ void PCB_EDIT_FRAME::ToolOnRightClick( wxCommandEvent& event )
 
         if( dlg.ShowModal() == wxID_OK )
         {
-            updateTraceWidthSelectBox();
-            updateViaSizeSelectBox();
+            ReCreateAuxiliaryToolbar();
         }
 
         break;
@@ -71,7 +69,7 @@ void PCB_EDIT_FRAME::ToolOnRightClick( wxCommandEvent& event )
         break;
 
     case ID_PCB_PLACE_GRID_COORD_BUTT:
-        InstallGridFrame( wxDefaultPosition );
+        InvokeDialogGrid();
         break;
 
     default:

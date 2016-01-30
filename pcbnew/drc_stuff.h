@@ -6,7 +6,7 @@
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
  * Copyright (C) 2007 Dick Hollenbeck, dick@softplc.com
- * Copyright (C) 2007 KiCad Developers, see change_log.txt for contributors.
+ * Copyright (C) 2015 KiCad Developers, see change_log.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -29,8 +29,8 @@
 #ifndef _DRC_STUFF_H
 #define _DRC_STUFF_H
 
-
 #include <vector>
+#include <boost/shared_ptr.hpp>
 
 #define OK_DRC  0
 #define BAD_DRC 1
@@ -44,11 +44,11 @@
 #define DRCE_TRACK_NEAR_VIA                    5    ///< track too close to via
 #define DRCE_VIA_NEAR_VIA                      6    ///< via too close to via
 #define DRCE_VIA_NEAR_TRACK                    7    ///< via too close to track
-#define DRCE_TRACK_ENDS1                       8    ///< @todo say what this problem is
-#define DRCE_TRACK_ENDS2                       9    ///< @todo say what this problem is
-#define DRCE_TRACK_ENDS3                       10   ///< @todo say what this problem is
-#define DRCE_TRACK_ENDS4                       11   ///< @todo say what this problem is
-#define DRCE_TRACK_UNKNOWN1                    12   ///< @todo check source code and change this comment
+#define DRCE_TRACK_ENDS1                       8    ///< 2 parallel track segments too close: fine start point test
+#define DRCE_TRACK_ENDS2                       9    ///< 2 parallel track segments too close: fine start point test
+#define DRCE_TRACK_ENDS3                       10   ///< 2 parallel track segments too close: fine end point test
+#define DRCE_TRACK_ENDS4                       11   ///< 2 parallel track segments too close: fine end point test
+#define DRCE_TRACK_SEGMENTS_TOO_CLOSE          12   ///< 2 parallel track segments too close: segm ends between segref ends
 #define DRCE_TRACKS_CROSSING                   13   ///< tracks are crossing
 #define DRCE_ENDS_PROBLEM1                     14   ///< track ends are too close
 #define DRCE_ENDS_PROBLEM2                     15   ///< track ends are too close
@@ -60,7 +60,7 @@
 #define DRCE_MICRO_VIA_INCORRECT_LAYER_PAIR    21   ///< micro via's layer pair incorrect (layers must be adjacent)
 #define COPPERAREA_INSIDE_COPPERAREA           22   ///< copper area outlines intersect
 #define COPPERAREA_CLOSE_TO_COPPERAREA         23   ///< copper area outlines are too close
-#define DRCE_NON_EXISTANT_NET_FOR_ZONE_OUTLINE 24   ///< copper area outline has an incorrect netcode due to a netname not found
+#define DRCE_SUSPICIOUS_NET_FOR_ZONE_OUTLINE   24   ///< copper area has a net but no pads in nets, which is suspicious
 #define DRCE_HOLE_NEAR_PAD                     25   ///< hole too close to pad
 #define DRCE_HOLE_NEAR_TRACK                   26   ///< hole too close to track
 #define DRCE_TOO_SMALL_TRACK_WIDTH             27   ///< Too small track width
@@ -75,6 +75,9 @@
 #define DRCE_VIA_INSIDE_KEEPOUT                36   ///< Via in inside a keepout area
 #define DRCE_TRACK_INSIDE_KEEPOUT              37   ///< Track in inside a keepout area
 #define DRCE_PAD_INSIDE_KEEPOUT                38   ///< Pad in inside a keepout area
+#define DRCE_VIA_INSIDE_TEXT                   39   ///< Via in inside a text area
+#define DRCE_TRACK_INSIDE_TEXT                 40   ///< Track in inside a text area
+#define DRCE_PAD_INSIDE_TEXT                   41   ///< Pad in inside a text area
 
 
 class EDA_DRAW_PANEL;
@@ -179,7 +182,7 @@ private:
      * so we store the ref segment length (the end point relative to these axis)
      * and the segment orientation (used to rotate other coordinates)
      */
-    int m_segmAngle;        // Ref segm orientation in 0,1 degre
+    double m_segmAngle;     // Ref segm orientation in 0,1 degre
     int m_segmLength;       // length of the reference segment
 
     /* variables used in checkLine to test DRC segm to segm:
@@ -212,16 +215,16 @@ private:
      * DRC problem, or unconnected pad problem.
      *
      * @param aTrack The reference track.
-     * @param aItem  Another item on the BOARD, such as a SEGVIA, SEGZONE,
+     * @param aItem  Another item on the BOARD, such as a VIA, SEGZONE,
      *               or TRACK.
      * @param aErrorCode A categorizing identifier for the particular type
      *                   of error that is being reported.
      * @param fillMe A MARKER_PCB* which is to be filled in, or NULL if one is to
      *               first be allocated, then filled.
      */
-    MARKER_PCB* fillMarker( TRACK* aTrack, BOARD_ITEM* aItem, int aErrorCode, MARKER_PCB* fillMe );
+    MARKER_PCB* fillMarker( const TRACK* aTrack, BOARD_ITEM* aItem, int aErrorCode, MARKER_PCB* fillMe );
 
-    MARKER_PCB* fillMarker( D_PAD* aPad, D_PAD* bPad, int aErrorCode, MARKER_PCB* fillMe );
+    MARKER_PCB* fillMarker( D_PAD* aPad, BOARD_ITEM* aItem, int aErrorCode, MARKER_PCB* fillMe );
 
     MARKER_PCB* fillMarker( ZONE_CONTAINER* aArea, int aErrorCode, MARKER_PCB* fillMe );
 
@@ -268,10 +271,11 @@ private:
      * Function testTracks
      * performs the DRC on all tracks.
      * because this test can take a while, a progress bar can be displayed
-     * @param aShowProgressBar = true to show a progrsse bar
+     * @param aActiveWindow = the active window ued as parent for the progress bar
+     * @param aShowProgressBar = true to show a progress bar
      * (Note: it is shown only if there are many tracks)
      */
-    void testTracks( bool aShowProgressBar );
+    void testTracks( wxWindow * aActiveWindow, bool aShowProgressBar );
 
     void testPad2Pad();
 
@@ -281,9 +285,11 @@ private:
 
     void testKeepoutAreas();
 
+    void testTexts();
+
     //-----<single "item" tests>-----------------------------------------
 
-    bool doNetClass( NETCLASS* aNetClass, wxString& msg );
+    bool doNetClass( boost::shared_ptr<NETCLASS> aNetClass, wxString& msg );
 
     /**
      * Function doPadToPadsDrc
