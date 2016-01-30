@@ -1,11 +1,11 @@
 EESchema Schematic File Version 1
-LIBS:pspice,.\pspice.cache
+LIBS:pspice,./pspice.cache
 EELAYER 20  0
 EELAYER END
 $Descr A4 11700 8267
 Sheet 1 1
 Title ""
-Date "5 oct 2005"
+Date "28 mar 2006"
 Rev ""
 Comp ""
 Comment1 ""
@@ -94,7 +94,7 @@ F 1 "10uF" V 8500 2900 50  0000 C C
 	1    0    0    -1  
 $EndComp
 Text Notes 3500 1000 0    60   ~
--PSPICE .DC V1 10 12 0.5
+-pspice .DC V1 10 12 0.5
 Connection ~ 7050 2450
 Wire Wire Line
 	7050 2600 7050 2450
@@ -116,8 +116,8 @@ F 1 "1nF" V 7150 2700 50  0000 C C
 	1    7050 2850
 	1    0    0    -1  
 $EndComp
-Kmarq B 2000 5150 "Warning Pin power_in non pilotée (Net 5)" F=1
-Kmarq B 7700 3450 "Warning Pin power_in non pilotée (Net 4)" F=1
+Kmarq B 2000 5150 "" F=1
+Kmarq B 7700 3450 "" F=1
 Connection ~ 5750 3200
 Connection ~ 6100 3200
 Wire Wire Line
@@ -171,7 +171,7 @@ $EndComp
 Wire Wire Line
 	6100 2450 7250 2450
 Text Notes 3500 800  0    60   ~
--PSPICE .model Q2N2222 npn (bf=200)
+-pspice .model Q2N2222 npn (bf=200)
 $Comp
 L 0 #GND5
 U 1 1 32CFC469
@@ -202,7 +202,7 @@ $EndComp
 Text Notes 3500 900  0    60   ~
 -gnucap .AC 10 1Meg *1.2
 Text Notes 3500 1100 0    60   ~
-+PSPICE .print ac v(vout)
++pspice .print ac v(vout)
 $Comp
 L +12V #+12V5
 U 1 1 32CFC34D
