@@ -46,7 +46,8 @@ wxString Msg = MsgInfos;
 	Msg << wxT(" - Unicode version");
 #endif
 	Msg << wxT("\n\n") << _("Author:");
-	Msg << wxT("JP CHARRAS\n\n") << _("Based on wxWidgets");
+	Msg << wxT("JP CHARRAS\n\n") << _("Based on wxWidgets ");
+	Msg << wxMAJOR_VERSION << wxT(".") << wxMINOR_VERSION << wxT(".") << wxRELEASE_NUMBER;
 	Msg << _("\n\nGPL License");
 	Msg << _("\n\nWeb sites:\n");
 	Msg << wxT("http://iut-tice.ujf-grenoble.fr/kicad/\n");

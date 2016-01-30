@@ -97,6 +97,9 @@ wxPoint defaultpos(-1,-1);
 		case ID_POPUP_ZOOM_BLOCK:
 		case ID_POPUP_DRAG_BLOCK:
 		case ID_POPUP_COPY_BLOCK:
+		case ID_POPUP_ROTATE_BLOCK:
+		case ID_POPUP_MIRROR_X_BLOCK:
+		case ID_POPUP_MIRROR_Y_BLOCK:
 		case ID_POPUP_SCH_DELETE_NODE:
 		case ID_POPUP_SCH_DELETE_CONNECTION:
 		case wxID_CUT:
@@ -671,6 +674,17 @@ wxPoint defaultpos(-1,-1);
 		case ID_POPUP_DELETE_BLOCK:
 			DrawPanel->MouseToCursorSchema();
 			HandleBlockEndByPopUp(BLOCK_DELETE, &dc);
+			break;
+
+		case ID_POPUP_ROTATE_BLOCK:
+			DrawPanel->MouseToCursorSchema();
+			HandleBlockEndByPopUp(BLOCK_ROTATE, &dc);
+			break;
+
+		case ID_POPUP_MIRROR_X_BLOCK:
+		case ID_POPUP_MIRROR_Y_BLOCK:
+			DrawPanel->MouseToCursorSchema();
+			HandleBlockEndByPopUp(BLOCK_MIRROR_Y, &dc);
 			break;
 
 		case ID_POPUP_COPY_BLOCK:

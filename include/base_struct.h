@@ -159,6 +159,7 @@ public:
 				int draw_mode, int display_mode = FILAIRE, int anchor_color = -1);
 	/* locate functions */
 	int Locate(const wxPoint & posref);
+	int Len_Size(void);	// Return the text lenght in internal units
 };
 
 

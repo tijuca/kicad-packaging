@@ -102,7 +102,7 @@ DRAWSEGMENT * Locate_Segment_Pcb(BOARD * Pcb, int typeloc)
 EDA_BaseStruct * PtStruct;
 DRAWSEGMENT * pts;
 wxPoint ref;
-
+PCB_SCREEN * screen = (PCB_SCREEN *) ActiveScreen;
 	SET_REF_POS(ref);
 
 	PtStruct = Pcb->m_Drawings;
@@ -116,7 +116,7 @@ wxPoint ref;
 		spot_cX = ref.x - ux0; spot_cY = ref.y - uy0 ;
 
 		/* detection : */
-		if(pts->m_Layer != ActiveScreen->m_Active_Layer) continue;
+		if(pts->m_Layer != screen->m_Active_Layer) continue;
 
 		if( (pts->m_Shape == S_CIRCLE) || (pts->m_Shape == S_ARC) )
 			{

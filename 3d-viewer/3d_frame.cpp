@@ -220,7 +220,6 @@ void WinEDA3D_DrawFrame::Process_Special_Functions(wxCommandEvent& event)
 /************************************************************************/
 {
 #define ROT_ANGLE 10.0
-double delta_move = 0.7 * g_Parm_3D_Visu.m_Zoom;
 
     switch(event.GetId())
 	{
@@ -255,15 +254,15 @@ double delta_move = 0.7 * g_Parm_3D_Visu.m_Zoom;
 		case ID_MOVE3D_LEFT:
 			m_Canvas->SetView3D(WXK_LEFT);
 			return;
-		
+
 		case ID_MOVE3D_RIGHT:
 			m_Canvas->SetView3D(WXK_RIGHT);
 			return;
-		
+
 		case ID_MOVE3D_UP:
 			m_Canvas->SetView3D(WXK_UP);
 			return;
-		
+
 		case ID_MOVE3D_DOWN:
 			m_Canvas->SetView3D(WXK_DOWN);
 			return;
@@ -311,7 +310,7 @@ wxColour newcolor, oldcolor;
 	oldcolor.Set((int) round(g_Parm_3D_Visu.m_BgColor.m_Red*255),
 		(int) round(g_Parm_3D_Visu.m_BgColor.m_Green*255),
 	(int) round(g_Parm_3D_Visu.m_BgColor.m_Blue*255));
-	
+
 	newcolor = wxGetColourFromUser(this, oldcolor);
 	if ( newcolor != oldcolor )
 	{

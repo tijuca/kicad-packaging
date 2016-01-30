@@ -45,10 +45,17 @@
 #define SYMBOL_WINEDA_BUILD_BOM_FRAME_SIZE wxSize(400, 300)
 #define SYMBOL_WINEDA_BUILD_BOM_FRAME_POSITION wxDefaultPosition
 #define ID_CHECKBOX 10001
-#define ID_CHECKBOX1 10003
 #define ID_CHECKBOX2 10004
+#define ID_CHECKBOX1 10003
 #define ID_CHECKBOX3 10005
 #define ID_CHECKBOX4 10006
+#define ID_CHECKBOX_FIELD1 10007
+#define ID_CHECKBOX_FIELD2 10008
+#define ID_CHECKBOX_FIELD4 10010
+#define ID_CHECKBOX_FIELD5 10011
+#define ID_CHECKBOX_FIELD6 10012
+#define ID_CHECKBOX_FIELD7 10013
+#define ID_CHECKBOX_FIELD8 10014
 #define ID_CHECKBOX5 10002
 ////@end control identifiers
 
@@ -90,6 +97,9 @@ public:
 
 ////@begin WinEDA_Build_BOM_Frame event handler declarations
 
+    /// wxEVT_CLOSE_WINDOW event handler for ID_DIALOG
+    void OnCloseWindow( wxCloseEvent& event );
+
     /// wxEVT_COMMAND_BUTTON_CLICKED event handler for wxID_OK
     void OnOkClick( wxCommandEvent& event );
 
@@ -108,16 +118,30 @@ public:
     /// Retrieves icon resources
     wxIcon GetIconResource( const wxString& name );
 ////@end WinEDA_Build_BOM_Frame member function declarations
+	void GenereListeOfItems(const wxString & FullFileName);
+	int PrintListeCmpByRef( FILE * f, EDA_BaseStruct ** List, int NbItems );
+	int PrintListeCmpByVal( FILE *f, EDA_BaseStruct **List, int NbItems);
+	void PrintFieldData(FILE * f, EDA_SchComponentStruct * DrawLibItem);
+
 
     /// Should we show tooltips?
     static bool ShowToolTips();
 
 ////@begin WinEDA_Build_BOM_Frame member variables
     wxCheckBox* m_ListCmpbyRefItems;
-    wxCheckBox* m_ListCmpbyValItems;
     wxCheckBox* m_ListSubCmpItems;
+    wxCheckBox* m_ListCmpbyValItems;
     wxCheckBox* m_GenListLabelsbyVal;
     wxCheckBox* m_GenListLabelsbySheet;
+    wxStaticBoxSizer* m_FieldsToAppendListSizer;
+    wxCheckBox* m_AddField1;
+    wxCheckBox* m_AddField2;
+    wxCheckBox* m_AddField3;
+    wxCheckBox* m_AddField4;
+    wxCheckBox* m_AddField5;
+    wxCheckBox* m_AddField6;
+    wxCheckBox* m_AddField7;
+    wxCheckBox* m_AddField8;
     wxCheckBox* m_GetListBrowser;
 ////@end WinEDA_Build_BOM_Frame member variables
 

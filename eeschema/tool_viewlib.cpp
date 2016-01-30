@@ -101,7 +101,7 @@ bool asdeMorgan = FALSE, state;
 					_("View component documents") );
 		m_HToolBar->EnableTool(ID_LIBVIEW_VIEWDOC, FALSE);
 
-		if ( m_IsModal )	// The lib browser is called from a "load component" command
+		if ( m_Semaphore )	// The lib browser is called from a "load component" command
 		{
 			m_HToolBar->AddSeparator();
 			m_HToolBar->AddTool(ID_LIBVIEW_CMP_EXPORT_TO_SCHEMATIC, wxEmptyString,

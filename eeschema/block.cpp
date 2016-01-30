@@ -27,6 +27,8 @@ static LibEDA_BaseStruct * GetNextPinPosition( EDA_SchComponentStruct * DrawLibI
 												int * px, int * py );
 static void DrawMovingBlockOutlines(WinEDA_DrawPanel * panel, wxDC * DC, bool erase);
 static EDA_BaseStruct * SaveStructListForPaste(EDA_BaseStruct *DrawStruct);
+static bool MirrorStruct(WinEDA_DrawPanel * panel, wxDC * DC, EDA_BaseStruct *DrawStruct, wxPoint & Center);
+static void MirrorOneStruct(EDA_BaseStruct *DrawStruct, wxPoint & Center);
 
 /*************************************************************************/
 int WinEDA_SchematicFrame::ReturnBlockCommand(int key)
@@ -140,6 +142,8 @@ bool err = FALSE;
 		case BLOCK_DELETE:
 		case BLOCK_SAVE:
 		case BLOCK_ROTATE:
+		case BLOCK_MIRROR_X:
+		case BLOCK_MIRROR_Y:
 		case BLOCK_INVERT:
 		case BLOCK_ABORT:
 		case BLOCK_SELECT_ITEMS_ONLY:
@@ -269,8 +273,12 @@ bool zoom_command = FALSE;
 			GetScreen()->BlockLocate.m_State = STATE_BLOCK_MOVE;
 			break;
 
-		case BLOCK_ROTATE:
 		case BLOCK_INVERT: /* pcbnew only! */
+			break;
+
+		case BLOCK_ROTATE:
+		case BLOCK_MIRROR_X:
+		case BLOCK_MIRROR_Y:
 			break;
 
 		case BLOCK_ZOOM: /* Window Zoom */
@@ -392,6 +400,26 @@ int ii = 0;
 			Window_Zoom( GetScreen()->BlockLocate);
 			break;
 
+
+		case BLOCK_ROTATE:
+			break;
+
+		case BLOCK_MIRROR_X:
+		case BLOCK_MIRROR_Y:
+			if(GetScreen()->ManageCurseur)
+				GetScreen()->ManageCurseur(DrawPanel, DC, FALSE);
+			if( GetScreen()->BlockLocate.m_BlockDrawStruct != NULL)
+			{
+				ii = -1;
+				/* Compute the mirror centre and put it on grid */
+				wxPoint Center = GetScreen()->BlockLocate.Centre();
+				PutOnGrid(&Center);
+				MirrorStruct(DrawPanel, DC, GetScreen()->BlockLocate.m_BlockDrawStruct, Center);
+				SetFlagModify(GetScreen());
+			}
+			TestDanglingEnds(GetScreen()->EEDrawList, DC);
+			break;
+
 		default:
 			break;
 		}
@@ -506,6 +534,203 @@ DrawPickedStruct *PickedList = NULL;
 	}
 	return TRUE;
 }
+
+
+static void MirrorYPoint(wxPoint & point, wxPoint & Center)
+{
+	point.x -= Center.x;
+	point.x = - point.x;
+	point.x += Center.x;
+}
+
+/**************************************************************/
+void MirrorOneStruct(EDA_BaseStruct *DrawStruct, wxPoint & Center)
+/**************************************************************/
+/* Given a structure rotate it to 90 degrees refer to the Center point.
+*/
+{
+int dx, ii, *Points;
+DrawPolylineStruct *DrawPoly;
+DrawJunctionStruct *DrawConnect;
+EDA_DrawLineStruct *DrawSegment;
+DrawBusEntryStruct *DrawRaccord;
+EDA_SchComponentStruct *DrawLibItem;
+DrawSheetStruct *DrawSheet;
+DrawSheetLabelStruct *DrawSheetLabel;
+DrawMarkerStruct * DrawMarker;
+DrawNoConnectStruct * DrawNoConnect;
+DrawTextStruct * DrawText;
+wxPoint px;
+	
+	if ( !DrawStruct ) return;
+
+	switch (DrawStruct->m_StructType)
+		{
+		case TYPE_NOT_INIT:
+		    break;
+
+		case DRAW_POLYLINE_STRUCT_TYPE:
+			DrawPoly = (DrawPolylineStruct *) DrawStruct;
+			Points = DrawPoly->m_Points;
+			for (ii = 0; ii < DrawPoly->m_NumOfPoints; ii++)
+			{
+				wxPoint point;
+				point.x = Points[ii * 2]; point.y = Points[ii * 2 + 1];
+				MirrorYPoint(point, Center);
+				Points[ii * 2] = point.x; Points[ii * 2 + 1] = point.y;
+			}
+			break;
+
+		case DRAW_SEGMENT_STRUCT_TYPE:
+			DrawSegment = (EDA_DrawLineStruct *) DrawStruct;
+			if( (DrawSegment->m_Flags & STARTPOINT) == 0 )
+			{
+				MirrorYPoint(DrawSegment->m_Start, Center);
+			}
+			if( (DrawSegment->m_Flags & ENDPOINT) == 0 )
+			{
+				MirrorYPoint(DrawSegment->m_End, Center);
+			}
+			break;
+
+		case DRAW_BUSENTRY_STRUCT_TYPE:
+			 DrawRaccord = (DrawBusEntryStruct *) DrawStruct;
+			MirrorYPoint(DrawRaccord->m_Pos, Center);
+			 break;
+
+		case DRAW_JUNCTION_STRUCT_TYPE:
+			 DrawConnect = (DrawJunctionStruct *) DrawStruct;
+			MirrorYPoint(DrawConnect->m_Pos, Center);
+			 break;
+
+		case DRAW_MARKER_STRUCT_TYPE:
+			 DrawMarker = (DrawMarkerStruct *) DrawStruct;
+			MirrorYPoint(DrawMarker->m_Pos, Center);
+			 break;
+
+		case DRAW_NOCONNECT_STRUCT_TYPE:
+			DrawNoConnect = (DrawNoConnectStruct *) DrawStruct;
+			MirrorYPoint(DrawNoConnect->m_Pos, Center);
+			break;
+
+		case DRAW_TEXT_STRUCT_TYPE:
+		case DRAW_LABEL_STRUCT_TYPE:
+			// Text is not really mirrored; it is moved to a suitable position
+			// which is the closest position for a true mirrored text
+			// The center position is mirrored and the text is moved for half horizontal len
+			DrawText = (DrawTextStruct *) DrawStruct;
+			px = DrawText->m_Pos;
+			if( DrawText->m_Orient == 0 ) /* horizontal text */
+				dx = DrawText->Len_Size() / 2;
+			else if( DrawText->m_Orient == 2 ) /* invert horizontal text*/
+				dx = - DrawText->Len_Size() / 2;
+			else dx = 0;
+			px.x += dx;
+			MirrorYPoint(px, Center);
+			px.x -= dx;
+			
+			EDA_Appl->SchematicFrame->PutOnGrid(&px);
+			DrawText->m_Pos.x = px.x;
+			break;
+
+		case DRAW_GLOBAL_LABEL_STRUCT_TYPE:
+			// Text is not really mirrored: Orientation is changed
+			DrawText = (DrawGlobalLabelStruct *) DrawStruct;
+			if( DrawText->m_Orient == 0 ) /* horizontal text */
+				DrawText->m_Orient = 2;
+			else if( DrawText->m_Orient == 2 ) /* invert horizontal text*/
+				DrawText->m_Orient = 0;
+
+			px = DrawText->m_Pos;
+			MirrorYPoint(px, Center);
+			EDA_Appl->SchematicFrame->PutOnGrid(&px);
+			DrawText->m_Pos.x = px.x;
+			break;
+
+		case DRAW_LIB_ITEM_STRUCT_TYPE:
+			DrawLibItem = (EDA_SchComponentStruct *) DrawStruct;
+			dx = DrawLibItem->m_Pos.x;
+			EDA_Appl->SchematicFrame->CmpRotationMiroir( DrawLibItem,
+				NULL, CMP_MIROIR_Y );
+			MirrorYPoint(DrawLibItem->m_Pos, Center);
+			dx -= DrawLibItem->m_Pos.x;
+			for( ii = 0; ii < NUMBER_OF_FIELDS; ii++ )
+			{	/* move the fields to the new position because the component itself has moved */
+				DrawLibItem->m_Field[ii].m_Pos.x -= dx;
+			}
+			break;
+
+		case DRAW_SHEET_STRUCT_TYPE:
+			DrawSheet = (DrawSheetStruct *) DrawStruct;
+			MirrorYPoint(DrawSheet->m_Pos, Center);
+			DrawSheet->m_Pos.x -= DrawSheet->m_Size.x;
+
+			DrawSheetLabel = DrawSheet->m_Label;
+			while( DrawSheetLabel != NULL )
+			{
+				MirrorYPoint(DrawSheetLabel->m_Pos, Center);
+				DrawSheetLabel->m_Edge = DrawSheetLabel->m_Edge ? 0 : 1;
+				DrawSheetLabel = (DrawSheetLabelStruct*)DrawSheetLabel->Pnext;
+			}
+			break;
+
+		case DRAW_SHEETLABEL_STRUCT_TYPE:
+			DrawSheetLabel = (DrawSheetLabelStruct *) DrawStruct;
+			MirrorYPoint(DrawSheetLabel->m_Pos, Center);
+			break;
+
+		case DRAW_PICK_ITEM_STRUCT_TYPE : break;
+
+		default: break;
+		}
+}
+
+
+
+/*****************************************************************************
+* Routine to Mirror an object(s).							 *
+* If DrawStruct is of type DrawPickedStruct, a list of objects picked is	 *
+* assumed, otherwise exactly one structure is assumed been picked.			 *
+*****************************************************************************/
+bool MirrorStruct(WinEDA_DrawPanel * panel, wxDC * DC, EDA_BaseStruct *DrawStruct, wxPoint & Center)
+{
+DrawPickedStruct *PickedList = NULL;
+DrawPickedStruct *DrawStructs;
+	if ( !DrawStruct ) return FALSE;
+
+	if(DrawStruct->m_StructType == DRAW_PICK_ITEM_STRUCT_TYPE)
+	{
+		if ( DC )
+			RedrawStructList(panel, DC, DrawStruct, g_XorMode);
+		DrawStructs  = (DrawPickedStruct *) DrawStruct;
+		while (DrawStructs)
+		{
+			MirrorOneStruct(DrawStructs->m_PickedStruct, Center);
+			DrawStructs->m_PickedStruct->m_Flags = 0;
+			DrawStructs = (DrawPickedStruct *)DrawStructs->Pnext;
+		}
+		if ( DC )
+			RedrawStructList(panel, DC, DrawStruct, GR_DEFAULT_DRAWMODE);
+
+		/* Free the wrapper DrawPickedStruct chain: */
+		PickedList = (DrawPickedStruct *) DrawStruct;
+		PickedList->DeleteWrapperList();
+	}
+
+	else
+	{
+		if ( DC )
+			RedrawOneStruct(panel, DC, DrawStruct, g_XorMode);
+		MirrorOneStruct(DrawStruct, Center);		/* Place it in its new position. */
+		if ( DC )
+			RedrawOneStruct(panel, DC, DrawStruct, GR_DEFAULT_DRAWMODE);
+		DrawStruct->m_Flags = 0;
+	}
+
+
+	return TRUE;
+}
+
 
 /*****************************************************************************
 * Routine to copy a new entity of an object and reposition it.				 *

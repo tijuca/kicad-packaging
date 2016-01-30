@@ -19,40 +19,7 @@
 
 #include "id.h"
 
-#include "wx/evtloop.h"
-#include "wx/ptr_scpd.h"
-
 #include "library_browse.xpm"
-
-#ifndef __WXMAC__
-// ----------------------------------------------------------------------------
-// wxDialogModalData (see wxWidgets, dialog.cpp, class wxDialogModalData)
-// ----------------------------------------------------------------------------
-
-// this is simply a container for any data we need to implement modality which
-// allows us to avoid changing wxDialog each time the implementation changes
-class wxMyDialogModalData
-{
-public:
-    wxMyDialogModalData(wxWindow *dialog) : m_evtLoop(dialog) { }
-
-    void RunLoop()
-    {
-        m_evtLoop.Run();
-    }
-
-    void ExitLoop()
-    {
-        m_evtLoop.Exit();
-    }
-
-private:
-    wxModalEventLoop m_evtLoop;
-};
-
-/* see wxWidgets: ptr_scpd.h */
-wxDEFINE_TIED_SCOPED_PTR_TYPE(wxMyDialogModalData);
-#endif
 
 	/*****************************/
 	/* class WinEDA_ViewlibFrame */
@@ -85,9 +52,8 @@ END_EVENT_TABLE()
 	/****************/
 	/* Constructeur */
 	/****************/
-
 WinEDA_ViewlibFrame::WinEDA_ViewlibFrame(wxWindow * father, WinEDA_App *parent,
-				LibraryStruct * Library, bool IsModal ):
+				LibraryStruct * Library, wxSemaphore * semaphore ):
 			WinEDA_DrawFrame(father, VIEWER_FRAME, parent, _("Library browser"),
 				wxDefaultPosition, wxDefaultSize)
 {
@@ -101,9 +67,8 @@ WinEDA_ViewlibFrame::WinEDA_ViewlibFrame(wxWindow * father, WinEDA_App *parent,
 
 	m_CmpList = NULL;
 	m_LibList = NULL;
-	m_modalData = NULL;
-	m_IsModal = IsModal;
-	if ( m_IsModal ) SetWindowStyle( GetWindowStyle() | wxSTAY_ON_TOP);
+	m_Semaphore = semaphore;
+	if ( m_Semaphore ) SetWindowStyle( GetWindowStyle() | wxSTAY_ON_TOP);
 		
 	m_CurrentScreen = new SCH_SCREEN(NULL, this, VIEWER_FRAME);
 	m_CurrentScreen->SetZoom(16);
@@ -134,12 +99,6 @@ WinEDA_ViewlibFrame::WinEDA_ViewlibFrame(wxWindow * father, WinEDA_App *parent,
 	ReCreateVToolbar();
 	if ( m_LibList) ReCreateListLib();
 	DisplayLibInfos();
-
-#ifndef __WXMAC__
-	if ( m_IsModal )
-		MakeModal(TRUE);
-	else
-#endif
 	Show(TRUE);
 }
 
@@ -158,27 +117,8 @@ void WinEDA_ViewlibFrame::OnCloseWindow(wxCloseEvent & Event)
 /*****************************************************************/
 {
 	SaveSettings();
-#ifndef __WXMAC__
-    if ( m_modalData ) m_modalData->ExitLoop();
-	MakeModal(FALSE);
-#endif
+	if ( m_Semaphore ) m_Semaphore->Post();
 	Destroy();
-}
-
-
-/**********************************************/
-void WinEDA_ViewlibFrame::ShowInModalMode(void)
-/**********************************************/
-{
-	Show(TRUE);
-#ifndef __WXMAC__
-	// enter and run the modal loop
-	{
-		wxMyDialogModalDataTiedPtr modalData(&m_modalData,
-										   new wxMyDialogModalData(this));
-		modalData->RunLoop();
-	}
-#endif	
 }
 
 

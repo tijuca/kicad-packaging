@@ -145,7 +145,7 @@ MODULE * Module = NULL;
 	if ( (color & ITEM_NOT_SHOW) != 0 ) return;
 
 	if ( panel ) screen = (PCB_SCREEN *) panel->m_Parent->m_CurrentScreen;
-	else screen = ActiveScreen;
+	else screen = (PCB_SCREEN *) ActiveScreen;
 
 	frame = screen->GetParentPcbFrame();
 

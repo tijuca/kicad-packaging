@@ -44,7 +44,7 @@ wxSize clientsize;
 		m_Parent->m_EDA_Config->Read(wxT("LeftWinWidth"), &m_LeftWin_Width);
 		m_Parent->m_EDA_Config->Read(wxT("CommandWinWidth"), &m_CommandWin_Height);
 	}
-	
+
 	SetSize(m_FramePos.x, m_FramePos.y, m_FrameSize.x, m_FrameSize.y);
 
 	// ajuste la ligne de status
@@ -53,7 +53,11 @@ int dims[3] = { -1, -1, 100};
 	SetStatusWidths(3,dims);
 
 	// Give an icon
+	#ifdef __WINDOWS__
+	SetIcon(wxICON(a_kicad_icon));
+	#else
 	SetIcon(wxICON(kicad_icon));
+	#endif
 
 	clientsize = GetClientSize();
 

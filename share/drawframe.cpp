@@ -140,10 +140,10 @@ void WinEDA_DrawFrame::ProcessFontPreferences(wxCommandEvent& event)
 {
 int id = event.GetId();
 wxFont font;
-	
+
 	switch (id)
 	{
-		
+
 		case ID_PREFERENCES_FONT:
 		case ID_PREFERENCES_FONT_DIALOG:
 		case ID_PREFERENCES_FONT_STATUS:
@@ -192,7 +192,7 @@ void WinEDA_DrawFrame::OnActivate(wxActivateEvent& event)
 	m_FrameIsActive = event.GetActive();
 	if ( DrawPanel )
 		DrawPanel->m_CanStartBlock = -1;
-	
+
 	event.Skip();	// required under wxMAC
 }
 
@@ -288,7 +288,7 @@ int id = m_SelZoomBox->GetChoice();
 	{
 		Zoom_Automatique(TRUE);
 	}
-	else if ( id == m_SelZoomBox->GetCount()-1 )	// Dummy position: unlisted zoom
+	else if ( id == (int)(m_SelZoomBox->GetCount()-1) )	// Dummy position: unlisted zoom
 		return ;
 	else	// zooml 1 to zoom max
 	{
@@ -382,7 +382,7 @@ wxSize Auxtoolbar_size;
 	GetClientSize(&size.x, &size.y);
 	m_FrameSize = size;
 	size.y -= m_MsgFrameHeight;
-	
+
 	if ( MsgPanel )	// Positionnement en bas d'ecran
 	{
 		MsgPanel->SetSize(0, size.y, size.x, m_MsgFrameHeight);
@@ -436,7 +436,7 @@ wxSize Auxtoolbar_size;
 		DrawPanel->Move(opt_size.x, opt_size.y + Auxtoolbar_size.y + 1);
 	}
 }
-	
+
 /*************************************************************************/
 void WinEDA_DrawFrame::SetToolID(int id, int new_cursor_id,
 				const wxString & title)

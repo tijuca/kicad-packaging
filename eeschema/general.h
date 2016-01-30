@@ -20,8 +20,8 @@
 #define MAX_PIN_INFO	10
 
 #ifndef TRUE
-#define TRUE	1
-#define FALSE	0
+#define TRUE	((bool)1)
+#define FALSE	((bool)0)
 #endif
 
 #define TXTMARGE 10					/* Decalage (en 1/1000") des textes places
@@ -224,9 +224,6 @@ struct HPGL_Pen_Descr_Struct
 	int m_Pen_Diam;		/* Pen diameter in mils */
 };
 eda_global HPGL_Pen_Descr_Struct g_HPGL_Pen_Descr;
-
-/* pointeur sur caracteristiques de l'ecran actif */
-eda_global SCH_SCREEN * ActiveScreen;
 
 /* Ecrans usuels */
 eda_global SCH_SCREEN * ScreenSch;

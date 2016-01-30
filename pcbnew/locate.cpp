@@ -332,7 +332,7 @@ int ux0, uy0;
 		{
 		if( PtStruct->m_StructType != TYPECOTATION ) continue;
 		Cotation = (COTATION*) PtStruct;
-		if( Cotation->m_Layer != ActiveScreen->m_Active_Layer ){};
+		if( Cotation->m_Layer != ((PCB_SCREEN *)ActiveScreen)->m_Active_Layer ){};
 
 		/* Localisation du texte ? */
 		pt_txt = Cotation->m_Text;
@@ -415,7 +415,8 @@ DRAWSEGMENT * Locate_Segment_Pcb(BOARD * Pcb, int typeloc)
 EDA_BaseStruct * PtStruct;
 DRAWSEGMENT * pts, *locate_segm = NULL;
 wxPoint ref_pos;
-
+PCB_SCREEN *screen = (PCB_SCREEN *)ActiveScreen;
+	
 	SET_REF_POS(ref_pos);
 
 	PtStruct = Pcb->m_Drawings;
@@ -438,7 +439,7 @@ wxPoint ref_pos;
 				{
 				if(pts->m_Shape == S_CIRCLE)
 					{
-					if(pts->m_Layer == ActiveScreen->m_Active_Layer)
+					if(pts->m_Layer == screen->m_Active_Layer)
 						return( pts ) ;
 					else if ( ! locate_segm ) locate_segm = pts;
 					}
@@ -453,7 +454,7 @@ wxPoint ref_pos;
 					}
 				if( (MouseAngle >= StAngle) && (MouseAngle <= EndAngle) )
 					{
-					if(pts->m_Layer == ActiveScreen->m_Active_Layer)
+					if(pts->m_Layer == screen->m_Active_Layer)
 						return( pts ) ;
 					else if ( ! locate_segm ) locate_segm = pts;
 					}
@@ -464,7 +465,7 @@ wxPoint ref_pos;
 			{
 			if( distance( pts->m_Width /2 ) )
 				{
-				if(pts->m_Layer == ActiveScreen->m_Active_Layer)
+				if(pts->m_Layer == screen->m_Active_Layer)
 					return( pts ) ;
 				else if ( ! locate_segm ) locate_segm = pts;
 				}
@@ -505,7 +506,7 @@ D_PAD * Locate_Any_Pad(BOARD * Pcb, const wxPoint & ref_pos, bool OnlyCurrentLay
 {
 D_PAD * pt_pad ;
 MODULE * module;
-int layer_mask = g_TabOneLayerMask[ActiveScreen->m_Active_Layer];
+int layer_mask = g_TabOneLayerMask[ ((PCB_SCREEN*)ActiveScreen)->m_Active_Layer];
 	module = Pcb->m_Modules;
 	for( ; module != NULL ; module = (MODULE *) module->Pnext )
 	{
@@ -644,7 +645,7 @@ wxPoint ref_pos;		/* coord du point de reference pour la localisation */
 		if( (layer == ADHESIVE_N_CMP) || (layer == SILKSCREEN_N_CMP) )
 			layer = CMP_N;
 
-		if( ActiveScreen->m_Active_Layer == layer )
+		if( ((PCB_SCREEN*)ActiveScreen)->m_Active_Layer == layer )
 			{
 			if( min(lx,ly) <= min_dim )
 				{ /* meilleure empreinte localisee sur couche active */
@@ -840,8 +841,8 @@ int ii;
 
 /****************************************************************************/
 /* TRACK *Locate_Pistes(TRACK * start_adresse, int MasqueLayer,int typeloc)	*/
-/* TRACK *Locate_Pistes(TRACK * start_adresse, int ref_pos.x, int ref_pos.y,		*/
-/*										int MaqueLayer)						*/
+/* TRACK *Locate_Pistes(TRACK * start_adresse, int ref_pos.x, int ref_pos.y,*/
+/*										int MasqueLayer)					*/
 /****************************************************************************/
 
 /*
@@ -868,8 +869,10 @@ TRACK * Track;		/* pointeur sur les pistes */
 int l_piste ;					/* demi-largeur de la piste */
 
 	for( Track = start_adresse; Track != NULL; Track = (TRACK*) Track->Pnext)
-		{
+	{
 		if( Track->GetState(BUSY|DELETED) ) continue;
+		if ( (g_DesignSettings.m_LayerColor[Track->m_Layer] & ITEM_NOT_SHOW) )
+			continue;
 		/* calcul des coordonnees du segment teste */
 		l_piste = Track->m_Width >> 1;  /* l_piste = demi largeur piste */
 		ux0 = Track->m_Start.x ; uy0 = Track->m_Start.y ; /* coord de depart */
@@ -880,19 +883,19 @@ int l_piste ;					/* demi-largeur de la piste */
 		spot_cX = ref_pos.x - ux0 ; spot_cY = ref_pos.y - uy0 ;
 
 		if ( Track->m_StructType == TYPEVIA ) /* VIA rencontree */
-			{
+		{
 			if ((abs(spot_cX) <= l_piste ) && (abs(spot_cY) <=l_piste))
-				{
+			{
 				return(Track) ;
-				}
-			continue ;
 			}
+			continue ;
+		}
 
 		if(MasqueLayer != -1)
 			if( (g_TabOneLayerMask[Track->m_Layer] & MasqueLayer) == 0)
 				continue;	/* Segments sur couches differentes */
 		if( distance(l_piste) ) return(Track) ;
-		}
+	}
 	return(NULL) ;
 }
 

@@ -33,7 +33,7 @@ void ClearMarkItems(EDA_LibComponentStruct * LibComponent)
 /*********************************************************/
 {
 LibEDA_BaseStruct * item;
-	
+
 	if ( LibComponent == NULL ) return;
 
 	item = LibComponent->m_Drawings;
@@ -61,9 +61,9 @@ LibEDA_BaseStruct * item;
 int ItemsCount = 0;
 wxPoint pos;
 bool ItemIsInOtherPart, ItemIsInOtherConvert;
-	
+
 	if ( LibComponent == NULL ) return 0;
-		
+
 	item = LibComponent->m_Drawings;
 	for ( ; item != NULL; item = item->Next() )
 	{
@@ -76,7 +76,7 @@ bool ItemIsInOtherPart, ItemIsInOtherConvert;
 			ItemIsInOtherConvert = TRUE;
 		if ( ItemIsInOtherPart || ItemIsInOtherConvert )
 		{
-			if (item->m_StructType == COMPONENT_PIN_DRAW_TYPE) 
+			if (item->m_StructType == COMPONENT_PIN_DRAW_TYPE)
 			{ // Specific rules for pins:
 				if ( g_EditPinByPinIsOn ) continue;
 				if ( LibComponent->m_UnitSelectionLocked ) continue;
@@ -102,7 +102,7 @@ bool ItemIsInOtherPart, ItemIsInOtherConvert;
 				}
 				break;
 			}
-	
+
 			case COMPONENT_CIRCLE_DRAW_TYPE:
 				pos = ((LibDrawCircle*)item)->m_Pos; pos.y = -pos.y;
 				if ( Rect.Inside(pos) )
@@ -111,7 +111,7 @@ bool ItemIsInOtherPart, ItemIsInOtherConvert;
 					ItemsCount++;
 				}
 				break;
-	
+
 			case COMPONENT_RECT_DRAW_TYPE:
 				pos = ((LibDrawSquare*)item)->m_Start; pos.y = -pos.y;
 				if ( Rect.Inside(pos) )
@@ -126,7 +126,7 @@ bool ItemIsInOtherPart, ItemIsInOtherConvert;
 					ItemsCount++;
 				}
 				break;
-	
+
 			case COMPONENT_POLYLINE_DRAW_TYPE:
 			{
 				int ii , imax = ((LibDrawPolyline*)item)->n * 2;
@@ -143,10 +143,10 @@ bool ItemIsInOtherPart, ItemIsInOtherConvert;
 				}
 			}
 				break;
-	
+
 			case COMPONENT_LINE_DRAW_TYPE:
 				break;
-	
+
 			case COMPONENT_GRAPHIC_TEXT_DRAW_TYPE:
 				pos = ((LibDrawText*)item)->m_Pos; pos.y = -pos.y;
 				if ( Rect.Inside(pos) )
@@ -155,7 +155,7 @@ bool ItemIsInOtherPart, ItemIsInOtherConvert;
 					ItemsCount++;
 				}
 				break;
-			
+
 			case COMPONENT_PIN_DRAW_TYPE:
 				#undef STRUCT
 				#define STRUCT ((LibDrawPin*)item)
@@ -172,16 +172,16 @@ bool ItemIsInOtherPart, ItemIsInOtherConvert;
 					ItemsCount++;
 				}
 				break;
-			
+
 			case COMPONENT_FIELD_DRAW_TYPE:
 				break;
 			default:
 				break;
 		}
-		
+
 	}
 	return ItemsCount;
-	
+
 }
 
 /*************************************************************************/
@@ -234,7 +234,7 @@ int WinEDA_LibeditFrame::HandleBlockEnd(wxDC * DC)
 /****************************************************/
 /* Command BLOCK END (end of block sizing)
 	return :
-	0 if command finished (zoom, delete ...) 
+	0 if command finished (zoom, delete ...)
 	1 if HandleBlockPlace must follow (items found, and a block place command must follow)
 */
 {
@@ -289,10 +289,12 @@ int ItemsCount = 0, MustDoPlace = 0;
 			if ( ItemsCount ) SaveCopyInUndoList();
 			DeleteMarkedItems(CurrentLibEntry);
 			break;
-			
+
 		case BLOCK_SAVE: /* Save */
 		case BLOCK_PASTE:
 		case BLOCK_ROTATE:
+		case BLOCK_MIRROR_X:
+		case BLOCK_MIRROR_Y:
 			break;
 
 
@@ -308,7 +310,7 @@ int ItemsCount = 0, MustDoPlace = 0;
 
 		case BLOCK_ABORT:
 			break;
-		
+
 		case BLOCK_SELECT_ITEMS_ONLY:
 			break;
 		}
@@ -358,7 +360,7 @@ bool err = FALSE;
 		case  BLOCK_IDLE:
 			err = TRUE;
 			break;
-		
+
 		case BLOCK_DRAG: /* Drag */
 		case BLOCK_MOVE: /* Move */
 		case BLOCK_PRESELECT_MOVE: /* Move with preselection list*/
@@ -419,7 +421,7 @@ DrawBlockStruct * PtBlock;
 BASE_SCREEN * screen = panel->m_Parent->GetScreen();
 LibEDA_BaseStruct * item;
 wxPoint move_offset;
-	
+
 	PtBlock = &panel->GetScreen()->BlockLocate;
 	GRSetDrawMode(DC, g_XorMode);
 
@@ -431,7 +433,7 @@ wxPoint move_offset;
 		PtBlock->Offset( -PtBlock->m_MoveVector.x, -PtBlock->m_MoveVector.y);
 
 		if ( CurrentLibEntry )
-		{	
+		{
 			item = CurrentLibEntry->m_Drawings;
 			for ( ; item != NULL; item = item->Next() )
 			{
@@ -457,9 +459,9 @@ wxPoint move_offset;
 	PtBlock->Draw(panel, DC);
 	PtBlock->Offset( -PtBlock->m_MoveVector.x, -PtBlock->m_MoveVector.y);
 
-	
+
 	if ( CurrentLibEntry )
-	{	
+	{
 		item = CurrentLibEntry->m_Drawings;
 		for ( ; item != NULL; item = item->Next() )
 		{
@@ -479,13 +481,13 @@ wxPoint move_offset;
 /****************************************************************************/
 void CopyMarkedItems(EDA_LibComponentStruct *LibEntry, wxPoint offset)
 /****************************************************************************/
-/* Copy marked items, at new position = old position + offset 
+/* Copy marked items, at new position = old position + offset
 */
 {
 LibEDA_BaseStruct * item;
-	
+
 	if ( LibEntry == NULL ) return;
-		
+
 	item = LibEntry->m_Drawings;
 	for ( ; item != NULL; item = item->Next() )
 	{
@@ -496,26 +498,26 @@ LibEDA_BaseStruct * item;
 		newitem->Pnext = LibEntry->m_Drawings;
 		LibEntry->m_Drawings = newitem;
  	}
-	
+
 	MoveMarkedItems(LibEntry, offset);
 }
 
 /****************************************************************************/
 void MoveMarkedItems(EDA_LibComponentStruct *LibEntry, wxPoint offset)
 /****************************************************************************/
-/* Move marked items, at new position = old position + offset 
+/* Move marked items, at new position = old position + offset
 */
 {
 LibEDA_BaseStruct * item;
-	
+
 	if ( LibEntry == NULL ) return;
-		
+
 	offset.y = - offset.y;	// Y axis for lib items is Down to Up: reverse y offset value
 	item = LibEntry->m_Drawings;
 	for ( ; item != NULL; item = item->Next() )
 	{
 		if ( item->m_Selected == 0 ) continue;
- 
+
 		switch ( item->m_StructType )
 		{
 			case COMPONENT_PIN_DRAW_TYPE:
@@ -533,19 +535,19 @@ LibEDA_BaseStruct * item;
 				((LibDrawArc*)item)->m_End.y += offset.y;
 				break;
 			}
-	
+
 			case COMPONENT_CIRCLE_DRAW_TYPE:
 				((LibDrawCircle*)item)->m_Pos.x += offset.x;
 				((LibDrawCircle*)item)->m_Pos.y += offset.y;
 				break;
-	
+
 			case COMPONENT_RECT_DRAW_TYPE:
 				((LibDrawSquare*)item)->m_Start.x += offset.x;
 				((LibDrawSquare*)item)->m_Start.y += offset.y;
 				((LibDrawSquare*)item)->m_End.x += offset.x;
 				((LibDrawSquare*)item)->m_End.y += offset.y;
 				break;
-	
+
 			case COMPONENT_POLYLINE_DRAW_TYPE:
 			{
 				int ii , imax = ((LibDrawPolyline*)item)->n * 2;
@@ -557,10 +559,10 @@ LibEDA_BaseStruct * item;
 				}
 			}
 				break;
-	
+
 			case COMPONENT_LINE_DRAW_TYPE:
 				break;
-	
+
 			case COMPONENT_GRAPHIC_TEXT_DRAW_TYPE:
 				((LibDrawText*)item)->m_Pos.x += offset.x;
 				((LibDrawText*)item)->m_Pos.y += offset.y;
@@ -573,13 +575,13 @@ LibEDA_BaseStruct * item;
 /******************************************************/
 void DeleteMarkedItems(EDA_LibComponentStruct *LibEntry)
 /******************************************************/
-/* Delete marked items 
+/* Delete marked items
 */
 {
 LibEDA_BaseStruct * item, * next_item;
-	
+
 	if ( LibEntry == NULL ) return;
-		
+
 	item = LibEntry->m_Drawings;
 	for ( ; item != NULL; item = next_item )
 	{
@@ -598,15 +600,15 @@ void MirrorMarkedItems(EDA_LibComponentStruct *LibEntry, wxPoint offset)
 {
 #define SETMIRROR(z) (z) -= offset.x; (z) = -(z); (z) += offset.x;
 LibEDA_BaseStruct * item;
-	
+
 	if ( LibEntry == NULL ) return;
-		
+
 	offset.y = - offset.y;	// Y axis for lib items is Down to Up: reverse y offset value
 	item = LibEntry->m_Drawings;
 	for ( ; item != NULL; item = item->Next() )
 	{
 		if ( item->m_Selected == 0 ) continue;
- 
+
 		switch ( item->m_StructType )
 		{
 			case COMPONENT_PIN_DRAW_TYPE:
@@ -616,11 +618,11 @@ LibEDA_BaseStruct * item;
 					case PIN_RIGHT:
 						((LibDrawPin*)item)->m_Orient = PIN_LEFT;
 						break;
-			
+
 					case PIN_LEFT:
 						((LibDrawPin*)item)->m_Orient = PIN_RIGHT;
 						break;
-			
+
 					case PIN_UP:
 					case PIN_DOWN:
 						break;
@@ -635,16 +637,16 @@ LibEDA_BaseStruct * item;
 				EXCHG(((LibDrawArc*)item)->m_Start,((LibDrawArc*)item)->m_End);
 				break;
 			}
-	
+
 			case COMPONENT_CIRCLE_DRAW_TYPE:
 				SETMIRROR(((LibDrawCircle*)item)->m_Pos.x);
 				break;
-	
+
 			case COMPONENT_RECT_DRAW_TYPE:
 				SETMIRROR(((LibDrawSquare*)item)->m_Start.x);
 				SETMIRROR(((LibDrawSquare*)item)->m_End.x);
 				break;
-	
+
 			case COMPONENT_POLYLINE_DRAW_TYPE:
 			{
 				int ii , imax = ((LibDrawPolyline*)item)->n * 2;
@@ -655,10 +657,10 @@ LibEDA_BaseStruct * item;
 				}
 			}
 				break;
-	
+
 			case COMPONENT_LINE_DRAW_TYPE:
 				break;
-	
+
 			case COMPONENT_GRAPHIC_TEXT_DRAW_TYPE:
 				SETMIRROR(((LibDrawText*)item)->m_Pos.x);
 				break;

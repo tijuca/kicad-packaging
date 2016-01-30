@@ -422,8 +422,8 @@ int dx, dy;
 				/* Recalcul des coordonnees de l'encadrement du composant */
 				x1 = STRUCT->m_Pos.x;
 				y1 = STRUCT->m_Pos.y;
-				x2 = STRUCT->m_Pos.x + STRUCT->m_End.x;
-				y2 = STRUCT->m_Pos.y + STRUCT->m_End.y;
+				x2 = STRUCT->m_Pos.x + STRUCT->m_Size.x;
+				y2 = STRUCT->m_Pos.y + STRUCT->m_Size.y;
 
 				if(IsPointInBox(x, y, x1, y1, x2, y2) )
 					{
@@ -589,8 +589,8 @@ wxString msg;
 			/* Recalcul des coordonnees de l'encadrement du composant */
 			xt1 = STRUCT->m_Pos.x;
 			yt1 = STRUCT->m_Pos.y;
-			xt2 = STRUCT->m_Pos.x + STRUCT->m_End.x;
-			yt2 = STRUCT->m_Pos.y + STRUCT->m_End.y;
+			xt2 = STRUCT->m_Pos.x + STRUCT->m_Size.x;
+			yt2 = STRUCT->m_Pos.y + STRUCT->m_Size.y;
 
 			if( IsBox1InBox2(xt1,yt1, xt2, yt2, x1, y1, x2, y2) )
 				return TRUE;

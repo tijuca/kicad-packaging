@@ -17,11 +17,11 @@ public:
 	TRACK * RefTrack;
 
 public:
-	TSTSEGM::TSTSEGM(TRACK * Father)
-		{
+	TSTSEGM(TRACK * Father)
+	{
 		Pback = Pnext = NULL;
 		RefTrack = Father;
-		}
+	}
 };
 
 /* Routines externes : */

@@ -42,7 +42,7 @@ int ii, kk,nbchar, AsciiCode, endcar;
 int k1 , k2, x0, y0;
 int zoom;
 int size_h , size_v , espacement ;
-char f_cod , plume = 'U';
+SH_CODE f_cod , plume = 'U';
 const SH_CODE * ptcar;
 int ptr;
 int ux0, uy0, dx, dy;	// Coord de trace des segments de texte & variables de calcul */
@@ -264,7 +264,7 @@ void PlotGraphicText(int format_plot, const wxPoint & Pos, int gcolor,
 int kk, nbchar, end, AsciiCode;
 int k1 , k2 , x0 , y0, ox, oy ;
 int size_h , size_v , espacement ;
-char f_cod , plume = 'U';
+SH_CODE f_cod , plume = 'U';
 const SH_CODE * ptcar;
 int ptr;
 int ux0, uy0, dx, dy;	// Coord de trace des segments de texte & variables de calcul */

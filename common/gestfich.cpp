@@ -21,7 +21,9 @@
 #include <ctype.h>
 
 #ifdef  __WINDOWS__
+#ifndef _MSC_VER
 #include <dir.h>
+#endif
 #endif
 
 #include "fctsys.h"
@@ -199,7 +201,7 @@ wxString FileName;
 	if ( !FileName.IsEmpty() ) FileName += NewExt;
 	else  FileName = FullFileName + NewExt;
 
-	if ( FileName.StartsWith( wxT("\"")) and ( FileName.Last() != '"' ) )
+	if ( FileName.StartsWith( wxT("\"")) && ( FileName.Last() != '"' ) )
 		FileName += wxT("\"");
 	FullFileName = FileName;
 }
@@ -402,7 +404,7 @@ wxString FullFileName;
 	int ii = 0;
 	while ( 1 )
 	{
-		if ( s_KicadDataPathList[ii] == wxT("end_list") ) break;
+		if ( s_KicadBinaryPathList[ii] == wxT("end_list") ) break;
 		FullFileName = s_KicadBinaryPathList[ii++] + shortname;
 		if ( wxFileExists(FullFileName) ) return FullFileName;
 	}

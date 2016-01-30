@@ -46,6 +46,8 @@ BEGIN_EVENT_TABLE(WinEDA_SchematicFrame, wxFrame)
 	EVT_MENU(ID_GEN_PLOT_PS, WinEDA_SchematicFrame::ToPlot_PS)
 	EVT_MENU(ID_GEN_PLOT_HPGL, WinEDA_SchematicFrame::ToPlot_HPGL)
 	EVT_MENU(ID_GEN_PLOT_SVG, WinEDA_DrawFrame::SVG_Print)
+	EVT_MENU(ID_GEN_COPY_SHEET_TO_CLIPBOARD, WinEDA_DrawFrame::CopyToClipboard)
+	EVT_MENU(ID_GEN_COPY_BLOCK_TO_CLIPBOARD, WinEDA_DrawFrame::CopyToClipboard)
 	EVT_MENU(ID_EXIT, WinEDA_SchematicFrame::Process_Special_Functions)
 
 	EVT_MENU(ID_CONFIG_REQ, WinEDA_SchematicFrame::Process_Config)
@@ -119,7 +121,11 @@ WinEDA_SchematicFrame::	WinEDA_SchematicFrame(wxWindow * father, WinEDA_App *par
 	m_Draw_Sheet_Ref = TRUE;		// TRUE pour avoir le cartouche dessiné
 
 	// Give an icon
+	#ifdef __WINDOWS__
+	SetIcon(wxICON(a_icon_eeschema));
+	#else
 	SetIcon(wxICON(icon_eeschema));
+	#endif
 
 	m_CurrentScreen = ScreenSch;
 	g_ItemToRepeat = NULL;
@@ -153,7 +159,7 @@ SCH_SCREEN * screen;
 	{
 		if ( ! m_Parent->LibeditFrame->Close() ) return;
 	}
-		
+
 	screen = ScreenSch ;
 	while( screen )
 	{
@@ -194,7 +200,7 @@ SCH_SCREEN * screen;
 			SetLastProject(ScreenSch->m_FileName);
 
 	ClearProjectDrawList(ScreenSch);
-	
+
 	/* Tous les autres SCREEN sont effaces, aussi reselection de
 	 l'ecran de base, pour les evenements de refresh générés par wxWindows */
 	m_CurrentScreen = ActiveScreen = ScreenSch;

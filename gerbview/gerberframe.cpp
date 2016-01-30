@@ -127,7 +127,11 @@ WinEDA_GerberFrame::WinEDA_GerberFrame(wxWindow * father, WinEDA_App *parent,
 	m_ZoomMaxValue = 1024;
 	if ( DrawPanel ) DrawPanel->m_Block_Enable = TRUE;
 	// Give an icon
+	#ifdef __WINDOWS__
+	SetIcon( wxICON(a_icon_gerbview));
+	#else
 	SetIcon( wxICON(icon_gerbview));
+	#endif
 
 	m_CurrentScreen = ActiveScreen = ScreenPcb;
 

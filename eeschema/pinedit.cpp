@@ -2,6 +2,10 @@
 	/*  EESchema - PinEdit.cpp */
 	/***************************/
 
+#if defined(__GNUG__) && !defined(NO_GCC_PRAGMA)
+#pragma implementation "pinedit-dialog.h"
+#endif
+
 #include "pinedit-dialog.h"
 
 static int CodeOrient[4] =
@@ -54,7 +58,7 @@ void WinEDA_PinPropertiesFrame::PinPropertiesAccept(wxCommandEvent& event)
 */
 {
 wxString msg;
-	
+
 	LastPinType = m_PinElectricalType->GetSelection();
 	LastPinShape = CodeShape[m_PinShape->GetSelection()];
 	LastPinOrient = CodeOrient[m_PinOrient->GetSelection()];
@@ -166,12 +170,12 @@ LibDrawPin * CurrentPin = (LibDrawPin *) CurrentDrawItem;
 bool ask_for_pin = TRUE;
 wxPoint newpos;
 bool status;
-	
+
 	if( CurrentPin == NULL ) return;
 
 	newpos.x = GetScreen()->m_Curseur.x;
 	newpos.y = - GetScreen()->m_Curseur.y;
-	
+
 	Pin = (LibDrawPin *) CurrentLibEntry->m_Drawings;
 	// Tst for an other pin in same new position:
 	for ( ; Pin != NULL; Pin = (LibDrawPin *) Pin->Pnext)
@@ -215,12 +219,12 @@ bool status;
 		Pin->m_Pos = CurrentPin->m_Pos;
 		Pin->m_Flags = 0;
 	}
-	
+
 	GetScreen()->CursorOff(DrawPanel, DC);
 	DrawLibraryDrawStruct(DrawPanel, DC, CurrentLibEntry,0,0, CurrentPin,CurrentUnit,
 					GR_DEFAULT_DRAWMODE);
 	GetScreen()->CursorOn(DrawPanel, DC);
-	
+
 	CurrentDrawItem = NULL;
 };
 
@@ -275,17 +279,17 @@ wxPoint startPos;
 	}
 	CurrentPin->m_Flags |= IS_LINKED | IS_MOVED;
 	PinPreviousPos = OldPos = CurrentPin->m_Pos;
- 
+
  	startPos.x = OldPos.x;
  	startPos.y = -OldPos.y;
  	m_CurrentScreen->CursorOff(DrawPanel, DC);
  	m_CurrentScreen->m_Curseur = startPos;
  	DrawPanel->MouseToCursorSchema();
- 
+
 	CurrentPin->Display_Infos_DrawEntry(this);
 	GetScreen()->ManageCurseur = DrawMovePin;
 	GetScreen()->ForceCloseManageCurseur = AbortPinMove;
- 
+
  	m_CurrentScreen->CursorOn(DrawPanel, DC);
 }
 
@@ -298,7 +302,7 @@ static void DrawMovePin(WinEDA_DrawPanel * panel, wxDC * DC, bool erase)
 {
 LibDrawPin * CurrentPin = (LibDrawPin *) CurrentDrawItem;
 wxPoint pinpos = CurrentPin->m_Pos;
-	
+
 	/* Erase pin in old position */
 	if( erase || (CurrentPin->m_Flags & IS_NEW) )
 	{
@@ -311,7 +315,7 @@ wxPoint pinpos = CurrentPin->m_Pos;
 	CurrentPin->m_Pos.x = panel->m_Parent->GetScreen()->m_Curseur.x;
 	CurrentPin->m_Pos.y = - panel->m_Parent->GetScreen()->m_Curseur.y;
 	DrawLibraryDrawStruct(panel, DC, CurrentLibEntry,0,0, CurrentPin,CurrentUnit, g_XorMode);
-	
+
 	PinPreviousPos = CurrentPin->m_Pos;
 	/* Keep the original position for existing pin (for Undo command)
 	and the current position for a new pin */
@@ -883,7 +887,7 @@ wxString msg;
 		}
 		DisplayError(this, msg);
 	}
-	
+
 	free (PinList);
 	return error ? TRUE : FALSE;
 }

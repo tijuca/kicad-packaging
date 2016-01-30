@@ -44,8 +44,9 @@ class wxBoxSizer;
 #define SYMBOL_WINEDA_PADPROPERTIESFRAME_IDNAME ID_DIALOG
 #define SYMBOL_WINEDA_PADPROPERTIESFRAME_SIZE wxSize(400, 300)
 #define SYMBOL_WINEDA_PADPROPERTIESFRAME_POSITION wxDefaultPosition
-#define ID_TEXTCTRL 10001
-#define ID_TEXTCTRL1 10002
+#define ID_TEXTCTRL_PADNUM 10001
+#define ID_TEXTCTRL_NETNAME 10002
+#define ID_RADIOBOX_DRILL_SHAPE 10019
 #define ID_LISTBOX_ORIENT_PAD 10003
 #define ID_LISTBOX_SHAPE_PAD 10004
 #define ID_LISTBOX_TYPE_PAD 10005
@@ -96,6 +97,9 @@ public:
 
 ////@begin WinEDA_PadPropertiesFrame event handler declarations
 
+    /// wxEVT_COMMAND_RADIOBOX_SELECTED event handler for ID_RADIOBOX_DRILL_SHAPE
+    void OnRadioboxDrillShapeSelected( wxCommandEvent& event );
+
     /// wxEVT_COMMAND_RADIOBOX_SELECTED event handler for ID_LISTBOX_ORIENT_PAD
     void OnListboxOrientPadSelected( wxCommandEvent& event );
 
@@ -137,9 +141,9 @@ public:
     wxTextCtrl* m_PadNumCtrl;
     wxTextCtrl* m_PadNetNameCtrl;
     wxBoxSizer* m_PadPositionBoxSizer;
-    wxBoxSizer* m_PadSizeBoxSizer;
-    wxBoxSizer* m_PadDeltaBoxSizer;
-    wxBoxSizer* m_PadOffsetBoxSizer;
+    wxBoxSizer* m_DrillShapeBoxSizer;
+    wxRadioBox* m_DrillShapeCtrl;
+    wxBoxSizer* m_PadOptSizer;
     wxRadioBox* m_PadOrient;
     wxRadioBox* m_PadShape;
     wxRadioBox* m_PadType;
@@ -166,7 +170,7 @@ public:
 	WinEDA_PositionCtrl * m_PadPositionCtrl;
 	WinEDA_SizeCtrl * m_PadDeltaSizeCtrl;
 	WinEDA_SizeCtrl * m_PadOffsetCtrl;
-	WinEDA_ValueCtrl * m_PadDrillCtrl;
+	WinEDA_SizeCtrl * m_PadDrillCtrl;
 	WinEDA_ValueCtrl * m_PadOrientCtrl;	// Pour orientation a 0.1 degre pres
 
 };

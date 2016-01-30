@@ -14,7 +14,7 @@ KICAD_BIN = /f/kicad/winexe
 
 #Define the wxWidget path:
 ifndef WXWIN
-WXWIN=/f/wxWidgets-2.6.3
+WXWIN=/f/wxWidgets-2.7.0
 endif
 
 #comment this for static wxWidgets link
@@ -30,13 +30,13 @@ ALL_CPPFLAGS = `$(WXWIN)/wx-config --cppflags`
 EDACPPFLAGS = $(ALL_CPPFLAGS) $(ALL_CXXFLAGS) $(EXTRACPPFLAGS)
 
 EDALIBS = $(EXTRALIBS)
+LIBVERSION = 2.7
 
-SYSWXLIB = `$(WXWIN)/wx-config --libs gl`
-
-#include ../makeg95.env
+SYSWXLIB = `$(WXWIN)/wx-config --libs gl`\
+	-lwxpng-$(LIBVERSION) -lwxjpeg-$(LIBVERSION) -lwxzlib-$(LIBVERSION)
 
 .cpp.o:
-	gcc -c $(ALL_CPPFLAGS) $(ALL_CXXFLAGS) $(EXTRACPPFLAGS) -o $@ $*.cpp
+	gcc -c -Wall $(ALL_CPPFLAGS) $(ALL_CXXFLAGS) $(EXTRACPPFLAGS) -o $@ $*.cpp
 
 
 # Settings for Cyginw/Mingw32

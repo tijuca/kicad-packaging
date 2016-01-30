@@ -206,6 +206,20 @@ EDA_TextStruct::~EDA_TextStruct(void)
 	m_TextDrawingsSize = 0;			/* nombre de sommets a dessiner */
 }
 
+/********************************/
+int EDA_TextStruct::Len_Size(void)
+/********************************/
+// Return the text lenght in internal units
+{
+int nbchar = m_Text.Len();
+int len;
+	if ( nbchar == 0 ) return 0;
+
+	len = ((10 * m_Size.x ) / 9) * nbchar;
+	return len;
+}
+
+
 /*************************************************/
 int EDA_TextStruct::Locate(const wxPoint & posref)
 /*************************************************/

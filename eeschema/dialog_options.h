@@ -119,8 +119,11 @@ public:
     wxRadioBox* m_Selunits;
     wxRadioBox* m_SelDirWires;
     wxRadioBox* m_Show_Page_Limits;
+    wxStaticText* m_DeltaStepXTitle;
     wxTextCtrl* m_DeltaStepCtrl_X;
+    wxStaticText* m_DeltaStepYTitle;
     wxTextCtrl* m_DeltaStepCtrl_Y;
+    wxStaticText* m_DeltaIncTitle;
     wxSpinCtrl* m_DeltaLabelCtrl;
 ////@end WinEDA_SetOptionsFrame member variables
 };

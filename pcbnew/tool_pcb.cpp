@@ -429,7 +429,7 @@ long current_mask_layer;
     current_mask_layer = 0;
 	int Masque_Layer = g_TabAllCopperLayerMask[g_DesignSettings.m_CopperLayerCount-1];
 	Masque_Layer |= ALL_NO_CU_LAYERS;
-	for ( ii = 0; ii < m_SelLayerBox->GetCount() ; ii ++ )
+	for ( ii = 0; ii < (int)m_SelLayerBox->GetCount() ; ii ++ )
 	{
         jj = (int) ((size_t) m_SelLayerBox->GetClientData(ii));
         current_mask_layer |= g_TabOneLayerMask[jj];

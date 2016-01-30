@@ -5,7 +5,7 @@
 
 COMMON_GLOBL wxString g_BuildVersion
 #ifdef EDA_BASE
-	(wxT("(2006-06-26)"))
+	(wxT("(2006-08-28)"))
 #endif
 ;
 

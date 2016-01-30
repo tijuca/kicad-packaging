@@ -95,9 +95,16 @@
     <string name="source_encoding">"&lt;System&gt;"</string>
     <string name="project_encoding">"&lt;System&gt;"</string>
     <string name="resource_archive">""</string>
+    <long name="text_file_type">0</long>
+    <bool name="use_tabs">0</bool>
+    <long name="indent_size">4</long>
+    <string name="resource_xrc_cpp">""</string>
     <bool name="use_resource_archive">0</bool>
+    <bool name="use_generated_xrc_cpp">0</bool>
+    <bool name="always_generate_xrc">1</bool>
     <bool name="archive_xrc_files">1</bool>
     <bool name="archive_image_files">1</bool>
+    <bool name="xrc_retain_relative_paths">1</bool>
   </header>
   <data>
     <document>
@@ -236,7 +243,9 @@
           <bool name="proxy-wxRAISED_BORDER">0</bool>
           <bool name="proxy-wxSTATIC_BORDER">0</bool>
           <bool name="proxy-wxWANTS_CHARS">0</bool>
-          <bool name="proxy-wxCLIP_CHILDREN ">0</bool>
+          <bool name="proxy-wxNO_FULL_REPAINT_ON_RESIZE">0</bool>
+          <bool name="proxy-wxFULL_REPAINT_ON_RESIZE">0</bool>
+          <bool name="proxy-wxCLIP_CHILDREN">0</bool>
           <bool name="proxy-wxTAB_TRAVERSAL">0</bool>
           <bool name="proxy-wxWS_EX_VALIDATE_RECURSIVELY">0</bool>
           <bool name="proxy-wxWS_EX_BLOCK_EVENTS">1</bool>
@@ -320,6 +329,8 @@
                 <bool name="proxy-wxCHK_3STATE">0</bool>
                 <bool name="proxy-wxCHK_ALLOW_3RD_STATE_FOR_USER">0</bool>
                 <bool name="proxy-wxWANTS_CHARS">0</bool>
+                <bool name="proxy-wxNO_FULL_REPAINT_ON_RESIZE">0</bool>
+                <bool name="proxy-wxFULL_REPAINT_ON_RESIZE">0</bool>
                 <string name="proxy-Custom styles">""</string>
                 <long name="proxy-X">-1</long>
                 <long name="proxy-Y">-1</long>
@@ -355,6 +366,8 @@
                 <string name="proxy-Member variable name">"m_SelGridSize"</string>
                 <string name="proxy-Label">"Grid Size"</string>
                 <long name="proxy-Major dimension count">1</long>
+                <string name="proxy-Items">"Normal (50 mils)|Small (25 mils)|Very small (10 mils)|Special (5 mils)|Special (2 mils)|Special (1 mil)"</string>
+                <long name="proxy-Initial value">0</long>
                 <string name="proxy-Help text">""</string>
                 <string name="proxy-Tooltip text">""</string>
                 <string name="proxy-Background colour">""</string>
@@ -367,8 +380,9 @@
                 <string name="proxy-Data validator">""</string>
                 <bool name="proxy-wxRA_SPECIFY_ROWS">0</bool>
                 <bool name="proxy-wxRA_SPECIFY_COLS">1</bool>
-                <string name="proxy-Items">"Normal (50 mils)|Small (25 mils)|Very small (10 mils)|Special (5 mils)|Special (2 mils)|Special (1 mil)"</string>
                 <bool name="proxy-wxWANTS_CHARS">0</bool>
+                <bool name="proxy-wxNO_FULL_REPAINT_ON_RESIZE">0</bool>
+                <bool name="proxy-wxFULL_REPAINT_ON_RESIZE">0</bool>
                 <string name="proxy-Custom styles">""</string>
                 <long name="proxy-X">-1</long>
                 <long name="proxy-Y">-1</long>
@@ -404,6 +418,8 @@
                 <string name="proxy-Member variable name">"m_SelShowPins"</string>
                 <string name="proxy-Label">"Show pins"</string>
                 <long name="proxy-Major dimension count">1</long>
+                <string name="proxy-Items">"Normal|Show alls"</string>
+                <long name="proxy-Initial value">0</long>
                 <string name="proxy-Help text">""</string>
                 <string name="proxy-Tooltip text">""</string>
                 <string name="proxy-Background colour">""</string>
@@ -416,8 +432,9 @@
                 <string name="proxy-Data validator">""</string>
                 <bool name="proxy-wxRA_SPECIFY_ROWS">0</bool>
                 <bool name="proxy-wxRA_SPECIFY_COLS">1</bool>
-                <string name="proxy-Items">"Normal|Show alls"</string>
                 <bool name="proxy-wxWANTS_CHARS">0</bool>
+                <bool name="proxy-wxNO_FULL_REPAINT_ON_RESIZE">0</bool>
+                <bool name="proxy-wxFULL_REPAINT_ON_RESIZE">0</bool>
                 <string name="proxy-Custom styles">""</string>
                 <long name="proxy-X">-1</long>
                 <long name="proxy-Y">-1</long>
@@ -493,6 +510,8 @@
                 <bool name="proxy-wxCHK_3STATE">0</bool>
                 <bool name="proxy-wxCHK_ALLOW_3RD_STATE_FOR_USER">0</bool>
                 <bool name="proxy-wxWANTS_CHARS">0</bool>
+                <bool name="proxy-wxNO_FULL_REPAINT_ON_RESIZE">0</bool>
+                <bool name="proxy-wxFULL_REPAINT_ON_RESIZE">0</bool>
                 <string name="proxy-Custom styles">""</string>
                 <long name="proxy-X">-1</long>
                 <long name="proxy-Y">-1</long>
@@ -528,6 +547,8 @@
                 <string name="proxy-Member variable name">"m_Selunits"</string>
                 <string name="proxy-Label">"Units"</string>
                 <long name="proxy-Major dimension count">1</long>
+                <string name="proxy-Items">"millimeter|inches"</string>
+                <long name="proxy-Initial value">0</long>
                 <string name="proxy-Help text">""</string>
                 <string name="proxy-Tooltip text">""</string>
                 <string name="proxy-Background colour">""</string>
@@ -540,8 +561,9 @@
                 <string name="proxy-Data validator">""</string>
                 <bool name="proxy-wxRA_SPECIFY_ROWS">0</bool>
                 <bool name="proxy-wxRA_SPECIFY_COLS">1</bool>
-                <string name="proxy-Items">"millimeter|inches"</string>
                 <bool name="proxy-wxWANTS_CHARS">0</bool>
+                <bool name="proxy-wxNO_FULL_REPAINT_ON_RESIZE">0</bool>
+                <bool name="proxy-wxFULL_REPAINT_ON_RESIZE">0</bool>
                 <string name="proxy-Custom styles">""</string>
                 <long name="proxy-X">-1</long>
                 <long name="proxy-Y">-1</long>
@@ -577,6 +599,8 @@
                 <string name="proxy-Member variable name">"m_SelDirWires"</string>
                 <string name="proxy-Label">"Wires - Bus orient"</string>
                 <long name="proxy-Major dimension count">1</long>
+                <string name="proxy-Items">"Horiz/Vertical|Any"</string>
+                <long name="proxy-Initial value">0</long>
                 <string name="proxy-Help text">""</string>
                 <string name="proxy-Tooltip text">""</string>
                 <string name="proxy-Background colour">""</string>
@@ -589,8 +613,9 @@
                 <string name="proxy-Data validator">""</string>
                 <bool name="proxy-wxRA_SPECIFY_ROWS">0</bool>
                 <bool name="proxy-wxRA_SPECIFY_COLS">1</bool>
-                <string name="proxy-Items">"Horiz/Vertical|Any"</string>
                 <bool name="proxy-wxWANTS_CHARS">0</bool>
+                <bool name="proxy-wxNO_FULL_REPAINT_ON_RESIZE">0</bool>
+                <bool name="proxy-wxFULL_REPAINT_ON_RESIZE">0</bool>
                 <string name="proxy-Custom styles">""</string>
                 <long name="proxy-X">-1</long>
                 <long name="proxy-Y">-1</long>
@@ -626,6 +651,8 @@
                 <string name="proxy-Member variable name">"m_Show_Page_Limits"</string>
                 <string name="proxy-Label">"Show page limits"</string>
                 <long name="proxy-Major dimension count">1</long>
+                <string name="proxy-Items">"Yes|No"</string>
+                <long name="proxy-Initial value">0</long>
                 <string name="proxy-Help text">""</string>
                 <string name="proxy-Tooltip text">""</string>
                 <string name="proxy-Background colour">""</string>
@@ -638,8 +665,9 @@
                 <string name="proxy-Data validator">""</string>
                 <bool name="proxy-wxRA_SPECIFY_ROWS">0</bool>
                 <bool name="proxy-wxRA_SPECIFY_COLS">1</bool>
-                <string name="proxy-Items">"Yes|No"</string>
                 <bool name="proxy-wxWANTS_CHARS">0</bool>
+                <bool name="proxy-wxNO_FULL_REPAINT_ON_RESIZE">0</bool>
+                <bool name="proxy-wxFULL_REPAINT_ON_RESIZE">0</bool>
                 <string name="proxy-Custom styles">""</string>
                 <long name="proxy-X">-1</long>
                 <long name="proxy-Y">-1</long>
@@ -716,6 +744,8 @@
                 <bool name="proxy-wxBU_EXACTFIT">0</bool>
                 <bool name="proxy-wxNO_BORDER">0</bool>
                 <bool name="proxy-wxWANTS_CHARS">0</bool>
+                <bool name="proxy-wxNO_FULL_REPAINT_ON_RESIZE">0</bool>
+                <bool name="proxy-wxFULL_REPAINT_ON_RESIZE">0</bool>
                 <string name="proxy-Custom styles">""</string>
                 <long name="proxy-X">-1</long>
                 <long name="proxy-Y">-1</long>
@@ -767,6 +797,8 @@
                 <bool name="proxy-wxBU_EXACTFIT">0</bool>
                 <bool name="proxy-wxNO_BORDER">0</bool>
                 <bool name="proxy-wxWANTS_CHARS">0</bool>
+                <bool name="proxy-wxNO_FULL_REPAINT_ON_RESIZE">0</bool>
+                <bool name="proxy-wxFULL_REPAINT_ON_RESIZE">0</bool>
                 <string name="proxy-Custom styles">""</string>
                 <long name="proxy-X">-1</long>
                 <long name="proxy-Y">-1</long>
@@ -831,8 +863,9 @@
                   <string name="proxy-Id name">"wxID_STATIC"</string>
                   <long name="proxy-Id value">5105</long>
                   <string name="proxy-Class">"wxStaticText"</string>
-                  <string name="proxy-Member variable name">""</string>
+                  <string name="proxy-Member variable name">"m_DeltaStepXTitle"</string>
                   <string name="proxy-Label">"Delta Step X"</string>
+                  <long name="proxy-Wrapping width">-1</long>
                   <string name="proxy-Help text">""</string>
                   <string name="proxy-Tooltip text">""</string>
                   <string name="proxy-Background colour">""</string>
@@ -854,6 +887,8 @@
                   <bool name="proxy-wxRAISED_BORDER">0</bool>
                   <bool name="proxy-wxSTATIC_BORDER">0</bool>
                   <bool name="proxy-wxWANTS_CHARS">0</bool>
+                  <bool name="proxy-wxNO_FULL_REPAINT_ON_RESIZE">0</bool>
+                  <bool name="proxy-wxFULL_REPAINT_ON_RESIZE">0</bool>
                   <string name="proxy-Custom styles">""</string>
                   <long name="proxy-X">-1</long>
                   <long name="proxy-Y">-1</long>
@@ -921,6 +956,8 @@
                   <bool name="proxy-wxRAISED_BORDER">0</bool>
                   <bool name="proxy-wxSTATIC_BORDER">0</bool>
                   <bool name="proxy-wxWANTS_CHARS">0</bool>
+                  <bool name="proxy-wxNO_FULL_REPAINT_ON_RESIZE">0</bool>
+                  <bool name="proxy-wxFULL_REPAINT_ON_RESIZE">0</bool>
                   <string name="proxy-Custom styles">""</string>
                   <long name="proxy-X">-1</long>
                   <long name="proxy-Y">-1</long>
@@ -953,8 +990,9 @@
                   <string name="proxy-Id name">"wxID_STATIC"</string>
                   <long name="proxy-Id value">5105</long>
                   <string name="proxy-Class">"wxStaticText"</string>
-                  <string name="proxy-Member variable name">""</string>
+                  <string name="proxy-Member variable name">"m_DeltaStepYTitle"</string>
                   <string name="proxy-Label">"Delta Step Y"</string>
+                  <long name="proxy-Wrapping width">-1</long>
                   <string name="proxy-Help text">""</string>
                   <string name="proxy-Tooltip text">""</string>
                   <string name="proxy-Background colour">""</string>
@@ -976,6 +1014,8 @@
                   <bool name="proxy-wxRAISED_BORDER">0</bool>
                   <bool name="proxy-wxSTATIC_BORDER">0</bool>
                   <bool name="proxy-wxWANTS_CHARS">0</bool>
+                  <bool name="proxy-wxNO_FULL_REPAINT_ON_RESIZE">0</bool>
+                  <bool name="proxy-wxFULL_REPAINT_ON_RESIZE">0</bool>
                   <string name="proxy-Custom styles">""</string>
                   <long name="proxy-X">-1</long>
                   <long name="proxy-Y">-1</long>
@@ -1043,6 +1083,8 @@
                   <bool name="proxy-wxRAISED_BORDER">0</bool>
                   <bool name="proxy-wxSTATIC_BORDER">0</bool>
                   <bool name="proxy-wxWANTS_CHARS">0</bool>
+                  <bool name="proxy-wxNO_FULL_REPAINT_ON_RESIZE">0</bool>
+                  <bool name="proxy-wxFULL_REPAINT_ON_RESIZE">0</bool>
                   <string name="proxy-Custom styles">""</string>
                   <long name="proxy-X">-1</long>
                   <long name="proxy-Y">-1</long>
@@ -1071,12 +1113,14 @@
                   <long name="owns-file">1</long>
                   <long name="title-mode">0</long>
                   <long name="locked">0</long>
+                  <string name="created">"26/8/2006"</string>
                   <string name="proxy-type">"wbStaticTextProxy"</string>
                   <string name="proxy-Id name">"wxID_STATIC"</string>
                   <long name="proxy-Id value">5105</long>
                   <string name="proxy-Class">"wxStaticText"</string>
-                  <string name="proxy-Member variable name">""</string>
+                  <string name="proxy-Member variable name">"m_DeltaIncTitle"</string>
                   <string name="proxy-Label">"Delta Label:"</string>
+                  <long name="proxy-Wrapping width">-1</long>
                   <string name="proxy-Help text">""</string>
                   <string name="proxy-Tooltip text">""</string>
                   <string name="proxy-Background colour">""</string>
@@ -1098,6 +1142,8 @@
                   <bool name="proxy-wxRAISED_BORDER">0</bool>
                   <bool name="proxy-wxSTATIC_BORDER">0</bool>
                   <bool name="proxy-wxWANTS_CHARS">0</bool>
+                  <bool name="proxy-wxNO_FULL_REPAINT_ON_RESIZE">0</bool>
+                  <bool name="proxy-wxFULL_REPAINT_ON_RESIZE">0</bool>
                   <string name="proxy-Custom styles">""</string>
                   <long name="proxy-X">-1</long>
                   <long name="proxy-Y">-1</long>
@@ -1153,6 +1199,8 @@
                   <bool name="proxy-wxRAISED_BORDER">0</bool>
                   <bool name="proxy-wxSTATIC_BORDER">0</bool>
                   <bool name="proxy-wxWANTS_CHARS">0</bool>
+                  <bool name="proxy-wxNO_FULL_REPAINT_ON_RESIZE">0</bool>
+                  <bool name="proxy-wxFULL_REPAINT_ON_RESIZE">0</bool>
                   <string name="proxy-Custom styles">""</string>
                   <long name="proxy-X">-1</long>
                   <long name="proxy-Y">-1</long>

@@ -77,27 +77,30 @@ int tmp;
 
 	m_PadSizeCtrl = new WinEDA_SizeCtrl(this, _("Pad Size"),
 			CurrentPad ? CurrentPad->m_Size : g_Pad_Master.m_Size,
-			g_UnitMetric, m_PadSizeBoxSizer, m_Parent->m_InternalUnits);
+			g_UnitMetric, m_PadPositionBoxSizer, m_Parent->m_InternalUnits);
 
 	m_PadDeltaSizeCtrl = new WinEDA_SizeCtrl(this, _("Delta"),
 			CurrentPad ? CurrentPad->m_DeltaSize : g_Pad_Master.m_DeltaSize,
-			g_UnitMetric, m_PadDeltaBoxSizer, m_Parent->m_InternalUnits);
-
-	m_PadDrillCtrl = new WinEDA_ValueCtrl(this, _("Pad Drill"),
-			CurrentPad ? CurrentPad->m_Drill : g_Pad_Master.m_Drill,
-			g_UnitMetric, m_PadDeltaBoxSizer, m_Parent->m_InternalUnits );
+			g_UnitMetric, m_PadPositionBoxSizer, m_Parent->m_InternalUnits);
 
 	m_PadOffsetCtrl = new WinEDA_SizeCtrl(this, _("Offset"),
 			CurrentPad ? CurrentPad->m_Offset : g_Pad_Master.m_Offset,
-			g_UnitMetric, m_PadOffsetBoxSizer, m_Parent->m_InternalUnits);
+			g_UnitMetric, m_PadPositionBoxSizer, m_Parent->m_InternalUnits);
+
+	/* In second column */
+	
+	m_PadDrillCtrl = new WinEDA_SizeCtrl(this, _("Pad Drill"),
+			CurrentPad ? CurrentPad->m_Drill : g_Pad_Master.m_Drill,
+			g_UnitMetric, m_DrillShapeBoxSizer, m_Parent->m_InternalUnits );
 
 	if ( CurrentPad )
 	{
 		tmp = CurrentPad->m_Orient - m_Module->m_Orient;
 	}
 	else tmp = g_Pad_Master.m_Orient;
+    m_DrillShapeBoxSizer->Add(5, 5, 0, wxALIGN_CENTER_HORIZONTAL|wxALL, 5);
 	m_PadOrientCtrl = new WinEDA_ValueCtrl(this, _("Pad Orient (0.1 deg)"),
-			tmp, 2, m_LeftBoxSizer, 1);
+			tmp, 2, m_DrillShapeBoxSizer, 1);
 
 
 	// Pad Orient
@@ -135,22 +138,32 @@ int tmp;
 	switch ( tmp )
 		{
 		case CIRCLE:
+			m_PadDeltaSizeCtrl->Enable(FALSE, FALSE);
+			m_PadSizeCtrl->Enable(TRUE, FALSE);
 			m_PadShape->SetSelection(0);
 			break;
 
 		case OVALE:
+			m_PadDeltaSizeCtrl->Enable(FALSE, FALSE);
+			m_PadSizeCtrl->Enable(TRUE, TRUE);
 			m_PadShape->SetSelection(1);
 			break;
 
 		case RECT:
+			m_PadDeltaSizeCtrl->Enable(FALSE, FALSE);
+			m_PadSizeCtrl->Enable(TRUE, TRUE);
 			m_PadShape->SetSelection(2);
 			break;
 
 		case TRAPEZE:
+			m_PadDeltaSizeCtrl->Enable(TRUE, TRUE);
+			m_PadSizeCtrl->Enable(TRUE, TRUE);
 			m_PadShape->SetSelection(3);
 			break;
 
 		case SPECIAL_PAD:
+			m_PadDeltaSizeCtrl->Enable(FALSE, FALSE);
+			m_PadSizeCtrl->Enable(TRUE, TRUE);
 			m_PadShape->SetSelection(4);
 			break;
 		}
@@ -166,6 +179,19 @@ int tmp;
 		}
 	}
 
+	tmp = CurrentPad ? CurrentPad->m_DrillShape : g_Pad_Master.m_DrillShape;
+	switch ( tmp )
+	{
+		case CIRCLE:
+			m_DrillShapeCtrl->SetSelection(0);
+			m_PadDrillCtrl->Enable(TRUE,FALSE);
+			break;
+
+		case OVALE:
+			m_DrillShapeCtrl->SetSelection(1);
+			m_PadDrillCtrl->Enable(TRUE, TRUE);
+			break;
+	}
 	// Selection des couches cuivre :
 	if ( CurrentPad ) SetPadLayersList(CurrentPad->m_Masque_Layer);
 	else PadTypeSelected();
@@ -281,6 +307,8 @@ void WinEDA_PadPropertiesFrame::PadPropertiesAccept(wxCommandEvent& event)
 */
 {
 long PadLayerMask;
+bool error = FALSE;
+	
 	if ( m_DC ) m_Parent->GetScreen()->CursorOff(m_Parent->DrawPanel, m_DC);
 
 	g_Pad_Master.m_Attribut = CodeType[m_PadType->GetSelection()];
@@ -291,9 +319,35 @@ long PadLayerMask;
 	g_Pad_Master.m_DeltaSize = m_PadDeltaSizeCtrl->GetValue();
 	g_Pad_Master.m_Offset = m_PadOffsetCtrl->GetValue();
 	g_Pad_Master.m_Drill = m_PadDrillCtrl->GetValue();
+	if( m_DrillShapeCtrl->GetSelection() == 0 )
+	{
+		g_Pad_Master.m_DrillShape = CIRCLE;
+		g_Pad_Master.m_Drill.y = g_Pad_Master.m_Drill.x;
+	}
+	else g_Pad_Master.m_DrillShape = OVALE;
 	g_Pad_Master.m_Orient = m_PadOrientCtrl->GetValue();
 	g_Current_PadName = m_PadNumCtrl->GetValue().Left(4);
 	Current_PadNetName = m_PadNetNameCtrl->GetValue();
+
+	/* Test for incorrect values */
+	if ( (g_Pad_Master.m_Size.x <= g_Pad_Master.m_Drill.x) ||
+		 (g_Pad_Master.m_Size.y <= g_Pad_Master.m_Drill.y) )
+	{
+		error = TRUE;
+		DisplayError(this, _("Incorrect value for pad drill") );
+	}
+	if ( (g_Pad_Master.m_Size.x/2 <= ABS(g_Pad_Master.m_Offset.x)) ||
+		 (g_Pad_Master.m_Size.y/2 <= ABS(g_Pad_Master.m_Offset.y)) )
+	{
+		error = TRUE;
+		DisplayError(this, _("Incorrect value for pad offset") );
+	}
+	
+	if ( error )
+	{
+		if ( m_DC ) m_Parent->GetScreen()->CursorOn(m_Parent->DrawPanel, m_DC);
+		return;
+	}
 
 	PadLayerMask = 0;
 	if( m_PadLayerCu->GetValue() ) PadLayerMask |= CUIVRE_LAYER;
@@ -334,6 +388,7 @@ long PadLayerMask;
 		CurrentPad->m_Size = g_Pad_Master.m_Size;
 		CurrentPad->m_DeltaSize = g_Pad_Master.m_DeltaSize;
 		CurrentPad->m_Drill = g_Pad_Master.m_Drill;
+		CurrentPad->m_DrillShape = g_Pad_Master.m_DrillShape;
 		CurrentPad->m_Offset = g_Pad_Master.m_Offset;
 		CurrentPad->m_Masque_Layer = g_Pad_Master.m_Masque_Layer;
 		CurrentPad->m_Orient = g_Pad_Master.m_Orient + Module->m_Orient;
@@ -371,7 +426,7 @@ long PadLayerMask;
 			case CONN:
 			case SMD:
 				CurrentPad->m_Offset = wxSize(0,0);
-				CurrentPad->m_Drill = 0;
+				CurrentPad->m_Drill = wxSize(0,0);
 				break;
 
 			case P_HOLE:

@@ -32,7 +32,12 @@ WinEDA_CvpcbFrame::WinEDA_CvpcbFrame(WinEDA_App *parent, const wxString & title 
 	m_HToolBar = NULL;
 
 	// Give an icon
+	#ifdef __WINDOWS__
+	SetIcon( wxICON(a_icon_cvpcb));
+	#else
 	SetIcon( wxICON(icon_cvpcb));
+	#endif
+
 	SetFont(*g_StdFont);
 
 	SetAutoLayout(TRUE);
@@ -41,7 +46,7 @@ WinEDA_CvpcbFrame::WinEDA_CvpcbFrame(WinEDA_App *parent, const wxString & title 
 	if ( m_FrameSize.x < FRAME_MIN_SIZE_X ) m_FrameSize.x = FRAME_MIN_SIZE_X;
 	if ( m_FrameSize.y < FRAME_MIN_SIZE_Y ) m_FrameSize.y = FRAME_MIN_SIZE_Y;
 
-	// create the status bar 
+	// create the status bar
 int dims[3] = { -1, -1, 150};
 	CreateStatusBar(3);
 	SetStatusWidths(3,dims);
@@ -137,7 +142,7 @@ void WinEDA_CvpcbFrame::OnCloseWindow(wxCloseEvent & Event)
 /**********************************************************/
 {
 int diag;
-	
+
 	if( modified )
 	{
 	unsigned ii;
@@ -408,10 +413,10 @@ void WinEDA_CvpcbFrame::ProcessFontPreferences(wxCommandEvent& event)
 {
 int id = event.GetId();
 wxFont font;
-	
+
 	switch (id)
 	{
-		
+
 		case ID_PREFERENCES_FONT:
 		case ID_PREFERENCES_FONT_DIALOG:
 		case ID_PREFERENCES_FONT_STATUS:
