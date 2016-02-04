@@ -72,7 +72,7 @@ Description: Kicad help files (English)
 Package: kicad-doc-de
 Architecture: all
 Depends: ${misc:Depends}
-Description: Kicad help files (English)
+Description: Kicad help files (German)
  This package provides documentation for Kicad in German.
 
 Package: kicad-doc-es

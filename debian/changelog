@@ -1,3 +1,13 @@
+kicad (4.0.1+dfsg1-2) unstable; urgency=medium
+
+  * fixed the short package description for kicad-doc-de.
+    Closes: #813605
+  * added usr/lib/python2.7/dist-packages in d/kicad.install.
+    Closes: #813655
+  * removed the change done in bitmpas_png/CmakeLists.txt
+
+ -- Georges Khaznadar <georgesk@debian.org>  Thu, 04 Feb 2016 09:35:29 +0100
+
 kicad (4.0.1+dfsg1-1) unstable; urgency=medium
 
   * repacked the source tarball, to withdraw files with a wrong license
