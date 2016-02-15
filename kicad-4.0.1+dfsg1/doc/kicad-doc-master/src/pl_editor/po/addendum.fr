@@ -1,7 +1,0 @@
-PO4A-HEADER: mode=after; position=^\[\[contributors\]\]; beginboundary=\[\[
-[[translation]]
-*Traduction*
-
-//Translators put your names below here in the addendum file
-Moi <moi@moi.fr>
-

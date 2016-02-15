@@ -1,8 +1,8 @@
-Index: kicad-4.0.1/doc/Makefile
+Index: kicad-4.0.2+dfsg1/doc/Makefile
 ===================================================================
 --- /dev/null
-+++ kicad-4.0.1/doc/Makefile
-@@ -0,0 +1,22 @@
++++ kicad-4.0.2+dfsg1/doc/Makefile
+@@ -0,0 +1,23 @@
 +DESTDIR =
 +DATE    = $(shell date +%Y%m%d)
 +CMAKE_OPTS = -DCMAKE_INSTALL_PREFIX=/usr
@@ -17,26 +17,27 @@ Index: kicad-4.0.1/doc/Makefile
 +	fi
 +
 +clean:
++	rm -f *~
 +
-+clean_all:
++distclean: clean
 +	rm -rf build
 +
 +install: all
 +	cd build; export DESTDIR=$(DESTDIR); make install
 +
 +.PHONY: all clean install
-Index: kicad-4.0.1/Makefile
+Index: kicad-4.0.2+dfsg1/Makefile
 ===================================================================
 --- /dev/null
-+++ kicad-4.0.1/Makefile
-@@ -0,0 +1,61 @@
++++ kicad-4.0.2+dfsg1/Makefile
+@@ -0,0 +1,88 @@
 +DESTDIR    =
 +VERSION    = $(shell basename $$(pwd)| sed 's/kicad-//')
 +DATE       = $(shell date +%Y%m%d)
 +CPPFLAGS   = $(shell dpkg-buildflags --get CPPFLAGS)
 +CXXFLAGS   = $(shell dpkg-buildflags --get CXXFLAGS) $(CPPFLAGS)
 +CMAKE_OPTS = -DKICAD_SKIP_BOOST=ON -DCMAKE_INSTALL_PREFIX=/usr -DCMAKE_CXX_FLAGS="$(CXXFLAGS)" -DBUILD_GITHUB_PLUGIN=OFF -DKICAD_REPO_NAME=stable -DKICAD_BUILD_VERSION=$(VERSION) -DDEFAULT_INSTALL_PATH=/usr -DKICAD_SCRIPTING=ON -DKICAD_SCRIPTING_MODULES=ON -DKICAD_SCRIPTING_WXPYTHON=ON
-+SUBDIRS = doc library
++SUBDIRS = doc library i18n
 +LDFLAGS = $(shell dpkg-buildflags --get LDFLAGS)
 +MULTI   = -j4
 +
@@ -54,12 +55,39 @@ Index: kicad-4.0.1/Makefile
 +	make -C doc -j1   $@
 +	# parallel build does not harm with libraries
 +	make -C library $(MULTI)   $@
++	# parallel build does not harm with i18n
++	make -C i18n $(MULTI)   $@
 +
 +clean:
++	rm -f *~
 +
-+clean_all:
++distclean: clean
 +	rm -rf build boost_root .downloads-by-cmake
 +	for d in $(SUBDIRS); do make -C $$d $@; done
++	# take care of files not cleaned properly
++	rm -f common/fp_lib_table_keywords.cpp
++	rm -f common/gal/opengl/shader_src.h
++	rm -f common/netlist_keywords.cpp
++	rm -f common/page_layout/page_layout_reader_keywords.cpp
++	rm -f common/pcb_keywords.cpp
++	rm -f common/pcb_plot_params_keywords.cpp
++	rm -f eeschema/cmp_library_keywords.cpp
++	rm -f eeschema/cmp_library_lexer.h
++	rm -f eeschema/dialogs/dialog_bom_cfg_keywords.cpp
++	rm -f eeschema/dialogs/dialog_bom_cfg_lexer.h
++	rm -f eeschema/dialogs/dialog_bom_help_html.h
++	rm -f eeschema/template_fieldnames_keywords.cpp
++	rm -f eeschema/template_fieldnames_lexer.h
++	rm -f include/fp_lib_table_lexer.h
++	rm -f include/netlist_lexer.h
++	rm -f include/page_layout_reader_lexer.h
++	rm -f include/pcb_lexer.h
++	rm -f include/pcb_plot_params_lexer.h
++	rm -f pcb_calculator/pcb_calculator_datafile_keywords.cpp
++	rm -f pcb_calculator/pcb_calculator_datafile_lexer.h
++	rm -f pcbnew/dialogs/dialog_freeroute_exchange_help_html.h
++	rm -f pcbnew/specctra_keywords.cpp
++	rm -f pcbnew/specctra_lexer.h
 +
 +fix_48x48_icons:
 +	images=$$(find $(DESTDIR)/usr/share/icons/hicolor/48x48 -name "*.png"); \
@@ -91,11 +119,11 @@ Index: kicad-4.0.1/Makefile
 +
 +
 +.PHONY: all clean clean_all install fix_48x48icons
-Index: kicad-4.0.1/library/Makefile
+Index: kicad-4.0.2+dfsg1/library/Makefile
 ===================================================================
 --- /dev/null
-+++ kicad-4.0.1/library/Makefile
-@@ -0,0 +1,30 @@
++++ kicad-4.0.2+dfsg1/library/Makefile
+@@ -0,0 +1,31 @@
 +DESTDIR =
 +DATE    = $(shell date +%Y%m%d)
 +CMAKE_OPTS = -DKICAD_SKIP_BOOST=ON -DCMAKE_INSTALL_PREFIX=/usr -DCMAKE_CXX_FLAGS="$(shell dpkg-buildflags --get CXXFLAGS)"
@@ -110,8 +138,9 @@ Index: kicad-4.0.1/library/Makefile
 +	fi
 +
 +clean:
++	rm -f *~
 +
-+clean_all:
++distclean: clean
 +	rm -rf build
 +
 +install: all
@@ -124,5 +153,33 @@ Index: kicad-4.0.1/library/Makefile
 +	  mkdir -p $(DESTDIR)/usr/share/kicad/modules/$$e; \
 +	  cp -Rd $$d/* $(DESTDIR)/usr/share/kicad/modules/$$e; \
 +	done
++
++.PHONY: all clean install
+Index: kicad-4.0.2+dfsg1/i18n/Makefile
+===================================================================
+--- /dev/null
++++ kicad-4.0.2+dfsg1/i18n/Makefile
+@@ -0,0 +1,23 @@
++DESTDIR =
++DATE    = $(shell date +%Y%m%d)
++CMAKE_OPTS = -DCMAKE_INSTALL_PREFIX=/usr -DKICAD_I18N_UNIX_STRICT_PATH=ON
++
++all:
++	mkdir -p build
++	if [ -z "$$(ls build/buildlog*)" ]; then \
++	  cd build; \
++	  echo "Build begin: $$(date +%H:%M:%S)" > buildlog-$(DATE); \
++	  cmake $(CMAKE_OPTS) ../kicad-i18n-master; make | tee --append buildlog-$(DATE) | grep -Ev '^make\[3\]' ; \
++	  echo "Build end: $$(date +%H:%M:%S)" >> buildlog-$(DATE); \
++	fi
++
++clean:
++	rm -f *~
++
++distclean: clean
++	rm -rf build
++
++install: all
++	cd build; export DESTDIR=$(DESTDIR); make install
 +
 +.PHONY: all clean install

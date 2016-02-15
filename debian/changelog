@@ -1,10 +1,22 @@
+kicad (4.0.2+dfsg1-1) unstable; urgency=medium
+
+  * removed the obsoleted file debian/get_newest_source.sh
+  * modified debian/get-kicad.sh to download data from i18n
+    repositories, and to get kicad's core with version number 4.0.2
+  * updated to version 2.0.2
+  * created a new Makefile to compile i18n PO files
+  * fixed a mistake in bitmaps_png/CMakeLists.txt's patch : no need to
+    patch that file since files with copyright issues were replaced.
+  * added a build-dependency on gettext
+
+ -- Georges Khaznadar <georgesk@debian.org>  Mon, 15 Feb 2016 15:15:34 +0100
+
 kicad (4.0.1+dfsg1-2) unstable; urgency=medium
 
   * fixed the short package description for kicad-doc-de.
     Closes: #813605
   * added usr/lib/python2.7/dist-packages in d/kicad.install.
     Closes: #813655
-  * removed the change done in bitmpas_png/CmakeLists.txt
 
  -- Georges Khaznadar <georgesk@debian.org>  Thu, 04 Feb 2016 09:35:29 +0100
 

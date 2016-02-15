@@ -1,8 +1,8 @@
 #!/bin/sh
 
 repo=lp:kicad/4.0
-tag=4.0.1
-version=4.0.1
+tag=4.0.2
+version=4.0.2
 
 echo "========== Checking the tag of version $version ==================="
 foundTag=$(bzr log $repo | head -n 100 | grep "tags: $tag" | awk '{print $2}')
@@ -20,6 +20,15 @@ rm -rf $package $origtargz
 echo "========== Getting the core (version $version) ==========="
 echo -n "BZR export: $repo ... "
 bzr export $package  $repo 2>/dev/null
+echo "[Done]."
+echo "========== Downloading i18n =============================="
+echo -n "Download: kicad-i18n ... "
+project=kicad-i18n
+wget --quiet https://github.com/KiCad/$project/archive/master.tar.gz
+mkdir $package/i18n
+tar xzf master.tar.gz -C $package/i18n
+echo "$(date +%Y%m%d): downloaded https://codeload.github.com/KiCad/kicad-i18n/tar.gz/master" >> $package/i18n/download.txt
+rm master.tar.gz
 echo "[Done]."
 echo "========== Downloading documentation ====================="
 echo -n "Download: kicad-doc ... "
