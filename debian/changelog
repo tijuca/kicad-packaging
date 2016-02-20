@@ -1,3 +1,10 @@
+kicad (4.0.2+dfsg1-2) unstable; urgency=medium
+
+  * Added a default define: LIB_ENV_VAR = wxT("LD_LIBRARY_PATH").
+    Closes: #815247
+
+ -- Georges Khaznadar <georgesk@debian.org>  Sat, 20 Feb 2016 16:59:52 +0100
+
 kicad (4.0.2+dfsg1-1) unstable; urgency=medium
 
   * removed the obsoleted file debian/get_newest_source.sh
