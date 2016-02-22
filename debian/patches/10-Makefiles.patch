@@ -2,19 +2,14 @@ Index: kicad-4.0.2+dfsg1/doc/Makefile
 ===================================================================
 --- /dev/null
 +++ kicad-4.0.2+dfsg1/doc/Makefile
-@@ -0,0 +1,23 @@
+@@ -0,0 +1,18 @@
 +DESTDIR =
 +DATE    = $(shell date +%Y%m%d)
 +CMAKE_OPTS = -DCMAKE_INSTALL_PREFIX=/usr
 +
 +all:
 +	mkdir -p build
-+	if [ -z "$$(ls build/buildlog*)" ]; then \
-+	  cd build; \
-+	  echo "Build begin: $$(date +%H:%M:%S)" > buildlog-$(DATE); \
-+	  cmake $(CMAKE_OPTS) ../kicad-doc-master; make | tee --append buildlog-$(DATE) | grep -Ev '^make\[3\]' ; \
-+	  echo "Build end: $$(date +%H:%M:%S)" >> buildlog-$(DATE); \
-+	fi
++	cd build; cmake $(CMAKE_OPTS) ../kicad-doc-master; $(MAKE)
 +
 +clean:
 +	rm -f *~
@@ -23,14 +18,14 @@ Index: kicad-4.0.2+dfsg1/doc/Makefile
 +	rm -rf build
 +
 +install: all
-+	cd build; export DESTDIR=$(DESTDIR); make install
++	cd build; export DESTDIR=$(DESTDIR); $(MAKE) install
 +
 +.PHONY: all clean install
 Index: kicad-4.0.2+dfsg1/Makefile
 ===================================================================
 --- /dev/null
 +++ kicad-4.0.2+dfsg1/Makefile
-@@ -0,0 +1,88 @@
+@@ -0,0 +1,81 @@
 +DESTDIR    =
 +VERSION    = $(shell basename $$(pwd)| sed 's/kicad-//')
 +DATE       = $(shell date +%Y%m%d)
@@ -39,31 +34,24 @@ Index: kicad-4.0.2+dfsg1/Makefile
 +CMAKE_OPTS = -DKICAD_SKIP_BOOST=ON -DCMAKE_INSTALL_PREFIX=/usr -DCMAKE_CXX_FLAGS="$(CXXFLAGS)" -DBUILD_GITHUB_PLUGIN=OFF -DKICAD_REPO_NAME=stable -DKICAD_BUILD_VERSION=$(VERSION) -DDEFAULT_INSTALL_PATH=/usr -DKICAD_SCRIPTING=ON -DKICAD_SCRIPTING_MODULES=ON -DKICAD_SCRIPTING_WXPYTHON=ON
 +SUBDIRS = doc library i18n
 +LDFLAGS = $(shell dpkg-buildflags --get LDFLAGS)
-+MULTI   = -j4
 +
 +all:
 +	mkdir -p build
-+	if [ -z "$$(ls build/buildlog*)" ]; then \
-+	  cd build; \
-+	  echo "Build begin: $$(date +%H:%M:%S)" > buildlog-$(DATE); \
-+	  cmake $(CMAKE_OPTS) ../ | tee --append buildlog-$(DATE); \
-+	  make $(MULTI) LDFLAGS=$(LDFLAGS) | tee --append buildlog-$(DATE); \
-+	  echo "Build end: $$(date +%H:%M:%S)" >> buildlog-$(DATE); \
-+	fi
++	cd build; cmake $(CMAKE_OPTS) ../; $(MAKE) LDFLAGS=$(LDFLAGS)
 +	# no parallel build for doc: some intermediary files must be
 +	# built in order
-+	make -C doc -j1   $@
++	$(MAKE) -C doc -j1   $@
 +	# parallel build does not harm with libraries
-+	make -C library $(MULTI)   $@
++	$(MAKE) -C library $(MULTI)   $@
 +	# parallel build does not harm with i18n
-+	make -C i18n $(MULTI)   $@
++	$(MAKE) -C i18n $(MULTI)   $@
 +
 +clean:
 +	rm -f *~
 +
 +distclean: clean
 +	rm -rf build boost_root .downloads-by-cmake
-+	for d in $(SUBDIRS); do make -C $$d $@; done
++	for d in $(SUBDIRS); do $(MAKE) -C $$d $@; done
 +	# take care of files not cleaned properly
 +	rm -f common/fp_lib_table_keywords.cpp
 +	rm -f common/gal/opengl/shader_src.h
@@ -100,11 +88,11 @@ Index: kicad-4.0.2+dfsg1/Makefile
 +	done
 +
 +install: all
-+	cd build; export DESTDIR=$(DESTDIR); make install
++	cd build; export DESTDIR=$(DESTDIR); $(MAKE) install
 +	# fix a few details
 +	mkdir -p $(DESTDIR)/usr/share/pixmaps
 +	cp bitmaps_png/icons/icon_kicad.xpm $(DESTDIR)/usr/share/pixmaps
-+	make fix_48x48_icons
++	$(MAKE) fix_48x48_icons
 +	# move shared libraries
 +	mkdir -p $(DESTDIR)/usr/lib/kicad
 +	mv $(DESTDIR)/usr/bin/_* $(DESTDIR)/usr/lib/kicad
@@ -115,7 +103,7 @@ Index: kicad-4.0.2+dfsg1/Makefile
 +	  ln -s ../lib/kicad/$$(basename $$f) $(DESTDIR)/usr/bin; \
 +	done
 +	# make subdirectories
-+	for d in $(SUBDIRS); do make -C $$d $@ DESTDIR=$(DESTDIR); done
++	for d in $(SUBDIRS); do $(MAKE) -C $$d $@ DESTDIR=$(DESTDIR); done
 +
 +
 +.PHONY: all clean clean_all install fix_48x48icons
@@ -123,19 +111,14 @@ Index: kicad-4.0.2+dfsg1/library/Makefile
 ===================================================================
 --- /dev/null
 +++ kicad-4.0.2+dfsg1/library/Makefile
-@@ -0,0 +1,31 @@
+@@ -0,0 +1,26 @@
 +DESTDIR =
 +DATE    = $(shell date +%Y%m%d)
 +CMAKE_OPTS = -DKICAD_SKIP_BOOST=ON -DCMAKE_INSTALL_PREFIX=/usr -DCMAKE_CXX_FLAGS="$(shell dpkg-buildflags --get CXXFLAGS)"
 +
 +all:
 +	mkdir -p build
-+	if [ -z "$$(ls build/buildlog*)" ]; then \
-+	  cd build; \
-+	  echo "Build begin: $$(date +%H:%M:%S)" > buildlog-$(DATE); \
-+	  cmake $(CMAKE_OPTS) ../kicad-library-master; make | tee --append buildlog-$(DATE) | grep -Ev '^make\[3\]' ; \
-+	  echo "Build end: $$(date +%H:%M:%S)" >> buildlog-$(DATE); \
-+	fi
++	cd build; cmake $(CMAKE_OPTS) ../kicad-library-master; $(MAKE) 
 +
 +clean:
 +	rm -f *~
@@ -144,7 +127,7 @@ Index: kicad-4.0.2+dfsg1/library/Makefile
 +	rm -rf build
 +
 +install: all
-+	cd build; export DESTDIR=$(DESTDIR); make install
++	cd build; export DESTDIR=$(DESTDIR); $(MAKE) install
 +	# take .pretty files by default
 +	cp $(DESTDIR)/usr/share/kicad/template/fp-lib-table.for-pretty $(DESTDIR)/usr/share/kicad/template/fp-lib-table
 +	# install .pretty directories
@@ -159,19 +142,14 @@ Index: kicad-4.0.2+dfsg1/i18n/Makefile
 ===================================================================
 --- /dev/null
 +++ kicad-4.0.2+dfsg1/i18n/Makefile
-@@ -0,0 +1,23 @@
+@@ -0,0 +1,18 @@
 +DESTDIR =
 +DATE    = $(shell date +%Y%m%d)
 +CMAKE_OPTS = -DCMAKE_INSTALL_PREFIX=/usr -DKICAD_I18N_UNIX_STRICT_PATH=ON
 +
 +all:
 +	mkdir -p build
-+	if [ -z "$$(ls build/buildlog*)" ]; then \
-+	  cd build; \
-+	  echo "Build begin: $$(date +%H:%M:%S)" > buildlog-$(DATE); \
-+	  cmake $(CMAKE_OPTS) ../kicad-i18n-master; make | tee --append buildlog-$(DATE) | grep -Ev '^make\[3\]' ; \
-+	  echo "Build end: $$(date +%H:%M:%S)" >> buildlog-$(DATE); \
-+	fi
++	cd build; cmake $(CMAKE_OPTS) ../kicad-i18n-master; $(MAKE)
 +
 +clean:
 +	rm -f *~
@@ -180,6 +158,6 @@ Index: kicad-4.0.2+dfsg1/i18n/Makefile
 +	rm -rf build
 +
 +install: all
-+	cd build; export DESTDIR=$(DESTDIR); make install
++	cd build; export DESTDIR=$(DESTDIR); $(MAKE) install
 +
 +.PHONY: all clean install

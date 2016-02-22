@@ -1,0 +1,15 @@
+The modification should allow the package to be built
+with on new platforms: hurd and *freebsd
+Index: kicad-4.0.2+dfsg1/include/kiway.h
+===================================================================
+--- kicad-4.0.2+dfsg1.orig/include/kiway.h
++++ kicad-4.0.2+dfsg1/include/kiway.h
+@@ -114,7 +114,7 @@ as such!  As such, it is OK to use UTF8
+ // be mangled.
+ #define KIFACE_INSTANCE_NAME_AND_VERSION   "KIFACE_1"
+ 
+-#if defined(__linux__) || defined(__FreeBSD__)
++#if defined(__linux__) || defined(__GLIBC__) || defined(__FreeBSD__)
+  #define LIB_ENV_VAR    wxT( "LD_LIBRARY_PATH" )
+ #elif defined(__WXMAC__)
+  #define LIB_ENV_VAR    wxT( "DYLD_LIBRARY_PATH" )

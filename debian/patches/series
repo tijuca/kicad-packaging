@@ -2,4 +2,4 @@
 20-noAvhttp.patch
 30-desktop-files.patch
 40-findBitmaps.patch
-freebsd-hurd.patch
+50-nonlinux.patch

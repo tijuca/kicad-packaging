@@ -23,7 +23,7 @@ Build-Depends: debhelper (>= 9), quilt,
  liblocale-gettext-perl,
  libunicode-linebreak-perl,
  lmodern, docbook-xsl,
- python-wxgtk3.0-dev, swig, python-all, python-dev
+ python-wxgtk3.0-dev, swig, python-all, python-dev, libpython-stdlib 
 Standards-Version: 3.9.6
 Homepage: http://www.kicad-pcb.org
 

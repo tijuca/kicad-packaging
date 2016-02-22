@@ -1,3 +1,12 @@
+kicad (4.0.2+dfsg1-3) unstable; urgency=medium
+
+  * changed the last patch according to Steven Chamberlain's proposition.
+  * added a build-dependency on libpython-stdlib, which should not harm
+    for most architectures, and might be necessary on a few ones.
+  * removed the tee commands from the build routine
+
+ -- Georges Khaznadar <georgesk@debian.org>  Mon, 22 Feb 2016 17:19:10 +0100
+
 kicad (4.0.2+dfsg1-2) unstable; urgency=medium
 
   * Added a default define: LIB_ENV_VAR = wxT("LD_LIBRARY_PATH").
