@@ -1,3 +1,9 @@
+kicad (4.0.2+dfsg1-4) unstable; urgency=medium
+
+  * added a dependency on python-wxgtk3.0. Closes: #816525
+
+ -- Georges Khaznadar <georgesk@debian.org>  Thu, 03 Mar 2016 10:34:37 +0100
+
 kicad (4.0.2+dfsg1-3) unstable; urgency=medium
 
   * changed the last patch according to Steven Chamberlain's proposition.
