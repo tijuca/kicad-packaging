@@ -784,7 +784,19 @@ EDA_COLOR_T PCB_EDIT_FRAME::GetGridColor() const
 
 void PCB_EDIT_FRAME::SetGridColor( EDA_COLOR_T aColor )
 {
+
     GetBoard()->SetVisibleElementColor( GRID_VISIBLE, aColor );
+
+    if( IsGalCanvasActive() )
+    {
+        StructColors c = g_ColorRefs[ aColor ];
+        KIGFX::COLOR4D color(  (double) c.m_Red / 255.0,
+                        (double) c.m_Green / 255.0,
+                        (double) c.m_Blue / 255.0,
+                        0.7 );
+
+         GetGalCanvas()->GetGAL()->SetGridColor( color );
+    }
 }
 
 
@@ -994,7 +1006,10 @@ void PCB_EDIT_FRAME::ScriptingConsoleEnableDisable( wxCommandEvent& aEvent )
     else
         pythonPanelShown = ! pythonPanelFrame->IsShown();
 
-    pythonPanelFrame->Show( pythonPanelShown );
+    if( pythonPanelFrame )
+        pythonPanelFrame->Show( pythonPanelShown );
+    else
+        wxMessageBox( wxT( "Error: unable to create the Python Console" ) );
 }
 
 

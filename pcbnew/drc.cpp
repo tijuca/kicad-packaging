@@ -43,6 +43,9 @@
 #include <view/view.h>
 #include <geometry/seg.h>
 
+#include <tool/tool_manager.h>
+#include <tools/common_actions.h>
+
 #include <pcbnew.h>
 #include <drc_stuff.h>
 
@@ -54,6 +57,7 @@ void DRC::ShowDialog()
 {
     if( !m_ui )
     {
+        m_mainWindow->GetToolManager()->RunAction( COMMON_ACTIONS::selectionClear, true );
         m_ui = new DIALOG_DRC_CONTROL( this, m_mainWindow );
         updatePointers();
 
@@ -950,6 +954,13 @@ bool DRC::doPadToPadsDrc( D_PAD* aRefPad, D_PAD** aStart, D_PAD** aEnd, int x_li
             // should eventually be a configuration option.
             if( pad->PadNameEqual( aRefPad ) )
                 continue;
+        }
+        
+        // if either pad has no drill and is only on technical layers, not a clearance violation
+        if( ( ( pad->GetLayerSet() & layerMask ) == 0 && !pad->GetDrillSize().x ) ||
+            ( ( aRefPad->GetLayerSet() & layerMask ) == 0 && !aRefPad->GetDrillSize().x ) )
+        {
+            continue;
         }
 
         if( !checkClearancePadToPad( aRefPad, pad ) )
