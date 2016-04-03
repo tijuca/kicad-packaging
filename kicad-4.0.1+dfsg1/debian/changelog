@@ -1,0 +1,412 @@
+kicad (4.0.1+dfsg1-1) unstable; urgency=medium
+
+  * repacked the source tarball, to withdraw files with a wrong license
+    and the .cpp files which were generated from those sources.
+  * created a new script debian/get_newest_source.sh and a file
+    debian/watch to enjoy it.
+  * modified debian/get_newest_source.sh to notify files with wrong
+    licenses.
+  * replaced files find.svg and find_replace.svg which came with wrong
+    licenses, and compiled them into cpp files.
+  * updated the URL in debian/copyright for Poly2Tri
+  * added a build-dependency on python-dev
+  * fixed the dependency on libglew1.13|libglew1.10 which prenvented
+    the installation of kicad. Closes: #807082; Closes: #805115
+  * checked that the scripts provided by Alexandre Rebert cannot
+    crash kicad's binaries any longer. Closes:  #715686.
+    Closes:  #716091. Closes: #716557.
+  * checked that the script to get sources does not miss
+    'TO_SOT_Packages_SMD.pretty' neither 'TO_SOT_Packages_THT.pretty'.
+    Closes: #804614
+  * added a build-dependency on python-all
+  * modified debian/get-kicad.sh to upgrade to version 4.0.1
+  * upgraded to the new upstream version
+  * xsltproc is now invoked with --nonet; Closes: #807082
+  * verified that all .pretty files are dowloaded when the source
+    package is created. Closes: #804614
+  * added a dependency on libglew >= 1.10; Closes: #805115
+  * added compile definitions to build python scripting features,
+    as recommended at http://kicad-pcb.org/download/source/
+  * added a build-dependencies on python-wxgtk3.0-dev and swig
+  * reactivated packages kicad-doc-de and kicad-doc-es; added build
+    dependencies texlive-lang-german and texlive-langspanish.
+  * added a dependency kicad-common -> python as this package contains
+    one python script. Added --with python option to the dh call.
+
+ -- Georges Khaznadar <georgesk@debian.org>  Thu, 07 Jan 2016 19:11:44 +0100
+
+kicad (4.0.0~rc1a-3) unstable; urgency=medium
+
+  * added a build-dependency on docbook-xsl; enforced a non-parallel build
+    for documents, following Simon Richter's hints. Closes: #806967
+
+ -- Georges Khaznadar <georgesk@debian.org>  Sun, 06 Dec 2015 20:08:42 +0100
+
+kicad (4.0.0~rc1a-2) unstable; urgency=medium
+
+  * applied Graham Inggs' patch. Closes: #806967
+
+ -- Georges Khaznadar <georgesk@debian.org>  Thu, 03 Dec 2015 18:27:16 +0100
+
+kicad (4.0.0~rc1a-1) unstable; urgency=medium
+
+  * added a dependency on libglew1.13; Closes #805115
+  * added new flags for CMAKE_OPTS in Makefile to display the correct version
+    in windows' titles.
+  * added "manually" repositories for TO_SOT_Packages_THT.pretty and
+    TO_SOT_Packages_SMD.pretty; Closes #804614
+  * remade the source package as too much files have been added for a simple
+    patch
+
+ -- Georges Khaznadar <georgesk@debian.org>  Sun, 15 Nov 2015 15:58:56 +0100
+
+kicad (4.0.0~rc1-2) unstable; urgency=medium
+
+  * fixed a typo in Makefile
+  * lowered the number of dependencies (dropped the dependency on all boost
+    libs, made a list of more precise dependencies)
+  * added CPPFLAGS to CXXFLAGS (workaround explained at
+    https://wiki.debian.org/Hardening#Notes_for_packages_using_CMake)
+  * added a switch -j4 in Makefile to trigger multithreading for the main
+    build
+
+ -- Georges Khaznadar <georgesk@debian.org>  Wed, 04 Nov 2015 10:48:42 +0100
+
+kicad (4.0.0~rc1-1) unstable; urgency=medium
+
+  * updated the script get-kicad.sh to download the core from Github, docs
+    and libraryes from Github. *.pretty libraries are downloaded from
+    Github too.
+  * created Makefile, doc/Makefile, library/Makefile
+  * modified d/rules, d/control, d/*.install, d/kicad.manpages
+  * written recipes to move shared libraries which were in /usr/bin/_*.kiface
+  * written recipes to choose the file fp-lib-table.for-pretty as a default
+    template
+  * written recipes to fix missing icons and to resize badly shaped 48x48
+    icons.
+  * updated the file debian/copyright
+  * the new package Closes: #795077; Closes: #770227; Closes: #783040;
+    Closes: #787983; Closes: #802973; Closes: #794311; Closes: #798966
+
+ -- Georges Khaznadar <georgesk@debian.org>  Fri, 23 Oct 2015 13:17:13 +0200
+
+kicad (0.20141025+bzr4029-2) unstable; urgency=medium
+
+  * modified the description of the package for Japanese documentation.
+    Closes: #767647
+  * modified the default path to templates. Closes: #771354
+
+ -- Georges Khaznadar <georgesk@debian.org>  Sat, 01 Nov 2014 19:39:30 +0100
+
+kicad (0.20141025+bzr4029-1) unstable; urgency=medium
+
+  * upgraded to the newest upstream releases for the code and the components.
+  * added a rule in d/rules to remove useless .ps files. Closes: #737933
+  * modified kicad.pro. Closes: #763683
+  * updated Standards-Version to 3.9.6
+  * added a build-dependency on unoconv
+  * added build rules to make PDF help files from sources
+  * added the package kicad-doc-ja in d/control, and files
+    d/kicad-doc-*.install, for "pt" and "ja" languages.
+
+ -- Georges Khaznadar <georgesk@debian.org>  Sun, 26 Oct 2014 10:26:51 +0100
+
+kicad (0.20140622+bzr4027-3) unstable; urgency=medium
+
+  * dropped the dependency on zlib-bin, since grep shows no occurence
+    of "minizip" nor "miniunzip" in kicad's source. Closes:  #761320
+
+ -- Georges Khaznadar <georgesk@debian.org>  Fri, 12 Sep 2014 23:20:43 +0200
+
+kicad (0.20140622+bzr4027-2) unstable; urgency=medium
+
+  * added  -DCMAKE_BUILD_TYPE=Release as a definition for cmake.
+    This does not fix every bug, but it removes dialogs about failed
+    assertions raised by wxASSERT, which are usually non-blocking,
+    as long as one decides to continue and unactivate the assert warnings.
+    Feel free to report bugs which affect user-level features.
+    Closes: #749278
+
+ -- Georges Khaznadar <georgesk@debian.org>  Wed, 02 Jul 2014 22:28:01 +0200
+
+kicad (0.20140622+bzr4027-1) unstable; urgency=medium
+
+  * added a routine to creat the version string. Closes: #749308
+  * upgraded to the newest component libraries. Closes: #751994
+
+ -- Georges Khaznadar <georgesk@debian.org>  Sun, 22 Jun 2014 18:29:50 +0200
+
+kicad (0.20140518+bzr4027-2) unstable; urgency=medium
+
+  * applied Samuel Thibault's patch. Closes: #749930
+
+ -- Georges Khaznadar <georgesk@debian.org>  Sun, 01 Jun 2014 16:34:06 +0200
+
+kicad (0.20140518+bzr4027-1) unstable; urgency=medium
+
+  * retrieved the last upstream version, Closes: #741673, Closes: #741437
+  * upgraded some build-dependencies, libwxgtk3.0-dev, applied a part of
+    Olly Betts' patch. Closes: #741440
+  * applied Dimitris Lampridis' patch. Closes: #745705
+  * modified get-kikad.sh to make xz compressed file.
+  * added a rule to fix permissions of ja/kicad.po
+
+ -- Georges Khaznadar <georgesk@debian.org>  Sun, 18 May 2014 14:59:05 +0200
+
+kicad (0.20140224+bzr4027-3.1) unstable; urgency=low
+
+  * Non-maintainer upload.
+  * It FTBFS because kicad-common is arch independent.
+    Patch by Dejan Latinovic <Dejan.Latinovic@imgtec.com>.
+    Closes: #741743
+
+ -- Anibal Monsalve Salazar <anibal@debian.org>  Fri, 09 May 2014 04:33:24 +0100
+
+kicad (0.20140224+bzr4027-3) unstable; urgency=medium
+
+  * taken in account Samuel Thibault's hint. Closes: #740999
+
+ -- Georges Khaznadar <georgesk@debian.org>  Fri, 07 Mar 2014 11:48:29 +0100
+
+kicad (0.20140224+bzr4027-2) unstable; urgency=medium
+
+  * fixed a bug in d/rules.
+  * added a clause Conflicts: kicad-common ( << 0.20140224),
+    Closes: #740276
+  * Checked that the file Getting_Started_in_KiCad.pdf is distributed with
+    some -doc-xy packages. Closes: #691660
+
+ -- Georges Khaznadar <georgesk@debian.org>  Thu, 06 Mar 2014 02:24:33 +0100
+
+kicad (0.20140224+bzr4027-1) unstable; urgency=medium
+
+  * changed the lp: repository for kicad's library in order to match active
+    repositories listed at
+    https://code.launchpad.net/kicad/+branches?field.lifecycle=ALL&field.lifecycle-empty-marker=1&field.sort_by=most+recently+changed+first&field.sort_by-empty-marker=1
+    the file debian/get-kicad.sh should be more efficient now.
+    Closes: #712259
+  * modified the script debian/clean_sourceless_pdf: more formats are allowed
+    for source files, and the search for source files is now case-insensitive.
+    names without prefixes are allowed too (they are directory names)
+  * fixed a few wrong permissions in packaged files
+  * modified the package assignation for files in usr/share/applications
+  * modified the script debian/get-kicad.sh to add a minimum set of
+    legacy footprints. Closes: #736180; Closes: #707956
+  * removed bloated .ps files from the source package. Closes: #737933
+  * added a dependency on imagemagick to mamange the icons at build time
+
+ -- Georges Khaznadar <georgesk@debian.org>  Mon, 24 Feb 2014 15:40:26 +0100
+
+kicad (0.20131208+bzr4024-1) unstable; urgency=medium
+
+  * scheduled the installation of doc/internat into usr/share/kicad.
+    Closes: #734552
+  * upgraded Standards-Version to 3.9.5
+  * Upgraded to the newest upstream release. Closes: #712303
+  * The script debian/get-kicad.sh makes easier to fetch newer source files
+    Closes: #713861
+
+ -- Georges Khaznadar <georgesk@debian.org>  Wed, 08 Jan 2014 17:25:14 +0100
+
+kicad (0.20130727+bzr4024-2) unstable; urgency=low
+
+  * modified the homepage in d/control. Closes: #713858
+  * modified ./scripts/kicad-get-rss to remove bashisms. Closes: #690645
+  * modified d/kicad-common.install to fix forgotten libraries.
+    Closes: #719530
+
+ -- Georges Khaznadar <georgesk@debian.org>  Wed, 07 Aug 2013 11:19:25 +0200
+
+kicad (0.20130727+bzr4024-1) unstable; urgency=low
+
+  * upgraded to the last revision. Closes: #694740
+  * updated Standards-Version to 3.9.4, compat to 9.
+  * commented out a few lines in include/common.h, to enable the build
+    with wx libraries available in Sid. Don't know why these lines were
+    introduced.
+
+ -- Georges Khaznadar <georgesk@debian.org>  Sat, 27 Jul 2013 18:31:03 +0200
+
+kicad (0.20130125+bzr3921-1) unstable; urgency=low
+
+  * upgraded to the last revision. Closes: #694740
+  * changed my DEBEMAIL
+  * updated the variable GENERATED_FILES in debian/rules to add
+    new files to the cleaning list and remove obsoleted directories
+  * updated the patches for quilt
+  * updated debian/kicad-common.install to take in account the
+    no longer existent directories library and doc.
+
+ -- Georges Khaznadar <georgesk@debian.org>  Fri, 25 Jan 2013 19:08:22 +0100
+
+kicad (0.20120526+bzr3261-1) unstable; urgency=low
+
+  * upgraded to the last stable revision. Closes: #656215
+  * removed debian/source/include-binaries and the additional files which
+    came with it
+  * added a script debian/clean_sourceless_pdf which removes PDF files
+    in many directories when no source was found. This script outputs
+    a log file: debian/erased_pdf.log, which should be cleared when a
+    new upstream package is downloaded.
+  * modified kicad-doc-es.install since there is no source for the pdf file
+  * modified kicad-doc-pl.install since a pdf source is missing
+  * upgraded Standards-Version to 3.9.3
+  * precised a Replaces: stance (kicad (<< 0.20120126+bzr3256-1))
+
+ -- Georges Khaznadar <georgesk@ofset.org>  Sat, 26 May 2012 17:28:12 +0000
+
+kicad (0.20120126+bzr3256-3.1) unstable; urgency=low
+
+  * Non-maintainer upload.
+  * gcc-4.7: Fix build failure with GCC 4.7.  Closes: #672727.
+    - include/boost/polygon/polygon_90_set_data.hpp: Include
+      "detail/polygon_sort_adaptor.hpp" for gtlsort.
+
+ -- Matej Vela <vela@debian.org>  Fri, 25 May 2012 22:25:46 +0100
+
+kicad (0.20120126+bzr3256-3) unstable; urgency=low
+
+  * excluded .pdf files from dh_compress. Closes: #659660
+
+ -- Georges Khaznadar <georgesk@ofset.org>  Wed, 15 Feb 2012 18:07:06 +0000
+
+kicad (0.20120126+bzr3256-2) unstable; urgency=low
+
+  * added the l10n files into the package kicad-common. Closes: #659091
+  * added eeschema.svg into usr/share/icons/hicolor/scalable/apps.
+    Closes: #659317
+  * applied Vincent Danjean's tip. Closes: #657729
+
+ -- Georges Khaznadar <georgesk@ofset.org>  Fri, 10 Feb 2012 17:54:11 +0000
+
+kicad (0.20120126+bzr3256-1) unstable; urgency=low
+
+  * upgraded to the latest upstream version. Closes: #656215
+  * modified the packaging scripts (simplified debian/rules, added
+    some .install files.
+
+ -- Georges Khaznadar <georgesk@ofset.org>  Thu, 26 Jan 2012 08:42:59 +0100
+
+kicad (0.0.20110616-1) unstable; urgency=low
+
+  * upgraded to the latest upstream version.
+  * included the files sent by their author, by email
+    <4DF93DA9.50504@iridec.com.au>, Closes: #630453
+
+ -- Georges Khaznadar <georgesk@ofset.org>  Thu, 16 Jun 2011 22:52:02 +0200
+
+kicad (0.0.20110507-1) unstable; urgency=low
+
+  * upgraded to the new upstream version. Closes: #624439
+
+ -- Georges Khaznadar <georgesk@ofset.org>  Sat, 07 May 2011 16:52:33 +0200
+
+kicad (0.0.20101024-2) unstable; urgency=low
+
+  * changed the format to 3.0 (quilt)
+  * enabled the parallel build feature in debian/rules
+
+ -- Georges Khaznadar <georgesk@ofset.org>  Sun, 24 Oct 2010 10:54:16 +0200
+
+kicad (0.0.20101024-1) unstable; urgency=low
+
+  * Maintainer change.
+    - Closes: #599427
+  * changed the way sources are downloaded. See debian/packagesrc.sh
+  * upgraded to newest stable release.
+    - Closes: #590483
+    - Closes: #580497
+  * moved the dependency on extra-xdg-menus to Suggests: level.
+    - Closes: #577282
+  * added a list of auto-generated files to remove upon clean target
+
+ -- Georges Khaznadar <georgesk@ofset.org>  Sun, 24 Oct 2010 02:34:38 +0200
+
+kicad (0.0.20100314-1) unstable; urgency=low
+
+  * New upstream (Closes: #575018).
+  * Update Standards-Version to 3.8.4 (no changes needed).
+
+ -- Richard Antony Burton <richardaburton@gmail.com>  Sun, 28 Mar 2010 12:58:23 +0000
+
+kicad (0.0.20090216-1) unstable; urgency=low
+
+  * New upstream release. (Closes: #529628)
+  *  - Upstream fix. (Closes: #532367)
+  *  - Upstream fix. (Closes: #509956)
+  * Move shortcut to electronics section. (Closes: #536307)
+  * Suggest documentation. (Closes: #502546)
+  * Update Standards-Version to 3.8.3 (no changes needed).
+
+ -- Richard Antony Burton <richardaburton@gmail.com>  Sat, 26 Sep 2009 12:47:27 +0000
+
+kicad (0.0.20080825c-1) unstable; urgency=low
+
+  * New upstream release. (Closes: #496897)
+  * Use new cmake build system.
+  * Use new svn repository layout.
+  * Build using wxWidgets 2.8. (Closes: #398615)
+  * Require debhelper 6 to get fix for 459426.
+  * Upstream performance improvement for redraw. (Closes: #469516)
+  * Moved examples to /usr/share/doc/kicad/demos
+  * Update Standards-Version to 3.8.0 (no changes needed).
+  * Add more language packages, for tutorials.
+  * Only en & fr manuals included, rest not currently maintained upstream.
+
+ -- Richard Antony Burton <richardaburton@gmail.com>  Sun, 21 Sep 2008 19:58:47 +0100
+
+kicad (0.0.20071129a-1) unstable; urgency=low
+
+  * New upstream release.
+  * Fix menu icon (not the gnome one).
+  * Update Standards-Version to 3.7.3.0 (Debian menu structure change only).
+
+ -- Richard Antony Burton <richardaburton@gmail.com>  Wed, 19 Dec 2007 17:04:33 +0000
+
+kicad (0.0.20070702-1) unstable; urgency=low
+
+  * New upstream release.
+  * Added man pages for binaries. (Closes: #429223)
+  * All patches from previous version now included upstream.
+
+ -- Richard Antony Burton <richardaburton@gmail.com>  Sun, 08 Jul 2007 09:15:42 +0100
+
+kicad (0.0.20070525-1) unstable; urgency=low
+
+  * New upstream release (Closes: #423873)
+  * Install help files to correct location (Closes: #404783)
+  * For languages without native help files the English doc package is pulled in
+    with the non-English doc package, so there is at least some help.
+  * Not removing all binaries removed during 'clean' (Closes: #424455)
+  * Patch for the 3D Display image export problem (Closes: #423882)
+
+ -- Richard Antony Burton <richardaburton@gmail.com>  Sun, 27 May 2007 13:43:01 +0100
+
+kicad (0.0.20060829-2) unstable; urgency=low
+
+  * Fixing wrong location of helpfiles (Closes: #404783) (djp)
+
+ -- Daniel J. Priem <danielpriem@flexserv.de>  Thu, 28 Dec 2006 12:20:31 +0100
+
+kicad (0.0.20060829-1) unstable; urgency=low
+
+  * now binNMU safe (rab)
+  * This version is 20060828 but since i forgot something inside the orig.tar.gz i must increase the version number (djp)
+  * Added newer documentation (djp)
+  * Added some updated po files (djp)
+  * Added italian help files (djp)
+
+ -- Daniel J. Priem <danielpriem@flexserv.de>  Sun, 12 Nov 2006 21:40:23 +0100
+
+kicad (0.0.20060828-1) unstable; urgency=low
+
+  * New upstream.
+  * Split help files out into separate language-specific packages.
+
+ -- Debian Kicad Team <kicad-devel@lists.mose.flexserv.de>  Fri,  3 Nov 2006 19:33:07 +0100
+
+kicad (0.0.20060626-1) unstable; urgency=low
+
+  * Initial release (Closes: #278581)
+
+ -- Richard Antony Burton <richardaburton@hotmail.com>  Sat, 30 Sep 2006 22:24:06 +0200

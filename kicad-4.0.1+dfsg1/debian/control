@@ -1,0 +1,136 @@
+Source: kicad
+Section: electronics
+Priority: optional
+Maintainer:  Georges Khaznadar <georgesk@debian.org>
+Uploaders: Richard Antony Burton <richardaburton@gmail.com>,
+ Daniel J. Priem <danielpriem@flexserv.de>
+Build-Depends: debhelper (>= 9), quilt,
+ cmake, pkg-config, doxygen, imagemagick,
+ libwxgtk3.0-dev, libglew-dev, libcairo2-dev, libbz2-dev,
+ libboost-dev, libboost-context-dev, libboost-date-time-dev,
+ libboost-filesystem-dev, libboost-iostreams-dev,
+ libboost-locale-dev, libboost-program-options-dev,
+ libboost-regex-dev, libboost-system-dev, libboost-thread-dev,
+ dblatex, po4a, asciidoc, git, texlive-xetex, pandoc, gettext, fonts-vlgothic,
+ texlive-lang-english, texlive-lang-french, texlive-lang-italian,
+ texlive-lang-japanese, texlive-lang-polish, texlive-lang-german,
+ texlive-lang-spanish,
+ texlive-lang-european,
+ source-highlight,
+ libxml2-utils, docbook-utils, xmlto,
+ libtext-wrapi18n-perl,
+ libterm-readkey-perl,
+ liblocale-gettext-perl,
+ libunicode-linebreak-perl,
+ lmodern, docbook-xsl,
+ python-wxgtk3.0-dev, swig, python-all, python-dev
+Standards-Version: 3.9.6
+Homepage: http://www.kicad-pcb.org
+
+Package: kicad
+Architecture: any
+Depends: kicad-common (>= ${source:Version}),
+ ${shlibs:Depends}, ${misc:Depends}, ${python:Depends},
+ libglew1.13|libglew1.10
+Suggests: extra-xdg-menus,
+	kicad-doc-en | kicad-doc-fr | kicad-doc-it | kicad-doc-ja | kicad-doc-nl | kicad-doc-pl
+Description: Electronic schematic and PCB design software
+ Kicad is a suite of programs for the creation of printed circuit boards.
+ It includes a schematic editor, a PCB layout tool, support tools and a
+ 3D viewer to display a finished & fully populated PCB.
+ .
+ Kicad is made up of 5 main components:
+ .
+  * kicad - project manager
+  * eeschema - schematic editor
+  * pcbnew - PCB editor
+  * gerbview - GERBER viewer
+  * cvpcb - footprint selector for components
+ .
+ Libraries:
+  * Both eeschema and pcbnew have library managers and editors for their
+    components and footprints
+  * You can easily create, edit, delete and exchange library items
+  * Documentation files can be associated with components, footprints and key
+    words, allowing a fast search by function
+  * Very large libraries are available for schematic components and footprints
+  * Most components have corresponding 3D models
+
+Package: kicad-common
+Architecture: all
+Depends: ${misc:Depends}
+Recommends: kicad
+Description: Common files used by kicad
+ This package contains the component libraries and language files for Kicad.
+
+Package: kicad-doc-en
+Architecture: all
+Depends: ${misc:Depends}
+Description: Kicad help files (English)
+ This package provides documentation for Kicad in English.
+
+Package: kicad-doc-de
+Architecture: all
+Depends: ${misc:Depends}
+Description: Kicad help files (English)
+ This package provides documentation for Kicad in German.
+
+Package: kicad-doc-es
+Architecture: all
+Depends: ${misc:Depends}
+Description: Kicad help files (Spanish)
+ This package provides documentation for Kicad in Spanish.
+
+Package: kicad-doc-fr
+Architecture: all
+Depends: ${misc:Depends}
+Description: Kicad help files (French)
+ This package provides documentation for Kicad in French.
+
+Package: kicad-doc-it
+Architecture: all
+Depends: ${misc:Depends}
+Description: Kicad help files (Italian)
+ This package provides documentation for Kicad in Italian.
+
+Package: kicad-doc-ja
+Architecture: all
+Depends: ${misc:Depends}
+Description: Kicad help files (Japanese)
+ This package provides documentation for Kicad in Japanese.
+
+# Package: kicad-doc-hu
+# Architecture: all
+# Depends: ${misc:Depends}
+# Description: Kicad help files (Hungarian)
+#  This package provides documentation for Kicad in Hungarian.
+
+Package: kicad-doc-nl
+Architecture: all
+Depends: ${misc:Depends}
+Description: Kicad help files (Dutch)
+ This package provides documentation for Kicad in Dutch.
+
+Package: kicad-doc-pl
+Architecture: all
+Depends: ${misc:Depends}
+Description: Kicad help files (Polish)
+ This package provides documentation for Kicad in Polish.
+
+# Package: kicad-doc-pt
+# Architecture: all
+# Depends: ${misc:Depends}
+# Description: Kicad help files (Portuguese)
+#  This package provides documentation for Kicad in Portuguese.
+
+# Package: kicad-doc-ru
+# Architecture: all
+# Depends: ${misc:Depends}
+# Description: Kicad help files (Russian)
+#  This package provides documentation for Kicad in Russian.
+
+# Package: kicad-doc-zh-cn
+# Architecture: all
+# Depends: ${misc:Depends}
+# Description: Kicad help files (Simplified Chinese)
+#  This package provides documentation for Kicad in Simplified Chinese.

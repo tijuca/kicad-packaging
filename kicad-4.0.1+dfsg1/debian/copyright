@@ -1,0 +1,398 @@
+Format: https://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
+Upstream-Name: kicad
+Source: see file get-kicad.sh; lp:kicad/4.0; https://github.com/KiCad/kicad-doc;
+ https://github.com/KiCad/library; https://github.com/KiCad/*.pretty
+
+Files: *
+Copyright: (C) 2015 KiCad Developers <kicad-developers@lists.launchpad.net>
+License: GPL-2+
+
+Files: bitmaps_png/sources/find* bitmaps_png/cpp_26/find*
+Copyright: (C) 2016 Georges Khaznadar <georgesk@debian.org>
+License: GPL-3+
+
+Files: 3d-viewer/trackball.*
+Copyright: (C) 1993, 1994, Silicon Graphics, Inc.
+License: SG1
+
+Files: common/geometry/hetriang.cpp
+Copyright: (C) 1998, 2000-2007, 2010-2013 SINTEF ICT, Applied Mathematics, Norway
+           (C) 2013 CERN, Maciej Suminski <maciej.suminski@cern.ch>
+License: AFPL1
+
+Files: include/ttl/*
+Copyright: (C) 1998, 2000-2007, 2010-2013 SINTEF ICT, Applied Mathematics, Norway
+License: AFPL1
+
+Files: polygon/clipper.*
+Copyright: (C) 2010-2014 Angus Johnson
+License: BOOST1
+
+Files: polygon/poly2tri/*
+Copyright: (C) 2009-2010, Poly2Tri Contributors https://github.com/jhasse/poly2tri
+License: Poly2Tri
+
+Files: eeschema/plugins/bom2csv.xsl
+Copyright: (C) 2013 Stefan Helmert
+License: GPL-2+
+
+Files: eeschema/plugins/netlist_form_*.xsl
+Copyright: (C) 2010, SoftPLC Corporation
+License: GPL-2+
+
+Files: pcbnew/specctra.keywords
+Copyright: (C) 2007-2011 SoftPLC Corporation, Dick Hollenbeck <dick@softplc.com>
+License: GPL-2+
+
+Files: pcbnew/autorouter/rect_placement/rect_placement.*
+Copyright: (C) 2000-2002 by Javier Arevalo
+License: other
+ This code is free to use and modify for all purposes
+
+Files: include/gal/opengl/glm/*
+Copyright: (C) 2005 - 2013 G-Truc Creation (www.g-truc.net)
+License: GLM1
+
+Files: potrace/*
+Copyright: (C) 2001-2007 Peter Selinger
+License: GPL-2+
+
+Files: doc/*
+Copyright: (C) 2006-2015 KiCad Developers
+License: other
+ The KiCad documentation is dual licensed. 
+ You may distribute it and/or modify it under the terms of either
+ the GNU General Public License (http://www.gnu.org/licenses/gpl.html),
+ version 3 or later, or the Creative Commons Attribution License
+ (http://creativecommons.org/licenses/by/3.0/), version 3.0 or later.
+ .
+ See: http://kicad-pcb.org/about/licenses/
+
+Files: library/*
+Copyright: (C) 2006-2015 KiCad Developers
+License: GPL-2+
+
+Files: lib_dxf/*
+Copyright: (C) 2011 Rallaz <rallazz@gmail.com>
+License: GPL-2+
+
+Files: CMakeModules/FindPackageMessage.cmake
+Copyright: (C) 2008-2009 Kitware, Inc.
+License: BSD1
+
+Files: CMakeModules/FindCairo.cmake
+Copyright: (C) 2012 Dmitry Baryshnikov <polimax at mail dot ru>
+License: BSD1
+
+Files: CMakeModules/FindwxWidgets.cmake
+Copyright: (C) 2004-2009 Kitware, Inc.
+           (C) 2007-2009 Miguel A. Figueroa-Villanueva <miguelf at ieee dot org>
+License: BSD1
+
+Files: CMakeModules/SelectLibraryConfigurations.cmake
+Copyright: (C) 2009 Will Dicharry <wdicharry@stellarscience.com>
+           (C) 2005-2009 Kitware, Inc.
+License: BSD1
+
+Files: CMakeModules/UsewxWidgets.cmake
+Copyright: (C) 2004-2009 Kitware, Inc.
+           (C) 2006      Jan Woetzel
+License: BSD1
+
+Files: CMakeModules/CheckCXXSymbolExists.cmake
+Copyright: (C) 2003-2011 Kitware, Inc.
+License: BSD1
+
+Files: CMakeModules/CMakeFindFrameworks.cmake
+Copyright: (C) 2003-2011 Kitware, Inc.
+License: BSD1
+
+Files: CMakeModules/FindSubversion.cmake
+Copyright: (C) 2006, Tristan Carel
+License: BSD1
+
+Files: CMakeModules/FindPythonLibs.cmake
+Copyright: (C) 2001-2009 Kitware, Inc.
+License: BSD1
+
+Files: CMakeModules/FindGLEW.cmake
+Copyright: (C) 2009 Boudewijn Rempt <boud@valdyas.org>
+License: BSD1
+
+Files: CMakeModules/FindPythonInterp.cmake
+Copyright: (C) 2005-2010 Kitware, Inc.
+           (C) 2011 Bjoern Ricks <bjoern.ricks@gmail.com>
+	   (C) 2012 Rolf Eike Beer <eike@sf-mail.de>
+License: BSD1
+
+Files: CMakeModules/FindOpenSSL.cmake
+Copyright: (C) 2006-2009 Kitware, Inc.
+	   (C) 2006 Alexander Neundorf <neundorf@kde.org>
+	   (C) 2009-2011 Mathieu Malaterre <mathieu.malaterre@gmail.com>
+License: BSD1
+
+Files: debian/*
+Copyright: (C) 2006-2010 Richard A Burton <richardaburton@gmail.com>
+           (C) 2015 Georges Khaznadar <georgesk@debian.org>
+License: GPL-2+
+
+Files: pcbnew/github/avhttp-master.zip
+Copyright: (C) 2015 Jack <jack.wgm@gmail.com>
+	   (C) 2015 coleman <omegacoleman@gmail.com>
+	   (C) 2015 eahydra <xxeaglenet@gmail.com>
+	   (C) 2015 kiki <kiki.caicai@gmail.com>
+	   (C) 2015 microcai <microcaicai@gmail.com>
+License: BOOST1
+
+License: GPL-2+
+ This package is free software; you can redistribute it and/or modify
+ it under the terms of the GNU General Public License as published by
+ the Free Software Foundation; either version 2 of the License, or
+ (at your option) any later version.
+ .
+ This package is distributed in the hope that it will be useful,
+ but WITHOUT ANY WARRANTY; without even the implied warranty of
+ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ GNU General Public License for more details.
+ .
+ You should have received a copy of the GNU General Public License
+ along with this program. If not, see <https://www.gnu.org/licenses/>
+ .
+ On Debian systems, the complete text of the GNU General
+ Public License version 2 can be found in "/usr/share/common-licenses/GPL-2".
+
+License: GPL-3+
+ This package is free software; you can redistribute it and/or modify
+ it under the terms of the GNU General Public License as published by
+ the Free Software Foundation; either version 3 of the License, or
+ (at your option) any later version.
+ .
+ This package is distributed in the hope that it will be useful,
+ but WITHOUT ANY WARRANTY; without even the implied warranty of
+ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ GNU General Public License for more details.
+ .
+ You should have received a copy of the GNU General Public License
+ along with this program. If not, see <https://www.gnu.org/licenses/>
+ .
+ On Debian systems, the complete text of the GNU General
+ Public License version 3 can be found in "/usr/share/common-licenses/GPL-3".
+
+License: SG1
+ Permission to use, copy, modify, and distribute this software for
+ any purpose and without fee is hereby granted, provided that the above
+ copyright notice appear in all copies and that both the copyright notice
+ and this permission notice appear in supporting documentation, and that
+ the name of Silicon Graphics, Inc. not be used in advertising
+ or publicity pertaining to distribution of the software without specific,
+ written prior permission.
+ .
+ THE MATERIAL EMBODIED ON THIS SOFTWARE IS PROVIDED TO YOU "AS-IS"
+ AND WITHOUT WARRANTY OF ANY KIND, EXPRESS, IMPLIED OR OTHERWISE,
+ INCLUDING WITHOUT LIMITATION, ANY WARRANTY OF MERCHANTABILITY OR
+ FITNESS FOR A PARTICULAR PURPOSE.  IN NO EVENT SHALL SILICON
+ GRAPHICS, INC.  BE LIABLE TO YOU OR ANYONE ELSE FOR ANY DIRECT,
+ SPECIAL, INCIDENTAL, INDIRECT OR CONSEQUENTIAL DAMAGES OF ANY
+ KIND, OR ANY DAMAGES WHATSOEVER, INCLUDING WITHOUT LIMITATION,
+ LOSS OF PROFIT, LOSS OF USE, SAVINGS OR REVENUE, OR THE CLAIMS OF
+ THIRD PARTIES, WHETHER OR NOT SILICON GRAPHICS, INC.  HAS BEEN
+ ADVISED OF THE POSSIBILITY OF SUCH LOSS, HOWEVER CAUSED AND ON
+ ANY THEORY OF LIABILITY, ARISING OUT OF OR IN CONNECTION WITH THE
+ POSSESSION, USE OR PERFORMANCE OF THIS SOFTWARE.
+ .
+ US Government Users Restricted Rights
+ Use, duplication, or disclosure by the Government is subject to
+ restrictions set forth in FAR 52.227.19(c)(2) or subparagraph
+ (c)(1)(ii) of the Rights in Technical Data and Computer Software
+ clause at DFARS 252.227-7013 and/or in similar or successor
+ clauses in the FAR or the DOD or NASA FAR Supplement.
+ Unpublished-- rights reserved under the copyright laws of the
+ United States.  Contractor/manufacturer is Silicon Graphics,
+ Inc., 2011 N.  Shoreline Blvd., Mountain View, CA 94039-7311.
+ .
+ OpenGL(TM) is a trademark of Silicon Graphics, Inc.
+
+License: AFPL1
+ This file is part of TTL.
+ .
+ TTL is free software: you can redistribute it and/or modify
+ it under the terms of the GNU Affero General Public License as
+ published by the Free Software Foundation, either version 3 of the
+ License, or (at your option) any later version.
+ .
+ TTL is distributed in the hope that it will be useful,
+ but WITHOUT ANY WARRANTY; without even the implied warranty of
+ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ GNU Affero General Public License for more details.
+ .
+ You should have received a copy of the GNU Affero General Public
+ License along with TTL. If not, see
+ <http://www.gnu.org/licenses/>.
+ .
+ In accordance with Section 7(b) of the GNU Affero General Public
+ License, a covered work must retain the producer line in every data
+ file that is created or manipulated using TTL.
+ .
+ Other Usage
+ You can be released from the requirements of the license by purchasing
+ a commercial license. Buying such a license is mandatory as soon as you
+ develop commercial activities involving the TTL library without
+ disclosing the source code of your own applications.
+ .
+ This file may be used in accordance with the terms contained in a
+ written agreement between you and SINTEF ICT.
+
+License: BOOST1
+ Boost Software License - Version 1.0 - August 17th, 2003
+ .
+ Permission is hereby granted, free of charge, to any person or organization
+ obtaining a copy of the software and accompanying documentation covered by
+ this license (the "Software") to use, reproduce, display, distribute,
+ execute, and transmit the Software, and to prepare derivative works of the
+ Software, and to permit third-parties to whom the Software is furnished to
+ do so, all subject to the following:
+ .
+ The copyright notices in the Software and this entire statement, including
+ the above license grant, this restriction and the following disclaimer,
+ must be included in all copies of the Software, in whole or in part, and
+ all derivative works of the Software, unless such copies or derivative
+ works are solely in the form of machine-executable object code generated by
+ a source language processor.
+ .
+ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ FITNESS FOR A PARTICULAR PURPOSE, TITLE AND NON-INFRINGEMENT. IN NO EVENT
+ SHALL THE COPYRIGHT HOLDERS OR ANYONE DISTRIBUTING THE SOFTWARE BE LIABLE
+ FOR ANY DAMAGES OR OTHER LIABILITY, WHETHER IN CONTRACT, TORT OR OTHERWISE,
+ ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+ DEALINGS IN THE SOFTWARE.
+
+License: Poly2Tri
+ Redistribution and use in source and binary forms, with or without
+ modification, are permitted provided that the following conditions
+ are met:
+ .
+ Redistributions of source code must retain the above copyright
+ notice, this list of conditions and the following disclaimer.
+ Redistributions in binary form must reproduce the above copyright
+ notice, this list of conditions and the following disclaimer in the
+ documentation and/or other materials provided with the
+ distribution.  Neither the name of Poly2Tri nor the names of its
+ contributors may be used to endorse or promote products derived
+ from this software without specific prior written permission.
+ .
+ THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+ "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+ LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+ A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR
+ CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
+ EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
+ PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR
+ PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF
+ LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
+ NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+License: GLM1
+ Permission is hereby granted, free of charge, to any person obtaining a copy
+ of this software and associated documentation files (the "Software"), to deal
+ in the Software without restriction, including without limitation the rights
+ to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ copies of the Software, and to permit persons to whom the Software is
+ furnished to do so, subject to the following conditions:
+ .
+ The above copyright notice and this permission notice shall be included in
+ all copies or substantial portions of the Software.
+ .
+ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+ THE SOFTWARE.
+
+License: Kicad1
+  Everyone is permitted to copy and distribute verbatim copies
+  of this licence document, but changing it is not allowed.
+ .
+                   KICAD FREE DOCUMENTATION LICENCE
+     TERMS AND CONDITIONS FOR COPYING, DISTRIBUTION AND MODIFICATION
+ .
+  1. Permission is granted to make and distribute verbatim copies of this
+  manual or piece of documentation provided any copyright notice and this
+  permission notice are preserved on all copies.
+ .
+  2. Permission is granted to process this file or document through a
+  document processing system and, at your option and the option of any third
+  party, print the results, provided a printed document carries a copying
+  permission notice identical to this one.
+ .
+  3. Permission is granted to copy and distribute modified versions of this
+  manual or piece of documentation under the conditions for verbatim
+  copying, provided also that any sections describing licensing conditions
+  for this manual, such as, in particular, the GNU General Public Licence,
+  the GNU Library General Public Licence, and any wxWindows Licence are
+  included exactly as in the original, and provided that the entire
+  resulting derived work is distributed under the terms of a permission
+  notice identical to this one.
+ .
+  4. Permission is granted to copy and distribute translations of this
+  manual or piece of documentation into another language, under the above
+  conditions for modified versions, except that sections related to
+  licensing, including this paragraph, may also be included in translations
+  approved by the copyright holders of the respective licence documents in
+  addition to the original French or English.
+ .
+                            WARRANTY DISCLAIMER
+ .
+  5. BECAUSE THIS MANUAL OR PIECE OF DOCUMENTATION IS LICENSED FREE OF CHARGE,
+  THERE IS NO WARRANTY FOR IT, TO THE EXTENT PERMITTED BY APPLICABLE LAW.
+  EXCEPT WHEN OTHERWISE STATED IN WRITING THE COPYRIGHT HOLDERS AND/OR OTHER
+  PARTIES PROVIDE THIS MANUAL OR PIECE OF DOCUMENTATION "AS IS" WITHOUT
+  WARRANTY OF ANY KIND, EITHER EXPRESSED OR IMPLIED, INCLUDING, BUT NOT
+  LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A
+  PARTICULAR PURPOSE.  THE ENTIRE RISK AS TO THE QUALITY AND PERFORMANCE OF
+  THE MANUAL OR PIECE OF DOCUMENTATION IS WITH YOU.  SHOULD THE MANUAL OR
+  PIECE OF DOCUMENTATION PROVE DEFECTIVE, YOU ASSUME THE COST OF ALL
+  NECESSARY SERVICING, REPAIR OR CORRECTION.
+ .
+  6. IN NO EVENT UNLESS REQUIRED BY APPLICABLE LAW OR AGREED TO IN WRITING WILL
+  ANY COPYRIGHT HOLDER, OR ANY OTHER PARTY WHO MAY MODIFY AND/OR
+  REDISTRIBUTE THE MANUAL OR PIECE OF DOCUMENTATION AS PERMITTED ABOVE, BE
+  LIABLE TO YOU FOR DAMAGES, INCLUDING ANY GENERAL, SPECIAL, INCIDENTAL OR
+  CONSEQUENTIAL DAMAGES ARISING OUT OF THE USE OR INABILITY TO USE THE
+  MANUAL OR PIECE OF DOCUMENTATION (INCLUDING BUT NOT LIMITED TO LOSS OF
+  DATA OR DATA BEING RENDERED INACCURATE OR LOSSES SUSTAINED BY YOU OR THIRD
+  PARTIES OR A FAILURE OF A PROGRAM BASED ON THE MANUAL OR PIECE OF
+  DOCUMENTATION TO OPERATE WITH ANY OTHER PROGRAMS), EVEN IF SUCH HOLDER OR
+  OTHER PARTY HAS BEEN ADVISED OF THE POSSIBILITY OF SUCH DAMAGES.
+
+License: BSD1
+ Redistribution and use in source and binary forms, with or without
+ modification, are permitted provided that the following conditions
+ are met:
+ .
+ 1. Redistributions of source code must retain the above copyright
+ notice, this list of conditions and the following disclaimer.
+ .
+ 2. Redistributions in binary form must reproduce the above copyright
+ notice, this list of conditions and the following disclaimer in the
+ documentation and/or other materials provided with the distribution.
+ .
+ 3. Neither the name of the copyright holder nor the names of its
+ contributors may be used to endorse or promote products derived from
+ this software without specific prior written permission.
+ .
+ THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+ "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+ LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+ A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+ HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT,
+ INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING,
+ BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS
+ OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED
+ AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
+ LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY
+ WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+ POSSIBILITY OF SUCH DAMAGE.
