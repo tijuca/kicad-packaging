@@ -220,7 +220,7 @@ this conversion is a text to text transformation, this post-processing
 filter can be written using Python, XSLT, or any other tool capable of
 taking XML as input.
 
-XSLT itself is a an XML language very suitable for XML transformations.
+XSLT itself is an XML language very suitable for XML transformations.
 There is a free program called _xsltproc_ that you can download and
 install. The xsltproc program can be used to read the Intermediate XML
 netlist input file, apply a style-sheet to transform the input, and save
@@ -524,7 +524,7 @@ Here is the Cadstar output file.
 -----
 
 [[create-a-orcadpcb2-netlist-file]]
-==== Create a OrcadPCB2 netlist file
+==== Create an OrcadPCB2 netlist file
 
 This format has only one section which is the footprint list. Each
 footprint includes its list of pads with reference to a net.
@@ -813,24 +813,24 @@ information:
 
 Once you click on the netlist button the following will happen:
 
-1.  Eeschema creates an intermediate netlist file __.xml, for instance__test.xml.*
+1.  Eeschema creates an intermediate netlist file *.xml, for instance test.xml.
 
-2.  Eeschema runs the plug-in by reading test.xml and creates test.net
+2.  Eeschema runs the plug-in by reading test.xml and creates test.net.
 
 [[generate-netlist-files-with-the-command-line]]
 ===== Generate netlist files with the command line
 
 Assuming we are using the program _xsltproc.exe_ to apply the sheet
 style to the intermediate file, _xsltproc.exe_ is executed with the
-following command.
+following command:
 
 _xsltproc.exe -o <output filename> < style-sheet filename> <input XML file to convert>_
 
-In KiCad under Windows the command line is the following.
+In KiCad under Windows the command line is the following:
 
 _f:/kicad/bin/xsltproc.exe -o "%O" f:/kicad/bin/plugins/netlist_form_pads-pcb.xsl "%I"_
 
-Under Linux the command becomes as following.
+Under Linux the command becomes as follows:
 
 _xsltproc -o "%O" /usr/local/kicad/bin/plugins/netlist_form_pads-pcb.xsl "%I"_
 
@@ -994,7 +994,7 @@ This sample gives an idea of the netlist file format.
 The intermediate Netlist accounts for five sections.
 
 * The header section.
-* The component section.
+* The components section.
 * The lib parts section.
 * The libraries section.
 * The nets section.
@@ -1128,7 +1128,7 @@ type. Possible electrical pin types are
 |Power input |Power input of a component
 |Power output |Power output like a regulator output
 |Open collector |Open collector often found in analog comparators
-|Open emitter |Open collector sometimes found in logic.
+|Open emitter |Open emitter sometimes found in logic
 |Not connected |Must be left open in schematic
 |================================================================
 
@@ -1176,7 +1176,7 @@ The nets section has the delimiter <nets>. This section contains the
 
 This section lists all nets in the schematic.
 
-A possible net is contains the following.
+A possible net contains the following.
 
 --------------------------
 <net code="1" name="GND">

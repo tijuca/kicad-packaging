@@ -77,7 +77,7 @@ on the screen to ensure you are associating the correct footprint.
 Eeschema is started from the KiCad project manager or when Eeschema is
 started as a stand alone application.
 
-Running CvPcb from Eeschema lauched from the KiCad Manager is generally
+Running CvPcb from Eeschema launched from the KiCad Manager is generally
 better because:
 
 * Cvpcb needs the project config file to know the footprint libraries to
@@ -87,7 +87,7 @@ better because:
   schematic project. This is possible only if the project file is in the
   same path as the open schematic.
 
-Lauching CvPcb from an Eeschema launched from the KiCad manager assures
+Launching CvPcb from an Eeschema launched from the KiCad manager assures
 automatically all this.
 
 WARNING: You actually *can* launch CvPcb from a stand alone Eeschema
@@ -258,6 +258,13 @@ image::images/en/footprint_view.png[scaledwidth="90%"]
 The status bar is located at the bottom of the CvPcb new main window and
 provides useful information to the user. The following table defines the
 contents of each pane in the status bar.
+
+[width="80%",cols="20%,80%",]
+|==================================================================
+|Left |Component count: total, unassigned
+|Middle |Filter list of the selected component
+|Right |Filtering mode and count of available footprints
+|==================================================================
 
 ==== Keyboard Commands
 

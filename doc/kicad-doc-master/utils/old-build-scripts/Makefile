@@ -34,16 +34,16 @@ DOCCHAPTERS:= $(filter-out $(DOCTRANSLATED), $(wildcard $(DOCNAME)_*.adoc))
 #DOCCHAPTERS:=$(wildcard $(DOCNAME)_*.adoc)
 
 #I like HTML in Unix style text
-ASCIIDOCVAR:= -a 'newline=\n' -v
+ASCIIDOCVAR:= -a 'newline=\n' -v -a numbered
 
 #Uncomment this to debug pdflatex
-DEBUGPDFLTX:= -d
+#DEBUGPDFLTX:= -d
 
 #I like left side html toc
 UTOC:= $(shell if [ -z "$$TOC2" ] ; then echo -n "-a toc2" ; fi )
 
 #disabling some unuseful print and added custom dblatex style to generate a nice cover image
-DBLATEXOPTS="-P latex.output.revhistory=0 -P doc.publisher.show=0 -s $(SCRIPTSBASEDIR)/pdf-cover-dblatex.sty $(DEBUGPDFLTX)"
+DBLATEXOPTS="-P latex.output.revhistory=0 -P doc.publisher.show=0 -s $(SCRIPTSBASEDIR)/pdf-cover-dblatex.sty $(DEBUGPDFLTX) -b xetex"
 .SUFFIXES: #Disabe implicit rules
 
 
@@ -90,7 +90,6 @@ $(PODIR)/$(DOCNAME).pot: $(DOCNAME).adoc $(foreach l,$(DOCCHAPTERS), $(l))
 #Build/update the single language NN i18n strings .po file
 #$(PODIR)/%.po: $(DOCNAME).adoc #Single file dependency
 $(PODIR)/%.po: $(DOCNAME).adoc $(foreach l,$(DOCCHAPTERS), $(l))
-	@touch $(DOCNAME).adoc
 	@po4a-updatepo -f asciidoc -v -M utf-8 -m $(DOCNAME).adoc $(foreach l,$(DOCCHAPTERS),-m $(l)) -p $@
 
 .PHONY: po-all
@@ -118,11 +117,11 @@ adoc-all: $(foreach i,$(LANGUAGES),$(DOCNAME)-$(i).adoc)
 
 #English html
 $(DOCNAME).html: $(DOCNAME).adoc $(DOCCHAPTERS)
-	asciidoc $(UTOC) $(ASCIIDOCVAR) --theme flask --section-numbers $(DOCNAME).adoc ;
+	asciidoc $(UTOC) $(ASCIIDOCVAR) --theme flask $(DOCNAME).adoc ;
 
 #I18n html
 $(DOCNAME)-%.html: $(DOCNAME)-%.adoc
-	asciidoc $(UTOC) $(ASCIIDOCVAR) --theme flask --section-numbers -a lang=$* $(DOCNAME)-$*.adoc ;
+	asciidoc $(UTOC) $(ASCIIDOCVAR) --theme flask -a lang=$* $(DOCNAME)-$*.adoc ;
 
 .PHONY: html
 html: $(DOCNAME).html
@@ -134,11 +133,11 @@ html-all: html $(foreach i,$(LANGUAGES),$(DOCNAME)-$(i).html)
 
 #English docbook
 $(DOCNAME).xml: $(DOCNAME).adoc $(DOCCHAPTERS)
-	asciidoc -b docbook $(ASCIIDOCVAR) --section-numbers $(DOCNAME).adoc
+	asciidoc -b docbook $(ASCIIDOCVAR) $(DOCNAME).adoc
 
 #I18n docbook
 $(DOCNAME)-%.xml: $(DOCNAME)-%.adoc
-	asciidoc -b docbook $(ASCIIDOCVAR) --section-numbers -a lang=$* $(DOCNAME)-$*.adoc
+	asciidoc -b docbook $(ASCIIDOCVAR) -a lang=$* $(DOCNAME)-$*.adoc
 
 .PHONY: docbook
 docbook: $(DOCNAME).xml

@@ -1,1 +1,1 @@
-20160215: downloaded https://codeload.github.com/KiCad/kicad-i18n/tar.gz/master
+20160917: downloaded https://codeload.github.com/KiCad/kicad-i18n/tar.gz/master

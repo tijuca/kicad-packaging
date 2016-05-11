@@ -29,6 +29,11 @@ macro( KiCadDocumentation DOCNAME )
         list( APPEND DOCCHAPTERS "${CNAME}" )
     endforeach()
 
+    foreach( DOC ${DOCCHAPTERFILES} )
+        set( DOCCHAPTERMASTERS "${DOCCHAPTERMASTERS} -m ${DOC}" )
+    endforeach()
+    separate_arguments( DOCCHAPTERMASTERS )
+
     # If we're not building a specific language, glob all languages
     if( "${SINGLE_LANGUAGE}" STREQUAL "" )
         # Get a list of all po translation files so we know what languages can be built
@@ -88,9 +93,15 @@ macro( KiCadDocumentation DOCNAME )
             # as well as an "all" target. Do not include updating the translations in the
             # default all target
             add_custom_target( ${DOCNAME}_updatepo_${LANGUAGE}
-                COMMAND ${PO4A_COMMAND}-updatepo -f asciidoc -v -M utf-8 -m ${CMAKE_CURRENT_SOURCE_DIR}/${DOCNAME}.adoc -p ${CMAKE_CURRENT_SOURCE_DIR}/po/${LANGUAGE}.po )
+                COMMAND cd ${CMAKE_CURRENT_SOURCE_DIR} &&
+                        ${PO4A_COMMAND}-updatepo -f asciidoc -v -M utf-8
+                            -m ${DOCNAME}.adoc ${DOCCHAPTERMASTERS}
+                            -p po/${LANGUAGE}.po )
 
             add_dependencies( ${DOCNAME}_updatepo_all ${DOCNAME}_updatepo_${LANGUAGE} )
+
+            add_dependencies( updatepo_${LANGUAGE} ${DOCNAME}_updatepo_${LANGUAGE} )
+            add_dependencies( updatepo_all ${DOCNAME}_updatepo_${LANGUAGE} )
 
             add_custom_target( ${DOCNAME}_translate_${LANGUAGE}
                 COMMAND ${CMAKE_COMMAND} -E make_directory "${CMAKE_CURRENT_BINARY_DIR}/${LANGUAGE}"
@@ -100,6 +111,8 @@ macro( KiCadDocumentation DOCNAME )
             # Non-ascii languages needs some special treatments
             if( "${LANGUAGE}" MATCHES "ja" )
                 add_dblatex_option( -b xetex -p ${CMAKE_CURRENT_SOURCE_DIR}/../../xsl/dblatex-pdf-ja.xsl )
+            elseif( "${LANGUAGE}" MATCHES "ru" )
+                add_dblatex_option( -b xetex -p ${CMAKE_CURRENT_SOURCE_DIR}/../../xsl/dblatex-pdf-ru.xsl )
             endif()
 
             # Deal with chapters for all languages...

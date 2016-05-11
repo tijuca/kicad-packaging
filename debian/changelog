@@ -1,3 +1,15 @@
+kicad (4.0.4+dfsg1-1) unstable; urgency=medium
+
+  * checked that 4.0.2+dfsg1-2~bpo8+1-1 is available. Closes: #811268
+  * modified .install files to install kicad.mo files. Closes: #819855
+  * applied Graham Inggs' patch. Closes: #834246
+  * added a Recommends: for xsltproc. Closes: #826750
+  * updated Standards-Version to 3.9.8
+  * upgraded to the last upstream version. Closes: #833777
+  * added build-dependencies on texlive-lang-cyrillic and texlive-fonts-extra
+
+ -- Georges Khaznadar <georgesk@debian.org>  Wed, 11 May 2016 16:14:08 +0200
+
 kicad (4.0.2+dfsg1-4) unstable; urgency=medium
 
   * added a dependency on python-wxgtk3.0. Closes: #816525

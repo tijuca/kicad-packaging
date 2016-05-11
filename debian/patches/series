@@ -3,3 +3,4 @@
 30-desktop-files.patch
 40-findBitmaps.patch
 50-nonlinux.patch
+boost161.patch

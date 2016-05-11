@@ -1,8 +1,14 @@
 #!/bin/sh
 
 repo=lp:kicad/4.0
-tag=4.0.2
-version=4.0.2
+tag=4.0.4
+version=4.0.4
+
+################ check dependencies ###############################
+[ "$(which curl)" = /usr/bin/curl ] && \
+    [ "$(which bzr)" = /usr/bin/bzr ] && \
+    [ "$(which wget)" = /usr/bin/wget ] || \
+	echo "Some package is missing: curl, bzr or wget."
 
 echo "========== Checking the tag of version $version ==================="
 foundTag=$(bzr log $repo | head -n 100 | grep "tags: $tag" | awk '{print $2}')

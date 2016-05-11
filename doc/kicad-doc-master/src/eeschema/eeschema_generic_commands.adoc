@@ -13,7 +13,7 @@ You can reach the various commands by:
   options).
 * Pressing the mouse buttons (important complementary commands). In
   particular a right click opens a contextual menu for the
-  element under the cursor (Zoom, grid and edition of the elements).
+  element under the cursor (Zoom, grid and editing of the elements).
 * Function keys (F1, F2, F3, F4, Insert and space keys).
   Specifically: The "Escape" key often allows the canceling of a command
   in progress. The "Insert" key allows the duplication of the last element
@@ -87,7 +87,7 @@ You can change the grid size via the pop-up menu or via the Preferences/Options 
 
 The default grid size is 50 mil (0.050") or 1,27 millimeters.
 
-This is the prefered grid to place components and wires in a schematic,
+This is the preferred grid to place components and wires in a schematic,
 and to place pins when designing a symbol in the Component Editor.
 
 One can also work with a smaller grid from 25 mil to 10 mil.

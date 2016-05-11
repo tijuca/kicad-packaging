@@ -14,8 +14,8 @@ Build-Depends: debhelper (>= 9), quilt,
  dblatex, po4a, asciidoc, git, texlive-xetex, pandoc, gettext, fonts-vlgothic,
  texlive-lang-english, texlive-lang-french, texlive-lang-italian,
  texlive-lang-japanese, texlive-lang-polish, texlive-lang-german,
- texlive-lang-spanish,
- texlive-lang-european,
+ texlive-lang-spanish, texlive-lang-cyrillic,
+ texlive-lang-european, texlive-fonts-extra,
  source-highlight,
  libxml2-utils, docbook-utils, xmlto,
  libtext-wrapi18n-perl,
@@ -23,8 +23,8 @@ Build-Depends: debhelper (>= 9), quilt,
  liblocale-gettext-perl,
  libunicode-linebreak-perl,
  lmodern, docbook-xsl,
- python-wxgtk3.0-dev, swig, python-all, python-dev, libpython-stdlib 
-Standards-Version: 3.9.6
+ python-wxgtk3.0-dev, swig, python-all, python-dev, libpython-stdlib
+Standards-Version: 3.9.8
 Homepage: http://www.kicad-pcb.org
 
 Package: kicad
@@ -34,6 +34,7 @@ Depends: kicad-common (>= ${source:Version}),
  libglew1.13|libglew1.10, python-wxgtk3.0
 Suggests: extra-xdg-menus,
 	kicad-doc-en | kicad-doc-fr | kicad-doc-it | kicad-doc-ja | kicad-doc-nl | kicad-doc-pl
+Recommends: xsltproc
 Description: Electronic schematic and PCB design software
  Kicad is a suite of programs for the creation of printed circuit boards.
  It includes a schematic editor, a PCB layout tool, support tools and a

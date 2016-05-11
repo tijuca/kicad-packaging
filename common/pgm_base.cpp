@@ -308,14 +308,13 @@ void PGM_BASE::SetEditorName( const wxString& aFileName )
 }
 
 
-const wxString& PGM_BASE::GetEditorName()
+const wxString& PGM_BASE::GetEditorName( bool aCanShowFileChooser )
 {
     wxString editorname = m_editor_name;
 
     if( !editorname )
     {
-        // Get the preferred editor name from environment variable first.
-        if(!wxGetEnv( wxT( "EDITOR" ), &editorname ))
+        if( !wxGetEnv( wxT( "EDITOR" ), &editorname ) )
         {
             // If there is no EDITOR variable set, try the desktop default
 #ifdef __WXMAC__
@@ -326,28 +325,46 @@ const wxString& PGM_BASE::GetEditorName()
         }
     }
 
-    if( !editorname )       // We must get a preferred editor name
+    // If we still don't have an editor name show a dialog asking the user to select one
+    if( !editorname && aCanShowFileChooser )
     {
         DisplayInfoMessage( NULL,
                             _( "No default editor found, you must choose it" ) );
 
-        wxString mask( wxT( "*" ) );
-
-#ifdef __WINDOWS__
-        mask += wxT( ".exe" );
-#endif
-        editorname = EDA_FILE_SELECTOR( _( "Preferred Editor:" ), wxEmptyString,
-                                        wxEmptyString, wxEmptyString, mask,
-                                        NULL, wxFD_OPEN, true );
+        editorname = AskUserForPreferredEditor();
     }
 
+    // If we finally have a new editor name request it to be copied to m_editor_name and
+    // saved to the preferences file.
     if( !editorname.IsEmpty() )
-    {
-        m_editor_name = editorname;
-        m_common_settings->Write( wxT( "Editor" ), m_editor_name );
-    }
+        SetEditorName( editorname );
 
+    // m_editor_name already has the same value that editorname, or empty if no editor was
+    // found/chosen.
     return m_editor_name;
+}
+
+
+const wxString PGM_BASE::AskUserForPreferredEditor( const wxString& aDefaultEditor )
+{
+    // Create a mask representing the executable files in the current platform
+#ifdef __WINDOWS__
+    wxString mask( _( "Executable file (*.exe)|*.exe" ) );
+#else
+    wxString mask( _( "Executable file (*)|*" ) );
+#endif
+
+    // Extract the path, name and extension from the default editor (even if the editor's
+    // name was empty, this method will succeed and return empty strings).
+    wxString path, name, ext;
+    wxFileName::SplitPath( aDefaultEditor, &path, &name, &ext );
+
+    // Show the modal editor and return the file chosen (may be empty if the user cancels
+    // the dialog).
+    return EDA_FILE_SELECTOR( _( "Select Preferred Editor" ), path,
+                              name, ext, mask,
+                              NULL, wxFD_OPEN | wxFD_FILE_MUST_EXIST,
+                              true );
 }
 
 
@@ -481,12 +498,12 @@ bool PGM_BASE::initPgm()
 
     ReadPdfBrowserInfos();      // needs m_common_settings
 
-    loadCommonSettings();
-
+    // Init user language *before* calling loadCommonSettings, because
+    // env vars could be incorrectly initialized on Linux
+    // (if the value contains some non ASCII7 chars, the env var is not initialized)
     SetLanguage( true );
 
-    // Set locale option for separator used in float numbers
-    SetLocaleTo_Default();
+    loadCommonSettings();
 
 #ifdef __WXMAC__
     // Always show filters on Open dialog to be able to choose plugin
@@ -546,22 +563,7 @@ void PGM_BASE::loadCommonSettings()
     m_help_size.x = 500;
     m_help_size.y = 400;
 
-    wxString languageSel;
-
-    m_common_settings->Read( languageCfgKey, &languageSel );
-    setLanguageId( wxLANGUAGE_DEFAULT );
-
     m_common_settings->Read( showEnvVarWarningDialog, &m_show_env_var_dialog );
-
-    // Search for the current selection
-    for( unsigned ii = 0; ii < DIM( s_Languages ); ii++ )
-    {
-        if( s_Languages[ii].m_Lang_Label == languageSel )
-        {
-            setLanguageId( s_Languages[ii].m_WX_Lang_Identifier );
-            break;
-        }
-    }
 
     m_editor_name = m_common_settings->Read( wxT( "Editor" ) );
 
@@ -608,7 +610,7 @@ void PGM_BASE::saveCommonSettings()
 
         for( ENV_VAR_MAP_ITER it = m_local_env_vars.begin(); it != m_local_env_vars.end(); ++it )
         {
-            wxLogTrace( traceEnvVars, wxT( "Saving environment varaiable config entry %s as %s" ),
+            wxLogTrace( traceEnvVars, wxT( "Saving environment variable config entry %s as %s" ),
                         GetChars( it->first ),  GetChars( it->second.GetValue() ) );
             m_common_settings->Write( it->first, it->second.GetValue() );
         }
@@ -621,6 +623,26 @@ void PGM_BASE::saveCommonSettings()
 bool PGM_BASE::SetLanguage( bool first_time )
 {
     bool     retv = true;
+
+    if( first_time )
+    {
+        setLanguageId( wxLANGUAGE_DEFAULT );
+        // First time SetLanguage is called, the user selected language id is set
+        // from commun user config settings
+        wxString languageSel;
+
+        m_common_settings->Read( languageCfgKey, &languageSel );
+
+        // Search for the current selection
+        for( unsigned ii = 0; ii < DIM( s_Languages ); ii++ )
+        {
+            if( s_Languages[ii].m_Lang_Label == languageSel )
+            {
+                setLanguageId( s_Languages[ii].m_WX_Lang_Identifier );
+                break;
+            }
+        }
+    }
 
     // dictionary file name without extend (full name is kicad.mo)
     wxString dictionaryName( wxT( "kicad" ) );
@@ -645,9 +667,12 @@ bool PGM_BASE::SetLanguage( bool first_time )
                     GetChars( dictionaryName ), GetChars( m_locale->GetName() ) );
     }
 
-    // how about a meaningful comment here.
     if( !first_time )
     {
+        // If we are here, the user has selected an other language.
+        // Therefore the new prefered language name is stored in common config.
+        // Do NOT store the wxWidgets language Id, it can change between wxWidgets
+        // versions, for a given language
         wxString languageSel;
 
         // Search for the current selection
@@ -668,20 +693,14 @@ bool PGM_BASE::SetLanguage( bool first_time )
     double dtst = 0.5;
     wxString msg;
 
-    extern bool g_DisableFloatingPointLocalNotation;    // See common.cpp
-
-    g_DisableFloatingPointLocalNotation = false;
-
     msg << dtst;
     double result;
     msg.ToDouble( &result );
 
-    if( result != dtst )  // string to double encode/decode does not work! Bug detected
-    {
+    if( result != dtst )
+        // string to double encode/decode does not work! Bug detected:
         // Disable floating point localization:
-        g_DisableFloatingPointLocalNotation = true;
-        SetLocaleTo_C_standard( );
-    }
+        setlocale( LC_ALL, "C" );
 
     if( !m_locale->IsLoaded( dictionaryName ) )
         m_locale->AddCatalog( dictionaryName );
