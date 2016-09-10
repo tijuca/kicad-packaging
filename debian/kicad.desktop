@@ -1,0 +1,19 @@
+[Desktop Entry]
+Name=KiCad
+Comment=Create/Modify/View of PCB's
+GenericName=EDA Software Suite
+Exec=kicad %f
+Terminal=false
+X-MultipleArgs=false
+Type=Application
+Icon=kicad
+Categories=Science;Education;Development;Electronics;
+MimeType=application/x-kicad-project;
+StartupWMClass=KiCad
+StartupNotify=true
+Name[de]=Entwicklung und Bearbeiten von PCB's mit KiCad
+Name[fr]=Suite logicielle de conception électronique
+Comment[de]=Entwicklung von gedruckten elektronsichen Schaltungen
+Comment[fr]=Concevoir un circuit imprimé
+GenericName[de]=EDA Software Lösung
+Keywords=EDA,KiCad,Kicad,
