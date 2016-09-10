@@ -1,5 +1,8 @@
+# install the *.pretty directories
+libraries/*.pretty           usr/share/kicad/modules
+usr/share/doc/kicad/scripts
 usr/share/icons
 usr/share/kicad
+usr/share/locale
 usr/share/mime
 usr/share/mimelnk
-usr/share/doc/kicad/scripts
