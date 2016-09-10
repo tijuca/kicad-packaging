@@ -72,7 +72,7 @@ Depends:
  ${shlibs:Depends},
 Suggests:
  extra-xdg-menus,
- kicad-doc-en | kicad-doc-fr | kicad-doc-it | kicad-doc-ja | kicad-doc-nl | kicad-doc-pl,
+ kicad-doc-ca | kicad-doc-de | kicad-doc-en | kicad-doc-es | kicad-doc-fr | kicad-doc-it | kicad-doc-ja | kicad-doc-nl | kicad-doc-pl | kicad-doc-ru,
 Recommends:
  xsltproc,
 Description: Electronic schematic and PCB design software
@@ -109,58 +109,166 @@ Description: Common files used by kicad
  files for KiCad and common used scripts, templates, demos, Python scripting
  plugins and MIME links.
 
-Package: kicad-doc-en
+Package: kicad-doc-ca
+Section: doc
 Architecture: all
 Depends:
  ${misc:Depends},
-Description: Kicad help files (English)
- This package provides documentation for Kicad in English.
+Description: Kicad help files (Catalan)
+ This package provides various documentation files for KiCad in Catalan, like
+ the EPUB and the PDF files and also the OnLine HTML documentation for:
+ .
+  * GSIK - Getting Started in KiCad
+  * KiCad - The main project editor
 
 Package: kicad-doc-de
+Section: doc
 Architecture: all
 Depends:
  ${misc:Depends},
 Description: Kicad help files (German)
- This package provides documentation for Kicad in German.
+ This package provides various documentation files for KiCad in German, like
+ the EPUB and the PDF files and also the OnLine HTML documentation for:
+ .
+  * CvPcb - Component association of Footprints
+  * Eeschema -schematic capture editor
+  * GerbView - Gerber file viewer (RS 274 X format)
+  * GSIK - Getting Started in KiCad
+  * IDF Exporter - Export tool for IDFv3 boards and libraries
+  * KiCad - The main project editor
+  * Pcbnew - The printed circuit board software tool
+  * PlEditor - The layout editor for custom title block
+
+Package: kicad-doc-en
+Section: doc
+Architecture: all
+Depends:
+ ${misc:Depends},
+Description: Kicad help files (English)
+ This package provides various documentation files for KiCad in English, like
+ the EPUB and the PDF files and also the OnLine HTML documentation for:
+ .
+  * CvPcb - Component association of Footprints
+  * Eeschema -schematic capture editor
+  * GerbView - Gerber file viewer (RS 274 X format)
+  * GSIK - Getting Started in KiCad
+  * IDF Exporter - Export tool for IDFv3 boards and libraries
+  * KiCad - The main project editor
+  * Pcbnew - The printed circuit board software tool
+  * PlEditor - The layout editor for custom title block
+ .
+ You will also find a GUI translation HOWTO inside this package if you want to
+ help with translation of the KiCad GUI into new or existing languages.
 
 Package: kicad-doc-es
+Section: doc
 Architecture: all
 Depends:
  ${misc:Depends},
 Description: Kicad help files (Spanish)
- This package provides documentation for Kicad in Spanish.
+ This package provides various documentation files for KiCad in Spanish, like
+ the EPUB and the PDF files and also the OnLine HTML documentation for:
+ .
+  * CvPcb - Component association of Footprints
+  * Eeschema -schematic capture editor
+  * GerbView - Gerber file viewer (RS 274 X format)
+  * GSIK - Getting Started in KiCad
+  * KiCad - The main project editor
+  * Pcbnew - The printed circuit board software tool
+  * PlEditor - The layout editor for custom title block
 
 Package: kicad-doc-fr
+Section: doc
 Architecture: all
 Depends:
  ${misc:Depends},
 Description: Kicad help files (French)
- This package provides documentation for Kicad in French.
+ This package provides various documentation files for KiCad in French, like
+ the EPUB and the PDF files and also the OnLine HTML documentation for:
+ .
+  * CvPcb - Component association of Footprints
+  * Eeschema -schematic capture editor
+  * GSIK - Getting Started in KiCad
+  * KiCad - The main project editor
+  * Pcbnew - The printed circuit board software tool
+  * PlEditor - The layout editor for custom title block
 
 Package: kicad-doc-it
+Section: doc
 Architecture: all
 Depends:
  ${misc:Depends},
 Description: Kicad help files (Italian)
- This package provides documentation for Kicad in Italian.
+ This package provides various documentation files for KiCad in Italian, like
+ the EPUB and the PDF files and also the OnLine HTML documentation for:
+ .
+  * CvPcb - Component association of Footprints
+  * Eeschema -schematic capture editor
+  * GerbView - Gerber file viewer (RS 274 X format)
+  * GSIK - Getting Started in KiCad
+  * IDF Exporter - Export tool for IDFv3 boards and libraries
+  * KiCad - The main project editor
+  * Pcbnew - The printed circuit board software tool
+  * PlEditor - The layout editor for custom title block
 
 Package: kicad-doc-ja
+Section: doc
 Architecture: all
 Depends:
  ${misc:Depends},
 Description: Kicad help files (Japanese)
- This package provides documentation for Kicad in Japanese.
+ This package provides various documentation files for KiCad in Japanese, like
+ the EPUB and the PDF files and also the OnLine HTML documentation for:
+ .
+  * CvPcb - Component association of Footprints
+  * Eeschema -schematic capture editor
+  * GerbView - Gerber file viewer (RS 274 X format)
+  * GSIK - Getting Started in KiCad
+  * IDF Exporter - Export tool for IDFv3 boards and libraries
+  * KiCad - The main project editor
+  * Pcbnew - The printed circuit board software tool
+  * PlEditor - The layout editor for custom title block
 
 Package: kicad-doc-nl
+Section: doc
 Architecture: all
 Depends:
  ${misc:Depends},
 Description: Kicad help files (Dutch)
- This package provides documentation for Kicad in Dutch.
+ This package provides various documentation files for KiCad in Dutch, like
+ the EPUB and the PDF files and also the OnLine HTML documentation for:
+ .
+  * GSIK - Getting Started in KiCad
 
 Package: kicad-doc-pl
+Section: doc
 Architecture: all
 Depends:
  ${misc:Depends},
 Description: Kicad help files (Polish)
- This package provides documentation for Kicad in Polish.
+ This package provides various documentation files for KiCad in Polish, like
+ the EPUB and the PDF files and also the OnLine HTML documentation for:
+ .
+  * CvPcb - Component association of Footprints
+  * Eeschema -schematic capture editor
+  * GerbView - Gerber file viewer (RS 274 X format)
+  * GSIK - Getting Started in KiCad
+  * IDF Exporter - Export tool for IDFv3 boards and libraries
+  * KiCad - The main project editor
+  * Pcbnew - The printed circuit board software tool
+  * PlEditor - The layout editor for custom title block
+
+Package: kicad-doc-ru
+Section: doc
+Architecture: all
+Depends: ${misc:Depends}
+Description: Kicad help files (Russian)
+ This package provides various documentation files for KiCad in Russian, like
+ the EPUB and the PDF files and also the OnLine HTML documentation for:
+ .
+  * CvPcb - Component association of Footprints
+  * GerbView - Gerber file viewer (RS 274 X format)
+  * GSIK - Getting Started in KiCad
+  * IDF Exporter - Export tool for IDFv3 boards and libraries
+  * KiCad - The main project editor
+  * PlEditor - The layout editor for custom title block

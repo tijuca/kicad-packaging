@@ -1,0 +1,15 @@
+Document: kicad-doc-ca
+Title: Various KiCad documentation
+Author: KiCad developer and contributers
+Abstract: Documentation and Manuals for the KiCad EDA suite that was build
+ from the provided source.
+Section: Help/HOWTO
+
+Format: HTML
+Index: /usr/share/doc/kicad/help/ca/
+Files: /usr/share/doc/kicad/help/ca/*.html
+       /usr/share/doc/kicad/help/ca/images/*
+
+Format: PDF
+Files: /usr/share/doc/kicad/help/ca/getting_started_in_kicad.pdf.gz
+       /usr/share/doc/kicad/help/ca/kicad.pdf.gz

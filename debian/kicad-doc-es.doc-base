@@ -1,0 +1,20 @@
+Document: kicad-doc-es
+Title: Various KiCad documentation
+Author: KiCad developer and contributers
+Abstract: Documentation and Manuals for the KiCad EDA suite that was build
+ from the provided source.
+Section: Help/HOWTO
+
+Format: HTML
+Index: /usr/share/doc/kicad/help/es/
+Files: /usr/share/doc/kicad/help/es/*.html
+       /usr/share/doc/kicad/help/es/images/*
+
+Format: PDF
+Files: /usr/share/doc/kicad/help/es/cvpcb.pdf.gz
+       /usr/share/doc/kicad/help/es/eeschema.pdf.gz
+       /usr/share/doc/kicad/help/es/gerbview.pdf.gz
+       /usr/share/doc/kicad/help/es/getting_started_in_kicad.pdf.gz
+       /usr/share/doc/kicad/help/es/kicad.pdf.gz
+       /usr/share/doc/kicad/help/es/pcbnew.pdf.gz
+       /usr/share/doc/kicad/help/es/pl_editor.pdf.gz
