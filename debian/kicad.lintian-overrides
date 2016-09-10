@@ -1,0 +1,10 @@
+# Those files are the libraries and no executables.
+kicad: binary-without-manpage usr/bin/_cvpcb.kiface
+kicad: binary-without-manpage usr/bin/_eeschema.kiface
+kicad: binary-without-manpage usr/bin/_gerbview.kiface
+kicad: binary-without-manpage usr/bin/_pcb_calculator.kiface
+kicad: binary-without-manpage usr/bin/_pcbnew.kiface
+kicad: binary-without-manpage usr/bin/_pl_editor.kiface
+# Lintian doesn't check that with much intelligence
+kicad: spelling-error-in-binary usr/lib/kicad/_pcbnew.kiface allows to allows one to
+kicad: spelling-error-in-binary usr/lib/python2.7/dist-packages/_pcbnew.x86_64-linux-gnu.so allows to allows one to
