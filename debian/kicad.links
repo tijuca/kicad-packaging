@@ -1,0 +1,7 @@
+# source                                          # target
+usr/lib/kicad/_cvpcb.kiface                       usr/bin/_cvpcb.kiface
+usr/lib/kicad/_eeschema.kiface                    usr/bin/_eeschema.kiface
+usr/lib/kicad/_gerbview.kiface                    usr/bin/_gerbview.kiface
+usr/lib/kicad/_pcb_calculator.kiface              usr/bin/_pcb_calculator.kiface
+usr/lib/kicad/_pcbnew.kiface                      usr/bin/_pcbnew.kiface
+usr/lib/kicad/_pl_editor.kiface                   usr/bin/_pl_editor.kiface
