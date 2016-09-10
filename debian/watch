@@ -1,10 +1,10 @@
 # No real watch provided.
 # Upstream is not always available in unix format and includes components that
 # we normally remove for licence reasons.
-# Upstream is packaged from bzr with some tweaks, see README.source.
+# Upstream is packaged from git with some tweaks, see README.source.
 version=3
 
-opts=pgpsigurlmangle=s/$/.asc/ \
-https://launchpad.net/kicad/ \
-  https://launchpad.net/.*download/kicad-([.\d]+)\.tar\.xz \
-  debian /bin/sh debian/get_newest_source.sh
+#opts=pgpsigurlmangle=s/$1/.asc/, \
+opts=filenamemangle=s/(.*)\.tar\.xz/kicad-$1\.tar\.xz/g,\
+dversionmangle=s/\.dfsg\.\d+$// \
+https://launchpad.net/kicad/ .*\+download/kicad-(.*)\.tar\.xz
