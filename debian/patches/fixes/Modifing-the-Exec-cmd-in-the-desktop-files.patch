@@ -5,22 +5,26 @@ Subject: Modifing the Exec cmd in the desktop-files
 Fixup the *.desktop files and add a file handler to the Exec key.
 https://specifications.freedesktop.org/desktop-entry-spec/latest/ar01s06.html
 ---
- resources/linux/mime/applications/bitmap2component.desktop | 2 +-
+ resources/linux/mime/applications/bitmap2component.desktop | 3 ++-
  resources/linux/mime/applications/cvpcb.desktop            | 2 +-
- resources/linux/mime/applications/gerbview.desktop         | 2 +-
- resources/linux/mime/applications/pcbcalculator.desktop    | 2 +-
- 4 files changed, 4 insertions(+), 4 deletions(-)
+ resources/linux/mime/applications/eeschema.desktop         | 1 +
+ resources/linux/mime/applications/gerbview.desktop         | 3 ++-
+ resources/linux/mime/applications/kicad.desktop            | 1 +
+ resources/linux/mime/applications/pcbcalculator.desktop    | 3 ++-
+ resources/linux/mime/applications/pcbnew.desktop           | 1 +
+ 7 files changed, 10 insertions(+), 4 deletions(-)
 
 diff --git a/resources/linux/mime/applications/bitmap2component.desktop b/resources/linux/mime/applications/bitmap2component.desktop
-index f2ff024..18c8d92 100644
+index f2ff024..07a71ad 100644
 --- a/resources/linux/mime/applications/bitmap2component.desktop
 +++ b/resources/linux/mime/applications/bitmap2component.desktop
-@@ -1,7 +1,7 @@
+@@ -1,7 +1,8 @@
  [Desktop Entry]
  Categories=Development;Electronics;
  Comment=Create a component from a bitmap for use with KiCad
 -Exec=bitmap2component
 +Exec=bitmap2component %f
++Keywords=Bitmap;Converter;
  GenericName=EDA Suite
  Icon=bitmap2component
  MimeType=application/x-bitmap2component-project;
@@ -37,29 +41,67 @@ index 4610839..eadbc64 100644
  GenericName=EDA Suite
  Icon=cvpcb
  MimeType=application/x-cvpcb-project;
+diff --git a/resources/linux/mime/applications/eeschema.desktop b/resources/linux/mime/applications/eeschema.desktop
+index 41b1ba3..3ed4695 100644
+--- a/resources/linux/mime/applications/eeschema.desktop
++++ b/resources/linux/mime/applications/eeschema.desktop
+@@ -3,6 +3,7 @@ Categories=Development;Electronics;
+ Comment=Design an electronic schematic
+ Comment[fr]=Dessiner des schémas électroniques
+ Exec=eeschema %f
++Keywords=Schematic;Editor;
+ GenericName=Electronic schematic design
+ GenericName[fr]=Saisie de schéma électronique
+ Icon=eeschema
 diff --git a/resources/linux/mime/applications/gerbview.desktop b/resources/linux/mime/applications/gerbview.desktop
-index 42e3a83..cad315f 100644
+index 42e3a83..5f98316 100644
 --- a/resources/linux/mime/applications/gerbview.desktop
 +++ b/resources/linux/mime/applications/gerbview.desktop
-@@ -1,7 +1,7 @@
+@@ -1,7 +1,8 @@
  [Desktop Entry]
  Categories=Development;Electronics;
  Comment=View gerber files
 -Exec=gerbview
 +Exec=gerbview %f
++Keywords=PCB;Viewer;
  GenericName=EDA Suite
  Icon=gerbview
  MimeType=application/x-gerbview-project;
+diff --git a/resources/linux/mime/applications/kicad.desktop b/resources/linux/mime/applications/kicad.desktop
+index e9df0f0..d2dc06a 100644
+--- a/resources/linux/mime/applications/kicad.desktop
++++ b/resources/linux/mime/applications/kicad.desktop
+@@ -3,6 +3,7 @@ Categories=Development;Electronics;
+ Comment=Design a printed circuit board
+ Comment[fr]=Concevoir un circuit imprimé
+ Exec=kicad %f
++Keywords=Kicad;Projectmanager;
+ GenericName=EDA Suite
+ GenericName[fr]=Suite logicielle de conception électronique
+ Icon=kicad
 diff --git a/resources/linux/mime/applications/pcbcalculator.desktop b/resources/linux/mime/applications/pcbcalculator.desktop
-index ce37e64..3800209 100644
+index ce37e64..3131260 100644
 --- a/resources/linux/mime/applications/pcbcalculator.desktop
 +++ b/resources/linux/mime/applications/pcbcalculator.desktop
-@@ -1,7 +1,7 @@
+@@ -1,7 +1,8 @@
  [Desktop Entry]
  Categories=Development;Electronics;
  Comment=Calculator for various electronics related computations
 -Exec=pcb_calculator
 +Exec=pcb_calculator %f
++Keywords=PCB;Caculator;
  GenericName=EDA Suite
  Icon=pcbcalculator
  MimeType=application/x-pcbcalculator-project;
+diff --git a/resources/linux/mime/applications/pcbnew.desktop b/resources/linux/mime/applications/pcbnew.desktop
+index 120231e..ba7bed1 100644
+--- a/resources/linux/mime/applications/pcbnew.desktop
++++ b/resources/linux/mime/applications/pcbnew.desktop
+@@ -2,6 +2,7 @@
+ Categories=Development;Electronics;
+ Comment=Layout a printed circuit board
+ Exec=pcbnew %f
++Keywords=PCB;Circuit;Layout;Design;Editor;Footprint;
+ GenericName=EDA Suite
+ Icon=pcbnew
+ MimeType=application/x-pcbnew-pcb;

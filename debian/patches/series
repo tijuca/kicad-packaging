@@ -1,6 +1,6 @@
-10-Makefiles.patch
-20-noAvhttp.patch
-30-desktop-files.patch
-40-findBitmaps.patch
-50-nonlinux.patch
-60-Fix-FTBFS-with-Boost-1.61.patch
+debian-hacks/Remove-download-target-for-noAvhttp.patch
+fixes/Modifing-the-Exec-cmd-in-the-desktop-files.patch
+debian-hacks/Adding-needed-SVG-files-and-additinal-arrays.patch
+porting-kfreebsd-hurd/Fix-FTBFS-on-kFreeBSD-and-Hurd.patch
+fixes/Fix-FTBFS-with-Boost-1.61.patch
+fixes/Fixing-some-spelling-issues.patch

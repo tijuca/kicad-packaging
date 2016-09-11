@@ -2,7 +2,8 @@ From: Georges Khaznadar <georgesk@debian.org>
 Date: Sat, 3 Sep 2016 17:57:10 +0200
 Subject: Adding needed SVG files and additinal arrays
 
-Adding two SVG files and the additional string arrays.
+Adding two SVG files and the additional string arrays due the upstream
+files are not DFSG clean.
 ---
  bitmaps_png/cpp_26/find.cpp          |  79 ++++++++++++++++
  bitmaps_png/cpp_26/find_replace.cpp  |  97 +++++++++++++++++++
