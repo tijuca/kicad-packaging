@@ -3,7 +3,7 @@
  *
  * Copyright (C) 2009 Jean-Pierre Charras, jean-pierre.charras@gipsa-lab.inpg.fr
  * Copyright (C) 2007-2011 Wayne Stambaugh <stambaughw@verizon.net>
- * Copyright (C) 1992-2015 KiCad Developers, see AUTHORS.txt for contributors.
+ * Copyright (C) 1992-2016 KiCad Developers, see AUTHORS.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -48,6 +48,7 @@ static const int CURSOR_SIZE = 12; ///< Cursor size in pixels
 
 // keys to store options in config:
 #define ENBL_ZOOM_NO_CENTER_KEY         wxT( "ZoomNoCenter" )
+#define ENBL_MOUSEWHEEL_PAN_KEY         wxT( "MousewheelPAN" )
 #define ENBL_MIDDLE_BUTT_PAN_KEY        wxT( "MiddleButtonPAN" )
 #define MIDDLE_BUTT_PAN_LIMITED_KEY     wxT( "MiddleBtnPANLimited" )
 #define ENBL_AUTO_PAN_KEY               wxT( "AutoPAN" )
@@ -96,15 +97,13 @@ EDA_DRAW_PANEL::EDA_DRAW_PANEL( EDA_DRAW_FRAME* parent, int id,
 {
     wxASSERT( parent );
 
-#ifndef USE_OSX_MAGNIFY_EVENT
     ShowScrollbars( wxSHOW_SB_ALWAYS, wxSHOW_SB_ALWAYS );
-#else
-    ShowScrollbars( wxSHOW_SB_NEVER, wxSHOW_SB_NEVER );
-#endif
     DisableKeyboardScrolling();
 
     m_scrollIncrementX = std::min( size.x / 8, 10 );
     m_scrollIncrementY = std::min( size.y / 8, 10 );
+
+    SetLayoutDirection( wxLayout_LeftToRight );
 
     SetBackgroundColour( MakeColour( parent->GetDrawBgColor() ) );
 
@@ -117,12 +116,16 @@ EDA_DRAW_PANEL::EDA_DRAW_PANEL( EDA_DRAW_FRAME* parent, int id,
     m_ClipBox.SetY( 0 );
     m_canStartBlock = -1;       // Command block can start if >= 0
     m_abortRequest = false;
+    m_enableMousewheelPan = false;
     m_enableMiddleButtonPan = true;
     m_enableZoomNoCenter = false;
     m_panScrollbarLimits = false;
     m_enableAutoPan = true;
     m_ignoreMouseEvents = false;
-    m_ignoreNextLeftButtonRelease = false;
+    // Be sure a mouse release button event will be ignored when creating the canvas
+    // if the mouse click was not made inside the canvas (can happen sometimes, when
+    // launching an editor from a double click made in an other frame)
+    m_ignoreNextLeftButtonRelease = true;
 
     m_mouseCaptureCallback = NULL;
     m_endMouseCaptureCallback = NULL;
@@ -131,6 +134,7 @@ EDA_DRAW_PANEL::EDA_DRAW_PANEL( EDA_DRAW_FRAME* parent, int id,
 
     if( cfg )
     {
+        cfg->Read( ENBL_MOUSEWHEEL_PAN_KEY, &m_enableMousewheelPan, false );
         cfg->Read( ENBL_MIDDLE_BUTT_PAN_KEY, &m_enableMiddleButtonPan, true );
         cfg->Read( ENBL_ZOOM_NO_CENTER_KEY, &m_enableZoomNoCenter, false );
         cfg->Read( MIDDLE_BUTT_PAN_LIMITED_KEY, &m_panScrollbarLimits, false );
@@ -160,6 +164,7 @@ EDA_DRAW_PANEL::~EDA_DRAW_PANEL()
 
     if( cfg )
     {
+        cfg->Write( ENBL_MOUSEWHEEL_PAN_KEY, m_enableMousewheelPan );
         cfg->Write( ENBL_MIDDLE_BUTT_PAN_KEY, m_enableMiddleButtonPan );
         cfg->Write( ENBL_ZOOM_NO_CENTER_KEY, m_enableZoomNoCenter );
         cfg->Write( MIDDLE_BUTT_PAN_LIMITED_KEY, m_panScrollbarLimits );
@@ -432,7 +437,7 @@ void EDA_DRAW_PANEL::OnScroll( wxScrollWinEvent& event )
     // so we skip these events.
     // Note they are here just in case, because they are not actually used
     // in Kicad
-#if wxCHECK_VERSION( 3, 1, 0 ) || !wxCHECK_VERSION( 2, 9, 5 ) || !defined (__WINDOWS__)
+#if wxCHECK_VERSION( 3, 1, 0 ) || !wxCHECK_VERSION( 2, 9, 5 ) || ( !defined (__WINDOWS__) && !defined (__WXMAC__) )
     int maxX = unitsX - csizeX;
     int maxY = unitsY - csizeY;
 
@@ -643,6 +648,15 @@ void EDA_DRAW_PANEL::ReDraw( wxDC* DC, bool erasebg )
 }
 
 
+void EDA_DRAW_PANEL::SetEnableMousewheelPan( bool aEnable )
+{
+    m_enableMousewheelPan = aEnable;
+
+    if( GetParent()->IsGalCanvasActive() )
+        GetParent()->GetGalCanvas()->GetViewControls()->EnableMousewheelPan( aEnable );
+}
+
+
 void EDA_DRAW_PANEL::SetEnableZoomNoCenter( bool aEnable )
 {
     m_enableZoomNoCenter = aEnable;
@@ -731,20 +745,54 @@ void EDA_DRAW_PANEL::DrawGrid( wxDC* aDC )
     GRSetColorPen( aDC, GetParent()->GetGridColor() );
 #else
     // On mac (Cocoa), a point isn't a pixel and being of size 1 don't survive to antialiasing
-    GRSetColorPen( aDC, GetParent()->GetGridColor(), aDC->DeviceToLogicalXRel(2) );
+    GRSetColorPen( aDC, GetParent()->GetGridColor(), aDC->DeviceToLogicalXRel( 2 ) );
 #endif
 
     int xpos;
     double right = ( double ) m_ClipBox.GetRight();
     double bottom = ( double ) m_ClipBox.GetBottom();
 
-    for( double x = (double) org.x; x <= right; x += gridSize.x )
+#if defined( __WXMAC__ ) && defined( USE_WX_GRAPHICS_CONTEXT )
+    wxGCDC *gcdc = wxDynamicCast( aDC, wxGCDC );
+    if( gcdc )
     {
-        xpos = KiROUND( x );
+        wxGraphicsContext *gc = gcdc->GetGraphicsContext();
 
-        for( double y = (double) org.y; y <= bottom; y += gridSize.y )
+        // Grid point size
+        const int gsz = 1;
+        const double w = aDC->DeviceToLogicalXRel( gsz );
+        const double h = aDC->DeviceToLogicalYRel( gsz );
+
+        // Use our own pen
+        wxPen pen( MakeColour( GetParent()->GetGridColor() ), h );
+        pen.SetCap( wxCAP_BUTT );
+        gc->SetPen( pen );
+
+        // draw grid
+        wxGraphicsPath path = gc->CreatePath();
+        for( double x = (double) org.x - w/2.0; x <= right - w/2.0; x += gridSize.x )
         {
-            aDC->DrawPoint( xpos, KiROUND( y )  );
+            for( double y = (double) org.y; y <= bottom; y += gridSize.y )
+            {
+                path.MoveToPoint( x, y );
+                path.AddLineToPoint( x+w, y );
+            }
+        }
+        gc->StrokePath( path );
+    }
+    else
+#endif
+    {
+        GRSetColorPen( aDC, GetParent()->GetGridColor() );
+
+        for( double x = (double) org.x; x <= right; x += gridSize.x )
+        {
+            xpos = KiROUND( x );
+
+            for( double y = (double) org.y; y <= bottom; y += gridSize.y )
+            {
+                aDC->DrawPoint( xpos, KiROUND( y )  );
+            }
         }
     }
 }
@@ -845,6 +893,17 @@ bool EDA_DRAW_PANEL::OnRightClick( wxMouseEvent& event )
     pos = event.GetPosition();
     m_ignoreMouseEvents = true;
     PopupMenu( &MasterMenu, pos );
+    // here, we are waiting for popup menu closing.
+    // Among different ways, it can be closed by clicking on the left mouse button.
+    // The expected behavior is to move the mouse cursor to its initial
+    // location, where the right click was made.
+    // However there is a case where the move cursor does not work as expected:
+    // when the user left clicks on the caption frame: the entire window is moved.
+    // Calling wxSafeYield avoid this behavior because it allows the left click
+    // to be proceeded before moving the mouse
+    wxSafeYield();
+
+    // Move the mouse cursor to its initial position:
     MoveCursorToCrossHair();
     m_ignoreMouseEvents = false;
 
@@ -926,17 +985,24 @@ void EDA_DRAW_PANEL::OnMouseWheel( wxMouseEvent& event )
     offCenterReq = offCenterReq || m_enableZoomNoCenter;
 
     int axis = event.GetWheelAxis();
+    int wheelRotation = event.GetWheelRotation();
 
-    // This is a zoom in or out command
-    if( event.GetWheelRotation() > 0 )
+    if( m_enableMousewheelPan )
+    {
+        wxPoint newStart = GetViewStart();
+        if( axis == wxMOUSE_WHEEL_HORIZONTAL )
+            newStart.x += wheelRotation;
+        else
+            newStart.y -= wheelRotation;
+
+        wxPoint center = GetScreenCenterLogicalPosition();
+        GetParent()->SetScrollCenterPosition( center );
+        Scroll( newStart );
+    }
+    else if( wheelRotation > 0 )
     {
         if( event.ShiftDown() && !event.ControlDown() )
-        {
-            if( axis == 0 )
-                cmd.SetId( ID_PAN_UP );
-            else
-                cmd.SetId( ID_PAN_RIGHT );
-        }
+            cmd.SetId( ID_PAN_UP );
         else if( event.ControlDown() && !event.ShiftDown() )
             cmd.SetId( ID_PAN_LEFT );
         else if( offCenterReq )
@@ -944,15 +1010,10 @@ void EDA_DRAW_PANEL::OnMouseWheel( wxMouseEvent& event )
         else
             cmd.SetId( ID_POPUP_ZOOM_IN );
     }
-    else if( event.GetWheelRotation() < 0 )
+    else if( wheelRotation < 0 )
     {
         if( event.ShiftDown() && !event.ControlDown() )
-        {
-            if( axis == 0 )
-                cmd.SetId( ID_PAN_DOWN );
-            else
-                cmd.SetId( ID_PAN_LEFT );
-        }
+            cmd.SetId( ID_PAN_DOWN );
         else if( event.ControlDown() && !event.ShiftDown() )
             cmd.SetId( ID_PAN_RIGHT );
         else if( offCenterReq )
@@ -961,7 +1022,8 @@ void EDA_DRAW_PANEL::OnMouseWheel( wxMouseEvent& event )
             cmd.SetId( ID_POPUP_ZOOM_OUT );
     }
 
-    GetEventHandler()->ProcessEvent( cmd );
+    if( cmd.GetId() )
+        GetEventHandler()->ProcessEvent( cmd );
     event.Skip();
 }
 

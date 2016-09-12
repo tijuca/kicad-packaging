@@ -3,7 +3,7 @@
  *
  * Copyright (C) 2015 Jean-Pierre Charras, jp.charras at wanadoo.fr
  * Copyright (C) 2013 Wayne Stambaugh <stambaughw@verizon.net>
- * Copyright (C) 1992-2015 KiCad Developers, see AUTHORS.txt for contributors.
+ * Copyright (C) 1992-2016 KiCad Developers, see AUTHORS.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -135,10 +135,10 @@ void EDA_3D_FRAME::CreateMenuBar()
     menuBar->Append( fileMenu, _( "&File" ) );
 
     AddMenuItem( fileMenu, ID_MENU_SCREENCOPY_PNG,
-                 _( "Create Image (png format)" ),
+                 _( "Create Image (PNG format)" ),
                  KiBitmap( export_xpm ) );
     AddMenuItem( fileMenu, ID_MENU_SCREENCOPY_JPEG,
-                 _( "Create Image (jpeg format)" ),
+                 _( "Create Image (JPEG format)" ),
                  KiBitmap( export_xpm ) );
 
     fileMenu->AppendSeparator();
@@ -152,6 +152,12 @@ void EDA_3D_FRAME::CreateMenuBar()
                  KiBitmap( exit_xpm ) );
 
     menuBar->Append( prefsMenu, _( "&Preferences" ) );
+
+    AddMenuItem( prefsMenu, ID_MENU3D_MOUSEWHEEL_PANNING,
+                 _( "Use Touchpad to Pan" ),
+                 KiBitmap( tools_xpm ), wxITEM_CHECK );
+
+    prefsMenu->AppendSeparator();
 
     AddMenuItem( prefsMenu, ID_MENU3D_REALISTIC_MODE,
                  _( "Realistic Mode" ),
@@ -292,6 +298,7 @@ void EDA_3D_FRAME::CreateMenuBar()
     SetMenuBarOptionsState();
 }
 
+
 void EDA_3D_FRAME::SetMenuBarOptionsState()
 {
     wxMenuBar* menuBar = GetMenuBar();
@@ -301,6 +308,9 @@ void EDA_3D_FRAME::SetMenuBarOptionsState()
 
     wxMenuItem* item;
     // Set the state of toggle menus according to the current display options
+    item = menuBar->FindItem( ID_MENU3D_MOUSEWHEEL_PANNING );
+    item->Check( GetPrm3DVisu().GetFlag( FL_MOUSEWHEEL_PANNING ) );
+
     item = menuBar->FindItem( ID_MENU3D_REALISTIC_MODE );
     item->Check( GetPrm3DVisu().IsRealisticMode() );
     item = menuBar->FindItem( ID_MENU3D_COMMENTS_ONOFF );
@@ -365,6 +375,7 @@ void EDA_3D_FRAME::SetMenuBarOptionsState()
     item = menuBar->FindItem( ID_MENU3D_ECO_ONOFF );
     item->Check( GetPrm3DVisu().GetFlag( FL_ECO ));
 }
+
 
 void EDA_3D_FRAME::SetToolbars()
 {

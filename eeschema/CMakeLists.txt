@@ -153,6 +153,7 @@ set( EESCHEMA_SRCS
     sch_sheet_path.cpp
     sch_sheet_pin.cpp
     sch_text.cpp
+    sch_validators.cpp
     schedit.cpp
     schematic_undo_redo.cpp
     schframe.cpp
@@ -252,6 +253,7 @@ target_link_libraries( eeschema_kiface
     common
     bitmaps
     polygon
+    gal
     ${wxWidgets_LIBRARIES}
     ${GDI_PLUS_LIBRARIES}
     )

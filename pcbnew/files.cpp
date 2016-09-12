@@ -3,7 +3,7 @@
  *
  * Copyright (C) 2004-2015 Jean-Pierre Charras, jp.charras at wanadoo.fr
  * Copyright (C) 2011-2015 Wayne Stambaugh <stambaughw@verizon.net>
- * Copyright (C) 2015 KiCad Developers, see change_log.txt for contributors.
+ * Copyright (C) 2016 KiCad Developers, see AUTHORS.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -369,21 +369,27 @@ IO_MGR::PCB_FILE_T plugin_type( const wxString& aFileName, int aCtl )
 
     wxFileName fn = aFileName;
 
-    if( fn.GetExt() == IO_MGR::GetFileExtension( IO_MGR::LEGACY ) )
+    // Note: file extensions are expected to be in ower case.
+    // This is not always true, especially when importing files, so the string
+    // comparisons are case insensitive to try to find the suitable plugin.
+
+    if( fn.GetExt().CmpNoCase( IO_MGR::GetFileExtension( IO_MGR::LEGACY ) ) == 0 )
     {
         // both legacy and eagle share a common file extension.
         pluginType = ( aCtl & KICTL_EAGLE_BRD ) ? IO_MGR::EAGLE : IO_MGR::LEGACY;
     }
-    else if( fn.GetExt() == IO_MGR::GetFileExtension( IO_MGR::LEGACY ) + backupSuffix )
+    else if( fn.GetExt().CmpNoCase(  IO_MGR::GetFileExtension( IO_MGR::LEGACY ) + backupSuffix ) == 0 )
     {
         pluginType = IO_MGR::LEGACY;
     }
-    else if( fn.GetExt() == IO_MGR::GetFileExtension( IO_MGR::IO_MGR::PCAD ) )
+    else if( fn.GetExt().CmpNoCase(  IO_MGR::GetFileExtension( IO_MGR::PCAD ) ) == 0 )
     {
         pluginType = IO_MGR::PCAD;
     }
     else
+    {
         pluginType = IO_MGR::KICAD;
+    }
 
     return pluginType;
 }
@@ -513,7 +519,6 @@ bool PCB_EDIT_FRAME::OpenProjectFiles( const std::vector<wxString>& aFileSet, in
                     GetChars( ioe.errorText )
                     );
             DisplayError( this, msg );
-
             return false;
         }
 
@@ -566,8 +571,17 @@ bool PCB_EDIT_FRAME::OpenProjectFiles( const std::vector<wxString>& aFileSet, in
     // Rebuild the new pad list (for drc and ratsnet control ...)
     GetBoard()->m_Status_Pcb = 0;
 
-    // Update info shown by the horizontal toolbars
+    // Update current netclass:NETCLASS::Default alwaysxists
     SetCurrentNetClass( NETCLASS::Default );
+
+    // Rebuild list of nets (full ratsnest rebuild)
+    {
+        wxBusyCursor dummy;    // Displays an Hourglass while building connectivity
+        Compile_Ratsnest( NULL, true );
+        GetBoard()->GetRatsnest()->ProcessBoard();
+    }
+
+    // Update info shown by the horizontal toolbars
     ReFillLayerWidget();
     ReCreateLayerBox();
 
@@ -586,13 +600,6 @@ bool PCB_EDIT_FRAME::OpenProjectFiles( const std::vector<wxString>& aFileSet, in
 
     // Display the loaded board:
     Zoom_Automatique( false );
-
-    // Compile ratsnest and displays net info
-    {
-        wxBusyCursor dummy;    // Displays an Hourglass while building connectivity
-        Compile_Ratsnest( NULL, true );
-        GetBoard()->GetRatsnest()->ProcessBoard();
-    }
 
     SetMsgPanel( GetBoard() );
 

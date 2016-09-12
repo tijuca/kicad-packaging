@@ -175,9 +175,6 @@ DIALOG_DESIGN_RULES::DIALOG_DESIGN_RULES( PCB_EDIT_FRAME* parent ) :
     }
 
     InitDialogRules();
-    Layout();
-    GetSizer()->Fit( this );
-    GetSizer()->SetSizeHints( this );
     m_sdbSizer1OK->SetDefault();
 
     // Allow tabbing out of grid controls.
@@ -185,7 +182,12 @@ DIALOG_DESIGN_RULES::DIALOG_DESIGN_RULES( PCB_EDIT_FRAME* parent ) :
     m_gridViaSizeList->SetTabBehaviour( wxGrid::Tab_Leave );
     m_gridTrackWidthList->SetTabBehaviour( wxGrid::Tab_Leave );
 
-    Center();
+    Layout();
+
+    FixOSXCancelButtonIssue();
+
+    // Now all widgets have the size fixed, call FinishDialogSettings
+    FinishDialogSettings();
 }
 
 
@@ -931,7 +933,7 @@ bool DIALOG_DESIGN_RULES::TestDataValidity( wxString* aErrorMsg )
         if( viadia < minViaDia )
         {
             result = false;
-            msg.Printf( _( "%s: <b>Via Diameter</b> &lt; <b>Minimun Via Diameter</b><br>" ),
+            msg.Printf( _( "%s: <b>Via Diameter</b> &lt; <b>Minimum Via Diameter</b><br>" ),
                         GetChars( m_grid->GetRowLabelValue( row ) ) );
             errorMsg += msg;
         }

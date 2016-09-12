@@ -1,0 +1,563 @@
+
+== General operations
+
+=== Toolbars and commands
+
+In Pcbnew it is possible to execute commands using various means:
+
+* Text-based menu at the top of the main window.
+
+* Top toolbar menu.
+
+* Right toolbar menu.
+
+* Left toolbar menu.
+
+* Mouse buttons (menu options). Specifically:
+
+** The right mouse button reveals a pop-up menu the content of
+   which depends on the element under the mouse arrow.
+
+* Keyboard (Function keys `F1`, `F2`, `F3`, `F4`, `Shift`, `Delete`, `+`, `-`, `Page Up`,
+  `Page Down` and `Space bar`). The `Escape` key generally cancels an
+  operation in progress.
+
+The screenshot below illustrates some of the possible accesses to these
+operations:
+
+image::images/Right-click_legacy_menu.png[scaledwidth="70%"]
+
+=== Mouse commands
+
+==== Basic commands
+
+* Left button
+
+** Single-click displays the characteristics of the footprint or text under
+   the cursor in the lower status bar.
+
+** Double-click displays the editor (if the element is editable) of the
+   element under the cursor.
+
+* Centre button/wheel
+
+** Rapid zoom and some commands in layer manager.
+
+** Hold down the centre button and draw a rectangle to zoom to the
+   described area. Rotation of the mouse wheel will allow you to zoom
+   in and zoom out.
+
+* Right button
+
+** Displays a pop-up menu
+
+==== Operations on blocks
+
+Operations to move, invert (mirror), copy, rotate and delete a block
+are all available via the pop-up menu. In addition, the view can zoom
+to the area described by the block.
+
+The framework of the block is traced by moving the mouse while
+holding down the left mouse button. The operation is executed when
+the button is released.
+
+By holding down one of the hotkeys `Shift` or `Ctrl`, or both keys
+`Shift` and `Ctrl` together, while the block is drawn the operation
+invert, rotate or delete is automatically selected as shown in the
+table below:
+
+[options="header"]
+|====
+| Action | Effect
+| Left mouse button held down
+| Trace framework to move block
+| `Shift` + Left mouse button held down
+| Trace framework for invert block
+| `Ctrl` + Left mouse button held down
+| Trace framework for rotating block 90°
+| `Shift` + `Ctrl` + Left mouse button held down
+| Trace framework to delete the block
+| Centre mouse button held down
+| Trace framework to zoom to block
+|====
+
+When moving a block:
+
+* Move block to new position and operate left mouse button to place
+  the elements.
+* To cancel the operation use the right mouse button
+  and select Cancel Block from the menu (or press the `Esc` key).
+
+Alternatively if no key is pressed when drawing the block use the
+right mouse button to display the pop-up menu and select the
+required operation.
+
+For each block operation a selection window enables the action to be
+limited to only some elements.
+
+=== Selection of grid size
+
+During element layout the cursor moves on a grid. The grid can be turned on or off using the icon on the left toolbar.
+
+Any of the pre-defined grid sizes, or a User Defined grid, can be
+chosen using the pop-up window, or the drop-down selector on the
+toolbar at the top of the screen. The size of the User Defined grid
+is set using the menu bar option Dimensions -> User Grid Size.
+
+=== Adjustment of the zoom level
+
+The zoom level can be changed using any of the following methods:
+
+* Open the pop-up window (using the right mouse button) and then select the desired zoom.
+
+* Use the following function keys:
+
+** `F1`: Enlarge (zoom in)
+
+** `F2`: Reduce (zoom out)
+
+** `F3`: Redraw the display
+
+** `F4`: Centre view at the current cursor position
+
+* Rotate the mouse wheel.
+
+* Hold down the middle mouse button and draw a rectangle to zoom to the described area.
+
+=== Displaying cursor coordinates
+
+The cursor coordinates are displayed in inches or millimetres as selected using the 'In' or 'mm' icons on the left hand side toolbar.
+
+Whichever unit is selected Pcbnew always works to a precision of 1/10,000 of inch.
+
+The status bar at the bottom of the screen gives:
+
+* The current zoom setting.
+* The absolute position of the cursor.
+* The relative position of the cursor. Note the relative coordinates (x,y) can be set to (0,0) at any position by pressing the space bar. The cursor position is then displayed relative to this new datum.
+
+In addition the relative position of the cursor can be displayed using its polar co-ordinates (ray + angle). This can be turned on and off using the icon in the left hand side toolbar.
+
+image::images/Pcbnew_coordinate_status_display.png[scaledwidth="90%"]
+
+=== Keyboard commands - hotkeys
+
+Many commands are accessible directly with the keyboard. Selection can be either upper or lower case. Most hot keys are shown in menus. Some hot keys that do not appear are:
+
+* `Delete`: deletes a footprint or a track. (_Available only if the Footprint mode or the Track mode is active_)
+* `V`: if the track tool is active switches working layer or place via, if a track is in progress.
+* `+` and `-`: select next or previous layer.
+* `?`: display the list of all hot keys.
+* `Space`: reset relative coordinates.
+
+=== Operation on blocks
+
+Operations to move, invert (mirror), copy, rotate and delete a block
+are all available from the pop-up menu. In addition, the view can
+zoom to that described by the block.
+
+The framework of the block is traced by moving the mouse while
+holding down the left mouse button. The operation is executed when
+the button is released.
+
+By holding down one of the keys `Shift` or `Ctrl`, both `Shift` and
+`Ctrl` together, or `Alt`, while the block is drawn the operation
+invert, rotate, delete or copy is automatically selected as shown in
+the table below:
+
+[options="header"]
+|====
+| Action | Effect
+| Left mouse button held down
+| Move block
+| `Shift` + Left mouse button held down
+| Invert (mirror) block
+| `Ctrl` + Left mouse button held down
+| Rotate block 90°
+| `Shift` + `Ctrl` + Left mouse button held down
+| Delete the block
+| `Alt` + Left mouse button held down
+| Copy the block
+|====
+
+When a block command is made, a dialog window is displayed, and
+items involved in this command can be chosen.
+
+Any of the commands above can be cancelled via the same pop-up menu
+or by pressing the Escape key (`Esc`).
+
+image::images/Pcbnew_legacy_block_selection_dialog.png[scaledwidth="70%"]
+
+=== Units used in dialogs
+
+Units used to display dimensions values are inch and mm. The desired
+unit can be selected by pressing the icon located in left toolbar:
+image:images/icons/unit_inch.png[] image:images/icons/unit_mm.png[]
+However one can enter the unit used to define a value, when entering
+a new value.
+
+Accepted units are:
+
+|====
+| 1 *in*  | 1 inch
+| 1 *"*   | 1 inch
+| 25 *th* | 25 thou
+| 25 *mi* | 25 mils, same as thou
+| 6 *mm*  | 6 mm
+|====
+
+The rules are:
+
+* Spaces between the number and the unit are accepted.
+* Only the first two letters are significant.
+* In countries using an alternative decimal separator than the period, the period (`.`) can be used as well. Therefore `1,5` and `1.5` are the same in French.
+
+=== Top menu bar
+
+The top menu bar provides access to the files (loading and saving), configuration options, printing, plotting and the help files.
+
+image::images/Pcbnew_top_menu_bar.png[scaledwidth="80%"]
+
+==== The File menu
+
+image::images/Pcbnew_file_menu.png[scaledwidth="40%"]
+
+The File menu allows the loading and saving of printed circuits files, as well as printing and plotting the circuit board. It enables the export (with the format GenCAD 1.4) of the circuit for use with automatic testers.
+
+==== Edit menu
+
+Allows some global edit actions:
+
+image::images/Pcbnew_edit_menu.png[scaledwidth="35%"]
+
+
+==== View menu
+
+image::images/Pcbnew_view_menu.png[scaledwidth="35%"]
+
+Zoom functions and 3D board display.
+
+===== 3D Viewer
+
+Opens the 3D Viewer. Here is a sample:
+
+image::images/Sample_3D_board.png[scaledwidth="70%"]
+
+===== Switch canvas
+
+Allows switching canvas.
+
+* default
+* OpenGL
+* Cairo
+
+==== Place menu
+
+Same function as the right-hand toolbar.
+
+image::images/Pcbnew_place_menu.png[scaledwidth="32%"]
+
+==== Route menu
+
+Routing function.
+
+image::images/Pcbnew_route_menu.png[scaledwidth="35%"]
+
+==== The Preferences menu
+
+image::images/Pcbnew_preferences_menu.png[scaledwidth="40%"]
+
+Allows:
+
+* Selection of the footprint libraries.
+* Hide/Show the Layers manager (colors selection for displaying layers and other elements. Also enables the display of elements to be turned on and off).
+* Management of general options (units,  etc.).
+* The management of other display options.
+* Creation, editing (and re-read) of the hot keys file.
+
+==== Dimensions menu
+
+image::images/Pcbnew_dimensions_menu.png[scaledwidth="30%"]
+
+An important menu. Allows adjustment of:
+
+* User grid size.
+* Size of texts and the line width for drawings.
+* Dimensions and characteristic of pads.
+* Setting the global values for solder mask and solder paste layers
+
+==== Tools menu
+
+image::images/Pcbnew_tools_menu.png[scaledwidth="30%"]
+
+==== The Design Rules menu
+
+image::images/Pcbnew_design_rules_menu.png[scaledwidth="25%"]
+
+Provides access to 2 dialogs:
+
+* Setting Design Rules (tracks and vias sizes, clerances).
+* Setting Layers (number, enabled and layers names)
+
+==== The Help menu
+
+Provides access to the user manuals and to the version information
+menu (Pcbnew About).
+
+=== Using icons on the top toolbar
+
+This toolbar gives access to the principal functions of Pcbnew.
+
+image::images/Pcbnew_top_toolbar.png[scaledwidth="90%"]
+
+[cols="4,10"]
+|====
+| image:images/icons/new.png[]
+    | Creation of a new printed circuit.
+| image:images/icons/open_brd_file.png[]
+    | Opening of an old printed circuit.
+| image:images/icons/save.png[]
+    | Save printed circuit.
+| image:images/icons/sheetset.png[]
+    | Selection of the page size and modification of the file properties.
+| image:images/icons/module_editor.png[]
+    | Opens Footprint Editor to edit library or pcb footprint.
+| image:images/icons/modview_icon.png[]
+    | Opens Footprint Viewer to display library or pcb footprint.
+| image:images/icons/undo.png[] image:images/icons/redo.png[]
+    | Undo/Redo last commands (10 levels)
+| image:images/icons/print_button.png[]
+    | Display print menu.
+| image:images/icons/plot.png[]
+    | Display plot menu.
+| image:images/icons/zoom_in.png[] image:images/icons/zoom_out.png[]
+    | Zoom in and Zoom out (relative to the centre of screen).
+| image:images/icons/zoom_redraw.png[]
+    | Redraw the screen
+| image:images/icons/zoom_fit_in_page.png[]
+    | Fit to page
+| image:images/icons/find.png[]
+    | Find footprint or text.
+| image:images/icons/netlist.png[]
+    | Netlist operations (selection, reading, testing and compiling).
+| image:images/icons/drc.png[]
+    | DRC (Design Rule Check): Automatic check of the tracks.
+| image:images/Pcbnew_toolbar_layer_select_dropdown.png[]
+    | Selection of the working layer.
+| image:images/Pcbnew_layer_pair_indicator.png[]
+    | Selection of layer pair (for vias)
+| image:images/icons/mode_module.png[]
+    | Footprint mode: when active this enables footprint options in the
+    pop-up window.
+| image:images/icons/mode_track.png[]
+    | Routing mode: when active this enables routing options in the
+    pop-up window
+| image:images/icons/web_support.png[]
+    | Direct access to the router Freerouter
+| image:images/icons/py_script.png[]
+    | Show / Hide the Python scripting console
+|====
+
+==== Auxiliary toolbar
+
+[cols="4,10"]
+|====
+| image:images/Pcbnew_track_thickness_dropdown.png[]
+    | Selection of thickness of track already in use.
+| image:images/Pcbnew_via_size_dropdown.png[]
+    | Selection of a dimension of via already in use.
+| image:images/icons/auto_track_width.png[]
+    | Automatic track width: if enabled when creating a new track,
+    when starting on an existing track, the width of the new track
+    is set to the width of the existing track.
+| image:images/Pcbnew_grid_size_dropdown.png[]
+    | Selection of the grid size.
+| image:images/Pcbnew_zoom_factor_dropdown.png[]
+    | Selection of the zoom.
+|====
+
+<<<<<
+
+=== Right-hand side toolbar
+
+This toolbar gives access to the editing tool to change the PCB
+shown in Pcbnew.
+
+[width="100%",cols="10%,5%,85%",]
+|====
+.16+^.^|image:images/Pcbnew_right_toolbar.png[width="80%"]
+| image:images/icons/cursor.png[]
+    | Select the standard mouse mode.
+| image:images/icons/net_highlight.png[]
+    | Highlight net selected by clicking on a track or pad.
+| image:images/icons/tool_ratsnest.png[]
+    | Display local ratsnest (Pad or Footprint).
+| image:images/icons/module.png[]
+    | Add a footprint from a library.
+| image:images/icons/add_tracks.png[]
+    | Placement of tracks and vias.
+| image:images/icons/add_zone.png[]
+    | Placement of zones (copper planes).
+| image:images/icons/add_keepout_area.png[]
+    | Placement of keepout areas ( on copper layers ).
+| image:images/icons/add_dashed_line.png[]
+    | Draw Lines on technical layers (i.e. not a copper layer).
+| image:images/icons/add_circle.png[]
+    | Draw Circles on technical layers (i.e. not a copper layer).
+| image:images/icons/add_arc.png[]
+    | Draw Arcs on technical layers (i.e. not a copper layer).
+| image:images/icons/add_text.png[]
+    | Placement of text.
+| image:images/icons/add_dimension.png[]
+    | Draw Dimensions on technical layers (i.e. not the copper layer).
+| image:images/icons/add_mires.png[]
+    | Draw Alignment Marks (appearing on all layers).
+| image:images/icons/delete.png[]
+    | Delete element pointed to by the cursor
+
+    *Note:*
+    When Deleting, if several superimposed elements are
+    pointed to, priority is given to the smallest (in the decreasing
+    set of priorities tracks, text, footprint). The function "Undelete"
+    of the upper toolbar allows the cancellation of the last item
+    deleted.
+| image:images/icons/pcb_offset.png[]
+    | Offset adjust for drilling and place files.
+| image:images/icons/grid_select_axis.png[]
+    | Grid origin. (grid offset). Useful mainly for editing and
+    placement of footprints. Can also be set in Dimensions/Grid menu.
+
+|====
+
+    * Placement of footprints, tracks, zones of copper, texts, etc.
+    * Net Highlighting.
+    * Creating notes, graphic elements, etc.
+    * Deleting elements.
+
+<<<<<
+
+=== Left-hand side toolbar
+
+The left hand-side toolbar provides display and control options that
+affect Pcbnew's interface.
+
+[width="100%",cols="10%,5%,85%",]
+|====
+.17+^.^|image:images/Pcbnew_left_toolbar.png[width="80%"]
+| image:images/icons/drc_off.png[]
+    | Turns DRC (Design Rule Checking) on/off. *Caution:* when DRC
+    is off incorrect connections can be made.
+| image:images/icons/grid.png[]
+    | Turn grid display on/off *Note:* a small grid may not be displayed
+    unless zoomed in far enough
+| image:images/icons/polar_coord.png[]
+    | Polar display of the relative co-ordinates on the status bar on/off.
+| image:images/icons/unit_inch.png[] image:images/icons/unit_mm.png[]
+    | Display/entry of coordinates or dimensions in inches or millimeters.
+| image:images/icons/cursor_shape.png[]
+    | Change cursor display shape.
+| image:images/icons/general_ratsnest.png[]
+    | Display general rats nest (incomplete connections between footprints).
+| image:images/icons/local_ratsnest.png[]
+    | Display footprint rats nest dynamically as it is moved.
+| image:images/icons/auto_delete_track.png[]
+    | Enable/Disable automatic deletion of a track when it is redrawn.
+| image:images/icons/show_zone.png[]
+    | Show filled areas in zones
+| image:images/icons/show_zone_disable.png[]
+    | Do not show filled areas in zones
+| image:images/icons/show_zone_outline_only.png[]
+    | Show only outlines of filled areas in zones
+| image:images/icons/pad_sketch.png[]
+    | Display of pads in outline mode on/off.
+| image:images/icons/via_sketch.png[]
+    | Display of vias in outline mode on/off.
+| image:images/icons/showtrack.png[]
+    | Display of tracks in outline mode on/off.
+| image:images/icons/contrast_mode.png[]
+    | High contrast display mode on/off. In this mode the active
+    layer is displayed normally, all the other layers are displayed
+    in gray. Useful for working on multi-layer circuits.
+| image:images/icons/layers_manager.png[]
+    | Hide/Show the Layers manager
+| image:images/icons/mw_toolbar.png[]
+    | Access to microwaves tools. Under development
+
+|====
+
+=== Pop-up windows and fast editing
+
+A right-click of the mouse opens a pop-up window. Its contents
+depends on the element pointed at by the cursor.
+
+This gives immediate access to:
+
+* Changing the display (centre display on cursor, zoom in or out or
+  selecting the zoom).
+* Setting the grid size.
+* Additionally a right-click on an element enables editing of the most
+  commonly modified element parameters.
+
+The screenshots below show what the pop-up windows looks like.
+
+=== Available modes
+
+There are 3 modes when using pop-up menus. In the pop-up menus,
+these modes add or remove some specific commands.
+
+[cols="2,5"]
+|====
+| image:images/icons/mode_module.png[] and
+  image:images/icons/mode_track.png[] disabled
+    | Normal mode
+| image:images/icons/mode_module.png[] enabled
+    | Footprint mode
+| image:images/icons/mode_track.png[] enabled
+    | Tracks mode
+|====
+
+==== Normal mode
+
+* Pop-up menu with no selection:
+
+image::images/Pcbnew_popup_normal_mode.png[scaledwidth="30%"]
+
+* Pop-up menu with track selected:
+
+image::images/Pcbnew_popup_normal_mode_track.png[scaledwidth="60%"]
+
+* Pop-up menu with footprint selected:
+
+image::images/Pcbnew_popup_normal_mode_footprint.png[scaledwidth="60%"]
+
+==== Footprint mode
+
+Same cases in Footprint Mode (image:images/icons/mode_module.png[] enabled)
+
+* Pop-up menu with no selection:
+
+image::images/Pcbnew_popup_footprint_mode.png[scaledwidth="60%"]
+
+* Pop-up menu with track selected:
+
+image::images/Pcbnew_popup_footprint_mode_track.png[scaledwidth="30%"]
+
+* Pop-up menu with footprint selected:
+
+image::images/Pcbnew_popup_footprint_mode_footprint.png[scaledwidth="60%"]
+
+==== Tracks mode
+
+Same cases in Track Mode (image:images/icons/mode_track.png[] enabled)
+
+* Pop-up menu with no selection:
+
+image::images/Pcbnew_popup_track_mode.png[scaledwidth="60%"]
+
+* Pop-up menu with track selected:
+
+image::images/Pcbnew_popup_track_mode_track.png[scaledwidth="50%"]
+
+* Pop-up menu with footprint selected:
+
+image::images/Pcbnew_popup_track_mode_footprint.png[scaledwidth="60%"]

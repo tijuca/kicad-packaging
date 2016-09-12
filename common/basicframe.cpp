@@ -49,6 +49,7 @@
 
 #include <boost/version.hpp>
 #include <typeinfo>
+#include <wx/display.h>
 
 /// The default auto save interval is 10 minutes.
 #define DEFAULT_AUTO_SAVE_INTERVAL 600
@@ -253,6 +254,20 @@ void EDA_BASE_FRAME::LoadSettings( wxConfigBase* aCfg )
         aCfg->Read( text, &m_autoSaveInterval, DEFAULT_AUTO_SAVE_INTERVAL );
     }
 
+    // Ensure the window is on a connected display, and is visible.
+    // (at least a corner of the frame must be visible on screen)
+    // Sometimes, if a window was moved on an auxiliary display, and when this
+    // display is no more available, it is not the case.
+    wxRect rect( m_FramePos, m_FrameSize );
+
+    if( wxDisplay::GetFromPoint( rect.GetTopLeft() ) == wxNOT_FOUND &&
+        wxDisplay::GetFromPoint( rect.GetTopRight() ) == wxNOT_FOUND &&
+        wxDisplay::GetFromPoint( rect.GetBottomLeft() ) == wxNOT_FOUND &&
+        wxDisplay::GetFromPoint( rect.GetBottomRight() ) == wxNOT_FOUND )
+    {
+        m_FramePos = wxDefaultPosition;
+    }
+
     // Ensure Window title bar is visible
 #if defined( __WXMAC__ )
     // for macOSX, the window must be below system (macOSX) toolbar
@@ -455,26 +470,18 @@ void EDA_BASE_FRAME::GetKicadHelp( wxCommandEvent& event )
 
 void EDA_BASE_FRAME::OnSelectPreferredEditor( wxCommandEvent& event )
 {
-    wxFileName  fn = Pgm().GetEditorName();
-    wxString    wildcard( wxT( "*" ) );
+    // Ask for the current editor and instruct GetEditorName() to not show
+    // unless we pass false as argument.
+    wxString editorname = Pgm().GetEditorName( false );
 
-#ifdef __WINDOWS__
-    wildcard += wxT( ".exe" );
-#endif
+    // Ask the user to select a new editor, but suggest the current one as the default.
+    editorname = Pgm().AskUserForPreferredEditor( editorname );
 
-    wildcard.Printf( _( "Executable file (%s)|%s" ),
-                     GetChars( wildcard ), GetChars( wildcard ) );
-
-    wxFileDialog dlg( this, _( "Select Preferred Editor" ), fn.GetPath(),
-                      fn.GetFullName(), wildcard,
-                      wxFD_OPEN | wxFD_FILE_MUST_EXIST );
-
-    if( dlg.ShowModal() == wxID_CANCEL )
-        return;
-
-    wxString editor = dlg.GetPath();
-
-    Pgm().SetEditorName( editor );
+    // If we have a new editor name request it to be copied to m_editor_name and saved
+    // to the preferences file. If the user cancelled the dialog then the previous
+    // value will be retained.
+    if( !editorname.IsEmpty() )
+        Pgm().SetEditorName( editorname );
 }
 
 

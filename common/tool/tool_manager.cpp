@@ -24,7 +24,7 @@
  */
 
 #include <map>
-#include <deque>
+#include <list>
 #include <stack>
 #include <algorithm>
 
@@ -428,11 +428,15 @@ TOOL_BASE* TOOL_MANAGER::FindTool( const std::string& aName ) const
     return NULL;
 }
 
-
-void TOOL_MANAGER::ResetTools( TOOL_BASE::RESET_REASON aReason )
+void TOOL_MANAGER::DeactivateTool()
 {
     TOOL_EVENT evt( TC_COMMAND, TA_ACTIVATE, "" );      // deactivate the active tool
     ProcessEvent( evt );
+}
+
+void TOOL_MANAGER::ResetTools( TOOL_BASE::RESET_REASON aReason )
+{
+    DeactivateTool();
 
     BOOST_FOREACH( TOOL_BASE* tool, m_toolState | boost::adaptors::map_keys )
     {
@@ -446,7 +450,7 @@ int TOOL_MANAGER::GetPriority( int aToolId ) const
 {
     int priority = 0;
 
-    for( std::deque<int>::const_iterator it = m_activeTools.begin(),
+    for( std::list<TOOL_ID>::const_iterator it = m_activeTools.begin(),
             itEnd = m_activeTools.end(); it != itEnd; ++it )
     {
         if( *it == aToolId )
@@ -490,9 +494,12 @@ optional<TOOL_EVENT> TOOL_MANAGER::ScheduleWait( TOOL_BASE* aTool,
 void TOOL_MANAGER::dispatchInternal( const TOOL_EVENT& aEvent )
 {
     // iterate over all registered tools
-    BOOST_FOREACH( TOOL_ID toolId, m_activeTools )
+    for( std::list<TOOL_ID>::iterator it = m_activeTools.begin();
+            it != m_activeTools.end(); /* iteration is done inside */)
     {
-        TOOL_STATE* st = m_toolIdIndex[toolId];
+        std::list<TOOL_ID>::iterator curIt = it;
+        TOOL_STATE* st = m_toolIdIndex[*it];
+        ++it;       // it might be overwritten, if the tool is removed the m_activeTools list
 
         // the tool state handler is waiting for events (i.e. called Wait() method)
         if( st->pendingWait )
@@ -508,7 +515,10 @@ void TOOL_MANAGER::dispatchInternal( const TOOL_EVENT& aEvent )
                 st->waitEvents.clear();
 
                 if( st->cofunc && !st->cofunc->Resume() )
-                    finishTool( st ); // The couroutine has finished
+                {
+                    if( finishTool( st, false ) ) // The couroutine has finished
+                        it = m_activeTools.erase( curIt );
+                }
 
                 // If the tool did not request to propagate
                 // the event to other tools, we should stop it now
@@ -636,8 +646,10 @@ void TOOL_MANAGER::dispatchContextMenu( const TOOL_EVENT& aEvent )
 }
 
 
-void TOOL_MANAGER::finishTool( TOOL_STATE* aState )
+bool TOOL_MANAGER::finishTool( TOOL_STATE* aState, bool aDeactivate )
 {
+    bool shouldDeactivate = false;
+
     // Reset VIEW_CONTROLS only if the most recent tool is finished
     if( m_activeTools.empty() || m_activeTools.front() == aState->theTool->GetId() )
         m_viewControls->Reset();
@@ -645,14 +657,21 @@ void TOOL_MANAGER::finishTool( TOOL_STATE* aState )
     if( !aState->Pop() )        // if there are no other contexts saved on the stack
     {
         // find the tool and deactivate it
-        std::deque<TOOL_ID>::iterator tool = std::find( m_activeTools.begin(), m_activeTools.end(),
+        std::list<TOOL_ID>::iterator tool = std::find( m_activeTools.begin(), m_activeTools.end(),
                                                         aState->theTool->GetId() );
 
         if( tool != m_activeTools.end() )
-            m_activeTools.erase( tool );
+        {
+            shouldDeactivate = true;
+
+            if( aDeactivate )
+                m_activeTools.erase( tool );
+        }
     }
 
     aState->theTool->SetTransitions();
+
+    return shouldDeactivate;
 }
 
 

@@ -186,6 +186,12 @@ public:
     }
 
     /**
+     * Function DeactivateTool()
+     * Deactivates the currently active tool.
+     */
+    void DeactivateTool();
+
+    /**
      * Function ResetTools()
      * Resets all tools (i.e. calls their Reset() method).
      */
@@ -389,8 +395,11 @@ private:
      * Deactivates a tool and does the necessary clean up.
      *
      * @param aState is the state variable of the tool to be stopped.
+     * @param aDeactivate decides if the tool should be removed from the active tools set.
+     * @return True if the tool should be deactivated (note it does not necessarily  mean it has
+     * been deactivated, aDeactivate parameter decides).
      */
-    void finishTool( TOOL_STATE* aState );
+    bool finishTool( TOOL_STATE* aState, bool aDeactivate = true );
 
     /**
      * Function isRegistered()
@@ -426,7 +435,7 @@ private:
     std::map<TOOL_ID, TOOL_STATE*> m_toolIdIndex;
 
     /// Stack of the active tools
-    std::deque<TOOL_ID> m_activeTools;
+    std::list<TOOL_ID> m_activeTools;
 
     /// Instance of ACTION_MANAGER that handles TOOL_ACTIONs
     ACTION_MANAGER* m_actionMgr;

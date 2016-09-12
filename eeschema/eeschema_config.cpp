@@ -5,7 +5,7 @@
 /*
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
- * Copyright (C) 2014 KiCad Developers, see CHANGELOG.TXT for contributors.
+ * Copyright (C) 2014-2016 KiCad Developers, see CHANGELOG.TXT for contributors.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -330,6 +330,7 @@ void SCH_EDIT_FRAME::OnPreferencesOptions( wxCommandEvent& event )
     dlg.SetShowGrid( IsGridVisible() );
     dlg.SetShowHiddenPins( m_showAllPins );
     dlg.SetEnableMiddleButtonPan( m_canvas->GetEnableMiddleButtonPan() );
+    dlg.SetEnableMousewheelPan( m_canvas->GetEnableMousewheelPan() );
     dlg.SetEnableZoomNoCenter( m_canvas->GetEnableZoomNoCenter() );
     dlg.SetMiddleButtonPanLimited( m_canvas->GetMiddleButtonPanLimited() );
     dlg.SetEnableAutoPan( m_canvas->GetEnableAutoPan() );
@@ -378,6 +379,7 @@ void SCH_EDIT_FRAME::OnPreferencesOptions( wxCommandEvent& event )
     SetGridVisibility( dlg.GetShowGrid() );
     m_showAllPins = dlg.GetShowHiddenPins();
     m_canvas->SetEnableMiddleButtonPan( dlg.GetEnableMiddleButtonPan() );
+    m_canvas->SetEnableMousewheelPan( dlg.GetEnableMousewheelPan() );
     m_canvas->SetEnableZoomNoCenter( dlg.GetEnableZoomNoCenter() );
     m_canvas->SetMiddleButtonPanLimited( dlg.GetMiddleButtonPanLimited() );
     m_canvas->SetEnableAutoPan( dlg.GetEnableAutoPan() );
@@ -740,11 +742,6 @@ void LIB_EDIT_FRAME::LoadSettings( wxConfigBase* aCfg )
     SetGridColor( GetLayerColor( LAYER_GRID ) );
     SetDrawBgColor( GetLayerColor( LAYER_BACKGROUND ) );
 
-    wxString pro_dir = Prj().GetProjectFullName();
-
-    m_lastLibExportPath = aCfg->Read( lastLibExportPathEntry, pro_dir );
-    m_lastLibImportPath = aCfg->Read( lastLibImportPathEntry, pro_dir );
-
     SetDefaultLineThickness( aCfg->Read( DefaultDrawLineWidthEntry, DEFAULTDRAWLINETHICKNESS ) );
     SetDefaultPinLength( aCfg->Read( DefaultPinLengthEntry, DEFAULTPINLENGTH ) );
     m_textPinNumDefaultSize = aCfg->Read( defaultPinNumSizeEntry, DEFAULTPINNUMSIZE );
@@ -762,8 +759,6 @@ void LIB_EDIT_FRAME::SaveSettings( wxConfigBase* aCfg )
 {
     EDA_DRAW_FRAME::SaveSettings( aCfg );
 
-    aCfg->Write( lastLibExportPathEntry, m_lastLibExportPath );
-    aCfg->Write( lastLibImportPathEntry, m_lastLibImportPath );
     aCfg->Write( DefaultPinLengthEntry, (long) GetDefaultPinLength() );
     aCfg->Write( defaultPinNumSizeEntry, (long) GetPinNumDefaultSize() );
     aCfg->Write( defaultPinNameSizeEntry, (long) GetPinNameDefaultSize() );

@@ -62,9 +62,17 @@ EDA_DRAW_PANEL_GAL::EDA_DRAW_PANEL_GAL( wxWindow* aParentWindow, wxWindowID aWin
     m_eventDispatcher = NULL;
     m_lostFocus  = false;
 
+    SetLayoutDirection( wxLayout_LeftToRight );
+
     SwitchBackend( aGalType );
     SetBackgroundStyle( wxBG_STYLE_CUSTOM );
+    
+// Scrollbars broken in GAL on OSX
+#ifdef __WXMAC__
+    ShowScrollbars( wxSHOW_SB_NEVER, wxSHOW_SB_NEVER );
+#else
     ShowScrollbars( wxSHOW_SB_ALWAYS, wxSHOW_SB_ALWAYS );
+#endif
     EnableScrolling( false, false );    // otherwise Zoom Auto disables GAL canvas
 
     m_painter = new KIGFX::PCB_PAINTER( m_gal );
@@ -142,7 +150,11 @@ void EDA_DRAW_PANEL_GAL::onPaint( wxPaintEvent& WXUNUSED( aEvent ) )
 
     m_drawing = true;
 
+// Scrollbars broken in GAL on OSX
+#ifndef __WXMAC__
     m_viewControls->UpdateScrollbars();
+#endif
+
     m_view->UpdateItems();
     m_gal->BeginDrawing();
     m_gal->ClearScreen( m_painter->GetSettings()->GetBackgroundColor() );
@@ -182,20 +194,27 @@ void EDA_DRAW_PANEL_GAL::Refresh( bool aEraseBackground, const wxRect* aRect )
     if( m_pendingRefresh )
         return;
 
+    m_pendingRefresh = true;
+
+#ifdef __WXMAC__
+    // Timers on OS X may have a high latency (seen up to 500ms and more) which
+    // makes repaints jerky. No negative impact seen without throttling, so just
+    // do an unconditional refresh for OS X.
+    ForceRefresh();
+#else
     wxLongLong t = wxGetLocalTimeMillis();
     wxLongLong delta = t - m_lastRefresh;
 
     if( delta >= MinRefreshPeriod )
     {
         ForceRefresh();
-        m_pendingRefresh = true;
     }
     else
     {
         // One shot timer
         m_refreshTimer.Start( ( MinRefreshPeriod - delta ).ToLong(), true );
-        m_pendingRefresh = true;
     }
+#endif
 }
 
 
