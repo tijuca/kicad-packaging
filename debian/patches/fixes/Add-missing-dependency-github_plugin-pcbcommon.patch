@@ -1,0 +1,22 @@
+From: Simon Richter <Simon.Richter@hogyros.de>
+Date: Thu, 5 May 2016 10:01:38 +0200
+Subject: Add missing dependency github_plugin -> pcbcommon
+
+The GitHub plugin needs the generated PCB parser code.
+---
+ pcbnew/CMakeLists.txt | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/pcbnew/CMakeLists.txt b/pcbnew/CMakeLists.txt
+index a0454be..4fe1978 100644
+--- a/pcbnew/CMakeLists.txt
++++ b/pcbnew/CMakeLists.txt
+@@ -538,6 +538,8 @@ add_subdirectory( pcad2kicadpcb_plugin )
+ if( BUILD_GITHUB_PLUGIN )
+     add_subdirectory( github )
+     add_dependencies( github_plugin lib-dependencies )
++    # github_plugin depends on make_lexer outputs in common
++    add_dependencies( github_plugin pcbcommon )
+ endif()
+ 
+ 
