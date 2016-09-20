@@ -1,37 +1,30 @@
-Index: kicad-4.0.2+dfsg1/doc/Makefile
-===================================================================
+From: Georges Khaznadar <georgesk@debian.org>
+Date: Sat, 3 Sep 2016 17:57:10 +0200
+Subject: Adding various Makefiles for easier build
+
+---
+ Makefile         | 81 ++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+ doc/Makefile     | 18 +++++++++++++
+ i18n/Makefile    | 18 +++++++++++++
+ library/Makefile | 26 ++++++++++++++++++
+ 4 files changed, 143 insertions(+)
+ create mode 100644 Makefile
+ create mode 100644 doc/Makefile
+ create mode 100644 i18n/Makefile
+ create mode 100644 library/Makefile
+
+diff --git a/Makefile b/Makefile
+new file mode 100644
+index 0000000..aea0a59
 --- /dev/null
-+++ kicad-4.0.2+dfsg1/doc/Makefile
-@@ -0,0 +1,18 @@
-+DESTDIR =
-+DATE    = $(shell date +%Y%m%d)
-+CMAKE_OPTS = -DCMAKE_INSTALL_PREFIX=/usr
-+
-+all:
-+	mkdir -p build
-+	cd build; cmake $(CMAKE_OPTS) ../kicad-doc-master; $(MAKE)
-+
-+clean:
-+	rm -f *~
-+
-+distclean: clean
-+	rm -rf build
-+
-+install: all
-+	cd build; export DESTDIR=$(DESTDIR); $(MAKE) install
-+
-+.PHONY: all clean install
-Index: kicad-4.0.2+dfsg1/Makefile
-===================================================================
---- /dev/null
-+++ kicad-4.0.2+dfsg1/Makefile
++++ b/Makefile
 @@ -0,0 +1,81 @@
 +DESTDIR    =
 +VERSION    = $(shell basename $$(pwd)| sed 's/kicad-//')
 +DATE       = $(shell date +%Y%m%d)
 +CPPFLAGS   = $(shell dpkg-buildflags --get CPPFLAGS)
 +CXXFLAGS   = $(shell dpkg-buildflags --get CXXFLAGS) $(CPPFLAGS)
-+CMAKE_OPTS = -DKICAD_SKIP_BOOST=ON -DCMAKE_INSTALL_PREFIX=/usr -DCMAKE_CXX_FLAGS="$(CXXFLAGS)" -DKICAD_REPO_NAME=stable -DKICAD_BUILD_VERSION=$(VERSION) -DDEFAULT_INSTALL_PATH=/usr -DKICAD_SCRIPTING=ON -DKICAD_SCRIPTING_MODULES=ON -DKICAD_SCRIPTING_WXPYTHON=ON
++CMAKE_OPTS = -DKICAD_SKIP_BOOST=ON -DCMAKE_INSTALL_PREFIX=/usr -DCMAKE_CXX_FLAGS="$(CXXFLAGS)" -DBUILD_GITHUB_PLUGIN=OFF -DKICAD_REPO_NAME=stable -DKICAD_BUILD_VERSION=$(VERSION) -DDEFAULT_INSTALL_PATH=/usr -DKICAD_SCRIPTING=ON -DKICAD_SCRIPTING_MODULES=ON -DKICAD_SCRIPTING_WXPYTHON=ON
 +SUBDIRS = doc library i18n
 +LDFLAGS = $(shell dpkg-buildflags --get LDFLAGS)
 +
@@ -107,10 +100,59 @@ Index: kicad-4.0.2+dfsg1/Makefile
 +
 +
 +.PHONY: all clean clean_all install fix_48x48icons
-Index: kicad-4.0.2+dfsg1/library/Makefile
-===================================================================
+diff --git a/doc/Makefile b/doc/Makefile
+new file mode 100644
+index 0000000..4724b32
 --- /dev/null
-+++ kicad-4.0.2+dfsg1/library/Makefile
++++ b/doc/Makefile
+@@ -0,0 +1,18 @@
++DESTDIR =
++DATE    = $(shell date +%Y%m%d)
++CMAKE_OPTS = -DCMAKE_INSTALL_PREFIX=/usr
++
++all:
++	mkdir -p build
++	cd build; cmake $(CMAKE_OPTS) ../kicad-doc-master; $(MAKE)
++
++clean:
++	rm -f *~
++
++distclean: clean
++	rm -rf build
++
++install: all
++	cd build; export DESTDIR=$(DESTDIR); $(MAKE) install
++
++.PHONY: all clean install
+diff --git a/i18n/Makefile b/i18n/Makefile
+new file mode 100644
+index 0000000..d555423
+--- /dev/null
++++ b/i18n/Makefile
+@@ -0,0 +1,18 @@
++DESTDIR =
++DATE    = $(shell date +%Y%m%d)
++CMAKE_OPTS = -DCMAKE_INSTALL_PREFIX=/usr -DKICAD_I18N_UNIX_STRICT_PATH=ON
++
++all:
++	mkdir -p build
++	cd build; cmake $(CMAKE_OPTS) ../kicad-i18n-master; $(MAKE)
++
++clean:
++	rm -f *~
++
++distclean: clean
++	rm -rf build
++
++install: all
++	cd build; export DESTDIR=$(DESTDIR); $(MAKE) install
++
++.PHONY: all clean install
+diff --git a/library/Makefile b/library/Makefile
+new file mode 100644
+index 0000000..2f1d756
+--- /dev/null
++++ b/library/Makefile
 @@ -0,0 +1,26 @@
 +DESTDIR =
 +DATE    = $(shell date +%Y%m%d)
@@ -136,28 +178,5 @@ Index: kicad-4.0.2+dfsg1/library/Makefile
 +	  mkdir -p $(DESTDIR)/usr/share/kicad/modules/$$e; \
 +	  cp -Rd $$d/* $(DESTDIR)/usr/share/kicad/modules/$$e; \
 +	done
-+
-+.PHONY: all clean install
-Index: kicad-4.0.2+dfsg1/i18n/Makefile
-===================================================================
---- /dev/null
-+++ kicad-4.0.2+dfsg1/i18n/Makefile
-@@ -0,0 +1,18 @@
-+DESTDIR =
-+DATE    = $(shell date +%Y%m%d)
-+CMAKE_OPTS = -DCMAKE_INSTALL_PREFIX=/usr -DKICAD_I18N_UNIX_STRICT_PATH=ON
-+
-+all:
-+	mkdir -p build
-+	cd build; cmake $(CMAKE_OPTS) ../kicad-i18n-master; $(MAKE)
-+
-+clean:
-+	rm -f *~
-+
-+distclean: clean
-+	rm -rf build
-+
-+install: all
-+	cd build; export DESTDIR=$(DESTDIR); $(MAKE) install
 +
 +.PHONY: all clean install

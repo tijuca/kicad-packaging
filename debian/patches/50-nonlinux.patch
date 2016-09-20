@@ -1,10 +1,18 @@
-The modification should allow the package to be built
-with on new platforms: hurd and *freebsd
-Index: kicad-4.0.2+dfsg1/include/kiway.h
-===================================================================
---- kicad-4.0.2+dfsg1.orig/include/kiway.h
-+++ kicad-4.0.2+dfsg1/include/kiway.h
-@@ -114,7 +114,7 @@ as such!  As such, it is OK to use UTF8
+From: Georges Khaznadar <georgesk@debian.org>
+Date: Sat, 3 Sep 2016 17:57:10 +0200
+Subject: Fix FTBFS on kFreeBSD and Hurd
+
+The modification should allow the package to be built with on new
+platforms: hurd and *freebsd
+---
+ include/kiway.h | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/include/kiway.h b/include/kiway.h
+index 3ec5af8..3ce01cb 100644
+--- a/include/kiway.h
++++ b/include/kiway.h
+@@ -114,7 +114,7 @@ as such!  As such, it is OK to use UTF8 characters:
  // be mangled.
  #define KIFACE_INSTANCE_NAME_AND_VERSION   "KIFACE_1"
  

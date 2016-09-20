@@ -3,4 +3,4 @@
 30-desktop-files.patch
 40-findBitmaps.patch
 50-nonlinux.patch
-boost161.patch
+60-Fix-FTBFS-with-Boost-1.61.patch

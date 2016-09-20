@@ -1,7 +1,17 @@
-Index: kicad-4.0.4+dfsg1/CMakeModules/download_avhttp.cmake
-===================================================================
---- kicad-4.0.4+dfsg1.orig/CMakeModules/download_avhttp.cmake
-+++ kicad-4.0.4+dfsg1/CMakeModules/download_avhttp.cmake
+From: Georges Khaznadar <georgesk@debian.org>
+Date: Sat, 3 Sep 2016 17:57:10 +0200
+Subject: Remove download target for noAvhttp
+
+In Debian we don't load anything dynamically from the net while package
+built.
+---
+ CMakeModules/download_avhttp.cmake | 27 ---------------------------
+ 1 file changed, 27 deletions(-)
+
+diff --git a/CMakeModules/download_avhttp.cmake b/CMakeModules/download_avhttp.cmake
+index abc52b7..1827273 100644
+--- a/CMakeModules/download_avhttp.cmake
++++ b/CMakeModules/download_avhttp.cmake
 @@ -35,31 +35,4 @@
  #-----</configure>-----------------------------------------------------------------------------------
  
@@ -33,92 +43,4 @@ Index: kicad-4.0.4+dfsg1/CMakeModules/download_avhttp.cmake
 -
 -
 -set( AVHTTP_INCLUDE_DIR  "${PREFIX}/include" CACHE FILEPATH "AVHTTP include directory" )
--mark_as_advanced( AVHTTP_INCLUDE_DIR )
-+#mark_as_advanced( AVHTTP_INCLUDE_DIR )
-Index: kicad-4.0.4+dfsg1/pcbnew/github/CMakeLists.txt
-===================================================================
---- kicad-4.0.4+dfsg1.orig/pcbnew/github/CMakeLists.txt
-+++ kicad-4.0.4+dfsg1/pcbnew/github/CMakeLists.txt
-@@ -24,43 +24,45 @@
- 
- # Download avhttp and install the headers, not actually compiled
- #################################################
--include( download_avhttp )
-+#include( download_avhttp )
- 
- if( MINGW AND NOT OPENSSL_ROOT_DIR )
-     # download, compile and install to scratch dir a recent OPENSSL library and headers
-     include( download_openssl )
- else()
--    find_package( OpenSSL REQUIRED )
-+    #find_package( OpenSSL REQUIRED )
-+    message("OPENSSL is disabled for Debian build, to prevent OPENSSL/GNU GPL license issue")
-     #message( STATUS "OPENSSL_FOUND:${OPENSSL_FOUND}  OPENSSL_LIBRARIES:${OPENSSL_LIBRARIES}" )
- 
-     # FindOpenSSL.cmake does not set this var into cache, so is not globally visible,
-     # do it here incase some other link image needs these libraries
--    set( OPENSSL_LIBRARIES   "${OPENSSL_LIBRARIES}"   CACHE FILEPATH "OpenSSL link libraries" )
--    set( OPENSSL_INCLUDE_DIR "${OPENSSL_INCLUDE_DIR}" CACHE FILEPATH "OpenSSL include dir" )
-+    #set( OPENSSL_LIBRARIES   "${OPENSSL_LIBRARIES}"   CACHE FILEPATH "OpenSSL link libraries" )
-+    #set( OPENSSL_INCLUDE_DIR "${OPENSSL_INCLUDE_DIR}" CACHE FILEPATH "OpenSSL include dir" )
- endif()
- 
- 
- # These are additions to any inherited from pcbnew dir:
--include_directories( . ${OPENSSL_INCLUDE_DIR} ${AVHTTP_INCLUDE_DIR} )
-+#include_directories( . ${OPENSSL_INCLUDE_DIR} ${AVHTTP_INCLUDE_DIR} )
-+#include_directories( . ${AVHTTP_INCLUDE_DIR} )
- 
- # Tell AVHTTP we have SSL.
--add_definitions( -DAVHTTP_ENABLE_OPENSSL )
-+#add_definitions( -DAVHTTP_ENABLE_OPENSSL )
- 
- # tone down the compiler warnings for avhttp header library:
- set( CMAKE_CXX_FLAGS
-     "${CMAKE_CXX_FLAGS} -Wno-sign-compare -Wno-reorder -Wno-unused-variable -Wno-unused-function -Wno-strict-aliasing" )
- 
--set( GITHUB_PLUGIN_SRCS
--    github_plugin.cpp github_getliblist.cpp html_link_parser.cpp
--    )
-+#set( GITHUB_PLUGIN_SRCS
-+#    github_plugin.cpp github_getliblist.cpp html_link_parser.cpp
-+#    )
- 
--add_library( github_plugin STATIC ${GITHUB_PLUGIN_SRCS} )
-+#add_library( github_plugin STATIC ${GITHUB_PLUGIN_SRCS} )
- 
- # No, you don't get github without boost and openssl. Boost_LIBRARIES now moved up
- # into CMakeLists.txt for pcbnew and cvpcb:
--target_link_libraries( github_plugin
--    ${OPENSSL_LIBRARIES}
--    )
-+#target_link_libraries( github_plugin
-+#    ${OPENSSL_LIBRARIES}
-+#    )
- 
- if( MINGW )
-     target_link_libraries( github_plugin
-@@ -69,8 +71,8 @@ if( MINGW )
-         )
- endif()
- 
--add_dependencies( github_plugin boost )
--add_dependencies( github_plugin avhttp )
-+#add_dependencies( github_plugin boost )
-+#add_dependencies( github_plugin avhttp )
- 
- if( MINGW AND NOT OPENSSL_ROOT_DIR )
-     add_dependencies( github_plugin openssl )
-Index: kicad-4.0.4+dfsg1/Makefile
-===================================================================
---- kicad-4.0.4+dfsg1.orig/Makefile
-+++ kicad-4.0.4+dfsg1/Makefile
-@@ -3,7 +3,7 @@ VERSION    = $(shell basename $$(pwd)| s
- DATE       = $(shell date +%Y%m%d)
- CPPFLAGS   = $(shell dpkg-buildflags --get CPPFLAGS)
- CXXFLAGS   = $(shell dpkg-buildflags --get CXXFLAGS) $(CPPFLAGS)
--CMAKE_OPTS = -DKICAD_SKIP_BOOST=ON -DCMAKE_INSTALL_PREFIX=/usr -DCMAKE_CXX_FLAGS="$(CXXFLAGS)" -DKICAD_REPO_NAME=stable -DKICAD_BUILD_VERSION=$(VERSION) -DDEFAULT_INSTALL_PATH=/usr -DKICAD_SCRIPTING=ON -DKICAD_SCRIPTING_MODULES=ON -DKICAD_SCRIPTING_WXPYTHON=ON
-+CMAKE_OPTS = -DKICAD_SKIP_BOOST=ON -DCMAKE_INSTALL_PREFIX=/usr -DCMAKE_CXX_FLAGS="$(CXXFLAGS)" -DKICAD_REPO_NAME=stable -DKICAD_BUILD_VERSION=$(VERSION) -DDEFAULT_INSTALL_PATH=/usr -DKICAD_SCRIPTING=ON -DKICAD_SCRIPTING_MODULES=ON -DKICAD_SCRIPTING_WXPYTHON=ON -DBUILD_GITHUB_PLUGIN=OFF
- SUBDIRS = doc library i18n
- LDFLAGS = $(shell dpkg-buildflags --get LDFLAGS)
- 
+ mark_as_advanced( AVHTTP_INCLUDE_DIR )

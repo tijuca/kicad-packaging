@@ -1,7 +1,20 @@
-Index: kicad-4.0.0~rc1/resources/linux/mime/applications/bitmap2component.desktop
-===================================================================
---- kicad-4.0.0~rc1.orig/resources/linux/mime/applications/bitmap2component.desktop
-+++ kicad-4.0.0~rc1/resources/linux/mime/applications/bitmap2component.desktop
+From: Georges Khaznadar <georgesk@debian.org>
+Date: Sat, 3 Sep 2016 17:57:10 +0200
+Subject: Modifing the Exec cmd in the desktop-files
+
+Fixup the *.desktop files and add a file handler to the Exec key.
+https://specifications.freedesktop.org/desktop-entry-spec/latest/ar01s06.html
+---
+ resources/linux/mime/applications/bitmap2component.desktop | 2 +-
+ resources/linux/mime/applications/cvpcb.desktop            | 2 +-
+ resources/linux/mime/applications/gerbview.desktop         | 2 +-
+ resources/linux/mime/applications/pcbcalculator.desktop    | 2 +-
+ 4 files changed, 4 insertions(+), 4 deletions(-)
+
+diff --git a/resources/linux/mime/applications/bitmap2component.desktop b/resources/linux/mime/applications/bitmap2component.desktop
+index f2ff024..18c8d92 100644
+--- a/resources/linux/mime/applications/bitmap2component.desktop
++++ b/resources/linux/mime/applications/bitmap2component.desktop
 @@ -1,7 +1,7 @@
  [Desktop Entry]
  Categories=Development;Electronics;
@@ -11,10 +24,10 @@ Index: kicad-4.0.0~rc1/resources/linux/mime/applications/bitmap2component.deskto
  GenericName=EDA Suite
  Icon=bitmap2component
  MimeType=application/x-bitmap2component-project;
-Index: kicad-4.0.0~rc1/resources/linux/mime/applications/cvpcb.desktop
-===================================================================
---- kicad-4.0.0~rc1.orig/resources/linux/mime/applications/cvpcb.desktop
-+++ kicad-4.0.0~rc1/resources/linux/mime/applications/cvpcb.desktop
+diff --git a/resources/linux/mime/applications/cvpcb.desktop b/resources/linux/mime/applications/cvpcb.desktop
+index 4610839..eadbc64 100644
+--- a/resources/linux/mime/applications/cvpcb.desktop
++++ b/resources/linux/mime/applications/cvpcb.desktop
 @@ -1,7 +1,7 @@
  [Desktop Entry]
  Categories=Development;Electronics;
@@ -24,10 +37,10 @@ Index: kicad-4.0.0~rc1/resources/linux/mime/applications/cvpcb.desktop
  GenericName=EDA Suite
  Icon=cvpcb
  MimeType=application/x-cvpcb-project;
-Index: kicad-4.0.0~rc1/resources/linux/mime/applications/gerbview.desktop
-===================================================================
---- kicad-4.0.0~rc1.orig/resources/linux/mime/applications/gerbview.desktop
-+++ kicad-4.0.0~rc1/resources/linux/mime/applications/gerbview.desktop
+diff --git a/resources/linux/mime/applications/gerbview.desktop b/resources/linux/mime/applications/gerbview.desktop
+index 42e3a83..cad315f 100644
+--- a/resources/linux/mime/applications/gerbview.desktop
++++ b/resources/linux/mime/applications/gerbview.desktop
 @@ -1,7 +1,7 @@
  [Desktop Entry]
  Categories=Development;Electronics;
@@ -37,10 +50,10 @@ Index: kicad-4.0.0~rc1/resources/linux/mime/applications/gerbview.desktop
  GenericName=EDA Suite
  Icon=gerbview
  MimeType=application/x-gerbview-project;
-Index: kicad-4.0.0~rc1/resources/linux/mime/applications/pcbcalculator.desktop
-===================================================================
---- kicad-4.0.0~rc1.orig/resources/linux/mime/applications/pcbcalculator.desktop
-+++ kicad-4.0.0~rc1/resources/linux/mime/applications/pcbcalculator.desktop
+diff --git a/resources/linux/mime/applications/pcbcalculator.desktop b/resources/linux/mime/applications/pcbcalculator.desktop
+index ce37e64..3800209 100644
+--- a/resources/linux/mime/applications/pcbcalculator.desktop
++++ b/resources/linux/mime/applications/pcbcalculator.desktop
 @@ -1,7 +1,7 @@
  [Desktop Entry]
  Categories=Development;Electronics;
