@@ -122,12 +122,6 @@ Copyright: (C) 2005-2010 Kitware, Inc.
            (C) 2012 Rolf Eike Beer <eike@sf-mail.de>
 License: BSD1
 
-Files: CMakeModules/FindOpenSSL.cmake
-Copyright: (C) 2006-2009 Kitware, Inc.
-           (C) 2006 Alexander Neundorf <neundorf@kde.org>
-           (C) 2009-2011 Mathieu Malaterre <mathieu.malaterre@gmail.com>
-License: BSD1
-
 Files: debian/*
 Copyright: (C) 2006-2010 Richard A Burton <richardaburton@gmail.com>
            (C) 2015 Georges Khaznadar <georgesk@debian.org>
