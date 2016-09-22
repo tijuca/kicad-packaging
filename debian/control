@@ -102,6 +102,7 @@ Description: Electronic schematic and PCB design software
 
 Package: kicad-common
 Architecture: all
+Multi-Arch: foreign
 Depends:
  python,
  ${misc:Depends},
@@ -116,6 +117,7 @@ Description: Common files used by kicad
 Package: kicad-doc-ca
 Section: doc
 Architecture: all
+Multi-Arch: foreign
 Depends:
  ${misc:Depends},
 Description: Kicad help files (Catalan)
@@ -128,6 +130,7 @@ Description: Kicad help files (Catalan)
 Package: kicad-doc-de
 Section: doc
 Architecture: all
+Multi-Arch: foreign
 Depends:
  ${misc:Depends},
 Description: Kicad help files (German)
@@ -146,6 +149,7 @@ Description: Kicad help files (German)
 Package: kicad-doc-en
 Section: doc
 Architecture: all
+Multi-Arch: foreign
 Depends:
  ${misc:Depends},
 Description: Kicad help files (English)
@@ -167,6 +171,7 @@ Description: Kicad help files (English)
 Package: kicad-doc-es
 Section: doc
 Architecture: all
+Multi-Arch: foreign
 Depends:
  ${misc:Depends},
 Description: Kicad help files (Spanish)
@@ -184,6 +189,7 @@ Description: Kicad help files (Spanish)
 Package: kicad-doc-fr
 Section: doc
 Architecture: all
+Multi-Arch: foreign
 Depends:
  ${misc:Depends},
 Description: Kicad help files (French)
@@ -200,6 +206,7 @@ Description: Kicad help files (French)
 Package: kicad-doc-it
 Section: doc
 Architecture: all
+Multi-Arch: foreign
 Depends:
  ${misc:Depends},
 Description: Kicad help files (Italian)
@@ -218,6 +225,7 @@ Description: Kicad help files (Italian)
 Package: kicad-doc-ja
 Section: doc
 Architecture: all
+Multi-Arch: foreign
 Depends:
  ${misc:Depends},
 Description: Kicad help files (Japanese)
@@ -236,6 +244,7 @@ Description: Kicad help files (Japanese)
 Package: kicad-doc-nl
 Section: doc
 Architecture: all
+Multi-Arch: foreign
 Depends:
  ${misc:Depends},
 Description: Kicad help files (Dutch)
@@ -247,6 +256,7 @@ Description: Kicad help files (Dutch)
 Package: kicad-doc-pl
 Section: doc
 Architecture: all
+Multi-Arch: foreign
 Depends:
  ${misc:Depends},
 Description: Kicad help files (Polish)
@@ -265,6 +275,7 @@ Description: Kicad help files (Polish)
 Package: kicad-doc-ru
 Section: doc
 Architecture: all
+Multi-Arch: foreign
 Depends: ${misc:Depends}
 Description: Kicad help files (Russian)
  This package provides various documentation files for KiCad in Russian, like
