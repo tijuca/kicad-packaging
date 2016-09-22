@@ -103,6 +103,7 @@ Description: Electronic schematic and PCB design software
 Package: kicad-common
 Architecture: all
 Depends:
+ python,
  ${misc:Depends},
 Recommends:
  kicad,
