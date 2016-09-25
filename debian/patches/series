@@ -8,3 +8,4 @@ fixes/Replace-the-avhttp-library-used-by-the-github-plugin-with.patch
 fixes/Add-missing-dependency-github_plugin-pcbcommon.patch
 fixes/Replace-avhttp-with-libcurl.patch
 fixes/Remove-unused-FindOpenSSL.cmake.patch
+fixes/KiCadDocumentation.cmake-fix-install-target-for-HTML-docu.patch

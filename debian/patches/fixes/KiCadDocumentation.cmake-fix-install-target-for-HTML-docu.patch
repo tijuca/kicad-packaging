@@ -1,0 +1,31 @@
+From: Carsten Schoenert <c.schoenert@t-online.de>
+Date: Sun, 25 Sep 2016 09:56:25 +0200
+Subject: KiCadDocumentation.cmake: fix install target for HTML docu
+
+The current default behaviour while installing the generated HTML
+content is to install the whole images/$LANG folders into every
+generated language. This produces a lot of useless duplicated data.
+This commit fix this partially by only copying the needed language
+folder and the english folder instead defaulting every folder under
+images.
+---
+ doc/CMakeModules/KiCadDocumentation.cmake | 6 +++++-
+ 1 file changed, 5 insertions(+), 1 deletion(-)
+
+diff --git a/doc/CMakeModules/KiCadDocumentation.cmake b/doc/CMakeModules/KiCadDocumentation.cmake
+index e4c91e4..a6fc337 100644
+--- a/doc/CMakeModules/KiCadDocumentation.cmake
++++ b/doc/CMakeModules/KiCadDocumentation.cmake
+@@ -136,7 +136,11 @@ macro( KiCadDocumentation DOCNAME )
+             add_dependencies( ${DOCNAME} ${DOCNAME}_html_${LANGUAGE} )
+ 
+             install( FILES ${CMAKE_CURRENT_BINARY_DIR}/${LANGUAGE}/${DOCNAME}.html DESTINATION ${KICAD_DOC_PATH}/${LANGUAGE} COMPONENT html-${LANGUAGE} )
+-            install( DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/${LANGUAGE}/images/ DESTINATION ${KICAD_DOC_PATH}/${LANGUAGE}/images COMPONENT html-${LANGUAGE} OPTIONAL PATTERN "*.png")
++            # install the images/en/ folder if not already done, the folder contains the default images
++            if( NOT "${KICAD_DOC_PATH}/${LANGUAGE}/images/en" EQUAL "-1" )
++                install( DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/${LANGUAGE}/images/en DESTINATION ${KICAD_DOC_PATH}/${LANGUAGE}/images COMPONENT html-${LANGUAGE} OPTIONAL PATTERN "*.png")
++            endif()
++            install( DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/${LANGUAGE}/images/${LANGUAGE} DESTINATION ${KICAD_DOC_PATH}/${LANGUAGE}/images COMPONENT html-${LANGUAGE} OPTIONAL PATTERN "*.png")
+         endif()
+ 
+ 
