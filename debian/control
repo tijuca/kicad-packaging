@@ -9,7 +9,7 @@ Build-Depends:
  asciidoc,
  cmake,
  dblatex,
- debhelper (>= 9),
+ debhelper (>= 9.20120417),
  dh-python,
  docbook-utils,
  docbook-xsl,
