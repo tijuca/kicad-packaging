@@ -31,7 +31,7 @@ Package: kicad
 Architecture: any
 Depends: kicad-common (>= ${source:Version}),
  ${shlibs:Depends}, ${misc:Depends}, ${python:Depends},
- libglew1.13|libglew1.10, python-wxgtk3.0
+ python-wxgtk3.0
 Suggests: extra-xdg-menus,
 	kicad-doc-en | kicad-doc-fr | kicad-doc-it | kicad-doc-ja | kicad-doc-nl | kicad-doc-pl
 Recommends: xsltproc
