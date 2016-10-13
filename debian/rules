@@ -17,6 +17,21 @@ PARALLEL_BUILD=$(echo $DEB_BUILD_OPTIONS | sed -e '/parallel=/!s/.*/1/;s/.*paral
 # other variables
 VERSION  = $(shell basename $$(pwd)| sed 's/kicad-//')
 DATE     = $(shell date +'%Y-%m-%d' -d"`dpkg-parsechangelog -SDate`")
+export REVDATE := $(shell TZ=UTC date -d "$(shell dpkg-parsechangelog -S Date)" +%Y-%m-%d)
+
+ASCIIDOCFILES := \
+	doc/src/cvpcb/cvpcb.adoc \
+	doc/src/doc_writing_style_policy/doc_writing_style_policy.adoc \
+	doc/src/eeschema/eeschema.adoc \
+	doc/src/gerbview/gerbview.adoc \
+	doc/src/getting_started_in_kicad/getting_started_in_kicad.adoc \
+	doc/src/gui_translation_howto/gui_translation_howto.adoc \
+	doc/src/idf_exporter/idf_exporter.adoc \
+	doc/src/kicad/kicad.adoc \
+	doc/src/pcbnew/pcbnew.adoc \
+	doc/src/pl_editor/pl_editor.adoc \
+	doc/src/plugins/plugins.adoc \
+	$(NULL)
 
 DEB_KICAD_CMAKE_OPTS := \
 	-DKICAD_SKIP_BOOST=ON \
@@ -51,6 +66,7 @@ DEB_LIBRARIES_CMAKE_OPTS := \
 	dh $@ --with-python2 --parallel
 
 override_dh_auto_configure:
+	sed -i 's/@REVDATE@/$(REVDATE)/' $(ASCIIDOCFILES)
 	mkdir -p $(DEB_BUILD_DIR)
 	# configuring KiCad application
 	dh_auto_configure --sourcedirectory=$(CURDIR) --builddirectory=$(DEB_BUILD_DIR) -- $(DEB_KICAD_CMAKE_OPTS)
