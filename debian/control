@@ -62,6 +62,8 @@ Build-Depends:
  texlive-lang-spanish,
  texlive-xetex,
  xmlto,
+Vcs-Git: https://anonscm.debian.org/cgit/pkg-electronics/kicad.git
+Vcs-Browser: https://anonscm.debian.org/cgit/pkg-electronics/kicad.git
 Standards-Version: 3.9.8
 Homepage: http://www.kicad-pcb.org
 
