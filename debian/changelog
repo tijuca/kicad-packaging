@@ -1,3 +1,37 @@
+kicad (4.0.4+dfsg2-1) unstable; urgency=medium
+
+  [ Carsten Schoenert ]
+  * [41a2fdb] create patch-queue branch from the existing patches
+  * [22b5df9] debian/gbp.conf: adding helper config for git-buildpackage
+  * [3ea2c1d] debian/get-kicad.sh: modify script to get recent versions
+  * [eebdef9] New upstream version 4.0.4+dfsg2
+  * [3691290] debian/README.source: adjust info about gbp workflow
+  * [706c203] debian/control: wrap and sort the entries
+  * [a8f2838] place desktop file in favour of a menu files
+  * [4f033cf] kicad-doc*: adopt the documentation packages
+  * [8d7dd1a] debian/copyright: adjust copyright information
+  * [8d417ff] kicad: using the debhelper sequencer file mechanism
+  * [38470c3] kicad-common: also using debhelper sequencer files
+  * [e4be662] debian/control: adding new helper for dh_python2 support
+  * [bb84cb9] debian/watch: adjusting watch URL and filemangle
+  * [522a99e] debian/rules: enabling cmake build with some overrides
+    (Closes: #833685)
+  * [32f83db] debian/kicad.lintian-overrides: some needed overrides
+  * [1ce57ed] rebuild patch queue from patch-queue branch
+  * [182cc1a] rebuild patch queue from patch-queue branch
+  * [5eb0382] kicad: enable the BUILD_GITHUB_PLUGIN (Closes: #820261)
+  * [a200091] debian/copyright: adopt changes due libcurl support
+  * [6e43839] debian/control: adding explicit python dep for kicad-common
+  * [b96a3b7] debian/control: set Multi-Arch: foreign also on Arch: all
+  * [6e15016] rebuild patch queue from patch-queue branch
+  * [a869507] fix some buildflag hardening issues
+  * [95bb23d] rebuild patch queue from patch-queue branch
+  * [bc820d2] debian/rules: adding date from changelog to the Asciidoc files
+
+  [ Georges Khaznadar ]
+
+ -- Georges Khaznadar <georgesk@debian.org>  Tue, 15 Nov 2016 09:20:38 +0100
+
 kicad (4.0.4+dfsg1-2) unstable; urgency=medium
 
   * Removed the spurious dependency on libglew, which should be computed
