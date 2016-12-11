@@ -208,18 +208,57 @@ echo
 # collecting and preparing data for KiCad GUI tarball #
 #######################################################
 
-# we got a URL which uses Major.Minor subdirectories e.g.
+# On Launchpad we got a URL which uses Major.Minor subdirectories e.g.
 # https://launchpad.net/kicad/4.0/4.0.4/+download/kicad-4.0.4.tar.xz
-KICAD_MAIN_DL="https://launchpad.net/${SRCPKG}/${KICAD_MAJOR}.${KICAD_MINOR}/${KICAD_MAJOR}.${KICAD_MINOR}.${KICAD_MICRO}/+download/${SRCPKG}-${KICAD_MAJOR}.${KICAD_MINOR}.${KICAD_MICRO}.tar.xz"
+KICAD_MAIN_BASE_DL="https://launchpad.net/${SRCPKG}/${KICAD_MAJOR}.${KICAD_MINOR}/${VERSION}"
+# On GitHub we can simply query the released tags.
+KICAD_SECOND_BASE_DL="https://github.com/KiCad/${SRCPKG}-source-mirror/tags"
+# The default download will be made on Launchpad, otherwise the value will before
+# overriden later.
+KICAD_MAIN_DL="${KICAD_MAIN_BASE_DL}/+download/${SRCPKG}-${VERSION}.tar.xz"
+# The name of the tarball we gonna downloading and saving.
 KICAD_UPSTREAM_TARBALL=${TARBALLDIR}/${SRCPKG}-${VERSION}.tar.xz
 
+# We could probably check if we already have downloaded some valid archive.
+# This would complicate the script with no valuable gain, wget is later
+# smart enough to detect if a download is really needed.
+
 echo "Trying to load KiCad version ${VERSION} ..."
+
+# check if we can find a given version on Launchpad
+RET=`curl -L --silent ${KICAD_MAIN_BASE_DL} | grep ${VERSION} | tr ' ' '\n' | grep "tar.xz</a>"`
+if [ "$?" = "0" -a "${RET}" != "" ]; then
+    debug "Found a valid download on ${KICAD_MAIN_BASE_DL} ..."
+    TAR_OPT="xJf"
+else
+    echo "Couldn't find KiCad version ${VERSION} on Launchpad!"
+    echo "Tried to find a valid dowload on '${KICAD_MAIN_BASE_DL}'. Going further and trying a download on GitHub."
+
+    # check if we can find a given version on GitHub
+    # The KiCad repository on GitHub uses also tag based download URLs
+    # e.g. https://github.com/KiCad/kicad/archive/4.0.4.tar.gz, to check this
+    # we need parse the available tags on https://github.com/KiCad/kicad-source-mirror/tags
+    # GitHub isn't providing *.xz archives!
+    RET=`curl -L --silent ${KICAD_SECOND_BASE_DL} | grep ${VERSION} | tr ' ' '\n' | grep "tar.gz"`
+    if [ "$?" = "0" -a "${RET}" != "" ]; then
+        debug "Found a valid dowload on ${KICAD_SECOND_BASE_DL}"
+        KICAD_MAIN_DL="github.com/KiCad/${SRCPKG}/archive/${VERSION}.tar.gz"
+        KICAD_UPSTREAM_TARBALL=${TARBALLDIR}/${SRCPKG}-${VERSION}.tar.gz
+        TAR_OPT="xzf"
+    else
+        echo "Couldn't find KiCad version ${VERSION} on GitHub!"
+        echo "Tried to find a valid download on '${KICAD_SECOND_BASE_DL}'."
+        echo "Maybe the '${VERSION}' isn't yet released or misspelled?"
+        echo
+        exit 1
+    fi
+fi
 wget ${WGET_OPTIONS} ${KICAD_MAIN_DL} -O ${KICAD_UPSTREAM_TARBALL}
 debug "create ${TMPDIR}/${SRCPKG}-${VERSION}"
 mkdir -p ${TMPDIR}/${SRCPKG}-${VERSION}
 debug "extracting ${KICAD_UPSTREAM_TARBALL} into ${TMPDIR}/${SRCPKG}-${VERSION} ... "
 rm -rf ${TMPDIR}/${SRCPKG}-${VERSION}/*
-tar xJf ${KICAD_UPSTREAM_TARBALL} --strip-components=1 -C ${TMPDIR}/${SRCPKG}-${VERSION}
+tar ${TAR_OPT} ${KICAD_UPSTREAM_TARBALL} --strip-components=1 -C ${TMPDIR}/${SRCPKG}-${VERSION}
 echo "Done"
 
 # checking if we need DFSG cleanout, some binary documents may have no sources
@@ -246,17 +285,28 @@ echo
 # The documentation repository is on GitHub and got tags we can use for
 # downloading. e.g. https://github.com/KiCad/kicad-doc/archive/4.0.4.tar.gz
 
-KICAD_DOC_DL="github.com/KiCad/${SRCPKG}-doc/archive/${KICAD_MAJOR}.${KICAD_MINOR}.${KICAD_MICRO}.tar.gz"
+KICAD_DOC_TAGS_URL="https://github.com/KiCad/${SRCPKG}-doc/tags"
+KICAD_DOC_DL="github.com/KiCad/${SRCPKG}-doc/archive/${VERSION}.tar.gz"
 KICAD_DOC_TARBALL=${TARBALLDIR}/${SRCPKG}-doc-${VERSION}.tar.gz
 
 echo "Trying to load KiCad Documentation ${VERSION} ..."
-wget ${WGET_OPTIONS} ${KICAD_DOC_DL} -O ${KICAD_DOC_TARBALL}
-debug "create ${TMPDIR}/doc"
-mkdir -p ${TMPDIR}/doc
-debug "extracting ${KICAD_DOC_TARBALL} into ${TMPDIR}/doc ... "
-rm -rf ${TMPDIR}/doc/*
-tar xzf ${KICAD_DOC_TARBALL} --strip-components=1 -C ${TMPDIR}/doc
-echo "Done"
+# check if we can find a given version on GitHub
+RET=`curl -L --silent ${KICAD_DOC_TAGS_URL} | grep ${VERSION}.tar.gz | awk '{print $2}' | tr '<>"' ' ' | awk '{print $2}'`
+if [ "$RET" != "" ]; then
+    wget ${WGET_OPTIONS} ${KICAD_DOC_DL} -O ${KICAD_DOC_TARBALL}
+    debug "create ${TMPDIR}/doc"
+    mkdir -p ${TMPDIR}/doc
+    debug "extracting ${KICAD_DOC_TARBALL} into ${TMPDIR}/doc ... "
+    rm -rf ${TMPDIR}/doc/*
+    tar xzf ${KICAD_DOC_TARBALL} --strip-components=1 -C ${TMPDIR}/doc
+    echo "Done"
+else
+    echo "Couldn't find kicad-doc version ${VERSION} on GitHub!"
+    echo "Tried to find a valid download on '${KICAD_DOC_TAGS_URL}'."
+    echo "Maybe '${VERSION}' isn't yet released or misspelled?"
+    echo
+    exit 1
+fi
 
 # checking if we need DFSG cleanout, some binary documents may have no sources
 check_sourceless_files ${TMPDIR}/doc
@@ -272,17 +322,28 @@ echo
 # The i18n repository is on GitHub and got tags we can use for
 # downloading. e.g. https://github.com/KiCad/kicad-i18n/archive/4.0.4.tar.gz
 
-KICAD_I18N_DL="github.com/KiCad/${SRCPKG}-i18n/archive/${KICAD_MAJOR}.${KICAD_MINOR}.${KICAD_MICRO}.tar.gz"
+KICAD_I18N_TAGS_URL="https://github.com/KiCad/${SRCPKG}-i18n/tags"
+KICAD_I18N_DL="github.com/KiCad/${SRCPKG}-i18n/archive/${VERSION}.tar.gz"
 KICAD_I18N_TARBALL=${TARBALLDIR}/${SRCPKG}-i18n-${VERSION}.tar.gz
 
 echo "Trying to load KiCad i18n ${VERSION} ..."
-wget ${WGET_OPTIONS} ${KICAD_I18N_DL} -O ${KICAD_I18N_TARBALL}
-debug "create ${TMPDIR}/i18n"
-mkdir -p ${TMPDIR}/i18n
-debug "extracting ${KICAD_I18N_TARBALL} into ${TMPDIR}/i18n ... "
-rm -rf ${TMPDIR}/i18n/*
-tar xzf ${KICAD_I18N_TARBALL} --strip-components=1 -C ${TMPDIR}/i18n
-echo "Done"
+# check if we can find a given version on GitHub
+RET=`curl -L --silent ${KICAD_I18N_TAGS_URL} | grep ${VERSION}.tar.gz | awk '{print $2}' | tr '<>"' ' ' | awk '{print $2}'`
+if [ "$RET" != "" ]; then
+    wget ${WGET_OPTIONS} ${KICAD_I18N_DL} -O ${KICAD_I18N_TARBALL}
+    debug "create ${TMPDIR}/i18n"
+    mkdir -p ${TMPDIR}/i18n
+    debug "extracting ${KICAD_I18N_TARBALL} into ${TMPDIR}/i18n ... "
+    rm -rf ${TMPDIR}/i18n/*
+    tar xzf ${KICAD_I18N_TARBALL} --strip-components=1 -C ${TMPDIR}/i18n
+    echo "Done"
+else
+    echo "Couldn't find kicad-i18n version ${VERSION} on GitHub!"
+    echo "Tried to find a valid download on '${KICAD_I18N_TAGS_URL}'."
+    echo "Maybe '${VERSION}' isn't yet released or misspelled?"
+    echo
+    exit 1
+fi
 
 # checking if we need DFSG cleanout, some binary documents may have no sources
 check_sourceless_files ${TMPDIR}/i18n
@@ -298,9 +359,8 @@ echo
 # The various component, footprint and 3D-model libraries are available one
 # GitHub in various repositories. Uncomment the following two lines to get
 # a dynamically created list of repositories. Otherwise it's currently better
-# touse a the static list as some repositories currently empty like:
+# to use the static list as some repositories currently empty like:
 # Connectors_Amphenol.pretty
-# Connectors_TE-Connectivity.pretty
 
 #PRETTY_REPOS=$(curl https://api.github.com/orgs/KiCad/repos?per_page=2000 2> /dev/null | sed -r 's:.+ "full_name".*"KiCad/(.+\.pretty)",:\1:p;d')
 #PRETTY_REPOS=$(echo $PRETTY_REPOS | tr " " "\n" | sort)
@@ -327,6 +387,7 @@ Connectors_Molex.pretty
 Connectors_Multicomp.pretty
 Connectors_Phoenix.pretty
 Connectors_Samtec.pretty
+Connectors_TE-Connectivity.pretty
 Connect.pretty
 Converters_DCDC_ACDC.pretty
 Crystals.pretty
