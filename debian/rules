@@ -112,12 +112,18 @@ override_dh_install:
 	dh_install
 	dh_python2
 
-override_dh_fixperms:
-	dh_fixperms
-	# most of those file are included from somethere and have no shebang
-	# like a #! sequence, removing execution rights ...
-	chmod -x $(CURDIR)/debian/kicad-common/usr/share/kicad/scripting/plugins/*.py
-	# ... except this file which has a #! sequence
-	chmod +x $(CURDIR)/debian/kicad-common/usr/share/kicad/scripting/plugins/touch_slider_wizard.py
+override_dh_fixperms-indep:
+	# fixing file permissions for *.py files in kicad-common
+	for i in `find $(CURDIR)/debian/kicad-common/usr -type f -name "*.py"`; do \
+		FOUND_PYTHON=$$(head -n1 $$i | grep python); \
+		if [ "$$FOUND_PYTHON" != "" ]; then \
+			chmod +x $$i; \
+		else \
+			chmod -x $$i; \
+		fi; \
+	done
+
+override_dh_strip-arch:
+	dh_strip
 	# strip unneeded symbols from the kicad specific libraries in /usr/lib/kicad/
 	strip --strip-unneeded --remove-section=.comment $(CURDIR)/debian/kicad/usr/lib/kicad/_*.kiface
