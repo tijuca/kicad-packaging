@@ -15,8 +15,8 @@ INSTDIR=$(CURDIR)/debian/tmp
 PARALLEL_BUILD=$(echo $DEB_BUILD_OPTIONS | sed -e '/parallel=/!s/.*/1/;s/.*parallel=\([0-9]\+\).*/\1/g')
 
 # other variables
-VERSION  = $(shell basename $$(pwd)| sed 's/kicad-//')
-DATE     = $(shell date +'%Y-%m-%d' -d"`dpkg-parsechangelog -SDate`")
+VERSION_EXTRA   = $(shell dpkg-parsechangelog -S Version | cut -d+ -f2-)
+DATE            = $(shell date +'%Y-%m-%d' -d"`dpkg-parsechangelog -S Date`")
 export REVDATE := $(shell TZ=UTC date -d "$(shell dpkg-parsechangelog -S Date)" +%Y-%m-%d)
 
 ASCIIDOCFILES := \
@@ -40,7 +40,7 @@ DEB_KICAD_CMAKE_OPTS := \
 	-DCMAKE_SHARED_LINKER_FLAGS_RELEASE="$(LDFLAGS)" \
 	-DBUILD_GITHUB_PLUGIN=ON \
 	-DKICAD_REPO_NAME=stable \
-	-DKICAD_BUILD_VERSION=$(VERSION) \
+	-DKICAD_VERSION_EXTRA="+$(VERSION_EXTRA)" \
 	-DDEFAULT_INSTALL_PATH=/usr \
 	-DKICAD_SCRIPTING=ON \
 	-DKICAD_SCRIPTING_MODULES=ON \
