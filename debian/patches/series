@@ -8,5 +8,7 @@ fixes/Replace-the-avhttp-library-used-by-the-github-plugin-with.patch
 fixes/Add-missing-dependency-github_plugin-pcbcommon.patch
 fixes/Replace-avhttp-with-libcurl.patch
 fixes/Remove-unused-FindOpenSSL.cmake.patch
+fixes/Fix-issue-170-for-real.patch
 fixes/KiCadDocumentation.cmake-fix-install-target-for-HTML-docu.patch
 reproducibility/add-field-revdate-to-asciidoc-files-of-documentation.patch
+debian-hacks/Removing-hyphen-inside-KICAD_FULL_VERSION.patch

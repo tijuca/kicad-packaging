@@ -1,0 +1,26 @@
+From: Carsten Schoenert <c.schoenert@t-online.de>
+Date: Sat, 17 Dec 2016 20:11:25 +0100
+Subject: Removing hyphen inside KICAD_FULL_VERSION
+
+Upstream is providing the possibility to append various strings into the
+KICAD_FULL_VERSION if needed. We can use this to append the debian
+specific version on the upstream version.
+For this the KICAD_FULL_VERSION needs to be merged without the hyphen
+'-' so the version is reflecting the debian version in real.
+---
+ CMakeModules/WriteVersionHeader.cmake | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/CMakeModules/WriteVersionHeader.cmake b/CMakeModules/WriteVersionHeader.cmake
+index 013a36ac..c1cd7f60 100644
+--- a/CMakeModules/WriteVersionHeader.cmake
++++ b/CMakeModules/WriteVersionHeader.cmake
+@@ -47,7 +47,7 @@ endif()
+ 
+ # Optional user version information defined at configuration.
+ if( KICAD_VERSION_EXTRA )
+-    set( KICAD_VERSION_FULL "${KICAD_VERSION_FULL}-${KICAD_VERSION_EXTRA}" )
++    set( KICAD_VERSION_FULL "${KICAD_VERSION_FULL}${KICAD_VERSION_EXTRA}" )
+ endif()
+ 
+ set( _wvh_new_version_text

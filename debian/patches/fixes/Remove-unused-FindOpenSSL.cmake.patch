@@ -9,7 +9,7 @@ Subject: Remove unused FindOpenSSL.cmake
 
 diff --git a/CMakeModules/FindOpenSSL.cmake b/CMakeModules/FindOpenSSL.cmake
 deleted file mode 100644
-index de91787..0000000
+index de91787c..00000000
 --- a/CMakeModules/FindOpenSSL.cmake
 +++ /dev/null
 @@ -1,342 +0,0 @@

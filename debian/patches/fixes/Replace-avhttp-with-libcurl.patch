@@ -27,7 +27,7 @@ Some fixes:
  9 files changed, 58 insertions(+), 32 deletions(-)
 
 diff --git a/Documentation/development/compiling.md b/Documentation/development/compiling.md
-index 11e8af4..de0e3ed 100644
+index 90cea955..6a5ac92c 100644
 --- a/Documentation/development/compiling.md
 +++ b/Documentation/development/compiling.md
 @@ -78,14 +78,6 @@ specific patches required to build a working Boost library.  These patches can b
@@ -45,7 +45,7 @@ index 11e8af4..de0e3ed 100644
  ## GLEW OpenGL Extension Wrangler Library ## {#glew}
  
  The [OpenGL Extension Wrangler][GLEW] is an OpenGL helper library used by the KiCad graphics
-@@ -274,7 +266,7 @@ the following commands:
+@@ -299,7 +291,7 @@ the following commands:
                mingw-w64-x86_64-boost \
                mingw-w64-x86_64-cairo \
                mingw-w64-x86_64-glew \
@@ -54,7 +54,7 @@ index 11e8af4..de0e3ed 100644
                mingw-w64-x86_64-wxPython \
                mingw-w64-x86_64-wxWidgets
      cd kicad-source
-@@ -286,7 +278,6 @@ the following commands:
+@@ -311,7 +303,6 @@ the following commands:
            -DCMAKE_PREFIX_PATH=/mingw64 \
            -DCMAKE_INSTALL_PREFIX=/mingw64 \
            -DDEFAULT_INSTALL_PATH=/mingw64 \
@@ -62,7 +62,7 @@ index 11e8af4..de0e3ed 100644
            -DKICAD_SKIP_BOOST=ON \
            -DKICAD_SCRIPTING=ON \
            -DKICAD_SCRIPTING_MODULES=ON \
-@@ -383,7 +374,6 @@ Boost patches in the KiCad source [patch folder][].
+@@ -408,7 +399,6 @@ Boost patches in the KiCad source [patch folder][].
  [wxWidgets]: http://wxwidgets.org/
  [patches folder]: http://bazaar.launchpad.net/~kicad-product-committers/kicad/product/files/head:/patches/
  [Boost]: http://www.boost.org/
@@ -71,7 +71,7 @@ index 11e8af4..de0e3ed 100644
  [GLUT]: https://www.opengl.org/resources/libraries/glut/
  [Cairo]: http://cairographics.org/
 diff --git a/common/basicframe.cpp b/common/basicframe.cpp
-index 46ddd55..815247d 100644
+index 46ddd550..815247d0 100644
 --- a/common/basicframe.cpp
 +++ b/common/basicframe.cpp
 @@ -28,6 +28,7 @@
@@ -92,7 +92,7 @@ index 46ddd55..815247d 100644
  #ifdef USE_WX_GRAPHICS_CONTEXT
      msg_version << wxT( "ON\n" );
 diff --git a/common/kicad_curl/kicad_curl.cpp b/common/kicad_curl/kicad_curl.cpp
-index 7424eec..0df2528 100644
+index 7424eec8..0df25288 100644
 --- a/common/kicad_curl/kicad_curl.cpp
 +++ b/common/kicad_curl/kicad_curl.cpp
 @@ -51,4 +51,30 @@ std::string KICAD_CURL::GetVersion()
@@ -128,7 +128,7 @@ index 7424eec..0df2528 100644
  bool KICAD_CURL::m_initialized = false;
 \ No newline at end of file
 diff --git a/common/kicad_curl/kicad_curl_easy.cpp b/common/kicad_curl/kicad_curl_easy.cpp
-index 71a410d..4dadf04 100644
+index 71a410d0..4dadf043 100644
 --- a/common/kicad_curl/kicad_curl_easy.cpp
 +++ b/common/kicad_curl/kicad_curl_easy.cpp
 @@ -43,8 +43,8 @@ KICAD_CURL_EASY::KICAD_CURL_EASY()
@@ -202,7 +202,7 @@ index 71a410d..4dadf04 100644
  
      CURLcode res = curl_easy_perform( m_CURL );
 diff --git a/include/kicad_curl/kicad_curl.h b/include/kicad_curl/kicad_curl.h
-index 3639400..ef49f92 100644
+index 3639400c..ef49f92d 100644
 --- a/include/kicad_curl/kicad_curl.h
 +++ b/include/kicad_curl/kicad_curl.h
 @@ -75,6 +75,13 @@ public:
@@ -220,7 +220,7 @@ index 3639400..ef49f92 100644
      static bool m_initialized;
  };
 diff --git a/include/kicad_curl/kicad_curl_easy.h b/include/kicad_curl/kicad_curl_easy.h
-index a87c3d0..2273e48 100644
+index a87c3d02..2273e489 100644
 --- a/include/kicad_curl/kicad_curl_easy.h
 +++ b/include/kicad_curl/kicad_curl_easy.h
 @@ -52,8 +52,8 @@
@@ -244,7 +244,7 @@ index a87c3d0..2273e48 100644
          return curl_easy_setopt( m_CURL, aOption, aArg ); 
      }
 diff --git a/pcbnew/github/CMakeLists.txt b/pcbnew/github/CMakeLists.txt
-index bb37ebf..c6615e4 100644
+index bb37ebf5..c6615e48 100644
 --- a/pcbnew/github/CMakeLists.txt
 +++ b/pcbnew/github/CMakeLists.txt
 @@ -32,8 +32,6 @@ set( GITHUB_PLUGIN_SRCS
@@ -257,7 +257,7 @@ index bb37ebf..c6615e4 100644
      common
      )
 diff --git a/pcbnew/github/github_getliblist.cpp b/pcbnew/github/github_getliblist.cpp
-index baf5f7c..6c8f885 100644
+index baf5f7c2..6c8f8852 100644
 --- a/pcbnew/github/github_getliblist.cpp
 +++ b/pcbnew/github/github_getliblist.cpp
 @@ -212,7 +212,7 @@ bool GITHUB_GETLIBLIST::repoURL2listURL( const wxString& aRepoURL,
@@ -280,7 +280,7 @@ index baf5f7c..6c8f885 100644
      }
      catch( const IO_ERROR& ioe )
 diff --git a/pcbnew/github/github_plugin.cpp b/pcbnew/github/github_plugin.cpp
-index db96ae1..321e0b7 100644
+index db96ae18..321e0b76 100644
 --- a/pcbnew/github/github_plugin.cpp
 +++ b/pcbnew/github/github_plugin.cpp
 @@ -538,7 +538,8 @@ void GITHUB_PLUGIN::remoteGetZip( const wxString& aRepoURL ) throw( IO_ERROR )

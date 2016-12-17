@@ -9,7 +9,7 @@ built.
  1 file changed, 27 deletions(-)
 
 diff --git a/CMakeModules/download_avhttp.cmake b/CMakeModules/download_avhttp.cmake
-index abc52b7..1827273 100644
+index abc52b7e..1827273d 100644
 --- a/CMakeModules/download_avhttp.cmake
 +++ b/CMakeModules/download_avhttp.cmake
 @@ -35,31 +35,4 @@

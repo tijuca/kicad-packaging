@@ -58,7 +58,7 @@ release 4.x.
  50 files changed, 78 insertions(+), 78 deletions(-)
 
 diff --git a/Documentation/changelogs/CHANGELOG-2008.txt b/Documentation/changelogs/CHANGELOG-2008.txt
-index d210585..c19727d 100644
+index d2105857..c19727d4 100644
 --- a/Documentation/changelogs/CHANGELOG-2008.txt
 +++ b/Documentation/changelogs/CHANGELOG-2008.txt
 @@ -1128,7 +1128,7 @@ removed: (common/infospgm.cpp) is no longer needed
@@ -71,7 +71,7 @@ index d210585..c19727d 100644
  
  
 diff --git a/Documentation/changelogs/CHANGELOG-2009.txt b/Documentation/changelogs/CHANGELOG-2009.txt
-index fbdae4f..d58d79f 100644
+index fbdae4fb..d58d79ff 100644
 --- a/Documentation/changelogs/CHANGELOG-2009.txt
 +++ b/Documentation/changelogs/CHANGELOG-2009.txt
 @@ -281,7 +281,7 @@ Component library object and other minor improvements.
@@ -84,7 +84,7 @@ index fbdae4f..d58d79f 100644
      Klaas Olwerda is supporting me)
  
 diff --git a/common/draw_panel.cpp b/common/draw_panel.cpp
-index 3bd1103..98fd282 100644
+index 3bd1103a..98fd2824 100644
 --- a/common/draw_panel.cpp
 +++ b/common/draw_panel.cpp
 @@ -124,7 +124,7 @@ EDA_DRAW_PANEL::EDA_DRAW_PANEL( EDA_DRAW_FRAME* parent, int id,
@@ -97,7 +97,7 @@ index 3bd1103..98fd282 100644
  
      m_mouseCaptureCallback = NULL;
 diff --git a/common/fpid.cpp b/common/fpid.cpp
-index ba70c67..c410bbd 100644
+index ba70c67d..c410bbd4 100644
 --- a/common/fpid.cpp
 +++ b/common/fpid.cpp
 @@ -167,7 +167,7 @@ int FPID::Parse( const UTF8& aId )
@@ -110,7 +110,7 @@ index ba70c67..c410bbd 100644
      ReplaceIllegalFileNameChars( &fpname, '_' );
      SetFootprintName( UTF8( fpname ) );
 diff --git a/common/kiway_player.cpp b/common/kiway_player.cpp
-index a33acc1..d6fc5ae 100644
+index a33acc1b..d6fc5ae5 100644
 --- a/common/kiway_player.cpp
 +++ b/common/kiway_player.cpp
 @@ -111,7 +111,7 @@ bool KIWAY_PLAYER::ShowModal( wxString* aResult, wxWindow* aResultantFocusWindow
@@ -123,7 +123,7 @@ index a33acc1..d6fc5ae 100644
          std::vector<wxWindow*> enabledTopLevelWindows;
  
 diff --git a/common/page_layout/page_layout_reader.cpp b/common/page_layout/page_layout_reader.cpp
-index a282989..82343b2 100644
+index a282989a..82343b25 100644
 --- a/common/page_layout/page_layout_reader.cpp
 +++ b/common/page_layout/page_layout_reader.cpp
 @@ -488,7 +488,7 @@ void PAGE_LAYOUT_READER_PARSER::parseGraphic( WORKSHEET_DATAITEM * aItem )
@@ -136,7 +136,7 @@ index a282989..82343b2 100644
              // without T_LEFT in a very few .wks files (perhaps only one in a demo).
              // So this ugly hack disables the error detection.
 diff --git a/common/pgm_base.cpp b/common/pgm_base.cpp
-index 0728633..e489438 100644
+index 07286334..e4894380 100644
 --- a/common/pgm_base.cpp
 +++ b/common/pgm_base.cpp
 @@ -669,7 +669,7 @@ bool PGM_BASE::SetLanguage( bool first_time )
@@ -149,7 +149,7 @@ index 0728633..e489438 100644
          // Do NOT store the wxWidgets language Id, it can change between wxWidgets
          // versions, for a given language
 diff --git a/doc/src/eeschema/eeschema_component_library_editor.adoc b/doc/src/eeschema/eeschema_component_library_editor.adoc
-index 29312a9..4b76668 100644
+index 29312a91..4b76668e 100644
 --- a/doc/src/eeschema/eeschema_component_library_editor.adoc
 +++ b/doc/src/eeschema/eeschema_component_library_editor.adoc
 @@ -406,7 +406,7 @@ existing component.
@@ -162,7 +162,7 @@ index 29312a9..4b76668 100644
    image:images/icons/library.png[icons/library_png]
    and save the new component.
 diff --git a/eeschema/dialogs/dialog_eeschema_config_fbp.cpp b/eeschema/dialogs/dialog_eeschema_config_fbp.cpp
-index 5ac72bc..c803aa5 100644
+index 5ac72bcc..c803aa57 100644
 --- a/eeschema/dialogs/dialog_eeschema_config_fbp.cpp
 +++ b/eeschema/dialogs/dialog_eeschema_config_fbp.cpp
 @@ -27,7 +27,7 @@ DIALOG_EESCHEMA_CONFIG_FBP::DIALOG_EESCHEMA_CONFIG_FBP( wxWindow* parent, wxWind
@@ -175,7 +175,7 @@ index 5ac72bc..c803aa5 100644
  	
  	bSizerLibsChoice->Add( m_ListLibr, 1, wxEXPAND|wxBOTTOM|wxRIGHT|wxLEFT, 5 );
 diff --git a/eeschema/dialogs/dialog_eeschema_config_fbp.fbp b/eeschema/dialogs/dialog_eeschema_config_fbp.fbp
-index 72fcc43..2abdd17 100644
+index 72fcc430..2abdd170 100644
 --- a/eeschema/dialogs/dialog_eeschema_config_fbp.fbp
 +++ b/eeschema/dialogs/dialog_eeschema_config_fbp.fbp
 @@ -247,7 +247,7 @@
@@ -188,7 +188,7 @@ index 72fcc43..2abdd17 100644
                                          <property name="validator_style">wxFILTER_NONE</property>
                                          <property name="validator_type">wxDefaultValidator</property>
 diff --git a/eeschema/dialogs/dialog_print_using_printer.cpp b/eeschema/dialogs/dialog_print_using_printer.cpp
-index 09257bd..874a6d4 100644
+index 09257bda..874a6d48 100644
 --- a/eeschema/dialogs/dialog_print_using_printer.cpp
 +++ b/eeschema/dialogs/dialog_print_using_printer.cpp
 @@ -272,7 +272,7 @@ void DIALOG_PRINT_USING_PRINTER::OnPrintPreview( wxCommandEvent& event )
@@ -210,7 +210,7 @@ index 09257bd..874a6d4 100644
      // see https://bugs.launchpad.net/kicad/+bug/1464773
      // xoffset does not create issues.
 diff --git a/eeschema/edit_label.cpp b/eeschema/edit_label.cpp
-index 2be1d87..060db3b 100644
+index 2be1d87b..060db3bc 100644
 --- a/eeschema/edit_label.cpp
 +++ b/eeschema/edit_label.cpp
 @@ -131,7 +131,7 @@ SCH_TEXT* SCH_EDIT_FRAME::CreateNewText( wxDC* aDC, int aType )
@@ -223,7 +223,7 @@ index 2be1d87..060db3b 100644
   * The old text is deleted.
   * A tricky case is when the 'old" text is being edited (i.e. moving)
 diff --git a/eeschema/erc.cpp b/eeschema/erc.cpp
-index 099249c..0ae9c5c 100644
+index 099249cf..0ae9c5c2 100644
 --- a/eeschema/erc.cpp
 +++ b/eeschema/erc.cpp
 @@ -405,7 +405,7 @@ void TestOthersItems( NETLIST_OBJECT_LIST* aList,
@@ -245,7 +245,7 @@ index 099249c..0ae9c5c 100644
                          if( (duplicate > 0)
                            && ( aList->GetItemNet( duplicate ) ==
 diff --git a/eeschema/erc.h b/eeschema/erc.h
-index 708fb6a..8654b48 100644
+index 708fb6a4..8654b487 100644
 --- a/eeschema/erc.h
 +++ b/eeschema/erc.h
 @@ -53,8 +53,8 @@ extern const wxString CommentERC_V[];
@@ -260,7 +260,7 @@ index 708fb6a..8654b48 100644
  #define ERCE_NOCONNECT_CONNECTED  7    // a no connect symbol is connected to more than 1 pin
  #define ERCE_GLOBLABEL            8    // global label not connected to any other global label
 diff --git a/eeschema/pinedit.cpp b/eeschema/pinedit.cpp
-index 1b44172..96a9c10 100644
+index 1b44172f..96a9c104 100644
 --- a/eeschema/pinedit.cpp
 +++ b/eeschema/pinedit.cpp
 @@ -236,7 +236,7 @@ void LIB_EDIT_FRAME::PlacePin()
@@ -273,7 +273,7 @@ index 1b44172..96a9c10 100644
      {
          if( pin == cur_pin || newpos != pin->GetPosition() || pin->GetFlags() )
 diff --git a/eeschema/sch_base_frame.h b/eeschema/sch_base_frame.h
-index c99e1a6..1ff78e3 100644
+index c99e1a60..1ff78e35 100644
 --- a/eeschema/sch_base_frame.h
 +++ b/eeschema/sch_base_frame.h
 @@ -169,7 +169,7 @@ protected:
@@ -286,7 +286,7 @@ index c99e1a6..1ff78e3 100644
      void OnOpenLibraryViewer( wxCommandEvent& event );
  
 diff --git a/eeschema/sch_screen.cpp b/eeschema/sch_screen.cpp
-index c2f8201..b6f052e 100644
+index c2f82019..b6f052e3 100644
 --- a/eeschema/sch_screen.cpp
 +++ b/eeschema/sch_screen.cpp
 @@ -825,7 +825,7 @@ void SCH_SCREEN::SelectBlockItems()
@@ -317,7 +317,7 @@ index c2f8201..b6f052e 100644
                  noconnect = true;
  
 diff --git a/eeschema/schframe.h b/eeschema/schframe.h
-index 0db8ea8..693331a 100644
+index 0db8ea82..693331a5 100644
 --- a/eeschema/schframe.h
 +++ b/eeschema/schframe.h
 @@ -903,7 +903,7 @@ private:
@@ -339,7 +339,7 @@ index 0db8ea8..693331a 100644
       * the command.  In all other cases starts a new segment.
       */
 diff --git a/eeschema/viewlib_frame.cpp b/eeschema/viewlib_frame.cpp
-index ddcefa9..ed13bfa 100644
+index ddcefa97..ed13bfaa 100644
 --- a/eeschema/viewlib_frame.cpp
 +++ b/eeschema/viewlib_frame.cpp
 @@ -443,7 +443,7 @@ void LIB_VIEW_FRAME::SetSelectedLibrary( const wxString& aLibraryName )
@@ -352,7 +352,7 @@ index ddcefa9..ed13bfa 100644
  }
  
 diff --git a/gerbview/gerbview_frame.h b/gerbview/gerbview_frame.h
-index 383ab54..4675b2b 100644
+index 383ab544..4675b2ba 100644
 --- a/gerbview/gerbview_frame.h
 +++ b/gerbview/gerbview_frame.h
 @@ -355,7 +355,7 @@ public:
@@ -365,7 +365,7 @@ index 383ab54..4675b2b 100644
       */
      EDA_COLOR_T GetNegativeItemsColor() const;
 diff --git a/include/class_bitmap_base.h b/include/class_bitmap_base.h
-index 53c5b83..9fe28e9 100644
+index 53c5b835..9fe28e9f 100644
 --- a/include/class_bitmap_base.h
 +++ b/include/class_bitmap_base.h
 @@ -35,7 +35,7 @@ class PLOTTER;
@@ -378,7 +378,7 @@ index 53c5b83..9fe28e9 100644
   * It is used in SCH_BITMAP class and WS_DRAW_ITEM_BITMAP (and other in future)
   *
 diff --git a/include/class_drawpanel.h b/include/class_drawpanel.h
-index 14ad104..5f71a04 100644
+index 14ad1042..5f71a041 100644
 --- a/include/class_drawpanel.h
 +++ b/include/class_drawpanel.h
 @@ -113,7 +113,7 @@ private:
@@ -391,7 +391,7 @@ index 14ad104..5f71a04 100644
      int     m_canStartBlock;
  
 diff --git a/include/class_undoredo_container.h b/include/class_undoredo_container.h
-index 13c9e85..f3473db 100644
+index 13c9e85b..f3473dbf 100644
 --- a/include/class_undoredo_container.h
 +++ b/include/class_undoredo_container.h
 @@ -89,7 +89,7 @@ private:
@@ -404,7 +404,7 @@ index 13c9e85..f3473db 100644
                                          * modified, and the copy of initial item exists (the
                                          * duplicate) m_Item points the duplicate (i.e the old
 diff --git a/include/dsnlexer.h b/include/dsnlexer.h
-index ded81c7..33bbc43 100644
+index ded81c75..33bbc43d 100644
 --- a/include/dsnlexer.h
 +++ b/include/dsnlexer.h
 @@ -219,7 +219,7 @@ public:
@@ -417,7 +417,7 @@ index ded81c7..33bbc43 100644
       * @return true if the sync can be made ( at least the same line reader )
       */
 diff --git a/include/gal/opengl/glm/ext.hpp b/include/gal/opengl/glm/ext.hpp
-index 9ef0c92..2068e43 100644
+index 9ef0c927..2068e43f 100644
 --- a/include/gal/opengl/glm/ext.hpp
 +++ b/include/gal/opengl/glm/ext.hpp
 @@ -60,7 +60,7 @@
@@ -430,7 +430,7 @@ index 9ef0c92..2068e43 100644
  
  #include "./gtc/constants.hpp"
 diff --git a/include/gal/opengl/glm/gtc/matrix_transform.hpp b/include/gal/opengl/glm/gtc/matrix_transform.hpp
-index 020c6dd..3fc55c9 100644
+index 020c6dd9..3fc55c95 100644
 --- a/include/gal/opengl/glm/gtc/matrix_transform.hpp
 +++ b/include/gal/opengl/glm/gtc/matrix_transform.hpp
 @@ -62,7 +62,7 @@ namespace glm
@@ -551,7 +551,7 @@ index 020c6dd..3fc55c9 100644
  	/// @see gtc_matrix_transform
  	template <typename T, typename U> 
 diff --git a/include/gal/opengl/glm/gtc/random.hpp b/include/gal/opengl/glm/gtc/random.hpp
-index 3cda59c..98d9b56 100644
+index 3cda59c7..98d9b564 100644
 --- a/include/gal/opengl/glm/gtc/random.hpp
 +++ b/include/gal/opengl/glm/gtc/random.hpp
 @@ -57,7 +57,7 @@ namespace glm
@@ -564,7 +564,7 @@ index 3cda59c..98d9b56 100644
  	template <typename genType> 
  	genType linearRand(
 diff --git a/pagelayout_editor/pl_editor_frame.h b/pagelayout_editor/pl_editor_frame.h
-index ba3b7ae..e278d99 100644
+index ba3b7aeb..e278d998 100644
 --- a/pagelayout_editor/pl_editor_frame.h
 +++ b/pagelayout_editor/pl_editor_frame.h
 @@ -177,7 +177,7 @@ public:
@@ -577,7 +577,7 @@ index ba3b7ae..e278d99 100644
       * (a feature  which look like word processing option
       * "page 1 differs from other pages".
 diff --git a/pcbnew/class_board.cpp b/pcbnew/class_board.cpp
-index a909050..fb64b06 100644
+index a9090500..fb64b067 100644
 --- a/pcbnew/class_board.cpp
 +++ b/pcbnew/class_board.cpp
 @@ -203,7 +203,7 @@ void BOARD::chainMarkedSegments( wxPoint aPosition, const LSET& aLayerMask, TRAC
@@ -590,7 +590,7 @@ index a909050..fb64b06 100644
       */
      for( ; ; )
 diff --git a/pcbnew/connect.cpp b/pcbnew/connect.cpp
-index 848c30b..12bb6a6 100644
+index 848c30b5..12bb6a67 100644
 --- a/pcbnew/connect.cpp
 +++ b/pcbnew/connect.cpp
 @@ -570,7 +570,7 @@ int CONNECTIONS::Merge_SubNets( int aOldSubNet, int aNewSubNet )
@@ -612,7 +612,7 @@ index 848c30b..12bb6a6 100644
                      sub_netcode++;
                      curr_track->SetSubNet( sub_netcode );
 diff --git a/pcbnew/connect.h b/pcbnew/connect.h
-index 46868c8..89cb4dc 100644
+index 46868c87..89cb4dc5 100644
 --- a/pcbnew/connect.h
 +++ b/pcbnew/connect.h
 @@ -213,7 +213,7 @@ public:
@@ -625,7 +625,7 @@ index 46868c8..89cb4dc 100644
       * For pads, this is the .m_physical_connexion member which is a cluster identifier
       * For tracks, this is the .m_Subnet member which is a cluster identifier
 diff --git a/pcbnew/dialogs/dialog_copper_zones_base.cpp b/pcbnew/dialogs/dialog_copper_zones_base.cpp
-index a264412..9eb9571 100644
+index a264412d..9eb9571e 100644
 --- a/pcbnew/dialogs/dialog_copper_zones_base.cpp
 +++ b/pcbnew/dialogs/dialog_copper_zones_base.cpp
 @@ -191,7 +191,7 @@ DIALOG_COPPER_ZONE_BASE::DIALOG_COPPER_ZONE_BASE( wxWindow* parent, wxWindowID i
@@ -638,7 +638,7 @@ index a264412..9eb9571 100644
  	m_MiddleBox->Add( m_staticText171, 0, wxTOP|wxRIGHT|wxLEFT, 5 );
  	
 diff --git a/pcbnew/dialogs/dialog_copper_zones_base.fbp b/pcbnew/dialogs/dialog_copper_zones_base.fbp
-index 2dd9d40..9209f4d 100644
+index 2dd9d40c..9209f4d6 100644
 --- a/pcbnew/dialogs/dialog_copper_zones_base.fbp
 +++ b/pcbnew/dialogs/dialog_copper_zones_base.fbp
 @@ -2428,7 +2428,7 @@
@@ -651,7 +651,7 @@ index 2dd9d40..9209f4d 100644
                                          <property name="window_name"></property>
                                          <property name="window_style"></property>
 diff --git a/pcbnew/dialogs/dialog_design_rules.cpp b/pcbnew/dialogs/dialog_design_rules.cpp
-index 80fe0f8..6b76262 100644
+index 80fe0f8c..6b762628 100644
 --- a/pcbnew/dialogs/dialog_design_rules.cpp
 +++ b/pcbnew/dialogs/dialog_design_rules.cpp
 @@ -511,7 +511,7 @@ void DIALOG_DESIGN_RULES::CopyRulesListToBoard()
@@ -664,7 +664,7 @@ index 80fe0f8..6b76262 100644
              wxString msg;
              msg.Printf( wxT( "CopyRulesListToBoard(): The NetClass \"%s\" already exists. Skip" ),
 diff --git a/pcbnew/dialogs/dialog_export_vrml.cpp b/pcbnew/dialogs/dialog_export_vrml.cpp
-index c2165b9..b3af7cc 100644
+index c2165b94..b3af7ccd 100644
 --- a/pcbnew/dialogs/dialog_export_vrml.cpp
 +++ b/pcbnew/dialogs/dialog_export_vrml.cpp
 @@ -184,7 +184,7 @@ void PCB_EDIT_FRAME::OnExportVRML( wxCommandEvent& event )
@@ -677,7 +677,7 @@ index c2165b9..b3af7cc 100644
      {
          last_brdName = GetBoard()->GetFileName();
 diff --git a/pcbnew/dialogs/dialog_freeroute_exchange_help.html b/pcbnew/dialogs/dialog_freeroute_exchange_help.html
-index 375df66..61eb6ff 100644
+index 375df66c..61eb6ff7 100644
 --- a/pcbnew/dialogs/dialog_freeroute_exchange_help.html
 +++ b/pcbnew/dialogs/dialog_freeroute_exchange_help.html
 @@ -40,7 +40,7 @@
@@ -690,7 +690,7 @@ index 375df66..61eb6ff 100644
       place.
  </li><br>
 diff --git a/pcbnew/dialogs/dialog_gendrill_base.cpp b/pcbnew/dialogs/dialog_gendrill_base.cpp
-index e868e1f..92451b9 100644
+index e868e1f9..92451b9c 100644
 --- a/pcbnew/dialogs/dialog_gendrill_base.cpp
 +++ b/pcbnew/dialogs/dialog_gendrill_base.cpp
 @@ -83,17 +83,17 @@ DIALOG_GENDRILL_BASE::DIALOG_GENDRILL_BASE( wxWindow* parent, wxWindowID id, con
@@ -715,7 +715,7 @@ index e868e1f..92451b9 100644
  	sbOptSizer->Add( m_Check_Merge_PTH_NPTH, 0, wxALL, 5 );
  	
 diff --git a/pcbnew/dialogs/dialog_gendrill_base.fbp b/pcbnew/dialogs/dialog_gendrill_base.fbp
-index 73fef32..8ccb9e9 100644
+index 73fef325..8ccb9e9a 100644
 --- a/pcbnew/dialogs/dialog_gendrill_base.fbp
 +++ b/pcbnew/dialogs/dialog_gendrill_base.fbp
 @@ -759,7 +759,7 @@
@@ -746,7 +746,7 @@ index 73fef32..8ccb9e9 100644
                                                  <property name="validator_style">wxFILTER_NONE</property>
                                                  <property name="validator_type">wxDefaultValidator</property>
 diff --git a/pcbnew/dialogs/dialog_keepout_area_properties_base.cpp b/pcbnew/dialogs/dialog_keepout_area_properties_base.cpp
-index 0665261..6a83094 100644
+index 0665261b..6a83094e 100644
 --- a/pcbnew/dialogs/dialog_keepout_area_properties_base.cpp
 +++ b/pcbnew/dialogs/dialog_keepout_area_properties_base.cpp
 @@ -52,7 +52,7 @@ DIALOG_KEEPOUT_AREA_PROPERTIES_BASE::DIALOG_KEEPOUT_AREA_PROPERTIES_BASE( wxWind
@@ -759,7 +759,7 @@ index 0665261..6a83094 100644
  	bSizerRight->Add( m_OutlineAppearanceCtrl, 0, wxALL|wxEXPAND, 5 );
  	
 diff --git a/pcbnew/dialogs/dialog_keepout_area_properties_base.fbp b/pcbnew/dialogs/dialog_keepout_area_properties_base.fbp
-index 926ae8b..5fc7b1c 100644
+index 926ae8b8..5fc7b1ca 100644
 --- a/pcbnew/dialogs/dialog_keepout_area_properties_base.fbp
 +++ b/pcbnew/dialogs/dialog_keepout_area_properties_base.fbp
 @@ -516,7 +516,7 @@
@@ -772,7 +772,7 @@ index 926ae8b..5fc7b1c 100644
                                          <property name="max_size"></property>
                                          <property name="maximize_button">0</property>
 diff --git a/pcbnew/dialogs/dialog_non_copper_zones_properties_base.cpp b/pcbnew/dialogs/dialog_non_copper_zones_properties_base.cpp
-index c41ffc2..6d32e86 100644
+index c41ffc28..6d32e86f 100644
 --- a/pcbnew/dialogs/dialog_non_copper_zones_properties_base.cpp
 +++ b/pcbnew/dialogs/dialog_non_copper_zones_properties_base.cpp
 @@ -51,7 +51,7 @@ DIALOG_NONCOPPER_ZONES_PROPERTIES_BASE::DIALOG_NONCOPPER_ZONES_PROPERTIES_BASE(
@@ -785,7 +785,7 @@ index c41ffc2..6d32e86 100644
  	m_OutilinesBoxOpt->Add( m_OutlineAppearanceCtrl, 0, wxALL|wxEXPAND, 5 );
  	
 diff --git a/pcbnew/dialogs/dialog_non_copper_zones_properties_base.fbp b/pcbnew/dialogs/dialog_non_copper_zones_properties_base.fbp
-index 20f6296..58ae33a 100644
+index 20f62960..58ae33ab 100644
 --- a/pcbnew/dialogs/dialog_non_copper_zones_properties_base.fbp
 +++ b/pcbnew/dialogs/dialog_non_copper_zones_properties_base.fbp
 @@ -445,7 +445,7 @@
@@ -798,7 +798,7 @@ index 20f6296..58ae33a 100644
                                                  <property name="max_size"></property>
                                                  <property name="maximize_button">0</property>
 diff --git a/pcbnew/dialogs/wizard_3DShape_Libs_downloader.cpp b/pcbnew/dialogs/wizard_3DShape_Libs_downloader.cpp
-index 08e61ff..6506552 100644
+index 08e61ffc..6506552a 100644
 --- a/pcbnew/dialogs/wizard_3DShape_Libs_downloader.cpp
 +++ b/pcbnew/dialogs/wizard_3DShape_Libs_downloader.cpp
 @@ -107,7 +107,7 @@ WIZARD_3DSHAPE_LIBS_DOWNLOADER::WIZARD_3DSHAPE_LIBS_DOWNLOADER( wxWindow* aParen
@@ -811,7 +811,7 @@ index 08e61ff..6506552 100644
  
      Connect( wxEVT_RADIOBUTTON, wxCommandEventHandler( WIZARD_3DSHAPE_LIBS_DOWNLOADER::OnSourceCheck ), NULL, this );
 diff --git a/pcbnew/drc_clearance_test_functions.cpp b/pcbnew/drc_clearance_test_functions.cpp
-index 39d1b9d..4c44035 100644
+index 39d1b9d0..4c440354 100644
 --- a/pcbnew/drc_clearance_test_functions.cpp
 +++ b/pcbnew/drc_clearance_test_functions.cpp
 @@ -278,7 +278,7 @@ bool DRC::doTrackDrc( TRACK* aRefSeg, TRACK* aStart, bool testPads )
@@ -833,7 +833,7 @@ index 39d1b9d..4c44035 100644
          if( segStartPoint.y == segEndPoint.y ) // parallel segments
          {
 diff --git a/pcbnew/onrightclick.cpp b/pcbnew/onrightclick.cpp
-index 68c83a3..f673df9 100644
+index 68c83a36..f673df90 100644
 --- a/pcbnew/onrightclick.cpp
 +++ b/pcbnew/onrightclick.cpp
 @@ -635,7 +635,7 @@ void PCB_EDIT_FRAME::createPopupMenuForTracks( TRACK* Track, wxMenu* PopMenu )
@@ -846,7 +846,7 @@ index 68c83a3..f673df9 100644
                   _( "Select Track Width" ), KiBitmap( width_track_xpm ) );
  
 diff --git a/pcbnew/plot_board_layers.cpp b/pcbnew/plot_board_layers.cpp
-index 6ccbdd5..ce2f20e 100644
+index 6ccbdd57..ce2f20e1 100644
 --- a/pcbnew/plot_board_layers.cpp
 +++ b/pcbnew/plot_board_layers.cpp
 @@ -957,7 +957,7 @@ PLOTTER* StartPlotBoard( BOARD *aBoard, PCB_PLOT_PARAMS *aPlotOpts,
@@ -859,7 +859,7 @@ index 6ccbdd5..ce2f20e 100644
          plotter = HPGL_plotter;
          break;
 diff --git a/pcbnew/ratsnest.cpp b/pcbnew/ratsnest.cpp
-index b388085..ee00c22 100644
+index b3880859..ee00c222 100644
 --- a/pcbnew/ratsnest.cpp
 +++ b/pcbnew/ratsnest.cpp
 @@ -342,7 +342,7 @@ static int tst_links_between_blocks( NETINFO_ITEM*          aNetinfo,
@@ -881,7 +881,7 @@ index b388085..ee00c22 100644
   * -  Second:
   *   explore the full ratnest (relative to the net) and find a link that links
 diff --git a/pcbnew/zones_by_polygon.cpp b/pcbnew/zones_by_polygon.cpp
-index 31db133..4e833a0 100644
+index 31db133a..4e833a08 100644
 --- a/pcbnew/zones_by_polygon.cpp
 +++ b/pcbnew/zones_by_polygon.cpp
 @@ -129,7 +129,7 @@ void PCB_EDIT_FRAME::duplicateZone( wxDC* aDC, ZONE_CONTAINER* aZone )
@@ -912,7 +912,7 @@ index 31db133..4e833a0 100644
              return false;
          }
 diff --git a/pcbnew/zones_functions_for_undo_redo.cpp b/pcbnew/zones_functions_for_undo_redo.cpp
-index 65e761f..46eeb95 100644
+index 65e761f0..46eeb953 100644
 --- a/pcbnew/zones_functions_for_undo_redo.cpp
 +++ b/pcbnew/zones_functions_for_undo_redo.cpp
 @@ -184,7 +184,7 @@ int SaveCopyOfZones( PICKED_ITEMS_LIST& aPickList, BOARD* aPcb, int aNetCode, LA
@@ -934,7 +934,7 @@ index 65e761f..46eeb95 100644
                  break;
              }
 diff --git a/pcbnew/zones_test_and_combine_areas.cpp b/pcbnew/zones_test_and_combine_areas.cpp
-index 9793756..667e72a 100644
+index 97937562..667e72a8 100644
 --- a/pcbnew/zones_test_and_combine_areas.cpp
 +++ b/pcbnew/zones_test_and_combine_areas.cpp
 @@ -253,7 +253,7 @@ bool BOARD::TestAreaIntersection( ZONE_CONTAINER* area_ref, ZONE_CONTAINER* area

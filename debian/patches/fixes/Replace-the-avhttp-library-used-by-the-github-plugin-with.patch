@@ -22,10 +22,10 @@ Subject: Replace the avhttp library used by the github plugin with libcurl.
  create mode 100644 include/kicad_curl/kicad_curl_easy.h
 
 diff --git a/CMakeLists.txt b/CMakeLists.txt
-index 13c143f..5394e32 100644
+index 6eea373a..858ea58a 100644
 --- a/CMakeLists.txt
 +++ b/CMakeLists.txt
-@@ -550,6 +550,11 @@ if( NOT GLEW_FOUND )
+@@ -569,6 +569,11 @@ if( NOT GLEW_FOUND )
      check_find_package_result( GLEW_FOUND "GLEW" )
  endif()
  
@@ -38,7 +38,7 @@ index 13c143f..5394e32 100644
  # Find Cairo library #
  ######################
 diff --git a/common/CMakeLists.txt b/common/CMakeLists.txt
-index 46708f7..cce78ed 100644
+index c9fbd29b..c2bd2cb2 100644
 --- a/common/CMakeLists.txt
 +++ b/common/CMakeLists.txt
 @@ -4,6 +4,7 @@ include_directories(
@@ -49,7 +49,7 @@ index 46708f7..cce78ed 100644
      ../3d-viewer
      ../pcbnew
      ../polygon
-@@ -252,6 +253,9 @@ endif()
+@@ -257,6 +258,9 @@ endif()
  
  set( COMMON_SRCS
      ${COMMON_SRCS}
@@ -59,7 +59,7 @@ index 46708f7..cce78ed 100644
      view/view.cpp
      view/view_item.cpp
      view/view_group.cpp
-@@ -277,7 +281,7 @@ set( COMMON_SRCS
+@@ -282,7 +286,7 @@ set( COMMON_SRCS
  add_library( common STATIC ${COMMON_SRCS} )
  add_dependencies( common lib-dependencies )
  add_dependencies( common version_header )
@@ -70,7 +70,7 @@ index 46708f7..cce78ed 100644
  set( PCB_COMMON_SRCS
 diff --git a/common/kicad_curl/kicad_curl.cpp b/common/kicad_curl/kicad_curl.cpp
 new file mode 100644
-index 0000000..7424eec
+index 00000000..7424eec8
 --- /dev/null
 +++ b/common/kicad_curl/kicad_curl.cpp
 @@ -0,0 +1,54 @@
@@ -131,7 +131,7 @@ index 0000000..7424eec
 \ No newline at end of file
 diff --git a/common/kicad_curl/kicad_curl_easy.cpp b/common/kicad_curl/kicad_curl_easy.cpp
 new file mode 100644
-index 0000000..71a410d
+index 00000000..71a410d0
 --- /dev/null
 +++ b/common/kicad_curl/kicad_curl_easy.cpp
 @@ -0,0 +1,163 @@
@@ -300,7 +300,7 @@ index 0000000..71a410d
 +}
 \ No newline at end of file
 diff --git a/common/pgm_base.cpp b/common/pgm_base.cpp
-index e489438..0fde3d6 100644
+index e4894380..0fde3d66 100644
 --- a/common/pgm_base.cpp
 +++ b/common/pgm_base.cpp
 @@ -30,6 +30,7 @@
@@ -335,7 +335,7 @@ index e489438..0fde3d6 100644
  
 diff --git a/include/kicad_curl/kicad_curl.h b/include/kicad_curl/kicad_curl.h
 new file mode 100644
-index 0000000..3639400
+index 00000000..3639400c
 --- /dev/null
 +++ b/include/kicad_curl/kicad_curl.h
 @@ -0,0 +1,82 @@
@@ -424,7 +424,7 @@ index 0000000..3639400
 \ No newline at end of file
 diff --git a/include/kicad_curl/kicad_curl_easy.h b/include/kicad_curl/kicad_curl_easy.h
 new file mode 100644
-index 0000000..a87c3d0
+index 00000000..a87c3d02
 --- /dev/null
 +++ b/include/kicad_curl/kicad_curl_easy.h
 @@ -0,0 +1,166 @@
@@ -596,7 +596,7 @@ index 0000000..a87c3d0
 +#endif // KICAD_CURL_EASY_H_
 \ No newline at end of file
 diff --git a/pcbnew/github/CMakeLists.txt b/pcbnew/github/CMakeLists.txt
-index d630c69..bb37ebf 100644
+index d630c69a..bb37ebf5 100644
 --- a/pcbnew/github/CMakeLists.txt
 +++ b/pcbnew/github/CMakeLists.txt
 @@ -20,38 +20,14 @@
@@ -662,7 +662,7 @@ index d630c69..bb37ebf 100644
 -endif()
  
 diff --git a/pcbnew/github/github_getliblist.cpp b/pcbnew/github/github_getliblist.cpp
-index 00fcaca..baf5f7c 100644
+index 00fcaca2..baf5f7c2 100644
 --- a/pcbnew/github/github_getliblist.cpp
 +++ b/pcbnew/github/github_getliblist.cpp
 @@ -41,35 +41,7 @@
@@ -760,7 +760,7 @@ index 00fcaca..baf5f7c 100644
 +}
 \ No newline at end of file
 diff --git a/pcbnew/github/github_getliblist.h b/pcbnew/github/github_getliblist.h
-index 6fd0598..0d38b8a 100644
+index 6fd05980..0d38b8ae 100644
 --- a/pcbnew/github/github_getliblist.h
 +++ b/pcbnew/github/github_getliblist.h
 @@ -103,7 +103,7 @@ protected:
@@ -782,7 +782,7 @@ index 6fd0598..0d38b8a 100644
      wxString m_github_path;     ///< Something like https://api.github.com/orgs/KiCad
      std::string m_image;        ///< image of the downloaded data in its entirety.
 diff --git a/pcbnew/github/github_plugin.cpp b/pcbnew/github/github_plugin.cpp
-index 963a81c..db96ae1 100644
+index 963a81c4..db96ae18 100644
 --- a/pcbnew/github/github_plugin.cpp
 +++ b/pcbnew/github/github_plugin.cpp
 @@ -38,8 +38,7 @@ I have lost my enthusiasm for local caching until a faster time stamp retrieval
@@ -1038,7 +1038,7 @@ index 963a81c..db96ae1 100644
  
  int main( int argc, char** argv )
 diff --git a/pcbnew/github/github_plugin.h b/pcbnew/github/github_plugin.h
-index 4bb8248..f930821 100644
+index 4bb8248f..f930821e 100644
 --- a/pcbnew/github/github_plugin.h
 +++ b/pcbnew/github/github_plugin.h
 @@ -210,14 +210,14 @@ protected:

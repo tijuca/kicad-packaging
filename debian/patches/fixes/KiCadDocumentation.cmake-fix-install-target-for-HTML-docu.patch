@@ -2,30 +2,48 @@ From: Carsten Schoenert <c.schoenert@t-online.de>
 Date: Sun, 25 Sep 2016 09:56:25 +0200
 Subject: KiCadDocumentation.cmake: fix install target for HTML docu
 
-The current default behaviour while installing the generated HTML
-content is to install the whole images/$LANG folders into every
-generated language. This produces a lot of useless duplicated data.
-This commit fix this partially by only copying the needed language
-folder and the english folder instead defaulting every folder under
-images.
+The old default behaviour while installing the generated HTML content is
+to install the whole images/$LANG folders into every generated language.
+This was producing a lot of useless duplicated data.  After applying a
+commit from upstream [1] this problem was partially fixed, but the
+default images were not installed.
+
+This commit fixes changing the kind of creating the list for the default
+images that will be installed in a next step. Also the images from the
+English language is needed as some howtos use them.
+
+[1] https://github.com/KiCad/kicad-doc/commit/027c096941105048da8921ac2d8bc4d1594b14a9
 ---
- doc/CMakeModules/KiCadDocumentation.cmake | 6 +++++-
- 1 file changed, 5 insertions(+), 1 deletion(-)
+ doc/CMakeModules/KiCadDocumentation.cmake | 16 +++++++++++-----
+ 1 file changed, 11 insertions(+), 5 deletions(-)
 
 diff --git a/doc/CMakeModules/KiCadDocumentation.cmake b/doc/CMakeModules/KiCadDocumentation.cmake
-index e4c91e4..a6fc337 100644
+index 884f46bf..8c80b030 100644
 --- a/doc/CMakeModules/KiCadDocumentation.cmake
 +++ b/doc/CMakeModules/KiCadDocumentation.cmake
-@@ -136,7 +136,11 @@ macro( KiCadDocumentation DOCNAME )
+@@ -136,14 +136,20 @@ macro( KiCadDocumentation DOCNAME )
              add_dependencies( ${DOCNAME} ${DOCNAME}_html_${LANGUAGE} )
  
              install( FILES ${CMAKE_CURRENT_BINARY_DIR}/${LANGUAGE}/${DOCNAME}.html DESTINATION ${KICAD_DOC_PATH}/${LANGUAGE} COMPONENT html-${LANGUAGE} )
--            install( DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/${LANGUAGE}/images/ DESTINATION ${KICAD_DOC_PATH}/${LANGUAGE}/images COMPONENT html-${LANGUAGE} OPTIONAL PATTERN "*.png")
 +            # install the images/en/ folder if not already done, the folder contains the default images
 +            if( NOT "${KICAD_DOC_PATH}/${LANGUAGE}/images/en" EQUAL "-1" )
 +                install( DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/${LANGUAGE}/images/en DESTINATION ${KICAD_DOC_PATH}/${LANGUAGE}/images COMPONENT html-${LANGUAGE} OPTIONAL PATTERN "*.png")
 +            endif()
-+            install( DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/${LANGUAGE}/images/${LANGUAGE} DESTINATION ${KICAD_DOC_PATH}/${LANGUAGE}/images COMPONENT html-${LANGUAGE} OPTIONAL PATTERN "*.png")
+ 
+-            # It seems to be nescesary to use diffrent install commands to
+-            # install the images properly without having other lagunages
+-            # polluting the images folder
++            # collectings the default *.png files from the source tree and install them
++            file( GLOB COMMONPNGFILES RELATIVE "${CMAKE_CURRENT_SOURCE_DIR}/images" "${CMAKE_CURRENT_SOURCE_DIR}/images/*.png" )
++            foreach( PNGFILE ${COMMONPNGFILES} )
++                # install the common used images into the root images folder
++                install( FILES ${CMAKE_CURRENT_BINARY_DIR}/${LANGUAGE}/images/${PNGFILE} DESTINATION ${KICAD_DOC_PATH}/${LANGUAGE}/images COMPONENT html-${LANGUAGE} )
++            endforeach()
++            # install the specific images from the desired language
+             install( DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/${LANGUAGE}/images/${LANGUAGE} DESTINATION ${KICAD_DOC_PATH}/${LANGUAGE}/images COMPONENT html-${LANGUAGE} OPTIONAL PATTERN "*.png")
+             install( DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/${LANGUAGE}/images/icons DESTINATION ${KICAD_DOC_PATH}/${LANGUAGE}/images COMPONENT html-${LANGUAGE} OPTIONAL PATTERN "*.png")
+-            file(GLOB UNIVERSAL_IMAGES "${CMAKE_CURRENT_BINARY_DIR}/${LANGUAGE}/images/*.png")
+-            install( FILES ${UNIVERSAL_IMAGES} DESTINATION ${KICAD_DOC_PATH}/${LANGUAGE}/images COMPONENT html-${LANGUAGE} )
          endif()
  
  
