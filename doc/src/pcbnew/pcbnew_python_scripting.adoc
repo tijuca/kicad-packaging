@@ -22,7 +22,7 @@ scripting is Pcbnew. It is also planned for Eeschema in the future.
 
 The scripting API reflects the internal object structure inside
 KiCad/pcbnew. BOARD is the main object, that has a set of properties and
-a set of MODULEs, and TRACKs/SEGVIAs, TEXTE_PCB, DIMENSION, DRAWSEGMENT.
+a set of MODULEs, and TRACKs/VIAs, TEXTE_PCB, DIMENSION, DRAWSEGMENT.
 Then MODULEs have D_PADs, EDGEs, etc.
 
 - See the BOARD section below.
@@ -48,17 +48,17 @@ action plugins.
 .Example that loads a board, hides all values, shows all references
 [source,python]
 ----------
-#!/usr/bin/python
+#!/usr/bin/env python2.7
 import sys
 from pcbnew import *
 
 filename=sys.argv[1]
 
 pcb = LoadBoard(filename)
-for module in pcb.GetModules():  
+for module in pcb.GetModules():
     print "* Module: %s"%module.GetReference()
-    module.GetValueObj().SetVisible(False)      # set Value as Hidden
-    module.GetReferenceObj().SetVisible(True)   # set Reference as Visible
+    module.Value().SetVisible(False)      # set Value as Hidden
+    module.Reference().SetVisible(True)   # set Reference as Visible
 
 pcb.Save("mod_"+filename)
 ----------
@@ -69,17 +69,38 @@ pcb.Save("mod_"+filename)
 [source,python]
 ----------
 #!/usr/bin/python
- 
+
 from pcbnew import *
- 
-libpath = "/usr/share/kicad/modules/sockets.mod"
-lst = FootprintEnumerate(libpath)
- 
-for name in lst:
-    m = FootprintLoad(libpath,name)
-    print name,"->",m.GetLibRef(), m.GetReference()
-    for p in m.GetPads():
-        print "\t",p.GetPadName(),p.GetPosition(),p.GetPos0(), p.GetOffset()
+
+libpath = "/usr/share/kicad/modules/Sockets.pretty"
+print ">> enumerate footprints, pads of",libpath
+
+# Load the suitable plugin to read/write the .pretty library
+# (containing the .kicad_mod footprint files)
+src_type = IO_MGR.GuessPluginTypeFromLibPath( libpath );
+# Rem: we can force the plugin type by using IO_MGR.PluginFind( IO_MGR.KICAD )
+plugin = IO_MGR.PluginFind( src_type )
+
+# Print plugin type name: (Expecting "KiCad" for a .pretty library)
+print( "Selected plugin type: %s" % plugin.PluginName() )
+
+list_of_footprints = plugin.FootprintEnumerate(libpath)
+
+for name in list_of_footprints:
+    fp = plugin.FootprintLoad(libpath,name)
+    # print the short name of the footprint
+    print name  # this is the name inside the loaded library
+    # followed by ref field, value field, and decription string:
+    # Remember ref and value texts are dummy texts, replaced by the schematic values
+    # when reading a netlist.
+    print "  ->", fp.GetReference(), fp.GetValue(), fp.GetDescription()
+
+    # print pad info: GetPos0() is the pad position relative to the footrint position
+    for pad in fp.Pads():
+        print "    pad [%s]" % pad.GetPadName(), "at",\
+        "pos0", ToMM(pad.GetPos0().x), ToMM(pad.GetPos0().y),"mm",\
+        "shape offset", ToMM(pad.GetOffset().x), ToMM(pad.GetOffset().y), "mm"
+    print ""
 ----------
 
 === BOARD
@@ -90,10 +111,8 @@ BOARD contains a set of object lists that can be accessed using the following me
 
 - *board.GetModules():* This method returns a list of MODULE objects, all the modules available in the board will be exposed here.
 - *board.GetDrawings():* Returns the list of BOARD_ITEMS that belong to the board drawings
-- *board.GetTracks():* This method returns a list of TRACKs and SEGVIAs inside a BOARD
-- *board.GetSegZones():* Returns a list of SEGZONEs
-- *board.GetFullRatnest():* Returns the list of ratsnets (connections still not routed)
-- *board.GetLocalRatsnest():* Returns the list of ratsnest of a moving footprint (as it's dragged)
+- *board.GetTracks():* This method returns a list of TRACKs and VIAs inside a BOARD
+- *board.GetFullRatsnest():* Returns the list of ratsnest (connections still not routed)
 - *board.GetNetClasses():* Returns the list of net classes
 - *board.GetCurrentNetClassName():* Returns the current net class
 - *board.GetViasDimensionsList():* Returns the list of Via dimensions available to the board.
@@ -103,19 +122,23 @@ BOARD contains a set of object lists that can be accessed using the following me
 .Board Inspection Example
 [source,python]
 ----------
-#!/usr/bin/python
+#!/usr/bin/env python
 import sys
 from pcbnew import *
- 
+
 filename=sys.argv[1]
+
 pcb = LoadBoard(filename)
- 
-ToUnits=ToMils
-FromUnits=FromMils
- 
+
+ToUnits = ToMM
+FromUnits = FromMM
+#ToUnits=ToMils
+#FromUnits=FromMils
+
 print "LISTING VIAS:"
+
 for item in pcb.GetTracks():
-    if type(item) is SEGVIA:
+    if type(item) is VIA:
 
         pos = item.GetPosition()
         drill = item.GetDrillValue()
@@ -134,10 +157,11 @@ for item in pcb.GetTracks():
         print "Unknown type    %s" % type(item)
 
 print ""
-print "LISTING DRAWINGS:"
+print "LIST DRAWINGS:"
+
 for item in pcb.GetDrawings():
     if type(item) is TEXTE_PCB:
-        print "* Text:    '%s' at %s"%(item.GetText(),item.GetPosition())
+        print "* Text:    '%s' at %s"%(item.GetText(), item.GetPosition())
     elif type(item) is DRAWSEGMENT:
         print "* Drawing: %s"%item.GetShapeStr() # dir(item)
     else:
@@ -145,33 +169,52 @@ for item in pcb.GetDrawings():
 
 print ""
 print "LIST MODULES:"
+
 for module in pcb.GetModules():
     print "* Module: %s at %s"%(module.GetReference(),ToUnits(module.GetPosition()))
 
 print ""
-print "LIST ZONES:"
-for zone in pcb.GetSegZones():
-    print zone
+print "Ratsnest cnt:",len(pcb.GetFullRatsnest())
+print "track w cnt:",len(pcb.GetTrackWidthList())
+print "via s cnt:",len(pcb.GetViasDimensionsList())
 
 print ""
-print "RATSNEST:",len(pcb.GetFullRatsnest())
+print "LIST ZONES:", pcb.GetAreaCount()
+
+for idx in range(0, pcb.GetAreaCount()):
+    zone=pcb.GetArea(idx)
+    print "zone:", idx, "priority:", zone.GetPriority(), "netname", zone.GetNetname()
+
+print ""
+print "NetClasses:", pcb.GetNetClasses().GetCount(),
 ---------
 
 === Examples
 
-==== Change a component pins paste mask margin
+==== Change a component pin's paste mask margin
 
 .We only want to change pins from 1 to 14, 15 is a thermal pad that must be kept as it is.
 [source,python]
 ----------
-b = pcbnew.GetBoard()
-u304 = b.FindModuleByReference('U304')
-pads = u304.GetPads()
- 
+#!/usr/bin/env python2.7
+import sys
+from pcbnew import *
+
+filename=sys.argv[1]
+pcb = LoadBoard(filename)
+
+# Find module U304
+u304 = pcb.FindModuleByReference('U304')
+pads = u304.Pads()
+
+#  Iterate over pads, printing solder paste margin
 for p in pads:
-    print p.GetPadName(), pcbnew.ToMM(p.GetLocalSolderPasteMargin())
+    print p.GetPadName(), ToMM(p.GetLocalSolderPasteMargin())
     id = int(p.GetPadName())
+    # Set margin to 0 for all but pad (pin) 15
     if id<15: p.SetLocalSolderPasteMargin(0)
+
+pcb.Save("mod_"+filename)
 ---------
 
 [[Footprint_Wizards]]
@@ -184,10 +227,10 @@ rendered, and you have some parameters you can edit.
 
 If the plugins are not properly distributed to your system package,
 you can find the latest versions in the KiCad source tree at
-link:http://bazaar.launchpad.net/~kicad-product-committers/kicad/product/files/head:/pcbnew/scripting/plugins/[launchpad].
+link:https://git.launchpad.net/kicad/tree/pcbnew/python/plugins[launchpad].
 
 They should be located in for example `C:\Program
-Files\KiCad\bin\scripting\plugins`.
+Files\KiCad\share\kicad\scripting\plugins`.
 
 On linux you can also keep your user plugins in
 `$HOME/.kicad_plugins`.
@@ -196,74 +239,55 @@ On linux you can also keep your user plugins in
 .Build footprints easily filling in parameters.
 [source,python]
 ----------
-#!/usr/bin/python
+from __future__ import division
+import pcbnew
 
-from pcbnew import *
+import HelpfulFootprintWizardPlugin as HFPW
 
-class FPCFootprintWizard(FootprintWizardPlugin):
-    def __init__(self):
-        FootprintWizardPlugin.__init__(self)
-        self.name = "FPC"
-        self.description = "FPC Footprint Wizard"
-        self.parameters = {
-             "Pads":
-                {"*n":40,           # not internal units preceded by "*"
-                 "pitch":           FromMM(0.5),
-                 "width":           FromMM(0.25),
-                 "height":          FromMM(1.6)},
-             "Shield":
-                {"shield_to_pad":   FromMM(1.6),
-                 "from_top":        FromMM(1.3),
-                 "width":           FromMM(1.5),
-                 "height":          FromMM(2)}
-        }
 
-        self.ClearErrors()
+class FPC_FootprintWizard(HFPW.HelpfulFootprintWizardPlugin):
+
+    def GetName(self):
+        return "FPC (SMT connector)"
+
+    def GetDescription(self):
+        return "FPC (SMT connector) Footprint Wizard"
+
+    def GetValue(self):
+        pins = self.parameters["Pads"]["*n"]
+        return "FPC_%d" % pins
+
+    def GenerateParameterList(self):
+        self.AddParam( "Pads", "n", self.uNatural, 40 )
+        self.AddParam( "Pads", "pitch", self.uMM, 0.5 )
+        self.AddParam( "Pads", "width", self.uMM, 0.25 )
+        self.AddParam( "Pads", "height", self.uMM, 1.6)
+        self.AddParam( "Shield", "shield_to_pad", self.uMM, 1.6 )
+        self.AddParam( "Shield", "from_top", self.uMM, 1.3 )
+        self.AddParam( "Shield", "width", self.uMM, 1.5 )
+        self.AddParam( "Shield", "height", self.uMM, 2 )
+
 
     # build a rectangular pad
     def smdRectPad(self,module,size,pos,name):
-            pad = D_PAD(module)
-            pad.SetSize(size)
-            pad.SetShape(PAD_RECT)
-            pad.SetAttribute(PAD_SMD)
-            pad.SetLayerMask(PAD_SMD_DEFAULT_LAYERS)
-            pad.SetPos0(pos)
-            pad.SetPosition(pos)
-            pad.SetPadName(name)
-            return pad
- 
-    # This method checks the parameters provided to wizard and set errors
+        pad = pcbnew.D_PAD(module)
+        pad.SetSize(size)
+        pad.SetShape(pcbnew.PAD_SHAPE_RECT)
+        pad.SetAttribute(pcbnew.PAD_ATTRIB_SMD)
+        pad.SetLayerSet( pad.SMDMask() )
+        pad.SetPos0(pos)
+        pad.SetPosition(pos)
+        pad.SetPadName(name)
+        return pad
+
     def CheckParameters(self):
-        p = self.parameters      
-        pads            = p["Pads"]["*n"]      
-        errors = ""
-        if (pads<1):
-            self.parameter_errors["Pads"]["n"]="Must be positive"
-            errors +="Pads/n has wrong value, "
-        p["Pads"]["n"] = int(pads)  # make sure it stays as int (default is float)      
-
-        pad_width       = p["Pads"]["width"]
-        pad_height      = p["Pads"]["height"]
-        pad_pitch       = p["Pads"]["pitch"]
-        shl_width       = p["Shield"]["width"]
-        shl_height      = p["Shield"]["height"]
-        shl_to_pad      = p["Shield"]["shield_to_pad"]
-        shl_from_top    = p["Shield"]["from_top"]
-
-        return errors
-
-    # build the footprint from parameters
-    def BuildFootprint(self):
-
-        print "parameters:",self.parameters
-        #self.ClearErrors()
-        #print "errors:",self.parameter_errors
-
-        module = MODULE(None) # create a new module
-        self.module = module
-
         p = self.parameters
-        pads            = int(p["Pads"]["*n"])      
+        self.CheckParamInt( "Pads", "*n" )  # not internal units preceded by "*"
+
+
+    def BuildThisFootprint(self):
+        p = self.parameters
+        pad_count       = int(p["Pads"]["*n"])
         pad_width       = p["Pads"]["width"]
         pad_height      = p["Pads"]["height"]
         pad_pitch       = p["Pads"]["pitch"]
@@ -272,43 +296,88 @@ class FPCFootprintWizard(FootprintWizardPlugin):
         shl_to_pad      = p["Shield"]["shield_to_pad"]
         shl_from_top    = p["Shield"]["from_top"]
 
-        size_pad = wxSize(pad_width,pad_height)
-        size_shld = wxSize(shl_width,shl_height)
+        offsetX         = pad_pitch * ( pad_count-1 ) / 2
+        size_pad = pcbnew.wxSize( pad_width, pad_height )
+        size_shld = pcbnew.wxSize(shl_width, shl_height)
+        size_text = self.GetTextSize()  # IPC nominal
 
-        module.SetReference("FPC"+str(pads))   # give it a reference name
-        module.m_Reference.SetPos0(wxPointMM(-1,-2))
-        module.m_Reference.SetPosition(wxPointMM(-1,-2))
+        # Gives a position and size to ref and value texts:
+        textposy = pad_height/2 + pcbnew.FromMM(1) + self.GetTextThickness()
+        self.draw.Reference( 0, textposy, size_text )
+
+        textposy = textposy + size_text + self.GetTextThickness()
+        self.draw.Value( 0, textposy, size_text )
 
         # create a pad array and add it to the module
-        for n in range (0,pads):
-            pad = self.smdRectPad(module,size_pad,wxPoint(pad_pitch*n,0),str(n+1))
-            module.Add(pad)
+        for n in range ( 0, pad_count ):
+            xpos = pad_pitch*n - offsetX
+            pad = self.smdRectPad(self.module,size_pad, pcbnew.wxPoint(xpos,0),str(n+1))
+            self.module.Add(pad)
 
-        pad_s0 = self.smdRectPad(module,
-                            size_shld,
-                            wxPoint(-shl_to_pad,shl_from_top),
-                            "0")
-        pad_s1 = self.smdRectPad(module,
-                            size_shld,
-                            wxPoint((pads-1)*pad_pitch+shl_to_pad,shl_from_top),
-                            "0")      
 
-        module.Add(pad_s0)
-        module.Add(pad_s1)
+        # Mechanical shield pads: left pad and right pad
+        xpos = -shl_to_pad-offsetX
+        pad_s0_pos = pcbnew.wxPoint(xpos,shl_from_top)
+        pad_s0 = self.smdRectPad(self.module, size_shld, pad_s0_pos, "0")
+        xpos = (pad_count-1) * pad_pitch+shl_to_pad - offsetX
+        pad_s1_pos = pcbnew.wxPoint(xpos,shl_from_top)
+        pad_s1 = self.smdRectPad(self.module, size_shld, pad_s1_pos, "0")
 
-        e = EDGE_MODULE(module)
-        e.SetStartEnd(wxPointMM(-1,0),wxPointMM(0,0))
-        e.SetWidth(FromMM(0.2))
-        e.SetLayer(EDGE_LAYER)
-        e.SetShape(S_SEGMENT)
-        module.Add(e)
+        self.module.Add(pad_s0)
+        self.module.Add(pad_s1)
 
-        module.SetLibRef("FPC"+str(pads))
+        # add footprint outline
+        linewidth = self.draw.GetLineTickness()
+        margin = linewidth
 
-# create our footprint wizard
-fpc_wizard = FPCFootprintWizard()
+        # upper line
+        posy = -pad_height/2 - linewidth/2 - margin
+        xstart = - pad_pitch*0.5-offsetX
+        xend = pad_pitch * pad_count + xstart;
+        self.draw.Line( xstart, posy, xend, posy )
 
-# register it into pcbnew
-fpc_wizard.register()
+        # lower line
+        posy = pad_height/2 + linewidth/2 + margin
+        self.draw.Line(xstart, posy, xend, posy)
+
+        # around left mechanical pad (the outline around right pad is mirrored/y axix)
+        yend = pad_s0_pos.y + shl_height/2 + margin
+        self.draw.Line(xstart, posy, xstart, yend)
+        self.draw.Line(-xstart, posy, -xstart, yend)
+
+        posy = yend
+        xend = pad_s0_pos.x - (shl_width/2 + linewidth + margin*2)
+        self.draw.Line(xstart, posy, xend, posy)
+
+        # right pad side
+        self.draw.Line(-xstart, posy, -xend, yend)
+
+        # vertical segment at left of the pad
+        xstart = xend
+        yend = posy - (shl_height + linewidth + margin*2)
+        self.draw.Line(xstart, posy, xend, yend)
+
+        # right pad side
+        self.draw.Line(-xstart, posy, -xend, yend)
+
+        # horizontal segment above the pad
+        xstart = xend
+        xend = - pad_pitch*0.5-offsetX
+        posy = yend
+        self.draw.Line(xstart, posy, xend, yend)
+
+        # right pad side
+        self.draw.Line(-xstart, posy,-xend, yend)
+
+        # vertical segment above the pad
+        xstart = xend
+        yend = -pad_height/2 - linewidth/2 - margin
+        self.draw.Line(xstart, posy, xend, yend)
+
+        # right pad side
+        self.draw.Line(-xstart, posy, -xend, yend)
+
+
+FPC_FootprintWizard().register()
 ---------
 

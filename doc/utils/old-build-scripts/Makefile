@@ -90,7 +90,6 @@ $(PODIR)/$(DOCNAME).pot: $(DOCNAME).adoc $(foreach l,$(DOCCHAPTERS), $(l))
 #Build/update the single language NN i18n strings .po file
 #$(PODIR)/%.po: $(DOCNAME).adoc #Single file dependency
 $(PODIR)/%.po: $(DOCNAME).adoc $(foreach l,$(DOCCHAPTERS), $(l))
-	@touch $(DOCNAME).adoc
 	@po4a-updatepo -f asciidoc -v -M utf-8 -m $(DOCNAME).adoc $(foreach l,$(DOCCHAPTERS),-m $(l)) -p $@
 
 .PHONY: po-all
@@ -158,7 +157,12 @@ $(DOCNAME)-ja.pdf: $(DOCNAME)-ja.adoc
 	echo "Note: To make japanese pdf, you need to install fonts-vlgothic (like: sudo apt-get install fonts-vlgothic)."
 	a2x -f pdf $(ASCIIDOCVAR) -a lang=ja --dblatex-opts $(DBLATEXOPTS-JA) $(DOCNAME)-ja.adoc
 
-#I18n pdf
+#Russian pdf
+DBLATEXOPTS-RU=" -b xetex -p ../../xsl/dblatex-pdf-ru.xsl -P latex.output.revhistory=0 -P doc.publisher.show=0 -s $(SCRIPTSBASEDIR)/pdf-cover-dblatex.sty $(DEBUGPDFLTX)"
+$(DOCNAME)-ru.pdf: $(DOCNAME)-ru.adoc
+	a2x -L -f pdf $(ASCIIDOCVAR) -a lang=ru --dblatex-opts $(DBLATEXOPTS-RU) $(DOCNAME)-ru.adoc
+
+#all other I18n pdf
 $(DOCNAME)-%.pdf: $(DOCNAME)-%.adoc
 	a2x -f pdf $(ASCIIDOCVAR) -a lang=$* --dblatex-opts $(DBLATEXOPTS) $(DOCNAME)-$*.adoc
 
