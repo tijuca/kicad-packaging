@@ -4,7 +4,7 @@ Priority: optional
 Maintainer: Georges Khaznadar <georgesk@debian.org>
 Uploaders:
  Richard Antony Burton <richardaburton@gmail.com>,
- Daniel J. Priem <danielpriem@flexserv.de>,
+ Carsten Schoenert <c.schoenert@t-online.de>,
 Build-Depends:
  asciidoc-base,
  asciidoc-dblatex,
