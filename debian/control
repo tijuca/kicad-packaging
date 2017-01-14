@@ -6,7 +6,8 @@ Uploaders:
  Richard Antony Burton <richardaburton@gmail.com>,
  Daniel J. Priem <danielpriem@flexserv.de>,
 Build-Depends:
- asciidoc,
+ asciidoc-base,
+ asciidoc-dblatex,
  cmake,
  dblatex,
  debhelper (>= 9.20120417),
