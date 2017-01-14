@@ -1,3 +1,22 @@
+kicad (4.0.5+dfsg1-1) unstable; urgency=medium
+
+  [ Carsten Schoenert ]
+  * [cc405a8] debian/control: adding Vcs fields after creating git tree
+  * [a5b571d] rework helper script for source tarball creation
+  * [e0d8156] debian/kicad.lintian-overrides: be more flexible
+  * [f458b82] debian/rules: split dh_fixperms
+    (Closes: #847820)
+  * [dfd193b] New upstream version 4.0.5+dfsg1
+    (Closes: #851000)
+  * [47c248a] debian/rules: adjusting KICAD_FULL_VERSION
+  * [bb3ec74] rebuild patch queue from patch-queue branch
+  * [3d40398] kicad.install: re-adding the existing man pages
+  * [e0fdaa1] debian/control: split of B-D package asciidoc
+  * [774746f] debian/rules: remove build-arch specific target
+  * [3f5b978] debian/control: adding myself to the Uploaders
+
+ -- Carsten Schoenert <c.schoenert@t-online.de>  Sat, 14 Jan 2017 21:45:37 +0100
+
 kicad (4.0.4+dfsg2-1) unstable; urgency=medium
 
   [ Carsten Schoenert ]
@@ -27,8 +46,6 @@ kicad (4.0.4+dfsg2-1) unstable; urgency=medium
   * [a869507] fix some buildflag hardening issues
   * [95bb23d] rebuild patch queue from patch-queue branch
   * [bc820d2] debian/rules: adding date from changelog to the Asciidoc files
-
-  [ Georges Khaznadar ]
 
  -- Georges Khaznadar <georgesk@debian.org>  Tue, 15 Nov 2016 09:20:38 +0100
 
