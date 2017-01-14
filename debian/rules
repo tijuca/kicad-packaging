@@ -77,12 +77,12 @@ override_dh_auto_configure:
 	# configuring KiCad libraries
 	dh_auto_configure --sourcedirectory=$(CURDIR)/libraries/kicad-library --builddirectory=$(DEB_BUILD_DIR)/libraries -- $(DEB_LIBRARIES_CMAKE_OPTS)
 
-override_dh_auto_build-arch:
+override_dh_auto_build:
 	# The other parts of KiCad like documentation, i18n files and the
 	# libraries don't need to be build as arch depended, they even
 	# don't need to be prebuild before calling dh_install. So ignoring
 	# here. Only build the KiCad application here.
-	dh_auto_build --parallel --sourcedirectory=$(CURDIR) --builddirectory=$(DEB_BUILD_DIR)
+	dh_auto_build --sourcedirectory=$(CURDIR) --builddirectory=$(DEB_BUILD_DIR)
 
 override_dh_auto_install:
 	# installing KiCad application
