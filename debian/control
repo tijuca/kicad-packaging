@@ -104,7 +104,7 @@ Description: Electronic schematic and PCB design software
   * Most components have corresponding 3D models
 
 Package: kicad-common
-Architecture: all
+Architecture: any
 Multi-Arch: foreign
 Depends:
  python,
