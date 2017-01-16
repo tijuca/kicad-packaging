@@ -1,3 +1,12 @@
+kicad (4.0.5+dfsg1-2) unstable; urgency=medium
+
+  [ Carsten Schoenert ]
+  * [85bda23] kicad-common: make package arch-depended
+  * [e38bb91] debian/kicad.install: fix installation of man pages
+  * [1e3fc2e] override_dh_fixperms: adding mised call for dh_fixperms
+
+ -- Carsten Schoenert <c.schoenert@t-online.de>  Mon, 16 Jan 2017 18:56:50 +0100
+
 kicad (4.0.5+dfsg1-1) unstable; urgency=medium
 
   [ Carsten Schoenert ]
