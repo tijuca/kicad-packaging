@@ -69,7 +69,7 @@ Standards-Version: 3.9.8
 Homepage: http://www.kicad-pcb.org
 
 Package: kicad
-Architecture: any
+Architecture: any-i386 any-amd64 armel armhf arm64 mips mipsel powerpc ppc64el
 Depends:
  kicad-common (>= ${source:Version}),
  python-wxgtk3.0,
@@ -104,7 +104,7 @@ Description: Electronic schematic and PCB design software
   * Most components have corresponding 3D models
 
 Package: kicad-common
-Architecture: any
+Architecture: any-i386 any-amd64 armel armhf arm64 mips mipsel powerpc ppc64el
 Multi-Arch: foreign
 Depends:
  python,
