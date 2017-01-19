@@ -1,0 +1,46 @@
+.TH idf2vrml 1 "June 19, 2017" "idf2vrml"
+
+.SH NAME
+idf2vrml \- create a VRML file from IDF Board (.emn) and one IDF Component file (.emp).
+
+.SH DESCRIPTION
+.PP
+.B idf2vrml
+The idf2vrml tool reads a set of one IDF Board (.emn) and one IDF Component
+file (.emp) and produces a VRML file which can be viewed with a VRML viewer.
+idf2vrml is part of the KiCad suite.
+
+.SH SYNOPSIS
+.B idf2vrml
+\-f input_file.emn \-s scale_factor [\-k] [\-d] [\-z] [\-m]
+
+.SH OPTIONS
+.TP
+.B \-k
+produce KiCad-friendly VRML output; default is compact VRML
+
+.TP
+.B \-d
+suppress substitution of default outlines
+
+.TP
+.B \-z
+suppress rendering of zero-height outlines
+
+.TP
+.B \-m
+print object mapping to stdout for debugging purposes
+
+.SH EXAMPLE
+.sp
+Tto produce a model for use by KiCad:
+.sp
+.if n \{\ 
+.RS 4
+.\}
+.nf
+idf2vrml \-f input.emn \-s 0.3937008 -k
+.fi
+
+.SH AUTHOR
+Carsten Schoenert <c.schoenert@t-online.de>
