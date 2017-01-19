@@ -124,7 +124,8 @@ License: BSD1
 
 Files: debian/*
 Copyright: (C) 2006-2010 Richard A Burton <richardaburton@gmail.com>
-           (C) 2015 Georges Khaznadar <georgesk@debian.org>
+           (C) 2015-2016 Georges Khaznadar <georgesk@debian.org>
+           (C) 2016-2017 Carsten schoenert <c.schoenert@t-online.de>
 License: GPL-2+
 
 Files: pcbnew/github/avhttp-master.zip
