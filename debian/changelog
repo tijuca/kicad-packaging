@@ -1,3 +1,14 @@
+kicad (4.0.5+dfsg1-3) unstable; urgency=medium
+
+  [ Carsten Schoenert ]
+  * [1835f2e] debian/control: decrease Architectures for arch packages
+    + minimize the platform where kicad should be build, libboost-context-dev
+      isn't on all platforms available
+  * [4bd0315] manpages: adding missing manpages
+  * [d1b0883] debian/copyright: reflect last changes and updates
+
+ -- Carsten Schoenert <c.schoenert@t-online.de>  Fri, 20 Jan 2017 21:51:15 +0100
+
 kicad (4.0.5+dfsg1-2) unstable; urgency=medium
 
   [ Carsten Schoenert ]
