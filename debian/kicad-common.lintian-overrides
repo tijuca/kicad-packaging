@@ -1,2 +1,0 @@
-# the warning is true, but we depend on arch specific package python
-kicad-common: package-contains-no-arch-dependent-files

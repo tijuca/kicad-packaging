@@ -37,9 +37,4 @@ the new version:
   *.orig-i18n.tar.xz   ->  i18n/
   *.orig-libraries.xz  ->  libraries/
 
-src:kicad isn't able to build on all RC platforms because the needed
-libboost-context-dev package isn't available for mips64el and s390x.
-Also for non RC platforms hppa, m86k, powerpcspe, sh4 is this boost library
-available and kicad packages can't be build there.
-
- -- Carsten Schoenert <c.schoenert@t-online.de>, Fri, 19 Dec 2017 20:45:00 +0100
+ -- Carsten Schönert <c.schoenert@t-online.de>, Wed, 21 Sep 2016 22:45:00 +0200
