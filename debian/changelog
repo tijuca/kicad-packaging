@@ -1,3 +1,16 @@
+kicad (4.0.5+dfsg1-4) unstable; urgency=medium
+
+  [ Carsten Schoenert ]
+  * [375ce2f] Revert "debian/control: decrease Architectures for arch packages"
+    + removing the arch specific decrease of the build architecture, it's
+      really not useful here (Thx Emilio & Aurelien)
+  * [b2c400d] kicad-common.lintian-overrides: ingoring Lintian
+    + kicad-common is now arch dependend, silence lintian here that is saying
+      kicad-common has only content that is indep but we relay on the python
+      package
+
+ -- Carsten Schoenert <c.schoenert@t-online.de>  Wed, 25 Jan 2017 22:38:35 +0100
+
 kicad (4.0.5+dfsg1-3) unstable; urgency=medium
 
   [ Carsten Schoenert ]
