@@ -6,8 +6,7 @@ Uploaders:
  Richard Antony Burton <richardaburton@gmail.com>,
  Carsten Schoenert <c.schoenert@t-online.de>,
 Build-Depends:
- asciidoc-base,
- asciidoc-dblatex,
+ asciidoc,
  cmake,
  dblatex,
  debhelper (>= 9.20120417),

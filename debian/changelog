@@ -1,3 +1,9 @@
+kicad (4.0.5+dfsg1-4~bpo8+1) jessie-backports; urgency=medium
+
+  * Backport to Debian jessie
+
+ -- Simon Richter <sjr@debian.org>  Tue, 31 Jan 2017 22:46:34 +0100
+
 kicad (4.0.5+dfsg1-4) unstable; urgency=medium
 
   [ Carsten Schoenert ]

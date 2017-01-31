@@ -12,3 +12,4 @@ fixes/Fix-issue-170-for-real.patch
 fixes/KiCadDocumentation.cmake-fix-install-target-for-HTML-docu.patch
 reproducibility/add-field-revdate-to-asciidoc-files-of-documentation.patch
 debian-hacks/Removing-hyphen-inside-KICAD_FULL_VERSION.patch
+use-cxx11

@@ -1,0 +1,47 @@
+Description: Use C++11
+ This code actually uses some C++11 features, but doesn't enable them in
+ the compiler.
+ .
+ kicad (4.0.4+dfsg1-2~bpo8+1) jessie-backports; urgency=medium
+ .
+   * Backport to Debian jessie
+Author: Simon Richter <sjr@debian.org>
+Forwarded: no
+Last-Update: 2017-01-31
+
+Index: kicad-4.0.5+dfsg1/CMakeLists.txt
+===================================================================
+--- kicad-4.0.5+dfsg1.orig/CMakeLists.txt
++++ kicad-4.0.5+dfsg1/CMakeLists.txt
+@@ -105,6 +105,10 @@ mark_as_advanced( KICAD_SKIP_BOOST )
+ option( BUILD_GITHUB_PLUGIN "Build the GITHUB_PLUGIN for pcbnew." ON )
+ 
+ 
++# Global setting: Use C++11
++set(CMAKE_CXX_STANDARD 11)
++set(CMAKE_CXX_STANDARD_REQUIRED ON)
++
+ 
+ # All CMake downloads go here.  Suggested is up in the source tree, not in the build dir where they
+ # would have to be downloaded over and over again.  The default is to choose a directory that is
+@@ -141,6 +145,20 @@ include( PerformFeatureChecks )
+ perform_feature_checks()
+ 
+ 
++if( CMAKE_VERSION VERSION_LESS 3.1 AND ( CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang" ) )
++    include(CheckCXXCompilerFlag)
++
++    CHECK_CXX_COMPILER_FLAG("-std=c++11" COMPILER_SUPPORTS_CXX11)
++
++    if(COMPILER_SUPPORTS_CXX11)
++        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11")
++    else()
++        message(STATUS "The compiler ${CMAKE_CXX_COMPILER} has no C++11 support. Please use a different C++ compiler.")
++    endif()
++endif()
++
++
++
+ #================================================
+ # Set flags for GCC, or treat llvm as GCC
+ #================================================
