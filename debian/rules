@@ -112,7 +112,7 @@ override_dh_install:
 	dh_install
 	dh_python2
 
-override_dh_fixperms-indep:
+override_dh_fixperms-arch:
 	dh_fixperms
 	# fixing file permissions for *.py files in kicad-common
 	for i in `find $(CURDIR)/debian/kicad-common/usr -type f -name "*.py"`; do \
