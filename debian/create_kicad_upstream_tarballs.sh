@@ -362,55 +362,69 @@ echo
 # to use the static list as some repositories currently empty like:
 # Connectors_Amphenol.pretty
 
-#PRETTY_REPOS=$(curl https://api.github.com/orgs/KiCad/repos?per_page=2000 2> /dev/null | sed -r 's:.+ "full_name".*"KiCad/(.+\.pretty)",:\1:p;d')
+#PRETTY_REPOS=$(curl https://api.github.com/orgs/KiCad/repos?per_page=100&page=1 https://api.github.com/orgs/KiCad/repos?per_page=100&page=2 2> /dev/null | sed -r 's:.+ "full_name".*"KiCad/(.+\.pretty)",:\1:p;d')
 #PRETTY_REPOS=$(echo $PRETTY_REPOS | tr " " "\n" | sort)
 
 PRETTY_REPOS="\
 Air_Coils_SML_NEOSID.pretty
 Battery_Holders.pretty
 Buttons_Switches_SMD.pretty
-Buttons_Switches_ThroughHole.pretty
+Buttons_Switches_THT.pretty
 Buzzers_Beepers.pretty
 Capacitors_SMD.pretty
 Capacitors_Tantalum_SMD.pretty
-Capacitors_ThroughHole.pretty
+Capacitors_THT.pretty
 Choke_Axial_ThroughHole.pretty
 Choke_Common-Mode_Wurth.pretty
 Choke_Radial_ThroughHole.pretty
 Choke_SMD.pretty
 Choke_Toroid_ThroughHole.pretty
+Connectors_Amphenol.pretty
 Connectors_Harwin.pretty
 Connectors_Hirose.pretty
 Connectors_JAE.pretty
 Connectors_JST.pretty
+Connectors_Mini-Universal.pretty
 Connectors_Molex.pretty
 Connectors_Multicomp.pretty
 Connectors_Phoenix.pretty
+Connectors.pretty
 Connectors_Samtec.pretty
 Connectors_TE-Connectivity.pretty
-Connect.pretty
+Connectors_Terminal_Blocks.pretty
+Connectors_USB.pretty
+Connectors_WAGO.pretty
 Converters_DCDC_ACDC.pretty
 Crystals.pretty
 Diodes_SMD.pretty
-Diodes_ThroughHole.pretty
+Diodes_THT.pretty
 Discret.pretty
-Display.pretty
 Displays_7-Segment.pretty
+Displays.pretty
 Divers.pretty
+Enclosures.pretty
 EuroBoard_Outline.pretty
 Fiducials.pretty
 Filters_HF_Coils_NEOSID.pretty
 Fuse_Holders_and_Fuses.pretty
 Hall-Effect_Transducers_LEM.pretty
 Heatsinks.pretty
+Housings_BGA.pretty
+Housings_CSP.pretty
 Housings_DFN_QFN.pretty
 Housings_DIP.pretty
+Housings_LCC.pretty
+Housings_LGA.pretty
+Housings_PGA.pretty
 Housings_QFP.pretty
 Housings_SIP.pretty
 Housings_SOIC.pretty
+Housings_SON.pretty
 Housings_SSOP.pretty
 Inductors_NEOSID.pretty
 Inductors.pretty
+Inductors_SMD.pretty
+Inductors_THT.pretty
 IR-DirectFETs.pretty
 Labels.pretty
 LEDs.pretty
@@ -418,6 +432,7 @@ Measurement_Points.pretty
 Measurement_Scales.pretty
 Mechanical_Sockets.pretty
 Microwave.pretty
+Modules.pretty
 Mounting_Holes.pretty
 NF-Transformers_ETAL.pretty
 Oddities.pretty
@@ -427,25 +442,23 @@ PFF_PSF_PSS_Leadforms.pretty
 Pin_Headers.pretty
 Potentiometers.pretty
 Power_Integrations.pretty
-Relays_ThroughHole.pretty
+Relays_THT.pretty
 Resistors_SMD.pretty
-Resistors_ThroughHole.pretty
+Resistors_THT.pretty
 Resistors_Universal.pretty
 RF_Modules.pretty
 Shielding_Cabinets.pretty
 SMD_Packages.pretty
-Sockets_BNC.pretty
-Sockets_Mini-Universal.pretty
 Sockets_MOLEX_KK-System.pretty
 Sockets.pretty
 Socket_Strips.pretty
-Sockets_WAGO734.pretty
 Symbols.pretty
-Terminal_Blocks.pretty
 TO_SOT_Packages_SMD.pretty
 TO_SOT_Packages_THT.pretty
 Transformers_CHK.pretty
+Transformers_SMD.pretty
 Transformers_SMPS_ThroughHole.pretty
+Transformers_THT.pretty
 Transistors_OldSowjetAera.pretty
 Valves.pretty
 Varistors.pretty
@@ -488,8 +501,12 @@ for PROJECT in kicad-library $PRETTY_REPOS; do
 done
 
 # cleaning out VCS control files, don't care about not to scanned folders
-echo "removing VCS related control files before packing tarballs ..."
-for CLEANING in `find ${TMPDIR} -type f \( -name ".gitignore" -o -name "*.bzrignore" \)`; do
+echo "removing VCS or autobuilder related control files before packing tarballs ..."
+for CLEANING in `find ${TMPDIR} -type f \
+                       \( -name ".gitignore" \
+                          -o -name ".gitattributes" \
+                          -o -name ".travis*" \
+                          -o -name "*.bzrignore" \)`; do
     debug "remove ${CLEANING}"
     rm ${CLEANING}
 done
