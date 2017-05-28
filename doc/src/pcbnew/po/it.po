@@ -1,13 +1,13 @@
 # Pcbnew User Manual Italian Translation
 # Copyright (C) 2014 Free Software Foundation, Inc.
 # This file is distributed under the same license as the KiCad package.
-# Marco Ciampa <ciampix@libero.it>, 2014-2016.
+# Marco Ciampa <ciampix@libero.it>, 2014-2017.
 #
 msgid ""
 msgstr ""
 "Project-Id-Version: 0.1\n"
 "POT-Creation-Date: 2016-12-13 17:33+0100\n"
-"PO-Revision-Date: 2016-12-13 17:37+0100\n"
+"PO-Revision-Date: 2017-03-01 13:21+0100\n"
 "Last-Translator: Marco Ciampa <ciampix@libero.it>\n"
 "Language-Team: Italian <it@li.org>\n"
 "Language: Italian\n"
@@ -154,7 +154,7 @@ msgid ""
 "connected in the netlist/schematic. When using the interactive router it "
 "continuously runs the design rules check and will help automatically route "
 "individual traces."
-msgstr ""
+msgstr "Pcbnew fornisce uno strumento per il controllo delle regole elettriche (Design Rule Check o DRC) che previene i problemi di distanziamento tra piste e piazzole e previene anche le connessioni errate che non hanno corrispondenza nella netlist/schema elettrico. Quando si usa lo sbroglio interattivo, questo esegue in continuazione questo controllo aiutando lo sbroglio delle singole piste."
 
 #. type: Plain text
 #: pcbnew_introduction.adoc:26
@@ -201,7 +201,7 @@ msgstr "Caratteristiche principali di progettazione"
 msgid ""
 "The smallest unit in pcbnew is 1 nanometer. All dimensions are stored as "
 "integer nanometers."
-msgstr ""
+msgstr "L'unità più piccola in pcbnew è 1 nanometro. Tutte le dimensioni sono memorizzate come integer di nanometri."
 
 #. type: Plain text
 #: pcbnew_introduction.adoc:44
@@ -260,31 +260,31 @@ msgstr ""
 msgid ""
 "Pcbnew includes a Footprint Editor that allows editing of individual "
 "footprints that have been on a pcb or editing a footprint in a library."
-msgstr ""
+msgstr "Pcbnew include un editor di impronte che permette la modifica delle singole impronte posta su un circuito stampato o la modifica che quelle presenti in una libreria."
 
 #. type: Plain text
 #: pcbnew_introduction.adoc:61
 msgid "The Footprint Editor provides many time saving tools such as:"
-msgstr ""
+msgstr "L'editor impronte è fornito di molti strumenti che fanno risparmiare tempo come:"
 
 #. type: Plain text
 #: pcbnew_introduction.adoc:64
 msgid ""
 "Fast pad numbering by simply dragging the mouse over pads in the order you "
 "want them numbered."
-msgstr ""
+msgstr "Numerazione piazzole veloce, semplicemente trascinando il mouse sopra le piazzole che si vuole numerare."
 
 #. type: Plain text
 #: pcbnew_introduction.adoc:66
 msgid ""
 "Easy generation of rectangular and circular arrays of pads for LGA/BGA or "
 "circular footprints."
-msgstr ""
+msgstr "Semplice generazione multipla di piazzole circolari o rettangolari per LGA/BGA o impronte circolari."
 
 #. type: Plain text
 #: pcbnew_introduction.adoc:67
 msgid "Semi-automatic aligning of rows or columns of pads."
-msgstr ""
+msgstr "Allineamento semi-automatico di righe o colonne di piazzole."
 
 #. type: Plain text
 #: pcbnew_introduction.adoc:74
@@ -296,7 +296,7 @@ msgid ""
 "Pads can also have a solid connection or a thermal relief connection for "
 "easier manufacturing. Any combination of unique pads can be placed within a "
 "footprint."
-msgstr ""
+msgstr "Le piazzole delle impronte hanno una quantità di proprietà che possono essere regolate. Le piazzole possono essere tonde, rettangolari, ovali o trapezoidali. Le forature dei componenti passanti possono essere spostate nella piazzola e posono essere tonde o a fessura. Le singole piazzole possono anche essere ruotate ed avere particolari spaziature per le maschere di saldatura, per l'isolamento dei collegamenti, o per la pasta salda. Le piazzole possono anche avere una connessione piena e una connessione a basso trasferimento termico per migliorare la manifattura del circuito stampato. Qualsiasi combinazione anche univoca di piazzole può essere inserita dentro un'impronta."
 
 #. type: Plain text
 #: pcbnew_introduction.adoc:77
@@ -348,7 +348,7 @@ msgid ""
 "Due to the degree of control necessary it is highly suggested to use a 3-"
 "button mouse with pcbnew. Many features such as panning and zooming require "
 "a 3-button mouse."
-msgstr ""
+msgstr "A causa del livello di controllo necessario, è fortemente raccomandato l'uso di mouse a tre tasti con pcbnew. Funzioni primarie come il pan e lo zoom necessitano di un mouse a tre tasti."
 
 #. type: Plain text
 #: pcbnew_introduction.adoc:100
@@ -359,7 +359,7 @@ msgid ""
 "meander trace routing and tuning, a reworked Footprint Editor, and many "
 "other features. Please note that most of these new features *only* exist in "
 "the new OpenGL and Cairo view modes."
-msgstr ""
+msgstr "Nella nuova versione di KiCad, in pcbnew sono stati introdotti cambiamenti radicali da parte di sviluppatori del CERN. Questi includono caratteristiche come un nuovo motore di render (modalità di visualizzazione OpenGL e Cairo), uno sbrogliatore interattivo \"push and shove\", sbroglio e accordamento di piste differenziali e a zig-zag, un editor di impronte revisionato, e molte altre ancora. Si noti che molte di queste caratteristiche esistono *solo* nelle nuove modalità di visualizzazione OpenGL e Cairo."
 
 #. type: Title ==
 #: pcbnew_managing_libs.adoc:1
@@ -371,7 +371,7 @@ msgstr "Editor impronte - Gestione librerie"
 #: pcbnew_managing_libs.adoc:4
 #, no-wrap
 msgid "Overview of Footprint Editor"
-msgstr "Panoramica dell'editor impronte"
+msgstr "Panoramica dell'editor delle impronte"
 
 #. type: Plain text
 #: pcbnew_managing_libs.adoc:11
@@ -381,7 +381,7 @@ msgid ""
 "the first instance of the footprint is found. In what follows, note that the "
 "active library is the library selected within the Footprint Editor, the "
 "program will now be described"
-msgstr ""
+msgstr "Pcbnew può mantenere simultaneamente diverse librerie. Perciò, quando un'impronta viene caricata, tutte le librerie che appaiono nell'elenco librerie vengono scansionate fino al ritrovamento della prima istanza di impronta. Di seguito, si noti che la libreria attiva è la libreria selezionata all'interno dell'editor delle impronte, il programma verrà descritto"
 
 #. type: Plain text
 #: pcbnew_managing_libs.adoc:13
@@ -398,48 +398,48 @@ msgstr "Aggiunta e rimozione piazzole."
 msgid ""
 "Changing pad properties (shape, layer) for individual pads or globally for "
 "all pads of a footprint."
-msgstr ""
+msgstr "Il cambiamento delle proprietà delle piazzole (forma, strato) per piazzole individuali o globalmente per tutte le piazzole di un'impronta."
 
 #. type: Plain text
 #: pcbnew_managing_libs.adoc:20
 msgid "Editing graphic elements (lines, text)."
-msgstr "Modifica di elementi grafici (righe, testo)."
+msgstr "Modifica di elementi grafici (linee, testo)."
 
 #. type: Plain text
 #: pcbnew_managing_libs.adoc:22
 msgid "Editing information fields (value, reference, etc.)."
-msgstr ""
+msgstr "Modifica dei campi di informazione (valore, riferimento, ecc.)."
 
 #. type: Plain text
 #: pcbnew_managing_libs.adoc:24 pcbnew_creating_editing_footprints.adoc:17
 msgid "Editing the associated documentation (description, keywords)."
-msgstr ""
+msgstr "Modifica della documentazione associata (descrizione, parole chiave)."
 
 #. type: Plain text
 #: pcbnew_managing_libs.adoc:26
 msgid ""
 "Footprint Editor allows the maintenance of the active library as well by:"
-msgstr ""
+msgstr "L'editor impronte consente la manutenzione della libreria attiva permettendo di:"
 
 #. type: Plain text
 #: pcbnew_managing_libs.adoc:28
 msgid "Listing the footprints in the active library."
-msgstr ""
+msgstr "Elencare le impronte nella liberia attiva."
 
 #. type: Plain text
 #: pcbnew_managing_libs.adoc:30
 msgid "Deletion of a footprint from the active library."
-msgstr ""
+msgstr "Cancellare una impronta dalla libreria attiva."
 
 #. type: Plain text
 #: pcbnew_managing_libs.adoc:32
 msgid "Saving a footprint to the active library."
-msgstr ""
+msgstr "Salvare una impronta nella libreria attiva."
 
 #. type: Plain text
 #: pcbnew_managing_libs.adoc:34
 msgid "Saving all of the footprints contained by a printed circuit."
-msgstr ""
+msgstr "Salvare tutte le impronte contenute in un circuito stampato."
 
 #. type: Plain text
 #: pcbnew_managing_libs.adoc:36
@@ -455,7 +455,7 @@ msgstr "L'estensione della libreria è `.mod`."
 #: pcbnew_managing_libs.adoc:40
 #, no-wrap
 msgid "Accessing Footprint Editor"
-msgstr "Accedere all'editor impronte"
+msgstr "Accedere all'editor delle impronte"
 
 #. type: Plain text
 #: pcbnew_managing_libs.adoc:43
@@ -467,61 +467,61 @@ msgstr "Si può accedere all'editor impronte in due modi differenti:"
 msgid ""
 "Directly, via the icon image:images/icons/module_editor.png[] in the main "
 "toolbar of Pcbnew."
-msgstr ""
+msgstr "Direttamente, tramite l'icona image:images/icons/module_editor.png[] nella barra strumentu principale di Pcbnew."
 
 #. type: Plain text
 #: pcbnew_managing_libs.adoc:48
 msgid ""
 "In the edit dialog for the active footprint (see figure below: accessed via "
 "the context menu), there is the button Footprint Editor."
-msgstr ""
+msgstr "Nella finestra di dialogo di modifica dell'impronta attiva (vedere figura in basso: accesso ottenuto tramite il menu contestuale), c'è il pulsante Modifica con l'editor delle impronte."
 
 #. type: Target for macro image
 #: pcbnew_managing_libs.adoc:49
 #, no-wrap
 msgid "images/Pcbnew_module_properties.png"
-msgstr ""
+msgstr "images/Pcbnew_module_properties.png"
 
 #. type: Plain text
 #: pcbnew_managing_libs.adoc:52
 msgid ""
 "In this case, the active footprint of the board will be loaded automatically "
 "in Footprint Editor, enabling immediate editing or archiving."
-msgstr ""
+msgstr "In questo caso, l'impronta attiva della scheda verrà caricata automaticamente nell'editor delle impronte, abilitandone la modifica immediata o l'archiviazione."
 
 #. type: Title ===
 #: pcbnew_managing_libs.adoc:54
 #, no-wrap
 msgid "Footprint Editor user interface"
-msgstr ""
+msgstr "Interfaccia utente dell'editor delle impronte"
 
 #. type: Plain text
 #: pcbnew_managing_libs.adoc:57
 msgid "By calling Footprint Editor the following window will appear:"
-msgstr ""
+msgstr "Chiamando l'editor delle impronte apparirà la seguente finestra:"
 
 #. type: Target for macro image
 #: pcbnew_managing_libs.adoc:58 pcbnew_creating_editing_footprints.adoc:80
 #, no-wrap
 msgid "images/Modedit_main_window.png"
-msgstr ""
+msgstr "images/Modedit_main_window.png"
 
 #. type: Title ===
 #: pcbnew_managing_libs.adoc:61
 #, no-wrap
 msgid "Top toolbar in Footprint Editor"
-msgstr ""
+msgstr "Barra strumenti principale nell'editor delle impronte"
 
 #. type: Target for macro image
 #: pcbnew_managing_libs.adoc:63
 #, no-wrap
 msgid "images/Modedit_top_toolbar.png"
-msgstr ""
+msgstr "images/Modedit_top_toolbar.png"
 
 #. type: Plain text
 #: pcbnew_managing_libs.adoc:66
 msgid "From this toolbar, the following functions are available:"
-msgstr ""
+msgstr "Da questa barra strumenti, sono disponibili le seguenti funzioni:"
 
 #. type: delimited block |
 #: pcbnew_managing_libs.adoc:117
@@ -576,12 +576,60 @@ msgid ""
 "| image:images/icons/module_check.png[]\n"
 "| Perform a check of footprint correctness\n"
 msgstr ""
+"| image:images/icons/library.png[]\n"
+"| Seleziona la libreria attiva.\n"
+"| image:images/icons/save_library.png[]\n"
+"| Salva l'impronta corrente nella libreria attiva, e la scrive su disco.\n"
+"| image:images/icons/new_library.png[]\n"
+"| Crea una nuova libreria e vi salva l'impronta corrente.\n"
+"| image:images/icons/modview_icon.png[]\n"
+"| Apre il visualizzatore impronte.\n"
+"| image:images/icons/delete.png[]\n"
+"| Accede alla finestra di dialogo di cancellazione impronta dalla libreria attiva.\n"
+"| image:images/icons/new_footprint.png[]\n"
+"| Crea una nuova impronta.\n"
+"| image:images/icons/module_wizard.png[]\n"
+"| Crea un'impronta con una procedura guidata.\n"
+"| image:images/icons/load_module_lib.png[]\n"
+"| Carica un'impronta dalla libreria attiva.\n"
+"| image:images/icons/load_module_board.png[]\n"
+"| Carica (importa) un'impronta dal circuito stampato.\n"
+"| image:images/icons/update_module_board.png[]\n"
+"| Esporta l'impronta corrente sul circuito stampato se l'impronta\n"
+"era stata in precedenza importata dalla scheda corrente. Rimpiazzerà\n"
+"la corrispondente impronta sulla scheda (cioè, rispettando posizione e\n"
+"orientamento).\n"
+"| image:images/icons/insert_module_board.png[]\n"
+"| Esporta l'impronta corrente sul circuito stampato. Verrà\n"
+"copiata sul circuito stampato alla posizione 0.\n"
+"| image:images/icons/import_module.png[]\n"
+"| Importa un'impronta da un file creato dal comando Esporta.\n"
+"| image:images/icons/export_module.png[]\n"
+"| Esporta un'impronta. Questo comando è essenzialmente identico a quello\n"
+"per creare una libreria, l'unica differenza è che crea una libreria\n"
+"nella cartella utente, mentre crea una libreria nella cartella\n"
+"delle librerie standard (solitamente kicad/modules).\n"
+"| image:images/icons/undo.png[] image:images/icons/redo.png[]\n"
+"| Annulla e Ripeti.\n"
+"| image:images/icons/module_options.png[]\n"
+"| Invoca la finestra di dialogo delle proprietà dell'impronta.\n"
+"| image:images/icons/print_button.png[]\n"
+"| Chiama la finestra di dialogo della stampa.\n"
+"| image:images/icons/zoom_in.png[]\n"
+"image:images/icons/zoom_out.png[]\n"
+"image:images/icons/zoom_redraw.png[]\n"
+"image:images/icons/zoom_fit_in_page.png[]\n"
+"| Comandi standard dello zoom.\n"
+"| image:images/icons/options_pad.png[]\n"
+"| Chiama l'editor della piazzola.\n"
+"| image:images/icons/module_check.png[]\n"
+"| Esegue un controllo di correttezza dell'impronta.\n"
 
 #. type: Title ===
 #: pcbnew_managing_libs.adoc:119
 #, no-wrap
 msgid "Creating a new library"
-msgstr ""
+msgstr "Creazione di una nuova libreria"
 
 #. type: Plain text
 #: pcbnew_managing_libs.adoc:126
@@ -590,7 +638,7 @@ msgid ""
 "new_library.png[], in this case the file is created by default in the "
 "library directory or via the button image:images/icons/export_module.png[], "
 "in which case the file is created by default in your working directory."
-msgstr ""
+msgstr "La creazione di una nuova libreria viene fatta tramite il pulsante image:images/icons/new_library.png[], e il file viene creato come impostazione predefinita nella cartella delle librerie o tramite il pulsante image:images/icons/export_module.png[], nel qual caso il file viene creato come impostazione predefinita nella propria cartella di lavoro."
 
 #. type: Plain text
 #: pcbnew_managing_libs.adoc:130
@@ -1281,17 +1329,17 @@ msgstr ""
 #: pcbnew_schematics.adoc:34
 #, no-wrap
 msgid "Procedure for creating a printed circuit board"
-msgstr ""
+msgstr "Procedura per la creazione di un circuito stampato"
 
 #. type: Plain text
 #: pcbnew_schematics.adoc:37
 msgid "After having created your schematic in Eeschema:"
-msgstr ""
+msgstr "Dopo aver creato il prorio schema in Eeschema:"
 
 #. type: Plain text
 #: pcbnew_schematics.adoc:39
 msgid "Generate the netlist using Eeschema."
-msgstr ""
+msgstr "Generare la netlist usando Eeschema."
 
 #. type: Plain text
 #: pcbnew_schematics.adoc:43
@@ -1359,23 +1407,23 @@ msgstr ""
 #: pcbnew_schematics.adoc:69
 #, no-wrap
 msgid "Reading netlist file - loading footprints"
-msgstr ""
+msgstr "Lettura del file netlist - caricamento impronte"
 
 #. type: Title ====
 #: pcbnew_schematics.adoc:71
 #, no-wrap
 msgid "Dialog box"
-msgstr ""
+msgstr "Finestra di dialogo"
 
 #. type: Plain text
 #: pcbnew_schematics.adoc:74
 msgid "Accessible from the icon image:images/icons/netlist.png[]"
-msgstr ""
+msgstr "Accessibile dall'icona image:images/icons/netlist.png[]"
 
 #. type: Target for macro image
 #: pcbnew_schematics.adoc:75 pcbnew_create_and_modify_board.adoc:137
 #, no-wrap
-msgid "images/Pcbnew_netlist_dialog.png"
+msgid "images/en/Pcbnew_netlist_dialog.png"
 msgstr ""
 
 #. type: Title ====
@@ -4174,14 +4222,14 @@ msgstr "Panoramica dell'editor delle impronte"
 msgid ""
 "Footprint Editor is used for editing and creating PCB footprints. This "
 "includes:"
-msgstr ""
+msgstr "L'editor delle impronte viene usato per la modifica e per la creazione di impronte di componenti per il circuito stampato. Ciò include:"
 
 #. type: Plain text
 #: pcbnew_creating_editing_footprints.adoc:11
 msgid ""
 "Changing pad properties (shape, layer), for individual pads or for all the "
 "pads in a footprint."
-msgstr ""
+msgstr "Cambio delle proprietà delle piazzole (forma, strato), per piazzole individuali o per tutte le piazzole in un'impronta."
 
 #. type: Plain text
 #: pcbnew_creating_editing_footprints.adoc:13
@@ -4205,7 +4253,7 @@ msgid ""
 "A footprint is the physical representation (footprint) of the part to be "
 "inserted in the PCB and it must be linked to the relative component in your "
 "schematic. Each footprint includes three different elements:"
-msgstr ""
+msgstr "Un'impronta è la rappresentazione fisica (impronta) della parte da inserire nel circuito stampato e deve essere collegata ai corrisponendi componenti presenti nello schema elettrico. Ogni impronta include tre elementi diversi:"
 
 #. type: Plain text
 #: pcbnew_creating_editing_footprints.adoc:26
@@ -4215,7 +4263,7 @@ msgstr "Le piazzole."
 #. type: Plain text
 #: pcbnew_creating_editing_footprints.adoc:28
 msgid "Graphical contours and text."
-msgstr ""
+msgstr "Contorni grafici e testo."
 
 #. type: Plain text
 #: pcbnew_creating_editing_footprints.adoc:30
@@ -4228,7 +4276,7 @@ msgid ""
 "In addition, a number of other parameters must be correctly defined if the "
 "auto-placement function will be used. The same holds for the generation of "
 "auto-insertion files."
-msgstr ""
+msgstr "Inoltre, altri parametri dovranno essere definiti correttamente se si desidera usare la funzione di auto piazzamento. Stesso dicasi per la generazione di file di auto inserimento."
 
 #. type: Title ====
 #: pcbnew_creating_editing_footprints.adoc:35
@@ -4254,13 +4302,13 @@ msgid ""
 "and ANOD. The pad number must be identical to that of the corresponding pin "
 "number in the schematic, because it defines the matching pin and pad numbers "
 "that Pcbnew links pins and pads with."
-msgstr ""
+msgstr "Il numero piazzola può essere lungo fino a quattro caratteri alfanumerici. I seguenti sono quindi tutti numeri piazzola validi: 1, 45 e 9999, ma anche AA56 e ANOD. Il numero piazzola deve essere identico al numero piedino corrispondente nello schema elettrico, dato che definisce la corrispondenza piedino - numero piazzola che Pcbnew usa per metterli in collegamento."
 
 #. type: Title ====
 #: pcbnew_creating_editing_footprints.adoc:46
 #, no-wrap
 msgid "Contours"
-msgstr ""
+msgstr "Contorni"
 
 #. type: Plain text
 #: pcbnew_creating_editing_footprints.adoc:52
@@ -4269,7 +4317,7 @@ msgid ""
 "Several different types of contour are available: lines, circles, arcs, and "
 "text. Contours have no electrical significance, they are simply graphical "
 "aids."
-msgstr ""
+msgstr "I contorni grafici vengono usati per disegnare la forma fisica dell'impronta. Sono disponibili diversi tipi di contorni: linee, cerchi, archi e testo. I contorni non hanno significato elettrico, sono semplicemente elementi grafici di aiuto."
 
 #. type: Title ====
 #: pcbnew_creating_editing_footprints.adoc:53
@@ -4287,18 +4335,18 @@ msgid ""
 "appropriate schematic reference (U1, IC3, etc.). The value is replaced by "
 "the value of the corresponding part in the schematic (47K, 74LS02, etc.). "
 "Other fields can be added and these will behave like graphical text."
-msgstr ""
+msgstr "Questi sono elementi di testo associati ad una impronta. Due sono obbligatori e sempre presenti: il campo riferimento e il campo valore. Questi vengono automaticamente letti ed aggiornati da Pcbnew quando viene letta una netlist durante il caricamento delle impronte nella scheda. Il riferimento viene rimpiazzato dall'appropriato riferimento dello schema elettrico (U1, IC3, ecc.). Il valore viene anch'esso rimpiazzato dall'appropriato valore della parte corrispondente nello schema elettrico (47K, 74LS02, ecc.). Altri campi possono venire aggiunti ma si comporteranno come testo grafico."
 
 #. type: Title ===
 #: pcbnew_creating_editing_footprints.adoc:64
 #, no-wrap
 msgid "Starting Footprint Editor and selecting a footprint to edit"
-msgstr ""
+msgstr "Avvio dell'editor delle impronte e selezione di una impronta da modificare"
 
 #. type: Plain text
 #: pcbnew_creating_editing_footprints.adoc:67
 msgid "Footprint Editor can be started in two ways:"
-msgstr ""
+msgstr "L'editor delle impronte può essere avviato in due modi:"
 
 #. type: Plain text
 #: pcbnew_creating_editing_footprints.adoc:71
@@ -4306,7 +4354,7 @@ msgid ""
 "Directly via the image:images/icons/module_editor.png[] icon from the main "
 "toolbar of Pcbnew. This allows the creation or modification of a footprint "
 "in the library."
-msgstr ""
+msgstr "Direttamente tramite l'icona image:images/icons/module_editor.png[] dalla barra strumenti principale di Pcbnew. Questo permette la creazione o la modifica di un'impronta nella libreria."
 
 #. type: Plain text
 #: pcbnew_creating_editing_footprints.adoc:75
