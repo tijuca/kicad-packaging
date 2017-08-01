@@ -91,6 +91,8 @@ override_dh_auto_install:
 	dh_auto_install --destdir=$(INSTDIR) --sourcedirectory=$(CURDIR)/doc --builddirectory=$(DEB_BUILD_DIR)/doc
 	# installing KiCad i18n files
 	dh_auto_install --destdir=$(INSTDIR) --sourcedirectory=$(CURDIR)/i18n --builddirectory=$(DEB_BUILD_DIR)/i18n
+	# fix permissions of libraries (if needed) before installing
+	chmod 644 $(CURDIR)/libraries/*/*.kicad_mod
 	# install KiCad libraries
 	dh_auto_install --destdir=$(INSTDIR) --sourcedirectory=$(CURDIR)/libraries/kicad-library --builddirectory=$(DEB_BUILD_DIR)/libraries
 	# some tweaks before running the next dh sequencers
@@ -112,7 +114,7 @@ override_dh_install:
 	dh_install
 	dh_python2
 
-override_dh_fixperms-indep:
+override_dh_fixperms-arch:
 	dh_fixperms
 	# fixing file permissions for *.py files in kicad-common
 	for i in `find $(CURDIR)/debian/kicad-common/usr -type f -name "*.py"`; do \

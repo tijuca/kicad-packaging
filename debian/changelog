@@ -1,3 +1,34 @@
+kicad (4.0.6+dfsg1-1) unstable; urgency=medium
+
+  [ Carsten Schoenert ]
+  * [4d0ee6b] debian/rules: make dh_fixperms arch-depended (again)
+    + kicad-common is depending on python2 so we need to ensure dh_fixperms
+      for kicad-common is called within the arch-depend built.
+  * [4608380] idf2vrml.1: fix syntax of the hyphen for option '-k'
+  * [99b44a2] update footprint libraries for component tarball
+    + Upstream has renamed and also added some libraries after the release of
+      version 4.0.4. Related to the API of GitHub and more than 100
+      repositories in the KiCad organisation we need no adjust the collection
+      of the footprint libraries.
+      We still use a static list for the creation of the *.orig.tar.xz based
+      on the changed API call.
+  * [913d32a] New upstream version 4.0.6+dfsg1
+  * [4e62f6c] rebuild patch queue from patch-queue branch
+  * [9ec8227] debian/control: update B-D after upstream changes
+  * [8b0f985] adding new -doc package with Indonesian i18n
+    + A new documentation package for Indonesian is available. Currently only
+     for 'Getting Started in KiCad'.
+  * [a08cede] README.Debian: adding README for Debian specific remarks
+  * [c00487e] debian/rules: set permissions for *.kicad_mod files
+  * [9bf9f8c] kicad-common: symlink renamed footprint libraries
+    + Due the changes within the upstream source we got also different content
+      for kicad-common now. We added some symlinking to get backward
+      compatibility for existing installations and user settings.
+    (Closes: #859409, #860093)
+  * [8de0b6d] autopkg: starting first autopkg test for footprint libs
+
+ -- Carsten Schoenert <c.schoenert@t-online.de>  Mon, 19 Jun 2017 09:58:21 +0200
+
 kicad (4.0.5+dfsg1-4~bpo8+1) jessie-backports; urgency=medium
 
   * Backport to Debian jessie
@@ -10,8 +41,8 @@ kicad (4.0.5+dfsg1-4) unstable; urgency=medium
   * [375ce2f] Revert "debian/control: decrease Architectures for arch packages"
     + removing the arch specific decrease of the build architecture, it's
       really not useful here (Thx Emilio & Aurelien)
-  * [b2c400d] kicad-common.lintian-overrides: ingoring Lintian
-    + kicad-common is now arch dependend, silence lintian here that is saying
+  * [b2c400d] kicad-common.lintian-overrides: ignoring Lintian
+    + kicad-common is now arch dependent, silence lintian here that is saying
       kicad-common has only content that is indep but we relay on the python
       package
 

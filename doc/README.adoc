@@ -13,12 +13,12 @@ link="http://ci.kicad-pcb.org/job/any-kicad-doc-head/lastSuccessfulBuild/artifac
 == Contributing
 
 You can discuss the documentation and its translations in the
-link:https://github.com/ciampix/kicad-doc/issues[repository issues].
+link:https://github.com/KiCad/kicad-doc/issues[repository issues].
 
 To participate to the translation effort read the link:translation_instructions.adoc[].
 
 The following instructions explain how to test changes before
-link:https://github.com/ciampix/kicad-doc/fork[submitting a pull-request].
+link:https://github.com/KiCad/kicad-doc/fork[submitting a pull-request].
 
 == Dependencies
 
@@ -45,6 +45,7 @@ To install the dependencies on Debian / Ubuntu  run the following (requires abou
     texlive-xetex fonts-vlgothic source-highlight texlive-lang-english
     texlive-lang-french texlive-lang-italian texlive-lang-japanese
     texlive-lang-dutch texlive-lang-polish texlive-lang-german texlive-lang-cyrillic
+    texlive-lang-other
 
 NOTE: in Ubuntu 14:04 there is no texlive-lang-japanese. Install
 texlive-lang-cjk instead.
@@ -142,3 +143,4 @@ And if on OS X you might want something like:
     mkdir build; cd build
     cmake -DCMAKE_INSTALL_PREFIX="/Library/Application Support/kicad" ..
     make install
+

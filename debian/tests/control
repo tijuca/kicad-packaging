@@ -1,0 +1,3 @@
+Tests: kicad-check-modules.sh
+Depends: kicad-common, wget
+Restrictions: allow-stderr
