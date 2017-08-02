@@ -1,3 +1,10 @@
+kicad (4.0.6+dfsg1-1~bpo8+1) jessie-backports-sloppy; urgency=medium
+
+  [ Carsten Schoenert ]
+  * Rebuild from buster for jessie-backports-sloppy.
+
+ -- Carsten Schoenert <c.schoenert@t-online.de>  Tue, 01 Aug 2017 18:46:09 -0400
+
 kicad (4.0.6+dfsg1-1) unstable; urgency=medium
 
   [ Carsten Schoenert ]
