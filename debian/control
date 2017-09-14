@@ -1,10 +1,10 @@
 Source: kicad
 Section: electronics
 Priority: optional
-Maintainer: Georges Khaznadar <georgesk@debian.org>
+Maintainer: Debian Electronics Team <pkg-electronics-devel@lists.alioth.debian.org>
 Uploaders:
- Richard Antony Burton <richardaburton@gmail.com>,
  Carsten Schoenert <c.schoenert@t-online.de>,
+ Georges Khaznadar <georgesk@debian.org>,
 Build-Depends:
  asciidoc-base,
  asciidoc-dblatex,
