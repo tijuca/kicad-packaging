@@ -18,7 +18,7 @@ Closes: #834246
  4 files changed, 116 insertions(+), 61 deletions(-)
 
 diff --git a/common/tool/tool_manager.cpp b/common/tool/tool_manager.cpp
-index 447ab990..ab11b13e 100644
+index 447ab99..ab11b13 100644
 --- a/common/tool/tool_manager.cpp
 +++ b/common/tool/tool_manager.cpp
 @@ -542,11 +542,11 @@ void TOOL_MANAGER::dispatchInternal( const TOOL_EVENT& aEvent )
@@ -36,7 +36,7 @@ index 447ab990..ab11b13e 100644
                      st->cofunc->Call( aEvent );
  
 diff --git a/include/tool/coroutine.h b/include/tool/coroutine.h
-index c7eaf5fa..8e472ca6 100644
+index c7eaf5f..8e472ca 100644
 --- a/include/tool/coroutine.h
 +++ b/include/tool/coroutine.h
 @@ -3,6 +3,7 @@
@@ -343,7 +343,7 @@ index c7eaf5fa..8e472ca6 100644
  
  #endif
 diff --git a/include/tool/tool_base.h b/include/tool/tool_base.h
-index 584a979c..3bef987c 100644
+index 584a979..3bef987 100644
 --- a/include/tool/tool_base.h
 +++ b/include/tool/tool_base.h
 @@ -3,6 +3,7 @@
@@ -375,7 +375,7 @@ index 584a979c..3bef987c 100644
  /**
   * Class TOOL_BASE
 diff --git a/include/tool/tool_interactive.h b/include/tool/tool_interactive.h
-index 17d2de71..240eb580 100644
+index 17d2de7..240eb58 100644
 --- a/include/tool/tool_interactive.h
 +++ b/include/tool/tool_interactive.h
 @@ -3,6 +3,7 @@

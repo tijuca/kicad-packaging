@@ -21,7 +21,7 @@ with the date from the changelog file.
  11 files changed, 11 insertions(+)
 
 diff --git a/doc/src/cvpcb/cvpcb.adoc b/doc/src/cvpcb/cvpcb.adoc
-index 018c825d..93f4f409 100644
+index 018c825..93f4f40 100644
 --- a/doc/src/cvpcb/cvpcb.adoc
 +++ b/doc/src/cvpcb/cvpcb.adoc
 @@ -1,5 +1,6 @@
@@ -32,7 +32,7 @@ index 018c825d..93f4f409 100644
  :ascii-ids:
  
 diff --git a/doc/src/doc_writing_style_policy/doc_writing_style_policy.adoc b/doc/src/doc_writing_style_policy/doc_writing_style_policy.adoc
-index 9e343017..ba839e34 100644
+index 9e34301..ba839e3 100644
 --- a/doc/src/doc_writing_style_policy/doc_writing_style_policy.adoc
 +++ b/doc/src/doc_writing_style_policy/doc_writing_style_policy.adoc
 @@ -1,5 +1,6 @@
@@ -43,7 +43,7 @@ index 9e343017..ba839e34 100644
  :ascii-ids:
  
 diff --git a/doc/src/eeschema/eeschema.adoc b/doc/src/eeschema/eeschema.adoc
-index 16604739..0ecc579f 100644
+index 1660473..0ecc579 100644
 --- a/doc/src/eeschema/eeschema.adoc
 +++ b/doc/src/eeschema/eeschema.adoc
 @@ -1,5 +1,6 @@
@@ -54,7 +54,7 @@ index 16604739..0ecc579f 100644
  :ascii-ids:
  
 diff --git a/doc/src/gerbview/gerbview.adoc b/doc/src/gerbview/gerbview.adoc
-index 0c88398d..4708ac28 100644
+index 0c88398..4708ac2 100644
 --- a/doc/src/gerbview/gerbview.adoc
 +++ b/doc/src/gerbview/gerbview.adoc
 @@ -1,5 +1,6 @@
@@ -65,7 +65,7 @@ index 0c88398d..4708ac28 100644
  :ascii-ids:
  
 diff --git a/doc/src/getting_started_in_kicad/getting_started_in_kicad.adoc b/doc/src/getting_started_in_kicad/getting_started_in_kicad.adoc
-index 1443dde1..17b1b16b 100644
+index 1443dde..17b1b16 100644
 --- a/doc/src/getting_started_in_kicad/getting_started_in_kicad.adoc
 +++ b/doc/src/getting_started_in_kicad/getting_started_in_kicad.adoc
 @@ -1,5 +1,6 @@
@@ -76,7 +76,7 @@ index 1443dde1..17b1b16b 100644
  :ascii-ids:
  
 diff --git a/doc/src/gui_translation_howto/gui_translation_howto.adoc b/doc/src/gui_translation_howto/gui_translation_howto.adoc
-index 8eeff10d..b0bf3d9c 100644
+index 8eeff10..b0bf3d9 100644
 --- a/doc/src/gui_translation_howto/gui_translation_howto.adoc
 +++ b/doc/src/gui_translation_howto/gui_translation_howto.adoc
 @@ -1,5 +1,6 @@
@@ -87,7 +87,7 @@ index 8eeff10d..b0bf3d9c 100644
  :ascii-ids:
  
 diff --git a/doc/src/idf_exporter/idf_exporter.adoc b/doc/src/idf_exporter/idf_exporter.adoc
-index 57e3e9e0..d99bec77 100644
+index 57e3e9e..d99bec7 100644
 --- a/doc/src/idf_exporter/idf_exporter.adoc
 +++ b/doc/src/idf_exporter/idf_exporter.adoc
 @@ -1,5 +1,6 @@
@@ -98,7 +98,7 @@ index 57e3e9e0..d99bec77 100644
  :ascii-ids:
  
 diff --git a/doc/src/kicad/kicad.adoc b/doc/src/kicad/kicad.adoc
-index 1f17b452..b26fb750 100644
+index 1f17b45..b26fb75 100644
 --- a/doc/src/kicad/kicad.adoc
 +++ b/doc/src/kicad/kicad.adoc
 @@ -1,5 +1,6 @@
@@ -109,7 +109,7 @@ index 1f17b452..b26fb750 100644
  :ascii-ids:
  
 diff --git a/doc/src/pcbnew/pcbnew.adoc b/doc/src/pcbnew/pcbnew.adoc
-index 3f229e68..332bc525 100644
+index 3f229e6..332bc52 100644
 --- a/doc/src/pcbnew/pcbnew.adoc
 +++ b/doc/src/pcbnew/pcbnew.adoc
 @@ -1,5 +1,6 @@
@@ -120,7 +120,7 @@ index 3f229e68..332bc525 100644
  :ascii-ids:
  
 diff --git a/doc/src/pl_editor/pl_editor.adoc b/doc/src/pl_editor/pl_editor.adoc
-index d27a65ac..2af44d66 100644
+index d27a65a..2af44d6 100644
 --- a/doc/src/pl_editor/pl_editor.adoc
 +++ b/doc/src/pl_editor/pl_editor.adoc
 @@ -1,5 +1,6 @@
@@ -131,7 +131,7 @@ index d27a65ac..2af44d66 100644
  :ascii-ids:
  
 diff --git a/doc/src/plugins/plugins.adoc b/doc/src/plugins/plugins.adoc
-index e91d64d9..6cdfdc6a 100644
+index e91d64d..6cdfdc6 100644
 --- a/doc/src/plugins/plugins.adoc
 +++ b/doc/src/plugins/plugins.adoc
 @@ -1,5 +1,6 @@

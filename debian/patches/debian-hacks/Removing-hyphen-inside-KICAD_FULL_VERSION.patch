@@ -12,7 +12,7 @@ For this the KICAD_FULL_VERSION needs to be merged without the hyphen
  1 file changed, 1 insertion(+), 1 deletion(-)
 
 diff --git a/CMakeModules/WriteVersionHeader.cmake b/CMakeModules/WriteVersionHeader.cmake
-index 013a36ac..c1cd7f60 100644
+index 013a36a..c1cd7f6 100644
 --- a/CMakeModules/WriteVersionHeader.cmake
 +++ b/CMakeModules/WriteVersionHeader.cmake
 @@ -47,7 +47,7 @@ endif()
