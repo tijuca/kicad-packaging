@@ -219,6 +219,7 @@ Description: Kicad help files (Indonesian)
  the EPUB and the PDF files and also the OnLine HTML documentation for:
  .
   * GSIK - Getting Started in KiCad
+  * KiCad - The main project editor
 
 Package: kicad-doc-it
 Section: doc
