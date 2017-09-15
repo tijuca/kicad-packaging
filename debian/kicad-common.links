@@ -14,3 +14,10 @@ usr/share/kicad/modules/Connectors_TE-Connectivity.pretty  usr/share/kicad/modul
 usr/share/kicad/modules/Connectors_Mini-Universal.pretty   usr/share/kicad/modules/Sockets_Mini-Universal.pretty
 usr/share/kicad/modules/Connectors_WAGO.pretty             usr/share/kicad/modules/Sockets_WAGO734.pretty
 usr/share/kicad/modules/Connectors_Terminal_Blocks.pretty  usr/share/kicad/modules/Terminal_Blocks.pretty
+
+# Renamed footprints in 4.0.7
+# source (new foorprint)                                   # target (old footprint)
+usr/share/kicad/modules/Connectors_IEC_DIN.pretty          usr/share/kicad/modules/Mechanical_Sockets.pretty
+usr/share/kicad/modules/discret.pretty                     usr/share/kicad/modules/Discret.pretty
+usr/share/kicad/modules/divers.pretty                      usr/share/kicad/modules/Divers.pretty
+usr/share/kicad/modules/labels.pretty                      usr/share/kicad/modules/Labels.pretty
