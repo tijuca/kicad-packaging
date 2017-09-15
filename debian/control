@@ -49,7 +49,6 @@ Build-Depends:
  python-all,
  python-dev,
  python-wxgtk3.0-dev,
- quilt,
  source-highlight,
  swig,
  texlive-fonts-extra,
