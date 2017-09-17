@@ -36,7 +36,7 @@
   (pad 20 thru_hole oval (at 38 0) (size 1.324 1.824) (drill 0.7) (layers *.Cu *.Mask))
   (pad 21 thru_hole oval (at 40 0) (size 1.324 1.824) (drill 0.7) (layers *.Cu *.Mask))
   (pad 22 thru_hole oval (at 42 0) (size 1.324 1.824) (drill 0.7) (layers *.Cu *.Mask))
-  (model Housings_SIP.3dshapes/STK672-040-E.wrl
+  (model ${KISYS3DMOD}/Housings_SIP.3dshapes/STK672-040-E.wrl
     (at (xyz 0 0 0))
     (scale (xyz 1 1 1))
     (rotate (xyz 0 0 0))

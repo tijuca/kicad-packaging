@@ -5,7 +5,7 @@
 /*
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
- * Copyright (C) 1992-2015 KiCad Developers, see AUTHORS.txt for contributors.
+ * Copyright (C) 1992-2017 KiCad Developers, see AUTHORS.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -46,14 +46,14 @@ DIALOG_PLOT::DIALOG_PLOT( PCB_EDIT_FRAME* aParent ) :
     m_plotOpts( aParent->GetPlotSettings() )
 {
     m_config = Kiface().KifaceSettings();
-    Init_Dialog();
+    init_Dialog();
 
     GetSizer()->Fit( this );
     GetSizer()->SetSizeHints( this );
 }
 
 
-void DIALOG_PLOT::Init_Dialog()
+void DIALOG_PLOT::init_Dialog()
 {
     wxString    msg;
     wxFileName  fileName;
@@ -194,6 +194,12 @@ void DIALOG_PLOT::Init_Dialog()
     // Plot mode
     setPlotModeChoiceSelection( m_plotOpts.GetPlotMode() );
 
+    // Plot outline mode
+    m_DXF_plotModeOpt->SetValue( m_plotOpts.GetDXFPlotPolygonMode() );
+
+    // Plot text mode
+    m_DXF_plotTextStrokeFontOpt->SetValue( m_plotOpts.GetTextMode() == PLOTTEXTMODE_DEFAULT );
+
     // Plot mirror option
     m_plotMirrorOpt->SetValue( m_plotOpts.GetMirror() );
 
@@ -288,6 +294,19 @@ void DIALOG_PLOT::CreateDrillFile( wxCommandEvent& event )
 }
 
 
+void DIALOG_PLOT::OnChangeDXFPlotMode( wxCommandEvent& event )
+{
+    // m_DXF_plotTextStrokeFontOpt is disabled if m_DXF_plotModeOpt
+    // is checked (plot in DXF polygon mode)
+    m_DXF_plotTextStrokeFontOpt->Enable( !m_DXF_plotModeOpt->GetValue() );
+
+    // if m_DXF_plotTextStrokeFontOpt option is disabled (plot DXF in polygon mode),
+    // force m_DXF_plotTextStrokeFontOpt to true to use Pcbnew stroke font
+    if( !m_DXF_plotTextStrokeFontOpt->IsEnabled() )
+        m_DXF_plotTextStrokeFontOpt->SetValue( true );
+}
+
+
 void DIALOG_PLOT::OnSetScaleOpt( wxCommandEvent& event )
 {
     /* Disable sheet reference for scale != 1:1 */
@@ -355,6 +374,9 @@ PlotFormat DIALOG_PLOT::getPlotFormat()
 // and clear also some optional values
 void DIALOG_PLOT::SetPlotFormat( wxCommandEvent& event )
 {
+    // this option exist only in DXF format:
+    m_DXF_plotModeOpt->Enable( getPlotFormat() == PLOT_FORMAT_DXF );
+
     switch( getPlotFormat() )
     {
     case PLOT_FORMAT_PDF:
@@ -387,6 +409,7 @@ void DIALOG_PLOT::SetPlotFormat( wxCommandEvent& event )
         m_PlotOptionsSizer->Hide( m_GerberOptionsSizer );
         m_PlotOptionsSizer->Hide( m_HPGLOptionsSizer );
         m_PlotOptionsSizer->Hide( m_PSOptionsSizer );
+        m_PlotOptionsSizer->Hide( m_SizerDXF_options );
         break;
 
     case PLOT_FORMAT_POST:
@@ -415,6 +438,7 @@ void DIALOG_PLOT::SetPlotFormat( wxCommandEvent& event )
         m_PlotOptionsSizer->Hide( m_GerberOptionsSizer );
         m_PlotOptionsSizer->Hide( m_HPGLOptionsSizer );
         m_PlotOptionsSizer->Show( m_PSOptionsSizer );
+        m_PlotOptionsSizer->Hide( m_SizerDXF_options );
         break;
 
     case PLOT_FORMAT_GERBER:
@@ -445,6 +469,7 @@ void DIALOG_PLOT::SetPlotFormat( wxCommandEvent& event )
         m_PlotOptionsSizer->Show( m_GerberOptionsSizer );
         m_PlotOptionsSizer->Hide( m_HPGLOptionsSizer );
         m_PlotOptionsSizer->Hide( m_PSOptionsSizer );
+        m_PlotOptionsSizer->Hide( m_SizerDXF_options );
         break;
 
     case PLOT_FORMAT_HPGL:
@@ -474,11 +499,13 @@ void DIALOG_PLOT::SetPlotFormat( wxCommandEvent& event )
         m_PlotOptionsSizer->Hide( m_GerberOptionsSizer );
         m_PlotOptionsSizer->Show( m_HPGLOptionsSizer );
         m_PlotOptionsSizer->Hide( m_PSOptionsSizer );
+        m_PlotOptionsSizer->Hide( m_SizerDXF_options );
         break;
 
     case PLOT_FORMAT_DXF:
         m_drillShapeOpt->Enable( true );
         m_plotModeOpt->Enable( false );
+        setPlotModeChoiceSelection( FILLED );
         m_plotMirrorOpt->Enable( false );
         m_plotMirrorOpt->SetValue( false );
         m_useAuxOriginCheckBox->Enable( true );
@@ -505,6 +532,9 @@ void DIALOG_PLOT::SetPlotFormat( wxCommandEvent& event )
         m_PlotOptionsSizer->Hide( m_GerberOptionsSizer );
         m_PlotOptionsSizer->Hide( m_HPGLOptionsSizer );
         m_PlotOptionsSizer->Hide( m_PSOptionsSizer );
+        m_PlotOptionsSizer->Show( m_SizerDXF_options );
+
+        OnChangeDXFPlotMode( event );
         break;
 
     default:
@@ -578,7 +608,14 @@ void DIALOG_PLOT::applyPlotSettings()
                                    ( m_drillShapeOpt->GetSelection() ) );
     tempOptions.SetMirror( m_plotMirrorOpt->GetValue() );
     tempOptions.SetPlotMode( m_plotModeOpt->GetSelection() == 1 ? SKETCH : FILLED );
+    tempOptions.SetDXFPlotPolygonMode( m_DXF_plotModeOpt->GetValue() );
     tempOptions.SetPlotViaOnMaskLayer( m_plotNoViaOnMaskOpt->GetValue() );
+
+    if( !m_DXF_plotTextStrokeFontOpt->IsEnabled() )     // Currently, only DXF supports this option
+        tempOptions.SetTextMode( PLOTTEXTMODE_DEFAULT  );
+    else
+        tempOptions.SetTextMode( m_DXF_plotTextStrokeFontOpt->GetValue() ?
+                                 PLOTTEXTMODE_DEFAULT : PLOTTEXTMODE_NATIVE );
 
     // Update settings from text fields. Rewrite values back to the fields,
     // since the values may have been constrained by the setters.
@@ -694,11 +731,15 @@ void DIALOG_PLOT::applyPlotSettings()
     dirStr.Replace( wxT( "\\" ), wxT( "/" ) );
     tempOptions.SetOutputDirectory( dirStr );
 
-    if( m_plotOpts != tempOptions )
+    if( !m_plotOpts.IsSameAs( tempOptions, false ) )
     {
+        // First, mark board as modified only for parameters saved in file
+        if( !m_plotOpts.IsSameAs( tempOptions, true ) )
+            m_parent->OnModify();
+
+        // Now, save any change, for the session
         m_parent->SetPlotSettings( tempOptions );
         m_plotOpts = tempOptions;
-        m_parent->OnModify();
     }
 }
 
