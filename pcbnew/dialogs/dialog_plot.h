@@ -5,7 +5,7 @@
 /*
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
- * Copyright (C) 1992-2012 KiCad Developers, see AUTHORS.txt for contributors.
+ * Copyright (C) 1992-2017 KiCad Developers, see AUTHORS.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -31,8 +31,8 @@
 #include <pcb_plot_params.h>
 
 /**
- * Class DIALOG_PLOT
- *
+ * Class DIALOG_PLOT is the dialog to set the plot options, and create plot files
+ * in various formats.
  */
 class DIALOG_PLOT : public DIALOG_PLOT_BASE
 {
@@ -58,18 +58,19 @@ private:
     PCB_PLOT_PARAMS     m_plotOpts;
 
     // Event called functions
-    void        Init_Dialog();
-    void        Plot( wxCommandEvent& event );
-    void        OnQuit( wxCommandEvent& event );
-    void        OnClose( wxCloseEvent& event );
-    void        OnOutputDirectoryBrowseClicked( wxCommandEvent& event );
-    void        OnRightClick( wxMouseEvent& event );
-    void        OnPopUpLayers( wxCommandEvent& event );
-    void        SetPlotFormat( wxCommandEvent& event );
-    void        OnSetScaleOpt( wxCommandEvent& event );
-    void        CreateDrillFile( wxCommandEvent& event );
+    void        Plot( wxCommandEvent& event ) override;
+    void        OnQuit( wxCommandEvent& event ) override;
+    void        OnClose( wxCloseEvent& event ) override;
+    void        OnOutputDirectoryBrowseClicked( wxCommandEvent& event ) override;
+    void        OnRightClick( wxMouseEvent& event ) override;
+    void        OnPopUpLayers( wxCommandEvent& event ) override;
+    void        SetPlotFormat( wxCommandEvent& event ) override;
+    void        OnChangeDXFPlotMode( wxCommandEvent& event ) override;
+    void        OnSetScaleOpt( wxCommandEvent& event ) override;
+    void        CreateDrillFile( wxCommandEvent& event ) override;
 
     // orther functions
+    void        init_Dialog();      // main initialization
     void        applyPlotSettings();
     PlotFormat  getPlotFormat();
 

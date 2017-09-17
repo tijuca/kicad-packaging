@@ -1,5 +1,5 @@
 ///////////////////////////////////////////////////////////////////////////
-// C++ code generated with wxFormBuilder (version Jun 17 2015)
+// C++ code generated with wxFormBuilder (version Jul  2 2017)
 // http://www.wxformbuilder.org/
 //
 // PLEASE DO "NOT" EDIT THIS FILE!
@@ -108,6 +108,9 @@ class DIALOG_PLOT_BASE : public DIALOG_SHIM
 		wxStaticText* m_textPSFineAdjustWidth;
 		wxTextCtrl* m_PSFineAdjustWidthOpt;
 		wxCheckBox* m_forcePSA4OutputOpt;
+		wxStaticBoxSizer* m_SizerDXF_options;
+		wxCheckBox* m_DXF_plotModeOpt;
+		wxCheckBox* m_DXF_plotTextStrokeFontOpt;
 		WX_HTML_REPORT_PANEL* m_messagesPanel;
 		wxButton* m_plotButton;
 		wxButton* m_buttonDrill;
@@ -121,6 +124,7 @@ class DIALOG_PLOT_BASE : public DIALOG_SHIM
 		virtual void SetPlotFormat( wxCommandEvent& event ) { event.Skip(); }
 		virtual void OnOutputDirectoryBrowseClicked( wxCommandEvent& event ) { event.Skip(); }
 		virtual void OnSetScaleOpt( wxCommandEvent& event ) { event.Skip(); }
+		virtual void OnChangeDXFPlotMode( wxCommandEvent& event ) { event.Skip(); }
 		virtual void Plot( wxCommandEvent& event ) { event.Skip(); }
 		virtual void CreateDrillFile( wxCommandEvent& event ) { event.Skip(); }
 		virtual void OnQuit( wxCommandEvent& event ) { event.Skip(); }
@@ -129,7 +133,7 @@ class DIALOG_PLOT_BASE : public DIALOG_SHIM
 	
 	public:
 		
-		DIALOG_PLOT_BASE( wxWindow* parent, wxWindowID id = wxID_ANY, const wxString& title = _("Plot"), const wxPoint& pos = wxDefaultPosition, const wxSize& size = wxSize( 566,711 ), long style = wxDEFAULT_DIALOG_STYLE|wxRESIZE_BORDER ); 
+		DIALOG_PLOT_BASE( wxWindow* parent, wxWindowID id = wxID_ANY, const wxString& title = _("Plot"), const wxPoint& pos = wxDefaultPosition, const wxSize& size = wxSize( 733,809 ), long style = wxDEFAULT_DIALOG_STYLE|wxRESIZE_BORDER ); 
 		~DIALOG_PLOT_BASE();
 		
 		void DIALOG_PLOT_BASEOnContextMenu( wxMouseEvent &event )
