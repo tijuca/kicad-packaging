@@ -1,3 +1,40 @@
+kicad (4.0.7+dfsg1-1) unstable; urgency=medium
+
+  * [c306ee5] New upstream version 4.0.7+dfsg1
+    (Closes: #875942, #841539)
+  * [9ef473f] create_kicad_upstream_tarballs.sh: adjust to recent GH API
+    + Use a improved curl call to catch up all footprint related repositories
+      on GitHub. KiCad has now over 100 Repositories, but the GH API allows
+      only so query 100 per call.
+      Updating the list of repositories to download accordingly.
+  * [74df4fe] README.Debian: adding info about changes in 4.0.7
+    + Update the list of changed/moved repos, adding information about the
+      newly repositories.
+  * [05d21ad] debian/control: move Maintainer to PKG Electronics Team
+    + Let the KiCad packages move over to the PKG Electronix Team! The ML
+      there has quite a wider coverage. Remove Richard from the Uploaders.
+      Tanks go out to Richard for maintenance in the past years!
+  * [bb2e680] debian/control: increase Standards-Version to 4.0.1
+  * [e655e36] rebuild patch queue from patch-queue branch
+    + Refresh the patch queue, no functional changes.
+  * [5145b7a] debian/rules: use DEB_* variables for entries from changelog
+    + Let us use variables from /u/s/dpkg/pkg-info.mk, especially for picking
+      version and date of the package.
+  * [1addf7c] debian/copyright: reflect last changes and updates
+  * [c4e6635] kicad-doc-id.doc-base: update due added kicad i18n
+    + The manual for KiCad itself is now included for Indonesian.
+  * [1aff1fb] kicad-common: symlink more renamed footprint libraries
+    + Upstream modified again the footprint names, we need to add more symlinks
+      to let existing installation find the new repositories by the old
+      referenced name.
+  * [ea4e7d5] kicad-common.install: not installing folder /u/s/mimelnk
+    + Michael Biebl pointed to a useless installation of old mimelnk data,
+      this is cruft as it was only valid until the KDE3 desktop environment.
+    (Closes: #875527)
+  * [7a1e05a] debian/control: drop B-D on quilt
+
+ -- Carsten Schoenert <c.schoenert@t-online.de>  Sun, 17 Sep 2017 10:29:35 +0200
+
 kicad (4.0.6+dfsg1-1) unstable; urgency=medium
 
   [ Carsten Schoenert ]
