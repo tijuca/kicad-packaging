@@ -93,7 +93,9 @@ override_dh_auto_install:
 	# installing KiCad i18n files
 	dh_auto_install --destdir=$(INSTDIR) --sourcedirectory=$(CURDIR)/i18n --builddirectory=$(DEB_BUILD_DIR)/i18n
 	# fix permissions of libraries (if needed) before installing
-	chmod 644 $(CURDIR)/libraries/*/*.kicad_mod
+	for f in `find $(CURDIR)/libraries/ -type f -name "*.kicad_mod"`; do \
+		chmod 644 $$f; \
+	done
 	# install KiCad libraries
 	dh_auto_install --destdir=$(INSTDIR) --sourcedirectory=$(CURDIR)/libraries/kicad-library --builddirectory=$(DEB_BUILD_DIR)/libraries
 	# some tweaks before running the next dh sequencers
