@@ -15,10 +15,9 @@ INSTDIR=$(CURDIR)/debian/tmp
 PARALLEL_BUILD=$(echo $DEB_BUILD_OPTIONS | sed -e '/parallel=/!s/.*/1/;s/.*parallel=\([0-9]\+\).*/\1/g')
 
 # other variables
-include /usr/share/dpkg/pkg-info.mk
-VERSION_EXTRA   = $(shell echo "$(DEB_VERSION)" | cut -d+ -f2-)
-DATE            = $(shell date +'%Y-%m-%d' -d@"$(SOURCE_DATE_EPOCH)")
-export REVDATE := $(shell TZ=UTC date -d@"$(SOURCE_DATE_EPOCH)" +%Y-%m-%d)
+VERSION_EXTRA   = $(shell dpkg-parsechangelog -S Version | cut -d+ -f2-)
+DATE            = $(shell date +'%Y-%m-%d' -d"`dpkg-parsechangelog -S Date`")
+export REVDATE := $(shell TZ=UTC date -d "$(shell dpkg-parsechangelog -S Date)" +%Y-%m-%d)
 
 ASCIIDOCFILES := \
 	doc/src/cvpcb/cvpcb.adoc \
