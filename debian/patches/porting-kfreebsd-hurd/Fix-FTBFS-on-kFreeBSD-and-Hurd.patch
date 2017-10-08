@@ -9,7 +9,7 @@ hurd and *freebsd.
  1 file changed, 1 insertion(+), 1 deletion(-)
 
 diff --git a/include/kiway.h b/include/kiway.h
-index 3ec5af8c..c8c919ee 100644
+index 3ec5af8..c8c919e 100644
 --- a/include/kiway.h
 +++ b/include/kiway.h
 @@ -114,7 +114,7 @@ as such!  As such, it is OK to use UTF8 characters:

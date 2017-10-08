@@ -362,8 +362,10 @@ echo
 # to use the static list as some repositories currently empty like:
 # Connectors_Amphenol.pretty
 
-#PRETTY_REPOS=$(curl https://api.github.com/orgs/KiCad/repos?per_page=100&page=1 https://api.github.com/orgs/KiCad/repos?per_page=100&page=2 2> /dev/null | sed -r 's:.+ "full_name".*"KiCad/(.+\.pretty)",:\1:p;d')
-#PRETTY_REPOS=$(echo $PRETTY_REPOS | tr " " "\n" | sort)
+#PRETTY_REPOS=$(curl -s "https://api.github.com/orgs/KiCad/repos?per_page=100&page=1" \
+#                       "https://api.github.com/orgs/KiCad/repos?per_page=100&page=2" 2> /dev/null | \
+#               grep full_name | grep pretty | \
+#               sed -r  's:.+ "KiCad/(.+)",:\1:' | tr " " "\n" | sort)
 
 PRETTY_REPOS="\
 Air_Coils_SML_NEOSID.pretty
@@ -380,8 +382,11 @@ Choke_Radial_ThroughHole.pretty
 Choke_SMD.pretty
 Choke_Toroid_ThroughHole.pretty
 Connectors_Amphenol.pretty
+Connectors_Card.pretty
 Connectors_Harwin.pretty
+Connectors_HDMI.pretty
 Connectors_Hirose.pretty
+Connectors_IEC_DIN.pretty
 Connectors_JAE.pretty
 Connectors_JST.pretty
 Connectors_Mini-Universal.pretty
@@ -398,10 +403,10 @@ Converters_DCDC_ACDC.pretty
 Crystals.pretty
 Diodes_SMD.pretty
 Diodes_THT.pretty
-Discret.pretty
+discret.pretty
 Displays_7-Segment.pretty
 Displays.pretty
-Divers.pretty
+divers.pretty
 Enclosures.pretty
 EuroBoard_Outline.pretty
 Fiducials.pretty
@@ -426,11 +431,10 @@ Inductors.pretty
 Inductors_SMD.pretty
 Inductors_THT.pretty
 IR-DirectFETs.pretty
-Labels.pretty
+labels.pretty
 LEDs.pretty
 Measurement_Points.pretty
 Measurement_Scales.pretty
-Mechanical_Sockets.pretty
 Microwave.pretty
 Modules.pretty
 Mounting_Holes.pretty
@@ -442,10 +446,12 @@ PFF_PSF_PSS_Leadforms.pretty
 Pin_Headers.pretty
 Potentiometers.pretty
 Power_Integrations.pretty
+Relays_SMD.pretty
 Relays_THT.pretty
 Resistors_SMD.pretty
 Resistors_THT.pretty
 Resistors_Universal.pretty
+RF_Antennas.pretty
 RF_Modules.pretty
 Shielding_Cabinets.pretty
 SMD_Packages.pretty
@@ -453,6 +459,8 @@ Sockets_MOLEX_KK-System.pretty
 Sockets.pretty
 Socket_Strips.pretty
 Symbols.pretty
+TerminalBlocks_Phoenix.pretty
+TerminalBlocks_WAGO.pretty
 TO_SOT_Packages_SMD.pretty
 TO_SOT_Packages_THT.pretty
 Transformers_CHK.pretty

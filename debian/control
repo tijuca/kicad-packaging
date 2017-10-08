@@ -1,10 +1,10 @@
 Source: kicad
 Section: electronics
 Priority: optional
-Maintainer: Georges Khaznadar <georgesk@debian.org>
+Maintainer: Debian Electronics Team <pkg-electronics-devel@lists.alioth.debian.org>
 Uploaders:
- Richard Antony Burton <richardaburton@gmail.com>,
  Carsten Schoenert <c.schoenert@t-online.de>,
+ Georges Khaznadar <georgesk@debian.org>,
 Build-Depends:
  asciidoc,
  cmake,
@@ -48,7 +48,6 @@ Build-Depends:
  python-all,
  python-dev,
  python-wxgtk3.0-dev,
- quilt,
  source-highlight,
  swig,
  texlive-fonts-extra,
@@ -66,7 +65,7 @@ Build-Depends:
  xmlto,
 Vcs-Git: https://anonscm.debian.org/cgit/pkg-electronics/kicad.git
 Vcs-Browser: https://anonscm.debian.org/cgit/pkg-electronics/kicad.git
-Standards-Version: 3.9.8
+Standards-Version: 4.0.1
 Homepage: http://www.kicad-pcb.org
 
 Package: kicad
@@ -218,6 +217,7 @@ Description: Kicad help files (Indonesian)
  the EPUB and the PDF files and also the OnLine HTML documentation for:
  .
   * GSIK - Getting Started in KiCad
+  * KiCad - The main project editor
 
 Package: kicad-doc-it
 Section: doc

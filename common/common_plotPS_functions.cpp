@@ -1,8 +1,8 @@
 /*
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
- * Copyright (C) 2014 Jean-Pierre Charras, jp.charras at wanadoo.fr
- * Copyright (C) 2014 KiCad Developers, see CHANGELOG.TXT for contributors.
+ * Copyright (C) 2017 Jean-Pierre Charras, jp.charras at wanadoo.fr
+ * Copyright (C) 2017 KiCad Developers, see CHANGELOG.TXT for contributors.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -91,7 +91,6 @@ void PSLIKE_PLOTTER::SetColor( EDA_COLOR_T color )
 void PSLIKE_PLOTTER::FlashPadOval( const wxPoint& aPadPos, const wxSize& aSize,
                                    double aPadOrient, EDA_DRAW_MODE_T aTraceMode )
 {
-    wxASSERT( outputFile );
     int x0, y0, x1, y1, delta;
     wxSize size( aSize );
 
@@ -339,7 +338,6 @@ void PSLIKE_PLOTTER::postscriptOverlinePositions( const wxString& aText, int aXS
 void PS_PLOTTER::SetViewport( const wxPoint& aOffset, double aIusPerDecimil,
                   double aScale, bool aMirror )
 {
-    wxASSERT( !outputFile );
     m_plotMirror = aMirror;
     plotOffset = aOffset;
     plotScale = aScale;
@@ -875,7 +873,10 @@ void PS_PLOTTER::Text( const wxPoint&       aPos,
         aMultilineAllowed = false;  // the text has only one line.
 
     // Draw the native postscript text (if requested)
-    if( m_textMode == PLOTTEXTMODE_NATIVE && !aMultilineAllowed )
+    // Currently: does not work: disable it
+    bool use_native = false; // = m_textMode == PLOTTEXTMODE_NATIVE && !aMultilineAllowed;
+
+    if( use_native )
     {
         const char *fontname = aItalic ? (aBold ? "/KicadFont-BoldOblique"
                 : "/KicadFont-Oblique")
@@ -928,7 +929,7 @@ void PS_PLOTTER::Text( const wxPoint&       aPos,
     }
 
     // Draw the stroked text (if requested)
-    if( m_textMode != PLOTTEXTMODE_NATIVE || aMultilineAllowed )
+    if( !use_native )
     {
         PLOTTER::Text( aPos, aColor, aText, aOrient, aSize, aH_justify, aV_justify,
                        aWidth, aItalic, aBold, aMultilineAllowed );

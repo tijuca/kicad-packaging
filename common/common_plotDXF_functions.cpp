@@ -49,7 +49,6 @@ static const double DXF_OBLIQUE_ANGLE = 15;
 void DXF_PLOTTER::SetViewport( const wxPoint& aOffset, double aIusPerDecimil,
                                double aScale, bool aMirror )
 {
-    wxASSERT( !outputFile );
     plotOffset  = aOffset;
     plotScale   = aScale;
 
@@ -277,7 +276,6 @@ bool DXF_PLOTTER::EndPlot()
  */
 void DXF_PLOTTER::SetColor( EDA_COLOR_T color )
 {
-    wxASSERT( outputFile );
     if( ( color >= 0 && colorMode )
        || ( color == BLACK )
        || ( color == WHITE ) )
@@ -293,7 +291,6 @@ void DXF_PLOTTER::SetColor( EDA_COLOR_T color )
  */
 void DXF_PLOTTER::Rect( const wxPoint& p1, const wxPoint& p2, FILL_T fill, int width )
 {
-    wxASSERT( outputFile );
     MoveTo( p1 );
     LineTo( wxPoint( p1.x, p2.y ) );
     LineTo( wxPoint( p2.x, p2.y ) );
@@ -427,7 +424,7 @@ void DXF_PLOTTER::PlotPoly( const std::vector<wxPoint>& aCornerList,
 
     // Now, output the final polygon to DXF file:
     last = path.PointCount() - 1;
-	  VECTOR2I point = path.CPoint( 0 );
+    VECTOR2I point = path.CPoint( 0 );
 
     wxPoint startPoint( point.x, point.y );
     MoveTo( startPoint );
@@ -483,7 +480,8 @@ void DXF_PLOTTER::SetDash( bool dashed )
 void DXF_PLOTTER::ThickSegment( const wxPoint& aStart, const wxPoint& aEnd, int aWidth,
                                 EDA_DRAW_MODE_T aPlotMode )
 {
-    segmentAsOval( aStart, aEnd, aWidth, aPlotMode );
+    MoveTo( aStart );
+    FinishTo( aEnd );
 }
 
 /* Plot an arc in DXF format
@@ -523,7 +521,6 @@ void DXF_PLOTTER::Arc( const wxPoint& centre, double StAngle, double EndAngle, i
 void DXF_PLOTTER::FlashPadOval( const wxPoint& pos, const wxSize& aSize, double orient,
                                 EDA_DRAW_MODE_T trace_mode )
 {
-    wxASSERT( outputFile );
     wxSize size( aSize );
 
     /* The chip is reduced to an oval tablet with size.y > size.x
@@ -545,7 +542,6 @@ void DXF_PLOTTER::FlashPadOval( const wxPoint& pos, const wxSize& aSize, double 
 void DXF_PLOTTER::FlashPadCircle( const wxPoint& pos, int diametre,
                                     EDA_DRAW_MODE_T trace_mode )
 {
-    wxASSERT( outputFile );
     Circle( pos, diametre, NO_FILL );
 }
 
@@ -624,7 +620,6 @@ void DXF_PLOTTER::FlashPadRect( const wxPoint& pos, const wxSize& padsize,
 void DXF_PLOTTER::FlashPadTrapez( const wxPoint& aPadPos, const wxPoint *aCorners,
                                   double aPadOrient, EDA_DRAW_MODE_T aTrace_Mode )
 {
-    wxASSERT( outputFile );
     wxPoint coord[4];       /* coord actual corners of a trapezoidal trace */
 
     for( int ii = 0; ii < 4; ii++ )
@@ -680,7 +675,7 @@ void DXF_PLOTTER::Text( const wxPoint&              aPos,
     if( textAsLines || containsNonAsciiChars( aText ) || aMultilineAllowed )
     {
         // output text as graphics.
-        // Perhaps miltiline texts could be handled as DXF text entity
+        // Perhaps multiline texts could be handled as DXF text entity
         // but I do not want spend time about this (JPC)
         PLOTTER::Text( aPos, aColor, aText, aOrient, aSize, aH_justify, aV_justify,
                 aWidth, aItalic, aBold, aMultilineAllowed );

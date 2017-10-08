@@ -8,7 +8,7 @@ The GitHub plugin needs the generated PCB parser code.
  1 file changed, 2 insertions(+)
 
 diff --git a/pcbnew/CMakeLists.txt b/pcbnew/CMakeLists.txt
-index a0454bec..4fe1978e 100644
+index acffe80..8af6a8b 100644
 --- a/pcbnew/CMakeLists.txt
 +++ b/pcbnew/CMakeLists.txt
 @@ -538,6 +538,8 @@ add_subdirectory( pcad2kicadpcb_plugin )

@@ -34,7 +34,7 @@ echo "++++++++++++++++++++++++++++++++++++++++++"
 echo "+   Checking usability of kicad-common   +"
 echo "++++++++++++++++++++++++++++++++++++++++++"
 
-# Check if we have a acceptable count of Footprint Libraries
+# Check if we have a acceptable count of Footprint Libraries.
 echo
 echo "Test: We have at least the same or a greater count of Footprint"
 echo "Libraries as referenced in fp-lib-table?"
@@ -45,7 +45,7 @@ else
     ERROR=1
 fi
 
-# Check if a referenced Footprint Library in fp-lib-table can be found
+# Check if a referenced Footprint Library in fp-lib-table can be found.
 echo
 echo "Test: Are all referenced Footprint Libraries in fp-lib-table found?"
 MISSING_FPL_TABLE_PRETTY_REFERENCE=""
@@ -58,7 +58,7 @@ done
 if [ "${ERROR}" = "1" ]; then
     echo "    NO"
     for TABLE_PRETTY_REFERENCE in ${MISSING_FPL_TABLE_PRETTY_REFERENCE}; do
-        echo "        ${TABLE_PRETTY_REFERENCE} cound't found!"
+        echo "        ${TABLE_PRETTY_REFERENCE} couldn't be found!"
     done
 else
     echo "    YES"
@@ -68,14 +68,14 @@ if [ "${ERROR}" = "1" ]; then
     echo
     echo "++++++++++++++++++++++++++++++++++++++++++"
     echo "+    Further testing isn't meaningful!   +"
-    echo "+      Please fix above issues this!     +"
+    echo "+     Please fix above issues first!     +"
     echo "++++++++++++++++++++++++++++++++++++++++++"
     echo
     show_additional_info
     exit 1
 fi
 
-# Check if Footprint Libraries from the previous version can be found
+# Check if Footprint Libraries from the previous version can be found.
 if [ "${OLD_VERSION}" = "" ]; then
     echo
     echo "Failed to get the old version from kicad-common!"
@@ -94,13 +94,13 @@ fi
 rm -rf /tmp/kicad-common
 dpkg -x "/tmp/${KICAD_COMMON_OLD_DEB}" /tmp/kicad-common
 
-# getting the old content of *.pretty folders
+# Getting the old content of *.pretty folders.
 OLD_FPL_TABLE_PRETTY=$(cd /tmp/kicad-common/usr/share/kicad/modules && ls -d *.pretty)
 
 MISSING_PRETTY_LIBRARY=""
 for OLD_PRETTY_ENTRY in ${OLD_FPL_TABLE_PRETTY}; do
     # Check if the old library is existing in new version, if empty the
-    # old library isn't existing any longer nor is asymlink to some thing
+    # old library isn't existing any longer nor is a symlink to some thing
     # equivalent and needs to be fixed!
     FOLDER=$(readlink -e "${KICAD_MODULES}/${OLD_PRETTY_ENTRY}")
     FOLDERCHECK="${FOLDER##*\/}"

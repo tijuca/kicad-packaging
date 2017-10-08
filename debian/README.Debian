@@ -35,4 +35,20 @@ Those libraries were added:
     Transformers_SMD.pretty
     Transformers_THT.pretty
 
- -- Carsten Schoenert <c.schoenert@t-online.de>  Sun, 22 Mar 2017 22:12:00 +0100
+# Changed footprint libraries between KiCad 4.0.6 and 4.0.7 #
+
+Those libraries were added:
+    Connectors_Card.pretty
+	Connectors_HDMI.pretty
+	Relays_SMD.pretty
+	RF_Antennas.pretty
+	TerminalBlocks_Phoenix.pretty
+	TerminalBlocks_WAGO.pretty
+
+Renamed libraries:
+    Mechanical_Sockets.pretty -> Connectors_IEC_DIN.pretty
+	Discret.pretty            -> discret.pretty
+	Divers.pretty             -> divers.pretty
+	Labels.pretty             -> labels.pretty
+
+ -- Carsten Schoenert <c.schoenert@t-online.de>  Sun, 15 Sep 2017 21:33:00 +0200
