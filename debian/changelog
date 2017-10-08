@@ -1,3 +1,15 @@
+kicad (4.0.7+dfsg1-1~bpo8+1) jessie-backports-sloppy; urgency=medium
+
+  [ Carsten Schoenert ]
+  * [92f8583] Revert "debian/rules: use DEB_* variables for entries
+    from changelog"
+    dpkg-dev in Jessie don't know about SOURCE_DATE_EPOCH and we need to use
+    the "old" behaviour for parsing d/changelog.
+  * Rebuild from buster for jessie-backports-sloppy.
+    (Closes: #876656)
+
+ -- Carsten Schoenert <c.schoenert@t-online.de>  Sun, 08 Oct 2017 16:00:21 +0200
+
 kicad (4.0.7+dfsg1-1) unstable; urgency=medium
 
   * [c306ee5] New upstream version 4.0.7+dfsg1
