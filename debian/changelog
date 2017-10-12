@@ -1,3 +1,10 @@
+kicad (4.0.7+dfsg1-1~bpo9+1) stretch-backports; urgency=medium
+
+  * Rebuild for stretch-backports.
+    (Closes: #879236)
+
+ -- Carsten Schoenert <c.schoenert@t-online.de>  Sat, 21 Oct 2017 20:52:00 +0200
+
 kicad (4.0.7+dfsg1-1) unstable; urgency=medium
 
   * [c306ee5] New upstream version 4.0.7+dfsg1
