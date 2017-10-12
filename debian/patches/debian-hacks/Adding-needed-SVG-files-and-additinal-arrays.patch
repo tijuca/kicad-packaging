@@ -17,7 +17,7 @@ files are not DFSG clean.
 
 diff --git a/bitmaps_png/cpp_26/find.cpp b/bitmaps_png/cpp_26/find.cpp
 new file mode 100644
-index 00000000..ffb88d44
+index 0000000..ffb88d4
 --- /dev/null
 +++ b/bitmaps_png/cpp_26/find.cpp
 @@ -0,0 +1,79 @@
@@ -102,7 +102,7 @@ index 00000000..ffb88d44
 +//EOF
 diff --git a/bitmaps_png/cpp_26/find_replace.cpp b/bitmaps_png/cpp_26/find_replace.cpp
 new file mode 100644
-index 00000000..1f11867b
+index 0000000..1f11867
 --- /dev/null
 +++ b/bitmaps_png/cpp_26/find_replace.cpp
 @@ -0,0 +1,97 @@
@@ -205,7 +205,7 @@ index 00000000..1f11867b
 +//EOF
 diff --git a/bitmaps_png/sources/find.svg b/bitmaps_png/sources/find.svg
 new file mode 100644
-index 00000000..cf9d6950
+index 0000000..cf9d695
 --- /dev/null
 +++ b/bitmaps_png/sources/find.svg
 @@ -0,0 +1,127 @@
@@ -338,7 +338,7 @@ index 00000000..cf9d6950
 +</svg>
 diff --git a/bitmaps_png/sources/find_replace.svg b/bitmaps_png/sources/find_replace.svg
 new file mode 100644
-index 00000000..14f4e444
+index 0000000..14f4e44
 --- /dev/null
 +++ b/bitmaps_png/sources/find_replace.svg
 @@ -0,0 +1,179 @@

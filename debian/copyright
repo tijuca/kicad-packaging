@@ -4,7 +4,7 @@ Source: see file get-kicad.sh; lp:kicad/4.0; https://github.com/KiCad/kicad-doc;
  https://github.com/KiCad/library; https://github.com/KiCad/*.pretty
 
 Files: *
-Copyright: (C) 2015 KiCad Developers <kicad-developers@lists.launchpad.net>
+Copyright: (C) 2015-2017 KiCad Developers <kicad-developers@lists.launchpad.net>
 License: GPL-2+
 
 Files: 3d-viewer/trackball.*
@@ -28,11 +28,11 @@ Files: polygon/poly2tri/*
 Copyright: (C) 2009-2010, Poly2Tri Contributors https://github.com/jhasse/poly2tri
 License: Poly2Tri
 
-Files: eeschema/plugins/bom2csv.xsl
+Files: eeschema/plugins/xsl_scripts/bom2csv.xsl
 Copyright: (C) 2013 Stefan Helmert
 License: GPL-2+
 
-Files: eeschema/plugins/netlist_form_*.xsl
+Files: eeschema/plugins/xsl_scripts/netlist_form_*.xsl
 Copyright: (C) 2010, SoftPLC Corporation
 License: GPL-2+
 
@@ -46,7 +46,7 @@ License: other
  This code is free to use and modify for all purposes
 
 Files: include/gal/opengl/glm/*
-Copyright: (C) 2005 - 2013 G-Truc Creation (www.g-truc.net)
+Copyright: (C) 2005-2013 G-Truc Creation (www.g-truc.net)
 License: GLM1
 
 Files: potrace/*
@@ -54,7 +54,7 @@ Copyright: (C) 2001-2007 Peter Selinger
 License: GPL-2+
 
 Files: doc/*
-Copyright: (C) 2006-2015 KiCad Developers
+Copyright: (C) 2006-2017 KiCad Developers
 License: GPL-2+ or CC-BY-SA-3.0
 Comment:
  The KiCad documentation is dual licensed.

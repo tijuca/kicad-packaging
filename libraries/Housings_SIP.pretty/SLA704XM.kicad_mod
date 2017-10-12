@@ -51,7 +51,7 @@
   (pad 16 thru_hole oval (at 25.2 -4.04) (size 1.524 1.824) (drill 0.9) (layers *.Cu *.Mask))
   (pad 17 thru_hole oval (at 26.88 0) (size 1.524 1.824) (drill 0.9) (layers *.Cu *.Mask))
   (pad 18 thru_hole oval (at 28.56 -4.04) (size 1.524 1.824) (drill 0.9) (layers *.Cu *.Mask))
-  (model Housings_SIP.3dshapes/SLA704XM.wrl
+  (model ${KISYS3DMOD}/Housings_SIP.3dshapes/SLA704XM.wrl
     (at (xyz 0 0 0))
     (scale (xyz 1 1 1))
     (rotate (xyz 0 0 0))

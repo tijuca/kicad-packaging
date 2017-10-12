@@ -114,6 +114,12 @@ K 1-Wire I2C
 F https://datasheets.maximintegrated.com/en/ds/DS2482-100.pdf
 $ENDCMP
 #
+$CMP DS2756E
+D High-precision battery fuel gauge data-acquisition and information-storag 3.0V - 4.5V VDD
+K High-precision battery fuel gauge data-acquisition and information-storag 3.0V - 4.5V VDD
+F https://datasheets.maximintegrated.com/en/ds/DS2756.pdf
+$ENDCMP
+#
 $CMP DS28EA00
 D 1-Wire Digital Thermometer with Sequence Detect and PIO
 K 1Wire OneWire Maxim Dallas
@@ -166,6 +172,12 @@ $CMP MAX31826
 D 1-Wire Digital Temperature Sensor with 1Kb Lockable EEPROM
 K 1Wire OneWire Maxim Dallas
 F http://datasheets.maximintegrated.com/en/ds/MAX31826.pdf
+$ENDCMP
+#
+$CMP MAX7325AEG+
+D I2C Port Expander with 8 Push-Pull and 8 Open-Drain I/Os, QSOP-24 package
+K Expander I2C Parallel Port GPIO Maxim
+F https://datasheets.maximintegrated.com/en/ds/MAX7325.pdf
 $ENDCMP
 #
 #End Doc Library
