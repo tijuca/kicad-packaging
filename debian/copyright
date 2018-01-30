@@ -128,6 +128,10 @@ Copyright: (C) 2006-2010 Richard A Burton <richardaburton@gmail.com>
            (C) 2016-2017 Carsten schoenert <c.schoenert@t-online.de>
 License: GPL-2+
 
+Files: debian/kicad-packages-relations.dia
+Copyright: (C) 2018 Carsten schoenert <c.schoenert@t-online.de>
+License: GPL-2+
+
 Files: pcbnew/github/avhttp-master.zip
 Copyright: (C) 2015 Jack <jack.wgm@gmail.com>
            (C) 2015 coleman <omegacoleman@gmail.com>
