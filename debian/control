@@ -212,19 +212,6 @@ Description: Kicad help files (French)
   * Pcbnew - The printed circuit board software tool
   * PlEditor - The layout editor for custom title block
 
-Package: kicad-doc-id
-Section: doc
-Architecture: all
-Multi-Arch: foreign
-Depends:
- ${misc:Depends},
-Description: Kicad help files (Indonesian)
- This package provides various documentation files for KiCad in Indonesian, like
- the EPUB and the PDF files and also the OnLine HTML documentation for:
- .
-  * GSIK - Getting Started in KiCad
-  * KiCad - The main project editor
-
 Package: kicad-doc-it
 Section: doc
 Architecture: all
