@@ -69,11 +69,17 @@ $(PREPROCESS_FILES:.in=): %: %.in
 override_dh_auto_configure:
 	sed -i 's/@REVDATE@/$(REVDATE)/' $(ASCIIDOCFILES)
 	mkdir -p $(DEB_BUILD_DIR)
-	# configuring KiCad application
+	#################################
+	# configuring KiCad application #
+	#################################
 	dh_auto_configure --sourcedirectory=$(CURDIR) --builddirectory=$(DEB_BUILD_DIR) -- $(DEB_KICAD_CMAKE_OPTS)
-	# configuring KiCad documentation
+	###################################
+	# configuring KiCad documentation #
+	###################################
 	dh_auto_configure --sourcedirectory=$(CURDIR)/doc --builddirectory=$(DEB_BUILD_DIR)/doc -- $(DEB_DOC_CMAKE_OPTS)
-	# configuring KiCad i18n files
+	################################
+	# configuring KiCad i18n files #
+	################################
 	dh_auto_configure --sourcedirectory=$(CURDIR)/i18n --builddirectory=$(DEB_BUILD_DIR)/i18n -- $(DEB_I18N_CMAKE_OPTS)
 
 override_dh_auto_build:
@@ -84,11 +90,17 @@ override_dh_auto_build:
 	dh_auto_build --sourcedirectory=$(CURDIR) --builddirectory=$(DEB_BUILD_DIR)
 
 override_dh_auto_install: $(PREPROCESS_FILES:.in=)
-	# installing KiCad application
+	################################
+	# installing KiCad application #
+	################################
 	dh_auto_install --destdir=$(INSTDIR) --sourcedirectory=$(CURDIR) --builddirectory=$(DEB_BUILD_DIR)
-	# building and installing KiCad documentation
+	###############################################
+	# building and installing KiCad documentation #
+	###############################################
 	dh_auto_install --destdir=$(INSTDIR) --sourcedirectory=$(CURDIR)/doc --builddirectory=$(DEB_BUILD_DIR)/doc
-	# installing KiCad i18n files
+	###############################
+	# installing KiCad i18n files #
+	###############################
 	dh_auto_install --destdir=$(INSTDIR) --sourcedirectory=$(CURDIR)/i18n --builddirectory=$(DEB_BUILD_DIR)/i18n
 	# some tweaks before running the next dh sequencers
 	# fixing icon sizes
