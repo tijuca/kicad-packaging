@@ -1,0 +1,35 @@
+From: Carsten Schoenert <c.schoenert@t-online.de>
+Date: Sat, 24 Feb 2018 22:05:26 +0100
+Subject: fix misspelled 'Appearence' -> 'Appearance'
+
+---
+ pcbnew/dialogs/dialog_keepout_area_properties_base.fbp     | 2 +-
+ pcbnew/dialogs/dialog_non_copper_zones_properties_base.fbp | 2 +-
+ 2 files changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/pcbnew/dialogs/dialog_keepout_area_properties_base.fbp b/pcbnew/dialogs/dialog_keepout_area_properties_base.fbp
+index 95faa97..62e546e 100644
+--- a/pcbnew/dialogs/dialog_keepout_area_properties_base.fbp
++++ b/pcbnew/dialogs/dialog_keepout_area_properties_base.fbp
+@@ -479,7 +479,7 @@
+                                         <property name="gripper">0</property>
+                                         <property name="hidden">0</property>
+                                         <property name="id">wxID_ANY</property>
+-                                        <property name="label">Outline Appearence:</property>
++                                        <property name="label">Outline Appearance:</property>
+                                         <property name="majorDimension">1</property>
+                                         <property name="max_size"></property>
+                                         <property name="maximize_button">0</property>
+diff --git a/pcbnew/dialogs/dialog_non_copper_zones_properties_base.fbp b/pcbnew/dialogs/dialog_non_copper_zones_properties_base.fbp
+index 23f5e34..3532707 100644
+--- a/pcbnew/dialogs/dialog_non_copper_zones_properties_base.fbp
++++ b/pcbnew/dialogs/dialog_non_copper_zones_properties_base.fbp
+@@ -446,7 +446,7 @@
+                                                 <property name="gripper">0</property>
+                                                 <property name="hidden">0</property>
+                                                 <property name="id">wxID_ANY</property>
+-                                                <property name="label">Outline Appearence</property>
++                                                <property name="label">Outline Appearance</property>
+                                                 <property name="majorDimension">1</property>
+                                                 <property name="max_size"></property>
+                                                 <property name="maximize_button">0</property>

@@ -1,8 +1,12 @@
 fixes/Modifing-the-Exec-cmd-in-the-desktop-files.patch
-debian-hacks/Adding-needed-SVG-files-and-additinal-arrays.patch
 porting-kfreebsd-hurd/Fix-FTBFS-on-kFreeBSD-and-Hurd.patch
-fixes/Fix-FTBFS-with-Boost-1.61.patch
-fixes/Fixing-some-spelling-issues.patch
-fixes/Add-missing-dependency-github_plugin-pcbcommon.patch
 reproducibility/add-field-revdate-to-asciidoc-files-of-documentation.patch
 debian-hacks/Removing-hyphen-inside-KICAD_FULL_VERSION.patch
+fixes/fix-misspelled-Unkown-Unknown.patch
+fixes/fix-misspelled-streching-stretching.patch
+fixes/fix-misspelled-neeeded-needed.patch
+fixes/fix-misspelled-accesing-accessing.patch
+fixes/fix-misspelled-Occassionally-Occasionally.patch
+fixes/fix-misspelled-Appearence-Appearance.patch
+fixes/fix-misspelled-occured-occurred.patch
+fixes/fix-misspelled-Modifed-Modified.patch

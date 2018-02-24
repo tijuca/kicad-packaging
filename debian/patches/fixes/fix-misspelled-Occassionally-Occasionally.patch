@@ -1,0 +1,21 @@
+From: Carsten Schoenert <c.schoenert@t-online.de>
+Date: Sat, 24 Feb 2018 22:02:50 +0100
+Subject: fix misspelled 'Occassionally' -> 'Occasionally'
+
+---
+ pcbnew/dialogs/dialog_freeroute_exchange_help.html | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/pcbnew/dialogs/dialog_freeroute_exchange_help.html b/pcbnew/dialogs/dialog_freeroute_exchange_help.html
+index 375df66..61eb6ff 100644
+--- a/pcbnew/dialogs/dialog_freeroute_exchange_help.html
++++ b/pcbnew/dialogs/dialog_freeroute_exchange_help.html
+@@ -40,7 +40,7 @@
+ <li> in freerouter: load the project's *.dsn file. Immediately after a load, all
+      components and traces (if any) will initially be 'fixed'. This is a 'lock
+      in place' toggle that you can undo by selecting a region with your mouse
+-     and then selecting 'Unfix' from the menu. Occassionally you may want to
++     and then selecting 'Unfix' from the menu. Occasionally you may want to
+      re-fix a trace or a part, if only temporarily. This keeps it locked in
+      place.
+ </li><br>

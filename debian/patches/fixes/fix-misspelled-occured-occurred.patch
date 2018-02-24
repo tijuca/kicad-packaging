@@ -1,0 +1,35 @@
+From: Carsten Schoenert <c.schoenert@t-online.de>
+Date: Sat, 24 Feb 2018 22:07:23 +0100
+Subject: fix misspelled 'occured' -> 'occurred'
+
+---
+ include/tool/tool_manager.h      | 2 +-
+ pcbnew/board_netlist_updater.cpp | 2 +-
+ 2 files changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/include/tool/tool_manager.h b/include/tool/tool_manager.h
+index 1bdb4b8..89ac37c 100644
+--- a/include/tool/tool_manager.h
++++ b/include/tool/tool_manager.h
+@@ -356,7 +356,7 @@ public:
+     /**
+      * Stores an information to the system clipboard.
+      * @param aText is the information to be stored.
+-     * @return False if error occured.
++     * @return False if error occurred.
+      */
+     bool SaveClipboard( const std::string& aText );
+ 
+diff --git a/pcbnew/board_netlist_updater.cpp b/pcbnew/board_netlist_updater.cpp
+index 008d7d8..331cd82 100644
+--- a/pcbnew/board_netlist_updater.cpp
++++ b/pcbnew/board_netlist_updater.cpp
+@@ -682,7 +682,7 @@ bool BOARD_NETLIST_UPDATER::UpdateNetlist( NETLIST& aNetlist )
+ 
+     if( m_errorCount )
+     {
+-        m_reporter->Report( _( "Errors occured during the netlist update. Unless you "
++        m_reporter->Report( _( "Errors occurred during the netlist update. Unless you "
+                                "fix them, your board will not be consistent with the schematics." ),
+                             REPORTER::RPT_ERROR );
+ 

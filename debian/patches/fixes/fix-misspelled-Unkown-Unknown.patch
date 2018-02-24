@@ -1,0 +1,35 @@
+From: Carsten Schoenert <c.schoenert@t-online.de>
+Date: Sat, 24 Feb 2018 21:53:57 +0100
+Subject: fix misspelled 'Unkown' -> 'Unknown'
+
+---
+ eeschema/drc_erc_item.cpp | 2 +-
+ pcbnew/pcbnew_config.cpp  | 2 +-
+ 2 files changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/eeschema/drc_erc_item.cpp b/eeschema/drc_erc_item.cpp
+index b5fe9b1..15a893c 100644
+--- a/eeschema/drc_erc_item.cpp
++++ b/eeschema/drc_erc_item.cpp
+@@ -63,7 +63,7 @@ wxString DRC_ITEM::GetErrorText() const
+ 
+     default:
+         wxFAIL_MSG( "Missing ERC error description" );
+-        return wxString( wxT("Unkown.") );
++        return wxString( wxT("Unknown.") );
+     }
+ }
+ 
+diff --git a/pcbnew/pcbnew_config.cpp b/pcbnew/pcbnew_config.cpp
+index 1540584..1d58647 100644
+--- a/pcbnew/pcbnew_config.cpp
++++ b/pcbnew/pcbnew_config.cpp
+@@ -234,7 +234,7 @@ void PCB_EDIT_FRAME::Process_Config( wxCommandEvent& event )
+         break;
+ 
+     default:
+-        DisplayErrorMessage( this, "Unkown ID in Process Config",
++        DisplayErrorMessage( this, "Unknown ID in Process Config",
+                 wxString::Format(  "PCB_EDIT_FRAME::Process_Config received ID %d", id ) );
+         break;
+     }

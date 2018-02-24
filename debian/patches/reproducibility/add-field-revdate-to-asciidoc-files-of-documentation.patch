@@ -21,7 +21,7 @@ with the date from the changelog file.
  11 files changed, 11 insertions(+)
 
 diff --git a/doc/src/cvpcb/cvpcb.adoc b/doc/src/cvpcb/cvpcb.adoc
-index 018c825..93f4f40 100644
+index 139467b..9eb9f08 100644
 --- a/doc/src/cvpcb/cvpcb.adoc
 +++ b/doc/src/cvpcb/cvpcb.adoc
 @@ -1,5 +1,6 @@
@@ -43,7 +43,7 @@ index 9e34301..ba839e3 100644
  :ascii-ids:
  
 diff --git a/doc/src/eeschema/eeschema.adoc b/doc/src/eeschema/eeschema.adoc
-index 1660473..0ecc579 100644
+index bf37565..df32201 100644
 --- a/doc/src/eeschema/eeschema.adoc
 +++ b/doc/src/eeschema/eeschema.adoc
 @@ -1,5 +1,6 @@
@@ -54,7 +54,7 @@ index 1660473..0ecc579 100644
  :ascii-ids:
  
 diff --git a/doc/src/gerbview/gerbview.adoc b/doc/src/gerbview/gerbview.adoc
-index 0c88398..4708ac2 100644
+index 1be8bfe..1e974f2 100644
 --- a/doc/src/gerbview/gerbview.adoc
 +++ b/doc/src/gerbview/gerbview.adoc
 @@ -1,5 +1,6 @@
@@ -65,7 +65,7 @@ index 0c88398..4708ac2 100644
  :ascii-ids:
  
 diff --git a/doc/src/getting_started_in_kicad/getting_started_in_kicad.adoc b/doc/src/getting_started_in_kicad/getting_started_in_kicad.adoc
-index 1443dde..17b1b16 100644
+index 98fc8b6..31a8702 100644
 --- a/doc/src/getting_started_in_kicad/getting_started_in_kicad.adoc
 +++ b/doc/src/getting_started_in_kicad/getting_started_in_kicad.adoc
 @@ -1,5 +1,6 @@
@@ -76,7 +76,7 @@ index 1443dde..17b1b16 100644
  :ascii-ids:
  
 diff --git a/doc/src/gui_translation_howto/gui_translation_howto.adoc b/doc/src/gui_translation_howto/gui_translation_howto.adoc
-index 8eeff10..b0bf3d9 100644
+index 2461fa1..86a90bb 100644
 --- a/doc/src/gui_translation_howto/gui_translation_howto.adoc
 +++ b/doc/src/gui_translation_howto/gui_translation_howto.adoc
 @@ -1,5 +1,6 @@
@@ -98,7 +98,7 @@ index 57e3e9e..d99bec7 100644
  :ascii-ids:
  
 diff --git a/doc/src/kicad/kicad.adoc b/doc/src/kicad/kicad.adoc
-index 1f17b45..b26fb75 100644
+index 173dab8..37f78f7 100644
 --- a/doc/src/kicad/kicad.adoc
 +++ b/doc/src/kicad/kicad.adoc
 @@ -1,5 +1,6 @@
@@ -131,7 +131,7 @@ index d27a65a..2af44d6 100644
  :ascii-ids:
  
 diff --git a/doc/src/plugins/plugins.adoc b/doc/src/plugins/plugins.adoc
-index e91d64d..6cdfdc6 100644
+index da10b65..6628fe1 100644
 --- a/doc/src/plugins/plugins.adoc
 +++ b/doc/src/plugins/plugins.adoc
 @@ -1,5 +1,6 @@
