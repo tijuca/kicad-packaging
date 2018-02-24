@@ -16,7 +16,7 @@ usr/bin/kicad
 usr/bin/pcb_calculator
 usr/bin/pcbnew
 usr/bin/pl_editor
-usr/lib/kicad
+usr/lib/@DEB_HOST_MULTIARCH@/kicad
 usr/lib/python2.7/dist-packages
 usr/share/applications
 debian/man/*                     usr/share/man/man1
