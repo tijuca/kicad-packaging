@@ -57,12 +57,6 @@ DEB_I18N_CMAKE_OPTS := \
 	-DKICAD_I18N_UNIX_STRICT_PATH=ON \
 	$(NULL)
 
-DEB_LIBRARIES_CMAKE_OPTS := \
-	-DCMAKE_INSTALL_PREFIX=/usr \
-	-DCMAKE_CXX_FLAGS="$(CXXFLAGS)" \
-	-DCMAKE_SHARED_LINKER_FLAGS_RELEASE="$(LDFLAGS)" \
-	$(NULL)
-
 %:
 	dh $@ --with-python2 --parallel
 
@@ -75,8 +69,6 @@ override_dh_auto_configure:
 	dh_auto_configure --sourcedirectory=$(CURDIR)/doc --builddirectory=$(DEB_BUILD_DIR)/doc -- $(DEB_DOC_CMAKE_OPTS)
 	# configuring KiCad i18n files
 	dh_auto_configure --sourcedirectory=$(CURDIR)/i18n --builddirectory=$(DEB_BUILD_DIR)/i18n -- $(DEB_I18N_CMAKE_OPTS)
-	# configuring KiCad libraries
-	dh_auto_configure --sourcedirectory=$(CURDIR)/libraries/kicad-library --builddirectory=$(DEB_BUILD_DIR)/libraries -- $(DEB_LIBRARIES_CMAKE_OPTS)
 
 override_dh_auto_build:
 	# The other parts of KiCad like documentation, i18n files and the
@@ -92,12 +84,6 @@ override_dh_auto_install:
 	dh_auto_install --destdir=$(INSTDIR) --sourcedirectory=$(CURDIR)/doc --builddirectory=$(DEB_BUILD_DIR)/doc
 	# installing KiCad i18n files
 	dh_auto_install --destdir=$(INSTDIR) --sourcedirectory=$(CURDIR)/i18n --builddirectory=$(DEB_BUILD_DIR)/i18n
-	# fix permissions of libraries (if needed) before installing
-	for f in `find $(CURDIR)/libraries/ -type f -name "*.kicad_mod"`; do \
-		chmod 644 $$f; \
-	done
-	# install KiCad libraries
-	dh_auto_install --destdir=$(INSTDIR) --sourcedirectory=$(CURDIR)/libraries/kicad-library --builddirectory=$(DEB_BUILD_DIR)/libraries
 	# some tweaks before running the next dh sequencers
 	# fixing icon sizes
 	images=$$(find $(INSTDIR)/usr/share/icons/hicolor/48x48 -name "*.png"); \
