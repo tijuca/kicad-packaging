@@ -1,9 +1,0 @@
-# install the *.pretty directories
-libraries/*.pretty           usr/share/kicad/modules
-usr/share/doc/kicad/scripts
-usr/share/icons
-usr/share/kicad
-usr/share/locale
-usr/share/mime
-# Don't install the mimelnk folder any more, it was needed for KDE3!
-#usr/share/mimelnk
