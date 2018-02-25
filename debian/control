@@ -77,7 +77,6 @@ Homepage: http://www.kicad-pcb.org
 Package: kicad
 Architecture: any
 Depends:
- kicad-common (>= ${source:Version}),
  python-wxgtk3.0,
  ${misc:Depends},
  ${python:Depends},
@@ -86,7 +85,12 @@ Suggests:
  extra-xdg-menus,
  kicad-doc-ca | kicad-doc-de | kicad-doc-en | kicad-doc-es | kicad-doc-fr | kicad-doc-it | kicad-doc-ja | kicad-doc-nl | kicad-doc-pl | kicad-doc-ru,
 Recommends:
+ kicad-libraries,
  xsltproc,
+Breaks:
+ kicad-common (<< 5.0.0~rc1+dfsg1-1~),
+Replaces:
+ kicad-common (<< 5.0.0~rc1+dfsg1-1~),
 Description: Electronic schematic and PCB design software
  Kicad is a suite of programs for the creation of printed circuit boards.
  It includes a schematic editor, a PCB layout tool, support tools and a
@@ -110,18 +114,20 @@ Description: Electronic schematic and PCB design software
   * Most components have corresponding 3D models
 
 Package: kicad-common
-Architecture: any
-Multi-Arch: foreign
+Architecture: all
+Section: oldlibs
 Depends:
- python,
+ kicad-libraries,
  ${misc:Depends},
-Recommends:
- kicad,
-Description: Common files used by kicad
- This package contains the component libararies (schematics and footprints),
- also the 3D modell libraries. Also this package contains the i18n language
- files for KiCad and common used scripts, templates, demos, Python scripting
- plugins and MIME links.
+Description: Old common files used by kicad - Transitional Package
+ All the typical used an needed libraries like the schematic symbols, footprints
+ and templates are now provided by the metapackage 'kicad-libraries' which will
+ be pulled from this transitional package.
+ .
+ 3D models are moved over to package kicad-packages3d which is currently only
+ suggested due the installation size.
+ .
+ This is a transitional package. It can be safely removed.
 
 Package: kicad-doc-ca
 Section: doc
