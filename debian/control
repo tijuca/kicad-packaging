@@ -9,6 +9,7 @@ Build-Depends:
  asciidoc-base,
  asciidoc-dblatex,
  cmake,
+ chrpath,
  dblatex,
  debhelper (>= 9.20120417),
  dh-python,
