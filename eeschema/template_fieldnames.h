@@ -27,7 +27,6 @@
 #define _TEMPLATE_FIELDNAME_H_
 
 #include <richio.h>
-#include <wxstruct.h>
 #include <macros.h>
 #include <template_fieldnames_lexer.h>
 
@@ -97,7 +96,7 @@ struct TEMPLATE_FIELDNAME
      * Function Format
      * serializes this object out as text into the given OUTPUTFORMATTER.
      */
-    void Format( OUTPUTFORMATTER* out, int nestLevel ) const throw( IO_ERROR );
+    void Format( OUTPUTFORMATTER* out, int nestLevel ) const ;
 
     /**
      * Function Parse
@@ -112,7 +111,7 @@ struct TEMPLATE_FIELDNAME
      *
      * @param aSpec is the input token stream of keywords and symbols.
      */
-    void Parse( TEMPLATE_FIELDNAMES_LEXER* aSpec ) throw( IO_ERROR );
+    void Parse( TEMPLATE_FIELDNAMES_LEXER* aSpec );
 
     /**
      * Function GetDefaultFieldName
@@ -137,13 +136,13 @@ public:
      * Function Format
      * serializes this object out as text into the given OUTPUTFORMATTER.
      */
-    void Format( OUTPUTFORMATTER* out, int nestLevel ) const throw( IO_ERROR );
+    void Format( OUTPUTFORMATTER* out, int nestLevel ) const ;
 
     /**
      * Function Parse
      * fills this object from information in the input stream handled by TEMPLATE_FIELDNAMES_LEXER
      */
-    void Parse( TEMPLATE_FIELDNAMES_LEXER* in ) throw( IO_ERROR );
+    void Parse( TEMPLATE_FIELDNAMES_LEXER* in );
 
 
     /**

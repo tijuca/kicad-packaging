@@ -2,6 +2,7 @@
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
  * Copyright (C) 2014-2015  CERN
+ * Copyright (C) 2016 KiCad Developers, see AUTHORS.txt for contributors.
  * Author: Tomasz Wlostowski <tomasz.wlostowski@cern.ch>
  *
  * This program is free software: you can redistribute it and/or modify it
@@ -22,46 +23,33 @@
 #include "pns_router.h"
 #include "pns_meander_placer.h"
 
-PNS_TUNE_STATUS_POPUP::PNS_TUNE_STATUS_POPUP( PCB_EDIT_FRAME* aParent ) :
-    WX_STATUS_POPUP( aParent )
+PNS_TUNE_STATUS_POPUP::PNS_TUNE_STATUS_POPUP( EDA_DRAW_FRAME* aParent ) :
+    STATUS_TEXT_POPUP( aParent )
 {
     m_panel->SetBackgroundColour( wxColour( 64, 64, 64 ) );
-    m_statusLine = new wxStaticText( m_panel, wxID_ANY, wxEmptyString ) ;
-    m_topSizer->Add( m_statusLine, 1, wxALL | wxEXPAND, 5 );
 }
 
 
-PNS_TUNE_STATUS_POPUP::~PNS_TUNE_STATUS_POPUP()
+void PNS_TUNE_STATUS_POPUP::UpdateStatus( PNS::ROUTER* aRouter )
 {
-}
-
-
-void PNS_TUNE_STATUS_POPUP::UpdateStatus( PNS_ROUTER* aRouter )
-{
-    PNS_MEANDER_PLACER_BASE* placer = dynamic_cast<PNS_MEANDER_PLACER_BASE*>( aRouter->Placer() );
+    PNS::MEANDER_PLACER_BASE* placer = dynamic_cast<PNS::MEANDER_PLACER_BASE*>( aRouter->Placer() );
 
     if( !placer )
         return;
 
-    m_statusLine->SetLabel( placer->TuningInfo() );
-
-    wxColour color;
+    SetText( placer->TuningInfo() );
 
     switch( placer->TuningStatus() )
     {
-    case PNS_MEANDER_PLACER::TUNED:
-        color = wxColour( 0, 255, 0 );
+    case PNS::MEANDER_PLACER::TUNED:
+        SetTextColor( wxColour( 0, 255, 0 ) );
         break;
-    case PNS_MEANDER_PLACER::TOO_SHORT:
-        color = wxColour( 255, 128, 128 );
+    case PNS::MEANDER_PLACER::TOO_SHORT:
+        SetTextColor( wxColour( 255, 128, 128 ) );
         break;
-    case PNS_MEANDER_PLACER::TOO_LONG:
-        color = wxColour( 128, 128, 255 );
+    case PNS::MEANDER_PLACER::TOO_LONG:
+        SetTextColor( wxColour( 128, 128, 255 ) );
         break;
     }
-
-    m_statusLine->SetForegroundColour( color );
-
-    updateSize();
 }
 

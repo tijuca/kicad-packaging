@@ -1,8 +1,7 @@
-
 /*
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
- * Copyright (C) 2014 KiCad Developers, see CHANGELOG.TXT for contributors.
+ * Copyright (C) 2014-2017 KiCad Developers, see AUTHORS.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -22,7 +21,6 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
  */
 
-
 #include <wx/stdpaths.h>
 
 #include <fctsys.h>
@@ -34,6 +32,9 @@
 #include <kicad_string.h>
 #include <config_params.h>
 #include <wildcards_and_files_ext.h>
+#include <fp_lib_table.h>
+#include <kiway.h>
+#include <kiface_ids.h>
 
 
 PROJECT::PROJECT()
@@ -44,8 +45,6 @@ PROJECT::PROJECT()
 
 void PROJECT::ElemsClear()
 {
-    DBG( printf( "%s: clearing all _ELEMS for project %s\n", __func__, TO_UTF8( GetProjectFullName() ) );)
-
     // careful here, this should work, but the virtual destructor may not
     // be in the same link image as PROJECT.
     for( unsigned i = 0;  i < DIM( m_elems );  ++i )
@@ -110,7 +109,19 @@ const wxString PROJECT::GetProjectName() const
 }
 
 
+const wxString PROJECT::SymbolLibTableName() const
+{
+    return libTableName( "sym-lib-table" );
+}
+
+
 const wxString PROJECT::FootprintLibTblName() const
+{
+    return libTableName( "fp-lib-table" );
+}
+
+
+const wxString PROJECT::libTableName( const wxString& aLibTableName ) const
 {
     wxFileName  fn = GetProjectFullName();
     wxString    path = fn.GetPath();
@@ -139,17 +150,16 @@ const wxString PROJECT::FootprintLibTblName() const
 #endif
 
         /*
-            The footprint library table name used when no project file is passed
-            to Pcbnew or CvPcb. This is used temporarily to store the project
-            specific library table until the project file being edited is saved.
-            It is then moved to the file fp-lib-table in the folder where the
-            project file is saved.
-        */
-        fn.SetName( wxT( "prj-fp-lib-table" ) );
+         * The library table name used when no project file is passed to the appropriate
+         * code.  This is used temporarily to store the project specific library table
+         * until the project file being edited is saved.  It is then moved to the correct
+         * file in the folder where the project file is saved.
+         */
+        fn.SetName( "prj-" + aLibTableName );
     }
     else    // normal path.
     {
-        fn.SetName( wxT( "fp-lib-table" ) );
+        fn.SetName( aLibTableName );
     }
 
     fn.ClearExt();
@@ -244,10 +254,10 @@ static bool copy_pro_file_template( const SEARCH_STACK& aSearchS, const wxString
         if( !templ.IsFileReadable() )
         {
             wxString msg = wxString::Format( _(
-                    "Unable to find '%s' template config file." ),
+                    "Unable to find \"%s\" template config file." ),
                     GetChars( templateFile ) );
 
-            DisplayError( NULL, msg );
+            DisplayErrorMessage( nullptr, _( "Error copying project file template" ), msg );
 
             return false;
         }
@@ -267,7 +277,7 @@ static bool copy_pro_file_template( const SEARCH_STACK& aSearchS, const wxString
         success = wxCopyFile( kicad_pro_template, aDestination );
     else
     {
-        wxLogMessage( _( "Cannot create prj file '%s' (Directory not writable)" ),
+        wxLogMessage( _( "Cannot create prj file \"%s\" (Directory not writable)" ),
                       GetChars( aDestination) );
         success = false;
     }
@@ -306,7 +316,7 @@ wxConfigBase* PROJECT::configCreate( const SEARCH_STACK& aSList,
 void PROJECT::ConfigSave( const SEARCH_STACK& aSList, const wxString& aGroupName,
         const PARAM_CFG_ARRAY& aParams, const wxString& aFileName )
 {
-    std::auto_ptr<wxConfigBase> cfg( configCreate( aSList, aGroupName, aFileName ) );
+    std::unique_ptr<wxConfigBase> cfg( configCreate( aSList, aGroupName, aFileName ) );
 
     if( !cfg.get() )
     {
@@ -334,14 +344,14 @@ void PROJECT::ConfigSave( const SEARCH_STACK& aSList, const wxString& aGroupName
 
     cfg->SetPath( wxT( "/" ) );
 
-    // cfg is deleted here by std::auto_ptr, that saves the *.pro file to disk
+    // cfg is deleted here by std::unique_ptr, that saves the *.pro file to disk
 }
 
 
 bool PROJECT::ConfigLoad( const SEARCH_STACK& aSList, const wxString&  aGroupName,
         const PARAM_CFG_ARRAY& aParams, const wxString& aForeignProjectFileName )
 {
-    std::auto_ptr<wxConfigBase> cfg( configCreate( aSList, aGroupName, aForeignProjectFileName ) );
+    std::unique_ptr<wxConfigBase> cfg( configCreate( aSList, aGroupName, aForeignProjectFileName ) );
 
     if( !cfg.get() )
     {
@@ -378,4 +388,42 @@ const wxString PROJECT::AbsolutePath( const wxString& aFileName ) const
     }
 
     return fn.GetFullPath();
+}
+
+
+FP_LIB_TABLE* PROJECT::PcbFootprintLibs( KIWAY& aKiway )
+{
+    // This is a lazy loading function, it loads the project specific table when
+    // that table is asked for, not before.
+
+    FP_LIB_TABLE*   tbl = (FP_LIB_TABLE*) GetElem( ELEM_FPTBL );
+
+    // its gotta be NULL or a FP_LIB_TABLE, or a bug.
+    wxASSERT( !tbl || dynamic_cast<FP_LIB_TABLE*>( tbl ) );
+
+    if( !tbl )
+    {
+        // Stack the project specific FP_LIB_TABLE overlay on top of the global table.
+        // ~FP_LIB_TABLE() will not touch the fallback table, so multiple projects may
+        // stack this way, all using the same global fallback table.
+        KIFACE* kiface = aKiway.KiFACE( KIWAY::FACE_PCB );
+        if( kiface )
+            tbl = (FP_LIB_TABLE*) kiface->IfaceOrAddress( KIFACE_G_FOOTPRINT_TABLE );
+
+        wxASSERT( tbl );
+        SetElem( ELEM_FPTBL, tbl );
+
+        wxString projectFpLibTableFileName = FootprintLibTblName();
+
+        try
+        {
+            tbl->Load( projectFpLibTableFileName );
+        }
+        catch( const IO_ERROR& ioe )
+        {
+            DisplayErrorMessage( NULL, _( "Error loading project footprint library table" ), ioe.What() );
+        }
+    }
+
+    return tbl;
 }

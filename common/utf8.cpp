@@ -1,8 +1,8 @@
 /*
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
- * Copyright (C) 2013 SoftPLC Corporation, Dick Hollenbeck <dick@softplc.com>
- * Copyright (C) 2013 KiCad Developers, see CHANGELOG.TXT for contributors.
+ * Copyright (C) 2013-2017 SoftPLC Corporation, Dick Hollenbeck <dick@softplc.com>
+ * Copyright (C) 2013-2017 KiCad Developers, see CHANGELOG.TXT for contributors.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -23,6 +23,7 @@
  */
 
 #include <utf8.h>
+#include <ki_exception.h>
 
 /* THROW_IO_ERROR needs this, but it includes this file, so until some
     factoring of THROW_IO_ERROR into a separate header, defer and use the asserts.
@@ -31,6 +32,7 @@
 
 #include <assert.h>
 
+
 /*
     These are not inlined so that code space is saved by encapsulating the
     creation of intermediate objects and the referencing of wxConvUTF8.
@@ -38,8 +40,14 @@
 
 
 UTF8::UTF8( const wxString& o ) :
-    std::string( (const char*) o.utf8_str() )
+    m_s( (const char*) o.utf8_str() )
 {
+}
+
+
+wxString UTF8::wx_str() const
+{
+    return wxString( c_str(), wxConvUTF8 );
 }
 
 
@@ -51,14 +59,10 @@ UTF8::operator wxString () const
 
 UTF8& UTF8::operator=( const wxString& o )
 {
-    std::string::operator=( (const char*) o.utf8_str() );
+    m_s = (const char*) o.utf8_str();
     return *this;
 }
 
-
-#ifndef THROW_IO_ERROR
- #define THROW_IO_ERROR(x)      // nothing
-#endif
 
 // There is no wxWidgets function that does this, because wchar_t is 16 bits
 // on windows and wx wants to encode the output in UTF16 for such.
@@ -117,7 +121,7 @@ int UTF8::uni_forward( const unsigned char* aSequence, unsigned* aResult )
         ch =    ((s[0] & 0x1f) << 6) +
                 ((s[1] & 0x3f) << 0);
 
-        assert( ch > 0x007F && ch <= 0x07FF );
+        // assert( ch > 0x007F && ch <= 0x07FF );
         break;
 
     case 3:
@@ -134,7 +138,7 @@ int UTF8::uni_forward( const unsigned char* aSequence, unsigned* aResult )
                 ((s[1] & 0x3f) << 6 ) +
                 ((s[2] & 0x3f) << 0 );
 
-        assert( ch > 0x07FF && ch <= 0xFFFF );
+        // assert( ch > 0x07FF && ch <= 0xFFFF );
         break;
 
     case 4:
@@ -152,7 +156,7 @@ int UTF8::uni_forward( const unsigned char* aSequence, unsigned* aResult )
                 ((s[2] & 0x3f) << 6 ) +
                 ((s[3] & 0x3f) << 0 );
 
-        assert( ch > 0xFFFF && ch <= 0x10ffff );
+        // assert( ch > 0xFFFF && ch <= 0x10ffff );
         break;
     }
 
@@ -163,9 +167,39 @@ int UTF8::uni_forward( const unsigned char* aSequence, unsigned* aResult )
 }
 
 
+bool IsUTF8( const char* aString )
+{
+    int len = strlen( aString );
+
+    if( len )
+    {
+        const unsigned char* next = (unsigned char*) aString;
+        const unsigned char* end  = next + len;
+
+        try
+        {
+            while( next < end )
+            {
+                next += UTF8::uni_forward( next, NULL );
+            }
+
+            // uni_forward() should find the exact end if it is truly UTF8
+            if( next > end )
+                return false;
+        }
+        catch( const IO_ERROR& ioe )
+        {
+            return false;
+        }
+    }
+
+    return true;
+}
+
+
 UTF8::UTF8( const wchar_t* txt ) :
     // size initial string safely large enough, then shrink to known size later.
-    std::string( wcslen( txt ) * 4, 0 )
+    m_s( wcslen( txt ) * 4, 0 )
 {
     /*
 
@@ -178,9 +212,26 @@ UTF8::UTF8( const wchar_t* txt ) :
 
     */
 
-    int sz = wxConvUTF8.WC2MB( (char*) data(), txt, size() );
+    int sz = wxConvUTF8.WC2MB( (char*) m_s.data(), txt, m_s.size() );
 
-    resize( sz );
+    m_s.resize( sz );
+}
+
+
+UTF8& UTF8::operator+=( unsigned w_ch )
+{
+    if( w_ch <= 0x7F )
+        m_s.operator+=( char( w_ch ) );
+    else
+    {
+        wchar_t wide_chr[2];    // buffer to store wide chars (UTF16) read from aText
+        wide_chr[1] = 0;
+        wide_chr[0] = w_ch;
+        UTF8 substr( wide_chr );
+        m_s += substr.m_s;
+    }
+
+    return (UTF8&) *this;
 }
 
 

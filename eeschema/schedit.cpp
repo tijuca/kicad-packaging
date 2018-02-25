@@ -2,8 +2,8 @@
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
  * Copyright (C) 2015 Jean-Pierre Charras, jp.charras at wanadoo.fr
- * Copyright (C) 2008-2013 Wayne Stambaugh <stambaughw@verizon.net>
- * Copyright (C) 2004-2015 KiCad Developers, see change_log.txt for contributors.
+ * Copyright (C) 2008-2017 Wayne Stambaugh <stambaughw@verizon.net>
+ * Copyright (C) 2004-2017 KiCad Developers, see AUTHORS.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -34,13 +34,13 @@
 #include <class_drawpanel.h>
 #include <confirm.h>
 #include <eda_doc.h>
-#include <schframe.h>
+#include <sch_edit_frame.h>
 #include <kicad_device_context.h>
 #include <hotkeys_basic.h>
 
 #include <general.h>
 #include <eeschema_id.h>
-#include <protos.h>
+#include <list_operations.h>
 #include <class_library.h>
 #include <sch_bus_entry.h>
 #include <sch_marker.h>
@@ -85,7 +85,7 @@ void SCH_EDIT_FRAME::Process_Special_Functions( wxCommandEvent& event )
     case ID_POPUP_PLACE_BLOCK:
     case ID_POPUP_ZOOM_BLOCK:
     case ID_POPUP_DRAG_BLOCK:
-    case ID_POPUP_COPY_BLOCK:
+    case ID_POPUP_DUPLICATE_BLOCK:
     case ID_POPUP_SCH_DELETE_NODE:
     case ID_POPUP_SCH_DELETE_CONNECTION:
     case ID_POPUP_SCH_ENTER_SHEET:
@@ -108,9 +108,8 @@ void SCH_EDIT_FRAME::Process_Special_Functions( wxCommandEvent& event )
         break;
 
     default:
-
         // Stop the current command and deselect the current tool
-        m_canvas->EndMouseCapture( ID_NO_TOOL_SELECTED, m_canvas->GetDefaultCursor() );
+        SetNoToolSelected();
         break;
     }
 
@@ -124,15 +123,23 @@ void SCH_EDIT_FRAME::Process_Special_Functions( wxCommandEvent& event )
         SetRepeatItem( NULL );
         break;
 
-    case wxID_CUT:
+    case wxID_CUT: // save and delete block
+    case ID_POPUP_CUT_BLOCK:
+
         if( screen->m_BlockLocate.GetCommand() != BLOCK_MOVE )
             break;
-
-        screen->m_BlockLocate.SetCommand( BLOCK_DELETE );
+        screen->m_BlockLocate.SetCommand( BLOCK_CUT );
         screen->m_BlockLocate.SetMessageBlock( this );
         HandleBlockEnd( &dc );
         SetRepeatItem( NULL );
         SetSheetNumberAndCount();
+        break;
+
+    case wxID_COPY:         // really this is a Save block for paste
+    case ID_POPUP_COPY_BLOCK:
+        screen->m_BlockLocate.SetCommand( BLOCK_COPY );
+        screen->m_BlockLocate.SetMessageBlock( this );
+        HandleBlockEnd( &dc );
         break;
 
     case wxID_PASTE:
@@ -157,14 +164,14 @@ void SCH_EDIT_FRAME::Process_Special_Functions( wxCommandEvent& event )
         }
         else
         {
-            SetToolID( ID_NO_TOOL_SELECTED, m_canvas->GetDefaultCursor(), wxEmptyString );
+            SetNoToolSelected();
         }
 
         break;
 
     case ID_POPUP_END_LINE:
         m_canvas->MoveCursorToCrossHair();
-        EndSegment( &dc );
+        EndSegment();
         break;
 
     case ID_POPUP_SCH_BEGIN_WIRE:
@@ -185,37 +192,22 @@ void SCH_EDIT_FRAME::Process_Special_Functions( wxCommandEvent& event )
     case ID_POPUP_SCH_DELETE_CONNECTION:
         m_canvas->MoveCursorToCrossHair();
         DeleteConnection( id == ID_POPUP_SCH_DELETE_CONNECTION );
+        SchematicCleanUp( true );
         screen->SetCurItem( NULL );
         SetRepeatItem( NULL );
-        screen->TestDanglingEnds( m_canvas, &dc );
+
+        screen->TestDanglingEnds();
         m_canvas->Refresh();
+
         break;
 
     case ID_POPUP_SCH_BREAK_WIRE:
         {
-            DLIST< SCH_ITEM > oldWires;
-
-            oldWires.SetOwnership( false );      // Prevent DLIST for deleting items in destructor.
+            SaveWireImage();
             m_canvas->MoveCursorToCrossHair();
-            screen->ExtractWires( oldWires, true );
-            screen->BreakSegment( GetCrossHairPosition() );
-
-            if( oldWires.GetCount() != 0 )
-            {
-                PICKED_ITEMS_LIST oldItems;
-
-                oldItems.m_Status = UR_WIRE_IMAGE;
-
-                while( oldWires.GetCount() != 0 )
-                {
-                    ITEM_PICKER picker = ITEM_PICKER( oldWires.PopFront(), UR_WIRE_IMAGE );
-                    oldItems.PushItem( picker );
-                }
-
-                SaveCopyInUndoList( oldItems, UR_WIRE_IMAGE );
-            }
-
-            screen->TestDanglingEnds( m_canvas, &dc );
+            BreakSegments( GetCrossHairPosition() );
+            if( screen->TestDanglingEnds() )
+                m_canvas->Refresh();
         }
         break;
 
@@ -225,10 +217,12 @@ void SCH_EDIT_FRAME::Process_Special_Functions( wxCommandEvent& event )
             break;
 
         DeleteItem( item );
+        SchematicCleanUp( true );
         screen->SetCurItem( NULL );
         SetRepeatItem( NULL );
-        screen->TestDanglingEnds( m_canvas, &dc );
+        screen->TestDanglingEnds();
         SetSheetNumberAndCount();
+        m_canvas->Refresh();
         OnModify();
         break;
 
@@ -239,7 +233,10 @@ void SCH_EDIT_FRAME::Process_Special_Functions( wxCommandEvent& event )
 
     case ID_POPUP_SCH_RESIZE_SHEET:
         ReSizeSheet( (SCH_SHEET*) item, &dc );
-        screen->TestDanglingEnds( m_canvas, &dc );
+
+        if( screen->TestDanglingEnds() )
+            m_canvas->Refresh();
+
         break;
 
     case ID_POPUP_IMPORT_HLABEL_TO_SHEETPIN:
@@ -275,7 +272,6 @@ void SCH_EDIT_FRAME::Process_Special_Functions( wxCommandEvent& event )
         break;
 
     case ID_POPUP_SCH_EDIT_CONVERT_CMP:
-
         // Ensure the struct is a component (could be a struct of a component, like Field, text..)
         if( item && item->Type() == SCH_COMPONENT_T )
         {
@@ -286,21 +282,14 @@ void SCH_EDIT_FRAME::Process_Special_Functions( wxCommandEvent& event )
         break;
 
     case ID_POPUP_SCH_DISPLAYDOC_CMP:
-
         // Ensure the struct is a component (could be a piece of a component, like Field, text..)
         if( item && item->Type() == SCH_COMPONENT_T )
         {
-            if( PART_LIBS* libs = Prj().SchLibs() )
-            {
-                LIB_ALIAS* entry = libs->FindLibraryEntry( ( (SCH_COMPONENT*) item )->GetPartName() );
+            wxString text = static_cast<SCH_COMPONENT*>( item )->
+                                    GetField( DATASHEET )->GetFullyQualifiedText();
 
-                if( entry && !!entry->GetDocFileName() )
-                {
-                    SEARCH_STACK* lib_search = Prj().SchSearchS();
-
-                    GetAssociatedDocument( this, entry->GetDocFileName(), lib_search );
-                }
-            }
+            if( !text.IsEmpty() )
+                GetAssociatedDocument( this, text );
         }
         break;
 
@@ -308,7 +297,7 @@ void SCH_EDIT_FRAME::Process_Special_Functions( wxCommandEvent& event )
 
         if( item && (item->Type() == SCH_SHEET_T) )
         {
-            m_CurrentSheet->Push( (SCH_SHEET*) item );
+            m_CurrentSheet->push_back( (SCH_SHEET*) item );
             DisplayCurrentSheet();
         }
 
@@ -317,16 +306,10 @@ void SCH_EDIT_FRAME::Process_Special_Functions( wxCommandEvent& event )
     case ID_POPUP_SCH_LEAVE_SHEET:
         if( m_CurrentSheet->Last() != g_RootSheet )
         {
-            m_CurrentSheet->Pop();
+            m_CurrentSheet->pop_back();
             DisplayCurrentSheet();
         }
 
-        break;
-
-    case wxID_COPY:         // really this is a Save block for paste
-        screen->m_BlockLocate.SetCommand( BLOCK_SAVE );
-        screen->m_BlockLocate.SetMessageBlock( this );
-        HandleBlockEnd( &dc );
         break;
 
     case ID_POPUP_PLACE_BLOCK:
@@ -352,12 +335,12 @@ void SCH_EDIT_FRAME::Process_Special_Functions( wxCommandEvent& event )
         SetSheetNumberAndCount();
         break;
 
-    case ID_POPUP_COPY_BLOCK:
+    case ID_POPUP_DUPLICATE_BLOCK:
         if( screen->m_BlockLocate.GetCommand() != BLOCK_MOVE )
             break;
 
         m_canvas->MoveCursorToCrossHair();
-        screen->m_BlockLocate.SetCommand( BLOCK_COPY );
+        screen->m_BlockLocate.SetCommand( BLOCK_DUPLICATE );
         screen->m_BlockLocate.SetMessageBlock( this );
         HandleBlockEnd( &dc );
         break;
@@ -374,8 +357,11 @@ void SCH_EDIT_FRAME::Process_Special_Functions( wxCommandEvent& event )
 
     case ID_POPUP_SCH_ADD_JUNCTION:
         m_canvas->MoveCursorToCrossHair();
-        screen->SetCurItem( AddJunction( &dc, GetCrossHairPosition(), true ) );
-        screen->TestDanglingEnds( m_canvas, &dc );
+        screen->SetCurItem( AddJunction( GetCrossHairPosition() ) );
+
+        if( screen->TestDanglingEnds() )
+            m_canvas->Refresh();
+
         screen->SetCurItem( NULL );
         break;
 
@@ -509,6 +495,7 @@ void SCH_EDIT_FRAME::OnCancelCurrentCommand( wxCommandEvent& aEvent )
 void SCH_EDIT_FRAME::OnSelectTool( wxCommandEvent& aEvent )
 {
     int id = aEvent.GetId();
+    int lastToolID = GetToolId();
 
     // Stop the current command and deselect the current tool.
     m_canvas->EndMouseCapture( ID_NO_TOOL_SELECTED, m_canvas->GetDefaultCursor() );
@@ -516,11 +503,19 @@ void SCH_EDIT_FRAME::OnSelectTool( wxCommandEvent& aEvent )
     switch( id )
     {
     case ID_NO_TOOL_SELECTED:
-        SetToolID( id, m_canvas->GetDefaultCursor(), _( "No tool selected" ) );
+        SetNoToolSelected();
         break;
 
-    case ID_HIERARCHY_PUSH_POP_BUTT:
-        SetToolID( id, wxCURSOR_HAND, _( "Descend or ascend hierarchy" ) );
+    case ID_HIGHLIGHT:
+        SetToolID( id, wxCURSOR_HAND, _("Highlight specific net") );
+        break;
+
+    case ID_ZOOM_SELECTION:
+        // This tool is located on the main toolbar: switch it on or off on click
+        if( lastToolID != ID_ZOOM_SELECTION )
+            SetToolID( ID_ZOOM_SELECTION, wxCURSOR_MAGNIFIER, _( "Zoom to selection" ) );
+        else
+            SetNoToolSelected();
         break;
 
     case ID_NOCONN_BUTT:
@@ -595,6 +590,18 @@ void SCH_EDIT_FRAME::OnSelectTool( wxCommandEvent& aEvent )
         SetToolID( id, wxCURSOR_BULLSEYE, _( "Delete item" ) );
         break;
 
+#ifdef KICAD_SPICE
+    case ID_SIM_PROBE:
+        SetToolID( id, -1, _( "Add a simulator probe" ) );
+        m_canvas->SetCursor( CURSOR_PROBE );
+        break;
+
+    case ID_SIM_TUNE:
+        SetToolID( id, -1, _( "Select a value to be tuned" ) );
+        m_canvas->SetCursor( CURSOR_TUNE );
+        break;
+#endif /* KICAD_SPICE */
+
     default:
         SetRepeatItem( NULL );
     }
@@ -614,8 +621,7 @@ void SCH_EDIT_FRAME::OnSelectTool( wxCommandEvent& aEvent )
 
 void SCH_EDIT_FRAME::OnUpdateSelectTool( wxUpdateUIEvent& aEvent )
 {
-    if( aEvent.GetEventObject() == m_drawToolBar )
-        aEvent.Check( GetToolId() == aEvent.GetId() );
+    aEvent.Check( GetToolId() == aEvent.GetId() );
 }
 
 
@@ -627,7 +633,8 @@ void SCH_EDIT_FRAME::DeleteConnection( bool aFullConnection )
 
     if( screen->GetConnection( pos, pickList, aFullConnection ) != 0 )
     {
-        DeleteItemsInList( m_canvas, pickList );
+        DeleteItemsInList( pickList );
+        SchematicCleanUp( true );
         OnModify();
     }
 }
@@ -648,8 +655,8 @@ bool SCH_EDIT_FRAME::DeleteItemAtCrossHair( wxDC* DC )
         SetRepeatItem( NULL );
         DeleteItem( item );
 
-        if( itemHasConnections )
-            screen->TestDanglingEnds( m_canvas, DC );
+        if( itemHasConnections && screen->TestDanglingEnds() )
+            m_canvas->Refresh();
 
         OnModify();
         return true;
@@ -678,7 +685,7 @@ static void moveItemWithMouseCursor( EDA_DRAW_PANEL* aPanel, wxDC* aDC,
     if( aErase )
     {
         if( cmp )   // Use fast mode (do not draw pin texts)
-            cmp->Draw( aPanel, aDC, wxPoint( 0, 0 ), g_XorMode, UNSPECIFIED_COLOR, false );
+            cmp->Draw( aPanel, aDC, wxPoint( 0, 0 ), g_XorMode, COLOR4D::UNSPECIFIED, false );
         else
             item->Draw( aPanel, aDC, wxPoint( 0, 0 ), g_XorMode );
     }
@@ -693,7 +700,7 @@ static void moveItemWithMouseCursor( EDA_DRAW_PANEL* aPanel, wxDC* aDC,
     item->SetWireImage();  // While moving, the item may choose to render differently
 
     if( cmp )   // Use fast mode (do not draw pin texts)
-        cmp->Draw( aPanel, aDC, wxPoint( 0, 0 ), g_XorMode, UNSPECIFIED_COLOR, false );
+        cmp->Draw( aPanel, aDC, wxPoint( 0, 0 ), g_XorMode, COLOR4D::UNSPECIFIED, false );
     else
         item->Draw( aPanel, aDC, wxPoint( 0, 0 ), g_XorMode );
 }
@@ -765,6 +772,13 @@ void SCH_EDIT_FRAME::PrepareMoveItem( SCH_ITEM* aItem, wxDC* aDC )
             SetUndoItem( aItem );
     }
 
+    if( aItem->Type() == SCH_FIELD_T && aItem->GetParent()->Type() == SCH_COMPONENT_T )
+    {
+        // Now that we're moving a field, they're no longer autoplaced.
+        SCH_COMPONENT *parent = static_cast<SCH_COMPONENT*>( aItem->GetParent() );
+        parent->ClearFieldsAutoplaced();
+    }
+
     aItem->SetFlags( IS_MOVED );
 
     // For some items, moving the cursor to anchor is not good
@@ -779,7 +793,15 @@ void SCH_EDIT_FRAME::PrepareMoveItem( SCH_ITEM* aItem, wxDC* aDC )
         aItem->SetStoredPos( wxPoint( 0,0 ) );
     }
     else
-        aItem->SetStoredPos( GetCrossHairPosition() - aItem->GetPosition() );
+    {
+        // Round the point under the cursor to a multiple of the grid
+        wxPoint cursorpos = GetCrossHairPosition() - aItem->GetPosition();
+        wxPoint gridsize = GetScreen()->GetGridSize();
+        cursorpos.x = ( cursorpos.x / gridsize.x ) * gridsize.x;
+        cursorpos.y = ( cursorpos.y / gridsize.y ) * gridsize.y;
+
+        aItem->SetStoredPos( cursorpos );
+    }
 
     OnModify();
 
@@ -787,6 +809,32 @@ void SCH_EDIT_FRAME::PrepareMoveItem( SCH_ITEM* aItem, wxDC* aDC )
     m_canvas->SetMouseCapture( moveItemWithMouseCursor, abortMoveItem );
 
     m_canvas->Refresh();
+}
+
+
+void SCH_EDIT_FRAME::SelectAllFromSheet( wxCommandEvent& aEvent )
+{
+    SCH_SCREEN* screen = GetScreen();
+    SCH_ITEM*   item = screen->GetCurItem();
+
+    if( item != NULL )
+    {
+        item = LocateAndShowItem( item->GetPosition() );
+        SendMessageToPCBNEW( item, NULL );
+    }
+    else
+    {
+        // If we didn't get here by a hot key, then something has gone wrong.
+        if( aEvent.GetInt() == 0 )
+            return;
+
+        EDA_HOTKEY_CLIENT_DATA* data = (EDA_HOTKEY_CLIENT_DATA*) aEvent.GetClientObject();
+
+        wxCHECK_RET( data != NULL, wxT( "Invalid hot key client object." ) );
+
+        item = LocateAndShowItem( data->GetPosition() );
+        SendMessageToPCBNEW( item, NULL );
+    }
 }
 
 
@@ -826,26 +874,42 @@ void SCH_EDIT_FRAME::OnRotate( wxCommandEvent& aEvent )
     switch( item->Type() )
     {
     case SCH_COMPONENT_T:
-        if( aEvent.GetId() == ID_SCH_ROTATE_CLOCKWISE )
-            OrientComponent( CMP_ROTATE_CLOCKWISE );
-        else if( aEvent.GetId() == ID_SCH_ROTATE_COUNTERCLOCKWISE )
-            OrientComponent( CMP_ROTATE_COUNTERCLOCKWISE );
-        else
-            wxFAIL_MSG( wxT( "Unknown rotate item command ID." ) );
+        {
+            SCH_COMPONENT* component = static_cast<SCH_COMPONENT*>( item );
+            if( aEvent.GetId() == ID_SCH_ROTATE_CLOCKWISE )
+                OrientComponent( CMP_ROTATE_CLOCKWISE );
+            else if( aEvent.GetId() == ID_SCH_ROTATE_COUNTERCLOCKWISE )
+                OrientComponent( CMP_ROTATE_COUNTERCLOCKWISE );
+            else
+                wxFAIL_MSG( wxT( "Unknown rotate item command ID." ) );
 
-        break;
+            if( m_autoplaceFields )
+                component->AutoAutoplaceFields( GetScreen() );
+
+            m_canvas->Refresh();
+
+            break;
+        }
 
     case SCH_TEXT_T:
     case SCH_LABEL_T:
     case SCH_GLOBAL_LABEL_T:
     case SCH_HIERARCHICAL_LABEL_T:
         m_canvas->MoveCursorToCrossHair();
-        ChangeTextOrient( (SCH_TEXT*) item, &dc );
+        ChangeTextOrient( (SCH_TEXT*) item );
+        m_canvas->Refresh();
         break;
 
     case SCH_FIELD_T:
         m_canvas->MoveCursorToCrossHair();
-        RotateField( (SCH_FIELD*) item, &dc );
+        RotateField( (SCH_FIELD*) item );
+        if( item->GetParent()->Type() == SCH_COMPONENT_T )
+        {
+            // Now that we're moving a field, they're no longer autoplaced.
+            SCH_COMPONENT *parent = static_cast<SCH_COMPONENT*>( item->GetParent() );
+            parent->ClearFieldsAutoplaced();
+        }
+        m_canvas->Refresh();
         break;
 
     case SCH_BITMAP_T:
@@ -986,6 +1050,8 @@ void SCH_EDIT_FRAME::OnEditItem( wxCommandEvent& aEvent )
         break;
 
     case SCH_LINE_T:        // These items have no param to edit
+        EditLine( (SCH_LINE*) item, true );
+        break;
     case SCH_MARKER_T:
     case SCH_JUNCTION_T:
     case SCH_NO_CONNECT_T:
@@ -1126,16 +1192,24 @@ void SCH_EDIT_FRAME::OnOrient( wxCommandEvent& aEvent )
     switch( item->Type() )
     {
     case SCH_COMPONENT_T:
-        if( aEvent.GetId() == ID_SCH_MIRROR_X )
-            OrientComponent( CMP_MIRROR_X );
-        else if( aEvent.GetId() == ID_SCH_MIRROR_Y )
-            OrientComponent( CMP_MIRROR_Y );
-        else if( aEvent.GetId() == ID_SCH_ORIENT_NORMAL )
-            OrientComponent( CMP_NORMAL );
-        else
-            wxFAIL_MSG( wxT( "Invalid orient schematic component command ID." ) );
+        {
+            SCH_COMPONENT *component = static_cast<SCH_COMPONENT*>( item );
+            if( aEvent.GetId() == ID_SCH_MIRROR_X )
+                OrientComponent( CMP_MIRROR_X );
+            else if( aEvent.GetId() == ID_SCH_MIRROR_Y )
+                OrientComponent( CMP_MIRROR_Y );
+            else if( aEvent.GetId() == ID_SCH_ORIENT_NORMAL )
+                OrientComponent( CMP_NORMAL );
+            else
+                wxFAIL_MSG( wxT( "Invalid orient schematic component command ID." ) );
 
-        break;
+            if( m_autoplaceFields )
+                component->AutoAutoplaceFields( GetScreen() );
+
+            m_canvas->Refresh();
+
+            break;
+        }
 
     case SCH_BITMAP_T:
         if( aEvent.GetId() == ID_SCH_MIRROR_X )

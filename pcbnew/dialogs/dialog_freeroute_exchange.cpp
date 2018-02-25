@@ -30,8 +30,10 @@
 #include <kiface_i.h>
 #include <confirm.h>
 #include <gestfich.h>
+#include <wildcards_and_files_ext.h>
+
 #include <pcbnew.h>
-#include <wxPcbStruct.h>
+#include <pcb_edit_frame.h>
 #include <macros.h>
 #include <class_board.h>
 
@@ -56,9 +58,18 @@ DIALOG_FREEROUTE::DIALOG_FREEROUTE( PCB_EDIT_FRAME* parent ):
     DIALOG_FREEROUTE_BASE( parent )
 {
     m_Parent = parent;
-    MyInit();
+    init();
 
-    m_sdbSizerOK->SetDefault();
+    m_sdbSizerCancel->SetDefault();
+
+    // Rename "Cancel" button label to "Close", because:
+    // wxFormBuilder has no option to create/rename a Close button in the wxStdDialogButtonSizer
+    // and a Cancel button (id = wxID_CANCEL) is mandatory to allow dismiss dialog by ESC key
+    wxButton* button = dynamic_cast<wxButton*>( wxWindow::FindWindowById( wxID_CANCEL, this ) );
+
+    if( button )
+        button->SetLabel( _( "Close" ) );
+
     GetSizer()->SetSizeHints( this );
     Centre();
 }
@@ -66,7 +77,7 @@ DIALOG_FREEROUTE::DIALOG_FREEROUTE( PCB_EDIT_FRAME* parent ):
 
 
 // Specific data initialization
-void DIALOG_FREEROUTE::MyInit()
+void DIALOG_FREEROUTE::init()
 {
     SetFocus();
     m_freeRouterFound = false;
@@ -104,12 +115,6 @@ void DIALOG_FREEROUTE::OnExportButtonClick( wxCommandEvent& event )
 void DIALOG_FREEROUTE::OnImportButtonClick( wxCommandEvent& event )
 {
     m_Parent->ImportSpecctraSession(  event );
-
-    /* Connectivity must be rebuild.
-     * because for large board it can take some time, this is made only on demand
-     */
-    if( IsOK( this, _("Do you want to rebuild connectivity data ?" ) ) )
-        m_Parent->Compile_Ratsnest( NULL, true );
 }
 
 
@@ -187,11 +192,11 @@ void DIALOG_FREEROUTE::OnLaunchButtonClick( wxCommandEvent& event )
 const wxString DIALOG_FREEROUTE::createDSN_File()
 {
     wxFileName fn( m_Parent->GetBoard()->GetFileName() );
-    wxString dsn_ext = wxT( "dsn" );
+    wxString dsn_ext = SpecctraDsnFileExtension;
     fn.SetExt( dsn_ext );
-    wxString mask    = wxT( "*." ) + dsn_ext;
+    wxString mask    = SpecctraDsnFileWildcard();
 
-    wxString fullFileName = EDA_FILE_SELECTOR( _( "Specctra DSN file:" ),
+    wxString fullFileName = EDA_FILE_SELECTOR( _( "Specctra DSN File" ),
                                                fn.GetPath(), fn.GetFullName(),
                                                dsn_ext, mask,
                                                this, wxFD_SAVE, false );

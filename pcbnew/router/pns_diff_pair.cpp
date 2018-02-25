@@ -2,6 +2,7 @@
  * KiRouter - a push-and-(sometimes-)shove PCB router
  *
  * Copyright (C) 2013-2015 CERN
+ * Copyright (C) 2016 KiCad Developers, see AUTHORS.txt for contributors.
  * Author: Tomasz Wlostowski <tomasz.wlostowski@cern.ch>
  *
  * This program is free software: you can redistribute it and/or modify it
@@ -18,28 +19,29 @@
  * with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <boost/foreach.hpp>
-
 #include <cstdio>
 #include <cstdlib>
+#include <cmath>
 #include <limits>
 
+#include <geometry/direction45.h>
 #include <geometry/shape.h>
 #include <geometry/shape_rect.h>
 #include <geometry/shape_circle.h>
 #include <geometry/shape_segment.h>
 
-#include "direction.h"
 
 #include "pns_diff_pair.h"
 #include "pns_router.h"
 #include "pns_solid.h"
 #include "pns_utils.h"
+#include "pns_debug_decorator.h"
 
+namespace PNS {
 
-class PNS_LINE;
+class LINE;
 
-PNS_DP_PRIMITIVE_PAIR::PNS_DP_PRIMITIVE_PAIR( PNS_ITEM* aPrimP, PNS_ITEM* aPrimN )
+DP_PRIMITIVE_PAIR::DP_PRIMITIVE_PAIR( ITEM* aPrimP, ITEM* aPrimN )
 {
     m_primP = aPrimP->Clone();
     m_primN = aPrimN->Clone();
@@ -49,14 +51,14 @@ PNS_DP_PRIMITIVE_PAIR::PNS_DP_PRIMITIVE_PAIR( PNS_ITEM* aPrimP, PNS_ITEM* aPrimN
 }
 
 
-void PNS_DP_PRIMITIVE_PAIR::SetAnchors( const VECTOR2I& aAnchorP, const VECTOR2I& aAnchorN )
+void DP_PRIMITIVE_PAIR::SetAnchors( const VECTOR2I& aAnchorP, const VECTOR2I& aAnchorN )
 {
     m_anchorP = aAnchorP;
     m_anchorN = aAnchorN;
 }
 
 
-PNS_DP_PRIMITIVE_PAIR::PNS_DP_PRIMITIVE_PAIR( const VECTOR2I& aAnchorP, const VECTOR2I& aAnchorN )
+DP_PRIMITIVE_PAIR::DP_PRIMITIVE_PAIR( const VECTOR2I& aAnchorP, const VECTOR2I& aAnchorN )
 {
     m_anchorP = aAnchorP;
     m_anchorN = aAnchorN;
@@ -64,7 +66,7 @@ PNS_DP_PRIMITIVE_PAIR::PNS_DP_PRIMITIVE_PAIR( const VECTOR2I& aAnchorP, const VE
 }
 
 
-PNS_DP_PRIMITIVE_PAIR::PNS_DP_PRIMITIVE_PAIR( const PNS_DP_PRIMITIVE_PAIR& aOther )
+DP_PRIMITIVE_PAIR::DP_PRIMITIVE_PAIR( const DP_PRIMITIVE_PAIR& aOther )
 {
     m_primP = m_primN = NULL;
 
@@ -79,7 +81,7 @@ PNS_DP_PRIMITIVE_PAIR::PNS_DP_PRIMITIVE_PAIR( const PNS_DP_PRIMITIVE_PAIR& aOthe
 }
 
 
-PNS_DP_PRIMITIVE_PAIR& PNS_DP_PRIMITIVE_PAIR::operator=( const PNS_DP_PRIMITIVE_PAIR& aOther )
+DP_PRIMITIVE_PAIR& DP_PRIMITIVE_PAIR::operator=( const DP_PRIMITIVE_PAIR& aOther )
 {
     if( aOther.m_primP )
         m_primP = aOther.m_primP->Clone();
@@ -93,28 +95,28 @@ PNS_DP_PRIMITIVE_PAIR& PNS_DP_PRIMITIVE_PAIR::operator=( const PNS_DP_PRIMITIVE_
 }
 
 
-PNS_DP_PRIMITIVE_PAIR::~PNS_DP_PRIMITIVE_PAIR()
+DP_PRIMITIVE_PAIR::~DP_PRIMITIVE_PAIR()
 {
     delete m_primP;
     delete m_primN;
 }
 
 
-bool PNS_DP_PRIMITIVE_PAIR::Directional() const
+bool DP_PRIMITIVE_PAIR::Directional() const
 {
     if( !m_primP )
         return false;
 
-    return m_primP->OfKind( PNS_ITEM::SEGMENT );
+    return m_primP->OfKind( ITEM::SEGMENT_T );
 }
 
 
-DIRECTION_45 PNS_DP_PRIMITIVE_PAIR::anchorDirection( PNS_ITEM* aItem, const VECTOR2I& aP ) const
+DIRECTION_45 DP_PRIMITIVE_PAIR::anchorDirection( ITEM* aItem, const VECTOR2I& aP ) const
 {
-    if( !aItem->OfKind ( PNS_ITEM::SEGMENT ) )
+    if( !aItem->OfKind ( ITEM::SEGMENT_T ) )
         return DIRECTION_45();
 
-    PNS_SEGMENT* s = static_cast<PNS_SEGMENT*>( aItem );
+    SEGMENT* s = static_cast<SEGMENT*>( aItem );
 
     if( s->Seg().A == aP )
         return DIRECTION_45( s->Seg().A - s->Seg().B );
@@ -122,29 +124,56 @@ DIRECTION_45 PNS_DP_PRIMITIVE_PAIR::anchorDirection( PNS_ITEM* aItem, const VECT
         return DIRECTION_45( s->Seg().B - s->Seg().A );
 }
 
+void DP_PRIMITIVE_PAIR::CursorOrientation( const VECTOR2I& aCursorPos, VECTOR2I& aMidpoint, VECTOR2I& aDirection ) const
+{
+    assert( m_primP && m_primN );
 
-DIRECTION_45 PNS_DP_PRIMITIVE_PAIR::DirP() const
+    VECTOR2I aP, aN, dir, midpoint;
+
+    if ( m_primP->OfKind( ITEM::SEGMENT_T ) && m_primN->OfKind( ITEM::SEGMENT_T ) )
+    {
+        aP = m_primP->Anchor( 1 );
+        aN = m_primN->Anchor( 1 );
+        midpoint = ( aP + aN ) / 2;
+        SEG s = static_cast <SEGMENT*>( m_primP )->Seg();
+
+        if ( s.B != s.A )
+        {
+            dir = s.B - s.A;
+        }
+        else
+        {
+            dir = VECTOR2I( 0, 1 );
+        }
+
+        dir = dir.Resize( ( aP - aN ).EuclideanNorm() );
+
+    }
+    else
+    {
+        aP = m_primP->Anchor( 0 );
+        aN = m_primN->Anchor( 0 );
+        midpoint = ( aP + aN ) / 2;
+        dir = ( aP - aN ).Perpendicular();
+
+        if ( dir.Dot( aCursorPos - midpoint ) < 0 )
+            dir = -dir;
+    }
+
+    aMidpoint = midpoint;
+    aDirection = dir;
+}
+
+
+DIRECTION_45 DP_PRIMITIVE_PAIR::DirP() const
 {
     return anchorDirection( m_primP, m_anchorP );
 }
 
 
-DIRECTION_45 PNS_DP_PRIMITIVE_PAIR::DirN() const
+DIRECTION_45 DP_PRIMITIVE_PAIR::DirN() const
 {
     return anchorDirection( m_primN, m_anchorN );
-}
-
-
-static void drawGw( VECTOR2I p, int color )
-{
-    SHAPE_LINE_CHAIN l;
-
-    l.Append( p - VECTOR2I( -50000, -50000 ) );
-    l.Append( p + VECTOR2I( -50000, -50000 ) );
-
-    l.Clear();
-    l.Append( p - VECTOR2I( 50000, -50000 ) );
-    l.Append( p + VECTOR2I( 50000, -50000 ) );
 }
 
 
@@ -167,7 +196,7 @@ static bool checkGap( const SHAPE_LINE_CHAIN &p, const SHAPE_LINE_CHAIN &n, int 
         {
             int dist = p.CSegment( i ).Distance( n.CSegment( j ) );
 
-            if( dist  < gap - 100 )
+            if( dist < gap - 100 )
                 return false;
         }
     }
@@ -176,14 +205,14 @@ static bool checkGap( const SHAPE_LINE_CHAIN &p, const SHAPE_LINE_CHAIN &n, int 
 }
 
 
-void PNS_DP_GATEWAY::Reverse()
+void DP_GATEWAY::Reverse()
 {
     m_entryN = m_entryN.Reverse();
     m_entryP = m_entryP.Reverse();
 }
 
 
-bool PNS_DIFF_PAIR::BuildInitial( PNS_DP_GATEWAY& aEntry, PNS_DP_GATEWAY &aTarget, bool aPrefDiagonal )
+bool DIFF_PAIR::BuildInitial( const DP_GATEWAY& aEntry, const DP_GATEWAY &aTarget, bool aPrefDiagonal )
 {
     SHAPE_LINE_CHAIN p = DIRECTION_45().BuildInitialTrace ( aEntry.AnchorP(), aTarget.AnchorP(), aPrefDiagonal );
     SHAPE_LINE_CHAIN n = DIRECTION_45().BuildInitialTrace ( aEntry.AnchorN(), aTarget.AnchorN(), aPrefDiagonal );
@@ -217,7 +246,7 @@ bool PNS_DIFF_PAIR::BuildInitial( PNS_DP_GATEWAY& aEntry, PNS_DP_GATEWAY &aTarge
 
     if( aTarget.HasEntryLines() )
     {
-        PNS_DP_GATEWAY t(aTarget) ;
+        DP_GATEWAY t(aTarget) ;
         t.Reverse();
 
         if( !CheckConnectionAngle( t.Entry(), mask ) )
@@ -243,7 +272,7 @@ bool PNS_DIFF_PAIR::BuildInitial( PNS_DP_GATEWAY& aEntry, PNS_DP_GATEWAY &aTarge
 }
 
 
-bool PNS_DIFF_PAIR::CheckConnectionAngle( const PNS_DIFF_PAIR& aOther, int aAllowedAngles ) const
+bool DIFF_PAIR::CheckConnectionAngle( const DIFF_PAIR& aOther, int aAllowedAngles ) const
 {
     bool checkP, checkN;
 
@@ -271,16 +300,16 @@ bool PNS_DIFF_PAIR::CheckConnectionAngle( const PNS_DIFF_PAIR& aOther, int aAllo
 }
 
 
-const PNS_DIFF_PAIR PNS_DP_GATEWAY::Entry() const
+const DIFF_PAIR DP_GATEWAY::Entry() const
 {
-    return PNS_DIFF_PAIR( m_entryP, m_entryN, 0 );
+    return DIFF_PAIR( m_entryP, m_entryN, 0 );
 }
 
 
-void PNS_DP_GATEWAYS::BuildOrthoProjections( PNS_DP_GATEWAYS& aEntries,
+void DP_GATEWAYS::BuildOrthoProjections( DP_GATEWAYS& aEntries,
         const VECTOR2I& aCursorPos, int aOrthoScore )
 {
-    BOOST_FOREACH( PNS_DP_GATEWAY g, aEntries.Gateways() )
+    for( const DP_GATEWAY& g : aEntries.Gateways() )
     {
         VECTOR2I midpoint( ( g.AnchorP() + g.AnchorN() ) / 2 );
         SEG guide_s( midpoint, midpoint + VECTOR2I( 1, 0 ) );
@@ -295,7 +324,7 @@ void PNS_DP_GATEWAYS::BuildOrthoProjections( PNS_DP_GATEWAYS& aEntries,
 
         VECTOR2I proj = ( dist_s < dist_d ? proj_s : proj_d );
 
-        PNS_DP_GATEWAYS targets( m_gap );
+        DP_GATEWAYS targets( m_gap );
 
         targets.m_viaGap = m_viaGap;
         targets.m_viaDiameter = m_viaDiameter;
@@ -303,7 +332,7 @@ void PNS_DP_GATEWAYS::BuildOrthoProjections( PNS_DP_GATEWAYS& aEntries,
 
         targets.BuildForCursor( proj );
 
-        BOOST_FOREACH( PNS_DP_GATEWAY t, targets.Gateways() )
+        for( DP_GATEWAY t : targets.Gateways() )
         {
             t.SetPriority( aOrthoScore );
             m_gateways.push_back( t );
@@ -312,48 +341,43 @@ void PNS_DP_GATEWAYS::BuildOrthoProjections( PNS_DP_GATEWAYS& aEntries,
 }
 
 
-bool PNS_DP_GATEWAYS::FitGateways( PNS_DP_GATEWAYS& aEntry, PNS_DP_GATEWAYS& aTarget,
-        bool aPrefDiagonal, PNS_DIFF_PAIR& aDp )
+bool DP_GATEWAYS::FitGateways( DP_GATEWAYS& aEntry, DP_GATEWAYS& aTarget,
+        bool aPrefDiagonal, DIFF_PAIR& aDp )
 {
-    std::vector<DP_CANDIDATE> candidates;
+    DP_CANDIDATE best;
 
-    BOOST_FOREACH( PNS_DP_GATEWAY g_entry, aEntry.Gateways() )
+    int n = 0;
+    int bestScore = -1000;
+    bool found = false;
+
+    for( const DP_GATEWAY& g_entry : aEntry.Gateways() )
     {
-        BOOST_FOREACH( PNS_DP_GATEWAY g_target, aTarget.Gateways() )
+        for( const DP_GATEWAY& g_target : aTarget.Gateways() )
         {
+            n++;
+
             for( int attempt = 0; attempt < 2; attempt++ )
             {
-                PNS_DIFF_PAIR l( m_gap );
+                int score = ( attempt == 1 ? -3 : 0 );
+                score += g_entry.Priority();
+                score += g_target.Priority();
+
+                if( score < bestScore )
+                    continue;
+
+                DIFF_PAIR l( m_gap );
 
                 if( l.BuildInitial( g_entry, g_target, aPrefDiagonal ^ ( attempt ? true : false ) ) )
                 {
-                    int score = ( attempt == 1 ? -3 : 0 );
-                    score +=g_entry.Priority();
-                    score +=g_target.Priority();
-
-                    DP_CANDIDATE c;
-                    c.score = score;
-                    c.p = l.CP();
-                    c.n = l.CN();
-                    candidates.push_back( c );
+                    best.p = l.CP();
+                    best.n = l.CN();
+                    bestScore = score;
+                    found = true;
                 }
             }
         }
     }
 
-    int bestScore = -1000;
-    DP_CANDIDATE best;
-    bool found = false;
-
-    BOOST_FOREACH( DP_CANDIDATE c, candidates )
-    {
-        if( c.score > bestScore )
-        {
-            bestScore = c.score;
-            best = c;
-            found = true;
-        }
-    }
 
     if( found )
     {
@@ -366,7 +390,7 @@ bool PNS_DP_GATEWAYS::FitGateways( PNS_DP_GATEWAYS& aEntry, PNS_DP_GATEWAYS& aTa
 }
 
 
-bool PNS_DP_GATEWAYS::checkDiagonalAlignment( const VECTOR2I& a, const VECTOR2I& b ) const
+bool DP_GATEWAYS::checkDiagonalAlignment( const VECTOR2I& a, const VECTOR2I& b ) const
 {
     VECTOR2I dir ( std::abs (a.x - b.x), std::abs ( a.y - b.y ));
 
@@ -374,7 +398,32 @@ bool PNS_DP_GATEWAYS::checkDiagonalAlignment( const VECTOR2I& a, const VECTOR2I&
 }
 
 
-void PNS_DP_GATEWAYS::BuildFromPrimitivePair( PNS_DP_PRIMITIVE_PAIR aPair, bool aPreferDiagonal )
+void DP_GATEWAYS::FilterByOrientation ( int aAngleMask, DIRECTION_45 aRefOrientation )
+{
+    std::remove_if( m_gateways.begin(), m_gateways.end(), [aAngleMask, aRefOrientation]( const DP_GATEWAY& dp) {
+        DIRECTION_45 orient( dp.AnchorP() - dp.AnchorN() );
+        return !( orient.Angle( aRefOrientation ) & aAngleMask );
+    } );
+}
+
+static VECTOR2I makeGapVector( VECTOR2I dir, int length )
+{
+    int l = length / 2;
+    VECTOR2I rv;
+
+    if( dir.EuclideanNorm() == 0 )
+        return dir;
+
+    do
+	{
+        rv = dir.Resize( l );
+        l++;
+    } while( ( rv * 2 ).EuclideanNorm() < length );
+
+    return rv;
+}
+
+void DP_GATEWAYS::BuildFromPrimitivePair( const DP_PRIMITIVE_PAIR& aPair, bool aPreferDiagonal )
 {
     VECTOR2I majorDirection;
     VECTOR2I p0_p, p0_n;
@@ -388,7 +437,7 @@ void PNS_DP_GATEWAYS::BuildFromPrimitivePair( PNS_DP_PRIMITIVE_PAIR aPair, bool 
         return;
     }
 
-    const int pvMask = PNS_ITEM::SOLID | PNS_ITEM::VIA;
+    const int pvMask = ITEM::SOLID_T | ITEM::VIA_T;
 
     if( aPair.PrimP()->OfKind( pvMask ) && aPair.PrimN()->OfKind(  pvMask ) )
     {
@@ -397,7 +446,7 @@ void PNS_DP_GATEWAYS::BuildFromPrimitivePair( PNS_DP_PRIMITIVE_PAIR aPair, bool 
 
         shP = aPair.PrimP()->Shape();
     }
-    else if( aPair.PrimP()->OfKind( PNS_ITEM::SEGMENT ) && aPair.PrimN()->OfKind( PNS_ITEM::SEGMENT ) )
+    else if( aPair.PrimP()->OfKind( ITEM::SEGMENT_T ) && aPair.PrimN()->OfKind( ITEM::SEGMENT_T ) )
     {
         buildDpContinuation( aPair, aPreferDiagonal );
 
@@ -419,8 +468,8 @@ void PNS_DP_GATEWAYS::BuildFromPrimitivePair( PNS_DP_PRIMITIVE_PAIR aPair, bool 
         if( w < h )
             std::swap( w, h );
 
-        orthoFanDistance = w * 3/4;
-        diagFanDistance = ( w - h ) / 2;
+        orthoFanDistance = ( w + 1 )* 3 / 2;
+        diagFanDistance = ( w - h );
         break;
     }
 
@@ -429,8 +478,8 @@ void PNS_DP_GATEWAYS::BuildFromPrimitivePair( PNS_DP_PRIMITIVE_PAIR aPair, bool 
         int w = static_cast<const SHAPE_SEGMENT*>( shP )->GetWidth();
         SEG s = static_cast<const SHAPE_SEGMENT*>( shP )->GetSeg();
 
-        orthoFanDistance = w + ( s.B - s.A ).EuclideanNorm() / 2;
-        diagFanDistance = ( s.B - s.A ).EuclideanNorm() / 2;
+        orthoFanDistance = w + ( s.B - s.A ).EuclideanNorm();
+        diagFanDistance = ( s.B - s.A ).EuclideanNorm();
         break;
     }
 
@@ -449,18 +498,17 @@ void PNS_DP_GATEWAYS::BuildFromPrimitivePair( PNS_DP_PRIMITIVE_PAIR aPair, bool 
 
             if( k == 0 )
             {
-                dir = majorDirection.Resize( orthoFanDistance );
-                int d = ( padDist - m_gap ) / 2;
-
-                dp = dir.Resize( d );
-                dv = ( p0_n - p0_p ).Resize( d );
+                dir = makeGapVector( majorDirection, orthoFanDistance );
+                int d = ( padDist - m_gap );
+                dp = makeGapVector( dir, d );
+                dv = makeGapVector( p0_n - p0_p, d );
             }
             else
             {
-                dir = majorDirection.Resize( diagFanDistance );
-                int d = ( padDist - m_gap ) / 2;
-                dp = dir.Resize( d );
-                dv = ( p0_n - p0_p ).Resize( d );
+                dir = makeGapVector( majorDirection, diagFanDistance );
+                int d = ( padDist - m_gap );
+                dp = makeGapVector( dir, d );
+                dv = makeGapVector( p0_n - p0_p, d );
             }
 
             for( int i = 0; i < 2; i++ )
@@ -473,7 +521,7 @@ void PNS_DP_GATEWAYS::BuildFromPrimitivePair( PNS_DP_PRIMITIVE_PAIR aPair, bool 
                 SHAPE_LINE_CHAIN entryP( p0_p, p0_p + sign * dir, gw_p );
                 SHAPE_LINE_CHAIN entryN( p0_n, p0_n + sign * dir, gw_n );
 
-                PNS_DP_GATEWAY gw( gw_p, gw_n, false );
+                DP_GATEWAY gw( gw_p, gw_n, false );
 
                 gw.SetEntryLines( entryP, entryN );
                 gw.SetPriority( 100 - k );
@@ -486,7 +534,7 @@ void PNS_DP_GATEWAYS::BuildFromPrimitivePair( PNS_DP_PRIMITIVE_PAIR aPair, bool 
 }
 
 
-void PNS_DP_GATEWAYS::BuildForCursor( const VECTOR2I& aCursorPos )
+void DP_GATEWAYS::BuildForCursor( const VECTOR2I& aCursorPos )
 {
     int gap = m_fitVias ? m_viaGap + m_viaDiameter : m_gap;
 
@@ -498,7 +546,7 @@ void PNS_DP_GATEWAYS::BuildForCursor( const VECTOR2I& aCursorPos )
 
             if( !attempt )
             {
-                dir = VECTOR2I( gap, gap ).Resize( gap / 2 );
+                dir = makeGapVector( VECTOR2I( gap, gap ), gap );
 
                 if( i % 2 == 0 )
                     dir.x = -dir.x;
@@ -509,27 +557,25 @@ void PNS_DP_GATEWAYS::BuildForCursor( const VECTOR2I& aCursorPos )
             else
             {
                 if( i /2 == 0 )
-                    dir = VECTOR2I( gap / 2 * ( ( i % 2 ) ? -1 : 1 ), 0 );
+                    dir = VECTOR2I( (gap + 1) / 2 * ( ( i % 2 ) ? -1 : 1 ), 0 );
                 else
-                    dir = VECTOR2I( 0, gap / 2 * ( ( i % 2 ) ? -1 : 1) );
+                    dir = VECTOR2I( 0, (gap + 1) / 2 * ( ( i % 2 ) ? -1 : 1) );
             }
 
             if( m_fitVias )
                 BuildGeneric( aCursorPos + dir, aCursorPos - dir, true, true );
             else
-                m_gateways.push_back( PNS_DP_GATEWAY( aCursorPos + dir,
+                m_gateways.push_back( DP_GATEWAY( aCursorPos + dir,
                                       aCursorPos - dir, attempt ? true : false ) );
 
-            drawGw ( aCursorPos + dir, 2 );
-            drawGw ( aCursorPos - dir, 3 );
         }
     }
 }
 
 
-void PNS_DP_GATEWAYS::buildEntries( const VECTOR2I& p0_p, const VECTOR2I& p0_n )
+void DP_GATEWAYS::buildEntries( const VECTOR2I& p0_p, const VECTOR2I& p0_n )
 {
-    BOOST_FOREACH( PNS_DP_GATEWAY &g, m_gateways )
+    for( DP_GATEWAY &g : m_gateways )
     {
         if( !g.HasEntryLines() )
         {
@@ -541,9 +587,9 @@ void PNS_DP_GATEWAYS::buildEntries( const VECTOR2I& p0_p, const VECTOR2I& p0_n )
 }
 
 
-void PNS_DP_GATEWAYS::buildDpContinuation( PNS_DP_PRIMITIVE_PAIR aPair, bool aIsDiagonal )
+void DP_GATEWAYS::buildDpContinuation( const DP_PRIMITIVE_PAIR& aPair, bool aIsDiagonal )
 {
-    PNS_DP_GATEWAY gw( aPair.AnchorP(), aPair.AnchorN(), aIsDiagonal );
+    DP_GATEWAY gw( aPair.AnchorP(), aPair.AnchorN(), aIsDiagonal );
     gw.SetPriority( 100 );
     m_gateways.push_back( gw );
 
@@ -558,30 +604,32 @@ void PNS_DP_GATEWAYS::buildDpContinuation( PNS_DP_PRIMITIVE_PAIR aPair, bool aIs
     VECTOR2I vdP = aPair.AnchorP() + dP.Left().ToVector();
     VECTOR2I vdN = aPair.AnchorN() + dN.Left().ToVector();
 
-    PNS_SEGMENT* sP = static_cast<PNS_SEGMENT*>( aPair.PrimP() );
+    SEGMENT* sP = static_cast<SEGMENT*>( aPair.PrimP() );
 
     VECTOR2I t1, t2;
 
+    auto vL = makeGapVector( dP.Left().ToVector(), ( gap + 1 ) / 2 );
+    auto vR = makeGapVector( dP.Right().ToVector(), ( gap + 1 ) / 2 );
+
     if( sP->Seg().Side( vdP ) == sP->Seg().Side( vdN ) )
     {
-        t1 = aPair.AnchorP() + dP.Left().ToVector().Resize( gap );
-        t2 = aPair.AnchorN() + dP.Right().ToVector().Resize( gap );
+        t1 = aPair.AnchorP() + vL;
+        t2 = aPair.AnchorN() + vR;
     }
     else
     {
-        t1 = aPair.AnchorP() + dP.Right().ToVector().Resize( gap );
-        t2 = aPair.AnchorN() + dP.Left().ToVector().Resize( gap );
+        t1 = aPair.AnchorP() + vR;
+        t2 = aPair.AnchorN() + vL;
     }
 
-    PNS_DP_GATEWAY gwL( t2, aPair.AnchorN(), !aIsDiagonal );
+    DP_GATEWAY gwL( t2, aPair.AnchorN(), !aIsDiagonal );
     SHAPE_LINE_CHAIN ep = dP.BuildInitialTrace( aPair.AnchorP(), t2, !aIsDiagonal );
-
     gwL.SetPriority( 10 );
     gwL.SetEntryLines( ep , SHAPE_LINE_CHAIN() );
 
     m_gateways.push_back( gwL );
 
-    PNS_DP_GATEWAY gwR( aPair.AnchorP(), t1, !aIsDiagonal );
+    DP_GATEWAY gwR( aPair.AnchorP(), t1, !aIsDiagonal );
     SHAPE_LINE_CHAIN en = dP.BuildInitialTrace( aPair.AnchorN(), t1, !aIsDiagonal );
     gwR.SetPriority( 10) ;
     gwR.SetEntryLines( SHAPE_LINE_CHAIN(), en );
@@ -590,7 +638,7 @@ void PNS_DP_GATEWAYS::buildDpContinuation( PNS_DP_PRIMITIVE_PAIR aPair, bool aIs
 }
 
 
-void PNS_DP_GATEWAYS::BuildGeneric( const VECTOR2I& p0_p, const VECTOR2I& p0_n, bool aBuildEntries, bool aViaMode )
+void DP_GATEWAYS::BuildGeneric( const VECTOR2I& p0_p, const VECTOR2I& p0_n, bool aBuildEntries, bool aViaMode )
 {
     SEG st_p[2], st_n[2];
     SEG d_n[2], d_p[2];
@@ -615,19 +663,19 @@ void PNS_DP_GATEWAYS::BuildGeneric( const VECTOR2I& p0_p, const VECTOR2I& p0_n, 
 
         if( straightColl || diagColl )
         {
-            VECTOR2I dir = ( p0_n - p0_p ).Resize( m_gap / 2 );
+            VECTOR2I dir = makeGapVector( p0_n - p0_p, m_gap / 2 );
             VECTOR2I m = ( p0_p + p0_n ) / 2;
             int prio = ( padDist > padToGapThreshold * m_gap ? 2 : 1);
 
             if( !aViaMode )
             {
-                m_gateways.push_back( PNS_DP_GATEWAY( m - dir, m + dir, diagColl, DIRECTION_45::ANG_RIGHT, prio ) );
+                m_gateways.push_back( DP_GATEWAY( m - dir, m + dir, diagColl, DIRECTION_45::ANG_RIGHT, prio ) );
 
-                dir = ( p0_n - p0_p ).Resize( m_gap );
-                m_gateways.push_back( PNS_DP_GATEWAY( p0_p - dir, p0_p - dir + dir.Perpendicular(), diagColl ) );
-                m_gateways.push_back( PNS_DP_GATEWAY( p0_p - dir, p0_p - dir - dir.Perpendicular(), diagColl ) );
-                m_gateways.push_back( PNS_DP_GATEWAY( p0_n + dir + dir.Perpendicular(), p0_n + dir, diagColl ) );
-                m_gateways.push_back( PNS_DP_GATEWAY( p0_n + dir - dir.Perpendicular(), p0_n + dir, diagColl ) );
+                dir = makeGapVector( p0_n - p0_p, 2 * m_gap );
+                m_gateways.push_back( DP_GATEWAY( p0_p - dir, p0_p - dir + dir.Perpendicular(), diagColl ) );
+                m_gateways.push_back( DP_GATEWAY( p0_p - dir, p0_p - dir - dir.Perpendicular(), diagColl ) );
+                m_gateways.push_back( DP_GATEWAY( p0_n + dir + dir.Perpendicular(), p0_n + dir, diagColl ) );
+                m_gateways.push_back( DP_GATEWAY( p0_n + dir - dir.Perpendicular(), p0_n + dir, diagColl ) );
             }
         }
     }
@@ -642,9 +690,9 @@ void PNS_DP_GATEWAYS::BuildGeneric( const VECTOR2I& p0_p, const VECTOR2I& p0_n, 
             ips[1] = st_p[i].IntersectLines( st_n[j] );
 
             if( d_n[i].Collinear( d_p[j] ) )
-                ips[0] = boost::none;
+                ips[0] = OPT_VECTOR2I();
             if( st_p[i].Collinear( st_p[j] ) )
-                ips[1] = boost::none;
+                ips[1] = OPT_VECTOR2I();
 
             // diagonal-diagonal and straight-straight cases - the most typical case if the pads
             // are on the same straight/diagonal line
@@ -657,10 +705,10 @@ void PNS_DP_GATEWAYS::BuildGeneric( const VECTOR2I& p0_p, const VECTOR2I& p0_n, 
                     if( m != p0_p && m != p0_n )
                     {
                         int prio = ( padDist > padToGapThreshold * m_gap ? 10 : 20 );
-                        VECTOR2I g_p( ( p0_p - m ).Resize( (double) m_gap * M_SQRT1_2 ) );
-                        VECTOR2I g_n( ( p0_n - m ).Resize( (double) m_gap * M_SQRT1_2 ) );
+                        VECTOR2I g_p( ( p0_p - m ).Resize( ceil( (double) m_gap * M_SQRT1_2 ) ) );
+                        VECTOR2I g_n( ( p0_n - m ).Resize( ceil( (double) m_gap * M_SQRT1_2 ) ) );
 
-                        m_gateways.push_back( PNS_DP_GATEWAY( m + g_p, m + g_n, k == 0 ? true : false, DIRECTION_45::ANG_OBTUSE, prio ) );
+                        m_gateways.push_back( DP_GATEWAY( m + g_p, m + g_n, k == 0 ? true : false, DIRECTION_45::ANG_OBTUSE, prio ) );
                     }
                 }
             }
@@ -679,17 +727,17 @@ void PNS_DP_GATEWAYS::BuildGeneric( const VECTOR2I& p0_p, const VECTOR2I& p0_n, 
                     {
                         VECTOR2I g_p, g_n;
 
-                        g_p = ( p0_p - m ).Resize( (double) m_gap * M_SQRT2 );
-                        g_n = ( p0_n - m ).Resize( (double) m_gap );
+                        g_p = ( p0_p - m ).Resize( ceil( (double) m_gap * M_SQRT2 ) );
+                        g_n = ( p0_n - m ).Resize( ceil( (double) m_gap ) );
 
                         if( angle( g_p, g_n ) != DIRECTION_45::ANG_ACUTE )
-                            m_gateways.push_back( PNS_DP_GATEWAY( m + g_p, m + g_n, true ) );
+                            m_gateways.push_back( DP_GATEWAY( m + g_p, m + g_n, true ) );
 
                         g_p = ( p0_p - m ).Resize( m_gap );
-                        g_n = ( p0_n - m ).Resize( (double) m_gap * M_SQRT2 );
+                        g_n = ( p0_n - m ).Resize( ceil( (double) m_gap * M_SQRT2 ) );
 
                         if( angle( g_p, g_n ) != DIRECTION_45::ANG_ACUTE )
-                            m_gateways.push_back( PNS_DP_GATEWAY( m + g_p, m + g_n, true ) );
+                            m_gateways.push_back( DP_GATEWAY( m + g_p, m + g_n, true ) );
                     }
                 }
             }
@@ -701,19 +749,19 @@ void PNS_DP_GATEWAYS::BuildGeneric( const VECTOR2I& p0_p, const VECTOR2I& p0_n, 
 }
 
 
-PNS_DP_PRIMITIVE_PAIR PNS_DIFF_PAIR::EndingPrimitives()
+DP_PRIMITIVE_PAIR DIFF_PAIR::EndingPrimitives()
 {
     if( m_hasVias )
-        return PNS_DP_PRIMITIVE_PAIR( &m_via_p, &m_via_n );
+        return DP_PRIMITIVE_PAIR( &m_via_p, &m_via_n );
     else
     {
-        const PNS_LINE lP( PLine() );
-        const PNS_LINE lN( NLine() );
+        const LINE lP( PLine() );
+        const LINE lN( NLine() );
 
-        PNS_SEGMENT sP( lP, lP.CSegment( -1 ) );
-        PNS_SEGMENT sN( lN, lN.CSegment( -1 ) );
+        SEGMENT sP( lP, lP.CSegment( -1 ) );
+        SEGMENT sN( lN, lN.CSegment( -1 ) );
 
-        PNS_DP_PRIMITIVE_PAIR dpair( &sP, &sN );
+        DP_PRIMITIVE_PAIR dpair( &sP, &sN );
         dpair.SetAnchors( sP.Seg().B, sN.Seg().B );
 
         return dpair;
@@ -763,13 +811,13 @@ bool commonParallelProjection( SEG n, SEG p, SEG &pClip, SEG& nClip )
 }
 
 
-double PNS_DIFF_PAIR::Skew() const
+double DIFF_PAIR::Skew() const
 {
     return m_p.Length() - m_n.Length();
 }
 
 
-void PNS_DIFF_PAIR::CoupledSegmentPairs( COUPLED_SEGMENTS_VEC& aPairs ) const
+void DIFF_PAIR::CoupledSegmentPairs( COUPLED_SEGMENTS_VEC& aPairs ) const
 {
     SHAPE_LINE_CHAIN p( m_p );
     SHAPE_LINE_CHAIN n( m_n );
@@ -798,7 +846,7 @@ void PNS_DIFF_PAIR::CoupledSegmentPairs( COUPLED_SEGMENTS_VEC& aPairs ) const
 }
 
 
-int64_t PNS_DIFF_PAIR::CoupledLength( const SHAPE_LINE_CHAIN& aP, const SHAPE_LINE_CHAIN& aN ) const
+int64_t DIFF_PAIR::CoupledLength( const SHAPE_LINE_CHAIN& aP, const SHAPE_LINE_CHAIN& aN ) const
 {
     int64_t total = 0;
 
@@ -823,7 +871,7 @@ int64_t PNS_DIFF_PAIR::CoupledLength( const SHAPE_LINE_CHAIN& aP, const SHAPE_LI
 }
 
 
-double PNS_DIFF_PAIR::CoupledLength() const
+double DIFF_PAIR::CoupledLength() const
 {
     COUPLED_SEGMENTS_VEC pairs;
 
@@ -837,7 +885,7 @@ double PNS_DIFF_PAIR::CoupledLength() const
 }
 
 
-double PNS_DIFF_PAIR::CoupledLengthFactor() const
+double DIFF_PAIR::CoupledLengthFactor() const
 {
     double t = TotalLength();
 
@@ -848,7 +896,7 @@ double PNS_DIFF_PAIR::CoupledLengthFactor() const
 }
 
 
-double PNS_DIFF_PAIR::TotalLength() const
+double DIFF_PAIR::TotalLength() const
 {
     double lenP = m_p.Length();
     double lenN = m_n.Length();
@@ -857,7 +905,7 @@ double PNS_DIFF_PAIR::TotalLength() const
 }
 
 
-int PNS_DIFF_PAIR::CoupledLength ( const SEG& aP, const SEG& aN ) const
+int DIFF_PAIR::CoupledLength ( const SEG& aP, const SEG& aN ) const
 {
     SEG p_clip, n_clip;
     int64_t dist = std::abs( aP.Distance( aN ) - m_width );
@@ -867,4 +915,6 @@ int PNS_DIFF_PAIR::CoupledLength ( const SEG& aP, const SEG& aN ) const
         return p_clip.Length();
 
     return 0;
+}
+
 }

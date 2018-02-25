@@ -2,7 +2,7 @@
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
  * Copyright (C) 2012 CERN
- * Copyright (C) 1992-2011 KiCad Developers, see change_log.txt for contributors.
+ * Copyright (C) 1992-2017 KiCad Developers, see AUTHORS.txt for contributors.
  *
  *
  * This program is free software; you can redistribute it and/or
@@ -36,6 +36,12 @@
 
 #include <common.h>
 #include <convert_to_biu.h>
+
+/// Convert mm to mils.
+inline int Mm2mils( double x ) { return KiROUND( x * 1000./25.4 ); }
+
+/// Convert mils to mm.
+inline int Mils2mm( double x ) { return KiROUND( x * 25.4 / 1000. ); }
 
 /** Helper function Double2Str to print a float number without
  * using scientific notation and no trailing 0
@@ -91,7 +97,7 @@ wxString CoordinateToString( int aValue, bool aConvertToMils = false );
 wxString AngleToStringDegrees( double aAngle );
 
 /**
- * Function LenghtDoubleToString
+ * Function LengthDoubleToString
  * is a helper to convert the \a double length \a aValue to a string in inches,
  * millimeters, or unscaled units according to the current user units setting.
  *
@@ -190,5 +196,30 @@ int ValueFromString( const wxString& aTextValue );
  *  and the selected unit (g_UserUnit) and put it in the wxTextCtrl TextCtrl
  */
 int ValueFromTextCtrl( const wxTextCtrl& aTextCtr );
+
+/**
+ * Returns the units symbol.
+ *
+ * @param aUnits - Units type, default is current units setting.
+ * @param aFormatString - A formatting string to embed the units symbol into.  Note:
+ *                        the format string must contain the %s format specifier.
+ * @return The formatted units symbol.
+ */
+wxString ReturnUnitSymbol( EDA_UNITS_T aUnits = g_UserUnit,
+                           const wxString& aFormatString = " (%s):" );
+
+/**
+ * Get a human readable units string.
+ *
+ * The strings returned are full text name and not abbreviations or symbolic
+ * representations of the units.  Use ReturnUnitSymbol() for that.
+ *
+ * @param aUnits - The units text to return.
+ * @return The human readable units string.
+ */
+wxString GetUnitsLabel( EDA_UNITS_T aUnits );
+wxString GetAbbreviatedUnitsLabel( EDA_UNITS_T aUnit = g_UserUnit );
+
+void AddUnitSymbol( wxStaticText& Stext, EDA_UNITS_T aUnit = g_UserUnit );
 
 #endif   // _BASE_UNITS_H_

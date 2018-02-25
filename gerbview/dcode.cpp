@@ -1,9 +1,9 @@
 /*
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
- * Copyright (C) 2009 Jean-Pierre Charras, jean-pierre.charras@gipsa-lab.inpg.fr
+ * Copyright (C) 2016 Jean-Pierre Charras, jp.charras at wanadoo.fr
  * Copyright (C) 2011 Wayne Stambaugh <stambaughw@verizon.net>
- * Copyright (C) 1992-2011 KiCad Developers, see AUTHORS.txt for contributors.
+ * Copyright (C) 1992-2016 KiCad Developers, see AUTHORS.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -31,18 +31,14 @@
 #include <fctsys.h>
 #include <common.h>
 #include <class_drawpanel.h>
-#include <confirm.h>
-#include <macros.h>
 #include <trigo.h>
-#include <gr_basic.h>
-#include <base_units.h>
 
-#include <gerbview.h>
 #include <gerbview_frame.h>
-#include <class_gerber_draw_item.h>
-#include <class_GERBER.h>
+#include <gerber_file_image.h>
+#include <convert_to_biu.h>
+#include <convert_basic_shapes_to_polygon.h>
 
-#define DEFAULT_SIZE 100
+#define DCODE_DEFAULT_SIZE Millimeter2iu( 0.1 )
 
 /* Format Gerber: NOTES:
  * Tools and D_CODES
@@ -82,8 +78,8 @@ D_CODE::~D_CODE()
 
 void D_CODE::Clear_D_CODE_Data()
 {
-    m_Size.x     = DEFAULT_SIZE;
-    m_Size.y     = DEFAULT_SIZE;
+    m_Size.x     = DCODE_DEFAULT_SIZE;
+    m_Size.y     = DCODE_DEFAULT_SIZE;
     m_Shape      = APT_CIRCLE;
     m_Drill.x    = m_Drill.y = 0;
     m_DrillShape = APT_DEF_NO_HOLE;
@@ -92,7 +88,7 @@ void D_CODE::Clear_D_CODE_Data()
     m_Macro      = NULL;
     m_Rotation   = 0.0;
     m_EdgesCount = 0;
-    m_PolyCorners.clear();
+    m_Polygon.RemoveAllContours();
 }
 
 
@@ -155,65 +151,8 @@ int D_CODE::GetShapeDim( GERBER_DRAW_ITEM* aParent )
 }
 
 
-void GERBVIEW_FRAME::CopyDCodesSizeToItems()
-{
-    static D_CODE dummy( 999 );   //Used if D_CODE not found in list
-
-    GERBER_DRAW_ITEM* gerb_item = GetItemsList();
-    for( ; gerb_item; gerb_item = gerb_item->Next() )
-    {
-        D_CODE*           dcode     = gerb_item->GetDcodeDescr();
-        wxASSERT( dcode );
-        if( dcode == NULL )
-            dcode = &dummy;
-
-        dcode->m_InUse = true;
-
-        gerb_item->m_Size = dcode->m_Size;
-
-        if(                                             // Line Item
-            (gerb_item->m_Shape == GBR_SEGMENT )        /* rectilinear segment */
-            || (gerb_item->m_Shape == GBR_ARC )         /* segment arc (rounded tips) */
-            || (gerb_item->m_Shape == GBR_CIRCLE )      /* segment in a circle (ring) */
-            )
-        {
-        }
-        else        // Spots ( Flashed Items )
-        {
-            switch( dcode->m_Shape )
-            {
-            case APT_CIRCLE:        /* spot round */
-                gerb_item->m_Shape = GBR_SPOT_CIRCLE;
-                break;
-
-            case APT_OVAL:          /* spot oval*/
-                gerb_item->m_Shape = GBR_SPOT_OVAL;
-                break;
-
-            case APT_RECT:                /* spot rect*/
-                gerb_item->m_Shape = GBR_SPOT_RECT;
-                break;
-
-            case APT_POLYGON:
-                gerb_item->m_Shape = GBR_SPOT_POLY;
-                break;
-
-            case APT_MACRO:                /* spot defined by a macro */
-                gerb_item->m_Shape = GBR_SPOT_MACRO;
-                break;
-
-            default:
-                wxMessageBox( wxT( "GERBVIEW_FRAME::CopyDCodesSizeToItems() error" ) );
-                break;
-            }
-        }
-    }
-}
-
-
 void D_CODE::DrawFlashedShape(  GERBER_DRAW_ITEM* aParent,
-                                EDA_RECT* aClipBox, wxDC* aDC, EDA_COLOR_T aColor,
-                                EDA_COLOR_T aAltColor,
+                                EDA_RECT* aClipBox, wxDC* aDC, COLOR4D aColor,
                                 wxPoint aShapePos, bool aFilledShape )
 {
     int radius;
@@ -221,7 +160,7 @@ void D_CODE::DrawFlashedShape(  GERBER_DRAW_ITEM* aParent,
     switch( m_Shape )
     {
     case APT_MACRO:
-        GetMacro()->DrawApertureMacroShape( aParent, aClipBox, aDC, aColor, aAltColor,
+        GetMacro()->DrawApertureMacroShape( aParent, aClipBox, aDC, aColor,
                                             aShapePos, aFilledShape);
         break;
 
@@ -235,7 +174,7 @@ void D_CODE::DrawFlashedShape(  GERBER_DRAW_ITEM* aParent,
                 GRFilledCircle( aClipBox, aDC, aParent->GetABPosition(aShapePos),
                                 radius, aColor );
             }
-            else if( APT_DEF_ROUND_HOLE == 1 )    // round hole in shape
+            else if( m_DrillShape == APT_DEF_ROUND_HOLE )    // round hole in shape
             {
                 int width = (m_Size.x - m_Drill.x ) / 2;
                 GRCircle( aClipBox, aDC,  aParent->GetABPosition(aShapePos),
@@ -243,7 +182,7 @@ void D_CODE::DrawFlashedShape(  GERBER_DRAW_ITEM* aParent,
             }
             else                            // rectangular hole
             {
-                if( m_PolyCorners.size() == 0 )
+                if( m_Polygon.OutlineCount() == 0 )
                     ConvertShapeToPolygon();
 
                 DrawFlashedPolygon( aParent, aClipBox, aDC, aColor, aFilledShape, aShapePos );
@@ -269,7 +208,7 @@ void D_CODE::DrawFlashedShape(  GERBER_DRAW_ITEM* aParent,
         }
         else
         {
-            if( m_PolyCorners.size() == 0 )
+            if( m_Polygon.OutlineCount() == 0 )
                 ConvertShapeToPolygon();
 
             DrawFlashedPolygon( aParent, aClipBox, aDC, aColor, aFilledShape, aShapePos );
@@ -310,7 +249,7 @@ void D_CODE::DrawFlashedShape(  GERBER_DRAW_ITEM* aParent,
         }
         else
         {
-            if( m_PolyCorners.size() == 0 )
+            if( m_Polygon.OutlineCount() == 0 )
                 ConvertShapeToPolygon();
 
             DrawFlashedPolygon( aParent, aClipBox, aDC, aColor, aFilledShape, aShapePos );
@@ -319,7 +258,7 @@ void D_CODE::DrawFlashedShape(  GERBER_DRAW_ITEM* aParent,
     break;
 
     case APT_POLYGON:
-        if( m_PolyCorners.size() == 0 )
+        if( m_Polygon.OutlineCount() == 0 )
             ConvertShapeToPolygon();
 
         DrawFlashedPolygon( aParent, aClipBox, aDC, aColor, aFilledShape, aShapePos );
@@ -330,30 +269,32 @@ void D_CODE::DrawFlashedShape(  GERBER_DRAW_ITEM* aParent,
 
 void D_CODE::DrawFlashedPolygon( GERBER_DRAW_ITEM* aParent,
                                  EDA_RECT* aClipBox, wxDC* aDC,
-                                 EDA_COLOR_T aColor, bool aFilled,
+                                 COLOR4D aColor, bool aFilled,
                                  const wxPoint& aPosition )
 {
-    if( m_PolyCorners.size() == 0 )
+    if( m_Polygon.OutlineCount() == 0 )
         return;
 
+    int pointCount = m_Polygon.VertexCount();
     std::vector<wxPoint> points;
-    points = m_PolyCorners;
+    points.reserve( pointCount );
 
-    for( unsigned ii = 0; ii < points.size(); ii++ )
+    for( int ii = 0; ii < pointCount; ii++ )
     {
-        points[ii] += aPosition;
+        wxPoint p( m_Polygon.Vertex( ii ).x, m_Polygon.Vertex( ii ).y );
+        points[ii] = p + aPosition;
         points[ii] = aParent->GetABPosition( points[ii] );
     }
 
-    GRClosedPoly( aClipBox, aDC, points.size(), &points[0], aFilled, aColor, aColor );
+    GRClosedPoly( aClipBox, aDC, pointCount, &points[0], aFilled, aColor, aColor );
 }
 
 
-#define SEGS_CNT 32     // number of segments to approximate a circle
+#define SEGS_CNT 64     // number of segments to approximate a circle
 
 
 // A helper function for D_CODE::ConvertShapeToPolygon().   Add a hole to a polygon
-static void addHoleToPolygon( std::vector<wxPoint>& aBuffer,
+static void addHoleToPolygon( SHAPE_POLY_SET*       aPolygon,
                               APERTURE_DEF_HOLETYPE aHoleShape,
                               wxSize                aSize,
                               wxPoint               aAnchorPos );
@@ -364,43 +305,37 @@ void D_CODE::ConvertShapeToPolygon()
     wxPoint initialpos;
     wxPoint currpos;
 
-    m_PolyCorners.clear();
+    m_Polygon.RemoveAllContours();
 
     switch( m_Shape )
     {
     case APT_CIRCLE:        // creates only a circle with rectangular hole
-        currpos.x  = m_Size.x >> 1;
-        initialpos = currpos;
-
-        for( unsigned ii = 0; ii <= SEGS_CNT; ii++ )
-        {
-            currpos = initialpos;
-            RotatePoint( &currpos, ii * 3600.0 / SEGS_CNT );
-            m_PolyCorners.push_back( currpos );
-        }
-
-        addHoleToPolygon( m_PolyCorners, m_DrillShape, m_Drill, initialpos );
+        TransformCircleToPolygon( m_Polygon, initialpos, m_Size.x >> 1, SEGS_CNT );
+        addHoleToPolygon( &m_Polygon, m_DrillShape, m_Drill, initialpos );
         break;
 
     case APT_RECT:
+        m_Polygon.NewOutline();
         currpos.x  = m_Size.x / 2;
         currpos.y  = m_Size.y / 2;
         initialpos = currpos;
-        m_PolyCorners.push_back( currpos );
+        m_Polygon.Append( VECTOR2I( currpos ) );
         currpos.x -= m_Size.x;
-        m_PolyCorners.push_back( currpos );
+        m_Polygon.Append( VECTOR2I( currpos ) );
         currpos.y -= m_Size.y;
-        m_PolyCorners.push_back( currpos );
+        m_Polygon.Append( VECTOR2I( currpos ) );
         currpos.x += m_Size.x;
-        m_PolyCorners.push_back( currpos );
+        m_Polygon.Append( VECTOR2I( currpos ) );
         currpos.y += m_Size.y;
-        m_PolyCorners.push_back( currpos );    // close polygon
+        m_Polygon.Append( VECTOR2I( currpos ) );    // close polygon
+        m_Polygon.Append( VECTOR2I( initialpos ) );
 
-        addHoleToPolygon( m_PolyCorners, m_DrillShape, m_Drill, initialpos );
+        addHoleToPolygon( &m_Polygon, m_DrillShape, m_Drill, initialpos );
         break;
 
     case APT_OVAL:
     {
+        m_Polygon.NewOutline();
         int delta, radius;
 
         // we create an horizontal oval shape. then rotate if needed
@@ -417,7 +352,7 @@ void D_CODE::ConvertShapeToPolygon()
 
         currpos.y  = radius;
         initialpos = currpos;
-        m_PolyCorners.push_back( currpos );
+        m_Polygon.Append( VECTOR2I( currpos ) );
 
         // build the right arc of the shape
         unsigned ii = 0;
@@ -427,7 +362,7 @@ void D_CODE::ConvertShapeToPolygon()
             currpos = initialpos;
             RotatePoint( &currpos, ii * 3600.0 / SEGS_CNT );
             currpos.x += delta;
-            m_PolyCorners.push_back( currpos );
+            m_Polygon.Append( VECTOR2I( currpos ) );
         }
 
         // build the left arc of the shape
@@ -436,22 +371,23 @@ void D_CODE::ConvertShapeToPolygon()
             currpos = initialpos;
             RotatePoint( &currpos, ii * 3600.0 / SEGS_CNT );
             currpos.x -= delta;
-            m_PolyCorners.push_back( currpos );
+            m_Polygon.Append( VECTOR2I( currpos ) );
         }
 
-        m_PolyCorners.push_back( initialpos );      // close outline
+        m_Polygon.Append( VECTOR2I( initialpos ) );      // close outline
 
         if( m_Size.y > m_Size.x )                   // vertical oval, rotate polygon.
         {
-            for( unsigned jj = 0; jj < m_PolyCorners.size(); jj++ )
-                RotatePoint( &m_PolyCorners[jj], 900 );
+            for( auto it = m_Polygon.Iterate( 0 ); it; ++it )
+                it->Rotate( -M_PI / 2 );
         }
 
-        addHoleToPolygon( m_PolyCorners, m_DrillShape, m_Drill, initialpos );
+        addHoleToPolygon( &m_Polygon, m_DrillShape, m_Drill, initialpos );
     }
     break;
 
     case APT_POLYGON:
+        m_Polygon.NewOutline();
         currpos.x  = m_Size.x >> 1;     // first point is on X axis
         initialpos = currpos;
 
@@ -462,23 +398,21 @@ void D_CODE::ConvertShapeToPolygon()
         if( m_EdgesCount > 12 )
             m_EdgesCount = 12;
 
-        for( int ii = 0; ii <= m_EdgesCount; ii++ )
+        for( int ii = 0; ii < m_EdgesCount; ii++ )
         {
             currpos = initialpos;
             RotatePoint( &currpos, ii * 3600.0 / m_EdgesCount );
-            m_PolyCorners.push_back( currpos );
+            m_Polygon.Append( VECTOR2I( currpos ) );
         }
 
-        addHoleToPolygon( m_PolyCorners, m_DrillShape, m_Drill, initialpos );
+        addHoleToPolygon( &m_Polygon, m_DrillShape, m_Drill, initialpos );
 
         if( m_Rotation )                   // vertical oval, rotate polygon.
         {
             int angle = KiROUND( m_Rotation * 10 );
 
-            for( unsigned jj = 0; jj < m_PolyCorners.size(); jj++ )
-            {
-                RotatePoint( &m_PolyCorners[jj], -angle );
-            }
+            for( auto it = m_Polygon.Iterate( 0 ); it; ++it )
+                it->Rotate( -angle );
         }
 
         break;
@@ -493,39 +427,36 @@ void D_CODE::ConvertShapeToPolygon()
 
 // The helper function for D_CODE::ConvertShapeToPolygon().
 // Add a hole to a polygon
-static void addHoleToPolygon( std::vector<wxPoint>& aBuffer,
+static void addHoleToPolygon( SHAPE_POLY_SET*       aPolygon,
                               APERTURE_DEF_HOLETYPE aHoleShape,
                               wxSize                aSize,
                               wxPoint               aAnchorPos )
 {
     wxPoint currpos;
+    SHAPE_POLY_SET holeBuffer;
 
-    if( aHoleShape == APT_DEF_ROUND_HOLE )      // build a round hole
+    if( aHoleShape == APT_DEF_ROUND_HOLE )
     {
-        for( int ii = 0; ii <= SEGS_CNT; ii++ )
-        {
-            currpos.x = 0;
-            currpos.y = aSize.x / 2;            // aSize.x / 2 is the radius of the hole
-            RotatePoint( &currpos, ii * 3600.0 / SEGS_CNT );
-            aBuffer.push_back( currpos );
-        }
-
-        aBuffer.push_back( aAnchorPos );        // link to outline
+        TransformCircleToPolygon( holeBuffer, wxPoint( 0, 0 ), aSize.x / 2, SEGS_CNT );
     }
-
-    if( aHoleShape == APT_DEF_RECT_HOLE )       // Create rectangular hole
+    else if( aHoleShape == APT_DEF_RECT_HOLE )
     {
+        holeBuffer.NewOutline();
         currpos.x = aSize.x / 2;
         currpos.y = aSize.y / 2;
-        aBuffer.push_back( currpos );           // link to hole and begin hole
+        holeBuffer.Append( VECTOR2I( currpos ) );       // link to hole and begin hole
         currpos.x -= aSize.x;
-        aBuffer.push_back( currpos );
+        holeBuffer.Append( VECTOR2I( currpos ) );
         currpos.y -= aSize.y;
-        aBuffer.push_back( currpos );
+        holeBuffer.Append( VECTOR2I( currpos ) );
         currpos.x += aSize.x;
-        aBuffer.push_back( currpos );
+        holeBuffer.Append( VECTOR2I( currpos ) );
         currpos.y += aSize.y;
-        aBuffer.push_back( currpos );           // close hole
-        aBuffer.push_back( aAnchorPos );        // link to outline
+        holeBuffer.Append( VECTOR2I( currpos ) );       // close hole
     }
+
+    aPolygon->BooleanSubtract( holeBuffer, SHAPE_POLY_SET::PM_FAST );
+
+    // Needed for legacy canvas only
+    aPolygon->Fracture( SHAPE_POLY_SET::PM_FAST );
 }

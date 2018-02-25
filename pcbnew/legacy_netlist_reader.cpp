@@ -6,8 +6,8 @@
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
  * Copyright (C) 1992-2011 Jean-Pierre Charras.
- * Copyright (C) 2013 Wayne Stambaugh <stambaughw@verizon.net>.
- * Copyright (C) 1992-2011 KiCad Developers, see change_log.txt for contributors.
+ * Copyright (C) 2013-2016 Wayne Stambaugh <stambaughw@verizon.net>.
+ * Copyright (C) 1992-2016 KiCad Developers, see change_log.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -34,7 +34,7 @@
 #include <pcb_netlist.h>
 #include <netlist_reader.h>
 
-void LEGACY_NETLIST_READER::LoadNetlist() throw ( IO_ERROR, PARSE_ERROR, boost::bad_pointer )
+void LEGACY_NETLIST_READER::LoadNetlist()
 {
     int state            = 0;
     bool is_comment      = false;
@@ -58,7 +58,7 @@ void LEGACY_NETLIST_READER::LoadNetlist() throw ( IO_ERROR, PARSE_ERROR, boost::
             is_comment = true;
 
             if( m_loadFootprintFilters && state == 0
-              && (strnicmp( line, "{ Allowed footprints", 20 ) == 0) )
+              && (strncasecmp( line, "{ Allowed footprints", 20 ) == 0) )
             {
                 loadFootprintFilters();
                 continue;
@@ -97,7 +97,6 @@ void LEGACY_NETLIST_READER::LoadNetlist() throw ( IO_ERROR, PARSE_ERROR, boost::
 
 
 COMPONENT* LEGACY_NETLIST_READER::loadComponent( char* aText )
-    throw( PARSE_ERROR, boost::bad_pointer )
 {
     char*    text;
     wxString msg;
@@ -118,7 +117,7 @@ COMPONENT* LEGACY_NETLIST_READER::loadComponent( char* aText )
     // Read time stamp (first word)
     if( ( text = strtok( line, " ()\t\n" ) ) == NULL )
     {
-        msg = _( "Cannot parse time stamp in component section of netlist." );
+        msg = _( "Cannot parse time stamp in symbol section of netlist." );
         THROW_PARSE_ERROR( msg, m_lineReader->GetSource(), line, m_lineReader->LineNumber(),
                            m_lineReader->Length() );
     }
@@ -128,7 +127,7 @@ COMPONENT* LEGACY_NETLIST_READER::loadComponent( char* aText )
     // Read footprint name (second word)
     if( ( text = strtok( NULL, " ()\t\n" ) ) == NULL )
     {
-        msg = _( "Cannot parse footprint name in component section of netlist." );
+        msg = _( "Cannot parse footprint name in symbol section of netlist." );
         THROW_PARSE_ERROR( msg, m_lineReader->GetSource(), aText, m_lineReader->LineNumber(),
                            m_lineReader->Length() );
     }
@@ -142,7 +141,7 @@ COMPONENT* LEGACY_NETLIST_READER::loadComponent( char* aText )
     // Read schematic reference designator (third word)
     if( ( text = strtok( NULL, " ()\t\n" ) ) == NULL )
     {
-        msg = _( "Cannot parse reference designator in component section of netlist." );
+        msg = _( "Cannot parse reference designator in symbol section of netlist." );
         THROW_PARSE_ERROR( msg, m_lineReader->GetSource(), aText, m_lineReader->LineNumber(),
                            m_lineReader->Length() );
     }
@@ -152,7 +151,7 @@ COMPONENT* LEGACY_NETLIST_READER::loadComponent( char* aText )
     // Read schematic value (forth word)
     if( ( text = strtok( NULL, " ()\t\n" ) ) == NULL )
     {
-        msg = _( "Cannot parse value in component section of netlist." );
+        msg = _( "Cannot parse value in symbol section of netlist." );
         THROW_PARSE_ERROR( msg, m_lineReader->GetSource(), aText, m_lineReader->LineNumber(),
                            m_lineReader->Length() );
     }
@@ -166,10 +165,10 @@ COMPONENT* LEGACY_NETLIST_READER::loadComponent( char* aText )
         name = FROM_UTF8( text ).AfterFirst( wxChar( '=' ) ).BeforeLast( wxChar( '}' ) );
     }
 
-    FPID fpid;
+    LIB_ID fpid;
 
     if( !footprintName.IsEmpty() )
-        fpid.SetFootprintName( footprintName );
+        fpid.SetLibItemName( footprintName );
 
     COMPONENT* component = new COMPONENT( fpid, reference, value, timeStamp );
     component->SetName( name );
@@ -178,7 +177,7 @@ COMPONENT* LEGACY_NETLIST_READER::loadComponent( char* aText )
 }
 
 
-void LEGACY_NETLIST_READER::loadNet( char* aText, COMPONENT* aComponent ) throw( PARSE_ERROR )
+void LEGACY_NETLIST_READER::loadNet( char* aText, COMPONENT* aComponent )
 {
     wxString msg;
     char*    p;
@@ -189,7 +188,7 @@ void LEGACY_NETLIST_READER::loadNet( char* aText, COMPONENT* aComponent ) throw(
 
     if( ( p = strtok( line, " ()\t\n" ) ) == NULL )
     {
-        msg = _( "Cannot parse pin name in component net section of netlist." );
+        msg = _( "Cannot parse pin name in symbol net section of netlist." );
         THROW_PARSE_ERROR( msg, m_lineReader->GetSource(), line, m_lineReader->LineNumber(),
                            m_lineReader->Length() );
     }
@@ -198,7 +197,7 @@ void LEGACY_NETLIST_READER::loadNet( char* aText, COMPONENT* aComponent ) throw(
 
     if( ( p = strtok( NULL, " ()\t\n" ) ) == NULL )
     {
-        msg = _( "Cannot parse net name in component net section of netlist." );
+        msg = _( "Cannot parse net name in symbol net section of netlist." );
         THROW_PARSE_ERROR( msg, m_lineReader->GetSource(), line, m_lineReader->LineNumber(),
                            m_lineReader->Length() );
     }
@@ -212,7 +211,7 @@ void LEGACY_NETLIST_READER::loadNet( char* aText, COMPONENT* aComponent ) throw(
 }
 
 
-void LEGACY_NETLIST_READER::loadFootprintFilters() throw( IO_ERROR, PARSE_ERROR )
+void LEGACY_NETLIST_READER::loadFootprintFilters()
 {
     wxArrayString filters;
     wxString      cmpRef;
@@ -221,7 +220,7 @@ void LEGACY_NETLIST_READER::loadFootprintFilters() throw( IO_ERROR, PARSE_ERROR 
 
     while( ( line = m_lineReader->ReadLine() ) != NULL )
     {
-        if( strnicmp( line, "$endlist", 8 ) == 0 )   // end of list for the current component
+        if( strncasecmp( line, "$endlist", 8 ) == 0 )   // end of list for the current component
         {
             wxASSERT( component != NULL );
             component->SetFootprintFilters( filters );
@@ -230,11 +229,11 @@ void LEGACY_NETLIST_READER::loadFootprintFilters() throw( IO_ERROR, PARSE_ERROR 
             continue;
         }
 
-        if( strnicmp( line, "$endfootprintlist", 4 ) == 0 )
+        if( strncasecmp( line, "$endfootprintlist", 4 ) == 0 )
             // End of this section
             return;
 
-        if( strnicmp( line, "$component", 10 ) == 0 ) // New component reference found
+        if( strncasecmp( line, "$component", 10 ) == 0 ) // New component reference found
         {
             cmpRef = FROM_UTF8( line + 11 );
             cmpRef.Trim( true );
@@ -246,7 +245,7 @@ void LEGACY_NETLIST_READER::loadFootprintFilters() throw( IO_ERROR, PARSE_ERROR 
             if( component == NULL )
             {
                 wxString msg;
-                msg.Printf( _( "Cannot find component \'%s\' in footprint filter section "
+                msg.Printf( _( "Cannot find symbol \"%s\" in footprint filter section "
                                "of netlist." ), GetChars( cmpRef ) );
                 THROW_PARSE_ERROR( msg, m_lineReader->GetSource(), line, m_lineReader->LineNumber(),
                                    m_lineReader->Length() );

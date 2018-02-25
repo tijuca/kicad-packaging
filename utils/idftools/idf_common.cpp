@@ -3,7 +3,7 @@
  *
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
- * Copyright (C) 2013-2014  Cirilo Bernardo
+ * Copyright (C) 2013-2017  Cirilo Bernardo
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -24,10 +24,10 @@
  */
 
 
+#include <algorithm>
 #include <list>
 #include <string>
 #include <iostream>
-#include <fstream>
 #include <sstream>
 #include <iomanip>
 #include <cerrno>
@@ -90,7 +90,7 @@ IDF_NOTE::IDF_NOTE()
 }
 
 
-bool IDF_NOTE::readNote( std::ifstream& aBoardFile, IDF3::FILE_STATE& aBoardState,
+bool IDF_NOTE::readNote( std::istream& aBoardFile, IDF3::FILE_STATE& aBoardState,
                          IDF3::IDF_UNIT aBoardUnit )
 {
     std::string iline;      // the input line
@@ -249,7 +249,7 @@ bool IDF_NOTE::readNote( std::ifstream& aBoardFile, IDF3::FILE_STATE& aBoardStat
 }
 
 
-bool IDF_NOTE::writeNote( std::ofstream& aBoardFile, IDF3::IDF_UNIT aBoardUnit )
+bool IDF_NOTE::writeNote( std::ostream& aBoardFile, IDF3::IDF_UNIT aBoardUnit )
 {
     if( aBoardUnit == UNIT_THOU )
     {
@@ -330,8 +330,8 @@ IDF_DRILL_DATA::IDF_DRILL_DATA()
 
 IDF_DRILL_DATA::IDF_DRILL_DATA( double aDrillDia, double aPosX, double aPosY,
                                 IDF3::KEY_PLATING aPlating,
-                                const std::string aRefDes,
-                                const std::string aHoleType,
+                                const std::string& aRefDes,
+                                const std::string& aHoleType,
                                 IDF3::KEY_OWNER aOwner )
 {
     if( aDrillDia < 0.3 )
@@ -402,7 +402,7 @@ bool IDF_DRILL_DATA::Matches( double aDrillDia, double aPosX, double aPosY )
     return false;
 }
 
-bool IDF_DRILL_DATA::read( std::ifstream& aBoardFile, IDF3::IDF_UNIT aBoardUnit,
+bool IDF_DRILL_DATA::read( std::istream& aBoardFile, IDF3::IDF_UNIT aBoardUnit,
                            IDF3::FILE_STATE aBoardState, IDF3::IDF_VERSION aIdfVersion )
 {
     std::string iline;      // the input line
@@ -500,22 +500,22 @@ bool IDF_DRILL_DATA::read( std::ifstream& aBoardFile, IDF3::IDF_UNIT aBoardUnit,
                               "invalid IDFv3 file\n"
                               "* Violation of specification: missing PLATING for drilled hole" ) );
 
-            if( CompareToken( "PTH", token ) )
-            {
-                plating = IDF3::PTH;
-            }
-            else if( CompareToken( "NPTH", token ) )
-            {
-                plating = IDF3::NPTH;
-            }
-            else
-            {
-                ostringstream ostr;
-                ostr << "invalid IDFv3 file\n";
-                ostr << "* Violation of specification: invalid PLATING type ('" << token << "')";
+        if( CompareToken( "PTH", token ) )
+        {
+            plating = IDF3::PTH;
+        }
+        else if( CompareToken( "NPTH", token ) )
+        {
+            plating = IDF3::NPTH;
+        }
+        else
+        {
+            ostringstream ostr;
+            ostr << "invalid IDFv3 file\n";
+            ostr << "* Violation of specification: invalid PLATING type ('" << token << "')";
 
-                throw( IDF_ERROR( __FILE__, __FUNCTION__, __LINE__, ostr.str() ) );
-            }
+            throw( IDF_ERROR( __FILE__, __FUNCTION__, __LINE__, ostr.str() ) );
+        }
     }
     else
     {
@@ -613,14 +613,14 @@ bool IDF_DRILL_DATA::read( std::ifstream& aBoardFile, IDF3::IDF_UNIT aBoardUnit,
                               "invalid IDFv3 file\n"
                               "* Violation of specification: missing OWNER for drilled hole" ) );
 
-            if( !ParseOwner( token, owner ) )
-            {
-                ostringstream ostr;
-                ostr << "invalid IDFv3 file\n";
-                ostr << "* Violation of specification: invalid OWNER for drilled hole ('" << token << "')";
+        if( !ParseOwner( token, owner ) )
+        {
+            ostringstream ostr;
+            ostr << "invalid IDFv3 file\n";
+            ostr << "* Violation of specification: invalid OWNER for drilled hole ('" << token << "')";
 
-                throw( IDF_ERROR( __FILE__, __FUNCTION__, __LINE__, ostr.str() ) );
-            }
+            throw( IDF_ERROR( __FILE__, __FUNCTION__, __LINE__, ostr.str() ) );
+        }
     }
     else
     {
@@ -650,7 +650,7 @@ bool IDF_DRILL_DATA::read( std::ifstream& aBoardFile, IDF3::IDF_UNIT aBoardUnit,
     return true;
 }
 
-void IDF_DRILL_DATA::write( std::ofstream& aBoardFile, IDF3::IDF_UNIT aBoardUnit )
+void IDF_DRILL_DATA::write( std::ostream& aBoardFile, IDF3::IDF_UNIT aBoardUnit )
 {
     std::string holestr;
     std::string refstr;
@@ -1224,8 +1224,8 @@ void IDF_SEGMENT::SwapEnds( void )
     if( ( angle < MIN_ANG ) && ( angle > -MIN_ANG ) )
         return;         // nothing more to do
 
-        // change the direction of the arc
-        angle = -angle;
+    // change the direction of the arc
+    angle = -angle;
     // calculate the new offset angle
     offsetAngle = IDF3::CalcAngleDeg( center, startPoint );
 }

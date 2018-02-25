@@ -5,7 +5,7 @@
 /*
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
- * Copyright (C) 1992-2012 KiCad Developers, see AUTHORS.txt for contributors.
+ * Copyright (C) 1992-2017 KiCad Developers, see AUTHORS.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -34,14 +34,12 @@
 #include <confirm.h>
 #include <gestfich.h>
 #include <eeschema_id.h>
-#include <class_sch_screen.h>
+#include <sch_screen.h>
 
 #include <general.h>
-#include <libeditframe.h>
+#include <lib_edit_frame.h>
 #include <class_library.h>
 #include <dialogs/dialog_plot_schematic.h>
-
-#include <boost/foreach.hpp>
 
 
 void LIB_EDIT_FRAME::OnPlotCurrentComponent( wxCommandEvent& event )
@@ -104,7 +102,7 @@ void LIB_EDIT_FRAME::OnPlotCurrentComponent( wxCommandEvent& event )
             PAGE_INFO pageSave = GetScreen()->GetPageSettings();
             PAGE_INFO pageTemp = pageSave;
 
-            wxSize componentSize = part->GetBoundingBox( m_unit, m_convert ).GetSize();
+            wxSize componentSize = part->GetUnitBoundingBox( m_unit, m_convert ).GetSize();
 
             // Add a small margin to the plot bounding box
             pageTemp.SetWidthMils(  int( componentSize.x * 1.2 ) );
@@ -136,7 +134,7 @@ void LIB_EDIT_FRAME::CreatePNGorJPEGFile( const wxString& aFileName, bool aFmt_j
     if( !image.SaveFile( aFileName, aFmt_jpeg ? wxBITMAP_TYPE_JPEG : wxBITMAP_TYPE_PNG ) )
     {
         wxString msg;
-        msg.Printf( _( "Can't save file <%s>" ), GetChars( aFileName ) );
+        msg.Printf( _( "Can't save file \"%s\"" ), GetChars( aFileName ) );
         wxMessageBox( msg );
     }
 
@@ -156,7 +154,9 @@ void LIB_EDIT_FRAME::SVG_PlotComponent( const wxString& aFullFileName )
 
     wxPoint plot_offset;
     const double scale = 1.0;
-    plotter->SetViewport( plot_offset, IU_PER_DECIMILS, scale, false );
+
+    // Currently, plot units are in decimil
+    plotter->SetViewport( plot_offset, IU_PER_MILS/10, scale, false );
 
     // Init :
     plotter->SetCreator( wxT( "Eeschema-SVG" ) );
@@ -208,7 +208,7 @@ void LIB_EDIT_FRAME::PrintPage( wxDC* aDC, LSET aPrintMask, bool aPrintMirrorMod
     plot_offset.x = pagesize.x/2;
     plot_offset.y = pagesize.y/2;
 
-    part->Draw( m_canvas, aDC, plot_offset, m_unit, m_convert, GR_DEFAULT_DRAWMODE );
+    part->Draw( m_canvas, aDC, plot_offset, m_unit, m_convert, PART_DRAW_OPTIONS::Default() );
 }
 
 

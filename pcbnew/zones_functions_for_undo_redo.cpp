@@ -45,7 +45,7 @@
 #include <fctsys.h>
 #include <pgm_base.h>
 #include <class_drawpanel.h>
-#include <wxPcbStruct.h>
+#include <pcb_edit_frame.h>
 
 #include <class_board.h>
 #include <class_zone.h>
@@ -115,8 +115,7 @@ bool ZONE_CONTAINER::IsSame( const ZONE_CONTAINER& aZoneToCompare )
     wxASSERT( m_Poly );                                      // m_Poly == NULL Should never happen
     wxASSERT( aZoneToCompare.Outline() );
 
-    if( Outline()->m_CornersList.GetList() !=
-        aZoneToCompare.Outline()->m_CornersList.GetList() )    // Compare vector
+    if( Outline() != aZoneToCompare.Outline() )    // Compare vector
         return false;
 
     return true;
@@ -237,7 +236,7 @@ void UpdateCopyOfZonesList( PICKED_ITEMS_LIST& aPickList,
                     wxASSERT_MSG( zcopy != NULL,
                                   wxT( "UpdateCopyOfZonesList() error: link = NULL" ) );
 
-                    ref->Copy( zcopy );
+                    *ref = *zcopy;
 
                     // the copy was deleted; the link does not exists now.
                     aPickList.SetPickedItemLink( NULL, kk );

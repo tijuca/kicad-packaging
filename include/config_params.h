@@ -1,5 +1,3 @@
-#ifndef CONFIG_PARAMS_H_
-#define CONFIG_PARAMS_H_
 /*
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
@@ -25,6 +23,9 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
  */
 
+#ifndef CONFIG_PARAMS_H_
+#define CONFIG_PARAMS_H_
+
 /**
  * The common library
  * @file config_params.h
@@ -33,8 +34,10 @@
 #include <wx/confbase.h>
 #include <wx/fileconf.h>
 #include <boost/ptr_container/ptr_vector.hpp>
-#include <colors.h>
+#include <gal/color4d.h>
 #include <limits>
+
+using KIGFX::COLOR4D;
 
 /// Names of sub sections where to store project info in *.pro project config files
 #define GROUP_PCB           wxT( "/pcbnew" )            /// parameters for Pcbnew/Modedit
@@ -140,8 +143,8 @@ public:
                    int max = std::numeric_limits<int>::max(),
                    const wxChar* group = NULL );
 
-    virtual void ReadParam( wxConfigBase* aConfig ) const;
-    virtual void SaveParam( wxConfigBase* aConfig ) const;
+    virtual void ReadParam( wxConfigBase* aConfig ) const override;
+    virtual void SaveParam( wxConfigBase* aConfig ) const override;
 };
 
 /**
@@ -170,8 +173,8 @@ public:
                    const wxChar* group = NULL,
                    double aBiu2cfgunit = 1.0 );
 
-    virtual void ReadParam( wxConfigBase* aConfig ) const;
-    virtual void SaveParam( wxConfigBase* aConfig ) const;
+    virtual void ReadParam( wxConfigBase* aConfig ) const override;
+    virtual void SaveParam( wxConfigBase* aConfig ) const override;
 };
 
 
@@ -182,17 +185,17 @@ public:
 class PARAM_CFG_SETCOLOR : public PARAM_CFG_BASE
 {
 public:
-    EDA_COLOR_T* m_Pt_param;    ///<  Pointer to the parameter value
-    EDA_COLOR_T  m_Default;     ///<  The default value of the parameter
+    COLOR4D* m_Pt_param;    ///<  Pointer to the parameter value
+    COLOR4D  m_Default;     ///<  The default value of the parameter
 
 public:
-    PARAM_CFG_SETCOLOR( const wxString& ident, EDA_COLOR_T* ptparam,
-                        EDA_COLOR_T default_val, const wxChar* group = NULL );
-    PARAM_CFG_SETCOLOR( bool Insetup, const wxString& ident, EDA_COLOR_T* ptparam,
-                        EDA_COLOR_T default_val, const wxChar* group = NULL );
+    PARAM_CFG_SETCOLOR( const wxString& ident, COLOR4D* ptparam,
+                        COLOR4D default_val, const wxChar* group = NULL );
+    PARAM_CFG_SETCOLOR( bool Insetup, const wxString& ident, COLOR4D* ptparam,
+                        COLOR4D default_val, const wxChar* group = NULL );
 
-    virtual void ReadParam( wxConfigBase* aConfig ) const;
-    virtual void SaveParam( wxConfigBase* aConfig ) const;
+    virtual void ReadParam( wxConfigBase* aConfig ) const override;
+    virtual void SaveParam( wxConfigBase* aConfig ) const override;
 };
 
 
@@ -215,8 +218,8 @@ public:
                       double default_val = 0.0, double min = 0.0, double max = 10000.0,
                       const wxChar* group = NULL );
 
-    virtual void ReadParam( wxConfigBase* aConfig ) const;
-    virtual void SaveParam( wxConfigBase* aConfig ) const;
+    virtual void ReadParam( wxConfigBase* aConfig ) const override;
+    virtual void SaveParam( wxConfigBase* aConfig ) const override;
 };
 
 
@@ -236,8 +239,8 @@ public:
     PARAM_CFG_BOOL( bool Insetup, const wxString& ident, bool* ptparam,
                     int default_val = false, const wxChar* group = NULL );
 
-    virtual void ReadParam( wxConfigBase* aConfig ) const;
-    virtual void SaveParam( wxConfigBase* aConfig ) const;
+    virtual void ReadParam( wxConfigBase* aConfig ) const override;
+    virtual void SaveParam( wxConfigBase* aConfig ) const override;
 };
 
 
@@ -260,8 +263,8 @@ public:
                         const wxString& default_val = wxEmptyString,
                         const wxChar* group = NULL );
 
-    virtual void ReadParam( wxConfigBase* aConfig ) const;
-    virtual void SaveParam( wxConfigBase* aConfig ) const;
+    virtual void ReadParam( wxConfigBase* aConfig ) const override;
+    virtual void SaveParam( wxConfigBase* aConfig ) const override;
 };
 
 
@@ -279,8 +282,8 @@ public:
 public:
     PARAM_CFG_FILENAME( const wxString& ident, wxString* ptparam,
             const wxChar* group = NULL );
-    virtual void ReadParam( wxConfigBase* aConfig ) const;
-    virtual void SaveParam( wxConfigBase* aConfig ) const;
+    virtual void ReadParam( wxConfigBase* aConfig ) const override;
+    virtual void SaveParam( wxConfigBase* aConfig ) const override;
 };
 
 
@@ -294,8 +297,8 @@ public:
                                 wxArrayString* ptparam,
                                 const wxChar*  group = NULL );
 
-    virtual void ReadParam( wxConfigBase* aConfig ) const;
-    virtual void SaveParam( wxConfigBase* aConfig ) const;
+    virtual void ReadParam( wxConfigBase* aConfig ) const override;
+    virtual void SaveParam( wxConfigBase* aConfig ) const override;
 };
 
 

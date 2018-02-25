@@ -11,7 +11,7 @@
 #include <class_drawpanel.h>
 #include <trigo.h>
 #include <block_commande.h>
-#include <wxBasePcbFrame.h>
+#include <pcb_base_frame.h>
 
 #include <class_board.h>
 #include <class_module.h>
@@ -206,5 +206,4 @@ void PCB_BASE_FRAME::PlacePad( D_PAD* aPad, wxDC* DC )
 
     OnModify();
     m_canvas->SetMouseCapture( NULL, NULL );
-    m_Pcb->m_Status_Pcb &= ~( LISTE_RATSNEST_ITEM_OK | CONNEXION_OK );
 }

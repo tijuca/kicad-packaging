@@ -2,7 +2,7 @@
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
  * Copyright (C) 2004 Jean-Pierre Charras, jaen-pierre.charras@gipsa-lab.inpg.com
- * Copyright (C) 2004-2011 KiCad Developers, see change_log.txt for contributors.
+ * Copyright (C) 2004-2017 KiCad Developers, see change_log.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -39,10 +39,10 @@ class LIB_CIRCLE : public LIB_ITEM
     int     m_Width;          // Line width.
 
     void drawGraphic( EDA_DRAW_PANEL* aPanel, wxDC* aDC, const wxPoint& aOffset,
-                      EDA_COLOR_T aColor, GR_DRAWMODE aDrawMode, void* aData,
-                      const TRANSFORM& aTransform );
+                      COLOR4D aColor, GR_DRAWMODE aDrawMode, void* aData,
+                      const TRANSFORM& aTransform ) override;
 
-    void calcEdit( const wxPoint& aPosition );
+    void calcEdit( const wxPoint& aPosition ) override;
 
 public:
     LIB_CIRCLE( LIB_PART * aParent );
@@ -51,58 +51,62 @@ public:
 
     ~LIB_CIRCLE() { }
 
-    wxString GetClass() const
+    wxString GetClass() const override
     {
         return wxT( "LIB_CIRCLE" );
     }
 
+    wxString GetTypeName() override
+    {
+        return _( "Circle" );
+    }
 
-    bool Save( OUTPUTFORMATTER& aFormatter );
+    bool HitTest( const wxPoint& aPosition ) const override;
 
-    bool Load( LINE_READER& aLineReader, wxString& aErrorMsg );
+    bool HitTest( const wxPoint& aPosRef, int aThreshold, const TRANSFORM& aTransform ) const override;
 
-    bool HitTest( const wxPoint& aPosition ) const;
+    int GetPenSize( ) const override;
 
-    bool HitTest( const wxPoint& aPosRef, int aThreshold, const TRANSFORM& aTransform ) const;
+    const EDA_RECT GetBoundingBox() const override;
 
-    int GetPenSize( ) const;
+    void GetMsgPanelInfo( std::vector< MSG_PANEL_ITEM >& aList ) override;
 
-    const EDA_RECT GetBoundingBox() const;  // Virtual
+    void BeginEdit( STATUS_FLAGS aEditMode, const wxPoint aStartPoint = wxPoint( 0, 0 ) ) override;
 
-    void GetMsgPanelInfo( std::vector< MSG_PANEL_ITEM >& aList );
+    bool ContinueEdit( const wxPoint aNextPoint ) override;
 
-    void BeginEdit( STATUS_FLAGS aEditMode, const wxPoint aStartPoint = wxPoint( 0, 0 ) );
+    void EndEdit( const wxPoint& aPosition, bool aAbort = false ) override;
 
-    bool ContinueEdit( const wxPoint aNextPoint );
+    void SetOffset( const wxPoint& aOffset ) override;
 
-    void EndEdit( const wxPoint& aPosition, bool aAbort = false );
+    bool Inside( EDA_RECT& aRect ) const override;
 
-    void SetOffset( const wxPoint& aOffset );
+    void Move( const wxPoint& aPosition ) override;
 
-    bool Inside( EDA_RECT& aRect ) const;
+    wxPoint GetPosition() const override { return m_Pos; }
 
-    void Move( const wxPoint& aPosition );
+    void MirrorHorizontal( const wxPoint& aCenter ) override;
 
-    wxPoint GetPosition() const { return m_Pos; }
+    void MirrorVertical( const wxPoint& aCenter ) override;
 
-    void MirrorHorizontal( const wxPoint& aCenter );
-
-    void MirrorVertical( const wxPoint& aCenter );
-
-    void Rotate( const wxPoint& aCenter, bool aRotateCCW = true );
+    void Rotate( const wxPoint& aCenter, bool aRotateCCW = true ) override;
 
     void Plot( PLOTTER* aPlotter, const wxPoint& aOffset, bool aFill,
-               const TRANSFORM& aTransform );
+               const TRANSFORM& aTransform ) override;
 
-    int GetWidth() const { return m_Width; }
+    int GetWidth() const override { return m_Width; }
 
-    void SetWidth( int aWidth ) { m_Width = aWidth; }
+    void SetWidth( int aWidth ) override { m_Width = aWidth; }
 
-    wxString GetSelectMenuText() const;
+    void SetRadius( int aRadius ) { m_Radius = aRadius; }
 
-    BITMAP_DEF GetMenuImage() const { return  add_circle_xpm; }
+    int GetRadius() const { return m_Radius; }
 
-    EDA_ITEM* Clone() const;
+    wxString GetSelectMenuText() const override;
+
+    BITMAP_DEF GetMenuImage() const override;
+
+    EDA_ITEM* Clone() const override;
 
 private:
 
@@ -114,7 +118,7 @@ private:
      *      - Circle vertical (Y) position.
      *      - Circle radius.
      */
-    int compare( const LIB_ITEM& aOther ) const;
+    int compare( const LIB_ITEM& aOther ) const override;
 };
 
 

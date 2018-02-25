@@ -1,8 +1,8 @@
 ///////////////////////////////////////////////////////////////////////////
-// C++ code generated with wxFormBuilder (version May 21 2016)
+// C++ code generated with wxFormBuilder (version Nov 22 2017)
 // http://www.wxformbuilder.org/
 //
-// PLEASE DO "NOT" EDIT THIS FILE!
+// PLEASE DO *NOT* EDIT THIS FILE!
 ///////////////////////////////////////////////////////////////////////////
 
 #ifndef __DIALOG_EDIT_COMPONENT_IN_SCHEMATIC_FBP_H__
@@ -11,8 +11,6 @@
 #include <wx/artprov.h>
 #include <wx/xrc/xmlres.h>
 #include <wx/intl.h>
-class DIALOG_SHIM;
-
 #include "dialog_shim.h"
 #include <wx/string.h>
 #include <wx/stattext.h>
@@ -29,6 +27,10 @@ class DIALOG_SHIM;
 #include <wx/statbox.h>
 #include <wx/statline.h>
 #include <wx/listctrl.h>
+#include <wx/bitmap.h>
+#include <wx/image.h>
+#include <wx/icon.h>
+#include <wx/bmpbuttn.h>
 #include <wx/dialog.h>
 
 ///////////////////////////////////////////////////////////////////////////
@@ -55,11 +57,14 @@ class DIALOG_EDIT_COMPONENT_IN_SCHEMATIC_FBP : public DIALOG_SHIM
 		wxStaticText* m_staticTextTimeStamp;
 		wxTextCtrl* m_textCtrlTimeStamp;
 		wxStaticLine* m_staticline1;
-		wxButton* defaultsButton;
+		wxButton* spiceFieldsButton;
+		wxButton* resetFieldsStyleButton;
+		wxButton* updateFieldValues;
 		wxListCtrl* fieldListCtrl;
-		wxButton* addFieldButton;
-		wxButton* deleteFieldButton;
-		wxButton* moveUpButton;
+		wxBitmapButton* moveUpButton;
+		wxBitmapButton* moveDownButton;
+		wxBitmapButton* deleteFieldButton;
+		wxBitmapButton* addFieldButton;
 		wxRadioBox* m_FieldHJustifyCtrl;
 		wxRadioBox* m_FieldVJustifyCtrl;
 		wxCheckBox* showCheckBox;
@@ -88,12 +93,15 @@ class DIALOG_EDIT_COMPONENT_IN_SCHEMATIC_FBP : public DIALOG_SHIM
 		virtual void OnInitDlg( wxInitDialogEvent& event ) { event.Skip(); }
 		virtual void OnTestChipName( wxCommandEvent& event ) { event.Skip(); }
 		virtual void OnSelectChipName( wxCommandEvent& event ) { event.Skip(); }
+		virtual void EditSpiceModel( wxCommandEvent& event ) { event.Skip(); }
 		virtual void SetInitCmp( wxCommandEvent& event ) { event.Skip(); }
+		virtual void UpdateFields( wxCommandEvent& event ) { event.Skip(); }
 		virtual void OnListItemDeselected( wxListEvent& event ) { event.Skip(); }
 		virtual void OnListItemSelected( wxListEvent& event ) { event.Skip(); }
-		virtual void addFieldButtonHandler( wxCommandEvent& event ) { event.Skip(); }
-		virtual void deleteFieldButtonHandler( wxCommandEvent& event ) { event.Skip(); }
 		virtual void moveUpButtonHandler( wxCommandEvent& event ) { event.Skip(); }
+		virtual void moveDownButtonHandler( wxCommandEvent& event ) { event.Skip(); }
+		virtual void deleteFieldButtonHandler( wxCommandEvent& event ) { event.Skip(); }
+		virtual void addFieldButtonHandler( wxCommandEvent& event ) { event.Skip(); }
 		virtual void showButtonHandler( wxCommandEvent& event ) { event.Skip(); }
 		virtual void OnCancelButtonClick( wxCommandEvent& event ) { event.Skip(); }
 		virtual void OnOKButtonClick( wxCommandEvent& event ) { event.Skip(); }
@@ -101,7 +109,7 @@ class DIALOG_EDIT_COMPONENT_IN_SCHEMATIC_FBP : public DIALOG_SHIM
 	
 	public:
 		
-		DIALOG_EDIT_COMPONENT_IN_SCHEMATIC_FBP( wxWindow* parent, wxWindowID id = wxID_ANY, const wxString& title = _("Component Properties"), const wxPoint& pos = wxDefaultPosition, const wxSize& size = wxSize( 688,586 ), long style = wxCAPTION|wxCLOSE_BOX|wxDEFAULT_DIALOG_STYLE|wxMAXIMIZE_BOX|wxMINIMIZE_BOX|wxRESIZE_BORDER|wxSYSTEM_MENU ); 
+		DIALOG_EDIT_COMPONENT_IN_SCHEMATIC_FBP( wxWindow* parent, wxWindowID id = wxID_ANY, const wxString& title = _("Symbol Properties"), const wxPoint& pos = wxDefaultPosition, const wxSize& size = wxSize( -1,-1 ), long style = wxCAPTION|wxCLOSE_BOX|wxDEFAULT_DIALOG_STYLE|wxMAXIMIZE_BOX|wxMINIMIZE_BOX|wxRESIZE_BORDER|wxSYSTEM_MENU ); 
 		~DIALOG_EDIT_COMPONENT_IN_SCHEMATIC_FBP();
 	
 };

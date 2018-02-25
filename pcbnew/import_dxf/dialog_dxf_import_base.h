@@ -1,5 +1,5 @@
 ///////////////////////////////////////////////////////////////////////////
-// C++ code generated with wxFormBuilder (version Jun  5 2014)
+// C++ code generated with wxFormBuilder (version Aug  4 2017)
 // http://www.wxformbuilder.org/
 //
 // PLEASE DO "NOT" EDIT THIS FILE!
@@ -43,28 +43,33 @@ class DIALOG_DXF_IMPORT_BASE : public DIALOG_SHIM
 	private:
 	
 	protected:
-		wxStaticText* m_staticText37;
+		wxStaticText* m_staticTextFile;
 		wxTextCtrl* m_textCtrlFileName;
 		wxButton* m_buttonBrowse;
 		wxRadioBox* m_rbOffsetOption;
-		wxStaticText* m_staticText4;
-		wxTextCtrl* m_DXFPCBXCoord;
-		wxStaticText* m_staticText5;
-		wxTextCtrl* m_DXFPCBYCoord;
-		wxStaticText* m_staticText3;
-		wxChoice* m_DXFPCBGridUnits;
+		wxStaticText* m_staticText6;
+		wxStaticText* m_staticTextXpos;
+		wxTextCtrl* m_DxfPcbXCoord;
+		wxStaticText* m_staticTextYpos;
+		wxTextCtrl* m_DxfPcbYCoord;
+		wxStaticText* m_staticTextUnits;
+		wxChoice* m_DxfPcbPositionUnits;
+		wxStaticText* m_staticTextPrms;
+		wxStaticText* m_staticTextLineWidth;
+		wxTextCtrl* m_textCtrlLineWidth;
+		wxChoice* m_choiceUnitLineWidth;
 		wxStaticText* m_staticTextBrdlayer;
 		PCB_LAYER_BOX_SELECTOR* m_SelLayerBox;
-		wxStaticLine* m_staticline8;
-		wxStdDialogButtonSizer* m_sdbSizer1;
-		wxButton* m_sdbSizer1OK;
-		wxButton* m_sdbSizer1Cancel;
+		wxStaticLine* m_staticline;
+		wxStdDialogButtonSizer* m_sdbSizer;
+		wxButton* m_sdbSizerOK;
+		wxButton* m_sdbSizerCancel;
 		
 		// Virtual event handlers, overide them in your derived class
 		virtual void OnBrowseDxfFiles( wxCommandEvent& event ) { event.Skip(); }
 		virtual void OriginOptionOnUpdateUI( wxUpdateUIEvent& event ) { event.Skip(); }
-		virtual void OnCancelClick( wxCommandEvent& event ) { event.Skip(); }
-		virtual void OnOKClick( wxCommandEvent& event ) { event.Skip(); }
+		virtual void onUnitPositionSelection( wxCommandEvent& event ) { event.Skip(); }
+		virtual void onUnitWidthSelection( wxCommandEvent& event ) { event.Skip(); }
 		
 	
 	public:

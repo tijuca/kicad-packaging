@@ -1,8 +1,8 @@
 ///////////////////////////////////////////////////////////////////////////
-// C++ code generated with wxFormBuilder (version Mar  9 2015)
+// C++ code generated with wxFormBuilder (version Nov 22 2017)
 // http://www.wxformbuilder.org/
 //
-// PLEASE DO "NOT" EDIT THIS FILE!
+// PLEASE DO *NOT* EDIT THIS FILE!
 ///////////////////////////////////////////////////////////////////////////
 
 #ifndef __DIALOG_LIB_EDIT_PIN_BASE_H__
@@ -11,7 +11,8 @@
 #include <wx/artprov.h>
 #include <wx/xrc/xmlres.h>
 #include <wx/intl.h>
-class DIALOG_SHIM;
+class PinShapeComboBox;
+class PinTypeComboBox;
 class wxBitmapComboBox;
 
 #include "dialog_shim.h"
@@ -64,9 +65,9 @@ class DIALOG_LIB_EDIT_PIN_BASE : public DIALOG_SHIM
 		wxStaticText* m_staticTextOrient;
 		wxBitmapComboBox* m_choiceOrientation;
 		wxStaticText* m_staticTextEType;
-		wxBitmapComboBox* m_choiceElectricalType;
+		PinTypeComboBox* m_choiceElectricalType;
 		wxStaticText* m_staticTextGstyle;
-		wxBitmapComboBox* m_choiceStyle;
+		PinShapeComboBox* m_choiceStyle;
 		wxCheckBox* m_checkApplyToAllParts;
 		wxCheckBox* m_checkApplyToAllConversions;
 		wxCheckBox* m_checkShow;
@@ -79,6 +80,12 @@ class DIALOG_LIB_EDIT_PIN_BASE : public DIALOG_SHIM
 		wxStaticText* m_staticTextPinLen;
 		wxTextCtrl* m_textLength;
 		wxStaticText* m_staticLengthUnits;
+		wxStaticText* m_staticTextPinPosX;
+		wxTextCtrl* m_textPinPosX;
+		wxStaticText* m_staticPosXUnits;
+		wxStaticText* m_staticPinPosY;
+		wxTextCtrl* m_textPinPosY;
+		wxStaticText* m_staticPosYUnits;
 		wxPanel* m_panelShowPin;
 		wxStaticLine* m_staticline1;
 		wxStdDialogButtonSizer* m_sdbSizerButtons;
@@ -96,7 +103,7 @@ class DIALOG_LIB_EDIT_PIN_BASE : public DIALOG_SHIM
 	
 	public:
 		
-		DIALOG_LIB_EDIT_PIN_BASE( wxWindow* parent, wxWindowID id = wxID_ANY, const wxString& title = _("Pin Properties"), const wxPoint& pos = wxDefaultPosition, const wxSize& size = wxSize( 515,370 ), long style = wxDEFAULT_DIALOG_STYLE|wxRESIZE_BORDER ); 
+		DIALOG_LIB_EDIT_PIN_BASE( wxWindow* parent, wxWindowID id = wxID_ANY, const wxString& title = _("Pin Properties"), const wxPoint& pos = wxDefaultPosition, const wxSize& size = wxSize( -1,-1 ), long style = wxDEFAULT_DIALOG_STYLE|wxRESIZE_BORDER ); 
 		~DIALOG_LIB_EDIT_PIN_BASE();
 	
 };

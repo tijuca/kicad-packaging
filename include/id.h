@@ -1,9 +1,9 @@
 /*
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
- * Copyright (C) 2009 Jean-Pierre Charras, jp.charras at wanadoo.fr
+ * Copyright (C) 2017 Jean-Pierre Charras, jp.charras at wanadoo.fr
  * Copyright (C) 2009-2016 Wayne Stambaugh <stambaughw@verizon.net>
- * Copyright (C) 1992-2016 KiCad Developers, see AUTHORS.txt for contributors.
+ * Copyright (C) 1992-2017 KiCad Developers, see AUTHORS.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -59,6 +59,7 @@
 // Define room for IDs, for each sub application
 #define ROOM_FOR_KICADMANAGER 50
 #define ROOM_FOR_3D_VIEWER 100
+#define ROOM_FOR_PANEL_PREV_MODEL 50
 
 enum main_id
 {
@@ -84,6 +85,10 @@ enum main_id
     ID_CONFIG_SAVE,
     ID_CONFIG_READ,
 
+    ID_MENU_CANVAS_LEGACY,
+    ID_MENU_CANVAS_OPENGL,
+    ID_MENU_CANVAS_CAIRO,
+
     ID_PREFERENCES_HOTKEY_START,
     ID_PREFERENCES_HOTKEY_EXPORT_CONFIG,
     ID_PREFERENCES_HOTKEY_IMPORT_CONFIG,
@@ -91,10 +96,6 @@ enum main_id
     ID_PREFERENCES_HOTKEY_SHOW_CURRENT_LIST,
     ID_PREFERENCES_HOTKEY_END,
     ID_PREFERENCES_CONFIGURE_PATHS,
-
-    ID_PREFRENCES_MACROS,
-    ID_PREFRENCES_MACROS_SAVE,
-    ID_PREFRENCES_MACROS_READ,
 
     ID_GEN_PLOT,
     ID_GEN_PLOT_PS,
@@ -118,13 +119,10 @@ enum main_id
     ID_OPT_TOOLBAR,
     ID_AUX_TOOLBAR,
 
-    ID_HELP_COPY_VERSION_STRING,
-
     ID_EDIT,
     ID_NO_TOOL_SELECTED,
+    ID_ZOOM_SELECTION,
     ID_SEL_BG_COLOR,
-
-    ID_COLORS_SETUP,
 
     ID_REPEAT_BUTT,
 
@@ -140,6 +138,7 @@ enum main_id
     ID_LANGUAGE_PORTUGUESE,
     ID_LANGUAGE_ITALIAN,
     ID_LANGUAGE_SLOVENIAN,
+    ID_LANGUAGE_SLOVAK,
     ID_LANGUAGE_HUNGARIAN,
     ID_LANGUAGE_POLISH,
     ID_LANGUAGE_CZECH,
@@ -149,7 +148,12 @@ enum main_id
     ID_LANGUAGE_DUTCH,
     ID_LANGUAGE_JAPANESE,
     ID_LANGUAGE_BULGARIAN,
+    ID_LANGUAGE_LITHUANIAN,
     ID_LANGUAGE_CHOICE_END,
+
+    ID_KICAD_SELECT_ICONS_OPTIONS,
+    ID_KICAD_SELECT_ICONS_IN_MENUS,
+    ID_KICAD_SELECT_ICON_OPTIONS_END,
 
     ID_SET_REPEAT_OPTION,
 
@@ -162,6 +166,8 @@ enum main_id
     ID_POPUP_MOVE_BLOCK_EXACT,
     ID_POPUP_DRAG_BLOCK,
     ID_POPUP_COPY_BLOCK,
+    ID_POPUP_CUT_BLOCK,
+    ID_POPUP_DUPLICATE_BLOCK,
     ID_POPUP_ROTATE_BLOCK,
     ID_POPUP_DELETE_BLOCK,
     ID_POPUP_FLIP_BLOCK,
@@ -184,6 +190,9 @@ enum main_id
     ID_POPUP_ZOOM_CENTER,
     ID_POPUP_ZOOM_PAGE,
     ID_POPUP_ZOOM_REDRAW,
+
+    ID_KEY_ZOOM_IN,
+    ID_KEY_ZOOM_OUT,
 
     /* Reserve IDs for popup menu zoom levels.  If you need more
      * levels of zoom, change ID_POPUP_ZOOM_LEVEL_END.  Note that more
@@ -248,7 +257,10 @@ enum main_id
     ID_PAN_LEFT,
     ID_PAN_RIGHT,
 
+    ID_MOUSE_DOUBLECLICK,
+
     ID_GET_NETLIST,
+    ID_OPEN_CMP_TABLE,
     ID_GET_TOOLS,
     ID_FIND_ITEMS,
 
@@ -261,10 +273,12 @@ enum main_id
     ID_TB_OPTIONS_SELECT_CURSOR,
     ID_TB_OPTIONS_SHOW_POLAR_COORD,
     ID_TB_OPTIONS_SHOW_GRID,
+    ID_HELP_GET_INVOLVED,
 
     // Common to Pcbnew and CvPcb
     ID_TB_OPTIONS_SHOW_MODULE_TEXT_SKETCH,
     ID_TB_OPTIONS_SHOW_MODULE_EDGE_SKETCH,
+    ID_TB_OPTIONS_SHOW_GRAPHIC_SKETCH,
     ID_TB_OPTIONS_SHOW_PADS_SKETCH,
 
     ID_DIALOG_ERC,      ///< eeschema ERC modeless dialog ID
@@ -276,7 +290,8 @@ enum main_id
     // mainly we experienced issues related to wxUpdateUIEvent calls when 2 (or more) wxFrames
     // share the same ID in menus, mainly in menubars/toolbars
     // The reason is the fact wxWidgets propagates the wxUpdateUIEvent to all parent windows
-    // to find wxUpdateUIEvent event functions matching the menuitem IDs found when activate a menu in the first frame.
+    // to find wxUpdateUIEvent event functions matching the menuitem IDs found when activate a
+    // menu in the first frame.
 
     // Reserve ROOM_FOR_KICADMANAGER IDs, for Kicad manager
     // Change it if this count is too small.
@@ -287,6 +302,9 @@ enum main_id
     // Change it if this count is too small.
     ID_KICAD_3D_VIEWER_START,
     ID_KICAD_3D_VIEWER_END = ID_KICAD_3D_VIEWER_START + ROOM_FOR_3D_VIEWER,
+
+    ID_KICAD_PANEL_PREV_MODEL_START,
+    ID_KICAD_PANEL_PREV_MODEL_END = ID_KICAD_PANEL_PREV_MODEL_START + ROOM_FOR_PANEL_PREV_MODEL,
 
     ID_END_LIST
 };

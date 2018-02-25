@@ -2,7 +2,7 @@
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
  * Copyright (C) 2014 Henner Zeller <h.zeller@acm.org>
- * Copyright (C) 2014 KiCad Developers, see change_log.txt for contributors.
+ * Copyright (C) 2016-2018 KiCad Developers, see AUTHORS.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -21,306 +21,446 @@
  * or you may write to the Free Software Foundation, Inc.,
  * 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
  */
+
 #include <dialog_choose_component.h>
 
+#include <algorithm>
 #include <set>
-#include <wx/tokenzr.h>
+#include <wx/utils.h>
+
+#include <wx/button.h>
+#include <wx/dataview.h>
+#include <wx/panel.h>
+#include <wx/sizer.h>
+#include <wx/splitter.h>
+#include <wx/timer.h>
+#include <wx/utils.h>
 
 #include <class_library.h>
-#include <component_tree_search_container.h>
 #include <sch_base_frame.h>
+#include <template_fieldnames.h>
+#include <symbol_lib_table.h>
+#include <widgets/component_tree.h>
+#include <widgets/footprint_preview_widget.h>
+#include <widgets/footprint_select_widget.h>
 
-// Tree navigation helpers.
-static wxTreeItemId GetPrevItem( const wxTreeCtrl& tree, const wxTreeItemId& item );
-static wxTreeItemId GetNextItem( const wxTreeCtrl& tree, const wxTreeItemId& item );
+
+FOOTPRINT_ASYNC_LOADER          DIALOG_CHOOSE_COMPONENT::m_fp_loader;
+std::unique_ptr<FOOTPRINT_LIST> DIALOG_CHOOSE_COMPONENT::m_fp_list;
+
+wxSize DIALOG_CHOOSE_COMPONENT::m_last_dlg_size( -1, -1 );
+int DIALOG_CHOOSE_COMPONENT::m_tree_canvas_sash_position = 0;
 
 DIALOG_CHOOSE_COMPONENT::DIALOG_CHOOSE_COMPONENT( SCH_BASE_FRAME* aParent, const wxString& aTitle,
-                                                  COMPONENT_TREE_SEARCH_CONTAINER* const aContainer,
-                                                  int aDeMorganConvert )
-    : DIALOG_CHOOSE_COMPONENT_BASE( aParent, wxID_ANY, aTitle ), m_search_container( aContainer )
+        CMP_TREE_MODEL_ADAPTER::PTR& aAdapter, int aDeMorganConvert, bool aAllowFieldEdits,
+        bool aShowFootprints )
+        : DIALOG_SHIM( aParent, wxID_ANY, aTitle, wxDefaultPosition, wxDefaultSize,
+                  wxDEFAULT_DIALOG_STYLE | wxRESIZE_BORDER ),
+          m_fp_sel_ctrl( nullptr ),
+          m_fp_view_ctrl( nullptr ),
+          m_parent( aParent ),
+          m_deMorganConvert( aDeMorganConvert >= 0 ? aDeMorganConvert : 0 ),
+          m_allow_field_edits( aAllowFieldEdits ),
+          m_show_footprints( aShowFootprints ),
+          m_external_browser_requested( false )
 {
-    m_parent = aParent;
-    m_deMorganConvert = aDeMorganConvert >= 0 ? aDeMorganConvert : 0;
-    m_external_browser_requested = false;
-    m_received_doubleclick_in_tree = false;
-    m_search_container->SetTree( m_libraryComponentTree );
-    m_searchBox->SetFocus();
-    m_componentDetails->SetEditable( false );
-    m_componentView->SetLayoutDirection( wxLayout_LeftToRight );
+    wxBusyCursor busy_while_loading;
 
-    m_libraryComponentTree->ScrollTo( m_libraryComponentTree->GetFocusedItem() );
+    auto sizer = new wxBoxSizer( wxVERTICAL );
 
-    // The tree showing libs and component uses a fixed font,
-    // because we want controle the position of some info when drawing the
-    // tree. Using tabs does not work very well (does not work on Windows)
-    wxFont font = wxSystemSettings::GetFont( wxSYS_DEFAULT_GUI_FONT );
-    m_libraryComponentTree->SetFont( wxFont( font.GetPointSize(),
-             wxFONTFAMILY_MODERN,  wxFONTSTYLE_NORMAL, wxFONTWEIGHT_NORMAL ) );
+    // Use a slightly different layout, with a details pane spanning the entire window,
+    // if we're not showing footprints.
+    auto vsplitter = aShowFootprints ? nullptr : new wxSplitterWindow(
+        this, wxID_ANY, wxDefaultPosition, wxDefaultSize, wxSP_LIVE_UPDATE | wxSP_3DSASH );
 
-    // We have to call SetSizeHints to fix the minimal size of the dialog
-    // and its widgets.
-    // this line also fixes an issue on Linux Ubuntu using Unity (dialog not shown).
-    GetSizer()->SetSizeHints( this );
+    m_splitter_tree_canvas = new wxSplitterWindow(
+        vsplitter ? static_cast<wxWindow *>( vsplitter ) : static_cast<wxWindow *>( this ),
+        wxID_ANY, wxDefaultPosition, wxDefaultSize, wxSP_LIVE_UPDATE | wxSP_3DSASH );
 
-    Centre();
+    auto details = aShowFootprints ? nullptr : new wxHtmlWindow(
+        vsplitter, wxID_ANY, wxDefaultPosition, wxDefaultSize, wxHW_SCROLLBAR_AUTO );
+
+    m_tree = new COMPONENT_TREE( m_splitter_tree_canvas, Prj().SchSymbolLibTable(),
+                                 aAdapter, COMPONENT_TREE::WIDGETS::ALL, details );
+    m_symbol_view_panel = ConstructRightPanel( m_splitter_tree_canvas );
+    auto buttons = new wxStdDialogButtonSizer();
+    m_dbl_click_timer = new wxTimer( this );
+
+    if( vsplitter )
+        sizer->Add( vsplitter, 1, wxEXPAND | wxALL, 5 );
+    else
+        sizer->Add( m_splitter_tree_canvas, 1, wxEXPAND | wxALL, 5 );
+
+    buttons->AddButton( new wxButton( this, wxID_OK ) );
+    buttons->AddButton( new wxButton( this, wxID_CANCEL ) );
+    buttons->Realize();
+
+    sizer->Add( buttons, 0, wxEXPAND | wxBOTTOM, 10 );
+    SetSizer( sizer );
+
+    Bind( wxEVT_INIT_DIALOG, &DIALOG_CHOOSE_COMPONENT::OnInitDialog, this );
+    Bind( wxEVT_TIMER, &DIALOG_CHOOSE_COMPONENT::OnCloseTimer, this, m_dbl_click_timer->GetId() );
+    Bind( COMPONENT_PRESELECTED, &DIALOG_CHOOSE_COMPONENT::OnComponentPreselected, this );
+    Bind( COMPONENT_SELECTED, &DIALOG_CHOOSE_COMPONENT::OnComponentSelected, this );
+
+    m_sch_view_ctrl->Bind( wxEVT_LEFT_DCLICK, &DIALOG_CHOOSE_COMPONENT::OnSchViewDClick, this );
+    m_sch_view_ctrl->Bind( wxEVT_PAINT, &DIALOG_CHOOSE_COMPONENT::OnSchViewPaint, this );
+
+    if( m_fp_sel_ctrl )
+        m_fp_sel_ctrl->Bind(
+                EVT_FOOTPRINT_SELECTED, &DIALOG_CHOOSE_COMPONENT::OnFootprintSelected, this );
+
+    Layout();
+
+    if( m_last_dlg_size == wxSize( -1, -1 ) )
+        SetSizeInDU( 320, 256 );
+    else
+        SetSize( m_last_dlg_size );
+
+    m_splitter_tree_canvas->SetSashGravity( 0.8 );
+    m_splitter_tree_canvas->SetMinimumPaneSize( 20 );
+    // We specify the width of the right window (m_symbol_view_panel), because specify
+    // the width of the left window does not work as expected when SetSashGravity() is called
+    m_splitter_tree_canvas->SplitVertically( m_tree,  m_symbol_view_panel,
+                               m_tree_canvas_sash_position ? -m_tree_canvas_sash_position
+                                                           : HorizPixelsFromDU( -100 ) );
+
+    if( vsplitter )
+    {
+        vsplitter->SetSashGravity( 0.5 );
+        vsplitter->SetMinimumPaneSize( 20 );
+        vsplitter->SplitHorizontally( m_splitter_tree_canvas, details, VertPixelsFromDU( -80 ) );
+    }
 }
 
 
 DIALOG_CHOOSE_COMPONENT::~DIALOG_CHOOSE_COMPONENT()
 {
-    m_search_container->SetTree( NULL );
+    // I am not sure the following two lines are necessary,
+    // but they will not hurt anyone
+    m_dbl_click_timer->Stop();
+    Unbind( wxEVT_TIMER, &DIALOG_CHOOSE_COMPONENT::OnCloseTimer, this );
+
+    delete m_dbl_click_timer;
+
+    m_last_dlg_size = GetSize();
+    m_tree_canvas_sash_position = m_splitter_tree_canvas->GetClientSize().x
+                                  - m_splitter_tree_canvas->GetSashPosition();
 }
 
 
-LIB_ALIAS* DIALOG_CHOOSE_COMPONENT::GetSelectedAlias( int* aUnit ) const
+wxPanel* DIALOG_CHOOSE_COMPONENT::ConstructRightPanel( wxWindow* aParent )
 {
-    return m_search_container->GetSelectedAlias( aUnit );
-}
+    auto panel = new wxPanel( aParent );
+    auto sizer = new wxBoxSizer( wxVERTICAL );
 
+    m_sch_view_ctrl = new wxPanel( panel, wxID_ANY, wxDefaultPosition, wxSize( -1, -1 ),
+            wxFULL_REPAINT_ON_RESIZE | wxTAB_TRAVERSAL );
+    m_sch_view_ctrl->SetLayoutDirection( wxLayout_LeftToRight );
 
-void DIALOG_CHOOSE_COMPONENT::OnSearchBoxChange( wxCommandEvent& aEvent )
-{
-    m_search_container->UpdateSearchTerm( m_searchBox->GetLineText( 0 ) );
-    updateSelection();
-
-    // On Windows, but not on Linux, the focus is given to
-    // the m_libraryComponentTree, after modificatuons.
-    // We want the focus for m_searchBox.
-    //
-    // We cannot call SetFocus on Linux because it changes the current text selection
-    // and the text edit cursor position.
-#ifdef __WINDOWS__
-    m_searchBox->SetFocus();
-#endif
-}
-
-
-void DIALOG_CHOOSE_COMPONENT::OnSearchBoxEnter( wxCommandEvent& aEvent )
-{
-    EndModal( wxID_OK );   // We are done.
-}
-
-
-void DIALOG_CHOOSE_COMPONENT::selectIfValid( const wxTreeItemId& aTreeId )
-{
-    if( aTreeId.IsOk() && aTreeId != m_libraryComponentTree->GetRootItem() )
-        m_libraryComponentTree->SelectItem( aTreeId );
-}
-
-
-void DIALOG_CHOOSE_COMPONENT::OnInterceptSearchBoxKey( wxKeyEvent& aKeyStroke )
-{
-    // Cursor up/down and partiallyi cursor are use to do tree navigation operations.
-    // This is done by intercepting some navigational keystrokes that normally would go to
-    // the text search box (which has the focus by default). That way, we are mostly keyboard
-    // operable.
-    // (If the tree has the focus, it can handle that by itself).
-    const wxTreeItemId sel = m_libraryComponentTree->GetSelection();
-
-    switch( aKeyStroke.GetKeyCode() )
+    if( m_show_footprints )
     {
-    case WXK_UP:
-        selectIfValid( GetPrevItem( *m_libraryComponentTree, sel ) );
-        break;
+        if( m_allow_field_edits )
+            m_fp_sel_ctrl = new FOOTPRINT_SELECT_WIDGET( panel, m_fp_loader, m_fp_list, true );
 
-    case WXK_DOWN:
-        selectIfValid( GetNextItem( *m_libraryComponentTree, sel ) );
-        break;
+        m_fp_view_ctrl = new FOOTPRINT_PREVIEW_WIDGET( panel, Kiway() );
 
-        // The following keys we can only hijack if they are not needed by the textbox itself.
 
-    case WXK_LEFT:
-        if( m_searchBox->GetInsertionPoint() == 0 )
-            m_libraryComponentTree->Collapse( sel );
-        else
-            aKeyStroke.Skip();   // Use for original purpose: move cursor.
-        break;
+        sizer->Add( m_sch_view_ctrl, 1, wxEXPAND | wxALL, 5 );
 
-    case WXK_RIGHT:
-        if( m_searchBox->GetInsertionPoint() >= (long) m_searchBox->GetLineText( 0 ).length() )
-            m_libraryComponentTree->Expand( sel );
-        else
-            aKeyStroke.Skip();   // Use for original purpose: move cursor.
-        break;
+        if( m_fp_sel_ctrl )
+            sizer->Add( m_fp_sel_ctrl, 0, wxEXPAND | wxALL, 5 );
 
-    default:
-        aKeyStroke.Skip();  // Any other key: pass on to search box directly.
-        break;
+        sizer->Add( m_fp_view_ctrl, 1, wxEXPAND | wxALL, 5 );
+    }
+    else
+    {
+        sizer->Add( m_sch_view_ctrl, 1, wxEXPAND | wxALL, 5 );
+    }
+
+    panel->SetSizer( sizer );
+    panel->Layout();
+    sizer->Fit( panel );
+
+    return panel;
+}
+
+
+void DIALOG_CHOOSE_COMPONENT::OnInitDialog( wxInitDialogEvent& aEvent )
+{
+    if( m_fp_view_ctrl && m_fp_view_ctrl->IsInitialized() )
+    {
+        // This hides the GAL panel and shows the status label
+        m_fp_view_ctrl->SetStatusText( wxEmptyString );
+    }
+
+    if( m_fp_sel_ctrl )
+        m_fp_sel_ctrl->Load( Kiway(), Prj() );
+}
+
+
+LIB_ID DIALOG_CHOOSE_COMPONENT::GetSelectedLibId( int* aUnit ) const
+{
+    return m_tree->GetSelectedLibId( aUnit );
+}
+
+
+void DIALOG_CHOOSE_COMPONENT::OnCloseTimer( wxTimerEvent& aEvent )
+{
+    // Hack handler because of eaten MouseUp event. See
+    // DIALOG_CHOOSE_COMPONENT::OnDoubleClickTreeActivation for the beginning
+    // of this spaghetti noodle.
+
+    auto state = wxGetMouseState();
+
+    if( state.LeftIsDown() )
+    {
+        // Mouse hasn't been raised yet, so fire the timer again. Otherwise the
+        // purpose of this timer is defeated.
+        m_dbl_click_timer->StartOnce( DIALOG_CHOOSE_COMPONENT::DblClickDelay );
+    }
+    else
+    {
+        EndQuasiModal( wxID_OK );
     }
 }
 
 
-void DIALOG_CHOOSE_COMPONENT::OnTreeSelect( wxTreeEvent& aEvent )
-{
-    updateSelection();
-}
-
-
-// Test strategy for OnDoubleClickTreeActivation()/OnTreeMouseUp() work around wxWidgets bug:
-//  - search for an item.
-//  - use the mouse to double-click on an item in the tree.
-//  -> The dialog should close, and the component should _not_ be immediately placed
-void DIALOG_CHOOSE_COMPONENT::OnDoubleClickTreeActivation( wxTreeEvent& aEvent )
-{
-    if( !updateSelection() )
-        return;
-
-    // Ok, got selection. We don't just end the modal dialog here, but
-    // wait for the MouseUp event to occur. Otherwise something (broken?)
-    // happens: the dialog will close and will deliver the 'MouseUp' event
-    // to the eeschema canvas, that will immediately place the component.
-    m_received_doubleclick_in_tree = true;
-}
-
-
-void DIALOG_CHOOSE_COMPONENT::OnTreeMouseUp( wxMouseEvent& aMouseEvent )
-{
-    if( m_received_doubleclick_in_tree )
-        EndModal( wxID_OK );     // We are done (see OnDoubleClickTreeSelect)
-    else
-        aMouseEvent.Skip();      // Let upstream handle it.
-}
-
-// Test strategy to see if OnInterceptTreeEnter() works:
-//  - search for an item.
-//  - click into the tree once to set focus on tree; navigate. Press 'Enter'
-//  -> The dialog should close and the component be available to place.
-void DIALOG_CHOOSE_COMPONENT::OnInterceptTreeEnter( wxKeyEvent& aEvent )
-{
-    // We have to do some special handling for double-click on a tree-item because
-    // of some superfluous event delivery bug in wxWidgets (see OnDoubleClickTreeActivation()).
-    // In tree-activation, we assume we got a double-click and need to take special precaution
-    // that the mouse-up event is not delivered to the window one level up by going through
-    // a state-sequence OnDoubleClickTreeActivation() -> OnTreeMouseUp().
-
-    // Pressing 'Enter' within a tree will also call OnDoubleClickTreeActivation(),
-    // but since this is not due to the double-click and we have no way of knowing that it is
-    // not, we need to intercept the 'Enter' key before that to know that it is time to exit.
-    if( aEvent.GetKeyCode() == WXK_RETURN )
-        EndModal( wxID_OK );    // Dialog is done.
-    else
-        aEvent.Skip();          // Let tree handle that key for navigation.
-}
-
-
-void DIALOG_CHOOSE_COMPONENT::OnStartComponentBrowser( wxMouseEvent& aEvent )
+void DIALOG_CHOOSE_COMPONENT::OnSchViewDClick( wxMouseEvent& aEvent )
 {
     m_external_browser_requested = true;
-    EndModal( wxID_OK );   // We are done.
+    EndQuasiModal( wxID_OK );
 }
 
 
-bool DIALOG_CHOOSE_COMPONENT::updateSelection()
+void DIALOG_CHOOSE_COMPONENT::ShowFootprintFor( LIB_ID const& aLibId )
 {
-    int unit = 0;
-    LIB_ALIAS* selection = m_search_container->GetSelectedAlias( &unit );
-
-    m_componentView->Refresh();
-
-    m_componentDetails->Clear();
-
-    if( selection == NULL )
-        return false;
-
-    m_componentDetails->Freeze();
-    wxFont font_normal = m_componentDetails->GetFont();
-    wxFont font_bold = m_componentDetails->GetFont();
-    font_bold.SetWeight( wxFONTWEIGHT_BOLD );
-
-    wxTextAttr headline_attribute;
-    headline_attribute.SetFont( font_bold );
-    wxTextAttr text_attribute;
-    text_attribute.SetFont( font_normal );
-
-    const wxString name = selection->GetName();
-
-    if ( !name.empty() )
-    {
-        m_componentDetails->SetDefaultStyle( headline_attribute );
-        m_componentDetails->AppendText( name );
-    }
-
-    const wxString description = selection->GetDescription();
-
-    if( !description.empty() )
-    {
-        if ( !m_componentDetails->IsEmpty() )
-            m_componentDetails->AppendText( wxT( "\n\n" ) );
-
-        m_componentDetails->SetDefaultStyle( headline_attribute );
-        m_componentDetails->AppendText( _( "Description\n" ) );
-        m_componentDetails->SetDefaultStyle( text_attribute );
-        m_componentDetails->AppendText( description );
-    }
-
-    const wxString keywords = selection->GetKeyWords();
-
-    if( !keywords.empty() )
-    {
-        if ( !m_componentDetails->IsEmpty() )
-            m_componentDetails->AppendText( wxT( "\n\n" ) );
-
-        m_componentDetails->SetDefaultStyle( headline_attribute );
-        m_componentDetails->AppendText( _( "Keywords\n" ) );
-        m_componentDetails->SetDefaultStyle( text_attribute );
-        m_componentDetails->AppendText( keywords );
-    }
-
-    if ( !selection->IsRoot() )
-    {
-        LIB_PART* root_part = selection->GetPart();
-        const wxString root_component_name( root_part ? root_part->GetName() : _( "Unknown" ) );
-
-        if ( !m_componentDetails->IsEmpty() )
-            m_componentDetails->AppendText( wxT( "\n\n" ) );
-
-        m_componentDetails->SetDefaultStyle( headline_attribute );
-        m_componentDetails->AppendText( _( "Alias of " ) );
-        m_componentDetails->SetDefaultStyle( text_attribute );
-        m_componentDetails->AppendText( root_component_name );
-    }
-
-    m_componentDetails->SetInsertionPoint( 0 );  // scroll up.
-    m_componentDetails->Thaw();
-
-    return true;
-}
-
-
-void DIALOG_CHOOSE_COMPONENT::OnHandlePreviewRepaint( wxPaintEvent& aRepaintEvent )
-{
-    int unit = 0;
-    LIB_ALIAS*  selection = m_search_container->GetSelectedAlias( &unit );
-    LIB_PART*   part = selection ? selection->GetPart() : NULL;
-
-    // Don't draw anything (not even the background) if we don't have
-    // a part to show
-    if( !part )
+    if( !m_fp_view_ctrl || !m_fp_view_ctrl->IsInitialized() )
         return;
 
-    if( selection->IsRoot() )
+    LIB_ALIAS* alias = nullptr;
+
+    try
+    {
+        alias = Prj().SchSymbolLibTable()->LoadSymbol( aLibId );
+    }
+    catch( const IO_ERROR& ioe )
+    {
+        wxLogError( wxString::Format( _( "Error occurred loading symbol %s from library %s."
+                                         "\n\n%s" ),
+                                      aLibId.GetLibItemName().wx_str(),
+                                      aLibId.GetLibNickname().wx_str(),
+                                      ioe.What() ) );
+    }
+
+    if( alias == nullptr )
+    {
+        return;
+    }
+
+    LIB_FIELD* fp_field = alias->GetPart()->GetField( FOOTPRINT );
+    wxString   fp_name = fp_field ? fp_field->GetFullText() : wxString( "" );
+
+    ShowFootprint( fp_name );
+}
+
+
+void DIALOG_CHOOSE_COMPONENT::ShowFootprint( wxString const& aName )
+{
+    if( !m_fp_view_ctrl )
+    {
+        return;
+    }
+
+    if( aName == wxEmptyString )
+    {
+        m_fp_view_ctrl->SetStatusText( _( "No footprint specified" ) );
+    }
+    else
+    {
+        LIB_ID lib_id;
+
+        if( lib_id.Parse( aName ) == -1 && lib_id.IsValid() )
+        {
+            m_fp_view_ctrl->ClearStatus();
+            m_fp_view_ctrl->CacheFootprint( lib_id );
+            m_fp_view_ctrl->DisplayFootprint( lib_id );
+        }
+        else
+        {
+            m_fp_view_ctrl->SetStatusText( _( "Invalid footprint specified" ) );
+        }
+    }
+}
+
+
+void DIALOG_CHOOSE_COMPONENT::PopulateFootprintSelector( LIB_ID const& aLibId )
+{
+    if( !m_fp_sel_ctrl )
+        return;
+
+    m_fp_sel_ctrl->ClearFilters();
+
+    LIB_ALIAS* alias = nullptr;
+
+    if( aLibId.IsValid() )
+    {
+        try
+        {
+            alias = Prj().SchSymbolLibTable()->LoadSymbol( aLibId );
+        }
+        catch( const IO_ERROR& ioe )
+        {
+            wxLogError( wxString::Format( _( "Error occurred loading symbol %s from library %s."
+                                             "\n\n%s" ),
+                                          aLibId.GetLibItemName().wx_str(),
+                                          aLibId.GetLibNickname().wx_str(),
+                                          ioe.What() ) );
+        }
+    }
+
+    if( alias != nullptr )
+    {
+        LIB_PINS   temp_pins;
+        LIB_FIELD* fp_field = alias->GetPart()->GetField( FOOTPRINT );
+        wxString   fp_name = fp_field ? fp_field->GetFullText() : wxString( "" );
+
+        alias->GetPart()->GetPins( temp_pins );
+
+        m_fp_sel_ctrl->FilterByPinCount( temp_pins.size() );
+        m_fp_sel_ctrl->FilterByFootprintFilters( alias->GetPart()->GetFootprints(), true );
+        m_fp_sel_ctrl->SetDefaultFootprint( fp_name );
+        m_fp_sel_ctrl->UpdateList();
+        m_fp_sel_ctrl->Enable();
+    }
+    else
+    {
+        m_fp_sel_ctrl->UpdateList();
+        m_fp_sel_ctrl->Disable();
+    }
+}
+
+
+void DIALOG_CHOOSE_COMPONENT::OnSchViewPaint( wxPaintEvent& aEvent )
+{
+    int unit = 0;
+    LIB_ID id = m_tree->GetSelectedLibId( &unit );
+
+    if( !id.IsValid() )
+    {
+        // No symbol to show, display a tooltip
+        RenderPreview( nullptr, unit );
+        return;
+    }
+
+    LIB_ALIAS* alias = nullptr;
+
+    try
+    {
+        alias = Prj().SchSymbolLibTable()->LoadSymbol( id );
+    }
+    catch( const IO_ERROR& ioe )
+    {
+        wxLogError( wxString::Format( _( "Error occurred loading symbol %s from library %s."
+                                         "\n\n%s" ),
+                                      id.GetLibItemName().wx_str(),
+                                      id.GetLibNickname().wx_str(),
+                                      ioe.What() ) );
+    }
+
+    if( alias == nullptr )
+        return;
+
+    LIB_PART*  part = alias ? alias->GetPart() : nullptr;
+
+    // Don't draw if we don't have a part to show
+    // just display a tooltip
+    if( !part )
+    {
+        RenderPreview( nullptr, unit );
+        return;
+    }
+
+    if( alias->IsRoot() )
     {
         // just show the part directly
-        renderPreview( part, unit );
+        RenderPreview( part, unit );
     }
     else
     {
         // switch out the name temporarily for the alias name
         wxString tmp( part->GetName() );
-        part->SetName( selection->GetName() );
+        part->SetName( alias->GetName() );
 
-        renderPreview( part, unit );
+        RenderPreview( part, unit );
 
         part->SetName( tmp );
     }
 }
 
 
-// Render the preview in our m_componentView. If this gets more complicated, we should
-// probably have a derived class from wxPanel; but this keeps things local.
-void DIALOG_CHOOSE_COMPONENT::renderPreview( LIB_PART* aComponent, int aUnit )
+void DIALOG_CHOOSE_COMPONENT::OnFootprintSelected( wxCommandEvent& aEvent )
 {
-    wxPaintDC dc( m_componentView );
+    m_fp_override = aEvent.GetString();
+
+    m_field_edits.erase(
+            std::remove_if( m_field_edits.begin(), m_field_edits.end(),
+                    []( std::pair<int, wxString> const& i ) { return i.first == FOOTPRINT; } ),
+            m_field_edits.end() );
+
+    m_field_edits.push_back( std::make_pair( FOOTPRINT, m_fp_override ) );
+
+    ShowFootprint( m_fp_override );
+}
+
+
+void DIALOG_CHOOSE_COMPONENT::OnComponentPreselected( wxCommandEvent& aEvent )
+{
+    int unit = 0;
+
+    LIB_ID id = m_tree->GetSelectedLibId( &unit );
+
+    m_sch_view_ctrl->Refresh();
+
+    if( id.IsValid() )
+    {
+        ShowFootprintFor( id );
+        PopulateFootprintSelector( id );
+    }
+    else
+    {
+        if( m_fp_view_ctrl && m_fp_view_ctrl->IsInitialized() )
+            m_fp_view_ctrl->SetStatusText( wxEmptyString );
+
+        PopulateFootprintSelector( id );
+    }
+}
+
+
+void DIALOG_CHOOSE_COMPONENT::OnComponentSelected( wxCommandEvent& aEvent )
+{
+    if( m_tree->GetSelectedLibId().IsValid() )
+    {
+        // Got a selection. We can't just end the modal dialog here, because
+        // wx leaks some events back to the parent window (in particular, the
+        // MouseUp following a double click).
+        //
+        // NOW, here's where it gets really fun. wxTreeListCtrl eats MouseUp.
+        // This isn't really feasible to bypass without a fully custom
+        // wxDataViewCtrl implementation, and even then might not be fully
+        // possible (docs are vague). To get around this, we use a one-shot
+        // timer to schedule the dialog close.
+        //
+        // See DIALOG_CHOOSE_COMPONENT::OnCloseTimer for the other end of this
+        // spaghetti noodle.
+        m_dbl_click_timer->StartOnce( DIALOG_CHOOSE_COMPONENT::DblClickDelay );
+    }
+}
+
+
+void DIALOG_CHOOSE_COMPONENT::RenderPreview( LIB_PART* aComponent, int aUnit )
+{
+    wxPaintDC dc( m_sch_view_ctrl );
 
     const wxSize dc_size = dc.GetSize();
 
@@ -328,82 +468,36 @@ void DIALOG_CHOOSE_COMPONENT::renderPreview( LIB_PART* aComponent, int aUnit )
     if( dc_size.x == 0 || dc_size.y == 0 )
         return;
 
+    if( !aComponent )   // display a tooltip
+    {
+        wxString tooltip = _( "Double-click here to select a symbol from the library browser" );
+        GRDrawWrappedText( dc, tooltip );
+        return;
+    }
+
     GRResetPenAndBrush( &dc );
 
-    EDA_COLOR_T bgcolor = m_parent->GetDrawBgColor();
+    COLOR4D bgColor = m_parent->GetDrawBgColor();
 
-    dc.SetBackground( bgcolor == BLACK ? *wxBLACK_BRUSH : *wxWHITE_BRUSH );
+    dc.SetBackground( wxBrush( bgColor.ToColour() ) );
     dc.Clear();
 
-    if( aComponent == NULL )
-        return;
-
-    if( aUnit <= 0 )
-        aUnit = 1;
+    int unit = aUnit > 0 ? aUnit : 1;
+    int convert = m_deMorganConvert > 0 ? m_deMorganConvert : 1;
 
     dc.SetDeviceOrigin( dc_size.x / 2, dc_size.y / 2 );
 
     // Find joint bounding box for everything we are about to draw.
-    EDA_RECT bBox = aComponent->GetBoundingBox( aUnit, m_deMorganConvert );
+    EDA_RECT     bBox = aComponent->GetUnitBoundingBox( unit, convert );
     const double xscale = (double) dc_size.x / bBox.GetWidth();
     const double yscale = (double) dc_size.y / bBox.GetHeight();
-    const double scale  = std::min( xscale, yscale ) * 0.85;
+    const double scale = std::min( xscale, yscale ) * 0.85;
 
     dc.SetUserScale( scale, scale );
 
     wxPoint offset = -bBox.Centre();
 
-
-    aComponent->Draw( NULL, &dc, offset, aUnit, m_deMorganConvert, GR_COPY,
-                      UNSPECIFIED_COLOR, DefaultTransform, true, true, false );
-}
-
-
-static wxTreeItemId GetPrevItem( const wxTreeCtrl& tree, const wxTreeItemId& item )
-{
-    wxTreeItemId prevItem = tree.GetPrevSibling( item );
-
-    if( !prevItem.IsOk() )
-    {
-        prevItem = tree.GetItemParent( item );
-    }
-    else if( tree.IsExpanded( prevItem ) )
-    {
-        prevItem = tree.GetLastChild( prevItem );
-    }
-
-    return prevItem;
-}
-
-
-static wxTreeItemId GetNextItem( const wxTreeCtrl& tree, const wxTreeItemId& item )
-{
-    wxTreeItemId nextItem;
-
-    if( !item.IsOk() )
-        return nextItem;    // item is not valid: return a not valid wxTreeItemId
-
-    if( tree.IsExpanded( item ) )
-    {
-        wxTreeItemIdValue dummy;
-        nextItem = tree.GetFirstChild( item, dummy );
-    }
-    else
-    {
-        wxTreeItemId root_cell=  tree.GetRootItem();
-
-        // Walk up levels until we find one that has a next sibling.
-        for ( wxTreeItemId walk = item; walk.IsOk(); walk = tree.GetItemParent( walk ) )
-        {
-            if( walk == root_cell )     // the root cell (not displayed) is reached
-                break;                  // Exit (calling GetNextSibling( root_cell ) crashes.
-
-            nextItem = tree.GetNextSibling( walk );
-
-            if( nextItem.IsOk() )
-                break;
-        }
-    }
-
-    return nextItem;
+    auto opts = PART_DRAW_OPTIONS::Default();
+    opts.draw_hidden_fields = false;
+    aComponent->Draw( nullptr, &dc, offset, unit, convert, opts );
 }

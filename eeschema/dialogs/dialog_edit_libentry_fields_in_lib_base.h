@@ -1,8 +1,8 @@
 ///////////////////////////////////////////////////////////////////////////
-// C++ code generated with wxFormBuilder (version Jun  5 2014)
+// C++ code generated with wxFormBuilder (version Nov 22 2017)
 // http://www.wxformbuilder.org/
 //
-// PLEASE DO "NOT" EDIT THIS FILE!
+// PLEASE DO *NOT* EDIT THIS FILE!
 ///////////////////////////////////////////////////////////////////////////
 
 #ifndef __DIALOG_EDIT_LIBENTRY_FIELDS_IN_LIB_BASE_H__
@@ -11,8 +11,6 @@
 #include <wx/artprov.h>
 #include <wx/xrc/xmlres.h>
 #include <wx/intl.h>
-class DIALOG_SHIM;
-
 #include "dialog_shim.h"
 #include <wx/listctrl.h>
 #include <wx/gdicmn.h>
@@ -20,6 +18,10 @@ class DIALOG_SHIM;
 #include <wx/colour.h>
 #include <wx/settings.h>
 #include <wx/string.h>
+#include <wx/bitmap.h>
+#include <wx/image.h>
+#include <wx/icon.h>
+#include <wx/bmpbuttn.h>
 #include <wx/button.h>
 #include <wx/sizer.h>
 #include <wx/radiobox.h>
@@ -42,9 +44,11 @@ class DIALOG_EDIT_LIBENTRY_FIELDS_IN_LIB_BASE : public DIALOG_SHIM
 	
 	protected:
 		wxListCtrl* fieldListCtrl;
-		wxButton* addFieldButton;
-		wxButton* deleteFieldButton;
-		wxButton* moveUpButton;
+		wxBitmapButton* moveUpButton;
+		wxBitmapButton* moveDownButton;
+		wxBitmapButton* deleteFieldButton;
+		wxBitmapButton* addFieldButton;
+		wxButton* m_spiceFieldsButton;
 		wxRadioBox* m_FieldHJustifyCtrl;
 		wxRadioBox* m_FieldVJustifyCtrl;
 		wxCheckBox* showCheckBox;
@@ -74,9 +78,11 @@ class DIALOG_EDIT_LIBENTRY_FIELDS_IN_LIB_BASE : public DIALOG_SHIM
 		virtual void OnInitDialog( wxInitDialogEvent& event ) { event.Skip(); }
 		virtual void OnListItemDeselected( wxListEvent& event ) { event.Skip(); }
 		virtual void OnListItemSelected( wxListEvent& event ) { event.Skip(); }
-		virtual void addFieldButtonHandler( wxCommandEvent& event ) { event.Skip(); }
-		virtual void deleteFieldButtonHandler( wxCommandEvent& event ) { event.Skip(); }
 		virtual void moveUpButtonHandler( wxCommandEvent& event ) { event.Skip(); }
+		virtual void moveDownButtonHandler( wxCommandEvent& event ) { event.Skip(); }
+		virtual void deleteFieldButtonHandler( wxCommandEvent& event ) { event.Skip(); }
+		virtual void addFieldButtonHandler( wxCommandEvent& event ) { event.Skip(); }
+		virtual void EditSpiceModel( wxCommandEvent& event ) { event.Skip(); }
 		virtual void showButtonHandler( wxCommandEvent& event ) { event.Skip(); }
 		virtual void OnCancelButtonClick( wxCommandEvent& event ) { event.Skip(); }
 		virtual void OnOKButtonClick( wxCommandEvent& event ) { event.Skip(); }

@@ -26,7 +26,7 @@
 
 #include <wizard_add_fplib_base.h>
 #include <io_mgr.h>
-#include <boost/optional.hpp>
+#include <core/optional.h>
 
 class KIWAY_PLAYER;
 
@@ -86,13 +86,13 @@ public:
     void OnSourceCheck( wxCommandEvent& aEvent );
     void OnSelectFiles( wxCommandEvent& aEvent );
     void OnCheckGithubList( wxCommandEvent& aEvent );
-    void OnPageChanged( wxWizardEvent& aEvent );
-    void OnSelectAllGH( wxCommandEvent& aEvent );
-    void OnUnselectAllGH( wxCommandEvent& aEvent );
-    void OnChangeSearch( wxCommandEvent& aEvent );
-    void OnWizardFinished( wxWizardEvent& aEvent );
-    void OnBrowseButtonClick( wxCommandEvent& aEvent );
-    void OnCheckSaveCopy( wxCommandEvent& aEvent );
+    void OnPageChanged( wxWizardEvent& aEvent ) override;
+    void OnSelectAllGH( wxCommandEvent& aEvent ) override;
+    void OnUnselectAllGH( wxCommandEvent& aEvent ) override;
+    void OnChangeSearch( wxCommandEvent& aEvent ) override;
+    void OnWizardFinished( wxWizardEvent& aEvent ) override;
+    void OnBrowseButtonClick( wxCommandEvent& aEvent ) override;
+    void OnCheckSaveCopy( wxCommandEvent& aEvent ) override;
 
     class LIBRARY
     {
@@ -115,9 +115,9 @@ public:
         /**
          * Function GetPluginType
          * Returns the plugin type, autodetected basing on the path.
-         * @return Returns empty boost::optional if the type could not be autodetected.
+         * @return Returns empty OPT if the type could not be autodetected.
          */
-        inline boost::optional<IO_MGR::PCB_FILE_T> GetPluginType() const
+        inline OPT<IO_MGR::PCB_FILE_T> GetPluginType() const
         {
             return m_plugin;
         }
@@ -150,7 +150,7 @@ public:
          * Function GetAutoPath
          * Returns path that is either absolute or related to KISYSMOD/KIPRJMOD if the files
          * are stored within one of the mentioned paths.
-         * @param aScoep is the scope for the library. It determines the environmental variables
+         * @param aScope is the scope for the library. It determines the environmental variables
          * that are used to check the path (GLOBAL scope checks only KISYSMOD, while PROJECT
          * scope checks both KISYSMOD & KIPRJMOD).
          */
@@ -194,7 +194,7 @@ public:
 
         wxString m_path;
         wxString m_description;
-        boost::optional<IO_MGR::PCB_FILE_T> m_plugin;
+        OPT<IO_MGR::PCB_FILE_T> m_plugin;
         STATUS m_status;
 
         friend class WIZARD_FPLIB_TABLE;

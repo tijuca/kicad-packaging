@@ -1,8 +1,8 @@
 ///////////////////////////////////////////////////////////////////////////
-// C++ code generated with wxFormBuilder (version Jun  5 2014)
+// C++ code generated with wxFormBuilder (version Dec 30 2017)
 // http://www.wxformbuilder.org/
 //
-// PLEASE DO "NOT" EDIT THIS FILE!
+// PLEASE DO *NOT* EDIT THIS FILE!
 ///////////////////////////////////////////////////////////////////////////
 
 #include "dialog_edit_component_in_lib_base.h"
@@ -27,24 +27,24 @@ DIALOG_EDIT_COMPONENT_IN_LIBRARY_BASE::DIALOG_EDIT_COMPONENT_IN_LIBRARY_BASE( wx
 	wxStaticBoxSizer* m_OptionsBoxSizer;
 	m_OptionsBoxSizer = new wxStaticBoxSizer( new wxStaticBox( m_PanelBasic, wxID_ANY, _("General") ), wxVERTICAL );
 	
-	m_AsConvertButt = new wxCheckBox( m_PanelBasic, wxID_ANY, _("Has alternate symbol (DeMorgan)"), wxDefaultPosition, wxDefaultSize, 0 );
-	m_AsConvertButt->SetToolTip( _("Check this option if the component has an alternate body style (De Morgan)") );
+	m_AsConvertButt = new wxCheckBox( m_OptionsBoxSizer->GetStaticBox(), wxID_ANY, _("Has alternate symbol (DeMorgan)"), wxDefaultPosition, wxDefaultSize, 0 );
+	m_AsConvertButt->SetToolTip( _("Check this option if the symbol has an alternate body style (De Morgan)") );
 	
 	m_OptionsBoxSizer->Add( m_AsConvertButt, 0, wxTOP|wxRIGHT|wxLEFT, 5 );
 	
-	m_ShowPinNumButt = new wxCheckBox( m_PanelBasic, wxID_ANY, _("Show pin number"), wxDefaultPosition, wxDefaultSize, 0 );
+	m_ShowPinNumButt = new wxCheckBox( m_OptionsBoxSizer->GetStaticBox(), wxID_ANY, _("Show pin number"), wxDefaultPosition, wxDefaultSize, 0 );
 	m_ShowPinNumButt->SetValue(true); 
 	m_ShowPinNumButt->SetToolTip( _("Show or hide pin numbers") );
 	
 	m_OptionsBoxSizer->Add( m_ShowPinNumButt, 0, wxTOP|wxRIGHT|wxLEFT, 5 );
 	
-	m_ShowPinNameButt = new wxCheckBox( m_PanelBasic, wxID_ANY, _("Show pin name"), wxDefaultPosition, wxDefaultSize, 0 );
+	m_ShowPinNameButt = new wxCheckBox( m_OptionsBoxSizer->GetStaticBox(), wxID_ANY, _("Show pin name"), wxDefaultPosition, wxDefaultSize, 0 );
 	m_ShowPinNameButt->SetValue(true); 
 	m_ShowPinNameButt->SetToolTip( _("Show or hide pin names") );
 	
 	m_OptionsBoxSizer->Add( m_ShowPinNameButt, 0, wxTOP|wxRIGHT|wxLEFT, 5 );
 	
-	m_PinsNameInsideButt = new wxCheckBox( m_PanelBasic, wxID_ANY, _("Place pin names inside"), wxDefaultPosition, wxDefaultSize, 0 );
+	m_PinsNameInsideButt = new wxCheckBox( m_OptionsBoxSizer->GetStaticBox(), wxID_ANY, _("Place pin names inside"), wxDefaultPosition, wxDefaultSize, 0 );
 	m_PinsNameInsideButt->SetValue(true); 
 	m_PinsNameInsideButt->SetToolTip( _("Check this option to have pin names inside the body and pin number outside.\nIf not checked pins names and pins numbers are outside.") );
 	
@@ -64,7 +64,7 @@ DIALOG_EDIT_COMPONENT_IN_LIBRARY_BASE::DIALOG_EDIT_COMPONENT_IN_LIBRARY_BASE( wx
 	
 	m_staticTextNbUnits = new wxStaticText( m_PanelBasic, wxID_ANY, _("Number of Units"), wxDefaultPosition, wxDefaultSize, 0 );
 	m_staticTextNbUnits->Wrap( -1 );
-	m_staticTextNbUnits->SetToolTip( _("Enter the number of units for a component that contains more than one unit") );
+	m_staticTextNbUnits->SetToolTip( _("Enter the number of units for a symbol that contains more than one unit") );
 	
 	bSizernbunits->Add( m_staticTextNbUnits, 0, wxTOP|wxRIGHT|wxLEFT, 5 );
 	
@@ -96,12 +96,12 @@ DIALOG_EDIT_COMPONENT_IN_LIBRARY_BASE::DIALOG_EDIT_COMPONENT_IN_LIBRARY_BASE( wx
 	bSizerBasicPanel->Add( m_staticline1, 0, wxEXPAND | wxALL, 5 );
 	
 	m_OptionPower = new wxCheckBox( m_PanelBasic, wxID_ANY, _("Define as power symbol"), wxDefaultPosition, wxDefaultSize, 0 );
-	m_OptionPower->SetToolTip( _("Check this option when the component is a power symbol") );
+	m_OptionPower->SetToolTip( _("Check this option when the symbol is a power symbol") );
 	
 	bSizerBasicPanel->Add( m_OptionPower, 0, wxALL, 5 );
 	
 	m_OptionPartsLocked = new wxCheckBox( m_PanelBasic, wxID_ANY, _("All units are not interchangeable"), wxDefaultPosition, wxDefaultSize, 0 );
-	m_OptionPartsLocked->SetToolTip( _("Check this option when creating multiple unit components and all units are not interchangeable") );
+	m_OptionPartsLocked->SetToolTip( _("Check this option when creating multiple unit symbols and all units are not interchangeable") );
 	
 	bSizerBasicPanel->Add( m_OptionPartsLocked, 0, wxALL, 5 );
 	
@@ -121,27 +121,24 @@ DIALOG_EDIT_COMPONENT_IN_LIBRARY_BASE::DIALOG_EDIT_COMPONENT_IN_LIBRARY_BASE( wx
 	m_PanelDocBoxSizer->Add( m_staticTextDescription, 0, wxTOP|wxRIGHT|wxLEFT, 5 );
 	
 	m_DocCtrl = new wxTextCtrl( m_PanelDoc, wxID_ANY, wxEmptyString, wxDefaultPosition, wxDefaultSize, 0 );
-	m_DocCtrl->SetMaxLength( 0 ); 
 	m_PanelDocBoxSizer->Add( m_DocCtrl, 0, wxEXPAND|wxBOTTOM|wxRIGHT|wxLEFT, 5 );
 	
 	m_staticTextKeywords = new wxStaticText( m_PanelDoc, wxID_ANY, _("Keywords"), wxDefaultPosition, wxDefaultSize, 0 );
 	m_staticTextKeywords->Wrap( -1 );
-	m_staticTextKeywords->SetToolTip( _("Enter key words that can be used to select this component.\nKey words cannot have spaces and are separated by a space.") );
+	m_staticTextKeywords->SetToolTip( _("Enter key words that can be used to select this symbol.\nKey words cannot have spaces and are separated by a space.") );
 	
 	m_PanelDocBoxSizer->Add( m_staticTextKeywords, 0, wxTOP|wxRIGHT|wxLEFT, 5 );
 	
 	m_KeywordsCtrl = new wxTextCtrl( m_PanelDoc, wxID_ANY, wxEmptyString, wxDefaultPosition, wxDefaultSize, 0 );
-	m_KeywordsCtrl->SetMaxLength( 0 ); 
 	m_PanelDocBoxSizer->Add( m_KeywordsCtrl, 0, wxEXPAND|wxBOTTOM|wxRIGHT|wxLEFT, 5 );
 	
 	m_staticTextDocFileName = new wxStaticText( m_PanelDoc, wxID_ANY, _("Documentation File Name"), wxDefaultPosition, wxDefaultSize, 0 );
 	m_staticTextDocFileName->Wrap( -1 );
-	m_staticTextDocFileName->SetToolTip( _("Enter the documentation file (a .pdf document) associated to the component.") );
+	m_staticTextDocFileName->SetToolTip( _("Enter the documentation file (a .pdf document) associated with the symbol.") );
 	
 	m_PanelDocBoxSizer->Add( m_staticTextDocFileName, 0, wxTOP|wxRIGHT|wxLEFT, 5 );
 	
 	m_DocfileCtrl = new wxTextCtrl( m_PanelDoc, wxID_ANY, wxEmptyString, wxDefaultPosition, wxSize( 400,-1 ), 0 );
-	m_DocfileCtrl->SetMaxLength( 0 ); 
 	m_PanelDocBoxSizer->Add( m_DocfileCtrl, 0, wxEXPAND|wxBOTTOM|wxRIGHT|wxLEFT, 5 );
 	
 	wxBoxSizer* bSizerPaneldocbutts;
@@ -170,7 +167,7 @@ DIALOG_EDIT_COMPONENT_IN_LIBRARY_BASE::DIALOG_EDIT_COMPONENT_IN_LIBRARY_BASE( wx
 	
 	m_staticTextAlias = new wxStaticText( m_PanelAlias, wxID_ANY, _("Alias List"), wxDefaultPosition, wxDefaultSize, 0 );
 	m_staticTextAlias->Wrap( -1 );
-	m_staticTextAlias->SetToolTip( _("An alias is a component that uses the body of its root component.\nIt has its own documentation and keywords.\nA fast way to extend a library with similar components") );
+	m_staticTextAlias->SetToolTip( _("An alias is a symbol that uses the body of its root symbol.\nIt has its own documentation and keywords.\nA fast way to extend a library with similar symbols.") );
 	
 	bLeftBoxSizerPanelAlias->Add( m_staticTextAlias, 0, wxTOP|wxRIGHT|wxLEFT, 5 );
 	
@@ -186,6 +183,9 @@ DIALOG_EDIT_COMPONENT_IN_LIBRARY_BASE::DIALOG_EDIT_COMPONENT_IN_LIBRARY_BASE( wx
 	m_ButtonAddeAlias = new wxButton( m_PanelAlias, ID_ADD_ALIAS, _("Add"), wxDefaultPosition, wxDefaultSize, 0 );
 	bRightBoxSizerPanelAlias->Add( m_ButtonAddeAlias, 0, wxALL|wxEXPAND, 5 );
 	
+	m_ButtonEditAlias = new wxButton( m_PanelAlias, wxID_ANY, _("Edit"), wxDefaultPosition, wxDefaultSize, 0 );
+	bRightBoxSizerPanelAlias->Add( m_ButtonEditAlias, 0, wxALL, 5 );
+	
 	m_ButtonDeleteOneAlias = new wxButton( m_PanelAlias, ID_DELETE_ONE_ALIAS, _("Delete"), wxDefaultPosition, wxDefaultSize, 0 );
 	bRightBoxSizerPanelAlias->Add( m_ButtonDeleteOneAlias, 0, wxALL|wxEXPAND, 5 );
 	
@@ -199,7 +199,7 @@ DIALOG_EDIT_COMPONENT_IN_LIBRARY_BASE::DIALOG_EDIT_COMPONENT_IN_LIBRARY_BASE( wx
 	m_PanelAlias->SetSizer( bSizerMainPanelAlias );
 	m_PanelAlias->Layout();
 	bSizerMainPanelAlias->Fit( m_PanelAlias );
-	m_NoteBook->AddPage( m_PanelAlias, _("Alias"), false );
+	m_NoteBook->AddPage( m_PanelAlias, _("Aliases"), false );
 	m_PanelFootprintFilter = new wxPanel( m_NoteBook, wxID_ANY, wxDefaultPosition, wxDefaultSize, wxTAB_TRAVERSAL );
 	wxBoxSizer* bPanelFpFilterBoxSizer;
 	bPanelFpFilterBoxSizer = new wxBoxSizer( wxHORIZONTAL );
@@ -209,7 +209,7 @@ DIALOG_EDIT_COMPONENT_IN_LIBRARY_BASE::DIALOG_EDIT_COMPONENT_IN_LIBRARY_BASE( wx
 	
 	m_staticTextFootprints = new wxStaticText( m_PanelFootprintFilter, wxID_ANY, _("Footprints"), wxDefaultPosition, wxDefaultSize, 0 );
 	m_staticTextFootprints->Wrap( -1 );
-	m_staticTextFootprints->SetToolTip( _("A list of footprints names that can be used for this component.\nFootprints names can used jockers.\n(like sm* to allow all footprints names starting by sm).") );
+	m_staticTextFootprints->SetToolTip( _("A list of footprints names that can be used for this symbol.\nFootprints names can used wildcards like sm* to allow all footprints names starting by sm.") );
 	
 	bFpFilterLeftBoxSizer->Add( m_staticTextFootprints, 0, wxTOP|wxRIGHT|wxLEFT, 5 );
 	
@@ -263,9 +263,11 @@ DIALOG_EDIT_COMPONENT_IN_LIBRARY_BASE::DIALOG_EDIT_COMPONENT_IN_LIBRARY_BASE( wx
 	bMainSizer->Fit( this );
 	
 	// Connect Events
+	m_OptionPartsLocked->Connect( wxEVT_UPDATE_UI, wxUpdateUIEventHandler( DIALOG_EDIT_COMPONENT_IN_LIBRARY_BASE::OnUpdateInterchangeableUnits ), NULL, this );
 	m_ButtonCopyDoc->Connect( wxEVT_COMMAND_BUTTON_CLICKED, wxCommandEventHandler( DIALOG_EDIT_COMPONENT_IN_LIBRARY_BASE::CopyDocFromRootToAlias ), NULL, this );
 	m_buttonBrowseDocFiles->Connect( wxEVT_COMMAND_BUTTON_CLICKED, wxCommandEventHandler( DIALOG_EDIT_COMPONENT_IN_LIBRARY_BASE::BrowseAndSelectDocFile ), NULL, this );
 	m_ButtonAddeAlias->Connect( wxEVT_COMMAND_BUTTON_CLICKED, wxCommandEventHandler( DIALOG_EDIT_COMPONENT_IN_LIBRARY_BASE::AddAliasOfPart ), NULL, this );
+	m_ButtonEditAlias->Connect( wxEVT_COMMAND_BUTTON_CLICKED, wxCommandEventHandler( DIALOG_EDIT_COMPONENT_IN_LIBRARY_BASE::EditAliasOfPart ), NULL, this );
 	m_ButtonDeleteOneAlias->Connect( wxEVT_COMMAND_BUTTON_CLICKED, wxCommandEventHandler( DIALOG_EDIT_COMPONENT_IN_LIBRARY_BASE::DeleteAliasOfPart ), NULL, this );
 	m_ButtonDeleteAllAlias->Connect( wxEVT_COMMAND_BUTTON_CLICKED, wxCommandEventHandler( DIALOG_EDIT_COMPONENT_IN_LIBRARY_BASE::DeleteAllAliasOfPart ), NULL, this );
 	m_buttonAddFpF->Connect( wxEVT_COMMAND_BUTTON_CLICKED, wxCommandEventHandler( DIALOG_EDIT_COMPONENT_IN_LIBRARY_BASE::AddFootprintFilter ), NULL, this );
@@ -279,9 +281,11 @@ DIALOG_EDIT_COMPONENT_IN_LIBRARY_BASE::DIALOG_EDIT_COMPONENT_IN_LIBRARY_BASE( wx
 DIALOG_EDIT_COMPONENT_IN_LIBRARY_BASE::~DIALOG_EDIT_COMPONENT_IN_LIBRARY_BASE()
 {
 	// Disconnect Events
+	m_OptionPartsLocked->Disconnect( wxEVT_UPDATE_UI, wxUpdateUIEventHandler( DIALOG_EDIT_COMPONENT_IN_LIBRARY_BASE::OnUpdateInterchangeableUnits ), NULL, this );
 	m_ButtonCopyDoc->Disconnect( wxEVT_COMMAND_BUTTON_CLICKED, wxCommandEventHandler( DIALOG_EDIT_COMPONENT_IN_LIBRARY_BASE::CopyDocFromRootToAlias ), NULL, this );
 	m_buttonBrowseDocFiles->Disconnect( wxEVT_COMMAND_BUTTON_CLICKED, wxCommandEventHandler( DIALOG_EDIT_COMPONENT_IN_LIBRARY_BASE::BrowseAndSelectDocFile ), NULL, this );
 	m_ButtonAddeAlias->Disconnect( wxEVT_COMMAND_BUTTON_CLICKED, wxCommandEventHandler( DIALOG_EDIT_COMPONENT_IN_LIBRARY_BASE::AddAliasOfPart ), NULL, this );
+	m_ButtonEditAlias->Disconnect( wxEVT_COMMAND_BUTTON_CLICKED, wxCommandEventHandler( DIALOG_EDIT_COMPONENT_IN_LIBRARY_BASE::EditAliasOfPart ), NULL, this );
 	m_ButtonDeleteOneAlias->Disconnect( wxEVT_COMMAND_BUTTON_CLICKED, wxCommandEventHandler( DIALOG_EDIT_COMPONENT_IN_LIBRARY_BASE::DeleteAliasOfPart ), NULL, this );
 	m_ButtonDeleteAllAlias->Disconnect( wxEVT_COMMAND_BUTTON_CLICKED, wxCommandEventHandler( DIALOG_EDIT_COMPONENT_IN_LIBRARY_BASE::DeleteAllAliasOfPart ), NULL, this );
 	m_buttonAddFpF->Disconnect( wxEVT_COMMAND_BUTTON_CLICKED, wxCommandEventHandler( DIALOG_EDIT_COMPONENT_IN_LIBRARY_BASE::AddFootprintFilter ), NULL, this );

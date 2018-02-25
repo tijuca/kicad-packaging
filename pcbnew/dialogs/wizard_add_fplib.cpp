@@ -4,7 +4,7 @@
  * Copyright (C) 2015 CERN
  * @author Maciej Suminski <maciej.suminski@cern.ch>
  * Copyright (C) 2014-2015 Jean-Pierre Charras, jp.charras at wanadoo.fr
- * Copyright (C) 1992-2015 KiCad Developers, see AUTHORS.txt for contributors.
+ * Copyright (C) 1992-2017 KiCad Developers, see AUTHORS.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -32,6 +32,7 @@
  * - select scope (global/project)
  */
 
+#include <memory>
 #include <wx/wx.h>
 #include <wx/uri.h>
 #include <wx/dir.h>
@@ -42,6 +43,7 @@
 #include <wizard_add_fplib.h>
 #include <fp_lib_table.h>
 #include <confirm.h>
+#include <bitmaps.h>
 
 #include <class_module.h>
 
@@ -63,7 +65,7 @@ static const struct
     IO_MGR::PCB_FILE_T m_Plugin;
 } fileFilters[FILTER_COUNT] =
 {
-    { "KiCad (folder with .kicad_mod files)",   "kicad_mod",   false,   IO_MGR::KICAD },
+    { "KiCad (folder with .kicad_mod files)",   "kicad_mod",   false,   IO_MGR::KICAD_SEXP },
     { "Eagle 6.x (*.lbr)",                      "lbr",         true,    IO_MGR::EAGLE },
     { "KiCad legacy (*.mod)",                   "mod",         true,    IO_MGR::LEGACY },
     { "Geda (folder with *.fp files)",          "fp",          false,   IO_MGR::GEDA_PCB },
@@ -94,10 +96,10 @@ static wxString getFilterString()
 
 
 // Tries to guess the plugin type basing on the path
-static boost::optional<IO_MGR::PCB_FILE_T> getPluginType( const wxString& aPath )
+static OPT<IO_MGR::PCB_FILE_T> getPluginType( const wxString& aPath )
 {
     if( ( aPath.StartsWith( "http://" ) || aPath.StartsWith( "https://" ) ) )
-        return boost::optional<IO_MGR::PCB_FILE_T>( IO_MGR::GITHUB );
+        return OPT<IO_MGR::PCB_FILE_T>( IO_MGR::GITHUB );
 
     wxFileName path( aPath );
 
@@ -125,10 +127,10 @@ static boost::optional<IO_MGR::PCB_FILE_T> getPluginType( const wxString& aPath 
         }
 
         if( ok )
-            return boost::optional<IO_MGR::PCB_FILE_T>( fileFilters[i].m_Plugin );
+            return OPT<IO_MGR::PCB_FILE_T>( fileFilters[i].m_Plugin );
     }
 
-    return boost::none;
+    return NULLOPT;
 }
 
 
@@ -137,7 +139,7 @@ static bool passesFilter( const wxString& aFileName, int aFilterIndex )
 {
     wxASSERT( aFilterIndex <= FILTER_COUNT );
     wxFileName file( aFileName );
-    boost::optional<IO_MGR::PCB_FILE_T> result = getPluginType( aFileName );
+    OPT<IO_MGR::PCB_FILE_T> result = getPluginType( aFileName );
 
     if( !result )               // does not match any supported plugin
         return false;
@@ -164,7 +166,7 @@ bool WIZARD_FPLIB_TABLE::LIBRARY::Test()
         return false;
     }
 
-    PLUGIN* p = IO_MGR::PluginFind( *m_plugin );
+    std::unique_ptr<PLUGIN> p( IO_MGR::PluginFind( *m_plugin ) );
     wxArrayString footprints;
 
     if( !p )
@@ -175,9 +177,9 @@ bool WIZARD_FPLIB_TABLE::LIBRARY::Test()
 
     try
     {
-        footprints = p->FootprintEnumerate( m_path );
+        p->FootprintEnumerate( footprints, m_path );
     }
-    catch( IO_ERROR& e )
+    catch( IO_ERROR& )
     {
         m_status = LIBRARY::INVALID;
         return false;
@@ -204,7 +206,7 @@ wxString WIZARD_FPLIB_TABLE::LIBRARY::GetPluginName() const
         case IO_MGR::LEGACY:
             return wxT( "Legacy" );
 
-        case IO_MGR::KICAD:
+        case IO_MGR::KICAD_SEXP:
             return wxT( "KiCad" );
 
         case IO_MGR::EAGLE:
@@ -542,7 +544,7 @@ void WIZARD_FPLIB_TABLE::OnWizardFinished( wxWizardEvent& aEvent )
                 wxString path = it->GetAbsolutePath();
                 path.Replace( GetGithubURL(), getDownloadDir() );
                 it->setPath( path );
-                it->setPluginType( IO_MGR::KICAD );
+                it->setPluginType( IO_MGR::KICAD_SEXP );
             }
         }
     }
@@ -652,22 +654,24 @@ bool WIZARD_FPLIB_TABLE::downloadGithubLibsFromList( wxArrayString& aUrlList,
         try
         {
             PLUGIN::RELEASER src( IO_MGR::PluginFind( IO_MGR::GITHUB ) );
-            PLUGIN::RELEASER dst( IO_MGR::PluginFind( IO_MGR::KICAD ) );
+            PLUGIN::RELEASER dst( IO_MGR::PluginFind( IO_MGR::KICAD_SEXP ) );
 
-            wxArrayString footprints = src->FootprintEnumerate( libsrc_name );
+            wxArrayString footprints;
+
+            src->FootprintEnumerate( footprints, libsrc_name );
 
             for( unsigned i = 0;  i < footprints.size();  ++i )
             {
-                std::auto_ptr<MODULE> m( src->FootprintLoad( libsrc_name, footprints[i] ) );
+                std::unique_ptr<MODULE> m( src->FootprintLoad( libsrc_name, footprints[i] ) );
                 dst->FootprintSave( libdst_name, m.get() );
-                // m is deleted here by auto_ptr.
+                // m is deleted here by unique_ptr.
             }
         }
         catch( const IO_ERROR& ioe )
         {
             if( aErrorMessage )
-                aErrorMessage->Printf( _( "Error:\n'%s'\nwhile downloading library:\n'%s'" ),
-                                       GetChars( ioe.errorText ), GetChars( libsrc_name ) );
+                aErrorMessage->Printf( _( "Error:\n\"%s\"\nwhile downloading library:\n\"%s\"" ),
+                                       GetChars( ioe.What() ), GetChars( libsrc_name ) );
             return false;
         }
     }

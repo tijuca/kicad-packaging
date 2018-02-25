@@ -26,7 +26,7 @@
 #define _DIALOG_FOOTPRINT_WIZARD_LIST_H_
 
 #include <dialog_footprint_wizard_list_base.h>
-#include <class_footprint_wizard.h>
+#include <footprint_wizard.h>
 
 class DIALOG_FOOTPRINT_WIZARD_LIST: public DIALOG_FOOTPRINT_WIZARD_LIST_BASE
 {
@@ -41,7 +41,11 @@ public:
     FOOTPRINT_WIZARD* GetWizard();
 
 private:
-    void OnCellFpGeneratorClick( wxGridEvent& event );
+    void initLists();
+    void OnCellFpGeneratorClick( wxGridEvent& event ) override;
+    void OnCellFpGeneratorDoubleClick( wxGridEvent& event ) override;
+    void onShowTrace( wxCommandEvent& event ) override;
+    void onUpdatePythonModulesClick( wxCommandEvent& event ) override;
 };
 
 #endif  // _DIALOG_FOOTPRINT_WIZARD_LIST_H_

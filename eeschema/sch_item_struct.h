@@ -2,7 +2,7 @@
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
  * Copyright (C) 2004 Jean-Pierre Charras, jaen-pierre.charras@gipsa-lab.inpg.com
- * Copyright (C) 2004-2011 KiCad Developers, see change_log.txt for contributors.
+ * Copyright (C) 2004-2017 KiCad Developers, see change_log.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -31,10 +31,8 @@
 #define SCH_ITEM_STRUCT_H
 
 #include <vector>
-#include <class_base_screen.h>
+#include <base_screen.h>
 #include <general.h>
-
-#include <boost/ptr_container/ptr_vector.hpp>
 
 class SCH_ITEM;
 class SCH_SHEET_PATH;
@@ -46,17 +44,13 @@ class NETLIST_OBJECT;
 class NETLIST_OBJECT_LIST;
 
 
-typedef boost::ptr_vector< SCH_ITEM > SCH_ITEMS;
-typedef SCH_ITEMS::iterator SCH_ITEMS_ITR;
-typedef std::vector< SCH_ITEMS_ITR > SCH_ITEMS_ITRS;
-
-
-#define FMT_IU          SCH_ITEM::FormatInternalUnits
-#define FMT_ANGLE       SCH_ITEM::FormatAngle
-
-
-/// Flag to enable find item tracing using the WXTRACE environment variable.  This
-/// flag generates a lot of debug output.
+/**
+ * @ingroup trace_env_vars
+ *
+ * Flag to enable finding schematic item debug output.
+ *
+ * @warning This generates a log of debug output.
+ */
 extern const wxString traceFindItem;
 
 
@@ -69,7 +63,8 @@ enum DANGLING_END_T {
     JUNCTION_END,
     PIN_END,
     LABEL_END,
-    ENTRY_END,
+    BUS_ENTRY_END,
+    WIRE_ENTRY_END,
     SHEET_LABEL_END,
     NO_CONNECT_END,
 };
@@ -92,16 +87,30 @@ private:
     /// The type of connection of #m_item.
     DANGLING_END_T m_type;
 
+    /// A pointer to the parent object (in the case of pins)
+    const EDA_ITEM* m_parent;
+
 public:
     DANGLING_END_ITEM( DANGLING_END_T aType, const EDA_ITEM* aItem, const wxPoint& aPosition )
     {
         m_item = aItem;
         m_type = aType;
         m_pos = aPosition;
+        m_parent = aItem;
+    }
+
+    DANGLING_END_ITEM( DANGLING_END_T aType, const EDA_ITEM* aItem,
+            const wxPoint& aPosition, const EDA_ITEM* aParent )
+    {
+        m_item = aItem;
+        m_type = aType;
+        m_pos = aPosition;
+        m_parent = aParent;
     }
 
     wxPoint GetPosition() const { return m_pos; }
     const EDA_ITEM* GetItem() const { return m_item; }
+    const EDA_ITEM* GetParent() const { return m_parent; }
     DANGLING_END_T GetType() const { return m_type; }
 };
 
@@ -116,7 +125,7 @@ public:
 class SCH_ITEM : public EDA_ITEM
 {
 protected:
-    LAYERSCH_ID    m_Layer;
+    SCH_LAYER_ID   m_Layer;
     EDA_ITEMS      m_connections;   ///< List of items connected to this item.
     wxPoint        m_storedPos;     ///< a temporary variable used in some move commands
                                     ///> to store a initial pos (of the item or mouse cursor)
@@ -128,7 +137,7 @@ public:
 
     ~SCH_ITEM();
 
-    virtual wxString GetClass() const
+    virtual wxString GetClass() const override
     {
         return wxT( "SCH_ITEM" );
     }
@@ -161,14 +170,14 @@ public:
      * Function GetLayer
      * returns the layer this item is on.
      */
-    LAYERSCH_ID GetLayer() const { return m_Layer; }
+    SCH_LAYER_ID GetLayer() const { return m_Layer; }
 
     /**
      * Function SetLayer
      * sets the layer this item is on.
      * @param aLayer The layer number.
      */
-    void SetLayer( LAYERSCH_ID aLayer )  { m_Layer = aLayer; }
+    void SetLayer( SCH_LAYER_ID aLayer )  { m_Layer = aLayer; }
 
     /**
      * Function GetPenSize virtual pure
@@ -184,11 +193,11 @@ public:
      * @param aOffset drawing Offset (usually wxPoint(0,0),
      *  but can be different when moving an object)
      * @param aDrawMode GR_OR, GR_XOR, ...
-     * @param aColor UNSPECIFIED_COLOR to use the normal body item color,
+     * @param aColor COLOR4D::UNSPECIFIED to use the normal body item color,
      * or force this color if it is a valid color
      */
     virtual void Draw( EDA_DRAW_PANEL* aPanel, wxDC* aDC, const wxPoint&  aOffset,
-                       GR_DRAWMODE aDrawMode, EDA_COLOR_T aColor = UNSPECIFIED_COLOR ) = 0;
+                       GR_DRAWMODE aDrawMode, COLOR4D aColor = COLOR4D::UNSPECIFIED ) = 0;
 
     /**
      * Function Move
@@ -218,14 +227,6 @@ public:
      *                  rotate around.
      */
     virtual void Rotate( wxPoint aPosition ) = 0;
-
-    /**
-     * Function Save
-     * writes the data structures for this object out to a FILE in "*.sch" format.
-     * @param aFile The FILE to write to.
-     * @return bool - true if success writing else false.
-     */
-    virtual bool Save( FILE* aFile ) const = 0;
 
     /**
      * Function Load
@@ -266,6 +267,8 @@ public:
     virtual bool IsDanglingStateChanged( std::vector< DANGLING_END_ITEM >& aItemList ) { return false; }
 
     virtual bool IsDangling() const { return false; }
+
+    virtual bool CanConnect( const SCH_ITEM* aItem ) const { return m_Layer == aItem->GetLayer(); }
 
     /**
      * Function IsSelectStateChanged
@@ -313,8 +316,7 @@ public:
      */
     bool IsConnected( const wxPoint& aPoint ) const;
 
-    /** @copydoc EDA_ITEM::HitTest(const wxPoint&) */
-    virtual bool HitTest( const wxPoint& aPosition ) const
+    virtual bool HitTest( const wxPoint& aPosition ) const override
     {
         return HitTest( aPosition, 0 );
     }
@@ -424,9 +426,5 @@ private:
      */
     virtual bool doIsConnected( const wxPoint& aPosition ) const { return false; }
 };
-
-
-extern bool sort_schematic_items( const SCH_ITEM* aItem1, const SCH_ITEM* aItem2 );
-
 
 #endif /* SCH_ITEM_STRUCT_H */

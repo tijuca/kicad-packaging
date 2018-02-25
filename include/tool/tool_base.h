@@ -3,6 +3,7 @@
  *
  * Copyright (C) 2013 CERN
  * @author Tomasz Wlostowski <tomasz.wlostowski@cern.ch>
+ * Copyright (C) 2016 KiCad Developers, see AUTHORS.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -31,16 +32,17 @@
 #include <tool/tool_event.h>
 #include <tool/tool_settings.h>
 
-#include <tool/delegate.h>
+#include <functional>
 
 class EDA_ITEM;
 class TOOL_MANAGER;
+class wxWindow;
 
 namespace KIGFX
 {
 class VIEW;
 class VIEW_CONTROLS;
-};
+}
 
 enum TOOL_TYPE
 {
@@ -53,7 +55,9 @@ enum TOOL_TYPE
 
 /// Unique identifier for tools
 typedef int TOOL_ID;
-typedef DELEGATE<int, const TOOL_EVENT&> TOOL_STATE_FUNC;
+
+using TOOL_STATE_FUNC = std::function<int(const TOOL_EVENT&)>;
+
 
 /**
  * Class TOOL_BASE
@@ -76,7 +80,7 @@ public:
     enum RESET_REASON
     {
         RUN,                ///< Tool is invoked after being inactive
-        MODEL_RELOAD,       ///< Model changes
+        MODEL_RELOAD,       ///< Model changes (required full reload)
         GAL_SWITCH          ///< Rendering engine changes
     };
 
@@ -142,15 +146,10 @@ public:
         return m_toolMgr;
     }
 
-    /**
-     * Function SetTransitions()
-     * This method is meant to be overridden in order to specify handlers for events. It is called
-     * every time tool is reset or finished.
-     */
-    virtual void SetTransitions() {};
-
     TOOL_SETTINGS& GetSettings();
 
+    bool IsToolActive() const;
+    
 protected:
     friend class TOOL_MANAGER;
     friend class TOOL_SETTINGS;

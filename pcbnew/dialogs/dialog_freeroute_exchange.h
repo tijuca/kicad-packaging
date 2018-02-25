@@ -35,12 +35,12 @@ private:
 
 private:
     // Virtual event handlers
-    void OnExportButtonClick( wxCommandEvent& event );
-    void OnLaunchButtonClick( wxCommandEvent& event );
-    void OnImportButtonClick( wxCommandEvent& event );
-    void OnHelpButtonClick( wxCommandEvent& event );
+    void OnExportButtonClick( wxCommandEvent& event ) override;
+    void OnLaunchButtonClick( wxCommandEvent& event ) override;
+    void OnImportButtonClick( wxCommandEvent& event ) override;
+    void OnHelpButtonClick( wxCommandEvent& event ) override;
 
-    void MyInit ( );
+    void init ( );
     const wxString createDSN_File();
 
 public:

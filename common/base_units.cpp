@@ -36,9 +36,10 @@
 
 #include <macros.h>
 #include <base_struct.h>
-#include <class_title_block.h>
+#include <title_block.h>
 #include <common.h>
 #include <base_units.h>
+#include "libeval/numeric_evaluator.h"
 
 
 #if defined( PCBNEW ) || defined( CVPCB ) || defined( EESCHEMA ) || defined( GERBVIEW ) || defined( PL_EDITOR )
@@ -312,11 +313,6 @@ double DoubleValueFromString( EDA_UNITS_T aUnits, const wxString& aTextValue )
     // Convert the period in decimal point
     buf.Replace( wxT( "." ), wxString( decimal_point, 1 ) );
 
-    // An ugly fix needed by WxWidgets 2.9.1 that sometimes
-    // back to a point as separator, although the separator is the comma
-    // TODO: remove this line if WxWidgets 2.9.2 fixes this issue
-    buf.Replace( wxT( "," ), wxString( decimal_point, 1 ) );
-
     // Find the end of the numeric part
     unsigned brk_point = 0;
 
@@ -388,8 +384,12 @@ int ValueFromString( const wxString& aTextValue )
 
 int ValueFromTextCtrl( const wxTextCtrl& aTextCtr )
 {
-    int      value;
+    int value;
     wxString msg = aTextCtr.GetValue();
+    NumericEvaluator eval;
+
+    if( eval.process( msg.mb_str() ) )
+        msg = wxString::FromUTF8( eval.result() );
 
     value = ValueFromString( g_UserUnit, msg );
 
@@ -421,3 +421,101 @@ wxString AngleToStringDegrees( double aAngle )
     return text;
 }
 
+
+wxString ReturnUnitSymbol( EDA_UNITS_T aUnit, const wxString& formatString )
+{
+    wxString tmp;
+    wxString label;
+
+    switch( aUnit )
+    {
+    case INCHES:
+        tmp = _( "\"" );
+        break;
+
+    case MILLIMETRES:
+        tmp = _( "mm" );
+        break;
+
+    case UNSCALED_UNITS:
+        break;
+
+    case DEGREES:
+        wxASSERT( false );
+        break;
+    }
+
+    if( formatString.IsEmpty() )
+        return tmp;
+
+    label.Printf( formatString, GetChars( tmp ) );
+
+    return label;
+}
+
+
+wxString GetUnitsLabel( EDA_UNITS_T aUnit )
+{
+    wxString label;
+
+    switch( aUnit )
+    {
+    case INCHES:
+        label = _( "inches" );
+        break;
+
+    case MILLIMETRES:
+        label = _( "millimeters" );
+        break;
+
+    case UNSCALED_UNITS:
+        label = _( "units" );
+        break;
+
+    case DEGREES:
+        label = _( "degrees" );
+        break;
+    }
+
+    return label;
+}
+
+
+wxString GetAbbreviatedUnitsLabel( EDA_UNITS_T aUnit )
+{
+    wxString label;
+
+    switch( aUnit )
+    {
+    case INCHES:
+        label = _( "in" );
+        break;
+
+    case MILLIMETRES:
+        label = _( "mm" );
+        break;
+
+    case UNSCALED_UNITS:
+        break;
+
+    case DEGREES:
+        label = _( "deg" );
+        break;
+
+    default:
+        label = wxT( "??" );
+        break;
+    }
+
+    return label;
+}
+
+
+void AddUnitSymbol( wxStaticText& Stext, EDA_UNITS_T aUnit )
+{
+    wxString msg = Stext.GetLabel();
+
+    msg += ReturnUnitSymbol( aUnit );
+
+    Stext.SetLabel( msg );
+}

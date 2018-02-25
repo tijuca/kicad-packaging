@@ -1,7 +1,7 @@
 /*
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
- * Copyright (C) 2014  Cirilo Bernardo
+ * Copyright (C) 2014-2017  Cirilo Bernardo
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -32,12 +32,12 @@ using namespace std;
 using namespace IDF3;
 
 // fetch a line from the given input file and trim the ends
-bool IDF3::FetchIDFLine( std::ifstream& aModel, std::string& aLine, bool& isComment, std::streampos& aFilePos )
+bool IDF3::FetchIDFLine( std::istream& aModel, std::string& aLine, bool& isComment, std::streampos& aFilePos )
 {
     aLine = "";
     aFilePos = aModel.tellg();
 
-    if( aFilePos == -1 )
+    if( aModel.fail() )
         return false;
 
     std::getline( aModel, aLine );
@@ -83,7 +83,8 @@ bool IDF3::GetIDFString( const std::string& aLine, std::string& aIDFString,
     if( idx < 0 || idx >= len )
         return false;
 
-    while( isspace( aLine[idx] ) && idx < len ) ++idx;
+    while( idx < len && isspace( aLine[idx] ) )
+        ++idx;
 
     if( idx == len )
     {
@@ -95,7 +96,7 @@ bool IDF3::GetIDFString( const std::string& aLine, std::string& aIDFString,
     {
         hasQuotes = true;
         ++idx;
-        while( aLine[idx] != '"' && idx < len )
+        while( idx < len && aLine[idx] != '"' )
             ostr << aLine[idx++];
 
         if( idx == len )
@@ -112,7 +113,7 @@ bool IDF3::GetIDFString( const std::string& aLine, std::string& aIDFString,
     {
         hasQuotes = false;
 
-        while( !isspace( aLine[idx] ) && idx < len )
+        while( idx < len && !isspace( aLine[idx] ) )
             ostr << aLine[idx++];
 
     }
@@ -204,7 +205,7 @@ bool IDF3::ParseIDFLayer( const std::string& aToken, IDF3::IDF_LAYER& aLayer )
 }
 
 
-bool IDF3::WriteLayersText( std::ofstream& aBoardFile, IDF3::IDF_LAYER aLayer )
+bool IDF3::WriteLayersText( std::ostream& aBoardFile, IDF3::IDF_LAYER aLayer )
 {
     switch( aLayer )
     {

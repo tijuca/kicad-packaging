@@ -1,7 +1,7 @@
 /*
  * This program source code file is part of KICAD, a free EDA CAD application.
  *
- * Copyright (C) 2014 CERN
+ * Copyright (C) 2014-2017 CERN
  * @author Maciej Suminski <maciej.suminski@cern.ch>
  *
  * This program is free software; you can redistribute it and/or
@@ -21,8 +21,6 @@
  * or you may write to the Free Software Foundation, Inc.,
  * 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
  */
-
-#include <boost/foreach.hpp>
 
 #include <gal/graphics_abstraction_layer.h>
 #include "edit_points.h"
@@ -44,9 +42,9 @@ EDIT_POINTS::EDIT_POINTS( EDA_ITEM* aParent ) :
 }
 
 
-EDIT_POINT* EDIT_POINTS::FindPoint( const VECTOR2I& aLocation )
+EDIT_POINT* EDIT_POINTS::FindPoint( const VECTOR2I& aLocation, KIGFX::VIEW *aView ) // fixme: ugly
 {
-    float size = m_view->ToWorld( EDIT_POINT::POINT_SIZE );
+    float size = aView->ToWorld( EDIT_POINT::POINT_SIZE );
 
     std::deque<EDIT_POINT>::iterator pit, pitEnd;
     for( pit = m_points.begin(), pitEnd = m_points.end(); pit != pitEnd; ++pit )
@@ -74,7 +72,7 @@ int EDIT_POINTS::GetContourStartIdx( int aPointIdx ) const
 {
     int lastIdx = 0;
 
-    BOOST_FOREACH( int idx, m_contours )
+    for( int idx : m_contours )
     {
         if( idx >= aPointIdx )
             return lastIdx;
@@ -88,7 +86,7 @@ int EDIT_POINTS::GetContourStartIdx( int aPointIdx ) const
 
 int EDIT_POINTS::GetContourEndIdx( int aPointIdx ) const
 {
-    BOOST_FOREACH( int idx, m_contours )
+    for( int idx : m_contours )
     {
         if( idx >= aPointIdx )
             return idx;
@@ -100,7 +98,7 @@ int EDIT_POINTS::GetContourEndIdx( int aPointIdx ) const
 
 bool EDIT_POINTS::IsContourStart( int aPointIdx ) const
 {
-    BOOST_FOREACH( int idx, m_contours )
+    for( int idx : m_contours )
     {
         if( idx + 1 == aPointIdx )
             return true;
@@ -116,7 +114,7 @@ bool EDIT_POINTS::IsContourStart( int aPointIdx ) const
 
 bool EDIT_POINTS::IsContourEnd( int aPointIdx ) const
 {
-    BOOST_FOREACH( int idx, m_contours )
+    for( int idx : m_contours )
     {
         if( idx == aPointIdx )
             return true;
@@ -205,23 +203,62 @@ EDIT_LINE* EDIT_POINTS::Next( const EDIT_LINE& aLine )
 }
 
 
-void EDIT_POINTS::ViewDraw( int aLayer, KIGFX::GAL* aGal ) const
+const BOX2I EDIT_POINTS::ViewBBox() const
 {
-    aGal->SetFillColor( KIGFX::COLOR4D( 1.0, 1.0, 1.0, 1.0 ) );
-    aGal->SetIsFill( true );
-    aGal->SetIsStroke( false );
-    aGal->PushDepth();
-    aGal->SetLayerDepth( aGal->GetMinDepth() );
+    BOX2I box;
+    bool empty = true;
 
-    float size = m_view->ToWorld( EDIT_POINT::POINT_SIZE );
-
-    BOOST_FOREACH( const EDIT_POINT& point, m_points )
-        aGal->DrawRectangle( point.GetPosition() - size / 2, point.GetPosition() + size / 2 );
-
-    BOOST_FOREACH( const EDIT_LINE& line, m_lines )
+    for( const auto& point : m_points )
     {
-        aGal->DrawCircle( line.GetPosition(), size / 2 );
+        if( empty )
+        {
+            box.SetOrigin( point.GetPosition() );
+            empty = false;
+        }
+        else
+        {
+            box.Merge( point.GetPosition() );
+        }
     }
 
-    aGal->PopDepth();
+    for( const auto& line : m_lines )
+    {
+        if( empty )
+        {
+            box.SetOrigin( line.GetOrigin().GetPosition() );
+            box.SetEnd( line.GetEnd().GetPosition() );
+            empty = false;
+        }
+        else
+        {
+            box.Merge( line.GetOrigin().GetPosition() );
+            box.Merge( line.GetEnd().GetPosition() );
+        }
+    }
+
+    return box;
+}
+
+
+void EDIT_POINTS::ViewDraw( int aLayer, KIGFX::VIEW* aView ) const
+{
+    auto gal = aView->GetGAL();
+
+    gal->SetFillColor( KIGFX::COLOR4D( 1.0, 1.0, 1.0, 1.0 ) );
+    gal->SetIsFill( true );
+    gal->SetIsStroke( false );
+    gal->PushDepth();
+    gal->SetLayerDepth( gal->GetMinDepth() );
+
+    float size = aView->ToWorld( EDIT_POINT::POINT_SIZE );
+
+    for( const EDIT_POINT& point : m_points )
+        gal->DrawRectangle( point.GetPosition() - size / 2, point.GetPosition() + size / 2 );
+
+    for( const EDIT_LINE& line : m_lines )
+    {
+        gal->DrawCircle( line.GetPosition(), size / 2 );
+    }
+
+    gal->PopDepth();
 }

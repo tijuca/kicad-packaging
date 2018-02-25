@@ -1,9 +1,9 @@
 /*
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
- * Copyright (C) 2013 Jean-Pierre Charras, jp.charras at wanadoo.fr
- * Copyright (C) 2008-2016 Wayne Stambaugh <stambaughw@verizon.net>
- * Copyright (C) 2004-2013 KiCad Developers, see change_log.txt for contributors.
+ * Copyright (C) 2016 Jean-Pierre Charras, jp.charras at wanadoo.fr
+ * Copyright (C) 2008 Wayne Stambaugh <stambaughw@gmail.com>
+ * Copyright (C) 2004-2017 KiCad Developers, see change_log.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -32,12 +32,13 @@
 #include <gr_basic.h>
 #include <class_drawpanel.h>
 #include <confirm.h>
-#include <schframe.h>
+#include <sch_edit_frame.h>
 #include <msgpanel.h>
 
 #include <general.h>
 #include <class_library.h>
 #include <sch_component.h>
+#include <symbol_lib_table.h>
 
 #include <dialog_edit_one_field.h>
 
@@ -51,11 +52,6 @@ void SCH_EDIT_FRAME::EditComponentFieldText( SCH_FIELD* aField )
 
     wxCHECK_RET( component != NULL && component->Type() == SCH_COMPONENT_T,
                  wxT( "Invalid schematic field parent item." ) );
-
-    LIB_PART* part = Prj().SchLibs()->FindLibPart( component->GetPartName() );
-
-    wxCHECK_RET( part, wxT( "Library part for component <" ) +
-                 component->GetPartName() + wxT( "> could not be found." ) );
 
     // Save old component in undo list if not already in edit, or moving.
     if( aField->GetFlags() == 0 )
@@ -84,6 +80,9 @@ void SCH_EDIT_FRAME::EditComponentFieldText( SCH_FIELD* aField )
     m_canvas->SetIgnoreMouseEvents( false );
     OnModify();
 
+    if( m_autoplaceFields )
+        component->AutoAutoplaceFields( GetScreen() );
+
     m_canvas->Refresh();
 
     MSG_PANEL_ITEMS items;
@@ -93,7 +92,7 @@ void SCH_EDIT_FRAME::EditComponentFieldText( SCH_FIELD* aField )
 }
 
 
-void SCH_EDIT_FRAME::RotateField( SCH_FIELD* aField, wxDC* aDC )
+void SCH_EDIT_FRAME::RotateField( SCH_FIELD* aField )
 {
     wxCHECK_RET( aField != NULL && aField->Type() == SCH_FIELD_T && !aField->GetText().IsEmpty(),
                  wxT( "Cannot rotate invalid schematic field." ) );
@@ -104,14 +103,10 @@ void SCH_EDIT_FRAME::RotateField( SCH_FIELD* aField, wxDC* aDC )
     if( aField->GetFlags() == 0 )
         SaveCopyInUndoList( component, UR_CHANGED );
 
-    aField->Draw( m_canvas, aDC, wxPoint( 0, 0 ), g_XorMode );
-
-    if( aField->GetOrientation() == TEXT_ORIENT_HORIZ )
-        aField->SetOrientation( TEXT_ORIENT_VERT );
+    if( aField->GetTextAngle() == TEXT_ANGLE_HORIZ )
+        aField->SetTextAngle( TEXT_ANGLE_VERT );
     else
-        aField->SetOrientation( TEXT_ORIENT_HORIZ );
-
-    aField->Draw( m_canvas, aDC, wxPoint( 0, 0 ), g_XorMode );
+        aField->SetTextAngle( TEXT_ANGLE_HORIZ );
 
     OnModify();
 }

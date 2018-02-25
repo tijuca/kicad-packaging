@@ -1,5 +1,5 @@
 ///////////////////////////////////////////////////////////////////////////
-// C++ code generated with wxFormBuilder (version Jun  5 2014)
+// C++ code generated with wxFormBuilder (version Jul 17 2016)
 // http://www.wxformbuilder.org/
 //
 // PLEASE DO "NOT" EDIT THIS FILE!
@@ -12,6 +12,7 @@
 #include <wx/xrc/xmlres.h>
 #include <wx/intl.h>
 class DIALOG_SHIM;
+class TEXT_CTRL_EVAL;
 
 #include "dialog_shim.h"
 #include <wx/string.h>
@@ -39,13 +40,13 @@ class DIALOG_PNS_DIFF_PAIR_DIMENSIONS_BASE : public DIALOG_SHIM
 	
 	protected:
 		wxStaticText* m_traceWidthLabel;
-		wxTextCtrl* m_traceWidthText;
+		TEXT_CTRL_EVAL* m_traceWidthText;
 		wxStaticText* m_traceWidthUnit;
 		wxStaticText* m_traceGapLabel;
-		wxTextCtrl* m_traceGapText;
+		TEXT_CTRL_EVAL* m_traceGapText;
 		wxStaticText* m_traceGapUnit;
 		wxStaticText* m_viaGapLabel;
-		wxTextCtrl* m_viaGapText;
+		TEXT_CTRL_EVAL* m_viaGapText;
 		wxStaticText* m_viaGapUnit;
 		wxCheckBox* m_viaTraceGapEqual;
 		wxStaticLine* m_staticline1;
@@ -55,13 +56,11 @@ class DIALOG_PNS_DIFF_PAIR_DIMENSIONS_BASE : public DIALOG_SHIM
 		
 		// Virtual event handlers, overide them in your derived class
 		virtual void OnViaTraceGapEqualCheck( wxCommandEvent& event ) { event.Skip(); }
-		virtual void OnCancelClick( wxCommandEvent& event ) { event.Skip(); }
-		virtual void OnOkClick( wxCommandEvent& event ) { event.Skip(); }
 		
 	
 	public:
 		
-		DIALOG_PNS_DIFF_PAIR_DIMENSIONS_BASE( wxWindow* parent, wxWindowID id = wxID_ANY, const wxString& title = _("Differential Pair Dimensions"), const wxPoint& pos = wxDefaultPosition, const wxSize& size = wxSize( 400,216 ), long style = wxDEFAULT_DIALOG_STYLE|wxRESIZE_BORDER ); 
+		DIALOG_PNS_DIFF_PAIR_DIMENSIONS_BASE( wxWindow* parent, wxWindowID id = wxID_ANY, const wxString& title = _("Differential Pair Dimensions"), const wxPoint& pos = wxDefaultPosition, const wxSize& size = wxSize( -1,-1 ), long style = wxDEFAULT_DIALOG_STYLE|wxRESIZE_BORDER ); 
 		~DIALOG_PNS_DIFF_PAIR_DIMENSIONS_BASE();
 	
 };

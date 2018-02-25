@@ -36,12 +36,14 @@
 #include <wx/uri.h>
 #include <wx/dir.h>
 #include <wx/progdlg.h>
+#include <wx/config.h>
 
 #include <pgm_base.h>
 #include <project.h>
 #include <wizard_3DShape_Libs_downloader.h>
 #include <confirm.h>
 #include <3d_viewer.h>
+#include <bitmaps.h>
 
 #include <../github/github_getliblist.h>
 
@@ -50,11 +52,12 @@
 #define KICAD_3DLIBS_LAST_DOWNLOAD_DIR wxT( "kicad_3Dlib_last_download_dir" )
 
 #define DEFAULT_GITHUB_3DSHAPES_LIBS_URL \
-    wxT( "https://github.com/KiCad/kicad-library/tree/master/modules/packages3d" )
+    "https://github.com/KiCad/kicad-packages3d"
+//    wxT( "https://github.com/KiCad/kicad-library/tree/master/modules/packages3d" )
 
-void Invoke3DShapeLibsDownloaderWizard( wxTopLevelWindow* aParent )
+void Invoke3DShapeLibsDownloaderWizard( wxTopLevelWindow* aCaller )
 {
-    WIZARD_3DSHAPE_LIBS_DOWNLOADER wizard( aParent );
+    WIZARD_3DSHAPE_LIBS_DOWNLOADER wizard( aCaller );
     wizard.RunWizard( wizard.GetFirstPage() );
 }
 
@@ -156,7 +159,7 @@ void WIZARD_3DSHAPE_LIBS_DOWNLOADER::OnSourceCheck( wxCommandEvent& aEvent )
 
 void WIZARD_3DSHAPE_LIBS_DOWNLOADER::OnGridLibReviewSize( wxSizeEvent& event )
 {
-    // Adjust the width of the column 1 afo m_gridLibReview (library names) to the
+    // Adjust the width of the column 1 of m_gridLibReview (library names) to the
     // max available width.
     int gridwidth = m_gridLibReview->GetClientSize().x;
     gridwidth -= m_gridLibReview->GetColSize( 0 ) + m_gridLibReview->GetColLabelSize();
@@ -260,7 +263,7 @@ void WIZARD_3DSHAPE_LIBS_DOWNLOADER::OnChangeSearch( wxCommandEvent& aEvent )
         bool wasChecked = ( checkedStrings.Index( lib ) != wxNOT_FOUND );
         int insertedIdx = -1;
 
-        if( !searchPhrase.IsEmpty() && lib.Lower().Contains( searchPhrase ) )
+        if( !searchPhrase.IsEmpty() && lib.Lower().BeforeLast( '.' ).Contains( searchPhrase ) )
         {
             insertedIdx = m_checkList3Dlibnames->Insert( lib, matching++ );
             m_checkList3Dlibnames->SetSelection( insertedIdx );
@@ -357,15 +360,28 @@ bool WIZARD_3DSHAPE_LIBS_DOWNLOADER::downloadGithubLibsFromList( wxArrayString& 
                            aUrlList.GetCount(), GetParent(),
                            wxPD_CAN_ABORT | wxPD_APP_MODAL | wxPD_AUTO_HIDE );
 
-    wxString url_base = GetGithubURL();
+    // Built the full server name string:
+    wxURI repo( GetGithubURL() );
+    wxString server = repo.GetScheme() + "://" + repo.GetServer();
 
     // Download libs:
     for( unsigned ii = 0; ii < aUrlList.GetCount(); ii++ )
     {
         wxString& libsrc_name = aUrlList[ii];
 
-        // Extract the lib name from the full URL:
-        wxString url = GetGithubURL() + wxT( "/" ) + libsrc_name;
+        // Recover the full URL lib from short name:
+        // (note: m_githubLibs stores the URL relative to the server name)
+        wxString url;
+
+        for( unsigned jj = 0; jj < m_githubLibs.GetCount(); jj++ )
+        {
+            if( m_githubLibs[jj].EndsWith( libsrc_name ) )
+            {
+                url = server + m_githubLibs[jj];
+                break;
+            }
+        }
+
         wxFileName fn( libsrc_name );
         // Set our local path
         fn.SetPath( getDownloadDir() );
@@ -395,7 +411,7 @@ bool WIZARD_3DSHAPE_LIBS_DOWNLOADER::downloadOneLib( const wxString& aLibURL,
 
     bool success;
 
-    // Get the list of candidate files: with ext .wrl or .wings
+    // Get the list of candidate files: with ext .wrl .stp .step .STEP .STP or .wings
     do
     {
         GITHUB_GETLIBLIST getter( aLibURL );

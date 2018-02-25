@@ -28,8 +28,7 @@
 #include <draw_frame.h>
 
 #include <hotkeys_basic.h>
-#include <boost/foreach.hpp>
-#include <boost/range/adaptor/map.hpp>
+#include <cctype>
 #include <cassert>
 
 ACTION_MANAGER::ACTION_MANAGER( TOOL_MANAGER* aToolManager ) :
@@ -38,7 +37,7 @@ ACTION_MANAGER::ACTION_MANAGER( TOOL_MANAGER* aToolManager ) :
     // Register known actions
     std::list<TOOL_ACTION*>& actionList = GetActionList();
 
-    BOOST_FOREACH( TOOL_ACTION* action, actionList )
+    for( TOOL_ACTION* action : actionList )
     {
         if( action->m_id == -1 )
             action->m_id = MakeActionId( action->m_name );
@@ -139,7 +138,7 @@ bool ACTION_MANAGER::RunHotKey( int aHotKey ) const
     const TOOL_ACTION* context = NULL;  // pointer to context action of the highest priority tool
     const TOOL_ACTION* global = NULL;   // pointer to global action, if there is no context action
 
-    BOOST_FOREACH( const TOOL_ACTION* action, actions )
+    for( const TOOL_ACTION* action : actions )
     {
         if( action->GetScope() == AS_GLOBAL )
         {
@@ -197,8 +196,9 @@ void ACTION_MANAGER::UpdateHotKeys()
     m_actionHotKeys.clear();
     m_hotkeys.clear();
 
-    BOOST_FOREACH( TOOL_ACTION* action, m_actionNameIndex | boost::adaptors::map_values )
+    for( const auto& actionName : m_actionNameIndex )
     {
+        TOOL_ACTION* action = actionName.second;
         int hotkey = processHotKey( action );
 
         if( hotkey > 0 )
@@ -208,13 +208,13 @@ void ACTION_MANAGER::UpdateHotKeys()
         }
     }
 
-#ifndef NDEBUG
+#ifdef DEBUG
     // Check if there are two global actions assigned to the same hotkey
-    BOOST_FOREACH( std::list<TOOL_ACTION*>& action_list, m_actionHotKeys | boost::adaptors::map_values )
+    for( const auto& action_list : m_actionHotKeys )
     {
         int global_actions_cnt = 0;
 
-        BOOST_FOREACH( TOOL_ACTION* action, action_list )
+        for( const TOOL_ACTION* action : action_list.second )
         {
             if( action->GetScope() == AS_GLOBAL )
                 ++global_actions_cnt;
@@ -233,8 +233,12 @@ int ACTION_MANAGER::processHotKey( TOOL_ACTION* aAction )
     if( ( hotkey & TOOL_ACTION::LEGACY_HK ) )
     {
         hotkey = hotkey & ~TOOL_ACTION::LEGACY_HK;  // it leaves only HK_xxx identifier
-        EDA_DRAW_FRAME* frame = static_cast<EDA_DRAW_FRAME*>( m_toolMgr->GetEditFrame() );
-        EDA_HOTKEY* hk_desc = frame->GetHotKeyDescription( hotkey );
+
+        auto frame = dynamic_cast<EDA_DRAW_FRAME*>( m_toolMgr->GetEditFrame() );
+        EDA_HOTKEY* hk_desc = nullptr;
+
+        if( frame )
+            hk_desc = frame->GetHotKeyDescription( hotkey );
 
         if( hk_desc )
         {

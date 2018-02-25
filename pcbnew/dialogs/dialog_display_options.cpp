@@ -1,29 +1,21 @@
-/**
- * @file pcbnew/dialogs/dialog_general_options.cpp
- */
-
 /*
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
  * Copyright (C) 2015 Jean-Pierre Charras, jean-pierre.charras at wanadoo.fr
- * Copyright (C) 1992-2015 KiCad Developers, see AUTHORS.txt for contributors.
+ * Copyright (C) 1992-2018 KiCad Developers, see AUTHORS.txt for contributors.
  *
- * This program is free software; you can redistribute it and/or
- * modify it under the terms of the GNU General Public License
- * as published by the Free Software Foundation; either version 2
- * of the License, or (at your option) any later version.
+ * This program is free software: you can redistribute it and/or modify it
+ * under the terms of the GNU General Public License as published by the
+ * Free Software Foundation, either version 3 of the License, or (at your
+ * option) any later version.
  *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
  *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, you may find one here:
- * http://www.gnu.org/licenses/old-licenses/gpl-2.0.html
- * or you may search the http://www.gnu.org website for the version 2 license,
- * or you may write to the Free Software Foundation, Inc.,
- * 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
+ * You should have received a copy of the GNU General Public License along
+ * with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
 /* functions relatives to the dialog opened from the main menu :
@@ -34,8 +26,9 @@
 #include <class_drawpanel.h>
 #include <confirm.h>
 #include <pcbnew.h>
-#include <wxPcbStruct.h>
-#include <pcbstruct.h>
+#include <pcb_edit_frame.h>
+#include <pcb_display_options.h>
+#include <config_map.h>
 
 #include <pcbnew_id.h>
 
@@ -43,8 +36,20 @@
 #include <dialog_display_options_base.h>
 
 #include <class_draw_panel_gal.h>
-#include <view/view.h>
+#include <pcb_view.h>
 #include <pcb_painter.h>
+
+#include <widgets/gal_options_panel.h>
+
+
+static const UTIL::CFG_MAP<PCB_DISPLAY_OPTIONS::TRACE_CLEARANCE_DISPLAY_MODE_T> traceClearanceSelectMap =
+{
+    { PCB_DISPLAY_OPTIONS::SHOW_CLEARANCE_NEW_TRACKS_AND_VIA_AREAS,            2 },     // Default
+    { PCB_DISPLAY_OPTIONS::DO_NOT_SHOW_CLEARANCE,                              0 },
+    { PCB_DISPLAY_OPTIONS::SHOW_CLEARANCE_NEW_TRACKS,                          1 },
+    { PCB_DISPLAY_OPTIONS::SHOW_CLEARANCE_NEW_AND_EDITED_TRACKS_AND_VIA_AREAS, 3 },
+    { PCB_DISPLAY_OPTIONS::SHOW_CLEARANCE_ALWAYS,                              4 },
+};
 
 
 void PCB_EDIT_FRAME::InstallDisplayOptionsDialog( wxCommandEvent& aEvent )
@@ -55,132 +60,74 @@ void PCB_EDIT_FRAME::InstallDisplayOptionsDialog( wxCommandEvent& aEvent )
 
 
 DIALOG_DISPLAY_OPTIONS::DIALOG_DISPLAY_OPTIONS( PCB_EDIT_FRAME* parent ) :
-    DIALOG_DISPLAY_OPTIONS_BASE( parent )
+    DIALOG_DISPLAY_OPTIONS_BASE( parent ),
+    m_parent( parent )
 {
-    m_Parent = parent;
+    KIGFX::GAL_DISPLAY_OPTIONS& galOptions = m_parent->GetGalDisplayOptions();
+    m_galOptsPanel = new GAL_OPTIONS_PANEL( this, galOptions );
 
-    init();
+    sLeftSizer->Add( m_galOptsPanel, 1, wxEXPAND, 0 );
+
+    SetFocus();
+
     m_sdbSizerOK->SetDefault();
-
-    FixOSXCancelButtonIssue();
 
     // Now all widgets have the size fixed, call FinishDialogSettings
     FinishDialogSettings();
 }
 
-void DIALOG_DISPLAY_OPTIONS::init()
+
+bool DIALOG_DISPLAY_OPTIONS::TransferDataToWindow()
 {
-    SetFocus();
-    DISPLAY_OPTIONS* displ_opts = (DISPLAY_OPTIONS*)m_Parent->GetDisplayOptions();
+    const PCB_DISPLAY_OPTIONS* displ_opts = (PCB_DISPLAY_OPTIONS*) m_parent->GetDisplayOptions();
 
-    m_OptDisplayTracks->SetValue( displ_opts->m_DisplayPcbTrackFill == SKETCH );
+    m_OptDisplayTracksClearance->SetSelection( UTIL::GetConfigForVal(
+            traceClearanceSelectMap, displ_opts->m_ShowTrackClearanceMode ) );
 
-    switch ( displ_opts->m_ShowTrackClearanceMode )
-    {
-        case DO_NOT_SHOW_CLEARANCE:
-            m_OptDisplayTracksClearance->SetSelection( 0 );
-            break;
-
-        case SHOW_CLEARANCE_NEW_TRACKS:
-            m_OptDisplayTracksClearance->SetSelection( 1 );
-            break;
-
-        case SHOW_CLEARANCE_NEW_AND_EDITED_TRACKS_AND_VIA_AREAS:
-            m_OptDisplayTracksClearance->SetSelection( 3 );
-            break;
-
-        default:
-        case SHOW_CLEARANCE_NEW_TRACKS_AND_VIA_AREAS:
-            m_OptDisplayTracksClearance->SetSelection( 2 );
-            break;
-
-        case SHOW_CLEARANCE_ALWAYS:
-            m_OptDisplayTracksClearance->SetSelection( 4 );
-            break;
-    }
-
-    m_OptDisplayPads->SetValue( displ_opts->m_DisplayPadFill == SKETCH );
-    m_OptDisplayVias->SetValue( displ_opts->m_DisplayViaFill == SKETCH );
-
-    m_Show_Page_Limits->SetValue( m_Parent->ShowPageLimits() );
-
-    m_OptDisplayViaHole->SetSelection( displ_opts->m_DisplayViaMode );
-    m_OptDisplayModTexts->SetValue( displ_opts->m_DisplayModTextFill == SKETCH );
-    m_OptDisplayModOutlines->SetValue( displ_opts->m_DisplayModEdgeFill == SKETCH );
     m_OptDisplayPadClearence->SetValue( displ_opts->m_DisplayPadIsol );
     m_OptDisplayPadNumber->SetValue( displ_opts->m_DisplayPadNum );
-    m_OptDisplayPadNoConn->SetValue( m_Parent->IsElementVisible( PCB_VISIBLE( NO_CONNECTS_VISIBLE ) ) );
-    m_OptDisplayDrawings->SetValue( displ_opts->m_DisplayDrawItemsFill == SKETCH );
+    m_OptDisplayPadNoConn->SetValue( m_parent->IsElementVisible( LAYER_NO_CONNECTS ) );
     m_ShowNetNamesOption->SetSelection( displ_opts->m_DisplayNetNamesMode );
+
+    m_galOptsPanel->TransferDataToWindow();
+
+    return true;
 }
 
 
-void DIALOG_DISPLAY_OPTIONS::OnCancelClick( wxCommandEvent& event )
+/*
+ * Update variables with new options
+ */
+bool DIALOG_DISPLAY_OPTIONS::TransferDataFromWindow()
 {
-    EndModal( 0 );
-}
+    PCB_DISPLAY_OPTIONS* displ_opts = (PCB_DISPLAY_OPTIONS*) m_parent->GetDisplayOptions();
 
-
-/* Update variables with new options
-*/
-void DIALOG_DISPLAY_OPTIONS::OnOkClick(wxCommandEvent& event)
-{
-    DISPLAY_OPTIONS* displ_opts = (DISPLAY_OPTIONS*)m_Parent->GetDisplayOptions();
-
-    m_Parent->SetShowPageLimits( m_Show_Page_Limits->GetValue() );
-
-    displ_opts->m_DisplayPcbTrackFill = not m_OptDisplayTracks->GetValue();
-
-    displ_opts->m_DisplayViaMode = (VIA_DISPLAY_MODE_T) m_OptDisplayViaHole->GetSelection();
-
-    switch ( m_OptDisplayTracksClearance->GetSelection() )
-    {
-        case 0:
-            displ_opts->m_ShowTrackClearanceMode = DO_NOT_SHOW_CLEARANCE;
-            break;
-
-        case 1:
-            displ_opts->m_ShowTrackClearanceMode = SHOW_CLEARANCE_NEW_TRACKS;
-            break;
-
-        case 2:
-            displ_opts->m_ShowTrackClearanceMode = SHOW_CLEARANCE_NEW_TRACKS_AND_VIA_AREAS;
-            break;
-
-        case 3:
-            displ_opts->m_ShowTrackClearanceMode = SHOW_CLEARANCE_NEW_AND_EDITED_TRACKS_AND_VIA_AREAS;
-            break;
-
-        case 4:
-            displ_opts->m_ShowTrackClearanceMode = SHOW_CLEARANCE_ALWAYS;
-            break;
-    }
-
-    displ_opts->m_DisplayModTextFill = not m_OptDisplayModTexts->GetValue();
-    displ_opts->m_DisplayModEdgeFill = not m_OptDisplayModOutlines->GetValue();
-
-    displ_opts->m_DisplayPadFill = not m_OptDisplayPads->GetValue();
-    displ_opts->m_DisplayViaFill = not m_OptDisplayVias->GetValue();
+    displ_opts->m_ShowTrackClearanceMode = UTIL::GetValFromConfig(
+            traceClearanceSelectMap, m_OptDisplayTracksClearance->GetSelection() );
 
     displ_opts->m_DisplayPadIsol = m_OptDisplayPadClearence->GetValue();
 
     displ_opts->m_DisplayPadNum = m_OptDisplayPadNumber->GetValue();
 
-    m_Parent->SetElementVisibility( PCB_VISIBLE(NO_CONNECTS_VISIBLE),
+    m_parent->SetElementVisibility( LAYER_NO_CONNECTS,
                                     m_OptDisplayPadNoConn->GetValue() );
 
-    displ_opts->m_DisplayDrawItemsFill = not m_OptDisplayDrawings->GetValue();
     displ_opts->m_DisplayNetNamesMode = m_ShowNetNamesOption->GetSelection();
 
+    m_galOptsPanel->TransferDataFromWindow();
+
     // Apply changes to the GAL
-    KIGFX::VIEW* view = m_Parent->GetGalCanvas()->GetView();
+    KIGFX::VIEW* view = m_parent->GetGalCanvas()->GetView();
     KIGFX::PCB_PAINTER* painter = static_cast<KIGFX::PCB_PAINTER*>( view->GetPainter() );
     KIGFX::PCB_RENDER_SETTINGS* settings =
             static_cast<KIGFX::PCB_RENDER_SETTINGS*>( painter->GetSettings() );
     settings->LoadDisplayOptions( displ_opts );
-    view->RecacheAllItems( true );
+    view->RecacheAllItems();
+    view->MarkTargetDirty( KIGFX::TARGET_NONCACHED );
 
-    m_Parent->GetCanvas()->Refresh();
+    m_parent->GetCanvas()->Refresh();
 
-    EndModal( 1 );
+    return true;
 }
+
+

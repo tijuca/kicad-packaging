@@ -6,8 +6,8 @@
 msgid ""
 msgstr ""
 "Project-Id-Version: 0.1\n"
-"POT-Creation-Date: 2016-12-15 18:38+0100\n"
-"PO-Revision-Date: 2016-12-15 18:43+0100\n"
+"POT-Creation-Date: 2016-08-31 08:42+0200\n"
+"PO-Revision-Date: 2016-08-31 08:45+0200\n"
 "Last-Translator: Kerusey Karyu <keruseykaryu@o2.pl>\n"
 "Language-Team: Polish KiCAD Team: Mateusz Skowroński, Krzysztof Kawa, "
 "Kerusey Karyu\n"
@@ -15,7 +15,7 @@ msgstr ""
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"X-Generator: Poedit 1.8.7.1\n"
+"X-Generator: Poedit 1.8.8\n"
 
 #. type: Title =
 #: cvpcb.adoc:6
@@ -214,7 +214,7 @@ msgstr ""
 #. type: Plain text
 #: cvpcb.adoc:82
 msgid ""
-"Running CvPcb from Eeschema lauched from the KiCad Manager is generally "
+"Running CvPcb from Eeschema launched from the KiCad Manager is generally "
 "better because:"
 msgstr ""
 "Uruchomienie CvPcb z poziomu Eeschema wywołanego z Menedżera projektu jest "
@@ -242,11 +242,11 @@ msgstr ""
 #. type: Plain text
 #: cvpcb.adoc:92
 msgid ""
-"Lauching CvPcb from an Eeschema launched from the KiCad manager assures "
+"Launching CvPcb from an Eeschema launched from the KiCad manager assures "
 "automatically all this."
 msgstr ""
 "Uruchomienie CvPcb z programu Eeschema wywołanego przez Menadżera projektu "
-"automatycznie zapewnia taki stan rzeczy."
+"automatycznie zapewania taki stan rzeczy."
 
 #. type: Plain text
 #: cvpcb.adoc:99

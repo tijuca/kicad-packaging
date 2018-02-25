@@ -2,7 +2,7 @@
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
  * Copyright (C) 2015 SoftPLC Corporation, Dick Hollenbeck <dick@softplc.com>
- * Copyright (C) 2016 KiCad Developers, see AUTHORS.txt for contributors.
+ * Copyright (C) 2016-2017 KiCad Developers, see AUTHORS.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -24,6 +24,14 @@
 
 
 /*
+Note:
+If you are using this plugin without the supporting nginx caching server, then you
+will never be happy with its performance.  However, it is the fastest plugin in
+existence when used with a local nginx and the nginx configuration file in this
+directory.  Nginx can be running in house on your network anywhere for this statement
+to be true.
+
+Comments below pertain to use without nginx, so are not relevant in every case:
 
 While exploring the possibility of local caching of the zip file, I discovered
 this command to retrieve the time stamp of the last commit into any particular
@@ -39,7 +47,6 @@ mechanism can be found, or github gets more servers.  But note that the occasion
 slow response is the exception rather than the norm.  Normally the response is
 down around a 1/3 of a second.  The information we would use is in the header
 named "Last-Modified" as seen below.
-
 
 HTTP/1.1 200 OK
 Server: GitHub.com
@@ -91,9 +98,9 @@ using namespace std;
 static const char* PRETTY_DIR = "allow_pretty_writing_to_this_dir";
 
 
-typedef boost::ptr_map<string, wxZipEntry>  MODULE_MAP;
-typedef MODULE_MAP::iterator                MODULE_ITER;
-typedef MODULE_MAP::const_iterator          MODULE_CITER;
+typedef boost::ptr_map< wxString, wxZipEntry >  MODULE_MAP;
+typedef MODULE_MAP::iterator                    MODULE_ITER;
+typedef MODULE_MAP::const_iterator              MODULE_CITER;
 
 
 /**
@@ -131,10 +138,10 @@ const wxString GITHUB_PLUGIN::GetFileExtension() const
 }
 
 
-wxArrayString GITHUB_PLUGIN::FootprintEnumerate(
+void GITHUB_PLUGIN::FootprintEnumerate( wxArrayString& aFootprintNames,
         const wxString& aLibraryPath, const PROPERTIES* aProperties )
 {
-    //D(printf("%s: this:%p  aLibraryPath:'%s'\n", __func__, this, TO_UTF8(aLibraryPath) );)
+    //D(printf("%s: this:%p  aLibraryPath:\"%s\"\n", __func__, this, TO_UTF8(aLibraryPath) );)
     cacheLib( aLibraryPath, aProperties );
 
     typedef std::set<wxString>      MYSET;
@@ -143,7 +150,9 @@ wxArrayString GITHUB_PLUGIN::FootprintEnumerate(
 
     if( m_pretty_dir.size() )
     {
-        wxArrayString locals = PCB_IO::FootprintEnumerate( m_pretty_dir );
+        wxArrayString locals;
+
+        PCB_IO::FootprintEnumerate( locals, m_pretty_dir );
 
         for( unsigned i=0; i<locals.GetCount();  ++i )
             unique.insert( locals[i] );
@@ -151,24 +160,32 @@ wxArrayString GITHUB_PLUGIN::FootprintEnumerate(
 
     for( MODULE_ITER it = m_gh_cache->begin();  it!=m_gh_cache->end();  ++it )
     {
-        unique.insert( FROM_UTF8( it->first.c_str() ) );
+        unique.insert( it->first );
     }
-
-    wxArrayString ret;
 
     for( MYSET::const_iterator it = unique.begin();  it != unique.end();  ++it )
     {
-        ret.Add( *it );
+        aFootprintNames.Add( *it );
+    }
+}
+
+
+void GITHUB_PLUGIN::PrefetchLib(
+        const wxString& aLibraryPath, const PROPERTIES* aProperties )
+{
+    if( m_lib_path != aLibraryPath )
+    {
+        m_zip_image.clear();
     }
 
-    return ret;
+    remoteGetZip( aLibraryPath );
 }
 
 
 MODULE* GITHUB_PLUGIN::FootprintLoad( const wxString& aLibraryPath,
         const wxString& aFootprintName, const PROPERTIES* aProperties )
 {
-    // D(printf("%s: this:%p  aLibraryPath:'%s'\n", __func__, this, TO_UTF8(aLibraryPath) );)
+    // D(printf("%s: this:%p  aLibraryPath:\"%s\"\n", __func__, this, TO_UTF8(aLibraryPath) );)
 
     // clear or set to valid the variable m_pretty_dir
     cacheLib( aLibraryPath, aProperties );
@@ -181,16 +198,14 @@ MODULE* GITHUB_PLUGIN::FootprintLoad( const wxString& aLibraryPath,
         if( local )
         {
             // It has worked, see <src>/scripts/test_kicad_plugin.py.  So this was not firing:
-            // wxASSERT( aFootprintName == FROM_UTF8( local->GetFPID().GetFootprintName().c_str() ) );
+            // wxASSERT( aFootprintName == FROM_UTF8( local->GetFPID().GetLibItemName().c_str() ) );
             // Moving it to higher API layer FP_LIB_TABLE::FootprintLoad().
 
             return local;
         }
     }
 
-    UTF8 fp_name = aFootprintName;
-
-    MODULE_CITER it = m_gh_cache->find( fp_name );
+    MODULE_CITER it = m_gh_cache->find( aFootprintName );
 
     if( it != m_gh_cache->end() )  // fp_name is present
     {
@@ -217,7 +232,7 @@ MODULE* GITHUB_PLUGIN::FootprintLoad( const wxString& aLibraryPath,
             // any name found in the pretty file; any name in the pretty file
             // must be ignored here.  Also, the library nickname is unknown in
             // this context so clear it just in case.
-            ret->SetFPID( fp_name );
+            ret->SetFPID( aFootprintName );
 
             return ret;
         }
@@ -252,7 +267,7 @@ void GITHUB_PLUGIN::FootprintSave( const wxString& aLibraryPath,
         // IsFootprintLibWritable() to determine if calling FootprintSave() is
         // even legal, so I spend no time on internationalization here:
 
-        string msg = StrPrintf( "Github library\n'%s'\nis only writable if you set option '%s' in Library Tables dialog.",
+        string msg = StrPrintf( "Github library\n\"%s\"\nis only writable if you set option \"%s\" in Library Tables dialog.",
                 TO_UTF8( aLibraryPath ), PRETTY_DIR );
 
         THROW_IO_ERROR( msg );
@@ -271,7 +286,9 @@ void GITHUB_PLUGIN::FootprintDelete( const wxString& aLibraryPath, const wxStrin
         // Does the PCB_IO base class have this footprint?
         // We cannot write to github.
 
-        wxArrayString pretties = PCB_IO::FootprintEnumerate( m_pretty_dir, aProperties );
+        wxArrayString pretties;
+
+        PCB_IO::FootprintEnumerate( pretties, m_pretty_dir, aProperties );
 
         if( pretties.Index( aFootprintName ) != wxNOT_FOUND )
         {
@@ -280,7 +297,7 @@ void GITHUB_PLUGIN::FootprintDelete( const wxString& aLibraryPath, const wxStrin
         else
         {
             wxString msg = wxString::Format(
-                    _( "Footprint\n'%s'\nis not in the writable portion of this Github library\n'%s'" ),
+                    _( "Footprint\n\"%s\"\nis not in the writable portion of this Github library\n\"%s\"" ),
                     GetChars( aFootprintName ),
                     GetChars( aLibraryPath )
                     );
@@ -294,7 +311,7 @@ void GITHUB_PLUGIN::FootprintDelete( const wxString& aLibraryPath, const wxStrin
         // IsFootprintLibWritable() to determine if calling FootprintSave() is
         // even legal, so I spend no time on internationalization here:
 
-        string msg = StrPrintf( "Github library\n'%s'\nis only writable if you set option '%s' in Library Tables dialog.",
+        string msg = StrPrintf( "Github library\n\"%s\"\nis only writable if you set option \"%s\" in Library Tables dialog.",
                 TO_UTF8( aLibraryPath ), PRETTY_DIR );
 
         THROW_IO_ERROR( msg );
@@ -370,8 +387,13 @@ void GITHUB_PLUGIN::cacheLib( const wxString& aLibraryPath, const PROPERTIES* aP
     {
         delete m_gh_cache;
         m_gh_cache = 0;
-
         m_pretty_dir.clear();
+
+        if( !m_lib_path.empty() )
+        {
+            // Library path wasn't empty before - it's been changed. Flush out the prefetch cache.
+            m_zip_image.clear();
+        }
 
         if( aProperties )
         {
@@ -381,7 +403,7 @@ void GITHUB_PLUGIN::cacheLib( const wxString& aLibraryPath, const PROPERTIES* aP
             {
                 wxString    wx_pretty_dir = pretty_dir;
 
-                wx_pretty_dir = FP_LIB_TABLE::ExpandSubstitutions( wx_pretty_dir );
+                wx_pretty_dir = LIB_TABLE::ExpandSubstitutions( wx_pretty_dir );
 
                 wxFileName wx_pretty_fn = wx_pretty_dir;
 
@@ -391,7 +413,7 @@ void GITHUB_PLUGIN::cacheLib( const wxString& aLibraryPath, const PROPERTIES* aP
                   )
                 {
                     wxString msg = wxString::Format(
-                            _( "option '%s' for Github library '%s' must point to a writable directory ending with '.pretty'." ),
+                            _( "option \"%s\" for Github library \"%s\" must point to a writable directory ending with '.pretty'." ),
                             GetChars( FROM_UTF8( PRETTY_DIR ) ),
                             GetChars( aLibraryPath )
                             );
@@ -417,10 +439,13 @@ void GITHUB_PLUGIN::cacheLib( const wxString& aLibraryPath, const PROPERTIES* aP
 
         wxMemoryInputStream mis( &m_zip_image[0], m_zip_image.size() );
 
-        // @todo: generalize this name encoding from a PROPERTY (option) later
+        // Recently the zip standard adopted UTF8 encoded filenames within the
+        // internal zip directory block.  Please only use zip files that conform
+        // to that standard.  Github seems to now, but may not have earlier.
         wxZipInputStream    zis( mis, wxConvUTF8 );
 
         wxZipEntry* entry;
+        wxString    fp_name;
 
         while( ( entry = zis.GetNextEntry() ) != NULL )
         {
@@ -428,7 +453,7 @@ void GITHUB_PLUGIN::cacheLib( const wxString& aLibraryPath, const PROPERTIES* aP
 
             if( fn.GetExt() == kicad_mod )
             {
-                UTF8 fp_name = fn.GetName();    // omit extension & path
+                fp_name = fn.GetName();    // omit extension & path
 
                 m_gh_cache->insert( fp_name, entry );
             }
@@ -512,13 +537,16 @@ bool GITHUB_PLUGIN::repoURL_zipURL( const wxString& aRepoURL, std::string* aZipU
 }
 
 
-void GITHUB_PLUGIN::remoteGetZip( const wxString& aRepoURL ) throw( IO_ERROR )
+void GITHUB_PLUGIN::remoteGetZip( const wxString& aRepoURL )
 {
     std::string  zip_url;
 
+    if( !m_zip_image.empty() )
+        return;
+
     if( !repoURL_zipURL( aRepoURL, &zip_url ) )
     {
-        wxString msg = wxString::Format( _( "Unable to parse URL:\n'%s'" ), GetChars( aRepoURL ) );
+        wxString msg = wxString::Format( _( "Unable to parse URL:\n\"%s\"" ), GetChars( aRepoURL ) );
         THROW_IO_ERROR( msg );
     }
 
@@ -542,13 +570,13 @@ void GITHUB_PLUGIN::remoteGetZip( const wxString& aRepoURL ) throw( IO_ERROR )
         // Note: kcurl.Perform() does not return an error if the file to download is not found
         static const char errorcmd[] = "http GET command failed";  // Do not translate this message
 
-        UTF8 fmt( _( "%s\nCannot get/download Zip archive: '%s'\nfor library path: '%s'.\nReason: '%s'" ) );
+        UTF8 fmt( _( "%s\nCannot get/download Zip archive: \"%s\"\nfor library path: \"%s\".\nReason: \"%s\"" ) );
 
         std::string msg = StrPrintf( fmt.c_str(),
                                      errorcmd,
                                      zip_url.c_str(),
                                      TO_UTF8( aRepoURL ),
-                                     TO_UTF8( ioe.errorText )
+                                     TO_UTF8( ioe.What() )
                                      );
 
         THROW_IO_ERROR( msg );
@@ -559,7 +587,7 @@ void GITHUB_PLUGIN::remoteGetZip( const wxString& aRepoURL ) throw( IO_ERROR )
     if( ( m_zip_image.compare( 0, 9, "Not Found", 9 ) == 0 ) ||
         ( m_zip_image.compare( 0, 14, "404: Not Found", 14 ) == 0 ) )
     {
-        UTF8 fmt( _( "Cannot download library '%s'.\nThe library does not exist on the server" ) );
+        UTF8 fmt( _( "Cannot download library \"%s\".\nThe library does not exist on the server" ) );
         std::string msg = StrPrintf( fmt.c_str(), TO_UTF8( aRepoURL ) );
 
         THROW_IO_ERROR( msg );
@@ -588,7 +616,7 @@ int main( int argc, char** argv )
     }
     catch( const IO_ERROR& ioe )
     {
-        printf( "%s\n", TO_UTF8(ioe.errorText) );
+        printf( "%s\n", TO_UTF8(ioe.What()) );
     }
 
     UNINIT_LOGGER();

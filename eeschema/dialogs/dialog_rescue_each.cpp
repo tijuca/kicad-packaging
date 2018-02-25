@@ -1,8 +1,7 @@
 /*
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
- * Copyright (C) 2015 Chris Pavlina <pavlina.chris@gmail.com>
- * Copyright (C) 2015 Kicad Developers, see change_log.txt for contributors.
+ * Copyright (C) 2015-2018 KiCad Developers, see AUTHORS.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -22,7 +21,7 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
  */
 
-#include <schframe.h>
+#include <sch_edit_frame.h>
 #include <sch_component.h>
 #include <invoke_sch_dialog.h>
 #include <dialog_rescue_each_base.h>
@@ -31,7 +30,6 @@
 #include <class_libentry.h>
 #include <set>
 #include <vector>
-#include <boost/foreach.hpp>
 #include <project_rescue.h>
 #include <eeschema_config.h>
 
@@ -39,10 +37,11 @@ class DIALOG_RESCUE_EACH: public DIALOG_RESCUE_EACH_BASE
 {
 public:
     /**
-     * Constructor
      * This dialog asks the user which rescuable, cached parts he wants to rescue.
+     *
      * Any rejects will be pruned from aCandidates.
-     * @param aCaller - the SCH_EDIT_FRAME calling this
+     *
+     * @param aParent - the SCH_EDIT_FRAME calling this
      * @param aRescuer - the active RESCUER instance
      * @param aAskShowAgain - if true, a "Never Show Again" button will be included
      */
@@ -56,22 +55,21 @@ private:
     RESCUER*        m_Rescuer;
     bool            m_AskShowAgain;
 
-    bool TransferDataToWindow();
-    bool TransferDataFromWindow();
+    bool TransferDataToWindow() override;
+    bool TransferDataFromWindow() override;
     void PopulateConflictList();
     void PopulateInstanceList();
-    void OnConflictSelect( wxDataViewEvent& event );
-    void OnNeverShowClick( wxCommandEvent& event );
-    void OnCancelClick( wxCommandEvent& event );
-    void OnHandleCachePreviewRepaint( wxPaintEvent& aRepaintEvent );
-    void OnHandleLibraryPreviewRepaint( wxPaintEvent& aRepaintEvent );
-    void OnDialogResize( wxSizeEvent& aSizeEvent );
+    void OnConflictSelect( wxDataViewEvent& event ) override;
+    void OnNeverShowClick( wxCommandEvent& event ) override;
+    void OnCancelClick( wxCommandEvent& event ) override;
+    void OnHandleCachePreviewRepaint( wxPaintEvent& aRepaintEvent ) override;
+    void OnHandleLibraryPreviewRepaint( wxPaintEvent& aRepaintEvent ) override;
     void renderPreview( LIB_PART* aComponent, int aUnit, wxPanel* panel );
 };
 
 
 DIALOG_RESCUE_EACH::DIALOG_RESCUE_EACH( SCH_EDIT_FRAME* aParent, RESCUER& aRescuer,
-            bool aAskShowAgain )
+                                        bool aAskShowAgain )
     : DIALOG_RESCUE_EACH_BASE( aParent ),
       m_Parent( aParent ),
       m_Rescuer( &aRescuer ),
@@ -81,16 +79,62 @@ DIALOG_RESCUE_EACH::DIALOG_RESCUE_EACH( SCH_EDIT_FRAME* aParent, RESCUER& aRescu
     m_stdButtonsOK->SetDefault();
 
     // Set the info message, customized to include the proper suffix.
-    wxString info_message =
-        _( "It looks like this project was made using older schematic component libraries.\n"
-           "Some parts may need to be relinked to a different symbol name, and some symbols\n"
-           "may need to be \"rescued\" (cloned and renamed) into a new library.\n"
-           "\n"
+    wxString info =
+        _( "This schematic was made using older symbol libraries which may break the "
+           "schematic.  Some symbols may need to be linked to a different symbol name.  "
+           "Some symbols may need to be \"rescued\" (copied and renamed) into a new library.\n\n"
            "The following changes are recommended to update the project." );
-    m_lblInfo->SetLabel( info_message );
+    m_htmlPrompt->AppendToPage( info );
+
+    // wxDataViewListCtrl seems to do a poor job of laying itself out so help it along here.
+    wxString header = _( "Accept" );
+    wxFont font = m_ListOfConflicts->GetFont();
+
+    font.MakeBold();
+
+    wxClientDC dc( this );
+
+    dc.SetFont( font );
+
+    int padding = 30;
+    int width = dc.GetTextExtent( header ).GetWidth();
+
+    m_ListOfConflicts->AppendToggleColumn( header, wxDATAVIEW_CELL_ACTIVATABLE, width,
+                                           wxALIGN_CENTER );
+
+    header = _( "Symbol Name" );
+    width = dc.GetTextExtent( header ).GetWidth() + padding;
+    m_ListOfConflicts->AppendTextColumn( header, wxDATAVIEW_CELL_INERT, width );
+
+    header = _( "Action Taken" );
+    width = dc.GetTextExtent( header ).GetWidth() + padding;
+    m_ListOfConflicts->AppendTextColumn( header, wxDATAVIEW_CELL_INERT, width );
+
+    header = _( "Reference" );
+    width = dc.GetTextExtent( header ).GetWidth() + padding;
+    m_ListOfInstances->AppendTextColumn( header, wxDATAVIEW_CELL_INERT, width );
+
+    header = _( "Value" );
+    width = dc.GetTextExtent( header ).GetWidth() + padding;
+    m_ListOfInstances->AppendTextColumn( header, wxDATAVIEW_CELL_INERT, width );
 
     m_componentViewOld->SetLayoutDirection( wxLayout_LeftToRight );
     m_componentViewNew->SetLayoutDirection( wxLayout_LeftToRight );
+
+    Layout();
+    SetSizeInDU( 280, 240 );
+
+    // Make sure the HTML window is large enough. Some fun size juggling and
+    // fudge factors here but it does seem to work pretty reliably.
+    auto info_size = m_htmlPrompt->GetTextExtent( info );
+    auto prompt_size = m_htmlPrompt->GetSize();
+    auto font_size = m_htmlPrompt->GetTextExtent( "X" );
+    auto approx_info_height = ( 2 * info_size.x / prompt_size.x ) * font_size.y;
+    m_htmlPrompt->SetSizeHints( 2 * prompt_size.x / 3, approx_info_height );
+    Layout();
+    GetSizer()->SetSizeHints( this );
+    SetSizeInDU( 280, 240 );
+    Center();
 }
 
 
@@ -104,21 +148,11 @@ bool DIALOG_RESCUE_EACH::TransferDataToWindow()
     if( !wxDialog::TransferDataToWindow() )
         return false;
 
-    m_ListOfConflicts->AppendToggleColumn( _( "Accept" ) );
-    m_ListOfConflicts->AppendTextColumn( _( "Symbol" ) );
-    m_ListOfConflicts->AppendTextColumn( _( "Action" ) );
-    m_ListOfInstances->AppendTextColumn( _( "Reference" ) );
-    m_ListOfInstances->AppendTextColumn( _( "Value" ) );
     PopulateConflictList();
     PopulateInstanceList();
 
     if( !m_AskShowAgain )
         m_btnNeverShowAgain->Hide();
-
-    GetSizer()->Layout();
-    GetSizer()->Fit( this );
-    GetSizer()->SetSizeHints( this );
-    Centre();
 
     return true;
 }
@@ -127,7 +161,7 @@ bool DIALOG_RESCUE_EACH::TransferDataToWindow()
 void DIALOG_RESCUE_EACH::PopulateConflictList()
 {
     wxVector<wxVariant> data;
-    BOOST_FOREACH( RESCUE_CANDIDATE& each_candidate, m_Rescuer->m_all_candidates )
+    for( RESCUE_CANDIDATE& each_candidate : m_Rescuer->m_all_candidates )
     {
         data.clear();
         data.push_back( wxVariant( true ) );
@@ -157,9 +191,11 @@ void DIALOG_RESCUE_EACH::PopulateInstanceList()
     RESCUE_CANDIDATE& selected_part = m_Rescuer->m_all_candidates[row];
 
     wxVector<wxVariant> data;
-    BOOST_FOREACH( SCH_COMPONENT* each_component, *m_Rescuer->GetComponents() )
+    int count = 0;
+
+    for( SCH_COMPONENT* each_component : *m_Rescuer->GetComponents() )
     {
-        if( each_component->GetPartName() != selected_part.GetRequestedName() )
+        if( each_component->GetLibId().Format() != UTF8( selected_part.GetRequestedName() ) )
             continue;
 
         SCH_FIELD* valueField = each_component->GetField( 1 );
@@ -168,8 +204,11 @@ void DIALOG_RESCUE_EACH::PopulateInstanceList()
         data.push_back( each_component->GetRef( & m_Parent->GetCurrentSheet() ) );
         data.push_back( valueField ? valueField->GetText() : wxT( "" ) );
         m_ListOfInstances->AppendItem( data );
-
+        count++;
     }
+
+    m_titleInstances->SetLabelText( wxString::Format(
+                    _( "Instances of this symbol (%d items):" ), count ) );
 }
 
 
@@ -201,22 +240,15 @@ void DIALOG_RESCUE_EACH::OnHandleLibraryPreviewRepaint( wxPaintEvent& aRepaintEv
 }
 
 
-void DIALOG_RESCUE_EACH::OnDialogResize( wxSizeEvent& aSizeEvent )
-{
-    // Placeholer - I was previously doing some extra reflow here.
-    DIALOG_RESCUE_EACH_BASE::OnDialogResize( aSizeEvent );
-}
-
-
 // Render the preview in our m_componentView. If this gets more complicated, we should
 // probably have a derived class from wxPanel; but this keeps things local.
 // Call it only from a Paint Event, because we are using a wxPaintDC to draw the component
 void DIALOG_RESCUE_EACH::renderPreview( LIB_PART* aComponent, int aUnit, wxPanel* aPanel )
 {
     wxPaintDC dc( aPanel );
-    EDA_COLOR_T bgcolor = m_Parent->GetDrawBgColor();
+    wxColour bgColor = m_Parent->GetDrawBgColor().ToColour();
 
-    dc.SetBackground( bgcolor == BLACK ? *wxBLACK_BRUSH : *wxWHITE_BRUSH );
+    dc.SetBackground( wxBrush( bgColor ) );
     dc.Clear();
 
     if( aComponent == NULL )
@@ -229,7 +261,7 @@ void DIALOG_RESCUE_EACH::renderPreview( LIB_PART* aComponent, int aUnit, wxPanel
     dc.SetDeviceOrigin( dc_size.x / 2, dc_size.y / 2 );
 
     // Find joint bounding box for everything we are about to draw.
-    EDA_RECT bBox = aComponent->GetBoundingBox( aUnit, /* deMorganConvert */ 1 );
+    EDA_RECT bBox = aComponent->GetUnitBoundingBox( aUnit, /* deMorganConvert */ 1 );
     const double xscale = (double) dc_size.x / bBox.GetWidth();
     const double yscale = (double) dc_size.y / bBox.GetHeight();
     const double scale  = std::min( xscale, yscale ) * 0.85;
@@ -245,8 +277,7 @@ void DIALOG_RESCUE_EACH::renderPreview( LIB_PART* aComponent, int aUnit, wxPanel
     if( !width || !height )
         return;
 
-    aComponent->Draw( NULL, &dc, offset, aUnit, /* deMorganConvert */ 1, GR_COPY,
-                      UNSPECIFIED_COLOR, DefaultTransform, true, true, false );
+    aComponent->Draw( NULL, &dc, offset, aUnit, 1, PART_DRAW_OPTIONS::Default() );
 }
 
 
@@ -288,14 +319,14 @@ void DIALOG_RESCUE_EACH::OnNeverShowClick( wxCommandEvent& aEvent )
     wxMessageDialog dlg( m_Parent,
                 _(  "Stop showing this tool?\n"
                     "No changes will be made.\n\n"
-                    "This setting can be changed from the \"Component Libraries\" dialog,\n"
+                    "This setting can be changed from the \"Symbol Libraries\" dialog,\n"
                     "and the tool can be activated manually from the \"Tools\" menu." ),
-            _( "Rescue Components" ), wxYES_NO | wxNO_DEFAULT | wxICON_QUESTION );
+            _( "Rescue Symbols" ), wxYES_NO | wxNO_DEFAULT | wxICON_QUESTION );
     int resp = dlg.ShowModal ();
 
     if( resp == wxID_YES )
     {
-        m_Config->Write( RESCUE_NEVER_SHOW_KEY, true );
+        m_Config->Write( RescueNeverShowEntry, true );
         m_Rescuer->m_chosen_candidates.clear();
         Close();
     }

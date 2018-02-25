@@ -2,7 +2,7 @@
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
  * Copyright (C) 2009 Jean-Pierre Charras, jean-pierre.charras@gipsa-lab.inpg.fr
- * Copyright (C) 2007-2011 Wayne Stambaugh <stambaughw@verizon.net>
+ * Copyright (C) 2007 Wayne Stambaugh <stambaughw@gmail.com>
  * Copyright (C) 1992-2016 KiCad Developers, see AUTHORS.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
@@ -28,6 +28,7 @@
  */
 
 #include <fctsys.h>
+#include <wx/timer.h>
 #include <pgm_base.h>
 #include <kiface_i.h>
 #include <gr_basic.h>
@@ -36,9 +37,10 @@
 #include <id.h>
 #include <class_drawpanel.h>
 #include <class_draw_panel_gal.h>
-#include <class_base_screen.h>
+#include <base_screen.h>
 #include <draw_frame.h>
 #include <view/view_controls.h>
+#include <gal/gal_display_options.h>
 
 #include <kicad_device_context.h>
 
@@ -46,12 +48,16 @@ static const int CURSOR_SIZE = 12; ///< Cursor size in pixels
 
 #define CLIP_BOX_PADDING 2
 
-// keys to store options in config:
+///@{
+/// \ingroup config
+
 #define ENBL_ZOOM_NO_CENTER_KEY         wxT( "ZoomNoCenter" )
 #define ENBL_MOUSEWHEEL_PAN_KEY         wxT( "MousewheelPAN" )
 #define ENBL_MIDDLE_BUTT_PAN_KEY        wxT( "MiddleButtonPAN" )
 #define MIDDLE_BUTT_PAN_LIMITED_KEY     wxT( "MiddleBtnPANLimited" )
 #define ENBL_AUTO_PAN_KEY               wxT( "AutoPAN" )
+
+///@}
 
 
 // Definitions for enabling and disabling debugging features in drawpanel.cpp.
@@ -60,12 +66,11 @@ static const int CURSOR_SIZE = 12; ///< Cursor size in pixels
 
 
 /**
- * Trace mask used to enable or disable the trace output of coordinates during drawing
- * functions.  The coordinate dumping can be turned on by setting the WXTRACE environment
- * variable to "kicad_dump_coords".  See the wxWidgets documentation on wxLogTrace for
- * more information.
+ * @ingroup trace_env_vars
+ *
+ * Flag to enable draw panel coordinate debug tracing.
  */
-#define KICAD_TRACE_COORDS wxT( "kicad_dump_coords" )
+static const wxString kicadTraceCoords = wxT( "KICAD_TRACE_COORDS" );
 
 
 // Events used by EDA_DRAW_PANEL
@@ -73,7 +78,7 @@ BEGIN_EVENT_TABLE( EDA_DRAW_PANEL, wxScrolledWindow )
     EVT_LEAVE_WINDOW( EDA_DRAW_PANEL::OnMouseLeaving )
     EVT_ENTER_WINDOW( EDA_DRAW_PANEL::OnMouseEntering )
     EVT_MOUSEWHEEL( EDA_DRAW_PANEL::OnMouseWheel )
-#ifdef USE_OSX_MAGNIFY_EVENT
+#if wxCHECK_VERSION( 3, 1, 0 ) || defined( USE_OSX_MAGNIFY_EVENT )
     EVT_MAGNIFY( EDA_DRAW_PANEL::OnMagnify )
 #endif
     EVT_MOUSE_EVENTS( EDA_DRAW_PANEL::OnMouseEvent )
@@ -83,6 +88,7 @@ BEGIN_EVENT_TABLE( EDA_DRAW_PANEL, wxScrolledWindow )
     EVT_ERASE_BACKGROUND( EDA_DRAW_PANEL::OnEraseBackground )
     EVT_SCROLLWIN( EDA_DRAW_PANEL::OnScroll )
     EVT_ACTIVATE( EDA_DRAW_PANEL::OnActivate )
+    EVT_TIMER( ID_MOUSE_DOUBLECLICK, EDA_DRAW_PANEL::OnTimer )
     EVT_MENU_RANGE( ID_PAN_UP, ID_PAN_RIGHT, EDA_DRAW_PANEL::OnPan )
 END_EVENT_TABLE()
 
@@ -105,7 +111,7 @@ EDA_DRAW_PANEL::EDA_DRAW_PANEL( EDA_DRAW_FRAME* parent, int id,
 
     SetLayoutDirection( wxLayout_LeftToRight );
 
-    SetBackgroundColour( MakeColour( parent->GetDrawBgColor() ) );
+    SetBackgroundColour( parent->GetDrawBgColor().ToColour() );
 
 #if KICAD_USE_BUFFERED_DC || KICAD_USE_BUFFERED_PAINTDC
     SetBackgroundStyle( wxBG_STYLE_CUSTOM );
@@ -117,9 +123,7 @@ EDA_DRAW_PANEL::EDA_DRAW_PANEL( EDA_DRAW_FRAME* parent, int id,
     m_canStartBlock = -1;       // Command block can start if >= 0
     m_abortRequest = false;
     m_enableMousewheelPan = false;
-    m_enableMiddleButtonPan = true;
     m_enableZoomNoCenter = false;
-    m_panScrollbarLimits = false;
     m_enableAutoPan = true;
     m_ignoreMouseEvents = false;
     // Be sure a mouse release button event will be ignored when creating the canvas
@@ -135,9 +139,7 @@ EDA_DRAW_PANEL::EDA_DRAW_PANEL( EDA_DRAW_FRAME* parent, int id,
     if( cfg )
     {
         cfg->Read( ENBL_MOUSEWHEEL_PAN_KEY, &m_enableMousewheelPan, false );
-        cfg->Read( ENBL_MIDDLE_BUTT_PAN_KEY, &m_enableMiddleButtonPan, true );
         cfg->Read( ENBL_ZOOM_NO_CENTER_KEY, &m_enableZoomNoCenter, false );
-        cfg->Read( MIDDLE_BUTT_PAN_LIMITED_KEY, &m_panScrollbarLimits, false );
         cfg->Read( ENBL_AUTO_PAN_KEY, &m_enableAutoPan, true );
     }
 
@@ -155,6 +157,9 @@ EDA_DRAW_PANEL::EDA_DRAW_PANEL( EDA_DRAW_FRAME* parent, int id,
 
     m_cursorLevel = 0;
     m_PrintIsMirrored = false;
+
+    m_ClickTimer = (wxTimer*) NULL;
+    m_doubleClickInterval = 250;
 }
 
 
@@ -165,11 +170,11 @@ EDA_DRAW_PANEL::~EDA_DRAW_PANEL()
     if( cfg )
     {
         cfg->Write( ENBL_MOUSEWHEEL_PAN_KEY, m_enableMousewheelPan );
-        cfg->Write( ENBL_MIDDLE_BUTT_PAN_KEY, m_enableMiddleButtonPan );
         cfg->Write( ENBL_ZOOM_NO_CENTER_KEY, m_enableZoomNoCenter );
-        cfg->Write( MIDDLE_BUTT_PAN_LIMITED_KEY, m_panScrollbarLimits );
         cfg->Write( ENBL_AUTO_PAN_KEY, m_enableAutoPan );
     }
+
+    wxDELETE( m_ClickTimer );
 }
 
 
@@ -214,16 +219,23 @@ wxPoint EDA_DRAW_PANEL::ToLogicalXY( const wxPoint& pos )
 }
 
 
-void EDA_DRAW_PANEL::DrawCrossHair( wxDC* aDC, EDA_COLOR_T aColor )
+void EDA_DRAW_PANEL::DrawCrossHair( wxDC* aDC, COLOR4D aColor )
 {
     if( m_cursorLevel != 0 || aDC == NULL || !m_showCrossHair )
         return;
 
     wxPoint cursor = GetParent()->GetCrossHairPosition();
 
+#ifdef USE_WX_GRAPHICS_CONTEXT
+    // Normally cursor color is set to white, so when it is xored with white
+    // background, it is painted black effectively. wxGraphicsContext does not have
+    // xor operation, so we need to invert the color manually.
+    aColor.Invert();
+#else
     GRSetDrawMode( aDC, GR_XOR );
+#endif
 
-    if( GetParent()->m_cursorShape != 0 )    // Draws full screen crosshair.
+    if( GetParent()->GetGalDisplayOptions().m_fullscreenCursor )
     {
         wxSize  clientSize = GetClientSize();
 
@@ -315,7 +327,7 @@ void EDA_DRAW_PANEL::RefreshDrawingRect( const EDA_RECT& aRect, bool aEraseBackg
     rect.width = dc.LogicalToDeviceXRel( rect.width );
     rect.height = dc.LogicalToDeviceYRel( rect.height );
 
-    wxLogTrace( KICAD_TRACE_COORDS,
+    wxLogTrace( kicadTraceCoords,
                 wxT( "Refresh area: drawing (%d, %d, %d, %d), device (%d, %d, %d, %d)" ),
                 aRect.GetX(), aRect.GetY(), aRect.GetWidth(), aRect.GetHeight(),
                 rect.x, rect.y, rect.width, rect.height );
@@ -372,7 +384,7 @@ void EDA_DRAW_PANEL::MoveCursor( const wxPoint& aPosition )
         GetScrollPixelsPerUnit( &xPpu, &yPpu );
         CalcUnscrolledPosition( screenPos.x, screenPos.y, &drawingPos.x, &drawingPos.y );
 
-        wxLogTrace( KICAD_TRACE_COORDS,
+        wxLogTrace( kicadTraceCoords,
                     wxT( "MoveCursor() initial screen position(%d, %d) " ) \
                     wxT( "rectangle(%d, %d, %d, %d) view(%d, %d)" ),
                     screenPos.x, screenPos.y, clientRect.x, clientRect.y,
@@ -390,7 +402,7 @@ void EDA_DRAW_PANEL::MoveCursor( const wxPoint& aPosition )
         Scroll( x, y );
         CalcScrolledPosition( drawingPos.x, drawingPos.y, &screenPos.x, &screenPos.y );
 
-        wxLogTrace( KICAD_TRACE_COORDS,
+        wxLogTrace( kicadTraceCoords,
                     wxT( "MoveCursor() scrolled screen position(%d, %d) view(%d, %d)" ),
                     screenPos.x, screenPos.y, x, y );
     }
@@ -403,6 +415,14 @@ void EDA_DRAW_PANEL::OnActivate( wxActivateEvent& event )
 {
     m_canStartBlock = -1;   // Block Command can't start
     event.Skip();
+}
+
+
+void EDA_DRAW_PANEL::OnTimer( wxTimerEvent& event )
+{
+    INSTALL_UNBUFFERED_DC( DC, this );
+    DC.SetBackground( *wxBLACK_BRUSH );
+    GetParent()->OnLeftClick( &DC, m_CursorClickPos );
 }
 
 
@@ -489,7 +509,7 @@ void EDA_DRAW_PANEL::OnScroll( wxScrollWinEvent& event )
         return;
     }
 
-    wxLogTrace( KICAD_TRACE_COORDS,
+    wxLogTrace( kicadTraceCoords,
                 wxT( "Setting scroll bars ppuX=%d, ppuY=%d, unitsX=%d, unitsY=%d, posX=%d, posY=%d" ),
                 ppux, ppuy, unitsX, unitsY, x, y );
 
@@ -545,7 +565,7 @@ void EDA_DRAW_PANEL::SetClipBox( wxDC& aDC, const wxRect* aRect )
     m_ClipBox.SetSize( wxSize( aDC.DeviceToLogicalXRel( clipBox.width ),
                                aDC.DeviceToLogicalYRel( clipBox.height ) ) );
 
-    wxLogTrace( KICAD_TRACE_COORDS,
+    wxLogTrace( kicadTraceCoords,
                 wxT( "Device clip box=(%d, %d, %d, %d), Logical clip box=(%d, %d, %d, %d)" ),
                 clipBox.x, clipBox.y, clipBox.width, clipBox.height,
                 m_ClipBox.GetX(), m_ClipBox.GetY(), m_ClipBox.GetWidth(), m_ClipBox.GetHeight() );
@@ -556,7 +576,7 @@ void EDA_DRAW_PANEL::EraseScreen( wxDC* DC )
 {
     GRSetDrawMode( DC, GR_COPY );
 
-    EDA_COLOR_T bgColor = GetParent()->GetDrawBgColor();
+    COLOR4D bgColor = GetParent()->GetDrawBgColor();
 
     GRSFilledRect( NULL, DC, m_ClipBox.GetX(), m_ClipBox.GetY(),
                    m_ClipBox.GetRight(), m_ClipBox.GetBottom(),
@@ -613,12 +633,10 @@ void EDA_DRAW_PANEL::ReDraw( wxDC* DC, bool erasebg )
     if( Screen == NULL )
         return;
 
-    EDA_COLOR_T bgColor = GetParent()->GetDrawBgColor();
+    COLOR4D bgColor = GetParent()->GetDrawBgColor();
 
-    if( ( bgColor != WHITE ) && ( bgColor != BLACK ) )
-        bgColor = BLACK;
-
-    if( bgColor == WHITE )
+    // TODO(JE): Is this correct?
+    if( bgColor.GetBrightness() > 0.5 )
     {
         g_XorMode    = GR_NXOR;
         g_GhostColor = BLACK;
@@ -631,7 +649,7 @@ void EDA_DRAW_PANEL::ReDraw( wxDC* DC, bool erasebg )
 
     GRResetPenAndBrush( DC );
 
-    DC->SetBackground( bgColor == BLACK ? *wxBLACK_BRUSH : *wxWHITE_BRUSH );
+    DC->SetBackground( wxBrush( bgColor.ToColour() ) );
     DC->SetBackgroundMode( wxSOLID );
 
     if( erasebg )
@@ -641,7 +659,7 @@ void EDA_DRAW_PANEL::ReDraw( wxDC* DC, bool erasebg )
 
     // Verfies that the clipping is working correctly.  If these two sets of numbers are
     // not the same or really close.  The clipping algorithms are broken.
-    wxLogTrace( KICAD_TRACE_COORDS,
+    wxLogTrace( kicadTraceCoords,
                 wxT( "Clip box: (%d, %d, %d, %d), Draw extents (%d, %d, %d, %d)" ),
                 m_ClipBox.GetX(), m_ClipBox.GetY(), m_ClipBox.GetRight(), m_ClipBox.GetBottom(),
                 DC->MinX(), DC->MinY(), DC->MaxX(), DC->MaxY() );
@@ -656,6 +674,14 @@ void EDA_DRAW_PANEL::SetEnableMousewheelPan( bool aEnable )
         GetParent()->GetGalCanvas()->GetViewControls()->EnableMousewheelPan( aEnable );
 }
 
+void EDA_DRAW_PANEL::SetEnableAutoPan( bool aEnable )
+{
+    m_enableAutoPan = aEnable;
+
+    if( GetParent()->IsGalCanvasActive() )
+        GetParent()->GetGalCanvas()->GetViewControls()->EnableAutoPan( aEnable );
+}
+
 
 void EDA_DRAW_PANEL::SetEnableZoomNoCenter( bool aEnable )
 {
@@ -668,8 +694,6 @@ void EDA_DRAW_PANEL::SetEnableZoomNoCenter( bool aEnable )
 
 void EDA_DRAW_PANEL::DrawBackGround( wxDC* DC )
 {
-    EDA_COLOR_T axis_color = BLUE;
-
     GRSetDrawMode( DC, GR_COPY );
 
     if( GetParent()->IsGridVisible() )
@@ -678,6 +702,7 @@ void EDA_DRAW_PANEL::DrawBackGround( wxDC* DC )
     // Draw axis
     if( GetParent()->m_showAxis )
     {
+        COLOR4D axis_color = COLOR4D( BLUE );
         wxSize  pageSize = GetParent()->GetPageSizeIU();
 
         // Draw the Y axis
@@ -739,23 +764,19 @@ void EDA_DRAW_PANEL::DrawGrid( wxDC* aDC )
         org.y += KiROUND( gridSize.y );
 
     // Use a pixel based draw to display grid.  There are a lot of calls, so the cost is
-    // high and grid is slowly drawn on some platforms.  Please note that this should
-    // always be enabled until the bitmap based solution below is fixed.
-#ifndef __WXMAC__
-    GRSetColorPen( aDC, GetParent()->GetGridColor() );
-#else
-    // On mac (Cocoa), a point isn't a pixel and being of size 1 don't survive to antialiasing
-    GRSetColorPen( aDC, GetParent()->GetGridColor(), aDC->DeviceToLogicalXRel( 2 ) );
-#endif
-
+    // high and grid is slowly drawn on some platforms. An other way using blit transfert was used,
+    // a long time ago, but it did not give very good results.
+    // The better way is highly dependent on the platform and the graphic card.
     int xpos;
     double right = ( double ) m_ClipBox.GetRight();
     double bottom = ( double ) m_ClipBox.GetBottom();
 
-#if defined( __WXMAC__ ) && defined( USE_WX_GRAPHICS_CONTEXT )
+#if defined( USE_WX_GRAPHICS_CONTEXT )
     wxGCDC *gcdc = wxDynamicCast( aDC, wxGCDC );
+
     if( gcdc )
     {
+        // Much faster grid drawing on systems using wxGraphicsContext
         wxGraphicsContext *gc = gcdc->GetGraphicsContext();
 
         // Grid point size
@@ -764,7 +785,7 @@ void EDA_DRAW_PANEL::DrawGrid( wxDC* aDC )
         const double h = aDC->DeviceToLogicalYRel( gsz );
 
         // Use our own pen
-        wxPen pen( MakeColour( GetParent()->GetGridColor() ), h );
+        wxPen pen( GetParent()->GetGridColor().ToColour(), h );
         pen.SetCap( wxCAP_BUTT );
         gc->SetPen( pen );
 
@@ -809,7 +830,7 @@ void EDA_DRAW_PANEL::DrawAuxiliaryAxis( wxDC* aDC, GR_DRAWMODE aDrawMode )
     if( origin == wxPoint( 0, 0 ) )
         return;
 
-    EDA_COLOR_T color = RED;
+    COLOR4D color = COLOR4D( RED );
 
     GRSetDrawMode( aDC, aDrawMode );
 
@@ -845,7 +866,7 @@ void EDA_DRAW_PANEL::DrawGridAxis( wxDC* aDC, GR_DRAWMODE aDrawMode, const wxPoi
     if( !GetParent()->m_showGridAxis || ( !aGridOrigin.x && !aGridOrigin.y ) )
         return;
 
-    EDA_COLOR_T color    = GetParent()->GetGridColor();
+    COLOR4D color = GetParent()->GetGridColor();
 
     GRSetDrawMode( aDC, aDrawMode );
 
@@ -893,18 +914,10 @@ bool EDA_DRAW_PANEL::OnRightClick( wxMouseEvent& event )
     pos = event.GetPosition();
     m_ignoreMouseEvents = true;
     PopupMenu( &MasterMenu, pos );
-    // here, we are waiting for popup menu closing.
-    // Among different ways, it can be closed by clicking on the left mouse button.
-    // The expected behavior is to move the mouse cursor to its initial
-    // location, where the right click was made.
-    // However there is a case where the move cursor does not work as expected:
-    // when the user left clicks on the caption frame: the entire window is moved.
-    // Calling wxSafeYield avoid this behavior because it allows the left click
-    // to be proceeded before moving the mouse
-    wxSafeYield();
 
-    // Move the mouse cursor to its initial position:
-    MoveCursorToCrossHair();
+    // The ZoomAndGrid menu is only invoked over empty space so there's no point in warping
+    // the cursor back to the crosshair, and it's very annoying if one clicked out of the menu.
+
     m_ignoreMouseEvents = false;
 
     return true;
@@ -967,7 +980,7 @@ void EDA_DRAW_PANEL::OnMouseWheel( wxMouseEvent& event )
     if( event.GetWheelRotation() == 0 || !GetParent()->IsEnabled()
        || !rect.Contains( event.GetPosition() ) )
     {
-        wxLogTrace( KICAD_TRACE_COORDS,
+        wxLogTrace( kicadTraceCoords,
                     wxT( "OnMouseWheel() position(%d, %d) rectangle(%d, %d, %d, %d)" ),
                     event.GetPosition().x, event.GetPosition().y,
                     rect.x, rect.y, rect.width, rect.height );
@@ -989,15 +1002,41 @@ void EDA_DRAW_PANEL::OnMouseWheel( wxMouseEvent& event )
 
     if( m_enableMousewheelPan )
     {
-        wxPoint newStart = GetViewStart();
-        if( axis == wxMOUSE_WHEEL_HORIZONTAL )
-            newStart.x += wheelRotation;
+        // MousewheelPAN + Ctrl = zooming
+        if( event.ControlDown() && !event.ShiftDown() )
+        {
+            if( wheelRotation > 0 )
+                cmd.SetId( ID_POPUP_ZOOM_IN );
+            else if( wheelRotation < 0)
+                cmd.SetId( ID_POPUP_ZOOM_OUT );
+        }
+        // MousewheelPAN + Shift = horizontal scrolling
+        // Without modifiers MousewheelPAN - just pan
         else
-            newStart.y -= wheelRotation;
+        {
+            if( event.ShiftDown() && !event.ControlDown() )
+                axis = wxMOUSE_WHEEL_HORIZONTAL;
 
-        wxPoint center = GetScreenCenterLogicalPosition();
-        GetParent()->SetScrollCenterPosition( center );
-        Scroll( newStart );
+            wxPoint newStart = GetViewStart();
+            wxPoint center = GetParent()->GetScrollCenterPosition();
+            double scale = GetParent()->GetScreen()->GetScalingFactor();
+
+            if( axis == wxMOUSE_WHEEL_HORIZONTAL )
+            {
+                newStart.x += wheelRotation;
+                center.x += KiROUND( (double) wheelRotation / scale );
+            }
+            else
+            {
+                newStart.y -= wheelRotation;
+                center.y -= KiROUND( (double) wheelRotation / scale );
+            }
+            Scroll( newStart );
+
+            GetParent()->SetScrollCenterPosition( center );
+            GetParent()->SetCrossHairPosition( center, true );
+            GetParent()->RedrawScreen( center, false );
+        }
     }
     else if( wheelRotation > 0 )
     {
@@ -1028,7 +1067,7 @@ void EDA_DRAW_PANEL::OnMouseWheel( wxMouseEvent& event )
 }
 
 
-#ifdef USE_OSX_MAGNIFY_EVENT
+#if wxCHECK_VERSION( 3, 1, 0 ) || defined( USE_OSX_MAGNIFY_EVENT )
 void EDA_DRAW_PANEL::OnMagnify( wxMouseEvent& event )
 {
     // Scale the panel around our cursor position.
@@ -1058,7 +1097,7 @@ void EDA_DRAW_PANEL::OnMagnify( wxMouseEvent& event )
 
 void EDA_DRAW_PANEL::OnMouseEvent( wxMouseEvent& event )
 {
-    int          localrealbutt = 0, localbutt = 0;
+    int          localbutt = 0;
     BASE_SCREEN* screen = GetScreen();
 
     if( !screen )
@@ -1092,12 +1131,6 @@ void EDA_DRAW_PANEL::OnMouseEvent( wxMouseEvent& event )
     if( m_ignoreMouseEvents )
         return;
 
-    if( event.LeftIsDown() )
-        localrealbutt |= GR_M_LEFT_DOWN;
-
-    if( event.MiddleIsDown() )
-        localrealbutt |= GR_M_MIDDLE_DOWN;
-
     if( event.LeftDown() )
         localbutt = GR_M_LEFT_DOWN;
 
@@ -1106,8 +1139,6 @@ void EDA_DRAW_PANEL::OnMouseEvent( wxMouseEvent& event )
 
     if( event.MiddleDown() )
         localbutt = GR_M_MIDDLE_DOWN;
-
-    localrealbutt |= localbutt;     // compensation default wxGTK
 
     INSTALL_UNBUFFERED_DC( DC, this );
     DC.SetBackground( *wxBLACK_BRUSH );
@@ -1129,6 +1160,11 @@ void EDA_DRAW_PANEL::OnMouseEvent( wxMouseEvent& event )
     // Calling Double Click and Click functions :
     if( localbutt == (int) ( GR_M_LEFT_DOWN | GR_M_DCLICK ) )
     {
+        if( m_ClickTimer )
+        {
+            m_ClickTimer->Stop();
+            wxDELETE( m_ClickTimer );
+        }
         GetParent()->OnLeftDClick( &DC, GetParent()->RefPos( true ) );
 
         // inhibit a response to the mouse left button release,
@@ -1146,7 +1182,21 @@ void EDA_DRAW_PANEL::OnMouseEvent( wxMouseEvent& event )
         m_ignoreNextLeftButtonRelease = false;
 
         if( screen->m_BlockLocate.GetState() == STATE_NO_BLOCK && !ignoreEvt )
-            GetParent()->OnLeftClick( &DC, GetParent()->RefPos( true ) );
+        {
+            EDA_ITEM* item = screen->GetCurItem();
+            m_CursorClickPos = GetParent()->RefPos( true );
+
+            // If we have an item already selected, or we are using a tool,
+            // we won't use the disambiguation menu so process the click immediately
+            if( ( item && item->GetFlags() ) || GetParent()->GetToolId() != ID_NO_TOOL_SELECTED )
+                GetParent()->OnLeftClick( &DC, m_CursorClickPos );
+            else
+            {
+                wxDELETE( m_ClickTimer );
+                m_ClickTimer = new wxTimer(this, ID_MOUSE_DOUBLECLICK);
+                m_ClickTimer->StartOnce( m_doubleClickInterval );
+            }
+        }
 
     }
     else if( !event.LeftIsDown() )
@@ -1159,120 +1209,34 @@ void EDA_DRAW_PANEL::OnMouseEvent( wxMouseEvent& event )
         m_ignoreNextLeftButtonRelease = false;
     }
 
-    if( event.ButtonDown( wxMOUSE_BTN_MIDDLE ) && m_enableMiddleButtonPan )
+    if( event.ButtonDown( wxMOUSE_BTN_MIDDLE ) )
     {
-        if( m_panScrollbarLimits )
-        {
-            int ppux, ppuy;
-            GetScrollPixelsPerUnit( &ppux, &ppuy );
-            GetViewStart( &m_PanStartCenter.x, &m_PanStartCenter.y );
-            m_PanStartCenter.x *= ppux;
-            m_PanStartCenter.y *= ppuy;
-        }
-        else
-            m_PanStartCenter = GetParent()->GetScrollCenterPosition();
-
+        m_PanStartCenter = GetParent()->GetScrollCenterPosition();
         m_PanStartEventPosition = event.GetPosition();
 
         INSTALL_UNBUFFERED_DC( dc, this );
         CrossHairOff( &dc );
+        SetCursor( wxCURSOR_SIZING );
     }
 
-    if( event.ButtonUp( wxMOUSE_BTN_MIDDLE ) && m_enableMiddleButtonPan )
+    if( event.ButtonUp( wxMOUSE_BTN_MIDDLE ) )
     {
         INSTALL_UNBUFFERED_DC( dc, this );
         CrossHairOn( &dc );
+        SetCursor( (wxStockCursor) m_currentCursor );
     }
 
-    if( event.MiddleIsDown() && m_enableMiddleButtonPan )
+    if( event.MiddleIsDown() )
     {
         wxPoint currentPosition = event.GetPosition();
 
-        if( m_panScrollbarLimits )
-        {
-            int x, y;
-            int tmpX, tmpY;
-            int ppux, ppuy;
-            int maxX, maxY;
-            int vsizeX, vsizeY;
-            int csizeX, csizeY;
+        double scale = GetParent()->GetScreen()->GetScalingFactor();
+        int x = m_PanStartCenter.x +
+                KiROUND( (double) ( m_PanStartEventPosition.x - currentPosition.x ) / scale );
+        int y = m_PanStartCenter.y +
+                KiROUND( (double) ( m_PanStartEventPosition.y - currentPosition.y ) / scale );
 
-            GetViewStart( &tmpX, &tmpY );
-            GetScrollPixelsPerUnit( &ppux, &ppuy );
-            GetVirtualSize( &vsizeX, &vsizeY );
-            GetClientSize( &csizeX, &csizeY );
-
-            maxX = vsizeX - csizeX;
-            maxY = vsizeY - csizeY;
-
-            x = m_PanStartCenter.x + m_PanStartEventPosition.x - currentPosition.x;
-            y = m_PanStartCenter.y + m_PanStartEventPosition.y - currentPosition.y;
-
-            bool shouldMoveCursor = false;
-
-            if( x < 0 )
-            {
-                currentPosition.x += x;
-                x = 0;
-                shouldMoveCursor = true;
-            }
-
-            if( y < 0 )
-            {
-                currentPosition.y += y;
-                y = 0;
-                shouldMoveCursor = true;
-            }
-
-            if( x > maxX )
-            {
-                currentPosition.x += ( x - maxX );
-                x = maxX;
-                shouldMoveCursor = true;
-            }
-
-            if( y > maxY )
-            {
-                currentPosition.y += ( y - maxY );
-                y = maxY;
-                shouldMoveCursor = true;
-            }
-
-            if( shouldMoveCursor )
-                WarpPointer( currentPosition.x, currentPosition.y );
-
-            Scroll( x/ppux, y/ppuy );
-
-            double scale = GetParent()->GetScreen()->GetScalingFactor();
-
-            wxPoint center = GetParent()->GetScrollCenterPosition();
-            center.x += KiROUND( (double) ( x - tmpX ) / scale ) / ppux;
-            center.y += KiROUND( (double) ( y - tmpY ) / scale ) / ppuy;
-            GetParent()->SetScrollCenterPosition( center );
-
-            Refresh();
-            Update();
-        }
-        else
-        {
-            double scale = GetParent()->GetScreen()->GetScalingFactor();
-            int x = m_PanStartCenter.x +
-                    KiROUND( (double) ( m_PanStartEventPosition.x - currentPosition.x ) / scale );
-            int y = m_PanStartCenter.y +
-                    KiROUND( (double) ( m_PanStartEventPosition.y - currentPosition.y ) / scale );
-
-            GetParent()->RedrawScreen( wxPoint( x, y ), false );
-        }
-    }
-
-    if( event.ButtonUp( wxMOUSE_BTN_MIDDLE ) && !m_enableMiddleButtonPan &&
-        (screen->m_BlockLocate.GetState() == STATE_NO_BLOCK) )
-    {
-        // The middle button has been released, with no block command:
-        // We use it for a zoom center at cursor position command
-        wxCommandEvent cmd( wxEVT_COMMAND_MENU_SELECTED, ID_POPUP_ZOOM_CENTER );
-        cmd.SetEventObject( this );
-        GetEventHandler()->ProcessEvent( cmd );
+        GetParent()->RedrawScreen( wxPoint( x, y ), false );
     }
 
     // Calling the general function on mouse changes (and pseudo key commands)
@@ -1318,7 +1282,7 @@ void EDA_DRAW_PANEL::OnMouseEvent( wxMouseEvent& event )
             screen->m_BlockLocate.SetOrigin( m_CursorStartPos );
         }
 
-        if( event.LeftDown() || ( !m_enableMiddleButtonPan && event.MiddleDown() ) )
+        if( event.LeftDown() )
         {
             if( screen->m_BlockLocate.GetState() == STATE_BLOCK_MOVE )
             {
@@ -1327,18 +1291,13 @@ void EDA_DRAW_PANEL::OnMouseEvent( wxMouseEvent& event )
                 m_ignoreNextLeftButtonRelease = true;
             }
         }
-        else if( ( m_canStartBlock >= 0 )
-                && ( event.LeftIsDown() || ( !m_enableMiddleButtonPan && event.MiddleIsDown() ) )
-                && !IsMouseCaptured() )
+        else if( ( m_canStartBlock >= 0 ) && event.LeftIsDown() && !IsMouseCaptured() )
         {
             // Mouse is dragging: if no block in progress,  start a block command.
             if( screen->m_BlockLocate.GetState() == STATE_NO_BLOCK )
             {
                 //  Start a block command
                 int cmd_type = kbstat;
-
-                if( !m_enableMiddleButtonPan && event.MiddleIsDown() )
-                    cmd_type |= MOUSE_MIDDLE;
 
                 // A block command is started if the drag is enough.  A small
                 // drag is ignored (it is certainly a little mouse move when
@@ -1347,7 +1306,9 @@ void EDA_DRAW_PANEL::OnMouseEvent( wxMouseEvent& event )
                     m_minDragEventCount++;
                 else
                 {
-                    if( !GetParent()->HandleBlockBegin( &DC, cmd_type, m_CursorStartPos ) )
+                    auto cmd = (GetParent()->GetToolId() == ID_ZOOM_SELECTION) ? BLOCK_ZOOM : 0;
+
+                    if( !GetParent()->HandleBlockBegin( &DC, cmd_type, m_CursorStartPos, cmd ) )
                     {
                         // should not occur: error
                         GetParent()->DisplayToolMsg(
@@ -1362,8 +1323,7 @@ void EDA_DRAW_PANEL::OnMouseEvent( wxMouseEvent& event )
             }
         }
 
-        if( event.ButtonUp( wxMOUSE_BTN_LEFT ) ||
-            ( !m_enableMiddleButtonPan && event.ButtonUp( wxMOUSE_BTN_MIDDLE ) ) )
+        if( event.ButtonUp( wxMOUSE_BTN_LEFT ) )
         {
             /* Release the mouse button: end of block.
              * The command can finish (DELETE) or have a next command (MOVE,
@@ -1411,23 +1371,21 @@ void EDA_DRAW_PANEL::OnMouseEvent( wxMouseEvent& event )
         }
     }
 
-#if 0
-    wxString msg_debug;
-    msg_debug.Printf( " block state %d, cmd %d",
-                      screen->m_BlockLocate.GetState(),
-                      screen->m_BlockLocate.GetCommand() );
-    GetParent()->PrintMsg( msg_debug );
-#endif
-
     lastPanel = this;
-}
 
+#ifdef WXGTK3
+    // Screen has to be updated on every operation, otherwise the cursor leaves a trail (when xor
+    // operation is changed to copy) or is not updated at all.
+    Refresh();
+#endif
+}
 
 
 void EDA_DRAW_PANEL::OnCharHook( wxKeyEvent& event )
 {
     event.Skip();
 }
+
 
 void EDA_DRAW_PANEL::OnKeyEvent( wxKeyEvent& event )
 {
@@ -1509,7 +1467,7 @@ void EDA_DRAW_PANEL::OnPan( wxCommandEvent& event )
     unitsX /= ppux;
     unitsY /= ppuy;
 
-    wxLogTrace( KICAD_TRACE_COORDS,
+    wxLogTrace( kicadTraceCoords,
                 wxT( "Scroll center position before pan: (%d, %d)" ), tmpX, tmpY );
 
     switch( event.GetId() )
@@ -1570,7 +1528,7 @@ void EDA_DRAW_PANEL::OnPan( wxCommandEvent& event )
         center.y += KiROUND( (double) ( y - tmpY ) / scale );
         GetParent()->SetScrollCenterPosition( center );
 
-        wxLogTrace( KICAD_TRACE_COORDS,
+        wxLogTrace( kicadTraceCoords,
                     wxT( "Scroll center position after pan: (%d, %d)" ), center.x, center.y );
     }
 

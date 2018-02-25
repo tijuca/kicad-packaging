@@ -2,7 +2,7 @@
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
  * Copyright (C) 2012 SoftPLC Corporation, Dick Hollenbeck <dick@softplc.com>
- * Copyright (C) 2012-2016 KiCad Developers, see AUTHORS.txt for contributors.
+ * Copyright (C) 2012-2018 KiCad Developers, see AUTHORS.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -26,6 +26,7 @@
 #include <kiway_player.h>
 #include <wx/evtloop.h>
 #include <pgm_base.h>
+#include <eda_rect.h>
 
 
 /// Toggle a window's "enable" status to disabled, then enabled on destruction.
@@ -57,6 +58,7 @@ DIALOG_SHIM::DIALOG_SHIM( wxWindow* aParent, wxWindowID id, const wxString& titl
         const wxPoint& pos, const wxSize& size, long style, const wxString& name ) :
     wxDialog( aParent, id, title, pos, size, style, name ),
     KIWAY_HOLDER( 0 ),
+    m_fixupsRun( false ),
     m_qmodal_loop( 0 ),
     m_qmodal_showing( false ),
     m_qmodal_parent_disabler( 0 )
@@ -84,9 +86,7 @@ DIALOG_SHIM::DIALOG_SHIM( wxWindow* aParent, wxWindowID id, const wxString& titl
         Pgm().App().SetTopWindow( parent_kiwayplayer );
 #endif
 
-#if DLGSHIM_USE_SETFOCUS
-    Connect( wxEVT_INIT_DIALOG, wxInitDialogEventHandler( DIALOG_SHIM::onInit ) );
-#endif
+    Connect( wxEVT_PAINT, wxPaintEventHandler( DIALOG_SHIM::OnPaint ) );
 }
 
 
@@ -96,8 +96,10 @@ DIALOG_SHIM::~DIALOG_SHIM()
     if( IsQuasiModal() )
         EndQuasiModal( wxID_CANCEL );
 
-    delete m_qmodal_parent_disabler;    // usually NULL by now
+    if( m_qmodal_parent_disabler )
+        delete m_qmodal_parent_disabler;    // usually NULL by now
 }
+
 
 void DIALOG_SHIM::FinishDialogSettings()
 {
@@ -112,18 +114,25 @@ void DIALOG_SHIM::FinishDialogSettings()
     Center();
 }
 
-void DIALOG_SHIM::FixOSXCancelButtonIssue()
-{
-#ifdef  __WXMAC__
-    // A ugly hack to fix an issue on OSX: ctrl+c closes the dialog instead of
-    // copying a text if a  button with wxID_CANCEL is used in a wxStdDialogButtonSizer
-    // created by wxFormBuilder: the label is &Cancel, and this accelerator key has priority
-    // to copy text standard accelerator, and the dlg is closed when trying to copy text
-    wxButton* button = dynamic_cast< wxButton* > ( wxWindow::FindWindowById( wxID_CANCEL, this ) );
 
-    if( button )
-        button->SetLabel( _( "Cancel" ) );
-#endif
+void DIALOG_SHIM::SetSizeInDU( int x, int y )
+{
+    wxSize sz( x, y );
+    SetSize( ConvertDialogToPixels( sz ) );
+}
+
+
+int DIALOG_SHIM::HorizPixelsFromDU( int x )
+{
+    wxSize sz( x, 0 );
+    return ConvertDialogToPixels( sz ).x;
+}
+
+
+int DIALOG_SHIM::VertPixelsFromDU( int y )
+{
+    wxSize sz( 0, y );
+    return ConvertDialogToPixels( sz ).y;
 }
 
 
@@ -153,23 +162,36 @@ bool DIALOG_SHIM::Show( bool show )
     // If showing, use previous position and size.
     if( show )
     {
+#ifndef __WINDOWS__
         wxDialog::Raise();  // Needed on OS X and some other window managers (i.e. Unity)
+#endif
         ret = wxDialog::Show( show );
 
         // classname is key, returns a zeroed out default EDA_RECT if none existed before.
-        EDA_RECT r = class_map[ hash_key ];
+        EDA_RECT savedDialogRect = class_map[ hash_key ];
 
-        if( r.GetSize().x != 0 && r.GetSize().y != 0 )
-            SetSize( r.GetPosition().x, r.GetPosition().y, r.GetSize().x, r.GetSize().y, 0 );
+        if( savedDialogRect.GetSize().x != 0 && savedDialogRect.GetSize().y != 0 )
+        {
+            SetSize( savedDialogRect.GetPosition().x,
+                     savedDialogRect.GetPosition().y,
+                     std::max( wxDialog::GetSize().x, savedDialogRect.GetSize().x ),
+                     std::max( wxDialog::GetSize().y, savedDialogRect.GetSize().y ),
+                     0 );
+        }
     }
     else
     {
         // Save the dialog's position & size before hiding, using classname as key
-        EDA_RECT  r( wxDialog::GetPosition(), wxDialog::GetSize() );
-        class_map[ hash_key ] = r;
+        class_map[ hash_key ] = EDA_RECT( wxDialog::GetPosition(), wxDialog::GetSize() );
+
+#ifdef __WXMAC__
+        if ( m_eventLoop )
+            m_eventLoop->Exit( GetReturnCode() );   // Needed for APP-MODAL dlgs on OSX
+#endif
 
         ret = wxDialog::Show( show );
     }
+
     return ret;
 }
 
@@ -187,56 +209,96 @@ bool DIALOG_SHIM::Enable( bool enable )
 }
 
 
-#if DLGSHIM_USE_SETFOCUS
-
-static bool findWindowRecursively( const wxWindowList& children, const wxWindow* wanted )
+// Traverse all items in the dialog.  If selectTextInTextCtrls, do a SelectAll()
+// in each so that tab followed by typing will replace the existing value.
+// Also collects the firstTextCtrl and the item with focus (if any).
+static void recursiveDescent( wxWindowList& children, const bool selectTextInTextCtrls,
+                              wxWindow* & firstTextCtrl, wxWindow* & windowWithFocus )
 {
-    for( wxWindowList::const_iterator it = children.begin();  it != children.end();  ++it )
+    for( wxWindowList::iterator it = children.begin();  it != children.end();  ++it )
     {
-        const wxWindow* child = *it;
+        wxWindow* child = *it;
 
-        if( wanted == child )
-            return true;
-        else
+        if( child->HasFocus() )
+            windowWithFocus = child;
+
+        wxTextCtrl* childTextCtrl = dynamic_cast<wxTextCtrl*>( child );
+        if( childTextCtrl )
         {
-            if( findWindowRecursively( child->GetChildren(), wanted ) )
-                return true;
+            if( !firstTextCtrl && childTextCtrl->IsEnabled() && childTextCtrl->IsEditable() )
+                firstTextCtrl = childTextCtrl;
+
+            if( selectTextInTextCtrls )
+            {
+                wxTextEntry* asTextEntry = dynamic_cast<wxTextEntry*>( childTextCtrl );
+                // Respect an existing selection
+                if( asTextEntry->GetStringSelection().IsEmpty() )
+                    asTextEntry->SelectAll();
+            }
         }
+
+        recursiveDescent( child->GetChildren(), selectTextInTextCtrls, firstTextCtrl,
+                          windowWithFocus );
     }
-
-    return false;
 }
 
-
-static bool findWindowRecursively( const wxWindow* topmost, const wxWindow* wanted )
+#ifdef  __WXMAC__
+static void fixOSXCancelButtonIssue( wxWindow *aWindow )
 {
-    // wanted may be NULL and that is ok.
+    // A ugly hack to fix an issue on OSX: cmd+c closes the dialog instead of
+    // copying the text if a button with wxID_CANCEL is used in a
+    // wxStdDialogButtonSizer created by wxFormBuilder: the label is &Cancel, and
+    // this accelerator key has priority over the standard copy accelerator.
+    wxButton* button = dynamic_cast<wxButton*>( wxWindow::FindWindowById( wxID_CANCEL, aWindow ) );
 
-    if( wanted == topmost )
-        return true;
-
-    return findWindowRecursively( topmost->GetChildren(), wanted );
-}
-
-
-/// Set the focus if it is not already set in a derived constructor to a specific control.
-void DIALOG_SHIM::onInit( wxInitDialogEvent& aEvent )
-{
-    wxWindow* focusWnd = wxWindow::FindFocus();
-
-    // If focusWnd is not already this window or a child of it, then SetFocus().
-    // Otherwise the derived class's constructor SetFocus() already to a specific
-    // child control.
-
-    if( !findWindowRecursively( this, focusWnd ) )
+    if( button )
     {
-        // Linux wxGTK needs this to allow the ESCAPE key to close a wxDialog window.
-        SetFocus();
+        wxString buttonLabel = button->GetLabel();
+        buttonLabel.Replace( wxT( "&C" ), wxT( "C" ) );
+        buttonLabel.Replace( wxT( "&c" ), wxT( "c" ) );
+        button->SetLabel( buttonLabel );
     }
-
-    aEvent.Skip();     // derived class's handler should be called too
 }
 #endif
+
+
+void DIALOG_SHIM::OnPaint( wxPaintEvent &event )
+{
+    if( !m_fixupsRun )
+    {
+#if DLGSHIM_SELECT_ALL_IN_TEXT_CONTROLS
+        const bool selectAllInTextCtrls = true;
+#else
+        const bool selectAllInTextCtrls = false;
+#endif
+        wxWindow* firstTextCtrl = NULL;
+        wxWindow* windowWithFocus = NULL;
+
+        recursiveDescent( GetChildren(), selectAllInTextCtrls, firstTextCtrl,
+                          windowWithFocus );
+
+#if DLGSHIM_USE_SETFOCUS
+        // While it would be nice to honour any focus already set (which was
+        // recorded in windowWithFocus), the reality is that it's currently wrong
+        // far more often than it's right.
+        // So just focus on the first text control if we have one; otherwise the
+        // focus on the dialog itself, which will at least allow esc, return, etc.
+        // to function.
+        if( firstTextCtrl )
+            firstTextCtrl->SetFocus();
+        else
+            SetFocus();
+#endif
+
+#ifdef  __WXMAC__
+        fixOSXCancelButtonIssue( this );
+#endif
+
+        m_fixupsRun = true;
+    }
+
+    event.Skip();
+}
 
 
 /*
@@ -518,6 +580,13 @@ int DIALOG_SHIM::ShowQuasiModal()
     // quasi-modal: disable only my "optimal" parent
     m_qmodal_parent_disabler = new WDO_ENABLE_DISABLE( parent );
 
+#ifdef  __WXMAC__
+    // Apple in its infinite wisdom will raise a disabled window before even passing
+    // us the event, so we have no way to stop it.  Instead, we must set an order on
+    // the windows so that the quasi-modal will be pushed in front of the disabled
+    // window when it is raised.
+    ReparentQuasiModal();
+#endif
     Show( true );
 
     m_qmodal_showing = true;

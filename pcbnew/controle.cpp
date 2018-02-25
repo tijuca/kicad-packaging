@@ -30,7 +30,7 @@
 
 #include <fctsys.h>
 #include <class_drawpanel.h>
-#include <wxPcbStruct.h>
+#include <pcb_edit_frame.h>
 #include <pcbnew_id.h>
 #include <class_board.h>
 #include <class_module.h>
@@ -104,7 +104,7 @@ BOARD_ITEM* PCB_BASE_FRAME::PcbGeneralLocateAndDisplay( int aHotKeyCode )
     BOARD_ITEM* item;
 
     GENERAL_COLLECTORS_GUIDE guide = GetCollectorsGuide();
-    DISPLAY_OPTIONS* displ_opts = (DISPLAY_OPTIONS*)GetDisplayOptions();
+    auto displ_opts = (PCB_DISPLAY_OPTIONS*)( GetDisplayOptions() );
 
     // Assign to scanList the proper item types desired based on tool type
     // or hotkey that is in play.
@@ -165,7 +165,7 @@ BOARD_ITEM* PCB_BASE_FRAME::PcbGeneralLocateAndDisplay( int aHotKeyCode )
      * because zones can be filled by overlapping segments (this is a fill option)
      * Trigger the selection of the current edge for new-style zones
      */
-    time_t timestampzone = 0;
+    timestamp_t timestampzone = 0;
 
     for( int ii = 0;  ii < m_Collector->GetCount(); ii++ )
     {
@@ -228,16 +228,8 @@ BOARD_ITEM* PCB_BASE_FRAME::PcbGeneralLocateAndDisplay( int aHotKeyCode )
         wxMenu itemMenu;
 
         // Give a title to the selection menu. This is also a cancel menu item
-        wxMenuItem * item_title = new wxMenuItem( &itemMenu, -1, _( "Selection Clarification" ) );
-
-#ifdef __WINDOWS__
-        wxFont bold_font( *wxNORMAL_FONT );
-        bold_font.SetWeight( wxFONTWEIGHT_BOLD );
-        bold_font.SetStyle( wxFONTSTYLE_ITALIC );
-        item_title->SetFont( bold_font );
-#endif
-
-        itemMenu.Append( item_title );
+        AddMenuItem( &itemMenu, wxID_NONE, _( "Clarify Selection" ),
+                     KiBitmap( info_xpm ) );
         itemMenu.AppendSeparator();
 
         int limit = std::min( MAX_ITEMS_IN_PICKER, m_Collector->GetCount() );
@@ -282,10 +274,8 @@ BOARD_ITEM* PCB_BASE_FRAME::PcbGeneralLocateAndDisplay( int aHotKeyCode )
 }
 
 
-bool PCB_EDIT_FRAME::GeneralControl( wxDC* aDC, const wxPoint& aPosition, int aHotKey )
+bool PCB_EDIT_FRAME::GeneralControl( wxDC* aDC, const wxPoint& aPosition, EDA_KEY aHotKey )
 {
-    bool eventHandled = true;
-
     // Filter out the 'fake' mouse motion after a keyboard movement
     if( !aHotKey && m_movingCursorWithKeyboard )
     {
@@ -303,7 +293,7 @@ bool PCB_EDIT_FRAME::GeneralControl( wxDC* aDC, const wxPoint& aPosition, int aH
 
     wxPoint oldpos = GetCrossHairPosition();
     wxPoint pos = aPosition;
-    GeneralControlKeyMovement( aHotKey, &pos, snapToGrid );
+    bool keyHandled = GeneralControlKeyMovement( aHotKey, &pos, snapToGrid );
 
     // Put cursor in new position, according to the zoom keys (if any).
     SetCrossHairPosition( pos, snapToGrid );
@@ -333,7 +323,7 @@ bool PCB_EDIT_FRAME::GeneralControl( wxDC* aDC, const wxPoint& aPosition, int aH
     {
         // If there's no intrusion and DRC is active, we pass the cursor
         // "as is", and let ShowNewTrackWhenMovingCursor figure out what to do.
-        if( !g_Drc_On || !g_CurrentTrackSegment ||
+        if( !Settings().m_legacyDrcOn || !g_CurrentTrackSegment ||
             (BOARD_ITEM*)g_CurrentTrackSegment != this->GetCurItem() ||
             !LocateIntrusion( m_Pcb->m_Track, g_CurrentTrackSegment,
                               GetScreen()->m_Active_Layer, RefPos( true ) ) )
@@ -344,12 +334,12 @@ bool PCB_EDIT_FRAME::GeneralControl( wxDC* aDC, const wxPoint& aPosition, int aH
 
     RefreshCrossHair( oldpos, aPosition, aDC );
 
-    if( aHotKey )
+    if( aHotKey && OnHotKey( aDC, aHotKey, aPosition ) )
     {
-        eventHandled = OnHotKey( aDC, aHotKey, aPosition );
+        keyHandled = true;
     }
 
     UpdateStatusBar();    // Display new cursor coordinates
 
-    return eventHandled;
+    return keyHandled;
 }

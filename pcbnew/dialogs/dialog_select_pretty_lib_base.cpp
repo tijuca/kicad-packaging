@@ -1,8 +1,8 @@
 ///////////////////////////////////////////////////////////////////////////
-// C++ code generated with wxFormBuilder (version Jun 17 2015)
+// C++ code generated with wxFormBuilder (version Nov 22 2017)
 // http://www.wxformbuilder.org/
 //
-// PLEASE DO "NOT" EDIT THIS FILE!
+// PLEASE DO *NOT* EDIT THIS FILE!
 ///////////////////////////////////////////////////////////////////////////
 
 #include "dialog_select_pretty_lib_base.h"
@@ -16,11 +16,11 @@ DIALOG_SELECT_PRETTY_LIB_BASE::DIALOG_SELECT_PRETTY_LIB_BASE( wxWindow* parent, 
 	wxBoxSizer* bSizerMain;
 	bSizerMain = new wxBoxSizer( wxVERTICAL );
 	
-	m_staticText = new wxStaticText( this, wxID_ANY, _("The footprint library is a folder with a name ending with .pretty\nFootprints are .kicad_mod files inside this folder."), wxDefaultPosition, wxDefaultSize, 0 );
-	m_staticText->Wrap( -1 );
-	m_staticText->SetFont( wxFont( wxNORMAL_FONT->GetPointSize(), 70, 90, 92, false, wxEmptyString ) );
+	m_messageInfo = new wxStaticText( this, wxID_ANY, _("The footprint library is a folder with a name ending with .pretty\nFootprints are .kicad_mod files inside this folder."), wxDefaultPosition, wxDefaultSize, 0 );
+	m_messageInfo->Wrap( -1 );
+	m_messageInfo->SetFont( wxFont( wxNORMAL_FONT->GetPointSize(), wxFONTFAMILY_DEFAULT, wxFONTSTYLE_NORMAL, wxFONTWEIGHT_BOLD, false, wxEmptyString ) );
 	
-	bSizerMain->Add( m_staticText, 0, wxALL|wxALIGN_CENTER_HORIZONTAL, 5 );
+	bSizerMain->Add( m_messageInfo, 0, wxALL|wxALIGN_CENTER_HORIZONTAL, 5 );
 	
 	m_staticText3 = new wxStaticText( this, wxID_ANY, _("Path base:"), wxDefaultPosition, wxDefaultSize, 0 );
 	m_staticText3->Wrap( -1 );
@@ -42,7 +42,7 @@ DIALOG_SELECT_PRETTY_LIB_BASE::DIALOG_SELECT_PRETTY_LIB_BASE( wxWindow* parent, 
 	bSizerMain->Add( m_SizerNewLibName, 0, wxEXPAND, 5 );
 	
 	m_staticline1 = new wxStaticLine( this, wxID_ANY, wxDefaultPosition, wxDefaultSize, wxLI_HORIZONTAL );
-	bSizerMain->Add( m_staticline1, 0, wxEXPAND | wxALL, 5 );
+	bSizerMain->Add( m_staticline1, 0, wxEXPAND, 5 );
 	
 	m_sdbSizer = new wxStdDialogButtonSizer();
 	m_sdbSizerOK = new wxButton( this, wxID_OK );

@@ -32,29 +32,18 @@
 #include <fp_lib_table.h>
 #include <kiface_i.h>
 #include <pgm_base.h>
-#include <wxstruct.h>
 #include <confirm.h>
-#include <3d_viewer.h>
-#include <pcbcommon.h>
 
 #include <cvpcb.h>
-#include <zones.h>
 #include <cvpcb_mainframe.h>
-#include <colors_selection.h>
 #include <cvpcb_id.h>
 
 #include <build_version.h>
 
 #include <wx/snglinst.h>
 
-// Colors for layers and items
-COLORS_DESIGN_SETTINGS g_ColorsSettings;
-
 // Constant string definitions for CvPcb
 const wxString EquFileExtension( wxT( "equ" ) );
-
-// Wildcard for schematic retroannotation (import footprint names in schematic):
-const wxString EquFilesWildcard( _( "Component/footprint equ files (*.equ)|*.equ" ) );
 
 
 namespace CV {
@@ -67,11 +56,11 @@ static struct IFACE : public KIFACE_I
         KIFACE_I( aName, aType )
     {}
 
-    bool OnKifaceStart( PGM_BASE* aProgram, int aCtlBits );
+    bool OnKifaceStart( PGM_BASE* aProgram, int aCtlBits ) override;
 
-    void OnKifaceEnd();
+    void OnKifaceEnd() override;
 
-    wxWindow* CreateWindow( wxWindow* aParent, int aClassId, KIWAY* aKiway, int aCtlBits = 0 )
+    wxWindow* CreateWindow( wxWindow* aParent, int aClassId, KIWAY* aKiway, int aCtlBits = 0 ) override
     {
         switch( aClassId )
         {
@@ -100,7 +89,7 @@ static struct IFACE : public KIFACE_I
      *
      * @return void* - and must be cast into the know type.
      */
-    void* IfaceOrAddress( int aDataId )
+    void* IfaceOrAddress( int aDataId ) override
     {
         return NULL;
     }
@@ -169,23 +158,21 @@ bool IFACE::OnKifaceStart( PGM_BASE* aProgram, int aCtlBits )
             DisplayInfoMessage( NULL, _(
                 "You have run CvPcb for the first time using the "
                 "new footprint library table method for finding "
-                "footprints.  CvPcb has either copied the default "
+                "footprints.\nCvPcb has either copied the default "
                 "table or created an empty table in your home "
-                "folder.  You must first configure the library "
+                "folder.\nYou must first configure the library "
                 "table to include all footprint libraries not "
-                "included with KiCad.  See the \"Footprint Library "
+                "included with KiCad.\nSee the \"Footprint Library "
                 "Table\" section of the CvPcb documentation for "
                 "more information." ) );
         }
     }
     catch( const IO_ERROR& ioe )
     {
-        wxString msg = wxString::Format( _(
-            "An error occurred attempting to load the global footprint library "
-            "table:\n\n%s" ),
-            GetChars( ioe.errorText )
-            );
-        DisplayError( NULL, msg );
+        DisplayErrorMessage(
+            nullptr,
+            _( "An error occurred attempting to load the global footprint library table" ),
+            ioe.What() );
         return false;
     }
 

@@ -3,7 +3,7 @@
  *
  * Copyright (C) 2011 Jean-Pierre Charras, jean-pierre.charras@ujf-grenoble.fr
  * Copyright (C) 2009 Dick Hollenbeck, dick@softplc.com
- * Copyright (C) 2004-2012 KiCad Developers, see change_log.txt for contributors.
+ * Copyright (C) 2004-2012 KiCad Developers, see AUTHORS.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -32,8 +32,7 @@
 #include <fctsys.h>
 #include <pcbnew.h>
 #include <class_drawpanel.h>
-#include <wxstruct.h>
-#include <drc_stuff.h>
+#include <drc.h>
 #include <class_marker_pcb.h>
 #include <class_board.h>
 
@@ -57,17 +56,20 @@ public:
     BOARD_DESIGN_SETTINGS  m_BrdSettings;
 
     /// Constructors
-    DIALOG_DRC_CONTROL( DRC* aTester, PCB_EDIT_FRAME* parent );
-    ~DIALOG_DRC_CONTROL(){};
+    DIALOG_DRC_CONTROL( DRC* aTester, PCB_EDIT_FRAME* aEditorFrame, wxWindow* aParent );
+    ~DIALOG_DRC_CONTROL();
 
     /**
      * Enable/disable the report file creation
-     * @param aEnbale = true to ask for creation
+     * @param aEnable = true to ask for creation
      * @param aFileName = the filename or the report file
      */
     void SetRptSettings( bool aEnable, const wxString& aFileName );
 
     void GetRptSettings( bool* aEnable, wxString& aFileName );
+
+    void UpdateDisplayedCounts();
+
 
 private:
     /**
@@ -93,48 +95,48 @@ private:
     void SetDrcParmeters( );
 
     /// wxEVT_COMMAND_CHECKBOX_CLICKED event handler for ID_CHECKBOX
-    void OnReportCheckBoxClicked( wxCommandEvent& event );
+    void OnReportCheckBoxClicked( wxCommandEvent& event ) override;
 
     /// wxEVT_COMMAND_BUTTON_CLICKED event handler for ID_BUTTON_BROWSE_RPT_FILE
-    void OnButtonBrowseRptFileClick( wxCommandEvent& event );
+    void OnButtonBrowseRptFileClick( wxCommandEvent& event ) override;
 
     /// wxEVT_COMMAND_BUTTON_CLICKED event handler for ID_STARTDRC
-    void OnStartdrcClick( wxCommandEvent& event );
+    void OnStartdrcClick( wxCommandEvent& event ) override;
 
     /// wxEVT_COMMAND_BUTTON_CLICKED event handler for ID_LIST_UNCONNECTED
-    void OnListUnconnectedClick( wxCommandEvent& event );
+    void OnListUnconnectedClick( wxCommandEvent& event ) override;
 
     /// wxEVT_COMMAND_BUTTON_CLICKED event handler for ID_DELETE_ALL
-    void OnDeleteAllClick( wxCommandEvent& event );
+    void OnDeleteAllClick( wxCommandEvent& event ) override;
 
     /// wxEVT_COMMAND_BUTTON_CLICKED event handler for ID_DELETE_ONE
-    void OnDeleteOneClick( wxCommandEvent& event );
+    void OnDeleteOneClick( wxCommandEvent& event ) override;
 
     /// wxEVT_LEFT_DCLICK event handler for ID_CLEARANCE_LIST
-    void OnLeftDClickClearance( wxMouseEvent& event );
+    void OnLeftDClickClearance( wxMouseEvent& event ) override;
 
     /// wxEVT_RIGHT_UP event handler for ID_CLEARANCE_LIST
-    void OnRightUpClearance( wxMouseEvent& event );
+    void OnRightUpClearance( wxMouseEvent& event ) override;
 
     /// wxEVT_LEFT_DCLICK event handler for ID_UNCONNECTED_LIST
-    void OnLeftDClickUnconnected( wxMouseEvent& event );
+    void OnLeftDClickUnconnected( wxMouseEvent& event ) override;
 
     /// wxEVT_RIGHT_UP event handler for ID_UNCONNECTED_LIST
-    void OnRightUpUnconnected( wxMouseEvent& event );
+    void OnRightUpUnconnected( wxMouseEvent& event ) override;
 
     /// wxEVT_COMMAND_BUTTON_CLICKED event handler for wxID_CANCEL
-    void OnCancelClick( wxCommandEvent& event );
+    void OnCancelClick( wxCommandEvent& event ) override;
 
     /// wxEVT_COMMAND_BUTTON_CLICKED event handler for wxID_OK
-    void OnOkClick( wxCommandEvent& event );
+    void OnOkClick( wxCommandEvent& event ) override;
 
     /// handler for activate event, updating data which can be modified outside the dialog
     /// (DRC parameters)
-    void OnActivateDlg( wxActivateEvent& event );
+    void OnActivateDlg( wxActivateEvent& event ) override;
 
-    void OnMarkerSelectionEvent( wxCommandEvent& event );
-    void OnUnconnectedSelectionEvent( wxCommandEvent& event );
-    void OnChangingMarkerList( wxNotebookEvent& event );
+    void OnMarkerSelectionEvent( wxCommandEvent& event ) override;
+    void OnUnconnectedSelectionEvent( wxCommandEvent& event ) override;
+    void OnChangingMarkerList( wxNotebookEvent& event ) override;
 
     void DelDRCMarkers();
     void RedrawDrawPanel();
@@ -143,7 +145,8 @@ private:
 
     BOARD*              m_currentBoard;     // the board currently on test
     DRC*                m_tester;
-    PCB_EDIT_FRAME*     m_Parent;
+    PCB_EDIT_FRAME*     m_brdEditor;
+    wxConfigBase*       m_config;
 };
 
 #endif  // _DIALOG_DRC_H_

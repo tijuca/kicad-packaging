@@ -4,8 +4,8 @@
  * Few parts of this code come from FreePCB, released under the GNU General Public License V2.
  * (see http://www.freepcb.com/ )
  *
- * Copyright (C) 2012-2014 Jean-Pierre Charras, jp.charras at wanadoo.fr
- * Copyright (C) 2012-2014 KiCad Developers, see CHANGELOG.TXT for contributors.
+ * Copyright (C) 2012-2015 Jean-Pierre Charras, jp.charras at wanadoo.fr
+ * Copyright (C) 2012-2015 KiCad Developers, see CHANGELOG.TXT for contributors.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -120,6 +120,9 @@ int CPolyLine::NormalizeAreaOutlines( std::vector<CPolyLine*>* aNewPolygonList )
 
     // We are expecting only one main outline, but this main outline can have holes
     // if holes: combine holes and remove them from the main outline.
+    // Note also we are using SHAPE_POLY_SET::PM_STRICTLY_SIMPLE in polygon
+    // calculations, but it is not mandatory. It is used mainly
+    // because there is usually only very few vertices in area outlines
     SHAPE_POLY_SET::POLYGON& outline = polySet.Polygon( 0 );
     SHAPE_POLY_SET holesBuffer;
 
@@ -131,13 +134,13 @@ int CPolyLine::NormalizeAreaOutlines( std::vector<CPolyLine*>* aNewPolygonList )
         outline.pop_back();
     }
 
-    polySet.Simplify();
+    polySet.Simplify( SHAPE_POLY_SET::PM_STRICTLY_SIMPLE);
 
     // If any hole, substract it to main outline
     if( holesBuffer.OutlineCount() )
     {
-        holesBuffer.Simplify();
-        polySet.BooleanSubtract( holesBuffer );
+        holesBuffer.Simplify( SHAPE_POLY_SET::PM_FAST);
+        polySet.BooleanSubtract( holesBuffer, SHAPE_POLY_SET::PM_STRICTLY_SIMPLE );
     }
 
     RemoveAllContours();
@@ -351,7 +354,10 @@ CPolyLine* CPolyLine::Chamfer( unsigned int aDistance )
 
             int nx2  = KiROUND( distance * xb / lenb );
             int ny2  = KiROUND( distance * yb / lenb );
-            newPoly->AppendCorner( x1 + nx2, y1 + ny2 );
+
+            // Due to rounding errors, repeated corners could be added; this check prevents it
+            if(nx1 != nx2 || ny1 != ny2)
+                newPoly->AppendCorner( x1 + nx2, y1 + ny2 );
         }
 
         newPoly->CloseLastContour();
@@ -420,7 +426,7 @@ CPolyLine* CPolyLine::Fillet( unsigned int aRadius, unsigned int aSegments )
             double          denom   = sqrt( 2.0 / ( 1 + cosine ) - 1 );
 
             // Do nothing in case of parallel edges
-            if( !std::isfinite( denom ) )
+            if( std::isinf( denom ) )
                 continue;
 
             // Limit rounding distance to one half of an edge
@@ -477,11 +483,22 @@ CPolyLine* CPolyLine::Fillet( unsigned int aRadius, unsigned int aSegments )
             else
                 newPoly->AppendCorner( KiROUND( nx ), KiROUND( ny ) );
 
+            // Store the previous added corner to make a sanity check
+            int prevX = KiROUND(nx);
+            int prevY = KiROUND(ny);
+
             for( unsigned int j = 0; j < segments; j++ )
             {
                 nx  = xc + cos( startAngle + (j + 1) * deltaAngle ) * radius;
                 ny  = yc - sin( startAngle + (j + 1) * deltaAngle ) * radius;
-                newPoly->AppendCorner( KiROUND( nx ), KiROUND( ny ) );
+
+                // Due to rounding errors, repeated corners could be added; this check prevents it
+                if(KiROUND(nx) != prevX || KiROUND(ny) != prevY)
+                {
+                    newPoly->AppendCorner( KiROUND( nx ), KiROUND( ny ) );
+                    prevX = KiROUND(nx);
+                    prevY = KiROUND(ny);
+                }
             }
         }
 
@@ -747,7 +764,7 @@ void CPolyLine::Hatch()
     else
         spacing = m_hatchPitch * 2;
 
-    // set the "length" of hatch lines (the lenght on horizontal axis)
+    // set the "length" of hatch lines (the length on horizontal axis)
     double  hatch_line_len = m_hatchPitch;
 
     // To have a better look, give a slope depending on the layer
@@ -865,8 +882,8 @@ void CPolyLine::Hatch()
             }
             else
             {
-                double  dy      = pointbuffer[ip + 1].y - pointbuffer[ip].y;
-                double  slope   = dy / dx;
+                double dy = pointbuffer[ip + 1].y - pointbuffer[ip].y;
+                slope = dy / dx;
 
                 if( dx > 0 )
                     dx = hatch_line_len;
@@ -991,26 +1008,27 @@ void CPolyLine::AppendArc( int xi, int yi, int xf, int yf, int xc, int yc, int n
 }
 
 
-// Bezier Support
 void CPolyLine::AppendBezier( int x1, int y1, int x2, int y2, int x3, int y3 )
 {
-    std::vector<wxPoint> bezier_points;
+    std::vector<wxPoint> polyPoints;
 
-    bezier_points = Bezier2Poly( x1, y1, x2, y2, x3, y3 );
+    BEZIER_POLY converter( x1, y1, x2, y2, x3, y3 );
+    converter.GetPoly( polyPoints );
 
-    for( unsigned int i = 0; i < bezier_points.size(); i++ )
-        AppendCorner( bezier_points[i].x, bezier_points[i].y );
+    for( const auto& pt : polyPoints )
+        AppendCorner( pt.x, pt.y );
 }
 
 
 void CPolyLine::AppendBezier( int x1, int y1, int x2, int y2, int x3, int y3, int x4, int y4 )
 {
-    std::vector<wxPoint> bezier_points;
+    std::vector<wxPoint> polyPoints;
 
-    bezier_points = Bezier2Poly( x1, y1, x2, y2, x3, y3, x4, y4 );
+    BEZIER_POLY converter( x1, y1, x2, y2, x3, y3, x4, y4 );
+    converter.GetPoly( polyPoints );
 
-    for( unsigned int i = 0; i < bezier_points.size(); i++ )
-        AppendCorner( bezier_points[i].x, bezier_points[i].y );
+    for( const auto& pt : polyPoints )
+        AppendCorner( pt.x, pt.y );
 }
 
 
@@ -1151,7 +1169,7 @@ int CPolyLine::HitTestForEdge( const wxPoint& aPos, int aDistMax ) const
         if( m_CornersList.IsEndContour ( item_pos ) || end_segm >= lim )
         {
             unsigned tmp = first_corner_pos;
-            first_corner_pos = end_segm;    // first_corner_pos is now the beginning of the next outline
+            first_corner_pos = end_segm;    // first_corner_pos is the beginning of next outline
             end_segm = tmp;                 // end_segm is the beginning of the current outline
         }
 

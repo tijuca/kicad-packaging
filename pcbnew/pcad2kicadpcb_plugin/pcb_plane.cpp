@@ -49,15 +49,12 @@ PCB_PLANE::~PCB_PLANE()
 }
 
 
-bool PCB_PLANE::Parse( XNODE*         aNode,
-                       wxString       aDefaultMeasurementUnit,
-                       wxString       aActualConversion,
-                       wxStatusBar*   aStatusBar )
+bool PCB_PLANE::Parse( XNODE*          aNode,
+                       const wxString& aDefaultMeasurementUnit,
+                       const wxString& aActualConversion )
 {
     XNODE*          lNode;
     wxString        pourType, str, propValue;
-
-    // aStatusBar->SetStatusText( aStatusBar->GetStatusText() + wxT( " Plane..." ) );
 
     lNode = FindNode( aNode, wxT( "netNameRef" ) );
 

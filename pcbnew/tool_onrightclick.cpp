@@ -30,8 +30,8 @@
 #include <fctsys.h>
 #include <confirm.h>
 #include <pcbnew.h>
-#include <wxPcbStruct.h>
-#include <module_editor_frame.h>
+#include <pcb_edit_frame.h>
+#include <footprint_edit_frame.h>
 #include <dialog_design_rules.h>
 #include <pcbnew_id.h>
 
@@ -101,7 +101,8 @@ void FOOTPRINT_EDIT_FRAME::ToolOnRightClick( wxCommandEvent& event )
         break;
 
     default:
-        DisplayError( this, wxT( "ToolOnRightClick() error" ) );
+        DisplayErrorMessage( this, "Invalid tool ID ",
+                             wxString::Format( "ToolOnRightClick called with ID %d", id ) );
         break;
     }
 }

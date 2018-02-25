@@ -1,7 +1,7 @@
 /*
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
- * Copyright (C) 2013 CERN
+ * Copyright 2013-2017 CERN
  * @author Maciej Suminski <maciej.suminski@cern.ch>
  *
  * This program is free software; you can redistribute it and/or
@@ -22,13 +22,6 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
  */
 
-/**
- * @file cached_container.h
- * @brief Class to store instances of VERTEX with caching. It allows storing VERTEX objects and
- * associates them with VERTEX_ITEMs. This leads to a possibility of caching vertices data in the
- * GPU memory and a fast reuse of that data.
- */
-
 #ifndef CACHED_CONTAINER_H_
 #define CACHED_CONTAINER_H_
 
@@ -36,33 +29,58 @@
 #include <map>
 #include <set>
 
-// Debug messages verbosity level
-// #define CACHED_CONTAINER_TEST 1
-
 namespace KIGFX
 {
 class VERTEX_ITEM;
 class SHADER;
 
+/**
+ * @brief Class to store VERTEX instances with caching. It associates VERTEX
+ * objects and with VERTEX_ITEMs. Caching vertices data in the memory and a
+ * enables fast reuse of that data.
+ */
+
 class CACHED_CONTAINER : public VERTEX_CONTAINER
 {
 public:
-    CACHED_CONTAINER( unsigned int aSize = defaultInitSize );
+    CACHED_CONTAINER( unsigned int aSize = DEFAULT_SIZE );
+    virtual ~CACHED_CONTAINER() {}
+
+    bool IsCached() const override
+    {
+        return true;
+    }
 
     ///> @copydoc VERTEX_CONTAINER::SetItem()
-    virtual void SetItem( VERTEX_ITEM* aItem );
+    virtual void SetItem( VERTEX_ITEM* aItem ) override;
 
     ///> @copydoc VERTEX_CONTAINER::FinishItem()
-    virtual void FinishItem();
+    virtual void FinishItem() override;
 
     ///> @copydoc VERTEX_CONTAINER::Allocate()
-    virtual VERTEX* Allocate( unsigned int aSize );
+    virtual VERTEX* Allocate( unsigned int aSize ) override;
 
     ///> @copydoc VERTEX_CONTAINER::Delete()
-    virtual void Delete( VERTEX_ITEM* aItem );
+    virtual void Delete( VERTEX_ITEM* aItem ) override;
 
     ///> @copydoc VERTEX_CONTAINER::Clear()
-    virtual void Clear();
+    virtual void Clear() override;
+
+    /**
+     * Returns handle to the vertex buffer. It might be negative if the buffer is not initialized.
+     */
+    virtual unsigned int GetBufferHandle() const = 0;
+
+    /**
+     * Returns true if vertex buffer is currently mapped.
+     */
+    virtual bool IsMapped() const = 0;
+
+    ///> @copydoc VERTEX_CONTAINER::Map()
+    virtual void Map() override = 0;
+
+    ///> @copydoc VERTEX_CONTAINER::Unmap()
+    virtual void Unmap() override = 0;
 
 protected:
     ///> Maps size of free memory chunks to their offsets
@@ -73,68 +91,55 @@ protected:
     typedef std::set<VERTEX_ITEM*> ITEMS;
 
     ///> Stores size & offset of free chunks.
-    FREE_CHUNK_MAP      m_freeChunks;
+    FREE_CHUNK_MAP  m_freeChunks;
 
     ///> Stored VERTEX_ITEMs
-    ITEMS               m_items;
+    ITEMS m_items;
 
     ///> Currently modified item
-    VERTEX_ITEM*        m_item;
+    VERTEX_ITEM* m_item;
 
     ///> Properties of currently modified chunk & item
-    unsigned int        m_chunkSize;
-    unsigned int        m_chunkOffset;
-    unsigned int        m_itemSize;
+    unsigned int m_chunkSize;
+    unsigned int m_chunkOffset;
+
+    ///> Maximal vertex index number stored in the container
+    unsigned int m_maxIndex;
 
     /**
-     * Function reallocate()
-     * resizes the chunk that stores the current item to the given size.
+     * Resizes the chunk that stores the current item to the given size. The current item has
+     * its offset adjusted after the call, and the new chunk parameters are stored
+     * in m_chunkOffset and m_chunkSize.
      *
-     * @param aSize is the number of vertices to be stored.
-     * @return offset of the new chunk.
+     * @param aSize is the requested chunk size.
+     * @return true in case of success, false otherwise
      */
-    virtual unsigned int reallocate( unsigned int aSize );
+    bool reallocate( unsigned int aSize );
 
     /**
-     * Function defragment()
-     * removes empty spaces between chunks, so after that there is a long continous space
-     * for storing vertices at the and of the container.
+     * Removes empty spaces between chunks and optionally resizes the container.
+     * After the operation there is continous space for storing vertices at the end of the container.
      *
-     * @param aTarget is the already allocated destination for defragmented data. It has to be
-     * at least of the same size as the current container. If left NULL, it will be allocated
-     * inside the defragment() function.
-     * @return false in case of failure (eg. memory shortage)
+     * @param aNewSize is the new size of container, expressed in number of vertices
+     * @return false in case of failure (e.g. memory shortage)
      */
-    virtual bool defragment( VERTEX* aTarget = NULL );
+    virtual bool defragmentResize( unsigned int aNewSize ) = 0;
 
     /**
-     * Function mergeFreeChunks()
-     * looks for consecutive free memory chunks and merges them, decreasing fragmentation of
+     * Transfers all stored data to a new buffer, removing empty spaces between the data chunks
+     * in the container.
+     * @param aTarget is the destination for the defragmented data.
+     */
+    void defragment( VERTEX* aTarget );
+
+    /**
+     * Looks for consecutive free memory chunks and merges them, decreasing fragmentation of
      * memory.
      */
-    virtual void mergeFreeChunks();
+    void mergeFreeChunks();
 
     /**
-     * Function resizeContainer()
-     *
-     * prepares a bigger container of a given size.
-     * @param aNewSize is the new size of container, expressed in vertices
-     * @return false in case of failure (eg. memory shortage)
-     */
-    virtual bool resizeContainer( unsigned int aNewSize );
-
-    /**
-     * Function getPowerOf2()
-     * returns the nearest power of 2, bigger than aNumber.
-     *
-     * @param aNumber is the number for which we look for a bigger power of 2.
-     */
-    unsigned int getPowerOf2( unsigned int aNumber ) const;
-
-private:
-    /**
-     * Function getChunkSize()
-     * returns size of the given chunk.
+     * Returns the size of a chunk.
      *
      * @param aChunk is the chunk.
      */
@@ -144,8 +149,7 @@ private:
     }
 
     /**
-     * Function getChunkOffset()
-     * returns offset of the chunk.
+     * Returns the offset of a chunk.
      *
      * @param aChunk is the chunk.
      */
@@ -154,16 +158,16 @@ private:
         return aChunk.second;
     }
 
+    /**
+     * Adds a chunk marked as a free space.
+     */
+    void addFreeChunk( unsigned int aOffset, unsigned int aSize );
+
+private:
     /// Debug & test functions
-#if CACHED_CONTAINER_TEST > 0
     void showFreeChunks();
-    void showReservedChunks();
+    void showUsedChunks();
     void test();
-#else
-    inline void showFreeChunks() {}
-    inline void showReservedChunks() {}
-    inline void test() {}
-#endif /* CACHED_CONTAINER_TEST */
 };
 } // namespace KIGFX
 

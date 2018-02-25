@@ -6,7 +6,7 @@
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
  * Copyright (C) 2007-2010 Wayne Stambaugh <stambaughw@verizon.net>
- * Copyright (C) 2007 KiCad Developers, see change_log.txt for contributors.
+ * Copyright (C) 2007-2017 KiCad Developers, see AUTHORS.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -55,9 +55,7 @@ public:
      */
     TRANSFORM() : x1( 1 ), y1( 0 ), x2( 0 ), y2( -1 ) {}
 
-    TRANSFORM( int x1, int y1, int x2, int y2 ) : x1( x1 ), y1( y1 ), x2( x2 ), y2( y2 ) {}
-
-    TRANSFORM& operator=( const TRANSFORM& aTransform );
+    TRANSFORM( int ax1, int ay1, int ax2, int ay2 ) : x1( ax1 ), y1( ay1 ), x2( ax2 ), y2( ay2 ) {}
 
     bool operator==( const TRANSFORM& aTransform ) const;
 

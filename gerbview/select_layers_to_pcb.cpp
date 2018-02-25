@@ -6,7 +6,7 @@
 /*
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
- * Copyright (C) 1992-2012 KiCad Developers, see change_log.txt for contributors.
+ * Copyright (C) 1992-2018 KiCad Developers, see AUTHORS.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -31,7 +31,8 @@
 #include <gerbview.h>
 #include <gerbview_frame.h>
 #include <gerbview_id.h>
-#include <class_GERBER.h>
+#include <gerber_file_image.h>
+#include <gerber_file_image_list.h>
 
 #include <select_layers_to_pcb.h>
 
@@ -82,26 +83,6 @@ void LAYERS_MAP_DIALOG::initDialog()
     wxString      msg;
     wxSize        goodSize;
 
-    m_flexRightColumnBoxSizer = NULL;
-
-    // Experimentation has shown that buttons in the Windows version can be 20
-    // pixels wide and 20 pixels high, but that they need to be 26 pixels wide
-    // and 26 pixels high in the Linux version. (And although the dimensions
-    // of those buttons could be set to 26 pixels wide and 26 pixels high in
-    // both of those versions, that would result in a dialog box which would
-    // be excessively high in the Windows version.)
-#ifdef __WINDOWS__
-    int w = 20;
-    int h = 20;
-#else
-    int w = 26;
-    int h = 26;
-#endif
-
-    // As currently implemented, the dimensions of the buttons in the Mac
-    // version are also 26 pixels wide and 26 pixels high. If appropriate,
-    // the above code should be modified as required in the event that those
-    // buttons should be some other size in that version.
     for( int ii = 0; ii < GERBER_DRAWLAYERS_COUNT; ++ii )
     {
         // Specify the default value for each member of these arrays.
@@ -119,9 +100,11 @@ void LAYERS_MAP_DIALOG::initDialog()
 
     LAYER_NUM pcb_layer_num = 0;
     m_gerberActiveLayersCount = 0;
-    for( int ii = 0; ii < GERBER_DRAWLAYERS_COUNT; ++ii )
+    GERBER_FILE_IMAGE_LIST* images = m_Parent->GetGerberLayout()->GetImagesList();
+
+    for( unsigned ii = 0; ii < GERBER_DRAWLAYERS_COUNT; ++ii )
     {
-        if( g_GERBER_List.GetGbrImage( ii ) == NULL )
+        if( images->GetGbrImage( ii ) == NULL )
             break;
 
         if( (pcb_layer_num == m_exportBoardCopperLayersCount - 1)
@@ -138,17 +121,9 @@ void LAYERS_MAP_DIALOG::initDialog()
     {
         m_staticlineSep->Hide();
     }
-    else        // Add the second list of gerber files
-    {
-        m_flexRightColumnBoxSizer = new wxFlexGridSizer( 16, 4, 0, 0 );
-        for( int ii = 0; ii < 4; ii++ )
-            m_flexRightColumnBoxSizer->AddGrowableCol( ii );
-        m_flexRightColumnBoxSizer->SetFlexibleDirection( wxBOTH );
-        m_flexRightColumnBoxSizer->SetNonFlexibleGrowMode( wxFLEX_GROWMODE_SPECIFIED );
-        sbSizerLayersTable->Add( m_flexRightColumnBoxSizer, 1, wxEXPAND, 5 );
-    }
 
     wxFlexGridSizer* flexColumnBoxSizer = m_flexLeftColumnBoxSizer;
+
     for( int ii = 0; ii < m_gerberActiveLayersCount; ii++ )
     {
         // Each Gerber layer has an associated static text string (to
@@ -182,27 +157,26 @@ void LAYERS_MAP_DIALOG::initDialog()
         // Provide a text string to identify the Gerber layer
         msg.Printf( _( "Layer %d" ), m_buttonTable[ii] + 1 );
 
-        label = new wxStaticText( this, wxID_STATIC, msg, wxDefaultPosition,
-                                  wxDefaultSize, wxALIGN_RIGHT );
-        flexColumnBoxSizer->Add( label, 0,
-                                 wxALIGN_RIGHT | wxALIGN_CENTER_VERTICAL |
-                                 wxRIGHT | wxLEFT, 5 );
+        label = new wxStaticText( this,
+                                  wxID_STATIC, msg, wxDefaultPosition,
+                                  wxDefaultSize, 0 );
+        flexColumnBoxSizer->Add( label, 0, wxALIGN_CENTER_VERTICAL | wxALL, 5 );
 
         /* Add file name and extension without path. */
-        wxFileName fn( g_GERBER_List.GetGbrImage( ii )->m_FileName );
-        label = new wxStaticText( this, wxID_STATIC, fn.GetFullName(),
+        wxFileName fn( images->GetGbrImage( ii )->m_FileName );
+        label = new wxStaticText( this,
+                                  wxID_STATIC, fn.GetFullName(),
                                   wxDefaultPosition, wxDefaultSize );
         flexColumnBoxSizer->Add( label, 0,
-                                 wxALIGN_RIGHT | wxALIGN_CENTER_VERTICAL |
-                                 wxRIGHT | wxLEFT, 5 );
+                                 wxALIGN_CENTER_VERTICAL | wxALL, 5 );
 
         // Provide a button for this layer (which will invoke a child dialog box)
         item_ID = ID_BUTTON_0 + ii;
-        wxButton * Button = new wxButton( this, item_ID, wxT( "..." ),
-                                        wxDefaultPosition, wxSize( w, h ), 0 );
+        wxButton * Button = new wxButton( this,
+                                          item_ID, wxT( "..." ),
+                                          wxDefaultPosition, wxDefaultSize, wxBU_EXACTFIT );
 
-        flexColumnBoxSizer->Add( Button, 0,
-                                 wxALIGN_LEFT | wxALIGN_CENTER_VERTICAL );
+        flexColumnBoxSizer->Add( Button, 0, wxALIGN_CENTER_VERTICAL | wxALL );
 
         // Provide another text string to specify which Pcbnew layer that this
         // Gerber layer is initially mapped to, and set the initial text to
@@ -220,7 +194,8 @@ void LAYERS_MAP_DIALOG::initDialog()
         if( ii == 0 )
         {
             msg  = _( "Do not export" );
-            text = new wxStaticText( this, item_ID, msg, wxDefaultPosition,
+            text = new wxStaticText( this,
+                                     item_ID, msg, wxDefaultPosition,
                                      wxDefaultSize, 0 );
             goodSize = text->GetSize();
 
@@ -237,12 +212,12 @@ void LAYERS_MAP_DIALOG::initDialog()
         else
         {
             msg  = GetPCBDefaultLayerName( m_layersLookUpTable[m_buttonTable[ii]] );
-            text = new wxStaticText( this, item_ID, msg, wxDefaultPosition,
+            text = new wxStaticText( this,
+                                     item_ID, msg, wxDefaultPosition,
                                      wxDefaultSize, 0 );
         }
         text->SetMinSize( goodSize );
-        flexColumnBoxSizer->Add( text, 1,
-                                 wxALIGN_LEFT | wxALIGN_CENTER_VERTICAL | wxRIGHT | wxLEFT,
+        flexColumnBoxSizer->Add( text, 1, wxALIGN_CENTER_VERTICAL | wxALL,
                                  5 );
 
         m_layersList[ii] = text;
@@ -392,12 +367,6 @@ void LAYERS_MAP_DIALOG::OnSelectLayer( wxCommandEvent& event )
 }
 
 
-void LAYERS_MAP_DIALOG::OnCancelClick( wxCommandEvent& event )
-{
-    EndModal( wxID_CANCEL );
-}
-
-
 void LAYERS_MAP_DIALOG::OnOkClick( wxCommandEvent& event )
 {
     /* Make some test about copper layers:
@@ -424,5 +393,6 @@ void LAYERS_MAP_DIALOG::OnOkClick( wxCommandEvent& event )
         _("The exported board has not enough copper layers to handle selected inner layers") );
         return;
     }
+
     EndModal( wxID_OK );
 }

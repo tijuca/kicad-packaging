@@ -30,31 +30,32 @@
 #ifndef RATSNEST_VIEWITEM_H
 #define RATSNEST_VIEWITEM_H
 
+#include <memory>
 #include <base_struct.h>
 #include <math/vector2d.h>
 
 class GAL;
-class RN_DATA;
+class CONNECTIVITY_DATA;
 
 namespace KIGFX
 {
 class RATSNEST_VIEWITEM : public EDA_ITEM
 {
 public:
-    RATSNEST_VIEWITEM( RN_DATA* aData );
+    RATSNEST_VIEWITEM( std::shared_ptr<CONNECTIVITY_DATA> aData );
 
     /// @copydoc VIEW_ITEM::ViewBBox()
-    const BOX2I ViewBBox() const;
+    const BOX2I ViewBBox() const override;
 
     /// @copydoc VIEW_ITEM::ViewDraw()
-    void ViewDraw( int aLayer, GAL* aGal ) const;
+    void ViewDraw( int aLayer, KIGFX::VIEW* aView ) const override;
 
     /// @copydoc VIEW_ITEM::ViewGetLayers()
-    void ViewGetLayers( int aLayers[], int& aCount ) const;
+    void ViewGetLayers( int aLayers[], int& aCount ) const override;
 
 #if defined(DEBUG)
     /// @copydoc EDA_ITEM::Show()
-    void Show( int x, std::ostream& st ) const
+    void Show( int x, std::ostream& st ) const override
     {
     }
 #endif
@@ -62,14 +63,14 @@ public:
     /** Get class name
      * @return  string "RATSNEST_VIEWITEM"
      */
-    virtual wxString GetClass() const
+    virtual wxString GetClass() const override
     {
         return wxT( "RATSNEST_VIEWITEM" );
     }
 
 protected:
     ///> Object containing ratsnest data.
-    RN_DATA* m_data;
+    std::shared_ptr<CONNECTIVITY_DATA> m_data;
 };
 
 }   // namespace KIGFX

@@ -2,7 +2,7 @@
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
  * Copyright (C) 2015 Jean-Pierre Charras, jp.charras at wanadoo.fr
- * Copyright (C) 2004-2015 KiCad Developers, see change_log.txt for contributors.
+ * Copyright (C) 2004-2018 KiCad Developers, see change_log.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -29,16 +29,17 @@
 #include <fctsys.h>
 #include <class_drawpanel.h>
 #include <confirm.h>
-#include <schframe.h>
 #include <base_units.h>
 #include <kiface_i.h>
+#include <project.h>
+#include <wildcards_and_files_ext.h>
 
+#include <sch_edit_frame.h>
+#include <sch_legacy_plugin.h>
 #include <sch_sheet.h>
 #include <sch_sheet_path.h>
 
 #include <dialogs/dialog_sch_sheet_props.h>
-#include <wildcards_and_files_ext.h>
-#include <project.h>
 
 
 bool SCH_EDIT_FRAME::EditSheet( SCH_SHEET* aSheet, SCH_SHEET_PATH* aHierarchy )
@@ -46,7 +47,7 @@ bool SCH_EDIT_FRAME::EditSheet( SCH_SHEET* aSheet, SCH_SHEET_PATH* aHierarchy )
     if( aSheet == NULL || aHierarchy == NULL )
         return false;
 
-    SCH_SHEET_LIST hierarchy;       // This is the schematic sheet hierarchy.
+    SCH_SHEET_LIST hierarchy( g_RootSheet );       // This is the schematic sheet hierarchy.
 
     // Get the new texts
     DIALOG_SCH_SHEET_PROPS dlg( this );
@@ -58,7 +59,7 @@ bool SCH_EDIT_FRAME::EditSheet( SCH_SHEET* aSheet, SCH_SHEET_PATH* aHierarchy )
     dlg.SetSheetName( aSheet->GetName() );
     dlg.SetSheetNameTextSize( StringFromValue( g_UserUnit, aSheet->GetSheetNameSize() ) );
     dlg.SetSheetNameTextSizeUnits( units );
-    dlg.SetSheetTimeStamp( wxString::Format( wxT("%8.8lX"),
+    dlg.SetSheetTimeStamp( wxString::Format( wxT( "%8.8lX" ),
                            (unsigned long) aSheet->GetTimeStamp() ) );
 
     /* This ugly hack fixes a bug in wxWidgets 2.8.7 and likely earlier
@@ -66,7 +67,7 @@ bool SCH_EDIT_FRAME::EditSheet( SCH_SHEET* aSheet, SCH_SHEET_PATH* aHierarchy )
      * column from being sized correctly.  It doesn't cause any problems
      * on win32 so it doesn't need to wrapped in ugly #ifdef __WXGTK__
      * #endif.
-     * Still presen in wxWidgets 3.0.2
+     * Still present in wxWidgets 3.0.2
      */
     dlg.Layout();
     dlg.Fit();
@@ -91,7 +92,7 @@ bool SCH_EDIT_FRAME::EditSheet( SCH_SHEET* aSheet, SCH_SHEET_PATH* aHierarchy )
     if( sheet && (sheet != aSheet) )
     {
         DisplayError( this, wxString::Format( _( "A sheet named \"%s\" already exists." ),
-                                              GetChars( dlg.GetSheetName() ) ) );
+                                              dlg.GetSheetName() ) );
         return false;
     }
 
@@ -99,22 +100,36 @@ bool SCH_EDIT_FRAME::EditSheet( SCH_SHEET* aSheet, SCH_SHEET_PATH* aHierarchy )
     bool loadFromFile = false;
     SCH_SCREEN* useScreen = NULL;
 
+    // Relative file names are relative to the path of the current sheet.  This allows for
+    // nesting of schematic files in subfolders.
+    if( !fileName.IsAbsolute() )
+    {
+        const SCH_SCREEN* currentScreen = aHierarchy->LastScreen();
+
+        wxCHECK_MSG( currentScreen, false, "Invalid sheet path object." );
+
+        wxFileName currentSheetFileName = currentScreen->GetFileName();
+
+        wxCHECK_MSG( fileName.Normalize( wxPATH_NORM_ALL, currentSheetFileName.GetPath() ), false,
+                     "Cannot normalize new sheet schematic file path." );
+    }
+
     wxString newFilename = fileName.GetFullPath();
 
     // Search for a schematic file having the same filename
     // already in use in the hierarchy or on disk, in order to reuse it.
     if( !g_RootSheet->SearchHierarchy( newFilename, &useScreen ) )
     {
-        // if user entered a relative path, allow that to stay, but do the
-        // file existence test with an absolute (full) path.  This transformation
-        // is local to this scope, but is the same one used at load time later.
-        wxString absolute = Prj().AbsolutePath( newFilename );
-
-        loadFromFile = wxFileExists( absolute );
+        loadFromFile = wxFileExists( newFilename );
     }
+
+    wxLogDebug( "Sheet requested file \"%s\", %s", newFilename,
+                (loadFromFile) ? "found" : "not found" );
 
     // Inside Eeschema, filenames are stored using unix notation
     newFilename.Replace( wxT( "\\" ), wxT( "/" ) );
+
+    SCH_PLUGIN::SCH_PLUGIN_RELEASER pi( SCH_IO_MGR::FindPlugin( SCH_IO_MGR::SCH_LEGACY ) );
 
     if( aSheet->GetScreen() == NULL )              // New sheet.
     {
@@ -122,12 +137,12 @@ bool SCH_EDIT_FRAME::EditSheet( SCH_SHEET* aSheet, SCH_SHEET_PATH* aHierarchy )
         {
             if( useScreen != NULL )
             {
-                msg.Printf( _( "A file named '%s' already exists in the current schematic "
-                               "hierarchy." ), GetChars( newFilename ) );
+                msg.Printf( _( "A file named \"%s\" already exists in the current schematic "
+                               "hierarchy." ), newFilename );
             }
             else
             {
-                msg.Printf( _( "A file named '%s' already exists." ), GetChars( newFilename ) );
+                msg.Printf( _( "A file named \"%s\" already exists." ), newFilename );
             }
 
             msg += _( "\n\nDo you want to create a sheet with the contents of this file?" );
@@ -140,6 +155,7 @@ bool SCH_EDIT_FRAME::EditSheet( SCH_SHEET* aSheet, SCH_SHEET_PATH* aHierarchy )
         else                                                   // New file.
         {
             aSheet->SetScreen( new SCH_SCREEN( &Kiway() ) );
+            aSheet->GetScreen()->SetModify();
             aSheet->GetScreen()->SetMaxUndoItems( m_UndoRedoCountMax );
             aSheet->GetScreen()->SetFileName( newFilename );
         }
@@ -165,13 +181,12 @@ bool SCH_EDIT_FRAME::EditSheet( SCH_SHEET* aSheet, SCH_SHEET_PATH* aHierarchy )
 
                 if( useScreen != NULL )
                 {
-                    tmp.Printf( _( "A file named <%s> already exists in the current schematic "
-                                   "hierarchy." ), GetChars( newFilename ) );
+                    tmp.Printf( _( "A file named \"%s\" already exists in the current schematic "
+                                   "hierarchy." ), newFilename );
                 }
                 else
                 {
-                    tmp.Printf( _( "A file named <%s> already exists." ),
-                                GetChars( newFilename ) );
+                    tmp.Printf( _( "A file named \"%s\" already exists." ), newFilename );
                 }
 
                 msg += tmp;
@@ -206,7 +221,21 @@ bool SCH_EDIT_FRAME::EditSheet( SCH_SHEET* aSheet, SCH_SHEET_PATH* aHierarchy )
         if( renameFile )
         {
             aSheet->GetScreen()->SetFileName( newFilename );
-            SaveEEFile( aSheet->GetScreen() );
+
+            try
+            {
+                pi->Save( newFilename, aSheet->GetScreen(), &Kiway() );
+            }
+            catch( const IO_ERROR& ioe )
+            {
+                msg.Printf( _( "Error occurred saving schematic file \"%s\"." ), newFilename );
+                DisplayErrorMessage( this, msg, ioe.What() );
+
+                msg.Printf( _( "Failed to save schematic \"%s\"" ), newFilename );
+                AppendMsgPanel( wxEmptyString, msg, CYAN );
+
+                return false;
+            }
 
             // If the the associated screen is shared by more than one sheet, remove the
             // screen and reload the file to a new screen.  Failure to do this will trash
@@ -219,12 +248,40 @@ bool SCH_EDIT_FRAME::EditSheet( SCH_SHEET* aSheet, SCH_SHEET_PATH* aHierarchy )
         }
     }
 
-    aSheet->SetFileName( newFilename );
+    wxFileName userFileName = dlg.GetFileName();
+    userFileName.SetExt( SchematicFileExtension );
+    aSheet->SetFileName( userFileName.GetFullPath( wxPATH_UNIX ) );
 
     if( useScreen )
+    {
         aSheet->SetScreen( useScreen );
+    }
     else if( loadFromFile )
-        aSheet->Load( this );
+    {
+        try
+        {
+            aSheet = pi->Load( newFilename, &Kiway(), aSheet );
+
+            if( !pi->GetError().IsEmpty() )
+            {
+                DisplayErrorMessage( this,
+                                     _( "The entire schematic could not be load.  Errors "
+                                        "occurred attempting to load hierarchical sheet "
+                                        "schematics." ),
+                                     pi->GetError() );
+            }
+        }
+        catch( const IO_ERROR& ioe )
+        {
+            msg.Printf( _( "Error occurred loading schematic file \"%s\"." ), newFilename );
+            DisplayErrorMessage( this, msg, ioe.What() );
+
+            msg.Printf( _( "Failed to load schematic \"%s\"" ), newFilename );
+            AppendMsgPanel( wxEmptyString, msg, CYAN );
+
+            return false;
+        }
+    }
 
     aSheet->SetFileNameSize( ValueFromString( g_UserUnit, dlg.GetFileNameTextSize() ) );
     aSheet->SetName( dlg.GetSheetName() );
@@ -246,11 +303,24 @@ bool SCH_EDIT_FRAME::EditSheet( SCH_SHEET* aSheet, SCH_SHEET_PATH* aHierarchy )
     if( hierarchy.TestForRecursion( sheetHierarchy, destFn.GetFullPath( wxPATH_UNIX ) ) )
     {
         msg.Printf( _( "The sheet changes cannot be made because the destination sheet already "
-                       "has the sheet <%s> or one of it's subsheets as a parent somewhere in "
+                       "has the sheet \"%s\" or one of it's subsheets as a parent somewhere in "
                        "the schematic hierarchy." ),
-                    GetChars( newFilename ) );
+                    newFilename );
         DisplayError( this, msg );
         return false;
+    }
+
+    // Check to make sure the symbols have been remapped to the symbol library table.
+    SCH_SCREENS newScreens( aSheet );
+
+    if( newScreens.HasNoFullyDefinedLibIds() )
+    {
+        msg.Printf(_( "The schematic \"%s\" has not been remapped to the symbol library table. "
+                      "Most if not all of the symbol library links will be broken.  Do you "
+                      "want to continue?" ), fileName.GetFullName() );
+
+        if( !IsOK( this, msg ) )
+            return false;
     }
 
     m_canvas->MoveCursorToCrossHair();
@@ -263,22 +333,25 @@ bool SCH_EDIT_FRAME::EditSheet( SCH_SHEET* aSheet, SCH_SHEET_PATH* aHierarchy )
 
 /* Move selected sheet with the cursor.
  * Callback function used by m_mouseCaptureCallback.
- * Note also now this function is aclled only when resizing the sheet
+ * Note also now this function is called only when resizing the sheet
  * But the (very small code) relative to sheet move is still present here
  */
 static void resizeSheetWithMouseCursor( EDA_DRAW_PANEL* aPanel, wxDC* aDC, const wxPoint& aPosition,
                                         bool aErase )
 {
     BASE_SCREEN*   screen = aPanel->GetScreen();
-    SCH_SHEET*     sheet = (SCH_SHEET*) screen->GetCurItem();
+    SCH_SHEET*     sheet = dynamic_cast<SCH_SHEET*>( screen->GetCurItem() );
+
+    if( sheet == nullptr )  // Be sure we are using the right object
+        return;
 
     if( aErase )
         sheet->Draw( aPanel, aDC, wxPoint( 0, 0 ), g_XorMode );
 
     wxPoint pos = sheet->GetPosition();
 
-    int width  = aPanel->GetParent()->GetCrossHairPosition().x - sheet->GetPosition().x;
-    int height = aPanel->GetParent()->GetCrossHairPosition().y - sheet->GetPosition().y;
+    int width  = aPanel->GetParent()->GetCrossHairPosition().x - pos.x;
+    int height = aPanel->GetParent()->GetCrossHairPosition().y - pos.y;
 
     // If the sheet doesn't have any pins, clamp the minimum size to the default values.
     width = ( width < MIN_SHEET_WIDTH ) ? MIN_SHEET_WIDTH : width;
@@ -289,7 +362,7 @@ static void resizeSheetWithMouseCursor( EDA_DRAW_PANEL* aPanel, wxDC* aDC, const
         int gridSizeX = KiROUND( screen->GetGridSize().x );
         int gridSizeY = KiROUND( screen->GetGridSize().y );
 
-        // If the sheet has pins, use the pin positions to clamp the minimum height.
+        // If the sheet has pins, use the pin positions to clamp the minimum width and height.
         height = ( height < sheet->GetMinHeight() + gridSizeY ) ?
                  sheet->GetMinHeight() + gridSizeY : height;
         width = ( width < sheet->GetMinWidth() + gridSizeX ) ?

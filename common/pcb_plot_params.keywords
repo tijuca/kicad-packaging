@@ -1,3 +1,4 @@
+creategerberjobfile
 drillshape
 excludeedgelayer
 false
@@ -28,3 +29,4 @@ useauxorigin
 usegerberextensions
 viasonmask
 usegerberattributes
+usegerberadvancedattributes

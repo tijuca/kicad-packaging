@@ -1,8 +1,8 @@
 ///////////////////////////////////////////////////////////////////////////
-// C++ code generated with wxFormBuilder (version Mar 13 2015)
+// C++ code generated with wxFormBuilder (version Jan  2 2018)
 // http://www.wxformbuilder.org/
 //
-// PLEASE DO "NOT" EDIT THIS FILE!
+// PLEASE DO *NOT* EDIT THIS FILE!
 ///////////////////////////////////////////////////////////////////////////
 
 #ifndef __DIALOG_LIBEDIT_OPTIONS_BASE_H__
@@ -11,8 +11,7 @@
 #include <wx/artprov.h>
 #include <wx/xrc/xmlres.h>
 #include <wx/intl.h>
-class DIALOG_SHIM;
-
+#include "widgets/stepped_slider.h"
 #include "dialog_shim.h"
 #include <wx/string.h>
 #include <wx/stattext.h>
@@ -22,9 +21,10 @@ class DIALOG_SHIM;
 #include <wx/settings.h>
 #include <wx/choice.h>
 #include <wx/spinctrl.h>
+#include <wx/slider.h>
+#include <wx/checkbox.h>
 #include <wx/sizer.h>
 #include <wx/statline.h>
-#include <wx/checkbox.h>
 #include <wx/button.h>
 #include <wx/dialog.h>
 
@@ -36,7 +36,13 @@ class DIALOG_SHIM;
 ///////////////////////////////////////////////////////////////////////////////
 class DIALOG_LIBEDIT_OPTIONS_BASE : public DIALOG_SHIM
 {
+	DECLARE_EVENT_TABLE()
 	private:
+		
+		// Private event handlers
+		void _wxFB_OnScaleSlider( wxScrollEvent& event ){ OnScaleSlider( event ); }
+		void _wxFB_OnScaleAuto( wxCommandEvent& event ){ OnScaleAuto( event ); }
+		
 	
 	protected:
 		wxStaticText* m_staticText3;
@@ -65,19 +71,26 @@ class DIALOG_LIBEDIT_OPTIONS_BASE : public DIALOG_SHIM
 		wxStaticText* m_staticText16;
 		wxStaticText* m_staticText17;
 		wxSpinCtrl* m_spinRepeatLabel;
-		wxStaticText* m_stMaxUndoItems;
-		wxSpinCtrl* m_spinMaxUndoItems;
-		wxStaticText* m_stMaxUndoItemsUnit;
+		wxStaticText* m_staticText18;
+		STEPPED_SLIDER* m_scaleSlider;
+		wxStaticText* m_staticText19;
+		wxCheckBox* m_scaleAuto;
 		wxStaticLine* m_staticline3;
 		wxCheckBox* m_checkShowGrid;
+		wxCheckBox* m_checkShowPinElectricalType;
 		wxStaticLine* m_staticline2;
 		wxStdDialogButtonSizer* m_sdbSizer;
 		wxButton* m_sdbSizerOK;
 		wxButton* m_sdbSizerCancel;
+		
+		// Virtual event handlers, overide them in your derived class
+		virtual void OnScaleSlider( wxScrollEvent& event ) { event.Skip(); }
+		virtual void OnScaleAuto( wxCommandEvent& event ) { event.Skip(); }
+		
 	
 	public:
 		
-		DIALOG_LIBEDIT_OPTIONS_BASE( wxWindow* parent, wxWindowID id = wxID_ANY, const wxString& title = _("Library Editor Options"), const wxPoint& pos = wxDefaultPosition, const wxSize& size = wxSize( 487,433 ), long style = wxDEFAULT_DIALOG_STYLE|wxRESIZE_BORDER ); 
+		DIALOG_LIBEDIT_OPTIONS_BASE( wxWindow* parent, wxWindowID id = wxID_ANY, const wxString& title = _("Library Editor Options"), const wxPoint& pos = wxDefaultPosition, const wxSize& size = wxSize( -1,-1 ), long style = wxDEFAULT_DIALOG_STYLE|wxRESIZE_BORDER ); 
 		~DIALOG_LIBEDIT_OPTIONS_BASE();
 	
 };

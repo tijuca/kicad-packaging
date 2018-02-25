@@ -1,7 +1,7 @@
 /*
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
- * Copyright (C) 2013 CERN
+ * Copyright 2013-2017 CERN
  * @author Maciej Suminski <maciej.suminski@cern.ch>
  *
  * This program is free software; you can redistribute it and/or
@@ -32,111 +32,111 @@
 #include <gal/opengl/cached_container.h>
 #include <gal/opengl/vertex_manager.h>
 #include <gal/opengl/vertex_item.h>
-#include <gal/opengl/shader.h>
-#include <confirm.h>
-#include <wx/log.h>
+#include <gal/opengl/utils.h>
+
 #include <list>
+#include <cassert>
+
 #ifdef __WXDEBUG__
+#include <wx/log.h>
 #include <profile.h>
 #endif /* __WXDEBUG__ */
 
 using namespace KIGFX;
 
 CACHED_CONTAINER::CACHED_CONTAINER( unsigned int aSize ) :
-    VERTEX_CONTAINER( aSize ), m_item( NULL )
+    VERTEX_CONTAINER( aSize ), m_item( NULL ), m_chunkSize( 0 ), m_chunkOffset( 0 ), m_maxIndex( 0 )
 {
     // In the beginning there is only free space
-    m_freeChunks.insert( CHUNK( aSize, 0 ) );
-
-    // Do not have uninitialized members:
-    m_chunkSize = 0;
-    m_chunkOffset = 0;
-    m_itemSize = 0;
+    m_freeChunks.insert( std::make_pair( aSize, 0 ) );
 }
 
 
 void CACHED_CONTAINER::SetItem( VERTEX_ITEM* aItem )
 {
-    wxASSERT( aItem != NULL );
+    assert( aItem != NULL );
 
+    unsigned int itemSize = aItem->GetSize();
     m_item      = aItem;
-    m_itemSize  = m_item->GetSize();
-    m_chunkSize = m_itemSize;
+    m_chunkSize = itemSize;
 
-    if( m_itemSize == 0 )
-        m_items.insert( m_item ); // The item was not stored before
-    else
-        m_chunkOffset = m_item->GetOffset();
+    // Get the previously set offset if the item was stored previously
+    m_chunkOffset = itemSize > 0 ? aItem->GetOffset() : -1;
 
 #if CACHED_CONTAINER_TEST > 1
-    wxLogDebug( wxT( "Adding/editing item 0x%08lx (size %d)" ), (long) m_item, m_itemSize );
+    wxLogDebug( wxT( "Adding/editing item 0x%08lx (size %d)" ), (long) m_item, itemSize );
 #endif
 }
 
 
 void CACHED_CONTAINER::FinishItem()
 {
-    wxASSERT( m_item != NULL );
-    wxASSERT( m_item->GetSize() == m_itemSize );
+    assert( m_item != NULL );
+
+    unsigned int itemSize = m_item->GetSize();
 
     // Finishing the previously edited item
-    if( m_itemSize < m_chunkSize )
+    if( itemSize < m_chunkSize )
     {
         // There is some not used but reserved memory left, so we should return it to the pool
         int itemOffset = m_item->GetOffset();
 
         // Add the not used memory back to the pool
-        m_freeChunks.insert( CHUNK( m_chunkSize - m_itemSize, itemOffset + m_itemSize ) );
-        m_freeSpace += ( m_chunkSize - m_itemSize );
+        addFreeChunk( itemOffset + itemSize, m_chunkSize - itemSize );
         // mergeFreeChunks();   // veery slow and buggy
+
+        m_maxIndex = std::max( itemOffset + itemSize, m_maxIndex );
     }
 
+    if( itemSize > 0 )
+        m_items.insert( m_item );
+
+    m_item = NULL;
+    m_chunkSize = 0;
+    m_chunkOffset = 0;
+
 #if CACHED_CONTAINER_TEST > 1
-    wxLogDebug( wxT( "Finishing item 0x%08lx (size %d)" ), (long) m_item, m_itemSize );
+    wxLogDebug( wxT( "Finishing item 0x%08lx (size %d)" ), (long) m_item, itemSize );
     test();
-    m_item = NULL;    // electric fence
 #endif
 }
 
 
 VERTEX* CACHED_CONTAINER::Allocate( unsigned int aSize )
 {
-    wxASSERT( m_item != NULL );
+    assert( m_item != NULL );
+    assert( IsMapped() );
 
     if( m_failed )
         return NULL;
 
-    if( m_itemSize + aSize > m_chunkSize )
+    unsigned int itemSize = m_item->GetSize();
+    unsigned int newSize = itemSize + aSize;
+
+    if( newSize > m_chunkSize )
     {
         // There is not enough space in the currently reserved chunk, so we have to resize it
-
-        // Reserve a bigger memory chunk for the current item and
-        // make it multiple of 3 to store triangles
-        m_chunkSize = ( 2 * m_itemSize ) + aSize + ( 3 - aSize % 3 );
-        // Save the current size before reallocating
-        m_chunkOffset = reallocate( m_chunkSize );
-
-        if( m_chunkOffset > m_currentSize )
+        if( !reallocate( newSize ) )
         {
             m_failed = true;
             return NULL;
         }
     }
 
-    VERTEX* reserved = &m_vertices[m_chunkOffset + m_itemSize];
-    m_itemSize += aSize;
+    VERTEX* reserved = &m_vertices[m_chunkOffset + itemSize];
+
     // Now the item officially possesses the memory chunk
-    m_item->setSize( m_itemSize );
+    m_item->setSize( newSize );
 
     // The content has to be updated
     m_dirty = true;
 
-#if CACHED_CONTAINER_TEST > 1
+#if CACHED_CONTAINER_TEST > 0
     test();
 #endif
 #if CACHED_CONTAINER_TEST > 2
     showFreeChunks();
-    showReservedChunks();
+    showUsedChunks();
 #endif
 
     return reserved;
@@ -145,10 +145,14 @@ VERTEX* CACHED_CONTAINER::Allocate( unsigned int aSize )
 
 void CACHED_CONTAINER::Delete( VERTEX_ITEM* aItem )
 {
-    wxASSERT( aItem != NULL );
-    wxASSERT( m_items.find( aItem ) != m_items.end() );
+    assert( aItem != NULL );
+    assert( m_items.find( aItem ) != m_items.end() || aItem->GetSize() == 0 );
 
-    int size   = aItem->GetSize();
+    int size = aItem->GetSize();
+
+    if( size == 0 )
+        return;     // Item is not stored here
+
     int offset = aItem->GetOffset();
 
 #if CACHED_CONTAINER_TEST > 1
@@ -156,68 +160,69 @@ void CACHED_CONTAINER::Delete( VERTEX_ITEM* aItem )
 #endif
 
     // Insert a free memory chunk entry in the place where item was stored
-    if( size > 0 )
-    {
-        m_freeChunks.insert( CHUNK( size, offset ) );
-        m_freeSpace += size;
-        // Indicate that the item is not stored in the container anymore
-        aItem->setSize( 0 );
-    }
+    addFreeChunk( offset, size );
+
+    // Indicate that the item is not stored in the container anymore
+    aItem->setSize( 0 );
 
     m_items.erase( aItem );
 
-#if CACHED_CONTAINER_TEST > 1
+#if CACHED_CONTAINER_TEST > 0
     test();
 #endif
 
+    // This dynamic memory freeing optimize memory usage, but in fact can create
+    // out of memory issues because freeing and reallocation large chuncks of memory
+    // can create memory fragmentation and no room to reallocate large chuncks
+    // after many free/reallocate cycles during a session using the same complex board
+    // So it can be disable.
+    // Currently: it is disable to avoid "out of memory" issues
+#if 0
     // Dynamic memory freeing, there is no point in holding
     // a large amount of memory when there is no use for it
     if( m_freeSpace > ( 0.75 * m_currentSize ) && m_currentSize > m_initialSize )
     {
-        resizeContainer( 0.5 * m_currentSize );
+        defragmentResize( 0.5 * m_currentSize );
     }
+#endif
 }
 
 
 void CACHED_CONTAINER::Clear()
 {
-    // Change size to the default one
-    m_vertices = static_cast<VERTEX*>( realloc( m_vertices,
-                                                m_initialSize * sizeof( VERTEX ) ) );
-
-    // Reset state variables
-    m_freeSpace     = m_initialSize;
-    m_currentSize   = m_initialSize;
+    m_freeSpace = m_currentSize;
+    m_maxIndex = 0;
     m_failed = false;
 
     // Set the size of all the stored VERTEX_ITEMs to 0, so it is clear that they are not held
     // in the container anymore
-    ITEMS::iterator it;
-
-    for( it = m_items.begin(); it != m_items.end(); ++it )
-    {
+    for( ITEMS::iterator it = m_items.begin(); it != m_items.end(); ++it )
         ( *it )->setSize( 0 );
-    }
 
     m_items.clear();
 
-
     // Now there is only free space left
     m_freeChunks.clear();
-    m_freeChunks.insert( CHUNK( m_freeSpace, 0 ) );
+    m_freeChunks.insert( std::make_pair( m_freeSpace, 0 ) );
 }
 
 
-unsigned int CACHED_CONTAINER::reallocate( unsigned int aSize )
+bool CACHED_CONTAINER::reallocate( unsigned int aSize )
 {
-    wxASSERT( aSize > 0 );
+    assert( aSize > 0 );
+    assert( IsMapped() );
+
+    unsigned int itemSize = m_item->GetSize();
 
 #if CACHED_CONTAINER_TEST > 2
-    wxLogDebug( wxT( "Resize 0x%08lx from %d to %d" ), (long) m_item, m_itemSize, aSize );
+    wxLogDebug( wxT( "Resize %p from %d to %d" ), m_item, itemSize, aSize );
 #endif
 
+    // Find a free space chunk >= aSize
+    FREE_CHUNK_MAP::iterator newChunk = m_freeChunks.lower_bound( aSize );
+
     // Is there enough space to store vertices?
-    if( m_freeSpace < aSize )
+    if( newChunk == m_freeChunks.end() )
     {
         bool result;
 
@@ -225,112 +230,68 @@ unsigned int CACHED_CONTAINER::reallocate( unsigned int aSize )
         if( aSize < m_freeSpace + m_currentSize )
         {
             // Yes: exponential growing
-            result = resizeContainer( m_currentSize * 2 );
+            result = defragmentResize( m_currentSize * 2 );
         }
         else
         {
             // No: grow to the nearest greater power of 2
-            result = resizeContainer( pow( 2, ceil( log2( m_currentSize * 2 + aSize ) ) ) );
+            result = defragmentResize( pow( 2, ceil( log2( m_currentSize * 2 + aSize ) ) ) );
         }
 
         if( !result )
-            return UINT_MAX;
+            return false;
+
+        newChunk = m_freeChunks.lower_bound( aSize );
+        assert( newChunk != m_freeChunks.end() );
     }
 
-    // Look for the free space chunk of at least given size
-    FREE_CHUNK_MAP::iterator newChunk = m_freeChunks.lower_bound( aSize );
+    // Parameters of the allocated chunk
+    unsigned int newChunkSize   = getChunkSize( *newChunk );
+    unsigned int newChunkOffset = getChunkOffset( *newChunk );
 
-    if( newChunk == m_freeChunks.end() )
-    {
-        // In the case when there is enough space to store the vertices,
-        // but the free space is not continous we should defragment the container
-        if( !defragment() )
-            return UINT_MAX;
-
-        // Update the current offset
-        m_chunkOffset = m_item->GetOffset();
-
-        // We can take the first free chunk, as there is only one after defragmentation
-        // and we can be sure that it provides enough space to store the object
-        newChunk = m_freeChunks.begin();
-    }
-
-    // Parameters of the allocated cuhnk
-    unsigned int chunkSize   = newChunk->first;
-    unsigned int chunkOffset = newChunk->second;
-
-    wxASSERT( chunkSize >= aSize );
-    wxASSERT( chunkOffset < m_currentSize );
+    assert( newChunkSize >= aSize );
+    assert( newChunkOffset < m_currentSize );
 
     // Check if the item was previously stored in the container
-    if( m_itemSize > 0 )
+    if( itemSize > 0 )
     {
 #if CACHED_CONTAINER_TEST > 3
         wxLogDebug( wxT( "Moving 0x%08x from 0x%08x to 0x%08x" ),
-                    (int) m_item, oldChunkOffset, chunkOffset );
+                    (int) m_item, oldChunkOffset, newChunkOffset );
 #endif
         // The item was reallocated, so we have to copy all the old data to the new place
-        memcpy( &m_vertices[chunkOffset], &m_vertices[m_chunkOffset], m_itemSize * VertexSize );
+        memcpy( &m_vertices[newChunkOffset], &m_vertices[m_chunkOffset], itemSize * VERTEX_SIZE );
 
-        // Free the space previously used by the chunk
-        wxASSERT( m_itemSize > 0 );
-        m_freeChunks.insert( CHUNK( m_itemSize, m_chunkOffset ) );
-        m_freeSpace += m_itemSize;
+        // Free the space used by the previous chunk
+        addFreeChunk( m_chunkOffset, m_chunkSize );
     }
 
-    // Remove the allocated chunk from the free space pool
+    // Remove the new allocated chunk from the free space pool
     m_freeChunks.erase( newChunk );
+    m_freeSpace -= newChunkSize;
 
-    // If there is some space left, return it to the pool - add an entry for it
-    if( chunkSize > aSize )
-    {
-        m_freeChunks.insert( CHUNK( chunkSize - aSize, chunkOffset + aSize ) );
-    }
+    m_chunkSize = newChunkSize;
+    m_chunkOffset = newChunkOffset;
 
-    m_freeSpace -= aSize;
-    // mergeFreeChunks();   // veery slow and buggy
+    m_item->setOffset( m_chunkOffset );
 
-    m_item->setOffset( chunkOffset );
-
-    return chunkOffset;
+    return true;
 }
 
 
-bool CACHED_CONTAINER::defragment( VERTEX* aTarget )
+void CACHED_CONTAINER::defragment( VERTEX* aTarget )
 {
-#if CACHED_CONTAINER_TEST > 0
-    wxLogDebug( wxT( "Defragmenting" ) );
-
-    prof_counter totalTime;
-    prof_start( &totalTime );
-#endif
-
-    if( aTarget == NULL )
-    {
-        // No target was specified, so we have to reallocate our own space
-        int size = m_currentSize * sizeof( VERTEX );
-        aTarget = static_cast<VERTEX*>( malloc( size ) );
-
-        if( aTarget == NULL )
-        {
-            DisplayError( NULL, wxString::Format(
-                          wxT( "CACHED_CONTAINER::defragment: Run out of memory (malloc %d bytes)" ),
-                          size ) );
-            return false;
-        }
-    }
-
-    int newOffset = 0;
+    // Defragmentation
     ITEMS::iterator it, it_end;
+    int newOffset = 0;
 
-    for( it = m_items.begin(), it_end = m_items.end(); it != it_end; ++it )
+    for( VERTEX_ITEM* item : m_items )
     {
-        VERTEX_ITEM* item = *it;
         int itemOffset    = item->GetOffset();
         int itemSize      = item->GetSize();
 
         // Move an item to the new container
-        memcpy( &aTarget[newOffset], &m_vertices[itemOffset], itemSize * VertexSize );
+        memcpy( &aTarget[newOffset], &m_vertices[itemOffset], itemSize * VERTEX_SIZE );
 
         // Update new offset
         item->setOffset( newOffset );
@@ -339,22 +300,16 @@ bool CACHED_CONTAINER::defragment( VERTEX* aTarget )
         newOffset += itemSize;
     }
 
-    free( m_vertices );
-    m_vertices = aTarget;
+    // Move the current item and place it at the end
+    if( m_item->GetSize() > 0 )
+    {
+        memcpy( &aTarget[newOffset], &m_vertices[m_item->GetOffset()],
+                m_item->GetSize() * VERTEX_SIZE );
+        m_item->setOffset( newOffset );
+        m_chunkOffset = newOffset;
+    }
 
-    // Now there is only one big chunk of free memory
-    m_freeChunks.clear();
-    wxASSERT( m_freeSpace > 0 );
-    m_freeChunks.insert( CHUNK( m_freeSpace, m_currentSize - m_freeSpace ) );
-
-#if CACHED_CONTAINER_TEST > 0
-    prof_end( &totalTime );
-
-    wxLogDebug( wxT( "Defragmented the container storing %d vertices / %.1f ms" ),
-                m_currentSize - m_freeSpace, totalTime.msecs() );
-#endif
-
-    return true;
+    m_maxIndex = usedSpace();
 }
 
 
@@ -363,10 +318,9 @@ void CACHED_CONTAINER::mergeFreeChunks()
     if( m_freeChunks.size() <= 1 ) // There are no chunks that can be merged
         return;
 
-#if CACHED_CONTAINER_TEST > 0
-    prof_counter totalTime;
-    prof_start( &totalTime );
-#endif
+#ifdef __WXDEBUG__
+    PROF_COUNTER totalTime;
+#endif /* __WXDEBUG__ */
 
     // Reversed free chunks map - this one stores chunk size with its offset as the key
     std::list<CHUNK> freeChunks;
@@ -408,84 +362,29 @@ void CACHED_CONTAINER::mergeFreeChunks()
     // Add the last one
     m_freeChunks.insert( std::make_pair( size, offset ) );
 
+#ifdef __WXDEBUG__
+    totalTime.Stop();
+    wxLogDebug( "Merged free chunks / %.1f ms", totalTime.msecs() );
+#endif /* __WXDEBUG__ */
 #if CACHED_CONTAINER_TEST > 0
-    prof_end( &totalTime );
-
-    wxLogDebug( wxT( "Merged free chunks / %.1f ms" ), totalTime.msecs() );
-#endif
-
     test();
-}
-
-
-bool CACHED_CONTAINER::resizeContainer( unsigned int aNewSize )
-{
-    wxASSERT( aNewSize != m_currentSize );
-
-#if CACHED_CONTAINER_TEST > 0
-    wxLogDebug( wxT( "Resizing container from %d to %d" ), m_currentSize, aNewSize );
 #endif
-
-    VERTEX* newContainer;
-
-    if( aNewSize < m_currentSize )
-    {
-        // Shrinking container
-        // Sanity check, no shrinking if we cannot fit all the data
-        if( reservedSpace() > aNewSize )
-            return false;
-
-        int size = aNewSize * sizeof( VERTEX );
-        newContainer = static_cast<VERTEX*>( malloc( size ) );
-
-        if( newContainer == NULL )
-        {
-            DisplayError( NULL, wxString::Format(
-                          wxT( "CACHED_CONTAINER::resizeContainer:\n"
-                               "Run out of memory (malloc %d bytes)" ),
-                          size ) );
-            return false;
-        }
-
-        // Defragment directly to the new, smaller container
-        defragment( newContainer );
-
-        // We have to correct freeChunks after defragmentation
-        m_freeChunks.clear();
-        wxASSERT( aNewSize - reservedSpace() > 0 );
-        m_freeChunks.insert( CHUNK( aNewSize - reservedSpace(), reservedSpace() ) );
-    }
-    else
-    {
-        // Enlarging container
-        int size = aNewSize * sizeof( VERTEX );
-        newContainer = static_cast<VERTEX*>( realloc( m_vertices, size ) );
-
-        if( newContainer == NULL )
-        {
-            DisplayError( NULL, wxString::Format(
-                          wxT( "CACHED_CONTAINER::resizeContainer:\n"
-                               "Run out of memory (realloc from %d to %d bytes)" ),
-                          m_currentSize * sizeof( VERTEX ), size ) );
-            return false;
-        }
-
-        // Add an entry for the new memory chunk at the end of the container
-        m_freeChunks.insert( CHUNK( aNewSize - m_currentSize, m_currentSize ) );
-    }
-
-    m_vertices = newContainer;
-
-    m_freeSpace   += ( aNewSize - m_currentSize );
-    m_currentSize = aNewSize;
-
-    return true;
 }
 
 
-#ifdef CACHED_CONTAINER_TEST
+void CACHED_CONTAINER::addFreeChunk( unsigned int aOffset, unsigned int aSize )
+{
+    assert( aOffset + aSize <= m_currentSize );
+    assert( aSize > 0 );
+
+    m_freeChunks.insert( std::make_pair( aSize, aOffset ) );
+    m_freeSpace += aSize;
+}
+
+
 void CACHED_CONTAINER::showFreeChunks()
 {
+#ifdef __WXDEBUG__
     FREE_CHUNK_MAP::iterator it;
 
     wxLogDebug( wxT( "Free chunks:" ) );
@@ -494,35 +393,39 @@ void CACHED_CONTAINER::showFreeChunks()
     {
         unsigned int offset = getChunkOffset( *it );
         unsigned int size   = getChunkSize( *it );
-        wxASSERT( size > 0 );
+        assert( size > 0 );
 
         wxLogDebug( wxT( "[0x%08x-0x%08x] (size %d)" ),
                     offset, offset + size - 1, size );
     }
+#endif /* __WXDEBUG__ */
 }
 
 
-void CACHED_CONTAINER::showReservedChunks()
+void CACHED_CONTAINER::showUsedChunks()
 {
+#ifdef __WXDEBUG__
     ITEMS::iterator it;
 
-    wxLogDebug( wxT( "Reserved chunks:" ) );
+    wxLogDebug( wxT( "Used chunks:" ) );
 
     for( it = m_items.begin(); it != m_items.end(); ++it )
     {
         VERTEX_ITEM* item   = *it;
         unsigned int offset = item->GetOffset();
         unsigned int size   = item->GetSize();
-        wxASSERT( size > 0 );
+        assert( size > 0 );
 
-        wxLogDebug( wxT( "[0x%08x-0x%08x] @ 0x%08lx (size %d)" ),
-                    offset, offset + size - 1, (long) item, size );
+        wxLogDebug( wxT( "[0x%08x-0x%08x] @ 0x%p (size %d)" ),
+                    offset, offset + size - 1, item, size );
     }
+#endif /* __WXDEBUG__ */
 }
 
 
 void CACHED_CONTAINER::test()
 {
+#ifdef __WXDEBUG__
     // Free space check
     unsigned int freeSpace = 0;
     FREE_CHUNK_MAP::iterator itf;
@@ -530,18 +433,22 @@ void CACHED_CONTAINER::test()
     for( itf = m_freeChunks.begin(); itf != m_freeChunks.end(); ++itf )
         freeSpace += getChunkSize( *itf );
 
-    wxASSERT( freeSpace == m_freeSpace );
+    assert( freeSpace == m_freeSpace );
 
-    // Reserved space check
-    /*unsigned int reservedSpace = 0;
+    // Used space check
+    unsigned int used_space = 0;
     ITEMS::iterator itr;
     for( itr = m_items.begin(); itr != m_items.end(); ++itr )
-        reservedSpace += ( *itr )->GetSize();
-    reservedSpace += m_itemSize;    // Add the current chunk size
+        used_space += ( *itr )->GetSize();
 
-    wxASSERT( ( freeSpace + reservedSpace ) == m_currentSize );*/
+    // If we have a chunk assigned, then there must be an item edited
+    assert( m_chunkSize == 0 || m_item );
 
-    // Overlapping check TBD
+    // Currently reserved chunk is also counted as used
+    used_space += m_chunkSize;
+
+    assert( ( m_freeSpace + used_space ) == m_currentSize );
+
+    // Overlapping check TODO
+#endif /* __WXDEBUG__ */
 }
-
-#endif /* CACHED_CONTAINER_TEST */

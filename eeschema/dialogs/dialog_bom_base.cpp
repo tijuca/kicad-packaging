@@ -1,8 +1,8 @@
 ///////////////////////////////////////////////////////////////////////////
-// C++ code generated with wxFormBuilder (version Mar  9 2015)
+// C++ code generated with wxFormBuilder (version Nov 22 2017)
 // http://www.wxformbuilder.org/
 //
-// PLEASE DO "NOT" EDIT THIS FILE!
+// PLEASE DO *NOT* EDIT THIS FILE!
 ///////////////////////////////////////////////////////////////////////////
 
 #include "dialog_bom_base.h"
@@ -19,11 +19,12 @@ BEGIN_EVENT_TABLE( DIALOG_BOM_BASE, DIALOG_SHIM )
 	EVT_BUTTON( ID_REMOVEL_PLUGIN, DIALOG_BOM_BASE::_wxFB_OnRemovePlugin )
 	EVT_BUTTON( wxID_ANY, DIALOG_BOM_BASE::_wxFB_OnEditPlugin )
 	EVT_TEXT( ID_CMDLINE, DIALOG_BOM_BASE::_wxFB_OnCommandLineEdited )
+	EVT_CHECKBOX( wxID_ANY, DIALOG_BOM_BASE::_wxFB_OnShowConsoleChanged )
 END_EVENT_TABLE()
 
 DIALOG_BOM_BASE::DIALOG_BOM_BASE( wxWindow* parent, wxWindowID id, const wxString& title, const wxPoint& pos, const wxSize& size, long style ) : DIALOG_SHIM( parent, id, title, pos, size, style )
 {
-	this->SetSizeHints( wxDefaultSize, wxDefaultSize );
+	this->SetSizeHints( wxSize( -1,-1 ), wxDefaultSize );
 	
 	wxBoxSizer* bMainSizer;
 	bMainSizer = new wxBoxSizer( wxVERTICAL );
@@ -46,7 +47,6 @@ DIALOG_BOM_BASE::DIALOG_BOM_BASE( wxWindow* parent, wxWindowID id, const wxStrin
 	bLeftSizer->Add( m_staticTextName, 0, wxRIGHT|wxLEFT, 5 );
 	
 	m_textCtrlName = new wxTextCtrl( this, IN_NAMELINE, wxEmptyString, wxDefaultPosition, wxDefaultSize, 0 );
-	m_textCtrlName->SetMaxLength( 0 ); 
 	bLeftSizer->Add( m_textCtrlName, 0, wxEXPAND|wxBOTTOM|wxRIGHT|wxLEFT, 5 );
 	
 	
@@ -81,7 +81,7 @@ DIALOG_BOM_BASE::DIALOG_BOM_BASE( wxWindow* parent, wxWindowID id, const wxStrin
 	bUpperSizer->Add( bRightSizer, 0, wxALIGN_CENTER_VERTICAL, 5 );
 	
 	
-	bMainSizer->Add( bUpperSizer, 1, wxEXPAND, 5 );
+	bMainSizer->Add( bUpperSizer, 2, wxEXPAND, 5 );
 	
 	wxBoxSizer* bbottomSizer;
 	bbottomSizer = new wxBoxSizer( wxVERTICAL );
@@ -91,24 +91,30 @@ DIALOG_BOM_BASE::DIALOG_BOM_BASE( wxWindow* parent, wxWindowID id, const wxStrin
 	bbottomSizer->Add( m_staticTextCmd, 0, wxRIGHT|wxLEFT, 5 );
 	
 	m_textCtrlCommand = new wxTextCtrl( this, ID_CMDLINE, wxEmptyString, wxDefaultPosition, wxDefaultSize, 0 );
-	m_textCtrlCommand->SetMaxLength( 0 ); 
 	m_textCtrlCommand->SetMinSize( wxSize( 380,-1 ) );
 	
 	bbottomSizer->Add( m_textCtrlCommand, 0, wxEXPAND|wxBOTTOM|wxRIGHT|wxLEFT, 5 );
 	
+	m_checkBoxShowConsole = new wxCheckBox( this, wxID_ANY, _("Show console window"), wxDefaultPosition, wxDefaultSize, 0 );
+	m_checkBoxShowConsole->SetValue(true); 
+	m_checkBoxShowConsole->SetToolTip( _("By default, command line runs with hidden console window and output is redirected to \"Plugin info\" field.\nSet this option to show the window of the running command.") );
+	
+	bbottomSizer->Add( m_checkBoxShowConsole, 0, wxALL, 5 );
+	
 	
 	bMainSizer->Add( bbottomSizer, 0, wxEXPAND, 5 );
 	
-	m_staticTextInfo = new wxStaticText( this, wxID_ANY, _("Plugin Info:"), wxDefaultPosition, wxDefaultSize, 0 );
+	m_staticTextInfo = new wxStaticText( this, wxID_ANY, _("Plugin Information:"), wxDefaultPosition, wxDefaultSize, 0 );
 	m_staticTextInfo->Wrap( -1 );
-	bMainSizer->Add( m_staticTextInfo, 0, wxRIGHT|wxLEFT, 5 );
+	bMainSizer->Add( m_staticTextInfo, 0, wxTOP|wxRIGHT|wxLEFT, 5 );
 	
 	m_Messages = new wxTextCtrl( this, wxID_ANY, wxEmptyString, wxDefaultPosition, wxDefaultSize, wxTE_MULTILINE|wxTE_READONLY );
-	bMainSizer->Add( m_Messages, 1, wxALL|wxEXPAND, 5 );
+	bMainSizer->Add( m_Messages, 1, wxEXPAND|wxBOTTOM|wxRIGHT|wxLEFT, 5 );
 	
 	
 	this->SetSizer( bMainSizer );
 	this->Layout();
+	bMainSizer->Fit( this );
 	
 	this->Centre( wxBOTH );
 }

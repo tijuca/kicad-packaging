@@ -2,7 +2,7 @@
  * This program source code file is part of KICAD, a free EDA CAD application.
  *
  * Copyright (C) 1992-2010 jean-pierre.charras
- * Copyright (C) 1992-2015 Kicad Developers, see change_log.txt for contributors.
+ * Copyright (C) 1992-2017 Kicad Developers, see change_log.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -26,22 +26,20 @@
 #include <macros.h>
 
 #include <pgm_base.h>
-#include <wxstruct.h>
 #include <confirm.h>
 #include <gestfich.h>
 #include <wildcards_and_files_ext.h>
-
-#include <bitmap2cmp_gui_base.h>
-#include <bitmap2component.h>
-
-#include <potracelib.h>
 #include <bitmap_io.h>
-
-#include <colors_selection.h>
 #include <build_version.h>
 #include <menus_helpers.h>
 #include <kiway.h>
 #include <kiface_i.h>
+
+#include <potracelib.h>
+
+#include "bitmap2component.h"
+
+#include "bitmap2cmp_gui_base.h"
 
 
 #define KEYWORD_FRAME_POSX          wxT( "Bmconverter_Pos_x" )
@@ -76,6 +74,7 @@ private:
     wxBitmap        m_BN_Bitmap;
     wxSize          m_imageDPI;     // The initial image resolution. When unknown,
                                     // set to DEFAULT_DPI x DEFAULT_DPI per Inch
+    bool            m_Negative;
     wxString        m_BitmapFileName;
     wxString        m_ConvertedFileName;
     wxSize          m_frameSize;
@@ -87,14 +86,14 @@ public:
     ~BM2CMP_FRAME();
 
     // overload KIWAY_PLAYER virtual
-    bool OpenProjectFiles( const std::vector<wxString>& aFilenames, int aCtl=0 );
+    bool OpenProjectFiles( const std::vector<wxString>& aFilenames, int aCtl=0 ) override;
 
 private:
 
     // Event handlers
-    void OnPaint( wxPaintEvent& event );
-    void OnLoadFile( wxCommandEvent& event );
-    void OnExport( wxCommandEvent& event );
+    void OnPaint( wxPaintEvent& event ) override;
+    void OnLoadFile( wxCommandEvent& event ) override;
+    void OnExport( wxCommandEvent& event ) override;
 
     /**
      * Generate a schematic library which contains one component:
@@ -119,9 +118,9 @@ private:
     void OnExportLogo();
 
     void Binarize( double aThreshold );     // aThreshold = 0.0 (black level) to 1.0 (white level)
-    void OnOptionsSelection( wxCommandEvent& event );
-    void OnThresholdChange( wxScrollEvent& event );
-    void OnResolutionChange( wxCommandEvent& event );
+    void OnNegativeClicked( wxCommandEvent& event ) override;
+    void OnThresholdChange( wxScrollEvent& event ) override;
+    void OnResolutionChange( wxCommandEvent& event ) override;
 
     // called when texts controls which handle the image resolution
     // lose the focus, to ensure the right values are displayed
@@ -141,7 +140,7 @@ private:
     void NegateGreyscaleImage( );
     void ExportFile( FILE* aOutfile, OUTPUT_FMT_ID aFormat );
     void updateImageInfo();
-    void OnFormatChange( wxCommandEvent& event );
+    void OnFormatChange( wxCommandEvent& event ) override;
 };
 
 
@@ -162,8 +161,9 @@ BM2CMP_FRAME::BM2CMP_FRAME( KIWAY* aKiway, wxWindow* aParent ) :
     if( m_config->Read( KEYWORD_BINARY_THRESHOLD, &tmp ) )
         m_sliderThreshold->SetValue( tmp );
 
-    if( m_config->Read( KEYWORD_BW_NEGATIVE, &tmp ) )
-        m_rbOptions->SetSelection( tmp  ? 1 : 0 );
+    m_config->Read( KEYWORD_BW_NEGATIVE, &tmp, 0 );
+    m_Negative = tmp != 0;
+    m_checkNegative->SetValue( m_Negative );
 
     if( m_config->Read( KEYWORD_LAST_FORMAT, &tmp ) )
     {
@@ -219,7 +219,7 @@ BM2CMP_FRAME::~BM2CMP_FRAME()
     m_config->Write( KEYWORD_LAST_INPUT_FILE, m_BitmapFileName );
     m_config->Write( KEYWORD_LAST_OUTPUT_FILE, m_ConvertedFileName );
     m_config->Write( KEYWORD_BINARY_THRESHOLD, m_sliderThreshold->GetValue() );
-    m_config->Write( KEYWORD_BW_NEGATIVE, m_rbOptions->GetSelection() );
+    m_config->Write( KEYWORD_BW_NEGATIVE, m_checkNegative->IsChecked() ? 1 : 0 );
     m_config->Write( KEYWORD_LAST_FORMAT,  m_radioBoxFormat->GetSelection() );
     m_config->Write( KEYWORD_LAST_MODLAYER,  m_radio_PCBLayer->GetSelection() );
 
@@ -283,7 +283,6 @@ void BM2CMP_FRAME::OnLoadFile( wxCommandEvent& event )
 
     fn = fullFilename;
     m_mruPath = fn.GetPath();
-    m_buttonExport->Enable( true );
     SetStatusText( fullFilename );
     Refresh();
 }
@@ -339,7 +338,7 @@ bool BM2CMP_FRAME::OpenProjectFiles( const std::vector<wxString>& aFileSet, int 
     m_Greyscale_Image.Destroy();
     m_Greyscale_Image = m_Pict_Image.ConvertToGreyscale( );
 
-    if( m_rbOptions->GetSelection() > 0 )
+    if( m_Negative )
         NegateGreyscaleImage( );
 
     m_Greyscale_Bitmap = wxBitmap( m_Greyscale_Image );
@@ -347,6 +346,7 @@ bool BM2CMP_FRAME::OpenProjectFiles( const std::vector<wxString>& aFileSet, int 
     m_NB_Image  = m_Greyscale_Image;
     Binarize( (double) m_sliderThreshold->GetValue()/m_sliderThreshold->GetMax() );
 
+    m_buttonExport->Enable( true );
     return true;
 }
 
@@ -432,12 +432,17 @@ void BM2CMP_FRAME::NegateGreyscaleImage( )
 }
 
 
-void BM2CMP_FRAME::OnOptionsSelection( wxCommandEvent& event )
+void BM2CMP_FRAME::OnNegativeClicked( wxCommandEvent&  )
 {
-    NegateGreyscaleImage();
-    m_Greyscale_Bitmap = wxBitmap( m_Greyscale_Image );
-    Binarize( (double)m_sliderThreshold->GetValue()/m_sliderThreshold->GetMax() );
-    Refresh();
+    if( m_checkNegative->GetValue() != m_Negative )
+    {
+        NegateGreyscaleImage();
+        m_Greyscale_Bitmap = wxBitmap( m_Greyscale_Image );
+        Binarize( (double)m_sliderThreshold->GetValue()/m_sliderThreshold->GetMax() );
+        m_Negative = m_checkNegative->GetValue();
+
+        Refresh();
+    }
 }
 
 
@@ -483,9 +488,8 @@ void BM2CMP_FRAME::OnExportLogo()
     if( path.IsEmpty() || !wxDirExists(path) )
         path = ::wxGetCwd();
 
-    wxFileDialog fileDlg( this, _( "Create a logo file" ),
-                          path, wxEmptyString,
-                          wxGetTranslation( PageLayoutDescrFileWildcard ),
+    wxFileDialog fileDlg( this, _( "Create Logo File" ), path, wxEmptyString,
+                          PageLayoutDescrFileWildcard(),
                           wxFD_SAVE | wxFD_OVERWRITE_PROMPT );
     int          diag = fileDlg.ShowModal();
 
@@ -502,7 +506,7 @@ void BM2CMP_FRAME::OnExportLogo()
     if( outfile == NULL )
     {
         wxString msg;
-        msg.Printf( _( "File '%s' could not be created." ), GetChars( m_ConvertedFileName ) );
+        msg.Printf( _( "File \"%s\" could not be created." ), GetChars( m_ConvertedFileName ) );
         wxMessageBox( msg );
         return;
     }
@@ -520,9 +524,9 @@ void BM2CMP_FRAME::OnExportPostScript()
     if( path.IsEmpty() || !wxDirExists( path ) )
         path = ::wxGetCwd();
 
-    wxFileDialog fileDlg( this, _( "Create a Postscript file" ),
+    wxFileDialog fileDlg( this, _( "Create Postscript File" ),
                           path, wxEmptyString,
-                          wxGetTranslation( PSFileWildcard ),
+                          PSFileWildcard(),
                           wxFD_SAVE | wxFD_OVERWRITE_PROMPT );
 
     int          diag = fileDlg.ShowModal();
@@ -540,7 +544,7 @@ void BM2CMP_FRAME::OnExportPostScript()
     if( outfile == NULL )
     {
         wxString msg;
-        msg.Printf( _( "File '%s' could not be created." ), GetChars( m_ConvertedFileName ) );
+        msg.Printf( _( "File \"%s\" could not be created." ), GetChars( m_ConvertedFileName ) );
         wxMessageBox( msg );
         return;
     }
@@ -558,9 +562,9 @@ void BM2CMP_FRAME::OnExportEeschema()
     if( path.IsEmpty() || !wxDirExists(path) )
         path = ::wxGetCwd();
 
-    wxFileDialog fileDlg( this, _( "Create a component library file for Eeschema" ),
+    wxFileDialog fileDlg( this, _( "Create Symbol Library" ),
                           path, wxEmptyString,
-                          wxGetTranslation( SchematicLibraryFileWildcard ),
+                          SchematicLibraryFileWildcard(),
                           wxFD_SAVE | wxFD_OVERWRITE_PROMPT );
 
     int          diag = fileDlg.ShowModal();
@@ -577,7 +581,7 @@ void BM2CMP_FRAME::OnExportEeschema()
     if( outfile == NULL )
     {
         wxString msg;
-        msg.Printf( _( "File '%s' could not be created." ), GetChars( m_ConvertedFileName ) );
+        msg.Printf( _( "File \"%s\" could not be created." ), GetChars( m_ConvertedFileName ) );
         wxMessageBox( msg );
         return;
     }
@@ -595,9 +599,9 @@ void BM2CMP_FRAME::OnExportPcbnew()
     if( path.IsEmpty() || !wxDirExists( path ) )
         path = m_mruPath;
 
-    wxFileDialog fileDlg( this, _( "Create a footprint file for Pcbnew" ),
+    wxFileDialog fileDlg( this, _( "Create Footprint Library" ),
                           path, wxEmptyString,
-                          wxGetTranslation( KiCadFootprintLibFileWildcard ),
+                          KiCadFootprintLibFileWildcard(),
                           wxFD_SAVE | wxFD_OVERWRITE_PROMPT );
 
     int          diag = fileDlg.ShowModal();
@@ -614,7 +618,7 @@ void BM2CMP_FRAME::OnExportPcbnew()
     if( outfile == NULL )
     {
         wxString msg;
-        msg.Printf( _( "File '%s' could not be created." ), GetChars( m_ConvertedFileName ) );
+        msg.Printf( _( "File \"%s\" could not be created." ), GetChars( m_ConvertedFileName ) );
         wxMessageBox( msg );
         return;
     }
@@ -668,19 +672,11 @@ namespace BMP2CMP {
 
 static struct IFACE : public KIFACE_I
 {
-    bool OnKifaceStart( PGM_BASE* aProgram, int aCtlBits );
+    bool OnKifaceStart( PGM_BASE* aProgram, int aCtlBits ) override;
 
-    wxWindow* CreateWindow( wxWindow* aParent, int aClassId, KIWAY* aKiway, int aCtlBits = 0 )
+    wxWindow* CreateWindow( wxWindow* aParent, int aClassId, KIWAY* aKiway, int aCtlBits = 0 ) override
     {
-        switch( aClassId )
-        {
-
-        default:
-            {
-                KIWAY_PLAYER* frame = new BM2CMP_FRAME( aKiway, aParent );
-                return frame;
-            }
-        }
+        return new BM2CMP_FRAME( aKiway, aParent );
     }
 
     /**
@@ -694,7 +690,7 @@ static struct IFACE : public KIFACE_I
      *
      * @return void* - and must be cast into the know type.
      */
-    void* IfaceOrAddress( int aDataId )
+    void* IfaceOrAddress( int aDataId ) override
     {
         return NULL;
     }
@@ -719,7 +715,7 @@ KIFACE_I& Kiface()
 
 // KIFACE_GETTER's actual spelling is a substitution macro found in kiway.h.
 // KIFACE_GETTER will not have name mangling due to declaration in kiway.h.
-MY_API( KIFACE* ) KIFACE_GETTER( int* aKIFACEversion, int aKIWAYversion, PGM_BASE* aProgram )
+KIFACE* KIFACE_GETTER( int* aKIFACEversion, int aKIWAYversion, PGM_BASE* aProgram )
 {
     process = (PGM_BASE*) aProgram;
     return &kiface;

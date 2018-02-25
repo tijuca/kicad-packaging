@@ -32,11 +32,11 @@
 #include <macros.h>
 #include <gr_basic.h>
 #include <trigo.h>
-#include <wxstruct.h>
 #include <class_drawpanel.h>
-#include <colors_selection.h>
 #include <kicad_string.h>
 #include <richio.h>
+#include <bitmaps.h>
+#include <pcb_edit_frame.h>
 
 #include <class_board.h>
 #include <class_pcb_text.h>
@@ -60,13 +60,13 @@ DIMENSION::~DIMENSION()
 
 void DIMENSION::SetPosition( const wxPoint& aPos )
 {
-    m_Text.SetTextPosition( aPos );
+    m_Text.SetTextPos( aPos );
 }
 
 
-const wxPoint& DIMENSION::GetPosition() const
+const wxPoint DIMENSION::GetPosition() const
 {
-    return m_Text.GetTextPosition();
+    return m_Text.GetTextPos();
 }
 
 
@@ -82,40 +82,17 @@ const wxString DIMENSION::GetText() const
 }
 
 
-void DIMENSION::SetLayer( LAYER_ID aLayer )
+void DIMENSION::SetLayer( PCB_LAYER_ID aLayer )
 {
     m_Layer = aLayer;
     m_Text.SetLayer( aLayer );
 }
 
 
-void DIMENSION::Copy( DIMENSION* source )
-{
-    m_Value = source->m_Value;
-    SetLayer( source->GetLayer() );
-    m_Width = source->m_Width;
-    m_Shape = source->m_Shape;
-    m_Height = source->m_Height;
-    m_Unit  = source->m_Unit;
-    SetTimeStamp( GetNewTimeStamp() );
-    m_Text.Copy( &source->m_Text );
-
-    m_crossBarO     = source->m_crossBarO;
-    m_crossBarF     = source->m_crossBarF;
-    m_featureLineGO = source->m_featureLineGO;
-    m_featureLineGF = source->m_featureLineGF;
-    m_featureLineDO = source->m_featureLineDO;
-    m_featureLineDF = source->m_featureLineDF;
-    m_arrowD1F  = source->m_arrowD1F;
-    m_arrowD2F  = source->m_arrowD2F;
-    m_arrowG1F  = source->m_arrowG1F;
-    m_arrowG2F  = source->m_arrowG2F;
-}
-
-
 void DIMENSION::Move( const wxPoint& offset )
 {
-    m_Text.SetTextPosition( m_Text.GetTextPosition() + offset );
+    m_Text.Offset( offset );
+
     m_crossBarO     += offset;
     m_crossBarF     += offset;
     m_featureLineGO += offset;
@@ -131,11 +108,11 @@ void DIMENSION::Move( const wxPoint& offset )
 
 void DIMENSION::Rotate( const wxPoint& aRotCentre, double aAngle )
 {
-    wxPoint tmp = m_Text.GetTextPosition();
+    wxPoint tmp = m_Text.GetTextPos();
     RotatePoint( &tmp, aRotCentre, aAngle );
-    m_Text.SetTextPosition( tmp );
+    m_Text.SetTextPos( tmp );
 
-    double newAngle = m_Text.GetOrientation() + aAngle;
+    double newAngle = m_Text.GetTextAngle() + aAngle;
 
     if( newAngle >= 3600 )
         newAngle -= 3600;
@@ -143,7 +120,7 @@ void DIMENSION::Rotate( const wxPoint& aRotCentre, double aAngle )
     if( newAngle > 900  &&  newAngle < 2700 )
         newAngle -= 1800;
 
-    m_Text.SetOrientation( newAngle );
+    m_Text.SetTextAngle( newAngle );
 
     RotatePoint( &m_crossBarO, aRotCentre, aAngle );
     RotatePoint( &m_crossBarF, aRotCentre, aAngle );
@@ -170,15 +147,15 @@ void DIMENSION::Flip( const wxPoint& aCentre )
 
 void DIMENSION::Mirror( const wxPoint& axis_pos )
 {
-    wxPoint newPos = m_Text.GetTextPosition();
+    wxPoint newPos = m_Text.GetTextPos();
 
 #define INVERT( pos ) (pos) = axis_pos.y - ( (pos) - axis_pos.y )
     INVERT( newPos.y );
 
-    m_Text.SetTextPosition( newPos );
+    m_Text.SetTextPos( newPos );
 
     // invert angle
-    m_Text.SetOrientation( -m_Text.GetOrientation() );
+    m_Text.SetTextAngle( -m_Text.GetTextAngle() );
 
     INVERT( m_crossBarO.y );
     INVERT( m_crossBarF.y );
@@ -231,7 +208,7 @@ void DIMENSION::UpdateHeight()
 
 void DIMENSION::AdjustDimensionDetails( bool aDoNotChangeText )
 {
-    const int   arrowz = DMils2iu( 500 );           // size of arrows
+    const int   arrowz = Mils2iu( 50 );             // size of arrows
     int         ii;
     int         measure, deltax, deltay;            // value of the measure on X and Y axes
     int         arrow_up_X  = 0, arrow_up_Y = 0;    // coordinates of arrow line /
@@ -244,7 +221,7 @@ void DIMENSION::AdjustDimensionDetails( bool aDoNotChangeText )
     m_Text.SetLayer( GetLayer() );
 
     // calculate the size of the dimension (text + line above the text)
-    ii = m_Text.GetSize().y + m_Text.GetThickness() + (m_Width * 3);
+    ii = m_Text.GetTextHeight() + m_Text.GetThickness() + (m_Width * 3);
 
     deltax  = m_featureLineDO.x - m_featureLineGO.x;
     deltay  = m_featureLineDO.y - m_featureLineGO.y;
@@ -252,7 +229,7 @@ void DIMENSION::AdjustDimensionDetails( bool aDoNotChangeText )
     // Calculate dimension value
     measure = KiROUND( hypot( deltax, deltay ) );
 
-    angle = atan2( deltay, deltax );
+    angle = atan2( (double)deltay, (double)deltax );
 
     // Calculation of parameters X and Y dimensions of the arrows and lines.
     hx = hy = ii;
@@ -315,7 +292,7 @@ void DIMENSION::AdjustDimensionDetails( bool aDoNotChangeText )
     wxPoint textPos;
     textPos.x  = (m_crossBarF.x + m_featureLineGF.x) / 2;
     textPos.y  = (m_crossBarF.y + m_featureLineGF.y) / 2;
-    m_Text.SetTextPosition( textPos );
+    m_Text.SetTextPos( textPos );
 
     double newAngle = -RAD2DECIDEG( angle );
 
@@ -324,7 +301,7 @@ void DIMENSION::AdjustDimensionDetails( bool aDoNotChangeText )
     if( newAngle > 900  &&  newAngle < 2700 )
         newAngle -= 1800;
 
-    m_Text.SetOrientation( newAngle );
+    m_Text.SetTextAngle( newAngle );
 
     if( !aDoNotChangeText )
     {
@@ -338,7 +315,6 @@ void DIMENSION::AdjustDimensionDetails( bool aDoNotChangeText )
 void DIMENSION::Draw( EDA_DRAW_PANEL* panel, wxDC* DC, GR_DRAWMODE mode_color,
                       const wxPoint& offset )
 {
-    EDA_COLOR_T gcolor;
     BOARD*      brd = GetBoard();
 
     if( brd->IsLayerVisible( m_Layer ) == false )
@@ -346,10 +322,11 @@ void DIMENSION::Draw( EDA_DRAW_PANEL* panel, wxDC* DC, GR_DRAWMODE mode_color,
 
     m_Text.Draw( panel, DC, mode_color, offset );
 
-    gcolor = brd->GetLayerColor( m_Layer );
+    auto frame = static_cast<PCB_EDIT_FRAME*> ( panel->GetParent() );
+    auto gcolor = frame->Settings().Colors().GetLayerColor( m_Layer );
 
     GRSetDrawMode( DC, mode_color );
-    DISPLAY_OPTIONS* displ_opts = (DISPLAY_OPTIONS*)panel->GetDisplayOptions();
+    auto displ_opts = (PCB_DISPLAY_OPTIONS*)( panel->GetDisplayOptions() );
     bool filled = displ_opts ? displ_opts->m_DisplayDrawItemsFill : FILLED;
     int width   = m_Width;
 
@@ -507,6 +484,12 @@ wxString DIMENSION::GetSelectMenuText() const
 }
 
 
+BITMAP_DEF DIMENSION::GetMenuImage() const
+{
+    return add_dimension_xpm;
+}
+
+
 const BOX2I DIMENSION::ViewBBox() const
 {
     BOX2I dimBBox = BOX2I( VECTOR2I( GetBoundingBox().GetPosition() ),
@@ -520,4 +503,11 @@ const BOX2I DIMENSION::ViewBBox() const
 EDA_ITEM* DIMENSION::Clone() const
 {
     return new DIMENSION( *this );
+}
+
+void DIMENSION::SwapData( BOARD_ITEM* aImage )
+{
+    assert( aImage->Type() == PCB_DIMENSION_T );
+
+    std::swap( *((DIMENSION*) this), *((DIMENSION*) aImage) );
 }

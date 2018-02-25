@@ -310,7 +310,7 @@ double ArcTangente( int dy, int dx )
     }
 
     // Of course dy and dx are treated as double
-    return RAD2DECIDEG( atan2( dy, dx ) );
+    return RAD2DECIDEG( atan2( (double) dy, (double) dx ) );
 }
 
 
@@ -378,6 +378,17 @@ void RotatePoint( wxPoint* point, const wxPoint& centre, double angle )
     RotatePoint( &ox, &oy, angle );
     point->x = ox + centre.x;
     point->y = oy + centre.y;
+}
+
+void RotatePoint( VECTOR2I& point, const VECTOR2I& centre, double angle )
+{
+    wxPoint c( centre.x, centre.y );
+    wxPoint p( point.x, point.y );
+
+    RotatePoint(&p, c, angle);
+
+    point.x = p.x;
+    point.y = p.y;
 }
 
 

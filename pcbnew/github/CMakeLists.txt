@@ -1,7 +1,7 @@
 #  This program source code file is part of KICAD, a free EDA CAD application.
 #
 #  Copyright (C) 2013 SoftPLC Corporation, Dick Hollenbeck <dick@softplc.com>
-#  Copyright (C) 2013 Kicad Developers, see AUTHORS.txt for contributors.
+#  Copyright (C) 2013-2015 Kicad Developers, see AUTHORS.txt for contributors.
 #
 #  This program is free software; you can redistribute it and/or
 #  modify it under the terms of the GNU General Public License
@@ -19,8 +19,6 @@
 #  or you may search the http://www.gnu.org website for the version 2 license,
 #  or you may write to the Free Software Foundation, Inc.,
 #  51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
-
-
 
 # These are additions to any inherited from pcbnew dir:
 include_directories( . )
@@ -45,6 +43,4 @@ if( MINGW )
         ws2_32
         )
 endif()
-
-add_dependencies( github_plugin boost )
 

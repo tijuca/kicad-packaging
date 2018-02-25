@@ -1,8 +1,8 @@
 /*
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
- * Copyright (C) 2012 Jean-Pierre Charras, jp.charras at wanadoo.fr
- * Copyright (C) 2004-2015 KiCad Developers, see change_log.txt for contributors.
+ * Copyright (C) 2017 Jean-Pierre Charras, jp.charras at wanadoo.fr
+ * Copyright (C) 2004-2017 KiCad Developers, see AUTHORS.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -30,18 +30,15 @@
 #include <gr_basic.h>
 #include <macros.h>
 #include <class_drawpanel.h>
-#include <plot_common.h>
+#include <plotter.h>
 #include <trigo.h>
-#include <wxstruct.h>
-#include <richio.h>
 #include <base_units.h>
 #include <msgpanel.h>
+#include <bitmaps.h>
 
 #include <general.h>
 #include <lib_polyline.h>
 #include <transform.h>
-
-#include <boost/foreach.hpp>
 
 
 LIB_POLYLINE::LIB_POLYLINE( LIB_PART*      aParent ) :
@@ -50,87 +47,7 @@ LIB_POLYLINE::LIB_POLYLINE( LIB_PART*      aParent ) :
     m_Fill  = NO_FILL;
     m_Width = 0;
     m_isFillable = true;
-    m_typeName   = _( "PolyLine" );
     m_ModifyIndex = 0;
-}
-
-
-bool LIB_POLYLINE::Save( OUTPUTFORMATTER& aFormatter )
-{
-    int ccount = GetCornerCount();
-
-    aFormatter.Print( 0, "P %d %d %d %d", ccount, m_Unit, m_Convert, m_Width );
-
-    for( unsigned i = 0; i < GetCornerCount(); i++ )
-    {
-        aFormatter.Print( 0, " %d %d", m_PolyPoints[i].x, m_PolyPoints[i].y );
-    }
-
-    aFormatter.Print( 0, " %c\n", fill_tab[m_Fill] );
-
-    return true;
-}
-
-
-bool LIB_POLYLINE::Load( LINE_READER& aLineReader, wxString& aErrorMsg )
-{
-    char*   p;
-    int     i, ccount = 0;
-    wxPoint pt;
-    char*   line = (char*) aLineReader;
-
-    i = sscanf( line + 2, "%d %d %d %d", &ccount, &m_Unit, &m_Convert, &m_Width );
-
-    m_Fill = NO_FILL;
-
-    if( i < 4 )
-    {
-        aErrorMsg.Printf( _( "Polyline only had %d parameters of the required 4" ), i );
-        return false;
-    }
-
-    if( ccount <= 0 )
-    {
-        aErrorMsg.Printf( _( "Polyline count parameter %d is invalid" ), ccount );
-        return false;
-    }
-
-    strtok( line + 2, " \t\n" );     // Skip field
-    strtok( NULL, " \t\n" );         // Skip field
-    strtok( NULL, " \t\n" );         // Skip field
-    strtok( NULL, " \t\n" );
-
-    for( i = 0; i < ccount; i++ )
-    {
-        p = strtok( NULL, " \t\n" );
-
-        if( p == NULL || sscanf( p, "%d", &pt.x ) != 1 )
-        {
-            aErrorMsg.Printf( _( "Polyline point %d X position not defined" ), i );
-            return false;
-        }
-
-        p = strtok( NULL, " \t\n" );
-
-        if( p == NULL || sscanf( p, "%d", &pt.y ) != 1 )
-        {
-            aErrorMsg.Printf( _( "Polyline point %d Y position not defined" ), i );
-            return false;
-        }
-
-        AddPoint( pt );
-    }
-
-    if( ( p = strtok( NULL, " \t\n" ) ) != NULL )
-    {
-        if( p[0] == 'F' )
-            m_Fill = FILLED_SHAPE;
-
-        if( p[0] == 'f' )
-            m_Fill = FILLED_WITH_BG_BODYCOLOR;
-    }
-
-    return true;
 }
 
 
@@ -264,14 +181,14 @@ int LIB_POLYLINE::GetPenSize() const
 
 
 void LIB_POLYLINE::drawGraphic( EDA_DRAW_PANEL* aPanel, wxDC* aDC, const wxPoint& aOffset,
-                                EDA_COLOR_T aColor, GR_DRAWMODE aDrawMode, void* aData,
+                                COLOR4D aColor, GR_DRAWMODE aDrawMode, void* aData,
                                 const TRANSFORM& aTransform )
 {
     wxPoint  pos1;
-    EDA_COLOR_T color = GetLayerColor( LAYER_DEVICE );
+    COLOR4D color = GetLayerColor( LAYER_DEVICE );
     wxPoint* buffer = NULL;
 
-    if( aColor < 0 )                // Used normal color or selected color
+    if( aColor == COLOR4D::UNSPECIFIED )                // Used normal color or selected color
     {
         if( IsSelected() )
             color = GetItemSelectedColor();
@@ -290,7 +207,7 @@ void LIB_POLYLINE::drawGraphic( EDA_DRAW_PANEL* aPanel, wxDC* aDC, const wxPoint
 
     FILL_T fill = aData ? NO_FILL : m_Fill;
 
-    if( aColor >= 0 )
+    if( aColor != COLOR4D::UNSPECIFIED )
         fill = NO_FILL;
 
     GRSetDrawMode( aDC, aDrawMode );
@@ -422,6 +339,12 @@ wxString LIB_POLYLINE::GetSelectMenuText() const
 }
 
 
+BITMAP_DEF LIB_POLYLINE::GetMenuImage() const
+{
+    return add_polygon_xpm;
+}
+
+
 void LIB_POLYLINE::BeginEdit( STATUS_FLAGS aEditMode, const wxPoint aPosition )
 {
     wxCHECK_RET( ( aEditMode & ( IS_NEW | IS_MOVED | IS_RESIZED ) ) != 0,
@@ -450,7 +373,7 @@ void LIB_POLYLINE::BeginEdit( STATUS_FLAGS aEditMode, const wxPoint aPosition )
         wxPoint prevPoint = startPoint;
 
         // Find the right index of the point to be dragged
-        BOOST_FOREACH( wxPoint point, m_PolyPoints )
+        for( wxPoint point : m_PolyPoints )
         {
             int distancePoint = (aPosition - point).x * (aPosition - point).x +
                                 (aPosition - point).y * (aPosition - point).y;

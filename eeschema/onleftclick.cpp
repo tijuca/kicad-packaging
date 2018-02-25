@@ -1,9 +1,9 @@
 /*
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
- * Copyright (C) 2015 Jean-Pierre Charras, jaen-pierre.charras@gipsa-lab.inpg.com
+ * Copyright (C) 2015 Jean-Pierre Charras, jp.charras at wanadoo.fr
  * Copyright (C) 2011 Wayne Stambaugh <stambaughw@verizon.net>
- * Copyright (C) 1992-2015 KiCad Developers, see AUTHORS.txt for contributors.
+ * Copyright (C) 1992-2017 KiCad Developers, see AUTHORS.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -28,9 +28,12 @@
  */
 
 #include <fctsys.h>
+#include <kiway.h>
 #include <eeschema_id.h>
 #include <class_drawpanel.h>
-#include <schframe.h>
+#include <confirm.h>
+#include <sch_edit_frame.h>
+#include <sim/sim_plot_frame.h>
 #include <menus_helpers.h>
 
 #include <sch_bus_entry.h>
@@ -43,16 +46,15 @@
 #include <sch_sheet.h>
 #include <sch_sheet_path.h>
 #include <sch_bitmap.h>
-#include <class_library.h>      // fo class SCHLIB_FILTER to filter power parts
+
+#include <netlist_object.h>
+#include <class_library.h>      // for class SCHLIB_FILTER to filter power parts
 
 
 // TODO(hzeller): These pairs of elmenets should be represented by an object, but don't want
 // to refactor too much right now to not get in the way with other code changes.
-static wxArrayString s_CmpNameList;
-static int s_CmpLastUnit;
-
-static wxArrayString s_PowerNameList;
-static int s_LastPowerUnit;
+static SCH_BASE_FRAME::HISTORY_LIST s_CmpNameList;
+static SCH_BASE_FRAME::HISTORY_LIST s_PowerNameList;
 
 
 void SCH_EDIT_FRAME::OnLeftClick( wxDC* aDC, const wxPoint& aPosition )
@@ -106,22 +108,11 @@ void SCH_EDIT_FRAME::OnLeftClick( wxDC* aDC, const wxPoint& aPosition )
     case ID_NO_TOOL_SELECTED:
         break;
 
-    case ID_HIERARCHY_PUSH_POP_BUTT:
-        if( ( item && item->GetFlags() ) || ( g_RootSheet->CountSheets() == 0 ) )
-            break;
+    case ID_ZOOM_SELECTION:
+        break;
 
-        item = LocateAndShowItem( aPosition, SCH_COLLECTOR::SheetsOnly );
-
-        if( item )  // The user has clicked on a sheet: this is an enter sheet command
-        {
-            m_CurrentSheet->Push( (SCH_SHEET*) item );
-            DisplayCurrentSheet();
-        }
-        else if( m_CurrentSheet->Last() != g_RootSheet )
-        {   // The user has clicked ouside a sheet:this is an leave sheet command
-            m_CurrentSheet->Pop();
-            DisplayCurrentSheet();
-        }
+    case ID_HIGHLIGHT:
+        HighlightConnectionAtPosition( aPosition );
         break;
 
     case ID_NOCONN_BUTT:
@@ -129,7 +120,7 @@ void SCH_EDIT_FRAME::OnLeftClick( wxDC* aDC, const wxPoint& aPosition )
         {
             if( GetScreen()->GetItem( gridPosition, 0, SCH_NO_CONNECT_T ) == NULL )
             {
-                SCH_NO_CONNECT*  no_connect = AddNoConnect( aDC, gridPosition );
+                SCH_NO_CONNECT*  no_connect = AddNoConnect( gridPosition );
                 SetRepeatItem( no_connect );
                 GetScreen()->SetCurItem( no_connect );
                 m_canvas->SetAutoPanRequest( true );
@@ -146,7 +137,7 @@ void SCH_EDIT_FRAME::OnLeftClick( wxDC* aDC, const wxPoint& aPosition )
         {
             if( GetScreen()->GetItem( gridPosition, 0, SCH_JUNCTION_T ) == NULL )
             {
-                SCH_JUNCTION* junction = AddJunction( aDC, gridPosition, true );
+                SCH_JUNCTION* junction = AddJunction( gridPosition );
                 SetRepeatItem( junction );
                 GetScreen()->SetCurItem( junction );
                 m_canvas->SetAutoPanRequest( true );
@@ -297,7 +288,7 @@ void SCH_EDIT_FRAME::OnLeftClick( wxDC* aDC, const wxPoint& aPosition )
         if( (item == NULL) || (item->GetFlags() == 0) )
         {
             GetScreen()->SetCurItem( Load_Component( aDC, NULL,
-                                                     s_CmpNameList, s_CmpLastUnit, true ) );
+                                                     s_CmpNameList, true ) );
             m_canvas->SetAutoPanRequest( true );
         }
         else
@@ -312,7 +303,7 @@ void SCH_EDIT_FRAME::OnLeftClick( wxDC* aDC, const wxPoint& aPosition )
             SCHLIB_FILTER filter;
             filter.FilterPowerParts( true );
             GetScreen()->SetCurItem( Load_Component( aDC, &filter,
-                                                     s_PowerNameList, s_LastPowerUnit, false ) );
+                                                     s_PowerNameList, false ) );
             m_canvas->SetAutoPanRequest( true );
         }
         else
@@ -321,8 +312,59 @@ void SCH_EDIT_FRAME::OnLeftClick( wxDC* aDC, const wxPoint& aPosition )
         }
         break;
 
+#ifdef KICAD_SPICE
+    case ID_SIM_PROBE:
+        {
+            constexpr KICAD_T wiresAndComponents[] = { SCH_LINE_T,
+                SCH_COMPONENT_T, SCH_SHEET_PIN_T, EOT };
+            item = LocateAndShowItem( aPosition, wiresAndComponents );
+
+            if( !item )
+                break;
+
+            std::unique_ptr<NETLIST_OBJECT_LIST> netlist( BuildNetListBase() );
+
+            for( NETLIST_OBJECT* obj : *netlist )
+            {
+                if( obj->m_Comp == item )
+                {
+                    SIM_PLOT_FRAME* simFrame = (SIM_PLOT_FRAME*) Kiway().Player( FRAME_SIMULATOR, false );
+
+                    if( simFrame )
+                        simFrame->AddVoltagePlot( obj->GetNetName() );
+
+                    break;
+                }
+            }
+        }
+        break;
+
+    case ID_SIM_TUNE:
+        {
+            constexpr KICAD_T fieldsAndComponents[] = { SCH_COMPONENT_T, SCH_FIELD_T, EOT };
+            item = LocateAndShowItem( aPosition, fieldsAndComponents );
+
+            if( !item )
+                return;
+
+            if( item->Type() != SCH_COMPONENT_T )
+            {
+                item = static_cast<SCH_ITEM*>( item->GetParent() );
+
+                if( item->Type() != SCH_COMPONENT_T )
+                    return;
+            }
+
+            SIM_PLOT_FRAME* simFrame = (SIM_PLOT_FRAME*) Kiway().Player( FRAME_SIMULATOR, false );
+
+            if( simFrame )
+                simFrame->AddTuner( static_cast<SCH_COMPONENT*>( item ) );
+        }
+        break;
+#endif /* KICAD_SPICE */
+
     default:
-        SetToolID( ID_NO_TOOL_SELECTED, m_canvas->GetDefaultCursor(), wxEmptyString );
+        SetNoToolSelected();
         wxFAIL_MSG( wxT( "SCH_EDIT_FRAME::OnLeftClick invalid tool ID <" ) +
                     wxString::Format( wxT( "%d> selected." ), GetToolId() ) );
     }
@@ -347,7 +389,7 @@ void SCH_EDIT_FRAME::OnLeftDClick( wxDC* aDC, const wxPoint& aPosition )
     case ID_NO_TOOL_SELECTED:
         if( ( item == NULL ) || ( item->GetFlags() == 0 ) )
         {
-            item = LocateAndShowItem( aPosition );
+            item = LocateAndShowItem( aPosition, SCH_COLLECTOR::DoubleClickItems );
         }
 
         if( ( item == NULL ) || ( item->GetFlags() != 0 ) )
@@ -356,7 +398,7 @@ void SCH_EDIT_FRAME::OnLeftDClick( wxDC* aDC, const wxPoint& aPosition )
         switch( item->Type() )
         {
         case SCH_SHEET_T:
-            m_CurrentSheet->Push( (SCH_SHEET*) item );
+            m_CurrentSheet->push_back( (SCH_SHEET*) item );
             DisplayCurrentSheet();
             break;
 
@@ -400,7 +442,7 @@ void SCH_EDIT_FRAME::OnLeftDClick( wxDC* aDC, const wxPoint& aPosition )
     case ID_WIRE_BUTT:
     case ID_LINE_COMMENT_BUTT:
         if( item && item->IsNew() )
-            EndSegment( aDC );
+            EndSegment();
 
         break;
     }

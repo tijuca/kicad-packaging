@@ -1,8 +1,8 @@
 /*
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
- * Copyright (C) 2012 Jean-Pierre Charras, jp.charras at wanadoo.fr
- * Copyright (C) 2004-2012 KiCad Developers, see change_log.txt for contributors.
+ * Copyright (C) 2017 Jean-Pierre Charras, jp.charras at wanadoo.fr
+ * Copyright (C) 2004-2017 KiCad Developers, see AUTHORS.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -30,12 +30,11 @@
 #include <gr_basic.h>
 #include <macros.h>
 #include <class_drawpanel.h>
-#include <plot_common.h>
+#include <plotter.h>
 #include <trigo.h>
-#include <wxstruct.h>
-#include <richio.h>
 #include <base_units.h>
 #include <msgpanel.h>
+#include <bitmaps.h>
 
 #include <general.h>
 #include <lib_rectangle.h>
@@ -48,44 +47,9 @@ LIB_RECTANGLE::LIB_RECTANGLE( LIB_PART*      aParent ) :
     m_Width                = 0;
     m_Fill                 = NO_FILL;
     m_isFillable           = true;
-    m_typeName             = _( "Rectangle" );
     m_isHeightLocked       = false;
     m_isWidthLocked        = false;
     m_isStartPointSelected = false;
-}
-
-
-bool LIB_RECTANGLE::Save( OUTPUTFORMATTER& aFormatter )
-{
-    aFormatter.Print( 0, "S %d %d %d %d %d %d %d %c\n", m_Pos.x, m_Pos.y,
-                      m_End.x, m_End.y, m_Unit, m_Convert, m_Width, fill_tab[m_Fill] );
-
-    return true;
-}
-
-
-bool LIB_RECTANGLE::Load( LINE_READER& aLineReader, wxString& aErrorMsg )
-{
-    int  cnt;
-    char tmp[256] = "";
-    char* line = (char*)aLineReader;
-
-    cnt = sscanf( line + 2, "%d %d %d %d %d %d %d %255s", &m_Pos.x, &m_Pos.y,
-                  &m_End.x, &m_End.y, &m_Unit, &m_Convert, &m_Width, tmp );
-
-    if( cnt < 7 )
-    {
-        aErrorMsg.Printf( _( "Rectangle only had %d parameters of the required 7" ), cnt );
-        return false;
-    }
-
-    if( tmp[0] == 'F' )
-        m_Fill = FILLED_SHAPE;
-
-    if( tmp[0] == 'f' )
-        m_Fill = FILLED_WITH_BG_BODYCOLOR;
-
-    return true;
 }
 
 
@@ -195,14 +159,14 @@ int LIB_RECTANGLE::GetPenSize() const
 
 
 void LIB_RECTANGLE::drawGraphic( EDA_DRAW_PANEL* aPanel, wxDC* aDC,
-                                 const wxPoint& aOffset, EDA_COLOR_T aColor, GR_DRAWMODE aDrawMode,
+                                 const wxPoint& aOffset, COLOR4D aColor, GR_DRAWMODE aDrawMode,
                                  void* aData, const TRANSFORM& aTransform )
 {
     wxPoint pos1, pos2;
 
-    EDA_COLOR_T color = GetLayerColor( LAYER_DEVICE );
+    COLOR4D color = GetLayerColor( LAYER_DEVICE );
 
-    if( aColor < 0 )       // Used normal color or selected color
+    if( aColor == COLOR4D::UNSPECIFIED )       // Used normal color or selected color
     {
         if( IsSelected() )
             color = GetItemSelectedColor();
@@ -217,7 +181,7 @@ void LIB_RECTANGLE::drawGraphic( EDA_DRAW_PANEL* aPanel, wxDC* aDC,
 
     FILL_T fill = aData ? NO_FILL : m_Fill;
 
-    if( aColor >= 0 )
+    if( aColor != COLOR4D::UNSPECIFIED )
         fill = NO_FILL;
 
     GRSetDrawMode( aDC, aDrawMode );
@@ -334,6 +298,12 @@ wxString LIB_RECTANGLE::GetSelectMenuText() const
                              GetChars( CoordinateToString( m_Pos.y ) ),
                              GetChars( CoordinateToString( m_End.x ) ),
                              GetChars( CoordinateToString( m_End.y ) ) );
+}
+
+
+BITMAP_DEF LIB_RECTANGLE::GetMenuImage() const
+{
+    return add_rectangle_xpm;
 }
 
 

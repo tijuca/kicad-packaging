@@ -30,7 +30,6 @@
 #include <fctsys.h>
 #include <gr_basic.h>
 #include <class_drawpanel.h>
-#include <wxstruct.h>
 #include <msgpanel.h>
 
 #include <general.h>
@@ -52,7 +51,6 @@ LIB_ITEM::LIB_ITEM( KICAD_T        aType,
     m_Convert           = aConvert;
     m_Fill              = aFillType;
     m_Parent            = (EDA_ITEM*) aComponent;
-    m_typeName          = _( "Undefined" );
     m_isFillable        = false;
     m_eraseLastDrawItem = false;
 }
@@ -62,7 +60,7 @@ void LIB_ITEM::GetMsgPanelInfo( MSG_PANEL_ITEMS& aList )
 {
     wxString msg;
 
-    aList.push_back( MSG_PANEL_ITEM( _( "Type" ), m_typeName, CYAN ) );
+    aList.push_back( MSG_PANEL_ITEM( _( "Type" ), GetTypeName(), CYAN ) );
 
     if( m_Unit == 0 )
         msg = _( "All" );
@@ -80,7 +78,7 @@ void LIB_ITEM::GetMsgPanelInfo( MSG_PANEL_ITEMS& aList )
     else
         msg = wxT( "?" );
 
-    aList.push_back( MSG_PANEL_ITEM( _( "Convert" ), msg, BROWN ) );
+    aList.push_back( MSG_PANEL_ITEM( _( "Converted" ), msg, BROWN ) );
 }
 
 
@@ -115,7 +113,7 @@ bool LIB_ITEM::operator<( const LIB_ITEM& aOther ) const
 
 
 void LIB_ITEM::Draw( EDA_DRAW_PANEL* aPanel, wxDC* aDC,
-                     const wxPoint& aOffset, EDA_COLOR_T aColor,
+                     const wxPoint& aOffset, COLOR4D aColor,
                      GR_DRAWMODE aDrawMode, void* aData,
                      const TRANSFORM& aTransform )
 {
@@ -123,7 +121,7 @@ void LIB_ITEM::Draw( EDA_DRAW_PANEL* aPanel, wxDC* aDC,
     {
         // Temporarily disable filling while the item is being edited.
         FILL_T fillMode = m_Fill;
-        EDA_COLOR_T color = GetDefaultColor();
+        COLOR4D color = GetDefaultColor();
 
         m_Fill = NO_FILL;
 
@@ -154,7 +152,7 @@ void LIB_ITEM::Draw( EDA_DRAW_PANEL* aPanel, wxDC* aDC,
 }
 
 
-EDA_COLOR_T LIB_ITEM::GetDefaultColor()
+COLOR4D LIB_ITEM::GetDefaultColor()
 {
     return GetLayerColor( LAYER_DEVICE );
 }

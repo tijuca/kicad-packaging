@@ -34,7 +34,6 @@
 #include <cassert>
 
 #include <gal/opengl/shader.h>
-#include "shader_src.h"
 
 using namespace KIGFX;
 
@@ -54,35 +53,34 @@ SHADER::SHADER() :
 
 SHADER::~SHADER()
 {
+    if( active )
+        Deactivate();
+
     if( isProgramCreated )
     {
         // Delete the shaders and the program
-        for( std::deque<GLuint>::iterator it = shaderNumbers.begin(); it != shaderNumbers.end();
-             ++it )
+        for( std::deque<GLuint>::iterator it = shaderNumbers.begin();
+                it != shaderNumbers.end(); ++it )
         {
-            glDeleteShader( *it );
+            GLuint shader = *it;
+
+            if( glIsShader( shader ) )
+            {
+                glDetachShader( programNumber, shader );
+                glDeleteShader( shader );
+            }
         }
 
         glDeleteProgram( programNumber );
     }
 }
 
-
-bool SHADER::LoadBuiltinShader( unsigned int aShaderNumber, SHADER_TYPE aShaderType )
-{
-    if( aShaderNumber >= shaders_number )
-        return false;
-
-    return addSource( std::string( shaders_src[aShaderNumber] ), aShaderType );
-}
-
-
-bool SHADER::LoadShaderFromFile( const std::string& aShaderSourceName, SHADER_TYPE aShaderType )
+bool SHADER::LoadShaderFromFile( SHADER_TYPE aShaderType, const std::string& aShaderSourceName )
 {
     // Load shader sources
-    const std::string shaderSource = readSource( aShaderSourceName );
+    const std::string shaderSource = ReadSource( aShaderSourceName );
 
-    return addSource( shaderSource, aShaderType );
+    return LoadShaderFromStrings( aShaderType, shaderSource );
 }
 
 
@@ -127,26 +125,39 @@ int SHADER::AddParameter( const std::string& aParameterName )
 {
     GLint location = glGetUniformLocation( programNumber, aParameterName.c_str() );
 
-    if( location != -1 )
+    if( location >= 0 )
         parameterLocation.push_back( location );
+    else
+        throw std::runtime_error( "Could not find shader uniform: " + aParameterName );
 
-    return location;
+    return parameterLocation.size() - 1;
 }
 
 
 void SHADER::SetParameter( int parameterNumber, float value ) const
 {
+    assert( (unsigned) parameterNumber < parameterLocation.size() );
+
     glUniform1f( parameterLocation[parameterNumber], value );
 }
 
 
 void SHADER::SetParameter( int parameterNumber, int value ) const
 {
+    assert( (unsigned) parameterNumber < parameterLocation.size() );
+
     glUniform1i( parameterLocation[parameterNumber], value );
 }
 
+void SHADER::SetParameter( int parameterNumber, float f0, float f1, float f2, float f3 ) const
+{
+    assert( (unsigned)parameterNumber < parameterLocation.size() );
+    float arr[4] = { f0, f1, f2, f3 };
+    glUniform4fv( parameterLocation[parameterNumber], 1, arr );
+}
 
-int SHADER::GetAttribute( std::string aAttributeName ) const
+
+int SHADER::GetAttribute( const std::string& aAttributeName ) const
 {
     return glGetAttribLocation( programNumber, aAttributeName.c_str() );
 }
@@ -194,11 +205,11 @@ void SHADER::shaderInfo( GLuint aShader )
 }
 
 
-std::string SHADER::readSource( std::string aShaderSourceName )
+std::string SHADER::ReadSource( const std::string& aShaderSourceName )
 {
     // Open the shader source for reading
     std::ifstream inputFile( aShaderSourceName.c_str(), std::ifstream::in );
-    std::string   shaderSource;
+    std::string shaderSource;
 
     if( !inputFile )
         throw std::runtime_error( "Can't read the shader source: " + aShaderSourceName );
@@ -216,7 +227,8 @@ std::string SHADER::readSource( std::string aShaderSourceName )
 }
 
 
-bool SHADER::addSource( const std::string& aShaderSource, SHADER_TYPE aShaderType )
+bool SHADER::loadShaderFromStringArray( SHADER_TYPE aShaderType, const char** aArray,
+                                        size_t aSize )
 {
     assert( !isShaderLinked );
 
@@ -234,17 +246,9 @@ bool SHADER::addSource( const std::string& aShaderSource, SHADER_TYPE aShaderTyp
     // Get the program info
     programInfo( programNumber );
 
-    // Copy to char array
-    char* source = new char[aShaderSource.size() + 1];
-    strncpy( source, aShaderSource.c_str(), aShaderSource.size() + 1 );
-    const char** source_ = (const char**) ( &source );
-
-    // Attach the source
-    glShaderSource( shaderNumber, 1, source_, NULL );
+    // Attach the sources
+    glShaderSource( shaderNumber, aSize, (const GLchar**) aArray, NULL );
     programInfo( programNumber );
-
-    // Delete the allocated char array
-    delete[] source;
 
     // Compile and attach shader to the program
     glCompileShader( shaderNumber );

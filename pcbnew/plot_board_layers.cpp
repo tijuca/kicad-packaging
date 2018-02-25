@@ -8,7 +8,7 @@
 /*
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
- * Copyright (C) 1992-2015 KiCad Developers, see AUTHORS.txt for contributors.
+ * Copyright (C) 1992-2017 KiCad Developers, see AUTHORS.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -31,11 +31,11 @@
 
 #include <fctsys.h>
 #include <common.h>
-#include <plot_common.h>
+#include <plotter.h>
 #include <base_struct.h>
-#include <drawtxt.h>
+#include <draw_graphic_text.h>
 #include <trigo.h>
-#include <wxBasePcbFrame.h>
+#include <pcb_base_frame.h>
 #include <macros.h>
 
 #include <class_board.h>
@@ -45,11 +45,12 @@
 #include <class_pcb_text.h>
 #include <class_zone.h>
 #include <class_drawsegment.h>
-#include <class_mire.h>
+#include <class_pcb_target.h>
 #include <class_dimension.h>
 
 #include <pcbnew.h>
 #include <pcbplot.h>
+#include <plot_auxiliary_data.h>
 
 // Local
 /* Plot a solder mask layer.
@@ -88,23 +89,27 @@ void PlotSilkScreen( BOARD *aBoard, PLOTTER* aPlotter, LSET aLayerMask,
     {
         for( MODULE* Module = aBoard->m_Modules; Module; Module = Module->Next() )
         {
-            for( D_PAD * pad = Module->Pads(); pad; pad = pad->Next() )
+            aPlotter->StartBlock( NULL );
+
+            for( D_PAD* pad = Module->PadsList(); pad; pad = pad->Next() )
             {
                 // See if the pad is on this layer
                 LSET masklayer = pad->GetLayerSet();
                 if( !( masklayer & layersmask_plotpads ).any() )
                     continue;
 
-                EDA_COLOR_T color = ColorFromInt( 0 );
+                COLOR4D color = COLOR4D::BLACK;
 
                 if( layersmask_plotpads[B_SilkS] )
-                   color = aBoard->GetLayerColor( B_SilkS );
+                   color = aBoard->Colors().GetLayerColor( B_SilkS );
 
                 if( layersmask_plotpads[F_SilkS] )
-                    color = ColorFromInt( color | aBoard->GetLayerColor( F_SilkS ) );
+                    color = ( color == COLOR4D::BLACK) ? aBoard->Colors().GetLayerColor( F_SilkS ) : color;
 
                 itemplotter.PlotPad( pad, color, SKETCH );
             }
+
+            aPlotter->EndBlock( NULL );
         }
     }
 
@@ -119,6 +124,8 @@ void PlotSilkScreen( BOARD *aBoard, PLOTTER* aPlotter, LSET aLayerMask,
     }
 
     // Plot filled areas
+    aPlotter->StartBlock( NULL );
+
     for( int ii = 0; ii < aBoard->GetAreaCount(); ii++ )
     {
         ZONE_CONTAINER* edge_zone = aBoard->GetArea( ii );
@@ -129,6 +136,8 @@ void PlotSilkScreen( BOARD *aBoard, PLOTTER* aPlotter, LSET aLayerMask,
         itemplotter.PlotFilledAreas( edge_zone );
     }
 
+    aPlotter->EndBlock( NULL );
+
     // Plot segments used to fill zone areas (outdated, but here for old boards
     // compatibility):
     for( SEGZONE* seg = aBoard->m_Zone; seg; seg = seg->Next() )
@@ -137,11 +146,11 @@ void PlotSilkScreen( BOARD *aBoard, PLOTTER* aPlotter, LSET aLayerMask,
             continue;
 
         aPlotter->ThickSegment( seg->GetStart(), seg->GetEnd(), seg->GetWidth(),
-                                itemplotter.GetPlotMode() );
+                                itemplotter.GetPlotMode(), NULL );
     }
 }
 
-void PlotOneBoardLayer( BOARD *aBoard, PLOTTER* aPlotter, LAYER_ID aLayer,
+void PlotOneBoardLayer( BOARD *aBoard, PLOTTER* aPlotter, PCB_LAYER_ID aLayer,
                         const PCB_PLOT_PARAMS& aPlotOpt )
 {
     PCB_PLOT_PARAMS plotOpt = aPlotOpt;
@@ -257,7 +266,7 @@ void PlotOneBoardLayer( BOARD *aBoard, PLOTTER* aPlotter, LAYER_ID aLayer,
             plotOpt.SetSkipPlotNPTH_Pads( false );
             plotOpt.SetDrillMarksType( PCB_PLOT_PARAMS::NO_DRILL_SHAPE );
 
-            if ( plotOpt.GetFormat() == PLOT_FORMAT_DXF && plotOpt.GetDXFPlotPolygonMode() )
+            if( plotOpt.GetFormat() == PLOT_FORMAT_DXF && plotOpt.GetDXFPlotPolygonMode() )
                 // PlotLayerOutlines() is designed only for DXF plotters.
                 // and must not be used for other plot formats
                 PlotLayerOutlines( aBoard, aPlotter, layer_mask, plotOpt );
@@ -269,7 +278,7 @@ void PlotOneBoardLayer( BOARD *aBoard, PLOTTER* aPlotter, LAYER_ID aLayer,
             plotOpt.SetSkipPlotNPTH_Pads( false );
             plotOpt.SetDrillMarksType( PCB_PLOT_PARAMS::NO_DRILL_SHAPE );
 
-            if ( plotOpt.GetFormat() == PLOT_FORMAT_DXF && plotOpt.GetDXFPlotPolygonMode() )
+            if( plotOpt.GetFormat() == PLOT_FORMAT_DXF && plotOpt.GetDXFPlotPolygonMode() )
                 // PlotLayerOutlines() is designed only for DXF plotters.
                 // and must not be used for other plot formats
                 PlotLayerOutlines( aBoard, aPlotter, layer_mask, plotOpt );
@@ -311,7 +320,7 @@ void PlotStandardLayer( BOARD *aBoard, PLOTTER* aPlotter,
 
     for( MODULE* module = aBoard->m_Modules;  module;  module = module->Next() )
     {
-        for( BOARD_ITEM* item = module->GraphicalItems(); item; item = item->Next() )
+        for( BOARD_ITEM* item = module->GraphicalItemsList(); item; item = item->Next() )
         {
             if( !aLayerMask[ item->GetLayer() ] )
                 continue;
@@ -331,7 +340,9 @@ void PlotStandardLayer( BOARD *aBoard, PLOTTER* aPlotter,
     // Plot footprint pads
     for( MODULE* module = aBoard->m_Modules;  module;  module = module->Next() )
     {
-        for( D_PAD* pad = module->Pads();  pad;  pad = pad->Next() )
+        aPlotter->StartBlock( NULL );
+
+        for( D_PAD* pad = module->PadsList();  pad;  pad = pad->Next() )
         {
             if( (pad->GetLayerSet() & aLayerMask) == 0 )
                 continue;
@@ -355,25 +366,66 @@ void PlotStandardLayer( BOARD *aBoard, PLOTTER* aPlotter,
                 margin = pad->GetSolderPasteMargin();
             }
 
+            // Now offset the pad size by margin + width_adj
+            // this is easy for most shapes, but not for a trapezoid
             wxSize padPlotsSize;
-            padPlotsSize.x = pad->GetSize().x + ( 2 * margin.x ) + width_adj;
-            padPlotsSize.y = pad->GetSize().y + ( 2 * margin.y ) + width_adj;
+            wxSize extraSize = margin * 2;
+            extraSize.x += width_adj;
+            extraSize.y += width_adj;
+            wxSize deltaSize = pad->GetDelta(); // has meaning only for trapezoidal pads
+
+            if( pad->GetShape() == PAD_SHAPE_TRAPEZOID )
+            {   // The easy way is to use BuildPadPolygon to calculate
+                // size and delta of the trapezoidal pad after offseting:
+                wxPoint coord[4];
+                pad->BuildPadPolygon( coord, extraSize/2, 0.0 );
+                // Calculate the size and delta from polygon corners coordinates:
+                // coord[0] is the lower left
+                // coord[1] is the upper left
+                // coord[2] is the upper right
+                // coord[3] is the lower right
+
+                // the size is the distance between middle of segments
+                // (left/right or top/bottom)
+                // size X is the dist between left and right middle points:
+                padPlotsSize.x = ( ( -coord[0].x + coord[3].x )     // the lower segment X length
+                                 + ( -coord[1].x + coord[2].x ) )   // the upper segment X length
+                                 / 2;           // the Y size is the half sum
+                // size Y is the dist between top and bottom middle points:
+                padPlotsSize.y = ( ( coord[0].y - coord[1].y )      // the left segment Y lenght
+                                 + ( coord[3].y - coord[2].y ) )    // the right segment Y lenght
+                                 / 2;           // the Y size is the half sum
+
+                // calculate the delta ( difference of lenght between 2 opposite edges )
+                // The delta.x is the delta along the X axis, therefore the delta of Y lenghts
+                wxSize delta;
+
+                if( coord[0].y != coord[3].y )
+                    delta.x = coord[0].y - coord[3].y;
+                else
+                    delta.y = coord[1].x - coord[0].x;
+
+                pad->SetDelta( delta );
+            }
+            else
+                padPlotsSize = pad->GetSize() + extraSize;
 
             // Don't draw a null size item :
             if( padPlotsSize.x <= 0 || padPlotsSize.y <= 0 )
                 continue;
 
-            EDA_COLOR_T color = BLACK;
+            COLOR4D color = COLOR4D::BLACK;
 
             if( pad->GetLayerSet()[B_Cu] )
-               color = aBoard->GetVisibleElementColor( PAD_BK_VISIBLE );
+               color = aBoard->Colors().GetItemColor( LAYER_PAD_BK );
 
             if( pad->GetLayerSet()[F_Cu] )
-                color = ColorFromInt( color | aBoard->GetVisibleElementColor( PAD_FR_VISIBLE ) );
+                color = color.LegacyMix( aBoard->Colors().GetItemColor( LAYER_PAD_FR ) );
 
             // Temporary set the pad size to the required plot size:
             wxSize tmppadsize = pad->GetSize();
             pad->SetSize( padPlotsSize );
+
             switch( pad->GetShape() )
             {
             case PAD_SHAPE_CIRCLE:
@@ -386,17 +438,34 @@ void PlotStandardLayer( BOARD *aBoard, PLOTTER* aPlotter,
                 // Fall through:
             case PAD_SHAPE_TRAPEZOID:
             case PAD_SHAPE_RECT:
+            case PAD_SHAPE_ROUNDRECT:
             default:
                 itemplotter.PlotPad( pad, color, plotMode );
                 break;
             }
 
             pad->SetSize( tmppadsize );     // Restore the pad size
+            pad->SetDelta( deltaSize );
         }
+
+        aPlotter->EndBlock( NULL );
     }
 
     // Plot vias on copper layers, and if aPlotOpt.GetPlotViaOnMaskLayer() is true,
     // plot them on solder mask
+
+    GBR_METADATA gbr_metadata;
+
+    bool isOnCopperLayer = ( aLayerMask & LSET::AllCuMask() ).any();
+
+    if( isOnCopperLayer )
+    {
+        gbr_metadata.SetApertureAttrib( GBR_APERTURE_METADATA::GBR_APERTURE_ATTRIB_VIAPAD );
+        gbr_metadata.SetNetAttribType( GBR_NETLIST_METADATA::GBR_NETINFO_NET );
+    }
+
+    aPlotter->StartBlock( NULL );
+
     for( TRACK* track = aBoard->m_Track; track; track = track->Next() )
     {
         const VIA* Via = dyn_cast<const VIA*>( track );
@@ -438,12 +507,22 @@ void PlotStandardLayer( BOARD *aBoard, PLOTTER* aPlotter,
         if( diameter <= 0 )
             continue;
 
-        EDA_COLOR_T color = aBoard->GetVisibleElementColor(VIAS_VISIBLE + Via->GetViaType());
+        // Some vias can be not connected (no net).
+        // Set the m_NotInNet for these vias to force a empty net name in gerber file
+        gbr_metadata.m_NetlistMetadata.m_NotInNet = Via->GetNetname().IsEmpty();
+
+        gbr_metadata.SetNetName( Via->GetNetname() );
+
+        COLOR4D color = aBoard->Colors().GetItemColor( LAYER_VIAS + Via->GetViaType() );
         // Set plot color (change WHITE to LIGHTGRAY because
         // the white items are not seen on a white paper or screen
         aPlotter->SetColor( color != WHITE ? color : LIGHTGRAY);
-        aPlotter->FlashPadCircle( Via->GetStart(), diameter, plotMode );
+        aPlotter->FlashPadCircle( Via->GetStart(), diameter, plotMode, &gbr_metadata );
     }
+
+    aPlotter->EndBlock( NULL );
+    aPlotter->StartBlock( NULL );
+    gbr_metadata.SetApertureAttrib( GBR_APERTURE_METADATA::GBR_APERTURE_ATTRIB_CONDUCTOR );
 
     // Plot tracks (not vias) :
     for( TRACK* track = aBoard->m_Track; track; track = track->Next() )
@@ -454,10 +533,17 @@ void PlotStandardLayer( BOARD *aBoard, PLOTTER* aPlotter,
         if( !aLayerMask[track->GetLayer()] )
             continue;
 
+        // Some track segments can be not connected (no net).
+        // Set the m_NotInNet for these segments to force a empty net name in gerber file
+        gbr_metadata.m_NetlistMetadata.m_NotInNet = track->GetNetname().IsEmpty();
+
+        gbr_metadata.SetNetName( track->GetNetname() );
         int width = track->GetWidth() + itemplotter.getFineWidthAdj();
         aPlotter->SetColor( itemplotter.getColor( track->GetLayer() ) );
-        aPlotter->ThickSegment( track->GetStart(), track->GetEnd(), width, plotMode );
+        aPlotter->ThickSegment( track->GetStart(), track->GetEnd(), width, plotMode, &gbr_metadata );
     }
+
+    aPlotter->EndBlock( NULL );
 
     // Plot zones (outdated, for old boards compatibility):
     for( TRACK* track = aBoard->m_Zone; track; track = track->Next() )
@@ -467,10 +553,11 @@ void PlotStandardLayer( BOARD *aBoard, PLOTTER* aPlotter,
 
         int width = track->GetWidth() + itemplotter.getFineWidthAdj();
         aPlotter->SetColor( itemplotter.getColor( track->GetLayer() ) );
-        aPlotter->ThickSegment( track->GetStart(), track->GetEnd(), width, plotMode );
+        aPlotter->ThickSegment( track->GetStart(), track->GetEnd(), width, plotMode, NULL );
     }
 
     // Plot filled ares
+    aPlotter->StartBlock( NULL );
     for( int ii = 0; ii < aBoard->GetAreaCount(); ii++ )
     {
         ZONE_CONTAINER* zone = aBoard->GetArea( ii );
@@ -480,6 +567,7 @@ void PlotStandardLayer( BOARD *aBoard, PLOTTER* aPlotter,
 
         itemplotter.PlotFilledAreas( zone );
     }
+    aPlotter->EndBlock( NULL );
 
     // Adding drill marks, if required and if the plotter is able to plot them:
     if( aPlotOpt.GetDrillMarksType() != PCB_PLOT_PARAMS::NO_DRILL_SHAPE )
@@ -488,7 +576,7 @@ void PlotStandardLayer( BOARD *aBoard, PLOTTER* aPlotter,
 
 
 // Seems like we want to plot from back to front?
-static const LAYER_ID plot_seq[] = {
+static const PCB_LAYER_ID plot_seq[] = {
 
     B_Adhes,        // 32
     F_Adhes,
@@ -559,12 +647,12 @@ void PlotLayerOutlines( BOARD* aBoard, PLOTTER* aPlotter,
 
     for( LSEQ seq = aLayerMask.Seq( plot_seq, DIM( plot_seq ) );  seq;  ++seq )
     {
-        LAYER_ID layer = *seq;
+        PCB_LAYER_ID layer = *seq;
 
         outlines.RemoveAllContours();
         aBoard->ConvertBrdLayerToPolygonalContours( layer, outlines );
 
-        outlines.Simplify();
+        outlines.Simplify( SHAPE_POLY_SET::PM_FAST );
 
         // Plot outlines
         std::vector< wxPoint > cornerList;
@@ -592,9 +680,12 @@ void PlotLayerOutlines( BOARD* aBoard, PLOTTER* aPlotter,
         // Plot pad holes
         if( aPlotOpt.GetDrillMarksType() != PCB_PLOT_PARAMS::NO_DRILL_SHAPE )
         {
+            int smallDrill = (aPlotOpt.GetDrillMarksType() == PCB_PLOT_PARAMS::SMALL_DRILL_SHAPE)
+                                  ? SMALL_DRILL : INT_MAX;
+
             for( MODULE* module = aBoard->m_Modules; module; module = module->Next() )
             {
-                for( D_PAD* pad = module->Pads(); pad; pad = pad->Next() )
+                for( D_PAD* pad = module->PadsList(); pad; pad = pad->Next() )
                 {
                     wxSize hole = pad->GetDrillSize();
 
@@ -602,14 +693,18 @@ void PlotLayerOutlines( BOARD* aBoard, PLOTTER* aPlotter,
                         continue;
 
                     if( hole.x == hole.y )
+                    {
+                        hole.x = std::min( smallDrill, hole.x );
                         aPlotter->Circle( pad->GetPosition(), hole.x, NO_FILL );
+                    }
                     else
                     {
+                        // Note: small drill marks have no significance when applied to slots
                         wxPoint drl_start, drl_end;
                         int width;
                         pad->GetOblongDrillGeometry( drl_start, drl_end, width );
                         aPlotter->ThickSegment( pad->GetPosition() + drl_start,
-                                pad->GetPosition() + drl_end, width, SKETCH );
+                                pad->GetPosition() + drl_end, width, SKETCH, NULL );
                     }
                 }
             }
@@ -637,7 +732,7 @@ void PlotLayerOutlines( BOARD* aBoard, PLOTTER* aPlotter,
  *      mask clearance + (min width solder mask /2)
  * 2 - Merge shapes
  * 3 - deflate result by (min width solder mask /2)
- * 4 - oring result by all pad shapes as polygons with a size inflated by
+ * 4 - ORing result by all pad shapes as polygons with a size inflated by
  *      mask clearance only (because deflate sometimes creates shape artifacts)
  * 5 - draw result as polygons
  *
@@ -651,7 +746,7 @@ void PlotSolderMaskLayer( BOARD *aBoard, PLOTTER* aPlotter,
                           LSET aLayerMask, const PCB_PLOT_PARAMS& aPlotOpt,
                           int aMinThickness )
 {
-    LAYER_ID    layer = aLayerMask[B_Mask] ? B_Mask : F_Mask;
+    PCB_LAYER_ID    layer = aLayerMask[B_Mask] ? B_Mask : F_Mask;
     int         inflate = aMinThickness/2;
 
     BRDITEMS_PLOTTER itemplotter( aPlotter, aBoard, aPlotOpt );
@@ -664,7 +759,7 @@ void PlotSolderMaskLayer( BOARD *aBoard, PLOTTER* aPlotter,
 
     for( MODULE* module = aBoard->m_Modules;  module;  module = module->Next() )
     {
-        for( BOARD_ITEM* item = module->GraphicalItems(); item; item = item->Next() )
+        for( BOARD_ITEM* item = module->GraphicalItemsList(); item; item = item->Next() )
         {
             if( layer != item->GetLayer() )
                 continue;
@@ -779,15 +874,15 @@ void PlotSolderMaskLayer( BOARD *aBoard, PLOTTER* aPlotter,
     zone.SetMinThickness( 0 );      // trace polygons only
     zone.SetLayer ( layer );
 
-    areas.BooleanAdd( initialPolys );
+    areas.BooleanAdd( initialPolys, SHAPE_POLY_SET::PM_FAST );
     areas.Inflate( -inflate, circleToSegmentsCount );
 
     // Combine the current areas to initial areas. This is mandatory because
     // inflate/deflate transform is not perfect, and we want the initial areas perfectly kept
-    areas.BooleanAdd( initialPolys );
-    areas.Fracture();
+    areas.BooleanAdd( initialPolys, SHAPE_POLY_SET::PM_FAST );
+    areas.Fracture( SHAPE_POLY_SET::PM_STRICTLY_SIMPLE );
 
-    zone.AddFilledPolysList( areas );
+    zone.SetFilledPolysList( areas );
 
     itemplotter.PlotFilledAreas( &zone );
 }
@@ -873,9 +968,8 @@ static void initializePlotter( PLOTTER *aPlotter, BOARD * aBoard,
        most of that taken from the options */
     aPlotter->SetPageSettings( *sheet_info );
 
-    aPlotter->SetViewport( offset, IU_PER_DECIMILS, compound_scale,
+    aPlotter->SetViewport( offset, IU_PER_MILS/10, compound_scale,
                            aPlotOpts->GetMirror() );
-
     // has meaning only for gerber plotter. Must be called only after SetViewport
     aPlotter->SetGerberCoordinatesFormat( aPlotOpts->GetGerberPrecision() );
 
@@ -909,20 +1003,9 @@ static void ConfigureHPGLPenSizes( HPGL_PLOTTER *aPlotter,
     int pen_diam = KiROUND( aPlotOpts->GetHPGLPenDiameter() * IU_PER_MILS /
                             aPlotOpts->GetScale() );
 
-    // compute pen_overlay (value comes in mils) in pcb units with plot scale
-    if( aPlotOpts->GetHPGLPenOverlay() < 0 )
-        aPlotOpts->SetHPGLPenOverlay( 0 );
-
-    if( aPlotOpts->GetHPGLPenOverlay() >= aPlotOpts->GetHPGLPenDiameter() )
-        aPlotOpts->SetHPGLPenOverlay( aPlotOpts->GetHPGLPenDiameter() - 1 );
-
-    int pen_overlay = KiROUND( aPlotOpts->GetHPGLPenOverlay() * IU_PER_MILS /
-                               aPlotOpts->GetScale() );
-
     // Set HPGL-specific options and start
     aPlotter->SetPenSpeed( aPlotOpts->GetHPGLPenSpeed() );
     aPlotter->SetPenNumber( aPlotOpts->GetHPGLPenNum() );
-    aPlotter->SetPenOverlap( pen_overlay );
     aPlotter->SetPenDiameter( pen_diam );
 }
 
@@ -1002,10 +1085,16 @@ PLOTTER* StartPlotBoard( BOARD *aBoard, PCB_PLOT_PARAMS *aPlotOpts,
             bool useX2mode = plotOpts.GetUseGerberAttributes();
 
             if( useX2mode )
-                AddGerberX2Attribute( plotter, aBoard, aLayer );
+            {
+                AddGerberX2Attribute( plotter, aBoard, aLayer, false );
+                GERBER_PLOTTER* gbrplotter = static_cast <GERBER_PLOTTER*> ( plotter );
+                gbrplotter->UseX2Attributes( true );
+                gbrplotter->UseX2NetAttributes( plotOpts.GetIncludeGerberNetlistInfo() );
+            }
             else
-                plotter->AddLineToHeader( GetGerberFileFunctionAttribute(
-                                                aBoard, aLayer, true ) );
+            {
+                AddGerberX2Attribute( plotter, aBoard, aLayer, true );
+            }
         }
 
         plotter->StartPlot();

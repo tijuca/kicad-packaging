@@ -4,11 +4,11 @@
 /*
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
- * Copyright (C) 1992-2015 Jean-Pierre Charras jp.charras at wanadoo.fr
+ * Copyright (C) 1992-2018 Jean-Pierre Charras jp.charras at wanadoo.fr
  * Copyright (C) 1992-2010 Lorenzo Marcantonio
- * Copyright (C) 2011 Wayne Stambaugh <stambaughw@verizon.net>
+ * Copyright (C) 2011 Wayne Stambaugh <stambaughw@gmail.com>
  *
- * Copyright (C) 1992-2015 KiCad Developers, see change_log.txt for contributors.
+ * Copyright (C) 1992-2018 KiCad Developers, see AUTHORS.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -28,13 +28,10 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
  */
 
-#include <fctsys.h>
 #include <pgm_base.h>
 #include <kiface_i.h>
+#include <bitmaps.h>
 #include <worksheet.h>
-#include <plot_common.h>
-#include <class_sch_screen.h>
-#include <schframe.h>
 #include <base_units.h>
 #include <sch_sheet.h>
 #include <dialog_plot_schematic.h>
@@ -62,7 +59,7 @@ void SCH_EDIT_FRAME::PlotSchematic( wxCommandEvent& event )
 
     // save project config if the prj config has changed:
     if( dlg.PrjConfigChanged() )
-        SaveProjectSettings( true );
+        SaveProjectSettings( false );
 }
 
 
@@ -75,17 +72,16 @@ DIALOG_PLOT_SCHEMATIC::DIALOG_PLOT_SCHEMATIC( SCH_EDIT_FRAME* parent ) :
 
     initDlg();
 
-    FixOSXCancelButtonIssue();
-
     // Now all widgets have the size fixed, call FinishDialogSettings
     FinishDialogSettings();
 }
 
 
-
 // Initialize the dialog options:
 void DIALOG_PLOT_SCHEMATIC::initDlg()
 {
+    m_browseButton->SetBitmap( KiBitmap( browse_files_xpm ) );
+
     // Set paper size option
     m_PaperSizeOption->SetSelection( m_pageSizeSelect );
 
@@ -159,8 +155,10 @@ void DIALOG_PLOT_SCHEMATIC::initDlg()
     OnPlotFormatSelection( cmd_event );
 }
 
-/*
- * TODO: Copy of DIALOG_PLOT::OnOutputDirectoryBrowseClicked in dialog_plot.cpp, maybe merge to a common method.
+
+/**
+ * @todo Copy of DIALOG_PLOT::OnOutputDirectoryBrowseClicked in dialog_plot.cpp, maybe merge to
+ *       a common method.
  */
 void DIALOG_PLOT_SCHEMATIC::OnOutputDirectoryBrowseClicked( wxCommandEvent& event )
 {
@@ -181,7 +179,7 @@ void DIALOG_PLOT_SCHEMATIC::OnOutputDirectoryBrowseClicked( wxCommandEvent& even
     fn = Prj().AbsolutePath( g_RootSheet->GetFileName() );
     wxString defaultPath = fn.GetPathWithSep();
     wxString msg;
-    msg.Printf( _( "Do you want to use a path relative to\n'%s'" ),
+    msg.Printf( _( "Do you want to use a path relative to\n\"%s\"" ),
                 GetChars( defaultPath ) );
 
     wxMessageDialog dialog( this, msg, _( "Plot Output Directory" ),
@@ -191,12 +189,13 @@ void DIALOG_PLOT_SCHEMATIC::OnOutputDirectoryBrowseClicked( wxCommandEvent& even
     if( dialog.ShowModal() == wxID_YES )
     {
         if( !dirName.MakeRelativeTo( defaultPath ) )
-            wxMessageBox( _( "Cannot make path relative (target volume different from file volume)!" ),
-                          _( "Plot Output Directory" ), wxOK | wxICON_ERROR );
+            wxMessageBox( _( "Cannot make path relative (target volume different from file "
+                             "volume)!" ), _( "Plot Output Directory" ), wxOK | wxICON_ERROR );
     }
 
     m_outputDirectoryName->SetValue( dirName.GetFullPath() );
 }
+
 
 PlotFormat DIALOG_PLOT_SCHEMATIC::GetPlotFileFormat()
 {
@@ -226,6 +225,7 @@ void DIALOG_PLOT_SCHEMATIC::getPlotOptions()
     m_config->Write( PLOT_HPGL_ORIGIN_KEY, GetPlotOriginCenter() );
     m_HPGLPaperSizeSelect = m_HPGLPaperSizeOption->GetSelection();
     m_config->Write( PLOT_HPGL_PAPERSIZE_KEY, m_HPGLPaperSizeSelect );
+
     // HPGL Pen Size is stored in mm in config
     m_config->Write( PLOT_HPGL_PEN_SIZE_KEY, m_HPGLPenSize/IU_PER_MM );
 
@@ -240,7 +240,6 @@ void DIALOG_PLOT_SCHEMATIC::getPlotOptions()
         m_configChanged = true;
 
     m_parent->SetPlotDirectoryName( path );
-
 }
 
 
@@ -333,6 +332,7 @@ void DIALOG_PLOT_SCHEMATIC::PlotSchematic( bool aPlotAll )
     }
 }
 
+
 wxFileName DIALOG_PLOT_SCHEMATIC::createPlotFileName( wxTextCtrl* aOutputDirectoryName,
                                                       wxString& aPlotFileName,
                                                       wxString& aExtension,
@@ -341,12 +341,12 @@ wxFileName DIALOG_PLOT_SCHEMATIC::createPlotFileName( wxTextCtrl* aOutputDirecto
     wxString outputDirName = aOutputDirectoryName->GetValue();
     wxFileName outputDir = wxFileName::DirName( outputDirName );
 
-    wxString plotFileName = Prj().AbsolutePath( aPlotFileName + wxT(".") + aExtension);
+    wxString plotFileName = Prj().AbsolutePath( aPlotFileName + wxT( "." ) + aExtension);
 
     if( !EnsureFileDirectoryExists( &outputDir, plotFileName, aReporter ) )
     {
         wxString msg;
-        msg.Printf( _( "Could not write plot files to folder '%s'." ),
+        msg.Printf( _( "Could not write plot files to folder \"%s\"." ),
                     GetChars( outputDir.GetPath() ) );
         aReporter->Report( msg, REPORTER::RPT_ERROR );
     }

@@ -2,9 +2,9 @@
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
  * Copyright (C) 2009-2013  Lorenzo Mercantonio
- * Copyright (C) 2014  Cirilo Bernado
- * Copyright (C) 2013 Jean-Pierre Charras jp.charras at wanadoo.fr
- * Copyright (C) 2004-2015 KiCad Developers, see change_log.txt for contributors.
+ * Copyright (C) 2014-2017  Cirilo Bernardo
+ * Copyright (C) 2018 Jean-Pierre Charras jp.charras at wanadoo.fr
+ * Copyright (C) 2004-2018 KiCad Developers, see AUTHORS.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -24,41 +24,50 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
  */
 
-
-#include <fctsys.h>
-#include <kicad_string.h>
-#include <wxPcbStruct.h>
-#include <drawtxt.h>
-#include <trigo.h>
-#include <pgm_base.h>
-#include <3d_struct.h>
-#include <macros.h>
+#include <cmath>
 #include <exception>
 #include <fstream>
 #include <iomanip>
-
-#include <pcbnew.h>
-
-#include <class_board.h>
-#include <class_module.h>
-#include <class_track.h>
-#include <class_zone.h>
-#include <class_edge_mod.h>
-#include <class_pcb_text.h>
-#include <convert_from_iu.h>
-
-#include "../3d-viewer/modelparsers.h"
-
 #include <vector>
-#include <cmath>
-#include <vrml_layer.h>
+#include <wx/dir.h>
+
+#include "3d_cache/3d_cache.h"
+#include "3d_cache/3d_info.h"
+#include "class_board.h"
+#include "class_edge_mod.h"
+#include "class_module.h"
+#include "class_pcb_text.h"
+#include "class_track.h"
+#include "class_zone.h"
+#include "convert_to_biu.h"
+#include "draw_graphic_text.h"
+#include "macros.h"
+#include "pgm_base.h"
+#include "plugins/3dapi/ifsg_all.h"
+#include "streamwrapper.h"
+#include "vrml_layer.h"
+#include "pcb_edit_frame.h"
+#include "../../kicad/kicad.h"
+
+#include <zone_filler.h>
 
 // minimum width (mm) of a VRML line
 #define MIN_VRML_LINEWIDTH 0.12
 
 // offset for art layers, mm (silk, paste, etc)
 #define  ART_OFFSET 0.025
+// offset for plating
+#define  PLATE_OFFSET 0.005
 
+static S3D_CACHE* cache;
+static bool USE_INLINES;            // true to use legacy inline{} behavior
+static bool USE_DEFS;               // true to reuse component definitions
+static bool USE_RELPATH;            // true to use relative paths in VRML inline{}
+static double WORLD_SCALE = 1.0;    // scaling from 0.1 in to desired VRML unit
+static double BOARD_SCALE;          // scaling from mm to desired VRML world scale
+static const int PRECISION = 6;     // legacy precision factor (now set to 6)
+static wxString SUBDIR_3D;          // legacy 3D subdirectory
+static wxString PROJ_DIR;           // project directory
 
 struct VRML_COLOR
 {
@@ -84,16 +93,16 @@ struct VRML_COLOR
         diffuse_red = 0.13;
         diffuse_grn = 0.81;
         diffuse_blu = 0.22;
-        spec_red = 0.13;
-        spec_grn = 0.81;
-        spec_blu = 0.22;
+        spec_red = 0.01;
+        spec_grn = 0.08;
+        spec_blu = 0.02;
         emit_red = 0.0;
         emit_grn = 0.0;
         emit_blu = 0.0;
 
-        ambient = 1.0;
+        ambient = 0.8;
         transp  = 0;
-        shiny   = 0.2;
+        shiny   = 0.02;
     }
 
     VRML_COLOR( float dr, float dg, float db,
@@ -117,9 +126,9 @@ struct VRML_COLOR
     }
 };
 
-
 enum VRML_COLOR_INDEX
 {
+    VRML_COLOR_NONE = -1,
     VRML_COLOR_PCB = 0,
     VRML_COLOR_TRACK,
     VRML_COLOR_SILK,
@@ -127,69 +136,97 @@ enum VRML_COLOR_INDEX
     VRML_COLOR_LAST
 };
 
+static VRML_COLOR colors[VRML_COLOR_LAST];
+static SGNODE* sgmaterial[VRML_COLOR_LAST] = { NULL };
 
 class MODEL_VRML
 {
 private:
-    double      layer_z[LAYER_ID_COUNT];
-    VRML_COLOR  colors[VRML_COLOR_LAST];
+    double      m_layer_z[PCB_LAYER_ID_COUNT];
 
-    int         iMaxSeg;                    // max. sides to a small circle
-    double      arcMinLen, arcMaxLen;       // min and max lengths of an arc chord
+    int         m_iMaxSeg;                  // max. sides to a small circle
+    double      m_arcMinLen, m_arcMaxLen;   // min and max lengths of an arc chord
 
 public:
-    VRML_LAYER  holes;
-    VRML_LAYER  board;
-    VRML_LAYER  top_copper;
-    VRML_LAYER  bot_copper;
-    VRML_LAYER  top_silk;
-    VRML_LAYER  bot_silk;
-    VRML_LAYER  top_tin;
-    VRML_LAYER  bot_tin;
-    VRML_LAYER  plated_holes;
+    IFSG_TRANSFORM m_OutputPCB;
+    VRML_LAYER  m_holes;
+    VRML_LAYER  m_board;
+    VRML_LAYER  m_top_copper;
+    VRML_LAYER  m_bot_copper;
+    VRML_LAYER  m_top_silk;
+    VRML_LAYER  m_bot_silk;
+    VRML_LAYER  m_top_tin;
+    VRML_LAYER  m_bot_tin;
+    VRML_LAYER  m_plated_holes;
 
-    bool plainPCB;
+    std::list< SGNODE* > m_components;
 
-    double scale;           // board internal units to output scaling
-    double minLineWidth;    // minimum width of a VRML line segment
-    int    precision;       // precision of output units
+    bool m_plainPCB;
 
-    double  tx;             // global translation along X
-    double  ty;             // global translation along Y
+    double m_minLineWidth;    // minimum width of a VRML line segment
 
-    double board_thickness; // depth of the PCB
+    double  m_tx;             // global translation along X
+    double  m_ty;             // global translation along Y
 
-    LAYER_NUM s_text_layer;
-    int s_text_width;
+    double m_brd_thickness; // depth of the PCB
 
-    MODEL_VRML()
+    LAYER_NUM m_text_layer;
+    int m_text_width;
+
+    MODEL_VRML() : m_OutputPCB( (SGNODE*) NULL )
     {
-        for( unsigned i = 0; i < DIM( layer_z );  ++i )
-            layer_z[i] = 0;
+        for( unsigned i = 0; i < DIM( m_layer_z );  ++i )
+            m_layer_z[i] = 0;
 
-        holes.GetArcParams( iMaxSeg, arcMinLen, arcMaxLen );
+        m_holes.GetArcParams( m_iMaxSeg, m_arcMinLen, m_arcMaxLen );
 
         // this default only makes sense if the output is in mm
-        board_thickness = 1.6;
+        m_brd_thickness = 1.6;
 
         // pcb green
-        colors[ VRML_COLOR_PCB ]    = VRML_COLOR( .07, .3, .12, .07, .3, .12,
-                                                  0, 0, 0, 1, 0, 0.2 );
+        colors[ VRML_COLOR_PCB ]    = VRML_COLOR( .07, .3, .12, .01, .03, .01,
+                                                  0, 0, 0, 0.8, 0, 0.02 );
         // track green
-        colors[ VRML_COLOR_TRACK ]  = VRML_COLOR( .08, .5, .1, .08, .5, .1,
-                                                  0, 0, 0, 1, 0, 0.2 );
+        colors[ VRML_COLOR_TRACK ]  = VRML_COLOR( .08, .5, .1, .01, .05, .01,
+                                                  0, 0, 0, 0.8, 0, 0.02 );
         // silkscreen white
-        colors[ VRML_COLOR_SILK ]   = VRML_COLOR( .9, .9, .9, .9, .9, .9,
-                                                  0, 0, 0, 1, 0, 0.2 );
+        colors[ VRML_COLOR_SILK ]   = VRML_COLOR( .9, .9, .9, .1, .1, .1,
+                                                  0, 0, 0, 0.9, 0, 0.02 );
         // pad silver
         colors[ VRML_COLOR_TIN ]    = VRML_COLOR( .749, .756, .761, .749, .756, .761,
                                                   0, 0, 0, 0.8, 0, 0.8 );
 
-        plainPCB = false;
-        SetScale( 1.0 );
+        m_plainPCB = false;
         SetOffset( 0.0, 0.0 );
-        s_text_layer = F_Cu;
-        s_text_width = 1;
+        m_text_layer = F_Cu;
+        m_text_width = 1;
+        m_minLineWidth = MIN_VRML_LINEWIDTH;
+    }
+
+    ~MODEL_VRML()
+    {
+        // destroy any unassociated material appearances
+        for( int j = 0; j < VRML_COLOR_LAST; ++j )
+        {
+            if( sgmaterial[j] && NULL == S3D::GetSGNodeParent( sgmaterial[j] ) )
+                S3D::DestroyNode( sgmaterial[j] );
+
+            sgmaterial[j] = NULL;
+        }
+
+        if( !m_components.empty() )
+        {
+            IFSG_TRANSFORM tmp( false );
+
+            for( auto i : m_components )
+            {
+                tmp.Attach( i );
+                tmp.SetParent( NULL );
+            }
+
+            m_components.clear();
+            m_OutputPCB.Destroy();
+        }
     }
 
     VRML_COLOR& GetColor( VRML_COLOR_INDEX aIndex )
@@ -199,31 +236,31 @@ public:
 
     void SetOffset( double aXoff, double aYoff )
     {
-        tx = aXoff;
-        ty = -aYoff;
+        m_tx = aXoff;
+        m_ty = -aYoff;
 
-        holes.SetVertexOffsets( aXoff, aYoff );
-        board.SetVertexOffsets( aXoff, aYoff );
-        top_copper.SetVertexOffsets( aXoff, aYoff );
-        bot_copper.SetVertexOffsets( aXoff, aYoff );
-        top_silk.SetVertexOffsets( aXoff, aYoff );
-        bot_silk.SetVertexOffsets( aXoff, aYoff );
-        top_tin.SetVertexOffsets( aXoff, aYoff );
-        bot_tin.SetVertexOffsets( aXoff, aYoff );
-        plated_holes.SetVertexOffsets( aXoff, aYoff );
+        m_holes.SetVertexOffsets( aXoff, aYoff );
+        m_board.SetVertexOffsets( aXoff, aYoff );
+        m_top_copper.SetVertexOffsets( aXoff, aYoff );
+        m_bot_copper.SetVertexOffsets( aXoff, aYoff );
+        m_top_silk.SetVertexOffsets( aXoff, aYoff );
+        m_bot_silk.SetVertexOffsets( aXoff, aYoff );
+        m_top_tin.SetVertexOffsets( aXoff, aYoff );
+        m_bot_tin.SetVertexOffsets( aXoff, aYoff );
+        m_plated_holes.SetVertexOffsets( aXoff, aYoff );
     }
 
     double GetLayerZ( LAYER_NUM aLayer )
     {
-        if( unsigned( aLayer ) >= DIM( layer_z ) )
+        if( unsigned( aLayer ) >= DIM( m_layer_z ) )
             return 0;
 
-        return layer_z[ aLayer ];
+        return m_layer_z[ aLayer ];
     }
 
     void SetLayerZ( LAYER_NUM aLayer, double aValue )
     {
-        layer_z[aLayer] = aValue;
+        m_layer_z[aLayer] = aValue;
     }
 
     // set the scaling of the VRML world
@@ -232,33 +269,8 @@ public:
         if( aWorldScale < 0.001 || aWorldScale > 10.0 )
             throw( std::runtime_error( "WorldScale out of range (valid range is 0.001 to 10.0)" ) );
 
-        scale = aWorldScale * MM_PER_IU;
-        minLineWidth = aWorldScale * MIN_VRML_LINEWIDTH;
-
-        // set the precision of the VRML coordinates
-        if( aWorldScale < 0.01 )
-            precision = 8;
-        else if( aWorldScale < 0.1 )
-            precision = 7;
-        else if( aWorldScale< 1.0 )
-            precision = 6;
-        else if( aWorldScale < 10.0 )
-            precision = 5;
-        else
-            precision = 4;
-
-        double smin = arcMinLen * aWorldScale;
-        double smax = arcMaxLen * aWorldScale;
-
-        holes.SetArcParams( iMaxSeg, smin, smax );
-        board.SetArcParams( iMaxSeg, smin, smax );
-        top_copper.SetArcParams( iMaxSeg, smin, smax);
-        bot_copper.SetArcParams( iMaxSeg, smin, smax);
-        top_silk.SetArcParams( iMaxSeg, smin, smax );
-        bot_silk.SetArcParams( iMaxSeg, smin, smax );
-        top_tin.SetArcParams( iMaxSeg, smin, smax );
-        bot_tin.SetArcParams( iMaxSeg, smin, smax );
-        plated_holes.SetArcParams( iMaxSeg, smin, smax );
+        m_OutputPCB.SetScale( aWorldScale * 2.54 );
+        WORLD_SCALE = aWorldScale * 2.54;
 
         return true;
     }
@@ -277,19 +289,19 @@ static bool GetLayer( MODEL_VRML& aModel, LAYER_NUM layer, VRML_LAYER** vlayer )
     switch( layer )
     {
     case B_Cu:
-        *vlayer = &aModel.bot_copper;
+        *vlayer = &aModel.m_bot_copper;
         break;
 
     case F_Cu:
-        *vlayer = &aModel.top_copper;
+        *vlayer = &aModel.m_top_copper;
         break;
 
     case B_SilkS:
-        *vlayer = &aModel.bot_silk;
+        *vlayer = &aModel.m_bot_silk;
         break;
 
     case F_SilkS:
-        *vlayer = &aModel.top_silk;
+        *vlayer = &aModel.m_top_silk;
         break;
 
     default:
@@ -299,10 +311,15 @@ static bool GetLayer( MODEL_VRML& aModel, LAYER_NUM layer, VRML_LAYER** vlayer )
     return true;
 }
 
+static void create_vrml_shell( IFSG_TRANSFORM& PcbOutput, VRML_COLOR_INDEX colorID,
+    VRML_LAYER* layer, double top_z, double bottom_z );
 
-static void write_triangle_bag( std::ofstream& output_file, VRML_COLOR& color,
-                                VRML_LAYER* layer, bool plane, bool top,
-                                double top_z, double bottom_z, int aPrecision )
+static void create_vrml_plane( IFSG_TRANSFORM& PcbOutput, VRML_COLOR_INDEX colorID,
+    VRML_LAYER* layer, double aHeight, bool aTopPlane );
+
+static void write_triangle_bag( std::ostream& aOut_file, VRML_COLOR& aColor,
+                                VRML_LAYER* aLayer, bool aPlane, bool aTop,
+                                double aTop_z, double aBottom_z )
 {
     /* A lot of nodes are not required, but blender sometimes chokes
      * without them */
@@ -342,7 +359,7 @@ static void write_triangle_bag( std::ofstream& output_file, VRML_COLOR& color,
     while( marker_found < 4 )
     {
         if( shape_boiler[lineno] )
-            output_file << shape_boiler[lineno];
+            aOut_file << shape_boiler[lineno];
         else
         {
             marker_found++;
@@ -350,44 +367,44 @@ static void write_triangle_bag( std::ofstream& output_file, VRML_COLOR& color,
             switch( marker_found )
             {
             case 1:    // Material marker
-                output_file << "              diffuseColor " << std::setprecision(3);
-                output_file << color.diffuse_red << " ";
-                output_file << color.diffuse_grn << " ";
-                output_file << color.diffuse_blu << "\n";
+                aOut_file << "              diffuseColor " << std::setprecision(3);
+                aOut_file << aColor.diffuse_red << " ";
+                aOut_file << aColor.diffuse_grn << " ";
+                aOut_file << aColor.diffuse_blu << "\n";
 
-                output_file << "              specularColor ";
-                output_file << color.spec_red << " ";
-                output_file << color.spec_grn << " ";
-                output_file << color.spec_blu << "\n";
+                aOut_file << "              specularColor ";
+                aOut_file << aColor.spec_red << " ";
+                aOut_file << aColor.spec_grn << " ";
+                aOut_file << aColor.spec_blu << "\n";
 
-                output_file << "              emissiveColor ";
-                output_file << color.emit_red << " ";
-                output_file << color.emit_grn << " ";
-                output_file << color.emit_blu << "\n";
+                aOut_file << "              emissiveColor ";
+                aOut_file << aColor.emit_red << " ";
+                aOut_file << aColor.emit_grn << " ";
+                aOut_file << aColor.emit_blu << "\n";
 
-                output_file << "              ambientIntensity " << color.ambient << "\n";
-                output_file << "              transparency " << color.transp << "\n";
-                output_file << "              shininess " << color.shiny << "\n";
+                aOut_file << "              ambientIntensity " << aColor.ambient << "\n";
+                aOut_file << "              transparency " << aColor.transp << "\n";
+                aOut_file << "              shininess " << aColor.shiny << "\n";
                 break;
 
             case 2:
 
-                if( plane )
-                    layer->WriteVertices( top_z, output_file, aPrecision );
+                if( aPlane )
+                    aLayer->WriteVertices( aTop_z, aOut_file, PRECISION );
                 else
-                    layer->Write3DVertices( top_z, bottom_z, output_file, aPrecision );
+                    aLayer->Write3DVertices( aTop_z, aBottom_z, aOut_file, PRECISION );
 
-                output_file << "\n";
+                aOut_file << "\n";
                 break;
 
             case 3:
 
-                if( plane )
-                    layer->WriteIndices( top, output_file );
+                if( aPlane )
+                    aLayer->WriteIndices( aTop, aOut_file );
                 else
-                    layer->Write3DIndices( output_file );
+                    aLayer->Write3DIndices( aOut_file );
 
-                output_file << "\n";
+                aOut_file << "\n";
                 break;
 
             default:
@@ -400,62 +417,144 @@ static void write_triangle_bag( std::ofstream& output_file, VRML_COLOR& color,
 }
 
 
-static void write_layers( MODEL_VRML& aModel, std::ofstream& output_file, BOARD* aPcb )
+static void write_layers( MODEL_VRML& aModel, BOARD* aPcb,
+    const char* aFileName, OSTREAM* aOutputFile )
 {
     // VRML_LAYER board;
-    aModel.board.Tesselate( &aModel.holes );
-    double brdz = aModel.board_thickness / 2.0
-                  - ( Millimeter2iu( ART_OFFSET / 2.0 ) ) * aModel.scale;
-    write_triangle_bag( output_file, aModel.GetColor( VRML_COLOR_PCB ),
-                        &aModel.board, false, false, brdz, -brdz, aModel.precision );
+    aModel.m_board.Tesselate( &aModel.m_holes );
+    double brdz = aModel.m_brd_thickness / 2.0
+                  - ( Millimeter2iu( ART_OFFSET / 2.0 ) ) * BOARD_SCALE;
 
-    if( aModel.plainPCB )
+    if( USE_INLINES )
+    {
+        write_triangle_bag( *aOutputFile, aModel.GetColor( VRML_COLOR_PCB ),
+                            &aModel.m_board, false, false, brdz, -brdz );
+    }
+    else
+    {
+        create_vrml_shell( aModel.m_OutputPCB, VRML_COLOR_PCB, &aModel.m_board, brdz, -brdz );
+    }
+
+    if( aModel.m_plainPCB )
+    {
+        if( !USE_INLINES )
+            S3D::WriteVRML( aFileName, true, aModel.m_OutputPCB.GetRawPtr(), USE_DEFS, true );
+
         return;
+    }
 
-    // VRML_LAYER top_copper;
-    aModel.top_copper.Tesselate( &aModel.holes );
-    write_triangle_bag( output_file, aModel.GetColor( VRML_COLOR_TRACK ),
-                        &aModel.top_copper, true, true,
-                        aModel.GetLayerZ( F_Cu ), 0, aModel.precision );
+    // VRML_LAYER m_top_copper;
+    aModel.m_top_copper.Tesselate( &aModel.m_holes );
 
-    // VRML_LAYER top_tin;
-    aModel.top_tin.Tesselate( &aModel.holes );
-    write_triangle_bag( output_file, aModel.GetColor( VRML_COLOR_TIN ),
-                        &aModel.top_tin, true, true,
-                        aModel.GetLayerZ( F_Cu ) + Millimeter2iu( ART_OFFSET / 2.0 ) * aModel.scale,
-                        0, aModel.precision );
+    if( USE_INLINES )
+    {
+        write_triangle_bag( *aOutputFile, aModel.GetColor( VRML_COLOR_TRACK ),
+                           &aModel.m_top_copper, true, true,
+                           aModel.GetLayerZ( F_Cu ), 0 );
+    }
+    else
+    {
+        create_vrml_plane( aModel.m_OutputPCB, VRML_COLOR_TRACK, &aModel.m_top_copper,
+                           aModel.GetLayerZ( F_Cu ), true );
+    }
 
-    // VRML_LAYER bot_copper;
-    aModel.bot_copper.Tesselate( &aModel.holes );
-    write_triangle_bag( output_file, aModel.GetColor( VRML_COLOR_TRACK ),
-                        &aModel.bot_copper, true, false,
-                        aModel.GetLayerZ( B_Cu ), 0, aModel.precision );
+    // VRML_LAYER m_top_tin;
+    aModel.m_top_tin.Tesselate( &aModel.m_holes );
 
-    // VRML_LAYER bot_tin;
-    aModel.bot_tin.Tesselate( &aModel.holes );
-    write_triangle_bag( output_file, aModel.GetColor( VRML_COLOR_TIN ),
-                        &aModel.bot_tin, true, false,
-                        aModel.GetLayerZ( B_Cu )
-                        - Millimeter2iu( ART_OFFSET / 2.0 ) * aModel.scale,
-                        0, aModel.precision );
+    if( USE_INLINES )
+    {
+        write_triangle_bag( *aOutputFile, aModel.GetColor( VRML_COLOR_TIN ),
+                            &aModel.m_top_tin, true, true,
+                            aModel.GetLayerZ( F_Cu ) + Millimeter2iu( ART_OFFSET / 2.0 ) * BOARD_SCALE,
+                            0 );
+    }
+    else
+    {
+        create_vrml_plane( aModel.m_OutputPCB, VRML_COLOR_TIN, &aModel.m_top_tin,
+                           aModel.GetLayerZ( F_Cu ) + Millimeter2iu( ART_OFFSET / 2.0 ) * BOARD_SCALE,
+                           true );
+    }
+
+    // VRML_LAYER m_bot_copper;
+    aModel.m_bot_copper.Tesselate( &aModel.m_holes );
+
+    if( USE_INLINES )
+    {
+        write_triangle_bag( *aOutputFile, aModel.GetColor( VRML_COLOR_TRACK ),
+                            &aModel.m_bot_copper, true, false,
+                            aModel.GetLayerZ( B_Cu ), 0 );
+    }
+    else
+    {
+        create_vrml_plane( aModel.m_OutputPCB, VRML_COLOR_TRACK, &aModel.m_bot_copper,
+                           aModel.GetLayerZ( B_Cu ), false );
+    }
+
+    // VRML_LAYER m_bot_tin;
+    aModel.m_bot_tin.Tesselate( &aModel.m_holes );
+
+    if( USE_INLINES )
+    {
+        write_triangle_bag( *aOutputFile, aModel.GetColor( VRML_COLOR_TIN ),
+                            &aModel.m_bot_tin, true, false,
+                            aModel.GetLayerZ( B_Cu )
+                            - Millimeter2iu( ART_OFFSET / 2.0 ) * BOARD_SCALE,
+                            0 );
+    }
+    else
+    {
+        create_vrml_plane( aModel.m_OutputPCB, VRML_COLOR_TIN, &aModel.m_bot_tin,
+                           aModel.GetLayerZ( B_Cu ) - Millimeter2iu( ART_OFFSET / 2.0 ) * BOARD_SCALE,
+                           false );
+    }
 
     // VRML_LAYER PTH;
-    aModel.plated_holes.Tesselate( NULL, true );
-    write_triangle_bag( output_file, aModel.GetColor( VRML_COLOR_TIN ),
-                        &aModel.plated_holes, false, false,
-                        aModel.GetLayerZ( F_Cu ) + Millimeter2iu( ART_OFFSET / 2.0 ) * aModel.scale,
-                        aModel.GetLayerZ( B_Cu ) - Millimeter2iu( ART_OFFSET / 2.0 ) * aModel.scale,
-                        aModel.precision );
+    aModel.m_plated_holes.Tesselate( NULL, true );
 
-    // VRML_LAYER top_silk;
-    aModel.top_silk.Tesselate( &aModel.holes );
-    write_triangle_bag( output_file, aModel.GetColor( VRML_COLOR_SILK ), &aModel.top_silk,
-                        true, true, aModel.GetLayerZ( F_SilkS ), 0, aModel.precision );
+    if( USE_INLINES )
+    {
+        write_triangle_bag( *aOutputFile, aModel.GetColor( VRML_COLOR_TIN ),
+                            &aModel.m_plated_holes, false, false,
+                            aModel.GetLayerZ( F_Cu ) + Millimeter2iu( ART_OFFSET / 2.0 ) * BOARD_SCALE,
+                            aModel.GetLayerZ( B_Cu ) - Millimeter2iu( ART_OFFSET / 2.0 ) * BOARD_SCALE );
+    }
+    else
+    {
+        create_vrml_shell( aModel.m_OutputPCB, VRML_COLOR_TIN, &aModel.m_plated_holes,
+                           aModel.GetLayerZ( F_Cu ) + Millimeter2iu( ART_OFFSET / 2.0 ) * BOARD_SCALE,
+                           aModel.GetLayerZ( B_Cu ) - Millimeter2iu( ART_OFFSET / 2.0 ) * BOARD_SCALE );
+    }
 
-    // VRML_LAYER bot_silk;
-    aModel.bot_silk.Tesselate( &aModel.holes );
-    write_triangle_bag( output_file, aModel.GetColor( VRML_COLOR_SILK ), &aModel.bot_silk,
-                        true, false, aModel.GetLayerZ( B_SilkS ), 0, aModel.precision );
+    // VRML_LAYER m_top_silk;
+    aModel.m_top_silk.Tesselate( &aModel.m_holes );
+
+    if( USE_INLINES )
+    {
+        write_triangle_bag( *aOutputFile, aModel.GetColor( VRML_COLOR_SILK ), &aModel.m_top_silk,
+                            true, true, aModel.GetLayerZ( F_SilkS ), 0 );
+    }
+    else
+    {
+        create_vrml_plane( aModel.m_OutputPCB, VRML_COLOR_SILK, &aModel.m_top_silk,
+                           aModel.GetLayerZ( F_SilkS ), true );
+    }
+
+    // VRML_LAYER m_bot_silk;
+    aModel.m_bot_silk.Tesselate( &aModel.m_holes );
+
+    if( USE_INLINES )
+    {
+        write_triangle_bag( *aOutputFile, aModel.GetColor( VRML_COLOR_SILK ), &aModel.m_bot_silk,
+                            true, false, aModel.GetLayerZ( B_SilkS ), 0 );
+    }
+    else
+    {
+        create_vrml_plane( aModel.m_OutputPCB, VRML_COLOR_SILK, &aModel.m_bot_silk,
+                           aModel.GetLayerZ( B_SilkS ), false );
+    }
+
+    if( !USE_INLINES )
+        S3D::WriteVRML( aFileName, true, aModel.m_OutputPCB.GetRawPtr(), true, true );
 }
 
 
@@ -464,23 +563,23 @@ static void compute_layer_Zs( MODEL_VRML& aModel, BOARD* pcb )
     int copper_layers = pcb->GetCopperLayerCount();
 
     // We call it 'layer' thickness, but it's the whole board thickness!
-    aModel.board_thickness = pcb->GetDesignSettings().GetBoardThickness() * aModel.scale;
-    double half_thickness = aModel.board_thickness / 2;
+    aModel.m_brd_thickness = pcb->GetDesignSettings().GetBoardThickness() * BOARD_SCALE;
+    double half_thickness = aModel.m_brd_thickness / 2;
 
     // Compute each layer's Z value, more or less like the 3d view
     for( LSEQ seq = LSET::AllCuMask().Seq();  seq;  ++seq )
     {
-        LAYER_ID i = *seq;
+        PCB_LAYER_ID i = *seq;
 
         if( i < copper_layers )
-            aModel.SetLayerZ( i,  half_thickness - aModel.board_thickness * i / (copper_layers - 1) );
+            aModel.SetLayerZ( i,  half_thickness - aModel.m_brd_thickness * i / (copper_layers - 1) );
         else
             aModel.SetLayerZ( i, - half_thickness );  // bottom layer
     }
 
     /* To avoid rounding interference, we apply an epsilon to each
      * successive layer */
-    double epsilon_z = Millimeter2iu( ART_OFFSET ) * aModel.scale;
+    double epsilon_z = Millimeter2iu( ART_OFFSET ) * BOARD_SCALE;
     aModel.SetLayerZ( B_Paste, -half_thickness - epsilon_z * 4 );
     aModel.SetLayerZ( B_Adhes, -half_thickness - epsilon_z * 3 );
     aModel.SetLayerZ( B_SilkS, -half_thickness - epsilon_z * 2 );
@@ -506,8 +605,8 @@ static void export_vrml_line( MODEL_VRML& aModel, LAYER_NUM layer,
     if( !GetLayer( aModel, layer, &vlayer ) )
         return;
 
-    if( width < aModel.minLineWidth)
-        width = aModel.minLineWidth;
+    if( width < aModel.m_minLineWidth)
+        width = aModel.m_minLineWidth;
 
     starty = -starty;
     endy = -endy;
@@ -531,8 +630,8 @@ static void export_vrml_circle( MODEL_VRML& aModel, LAYER_NUM layer,
     if( !GetLayer( aModel, layer, &vlayer ) )
         return;
 
-    if( width < aModel.minLineWidth )
-        width = aModel.minLineWidth;
+    if( width < aModel.m_minLineWidth )
+        width = aModel.m_minLineWidth;
 
     starty = -starty;
     endy = -endy;
@@ -563,8 +662,8 @@ static void export_vrml_arc( MODEL_VRML& aModel, LAYER_NUM layer,
     if( !GetLayer( aModel, layer, &vlayer ) )
         return;
 
-    if( width < aModel.minLineWidth )
-        width = aModel.minLineWidth;
+    if( width < aModel.m_minLineWidth )
+        width = aModel.m_minLineWidth;
 
     centery = -centery;
     arc_starty = -arc_starty;
@@ -578,11 +677,11 @@ static void export_vrml_arc( MODEL_VRML& aModel, LAYER_NUM layer,
 static void export_vrml_drawsegment( MODEL_VRML& aModel, DRAWSEGMENT* drawseg )
 {
     LAYER_NUM layer = drawseg->GetLayer();
-    double  w   = drawseg->GetWidth() * aModel.scale;
-    double  x   = drawseg->GetStart().x * aModel.scale;
-    double  y   = drawseg->GetStart().y * aModel.scale;
-    double  xf  = drawseg->GetEnd().x * aModel.scale;
-    double  yf  = drawseg->GetEnd().y * aModel.scale;
+    double  w   = drawseg->GetWidth() * BOARD_SCALE;
+    double  x   = drawseg->GetStart().x * BOARD_SCALE;
+    double  y   = drawseg->GetStart().y * BOARD_SCALE;
+    double  xf  = drawseg->GetEnd().x * BOARD_SCALE;
+    double  yf  = drawseg->GetEnd().y * BOARD_SCALE;
     double  r   = sqrt( pow( x - xf, 2 ) + pow( y - yf, 2 ) );
 
     // Items on the edge layer are handled elsewhere; just return
@@ -593,10 +692,10 @@ static void export_vrml_drawsegment( MODEL_VRML& aModel, DRAWSEGMENT* drawseg )
     {
     case S_ARC:
         export_vrml_arc( aModel, layer,
-                         (double) drawseg->GetCenter().x * aModel.scale,
-                         (double) drawseg->GetCenter().y * aModel.scale,
-                         (double) drawseg->GetArcStart().x * aModel.scale,
-                         (double) drawseg->GetArcStart().y * aModel.scale,
+                         (double) drawseg->GetCenter().x * BOARD_SCALE,
+                         (double) drawseg->GetCenter().y * BOARD_SCALE,
+                         (double) drawseg->GetArcStart().x * BOARD_SCALE,
+                         (double) drawseg->GetArcStart().y * BOARD_SCALE,
                          w, drawseg->GetAngle() / 10 );
         break;
 
@@ -605,6 +704,40 @@ static void export_vrml_drawsegment( MODEL_VRML& aModel, DRAWSEGMENT* drawseg )
         // within the hole area of the circle.
         export_vrml_arc( aModel, layer, x, y, x, y-r, w, 180.0 );
         export_vrml_arc( aModel, layer, x, y, x, y+r, w, 180.0 );
+        break;
+
+    case S_POLYGON:
+        if( drawseg->IsPolyShapeValid() )
+        {
+            VRML_LAYER* vlayer;
+
+            if( !GetLayer( aModel, layer, &vlayer ) )
+                    break;
+
+            SHAPE_POLY_SET shape = drawseg->GetPolyShape();
+
+            const int circleSegmentsCount = 16;
+
+            if( drawseg->GetWidth() )
+            {
+                shape.Inflate( drawseg->GetWidth()/2, circleSegmentsCount );
+                shape.Fracture( SHAPE_POLY_SET::PM_STRICTLY_SIMPLE );
+            }
+
+            const SHAPE_LINE_CHAIN& outline = shape.COutline( 0 );
+
+            int seg = vlayer->NewContour();
+
+            for( int j = 0; j < outline.PointCount(); j++ )
+            {
+                if( !vlayer->AddVertex( seg, (double)outline.CPoint( j ).x * BOARD_SCALE,
+                                         -((double)outline.CPoint( j ).y * BOARD_SCALE ) ) )
+                    throw( std::runtime_error( vlayer->GetError() ) );
+
+            }
+
+            vlayer->EnsureWinding( seg, false );
+        }
         break;
 
     default:
@@ -618,28 +751,27 @@ static void export_vrml_drawsegment( MODEL_VRML& aModel, DRAWSEGMENT* drawseg )
  * for coupling the vrml_text_callback with the common parameters */
 static void vrml_text_callback( int x0, int y0, int xf, int yf )
 {
-    LAYER_NUM s_text_layer = model_vrml->s_text_layer;
-    int s_text_width = model_vrml->s_text_width;
-    double  scale = model_vrml->scale;
+    LAYER_NUM m_text_layer = model_vrml->m_text_layer;
+    int m_text_width = model_vrml->m_text_width;
 
-    export_vrml_line( *model_vrml, s_text_layer,
-                      x0 * scale, y0 * scale,
-                      xf * scale, yf * scale,
-                      s_text_width * scale );
+    export_vrml_line( *model_vrml, m_text_layer,
+                      x0 * BOARD_SCALE, y0 * BOARD_SCALE,
+                      xf * BOARD_SCALE, yf * BOARD_SCALE,
+                      m_text_width * BOARD_SCALE );
 }
 
 
 static void export_vrml_pcbtext( MODEL_VRML& aModel, TEXTE_PCB* text )
 {
-    model_vrml->s_text_layer    = text->GetLayer();
-    model_vrml->s_text_width    = text->GetThickness();
+    model_vrml->m_text_layer    = text->GetLayer();
+    model_vrml->m_text_width    = text->GetThickness();
 
-    wxSize size = text->GetSize();
+    wxSize size = text->GetTextSize();
 
     if( text->IsMirrored() )
         size.x = -size.x;
 
-    EDA_COLOR_T color = BLACK;  // not actually used, but needed by DrawGraphicText
+    COLOR4D color = COLOR4D::BLACK;  // not actually used, but needed by DrawGraphicText
 
     if( text->IsMultilineAllowed() )
     {
@@ -653,7 +785,7 @@ static void export_vrml_pcbtext( MODEL_VRML& aModel, TEXTE_PCB* text )
         {
             wxString& txt = strings_list.Item( ii );
             DrawGraphicText( NULL, NULL, positions[ii], color,
-                             txt, text->GetOrientation(), size,
+                             txt, text->GetTextAngle(), size,
                              text->GetHorizJustify(), text->GetVertJustify(),
                              text->GetThickness(), text->IsItalic(),
                              true,
@@ -662,8 +794,8 @@ static void export_vrml_pcbtext( MODEL_VRML& aModel, TEXTE_PCB* text )
     }
     else
     {
-        DrawGraphicText( NULL, NULL, text->GetTextPosition(), color,
-                         text->GetShownText(), text->GetOrientation(), size,
+        DrawGraphicText( NULL, NULL, text->GetTextPos(), color,
+                         text->GetShownText(), text->GetTextAngle(), size,
                          text->GetHorizJustify(), text->GetVertJustify(),
                          text->GetThickness(), text->IsItalic(),
                          true,
@@ -675,9 +807,9 @@ static void export_vrml_pcbtext( MODEL_VRML& aModel, TEXTE_PCB* text )
 static void export_vrml_drawings( MODEL_VRML& aModel, BOARD* pcb )
 {
     // draw graphic items
-    for( BOARD_ITEM* drawing = pcb->m_Drawings; drawing != 0; drawing = drawing->Next() )
+    for( auto drawing : pcb->Drawings() )
     {
-        LAYER_ID layer = drawing->GetLayer();
+        PCB_LAYER_ID layer = drawing->GetLayer();
 
         if( layer != F_Cu && layer != B_Cu && layer != B_SilkS && layer != F_SilkS )
             continue;
@@ -700,63 +832,60 @@ static void export_vrml_drawings( MODEL_VRML& aModel, BOARD* pcb )
 
 
 // board edges and cutouts
-static void export_vrml_board( MODEL_VRML& aModel, BOARD* pcb )
+static void export_vrml_board( MODEL_VRML& aModel, BOARD* aPcb )
 {
-    SHAPE_POLY_SET  bufferPcbOutlines;      // stores the board main outlines
-    SHAPE_POLY_SET  allLayerHoles;          // Contains through holes, calculated only once
-    // Build a polygon from edge cut items
+    SHAPE_POLY_SET  pcbOutlines;      // stores the board main outlines
     wxString msg;
 
-    if( !pcb->GetBoardPolygonOutlines( bufferPcbOutlines, allLayerHoles, &msg ) )
+    if( !aPcb->GetBoardPolygonOutlines( pcbOutlines, &msg ) )
     {
-        msg << wxT( "\n\n" ) <<
-        _( "Unable to calculate the board outlines;\n"
-           "fall back to using the board boundary box." );
+        msg << "\n\n" <<
+            _( "Unable to calculate the board outlines; fall back to using the board boundary box." );
         wxMessageBox( msg );
     }
 
-    double  scale = aModel.scale;
     int seg;
 
-    for( int i = 0; i < bufferPcbOutlines.OutlineCount(); i++ )
+    for( int cnt = 0; cnt < pcbOutlines.OutlineCount(); cnt++ )
     {
-        const SHAPE_LINE_CHAIN& outline = bufferPcbOutlines.COutline( i );
+        const SHAPE_LINE_CHAIN& outline = pcbOutlines.COutline( cnt );
 
-        seg = aModel.board.NewContour();
+        seg = aModel.m_board.NewContour();
 
         for( int j = 0; j < outline.PointCount(); j++ )
         {
-            aModel.board.AddVertex( seg, (double)outline.CPoint(j).x * scale,
-                                        -((double)outline.CPoint(j).y * scale ) );
+            aModel.m_board.AddVertex( seg, (double)outline.CPoint(j).x * BOARD_SCALE,
+                                        -((double)outline.CPoint(j).y * BOARD_SCALE ) );
 
         }
 
-        aModel.board.EnsureWinding( seg, false );
-    }
+        aModel.m_board.EnsureWinding( seg, false );
 
-    for( int i = 0; i < allLayerHoles.OutlineCount(); i++ )
-    {
-        const SHAPE_LINE_CHAIN& outline = allLayerHoles.COutline( i );
-
-        seg = aModel.holes.NewContour();
-
-        if( seg < 0 )
+        // Generate holes:
+        for( int ii = 0; ii < pcbOutlines.HoleCount( cnt ); ii++ )
         {
-            msg << wxT( "\n\n" ) <<
-            _( "VRML Export Failed:\nCould not add holes to contours." );
-            wxMessageBox( msg );
+            const SHAPE_LINE_CHAIN& hole = pcbOutlines.Hole( cnt, ii );
 
-            return;
+            seg = aModel.m_holes.NewContour();
+
+            if( seg < 0 )
+            {
+                msg << "\n\n" <<
+                  _( "VRML Export Failed: Could not add holes to contours." );
+                wxMessageBox( msg );
+
+                return;
+            }
+
+            for( int j = 0; j < hole.PointCount(); j++ )
+            {
+                aModel.m_holes.AddVertex( seg, (double)hole.CPoint(j).x * BOARD_SCALE,
+                                          -((double)hole.CPoint(j).y * BOARD_SCALE ) );
+
+            }
+
+            aModel.m_holes.EnsureWinding( seg, true );
         }
-
-        for( int j = 0; j < outline.PointCount(); j++ )
-        {
-            aModel.holes.AddVertex( seg, (double)outline.CPoint(j).x * scale,
-                                        -((double)outline.CPoint(j).y * scale ) );
-
-        }
-
-        aModel.holes.EnsureWinding( seg, true );
     }
 }
 
@@ -774,27 +903,27 @@ static void export_round_padstack( MODEL_VRML& aModel, BOARD* pcb,
         thru = false;
 
     if( thru && hole > 0 )
-        aModel.holes.AddCircle( x, -y, hole, true );
+        aModel.m_holes.AddCircle( x, -y, hole, true );
 
-    if( aModel.plainPCB )
+    if( aModel.m_plainPCB )
         return;
 
     while( 1 )
     {
         if( layer == B_Cu )
         {
-            aModel.bot_copper.AddCircle( x, -y, r );
+            aModel.m_bot_copper.AddCircle( x, -y, r );
 
             if( hole > 0 && !thru )
-                aModel.bot_copper.AddCircle( x, -y, hole, true );
+                aModel.m_bot_copper.AddCircle( x, -y, hole, true );
 
         }
         else if( layer == F_Cu )
         {
-            aModel.top_copper.AddCircle( x, -y, r );
+            aModel.m_top_copper.AddCircle( x, -y, r );
 
             if( hole > 0 && !thru )
-                aModel.top_copper.AddCircle( x, -y, hole, true );
+                aModel.m_top_copper.AddCircle( x, -y, hole, true );
 
         }
 
@@ -806,23 +935,23 @@ static void export_round_padstack( MODEL_VRML& aModel, BOARD* pcb,
 }
 
 
-static void export_vrml_via( MODEL_VRML& aModel, BOARD* pcb, const VIA* via )
+static void export_vrml_via( MODEL_VRML& aModel, BOARD* aPcb, const VIA* aVia )
 {
     double      x, y, r, hole;
-    LAYER_ID    top_layer, bottom_layer;
+    PCB_LAYER_ID    top_layer, bottom_layer;
 
-    hole = via->GetDrillValue() * aModel.scale / 2.0;
-    r   = via->GetWidth() * aModel.scale / 2.0;
-    x   = via->GetStart().x * aModel.scale;
-    y   = via->GetStart().y * aModel.scale;
-    via->LayerPair( &top_layer, &bottom_layer );
+    hole = aVia->GetDrillValue() * BOARD_SCALE / 2.0;
+    r   = aVia->GetWidth() * BOARD_SCALE / 2.0;
+    x   = aVia->GetStart().x * BOARD_SCALE;
+    y   = aVia->GetStart().y * BOARD_SCALE;
+    aVia->LayerPair( &top_layer, &bottom_layer );
 
     // do not render a buried via
     if( top_layer != F_Cu && bottom_layer != B_Cu )
         return;
 
     // Export the via padstack
-    export_round_padstack( aModel, pcb, x, y, r, bottom_layer, top_layer, hole );
+    export_round_padstack( aModel, aPcb, x, y, r, bottom_layer, top_layer, hole );
 }
 
 
@@ -835,20 +964,19 @@ static void export_vrml_tracks( MODEL_VRML& aModel, BOARD* pcb )
             export_vrml_via( aModel, pcb, (const VIA*) track );
         }
         else if( ( track->GetLayer() == B_Cu || track->GetLayer() == F_Cu )
-                   && !aModel.plainPCB )
+                   && !aModel.m_plainPCB )
             export_vrml_line( aModel, track->GetLayer(),
-                              track->GetStart().x * aModel.scale,
-                              track->GetStart().y * aModel.scale,
-                              track->GetEnd().x * aModel.scale,
-                              track->GetEnd().y * aModel.scale,
-                              track->GetWidth() * aModel.scale );
+                              track->GetStart().x * BOARD_SCALE,
+                              track->GetStart().y * BOARD_SCALE,
+                              track->GetEnd().x * BOARD_SCALE,
+                              track->GetEnd().y * BOARD_SCALE,
+                              track->GetWidth() * BOARD_SCALE );
     }
 }
 
 
 static void export_vrml_zones( MODEL_VRML& aModel, BOARD* aPcb )
 {
-    double scale = aModel.scale;
 
     for( int ii = 0; ii < aPcb->GetAreaCount(); ii++ )
     {
@@ -859,10 +987,13 @@ static void export_vrml_zones( MODEL_VRML& aModel, BOARD* aPcb )
         if( !GetLayer( aModel, zone->GetLayer(), &vl ) )
             continue;
 
+        // fixme: this modifies the board where it shouldn't, but I don't have the time
+        // to clean this up - TW
         if( !zone->IsFilled() )
         {
-            zone->SetFillMode( 0 ); // use filled polygons
-            zone->BuildFilledSolidAreasPolygons( aPcb );
+            ZONE_FILLER filler( aPcb );
+            zone->SetFillMode( ZFM_POLYGONS ); // use filled polygons
+            filler.Fill( { zone } );
         }
 
         const SHAPE_POLY_SET& poly = zone->GetFilledPolysList();
@@ -875,8 +1006,8 @@ static void export_vrml_zones( MODEL_VRML& aModel, BOARD* aPcb )
 
             for( int j = 0; j < outline.PointCount(); j++ )
             {
-                if( !vl->AddVertex( seg, (double)outline.CPoint( j ).x * scale,
-                                         -((double)outline.CPoint( j ).y * scale ) ) )
+                if( !vl->AddVertex( seg, (double)outline.CPoint( j ).x * BOARD_SCALE,
+                                         -((double)outline.CPoint( j ).y * BOARD_SCALE ) ) )
                     throw( std::runtime_error( vl->GetError() ) );
 
             }
@@ -891,15 +1022,15 @@ static void export_vrml_text_module( TEXTE_MODULE* module )
 {
     if( module->IsVisible() )
     {
-        wxSize size = module->GetSize();
+        wxSize size = module->GetTextSize();
 
         if( module->IsMirrored() )
             size.x = -size.x;  // Text is mirrored
 
-        model_vrml->s_text_layer    = module->GetLayer();
-        model_vrml->s_text_width    = module->GetThickness();
+        model_vrml->m_text_layer    = module->GetLayer();
+        model_vrml->m_text_width    = module->GetThickness();
 
-        DrawGraphicText( NULL, NULL, module->GetTextPosition(), BLACK,
+        DrawGraphicText( NULL, NULL, module->GetTextPos(), BLACK,
                          module->GetShownText(), module->GetDrawRotation(), size,
                          module->GetHorizJustify(), module->GetVertJustify(),
                          module->GetThickness(), module->IsItalic(),
@@ -910,14 +1041,14 @@ static void export_vrml_text_module( TEXTE_MODULE* module )
 
 
 static void export_vrml_edge_module( MODEL_VRML& aModel, EDGE_MODULE* aOutline,
-                                     double aOrientation )
+                                     MODULE* aModule )
 {
     LAYER_NUM layer = aOutline->GetLayer();
-    double  x   = aOutline->GetStart().x * aModel.scale;
-    double  y   = aOutline->GetStart().y * aModel.scale;
-    double  xf  = aOutline->GetEnd().x * aModel.scale;
-    double  yf  = aOutline->GetEnd().y * aModel.scale;
-    double  w   = aOutline->GetWidth() * aModel.scale;
+    double  x   = aOutline->GetStart().x * BOARD_SCALE;
+    double  y   = aOutline->GetStart().y * BOARD_SCALE;
+    double  xf  = aOutline->GetEnd().x * BOARD_SCALE;
+    double  yf  = aOutline->GetEnd().y * BOARD_SCALE;
+    double  w   = aOutline->GetWidth() * BOARD_SCALE;
 
     switch( aOutline->GetShape() )
     {
@@ -934,13 +1065,29 @@ static void export_vrml_edge_module( MODEL_VRML& aModel, EDGE_MODULE* aOutline,
         break;
 
     case S_POLYGON:
+        if( aOutline->IsPolyShapeValid() )
         {
             VRML_LAYER* vl;
 
             if( !GetLayer( aModel, layer, &vl ) )
                 break;
 
-            int nvert = aOutline->GetPolyPoints().size() - 1;
+            SHAPE_POLY_SET shape = aOutline->GetPolyShape();
+
+            const int circleSegmentsCount = 16;
+
+            if( aOutline->GetWidth() )
+            {
+                shape.Inflate( aOutline->GetWidth()/2, circleSegmentsCount );
+                shape.Fracture( SHAPE_POLY_SET::PM_STRICTLY_SIMPLE );
+            }
+
+            shape.Rotate( -aModule->GetOrientationRadians(), VECTOR2I( 0, 0 ) );
+            shape.Move( aModule->GetPosition() );
+
+            const SHAPE_LINE_CHAIN& outline = shape.COutline( 0 );
+
+            int nvert = outline.PointCount() - 1;
             int i = 0;
 
             if( nvert < 3 ) break;
@@ -952,13 +1099,8 @@ static void export_vrml_edge_module( MODEL_VRML& aModel, EDGE_MODULE* aOutline,
 
             while( i < nvert )
             {
-                CPolyPt corner( aOutline->GetPolyPoints()[i] );
-                RotatePoint( &corner.x, &corner.y, aOrientation );
-                corner.x += aOutline->GetPosition().x;
-                corner.y += aOutline->GetPosition().y;
-
-                x = corner.x * aModel.scale;
-                y = - ( corner.y * aModel.scale );
+                x = outline.CPoint( i ).x * BOARD_SCALE;
+                y = - ( outline.CPoint( i ).y * BOARD_SCALE );
 
                 if( !vl->AddVertex( seg, x, y ) )
                     throw( std::runtime_error( vl->GetError() ) );
@@ -979,15 +1121,15 @@ static void export_vrml_padshape( MODEL_VRML& aModel, VRML_LAYER* aTinLayer, D_P
 {
     // The (maybe offset) pad position
     wxPoint pad_pos = aPad->ShapePos();
-    double  pad_x   = pad_pos.x * aModel.scale;
-    double  pad_y   = pad_pos.y * aModel.scale;
+    double  pad_x   = pad_pos.x * BOARD_SCALE;
+    double  pad_y   = pad_pos.y * BOARD_SCALE;
     wxSize  pad_delta = aPad->GetDelta();
 
-    double  pad_dx  = pad_delta.x * aModel.scale / 2.0;
-    double  pad_dy  = pad_delta.y * aModel.scale / 2.0;
+    double  pad_dx  = pad_delta.x * BOARD_SCALE / 2.0;
+    double  pad_dy  = pad_delta.y * BOARD_SCALE / 2.0;
 
-    double  pad_w   = aPad->GetSize().x * aModel.scale / 2.0;
-    double  pad_h   = aPad->GetSize().y * aModel.scale / 2.0;
+    double  pad_w   = aPad->GetSize().x * BOARD_SCALE / 2.0;
+    double  pad_h   = aPad->GetSize().y * BOARD_SCALE / 2.0;
 
     switch( aPad->GetShape() )
     {
@@ -1059,13 +1201,13 @@ static void export_vrml_padshape( MODEL_VRML& aModel, VRML_LAYER* aTinLayer, D_P
 }
 
 
-static void export_vrml_pad( MODEL_VRML& aModel, BOARD* pcb, D_PAD* aPad )
+static void export_vrml_pad( MODEL_VRML& aModel, BOARD* aPcb, D_PAD* aPad )
 {
-    double  hole_drill_w    = (double) aPad->GetDrillSize().x * aModel.scale / 2.0;
-    double  hole_drill_h    = (double) aPad->GetDrillSize().y * aModel.scale / 2.0;
+    double  hole_drill_w    = (double) aPad->GetDrillSize().x * BOARD_SCALE / 2.0;
+    double  hole_drill_h    = (double) aPad->GetDrillSize().y * BOARD_SCALE / 2.0;
     double  hole_drill      = std::min( hole_drill_w, hole_drill_h );
-    double  hole_x          = aPad->GetPosition().x * aModel.scale;
-    double  hole_y          = aPad->GetPosition().y * aModel.scale;
+    double  hole_x          = aPad->GetPosition().x * BOARD_SCALE;
+    double  hole_y          = aPad->GetPosition().y * BOARD_SCALE;
 
     // Export the hole on the edge layer
     if( hole_drill > 0 )
@@ -1073,32 +1215,48 @@ static void export_vrml_pad( MODEL_VRML& aModel, BOARD* pcb, D_PAD* aPad )
         bool pth = false;
 
         if( ( aPad->GetAttribute() != PAD_ATTRIB_HOLE_NOT_PLATED )
-            && !aModel.plainPCB )
+            && !aModel.m_plainPCB )
             pth = true;
 
         if( aPad->GetDrillShape() == PAD_DRILL_SHAPE_OBLONG )
         {
             // Oblong hole (slot)
-            aModel.holes.AddSlot( hole_x, -hole_y, hole_drill_w * 2.0, hole_drill_h * 2.0,
-                                  aPad->GetOrientation()/10.0, true, pth );
 
             if( pth )
-                aModel.plated_holes.AddSlot( hole_x, -hole_y,
-                                             hole_drill_w * 2.0, hole_drill_h * 2.0,
-                                             aPad->GetOrientation()/10.0, true, false );
+            {
+                aModel.m_holes.AddSlot( hole_x, -hole_y, hole_drill_w * 2.0 + PLATE_OFFSET,
+                    hole_drill_h * 2.0 + PLATE_OFFSET,
+                    aPad->GetOrientation()/10.0, true, true );
+
+                aModel.m_plated_holes.AddSlot( hole_x, -hole_y,
+                    hole_drill_w * 2.0, hole_drill_h * 2.0,
+                    aPad->GetOrientation()/10.0, true, false );
+            }
+            else
+            {
+                aModel.m_holes.AddSlot( hole_x, -hole_y, hole_drill_w * 2.0, hole_drill_h * 2.0,
+                    aPad->GetOrientation()/10.0, true, false );
+
+            }
         }
         else
         {
             // Drill a round hole
-            aModel.holes.AddCircle( hole_x, -hole_y, hole_drill, true, pth );
 
             if( pth )
-                aModel.plated_holes.AddCircle( hole_x, -hole_y, hole_drill, true, false );
+            {
+                aModel.m_holes.AddCircle( hole_x, -hole_y, hole_drill + PLATE_OFFSET, true, true );
+                aModel.m_plated_holes.AddCircle( hole_x, -hole_y, hole_drill, true, false );
+            }
+            else
+            {
+                aModel.m_holes.AddCircle( hole_x, -hole_y, hole_drill, true, false );
+            }
 
         }
     }
 
-    if( aModel.plainPCB )
+    if( aModel.m_plainPCB )
         return;
 
     // The pad proper, on the selected layers
@@ -1106,12 +1264,12 @@ static void export_vrml_pad( MODEL_VRML& aModel, BOARD* pcb, D_PAD* aPad )
 
     if( layer_mask[B_Cu] )
     {
-        export_vrml_padshape( aModel, &aModel.bot_tin, aPad );
+        export_vrml_padshape( aModel, &aModel.m_bot_tin, aPad );
     }
 
     if( layer_mask[F_Cu] )
     {
-        export_vrml_padshape( aModel, &aModel.top_tin, aPad );
+        export_vrml_padshape( aModel, &aModel.m_top_tin, aPad );
     }
 }
 
@@ -1157,12 +1315,10 @@ static void compose_quat( double q1[4], double q2[4], double qr[4] )
 }
 
 
-static void export_vrml_module( MODEL_VRML& aModel, BOARD* aPcb, MODULE* aModule,
-                                std::ofstream& aOutputFile, double aVRMLModelsToBiu,
-                                bool aExport3DFiles, bool aUseRelativePaths,
-                                const wxString& a3D_Subdir )
+static void export_vrml_module( MODEL_VRML& aModel, BOARD* aPcb,
+    MODULE* aModule, std::ostream* aOutputFile )
 {
-    if( !aModel.plainPCB )
+    if( !aModel.m_plainPCB )
     {
         // Reference and value
         if( aModule->Reference().IsVisible() )
@@ -1172,7 +1328,7 @@ static void export_vrml_module( MODEL_VRML& aModel, BOARD* aPcb, MODULE* aModule
             export_vrml_text_module( &aModule->Value() );
 
         // Export module edges
-        for( EDA_ITEM* item = aModule->GraphicalItems(); item; item = item->Next() )
+        for( EDA_ITEM* item = aModule->GraphicalItemsList(); item; item = item->Next() )
         {
             switch( item->Type() )
             {
@@ -1182,7 +1338,7 @@ static void export_vrml_module( MODEL_VRML& aModel, BOARD* aPcb, MODULE* aModule
 
                 case PCB_MODULE_EDGE_T:
                     export_vrml_edge_module( aModel, static_cast<EDGE_MODULE*>( item ),
-                                             aModule->GetOrientation() );
+                                             aModule );
                     break;
 
                 default:
@@ -1192,125 +1348,176 @@ static void export_vrml_module( MODEL_VRML& aModel, BOARD* aPcb, MODULE* aModule
     }
 
     // Export pads
-    for( D_PAD* pad = aModule->Pads(); pad; pad = pad->Next() )
+    for( D_PAD* pad = aModule->PadsList(); pad; pad = pad->Next() )
         export_vrml_pad( aModel, aPcb, pad );
 
     bool isFlipped = aModule->GetLayer() == B_Cu;
 
     // Export the object VRML model(s)
-    for( S3D_MASTER* vrmlm = aModule->Models();  vrmlm;  vrmlm = vrmlm->Next() )
+    auto sM = aModule->Models().begin();
+    auto eM = aModule->Models().end();
+
+    wxFileName subdir( SUBDIR_3D, "" );
+
+    while( sM != eM )
     {
-        if( !vrmlm->Is3DType( S3D_MASTER::FILE3D_VRML ) )
-            continue;
+        SGNODE* mod3d = (SGNODE*) cache->Load( sM->m_Filename );
 
-        wxFileName modelFileName = vrmlm->GetShape3DFullFilename();
-        wxFileName destFileName( a3D_Subdir, modelFileName.GetName(), modelFileName.GetExt() );
-
-        // Only copy VRML files.
-        if( modelFileName.FileExists() && modelFileName.GetExt() == wxT( "wrl" ) )
+        if( NULL == mod3d )
         {
-            if( aExport3DFiles )
+            ++sM;
+            continue;
+        }
+
+        /* Calculate 3D shape rotation:
+         * this is the rotation parameters, with an additional 180 deg rotation
+         * for footprints that are flipped
+         * When flipped, axis rotation is the horizontal axis (X axis)
+         */
+        double rotx = -sM->m_Rotation.x;
+        double roty = -sM->m_Rotation.y;
+        double rotz = -sM->m_Rotation.z;
+
+        if( isFlipped )
+        {
+            rotx += 180.0;
+            roty = -roty;
+            rotz = -rotz;
+        }
+
+        // Do some quaternion munching
+        double q1[4], q2[4], rot[4];
+        build_quat( 1, 0, 0, DEG2RAD( rotx ), q1 );
+        build_quat( 0, 1, 0, DEG2RAD( roty ), q2 );
+        compose_quat( q1, q2, q1 );
+        build_quat( 0, 0, 1, DEG2RAD( rotz ), q2 );
+        compose_quat( q1, q2, q1 );
+
+        // Note here aModule->GetOrientation() is in 0.1 degrees,
+        // so module rotation has to be converted to radians
+        build_quat( 0, 0, 1, DECIDEG2RAD( aModule->GetOrientation() ), q2 );
+        compose_quat( q1, q2, q1 );
+        from_quat( q1, rot );
+
+        double offsetFactor = 1000.0f * IU_PER_MILS / 25.4f;
+
+        // adjust 3D shape local offset position
+        // they are given in mm, so they are converted in board IU.
+        double offsetx = sM->m_Offset.x * offsetFactor;
+        double offsety = sM->m_Offset.y * offsetFactor;
+        double offsetz = sM->m_Offset.z * offsetFactor;
+
+        if( isFlipped )
+            offsetz = -offsetz;
+        else // In normal mode, Y axis is reversed in Pcbnew.
+            offsety = -offsety;
+
+        RotatePoint( &offsetx, &offsety, aModule->GetOrientation() );
+
+        SGPOINT trans;
+        trans.x = ( offsetx + aModule->GetPosition().x ) * BOARD_SCALE + aModel.m_tx;
+        trans.y = -(offsety + aModule->GetPosition().y) * BOARD_SCALE - aModel.m_ty;
+        trans.z = (offsetz * BOARD_SCALE ) + aModel.GetLayerZ( aModule->GetLayer() );
+
+        if( USE_INLINES )
+        {
+            wxFileName srcFile = cache->GetResolver()->ResolvePath( sM->m_Filename );
+            wxFileName dstFile;
+            dstFile.SetPath( SUBDIR_3D );
+            dstFile.SetName( srcFile.GetName() );
+            dstFile.SetExt( "wrl"  );
+
+            // copy the file if necessary
+            wxDateTime srcModTime = srcFile.GetModificationTime();
+            wxDateTime destModTime = srcModTime;
+
+            destModTime.SetToCurrent();
+
+            if( dstFile.FileExists() )
+                destModTime = dstFile.GetModificationTime();
+
+            if( srcModTime != destModTime )
             {
-                wxDateTime srcModTime = modelFileName.GetModificationTime();
-                wxDateTime destModTime = srcModTime;
+                wxLogDebug( "Copying 3D model %s to %s.",
+                            GetChars( srcFile.GetFullPath() ),
+                            GetChars( dstFile.GetFullPath() ) );
 
-                destModTime.SetToCurrent();
+                wxString fileExt = srcFile.GetExt();
+                fileExt.LowerCase();
 
-                if( destFileName.FileExists() )
-                    destModTime = destFileName.GetModificationTime();
-
-                // Only copy the file if it doesn't exist or has been modified.  This eliminates
-                // the redundant file copies.
-                if( srcModTime != destModTime )
+                // copy VRML models and use the scenegraph library to
+                // translate other model types
+                if( fileExt == "wrl" )
                 {
-                    wxLogDebug( wxT( "Copying 3D model %s to %s." ),
-                                GetChars( modelFileName.GetFullPath() ),
-                                GetChars( destFileName.GetFullPath() ) );
-
-                    if( !wxCopyFile( modelFileName.GetFullPath(), destFileName.GetFullPath() ) )
+                    if( !wxCopyFile( srcFile.GetFullPath(), dstFile.GetFullPath() ) )
+                        continue;
+                }
+                else
+                {
+                    if( !S3D::WriteVRML( dstFile.GetFullPath().ToUTF8(), true, mod3d, USE_DEFS, true ) )
                         continue;
                 }
             }
 
-            /* Calculate 3D shape rotation:
-             * this is the rotation parameters, with an additional 180 deg rotation
-             * for footprints that are flipped
-             * When flipped, axis rotation is the horizontal axis (X axis)
-             */
-            double rotx = -vrmlm->m_MatRotation.x;
-            double roty = -vrmlm->m_MatRotation.y;
-            double rotz = -vrmlm->m_MatRotation.z;
+            (*aOutputFile) << "Transform {\n";
 
-            if( isFlipped )
+            // only write a rotation if it is >= 0.1 deg
+            if( std::abs( rot[3] ) > 0.0001745 )
             {
-                rotx += 180.0;
-                roty = -roty;
-                rotz = -rotz;
+                (*aOutputFile) << "  rotation " << std::setprecision( 5 );
+                (*aOutputFile) << rot[0] << " " << rot[1] << " " << rot[2] << " " << rot[3] << "\n";
             }
 
-            // Do some quaternion munching
-            double q1[4], q2[4], rot[4];
-            build_quat( 1, 0, 0, DEG2RAD( rotx ), q1 );
-            build_quat( 0, 1, 0, DEG2RAD( roty ), q2 );
-            compose_quat( q1, q2, q1 );
-            build_quat( 0, 0, 1, DEG2RAD( rotz ), q2 );
-            compose_quat( q1, q2, q1 );
+            (*aOutputFile) << "  translation " << std::setprecision( PRECISION );
+            (*aOutputFile) << trans.x << " ";
+            (*aOutputFile) << trans.y << " ";
+            (*aOutputFile) << trans.z << "\n";
 
-            // Note here aModule->GetOrientation() is in 0.1 degrees,
-            // so module rotation has to be converted to radians
-            build_quat( 0, 0, 1, DECIDEG2RAD( aModule->GetOrientation() ), q2 );
-            compose_quat( q1, q2, q1 );
-            from_quat( q1, rot );
+            (*aOutputFile) << "  scale ";
+            (*aOutputFile) << sM->m_Scale.x << " ";
+            (*aOutputFile) << sM->m_Scale.y << " ";
+            (*aOutputFile) << sM->m_Scale.z << "\n";
 
-            aOutputFile << "Transform {\n";
+            (*aOutputFile) << "  children [\n    Inline {\n      url \"";
 
-            // A null rotation would fail the acos!
-            if( rot[3] != 0.0 )
+            if( USE_RELPATH )
             {
-                aOutputFile << "  rotation " << std::setprecision( 3 );
-                aOutputFile << rot[0] << " " << rot[1] << " " << rot[2] << " " << rot[3] << "\n";
-            }
-
-            // adjust 3D shape local offset position
-            // they are given in inch, so they are converted in board IU.
-            double offsetx = vrmlm->m_MatPosition.x * IU_PER_MILS * 1000.0;
-            double offsety = vrmlm->m_MatPosition.y * IU_PER_MILS * 1000.0;
-            double offsetz = vrmlm->m_MatPosition.z * IU_PER_MILS * 1000.0;
-
-            if( isFlipped )
-                offsetz = -offsetz;
-            else // In normal mode, Y axis is reversed in Pcbnew.
-                offsety = -offsety;
-
-            RotatePoint( &offsetx, &offsety, aModule->GetOrientation() );
-
-            aOutputFile << "  translation " << std::setprecision( aModel.precision );
-            aOutputFile << ( ( offsetx + aModule->GetPosition().x ) *
-                             aModel.scale + aModel.tx ) << " ";
-            aOutputFile << ( -(offsety + aModule->GetPosition().y) *
-                             aModel.scale - aModel.ty ) << " ";
-            aOutputFile << ( (offsetz * aModel.scale ) +
-                             aModel.GetLayerZ( aModule->GetLayer() ) ) << "\n";
-            aOutputFile << "  scale ";
-            aOutputFile << ( vrmlm->m_MatScale.x * aVRMLModelsToBiu ) << " ";
-            aOutputFile << ( vrmlm->m_MatScale.y * aVRMLModelsToBiu ) << " ";
-            aOutputFile << ( vrmlm->m_MatScale.z * aVRMLModelsToBiu ) << "\n";
-            aOutputFile << "  children [\n    Inline {\n      url \"";
-
-            if( aUseRelativePaths )
-            {
-                wxFileName tmp = destFileName;
-                tmp.SetExt( wxT( "" ) );
-                tmp.SetName( wxT( "" ) );
+                wxFileName tmp = dstFile;
+                tmp.SetExt( "" );
+                tmp.SetName( "" );
                 tmp.RemoveLastDir();
-                destFileName.MakeRelativeTo( tmp.GetPath() );
+                dstFile.MakeRelativeTo( tmp.GetPath() );
             }
 
-            wxString fn = destFileName.GetFullPath();
-            fn.Replace( wxT( "\\" ), wxT( "/" ) );
-            aOutputFile << TO_UTF8( fn ) << "\"\n    } ]\n";
-            aOutputFile << "  }\n";
+            wxString fn = dstFile.GetFullPath();
+            fn.Replace( "\\", "/" );
+            (*aOutputFile) << TO_UTF8( fn ) << "\"\n    } ]\n";
+            (*aOutputFile) << "  }\n";
         }
+        else
+        {
+            IFSG_TRANSFORM* modelShape = new IFSG_TRANSFORM( aModel.m_OutputPCB.GetRawPtr() );
+
+            // only write a rotation if it is >= 0.1 deg
+            if( std::abs( rot[3] ) > 0.0001745 )
+                modelShape->SetRotation( SGVECTOR( rot[0], rot[1], rot[2] ), rot[3] );
+
+            modelShape->SetTranslation( trans );
+            modelShape->SetScale( SGPOINT( sM->m_Scale.x, sM->m_Scale.y, sM->m_Scale.z ) );
+
+            if( NULL == S3D::GetSGNodeParent( mod3d ) )
+            {
+                aModel.m_components.push_back( mod3d );
+                modelShape->AddChildNode( mod3d );
+            }
+            else
+            {
+                modelShape->AddRefNode( mod3d );
+            }
+
+        }
+
+        ++sM;
     }
 }
 
@@ -1323,43 +1530,39 @@ bool PCB_EDIT_FRAME::ExportVRML_File( const wxString& aFullFileName, double aMMt
     BOARD*          pcb = GetBoard();
     bool            ok  = true;
 
-    MODEL_VRML model3d;
-    model3d.plainPCB = aUsePlainPCB;
+    USE_INLINES = aExport3DFiles;
+    USE_DEFS = true;
+    USE_RELPATH = aUseRelativePaths;
 
+    cache = Prj().Get3DCacheManager();
+    PROJ_DIR = Prj().GetProjectPath();
+    SUBDIR_3D = a3D_Subdir;
+    MODEL_VRML model3d;
     model_vrml = &model3d;
-    std::ofstream output_file;
+    model3d.SetScale( aMMtoWRMLunit );
+
+    if( USE_INLINES )
+    {
+        BOARD_SCALE = MM_PER_IU / 2.54;
+        model3d.SetOffset( -aXRef / 2.54, aYRef / 2.54 );
+    }
+    else
+    {
+        BOARD_SCALE = MM_PER_IU;
+        model3d.SetOffset( -aXRef, aYRef );
+    }
+
+    // plain PCB or else PCB with copper and silkscreen
+    model3d.m_plainPCB = aUsePlainPCB;
 
     try
     {
-        output_file.exceptions( std::ofstream::failbit );
-        output_file.open( TO_UTF8( aFullFileName ), std::ios_base::out );
-
-        // Switch the locale to standard C (needed to print floating point numbers)
-        LOCALE_IO toggle;
-
-        // Begin with the usual VRML boilerplate
-        wxString fn = aFullFileName;
-        fn.Replace( wxT( "\\" ), wxT( "/" ) );
-        output_file << "#VRML V2.0 utf8\n";
-        output_file << "WorldInfo {\n";
-        output_file << "  title \"" << TO_UTF8( fn ) << " - Generated by Pcbnew\"\n";
-        output_file << "}\n";
-
-        // Set the VRML world scale factor
-        model3d.SetScale( aMMtoWRMLunit );
-
-        output_file << "Transform {\n";
-
-        // board reference point
-        model3d.SetOffset( -aXRef, aYRef );
-
-        output_file << "  children [\n";
 
         // Preliminary computation: the z value for each layer
-        compute_layer_Zs( model3d, pcb );
+        compute_layer_Zs(model3d, pcb);
 
         // board edges and cutouts
-        export_vrml_board( model3d, pcb );
+        export_vrml_board(model3d, pcb);
 
         // Drawing and text on the board
         if( !aUsePlainPCB )
@@ -1372,24 +1575,63 @@ bool PCB_EDIT_FRAME::ExportVRML_File( const wxString& aFullFileName, double aMMt
         if( !aUsePlainPCB )
             export_vrml_zones( model3d, pcb);
 
-        /* scaling factor to convert 3D models to board units (decimils)
-         * Usually we use Wings3D to create thems.
-         * One can consider the 3D units is 0.1 inch (2.54 mm)
-         * So the scaling factor from 0.1 inch to board units
-         * is 2.54 * aMMtoWRMLunit
-         */
-        double wrml_3D_models_scaling_factor = 2.54 * aMMtoWRMLunit;
+        if( USE_INLINES )
+        {
+            // check if the 3D Subdir exists - create if not
+            wxFileName subdir( SUBDIR_3D, "" );
 
-        // Export footprints
-        for( MODULE* module = pcb->m_Modules; module != 0; module = module->Next() )
-            export_vrml_module( model3d, pcb, module, output_file, wrml_3D_models_scaling_factor,
-                                aExport3DFiles, aUseRelativePaths, a3D_Subdir );
+            if( ! subdir.DirExists() )
+            {
+                if( !wxDir::Make( subdir.GetFullPath() ) )
+                    throw( std::runtime_error( "Could not create 3D model subdirectory" ) );
+            }
 
-        // write out the board and all layers
-        write_layers( model3d, output_file, pcb );
+            OPEN_OSTREAM( output_file, TO_UTF8( aFullFileName ) );
 
-        // Close the outer 'transform' node
-        output_file << "]\n}\n";
+            if( output_file.fail() )
+            {
+                std::ostringstream ostr;
+                ostr << "Could not open file '" << TO_UTF8( aFullFileName ) << "'";
+                throw( std::runtime_error( ostr.str().c_str() ) );
+            }
+
+            output_file.imbue( std::locale( "C" ) );
+
+            // Begin with the usual VRML boilerplate
+            wxString fn = aFullFileName;
+            fn.Replace( "\\" , "/" );
+            output_file << "#VRML V2.0 utf8\n";
+            output_file << "WorldInfo {\n";
+            output_file << "  title \"" << TO_UTF8( fn ) << " - Generated by Pcbnew\"\n";
+            output_file << "}\n";
+            output_file << "Transform {\n";
+            output_file << "  scale " << std::setprecision( PRECISION );
+            output_file << WORLD_SCALE << " ";
+            output_file << WORLD_SCALE << " ";
+            output_file << WORLD_SCALE << "\n";
+            output_file << "  children [\n";
+
+            // Export footprints
+            for( MODULE* module = pcb->m_Modules; module != 0; module = module->Next() )
+                export_vrml_module( model3d, pcb, module, &output_file );
+
+            // write out the board and all layers
+            write_layers( model3d, pcb, TO_UTF8( aFullFileName ), &output_file );
+
+            // Close the outer 'transform' node
+            output_file << "]\n}\n";
+
+            CLOSE_STREAM( output_file );
+        }
+        else
+        {
+            // Export footprints
+            for( MODULE* module = pcb->m_Modules; module != 0; module = module->Next() )
+                export_vrml_module( model3d, pcb, module, NULL );
+
+            // write out the board and all layers
+            write_layers( model3d, pcb, TO_UTF8( aFullFileName ), NULL );
+        }
     }
     catch( const std::exception& e )
     {
@@ -1400,9 +1642,238 @@ bool PCB_EDIT_FRAME::ExportVRML_File( const wxString& aFullFileName, double aMMt
         ok = false;
     }
 
-    // End of work
-    output_file.exceptions( std::ios_base::goodbit );
-    output_file.close();
-
     return ok;
+}
+
+
+static SGNODE* getSGColor( VRML_COLOR_INDEX colorIdx )
+{
+    if( colorIdx == -1 )
+        colorIdx = VRML_COLOR_PCB;
+    else if( colorIdx == VRML_COLOR_LAST )
+        return NULL;
+
+    if( sgmaterial[colorIdx] )
+        return sgmaterial[colorIdx];
+
+    IFSG_APPEARANCE vcolor( (SGNODE*) NULL );
+    VRML_COLOR* cp = &colors[colorIdx];
+
+    vcolor.SetSpecular( cp->spec_red, cp->spec_grn, cp->spec_blu );
+    vcolor.SetDiffuse( cp->diffuse_red, cp->diffuse_grn, cp->diffuse_blu );
+    vcolor.SetShininess( cp->shiny );
+    // NOTE: XXX - replace with a better equation; using this definition
+    // of ambient will not yield the best results
+    vcolor.SetAmbient( cp->ambient, cp->ambient, cp->ambient );
+    vcolor.SetTransparency( cp->transp );
+
+    sgmaterial[colorIdx] = vcolor.GetRawPtr();
+
+    return sgmaterial[colorIdx];
+}
+
+
+static void create_vrml_plane( IFSG_TRANSFORM& PcbOutput, VRML_COLOR_INDEX colorID,
+    VRML_LAYER* layer, double top_z, bool aTopPlane )
+{
+    std::vector< double > vertices;
+    std::vector< int > idxPlane;
+    std::vector< int > idxSide;
+
+    if( !(*layer).Get2DTriangles( vertices, idxPlane, top_z, aTopPlane ) )
+    {
+#ifdef DEBUG
+        do {
+            std::ostringstream ostr;
+            ostr << __FILE__ << ": " << __FUNCTION__ << ": " << __LINE__ << "\n";
+            ostr << " * [INFO] no vertex data";
+            wxLogDebug( "%s\n", ostr.str().c_str() );
+        } while( 0 );
+#endif
+
+        return;
+    }
+
+    if( ( idxPlane.size() % 3 ) || ( idxSide.size() % 3 ) )
+    {
+#ifdef DEBUG
+        do {
+            std::ostringstream ostr;
+            ostr << __FILE__ << ": " << __FUNCTION__ << ": " << __LINE__ << "\n";
+            ostr << " * [BUG] index lists are not a multiple of 3 (not a triangle list)";
+            wxLogDebug( "%s\n", ostr.str().c_str() );
+        } while( 0 );
+#endif
+
+        throw( std::runtime_error( "[BUG] index lists are not a multiple of 3 (not a triangle list)" ) );
+    }
+
+    std::vector< SGPOINT > vlist;
+    size_t nvert = vertices.size() / 3;
+    size_t j = 0;
+
+    for( size_t i = 0; i < nvert; ++i, j+= 3 )
+        vlist.push_back( SGPOINT( vertices[j], vertices[j+1], vertices[j+2] ) );
+
+    // create the intermediate scenegraph
+    IFSG_TRANSFORM tx0( PcbOutput.GetRawPtr() );    // tx0 = Transform for this outline
+    IFSG_SHAPE shape( tx0 );            // shape will hold (a) all vertices and (b) a local list of normals
+    IFSG_FACESET face( shape );         // this face shall represent the top and bottom planes
+    IFSG_COORDS cp( face );             // coordinates for all faces
+    cp.SetCoordsList( nvert, &vlist[0] );
+    IFSG_COORDINDEX coordIdx( face );   // coordinate indices for top and bottom planes only
+    coordIdx.SetIndices( idxPlane.size(), &idxPlane[0] );
+    IFSG_NORMALS norms( face );         // normals for the top and bottom planes
+
+    // set the normals
+    if( aTopPlane )
+    {
+        for( size_t i = 0; i < nvert; ++i )
+            norms.AddNormal( 0.0, 0.0, 1.0 );
+    }
+    else
+    {
+        for( size_t i = 0; i < nvert; ++i )
+            norms.AddNormal( 0.0, 0.0, -1.0 );
+    }
+
+    // assign a color from the palette
+    SGNODE* modelColor = getSGColor( colorID );
+
+    if( NULL != modelColor )
+    {
+        if( NULL == S3D::GetSGNodeParent( modelColor ) )
+            shape.AddChildNode( modelColor );
+        else
+            shape.AddRefNode( modelColor );
+    }
+
+    return;
+}
+
+
+static void create_vrml_shell( IFSG_TRANSFORM& PcbOutput, VRML_COLOR_INDEX colorID,
+    VRML_LAYER* layer, double top_z, double bottom_z )
+{
+    std::vector< double > vertices;
+    std::vector< int > idxPlane;
+    std::vector< int > idxSide;
+
+    if( top_z < bottom_z )
+    {
+        double tmp = top_z;
+        top_z = bottom_z;
+        bottom_z = tmp;
+    }
+
+    if( !(*layer).Get3DTriangles( vertices, idxPlane, idxSide, top_z, bottom_z ) )
+    {
+#ifdef DEBUG
+        do {
+            std::ostringstream ostr;
+            ostr << __FILE__ << ": " << __FUNCTION__ << ": " << __LINE__ << "\n";
+            ostr << " * [INFO] no vertex data";
+            wxLogDebug( "%s\n", ostr.str().c_str() );
+        } while( 0 );
+#endif
+
+        return;
+    }
+
+    if( ( idxPlane.size() % 3 ) || ( idxSide.size() % 3 ) )
+    {
+#ifdef DEBUG
+        do {
+            std::ostringstream ostr;
+            ostr << __FILE__ << ": " << __FUNCTION__ << ": " << __LINE__ << "\n";
+            ostr << " * [BUG] index lists are not a multiple of 3 (not a triangle list)";
+            wxLogDebug( "%s\n", ostr.str().c_str() );
+        } while( 0 );
+#endif
+
+        throw( std::runtime_error( "[BUG] index lists are not a multiple of 3 (not a triangle list)" ) );
+    }
+
+    std::vector< SGPOINT > vlist;
+    size_t nvert = vertices.size() / 3;
+    size_t j = 0;
+
+    for( size_t i = 0; i < nvert; ++i, j+= 3 )
+        vlist.push_back( SGPOINT( vertices[j], vertices[j+1], vertices[j+2] ) );
+
+    // create the intermediate scenegraph
+    IFSG_TRANSFORM tx0( PcbOutput.GetRawPtr() );    // tx0 = Transform for this outline
+    IFSG_SHAPE shape( tx0 );            // shape will hold (a) all vertices and (b) a local list of normals
+    IFSG_FACESET face( shape );         // this face shall represent the top and bottom planes
+    IFSG_COORDS cp( face );             // coordinates for all faces
+    cp.SetCoordsList( nvert, &vlist[0] );
+    IFSG_COORDINDEX coordIdx( face );   // coordinate indices for top and bottom planes only
+    coordIdx.SetIndices( idxPlane.size(), &idxPlane[0] );
+    IFSG_NORMALS norms( face );         // normals for the top and bottom planes
+
+    // number of TOP (and bottom) vertices
+    j = nvert / 2;
+
+    // set the TOP normals
+    for( size_t i = 0; i < j; ++i )
+        norms.AddNormal( 0.0, 0.0, 1.0 );
+
+    // set the BOTTOM normals
+    for( size_t i = 0; i < j; ++i )
+        norms.AddNormal( 0.0, 0.0, -1.0 );
+
+    // assign a color from the palette
+    SGNODE* modelColor = getSGColor( colorID );
+
+    if( NULL != modelColor )
+    {
+        if( NULL == S3D::GetSGNodeParent( modelColor ) )
+            shape.AddChildNode( modelColor );
+        else
+            shape.AddRefNode( modelColor );
+    }
+
+    // create a second shape describing the vertical walls of the extrusion
+    // using per-vertex-per-face-normals
+    shape.NewNode( tx0 );
+    shape.AddRefNode( modelColor );    // set the color to be the same as the top/bottom
+    face.NewNode( shape );
+    cp.NewNode( face );               // new vertex list
+    norms.NewNode( face );            // new normals list
+    coordIdx.NewNode( face );         // new index list
+
+    // populate the new per-face vertex list and its indices and normals
+    std::vector< int >::iterator sI = idxSide.begin();
+    std::vector< int >::iterator eI = idxSide.end();
+
+    size_t sidx = 0;    // index to the new coord set
+    SGPOINT p1, p2, p3;
+    SGVECTOR vnorm;
+
+    while( sI != eI )
+    {
+        p1 = vlist[*sI];
+        cp.AddCoord( p1 );
+        ++sI;
+
+        p2 = vlist[*sI];
+        cp.AddCoord( p2 );
+        ++sI;
+
+        p3 = vlist[*sI];
+        cp.AddCoord( p3 );
+        ++sI;
+
+        vnorm.SetVector( S3D::CalcTriNorm( p1, p2, p3 ) );
+        norms.AddNormal( vnorm );
+        norms.AddNormal( vnorm );
+        norms.AddNormal( vnorm );
+
+        coordIdx.AddIndex( (int)sidx );
+        ++sidx;
+        coordIdx.AddIndex( (int)sidx );
+        ++sidx;
+        coordIdx.AddIndex( (int)sidx );
+        ++sidx;
+    }
 }

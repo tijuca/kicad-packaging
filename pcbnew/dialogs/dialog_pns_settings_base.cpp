@@ -1,8 +1,8 @@
 ///////////////////////////////////////////////////////////////////////////
-// C++ code generated with wxFormBuilder (version Jun 17 2015)
+// C++ code generated with wxFormBuilder (version Dec 30 2017)
 // http://www.wxformbuilder.org/
 //
-// PLEASE DO "NOT" EDIT THIS FILE!
+// PLEASE DO *NOT* EDIT THIS FILE!
 ///////////////////////////////////////////////////////////////////////////
 
 #include "dialog_pns_settings_base.h"
@@ -11,7 +11,7 @@
 
 DIALOG_PNS_SETTINGS_BASE::DIALOG_PNS_SETTINGS_BASE( wxWindow* parent, wxWindowID id, const wxString& title, const wxPoint& pos, const wxSize& size, long style ) : DIALOG_SHIM( parent, id, title, pos, size, style )
 {
-	this->SetSizeHints( wxSize( 350,-1 ), wxDefaultSize );
+	this->SetSizeHints( wxSize( -1,-1 ), wxDefaultSize );
 	
 	wxBoxSizer* bMainSizer;
 	bMainSizer = new wxBoxSizer( wxVERTICAL );
@@ -35,7 +35,7 @@ DIALOG_PNS_SETTINGS_BASE::DIALOG_PNS_SETTINGS_BASE( wxWindow* parent, wxWindowID
 	m_staticText4->Wrap( -1 );
 	fgSizer1->Add( m_staticText4, 0, wxTOP|wxRIGHT|wxLEFT|wxALIGN_CENTER_VERTICAL, 5 );
 	
-	wxString m_dragToolModeChoices[] = { _("move item"), _("interactive drag") };
+	wxString m_dragToolModeChoices[] = { _("Move item"), _("Interactive drag") };
 	int m_dragToolModeNChoices = sizeof( m_dragToolModeChoices ) / sizeof( wxString );
 	m_dragToolMode = new wxChoice( bOptions->GetStaticBox(), wxID_ANY, wxDefaultPosition, wxDefaultSize, m_dragToolModeNChoices, m_dragToolModeChoices, 0 );
 	m_dragToolMode->SetSelection( 0 );
@@ -63,10 +63,10 @@ DIALOG_PNS_SETTINGS_BASE::DIALOG_PNS_SETTINGS_BASE( wxWindow* parent, wxWindowID
 	
 	bOptions->Add( m_removeLoops, 0, wxTOP|wxRIGHT|wxLEFT, 5 );
 	
-	m_autoNeckdown = new wxCheckBox( bOptions->GetStaticBox(), wxID_ANY, _("Automatic neckdown"), wxDefaultPosition, wxDefaultSize, 0 );
-	m_autoNeckdown->SetToolTip( _("When enabled, the router tries to break out pads/vias in a clean way, avoiding acute angles and jagged breakout traces.") );
+	m_smartPads = new wxCheckBox( bOptions->GetStaticBox(), wxID_ANY, _("Optimize pad connections"), wxDefaultPosition, wxDefaultSize, 0 );
+	m_smartPads->SetToolTip( _("When enabled, the router tries to break out pads/vias in a clean way, avoiding acute angles and jagged breakout traces.") );
 	
-	bOptions->Add( m_autoNeckdown, 0, wxTOP|wxRIGHT|wxLEFT, 5 );
+	bOptions->Add( m_smartPads, 0, wxTOP|wxRIGHT|wxLEFT, 5 );
 	
 	m_smoothDragged = new wxCheckBox( bOptions->GetStaticBox(), wxID_ANY, _("Smooth dragged segments"), wxDefaultPosition, wxDefaultSize, 0 );
 	m_smoothDragged->SetToolTip( _("When enabled, the router attempts to merge several jagged segments into a single straight one (dragging mode).") );
@@ -109,7 +109,7 @@ DIALOG_PNS_SETTINGS_BASE::DIALOG_PNS_SETTINGS_BASE( wxWindow* parent, wxWindowID
 	
 	m_lowLabel = new wxStaticText( bOptions->GetStaticBox(), wxID_ANY, _("low"), wxDefaultPosition, wxDefaultSize, 0 );
 	m_lowLabel->Wrap( -1 );
-	m_lowLabel->SetFont( wxFont( 8, 70, 90, 90, false, wxEmptyString ) );
+	m_lowLabel->SetFont( wxFont( 8, wxFONTFAMILY_DEFAULT, wxFONTSTYLE_NORMAL, wxFONTWEIGHT_NORMAL, false, wxEmptyString ) );
 	
 	bSliderLabels->Add( m_lowLabel, 0, 0, 5 );
 	
@@ -118,7 +118,7 @@ DIALOG_PNS_SETTINGS_BASE::DIALOG_PNS_SETTINGS_BASE( wxWindow* parent, wxWindowID
 	
 	m_highLabel = new wxStaticText( bOptions->GetStaticBox(), wxID_ANY, _("high"), wxDefaultPosition, wxDefaultSize, 0 );
 	m_highLabel->Wrap( -1 );
-	m_highLabel->SetFont( wxFont( 8, 70, 90, 90, false, wxEmptyString ) );
+	m_highLabel->SetFont( wxFont( 8, wxFONTFAMILY_DEFAULT, wxFONTSTYLE_NORMAL, wxFONTWEIGHT_NORMAL, false, wxEmptyString ) );
 	
 	bSliderLabels->Add( m_highLabel, 0, 0, 5 );
 	
@@ -146,6 +146,7 @@ DIALOG_PNS_SETTINGS_BASE::DIALOG_PNS_SETTINGS_BASE( wxWindow* parent, wxWindowID
 	
 	this->SetSizer( bMainSizer );
 	this->Layout();
+	bMainSizer->Fit( this );
 	
 	// Connect Events
 	m_freeAngleMode->Connect( wxEVT_COMMAND_CHECKBOX_CLICKED, wxCommandEventHandler( DIALOG_PNS_SETTINGS_BASE::onFreeAngleModeChange ), NULL, this );

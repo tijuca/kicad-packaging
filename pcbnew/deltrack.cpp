@@ -31,9 +31,9 @@
 #include <fctsys.h>
 #include <class_drawpanel.h>
 #include <confirm.h>
-#include <wxPcbStruct.h>
+#include <pcb_edit_frame.h>
 #include <macros.h>
-#include <ratsnest_data.h>
+#include <connectivity_data.h>
 
 #include <class_board.h>
 #include <class_track.h>
@@ -51,7 +51,7 @@ TRACK* PCB_EDIT_FRAME::Delete_Segment( wxDC* DC, TRACK* aTrack )
     {
         if( g_CurrentTrackList.GetCount() > 0 )
         {
-            LAYER_ID previous_layer = GetActiveLayer();
+            PCB_LAYER_ID previous_layer = GetActiveLayer();
 
             DBG( g_CurrentTrackList.VerifyListIntegrity(); )
 
@@ -61,7 +61,7 @@ TRACK* PCB_EDIT_FRAME::Delete_Segment( wxDC* DC, TRACK* aTrack )
             // delete the most recently entered
             delete g_CurrentTrackList.PopBack();
 
-            if( g_TwoSegmentTrackBuild )
+            if( Settings().m_legacyUseTwoSegmentTracks )
             {
                 // if in 2 track mode, and the next most recent is a segment
                 // not a via, and the one previous to that is a via, then
@@ -88,7 +88,7 @@ TRACK* PCB_EDIT_FRAME::Delete_Segment( wxDC* DC, TRACK* aTrack )
 
             UpdateStatusBar();
 
-            if( g_TwoSegmentTrackBuild )   // We must have 2 segments or more, or 0
+            if( Settings().m_legacyUseTwoSegmentTracks )   // We must have 2 segments or more, or 0
             {
                 if( g_CurrentTrackList.GetCount() == 1
                     && g_CurrentTrackSegment->Type() != PCB_VIA_T )
@@ -123,8 +123,7 @@ TRACK* PCB_EDIT_FRAME::Delete_Segment( wxDC* DC, TRACK* aTrack )
     // Remove the segment from list, but do not delete it (it will be stored i n undo list)
     GetBoard()->Remove( aTrack );
 
-    GetBoard()->GetRatsnest()->Remove( aTrack );
-    aTrack->ViewRelease();
+    GetBoard()->GetConnectivity()->Remove( aTrack );
 
     // redraw the area where the track was
     m_canvas->RefreshDrawingRect( aTrack->GetBoundingBox() );
@@ -174,8 +173,7 @@ void PCB_EDIT_FRAME::Delete_net( wxDC* DC, TRACK* aTrack )
         if( segm->GetNetCode() != netcode )
             break;
 
-        GetBoard()->GetRatsnest()->Remove( segm );
-        segm->ViewRelease();
+        GetBoard()->GetConnectivity()->Remove( segm );
         GetBoard()->m_Track.Remove( segm );
 
         // redraw the area where the track was
@@ -221,8 +219,7 @@ void PCB_EDIT_FRAME::Remove_One_Track( wxDC* DC, TRACK* pt_segm )
                      << TO_UTF8( TRACK::ShowState( tracksegment->GetStatus() ) ) \
                      << std::endl; )
 
-        GetBoard()->GetRatsnest()->Remove( tracksegment );
-        tracksegment->ViewRelease();
+        GetBoard()->GetConnectivity()->Remove( tracksegment );
         GetBoard()->m_Track.Remove( tracksegment );
 
         // redraw the area where the track was

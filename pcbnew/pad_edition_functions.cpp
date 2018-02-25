@@ -33,13 +33,13 @@
 #include <confirm.h>
 #include <trigo.h>
 #include <macros.h>
-#include <wxBasePcbFrame.h>
+#include <pcb_base_frame.h>
 
 #include <pcbnew.h>
 #include <class_board.h>
 #include <class_module.h>
 #include <class_pad.h>
-#include <class_board_design_settings.h>
+#include <board_design_settings.h>
 
 /* Exports the current pad settings to board design settings.
  */
@@ -50,25 +50,15 @@ void PCB_BASE_FRAME::Export_Pad_Settings( D_PAD* aPad )
 
     SetMsgPanel( aPad );
 
-    D_PAD& mp = GetDesignSettings().m_Pad_Master;
+    D_PAD& masterPad = GetDesignSettings().m_Pad_Master;
 
-    mp.SetShape( aPad->GetShape() );
-    mp.SetAttribute( aPad->GetAttribute() );
-    mp.SetLayerSet( aPad->GetLayerSet() );
-
-    mp.SetOrientation( aPad->GetOrientation() - aPad->GetParent()->GetOrientation() );
-
-    mp.SetSize( aPad->GetSize() );
-    mp.SetDelta( aPad->GetDelta() );
-
-    mp.SetOffset( aPad->GetOffset() );
-    mp.SetDrillSize( aPad->GetDrillSize() );
-    mp.SetDrillShape( aPad->GetDrillShape() );
+    masterPad.ImportSettingsFromMaster( *aPad );
 }
 
 
 /* Imports the board design settings to aPad
  * - The position, names, and keys are not modifed.
+ * The parameters are expected to be correct (i.e. settings are valid)
  */
 void PCB_BASE_FRAME::Import_Pad_Settings( D_PAD* aPad, bool aDraw )
 {
@@ -79,43 +69,13 @@ void PCB_BASE_FRAME::Import_Pad_Settings( D_PAD* aPad, bool aDraw )
         aPad->ClearFlags( DO_NOT_DRAW );
     }
 
-    D_PAD& mp = GetDesignSettings().m_Pad_Master;
+    const D_PAD& mp = GetDesignSettings().m_Pad_Master;
 
-    aPad->SetShape( mp.GetShape() );
-    aPad->SetLayerSet( mp.GetLayerSet() );
-    aPad->SetAttribute( mp.GetAttribute() );
-    aPad->SetOrientation( mp.GetOrientation() + aPad->GetParent()->GetOrientation() );
-    aPad->SetSize( mp.GetSize() );
-    aPad->SetDelta( wxSize( 0, 0 ) );
-    aPad->SetOffset( mp.GetOffset() );
-    aPad->SetDrillSize( mp.GetDrillSize() );
-    aPad->SetDrillShape( mp.GetDrillShape() );
+    aPad->ImportSettingsFromMaster( mp );
 
-    switch( mp.GetShape() )
-    {
-    case PAD_SHAPE_TRAPEZOID:
-        aPad->SetDelta( mp.GetDelta() );
-        break;
-
-    case PAD_SHAPE_CIRCLE:
-        // ensure size.y == size.x
-        aPad->SetSize( wxSize( aPad->GetSize().x, aPad->GetSize().x ) );
-        break;
-
-    default:
-        ;
-    }
-
-    switch( mp.GetAttribute() )
-    {
-    case PAD_ATTRIB_SMD:
-    case PAD_ATTRIB_CONN:
-        aPad->SetDrillSize( wxSize( 0, 0 ) );
-        aPad->SetOffset( wxPoint( 0, 0 ) );
-        break;
-    default:
-        ;
-    }
+    aPad->SetPrimitives( mp.GetPrimitives() );
+    aPad->SetAnchorPadShape( mp.GetAnchorPadShape() );
+    aPad->MergePrimitivesAsPolygon();
 
     if( aDraw )
         m_canvas->RefreshDrawingRect( aPad->GetBoundingBox() );
@@ -159,7 +119,7 @@ void PCB_BASE_FRAME::AddPad( MODULE* aModule, bool draw )
     D_PAD* pad = new D_PAD( aModule );
 
     // Add the new pad to end of the module pad list.
-    aModule->Pads().PushBack( pad );
+    aModule->PadsList().PushBack( pad );
 
     // Update the pad properties,
     // and keep NETINFO_LIST::ORPHANED as net info
@@ -182,11 +142,11 @@ void PCB_BASE_FRAME::AddPad( MODULE* aModule, bool draw )
     if( pad->GetAttribute() != PAD_ATTRIB_HOLE_NOT_PLATED )
     {
         padName = GetNextPadName( GetDesignSettings()
-                .m_Pad_Master.GetPadName() );
+                .m_Pad_Master.GetName() );
     }
 
-    pad->SetPadName( padName );
-    GetDesignSettings().m_Pad_Master.SetPadName( padName );
+    pad->SetName( padName );
+    GetDesignSettings().m_Pad_Master.SetName( padName );
 
     aModule->CalculateBoundingBox();
     SetMsgPanel( pad );

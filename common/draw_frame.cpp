@@ -1,9 +1,9 @@
 /*
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
- * Copyright (C) 2004-2015 Jean-Pierre Charras, jean-pierre.charras@gipsa-lab.inpg.fr
- * Copyright (C) 2008-2015 Wayne Stambaugh <stambaughw@verizon.net>
- * Copyright (C) 2004-2016 KiCad Developers, see change_log.txt for contributors.
+ * Copyright (C) 2004-2017 Jean-Pierre Charras, jp.charras at wanadoo.fr
+ * Copyright (C) 2008 Wayne Stambaugh <stambaughw@gmail.com>
+ * Copyright (C) 2004-2017 KiCad Developers, see AUTHORS.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -36,8 +36,7 @@
 #include <macros.h>
 #include <id.h>
 #include <class_drawpanel.h>
-#include <class_draw_panel_gal.h>
-#include <class_base_screen.h>
+#include <base_screen.h>
 #include <msgpanel.h>
 #include <draw_frame.h>
 #include <confirm.h>
@@ -45,6 +44,7 @@
 #include <dialog_helpers.h>
 #include <base_units.h>
 #include <math/box2.h>
+#include <lockfile.h>
 
 #include <wx/fontdlg.h>
 #include <wx/snglinst.h>
@@ -53,6 +53,7 @@
 #include <gal/graphics_abstraction_layer.h>
 #include <tool/tool_manager.h>
 #include <tool/tool_dispatcher.h>
+#include <tool/actions.h>
 
 /**
  * Definition for enabling and disabling scroll bar setting trace output.  See the
@@ -61,15 +62,42 @@
 static const wxString traceScrollSettings( wxT( "KicadScrollSettings" ) );
 
 
-// Configuration entry names.
-static const wxString CursorShapeEntryKeyword( wxT( "CursorShape" ) );
-static const wxString ShowGridEntryKeyword( wxT( "ShowGrid" ) );
-static const wxString GridColorEntryKeyword( wxT( "GridColor" ) );
-static const wxString LastGridSizeIdKeyword( wxT( "_LastGridSize" ) );
-static const wxString MaxUndoItemsEntry(wxT( "MaxUndoItems" ) );
+///@{
+/// \ingroup config
 
+/// Nonzero to show grid (suffix)
+static const wxString ShowGridEntryKeyword( wxT( "ShowGrid" ) );
+/// Grid color ID (suffix)
+static const wxString GridColorEntryKeyword( wxT( "GridColor" ) );
+/// Most recently used grid size (suffix)
+static const wxString LastGridSizeIdKeyword( wxT( "_LastGridSize" ) );
+/// GAL Display Options
+static const wxString GalDisplayOptionsKeyword( wxT( "GalDisplayOptions" ) );
+
+const wxChar EDA_DRAW_FRAME::CANVAS_TYPE_KEY[] = wxT( "canvas_type" );
+
+static const wxString FirstRunShownKeyword( wxT( "FirstRunShown" ) );
+
+///@}
+
+/**
+ * Integer to set the maximum number of undo items on the stack. If zero,
+ * undo items are unlimited.
+ *
+ * Present as:
+ *
+ * - SchematicFrameDevelMaxUndoItems (file: eeschema)
+ * - LibeditFrameDevelMaxUndoItems (file: eeschema)
+ * - PcbFrameDevelMaxUndoItems (file: pcbnew)
+ * - ModEditFrameDevelMaxUndoItems (file: pcbnew)
+ *
+ * \ingroup develconfig
+ */
+static const wxString MaxUndoItemsEntry(wxT( "DevelMaxUndoItems" ) );
 
 BEGIN_EVENT_TABLE( EDA_DRAW_FRAME, KIWAY_PLAYER )
+    EVT_CHAR_HOOK( EDA_DRAW_FRAME::OnCharHook )
+
     EVT_MOUSEWHEEL( EDA_DRAW_FRAME::OnMouseEvent )
     EVT_MENU_OPEN( EDA_DRAW_FRAME::OnMenuOpen )
     EVT_ACTIVATE( EDA_DRAW_FRAME::OnActivate )
@@ -84,6 +112,7 @@ BEGIN_EVENT_TABLE( EDA_DRAW_FRAME, KIWAY_PLAYER )
     EVT_TOOL( ID_TB_OPTIONS_SHOW_GRID, EDA_DRAW_FRAME::OnToggleGridState )
     EVT_TOOL_RANGE( ID_TB_OPTIONS_SELECT_UNIT_MM, ID_TB_OPTIONS_SELECT_UNIT_INCH,
                     EDA_DRAW_FRAME::OnSelectUnits )
+
     EVT_TOOL( ID_TB_OPTIONS_SELECT_CURSOR, EDA_DRAW_FRAME::OnToggleCrossHairStyle )
 
     EVT_UPDATE_UI( wxID_UNDO, EDA_DRAW_FRAME::OnUpdateUndo )
@@ -100,10 +129,9 @@ EDA_DRAW_FRAME::EDA_DRAW_FRAME( KIWAY* aKiway, wxWindow* aParent,
                                 const wxString& aTitle,
                                 const wxPoint& aPos, const wxSize& aSize,
                                 long aStyle, const wxString & aFrameName ) :
-    KIWAY_PLAYER( aKiway, aParent, aFrameType, aTitle, aPos, aSize, aStyle, aFrameName )
+    KIWAY_PLAYER( aKiway, aParent, aFrameType, aTitle, aPos, aSize, aStyle, aFrameName ),
+    m_galDisplayOptions( std::make_unique<KIGFX::GAL_DISPLAY_OPTIONS>() )
 {
-    m_file_checker        = NULL;
-
     m_drawToolBar         = NULL;
     m_optionsToolBar      = NULL;
     m_gridSelectBox       = NULL;
@@ -111,8 +139,11 @@ EDA_DRAW_FRAME::EDA_DRAW_FRAME( KIWAY* aKiway, wxWindow* aParent,
     m_hotkeysDescrList    = NULL;
 
     m_canvas              = NULL;
+    m_canvasType          = EDA_DRAW_PANEL_GAL::GAL_TYPE_NONE;
+    m_canvasTypeDirty     = false;
     m_galCanvas           = NULL;
     m_galCanvasActive     = false;
+    m_actions             = NULL;
     m_toolManager         = NULL;
     m_toolDispatcher      = NULL;
     m_messagePanel        = NULL;
@@ -123,19 +154,18 @@ EDA_DRAW_FRAME::EDA_DRAW_FRAME( KIWAY* aKiway, wxWindow* aParent,
     m_showBorderAndTitleBlock = false;  // true to display reference sheet.
     m_showGridAxis        = false;      // true to draw the grid axis
     m_showOriginAxis      = false;      // true to draw the grid origin
-    m_cursorShape         = 0;
     m_LastGridSizeId      = 0;
     m_drawGrid            = true;       // hide/Show grid. default = show
-    m_gridColor           = DARKGRAY;   // Default grid color
+    m_gridColor           = COLOR4D( DARKGRAY );   // Default grid color
     m_showPageLimits      = false;
-    m_drawBgColor         = BLACK;      // the background color of the draw canvas:
-                                        // BLACK for Pcbnew, BLACK or WHITE for eeschema
+    m_drawBgColor         = COLOR4D( BLACK );   // the background color of the draw canvas:
+                                                // BLACK for Pcbnew, BLACK or WHITE for eeschema
     m_snapToGrid          = true;
     m_MsgFrameHeight      = EDA_MSG_PANEL::GetRequiredHeight();
     m_movingCursorWithKeyboard = false;
     m_zoomLevelCoeff      = 1.0;
 
-    m_auimgr.SetFlags(wxAUI_MGR_DEFAULT|wxAUI_MGR_LIVE_RESIZE);
+    m_auimgr.SetFlags(wxAUI_MGR_DEFAULT);
 
     CreateStatusBar( 6 );
 
@@ -179,12 +209,16 @@ EDA_DRAW_FRAME::EDA_DRAW_FRAME( KIWAY* aKiway, wxWindow* aParent,
     m_messagePanel  = new EDA_MSG_PANEL( this, -1, wxPoint( 0, m_FrameSize.y ),
                                          wxSize( m_FrameSize.x, m_MsgFrameHeight ) );
 
-    m_messagePanel->SetBackgroundColour( MakeColour( LIGHTGRAY ) );
+    m_messagePanel->SetBackgroundColour( COLOR4D( LIGHTGRAY ).ToColour() );
 }
 
 
 EDA_DRAW_FRAME::~EDA_DRAW_FRAME()
 {
+    if( m_canvasTypeDirty )
+        saveCanvasTypeSetting( m_canvasType );
+
+    delete m_actions;
     delete m_toolManager;
     delete m_toolDispatcher;
     delete m_galCanvas;
@@ -198,17 +232,22 @@ EDA_DRAW_FRAME::~EDA_DRAW_FRAME()
 }
 
 
+void EDA_DRAW_FRAME::OnCharHook( wxKeyEvent& event )
+{
+    // Key events can be filtered here.
+    // Currently no filtering is made.
+    event.Skip();
+}
+
+
 void EDA_DRAW_FRAME::ReleaseFile()
 {
-    delete m_file_checker;
-    m_file_checker = 0;
+    m_file_checker = nullptr;
 }
 
 
 bool EDA_DRAW_FRAME::LockFile( const wxString& aFileName )
 {
-    delete m_file_checker;
-
     m_file_checker = ::LockFile( aFileName );
 
     return bool( m_file_checker );
@@ -286,7 +325,11 @@ void EDA_DRAW_FRAME::OnToggleCrossHairStyle( wxCommandEvent& aEvent )
 {
     INSTALL_UNBUFFERED_DC( dc, m_canvas );
     m_canvas->CrossHairOff( &dc );
-    SetCursorShape( !GetCursorShape() );
+
+    auto& galOpts = GetGalDisplayOptions();
+    galOpts.m_fullscreenCursor = !galOpts.m_fullscreenCursor;
+    galOpts.NotifyChanged();
+
     m_canvas->CrossHairOn( &dc );
 }
 
@@ -328,7 +371,7 @@ void EDA_DRAW_FRAME::OnUpdateGrid( wxUpdateUIEvent& aEvent )
 
 void EDA_DRAW_FRAME::OnUpdateCrossHairStyle( wxUpdateUIEvent& aEvent )
 {
-    aEvent.Check( m_cursorShape );
+    aEvent.Check( GetGalDisplayOptions().m_fullscreenCursor );
 }
 
 
@@ -512,6 +555,10 @@ void EDA_DRAW_FRAME::SetToolID( int aId, int aCursor, const wxString& aToolMsg )
     if( m_canvas && aCursor >= 0 )
         m_canvas->SetCurrentCursor( aCursor );
 
+    // Change GAL canvas cursor if requested.
+    if( IsGalCanvasActive() && aCursor >= 0 )
+        GetGalCanvas()->SetCurrentCursor( aCursor );
+
     DisplayToolMsg( aToolMsg );
 
     if( aId < 0 )
@@ -523,6 +570,21 @@ void EDA_DRAW_FRAME::SetToolID( int aId, int aCursor, const wxString& aToolMsg )
     m_toolId = aId;
 }
 
+
+void EDA_DRAW_FRAME::SetNoToolSelected()
+{
+    // Select the ID_NO_TOOL_SELECTED id tool (Idle tool)
+
+    int defaultCursor = wxCURSOR_DEFAULT;
+
+    // Change GAL canvas cursor if requested.
+    if( IsGalCanvasActive() )
+        defaultCursor = GetGalCanvas()->GetDefaultCursor();
+    else if( m_canvas )
+        defaultCursor = m_canvas->GetDefaultCursor();
+
+    SetToolID( ID_NO_TOOL_SELECTED, defaultCursor, wxEmptyString );
+}
 
 wxPoint EDA_DRAW_FRAME::GetGridPosition( const wxPoint& aPosition ) const
 {
@@ -594,7 +656,7 @@ void EDA_DRAW_FRAME::SetPresetGrid( int aIndex )
 }
 
 
-int EDA_DRAW_FRAME::BlockCommand( int key )
+int EDA_DRAW_FRAME::BlockCommand( EDA_KEY key )
 {
     return 0;
 }
@@ -660,15 +722,16 @@ void EDA_DRAW_FRAME::LoadSettings( wxConfigBase* aCfg )
 
     wxString baseCfgName = ConfigBaseName();
 
-    aCfg->Read( baseCfgName + CursorShapeEntryKeyword, &m_cursorShape, ( long )0 );
-
     bool btmp;
     if( aCfg->Read( baseCfgName + ShowGridEntryKeyword, &btmp ) )
         SetGridVisibility( btmp );
 
-    int itmp;
-    if( aCfg->Read( baseCfgName + GridColorEntryKeyword, &itmp ) )
-        SetGridColor( ColorFromInt( itmp ) );
+    // Read grid color:
+    COLOR4D wtmp = COLOR4D::UNSPECIFIED;
+
+    if( wtmp.SetFromWxString( aCfg->Read(
+                baseCfgName + GridColorEntryKeyword, wxT( "NONE" ) ) ) )
+        SetGridColor( wtmp );
 
     aCfg->Read( baseCfgName + LastGridSizeIdKeyword, &m_LastGridSizeId, 0L );
 
@@ -678,6 +741,10 @@ void EDA_DRAW_FRAME::LoadSettings( wxConfigBase* aCfg )
 
     m_UndoRedoCountMax = aCfg->Read( baseCfgName + MaxUndoItemsEntry,
             long( DEFAULT_MAX_UNDO_ITEMS ) );
+
+    aCfg->Read( baseCfgName + FirstRunShownKeyword, &m_firstRunDialogSetting, 0L );
+
+    m_galDisplayOptions->ReadConfig( aCfg, baseCfgName + GalDisplayOptionsKeyword );
 }
 
 
@@ -687,17 +754,22 @@ void EDA_DRAW_FRAME::SaveSettings( wxConfigBase* aCfg )
 
     wxString baseCfgName = ConfigBaseName();
 
-    aCfg->Write( baseCfgName + CursorShapeEntryKeyword, m_cursorShape );
     aCfg->Write( baseCfgName + ShowGridEntryKeyword, IsGridVisible() );
-    aCfg->Write( baseCfgName + GridColorEntryKeyword, ( long ) GetGridColor() );
+    aCfg->Write( baseCfgName + GridColorEntryKeyword,
+                 GetGridColor().ToColour().GetAsString( wxC2S_CSS_SYNTAX ) );
     aCfg->Write( baseCfgName + LastGridSizeIdKeyword, ( long ) m_LastGridSizeId );
-    aCfg->Write( baseCfgName + MaxUndoItemsEntry, long( GetScreen()->GetMaxUndoItems() ) );
+    aCfg->Write( baseCfgName + FirstRunShownKeyword, m_firstRunDialogSetting );
+
+    if( GetScreen() )
+        aCfg->Write( baseCfgName + MaxUndoItemsEntry, long( GetScreen()->GetMaxUndoItems() ) );
+
+    m_galDisplayOptions->WriteConfig( aCfg, baseCfgName + GalDisplayOptionsKeyword );
 }
 
 
 void EDA_DRAW_FRAME::AppendMsgPanel( const wxString& textUpper,
                                      const wxString& textLower,
-                                     EDA_COLOR_T color, int pad )
+                                     COLOR4D color, int pad )
 {
     if( m_messagePanel == NULL )
         return;
@@ -751,8 +823,6 @@ void EDA_DRAW_FRAME::UpdateMsgPanel()
 void EDA_DRAW_FRAME::PushPreferences( const EDA_DRAW_PANEL* aParentCanvas )
 {
     m_canvas->SetEnableZoomNoCenter( aParentCanvas->GetEnableZoomNoCenter() );
-    m_canvas->SetEnableMiddleButtonPan( aParentCanvas->GetEnableMiddleButtonPan() );
-    m_canvas->SetMiddleButtonPanLimited( aParentCanvas->GetMiddleButtonPanLimited() );
     m_canvas->SetEnableAutoPan( aParentCanvas->GetEnableAutoPan() );
 }
 
@@ -767,14 +837,18 @@ wxString EDA_DRAW_FRAME::LengthDoubleToString( double aValue, bool aConvertToMil
 }
 
 
-bool EDA_DRAW_FRAME::HandleBlockBegin( wxDC* aDC, int aKey, const wxPoint& aPosition )
+bool EDA_DRAW_FRAME::HandleBlockBegin( wxDC* aDC, EDA_KEY aKey, const wxPoint& aPosition,
+       int aExplicitCommand )
 {
     BLOCK_SELECTOR* block = &GetScreen()->m_BlockLocate;
 
     if( ( block->GetCommand() != BLOCK_IDLE ) || ( block->GetState() != STATE_NO_BLOCK ) )
         return false;
 
-    block->SetCommand( (BLOCK_COMMAND_T) BlockCommand( aKey ) );
+    if( aExplicitCommand == 0 )
+        block->SetCommand( (BLOCK_COMMAND_T) BlockCommand( aKey ) );
+    else
+        block->SetCommand( (BLOCK_COMMAND_T) aExplicitCommand );
 
     if( block->GetCommand() == 0 )
         return false;
@@ -787,10 +861,10 @@ bool EDA_DRAW_FRAME::HandleBlockBegin( wxDC* aDC, int aKey, const wxPoint& aPosi
     case BLOCK_MOVE:                // Move
     case BLOCK_DRAG:                // Drag (block defined)
     case BLOCK_DRAG_ITEM:           // Drag from a drag item command
-    case BLOCK_COPY:                // Copy
-    case BLOCK_COPY_AND_INCREMENT:  // Copy and increment relevant references
+    case BLOCK_DUPLICATE:           // Duplicate
+    case BLOCK_DUPLICATE_AND_INCREMENT: // Duplicate and increment relevant references
     case BLOCK_DELETE:              // Delete
-    case BLOCK_SAVE:                // Save
+    case BLOCK_COPY:                // Copy
     case BLOCK_ROTATE:              // Rotate 90 deg
     case BLOCK_FLIP:                // Flip
     case BLOCK_ZOOM:                // Window Zoom
@@ -810,6 +884,8 @@ bool EDA_DRAW_FRAME::HandleBlockBegin( wxDC* aDC, int aKey, const wxPoint& aPosi
             DisplayError( this, wxT( "No block to paste" ), 20 );
             GetScreen()->m_BlockLocate.SetCommand( BLOCK_IDLE );
             m_canvas->SetMouseCaptureCallback( NULL );
+            block->SetState( STATE_NO_BLOCK );
+            block->SetMessageBlock( this );
             return true;
         }
 
@@ -818,6 +894,8 @@ bool EDA_DRAW_FRAME::HandleBlockBegin( wxDC* aDC, int aKey, const wxPoint& aPosi
             block->ClearItemsList();
             DisplayError( this,
                           wxT( "EDA_DRAW_FRAME::HandleBlockBegin() Err: m_mouseCaptureCallback NULL" ) );
+            block->SetState( STATE_NO_BLOCK );
+            block->SetMessageBlock( this );
             return true;
         }
 
@@ -871,9 +949,14 @@ void EDA_DRAW_FRAME::AdjustScrollBars( const wxPoint& aCenterPositionIU )
     // Full drawing or "page" rectangle in internal units
     DBOX    pageRectIU( wxPoint( 0, 0 ), wxSize( GetPageSizeIU().x, GetPageSizeIU().y ) );
 
+    // Account for scrollbars
+    wxSize  scrollbarSizeDU = m_canvas->GetSize() - m_canvas->GetClientSize();
+    wxSize  scrollbarSizeIU = scrollbarSizeDU * (1 / scale);
+    wxPoint centerAdjustedIU = aCenterPositionIU + scrollbarSizeIU / 2;
+
     // The upper left corner of the client rectangle in internal units.
-    double xIU = aCenterPositionIU.x - clientSizeIU.x / 2.0;
-    double yIU = aCenterPositionIU.y - clientSizeIU.y / 2.0;
+    double xIU = centerAdjustedIU.x - clientSizeIU.x / 2.0;
+    double yIU = centerAdjustedIU.y - clientSizeIU.y / 2.0;
 
     // If drawn around the center, adjust the client rectangle accordingly.
     if( screen->m_Center )
@@ -994,10 +1077,11 @@ void EDA_DRAW_FRAME::AdjustScrollBars( const wxPoint& aCenterPositionIU )
     double unitsX = virtualSizeIU.x * scale;
     double unitsY = virtualSizeIU.y * scale;
 
+    // Store the requested center position for later use
+    SetScrollCenterPosition( aCenterPositionIU );
+
     // Calculate the scroll bar position in internal units to place the
     // center position at the center of client rectangle.
-    SetScrollCenterPosition( centerPositionIU );
-
     double posX = centerPositionIU.x - clientRectIU.GetWidth()  / 2.0 - screen->m_DrawOrg.x;
     double posY = centerPositionIU.y - clientRectIU.GetHeight() / 2.0 - screen->m_DrawOrg.y;
 
@@ -1077,7 +1161,7 @@ void EDA_DRAW_FRAME::UseGalCanvas( bool aEnable )
         // Transfer EDA_DRAW_PANEL settings
         GetGalCanvas()->GetViewControls()->EnableCursorWarping( !m_canvas->GetEnableZoomNoCenter() );
         GetGalCanvas()->GetViewControls()->EnableMousewheelPan( m_canvas->GetEnableMousewheelPan() );
-        GetToolManager()->RunAction( "pcbnew.Control.switchCursor" );
+        GetGalCanvas()->GetViewControls()->EnableAutoPan( m_canvas->GetEnableAutoPan() );
     }
     else if( m_galCanvasActive )
     {
@@ -1098,9 +1182,61 @@ void EDA_DRAW_FRAME::UseGalCanvas( bool aEnable )
     m_auimgr.Update();
 
     // Reset current tool on switch();
-    SetToolID( ID_NO_TOOL_SELECTED, wxCURSOR_DEFAULT, wxEmptyString );
+    SetNoToolSelected();
 
     m_galCanvasActive = aEnable;
+}
+
+
+bool EDA_DRAW_FRAME::SwitchCanvas( EDA_DRAW_PANEL_GAL::GAL_TYPE aCanvasType )
+{
+    auto galCanvas = GetGalCanvas();
+    wxCHECK( galCanvas, false );
+    bool use_gal = galCanvas->SwitchBackend( aCanvasType );
+    use_gal &= aCanvasType != EDA_DRAW_PANEL_GAL::GAL_TYPE_NONE;
+    UseGalCanvas( use_gal );
+    m_canvasType = use_gal ? aCanvasType : EDA_DRAW_PANEL_GAL::GAL_TYPE_NONE;
+    m_canvasTypeDirty = true;
+
+    return use_gal;
+}
+
+
+EDA_DRAW_PANEL_GAL::GAL_TYPE EDA_DRAW_FRAME::loadCanvasTypeSetting() const
+{
+    EDA_DRAW_PANEL_GAL::GAL_TYPE canvasType = EDA_DRAW_PANEL_GAL::GAL_TYPE_NONE;
+    wxConfigBase* cfg = Kiface().KifaceSettings();
+
+    if( cfg )
+        canvasType = (EDA_DRAW_PANEL_GAL::GAL_TYPE) cfg->ReadLong( CANVAS_TYPE_KEY,
+                                                                   EDA_DRAW_PANEL_GAL::GAL_TYPE_NONE );
+
+    if( canvasType < EDA_DRAW_PANEL_GAL::GAL_TYPE_NONE
+            || canvasType >= EDA_DRAW_PANEL_GAL::GAL_TYPE_LAST )
+    {
+        assert( false );
+        canvasType = EDA_DRAW_PANEL_GAL::GAL_TYPE_NONE;
+    }
+
+    return canvasType;
+}
+
+
+bool EDA_DRAW_FRAME::saveCanvasTypeSetting( EDA_DRAW_PANEL_GAL::GAL_TYPE aCanvasType )
+{
+    if( aCanvasType < EDA_DRAW_PANEL_GAL::GAL_TYPE_NONE
+            || aCanvasType >= EDA_DRAW_PANEL_GAL::GAL_TYPE_LAST )
+    {
+        assert( false );
+        return false;
+    }
+
+    wxConfigBase* cfg = Kiface().KifaceSettings();
+
+    if( cfg )
+        return cfg->Write( CANVAS_TYPE_KEY, (long) aCanvasType );
+
+    return false;
 }
 
 //-----< BASE_SCREEN API moved here >--------------------------------------------
@@ -1212,9 +1348,10 @@ void EDA_DRAW_FRAME::RefreshCrossHair( const wxPoint &aOldPos,
     }
 }
 
-void EDA_DRAW_FRAME::GeneralControlKeyMovement( int aHotKey, wxPoint *aPos,
+bool EDA_DRAW_FRAME::GeneralControlKeyMovement( int aHotKey, wxPoint *aPos,
                                                 bool aSnapToGrid )
 {
+    bool key_handled = false;
 
     // If requested snap the current position to the grid
     if( aSnapToGrid )
@@ -1239,6 +1376,7 @@ void EDA_DRAW_FRAME::GeneralControlKeyMovement( int aHotKey, wxPoint *aPos,
     case WXK_LEFT:
     case WXK_NUMPAD6:
     case WXK_RIGHT:
+        key_handled = true;
         {
             /* Here's a tricky part: when doing cursor key movement, the
              * 'previous' point should be taken from memory, *not* from the
@@ -1294,6 +1432,7 @@ void EDA_DRAW_FRAME::GeneralControlKeyMovement( int aHotKey, wxPoint *aPos,
             default: /* Can't happen since we entered the statement */
                 break;
             }
+
             m_canvas->MoveCursor( *aPos );
             m_movingCursorWithKeyboard = true;
         }
@@ -1302,5 +1441,18 @@ void EDA_DRAW_FRAME::GeneralControlKeyMovement( int aHotKey, wxPoint *aPos,
     default:
         break;
     }
+
+    return key_handled;
 }
 
+
+bool EDA_DRAW_FRAME::isBusy() const
+{
+    const BASE_SCREEN* screen = const_cast< BASE_SCREEN* >( GetScreen() );
+
+    if( !screen )
+        return false;
+
+    return ( screen->GetCurItem() && screen->GetCurItem()->GetFlags() )
+           || ( screen->m_BlockLocate.GetState() != STATE_NO_BLOCK );
+}

@@ -1,7 +1,7 @@
 /*
  * This program source code file is part of KICAD, a free EDA CAD application.
  *
- * Copyright (C) 1992-2015 Kicad Developers, see AUTHORS.txt for contributors.
+ * Copyright (C) 1992-2017 Kicad Developers, see AUTHORS.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -33,17 +33,17 @@
 #include <gr_basic.h>
 #include <base_struct.h>
 #include <class_drawpanel.h>
-#include <class_title_block.h>
+#include <title_block.h>
 #include <draw_frame.h>
 #include <worksheet_shape_builder.h>
-#include <class_base_screen.h>
+#include <base_screen.h>
 #include <wildcards_and_files_ext.h>
 
 #include <wx/valgen.h>
 #include <wx/tokenzr.h>
 
 #ifdef EESCHEMA
-#include <class_sch_screen.h>
+#include <sch_screen.h>
 #include <general.h>
 #endif
 
@@ -102,6 +102,8 @@ DIALOG_PAGES_SETTINGS::DIALOG_PAGES_SETTINGS( EDA_DRAW_FRAME* parent  ) :
     m_customFmt = false;
     m_localPrjConfigChanged = false;
     m_pagelayout = NULL;
+
+    m_PickDate->SetValue( wxDateTime::Now() );
 
     initDialog();
 
@@ -431,7 +433,7 @@ bool DIALOG_PAGES_SETTINGS::SavePageSettings()
             if( !wxFileExists( fullFileName ) )
             {
                 wxString msg;
-                msg.Printf( _("Page layout description file <%s> not found. Abort"),
+                msg.Printf( _("Page layout description file \"%s\" not found. Abort"),
                             GetChars( fullFileName ) );
                 wxMessageBox( msg );
                 return false;
@@ -801,9 +803,9 @@ void DIALOG_PAGES_SETTINGS::GetCustomSizeMilsFromDialog()
 void DIALOG_PAGES_SETTINGS::OnWksFileSelection( wxCommandEvent& event )
 {
     // Display a file picker dialog
-    wxFileDialog fileDialog( this, _( "Select Page Layout Descr File" ),
+    wxFileDialog fileDialog( this, _( "Select Page Layout Description File" ),
                              m_projectPath, GetWksFileName(),
-                             PageLayoutDescrFileWildcard,
+                             PageLayoutDescrFileWildcard(),
                              wxFD_DEFAULT_STYLE | wxFD_FILE_MUST_EXIST );
 
     if( fileDialog.ShowModal() != wxID_OK )
@@ -821,9 +823,9 @@ void DIALOG_PAGES_SETTINGS::OnWksFileSelection( wxCommandEvent& event )
         wxString msg = wxString::Format( _(
                 "The page layout descr filename has changed.\n"
                 "Do you want to use the relative path:\n"
-                "'%s'\n"
+                "\"%s\"\n"
                 "instead of\n"
-                "'%s'" ), GetChars( shortFileName ), GetChars( fileName ) );
+                "\"%s\"" ), GetChars( shortFileName ), GetChars( fileName ) );
 
         if( !IsOK( this, msg ) )
             shortFileName = fileName;

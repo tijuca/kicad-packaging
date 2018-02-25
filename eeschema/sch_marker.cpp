@@ -2,7 +2,7 @@
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
  * Copyright (C) 2009 Jean-Pierre Charras, jaen-pierre.charras@gipsa-lab.inpg.com
- * Copyright (C) 1992-2011 KiCad Developers, see AUTHORS.txt for contributors.
+ * Copyright (C) 1992-2017 KiCad Developers, see AUTHORS.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -28,19 +28,14 @@
  */
 
 #include <fctsys.h>
-#include <wxstruct.h>
 #include <class_drawpanel.h>
 #include <trigo.h>
 #include <msgpanel.h>
+#include <bitmaps.h>
 
-#include <general.h>
 #include <sch_marker.h>
 #include <erc.h>
 
-
-/********************/
-/* class SCH_MARKER */
-/********************/
 
 SCH_MARKER::SCH_MARKER() : SCH_ITEM( NULL, SCH_MARKER_T ), MARKER_BASE()
 {
@@ -71,23 +66,12 @@ void SCH_MARKER::Show( int nestLevel, std::ostream& os ) const
 
 #endif
 
-/**
- * Function Save (do nothing : markers are no more saved in files )
- * writes the data structures for this object out to a FILE in "*.brd" format.
- * @param aFile The FILE to write to.
- * @return bool - true if success writing else false.
- */
-bool SCH_MARKER::Save( FILE* aFile ) const
-{
-    return true;
-}
-
 
 void SCH_MARKER::Draw( EDA_DRAW_PANEL* aPanel, wxDC* aDC,
-                       const wxPoint& aOffset, GR_DRAWMODE aDrawMode, EDA_COLOR_T aColor )
+                       const wxPoint& aOffset, GR_DRAWMODE aDrawMode, COLOR4D aColor )
 {
-    EDA_COLOR_T color = m_Color;
-    EDA_COLOR_T tmp   = color;
+    COLOR4D color = m_Color;
+    COLOR4D tmp   = color;
 
     if( GetMarkerType() == MARKER_BASE::MARKER_ERC )
     {
@@ -95,7 +79,7 @@ void SCH_MARKER::Draw( EDA_DRAW_PANEL* aPanel, wxDC* aDC,
                   GetLayerColor( LAYER_ERC_ERR ) : GetLayerColor( LAYER_ERC_WARN );
     }
 
-    if( aColor < 0 )
+    if( aColor == COLOR4D::UNSPECIFIED )
         m_Color = color;
     else
         m_Color = aColor;
@@ -122,13 +106,6 @@ bool SCH_MARKER::Matches( wxFindReplaceData& aSearchData, void* aAuxData,
 }
 
 
-/**
- * Function GetBoundingBox
- * returns the orthogonal, bounding box of this object for display purposes.
- * This box should be an enclosing perimeter for visible components of this
- * object, and the units should be in the pcb or schematic coordinate system.
- * It is OK to overestimate the size by a few counts.
- */
 const EDA_RECT SCH_MARKER::GetBoundingBox() const
 {
     return GetBoundingBoxMarker();
@@ -141,6 +118,12 @@ void SCH_MARKER::GetMsgPanelInfo( MSG_PANEL_ITEMS& aList )
 
     aList.push_back( MSG_PANEL_ITEM( _( "Electronics Rule Check Error" ),
                                      GetReporter().GetErrorText(), DARKRED ) );
+}
+
+
+BITMAP_DEF SCH_MARKER::GetMenuImage() const
+{
+    return erc_xpm;
 }
 
 
@@ -183,4 +166,3 @@ bool SCH_MARKER::HitTest( const wxPoint& aPosition, int aAccuracy ) const
 {
     return HitTestMarker( aPosition );
 }
-

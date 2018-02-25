@@ -39,7 +39,7 @@
 
 #include <cvpcb.h>
 #include <cvpcb_mainframe.h>
-#include <class_DisplayFootprintsFrame.h>
+#include <display_footprints_frame.h>
 
 
 PARAM_CFG_ARRAY& CVPCB_MAINFRAME::GetProjectFileParameters()
@@ -51,9 +51,6 @@ PARAM_CFG_ARRAY& CVPCB_MAINFRAME::GetProjectFileParameters()
 
     m_projectFileParams.push_back( new PARAM_CFG_LIBNAME_LIST(
         wxT( "EquName" ), &m_EquFilesNames, GROUP_CVP_EQU ) );
-
-    m_projectFileParams.push_back( new PARAM_CFG_WXSTRING(
-        wxT( "NetIExt" ), &m_NetlistFileExtension ) );
 
     return m_projectFileParams;
 }
@@ -67,21 +64,17 @@ void CVPCB_MAINFRAME::LoadProjectFile()
     m_EquFilesNames.Clear();
 
     prj.ConfigLoad( Kiface().KifaceSearch(), GROUP_CVP, GetProjectFileParameters() );
-
-    if( m_NetlistFileExtension.IsEmpty() )
-        m_NetlistFileExtension = wxT( "net" );
 }
 
 
-void CVPCB_MAINFRAME::SaveProjectFile( wxCommandEvent& aEvent )
+void CVPCB_MAINFRAME::SaveProjectFile()
 {
     PROJECT&    prj = Prj();
-    SetTitle( wxString::Format( _( "Project file: '%s'" ), GetChars( prj.GetProjectFullName() ) ) );
     wxFileName  fn = prj.GetProjectFullName();
 
     if( !IsWritable( fn ) )
     {
-        wxMessageBox( _( "Project file '%s' is not writable" ), fn.GetFullPath() );
+        wxMessageBox( _( "Project file \"%s\" is not writable" ), fn.GetFullPath() );
         return;
     }
 

@@ -3,7 +3,7 @@
  *
  * Copyright (C) 1992-2013 jp.charras at wanadoo.fr
  * Copyright (C) 2013 SoftPLC Corporation, Dick Hollenbeck <dick@softplc.com>
- * Copyright (C) 1992-2015 KiCad Developers
+ * Copyright (C) 1992-2017 KiCad Developers
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -29,7 +29,7 @@
 #include <kicad_string.h>
 
 #include <class_libentry.h>
-#include <class_netlist_object.h>
+#include <netlist_object.h>
 #include <lib_pin.h>
 #include <sch_component.h>
 #include <sch_text.h>
@@ -87,24 +87,19 @@ struct LIB_PART_LESS_THAN
 class NETLIST_EXPORTER
 {
 protected:
-    NETLIST_OBJECT_LIST*    m_masterList;       /// yes ownership, connected items flat list
+    NETLIST_OBJECT_LIST*  m_masterList;       /// yes ownership, connected items flat list
 
-    PART_LIBS*              m_libs;             /// no ownership
-
-    /// Used to temporary store and filter the list of pins of a schematic component
+    /// Used to temporarily store and filter the list of pins of a schematic component
     /// when generating schematic component data in netlist (comp section). No ownership
     /// of members.
-    NETLIST_OBJECTS         m_SortedComponentPinList;
+    NETLIST_OBJECTS       m_SortedComponentPinList;
 
     /// Used for "multi parts per package" components,
     /// avoids processing a lib component more than once.
-    UNIQUE_STRINGS      m_ReferencesAlreadyFound;
+    UNIQUE_STRINGS        m_ReferencesAlreadyFound;
 
     /// unique library parts used. LIB_PART items are sorted by names
     std::set<LIB_PART*, LIB_PART_LESS_THAN> m_LibParts;
-
-    // share a code generated std::set<void*> to reduce code volume
-    std::set<void*>     m_Libraries;    ///< unique libraries used
 
     /**
      * Function sprintPinNetName
@@ -157,27 +152,28 @@ protected:
                                    LIB_PIN*        PinEntry );
 
     /**
-     * Function findAllInstancesOfComponent
+     * Function findAllUnitsOfComponent
      * is used for "multiple parts per package" components.
      * <p>
-     * Search the entire design for all instances of \a aComponent based on
-     * matching reference designator, and for each part, add all its pins
-     * to the temporary sorted pin list.
+     * Search the entire design for all units of \a aComponent based on
+     * matching reference designator, and for each unit, add all its pins
+     * to the temporary sorted pin list, m_SortedComponentPinList.
      */
-    void findAllInstancesOfComponent( SCH_COMPONENT*  aComponent,
-                                      LIB_PART*       aEntry,
-                                      SCH_SHEET_PATH* aSheetPath );
+    void findAllUnitsOfComponent( SCH_COMPONENT*  aComponent,
+                                  LIB_PART*       aEntry,
+                                  SCH_SHEET_PATH* aSheetPath );
 
 public:
 
     /**
      * Constructor
      * @param aMasterList we take ownership of this here.
+     * @param aLibTable is the symbol library table of the project.
      */
-    NETLIST_EXPORTER( NETLIST_OBJECT_LIST* aMasterList, PART_LIBS* aLibs ) :
-        m_masterList( aMasterList ),
-        m_libs( aLibs )
+    NETLIST_EXPORTER( NETLIST_OBJECT_LIST* aMasterList ) :
+        m_masterList( aMasterList )
     {
+        wxASSERT( aMasterList );
     }
 
     virtual ~NETLIST_EXPORTER()
@@ -208,9 +204,9 @@ public:
      *   <li>formatting sequences, see below.
      *   </ul>
      *
-     * @param aTempfile is the name of an input file to the
-     *  external program.
-     * @param aFinalFile is the name of an output file that
+     * @param aNetlistFile is the name of the input file for the
+     *  external program, that is a intermediate netlist file in xml format.
+     * @param aFinalFile is the name of the output file that
      *  the user expects.
      * @param aProjectDirectory is used for %P replacement, it should omit
      *  the trailing '/'.
@@ -227,7 +223,7 @@ public:
      *  </ul>
      */
     static wxString MakeCommandLine( const wxString& aFormatString,
-            const wxString& aTempfile, const wxString& aFinalFile,
+            const wxString& aNetlistFile, const wxString& aFinalFile,
             const wxString& aProjectDirectory
             );
 };

@@ -2,6 +2,7 @@
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
  * Copyright (C) 2015  CERN
+ * Copyright (C) 2016 KiCad Developers, see AUTHORS.txt for contributors.
  * Author: Tomasz Wlostowski <tomasz.wlostowski@cern.ch>
  *
  * This program is free software; you can redistribute it and/or
@@ -25,20 +26,20 @@
 #ifndef __PNS_TUNE_STATUS_POPUP_H_
 #define __PNS_TUNE_STATUS_POPUP_H_
 
-#include <wx_status_popup.h>
+#include <status_popup.h>
 
-class PNS_ROUTER;
+namespace PNS {
 
-class PNS_TUNE_STATUS_POPUP : public WX_STATUS_POPUP
+class ROUTER;
+
+}
+
+class PNS_TUNE_STATUS_POPUP : public STATUS_TEXT_POPUP
 {
 public:
-     PNS_TUNE_STATUS_POPUP( PCB_EDIT_FRAME* aParent );
-     ~PNS_TUNE_STATUS_POPUP();
+    PNS_TUNE_STATUS_POPUP( EDA_DRAW_FRAME* aParent );
 
-    void UpdateStatus( PNS_ROUTER* aRouter );
-
-private:
-    wxStaticText* m_statusLine;
+    void UpdateStatus( PNS::ROUTER* aRouter );
 };
 
 #endif /* __PNS_TUNE_STATUS_POPUP_H_*/

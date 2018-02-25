@@ -25,12 +25,13 @@
 #include <fctsys.h>
 
 #include <pcbnew.h>
-#include <wxPcbStruct.h>
+#include <pcb_edit_frame.h>
 #include <base_units.h>
 
 #include <pcbnew_id.h>
-#include <module_editor_frame.h>
+#include <footprint_edit_frame.h>
 #include <class_board.h>
+#include <widgets/text_ctrl_eval.h>
 
 #include <dialog_graphic_items_options.h>
 
@@ -63,7 +64,6 @@ DIALOG_GRAPHIC_ITEMS_OPTIONS::DIALOG_GRAPHIC_ITEMS_OPTIONS( PCB_BASE_FRAME* pare
 
     m_sdbSizerOK->SetDefault();
 
-    FixOSXCancelButtonIssue();
 }
 
 DIALOG_GRAPHIC_ITEMS_OPTIONS::~DIALOG_GRAPHIC_ITEMS_OPTIONS()
@@ -134,6 +134,7 @@ void DIALOG_GRAPHIC_ITEMS_OPTIONS::OnOkClick( wxCommandEvent& event )
         g_DrawDefaultLineThickness = 0;
 
     m_parent->SetDesignSettings( m_brdSettings );
+    m_parent->OnModify();
 
     EndModal( wxID_OK );
 }

@@ -15,7 +15,9 @@ link="http://ci.kicad-pcb.org/job/any-kicad-doc-head/lastSuccessfulBuild/artifac
 You can discuss the documentation and its translations in the
 link:https://github.com/KiCad/kicad-doc/issues[repository issues].
 
-To participate to the translation effort read the link:translation_instructions.adoc[].
+To participate to the translation effort read the link:translation_instructions.adoc[]. +
+Submit your translation pull requests to the stable docs branch *4.0*, please. +
+See link:docs-versioning.adoc[] for details about docs versioning.
 
 The following instructions explain how to test changes before
 link:https://github.com/KiCad/kicad-doc/fork[submitting a pull-request].
@@ -24,8 +26,12 @@ link:https://github.com/KiCad/kicad-doc/fork[submitting a pull-request].
 
 * http://asciidoc.org/[AsciiDoc] >= 8.6.9 is both the language of the
 documentation and the tool used to generate the PDF and HTML outputs.
-We don't use http://asciidoctor.org/[asciidoctor] because PDF generation is currently missing support for inline images (see the
-http://asciidoctor.org/docs/convert-asciidoc-to-pdf/[asciidoctor-pdf] project).
+
+We will probably switch to http://asciidoctor.org/[asciidoctor] in the future,
+when asciidoctor tools are stable enough, because of their abilility to generate PDF
+and epub document formats directly without the intervention of any other external
+tool or intemediate format like dblatex or docbook. See the
+http://asciidoctor.org/docs/convert-asciidoc-to-pdf/[asciidoctor-pdf] project.
 
 * https://po4a.alioth.debian.org/[po4a] >= 0.45 is used to translate the English
 AsciiDoc documentation to other languages before the last compilation steps.

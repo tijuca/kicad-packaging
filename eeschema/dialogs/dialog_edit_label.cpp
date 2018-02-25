@@ -3,7 +3,7 @@
  *
  * Copyright (C) 2013 Jean-Pierre Charras, jp.charras at wanadoo.fr
  * Copyright (C) 2013 Wayne Stambaugh <stambaughw@verizon.net>
- * Copyright (C) 1992-2013 KiCad Developers, see AUTHORS.txt for contributors.
+ * Copyright (C) 1992-2018 KiCad Developers, see AUTHORS.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -30,12 +30,13 @@
 
 #include <fctsys.h>
 #include <wx/valgen.h>
-#include <schframe.h>
+#include <wx/valnum.h>
+#include <sch_edit_frame.h>
 #include <base_units.h>
 
 #include <class_drawpanel.h>
 #include <general.h>
-#include <drawtxt.h>
+#include <draw_graphic_text.h>
 #include <confirm.h>
 #include <sch_text.h>
 #include <typeinfo>
@@ -50,8 +51,9 @@ class DIALOG_LABEL_EDITOR : public DIALOG_LABEL_EDITOR_BASE
 {
 public:
     DIALOG_LABEL_EDITOR( SCH_EDIT_FRAME* parent, SCH_TEXT* aTextItem );
+    ~DIALOG_LABEL_EDITOR();
 
-    void SetTitle( const wxString& aTitle )    // OVERRIDE wxTopLevelWindow::SetTitle
+    void SetTitle( const wxString& aTitle ) override
     {
         // This class is shared for numerous tasks: a couple of
         // single line labels and multi-line text fields.
@@ -76,10 +78,11 @@ public:
     }
 
 private:
-    void InitDialog( );
-    virtual void OnEnterKey( wxCommandEvent& aEvent );
-    virtual void OnOkClick( wxCommandEvent& aEvent );
-    virtual void OnCancelClick( wxCommandEvent& aEvent );
+    void InitDialog( ) override;
+    virtual void OnEnterKey( wxCommandEvent& aEvent ) override;
+    virtual void OnOkClick( wxCommandEvent& aEvent ) override;
+    virtual void OnCancelClick( wxCommandEvent& aEvent ) override;
+    void OnCharHook( wxKeyEvent& aEvent );
     void TextPropertiesAccept( wxCommandEvent& aEvent );
 
     SCH_EDIT_FRAME* m_Parent;
@@ -110,10 +113,55 @@ DIALOG_LABEL_EDITOR::DIALOG_LABEL_EDITOR( SCH_EDIT_FRAME* aParent, SCH_TEXT* aTe
     m_CurrentText = aTextItem;
     InitDialog();
 
-    FixOSXCancelButtonIssue();
+    // Conservative limits 0.0 to 10.0 inches
+    const int minSize = 0;  // a value like 0.01 is better, but if > 0, creates
+                            // annoying issues when trying to enter a value starting by 0 or .0
+    const int maxSize = 10 * 1000 * IU_PER_MILS;
+
+    wxFloatingPointValidator<double> textSizeValidator( NULL, wxNUM_VAL_NO_TRAILING_ZEROES );
+    textSizeValidator.SetPrecision( 4 );
+    textSizeValidator.SetRange( To_User_Unit( g_UserUnit, minSize ),
+                                To_User_Unit( g_UserUnit, maxSize ) );
+
+    m_TextSize->SetValidator( textSizeValidator );
+
+    // wxTextCtrls fail to generate wxEVT_CHAR events when the wxTE_MULTILINE flag is set,
+    // so we have to listen to wxEVT_CHAR_HOOK events instead.
+    m_textLabelMultiLine->Connect( wxEVT_CHAR_HOOK,
+                                   wxKeyEventHandler( DIALOG_LABEL_EDITOR::OnCharHook ),
+                                   NULL, this );
 
     // Now all widgets have the size fixed, call FinishDialogSettings
     FinishDialogSettings();
+}
+
+
+DIALOG_LABEL_EDITOR::~DIALOG_LABEL_EDITOR()
+{
+    m_textLabelMultiLine->Disconnect( wxEVT_CHAR_HOOK,
+                                      wxKeyEventHandler( DIALOG_LABEL_EDITOR::OnCharHook ),
+                                      NULL, this );
+}
+
+
+// Sadly we store the orientation of hierarchical and global labels using a different
+// int encoding than that for local labels:
+//                   Global      Local
+// Left justified      0           2
+// Up                  1           3
+// Right justified     2           0
+// Down                3           1
+static int mapOrientation( KICAD_T labelType, int aOrientation )
+{
+    if( labelType == SCH_LABEL_T )
+        return aOrientation;
+
+    switch( aOrientation )
+    {
+    case 0: return 2;
+    case 2: return 0;
+    default: return aOrientation;
+    }
 }
 
 
@@ -133,11 +181,10 @@ void DIALOG_LABEL_EDITOR::InitDialog()
         m_textLabel = m_textLabelSingleLine;
         m_textLabelMultiLine->Show( false );
         wxTextValidator* validator = (wxTextValidator*) m_textLabel->GetValidator();
-        wxArrayString excludes;
 
         // Add invalid label characters to this list.
-        excludes.Add( wxT( " " ) );
-        validator->SetExcludes( excludes );
+        // for any label type but SCH_TEXT_T (that has the multiline allowed)
+        validator->SetCharExcludes( wxT( " /" ) );
     }
 
     m_textLabel->SetValue( m_CurrentText->GetText() );
@@ -205,8 +252,10 @@ void DIALOG_LABEL_EDITOR::InitDialog()
     textWidth.Append( 'M', MINTEXTWIDTH );
     EnsureTextCtrlWidth( m_textLabel, &textWidth );
 
-    // Set validators
-    m_TextOrient->SetSelection( m_CurrentText->GetOrientation() );
+    // Set text options:
+    int orientation = mapOrientation( m_CurrentText->Type(), m_CurrentText->GetLabelSpinStyle() );
+    m_TextOrient->SetSelection( orientation );
+
     m_TextShape->SetSelection( m_CurrentText->GetShape() );
 
     int style = 0;
@@ -223,7 +272,7 @@ void DIALOG_LABEL_EDITOR::InitDialog()
     msg.Printf( _( "H%s x W%s" ), GetChars( units ), GetChars( units ) );
     m_staticSizeUnits->SetLabel( msg );
 
-    msg = StringFromValue( g_UserUnit, m_CurrentText->GetSize().x );
+    msg = StringFromValue( g_UserUnit, m_CurrentText->GetTextWidth() );
     m_TextSize->SetValue( msg );
 
     if( m_CurrentText->Type() != SCH_GLOBAL_LABEL_T
@@ -237,12 +286,39 @@ void DIALOG_LABEL_EDITOR::InitDialog()
 
 
 /*!
- * wxTE_PROCESS_ENTER  event handler for m_textLabel
+ * wxEVT_COMMAND_ENTER event handler for m_textLabel
  */
 
 void DIALOG_LABEL_EDITOR::OnEnterKey( wxCommandEvent& aEvent )
 {
     TextPropertiesAccept( aEvent );
+}
+
+
+/*!
+ * wxEVT_CHAR_HOOK event handler for m_textLabel
+ */
+
+void DIALOG_LABEL_EDITOR::OnCharHook( wxKeyEvent& aEvent )
+{
+    if( aEvent.GetKeyCode() == WXK_TAB )
+    {
+        int flags = 0;
+        if( !aEvent.ShiftDown() )
+            flags |= wxNavigationKeyEvent::IsForward;
+        if( aEvent.ControlDown() )
+            flags |= wxNavigationKeyEvent::WinChange;
+        NavigateIn( flags );
+    }
+    else if( aEvent.GetKeyCode() == WXK_RETURN && aEvent.ShiftDown() )
+    {
+        wxCommandEvent cmdEvent( wxEVT_COMMAND_ENTER );
+        TextPropertiesAccept( cmdEvent );
+    }
+    else
+    {
+        aEvent.Skip();
+    }
 }
 
 
@@ -290,14 +366,16 @@ void DIALOG_LABEL_EDITOR::TextPropertiesAccept( wxCommandEvent& aEvent )
         return;
     }
 
-    m_CurrentText->SetOrientation( m_TextOrient->GetSelection() );
+    int orientation = m_TextOrient->GetSelection();
+    m_CurrentText->SetLabelSpinStyle( mapOrientation( m_CurrentText->Type(), orientation ) );
+
     text  = m_TextSize->GetValue();
     value = ValueFromString( g_UserUnit, text );
-    m_CurrentText->SetSize( wxSize( value, value ) );
+    m_CurrentText->SetTextSize( wxSize( value, value ) );
 
     if( m_TextShape )
         /// @todo move cast to widget
-        m_CurrentText->SetShape( m_TextShape->GetSelection() );
+        m_CurrentText->SetShape( static_cast<PINSHEETLABEL_SHAPE>( m_TextShape->GetSelection() ) );
 
     int style = m_TextStyle->GetSelection();
 
@@ -306,7 +384,7 @@ void DIALOG_LABEL_EDITOR::TextPropertiesAccept( wxCommandEvent& aEvent )
     if( ( style & 2 ) )
     {
         m_CurrentText->SetBold( true );
-        m_CurrentText->SetThickness( GetPenSizeForBold( m_CurrentText->GetSize().x ) );
+        m_CurrentText->SetThickness( GetPenSizeForBold( m_CurrentText->GetTextWidth() ) );
     }
     else
     {
@@ -318,7 +396,7 @@ void DIALOG_LABEL_EDITOR::TextPropertiesAccept( wxCommandEvent& aEvent )
 
     // Make the text size the new default size ( if it is a new text ):
     if( m_CurrentText->IsNew() )
-        SetDefaultTextSize( m_CurrentText->GetSize().x );
+        SetDefaultTextSize( m_CurrentText->GetTextWidth() );
 
     m_Parent->GetCanvas()->RefreshDrawingRect( m_CurrentText->GetBoundingBox() );
     m_Parent->GetCanvas()->MoveCursorToCrossHair();

@@ -51,11 +51,11 @@ static struct IFACE : public KIFACE_I
         KIFACE_I( aName, aType )
     {}
 
-    bool OnKifaceStart( PGM_BASE* aProgram, int aCtlBits );
+    bool OnKifaceStart( PGM_BASE* aProgram, int aCtlBits ) override;
 
-    void OnKifaceEnd();
+    void OnKifaceEnd() override;
 
-    wxWindow* CreateWindow( wxWindow* aParent, int aClassId, KIWAY* aKiway, int aCtlBits = 0 )
+    wxWindow* CreateWindow( wxWindow* aParent, int aClassId, KIWAY* aKiway, int aCtlBits = 0 ) override
     {
         switch( aClassId )
         {
@@ -84,7 +84,7 @@ static struct IFACE : public KIFACE_I
      *
      * @return void* - and must be cast into the know type.
      */
-    void* IfaceOrAddress( int aDataId )
+    void* IfaceOrAddress( int aDataId ) override
     {
         return NULL;
     }
@@ -183,7 +183,7 @@ bool MYFACE::OnKifaceStart( PGM_BASE* aProgram )
             if( !success )
             {
                 wxString msg;
-                msg.Printf( _("Error when loading file <%s>"),
+                msg.Printf( _("Error when loading file \"%s\""),
                             fn.GetFullPath().GetData() );
                 wxMessageBox( msg );
             }

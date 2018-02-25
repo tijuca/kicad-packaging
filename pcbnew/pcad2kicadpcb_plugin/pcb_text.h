@@ -44,12 +44,12 @@ public:
     PCB_TEXT( PCB_CALLBACKS* aCallbacks, BOARD* aBoard );
     ~PCB_TEXT();
 
-    virtual void    Parse( XNODE*       aNode,
-                           int          aLayer,
-                           wxString     aDefaultMeasurementUnit,
-                           wxString     aActualConversion );
-    void            AddToModule( MODULE* aModule );
-    void            AddToBoard();
+    virtual void    Parse( XNODE*          aNode,
+                           int             aLayer,
+                           const wxString& aDefaultMeasurementUnit,
+                           const wxString& aActualConversion );
+    void            AddToModule( MODULE* aModule ) override;
+    void            AddToBoard() override;
 
 // virtual void    SetPosOffset( int aX_offs, int aY_offs );
 };

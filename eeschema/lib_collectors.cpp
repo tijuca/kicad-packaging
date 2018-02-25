@@ -2,7 +2,7 @@
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
  * Copyright (C) 2011 Wayne Stambaugh <stambaughw@verizon.net>
- * Copyright (C) 2004-2011 KiCad Developers, see change_log.txt for contributors.
+ * Copyright (C) 2004-2011 KiCad Developers, see AUTHORS.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -92,7 +92,20 @@ const KICAD_T LIB_COLLECTOR::RotatableItems[] = {
 };
 
 
-SEARCH_RESULT LIB_COLLECTOR::Inspect( EDA_ITEM* aItem, const void* aTestData )
+const KICAD_T LIB_COLLECTOR::DoubleClickItems[] = {
+    LIB_PIN_T,
+    LIB_ARC_T,
+    LIB_CIRCLE_T,
+    LIB_RECTANGLE_T,
+    LIB_POLYLINE_T,
+    LIB_TEXT_T,
+    LIB_FIELD_T,
+    LIB_BEZIER_T,
+    EOT
+};
+
+
+SEARCH_RESULT LIB_COLLECTOR::Inspect( EDA_ITEM* aItem, void* testData )
 {
     LIB_ITEM* item = (LIB_ITEM*) aItem;
 
@@ -110,7 +123,7 @@ SEARCH_RESULT LIB_COLLECTOR::Inspect( EDA_ITEM* aItem, const void* aTestData )
 }
 
 
-void LIB_COLLECTOR::Collect( LIB_ITEMS& aItems, const KICAD_T aFilterList[],
+void LIB_COLLECTOR::Collect( LIB_ITEMS_CONTAINER& aItems, const KICAD_T aFilterList[],
                              const wxPoint& aPosition, int aUnit, int aConvert )
 {
     Empty();        // empty the collection just in case
@@ -123,9 +136,9 @@ void LIB_COLLECTOR::Collect( LIB_ITEMS& aItems, const KICAD_T aFilterList[],
     m_data.m_unit = aUnit;
     m_data.m_convert = aConvert;
 
-    for( size_t i = 0;  i < aItems.size();  i++ )
+    for( LIB_ITEM& item : aItems )
     {
-        if( SEARCH_QUIT == aItems[i].Visit( this, NULL, m_ScanTypes ) )
+        if( SEARCH_QUIT == item.Visit( m_inspector, NULL, m_ScanTypes ) )
             break;
     }
 }

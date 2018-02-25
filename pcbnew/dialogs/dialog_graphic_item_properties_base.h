@@ -1,5 +1,5 @@
 ///////////////////////////////////////////////////////////////////////////
-// C++ code generated with wxFormBuilder (version Jun  5 2014)
+// C++ code generated with wxFormBuilder (version Aug  4 2017)
 // http://www.wxformbuilder.org/
 //
 // PLEASE DO "NOT" EDIT THIS FILE!
@@ -13,6 +13,7 @@
 #include <wx/intl.h>
 class DIALOG_SHIM;
 class PCB_LAYER_BOX_SELECTOR;
+class TEXT_CTRL_EVAL;
 
 #include "dialog_shim.h"
 #include <wx/string.h>
@@ -39,27 +40,28 @@ class DIALOG_GRAPHIC_ITEM_PROPERTIES_BASE : public DIALOG_SHIM
 	private:
 	
 	protected:
+		wxFlexGridSizer* m_fgUpperLeftGridSizer;
 		wxStaticText* m_StartPointXLabel;
-		wxTextCtrl* m_Center_StartXCtrl;
+		TEXT_CTRL_EVAL* m_Center_StartXCtrl;
 		wxStaticText* m_StartPointXUnit;
 		wxStaticText* m_StartPointYLabel;
-		wxTextCtrl* m_Center_StartYCtrl;
+		TEXT_CTRL_EVAL* m_Center_StartYCtrl;
 		wxStaticText* m_StartPointYUnit;
 		wxStaticText* m_EndPointXLabel;
-		wxTextCtrl* m_EndX_Radius_Ctrl;
+		TEXT_CTRL_EVAL* m_EndX_Radius_Ctrl;
 		wxStaticText* m_EndPointXUnit;
 		wxStaticText* m_EndPointYLabel;
-		wxTextCtrl* m_EndY_Ctrl;
+		TEXT_CTRL_EVAL* m_EndY_Ctrl;
 		wxStaticText* m_EndPointYUnit;
 		wxStaticLine* m_staticline2;
-		wxStaticText* m_Angle_Text;
-		wxTextCtrl* m_Angle_Ctrl;
+		wxStaticText* m_AngleText;
+		TEXT_CTRL_EVAL* m_AngleCtrl;
 		wxStaticText* m_AngleUnit;
 		wxStaticText* m_ThicknessLabel;
-		wxTextCtrl* m_ThicknessCtrl;
+		TEXT_CTRL_EVAL* m_ThicknessCtrl;
 		wxStaticText* m_ThicknessTextUnit;
 		wxStaticText* m_DefaultThicknessLabel;
-		wxTextCtrl* m_DefaultThicknessCtrl;
+		TEXT_CTRL_EVAL* m_DefaultThicknessCtrl;
 		wxStaticText* m_DefaulThicknessTextUnit;
 		wxStaticText* m_LayerLabel;
 		PCB_LAYER_BOX_SELECTOR* m_LayerSelectionCtrl;
@@ -70,8 +72,7 @@ class DIALOG_GRAPHIC_ITEM_PROPERTIES_BASE : public DIALOG_SHIM
 		
 		// Virtual event handlers, overide them in your derived class
 		virtual void OnClose( wxCloseEvent& event ) { event.Skip(); }
-		virtual void OnCancelClick( wxCommandEvent& event ) { event.Skip(); }
-		virtual void OnOkClick( wxCommandEvent& event ) { event.Skip(); }
+		virtual void OnInitDlg( wxInitDialogEvent& event ) { event.Skip(); }
 		
 	
 	public:

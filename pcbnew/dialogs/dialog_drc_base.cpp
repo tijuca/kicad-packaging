@@ -1,8 +1,8 @@
 ///////////////////////////////////////////////////////////////////////////
-// C++ code generated with wxFormBuilder (version May  6 2016)
+// C++ code generated with wxFormBuilder (version Feb  9 2018)
 // http://www.wxformbuilder.org/
 //
-// PLEASE DO "NOT" EDIT THIS FILE!
+// PLEASE DO *NOT* EDIT THIS FILE!
 ///////////////////////////////////////////////////////////////////////////
 
 #include "dialog_drclistbox.h"
@@ -21,11 +21,23 @@ DIALOG_DRC_CONTROL_BASE::DIALOG_DRC_CONTROL_BASE( wxWindow* parent, wxWindowID i
 	wxBoxSizer* m_CommandSizer;
 	m_CommandSizer = new wxBoxSizer( wxHORIZONTAL );
 	
-	wxStaticBoxSizer* sbSizerOptions;
-	sbSizerOptions = new wxStaticBoxSizer( new wxStaticBox( this, wxID_ANY, _("Options:") ), wxHORIZONTAL );
+	wxBoxSizer* bSizerOptions;
+	bSizerOptions = new wxBoxSizer( wxVERTICAL );
 	
-	wxBoxSizer* bSizer7;
-	bSizer7 = new wxBoxSizer( wxVERTICAL );
+	m_staticTextOptions = new wxStaticText( this, wxID_ANY, _("Options:"), wxDefaultPosition, wxDefaultSize, 0 );
+	m_staticTextOptions->Wrap( -1 );
+	m_staticTextOptions->SetFont( wxFont( wxNORMAL_FONT->GetPointSize(), wxFONTFAMILY_DEFAULT, wxFONTSTYLE_NORMAL, wxFONTWEIGHT_BOLD, false, wxEmptyString ) );
+	
+	bSizerOptions->Add( m_staticTextOptions, 0, wxTOP|wxRIGHT|wxLEFT, 5 );
+	
+	wxBoxSizer* bSizerOptsSettings;
+	bSizerOptsSettings = new wxBoxSizer( wxHORIZONTAL );
+	
+	
+	bSizerOptsSettings->Add( 20, 20, 0, 0, 5 );
+	
+	wxBoxSizer* bSizerOptSettings;
+	bSizerOptSettings = new wxBoxSizer( wxVERTICAL );
 	
 	wxFlexGridSizer* fgMinValuesSizer;
 	fgMinValuesSizer = new wxFlexGridSizer( 4, 3, 0, 0 );
@@ -33,91 +45,124 @@ DIALOG_DRC_CONTROL_BASE::DIALOG_DRC_CONTROL_BASE( wxWindow* parent, wxWindowID i
 	fgMinValuesSizer->SetFlexibleDirection( wxHORIZONTAL );
 	fgMinValuesSizer->SetNonFlexibleGrowMode( wxFLEX_GROWMODE_SPECIFIED );
 	
-	m_ClearanceTitle = new wxStaticText( sbSizerOptions->GetStaticBox(), wxID_ANY, _("Clearance"), wxDefaultPosition, wxDefaultSize, 0 );
+	m_ClearanceTitle = new wxStaticText( this, wxID_ANY, _("Clearance"), wxDefaultPosition, wxDefaultSize, 0 );
 	m_ClearanceTitle->Wrap( -1 );
-	fgMinValuesSizer->Add( m_ClearanceTitle, 0, wxALIGN_CENTER_VERTICAL|wxALIGN_RIGHT|wxALL, 5 );
+	fgMinValuesSizer->Add( m_ClearanceTitle, 0, wxALIGN_CENTER_VERTICAL|wxALIGN_RIGHT|wxLEFT, 5 );
 	
-	m_SetClearance = new wxTextCtrl( sbSizerOptions->GetStaticBox(), wxID_ANY, _("By Netclass"), wxDefaultPosition, wxDefaultSize, 0 );
+	m_SetClearance = new wxTextCtrl( this, wxID_ANY, _("By Netclass"), wxDefaultPosition, wxDefaultSize, 0 );
 	m_SetClearance->Enable( false );
 	
-	fgMinValuesSizer->Add( m_SetClearance, 0, wxALL|wxEXPAND, 5 );
+	fgMinValuesSizer->Add( m_SetClearance, 0, wxEXPAND|wxALL, 5 );
 	
 	
-	fgMinValuesSizer->Add( 0, 0, 1, wxEXPAND, 5 );
+	fgMinValuesSizer->Add( 0, 0, 0, 0, 5 );
 	
-	m_TrackMinWidthTitle = new wxStaticText( sbSizerOptions->GetStaticBox(), wxID_ANY, _("Min track width"), wxDefaultPosition, wxDefaultSize, 0 );
+	m_TrackMinWidthTitle = new wxStaticText( this, wxID_ANY, _("Minimum track width"), wxDefaultPosition, wxDefaultSize, 0 );
 	m_TrackMinWidthTitle->Wrap( -1 );
 	m_TrackMinWidthTitle->SetToolTip( _("Enter the minimum acceptable value for a track width") );
 	
-	fgMinValuesSizer->Add( m_TrackMinWidthTitle, 0, wxALIGN_CENTER_VERTICAL|wxALIGN_RIGHT|wxALL, 5 );
+	fgMinValuesSizer->Add( m_TrackMinWidthTitle, 0, wxALIGN_CENTER_VERTICAL|wxALIGN_RIGHT|wxLEFT, 5 );
 	
-	m_SetTrackMinWidthCtrl = new wxTextCtrl( sbSizerOptions->GetStaticBox(), wxID_ANY, wxEmptyString, wxDefaultPosition, wxDefaultSize, 0 );
-	fgMinValuesSizer->Add( m_SetTrackMinWidthCtrl, 0, wxALL|wxEXPAND, 5 );
+	m_SetTrackMinWidthCtrl = new wxTextCtrl( this, wxID_ANY, wxEmptyString, wxDefaultPosition, wxDefaultSize, 0 );
+	fgMinValuesSizer->Add( m_SetTrackMinWidthCtrl, 0, wxEXPAND|wxALL, 5 );
 	
-	m_TrackMinWidthUnit = new wxStaticText( sbSizerOptions->GetStaticBox(), wxID_ANY, _("unit"), wxDefaultPosition, wxDefaultSize, 0 );
+	m_TrackMinWidthUnit = new wxStaticText( this, wxID_ANY, _("unit"), wxDefaultPosition, wxDefaultSize, 0 );
 	m_TrackMinWidthUnit->Wrap( -1 );
 	m_TrackMinWidthUnit->SetToolTip( _("Enter the minimum acceptable value for a track width") );
 	
-	fgMinValuesSizer->Add( m_TrackMinWidthUnit, 0, wxALL, 5 );
+	fgMinValuesSizer->Add( m_TrackMinWidthUnit, 0, wxALIGN_CENTER_VERTICAL|wxRIGHT, 5 );
 	
-	m_ViaMinTitle = new wxStaticText( sbSizerOptions->GetStaticBox(), wxID_ANY, _("Min via size"), wxDefaultPosition, wxDefaultSize, 0 );
+	m_ViaMinTitle = new wxStaticText( this, wxID_ANY, _("Minimum via size"), wxDefaultPosition, wxDefaultSize, 0 );
 	m_ViaMinTitle->Wrap( -1 );
 	m_ViaMinTitle->SetHelpText( _("Enter the minimum acceptable diameter for a standard via") );
 	
-	fgMinValuesSizer->Add( m_ViaMinTitle, 0, wxALIGN_CENTER_VERTICAL|wxALIGN_RIGHT|wxALL, 5 );
+	fgMinValuesSizer->Add( m_ViaMinTitle, 0, wxALIGN_CENTER_VERTICAL|wxALIGN_RIGHT|wxLEFT, 5 );
 	
-	m_SetViaMinSizeCtrl = new wxTextCtrl( sbSizerOptions->GetStaticBox(), wxID_ANY, wxEmptyString, wxDefaultPosition, wxDefaultSize, 0 );
+	m_SetViaMinSizeCtrl = new wxTextCtrl( this, wxID_ANY, wxEmptyString, wxDefaultPosition, wxDefaultSize, 0 );
 	fgMinValuesSizer->Add( m_SetViaMinSizeCtrl, 0, wxALL|wxEXPAND, 5 );
 	
-	m_ViaMinUnit = new wxStaticText( sbSizerOptions->GetStaticBox(), wxID_ANY, _("unit"), wxDefaultPosition, wxDefaultSize, 0 );
+	m_ViaMinUnit = new wxStaticText( this, wxID_ANY, _("unit"), wxDefaultPosition, wxDefaultSize, 0 );
 	m_ViaMinUnit->Wrap( -1 );
 	m_ViaMinUnit->SetHelpText( _("Enter the minimum acceptable diameter for a standard via") );
 	
-	fgMinValuesSizer->Add( m_ViaMinUnit, 0, wxALL, 5 );
+	fgMinValuesSizer->Add( m_ViaMinUnit, 0, wxALIGN_CENTER_VERTICAL|wxRIGHT, 5 );
 	
-	m_MicroViaMinTitle = new wxStaticText( sbSizerOptions->GetStaticBox(), wxID_ANY, _("Min uVia size"), wxDefaultPosition, wxDefaultSize, 0 );
+	m_MicroViaMinTitle = new wxStaticText( this, wxID_ANY, _("Minimum uVia size"), wxDefaultPosition, wxDefaultSize, 0 );
 	m_MicroViaMinTitle->Wrap( -1 );
 	m_MicroViaMinTitle->SetToolTip( _("Enter the minimum acceptable diameter for a micro via") );
 	
-	fgMinValuesSizer->Add( m_MicroViaMinTitle, 0, wxALIGN_CENTER_VERTICAL|wxALIGN_RIGHT|wxALL, 5 );
+	fgMinValuesSizer->Add( m_MicroViaMinTitle, 0, wxALIGN_CENTER_VERTICAL|wxALIGN_RIGHT|wxLEFT, 5 );
 	
-	m_SetMicroViakMinSizeCtrl = new wxTextCtrl( sbSizerOptions->GetStaticBox(), wxID_ANY, wxEmptyString, wxDefaultPosition, wxDefaultSize, 0 );
+	m_SetMicroViakMinSizeCtrl = new wxTextCtrl( this, wxID_ANY, wxEmptyString, wxDefaultPosition, wxDefaultSize, 0 );
 	fgMinValuesSizer->Add( m_SetMicroViakMinSizeCtrl, 0, wxALL|wxEXPAND, 5 );
 	
-	m_MicroViaMinUnit = new wxStaticText( sbSizerOptions->GetStaticBox(), wxID_ANY, _("unit"), wxDefaultPosition, wxDefaultSize, 0 );
+	m_MicroViaMinUnit = new wxStaticText( this, wxID_ANY, _("unit"), wxDefaultPosition, wxDefaultSize, 0 );
 	m_MicroViaMinUnit->Wrap( -1 );
 	m_MicroViaMinUnit->SetToolTip( _("Enter the minimum acceptable diameter for a micro via") );
 	
-	fgMinValuesSizer->Add( m_MicroViaMinUnit, 0, wxALL, 5 );
+	fgMinValuesSizer->Add( m_MicroViaMinUnit, 0, wxALIGN_CENTER_VERTICAL|wxRIGHT, 5 );
 	
 	
-	bSizer7->Add( fgMinValuesSizer, 1, wxEXPAND, 5 );
+	bSizerOptSettings->Add( fgMinValuesSizer, 0, wxEXPAND, 5 );
 	
-	wxStaticBoxSizer* ReportFileSizer;
-	ReportFileSizer = new wxStaticBoxSizer( new wxStaticBox( sbSizerOptions->GetStaticBox(), wxID_ANY, _("Create Report File") ), wxHORIZONTAL );
+	m_cbRefillZones = new wxCheckBox( this, wxID_ANY, _("Refill all zones before performing DRC"), wxDefaultPosition, wxDefaultSize, 0 );
+	bSizerOptSettings->Add( m_cbRefillZones, 0, wxLEFT|wxRIGHT, 5 );
 	
-	m_CreateRptCtrl = new wxCheckBox( ReportFileSizer->GetStaticBox(), ID_CHECKBOX_RPT_FILE, wxEmptyString, wxDefaultPosition, wxDefaultSize, 0 );
+	m_cbCourtyardOverlap = new wxCheckBox( this, wxID_ANY, _("Check footprint courtyard overlap"), wxDefaultPosition, wxDefaultSize, 0 );
+	bSizerOptSettings->Add( m_cbCourtyardOverlap, 0, wxLEFT|wxRIGHT, 5 );
+	
+	m_cbCourtyardMissing = new wxCheckBox( this, wxID_ANY, _("Check courtyard missing in footprints"), wxDefaultPosition, wxDefaultSize, 0 );
+	bSizerOptSettings->Add( m_cbCourtyardMissing, 0, wxBOTTOM|wxRIGHT|wxLEFT, 5 );
+	
+	
+	bSizerOptsSettings->Add( bSizerOptSettings, 1, wxEXPAND, 5 );
+	
+	
+	bSizerOptions->Add( bSizerOptsSettings, 1, wxEXPAND, 5 );
+	
+	
+	bSizerOptions->Add( 10, 5, 0, 0, 5 );
+	
+	m_staticTextRpt = new wxStaticText( this, wxID_ANY, _("Create Report File"), wxDefaultPosition, wxDefaultSize, 0 );
+	m_staticTextRpt->Wrap( -1 );
+	m_staticTextRpt->SetFont( wxFont( wxNORMAL_FONT->GetPointSize(), wxFONTFAMILY_DEFAULT, wxFONTSTYLE_NORMAL, wxFONTWEIGHT_BOLD, false, wxEmptyString ) );
+	
+	bSizerOptions->Add( m_staticTextRpt, 0, wxTOP|wxRIGHT|wxLEFT, 5 );
+	
+	wxBoxSizer* bSizerRpt;
+	bSizerRpt = new wxBoxSizer( wxHORIZONTAL );
+	
+	
+	bSizerRpt->Add( 20, 20, 0, 0, 5 );
+	
+	wxFlexGridSizer* fgSizerRpt;
+	fgSizerRpt = new wxFlexGridSizer( 0, 3, 0, 0 );
+	fgSizerRpt->AddGrowableCol( 1 );
+	fgSizerRpt->SetFlexibleDirection( wxBOTH );
+	fgSizerRpt->SetNonFlexibleGrowMode( wxFLEX_GROWMODE_SPECIFIED );
+	
+	m_CreateRptCtrl = new wxCheckBox( this, ID_CHECKBOX_RPT_FILE, wxEmptyString, wxDefaultPosition, wxDefaultSize, 0 );
 	m_CreateRptCtrl->SetToolTip( _("Enable writing report to this file") );
 	
-	ReportFileSizer->Add( m_CreateRptCtrl, 0, wxALL|wxALIGN_CENTER_VERTICAL, 5 );
+	fgSizerRpt->Add( m_CreateRptCtrl, 0, wxALIGN_CENTER_VERTICAL|wxRIGHT|wxLEFT, 5 );
 	
-	m_RptFilenameCtrl = new wxTextCtrl( ReportFileSizer->GetStaticBox(), wxID_ANY, wxEmptyString, wxDefaultPosition, wxDefaultSize, 0 );
+	m_RptFilenameCtrl = new wxTextCtrl( this, wxID_ANY, wxEmptyString, wxDefaultPosition, wxDefaultSize, 0 );
 	m_RptFilenameCtrl->SetToolTip( _("Enter the report filename") );
 	m_RptFilenameCtrl->SetMinSize( wxSize( 180,-1 ) );
 	
-	ReportFileSizer->Add( m_RptFilenameCtrl, 1, wxALL|wxEXPAND, 5 );
+	fgSizerRpt->Add( m_RptFilenameCtrl, 0, wxEXPAND|wxALIGN_CENTER_VERTICAL|wxALL, 5 );
 	
-	m_BrowseButton = new wxButton( ReportFileSizer->GetStaticBox(), ID_BUTTON_BROWSE_RPT_FILE, _("..."), wxDefaultPosition, wxSize( 50,-1 ), 0 );
-	ReportFileSizer->Add( m_BrowseButton, 0, wxALIGN_CENTER_VERTICAL, 5 );
-	
-	
-	bSizer7->Add( ReportFileSizer, 0, wxEXPAND|wxTOP|wxBOTTOM|wxRIGHT, 5 );
+	m_BrowseButton = new wxButton( this, ID_BUTTON_BROWSE_RPT_FILE, _("..."), wxDefaultPosition, wxSize( 50,-1 ), 0 );
+	fgSizerRpt->Add( m_BrowseButton, 0, wxALIGN_CENTER_VERTICAL|wxRIGHT, 5 );
 	
 	
-	sbSizerOptions->Add( bSizer7, 1, wxEXPAND, 5 );
+	bSizerRpt->Add( fgSizerRpt, 1, 0, 5 );
 	
 	
-	m_CommandSizer->Add( sbSizerOptions, 1, 0, 5 );
+	bSizerOptions->Add( bSizerRpt, 0, wxEXPAND, 5 );
+	
+	
+	m_CommandSizer->Add( bSizerOptions, 1, wxEXPAND, 5 );
 	
 	wxBoxSizer* bSizerMessages;
 	bSizerMessages = new wxBoxSizer( wxVERTICAL );
@@ -164,11 +209,35 @@ DIALOG_DRC_CONTROL_BASE::DIALOG_DRC_CONTROL_BASE( wxWindow* parent, wxWindowID i
 	
 	m_MainSizer->Add( m_CommandSizer, 0, wxALL|wxEXPAND, 5 );
 	
-	m_staticTextErrMsg = new wxStaticText( this, wxID_ANY, _("Error Messages:"), wxDefaultPosition, wxDefaultSize, 0 );
-	m_staticTextErrMsg->Wrap( -1 );
-	m_MainSizer->Add( m_staticTextErrMsg, 0, wxALL, 5 );
+	wxStaticBoxSizer* m_ErrorMsgs;
+	m_ErrorMsgs = new wxStaticBoxSizer( new wxStaticBox( this, wxID_ANY, _("Error Messages:") ), wxVERTICAL );
 	
-	m_Notebook = new wxNotebook( this, ID_NOTEBOOK1, wxDefaultPosition, wxDefaultSize, 0 );
+	wxBoxSizer* bSizer8;
+	bSizer8 = new wxBoxSizer( wxHORIZONTAL );
+	
+	m_MarkerCountLabel = new wxStaticText( m_ErrorMsgs->GetStaticBox(), wxID_ANY, _("Marker count:"), wxDefaultPosition, wxDefaultSize, 0 );
+	m_MarkerCountLabel->Wrap( -1 );
+	bSizer8->Add( m_MarkerCountLabel, 0, wxALL, 5 );
+	
+	m_MarkerCount = new wxStaticText( m_ErrorMsgs->GetStaticBox(), wxID_ANY, _("0"), wxDefaultPosition, wxDefaultSize, 0 );
+	m_MarkerCount->Wrap( -1 );
+	bSizer8->Add( m_MarkerCount, 1, wxALL, 5 );
+	
+	m_staticline1 = new wxStaticLine( m_ErrorMsgs->GetStaticBox(), wxID_ANY, wxDefaultPosition, wxDefaultSize, wxLI_VERTICAL );
+	bSizer8->Add( m_staticline1, 0, wxEXPAND | wxALL, 5 );
+	
+	m_UnconnectedCountLabel = new wxStaticText( m_ErrorMsgs->GetStaticBox(), wxID_ANY, _("Unconnected count:"), wxDefaultPosition, wxDefaultSize, 0 );
+	m_UnconnectedCountLabel->Wrap( -1 );
+	bSizer8->Add( m_UnconnectedCountLabel, 0, wxALL, 5 );
+	
+	m_UnconnectedCount = new wxStaticText( m_ErrorMsgs->GetStaticBox(), wxID_ANY, _("0"), wxDefaultPosition, wxDefaultSize, 0 );
+	m_UnconnectedCount->Wrap( -1 );
+	bSizer8->Add( m_UnconnectedCount, 1, wxALL, 5 );
+	
+	
+	m_ErrorMsgs->Add( bSizer8, 0, wxEXPAND, 5 );
+	
+	m_Notebook = new wxNotebook( m_ErrorMsgs->GetStaticBox(), ID_NOTEBOOK1, wxDefaultPosition, wxDefaultSize, 0 );
 	m_panelClearanceListBox = new wxPanel( m_Notebook, wxID_ANY, wxDefaultPosition, wxDefaultSize, wxTAB_TRAVERSAL );
 	wxBoxSizer* bSizeClearanceBox;
 	bSizeClearanceBox = new wxBoxSizer( wxVERTICAL );
@@ -199,7 +268,10 @@ DIALOG_DRC_CONTROL_BASE::DIALOG_DRC_CONTROL_BASE( wxWindow* parent, wxWindowID i
 	bSizerUnconnectedBox->Fit( m_panelUnconnectedBox );
 	m_Notebook->AddPage( m_panelUnconnectedBox, _("Unconnected"), false );
 	
-	m_MainSizer->Add( m_Notebook, 1, wxEXPAND | wxALL, 5 );
+	m_ErrorMsgs->Add( m_Notebook, 1, wxEXPAND | wxALL, 5 );
+	
+	
+	m_MainSizer->Add( m_ErrorMsgs, 1, wxEXPAND, 5 );
 	
 	m_sdbSizer1 = new wxStdDialogButtonSizer();
 	m_sdbSizer1OK = new wxButton( this, wxID_OK );
@@ -213,6 +285,7 @@ DIALOG_DRC_CONTROL_BASE::DIALOG_DRC_CONTROL_BASE( wxWindow* parent, wxWindowID i
 	
 	this->SetSizer( m_MainSizer );
 	this->Layout();
+	m_MainSizer->Fit( this );
 	
 	// Connect Events
 	this->Connect( wxEVT_ACTIVATE, wxActivateEventHandler( DIALOG_DRC_CONTROL_BASE::OnActivateDlg ) );
