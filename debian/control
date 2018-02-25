@@ -87,6 +87,7 @@ Suggests:
  kicad-doc-ca | kicad-doc-de | kicad-doc-en | kicad-doc-es | kicad-doc-fr | kicad-doc-it | kicad-doc-ja | kicad-doc-nl | kicad-doc-pl | kicad-doc-ru,
 Recommends:
  kicad-libraries,
+ kicad-demos,
  xsltproc,
 Breaks:
  kicad-common (<< 5.0.0~rc1+dfsg1-1~),
@@ -129,6 +130,22 @@ Description: Old common files used by kicad - Transitional Package
  suggested due the installation size.
  .
  This is a transitional package. It can be safely removed.
+
+Package: kicad-demos
+Architecture: all
+Multi-Arch: foreign
+Depends:
+ ${misc:Depends},
+Suggests:
+ kicad (>= 5.0.0~rc1+dfsg1-1~),
+Description: Demo projects for kicad
+ The KiCad projects within this package are various typical small use cases
+ which can be used for study or also for build own projects on top of these
+ existing projects.
+ .
+ The projects included are on one side easy and simple projects with classical
+ through hole mounted components with one or two layers but also rather more
+ complex projects based on surface mounted devices (SMD) with multiple layers.
 
 Package: kicad-doc-ca
 Section: doc
