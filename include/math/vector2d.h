@@ -28,11 +28,9 @@
 #ifndef VECTOR2D_H_
 #define VECTOR2D_H_
 
-#include <cmath>
-#include <climits>
+#include <limits>
 #include <iostream>
 #include <sstream>
-#include <cmath>
 
 #include <math/math_util.h>
 
@@ -56,8 +54,6 @@ template <>
 struct VECTOR2_TRAITS<int>
 {
     typedef int64_t extended_type;
-    static const extended_type ECOORD_MAX = 0x7fffffffffffffffULL;
-    static const extended_type ECOORD_MIN = 0x8000000000000000ULL;
 };
 
 // Forward declarations for template friends
@@ -75,11 +71,14 @@ std::ostream& operator<<( std::ostream& aStream, const VECTOR2<T>& aVector );
  *
  */
 template <class T = int>
-class VECTOR2 : public VECTOR2_TRAITS<T>
+class VECTOR2
 {
 public:
     typedef typename VECTOR2_TRAITS<T>::extended_type extended_type;
     typedef T coord_type;
+
+    static constexpr extended_type ECOORD_MAX = std::numeric_limits<extended_type>::max();
+    static constexpr extended_type ECOORD_MIN = std::numeric_limits<extended_type>::min();
 
     T x, y;
 
@@ -114,6 +113,16 @@ public:
     VECTOR2<CastedType> operator()() const
     {
         return VECTOR2<CastedType>( (CastedType) x, (CastedType) y );
+    }
+
+    /**
+     * (wxPoint)
+     * implements the cast to wxPoint.
+     * @return wxPoint - the vector cast to wxPoint.
+     */
+    explicit operator wxPoint() const
+    {
+        return wxPoint( x, y );
     }
 
     /// Destructor
@@ -298,7 +307,7 @@ typename VECTOR2<T>::extended_type VECTOR2<T>::SquaredEuclideanNorm() const
 template <class T>
 double VECTOR2<T>::Angle() const
 {
-    return atan2( y, x );
+    return atan2( (double) y, (double) x );
 }
 
 
@@ -355,9 +364,17 @@ VECTOR2<T>& VECTOR2<T>::operator-=( const T& aScalar )
 }
 
 
+/**
+ * Rotate a VECTOR2 by aAngle.
+ * @param aAngle = rotation angle in radians
+ */
 template <class T>
 VECTOR2<T> VECTOR2<T>::Rotate( double aAngle ) const
 {
+    // Avoid 0 radian rotation, case very frequently found
+    if( aAngle == 0.0 )
+        return VECTOR2<T> ( T( x ), T( y ) );
+
     double  sa  = sin( aAngle );
     double  ca  = cos( aAngle );
 
@@ -430,7 +447,7 @@ VECTOR2<T> VECTOR2<T>::operator-()
 template <class T>
 typename VECTOR2<T>::extended_type VECTOR2<T>::operator*( const VECTOR2<T>& aVector ) const
 {
-    return aVector.x * x + aVector.y * y;
+    return (extended_type)aVector.x * x + (extended_type)aVector.y * y;
 }
 
 
@@ -568,8 +585,9 @@ std::ostream& operator<<( std::ostream& aStream, const VECTOR2<T>& aVector )
 
 
 /* Default specializations */
-typedef VECTOR2<double> VECTOR2D;
-typedef VECTOR2<int>    VECTOR2I;
+typedef VECTOR2<double>       VECTOR2D;
+typedef VECTOR2<int>          VECTOR2I;
+typedef VECTOR2<unsigned int> VECTOR2U;
 
 /* Compatibility typedefs */
 // FIXME should be removed to avoid multiple typedefs for the same type

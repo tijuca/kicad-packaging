@@ -2,7 +2,7 @@
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
  * Copyright (C) 2012 SoftPLC Corporation, Dick Hollenbeck <dick@softplc.com>
- * Copyright (C) 2012-2016 KiCad Developers, see CHANGELOG.TXT for contributors.
+ * Copyright (C) 2012-2018 KiCad Developers, see AUTHORS.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -29,7 +29,24 @@
 #include <hashtables.h>
 #include <kiway_player.h>
 
+#ifdef  __WXMAC__
+/**
+ * MACOS requires this option to be set to 1 in order to set dialogs focus.
+ **/
+#define DLGSHIM_USE_SETFOCUS      1
+#else
 #define DLGSHIM_USE_SETFOCUS      0
+#endif
+
+#ifdef __WXMAC__
+/**
+ * MACOS requires this option so that tabbing between text controls will
+ * arrive with the text selected.
+ **/
+#define DLGSHIM_SELECT_ALL_IN_TEXT_CONTROLS     1
+#else
+#define DLGSHIM_SELECT_ALL_IN_TEXT_CONTROLS     0
+#endif
 
 class WDO_ENABLE_DISABLE;
 class EVENT_LOOP;
@@ -85,9 +102,11 @@ public:
 
     bool IsQuasiModal()         { return m_qmodal_showing; }
 
-    bool Show( bool show );     // override wxDialog::Show
+    bool Show( bool show ) override;
 
-    bool Enable( bool enable ); // override wxDialog::Enable virtual
+    bool Enable( bool enable ) override;
+
+    void OnPaint( wxPaintEvent &event );
 
 protected:
 
@@ -108,15 +127,26 @@ protected:
      */
     void FinishDialogSettings();
 
-    /** A ugly hack to fix an issue on OSX:
-     * when typing ctrl+c in a wxTextCtrl inside a dialog, it is closed instead of
-     * copying a text if a button with wxID_CANCEL is used in a wxStdDialogButtonSizer,
-     * when the dlg is created by wxFormBuilder:
-     * the label is &Cancel, and this accelerator key has priority
-     * to copy text standard accelerator, and the dlg is closed when trying to copy text
-     * this function do nothing on other platforms
+    /**
+     * Set the dialog to the given dimensions in "dialog units". These are units equivalent
+     * to 4* the average character width and 8* the average character height, allowing a dialog
+     * to be sized in a way that scales it with the system font.
      */
-    void FixOSXCancelButtonIssue();
+    void SetSizeInDU( int x, int y );
+
+    /**
+     * Convert an integer number of dialog units to pixels, horizontally. See SetSizeInDU or
+     * wxDialog documentation for more information.
+     */
+    int HorizPixelsFromDU( int x );
+
+    /**
+     * Convert an integer number of dialog units to pixels, vertically. See SetSizeInDU or
+     * wxDialog documentation for more information.
+     */
+    int VertPixelsFromDU( int y );
+
+    bool m_fixupsRun;
 
     std::string m_hash_key;     // alternate for class_map when classname re-used.
 
@@ -124,11 +154,6 @@ protected:
     EVENT_LOOP*         m_qmodal_loop;      // points to nested event_loop, NULL means not qmodal and dismissed
     bool                m_qmodal_showing;
     WDO_ENABLE_DISABLE* m_qmodal_parent_disabler;
-
-#if DLGSHIM_USE_SETFOCUS
-private:
-    void    onInit( wxInitDialogEvent& aEvent );
-#endif
 };
 
 #endif  // DIALOG_SHIM_

@@ -42,24 +42,26 @@
 #ifndef _HE_TRIANG_H_
 #define _HE_TRIANG_H_
 
-//#define TTL_USE_NODE_ID   // Each node gets it's own unique id
+#define TTL_USE_NODE_ID   // Each node gets it's own unique id
 #define TTL_USE_NODE_FLAG // Each node gets a flag (can be set to true or false)
 
 #include <list>
+#include <unordered_set>
 #include <vector>
 #include <iostream>
 #include <fstream>
 #include <ttl/ttl_util.h>
-#include <boost/shared_ptr.hpp>
-#include <boost/weak_ptr.hpp>
+#include <memory>
 #include <layers_id_colors_and_visibility.h>
+#include <math/vector2d.h>
 
 class BOARD_CONNECTED_ITEM;
+class CN_CLUSTER;
 
 namespace ttl
 {
     class TRIANGULATION_HELPER;
-};
+}
 
 /**
  * The half-edge data structure
@@ -69,9 +71,9 @@ namespace hed
 // Helper typedefs
 class NODE;
 class EDGE;
-typedef boost::shared_ptr<NODE> NODE_PTR;
-typedef boost::shared_ptr<EDGE> EDGE_PTR;
-typedef boost::weak_ptr<EDGE> EDGE_WEAK_PTR;
+typedef std::shared_ptr<NODE> NODE_PTR;
+typedef std::shared_ptr<EDGE> EDGE_PTR;
+typedef std::weak_ptr<EDGE> EDGE_WEAK_PTR;
 typedef std::vector<NODE_PTR> NODES_CONTAINER;
 
 /**
@@ -101,36 +103,27 @@ protected:
 #endif
 
     /// Node coordinates
-    int m_x, m_y;
-
-    /// Tag for quick connection resolution
-    int m_tag;
-
-    /// List of board items that share this node
-    std::list<const BOARD_CONNECTED_ITEM*> m_parents;
-
-    /// Layers that are occupied by this node
-    LSET m_layers;
-
-    /// Recomputes the layers used by this node
-    void updateLayers();
+    const int m_x, m_y;
 
 public:
     /// Constructor
-    NODE( int aX = 0, int aY = 0 ) :
+    NODE( int aX = 0, int aY = 0, std::shared_ptr<CN_CLUSTER> aCluster = nullptr ) :
 #ifdef TTL_USE_NODE_FLAG
         m_flag( false ),
 #endif
 #ifdef TTL_USE_NODE_ID
         m_id( id_count++ ),
 #endif
-        m_x( aX ), m_y( aY ), m_tag( -1 )
+        m_x( aX ), m_y( aY )
     {
-        m_layers.reset();
     }
 
     /// Destructor
-    ~NODE() {}
+    ~NODE() {
+
+    }
+
+    const VECTOR2D Pos() const { return VECTOR2D( m_x, m_y ); }
 
     /// Returns the x-coordinate
     inline int GetX() const
@@ -144,20 +137,19 @@ public:
         return m_y;
     }
 
-    /// Returns tag, common identifier for connected nodes
-    inline int GetTag() const
+    inline VECTOR2I GetPos() const
     {
-        return m_tag;
-    }
-
-    /// Sets tag, common identifier for connected nodes
-    inline void SetTag( int aTag )
-    {
-        m_tag = aTag;
+        return VECTOR2I( m_x, m_y );
     }
 
 #ifdef TTL_USE_NODE_ID
     /// Returns the id (TTL_USE_NODE_ID must be defined)
+
+    inline void SetId( int aId )
+    {
+        m_id = aId;
+    }
+
     inline int Id() const
     {
         return m_id;
@@ -177,34 +169,6 @@ public:
         return m_flag;
     }
 #endif
-
-    inline unsigned int GetRefCount() const
-    {
-        return m_parents.size();
-    }
-
-    inline void AddParent( const BOARD_CONNECTED_ITEM* aParent )
-    {
-        m_parents.push_back( aParent );
-        m_layers.reset();   // mark as needs updating
-    }
-
-    inline void RemoveParent( const BOARD_CONNECTED_ITEM* aParent )
-    {
-        m_parents.remove( aParent );
-        m_layers.reset();   // mark as needs updating
-    }
-
-    const LSET& GetLayers()
-    {
-        if( m_layers.none() )
-            updateLayers();
-
-        return m_layers;
-    }
-
-    // Tag used for unconnected items.
-    static const int TAG_UNCONNECTED = -1;
 };
 
 
@@ -216,23 +180,14 @@ class EDGE
 {
 public:
     /// Constructor
-    EDGE() : m_weight( 0 ), m_isLeadingEdge( false )
+    EDGE() : m_isLeadingEdge( false )
     {
     }
 
     /// Destructor
     virtual ~EDGE()
     {
-    }
 
-    /// Returns tag, common identifier for connected nodes
-    inline int GetTag() const
-    {
-        int tag = GetSourceNode()->GetTag();
-        if( tag >= 0 )
-            return tag;
-
-        return GetTargetNode()->GetTag();
     }
 
     /// Sets the source node
@@ -268,6 +223,9 @@ public:
     /// Returns the twin edge
     inline EDGE_PTR GetTwinEdge() const
     {
+        if( m_twinEdge.expired() )
+            return nullptr;
+
         return m_twinEdge.lock();
     }
 
@@ -279,6 +237,7 @@ public:
     /// Returns the next edge in face
     inline const EDGE_PTR& GetNextEdgeInFace() const
     {
+        assert ( m_nextEdgeInFace );
         return m_nextEdgeInFace;
     }
 
@@ -292,16 +251,6 @@ public:
     virtual const NODE_PTR& GetTargetNode() const
     {
         return m_nextEdgeInFace->GetSourceNode();
-    }
-
-    inline void SetWeight( unsigned int weight )
-    {
-        m_weight = weight;
-    }
-
-    inline unsigned int GetWeight() const
-    {
-        return m_weight;
     }
 
     void Clear()
@@ -320,39 +269,7 @@ protected:
     NODE_PTR        m_sourceNode;
     EDGE_WEAK_PTR   m_twinEdge;
     EDGE_PTR        m_nextEdgeInFace;
-    unsigned int    m_weight;
     bool            m_isLeadingEdge;
-};
-
-
- /**
-  * \class EDGE_MST
-  * \brief \b Specialization of %EDGE class to be used for Minimum Spanning Tree algorithm.
-  */
-class EDGE_MST : public EDGE
-{
-private:
-    NODE_PTR m_target;
-
-public:
-    EDGE_MST( const NODE_PTR& aSource, const NODE_PTR& aTarget, unsigned int aWeight = 0 ) :
-        m_target( aTarget )
-    {
-        m_sourceNode = aSource;
-        m_weight = aWeight;
-    }
-
-    /// @copydoc Edge::setSourceNode()
-    virtual const NODE_PTR& GetTargetNode() const
-    {
-        return m_target;
-    }
-
-private:
-    EDGE_MST( const EDGE& aEdge )
-    {
-        assert( false );
-    }
 };
 
 class DART; // Forward declaration (class in this namespace)
@@ -480,7 +397,7 @@ public:
     }
 
     /// Returns a list of half-edges (one half-edge for each arc)
-    std::list<EDGE_PTR>* GetEdges( bool aSkipBoundaryEdges = false ) const;
+    void GetEdges( std::list<EDGE_PTR>& aEdges, bool aSkipBoundaryEdges = false ) const;
 
 #ifdef TTL_USE_NODE_FLAG
     /// Sets flag in all the nodes
@@ -509,6 +426,6 @@ public:
 
     friend class ttl::TRIANGULATION_HELPER;
 };
-}; // End of hed namespace
+} // End of hed namespace
 
 #endif

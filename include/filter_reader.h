@@ -1,4 +1,3 @@
-
 /*
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
@@ -49,14 +48,14 @@ public:
 
     ~FILTER_READER();
 
-    char* ReadLine() throw( IO_ERROR );
+    char* ReadLine() override;
 
-    const wxString& GetSource() const
+    const wxString& GetSource() const override
     {
         return reader.GetSource();
     }
 
-    unsigned LineNumber() const
+    unsigned LineNumber() const override
     {
         return reader.LineNumber();
     }
@@ -83,14 +82,14 @@ public:
 
     ~WHITESPACE_FILTER_READER();
 
-    char* ReadLine() throw( IO_ERROR );
+    char* ReadLine() override;
 
-    const wxString& GetSource() const
+    const wxString& GetSource() const override
     {
         return reader.GetSource();
     }
 
-    unsigned LineNumber() const
+    unsigned LineNumber() const override
     {
         return reader.LineNumber();
     }

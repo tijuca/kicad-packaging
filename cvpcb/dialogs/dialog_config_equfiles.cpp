@@ -6,7 +6,7 @@
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
  * Copyright (C) 2015 Jean-Pierre Charras, jp.charras at wanadoo.fr
- * Copyright (C) 1992-2015 KiCad Developers, see AUTHORS.txt for contributors.
+ * Copyright (C) 1992-2016 KiCad Developers, see AUTHORS.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -49,7 +49,7 @@ DIALOG_CONFIG_EQUFILES::DIALOG_CONFIG_EQUFILES( CVPCB_MAINFRAME* aParent ) :
     m_Config = Pgm().CommonSettings();
 
     PROJECT&    prj = Prj();
-    SetTitle( wxString::Format( _( "Project file: '%s'" ), GetChars( prj.GetProjectFullName() ) ) );
+    SetTitle( wxString::Format( _( "Project file: \"%s\"" ), GetChars( prj.GetProjectFullName() ) ) );
 
     Init( );
 
@@ -96,7 +96,7 @@ void DIALOG_CONFIG_EQUFILES::OnEditEquFile( wxCommandEvent& event )
 
     if( editorname.IsEmpty() )
     {
-        wxMessageBox( _( "No editor defined in Kicad. Please chose it" ) );
+        wxMessageBox( _( "No editor defined in Kicad. Please choose it." ) );
         return;
     }
 
@@ -116,12 +116,6 @@ void DIALOG_CONFIG_EQUFILES::OnEditEquFile( wxCommandEvent& event )
 }
 
 
-void DIALOG_CONFIG_EQUFILES::OnCancelClick( wxCommandEvent& event )
-{
-    EndModal( wxID_CANCEL );
-}
-
-
 void DIALOG_CONFIG_EQUFILES::OnOkClick( wxCommandEvent& event )
 {
     // Save new equ file list if the files list was modified
@@ -134,7 +128,7 @@ void DIALOG_CONFIG_EQUFILES::OnOkClick( wxCommandEvent& event )
             m_Parent->m_EquFilesNames.Add( m_ListEquiv->GetString( ii ) );
 
         wxCommandEvent evt( ID_SAVE_PROJECT );
-        m_Parent->SaveProjectFile( evt );
+        m_Parent->SaveProjectFile();
     }
 
     EndModal( wxID_OK );
@@ -235,16 +229,11 @@ void DIALOG_CONFIG_EQUFILES::OnRemoveFiles( wxCommandEvent& event )
 }
 
 
-/* Insert or add a library to the library list:
- *   The new library is put in list before (insert button) the selection,
- *   or added (add button) to end of list
- */
 void DIALOG_CONFIG_EQUFILES::OnAddFiles( wxCommandEvent& event )
 {
-    wxString   equFilename, wildcard;
+    wxString   equFilename;
     wxFileName fn;
 
-    wildcard = EquFilesWildcard;
     wxListBox* list = m_ListEquiv;
 
     // Get a default path to open the file dialog:
@@ -256,8 +245,8 @@ void DIALOG_CONFIG_EQUFILES::OnAddFiles( wxCommandEvent& event )
 
     libpath = m_gridEnvVars->GetCellValue( wxGridCellCoords( row, 1 ) );
 
-    wxFileDialog FilesDialog( this, _( "Equ files:" ), libpath,
-                              wxEmptyString, wildcard,
+    wxFileDialog FilesDialog( this, _( "Footprint Association File" ), libpath,
+                              wxEmptyString, EquFileWildcard(),
                               wxFD_DEFAULT_STYLE | wxFD_MULTIPLE );
 
     if( FilesDialog.ShowModal() != wxID_OK )
@@ -301,7 +290,7 @@ void DIALOG_CONFIG_EQUFILES::OnAddFiles( wxCommandEvent& event )
         else
         {
             wxString msg;
-            msg.Printf( _( "File '%s' already exists in list" ), equFilename.GetData() );
+            msg.Printf( _( "File \"%s\" already exists in list" ), equFilename.GetData() );
             DisplayError( this, msg );
         }
     }

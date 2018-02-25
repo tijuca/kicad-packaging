@@ -2,7 +2,7 @@
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
  * Copyright (C) 2009-2014 Jean-Pierre Charras, jean-pierre.charras@ujf-grenoble.fr
- * Copyright (C) 1992-2012 KiCad Developers, see AUTHORS.txt for contributors.
+ * Copyright (C) 1992-2017 KiCad Developers, see AUTHORS.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -30,9 +30,10 @@
 #include <kicad_string.h>
 #include <gestfich.h>
 #include <pcbnew.h>
-#include <wxPcbStruct.h>
+#include <pcb_edit_frame.h>
 #include <macros.h>
 #include <project.h>
+#include <wildcards_and_files_ext.h>
 
 #include <class_board.h>
 #include <class_module.h>
@@ -58,15 +59,13 @@
 
 const wxString CsvFileExtension( wxT( "csv" ) );    // BOM file extension
 
-const wxString CsvFileWildcard( _( "Comma separated value files (*.csv)|*.csv" ) );
-
 
 class cmp
 {
 public:
     wxString m_Ref;
     wxString m_Val;
-    FPID     m_fpid;
+    LIB_ID   m_fpid;
     int      m_Id;
     int      m_CmpCount;
 };
@@ -94,7 +93,7 @@ void PCB_EDIT_FRAME::RecreateBOMFileFromBoard( wxCommandEvent& aEvent )
     wxString pro_dir = wxPathOnly( Prj().GetProjectFullName() );
 
     wxFileDialog dlg( this, _( "Save Bill of Materials" ), pro_dir,
-                      fn.GetFullName(), CsvFileWildcard,
+                      fn.GetFullName(), CsvFileWildcard(),
                       wxFD_SAVE | wxFD_OVERWRITE_PROMPT );
 
     if( dlg.ShowModal() == wxID_CANCEL )
@@ -106,7 +105,7 @@ void PCB_EDIT_FRAME::RecreateBOMFileFromBoard( wxCommandEvent& aEvent )
 
     if( fp_bom == NULL )
     {
-        msg.Printf( _( "Unable to create file <%s>" ), GetChars( fn.GetFullPath() ) );
+        msg.Printf( _( "Unable to create file \"%s\"" ), GetChars( fn.GetFullPath() ) );
         DisplayError( this, msg );
         return;
     }
@@ -173,7 +172,7 @@ void PCB_EDIT_FRAME::RecreateBOMFileFromBoard( wxCommandEvent& aEvent )
 
         msg << current->m_Id << wxT( ";\"" );
         msg << current->m_Ref << wxT( "\";\"" );
-        msg << FROM_UTF8( current->m_fpid.GetFootprintName().c_str() ) << wxT( "\";" );
+        msg << FROM_UTF8( current->m_fpid.GetLibItemName().c_str() ) << wxT( "\";" );
         msg << current->m_CmpCount << wxT( ";\"" );
         msg << current->m_Val << wxT( "\";;;\n" );
         fprintf( fp_bom, "%s", TO_UTF8( msg ) );

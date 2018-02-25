@@ -31,16 +31,16 @@
 #include <fctsys.h>
 #include <class_drawpanel.h>
 #include <trigo.h>
-#include <wxPcbStruct.h>
-#include <colors_selection.h>
+#include <pcb_edit_frame.h>
 
 #include <pcbnew.h>
-#include <drc_stuff.h>
+#include <drc.h>
 #include <protos.h>
 
 #include <class_board.h>
 #include <class_track.h>
 #include <class_zone.h>
+#include <connectivity_data.h>
 
 
 static void Abort_Create_Track( EDA_DRAW_PANEL* panel, wxDC* DC );
@@ -158,7 +158,12 @@ TRACK* PCB_EDIT_FRAME::Begin_Route( TRACK* aTrack, wxDC* aDC )
 
         DBG( g_CurrentTrackList.VerifyListIntegrity() );
 
-        BuildAirWiresTargetsList( lockPoint, wxPoint( 0, 0 ), true );
+        int net = -1;
+
+        if( lockPoint )
+            net = lockPoint->GetNetCode();
+
+        BuildAirWiresTargetsList( lockPoint, wxPoint( 0, 0 ), net );
 
         DBG( g_CurrentTrackList.VerifyListIntegrity() );
 
@@ -183,13 +188,12 @@ TRACK* PCB_EDIT_FRAME::Begin_Route( TRACK* aTrack, wxDC* aDC )
 
         if( pad )
         {
-            g_CurrentTrackSegment->m_PadsConnected.push_back( pad );
             // Useful to display track length, if the pad has a die length:
             g_CurrentTrackSegment->SetState( BEGIN_ONPAD, true );
             g_CurrentTrackSegment->start = pad;
         }
 
-        if( g_TwoSegmentTrackBuild )
+        if( Settings().m_legacyUseTwoSegmentTracks )
         {
             // Create 2nd segment
             g_CurrentTrackList.PushBack( (TRACK*)g_CurrentTrackSegment->Clone() );
@@ -208,7 +212,7 @@ TRACK* PCB_EDIT_FRAME::Begin_Route( TRACK* aTrack, wxDC* aDC )
         SetCurItem( g_CurrentTrackSegment, false );
         m_canvas->CallMouseCapture( aDC, wxDefaultPosition, false );
 
-        if( g_Drc_On )
+        if( Settings().m_legacyDrcOn )
         {
             if( BAD_DRC == m_drc->Drc( g_CurrentTrackSegment, GetBoard()->m_Track ) )
             {
@@ -219,13 +223,13 @@ TRACK* PCB_EDIT_FRAME::Begin_Route( TRACK* aTrack, wxDC* aDC )
     else   // Track in progress : segment coordinates are updated by ShowNewTrackWhenMovingCursor.
     {
         // Test for a D.R.C. error:
-        if( g_Drc_On )
+        if( Settings().m_legacyDrcOn )
         {
             if( BAD_DRC == m_drc->Drc( g_CurrentTrackSegment, GetBoard()->m_Track ) )
                 return NULL;
 
             // We must handle 2 segments
-            if( g_TwoSegmentTrackBuild && g_CurrentTrackSegment->Back() )
+            if( Settings().m_legacyUseTwoSegmentTracks && g_CurrentTrackSegment->Back() )
             {
                 if( BAD_DRC == m_drc->Drc( g_CurrentTrackSegment->Back(), GetBoard()->m_Track ) )
                     return NULL;
@@ -238,10 +242,10 @@ TRACK* PCB_EDIT_FRAME::Begin_Route( TRACK* aTrack, wxDC* aDC )
          */
         bool CanCreateNewSegment = true;
 
-        if( !g_TwoSegmentTrackBuild && g_CurrentTrackSegment->IsNull() )
+        if( !Settings().m_legacyUseTwoSegmentTracks && g_CurrentTrackSegment->IsNull() )
             CanCreateNewSegment = false;
 
-        if( g_TwoSegmentTrackBuild && g_CurrentTrackSegment->IsNull()
+        if( Settings().m_legacyUseTwoSegmentTracks && g_CurrentTrackSegment->IsNull()
           && g_CurrentTrackSegment->Back()
           && g_CurrentTrackSegment->Back()->IsNull() )
             CanCreateNewSegment = false;
@@ -265,15 +269,6 @@ TRACK* PCB_EDIT_FRAME::Begin_Route( TRACK* aTrack, wxDC* aDC )
             newTrack->SetFlags( IS_NEW );
 
             newTrack->SetState( BEGIN_ONPAD | END_ONPAD, false );
-
-            D_PAD* pad = GetBoard()->GetPad( previousTrack, ENDPOINT_END );
-
-            if( pad )
-            {
-                newTrack->m_PadsConnected.push_back( pad );
-                previousTrack->m_PadsConnected.push_back( pad );
-            }
-
             newTrack->start = previousTrack->end;
 
             DBG( g_CurrentTrackList.VerifyListIntegrity(); );
@@ -360,7 +355,7 @@ bool PCB_EDIT_FRAME::Add45DegreeSegment( wxDC* aDC )
         else
             newTrack->SetEnd( wxPoint(newTrack->GetEnd().x - segm_step_45, newTrack->GetEnd().y) );
 
-        if( g_Drc_On && BAD_DRC == m_drc->Drc( curTrack, GetBoard()->m_Track ) )
+        if( Settings().m_legacyDrcOn && BAD_DRC == m_drc->Drc( curTrack, GetBoard()->m_Track ) )
         {
             delete newTrack;
             return false;
@@ -395,7 +390,7 @@ bool PCB_EDIT_FRAME::Add45DegreeSegment( wxDC* aDC )
         else
             newTrack->SetEnd( wxPoint(newTrack->GetEnd().x, newTrack->GetEnd().y - segm_step_45) );
 
-        if( g_Drc_On && BAD_DRC==m_drc->Drc( newTrack, GetBoard()->m_Track ) )
+        if( Settings().m_legacyDrcOn && BAD_DRC==m_drc->Drc( newTrack, GetBoard()->m_Track ) )
         {
             delete newTrack;
             return false;
@@ -419,7 +414,7 @@ bool PCB_EDIT_FRAME::End_Route( TRACK* aTrack, wxDC* aDC )
     if( aTrack == NULL )
         return false;
 
-    if( g_Drc_On && BAD_DRC == m_drc->Drc( g_CurrentTrackSegment, GetBoard()->m_Track ) )
+    if( Settings().m_legacyDrcOn && BAD_DRC == m_drc->Drc( g_CurrentTrackSegment, GetBoard()->m_Track ) )
         return false;
 
     // Saving the coordinate of end point of the trace
@@ -489,6 +484,7 @@ bool PCB_EDIT_FRAME::End_Route( TRACK* aTrack, wxDC* aDC )
             ITEM_PICKER picker( track, UR_NEW );
             s_ItemsListPicker.PushItem( picker );
             GetBoard()->m_Track.Insert( track, insertBeforeMe );
+            GetBoard()->GetConnectivity()->Add( track );
         }
 
         TraceAirWiresToTargets( aDC );
@@ -502,7 +498,7 @@ bool PCB_EDIT_FRAME::End_Route( TRACK* aTrack, wxDC* aDC )
         }
 
         // delete the old track, if it exists and is redundant
-        if( g_AutoDeleteOldTrack )
+        if( Settings().m_legacyAutoDeleteOldTrack )
         {
             EraseRedundantTrack( aDC, firstTrack, newCount, &s_ItemsListPicker );
         }
@@ -533,6 +529,8 @@ bool PCB_EDIT_FRAME::End_Route( TRACK* aTrack, wxDC* aDC )
 
     m_canvas->SetMouseCapture( NULL, NULL );
     SetCurItem( NULL );
+
+    GetBoard()->GetConnectivity()->RecalculateRatsnest();
 
     return true;
 }
@@ -650,7 +648,7 @@ static void PushTrack( EDA_DRAW_PANEL* panel )
     n.y = KiROUND( f * n.y );
 
     wxPoint hp = track->GetEnd();
-    Project( &hp, cursor, other );
+    FindBestGridPointOnTrack( &hp, cursor, other );
     track->SetEnd( hp + n );
 }
 
@@ -660,9 +658,9 @@ inline void DrawViaCirclesWhenEditingNewTrack( EDA_RECT* aPanelClipBox,
                                                wxDC* aDC, const wxPoint& aPos,
                                                int aViaRadius,
                                                int aViaRadiusWithClearence,
-                                               EDA_COLOR_T aColor)
+                                               COLOR4D aColor)
 {
-    //Current viasize clearence circle
+    //Current viasize clearance circle
     GRCircle( aPanelClipBox, aDC, aPos.x, aPos.y, aViaRadiusWithClearence, aColor );
     //Current viasize circle
     GRCircle( aPanelClipBox, aDC, aPos.x, aPos.y, aViaRadius, aColor );
@@ -677,19 +675,19 @@ void ShowNewTrackWhenMovingCursor( EDA_DRAW_PANEL* aPanel, wxDC* aDC, const wxPo
 
     PCB_SCREEN*     screen = (PCB_SCREEN*) aPanel->GetScreen();
     PCB_BASE_FRAME* frame  = (PCB_BASE_FRAME*) aPanel->GetParent();
-    DISPLAY_OPTIONS* displ_opts = (DISPLAY_OPTIONS*) aPanel->GetDisplayOptions();
+    auto displ_opts = (PCB_DISPLAY_OPTIONS*) aPanel-> GetDisplayOptions();
 
     bool tmp = displ_opts->m_DisplayPcbTrackFill;
     displ_opts->m_DisplayPcbTrackFill = true;
-    TRACE_CLEARANCE_DISPLAY_MODE_T showTrackClearanceMode = displ_opts->m_ShowTrackClearanceMode;
+    auto showTrackClearanceMode = displ_opts->m_ShowTrackClearanceMode;
 
     if ( g_FirstTrackSegment == NULL )
         return;
 
     NETCLASSPTR netclass = g_FirstTrackSegment->GetNetClass();
 
-    if( showTrackClearanceMode != DO_NOT_SHOW_CLEARANCE )
-        displ_opts->m_ShowTrackClearanceMode = SHOW_CLEARANCE_ALWAYS;
+    if( showTrackClearanceMode != PCB_DISPLAY_OPTIONS::DO_NOT_SHOW_CLEARANCE )
+        displ_opts->m_ShowTrackClearanceMode = PCB_DISPLAY_OPTIONS::SHOW_CLEARANCE_ALWAYS;
 
     // Values to Via circle
     int boardViaRadius = frame->GetDesignSettings().GetCurrentViaSize()/2;
@@ -704,9 +702,9 @@ void ShowNewTrackWhenMovingCursor( EDA_DRAW_PANEL* aPanel, wxDC* aDC, const wxPo
 
         frame->TraceAirWiresToTargets( aDC );
 
-        if( showTrackClearanceMode >= SHOW_CLEARANCE_NEW_TRACKS_AND_VIA_AREAS )
+        if( showTrackClearanceMode >= PCB_DISPLAY_OPTIONS::SHOW_CLEARANCE_NEW_TRACKS_AND_VIA_AREAS )
         {
-            EDA_COLOR_T color = g_ColorsSettings.GetLayerColor( g_CurrentTrackSegment->GetLayer() );
+            COLOR4D color = frame->Settings().Colors().GetLayerColor( g_CurrentTrackSegment->GetLayer() );
             DrawViaCirclesWhenEditingNewTrack( panelClipBox, aDC, g_CurrentTrackSegment->GetEnd(),
                                                boardViaRadius, viaRadiusWithClearence, color);
         }
@@ -722,7 +720,7 @@ void ShowNewTrackWhenMovingCursor( EDA_DRAW_PANEL* aPanel, wxDC* aDC, const wxPo
     if( !frame->GetDesignSettings().m_UseConnectedTrackWidth )
         g_CurrentTrackSegment->SetWidth( frame->GetDesignSettings().GetCurrentTrackWidth() );
 
-    if( g_TwoSegmentTrackBuild )
+    if( frame->Settings().m_legacyUseTwoSegmentTracks )
     {
         TRACK* previous_track = g_CurrentTrackSegment->Back();
 
@@ -735,13 +733,13 @@ void ShowNewTrackWhenMovingCursor( EDA_DRAW_PANEL* aPanel, wxDC* aDC, const wxPo
         }
     }
 
-    if( g_Track_45_Only_Allowed )
+    if( frame->Settings().m_legacyUse45DegreeTracks )
     {
-        if( g_TwoSegmentTrackBuild )
+        if( frame->Settings().m_legacyUseTwoSegmentTracks )
         {
             g_CurrentTrackSegment->SetEnd( frame->GetCrossHairPosition() );
 
-            if( g_Drc_On )
+            if( frame->Settings().m_legacyDrcOn )
                 PushTrack( aPanel );
 
             ComputeBreakPoint( g_CurrentTrackSegment,
@@ -754,11 +752,8 @@ void ShowNewTrackWhenMovingCursor( EDA_DRAW_PANEL* aPanel, wxDC* aDC, const wxPo
              * horizontal, vertical or 45 degrees.
              */
             wxPoint hp = g_CurrentTrackSegment->GetEnd();
-            CalculateSegmentEndPoint( frame->GetCrossHairPosition(),
-                                      g_CurrentTrackSegment->GetStart().x,
-                                      g_CurrentTrackSegment->GetStart().y,
-                                      &hp.x,
-                                      &hp.y );
+            hp = CalculateSegmentEndPoint( frame->GetCrossHairPosition(),
+                                           g_CurrentTrackSegment->GetStart() );
             g_CurrentTrackSegment->SetEnd(hp);
         }
     }
@@ -771,9 +766,9 @@ void ShowNewTrackWhenMovingCursor( EDA_DRAW_PANEL* aPanel, wxDC* aDC, const wxPo
     DBG( g_CurrentTrackList.VerifyListIntegrity(); );
     DrawTraces( aPanel, aDC, g_FirstTrackSegment, g_CurrentTrackList.GetCount(), GR_XOR );
 
-    if( showTrackClearanceMode >= SHOW_CLEARANCE_NEW_TRACKS_AND_VIA_AREAS )
+    if( showTrackClearanceMode >= PCB_DISPLAY_OPTIONS::SHOW_CLEARANCE_NEW_TRACKS_AND_VIA_AREAS )
     {
-        EDA_COLOR_T color = g_ColorsSettings.GetLayerColor(g_CurrentTrackSegment->GetLayer());
+        COLOR4D color = frame->Settings().Colors().GetLayerColor(g_CurrentTrackSegment->GetLayer());
 
         //Via diameter must have taken what we are using, rather than netclass value.
         DrawViaCirclesWhenEditingNewTrack( panelClipBox, aDC, g_CurrentTrackSegment->GetEnd(),
@@ -803,7 +798,7 @@ void ShowNewTrackWhenMovingCursor( EDA_DRAW_PANEL* aPanel, wxDC* aDC, const wxPo
     // If the starting point is on a pad, add current track length+ length die
     if( g_FirstTrackSegment->GetState( BEGIN_ONPAD ) )
     {
-        D_PAD * pad = (D_PAD *) g_FirstTrackSegment->start;
+        D_PAD* pad = (D_PAD*) g_FirstTrackSegment->start;
         lenPadToDie = (double) pad->GetPadToDieLength();
     }
 
@@ -828,24 +823,23 @@ void ShowNewTrackWhenMovingCursor( EDA_DRAW_PANEL* aPanel, wxDC* aDC, const wxPo
     displ_opts->m_ShowTrackClearanceMode = showTrackClearanceMode;
     displ_opts->m_DisplayPcbTrackFill    = tmp;
 
-    frame->BuildAirWiresTargetsList( NULL, g_CurrentTrackSegment->GetEnd(), false );
+    frame->BuildAirWiresTargetsList( NULL, g_CurrentTrackSegment->GetEnd(), g_CurrentTrackSegment->GetNetCode() );
     frame->TraceAirWiresToTargets( aDC );
 }
 
 
-/* Determine the coordinate to advanced the the current segment
- * in 0, 90, or 45 degrees, depending on position of origin and \a aPosition.
- */
-void CalculateSegmentEndPoint( const wxPoint& aPosition, int ox, int oy, int* fx, int* fy )
+wxPoint CalculateSegmentEndPoint( const wxPoint& aPosition, const wxPoint& aOrigin )
 {
-    int deltax, deltay, angle;
+    // Determine end point for a segment direction 0, 90, or 45 degrees
+    // depending on it's position from the origin \a aOrigin and \a aPosition.
+    wxPoint endPoint;
 
-    deltax = aPosition.x - ox;
-    deltay = aPosition.y - oy;
+    int deltax = aPosition.x - aOrigin.x;
+    int deltay = aPosition.y - aOrigin.y;
 
     deltax = abs( deltax );
     deltay = abs( deltay );
-    angle  = 45;
+    int angle  = 45;
 
     if( deltax >= deltay )
     {
@@ -867,8 +861,8 @@ void CalculateSegmentEndPoint( const wxPoint& aPosition, int ox, int oy, int* fx
     switch( angle )
     {
     case 0:
-        *fx = aPosition.x;
-        *fy = oy;
+        endPoint.x = aPosition.x;
+        endPoint.y = aOrigin.y;
         break;
 
     case 45:
@@ -876,21 +870,23 @@ void CalculateSegmentEndPoint( const wxPoint& aPosition, int ox, int oy, int* fx
         deltay = deltax;
 
         // Recalculate the signs for deltax and deltaY.
-        if( ( aPosition.x - ox ) < 0 )
+        if( ( aPosition.x - aOrigin.x ) < 0 )
             deltax = -deltax;
 
-        if( ( aPosition.y - oy ) < 0 )
+        if( ( aPosition.y - aOrigin.y ) < 0 )
             deltay = -deltay;
 
-        *fx = ox + deltax;
-        *fy = oy + deltay;
+        endPoint.x = aOrigin.x + deltax;
+        endPoint.y = aOrigin.y + deltay;
         break;
 
     case 90:
-        *fx = ox;
-        *fy = aPosition.y;
+        endPoint.x = aOrigin.x;
+        endPoint.y = aPosition.y;
         break;
     }
+
+    return endPoint;
 }
 
 

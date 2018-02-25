@@ -121,7 +121,7 @@ libraries are not automatically added to the project.
 |image:images/icons/part_properties.png[icons/part_properties_png]
 |Edit the current component properties.
 
-|image:images/icons/add_text.png[icons/add_text_png]
+|image:images/icons/text.png[icons/text.png]
 |Edit the fields of current component.
 
 |image:images/icons/erc.png[icons/erc_png]
@@ -183,7 +183,7 @@ cursor.
 |image:images/icons/pin.png[icons/pin_png]
 |Pin tool. Left-click to add a new pin.
 
-|image:images/icons/add_text.png[icons/add_text_png]
+|image:images/icons/text.png[icons/text.png]
 |Graphical text tool. Left-click to add a new graphical text item.
 
 |image:images/icons/add_rectangle.png[icons/add_rectangle_png]
@@ -193,7 +193,7 @@ the rectangle.
 
 |image:images/icons/add_circle.png[icons/add_circle_png]
 |Circle tool. Left-click to begin drawing a new graphical circle from
-the center. Left-click again to define the radius of the cicle.
+the center. Left-click again to define the radius of the circle.
 
 |image:images/icons/add_arc.png[icons/add_arc_png]
 |Arc tool. Left-click to begin drawing a new graphical arc item from the
@@ -319,9 +319,7 @@ You will be asked to enter a new library name.
 New libraries are not automatically added to the current project.
 
 You must add any new library you wish to use in a schematic to the list
-of project libraries in Eeschema using the component configuration dialog.
-
-image:images/en/libsettings.png[alt="Library settings",width="50%"]
+of project libraries in Eeschema using the <<manage-sym-lib-table,Symbol Library Table dialog>>.
 ====
 
 Click the 
@@ -425,12 +423,11 @@ to show the dialog below.
 image::images/eeschema_properties_for_component.png[alt="eeschema_properties_for_component_png",scaledwidth="60%"]
 
 It is very important to correctly set the number of units per package and
-if the component has an alternate symbolic representation parameters
-correctly because when pins are edited or created the corresponding pins
-for each unit will created. If you change the number of units per
-package after pin creation and editing, there will be additional work
-introduced to add the new unit pins and symbols. Nevertheless, it is
-possible to modify these properies at any time.
+the alternate symbolic representation, if enabled, because when pins are
+edited or created the corresponding pins for each unit will be affected.
+If you change the number of units per package after pin creation and editing,
+there will be additional work to add the new unit pins and symbols.
+Nevertheless, it is possible to modify these properties at any time.
 
 The graphic options "Show pin number" and "Show pin name" define the
 visibility of the pin number and pin name text. This text will be
@@ -515,7 +512,7 @@ The properties of a graphic element are:
 ==== Graphical Text Elements
 
 The 
-image:images/icons/add_text.png[icons/add_text_png]
+image:images/icons/text.png[icons/text.png]
 allows for the creation of graphical text. Graphical text is always
 readable, even when the component is mirrored. Please note that
 graphical text items are not fields.
@@ -750,7 +747,7 @@ show the field context menu shown below.
 image::images/eeschema_libedit_field_context_menu.png[alt="eeschema_libedit_field_context_menu_png",scaledwidth="35%"]
 
 To edit undefined fields, add new fields, or delete optional fields
-image:images/icons/add_text.png[icons/add_text_png]
+image:images/icons/text.png[icons/text.png]
 on the main tool bar to open the field properties dialog shown below.
 
 image::images/eeschema_libedit_field_properties.png[alt="eeschema_libedit_field_properties_png",scaledwidth="65%"]
@@ -766,7 +763,7 @@ Important notes:
   new component has the name contained in the value field when you save it
   to the currently selected library.
 * The field edit dialog above must be used to edit a field that is empty
-  or has the invisible attribute enable.
+  or has the invisible attribute enabled.
 * The footprint is defined as an absolute footprint using the
   LIBNAME:FPNAME format where LIBNAME is the name of the footprint library
   defined in the footprint library table (see the "Footprint Library

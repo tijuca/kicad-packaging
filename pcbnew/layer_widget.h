@@ -42,16 +42,20 @@
 #include <wx/image.h>
 #include <wx/icon.h>
 #include <layers_id_colors_and_visibility.h>
-#include <colors.h>
+#include <gal/color4d.h>
+#include <widgets/color_swatch.h>
+#include <widgets/indicator_icon.h>
 
-#define LYR_COLUMN_COUNT        4           ///< Layer tab column count
+#define LYR_COLUMN_COUNT        5           ///< Layer tab column count
 #define RND_COLUMN_COUNT        2           ///< Rendering tab column count
 
 #define COLUMN_ICON_ACTIVE 0
 #define COLUMN_COLORBM 1
 #define COLUMN_COLOR_LYR_CB 2
 #define COLUMN_COLOR_LYRNAME 3
+#define COLUMN_ALPHA_INDICATOR 4
 
+using KIGFX::COLOR4D;
 
 /**
  * Class LAYER_WIDGET
@@ -84,18 +88,29 @@ public:
     {
         wxString    rowName;    ///< the prompt or layername
         int         id;         ///< either a layer or "visible element" id
-        EDA_COLOR_T color;      ///< -1 if none.
+        COLOR4D     color;      ///< COLOR4D::UNSPECIFIED if none.
         bool        state;      ///< initial wxCheckBox state
         wxString    tooltip;    ///< if not empty, use this tooltip on row
+        bool        changeable; ///< if true, the state can be changed
+        bool        spacer;     ///< if true, this row is a spacer
 
-        ROW( const wxString& aRowName, int aId, EDA_COLOR_T aColor = UNSPECIFIED_COLOR,
-            const wxString& aTooltip = wxEmptyString, bool aState = true )
+        ROW( const wxString& aRowName, int aId, COLOR4D aColor = COLOR4D::UNSPECIFIED,
+            const wxString& aTooltip = wxEmptyString, bool aState = true, bool aChangeable = true )
         {
             rowName = aRowName;
             id      = aId;
             color   = aColor;
             state   = aState;
             tooltip = aTooltip;
+            changeable = aChangeable;
+            spacer = false;
+        }
+
+        ROW()
+        {
+            spacer = true;
+            color = COLOR4D::UNSPECIFIED;
+            id = 0;
         }
     };
 
@@ -112,15 +127,10 @@ protected:
     wxFlexGridSizer*    m_RenderFlexGridSizer;
 
     wxWindow*           m_FocusOwner;
-    wxBitmap*           m_BlankBitmap;
-    wxBitmap*           m_BlankAlternateBitmap;
-    wxBitmap*           m_RightArrowBitmap;
-    wxBitmap*           m_RightArrowAlternateBitmap;
-    wxSize              m_BitmapSize;
     int                 m_CurrentRow;           ///< selected row of layer list
     int                 m_PointSize;
 
-    static wxBitmap makeBitmap( EDA_COLOR_T aColor );
+    ROW_ICON_PROVIDER*  m_IconProvider;
 
     /**
      * Virtual Function useAlternateBitmap
@@ -131,6 +141,18 @@ protected:
      * (alternate bitmaps to show layers in use, normal fo others)
      */
     virtual bool useAlternateBitmap(int aRow) { return false; }
+
+    /**
+     * Subclasses can override this to provide logic for allowing
+     * arbitrary color selection via wxColourPicker instead of DisplayColorFrame.
+     */
+    virtual bool AreArbitraryColorsAllowed() { return false; }
+
+    /**
+     * Subclasses can override this to provide accurate representation
+     * of transparent colour swatches.
+     */
+    virtual COLOR4D getBackgroundLayerColor() { return COLOR4D::BLACK; }
 
     /**
      * Function encodeId
@@ -149,19 +171,19 @@ protected:
      */
     static LAYER_NUM getDecodedId( int aControlId );
 
-    /**
-     * Function makeColorButton
-     * creates a wxBitmapButton and assigns it a solid color and a control ID
-     */
-    wxBitmapButton* makeColorButton( wxWindow* aParent, EDA_COLOR_T aColor, int aID );
-
     void OnLeftDownLayers( wxMouseEvent& event );
 
     /**
-     * Function OnMiddleDownLayerColor
-     * is called only from a color button when user right clicks.
+     * Function OnRightDownLayer
+     * Called when user right-clicks a layer
      */
-    void OnMiddleDownLayerColor( wxMouseEvent& event );
+    void OnRightDownLayer( wxMouseEvent& event, COLOR_SWATCH* aColorSwatch, const wxString& aLayerName );
+
+    /**
+     * Function OnSwatchChanged()
+     * is called when a user changes a swatch color
+     */
+    void OnLayerSwatchChanged( wxCommandEvent& aEvent );
 
     /**
      * Function OnLayerCheckBox
@@ -170,7 +192,17 @@ protected:
      */
     void OnLayerCheckBox( wxCommandEvent& event );
 
-    void OnMiddleDownRenderColor( wxMouseEvent& event );
+    /**
+     * Function OnRightDownRender
+     * Called when user right-clicks a render option
+     */
+    void OnRightDownRender( wxMouseEvent& aEvent, COLOR_SWATCH* aColorSwatch, const wxString& aRenderName );
+
+    /**
+     * Function OnRenderSwatchChanged
+     * Called when user has changed the swatch color of a render entry
+     */
+    void OnRenderSwatchChanged( wxCommandEvent& aEvent );
 
     void OnRenderCheckBox( wxCommandEvent& event );
 
@@ -209,6 +241,14 @@ protected:
      * gives away the keyboard focus up to the main parent window.
      */
     void passOnFocus();
+
+    // popup menu ids.
+    enum POPUP_ID
+    {
+        ID_CHANGE_LAYER_COLOR = wxID_HIGHEST,
+        ID_CHANGE_RENDER_COLOR,
+        ID_LAST_VALUE
+    };
 
 public:
 
@@ -332,13 +372,13 @@ public:
      * Function SetLayerColor
      * changes the color of \a aLayer
      */
-    void SetLayerColor( LAYER_NUM aLayer, EDA_COLOR_T aColor );
+    void SetLayerColor( LAYER_NUM aLayer, COLOR4D aColor );
 
     /**
      * Function GetLayerColor
      * returns the color of the layer ROW associated with \a aLayer id.
      */
-    EDA_COLOR_T GetLayerColor( LAYER_NUM aLayer ) const;
+    COLOR4D GetLayerColor( LAYER_NUM aLayer ) const;
 
     /**
      * Function SetRenderState
@@ -359,6 +399,14 @@ public:
     bool GetRenderState( int aId );
 
     void UpdateLayouts();
+
+    /**
+     * Function UpdateLayerIcons
+     * Update all layer manager icons (layers only)
+     * Useful when loading a file or clearing a layer because they change,
+     * and the indicator arrow icon needs to be updated
+     */
+    void UpdateLayerIcons();
 
 /*  did not help:
     void Freeze()
@@ -385,7 +433,7 @@ public:
      * @param aLayer is the board layer to change
      * @param aColor is the new color
      */
-    virtual void OnLayerColorChange( int aLayer, EDA_COLOR_T aColor ) = 0;
+    virtual void OnLayerColorChange( int aLayer, COLOR4D aColor ) = 0;
 
     /**
      * Function OnLayerSelect
@@ -409,6 +457,15 @@ public:
     virtual void OnLayerVisible( LAYER_NUM aLayer, bool isVisible, bool isFinal = true ) = 0;
 
     /**
+     * Function OnLayerRightClick
+     * is called to notify client code about a layer being right-clicked.
+     *
+     * @param aMenu is the right-click menu containing layer-scoped options.
+     *  It can be used to add extra, wider scoped menu items.
+     */
+    virtual void OnLayerRightClick( wxMenu& aMenu ) = 0;
+
+    /**
      * Function OnRenderColorChange
      * is called to notify client code whenever the user changes a rendering
      * color.
@@ -416,7 +473,7 @@ public:
      * via the AddRenderRow() function.
      * @param aColor is the new color
      */
-    virtual void OnRenderColorChange( int aId, EDA_COLOR_T aColor ) = 0;
+    virtual void OnRenderColorChange( int aId, COLOR4D aColor ) = 0;
 
     /**
      * Function OnRenderEnable

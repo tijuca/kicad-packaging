@@ -58,6 +58,13 @@ OPT_TOOL_EVENT TOOL_INTERACTIVE::Wait( const TOOL_EVENT_LIST& aEventList )
 }
 
 
+void TOOL_INTERACTIVE::resetTransitions()
+{
+    m_toolMgr->ClearTransitions( this );
+    setTransitions();
+}
+
+
 void TOOL_INTERACTIVE::goInternal( TOOL_STATE_FUNC& aState, const TOOL_EVENT_LIST& aConditions )
 {
     m_toolMgr->ScheduleNextState( this, aState, aConditions );
@@ -68,6 +75,15 @@ void TOOL_INTERACTIVE::SetContextMenu( CONTEXT_MENU* aMenu, CONTEXT_MENU_TRIGGER
 {
     if( aMenu )
         aMenu->SetTool( this );
+    else
+        aTrigger = CMENU_OFF;
 
     m_toolMgr->ScheduleContextMenu( this, aMenu, aTrigger );
 }
+
+
+void TOOL_INTERACTIVE::RunMainStack( std::function<void()> aFunc )
+{
+    m_toolMgr->RunMainStack( this, std::move( aFunc ) );
+}
+

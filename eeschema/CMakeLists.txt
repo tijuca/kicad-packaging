@@ -1,18 +1,19 @@
-# the map generation creates on Windows/gcc a lot of useless warnings
-# so disable it on windows
-if( WIN32 AND NOT CMAKE_CROSSCOMPILING )
-    set( MAKE_LINK_MAPS false )
-else()
-    set( MAKE_LINK_MAPS true )
+# .cpp files are compiled with extra ${WSHADOW_FLAGS}
+if( COMPILER_SUPPORTS_WSHADOW )
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${WSHADOW_FLAGS}")
 endif()
 
 add_definitions( -DEESCHEMA )
 
+if( KICAD_SPICE )
+    set( INC_AFTER ${INC_AFTER} ${NGSPICE_INCLUDE_DIR} )
+endif()
 
 include_directories( BEFORE ${INC_BEFORE} )
 include_directories(
     ./dialogs
     ./netlist_exporters
+    ./widgets
     ../common
     ../common/dialogs
     ${INC_AFTER}
@@ -25,43 +26,46 @@ set( EESCHEMA_DLGS
     dialogs/dialog_bom.cpp
     dialogs/dialog_bom_base.cpp
     dialogs/dialog_bom_cfg_keywords.cpp
-    dialogs/dialog_color_config.cpp
-    dialogs/dialog_color_config_base.cpp
+    dialogs/dialog_fields_editor_global.cpp
+    dialogs/dialog_fields_editor_global_base.cpp
     dialogs/dialog_choose_component.cpp
-    dialogs/dialog_choose_component_base.cpp
-    dialogs/dialog_lib_edit_text.cpp
-    dialogs/dialog_lib_edit_text_base.cpp
     dialogs/dialog_edit_component_in_lib.cpp
     dialogs/dialog_edit_component_in_lib_base.cpp
-    dialogs/dialog_edit_component_in_schematic_fbp.cpp
     dialogs/dialog_edit_component_in_schematic.cpp
+    dialogs/dialog_edit_component_in_schematic_fbp.cpp
+    dialogs/dialog_edit_components_libid.cpp
+    dialogs/dialog_edit_components_libid_base.cpp
     dialogs/dialog_edit_label.cpp
     dialogs/dialog_edit_label_base.cpp
     dialogs/dialog_edit_libentry_fields_in_lib.cpp
     dialogs/dialog_edit_libentry_fields_in_lib_base.cpp
+    dialogs/dialog_edit_line_style.cpp
+    dialogs/dialog_edit_line_style_base.cpp
     dialogs/dialog_edit_one_field.cpp
-    dialogs/dialog_eeschema_config.cpp
-    dialogs/dialog_eeschema_config_fbp.cpp
-    dialogs/dialog_eeschema_options_base.cpp
     dialogs/dialog_eeschema_options.cpp
+    dialogs/dialog_eeschema_options_base.cpp
     dialogs/dialog_erc.cpp
     dialogs/dialog_erc_base.cpp
+    dialogs/dialog_global_sym_lib_table_config.cpp
+    dialogs/dialog_global_sym_lib_table_config_base.cpp
     dialogs/dialog_lib_edit_draw_item.cpp
     dialogs/dialog_lib_edit_draw_item_base.cpp
-    dialogs/dialog_libedit_options_base.cpp
-    dialogs/dialog_libedit_options.cpp
     dialogs/dialog_lib_edit_pin.cpp
     dialogs/dialog_lib_edit_pin_base.cpp
     dialogs/dialog_lib_edit_pin_table.cpp
     dialogs/dialog_lib_edit_pin_table_base.cpp
+    dialogs/dialog_lib_edit_text.cpp
+    dialogs/dialog_lib_edit_text_base.cpp
     dialogs/dialog_lib_new_component.cpp
     dialogs/dialog_lib_new_component_base.cpp
+    dialogs/dialog_libedit_options.cpp
+    dialogs/dialog_libedit_options_base.cpp
     dialogs/dialog_netlist.cpp
     dialogs/dialog_netlist_base.cpp
-    dialogs/dialog_plot_schematic_base.cpp
     dialogs/dialog_plot_schematic.cpp
-    dialogs/dialog_print_using_printer_base.cpp
+    dialogs/dialog_plot_schematic_base.cpp
     dialogs/dialog_print_using_printer.cpp
+    dialogs/dialog_print_using_printer_base.cpp
     dialogs/dialog_rescue_each.cpp
     dialogs/dialog_rescue_each_base.cpp
     dialogs/dialog_sch_edit_sheet_pin.cpp
@@ -70,46 +74,61 @@ set( EESCHEMA_DLGS
     dialogs/dialog_sch_sheet_props_base.cpp
     dialogs/dialog_schematic_find.cpp
     dialogs/dialog_schematic_find_base.cpp
+    dialogs/dialog_sym_lib_table.cpp
+    dialogs/dialog_sym_lib_table_base.cpp
+    dialogs/dialog_symbol_remap.cpp
+    dialogs/dialog_symbol_remap_base.cpp
+    dialogs/dialog_update_fields.cpp
+    dialogs/dialog_update_fields_base.cpp
     )
 
+set( EESCHEMA_WIDGETS
+    widgets/cmp_tree_pane.cpp
+    widgets/component_tree.cpp
+    widgets/pin_shape_combobox.cpp
+    widgets/pin_type_combobox.cpp
+    widgets/widget_eeschema_color_config.cpp
+    )
+
+
 set( EESCHEMA_SRCS
+    ${EESCHEMA_DLGS}
+    ${EESCHEMA_WIDGETS}
     annotate.cpp
+    autoplace_fields.cpp
     backanno.cpp
     block.cpp
     block_libedit.cpp
-    busentry.cpp
     bus-wire-junction.cpp
-    class_drc_erc_item.cpp
+    busentry.cpp
     class_libentry.cpp
     class_library.cpp
-    class_netlist_object.cpp
     cmp_library_keywords.cpp
     cmp_library_lexer.cpp
+    cmp_tree_model.cpp
+    cmp_tree_model_adapter.cpp
+    cmp_tree_model_adapter_base.cpp
     component_references_lister.cpp
     controle.cpp
     cross-probing.cpp
-    ${EESCHEMA_DLGS}
-    edit_component_in_schematic.cpp
+    drc_erc_item.cpp
     edit_bitmap.cpp
+    edit_component_in_schematic.cpp
     edit_label.cpp
     eeredraw.cpp
     eeschema.cpp
     eeschema_config.cpp
     erc.cpp
     events_called_functions_for_edit.cpp
+    fields_editor_table_column.cpp
+    fields_editor_table_model.cpp
     files-io.cpp
     find.cpp
+    generate_alias_info.cpp
     getpart.cpp
-    component_tree_search_container.cpp
     hierarch.cpp
+    highlight_connection.cpp
     hotkeys.cpp
-    libarch.cpp
-    libedit.cpp
-    libeditframe.cpp
-    libedit_onleftclick.cpp
-    libedit_onrightclick.cpp
-    libedit_plot_component.cpp
-    libedit_undo_redo.cpp
     lib_arc.cpp
     lib_bezier.cpp
     lib_circle.cpp
@@ -117,24 +136,36 @@ set( EESCHEMA_SRCS
     lib_draw_item.cpp
     lib_export.cpp
     lib_field.cpp
+    lib_manager.cpp
+    lib_manager_adapter.cpp
     lib_pin.cpp
     lib_polyline.cpp
     lib_rectangle.cpp
     lib_text.cpp
+    libarch.cpp
+    libedit.cpp
+    libedit_onleftclick.cpp
+    libedit_onrightclick.cpp
+    libedit_plot_component.cpp
+    libedit_undo_redo.cpp
+    lib_edit_frame.cpp
     libfield.cpp
-    load_one_schematic_file.cpp
     menubar.cpp
     menubar_libedit.cpp
-    netform.cpp
-    netlist.cpp
+    netlist_generator.cpp
+    netlist_object_list.cpp
+    netlist_object.cpp
     onleftclick.cpp
     onrightclick.cpp
     operations_on_items_lists.cpp
+    pin_number.cpp
+    pin_shape.cpp
+    pin_type.cpp
     pinedit.cpp
     plot_schematic_DXF.cpp
     plot_schematic_HPGL.cpp
-    plot_schematic_PS.cpp
     plot_schematic_PDF.cpp
+    plot_schematic_PS.cpp
     plot_schematic_SVG.cpp
     project_rescue.cpp
     sch_base_frame.cpp
@@ -142,12 +173,16 @@ set( EESCHEMA_SRCS
     sch_bus_entry.cpp
     sch_collectors.cpp
     sch_component.cpp
+    sch_eagle_plugin.cpp
     sch_field.cpp
+    sch_io_mgr.cpp
     sch_item_struct.cpp
     sch_junction.cpp
+    sch_legacy_plugin.cpp
     sch_line.cpp
     sch_marker.cpp
     sch_no_connect.cpp
+    sch_plugin.cpp
     sch_screen.cpp
     sch_sheet.cpp
     sch_sheet_path.cpp
@@ -156,14 +191,15 @@ set( EESCHEMA_SRCS
     sch_validators.cpp
     schedit.cpp
     schematic_undo_redo.cpp
-    schframe.cpp
+    sch_edit_frame.cpp
     selpart.cpp
     sheet.cpp
     sheetlab.cpp
     symbdraw.cpp
     symbedit.cpp
-    template_fieldnames_keywords.cpp
+    symbol_lib_table.cpp
     template_fieldnames.cpp
+    template_fieldnames_keywords.cpp
     tool_lib.cpp
     tool_sch.cpp
     tool_viewlib.cpp
@@ -183,10 +219,33 @@ set( EESCHEMA_SRCS
 set( EESCHEMA_COMMON_SRCS
     ../common/dialogs/dialog_page_settings.cpp
     ../common/base_screen.cpp
-    ../common/eda_text.cpp
-    ../common/class_page_info.cpp
     ../common/base_units.cpp
+    ../common/eda_text.cpp
+    ../common/page_info.cpp
     )
+
+
+if( KICAD_SPICE )
+    set( EESCHEMA_SRCS
+        ${EESCHEMA_SRCS}
+        sim/netlist_exporter_pspice_sim.cpp
+        sim/ngspice.cpp
+        sim/sim_plot_frame.cpp
+        sim/sim_plot_frame_base.cpp
+        sim/sim_plot_panel.cpp
+        sim/simulate.cpp
+        sim/spice_simulator.cpp
+        sim/spice_value.cpp
+        dialogs/dialog_signal_list.cpp
+        dialogs/dialog_signal_list_base.cpp
+        dialogs/dialog_sim_settings.cpp
+        dialogs/dialog_sim_settings_base.cpp
+        dialogs/dialog_spice_model.cpp
+        dialogs/dialog_spice_model_base.cpp
+        widgets/tuner_slider.cpp
+        widgets/tuner_slider_base.cpp
+    )
+endif()
 
 
 if( MINGW )
@@ -241,11 +300,12 @@ target_link_libraries( eeschema
     # There's way too much crap coming in from common yet.
     common
     bitmaps
+    gal
     ${wxWidgets_LIBRARIES}
     )
 
 # the DSO (KIFACE) housing the main eeschema code:
-add_library( eeschema_kiface MODULE
+add_library( eeschema_kiface SHARED
     ${EESCHEMA_SRCS}
     ${EESCHEMA_COMMON_SRCS}
     )
@@ -256,6 +316,7 @@ target_link_libraries( eeschema_kiface
     gal
     ${wxWidgets_LIBRARIES}
     ${GDI_PLUS_LIBRARIES}
+    ${NGSPICE_LIBRARY}
     )
 set_target_properties( eeschema_kiface PROPERTIES
     # Decorate OUTPUT_NAME with PREFIX and SUFFIX, creating something like
@@ -299,6 +360,7 @@ if( APPLE )
         DESTINATION ${KICAD_BIN}
         COMPONENT binary
         )
+
     install( CODE "
             # override default embedded path settings
             ${OSX_BUNDLE_OVERRIDE_PATHS}
@@ -381,3 +443,4 @@ add_custom_target(
 add_dependencies( eeschema_kiface dialog_bom_cfg_lexer_source_files )
 
 add_subdirectory( plugins )
+add_subdirectory( qa )

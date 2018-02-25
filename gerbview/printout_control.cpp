@@ -1,8 +1,8 @@
 /*
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
- * Copyright (C) 2014 Jean-Pierre Charras, jp.charras at wanadoo.fr
- * Copyright (C) 1992-2014 KiCad Developers, see AUTHORS.txt for contributors.
+ * Copyright (C) 2016 Jean-Pierre Charras, jp.charras at wanadoo.fr
+ * Copyright (C) 1992-2016 KiCad Developers, see AUTHORS.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -28,20 +28,16 @@
  */
 
 
-// Set this to 1 if you want to test PostScript printing under MSW.
-#define wxTEST_POSTSCRIPT_IN_MSW 1
-
 #include <fctsys.h>
 #include <pgm_base.h>
 #include <gr_basic.h>
 #include <class_drawpanel.h>
-#include <confirm.h>
 #include <base_units.h>
-#include <wxstruct.h>
-#include <class_base_screen.h>
-#include <layers_id_colors_and_visibility.h>
+#include <base_screen.h>
 
 #include <gerbview_frame.h>
+#include <gerber_file_image.h>
+#include <gerber_file_image_list.h>
 
 #include <printout_controler.h>
 
@@ -82,7 +78,25 @@ bool BOARD_PRINTOUT_CONTROLLER::OnPrintPage( int aPage )
     // in gerbview, draw layers are always printed on separate pages
     // because handling negative objects when using only one page is tricky
     m_PrintParams.m_Flags = aPage;
-    DrawPage();
+
+    // The gerber filename of the page to print will be printed to the worksheet.
+    // Find this filename:
+    // Find the graphic layer number for the page to print
+    std::vector<int> printList =
+        ((GERBVIEW_FRAME*) m_Parent)->GetGerberLayout()->GetPrintableLayers();
+
+    if( printList.size() < 1 )      // Should not occur
+        return false;
+
+    int graphiclayer = printList[aPage-1];
+    GERBER_FILE_IMAGE_LIST& gbrImgList = GERBER_FILE_IMAGE_LIST::GetImagesList();
+    GERBER_FILE_IMAGE* gbrImage = gbrImgList.GetGbrImage( graphiclayer );
+    wxString gbr_filename;
+
+    if( gbrImage )
+        gbr_filename = gbrImage->m_FileName;
+
+    DrawPage( gbr_filename, aPage, m_PrintParams.m_PageCount );
 
     return true;
 }
@@ -104,7 +118,8 @@ void BOARD_PRINTOUT_CONTROLLER::GetPageInfo( int* minPage, int* maxPage,
 }
 
 
-void BOARD_PRINTOUT_CONTROLLER::DrawPage()
+void BOARD_PRINTOUT_CONTROLLER::DrawPage( const wxString& aLayerName,
+                                          int aPageNum, int aPageCount)
 {
     wxPoint       offset;
     double        userscale;
@@ -118,7 +133,7 @@ void BOARD_PRINTOUT_CONTROLLER::DrawPage()
     wxBusyCursor  dummy;
 
     boardBoundingBox = ((GERBVIEW_FRAME*) m_Parent)->GetGerberLayoutBoundingBox();
-    wxString titleblockFilename;    // TODO see if we uses the gerber file name
+    const wxString& titleblockFilename = aLayerName;    // TODO see if we uses the gerber file name
 
     // Use the page size as the drawing area when the board is shown or the user scale
     // is less than 1.
@@ -190,10 +205,6 @@ void BOARD_PRINTOUT_CONTROLLER::DrawPage()
     double scalex, scaley;
     dc->GetUserScale( &scalex, &scaley );
 
-    wxSize PlotAreaSizeInUserUnits;
-    PlotAreaSizeInUserUnits.x = KiROUND( PlotAreaSizeInPixels.x / scalex );
-    PlotAreaSizeInUserUnits.y = KiROUND( PlotAreaSizeInPixels.y / scaley );
-
     // In some cases the plot origin is the centre of the board outline rather than the center
     // of the selected paper size.
     if( m_PrintParams.CenterOnBoardOutline() )
@@ -225,25 +236,33 @@ void BOARD_PRINTOUT_CONTROLLER::DrawPage()
     panel->SetClipBox( EDA_RECT( wxPoint( 0, 0 ), wxSize( MAX_VALUE, MAX_VALUE ) ) );
 
     screen->m_IsPrinting = true;
-    EDA_COLOR_T bg_color = m_Parent->GetDrawBgColor();
+    COLOR4D bg_color = m_Parent->GetDrawBgColor();
 
     // Print frame reference, if requested, before printing draw layers
     if( m_PrintParams.m_Print_Black_and_White )
         GRForceBlackPen( true );
 
     if( m_PrintParams.PrintBorderAndTitleBlock() )
+    {
+        int tempScreenNumber = screen->m_ScreenNumber;
+        int tempNumberOfScreens = screen->m_NumberOfScreens;
+        screen->m_ScreenNumber = aPageNum;
+        screen->m_NumberOfScreens = aPageCount;
         m_Parent->DrawWorkSheet( dc, screen, m_PrintParams.m_PenDefaultSize,
                                  IU_PER_MILS, titleblockFilename );
+        screen->m_ScreenNumber = tempScreenNumber;
+        screen->m_NumberOfScreens = tempNumberOfScreens;
+    }
 
     if( printMirror )
     {
         // To plot mirror, we reverse the x axis, and modify the plot x origin
         dc->SetAxisOrientation( false, false );
 
-        /* Plot offset x is moved by the x plot area size in order to have
-         * the old draw area in the new draw area, because the draw origin has not moved
-         * (this is the upper left corner) but the X axis is reversed, therefore the plotting area
-         * is the x coordinate values from  - PlotAreaSize.x to 0 */
+        /* Change plot offset in order to have the draw area at the same location.
+         * The plot origin X is just moved from 0 to PlotAreaSizeInPixels.x.
+         * just set offset x at PlotAreaSizeInPixels.x.
+         */
         int x_dc_offset = PlotAreaSizeInPixels.x;
         x_dc_offset = KiROUND( x_dc_offset  * userscale );
         dc->SetDeviceOrigin( x_dc_offset, 0 );

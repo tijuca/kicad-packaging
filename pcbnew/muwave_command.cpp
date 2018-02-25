@@ -26,7 +26,7 @@
 #include <class_drawpanel.h>
 #include <confirm.h>
 #include <pcbnew.h>
-#include <wxPcbStruct.h>
+#include <pcb_edit_frame.h>
 
 #include <pcbnew_id.h>
 #include <kicad_device_context.h>
@@ -46,7 +46,7 @@ void PCB_EDIT_FRAME::ProcessMuWaveFunctions( wxCommandEvent& event )
 
     switch( id )    // End any command in progress.
     {
-    case ID_POPUP_COPY_BLOCK:
+    case ID_POPUP_DUPLICATE_BLOCK:
         break;
 
     default:        // End block command in progress.
@@ -113,7 +113,7 @@ void PCB_EDIT_FRAME::MuWaveCommand( wxDC* DC, const wxPoint& MousePos )
     default:
         m_canvas->SetCursor( wxCURSOR_ARROW );
         DisplayError( this, wxT( "PCB_EDIT_FRAME::MuWaveCommand() id error" ) );
-        SetToolID( ID_NO_TOOL_SELECTED, m_canvas->GetDefaultCursor(), wxEmptyString );
+        SetNoToolSelected();
         break;
     }
 

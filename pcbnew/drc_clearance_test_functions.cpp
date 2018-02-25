@@ -5,9 +5,9 @@
 /*
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
- * Copyright (C) 2004-2015 Jean-Pierre Charras, jean-pierre.charras@gipsa-lab.inpg.fr
+ * Copyright (C) 2004-2018 Jean-Pierre Charras, jp.charras at wanadoo.fr
  * Copyright (C) 2007 Dick Hollenbeck, dick@softplc.com
- * Copyright (C) 2015 KiCad Developers, see change_log.txt for contributors.
+ * Copyright (C) 2018 KiCad Developers, see AUTHORS.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -27,16 +27,16 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
  */
 
-/****************************/
-/* DRC control				*/
-/****************************/
+/**
+ * DRC control: these functions make a DRC between pads, tracks and pads versus tracks
+ */
 
 #include <fctsys.h>
-#include <wxPcbStruct.h>
+#include <pcb_edit_frame.h>
 #include <trigo.h>
 
 #include <pcbnew.h>
-#include <drc_stuff.h>
+#include <drc.h>
 
 #include <class_board.h>
 #include <class_module.h>
@@ -45,41 +45,37 @@
 #include <class_marker_pcb.h>
 #include <math_for_graphics.h>
 #include <polygon_test_point_inside.h>
+#include <convert_basic_shapes_to_polygon.h>
 
 
-/* compare 2 trapezoids (can be rectangle) and return true if distance > aDist
+/* compare 2 convex polygons and return true if distance > aDist
  * i.e if for each edge of the first polygon distance from each edge of the other polygon
  * is >= aDist
  */
-bool trapezoid2trapezoidDRC( wxPoint aTref[4], wxPoint aTcompare[4], int aDist )
+bool poly2polyDRC( wxPoint* aTref, int aTrefCount,
+                       wxPoint* aTcompare, int aTcompareCount, int aDist )
 {
     /* Test if one polygon is contained in the other and thus the polygon overlap.
-     * This case is not covered by the following check if one polygond is
+     * This case is not covered by the following check if one polygone is
      * completely contained in the other (because edges don't intersect)!
      */
-    if( TestPointInsidePolygon( aTref, 4, aTcompare[0] ) )
+    if( TestPointInsidePolygon( aTref, aTrefCount, aTcompare[0] ) )
         return false;
 
-    if( TestPointInsidePolygon( aTcompare, 4, aTref[0] ) )
+    if( TestPointInsidePolygon( aTcompare, aTcompareCount, aTref[0] ) )
         return false;
 
-    int ii, jj, kk, ll;
-
-    for( ii = 0, jj = 3; ii<4; jj = ii, ii++ )          // for all edges in aTref
-    {
-        for( kk = 0, ll = 3; kk < 4; ll = kk, kk++ )    // for all edges in aTcompare
-        {
+    for( int ii = 0, jj = aTrefCount - 1; ii < aTrefCount; jj = ii, ii++ )
+    {   // for all edges in aTref
+        for( int kk = 0, ll = aTcompareCount - 1; kk < aTcompareCount; ll = kk, kk++ )
+        {   // for all edges in aTcompare
             double d;
-            int    intersect = TestForIntersectionOfStraightLineSegments( aTref[ii].x,
-                                                                          aTref[ii].y,
-                                                                          aTref[jj].x,
-                                                                          aTref[jj].y,
-                                                                          aTcompare[kk].x,
-                                                                          aTcompare[kk].y,
-                                                                          aTcompare[ll].x,
-                                                                          aTcompare[ll].y,
-                                                                          NULL, NULL, &d );
-            if( intersect || (d< aDist) )
+            int    intersect = TestForIntersectionOfStraightLineSegments(
+                                aTref[ii].x, aTref[ii].y, aTref[jj].x, aTref[jj].y,
+                                aTcompare[kk].x, aTcompare[kk].y, aTcompare[ll].x, aTcompare[ll].y,
+                                NULL, NULL, &d );
+
+            if( intersect || ( d < aDist ) )
                 return false;
         }
     }
@@ -87,58 +83,50 @@ bool trapezoid2trapezoidDRC( wxPoint aTref[4], wxPoint aTcompare[4], int aDist )
     return true;
 }
 
-
 /* compare a trapezoids (can be rectangle) and a segment and return true if distance > aDist
  */
-bool trapezoid2segmentDRC( wxPoint aTref[4], wxPoint aSegStart, wxPoint aSegEnd, int aDist )
+bool poly2segmentDRC( wxPoint* aTref, int aTrefCount, wxPoint aSegStart, wxPoint aSegEnd, int aDist )
 {
     /* Test if the segment is contained in the polygon.
      * This case is not covered by the following check if the segment is
      * completely contained in the polygon (because edges don't intersect)!
      */
-    if( TestPointInsidePolygon( aTref, 4, aSegStart ) )
+    if( TestPointInsidePolygon( aTref, aTrefCount, aSegStart ) )
         return false;
 
-    int ii, jj;
-
-    for( ii = 0, jj = 3; ii < 4; jj = ii, ii++ )  // for all edges in aTref
-    {
+    for( int ii = 0, jj = aTrefCount-1; ii < aTrefCount; jj = ii, ii++ )
+    {   // for all edges in polygon
         double d;
-        int    intersect = TestForIntersectionOfStraightLineSegments( aTref[ii].x,
-                                                                      aTref[ii].y,
-                                                                      aTref[jj].x,
-                                                                      aTref[jj].y,
-                                                                      aSegStart.x,
-                                                                      aSegStart.y,
-                                                                      aSegEnd.x,
-                                                                      aSegEnd.y,
-                                                                      NULL, NULL, &d );
-        if( intersect || (d< aDist) )
+        int    intersect = TestForIntersectionOfStraightLineSegments(
+                                aTref[ii].x, aTref[ii].y, aTref[jj].x, aTref[jj].y,
+                                aSegStart.x, aSegStart.y, aSegEnd.x, aSegEnd.y,
+                                NULL, NULL, &d );
+
+        if( intersect || ( d < aDist) )
             return false;
     }
 
     return true;
 }
 
-
-/* compare a trapezoid to a point and return true if distance > aDist
+/* compare a polygon to a point and return true if distance > aDist
  * do not use this function for horizontal or vertical rectangles
  * because there is a faster an easier way to compare the distance
  */
-bool trapezoid2pointDRC( wxPoint aTref[4], wxPoint aPcompare, int aDist )
+bool convex2pointDRC( wxPoint* aTref, int aTrefCount, wxPoint aPcompare, int aDist )
 {
     /* Test if aPcompare point is contained in the polygon.
      * This case is not covered by the following check if this point is inside the polygon
      */
-    if( TestPointInsidePolygon( aTref, 4, aPcompare ) )
+    if( TestPointInsidePolygon( aTref, aTrefCount, aPcompare ) )
     {
         return false;
     }
 
     // Test distance between aPcompare and each segment of the polygon:
-    for( int ii = 0, jj = 3; ii < 4; jj = ii, ii++ )  // for all edge in polygon
+    for( int ii = 0, jj = aTrefCount - 1; ii < aTrefCount; jj = ii, ii++ )  // for all edge in polygon
     {
-        if( TestSegmentHit( aTref[ii], aTref[jj], aPcompare, aDist ) )
+        if( TestSegmentHit( aPcompare, aTref[ii], aTref[jj], aDist ) )
             return false;
     }
 
@@ -149,7 +137,7 @@ bool trapezoid2pointDRC( wxPoint aTref[4], wxPoint aPcompare, int aDist )
 bool DRC::doTrackDrc( TRACK* aRefSeg, TRACK* aStart, bool testPads )
 {
     TRACK*    track;
-    wxPoint   delta;           // lenght on X and Y axis of segments
+    wxPoint   delta;           // length on X and Y axis of segments
     LSET layerMask;
     int       net_code_ref;
     wxPoint   shape_pos;
@@ -181,6 +169,12 @@ bool DRC::doTrackDrc( TRACK* aRefSeg, TRACK* aStart, bool testPads )
                                               DRCE_TOO_SMALL_MICROVIA, m_currentMarker );
                 return false;
             }
+            if( refvia->GetDrillValue() < dsnSettings.m_MicroViasMinDrill )
+            {
+                m_currentMarker = fillMarker( refvia, NULL,
+                                              DRCE_TOO_SMALL_MICROVIA_DRILL, m_currentMarker );
+                return false;
+            }
         }
         else
         {
@@ -188,6 +182,12 @@ bool DRC::doTrackDrc( TRACK* aRefSeg, TRACK* aStart, bool testPads )
             {
                 m_currentMarker = fillMarker( refvia, NULL,
                                               DRCE_TOO_SMALL_VIA, m_currentMarker );
+                return false;
+            }
+            if( refvia->GetDrillValue() < dsnSettings.m_ViasMinDrill )
+            {
+                m_currentMarker = fillMarker( refvia, NULL,
+                                              DRCE_TOO_SMALL_VIA_DRILL, m_currentMarker );
                 return false;
             }
         }
@@ -202,12 +202,32 @@ bool DRC::doTrackDrc( TRACK* aRefSeg, TRACK* aStart, bool testPads )
             return false;
         }
 
+        // test if the type of via is allowed due to design rules
+        if( ( refvia->GetViaType() == VIA_MICROVIA ) &&
+            ( m_pcb->GetDesignSettings().m_MicroViasAllowed == false ) )
+        {
+            m_currentMarker = fillMarker( refvia, NULL,
+                    DRCE_MICRO_VIA_NOT_ALLOWED, m_currentMarker );
+            return false;
+        }
+
+        // test if the type of via is allowed due to design rules
+        if( ( refvia->GetViaType() == VIA_BLIND_BURIED ) &&
+            ( m_pcb->GetDesignSettings().m_BlindBuriedViaAllowed == false ) )
+        {
+            m_currentMarker = fillMarker( refvia, NULL,
+                    DRCE_BURIED_VIA_NOT_ALLOWED, m_currentMarker );
+            return false;
+        }
+
         // For microvias: test if they are blind vias and only between 2 layers
         // because they are used for very small drill size and are drill by laser
         // and **only one layer** can be drilled
         if( refvia->GetViaType() == VIA_MICROVIA )
         {
-            LAYER_ID    layer1, layer2;
+
+
+            PCB_LAYER_ID    layer1, layer2;
             bool        err = true;
 
             refvia->LayerPair( &layer1, &layer2 );
@@ -227,6 +247,7 @@ bool DRC::doTrackDrc( TRACK* aRefSeg, TRACK* aStart, bool testPads )
                 return false;
             }
         }
+
     }
     else    // This is a track segment
     {
@@ -274,9 +295,11 @@ bool DRC::doTrackDrc( TRACK* aRefSeg, TRACK* aStart, bool testPads )
     {
         unsigned pad_count = m_pcb->GetPadCount();
 
+        auto pads = m_pcb->GetPads();
+
         for( unsigned ii = 0;  ii<pad_count;  ++ii )
         {
-            D_PAD* pad = m_pcb->GetPad( ii );
+            D_PAD* pad = pads[ii];
 
             /* No problem if pads are on an other layer,
              * But if a drill hole exists	(a pad on a single layer can have a hole!)
@@ -352,6 +375,13 @@ bool DRC::doTrackDrc( TRACK* aRefSeg, TRACK* aStart, bool testPads )
         // width plus half the other track's width
         int w_dist = aRefSeg->GetClearance( track );
         w_dist += (aRefSeg->GetWidth() + track->GetWidth()) / 2;
+
+        // Due to many double to int conversions during calculations, which
+        // create rounding issues,
+        // the exact clearance margin cannot be really known.
+        // To avoid false bad DRC detection due to these rounding issues,
+        // slightly decrease the w_dist (remove one nanometer is enough !)
+        w_dist -= 1;
 
         // If the reference segment is a via, we test it here
         if( aRefSeg->Type() == PCB_VIA_T )
@@ -542,7 +572,7 @@ bool DRC::doTrackDrc( TRACK* aRefSeg, TRACK* aStart, bool testPads )
                     // Compute the segment orientation (angle) en 0,1 degre
                     double angle = ArcTangente( delta.y, delta.x );
 
-                    // Compute the segment lenght: delta.x = lenght after rotation
+                    // Compute the segment length: delta.x = length after rotation
                     RotatePoint( &delta, angle );
 
                     /* Comute the reference segment coordinates relatives to a
@@ -576,15 +606,110 @@ bool DRC::doTrackDrc( TRACK* aRefSeg, TRACK* aStart, bool testPads )
 }
 
 
-/* test DRC between 2 pads.
- * this function can be also used to test DRC between a pas and a hole,
- * because a hole is like a round pad.
- */
+bool DRC::doEdgeZoneDrc( ZONE_CONTAINER* aArea, int aCornerIndex )
+{
+    if( !aArea->IsOnCopperLayer() )    // Cannot have a Drc error if not on copper layer
+        return true;
+    // Get polygon, contour and vertex index.
+    SHAPE_POLY_SET::VERTEX_INDEX index;
+
+    // If the vertex does not exist, there is no conflict
+    if( !aArea->Outline()->GetRelativeIndices( aCornerIndex, &index ) )
+        return true;
+
+    // Retrieve the selected contour
+    SHAPE_LINE_CHAIN contour;
+    contour = aArea->Outline()->Polygon( index.m_polygon )[index.m_contour];
+
+    // Retrieve the segment that starts at aCornerIndex-th corner.
+    SEG selectedSegment = contour.Segment( index.m_vertex );
+
+    VECTOR2I start = selectedSegment.A;
+    VECTOR2I end = selectedSegment.B;
+
+    // iterate through all areas
+    for( int ia2 = 0; ia2 < m_pcb->GetAreaCount(); ia2++ )
+    {
+        ZONE_CONTAINER* area_to_test   = m_pcb->GetArea( ia2 );
+        int             zone_clearance = std::max( area_to_test->GetZoneClearance(),
+                                                   aArea->GetZoneClearance() );
+
+        // test for same layer
+        if( area_to_test->GetLayer() != aArea->GetLayer() )
+            continue;
+
+        // Test for same net
+        if( ( aArea->GetNetCode() == area_to_test->GetNetCode() ) && (aArea->GetNetCode() >= 0) )
+            continue;
+
+        // test for same priority
+        if( area_to_test->GetPriority() != aArea->GetPriority() )
+            continue;
+
+        // test for same type
+        if( area_to_test->GetIsKeepout() != aArea->GetIsKeepout() )
+            continue;
+
+        // For keepout, there is no clearance, so use a minimal value for it
+        // use 1, not 0 as value to avoid some issues in tests
+        if( area_to_test->GetIsKeepout() )
+            zone_clearance = 1;
+
+        // test for ending line inside area_to_test
+        if( area_to_test->Outline()->Contains( end ) )
+        {
+            // COPPERAREA_COPPERAREA error: corner inside copper area
+            m_currentMarker = fillMarker( aArea, static_cast<wxPoint>( end ),
+                                          COPPERAREA_INSIDE_COPPERAREA,
+                                          m_currentMarker );
+            return false;
+        }
+
+        // now test spacing between areas
+        int ax1    = start.x;
+        int ay1    = start.y;
+        int ax2    = end.x;
+        int ay2    = end.y;
+
+        // Iterate through all edges in the polygon.
+        SHAPE_POLY_SET::SEGMENT_ITERATOR iterator;
+        for( iterator = area_to_test->Outline()->IterateSegmentsWithHoles(); iterator; iterator++ )
+        {
+            SEG segment = *iterator;
+
+            int bx1 = segment.A.x;
+            int by1 = segment.A.y;
+            int bx2 = segment.B.x;
+            int by2 = segment.B.y;
+
+            int x, y;   // variables containing the intersecting point coordinates
+            int d = GetClearanceBetweenSegments( bx1, by1, bx2, by2,
+                                                 0,
+                                                 ax1, ay1, ax2, ay2,
+                                                 0,
+                                                 zone_clearance,
+                                                 &x, &y );
+
+            if( d < zone_clearance )
+            {
+                // COPPERAREA_COPPERAREA error : edge intersect or too close
+                m_currentMarker = fillMarker( aArea, wxPoint( x, y ),
+                                              COPPERAREA_CLOSE_TO_COPPERAREA,
+                                              m_currentMarker );
+                return false;
+            }
+
+        }
+    }
+
+    return true;
+}
+
+
 bool DRC::checkClearancePadToPad( D_PAD* aRefPad, D_PAD* aPad )
 {
     int     dist;
-
-    double  pad_angle;
+    double pad_angle;
 
     // Get the clearance between the 2 pads. this is the min distance between aRefPad and aPad
     int     dist_min = aRefPad->GetClearance( aPad );
@@ -595,7 +720,9 @@ bool DRC::checkClearancePadToPad( D_PAD* aRefPad, D_PAD* aPad )
     dist = KiROUND( EuclideanNorm( relativePadPos ) );
 
     // Quick test: Clearance is OK if the bounding circles are further away than "dist_min"
-    if( (dist - aRefPad->GetBoundingRadius() - aPad->GetBoundingRadius()) >= dist_min )
+    int delta = dist - aRefPad->GetBoundingRadius() - aPad->GetBoundingRadius();
+
+    if( delta >= dist_min )
         return true;
 
     /* Here, pads are near and DRC depend on the pad shapes
@@ -609,10 +736,12 @@ bool DRC::checkClearancePadToPad( D_PAD* aRefPad, D_PAD* aPad )
     swap_pads = false;
 
     // swap pads to make comparisons easier
-    // priority is aRefPad = ROUND then OVAL then RECT then other
+    // Note also a ROUNDRECT pad with a corner radius = r can be considered as
+    // a smaller RECT (size - 2*r) with a clearance increased by r
+    // priority is aRefPad = ROUND then OVAL then RECT/ROUNDRECT then other
     if( aRefPad->GetShape() != aPad->GetShape() && aRefPad->GetShape() != PAD_SHAPE_CIRCLE )
     {
-        // pad ref shape is here oval, rect or trapezoid
+        // pad ref shape is here oval, rect, roundrect, trapezoid or custom
         switch( aPad->GetShape() )
         {
             case PAD_SHAPE_CIRCLE:
@@ -624,11 +753,13 @@ bool DRC::checkClearancePadToPad( D_PAD* aRefPad, D_PAD* aPad )
                 break;
 
             case PAD_SHAPE_RECT:
+            case PAD_SHAPE_ROUNDRECT:
                 if( aRefPad->GetShape() != PAD_SHAPE_OVAL )
                     swap_pads = true;
                 break;
 
-            default:
+            case PAD_SHAPE_TRAPEZOID:
+            case PAD_SHAPE_CUSTOM:
                 break;
         }
     }
@@ -639,10 +770,20 @@ bool DRC::checkClearancePadToPad( D_PAD* aRefPad, D_PAD* aPad )
         relativePadPos = -relativePadPos;
     }
 
+    // corners of aRefPad (used only for rect/roundrect/trap pad)
+    wxPoint polyref[4];
+    // corners of aRefPad (used only for custom pad)
+    SHAPE_POLY_SET polysetref;
+
+    // corners of aPad (used only for rect/roundrect/trap pad)
+    wxPoint polycompare[4];
+    // corners of aPad (used only custom pad)
+    SHAPE_POLY_SET polysetcompare;
+
     /* Because pad exchange, aRefPad shape is PAD_SHAPE_CIRCLE or PAD_SHAPE_OVAL,
      * if one of the 2 pads was a PAD_SHAPE_CIRCLE or PAD_SHAPE_OVAL.
-     * Therefore, if aRefPad is a PAD_SHAPE_SHAPE_RECT or a PAD_SHAPE_TRAPEZOID,
-     * aPad is also a PAD_SHAPE_RECT or a PAD_SHAPE_TRAPEZOID
+     * Therefore, if aRefPad is a PAD_SHAPE_RECT, PAD_SHAPE_ROUNDRECT or a PAD_SHAPE_TRAPEZOID,
+     * aPad is also a PAD_SHAPE_RECT, PAD_SHAPE_ROUNDRECT or a PAD_SHAPE_TRAPEZOID
      */
     bool diag = true;
 
@@ -662,77 +803,106 @@ bool DRC::checkClearancePadToPad( D_PAD* aRefPad, D_PAD* aPad )
         diag = checkClearanceSegmToPad( aPad, aRefPad->GetSize().x, dist_min );
         break;
 
+    case PAD_SHAPE_TRAPEZOID:
+    case PAD_SHAPE_ROUNDRECT:
     case PAD_SHAPE_RECT:
+    case PAD_SHAPE_CUSTOM:
         // pad_angle = pad orient relative to the aRefPad orient
         pad_angle = aRefPad->GetOrientation() + aPad->GetOrientation();
         NORMALIZE_ANGLE_POS( pad_angle );
 
-        if( aPad->GetShape() == PAD_SHAPE_RECT )
+        if( aRefPad->GetShape() == PAD_SHAPE_ROUNDRECT )
         {
-            wxSize size = aPad->GetSize();
+            int padRadius = aRefPad->GetRoundRectCornerRadius();
+            dist_min += padRadius;
+            GetRoundRectCornerCenters( polyref, padRadius, wxPoint( 0, 0 ),
+                                aRefPad->GetSize(), aRefPad->GetOrientation() );
+        }
+        else if( aRefPad->GetShape() == PAD_SHAPE_CUSTOM )
+        {
+            polysetref.Append( aRefPad->GetCustomShapeAsPolygon() );
 
-            // The trivial case is if both rects are rotated by multiple of 90 deg
-            // Most of time this is the case, and the test is fast
-            if( ( (aRefPad->GetOrientation() == 0) || (aRefPad->GetOrientation() == 900)
-                 || (aRefPad->GetOrientation() == 1800) || (aRefPad->GetOrientation() == 2700) )
-               && ( (aPad->GetOrientation() == 0) || (aPad->GetOrientation() == 900) || (aPad->GetOrientation() == 1800)
-                   || (aPad->GetOrientation() == 2700) ) )
+            // The reference pad can be rotated. calculate the rotated
+            // coordiantes ( note, the ref pad position is the origin of
+            // coordinates for this drc test)
+            aRefPad->CustomShapeAsPolygonToBoardPosition( &polysetref,
+                        wxPoint( 0, 0 ), aRefPad->GetOrientation() );
+        }
+        else
+        {
+            // BuildPadPolygon has meaning for rect a trapeziod shapes
+            // and returns the 4 corners
+            aRefPad->BuildPadPolygon( polyref, wxSize( 0, 0 ), aRefPad->GetOrientation() );
+        }
+
+        switch( aPad->GetShape() )
+        {
+        case PAD_SHAPE_ROUNDRECT:
+        case PAD_SHAPE_RECT:
+        case PAD_SHAPE_TRAPEZOID:
+        case PAD_SHAPE_CUSTOM:
+            if( aPad->GetShape() == PAD_SHAPE_ROUNDRECT )
             {
-                if( (pad_angle == 900) || (pad_angle == 2700) )
-                {
-                    std::swap( size.x, size.y );
-                }
-
-                // Test DRC:
-                diag = false;
-                RotatePoint( &relativePadPos, aRefPad->GetOrientation() );
-                relativePadPos.x = std::abs( relativePadPos.x );
-                relativePadPos.y = std::abs( relativePadPos.y );
-
-                if( ( relativePadPos.x - ( (size.x + aRefPad->GetSize().x) / 2 ) ) >= dist_min )
-                    diag = true;
-
-                if( ( relativePadPos.y - ( (size.y + aRefPad->GetSize().y) / 2 ) ) >= dist_min )
-                    diag = true;
+                int padRadius = aPad->GetRoundRectCornerRadius();
+                dist_min += padRadius;
+                GetRoundRectCornerCenters( polycompare, padRadius, relativePadPos,
+                                    aPad->GetSize(), aPad->GetOrientation() );
             }
-            else    // at least one pad has any other orient. Test is more tricky
-            {   // Use the trapezoid2trapezoidDRC which also compare 2 rectangles with any orientation
-                wxPoint polyref[4];         // Shape of aRefPad
-                wxPoint polycompare[4];     // Shape of aPad
-                aRefPad->BuildPadPolygon( polyref, wxSize( 0, 0 ), aRefPad->GetOrientation() );
+            else if( aPad->GetShape() == PAD_SHAPE_CUSTOM )
+            {
+                polysetcompare.Append( aPad->GetCustomShapeAsPolygon() );
+
+                // The pad to compare can be rotated. calculate the rotated
+                // coordinattes ( note, the pad to compare position
+                // is the relativePadPos for this drc test
+                aPad->CustomShapeAsPolygonToBoardPosition( &polysetcompare,
+                            relativePadPos, aPad->GetOrientation() );
+            }
+            else
+            {
                 aPad->BuildPadPolygon( polycompare, wxSize( 0, 0 ), aPad->GetOrientation() );
 
                 // Move aPad shape to relativePadPos
                 for( int ii = 0; ii < 4; ii++ )
                     polycompare[ii] += relativePadPos;
-
+            }
+            // And now test polygons: We have 3 cases:
+            // one poly is complex and the other is basic (has only 4 corners)
+            // both polys are complex
+            // both polys are basic (have only 4 corners) the most usual case
+            if( polysetref.OutlineCount() && polysetcompare.OutlineCount() == 0)
+            {
+                const SHAPE_LINE_CHAIN& refpoly = polysetref.COutline( 0 );
                 // And now test polygons:
-                if( !trapezoid2trapezoidDRC( polyref, polycompare, dist_min ) )
+                if( !poly2polyDRC( (wxPoint*) &refpoly.CPoint( 0 ), refpoly.PointCount(),
+                            polycompare, 4, dist_min ) )
                     diag = false;
             }
-        }
-        else if( aPad->GetShape() == PAD_SHAPE_TRAPEZOID )
-        {
-            wxPoint polyref[4];         // Shape of aRefPad
-            wxPoint polycompare[4];     // Shape of aPad
-            aRefPad->BuildPadPolygon( polyref, wxSize( 0, 0 ), aRefPad->GetOrientation() );
-            aPad->BuildPadPolygon( polycompare, wxSize( 0, 0 ), aPad->GetOrientation() );
+            else if( polysetref.OutlineCount() == 0 && polysetcompare.OutlineCount())
+            {
+                const SHAPE_LINE_CHAIN& cmppoly = polysetcompare.COutline( 0 );
+                // And now test polygons:
+                if( !poly2polyDRC( (wxPoint*) &cmppoly.CPoint( 0 ), cmppoly.PointCount(),
+                            polyref, 4, dist_min ) )
+                    diag = false;
+            }
+            else if( polysetref.OutlineCount() && polysetcompare.OutlineCount() )
+            {
+                const SHAPE_LINE_CHAIN& refpoly = polysetref.COutline( 0 );
+                const SHAPE_LINE_CHAIN& cmppoly = polysetcompare.COutline( 0 );
 
-            // Move aPad shape to relativePadPos
-            for( int ii = 0; ii < 4; ii++ )
-                polycompare[ii] += relativePadPos;
-
-            // And now test polygons:
-            if( !trapezoid2trapezoidDRC( polyref, polycompare, dist_min ) )
+                // And now test polygons:
+                if( !poly2polyDRC( (wxPoint*) &refpoly.CPoint( 0 ), refpoly.PointCount(),
+                            (wxPoint*) &cmppoly.CPoint( 0 ), cmppoly.PointCount(), dist_min ) )
+                    diag = false;
+            }
+            else if( !poly2polyDRC( polyref, 4, polycompare, 4, dist_min ) )
                 diag = false;
-        }
-        else
-        {
-            // Should not occur, because aPad and aRefPad are swapped
-            // to have only aPad shape RECT or TRAP and aRefPad shape TRAP or RECT.
-            wxLogDebug( wxT( "DRC::checkClearancePadToPad: unexpected pad ref RECT @ %d, %d to pad shape %d @ %d, %d"),
-                aRefPad->GetPosition().x, aRefPad->GetPosition().y,
-                aPad->GetShape(), aPad->GetPosition().x, aPad->GetPosition().y );
+            break;
+
+        default:
+            wxLogDebug( wxT( "DRC::checkClearancePadToPad: unexpected pad shape %d" ), aPad->GetShape() );
+            break;
         }
         break;
 
@@ -778,29 +948,8 @@ bool DRC::checkClearancePadToPad( D_PAD* aRefPad, D_PAD* aPad )
         break;
     }
 
-    case PAD_SHAPE_TRAPEZOID:
-
-        // at this point, aPad is also a trapezoid, because all other shapes
-        // have priority, and are already tested
-        wxASSERT( aPad->GetShape() == PAD_SHAPE_TRAPEZOID );
-        {
-            wxPoint polyref[4];         // Shape of aRefPad
-            wxPoint polycompare[4];     // Shape of aPad
-            aRefPad->BuildPadPolygon( polyref, wxSize( 0, 0 ), aRefPad->GetOrientation() );
-            aPad->BuildPadPolygon( polycompare, wxSize( 0, 0 ), aPad->GetOrientation() );
-
-            // Move aPad shape to relativePadPos
-            for( int ii = 0; ii < 4; ii++ )
-                polycompare[ii] += relativePadPos;
-
-            // And now test polygons:
-            if( !trapezoid2trapezoidDRC( polyref, polycompare, dist_min ) )
-                diag = false;
-        }
-        break;
-
     default:
-        wxLogDebug( wxT( "DRC::checkClearancePadToPad: unexpected pad shape" ) );
+        wxMessageBox( wxT( "DRC::checkClearancePadToPad: unknown pad shape" ) );
         break;
     }
 
@@ -815,14 +964,33 @@ bool DRC::checkClearancePadToPad( D_PAD* aRefPad, D_PAD* aPad )
  */
 bool DRC::checkClearanceSegmToPad( const D_PAD* aPad, int aSegmentWidth, int aMinDist )
 {
-    wxSize  padHalfsize;            // half dimension of the pad
-    wxPoint startPoint, endPoint;
+    // Note:
+    // we are using a horizontal segment for test, because we know here
+    // only the length and orientation+ of the segment
+    // Therefore the coordinates of the  shape of pad to compare
+    // must be calculated in a axis system rotated by m_segmAngle
+    // and centered to the segment origin, before they can be tested
+    // against the segment
+    // We are using:
+    // m_padToTestPos the position of the pad shape in this axis system
+    // m_segmAngle the axis system rotation
 
     int segmHalfWidth = aSegmentWidth / 2;
     int distToLine = segmHalfWidth + aMinDist;
 
-    padHalfsize.x = aPad->GetSize().x >> 1;
-    padHalfsize.y = aPad->GetSize().y >> 1;
+    wxSize  padHalfsize;    // half dimension of the pad
+
+    if( aPad->GetShape() == PAD_SHAPE_CUSTOM )
+    {
+        // For a custom pad, the pad size has no meaning, we only can
+        // use the bounding radius
+        padHalfsize.x = padHalfsize.y = aPad->GetBoundingRadius();
+    }
+    else
+    {
+        padHalfsize.x = aPad->GetSize().x >> 1;
+        padHalfsize.y = aPad->GetSize().y >> 1;
+    }
 
     if( aPad->GetShape() == PAD_SHAPE_TRAPEZOID )     // The size is bigger, due to GetDelta() extra size
     {
@@ -849,8 +1017,8 @@ bool DRC::checkClearanceSegmToPad( const D_PAD* aPad, int aSegmentWidth, int aMi
     m_xcliphi = m_padToTestPos.x + distToLine + padHalfsize.x;
     m_ycliphi = m_padToTestPos.y + distToLine + padHalfsize.y;
 
-    startPoint.x = startPoint.y = 0;
-    endPoint     = m_segmEnd;
+    wxPoint startPoint;
+    wxPoint endPoint = m_segmEnd;
 
     double orient = aPad->GetOrientation();
 
@@ -865,7 +1033,10 @@ bool DRC::checkClearanceSegmToPad( const D_PAD* aPad, int aSegmentWidth, int aMi
      */
     switch( aPad->GetShape() )
     {
-    default:
+    case PAD_SHAPE_CIRCLE:
+        // This case was already tested, so it cannot be found here.
+        // it is here just to avoid compil warning, and to remember
+        // it is already tested.
         return false;
 
     case PAD_SHAPE_OVAL:
@@ -873,61 +1044,78 @@ bool DRC::checkClearanceSegmToPad( const D_PAD* aPad, int aSegmentWidth, int aMi
         /* an oval is a complex shape, but is a rectangle and 2 circles
          * these 3 basic shapes are more easy to test.
          *
-         * In calculations we are using a vertical oval shape
-         * (i.e. a vertical rounded segment)
-         * for horizontal oval shapes, swap x and y size and rotate the shape
+         * In calculations we are using a vertical or horizontal oval shape
+         * (i.e. a vertical or horizontal rounded segment)
          */
-        if( padHalfsize.x > padHalfsize.y )
+        wxPoint cstart = m_padToTestPos;
+        wxPoint cend = m_padToTestPos;   // center of each circle
+        int delta = std::abs( padHalfsize.y - padHalfsize.x );
+        int radius = std::min( padHalfsize.y, padHalfsize.x );
+
+        if( padHalfsize.x > padHalfsize.y ) // horizontal equivalent segment
         {
-            std::swap( padHalfsize.x, padHalfsize.y );
-            orient = AddAngles( orient, 900 );
+            cstart.x -= delta;
+            cend.x += delta;
+            // Build the rectangular clearance area between the two circles
+            // the rect starts at cstart.x and ends at cend.x and its height
+            // is (radius + distToLine)*2
+            m_xcliplo = cstart.x;
+            m_ycliplo = cstart.y - radius - distToLine;
+            m_xcliphi = cend.x;
+            m_ycliphi = cend.y + radius + distToLine;
+        }
+        else    // vertical equivalent segment
+        {
+            cstart.y -= delta;
+            cend.y += delta;
+            // Build the rectangular clearance area between the two circles
+            // the rect starts at cstart.y and ends at cend.y and its width
+            // is (radius + distToLine)*2
+            m_xcliplo = cstart.x - distToLine - radius;
+            m_ycliplo = cstart.y;
+            m_xcliphi = cend.x + distToLine +radius;
+            m_ycliphi = cend.y;
         }
 
-        // here, padHalfsize.x is the radius of rounded ends.
-
-        int deltay = padHalfsize.y - padHalfsize.x;
-        // here: padHalfsize.x = radius,
-        // deltay = dist between the centre pad and the centre of a rounded end
-
-        // Test the rectangular area between the two circles (the rounded ends)
-        m_xcliplo = m_padToTestPos.x - distToLine - padHalfsize.x;
-        m_ycliplo = m_padToTestPos.y - deltay;
-        m_xcliphi = m_padToTestPos.x + distToLine + padHalfsize.x;
-        m_ycliphi = m_padToTestPos.y + deltay;
-
+        // Test the rectangular clearance area between the two circles (the rounded ends)
         if( !checkLine( startPoint, endPoint ) )
         {
             return false;
         }
 
-        // test the first circle
-        startPoint.x = m_padToTestPos.x;         // startPoint = centre of the upper circle of the oval shape
-        startPoint.y = m_padToTestPos.y + deltay;
-
+        // test the first end
         // Calculate the actual position of the circle, given the pad orientation:
-        RotatePoint( &startPoint, m_padToTestPos, orient );
+        RotatePoint( &cstart, m_padToTestPos, orient );
 
-        // Calculate the actual position of the circle in the new X,Y axis:
-        RotatePoint( &startPoint, m_segmAngle );
+        // Calculate the actual position of the circle in the new X,Y axis, relative
+        // to the segment:
+        RotatePoint( &cstart, m_segmAngle );
 
-        if( !checkMarginToCircle( startPoint, padHalfsize.x + distToLine, m_segmLength ) )
+        if( !checkMarginToCircle( cstart, radius + distToLine, m_segmLength ) )
         {
             return false;
         }
 
-        // test the second circle
-        startPoint.x = m_padToTestPos.x;         // startPoint = centre of the lower circle of the oval shape
-        startPoint.y = m_padToTestPos.y - deltay;
-        RotatePoint( &startPoint, m_padToTestPos, orient );
-        RotatePoint( &startPoint, m_segmAngle );
+        // test the second end
+        RotatePoint( &cend, m_padToTestPos, orient );
+        RotatePoint( &cend, m_segmAngle );
 
-        if( !checkMarginToCircle( startPoint, padHalfsize.x + distToLine, m_segmLength ) )
+        if( !checkMarginToCircle( cend, radius + distToLine, m_segmLength ) )
         {
             return false;
         }
     }
         break;
 
+    case PAD_SHAPE_ROUNDRECT:
+        {
+        // a round rect is a smaller rect, with a clearance augmented by the corners radius
+        int r = aPad->GetRoundRectCornerRadius();
+        padHalfsize.x -= r;
+        padHalfsize.y -= r;
+        distToLine += r;
+        }
+        // Fall through
     case PAD_SHAPE_RECT:
         // the area to test is a rounded rectangle.
         // this can be done by testing 2 rectangles and 4 circles (the corners)
@@ -991,7 +1179,7 @@ bool DRC::checkClearanceSegmToPad( const D_PAD* aPad, int aSegmentWidth, int aMi
         break;
 
     case PAD_SHAPE_TRAPEZOID:
-    {
+        {
         wxPoint poly[4];
         aPad->BuildPadPolygon( poly, wxSize( 0, 0 ), orient );
 
@@ -1002,10 +1190,41 @@ bool DRC::checkClearanceSegmToPad( const D_PAD* aPad, int aSegmentWidth, int aMi
             RotatePoint( &poly[ii], m_segmAngle );
         }
 
-        if( !trapezoid2segmentDRC( poly, wxPoint( 0, 0 ), wxPoint(m_segmLength,0), distToLine ) )
+        if( !poly2segmentDRC( poly, 4, wxPoint( 0, 0 ),
+                              wxPoint(m_segmLength,0), distToLine ) )
             return false;
-    }
-    break;
+        }
+        break;
+
+    case PAD_SHAPE_CUSTOM:
+        {
+        SHAPE_POLY_SET polyset;
+        polyset.Append( aPad->GetCustomShapeAsPolygon() );
+        // The pad can be rotated. calculate the coordinates
+        // relatives to the segment being tested
+        // Note, the pad position relative to the segment origin
+        // is m_padToTestPos
+        aPad->CustomShapeAsPolygonToBoardPosition( &polyset,
+                    m_padToTestPos, orient );
+
+        // Rotate all coordinates by m_segmAngle, because the segment orient
+        // is m_segmAngle
+        // we are using a horizontal segment for test, because we know here
+        // only the lenght and orientation+ of the segment
+        // therefore all coordinates of the pad to test must be rotated by
+        // m_segmAngle (they are already relative to the segment origin)
+        aPad->CustomShapeAsPolygonToBoardPosition( &polyset,
+                    wxPoint( 0, 0 ), m_segmAngle );
+
+        const SHAPE_LINE_CHAIN& refpoly = polyset.COutline( 0 );
+
+        if( !poly2segmentDRC( (wxPoint*) &refpoly.CPoint( 0 ),
+                              refpoly.PointCount(),
+                              wxPoint( 0, 0 ), wxPoint(m_segmLength,0),
+                              distToLine ) )
+            return false;
+        }
+        break;
     }
 
     return true;
@@ -1020,11 +1239,11 @@ bool DRC::checkClearanceSegmToPad( const D_PAD* aPad, int aSegmentWidth, int aMi
  */
 bool DRC::checkMarginToCircle( wxPoint aCentre, int aRadius, int aLength )
 {
-    if( abs( aCentre.y ) > aRadius )     // trivial case
+    if( abs( aCentre.y ) >= aRadius )     // trivial case
         return true;
 
     // Here, distance between aCentre and X axis is < aRadius
-    if( (aCentre.x >= -aRadius ) && ( aCentre.x <= (aLength + aRadius) ) )
+    if( (aCentre.x > -aRadius ) && ( aCentre.x < (aLength + aRadius) ) )
     {
         if( (aCentre.x >= 0) && (aCentre.x <= aLength) )
             return false;           // aCentre is between the starting point and the ending point of the segm

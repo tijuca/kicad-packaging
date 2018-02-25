@@ -52,7 +52,7 @@
 
 #include <wx/gdicmn.h>                          // for wxPoint definition
 #include <layers_id_colors_and_visibility.h>    // for LAYER_NUM definition
-#include <class_eda_rect.h>                     // for EDA_RECT definition
+#include <eda_rect.h>                     // for EDA_RECT definition
 
 #include <geometry/shape_poly_set.h> // fixme
 
@@ -104,6 +104,8 @@ public:
     { return (x != cpt2.x) || (y != cpt2.y) || (end_contour != cpt2.end_contour); }
 };
 
+
+#ifndef SWIG
 /**
  * CPOLYGONS_LIST handle a list of contours (polygons corners).
  * Each corner is a CPolyPt item.
@@ -205,6 +207,8 @@ public:
      */
     int GetContoursCount() const;
 };
+#endif
+
 
 class CPolyLine
 {

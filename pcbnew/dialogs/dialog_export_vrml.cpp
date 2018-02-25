@@ -7,7 +7,7 @@
  *
  * Copyright (C) 2009-2013  Lorenzo Mercantonio
  * Copyright (C) 2013 Jean-Pierre Charras jp.charras at wanadoo.fr
- * Copyright (C) 2004-2015 KiCad Developers, see change_log.txt for contributors.
+ * Copyright (C) 2004-2017 KiCad Developers, see change_log.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -26,9 +26,12 @@
  * or you may write to the Free Software Foundation, Inc.,
  * 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
  */
+#include <wx/dir.h>
+
 #include <fctsys.h>
-#include <wxPcbStruct.h>
+#include <pcb_edit_frame.h>
 #include <kiface_i.h>
+
 #include <pcbnew.h>
 #include <class_board.h>
 
@@ -50,7 +53,6 @@
 class DIALOG_EXPORT_3DFILE : public DIALOG_EXPORT_3DFILE_BASE
 {
 private:
-    PCB_EDIT_FRAME* m_parent;
     wxConfigBase*   m_config;
     int             m_unitsOpt;             // Remember last units option
     bool            m_copy3DFilesOpt;       // Remember last copy model files option
@@ -64,7 +66,6 @@ public:
     DIALOG_EXPORT_3DFILE( PCB_EDIT_FRAME* parent ) :
         DIALOG_EXPORT_3DFILE_BASE( parent )
     {
-        m_parent = parent;
         m_config = Kiface().KifaceSettings();
         m_filePicker->SetFocus();
         m_config->Read( OPTKEY_OUTPUT_UNIT, &m_unitsOpt, 1 );
@@ -86,8 +87,6 @@ public:
         tmpStr << m_YRef;
         m_VRML_Yref->SetValue( tmpStr );
         m_sdbSizer1OK->SetDefault();
-
-        FixOSXCancelButtonIssue();
 
         // Now all widgets have the size fixed, call FinishDialogSettings
         FinishDialogSettings();
@@ -165,15 +164,23 @@ public:
         event.Enable( m_cbCopyFiles->GetValue() );
     }
 
-    virtual void OnFileChanged( wxFileDirPickerEvent& event )
+    bool TransferDataFromWindow() override;
+};
+
+
+bool DIALOG_EXPORT_3DFILE::TransferDataFromWindow()
+{
+    wxFileName fn = m_filePicker->GetPath();
+
+    if( fn.Exists() )
     {
-        // Clicking on file picker button changes the focus to the file picker button which
-        // is not the behavior we want.  Set the focus back to the OK button so the next enter
-        // key press dismisses this dialog with the OK action.
-        m_sdbSizer1OK->SetFocus();
+        if( wxMessageBox( _( "Are you sure you want to overwrite the exiting file(s)?" ),
+                          _( "Warning" ), wxYES_NO | wxCENTER | wxICON_QUESTION, this ) == wxNO )
+            return false;
     }
 
-};
+    return true;
+}
 
 
 void PCB_EDIT_FRAME::OnExportVRML( wxCommandEvent& event )
@@ -243,7 +250,7 @@ void PCB_EDIT_FRAME::OnExportVRML( wxCommandEvent& event )
                           usePlainPCB, modelPath.GetPath(), aXRef, aYRef ) )
     {
         wxString msg;
-        msg.Printf( _( "Unable to create file '%s'" ), GetChars( last_vrmlName ) );
+        msg.Printf( _( "Unable to create file \"%s\"" ), GetChars( last_vrmlName ) );
         wxMessageBox( msg );
         return;
     }

@@ -29,19 +29,18 @@
  */
 
 #include <fctsys.h>
-#include <wxstruct.h>
 #include <gr_basic.h>
 #include <base_struct.h>
-#include <drawtxt.h>
+#include <draw_graphic_text.h>
 #include <kicad_string.h>
 #include <trigo.h>
-#include <colors_selection.h>
 #include <richio.h>
 #include <class_drawpanel.h>
 #include <macros.h>
-#include <wxBasePcbFrame.h>
+#include <pcb_edit_frame.h>
 #include <msgpanel.h>
 #include <base_units.h>
+#include <bitmaps.h>
 
 #include <class_board.h>
 #include <class_pcb_text.h>
@@ -51,49 +50,44 @@ TEXTE_PCB::TEXTE_PCB( BOARD_ITEM* parent ) :
     BOARD_ITEM( parent, PCB_TEXT_T ),
     EDA_TEXT()
 {
-    m_MultilineAllowed = true;
+    SetMultilineAllowed( true );
 }
 
 
-TEXTE_PCB:: ~TEXTE_PCB()
+TEXTE_PCB::~TEXTE_PCB()
 {
 }
 
 
-void TEXTE_PCB::Copy( TEXTE_PCB* source )
+void TEXTE_PCB::SetTextAngle( double aAngle )
 {
-    m_Parent    = source->m_Parent;
-    Pback       = Pnext = NULL;
-    m_Mirror    = source->m_Mirror;
-    m_Size      = source->m_Size;
-    m_Orient    = source->m_Orient;
-    m_Pos       = source->m_Pos;
-    m_Layer     = source->m_Layer;
-    m_Thickness = source->m_Thickness;
-    m_Attributs = source->m_Attributs;
-    m_Italic    = source->m_Italic;
-    m_Bold      = source->m_Bold;
-    m_HJustify  = source->m_HJustify;
-    m_VJustify  = source->m_VJustify;
-    m_MultilineAllowed = source->m_MultilineAllowed;
-
-    m_Text = source->m_Text;
+    EDA_TEXT::SetTextAngle( NormalizeAngle360Min( aAngle ) );
 }
 
 
 void TEXTE_PCB::Draw( EDA_DRAW_PANEL* panel, wxDC* DC,
                       GR_DRAWMODE DrawMode, const wxPoint& offset )
 {
-    BOARD* brd = GetBoard();
+     wxASSERT( panel );
+
+    if( !panel )
+        return;
+
+   BOARD* brd = GetBoard();
 
     if( brd->IsLayerVisible( m_Layer ) == false )
         return;
 
-    EDA_COLOR_T color = brd->GetLayerColor( m_Layer );
+    auto frame = static_cast<PCB_EDIT_FRAME*> ( panel->GetParent() );
+    auto color = frame->Settings().Colors().GetLayerColor( m_Layer );
 
     EDA_DRAW_MODE_T fillmode = FILLED;
-    DISPLAY_OPTIONS* displ_opts =
-        panel ? (DISPLAY_OPTIONS*)panel->GetDisplayOptions() : NULL;
+    PCB_DISPLAY_OPTIONS* displ_opts = nullptr;
+
+    if( panel )
+    {
+        displ_opts = (PCB_DISPLAY_OPTIONS*)( panel->GetDisplayOptions() );
+    }
 
     if( displ_opts && displ_opts->m_DisplayDrawItemsFill == SKETCH )
         fillmode = SKETCH;
@@ -101,16 +95,16 @@ void TEXTE_PCB::Draw( EDA_DRAW_PANEL* panel, wxDC* DC,
     // shade text if high contrast mode is active
     if( ( DrawMode & GR_ALLOW_HIGHCONTRAST ) && displ_opts && displ_opts->m_ContrastModeDisplay )
     {
-        LAYER_ID curr_layer = ( (PCB_SCREEN*) panel->GetScreen() )->m_Active_Layer;
+        PCB_LAYER_ID curr_layer = ( (PCB_SCREEN*) panel->GetScreen() )->m_Active_Layer;
 
         if( !IsOnLayer( curr_layer ) )
-            ColorTurnToDarkDarkGray( &color );
+            color = COLOR4D( DARKDARKGRAY );
     }
 
-    EDA_COLOR_T anchor_color = UNSPECIFIED_COLOR;
+    COLOR4D anchor_color = COLOR4D::UNSPECIFIED;
 
-    if( brd->IsElementVisible( ANCHOR_VISIBLE ) )
-        anchor_color = brd->GetVisibleElementColor( ANCHOR_VISIBLE );
+    if( brd->IsElementVisible( LAYER_ANCHOR ) )
+        anchor_color = frame->Settings().Colors().GetItemColor( LAYER_ANCHOR );
 
     EDA_RECT* clipbox = panel? panel->GetClipBox() : NULL;
     EDA_TEXT::Draw( clipbox, DC, offset, color,
@@ -139,30 +133,31 @@ void TEXTE_PCB::GetMsgPanelInfo( std::vector< MSG_PANEL_ITEM >& aList )
 
     aList.push_back( MSG_PANEL_ITEM( _( "Layer" ), GetLayerName(), BLUE ) );
 
-    if( !m_Mirror )
+    if( !IsMirrored() )
         aList.push_back( MSG_PANEL_ITEM( _( "Mirror" ), _( "No" ), DARKGREEN ) );
     else
         aList.push_back( MSG_PANEL_ITEM( _( "Mirror" ), _( "Yes" ), DARKGREEN ) );
 
-    msg.Printf( wxT( "%.1f" ), m_Orient / 10.0 );
+    msg.Printf( wxT( "%.1f" ), GetTextAngle() / 10.0 );
     aList.push_back( MSG_PANEL_ITEM( _( "Angle" ), msg, DARKGREEN ) );
 
-    msg = ::CoordinateToString( m_Thickness );
+    msg = ::CoordinateToString( GetThickness() );
     aList.push_back( MSG_PANEL_ITEM( _( "Thickness" ), msg, MAGENTA ) );
 
-    msg = ::CoordinateToString( m_Size.x );
+    msg = ::CoordinateToString( GetTextWidth() );
     aList.push_back( MSG_PANEL_ITEM( _( "Width" ), msg, RED ) );
 
-    msg = ::CoordinateToString( m_Size.y );
+    msg = ::CoordinateToString( GetTextHeight() );
     aList.push_back( MSG_PANEL_ITEM( _( "Height" ), msg, RED ) );
 }
+
 
 const EDA_RECT TEXTE_PCB::GetBoundingBox() const
 {
     EDA_RECT rect = GetTextBox( -1, -1 );
 
-    if( m_Orient )
-        rect = rect.GetBoundingBoxRotated( m_Pos, m_Orient );
+    if( GetTextAngle() )
+        rect = rect.GetBoundingBoxRotated( GetTextPos(), GetTextAngle() );
 
     return rect;
 }
@@ -170,18 +165,22 @@ const EDA_RECT TEXTE_PCB::GetBoundingBox() const
 
 void TEXTE_PCB::Rotate( const wxPoint& aRotCentre, double aAngle )
 {
-    RotatePoint( &m_Pos, aRotCentre, aAngle );
-    m_Orient += aAngle;
-    NORMALIZE_ANGLE_360( m_Orient );
+    wxPoint pt = GetTextPos();
+    RotatePoint( &pt, aRotCentre, aAngle );
+    SetTextPos( pt );
+
+    SetTextAngle( GetTextAngle() + aAngle );
 }
 
 
-void TEXTE_PCB::Flip(const wxPoint& aCentre )
+void TEXTE_PCB::Flip( const wxPoint& aCentre )
 {
-    m_Pos.y  = aCentre.y - ( m_Pos.y - aCentre.y );
+    SetTextY( aCentre.y - ( GetTextPos().y - aCentre.y ) );
+
     int copperLayerCount = GetBoard()->GetCopperLayerCount();
+
     SetLayer( FlipLayer( GetLayer(), copperLayerCount ) );
-    m_Mirror = !m_Mirror;
+    SetMirrored( !IsMirrored() );
 }
 
 
@@ -196,7 +195,20 @@ wxString TEXTE_PCB::GetSelectMenuText() const
 }
 
 
+BITMAP_DEF TEXTE_PCB::GetMenuImage() const
+{
+    return text_xpm;
+}
+
+
 EDA_ITEM* TEXTE_PCB::Clone() const
 {
     return new TEXTE_PCB( *this );
+}
+
+void TEXTE_PCB::SwapData( BOARD_ITEM* aImage )
+{
+    assert( aImage->Type() == PCB_TEXT_T );
+
+    std::swap( *((TEXTE_PCB*) this), *((TEXTE_PCB*) aImage) );
 }

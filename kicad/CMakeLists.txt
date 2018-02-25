@@ -1,18 +1,24 @@
+# .cpp files are compiled with extra ${WSHADOW_FLAGS}
+if( COMPILER_SUPPORTS_WSHADOW )
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${WSHADOW_FLAGS}")
+endif()
+
 add_definitions( -DKICAD )
 
 include_directories( BEFORE ${INC_BEFORE} )
 include_directories(
+    ../pcbnew
+    ../eeschema
     ${INC_AFTER}
     )
 
 
 set( KICAD_SRCS
-    class_treeprojectfiles.cpp
-    class_treeproject_item.cpp
     commandframe.cpp
     dialogs/dialog_template_selector_base.cpp
     dialogs/dialog_template_selector.cpp
     files-io.cpp
+    import_project.cpp
     kicad.cpp
     mainframe.cpp
     menubar.cpp
@@ -20,6 +26,8 @@ set( KICAD_SRCS
     prjconfig.cpp
     project_template.cpp
     tree_project_frame.cpp
+    treeprojectfiles.cpp
+    treeproject_item.cpp
     )
 
 if( MINGW )
@@ -73,6 +81,7 @@ else()
         common
         bitmaps
         polygon
+        gal
         ${wxWidgets_LIBRARIES}
         ${GDI_PLUS_LIBRARIES}
         )
@@ -94,7 +103,9 @@ if( APPLE )
     # make main bundle relocatable
     install( CODE "
         # find all libs and modules
-        file( GLOB BUNDLE_FIX_LIBS ${OSX_BUNDLE_INSTALL_KIFACE_DIR}/*.kiface )
+        file( GLOB PLUGINS_KIFACE ${OSX_BUNDLE_INSTALL_KIFACE_DIR}/*.kiface )
+        file( GLOB_RECURSE PLUGINS_SO ${OSX_BUNDLE_INSTALL_PLUGIN_DIR}/*.so )
+        set( BUNDLE_FIX_LIBS \${PLUGINS_KIFACE} \${PLUGINS_SO} )
         if( ${SCRIPTING_HELPER} )
             file( GLOB WXPYTHON_DIR RELATIVE ${OSX_BUNDLE_INSTALL_LIB_DIR}/${PYTHON_LIB_DIR} ${OSX_BUNDLE_INSTALL_LIB_DIR}/${PYTHON_LIB_DIR}/wx-?.?-osx_cocoa )
             file( GLOB PYTHON_SCRIPTING_SO ${OSX_BUNDLE_INSTALL_LIB_DIR}/${PYTHON_LIB_DIR}/*.so )
@@ -108,9 +119,6 @@ if( APPLE )
 
         # do all the work
         include( BundleUtilities )
-
-        # If `BU_CHMOD_BUNDLE_ITEMS` is not set, `install_name_tool` will fail to re-write some loader paths due to lack of writable permissions if the build dependencies were installed by brew (or didn't have writable permissions)
-        set(BU_CHMOD_BUNDLE_ITEMS ON)
 
         fixup_bundle( ${OSX_BUNDLE_INSTALL_BIN_DIR}/kicad
             \"\${BUNDLE_FIX_LIBS}\"

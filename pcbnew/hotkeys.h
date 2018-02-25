@@ -2,7 +2,7 @@
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
  * Copyright (C) 2007-2014 Jean-Pierre Charras, jp.charras at wanadoo.fr
- * Copyright (C) 1992-2015 KiCad Developers, see AUTHORS.txt for contributors.
+ * Copyright (C) 1992-2016 KiCad Developers, see AUTHORS.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -42,6 +42,7 @@ enum hotkey_id_commnand {
     HK_COPY_ITEM,
     HK_MOVE_ITEM,
     HK_MOVE_ITEM_EXACT,
+    HK_POSITION_RELATIVE,
     HK_DRAG_ITEM,
     HK_GET_AND_MOVE_FOOTPRINT,
     HK_LOCK_UNLOCK_FOOTPRINT,
@@ -53,10 +54,6 @@ enum hotkey_id_commnand {
     HK_ADD_MICROVIA,
     HK_SWITCH_TRACK_POSTURE,
     HK_DRAG_TRACK_KEEP_SLOPE,
-    HK_SAVE_BOARD,
-    HK_SAVE_BOARD_AS,
-    HK_LOAD_BOARD,
-    HK_SAVE_MODULE,
     HK_SWITCH_UNITS,
     HK_SWITCH_TRACK_DISPLAY_MODE,
     HK_3D_VIEWER,
@@ -93,49 +90,36 @@ enum hotkey_id_commnand {
     HK_SWITCH_LAYER_TO_INNER14,
     HK_ADD_MODULE,
     HK_SLIDE_TRACK,
-    HK_MACRO_ID_BEGIN,
-    HK_RECORD_MACROS_0,     // keep these id ordered from 0 to 9
-    HK_RECORD_MACROS_1,     // because this order is used in code
-    HK_RECORD_MACROS_2,
-    HK_RECORD_MACROS_3,
-    HK_RECORD_MACROS_4,
-    HK_RECORD_MACROS_5,
-    HK_RECORD_MACROS_6,
-    HK_RECORD_MACROS_7,
-    HK_RECORD_MACROS_8,
-    HK_RECORD_MACROS_9,
-    HK_CALL_MACROS_0,
-    HK_CALL_MACROS_1,
-    HK_CALL_MACROS_2,
-    HK_CALL_MACROS_3,
-    HK_CALL_MACROS_4,
-    HK_CALL_MACROS_5,
-    HK_CALL_MACROS_6,
-    HK_CALL_MACROS_7,
-    HK_CALL_MACROS_8,
-    HK_CALL_MACROS_9,
-    HK_MACRO_ID_END,
     HK_SWITCH_HIGHCONTRAST_MODE,
-    HK_CANVAS_DEFAULT,
+    HK_CANVAS_LEGACY,
     HK_CANVAS_OPENGL,
     HK_CANVAS_CAIRO,
     HK_LEFT_CLICK,
     HK_LEFT_DCLICK,
     HK_ZONE_FILL_OR_REFILL,
-    HK_ZONE_REMOVE_FILLED
+    HK_ZONE_REMOVE_FILLED,
+    HK_INC_LAYER_ALHPA,
+    HK_DEC_LAYER_ALHPA,
+    HK_SEL_TRIVIAL_CONNECTION,
+    HK_SEL_COPPER_CONNECTION,
+    HK_ROUTING_OPTIONS,
+    HK_CUSTOM_TRACK_WIDTH,
+    HK_DP_DIMENSIONS,
+    HK_VIA_SIZE_INC,
+    HK_VIA_SIZE_DEC
 };
 
 // Full list of hotkey descriptors for board editor and footprint editor
-extern struct EDA_HOTKEY_CONFIG g_Pcbnew_Editor_Hokeys_Descr[];
+extern struct EDA_HOTKEY_CONFIG g_Pcbnew_Editor_Hotkeys_Descr[];
 
 // List of hotkey descriptors for the board editor only
-extern struct EDA_HOTKEY_CONFIG g_Board_Editor_Hokeys_Descr[];
+extern struct EDA_HOTKEY_CONFIG g_Board_Editor_Hotkeys_Descr[];
 
 // List of hotkey descriptors for the footprint editor only
-extern struct EDA_HOTKEY_CONFIG g_Module_Editor_Hokeys_Descr[];
+extern struct EDA_HOTKEY_CONFIG g_Module_Editor_Hotkeys_Descr[];
 
 // List of hotkey descriptors for the footprint editor only
-extern struct EDA_HOTKEY_CONFIG g_Module_Viewer_Hokeys_Descr[];
+extern struct EDA_HOTKEY_CONFIG g_Module_Viewer_Hotkeys_Descr[];
 
 // List of common hotkey descriptors
 // used in hotkeys_board_editor.cpp and hotkeys_module_editor.cpp

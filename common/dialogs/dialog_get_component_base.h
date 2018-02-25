@@ -1,8 +1,8 @@
 ///////////////////////////////////////////////////////////////////////////
-// C++ code generated with wxFormBuilder (version Nov  5 2013)
+// C++ code generated with wxFormBuilder (version Nov 22 2017)
 // http://www.wxformbuilder.org/
 //
-// PLEASE DO "NOT" EDIT THIS FILE!
+// PLEASE DO *NOT* EDIT THIS FILE!
 ///////////////////////////////////////////////////////////////////////////
 
 #ifndef __DIALOG_GET_COMPONENT_BASE_H__
@@ -11,8 +11,6 @@
 #include <wx/artprov.h>
 #include <wx/xrc/xmlres.h>
 #include <wx/intl.h>
-class DIALOG_SHIM;
-
 #include "dialog_shim.h"
 #include <wx/string.h>
 #include <wx/stattext.h>
@@ -24,6 +22,7 @@ class DIALOG_SHIM;
 #include <wx/listbox.h>
 #include <wx/sizer.h>
 #include <wx/button.h>
+#include <wx/statline.h>
 #include <wx/dialog.h>
 
 ///////////////////////////////////////////////////////////////////////////
@@ -45,16 +44,18 @@ class DIALOG_GET_COMPONENT_BASE : public DIALOG_SHIM
 		wxTextCtrl* m_textCmpNameCtrl;
 		wxStaticText* m_staticTextHistory;
 		wxListBox* m_historyList;
-		wxButton* m_buttonOK;
 		wxButton* m_buttonKW;
-		wxButton* m_buttonCancel;
 		wxButton* m_buttonList;
 		wxButton* m_buttonBrowse;
+		wxStaticLine* m_staticline1;
+		wxStdDialogButtonSizer* m_sdbSizer;
+		wxButton* m_sdbSizerOK;
+		wxButton* m_sdbSizerCancel;
 		
 		// Virtual event handlers, overide them in your derived class
 		virtual void Accept( wxCommandEvent& event ) { event.Skip(); }
-		virtual void OnCancel( wxCommandEvent& event ) { event.Skip(); }
 		virtual void GetExtraSelection( wxCommandEvent& event ) { event.Skip(); }
+		virtual void OnCancel( wxCommandEvent& event ) { event.Skip(); }
 		
 	
 	public:

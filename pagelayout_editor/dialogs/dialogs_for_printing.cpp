@@ -35,7 +35,7 @@
 #include <pl_editor_id.h>
 #include <dialog_helpers.h>
 #include <worksheet_shape_builder.h>
-#include <class_worksheet_dataitem.h>
+#include <worksheet_dataitem.h>
 #include <dialog_page_settings.h>
 #include <invoke_pl_editor_dialog.h>
 
@@ -55,9 +55,9 @@ public:
         m_parent = aParent;
     }
 
-    bool OnPrintPage( int aPageNum );
-    bool HasPage( int aPageNum ) { return ( aPageNum <= 2 ); }
-    void GetPageInfo( int* minPage, int* maxPage, int* selPageFrom, int* selPageTo );
+    bool OnPrintPage( int aPageNum ) override;
+    bool HasPage( int aPageNum ) override { return ( aPageNum <= 2 ); }
+    void GetPageInfo( int* minPage, int* maxPage, int* selPageFrom, int* selPageTo ) override;
     void DrawPage( int aPageNum );
 };
 
@@ -77,7 +77,7 @@ public:
         m_parent = aParent;
     }
 
-    bool Show( bool show )      // overload
+    bool Show( bool show ) override
     {
         bool        ret;
 
@@ -186,8 +186,8 @@ void PLEDITOR_PRINTOUT::DrawPage( int aPageNum )
     GRForceBlackPen( true );
     screen->m_IsPrinting = true;
 
-    EDA_COLOR_T bg_color = m_parent->GetDrawBgColor();
-    m_parent->SetDrawBgColor( WHITE );
+    COLOR4D bg_color = m_parent->GetDrawBgColor();
+    m_parent->SetDrawBgColor( MakeColour( WHITE ) );
 
     screen->m_ScreenNumber = aPageNum;
     m_parent->DrawWorkSheet( dc, screen, 0, IU_PER_MILS, wxEmptyString );

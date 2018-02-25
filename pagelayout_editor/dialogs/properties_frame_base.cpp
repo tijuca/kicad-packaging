@@ -1,8 +1,8 @@
 ///////////////////////////////////////////////////////////////////////////
-// C++ code generated with wxFormBuilder (version Mar  9 2015)
+// C++ code generated with wxFormBuilder (version Nov 22 2017)
 // http://www.wxformbuilder.org/
 //
-// PLEASE DO "NOT" EDIT THIS FILE!
+// PLEASE DO *NOT* EDIT THIS FILE!
 ///////////////////////////////////////////////////////////////////////////
 
 #include "properties_frame_base.h"
@@ -28,7 +28,7 @@ PANEL_PROPERTIES_BASE::PANEL_PROPERTIES_BASE( wxWindow* parent, wxWindowID id, c
 	
 	m_staticTextType = new wxStaticText( m_swItemProperties, wxID_ANY, _("Type"), wxDefaultPosition, wxDefaultSize, 0 );
 	m_staticTextType->Wrap( -1 );
-	m_staticTextType->SetFont( wxFont( wxNORMAL_FONT->GetPointSize(), 70, 90, 92, false, wxEmptyString ) );
+	m_staticTextType->SetFont( wxFont( wxNORMAL_FONT->GetPointSize(), wxFONTFAMILY_DEFAULT, wxFONTSTYLE_NORMAL, wxFONTWEIGHT_BOLD, false, wxEmptyString ) );
 	
 	bSizerType->Add( m_staticTextType, 0, wxLEFT|wxRIGHT, 5 );
 	
@@ -43,14 +43,14 @@ PANEL_PROPERTIES_BASE::PANEL_PROPERTIES_BASE( wxWindow* parent, wxWindowID id, c
 	
 	m_staticTextPageOpt = new wxStaticText( m_swItemProperties, wxID_ANY, _("Page 1 option"), wxDefaultPosition, wxDefaultSize, 0 );
 	m_staticTextPageOpt->Wrap( -1 );
-	m_staticTextPageOpt->SetFont( wxFont( wxNORMAL_FONT->GetPointSize(), 70, 90, 90, false, wxEmptyString ) );
+	m_staticTextPageOpt->SetFont( wxFont( wxNORMAL_FONT->GetPointSize(), wxFONTFAMILY_DEFAULT, wxFONTSTYLE_NORMAL, wxFONTWEIGHT_NORMAL, false, wxEmptyString ) );
 	
 	bSizerPageOpt->Add( m_staticTextPageOpt, 0, wxLEFT|wxRIGHT, 5 );
 	
 	wxString m_choicePageOptChoices[] = { _("None"), _("Page 1 only"), _("Not on page 1") };
 	int m_choicePageOptNChoices = sizeof( m_choicePageOptChoices ) / sizeof( wxString );
 	m_choicePageOpt = new wxChoice( m_swItemProperties, wxID_ANY, wxDefaultPosition, wxDefaultSize, m_choicePageOptNChoices, m_choicePageOptChoices, 0 );
-	m_choicePageOpt->SetSelection( 0 );
+	m_choicePageOpt->SetSelection( 2 );
 	bSizerPageOpt->Add( m_choicePageOpt, 0, wxRIGHT|wxLEFT, 5 );
 	
 	
@@ -77,7 +77,7 @@ PANEL_PROPERTIES_BASE::PANEL_PROPERTIES_BASE( wxWindow* parent, wxWindowID id, c
 	wxBoxSizer* bSizerJustify;
 	bSizerJustify = new wxBoxSizer( wxHORIZONTAL );
 	
-	m_staticTextHjust = new wxStaticText( m_swItemProperties, wxID_ANY, _("H justification"), wxDefaultPosition, wxDefaultSize, 0 );
+	m_staticTextHjust = new wxStaticText( m_swItemProperties, wxID_ANY, _("Horizontal justification"), wxDefaultPosition, wxDefaultSize, 0 );
 	m_staticTextHjust->Wrap( -1 );
 	bSizerJustify->Add( m_staticTextHjust, 0, wxALIGN_CENTER_VERTICAL|wxLEFT, 5 );
 	
@@ -96,7 +96,7 @@ PANEL_PROPERTIES_BASE::PANEL_PROPERTIES_BASE( wxWindow* parent, wxWindowID id, c
 	wxBoxSizer* bSizerBoldItalic;
 	bSizerBoldItalic = new wxBoxSizer( wxHORIZONTAL );
 	
-	m_staticTextVjust = new wxStaticText( m_swItemProperties, wxID_ANY, _("V justification"), wxDefaultPosition, wxDefaultSize, 0 );
+	m_staticTextVjust = new wxStaticText( m_swItemProperties, wxID_ANY, _("Vertical justification"), wxDefaultPosition, wxDefaultSize, 0 );
 	m_staticTextVjust->Wrap( -1 );
 	bSizerBoldItalic->Add( m_staticTextVjust, 0, wxALIGN_CENTER_VERTICAL|wxLEFT, 5 );
 	
@@ -121,7 +121,7 @@ PANEL_PROPERTIES_BASE::PANEL_PROPERTIES_BASE( wxWindow* parent, wxWindowID id, c
 	wxBoxSizer* bSizerTsizeX;
 	bSizerTsizeX = new wxBoxSizer( wxVERTICAL );
 	
-	m_staticTexTsizeX = new wxStaticText( m_swItemProperties, wxID_ANY, _("Text Width (mm)"), wxDefaultPosition, wxDefaultSize, 0 );
+	m_staticTexTsizeX = new wxStaticText( m_swItemProperties, wxID_ANY, _("Text width (mm)"), wxDefaultPosition, wxDefaultSize, 0 );
 	m_staticTexTsizeX->Wrap( -1 );
 	bSizerTsizeX->Add( m_staticTexTsizeX, 0, wxTOP|wxRIGHT|wxLEFT, 5 );
 	
@@ -134,7 +134,7 @@ PANEL_PROPERTIES_BASE::PANEL_PROPERTIES_BASE( wxWindow* parent, wxWindowID id, c
 	wxBoxSizer* bSizerTsizeY;
 	bSizerTsizeY = new wxBoxSizer( wxVERTICAL );
 	
-	m_staticTextTsizeY = new wxStaticText( m_swItemProperties, wxID_ANY, _("Text Height (mm)"), wxDefaultPosition, wxDefaultSize, 0 );
+	m_staticTextTsizeY = new wxStaticText( m_swItemProperties, wxID_ANY, _("Text height (mm)"), wxDefaultPosition, wxDefaultSize, 0 );
 	m_staticTextTsizeY->Wrap( -1 );
 	bSizerTsizeY->Add( m_staticTextTsizeY, 0, wxTOP|wxRIGHT|wxLEFT, 5 );
 	
@@ -157,7 +157,7 @@ PANEL_PROPERTIES_BASE::PANEL_PROPERTIES_BASE( wxWindow* parent, wxWindowID id, c
 	wxBoxSizer* bSizer42;
 	bSizer42 = new wxBoxSizer( wxVERTICAL );
 	
-	m_staticTextConstraintX = new wxStaticText( m_swItemProperties, wxID_ANY, _("Max Size X (mm)"), wxDefaultPosition, wxDefaultSize, 0 );
+	m_staticTextConstraintX = new wxStaticText( m_swItemProperties, wxID_ANY, _("Maximum width (mm)"), wxDefaultPosition, wxDefaultSize, 0 );
 	m_staticTextConstraintX->Wrap( -1 );
 	bSizer42->Add( m_staticTextConstraintX, 0, wxTOP|wxRIGHT|wxLEFT, 5 );
 	
@@ -170,7 +170,7 @@ PANEL_PROPERTIES_BASE::PANEL_PROPERTIES_BASE( wxWindow* parent, wxWindowID id, c
 	wxBoxSizer* bSizer52;
 	bSizer52 = new wxBoxSizer( wxVERTICAL );
 	
-	m_staticTextConstraintY = new wxStaticText( m_swItemProperties, wxID_ANY, _("Max Size Y (mm)"), wxDefaultPosition, wxDefaultSize, 0 );
+	m_staticTextConstraintY = new wxStaticText( m_swItemProperties, wxID_ANY, _("Maximum height Y (mm)"), wxDefaultPosition, wxDefaultSize, 0 );
 	m_staticTextConstraintY->Wrap( -1 );
 	bSizer52->Add( m_staticTextConstraintY, 0, wxTOP|wxRIGHT|wxLEFT, 5 );
 	
@@ -215,7 +215,7 @@ PANEL_PROPERTIES_BASE::PANEL_PROPERTIES_BASE( wxWindow* parent, wxWindowID id, c
 	wxBoxSizer* bSizer4;
 	bSizer4 = new wxBoxSizer( wxVERTICAL );
 	
-	m_staticTextPosX = new wxStaticText( m_swItemProperties, wxID_ANY, _("Pos X (mm)"), wxDefaultPosition, wxDefaultSize, 0 );
+	m_staticTextPosX = new wxStaticText( m_swItemProperties, wxID_ANY, _("Position X (mm)"), wxDefaultPosition, wxDefaultSize, 0 );
 	m_staticTextPosX->Wrap( -1 );
 	bSizer4->Add( m_staticTextPosX, 0, wxTOP|wxRIGHT|wxLEFT, 5 );
 	
@@ -228,7 +228,7 @@ PANEL_PROPERTIES_BASE::PANEL_PROPERTIES_BASE( wxWindow* parent, wxWindowID id, c
 	wxBoxSizer* bSizer5;
 	bSizer5 = new wxBoxSizer( wxVERTICAL );
 	
-	m_staticTextPosY = new wxStaticText( m_swItemProperties, wxID_ANY, _("Pos Y (mm)"), wxDefaultPosition, wxDefaultSize, 0 );
+	m_staticTextPosY = new wxStaticText( m_swItemProperties, wxID_ANY, _("Position Y (mm)"), wxDefaultPosition, wxDefaultSize, 0 );
 	m_staticTextPosY->Wrap( -1 );
 	bSizer5->Add( m_staticTextPosY, 0, wxRIGHT|wxLEFT, 5 );
 	
@@ -465,7 +465,7 @@ PANEL_PROPERTIES_BASE::PANEL_PROPERTIES_BASE( wxWindow* parent, wxWindowID id, c
 	wxBoxSizer* bSizerDefTsizeX;
 	bSizerDefTsizeX = new wxBoxSizer( wxVERTICAL );
 	
-	m_staticTextDefTsX = new wxStaticText( m_swGeneralOpts, wxID_ANY, _("Text Size X (mm)"), wxDefaultPosition, wxDefaultSize, 0 );
+	m_staticTextDefTsX = new wxStaticText( m_swGeneralOpts, wxID_ANY, _("Text width (mm)"), wxDefaultPosition, wxDefaultSize, 0 );
 	m_staticTextDefTsX->Wrap( -1 );
 	bSizerDefTsizeX->Add( m_staticTextDefTsX, 0, wxTOP|wxRIGHT|wxLEFT, 5 );
 	
@@ -478,7 +478,7 @@ PANEL_PROPERTIES_BASE::PANEL_PROPERTIES_BASE( wxWindow* parent, wxWindowID id, c
 	wxBoxSizer* bSizerDefTsizeY;
 	bSizerDefTsizeY = new wxBoxSizer( wxVERTICAL );
 	
-	m_staticTextDefTsY = new wxStaticText( m_swGeneralOpts, wxID_ANY, _("Text Size Y (mm)"), wxDefaultPosition, wxDefaultSize, 0 );
+	m_staticTextDefTsY = new wxStaticText( m_swGeneralOpts, wxID_ANY, _("Text height (mm)"), wxDefaultPosition, wxDefaultSize, 0 );
 	m_staticTextDefTsY->Wrap( -1 );
 	bSizerDefTsizeY->Add( m_staticTextDefTsY, 0, wxTOP|wxRIGHT|wxLEFT, 5 );
 	
@@ -545,7 +545,7 @@ PANEL_PROPERTIES_BASE::PANEL_PROPERTIES_BASE( wxWindow* parent, wxWindowID id, c
 	wxBoxSizer* bSizerDefLeftMargin;
 	bSizerDefLeftMargin = new wxBoxSizer( wxVERTICAL );
 	
-	m_staticTextLeftMargin = new wxStaticText( m_swGeneralOpts, wxID_ANY, _("Left Margin (mm)"), wxDefaultPosition, wxDefaultSize, 0 );
+	m_staticTextLeftMargin = new wxStaticText( m_swGeneralOpts, wxID_ANY, _("Left margin (mm)"), wxDefaultPosition, wxDefaultSize, 0 );
 	m_staticTextLeftMargin->Wrap( -1 );
 	bSizerDefLeftMargin->Add( m_staticTextLeftMargin, 0, wxTOP|wxRIGHT|wxLEFT, 5 );
 	
@@ -558,7 +558,7 @@ PANEL_PROPERTIES_BASE::PANEL_PROPERTIES_BASE( wxWindow* parent, wxWindowID id, c
 	wxBoxSizer* bSizerDefTsizeY1;
 	bSizerDefTsizeY1 = new wxBoxSizer( wxVERTICAL );
 	
-	m_staticTextDefRightMargin = new wxStaticText( m_swGeneralOpts, wxID_ANY, _("Right Margin (mm)"), wxDefaultPosition, wxDefaultSize, 0 );
+	m_staticTextDefRightMargin = new wxStaticText( m_swGeneralOpts, wxID_ANY, _("Right margin (mm)"), wxDefaultPosition, wxDefaultSize, 0 );
 	m_staticTextDefRightMargin->Wrap( -1 );
 	bSizerDefTsizeY1->Add( m_staticTextDefRightMargin, 0, wxTOP|wxRIGHT|wxLEFT, 5 );
 	
@@ -577,7 +577,7 @@ PANEL_PROPERTIES_BASE::PANEL_PROPERTIES_BASE( wxWindow* parent, wxWindowID id, c
 	wxBoxSizer* bSizerTopMargin;
 	bSizerTopMargin = new wxBoxSizer( wxVERTICAL );
 	
-	m_staticTextTopMargin = new wxStaticText( m_swGeneralOpts, wxID_ANY, _("Top Margin (mm)"), wxDefaultPosition, wxDefaultSize, 0 );
+	m_staticTextTopMargin = new wxStaticText( m_swGeneralOpts, wxID_ANY, _("Top margin (mm)"), wxDefaultPosition, wxDefaultSize, 0 );
 	m_staticTextTopMargin->Wrap( -1 );
 	bSizerTopMargin->Add( m_staticTextTopMargin, 0, wxTOP|wxRIGHT|wxLEFT, 5 );
 	
@@ -590,7 +590,7 @@ PANEL_PROPERTIES_BASE::PANEL_PROPERTIES_BASE( wxWindow* parent, wxWindowID id, c
 	wxBoxSizer* bSizerDefBottomMargin;
 	bSizerDefBottomMargin = new wxBoxSizer( wxVERTICAL );
 	
-	m_staticTextBottomMargin = new wxStaticText( m_swGeneralOpts, wxID_ANY, _("Bottom Margin (mm)"), wxDefaultPosition, wxDefaultSize, 0 );
+	m_staticTextBottomMargin = new wxStaticText( m_swGeneralOpts, wxID_ANY, _("Bottom margin (mm)"), wxDefaultPosition, wxDefaultSize, 0 );
 	m_staticTextBottomMargin->Wrap( -1 );
 	bSizerDefBottomMargin->Add( m_staticTextBottomMargin, 0, wxTOP|wxRIGHT|wxLEFT, 5 );
 	
@@ -621,6 +621,7 @@ PANEL_PROPERTIES_BASE::PANEL_PROPERTIES_BASE( wxWindow* parent, wxWindowID id, c
 	
 	this->SetSizer( bSizerpanel );
 	this->Layout();
+	bSizerpanel->Fit( this );
 	
 	// Connect Events
 	m_buttonOK->Connect( wxEVT_COMMAND_BUTTON_CLICKED, wxCommandEventHandler( PANEL_PROPERTIES_BASE::OnAcceptPrms ), NULL, this );

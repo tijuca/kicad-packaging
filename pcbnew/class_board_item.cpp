@@ -8,7 +8,7 @@
  *
  * Copyright (C) 2012 Jean-Pierre Charras, jean-pierre.charras@ujf-grenoble.fr
  * Copyright (C) 2012 SoftPLC Corporation, Dick Hollenbeck <dick@softplc.com>
- * Copyright (C) 1992-2012 KiCad Developers, see AUTHORS.txt for contributors.
+ * Copyright (C) 1992-2016 KiCad Developers, see AUTHORS.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -31,6 +31,7 @@
 #include <fctsys.h>
 #include <common.h>
 #include <pcbnew.h>
+#include <wx/debug.h>
 
 #include <class_board.h>
 #include <string>
@@ -183,6 +184,12 @@ std::string BOARD_ITEM::FormatInternalUnits( const wxPoint& aPoint )
 }
 
 
+std::string BOARD_ITEM::FormatInternalUnits( const VECTOR2I& aPoint )
+{
+    return FormatInternalUnits( aPoint.x ) + " " + FormatInternalUnits( aPoint.y );
+}
+
+
 std::string BOARD_ITEM::FormatInternalUnits( const wxSize& aSize )
 {
     return FormatInternalUnits( aSize.GetWidth() ) + " " + FormatInternalUnits( aSize.GetHeight() );
@@ -197,7 +204,7 @@ void BOARD_ITEM::ViewGetLayers( int aLayers[], int& aCount ) const
 }
 
 
-int BOARD_ITEM::getTrailingInt( wxString aStr )
+int BOARD_ITEM::getTrailingInt( const wxString& aStr )
 {
     int number = 0;
     int base = 1;
@@ -219,8 +226,12 @@ int BOARD_ITEM::getTrailingInt( wxString aStr )
     return number;
 }
 
-int BOARD_ITEM::getNextNumberInSequence( std::set<int> aSeq, bool aFillSequenceGaps)
+
+int BOARD_ITEM::getNextNumberInSequence( const std::set<int>& aSeq, bool aFillSequenceGaps)
 {
+    if( aSeq.empty() )
+        return 1;
+
     // By default go to the end of the sequence
     int candidate = *aSeq.rbegin();
 
@@ -230,16 +241,41 @@ int BOARD_ITEM::getNextNumberInSequence( std::set<int> aSeq, bool aFillSequenceG
         // start at the beginning
         candidate = *aSeq.begin();
 
-        for( std::set<int>::iterator it = aSeq.begin(),
-            itEnd = aSeq.end(); it != itEnd; ++it )
+        for( auto it : aSeq )
         {
-            if( *it - candidate > 1 )
+            if( it - candidate > 1 )
                 break;
 
-            candidate = *it;
+            candidate = it;
         }
     }
 
-    candidate++;
+    ++candidate;
+
     return candidate;
 }
+
+
+void BOARD_ITEM::DeleteStructure()
+{
+    auto parent = GetParent();
+
+    if( parent && GetList() )
+        parent->Remove( this );
+
+    delete this;
+}
+
+
+void BOARD_ITEM::SwapData( BOARD_ITEM* aImage )
+{
+
+}
+
+void BOARD_ITEM::TransformShapeWithClearanceToPolygon( SHAPE_POLY_SET& aCornerBuffer,
+                                           int aClearanceValue,
+                                           int aCircleToSegmentsCount,
+                                           double aCorrectionFactor ) const
+                                           {
+    wxASSERT_MSG(false, wxT("Called TransformShapeWithClearanceToPolygon() on unsupported BOARD_ITEM."));
+};

@@ -2,7 +2,7 @@
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
  * Copyright (C) 2009 Jean-Pierre Charras, jean-pierre.charras@ujf-grenoble.fr
- * Copyright (C) 1992-2011 KiCad Developers, see AUTHORS.txt for contributors.
+ * Copyright (C) 1992-2017 KiCad Developers, see AUTHORS.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -37,7 +37,7 @@
 #include <class_drawpanel.h>
 #include <confirm.h>
 #include <base_units.h>
-#include <wxBasePcbFrame.h>
+#include <pcb_base_frame.h>
 #include <class_board.h>
 #include <pcbnew.h>
 
@@ -45,10 +45,11 @@
 
 
 /**
- * Definition for enabling and disabling print controller trace output.  See the
- * wxWidgets documentation on using the WXTRACE environment variable.
+ * @ingroup trace_env_vars
+ *
+ * Flag to enable PCB print controller debug output.
  */
-static const wxString tracePrinting( wxT( "KicadPrinting" ) );
+static const wxString tracePrinting = wxT( "KICAD_TRACE_PCB_PRINT" );
 
 
 PRINT_PARAMETERS::PRINT_PARAMETERS()
@@ -84,6 +85,9 @@ BOARD_PRINTOUT_CONTROLLER::BOARD_PRINTOUT_CONTROLLER( const PRINT_PARAMETERS& aP
 bool BOARD_PRINTOUT_CONTROLLER::OnPrintPage( int aPage )
 {
     LSET lset = m_PrintParams.m_PrintMaskLayer;
+    int pageCount = lset.count();
+    wxString layer;
+    PCB_LAYER_ID extractLayer;
 
     // compute layer mask from page number if we want one page per layer
     if( m_PrintParams.m_OptionPrintPage == 0 )  // One page per layer
@@ -101,11 +105,17 @@ bool BOARD_PRINTOUT_CONTROLLER::OnPrintPage( int aPage )
     if( !m_PrintParams.m_PrintMaskLayer.any() )
         return false;
 
+    extractLayer = m_PrintParams.m_PrintMaskLayer.ExtractLayer();
+    if( extractLayer == UNDEFINED_LAYER )
+        layer = _( "Multiple Layers" );
+    else
+        layer = LSET::Name( extractLayer );
+
     // In Pcbnew we can want the layer EDGE always printed
     if( m_PrintParams.m_Flags == 1 )
         m_PrintParams.m_PrintMaskLayer.set( Edge_Cuts );
 
-    DrawPage();
+    DrawPage( layer, aPage, pageCount );
 
     m_PrintParams.m_PrintMaskLayer = lset;
 
@@ -129,7 +139,7 @@ void BOARD_PRINTOUT_CONTROLLER::GetPageInfo( int* minPage, int* maxPage,
 }
 
 
-void BOARD_PRINTOUT_CONTROLLER::DrawPage()
+void BOARD_PRINTOUT_CONTROLLER::DrawPage( const wxString& aLayerName, int aPageNum, int aPageCount )
 {
     wxPoint       offset;
     double        userscale;
@@ -139,12 +149,14 @@ void BOARD_PRINTOUT_CONTROLLER::DrawPage()
     BASE_SCREEN*  screen = m_Parent->GetScreen();
     bool          printMirror = m_PrintParams.m_PrintMirror;
     wxSize        pageSizeIU = m_Parent->GetPageSizeIU();
+    int           tempScreenNumber;
+    int           tempNumberOfScreens;
 
     wxBusyCursor  dummy;
 
     BOARD* brd = ((PCB_BASE_FRAME*) m_Parent)->GetBoard();
     boardBoundingBox = brd->ComputeBoundingBox();
-    wxString titleblockFilename = brd->GetFileName();
+    const wxString& titleblockFilename = brd->GetFileName();
 
     // Use the page size as the drawing area when the board is shown or the user scale
     // is less than 1.
@@ -271,15 +283,23 @@ void BOARD_PRINTOUT_CONTROLLER::DrawPage()
     panel->SetClipBox( EDA_RECT( wxPoint( 0, 0 ), wxSize( MAX_VALUE, MAX_VALUE ) ) );
 
     screen->m_IsPrinting = true;
-    EDA_COLOR_T bg_color = m_Parent->GetDrawBgColor();
+    COLOR4D bg_color = m_Parent->GetDrawBgColor();
 
     // Print frame reference, if requested, before
     if( m_PrintParams.m_Print_Black_and_White )
         GRForceBlackPen( true );
 
     if( m_PrintParams.PrintBorderAndTitleBlock() )
+    {
+        tempScreenNumber = screen->m_ScreenNumber;
+        tempNumberOfScreens = screen->m_NumberOfScreens;
+        screen->m_ScreenNumber = aPageNum;
+        screen->m_NumberOfScreens = aPageCount;
         m_Parent->DrawWorkSheet( dc, screen, m_PrintParams.m_PenDefaultSize,
-                                  IU_PER_MILS, titleblockFilename );
+                                 IU_PER_MILS, titleblockFilename, aLayerName );
+        screen->m_ScreenNumber = tempScreenNumber;
+        screen->m_NumberOfScreens = tempNumberOfScreens;
+    }
 
     if( printMirror )
     {

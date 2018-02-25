@@ -27,6 +27,8 @@
 #include <pcb_draw_panel_gal.h>
 #include <gal/graphics_abstraction_layer.h>
 #include <class_board.h>
+#include <view/view.h>
+
 
 void PCB_BASE_EDIT_FRAME::SetRotationAngle( int aRotationAngle )
 {
@@ -34,21 +36,6 @@ void PCB_BASE_EDIT_FRAME::SetRotationAngle( int aRotationAngle )
                   wxT( "Invalid rotation angle, defaulting to 90." ) );
 
     m_rotationAngle = aRotationAngle;
-}
-
-
-bool PCB_BASE_EDIT_FRAME::PostCommandMenuEvent( int evt_type )
-{
-    if( evt_type != 0 )
-    {
-        wxCommandEvent evt( wxEVT_COMMAND_MENU_SELECTED );
-        evt.SetEventObject( this );
-        evt.SetId( evt_type );
-        wxPostEvent( this, evt );
-        return true;
-    }
-
-    return false;
 }
 
 
@@ -68,13 +55,13 @@ void PCB_BASE_EDIT_FRAME::SetBoard( BOARD* aBoard )
 {
     bool new_board = ( aBoard != m_Pcb );
 
-    // The active tool might store a reference to the BOARD that is about to be deleted.
-    if( m_toolManager )
-        m_toolManager->DeactivateTool();
-
-    // It has to be done before the previous board is destroyed by SetBoard()
     if( new_board )
+    {
+        if( m_toolManager )
+            m_toolManager->ResetTools( TOOL_BASE::MODEL_RELOAD );
+
         GetGalCanvas()->GetView()->Clear();
+    }
 
     PCB_BASE_FRAME::SetBoard( aBoard );
 
@@ -86,6 +73,7 @@ void PCB_BASE_EDIT_FRAME::SetBoard( BOARD* aBoard )
         PCB_DRAW_PANEL_GAL* drawPanel = static_cast<PCB_DRAW_PANEL_GAL*>( GetGalCanvas() );
 
         drawPanel->DisplayBoard( aBoard );
+        drawPanel->UseColorScheme( &Settings().Colors() );
         m_toolManager->SetEnvironment( aBoard, drawPanel->GetView(),
                                        drawPanel->GetViewControls(), this );
 

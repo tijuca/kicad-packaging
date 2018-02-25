@@ -1,11 +1,9 @@
-#ifndef EDA_DRAW_FRAME_H_
-#define EDA_DRAW_FRAME_H_
 /*
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
  * Copyright (C) 2009 Jean-Pierre Charras, jaen-pierre.charras@gipsa-lab.inpg.com
- * Copyright (C) 2011 Wayne Stambaugh <stambaughw@verizon.net>
- * Copyright (C) 1992-2011 KiCad Developers, see AUTHORS.txt for contributors.
+ * Copyright (C) 2011 Wayne Stambaugh <stambaughw@gmail.com>
+ * Copyright (C) 1992-2017 KiCad Developers, see AUTHORS.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -25,12 +23,25 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
  */
 
-#include <wxstruct.h>
+#ifndef DRAW_FRAME_H_
+#define DRAW_FRAME_H_
+
+#include <eda_base_frame.h>
 #include <kiway_player.h>
 #include <climits>
+#include <gal/gal_display_options.h>
+#include <gal/color4d.h>
+#include <class_draw_panel_gal.h>
 
 class wxSingleInstanceChecker;
 class EDA_HOTKEY;
+
+using KIGFX::COLOR4D;
+
+namespace KIGFX
+{
+    class GAL_DISPLAY_OPTIONS;
+}
 
 #define DEFAULT_MAX_UNDO_ITEMS 0
 #define ABS_MAX_UNDO_ITEMS (INT_MAX / 2)
@@ -56,9 +67,12 @@ class EDA_DRAW_FRAME : public KIWAY_PLAYER
 
     EDA_DRAW_PANEL_GAL* m_galCanvas;
 
+    ///< GAL display options - this is the frame's interface to setting GAL display options
+    std::unique_ptr<KIGFX::GAL_DISPLAY_OPTIONS> m_galDisplayOptions;
+
 protected:
 
-    wxSingleInstanceChecker* m_file_checker;    ///< prevents opening same file multiple times.
+    std::unique_ptr<wxSingleInstanceChecker> m_file_checker;    ///< prevents opening same file multiple times.
 
     EDA_HOTKEY_CONFIG* m_hotkeysDescrList;
     int         m_LastGridSizeId;           // the command id offset (>= 0) of the last selected grid
@@ -66,8 +80,8 @@ protected:
                                             // a wxCommand ID = ID_POPUP_GRID_LEVEL_1000.
     bool        m_drawGrid;                 // hide/Show grid
     bool        m_showPageLimits;           ///< true to display the page limits
-    EDA_COLOR_T m_gridColor;                // Grid color
-    EDA_COLOR_T m_drawBgColor;              ///< the background color of the draw canvas
+    COLOR4D     m_gridColor;                ///< Grid color
+    COLOR4D     m_drawBgColor;              ///< the background color of the draw canvas
                                             ///< BLACK for Pcbnew, BLACK or WHITE for eeschema
     double      m_zoomLevelCoeff;           ///< a suitable value to convert the internal zoom scaling factor
                                             // to a zoom level value which rougly gives 1.0 when the board/schematic
@@ -80,14 +94,10 @@ protected:
 
     TOOL_MANAGER*       m_toolManager;
     TOOL_DISPATCHER*    m_toolDispatcher;
+    ACTIONS*            m_actions;
 
     /// Tool ID of previously active draw tool bar button.
     int     m_lastDrawToolId;
-
-    /// The shape of the KiCad cursor.  The default value (0) is the normal cross
-    /// hair cursor.  Set to non-zero value to draw the full screen cursor.
-    /// @note This is not the system mouse cursor.
-    int     m_cursorShape;
 
     /// True shows the X and Y axis indicators.
     bool    m_showAxis;
@@ -101,6 +111,9 @@ protected:
 
     /// True shows the drawing border and title block.
     bool    m_showBorderAndTitleBlock;
+
+    /// Key to control whether first run dialog is shown on startup
+    long    m_firstRunDialogSetting;
 
     /// Choice box to choose the grid size.
     wxChoice*       m_gridSelectBox;
@@ -128,7 +141,15 @@ protected:
     /// One-shot to avoid a recursive mouse event during hotkey movement
     bool            m_movingCursorWithKeyboard;
 
+    /// Flag indicating that drawing canvas type needs to be saved to config
+    bool            m_canvasTypeDirty;
+
+    /// The current canvas type
+    EDA_DRAW_PANEL_GAL::GAL_TYPE    m_canvasType;
+
     void SetScreen( BASE_SCREEN* aScreen )  { m_currentScreen = aScreen; }
+
+    double bestZoom( double sizeX, double sizeY, double scaleFactor, wxPoint centre );
 
     /**
      * Function unitsChangeRefresh
@@ -142,14 +163,37 @@ protected:
     /**
      * Function GeneralControlKeyMovement
      * Handle the common part of GeneralControl dedicated to global
-     * cursor keys (i.e. cursor movement by keyboard) */
-    void GeneralControlKeyMovement( int aHotKey, wxPoint *aPos, bool aSnapToGrid );
+     * cursor keys (i.e. cursor movement by keyboard)
+     * @param aHotKey is the hotkey code
+     * @param aPos is the position of the cursor (initial then new)
+     * @param aSnapToGrid = true to force the cursor position on grid
+     * @return true if the hotkey code is handled (captured).
+     */
+    bool GeneralControlKeyMovement( int aHotKey, wxPoint *aPos, bool aSnapToGrid );
 
-    /* Function RefreshCrosshair
-     * Move and refresh the crosshair after movement; also call the
-     * mouse capture function, if active.
+    /**
+     * Move and refresh the crosshair after movement and call the mouse capture function.
      */
     void RefreshCrossHair( const wxPoint &aOldPos, const wxPoint &aEvtPos, wxDC* aDC );
+
+    /**
+     * @return true if an item edit or a block operation is in progress.
+     */
+    bool isBusy() const;
+
+    /**
+     * Returns the canvas type stored in the application settings.
+     */
+    EDA_DRAW_PANEL_GAL::GAL_TYPE loadCanvasTypeSetting() const;
+
+    /**
+     * Stores the canvas type in the application settings.
+     */
+    bool saveCanvasTypeSetting( EDA_DRAW_PANEL_GAL::GAL_TYPE aCanvasType );
+
+    ///> Key in KifaceSettings to store the canvas type.
+    static const wxChar CANVAS_TYPE_KEY[];
+
 public:
     EDA_DRAW_FRAME( KIWAY* aKiway, wxWindow* aParent,
                     FRAME_T aFrameType,
@@ -159,6 +203,14 @@ public:
                     const wxString& aFrameName );
 
     ~EDA_DRAW_FRAME();
+
+    /** this function capture the key event before it is sent to the GUI.
+     * the basic frame does not capture this event.
+     * editor frames should override this event function to capture and filter
+     * these keys when they are used as hotkeys, and skip it if the key is not
+     * used as hotkey (otherwise the key events will be not sent to menus)
+     */
+    virtual void OnCharHook( wxKeyEvent& event );
 
     /**
      * Function LockFile
@@ -272,18 +324,14 @@ public:
     // the background color of the draw canvas:
     // Virtual because some frames can have a specific way to get/set the bg color
     /**
-     * @return the EDA_COLOR_T for the canvas background
+     * @return the COLOR4D for the canvas background
      */
-    virtual EDA_COLOR_T GetDrawBgColor() const { return m_drawBgColor; }
+    virtual COLOR4D GetDrawBgColor() const { return m_drawBgColor; }
 
     /**
-     * @param aColor: the EDA_COLOR_T for the canvas background
+     * @param aColor: the COLOR4D for the canvas background
      */
-    virtual void SetDrawBgColor( EDA_COLOR_T aColor) { m_drawBgColor= aColor ; }
-
-    int GetCursorShape() const { return m_cursorShape; }
-
-    virtual void SetCursorShape( int aCursorShape ) { m_cursorShape = aCursorShape; }
+    virtual void SetDrawBgColor( COLOR4D aColor) { m_drawBgColor= aColor ; }
 
     bool GetShowBorderAndTitleBlock() const { return m_showBorderAndTitleBlock; }
 
@@ -331,7 +379,7 @@ public:
     void SkipNextLeftButtonReleaseEvent();
 
     ///> @copydoc EDA_BASE_FRAME::WriteHotkeyConfig
-    int WriteHotkeyConfig( struct EDA_HOTKEY_CONFIG* aDescList, wxString* aFullFileName = NULL );
+    int WriteHotkeyConfig( struct EDA_HOTKEY_CONFIG* aDescList, wxString* aFullFileName = NULL ) override;
 
     /**
      * Function GetHotkeyConfig()
@@ -381,8 +429,25 @@ public:
 
     virtual void ReCreateHToolbar() = 0;
     virtual void ReCreateVToolbar() = 0;
-    virtual void ReCreateMenuBar();
+    virtual void ReCreateMenuBar() override;
     virtual void ReCreateAuxiliaryToolbar();
+
+    // Toolbar accessors
+    wxAuiToolBar* GetMainToolBar() const { return m_mainToolBar; }
+
+    /**
+     * Checks all the toolbars and returns true if the given tool id is toggled.
+     *
+     * This is needed because GerbView and Pcbnew put some of the same tools in
+     * different toolbars (for example, zoom selection is in the main bar in
+     * Pcbnew and in the options bar in GerbView).
+     */
+    bool GetToolToggled( int aToolId )
+    {
+        return ( m_mainToolBar->GetToolToggled( aToolId ) ||
+                 m_optionsToolBar->GetToolToggled( aToolId ) ||
+                 m_drawToolBar->GetToolToggled( aToolId ) );
+    }
 
     /**
      * Function SetToolID
@@ -398,6 +463,16 @@ public:
      */
     virtual void SetToolID( int aId, int aCursor, const wxString& aToolMsg );
 
+    /**
+     * Select the ID_NO_TOOL_SELECTED id tool (Idle tool)
+     */
+    virtual void SetNoToolSelected();
+
+    /**
+     * @return the current tool ID
+     * when there is no active tool, the ID_NO_TOOL_SELECTED is returned
+     * (the id of the default Tool (idle tool) of the right vertical toolbar)
+     */
     int GetToolId() const { return m_toolId; }
 
     /* These 4 functions provide a basic way to show/hide grid
@@ -427,7 +502,7 @@ public:
      * Function GetGridColor() , virtual
      * @return the color of the grid
      */
-    virtual EDA_COLOR_T GetGridColor() const
+    virtual COLOR4D GetGridColor()
     {
         return m_gridColor;
     }
@@ -436,7 +511,7 @@ public:
      * Function SetGridColor() , virtual
      * @param aColor = the new color of the grid
      */
-    virtual void SetGridColor( EDA_COLOR_T aColor )
+    virtual void SetGridColor( COLOR4D aColor )
     {
         m_gridColor = aColor;
     }
@@ -514,8 +589,9 @@ public:
      * @param aDC A device context.
      * @param aPosition The current cursor position in logical (drawing) units.
      * @param aHotKey A key event used for application specific control if not zero.
+     * @return true if the hotkey code is handled (captured).
      */
-    virtual bool GeneralControl( wxDC* aDC, const wxPoint& aPosition, int aHotKey = 0 )
+    virtual bool GeneralControl( wxDC* aDC, const wxPoint& aPosition, EDA_KEY aHotKey = 0 )
     {
         return false;
     }
@@ -592,9 +668,11 @@ public:
      * @param aLineWidth The pen width to use to draw the layout.
      * @param aScale The mils to Iu conversion factor.
      * @param aFilename The filename to display in basic inscriptions.
+     * @param aSheetLayer The layer displayed from pcbnew.
      */
     void DrawWorkSheet( wxDC* aDC, BASE_SCREEN* aScreen, int aLineWidth,
-                         double aScale, const wxString &aFilename );
+                         double aScale, const wxString &aFilename,
+                         const wxString &aSheetLayer = wxEmptyString );
 
     void            DisplayToolMsg( const wxString& msg );
     virtual void    RedrawActiveWindow( wxDC* DC, bool EraseBg ) = 0;
@@ -637,11 +715,16 @@ public:
     virtual void InitBlockPasteInfos();
 
     /**
-     * Function HandleBlockBegin
-     * initializes the block command including the command type, initial position,
-     * and other variables.
+     * Initialize a block command.
+     *
+     * @param aDC is the device context to perform the block command.
+     * @param aKey is the block command key press.
+     * @param aPosition is the logical position of the start of the block command.
+     * @param aExplicitCommand - if this is given, begin with this command, rather
+     *  than looking up the command from \a aKey.
      */
-    virtual bool HandleBlockBegin( wxDC* aDC, int aKey, const wxPoint& aPosition );
+    virtual bool HandleBlockBegin( wxDC* aDC, EDA_KEY aKey, const wxPoint& aPosition,
+                                   int aExplicitCommand = 0 );
 
     /**
      * Function BlockCommand
@@ -652,7 +735,7 @@ public:
      * @param aKey = the key modifiers (Alt, Shift ...)
      * @return the block command id (BLOCK_MOVE, BLOCK_COPY...)
      */
-    virtual int BlockCommand( int aKey );
+    virtual int BlockCommand( EDA_KEY aKey );
 
     /**
      * Function HandleBlockPlace( )
@@ -685,9 +768,9 @@ public:
     void OnSockRequest( wxSocketEvent& evt );
     void OnSockRequestServer( wxSocketEvent& evt );
 
-    void LoadSettings( wxConfigBase* aCfg );    // override virtual
+    void LoadSettings( wxConfigBase* aCfg ) override;
 
-    void SaveSettings( wxConfigBase* aCfg );    // override virtual
+    void SaveSettings( wxConfigBase* aCfg ) override;
 
     /**
      * Append a message to the message panel.
@@ -702,7 +785,7 @@ public:
      * @param pad - Number of spaces to pad between messages (default = 4).
      */
     void AppendMsgPanel( const wxString& textUpper, const wxString& textLower,
-                         EDA_COLOR_T color, int pad = 6 );
+                         COLOR4D color, int pad = 6 );
 
     /**
      * Clear all messages from the message panel.
@@ -776,6 +859,13 @@ public:
     virtual void UseGalCanvas( bool aEnable );
 
     /**
+     * Changes the current rendering backend.
+     * aCanvasType is the new rendering backend type.
+     * @return true if any kind of GAL canvas is used.
+     */
+    virtual bool SwitchCanvas( EDA_DRAW_PANEL_GAL::GAL_TYPE aCanvasType );
+
+    /**
      * Function IsGalCanvasActive
      * is used to check which canvas (GAL-based or standard) is currently in use.
      *
@@ -806,7 +896,13 @@ public:
      */
     virtual void* GetDisplayOptions() { return NULL; }
 
+    /**
+    * Function GetGalDisplayOptions
+    * Returns a reference to the gal rendering options used by GAL for rendering.
+    */
+    KIGFX::GAL_DISPLAY_OPTIONS& GetGalDisplayOptions() { return *m_galDisplayOptions; }
+
     DECLARE_EVENT_TABLE()
 };
 
-#endif  // EDA_DRAW_FRAME_H_
+#endif  // DRAW_FRAME_H_

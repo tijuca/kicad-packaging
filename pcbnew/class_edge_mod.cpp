@@ -31,23 +31,25 @@
 
 #include <fctsys.h>
 #include <gr_basic.h>
-#include <wxstruct.h>
 #include <trigo.h>
 #include <class_drawpanel.h>
-#include <class_pcb_screen.h>
+#include <pcb_screen.h>
 #include <confirm.h>
 #include <kicad_string.h>
-#include <colors_selection.h>
 #include <richio.h>
 #include <macros.h>
 #include <math_for_graphics.h>
-#include <wxBasePcbFrame.h>
+#include <pcb_base_frame.h>
 #include <msgpanel.h>
 #include <base_units.h>
+#include <bitmaps.h>
 
+#include <pcb_edit_frame.h>
 #include <class_board.h>
 #include <class_module.h>
 #include <class_edge_mod.h>
+
+#include <view/view.h>
 
 #include <stdio.h>
 
@@ -62,30 +64,6 @@ EDGE_MODULE::EDGE_MODULE( MODULE* parent, STROKE_T aShape ) :
 
 EDGE_MODULE::~EDGE_MODULE()
 {
-}
-
-
-const EDGE_MODULE& EDGE_MODULE::operator = ( const EDGE_MODULE& rhs )
-{
-    if( &rhs == this )
-        return *this;
-
-    DRAWSEGMENT::operator=( rhs );
-
-    m_Start0 = rhs.m_Start0;
-    m_End0   = rhs.m_End0;
-
-    m_PolyPoints = rhs.m_PolyPoints;    // std::vector copy
-    return *this;
-}
-
-
-void EDGE_MODULE::Copy( EDGE_MODULE* source )
-{
-    if( source == NULL )
-        return;
-
-    *this = *source;
 }
 
 
@@ -130,7 +108,7 @@ void EDGE_MODULE::Draw( EDA_DRAW_PANEL* panel, wxDC* DC, GR_DRAWMODE draw_mode,
                         const wxPoint& offset )
 {
     int         ux0, uy0, dx, dy, radius, StAngle, EndAngle;
-    LAYER_ID    curr_layer = ( (PCB_SCREEN*) panel->GetScreen() )->m_Active_Layer;
+    PCB_LAYER_ID    curr_layer = ( (PCB_SCREEN*) panel->GetScreen() )->m_Active_Layer;
 
     MODULE* module = (MODULE*) m_Parent;
 
@@ -142,13 +120,16 @@ void EDGE_MODULE::Draw( EDA_DRAW_PANEL* panel, wxDC* DC, GR_DRAWMODE draw_mode,
     if( brd->IsLayerVisible( m_Layer ) == false )
         return;
 
-    EDA_COLOR_T color = brd->GetLayerColor( m_Layer );
-    DISPLAY_OPTIONS* displ_opts = (DISPLAY_OPTIONS*)panel->GetDisplayOptions();
+
+    auto frame = static_cast<PCB_BASE_FRAME*> ( panel->GetParent() );
+    auto color = frame->Settings().Colors().GetLayerColor( m_Layer );
+
+    auto displ_opts = (PCB_DISPLAY_OPTIONS*)( panel->GetDisplayOptions() );
 
     if(( draw_mode & GR_ALLOW_HIGHCONTRAST ) && displ_opts && displ_opts->m_ContrastModeDisplay )
     {
         if( !IsOnLayer( curr_layer ) )
-            ColorTurnToDarkDarkGray( &color );
+            color = COLOR4D( DARKDARKGRAY );
     }
 
     ux0 = m_Start.x - offset.x;
@@ -219,10 +200,18 @@ void EDGE_MODULE::Draw( EDA_DRAW_PANEL* panel, wxDC* DC, GR_DRAWMODE draw_mode,
         break;
 
     case S_POLYGON:
+        if( m_Poly.IsEmpty() )
+            break;
+
         {
         // We must compute absolute coordinates from m_PolyPoints
         // which are relative to module position, orientation 0
-        std::vector<wxPoint> points = m_PolyPoints;
+        std::vector<wxPoint> points;
+
+        for( auto iter = m_Poly.CIterate(); iter; iter++ )
+        {
+            points.push_back( wxPoint( iter->x,iter->y ) );
+        }
 
         for( unsigned ii = 0; ii < points.size(); ii++ )
         {
@@ -282,6 +271,12 @@ wxString EDGE_MODULE::GetSelectMenuText() const
 }
 
 
+BITMAP_DEF EDGE_MODULE::GetMenuImage() const
+{
+    return show_mod_edge_xpm;
+}
+
+
 EDA_ITEM* EDGE_MODULE::Clone() const
 {
     return new EDGE_MODULE( *this );
@@ -314,8 +309,11 @@ void EDGE_MODULE::Flip( const wxPoint& aCentre )
     case S_POLYGON:
         // polygon corners coordinates are always relative to the
         // footprint position, orientation 0
-        for( unsigned ii = 0; ii < m_PolyPoints.size(); ii++ )
-            MIRROR( m_PolyPoints[ii].y, 0 );
+        for( auto iter = m_Poly.Iterate(); iter; iter++ )
+        {
+            MIRROR( iter->y, 0 );
+        }
+	break;
     }
 
     // DRAWSEGMENT items are not usually on copper layers, but
@@ -325,6 +323,12 @@ void EDGE_MODULE::Flip( const wxPoint& aCentre )
     SetLayer( FlipLayer( GetLayer() ) );
 }
 
+bool EDGE_MODULE::IsParentFlipped() const
+{
+    if( GetParent() &&  GetParent()->GetLayer() == B_Cu )
+        return true;
+    return false;
+}
 
 void EDGE_MODULE::Mirror( wxPoint aCentre, bool aMirrorAroundXAxis )
 {
@@ -352,12 +356,12 @@ void EDGE_MODULE::Mirror( wxPoint aCentre, bool aMirrorAroundXAxis )
     case S_POLYGON:
         // polygon corners coordinates are always relative to the
         // footprint position, orientation 0
-        for( unsigned ii = 0; ii < m_PolyPoints.size(); ii++ )
+        for( auto iter = m_Poly.Iterate(); iter; iter++ )
         {
             if( aMirrorAroundXAxis )
-                MIRROR( m_PolyPoints[ii].y, aCentre.y );
+                MIRROR( iter->y, aCentre.y );
             else
-                MIRROR( m_PolyPoints[ii].x, aCentre.x );
+                MIRROR( iter->x, aCentre.x );
         }
     }
 
@@ -392,9 +396,27 @@ void EDGE_MODULE::Move( const wxPoint& aMoveVector )
     case S_POLYGON:
         // polygon corners coordinates are always relative to the
         // footprint position, orientation 0
-        for( unsigned ii = 0; ii < m_PolyPoints.size(); ii++ )
-            m_PolyPoints[ii] += aMoveVector;
+        for( auto iter = m_Poly.Iterate(); iter; iter++ )
+            *iter += VECTOR2I( aMoveVector );
     }
 
     SetDrawCoord();
+}
+
+unsigned int EDGE_MODULE::ViewGetLOD( int aLayer, KIGFX::VIEW* aView ) const
+{
+    const int HIDE = std::numeric_limits<unsigned int>::max();
+
+    if( !aView )
+        return 0;
+
+    // Handle Render tab switches
+    if( !IsParentFlipped() && !aView->IsLayerVisible( LAYER_MOD_FR ) )
+        return HIDE;
+
+    if( IsParentFlipped() && !aView->IsLayerVisible( LAYER_MOD_BK ) )
+        return HIDE;
+
+    // Other layers are shown without any conditions
+    return 0;
 }

@@ -31,10 +31,10 @@
 #include <fctsys.h>
 #include <pgm_base.h>
 #include <class_drawpanel.h>
-#include <schframe.h>
+#include <sch_edit_frame.h>
 
 #include <general.h>
-#include <protos.h>
+#include <list_operations.h>
 #include <sch_bus_entry.h>
 #include <sch_marker.h>
 #include <sch_line.h>
@@ -72,7 +72,7 @@ void SetSchItemParent( SCH_ITEM* Struct, SCH_SCREEN* Screen )
 }
 
 
-void RotateListOfItems( PICKED_ITEMS_LIST& aItemsList, wxPoint& rotationPoint )
+void RotateListOfItems( PICKED_ITEMS_LIST& aItemsList, const wxPoint& rotationPoint )
 {
     for( unsigned ii = 0; ii < aItemsList.GetCount(); ii++ )
     {
@@ -83,7 +83,7 @@ void RotateListOfItems( PICKED_ITEMS_LIST& aItemsList, wxPoint& rotationPoint )
 }
 
 
-void MirrorY( PICKED_ITEMS_LIST& aItemsList, wxPoint& aMirrorPoint )
+void MirrorY( PICKED_ITEMS_LIST& aItemsList, const wxPoint& aMirrorPoint )
 {
     for( unsigned ii = 0; ii < aItemsList.GetCount(); ii++ )
     {
@@ -94,7 +94,7 @@ void MirrorY( PICKED_ITEMS_LIST& aItemsList, wxPoint& aMirrorPoint )
 }
 
 
-void MirrorX( PICKED_ITEMS_LIST& aItemsList, wxPoint& aMirrorPoint )
+void MirrorX( PICKED_ITEMS_LIST& aItemsList, const wxPoint& aMirrorPoint )
 {
     for( unsigned ii = 0; ii < aItemsList.GetCount(); ii++ )
     {
@@ -105,13 +105,7 @@ void MirrorX( PICKED_ITEMS_LIST& aItemsList, wxPoint& aMirrorPoint )
 }
 
 
-/**
- * Function MoveItemsInList
- *  Move a list of items to a given move vector
- * @param aItemsList = list of picked items
- * @param aMoveVector = the move vector value
- */
-void MoveItemsInList( PICKED_ITEMS_LIST& aItemsList, const wxPoint aMoveVector )
+void MoveItemsInList( PICKED_ITEMS_LIST& aItemsList, const wxPoint& aMoveVector )
 {
     for( unsigned ii = 0; ii < aItemsList.GetCount(); ii++ )
     {
@@ -121,73 +115,124 @@ void MoveItemsInList( PICKED_ITEMS_LIST& aItemsList, const wxPoint aMoveVector )
 }
 
 
-/**
- * Function DeleteItemsInList
- * delete schematic items in aItemsList
- * deleted items are put in undo list
- */
-void DeleteItemsInList( EDA_DRAW_PANEL* panel, PICKED_ITEMS_LIST& aItemsList )
+void SCH_EDIT_FRAME::CheckListConnections( PICKED_ITEMS_LIST& aItemsList, bool aAppend )
 {
-    SCH_SCREEN*        screen = (SCH_SCREEN*) panel->GetScreen();
-    SCH_EDIT_FRAME*    frame  = (SCH_EDIT_FRAME*) panel->GetParent();
-    PICKED_ITEMS_LIST  itemsList;
+    std::vector< wxPoint > pts;
+    std::vector< wxPoint > connections;
 
+    GetSchematicConnections( connections );
     for( unsigned ii = 0; ii < aItemsList.GetCount(); ii++ )
     {
         SCH_ITEM* item = (SCH_ITEM*) aItemsList.GetPickedItem( ii );
-        ITEM_PICKER itemWrapper( item, UR_DELETED );
+        std::vector< wxPoint > new_pts;
 
-        if( item->Type() == SCH_SHEET_PIN_T )
+        if( !item->IsConnectable() )
+            continue;
+
+        item->GetConnectionPoints( new_pts );
+        pts.insert( pts.end(), new_pts.begin(), new_pts.end() );
+
+        // If the item is a line, we also add any connection points from the rest of the schematic
+        // that terminate on the line after it is moved.
+        if( item->Type() == SCH_LINE_T )
         {
-            /* this item is depending on a sheet, and is not in global list */
-            wxMessageBox( wxT( "DeleteItemsInList() err: unexpected SCH_SHEET_PIN_T" ) );
+            SCH_LINE* line = (SCH_LINE*) item;
+            for( auto i : connections )
+                if( IsPointOnSegment( line->GetStartPoint(), line->GetEndPoint(), i ) )
+                    pts.push_back( i );
         }
         else
         {
-            screen->Remove( item );
-
-            /* Unlink the structure */
-            itemsList.PushItem( itemWrapper );
+            // Clean up any wires that short non-wire connections in the list
+            for( auto point = new_pts.begin(); point != new_pts.end(); point++ )
+            {
+                for( auto second_point = point + 1; second_point != new_pts.end(); second_point++ )
+                {
+                    aAppend |= TrimWire( *point, *second_point, aAppend );
+                }
+            }
         }
     }
 
-    frame->SaveCopyInUndoList( itemsList, UR_DELETED );
+    // We always have some overlapping connection points.  Drop duplicates here
+    std::sort( pts.begin(), pts.end(),
+            []( const wxPoint& a, const wxPoint& b ) -> bool
+            { return a.x < b.x || (a.x == b.x && a.y < b.y); } );
+    pts.erase( unique( pts.begin(), pts.end() ), pts.end() );
+
+    for( auto point : pts )
+    {
+        if( GetScreen()->IsJunctionNeeded( point, true ) )
+        {
+            AddJunction( point, aAppend );
+            aAppend = true;
+        }
+    }
 }
 
 
-void SCH_EDIT_FRAME::DeleteItem( SCH_ITEM* aItem )
+void SCH_EDIT_FRAME::DeleteItemsInList( PICKED_ITEMS_LIST& aItemsList, bool aAppend )
+{
+    for( unsigned ii = 0; ii < aItemsList.GetCount(); ii++ )
+    {
+        SCH_ITEM* item = (SCH_ITEM*) aItemsList.GetPickedItem( ii );
+
+        if( item->GetFlags() & STRUCT_DELETED )
+            continue;
+
+        DeleteItem( item, aAppend );
+        aAppend = true;
+    }
+
+    GetScreen()->ClearDrawingState();
+}
+
+
+void SCH_EDIT_FRAME::DeleteItem( SCH_ITEM* aItem, bool aAppend )
 {
     wxCHECK_RET( aItem != NULL, wxT( "Cannot delete invalid item." ) );
+    wxCHECK_RET( !( aItem->GetFlags() & STRUCT_DELETED ),
+                 wxT( "Cannot delete item that is already deleted." ) );
 
     // Here, aItem is not null.
-
     SCH_SCREEN* screen = GetScreen();
 
     if( aItem->Type() == SCH_SHEET_PIN_T )
     {
-        // This iten is attached to a node, and is not accessible by the global list directly.
+        // This item is attached to a node, and is not accessible by the global list directly.
         SCH_SHEET* sheet = (SCH_SHEET*) aItem->GetParent();
         wxCHECK_RET( (sheet != NULL) && (sheet->Type() == SCH_SHEET_T),
                      wxT( "Sheet label has invalid parent item." ) );
-        SaveCopyInUndoList( (SCH_ITEM*) sheet, UR_CHANGED );
+        SaveCopyInUndoList( (SCH_ITEM*) sheet, UR_CHANGED, aAppend );
         sheet->RemovePin( (SCH_SHEET_PIN*) aItem );
         m_canvas->RefreshDrawingRect( sheet->GetBoundingBox() );
     }
+    else if( aItem->Type() == SCH_JUNCTION_T )
+    {
+        DeleteJunction( aItem, aAppend );
+    }
     else
     {
+        aItem->SetFlags( STRUCT_DELETED );
+        SaveCopyInUndoList( aItem, UR_DELETED, aAppend );
         screen->Remove( aItem );
-        SaveCopyInUndoList( aItem, UR_DELETED );
+
+        std::vector< wxPoint > pts;
+        aItem->GetConnectionPoints( pts );
+        for( auto point : pts )
+        {
+            SCH_ITEM* junction = screen->GetItem( point, 0, SCH_JUNCTION_T );
+            if( junction && !screen->IsJunctionNeeded( point ) )
+                DeleteJunction( junction, true );
+        }
+
         m_canvas->RefreshDrawingRect( aItem->GetBoundingBox() );
     }
 }
 
 
-/* Routine to copy a new entity of an object for each object in list and
- * reposition it.
- * Return the new created object list in aItemsList
- */
 void DuplicateItemsInList( SCH_SCREEN* screen, PICKED_ITEMS_LIST& aItemsList,
-                           const wxPoint aMoveVector )
+                           const wxPoint& aMoveVector )
 {
     SCH_ITEM* newitem;
 
@@ -238,16 +283,6 @@ void DuplicateItemsInList( SCH_SCREEN* screen, PICKED_ITEMS_LIST& aItemsList,
 }
 
 
-/**
- * Function DuplicateStruct
- *  Routine to create a new copy of given struct.
- *  The new object is not put in draw list (not linked)
- * @param aDrawStruct = the SCH_ITEM to duplicate
- * @param aClone (default = false)
- *     if true duplicate also some parameters that must be unique
- *     (timestamp and sheet name)
- *      aClone must be false. use true only is undo/redo duplications
- */
 SCH_ITEM* DuplicateStruct( SCH_ITEM* aDrawStruct, bool aClone )
 {
     wxCHECK_MSG( aDrawStruct != NULL, NULL,
@@ -257,8 +292,6 @@ SCH_ITEM* DuplicateStruct( SCH_ITEM* aDrawStruct, bool aClone )
 
     if( aClone )
         NewDrawStruct->SetTimeStamp( aDrawStruct->GetTimeStamp() );
-
-    NewDrawStruct->SetImage( aDrawStruct );
 
     return NewDrawStruct;
 }

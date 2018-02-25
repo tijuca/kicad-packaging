@@ -1,8 +1,8 @@
 /*
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
- * Copyright (C) 2012 Jean-Pierre Charras, jp.charras at wanadoo.fr
- * Copyright (C) 2004-2012 KiCad Developers, see change_log.txt for contributors.
+ * Copyright (C) 2017 Jean-Pierre Charras, jp.charras at wanadoo.fr
+ * Copyright (C) 2004-2017 KiCad Developers, see AUTHORS.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -31,12 +31,11 @@
 #include <gr_basic.h>
 #include <macros.h>
 #include <class_drawpanel.h>
-#include <plot_common.h>
+#include <plotter.h>
 #include <trigo.h>
-#include <wxstruct.h>
-#include <richio.h>
 #include <base_units.h>
 #include <msgpanel.h>
+#include <bitmaps.h>
 
 #include <general.h>
 #include <lib_circle.h>
@@ -50,40 +49,6 @@ LIB_CIRCLE::LIB_CIRCLE( LIB_PART*      aParent ) :
     m_Width      = 0;
     m_Fill       = NO_FILL;
     m_isFillable = true;
-    m_typeName   = _( "Circle" );
-}
-
-
-bool LIB_CIRCLE::Save( OUTPUTFORMATTER& aFormatter )
-{
-    aFormatter.Print( 0, "C %d %d %d %d %d %d %c\n", m_Pos.x, m_Pos.y,
-                      m_Radius, m_Unit, m_Convert, m_Width, fill_tab[m_Fill] );
-
-    return true;
-}
-
-
-bool LIB_CIRCLE::Load( LINE_READER& aLineReader, wxString& aErrorMsg )
-{
-    char tmp[256];
-    char* line = (char*) aLineReader;
-
-    int  cnt = sscanf( line + 2, "%d %d %d %d %d %d %255s", &m_Pos.x, &m_Pos.y,
-                       &m_Radius, &m_Unit, &m_Convert, &m_Width, tmp );
-
-    if( cnt < 6 )
-    {
-        aErrorMsg.Printf( _( "Circle only had %d parameters of the required 6" ), cnt );
-        return false;
-    }
-
-    if( tmp[0] == 'F' )
-        m_Fill = FILLED_SHAPE;
-
-    if( tmp[0] == 'f' )
-        m_Fill = FILLED_WITH_BG_BODYCOLOR;
-
-    return true;
 }
 
 
@@ -145,11 +110,8 @@ void LIB_CIRCLE::SetOffset( const wxPoint& aOffset )
 
 bool LIB_CIRCLE::Inside( EDA_RECT& aRect ) const
 {
-    /*
-     * FIXME: This fails to take into account the radius around the center
-     *        point.
-     */
-    return aRect.Contains( m_Pos.x, -m_Pos.y );
+    wxPoint center(m_Pos.x, -m_Pos.y);
+    return aRect.IntersectsCircle( center, m_Radius );
 }
 
 
@@ -191,7 +153,7 @@ void LIB_CIRCLE::Plot( PLOTTER* aPlotter, const wxPoint& aOffset, bool aFill,
     if( aFill && m_Fill == FILLED_WITH_BG_BODYCOLOR )
     {
         aPlotter->SetColor( GetLayerColor( LAYER_DEVICE_BACKGROUND ) );
-        aPlotter->Circle( pos, m_Radius * 2, FILLED_SHAPE, 0 );
+        aPlotter->Circle( pos, m_Radius * 2, FILLED_WITH_BG_BODYCOLOR, 0 );
     }
 
     bool already_filled = m_Fill == FILLED_WITH_BG_BODYCOLOR;
@@ -207,14 +169,14 @@ int LIB_CIRCLE::GetPenSize() const
 
 
 void LIB_CIRCLE::drawGraphic( EDA_DRAW_PANEL* aPanel, wxDC* aDC, const wxPoint& aOffset,
-                              EDA_COLOR_T aColor, GR_DRAWMODE aDrawMode, void* aData,
+                              COLOR4D aColor, GR_DRAWMODE aDrawMode, void* aData,
                               const TRANSFORM& aTransform )
 {
     wxPoint pos1;
 
-    EDA_COLOR_T color = GetLayerColor( LAYER_DEVICE );
+    COLOR4D color = GetLayerColor( LAYER_DEVICE );
 
-    if( aColor < 0 )       // Used normal color or selected color
+    if( aColor == COLOR4D::UNSPECIFIED )       // Used normal color or selected color
     {
         if( IsSelected() )
             color = GetItemSelectedColor();
@@ -228,7 +190,7 @@ void LIB_CIRCLE::drawGraphic( EDA_DRAW_PANEL* aPanel, wxDC* aDC, const wxPoint& 
     GRSetDrawMode( aDC, aDrawMode );
 
     FILL_T fill = aData ? NO_FILL : m_Fill;
-    if( aColor >= 0 )
+    if( aColor != COLOR4D::UNSPECIFIED )
         fill = NO_FILL;
 
     EDA_RECT* const clipbox  = aPanel? aPanel->GetClipBox() : NULL;
@@ -294,6 +256,12 @@ wxString LIB_CIRCLE::GetSelectMenuText() const
                              GetChars( CoordinateToString( m_Pos.x ) ),
                              GetChars( CoordinateToString( m_Pos.y ) ),
                              GetChars( CoordinateToString( m_Radius ) ) );
+}
+
+
+BITMAP_DEF LIB_CIRCLE::GetMenuImage() const
+{
+    return add_circle_xpm;
 }
 
 

@@ -1,13 +1,3 @@
-#ifndef _REPORTER_H_
-#define _REPORTER_H_
-
-/**
- * @file reporter.h
- * @author Wayne Stambaugh
- * @note A special thanks to Dick Hollenbeck who came up with the idea that inspired
- *       me to write this.
- */
-
 /*
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
@@ -32,8 +22,18 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
  */
 
+#ifndef _REPORTER_H_
+#define _REPORTER_H_
 
-class wxString;
+#include <wx/string.h>
+
+/**
+ * @file reporter.h
+ * @author Wayne Stambaugh
+ * @note A special thanks to Dick Hollenbeck who came up with the idea that inspired
+ *       me to write this.
+ */
+
 class wxTextCtrl;
 class wxHtmlListbox;
 class WX_HTML_REPORT_PANEL;
@@ -75,6 +75,8 @@ public:
      * is a pure virtual function to override in the derived object.
      *
      * @param aText is the string to report.
+     * @param aSeverity is an indicator ( RPT_UNDEFINED, RPT_INFO, RPT_WARNING,
+     * RPT_ERROR, RPT_ACTION ) used to filter and format messages
      */
 
     virtual REPORTER& Report( const wxString& aText, SEVERITY aSeverity = RPT_UNDEFINED ) = 0;
@@ -82,12 +84,15 @@ public:
     REPORTER& Report( const char* aText, SEVERITY aSeverity = RPT_UNDEFINED );
 
     REPORTER& operator <<( const wxString& aText ) { return Report( aText ); }
-
     REPORTER& operator <<( const wxChar* aText ) { return Report( wxString( aText ) ); }
-
     REPORTER& operator <<( wxChar aChar ) { return Report( wxString( aChar ) ); }
-
     REPORTER& operator <<( const char* aText ) { return Report( aText ); }
+
+    /**
+     * Function HasMessage
+     * Returns true if the reporter client is non-empty.
+     */
+    virtual bool HasMessage() const = 0;
 };
 
 
@@ -106,7 +111,9 @@ public:
     {
     }
 
-    REPORTER& Report( const wxString& aText, SEVERITY aSeverity = RPT_UNDEFINED );
+    REPORTER& Report( const wxString& aText, SEVERITY aSeverity = RPT_UNDEFINED ) override;
+
+    bool HasMessage() const override;
 };
 
 
@@ -125,7 +132,9 @@ public:
     {
     }
 
-    REPORTER& Report( const wxString& aText, SEVERITY aSeverity = RPT_UNDEFINED );
+    REPORTER& Report( const wxString& aText, SEVERITY aSeverity = RPT_UNDEFINED ) override;
+
+    bool HasMessage() const override;
 };
 
 
@@ -144,7 +153,9 @@ public:
     {
     }
 
-    REPORTER& Report( const wxString& aText, SEVERITY aSeverity = RPT_UNDEFINED );
+    REPORTER& Report( const wxString& aText, SEVERITY aSeverity = RPT_UNDEFINED ) override;
+
+    bool HasMessage() const override;
 };
 
 /**
@@ -155,14 +166,16 @@ public:
  */
 class NULL_REPORTER : public REPORTER
 {
-    public:
-        NULL_REPORTER()
-        {
-        };
+public:
+    NULL_REPORTER()
+    {
+    }
 
-        static REPORTER& GetInstance();
+    static REPORTER& GetInstance();
 
-        REPORTER& Report( const wxString& aText, SEVERITY aSeverity = RPT_UNDEFINED );
+    REPORTER& Report( const wxString& aText, SEVERITY aSeverity = RPT_UNDEFINED ) override;
+
+    bool HasMessage() const override { return false; }
 };
 
 #endif     // _REPORTER_H_

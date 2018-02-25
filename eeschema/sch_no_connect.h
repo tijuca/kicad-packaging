@@ -2,7 +2,7 @@
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
  * Copyright (C) 2009 Jean-Pierre Charras, jaen-pierre.charras@gipsa-lab.inpg.com
- * Copyright (C) 1992-2011 KiCad Developers, see AUTHORS.txt for contributors.
+ * Copyright (C) 1992-2017 KiCad Developers, see AUTHORS.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -46,69 +46,71 @@ public:
 
     ~SCH_NO_CONNECT() { }
 
-    wxString GetClass() const
+    wxString GetClass() const override
     {
         return wxT( "SCH_NO_CONNECT" );
     }
 
-    int GetPenSize() const;
+    int GetPenSize() const override;
 
-    void SwapData( SCH_ITEM* aItem );
+    void SwapData( SCH_ITEM* aItem ) override;
 
     void Draw( EDA_DRAW_PANEL* aPanel, wxDC* aDC, const wxPoint& aOffset,
-               GR_DRAWMODE aDrawMode, EDA_COLOR_T aColor = UNSPECIFIED_COLOR );
+               GR_DRAWMODE aDrawMode, COLOR4D aColor = COLOR4D::UNSPECIFIED ) override;
 
-    bool Save( FILE* aFile ) const;
+    void GetEndPoints( std::vector< DANGLING_END_ITEM >& aItemList ) override;
 
-    bool Load( LINE_READER& aLine, wxString& aErrorMsg );
-
-    void GetEndPoints( std::vector< DANGLING_END_ITEM >& aItemList );
-
-    const EDA_RECT GetBoundingBox() const;  // Virtual
+    const EDA_RECT GetBoundingBox() const override;
 
     // Geometric transforms (used in block operations):
 
-    void Move( const wxPoint& aMoveVector )
+    void Move( const wxPoint& aMoveVector ) override
     {
         m_pos += aMoveVector;
     }
 
-    void MirrorY( int aYaxis_position );
+    void MirrorY( int aYaxis_position ) override;
 
-    void MirrorX( int aXaxis_position );
+    void MirrorX( int aXaxis_position ) override;
 
-    void Rotate( wxPoint aPosition );
+    void Rotate( wxPoint aPosition ) override;
 
-    bool IsSelectStateChanged( const wxRect& aRect );
+    bool IsSelectStateChanged( const wxRect& aRect ) override;
 
-    bool IsConnectable() const { return true; }
+    bool IsConnectable() const override { return true; }
 
-    void GetConnectionPoints( std::vector< wxPoint >& aPoints ) const;
+    bool CanConnect( const SCH_ITEM* aItem ) const override
+    {
+        return ( aItem->Type() == SCH_LINE_T && aItem->GetLayer() == LAYER_WIRE ) ||
+                aItem->Type() == SCH_COMPONENT_T;
+    }
 
-    wxString GetSelectMenuText() const { return wxString( _( "No Connect" ) ); }
+    void GetConnectionPoints( std::vector< wxPoint >& aPoints ) const override;
 
-    BITMAP_DEF GetMenuImage() const { return noconn_xpm; }
+    wxString GetSelectMenuText() const override { return wxString( _( "No Connect" ) ); }
 
-    void GetNetListItem( NETLIST_OBJECT_LIST& aNetListItems, SCH_SHEET_PATH* aSheetPath );
+    BITMAP_DEF GetMenuImage() const override;
 
-    wxPoint GetPosition() const { return m_pos; }
+    void GetNetListItem( NETLIST_OBJECT_LIST& aNetListItems, SCH_SHEET_PATH* aSheetPath ) override;
 
-    void SetPosition( const wxPoint& aPosition ) { m_pos = aPosition; }
+    wxPoint GetPosition() const override { return m_pos; }
 
-    bool HitTest( const wxPoint& aPosition, int aAccuracy ) const;
+    void SetPosition( const wxPoint& aPosition ) override { m_pos = aPosition; }
 
-    bool HitTest( const EDA_RECT& aRect, bool aContained = false, int aAccuracy = 0 ) const;
+    bool HitTest( const wxPoint& aPosition, int aAccuracy ) const override;
 
-    void Plot( PLOTTER* aPlotter );
+    bool HitTest( const EDA_RECT& aRect, bool aContained = false, int aAccuracy = 0 ) const override;
 
-    EDA_ITEM* Clone() const;
+    void Plot( PLOTTER* aPlotter ) override;
+
+    EDA_ITEM* Clone() const override;
 
 #if defined(DEBUG)
-    void Show( int nestLevel, std::ostream& os ) const { ShowDummy( os ); } // override
+    void Show( int nestLevel, std::ostream& os ) const override { ShowDummy( os ); }
 #endif
 
 private:
-    bool doIsConnected( const wxPoint& aPosition ) const;
+    bool doIsConnected( const wxPoint& aPosition ) const override;
 };
 
 

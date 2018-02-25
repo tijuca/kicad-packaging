@@ -1,9 +1,9 @@
 /*
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
- * Copyright (C) 2004-2015 Jean-Pierre Charras, jaen-pierre.charras@gipsa-lab.inpg.com
+ * Copyright (C) 2004-2015 Jean-Pierre Charras, jp.charras at wanadoo.fr
  * Copyright (C) 2008-2015 Wayne Stambaugh <stambaughw@verizon.net>
- * Copyright (C) 1992-2015 KiCad Developers, see AUTHORS.txt for contributors.
+ * Copyright (C) 1992-2017 KiCad Developers, see AUTHORS.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -64,6 +64,8 @@ public:
     {
     }
 
+    ~ENV_VAR_ITEM() throw() {}    // tell SWIG no exception
+
     bool GetDefinedExternally() const { return m_isDefinedExternally; }
     void SetDefinedExternally( bool aIsDefinedExternally )
     {
@@ -106,16 +108,31 @@ class PGM_BASE
 {
 public:
     PGM_BASE();
-    ~PGM_BASE();
+    virtual ~PGM_BASE();
+
+#if 0
+    /*
+
+    Derived classes must implement these two functions: OnPgmInit() and
+    OnPgmExit(), and since they are only called from same source file as their
+    implementation, these need not be virtual here. In fact, in the case of
+    python project manager's class PGM_PYTHON, these functions are actually
+    written in python. In total there are three implementations, corresponding
+    to the three defines given by kiface.h's KFCTL_* #defines.
+
+    */
 
     /**
      * Function OnPgmInit
      * this is the first executed function (like main() )
      * @return true if the application can be started.
      */
-    virtual bool OnPgmInit( wxApp* aWxApp ) = 0;    // call this from wxApp::OnInit()
+    virtual bool OnPgmInit() = 0;           // call this from wxApp::OnInit()
 
-    virtual void OnPgmExit() = 0;                   // call this from wxApp::OnExit()
+    virtual void OnPgmExit() = 0;           // call this from wxApp::OnExit()
+#endif
+
+    //----<Cross Module API>-----------------------------------------------------
 
     /**
      * Function MacOpenFile
@@ -123,9 +140,7 @@ public:
      * MacOSX requires it for file association.
      * @see http://wiki.wxwidgets.org/WxMac-specific_topics
      */
-    virtual void MacOpenFile( const wxString& aFileName ) = 0;
-
-    //----<Cross Module API>-----------------------------------------------------
+    VTBL_ENTRY void MacOpenFile( const wxString& aFileName ) = 0;
 
     VTBL_ENTRY wxConfigBase* CommonSettings() const                 { return m_common_settings; }
 
@@ -273,19 +288,13 @@ public:
     /**
      * Function App
      * returns a bare naked wxApp, which may come from wxPython, SINGLE_TOP, or kicad.exe.
-     * Use this function instead of wxGetApp().
+     * Should return what wxGetApp() returns.
      */
-    VTBL_ENTRY wxApp&   App()
-    {
-        wxASSERT( m_wx_app );
-        return *m_wx_app;
-    }
+    VTBL_ENTRY wxApp&   App();
 
     //----</Cross Module API>----------------------------------------------------
 
     static const wxChar workingDirKey[];
-
-protected:
 
     /**
      * Function initPgm
@@ -298,19 +307,34 @@ protected:
      * But nothing relating to DSOs or projects.
      * @return bool - true if success, false if failure and program is to terminate.
      */
-    bool initPgm();
+    bool InitPgm();
+
+    // The PGM_* classes can have difficulties at termination if they
+    // are not destroyed soon enough.  Relying on a static destructor can be
+    // too late for contained objects like wxSingleInstanceChecker.
+    void Destroy();
+
+    /**
+     * Function saveCommonSettings
+     * saves the program (process) settings subset which are stored .kicad_common
+     */
+    void SaveCommonSettings();
+
+    /// Scaling factor for menus and tool icons
+    void SetIconsScale( double aValue ) { m_iconsScale = aValue; }
+    double GetIconsScale() { return m_iconsScale; }
+    /// True to use menu icons
+    void SetUseIconsInMenus( bool aUseIcons ) { m_useIconsInMenus = aUseIcons; }
+    bool GetUseIconsInMenus() { return m_useIconsInMenus; }
+
+
+protected:
 
     /**
      * Function loadCommonSettings
      * loads the program (process) settings subset which are stored in .kicad_common
      */
     void loadCommonSettings();
-
-    /**
-     * Function saveCommonSettings
-     * saves the program (process) settings subset which are stored .kicad_common
-     */
-    void saveCommonSettings();
 
     /// prevents multiple instances of a program from being run at the same time.
     wxSingleInstanceChecker* m_pgm_checker;
@@ -334,6 +358,11 @@ protected:
     /// true to use the selected PDF browser, if exists, or false to use the default
     bool            m_use_system_pdf_browser;
 
+    /// Scaling factor for menus and tool icons
+    double          m_iconsScale;
+    /// True to use menu icons
+    bool            m_useIconsInMenus;
+
     /// Trap all changes in here, simplifies debugging
     void setLanguageId( int aId )       { m_language_id = aId; }
 
@@ -354,19 +383,11 @@ protected:
 
     /// Flag to indicate if the environment variable overwrite warning dialog should be shown.
     bool            m_show_env_var_dialog;
-
-    wxApp*          m_wx_app;
-
-    // The PGM_* classes can have difficulties at termination if they
-    // are not destroyed soon enough.  Relying on a static destructor can be
-    // too late for contained objects like wxSingleInstanceChecker.
-    void destroy();
 };
 
 
-#if !defined(PGM_KICAD_H_)                  // PGM_KICAD has an alternate
 /// The global Program "get" accessor.
+/// Implemented in: 1) common/single_top.cpp,  2) kicad/kicad.cpp, and 3) scripting/kiway.i
 extern PGM_BASE& Pgm();
-#endif
 
 #endif  // PGM_BASE_H_

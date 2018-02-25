@@ -33,6 +33,7 @@ class DIALOG_FIND : public DIALOG_FIND_BASE
 {
 public:
     DIALOG_FIND( PCB_BASE_FRAME* aParent );
+    void OnInitDialog( wxInitDialogEvent& event ) override;
     inline BOARD_ITEM* GetItem() const { return foundItem; }
     void EnableWarp( bool aEnabled );
     void SetCallback( boost::function<void (BOARD_ITEM*)> aCallback ) { callback = aCallback; }
@@ -48,10 +49,10 @@ private:
     // Function called when an item is found
     boost::function<void (BOARD_ITEM*)> callback;
 
-    void onButtonFindItemClick( wxCommandEvent& event );
-    void onButtonFindMarkerClick( wxCommandEvent& event );
-    void onButtonCloseClick( wxCommandEvent& event );
-    void onClose( wxCloseEvent& event );
+    void onButtonFindItemClick( wxCommandEvent& event ) override;
+    void onButtonFindMarkerClick( wxCommandEvent& event ) override;
+    void onButtonCloseClick( wxCommandEvent& event ) override;
+    void onClose( wxCloseEvent& event ) override;
 };
 
 #endif /* DIALOG_FIND_BASE_H */

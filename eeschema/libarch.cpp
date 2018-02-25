@@ -2,8 +2,8 @@
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
  * Copyright (C) 2004 Jean-Pierre Charras, jp.charras ar wanadoo.fr
- * Copyright (C) 2008-2011 Wayne Stambaugh <stambaughw@verizon.net>
- * Copyright (C) 2004-2011 KiCad Developers, see change_log.txt for contributors.
+ * Copyright (C) 2008 Wayne Stambaugh <stambaughw@gmail.com>
+ * Copyright (C) 2004-2017 KiCad Developers, see AUTHORS.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -30,14 +30,13 @@
 
 #include <fctsys.h>
 #include <confirm.h>
-#include <class_sch_screen.h>
-#include <wxstruct.h>
-#include <schframe.h>
+#include <wildcards_and_files_ext.h>
 
+#include <sch_edit_frame.h>
+#include <symbol_lib_table.h>
 #include <class_library.h>
 #include <sch_component.h>
 #include <sch_sheet.h>
-#include <wildcards_and_files_ext.h>
 
 
 bool SCH_EDIT_FRAME::CreateArchiveLibraryCacheFile( bool aUseCurrentSheetFilename )
@@ -49,26 +48,36 @@ bool SCH_EDIT_FRAME::CreateArchiveLibraryCacheFile( bool aUseCurrentSheetFilenam
     else
         fn = g_RootSheet->GetScreen()->GetFileName();
 
-    fn.SetName( fn.GetName() + wxT( "-cache" ) );
+    fn.SetName( fn.GetName() + "-cache" );
     fn.SetExt( SchematicLibraryFileExtension );
 
-    return CreateArchiveLibrary( fn.GetFullPath() );
+    bool success = CreateArchiveLibrary( fn.GetFullPath() );
+
+    // Update the schematic symbol library links.
+    // because the lib cache has changed
+    SCH_SCREENS schematic;
+    schematic.UpdateSymbolLinks();
+
+    return success;
 }
 
 
 bool SCH_EDIT_FRAME::CreateArchiveLibrary( const wxString& aFileName )
 {
-    SCH_SCREENS     screens;
-    PART_LIBS*      libs = Prj().SchLibs();
+    wxString          tmp;
+    wxString          errorMsg;
+    SCH_SCREENS       screens;
 
-    std::auto_ptr<PART_LIB> libCache( new PART_LIB( LIBRARY_TYPE_EESCHEMA, aFileName ) );
+    // Create a new empty library to archive components:
+    std::unique_ptr<PART_LIB> archLib( new PART_LIB( LIBRARY_TYPE_EESCHEMA, aFileName ) );
 
-    libCache->SetCache();
+    // Save symbols to file only when the library will be fully filled
+    archLib->EnableBuffering();
 
-    /* examine all screens (not sheets) used and build the list of components
-     * found in lib.
-     * Complex hierarchies are not a problem because we just want
-     * to know used components in libraries
+    /* Examine all screens (not hierarchical sheets) used in the schematic and build a
+     * library of unique symbols found in all screens.  Complex hierarchies are not a
+     * problem because we just want to know the library symbols used in the schematic
+     * not their reference.
      */
     for( SCH_SCREEN* screen = screens.GetFirst(); screen; screen = screens.GetNext() )
     {
@@ -77,41 +86,72 @@ bool SCH_EDIT_FRAME::CreateArchiveLibrary( const wxString& aFileName )
             if( item->Type() != SCH_COMPONENT_T )
                 continue;
 
+            LIB_PART* part = nullptr;
             SCH_COMPONENT* component = (SCH_COMPONENT*) item;
 
-            // If not already saved in the new cache, put it:
-            if( !libCache->FindEntry( component->GetPartName() ) )
+            try
             {
-                if( LIB_PART* part = libs->FindLibPart( component->GetPartName() ) )
-                {
-                    // AddPart() does first clone the part before adding.
-                    libCache->AddPart( part );
-                }
+                if( archLib->FindAlias( component->GetLibId() ) )
+                    continue;
+
+                part = GetLibPart( component->GetLibId(), true );
+            }
+            catch( const IO_ERROR& ioe )
+            {
+                // Queue up error messages for later.
+                tmp.Printf( _( "Failed to add symbol %s to library file." ),
+                            component->GetLibId().GetLibItemName().wx_str(), aFileName );
+
+                // Don't bail out here.  Attempt to add as many of the symbols to the library
+                // as possible.
+            }
+            catch( ... )
+            {
+                tmp = _( "Unexpected exception occurred." );
+            }
+
+            if( part )
+            {
+                // Use the full LIB_ID as the symbol name to prevent symbol name collisions.
+                wxString oldName = part->GetName();
+                part->SetName( component->GetLibId().Format() );
+
+                // AddPart() does first clone the part before adding.
+                archLib->AddPart( part );
+                part->SetName( oldName );
+            }
+            else
+            {
+                tmp.Printf( _( "Symbol %s not found in any library or cache." ),
+                            component->GetLibId().Format().wx_str() );
+            }
+
+            if( !tmp.empty() )
+            {
+                if( errorMsg.empty() )
+                    errorMsg += tmp;
+                else
+                    errorMsg += "\n" + tmp;
             }
         }
     }
 
+    if( !errorMsg.empty() )
+    {
+        tmp.Printf( _( "Errors occurred creating symbol library %s." ), aFileName );
+        DisplayErrorMessage( this, tmp, errorMsg );
+    }
+
+    archLib->EnableBuffering( false );
+
     try
     {
-        FILE_OUTPUTFORMATTER    formatter( aFileName );
-
-        if( !libCache->Save( formatter ) )
-        {
-            wxString msg = wxString::Format( _(
-                "An error occurred attempting to save component library '%s'." ),
-                GetChars( aFileName )
-                );
-            DisplayError( this, msg );
-            return false;
-        }
+        archLib->Save( false );
     }
     catch( ... /* IO_ERROR ioe */ )
     {
-        wxString msg = wxString::Format( _(
-            "Failed to create component library file '%s'" ),
-            GetChars( aFileName )
-            );
-        DisplayError( this, msg );
+        errorMsg.Printf( _( "Failed to save symbol library file \"%s\"" ), aFileName );
+        DisplayError( this, errorMsg );
         return false;
     }
 

@@ -33,22 +33,24 @@
 #include <class_drawpanel.h>
 #include <confirm.h>
 #include <block_commande.h>
-#include <wxPcbStruct.h>
+#include <pcb_edit_frame.h>
 #include <trigo.h>
 
 #include <class_board.h>
 #include <class_track.h>
 #include <class_drawsegment.h>
 #include <class_pcb_text.h>
-#include <class_mire.h>
+#include <class_pcb_target.h>
 #include <class_module.h>
 #include <class_dimension.h>
 #include <class_zone.h>
 
-#include <dialog_block_options_base.h>
+#include <dialog_block_options.h>
 
 #include <pcbnew.h>
 #include <protos.h>
+
+#include <connectivity_data.h>
 
 #define BLOCK_OUTLINE_COLOR YELLOW
 
@@ -73,48 +75,7 @@ static void drawMovingBlock( EDA_DRAW_PANEL* aPanel, wxDC* aDC, const wxPoint& a
                              bool aErase );
 
 
-static bool blockIncludeModules     = true;
-static bool blockIncludeLockedModules = true;
-static bool blockIncludeTracks      = true;
-static bool blockIncludeZones       = true;
-static bool blockIncludeItemsOnTechLayers  = true;
-static bool blockIncludeBoardOutlineLayer = true;
-static bool blockIncludePcbTexts   = true;
-static bool blockDrawItems = true;
-static bool blockIncludeItemsOnInvisibleLayers = false;
-
-
-/************************************/
-/* class DIALOG_BLOCK_OPTIONS */
-/************************************/
-
-class DIALOG_BLOCK_OPTIONS : public DIALOG_BLOCK_OPTIONS_BASE
-{
-private:
-    PCB_BASE_FRAME* m_Parent;
-
-public:
-
-    DIALOG_BLOCK_OPTIONS( PCB_BASE_FRAME* parent, const wxString& title );
-    ~DIALOG_BLOCK_OPTIONS()
-    {
-    }
-
-
-private:
-    void ExecuteCommand( wxCommandEvent& event );
-    void OnCancel( wxCommandEvent& event )
-    {
-        EndModal( wxID_CANCEL );
-    }
-    void checkBoxClicked( wxCommandEvent& aEvent )
-    {
-        if( m_Include_Modules->GetValue() )
-            m_IncludeLockedModules->Enable();
-        else
-            m_IncludeLockedModules->Disable();
-    }
-};
+static DIALOG_BLOCK_OPTIONS::OPTIONS blockOpts;
 
 
 static bool InstallBlockCmdFrame( PCB_BASE_FRAME* parent, const wxString& title )
@@ -122,7 +83,7 @@ static bool InstallBlockCmdFrame( PCB_BASE_FRAME* parent, const wxString& title 
     wxPoint oldpos = parent->GetCrossHairPosition();
 
     parent->GetCanvas()->SetIgnoreMouseEvents( true );
-    DIALOG_BLOCK_OPTIONS * dlg = new DIALOG_BLOCK_OPTIONS( parent, title );
+    DIALOG_BLOCK_OPTIONS * dlg = new DIALOG_BLOCK_OPTIONS( parent, blockOpts, true, title );
 
     int cmd = dlg->ShowModal();
     dlg->Destroy();
@@ -135,50 +96,7 @@ static bool InstallBlockCmdFrame( PCB_BASE_FRAME* parent, const wxString& title 
 }
 
 
-DIALOG_BLOCK_OPTIONS::DIALOG_BLOCK_OPTIONS( PCB_BASE_FRAME* aParent, const wxString& aTitle ) :
-    DIALOG_BLOCK_OPTIONS_BASE( aParent, -1, aTitle )
-{
-    m_Parent = aParent;
-
-    m_Include_Modules->SetValue( blockIncludeModules );
-    m_IncludeLockedModules->SetValue( blockIncludeLockedModules );
-
-    if( m_Include_Modules->GetValue() )
-        m_IncludeLockedModules->Enable();
-    else
-        m_IncludeLockedModules->Disable();
-
-    m_Include_Tracks->SetValue( blockIncludeTracks );
-    m_Include_Zones->SetValue( blockIncludeZones );
-    m_Include_Draw_Items->SetValue( blockIncludeItemsOnTechLayers );
-    m_Include_Edges_Items->SetValue( blockIncludeBoardOutlineLayer );
-    m_Include_PcbTextes->SetValue( blockIncludePcbTexts );
-    m_DrawBlockItems->SetValue( blockDrawItems );
-    m_checkBoxIncludeInvisible->SetValue( blockIncludeItemsOnInvisibleLayers );
-    m_sdbSizer1OK->SetDefault();
-    SetFocus();
-    GetSizer()->SetSizeHints( this );
-    Centre();
-}
-
-
-void DIALOG_BLOCK_OPTIONS::ExecuteCommand( wxCommandEvent& event )
-{
-    blockIncludeModules     = m_Include_Modules->GetValue();
-    blockIncludeLockedModules = m_IncludeLockedModules->GetValue();
-    blockIncludeTracks      = m_Include_Tracks->GetValue();
-    blockIncludeZones       = m_Include_Zones->GetValue();
-    blockIncludeItemsOnTechLayers  = m_Include_Draw_Items->GetValue();
-    blockIncludeBoardOutlineLayer = m_Include_Edges_Items->GetValue();
-    blockIncludePcbTexts   = m_Include_PcbTextes->GetValue();
-    blockDrawItems = m_DrawBlockItems->GetValue();
-    blockIncludeItemsOnInvisibleLayers = m_checkBoxIncludeInvisible->GetValue();
-
-    EndModal( wxID_OK );
-}
-
-
-int PCB_EDIT_FRAME::BlockCommand( int aKey )
+int PCB_EDIT_FRAME::BlockCommand( EDA_KEY aKey )
 {
     int cmd = 0;
 
@@ -193,7 +111,7 @@ int PCB_EDIT_FRAME::BlockCommand( int aKey )
         break;
 
     case GR_KB_SHIFT:
-        cmd = BLOCK_COPY;
+        cmd = BLOCK_DUPLICATE;
         break;
 
     case GR_KB_CTRL:
@@ -245,12 +163,12 @@ void PCB_EDIT_FRAME::HandleBlockPlace( wxDC* DC )
         GetScreen()->m_BlockLocate.ClearItemsList();
         break;
 
-    case BLOCK_COPY:     // Copy
-    case BLOCK_COPY_AND_INCREMENT:
+    case BLOCK_DUPLICATE:     // Duplicate
+    case BLOCK_DUPLICATE_AND_INCREMENT:
         if( m_canvas->IsMouseCaptured() )
             m_canvas->CallMouseCapture( DC, wxDefaultPosition, false );
 
-        Block_Duplicate( command == BLOCK_COPY_AND_INCREMENT );
+        Block_Duplicate( command == BLOCK_DUPLICATE_AND_INCREMENT );
         GetScreen()->m_BlockLocate.ClearItemsList();
         break;
 
@@ -321,8 +239,8 @@ bool PCB_EDIT_FRAME::HandleBlockEnd( wxDC* DC )
 
         case BLOCK_DRAG:                // Drag (not used, for future enhancements)
         case BLOCK_MOVE:                // Move
-        case BLOCK_COPY:                // Copy
-        case BLOCK_COPY_AND_INCREMENT:  // Copy and increment relevant references
+        case BLOCK_DUPLICATE:           // Duplicate
+        case BLOCK_DUPLICATE_AND_INCREMENT:  // Duplicate and increment relevant references
         case BLOCK_PRESELECT_MOVE:      // Move with preselection list
             GetScreen()->m_BlockLocate.SetState( STATE_BLOCK_MOVE );
             nextcmd = true;
@@ -349,7 +267,7 @@ bool PCB_EDIT_FRAME::HandleBlockEnd( wxDC* DC )
             Block_Flip();
             break;
 
-        case BLOCK_SAVE: // Save (not used, for future enhancements)
+        case BLOCK_COPY: // Copy
             GetScreen()->m_BlockLocate.SetState( STATE_BLOCK_STOP );
 
             if( GetScreen()->m_BlockLocate.GetCount() )
@@ -397,16 +315,16 @@ void PCB_EDIT_FRAME::Block_SelectItems()
     ITEM_PICKER        picker( NULL, UR_UNSPECIFIED );
 
     // Add modules
-    if( blockIncludeModules )
+    if( blockOpts.includeModules )
     {
         for( MODULE* module = m_Pcb->m_Modules;  module;  module = module->Next() )
         {
-            LAYER_ID layer = module->GetLayer();
+            PCB_LAYER_ID layer = module->GetLayer();
 
             if( module->HitTest( GetScreen()->m_BlockLocate, selectOnlyComplete )
-                && ( !module->IsLocked() || blockIncludeLockedModules ) )
+                && ( !module->IsLocked() || blockOpts.includeLockedModules ) )
             {
-                if( blockIncludeItemsOnInvisibleLayers || m_Pcb->IsModuleLayerVisible( layer ) )
+                if( blockOpts.includeItemsOnInvisibleLayers || m_Pcb->IsModuleLayerVisible( layer ) )
                 {
                     picker.SetItem ( module );
                     itemsList->PushItem( picker );
@@ -416,13 +334,13 @@ void PCB_EDIT_FRAME::Block_SelectItems()
     }
 
     // Add tracks and vias
-    if( blockIncludeTracks )
+    if( blockOpts.includeTracks )
     {
         for( TRACK* track = m_Pcb->m_Track; track != NULL; track = track->Next() )
         {
             if( track->HitTest( GetScreen()->m_BlockLocate, selectOnlyComplete ) )
             {
-                if( blockIncludeItemsOnInvisibleLayers
+                if( blockOpts.includeItemsOnInvisibleLayers
                   || m_Pcb->IsLayerVisible( track->GetLayer() ) )
                 {
                     picker.SetItem( track );
@@ -435,15 +353,15 @@ void PCB_EDIT_FRAME::Block_SelectItems()
     // Add graphic items
     layerMask = LSET( Edge_Cuts );
 
-    if( blockIncludeItemsOnTechLayers )
+    if( blockOpts.includeItemsOnTechLayers )
         layerMask.set();
 
-    if( !blockIncludeBoardOutlineLayer )
+    if( !blockOpts.includeBoardOutlineLayer )
         layerMask.set( Edge_Cuts, false );
 
-    for( BOARD_ITEM* PtStruct = m_Pcb->m_Drawings; PtStruct != NULL; PtStruct = PtStruct->Next() )
+    for( auto PtStruct : m_Pcb->Drawings() )
     {
-        if( !m_Pcb->IsLayerVisible( PtStruct->GetLayer() ) && ! blockIncludeItemsOnInvisibleLayers)
+        if( !m_Pcb->IsLayerVisible( PtStruct->GetLayer() ) && ! blockOpts.includeItemsOnInvisibleLayers)
             continue;
 
         bool select_me = false;
@@ -461,7 +379,7 @@ void PCB_EDIT_FRAME::Block_SelectItems()
             break;
 
         case PCB_TEXT_T:
-            if( !blockIncludePcbTexts )
+            if( !blockOpts.includePcbTexts )
                 break;
 
             if( !PtStruct->HitTest( GetScreen()->m_BlockLocate, selectOnlyComplete ) )
@@ -502,7 +420,7 @@ void PCB_EDIT_FRAME::Block_SelectItems()
     }
 
     // Add zones
-    if( blockIncludeZones )
+    if( blockOpts.includeZones )
     {
         for( int ii = 0; ii < m_Pcb->GetAreaCount(); ii++ )
         {
@@ -510,7 +428,7 @@ void PCB_EDIT_FRAME::Block_SelectItems()
 
             if( area->HitTest( GetScreen()->m_BlockLocate, selectOnlyComplete ) )
             {
-                if( blockIncludeItemsOnInvisibleLayers
+                if( blockOpts.includeItemsOnInvisibleLayers
                   || m_Pcb->IsLayerVisible( area->GetLayer() ) )
                 {
                     BOARD_ITEM* zone_c = (BOARD_ITEM*) area;
@@ -571,7 +489,7 @@ static void drawMovingBlock( EDA_DRAW_PANEL* aPanel, wxDC* aDC, const wxPoint& a
     BASE_SCREEN* screen = aPanel->GetScreen();
 
     // do not show local module rastnest in block move, it is not usable.
-    DISPLAY_OPTIONS* displ_opts = (DISPLAY_OPTIONS*)aPanel->GetDisplayOptions();
+    auto displ_opts = (PCB_DISPLAY_OPTIONS*)( aPanel->GetDisplayOptions() );
     bool showRats = displ_opts->m_Show_Module_Ratsnest;
     displ_opts->m_Show_Module_Ratsnest = false;
 
@@ -582,7 +500,7 @@ static void drawMovingBlock( EDA_DRAW_PANEL* aPanel, wxDC* aDC, const wxPoint& a
             screen->m_BlockLocate.Draw( aPanel, aDC, screen->m_BlockLocate.GetMoveVector(),
                                         GR_XOR, BLOCK_OUTLINE_COLOR );
 
-            if( blockDrawItems )
+            if( blockOpts.drawItems )
                 drawPickedItems( aPanel, aDC, screen->m_BlockLocate.GetMoveVector() );
         }
     }
@@ -599,7 +517,7 @@ static void drawMovingBlock( EDA_DRAW_PANEL* aPanel, wxDC* aDC, const wxPoint& a
         screen->m_BlockLocate.Draw( aPanel, aDC, screen->m_BlockLocate.GetMoveVector(),
                                     GR_XOR, BLOCK_OUTLINE_COLOR );
 
-        if( blockDrawItems )
+        if( blockOpts.drawItems )
             drawPickedItems( aPanel, aDC, screen->m_BlockLocate.GetMoveVector() );
     }
 
@@ -620,6 +538,7 @@ void PCB_EDIT_FRAME::Block_Delete()
     {
         BOARD_ITEM* item = (BOARD_ITEM*) itemsList->GetPickedItem( ii );
         itemsList->SetPickedItemStatus( UR_DELETED, ii );
+        GetBoard()->GetConnectivity()->Remove( item );
 
         switch( item->Type() )
         {
@@ -726,6 +645,7 @@ void PCB_EDIT_FRAME::Block_Rotate()
         BOARD_ITEM* item = (BOARD_ITEM*) itemsList->GetPickedItem( ii );
         wxASSERT( item );
         item->Rotate( centre, rotAngle );
+        GetBoard()->GetConnectivity()->Update( item );
     }
 
     Compile_Ratsnest( NULL, true );
@@ -751,6 +671,7 @@ void PCB_EDIT_FRAME::Block_Flip()
         wxASSERT( item );
         itemsList->SetPickedItemStatus( UR_FLIPPED, ii );
         item->Flip( center );
+        GetBoard()->GetConnectivity()->Update( item );
 
         // If a connected item is flipped, the ratsnest is no more OK
         switch( item->Type() )
@@ -805,6 +726,7 @@ void PCB_EDIT_FRAME::Block_Move()
         BOARD_ITEM* item = (BOARD_ITEM*) itemsList->GetPickedItem( ii );
         itemsList->SetPickedItemStatus( UR_MOVED, ii );
         item->Move( MoveVector );
+        GetBoard()->GetConnectivity()->Update( item );
         item->ClearFlags( IS_MOVED );
 
         switch( item->Type() )
@@ -865,9 +787,6 @@ void PCB_EDIT_FRAME::Block_Duplicate( bool aIncrement )
         BOARD_ITEM* item = (BOARD_ITEM*) itemsList->GetPickedItem( ii );
 
         newitem = (BOARD_ITEM*)item->Clone();
-
-        if( aIncrement )
-            newitem->IncrementItemReference();
 
         if( item->Type() == PCB_MODULE_T )
             m_Pcb->m_Status_Pcb = 0;

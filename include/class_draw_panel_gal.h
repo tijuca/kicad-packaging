@@ -1,8 +1,9 @@
 /*
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
- * Copyright (C) 2013-2014 CERN
+ * Copyright (C) 2013-2016 CERN
  * @author Tomasz Wlostowski <tomasz.wlostowski@cern.ch>
+ * @author Maciej Suminski <maciej.suminski@cern.ch>
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -32,11 +33,13 @@
 
 #include <wx/window.h>
 #include <wx/timer.h>
-#include <layers_id_colors_and_visibility.h>
+#include <math/box2.h>
 #include <math/vector2d.h>
 #include <msgpanel.h>
+#include <memory>
 
 class BOARD;
+class EDA_DRAW_FRAME;
 class TOOL_DISPATCHER;
 
 namespace KIGFX
@@ -46,7 +49,8 @@ class VIEW;
 class WX_VIEW_CONTROLS;
 class VIEW_CONTROLS;
 class PAINTER;
-};
+class GAL_DISPLAY_OPTIONS;
+}
 
 
 class EDA_DRAW_PANEL_GAL : public wxScrolledCanvas
@@ -60,17 +64,18 @@ public:
     };
 
     EDA_DRAW_PANEL_GAL( wxWindow* aParentWindow, wxWindowID aWindowId, const wxPoint& aPosition,
-                        const wxSize& aSize, GAL_TYPE aGalType = GAL_TYPE_OPENGL );
+                        const wxSize& aSize, KIGFX::GAL_DISPLAY_OPTIONS& aOptions,
+                        GAL_TYPE aGalType = GAL_TYPE_OPENGL );
     ~EDA_DRAW_PANEL_GAL();
 
-    virtual void SetFocus();
+    virtual void SetFocus() override;
 
     /**
      * Function SwitchBackend
      * Switches method of rendering graphics.
      * @param aGalType is a type of rendering engine that you want to use.
      */
-    bool SwitchBackend( GAL_TYPE aGalType );
+    virtual bool SwitchBackend( GAL_TYPE aGalType );
 
     /**
      * Function GetBackend
@@ -112,7 +117,7 @@ public:
     }
 
     /// @copydoc wxWindow::Refresh()
-    void Refresh( bool aEraseBackground = true, const wxRect* aRect = NULL );
+    void Refresh( bool aEraseBackground = true, const wxRect* aRect = NULL ) override;
 
     /**
      * Function ForceRefresh()
@@ -146,13 +151,13 @@ public:
      * Function SetHighContrastLayer
      * Takes care of display settings for the given layer to be displayed in high contrast mode.
      */
-    virtual void SetHighContrastLayer( LAYER_ID aLayer );
+    virtual void SetHighContrastLayer( int aLayer );
 
     /**
      * Function SetTopLayer
      * Moves the selected layer to the top, so it is displayed above all others.
      */
-    virtual void SetTopLayer( LAYER_ID aLayer );
+    virtual void SetTopLayer( int aLayer );
 
     virtual void GetMsgPanelInfo( std::vector<MSG_PANEL_ITEM>& aList )
     {
@@ -165,6 +170,73 @@ public:
      */
     double GetLegacyZoom() const;
 
+    /**
+     * Function GetParentEDAFrame()
+     * Returns parent EDA_DRAW_FRAME, if available or NULL otherwise.
+     */
+    EDA_DRAW_FRAME* GetParentEDAFrame() const
+    {
+        return m_edaFrame;
+    }
+
+    /**
+     * Function OnShow()
+     * Called when the window is shown for the first time.
+     */
+    virtual void OnShow() {}
+
+    /**
+     * Set whether focus is taken on certain events (mouseover, keys, etc). This should
+     * be true (and is by default) for any primary canvas, but can be false to make
+     * well-behaved preview panes and the like.
+     */
+    void SetStealsFocus( bool aStealsFocus )
+    {
+        m_stealsFocus = aStealsFocus;
+    }
+
+    /**
+     * Get whether focus is taken on certain events (see SetStealsFocus()).
+     */
+    bool GetStealsFocus() const
+    {
+        return m_stealsFocus;
+    }
+
+    /**
+     * Function SetCurrentCursor
+     * Set the current cursor shape for this panel
+     */
+    void SetCurrentCursor( int aCursor )
+    {
+        m_currentCursor = aCursor;
+        SetCursor( (wxStockCursor) m_currentCursor );
+    }
+
+    /**
+     * Function GetDefaultCursor
+     * @return the default cursor shape
+     */
+    int GetDefaultCursor() const { return m_defaultCursor; }
+
+    /**
+     * Function GetCurrentCursor
+     * @return the current cursor shape, depending on the current selected tool
+     */
+    int GetCurrentCursor() const { return m_currentCursor; }
+
+    /**
+     * Returns the bounding box of the view that should be used if model is not valid
+     * For example, the worksheet bounding box for an empty PCB
+     *
+     * @return the default bounding box for the panel
+     */
+    virtual BOX2I GetDefaultViewBBox() const
+    {
+        return BOX2I();
+    }
+
+
 protected:
     void onPaint( wxPaintEvent& WXUNUSED( aEvent ) );
     void onSize( wxSizeEvent& aEvent );
@@ -172,11 +244,20 @@ protected:
     void onEnter( wxEvent& aEvent );
     void onLostFocus( wxFocusEvent& aEvent );
     void onRefreshTimer( wxTimerEvent& aEvent );
+    void onShowTimer( wxTimerEvent& aEvent );
 
     static const int MinRefreshPeriod = 17;             ///< 60 FPS.
 
+    /// Current mouse cursor shape id.
+    int     m_currentCursor;
+    /// The default mouse cursor shape id.
+    int     m_defaultCursor;
+
     /// Pointer to the parent window
     wxWindow*                m_parent;
+
+    /// Parent EDA_DRAW_FRAME (if available)
+    EDA_DRAW_FRAME*          m_edaFrame;
 
     /// Last timestamp when the panel was refreshed
     wxLongLong               m_lastRefresh;
@@ -193,6 +274,9 @@ protected:
     /// Timer responsible for preventing too frequent refresh
     wxTimer                  m_refreshTimer;
 
+    /// Timer used to execute OnShow() when the window finally appears on the screen.
+    wxTimer                  m_onShowTimer;
+
     /// Interface for drawing objects on a 2D-surface
     KIGFX::GAL*              m_gal;
 
@@ -200,13 +284,14 @@ protected:
     KIGFX::VIEW*             m_view;
 
     /// Contains information about how to draw items using GAL
-    KIGFX::PAINTER*          m_painter;
+    std::unique_ptr<KIGFX::PAINTER> m_painter;
 
     /// Control for VIEW (moving, zooming, etc.)
     KIGFX::WX_VIEW_CONTROLS* m_viewControls;
 
     /// Currently used GAL
     GAL_TYPE                 m_backend;
+    KIGFX::GAL_DISPLAY_OPTIONS& m_options;
 
     /// Processes and forwards events to tools
     TOOL_DISPATCHER*         m_eventDispatcher;
@@ -214,6 +299,10 @@ protected:
     /// Flag to indicate that focus should be regained on the next mouse event. It is a workaround
     /// for cases when the panel loses keyboard focus, so it does not react to hotkeys anymore.
     bool                     m_lostFocus;
+
+    /// Flag to indicate whether the panel should take focus at certain times (when moused over,
+    /// and on various mouse/key events)
+    bool                     m_stealsFocus;
 };
 
 #endif

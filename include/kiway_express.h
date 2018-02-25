@@ -1,5 +1,3 @@
-#ifndef KIWAY_EXPRESS_H_
-#define KIWAY_EXPRESS_H_
 /*
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
@@ -23,6 +21,9 @@
  * or you may write to the Free Software Foundation, Inc.,
  * 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
  */
+
+#ifndef KIWAY_EXPRESS_H_
+#define KIWAY_EXPRESS_H_
 
 // @see http://wiki.wxwidgets.org/Custom_Events_Tutorial
 
@@ -61,7 +62,7 @@ public:
     const std::string&  GetPayload()                    { return m_payload; }
     void SetPayload( const std::string& aPayload )      { m_payload = aPayload; }
 
-    KIWAY_EXPRESS* Clone() const            { return new KIWAY_EXPRESS( *this ); }
+    KIWAY_EXPRESS* Clone() const override   { return new KIWAY_EXPRESS( *this ); }
 
     //KIWAY_EXPRESS() {}
 
@@ -102,4 +103,3 @@ typedef void ( wxEvtHandler::*kiwayExpressFunction )( KIWAY_EXPRESS& );
 
 
 #endif  // KIWAY_EXPRESS_H_
-

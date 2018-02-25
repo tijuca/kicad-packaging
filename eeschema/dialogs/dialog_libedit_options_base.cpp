@@ -1,13 +1,18 @@
 ///////////////////////////////////////////////////////////////////////////
-// C++ code generated with wxFormBuilder (version Mar 13 2015)
+// C++ code generated with wxFormBuilder (version Jan  2 2018)
 // http://www.wxformbuilder.org/
 //
-// PLEASE DO "NOT" EDIT THIS FILE!
+// PLEASE DO *NOT* EDIT THIS FILE!
 ///////////////////////////////////////////////////////////////////////////
 
 #include "dialog_libedit_options_base.h"
 
 ///////////////////////////////////////////////////////////////////////////
+
+BEGIN_EVENT_TABLE( DIALOG_LIBEDIT_OPTIONS_BASE, DIALOG_SHIM )
+	EVT_SCROLL( DIALOG_LIBEDIT_OPTIONS_BASE::_wxFB_OnScaleSlider )
+	EVT_CHECKBOX( wxID_ANY, DIALOG_LIBEDIT_OPTIONS_BASE::_wxFB_OnScaleAuto )
+END_EVENT_TABLE()
 
 DIALOG_LIBEDIT_OPTIONS_BASE::DIALOG_LIBEDIT_OPTIONS_BASE( wxWindow* parent, wxWindowID id, const wxString& title, const wxPoint& pos, const wxSize& size, long style ) : DIALOG_SHIM( parent, id, title, pos, size, style )
 {
@@ -136,16 +141,25 @@ DIALOG_LIBEDIT_OPTIONS_BASE::DIALOG_LIBEDIT_OPTIONS_BASE( wxWindow* parent, wxWi
 	
 	fgSizer->Add( 0, 0, 0, 0, 5 );
 	
-	m_stMaxUndoItems = new wxStaticText( this, wxID_ANY, _("Ma&ximum undo items (0 = unlimited):"), wxDefaultPosition, wxDefaultSize, 0 );
-	m_stMaxUndoItems->Wrap( -1 );
-	fgSizer->Add( m_stMaxUndoItems, 0, wxALIGN_CENTER_VERTICAL|wxALL, 5 );
+	m_staticText18 = new wxStaticText( this, wxID_ANY, _("Icon scale:"), wxDefaultPosition, wxDefaultSize, 0 );
+	m_staticText18->Wrap( -1 );
+	fgSizer->Add( m_staticText18, 0, wxALIGN_CENTER_VERTICAL|wxALL, 5 );
 	
-	m_spinMaxUndoItems = new wxSpinCtrl( this, wxID_ANY, wxEmptyString, wxDefaultPosition, wxDefaultSize, wxSP_ARROW_KEYS, 0, 65536, 0 );
-	fgSizer->Add( m_spinMaxUndoItems, 0, wxALL|wxEXPAND, 5 );
+	m_scaleSlider = new STEPPED_SLIDER( this, wxID_ANY, 50, 50, 275, wxDefaultPosition, wxDefaultSize, wxSL_AUTOTICKS|wxSL_HORIZONTAL|wxSL_LABELS );
+	fgSizer->Add( m_scaleSlider, 0, wxALL|wxEXPAND, 5 );
 	
-	m_stMaxUndoItemsUnit = new wxStaticText( this, wxID_ANY, _("actions"), wxDefaultPosition, wxDefaultSize, 0 );
-	m_stMaxUndoItemsUnit->Wrap( -1 );
-	fgSizer->Add( m_stMaxUndoItemsUnit, 0, wxALIGN_CENTER_VERTICAL|wxALL, 5 );
+	m_staticText19 = new wxStaticText( this, wxID_ANY, _("%"), wxDefaultPosition, wxDefaultSize, 0 );
+	m_staticText19->Wrap( -1 );
+	fgSizer->Add( m_staticText19, 0, wxALIGN_CENTER_VERTICAL|wxALL, 5 );
+	
+	
+	fgSizer->Add( 0, 0, 1, wxEXPAND, 5 );
+	
+	m_scaleAuto = new wxCheckBox( this, wxID_ANY, _("Auto"), wxDefaultPosition, wxDefaultSize, 0 );
+	fgSizer->Add( m_scaleAuto, 0, wxALL, 5 );
+	
+	
+	fgSizer->Add( 0, 0, 1, wxEXPAND, 5 );
 	
 	
 	bSizer3->Add( fgSizer, 0, wxEXPAND, 0 );
@@ -157,7 +171,10 @@ DIALOG_LIBEDIT_OPTIONS_BASE::DIALOG_LIBEDIT_OPTIONS_BASE( wxWindow* parent, wxWi
 	bSizer2->Add( m_staticline3, 0, wxEXPAND | wxALL, 5 );
 	
 	m_checkShowGrid = new wxCheckBox( this, wxID_ANY, _("&Show grid"), wxDefaultPosition, wxDefaultSize, 0 );
-	bSizer2->Add( m_checkShowGrid, 0, wxTOP|wxRIGHT|wxLEFT|wxEXPAND, 3 );
+	bSizer2->Add( m_checkShowGrid, 0, wxEXPAND|wxALL, 3 );
+	
+	m_checkShowPinElectricalType = new wxCheckBox( this, wxID_ANY, _("Show pin &electrical type"), wxDefaultPosition, wxDefaultSize, 0 );
+	bSizer2->Add( m_checkShowPinElectricalType, 0, wxALL, 3 );
 	
 	
 	bSizer3->Add( bSizer2, 0, wxEXPAND, 0 );
@@ -186,6 +203,7 @@ DIALOG_LIBEDIT_OPTIONS_BASE::DIALOG_LIBEDIT_OPTIONS_BASE( wxWindow* parent, wxWi
 	
 	this->SetSizer( mainSizer );
 	this->Layout();
+	mainSizer->Fit( this );
 	
 	this->Centre( wxBOTH );
 }

@@ -23,7 +23,7 @@
  */
 
 #include <dialog_dxf_import_base.h>
-#include <wxPcbStruct.h>
+#include <pcb_edit_frame.h>
 #include <dxf2brd_items.h>
 
 class DIALOG_DXF_IMPORT : public DIALOG_DXF_IMPORT_BASE
@@ -44,21 +44,29 @@ public:
 
 private:
     PCB_BASE_FRAME*      m_parent;
-    wxConfigBase*        m_config;               // Current config
+    wxConfigBase*        m_config;              // Current config
     DXF2BRD_CONVERTER    m_dxfImporter;
-    int                  m_PCBGridUnits;
-    double               m_PCBGridOffsetX;
-    double               m_PCBGridOffsetY;
+    int                  m_PcbImportUnits;
+    double               m_PcbImportOffsetX;    // Always in mm
+    double               m_PcbImportOffsetY;    // Always in mm
 
     static wxString      m_dxfFilename;
     static int           m_offsetSelection;
     static LAYER_NUM     m_layer;
+    double               m_PCBdefaultLineWidth; // in mm
+    int                  m_PCBLineWidthUnits;
 
     // Virtual event handlers
-    void OnCancelClick( wxCommandEvent& event ) { event.Skip(); }
-    void OnOKClick( wxCommandEvent& event );
-    void OnBrowseDxfFiles( wxCommandEvent& event );
-    void OriginOptionOnUpdateUI( wxUpdateUIEvent& event );
-    int  GetPCBGridUnits( void );
-    void GetPCBGridOffsets( double &aXOffset, double &aYOffset );
+    void onUnitPositionSelection( wxCommandEvent& event ) override;
+    void onUnitWidthSelection( wxCommandEvent& event ) override;
+    void OnBrowseDxfFiles( wxCommandEvent& event ) override;
+    void OriginOptionOnUpdateUI( wxUpdateUIEvent& event ) override;
+
+    void getPcbImportOffsets();
+    double getPCBdefaultLineWidthMM();
+    void showPCBdefaultLineWidth();
+    void showPcbImportOffsets();
+
+    // Automatically called by OK button:
+    bool TransferDataFromWindow() override;
 };

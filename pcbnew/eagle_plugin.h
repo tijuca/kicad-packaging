@@ -5,7 +5,7 @@
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
  * Copyright (C) 2012 SoftPLC Corporation, Dick Hollenbeck <dick@softplc.com>
- * Copyright (C) 2012-2016 KiCad Developers, see AUTHORS.txt for contributors.
+ * Copyright (C) 2012-2017 KiCad Developers, see AUTHORS.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -27,47 +27,53 @@
 
 #include <io_mgr.h>
 #include <layers_id_colors_and_visibility.h>
+#include <eagle_parser.h>
 
-
-// forward declaration on ptree template so we can confine use of big boost
-// headers to only the implementation *.cpp file.
-
-#include <boost/property_tree/ptree_fwd.hpp>
-#include <boost/ptr_container/ptr_map.hpp>
 #include <map>
+#include <wx/xml/xml.h>
 
 
-class MODULE;
-typedef boost::ptr_map< std::string, MODULE >   MODULE_MAP;
+typedef std::map<wxString, MODULE*>  MODULE_MAP;
+typedef std::map<wxString, ENET>     NET_MAP;
+typedef NET_MAP::const_iterator      NET_MAP_CITER;
 
 
-struct ENET
+/// subset of eagle.drawing.board.designrules in the XML document
+struct ERULES
 {
-    int         netcode;
-    std::string netname;
+    int         psElongationLong;   ///< percent over 100%.  0-> not elongated, 100->twice as wide as is tall
+                                    ///< Goes into making a scaling factor for "long" pads.
 
-    ENET( int aNetCode, const std::string& aNetName ) :
-        netcode( aNetCode ),
-        netname( aNetName )
+    int         psElongationOffset; ///< the offset of the hole within the "long" pad.
+
+    double      rvPadTop;           ///< top pad size as percent of drill size
+    // double   rvPadBottom;        ///< bottom pad size as percent of drill size
+
+    double      rlMinPadTop;        ///< minimum copper annulus on through hole pads
+    double      rlMaxPadTop;        ///< maximum copper annulus on through hole pads
+
+    double      rvViaOuter;         ///< copper annulus is this percent of via hole
+    double      rlMinViaOuter;      ///< minimum copper annulus on via
+    double      rlMaxViaOuter;      ///< maximum copper annulus on via
+    double      mdWireWire;         ///< wire to wire spacing I presume.
+
+
+    ERULES() :
+        psElongationLong    ( 100 ),
+        psElongationOffset  ( 0 ),
+        rvPadTop            ( 0.25 ),
+        // rvPadBottom      ( 0.25 ),
+        rlMinPadTop         ( Mils2iu( 10 ) ),
+        rlMaxPadTop         ( Mils2iu( 20 ) ),
+
+        rvViaOuter          ( 0.25 ),
+        rlMinViaOuter       ( Mils2iu( 10 ) ),
+        rlMaxViaOuter       ( Mils2iu( 20 ) ),
+        mdWireWire          ( 0 )
     {}
 
-    ENET() :
-        netcode( 0 )
-    {}
+    void parse( wxXmlNode* aRules );
 };
-
-typedef std::map< std::string, ENET >   NET_MAP;
-typedef NET_MAP::const_iterator         NET_MAP_CITER;
-
-typedef boost::property_tree::ptree     PTREE;
-typedef const PTREE                     CPTREE;
-
-struct EELEMENT;
-class XPATH;
-struct ERULES;
-struct EATTR;
-class TEXTE_MODULE;
-
 
 /**
  * Class EAGLE_PLUGIN
@@ -79,23 +85,25 @@ class EAGLE_PLUGIN : public PLUGIN
 public:
 
     //-----<PUBLIC PLUGIN API>--------------------------------------------------
-    const wxString PluginName() const;
+    const wxString PluginName() const override;
 
-    BOARD* Load( const wxString& aFileName, BOARD* aAppendToMe,  const PROPERTIES* aProperties = NULL );
+    BOARD* Load( const wxString& aFileName, BOARD* aAppendToMe,
+                 const PROPERTIES* aProperties = NULL ) override;
 
-    const wxString GetFileExtension() const;
+    const wxString GetFileExtension() const override;
 
-    wxArrayString FootprintEnumerate( const wxString& aLibraryPath, const PROPERTIES* aProperties = NULL);
+    void FootprintEnumerate( wxArrayString& aFootprintNames, const wxString& aLibraryPath,
+                             const PROPERTIES* aProperties = NULL) override;
 
     MODULE* FootprintLoad( const wxString& aLibraryPath, const wxString& aFootprintName,
-            const PROPERTIES* aProperties = NULL );
+            const PROPERTIES* aProperties = NULL ) override;
 
-    bool IsFootprintLibWritable( const wxString& aLibraryPath )
+    bool IsFootprintLibWritable( const wxString& aLibraryPath ) override
     {
         return false;   // until someone writes others like FootprintSave(), etc.
     }
 
-    void FootprintLibOptions( PROPERTIES* aProperties ) const;
+    void FootprintLibOptions( PROPERTIES* aProperties ) const override;
 
 /*
     void Save( const wxString& aFileName, BOARD* aBoard, const PROPERTIES* aProperties = NULL );
@@ -117,8 +125,11 @@ public:
     ~EAGLE_PLUGIN();
 
 private:
+    typedef std::vector<ELAYER>     ELAYERS;
+    typedef ELAYERS::const_iterator EITER;
 
     int         m_cu_map[17];       ///< map eagle to kicad, cu layers only.
+    std::map<int, ELAYER> m_eagleLayers; ///< Eagle layers data stored by the layer number
 
     ERULES*     m_rules;            ///< Eagle design rules.
     XPATH*      m_xpath;            ///< keeps track of what we are working on within
@@ -140,9 +151,6 @@ private:
     int         m_min_via;          ///< smallest via we find on Load(), in BIU.
     int         m_min_via_hole;     ///< smallest via diameter hole we find on Load(), in BIU.
 
-    double      mm_per_biu;         ///< how many mm in each BIU
-    double      biu_per_mm;         ///< how many bius in a mm
-
     wxString    m_lib_path;
     wxDateTime  m_mod_time;
 
@@ -152,20 +160,17 @@ private:
     void    clear_cu_map();
 
     /// Convert an Eagle distance to a KiCad distance.
-    int     kicad( double d ) const;
-    int     kicad_y( double y ) const       { return -kicad( y ); }
-    int     kicad_x( double x ) const       { return kicad( x ); }
+    int     kicad_y( const ECOORD& y ) const       { return -y.ToPcbUnits(); }
+    int     kicad_x( const ECOORD& x ) const       { return x.ToPcbUnits(); }
 
     /// create a font size (fontz) from an eagle font size scalar
-    wxSize  kicad_fontz( double d ) const;
+    wxSize  kicad_fontz( const ECOORD& d ) const;
 
     /// Convert an Eagle layer to a KiCad layer.
-    LAYER_ID kicad_layer( int aLayer ) const;
+    PCB_LAYER_ID kicad_layer( int aLayer ) const;
 
-    /// Convert a KiCad distance to an Eagle distance.
-    double  eagle( BIU d ) const            { return mm_per_biu * d; }
-    double  eagle_x( BIU x ) const          { return eagle( x ); }
-    double  eagle_y( BIU y ) const          { return eagle( y ); }
+    /// Get Eagle layer name by its number
+    const wxString& eagle_layer_name( int aLayer ) const;
 
     /// This PLUGIN only caches one footprint library, this determines which one.
     void    cacheLib( const wxString& aLibraryPath );
@@ -175,11 +180,11 @@ private:
 
     // all these loadXXX() throw IO_ERROR or ptree_error exceptions:
 
-    void loadAllSections( CPTREE& aDocument );
-    void loadDesignRules( CPTREE& aDesignRules );
-    void loadLayerDefs( CPTREE& aLayers );
-    void loadPlain( CPTREE& aPlain );
-    void loadSignals( CPTREE& aSignals );
+    void loadAllSections( wxXmlNode* aDocument );
+    void loadDesignRules( wxXmlNode* aDesignRules );
+    void loadLayerDefs( wxXmlNode* aLayers );
+    void loadPlain( wxXmlNode* aPlain );
+    void loadSignals( wxXmlNode* aSignals );
 
     /**
      * Function loadLibrary
@@ -192,10 +197,10 @@ private:
      *   we are loading a *.lbr not a *.brd file and the key used in m_templates is to exclude
      *   the library name.
      */
-    void loadLibrary( CPTREE& aLib, const std::string* aLibName );
+    void loadLibrary( wxXmlNode* aLib, const wxString* aLibName );
 
-    void loadLibraries( CPTREE& aLibs );
-    void loadElements( CPTREE& aElements );
+    void loadLibraries( wxXmlNode* aLibs );
+    void loadElements( wxXmlNode* aElements );
 
     void orientModuleAndText( MODULE* m, const EELEMENT& e, const EATTR* nameAttr, const EATTR* valueAttr );
     void orientModuleText( MODULE* m, const EELEMENT& e, TEXTE_MODULE* txt, const EATTR* a );
@@ -210,22 +215,25 @@ private:
      * is the opposite or complement of degParse().  One has to know what the
      * other is doing.
      */
-    std::string fmtDEG( double aAngle ) const;
+    wxString fmtDEG( double aAngle ) const;
 
     /**
      * Function makeModule
      * creates a MODULE from an Eagle package.
      */
-    MODULE* makeModule( CPTREE& aPackage, const std::string& aPkgName ) const;
+    MODULE* makeModule( wxXmlNode* aPackage, const wxString& aPkgName ) const;
 
-    void packageWire( MODULE* aModule, CPTREE& aTree ) const;
-    void packagePad( MODULE* aModule, CPTREE& aTree ) const;
-    void packageText( MODULE* aModule, CPTREE& aTree ) const;
-    void packageRectangle( MODULE* aModule, CPTREE& aTree ) const;
-    void packagePolygon( MODULE* aModule, CPTREE& aTree ) const;
-    void packageCircle( MODULE* aModule, CPTREE& aTree ) const;
-    void packageHole( MODULE* aModule, CPTREE& aTree ) const;
-    void packageSMD( MODULE* aModule, CPTREE& aTree ) const;
+    void packageWire( MODULE* aModule, wxXmlNode* aTree ) const;
+    void packagePad( MODULE* aModule, wxXmlNode* aTree ) const;
+    void packageText( MODULE* aModule, wxXmlNode* aTree ) const;
+    void packageRectangle( MODULE* aModule, wxXmlNode* aTree ) const;
+    void packagePolygon( MODULE* aModule, wxXmlNode* aTree ) const;
+    void packageCircle( MODULE* aModule, wxXmlNode* aTree ) const;
+    void packageHole( MODULE* aModule, wxXmlNode* aTree ) const;
+    void packageSMD( MODULE* aModule, wxXmlNode* aTree ) const;
+
+    ///> Deletes the footprint templates list
+    void deleteTemplates();
 };
 
 #endif  // EAGLE_PLUGIN_H_

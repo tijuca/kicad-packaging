@@ -6,9 +6,9 @@
 /*
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
- * Copyright (C) 1992-2011 jean-pierre Charras <jean-pierre.charras@gipsa-lab.inpg.fr>
+ * Copyright (C) 1992-2011 jean-pierre Charras <jp.charras at wanadoo.fr>
  * Copyright (C) 1992-2011 Wayne Stambaugh <stambaughw@verizon.net>
- * Copyright (C) 1992-2011 KiCad Developers, see change_log.txt for contributors.
+ * Copyright (C) 1992-2018 KiCad Developers, see AUTHORS.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -35,11 +35,10 @@
 
 #include <fctsys.h>
 #include <kicad_string.h>
-#include <schframe.h>
+#include <sch_edit_frame.h>
 #include <sch_reference_list.h>
 #include <sch_component.h>
-
-#include <boost/foreach.hpp>
+#include <reporter.h>
 
 
 //#define USE_OLD_ALGO
@@ -195,19 +194,6 @@ void SCH_REFERENCE_LIST::RemoveSubComponentsFromList()
 }
 
 
-void SCH_REFERENCE_LIST::ResetHiddenReferences()
-{
-    for( unsigned ii = 0; ii < componentFlatList.size(); ii++ )
-    {
-        if( componentFlatList[ii].GetRefStr()[0] == '#' )
-        {
-            componentFlatList[ii].m_IsNew  = true;
-            componentFlatList[ii].m_NumRef = 0;
-        }
-    }
-}
-
-
 void SCH_REFERENCE_LIST::GetRefsInUse( int aIndex, std::vector< int >& aIdList, int aMinRefId )
 {
     aIdList.clear();
@@ -285,7 +271,7 @@ int SCH_REFERENCE_LIST::CreateFirstFreeRefId( std::vector<int>& aIdList, int aFi
 }
 
 
-void SCH_REFERENCE_LIST::Annotate( bool aUseSheetNum, int aSheetIntervalId,
+void SCH_REFERENCE_LIST::Annotate( bool aUseSheetNum, int aSheetIntervalId, int aStartNumber,
       SCH_MULTI_UNIT_REFERENCE_MAP aLockedUnitMap )
 {
     if ( componentFlatList.size() == 0 )
@@ -293,9 +279,6 @@ void SCH_REFERENCE_LIST::Annotate( bool aUseSheetNum, int aSheetIntervalId,
 
     int LastReferenceNumber = 0;
     int NumberOfUnits, Unit;
-
-    // Components with an invisible reference (power...) always are re-annotated.
-    ResetHiddenReferences();
 
     /* calculate index of the first component with the same reference prefix
      * than the current component.  All components having the same reference
@@ -314,11 +297,13 @@ void SCH_REFERENCE_LIST::Annotate( bool aUseSheetNum, int aSheetIntervalId,
 
     LastReferenceNumber = GetLastReference( first, minRefId );
 #else
-    int minRefId = 1;
+    int minRefId;
 
     // when using sheet number, ensure ref number >= sheet number* aSheetIntervalId
     if( aUseSheetNum )
         minRefId = componentFlatList[first].m_SheetNum * aSheetIntervalId + 1;
+    else
+        minRefId = aStartNumber + 1;
 
     // This is the list of all Id already in use for a given reference prefix.
     // Will be refilled for each new reference prefix.
@@ -332,7 +317,7 @@ void SCH_REFERENCE_LIST::Annotate( bool aUseSheetNum, int aSheetIntervalId,
 
         // Check whether this component is in aLockedUnitMap.
         SCH_REFERENCE_LIST* lockedList = NULL;
-        BOOST_FOREACH( SCH_MULTI_UNIT_REFERENCE_MAP::value_type& pair, aLockedUnitMap )
+        for( SCH_MULTI_UNIT_REFERENCE_MAP::value_type& pair : aLockedUnitMap )
         {
             unsigned n_refs = pair.second.GetCount();
             for( unsigned thisRefI = 0; thisRefI < n_refs; ++thisRefI )
@@ -362,18 +347,18 @@ void SCH_REFERENCE_LIST::Annotate( bool aUseSheetNum, int aSheetIntervalId,
 
             LastReferenceNumber = componentFlatList.GetLastReference( ii, minRefId );
 #else
-            minRefId = 1;
-
             // when using sheet number, ensure ref number >= sheet number* aSheetIntervalId
             if( aUseSheetNum )
                 minRefId = componentFlatList[ii].m_SheetNum * aSheetIntervalId + 1;
+            else
+                minRefId = aStartNumber + 1;
 
             GetRefsInUse( first, idList, minRefId );
 #endif
         }
 
         // Annotation of one part per package components (trivial case).
-        if( componentFlatList[ii].GetLibComponent()->GetUnitCount() <= 1 )
+        if( componentFlatList[ii].GetLibPart()->GetUnitCount() <= 1 )
         {
             if( componentFlatList[ii].m_IsNew )
             {
@@ -392,7 +377,7 @@ void SCH_REFERENCE_LIST::Annotate( bool aUseSheetNum, int aSheetIntervalId,
         }
 
         // Annotation of multi-unit parts ( n units per part ) (complex case)
-        NumberOfUnits = componentFlatList[ii].GetLibComponent()->GetUnitCount();
+        NumberOfUnits = componentFlatList[ii].GetLibPart()->GetUnitCount();
 
         if( componentFlatList[ii].m_IsNew )
         {
@@ -490,7 +475,7 @@ void SCH_REFERENCE_LIST::Annotate( bool aUseSheetNum, int aSheetIntervalId,
 }
 
 
-int SCH_REFERENCE_LIST::CheckAnnotation( wxArrayString* aMessageList )
+int SCH_REFERENCE_LIST::CheckAnnotation( REPORTER& aReporter )
 {
     int            error = 0;
     wxString       tmp;
@@ -530,9 +515,7 @@ int SCH_REFERENCE_LIST::CheckAnnotation( wxArrayString* aMessageList )
                             GetChars( tmp ) );
             }
 
-            if( aMessageList )
-                aMessageList->Add( msg + wxT( "\n" ) );
-
+            aReporter.Report( msg, REPORTER::RPT_WARNING );
             error++;
             break;
         }
@@ -540,7 +523,7 @@ int SCH_REFERENCE_LIST::CheckAnnotation( wxArrayString* aMessageList )
         // Error if unit number selected does not exist ( greater than the  number of
         // parts in the component ).  This can happen if a component has changed in a
         // library after a previous annotation.
-        if( std::max( componentFlatList[ii].GetLibComponent()->GetUnitCount(), 1 )
+        if( std::max( componentFlatList[ii].GetLibPart()->GetUnitCount(), 1 )
           < componentFlatList[ii].m_Unit )
         {
             if( componentFlatList[ii].m_NumRef >= 0 )
@@ -548,15 +531,13 @@ int SCH_REFERENCE_LIST::CheckAnnotation( wxArrayString* aMessageList )
             else
                 tmp = wxT( "?" );
 
-            msg.Printf( _( "Error item %s%s unit %d and no more than %d parts\n" ),
+            msg.Printf( _( "Error: symbol %s%s unit %d and symbol has only %d units defined\n" ),
                         GetChars( componentFlatList[ii].GetRef() ),
                         GetChars( tmp ),
                         componentFlatList[ii].m_Unit,
-                        componentFlatList[ii].GetLibComponent()->GetUnitCount() );
+                        componentFlatList[ii].GetLibPart()->GetUnitCount() );
 
-            if( aMessageList )
-                aMessageList->Add( msg );
-
+            aReporter.Report( msg, REPORTER::RPT_ERROR );
             error++;
             break;
         }
@@ -600,17 +581,15 @@ int SCH_REFERENCE_LIST::CheckAnnotation( wxArrayString* aMessageList )
                             GetChars( tmp ) );
             }
 
-            if( aMessageList )
-                aMessageList->Add( msg );
-
+            aReporter.Report( msg, REPORTER::RPT_ERROR );
             error++;
             continue;
         }
 
         /* Test error if units are different but number of parts per package
          * too high (ex U3 ( 1 part) and we find U3B this is an error) */
-        if(  componentFlatList[ii].GetLibComponent()->GetUnitCount()
-          != componentFlatList[ii + 1].GetLibComponent()->GetUnitCount()  )
+        if(  componentFlatList[ii].GetLibPart()->GetUnitCount()
+          != componentFlatList[ii + 1].GetLibPart()->GetUnitCount()  )
         {
             if( componentFlatList[ii].m_NumRef >= 0 )
                 tmp << componentFlatList[ii].m_NumRef;
@@ -632,9 +611,7 @@ int SCH_REFERENCE_LIST::CheckAnnotation( wxArrayString* aMessageList )
                             GetChars( tmp ) );
             }
 
-            if( aMessageList )
-                aMessageList->Add( msg );
-
+            aReporter.Report( msg, REPORTER::RPT_ERROR );
             error++;
         }
 
@@ -655,9 +632,7 @@ int SCH_REFERENCE_LIST::CheckAnnotation( wxArrayString* aMessageList )
                                   componentFlatList[next].m_Unit ) ),
                         GetChars( componentFlatList[next].m_Value->GetText() ) );
 
-            if( aMessageList )
-                aMessageList->Add( msg + wxT( "\n" ));
-
+            aReporter.Report( msg, REPORTER::RPT_ERROR );
             error++;
         }
     }
@@ -684,9 +659,7 @@ int SCH_REFERENCE_LIST::CheckAnnotation( wxArrayString* aMessageList )
                     GetChars( componentFlatList[ii + 1].GetRef() ),
                     componentFlatList[ii + 1].m_NumRef );
 
-        if( aMessageList )
-            aMessageList->Add( msg + wxT( "\n" ));
-
+        aReporter.Report( msg, REPORTER::RPT_WARNING );
         error++;
     }
 
@@ -694,13 +667,13 @@ int SCH_REFERENCE_LIST::CheckAnnotation( wxArrayString* aMessageList )
 }
 
 
-SCH_REFERENCE::SCH_REFERENCE( SCH_COMPONENT* aComponent, LIB_PART*      aLibComponent,
+SCH_REFERENCE::SCH_REFERENCE( SCH_COMPONENT* aComponent, LIB_PART* aLibPart,
                               SCH_SHEET_PATH& aSheetPath )
 {
-    wxASSERT( aComponent != NULL && aLibComponent != NULL );
+    wxASSERT( aComponent != NULL && aLibPart != NULL );
 
     m_RootCmp   = aComponent;
-    m_Entry     = aLibComponent;
+    m_Entry     = aLibPart;
     m_Unit      = aComponent->GetUnitSelection( &aSheetPath );
     m_SheetPath = aSheetPath;
     m_IsNew     = false;
@@ -712,7 +685,8 @@ SCH_REFERENCE::SCH_REFERENCE( SCH_COMPONENT* aComponent, LIB_PART*      aLibComp
     if( aComponent->GetRef( &aSheetPath ).IsEmpty() )
         aComponent->SetRef( &aSheetPath, wxT( "DefRef?" ) );
 
-    SetRef( aComponent->GetRef( &aSheetPath ) );
+    wxString ref = aComponent->GetRef( &aSheetPath );
+    SetRef( ref );
 
     m_NumRef = -1;
 
@@ -726,9 +700,17 @@ SCH_REFERENCE::SCH_REFERENCE( SCH_COMPONENT* aComponent, LIB_PART*      aLibComp
 void SCH_REFERENCE::Annotate()
 {
     if( m_NumRef < 0 )
-        m_Ref += wxChar( '?' );
+        m_Ref += '?';
     else
-        m_Ref = TO_UTF8( GetRef() << m_NumRef );
+    {
+        // To avoid a risk of duplicate, for power components
+        // the ref number is 0nnn instead of nnn.
+        // Just because sometimes only power components are annotated
+        if( GetLibPart() && GetLibPart()->IsPower() )
+            m_Ref = TO_UTF8( GetRef() << "0" << m_NumRef );
+        else
+            m_Ref = TO_UTF8( GetRef() << m_NumRef );
+    }
 
     m_RootCmp->SetRef( &m_SheetPath, FROM_UTF8( m_Ref.c_str() ) );
     m_RootCmp->SetUnit( m_Unit );

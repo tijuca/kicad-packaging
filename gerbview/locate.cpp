@@ -1,8 +1,8 @@
 /*
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
- * Copyright (C) 2012 Jean-Pierre Charras, jean-pierre.charras@ujf-grenoble.fr
- * Copyright (C) 1992-2012 KiCad Developers, see change_log.txt for contributors.
+ * Copyright (C) 2016 Jean-Pierre Charras, jp.charras at wanadoo.fr
+ * Copyright (C) 1992-2016 KiCad Developers, see change_log.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -32,57 +32,76 @@
 
 #include <gerbview.h>
 #include <gerbview_frame.h>
-#include <class_gerber_draw_item.h>
+#include <gerber_file_image.h>
+#include <gerber_file_image_list.h>
 
 
-/* localize a gerber item and return a pointer to it.
+/* locate a gerber item and return a pointer to it.
  * Display info about this item
+ * Items on non visible layers are not taken in account
  */
 GERBER_DRAW_ITEM* GERBVIEW_FRAME::Locate( const wxPoint& aPosition, int aTypeloc )
 {
     m_messagePanel->EraseMsgBox();
     wxPoint ref = aPosition;
-    bool found = false;
 
     if( aTypeloc == CURSEUR_ON_GRILLE )
         ref = GetNearestGridPosition( ref );
 
-    int layer = getActiveLayer();
+    int layer = GetActiveLayer();
+    GERBER_FILE_IMAGE* gerber = GetGbrImage( layer );
+
+    GERBER_DRAW_ITEM* gerb_item = nullptr;
 
     // Search first on active layer
-    GERBER_DRAW_ITEM* gerb_item = GetItemsList();
-
-    for( ; gerb_item; gerb_item = gerb_item->Next() )
+    // A not used graphic layer can be selected. So gerber can be NULL
+    if( gerber && gerber->m_IsVisible )
     {
-        if( gerb_item->GetLayer()!= layer )
-            continue;
-
-        if( gerb_item->HitTest( ref ) )
+        for( auto item = gerber->GetItemsList(); item; item = item->Next() )
         {
-            found = true;
-            break;
-        }
-    }
-
-    if( !found ) // Search on all layers
-    {
-        for( gerb_item = GetItemsList(); gerb_item; gerb_item = gerb_item->Next() )
-        {
-            if( gerb_item->HitTest( ref ) )
+            if( item->HitTest( ref ) )
             {
-                found = true;
+                gerb_item = item;
                 break;
             }
         }
     }
 
-    if( found )
+    if( gerb_item == nullptr ) // Search on all layers
+    {
+        for( layer = 0; layer < (int)ImagesMaxCount(); ++layer )
+        {
+            gerber = GetGbrImage( layer );
+
+            if( gerber == nullptr )    // Graphic layer not yet used
+                continue;
+
+            if( !gerber->m_IsVisible )
+                continue;
+
+            if( layer == GetActiveLayer() )
+                continue;
+
+            for( auto item = gerber->GetItemsList(); item; item = item->Next() )
+            {
+                if( item->HitTest( ref ) )
+                {
+                    gerb_item = item;
+                    break;
+                }
+            }
+
+            if( gerb_item )
+                break;
+        }
+    }
+
+    if( gerb_item )
     {
         MSG_PANEL_ITEMS items;
         gerb_item->GetMsgPanelInfo( items );
         SetMsgPanel( items );
-        return gerb_item;
     }
 
-    return NULL;
+    return gerb_item;
 }

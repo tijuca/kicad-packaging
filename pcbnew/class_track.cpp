@@ -4,7 +4,7 @@
  * Copyright (C) 2012 Jean-Pierre Charras, jean-pierre.charras@ujf-grenoble.fr
  * Copyright (C) 2012 SoftPLC Corporation, Dick Hollenbeck <dick@softplc.com>
  * Copyright (C) 2012 Wayne Stambaugh <stambaughw@verizon.net>
- * Copyright (C) 1992-2015 KiCad Developers, see AUTHORS.txt for contributors.
+ * Copyright (C) 1992-2016 KiCad Developers, see AUTHORS.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -29,37 +29,37 @@
  * @brief Functions relatives to tracks, vias and segments used to fill zones.
  */
 
+
 #include <fctsys.h>
 #include <gr_basic.h>
 #include <common.h>
 #include <trigo.h>
 #include <macros.h>
 #include <class_drawpanel.h>
-#include <class_pcb_screen.h>
-#include <drawtxt.h>
-#include <colors_selection.h>
-#include <wxstruct.h>
-#include <wxBasePcbFrame.h>
+#include <pcb_screen.h>
+#include <draw_graphic_text.h>
+#include <pcb_base_frame.h>
 #include <class_board.h>
 #include <class_track.h>
 #include <pcbnew.h>
 #include <base_units.h>
 #include <msgpanel.h>
-
+#include <bitmaps.h>
+#include <view/view.h>
 
 /**
  * Function ShowClearance
  * tests to see if the clearance border is drawn on the given track.
  * @return bool - true if should draw clearance, else false.
  */
-static bool ShowClearance( DISPLAY_OPTIONS* aDisplOpts, const TRACK* aTrack )
+static bool ShowClearance( PCB_DISPLAY_OPTIONS* aDisplOpts, const TRACK* aTrack )
 {
     // maybe return true for tracks and vias, not for zone segments
     return IsCopperLayer( aTrack->GetLayer() )
            && ( aTrack->Type() == PCB_TRACE_T || aTrack->Type() == PCB_VIA_T )
-           && ( ( aDisplOpts->m_ShowTrackClearanceMode == SHOW_CLEARANCE_NEW_AND_EDITED_TRACKS_AND_VIA_AREAS
+           && ( ( aDisplOpts->m_ShowTrackClearanceMode == PCB_DISPLAY_OPTIONS::SHOW_CLEARANCE_NEW_AND_EDITED_TRACKS_AND_VIA_AREAS
                   && ( aTrack->IsDragging() || aTrack->IsMoving() || aTrack->IsNew() ) )
-            || ( aDisplOpts->m_ShowTrackClearanceMode == SHOW_CLEARANCE_ALWAYS )
+            || ( aDisplOpts->m_ShowTrackClearanceMode == PCB_DISPLAY_OPTIONS::SHOW_CLEARANCE_ALWAYS )
             );
 
 }
@@ -68,24 +68,24 @@ static bool ShowClearance( DISPLAY_OPTIONS* aDisplOpts, const TRACK* aTrack )
 TRACK* GetTrack( TRACK* aStartTrace, const TRACK* aEndTrace,
         const wxPoint& aPosition, LSET aLayerMask )
 {
-    for( TRACK *PtSegm = aStartTrace; PtSegm != NULL; PtSegm = PtSegm->Next() )
+    for( TRACK* seg = aStartTrace;  seg;  seg = seg->Next() )
     {
-        if( PtSegm->GetState( IS_DELETED | BUSY ) == 0 )
+        if( seg->GetState( IS_DELETED | BUSY ) == 0 )
         {
-            if( aPosition == PtSegm->GetStart() )
+            if( aPosition == seg->GetStart() )
             {
-                if( ( aLayerMask & PtSegm->GetLayerSet() ).any() )
-                    return PtSegm;
+                if( ( aLayerMask & seg->GetLayerSet() ).any() )
+                    return seg;
             }
 
-            if( aPosition == PtSegm->GetEnd() )
+            if( aPosition == seg->GetEnd() )
             {
-                if( ( aLayerMask & PtSegm->GetLayerSet() ).any() )
-                    return PtSegm;
+                if( ( aLayerMask & seg->GetLayerSet() ).any() )
+                    return seg;
             }
         }
 
-        if( PtSegm == aEndTrace )
+        if( seg == aEndTrace )
             break;
     }
 
@@ -149,6 +149,12 @@ wxString SEGZONE::GetSelectMenuText() const
 }
 
 
+BITMAP_DEF SEGZONE::GetMenuImage() const
+{
+    return add_zone_xpm;
+}
+
+
 VIA::VIA( BOARD_ITEM* aParent ) :
     TRACK( aParent, PCB_VIA_T )
 {
@@ -190,8 +196,8 @@ wxString VIA::GetSelectMenuText() const
         wxString netname = GetNetname();
 
         // say which layers, only two for now
-        LAYER_ID topLayer;
-        LAYER_ID botLayer;
+        PCB_LAYER_ID topLayer;
+        PCB_LAYER_ID botLayer;
         LayerPair( &topLayer, &botLayer );
         text.Printf( format.GetData(), GetChars( ShowWidth() ),
                      GetChars( netname ), GetNetCode(),
@@ -208,6 +214,12 @@ wxString VIA::GetSelectMenuText() const
     }
 
     return text;
+}
+
+
+BITMAP_DEF VIA::GetMenuImage() const
+{
+    return via_xpm;
 }
 
 
@@ -352,8 +364,8 @@ void VIA::Flip( const wxPoint& aCentre )
     if( GetViaType() != VIA_THROUGH )
     {
         int copperLayerCount = GetBoard()->GetCopperLayerCount();
-        LAYER_ID top_layer;
-        LAYER_ID bottom_layer;
+        PCB_LAYER_ID top_layer;
+        PCB_LAYER_ID bottom_layer;
         LayerPair( &top_layer, &bottom_layer );
         top_layer = FlipLayer( top_layer, copperLayerCount );
         bottom_layer = FlipLayer( bottom_layer, copperLayerCount );
@@ -363,15 +375,14 @@ void VIA::Flip( const wxPoint& aCentre )
 
 
 // see class_track.h
-SEARCH_RESULT TRACK::Visit( INSPECTOR* inspector, const void* testData,
-                            const KICAD_T scanTypes[] )
+SEARCH_RESULT TRACK::Visit( INSPECTOR inspector, void* testData, const KICAD_T scanTypes[] )
 {
     KICAD_T stype = *scanTypes;
 
     // If caller wants to inspect my type
     if( stype == Type() )
     {
-        if( SEARCH_QUIT == inspector->Inspect( this, testData ) )
+        if( SEARCH_QUIT == inspector( this, testData ) )
             return SEARCH_QUIT;
     }
 
@@ -379,9 +390,9 @@ SEARCH_RESULT TRACK::Visit( INSPECTOR* inspector, const void* testData,
 }
 
 
-bool VIA::IsOnLayer( LAYER_ID layer_number ) const
+bool VIA::IsOnLayer( PCB_LAYER_ID layer_number ) const
 {
-    LAYER_ID bottom_layer, top_layer;
+    PCB_LAYER_ID bottom_layer, top_layer;
 
     LayerPair( &top_layer, &bottom_layer );
 
@@ -405,7 +416,7 @@ LSET VIA::GetLayerSet() const
 
     wxASSERT( m_Layer <= m_BottomLayer );
 
-    // LAYER_IDs are numbered from front to back, this is top to bottom.
+    // PCB_LAYER_IDs are numbered from front to back, this is top to bottom.
     for( LAYER_NUM id = m_Layer;  id <= m_BottomLayer;  ++id )
     {
         layermask.set( id );
@@ -415,26 +426,31 @@ LSET VIA::GetLayerSet() const
 }
 
 
-void VIA::SetLayerPair( LAYER_ID aTopLayer, LAYER_ID aBottomLayer )
+void VIA::SetLayerPair( PCB_LAYER_ID aTopLayer, PCB_LAYER_ID aBottomLayer )
 {
-    if( GetViaType() == VIA_THROUGH )
-    {
-        aTopLayer    = F_Cu;
-        aBottomLayer = B_Cu;
-    }
-
-    if( aBottomLayer < aTopLayer )
-        std::swap( aBottomLayer, aTopLayer );
 
     m_Layer = aTopLayer;
     m_BottomLayer = aBottomLayer;
+    SanitizeLayers();
 }
 
 
-void VIA::LayerPair( LAYER_ID* top_layer, LAYER_ID* bottom_layer ) const
+void VIA::SetTopLayer( PCB_LAYER_ID aLayer )
 {
-    LAYER_ID t_layer = F_Cu;
-    LAYER_ID b_layer = B_Cu;
+    m_Layer = aLayer;
+}
+
+
+void VIA::SetBottomLayer( PCB_LAYER_ID aLayer )
+{
+    m_BottomLayer = aLayer;
+}
+
+
+void VIA::LayerPair( PCB_LAYER_ID* top_layer, PCB_LAYER_ID* bottom_layer ) const
+{
+    PCB_LAYER_ID t_layer = F_Cu;
+    PCB_LAYER_ID b_layer = B_Cu;
 
     if( GetViaType() != VIA_THROUGH )
     {
@@ -450,6 +466,31 @@ void VIA::LayerPair( LAYER_ID* top_layer, LAYER_ID* bottom_layer ) const
 
     if( bottom_layer )
         *bottom_layer = b_layer;
+}
+
+
+PCB_LAYER_ID VIA::TopLayer() const
+{
+    return m_Layer;
+}
+
+
+PCB_LAYER_ID VIA::BottomLayer() const
+{
+    return m_BottomLayer;
+}
+
+
+void VIA::SanitizeLayers()
+{
+    if( GetViaType() == VIA_THROUGH )
+    {
+        m_Layer    = F_Cu;
+        m_BottomLayer = B_Cu;
+    }
+
+    if( m_BottomLayer < m_Layer )
+        std::swap( m_BottomLayer, m_Layer );
 }
 
 
@@ -535,7 +576,7 @@ TRACK* TRACK::GetEndNetCode( int NetCode )
 }
 
 void TRACK::DrawShortNetname( EDA_DRAW_PANEL* panel,
-        wxDC* aDC, GR_DRAWMODE aDrawMode, EDA_COLOR_T aBgColor )
+        wxDC* aDC, GR_DRAWMODE aDrawMode, COLOR4D aBgColor )
 {
     if( ! panel )
         return;
@@ -544,7 +585,7 @@ void TRACK::DrawShortNetname( EDA_DRAW_PANEL* panel,
      *  - only tracks with a length > 10 * thickness are eligible
      * and, of course, if we are not printing the board
      */
-    DISPLAY_OPTIONS* displ_opts = (DISPLAY_OPTIONS*)panel->GetDisplayOptions();
+    auto displ_opts = (PCB_DISPLAY_OPTIONS*)( panel->GetDisplayOptions() );
 
     if( displ_opts->m_DisplayNetNamesMode == 0 || displ_opts->m_DisplayNetNamesMode == 1 )
         return;
@@ -602,7 +643,7 @@ void TRACK::DrawShortNetname( EDA_DRAW_PANEL* panel,
             }
         }
 
-        LAYER_ID curr_layer = ( (PCB_SCREEN*) panel->GetScreen() )->m_Active_Layer;
+        PCB_LAYER_ID curr_layer = ( (PCB_SCREEN*) panel->GetScreen() )->m_Active_Layer;
 
         if( ( aDC->LogicalToDeviceXRel( tsize ) >= MIN_TEXT_SIZE )
          && ( !(!IsOnLayer( curr_layer )&& displ_opts->m_ContrastModeDisplay) ) )
@@ -625,10 +666,13 @@ void TRACK::DrawShortNetname( EDA_DRAW_PANEL* panel,
 void TRACK::Draw( EDA_DRAW_PANEL* panel, wxDC* aDC, GR_DRAWMODE aDrawMode,
                   const wxPoint& aOffset )
 {
-    BOARD * brd = GetBoard( );
-    EDA_COLOR_T color = brd->GetLayerColor(m_Layer);
+    BOARD* brd = GetBoard();
 
-    if( brd->IsLayerVisible( m_Layer ) == false && !( aDrawMode & GR_HIGHLIGHT ) )
+    auto frame = static_cast<PCB_BASE_FRAME*> ( panel->GetParent() );
+    auto color = frame->Settings().Colors().GetLayerColor( m_Layer );
+
+    if( ( !brd->IsLayerVisible( m_Layer ) || !brd->IsElementVisible( LAYER_TRACKS ) )
+        && !( aDrawMode & GR_HIGHLIGHT ) )
         return;
 
 #ifdef USE_WX_OVERLAY
@@ -637,30 +681,27 @@ void TRACK::Draw( EDA_DRAW_PANEL* panel, wxDC* aDC, GR_DRAWMODE aDrawMode,
       return;
 #endif
 
-    DISPLAY_OPTIONS* displ_opts = (DISPLAY_OPTIONS*) panel->GetDisplayOptions();
+    auto displ_opts = (PCB_DISPLAY_OPTIONS*)( panel->GetDisplayOptions() );
 
     if( ( aDrawMode & GR_ALLOW_HIGHCONTRAST ) && displ_opts->m_ContrastModeDisplay )
     {
-        LAYER_ID curr_layer = ( (PCB_SCREEN*) panel->GetScreen() )->m_Active_Layer;
+        PCB_LAYER_ID curr_layer = ( (PCB_SCREEN*) panel->GetScreen() )->m_Active_Layer;
 
         if( !IsOnLayer( curr_layer ) )
-            ColorTurnToDarkDarkGray( &color );
+            color = COLOR4D( DARKDARKGRAY );
     }
 
-    if( aDrawMode & GR_HIGHLIGHT )
-        ColorChangeHighlightFlag( &color, !(aDrawMode & GR_AND) );
+    if( ( aDrawMode & GR_HIGHLIGHT ) && !( aDrawMode & GR_AND ) )
+        color.SetToLegacyHighlightColor();
 
-    ColorApplyHighlightFlag( &color );
-
-    SetAlpha( &color, 150 );
+    color.a = 0.588;
 
     GRSetDrawMode( aDC, aDrawMode );
 
-    int l_trace = m_Width / 2;
-
-    if( aDC->LogicalToDeviceXRel( l_trace ) <= MIN_DRAW_WIDTH )
+    // Draw track as line if width <= 1pixel:
+    if( aDC->LogicalToDeviceXRel( m_Width ) <= 1 )
     {
-        GRLine( panel->GetClipBox(), aDC, m_Start + aOffset, m_End + aOffset, 0, color );
+        GRLine( panel->GetClipBox(), aDC, m_Start + aOffset, m_End + aOffset, m_Width, color );
         return;
     }
 
@@ -692,13 +733,15 @@ void TRACK::Draw( EDA_DRAW_PANEL* panel, wxDC* aDC, GR_DRAWMODE aDrawMode,
 void SEGZONE::Draw( EDA_DRAW_PANEL* panel, wxDC* aDC, GR_DRAWMODE aDrawMode,
                     const wxPoint& aOffset )
 {
-    DISPLAY_OPTIONS* displ_opts = (DISPLAY_OPTIONS*)panel->GetDisplayOptions();
+    auto displ_opts = (PCB_DISPLAY_OPTIONS*)( panel->GetDisplayOptions() );
 
     if( displ_opts->m_DisplayZonesMode != 0 )
         return;
 
-    BOARD * brd = GetBoard( );
-    EDA_COLOR_T color = brd->GetLayerColor(m_Layer);
+    BOARD* brd = GetBoard();
+
+    auto frame = static_cast<PCB_BASE_FRAME*> ( panel->GetParent() );
+    auto color = frame->Settings().Colors().GetLayerColor( m_Layer );
 
     if( brd->IsLayerVisible( m_Layer ) == false && !( aDrawMode & GR_HIGHLIGHT ) )
         return;
@@ -711,26 +754,23 @@ void SEGZONE::Draw( EDA_DRAW_PANEL* panel, wxDC* aDC, GR_DRAWMODE aDrawMode,
 
     if( ( aDrawMode & GR_ALLOW_HIGHCONTRAST ) && displ_opts->m_ContrastModeDisplay )
     {
-        LAYER_ID curr_layer = ( (PCB_SCREEN*) panel->GetScreen() )->m_Active_Layer;
+        PCB_LAYER_ID curr_layer = ( (PCB_SCREEN*) panel->GetScreen() )->m_Active_Layer;
 
         if( !IsOnLayer( curr_layer ) )
-            ColorTurnToDarkDarkGray( &color );
+            color = COLOR4D( DARKDARKGRAY );
     }
 
-    if( aDrawMode & GR_HIGHLIGHT )
-        ColorChangeHighlightFlag( &color, !(aDrawMode & GR_AND) );
+    if( ( aDrawMode & GR_HIGHLIGHT ) && !( aDrawMode & GR_AND ) )
+        color.SetToLegacyHighlightColor();
 
-    ColorApplyHighlightFlag( &color );
-
-    SetAlpha( &color, 150 );
+    color.a = 0.588;
 
     GRSetDrawMode( aDC, aDrawMode );
 
-    int l_trace = m_Width / 2;
-
-    if( aDC->LogicalToDeviceXRel( l_trace ) <= MIN_DRAW_WIDTH )
+    // Draw track as line if width <= 1pixel:
+    if( aDC->LogicalToDeviceXRel( m_Width ) <= 1 )
     {
-        GRLine( panel->GetClipBox(), aDC, m_Start + aOffset, m_End + aOffset, 0, color );
+        GRLine( panel->GetClipBox(), aDC, m_Start + aOffset, m_End + aOffset, m_Width, color );
         return;
     }
 
@@ -758,12 +798,17 @@ void TRACK::ViewGetLayers( int aLayers[], int& aCount ) const
 }
 
 
-unsigned int TRACK::ViewGetLOD( int aLayer ) const
+unsigned int TRACK::ViewGetLOD( int aLayer, KIGFX::VIEW* aView ) const
 {
+    const int HIDE = std::numeric_limits<unsigned int>::max();
+
+    if( !aView->IsLayerVisible( LAYER_TRACKS ) )
+        return HIDE;
+
     // Netnames will be shown only if zoom is appropriate
     if( IsNetnameLayer( aLayer ) )
     {
-        return ( 20000000 / ( m_Width + 1 ) );
+        return ( 40000000 / ( m_Width + 1 ) );
     }
 
     // Other layers are shown without any conditions
@@ -776,12 +821,12 @@ void VIA::Draw( EDA_DRAW_PANEL* panel, wxDC* aDC, GR_DRAWMODE aDrawMode, const w
     wxCHECK_RET( panel != NULL, wxT( "VIA::Draw panel cannot be NULL." ) );
 
     int radius;
-    LAYER_ID curr_layer = ( (PCB_SCREEN*) panel->GetScreen() )->m_Active_Layer;
+    PCB_LAYER_ID curr_layer = ( (PCB_SCREEN*) panel->GetScreen() )->m_Active_Layer;
 
     int fillvia = 0;
     PCB_BASE_FRAME* frame  = (PCB_BASE_FRAME*) panel->GetParent();
     PCB_SCREEN*     screen = frame->GetScreen();
-    DISPLAY_OPTIONS* displ_opts = (DISPLAY_OPTIONS*)frame->GetDisplayOptions();
+    auto displ_opts = (PCB_DISPLAY_OPTIONS*)( frame->GetDisplayOptions() );
 
     if( displ_opts->m_DisplayViaFill == FILLED )
         fillvia = 1;
@@ -789,11 +834,11 @@ void VIA::Draw( EDA_DRAW_PANEL* panel, wxDC* aDC, GR_DRAWMODE aDrawMode, const w
     GRSetDrawMode( aDC, aDrawMode );
 
     BOARD * brd =  GetBoard();
-    EDA_COLOR_T color = brd->GetVisibleElementColor( VIAS_VISIBLE + GetViaType() );
+    COLOR4D color = frame->Settings().Colors().GetItemColor( LAYER_VIAS + GetViaType() );
 
-    if( brd->IsElementVisible( PCB_VISIBLE(VIAS_VISIBLE + GetViaType()) ) == false
-        && ( color & HIGHLIGHT_FLAG ) != HIGHLIGHT_FLAG )
-        return;
+    if( brd->IsElementVisible( LAYER_VIAS + GetViaType() ) == false
+        && !( aDrawMode & GR_HIGHLIGHT ) )
+       return;
 
     // Only draw the via if at least one of the layers it crosses is being displayed
     if( !( brd->GetVisibleLayers() & GetLayerSet() ).any() )
@@ -802,15 +847,13 @@ void VIA::Draw( EDA_DRAW_PANEL* panel, wxDC* aDC, GR_DRAWMODE aDrawMode, const w
     if( displ_opts->m_ContrastModeDisplay )
     {
         if( !IsOnLayer( curr_layer ) )
-            ColorTurnToDarkDarkGray( &color );
+            color = COLOR4D( DARKDARKGRAY );
     }
 
-    if( aDrawMode & GR_HIGHLIGHT )
-        ColorChangeHighlightFlag( &color, !(aDrawMode & GR_AND) );
+    if( ( aDrawMode & GR_HIGHLIGHT ) && !( aDrawMode & GR_AND ) )
+        color.SetToLegacyHighlightColor();
 
-    ColorApplyHighlightFlag( &color );
-
-    SetAlpha( &color, 150 );
+    color.a = 0.588;
 
 
     radius = m_Width >> 1;
@@ -845,60 +888,36 @@ void VIA::Draw( EDA_DRAW_PANEL* panel, wxDC* aDC, GR_DRAWMODE aDrawMode, const w
         GRCircle( panel->GetClipBox(), aDC, m_Start + aOffset, inner_radius, 0, color );
     }
 
-    // Draw the via hole if the display option allows it
-    if( displ_opts->m_DisplayViaMode != VIA_HOLE_NOT_SHOW )
+    if( fillvia )
     {
-        // Display all drill holes requested or Display non default holes requested
-        bool show_hole = displ_opts->m_DisplayViaMode == ALL_VIA_HOLE_SHOW;
+        bool blackpenstate = false;
 
-        if( !show_hole )
+        if( screen->m_IsPrinting )
         {
-            NETINFO_ITEM* net = GetNet();
-            int drill_class_value = 0;
-            if( net )
-            {
-                if( GetViaType() == VIA_MICROVIA )
-                    drill_class_value = net->GetMicroViaDrillSize();
-                else
-                    drill_class_value = net->GetViaDrillSize();
-            }
-
-            show_hole = GetDrillValue() != drill_class_value;
+            blackpenstate = GetGRForceBlackPenState();
+            GRForceBlackPen( false );
+            color = WHITE;
+        }
+        else
+        {
+            color = BLACK;     // or DARKGRAY;
         }
 
-        if( show_hole )
-        {
-            if( fillvia )
-            {
-                bool blackpenstate = false;
+        if( (aDrawMode & GR_XOR) == 0)
+            GRSetDrawMode( aDC, GR_COPY );
 
-                if( screen->m_IsPrinting )
-                {
-                    blackpenstate = GetGRForceBlackPenState();
-                    GRForceBlackPen( false );
-                    color = WHITE;
-                }
-                else
-                {
-                    color = BLACK;     // or DARKGRAY;
-                }
+        // Draw hole if the radius is > 1pixel.
+        if( aDC->LogicalToDeviceXRel( drill_radius ) > 1 )
+            GRFilledCircle( panel->GetClipBox(), aDC, m_Start.x + aOffset.x,
+                            m_Start.y + aOffset.y, drill_radius, 0, color, color );
 
-                if( (aDrawMode & GR_XOR) == 0)
-                    GRSetDrawMode( aDC, GR_COPY );
-
-                if( aDC->LogicalToDeviceXRel( drill_radius ) > MIN_DRAW_WIDTH )  // Draw hole if large enough.
-                    GRFilledCircle( panel->GetClipBox(), aDC, m_Start.x + aOffset.x,
-                                    m_Start.y + aOffset.y, drill_radius, 0, color, color );
-
-                if( screen->m_IsPrinting )
-                    GRForceBlackPen( blackpenstate );
-            }
-            else
-            {
-                if( drill_radius < inner_radius )         // We can show the via hole
-                    GRCircle( panel->GetClipBox(), aDC, m_Start + aOffset, drill_radius, 0, color );
-            }
-        }
+        if( screen->m_IsPrinting )
+            GRForceBlackPen( blackpenstate );
+    }
+    else
+    {
+        if( drill_radius < inner_radius )         // We can show the via hole
+            GRCircle( panel->GetClipBox(), aDC, m_Start + aOffset, drill_radius, 0, color );
     }
 
     if( ShowClearance( displ_opts, this ) )
@@ -949,7 +968,7 @@ void VIA::Draw( EDA_DRAW_PANEL* panel, wxDC* aDC, GR_DRAWMODE aDrawMode, const w
     if( GetViaType() == VIA_BLIND_BURIED )
     {
         int ax = 0, ay = radius, bx = 0, by = drill_radius;
-        LAYER_ID layer_top, layer_bottom;
+        PCB_LAYER_ID layer_top, layer_bottom;
 
         LayerPair( &layer_top, &layer_bottom );
 
@@ -1010,31 +1029,45 @@ void VIA::Draw( EDA_DRAW_PANEL* panel, wxDC* aDC, GR_DRAWMODE aDrawMode, const w
 
 void VIA::ViewGetLayers( int aLayers[], int& aCount ) const
 {
-    aLayers[0] = ITEM_GAL_LAYER( VIAS_HOLES_VISIBLE );
-    aCount = 2;
+    aLayers[0] = LAYER_VIAS_HOLES;
+    aLayers[1] = LAYER_VIAS_NETNAMES;
+    aCount = 3;
 
     // Just show it on common via & via holes layers
     switch( GetViaType() )
     {
     case VIA_THROUGH:
-        aLayers[1] = ITEM_GAL_LAYER( VIA_THROUGH_VISIBLE );
+        aLayers[2] = LAYER_VIA_THROUGH;
         break;
 
     case VIA_BLIND_BURIED:
-        aLayers[1] = ITEM_GAL_LAYER( VIA_BBLIND_VISIBLE );
-        aLayers[2] = m_Layer;
-        aLayers[3] = m_BottomLayer;
+        aLayers[2] = LAYER_VIA_BBLIND;
+        aLayers[3] = m_Layer;
+        aLayers[4] = m_BottomLayer;
         aCount += 2;
         break;
 
     case VIA_MICROVIA:
-        aLayers[1] = ITEM_GAL_LAYER( VIA_MICROVIA_VISIBLE );
+        aLayers[2] = LAYER_VIA_MICROVIA;
         break;
 
     default:
-        assert( false );
+        aLayers[2] = LAYER_GP_OVERLAY;
+        wxASSERT( false );
         break;
     }
+}
+
+
+unsigned int VIA::ViewGetLOD( int aLayer, KIGFX::VIEW* aView ) const
+{
+    BOARD* board = GetBoard();
+
+    // Only draw the via if at least one of the layers it crosses is being displayed
+    if( board && ( board->GetVisibleLayers() & GetLayerSet() ).any() )
+        return 0;
+
+    return std::numeric_limits<unsigned int>::max();
 }
 
 
@@ -1103,7 +1136,7 @@ void TRACK::GetMsgPanelInfoBase_Common( std::vector< MSG_PANEL_ITEM >& aList )
         aList.push_back( MSG_PANEL_ITEM( _( "NetName" ), msg, RED ) );
 
         // Display net code : (useful in test or debug)
-        msg.Printf( wxT( "%d.%d" ), GetNetCode(), GetSubNet() );
+        msg.Printf( wxT( "%d" ), GetNetCode() );
         aList.push_back( MSG_PANEL_ITEM( _( "NetCode" ), msg, RED ) );
     }
 
@@ -1233,7 +1266,7 @@ void VIA::GetMsgPanelInfoBase( std::vector< MSG_PANEL_ITEM >& aList )
 
 
     // Display layer pair
-    LAYER_ID top_layer, bottom_layer;
+    PCB_LAYER_ID top_layer, bottom_layer;
 
     LayerPair( &top_layer, &bottom_layer );
 
@@ -1326,13 +1359,17 @@ bool VIA::HitTest( const EDA_RECT& aRect, bool aContained, int aAccuracy ) const
     box.Inflate( GetWidth() / 2 );
 
     if( aContained )
+    {
         return arect.Contains( box );
+    }
     else
-        return arect.Intersects( box );
+    {
+        return arect.IntersectsCircle( GetStart(), GetWidth() / 2 );
+    }
 }
 
 
-VIA* TRACK::GetVia( const wxPoint& aPosition, LAYER_ID aLayer)
+VIA* TRACK::GetVia( const wxPoint& aPosition, PCB_LAYER_ID aLayer)
 {
     for( VIA* via = GetFirstVia( this ); via; via = GetFirstVia( via->Next() ) )
     {
@@ -1390,7 +1427,7 @@ TRACK* TRACK::GetTrack( TRACK* aStartTrace, TRACK* aEndTrace, ENDPOINT_T aEndPoi
 
     while( nextSegment || previousSegment )
     {
-        // Terminate the search in the direction if the netcode mismatches
+        // Terminate the search in the direction if the netcode mis-matches
         if( aSameNetOnly )
         {
             if( nextSegment && (nextSegment->GetNetCode() != GetNetCode()) )
@@ -1606,6 +1643,25 @@ wxString TRACK::GetSelectMenuText() const
     return text;
 }
 
+
+BITMAP_DEF TRACK::GetMenuImage() const
+{
+    return add_tracks_xpm;
+}
+
+void TRACK::SwapData( BOARD_ITEM* aImage )
+{
+    assert( aImage->Type() == PCB_TRACE_T );
+
+    std::swap( *((TRACK*) this), *((TRACK*) aImage) );
+}
+
+void VIA::SwapData( BOARD_ITEM* aImage )
+{
+    assert( aImage->Type() == PCB_VIA_T );
+
+    std::swap( *((VIA*) this), *((VIA*) aImage) );
+}
 
 #if defined(DEBUG)
 

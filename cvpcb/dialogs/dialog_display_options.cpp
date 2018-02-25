@@ -1,11 +1,7 @@
-/**
- * @file  cvpcb/dialogs/dialog_display_options.cpp
- */
-
 /*
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
- * Copyright (C) 1992-2012 KiCad Developers, see AUTHORS.txt for contributors.
+ * Copyright (C) 1992-2018 KiCad Developers, see AUTHORS.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -25,14 +21,18 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
  */
 
+/**
+ * @file  cvpcb/dialogs/dialog_display_options.cpp
+ */
+
 #include <fctsys.h>
 
-#include <wxstruct.h>
+//#include <wxstruct.h>
 #include <common.h>
 #include <cvpcb.h>
 #include <class_drawpanel.h>
-#include <cvstruct.h>
-#include <class_DisplayFootprintsFrame.h>
+#include <listboxes.h>
+#include <display_footprints_frame.h>
 
 #include <dialog_display_options.h>
 
@@ -72,16 +72,16 @@ void DIALOG_FOOTPRINTS_DISPLAY_OPTIONS::initDialog()
     /* mandatory to use escape key as cancel under wxGTK. */
     SetFocus();
 
-    DISPLAY_OPTIONS* displ_opts = (DISPLAY_OPTIONS*)m_Parent->GetDisplayOptions();
+    auto displ_opts = (PCB_DISPLAY_OPTIONS*)m_Parent->GetDisplayOptions();
 
     m_EdgesDisplayOption->SetValue( not displ_opts->m_DisplayModEdgeFill );
     m_TextDisplayOption->SetValue( not displ_opts->m_DisplayModTextFill );
     m_ShowPadSketch->SetValue( not displ_opts->m_DisplayPadFill );
     m_ShowPadNum->SetValue( displ_opts->m_DisplayPadNum );
-    m_IsZoomNoCenter->SetValue( m_Parent->GetCanvas()->GetEnableZoomNoCenter() );
-    m_IsMiddleButtonPan->SetValue( m_Parent->GetCanvas()->GetEnableMiddleButtonPan() );
-    m_IsMiddleButtonPanLimited->SetValue( m_Parent->GetCanvas()->GetMiddleButtonPanLimited() );
-    m_IsMiddleButtonPanLimited->Enable( m_IsMiddleButtonPan->GetValue() );
+
+    m_enableZoomNoCenter->SetValue( not m_Parent->GetCanvas()->GetEnableZoomNoCenter() );
+    m_enableMousewheelPan->SetValue( m_Parent->GetCanvas()->GetEnableMousewheelPan() );
+    m_enableAutoPan->SetValue( m_Parent->GetCanvas()->GetEnableAutoPan() );
 }
 
 
@@ -92,15 +92,17 @@ void DIALOG_FOOTPRINTS_DISPLAY_OPTIONS::initDialog()
 
 void DIALOG_FOOTPRINTS_DISPLAY_OPTIONS::UpdateObjectSettings( void )
 {
-    DISPLAY_OPTIONS* displ_opts = (DISPLAY_OPTIONS*)m_Parent->GetDisplayOptions();
+    auto displ_opts = (PCB_DISPLAY_OPTIONS*)m_Parent->GetDisplayOptions();
 
     displ_opts->m_DisplayModEdgeFill = not m_EdgesDisplayOption->GetValue();
     displ_opts->m_DisplayModTextFill = not m_TextDisplayOption->GetValue();
     displ_opts->m_DisplayPadNum  = m_ShowPadNum->GetValue();
     displ_opts->m_DisplayPadFill = not m_ShowPadSketch->GetValue();
-    m_Parent->GetCanvas()->SetEnableZoomNoCenter( m_IsZoomNoCenter->GetValue() );
-    m_Parent->GetCanvas()->SetEnableMiddleButtonPan( m_IsMiddleButtonPan->GetValue() );
-    m_Parent->GetCanvas()->SetMiddleButtonPanLimited( m_IsMiddleButtonPanLimited->GetValue() );
+
+    m_Parent->GetCanvas()->SetEnableZoomNoCenter( not m_enableZoomNoCenter->GetValue() );
+    m_Parent->GetCanvas()->SetEnableMousewheelPan( m_enableMousewheelPan->GetValue() );
+    m_Parent->GetCanvas()->SetEnableAutoPan( m_enableAutoPan->GetValue() );
+
     m_Parent->GetCanvas()->Refresh();
 }
 

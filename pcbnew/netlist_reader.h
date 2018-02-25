@@ -9,8 +9,8 @@
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
  * Copyright (C) 2012 Jean-Pierre Charras.
- * Copyright (C) 2013 Wayne Stambaugh <stambaughw@gmail.com>.
- * Copyright (C) 2012-2015 KiCad Developers, see CHANGELOG.TXT for contributors.
+ * Copyright (C) 2013-2017 Wayne Stambaugh <stambaughw@gmail.com>.
+ * Copyright (C) 2012-2017 KiCad Developers, see AUTHORS.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -34,7 +34,7 @@
 
 #include <fctsys.h>
 #include <macros.h>
-#include <fpid.h>
+#include <lib_id.h>
 
 #include <netlist_lexer.h>    // netlist_lexer is common to Eeschema and Pcbnew
 
@@ -100,7 +100,7 @@ public:
      * is not updated. This is an usual case, in CvPcb, but can be used to
      * print a warning in Pcbnew.
      */
-    bool Load( NETLIST* aNetlist ) throw( IO_ERROR, PARSE_ERROR );
+    bool Load( NETLIST* aNetlist );
 };
 
 
@@ -127,8 +127,9 @@ public:
 
     /**
      * Constructor
-     * @param aLineReader ownership is taken of this LINE_READER.
-     * @param aFootprintLinkReader ownership is taken of this CMP_READER.
+     * @param aLineReader ownership is taken of this #LINE_READER.
+     * @param aNetlist the #NETLIST object to read into.
+     * @param aFootprintLinkReader ownership is taken of this #CMP_READER.
      */
     NETLIST_READER( LINE_READER*  aLineReader,
                     NETLIST*      aNetlist,
@@ -170,8 +171,7 @@ public:
      */
     static NETLIST_READER* GetNetlistReader( NETLIST*        aNetlist,
                                              const wxString& aNetlistFileName,
-                                             const wxString& aCompFootprintFileName = wxEmptyString )
-        throw( IO_ERROR );
+                                             const wxString& aCompFootprintFileName = wxEmptyString );
 
     /**
      * Function LoadNetlist
@@ -180,7 +180,7 @@ public:
      * @throw IO_ERROR if a file IO error occurs.
      * @throw PARSE_ERROR if an error occurs while parsing the file.
      */
-    virtual void LoadNetlist() throw( IO_ERROR, PARSE_ERROR, boost::bad_pointer ) = 0;
+    virtual void LoadNetlist() = 0;
 
     /**
      * Function GetLineReader()
@@ -220,7 +220,7 @@ class LEGACY_NETLIST_READER : public NETLIST_READER
      * @return the new component created by parsing \a aLine
      * @throw PARSE_ERROR when \a aLine is not a valid component description.
      */
-    COMPONENT* loadComponent( char* aText ) throw( PARSE_ERROR, boost::bad_pointer );
+    COMPONENT* loadComponent( char* aText );
 
     /**
      * Function loadFootprintFilters
@@ -241,7 +241,7 @@ class LEGACY_NETLIST_READER : public NETLIST_READER
      * @throw IO_ERROR if a file IO error occurs.
      * @throw PARSE_ERROR if an error occurs while parsing the file.
      */
-    void loadFootprintFilters() throw( IO_ERROR, PARSE_ERROR );
+    void loadFootprintFilters();
 
     /**
      * Function loadNet
@@ -251,7 +251,7 @@ class LEGACY_NETLIST_READER : public NETLIST_READER
      * @param aComponent is the component to add the net to.
      * @throw PARSE_ERROR if a error occurs reading \a aText.
      */
-    void loadNet( char* aText, COMPONENT* aComponent ) throw( PARSE_ERROR );
+    void loadNet( char* aText, COMPONENT* aComponent );
 
 public:
 
@@ -283,7 +283,7 @@ public:
      * @throw IO_ERROR if a file IO error occurs.
      * @throw PARSE_ERROR if an error occurs while parsing the file.
      */
-    virtual void LoadNetlist() throw ( IO_ERROR, PARSE_ERROR, boost::bad_pointer );
+    virtual void LoadNetlist() override;
 };
 
 
@@ -303,7 +303,7 @@ private:
      * Skip the current token level, i.e
      * search for the RIGHT parenthesis which closes the current description
      */
-    void skipCurrent() throw( IO_ERROR, PARSE_ERROR );
+    void skipCurrent();
 
     /**
      * Function parseComponent
@@ -315,7 +315,7 @@ private:
      * (sheetpath (names /) (tstamps /))
      * (tstamp 3256759C))
      */
-    void parseComponent() throw( IO_ERROR, PARSE_ERROR, boost::bad_pointer );
+    void parseComponent();
 
     /**
      * Function parseNet
@@ -327,7 +327,7 @@ private:
      *
      * and set the corresponding pads netnames
      */
-    void parseNet() throw( IO_ERROR, PARSE_ERROR );
+    void parseNet();
 
     /**
      * Function parseLibPartList
@@ -351,7 +351,7 @@ private:
      *  <p>This section is used by CvPcb, and is not useful in Pcbnew,
      *  therefore it it not always read </p>
      */
-    void parseLibPartList() throw( IO_ERROR, PARSE_ERROR );
+    void parseLibPartList();
 
 
 public:
@@ -365,7 +365,7 @@ public:
      * Function Parse
      * parse the full netlist
      */
-    void Parse() throw( IO_ERROR, PARSE_ERROR, boost::bad_pointer );
+    void Parse();
 
     // Useful for debug only:
     const char* getTokenName( NL_T::T aTok )
@@ -397,7 +397,7 @@ public:
         delete m_parser;
     }
 
-    virtual void LoadNetlist() throw ( IO_ERROR, PARSE_ERROR, boost::bad_pointer );
+    virtual void LoadNetlist() override;
 };
 
 

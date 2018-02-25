@@ -2,7 +2,7 @@
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
  * Copyright (C) 2011 jean-pierre.charras
- * Copyright (C) 2011 KiCad Developers, see change_log.txt for contributors.
+ * Copyright (C) 2011-2017 KiCad Developers, see change_log.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -32,16 +32,17 @@
 
 
 #include <sch_item_struct.h>
-#include <class_bitmap_base.h>
+#include <bitmap_base.h>
 
+
+/**
+ * Object to handle a bitmap image that can be inserted in a schematic.
+ */
 
 class SCH_BITMAP : public SCH_ITEM
 {
-    wxPoint      m_Pos;                 // XY coordinates of center of the bitmap
-
-public:
-    BITMAP_BASE* m_Image;               // the BITMAP_BASE item
-
+    wxPoint      m_pos;                 // XY coordinates of center of the bitmap
+    BITMAP_BASE* m_image;               // the BITMAP_BASE item
 
 public:
     SCH_BITMAP( const wxPoint& pos = wxPoint( 0, 0 ) );
@@ -50,7 +51,7 @@ public:
 
     ~SCH_BITMAP()
     {
-        delete m_Image;
+        delete m_image;
     }
 
     SCH_ITEM& operator=( const SCH_ITEM& aItem );
@@ -58,11 +59,17 @@ public:
     /*
      * Accessors:
      */
-    double GetPixelScaleFactor() { return m_Image->GetPixelScaleFactor(); }
-    void SetPixelScaleFactor( double aSF ) { m_Image->SetPixelScaleFactor( aSF ); }
+    double GetPixelScaleFactor() const { return m_image->GetPixelScaleFactor(); }
+    void SetPixelScaleFactor( double aSF ) { m_image->SetPixelScaleFactor( aSF ); }
+
+    BITMAP_BASE* GetImage()
+    {
+        wxCHECK_MSG( m_image != NULL, NULL, "Invalid SCH_BITMAP initialization, m_image is NULL." );
+
+        return m_image;
+    }
 
     /**
-     * Function GetScalingFactor
      * @return the scaling factor from pixel size to actual draw size
      * this scaling factor  depend on m_pixelScaleFactor and m_Scale
      * m_pixelScaleFactor gives the scaling factor between a pixel size and
@@ -74,74 +81,69 @@ public:
      */
     double GetScalingFactor() const
     {
-        return m_Image->GetScalingFactor();
+        return m_image->GetScalingFactor();
     }
 
 
-    wxString GetClass() const
+    wxString GetClass() const override
     {
         return wxT( "SCH_BITMAP" );
     }
 
 
     /**
-     * Function GetSize
-     * @returns the actual size (in user units, not in pixels) of the image
+     * @return the actual size (in user units, not in pixels) of the image
      */
     wxSize GetSize() const;
 
-    const EDA_RECT GetBoundingBox() const;    // Virtual
+    const EDA_RECT GetBoundingBox() const override;
 
-    void SwapData( SCH_ITEM* aItem );
+    void SwapData( SCH_ITEM* aItem ) override;
 
     void Draw( EDA_DRAW_PANEL* aPanel, wxDC* aDC, const wxPoint& aOffset,
-               GR_DRAWMODE aDrawMode, EDA_COLOR_T aColor = UNSPECIFIED_COLOR );
+               GR_DRAWMODE aDrawMode, COLOR4D aColor = COLOR4D::UNSPECIFIED ) override;
 
     /**
-     * Function ReadImageFile
      * Reads and stores an image file. Init the bitmap used to draw this item
      * format.
+     *
      * @param aFullFilename The full filename of the image file to read.
      * @return bool - true if success reading else false.
      */
     bool ReadImageFile( const wxString& aFullFilename );
 
-    bool Save( FILE* aFile ) const;
-
-    bool Load( LINE_READER& aLine, wxString& aErrorMsg );
-
-    void Move( const wxPoint& aMoveVector )
+    void Move( const wxPoint& aMoveVector ) override
     {
-        m_Pos += aMoveVector;
+        m_pos += aMoveVector;
     }
 
 
-    void MirrorY( int aYaxis_position );
+    void MirrorY( int aYaxis_position ) override;
 
-    void MirrorX( int aXaxis_position );
+    void MirrorX( int aXaxis_position ) override;
 
-    void Rotate( wxPoint aPosition );
+    void Rotate( wxPoint aPosition ) override;
 
-    bool IsSelectStateChanged( const wxRect& aRect );
+    bool IsSelectStateChanged( const wxRect& aRect ) override;
 
-    wxString GetSelectMenuText() const { return wxString( _( "Image" ) ); }
+    wxString GetSelectMenuText() const override { return wxString( _( "Image" ) ); }
 
-    BITMAP_DEF GetMenuImage() const { return image_xpm; }
+    BITMAP_DEF GetMenuImage() const override;
 
-    wxPoint GetPosition() const { return m_Pos; }
+    wxPoint GetPosition() const override { return m_pos; }
 
-    void SetPosition( const wxPoint& aPosition ) { m_Pos = aPosition; }
+    void SetPosition( const wxPoint& aPosition ) override { m_pos = aPosition; }
 
-    bool HitTest( const wxPoint& aPosition, int aAccuracy ) const;
+    bool HitTest( const wxPoint& aPosition, int aAccuracy ) const override;
 
-    bool HitTest( const EDA_RECT& aRect, bool aContained = false, int aAccuracy = 0 ) const;
+    bool HitTest( const EDA_RECT& aRect, bool aContained = false, int aAccuracy = 0 ) const override;
 
-    void Plot( PLOTTER* aPlotter );
+    void Plot( PLOTTER* aPlotter ) override;
 
-    EDA_ITEM* Clone() const;
+    EDA_ITEM* Clone() const override;
 
 #if defined(DEBUG)
-    void Show( int nestLevel, std::ostream& os ) const;     // override
+    void Show( int nestLevel, std::ostream& os ) const override;
 #endif
 };
 

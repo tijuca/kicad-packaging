@@ -1,11 +1,12 @@
 ///////////////////////////////////////////////////////////////////////////
-// C++ code generated with wxFormBuilder (version Jun  5 2014)
+// C++ code generated with wxFormBuilder (version Aug  4 2017)
 // http://www.wxformbuilder.org/
 //
 // PLEASE DO "NOT" EDIT THIS FILE!
 ///////////////////////////////////////////////////////////////////////////
 
-#include "class_pcb_layer_box_selector.h"
+#include "pcb_layer_box_selector.h"
+#include "widgets/text_ctrl_eval.h"
 
 #include "dialog_graphic_item_properties_base.h"
 
@@ -21,62 +22,57 @@ DIALOG_GRAPHIC_ITEM_PROPERTIES_BASE::DIALOG_GRAPHIC_ITEM_PROPERTIES_BASE( wxWind
 	wxBoxSizer* bUpperSizer;
 	bUpperSizer = new wxBoxSizer( wxHORIZONTAL );
 	
-	wxFlexGridSizer* fgUpperLeftGridSizer;
-	fgUpperLeftGridSizer = new wxFlexGridSizer( 4, 3, 0, 0 );
-	fgUpperLeftGridSizer->AddGrowableCol( 1 );
-	fgUpperLeftGridSizer->SetFlexibleDirection( wxBOTH );
-	fgUpperLeftGridSizer->SetNonFlexibleGrowMode( wxFLEX_GROWMODE_SPECIFIED );
+	m_fgUpperLeftGridSizer = new wxFlexGridSizer( 4, 3, 0, 0 );
+	m_fgUpperLeftGridSizer->AddGrowableCol( 1 );
+	m_fgUpperLeftGridSizer->SetFlexibleDirection( wxBOTH );
+	m_fgUpperLeftGridSizer->SetNonFlexibleGrowMode( wxFLEX_GROWMODE_SPECIFIED );
 	
 	m_StartPointXLabel = new wxStaticText( this, wxID_ANY, _("Start point X:"), wxDefaultPosition, wxDefaultSize, 0 );
 	m_StartPointXLabel->Wrap( -1 );
-	fgUpperLeftGridSizer->Add( m_StartPointXLabel, 0, wxALIGN_CENTER_VERTICAL|wxALIGN_RIGHT|wxBOTTOM|wxLEFT|wxTOP, 5 );
+	m_fgUpperLeftGridSizer->Add( m_StartPointXLabel, 0, wxALIGN_CENTER_VERTICAL|wxALIGN_RIGHT|wxBOTTOM|wxLEFT|wxTOP, 5 );
 	
-	m_Center_StartXCtrl = new wxTextCtrl( this, wxID_ANY, wxEmptyString, wxDefaultPosition, wxDefaultSize, 0 );
-	m_Center_StartXCtrl->SetMaxLength( 0 ); 
-	fgUpperLeftGridSizer->Add( m_Center_StartXCtrl, 0, wxALIGN_CENTER_VERTICAL|wxBOTTOM|wxEXPAND|wxLEFT|wxTOP, 5 );
+	m_Center_StartXCtrl = new TEXT_CTRL_EVAL( this, wxID_ANY, wxEmptyString, wxDefaultPosition, wxDefaultSize, 0 );
+	m_fgUpperLeftGridSizer->Add( m_Center_StartXCtrl, 0, wxALIGN_CENTER_VERTICAL|wxBOTTOM|wxEXPAND|wxLEFT|wxTOP, 5 );
 	
 	m_StartPointXUnit = new wxStaticText( this, wxID_ANY, _("Unit"), wxDefaultPosition, wxDefaultSize, 0 );
 	m_StartPointXUnit->Wrap( -1 );
-	fgUpperLeftGridSizer->Add( m_StartPointXUnit, 0, wxALIGN_CENTER_VERTICAL|wxALL, 5 );
+	m_fgUpperLeftGridSizer->Add( m_StartPointXUnit, 0, wxALIGN_CENTER_VERTICAL|wxALL, 5 );
 	
 	m_StartPointYLabel = new wxStaticText( this, wxID_ANY, _("Start point Y:"), wxDefaultPosition, wxDefaultSize, 0 );
 	m_StartPointYLabel->Wrap( -1 );
-	fgUpperLeftGridSizer->Add( m_StartPointYLabel, 0, wxALIGN_CENTER_VERTICAL|wxALIGN_RIGHT|wxBOTTOM|wxLEFT|wxTOP, 5 );
+	m_fgUpperLeftGridSizer->Add( m_StartPointYLabel, 0, wxALIGN_CENTER_VERTICAL|wxALIGN_RIGHT|wxBOTTOM|wxLEFT|wxTOP, 5 );
 	
-	m_Center_StartYCtrl = new wxTextCtrl( this, wxID_ANY, wxEmptyString, wxDefaultPosition, wxDefaultSize, 0 );
-	m_Center_StartYCtrl->SetMaxLength( 0 ); 
-	fgUpperLeftGridSizer->Add( m_Center_StartYCtrl, 0, wxALIGN_CENTER_VERTICAL|wxBOTTOM|wxEXPAND|wxLEFT|wxTOP, 5 );
+	m_Center_StartYCtrl = new TEXT_CTRL_EVAL( this, wxID_ANY, wxEmptyString, wxDefaultPosition, wxDefaultSize, 0 );
+	m_fgUpperLeftGridSizer->Add( m_Center_StartYCtrl, 0, wxALIGN_CENTER_VERTICAL|wxBOTTOM|wxEXPAND|wxLEFT|wxTOP, 5 );
 	
 	m_StartPointYUnit = new wxStaticText( this, wxID_ANY, _("Unit"), wxDefaultPosition, wxDefaultSize, 0 );
 	m_StartPointYUnit->Wrap( -1 );
-	fgUpperLeftGridSizer->Add( m_StartPointYUnit, 0, wxALIGN_CENTER_VERTICAL|wxALL, 5 );
+	m_fgUpperLeftGridSizer->Add( m_StartPointYUnit, 0, wxALIGN_CENTER_VERTICAL|wxALL, 5 );
 	
 	m_EndPointXLabel = new wxStaticText( this, wxID_ANY, _("End point X:"), wxDefaultPosition, wxDefaultSize, 0 );
 	m_EndPointXLabel->Wrap( -1 );
-	fgUpperLeftGridSizer->Add( m_EndPointXLabel, 0, wxALIGN_CENTER_VERTICAL|wxALIGN_RIGHT|wxBOTTOM|wxLEFT|wxTOP, 5 );
+	m_fgUpperLeftGridSizer->Add( m_EndPointXLabel, 0, wxALIGN_CENTER_VERTICAL|wxALIGN_RIGHT|wxBOTTOM|wxLEFT|wxTOP, 5 );
 	
-	m_EndX_Radius_Ctrl = new wxTextCtrl( this, wxID_ANY, wxEmptyString, wxDefaultPosition, wxDefaultSize, 0 );
-	m_EndX_Radius_Ctrl->SetMaxLength( 0 ); 
-	fgUpperLeftGridSizer->Add( m_EndX_Radius_Ctrl, 0, wxALIGN_CENTER_VERTICAL|wxBOTTOM|wxEXPAND|wxLEFT|wxTOP, 5 );
+	m_EndX_Radius_Ctrl = new TEXT_CTRL_EVAL( this, wxID_ANY, wxEmptyString, wxDefaultPosition, wxDefaultSize, 0 );
+	m_fgUpperLeftGridSizer->Add( m_EndX_Radius_Ctrl, 0, wxALIGN_CENTER_VERTICAL|wxBOTTOM|wxEXPAND|wxLEFT|wxTOP, 5 );
 	
 	m_EndPointXUnit = new wxStaticText( this, wxID_ANY, _("Unit"), wxDefaultPosition, wxDefaultSize, 0 );
 	m_EndPointXUnit->Wrap( -1 );
-	fgUpperLeftGridSizer->Add( m_EndPointXUnit, 0, wxALIGN_CENTER_VERTICAL|wxALL, 5 );
+	m_fgUpperLeftGridSizer->Add( m_EndPointXUnit, 0, wxALIGN_CENTER_VERTICAL|wxALL, 5 );
 	
 	m_EndPointYLabel = new wxStaticText( this, wxID_ANY, _("End point Y:"), wxDefaultPosition, wxDefaultSize, 0 );
 	m_EndPointYLabel->Wrap( -1 );
-	fgUpperLeftGridSizer->Add( m_EndPointYLabel, 0, wxALIGN_CENTER_VERTICAL|wxALIGN_RIGHT|wxBOTTOM|wxLEFT|wxTOP, 5 );
+	m_fgUpperLeftGridSizer->Add( m_EndPointYLabel, 0, wxALIGN_CENTER_VERTICAL|wxALIGN_RIGHT|wxBOTTOM|wxLEFT|wxTOP, 5 );
 	
-	m_EndY_Ctrl = new wxTextCtrl( this, wxID_ANY, wxEmptyString, wxDefaultPosition, wxDefaultSize, 0 );
-	m_EndY_Ctrl->SetMaxLength( 0 ); 
-	fgUpperLeftGridSizer->Add( m_EndY_Ctrl, 0, wxALIGN_CENTER_VERTICAL|wxBOTTOM|wxEXPAND|wxLEFT|wxTOP, 5 );
+	m_EndY_Ctrl = new TEXT_CTRL_EVAL( this, wxID_ANY, wxEmptyString, wxDefaultPosition, wxDefaultSize, 0 );
+	m_fgUpperLeftGridSizer->Add( m_EndY_Ctrl, 0, wxALIGN_CENTER_VERTICAL|wxBOTTOM|wxEXPAND|wxLEFT|wxTOP, 5 );
 	
 	m_EndPointYUnit = new wxStaticText( this, wxID_ANY, _("Unit"), wxDefaultPosition, wxDefaultSize, 0 );
 	m_EndPointYUnit->Wrap( -1 );
-	fgUpperLeftGridSizer->Add( m_EndPointYUnit, 0, wxALIGN_CENTER_VERTICAL|wxBOTTOM|wxLEFT|wxRIGHT|wxTOP, 5 );
+	m_fgUpperLeftGridSizer->Add( m_EndPointYUnit, 0, wxALIGN_CENTER_VERTICAL|wxBOTTOM|wxLEFT|wxRIGHT|wxTOP, 5 );
 	
 	
-	bUpperSizer->Add( fgUpperLeftGridSizer, 1, wxEXPAND, 5 );
+	bUpperSizer->Add( m_fgUpperLeftGridSizer, 0, wxEXPAND, 5 );
 	
 	m_staticline2 = new wxStaticLine( this, wxID_ANY, wxDefaultPosition, wxDefaultSize, wxLI_VERTICAL );
 	bUpperSizer->Add( m_staticline2, 0, wxEXPAND | wxALL, 5 );
@@ -90,15 +86,14 @@ DIALOG_GRAPHIC_ITEM_PROPERTIES_BASE::DIALOG_GRAPHIC_ITEM_PROPERTIES_BASE( wxWind
 	fgUpperRightGridSizer->SetFlexibleDirection( wxBOTH );
 	fgUpperRightGridSizer->SetNonFlexibleGrowMode( wxFLEX_GROWMODE_SPECIFIED );
 	
-	m_Angle_Text = new wxStaticText( this, wxID_ANY, _("Arc angle:"), wxDefaultPosition, wxDefaultSize, 0 );
-	m_Angle_Text->Wrap( -1 );
-	fgUpperRightGridSizer->Add( m_Angle_Text, 0, wxALIGN_CENTER_VERTICAL|wxALIGN_RIGHT|wxBOTTOM|wxLEFT|wxTOP, 5 );
+	m_AngleText = new wxStaticText( this, wxID_ANY, _("Arc angle:"), wxDefaultPosition, wxDefaultSize, 0 );
+	m_AngleText->Wrap( -1 );
+	fgUpperRightGridSizer->Add( m_AngleText, 0, wxALIGN_CENTER_VERTICAL|wxALIGN_RIGHT|wxBOTTOM|wxLEFT|wxTOP, 5 );
 	
-	m_Angle_Ctrl = new wxTextCtrl( this, wxID_ANY, wxEmptyString, wxDefaultPosition, wxDefaultSize, 0 );
-	m_Angle_Ctrl->SetMaxLength( 0 ); 
-	fgUpperRightGridSizer->Add( m_Angle_Ctrl, 0, wxALIGN_CENTER_VERTICAL|wxBOTTOM|wxEXPAND|wxLEFT|wxTOP, 5 );
+	m_AngleCtrl = new TEXT_CTRL_EVAL( this, wxID_ANY, wxEmptyString, wxDefaultPosition, wxDefaultSize, 0 );
+	fgUpperRightGridSizer->Add( m_AngleCtrl, 0, wxALIGN_CENTER_VERTICAL|wxBOTTOM|wxEXPAND|wxLEFT|wxTOP, 5 );
 	
-	m_AngleUnit = new wxStaticText( this, wxID_ANY, _("0.1 degree"), wxDefaultPosition, wxDefaultSize, 0 );
+	m_AngleUnit = new wxStaticText( this, wxID_ANY, _("degrees"), wxDefaultPosition, wxDefaultSize, 0 );
 	m_AngleUnit->Wrap( -1 );
 	fgUpperRightGridSizer->Add( m_AngleUnit, 0, wxALIGN_CENTER_VERTICAL|wxALL, 5 );
 	
@@ -106,8 +101,7 @@ DIALOG_GRAPHIC_ITEM_PROPERTIES_BASE::DIALOG_GRAPHIC_ITEM_PROPERTIES_BASE( wxWind
 	m_ThicknessLabel->Wrap( -1 );
 	fgUpperRightGridSizer->Add( m_ThicknessLabel, 0, wxALIGN_CENTER_VERTICAL|wxALIGN_RIGHT|wxTOP|wxBOTTOM|wxLEFT, 5 );
 	
-	m_ThicknessCtrl = new wxTextCtrl( this, wxID_ANY, wxEmptyString, wxDefaultPosition, wxDefaultSize, 0 );
-	m_ThicknessCtrl->SetMaxLength( 0 ); 
+	m_ThicknessCtrl = new TEXT_CTRL_EVAL( this, wxID_ANY, wxEmptyString, wxDefaultPosition, wxDefaultSize, 0 );
 	fgUpperRightGridSizer->Add( m_ThicknessCtrl, 0, wxALIGN_CENTER_VERTICAL|wxBOTTOM|wxEXPAND|wxLEFT|wxTOP, 5 );
 	
 	m_ThicknessTextUnit = new wxStaticText( this, wxID_ANY, _("Unit"), wxDefaultPosition, wxDefaultSize, 0 );
@@ -118,8 +112,7 @@ DIALOG_GRAPHIC_ITEM_PROPERTIES_BASE::DIALOG_GRAPHIC_ITEM_PROPERTIES_BASE( wxWind
 	m_DefaultThicknessLabel->Wrap( -1 );
 	fgUpperRightGridSizer->Add( m_DefaultThicknessLabel, 0, wxALIGN_CENTER_VERTICAL|wxBOTTOM|wxLEFT|wxTOP, 5 );
 	
-	m_DefaultThicknessCtrl = new wxTextCtrl( this, wxID_ANY, wxEmptyString, wxDefaultPosition, wxDefaultSize, 0 );
-	m_DefaultThicknessCtrl->SetMaxLength( 0 ); 
+	m_DefaultThicknessCtrl = new TEXT_CTRL_EVAL( this, wxID_ANY, wxEmptyString, wxDefaultPosition, wxDefaultSize, 0 );
 	fgUpperRightGridSizer->Add( m_DefaultThicknessCtrl, 0, wxALIGN_CENTER_VERTICAL|wxBOTTOM|wxEXPAND|wxLEFT|wxTOP, 5 );
 	
 	m_DefaulThicknessTextUnit = new wxStaticText( this, wxID_ANY, _("Unit"), wxDefaultPosition, wxDefaultSize, 0 );
@@ -140,7 +133,7 @@ DIALOG_GRAPHIC_ITEM_PROPERTIES_BASE::DIALOG_GRAPHIC_ITEM_PROPERTIES_BASE( wxWind
 	bUpperRightSizer->Add( fgUpperRightGridSizer, 0, wxEXPAND, 5 );
 	
 	
-	bUpperSizer->Add( bUpperRightSizer, 1, wxEXPAND, 5 );
+	bUpperSizer->Add( bUpperRightSizer, 0, wxEXPAND, 5 );
 	
 	
 	bMainSizer->Add( bUpperSizer, 1, wxALL|wxEXPAND, 5 );
@@ -166,15 +159,13 @@ DIALOG_GRAPHIC_ITEM_PROPERTIES_BASE::DIALOG_GRAPHIC_ITEM_PROPERTIES_BASE( wxWind
 	
 	// Connect Events
 	this->Connect( wxEVT_CLOSE_WINDOW, wxCloseEventHandler( DIALOG_GRAPHIC_ITEM_PROPERTIES_BASE::OnClose ) );
-	m_StandardButtonsSizerCancel->Connect( wxEVT_COMMAND_BUTTON_CLICKED, wxCommandEventHandler( DIALOG_GRAPHIC_ITEM_PROPERTIES_BASE::OnCancelClick ), NULL, this );
-	m_StandardButtonsSizerOK->Connect( wxEVT_COMMAND_BUTTON_CLICKED, wxCommandEventHandler( DIALOG_GRAPHIC_ITEM_PROPERTIES_BASE::OnOkClick ), NULL, this );
+	this->Connect( wxEVT_INIT_DIALOG, wxInitDialogEventHandler( DIALOG_GRAPHIC_ITEM_PROPERTIES_BASE::OnInitDlg ) );
 }
 
 DIALOG_GRAPHIC_ITEM_PROPERTIES_BASE::~DIALOG_GRAPHIC_ITEM_PROPERTIES_BASE()
 {
 	// Disconnect Events
 	this->Disconnect( wxEVT_CLOSE_WINDOW, wxCloseEventHandler( DIALOG_GRAPHIC_ITEM_PROPERTIES_BASE::OnClose ) );
-	m_StandardButtonsSizerCancel->Disconnect( wxEVT_COMMAND_BUTTON_CLICKED, wxCommandEventHandler( DIALOG_GRAPHIC_ITEM_PROPERTIES_BASE::OnCancelClick ), NULL, this );
-	m_StandardButtonsSizerOK->Disconnect( wxEVT_COMMAND_BUTTON_CLICKED, wxCommandEventHandler( DIALOG_GRAPHIC_ITEM_PROPERTIES_BASE::OnOkClick ), NULL, this );
+	this->Disconnect( wxEVT_INIT_DIALOG, wxInitDialogEventHandler( DIALOG_GRAPHIC_ITEM_PROPERTIES_BASE::OnInitDlg ) );
 	
 }

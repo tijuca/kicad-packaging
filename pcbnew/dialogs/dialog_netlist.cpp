@@ -6,7 +6,7 @@
 /*
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
- * Copyright (C) 1992-2013 KiCad Developers, see change_log.txt for contributors.
+ * Copyright (C) 1992-2017 KiCad Developers, see change_log.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -34,16 +34,16 @@
 #include <dialog_helpers.h>
 #include <html_messagebox.h>
 #include <base_units.h>
-#include <wxPcbStruct.h>
+#include <pcb_edit_frame.h>
 #include <pcb_netlist.h>
 #include <netlist_reader.h>
 #include <reporter.h>
+#include <bitmaps.h>
 
-#include <pcbnew_config.h>
-#include <class_board_design_settings.h>
+#include <board_design_settings.h>
 #include <class_board.h>
 #include <class_module.h>
-#include <ratsnest_data.h>
+#include <connectivity_data.h>
 #include <wildcards_and_files_ext.h>
 
 #include <dialog_netlist.h>
@@ -84,7 +84,7 @@ void PCB_EDIT_FRAME::InstallNetlistFrame( wxDC* DC )
     if( configChanged && !GetBoard()->GetFileName().IsEmpty()
       && IsOK( NULL, _( "The project configuration has changed.  Do you want to save it?" ) ) )
     {
-        wxFileName fn = Prj().AbsolutePath( GetBoard()->GetFileName() );
+        fn = Prj().AbsolutePath( GetBoard()->GetFileName() );
         fn.SetExt( ProjectFileExtension );
 
         wxString pro_name = fn.GetFullPath();
@@ -106,6 +106,7 @@ DIALOG_NETLIST::DIALOG_NETLIST( PCB_EDIT_FRAME* aParent, wxDC * aDC,
     m_silentMode = m_config->Read( NETLIST_SILENTMODE_KEY, 0l );
     bool tmp = m_config->Read( NETLIST_DELETESINGLEPADNETS_KEY, 0l );
     m_rbSingleNets->SetSelection( tmp == 0 ? 0 : 1);
+    m_browseButton->SetBitmap( KiBitmap( browse_files_xpm ) );
     m_NetlistFilenameCtrl->SetValue( aNetlistFullFilename );
     m_checkBoxSilentMode->SetValue( m_silentMode );
 
@@ -113,12 +114,8 @@ DIALOG_NETLIST::DIALOG_NETLIST( PCB_EDIT_FRAME* aParent, wxDC * aDC,
     m_MessageWindow->SetVisibleSeverities( severities );
 
     // Update sizes and sizers:
-    m_MessageWindow->MsgPanelSetMinSize( wxSize( -1, 150 ) );
-
-    FixOSXCancelButtonIssue();
-
-    // Now all widgets have the size fixed, call FinishDialogSettings
-    FinishDialogSettings();
+    m_MessageWindow->MsgPanelSetMinSize( wxSize( -1, 160 ) );
+    GetSizer()->SetSizeHints( this );
 }
 
 DIALOG_NETLIST::~DIALOG_NETLIST()
@@ -152,7 +149,7 @@ void DIALOG_NETLIST::OnOpenNetlistClick( wxCommandEvent& event )
                 GetChars( lastPath ), GetChars( lastNetlistRead ) );
 
     wxFileDialog FilesDialog( this, _( "Select Netlist" ), lastPath, lastNetlistRead,
-                              NetlistFileWildcard, wxFD_DEFAULT_STYLE | wxFD_FILE_MUST_EXIST );
+                              NetlistFileWildcard(), wxFD_DEFAULT_STYLE | wxFD_FILE_MUST_EXIST );
 
     if( FilesDialog.ShowModal() != wxID_OK )
         return;
@@ -334,10 +331,8 @@ void DIALOG_NETLIST::OnTestFootprintsClick( wxCommandEvent& event )
 void DIALOG_NETLIST::OnCompileRatsnestClick( wxCommandEvent& event )
 {
     // Rebuild the board connectivity:
-    if( m_parent->IsGalCanvasActive() )
-        m_parent->GetBoard()->GetRatsnest()->ProcessBoard();
-
-    m_parent->Compile_Ratsnest( m_dc, true );
+    auto board = m_parent->GetBoard();
+	board->GetConnectivity()->RecalculateRatsnest();
 }
 
 
@@ -348,51 +343,6 @@ void DIALOG_NETLIST::OnCompileRatsnestClick( wxCommandEvent& event )
 void DIALOG_NETLIST::OnCancelClick( wxCommandEvent& event )
 {
     EndModal( wxID_CANCEL );
-}
-
-
-void DIALOG_NETLIST::OnSaveMessagesToFile( wxCommandEvent& aEvent )
-{
-    wxFileName fn;
-
-    if( !m_parent->GetLastNetListRead().IsEmpty() )
-    {
-        fn = m_parent->GetLastNetListRead();
-        fn.SetExt( wxT( "txt" ) );
-    }
-    else
-    {
-        fn = wxPathOnly( Prj().GetProjectFullName() );
-    }
-
-    wxFileDialog dlg( this, _( "Save contents of message window" ), fn.GetPath(), fn.GetName(),
-                      TextWildcard, wxFD_SAVE | wxFD_OVERWRITE_PROMPT );
-
-    if( dlg.ShowModal() != wxID_OK )
-        return;
-
-    fn = dlg.GetPath();
-
-    if( fn.GetExt().IsEmpty() )
-        fn.SetExt( wxT( "txt" ) );
-
-    wxFile f( fn.GetFullPath(), wxFile::write );
-
-    if( !f.IsOpened() )
-    {
-        wxString msg;
-
-        msg.Printf( _( "Cannot write message contents to file \"%s\"." ),
-                    GetChars( fn.GetFullPath() ) );
-        wxMessageBox( msg, _( "File Write Error" ), wxOK | wxICON_ERROR, this );
-        return;
-    }
-}
-
-
-void DIALOG_NETLIST::OnUpdateUISaveMessagesToFile( wxUpdateUIEvent& aEvent )
-{
-    //aEvent.Enable( !m_MessageWindow->IsEmpty() );
 }
 
 
@@ -428,12 +378,12 @@ bool DIALOG_NETLIST::verifyFootprints( const wxString&         aNetlistFilename,
             return false;
         }
 
-        std::auto_ptr< NETLIST_READER > nlr( netlistReader );
+        std::unique_ptr< NETLIST_READER > nlr( netlistReader );
         netlistReader->LoadNetlist();
     }
     catch( const IO_ERROR& ioe )
     {
-        msg.Printf( _( "Error loading netlist file:\n%s" ), ioe.errorText.GetData() );
+        msg.Printf( _( "Error loading netlist file:\n%s" ), ioe.What().GetData() );
         wxMessageBox( msg, _( "Netlist Load Error" ), wxOK | wxICON_ERROR );
         return false;
     }

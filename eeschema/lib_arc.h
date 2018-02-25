@@ -2,7 +2,7 @@
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
  * Copyright (C) 2004 Jean-Pierre Charras, jaen-pierre.charras@gipsa-lab.inpg.com
- * Copyright (C) 2004-2011 KiCad Developers, see change_log.txt for contributors.
+ * Copyright (C) 2004-2017 KiCad Developers, see change_log.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -61,13 +61,13 @@ class LIB_ARC : public LIB_ITEM
      * Draws the arc.
      */
     void drawGraphic( EDA_DRAW_PANEL* aPanel, wxDC* aDC, const wxPoint& aOffset,
-                      EDA_COLOR_T aColor, GR_DRAWMODE aDrawMode, void* aData,
-                      const TRANSFORM& aTransform );
+                      COLOR4D aColor, GR_DRAWMODE aDrawMode, void* aData,
+                      const TRANSFORM& aTransform ) override;
 
     /**
      * Draw the graphics when the arc is being edited.
      */
-    void drawEditGraphics( EDA_RECT* aClipBox, wxDC* aDC, EDA_COLOR_T aColor );
+    void drawEditGraphics( EDA_RECT* aClipBox, wxDC* aDC, COLOR4D aColor ) override;
 
     /**
      * Calculates the center, radius, and angles at \a aPosition when the arc is being edited.
@@ -76,12 +76,8 @@ class LIB_ARC : public LIB_ITEM
      *
      * @param aPosition - The current mouse position in drawing coordinates.
      */
-    void calcEdit( const wxPoint& aPosition );
+    void calcEdit( const wxPoint& aPosition ) override;
 
-    /**
-     * Calculate the radius and angle of an arc using the start, end, and center points.
-     */
-    void calcRadiusAngles();
 
 public:
     LIB_ARC( LIB_PART * aParent );
@@ -90,58 +86,84 @@ public:
 
     ~LIB_ARC() { }
 
-    wxString GetClass() const
+    wxString GetClass() const override
     {
         return wxT( "LIB_ARC" );
     }
 
+    wxString GetTypeName() override
+    {
+        return _( "Arc" );
+    }
 
-    bool Save( OUTPUTFORMATTER& aFormatter );
+    bool HitTest( const wxPoint& aPosition ) const override;
 
-    bool Load( LINE_READER& aLineReader, wxString& aErrorMsg );
+    bool HitTest( const wxPoint& aPosition, int aThreshold, const TRANSFORM& aTransform ) const override;
 
-    bool HitTest( const wxPoint& aPosition ) const;
+    const EDA_RECT GetBoundingBox() const override;
 
-    bool HitTest( const wxPoint& aPosition, int aThreshold, const TRANSFORM& aTransform ) const;
+    void GetMsgPanelInfo( std::vector< MSG_PANEL_ITEM >& aList ) override;
 
-    const EDA_RECT GetBoundingBox() const;  // Virtual
+    int GetPenSize() const override;
 
-    void GetMsgPanelInfo( std::vector< MSG_PANEL_ITEM >& aList );
+    void BeginEdit( STATUS_FLAGS aEditMode, const wxPoint aStartPoint = wxPoint( 0, 0 ) ) override;
 
-    int GetPenSize() const;
+    bool ContinueEdit( const wxPoint aNextPoint ) override;
 
-    void BeginEdit( STATUS_FLAGS aEditMode, const wxPoint aStartPoint = wxPoint( 0, 0 ) );
+    void EndEdit( const wxPoint& aPosition, bool aAbort = false ) override;
 
-    bool ContinueEdit( const wxPoint aNextPoint );
+    void SetOffset( const wxPoint& aOffset ) override;
 
-    void EndEdit( const wxPoint& aPosition, bool aAbort = false );
+    bool Inside( EDA_RECT& aRect ) const override;
 
-    void SetOffset( const wxPoint& aOffset );
+    void Move( const wxPoint& aPosition ) override;
 
-    bool Inside( EDA_RECT& aRect ) const;
+    wxPoint GetPosition() const override { return m_Pos; }
 
-    void Move( const wxPoint& aPosition );
+    void MirrorHorizontal( const wxPoint& aCenter ) override;
 
-    wxPoint GetPosition() const { return m_Pos; }
+    void MirrorVertical( const wxPoint& aCenter ) override;
 
-    void MirrorHorizontal( const wxPoint& aCenter );
-
-    void MirrorVertical( const wxPoint& aCenter );
-
-    void Rotate( const wxPoint& aCenter, bool aRotateCCW = true );
+    void Rotate( const wxPoint& aCenter, bool aRotateCCW = true ) override;
 
     void Plot( PLOTTER* aPlotter, const wxPoint& aOffset, bool aFill,
-               const TRANSFORM& aTransform );
+               const TRANSFORM& aTransform ) override;
 
-    int GetWidth() const { return m_Width; }
+    int GetWidth() const override { return m_Width; }
 
-    void SetWidth( int aWidth ) { m_Width = aWidth; }
+    void SetWidth( int aWidth ) override { m_Width = aWidth; }
 
-    wxString GetSelectMenuText() const;
+    void SetRadius( int aRadius ) { m_Radius = aRadius; }
 
-    BITMAP_DEF GetMenuImage() const { return  add_arc_xpm; }
+    int GetRadius() const { return m_Radius; }
 
-    EDA_ITEM* Clone() const;
+    void SetFirstRadiusAngle( int aAngle ) { m_t1 = aAngle; }
+
+    int GetFirstRadiusAngle() const { return m_t1; }
+
+    void SetSecondRadiusAngle( int aAngle ) { m_t2 = aAngle; }
+
+    int GetSecondRadiusAngle() const { return m_t2; }
+
+    wxPoint GetStart() const { return m_ArcStart; }
+
+    void SetStart( const wxPoint& aPoint ) { m_ArcStart = aPoint; }
+
+    wxPoint GetEnd() const { return m_ArcEnd; }
+
+    void SetEnd( const wxPoint& aPoint ) { m_ArcEnd = aPoint; }
+
+    /**
+     * Calculate the radius and angle of an arc using the start, end, and center points.
+     */
+    void CalcRadiusAngles();
+
+
+    wxString GetSelectMenuText() const override;
+
+    BITMAP_DEF GetMenuImage() const override;
+
+    EDA_ITEM* Clone() const override;
 
 private:
 
@@ -154,7 +176,7 @@ private:
      *      - Arc start angle.
      *      - Arc end angle.
      */
-    int compare( const LIB_ITEM& aOther ) const;
+    int compare( const LIB_ITEM& aOther ) const override;
 };
 
 

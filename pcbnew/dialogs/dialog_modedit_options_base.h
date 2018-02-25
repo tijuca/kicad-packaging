@@ -1,5 +1,5 @@
 ///////////////////////////////////////////////////////////////////////////
-// C++ code generated with wxFormBuilder (version Jun  5 2014)
+// C++ code generated with wxFormBuilder (version Aug  4 2017)
 // http://www.wxformbuilder.org/
 //
 // PLEASE DO "NOT" EDIT THIS FILE!
@@ -12,6 +12,7 @@
 #include <wx/xrc/xmlres.h>
 #include <wx/intl.h>
 class DIALOG_SHIM;
+class TEXT_CTRL_EVAL;
 
 #include "dialog_shim.h"
 #include <wx/string.h>
@@ -24,7 +25,6 @@ class DIALOG_SHIM;
 #include <wx/sizer.h>
 #include <wx/statline.h>
 #include <wx/choice.h>
-#include <wx/spinctrl.h>
 #include <wx/button.h>
 #include <wx/dialog.h>
 
@@ -41,16 +41,16 @@ class DIALOG_MODEDIT_OPTIONS_BASE : public DIALOG_SHIM
 	protected:
 		wxStaticText* m_staticText281;
 		wxStaticText* m_EdgeModEWidthTitle;
-		wxTextCtrl* m_OptModuleGrLineWidth;
+		TEXT_CTRL_EVAL* m_OptModuleGrLineWidth;
 		wxStaticText* m_staticTextGrLineUnit;
 		wxStaticText* m_TextModWidthTitle;
-		wxTextCtrl* m_OptModuleTextWidth;
+		TEXT_CTRL_EVAL* m_OptModuleTextWidth;
 		wxStaticText* m_staticTextTextWidthUnit;
 		wxStaticText* m_TextModSizeVTitle;
-		wxTextCtrl* m_OptModuleTextVSize;
+		TEXT_CTRL_EVAL* m_OptModuleTextVSize;
 		wxStaticText* m_staticTextTextVSizeUnit;
 		wxStaticText* m_TextModSizeHTitle;
-		wxTextCtrl* m_OptModuleTextHSize;
+		TEXT_CTRL_EVAL* m_OptModuleTextHSize;
 		wxStaticText* m_staticTextTextHSizeUnit;
 		wxStaticLine* m_staticline1;
 		wxStaticText* m_staticText28;
@@ -67,11 +67,6 @@ class DIALOG_MODEDIT_OPTIONS_BASE : public DIALOG_SHIM
 		wxChoice* m_choiceLayerValue;
 		wxStaticText* m_staticTextValVisibility;
 		wxChoice* m_choiceVisibleValue;
-		wxStaticLine* m_staticline2;
-		wxStaticText* m_stGeneral;
-		wxStaticText* m_stMaxUndoItems;
-		wxSpinCtrl* m_spinMaxUndoItems;
-		wxStaticText* m_stMaxUndoItemsUnit;
 		wxStdDialogButtonSizer* m_sdbSizer1;
 		wxButton* m_sdbSizer1OK;
 		wxButton* m_sdbSizer1Cancel;

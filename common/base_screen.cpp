@@ -33,7 +33,7 @@
 #include <macros.h>
 #include <common.h>
 #include <base_struct.h>
-#include <class_base_screen.h>
+#include <base_screen.h>
 #include <id.h>
 #include <base_units.h>
 
@@ -185,7 +185,7 @@ int BASE_SCREEN::BuildGridsChoiceList( wxArrayString& aGridsList, bool aMmFirst)
 
         if( grid.m_CmdId == ID_POPUP_GRID_USER )
         {
-            msg = _( "User Grid" );
+            msg = _( "Custom User Grid" );
             idx_usergrid = i;
         }
         else

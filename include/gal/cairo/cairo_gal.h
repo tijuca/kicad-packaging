@@ -33,8 +33,9 @@
 #include <cairo.h>
 
 #include <gal/graphics_abstraction_layer.h>
-#include <boost/smart_ptr/shared_ptr.hpp>
 #include <wx/dcbuffer.h>
+
+#include <memory>
 
 #if defined(__WXMSW__)
 #define SCREEN_DEPTH 24
@@ -80,162 +81,174 @@ public:
      *
      * @param aName is the name of this window for use by wxWindow::FindWindowByName()
      */
-    CAIRO_GAL( wxWindow* aParent, wxEvtHandler* aMouseListener = NULL,
+    CAIRO_GAL( GAL_DISPLAY_OPTIONS& aDisplayOptions,
+               wxWindow* aParent, wxEvtHandler* aMouseListener = NULL,
                wxEvtHandler* aPaintListener = NULL, const wxString& aName = wxT( "CairoCanvas" ) );
 
     virtual ~CAIRO_GAL();
+
+    ///> @copydoc GAL::IsVisible()
+    bool IsVisible() const override {
+        return IsShownOnScreen();
+    }
 
     // ---------------
     // Drawing methods
     // ---------------
 
     /// @copydoc GAL::BeginDrawing()
-    virtual void BeginDrawing();
+    virtual void BeginDrawing() override;
 
     /// @copydoc GAL::EndDrawing()
-    virtual void EndDrawing();
+    virtual void EndDrawing() override;
 
     /// @copydoc GAL::DrawLine()
-    virtual void DrawLine( const VECTOR2D& aStartPoint, const VECTOR2D& aEndPoint );
+    virtual void DrawLine( const VECTOR2D& aStartPoint, const VECTOR2D& aEndPoint ) override;
 
     /// @copydoc GAL::DrawSegment()
-    virtual void DrawSegment( const VECTOR2D& aStartPoint, const VECTOR2D& aEndPoint, double aWidth );
+    virtual void DrawSegment( const VECTOR2D& aStartPoint, const VECTOR2D& aEndPoint, double aWidth ) override;
 
     /// @copydoc GAL::DrawCircle()
-    virtual void DrawCircle( const VECTOR2D& aCenterPoint, double aRadius );
+    virtual void DrawCircle( const VECTOR2D& aCenterPoint, double aRadius ) override;
 
     /// @copydoc GAL::DrawArc()
     virtual void DrawArc( const VECTOR2D& aCenterPoint, double aRadius,
-                          double aStartAngle, double aEndAngle );
+                          double aStartAngle, double aEndAngle ) override;
+
+    /// @copydoc GAL::DrawArcSegment()
+    virtual void DrawArcSegment( const VECTOR2D& aCenterPoint, double aRadius,
+                                 double aStartAngle, double aEndAngle, double aWidth ) override;
 
     /// @copydoc GAL::DrawRectangle()
-    virtual void DrawRectangle( const VECTOR2D& aStartPoint, const VECTOR2D& aEndPoint );
+    virtual void DrawRectangle( const VECTOR2D& aStartPoint, const VECTOR2D& aEndPoint ) override;
 
     /// @copydoc GAL::DrawPolyline()
-    virtual void DrawPolyline( const std::deque<VECTOR2D>& aPointList ) { drawPoly( aPointList ); }
-    virtual void DrawPolyline( const VECTOR2D aPointList[], int aListSize ) { drawPoly( aPointList, aListSize ); }
+    virtual void DrawPolyline( const std::deque<VECTOR2D>& aPointList ) override { drawPoly( aPointList ); }
+    virtual void DrawPolyline( const VECTOR2D aPointList[], int aListSize ) override { drawPoly( aPointList, aListSize ); }
+    virtual void DrawPolyline( const SHAPE_LINE_CHAIN& aLineChain ) override { drawPoly( aLineChain ); }
 
     /// @copydoc GAL::DrawPolygon()
-    virtual void DrawPolygon( const std::deque<VECTOR2D>& aPointList ) { drawPoly( aPointList ); }
-    virtual void DrawPolygon( const VECTOR2D aPointList[], int aListSize ) { drawPoly( aPointList, aListSize ); }
+    virtual void DrawPolygon( const std::deque<VECTOR2D>& aPointList ) override { drawPoly( aPointList ); }
+    virtual void DrawPolygon( const VECTOR2D aPointList[], int aListSize ) override { drawPoly( aPointList, aListSize ); }
+    virtual void DrawPolygon( const SHAPE_POLY_SET& aPolySet ) override;
 
     /// @copydoc GAL::DrawCurve()
     virtual void DrawCurve( const VECTOR2D& startPoint, const VECTOR2D& controlPointA,
-                            const VECTOR2D& controlPointB, const VECTOR2D& endPoint );
+                            const VECTOR2D& controlPointB, const VECTOR2D& endPoint ) override;
 
     // --------------
     // Screen methods
     // --------------
 
     /// @brief Resizes the canvas.
-    virtual void ResizeScreen( int aWidth, int aHeight );
+    virtual void ResizeScreen( int aWidth, int aHeight ) override;
 
     /// @brief Shows/hides the GAL canvas
-    virtual bool Show( bool aShow );
+    virtual bool Show( bool aShow ) override;
 
     /// @copydoc GAL::Flush()
-    virtual void Flush();
+    virtual void Flush() override;
 
     /// @copydoc GAL::ClearScreen()
-    virtual void ClearScreen( const COLOR4D& aColor );
+    virtual void ClearScreen( ) override;
 
     // -----------------
     // Attribute setting
     // -----------------
 
     /// @copydoc GAL::SetIsFill()
-    virtual void SetIsFill( bool aIsFillEnabled );
+    virtual void SetIsFill( bool aIsFillEnabled ) override;
 
     /// @copydoc GAL::SetIsStroke()
-    virtual void SetIsStroke( bool aIsStrokeEnabled );
+    virtual void SetIsStroke( bool aIsStrokeEnabled ) override;
 
     /// @copydoc GAL::SetStrokeColor()
-    virtual void SetStrokeColor( const COLOR4D& aColor );
+    virtual void SetStrokeColor( const COLOR4D& aColor ) override;
 
     /// @copydoc GAL::SetFillColor()
-    virtual void SetFillColor( const COLOR4D& aColor );
+    virtual void SetFillColor( const COLOR4D& aColor ) override;
 
     /// @copydoc GAL::SetLineWidth()
-    virtual void SetLineWidth( double aLineWidth );
+    virtual void SetLineWidth( double aLineWidth ) override;
 
     /// @copydoc GAL::SetLayerDepth()
-    virtual void SetLayerDepth( double aLayerDepth );
+    virtual void SetLayerDepth( double aLayerDepth ) override;
 
     // --------------
     // Transformation
     // --------------
 
     /// @copydoc GAL::Transform()
-    virtual void Transform( const MATRIX3x3D& aTransformation );
+    virtual void Transform( const MATRIX3x3D& aTransformation ) override;
 
     /// @copydoc GAL::Rotate()
-    virtual void Rotate( double aAngle );
+    virtual void Rotate( double aAngle ) override;
 
     /// @copydoc GAL::Translate()
-    virtual void Translate( const VECTOR2D& aTranslation );
+    virtual void Translate( const VECTOR2D& aTranslation ) override;
 
     /// @copydoc GAL::Scale()
-    virtual void Scale( const VECTOR2D& aScale );
+    virtual void Scale( const VECTOR2D& aScale ) override;
 
     /// @copydoc GAL::Save()
-    virtual void Save();
+    virtual void Save() override;
 
     /// @copydoc GAL::Restore()
-    virtual void Restore();
+    virtual void Restore() override;
 
     // --------------------------------------------
     // Group methods
     // ---------------------------------------------
 
     /// @copydoc GAL::BeginGroup()
-    virtual int BeginGroup();
+    virtual int BeginGroup() override;
 
     /// @copydoc GAL::EndGroup()
-    virtual void EndGroup();
+    virtual void EndGroup() override;
 
     /// @copydoc GAL::DrawGroup()
-    virtual void DrawGroup( int aGroupNumber );
+    virtual void DrawGroup( int aGroupNumber ) override;
 
     /// @copydoc GAL::ChangeGroupColor()
-    virtual void ChangeGroupColor( int aGroupNumber, const COLOR4D& aNewColor );
+    virtual void ChangeGroupColor( int aGroupNumber, const COLOR4D& aNewColor ) override;
 
     /// @copydoc GAL::ChangeGroupDepth()
-    virtual void ChangeGroupDepth( int aGroupNumber, int aDepth );
+    virtual void ChangeGroupDepth( int aGroupNumber, int aDepth ) override;
 
     /// @copydoc GAL::DeleteGroup()
-    virtual void DeleteGroup( int aGroupNumber );
+    virtual void DeleteGroup( int aGroupNumber ) override;
 
     /// @copydoc GAL::ClearCache()
-    virtual void ClearCache();
+    virtual void ClearCache() override;
 
     // --------------------------------------------------------
     // Handling the world <-> screen transformation
     // --------------------------------------------------------
 
     /// @copydoc GAL::SaveScreen()
-    virtual void SaveScreen();
+    virtual void SaveScreen() override;
 
     /// @copydoc GAL::RestoreScreen()
-    virtual void RestoreScreen();
+    virtual void RestoreScreen() override;
 
     /// @copydoc GAL::SetTarget()
-    virtual void SetTarget( RENDER_TARGET aTarget );
+    virtual void SetTarget( RENDER_TARGET aTarget ) override;
 
     /// @copydoc GAL::GetTarget()
-    virtual RENDER_TARGET GetTarget() const;
+    virtual RENDER_TARGET GetTarget() const override;
 
     /// @copydoc GAL::ClearTarget()
-    virtual void ClearTarget( RENDER_TARGET aTarget );
+    virtual void ClearTarget( RENDER_TARGET aTarget ) override;
+
+    /// @copydoc GAL::SetNegativeDrawMode()
+    virtual void SetNegativeDrawMode( bool aSetting ) override;
 
     // -------
     // Cursor
     // -------
 
-    /// @copydoc GAL::SetCursorSize()
-    virtual void SetCursorSize( unsigned int aCursorSize );
-
     /// @copydoc GAL::DrawCursor()
-    virtual void DrawCursor( const VECTOR2D& aCursorPosition );
+    virtual void DrawCursor( const VECTOR2D& aCursorPosition ) override;
 
     /**
      * Function PostPaint
@@ -262,14 +275,14 @@ public:
     }
 
 protected:
-    virtual void drawGridLine( const VECTOR2D& aStartPoint, const VECTOR2D& aEndPoint );
+    virtual void drawGridLine( const VECTOR2D& aStartPoint, const VECTOR2D& aEndPoint ) override;
 
 private:
     /// Super class definition
     typedef GAL super;
 
     // Compositing variables
-    boost::shared_ptr<CAIRO_COMPOSITOR> compositor; ///< Object for layers compositing
+    std::shared_ptr<CAIRO_COMPOSITOR> compositor;   ///< Object for layers compositing
     unsigned int            mainBuffer;             ///< Handle to the main buffer
     unsigned int            overlayBuffer;          ///< Handle to the overlay buffer
     RENDER_TARGET           currentTarget;          ///< Current rendering target
@@ -282,15 +295,8 @@ private:
     unsigned int            bufferSize;             ///< Size of buffers cairoOutput, bitmapBuffers
     unsigned char*          wxOutput;               ///< wxImage comaptible buffer
 
-    // Cursor variables
-    std::deque<wxColour>    savedCursorPixels;      ///< Saved pixels of the cursor
-    bool                    isDeleteSavedPixels;    ///< True, if the saved pixels can be discarded
-    wxPoint                 savedCursorPosition;    ///< The last cursor position
-    wxBitmap*               cursorPixels;           ///< Cursor pixels
-    wxBitmap*               cursorPixelsSaved;      ///< Saved cursor pixels
-
     /// Maximum number of arguments for one command
-    static const int MAX_CAIRO_ARGUMENTS = 6;
+    static const int MAX_CAIRO_ARGUMENTS = 4;
 
     /// Definitions for the command recorder
     enum GRAPHICS_COMMAND
@@ -302,7 +308,7 @@ private:
         CMD_SET_LINE_WIDTH,                         ///< Set the line width
         CMD_STROKE_PATH,                            ///< Set the stroke path
         CMD_FILL_PATH,                              ///< Set the fill path
-        CMD_TRANSFORM,                              ///< Transform the actual context
+        //CMD_TRANSFORM,                              ///< Transform the actual context
         CMD_ROTATE,                                 ///< Rotate the context
         CMD_TRANSLATE,                              ///< Translate the context
         CMD_SCALE,                                  ///< Scale the context
@@ -315,9 +321,11 @@ private:
     typedef struct
     {
         GRAPHICS_COMMAND command;                   ///< Command to execute
-        double arguments[MAX_CAIRO_ARGUMENTS];      ///< Arguments for Cairo commands
-        bool boolArgument;                          ///< A bool argument
-        int intArgument;                            ///< An int argument
+        union {
+            double dblArg[MAX_CAIRO_ARGUMENTS];     ///< Arguments for Cairo commands
+            bool boolArg;                           ///< A bool argument
+            int intArg;                             ///< An int argument
+        } argument;
         cairo_path_t* cairoPath;                    ///< Pointer to a Cairo path
     } GROUP_ELEMENT;
 
@@ -340,6 +348,12 @@ private:
     bool                isInitialized;          ///< Are Cairo image & surface ready to use
     COLOR4D             backgroundColor;        ///< Background color
 
+    int wxBufferWidth;
+
+    ///> Cairo-specific update handlers
+    bool updatedGalDisplayOptions( const GAL_DISPLAY_OPTIONS& aOptions ) override;
+
+    void flushPath();
     // Methods
     void storePath();                           ///< Store the actual path
 
@@ -359,14 +373,9 @@ private:
     void skipMouseEvent( wxMouseEvent& aEvent );
 
     /**
-     * @brief Prepares cursor bitmap.
-     */
-    virtual void initCursor();
-
-    /**
      * @brief Blits cursor into the current screen.
      */
-    virtual void blitCursor( wxBufferedDC& clientDC );
+    virtual void blitCursor( wxMemoryDC& clientDC );
 
     /// Prepare Cairo surfaces for drawing
     void initSurface();
@@ -386,6 +395,7 @@ private:
     /// Drawing polygons & polylines is the same in cairo, so here is the common code
     void drawPoly( const std::deque<VECTOR2D>& aPointList );
     void drawPoly( const VECTOR2D aPointList[], int aListSize );
+    void drawPoly( const SHAPE_LINE_CHAIN& aLineChain );
 
     /**
      * @brief Returns a valid key that can be used as a new group number.

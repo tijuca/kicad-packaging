@@ -38,15 +38,23 @@
 
 namespace KIGFX
 {
+
 class VIEW_GROUP : public VIEW_ITEM
 {
+protected:
+    typedef std::vector<VIEW_ITEM*> ITEMS;
+
 public:
     VIEW_GROUP( VIEW* aView = NULL );
     virtual ~VIEW_GROUP();
 
-    /// Helper typedefs
-    typedef std::set<VIEW_ITEM*>::const_iterator const_iter;
-    typedef std::set<VIEW_ITEM*>::iterator iter;
+    /**
+     * Function GetSize()
+     * Returns the number of stored items.
+     *
+     * @return Number of stored items.
+     */
+    virtual unsigned int GetSize() const;
 
     /**
      * Function Add()
@@ -70,31 +78,7 @@ public:
      */
     virtual void Clear();
 
-    /**
-     * Function Begin()
-     * Returns iterator to beginning.
-     */
-    inline const_iter Begin() const
-    {
-        return m_items.begin();
-    }
-
-    /**
-     * Function End()
-     * Returns iterator to end.
-     */
-    inline const_iter End() const
-    {
-        return m_items.end();
-    }
-
-    /**
-     * Function GetSize()
-     * Returns the number of stored items.
-     *
-     * @return Number of stored items.
-     */
-    virtual unsigned int GetSize() const;
+    virtual VIEW_ITEM* GetItem( unsigned int aIdx ) const;
 
     /**
      * Function ViewBBox()
@@ -102,16 +86,16 @@ public:
      *
      * @return The current bounding box
      */
-    virtual const BOX2I ViewBBox() const;
+    virtual const BOX2I ViewBBox() const override;
 
     /**
      * Function ViewDraw()
      * Draws all the stored items in the group on the given layer.
      *
      * @param aLayer is the layer which should be drawn.
-     * @param aGal is the GAL that should be used for drawing.
+     * @param aView is the VIEW that should be used for drawing.
      */
-    virtual void ViewDraw( int aLayer, GAL* aGal ) const;
+    virtual void ViewDraw( int aLayer, VIEW* aView ) const override;
 
     /**
      * Function ViewGetLayers()
@@ -120,7 +104,7 @@ public:
      * @param aLayers[] is the output layer index array.
      * @param aCount is the number of layer indices in aLayers[].
      */
-    virtual void ViewGetLayers( int aLayers[], int& aCount ) const;
+    virtual void ViewGetLayers( int aLayers[], int& aCount ) const override;
 
     /**
      * Function SetLayer()
@@ -139,67 +123,18 @@ public:
      */
     void FreeItems();
 
-    /**
-     * Function GetView()
-     * Returns pointer to the VIEW instance used by items.
-     *
-     * @return Pointer to the VIEW instance.
-     */
-    KIGFX::VIEW* GetView() const
-    {
-        return m_view;
-    }
-
-    /**
-     * Function ItemsSetVisibility()
-     * Sets visibility of items stored in the VIEW_GROUP.
-     *
-     * @param aVisible decides if items should be visible or not.
-     */
-    virtual void ItemsSetVisibility( bool aVisible );
-
-    /**
-     * Function ItemsViewUpdate()
-     * Updates items stored in the VIEW_GROUP.
-     *
-     * @param aFlags determines the way in which items will be updated.
-     */
-    virtual void ItemsViewUpdate( VIEW_ITEM::VIEW_UPDATE_FLAGS aFlags );
-
 protected:
-    /// These functions cannot be used with VIEW_GROUP as they are intended only to work with
-    /// singular VIEW_ITEMs (there is only one-to-one relation between item/layer combination and
-    /// its group).
-    int getGroup( int aLayer ) const
-    {
-        return -1;
-    }
 
-    std::vector<int> getAllGroups() const
-    {
-        return std::vector<int>();
-    }
-
-    void setGroup( int aLayer, int aGroup )
-    {}
-
-    void deleteGroups()
-    {}
-
-    bool storesGroups() const
-    {
-        return false;
-    }
+    virtual const ITEMS updateDrawList() const;
 
     /// Layer on which the group is drawn
     int m_layer;
 
-private:
-    void updateBbox();
-
+protected:
     /// Container for storing VIEW_ITEMs
-    std::set<VIEW_ITEM*> m_items;
+    ITEMS m_groupItems;
 };
+
 } // namespace KIGFX
 
 #endif // VIEW_GROUP_H_

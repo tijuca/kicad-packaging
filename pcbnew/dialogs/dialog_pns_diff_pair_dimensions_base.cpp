@@ -1,9 +1,11 @@
 ///////////////////////////////////////////////////////////////////////////
-// C++ code generated with wxFormBuilder (version Jun  5 2014)
+// C++ code generated with wxFormBuilder (version Jul 17 2016)
 // http://www.wxformbuilder.org/
 //
 // PLEASE DO "NOT" EDIT THIS FILE!
 ///////////////////////////////////////////////////////////////////////////
+
+#include "widgets/text_ctrl_eval.h"
 
 #include "dialog_pns_diff_pair_dimensions_base.h"
 
@@ -11,7 +13,7 @@
 
 DIALOG_PNS_DIFF_PAIR_DIMENSIONS_BASE::DIALOG_PNS_DIFF_PAIR_DIMENSIONS_BASE( wxWindow* parent, wxWindowID id, const wxString& title, const wxPoint& pos, const wxSize& size, long style ) : DIALOG_SHIM( parent, id, title, pos, size, style )
 {
-	this->SetSizeHints( wxSize( 400,-1 ), wxDefaultSize );
+	this->SetSizeHints( wxSize( -1,-1 ), wxDefaultSize );
 	
 	wxBoxSizer* bSizer7;
 	bSizer7 = new wxBoxSizer( wxVERTICAL );
@@ -26,7 +28,7 @@ DIALOG_PNS_DIFF_PAIR_DIMENSIONS_BASE::DIALOG_PNS_DIFF_PAIR_DIMENSIONS_BASE( wxWi
 	m_traceWidthLabel->Wrap( -1 );
 	fgSizer1->Add( m_traceWidthLabel, 0, wxALL|wxALIGN_CENTER_VERTICAL|wxALIGN_RIGHT, 5 );
 	
-	m_traceWidthText = new wxTextCtrl( this, wxID_ANY, wxEmptyString, wxDefaultPosition, wxDefaultSize, 0 );
+	m_traceWidthText = new TEXT_CTRL_EVAL( this, wxID_ANY, wxEmptyString, wxDefaultPosition, wxDefaultSize, 0 );
 	fgSizer1->Add( m_traceWidthText, 0, wxALL|wxEXPAND, 5 );
 	
 	m_traceWidthUnit = new wxStaticText( this, wxID_ANY, _("u"), wxDefaultPosition, wxDefaultSize, 0 );
@@ -37,13 +39,11 @@ DIALOG_PNS_DIFF_PAIR_DIMENSIONS_BASE::DIALOG_PNS_DIFF_PAIR_DIMENSIONS_BASE( wxWi
 	m_traceGapLabel->Wrap( -1 );
 	fgSizer1->Add( m_traceGapLabel, 0, wxALL|wxALIGN_CENTER_VERTICAL|wxALIGN_RIGHT, 5 );
 	
-	m_traceGapText = new wxTextCtrl( this, wxID_ANY, wxEmptyString, wxDefaultPosition, wxDefaultSize, 0 );
+	m_traceGapText = new TEXT_CTRL_EVAL( this, wxID_ANY, wxEmptyString, wxDefaultPosition, wxDefaultSize, 0 );
 	fgSizer1->Add( m_traceGapText, 0, wxALL|wxEXPAND, 5 );
 	
 	m_traceGapUnit = new wxStaticText( this, wxID_ANY, _("u"), wxDefaultPosition, wxDefaultSize, 0 );
 	m_traceGapUnit->Wrap( -1 );
-	m_traceGapUnit->SetMaxSize( wxSize( 40,-1 ) );
-	
 	fgSizer1->Add( m_traceGapUnit, 0, wxALL|wxALIGN_CENTER_VERTICAL, 5 );
 	
 	m_viaGapLabel = new wxStaticText( this, wxID_ANY, _("Via gap:"), wxDefaultPosition, wxDefaultSize, 0 );
@@ -52,7 +52,7 @@ DIALOG_PNS_DIFF_PAIR_DIMENSIONS_BASE::DIALOG_PNS_DIFF_PAIR_DIMENSIONS_BASE( wxWi
 	
 	fgSizer1->Add( m_viaGapLabel, 0, wxALL|wxALIGN_RIGHT|wxALIGN_CENTER_VERTICAL, 5 );
 	
-	m_viaGapText = new wxTextCtrl( this, wxID_ANY, wxEmptyString, wxDefaultPosition, wxDefaultSize, 0 );
+	m_viaGapText = new TEXT_CTRL_EVAL( this, wxID_ANY, wxEmptyString, wxDefaultPosition, wxDefaultSize, 0 );
 	m_viaGapText->Enable( false );
 	
 	fgSizer1->Add( m_viaGapText, 0, wxALL|wxEXPAND, 5 );
@@ -60,7 +60,6 @@ DIALOG_PNS_DIFF_PAIR_DIMENSIONS_BASE::DIALOG_PNS_DIFF_PAIR_DIMENSIONS_BASE( wxWi
 	m_viaGapUnit = new wxStaticText( this, wxID_ANY, _("u"), wxDefaultPosition, wxDefaultSize, 0 );
 	m_viaGapUnit->Wrap( -1 );
 	m_viaGapUnit->Enable( false );
-	m_viaGapUnit->SetMaxSize( wxSize( 40,-1 ) );
 	
 	fgSizer1->Add( m_viaGapUnit, 0, wxALIGN_CENTER_VERTICAL|wxALL, 5 );
 	
@@ -71,8 +70,11 @@ DIALOG_PNS_DIFF_PAIR_DIMENSIONS_BASE::DIALOG_PNS_DIFF_PAIR_DIMENSIONS_BASE( wxWi
 	m_viaTraceGapEqual->SetValue(true); 
 	bSizer7->Add( m_viaTraceGapEqual, 0, wxALL|wxEXPAND, 10 );
 	
+	
+	bSizer7->Add( 0, 0, 1, wxEXPAND, 5 );
+	
 	m_staticline1 = new wxStaticLine( this, wxID_ANY, wxDefaultPosition, wxDefaultSize, wxLI_HORIZONTAL );
-	bSizer7->Add( m_staticline1, 0, wxEXPAND | wxALL, 5 );
+	bSizer7->Add( m_staticline1, 0, wxEXPAND, 5 );
 	
 	m_stdButtons = new wxStdDialogButtonSizer();
 	m_stdButtonsOK = new wxButton( this, wxID_OK );
@@ -86,18 +88,15 @@ DIALOG_PNS_DIFF_PAIR_DIMENSIONS_BASE::DIALOG_PNS_DIFF_PAIR_DIMENSIONS_BASE( wxWi
 	
 	this->SetSizer( bSizer7 );
 	this->Layout();
+	bSizer7->Fit( this );
 	
 	// Connect Events
 	m_viaTraceGapEqual->Connect( wxEVT_COMMAND_CHECKBOX_CLICKED, wxCommandEventHandler( DIALOG_PNS_DIFF_PAIR_DIMENSIONS_BASE::OnViaTraceGapEqualCheck ), NULL, this );
-	m_stdButtonsCancel->Connect( wxEVT_COMMAND_BUTTON_CLICKED, wxCommandEventHandler( DIALOG_PNS_DIFF_PAIR_DIMENSIONS_BASE::OnCancelClick ), NULL, this );
-	m_stdButtonsOK->Connect( wxEVT_COMMAND_BUTTON_CLICKED, wxCommandEventHandler( DIALOG_PNS_DIFF_PAIR_DIMENSIONS_BASE::OnOkClick ), NULL, this );
 }
 
 DIALOG_PNS_DIFF_PAIR_DIMENSIONS_BASE::~DIALOG_PNS_DIFF_PAIR_DIMENSIONS_BASE()
 {
 	// Disconnect Events
 	m_viaTraceGapEqual->Disconnect( wxEVT_COMMAND_CHECKBOX_CLICKED, wxCommandEventHandler( DIALOG_PNS_DIFF_PAIR_DIMENSIONS_BASE::OnViaTraceGapEqualCheck ), NULL, this );
-	m_stdButtonsCancel->Disconnect( wxEVT_COMMAND_BUTTON_CLICKED, wxCommandEventHandler( DIALOG_PNS_DIFF_PAIR_DIMENSIONS_BASE::OnCancelClick ), NULL, this );
-	m_stdButtonsOK->Disconnect( wxEVT_COMMAND_BUTTON_CLICKED, wxCommandEventHandler( DIALOG_PNS_DIFF_PAIR_DIMENSIONS_BASE::OnOkClick ), NULL, this );
 	
 }

@@ -2,7 +2,7 @@
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
  * Copyright (C) 2014 SoftPLC Corporation, Dick Hollenbeck <dick@softplc.com>
- * Copyright (C) 2014-2015 KiCad Developers, see CHANGELOG.TXT for contributors.
+ * Copyright (C) 2014-2017 KiCad Developers, see AUTHORS.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -23,6 +23,7 @@
  */
 
 
+#include <pgm_base.h>
 #include <kiway_player.h>
 #include <kiway_express.h>
 #include <kiway.h>
@@ -36,6 +37,8 @@
 BEGIN_EVENT_TABLE( KIWAY_PLAYER, EDA_BASE_FRAME )
     EVT_KIWAY_EXPRESS( KIWAY_PLAYER::kiway_express )
     EVT_MENU_RANGE( ID_LANGUAGE_CHOICE, ID_LANGUAGE_CHOICE_END, KIWAY_PLAYER::language_change )
+    EVT_MENU_RANGE( ID_KICAD_SELECT_ICONS_OPTIONS, ID_KICAD_SELECT_ICON_OPTIONS_END,
+                    KIWAY_PLAYER::OnChangeIconsOptions )
 END_EVENT_TABLE()
 
 
@@ -47,7 +50,6 @@ KIWAY_PLAYER::KIWAY_PLAYER( KIWAY* aKiway, wxWindow* aParent, FRAME_T aFrameType
     m_modal( false ),
     m_modal_loop( 0 ), m_modal_resultant_parent( 0 )
 {
-    // DBG( printf("KIWAY_EXPRESS::wxEVENT_ID:%d\n", KIWAY_EXPRESS::wxEVENT_ID );)
     m_modal_ret_val = 0;
 }
 
@@ -62,11 +64,10 @@ KIWAY_PLAYER::KIWAY_PLAYER( wxWindow* aParent, wxWindowID aId, const wxString& a
     m_modal_resultant_parent( 0 ),
     m_modal_ret_val( false )
 {
-    // DBG( printf("KIWAY_EXPRESS::wxEVENT_ID:%d\n", KIWAY_EXPRESS::wxEVENT_ID );)
 }
 
 
-KIWAY_PLAYER::~KIWAY_PLAYER(){}
+KIWAY_PLAYER::~KIWAY_PLAYER() throw() {}
 
 
 void KIWAY_PLAYER::KiwayMailIn( KIWAY_EXPRESS& aEvent )
@@ -136,9 +137,6 @@ bool KIWAY_PLAYER::ShowModal( wxString* aResult, wxWindow* aResultantFocusWindow
     if( aResult )
         *aResult = m_modal_string;
 
-    DBG(printf( "~%s: aResult:'%s'  ret:%d\n",
-            __func__, TO_UTF8( m_modal_string ), m_modal_ret_val );)
-
     if( aResultantFocusWindow )
     {
         aResultantFocusWindow->Raise();
@@ -159,11 +157,7 @@ bool KIWAY_PLAYER::Destroy()
 
 bool KIWAY_PLAYER::IsDismissed()
 {
-    bool ret = !m_modal_loop;
-
-    DBG(printf( "%s: ret:%d\n", __func__, ret );)
-
-    return ret;
+    return !m_modal_loop;
 }
 
 
@@ -185,13 +179,6 @@ void KIWAY_PLAYER::DismissModal( bool aRetVal, const wxString& aResult )
 void KIWAY_PLAYER::kiway_express( KIWAY_EXPRESS& aEvent )
 {
     // logging support
-#if defined(DEBUG)
-    const char* class_name = typeid( this ).name();
-
-    printf( "%s: received cmd:%d  pay:'%s'\n", class_name,
-        aEvent.Command(), aEvent.GetPayload().c_str() );
-#endif
-
     KiwayMailIn( aEvent );     // call the virtual, override in derived.
 }
 
@@ -202,4 +189,11 @@ void KIWAY_PLAYER::language_change( wxCommandEvent& event )
 
     // tell all the KIWAY_PLAYERs about the language change.
     Kiway().SetLanguage( id );
+}
+
+
+void KIWAY_PLAYER::OnChangeIconsOptions( wxCommandEvent& event )
+{
+    EDA_BASE_FRAME::OnChangeIconsOptions( event );
+    Kiway().ShowChangedIcons();
 }

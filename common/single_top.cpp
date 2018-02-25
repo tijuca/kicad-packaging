@@ -60,9 +60,37 @@ KIWAY    Kiway( &Pgm(), KFCTL_STANDALONE );
  */
 static struct PGM_SINGLE_TOP : public PGM_BASE
 {
-    bool OnPgmInit( wxApp* aWxApp );                    // overload PGM_BASE virtual
-    void OnPgmExit();                                   // overload PGM_BASE virtual
-    void MacOpenFile( const wxString& aFileName );      // overload PGM_BASE virtual
+    bool OnPgmInit();
+
+    void OnPgmExit()
+    {
+        Kiway.OnKiwayEnd();
+
+        SaveCommonSettings();
+
+        // Destroy everything in PGM_BASE, especially wxSingleInstanceCheckerImpl
+        // earlier than wxApp and earlier than static destruction would.
+        PGM_BASE::Destroy();
+    }
+
+    void MacOpenFile( const wxString& aFileName )   override
+    {
+        wxFileName  filename( aFileName );
+
+        if( filename.FileExists() )
+        {
+    #if 0
+            // this pulls in EDA_DRAW_FRAME type info, which we don't want in
+            // the single_top link image.
+            KIWAY_PLAYER* frame = dynamic_cast<KIWAY_PLAYER*>( App().GetTopWindow() );
+    #else
+            KIWAY_PLAYER* frame = (KIWAY_PLAYER*) App().GetTopWindow();
+    #endif
+            if( frame )
+                frame->OpenProjectFiles( std::vector<wxString>( 1, aFileName ) );
+        }
+    }
+
 } program;
 
 
@@ -93,11 +121,11 @@ struct APP_SINGLE_TOP : public wxApp
     }
 #endif
 
-    bool OnInit()           // overload wxApp virtual
+    bool OnInit() override
     {
         try
         {
-            return Pgm().OnPgmInit( this );
+            return program.OnPgmInit();
         }
         catch( const std::exception& e )
         {
@@ -107,28 +135,28 @@ struct APP_SINGLE_TOP : public wxApp
         }
         catch( const IO_ERROR& ioe )
         {
-            wxLogError( GetChars( ioe.errorText ) );
+            wxLogError( GetChars( ioe.What() ) );
         }
         catch(...)
         {
             wxLogError( wxT( "Unhandled exception of unknown type" ) );
         }
 
-        Pgm().OnPgmExit();
+        program.OnPgmExit();
 
         return false;
     }
 
-    int  OnExit()           // overload wxApp virtual
+    int  OnExit() override
     {
         // Fixes segfault when wxPython scripting is enabled.
 #if defined( KICAD_SCRIPTING_WXPYTHON )
-        Pgm().OnPgmExit();
+        program.OnPgmExit();
 #endif
         return wxApp::OnExit();
     }
 
-    int OnRun()             // overload wxApp virtual
+    int OnRun() override
     {
         int ret = -1;
 
@@ -144,7 +172,7 @@ struct APP_SINGLE_TOP : public wxApp
         }
         catch( const IO_ERROR& ioe )
         {
-            wxLogError( GetChars( ioe.errorText ) );
+            wxLogError( GetChars( ioe.What() ) );
         }
         catch(...)
         {
@@ -153,11 +181,46 @@ struct APP_SINGLE_TOP : public wxApp
 
         // Works properly when wxPython scripting is disabled.
 #if !defined( KICAD_SCRIPTING_WXPYTHON )
-        Pgm().OnPgmExit();
+        program.OnPgmExit();
 #endif
-
         return ret;
     }
+
+
+#if defined( DEBUG )
+    /**
+     * Override main loop exception handling on debug builds.
+     *
+     * It can be painfully difficult to debug exceptions that happen in wxUpdateUIEvent
+     * handlers.  The override provides a bit more useful information about the exception
+     * and a breakpoint can be set to pin point the event where the exception was thrown.
+     */
+    virtual bool OnExceptionInMainLoop() override
+    {
+        try
+        {
+            throw;
+        }
+        catch( const std::exception& e )
+        {
+            wxLogError( "Unhandled exception class: %s  what: %s",
+                        FROM_UTF8( typeid(e).name() ),
+                        FROM_UTF8( e.what() ) );
+        }
+        catch( const IO_ERROR& ioe )
+        {
+            wxLogError( ioe.What() );
+        }
+        catch(...)
+        {
+            wxLogError( "Unhandled exception of unknown type" );
+        }
+
+        return false;   // continue on. Return false to abort program
+    }
+#endif
+
+#ifdef __WXMAC__
 
     /**
      * Function MacOpenFile
@@ -165,20 +228,20 @@ struct APP_SINGLE_TOP : public wxApp
      * MacOSX requires it for file association.
      * @see http://wiki.wxwidgets.org/WxMac-specific_topics
      */
-    void MacOpenFile( const wxString& aFileName )   // overload wxApp virtual
+    void MacOpenFile( const wxString& aFileName ) override
     {
         Pgm().MacOpenFile( aFileName );
     }
+
+#endif
 };
 
-IMPLEMENT_APP( APP_SINGLE_TOP );
+IMPLEMENT_APP( APP_SINGLE_TOP )
 
 
-bool PGM_SINGLE_TOP::OnPgmInit( wxApp* aWxApp )
+bool PGM_SINGLE_TOP::OnPgmInit()
 {
-    // first thing: set m_wx_app
-    m_wx_app = aWxApp;
-
+#if defined(DEBUG)
     wxString absoluteArgv0 = wxStandardPaths::Get().GetExecutablePath();
 
     if( !wxIsAbsolutePath( absoluteArgv0 ) )
@@ -186,11 +249,17 @@ bool PGM_SINGLE_TOP::OnPgmInit( wxApp* aWxApp )
         wxLogError( wxT( "No meaningful argv[0]" ) );
         return false;
     }
+#endif
 
-    if( !initPgm() )
+    if( !InitPgm() )
         return false;
 
 #if !defined(BUILD_KIWAY_DLL)
+
+    // Only bitmap2component and pcb_calculator use this code currently, as they
+    // are not split to use single_top as a link image separate from a *.kiface.
+    // i.e. they are single part link images so don't need to load a *.kiface.
+
     // Get the getter, it is statically linked into this binary image.
     KIFACE_GETTER_FUNC* getter = &KIFACE_GETTER;
 
@@ -204,19 +273,60 @@ bool PGM_SINGLE_TOP::OnPgmInit( wxApp* aWxApp )
     Kiway.set_kiface( KIWAY::KifaceType( TOP_FRAME ), kiface );
 #endif
 
+    // Open project or file specified on the command line:
+    int argc = App().argc;
+
+    int args_offset = 1;
+
+    FRAME_T appType = TOP_FRAME;
+
+    const struct
+    {
+        wxString name;
+        FRAME_T type;
+    } frameTypes[] = {
+        { wxT( "pcb" ), FRAME_PCB },
+        { wxT( "fpedit" ), FRAME_PCB_MODULE_EDITOR },
+        { wxT( "" ), FRAME_T_COUNT }
+    };
+
+    if( argc > 2 )
+    {
+        if( App().argv[1] == "--frame" )
+        {
+            wxString appName = App().argv[2];
+            appType = FRAME_T_COUNT;
+
+            for( int i = 0; frameTypes[i].type != FRAME_T_COUNT; i++ )
+            {
+                const auto& frame = frameTypes[i];
+                if(frame.name == appName)
+                {
+                    appType = frame.type;
+                }
+            }
+            args_offset += 2;
+
+            if( appType == FRAME_T_COUNT )
+            {
+                wxLogError( wxT( "Unknown frame: %s" ), appName );
+                return false;
+            }
+        }
+    }
+
+
     // Use KIWAY to create a top window, which registers its existence also.
     // "TOP_FRAME" is a macro that is passed on compiler command line from CMake,
     // and is one of the types in FRAME_T.
-    KIWAY_PLAYER* frame = Kiway.Player( TOP_FRAME, true );
+    KIWAY_PLAYER* frame = Kiway.Player( appType, true );
 
     Kiway.SetTop( frame );
 
     App().SetTopWindow( frame );      // wxApp gets a face.
 
-    // Open project or file specified on the command line:
-    int argc = App().argc;
 
-    if( argc > 1 )
+    if( argc > args_offset )
     {
         /*
             gerbview handles multiple project data files, i.e. gerber files on
@@ -229,7 +339,7 @@ bool PGM_SINGLE_TOP::OnPgmInit( wxApp* aWxApp )
 
         std::vector<wxString>   argSet;
 
-        for( int i=1;  i<argc;  ++i )
+        for( int i = args_offset;  i < argc;  ++i )
         {
             argSet.push_back( App().argv[i] );
         }
@@ -237,7 +347,7 @@ bool PGM_SINGLE_TOP::OnPgmInit( wxApp* aWxApp )
         // special attention to the first argument: argv[1] (==argSet[0])
         wxFileName argv1( argSet[0] );
 
-        if( argc == 2 )
+        if( argc - args_offset > 1 )
         {
 #if defined(PGM_DATA_FILE_EXT)
             // PGM_DATA_FILE_EXT, if present, may be different for each compile,
@@ -246,7 +356,6 @@ bool PGM_SINGLE_TOP::OnPgmInit( wxApp* aWxApp )
             // supporting a single argv[1].
             if( !argv1.GetExt() )
                 argv1.SetExt( wxT( PGM_DATA_FILE_EXT ) );
-
 #endif
             argv1.MakeAbsolute();
 
@@ -274,35 +383,4 @@ bool PGM_SINGLE_TOP::OnPgmInit( wxApp* aWxApp )
     frame->Show();
 
     return true;
-}
-
-
-void PGM_SINGLE_TOP::OnPgmExit()
-{
-    Kiway.OnKiwayEnd();
-
-    saveCommonSettings();
-
-    // Destroy everything in PGM_BASE, especially wxSingleInstanceCheckerImpl
-    // earlier than wxApp and earlier than static destruction would.
-    PGM_BASE::destroy();
-}
-
-
-void PGM_SINGLE_TOP::MacOpenFile( const wxString& aFileName )
-{
-    wxFileName  filename( aFileName );
-
-    if( filename.FileExists() )
-    {
-#if 0
-        // this pulls in EDA_DRAW_FRAME type info, which we don't want in
-        // the single_top link image.
-        KIWAY_PLAYER* frame = dynamic_cast<KIWAY_PLAYER*>( App().GetTopWindow() );
-#else
-        KIWAY_PLAYER* frame = (KIWAY_PLAYER*) App().GetTopWindow();
-#endif
-        if( frame )
-            frame->OpenProjectFiles( std::vector<wxString>( 1, aFileName ) );
-    }
 }

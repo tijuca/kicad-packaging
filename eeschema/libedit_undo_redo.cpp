@@ -2,7 +2,7 @@
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
  * Copyright (C) 2007 Jean-Pierre Charras, jp.charras at wanadoo.fr
- * Copyright (C) 2014 KiCad Developers, see CHANGELOG.TXT for contributors.
+ * Copyright (C) 2014-2017 KiCad Developers, see CHANGELOG.TXT for contributors.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -25,25 +25,26 @@
 #include <fctsys.h>
 #include <class_drawpanel.h>
 
-//#include <general.h>
-//#include <protos.h>
-#include <libeditframe.h>
+#include <lib_edit_frame.h>
 #include <class_libentry.h>
+#include <lib_manager.h>
+#include <component_tree.h>
+#include <cmp_tree_pane.h>
 
 
-void LIB_EDIT_FRAME::SaveCopyInUndoList( EDA_ITEM* ItemToCopy )
+void LIB_EDIT_FRAME::SaveCopyInUndoList( EDA_ITEM* ItemToCopy, UNDO_REDO_T undoType )
 {
     LIB_PART*          CopyItem;
-    PICKED_ITEMS_LIST* lastcmd;
+    PICKED_ITEMS_LIST* lastcmd = new PICKED_ITEMS_LIST();
 
     CopyItem = new LIB_PART( * (LIB_PART*) ItemToCopy );
 
     // Clear current flags (which can be temporary set by a current edit command).
     CopyItem->ClearStatus();
+    CopyItem->SetFlags( CopyItem->GetFlags() | UR_TRANSIENT );
 
-    lastcmd = new PICKED_ITEMS_LIST();
-    ITEM_PICKER wrapper( CopyItem, UR_LIBEDIT );
-    lastcmd->PushItem(wrapper);
+    ITEM_PICKER wrapper( CopyItem, undoType );
+    lastcmd->PushItem( wrapper );
     GetScreen()->PushCommandToUndoList( lastcmd );
 
     // Clear redo list, because after new save there is no redo to do.
@@ -56,20 +57,22 @@ void LIB_EDIT_FRAME::GetComponentFromRedoList( wxCommandEvent& event )
     if( GetScreen()->GetRedoCommandCount() <= 0 )
         return;
 
-    PICKED_ITEMS_LIST* lastcmd = new PICKED_ITEMS_LIST();
+    // Load the last redo entry
+    PICKED_ITEMS_LIST* redoCommand = GetScreen()->PopCommandFromRedoList();
+    ITEM_PICKER redoWrapper = redoCommand->PopItem();
+    delete redoCommand;
+    LIB_PART* part = (LIB_PART*) redoWrapper.GetItem();
+    wxCHECK( part, /* void */ );
+    part->SetFlags( part->GetFlags() & ~UR_TRANSIENT );
+    UNDO_REDO_T undoRedoType = redoWrapper.GetStatus();
 
-    LIB_PART* part = GetCurPart();
-
-    ITEM_PICKER wrapper( part, UR_LIBEDIT );
-
-    lastcmd->PushItem( wrapper );
-    GetScreen()->PushCommandToUndoList( lastcmd );
-
-    lastcmd = GetScreen()->PopCommandFromRedoList();
-
-    wrapper = lastcmd->PopItem();
-
-    part = (LIB_PART*) wrapper.GetItem();
+    // Store the current part in the undo buffer
+    PICKED_ITEMS_LIST* undoCommand = new PICKED_ITEMS_LIST();
+    LIB_PART* oldPart = GetCurPart();
+    oldPart->SetFlags( oldPart->GetFlags() | UR_TRANSIENT );
+    ITEM_PICKER undoWrapper( oldPart, undoRedoType );
+    undoCommand->PushItem( undoWrapper );
+    GetScreen()->PushCommandToUndoList( undoCommand );
 
     // Do not delete the previous part by calling SetCurPart( part )
     // which calls delete <previous part>.
@@ -77,13 +80,19 @@ void LIB_EDIT_FRAME::GetComponentFromRedoList( wxCommandEvent& event )
     // Just set the current part to the part which come from the redo list
     m_my_part = part;
 
-    if( !part )
-        return;
+    if( undoRedoType == UR_LIB_RENAME )
+    {
+        wxString lib = GetCurLib();
+        m_libMgr->UpdatePartAfterRename( part, oldPart->GetName(), lib );
+
+        // Reselect the renamed part
+        m_treePane->GetCmpTree()->SelectLibId( LIB_ID( lib, part->GetName() ) );
+    }
 
     if( !m_aliasName.IsEmpty() && !part->HasAlias( m_aliasName ) )
         m_aliasName = part->GetName();
 
-    m_drawItem = NULL;
+    SetDrawItem( NULL );
     UpdateAliasSelectList();
     UpdatePartSelectList();
     SetShowDeMorgan( part->HasConversion() );
@@ -99,20 +108,22 @@ void LIB_EDIT_FRAME::GetComponentFromUndoList( wxCommandEvent& event )
     if( GetScreen()->GetUndoCommandCount() <= 0 )
         return;
 
-    PICKED_ITEMS_LIST* lastcmd = new PICKED_ITEMS_LIST();
+    // Load the last undo entry
+    PICKED_ITEMS_LIST* undoCommand = GetScreen()->PopCommandFromUndoList();
+    ITEM_PICKER undoWrapper = undoCommand->PopItem();
+    delete undoCommand;
+    LIB_PART* part = (LIB_PART*) undoWrapper.GetItem();
+    wxCHECK( part, /* void */ );
+    part->SetFlags( part->GetFlags() & ~UR_TRANSIENT );
+    UNDO_REDO_T undoRedoType = undoWrapper.GetStatus();
 
-    LIB_PART*      part = GetCurPart();
-
-    ITEM_PICKER wrapper( part, UR_LIBEDIT );
-
-    lastcmd->PushItem( wrapper );
-    GetScreen()->PushCommandToRedoList( lastcmd );
-
-    lastcmd = GetScreen()->PopCommandFromUndoList();
-
-    wrapper = lastcmd->PopItem();
-
-    part = (LIB_PART*     ) wrapper.GetItem();
+    // Store the current part in the redo buffer
+    PICKED_ITEMS_LIST* redoCommand = new PICKED_ITEMS_LIST();
+    LIB_PART* oldPart = GetCurPart();
+    oldPart->SetFlags( oldPart->GetFlags() | UR_TRANSIENT );
+    ITEM_PICKER redoWrapper( oldPart, undoRedoType );
+    redoCommand->PushItem( redoWrapper );
+    GetScreen()->PushCommandToRedoList( redoCommand );
 
     // Do not delete the previous part by calling SetCurPart( part ),
     // which calls delete <previous part>.
@@ -120,13 +131,19 @@ void LIB_EDIT_FRAME::GetComponentFromUndoList( wxCommandEvent& event )
     // Just set the current part to the part which come from the undo list
     m_my_part = part;
 
-    if( !part )
-        return;
+    if( undoRedoType == UR_LIB_RENAME )
+    {
+        wxString lib = GetCurLib();
+        m_libMgr->UpdatePartAfterRename( part, oldPart->GetName(), lib );
+
+        // Reselect the renamed part
+        m_treePane->GetCmpTree()->SelectLibId( LIB_ID( lib, part->GetName() ) );
+    }
 
     if( !m_aliasName.IsEmpty() && !part->HasAlias( m_aliasName ) )
         m_aliasName = part->GetName();
 
-    m_drawItem = NULL;
+    SetDrawItem( NULL );
     UpdateAliasSelectList();
     UpdatePartSelectList();
     SetShowDeMorgan( part->HasConversion() );

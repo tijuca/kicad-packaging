@@ -1,7 +1,7 @@
 /*
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
- * Copyright (C) 2013 CERN
+ * Copyright (C) 2013-2017 CERN
  * @author Tomasz Wlostowski <tomasz.wlostowski@cern.ch>
  *
  * This program is free software; you can redistribute it and/or
@@ -22,16 +22,27 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
  */
 
+#include <algorithm>
+
 #include <geometry/shape_line_chain.h>
 #include <geometry/shape_circle.h>
-
-using boost::optional;
 
 bool SHAPE_LINE_CHAIN::Collide( const VECTOR2I& aP, int aClearance ) const
 {
     // fixme: ugly!
     SEG s( aP, aP );
     return this->Collide( s, aClearance );
+}
+
+
+void SHAPE_LINE_CHAIN::Rotate( double aAngle, const VECTOR2I& aCenter )
+{
+    for( std::vector<VECTOR2I>::iterator i = m_points.begin(); i != m_points.end(); ++i )
+    {
+        (*i) -= aCenter;
+        (*i) = (*i).Rotate( aAngle );
+        (*i) += aCenter;
+    }
 }
 
 
@@ -123,11 +134,11 @@ void SHAPE_LINE_CHAIN::Remove( int aStartIndex, int aEndIndex )
 }
 
 
-int SHAPE_LINE_CHAIN::Distance( const VECTOR2I& aP ) const
+int SHAPE_LINE_CHAIN::Distance( const VECTOR2I& aP, bool aOutlineOnly ) const
 {
     int d = INT_MAX;
 
-    if( IsClosed() && PointInside( aP ) )
+    if( IsClosed() && PointInside( aP ) && !aOutlineOnly )
         return 0;
 
     for( int s = 0; s < SegmentCount(); s++ )
@@ -366,7 +377,7 @@ bool SHAPE_LINE_CHAIN::PointOnEdge( const VECTOR2I& aP ) const
 }
 
 
-const optional<SHAPE_LINE_CHAIN::INTERSECTION> SHAPE_LINE_CHAIN::SelfIntersecting() const
+const OPT<SHAPE_LINE_CHAIN::INTERSECTION> SHAPE_LINE_CHAIN::SelfIntersecting() const
 {
     for( int s1 = 0; s1 < SegmentCount(); s1++ )
     {
@@ -382,7 +393,11 @@ const optional<SHAPE_LINE_CHAIN::INTERSECTION> SHAPE_LINE_CHAIN::SelfIntersectin
                 is.p = s2a;
                 return is;
             }
-            else if( CSegment( s1 ).Contains( s2b ) )
+            else if( CSegment( s1 ).Contains( s2b ) &&
+                     // for closed polylines, the ending point of the
+                     // last segment == starting point of the first segment
+                     // this is a normal case, not self intersecting case
+                     !( IsClosed() && s1 == 0 && s2 == SegmentCount()-1 ) )
             {
                 INTERSECTION is;
                 is.our = CSegment( s1 );
@@ -406,7 +421,7 @@ const optional<SHAPE_LINE_CHAIN::INTERSECTION> SHAPE_LINE_CHAIN::SelfIntersectin
         }
     }
 
-    return optional<INTERSECTION>();
+    return OPT<SHAPE_LINE_CHAIN::INTERSECTION>();
 }
 
 
@@ -566,6 +581,11 @@ bool SHAPE_LINE_CHAIN::Parse( std::stringstream& aStream )
 
     m_points.clear();
     aStream >> n_pts;
+
+    // Rough sanity check, just make sure the loop bounds aren't absolutely outlandish
+    if( n_pts < 0 || n_pts > int( aStream.str().size() ) )
+        return false;
+
     aStream >> m_closed;
 
     for( int i = 0; i < n_pts; i++ )
@@ -577,4 +597,48 @@ bool SHAPE_LINE_CHAIN::Parse( std::stringstream& aStream )
     }
 
     return true;
+}
+
+
+const VECTOR2I SHAPE_LINE_CHAIN::PointAlong( int aPathLength ) const
+{
+    int total = 0;
+
+    if( aPathLength == 0 )
+        return CPoint( 0 );
+
+    for( int i = 0; i < SegmentCount(); i++ )
+    {
+        const SEG& s = CSegment( i );
+        int l = s.Length();
+
+        if( total + l >= aPathLength )
+        {
+            VECTOR2I d( s.B - s.A );
+            return s.A + d.Resize( aPathLength - total );
+        }
+
+        total += l;
+    }
+
+    return CPoint( -1 );
+}
+
+double SHAPE_LINE_CHAIN::Area() const
+{
+    // see https://www.mathopenref.com/coordpolygonarea2.html
+
+    if( !m_closed )
+        return 0.0;
+
+    double area = 0.0;
+    int size = m_points.size();
+
+    for( int i = 0, j = size - 1; i < size; ++i )
+    {
+        area += ( (double) m_points[j].x + m_points[i].x ) * ( (double) m_points[j].y - m_points[i].y );
+        j = i;
+    }
+
+    return -area * 0.5;
 }

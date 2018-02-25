@@ -34,19 +34,23 @@
 #include <class_drawpanel.h>
 #include <confirm.h>
 #include <pcbnew.h>
-#include <wxPcbStruct.h>
-#include <class_board_design_settings.h>
+#include <pcb_edit_frame.h>
+#include <board_design_settings.h>
 #include <kicad_string.h>
 #include <pcbnew_id.h>
 #include <class_board.h>
 #include <collectors.h>
+#include <pgm_base.h>
 #include <dialog_general_options.h>
 
 
 DIALOG_GENERALOPTIONS::DIALOG_GENERALOPTIONS( PCB_EDIT_FRAME* parent ) :
-    DIALOG_GENERALOPTIONS_BOARDEDITOR_BASE( parent )
+    DIALOG_GENERALOPTIONS_BOARDEDITOR_BASE( parent ),
+    m_last_scale( -1 )
 {
     init();
+
+    m_scaleSlider->SetStep( 25 );
 
     GetSizer()->SetSizeHints( this );
     Center();
@@ -59,41 +63,71 @@ void DIALOG_GENERALOPTIONS::init()
     m_sdbSizerOK->SetDefault();
 
     m_Board = GetParent()->GetBoard();
-    DISPLAY_OPTIONS* displ_opts = (DISPLAY_OPTIONS*)GetParent()->GetDisplayOptions();
+    auto displ_opts = (PCB_DISPLAY_OPTIONS*)GetParent()->GetDisplayOptions();
 
     /* Set display options */
     m_PolarDisplay->SetSelection( displ_opts->m_DisplayPolarCood ? 1 : 0 );
     m_UnitsSelection->SetSelection( g_UserUnit ? 1 : 0 );
-    m_CursorShape->SetSelection( GetParent()->GetCursorShape() ? 1 : 0 );
-
 
     wxString rotationAngle;
     rotationAngle = AngleToStringDegrees( (double)GetParent()->GetRotationAngle() );
     m_RotationAngle->SetValue( rotationAngle );
 
-    m_spinMaxUndoItems->SetValue( GetParent()->GetScreen()->GetMaxUndoItems() );
-
     wxString timevalue;
     timevalue << GetParent()->GetAutoSaveInterval() / 60;
     m_SaveTime->SetValue( timevalue );
-    m_MaxShowLinks->SetValue( displ_opts->m_MaxLinksShowed );
 
-    m_DrcOn->SetValue( g_Drc_On );
-    m_ShowModuleRatsnest->SetValue( displ_opts->m_Show_Module_Ratsnest );
-    m_ShowGlobalRatsnest->SetValue( m_Board->IsElementVisible( RATSNEST_VISIBLE ) );
-    m_TrackAutodel->SetValue( g_AutoDeleteOldTrack );
-    m_Track_45_Only_Ctrl->SetValue( g_Track_45_Only_Allowed );
-    m_Segments_45_Only_Ctrl->SetValue( g_Segments_45_Only );
+    m_DrcOn->SetValue( GetParent()->Settings().m_legacyDrcOn );
+    m_ShowGlobalRatsnest->SetValue( m_Board->IsElementVisible( LAYER_RATSNEST ) );
+    m_TrackAutodel->SetValue( GetParent()->Settings().m_legacyAutoDeleteOldTrack );
+    m_Track_45_Only_Ctrl->SetValue( GetParent()->Settings().m_legacyUse45DegreeTracks );
+    m_Segments_45_Only_Ctrl->SetValue( GetParent()->Settings().m_use45DegreeGraphicSegments );
     m_ZoomCenterOpt->SetValue( ! GetParent()->GetCanvas()->GetEnableZoomNoCenter() );
     m_MousewheelPANOpt->SetValue( GetParent()->GetCanvas()->GetEnableMousewheelPan() );
-    m_MiddleButtonPANOpt->SetValue( GetParent()->GetCanvas()->GetEnableMiddleButtonPan() );
-    m_OptMiddleButtonPanLimited->SetValue( GetParent()->GetCanvas()->GetMiddleButtonPanLimited() );
-    m_OptMiddleButtonPanLimited->Enable( m_MiddleButtonPANOpt->GetValue() );
     m_AutoPANOpt->SetValue( GetParent()->GetCanvas()->GetEnableAutoPan() );
-    m_Track_DoubleSegm_Ctrl->SetValue( g_TwoSegmentTrackBuild );
-    m_MagneticPadOptCtrl->SetSelection( g_MagneticPadOption );
-    m_MagneticTrackOptCtrl->SetSelection( g_MagneticTrackOption );
-    m_DumpZonesWhenFilling->SetValue ( g_DumpZonesWhenFilling );
+    m_Track_DoubleSegm_Ctrl->SetValue( GetParent()->Settings().m_legacyUseTwoSegmentTracks );
+    m_MagneticPadOptCtrl->SetSelection( GetParent()->Settings().m_magneticPads );
+    m_MagneticTrackOptCtrl->SetSelection( GetParent()->Settings().m_magneticTracks );
+    m_UseEditKeyForWidth->SetValue( GetParent()->Settings().m_editActionChangesTrackWidth );
+
+    m_Show_Page_Limits->SetValue( GetParent()->ShowPageLimits() );
+
+    const int scale_fourths = GetParent()->GetIconScale();
+
+    if( scale_fourths <= 0 )
+    {
+        m_scaleAuto->SetValue( true );
+        m_scaleSlider->SetValue( 25 * KiIconScale( GetParent() ) );
+    }
+    else
+    {
+        m_scaleAuto->SetValue( false );
+        m_scaleSlider->SetValue( scale_fourths * 25 );
+    }
+
+    m_checkBoxIconsInMenus->SetValue( Pgm().GetUseIconsInMenus() );
+}
+
+
+void DIALOG_GENERALOPTIONS::OnScaleSlider( wxScrollEvent& aEvent )
+{
+    m_scaleAuto->SetValue( false );
+    aEvent.Skip();
+}
+
+
+void DIALOG_GENERALOPTIONS::OnScaleAuto( wxCommandEvent& aEvent )
+{
+    if( m_scaleAuto->GetValue() )
+    {
+        m_last_scale = m_scaleSlider->GetValue();
+        m_scaleSlider->SetValue( 25 * KiIconScale( GetParent() ) );
+    }
+    else
+    {
+        if( m_last_scale >= 0 )
+            m_scaleSlider->SetValue( m_last_scale );
+    }
 }
 
 
@@ -106,7 +140,7 @@ void DIALOG_GENERALOPTIONS::OnCancelClick( wxCommandEvent& event )
 void DIALOG_GENERALOPTIONS::OnOkClick( wxCommandEvent& event )
 {
     EDA_UNITS_T ii;
-    DISPLAY_OPTIONS* displ_opts = (DISPLAY_OPTIONS*)GetParent()->GetDisplayOptions();
+    auto displ_opts = (PCB_DISPLAY_OPTIONS*)GetParent()->GetDisplayOptions();
 
     displ_opts->m_DisplayPolarCood = ( m_PolarDisplay->GetSelection() == 0 ) ? false : true;
     ii = g_UserUnit;
@@ -115,38 +149,46 @@ void DIALOG_GENERALOPTIONS::OnOkClick( wxCommandEvent& event )
     if( ii != g_UserUnit )
         GetParent()->ReCreateAuxiliaryToolbar();
 
-    GetParent()->SetCursorShape( m_CursorShape->GetSelection() );
     GetParent()->SetAutoSaveInterval( m_SaveTime->GetValue() * 60 );
     GetParent()->SetRotationAngle( wxRound( 10.0 * wxAtof( m_RotationAngle->GetValue() ) ) );
 
-    GetParent()->GetScreen()->SetMaxUndoItems( m_spinMaxUndoItems->GetValue() );
-
     /* Updating the combobox to display the active layer. */
-    displ_opts->m_MaxLinksShowed = m_MaxShowLinks->GetValue();
-    g_Drc_On = m_DrcOn->GetValue();
+    GetParent()->Settings().m_legacyDrcOn = m_DrcOn->GetValue();
 
-    if( m_Board->IsElementVisible(RATSNEST_VISIBLE) != m_ShowGlobalRatsnest->GetValue() )
+    if( m_Board->IsElementVisible( LAYER_RATSNEST ) != m_ShowGlobalRatsnest->GetValue() )
     {
-        GetParent()->SetElementVisibility( RATSNEST_VISIBLE, m_ShowGlobalRatsnest->GetValue() );
+        GetParent()->SetElementVisibility( LAYER_RATSNEST, m_ShowGlobalRatsnest->GetValue() );
         GetParent()->GetCanvas()->Refresh();
         GetParent()->OnModify();
     }
 
-    displ_opts->m_Show_Module_Ratsnest = m_ShowModuleRatsnest->GetValue();
-    g_AutoDeleteOldTrack   = m_TrackAutodel->GetValue();
-    g_Segments_45_Only = m_Segments_45_Only_Ctrl->GetValue();
-    g_Track_45_Only_Allowed    = m_Track_45_Only_Ctrl->GetValue();
+    GetParent()->Settings().m_legacyAutoDeleteOldTrack   = m_TrackAutodel->GetValue();
+    GetParent()->Settings().m_use45DegreeGraphicSegments = m_Segments_45_Only_Ctrl->GetValue();
+    GetParent()->Settings().m_legacyUse45DegreeTracks    = m_Track_45_Only_Ctrl->GetValue();
 
     GetParent()->GetCanvas()->SetEnableZoomNoCenter( ! m_ZoomCenterOpt->GetValue() );
     GetParent()->GetCanvas()->SetEnableMousewheelPan( m_MousewheelPANOpt->GetValue() );
-    GetParent()->GetCanvas()->SetEnableMiddleButtonPan( m_MiddleButtonPANOpt->GetValue() );
-    GetParent()->GetCanvas()->SetMiddleButtonPanLimited( m_OptMiddleButtonPanLimited->GetValue() );
     GetParent()->GetCanvas()->SetEnableAutoPan( m_AutoPANOpt->GetValue() );
 
-    g_TwoSegmentTrackBuild = m_Track_DoubleSegm_Ctrl->GetValue();
-    g_MagneticPadOption   = m_MagneticPadOptCtrl->GetSelection();
-    g_MagneticTrackOption = m_MagneticTrackOptCtrl->GetSelection();
-    g_DumpZonesWhenFilling = m_DumpZonesWhenFilling->GetValue();
+    GetParent()->Settings().m_legacyUseTwoSegmentTracks = m_Track_DoubleSegm_Ctrl->GetValue();
+    GetParent()->Settings().m_magneticPads   = (MAGNETIC_PAD_OPTION_VALUES) m_MagneticPadOptCtrl->GetSelection();
+    GetParent()->Settings().m_magneticTracks = (MAGNETIC_PAD_OPTION_VALUES) m_MagneticTrackOptCtrl->GetSelection();
+    GetParent()->Settings().m_editActionChangesTrackWidth = m_UseEditKeyForWidth->GetValue();
+
+    GetParent()->SetShowPageLimits( m_Show_Page_Limits->GetValue() );
+
+    const int scale_fourths = m_scaleAuto->GetValue() ? -1 : m_scaleSlider->GetValue() / 25;
+
+    if( GetParent()->GetIconScale() != scale_fourths )
+        GetParent()->SetIconScale( scale_fourths );
+
+    if( Pgm().GetUseIconsInMenus() != m_checkBoxIconsInMenus->GetValue() )
+    {
+        Pgm().SetUseIconsInMenus( m_checkBoxIconsInMenus->GetValue() );
+        GetParent()->ReCreateMenuBar();
+    }
 
     EndModal( wxID_OK );
 }
+
+

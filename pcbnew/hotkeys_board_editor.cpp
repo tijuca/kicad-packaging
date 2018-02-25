@@ -27,7 +27,7 @@
  */
 
 #include <fctsys.h>
-#include <wxPcbStruct.h>
+#include <pcb_edit_frame.h>
 #include <class_drawpanel.h>
 #include <confirm.h>
 
@@ -35,77 +35,20 @@
 #include <class_module.h>
 #include <class_track.h>
 #include <class_pcb_text.h>
-#include <class_mire.h>
+#include <class_pcb_target.h>
 #include <class_drawsegment.h>
+#include <origin_viewitem.h>
 
 #include <pcbnew.h>
 #include <pcbnew_id.h>
 #include <hotkeys.h>
 #include <class_zone.h>
 #include <tool/tool_manager.h>
+#include <tools/pcbnew_control.h>
 
 /* How to add a new hotkey:
  * see hotkeys.cpp
  */
-
-
-void PCB_EDIT_FRAME::RecordMacros(wxDC* aDC, int aNumber)
-{
-    wxASSERT( aNumber >= 0 && aNumber < 10 );
-    wxString msg;
-
-    if( m_RecordingMacros < 0 )
-    {
-        m_RecordingMacros = aNumber;
-        m_Macros[aNumber].m_StartPosition = GetCrossHairPosition( false );
-        m_Macros[aNumber].m_Record.clear();
-
-        msg.Printf( _( "Recording macro %d" ), aNumber );
-        SetStatusText( msg );
-    }
-    else
-    {
-        m_RecordingMacros = -1;
-
-        msg.Printf( _( "Macro %d recorded" ), aNumber );
-        SetStatusText( msg );
-    }
-}
-
-
-void PCB_EDIT_FRAME::CallMacros( wxDC* aDC, const wxPoint& aPosition, int aNumber )
-{
-    wxPoint tPosition;
-
-    wxString msg;
-
-    msg.Printf( _( "Call macro %d" ), aNumber );
-    SetStatusText( msg );
-
-    wxCommandEvent cmd( wxEVT_COMMAND_MENU_SELECTED );
-    cmd.SetEventObject( this );
-
-    tPosition = GetNearestGridPosition( aPosition );
-
-    m_canvas->CrossHairOff( aDC );
-    SetMousePosition( tPosition );
-    GeneralControl( aDC, tPosition );
-
-    for( std::list<MACROS_RECORD>::iterator i = m_Macros[aNumber].m_Record.begin();
-         i != m_Macros[aNumber].m_Record.end(); ++i )
-    {
-        wxPoint tmpPos = GetNearestGridPosition( tPosition + i->m_Position );
-
-        SetMousePosition( tmpPos );
-
-        GeneralControl( aDC, tmpPos, i->m_HotkeyCode );
-    }
-
-    cmd.SetId( ID_ZOOM_REDRAW );
-    GetEventHandler()->ProcessEvent( cmd );
-
-    m_canvas->CrossHairOn( aDC );
-}
 
 
 EDA_HOTKEY* PCB_EDIT_FRAME::GetHotKeyDescription( int aCommand ) const
@@ -129,7 +72,7 @@ bool PCB_EDIT_FRAME::OnHotKey( wxDC* aDC, int aHotkeyCode, const wxPoint& aPosit
     MODULE* module = NULL;
     int evt_type = 0;       //Used to post a wxCommandEvent on demand
     PCB_SCREEN* screen = GetScreen();
-    DISPLAY_OPTIONS* displ_opts = (DISPLAY_OPTIONS*)GetDisplayOptions();
+    auto displ_opts = (PCB_DISPLAY_OPTIONS*)GetDisplayOptions();
 
     /* Convert lower to upper case
      * (the usual toupper function has problem with non ascii codes like function keys
@@ -146,20 +89,6 @@ bool PCB_EDIT_FRAME::OnHotKey( wxDC* aDC, int aHotkeyCode, const wxPoint& aPosit
         return false;
 
     int hk_id = HK_Descr->m_Idcommand;
-
-    if( (m_RecordingMacros != -1) &&
-        !( hk_id > HK_MACRO_ID_BEGIN && hk_id < HK_MACRO_ID_END) )
-    {
-        MACROS_RECORD macros_record;
-        macros_record.m_HotkeyCode = aHotkeyCode;
-        macros_record.m_Idcommand = HK_Descr->m_Idcommand;
-        macros_record.m_Position  = GetNearestGridPosition( aPosition ) -
-                                    m_Macros[m_RecordingMacros].m_StartPosition;
-        m_Macros[m_RecordingMacros].m_Record.push_back( macros_record );
-        wxString msg;
-        msg.Printf( _( "Add key [%c] in macro %d" ), aHotkeyCode, m_RecordingMacros );
-        SetStatusText( msg );
-    }
 
     // Create a wxCommandEvent that will be posted in some hot keys functions
     wxCommandEvent cmd( wxEVT_COMMAND_MENU_SELECTED );
@@ -180,32 +109,6 @@ bool PCB_EDIT_FRAME::OnHotKey( wxDC* aDC, int aHotkeyCode, const wxPoint& aPosit
     case HK_LEFT_DCLICK:    // Simulate a double left click: generate 2 events
         OnLeftClick( aDC, aPosition );
         OnLeftDClick( aDC, aPosition );
-        break;
-
-    case HK_RECORD_MACROS_0:
-    case HK_RECORD_MACROS_1:
-    case HK_RECORD_MACROS_2:
-    case HK_RECORD_MACROS_3:
-    case HK_RECORD_MACROS_4:
-    case HK_RECORD_MACROS_5:
-    case HK_RECORD_MACROS_6:
-    case HK_RECORD_MACROS_7:
-    case HK_RECORD_MACROS_8:
-    case HK_RECORD_MACROS_9:
-        RecordMacros( aDC, hk_id - HK_RECORD_MACROS_0 );
-        break;
-
-    case HK_CALL_MACROS_0:
-    case HK_CALL_MACROS_1:
-    case HK_CALL_MACROS_2:
-    case HK_CALL_MACROS_3:
-    case HK_CALL_MACROS_4:
-    case HK_CALL_MACROS_5:
-    case HK_CALL_MACROS_6:
-    case HK_CALL_MACROS_7:
-    case HK_CALL_MACROS_8:
-    case HK_CALL_MACROS_9:
-        CallMacros( aDC, GetCrossHairPosition( false ), hk_id - HK_CALL_MACROS_0 );
         break;
 
     case HK_SWITCH_TRACK_WIDTH_TO_NEXT:
@@ -315,15 +218,15 @@ bool PCB_EDIT_FRAME::OnHotKey( wxDC* aDC, int aHotkeyCode, const wxPoint& aPosit
         break;
 
     case HK_HELP: // Display Current hotkey list
-        DisplayHotkeyList( this, g_Board_Editor_Hokeys_Descr );
+        DisplayHotkeyList( this, g_Board_Editor_Hotkeys_Descr );
         break;
 
     case HK_ZOOM_IN:
-        evt_type = ID_POPUP_ZOOM_IN;
+        evt_type = ID_KEY_ZOOM_IN;
         break;
 
     case HK_ZOOM_OUT:
-        evt_type = ID_POPUP_ZOOM_OUT;
+        evt_type = ID_KEY_ZOOM_OUT;
         break;
 
     case HK_ZOOM_REDRAW:
@@ -336,6 +239,10 @@ bool PCB_EDIT_FRAME::OnHotKey( wxDC* aDC, int aHotkeyCode, const wxPoint& aPosit
 
     case HK_ZOOM_CENTER:
         evt_type = ID_POPUP_ZOOM_CENTER;
+        break;
+
+    case HK_ZOOM_SELECTION:
+        evt_type = ID_ZOOM_SELECTION;
         break;
 
     case HK_ADD_MODULE:
@@ -357,14 +264,16 @@ bool PCB_EDIT_FRAME::OnHotKey( wxDC* aDC, int aHotkeyCode, const wxPoint& aPosit
         break;
 
     case HK_SET_GRID_ORIGIN:
-        SetGridOrigin( GetCrossHairPosition() );
-        OnModify();     // because grid origin is saved in board, show as modified
+        PCBNEW_CONTROL::SetGridOrigin( GetGalCanvas()->GetView(), this,
+                                       new KIGFX::ORIGIN_VIEWITEM( GetGridOrigin(), UR_TRANSIENT ),
+                                       GetCrossHairPosition() );
         m_canvas->Refresh();
         break;
 
     case HK_RESET_GRID_ORIGIN:
-        SetGridOrigin( wxPoint( 0,0 ) );
-        OnModify();     // because grid origin is saved in board, show as modified
+        PCBNEW_CONTROL::SetGridOrigin( GetGalCanvas()->GetView(), this,
+                                       new KIGFX::ORIGIN_VIEWITEM( GetGridOrigin(), UR_TRANSIENT ),
+                                       wxPoint( 0, 0 ) );
         m_canvas->Refresh();
         break;
 
@@ -426,13 +335,13 @@ bool PCB_EDIT_FRAME::OnHotKey( wxDC* aDC, int aHotkeyCode, const wxPoint& aPosit
 
         break;
 
-    case HK_LOAD_BOARD:
+    case HK_OPEN:
         if( !itemCurrentlyEdited )
             evt_type = ID_LOAD_FILE ;
 
         break;
 
-    case HK_SAVE_BOARD:
+    case HK_SAVE:
         if( !itemCurrentlyEdited )
             evt_type = ID_SAVE_BOARD;
 
@@ -586,16 +495,17 @@ bool PCB_EDIT_FRAME::OnHotKey( wxDC* aDC, int aHotkeyCode, const wxPoint& aPosit
         evt_type = ID_MENU_CANVAS_OPENGL;
         break;
 
-    case HK_CANVAS_DEFAULT:
-        evt_type = ID_MENU_CANVAS_DEFAULT;
+    case HK_CANVAS_LEGACY:
+        evt_type = ID_MENU_CANVAS_LEGACY;
         break;
+
     case HK_ZONE_FILL_OR_REFILL:
         evt_type = ID_POPUP_PCB_FILL_ALL_ZONES;
         break;
+
     case HK_ZONE_REMOVE_FILLED:
         evt_type = ID_POPUP_PCB_REMOVE_FILLED_AREAS_IN_ALL_ZONES;
         break;
-
     }
 
     if( evt_type != 0 )
@@ -736,7 +646,7 @@ bool PCB_EDIT_FRAME::OnHotkeyEditItem( int aIdCommand )
 
     case PCB_TARGET_T:
         if( aIdCommand == HK_EDIT_ITEM )
-            evt_type = ID_POPUP_PCB_EDIT_MIRE;
+            evt_type = ID_POPUP_PCB_EDIT_PCB_TARGET;
 
         break;
 
@@ -875,7 +785,7 @@ bool PCB_EDIT_FRAME::OnHotkeyMoveItem( int aIdCommand )
 
     case PCB_TARGET_T:
         if( aIdCommand == HK_MOVE_ITEM )
-            evt_type = ID_POPUP_PCB_MOVE_MIRE_REQUEST;
+            evt_type = ID_POPUP_PCB_MOVE_PCB_TARGET_REQUEST;
 
         break;
 
@@ -1196,8 +1106,7 @@ bool PCB_EDIT_FRAME::OnHotkeyDuplicateOrArrayItem( int aIdCommand )
         break;
 
     default:
-        wxASSERT_MSG( false, "Unhandled move, duplicate or array for "
-                      "object type " + item->Type() );
+        evt_type = 0;
         break;
     }
 

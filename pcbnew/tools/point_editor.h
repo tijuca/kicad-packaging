@@ -1,7 +1,7 @@
 /*
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
- * Copyright (C) 2013 CERN
+ * Copyright (C) 2013-2017 CERN
  * @author Maciej Suminski <maciej.suminski@cern.ch>
  *
  * This program is free software; you can redistribute it and/or
@@ -25,28 +25,31 @@
 #ifndef __POINT_EDITOR_H
 #define __POINT_EDITOR_H
 
-#include <boost/shared_ptr.hpp>
-
 #include <tool/tool_interactive.h>
 #include "edit_points.h"
+#include <status_popup.h>
+
+#include <memory>
+
 
 class SELECTION_TOOL;
+class SHAPE_POLY_SET;
 
 /**
  * Class POINT_EDITOR
  *
  * Tool that displays edit points allowing to modify items by dragging the points.
  */
-class POINT_EDITOR : public TOOL_INTERACTIVE
+class POINT_EDITOR : public PCB_TOOL
 {
 public:
     POINT_EDITOR();
 
     /// @copydoc TOOL_INTERACTIVE::Reset()
-    void Reset( RESET_REASON aReason );
+    void Reset( RESET_REASON aReason ) override;
 
     /// @copydoc TOOL_INTERACTIVE::Init()
-    bool Init();
+    bool Init() override;
 
     /**
      * Function OnSelected()
@@ -56,7 +59,7 @@ public:
     int OnSelectionChange( const TOOL_EVENT& aEvent );
 
     ///> Sets up handlers for various events.
-    void SetTransitions();
+    void setTransitions() override;
 
 private:
     ///> Selection tool used for obtaining selected items
@@ -69,19 +72,29 @@ private:
     EDIT_POINT m_original;
 
     ///> Currently available edit points.
-    boost::shared_ptr<EDIT_POINTS> m_editPoints;
+    std::shared_ptr<EDIT_POINTS> m_editPoints;
 
     // Alternative constraint, enabled while a modifier key is held
-    boost::shared_ptr<EDIT_CONSTRAINT<EDIT_POINT> > m_altConstraint;
+    std::shared_ptr<EDIT_CONSTRAINT<EDIT_POINT> > m_altConstraint;
 
     // EDIT_POINT for alternative constraint mode
     EDIT_POINT m_altConstrainer;
+
+    std::unique_ptr<STATUS_TEXT_POPUP> m_statusPopup;
 
     ///> Updates item's points with edit points.
     void updateItem() const;
 
     ///> Applies the last changes to the edited item.
-    void finishItem() const;
+    void finishItem();
+
+    /**
+     * Validates a polygon and restores it to its original version if available.
+     * @param aModified is the polygon to be checked.
+     * @param aOriginal is the original copy that will be used to restore its state.
+     * @return True if polygon is valid.
+     */
+    bool validatePolygon( SHAPE_POLY_SET& aModified, const SHAPE_POLY_SET* aOriginal = nullptr ) const;
 
     ///> Updates edit points with item's points.
     void updatePoints();
@@ -115,6 +128,11 @@ private:
 
     ///> Condition to display "Remove corner" context menu entry.
     bool removeCornerCondition( const SELECTION& aSelection );
+
+    /// TOOL_ACTION handlers
+    int addCorner( const TOOL_EVENT& aEvent );
+    int removeCorner( const TOOL_EVENT& aEvent );
+    int modifiedSelection( const TOOL_EVENT& aEvent );
 };
 
 #endif

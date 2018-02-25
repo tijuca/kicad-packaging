@@ -31,11 +31,12 @@
 
 class TOOL_MANAGER;
 class PCB_BASE_FRAME;
+class ACTIONS;
 
 namespace KIGFX
 {
 class VIEW;
-};
+}
 
 /**
  * Class TOOL_DISPATCHER
@@ -54,8 +55,9 @@ public:
      * Constructor
      *
      * @param aToolMgr: tool manager instance the events will be sent to
+     * @param aActions: ACTIONS subclass instance for ACTIONS::TranslateLegacyId()
      */
-    TOOL_DISPATCHER( TOOL_MANAGER* aToolMgr );
+    TOOL_DISPATCHER( TOOL_MANAGER* aToolMgr, ACTIONS *aActions );
 
     virtual ~TOOL_DISPATCHER();
 
@@ -130,6 +132,9 @@ private:
 
     ///> Instance of tool manager that cooperates with the dispatcher.
     TOOL_MANAGER* m_toolMgr;
+
+    ///> Instance of an actions list that handles legacy action translation
+    ACTIONS* m_actions;
 };
 
 #endif

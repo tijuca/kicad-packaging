@@ -27,16 +27,19 @@
 
 
 #include <list>
-#include <wxPcbStruct.h>
+#include <pcb_edit_frame.h>
 #include <macros.h>
 #include <pcbnew.h>
 #include <class_board.h>
 #include <class_module.h>
 #include <class_edge_mod.h>
 #include <idf_parser.h>
-#include <3d_struct.h>
+#include <3d_cache/3d_info.h>
 #include <build_version.h>
-#include <convert_from_iu.h>
+#include "project.h"
+#include "kiway.h"
+#include "3d_cache/3d_cache.h"
+#include "3d_cache/3d_filename_resolver.h"
 
 #ifndef PCBNEW
 #define PCBNEW                  // needed to define the right value of Millimeter2iu(x)
@@ -45,6 +48,8 @@
 
 // assumed default graphical line thickness: == 0.1mm
 #define LINE_WIDTH (Millimeter2iu( 0.1 ))
+
+static S3D_FILENAME_RESOLVER* resolver;
 
 /**
  * Function idf_export_outline
@@ -71,7 +76,7 @@ static void idf_export_outline( BOARD* aPcb, IDF3_BOARD& aIDFBoard )
     aIDFBoard.GetUserOffset( offX, offY );
 
     // Retrieve segments and arcs from the board
-    for( BOARD_ITEM* item = aPcb->m_Drawings; item; item = item->Next() )
+    for( auto item : aPcb->Drawings() )
     {
         if( item->Type() != PCB_LINE_T || item->GetLayer() != Edge_Cuts )
             continue;
@@ -194,7 +199,7 @@ UseBoundingBox:
     // there is always some uncertainty in the board dimensions
     // computed via ComputeBoundingBox() since this depends on the
     // individual module entities.
-    EDA_RECT bbbox = aPcb->ComputeBoundingBox( true );
+    EDA_RECT bbbox = aPcb->GetBoardEdgesBoundingBox();
 
     // convert to mm and compensate for an assumed LINE_WIDTH line thickness
     double  x   = ( bbbox.GetOrigin().x + LINE_WIDTH / 2 ) * scale + offX;
@@ -282,7 +287,7 @@ static void idf_export_module( BOARD* aPcb, MODULE* aModule,
 
     aIDFBoard.GetUserOffset( dx, dy );
 
-    for( D_PAD* pad = aModule->Pads(); pad; pad = pad->Next() )
+    for( D_PAD* pad = aModule->PadsList(); pad; pad = pad->Next() )
     {
         drill = (double) pad->GetDrillSize().x * scale;
         x     = pad->GetPosition().x * scale + dx;
@@ -298,7 +303,7 @@ static void idf_export_module( BOARD* aPcb, MODULE* aModule,
                 kplate = IDF3::PTH;
 
             // hole type
-            tstr = TO_UTF8( pad->GetPadName() );
+            tstr = TO_UTF8( pad->GetName() );
 
             if( tstr.empty() || !tstr.compare( "0" ) || !tstr.compare( "~" )
                 || ( kplate == IDF3::NPTH )
@@ -374,10 +379,21 @@ static void idf_export_module( BOARD* aPcb, MODULE* aModule,
 
     IDF3_COMPONENT* comp = NULL;
 
-    for( S3D_MASTER* modfile = aModule->Models(); modfile != 0; modfile = modfile->Next() )
+    auto sM = aModule->Models().begin();
+    auto eM = aModule->Models().end();
+    wxFileName idfFile;
+    wxString   idfExt;
+
+    while( sM != eM )
     {
-        if( !modfile->Is3DType( S3D_MASTER::FILE3D_IDF ) )
+        idfFile.Assign( resolver->ResolvePath( sM->m_Filename )  );
+        idfExt = idfFile.GetExt();
+
+        if( idfExt.Cmp( wxT( "idf" ) ) && idfExt.Cmp( wxT( "IDF" ) ) )
+        {
+            ++sM;
             continue;
+        }
 
         if( refdes.empty() )
         {
@@ -393,22 +409,21 @@ static void idf_export_module( BOARD* aPcb, MODULE* aModule,
 
         IDF3_COMP_OUTLINE* outline;
 
-        outline = aIDFBoard.GetComponentOutline( modfile->GetShape3DFullFilename() );
+        outline = aIDFBoard.GetComponentOutline( idfFile.GetFullPath() );
 
         if( !outline )
             throw( std::runtime_error( aIDFBoard.GetError() ) );
 
         double rotz = aModule->GetOrientation()/10.0;
-        double locx = modfile->m_MatPosition.x * 25.4;  // part offsets are in inches
-        double locy = modfile->m_MatPosition.y * 25.4;
-        double locz = modfile->m_MatPosition.z * 25.4;
-        double lrot = modfile->m_MatRotation.z;
+        double locx = sM->m_Offset.x * 25.4;  // part offsets are in inches
+        double locy = sM->m_Offset.y * 25.4;
+        double locz = sM->m_Offset.z * 25.4;
+        double lrot = sM->m_Rotation.z;
 
         bool top = ( aModule->GetLayer() == B_Cu ) ? false : true;
 
         if( top )
         {
-            rotz += modfile->m_MatRotation.z;
             locy = -locy;
             RotatePoint( &locx, &locy, aModule->GetOrientation() );
             locy = -locy;
@@ -416,6 +431,7 @@ static void idf_export_module( BOARD* aPcb, MODULE* aModule,
 
         if( !top )
         {
+            lrot = -lrot;
             RotatePoint( &locx, &locy, aModule->GetOrientation() );
             locy = -locy;
 
@@ -522,6 +538,7 @@ static void idf_export_module( BOARD* aPcb, MODULE* aModule,
 
         data->SetOffsets( locx, locy, locz, lrot );
         comp->AddOutlineData( data );
+        ++sM;
     }
 
     return;
@@ -533,13 +550,15 @@ static void idf_export_module( BOARD* aPcb, MODULE* aModule,
  * generates IDFv3 compliant board (*.emn) and library (*.emp)
  * files representing the user's PCB design.
  */
-bool Export_IDF3( BOARD* aPcb, const wxString& aFullFileName, bool aUseThou,
-                  double aXRef, double aYRef )
+bool PCB_EDIT_FRAME::Export_IDF3( BOARD* aPcb, const wxString& aFullFileName,
+    bool aUseThou, double aXRef, double aYRef )
 {
     IDF3_BOARD idfBoard( IDF3::CAD_ELEC );
 
     // Switch the locale to standard C (needed to print floating point numbers)
     LOCALE_IO toggle;
+
+    resolver = Prj().Get3DCacheManager()->GetResolver();
 
     bool ok = true;
     double scale = MM_PER_IU;   // we must scale internal units to mm for IDF
@@ -592,7 +611,7 @@ bool Export_IDF3( BOARD* aPcb, const wxString& aFullFileName, bool aUseThou,
     catch( const IO_ERROR& ioe )
     {
         wxString msg;
-        msg << _( "IDF Export Failed:\n" ) << ioe.errorText;
+        msg << _( "IDF Export Failed:\n" ) << ioe.What();
         wxMessageBox( msg );
 
         ok = false;

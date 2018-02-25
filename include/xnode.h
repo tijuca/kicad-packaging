@@ -1,6 +1,3 @@
-#ifndef XATTR_H_
-#define XATTR_H_
-
 /*
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
@@ -24,6 +21,9 @@
  * or you may write to the Free Software Foundation, Inc.,
  * 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
  */
+
+#ifndef XNODE_H_
+#define XNODE_H_
 
 #include <richio.h>
 
@@ -83,7 +83,7 @@ public:
      * @param nestLevel A multiple of the number of spaces to preceed the output with.
      * @throw IO_ERROR if a system error writing the output, such as a full disk.
      */
-    virtual void Format( OUTPUTFORMATTER* out, int nestLevel ) throw( IO_ERROR );
+    virtual void Format( OUTPUTFORMATTER* out, int nestLevel );
 
     /**
      * Function FormatContents
@@ -93,8 +93,8 @@ public:
      * @param nestLevel A multiple of the number of spaces to preceed the output with.
      * @throw IO_ERROR if a system error writing the output, such as a full disk.
      */
-    virtual void FormatContents( OUTPUTFORMATTER* out, int nestLevel ) throw( IO_ERROR );
+    virtual void FormatContents( OUTPUTFORMATTER* out, int nestLevel );
 
 };
 
-#endif  // XATTR_H_
+#endif  // XNODE_H_

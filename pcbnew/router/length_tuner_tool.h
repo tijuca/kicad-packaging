@@ -1,7 +1,8 @@
 /*
  * KiRouter - a push-and-(sometimes-)shove PCB router
  *
- * Copyright (C) 2013-2015 CERN
+ * Copyright (C) 2013-2017 CERN
+ * Copyright (C) 2016 KiCad Developers, see AUTHORS.txt for contributors.
  * Author: Tomasz Wlostowski <tomasz.wlostowski@cern.ch>
  * Author: Maciej Suminski <maciej.suminski@cern.ch>
  *
@@ -27,28 +28,29 @@
 
 class PNS_TUNE_STATUS_POPUP;
 
-class APIEXPORT LENGTH_TUNER_TOOL : public PNS_TOOL_BASE
+class APIEXPORT LENGTH_TUNER_TOOL : public PNS::TOOL_BASE
 {
 public:
     LENGTH_TUNER_TOOL();
     ~LENGTH_TUNER_TOOL();
 
-    void Reset( RESET_REASON aReason );
+    void Reset( RESET_REASON aReason ) override;
 
     int TuneSingleTrace( const TOOL_EVENT& aEvent );
     int TuneDiffPair( const TOOL_EVENT& aEvent );
     int TuneDiffPairSkew( const TOOL_EVENT& aEvent );
-    int ClearMeanders( const TOOL_EVENT& aEvent );
+
+    void setTransitions() override;
 
 private:
-    void performTuning( );
-    int mainLoop( PNS_ROUTER_MODE aMode );
-    void handleCommonEvents( const TOOL_EVENT& aEvent );
-    void updateStatusPopup ( PNS_TUNE_STATUS_POPUP& aPopup );
+    void performTuning();
+    int mainLoop( PNS::ROUTER_MODE aMode );
+    void updateStatusPopup( PNS_TUNE_STATUS_POPUP& aPopup );
 
+    int routerOptionsDialog( const TOOL_EVENT& aEvent );
+    int meanderSettingsDialog( const TOOL_EVENT& aEvent );
 
-
-    PNS_MEANDER_SETTINGS m_savedMeanderSettings;
+    PNS::MEANDER_SETTINGS m_savedMeanderSettings;
 };
 
 #endif

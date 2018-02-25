@@ -38,7 +38,7 @@
  */
 namespace KIGFX {
 
-class ORIGIN_VIEWITEM : public EDA_ITEM
+class ORIGIN_VIEWITEM : public BOARD_ITEM
 {
 public:
     ///> Marker symbol styles
@@ -48,18 +48,28 @@ public:
                      MARKER_STYLE aStyle = CIRCLE_X, int aSize = 16,
                      const VECTOR2D& aPosition = VECTOR2D( 0, 0 ) );
 
-    const BOX2I ViewBBox() const;
+    ORIGIN_VIEWITEM( const VECTOR2D& aPosition, STATUS_FLAGS flags );
 
-    void ViewDraw( int aLayer, KIGFX::GAL* aGal ) const;
+    ORIGIN_VIEWITEM* Clone() const override;
 
-    void ViewGetLayers( int aLayers[], int& aCount ) const
+    const BOX2I ViewBBox() const override;
+
+    void ViewDraw( int aLayer, VIEW* aView ) const override;
+
+    void Draw( EDA_DRAW_PANEL* panel, wxDC* DC,
+               GR_DRAWMODE aDrawMode, const wxPoint& offset = ZeroOffset ) override
     {
-        aLayers[0] = ITEM_GAL_LAYER( GP_OVERLAY );
+        wxASSERT( 0 ); // ORIGIN_VIEWITEM never added to BOARD; drawn directly through ViewDraw().
+    }
+
+    void ViewGetLayers( int aLayers[], int& aCount ) const override
+    {
+        aLayers[0] = LAYER_GP_OVERLAY;
         aCount = 1;
     }
 
 #if defined(DEBUG)
-    void Show( int x, std::ostream& st ) const
+    void Show( int x, std::ostream& st ) const override
     {
     }
 #endif
@@ -67,7 +77,7 @@ public:
     /** Get class name
      * @return  string "ORIGIN_VIEWITEM"
      */
-    wxString GetClass() const
+    wxString GetClass() const override
     {
         return wxT( "ORIGIN_VIEWITEM" );
     }
@@ -86,12 +96,16 @@ public:
     inline void SetPosition( const VECTOR2D& aPosition )
     {
         m_position = aPosition;
-        ViewUpdate();
     }
 
-    inline const VECTOR2D& GetPosition() const
+    inline void SetPosition( const wxPoint& aPosition ) override
     {
-        return m_position;
+        m_position = VECTOR2D( aPosition );
+    }
+
+    inline const wxPoint GetPosition() const override
+    {
+        return wxPoint( m_position.x, m_position.y );
     }
 
     inline void SetSize( int aSize )

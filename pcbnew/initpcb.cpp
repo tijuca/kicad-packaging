@@ -28,12 +28,12 @@
 
 #include <fctsys.h>
 #include <confirm.h>
-#include <wxPcbStruct.h>
+#include <pcb_edit_frame.h>
 
 #include <class_board.h>
 
 #include <pcbnew.h>
-#include <module_editor_frame.h>
+#include <footprint_edit_frame.h>
 
 
 bool PCB_EDIT_FRAME::Clear_Pcb( bool aQuery )
@@ -54,14 +54,14 @@ bool PCB_EDIT_FRAME::Clear_Pcb( bool aQuery )
 
     // Items visibility flags will be set because a new board will be created.
     // Grid and ratsnest can be left to their previous state
-    bool showGrid = IsElementVisible( GRID_VISIBLE );
-    bool showRats = IsElementVisible( RATSNEST_VISIBLE );
+    bool showGrid = IsElementVisible( LAYER_GRID );
+    bool showRats = IsElementVisible( LAYER_RATSNEST );
 
     // delete the old BOARD and create a new BOARD so that the default
     // layer names are put into the BOARD.
     SetBoard( new BOARD() );
-    SetElementVisibility( GRID_VISIBLE, showGrid );
-    SetElementVisibility( RATSNEST_VISIBLE, showRats );
+    SetElementVisibility( LAYER_GRID, showGrid );
+    SetElementVisibility( LAYER_RATSNEST, showRats );
 
     SetCurItem( NULL );
 

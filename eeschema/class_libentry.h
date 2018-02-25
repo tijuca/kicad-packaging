@@ -2,8 +2,8 @@
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
  * Copyright (C) 2004-2015 Jean-Pierre Charras, jp.charras at wanadoo.fr
- * Copyright (C) 2008-2015 Wayne Stambaugh <stambaughw@verizon.net>
- * Copyright (C) 2004-2015 KiCad Developers, see change_log.txt for contributors.
+ * Copyright (C) 2008 Wayne Stambaugh <stambaughw@gmail.com>
+ * Copyright (C) 2004-2017 KiCad Developers, see change_log.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -31,12 +31,13 @@
 #define CLASS_LIBENTRY_H
 
 #include <general.h>
+#include <lib_id.h>
 #include <lib_draw_item.h>
 #include <lib_field.h>
-#include <boost/shared_ptr.hpp>
-#include <boost/weak_ptr.hpp>
 #include <vector>
+#include <multivector.h>
 
+class EDA_RECT;
 class LINE_READER;
 class OUTPUTFORMATTER;
 class PART_LIB;
@@ -45,22 +46,11 @@ class LIB_PART;
 class LIB_FIELD;
 
 
-/// Compiler controlled string compare function, either case independent or not:
-inline int Cmp_KEEPCASE( const wxString& aString1, const wxString& aString2 )
-{
-#ifdef KICAD_KEEPCASE
-    // case specificity, the normal behavior:
-    return aString1.Cmp( aString2 );
-#else
-    // case independence (only for guys who want that: not recommended)
-    return aString1.CmpNoCase( aString2 );
-#endif
-}
-
-
 typedef std::vector<LIB_ALIAS*>         LIB_ALIASES;
-typedef boost::shared_ptr<LIB_PART>     PART_SPTR;      ///< shared pointer to LIB_PART
-typedef boost::weak_ptr<LIB_PART>       PART_REF;       ///< weak pointer to LIB_PART
+typedef std::shared_ptr<LIB_PART>       PART_SPTR;      ///< shared pointer to LIB_PART
+typedef std::weak_ptr<LIB_PART>         PART_REF;       ///< weak pointer to LIB_PART
+typedef MULTIVECTOR<LIB_ITEM, LIB_ARC_T, LIB_FIELD_T> LIB_ITEMS_CONTAINER;
+typedef LIB_ITEMS_CONTAINER::ITEM_PTR_VECTOR LIB_ITEMS;
 
 
 /* values for member .m_options */
@@ -71,7 +61,11 @@ enum  LIBRENTRYOPTIONS
 };
 
 
-/// WXTRACE value to enable schematic library memory deletion debug output.
+/**
+ * @ingroup trace_env_vars
+ *
+ * Flag to enable schematic library memory deletion debug output.
+ */
 extern const wxChar traceSchLibMem[];
 
 
@@ -95,8 +89,6 @@ class LIB_ALIAS : public EDA_ITEM
      */
     LIB_PART*       shared;
 
-    friend class LIB_PART;
-
 protected:
     wxString        name;
     wxString        description;    ///< documentation for info
@@ -109,14 +101,13 @@ public:
 
     virtual ~LIB_ALIAS();
 
-    virtual wxString GetClass() const
+    virtual wxString GetClass() const override
     {
         return wxT( "LIB_ALIAS" );
     }
 
     /**
-     * Function GetPart
-     * gets the shared LIB_PART.
+     * Get the shared LIB_PART.
      *
      * @return LIB_PART* - the LIB_PART shared by
      * this LIB_ALIAS with possibly other LIB_ALIASes.
@@ -158,15 +149,6 @@ public:
     wxString GetDocFileName() const { return docFileName; }
 
     /**
-     * Function SaveDocs
-     * write the entry document information to \a aFormatter in "*.dcm" format.
-     *
-     * @param aFormatter The #OUTPUTFORMATTER to write the alias documents to.
-     * @return True if success writing else false.
-     */
-    bool SaveDoc( OUTPUTFORMATTER& aFormatter );
-
-    /**
      * KEEPCASE sensitive comparison of the part entry name.
      */
     bool operator==( const wxChar* aName ) const;
@@ -178,7 +160,7 @@ public:
     bool operator==( const LIB_ALIAS* aAlias ) const { return this == aAlias; }
 
 #if defined(DEBUG)
-    void Show( int nestLevel, std::ostream& os ) const { ShowDummy( os ); } // override
+    void Show( int nestLevel, std::ostream& os ) const override { ShowDummy( os ); }
 #endif
 };
 
@@ -187,30 +169,62 @@ extern bool operator<( const LIB_ALIAS& aItem1, const LIB_ALIAS& aItem2 );
 extern int LibraryEntryCompare( const LIB_ALIAS* aItem1, const LIB_ALIAS* aItem2 );
 
 
+struct PART_DRAW_OPTIONS
+{
+    GR_DRAWMODE draw_mode;      ///< Device context drawing mode, see wxDC
+    COLOR4D color;              ///< Color to draw part in
+    TRANSFORM transform;        ///< Coordinate adjustment settings
+    bool show_pin_text;         ///< Whether to show pin texts
+    bool draw_visible_fields;   ///< Whether to draw "visible" fields
+    bool draw_hidden_fields;    ///< Whether to draw "hidden" fields
+    bool only_selected;         ///< Draws only the body items that are selected, for block moves
+    std::vector<bool> dangling; ///< which pins should display as dangling, or empty for All
+    bool show_elec_type;        ///< Whether to show the pin electrical type
+
+    static PART_DRAW_OPTIONS Default()
+    {
+        PART_DRAW_OPTIONS def;
+        def.draw_mode = GR_DEFAULT_DRAWMODE;
+        def.color     = COLOR4D::UNSPECIFIED;
+        def.transform = DefaultTransform;
+        def.show_pin_text       = true;
+        def.draw_visible_fields = true;
+        def.draw_hidden_fields  = true;
+        def.only_selected       = false;
+        def.show_elec_type      = false;
+        return def;
+    }
+
+    bool PinIsDangling( size_t aPin ) const
+    {
+        if( aPin < dangling.size() )
+            return dangling[aPin];
+        else
+            return true;
+    }
+};
+
+
 /**
- * Class LIB_PART
- * defines a library part object.
+ * Define a library symbol object.
  *
- * A library part object is typically saved and loaded in a part library file (.lib).
- * Library parts are different from schematic components.
+ * A library symbol object is typically saved and loaded in a part library file (.lib).
+ * Library symbols are different from schematic symbols.
  */
 class LIB_PART : public EDA_ITEM
 {
-    friend class PART_LIB;
-    friend class LIB_ALIAS;
-
     PART_SPTR           m_me;               ///< http://www.boost.org/doc/libs/1_55_0/libs/smart_ptr/sp_techniques.html#weak_without_shared
-    wxString            m_name;
+    LIB_ID              m_libId;
     int                 m_pinNameOffset;    ///< The offset in mils to draw the pin name.  Set to 0
                                             ///< to draw the pin name above the pin.
     bool                m_unitsLocked;      ///< True if part has multiple units and changing
                                             ///< one unit does not automatically change another unit.
     bool                m_showPinNames;     ///< Determines if part pin names are visible.
     bool                m_showPinNumbers;   ///< Determines if part pin numbers are visible.
-    long                m_dateModified;     ///< Date the part was last modified.
+    timestamp_t         m_dateLastEdition;  ///< Date of the last modification.
     LIBRENTRYOPTIONS    m_options;          ///< Special part features such as POWER or NORMAL.)
     int                 m_unitCount;        ///< Number of units (parts) per package.
-    LIB_ITEMS           drawings;           ///< How to draw this part.
+    LIB_ITEMS_CONTAINER m_drawings;         ///< Drawing items of this part.
     wxArrayString       m_FootprintList;    /**< List of suitable footprint names for the
                                                  part (wild card names accepted). */
     LIB_ALIASES         m_aliases;          ///< List of alias object pointers associated with the
@@ -226,7 +240,7 @@ class LIB_PART : public EDA_ITEM
 private:
     void deleteAllFields();
 
-    // LIB_PART()  { }     // not legal
+
 
 public:
 
@@ -241,18 +255,23 @@ public:
         return m_me;
     }
 
-    virtual wxString GetClass() const
+    virtual wxString GetClass() const override
     {
         return wxT( "LIB_PART" );
     }
 
     virtual void SetName( const wxString& aName );
 
-    const wxString& GetName()       { return m_name; }
+    const wxString& GetName() const;
+
+    const LIB_ID& GetLibId() const { return m_libId; }
+    void SetLibId( const LIB_ID& aLibId ) { m_libId = aLibId; }
 
     const wxString GetLibraryName();
 
     PART_LIB* GetLib()              { return m_library; }
+
+    void SetLib( PART_LIB* aLibrary ) { m_library = aLibrary; }
 
     wxArrayString GetAliasNames( bool aIncludeRoot = true ) const;
 
@@ -262,9 +281,9 @@ public:
 
     LIB_ALIAS* GetAlias( const wxString& aName );
 
+    timestamp_t GetDateLastEdition() const { return m_dateLastEdition; }
+
     /**
-     * Function AddAlias
-     *
      * Add an alias \a aName to the part.
      *
      * Duplicate alias names are not added to the alias list.  Debug builds will raise an
@@ -291,10 +310,11 @@ public:
 
     void RemoveAllAliases();
 
-    wxArrayString& GetFootPrints() { return m_FootprintList; }
+    wxArrayString& GetFootprints() { return m_FootprintList; }
 
     /**
-     * Function GetBoundingBox
+     * Get the bounding box for the symbol.
+     *
      * @return the part bounding box ( in user coordinates )
      * @param aUnit = unit selection = 0, or 1..n
      * @param aConvert = 0, 1 or 2
@@ -302,10 +322,11 @@ public:
      *  if aConvert == 0 Convert is non used
      *  Invisible fields are not taken in account
      **/
-    const EDA_RECT GetBoundingBox( int aUnit, int aConvert ) const;
+    const EDA_RECT GetUnitBoundingBox( int aUnit, int aConvert ) const;
 
     /**
-     * Function GetBodyBoundingBox
+     * Get the symbol bounding box excluding fields.
+     *
      * @return the part bounding box ( in user coordinates ) without fields
      * @param aUnit = unit selection = 0, or 1..n
      * @param aConvert = 0, 1 or 2
@@ -315,9 +336,13 @@ public:
      **/
     const EDA_RECT GetBodyBoundingBox( int aUnit, int aConvert ) const;
 
+    const EDA_RECT GetBoundingBox() const override
+    {
+        return GetUnitBoundingBox( 0, 0 );
+    }
+
     /**
-     * Function SaveDateAndTime
-     * write the date and time of part to \a aFile in the format:
+     * Write the date and time of part to \a aFile in the format:
      * "Ti yy/mm/jj hh:mm:ss"
      *
      * @param aFormatter A reference to an #OUTPUTFORMATTER object containing the
@@ -329,27 +354,12 @@ public:
     bool LoadDateAndTime( char* aLine );
 
     /**
-     * Function Save
-     * writes the data structures out to \a aFormatter in the part library "*.lib"
-     * format.
+     * Write the data structures out to \a aFormatter in the part library "*.lib" format.
      *
      * @param aFormatter A reference to an OUTPUTFORMATTER to write to.
      * @return True if success writing else false.
      */
     bool Save( OUTPUTFORMATTER& aFormatter );
-
-    /**
-     * Load part definition from \a aReader.
-     *
-     * @param aReader A LINE_READER object to load file from.
-     * @param aErrorMsg - Description of error on load failure.
-     * @return True if the load was successful, false if there was an error.
-     */
-    bool Load( LINE_READER& aReader, wxString& aErrorMsg );
-    bool LoadField( LINE_READER& aReader, wxString& aErrorMsg );
-    bool LoadDrawEntries( LINE_READER& aReader, wxString& aErrorMsg );
-    bool LoadAliases( char* aLine, wxString& aErrorMsg );
-    bool LoadFootprints( LINE_READER& aReader, wxString& aErrorMsg );
 
     bool IsPower() const  { return m_options == ENTRY_POWER; }
     bool IsNormal() const { return m_options == ENTRY_NORMAL; }
@@ -357,22 +367,31 @@ public:
     void SetPower()     { m_options = ENTRY_POWER; }
     void SetNormal()    { m_options = ENTRY_NORMAL; }
 
+    /**
+     * Set interchangeable the property for part units.
+     * @param aLockUnits when true then units are set as not interchangeable.
+     */
     void LockUnits( bool aLockUnits ) { m_unitsLocked = aLockUnits; }
+
+    /**
+     * Check whether part units are interchangeable.
+     * @return False when interchangeable, true otherwise.
+     */
     bool UnitsLocked() const { return m_unitsLocked; }
 
     /**
-     * Function SetFields
-     * overwrites all the existing in this part with fields supplied
-     * in \a aFieldsList.  The only known caller of this function is the
-     * library part field editor, and it establishes needed behavior.
+     * Overwrite all the existing fields in this symbol with fields supplied
+     * in \a aFieldsList.
      *
-`     * @param aFieldsList is a set of fields to import, removing all previous fields.
+     * The only known caller of this function is the library part field editor, and it
+     * establishes needed behavior.
+     *
+     * @param aFieldsList is a set of fields to import, removing all previous fields.
      */
     void SetFields( const std::vector <LIB_FIELD>& aFieldsList );
 
     /**
-     * Function GetFields
-     * returns a list of fields withing this part. The only known caller of
+     * Return a list of fields withing this part. The only known caller of
      * this function is the library part field editor, and it establishes
      * needed behavior.
      *
@@ -381,9 +400,7 @@ public:
     void GetFields( LIB_FIELDS& aList );
 
     /**
-     * Function FindField
-     * finds a field within this part matching \a aFieldName and returns
-     * it or NULL if not found.
+     * Findd a field within this part matching \a aFieldName and returns it or NULL if not found.
      */
     LIB_FIELD* FindField( const wxString& aFieldName );
 
@@ -401,6 +418,9 @@ public:
     /** Return reference to the reference designator field. */
     LIB_FIELD& GetReferenceField();
 
+    /** Return reference to the footprint field */
+    LIB_FIELD& GetFootprintField();
+
     /**
      * Draw part.
      *
@@ -409,28 +429,11 @@ public:
      * @param aOffset - Position of part.
      * @param aMulti - unit if multiple units per part.
      * @param aConvert - Component conversion (DeMorgan) if available.
-     * @param aDrawMode - Device context drawing mode, see wxDC.
-     * @param aColor - Color to draw part.
-     * @param aTransform - Coordinate adjustment settings.
-     * @param aShowPinText - Show pin text if true.
-     * @param aDrawFields - Draw field text if true otherwise just draw
-     *                      body items (useful to draw a body in schematic,
-     *                      because fields of schematic components replace
-     *                      the lib part fields).
-     * @param aOnlySelected - Draws only the body items that are selected.
-     *                        Used for block move redraws.
-     * @param aPinsDangling - if not NULL, this should be a pointer to
-     *              vector<bool> exactly the same length as the number of pins,
-     *              indicating whether each pin is dangling. If NULL, all pins
-     *              will be drawn as if they were dangling.
+     * @param aOpts - Drawing options
      */
     void Draw( EDA_DRAW_PANEL* aPanel, wxDC* aDc, const wxPoint& aOffset,
-               int aMulti, int aConvert, GR_DRAWMODE aDrawMode,
-               EDA_COLOR_T aColor = UNSPECIFIED_COLOR,
-               const TRANSFORM& aTransform = DefaultTransform,
-               bool aShowPinText = true, bool aDrawFields = true,
-               bool aOnlySelected = false,
-               const std::vector<bool>* aPinsDangling = NULL );
+               int aMulti, int aConvert,
+               const PART_DRAW_OPTIONS& aOpts );
 
     /**
      * Plot lib part to plotter.
@@ -529,8 +532,7 @@ public:
     LIB_PIN* GetPin( const wxString& aNumber, int aUnit = 0, int aConvert = 0 );
 
     /**
-     * Function PinsConflictWith
-     * returns true if this part's pins do not match another part's pins. This
+     * Return true if this part's pins do not match another part's pins. This
      * is used to detect whether the project cache is out of sync with the
      * system libs.
      *
@@ -577,12 +579,11 @@ public:
      * @param aRect - The bounding rectangle to test in draw items are inside.
      * @param aUnit - The current unit number to test against.
      * @param aConvert - Are the draw items being selected a conversion.
-     * @param aEditPinByPin - Used to ignore pin selections when in edit pin
-     *                        by pin mode is enabled.
+     * @param aSyncPinEdit - Enable pin selection in other units.
      * @return The number of draw objects found inside the block select
      *         rectangle.
      */
-    int SelectItems( EDA_RECT& aRect, int aUnit, int aConvert, bool aEditPinByPin );
+    int SelectItems( EDA_RECT& aRect, int aUnit, int aConvert, bool aSyncPinEdit );
 
     /**
      * Clears all the draw items marked by a block select.
@@ -660,9 +661,12 @@ public:
     /**
      * Return a reference to the draw item list.
      *
-     * @return LIB_ITEMS& - Reference to the draw item object list.
+     * @return LIB_ITEMS_CONTAINER& - Reference to the draw item object container.
      */
-    LIB_ITEMS& GetDrawItemList() { return drawings; }
+    LIB_ITEMS_CONTAINER& GetDrawItems()
+    {
+        return m_drawings;
+    }
 
     /**
      * Set the units per part count.
@@ -679,14 +683,12 @@ public:
     int GetUnitCount() const { return m_unitCount; }
 
     /**
-     * Function IsMulti
      * @return true if the part has multiple units per part.
-     * When happens, the reference has a sub reference ti identify part
+     * When true, the reference has a sub reference to identify part.
      */
     bool IsMulti() const { return m_unitCount > 1; }
 
     /**
-     * Function SubReference
      * @return the sub reference for part having multiple units per part.
      * The sub reference identify the part (or unit)
      * @param aUnit = the part identifier ( 1 to max count)
@@ -710,7 +712,8 @@ public:
      */
     static int* SubpartFirstIdPtr() { return &m_subpartFirstId; }
 
-    /** Set the separator char between the subpart id and the reference
+    /**
+     * Set the separator char between the subpart id and the reference
      * 0 (no separator) or '.' , '-' and '_'
      * and the ascii char value to calculate the subpart symbol id from the part number:
      * 'A' or '1' only are allowed. (to print U1.A or U1.1)
@@ -766,7 +769,7 @@ public:
     bool operator==( const LIB_PART*  aPart ) const { return this == aPart; }
 
 #if defined(DEBUG)
-    void Show( int nestLevel, std::ostream& os ) const { ShowDummy( os ); } // override
+    void Show( int nestLevel, std::ostream& os ) const override { ShowDummy( os ); }
 #endif
 };
 

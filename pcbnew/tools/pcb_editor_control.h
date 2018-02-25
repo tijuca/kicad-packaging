@@ -25,31 +25,31 @@
 #ifndef PCB_EDITOR_CONTROL_H
 #define PCB_EDITOR_CONTROL_H
 
-#include <tool/tool_interactive.h>
+#include <tools/pcb_tool.h>
+#include <tool/tool_menu.h>
 
 namespace KIGFX {
     class ORIGIN_VIEWITEM;
 }
 
 class PCB_EDIT_FRAME;
-class ZONE_CONTEXT_MENU;
 
 /**
  * Class PCB_EDITOR_CONTROL
  *
  * Handles actions specific to the board editor in pcbnew.
  */
-class PCB_EDITOR_CONTROL : public TOOL_INTERACTIVE
+class PCB_EDITOR_CONTROL : public wxEvtHandler, public PCB_TOOL
 {
 public:
     PCB_EDITOR_CONTROL();
     ~PCB_EDITOR_CONTROL();
 
     /// @copydoc TOOL_INTERACTIVE::Reset()
-    void Reset( RESET_REASON aReason );
+    void Reset( RESET_REASON aReason ) override;
 
     /// @copydoc TOOL_INTERACTIVE::Init()
-    bool Init();
+    bool Init() override;
 
     // Track & via size control
     int TrackWidthInc( const TOOL_EVENT& aEvent );
@@ -58,11 +58,10 @@ public:
     int ViaSizeDec( const TOOL_EVENT& aEvent );
 
     // Zone actions
-    int ZoneFill( const TOOL_EVENT& aEvent );
-    int ZoneFillAll( const TOOL_EVENT& aEvent );
-    int ZoneUnfill( const TOOL_EVENT& aEvent );
-    int ZoneUnfillAll( const TOOL_EVENT& aEvent );
     int ZoneMerge( const TOOL_EVENT& aEvent );
+
+    ///> Duplicates a zone onto a layer (prompts for new layer)
+    int ZoneDuplicate( const TOOL_EVENT& aEvent );
 
     /**
      * Function PlaceTarget()
@@ -76,8 +75,14 @@ public:
      */
     int PlaceModule( const TOOL_EVENT& aEvent );
 
-    ///> (Un)locks module.
-    int ToggleLockModule( const TOOL_EVENT& aEvent );
+    ///> Toggles 'lock' property for selected items.
+    int ToggleLockSelected( const TOOL_EVENT& aEvent );
+
+    ///> Locks selected items.
+    int LockSelected( const TOOL_EVENT& aEvent );
+
+    ///> Unlocks selected items.
+    int UnlockSelected( const TOOL_EVENT& aEvent );
 
     ///> Notifies eeschema about the selected item.
     int CrossProbePcbToSch( const TOOL_EVENT& aEvent );
@@ -85,8 +90,16 @@ public:
     ///> Reacts to selection change in eeschema.
     int CrossProbeSchToPcb( const TOOL_EVENT& aEvent );
 
-    ///> Places the origin point for drill and pick-and-place files.
+    ///> Runs the drill origin tool for setting the origin for drill and pick-and-place files.
     int DrillOrigin( const TOOL_EVENT& aEvent );
+
+    ///> UI-level access (including undo) to setting the drill origin
+    static bool SetDrillOrigin( KIGFX::VIEW* aView, PCB_BASE_FRAME* aFrame,
+                                BOARD_ITEM* aItem, const VECTOR2D& aPoint );
+
+    ///> Low-level access (below undo) to setting the drill origin
+    static bool DoSetDrillOrigin( KIGFX::VIEW* aView, PCB_BASE_FRAME* aFrame,
+                                  BOARD_ITEM* aItem, const VECTOR2D& aPoint );
 
     ///> Highlights net belonging to the item under the cursor.
     int HighlightNet( const TOOL_EVENT& aEvent );
@@ -94,23 +107,50 @@ public:
     ///> Launches a tool to pick the item whose net is going to be highlighted.
     int HighlightNetCursor( const TOOL_EVENT& aEvent );
 
-    ///> Sets up handlers for various events.
-    void SetTransitions();
+    ///> Updates ratsnest for selected items.
+    int UpdateSelectionRatsnest( const TOOL_EVENT& aEvent );
+
+    ///> Hides ratsnest for selected items. Called when there are no items selected.
+    int HideSelectionRatsnest( const TOOL_EVENT& aEvent );
+
+    ///> Shows local ratsnest of a component
+    int ShowLocalRatsnest( const TOOL_EVENT& aEvent );
 
 private:
+    ///> Event handler to recalculate dynamic ratsnest
+    void ratsnestTimer( wxTimerEvent& aEvent );
+
+    ///> Recalculates dynamic ratsnest for the current selection
+    void calculateSelectionRatsnest();
+
+    ///> Sets up handlers for various events.
+    void setTransitions() override;
+
     ///> Pointer to the currently used edit frame.
     PCB_EDIT_FRAME* m_frame;
 
+    /// Menu model displayed by the tool.
+    TOOL_MENU m_menu;
+
     ///> Place & drill origin marker.
-    KIGFX::ORIGIN_VIEWITEM* m_placeOrigin;
+    std::unique_ptr<KIGFX::ORIGIN_VIEWITEM> m_placeOrigin;
 
     ///> Flag to ignore a single crossprobe message from eeschema.
     bool m_probingSchToPcb;
 
+    ///> Flag to indicate whether the current selection ratsnest is slow to calculate.
+    bool m_slowRatsnest;
+
+    ///> Timer that start ratsnest calculation when it is slow to compute.
+    wxTimer m_ratsnestTimer;
+
+    ///> How to modify a property for selected items.
+    enum MODIFY_MODE { ON, OFF, TOGGLE };
+
+    int modifyLockSelected( MODIFY_MODE aMode );
+
     // How does line width change after one -/+ key press.
     static const int WIDTH_STEP;
-
-    ZONE_CONTEXT_MENU* m_zoneMenu;
 };
 
 #endif

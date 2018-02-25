@@ -2,7 +2,7 @@
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
  * Copyright (C) 2015 Jean-Pierre Charras, jp.charras at wanadoo.fr
- * Copyright (C) 1992-2015 KiCad Developers, see AUTHORS.txt for contributors.
+ * Copyright (C) 1992-2017 KiCad Developers, see AUTHORS.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -31,7 +31,6 @@
 #define SCH_SHEEET_H
 
 #include <boost/ptr_container/ptr_vector.hpp>
-#include <boost/foreach.hpp>
 #include <sch_text.h>
 
 
@@ -50,8 +49,7 @@ class NETLIST_OBJECT_LIST;
 
 
 /**
- * Class SCH_SHEET_PIN
- * defines a sheet pin (label) used in sheets to create hierarchical schematics.
+ * Define a sheet pin (label) used in sheets to create hierarchical schematics.
  *
  * A SCH_SHEET_PIN is used to create a hierarchical sheet in the same way a
  * pin is used in a component.  It connects the objects in the sheet object
@@ -62,12 +60,7 @@ class NETLIST_OBJECT_LIST;
  */
 class SCH_SHEET_PIN : public SCH_HIERLABEL
 {
-private:
-    int m_number;       ///< Label number use for saving sheet label to file.
-                        ///< Sheet label numbering begins at 2.
-                        ///< 0 is reserved for the sheet name.
-                        ///< 1 is reserve for the sheet file name.
-
+public:
     /**
      * Defines the edge of the sheet that the sheet pin is positioned
      * SHEET_LEFT_SIDE = 0: pin on left side
@@ -85,6 +78,13 @@ private:
         SHEET_BOTTOM_SIDE,
         SHEET_UNDEFINED_SIDE
     };
+
+private:
+    int m_number;       ///< Label number use for saving sheet label to file.
+                        ///< Sheet label numbering begins at 2.
+                        ///< 0 is reserved for the sheet name.
+                        ///< 1 is reserve for the sheet file name.
+
     SHEET_SIDE m_edge;
 
 public:
@@ -96,7 +96,7 @@ public:
 
     ~SCH_SHEET_PIN() { }
 
-    wxString GetClass() const
+    wxString GetClass() const override
     {
         return wxT( "SCH_SHEET_PIN" );
     }
@@ -104,27 +104,27 @@ public:
     bool operator ==( const SCH_SHEET_PIN* aPin ) const;
 
     /**
-     * Virtual function IsMovableFromAnchorPoint
      * Return true for items which are moved with the anchor point at mouse cursor
      * and false for items moved with no reference to anchor (usually large items)
+     *
      * @return true for a hierarchical sheet pin
      */
-    bool IsMovableFromAnchorPoint() { return true; }
+    bool IsMovableFromAnchorPoint() override { return true; }
 
     void Draw( EDA_DRAW_PANEL* aPanel, wxDC* aDC, const wxPoint& aOffset,
-               GR_DRAWMODE aDrawMode, EDA_COLOR_T aColor = UNSPECIFIED_COLOR );
+               GR_DRAWMODE aDrawMode, COLOR4D aColor = COLOR4D::UNSPECIFIED ) override;
 
     /**
-     * Function CreateGraphicShape (virtual)
-     * Calculates the graphic shape (a polygon) associated to the text
+     * Calculate the graphic shape (a polygon) associated to the text.
+     *
      * @param aPoints = a buffer to fill with polygon corners coordinates
      * @param aPos = Position of the shape
      */
-    void CreateGraphicShape( std::vector <wxPoint>& aPoints, const wxPoint& aPos );
+    void CreateGraphicShape( std::vector <wxPoint>& aPoints, const wxPoint& aPos ) override;
 
-    void SwapData( SCH_ITEM* aItem );
+    void SwapData( SCH_ITEM* aItem ) override;
 
-    int GetPenSize() const;
+    int GetPenSize() const override;
 
     /**
      * Get the sheet label number.
@@ -145,8 +145,7 @@ public:
     SHEET_SIDE GetEdge() const;
 
     /**
-     * Function ConstrainOnEdge
-     * is used to adjust label position to edge based on proximity to vertical / horizontal edge
+     * Adjust label position to edge based on proximity to vertical or horizontal edge
      * of the parent sheet.
      */
     void ConstrainOnEdge( wxPoint Pos );
@@ -159,49 +158,45 @@ public:
      */
     SCH_SHEET* GetParent() const { return (SCH_SHEET*) m_Parent; }
 
-    bool Save( FILE* aFile ) const;
-
-    bool Load( LINE_READER& aLine, wxString& aErrorMsg );
-
 #if defined(DEBUG)
-    void Show( int nestLevel, std::ostream& os ) const;     // override
+    void Show( int nestLevel, std::ostream& os ) const override;
 #endif
 
     // Geometric transforms (used in block operations):
 
-    void Move( const wxPoint& aMoveVector )
+    void Move( const wxPoint& aMoveVector ) override
     {
-        m_Pos += aMoveVector;
+        Offset( aMoveVector );
     }
 
-    void MirrorY( int aYaxis_position );
+    void MirrorY( int aYaxis_position ) override;
 
-    void Rotate( wxPoint aPosition );
+    void Rotate( wxPoint aPosition ) override;
 
-    void MirrorX( int aXaxis_position );
+    void MirrorX( int aXaxis_position ) override;
 
-    bool Matches( wxFindReplaceData& aSearchData, void* aAuxData, wxPoint* aFindLocation );
+    bool Matches( wxFindReplaceData& aSearchData, void* aAuxData, wxPoint* aFindLocation ) override;
 
-    bool Replace( wxFindReplaceData& aSearchData, void* aAuxData = NULL )
+    bool Replace( wxFindReplaceData& aSearchData, void* aAuxData = NULL ) override
     {
         return EDA_ITEM::Replace( aSearchData, m_Text );
     }
 
-    bool IsReplaceable() const { return true; }
+    bool IsReplaceable() const override { return true; }
 
-    void GetEndPoints( std::vector< DANGLING_END_ITEM >& aItemList );
+    void GetEndPoints( std::vector< DANGLING_END_ITEM >& aItemList ) override;
 
-    bool IsConnectable() const { return true; }
+    bool IsConnectable() const override { return true; }
 
-    wxString GetSelectMenuText() const;
+    wxString GetSelectMenuText() const override;
 
-    BITMAP_DEF GetMenuImage() const { return  add_hierar_pin_xpm; }
+    BITMAP_DEF GetMenuImage() const override;
 
-    void SetPosition( const wxPoint& aPosition ) { ConstrainOnEdge( aPosition ); }
+    void SetPosition( const wxPoint& aPosition ) override { ConstrainOnEdge( aPosition ); }
 
-    bool HitTest( const wxPoint& aPosition, int aAccuracy ) const;
+    bool HitTest( const wxPoint& aPosition, int aAccuracy ) const override;
 
-    EDA_ITEM* Clone() const;
+    EDA_ITEM* Clone() const override;
 };
 
 
@@ -209,8 +204,7 @@ typedef boost::ptr_vector<SCH_SHEET_PIN> SCH_SHEET_PINS;
 
 
 /**
- * Class SCH_SHEET
- * is the sheet symbol placed in a schematic, and is the entry point for a sub schematic.
+ * Sheet symbol placed in a schematic, and is the entry point for a sub schematic.
  */
 class SCH_SHEET : public SCH_ITEM
 {
@@ -247,28 +241,28 @@ public:
     SCH_SHEET( const wxPoint& pos = wxPoint( 0, 0 ) );
 
     /**
-     * Copy Constructor
-     * clones \a aSheet into a new object.  All sheet pins are copied as is except and
+     * Copy \a aSheet into a new object.  All sheet pins are copied as is except and
      * the SCH_SHEET_PIN's #m_Parent pointers are set to the new copied parent object.
      */
     SCH_SHEET( const SCH_SHEET& aSheet );
 
     ~SCH_SHEET();
 
-    wxString GetClass() const
+    wxString GetClass() const override
     {
         return wxT( "SCH_SHEET" );
     }
 
     /**
-     * Virtual function IsMovableFromAnchorPoint
      * Return true for items which are moved with the anchor point at mouse cursor
-     *  and false for items moved with no reference to anchor
+     * and false for items moved with no reference to anchor.
+     *
      * Usually return true for small items (labels, junctions) and false for
      * items which can be large (hierarchical sheets, compoments)
+     *
      * @return false for a hierarchical sheet
      */
-    bool IsMovableFromAnchorPoint() { return false; }
+    bool IsMovableFromAnchorPoint() override { return false; }
 
     wxString GetName() const { return m_name; }
 
@@ -289,31 +283,37 @@ public:
     void SetSize( const wxSize& aSize ) { m_size = aSize; }
 
     /**
-     * Function SetScreen
-     * sets the screen associated with this sheet to \a aScreen.
-     * <p>
+     * Return the root sheet of this SCH_SHEET object.
+     *
+     * The root (top level) sheet can be found by walking up the parent links until the only
+     * sheet that has no parent is found.  The root sheet can be found from any sheet without
+     * having to maintain a global root sheet pointer.
+     *
+     * @return a SCH_SHEET pointer to the root sheet.
+     */
+    SCH_SHEET* GetRootSheet();
+
+    /**
+     * Set the #SCH_SCREEN associated with this sheet to \a aScreen.
+     *
      * The screen reference counting is performed by SetScreen.  If \a aScreen is not
      * the same as the current screen, the current screen reference count is decremented
      * and \a aScreen becomes the screen for the sheet.  If the current screen reference
      * count reaches zero, the current screen is deleted.  NULL is a valid value for
      * \a aScreen.
-     * </p>
+     *
      * @param aScreen The new screen to associate with the sheet.
      */
     void SetScreen( SCH_SCREEN* aScreen );
 
     /**
-     * Function GetScreenCount
-     * returns the number of times the associated screen for the sheet is being used.  If
-     * no screen is associated with the sheet, then zero is returned.
+     * Return the number of times the associated screen for the sheet is being used.
+     *
+     * If no screen is associated with the sheet, then zero is returned.
      */
     int GetScreenCount() const;
 
-    bool Save( FILE* aFile ) const;
-
-    bool Load( LINE_READER& aLine, wxString& aErrorMsg );
-
-    void GetMsgPanelInfo( std::vector< MSG_PANEL_ITEM >& aList );
+    void GetMsgPanelInfo( std::vector< MSG_PANEL_ITEM >& aList ) override;
 
     /* there is no member for orientation in sch_sheet, to preserve file
      * format, we detect orientation based on pin edges
@@ -381,88 +381,67 @@ public:
     bool HasUndefinedPins();
 
     /**
-     * Function GetMinWidth
-     * returns the minimum width of the sheet based on the widths of the sheet pin text.
+     * Return the minimum width of the sheet based on the widths of the sheet pin text.
      *
-     * <p>
      * The minimum sheet width is determined by the width of the bounding box of each
      * hierarchical sheet pin.  If two pins are horizontally adjacent ( same Y position )
      * to each other, the sum of the bounding box widths is used.  If at some point in
      * the future sheet objects can be rotated or pins can be placed in the vertical
      * orientation, this function will need to be changed.
-     * </p>
      *
      * @return The minimum width the sheet can be resized.
      */
     int GetMinWidth() const;
 
     /**
-     * Function GetMinHeight
-     * returns the minimum height that the sheet can be resized based on the sheet pin
-     * positions.
+     * Return the minimum height that the sheet can be resized based on the sheet pin positions.
      *
-     * <p>
      * The minimum width of a sheet is determined by the Y axis location of the bottom
      * most sheet pin.  If at some point in the future sheet objects can be rotated or
      * pins can be placed in the vertical orientation, this function will need to be
      * changed.
-     * </p>
      *
      * @return The minimum height the sheet can be resized.
      */
     int GetMinHeight() const;
 
-    int GetPenSize() const;
+    int GetPenSize() const override;
 
     void Draw( EDA_DRAW_PANEL* aPanel, wxDC* aDC, const wxPoint& aOffset,
-               GR_DRAWMODE aDrawMode, EDA_COLOR_T aColor = UNSPECIFIED_COLOR );
+               GR_DRAWMODE aDrawMode, COLOR4D aColor = COLOR4D::UNSPECIFIED ) override;
 
-    EDA_RECT const GetBoundingBox() const;
+    EDA_RECT const GetBoundingBox() const override;
 
     /**
-     * Function GetResizePos
-     * returns the position of the lower right corner of the sheet in drawing units.
+     * Return the position of the lower right corner of the sheet in drawing units.
      *
      * @return A wxPoint containing lower right corner of the sheet in drawing units.
      */
     wxPoint GetResizePosition() const;
 
-    void SwapData( SCH_ITEM* aItem );
+    void SwapData( SCH_ITEM* aItem ) override;
 
     /**
-     * Function ComponentCount
-     *  count our own components, without the power components.
+     * Count our own components, without the power components.
+     *
      *  @return the component count.
      */
     int ComponentCount();
 
     /**
-     * Function Load.
-     *  for the sheet: load the file m_fileName
-     *  if a screen already exists, the file is already read.
-     *  m_screen point on the screen, and its m_RefCount is
-     * incremented
-     *  else creates a new associated screen and load the data file.
-     *  @param aFrame = a SCH_EDIT_FRAME pointer to the maim schematic frame
-     *  @return true if OK
-     */
-    bool Load( SCH_EDIT_FRAME* aFrame );
-
-    /**
-     * Function SearchHierarchy
-     *  search the existing hierarchy for an instance of screen "FileName".
-     *  @param aFilename = the filename to find
-     *  @param aScreen = a location to return a pointer to the screen (if found)
-     *  @return bool if found, and a pointer to the screen
+     * Search the existing hierarchy for an instance of screen loaded from \a aFileName.
+     *
+     * @param aFilename = the filename to find
+     * @param aScreen = a location to return a pointer to the screen (if found)
+     * @return bool if found, and a pointer to the screen
      */
     bool SearchHierarchy( const wxString& aFilename, SCH_SCREEN** aScreen );
 
     /**
-     * Function LocatePathOfScreen
-     * search the existing hierarchy for an instance of screen "FileName".
-     * don't bother looking at the root sheet - it must be unique,
-     * no other references to its m_screen otherwise there would be
-     * loops in the hierarchy.
+     * Search the existing hierarchy for an instance of screen loaded from \a aFileName.
+     *
+     * Don't bother looking at the root sheet, it must be unique.  No other references to
+     * its m_screen otherwise there would be loops in the hierarchy.
      *
      * @param aScreen = the SCH_SCREEN* screen that we search for
      * @param aList = the SCH_SHEET_PATH*  that must be used
@@ -471,16 +450,15 @@ public:
     bool LocatePathOfScreen( SCH_SCREEN* aScreen, SCH_SHEET_PATH* aList );
 
     /**
-     * Function CountSheets
-     * calculates the number of sheets found in "this"
-     * this number includes the full subsheets count
+     * Count the number of sheets found in "this" sheet includeing all of the subsheets.
+     *
      * @return the full count of sheets+subsheets contained by "this"
      */
     int CountSheets();
 
     /**
-     * Function GetFileName
-     * return the filename corresponding to this sheet
+     * Return the filename corresponding to this sheet.
+     *
      * @return a wxString containing the filename
      */
     wxString GetFileName( void ) const;
@@ -495,33 +473,29 @@ public:
 
     bool ChangeFileName( SCH_EDIT_FRAME* aFrame, const wxString& aFileName );
 
-    //void      RemoveSheet(SCH_SHEET* sheet);
-    //to remove a sheet, just delete it
-    //-- the destructor should take care of everything else.
-
     // Geometric transforms (used in block operations):
 
-    void Move( const wxPoint& aMoveVector )
+    void Move( const wxPoint& aMoveVector ) override
     {
         m_pos += aMoveVector;
 
-        BOOST_FOREACH( SCH_SHEET_PIN& pin, m_pins )
+        for( SCH_SHEET_PIN& pin : m_pins )
         {
             pin.Move( aMoveVector );
         }
     }
 
-    void MirrorY( int aYaxis_position );
+    void MirrorY( int aYaxis_position ) override;
 
-    void MirrorX( int aXaxis_position );
+    void MirrorX( int aXaxis_position ) override;
 
-    void Rotate( wxPoint aPosition );
+    void Rotate( wxPoint aPosition ) override;
 
-    bool Matches( wxFindReplaceData& aSearchData, void* aAuxData, wxPoint* aFindLocation );
+    bool Matches( wxFindReplaceData& aSearchData, void* aAuxData, wxPoint* aFindLocation ) override;
 
-    bool Replace( wxFindReplaceData& aSearchData, void* aAuxData = NULL );
+    bool Replace( wxFindReplaceData& aSearchData, void* aAuxData = NULL ) override;
 
-    bool IsReplaceable() const { return true; }
+    bool IsReplaceable() const override { return true; }
 
     /**
      * Resize this sheet to aSize and adjust all of the labels accordingly.
@@ -531,55 +505,59 @@ public:
     void Resize( const wxSize& aSize );
 
     /**
-     * Function GetSheetNamePosition
      * @return the position of the anchor of sheet name text
      */
     wxPoint GetSheetNamePosition();
 
     /**
-     * Function GetFileNamePosition
      * @return the position of the anchor of filename text
      */
     wxPoint GetFileNamePosition();
 
-    void GetEndPoints( std::vector <DANGLING_END_ITEM>& aItemList );
+    void GetEndPoints( std::vector <DANGLING_END_ITEM>& aItemList ) override;
 
-    bool IsDanglingStateChanged( std::vector< DANGLING_END_ITEM >& aItemList );
+    bool IsDanglingStateChanged( std::vector< DANGLING_END_ITEM >& aItemList ) override;
 
-    bool IsDangling() const;
+    bool IsDangling() const override;
 
-    bool IsSelectStateChanged( const wxRect& aRect );
+    bool IsSelectStateChanged( const wxRect& aRect ) override;
 
-    bool IsConnectable() const { return true; }
+    bool IsConnectable() const override { return true; }
 
-    void GetConnectionPoints( std::vector< wxPoint >& aPoints ) const;
+    bool CanConnect( const SCH_ITEM* aItem ) const override
+    {
+        return ( aItem->Type() == SCH_LINE_T && aItem->GetLayer() == LAYER_WIRE ) ||
+                ( aItem->Type() == SCH_LINE_T && aItem->GetLayer() == LAYER_BUS ) ||
+                ( aItem->Type() == SCH_NO_CONNECT_T );
+    }
 
-    SEARCH_RESULT Visit( INSPECTOR* inspector, const void* testData,
-                                 const KICAD_T scanTypes[] );
+    void GetConnectionPoints( std::vector< wxPoint >& aPoints ) const override;
 
-    wxString GetSelectMenuText() const;
+    SEARCH_RESULT Visit( INSPECTOR inspector, void* testData, const KICAD_T scanTypes[] ) override;
 
-    BITMAP_DEF GetMenuImage() const { return add_hierarchical_subsheet_xpm; }
+    wxString GetSelectMenuText() const override;
+
+    BITMAP_DEF GetMenuImage() const override;
 
     void GetNetListItem( NETLIST_OBJECT_LIST& aNetListItems,
-                         SCH_SHEET_PATH*      aSheetPath );
+                         SCH_SHEET_PATH*      aSheetPath ) override;
 
     SCH_ITEM& operator=( const SCH_ITEM& aSheet );
 
-    wxPoint GetPosition() const { return m_pos; }
+    wxPoint GetPosition() const override { return m_pos; }
 
-    void SetPosition( const wxPoint& aPosition );
+    void SetPosition( const wxPoint& aPosition ) override;
 
-    bool HitTest( const wxPoint& aPosition, int aAccuracy ) const;
+    bool HitTest( const wxPoint& aPosition, int aAccuracy ) const override;
 
-    bool HitTest( const EDA_RECT& aRect, bool aContained = false, int aAccuracy = 0 ) const;
+    bool HitTest( const EDA_RECT& aRect, bool aContained = false, int aAccuracy = 0 ) const override;
 
-    void Plot( PLOTTER* aPlotter );
+    void Plot( PLOTTER* aPlotter ) override;
 
-    EDA_ITEM* Clone() const;
+    EDA_ITEM* Clone() const override;
 
 #if defined(DEBUG)
-    void Show( int nestLevel, std::ostream& os ) const;     // override
+    void Show( int nestLevel, std::ostream& os ) const override;
 #endif
 
 protected:
@@ -595,6 +573,6 @@ protected:
 };
 
 
-typedef std::vector< SCH_SHEET* > SCH_SHEETS;
+typedef std::vector< SCH_SHEET* > SCH_SHEETS;   // no ownership over contained SCH_SHEETs
 
-#endif /* SCH_SHEEET_H */
+#endif // SCH_SHEEET_H

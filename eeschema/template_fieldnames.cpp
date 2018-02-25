@@ -26,38 +26,59 @@
 #include <dsnlexer.h>
 #include <fctsys.h>
 #include <macros.h>
+#include <pgm_base.h>
 
 using namespace TFIELD_T;
 
+
 const wxString TEMPLATE_FIELDNAME::GetDefaultFieldName( int aFieldNdx )
 {
+    static void* locale = nullptr;
+    static wxString referenceDefault;
+    static wxString valueDefault;
+    static wxString footprintDefault;
+    static wxString datasheetDefault;
+    static wxString fieldDefault;
+
+    // Fetching translations can take a surprising amount of time when loading libraries,
+    // so only do it when necessary.
+    if( Pgm().GetLocale() != locale )
+    {
+        referenceDefault = _( "Reference" );
+        valueDefault     = _( "Value" );
+        footprintDefault = _( "Footprint" );
+        datasheetDefault = _( "Datasheet" );
+        fieldDefault     = _( "Field" );
+        locale = Pgm().GetLocale();
+    }
+
     // Fixed values for the first few default fields used by EESCHEMA
     // (mandatory fields)
     switch( aFieldNdx )
     {
     case  REFERENCE:
-        return _( "Reference" );   // The component reference, R1, C1, etc.
+        return referenceDefault;   // The component reference, R1, C1, etc.
 
     case  VALUE:
-        return _( "Value" );       // The component value + name
+        return valueDefault;       // The component value + name
 
     case  FOOTPRINT:
-        return _( "Footprint" );   // The footprint for use with Pcbnew
+        return footprintDefault;   // The footprint for use with Pcbnew
 
     case  DATASHEET:
-        return _( "Datasheet" );   // Link to a datasheet for component
+        return datasheetDefault;   // Link to a datasheet for component
 
     default:
         break;
     }
 
     // Other fields are use fields, give a default name:
-    wxString fieldName = _( "Field" );
+    wxString fieldName = fieldDefault;
     fieldName << aFieldNdx;
     return fieldName;
 }
 
-void TEMPLATE_FIELDNAME::Format( OUTPUTFORMATTER* out, int nestLevel ) const throw( IO_ERROR )
+void TEMPLATE_FIELDNAME::Format( OUTPUTFORMATTER* out, int nestLevel ) const
 {
     out->Print( nestLevel, "(field (name %s)",  out->Quotew( m_Name ).c_str() );
 
@@ -71,7 +92,7 @@ void TEMPLATE_FIELDNAME::Format( OUTPUTFORMATTER* out, int nestLevel ) const thr
 }
 
 
-void TEMPLATE_FIELDNAME::Parse( TEMPLATE_FIELDNAMES_LEXER* in ) throw( IO_ERROR )
+void TEMPLATE_FIELDNAME::Parse( TEMPLATE_FIELDNAMES_LEXER* in )
 {
     T    tok;
 
@@ -112,7 +133,7 @@ void TEMPLATE_FIELDNAME::Parse( TEMPLATE_FIELDNAMES_LEXER* in ) throw( IO_ERROR 
 }
 
 
-void TEMPLATES::Format( OUTPUTFORMATTER* out, int nestLevel ) const throw( IO_ERROR )
+void TEMPLATES::Format( OUTPUTFORMATTER* out, int nestLevel ) const
 {
     // We'll keep this general, and include the \n, even though the only known
     // use at this time will not want the newlines or the indentation.
@@ -125,7 +146,7 @@ void TEMPLATES::Format( OUTPUTFORMATTER* out, int nestLevel ) const throw( IO_ER
 }
 
 
-void TEMPLATES::Parse( TEMPLATE_FIELDNAMES_LEXER* in ) throw( IO_ERROR )
+void TEMPLATES::Parse( TEMPLATE_FIELDNAMES_LEXER* in )
 {
     T  tok;
 

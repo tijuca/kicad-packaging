@@ -2,7 +2,7 @@
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
  * Copyright (C) 2004 Jean-Pierre Charras, jaen-pierre.charras@gipsa-lab.inpg.com
- * Copyright (C) 2004-2011 KiCad Developers, see change_log.txt for contributors.
+ * Copyright (C) 2004-2017 KiCad Developers, see change_log.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -36,8 +36,6 @@
 
 
 /**
- * Class SCH_BUS_ENTRY_BASE
- *
  * Base class for a bus or wire entry.
  */
 class SCH_BUS_ENTRY_BASE : public SCH_ITEM
@@ -60,7 +58,7 @@ public:
      *  and false for items moved with no reference to anchor
      * @return false for a bus entry
      */
-    bool IsMovableFromAnchorPoint() { return false; }
+    bool IsMovableFromAnchorPoint() override { return false; }
 
     wxPoint m_End() const;
 
@@ -80,59 +78,52 @@ public:
 
     void SetSize( const wxSize& aSize ) { m_size = aSize; }
 
-    void SwapData( SCH_ITEM* aItem );
+    void SwapData( SCH_ITEM* aItem ) override;
 
     void Draw( EDA_DRAW_PANEL* aPanel, wxDC* aDC, const wxPoint& aOffset,
-               GR_DRAWMODE aDrawMode, EDA_COLOR_T aColor = UNSPECIFIED_COLOR );
+               GR_DRAWMODE aDrawMode, COLOR4D aColor = COLOR4D::UNSPECIFIED ) override;
 
-    static bool Load( LINE_READER& aLine, wxString& aErrorMsg, SCH_ITEM **out );
+    const EDA_RECT GetBoundingBox() const override;
 
-    const EDA_RECT GetBoundingBox() const;    // Virtual
-
-    void Move( const wxPoint& aMoveVector )
+    void Move( const wxPoint& aMoveVector ) override
     {
         m_pos += aMoveVector;
     }
 
 
-    void MirrorY( int aYaxis_position );
+    void MirrorY( int aYaxis_position ) override;
 
-    void MirrorX( int aXaxis_position );
+    void MirrorX( int aXaxis_position ) override;
 
-    void Rotate( wxPoint aPosition );
+    void Rotate( wxPoint aPosition ) override;
 
-    void GetEndPoints( std::vector <DANGLING_END_ITEM>& aItemList );
+    bool IsDangling() const override;
 
-    bool IsDanglingStateChanged( std::vector<DANGLING_END_ITEM>& aItemList );
+    bool IsSelectStateChanged( const wxRect& aRect ) override;
 
-    bool IsDangling() const;
+    bool IsConnectable() const override { return true; }
 
-    bool IsSelectStateChanged( const wxRect& aRect );
+    void GetConnectionPoints( std::vector< wxPoint >& aPoints ) const override;
 
-    bool IsConnectable() const { return true; }
+    wxPoint GetPosition() const override { return m_pos; }
 
-    void GetConnectionPoints( std::vector< wxPoint >& aPoints ) const;
+    void SetPosition( const wxPoint& aPosition ) override { m_pos = aPosition; }
 
-    BITMAP_DEF GetMenuImage() const { return  add_entry_xpm; }
+    bool HitTest( const wxPoint& aPosition, int aAccuracy ) const override;
 
-    wxPoint GetPosition() const { return m_pos; }
+    bool HitTest( const EDA_RECT& aRect, bool aContained = false, int aAccuracy = 0 ) const override;
 
-    void SetPosition( const wxPoint& aPosition ) { m_pos = aPosition; }
-
-    bool HitTest( const wxPoint& aPosition, int aAccuracy ) const;
-
-    bool HitTest( const EDA_RECT& aRect, bool aContained = false, int aAccuracy = 0 ) const;
-
-    void Plot( PLOTTER* aPlotter );
+    void Plot( PLOTTER* aPlotter ) override;
 
 #if defined(DEBUG)
-    void Show( int nestLevel, std::ostream& os ) const { ShowDummy( os ); } // override
+    void Show( int nestLevel, std::ostream& os ) const override { ShowDummy( os ); }
 #endif
+
+private:
+    bool doIsConnected( const wxPoint& aPosition ) const override;
 };
 
 /**
- * Class SCH_BUS_WIRE_ENTRY
- *
  * Class for a wire to bus entry.
  */
 class SCH_BUS_WIRE_ENTRY : public SCH_BUS_ENTRY_BASE
@@ -142,23 +133,31 @@ public:
 
     ~SCH_BUS_WIRE_ENTRY() { }
 
-    wxString GetClass() const
+    wxString GetClass() const override
     {
         return wxT( "SCH_BUS_WIRE_ENTRY" );
     }
 
-    bool Save( FILE* aFile ) const;
+    int GetPenSize() const override;
 
-    int GetPenSize() const;
+    void GetEndPoints( std::vector< DANGLING_END_ITEM >& aItemList ) override;
 
-    wxString GetSelectMenuText() const;
+    bool CanConnect( const SCH_ITEM* aItem ) const override
+    {
+        return aItem->Type() == SCH_LINE_T &&
+                ( aItem->GetLayer() == LAYER_WIRE || aItem->GetLayer() == LAYER_BUS );
+    }
 
-    EDA_ITEM* Clone() const;
+    wxString GetSelectMenuText() const override;
+
+    EDA_ITEM* Clone() const override;
+
+    BITMAP_DEF GetMenuImage() const override;
+
+    bool IsDanglingStateChanged( std::vector<DANGLING_END_ITEM>& aItemList ) override;
 };
 
 /**
- * Class SCH_BUS_WIRE_ENTRY
- *
  * Class for a bus to bus entry.
  */
 class SCH_BUS_BUS_ENTRY : public SCH_BUS_ENTRY_BASE
@@ -168,18 +167,27 @@ public:
 
     ~SCH_BUS_BUS_ENTRY() { }
 
-    wxString GetClass() const
+    wxString GetClass() const override
     {
         return wxT( "SCH_BUS_BUS_ENTRY" );
     }
 
-    bool Save( FILE* aFile ) const;
+    int GetPenSize() const override;
 
-    int GetPenSize() const;
+    void GetEndPoints( std::vector< DANGLING_END_ITEM >& aItemList ) override;
 
-    wxString GetSelectMenuText() const;
+    bool CanConnect( const SCH_ITEM* aItem ) const override
+    {
+        return aItem->Type() == SCH_LINE_T && aItem->GetLayer() == LAYER_BUS;
+    }
 
-    EDA_ITEM* Clone() const;
+    wxString GetSelectMenuText() const override;
+
+    EDA_ITEM* Clone() const override;
+
+    BITMAP_DEF GetMenuImage() const override;
+
+    bool IsDanglingStateChanged( std::vector<DANGLING_END_ITEM>& aItemList ) override;
 };
 
 #endif    // _SCH_BUS_ENTRY_H_

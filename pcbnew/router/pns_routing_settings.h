@@ -2,6 +2,7 @@
  * KiRouter - a push-and-(sometimes-)shove PCB router
  *
  * Copyright (C) 2013-2014 CERN
+ * Copyright (C) 2016 KiCad Developers, see AUTHORS.txt for contributors.
  * Author: Tomasz Wlostowski <tomasz.wlostowski@cern.ch>
  *
  * This program is free software: you can redistribute it and/or modify it
@@ -28,6 +29,8 @@
 class DIRECTION_45;
 class TOOL_SETTINGS;
 
+namespace PNS {
+
 ///> Routing modes
 enum PNS_MODE
 {
@@ -46,15 +49,15 @@ enum PNS_OPTIMIZATION_EFFORT
 };
 
 /**
- * Class PNS_ROUTING_SETTINGS
+ * Class ROUTING_SETTINGS
  *
  * Contains all persistent settings of the router, such as the mode, optimization effort, etc.
  */
 
-class PNS_ROUTING_SETTINGS
+class ROUTING_SETTINGS
 {
 public:
-    PNS_ROUTING_SETTINGS();
+    ROUTING_SETTINGS();
 
     void Load( const TOOL_SETTINGS& where );
     void Save( TOOL_SETTINGS& where ) const;
@@ -89,10 +92,10 @@ public:
     ///> Enables displaying suggestions for finishing the currently placed track.
     void SetSuggestFinish( bool aSuggestFinish ) { m_suggestFinish = aSuggestFinish; }
 
-    ///> Returns true if Smart Pads (automatic neckdown) is enabled.
-    bool SmartPads () const { return m_smartPads; }
+    ///> Returns true if Smart Pads (optimized connections) is enabled.
+    bool SmartPads() const { return m_smartPads; }
 
-    ///> Enables/disables Smart Pads (automatic neckdown).
+    ///> Enables/disables Smart Pads (optimized connections).
     void SetSmartPads( bool aSmartPads ) { m_smartPads = aSmartPads; }
 
     ///> Returns true if follow mouse mode is active (permanently on for the moment).
@@ -131,7 +134,13 @@ public:
     TIME_LIMIT WalkaroundTimeLimit() const;
 
     void SetInlineDragEnabled ( bool aEnable ) { m_inlineDragEnabled = aEnable; }
-    bool InlineDragEnabled( ) const { return m_inlineDragEnabled; }
+    bool InlineDragEnabled() const { return m_inlineDragEnabled; }
+
+    void SetSnapToTracks( bool aSnap ) { m_snapToTracks = aSnap; }
+    void SetSnapToPads( bool aSnap ) { m_snapToPads = aSnap; }
+
+    bool GetSnapToTracks() const { return m_snapToTracks; }
+    bool GetSnapToPads() const { return m_snapToPads; }
 
 private:
     bool m_shoveVias;
@@ -145,6 +154,8 @@ private:
     bool m_canViolateDRC;
     bool m_freeAngleMode;
     bool m_inlineDragEnabled;
+    bool m_snapToTracks;
+    bool m_snapToPads;
 
     PNS_MODE m_routingMode;
     PNS_OPTIMIZATION_EFFORT m_optimizerEffort;
@@ -154,5 +165,7 @@ private:
     TIME_LIMIT m_shoveTimeLimit;
     TIME_LIMIT m_walkaroundTimeLimit;
 };
+
+}
 
 #endif

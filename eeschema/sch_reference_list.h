@@ -65,8 +65,8 @@ class SCH_REFERENCE
     SCH_SHEET_PATH m_SheetPath;         ///< The sheet path for this reference.
     bool           m_IsNew;             ///< True if not yet annotated.
     int            m_SheetNum;          ///< The sheet number for the reference.
-    time_t         m_TimeStamp;         ///< The time stamp for the reference.
-    EDA_TEXT*      m_Value;             ///< The component value of the refernce.  It is the
+    timestamp_t    m_TimeStamp;         ///< The time stamp for the reference.
+    EDA_TEXT*      m_Value;             ///< The component value of the reference.  It is the
                                         ///< same for all instances.
     int            m_NumRef;            ///< The numeric part of the reference designator.
     int            m_Flag;
@@ -90,12 +90,12 @@ public:
         m_SheetNum     = 0;
     }
 
-    SCH_REFERENCE( SCH_COMPONENT* aComponent, LIB_PART*      aLibComponent,
+    SCH_REFERENCE( SCH_COMPONENT* aComponent, LIB_PART* aLibComponent,
                    SCH_SHEET_PATH& aSheetPath );
 
     SCH_COMPONENT* GetComp() const          { return m_RootCmp; }
 
-    LIB_PART*      GetLibComponent() const  { return m_Entry; }
+    LIB_PART*      GetLibPart() const       { return m_Entry; }
 
     SCH_SHEET_PATH GetSheetPath() const     { return m_SheetPath; }
 
@@ -142,7 +142,7 @@ public:
 
     int CompareValue( const SCH_REFERENCE& item ) const
     {
-        return Cmp_KEEPCASE( m_Value->GetText(), item.m_Value->GetText() );
+        return m_Value->GetText().Cmp( item.m_Value->GetText() );
     }
 
     int CompareRef( const SCH_REFERENCE& item ) const
@@ -152,7 +152,8 @@ public:
 
     int CompareLibName( const SCH_REFERENCE& item ) const
     {
-        return Cmp_KEEPCASE( m_RootCmp->GetPartName(), item.m_RootCmp->GetPartName() );
+        return m_RootCmp->GetLibId().GetLibItemName().compare(
+            item.m_RootCmp->GetLibId().GetLibItemName() );
     }
 
     /**
@@ -286,6 +287,7 @@ public:
      * @param aUseSheetNum Set to true to start annotation for each sheet at the sheet number
      *                     times \a aSheetIntervalId.  Otherwise annotate incrementally.
      * @param aSheetIntervalId The per sheet reference designator multiplier.
+     * @param aStartNumber The number to start with if NOT numbering based on sheet number.
      * @param aLockedUnitMap A SCH_MULTI_UNIT_REFERENCE_MAP of reference designator wxStrings
      *      to SCH_REFERENCE_LISTs. May be an empty map. If not empty, any multi-unit parts
      *      found in this map will be annotated as a group rather than individually.
@@ -296,7 +298,8 @@ public:
      * referenced U201 to U351, and items in sheet 3 start from U352
      * </p>
      */
-    void Annotate( bool aUseSheetNum, int aSheetIntervalId, SCH_MULTI_UNIT_REFERENCE_MAP aLockedUnitMap );
+    void Annotate( bool aUseSheetNum, int aSheetIntervalId, int aStartNumber,
+                   SCH_MULTI_UNIT_REFERENCE_MAP aLockedUnitMap );
 
     /**
      * Function CheckAnnotation
@@ -310,10 +313,10 @@ public:
      * <li>Components with multiple parts per package with invalid part count.</li>
      * </ul>
      * </p>
-     * @param aMessageList A wxArrayString to store error messages.
+     * @param aReporter A sink for error messages.  Use NULL_REPORTER if you don't need errors.
      * @return The number of errors found.
      */
-    int CheckAnnotation( wxArrayString* aMessageList );
+    int CheckAnnotation( REPORTER& aReporter );
 
     /**
      * Function sortByXCoordinate
@@ -411,13 +414,6 @@ public:
     int FindUnit( size_t aIndex, int aUnit );
 
     /**
-     * Function ResetHiddenReferences
-     * clears the annotation for all references that have an invisible reference designator.
-     * Invisible reference designators always have # as the first letter.
-     */
-    void ResetHiddenReferences();
-
-    /**
      * Function GetRefsInUse
      * adds all the reference designator numbers greater than \a aMinRefId to \a aIdList
      * skipping the reference at \a aIndex.
@@ -437,6 +433,25 @@ public:
      * @param aMinValue The minimum value for the current search.
      */
     int GetLastReference( int aIndex, int aMinValue );
+
+#if defined(DEBUG)
+    void Show( const char* aPrefix = "" )
+    {
+        printf( "%s\n", aPrefix );
+
+        for( unsigned i=0; i<componentFlatList.size();  ++i )
+        {
+            SCH_REFERENCE& schref = componentFlatList[i];
+
+            printf( " [%-2d] ref:%-8s num:%-3d lib_part:%s\n",
+                i,
+                schref.m_Ref.c_str(),
+                schref.m_NumRef,
+                TO_UTF8( schref.GetLibPart()->GetName() )
+                );
+        }
+    }
+#endif
 
 private:
     /* sort functions used to sort componentFlatList

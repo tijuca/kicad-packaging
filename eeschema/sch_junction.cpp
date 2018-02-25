@@ -1,8 +1,8 @@
 /*
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
- * Copyright (C) 2009 Jean-Pierre Charras, jaen-pierre.charras@gipsa-lab.inpg.com
- * Copyright (C) 1992-2011 KiCad Developers, see AUTHORS.txt for contributors.
+ * Copyright (C) 2009 Jean-Pierre Charras, jp.charras at wanadoo.fr
+ * Copyright (C) 1992-2017 KiCad Developers, see AUTHORS.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -33,10 +33,11 @@
 #include <trigo.h>
 #include <common.h>
 #include <richio.h>
-#include <plot_common.h>
+#include <plotter.h>
+#include <bitmaps.h>
 
 #include <sch_junction.h>
-#include <class_netlist_object.h>
+#include <netlist_object.h>
 
 
 int SCH_JUNCTION::m_symbolSize = 40;    // Default diameter of the junction symbol
@@ -46,19 +47,6 @@ SCH_JUNCTION::SCH_JUNCTION( const wxPoint& pos ) :
 {
     m_pos    = pos;
     m_Layer  = LAYER_JUNCTION;
-}
-
-
-bool SCH_JUNCTION::Save( FILE* aFile ) const
-{
-    bool success = true;
-
-    if( fprintf( aFile, "Connection ~ %-4d %-4d\n", m_pos.x, m_pos.y ) == EOF )
-    {
-        success = false;
-    }
-
-    return success;
 }
 
 
@@ -78,26 +66,6 @@ void SCH_JUNCTION::SwapData( SCH_ITEM* aItem )
 }
 
 
-bool SCH_JUNCTION::Load( LINE_READER& aLine, wxString& aErrorMsg )
-{
-    char name[256];
-    char* line = (char*) aLine;
-
-    while( (*line != ' ' ) && *line )
-        line++;
-
-    if( sscanf( line, "%255s %d %d", name, &m_pos.x, &m_pos.y ) != 3 )
-    {
-        aErrorMsg.Printf( wxT( "Eeschema file connection load error at line %d, aborted" ),
-                          aLine.LineNumber() );
-        aErrorMsg << wxT( "\n" ) << FROM_UTF8( (char*) aLine );
-        return false;
-    }
-
-    return true;
-}
-
-
 const EDA_RECT SCH_JUNCTION::GetBoundingBox() const
 {
     EDA_RECT rect;
@@ -110,14 +78,14 @@ const EDA_RECT SCH_JUNCTION::GetBoundingBox() const
 
 
 void SCH_JUNCTION::Draw( EDA_DRAW_PANEL* aPanel, wxDC* aDC, const wxPoint& aOffset,
-                         GR_DRAWMODE aDrawMode, EDA_COLOR_T aColor )
+                         GR_DRAWMODE aDrawMode, COLOR4D aColor )
 {
-    EDA_COLOR_T color;
+    COLOR4D color;
 
-    if( aColor >= 0 )
+    if( aColor != COLOR4D::UNSPECIFIED )
         color = aColor;
     else
-        color = GetLayerColor( m_Layer );
+        color = GetLayerColor( GetState( BRIGHTENED ) ? LAYER_BRIGHTENED : m_Layer );
 
     GRSetDrawMode( aDC, aDrawMode );
 
@@ -232,4 +200,10 @@ void SCH_JUNCTION::Plot( PLOTTER* aPlotter )
 {
     aPlotter->SetColor( GetLayerColor( GetLayer() ) );
     aPlotter->Circle( m_pos, GetSymbolSize(), FILLED_SHAPE );
+}
+
+
+BITMAP_DEF SCH_JUNCTION::GetMenuImage() const
+{
+    return add_junction_xpm;
 }

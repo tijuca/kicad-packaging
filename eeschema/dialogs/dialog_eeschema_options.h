@@ -2,7 +2,7 @@
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
  * Copyright (C) 2009 Wayne Stambaugh <stambaughw@verizon.net>
- * Copyright (C) 1992-2011 KiCad Developers, see AUTHORS.txt for contributors.
+ * Copyright (C) 1992-2018 KiCad Developers, see AUTHORS.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -34,38 +34,24 @@
 #include <dialog_eeschema_options_base.h>
 #include <template_fieldnames.h>
 
+class WIDGET_EESCHEMA_COLOR_CONFIG;
+class WIDGET_HOTKEY_LIST;
+class SCH_EDIT_FRAME;
+
 class DIALOG_EESCHEMA_OPTIONS : public DIALOG_EESCHEMA_OPTIONS_BASE
 {
+private:
+    static int  m_lastPageSelected; ///< the active notebook page when closing this dialog
+                                    ///< strored to keep selection during a session
+
+    int m_last_scale;               ///< saved icon scale when Auto selected
+
 protected:
+    WIDGET_HOTKEY_LIST*             m_hotkeyListCtrl;
+    WIDGET_EESCHEMA_COLOR_CONFIG*   m_colorConfigCtrl;
+
     /** @brief The template fieldnames for this dialog */
     TEMPLATE_FIELDNAMES templateFields;
-
-    /** @brief The current row selected in the template fieldname wxListCtrl which is also in the
-     * edit panel
-     * selectedField = -1 when no valid item selected
-     */
-    int selectedField;
-
-    /** @brief return true if aFieldId is a valid field selection
-     */
-    bool fieldSelectionValid( int aFieldId )
-    {
-        return ( aFieldId >= 0 ) && ( aFieldId < int( templateFields.size() ) );
-    }
-
-    /**
-     * Function OnEnterKey (virtual)
-     * Process the wxWidgets @a event produced when the user presses enter key
-     * in template fieldname text control or template fieldvalue text control
-     */
-    void OnEnterKey( wxCommandEvent& event );
-
-    /**
-     * Function OnVisibleFieldClick (virtual)
-     * Process the wxWidgets @a event produced when the user click on
-     * the check box which controls the field visibility
-     */
-    void OnVisibleFieldClick( wxCommandEvent& event );
 
     /**
      * Function OnAddButtonClick
@@ -76,7 +62,7 @@ protected:
      *
      * Adds a new template fieldname (with default values) to the template fieldnames data
      */
-    void OnAddButtonClick( wxCommandEvent& event );
+    void OnAddButtonClick( wxCommandEvent& event ) override;
 
     /**
      * Function OnDeleteButtonClick
@@ -87,68 +73,25 @@ protected:
      *
      * Deletes the selected template fieldname from the template fieldnames data
      */
-    void OnDeleteButtonClick( wxCommandEvent& event );
+    void OnDeleteButtonClick( wxCommandEvent& event ) override;
+
+    void OnScaleSlider( wxScrollEvent& aEvent ) override;
+    void OnScaleAuto( wxCommandEvent& aEvent ) override;
 
     /**
-     * Function OnEditControlKillFocus
-     * This Focus Event Handler should be connected to any controls in the template field edit box
-     * so that any loss of focus results in the data being saved to the currently selected template
-     * field
-     *
-     * @param event The wxWidgets produced event information
-     *
-     * Copies data from the edit box to the selected field template
+     * Function TransferDataToWindow
+     * Transfer data into the GUI.
      */
-    void OnEditControlKillFocus( wxFocusEvent& event );
+    bool TransferDataToWindow() override;
 
     /**
-     * Function copyPanelToSelected
-     * Copies the data from the edit panel to the selected template fieldname
+     * Function TransferDataFromWindow
+     * Transfer data out of the GUI.
      */
-    void copyPanelToSelected( void );
+    bool TransferDataFromWindow() override;
 
-    /**
-     * Function copySelectedToPanel
-     * Copies the data from the selected template fieldname and fills in the edit panel
-     */
-    void copySelectedToPanel( void );
-
-    /**
-     * Function OnTemplateFieldSelected
-     * Event handler for the wxListCtrl containing the template fieldnames
-     *
-     * @param event The event information provided by wxWidgets
-     *
-     * Processes data exchange between the edit panel and the selected template fieldname
-     */
-    void OnTemplateFieldSelected( wxListEvent& event );
-
-    /**
-     * Function RefreshTemplateFieldView
-     * Refresh the template fieldname wxListCtrl
-     *
-     * Deletes all data from the wxListCtrl and then re-polpulates the control with the data in
-     * the template fieldnames.
-     *
-     * Use any time the template field data has changed
-     */
-    void RefreshTemplateFieldView( void );
-
-    /**
-     * Function SelectTemplateField
-     * Selects @a aItem from the wxListCtrl populated with the template fieldnames
-     *
-     * @param aItem The item index of the row to be selected
-     *
-     * When RefreshTemplateFieldView() is used the selection is lost because all of the items are
-     * removed from the wxListCtrl and then the control is re-populated. This function can be used
-     * to re-select an item that was previously selected so that the selection is not lost.
-     *
-     * <b>NOTE:</b> This function first sets the ignoreSelection flag before making the selection.
-     * This means the class can select something in the wxListCtrl without causing further
-     * selection events.
-     */
-    void SelectTemplateField( int aItem );
+    bool TransferDataToFieldGrid();
+    bool TransferDataFromFieldGrid();
 
 public:
     /**
@@ -156,7 +99,9 @@ public:
      *
      * @param parent The dialog's parent
      */
-    DIALOG_EESCHEMA_OPTIONS( wxWindow* parent );
+    DIALOG_EESCHEMA_OPTIONS( SCH_EDIT_FRAME* parent );
+
+    virtual SCH_EDIT_FRAME* GetParent();
 
     /**
      * Function GetUnitsSelection
@@ -168,12 +113,12 @@ public:
      * Function SetUnits
      * Set the unit options
      *
-     * @param units The array of strings representing the unit options
-     * @param select The unit to select from the unit options
+     * @param aUnits The array of strings representing the unit options
+     * @param aSelect The unit to select from the unit options
      *
      * Appends the @a units options to the list of unit options and selects the @a aSelect option
      */
-    void SetUnits( const wxArrayString& units, int aSelect = 0 );
+    void SetUnits( const wxArrayString& aUnits, int aSelect = 0 );
 
     /**
      * Function GetGridSelection
@@ -286,19 +231,6 @@ public:
     int GetAutoSaveInterval() const { return m_spinAutoSaveInterval->GetValue(); }
 
     /**
-     * Function SetMaxUndoItems
-     * Sets the maximum number of undo items
-     * @param aItems the number to set
-     */
-    void SetMaxUndoItems( int aItems ) { m_spinMaxUndoItems->SetValue( aItems ); }
-
-    /**
-     * Function GetMaxUndoItems
-     * Return the current maximum number of undo items
-     */
-    int GetMaxUndoItems() const { return m_spinMaxUndoItems->GetValue(); }
-
-    /**
      * Function SetRefIdSeparator
      * Sets the current RefIdSeparator value in the dialog
      * @param aSep The seperator to use between the reference and the part ID
@@ -360,47 +292,6 @@ public:
     }
 
     /**
-     * Function SetEnableMiddleButtonPan
-     * Sets the current MiddleButtonPan value in the dialog
-     *
-     * @param enable The boolean value to set the MiddleButtonPan value in the dialog
-     */
-    void SetEnableMiddleButtonPan( bool enable )
-    {
-        m_checkEnableMiddleButtonPan->SetValue( enable );
-        m_checkMiddleButtonPanLimited->Enable( enable );
-    }
-
-    /**
-     * Function GetEnableMiddleButtonPan
-     * Returns the current MiddleButtonPan setting from the dialog
-     */
-    bool GetEnableMiddleButtonPan( void )
-    {
-        return m_checkEnableMiddleButtonPan->GetValue();
-    }
-
-    /**
-     * Function SetMiddleButtonPanLimited
-     * Sets the MiddleButtonPanLimited value in the dialog
-     *
-     * @param enable The boolean value to set the MiddleButtonPanLimted value in the dialog
-     */
-    void SetMiddleButtonPanLimited( bool enable )
-    {
-        m_checkMiddleButtonPanLimited->SetValue( enable );
-    }
-
-    /**
-     * Function GetMiddleButtonPanLimited
-     * Returns the MiddleButtonPanLimited setting from the dialog
-     */
-    bool GetMiddleButtonPanLimited( void )
-    {
-        return m_checkMiddleButtonPanLimited->GetValue();
-    }
-
-    /**
      * Function SetEnableMousewheelPan
      * Sets the MousewheelPan setting in the dialog
      *
@@ -455,6 +346,54 @@ public:
     bool GetShowPageLimits( void ) { return m_checkPageLimits->GetValue(); }
 
     /**
+     * Function
+     * Set the FootprintPreview setting in the dialog.
+     */
+    void SetFootprintPreview( bool show ) { m_footprintPreview->SetValue( show ); }
+
+    /**
+     * Function
+     * Return the current FootprintPreview setting from the dialog
+     */
+    bool GetFootprintPreview( void ) { return m_footprintPreview->GetValue(); }
+
+    /**
+     * Function
+     * Set the AutoplaceFields setting in the dialog
+     */
+    void SetAutoplaceFields( bool enable ) { m_checkAutoplaceFields->SetValue( enable ); }
+
+    /**
+     * Function
+     * Return the current AutoplaceFields setting from the dialog
+     */
+    bool GetAutoplaceFields() { return m_checkAutoplaceFields->GetValue(); }
+
+    /**
+     * Function
+     * Set the AutoplaceJustify setting in the dialog
+     */
+    void SetAutoplaceJustify( bool enable ) { m_checkAutoplaceJustify->SetValue( enable ); }
+
+    /**
+     * Function
+     * Return the current AutoplaceJustify setting from the dialog
+     */
+    bool GetAutoplaceJustify() { return m_checkAutoplaceJustify->GetValue(); }
+
+    /**
+     * Function
+     * Set the AutoplaceAlign setting in the dialog
+     */
+    void SetAutoplaceAlign( bool enable ) { m_checkAutoplaceAlign->SetValue( enable ); }
+
+    /**
+     * Function
+     * Return the current AutoplaceAlign setting from the dialog
+     */
+    bool GetAutoplaceAlign() { return m_checkAutoplaceAlign->GetValue(); }
+
+    /**
      * Function SetTemplateFields
      * Set the template field data in the dialog
      *
@@ -468,12 +407,6 @@ public:
      *
      */
     TEMPLATE_FIELDNAMES GetTemplateFields( void );
-
-private:
-    void OnMiddleBtnPanEnbl( wxCommandEvent& event )
-    {
-        m_checkMiddleButtonPanLimited->Enable( GetEnableMiddleButtonPan() );
-    }
 };
 
 #endif // __dialog_eeschema_options__

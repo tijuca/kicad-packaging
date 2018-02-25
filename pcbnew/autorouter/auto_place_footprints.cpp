@@ -34,14 +34,13 @@
 #include <class_drawpanel.h>
 #include <confirm.h>
 #include <pcbnew.h>
-#include <wxPcbStruct.h>
+#include <pcb_edit_frame.h>
 #include <gr_basic.h>
 #include <macros.h>
 #include <msgpanel.h>
 
 #include <autorout.h>
 #include <cell.h>
-#include <colors_selection.h>
 
 #include <class_board.h>
 #include <class_module.h>
@@ -132,7 +131,7 @@ void PCB_EDIT_FRAME::AutoPlaceModule( MODULE* Module, int place_mode, wxDC* DC )
     wxPoint             PosOK;
     wxPoint             memopos;
     int                 error;
-    LAYER_ID            lay_tmp_TOP, lay_tmp_BOTTOM;
+    PCB_LAYER_ID            lay_tmp_TOP, lay_tmp_BOTTOM;
 
     // Undo: init list
     PICKED_ITEMS_LIST   newList;
@@ -412,7 +411,7 @@ end_of_tst:
 void drawPlacementRoutingMatrix( BOARD* aBrd, wxDC* DC )
 {
     int         ii, jj;
-    EDA_COLOR_T color;
+    COLOR4D     color;
     int         ox, oy;
     MATRIX_CELL top_state, bottom_state;
 
@@ -425,21 +424,21 @@ void drawPlacementRoutingMatrix( BOARD* aBrd, wxDC* DC )
         for( jj = 0; jj < RoutingMatrix.m_Ncols; jj++ )
         {
             ox      = RoutingMatrix.m_BrdBox.GetX() + (jj * RoutingMatrix.m_GridRouting);
-            color   = BLACK;
+            color   = COLOR4D::BLACK;
 
             top_state       = RoutingMatrix.GetCell( ii, jj, TOP );
             bottom_state    = RoutingMatrix.GetCell( ii, jj, BOTTOM );
 
             if( top_state & CELL_is_ZONE )
-                color = BLUE;
+                color = COLOR4D( BLUE );
 
             // obstacles
             if( ( top_state & CELL_is_EDGE ) || ( bottom_state & CELL_is_EDGE ) )
-                color = WHITE;
+                color = COLOR4D::WHITE;
             else if( top_state & ( HOLE | CELL_is_MODULE ) )
-                color = LIGHTRED;
+                color = COLOR4D( LIGHTRED );
             else if( bottom_state & (HOLE | CELL_is_MODULE) )
-                color = LIGHTGREEN;
+                color = COLOR4D( LIGHTGREEN );
             else    // Display the filling and keep out regions.
             {
                 if( RoutingMatrix.GetDist( ii, jj, TOP )
@@ -459,7 +458,7 @@ int genPlacementRoutingMatrix( BOARD* aBrd, EDA_MSG_PANEL* messagePanel )
 
     RoutingMatrix.UnInitRoutingMatrix();
 
-    EDA_RECT bbox = aBrd->ComputeBoundingBox( true );
+    EDA_RECT bbox = aBrd->GetBoardEdgesBoundingBox();
 
     if( bbox.GetWidth() == 0 || bbox.GetHeight() == 0 )
     {
@@ -501,9 +500,7 @@ int genPlacementRoutingMatrix( BOARD* aBrd, EDA_MSG_PANEL* messagePanel )
     TmpSegm.SetNetCode( -1 );
     TmpSegm.SetWidth( RoutingMatrix.m_GridRouting / 2 );
 
-    EDA_ITEM* PtStruct = aBrd->m_Drawings;
-
-    for( ; PtStruct != NULL; PtStruct = PtStruct->Next() )
+    for( auto PtStruct : aBrd->Drawings() )
     {
         DRAWSEGMENT* DrawSegm;
 
@@ -605,13 +602,15 @@ void genModuleOnRoutingMatrix( MODULE* Module )
     CreateKeepOutRectangle( ox, oy, fx, fy, margin, KEEP_OUT_MARGIN, layerMask );
 }
 
+
 // A minor helper function to draw a bounding box:
-inline void draw_FootprintRect(EDA_RECT * aClipBox, wxDC* aDC, EDA_RECT& fpBBox, EDA_COLOR_T aColor)
+inline void draw_FootprintRect( EDA_RECT* aClipBox, wxDC* aDC, EDA_RECT& fpBBox, COLOR4D aColor )
 {
 #ifndef USE_WX_OVERLAY
     GRRect( aClipBox, aDC, fpBBox, 0, aColor );
 #endif
 }
+
 
 int getOptimalModulePlacement( PCB_EDIT_FRAME* aFrame, MODULE* aModule, wxDC* aDC )
 {
@@ -619,7 +618,7 @@ int getOptimalModulePlacement( PCB_EDIT_FRAME* aFrame, MODULE* aModule, wxDC* aD
     wxPoint LastPosOK;
     double  min_cost, curr_cost, Score;
     bool    TstOtherSide;
-    DISPLAY_OPTIONS* displ_opts = (DISPLAY_OPTIONS*)aFrame->GetDisplayOptions();
+    auto displ_opts = (PCB_DISPLAY_OPTIONS*)aFrame->GetDisplayOptions();
     BOARD*  brd = aFrame->GetBoard();
 
     aModule->CalculateBoundingBox();
@@ -676,7 +675,7 @@ int getOptimalModulePlacement( PCB_EDIT_FRAME* aFrame, MODULE* aModule, wxDC* aD
     }
 
     // Draw the initial bounding box position
-    EDA_COLOR_T color = BROWN;
+    COLOR4D color = COLOR4D( BROWN );
     fpBBox.SetOrigin( fpBBoxOrg + CurrPosition );
     draw_FootprintRect(aFrame->GetCanvas()->GetClipBox(), aDC, fpBBox, color);
 
@@ -938,8 +937,8 @@ double compute_Ratsnest_PlaceModule( BOARD* aBrd )
         if( dx < dy )
             std::swap( dx, dy );
 
-        // Cost of the connection = lenght + penalty due to the slope
-        // dx is the biggest lenght relative to the X or Y axis
+        // Cost of the connection = length + penalty due to the slope
+        // dx is the biggest length relative to the X or Y axis
         // the penalty is max for 45 degrees ratsnests,
         // and 0 for horizontal or vertical ratsnests.
         // For Horizontal and Vertical ratsnests, dy = 0;
@@ -1109,9 +1108,9 @@ static MODULE* PickModule( PCB_EDIT_FRAME* pcbframe, wxDC* DC )
 
     sort( moduleList.begin(), moduleList.end(), Tri_PlaceModules );
 
-    for( unsigned ii = 0; ii < moduleList.size(); ii++ )
+    for( unsigned kk = 0; kk < moduleList.size(); kk++ )
     {
-        Module = moduleList[ii];
+        Module = moduleList[kk];
         Module->SetFlag( 0 );
 
         if( !Module->NeedsPlaced() )

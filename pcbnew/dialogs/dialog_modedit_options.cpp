@@ -1,7 +1,7 @@
 /*
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
- * Copyright (C) 1992-2015 KiCad Developers, see AUTHORS.txt for contributors.
+ * Copyright (C) 1992-2016 KiCad Developers, see AUTHORS.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -26,11 +26,12 @@
 
 #include <fctsys.h>
 #include <pcbnew.h>
-#include <wxPcbStruct.h>
-#include <class_board_design_settings.h>
+#include <pcb_edit_frame.h>
+#include <board_design_settings.h>
 #include <base_units.h>
+#include <widgets/text_ctrl_eval.h>
 
-#include <module_editor_frame.h>
+#include <footprint_edit_frame.h>
 
 #include <dialog_modedit_options_base.h>
 
@@ -44,8 +45,8 @@ public:
     DIALOG_MODEDIT_OPTIONS( FOOTPRINT_EDIT_FRAME* aParent );
 
 private:
-    void OnCancelClick( wxCommandEvent& event ) { EndModal( wxID_CANCEL ); }
-    void OnOkClick( wxCommandEvent& event );
+    void OnCancelClick( wxCommandEvent& event ) override { EndModal( wxID_CANCEL ); }
+    void OnOkClick( wxCommandEvent& event ) override;
 
     void initValues( );
 };
@@ -106,8 +107,6 @@ void DIALOG_MODEDIT_OPTIONS::initValues()
     m_choiceLayerValue->SetSelection( sel );
     sel = m_brdSettings.m_ValueDefaultVisibility ? 0 : 1;
     m_choiceVisibleValue->SetSelection( sel );
-
-    m_spinMaxUndoItems->SetValue( m_parent->GetScreen()->GetMaxUndoItems() );
 }
 
 
@@ -133,8 +132,7 @@ void DIALOG_MODEDIT_OPTIONS::OnOkClick( wxCommandEvent& event )
     m_brdSettings.m_ValueDefaultVisibility = sel != 1;
 
     m_parent->SetDesignSettings( m_brdSettings );
-
-    m_parent->GetScreen()->SetMaxUndoItems( m_spinMaxUndoItems->GetValue() );
+    m_parent->OnModify();
 
     EndModal( wxID_OK );
 }

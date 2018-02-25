@@ -5,9 +5,9 @@
 /*
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
- * Copyright (C) 2012 Jean-Pierre Charras, jean-pierre.charras@ujf-grenoble.fr
+ * Copyright (C) 2017 Jean-Pierre Charras, jean-pierre.charras@ujf-grenoble.fr
  * Copyright (C) 2012 SoftPLC Corporation, Dick Hollenbeck <dick@softplc.com>
- * Copyright (C) 1992-2015 KiCad Developers, see AUTHORS.txt for contributors.
+ * Copyright (C) 1992-2017 KiCad Developers, see AUTHORS.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -33,9 +33,11 @@
 #include <confirm.h>
 #include <PolyLine.h>
 #include <pcbnew.h>
-#include <wxPcbStruct.h>
+#include <pcb_edit_frame.h>
 #include <zones.h>
 #include <base_units.h>
+#include <widgets/text_ctrl_eval.h>
+#include <bitmaps.h>
 
 #include <class_zone.h>
 #include <class_board.h>
@@ -71,7 +73,7 @@ private:
 
     long            m_NetFiltering;
 
-    std::vector<LAYER_ID> m_LayerId;        ///< Handle the real layer number from layer
+    std::vector<PCB_LAYER_ID> m_LayerId;    ///< Handle the real layer number from layer
                                             ///< name position in m_LayerSelectionCtrl
 
     static wxString m_netNameShowFilter;    ///< the filter to show nets (default * "*").
@@ -83,10 +85,11 @@ private:
      */
     void initDialog();
 
-    void OnButtonOkClick( wxCommandEvent& event );
-    void OnButtonCancelClick( wxCommandEvent& event );
-    void OnClose( wxCloseEvent& event );
-    void OnCornerSmoothingModeChoice( wxCommandEvent& event );
+    void OnButtonOkClick( wxCommandEvent& event ) override;
+    void OnButtonCancelClick( wxCommandEvent& event ) override;
+    void OnClose( wxCloseEvent& event ) override;
+    void OnCornerSmoothingModeChoice( wxCommandEvent& event ) override;
+    void OnUpdateUI( wxUpdateUIEvent& ) override;
 
     /**
      * Function AcceptOptions
@@ -96,10 +99,10 @@ private:
      */
     bool AcceptOptions( bool aPromptForErrors, bool aUseExportableSetupOnly = false );
 
-    void OnNetSortingOptionSelected( wxCommandEvent& event );
-    void ExportSetupToOtherCopperZones( wxCommandEvent& event );
-    void OnPadsInZoneClick( wxCommandEvent& event );
-    void OnRunFiltersButtonClick( wxCommandEvent& event );
+    void OnNetSortingOptionSelected( wxCommandEvent& event ) override;
+    void ExportSetupToOtherCopperZones( wxCommandEvent& event ) override;
+    void OnPadsInZoneClick( wxCommandEvent& event ) override;
+    void OnRunFiltersButtonClick( wxCommandEvent& event ) override;
 
     void buildAvailableListOfNets();
 
@@ -114,8 +117,9 @@ private:
      * Function makeLayerBitmap
      * creates the colored rectangle bitmaps used in the layer selection widget.
      * @param aColor is the color to fill the rectangle with.
+     * @param aBackground is the background color in case aColor is transparent.
      */
-    wxBitmap makeLayerBitmap( EDA_COLOR_T aColor );
+    wxBitmap makeLayerBitmap( COLOR4D aColor, COLOR4D aBackground );
 };
 
 
@@ -152,13 +156,13 @@ DIALOG_COPPER_ZONE::DIALOG_COPPER_ZONE( PCB_BASE_FRAME* aParent, ZONE_SETTINGS* 
     // Fix static text widget minimum width to a suitable value so that
     // resizing the dialog is not necessary when changing the corner smoothing type.
     // Depends on the default text in the widget.
-    m_cornerSmoothingTitle->SetMinSize( m_cornerSmoothingTitle->GetSize() );
+    m_cornerSmoothingValue->SetMinSize( m_cornerSmoothingValue->GetSize() );
 
     initDialog();
 
     m_sdbSizerOK->SetDefault();
-    GetSizer()->SetSizeHints( this );
-    Center();
+
+    FinishDialogSettings();
 }
 
 
@@ -166,12 +170,14 @@ void DIALOG_COPPER_ZONE::initDialog()
 {
     BOARD* board = m_Parent->GetBoard();
 
+    m_bitmapNoNetWarning->SetBitmap( KiBitmap( dialog_warning_xpm ) );
+
     wxString msg;
 
     if( m_settings.m_Zone_45_Only )
         m_OrientEdgesOpt->SetSelection( 1 );
 
-    m_FillModeCtrl->SetSelection( m_settings.m_FillMode ? 1 : 0 );
+    m_FillModeCtrl->SetSelection( m_settings.m_FillMode == ZFM_SEGMENTS ? 1 : 0 );
 
     AddUnitSymbol( *m_ClearanceValueTitle, g_UserUnit );
     msg = StringFromValue( g_UserUnit, m_settings.m_ZoneClearance );
@@ -201,19 +207,6 @@ void DIALOG_COPPER_ZONE::initDialog()
         break;
     }
 
-    // Antipad and spokes are significant only for thermals
-    if( m_settings.GetPadConnection() != PAD_ZONE_CONN_THERMAL &&
-        m_settings.GetPadConnection() != PAD_ZONE_CONN_THT_THERMAL )
-    {
-        m_AntipadSizeValue->Enable( false );
-        m_CopperWidthValue->Enable( false );
-    }
-    else
-    {
-        m_AntipadSizeValue->Enable( true );
-        m_CopperWidthValue->Enable( true );
-    }
-
     m_PriorityLevelCtrl->SetValue( m_settings.m_ZonePriority );
 
     AddUnitSymbol( *m_AntipadSizeText, g_UserUnit );
@@ -227,15 +220,15 @@ void DIALOG_COPPER_ZONE::initDialog()
 
     switch( m_settings.m_Zone_HatchingStyle )
     {
-    case CPolyLine::NO_HATCH:
+    case ZONE_CONTAINER::NO_HATCH:
         m_OutlineAppearanceCtrl->SetSelection( 0 );
         break;
 
-    case CPolyLine::DIAGONAL_EDGE:
+    case ZONE_CONTAINER::DIAGONAL_EDGE:
         m_OutlineAppearanceCtrl->SetSelection( 1 );
         break;
 
-    case CPolyLine::DIAGONAL_FULL:
+    case ZONE_CONTAINER::DIAGONAL_FULL:
         m_OutlineAppearanceCtrl->SetSelection( 2 );
         break;
     }
@@ -256,9 +249,10 @@ void DIALOG_COPPER_ZONE::initDialog()
 
     LSET cu_set = LSET::AllCuMask( board->GetCopperLayerCount() );
 
+    COLOR4D backgroundColor = m_Parent->Settings().Colors().GetLayerColor( LAYER_PCB_BACKGROUND );
     for( LSEQ cu_stack = cu_set.UIOrder();  cu_stack;  ++cu_stack, imgIdx++ )
     {
-        LAYER_ID layer = *cu_stack;
+        PCB_LAYER_ID layer = *cu_stack;
 
         m_LayerId.push_back( layer );
 
@@ -266,9 +260,9 @@ void DIALOG_COPPER_ZONE::initDialog()
 
         msg.Trim();
 
-        EDA_COLOR_T layerColor = board->GetLayerColor( layer );
+        COLOR4D layerColor = m_Parent->Settings().Colors().GetLayerColor( layer );
 
-        imageList->Add( makeLayerBitmap( layerColor ) );
+        imageList->Add( makeLayerBitmap( layerColor, backgroundColor ) );
 
         int itemIndex = m_LayerSelectionCtrl->InsertItem(
                 m_LayerSelectionCtrl->GetItemCount(), msg, imgIdx );
@@ -312,6 +306,11 @@ void DIALOG_COPPER_ZONE::initDialog()
     OnCornerSmoothingModeChoice( event );
 }
 
+
+void DIALOG_COPPER_ZONE::OnUpdateUI( wxUpdateUIEvent& )
+{
+    m_bNoNetWarning->Show( m_ListNetNameSelection->GetSelection() == 0 );
+}
 
 void DIALOG_COPPER_ZONE::OnButtonCancelClick( wxCommandEvent& event )
 {
@@ -368,15 +367,15 @@ bool DIALOG_COPPER_ZONE::AcceptOptions( bool aPromptForErrors, bool aUseExportab
     switch( m_OutlineAppearanceCtrl->GetSelection() )
     {
     case 0:
-        m_settings.m_Zone_HatchingStyle = CPolyLine::NO_HATCH;
+        m_settings.m_Zone_HatchingStyle = ZONE_CONTAINER::NO_HATCH;
         break;
 
     case 1:
-        m_settings.m_Zone_HatchingStyle = CPolyLine::DIAGONAL_EDGE;
+        m_settings.m_Zone_HatchingStyle = ZONE_CONTAINER::DIAGONAL_EDGE;
         break;
 
     case 2:
-        m_settings.m_Zone_HatchingStyle = CPolyLine::DIAGONAL_FULL;
+        m_settings.m_Zone_HatchingStyle = ZONE_CONTAINER::DIAGONAL_FULL;
         break;
     }
 
@@ -393,7 +392,7 @@ bool DIALOG_COPPER_ZONE::AcceptOptions( bool aPromptForErrors, bool aUseExportab
     }
 
     m_netNameShowFilter = m_ShowNetNameFilter->GetValue();
-    m_settings.m_FillMode = (m_FillModeCtrl->GetSelection() == 0) ? 0 : 1;
+    m_settings.m_FillMode = (m_FillModeCtrl->GetSelection() == 0) ? ZFM_POLYGONS : ZFM_SEGMENTS;
 
     wxString txtvalue = m_ZoneClearanceCtrl->GetValue();
     m_settings.m_ZoneClearance = ValueFromString( g_UserUnit, txtvalue );
@@ -485,13 +484,6 @@ bool DIALOG_COPPER_ZONE::AcceptOptions( bool aPromptForErrors, bool aUseExportab
         return false;
     }
 
-    if( ii == 0 )   // the not connected option was selected: this is not a good practice: warn:
-    {
-        if( !IsOK( this, _( "You have chosen the \"not connected\" option. This will create "
-                            "insulated copper islands. Are you sure ?" ) ) )
-            return false;
-    }
-
     wxString net_name = m_ListNetNameSelection->GetString( ii );
 
     m_settings.m_NetcodeSelection = 0;
@@ -516,20 +508,20 @@ void DIALOG_COPPER_ZONE::OnCornerSmoothingModeChoice( wxCommandEvent& event )
     switch( selection )
     {
     case ZONE_SETTINGS::SMOOTHING_NONE:
-        m_cornerSmoothingTitle->Enable( false );
+        m_cornerSmoothingValue->Enable( false );
         m_cornerSmoothingCtrl->Enable( false );
         break;
     case ZONE_SETTINGS::SMOOTHING_CHAMFER:
-        m_cornerSmoothingTitle->Enable( true );
+        m_cornerSmoothingValue->Enable( true );
         m_cornerSmoothingCtrl->Enable( true );
-        m_cornerSmoothingTitle->SetLabel( _( "Chamfer distance" ) );
-        AddUnitSymbol( *m_cornerSmoothingTitle, g_UserUnit );
+        m_cornerSmoothingValue->SetLabel( _( "Chamfer distance" ) );
+        AddUnitSymbol( *m_cornerSmoothingValue, g_UserUnit );
         break;
     case ZONE_SETTINGS::SMOOTHING_FILLET:
-        m_cornerSmoothingTitle->Enable( true );
+        m_cornerSmoothingValue->Enable( true );
         m_cornerSmoothingCtrl->Enable( true );
-        m_cornerSmoothingTitle->SetLabel( _( "Fillet radius" ) );
-        AddUnitSymbol( *m_cornerSmoothingTitle, g_UserUnit );
+        m_cornerSmoothingValue->SetLabel( _( "Fillet radius" ) );
+        AddUnitSymbol( *m_cornerSmoothingValue, g_UserUnit );
         break;
     }
 }
@@ -578,19 +570,11 @@ void DIALOG_COPPER_ZONE::ExportSetupToOtherCopperZones( wxCommandEvent& event )
 
 void DIALOG_COPPER_ZONE::OnPadsInZoneClick( wxCommandEvent& event )
 {
-    switch( m_PadInZoneOpt->GetSelection() )
-    {
-    default:
-        m_AntipadSizeValue->Enable( false );
-        m_CopperWidthValue->Enable( false );
-        break;
-
-    case 2:
-    case 1:
-        m_AntipadSizeValue->Enable( true );
-        m_CopperWidthValue->Enable( true );
-        break;
-    }
+    // Antipad and spokes are significant only for thermals
+    // However, even if thermals are disabled, these parameters must be set
+    // for pads which have local settings with thermal enabled
+    // Previously, wxTextCtrl widgets related to thermal settings were disabled,
+    // but this is not a good idea. We leave them always enabled.
 }
 
 
@@ -702,15 +686,20 @@ void DIALOG_COPPER_ZONE::buildAvailableListOfNets()
 }
 
 
-wxBitmap DIALOG_COPPER_ZONE::makeLayerBitmap( EDA_COLOR_T aColor )
+wxBitmap DIALOG_COPPER_ZONE::makeLayerBitmap( COLOR4D aColor, COLOR4D aBackground )
 {
     wxBitmap    bitmap( LAYER_BITMAP_SIZE_X, LAYER_BITMAP_SIZE_Y );
     wxBrush     brush;
     wxMemoryDC  iconDC;
 
     iconDC.SelectObject( bitmap );
-    brush.SetColour( MakeColour( aColor ) );
+
     brush.SetStyle( wxBRUSHSTYLE_SOLID );
+    brush.SetColour( aBackground.WithAlpha(1.0).ToColour() );
+    iconDC.SetBrush( brush );
+    iconDC.DrawRectangle( 0, 0, LAYER_BITMAP_SIZE_X, LAYER_BITMAP_SIZE_Y );
+
+    brush.SetColour( aColor.ToColour() );
     iconDC.SetBrush( brush );
     iconDC.DrawRectangle( 0, 0, LAYER_BITMAP_SIZE_X, LAYER_BITMAP_SIZE_Y );
 

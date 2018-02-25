@@ -9,6 +9,9 @@
  *
  * This file is part of TTL.
  *
+ * see https://www.sintef.no/projectweb/geometry-toolkits/ttl/
+ * and https://github.com/SINTEF-Geometry/TTL
+ *
  * TTL is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as
  * published by the Free Software Foundation, either version 3 of the
@@ -272,10 +275,10 @@ private:
  * If \e point is outside the triangulation, or the input dart is not valid,
  * \c false is returned.
  *
- * \require
+ * \b require
  *  - \ref hed::TTLtraits::splitTriangle "TRAITS_TYPE::splitTriangle" (DART_TYPE&, const POINT_TYPE&)
  *
- * \using
+ * \a using
  * - locateTriangle
  * - RecSwapDelaunay
  *
@@ -364,11 +367,11 @@ void TRIANGULATION_HELPER::insertNodes( FORWARD_ITERATOR aFirst, FORWARD_ITERATO
  *   The four nodes at the corners will be removed and the resulting triangulation
  *   will have a convex boundary and be Delaunay.
  *
- *   \param dart
+ *   \param aDart
  *   A CCW dart at the boundary of the triangulation\n
  *   Output: A CCW dart at the new boundary
  *
- *   \using
+ *   \a using
  *   - RemoveBoundaryNode
  *
  *   \note
@@ -395,7 +398,7 @@ void TRIANGULATION_HELPER::RemoveRectangularBoundary( DART_TYPE& aDart )
 /** Removes the node associated with \e dart and
  *   updates the triangulation to be Delaunay.
  *
- *   \using
+ *   \a using
  *   - RemoveBoundaryNode if \e dart represents a node at the boundary
  *   - RemoveInteriorNode if \e dart represents an interior node
  *
@@ -416,11 +419,11 @@ void TRIANGULATION_HELPER::RemoveNode( DART_TYPE& aDart )
 /** Removes the boundary node associated with \e dart and
  *   updates the triangulation to be Delaunay.
  *
- *   \using
+ *   \a using
  *   - SwapEdgesAwayFromBoundaryNode
  *   - OptimizeDelaunay
  *
- *   \require
+ *   \b require
  *   - \ref hed::TTLtraits::removeBoundaryTriangle "TRAITS_TYPE::removeBoundaryTriangle" (Dart&)
  */
 template <class TRAITS_TYPE, class DART_TYPE>
@@ -478,11 +481,11 @@ void TRIANGULATION_HELPER::RemoveBoundaryNode( DART_TYPE& aDart )
 /** Removes the interior node associated with \e dart and
  *   updates the triangulation to be Delaunay.
  *
- *   \using
+ *   \a using
  *   - SwapEdgesAwayFromInteriorNode
  *   - OptimizeDelaunay
  *
- *   \require
+ *   \b require
  *   - \ref hed::TTLtraits::reverse_splitTriangle "TRAITS_TYPE::reverse_splitTriangle" (Dart&)
  *
  *   \note
@@ -597,7 +600,7 @@ bool TRIANGULATION_HELPER::locateFaceWithNode( const NODE_TYPE& aNode, DART_TYPE
  *   \retval bool
  *   \c true if a face is found; \c false if not.
  *
- *   \require
+ *   \b require
  *   - \ref hed::TTLtraits::Orient2D "TRAITS_TYPE::Orient2D" (DART_TYPE&, DART_TYPE&, POINT_TYPE&)
  *
  *   \note
@@ -663,10 +666,10 @@ bool TRIANGULATION_HELPER::LocateFaceSimplest( const POINT_TYPE& aPoint, DART_TY
  *   This function deals with degeneracy to some extent, but round-off errors may still
  *   lead to a wrong result if triangles are degenerate.
  *
- *   \param point
+ *   \param aPoint
  *   A point to be located
  *
- *   \param dart
+ *   \param aDart
  *   An arbitrary CCW dart in the triangulation\n
  *   Output: A CCW dart in the located triangle
  *
@@ -675,7 +678,7 @@ bool TRIANGULATION_HELPER::LocateFaceSimplest( const POINT_TYPE& aPoint, DART_TY
  *   If \e point is outside the m_triangulation, in which case \c false is returned,
  *   then the edge associated with \e dart will be at the boundary of the m_triangulation.
  *
- *   \using
+ *   \a using
  *   - LocateFaceSimplest
  *   - InTriangle
  */
@@ -725,7 +728,7 @@ bool TRIANGULATION_HELPER::LocateTriangle( const POINT_TYPE& aPoint, DART_TYPE& 
  *   \param aDart
  *   A CCW dart in the triangle
  *
- *   \require
+ *   \b require
  *    - \ref hed::TTLtraits::CrossProduct2D "TRAITS_TYPE::CrossProduct2D" (DART_TYPE&, POINT_TYPE&)
  *    - \ref hed::TTLtraits::ScalarProduct2D "TRAITS_TYPE::ScalarProduct2D" (DART_TYPE&, POINT_TYPE&)
  *
@@ -864,7 +867,7 @@ void TRIANGULATION_HELPER::getAdjacentTriangles( const DART_TYPE& aDart, DART_TY
  *   \param aBoundary
  *   A sequence of darts, where the associated edges are the boundary edges
  *
- *   \require
+ *   \b require
  *   - DART_LIST_TYPE::push_back (DART_TYPE&)
  */
 template <class DART_TYPE, class DART_LIST_TYPE>
@@ -1095,7 +1098,7 @@ void TRIANGULATION_HELPER::getNeighborNodes( const DART_TYPE& aDart,
  *   orientation (CCW or CW) as \e dart, and \e dart is the first element
  *   in the sequence.
  *
- *   \require
+ *   \b require
  *   - DART_LIST_TYPE::push_back (DART_TYPE&)
  *
  *   \see
@@ -1125,7 +1128,7 @@ void TRIANGULATION_HELPER::Get0OrbitInterior( const DART_TYPE& aDart, DART_LIST_
  *   have the same orientation (CCW or CW) as \e dart, and \e dart is the first element
  *   in the sequence.
  *
- *   \require
+ *   \b require
  *   - DART_LIST_TYPE::push_back (DART_TYPE&)
  *
  *   \note
@@ -1246,7 +1249,7 @@ bool TRIANGULATION_HELPER::degenerateTriangle( const DART_TYPE& aDart )
  *   indicate that the quadrilateral is convex only, and not necessarily strictly
  *   convex.
  *
- *   \require
+ *   \b require
  *   - \ref hed::TTLtraits::CrossProduct2D "TRAITS_TYPE::CrossProduct2D" (Dart&, Dart&)
  */
 template <class TRAITS_TYPE, class DART_TYPE>
@@ -1325,10 +1328,10 @@ void TRIANGULATION_HELPER::PositionAtNextBoundaryEdge( DART_TYPE& aDart )
 
 /** Checks if the boundary of a triangulation is convex.
  *
- *   \param dart
+ *   \param aDart
  *   A CCW dart at the boundary of the m_triangulation
  *
- *   \require
+ *   \b require
  *   - \ref hed::TTLtraits::CrossProduct2D "TRAITS_TYPE::CrossProduct2D" (const Dart&, const Dart&)
  */
 template <class TRAITS_TYPE, class DART_TYPE>
@@ -1390,12 +1393,12 @@ bool TRIANGULATION_HELPER::ConvexBoundary( const DART_TYPE& aDart )
  *   \param aElist
  *   The sequence of edges
  *
- *   \require
+ *   \b require
  *   - \ref hed::TTLtraits::swapEdge "TRAITS_TYPE::swapEdge" (DART_TYPE& \e dart)\n
  *     \b Note: Must be implemented such that \e dart is delivered back in a position as
  *     seen if it was glued to the edge when swapping (rotating) the edge CCW
  *
- *   \using
+ *   \a using
  *   - swapTestDelaunay
  */
 template <class TRAITS_TYPE, class DART_TYPE, class DART_LIST_TYPE>
@@ -1476,7 +1479,7 @@ void TRIANGULATION_HELPER::OptimizeDelaunay( DART_LIST_TYPE& aElist,
  *   e.g., OptimizeDelaunay. This will avoid cycling and infinite loops in nearly
  *   neutral cases.
  *
- *   \require
+ *   \b require
  *   - \ref hed::TTLtraits::ScalarProduct2D "TRAITS_TYPE::ScalarProduct2D" (DART_TYPE&, DART_TYPE&)
  *   - \ref hed::TTLtraits::CrossProduct2D "TRAITS_TYPE::CrossProduct2D" (DART_TYPE&, DART_TYPE&)
  */
@@ -1592,12 +1595,12 @@ bool TRIANGULATION_HELPER::SwapTestDelaunay( const DART_TYPE& aDart, bool aCycli
  *   \param aDiagonal
  *   A CCW dart representing the edge where the recursion starts from.
  *
- *   \require
+ *   \b require
  *   - \ref hed::TTLtraits::swapEdge "TRAITS_TYPE::swapEdge" (DART_TYPE&)\n
  *     \b Note: Must be implemented such that the darts outside the quadrilateral
  *     are not affected by the swap.
  *
- *   \using
+ *   \a using
  *   - Calls itself recursively
  */
 template <class TRAITS_TYPE, class DART_TYPE>
@@ -1654,7 +1657,7 @@ void TRIANGULATION_HELPER::RecSwapDelaunay( DART_TYPE& aDiagonal )
  *   - The node associated with \e dart is interior to the
  *     triangulation.
  *
- *   \require
+ *   \b require
  *   - \ref hed::TTLtraits::swapEdge "TRAITS_TYPE::swapEdge" (DART_TYPE& \e dart)\n
  *     \b Note: Must be implemented such that \e dart is delivered back in a position as
  *     seen if it was glued to the edge when swapping (rotating) the edge CCW
@@ -1718,7 +1721,7 @@ void TRIANGULATION_HELPER::SwapEdgesAwayFromInteriorNode( DART_TYPE& aDart,
  *   \retval dart
  *   A CCW dart incident with the node
  *
- *   \require
+ *   \b require
  *   - \ref hed::TTLtraits::swapEdge "TRAITS_TYPE::swapEdge" (DART_TYPE& \e dart)\n
  *     \b Note: Must be implemented such that \e dart is delivered back in a position as
  *     seen if it was glued to the edge when swapping (rotating) the edge CCW

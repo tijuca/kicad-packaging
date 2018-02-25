@@ -2,6 +2,7 @@
  * KiRouter - a push-and-(sometimes-)shove PCB router
  *
  * Copyright (C) 2013-2014 CERN
+ * Copyright (C) 2016 KiCad Developers, see AUTHORS.txt for contributors.
  * Author: Tomasz Wlostowski <tomasz.wlostowski@cern.ch>
  *
  * This program is free software: you can redistribute it and/or modify it
@@ -38,8 +39,12 @@
 
 #include <layers_id_colors_and_visibility.h>
 
-class PNS_ITEM;
-class PNS_ROUTER;
+namespace PNS {
+
+class ITEM;
+class ROUTER;
+
+}
 
 class ROUTER_PREVIEW_ITEM : public EDA_ITEM
 {
@@ -51,10 +56,10 @@ public:
         PR_SHAPE
     };
 
-    ROUTER_PREVIEW_ITEM( const PNS_ITEM* aItem = NULL, KIGFX::VIEW_GROUP* aParent = NULL );
+    ROUTER_PREVIEW_ITEM( const PNS::ITEM* aItem = NULL, KIGFX::VIEW* aView = NULL);
     ~ROUTER_PREVIEW_ITEM();
 
-    void Update( const PNS_ITEM* aItem );
+    void Update( const PNS::ITEM* aItem );
 
     void StuckMarker( VECTOR2I& aPosition );
 
@@ -72,23 +77,33 @@ public:
         m_clearance = aClearance;
     }
 
+    void ShowTrackClearance( bool aEnabled )
+    {
+        m_showTrackClearance = aEnabled;
+    }
+
+    void ShowViaClearance( bool aEnabled )
+    {
+        m_showViaClearance = aEnabled;
+    }
+
 #if defined(DEBUG)
-    void Show( int aA, std::ostream& aB ) const {};
+    void Show( int aA, std::ostream& aB ) const override {}
 #endif
 
     /** Get class name
      * @return  string "ROUTER_PREVIEW_ITEM"
      */
-    virtual wxString GetClass() const
+    virtual wxString GetClass() const override
     {
         return wxT( "ROUTER_PREVIEW_ITEM" );
     }
 
-    const BOX2I ViewBBox() const;
+    const BOX2I ViewBBox() const override;
 
-    virtual void ViewDraw( int aLayer, KIGFX::GAL* aGal ) const;
+    virtual void ViewDraw( int aLayer, KIGFX::VIEW* aView ) const override;
 
-    virtual void ViewGetLayers( int aLayers[], int& aCount ) const
+    virtual void ViewGetLayers( int aLayers[], int& aCount ) const override
     {
         aLayers[0] = m_layer;
         aCount = 1;
@@ -100,9 +115,9 @@ private:
     const KIGFX::COLOR4D assignColor( int aStyle ) const;
     const KIGFX::COLOR4D getLayerColor( int aLayer ) const;
 
-    KIGFX::VIEW_GROUP* m_parent;
+    KIGFX::VIEW* m_view;
 
-    PNS_ROUTER* m_router;
+    PNS::ROUTER* m_router;
     SHAPE* m_shape;
 
     ITEM_TYPE m_type;
@@ -112,6 +127,9 @@ private:
     int m_layer;
     int m_originLayer;
     int m_clearance;
+
+    bool m_showTrackClearance;
+    bool m_showViaClearance;
 
     // fixme: shouldn't this go to VIEW?
     static const int ClearanceOverlayDepth;

@@ -6,8 +6,8 @@
 msgid ""
 msgstr ""
 "Project-Id-Version: \n"
-"POT-Creation-Date: 2016-10-31 20:27+0200\n"
-"PO-Revision-Date: 2016-11-16 11:16+0200\n"
+"POT-Creation-Date: 2016-11-16 11:37+0200\n"
+"PO-Revision-Date: 2016-11-16 11:43+0200\n"
 "Last-Translator: Baranovskiy Konstantin <baranovskiykonstantin@gmail.com>\n"
 "Language-Team: Russian\n"
 "Language: ru\n"
@@ -38,15 +38,15 @@ msgstr "*Авторские права*\n"
 msgid ""
 "This document is Copyright (C) 2010-2015 by it's contributors as listed "
 "below. You may distribute it and/or modify it under the terms of either the "
-"GNU General Public License (http://www.gnu.org/licenses/gpl.html), version 3 "
-"or later, or the Creative Commons Attribution License (http://"
+"GNU General Public License (https://www.gnu.org/licenses/gpl.html), version "
+"3 or later, or the Creative Commons Attribution License (https://"
 "creativecommons.org/licenses/by/3.0/), version 3.0 or later."
 msgstr ""
 "Авторские права на данный документ © 2010-2015 принадлежит его разработчикам "
 "(соавторам), перечисленным ниже. Вы можете распространять и/или изменять его "
-"в соответствии с правилами лицензии GNU General Public License (http://www."
+"в соответствии с правилами лицензии GNU General Public License (https://www."
 "gnu.org/licenses/gpl.html), версии 3 или более поздней, или лицензии типа "
-"Creative Commons Attribution License (http://creativecommons.org/licenses/"
+"Creative Commons Attribution License (https://creativecommons.org/licenses/"
 "by/3.0/), версии 3.0 или более поздней."
 
 #. type: Plain text
@@ -150,8 +150,8 @@ msgstr "Загрузка PoEdit"
 
 #. type: Plain text
 #: gui_translation_howto.adoc:63
-msgid "See: http://www.poedit.net/"
-msgstr "Смотрите: http://www.poedit.net/"
+msgid "See: https://www.poedit.net/"
+msgstr "Смотрите: https://www.poedit.net/"
 
 #. type: Title ===
 #: gui_translation_howto.adoc:65
@@ -182,10 +182,10 @@ msgstr ""
 #: gui_translation_howto.adoc:76
 msgid ""
 "Install, if not already done, the tool named bazaar (easy to install under "
-"all platforms): see http://bazaar.canonical.com/"
+"all platforms): see https://bazaar.canonical.com/"
 msgstr ""
 "Установите, если еще не установлен, инструмент bazaar (легко устанавливается "
-"в любой из операционных систем): смотрите http://bazaar.canonical.com/"
+"в любой из операционных систем): смотрите https://bazaar.canonical.com/"
 
 #. type: Plain text
 #: gui_translation_howto.adoc:79
@@ -199,10 +199,10 @@ msgstr ""
 #. type: Plain text
 #: gui_translation_howto.adoc:82
 msgid ""
-"You'll find this doc about translation and poedit configuration in "
+"You'll find this doc about translation and PoEdit configuration in "
 "Documentation on http://docs.kicad-pcb.org/en/gui_translation_howto.html"
 msgstr ""
-"Найдите это справочное руководство о переводе и настройке poedit в разделе "
+"Найдите это справочное руководство о переводе и настройке PoEdit в разделе "
 "Документация на http://docs.kicad-pcb.org/en/gui_translation_howto.html"
 
 #. type: Title ===
@@ -280,14 +280,14 @@ msgstr ""
 #: gui_translation_howto.adoc:116
 msgid ""
 "The easier way to create and maintain the dictionary English->locale is to "
-"use, **poedit**. Poedit scans KiCad sources and allows you to enter "
-"translations. You must download KiCad sources and set poedit in order to "
+"use, **poedit**. PoEdit scans KiCad sources and allows you to enter "
+"translations. You must download KiCad sources and set PoEdit in order to "
 "create translations."
 msgstr ""
 "Самый простой путь для создания и сопровождения словарей английский язык -> "
 "текущий язык -- использовать **poedit**. PoEdit ищет термины в исходных "
 "кодах KiCad и позволяет выполнять их перевод. Нужно только загрузить "
-"исходные коды KiCad и настроить нужным образом poedit для создания перевода."
+"исходные коды KiCad и настроить нужным образом PoEdit для создания перевода."
 
 #. type: Title ==
 #: gui_translation_howto.adoc:118
@@ -488,8 +488,8 @@ msgstr "internat.po (файл словаря)"
 
 #. type: Plain text
 #: gui_translation_howto.adoc:192
-msgid "internat.mo (the poedit work file)"
-msgstr "internat.mo (служебный файл poedit)"
+msgid "internat.mo (the PoEdit work file)"
+msgstr "internat.mo (служебный файл PoEdit)"
 
 #. type: Title ==
 #: gui_translation_howto.adoc:194
@@ -506,11 +506,11 @@ msgstr "Установка"
 #. type: Plain text
 #: gui_translation_howto.adoc:201
 msgid ""
-"Download and install poedit (http://www.poedit.net). Poedit exists on "
+"Download and install PoEdit (https://www.poedit.net). PoEdit exists on "
 "Windows, Linux and Mac OS X."
 msgstr ""
-"Загрузите и установите poedit (http://www.poedit.net). Существуют версии "
-"Poedit для Windows, Linux и Mac OS X."
+"Загрузите и установите PoEdit (https://www.poedit.net). Существуют версии "
+"PoEdit для Windows, Linux и Mac OS X."
 
 #. type: Plain text
 #: gui_translation_howto.adoc:203
@@ -553,8 +553,8 @@ msgstr ""
 #. type: Title ===
 #: gui_translation_howto.adoc:217
 #, no-wrap
-msgid "Poedit Configuration"
-msgstr "Настройка Poedit"
+msgid "PoEdit Configuration"
+msgstr "Настройка PoEdit"
 
 #. type: Plain text
 #: gui_translation_howto.adoc:220
@@ -665,8 +665,8 @@ msgstr "Создание или редактирование словаря"
 
 #. type: Plain text
 #: gui_translation_howto.adoc:261
-msgid "Run poedit and load a project (here: **kicad.po**)."
-msgstr "Запустите poedit и загрузите проект (здесь это **kicad.po**)."
+msgid "Run PoEdit and load a project (here: **kicad.po**)."
+msgstr "Запустите PoEdit и загрузите проект (здесь это **kicad.po**)."
 
 #. type: Plain text
 #: gui_translation_howto.adoc:263
@@ -695,7 +695,7 @@ msgstr "Добавление пункта меню для нового язык�
 #: gui_translation_howto.adoc:274
 msgid ""
 "This step in NOT required. It is useful only for developers, and for testing "
-"purpose only"
+"purpose only."
 msgstr ""
 "Этот шаг НЕ является обязательным. Эта функция используется только "
 "разработчиками и только в целях отладки."

@@ -33,8 +33,9 @@
 
 
 #include <base_struct.h>
-#include <class_undoredo_container.h>
+#include <undo_redo_container.h>
 #include <gr_basic.h>
+#include <eda_rect.h>
 
 /* Block state codes. */
 typedef enum {
@@ -50,11 +51,12 @@ typedef enum {
 typedef enum {
     BLOCK_IDLE,
     BLOCK_MOVE,
+    BLOCK_DUPLICATE,
+    BLOCK_DUPLICATE_AND_INCREMENT,
     BLOCK_COPY,
-    BLOCK_COPY_AND_INCREMENT,
-    BLOCK_SAVE,
     BLOCK_DELETE,
     BLOCK_PASTE,
+    BLOCK_CUT,
     BLOCK_DRAG,
     BLOCK_DRAG_ITEM,    // like BLOCK_DRAG, when used to drag a selected component
                         // and not using an area defined by a mouse drag
@@ -75,7 +77,7 @@ class BLOCK_SELECTOR : public EDA_RECT
     BLOCK_STATE_T     m_state;                    //< State (enum BLOCK_STATE_T) of the block.
     BLOCK_COMMAND_T   m_command;                  //< Command (enum BLOCK_COMMAND_T) operation.
     PICKED_ITEMS_LIST m_items;                    //< List of items selected in this block.
-    EDA_COLOR_T       m_color;                    //< Block Color (for drawings).
+    COLOR4D           m_color;                    //< Block Color (for drawings).
     wxPoint           m_moveVector;               //< Move distance to move the block.
     wxPoint           m_lastCursorPosition;       //< Last Mouse position in block command
                                                   //< last cursor position in move commands
@@ -93,9 +95,9 @@ public:
 
     BLOCK_COMMAND_T GetCommand() const { return m_command; }
 
-    void SetColor( EDA_COLOR_T aColor ) { m_color = aColor; }
+    void SetColor( COLOR4D aColor ) { m_color = aColor; }
 
-    EDA_COLOR_T GetColor() const { return m_color; }
+    COLOR4D GetColor() const { return m_color; }
 
     /**
      * Function SetLastCursorPosition
@@ -128,7 +130,7 @@ public:
                wxDC*           aDC,
                const wxPoint&  aOffset,
                GR_DRAWMODE     aDrawMode,
-               EDA_COLOR_T     aColor );
+               COLOR4D         aColor );
 
     /**
      * Function PushItem
@@ -164,6 +166,16 @@ public:
             return m_items.GetPickedItem( aIndex );
 
         return NULL;
+    }
+
+    /**
+     * Function SetFlags
+     * sets a status flag on each item in a block selector.
+     */
+    void SetFlags( const STATUS_FLAGS aFlag )
+    {
+        for( unsigned i = 0; i < m_items.GetCount(); i++ )
+            m_items.GetPickedItem( i )->SetFlags( aFlag );
     }
 
     /**

@@ -1,9 +1,9 @@
 /*
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
- * Copyright (C) 1992-2013 jp.charras at wanadoo.fr
- * Copyright (C) 2013 SoftPLC Corporation, Dick Hollenbeck <dick@softplc.com>
- * Copyright (C) 1992-2015 KiCad Developers, see AUTHORS.TXT for contributors.
+ * Copyright (C) 1992-2017 jp.charras at wanadoo.fr
+ * Copyright (C) 2013-2017 SoftPLC Corporation, Dick Hollenbeck <dick@softplc.com>
+ * Copyright (C) 1992-2017 KiCad Developers, see AUTHORS.TXT for contributors.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -35,12 +35,7 @@
 #include <pgm_base.h>
 
 #include <sch_reference_list.h>
-#include <class_netlist_object.h>
 #include <class_library.h>
-#include <lib_pin.h>
-#include <sch_component.h>
-#include <sch_text.h>
-#include <sch_sheet.h>
 
 #include <netlist.h>
 #include <netlist_exporter.h>
@@ -48,7 +43,7 @@
 
 
 wxString NETLIST_EXPORTER::MakeCommandLine( const wxString& aFormatString,
-            const wxString& aTempfile, const wxString& aFinalFile, const wxString& aProjectPath )
+            const wxString& aNetlistFile, const wxString& aFinalFile, const wxString& aProjectPath )
 {
     // Expand format symbols in the command line:
     // %B => base filename of selected output file, minus path and extension.
@@ -56,17 +51,26 @@ wxString NETLIST_EXPORTER::MakeCommandLine( const wxString& aFormatString,
     // %I => full filename of the input file (the intermediate net file).
     // %O => complete filename and path (but without extension) of the user chosen output file.
 
-    wxString    ret  = aFormatString;
-    wxFileName  in   = aTempfile;
-    wxFileName  out  = aFinalFile;
+    wxString   ret  = aFormatString;
+    wxFileName in   = aNetlistFile;
+    wxFileName out  = aFinalFile;
+    wxString str_out  = out.GetFullPath();
 
-    ret.Replace( wxT( "%P" ), aProjectPath.GetData(), true );
-    ret.Replace( wxT( "%B" ), out.GetName().GetData(), true );
-    ret.Replace( wxT( "%I" ), in.GetFullPath().GetData(), true );
-    ret.Replace( wxT( "%O" ), out.GetFullPath().GetData(), true );
+    ret.Replace( "%P", aProjectPath, true );
+    ret.Replace( "%B", out.GetName(), true );
+    ret.Replace( "%I", in.GetFullPath(), true );
 
-    // Use Unix like notation, which always works
-    ret.Replace( wxT( "\\" ), "/", true );
+#ifdef __WINDOWS__
+    // A ugly hack to run xsltproc that has a serious bug on Window since a long time:
+    // the filename given after -o option (output filename) cannot use '\' in filename
+    // so replace if by '/' if possible (I mean if the filename does not start by "\\"
+    // that is a filename on a Windows server)
+
+    if( !str_out.StartsWith( "\\\\" ) )
+        str_out.Replace( "\\", "/" );
+#endif
+
+    ret.Replace( "%O", str_out, true );
 
     return ret;
 }
@@ -87,7 +91,7 @@ void NETLIST_EXPORTER::sprintPinNetName( wxString& aResult,
     {
         if( aUseNetcodeAsNetName )
         {
-            aResult.Printf( wxT("%d"), netcode );
+            aResult.Printf( "%d", netcode );
         }
         else
         {
@@ -116,6 +120,7 @@ SCH_COMPONENT* NETLIST_EXPORTER::findNextComponent( EDA_ITEM* aItem, SCH_SHEET_P
         // Power symbols and other components which have the reference starting
         // with "#" are not included in netlist (pseudo or virtual components)
         ref = comp->GetRef( aSheetPath );
+
         if( ref[0] == wxChar( '#' ) )
             continue;
 
@@ -125,7 +130,8 @@ SCH_COMPONENT* NETLIST_EXPORTER::findNextComponent( EDA_ITEM* aItem, SCH_SHEET_P
         // (several sheets pointing to 1 screen), this will be erroneously be
         // toggled.
 
-        LIB_PART* part = m_libs->FindLibPart( comp->GetPartName() );
+        LIB_PART* part = comp->GetPartRef().lock().get();
+
         if( !part )
             continue;
 
@@ -155,8 +161,8 @@ static bool sortPinsByNum( NETLIST_OBJECT* aPin1, NETLIST_OBJECT* aPin2 )
 }
 
 
-SCH_COMPONENT* NETLIST_EXPORTER::findNextComponentAndCreatePinList( EDA_ITEM*       aItem,
-                                                              SCH_SHEET_PATH* aSheetPath )
+SCH_COMPONENT* NETLIST_EXPORTER::findNextComponentAndCreatePinList(
+    EDA_ITEM* aItem, SCH_SHEET_PATH* aSheetPath )
 {
     wxString    ref;
 
@@ -184,7 +190,7 @@ SCH_COMPONENT* NETLIST_EXPORTER::findNextComponentAndCreatePinList( EDA_ITEM*   
         // (several sheets pointing to 1 screen), this will be erroneously be
         // toggled.
 
-        LIB_PART* part = m_libs->FindLibPart( comp->GetPartName() );
+        LIB_PART* part = comp->GetPartRef().lock().get();
 
         if( !part )
             continue;
@@ -199,7 +205,7 @@ SCH_COMPONENT* NETLIST_EXPORTER::findNextComponentAndCreatePinList( EDA_ITEM*   
             // Collect all pins for this reference designator by searching
             // the entire design for other parts with the same reference designator.
             // This is only done once, it would be too expensive otherwise.
-            findAllInstancesOfComponent( comp, part, aSheetPath );
+            findAllUnitsOfComponent( comp, part, aSheetPath );
         }
 
         else    // entry->GetUnitCount() <= 1 means one part per package
@@ -223,7 +229,7 @@ SCH_COMPONENT* NETLIST_EXPORTER::findNextComponentAndCreatePinList( EDA_ITEM*   
               m_SortedComponentPinList.end(), sortPinsByNum );
 
         // Remove duplicate Pins in m_SortedComponentPinList
-        eraseDuplicatePins( );
+        eraseDuplicatePins();
 
         // record the usage of this library component entry.
         m_LibParts.insert( part );     // rejects non-unique pointers
@@ -234,8 +240,9 @@ SCH_COMPONENT* NETLIST_EXPORTER::findNextComponentAndCreatePinList( EDA_ITEM*   
     return NULL;
 }
 
+
 bool NETLIST_EXPORTER::addPinToComponentPinList( SCH_COMPONENT* aComponent,
-                                      SCH_SHEET_PATH* aSheetPath, LIB_PIN* aPin )
+   SCH_SHEET_PATH* aSheetPath, LIB_PIN* aPin )
 {
     // Search the PIN description for Pin in g_NetObjectslist
     for( unsigned ii = 0; ii < m_masterList->size(); ii++ )
@@ -321,29 +328,29 @@ void NETLIST_EXPORTER::eraseDuplicatePins()
 }
 
 
-void NETLIST_EXPORTER::findAllInstancesOfComponent( SCH_COMPONENT*  aComponent,
-                                         LIB_PART*       aEntry,
-                                         SCH_SHEET_PATH* aSheetPath )
+void NETLIST_EXPORTER::findAllUnitsOfComponent( SCH_COMPONENT* aComponent,
+        LIB_PART* aEntry, SCH_SHEET_PATH* aSheetPath )
 {
     wxString    ref = aComponent->GetRef( aSheetPath );
     wxString    ref2;
 
-    SCH_SHEET_LIST sheetList;
+    SCH_SHEET_LIST sheetList( g_RootSheet );
 
-    for( SCH_SHEET_PATH* sheet = sheetList.GetFirst();  sheet;  sheet = sheetList.GetNext() )
+    for( unsigned i = 0;  i < sheetList.size();  i++ )
     {
-        for( EDA_ITEM* item = sheet->LastDrawList();  item;  item = item->Next() )
+        for( EDA_ITEM* item = sheetList[i].LastDrawList();  item;  item = item->Next() )
         {
             if( item->Type() != SCH_COMPONENT_T )
                 continue;
 
             SCH_COMPONENT*  comp2 = (SCH_COMPONENT*) item;
 
-            ref2 = comp2->GetRef( sheet );
+            ref2 = comp2->GetRef( &sheetList[i] );
+
             if( ref2.CmpNoCase( ref ) != 0 )
                 continue;
 
-            int unit2 = comp2->GetUnitSelection( sheet );  // slow
+            int unit2 = comp2->GetUnitSelection( &sheetList[i] );  // slow
 
             for( LIB_PIN* pin = aEntry->GetNextPin();  pin;  pin = aEntry->GetNextPin( pin ) )
             {
@@ -356,7 +363,7 @@ void NETLIST_EXPORTER::findAllInstancesOfComponent( SCH_COMPONENT*  aComponent,
                     continue;
 
                 // A suitable pin is found: add it to the current list
-                addPinToComponentPinList( comp2, sheet, pin );
+                addPinToComponentPinList( comp2, &sheetList[i], pin );
             }
         }
     }

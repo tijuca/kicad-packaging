@@ -3,7 +3,7 @@
  *
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
- * Copyright (C) 2013  Cirilo Bernardo
+ * Copyright (C) 2013-2017  Cirilo Bernardo
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -49,7 +49,7 @@
 #  include <GL/glu.h>
 #endif
 
-#include <fstream>
+#include <iostream>
 #include <vector>
 #include <list>
 #include <utility>
@@ -336,7 +336,7 @@ public:
      *
      * @return bool: true if the operation succeeded
      */
-    bool WriteVertices( double aZcoord, std::ofstream& aOutFile, int aPrecision );
+    bool WriteVertices( double aZcoord, std::ostream& aOutFile, int aPrecision );
 
     /**
      * Function Write3DVertices
@@ -349,7 +349,7 @@ public:
      *
      * @return bool: true if the operation succeeded
      */
-    bool Write3DVertices( double aTopZ, double aBottomZ, std::ofstream& aOutFile, int aPrecision );
+    bool Write3DVertices( double aTopZ, double aBottomZ, std::ostream& aOutFile, int aPrecision );
 
     /**
      * Function WriteIndices
@@ -362,7 +362,7 @@ public:
      *
      * @return bool: true if the operation succeeded
      */
-    bool WriteIndices( bool aTopFlag, std::ofstream& aOutFile );
+    bool WriteIndices( bool aTopFlag, std::ostream& aOutFile );
 
     /**
      * Function Write3DIndices
@@ -375,7 +375,7 @@ public:
      *
      * @return bool: true if the operation succeeded
      */
-    bool Write3DIndices( std::ofstream& aOutFile, bool aIncludePlatedHoles = false );
+    bool Write3DIndices( std::ostream& aOutFile, bool aIncludePlatedHoles = false );
 
     /**
      * Function AddExtraVertex
@@ -436,7 +436,7 @@ public:
      *
      * @return int: the number of vertices exported
      */
-    int Import( int start, GLUtesselator* tess );
+    int Import( int start, GLUtesselator* aTesselator );
 
     /**
      * Function GetVertexByIndex
@@ -456,6 +456,35 @@ public:
     const std::string& GetError( void );
 
     void SetVertexOffsets( double aXoffset, double aYoffset );
+
+    /**
+     * Function Get3DTriangles
+     * Allocates and populates the 3D vertex and index lists with
+     * triangular vertices which may be used for rendering a volume
+     *
+     * @param aVertexList will store the vertices
+     * @param aIndexPlane will store the indices for the top + bottom planes
+     * @param aIndexSide will store the indices for the vertical wall
+     * @param aTopZ is the top plane of the model
+     * @param aBotZ is the bottom plane of the model
+     */
+    bool Get3DTriangles( std::vector< double >& aVertexList,
+        std::vector< int > &aIndexPlane, std::vector< int > &aIndexSide,
+        double aTopZ, double aBotZ );
+
+    /**
+     * Function Get2DTriangles
+     * Allocates and populates the 3D vertex and index lists with
+     * triangular vertices which may be used for rendering a plane
+     *
+     * @param aVertexList will store the vertices
+     * @param aIndexPlane will store the indices for the plane
+     * @param aHeight is the plane of the model
+     * @param aTopPlane is true if the plane is a top plane (false = reverse indices)
+     */
+    bool Get2DTriangles( std::vector< double >& aVertexList,
+        std::vector< int > &aIndexPlane, double aHeight, bool aTopPlane );
+
 };
 
 #endif    // VRML_LAYER_H

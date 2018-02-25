@@ -47,7 +47,7 @@ class TOOL_ACTION
 {
 public:
     TOOL_ACTION( const std::string& aName, TOOL_ACTION_SCOPE aScope = AS_CONTEXT,
-            int aDefaultHotKey = 0, const wxString aMenuItem = wxEmptyString,
+            int aDefaultHotKey = 0, const wxString& aMenuItem = wxEmptyString,
             const wxString& aMenuDesc = wxEmptyString, const BITMAP_OPAQUE* aIcon = NULL,
             TOOL_ACTION_FLAGS aFlags = AF_NONE, void* aParam = NULL );
 
@@ -169,7 +169,7 @@ public:
 
     /**
      * Creates a hot key code that refers to a legacy hot key setting, instead of a particular key.
-     * @param aHotKey is an ID of hot key to be referred (see @hotkeys.h).
+     * @param aHotKey is an ID of hot key to be referred (see hotkeys.h).
      */
     inline static int LegacyHotKey( int aHotKey )
     {

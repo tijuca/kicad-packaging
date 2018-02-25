@@ -1,8 +1,8 @@
 ///////////////////////////////////////////////////////////////////////////
-// C++ code generated with wxFormBuilder (version Jun  5 2014)
+// C++ code generated with wxFormBuilder (version Dec 30 2017)
 // http://www.wxformbuilder.org/
 //
-// PLEASE DO "NOT" EDIT THIS FILE!
+// PLEASE DO *NOT* EDIT THIS FILE!
 ///////////////////////////////////////////////////////////////////////////
 
 #ifndef __DIALOG_LIST_SELECTOR_BASE_H__
@@ -11,8 +11,6 @@
 #include <wx/artprov.h>
 #include <wx/xrc/xmlres.h>
 #include <wx/intl.h>
-class DIALOG_SHIM;
-
 #include "dialog_shim.h"
 #include <wx/string.h>
 #include <wx/stattext.h>
@@ -39,7 +37,7 @@ class EDA_LIST_DIALOG_BASE : public DIALOG_SHIM
 	protected:
 		wxStaticText* m_filterLabel;
 		wxTextCtrl* m_filterBox;
-		wxStaticText* m_staticText2;
+		wxStaticText* m_listLabel;
 		wxListCtrl* m_listBox;
 		wxStaticText* m_staticTextMsg;
 		wxTextCtrl* m_messages;
@@ -58,7 +56,7 @@ class EDA_LIST_DIALOG_BASE : public DIALOG_SHIM
 	
 	public:
 		
-		EDA_LIST_DIALOG_BASE( wxWindow* parent, wxWindowID id = wxID_ANY, const wxString& title = wxEmptyString, const wxPoint& pos = wxDefaultPosition, const wxSize& size = wxSize( 400,400 ), long style = wxDEFAULT_DIALOG_STYLE|wxRESIZE_BORDER ); 
+		EDA_LIST_DIALOG_BASE( wxWindow* parent, wxWindowID id = wxID_ANY, const wxString& title = wxEmptyString, const wxPoint& pos = wxDefaultPosition, const wxSize& size = wxDefaultSize, long style = wxDEFAULT_DIALOG_STYLE|wxRESIZE_BORDER ); 
 		~EDA_LIST_DIALOG_BASE();
 	
 };

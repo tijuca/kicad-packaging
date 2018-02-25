@@ -1,8 +1,11 @@
+# .cpp files are compiled with extra ${WSHADOW_FLAGS}
+if( COMPILER_SUPPORTS_WSHADOW )
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${WSHADOW_FLAGS}")
+endif()
 
 include_directories( BEFORE ${INC_BEFORE} )
 include_directories(
     ../potrace
-    ../common
     ../polygon
     ${INC_AFTER}
     )
@@ -48,6 +51,7 @@ target_link_libraries( bitmap2component
     common
     polygon
     bitmaps
+    gal
     ${wxWidgets_LIBRARIES}
     potrace
     )

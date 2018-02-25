@@ -5,7 +5,7 @@
 /*
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
- * Copyright (C) 1992-2013 KiCad Developers, see AUTHORS.txt for contributors.
+ * Copyright (C) 1992-2017 KiCad Developers, see AUTHORS.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -33,9 +33,10 @@
 #include <pgm_base.h>
 
 #include <general.h>
-#include <libeditframe.h>
+#include <lib_edit_frame.h>
 #include <class_library.h>
-#include <eeschema_id.h>    // for ID_POPUP_SCH_SELECT_UNIT_CMP_MAX and ID_POPUP_SCH_SELECT_UNIT1
+#include <eeschema_id.h>    // for MAX_UNIT_COUNT_PER_PACKAGE definition
+#include <symbol_lib_table.h>
 
 #include <dialog_edit_component_in_lib.h>
 
@@ -48,8 +49,6 @@ DIALOG_EDIT_COMPONENT_IN_LIBRARY::DIALOG_EDIT_COMPONENT_IN_LIBRARY( LIB_EDIT_FRA
     m_RecreateToolbar = false;
 
     initDlg();
-
-    FixOSXCancelButtonIssue();
 
     // Now all widgets have the size fixed, call FinishDialogSettings
     FinishDialogSettings();
@@ -67,7 +66,7 @@ void DIALOG_EDIT_COMPONENT_IN_LIBRARY::initDlg()
 {
     m_AliasLocation = -1;
 
-    LIB_PART*      component = m_Parent->GetCurPart();
+    LIB_PART* component = m_Parent->GetCurPart();
 
     if( component == NULL )
     {
@@ -75,7 +74,7 @@ void DIALOG_EDIT_COMPONENT_IN_LIBRARY::initDlg()
         return;
     }
 
-    wxString title;
+    wxString title, staticText;
     bool isRoot = m_Parent->GetAliasName().CmpNoCase( component->GetName() ) == 0;
 
     if( !isRoot )
@@ -83,6 +82,9 @@ void DIALOG_EDIT_COMPONENT_IN_LIBRARY::initDlg()
         title.Printf( _( "Properties for %s (alias of %s)" ),
                       GetChars( m_Parent->GetAliasName() ),
                       GetChars( component->GetName() ) );
+
+        staticText.Printf( _( "Alias List of %s" ), GetChars( component->GetName() ) );
+        m_staticTextAlias->SetLabelText( staticText );
     }
     else
         title.Printf( _( "Properties for %s" ), GetChars( component->GetName() ) );
@@ -91,22 +93,17 @@ void DIALOG_EDIT_COMPONENT_IN_LIBRARY::initDlg()
     InitPanelDoc();
     InitBasicPanel();
 
-    if( isRoot && component->GetAliasCount() == 1 )
-        m_ButtonDeleteAllAlias->Enable( false );
-
-    /* Place list of alias names in listbox */
+    // The component's alias list contains all names (including the root).  The UI list
+    // contains only aliases, so exclude the root.
     m_PartAliasListCtrl->Append( component->GetAliasNames( false ) );
 
-    if( component->GetAliasCount() <= 1 )
-    {
-        m_ButtonDeleteAllAlias->Enable( false );
-        m_ButtonDeleteOneAlias->Enable( false );
-    }
+    // Note: disabling the delete buttons gives us no opportunity to tell the user
+    // why they're disabled.  Leave them enabled and bring up an error message instead.
 
     /* Read the Footprint Filter list */
-    m_FootprintFilterListBox->Append( component->GetFootPrints() );
+    m_FootprintFilterListBox->Append( component->GetFootprints() );
 
-    if( component->GetFootPrints().GetCount() == 0 )
+    if( component->GetFootprints().GetCount() == 0 )
     {
         m_ButtonDeleteAllFootprintFilter->Enable( false );
         m_ButtonDeleteOneFootprintFilter->Enable( false );
@@ -125,11 +122,10 @@ void DIALOG_EDIT_COMPONENT_IN_LIBRARY::OnCancelClick( wxCommandEvent& event )
 }
 
 
-
 void DIALOG_EDIT_COMPONENT_IN_LIBRARY::InitPanelDoc()
 {
     LIB_ALIAS* alias;
-    LIB_PART*      component = m_Parent->GetCurPart();
+    LIB_PART*  component = m_Parent->GetCurPart();
 
     if( component == NULL )
         return;
@@ -155,12 +151,12 @@ void DIALOG_EDIT_COMPONENT_IN_LIBRARY::InitPanelDoc()
  */
 void DIALOG_EDIT_COMPONENT_IN_LIBRARY::InitBasicPanel()
 {
-    LIB_PART*      component = m_Parent->GetCurPart();
+    LIB_PART* component = m_Parent->GetCurPart();
 
     if( m_Parent->GetShowDeMorgan() )
         m_AsConvertButt->SetValue( true );
 
-    int maxUnits = ID_POPUP_SCH_SELECT_UNIT_CMP_MAX - ID_POPUP_SCH_SELECT_UNIT1;
+    int maxUnits = MAX_UNIT_COUNT_PER_PACKAGE;
     m_SelNumberOfUnits->SetRange (1, maxUnits );
 
     m_staticTextNbUnits->SetLabel( wxString::Format(
@@ -194,7 +190,7 @@ void DIALOG_EDIT_COMPONENT_IN_LIBRARY::OnOkClick( wxCommandEvent& event )
 {
     /* Update the doc, keyword and doc filename strings */
     LIB_ALIAS* alias;
-    LIB_PART*      component = m_Parent->GetCurPart();
+    LIB_PART*  component = m_Parent->GetCurPart();
 
     if( component == NULL )
     {
@@ -207,14 +203,18 @@ void DIALOG_EDIT_COMPONENT_IN_LIBRARY::OnOkClick( wxCommandEvent& event )
     alias = component->GetAlias( m_Parent->GetAliasName() );
 
     wxCHECK_RET( alias != NULL,
-                 wxT( "Alias \"" ) + m_Parent->GetAliasName() + wxT( "\" of component \"" ) +
+                 wxT( "Alias \"" ) + m_Parent->GetAliasName() + wxT( "\" of symbol \"" ) +
                  component->GetName() + wxT( "\" does not exist." ) );
 
     alias->SetDescription( m_DocCtrl->GetValue() );
     alias->SetKeyWords( m_KeywordsCtrl->GetValue() );
     alias->SetDocFileName( m_DocfileCtrl->GetValue() );
 
-    component->SetAliases( m_PartAliasListCtrl->GetStrings() );
+    // The UI list contains only aliases (ie: not the root's name), while the component's
+    // alias list contains all names (including the root).
+    wxArrayString aliases = m_PartAliasListCtrl->GetStrings();
+    aliases.Add( component->GetName() );
+    component->SetAliases( aliases );
 
     int unitCount = m_SelNumberOfUnits->GetValue();
     ChangeNbUnitsPerPackage( unitCount );
@@ -262,8 +262,8 @@ void DIALOG_EDIT_COMPONENT_IN_LIBRARY::OnOkClick( wxCommandEvent& event )
         component->LockUnits( false );
 
     /* Update the footprint filter list */
-    component->GetFootPrints().Clear();
-    component->GetFootPrints() = m_FootprintFilterListBox->GetStrings();
+    component->GetFootprints().Clear();
+    component->GetFootprints() = m_FootprintFilterListBox->GetStrings();
 
     EndModal( wxID_OK );
 }
@@ -295,102 +295,112 @@ void DIALOG_EDIT_COMPONENT_IN_LIBRARY::CopyDocFromRootToAlias( wxCommandEvent& e
 
 void DIALOG_EDIT_COMPONENT_IN_LIBRARY::DeleteAllAliasOfPart( wxCommandEvent& event )
 {
+    if( m_PartAliasListCtrl->GetCount() == 0 )
+        return;
+
     if( m_PartAliasListCtrl->FindString( m_Parent->GetAliasName() ) != wxNOT_FOUND )
     {
-        wxString msg;
-        msg.Printf( _( "Alias <%s> cannot be removed while it is being edited!" ),
-                    GetChars( m_Parent->GetAliasName() ) );
-        DisplayError( this, msg );
+        DisplayErrorMessage( this, _( "Delete All can be done only when editing the main symbol." ) );
         return;
     }
 
     if( IsOK( this, _( "Remove all aliases from list?" ) ) )
-    {
         m_PartAliasListCtrl->Clear();
-        m_ButtonDeleteAllAlias->Enable( false );
-        m_ButtonDeleteOneAlias->Enable( false );
-    }
 }
 
 
-/* Add a new name to the alias list box
- *  New name cannot be the root name, and must not exists
- */
-void DIALOG_EDIT_COMPONENT_IN_LIBRARY::AddAliasOfPart( wxCommandEvent& event )
+void DIALOG_EDIT_COMPONENT_IN_LIBRARY::EditAliasOfPart( wxCommandEvent& aEvent )
 {
-    wxString aliasname;
-    LIB_PART*      component = m_Parent->GetCurPart();
-    PART_LIB* library = m_Parent->GetCurLib();
+    int sel = m_PartAliasListCtrl->GetSelection();
 
-    if( component == NULL )
+    if( sel == wxNOT_FOUND )
         return;
 
-    wxTextEntryDialog dlg( this, _( "New alias:" ), _( "Component Alias" ), aliasname );
+    wxString aliasname = m_PartAliasListCtrl->GetString( sel );
+
+    if( aliasname.CmpNoCase( m_Parent->GetAliasName() ) == 0 )
+    {
+        wxString msg;
+        msg.Printf( _( "Current alias \"%s\" cannot be edited." ), GetChars( aliasname ) );
+        DisplayError( this, msg );
+        return;
+    }
+
+    wxTextEntryDialog dlg( this, _( "New Alias:" ), _( "Symbol alias:" ), aliasname );
 
     if( dlg.ShowModal() != wxID_OK )
         return; // cancelled by user
 
     aliasname = dlg.GetValue( );
-
     aliasname.Replace( wxT( " " ), wxT( "_" ) );
+
+    if( checkNewAlias( aliasname) )
+        m_PartAliasListCtrl->SetString( sel, aliasname );
+}
+
+
+void DIALOG_EDIT_COMPONENT_IN_LIBRARY::AddAliasOfPart( wxCommandEvent& event )
+{
+    wxString  aliasname;
+
+    wxTextEntryDialog dlg( this, _( "New Alias:" ), _( "Symbol alias:" ), aliasname );
+
+    if( dlg.ShowModal() != wxID_OK )
+        return; // cancelled by user
+
+    aliasname = dlg.GetValue( );
+    aliasname.Replace( wxT( " " ), wxT( "_" ) );
+
+    if( checkNewAlias( aliasname ) )
+        m_PartAliasListCtrl->Append( aliasname );
+}
+
+
+bool DIALOG_EDIT_COMPONENT_IN_LIBRARY::checkNewAlias( wxString aliasname )
+{
     if( aliasname.IsEmpty() )
-        return;
+        return false;
 
     if( m_PartAliasListCtrl->FindString( aliasname ) != wxNOT_FOUND )
     {
         wxString msg;
-        msg.Printf( _( "Alias or component name <%s> already in use." ),
-                    GetChars( aliasname ) );
-        DisplayError( this, msg );
-        return;
+        msg.Printf( _( "Alias \"%s\" already exists." ), GetChars( aliasname ) );
+        DisplayInfoMessage( this, msg );
+        return false;
     }
 
-    if( library && library->FindEntry( aliasname ) != NULL )
+    wxString  library = m_Parent->GetCurLib();
+
+    if( !library.empty() && Prj().SchSymbolLibTable()->LoadSymbol( library, aliasname ) != NULL )
     {
         wxString msg;
-        msg.Printf( _( "Alias or component name <%s> already exists in library <%s>." ),
-                    GetChars( aliasname ),
-                    GetChars( library->GetName() ) );
-        DisplayError( this, msg );
-        return;
+        msg.Printf( _( "Symbol name \"%s\" already exists in library \"%s\"." ), aliasname, library );
+        DisplayErrorMessage( this, msg );
+        return false;
     }
 
-    m_PartAliasListCtrl->Append( aliasname );
-
-    if( m_Parent->GetAliasName().CmpNoCase( component->GetName() ) == 0 )
-        m_ButtonDeleteAllAlias->Enable( true );
-
-    m_ButtonDeleteOneAlias->Enable( true );
+    return true;
 }
 
 
 void DIALOG_EDIT_COMPONENT_IN_LIBRARY::DeleteAliasOfPart( wxCommandEvent& event )
 {
-    wxString aliasname = m_PartAliasListCtrl->GetStringSelection();
+    int sel = m_PartAliasListCtrl->GetSelection();
 
-    if( aliasname.IsEmpty() )
+    if( sel == wxNOT_FOUND )
         return;
+
+    wxString aliasname = m_PartAliasListCtrl->GetString( sel );
 
     if( aliasname.CmpNoCase( m_Parent->GetAliasName() ) == 0 )
     {
         wxString msg;
-        msg.Printf( _( "Alias <%s> cannot be removed while it is being edited!" ),
-                    GetChars( aliasname ) );
+        msg.Printf( _( "Current alias \"%s\" cannot be removed." ), GetChars( aliasname ) );
         DisplayError( this, msg );
         return;
     }
 
-    m_PartAliasListCtrl->Delete( m_PartAliasListCtrl->GetSelection() );
-    LIB_PART*      component = m_Parent->GetCurPart();
-
-    if( component )
-        component->RemoveAlias( aliasname );
-
-    if( m_PartAliasListCtrl->IsEmpty() )
-    {
-        m_ButtonDeleteAllAlias->Enable( false );
-        m_ButtonDeleteOneAlias->Enable( false );
-    }
+    m_PartAliasListCtrl->Delete( sel );
 }
 
 
@@ -529,7 +539,7 @@ void DIALOG_EDIT_COMPONENT_IN_LIBRARY::AddFootprintFilter( wxCommandEvent& event
     {
         wxString msg;
 
-        msg.Printf( _( "Foot print filter <%s> is already defined." ), GetChars( Line ) );
+        msg.Printf( _( "Foot print filter \"%s\" is already defined." ), GetChars( Line ) );
         DisplayError( this, msg );
         return;
     }
@@ -576,4 +586,13 @@ void DIALOG_EDIT_COMPONENT_IN_LIBRARY::EditOneFootprintFilter( wxCommandEvent& e
         return;    // do not accept blank filter.
 
     m_FootprintFilterListBox->SetString( idx, filter );
+}
+
+
+void DIALOG_EDIT_COMPONENT_IN_LIBRARY::OnUpdateInterchangeableUnits( wxUpdateUIEvent& event )
+{
+    if( m_SelNumberOfUnits->GetValue() <= 1 )
+        m_OptionPartsLocked->Enable( false );
+    else
+        m_OptionPartsLocked->Enable( true );
 }

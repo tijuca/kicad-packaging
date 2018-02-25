@@ -1,9 +1,6 @@
-# the map generation creates on Windows/gcc a lot of useless warnings
-# so disable it on windows
-if( WIN32 AND NOT CMAKE_CROSSCOMPILING )
-    set( MAKE_LINK_MAPS false )
-else()
-    set( MAKE_LINK_MAPS true )
+# .cpp files are compiled with extra ${WSHADOW_FLAGS}
+if( COMPILER_SUPPORTS_WSHADOW )
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${WSHADOW_FLAGS}")
 endif()
 
 add_definitions(-DPL_EDITOR)
@@ -20,8 +17,8 @@ set( PL_EDITOR_SRCS
     dialogs/dialogs_for_printing.cpp
     dialogs/dialog_new_dataitem_base.cpp
     dialogs/dialog_new_dataitem.cpp
-    class_pl_editor_screen.cpp
-    class_pl_editor_layout.cpp
+    pl_editor_screen.cpp
+    pl_editor_layout.cpp
     design_tree_frame.cpp
     events_functions.cpp
     controle.cpp
@@ -36,14 +33,15 @@ set( PL_EDITOR_SRCS
     hotkeys.cpp
     menubar.cpp
     toolbars_pl_editor.cpp
+    block.cpp
     )
 
 set( PL_EDITOR_EXTRA_SRCS
     ../common/base_screen.cpp
     ../common/base_units.cpp
     ../common/eda_text.cpp
-    ../common/class_page_info.cpp
     ../common/dialogs/dialog_page_settings.cpp
+    ../common/page_info.cpp
 )
 
 
@@ -83,6 +81,7 @@ target_link_libraries( pl_editor
     # There's way too much crap coming in from common yet.
     common
     bitmaps
+    gal
     ${wxWidgets_LIBRARIES}
     )
 

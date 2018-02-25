@@ -33,6 +33,15 @@
 #include <kicad_string.h>
 #include <dialog_helpers.h>
 
+
+// wxWidgets spends *far* too long calcuating column widths (most of it, believe it or
+// not, in repeatedly creating/destorying a wxDC to do the measurement in).
+// Use default column widths instead.  (Note that these will be scaled down proportionally
+// to fit the available space when the dialog is instantiated.)
+static int DEFAULT_COL_WIDTHS[] = { 400, 200 };
+
+
+
 EDA_LIST_DIALOG::EDA_LIST_DIALOG( EDA_DRAW_FRAME* aParent, const wxString& aTitle,
                                   const wxArrayString& aItemHeaders,
                                   const std::vector<wxArrayString>& aItemList,
@@ -64,19 +73,11 @@ EDA_LIST_DIALOG::EDA_LIST_DIALOG( EDA_DRAW_FRAME* aParent, const wxString& aTitl
 }
 
 
-void EDA_LIST_DIALOG::initDialog( const wxArrayString& aItemHeaders,
-                                  const wxString& aSelection)
+void EDA_LIST_DIALOG::initDialog( const wxArrayString& aItemHeaders, const wxString& aSelection)
 {
-
     for( unsigned i = 0; i < aItemHeaders.Count(); i++ )
-    {
-        wxListItem column;
-
-        column.SetId( i );
-        column.SetText( aItemHeaders.Item( i ) );
-
-        m_listBox->InsertColumn( i, column );
-    }
+        m_listBox->InsertColumn( i, aItemHeaders.Item( i ),
+                                 wxLIST_FORMAT_LEFT, DEFAULT_COL_WIDTHS[ i ] );
 
     InsertItems( *m_itemsListCp, 0 );
 
@@ -86,27 +87,35 @@ void EDA_LIST_DIALOG::initDialog( const wxArrayString& aItemHeaders,
         m_staticTextMsg->Show( false );
     }
 
-    for( unsigned col = 0; col < aItemHeaders.Count();  ++col )
-    {
-        m_listBox->SetColumnWidth( col, wxLIST_AUTOSIZE );
-        int columnwidth = m_listBox->GetColumnWidth( col );
-        m_listBox->SetColumnWidth( col, wxLIST_AUTOSIZE_USEHEADER );
-        int headerwidth = m_listBox->GetColumnWidth( col );
-        m_listBox->SetColumnWidth( col, std::max( columnwidth, headerwidth ) );
-    }
-
-    if( !!aSelection )
+    if( !aSelection.IsEmpty() )
     {
         for( unsigned row = 0; row < m_itemsListCp->size(); ++row )
         {
             if( (*m_itemsListCp)[row][0] == aSelection )
             {
                 m_listBox->SetItemState( row, wxLIST_STATE_SELECTED, wxLIST_STATE_SELECTED );
+
+                // Set to a small size so EnsureVisible() won't be foiled by later additions.
+                // ListBox will expand to fit later.
+                m_listBox->SetSize( m_listBox->GetSize().GetX(), 100 );
                 m_listBox->EnsureVisible( row );
+
                 break;
             }
         }
     }
+}
+
+
+void EDA_LIST_DIALOG::SetFilterLabel( const wxString& aLabel )
+{
+    m_filterLabel->SetLabel( aLabel );
+}
+
+
+void EDA_LIST_DIALOG::SetListLabel( const wxString& aLabel )
+{
+    m_listLabel->SetLabel( aLabel );
 }
 
 
@@ -161,7 +170,7 @@ void EDA_LIST_DIALOG::Append( const wxArrayString& itemList )
 {
     long itemIndex = m_listBox->InsertItem( m_listBox->GetItemCount(), itemList[0] );
 
-    m_listBox->SetItemData( itemIndex, (long) &(itemList[0]) );
+    m_listBox->SetItemPtrData( itemIndex, wxUIntPtr( &itemList[0] ) );
 
     // Adding the next columns content
     for( unsigned i = 1; i < itemList.size(); i++ )
@@ -177,18 +186,25 @@ void EDA_LIST_DIALOG::InsertItems( const std::vector< wxArrayString >& itemList,
     {
         wxASSERT( (int) itemList[row].GetCount() == m_listBox->GetColumnCount() );
 
-        long itemIndex = 0;
         for( unsigned col = 0; col < itemList[row].GetCount(); col++ )
         {
+            wxListItem info;
+            info.m_itemId = row + position;
+            info.m_col = col;
+            info.m_text = itemList[row].Item( col );
+            info.m_width = DEFAULT_COL_WIDTHS[ col ];
+            info.m_mask = wxLIST_MASK_TEXT | wxLIST_MASK_WIDTH;
 
             if( col == 0 )
             {
-                itemIndex = m_listBox->InsertItem( row+position, itemList[row].Item( col ) );
-                m_listBox->SetItemData( itemIndex, (long) &itemList[row].Item( col ) );
+                info.m_data = wxUIntPtr( &itemList[row].Item( col ) );
+                info.m_mask |= wxLIST_MASK_DATA;
+
+                m_listBox->InsertItem( info );
             }
             else
             {
-                m_listBox->SetItem( itemIndex, col, itemList[row].Item( col ) );
+                m_listBox->SetItem( info );
             }
         }
     }

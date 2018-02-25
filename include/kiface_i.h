@@ -1,6 +1,3 @@
-#ifndef KIFACE_I_H_
-#define KIFACE_I_H_
-
 /*
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
@@ -24,6 +21,8 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
  */
 
+#ifndef KIFACE_I_H_
+#define KIFACE_I_H_
 
 #include <kiway.h>
 #include <bin_mod.h>
@@ -43,7 +42,7 @@ public:
 
         // see base class KIFACE in kiway.h for doxygen docs
 
-    VTBL_ENTRY bool OnKifaceStart( PGM_BASE* aProgram, int aCtlBits ) = 0;
+    VTBL_ENTRY bool OnKifaceStart( PGM_BASE* aProgram, int aCtlBits ) override = 0;
     /*
     {
         typically call start_common() in your overload
@@ -51,16 +50,16 @@ public:
     }
     */
 
-    VTBL_ENTRY void OnKifaceEnd()
+    VTBL_ENTRY void OnKifaceEnd() override
     {
         // overload this if you want, end_common() may be handy.
         end_common();
     }
 
     VTBL_ENTRY  wxWindow* CreateWindow( wxWindow* aParent,
-            int aClassId, KIWAY* aKIWAY, int aCtlBits = 0 ) = 0;
+            int aClassId, KIWAY* aKIWAY, int aCtlBits = 0 ) override = 0;
 
-    VTBL_ENTRY void* IfaceOrAddress( int aDataId ) = 0;
+    VTBL_ENTRY void* IfaceOrAddress( int aDataId ) override = 0;
 
     //-----</KIFACE API>---------------------------------------------------------
 
@@ -73,6 +72,8 @@ public:
      * which contains the name of the DSO.  Examples: "eeschema", "pcbnew", etc.
      * This controls the name of the wxConfigBase established in m_bm,
      * so it should be lowercase.
+     * @param aId is the type of DSO ( FACE_SCH, FACE_PCB, FACE_CVPCB,
+     * FACE_GERBVIEW, FACE_PL_EDITOR, FACE_PCB_CALCULATOR, FACE_BMP2CMP)
      */
     KIFACE_I( const char* aKifaceName, KIWAY::FACE_T aId ) :
         m_id( aId ),

@@ -2,7 +2,7 @@
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
  * Copyright (C) 2012 Brian Sidebotham <brian.sidebotham@gmail.com>
- * Copyright (C) 1992-2012 KiCad Developers, see AUTHORS.txt for contributors.
+ * Copyright (C) 1992-2017 KiCad Developers, see AUTHORS.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -22,18 +22,14 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
  */
 
-#include "project_template.h"
 
-#include <vector>
-
-#include <wx/wx.h>
-#include <wx/arrstr.h>
+#include <wx/bitmap.h>
 #include <wx/dir.h>
-#include <wx/filename.h>
 #include <wx/txtstrm.h>
 #include <wx/wfstream.h>
+#include <wx/log.h>
 
-#include <macros.h>
+#include "project_template.h"
 
 
 #define SEP()   wxFileName::GetPathSeparator()
@@ -49,28 +45,28 @@ PROJECT_TEMPLATE::PROJECT_TEMPLATE( const wxString& aPath )
 
     title = wxEmptyString;
 
-    // Test the project template requirements to make sure aPath is a valid
-    // template structure
+    // Test the project template requirements to make sure aPath is a valid template structure.
     if( !wxFileName::DirExists( templateBasePath.GetPath() ) )
     {
         // Error, the path doesn't exist!
-        title = wxT( "Could open the template path! " + aPath );
+        title = _( "Could open the template path! " ) + aPath;
     }
     else if( !wxFileName::DirExists( templateMetaPath.GetPath() ) )
     {
         // Error, the meta information directory doesn't exist!
-        title = wxT( "Couldn't open the meta information directory for this template! " +
-                     templateMetaPath.GetPath() );
+        title = _( "Couldn't open the meta information directory for this template! " ) +
+                templateMetaPath.GetPath();
     }
     else if( !wxFileName::FileExists( templateMetaHtmlFile.GetFullPath() ) )
     {
         // Error, the meta information directory doesn't contain the informational html file!
-        title = wxT( "Cound't find the meta html information file for this template!" );
+        title = _( "Cound't find the meta HTML information file for this template!" );
     }
 
     // Try to load an icon
     metaIcon = new wxBitmap( templateMetaIconFile.GetFullPath(), wxBITMAP_TYPE_PNG );
 }
+
 
 std::vector<wxFileName> PROJECT_TEMPLATE::GetFileList()
 {
@@ -88,7 +84,7 @@ std::vector<wxFileName> PROJECT_TEMPLATE::GetFileList()
 
         // Files that are in the meta directory must not be included
         if( !p.GetPath().StartsWith( templateMetaPath.GetPath() ) )
-            files.push_back(allfiles[i]);
+            files.push_back( allfiles[i] );
     }
 
     return files;
@@ -119,7 +115,45 @@ wxBitmap* PROJECT_TEMPLATE::GetIcon()
 }
 
 
-bool PROJECT_TEMPLATE::CreateProject( wxFileName& aNewProjectPath )
+size_t PROJECT_TEMPLATE::GetDestinationFiles( const wxFileName& aNewProjectPath,
+                                              std::vector< wxFileName >& aDestFiles )
+{
+    std::vector< wxFileName > srcFiles = GetFileList();
+
+    // Find the template file name base. this is the name of the .pro template file
+    wxString basename;
+
+    for( const auto& file : srcFiles )
+    {
+        if( file.GetExt() == wxT( "pro" ) )
+        {
+            basename = file.GetName();
+            break;
+        }
+    }
+
+    for( const auto& file :  srcFiles )
+    {
+        wxFileName destFile = file;
+
+        // Replace the template filename with the project filename for the new project creation
+        wxString name = destFile.GetName();
+        name.Replace( basename, aNewProjectPath.GetName() );
+        destFile.SetName( name );
+
+        // Replace the template path with the project path.
+        wxString path = destFile.GetPathWithSep();
+        path.Replace( templateBasePath.GetPathWithSep(), aNewProjectPath.GetPathWithSep() );
+        destFile.SetPath( path );
+
+        aDestFiles.push_back( destFile );
+    }
+
+    return aDestFiles.size();
+}
+
+
+bool PROJECT_TEMPLATE::CreateProject( wxFileName& aNewProjectPath, wxString* aErrorMsg )
 {
     // CreateProject copy the files from template to the new project folder
     // and rename files which have the same name as the template .pro file
@@ -127,8 +161,9 @@ bool PROJECT_TEMPLATE::CreateProject( wxFileName& aNewProjectPath )
 
     std::vector<wxFileName> srcFiles = GetFileList();
 
-    // Find the template file name base. this is the name of the .pro templte file
+    // Find the template file name base. this is the name of the .pro template file
     wxString basename;
+
     for( size_t i=0; i < srcFiles.size(); i++ )
     {
         if( srcFiles[i].GetExt() == wxT( "pro" ) )
@@ -157,7 +192,23 @@ bool PROJECT_TEMPLATE::CreateProject( wxFileName& aNewProjectPath )
         // about error checking, if the path isn't created the file copy will fail anyway
 
         if( !wxFileName::DirExists( destpath ) )
-            wxFileName::Mkdir( destpath, 0777, wxPATH_MKDIR_FULL );
+        {
+            if( !wxFileName::Mkdir( destpath, 0777, wxPATH_MKDIR_FULL ) )
+            {
+                if( aErrorMsg )
+                {
+                    if( !aErrorMsg->empty() )
+                        *aErrorMsg += "\n";
+
+                    wxString msg;
+
+                    msg.Printf( _( "Cannot create folder \"%s\"." ), destpath );
+                    *aErrorMsg += msg;
+                }
+
+                continue;
+            }
+        }
 
         destination.SetPath( destpath );
 
@@ -166,8 +217,19 @@ bool PROJECT_TEMPLATE::CreateProject( wxFileName& aNewProjectPath )
 
         if( !wxCopyFile( srcFile, dstFile ) )
         {
+            if( aErrorMsg )
+            {
+                if( !aErrorMsg->empty() )
+                    *aErrorMsg += "\n";
+
+                wxString msg;
+
+                msg.Printf( _( "Cannot copy file \"%s\"." ), dstFile );
+                *aErrorMsg += msg;
+            }
+
+
             result = false;
-            break;
         }
     }
 

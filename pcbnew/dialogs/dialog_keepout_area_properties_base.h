@@ -1,8 +1,8 @@
 ///////////////////////////////////////////////////////////////////////////
-// C++ code generated with wxFormBuilder (version Jun  5 2014)
+// C++ code generated with wxFormBuilder (version Nov 22 2017)
 // http://www.wxformbuilder.org/
 //
-// PLEASE DO "NOT" EDIT THIS FILE!
+// PLEASE DO *NOT* EDIT THIS FILE!
 ///////////////////////////////////////////////////////////////////////////
 
 #ifndef __DIALOG_KEEPOUT_AREA_PROPERTIES_BASE_H__
@@ -11,9 +11,6 @@
 #include <wx/artprov.h>
 #include <wx/xrc/xmlres.h>
 #include <wx/intl.h>
-class DIALOG_SHIM;
-class wxListView;
-
 #include "dialog_shim.h"
 #include <wx/string.h>
 #include <wx/stattext.h>
@@ -21,7 +18,7 @@ class wxListView;
 #include <wx/font.h>
 #include <wx/colour.h>
 #include <wx/settings.h>
-#include <wx/listctrl.h>
+#include <wx/dataview.h>
 #include <wx/sizer.h>
 #include <wx/radiobox.h>
 #include <wx/checkbox.h>
@@ -42,13 +39,12 @@ class DIALOG_KEEPOUT_AREA_PROPERTIES_BASE : public DIALOG_SHIM
 	private:
 		
 		// Private event handlers
-		void _wxFB_OnCancelClick( wxCommandEvent& event ){ OnCancelClick( event ); }
-		void _wxFB_OnOkClick( wxCommandEvent& event ){ OnOkClick( event ); }
+		void _wxFB_OnLayerSelection( wxDataViewEvent& event ){ OnLayerSelection( event ); }
 		
 	
 	protected:
 		wxStaticText* m_staticTextLayerSelection;
-		wxListView* m_LayerSelectionCtrl;
+		wxDataViewListCtrl* m_layers;
 		wxStaticText* m_staticTextprops;
 		wxRadioBox* m_OrientEdgesOpt;
 		wxRadioBox* m_OutlineAppearanceCtrl;
@@ -61,8 +57,7 @@ class DIALOG_KEEPOUT_AREA_PROPERTIES_BASE : public DIALOG_SHIM
 		wxButton* m_sdbSizerButtonsCancel;
 		
 		// Virtual event handlers, overide them in your derived class
-		virtual void OnCancelClick( wxCommandEvent& event ) { event.Skip(); }
-		virtual void OnOkClick( wxCommandEvent& event ) { event.Skip(); }
+		virtual void OnLayerSelection( wxDataViewEvent& event ) { event.Skip(); }
 		
 	
 	public:
