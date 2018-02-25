@@ -124,8 +124,8 @@ override_dh_install:
 
 override_dh_fixperms-arch:
 	dh_fixperms
-	# fixing file permissions for *.py files in kicad-common
-	for i in `find $(CURDIR)/debian/kicad-common/usr -type f -name "*.py"`; do \
+	# fixing file permissions for *.py files in kicad
+	for i in `find $(CURDIR)/debian/kicad/usr -type f -name "*.py"`; do \
 		FOUND_PYTHON=$$(head -n1 $$i | grep python); \
 		if [ "$$FOUND_PYTHON" != "" ]; then \
 			chmod +x $$i; \
