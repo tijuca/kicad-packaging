@@ -11,7 +11,7 @@ Build-Depends:
  cmake,
  chrpath,
  dblatex,
- debhelper (>= 9.20120417),
+ debhelper (>= 11),
  dh-python,
  docbook-utils,
  docbook-xsl,

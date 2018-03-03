@@ -64,7 +64,7 @@ $(PREPROCESS_FILES:.in=): %: %.in
 	sed -e 's,/@DEB_HOST_MULTIARCH@,$(DEB_HOST_MULTIARCH:%=/%),g' $< > $@
 
 %:
-	dh $@ --with-python2 --parallel
+	dh $@ --with-python2
 
 override_dh_auto_configure:
 	sed -i 's/@REVDATE@/$(REVDATE)/' $(ASCIIDOCFILES)
