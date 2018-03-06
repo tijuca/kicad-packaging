@@ -1,3 +1,112 @@
+kicad (5.0.0~rc1+dfsg1-1) experimental; urgency=medium
+
+  * [ea0c219] override_dh_auto_install: use find/loop for chmod of files
+    + The shell (on the buildd's) on kFreebSD doesn't support wildcards in make
+      calls, but we can call chmod here within a 'for i in foo do' loop.
+  * [0b28f22] kicad package dependencies, using Dia for visiulizing
+    + Adding a graphic made with Dia which shows the correlation of the various
+      package ecosystem of KiCad within Debian. We use this Dia graphic on the
+      wiki site https://wiki.debian.org/KiCad
+  * [5ed2d63] update of package relations
+  * [446df3f] helper: remove obsolete libraries part
+    + With KiCad 5 the libraries are now have their own source packages and we
+      don't need to collect them in helper script inside stc:kicad any longer.
+  * [6936336] make dpkg happy because previously added DIA binary file
+    + The Dia file is a binary file for dpkg, adding this file to
+      debian/source/include-binaries so dpkg does not complaining about the file.
+  * [8726cae] d/gbp.conf: also remove the libraries component here
+  * [919a5cc] New upstream version 5.0.0~rc1+dfsg1
+    (Closes: #891286, #856277, #827203, #856180, #892161)
+  * [956ed41] rebuild patch queue from patch-queue branch
+    + removed patches (not needed anymore or fixed upstream):
+      debian-hacks/Adding-needed-SVG-files-and-additinal-arrays.patch
+      fixes/Add-missing-dependency-github_plugin-pcbcommon.patch
+      fixes/Fix-FTBFS-with-Boost-1.61.patch
+      fixes/Fixing-some-spelling-issues.patch
+    
+    + modified patches:
+      fixes/Modifing-the-Exec-cmd-in-the-desktop-files.patch
+      porting-kfreebsd-hurd/Fix-FTBFS-on-kFreeBSD-and-Hurd.patch
+    
+    + new patches:
+      fixes/fix-misspelled-Appearence-Appearance.patch
+      fixes/fix-misspelled-Modifed-Modified.patch
+      fixes/fix-misspelled-Occassionally-Occasionally.patch
+      fixes/fix-misspelled-Unkown-Unknown.patch
+      fixes/fix-misspelled-accesing-accessing.patch
+      fixes/fix-misspelled-neeeded-needed.patch
+      fixes/fix-misspelled-occured-occurred.patch
+      fixes/fix-misspelled-streching-stretching.patch
+    
+      All new patches are forwarded to upstream and already accepted.
+
+  * [8e9d6c0] debian/control: adding new build dependencies
+    + We need now some more packages to build all the binary kicad packages:
+      fonts-freefont-ttf, libboost-test-dev, libglm-dev, liboce-foundation-dev,
+      liboce-ocaf-dev
+  * [8234277] debian/rules: remove old libraries related stuff
+    + We can remove the build specific things we previously have used to build
+      the library package.
+  * [430ec11] debian/control: adjust VCS entries to salsa.debian.org
+  * [5c54b36] kicad-doc-id: remove package
+    + Unfortunately the Indonesian documentation was removed by upstream because
+      of lack of contributors.
+  * [20044b2] kicad: change package to multiarch behaviour
+    + The 3D viewer is build as a local shared library plugin and this requires
+      some modification for the correct installation of the kicad package files.
+  * [422a784] debian/rules: disable the support of ngspice based simulation
+    + For the schematic simulation we would need the libngspice library which
+      isn't available in main yet. We can turn this later on once ngspice-dfsg
+      is hitting main.
+  * [63a280f] copyright: adopt upstream changes
+    + Of course the upstream source has been modified in many places and thus
+      the update of the copyright file is needed.
+  * [7729f4d] kicad-libraries: adding new virtual package
+    + The old kicad-common package was used to provide all the various libraries
+      like the schematic symbols, footprints and the 3D models.
+      As we have moved all the source of theses stuff into own source packages
+      we don't have kicad-common now any longer as a dedicated binary package.
+      So we created a meta-packge kicad-libraries that is depending on the
+      library packages for the schematic symbols (kicad-symbols), the footprints
+      (kicad-footprints) and the project templates (kicad-templates) which
+      kicad-common is depending on because we need to take care about the
+      automatic installation of the new library packages.
+      The 3D models is not depending on kicad-libraries as this is not really
+      needed to create successful PCBs, it's suggested instead.
+  * [0a8e611] kicad-common: turn package into a virtual package
+  * [ebcd0cd] remove kicad-common sequencer files
+  * [5739a23] d/kicad.install.in: update sequencer due upstream changes
+    + kicad-common isn't a real binary package now and most of it's installation
+      parts need now move over to the kicad binary package. Also KiCad is
+      installing now some private libraries.
+  * [600079f] kicad.lintian-overrides: add some more false positives
+    + We have some spelling issues which are false positives, also the library
+      libkicad_3dsg.so.2.0.0 isn't worth to get a own binary package.
+  * [4773043] debian/control: increase Standards-Version to 4.1.3
+    + No further changes are needed due version bump.
+  * [c277cc5] kicad: remove a potentially RUNPATH from Pyhton2 lib
+    + The library _pcbnew.so, which is also copied over to the Python libraries,
+      has a RUNPATH inside which shouldn't be set here. Upstream will fix this
+      in future releases.
+  * [be3e60d] kicad-demos: adding new package
+    + Beside the new schematic and footprint library related packages we also
+      split off the demo projects, they doesn't change that often but Ubuntu
+      is using already this package, so let's do it also and keep both
+      distribution the packages in sync. This is mostly to make the usage of the
+      PPA from Jean-Samuel esay for Ubuntu users.
+  * [be54a40] bump debhelper compat to version 11
+    + Jump over to the recent debhelper version, it's now already available for
+      backports so nothing special handling later will be needed,
+  * [2211a92] kicad: suggesting package kicad-packages3d
+    (Closes: #883312)
+  * [5403485] README.source: update information about source management
+    + Remove the information about the libraries. We don't handle them any
+      longer within src:kicad.
+  * [a4d8f6a] autopkg: remove the only existing autopkgtest
+    + We don't need the autopkg stuff for now, we can re-add it later if needed.
+
+ -- Carsten Schoenert <c.schoenert@t-online.de>  Wed, 07 Mar 2018 18:03:35 +0100
+
 kicad (4.0.7+dfsg1-1) unstable; urgency=medium
 
   * [c306ee5] New upstream version 4.0.7+dfsg1
