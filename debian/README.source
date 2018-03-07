@@ -6,10 +6,8 @@ Debian specific work is done in separate branches. The needed Debian specific
 patches will be managed by a so called patch-queue branch if needed.
 
 The KiCad source used for packaging is split off into the main application and
-some additional add-ons like the documentation (upstream kicad-doc called), the
-localization (upstream kicad-i18n called) and the various libraries for
-schematic, footprints and the 3D modells (upstream uses various git
-repositories for those).
+some additional add-ons like the documentation (upstream kicad-doc called) and
+the localization (upstream kicad-i18n called).
 
 We use component tarballs to collect all the sources. git-buildpackage is able
 to handle those files for importing into the git tree as also for extracting
@@ -23,18 +21,16 @@ files in /tmp/kicad-tmp
    kicad_<version>+dfsg<x>.orig.tar.xz
    kicad_<version>+dfsg<x>.orig-doc.tar.xz
    kicad_<version>+dfsg<x>.orig-i18n.tar.xz
-   kicad_<version>+dfsg<x>.orig-libraries.tar.xz
 
 Please call the script without any option or with option '-h' to see how the
 script should be called.
 The helper script will remove files that are not DFSG clean like sourceless PDF
-and SVG/CPP files without a DFSG compatible license.
+and SVG/CPP filesi, if there are any, without a DFSG compatible license.
 
 The multi tarballs will be extracted to the following folders while importing
 the new version:
 
   *.orig-doc.tar.xz    ->  doc/
   *.orig-i18n.tar.xz   ->  i18n/
-  *.orig-libraries.xz  ->  libraries/
 
- -- Carsten Schönert <c.schoenert@t-online.de>, Wed, 21 Sep 2016 22:45:00 +0200
+ -- Carsten Schönert <c.schoenert@t-online.de>, Wed, 7 Mar 2018 17:05:00 +0100
