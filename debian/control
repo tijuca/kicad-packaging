@@ -139,6 +139,12 @@ Depends:
  ${misc:Depends},
 Suggests:
  kicad (>= 5.0.0~rc1+dfsg1-1~),
+Provides:
+ kicad-common,
+Breaks:
+ kicad-common (<< 5.0.0~rc1+dfsg1-1~),
+Replaces:
+ kicad-common (<< 5.0.0~rc1+dfsg1-1~),
 Description: Demo projects for kicad
  The KiCad projects within this package are various typical small use cases
  which can be used for study or also for build own projects on top of these
