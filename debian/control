@@ -336,8 +336,6 @@ Depends:
  kicad-symbols,
  kicad-templates,
  ${misc:Depends},
-Recommends:
- kicad-common (>= 5.0.0~rc1+dfsg1-1~),
 Suggests:
  kicad-packages3d,
 Provides:
