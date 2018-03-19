@@ -122,9 +122,10 @@ class FP_CACHE
     wxFileName      m_lib_path;     /// The path of the library.
     MODULE_MAP      m_modules;      /// Map of footprint file name per MODULE*.
 
-    bool            m_cache_dirty;      // Stored separately because it's expensive
-                                        // to check m_cache_timestamp against file.
-    long long       m_cache_timestamp;  // A timestamp for the footprint file.
+    bool            m_cache_dirty;      // Stored separately because it's expensive to check
+                                        // m_cache_timestamp against all the files.
+    long long       m_cache_timestamp;  // A hash of the timestamps for all the footprint
+                                        // files.
 
 public:
     FP_CACHE( PCB_IO* aOwner, const wxString& aLibraryPath );
@@ -1946,7 +1947,7 @@ void PCB_IO::init( const PROPERTIES* aProperties )
 
 void PCB_IO::validateCache( const wxString& aLibraryPath, bool checkModified )
 {
-    if( !m_cache || ( checkModified && m_cache->IsModified() ) )
+    if( !m_cache || !m_cache->IsPath( aLibraryPath ) || ( checkModified && m_cache->IsModified() ) )
     {
         // a spectacular episode in memory management:
         delete m_cache;
@@ -2129,10 +2130,10 @@ void PCB_IO::FootprintDelete( const wxString& aLibraryPath, const wxString& aFoo
 
 
 
-long long PCB_IO::GetLibraryTimestamp() const
+long long PCB_IO::GetLibraryTimestamp( const wxString& aLibraryPath ) const
 {
-    // If we have not cache, return a number which won't match any stored timestamps
-    if( !m_cache )
+    // If we have no cache, return a number which won't match any stored timestamps
+    if( !m_cache || !m_cache->IsPath( aLibraryPath ) )
         return wxDateTime::Now().GetValue().GetValue();
 
     return m_cache->GetTimestamp();

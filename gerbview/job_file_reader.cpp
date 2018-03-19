@@ -39,6 +39,7 @@
 #include <reporter.h>
 #include <plot_auxiliary_data.h>
 #include <html_messagebox.h>
+#include <view/view.h>
 
 
 /**
@@ -164,7 +165,7 @@ bool GERBVIEW_FRAME::LoadGerberJobFile( const wxString& aFullFileName )
             return false;
 
         filename = dlg.GetPath();
-        currentPath = wxGetCwd();
+        currentPath = filename.GetPath();
         m_mruPath = currentPath;
     }
     else
@@ -194,7 +195,9 @@ bool GERBVIEW_FRAME::LoadGerberJobFile( const wxString& aFullFileName )
         }
     }
 
-    Zoom_Automatique( false );
+    SortLayersByX2Attributes();
+
+    SetActiveLayer( 0 );
 
     if( !msg.IsEmpty() )
     {

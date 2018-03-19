@@ -109,11 +109,11 @@ TOOL_ACTION PCB_ACTIONS::highContrastMode( "pcbnew.Control.highContrastMode",
         "", "" );
 
 TOOL_ACTION PCB_ACTIONS::highContrastInc( "pcbnew.Control.highContrastInc",
-        AS_GLOBAL, '>',
+        AS_GLOBAL, TOOL_ACTION::LegacyHotKey( HK_HIGHCONTRAST_INC ),
         "", "" );
 
 TOOL_ACTION PCB_ACTIONS::highContrastDec( "pcbnew.Control.highContrastDec",
-        AS_GLOBAL, '<',
+        AS_GLOBAL, TOOL_ACTION::LegacyHotKey( HK_HIGHCONTRAST_DEC ),
         "", "" );
 
 
@@ -163,11 +163,11 @@ TOOL_ACTION PCB_ACTIONS::layerToggle( "pcbnew.Control.layerToggle",
         "", "" );
 
 TOOL_ACTION PCB_ACTIONS::layerAlphaInc( "pcbnew.Control.layerAlphaInc",
-        AS_GLOBAL, TOOL_ACTION::LegacyHotKey( HK_INC_LAYER_ALHPA ),
+        AS_GLOBAL, TOOL_ACTION::LegacyHotKey( HK_INC_LAYER_ALPHA ),
         "", "" );
 
 TOOL_ACTION PCB_ACTIONS::layerAlphaDec( "pcbnew.Control.layerAlphaDec",
-        AS_GLOBAL, TOOL_ACTION::LegacyHotKey( HK_DEC_LAYER_ALHPA ),
+        AS_GLOBAL, TOOL_ACTION::LegacyHotKey( HK_DEC_LAYER_ALPHA ),
         "", "" );
 
 TOOL_ACTION PCB_ACTIONS::layerChanged( "pcbnew.Control.layerChanged",
@@ -239,7 +239,7 @@ TOOL_ACTION PCB_ACTIONS::toBeDone( "pcbnew.Control.toBeDone",
         "", "" );               // so users are aware of that
 
 TOOL_ACTION PCB_ACTIONS::pasteFromClipboard( "pcbnew.InteractiveEdit.pasteFromClipboard",
-        AS_GLOBAL, MD_CTRL + int( 'V' ),
+        AS_GLOBAL, 0,   // do not define a hotkey and let TranslateLegacyId() handle the event
         _( "Paste" ), _( "Paste content from clipboard" ),
         paste_xpm );
 

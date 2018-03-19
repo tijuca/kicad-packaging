@@ -69,6 +69,7 @@ class DIALOG_GENERALOPTIONS_BOARDEDITOR_BASE : public DIALOG_SHIM
 		wxCheckBox* m_Show_Page_Limits;
 		wxCheckBox* m_Segments_45_Only_Ctrl;
 		wxCheckBox* m_UseEditKeyForWidth;
+		wxCheckBox* m_dragSelects;
 		wxStaticText* m_staticTextRotationAngle;
 		wxTextCtrl* m_RotationAngle;
 		wxRadioBox* m_MagneticPadOptCtrl;

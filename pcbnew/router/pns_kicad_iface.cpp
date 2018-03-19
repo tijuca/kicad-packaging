@@ -146,10 +146,19 @@ PNS_PCBNEW_RULE_RESOLVER::PNS_PCBNEW_RULE_RESOLVER( BOARD* aBoard, PNS::ROUTER* 
         }
     }
 
-    //printf("DefaultCL : %d\n",  m_board->GetDesignSettings().m_NetClasses.Find ("Default clearance")->GetClearance());
-
     m_overrideEnabled = false;
-    m_defaultClearance = Millimeter2iu( 0.254 );    // m_board->m_NetClasses.Find ("Default clearance")->GetClearance();
+
+    auto defaultRule = m_board->GetDesignSettings().m_NetClasses.Find ("Default");
+
+    if( defaultRule )
+    {
+        m_defaultClearance = defaultRule->GetClearance();
+    }
+    else 
+    {
+        m_defaultClearance = Millimeter2iu(0.254);
+    }
+
     m_overrideNetA = 0;
     m_overrideNetB = 0;
     m_overrideClearance = 0;
@@ -802,13 +811,12 @@ bool PNS_KICAD_IFACE::syncZone( PNS::NODE* aWorld, ZONE_CONTAINER* aZone )
 
     if( !poly.IsTriangulationUpToDate() )
     {
-        wxString msg = wxString::Format( _( "Malformed keep-out zone at (%d, %d) "
-                "cannot be handled by the track layout tool.\n%s\n"
-                "Please verify it is not a self-intersecting polygon." ),
-                aZone->GetPosition().x, aZone->GetPosition().y, aZone->GetSelectMenuText() );
-
-        KI_DIALOG dlg( nullptr, msg );
-        dlg.Type( KI_DIALOG::KD_WARNING ).Title( _( "Malformed keep-out zone" ) ).DoNotShowCheckbox();
+        KIDIALOG dlg( nullptr, wxString::Format( _( "Malformed keep-out zone at (%d, %d)" ),
+                aZone->GetPosition().x, aZone->GetPosition().y ), KIDIALOG::KD_WARNING );
+        dlg.ShowDetailedText(
+            wxString::Format( _( "%s\nThis zone cannot be handled by the track layout tool.\n"
+                "Please verify it is not a self-intersecting polygon." ), aZone->GetSelectMenuText() ) );
+        dlg.DoNotShowCheckbox();
         dlg.ShowModal();
 
         return false;

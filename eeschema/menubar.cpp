@@ -3,7 +3,7 @@
  *
  * Copyright (C) 2016 Jean-Pierre Charras, jp.charras at wanadoo.fr
  * Copyright (C) 2009 Wayne Stambaugh <stambaughw@gmail.com>
- * Copyright (C) 1992-2017 KiCad Developers, see AUTHORS.txt for contributors.
+ * Copyright (C) 1992-2018 KiCad Developers, see AUTHORS.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -150,7 +150,7 @@ void prepareViewMenu( wxMenu* aParentMenu )
     AddMenuItem( aParentMenu,
                  ID_HIERARCHY,
                  _( "Show &Hierarchical Navigator" ),
-                 _( "Navigate hierarchical sheets" ),
+                 _( "Navigate schematic hierarchy" ),
                  KiBitmap( hierarchy_nav_xpm ) );
 
     text = AddHotkeyName( _( "&Leave Sheet" ), g_Schematic_Hokeys_Descr, HK_LEAVE_SHEET );
@@ -184,7 +184,7 @@ void prepareViewMenu( wxMenu* aParentMenu )
                           HK_ZOOM_OUT, IS_ACCELERATOR );  // add accelerator, not a shortcut
     AddMenuItem( aParentMenu, ID_ZOOM_OUT, text, HELP_ZOOM_OUT, KiBitmap( zoom_out_xpm ) );
 
-    text = AddHotkeyName( _( "&Fit on Screen" ), g_Schematic_Hokeys_Descr, HK_ZOOM_AUTO );
+    text = AddHotkeyName( _( "&Zoom to Fit" ), g_Schematic_Hokeys_Descr, HK_ZOOM_AUTO );
 
     AddMenuItem( aParentMenu, ID_ZOOM_PAGE, text,
                  HELP_ZOOM_FIT, KiBitmap( zoom_fit_in_page_xpm ) );
@@ -419,7 +419,7 @@ void prepareFilesMenu( wxMenu* aParentMenu, bool aIsOutsideProject )
                  KiBitmap( add_document_xpm ) );
 
     AddMenuItem( aParentMenu, ID_IMPORT_NON_KICAD_SCH,
-                 _( "&Import Non-Kicad Schematic File..." ),
+                 _( "&Import Non KiCad Schematic File..." ),
                  _( "Import schematic file from other applications" ),
                  KiBitmap( import_document_xpm ) );   // TODO needs a different icon
 
@@ -597,7 +597,7 @@ void prepareToolsMenu( wxMenu* aParentMenu )
                  ID_OPEN_CMP_TABLE,
                  _( "S&ymbol Table..." ),
                  KiBitmap( spreadsheet_xpm ) );
-                 
+
     AddMenuItem( aParentMenu,
                  ID_GET_ANNOTATE,
                  _( "&Annotate Schematic..." ), HELP_ANNOTATE,
@@ -655,13 +655,13 @@ void prepareHelpMenu( wxMenu* aParentMenu )
     AddMenuItem( aParentMenu,
                  ID_PREFERENCES_HOTKEY_SHOW_CURRENT_LIST,
                  text,
-                 _( "Displays current hotkeys list and corresponding commands" ),
+                 _( "Displays current hotkeys table and corresponding commands" ),
                  KiBitmap( hotkeys_xpm ) );
 
     aParentMenu->AppendSeparator();
     AddMenuItem( aParentMenu, ID_HELP_GET_INVOLVED,
                  _( "Get &Involved" ),
-                 _( "Contribute to KiCad (open web browser)" ),
+                 _( "Contribute to KiCad (opens a web browser)" ),
                  KiBitmap( info_xpm ) );
 
     aParentMenu->AppendSeparator();

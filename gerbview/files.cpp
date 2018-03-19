@@ -110,7 +110,6 @@ void GERBVIEW_FRAME::Files_io( wxCommandEvent& event )
     switch( id )
     {
     case wxID_FILE:
-        Erase_Current_DrawLayer( false );
         LoadGerberFiles( wxEmptyString );
         break;
 
@@ -197,7 +196,7 @@ bool GERBVIEW_FRAME::LoadGerberFiles( const wxString& aFullFileName )
                 currentPath.RemoveLast();
         }
 
-        wxFileDialog dlg( this, _( "Open Gerber File" ),
+        wxFileDialog dlg( this, _( "Open Gerber File(s)" ),
                           currentPath,
                           filename.GetFullName(),
                           filetypes,
@@ -215,6 +214,8 @@ bool GERBVIEW_FRAME::LoadGerberFiles( const wxString& aFullFileName )
         m_mruPath = currentPath = filename.GetPath();
     }
 
+    Erase_Current_DrawLayer( false );
+
     // Set the busy cursor
     wxBusyCursor wait;
 
@@ -230,6 +231,7 @@ bool GERBVIEW_FRAME::loadListOfGerberFiles( const wxString& aPath,
     // Read gerber files: each file is loaded on a new GerbView layer
     bool success = true;
     int layer = GetActiveLayer();
+    int visibility = GetVisibleLayers();
 
     // Manage errors when loading files
     wxString msg;
@@ -263,6 +265,8 @@ bool GERBVIEW_FRAME::loadListOfGerberFiles( const wxString& aPath,
         m_lastFileName = filename.GetFullPath();
 
         SetActiveLayer( layer, false );
+
+        visibility |= ( 1 << layer );
 
         if( Read_GERBER_File( filename.GetFullPath() ) )
         {
@@ -304,15 +308,24 @@ bool GERBVIEW_FRAME::loadListOfGerberFiles( const wxString& aPath,
         mbox.ShowModal();
     }
 
-    Zoom_Automatique( false );
+    SetVisibleLayers( visibility );
 
-    GetImagesList()->SortImagesByZOrder();
+    Zoom_Automatique( false );
 
     // Synchronize layers tools with actual active layer:
     ReFillLayerWidget();
-    SetActiveLayer( GetActiveLayer() );
+
+    // TODO: it would be nice if we could set the active layer to one of the
+    // ones that was just loaded, but to maintain the previous user experience
+    // we need to set it to a blank layer in case they load another file.
+    // We can't start with the next available layer when loading files because
+    // some users expect the behavior of overwriting the active layer on load.
+    SetActiveLayer( getNextAvailableLayer( layer ), true );
+
     m_LayersManager->UpdateLayerIcons();
     syncLayerBox( true );
+
+    GetGalCanvas()->Refresh();
 
     return success;
 }
@@ -339,7 +352,7 @@ bool GERBVIEW_FRAME::LoadExcellonFiles( const wxString& aFullFileName )
         else
             currentPath = m_mruPath;
 
-        wxFileDialog dlg( this, _( "Open Drill File" ),
+        wxFileDialog dlg( this, _( "Open Excellon Drill File(s)" ),
                           currentPath, filename.GetFullName(), filetypes,
                           wxFD_OPEN | wxFD_FILE_MUST_EXIST | wxFD_MULTIPLE | wxFD_CHANGE_DIR );
 

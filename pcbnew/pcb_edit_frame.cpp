@@ -235,8 +235,6 @@ BEGIN_EVENT_TABLE( PCB_EDIT_FRAME, PCB_BASE_FRAME )
                     PCB_EDIT_FRAME::OnSelectOptionToolbar )
     EVT_TOOL( ID_TB_OPTIONS_SHOW_RATSNEST,
                     PCB_EDIT_FRAME::OnSelectOptionToolbar )
-    EVT_TOOL( ID_TB_OPTIONS_AUTO_DEL_TRACK,
-                    PCB_EDIT_FRAME::OnSelectOptionToolbar )
     EVT_TOOL( ID_TB_OPTIONS_SHOW_VIAS_SKETCH,
                     PCB_EDIT_FRAME::OnSelectOptionToolbar )
     EVT_TOOL( ID_TB_OPTIONS_SHOW_TRACKS_SKETCH,
@@ -282,7 +280,6 @@ BEGIN_EVENT_TABLE( PCB_EDIT_FRAME, PCB_BASE_FRAME )
     EVT_UPDATE_UI( ID_TOOLBARH_PCB_SELECT_LAYER, PCB_EDIT_FRAME::OnUpdateLayerSelectBox )
     EVT_UPDATE_UI( ID_TB_OPTIONS_DRC_OFF, PCB_EDIT_FRAME::OnUpdateDrcEnable )
     EVT_UPDATE_UI( ID_TB_OPTIONS_SHOW_RATSNEST, PCB_EDIT_FRAME::OnUpdateShowBoardRatsnest )
-    EVT_UPDATE_UI( ID_TB_OPTIONS_AUTO_DEL_TRACK, PCB_EDIT_FRAME::OnUpdateAutoDeleteTrack )
     EVT_UPDATE_UI( ID_TB_OPTIONS_SHOW_VIAS_SKETCH, PCB_EDIT_FRAME::OnUpdateViaDrawMode )
     EVT_UPDATE_UI( ID_TB_OPTIONS_SHOW_TRACKS_SKETCH, PCB_EDIT_FRAME::OnUpdateTraceDrawMode )
     EVT_UPDATE_UI( ID_TB_OPTIONS_SHOW_HIGH_CONTRAST_MODE,
@@ -308,8 +305,6 @@ BEGIN_EVENT_TABLE( PCB_EDIT_FRAME, PCB_BASE_FRAME )
                          PCB_EDIT_FRAME::OnUpdateSelectViaSize )
     EVT_UPDATE_UI_RANGE( ID_PCB_HIGHLIGHT_BUTT, ID_PCB_MEASUREMENT_TOOL,
                          PCB_EDIT_FRAME::OnUpdateVerticalToolbar )
-    EVT_UPDATE_UI_RANGE( ID_TB_OPTIONS_SHOW_ZONES, ID_TB_OPTIONS_SHOW_ZONES_OUTLINES_ONLY,
-                         PCB_EDIT_FRAME::OnUpdateZoneDisplayStyle )
     EVT_UPDATE_UI_RANGE( ID_PCB_MUWAVE_START_CMD, ID_PCB_MUWAVE_END_CMD,
                          PCB_EDIT_FRAME::OnUpdateMuWaveToolbar )
 
@@ -946,6 +941,35 @@ void PCB_EDIT_FRAME::SetActiveLayer( PCB_LAYER_ID aLayer )
 }
 
 
+void PCB_EDIT_FRAME::onBoardLoaded()
+{
+    UpdateTitle();
+
+    // Re-create layers manager based on layer info in board
+    ReFillLayerWidget();
+    ReCreateLayerBox();
+
+    // Sync layer and item visibility
+    syncLayerVisibilities();
+    syncLayerWidgetLayer();
+    syncRenderStates();
+
+    // Update the tracks / vias available sizes list:
+    ReCreateAuxiliaryToolbar();
+
+    // Update the RATSNEST items, which were not loaded at the time
+    // BOARD::SetVisibleElements() was called from within any PLUGIN.
+    // See case LAYER_RATSNEST: in BOARD::SetElementVisibility()
+    GetBoard()->SetVisibleElements( GetBoard()->GetVisibleElements() );
+
+    // Display the loaded board:
+    Zoom_Automatique( false );
+
+    SetMsgPanel( GetBoard() );
+    SetStatusText( wxEmptyString );
+}
+
+
 void PCB_EDIT_FRAME::syncLayerWidgetLayer()
 {
     m_Layers->SelectLayer( GetActiveLayer() );
@@ -1085,9 +1109,7 @@ void PCB_EDIT_FRAME::UpdateTitle()
 
     if( fileName.IsOk() && fileName.FileExists() )
     {
-        fileinfo = fileName.IsFileWritable()
-            ? wxString( wxEmptyString )
-            : _( " [Read Only]" );
+        fileinfo = fileName.IsFileWritable() ? wxString( wxEmptyString ) : _( " [Read Only]" );
     }
     else
     {
@@ -1095,9 +1117,9 @@ void PCB_EDIT_FRAME::UpdateTitle()
     }
 
     wxString title;
-    title.Printf( L"Pcbnew \u2014 %s%s",
-            fileName.GetFullPath(),
-            fileinfo );
+    title.Printf( _( "Pcbnew" ) + wxT( " \u2014 %s%s" ),
+                  fileName.GetFullPath(),
+                  fileinfo );
 
     SetTitle( title );
 }

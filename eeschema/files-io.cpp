@@ -4,7 +4,7 @@
  * Copyright (C) 2013 Jean-Pierre Charras, jp.charras at wanadoo.fr
  * Copyright (C) 2013 Wayne Stambaugh <stambaughw@gmail.com>
  * Copyright (C) 2013 CERN (www.cern.ch)
- * Copyright (C) 1992-2017 KiCad Developers, see AUTHORS.txt for contributors.
+ * Copyright (C) 1992-2018 KiCad Developers, see AUTHORS.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -50,6 +50,7 @@
 #include <sch_eagle_plugin.h>
 #include <symbol_lib_table.h>
 #include <dialog_symbol_remap.h>
+#include <worksheet_shape_builder.h>
 
 
 bool SCH_EDIT_FRAME::SaveEEFile( SCH_SCREEN* aScreen, bool aSaveUnderNewName,
@@ -676,7 +677,7 @@ void SCH_EDIT_FRAME::OnImportProject( wxCommandEvent& aEvent )
     }
 
     // For now there is only one import plugin
-    ImportFile( dlg.GetPath(), SCH_IO_MGR::SCH_EAGLE );
+    importFile( dlg.GetPath(), SCH_IO_MGR::SCH_EAGLE );
 }
 
 
@@ -752,15 +753,12 @@ bool SCH_EDIT_FRAME::doAutoSave()
 }
 
 
-bool SCH_EDIT_FRAME::ImportFile( const wxString& aFileName, int aFileType )
+bool SCH_EDIT_FRAME::importFile( const wxString& aFileName, int aFileType )
 {
     wxString fullFileName( aFileName );
-
-    SCH_PLUGIN::SCH_PLUGIN_RELEASER pi;
     wxString projectpath;
     wxFileName newfilename;
     SCH_SHEET_LIST sheetList( g_RootSheet );
-    SCH_SCREENS schematic;
 
     switch( (SCH_IO_MGR::SCH_FILE_T) aFileType )
     {
@@ -779,11 +777,33 @@ bool SCH_EDIT_FRAME::ImportFile( const wxString& aFileName, int aFileType )
 
             try
             {
-                pi.set( SCH_IO_MGR::FindPlugin( SCH_IO_MGR::SCH_EAGLE ) );
+                delete g_RootSheet;
+                g_RootSheet = nullptr;
+                SCH_PLUGIN::SCH_PLUGIN_RELEASER pi( SCH_IO_MGR::FindPlugin( SCH_IO_MGR::SCH_EAGLE ) );
                 g_RootSheet = pi->Load( fullFileName, &Kiway() );
 
+
+                // Eagle sheets do not use a worksheet frame by default, so set it to an empty one
+                WORKSHEET_LAYOUT& pglayout = WORKSHEET_LAYOUT::GetTheInstance();
+                pglayout.SetEmptyLayout();
+
+                BASE_SCREEN::m_PageLayoutDescrFileName = "empty.kicad_wks";
+                wxFileName layoutfn( Kiway().Prj().GetProjectPath(),
+                                        BASE_SCREEN::m_PageLayoutDescrFileName );
+                wxFile layoutfile;
+
+                if( layoutfile.Create( layoutfn.GetFullPath() ) )
+                {
+                    layoutfile.Write( WORKSHEET_LAYOUT::EmptyLayout() );
+                    layoutfile.Close();
+                }
+
+                SaveProjectSettings( false );
+
+
                 projectpath = Kiway().Prj().GetProjectPath();
-                newfilename = Prj().AbsolutePath( Prj().GetProjectName() );
+                newfilename.SetPath( Prj().GetProjectPath() );
+                newfilename.SetName( Prj().GetProjectName() );
                 newfilename.SetExt( SchematicFileExtension );
 
                 m_CurrentSheet->clear();
@@ -795,13 +815,53 @@ bool SCH_EDIT_FRAME::ImportFile( const wxString& aFileName, int aFileType )
                 GetScreen()->SetModify();
 
                 UpdateFileHistory( fullFileName );
+                SCH_SCREENS schematic;
                 schematic.UpdateSymbolLinks();      // Update all symbol library links for all sheets.
 
                 // Ensure the schematic is fully segmented on first display
                 BreakSegmentsOnJunctions();
                 SchematicCleanUp( true );
+
+
+                SCH_TYPE_COLLECTOR components;
+                auto& schLibTable = *Kiway().Prj().SchSymbolLibTable();
+                SCH_SCREENS allScreens;
+                for( SCH_SCREEN* screen = allScreens.GetFirst(); screen; screen = allScreens.GetNext() )
+                {
+                    components.Collect( screen->GetDrawItems(), SCH_COLLECTOR::ComponentsOnly );
+
+                    for( int cmpIdx = 0; cmpIdx < components.GetCount(); ++cmpIdx )
+                    {
+                        std::vector<wxPoint> pts;
+                        SCH_COMPONENT* cmp = static_cast<SCH_COMPONENT*>( components[cmpIdx] );
+
+                        // Update footprint LIB_ID to point to the imported Eagle library
+                        auto fpField = cmp->GetField( FOOTPRINT );
+
+                        if( !fpField->GetText().IsEmpty() )
+                        {
+                            LIB_ID fpId( fpField->GetText() );
+                            fpId.SetLibNickname( newfilename.GetName() );
+                            fpField->SetText( fpId.Format() );
+                        }
+
+                        // Add junction dots where necessary
+                        cmp->Resolve( schLibTable );
+                        cmp->UpdatePinCache();
+                        cmp->GetConnectionPoints( pts );
+
+                        for( auto i = pts.begin(); i != pts.end(); ++i )
+                        {
+                            if( GetScreen()->IsJunctionNeeded( *i, true ) )
+                                AddJunction( *i, true );
+                        }
+                    }
+                }
+
+
                 GetScreen()->ClearUndoORRedoList( GetScreen()->m_UndoList, 1 );
-                GetScreen()->TestDanglingEnds();    // Only perform the dangling end test on root sheet.
+                // Only perform the dangling end test on root sheet.
+                GetScreen()->TestDanglingEnds();
 
                 GetScreen()->SetGrid( ID_POPUP_GRID_LEVEL_1000 + m_LastGridSizeId );
                 Zoom_Automatique( false );

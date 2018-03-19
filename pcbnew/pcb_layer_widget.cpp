@@ -41,6 +41,7 @@
 #include <pcb_display_options.h>
 #include <tool/tool_manager.h>
 #include <layer_widget.h>
+#include <class_text_mod.h>
 #include <widgets/indicator_icon.h>
 #include <macros.h>
 #include <menus_helpers.h>
@@ -443,7 +444,7 @@ void PCB_LAYER_WIDGET::SyncLayerVisibilities()
         PCB_LAYER_ID layerId = ToLAYER_ID( getDecodedId( w->GetId() ) );
 
         // this does not fire a UI event
-        SetLayerVisible( layerId, board->IsLayerVisible( layerId ) );
+        setLayerCheckbox( layerId, board->IsLayerVisible( layerId ) );
     }
 }
 
@@ -645,16 +646,19 @@ void PCB_LAYER_WIDGET::OnLayerVisible( int aLayer, bool isVisible, bool isFinal 
 
     LSET visibleLayers = brd->GetVisibleLayers();
 
-    visibleLayers.set( aLayer, isVisible );
+    if( visibleLayers.test( aLayer ) != isVisible )
+    {
+        visibleLayers.set( aLayer, isVisible );
 
-    brd->SetVisibleLayers( visibleLayers );
+        brd->SetVisibleLayers( visibleLayers );
 
-    myframe->OnModify();
+        myframe->OnModify();
 
-    EDA_DRAW_PANEL_GAL* galCanvas = myframe->GetGalCanvas();
+        EDA_DRAW_PANEL_GAL* galCanvas = myframe->GetGalCanvas();
 
-    if( galCanvas )
-        galCanvas->GetView()->SetLayerVisible( aLayer, isVisible );
+        if( galCanvas )
+            galCanvas->GetView()->SetLayerVisible( aLayer, isVisible );
+    }
 
     if( isFinal )
         myframe->GetCanvas()->Refresh();
