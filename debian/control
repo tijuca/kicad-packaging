@@ -76,7 +76,7 @@ Standards-Version: 4.1.3
 Homepage: http://www.kicad-pcb.org
 
 Package: kicad
-Architecture: any
+Architecture: any-amd64 any-i386 arm64 armhf
 Depends:
  python-wxgtk3.0,
  ${misc:Depends},
