@@ -23,11 +23,11 @@ kicad (5.0.0~rc1+dfsg1-1) experimental; urgency=medium
       fixes/Add-missing-dependency-github_plugin-pcbcommon.patch
       fixes/Fix-FTBFS-with-Boost-1.61.patch
       fixes/Fixing-some-spelling-issues.patch
-    
+
     + modified patches:
       fixes/Modifing-the-Exec-cmd-in-the-desktop-files.patch
       porting-kfreebsd-hurd/Fix-FTBFS-on-kFreeBSD-and-Hurd.patch
-    
+
     + new patches:
       fixes/fix-misspelled-Appearence-Appearance.patch
       fixes/fix-misspelled-Modifed-Modified.patch
@@ -37,7 +37,7 @@ kicad (5.0.0~rc1+dfsg1-1) experimental; urgency=medium
       fixes/fix-misspelled-neeeded-needed.patch
       fixes/fix-misspelled-occured-occurred.patch
       fixes/fix-misspelled-streching-stretching.patch
-    
+
       All new patches are forwarded to upstream and already accepted.
 
   * [8e9d6c0] debian/control: adding new build dependencies
