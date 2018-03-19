@@ -236,10 +236,11 @@ FOOTPRINT_EDIT_FRAME::FOOTPRINT_EDIT_FRAME( KIWAY* aKiway, wxWindow* aParent ) :
     updateTitle();
 
     // Create GAL canvas
-    PCB_BASE_FRAME* parentFrame = static_cast<PCB_BASE_FRAME*>( Kiway().Player( FRAME_PCB, true ) );
+    bool boardEditorWasRunning = Kiway().Player( FRAME_PCB, false ) != nullptr;
+    PCB_BASE_FRAME* pcbFrame = static_cast<PCB_BASE_FRAME*>( Kiway().Player( FRAME_PCB, true ) );
     PCB_DRAW_PANEL_GAL* drawPanel = new PCB_DRAW_PANEL_GAL( this, -1, wxPoint( 0, 0 ), m_FrameSize,
                                                             GetGalDisplayOptions(),
-                                                            parentFrame->GetGalCanvas()->GetBackend() );
+                                                            pcbFrame->GetGalCanvas()->GetBackend() );
     SetGalCanvas( drawPanel );
 
     SetBoard( new BOARD() );
@@ -344,7 +345,7 @@ FOOTPRINT_EDIT_FRAME::FOOTPRINT_EDIT_FRAME( KIWAY* aKiway, wxWindow* aParent ) :
     // Create the manager and dispatcher & route draw panel events to the dispatcher
     setupTools();
     GetGalCanvas()->GetGAL()->SetAxesEnabled( true );
-    UseGalCanvas( parentFrame->IsGalCanvasActive() );
+    UseGalCanvas( pcbFrame->IsGalCanvasActive() );
 
     if( m_auimgr.GetPane( "m_LayersManagerToolBar" ).IsShown() )
     {
@@ -355,6 +356,9 @@ FOOTPRINT_EDIT_FRAME::FOOTPRINT_EDIT_FRAME( KIWAY* aKiway, wxWindow* aParent ) :
         m_Layers->SelectLayer( F_SilkS );
         m_Layers->OnLayerSelected();
     }
+
+    if( !boardEditorWasRunning )
+        pcbFrame->Destroy();
 
     m_auimgr.Update();
 
@@ -405,57 +409,32 @@ const wxString FOOTPRINT_EDIT_FRAME::GetCurrentLib() const
 
 void FOOTPRINT_EDIT_FRAME::retainLastFootprint()
 {
-    PCB_IO  pcb_io;
     MODULE* module = GetBoard()->m_Modules;
 
     if( module )
     {
-        pcb_io.Format( module );
-
-        wxString pretty = FROM_UTF8( pcb_io.GetStringOutput( true ).c_str() );
-
-        // save the footprint in the RSTRING facility.
-        Prj().SetRString( PROJECT::PCB_FOOTPRINT, pretty );
+        LIB_ID id = module->GetFPID();
+        Prj().SetRString( PROJECT::PCB_FOOTPRINT_EDITOR_NICKNAME, id.GetLibNickname() );
+        Prj().SetRString( PROJECT::PCB_FOOTPRINT_EDITOR_FPNAME, id.GetLibItemName() );
     }
 }
 
 
 void FOOTPRINT_EDIT_FRAME::restoreLastFootprint()
 {
-    wxString pretty = Prj().GetRString( PROJECT::PCB_FOOTPRINT );
+    const wxString& curFootprintName = Prj().GetRString( PROJECT::PCB_FOOTPRINT_EDITOR_FPNAME );
+    const wxString& curNickname =  Prj().GetRString( PROJECT::PCB_FOOTPRINT_EDITOR_NICKNAME );
 
-    if( !!pretty )
+    if( curNickname.Length() && curFootprintName.Length() )
     {
-        PCB_IO  pcb_io;
-        MODULE* module = NULL;
+        LIB_ID id;
+        id.SetLibNickname( curNickname );
+        id.SetLibItemName( curFootprintName );
 
-        try
-        {
-            module = (MODULE*) pcb_io.Parse( pretty );
-        }
-        catch( const PARSE_ERROR& )
-        {
-            // unlikely to be a problem, since we produced the pretty string.
-            wxLogError( "PARSE_ERROR" );
-        }
-        catch( const IO_ERROR& )
-        {
-            // unlikely to be a problem, since we produced the pretty string.
-            wxLogError( "IO_ERROR" );
-        }
+        MODULE* module = loadFootprint( id );
 
         if( module )
-        {
-            // assumes BOARD is empty.
-            wxASSERT( GetBoard()->m_Modules == NULL );
-
-            // no idea, its monkey see monkey do.  I would encapsulate this into
-            // a member function if its actually necessary.
-            module->SetParent( GetBoard() );
-            module->SetLink( 0 );
-
             GetBoard()->Add( module );
-        }
     }
 }
 
@@ -818,10 +797,10 @@ void FOOTPRINT_EDIT_FRAME::updateTitle()
     }
 
     wxString title;
-    title.Printf( _( "Footprint Editor" ) + L" \u2014 %s%s%s",
-            nickname_display,
-            writable ? wxString( wxEmptyString ) : _( " [Read Only]" ),
-            path_display );
+    title.Printf( _( "Footprint Editor" ) + wxT( " \u2014 %s%s%s" ),
+                  nickname_display,
+                  writable ? wxString( wxEmptyString ) : _( " [Read Only]" ),
+                  path_display );
 
     SetTitle( title );
 }

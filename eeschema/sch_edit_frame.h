@@ -808,14 +808,6 @@ public:
     bool IsSearchCacheObsolete( const SCH_FIND_REPLACE_DATA& aSearchCriteria );
 
     /**
-     *  Load the given filename but sets the path to the current project path.
-     *
-     *  @param full filepath of file to be imported.
-     *  @param aFileType SCH_FILE_T value for file type
-     */
-    bool ImportFile( const wxString& aFileName, int aFileType ) override;
-
-    /**
      * Checks if any of the screens has unsaved changes and asks the user whether to save or
      * drop them.
      *
@@ -1121,6 +1113,14 @@ public:
     wxPoint GetLastSheetPinPosition() const { return m_lastSheetPinPosition; }
 
 private:
+    /**
+     *  Load the given filename but sets the path to the current project path.
+     *
+     *  @param full filepath of file to be imported.
+     *  @param aFileType SCH_FILE_T value for file type
+     */
+    bool importFile( const wxString& aFileName, int aFileType );
+
     bool validateSheet( SCH_SHEET* aSheet, SCH_SHEET_PATH* aHierarchy );
 
     /**

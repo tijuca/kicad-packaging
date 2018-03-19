@@ -4,7 +4,7 @@
  * Copyright (C) 2017 Jean-Pierre Charras, jp.charras at wanadoo.fr
  * Copyright (C) 2012 SoftPLC Corporation, Dick Hollenbeck <dick@softplc.com>
  * Copyright (C) 2012 Wayne Stambaugh <stambaughw@gmail.com>
- * Copyright (C) 1992-2017 KiCad Developers, see AUTHORS.txt for contributors.
+ * Copyright (C) 1992-2018 KiCad Developers, see AUTHORS.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -366,17 +366,17 @@ void preparePlaceMenu( wxMenu* aParentMenu )
     text = AddHotkeyName( _( "&Footprint" ), g_Pcbnew_Editor_Hotkeys_Descr,
                           HK_ADD_MODULE );
     AddMenuItem( aParentMenu, ID_PCB_MODULE_BUTT, text,
-                 _( "Add footprints" ), KiBitmap( module_xpm ) );
+                 _( "Add footprint" ), KiBitmap( module_xpm ) );
 
     AddMenuItem( aParentMenu, ID_PCB_DRAW_VIA_BUTT,
                  _( "&Via" ),
-                 _( "Add vias" ), KiBitmap( add_via_xpm ) );
+                 _( "Add via" ), KiBitmap( add_via_xpm ) );
 
     AddMenuItem( aParentMenu, ID_PCB_ZONES_BUTT,
-                 _( "&Zone" ), _( "Add filled zones" ), KiBitmap( add_zone_xpm ) );
+                 _( "&Zone" ), _( "Add filled zone" ), KiBitmap( add_zone_xpm ) );
 
     AddMenuItem( aParentMenu, ID_PCB_KEEPOUT_AREA_BUTT,
-                 _( "&Keepout Area" ), _( "Add keepout areas" ), KiBitmap( add_keepout_area_xpm ) );
+                 _( "&Keepout Area" ), _( "Add keepout area" ), KiBitmap( add_keepout_area_xpm ) );
 
     AddMenuItem( aParentMenu, ID_PCB_ADD_TEXT_BUTT,
                  _( "Te&xt" ), _( "Add text on copper layers or graphic text" ),
@@ -390,13 +390,13 @@ void preparePlaceMenu( wxMenu* aParentMenu )
                  KiBitmap( add_circle_xpm ) );
 
     AddMenuItem( aParentMenu, ID_PCB_ADD_LINE_BUTT,
-                 _( "&Lines" ),
-                 _( "Add graphic lines" ),
+                 _( "&Line" ),
+                 _( "Add graphic line" ),
                  KiBitmap( add_graphical_segments_xpm ) );
 
     AddMenuItem( aParentMenu, ID_PCB_ADD_POLYGON_BUTT,
-                  _( "&Polygons" ),
-                  _( "Add graphic polygons" ),
+                  _( "&Polygon" ),
+                  _( "Add graphic polygon" ),
                   KiBitmap( add_graphical_polygon_xpm ) );
 
     aParentMenu->AppendSeparator();
@@ -506,7 +506,7 @@ void prepareHelpMenu( wxMenu* aParentMenu )
 
     AddMenuItem( aParentMenu, ID_HELP_GET_INVOLVED,
                  _( "Get &Involved" ),
-                 _( "Contribute to KiCad - open web browser" ),
+                 _( "Contribute to KiCad (opens a web browser)" ),
                  KiBitmap( info_xpm ) );
 
     aParentMenu->AppendSeparator();
@@ -756,13 +756,13 @@ void prepareViewMenu( wxMenu* aParentMenu, bool aUseGal )
     contrastModeSubMenu->AppendSeparator();
 
     text = AddHotkeyName( _( "&Decrease Layer Opacity" ), g_Pcbnew_Editor_Hotkeys_Descr,
-                          HK_DEC_LAYER_ALHPA );
+                          HK_DEC_LAYER_ALPHA );
     AddMenuItem( contrastModeSubMenu, ID_DEC_LAYER_ALPHA,
                  text, _( "Make the current layer more transparent" ),
                  KiBitmap( contrast_mode_xpm ) );
 
     text = AddHotkeyName( _( "&Increase Layer Opacity" ), g_Pcbnew_Editor_Hotkeys_Descr,
-                          HK_INC_LAYER_ALHPA );
+                          HK_INC_LAYER_ALPHA );
     AddMenuItem( contrastModeSubMenu, ID_INC_LAYER_ALPHA,
                  text, _( "Make the current layer less transparent" ),
                  KiBitmap( contrast_mode_xpm ) );
@@ -868,7 +868,7 @@ void prepareFilesMenu( wxMenu* aParentMenu, bool aIsOutsideProject )
                      KiBitmap( add_board_xpm ) );
 
         AddMenuItem( aParentMenu, ID_IMPORT_NON_KICAD_BOARD,
-                _( "Import Non-Kicad Board File..." ),
+                _( "Import Non-KiCad Board File..." ),
                 _( "Import board file from other applications" ),
                 KiBitmap( import_brd_file_xpm ) );
     }
@@ -879,6 +879,33 @@ void prepareFilesMenu( wxMenu* aParentMenu, bool aIsOutsideProject )
                  KiBitmap( undo_xpm ) );
 
     aParentMenu->AppendSeparator();
+
+    //----- Import submenu ------------------------------------------------------
+    wxMenu* submenuImport = new wxMenu();
+
+    AddMenuItem( submenuImport, ID_GEN_IMPORT_SPECCTRA_SESSION,
+                 _( "&Specctra Session..." ),
+                 _( "Import routed \"Specctra Session\" (*.ses) file" ),
+                 KiBitmap( import_xpm ) );
+
+    AddMenuItem( submenuImport, ID_GEN_IMPORT_DXF_FILE,
+                 _( "&DXF File..." ),
+                 _( "Import 2D Drawing DXF file to Pcbnew on Drawings layer" ),
+                 KiBitmap( import_xpm ) );
+
+    AddMenuItem( aParentMenu, submenuImport,
+                 ID_GEN_IMPORT_FILE, _( "&Import" ),
+                 _( "Import files" ), KiBitmap( import_xpm ) );
+
+
+    //----- Export submenu ------------------------------------------------------
+    wxMenu* submenuexport = new wxMenu();
+    prepareExportMenu( submenuexport );
+
+    AddMenuItem( aParentMenu, submenuexport,
+                 ID_GEN_EXPORT_FILE, _( "E&xport" ),
+                 _( "Export board" ), KiBitmap( export_xpm ) );
+
 
     //----- Fabrication Outputs submenu -----------------------------------------
     wxMenu* fabricationOutputsMenu = new wxMenu;
@@ -911,32 +938,6 @@ void prepareFilesMenu( wxMenu* aParentMenu, bool aIsOutsideProject )
                  -1, _( "&Fabrication Outputs" ),
                  _( "Generate files for fabrication" ),
                  KiBitmap( fabrication_xpm ) );
-
-    //----- Import submenu ------------------------------------------------------
-    wxMenu* submenuImport = new wxMenu();
-
-    AddMenuItem( submenuImport, ID_GEN_IMPORT_SPECCTRA_SESSION,
-                 _( "&Specctra Session..." ),
-                 _( "Import routed \"Specctra Session\" (*.ses) file" ),
-                 KiBitmap( import_xpm ) );
-
-    AddMenuItem( submenuImport, ID_GEN_IMPORT_DXF_FILE,
-                 _( "&DXF File..." ),
-                 _( "Import 2D Drawing DXF file to Pcbnew on Drawings layer" ),
-                 KiBitmap( import_xpm ) );
-
-    AddMenuItem( aParentMenu, submenuImport,
-                 ID_GEN_IMPORT_FILE, _( "&Import" ),
-                 _( "Import files" ), KiBitmap( import_xpm ) );
-
-
-    //----- Export submenu ------------------------------------------------------
-    wxMenu* submenuexport = new wxMenu();
-    prepareExportMenu( submenuexport );
-
-    AddMenuItem( aParentMenu, submenuexport,
-                 ID_GEN_EXPORT_FILE, _( "E&xport" ),
-                 _( "Export board" ), KiBitmap( export_xpm ) );
 
     aParentMenu->AppendSeparator();
 

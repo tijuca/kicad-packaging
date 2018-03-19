@@ -2,7 +2,7 @@
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
  * Copyright (C) 2009-2016 Jean-Pierre Charras, jp.charras at wanadoo.fr
- * Copyright (C) 1992-2016 KiCad Developers, see AUTHORS.txt for contributors.
+ * Copyright (C) 1992-2018 KiCad Developers, see AUTHORS.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -47,6 +47,7 @@
 #include <class_module.h>
 #include <class_edge_mod.h>
 #include <convert_basic_shapes_to_polygon.h>
+#include <geometry/geometry_utils.h>
 
 // These variables are parameters used in addTextSegmToPoly.
 // But addTextSegmToPoly is a call-back function,
@@ -54,6 +55,12 @@
 static int s_textWidth;
 static int s_textCircle2SegmentCount;
 static SHAPE_POLY_SET* s_cornerBuffer;
+
+// The max error is the distance between the middle of a segment, and the circle
+// for circle/arc to segment approximation.
+// Warning: too small values can create very long calculation time in zone filling
+// 0.05 to 0.01 mm is a reasonable value
+double s_error_max = Millimeter2iu( 0.02 );
 
 // This is a call back function, used by DrawGraphicText to draw the 3D text shape:
 static void addTextSegmToPoly( int x0, int y0, int xf, int yf )
@@ -68,7 +75,7 @@ void BOARD::ConvertBrdLayerToPolygonalContours( PCB_LAYER_ID aLayer, SHAPE_POLY_
 {
     // Number of segments to convert a circle to a polygon
     const int       segcountforcircle   = 18;
-    double          correctionFactor    = 1.0 / cos( M_PI / (segcountforcircle * 2) );
+    double          correctionFactor    = GetCircletoPolyCorrectionFactor( segcountforcircle );
 
     // convert tracks and vias:
     for( TRACK* track = m_Track; track != NULL; track = track->Next() )
@@ -502,25 +509,25 @@ void DRAWSEGMENT::TransformShapeWithClearanceToPolygon( SHAPE_POLY_SET& aCornerB
     // The full width of the lines to create:
     int linewidth = m_Width + (2 * aClearanceValue);
 
-    // The aCircleSegmentsCount parameter is intended for use with small features such as
-    // pads and vias.  It can be way too coarse for larger draw items, such as silkscreen
-    // drawings, which use this routine for DXF-specific sketch-mode plotting.  Scale the
-    // number of segments by the size of the circle/arc.
+    // Creating a reliable clearance shape for circles and arcs is not so easy, due to
+    // the error created by segment approximation.
+    // for a cicle this is not so hard: create a polygon from a circle slightly bigger:
+    // thickness = linewidth + s_error_max, and radius = initial radius + s_error_max/2
+    // giving a shape with a suitable internal radius and external radius
+    // For an arc this is more tricky: TODO
     if( m_Shape == S_CIRCLE || m_Shape == S_ARC )
     {
-        double multiple = (double) GetRadius() / IU_PER_MM;
-        if( multiple > 1 )
-        {
-            aCircleToSegmentsCount = int( aCircleToSegmentsCount * multiple );
-            aCorrectionFactor      = 1.0 / cos( M_PI / (aCircleToSegmentsCount * 2) );
-        }
+        int segCount = GetArcToSegmentCount( GetRadius(), s_error_max, 360.0 );
+
+        if( segCount > aCircleToSegmentsCount )
+            aCircleToSegmentsCount = segCount;
     }
 
     switch( m_Shape )
     {
     case S_CIRCLE:
-        TransformRingToPolygon( aCornerBuffer, GetCenter(), GetRadius(),
-                                aCircleToSegmentsCount, linewidth ) ;
+        TransformRingToPolygon( aCornerBuffer, GetCenter(), GetRadius() + (s_error_max/2),
+                                aCircleToSegmentsCount, linewidth + s_error_max ) ;
         break;
 
     case S_ARC:

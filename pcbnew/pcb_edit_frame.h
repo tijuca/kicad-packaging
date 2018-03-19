@@ -24,7 +24,7 @@
 #ifndef  WXPCB_STRUCT_H_
 #define  WXPCB_STRUCT_H_
 
-
+#include <unordered_map>
 #include "pcb_base_edit_frame.h"
 #include "config_params.h"
 #include "undo_redo_container.h"
@@ -164,6 +164,11 @@ protected:
     }
 
     /**
+     * Updates the state of the GUI after a new board is loaded or created
+     */
+    void onBoardLoaded();
+
+    /**
      * Function syncLayerWidgetLayer
      * updates the currently layer "selection" within the PCB_LAYER_WIDGET.
      * The currently selected layer is defined by the return value of GetActiveLayer().
@@ -227,6 +232,18 @@ protected:
      * @param aIncrement increment the item number if appropriate
      */
     void duplicateItems( bool aIncrement ) override;
+
+    /**
+     * Load the given filename but sets the path to the current project path.
+     * @param full filepath of file to be imported.
+     * @param aFileType PCB_FILE_T value for filetype
+     */
+    bool importFile( const wxString& aFileName, int aFileType );
+
+    /**
+     * Rematch orphaned zones and vias to schematic nets.
+     */
+    bool fixEagleNets( const std::unordered_map<wxString, wxString>& aRemap );
 
     // protected so that PCB::IFACE::CreateWindow() is the only factory.
     PCB_EDIT_FRAME( KIWAY* aKiway, wxWindow* aParent );
@@ -309,7 +326,6 @@ public:
     void OnUpdateLayerSelectBox( wxUpdateUIEvent& aEvent );
     void OnUpdateDrcEnable( wxUpdateUIEvent& aEvent );
     void OnUpdateShowBoardRatsnest( wxUpdateUIEvent& aEvent );
-    void OnUpdateAutoDeleteTrack( wxUpdateUIEvent& aEvent );
     void OnUpdateViaDrawMode( wxUpdateUIEvent& aEvent );
     void OnUpdateTraceDrawMode( wxUpdateUIEvent& aEvent );
     void OnUpdateHighContrastDisplayMode( wxUpdateUIEvent& aEvent );
@@ -607,6 +623,8 @@ public:
      */
     virtual void SetActiveLayer( PCB_LAYER_ID aLayer ) override;
 
+    PCB_LAYER_WIDGET* GetLayerManager() { return m_Layers; }
+
     /**
      * Update the UI to reflect changes to the current layer's transparency.
      */
@@ -863,14 +881,6 @@ public:
      * the main purpose is only to allow panelizing boards.
      */
     bool AppendBoardFile( const wxString& aFullFileName, int aCtl );
-
-    /**
-     * Function ImportFile
-     *  load the given filename but sets the path to the current project path.
-     *  @param full filepath of file to be imported.
-     *  @param aFileType PCB_FILE_T value for filetype
-     */
-    bool ImportFile( const wxString& aFileName, int aFileType ) override;
 
     /**
      * Function SavePcbFile
@@ -1724,6 +1734,8 @@ public:
 
     int GetIconScale() override;
     void SetIconScale( int aScale ) override;
+
+    void SyncMenusAndToolbars( wxEvent& aEvent ) override;
 
     DECLARE_EVENT_TABLE()
 };

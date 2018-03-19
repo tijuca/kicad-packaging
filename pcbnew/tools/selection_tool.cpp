@@ -313,10 +313,10 @@ int SELECTION_TOOL::Main( const TOOL_EVENT& aEvent )
             else if( m_selection.Empty() )
             {
                 // There is nothing selected, so try to select something
-                if( !selectCursor() )
+                if( getEditFrame<PCB_BASE_FRAME>()->Settings().m_dragSelects || !selectCursor() )
                 {
-                    // If nothings has been selected or user wants to select more
-                    // draw the selection box
+                    // If nothings has been selected, user wants to select more or selection
+                    // box is preferred to dragging - draw selection box
                     selectMultiple();
                 }
                 else
@@ -837,7 +837,10 @@ void connectedTrackFilter( const VECTOR2I& aPt, GENERAL_COLLECTOR& aCollector )
 
 int SELECTION_TOOL::selectConnection( const TOOL_EVENT& aEvent )
 {
-    if( !selectCursor( true, connectedTrackFilter ) )
+    if( !m_selection.HasType( PCB_TRACE_T ) && !m_selection.HasType( PCB_VIA_T ) )
+        selectCursor( true, connectedTrackFilter );
+
+    if( !m_selection.HasType( PCB_TRACE_T ) && !m_selection.HasType( PCB_VIA_T ) )
         return 0;
 
     return expandSelectedConnection( aEvent );
@@ -887,11 +890,19 @@ void connectedItemFilter( const VECTOR2I&, GENERAL_COLLECTOR& aCollector )
 
 int SELECTION_TOOL::selectCopper( const TOOL_EVENT& aEvent )
 {
-    if( !selectCursor( true, connectedItemFilter ) )
-        return 0;
+    bool haveCopper = false;
+
+    for( auto item : m_selection.GetItems() )
+    {
+        if( dynamic_cast<BOARD_CONNECTED_ITEM*>( item ) )
+            haveCopper = true;;
+    }
+
+    if( !haveCopper )
+        selectCursor( true, connectedItemFilter );
 
     // copy the selection, since we're going to iterate and modify
-    auto selection = m_selection.GetItems();
+    auto selection  = m_selection.GetItems();
 
     for( auto item : selection )
     {
@@ -1161,9 +1172,7 @@ void SELECTION_TOOL::findCallback( BOARD_ITEM* aItem )
     if( aItem )
     {
         select( aItem );
-        EDA_RECT bbox = aItem->GetBoundingBox();
-        BOX2D viewport( VECTOR2D( bbox.GetOrigin() ), VECTOR2D( bbox.GetSize() ) );
-        getView()->SetViewport( viewport );
+        getView()->SetCenter( aItem->GetPosition() );
 
         // Inform other potentially interested tools
         m_toolMgr->ProcessEvent( SelectedEvent );
@@ -1596,18 +1605,42 @@ bool SELECTION_TOOL::selectable( const BOARD_ITEM* aItem ) const
         float viewArea = getView()->GetViewport().GetArea();
         float modArea = aItem->ViewBBox().GetArea();
 
-        // Do not select modules that cover more than 90% of the view area
+        // Do not select modules that are larger the view area
         // (most likely footprints representing shield connectors)
-        if( viewArea > 0.0 && modArea / viewArea > 0.9 )
+        if( viewArea > 0.0 && modArea > viewArea )
             return false;
 
-        if( aItem->IsOnLayer( F_Cu ) && board()->IsElementVisible( LAYER_MOD_FR ) )
-            return !m_editModules;
+        // Allow selection of footprints if at least one draw layer is on and
+        // the appropriate LAYER_MOD is on
 
-        if( aItem->IsOnLayer( B_Cu ) && board()->IsElementVisible( LAYER_MOD_BK ) )
-            return !m_editModules;
+        bool layer_mod = ( ( aItem->IsOnLayer( F_Cu ) && board()->IsElementVisible( LAYER_MOD_FR ) ) ||
+                           ( aItem->IsOnLayer( B_Cu ) && board()->IsElementVisible( LAYER_MOD_BK ) ) );
 
-        return false;
+        bool draw_layer_visible = false;
+        int draw_layers[KIGFX::VIEW::VIEW_MAX_LAYERS], draw_layers_count;
+
+        static_cast<const MODULE*>( aItem )->GetAllDrawingLayers( draw_layers,
+                                                                  draw_layers_count,
+                                                                  true );
+
+        for( int i = 0; i < draw_layers_count; ++i )
+        {
+            // NOTE: Pads return LAYER_PADS_PLATEDHOLES but the visibility
+            // control only directly switches LAYER_PADS_TH, so we overwrite it
+            // here so that the visibility check is accurate
+            if( draw_layers[i] == LAYER_PADS_PLATEDHOLES )
+                draw_layers[i] = LAYER_PADS_TH;
+
+            if( ( ( draw_layers[i] < PCB_LAYER_ID_COUNT ) &&
+                  board()->IsLayerVisible( static_cast<PCB_LAYER_ID>( draw_layers[i] ) ) ) ||
+                ( ( draw_layers[i] >= GAL_LAYER_ID_START ) &&
+                  board()->IsElementVisible( static_cast<GAL_LAYER_ID>( draw_layers[i] ) ) ) )
+            {
+                draw_layer_visible = true;
+            }
+        }
+
+        return ( draw_layer_visible && layer_mod );
 
         break;
     }

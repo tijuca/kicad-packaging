@@ -105,6 +105,9 @@ static EDA_HOTKEY HkCanvasCairo( _HKI( "Switch to Modern Toolset with software g
 #endif
                                  WXK_F12 );
 
+static EDA_HOTKEY HkMeasureTool( _HKI( "Measure Distance (Modern Toolset only)" ),
+                                HK_MEASURE_TOOL, 'M' + GR_KB_SHIFTCTRL );
+
 // List of common hotkey descriptors
 EDA_HOTKEY* gerbviewHotkeyList[] = {
     &HkHelp,
@@ -117,6 +120,7 @@ EDA_HOTKEY* gerbviewHotkeyList[] = {
     &HkCanvasDefault,
     &HkCanvasOpenGL,
     &HkCanvasCairo,
+    &HkMeasureTool,
     NULL
 };
 
@@ -229,8 +233,7 @@ bool GERBVIEW_FRAME::OnHotKey( wxDC* aDC, int aHotkeyCode, const wxPoint& aPosit
     case HK_SWITCH_LAYER_TO_PREVIOUS:
         if( GetActiveLayer() > 0 )
         {
-            SetActiveLayer( GetActiveLayer() - 1 );
-            m_LayersManager->OnLayerSelected();
+            SetActiveLayer( GetActiveLayer() - 1, true );
             m_canvas->Refresh();
         }
         break;
@@ -238,8 +241,7 @@ bool GERBVIEW_FRAME::OnHotKey( wxDC* aDC, int aHotkeyCode, const wxPoint& aPosit
     case HK_SWITCH_LAYER_TO_NEXT:
         if( GetActiveLayer() < GERBER_DRAWLAYERS_COUNT - 1 )
         {
-            SetActiveLayer( GetActiveLayer() + 1 );
-            m_LayersManager->OnLayerSelected();
+            SetActiveLayer( GetActiveLayer() + 1, true );
             m_canvas->Refresh();
         }
         break;

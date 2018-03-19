@@ -907,9 +907,12 @@ void SCH_EDIT_FRAME::doUpdatePcb( const wxString& aUpdateOptions )
 
     exporter.Format( &formatter, GNL_ALL );
 
+    auto updateOptions = aUpdateOptions.ToStdString();
+    auto netlistString = formatter.GetString();
+    auto finalNetlist = updateOptions + "\n" + netlistString;
+
     // Now, send the "kicad" (s-expr) netlist to Pcbnew
-    Kiway().ExpressMail( FRAME_PCB, MAIL_SCH_PCB_UPDATE,
-        wxString::Format("%s\n%s", aUpdateOptions, formatter.GetString() ).ToStdString(), this );
+    Kiway().ExpressMail( FRAME_PCB, MAIL_SCH_PCB_UPDATE, finalNetlist, this );
 }
 
 
@@ -1471,14 +1474,14 @@ void SCH_EDIT_FRAME::UpdateTitle()
 
     if( GetScreen()->GetFileName() == m_DefaultSchematicFileName )
     {
-        title.Printf( L"Eeschema \u2014 %s", GetChars( GetScreen()->GetFileName() ) );
+        title.Printf( _( "Eeschema" ) + wxT( " \u2014 %s" ), GetChars( GetScreen()->GetFileName() ) );
     }
     else
     {
         wxString    fileName = Prj().AbsolutePath( GetScreen()->GetFileName() );
         wxFileName  fn = fileName;
 
-        title.Printf( L"Eeschema \u2014 %s [%s] \u2014 %s",
+        title.Printf( _( "Eeschema" ) + wxT( " \u2014 %s [%s] \u2014 %s" ),
                       GetChars( fn.GetName() ),
                       GetChars( m_CurrentSheet->PathHumanReadable() ),
                       GetChars( fn.GetPath() ) );
