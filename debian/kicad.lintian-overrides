@@ -7,10 +7,10 @@ kicad: binary-without-manpage usr/bin/_pcbnew.kiface
 kicad: binary-without-manpage usr/bin/_pl_editor.kiface
 # Lintian doesn't check that with much intelligence
 kicad: spelling-error-in-binary usr/lib/kicad/_pcbnew.kiface allows to allows one to
-kicad: spelling-error-in-binary usr/lib/python2.7/dist-packages/_pcbnew.*.so allows to allows one to
-kicad: spelling-error-in-binary usr/lib/kicad/*.kiface Allows to Allows one to
-kicad: spelling-error-in-binary usr/lib/kicad/*.kiface allow to allow one to
+kicad: spelling-error-in-binary usr/lib/python2.7/dist-packages/_pcbnew.*.so aCount account
 kicad: spelling-error-in-binary usr/lib/kicad/_eeschema.kiface VerticalY Vertically
 kicad: spelling-error-in-binary usr/lib/kicad/_pcbnew.kiface aCount account
 # KiCad upstream has no dev package currently nor intend to create one
 kicad: non-dev-pkg-with-shlib-symlink usr/lib/x86_64-linux-gnu/libkicad_3dsg.so.2.0.0 usr/lib/x86_64-linux-gnu/libkicad_3dsg.so
+# Related to the above override, we have no dedicated library package
+kicad: package-name-doesnt-match-sonames libkicad-3dsg2.0.0
