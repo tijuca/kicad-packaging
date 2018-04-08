@@ -80,6 +80,7 @@ Package: kicad
 Architecture: any-amd64 any-i386 arm64 armhf
 Depends:
  libngspice0,
+ python-wxgtk3.0 (>= 3.0.2.0+dfsg-7~),
  ${misc:Depends},
  ${python3:Depends},
  ${shlibs:Depends},
