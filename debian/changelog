@@ -1,3 +1,18 @@
+kicad (5.0.0~rc1+dfsg1+20180318-2) experimental; urgency=medium
+
+  * [7364bba] rebuild patch queue from patch-queue branch
+    + added patches:
+      fixes/fix-misspelled-Allows-to-Allows-one-to.patch
+      fixes/fix-misspelled-allows-to-allows-one-to.patch
+      fixes/fix-misspelled-an-other-another.patch
+  * [783a915] d/control: Build-Depend on libwxgtk3.0-gtk3-dev
+    + The wxwidgets3.0 package has introduced dedicated packages for GTK3, using
+      the new dev package on this so we get the correct GTK3 bindings.
+    (Closes: #895008)
+  * [756ff4d] debian/kicad.lintian-overrides: rework the entries
+
+ -- Carsten Schoenert <c.schoenert@t-online.de>  Sun, 08 Apr 2018 12:55:58 +0200
+
 kicad (5.0.0~rc1+dfsg1+20180318-1) experimental; urgency=medium
 
   * [fcfaee0] kicad-demos: adjusting B+R against previous kicad{-common} pkg
