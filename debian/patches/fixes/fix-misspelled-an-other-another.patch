@@ -1,0 +1,822 @@
+From: Carsten Schoenert <c.schoenert@t-online.de>
+Date: Sun, 8 Apr 2018 11:59:22 +0200
+Subject: fix misspelled 'an other' -> 'another'
+
+---
+ 3d-viewer/3d_canvas/eda_3d_canvas.cpp                    |  2 +-
+ .../c3d_render_createscene_ogl_legacy.cpp                |  2 +-
+ .../3d_render_raytracing/c3d_render_createscene.cpp      |  2 +-
+ .../3d_render_raytracing/c3d_render_raytracing.cpp       |  2 +-
+ Documentation/changelogs/CHANGELOG-2008.txt              |  2 +-
+ Documentation/changelogs/CHANGELOG-2009.txt              |  2 +-
+ common/draw_panel.cpp                                    |  4 ++--
+ common/kiway_player.cpp                                  |  2 +-
+ common/lib_id.cpp                                        |  2 +-
+ common/page_layout/page_layout_reader.cpp                |  2 +-
+ common/pgm_base.cpp                                      |  2 +-
+ common/tool/tool_dispatcher.cpp                          |  2 +-
+ eeschema/dialogs/dialog_edit_components_libid.cpp        |  6 +++---
+ eeschema/dialogs/dialog_print_using_printer.cpp          |  4 ++--
+ eeschema/edit_label.cpp                                  |  2 +-
+ eeschema/erc.cpp                                         |  4 ++--
+ eeschema/erc.h                                           |  4 ++--
+ eeschema/invoke_sch_dialog.h                             |  2 +-
+ eeschema/netlist_object.h                                |  5 +++--
+ eeschema/pinedit.cpp                                     |  2 +-
+ eeschema/sch_base_frame.h                                |  2 +-
+ eeschema/sch_edit_frame.cpp                              |  2 +-
+ eeschema/sch_edit_frame.h                                |  6 +++---
+ eeschema/sch_legacy_plugin.cpp                           |  2 +-
+ eeschema/sch_screen.cpp                                  |  6 +++---
+ eeschema/viewlib_frame.cpp                               |  2 +-
+ gerbview/files.cpp                                       |  2 +-
+ gerbview/gerbview_frame.h                                |  2 +-
+ include/bitmap_base.h                                    |  2 +-
+ include/class_drawpanel.h                                |  2 +-
+ include/dsnlexer.h                                       |  2 +-
+ include/undo_redo_container.h                            |  2 +-
+ pagelayout_editor/pl_editor_frame.h                      |  2 +-
+ pcbnew/class_board.cpp                                   | 16 ++++++++--------
+ pcbnew/connectivity_algo.h                               |  4 ++--
+ pcbnew/dialogs/dialog_copper_zones_base.fbp              |  2 +-
+ pcbnew/dialogs/dialog_design_rules.cpp                   |  2 +-
+ pcbnew/dialogs/dialog_export_vrml.cpp                    |  2 +-
+ pcbnew/dialogs/wizard_3DShape_Libs_downloader.cpp        |  2 +-
+ pcbnew/drc.h                                             |  4 ++--
+ pcbnew/drc_clearance_test_functions.cpp                  |  4 ++--
+ pcbnew/onrightclick.cpp                                  |  2 +-
+ pcbnew/pcb_edit_frame.cpp                                |  2 +-
+ pcbnew/pcbnew.cpp                                        |  2 +-
+ pcbnew/plot_board_layers.cpp                             |  2 +-
+ pcbnew/zones_by_polygon.cpp                              |  4 ++--
+ pcbnew/zones_functions_for_undo_redo.cpp                 |  4 ++--
+ 47 files changed, 71 insertions(+), 70 deletions(-)
+
+diff --git a/3d-viewer/3d_canvas/eda_3d_canvas.cpp b/3d-viewer/3d_canvas/eda_3d_canvas.cpp
+index 6f8af39..d583cda 100644
+--- a/3d-viewer/3d_canvas/eda_3d_canvas.cpp
++++ b/3d-viewer/3d_canvas/eda_3d_canvas.cpp
+@@ -39,7 +39,7 @@
+ #include <class_board.h>
+ #include "status_text_reporter.h"
+ #include <gl_context_mgr.h>
+-#include <profile.h>        // To use GetRunningMicroSecs or an other profiling utility
++#include <profile.h>        // To use GetRunningMicroSecs or another profiling utility
+ #include <bitmaps.h>
+ #include <hotkeys_basic.h>
+ #include <menus_helpers.h>
+diff --git a/3d-viewer/3d_rendering/3d_render_ogl_legacy/c3d_render_createscene_ogl_legacy.cpp b/3d-viewer/3d_rendering/3d_render_ogl_legacy/c3d_render_createscene_ogl_legacy.cpp
+index ca8b44c..eb935a6 100644
+--- a/3d-viewer/3d_rendering/3d_render_ogl_legacy/c3d_render_createscene_ogl_legacy.cpp
++++ b/3d-viewer/3d_rendering/3d_render_ogl_legacy/c3d_render_createscene_ogl_legacy.cpp
+@@ -35,7 +35,7 @@
+ #include "../../3d_fastmath.h"
+ #include <trigo.h>
+ #include <project.h>
+-#include <profile.h>        // To use GetRunningMicroSecs or an other profiling utility
++#include <profile.h>        // To use GetRunningMicroSecs or another profiling utility
+ 
+ 
+ void C3D_RENDER_OGL_LEGACY::add_object_to_triangle_layer( const CFILLEDCIRCLE2D * aFilledCircle,
+diff --git a/3d-viewer/3d_rendering/3d_render_raytracing/c3d_render_createscene.cpp b/3d-viewer/3d_rendering/3d_render_raytracing/c3d_render_createscene.cpp
+index 6c2f713..da53203 100644
+--- a/3d-viewer/3d_rendering/3d_render_raytracing/c3d_render_createscene.cpp
++++ b/3d-viewer/3d_rendering/3d_render_raytracing/c3d_render_createscene.cpp
+@@ -46,7 +46,7 @@
+ #include <class_module.h>
+ 
+ #include <base_units.h>
+-#include <profile.h>        // To use GetRunningMicroSecs or an other profiling utility
++#include <profile.h>        // To use GetRunningMicroSecs or another profiling utility
+ 
+ /**
+   * Scale convertion from 3d model units to pcb units
+diff --git a/3d-viewer/3d_rendering/3d_render_raytracing/c3d_render_raytracing.cpp b/3d-viewer/3d_rendering/3d_render_raytracing/c3d_render_raytracing.cpp
+index c906231..f257d49 100644
+--- a/3d-viewer/3d_rendering/3d_render_raytracing/c3d_render_raytracing.cpp
++++ b/3d-viewer/3d_rendering/3d_render_raytracing/c3d_render_raytracing.cpp
+@@ -36,7 +36,7 @@
+ #include "3d_fastmath.h"
+ #include "3d_math.h"
+ #include "../common_ogl/ogl_utils.h"
+-#include <profile.h>        // To use GetRunningMicroSecs or an other profiling utility
++#include <profile.h>        // To use GetRunningMicroSecs or another profiling utility
+ 
+ // This should be used in future for the function
+ // convertLinearToSRGB
+diff --git a/Documentation/changelogs/CHANGELOG-2008.txt b/Documentation/changelogs/CHANGELOG-2008.txt
+index d210585..c19727d 100644
+--- a/Documentation/changelogs/CHANGELOG-2008.txt
++++ b/Documentation/changelogs/CHANGELOG-2008.txt
+@@ -1128,7 +1128,7 @@ removed: (common/infospgm.cpp) is no longer needed
+     When a sheet is deleted by block delete. it is put in undo list.
+     It is really deleted after 10 changes (when the undo list is full).
+     At this time, the associated data is also deleted.
+-    If an other (not deleted) sheet shares the same data, this data is lost.
++    If another (not deleted) sheet shares the same data, this data is lost.
+     Need work to solve this problem and keep the undo/redo feature.
+ 
+ 
+diff --git a/Documentation/changelogs/CHANGELOG-2009.txt b/Documentation/changelogs/CHANGELOG-2009.txt
+index fbdae4f..d58d79f 100644
+--- a/Documentation/changelogs/CHANGELOG-2009.txt
++++ b/Documentation/changelogs/CHANGELOG-2009.txt
+@@ -281,7 +281,7 @@ Component library object and other minor improvements.
+     Speed up ZONE_CONTAINER::Copy method
+     Speed up NETINFO_ITEM* BOARD::FindNet( const wxString& aNetname ) by using afast binary search
+     Switch to kbool V2.1. This version solves others problems in zones calculations.
+-    Adding an other way to generate thermal shape; DO NOT USE: this is for kbool tests only
++    Adding another way to generate thermal shape; DO NOT USE: this is for kbool tests only
+     (I am thinking some bugs are remaining, so i am always working on kbool tests.
+     Klaas Olwerda is supporting me)
+ 
+diff --git a/common/draw_panel.cpp b/common/draw_panel.cpp
+index 104e373..ffa9b03 100644
+--- a/common/draw_panel.cpp
++++ b/common/draw_panel.cpp
+@@ -134,7 +134,7 @@ EDA_DRAW_PANEL::EDA_DRAW_PANEL( EDA_DRAW_FRAME* parent, int id,
+     m_ignoreMouseEvents = false;
+     // Be sure a mouse release button event will be ignored when creating the canvas
+     // if the mouse click was not made inside the canvas (can happen sometimes, when
+-    // launching an editor from a double click made in an other frame)
++    // launching an editor from a double click made in another frame)
+     m_ignoreNextLeftButtonRelease = true;
+ 
+     m_mouseCaptureCallback = NULL;
+@@ -770,7 +770,7 @@ void EDA_DRAW_PANEL::DrawGrid( wxDC* aDC )
+         org.y += KiROUND( gridSize.y );
+ 
+     // Use a pixel based draw to display grid.  There are a lot of calls, so the cost is
+-    // high and grid is slowly drawn on some platforms. An other way using blit transfert was used,
++    // high and grid is slowly drawn on some platforms. Another way using blit transfert was used,
+     // a long time ago, but it did not give very good results.
+     // The better way is highly dependent on the platform and the graphic card.
+     int xpos;
+diff --git a/common/kiway_player.cpp b/common/kiway_player.cpp
+index 9e7e572..17c9383 100644
+--- a/common/kiway_player.cpp
++++ b/common/kiway_player.cpp
+@@ -112,7 +112,7 @@ bool KIWAY_PLAYER::ShowModal( wxString* aResult, wxWindow* aResultantFocusWindow
+         // We do not want to disable top level windows which are child of the modal one,
+         // if they are enabled.
+         // An example is an aui toolbar which was moved
+-        // or a dialog or an other frame or miniframe opened by the modal one.
++        // or a dialog or another frame or miniframe opened by the modal one.
+         wxWindowList wlist = GetChildren();
+         std::vector<wxWindow*> enabledTopLevelWindows;
+ 
+diff --git a/common/lib_id.cpp b/common/lib_id.cpp
+index b5157aa..a2b64af 100644
+--- a/common/lib_id.cpp
++++ b/common/lib_id.cpp
+@@ -166,7 +166,7 @@ int LIB_ID::Parse( const UTF8& aId )
+         return partNdx;     // Error: no library item name.
+ 
+     // Be sure the item name is valid.
+-    // Some chars can be found in legacy files converted files from an other EDA tools.
++    // Some chars can be found in legacy files converted files from other EDA tools.
+     std::string fpname = aId.substr( partNdx, revNdx-partNdx );
+     ReplaceIllegalFileNameChars( &fpname, '_' );
+     SetLibItemName( UTF8( fpname ) );
+diff --git a/common/page_layout/page_layout_reader.cpp b/common/page_layout/page_layout_reader.cpp
+index 184eab4..98466e0 100644
+--- a/common/page_layout/page_layout_reader.cpp
++++ b/common/page_layout/page_layout_reader.cpp
+@@ -480,7 +480,7 @@ void PAGE_LAYOUT_READER_PARSER::parseGraphic( WORKSHEET_DATAITEM * aItem )
+             token = NextTok();
+         else
+         {
+-            // If an other token than T_LEFT is read here, this is an error
++            // If another token than T_LEFT is read here, this is an error
+             // however, due to a old bug in kicad, the token T_end can be found
+             // without T_LEFT in a very few .wks files (perhaps only one in a demo).
+             // So this ugly hack disables the error detection.
+diff --git a/common/pgm_base.cpp b/common/pgm_base.cpp
+index 9fe58d3..7d04fce 100644
+--- a/common/pgm_base.cpp
++++ b/common/pgm_base.cpp
+@@ -734,7 +734,7 @@ bool PGM_BASE::SetLanguage( bool first_time )
+ 
+     if( !first_time )
+     {
+-        // If we are here, the user has selected an other language.
++        // If we are here, the user has selected another language.
+         // Therefore the new prefered language name is stored in common config.
+         // Do NOT store the wxWidgets language Id, it can change between wxWidgets
+         // versions, for a given language
+diff --git a/common/tool/tool_dispatcher.cpp b/common/tool/tool_dispatcher.cpp
+index 26087b1..012ee4a 100644
+--- a/common/tool/tool_dispatcher.cpp
++++ b/common/tool/tool_dispatcher.cpp
+@@ -313,7 +313,7 @@ void TOOL_DISPATCHER::DispatchWxEvent( wxEvent& aEvent )
+ 
+     int type = aEvent.GetEventType();
+ 
+-    // Sometimes there is no window that has the focus (it happens when an other PCB_BASE_FRAME
++    // Sometimes there is no window that has the focus (it happens when another PCB_BASE_FRAME
+     // is opened and is iconized on Windows).
+     // In this case, gives the focus to the parent PCB_BASE_FRAME (for an obscure reason,
+     // when happens, the GAL canvas itself does not accept the focus)
+diff --git a/eeschema/dialogs/dialog_edit_components_libid.cpp b/eeschema/dialogs/dialog_edit_components_libid.cpp
+index c43be36..304f90e 100644
+--- a/eeschema/dialogs/dialog_edit_components_libid.cpp
++++ b/eeschema/dialogs/dialog_edit_components_libid.cpp
+@@ -24,7 +24,7 @@
+ 
+ /**
+  * @file eeschema/dialogs/dialog_edit_components_libid.cpp
+- * @brief Dialog to remap library id of components to an other library id
++ * @brief Dialog to remap library id of components to another library id
+  */
+ 
+ 
+@@ -81,9 +81,9 @@ public:
+  * DIALOG_EDIT_COMPONENTS_LIBID is a dialog to globally edit the LIB_ID of groups if components
+  * having the same initial LIB_ID.
+  * this is useful when you want:
+- *  to move a symbol from a symbol library to an other symbol library
++ *  to move a symbol from a symbol library to another symbol library
+  *  to change the nickname of a library
+- *  globally replace the symbol used by a group of components by an other symbol.
++ *  globally replace the symbol used by a group of components by another symbol.
+  */
+ class DIALOG_EDIT_COMPONENTS_LIBID : public DIALOG_EDIT_COMPONENTS_LIBID_BASE
+ {
+diff --git a/eeschema/dialogs/dialog_print_using_printer.cpp b/eeschema/dialogs/dialog_print_using_printer.cpp
+index cdbca98..7ddad85 100644
+--- a/eeschema/dialogs/dialog_print_using_printer.cpp
++++ b/eeschema/dialogs/dialog_print_using_printer.cpp
+@@ -274,7 +274,7 @@ void DIALOG_PRINT_USING_PRINTER::OnPrintPreview( wxCommandEvent& event )
+ 
+     // We use here wxPreviewFrame_WindowModal option to make the wxPrintPreview frame
+     // modal for its caller only.
+-    // An other reason is the fact when closing the frame without this option,
++    // another reason is the fact when closing the frame without this option,
+     // all top level frames are reenabled.
+     // With this option, only the parent is reenabled.
+     // Reenabling all top level frames should be made by the parent dialog.
+@@ -435,7 +435,7 @@ void SCH_PRINTOUT::DrawPage( SCH_SCREEN* aScreen )
+ 
+     // For an obscure reason, OffsetLogicalOrigin creates issues,
+     // under some circumstances, when yoffset is not always null
+-    // and changes from a page to an other page
++    // and changes from a page to another page
+     // This is only a workaround, not a fix
+     // see https://bugs.launchpad.net/kicad/+bug/1464773
+     // xoffset does not create issues.
+diff --git a/eeschema/edit_label.cpp b/eeschema/edit_label.cpp
+index 405615f..ee34a53 100644
+--- a/eeschema/edit_label.cpp
++++ b/eeschema/edit_label.cpp
+@@ -127,7 +127,7 @@ SCH_TEXT* SCH_EDIT_FRAME::CreateNewText( wxDC* aDC, int aType )
+ 
+ 
+ /*
+- * OnConvertTextType is a command event handler to change a text type to an other one.
++ * OnConvertTextType is a command event handler to change a text type to another one.
+  * The new text, label, hierarchical label, or global label is created from the old text
+  * The old text is deleted.
+  * A tricky case is when the 'old" text is being edited (i.e. moving)
+diff --git a/eeschema/erc.cpp b/eeschema/erc.cpp
+index 8fdee6f..4910c08 100644
+--- a/eeschema/erc.cpp
++++ b/eeschema/erc.cpp
+@@ -464,7 +464,7 @@ void TestOthersItems( NETLIST_OBJECT_LIST* aList,
+                 {
+                     /* This pin is not connected: for multiple part per
+                      * package, and duplicated pin,
+-                     * search for an other instance of this pin
++                     * search for another instance of this pin
+                      * this will be flagged only if all instances of this pin
+                      * are not connected
+                      * TODO test also if instances connected are connected to
+@@ -489,7 +489,7 @@ void TestOthersItems( NETLIST_OBJECT_LIST* aList,
+                             continue;
+ 
+                         // Same component and same pin. Do dot create error for this pin
+-                        // if the other pin is connected (i.e. if duplicate net has an other
++                        // if the other pin is connected (i.e. if duplicate net has another
+                         // item)
+                         if( (duplicate > 0)
+                           && ( aList->GetItemNet( duplicate ) ==
+diff --git a/eeschema/erc.h b/eeschema/erc.h
+index c60859b..3761377 100644
+--- a/eeschema/erc.h
++++ b/eeschema/erc.h
+@@ -53,8 +53,8 @@ extern const wxString CommentERC_V[];
+ #define ERCE_DUPLICATE_SHEET_NAME 1    // duplicate sheet names within a given sheet
+ #define ERCE_PIN_NOT_CONNECTED    2    // pin not connected and not no connect symbol
+ #define ERCE_PIN_NOT_DRIVEN       3    // pin connected to some others pins but no pin to drive it
+-#define ERCE_PIN_TO_PIN_WARNING   4    // pin connected to an other pin: warning level
+-#define ERCE_PIN_TO_PIN_ERROR     5    // pin connected to an other pin: error level
++#define ERCE_PIN_TO_PIN_WARNING   4    // pin connected to another pin: warning level
++#define ERCE_PIN_TO_PIN_ERROR     5    // pin connected to another pin: error level
+ #define ERCE_HIERACHICAL_LABEL    6    // mismatch between hierarchical labels and pins sheets
+ #define ERCE_NOCONNECT_CONNECTED  7    // a no connect symbol is connected to more than 1 pin
+ #define ERCE_GLOBLABEL            8    // global label not connected to any other global label
+diff --git a/eeschema/invoke_sch_dialog.h b/eeschema/invoke_sch_dialog.h
+index cd8f6d4..eb2aeb9 100644
+--- a/eeschema/invoke_sch_dialog.h
++++ b/eeschema/invoke_sch_dialog.h
+@@ -96,7 +96,7 @@ int InvokeDialogNetList( SCH_EDIT_FRAME* aCaller );
+ 
+ /**
+  * Run a dialog to modify the LIB_ID of components for instance when a symbol has
+- * moved from a symbol library to an other  symbol library
++ * moved from a symbol library to another  symbol library
+  * @return true if changes are made, false if no change
+  */
+ bool InvokeDialogEditComponentsLibId( SCH_EDIT_FRAME* aCaller );
+diff --git a/eeschema/netlist_object.h b/eeschema/netlist_object.h
+index c322b71..867c32c 100644
+--- a/eeschema/netlist_object.h
++++ b/eeschema/netlist_object.h
+@@ -389,8 +389,9 @@ public:
+      * Function TestforNonOrphanLabel
+      * Sheet labels are expected to be connected to a hierarchical label.
+      * Hierarchical labels are expected to be connected to a sheet label.
+-     * Global labels are expected to be not orphan (connected to at least one other global label.
+-     * this function tests the connection to an other suitable label
++     * Global labels are expected to be not orphan (connected to at least one
++     * other global label.
++     * This function tests the connection to another suitable label.
+      */
+     void TestforNonOrphanLabel( unsigned aNetItemRef, unsigned aStartNet );
+ 
+diff --git a/eeschema/pinedit.cpp b/eeschema/pinedit.cpp
+index ff39bcf..8a92397 100644
+--- a/eeschema/pinedit.cpp
++++ b/eeschema/pinedit.cpp
+@@ -253,7 +253,7 @@ void LIB_EDIT_FRAME::PlacePin()
+ 
+     LIB_PART*      part = GetCurPart();
+ 
+-    // Test for an other pin in same new position in other units:
++    // Test for another pin in same new position in other units:
+     bool     ask_for_pin = true;
+ 
+     for( LIB_PIN* pin = part->GetNextPin(); pin; pin = part->GetNextPin( pin ) )
+diff --git a/eeschema/sch_base_frame.h b/eeschema/sch_base_frame.h
+index 1df5056..3578179 100644
+--- a/eeschema/sch_base_frame.h
++++ b/eeschema/sch_base_frame.h
+@@ -245,7 +245,7 @@ protected:
+     /**
+      * Open the library viewer only to browse library contents.
+      * If the viewed is already opened from this, raise the viewer
+-     * If the viewed is already opened from an other window, close it and reopen
++     * If the viewed is already opened from another window, close it and reopen
+      */
+     void OnOpenLibraryViewer( wxCommandEvent& event );
+ 
+diff --git a/eeschema/sch_edit_frame.cpp b/eeschema/sch_edit_frame.cpp
+index 1a7a0d3..2033829 100644
+--- a/eeschema/sch_edit_frame.cpp
++++ b/eeschema/sch_edit_frame.cpp
+@@ -1283,7 +1283,7 @@ void SCH_EDIT_FRAME::OnRemapSymbols( wxCommandEvent& event )
+ 
+ // This method is not the same as OnRemapSymbols.
+ // It allows renaming the lib id of groups of components when a symbol
+-// has moved from a library to an other library.
++// has moved from a library to another library.
+ // For instance to rename libname1::mysymbol to libname2::mysymbol
+ // or any other lib id name
+ void SCH_EDIT_FRAME::OnEditComponentSymbolsId( wxCommandEvent& event )
+diff --git a/eeschema/sch_edit_frame.h b/eeschema/sch_edit_frame.h
+index d5239d2..af7dadc 100644
+--- a/eeschema/sch_edit_frame.h
++++ b/eeschema/sch_edit_frame.h
+@@ -900,7 +900,7 @@ private:
+ 
+     // a helper function to run the dialog that allows to rename the symbol library Id of
+     // groups of components, for instance after a symbol has moved from a library to
+-    // an other library
++    // another library
+     void OnEditComponentSymbolsId( wxCommandEvent& aEvent );
+     void OnPreferencesOptions( wxCommandEvent& event );
+     void OnConfigurePaths( wxCommandEvent& aEvent );
+@@ -998,7 +998,7 @@ private:
+     void ChangeTextOrient( SCH_TEXT* aTextItem );
+ 
+     /**
+-     * Command event handler to change a text type to an other one.
++     * Command event handler to change a text type to another one.
+      *
+      * The new text, label, hierarchical label, or global label is created from the old text
+      * and the old text object is deleted.
+@@ -1008,7 +1008,7 @@ private:
+     /**
+      * Creates a new segment ( WIRE, BUS ) or terminates the current segment in progress.
+      *
+-     * If the end of the current segment is on an other segment, place a junction if needed
++     * If the end of the current segment is on a different segment, place a junction if needed
+      * and terminates the command.  If the end of the current segment is on a pin, terminate
+      * the command.  In all other cases starts a new segment.
+      */
+diff --git a/eeschema/sch_legacy_plugin.cpp b/eeschema/sch_legacy_plugin.cpp
+index 3bce659..8e12fdd 100644
+--- a/eeschema/sch_legacy_plugin.cpp
++++ b/eeschema/sch_legacy_plugin.cpp
+@@ -3754,7 +3754,7 @@ void SCH_LEGACY_PLUGIN_CACHE::saveField( LIB_FIELD* aField,
+     /* Save field name, if necessary
+      * Field name is saved only if it is not the default name.
+      * Just because default name depends on the language and can change from
+-     * a country to an other
++     * a country to another
+      */
+     wxString defName = TEMPLATE_FIELDNAME::GetDefaultFieldName( id );
+ 
+diff --git a/eeschema/sch_screen.cpp b/eeschema/sch_screen.cpp
+index aefc6c2..2f502b7 100644
+--- a/eeschema/sch_screen.cpp
++++ b/eeschema/sch_screen.cpp
+@@ -777,7 +777,7 @@ void SCH_SCREEN::SelectBlockItems()
+                 // this selected wire has no ends in block.
+                 // But it was selected (because it intersects the selecting area),
+                 // so we must keep it selected and select items connected to it
+-                // Note: an other option could be: remove it from drag list
++                // Note: another option could be: remove it from drag list
+                 item->SetFlags( SELECTED | SKIP_STRUCT );
+                 addConnections( item );
+             }
+@@ -1145,7 +1145,7 @@ int SCH_SCREEN::GetConnection( const wxPoint& aPosition, PICKED_ITEMS_LIST& aLis
+ 
+             // when tmp != NULL, segment is a new candidate:
+             // put it in deleted list if
+-            // the start point is not connected to an other item (like pin)
++            // the start point is not connected to another item (like pin)
+             if( tmp && !CountConnectedItems( segment->GetStartPoint(), true ) )
+                 noconnect = true;
+ 
+@@ -1169,7 +1169,7 @@ int SCH_SCREEN::GetConnection( const wxPoint& aPosition, PICKED_ITEMS_LIST& aLis
+ 
+             // when tmp != NULL, segment is a new candidate:
+             // put it in deleted list if
+-            // the end point is not connected to an other item (like pin)
++            // the end point is not connected to another item (like pin)
+             if( tmp && !CountConnectedItems( segment->GetEndPoint(), true ) )
+                 noconnect = true;
+ 
+diff --git a/eeschema/viewlib_frame.cpp b/eeschema/viewlib_frame.cpp
+index 58959f1..0be1c6b 100644
+--- a/eeschema/viewlib_frame.cpp
++++ b/eeschema/viewlib_frame.cpp
+@@ -559,7 +559,7 @@ void LIB_VIEW_FRAME::SetSelectedLibrary( const wxString& aLibraryName )
+ 
+     // Ensure the corresponding line in m_libList is selected
+     // (which is not necessary the case if SetSelectedLibrary is called
+-    // by an other caller than ClickOnLibList.
++    // by another caller than ClickOnLibList.
+     m_libList->SetStringSelection( m_libraryName, true );
+ }
+ 
+diff --git a/gerbview/files.cpp b/gerbview/files.cpp
+index ef01d2d..56ba0d6 100644
+--- a/gerbview/files.cpp
++++ b/gerbview/files.cpp
+@@ -484,7 +484,7 @@ bool GERBVIEW_FRAME::unarchiveFiles( const wxString& aFullFileName, REPORTER* aR
+         // The archive contains Gerber and/or Excellon drill files. Use the right loader.
+         // However it can contain a few other files (reports, pdf files...),
+         // which will be skipped.
+-        // Gerber files ext is usually "gbr", but can be also an other value, starting by "g"
++        // Gerber files ext is usually "gbr", but can be also another value, starting by "g"
+         // old gerber files ext from kicad is .pho
+         // drill files do not have a well defined ext
+         // It is .drl in kicad, but .txt in Altium for instance
+diff --git a/gerbview/gerbview_frame.h b/gerbview/gerbview_frame.h
+index 06927d1..9f90e51 100644
+--- a/gerbview/gerbview_frame.h
++++ b/gerbview/gerbview_frame.h
+@@ -377,7 +377,7 @@ public:
+     /**
+      * Function GetNegativeItemsColor
+      * @return the color of negative items.
+-     * This is usually the background color, but can be an other color
++     * This is usually the background color, but can be another color
+      * in order to see negative objects
+      */
+     COLOR4D GetNegativeItemsColor();
+diff --git a/include/bitmap_base.h b/include/bitmap_base.h
+index af9f320..973d423 100644
+--- a/include/bitmap_base.h
++++ b/include/bitmap_base.h
+@@ -34,7 +34,7 @@ class PLOTTER;
+ 
+ /**
+  * This class handle bitmap images in KiCad.
+- * It is not intended to be used alone, but inside an other class,
++ * It is not intended to be used alone, but inside another class,
+  * so all methods are protected ( or private )
+  * It is used in SCH_BITMAP class and WS_DRAW_ITEM_BITMAP (and other in future)
+  *
+diff --git a/include/class_drawpanel.h b/include/class_drawpanel.h
+index c8f9a3e..cbd0fec 100644
+--- a/include/class_drawpanel.h
++++ b/include/class_drawpanel.h
+@@ -112,7 +112,7 @@ private:
+     END_MOUSE_CAPTURE_CALLBACK m_endMouseCaptureCallback;
+ 
+     /// useful to avoid false start block in certain cases
+-    /// (like switch from a sheet to an other sheet
++    /// (like switch from a sheet to another sheet
+     /// >= 0 (or >= n) if a block can start
+     int     m_canStartBlock;
+ 
+diff --git a/include/dsnlexer.h b/include/dsnlexer.h
+index 1dc3f8e..62ab978 100644
+--- a/include/dsnlexer.h
++++ b/include/dsnlexer.h
+@@ -219,7 +219,7 @@ public:
+      * Useable only for DSN lexers which share the same LINE_READER
+      * Synchronizes the pointers handling the data read by the LINE_READER
+      * Allows 2 DNSLEXER to share the same current line, when switching from a
+-     * DNSLEXER to an other DNSLEXER
++     * DNSLEXER to another DNSLEXER
+      * @param aLexer = the model
+      * @return true if the sync can be made ( at least the same line reader )
+      */
+diff --git a/include/undo_redo_container.h b/include/undo_redo_container.h
+index 385b544..79d56ed 100644
+--- a/include/undo_redo_container.h
++++ b/include/undo_redo_container.h
+@@ -90,7 +90,7 @@ private:
+                                         * edited item. */
+     KICAD_T        m_pickedItemType;   /* type of schematic or board item that is concerned */
+ 
+-    EDA_ITEM*      m_link;             /* Pointer on an other item. Used in undo redo command
++    EDA_ITEM*      m_link;             /* Pointer on another item. Used in undo redo command
+                                         * used when a duplicate exists i.e. when an item is
+                                         * modified, and the copy of initial item exists (the
+                                         * duplicate) m_Item points the duplicate (i.e the old
+diff --git a/pagelayout_editor/pl_editor_frame.h b/pagelayout_editor/pl_editor_frame.h
+index f531283..ae562d8 100644
+--- a/pagelayout_editor/pl_editor_frame.h
++++ b/pagelayout_editor/pl_editor_frame.h
+@@ -178,7 +178,7 @@ public:
+ 
+     /**
+      * Page layout editor can show the title block using a page number
+-     * 1 or an other number.
++     * 1 or another number.
+      * This is because some items can be shown (or not) only on page 1
+      * (a feature  which look like word processing option
+      * "page 1 differs from other pages".
+diff --git a/pcbnew/class_board.cpp b/pcbnew/class_board.cpp
+index c5486d8..fd714cb 100644
+--- a/pcbnew/class_board.cpp
++++ b/pcbnew/class_board.cpp
+@@ -407,8 +407,8 @@ void BOARD::chainMarkedSegments( wxPoint aPosition, const LSET& aLayerSet, TRACK
+      * on other layers and they change the layer mask.  They can be a track
+      * end or not.  They will be analyzer later and vias on terminal points
+      * of the track will be considered as part of this track if they do not
+-     * connect segments of another track together and will be considered as
+-     * part of an other track when removing the via, the segments of that other
++     * connect segments of a other track together and will be considered as
++     * part of a other track when removing the via, the segments of that other
+      * track are disconnected.
+      */
+     for( ; ; )
+@@ -1920,16 +1920,16 @@ TRACK* BOARD::MarkTrace( TRACK*  aTrace, int* aCount,
+             continue;
+ 
+         /* If a track is found, this via connects also other segments of
+-         * another track.  This case happens when a via ends the selected
++         * the other track.  This case happens when a via ends the selected
+          * track but must we consider this via is on the selected track, or
+-         * on another track.
++         * on a other track.
+          * (this is important when selecting a track for deletion: must this
+          * via be deleted or not?)
+          * We consider this via to be on our track if other segments connected
+          * to this via remain connected when removing this via.
+          * We search for all other segments connected together:
+          * if they are on the same layer, then the via is on the selected track;
+-         * if they are on different layers, the via is on another track.
++         * if they are on different layers, the via is on a other track.
+          */
+         LAYER_NUM layer = track->GetLayer();
+ 
+@@ -1937,8 +1937,8 @@ TRACK* BOARD::MarkTrace( TRACK*  aTrace, int* aCount,
+         {
+             if( layer != track->GetLayer() )
+             {
+-                // The via connects segments of another track: it is removed
+-                // from list because it is member of another track
++                // The via connects segments of a other track: it is removed
++                // from list because it is member of a other track
+                 via->SetState( BUSY, false );
+                 break;
+             }
+@@ -1990,7 +1990,7 @@ TRACK* BOARD::MarkTrace( TRACK*  aTrace, int* aCount,
+         D_PAD * pad_on_end = GetPad( track->GetEnd(), layer_set );
+ 
+         // a segment fully inside a pad does not contribute to the track len
+-        // (an other track end inside this pad will contribute to this lenght)
++        // (another track end inside this pad will contribute to this lenght)
+         if( pad_on_start && ( pad_on_start == pad_on_end ) )
+             continue;
+ 
+diff --git a/pcbnew/connectivity_algo.h b/pcbnew/connectivity_algo.h
+index 8353a09..2c89d0f 100644
+--- a/pcbnew/connectivity_algo.h
++++ b/pcbnew/connectivity_algo.h
+@@ -125,9 +125,9 @@ public:
+      * has meaning only for tracks and vias.
+      * @return true if this anchor is dangling
+      * The anchor point is dangling if the parent is a track
+-     * and this anchor point is not connected to an other item
++     * and this anchor point is not connected to another item
+      * ( track, vas pad or zone) or if the parent is a via and this anchor point
+-     * is connected to only one track and not to an other item
++     * is connected to only one track and not to another item
+      */
+     bool IsDangling() const;
+ 
+diff --git a/pcbnew/dialogs/dialog_copper_zones_base.fbp b/pcbnew/dialogs/dialog_copper_zones_base.fbp
+index 3871abd..621b33b 100644
+--- a/pcbnew/dialogs/dialog_copper_zones_base.fbp
++++ b/pcbnew/dialogs/dialog_copper_zones_base.fbp
+@@ -2431,7 +2431,7 @@
+                                         <property name="style"></property>
+                                         <property name="subclass"></property>
+                                         <property name="toolbar_pane">0</property>
+-                                        <property name="tooltip">Zones are filled by priority level, level 3 has higher priority than level 2.&#x0A;When a zone is inside an other zone:&#x0A;* If its priority is higher, its outlines are removed from the other zone.&#x0A;* If its priority is equal, a DRC error is set.</property>
++                                        <property name="tooltip">Zones are filled by priority level, level 3 has higher priority than level 2.&#x0A;When a zone is inside another zone:&#x0A;* If its priority is higher, its outlines are removed from the other zone.&#x0A;* If its priority is equal, a DRC error is set.</property>
+                                         <property name="window_extra_style"></property>
+                                         <property name="window_name"></property>
+                                         <property name="window_style"></property>
+diff --git a/pcbnew/dialogs/dialog_design_rules.cpp b/pcbnew/dialogs/dialog_design_rules.cpp
+index a858687..e420907 100644
+--- a/pcbnew/dialogs/dialog_design_rules.cpp
++++ b/pcbnew/dialogs/dialog_design_rules.cpp
+@@ -576,7 +576,7 @@ void DIALOG_DESIGN_RULES::CopyRulesListToBoard()
+ 
+         if( !m_BrdSettings->m_NetClasses.Add( nc ) )
+         {
+-            // this netclass cannot be added because an other netclass with the same name exists
++            // this netclass cannot be added because another netclass with the same name exists
+             // Should not occur because OnAddNetclassClick() tests for existing NetClass names
+             wxString msg;
+             msg.Printf( wxT( "CopyRulesListToBoard(): The NetClass \"%s\" already exists. Skip" ),
+diff --git a/pcbnew/dialogs/dialog_export_vrml.cpp b/pcbnew/dialogs/dialog_export_vrml.cpp
+index 2e4cd0a..7119a45 100644
+--- a/pcbnew/dialogs/dialog_export_vrml.cpp
++++ b/pcbnew/dialogs/dialog_export_vrml.cpp
+@@ -191,7 +191,7 @@ void PCB_EDIT_FRAME::OnExportVRML( wxCommandEvent& event )
+     static wxString last_vrmlName;  // the last wrml file name built
+ 
+     // If the board name has changed since the last export,
+-    // do not use the old path, initialized by an other board
++    // do not use the old path, initialized by another board
+     if( last_brdName.IsEmpty() || last_brdName != GetBoard()->GetFileName() )
+     {
+         last_brdName = GetBoard()->GetFileName();
+diff --git a/pcbnew/dialogs/wizard_3DShape_Libs_downloader.cpp b/pcbnew/dialogs/wizard_3DShape_Libs_downloader.cpp
+index cd71778..cb28c53 100644
+--- a/pcbnew/dialogs/wizard_3DShape_Libs_downloader.cpp
++++ b/pcbnew/dialogs/wizard_3DShape_Libs_downloader.cpp
+@@ -110,7 +110,7 @@ WIZARD_3DSHAPE_LIBS_DOWNLOADER::WIZARD_3DSHAPE_LIBS_DOWNLOADER( wxWindow* aParen
+     // and not fully visible.
+     // Forcing deselection does not work, at least on W7 with wxWidgets 3.0.2
+     // So (and also because m_textCtrlGithubURL and m_downloadDir are rarely modified
+-    // the focus is given to an other widget.
++    // the focus is given to another widget.
+     m_hyperlinkGithubKicad->SetFocus();
+ 
+     Connect( wxEVT_RADIOBUTTON, wxCommandEventHandler( WIZARD_3DSHAPE_LIBS_DOWNLOADER::OnSourceCheck ), NULL, this );
+diff --git a/pcbnew/drc.h b/pcbnew/drc.h
+index 663f2a8..9d78af5 100644
+--- a/pcbnew/drc.h
++++ b/pcbnew/drc.h
+@@ -471,11 +471,11 @@ public:
+      * created if it is not already in existence.
+      *
+      * @param aParent is the parent window for wxWidgets. Usually the PCB editor frame
+-     * but can be an other dialog
++     * but can be another dialog
+      * if aParent == NULL (default), the parent will be the PCB editor frame
+      * and the dialog will be not modal (just float on parent
+      * if aParent is specified, the dialog will be modal.
+-     * The modal mode is mandatory if the dialog is created from an other dialog, not
++     * The modal mode is mandatory if the dialog is created from another dialog, not
+      * from the PCB editor frame
+      */
+     void ShowDRCDialog( wxWindow* aParent = NULL );
+diff --git a/pcbnew/drc_clearance_test_functions.cpp b/pcbnew/drc_clearance_test_functions.cpp
+index 2288cd3..2c0f94c 100644
+--- a/pcbnew/drc_clearance_test_functions.cpp
++++ b/pcbnew/drc_clearance_test_functions.cpp
+@@ -301,7 +301,7 @@ bool DRC::doTrackDrc( TRACK* aRefSeg, TRACK* aStart, bool testPads )
+         {
+             D_PAD* pad = pads[ii];
+ 
+-            /* No problem if pads are on an other layer,
++            /* No problem if pads are on another layer,
+              * But if a drill hole exists	(a pad on a single layer can have a hole!)
+              * we must test the hole
+              */
+@@ -439,7 +439,7 @@ bool DRC::doTrackDrc( TRACK* aRefSeg, TRACK* aStart, bool testPads )
+ 
+         /*	We have changed axis:
+          *  the reference segment is Horizontal.
+-         *  3 cases : the segment to test can be parallel, perpendicular or have an other direction
++         *  3 cases : the segment to test can be parallel, perpendicular or have another direction
+          */
+         if( segStartPoint.y == segEndPoint.y ) // parallel segments
+         {
+diff --git a/pcbnew/onrightclick.cpp b/pcbnew/onrightclick.cpp
+index 1502af7..7ccf0f7 100644
+--- a/pcbnew/onrightclick.cpp
++++ b/pcbnew/onrightclick.cpp
+@@ -632,7 +632,7 @@ void PCB_EDIT_FRAME::createPopupMenuForTracks( TRACK* Track, wxMenu* PopMenu )
+         }
+     }
+ 
+-    // Allows switching to an other track/via size when routing
++    // Allows switching to another track/via size when routing
+     AddMenuItem( PopMenu, Append_Track_Width_List( GetBoard() ), ID_POPUP_PCB_SELECT_WIDTH,
+                  _( "Select Track Width" ), KiBitmap( width_track_xpm ) );
+ 
+diff --git a/pcbnew/pcb_edit_frame.cpp b/pcbnew/pcb_edit_frame.cpp
+index cf62e3d..285f30d 100644
+--- a/pcbnew/pcb_edit_frame.cpp
++++ b/pcbnew/pcb_edit_frame.cpp
+@@ -1272,7 +1272,7 @@ void PCB_EDIT_FRAME::OnUpdatePCBFromSch( wxCommandEvent& event )
+ 
+             frame->OpenProjectFiles( std::vector<wxString>( 1, schfn.GetFullPath() ) );
+             // Because the schematic editor frame is not on screen, iconize it:
+-            // However, an other valid option is to do not iconize the schematic editor frame
++            // However, another valid option is to do not iconize the schematic editor frame
+             // and show it
+             frame->Iconize( true );
+             // we show the schematic editor frame, because do not show is seen as
+diff --git a/pcbnew/pcbnew.cpp b/pcbnew/pcbnew.cpp
+index a1e3f3e..5c7aeea 100644
+--- a/pcbnew/pcbnew.cpp
++++ b/pcbnew/pcbnew.cpp
+@@ -220,7 +220,7 @@ static bool scriptingSetup()
+     kipython = fn.GetPath();
+ 
+     // If our python install is existing inside kicad, use it
+-    // Note: this is usefull only when an other python version is installed
++    // Note: this is usefull only when another python version is installed
+     if( wxDirExists( kipython ) )
+     {
+         // clear any PYTHONPATH and PYTHONHOME env var definition: the default
+diff --git a/pcbnew/plot_board_layers.cpp b/pcbnew/plot_board_layers.cpp
+index d71ec2a..265ea24 100644
+--- a/pcbnew/plot_board_layers.cpp
++++ b/pcbnew/plot_board_layers.cpp
+@@ -1046,7 +1046,7 @@ PLOTTER* StartPlotBoard( BOARD *aBoard, PCB_PLOT_PARAMS *aPlotOpts,
+         HPGL_plotter = new HPGL_PLOTTER();
+ 
+         /* HPGL options are a little more convoluted to compute, so
+-           they're split in an other function */
++           they're split in another function */
+         ConfigureHPGLPenSizes( HPGL_plotter, aPlotOpts );
+         plotter = HPGL_plotter;
+         break;
+diff --git a/pcbnew/zones_by_polygon.cpp b/pcbnew/zones_by_polygon.cpp
+index 598d6f7..b999e24 100644
+--- a/pcbnew/zones_by_polygon.cpp
++++ b/pcbnew/zones_by_polygon.cpp
+@@ -697,7 +697,7 @@ int PCB_EDIT_FRAME::Begin_Zone( wxDC* DC )
+             // PCB_EDIT_FRAME::SetCurItem() calls DisplayInfo().
+             GetScreen()->SetCurItem( NULL );
+             DisplayErrorMessage( this,
+-                          _( "DRC error: this start point is inside or too close an other area" ) );
++                          _( "DRC error: this start point is inside or too close another area" ) );
+             return 0;
+         }
+ 
+@@ -762,7 +762,7 @@ bool PCB_EDIT_FRAME::End_Zone( wxDC* DC )
+         if( Settings().m_legacyDrcOn && m_drc->Drc( zone, icorner ) == BAD_DRC )      // we can't validate the closing edge
+         {
+             DisplayErrorMessage( this,
+-                          _( "DRC error: closing this area creates a DRC error with an other area" ) );
++                          _( "DRC error: closing this area creates a DRC error with another area" ) );
+             m_canvas->MoveCursorToCrossHair();
+             return false;
+         }
+diff --git a/pcbnew/zones_functions_for_undo_redo.cpp b/pcbnew/zones_functions_for_undo_redo.cpp
+index 97b02cb..b100a51 100644
+--- a/pcbnew/zones_functions_for_undo_redo.cpp
++++ b/pcbnew/zones_functions_for_undo_redo.cpp
+@@ -183,7 +183,7 @@ int SaveCopyOfZones( PICKED_ITEMS_LIST& aPickList, BOARD* aPcb, int aNetCode, LA
+  *          its status becomes UR_DELETED
+  *          the aAuxiliaryList corresponding picker is removed (if not found : set an error)
+  *  >> if the picked zone was flagged as UR_NEW, and was after deleted ,
+- *  perhaps combined with an other zone  (i.e. not found in board list):
++ *  perhaps combined with another zone  (i.e. not found in board list):
+  *          the picker is removed
+  *          the zone itself if really deleted
+  *          the aAuxiliaryList corresponding picker is removed (if not found : set an error)
+@@ -261,7 +261,7 @@ void UpdateCopyOfZonesList( PICKED_ITEMS_LIST& aPickList,
+                 {
+                     DBG( printf(
+                         "UpdateCopyOfZonesList(): item not found in aAuxiliaryList,"
+-                        "combined with an other zone\n" ) );
++                        "combined with another zone\n" ) );
+                 }
+                 break;
+             }
