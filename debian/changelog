@@ -1,3 +1,19 @@
+kicad (5.0.0~rc1+dfsg1+20180318-3) experimental; urgency=medium
+
+  * [35b932c] kicad: adding versioned Depends for python-wxgtk3.0
+    + To get sure users get a valid combination of python-wxgtk3.0 and
+      libwxgtk3.0-gtk3-0v5 adding strict version dependency on python-wxgtk3.0.
+  * [866cd63] d/README.Debian: update README file
+    + Write down some additional information about the problems with the
+      Modern Toolset in combination with Wayland that can happen. In some
+      circumstances the usage of Pcbnew or Gerbview in a Wayland environment
+      might cause crashes of KiCad or even the Wayland session.
+  * [935f451] debian/rules: update the DEB_KICAD_CMAKE_OPTS variable
+    + Enable the Python action plugin interface to see how this is going, we
+      might see new problems related to the wxwidgets framework and GTK2/GTK3.
+
+ -- Carsten Schoenert <c.schoenert@t-online.de>  Tue, 10 Apr 2018 18:28:27 +0200
+
 kicad (5.0.0~rc1+dfsg1+20180318-2) experimental; urgency=medium
 
   * [7364bba] rebuild patch queue from patch-queue branch
