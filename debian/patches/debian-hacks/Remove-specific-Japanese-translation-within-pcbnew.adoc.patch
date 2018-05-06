@@ -1,0 +1,26 @@
+From: Carsten Schoenert <c.schoenert@t-online.de>
+Date: Fri, 25 May 2018 19:48:40 +0200
+Subject: Remove specific Japanese translation within pcbnew.adoc
+
+The current texlive-xetex package provokes a build failure within the
+Pcbnew PDF based documentation.
+We remove this specific source for now so we get at least successful
+packages for kicad-doc-*.
+---
+ doc/src/pcbnew/po/ja.po | 3 ---
+ 1 file changed, 3 deletions(-)
+
+diff --git a/doc/src/pcbnew/po/ja.po b/doc/src/pcbnew/po/ja.po
+index 60cc711..17ff418 100644
+--- a/doc/src/pcbnew/po/ja.po
++++ b/doc/src/pcbnew/po/ja.po
+@@ -5744,9 +5744,6 @@ msgid ""
+ "`Page Up`, `Page Down` and `Space bar`). The `Escape` key generally cancels "
+ "an operation in progress."
+ msgstr ""
+-"キーボード（ファンクションキー `F1`, `F2`, `F3`, `F4`, `Shift`, `Delete`, `"
+-"+`, `-`, `Page Up`, `Page Down` 及び `スペース バー`）。`エスケープ` キーは、"
+-"一般的に進行中の操作を取り消します。"
+ 
+ #. type: Plain text
+ #: pcbnew_general_operations.adoc:27

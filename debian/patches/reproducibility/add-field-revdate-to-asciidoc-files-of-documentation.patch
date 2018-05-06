@@ -21,7 +21,7 @@ with the date from the changelog file.
  11 files changed, 11 insertions(+)
 
 diff --git a/doc/src/cvpcb/cvpcb.adoc b/doc/src/cvpcb/cvpcb.adoc
-index 139467b..9eb9f08 100644
+index 036b644..bd834a5 100644
 --- a/doc/src/cvpcb/cvpcb.adoc
 +++ b/doc/src/cvpcb/cvpcb.adoc
 @@ -1,5 +1,6 @@
@@ -43,7 +43,7 @@ index 9e34301..ba839e3 100644
  :ascii-ids:
  
 diff --git a/doc/src/eeschema/eeschema.adoc b/doc/src/eeschema/eeschema.adoc
-index bf37565..df32201 100644
+index 22db1ef..a440c6f 100644
 --- a/doc/src/eeschema/eeschema.adoc
 +++ b/doc/src/eeschema/eeschema.adoc
 @@ -1,5 +1,6 @@
@@ -54,7 +54,7 @@ index bf37565..df32201 100644
  :ascii-ids:
  
 diff --git a/doc/src/gerbview/gerbview.adoc b/doc/src/gerbview/gerbview.adoc
-index 1be8bfe..1e974f2 100644
+index c093ce1..4987f09 100644
 --- a/doc/src/gerbview/gerbview.adoc
 +++ b/doc/src/gerbview/gerbview.adoc
 @@ -1,5 +1,6 @@
@@ -65,7 +65,7 @@ index 1be8bfe..1e974f2 100644
  :ascii-ids:
  
 diff --git a/doc/src/getting_started_in_kicad/getting_started_in_kicad.adoc b/doc/src/getting_started_in_kicad/getting_started_in_kicad.adoc
-index 98fc8b6..31a8702 100644
+index ce6f254..e7fd254 100644
 --- a/doc/src/getting_started_in_kicad/getting_started_in_kicad.adoc
 +++ b/doc/src/getting_started_in_kicad/getting_started_in_kicad.adoc
 @@ -1,5 +1,6 @@
@@ -120,7 +120,7 @@ index 3f229e6..332bc52 100644
  :ascii-ids:
  
 diff --git a/doc/src/pl_editor/pl_editor.adoc b/doc/src/pl_editor/pl_editor.adoc
-index d27a65a..2af44d6 100644
+index 0cee760..d72107c 100644
 --- a/doc/src/pl_editor/pl_editor.adoc
 +++ b/doc/src/pl_editor/pl_editor.adoc
 @@ -1,5 +1,6 @@
