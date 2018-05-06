@@ -54,7 +54,6 @@ Build-Depends:
  po4a,
  python-all,
  python-dev,
- python-wxgtk3.0-dev,
  source-highlight,
  swig,
  texlive-fonts-extra,
