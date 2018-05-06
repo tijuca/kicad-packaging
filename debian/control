@@ -46,7 +46,7 @@ Build-Depends:
  libterm-readkey-perl,
  libtext-wrapi18n-perl,
  libunicode-linebreak-perl,
- libwxgtk3.0-gtk3-dev,
+ libwxgtk3.0-dev,
  libxml2-utils,
  lmodern,
  pandoc,
