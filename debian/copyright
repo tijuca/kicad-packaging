@@ -1,7 +1,13 @@
 Format: https://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
 Upstream-Name: kicad
-Source: see file get-kicad.sh; lp:kicad/4.0; https://github.com/KiCad/kicad-doc;
- https://github.com/KiCad/kicad-i18n
+Source: lp:kicad/4.0 or https://github.com/KiCad/kicad-source-mirror
+ https://github.com/KiCad/kicad-doc
+ https://github.com/KiCad/kicad-i18qn
+Comment: The source contains two PDF files were no source is available for
+ ./pcb_calculator/docs/tracks_width_thickness.pdf
+ ./pcb_calculator/docs/tracks_width_formulas.pdf
+ We filter them out while we importing the kicad_$(version).orig.tar.xz to
+ get a source packages that is complying with the DFSG.
 
 Files: *
 Copyright: (C) 2015-2018 KiCad Developers <kicad-developers@lists.launchpad.net>
